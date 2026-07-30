@@ -44,9 +44,6 @@ python -m venv .venv
 python -m pip install -r requirements.txt
 ```
 
-当前工作区已经创建 `.venv` 并安装好依赖。根目录 `app.py` 会自动切换到该虚拟环境，
-日常运行不需要手动激活。
-
 如果以后需要重建环境，而当前网络无法访问 PyPI 官方源，可使用：
 
 ```powershell

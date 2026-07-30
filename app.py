@@ -2,25 +2,11 @@ from __future__ import annotations
 
 import asyncio
 import json
-import subprocess
 import sys
 from pathlib import Path
 
 
 PROJECT_ROOT = Path(__file__).resolve().parent
-VENV_PYTHON = PROJECT_ROOT / ".venv" / "Scripts" / "python.exe"
-
-# 自动使用项目虚拟环境。
-if (
-    VENV_PYTHON.exists()
-    and Path(sys.executable).resolve() != VENV_PYTHON.resolve()
-):
-    completed = subprocess.run(
-        [str(VENV_PYTHON), str(Path(__file__).resolve())],
-        cwd=str(PROJECT_ROOT),
-    )
-    raise SystemExit(completed.returncode)
-
 sys.path.insert(0, str(PROJECT_ROOT / "src"))
 
 from meeting_agent.config import load_env

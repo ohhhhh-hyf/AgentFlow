@@ -239,9 +239,6 @@ cd D:\meeting_summary
 python -m pip install -e .
 ```
 
-当前工作区已经配置好 `.venv`。根目录 `app.py` 会检查当前解释器；如果不是
-项目虚拟环境，它会自动使用 `.venv\Scripts\python.exe` 重新启动自身。
-
 当前已验证的核心环境版本：
 
 ```text
