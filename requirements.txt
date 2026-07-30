@@ -1,0 +1,2 @@
+# Agent workflow orchestration
+langgraph==1.2.10
