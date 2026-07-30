@@ -101,7 +101,7 @@ def validate_payload(response_model, data):
 
     elif name == "FinalReport":
         _string(data["title"], "title")
-        _string_list(data["personalized_minutes"], "personalized_minutes")
+        _string(data["personalized_minutes"], "personalized_minutes")
         if not isinstance(data["action_items"], list):
             raise OutputValidationError("action_items 必须是数组")
         for index, item in enumerate(data["action_items"]):

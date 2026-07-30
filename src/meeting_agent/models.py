@@ -60,5 +60,5 @@ class ActionItems(ModelMixin):
 @dataclass
 class FinalReport(ModelMixin):
     title: str
-    personalized_minutes: list[str]
+    personalized_minutes: str
     action_items: list[dict[str, Any]] = field(default_factory=list)

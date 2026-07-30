@@ -3,7 +3,7 @@ from __future__ import annotations
 from .models import FinalReport
 
 
-def _print_action(item) -> None:
+def _format_action(item) -> str:
     task = item["task"]
     details = []
     if item.get("owner"):
@@ -11,18 +11,17 @@ def _print_action(item) -> None:
     if item.get("deadline"):
         details.append(f"截止时间：{item['deadline']}")
     suffix = f"（{'；'.join(details)}）" if details else ""
-    print(f"- {task}{suffix}")
+    return f"{task}{suffix}"
 
 
 def print_result(result: FinalReport) -> None:
     """只展示最终用户视角纪要和本人待办。"""
     print("\n【用户视角会议纪要】")
-    for item in result.personalized_minutes:
-        print(f"- {item}")
+    print(result.personalized_minutes)
 
     print("\n【待办事项】")
     if not result.action_items:
-        print("- 暂无明确待办")
+        print("暂无明确待办")
         return
-    for item in result.action_items:
-        _print_action(item)
+    for index, item in enumerate(result.action_items, start=1):
+        print(f"{index}. {_format_action(item)}")

@@ -13,10 +13,11 @@
 
 ```text
 【用户视角会议纪要】
-- ...
+一段完整、连贯的用户视角会议纪要。
 
 【待办事项】
-- ...
+1. ...
+2. ...
 ```
 
 Agent 中间结果不会显示在最终界面，只在本次运行的 LangGraph State 中传递。
@@ -158,7 +159,7 @@ Agent 时，可以在同一个文件中同时查看职责 Prompt、输出模板�
 ```json
 {
   "title": "字符串",
-  "personalized_minutes": ["字符串"],
+  "personalized_minutes": "一段完整、连贯的字符串",
   "action_items": [
     {
       "task": "字符串",
