@@ -58,6 +58,23 @@ class ActionItems(ModelMixin):
 
 
 @dataclass
+class SupervisorReview(ModelMixin):
+    decision: Literal[
+        "approve",
+        "revise_minutes",
+        "revise_actions",
+        "revise_both",
+        "reject",
+    ]
+    facts_check: dict[str, Any]
+    perspective_check: dict[str, Any]
+    action_items_check: dict[str, Any]
+    consistency_check: dict[str, Any]
+    minutes_feedback: list[str] = field(default_factory=list)
+    actions_feedback: list[str] = field(default_factory=list)
+
+
+@dataclass
 class FinalReport(ModelMixin):
     title: str
     personalized_minutes: str

@@ -36,6 +36,12 @@ def _choice(value, choices, path):
         raise OutputValidationError(f"{path} 必须是 {sorted(choices)} 之一")
 
 
+def _review_check(value, path):
+    _exact_fields(value, {"status", "findings"}, path)
+    _choice(value["status"], {"pass", "fail"}, f"{path}.status")
+    _string_list(value["findings"], f"{path}.findings")
+
+
 def _action(item, path):
     expected = {
         "task", "owner", "deadline", "priority",
@@ -52,7 +58,7 @@ def _action(item, path):
 
 
 def validate_payload(response_model, data):
-    """Strictly validate without coercing, dropping, or inventing values."""
+    """严格校验模型输出，不做字段丢弃、类型强转或事实补全。"""
     name = response_model.__name__
     _exact_fields(data, [item.name for item in fields(response_model)], name)
 
@@ -98,6 +104,44 @@ def validate_payload(response_model, data):
                 raise OutputValidationError(f"{key} 必须是数组")
             for index, item in enumerate(data[key]):
                 _action(item, f"{key}[{index}]")
+
+    elif name == "SupervisorReview":
+        decisions = {
+            "approve", "revise_minutes", "revise_actions",
+            "revise_both", "reject",
+        }
+        _choice(data["decision"], decisions, "decision")
+        check_keys = (
+            "facts_check", "perspective_check",
+            "action_items_check", "consistency_check",
+        )
+        for key in check_keys:
+            _review_check(data[key], key)
+        _string_list(data["minutes_feedback"], "minutes_feedback")
+        _string_list(data["actions_feedback"], "actions_feedback")
+
+        failed = [
+            key for key in check_keys
+            if data[key]["status"] == "fail"
+        ]
+        if data["decision"] == "approve" and failed:
+            raise OutputValidationError(
+                f"decision=approve 时检查项不得失败：{failed}"
+            )
+        if data["decision"] == "approve" and (
+            data["minutes_feedback"] or data["actions_feedback"]
+        ):
+            raise OutputValidationError("decision=approve 时返工意见必须为空")
+        if data["decision"] in {"revise_minutes", "revise_both"} and not data[
+            "minutes_feedback"
+        ]:
+            raise OutputValidationError("纪要返工决定必须提供 minutes_feedback")
+        if data["decision"] in {"revise_actions", "revise_both"} and not data[
+            "actions_feedback"
+        ]:
+            raise OutputValidationError("待办返工决定必须提供 actions_feedback")
+        if data["decision"] == "reject" and not failed:
+            raise OutputValidationError("decision=reject 时至少一个检查项必须失败")
 
     elif name == "FinalReport":
         _string(data["title"], "title")

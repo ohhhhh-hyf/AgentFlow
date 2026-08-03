@@ -14,7 +14,7 @@ T = TypeVar("T", bound=ModelMixin)
 
 
 class DeepSeekClient:
-    """DeepSeek transport plus strict validation; never coerces model output."""
+    """DeepSeek 调用封装：请求 JSON 输出，并做严格结构校验。"""
 
     def __init__(
         self,
@@ -110,14 +110,14 @@ class DeepSeekClient:
                             {
                                 "role": "user",
                                 "content": (
-                                    "输出未通过严格校验。不要改变事实，按唯一模板重新输出。"
+                                    "输出未通过严格校验。不要改变事实，"
+                                    "请按唯一模板重新输出。"
                                     f"\n校验错误：{last_error}"
                                 ),
                             },
                         ]
                     )
 
-        # 原 Agent 连续失败后，交给独立的格式修复 Agent。
         from .agents.schema_repair_agent import SchemaRepairAgent
 
         repair_agent = SchemaRepairAgent(self)

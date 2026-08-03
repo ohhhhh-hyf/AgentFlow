@@ -4,7 +4,7 @@ import asyncio
 
 
 class SchemaRepairAgent:
-    """Repair JSON shape only; never modify business facts."""
+    """只修复 JSON 结构，不修改业务事实。"""
 
     def __init__(self, client) -> None:
         self.client = client
