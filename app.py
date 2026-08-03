@@ -16,8 +16,8 @@ from meeting_agent.orchestrator import MeetingAgentSystem
 from meeting_agent.presenter import print_result
 
 
-DEFAULT_SUMMARY_DIR = PROJECT_ROOT / "summary"
-DEFAULT_PROFILE_DIR = PROJECT_ROOT / "profile"
+DEFAULT_SUMMARY_PATH = PROJECT_ROOT / "summary"
+DEFAULT_PROFILE_PATH = PROJECT_ROOT / "profile"
 
 
 class ProgressPrinter:
@@ -41,16 +41,20 @@ def _parser() -> argparse.ArgumentParser:
         description="生成用户视角会议纪要和待办事项",
     )
     parser.add_argument(
+        "--summary",
         "--summary-dir",
+        dest="summary",
         type=Path,
-        default=DEFAULT_SUMMARY_DIR,
-        help="会议文本目录，目录中需要包含一个 .txt 文件",
+        default=DEFAULT_SUMMARY_PATH,
+        help="会议文本文件或目录。传目录时，目录中需要包含一个 .txt 文件",
     )
     parser.add_argument(
+        "--profile",
         "--profile-dir",
+        dest="profile",
         type=Path,
-        default=DEFAULT_PROFILE_DIR,
-        help="用户画像目录，目录中需要包含一个 .json 文件",
+        default=DEFAULT_PROFILE_PATH,
+        help="用户画像 JSON 文件或目录。传目录时，目录中需要包含一个 .json 文件",
     )
     parser.add_argument(
         "--env",
@@ -68,32 +72,43 @@ def _resolve_path(path: Path) -> Path:
 
 
 def _pick_single_file(folder: Path, pattern: str, label: str) -> Path:
-    if not folder.exists():
-        raise FileNotFoundError(f"{label}目录不存在：{folder}")
-    if not folder.is_dir():
-        raise ValueError(f"{label}路径不是目录：{folder}")
-
     files = sorted(folder.glob(pattern))
     if not files:
         raise FileNotFoundError(f"请在 {folder} 中放入一个{label}文件")
     if len(files) > 1:
         names = "\n".join(f"- {file.name}" for file in files)
         raise ValueError(
-            f"{folder} 中发现多个{label}文件，请先只保留一个：\n{names}"
+            f"{folder} 中发现多个{label}文件，请直接指定其中一个文件：\n{names}"
         )
     return files[0]
 
 
-def _load_transcript(summary_dir: Path) -> str:
-    meeting_file = _pick_single_file(summary_dir, "*.txt", "会议文本 .txt")
+def _resolve_input_file(path: Path, suffix: str, label: str) -> Path:
+    path = _resolve_path(path)
+    if not path.exists():
+        raise FileNotFoundError(f"{label}路径不存在：{path}")
+
+    if path.is_file():
+        if path.suffix.lower() != suffix:
+            raise ValueError(f"{label}文件必须是 {suffix}：{path}")
+        return path
+
+    if path.is_dir():
+        return _pick_single_file(path, f"*{suffix}", label)
+
+    raise ValueError(f"{label}路径既不是文件也不是目录：{path}")
+
+
+def _load_transcript(summary_path: Path) -> str:
+    meeting_file = _resolve_input_file(summary_path, ".txt", "会议文本")
     transcript = meeting_file.read_text(encoding="utf-8").strip()
     if not transcript:
         raise ValueError(f"{meeting_file} 是空文件，请写入会议内容")
     return transcript
 
 
-def _load_user(profile_dir: Path) -> UserIdentity:
-    profile_file = _pick_single_file(profile_dir, "*.json", "用户画像 .json")
+def _load_user(profile_path: Path) -> UserIdentity:
+    profile_file = _resolve_input_file(profile_path, ".json", "用户画像")
     profile = json.loads(profile_file.read_text(encoding="utf-8"))
     return UserIdentity(**profile)
 
@@ -111,11 +126,11 @@ async def _review_preview(result) -> str:
         print("请输入 pass 后继续。", flush=True)
 
 
-async def run(summary_dir: Path, profile_dir: Path, env_file: Path) -> None:
+async def run(summary: Path, profile: Path, env_file: Path) -> None:
     load_env(_resolve_path(env_file))
 
-    transcript = _load_transcript(_resolve_path(summary_dir))
-    user = _load_user(_resolve_path(profile_dir))
+    transcript = _load_transcript(summary)
+    user = _load_user(profile)
 
     print("正在生成会议纪要和待办事项，请稍候...\n", flush=True)
     system = MeetingAgentSystem(progress_handler=ProgressPrinter())
@@ -131,8 +146,8 @@ def main() -> None:
     try:
         asyncio.run(
             run(
-                args.summary_dir,
-                args.profile_dir,
+                args.summary,
+                args.profile,
                 args.env,
             )
         )

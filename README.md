@@ -1,25 +1,18 @@
 # 个性化会议纪要多 Agent 系统
 
-这是一个基于 LangGraph 的多 Agent 会议处理项目。输入一段会议文本和一份用户画像后，系统会生成该用户视角下的会议纪要和本人待办事项。
+这是一个基于 LangGraph 的多 Agent 会议处理项目。输入会议文本和用户画像后，系统会生成该用户视角下的会议纪要和本人待办事项。
 
 ## 项目结构
 
 ```text
 meeting_summary/
-├── app.py                         # 运行入口
-├── summary/                       # 默认会议文本目录
+├── app.py
+├── summary/
 │   └── meeting.txt
-├── profile/                       # 默认用户画像目录
+├── profile/
 │   └── user_profile.json
 ├── src/meeting_agent/
 │   ├── agents/
-│   │   ├── meeting_understanding_agent.py
-│   │   ├── perspective_modeling_agent.py
-│   │   ├── minutes_generation_agent.py
-│   │   ├── action_items_agent.py
-│   │   ├── supervisor_agent.py
-│   │   ├── final_renderer.py
-│   │   └── schema_repair_agent.py
 │   ├── client.py
 │   ├── models.py
 │   ├── orchestrator.py
@@ -31,21 +24,11 @@ meeting_summary/
 └── .env
 ```
 
-## 输入文件
+## 输入格式
 
-会议文本目录中需要有一个 `.txt` 文件，例如：
+会议文本是 `.txt` 文件，用户画像是 `.json` 文件。
 
-```text
-summary/meeting.txt
-```
-
-用户画像目录中需要有一个 `.json` 文件，例如：
-
-```text
-profile/user_profile.json
-```
-
-用户画像格式：
+用户画像示例：
 
 ```json
 {
@@ -67,16 +50,11 @@ profile/user_profile.json
 }
 ```
 
-当前入口会从指定目录中自动寻找文件。为了避免歧义，每个目录里请只保留一个目标文件：
-
-- 会议目录：一个 `.txt`
-- 画像目录：一个 `.json`
-
 ## 环境配置
 
 安装依赖：
 
-```powershell
+```bash
 conda activate agent
 python -m pip install -r requirements.txt
 ```
@@ -89,7 +67,7 @@ DEEPSEEK_BASE_URL=https://api.deepseek.com
 DEEPSEEK_MODEL=deepseek-chat
 ```
 
-如果在服务器上使用 vLLM 部署的 Qwen，例如模型名是 `qwen-local`，端口是 `8000`，API Key 是 `local-key`：
+如果使用 vLLM 部署的 Qwen：
 
 ```text
 DEEPSEEK_API_KEY=local-key
@@ -99,49 +77,73 @@ DEEPSEEK_MODEL=qwen-local
 
 ## 运行方式
 
-使用默认目录：
+使用默认输入：
 
-```powershell
+```bash
 python app.py
 ```
 
-等价于读取：
+默认读取：
 
 ```text
 summary/
 profile/
 ```
 
-指定输入目录：
-
-```powershell
-python app.py --summary-dir summary --profile-dir profile
-```
-
-也可以传入服务器上的绝对路径：
+指定具体文件：
 
 ```bash
 python app.py \
-  --summary-dir /home/ma-user/work/input/summary \
-  --profile-dir /home/ma-user/work/input/profile
+  --summary summary/meeting.txt \
+  --profile profile/user_profile.json
 ```
 
-指定 `.env` 文件：
+指定目录：
 
 ```bash
 python app.py \
-  --summary-dir /home/ma-user/work/input/summary \
-  --profile-dir /home/ma-user/work/input/profile \
+  --summary summary \
+  --profile profile
+```
+
+服务器上也可以使用绝对路径：
+
+```bash
+python app.py \
+  --summary /home/ma-user/work/input/summary/meeting.txt \
+  --profile /home/ma-user/work/input/profile/user_profile.json \
   --env /home/ma-user/work/meeting_summary_agent/.env
 ```
 
-运行后，系统会先展示审核预览。确认无误后，在终端输入：
+`--summary-dir` 和 `--profile-dir` 仍然可用，它们是兼容旧命令的别名：
 
-```text
-pass
+```bash
+python app.py --summary-dir summary --profile-dir profile
 ```
 
-随后正式输出：
+如果传入的是目录，程序会自动寻找目录中的唯一目标文件：
+
+- `--summary` 传目录时，目录中需要只有一个 `.txt`
+- `--profile` 传目录时，目录中需要只有一个 `.json`
+
+如果目录里有多个文件，程序会提示你直接指定其中一个具体文件。
+
+## 输出效果
+
+运行时会显示 Agent 进度：
+
+```text
+正在生成会议纪要和待办事项，请稍候...
+
+01  MeetingUnderstandingAgent｜理解会议内容  ...
+02  PerspectiveModelingAgent｜建立用户视角  ...
+01  MeetingUnderstandingAgent｜理解会议内容  完成
+02  PerspectiveModelingAgent｜建立用户视角  完成
+03  MinutesGenerationAgent｜生成用户视角纪要  ...
+04  ActionItemsAgent｜提取待办事项  ...
+```
+
+最终展示：
 
 ```text
 【用户视角会议纪要】
@@ -150,14 +152,16 @@ pass
 【待办事项】
 1. 第一条本人待办
 2. 第二条本人待办
+
+确认请输入 pass：
 ```
 
 ## Agent 流程
 
 ```mermaid
 flowchart TD
-    A["会议文本目录<br/>*.txt"] --> B["app.py"]
-    U["用户画像目录<br/>*.json"] --> B
+    A["会议文本<br/>.txt 文件或目录"] --> B["app.py"]
+    U["用户画像<br/>.json 文件或目录"] --> B
 
     B --> G["MeetingAgentSystem<br/>LangGraph 编排"]
 
@@ -178,16 +182,5 @@ flowchart TD
     E -->|reject| X["停止输出"]
 
     F --> H["Human Review<br/>等待 pass"]
-    H --> I["正式输出"]
+    H --> I["结束"]
 ```
-
-## 说明
-
-项目不是让一个 LLM 一次性总结会议，而是拆成多个职责清晰的 Agent：
-
-- `MeetingUnderstandingAgent`：理解会议事实、议题、决策、风险和未决问题。
-- `PerspectiveModelingAgent`：结合用户画像建立本次会议中的用户关注视角。
-- `MinutesGenerationAgent`：生成用户视角纪要草稿。
-- `ActionItemsAgent`：提取本人、他人和未分配待办。
-- `SupervisorAgent`：审核事实一致性、用户相关性、待办证据和跨 Agent 一致性，并决定是否返工。
-- `FinalRenderer`：把审核通过的内容渲染为最终展示结果。
