@@ -23,6 +23,7 @@ from .validation import validate_payload
 
 
 ReviewHandler = Callable[[FinalReport], Awaitable[str]]
+ProgressHandler = Callable[[str, str], None]
 
 
 def _json(value) -> str:
@@ -39,8 +40,10 @@ class MeetingAgentSystem:
     def __init__(
         self,
         client: DeepSeekClient | None = None,
+        progress_handler: ProgressHandler | None = None,
     ) -> None:
         self.client = client or DeepSeekClient()
+        self.progress_handler = progress_handler
 
         self.meeting_understanding_agent = MeetingUnderstandingAgent(self.client)
         self.perspective_modeling_agent = PerspectiveModelingAgent(self.client)
@@ -51,21 +54,31 @@ class MeetingAgentSystem:
         self.checkpointer = InMemorySaver()
         self.graph = self._build_graph()
 
+    def _progress(self, event: str, label: str) -> None:
+        if self.progress_handler:
+            self.progress_handler(event, label)
+
     async def _meeting_understanding_node(
         self,
         state: MeetingState,
     ) -> dict:
+        label = "MeetingUnderstandingAgent｜理解会议内容"
+        self._progress("start", label)
         result = await self.meeting_understanding_agent.run(state["transcript"])
+        self._progress("done", label)
         return {"meeting_understanding": result.model_dump()}
 
     async def _perspective_modeling_node(
         self,
         state: MeetingState,
     ) -> dict:
+        label = "PerspectiveModelingAgent｜建立用户视角"
+        self._progress("start", label)
         result = await self.perspective_modeling_agent.run(
             state["transcript"],
             _json(state["user"]),
         )
+        self._progress("done", label)
         return {"perspective_profile": result.model_dump()}
 
     @staticmethod
@@ -84,6 +97,8 @@ class MeetingAgentSystem:
         return f"{context}\n\nSupervisor {label}：\n{_json(feedback)}"
 
     async def _minutes_generation_node(self, state: MeetingState) -> dict:
+        label = "MinutesGenerationAgent｜生成用户视角纪要"
+        self._progress("start", label)
         result = await self.minutes_generation_agent.run(
             self._revision_context(
                 self._shared_context(state),
@@ -91,9 +106,12 @@ class MeetingAgentSystem:
                 "纪要返工意见",
             )
         )
+        self._progress("done", label)
         return {"minutes_draft": result.model_dump()}
 
     async def _action_items_node(self, state: MeetingState) -> dict:
+        label = "ActionItemsAgent｜提取待办事项"
+        self._progress("start", label)
         result = await self.action_items_agent.run(
             self._revision_context(
                 self._shared_context(state),
@@ -101,6 +119,7 @@ class MeetingAgentSystem:
                 "待办返工意见",
             )
         )
+        self._progress("done", label)
         return {"extracted_action_items": result.model_dump()}
 
     def _supervisor_context(self, state: MeetingState) -> str:
@@ -122,9 +141,12 @@ class MeetingAgentSystem:
         )
 
     async def _supervisor_review_node(self, state: MeetingState) -> dict:
+        label = "SupervisorAgent｜审核结果质量"
+        self._progress("start", label)
         review = await self.supervisor_agent.review(
             self._supervisor_context(state)
         )
+        self._progress("done", label)
         return {
             "supervisor_review": review.model_dump(),
             "minutes_revision_feedback": review.minutes_feedback,
@@ -141,6 +163,7 @@ class MeetingAgentSystem:
 
     async def _revision_node(self, state: MeetingState) -> dict:
         decision = state["supervisor_review"]["decision"]
+        self._progress("start", "Revision｜根据审核意见返工")
         updates: dict = {
             "revision_count": state.get("revision_count", 0) + 1,
         }
@@ -159,6 +182,7 @@ class MeetingAgentSystem:
         else:
             raise RuntimeError(f"不支持的 Supervisor 返工决定：{decision}")
 
+        self._progress("done", "Revision｜根据审核意见返工")
         return updates
 
     @staticmethod
@@ -178,6 +202,8 @@ class MeetingAgentSystem:
         )
 
     async def _final_render_node(self, state: MeetingState) -> dict:
+        label = "FinalRenderer｜整理最终展示内容"
+        self._progress("start", label)
         context = (
             f"会议原文：\n{state['transcript']}\n\n"
             f"用户画像：\n{_json(state['user'])}\n\n"
@@ -188,6 +214,7 @@ class MeetingAgentSystem:
             f"Supervisor 审核结论：\n{_json(state['supervisor_review'])}"
         )
         result = await self.final_renderer.run(context)
+        self._progress("done", label)
         return {"final_report": result.model_dump()}
 
     @staticmethod
