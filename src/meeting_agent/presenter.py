@@ -45,14 +45,20 @@ class ProgressPrinter:
         print(f"✓ {number:02d} {title}", flush=True)
 
 
-def print_result(result: FinalReport) -> None:
-    """只展示最终用户视角纪要和本人待办。"""
+def print_result(result: FinalReport, *, objective_perspective: bool = False) -> None:
+    """展示最终纪要和待办；客观模式使用全员口径标题。"""
     print()
-    _section("用户视角会议纪要")
+    if objective_perspective:
+        _section("客观会议纪要")
+    else:
+        _section("用户视角会议纪要")
     minutes = (result.personalized_minutes or "").strip()
     print(minutes if minutes else "（暂无内容）")
 
-    _section("待办事项")
+    if objective_perspective:
+        _section("客观待办事项（全员）")
+    else:
+        _section("待办事项")
     if not result.action_items:
         print("暂无明确待办")
     else:

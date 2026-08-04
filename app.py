@@ -11,7 +11,7 @@ PROJECT_ROOT = Path(__file__).resolve().parent
 sys.path.insert(0, str(PROJECT_ROOT / "src"))
 
 from meeting_agent.config import load_env
-from meeting_agent.models import UserIdentity
+from meeting_agent.models import UserIdentity, is_objective_perspective
 from meeting_agent.orchestrator import MeetingAgentSystem
 from meeting_agent.presenter import ProgressPrinter, print_result
 
@@ -105,7 +105,7 @@ async def run(summary: Path, profile: Path, env_file: Path) -> None:
 
     system = MeetingAgentSystem(progress_handler=ProgressPrinter())
     result = await system.run(transcript, user)
-    print_result(result)
+    print_result(result, objective_perspective=is_objective_perspective(user))
 
 
 def main() -> None:

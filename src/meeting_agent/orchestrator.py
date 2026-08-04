@@ -15,7 +15,7 @@ from .agents import (
     SupervisorAgent,
 )
 from .client import LLMClient
-from .models import FinalReport, UserIdentity
+from .models import FinalReport, UserIdentity, is_objective_perspective
 from .state import MeetingState
 from .validation import validate_payload
 
@@ -71,7 +71,12 @@ class MeetingAgentSystem:
         self,
         state: MeetingState,
     ) -> dict:
-        label = "PerspectiveModelingAgent｜建立用户视角"
+        objective = bool(state.get("objective_perspective"))
+        label = (
+            "PerspectiveModelingAgent｜建立客观全员视角"
+            if objective
+            else "PerspectiveModelingAgent｜建立用户视角"
+        )
         self._progress("start", label)
         result = await self.perspective_modeling_agent.run(
             state["transcript"],
@@ -81,8 +86,16 @@ class MeetingAgentSystem:
         return {"perspective_profile": result.model_dump()}
 
     @staticmethod
+    def _mode_label(state: MeetingState) -> str:
+        return "objective" if state.get("objective_perspective") else "personal"
+
+    @staticmethod
     def _shared_context(state: MeetingState) -> str:
+        mode = MeetingAgentSystem._mode_label(state)
         return (
+            f"视角模式：{mode}\n"
+            f"说明：perspective=objective 时为客观全员口径；"
+            f"缺省或其它值为个人用户口径。\n\n"
             f"用户画像：\n{_json(state['user'])}\n\n"
             f"会议理解：\n{_json(state['meeting_understanding'])}\n\n"
             f"用户视角模型：\n{_json(state['perspective_profile'])}\n\n"
@@ -96,7 +109,12 @@ class MeetingAgentSystem:
         return f"{context}\n\nSupervisor {label}：\n{_json(feedback)}"
 
     async def _minutes_generation_node(self, state: MeetingState) -> dict:
-        label = "MinutesGenerationAgent｜生成用户视角纪要"
+        objective = bool(state.get("objective_perspective"))
+        label = (
+            "MinutesGenerationAgent｜生成客观会议纪要草稿"
+            if objective
+            else "MinutesGenerationAgent｜生成用户视角纪要"
+        )
         self._progress("start", label)
         result = await self.minutes_generation_agent.run(
             self._revision_context(
@@ -109,7 +127,12 @@ class MeetingAgentSystem:
         return {"minutes_draft": result.model_dump()}
 
     async def _action_items_node(self, state: MeetingState) -> dict:
-        label = "ActionItemsAgent｜提取待办事项"
+        objective = bool(state.get("objective_perspective"))
+        label = (
+            "ActionItemsAgent｜提取全员客观待办"
+            if objective
+            else "ActionItemsAgent｜提取待办事项"
+        )
         self._progress("start", label)
         result = await self.action_items_agent.run(
             self._revision_context(
@@ -123,6 +146,7 @@ class MeetingAgentSystem:
 
     def _supervisor_context(self, state: MeetingState) -> str:
         revision_count = state.get("revision_count", 0)
+        mode = self._mode_label(state)
         allowed = (
             "本轮可以选择 approve、revise_minutes、revise_actions、"
             "revise_both 或 reject。"
@@ -130,12 +154,13 @@ class MeetingAgentSystem:
             else "返工次数已用完，本轮只能选择 approve 或 reject。"
         )
         return (
+            f"视角模式：{mode}\n"
             f"返工次数：{revision_count}/{self.MAX_REVISIONS}\n{allowed}\n\n"
             f"会议原文（最高事实来源）：\n{state['transcript']}\n\n"
             f"用户画像：\n{_json(state['user'])}\n\n"
             f"会议理解：\n{_json(state['meeting_understanding'])}\n\n"
             f"用户视角模型：\n{_json(state['perspective_profile'])}\n\n"
-            f"个性化纪要草稿：\n{_json(state['minutes_draft'])}\n\n"
+            f"纪要草稿：\n{_json(state['minutes_draft'])}\n\n"
             f"待办提取结果：\n{_json(state['extracted_action_items'])}"
         )
 
@@ -223,7 +248,8 @@ class MeetingAgentSystem:
         minutes = state.get("minutes_draft") or {}
         actions = state.get("extracted_action_items") or {}
         user = state.get("user") or {}
-        user_name = user.get("name") or "用户"
+        objective = bool(state.get("objective_perspective"))
+        user_name = user.get("name") or ("客观记录" if objective else "用户")
 
         sections: list[str] = []
         headline = minutes.get("headline")
@@ -233,7 +259,10 @@ class MeetingAgentSystem:
         section_map = (
             ("executive_summary", "会议要点"),
             ("key_decisions", "关键决策"),
-            ("personally_relevant_points", "职责相关事项"),
+            (
+                "personally_relevant_points",
+                "全员执行要点" if objective else "职责相关事项",
+            ),
             ("risks_and_blockers", "风险与阻塞"),
             ("unresolved_questions", "未决问题"),
         )
@@ -254,26 +283,52 @@ class MeetingAgentSystem:
                 f"{f'会议目的：{purpose}' if purpose else '请直接参考会议原文。'}"
             )
 
-        my_actions = list(actions.get("my_actions") or [])
+        if objective:
+            action_items = list(actions.get("my_actions") or [])
+            action_items.extend(actions.get("unassigned_actions") or [])
+            title = "客观会议纪要"
+        else:
+            action_items = list(actions.get("my_actions") or [])
+            title = f"{user_name}视角会议纪要"
+
         return FinalReport(
-            title=f"{user_name}视角会议纪要",
+            title=title,
             personalized_minutes=text,
-            action_items=my_actions,
+            action_items=action_items,
+        )
+
+    def _render_context(self, state: MeetingState, *, fallback: bool) -> str:
+        mode = self._mode_label(state)
+        header = ""
+        if fallback:
+            findings = self._collect_supervisor_findings(state)
+            findings_text = "；".join(findings) if findings else "Supervisor 未批准当前结果"
+            decision = (state.get("supervisor_review") or {}).get("decision", "reject")
+            header = (
+                "注意：以下结果未通过 Supervisor 审核，你仍需基于现有草稿整理可读输出，"
+                "不得编造草稿和原文中没有的事实；优先保留有明确证据的内容。"
+                f"\n未通过原因摘要：{findings_text}"
+                f"\nSupervisor 决定：{decision}\n\n"
+            )
+        return (
+            f"{header}"
+            f"视角模式：{mode}\n"
+            f"objective_perspective：{bool(state.get('objective_perspective'))}\n\n"
+            f"会议原文：\n{state['transcript']}\n\n"
+            f"用户画像：\n{_json(state['user'])}\n\n"
+            f"已审核会议理解：\n{_json(state.get('meeting_understanding'))}\n\n"
+            f"已审核用户视角：\n{_json(state.get('perspective_profile'))}\n\n"
+            f"已批准纪要草稿：\n{_json(state.get('minutes_draft'))}\n\n"
+            f"已批准待办结果：\n{_json(state.get('extracted_action_items'))}\n\n"
+            f"Supervisor 审核结论：\n{_json(state.get('supervisor_review'))}"
         )
 
     async def _final_render_node(self, state: MeetingState) -> dict:
         label = "FinalRenderer｜整理最终展示内容"
         self._progress("start", label)
-        context = (
-            f"会议原文：\n{state['transcript']}\n\n"
-            f"用户画像：\n{_json(state['user'])}\n\n"
-            f"已审核会议理解：\n{_json(state['meeting_understanding'])}\n\n"
-            f"已审核用户视角：\n{_json(state['perspective_profile'])}\n\n"
-            f"已批准纪要草稿：\n{_json(state['minutes_draft'])}\n\n"
-            f"已批准待办结果：\n{_json(state['extracted_action_items'])}\n\n"
-            f"Supervisor 审核结论：\n{_json(state['supervisor_review'])}"
+        result = await self.final_renderer.run(
+            self._render_context(state, fallback=False)
         )
-        result = await self.final_renderer.run(context)
         self._progress("done", label)
         return {
             "quality_degraded": False,
@@ -285,23 +340,7 @@ class MeetingAgentSystem:
         label = "FallbackRenderer｜降级输出（生成可能有误）"
         self._progress("start", label)
 
-        findings = self._collect_supervisor_findings(state)
-        findings_text = "；".join(findings) if findings else "Supervisor 未批准当前结果"
-        decision = (state.get("supervisor_review") or {}).get("decision", "reject")
-
-        context = (
-            "注意：以下结果未通过 Supervisor 审核，你仍需基于现有草稿整理可读输出，"
-            "不得编造草稿和原文中没有的事实；优先保留有明确证据的内容。"
-            f"\n未通过原因摘要：{findings_text}"
-            f"\nSupervisor 决定：{decision}\n\n"
-            f"会议原文：\n{state['transcript']}\n\n"
-            f"用户画像：\n{_json(state['user'])}\n\n"
-            f"会议理解：\n{_json(state.get('meeting_understanding'))}\n\n"
-            f"用户视角：\n{_json(state.get('perspective_profile'))}\n\n"
-            f"纪要草稿：\n{_json(state.get('minutes_draft'))}\n\n"
-            f"待办结果：\n{_json(state.get('extracted_action_items'))}\n\n"
-            f"Supervisor 审核结论：\n{_json(state.get('supervisor_review'))}"
-        )
+        context = self._render_context(state, fallback=True)
 
         try:
             rendered = await self.final_renderer.run(context)
@@ -374,9 +413,16 @@ class MeetingAgentSystem:
         if not transcript.strip():
             raise ValueError("会议文字不能为空")
 
+        user = user or UserIdentity()
+        objective_mode = is_objective_perspective(user)
+        user_data = user.model_dump()
+        if objective_mode and not user_data.get("perspective"):
+            user_data["perspective"] = "objective"
+
         initial_state: MeetingState = {
             "transcript": transcript,
-            "user": (user or UserIdentity()).model_dump(),
+            "user": user_data,
+            "objective_perspective": objective_mode,
             "revision_count": 0,
         }
         state = await self.graph.ainvoke(initial_state)

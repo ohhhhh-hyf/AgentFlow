@@ -8,6 +8,8 @@ class MeetingState(TypedDict, total=False):
 
     transcript: str
     user: dict
+    # 由画像 perspective=objective 判定，供展示与兜底拼装使用
+    objective_perspective: bool
     meeting_understanding: dict
     perspective_profile: dict
     minutes_draft: dict
