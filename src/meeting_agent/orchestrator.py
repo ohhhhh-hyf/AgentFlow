@@ -327,7 +327,8 @@ class MeetingAgentSystem:
         label = "FinalRenderer｜整理最终展示内容"
         self._progress("start", label)
         result = await self.final_renderer.run(
-            self._render_context(state, fallback=False)
+            self._render_context(state, fallback=False),
+            template=state.get("template", ""),
         )
         self._progress("done", label)
         return {
@@ -343,7 +344,7 @@ class MeetingAgentSystem:
         context = self._render_context(state, fallback=True)
 
         try:
-            rendered = await self.final_renderer.run(context)
+            rendered = await self.final_renderer.run(context, template=state.get("template", ""))
         except Exception:
             # 渲染也失败时，用中间草稿确定性拼装，确保一定有输出
             rendered = MeetingAgentSystem._assemble_report_from_drafts(state)
@@ -409,6 +410,7 @@ class MeetingAgentSystem:
         self,
         transcript: str,
         user: UserIdentity | None = None,
+        template: str = "",
     ) -> FinalReport:
         if not transcript.strip():
             raise ValueError("会议文字不能为空")
@@ -424,6 +426,7 @@ class MeetingAgentSystem:
             "user": user_data,
             "objective_perspective": objective_mode,
             "revision_count": 0,
+            "template": template,
         }
         state = await self.graph.ainvoke(initial_state)
 

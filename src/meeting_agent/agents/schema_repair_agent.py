@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import asyncio
 
+from ..prompts.schema_repair import SYSTEM_PROMPT
+
 
 class SchemaRepairAgent:
     """只修复 JSON 结构，不修改业务事实。"""
@@ -14,9 +16,7 @@ class SchemaRepairAgent:
             {
                 "role": "system",
                 "content": (
-                    "你是 SchemaRepairAgent，只能修复 JSON 结构和字段类型。"
-                    "不得增加、删除、推断或改写任何业务事实。"
-                    "只输出 JSON，不要输出 Markdown。"
+                    f"{SYSTEM_PROMPT}"
                     f"\n唯一合法的输出模板：\n{contract}"
                 ),
             },

@@ -11,6 +11,7 @@ PROJECT_ROOT = Path(__file__).resolve().parent
 sys.path.insert(0, str(PROJECT_ROOT / "src"))
 
 from meeting_agent.config import load_env
+from meeting_agent.logging_config import setup_logging
 from meeting_agent.models import UserIdentity, is_objective_perspective
 from meeting_agent.orchestrator import MeetingAgentSystem
 from meeting_agent.presenter import ProgressPrinter, print_result
@@ -45,6 +46,13 @@ def _parser() -> argparse.ArgumentParser:
         type=Path,
         default=PROJECT_ROOT / ".env",
         help="环境变量文件路径",
+    )
+    parser.add_argument(
+        "--template",
+        type=Path,
+        default=None,
+        help="最终纪要输出格式模板（.md 文件）。模板中用 [描述] 作为占位符，"
+        "系统将自动填充会议内容。不指定则使用默认的自由段落格式",
     )
     return parser
 
@@ -97,14 +105,22 @@ def _load_user(profile_path: Path) -> UserIdentity:
     return UserIdentity(**profile)
 
 
-async def run(summary: Path, profile: Path, env_file: Path) -> None:
+async def run(
+    summary: Path, profile: Path, env_file: Path, template: Path | None
+) -> None:
+    setup_logging()
     load_env(_resolve_path(env_file))
 
     transcript = _load_transcript(summary)
     user = _load_user(profile)
+    template_text = ""
+    if template is not None:
+        template_text = _resolve_path(template).read_text(encoding="utf-8").strip()
+        if not template_text:
+            raise ValueError(f"模板文件为空：{template}")
 
     system = MeetingAgentSystem(progress_handler=ProgressPrinter())
-    result = await system.run(transcript, user)
+    result = await system.run(transcript, user, template=template_text)
     print_result(result, objective_perspective=is_objective_perspective(user))
 
 
@@ -116,6 +132,7 @@ def main() -> None:
                 args.summary,
                 args.profile,
                 args.env,
+                args.template,
             )
         )
     except (OSError, ValueError, TypeError, json.JSONDecodeError, RuntimeError) as exc:
