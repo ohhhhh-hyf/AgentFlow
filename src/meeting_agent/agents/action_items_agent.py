@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from ..client import DeepSeekClient
+from ..client import LLMClient
 from ..models import ActionItems
 
 
@@ -36,7 +36,7 @@ class ActionItemsAgent:
   "unassigned_actions": []
 }"""
 
-    def __init__(self, client: DeepSeekClient) -> None:
+    def __init__(self, client: LLMClient) -> None:
         self.client = client
 
     async def run(self, shared_context: str) -> ActionItems:

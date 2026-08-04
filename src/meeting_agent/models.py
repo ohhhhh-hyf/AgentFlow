@@ -79,3 +79,5 @@ class FinalReport(ModelMixin):
     title: str
     personalized_minutes: str
     action_items: list[dict[str, Any]] = field(default_factory=list)
+    # 仅由系统在兜底路径写入；LLM 输出不需要也不应包含该字段
+    quality_warning: str | None = None

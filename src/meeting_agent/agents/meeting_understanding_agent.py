@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from ..client import DeepSeekClient
+from ..client import LLMClient
 from ..models import MeetingUnderstanding
 
 
@@ -29,7 +29,7 @@ class MeetingUnderstandingAgent:
   "risks": ["字符串"]
 }"""
 
-    def __init__(self, client: DeepSeekClient) -> None:
+    def __init__(self, client: LLMClient) -> None:
         self.client = client
 
     async def run(self, transcript: str) -> MeetingUnderstanding:

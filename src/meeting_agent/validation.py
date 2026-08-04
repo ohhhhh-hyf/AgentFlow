@@ -60,7 +60,9 @@ def _action(item, path):
 def validate_payload(response_model, data):
     """严格校验模型输出，不做字段丢弃、类型强转或事实补全。"""
     name = response_model.__name__
-    _exact_fields(data, [item.name for item in fields(response_model)], name)
+    # FinalReport.quality_warning 为系统可选字段，允许 LLM 不输出
+    if name != "FinalReport":
+        _exact_fields(data, [item.name for item in fields(response_model)], name)
 
     if name == "MeetingUnderstanding":
         _string(data["meeting_purpose"], "meeting_purpose")
@@ -144,12 +146,35 @@ def validate_payload(response_model, data):
             raise OutputValidationError("decision=reject 时至少一个检查项必须失败")
 
     elif name == "FinalReport":
+        # quality_warning 仅系统兜底时附加，不要求 LLM 输出
+        allowed = {"title", "personalized_minutes", "action_items", "quality_warning"}
+        required = {"title", "personalized_minutes", "action_items"}
+        if not isinstance(data, dict):
+            raise OutputValidationError("FinalReport 必须是 JSON 对象")
+        actual = set(data)
+        if not required.issubset(actual):
+            raise OutputValidationError(
+                f"FinalReport 字段不一致：缺失={sorted(required - actual)}"
+            )
+        extra = actual - allowed
+        if extra:
+            raise OutputValidationError(
+                f"FinalReport 字段不一致：多余={sorted(extra)}"
+            )
         _string(data["title"], "title")
         _string(data["personalized_minutes"], "personalized_minutes")
         if not isinstance(data["action_items"], list):
             raise OutputValidationError("action_items 必须是数组")
         for index, item in enumerate(data["action_items"]):
             _action(item, f"action_items[{index}]")
+        if "quality_warning" in data and data["quality_warning"] is not None:
+            _string(data["quality_warning"], "quality_warning")
+        data = {
+            "title": data["title"],
+            "personalized_minutes": data["personalized_minutes"],
+            "action_items": data["action_items"],
+            "quality_warning": data.get("quality_warning"),
+        }
     else:
         raise OutputValidationError(f"没有为 {name} 配置校验器")
 

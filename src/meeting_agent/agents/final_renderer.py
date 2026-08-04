@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from ..client import DeepSeekClient
+from ..client import LLMClient
 from ..models import FinalReport
 
 
@@ -11,6 +11,7 @@ class FinalRenderer:
 规则：
 - personalized_minutes 必须是一段完整、连贯的字符串，不得使用数组、分点或编号。
 - 纪要突出与用户职责相关的讨论，同时保留影响用户的关键全局决策、风险和未决事项。
+- personalized_minutes 与 action_items 的 task 中不要出现「你」「您」：直接去掉该字即可（如「你需要」→「需要」），不要改写成姓名或角色称呼。
 - action_items 只保留当前用户本人明确负责或明确承诺的事项。
 - 不得保留属于他人、负责人为空，或仅凭角色推断的事项。
 - 不得合并不同动作、负责人或截止时间。
@@ -33,7 +34,7 @@ class FinalRenderer:
   ]
 }"""
 
-    def __init__(self, client: DeepSeekClient) -> None:
+    def __init__(self, client: LLMClient) -> None:
         self.client = client
 
     async def run(self, approved_context: str) -> FinalReport:

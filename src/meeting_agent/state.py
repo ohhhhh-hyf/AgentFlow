@@ -16,5 +16,6 @@ class MeetingState(TypedDict, total=False):
     minutes_revision_feedback: list[str]
     actions_revision_feedback: list[str]
     revision_count: int
+    # Supervisor 未批准时仍输出结果，标记为降级兜底
+    quality_degraded: bool
     final_report: dict
-    human_decision: str

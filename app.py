@@ -13,27 +13,11 @@ sys.path.insert(0, str(PROJECT_ROOT / "src"))
 from meeting_agent.config import load_env
 from meeting_agent.models import UserIdentity
 from meeting_agent.orchestrator import MeetingAgentSystem
-from meeting_agent.presenter import print_result
+from meeting_agent.presenter import ProgressPrinter, print_result
 
 
 DEFAULT_SUMMARY_PATH = PROJECT_ROOT / "summary"
 DEFAULT_PROFILE_PATH = PROJECT_ROOT / "profile"
-
-
-class ProgressPrinter:
-    def __init__(self) -> None:
-        self.index = 0
-        self.active: dict[str, int] = {}
-
-    def __call__(self, event: str, label: str) -> None:
-        if event == "start":
-            self.index += 1
-            self.active[label] = self.index
-            print(f"{self.index:02d}  {label}  ...", flush=True)
-            return
-
-        number = self.active.get(label, self.index)
-        print(f"{number:02d}  {label}  完成", flush=True)
 
 
 def _parser() -> argparse.ArgumentParser:
@@ -113,32 +97,15 @@ def _load_user(profile_path: Path) -> UserIdentity:
     return UserIdentity(**profile)
 
 
-async def _review_preview(result) -> str:
-    print_result(result)
-
-    while True:
-        decision = await asyncio.to_thread(
-            input,
-            "\n确认请输入 pass：",
-        )
-        if decision.strip().lower() == "pass":
-            return "pass"
-        print("请输入 pass 后继续。", flush=True)
-
-
 async def run(summary: Path, profile: Path, env_file: Path) -> None:
     load_env(_resolve_path(env_file))
 
     transcript = _load_transcript(summary)
     user = _load_user(profile)
 
-    print("正在生成会议纪要和待办事项，请稍候...\n", flush=True)
     system = MeetingAgentSystem(progress_handler=ProgressPrinter())
-    await system.run(
-        transcript,
-        user,
-        review_handler=_review_preview,
-    )
+    result = await system.run(transcript, user)
+    print_result(result)
 
 
 def main() -> None:

@@ -2,10 +2,8 @@ from __future__ import annotations
 
 import asyncio
 import json
-from collections.abc import Awaitable, Callable
-from uuid import uuid4
+from collections.abc import Callable
 
-from langgraph.checkpoint.memory import InMemorySaver
 from langgraph.graph import END, START, StateGraph
 
 from .agents import (
@@ -16,14 +14,16 @@ from .agents import (
     PerspectiveModelingAgent,
     SupervisorAgent,
 )
-from .client import DeepSeekClient
+from .client import LLMClient
 from .models import FinalReport, UserIdentity
 from .state import MeetingState
 from .validation import validate_payload
 
 
-ReviewHandler = Callable[[FinalReport], Awaitable[str]]
 ProgressHandler = Callable[[str, str], None]
+
+QUALITY_WARNING = "生成可能有误，请结合会议原文核对。"
+QUALITY_DISCLAIMER = "（生成可能有误）"
 
 
 def _json(value) -> str:
@@ -39,10 +39,10 @@ class MeetingAgentSystem:
 
     def __init__(
         self,
-        client: DeepSeekClient | None = None,
+        client: LLMClient | None = None,
         progress_handler: ProgressHandler | None = None,
     ) -> None:
-        self.client = client or DeepSeekClient()
+        self.client = client or LLMClient()
         self.progress_handler = progress_handler
 
         self.meeting_understanding_agent = MeetingUnderstandingAgent(self.client)
@@ -51,7 +51,6 @@ class MeetingAgentSystem:
         self.action_items_agent = ActionItemsAgent(self.client)
         self.supervisor_agent = SupervisorAgent(self.client)
         self.final_renderer = FinalRenderer(self.client)
-        self.checkpointer = InMemorySaver()
         self.graph = self._build_graph()
 
     def _progress(self, event: str, label: str) -> None:
@@ -157,8 +156,9 @@ class MeetingAgentSystem:
         decision = state["supervisor_review"]["decision"]
         if decision == "approve":
             return "final_render"
+        # reject，或返工额度已用尽仍未通过：走兜底输出，保证一定有结果
         if decision == "reject" or state.get("revision_count", 0) >= self.MAX_REVISIONS:
-            return "quality_failure"
+            return "fallback_render"
         return "revision"
 
     async def _revision_node(self, state: MeetingState) -> dict:
@@ -186,19 +186,79 @@ class MeetingAgentSystem:
         return updates
 
     @staticmethod
-    async def _quality_failure_node(state: MeetingState) -> dict:
-        review = state["supervisor_review"]
-        findings = []
+    def _collect_supervisor_findings(state: MeetingState) -> list[str]:
+        review = state.get("supervisor_review") or {}
+        findings: list[str] = []
         for key in (
             "facts_check",
             "perspective_check",
             "action_items_check",
             "consistency_check",
         ):
-            findings.extend(review[key]["findings"])
-        detail = "；".join(findings) or "Supervisor 未批准当前结果"
-        raise RuntimeError(
-            f"会议结果未通过 Supervisor 审核（最多允许一次返工）：{detail}"
+            check = review.get(key) or {}
+            findings.extend(check.get("findings") or [])
+        return findings
+
+    @staticmethod
+    def _apply_quality_disclaimer(report: FinalReport) -> FinalReport:
+        """为降级输出附加醒目提示，保证用户一定看到风险说明。"""
+        minutes = (report.personalized_minutes or "").rstrip()
+        if QUALITY_DISCLAIMER not in minutes:
+            minutes = f"{minutes}\n\n{QUALITY_DISCLAIMER}" if minutes else QUALITY_DISCLAIMER
+
+        title = (report.title or "会议纪要").strip()
+        if QUALITY_DISCLAIMER not in title:
+            title = f"{title}{QUALITY_DISCLAIMER}"
+
+        return FinalReport(
+            title=title,
+            personalized_minutes=minutes,
+            action_items=list(report.action_items or []),
+            quality_warning=QUALITY_WARNING,
+        )
+
+    @staticmethod
+    def _assemble_report_from_drafts(state: MeetingState) -> FinalReport:
+        """不依赖 LLM 的确定性兜底：从中间草稿拼出可读结果。"""
+        minutes = state.get("minutes_draft") or {}
+        actions = state.get("extracted_action_items") or {}
+        user = state.get("user") or {}
+        user_name = user.get("name") or "用户"
+
+        sections: list[str] = []
+        headline = minutes.get("headline")
+        if headline:
+            sections.append(str(headline))
+
+        section_map = (
+            ("executive_summary", "会议要点"),
+            ("key_decisions", "关键决策"),
+            ("personally_relevant_points", "职责相关事项"),
+            ("risks_and_blockers", "风险与阻塞"),
+            ("unresolved_questions", "未决问题"),
+        )
+        for key, label in section_map:
+            items = minutes.get(key) or []
+            if not items:
+                continue
+            body = "；".join(str(item) for item in items if item)
+            if body:
+                sections.append(f"{label}：{body}")
+
+        if sections:
+            text = "\n".join(sections)
+        else:
+            purpose = (state.get("meeting_understanding") or {}).get("meeting_purpose")
+            text = (
+                f"系统未能通过质量审核，以下为基于现有材料的粗略整理。"
+                f"{f'会议目的：{purpose}' if purpose else '请直接参考会议原文。'}"
+            )
+
+        my_actions = list(actions.get("my_actions") or [])
+        return FinalReport(
+            title=f"{user_name}视角会议纪要",
+            personalized_minutes=text,
+            action_items=my_actions,
         )
 
     async def _final_render_node(self, state: MeetingState) -> dict:
@@ -215,11 +275,46 @@ class MeetingAgentSystem:
         )
         result = await self.final_renderer.run(context)
         self._progress("done", label)
-        return {"final_report": result.model_dump()}
+        return {
+            "quality_degraded": False,
+            "final_report": result.model_dump(),
+        }
 
-    @staticmethod
-    def _human_review_node(state: MeetingState) -> dict:
-        return {"human_decision": "pass"}
+    async def _fallback_render_node(self, state: MeetingState) -> dict:
+        """Supervisor 未批准时的兜底：尽量渲染现有草稿，并标注可能有误。"""
+        label = "FallbackRenderer｜降级输出（生成可能有误）"
+        self._progress("start", label)
+
+        findings = self._collect_supervisor_findings(state)
+        findings_text = "；".join(findings) if findings else "Supervisor 未批准当前结果"
+        decision = (state.get("supervisor_review") or {}).get("decision", "reject")
+
+        context = (
+            "注意：以下结果未通过 Supervisor 审核，你仍需基于现有草稿整理可读输出，"
+            "不得编造草稿和原文中没有的事实；优先保留有明确证据的内容。"
+            f"\n未通过原因摘要：{findings_text}"
+            f"\nSupervisor 决定：{decision}\n\n"
+            f"会议原文：\n{state['transcript']}\n\n"
+            f"用户画像：\n{_json(state['user'])}\n\n"
+            f"会议理解：\n{_json(state.get('meeting_understanding'))}\n\n"
+            f"用户视角：\n{_json(state.get('perspective_profile'))}\n\n"
+            f"纪要草稿：\n{_json(state.get('minutes_draft'))}\n\n"
+            f"待办结果：\n{_json(state.get('extracted_action_items'))}\n\n"
+            f"Supervisor 审核结论：\n{_json(state.get('supervisor_review'))}"
+        )
+
+        try:
+            rendered = await self.final_renderer.run(context)
+        except Exception:
+            # 渲染也失败时，用中间草稿确定性拼装，确保一定有输出
+            rendered = MeetingAgentSystem._assemble_report_from_drafts(state)
+
+        report = self._apply_quality_disclaimer(rendered)
+        self._progress("done", label)
+        return {
+            "quality_degraded": True,
+            "final_report": report.model_dump(),
+        }
 
     def _build_graph(self) -> object:
         builder = StateGraph(MeetingState)
@@ -242,9 +337,8 @@ class MeetingAgentSystem:
         )
         builder.add_node("supervisor_review", self._supervisor_review_node)
         builder.add_node("revision", self._revision_node)
-        builder.add_node("quality_failure", self._quality_failure_node)
+        builder.add_node("fallback_render", self._fallback_render_node)
         builder.add_node("final_render", self._final_render_node)
-        builder.add_node("human_review", self._human_review_node)
 
         builder.add_edge(START, "meeting_understanding")
         builder.add_edge(START, "perspective_modeling")
@@ -263,24 +357,19 @@ class MeetingAgentSystem:
             {
                 "final_render": "final_render",
                 "revision": "revision",
-                "quality_failure": "quality_failure",
+                "fallback_render": "fallback_render",
             },
         )
         builder.add_edge("revision", "supervisor_review")
-        builder.add_edge("quality_failure", END)
-        builder.add_edge("final_render", "human_review")
-        builder.add_edge("human_review", END)
+        builder.add_edge("fallback_render", END)
+        builder.add_edge("final_render", END)
 
-        return builder.compile(
-            checkpointer=self.checkpointer,
-            interrupt_before=["human_review"],
-        )
+        return builder.compile()
 
     async def run(
         self,
         transcript: str,
         user: UserIdentity | None = None,
-        review_handler: ReviewHandler | None = None,
     ) -> FinalReport:
         if not transcript.strip():
             raise ValueError("会议文字不能为空")
@@ -290,22 +379,7 @@ class MeetingAgentSystem:
             "user": (user or UserIdentity()).model_dump(),
             "revision_count": 0,
         }
-        config = {
-            "configurable": {
-                "thread_id": str(uuid4()),
-            }
-        }
-        state = await self.graph.ainvoke(initial_state, config=config)
-
-        if review_handler is None:
-            raise RuntimeError("工作流正在等待人工审核，但没有提供 review_handler")
-
-        preview = validate_payload(FinalReport, state["final_report"])
-        decision = await review_handler(preview)
-        if decision.strip().lower() != "pass":
-            raise RuntimeError("人工审核未通过，最终结果没有正式发布")
-
-        state = await self.graph.ainvoke(None, config=config)
+        state = await self.graph.ainvoke(initial_state)
 
         return validate_payload(
             FinalReport,

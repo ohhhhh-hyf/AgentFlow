@@ -59,21 +59,44 @@ conda activate agent
 python -m pip install -r requirements.txt
 ```
 
-如果使用 DeepSeek：
+复制环境变量模板并填写 Key：
+
+```bash
+copy .env.example .env
+```
+
+通过 `LLM_PROVIDER` 切换厂商（均为 OpenAI 兼容接口）：
+
+**DeepSeek（默认）**
 
 ```text
+LLM_PROVIDER=deepseek
 DEEPSEEK_API_KEY=你的 API Key
 DEEPSEEK_BASE_URL=https://api.deepseek.com
 DEEPSEEK_MODEL=deepseek-chat
 ```
 
-如果使用 vLLM 部署的 Qwen：
+**Kimi（Moonshot）**
 
 ```text
-DEEPSEEK_API_KEY=local-key
-DEEPSEEK_BASE_URL=http://127.0.0.1:8000/v1
-DEEPSEEK_MODEL=qwen-local
+LLM_PROVIDER=kimi
+KIMI_API_KEY=你的 API Key
+KIMI_BASE_URL=https://api.moonshot.cn/v1
+KIMI_MODEL=moonshot-v1-32k
 ```
+
+也可用 `MOONSHOT_API_KEY`；国际站 base_url 可为 `https://api.moonshot.ai/v1`。
+
+**本地 vLLM / 其他 OpenAI 兼容服务**
+
+```text
+LLM_PROVIDER=openai_compatible
+LLM_API_KEY=local-key
+LLM_BASE_URL=http://127.0.0.1:8000/v1
+LLM_MODEL=qwen-local
+```
+
+通用覆盖项：`LLM_API_KEY` / `LLM_BASE_URL` / `LLM_MODEL`（优先级高于厂商专用变量）。
 
 ## 运行方式
 

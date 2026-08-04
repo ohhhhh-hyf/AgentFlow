@@ -2,35 +2,41 @@ from __future__ import annotations
 
 import asyncio
 import json
-import os
 import urllib.error
 import urllib.request
 from typing import TypeVar
 
+from .config import LLMSettings, resolve_llm_settings
 from .models import ModelMixin
 from .validation import OutputValidationError, validate_payload
 
 T = TypeVar("T", bound=ModelMixin)
 
 
-class DeepSeekClient:
-    """DeepSeek 调用封装：请求 JSON 输出，并做严格结构校验。"""
+class LLMClient:
+    """OpenAI 兼容 Chat Completions 客户端（DeepSeek / Kimi / vLLM 等）。"""
 
     def __init__(
         self,
         api_key: str | None = None,
         base_url: str | None = None,
         model: str | None = None,
+        provider: str | None = None,
         timeout: float = 120.0,
         max_retries: int = 2,
+        settings: LLMSettings | None = None,
     ) -> None:
-        self.api_key = api_key or os.getenv("DEEPSEEK_API_KEY")
-        if not self.api_key or self.api_key == "your_api_key_here":
-            raise ValueError("请在 .env 中填写真实的 DEEPSEEK_API_KEY")
-        self.base_url = (
-            base_url or os.getenv("DEEPSEEK_BASE_URL", "https://api.deepseek.com")
-        ).rstrip("/")
-        self.model = model or os.getenv("DEEPSEEK_MODEL", "deepseek-chat")
+        cfg = settings or resolve_llm_settings(
+            provider=provider,
+            api_key=api_key,
+            base_url=base_url,
+            model=model,
+        )
+        self.provider = cfg.provider
+        self.api_key = cfg.api_key
+        self.base_url = cfg.base_url
+        self.model = cfg.model
+        self.temperature = cfg.temperature
         self.timeout = timeout
         self.max_retries = max_retries
 
@@ -39,7 +45,7 @@ class DeepSeekClient:
             {
                 "model": self.model,
                 "messages": messages,
-                "temperature": 0,
+                "temperature": self.temperature,
                 "response_format": {"type": "json_object"},
             },
             ensure_ascii=False,
@@ -53,15 +59,18 @@ class DeepSeekClient:
             },
             method="POST",
         )
+        label = self.provider
         try:
             with urllib.request.urlopen(request, timeout=self.timeout) as response:
                 body = json.loads(response.read().decode("utf-8"))
                 return body["choices"][0]["message"]["content"]
         except urllib.error.HTTPError as exc:
             detail = exc.read().decode("utf-8", errors="replace")
-            raise RuntimeError(f"DeepSeek API 返回 HTTP {exc.code}：{detail}") from exc
+            raise RuntimeError(
+                f"{label} API 返回 HTTP {exc.code}：{detail}"
+            ) from exc
         except urllib.error.URLError as exc:
-            raise RuntimeError(f"无法连接 DeepSeek API：{exc.reason}") from exc
+            raise RuntimeError(f"无法连接 {label} API：{exc.reason}") from exc
 
     @staticmethod
     def _parse_and_validate(content: str, response_model: type[T]) -> T:
@@ -128,3 +137,7 @@ class DeepSeekClient:
             raise RuntimeError(
                 f"{response_model.__name__} 输出无法满足结构契约：{exc}"
             ) from exc
+
+
+# 兼容旧导入名
+DeepSeekClient = LLMClient

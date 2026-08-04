@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from ..client import DeepSeekClient
+from ..client import LLMClient
 from ..models import PersonalizedMinutes
 
 
@@ -12,7 +12,8 @@ class MinutesGenerationAgent:
 - 提高与用户职责直接相关内容的权重。
 - 不遗漏会影响用户的关键全局决策、风险和未决事项。
 - 不得把建议写成正式决策。
-- 不得创造会议原文没有的信息。"""
+- 不得创造会议原文没有的信息。
+- 正文中不要出现「你」「您」等第二人称代词：直接删掉即可，例如「你需要」写成「需要」，「与你相关」写成「相关」；不要改成姓名或角色称呼。"""
 
     OUTPUT_CONTRACT = """{
   "headline": "字符串",
@@ -23,7 +24,7 @@ class MinutesGenerationAgent:
   "unresolved_questions": ["字符串"]
 }"""
 
-    def __init__(self, client: DeepSeekClient) -> None:
+    def __init__(self, client: LLMClient) -> None:
         self.client = client
 
     async def run(self, shared_context: str) -> PersonalizedMinutes:
