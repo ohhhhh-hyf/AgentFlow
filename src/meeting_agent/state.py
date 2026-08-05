@@ -21,5 +21,8 @@ class MeetingState(TypedDict, total=False):
     # Supervisor 未批准时仍输出结果，标记为降级兜底
     quality_degraded: bool
     final_report: dict
+    # 并行渲染结果：纪要正文 + 待办列表
+    rendered_minutes: str
+    formatted_actions: list[dict]
     # 可选：最终纪要以此 Markdown 模板格式输出（占位符 [描述] 将被填充）
     template: str

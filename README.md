@@ -57,8 +57,8 @@
 
 ```text
 meeting_agent/
-├── app.py                                    # CLI 启动入口
-├── gradio_app.py                             # Gradio Web 启动入口
+├── bootstrap.py                                    # CLI 启动入口
+├── gradio_bootstrap.py                             # Gradio Web 启动入口
 ├── README.md                                 # 本文档
 ├── ARCHITECTURE.md                           # 架构深度解析
 ├── requirements.txt                          # Python 依赖
@@ -134,13 +134,13 @@ DEEPSEEK_MODEL=deepseek-chat
 
 ```bash
 # CLI 模式（默认路径）
-python app.py
+python bootstrap.py
 
 # 指定文件
-python app.py --summary summary/meeting.txt --profile profile/user_profile.json
+python bootstrap.py --summary summary/meeting.txt --profile profile/user_profile.json
 
 # Web 界面
-python gradio_app.py
+python gradio_bootstrap.py
 ```
 
 ## 配置 LLM 厂商
@@ -196,16 +196,16 @@ LLM_MODEL=qwen-local
 
 ```bash
 # 使用默认路径（summary/ 和 profile/ 目录）
-python app.py
+python bootstrap.py
 
 # 指定具体文件
-python app.py --summary summary/meeting.txt --profile profile/user_profile.json
+python bootstrap.py --summary summary/meeting.txt --profile profile/user_profile.json
 
 # 指定目录（自动寻找目录中的唯一目标文件）
-python app.py --summary summary --profile profile
+python bootstrap.py --summary summary --profile profile
 
 # 使用自定义模板 + 绝对路径 + 自定义 .env
-python app.py \
+python bootstrap.py \
   --summary /home/user/input/meeting.txt \
   --profile /home/user/input/user.json \
   --template template/project_progress.md \
@@ -220,7 +220,7 @@ python app.py \
 ### Gradio Web
 
 ```bash
-python gradio_app.py
+python gradio_bootstrap.py
 ```
 
 浏览器访问 `http://127.0.0.1:7860`，可以在页面上粘贴会议内容和用户画像、上传文件、勾选客观视角、选择输出模板，点击"生成纪要"后实时查看 Agent 执行进度和最终结果。
@@ -373,7 +373,7 @@ Supervisor 的默认立场是"信任输出，除非发现明确问题"。边界�
 命令行中使用：
 
 ```bash
-python app.py --summary summary/meeting.txt --profile profile/object_profile.json
+python bootstrap.py --summary summary/meeting.txt --profile profile/object_profile.json
 ```
 
 ## 质量保障机制
@@ -575,7 +575,7 @@ class MeetingState(TypedDict, total=False):
 
 ## Gradio Web 界面
 
-项目提供了 Gradio Web 前端（`gradio_app.py`），零侵入复用 `MeetingAgentSystem`：
+项目提供了 Gradio Web 前端（`gradio_bootstrap.py`），零侵入复用 `MeetingAgentSystem`：
 
 - **输入区**：会议内容文本框（支持粘贴或上传 .txt）、用户画像 JSON（支持粘贴或上传 .json）、客观全员视角复选框
 - **模板区**（可折叠）：支持上传自定义 Markdown 模板或直接粘贴
@@ -586,7 +586,7 @@ class MeetingState(TypedDict, total=False):
 启动方式：
 
 ```bash
-python gradio_app.py
+python gradio_bootstrap.py
 ```
 
 ## 自定义与扩展
@@ -600,7 +600,7 @@ python gradio_app.py
 在 `profile/` 目录创建新的 `.json` 文件，或通过 `--profile` 指定：
 
 ```bash
-python app.py --summary summary/meeting.txt --profile profile/new_user.json
+python bootstrap.py --summary summary/meeting.txt --profile profile/new_user.json
 ```
 
 ### 修改 Agent 行为
@@ -678,7 +678,7 @@ python -m pip install -r requirements.txt
 
 ### 找不到 meeting_agent
 
-应从项目根目录运行 `python app.py`，`app.py` 会自动将 `src/` 加入 Python 路径。
+应从项目根目录运行 `python bootstrap.py`，`bootstrap.py` 会自动将 `src/` 加入 Python 路径。
 
 ### API Key 无效
 
@@ -702,7 +702,7 @@ python -m pip install -r requirements.txt
 
 ## GitHub 安全
 
-**可上传**：`app.py`、`gradio_app.py`、`src/`、`template/`、`README.md`、`ARCHITECTURE.md`、`requirements.txt`、`pyproject.toml`、`.gitignore`
+**可上传**：`bootstrap.py`、`gradio_bootstrap.py`、`src/`、`template/`、`README.md`、`ARCHITECTURE.md`、`requirements.txt`、`pyproject.toml`、`.gitignore`
 
 **不可上传**：`.env`、`.venv/`、`__pycache__/`、`*.pyc`、`summary/*.txt`、`profile/*.json`
 

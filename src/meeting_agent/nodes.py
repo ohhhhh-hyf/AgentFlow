@@ -295,8 +295,12 @@ class _Nodes:
         return "revision"
 
     async def _revision_node(self, state: MeetingState) -> dict:
+        import logging
+        _logger = logging.getLogger(__name__)
+
         decision = state["supervisor_review"]["decision"]
         self._progress("start", "Revision｜根据审核意见返工")
+        max_revisions: int = getattr(self, "MAX_REVISIONS", 1)
         updates: dict = {
             "revision_count": state.get("revision_count", 0) + 1,
         }
@@ -317,43 +321,69 @@ class _Nodes:
             updates.update(minutes)
             updates.update(actions)
         else:
-            raise RuntimeError(
-                f"不支持的 Supervisor 返工决定：{decision}"
+            # 意外的 decision（理论上不应到达，validation 已拦截），不崩溃，走降级
+            _logger.warning(
+                "Revision 收到不支持的 Supervisor 决定：%s，跳过返工，标记降级",
+                decision,
             )
+            updates["quality_degraded"] = True
+            # 确保下次路由走到 fallback
+            updates["revision_count"] = max_revisions + 1
 
         self._progress("done", "Revision｜根据审核意见返工")
         return updates
 
-    async def _final_render_node(self, state: MeetingState) -> dict:
-        label = "FinalRenderer｜整理最终展示内容"
+    # ── 最终输出（并行：纪要 + 待办）──────────────────────────
+
+    @staticmethod
+    def _extract_actions(state: MeetingState) -> list[dict]:
+        """从 state 中提取最终待办列表（确定性，不需 LLM）。"""
+        actions = state.get("extracted_action_items") or {}
+        if state.get("objective_perspective"):
+            items = list(actions.get("my_actions") or [])
+            items.extend(actions.get("unassigned_actions") or [])
+        else:
+            items = list(actions.get("my_actions") or [])
+        return items
+
+    async def _render_minutes_node(self, state: MeetingState) -> dict:
+        label = "RenderMinutes｜渲染纪要正文"
         self._progress("start", label)
-        result = await self.final_renderer.run(
+        minutes = await self.final_renderer.run_minutes_only(
             self._render_context(state, fallback=False),
             template=state.get("template", ""),
         )
         self._progress("done", label)
-        return {
-            "quality_degraded": False,
-            "final_report": result.model_dump(),
-        }
+        return {"rendered_minutes": minutes, "quality_degraded": False}
 
-    async def _fallback_render_node(self, state: MeetingState) -> dict:
-        """Supervisor 未批准时的兜底：尽量渲染现有草稿，并标注可能有误。"""
-        label = "FallbackRenderer｜降级输出（生成可能有误）"
+    async def _format_actions_node(self, state: MeetingState) -> dict:
+        label = "FormatActions｜格式化待办事项"
         self._progress("start", label)
+        items = self._extract_actions(state)
+        self._progress("done", label)
+        return {"formatted_actions": items}
 
+    async def _fallback_minutes_node(self, state: MeetingState) -> dict:
+        """降级渲染纪要正文。"""
+        label = "FallbackMinutes｜降级渲染纪要"
+        self._progress("start", label)
         context = self._render_context(state, fallback=True)
-
         try:
-            rendered = await self.final_renderer.run(
+            minutes = await self.final_renderer.run_minutes_only(
                 context, template=state.get("template", "")
             )
         except Exception:
-            rendered = self._assemble_report_from_drafts(state)
-
-        report = self._apply_quality_disclaimer(rendered)
+            report = self._assemble_report_from_drafts(state)
+            minutes = report.personalized_minutes
+        if QUALITY_DISCLAIMER not in (minutes or ""):
+            minutes = f"{minutes}\n\n{QUALITY_DISCLAIMER}" if minutes else QUALITY_DISCLAIMER
         self._progress("done", label)
-        return {
-            "quality_degraded": True,
-            "final_report": report.model_dump(),
-        }
+        return {"rendered_minutes": minutes, "quality_degraded": True}
+
+    async def _fallback_actions_node(self, state: MeetingState) -> dict:
+        """降级提取待办（确定性）。"""
+        label = "FallbackActions｜降级提取待办"
+        self._progress("start", label)
+        items = self._extract_actions(state)
+        self._progress("done", label)
+        return {"formatted_actions": items}

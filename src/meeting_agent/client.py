@@ -40,16 +40,15 @@ class LLMClient:
         self.timeout = timeout
         self.max_retries = max_retries
 
-    def _post(self, messages: list[dict[str, str]]) -> str:
-        payload = json.dumps(
-            {
-                "model": self.model,
-                "messages": messages,
-                "temperature": self.temperature,
-                "response_format": {"type": "json_object"},
-            },
-            ensure_ascii=False,
-        ).encode("utf-8")
+    def _post(self, messages: list[dict[str, str]], *, json_mode: bool = True) -> str:
+        body: dict = {
+            "model": self.model,
+            "messages": messages,
+            "temperature": self.temperature,
+        }
+        if json_mode:
+            body["response_format"] = {"type": "json_object"}
+        payload = json.dumps(body, ensure_ascii=False).encode("utf-8")
         request = urllib.request.Request(
             f"{self.base_url}/chat/completions",
             data=payload,
@@ -137,6 +136,18 @@ class LLMClient:
             raise RuntimeError(
                 f"{response_model.__name__} 输出无法满足结构契约：{exc}"
             ) from exc
+
+    async def text(
+        self,
+        system_prompt: str,
+        user_prompt: str,
+    ) -> str:
+        """调用 LLM 返回纯文本（非 JSON 模式）。"""
+        messages = [
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": user_prompt},
+        ]
+        return await asyncio.to_thread(self._post, messages, json_mode=False)
 
 
 # 兼容旧导入名

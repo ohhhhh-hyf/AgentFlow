@@ -14,7 +14,7 @@ from meeting_agent.config import load_env
 from meeting_agent.logging_config import setup_logging
 from meeting_agent.models import UserIdentity, is_objective_perspective
 from meeting_agent.orchestrator import MeetingAgentSystem
-from meeting_agent.presenter import ProgressPrinter, print_result
+from meeting_agent.presenter import print_result
 
 
 DEFAULT_SUMMARY_PATH = PROJECT_ROOT / "summary"
@@ -119,7 +119,7 @@ async def run(
         if not template_text:
             raise ValueError(f"模板文件为空：{template}")
 
-    system = MeetingAgentSystem(progress_handler=ProgressPrinter())
+    system = MeetingAgentSystem()
     result = await system.run(transcript, user, template=template_text)
     print_result(result, objective_perspective=is_objective_perspective(user))
 

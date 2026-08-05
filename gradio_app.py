@@ -21,14 +21,22 @@ from meeting_agent.orchestrator import MeetingAgentSystem
 # ── Agent 架构定义 ────────────────────────────────────────────
 # 每个 Agent: key(唯一标识), prefix(匹配progress label), label(中文名), layer(层级)
 _AGENTS = [
-    {"key": "meeting_understanding", "prefix": "MeetingUnderstandingAgent", "label": "理解会议内容", "layer": 1},
-    {"key": "perspective_modeling", "prefix": "PerspectiveModelingAgent", "label": "建立用户视角", "layer": 1},
-    {"key": "minutes_generation", "prefix": "MinutesGenerationAgent", "label": "生成纪要草稿", "layer": 2},
-    {"key": "action_items", "prefix": "ActionItemsAgent", "label": "提取待办事项", "layer": 2},
-    {"key": "supervisor_review", "prefix": "SupervisorAgent", "label": "审核结果质量", "layer": 3},
-    {"key": "revision", "prefix": "Revision", "label": "返工修正", "layer": 4},
-    {"key": "final_render", "prefix": "FinalRenderer", "label": "整理最终展示", "layer": 4},
-    {"key": "fallback_render", "prefix": "FallbackRenderer", "label": "降级兜底输出", "layer": 4},
+    # Layer 1 — 并行
+    {"key": "meeting_understanding", "prefix": "MeetingUnderstandingAgent", "label": "理解会议内容", "layer": 1, "core": True},
+    {"key": "perspective_modeling", "prefix": "PerspectiveModelingAgent", "label": "建立用户视角", "layer": 1, "core": True},
+    # Layer 2 — 并行
+    {"key": "minutes_generation", "prefix": "MinutesGenerationAgent", "label": "生成纪要草稿", "layer": 2, "core": True},
+    {"key": "action_items", "prefix": "ActionItemsAgent", "label": "提取待办事项", "layer": 2, "core": True},
+    # Layer 3 — 串行
+    {"key": "supervisor_review", "prefix": "SupervisorAgent", "label": "审核结果质量", "layer": 3, "core": True},
+    # Layer 4 — 返工（条件触发）
+    {"key": "revision", "prefix": "Revision", "label": "返工修正", "layer": 4, "core": False},
+    # Layer 5 — 并行输出
+    {"key": "render_minutes", "prefix": "RenderMinutes", "label": "渲染纪要正文", "layer": 5, "core": True},
+    {"key": "format_actions", "prefix": "FormatActions", "label": "格式化待办事项", "layer": 5, "core": True},
+    # Layer 5 — 降级路径（条件触发）
+    {"key": "fallback_minutes", "prefix": "FallbackMinutes", "label": "降级渲染纪要", "layer": 5, "core": False},
+    {"key": "fallback_actions", "prefix": "FallbackActions", "label": "降级提取待办", "layer": 5, "core": False},
 ]
 
 
@@ -47,10 +55,8 @@ def _build_pipeline(states: dict[str, str]) -> str:
         layers[i] = []
     for a in _AGENTS:
         s = states.get(a["key"], "pending")
-        # 非核心 agent 未触发则不显示 (revision, fallback)
-        core_keys = {"meeting_understanding", "perspective_modeling", "minutes_generation",
-                     "action_items", "supervisor_review", "final_render"}
-        if a["key"] not in core_keys and s == "pending":
+        # 非核心 agent 从未触发则不显示 (revision / fallback)
+        if not a.get("core", True) and s == "pending":
             continue
         layers[a["layer"]].append({**a, "status": s})
 
@@ -101,6 +107,7 @@ def _build_pipeline(states: dict[str, str]) -> str:
 
 # ── 主生成器 ──────────────────────────────────────────────────
 def _generate(meeting_text: str, profile_json: str, template: str = ""):
+    template = template or ""
     # 解析输入
     if not profile_json.strip():
         yield _build_pipeline({}), "请输入用户画像 JSON", ""
@@ -180,8 +187,12 @@ def _generate(meeting_text: str, profile_json: str, template: str = ""):
 
     if result.action_items:
         acts: list[str] = []
+        _prio = {"high": "高优先", "medium": "中优先", "low": "低优先"}
         for i, item in enumerate(result.action_items, 1):
             meta = []
+            prio = item.get("priority", "")
+            if prio and prio in _prio:
+                meta.append(_prio[prio])
             if item.get("owner"):
                 meta.append(f"负责人：{item['owner']}")
             if item.get("deadline"):
@@ -192,16 +203,16 @@ def _generate(meeting_text: str, profile_json: str, template: str = ""):
     else:
         actions = "暂无待办事项"
 
-    # 流式输出纪要文本
+    # 流式输出纪要文本（待办在首帧即展示，不等待纪要流结束）
     MINUTES_STREAM = True
     if MINUTES_STREAM and minutes:
+        yield html, "", actions  # 待办结果即刻展示
         streamed = ""
         chunk_size = max(1, len(minutes) // 60)
         for i in range(0, len(minutes), chunk_size):
             streamed = minutes[: i + chunk_size]
-            yield html, streamed, ""
+            yield html, streamed, actions
             time.sleep(0.03)
-        yield html, minutes, actions
     else:
         yield html, minutes, actions
 
