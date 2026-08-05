@@ -1,6 +1,6 @@
 # 个性化会议纪要多 Agent 系统
 
-基于 LangGraph 的多 Agent 会议处理系统。输入会议文本和用户画像，自动生成该用户视角下的个性化会议纪要和本人待办事项。支持**个人视角**和**客观全员视角**两种模式，同一份会议可输入多份画像，不同角色得到不同结果。
+基于 LangGraph 的多 Agent 会议处理系统。输入会议文本和用户画像，自动生成该用户视角下的个性化会议纪要和待办事项。支持**个人视角**和**客观全员视角**两种模式，同一份会议可输入多份画像，不同角色得到不同结果。
 
 ## 目录
 
@@ -14,9 +14,12 @@
 - [Agent 工作流](#agent-工作流)
 - [双视角模式](#双视角模式)
 - [质量保障机制](#质量保障机制)
+- [架构详解](#架构详解)
 - [数据模型](#数据模型)
 - [输出示例](#输出示例)
+- [Gradio Web 界面](#gradio-web-界面)
 - [自定义与扩展](#自定义与扩展)
+- [准确性边界](#准确性边界)
 - [常见问题](#常见问题)
 - [GitHub 安全](#github-安全)
 
@@ -30,12 +33,12 @@
 - 编造负责人或截止时间
 - 同一模型在不同运行中返回不同 JSON 结构
 
-本项目将任务拆给多个专用 Agent：
+本项目将任务拆给多个专用 Agent，每个 Agent 只负责一件事：
 
-1. **独立理解会议事实** — 不绑定任何用户身份
+1. **独立理解会议事实** — 不绑定任何用户身份，纯粹的事实提取
 2. **建立用户视角模型** — 把静态画像映射到本次会议
 3. **并行生成纪要草稿和待办候选** — 各司其职
-4. **统一审核校准** — 以原文为最高事实来源，核验后输出
+4. **统一审核校准** — 以原文为最高事实来源，四维度核验
 5. **最终渲染** — 整理为可读的终稿
 
 ## 核心特性
@@ -43,16 +46,19 @@
 - **多 Agent 协作**：7 个专职 Agent（理解、建模、纪要、待办、审核、渲染、修复）通过 LangGraph 编排
 - **并行执行**：会议理解与视角建模并行，纪要生成与待办提取并行
 - **双视角模式**：支持"个人用户视角"和"客观全员视角"（`perspective: "objective"`）
-- **严格质量保障**：三层校验（Prompt 契约 → 严格结构校验 → 重试+修复），不合规不输出
-- **审核与返工**：Supervisor 对中间结果做四维度审核，支持定向返工（最多 1 次），不通过时降级兜底
+- **四层质量保障**：Prompt 契约 → 严格结构校验 → 重试+修复 → Supervisor 审核+降级兜底
+- **Supervisor 审核与返工**：四维度审核（事实/视角/待办/一致性），支持定向返工（最多 1 次），不通过时降级兜底
+- **模型自带校验**：每个数据模型的 `validate` 类方法携带自身结构校验逻辑，新增模型只需实现该方法即可接入
 - **多厂商兼容**：支持 DeepSeek、Kimi (Moonshot)、vLLM 及任何 OpenAI 兼容接口
-- **Human-in-the-loop**：最终结果预览确认后才正式输出
+- **Gradio Web 界面**：提供浏览器端的可视化操作界面，实时显示 Agent 执行进度
+- **模板输出**：支持自定义 Markdown 模板，系统自动填充会议内容
 
 ## 项目结构
 
 ```text
 meeting_agent/
-├── app.py                                    # 唯一启动入口
+├── app.py                                    # CLI 启动入口
+├── gradio_app.py                             # Gradio Web 启动入口
 ├── README.md                                 # 本文档
 ├── ARCHITECTURE.md                           # 架构深度解析
 ├── requirements.txt                          # Python 依赖
@@ -61,31 +67,38 @@ meeting_agent/
 ├── summary/                                  # 会议文本（.txt）
 │   └── meeting.txt
 ├── profile/                                  # 用户画像（.json）
-│   ├── user_profile.json
+│   ├── user_profile.json                     # 个人视角画像
 │   └── object_profile.json                   # 客观视角画像
-├── examples/                                 # 示例输入
-│   ├── community_meeting.txt                 # 社区筹备会示例
-│   ├── volunteer_profile.json                # 志愿者李明画像
-│   └── property_manager_profile.json         # 物业王芳画像
-├── tests/                                    # 测试文件
+├── template/                                 # 输出模板（Markdown）
+│   └── project_progress.md
 └── src/meeting_agent/
     ├── __init__.py                           # 公共 API
     ├── orchestrator.py                       # LangGraph 工作流编排
     ├── state.py                              # 共享 State 定义
     ├── client.py                             # LLM 客户端（OpenAI 兼容）
-    ├── models.py                             # 数据模型（dataclass）
-    ├── validation.py                         # 严格结构校验
+    ├── models.py                             # 数据模型 + 内置校验
+    ├── validation.py                         # 校验工具函数 + 统一分发入口
     ├── config.py                             # 环境变量与厂商预设
+    ├── logging_config.py                     # 日志配置
     ├── presenter.py                          # 终端进度与结果展示
-    └── agents/
+    ├── agents/
+    │   ├── __init__.py
+    │   ├── meeting_understanding_agent.py    # Agent 1: 会议理解
+    │   ├── perspective_modeling_agent.py     # Agent 2: 视角建模
+    │   ├── minutes_generation_agent.py       # Agent 3: 纪要生成
+    │   ├── action_items_agent.py             # Agent 4: 待办提取
+    │   ├── supervisor_agent.py               # Agent 5: 质量审核
+    │   ├── final_renderer.py                 # Agent 6: 最终渲染
+    │   └── schema_repair_agent.py            # 辅助: JSON 修复
+    └── prompts/
         ├── __init__.py
-        ├── meeting_understanding_agent.py    # Agent 1: 会议理解
-        ├── perspective_modeling_agent.py     # Agent 2: 视角建模
-        ├── minutes_generation_agent.py       # Agent 3: 纪要生成
-        ├── action_items_agent.py             # Agent 4: 待办提取
-        ├── supervisor_agent.py               # Agent 5: 质量审核
-        ├── final_renderer.py                 # Agent 6: 最终渲染
-        └── schema_repair_agent.py            # 辅助: JSON 修复
+        ├── meeting_understanding.py          # Agent 1 prompt
+        ├── perspective_modeling.py           # Agent 2 prompt
+        ├── minutes_generation.py             # Agent 3 prompt
+        ├── action_items.py                   # Agent 4 prompt
+        ├── supervisor.py                     # Agent 5 prompt
+        ├── final_renderer.py                 # Agent 6 prompt
+        └── schema_repair.py                  # 修复 prompt
 ```
 
 ## 快速开始
@@ -93,7 +106,7 @@ meeting_agent/
 ### 1. 环境准备
 
 ```bash
-# 创建并激活虚拟环境（Python >= 3.10）
+# Python >= 3.10
 conda activate agent
 # 或者
 python -m venv .venv && .venv\Scripts\Activate.ps1
@@ -104,12 +117,7 @@ python -m pip install -r requirements.txt
 
 ### 2. 配置 API Key
 
-```bash
-# 复制环境变量模板
-copy .env.example .env
-```
-
-编辑 `.env`，填入 LLM 配置（以 DeepSeek 为例）：
+在项目根目录创建 `.env` 文件：
 
 ```text
 LLM_PROVIDER=deepseek
@@ -122,16 +130,17 @@ DEEPSEEK_MODEL=deepseek-chat
 
 在 `summary/` 目录放入会议文本（`.txt`），在 `profile/` 目录放入用户画像（`.json`）。
 
-或直接使用项目自带的示例：
-
-```bash
-python app.py --summary examples/community_meeting.txt --profile examples/volunteer_profile.json
-```
-
 ### 4. 运行
 
 ```bash
+# CLI 模式（默认路径）
 python app.py
+
+# 指定文件
+python app.py --summary summary/meeting.txt --profile profile/user_profile.json
+
+# Web 界面
+python gradio_app.py
 ```
 
 ## 配置 LLM 厂商
@@ -156,7 +165,7 @@ KIMI_BASE_URL=https://api.moonshot.cn/v1
 KIMI_MODEL=moonshot-v1-32k
 ```
 
-支持别名：`moonshot`、`moonshot-ai`。也可用 `MOONSHOT_API_KEY` 环境变量。国际站 base_url 可用 `https://api.moonshot.ai/v1`。
+别名：`moonshot`、`moonshot-ai`。国际站 base_url 可用 `https://api.moonshot.ai/v1`。
 
 ### 本地 vLLM / 其他 OpenAI 兼容服务
 
@@ -167,7 +176,7 @@ LLM_BASE_URL=http://127.0.0.1:8000/v1
 LLM_MODEL=qwen-local
 ```
 
-支持别名：`openai`、`vllm`、`local`。
+别名：`openai`、`vllm`、`local`。
 
 ### 环境变量优先级
 
@@ -179,26 +188,27 @@ LLM_MODEL=qwen-local
 | `LLM_MODEL` | 通用模型名 |
 | `LLM_TEMPERATURE` | 温度参数（默认 0，Kimi 默认 1） |
 
-各厂商也有专用变量（如 `DEEPSEEK_API_KEY`），通用变量优先。
+通用变量（`LLM_*`）优先级高于厂商专用变量（如 `DEEPSEEK_*`）。
 
 ## 运行方式
+
+### CLI
 
 ```bash
 # 使用默认路径（summary/ 和 profile/ 目录）
 python app.py
 
 # 指定具体文件
-python app.py \
-  --summary summary/meeting.txt \
-  --profile profile/user_profile.json
+python app.py --summary summary/meeting.txt --profile profile/user_profile.json
 
 # 指定目录（自动寻找目录中的唯一目标文件）
 python app.py --summary summary --profile profile
 
-# 使用绝对路径 + 自定义 .env
+# 使用自定义模板 + 绝对路径 + 自定义 .env
 python app.py \
   --summary /home/user/input/meeting.txt \
   --profile /home/user/input/user.json \
+  --template template/project_progress.md \
   --env /home/user/config/.env
 ```
 
@@ -207,7 +217,13 @@ python app.py \
 - `--profile` 传目录时，目录中需要只有一个 `.json` 文件
 - 如果目录里有多个文件，程序会提示直接指定其中一个
 
-旧命令 `--summary-dir` 和 `--profile-dir` 仍可用作别名。
+### Gradio Web
+
+```bash
+python gradio_app.py
+```
+
+浏览器访问 `http://127.0.0.1:7860`，可以在页面上粘贴会议内容和用户画像、上传文件、勾选客观视角、选择输出模板，点击"生成纪要"后实时查看 Agent 执行进度和最终结果。
 
 ## 输入格式
 
@@ -219,7 +235,7 @@ python app.py \
 - 明确的任务分配、负责人和截止时间
 - 会议结论
 
-原文越清晰，Agent 输出的准确性越高。示例见 `examples/community_meeting.txt`。
+原文越清晰，Agent 输出的准确性越高。
 
 ### 用户画像（.json）
 
@@ -251,7 +267,7 @@ python app.py \
 | `responsibilities` | string[] | 用户的长期职责 |
 | `interests` | string[] | 用户重点关注的内容 |
 | `context` | string | 本次生成的额外说明 |
-| `perspective` | string | 视角模式（见下方），设置为 `"objective"` 启用客观全员视角 |
+| `perspective` | string | 视角模式，设置为 `"objective"` 启用客观全员视角 |
 
 ## Agent 工作流
 
@@ -320,6 +336,8 @@ SupervisorAgent 对每次生成进行四个维度的检查：
 
 审核决策：`approve`（通过）、`revise_minutes`（返工纪要）、`revise_actions`（返工待办）、`revise_both`（两者返工）、`reject`（拒绝）。
 
+Supervisor 的默认立场是"信任输出，除非发现明确问题"。边界情况一律 pass，不追求完美。
+
 ## 双视角模式
 
 系统支持两种生成模式，由用户画像中的 `perspective` 字段控制。
@@ -337,9 +355,13 @@ SupervisorAgent 对每次生成进行四个维度的检查：
 
 ```json
 {
-  "name": "会议记录",
-  "role": null,
-  "perspective": "objective"
+  "name": null,
+  "role": "客观会议记录与纪要整理",
+  "perspective": "objective",
+  "responsibilities": [
+    "客观还原会议目的、议题、讨论与正式决策",
+    "完整提取各方明确分工与可执行待办"
+  ]
 }
 ```
 
@@ -348,34 +370,34 @@ SupervisorAgent 对每次生成进行四个维度的检查：
 - 标题使用"客观会议纪要"等中立表述
 - 禁止使用第二人称和个性化措辞
 
-命令行中使用（示例）：
+命令行中使用：
 
 ```bash
-python app.py --summary examples/community_meeting.txt --profile profile/object_profile.json
+python app.py --summary summary/meeting.txt --profile profile/object_profile.json
 ```
 
 ## 质量保障机制
 
 系统使用**四层防护**确保输出可靠：
 
-### 1. Prompt 契约
+### 第一层：Prompt 契约
 
-每个 Agent 的 `OUTPUT_CONTRACT` 明确规定了输出的 JSON 结构、字段类型和合法值。所有 Agent 的 System Prompt 包含严格的业务规则（如"不得仅凭角色推断负责人"、"严格区分讨论与决策"）。
+每个 Agent 的 `OUTPUT_CONTRACT` 明确规定了输出的 JSON 结构、字段类型和合法值。所有 Agent 的 System Prompt 包含严格的业务规则（如"不得仅凭角色推断负责人"、"严格区分讨论与决策"）。Prompt 中的每条规则都配有正例和反例，减少模型误解。
 
-### 2. 严格结构校验（validation.py）
+### 第二层：严格结构校验
 
-`validate_payload()` 对每个 Agent 输出执行：
+`validation.py` 提供共享校验工具函数，每个数据模型通过 `validate` 类方法携带自身校验逻辑。校验过程执行：
 
 - 顶层对象类型检查
 - 字段完整性（不允许缺失、不允许多余）
 - 字段类型校验（字符串/数组/null 位置）
 - 数组元素逐项校验
 - 枚举值合法性
-- 逻辑一致性（如 `approve` 时反馈必须为空）
+- 逻辑一致性（如 `approve` 时反馈必须为空、`reject` 时至少一个检查项失败）
 
-校验器**不会**做任何自动修正（不丢字段、不强转类型、不补默认值）。
+校验器**不会**做任何自动修正（不丢字段、不强转类型、不补默认值）——不合规就拒绝，将错误返回给 LLM 重试。
 
-### 3. 重试 + 格式修复
+### 第三层：重试 + 格式修复
 
 ```
 模型输出 → JSON 解析 → 严格校验
@@ -387,12 +409,13 @@ python app.py --summary examples/community_meeting.txt --profile profile/object_
                                  再次校验 → 仍失败则报错
 ```
 
-SchemaRepairAgent 只修复 JSON 结构问题，**绝不修改业务事实**。
+SchemaRepairAgent 只修复 JSON 结构问题，**绝不修改业务事实**。它被严格限定为：补齐缺失字段（填 null/[]）、删除多余字段、修正类型错误、修正 JSON 语法。禁止新增、删除、改写任何业务内容。
 
-### 4. Supervisor 审核 + 降级兜底
+### 第四层：Supervisor 审核 + 降级兜底
 
-- Supervisor **未通过**时，触发定向返工（最多 1 次）
-- 返工后仍未通过或 Supervisor 直接 reject，系统进入**降级兜底**：
+- Supervisor 审核通过 → 进入 FinalRenderer 正常输出
+- Supervisor 未通过 → 触发定向返工（最多 1 次）
+- 返工后仍未通过或 Supervisor 直接 reject → 系统进入**降级兜底**：
   - 优先尝试用 FinalRenderer 基于现有草稿整理
   - 渲染也失败时，用中间草稿确定性拼装（不依赖 LLM）
   - 所有降级输出附加 `⚠ 生成可能有误` 提示
@@ -407,23 +430,19 @@ SchemaRepairAgent 只修复 JSON 结构问题，**绝不修改业务事实**。
 | 两项返工 | 9 次 |
 | 含格式重试 | 递增 |
 
-## 数据模型
+## 架构详解
 
-所有模型使用 `@dataclass` 定义，通过 `model_dump()` 转换为字典写入 LangGraph State。
+### LangGraph 工作流编排（orchestrator.py）
 
-| 模型 | 说明 |
-|---|---|
-| `UserIdentity` | 用户画像输入（name, role, responsibilities, perspective 等） |
-| `MeetingUnderstanding` | 会议事实提取结果（purpose, topics, decisions, risks 等） |
-| `PerspectiveProfile` | 用户视角模型（confidence, goals, concerns, evidence 等） |
-| `PersonalizedMinutes` | 纪要草稿（headline, executive_summary, key_decisions 等） |
-| `ActionItems` | 待办列表（my_actions, delegated_actions, unassigned_actions） |
-| `SupervisorReview` | 审核结果（decision + 四项 check） |
-| `FinalReport` | 最终输出（title + personalized_minutes + action_items） |
+`MeetingAgentSystem` 是系统的核心编排器，负责：
 
-### LangGraph State
+1. **构建 DAG 图**：注册 8 个节点（6 个业务 Agent + 返工节点 + 兜底渲染节点），定义节点间的边和条件路由
+2. **管理共享状态**：`MeetingState`（TypedDict）在节点间传递，每个节点只更新自己负责的字段，LangGraph 自动合并
+3. **条件路由**：Supervisor 审核后根据 `decision` 字段走三条路径之一：`final_render` → `revision` → `fallback_render`
+4. **返工控制**：`revision_count` 跟踪返工次数，达到 `MAX_REVISIONS=1` 后强制走兜底路径
+5. **降级兜底**：`_assemble_report_from_drafts()` 方法用纯确定性逻辑从中间草稿拼装可读结果，不依赖 LLM，保证系统在任何情况下都有输出
 
-`MeetingState`（TypedDict）在节点间传递，每个节点只返回自己更新的字段：
+### 共享状态（state.py）
 
 ```python
 class MeetingState(TypedDict, total=False):
@@ -440,11 +459,81 @@ class MeetingState(TypedDict, total=False):
     revision_count: int                # 返工计数
     quality_degraded: bool             # 降级标记
     final_report: dict                 # 最终输出
+    template: str                      # 可选输出模板
 ```
+
+### LLM 客户端（client.py）
+
+`LLMClient` 封装了与 LLM 的通信：
+
+- 基于标准库 `urllib`，零额外依赖
+- 自动注入输出规则（只输出 JSON、字段必须与模板一致等）
+- `structured()` 方法完成"请求 → 解析 → 校验 → 重试 → 修复"的完整链路
+- `asyncio.to_thread` 将同步 HTTP 请求放入线程池，不阻塞事件循环
+- 支持 `temperature` 配置（默认 0，保证确定性）
+
+### 校验系统（validation.py + models.py）
+
+校验采用**模型自带校验**的设计：
+
+- `validation.py` 定义共享校验工具函数（`_exact_fields`、`_string`、`_string_list`、`_choice`、`_review_check`、`_action`）
+- 每个数据模型通过 `validate` 类方法包含自己的校验逻辑
+- `validate_payload()` 是统一分发入口：检查模型是否实现了 `validate` 方法 → 调用 → 返回实例
+- 新增模型只需实现 `validate` 类方法即可自动接入，不需要修改 `validation.py`
+
+这种设计的优势：
+- 模型的字段定义和校验逻辑在同一个文件中，修改字段时不容易漏改校验
+- 每个模型的校验逻辑独立，互不干扰
+- 单一模型的校验可以独立测试
+- 类名重构时 IDE 能给出提示（而基于字符串 `if name == "X"` 的旧方案无法被静态分析发现）
+
+### Prompt 与逻辑分离（prompts/ 目录）
+
+每个业务 Agent 的 System Prompt 和 Output Contract 独立存放在 `prompts/` 目录中。Agent 类只包含调用逻辑，从 prompts 导入常量。好处：
+
+- 修改 prompt 只需编辑一个文件，`git diff` 清晰展示每次调整
+- 非开发人员可以直接审核 prompt 内容
+- 后续可替换为远程配置或文件加载，无需改动 Agent 类
+
+## 数据模型
+
+所有模型使用 `@dataclass` 定义，继承 `ModelMixin`（提供 `model_dump()` 转换为字典），每个模型自带 `validate` 类方法。
+
+| 模型 | 说明 | 关键字段 |
+|---|---|---|
+| `UserIdentity` | 用户画像输入 | name, role, responsibilities, interests, perspective |
+| `MeetingUnderstanding` | 会议事实提取结果 | meeting_purpose, topics, decisions, risks, open_questions |
+| `PerspectiveProfile` | 用户视角模型 | confidence, goals, concerns, relevant_topics, evidence |
+| `PersonalizedMinutes` | 纪要草稿 | headline, executive_summary, key_decisions, personally_relevant_points |
+| `ActionItems` | 待办列表 | my_actions, delegated_actions, unassigned_actions |
+| `SupervisorReview` | 审核结果 | decision, facts_check, perspective_check, action_items_check, consistency_check |
+| `FinalReport` | 最终输出 | title, personalized_minutes, action_items, quality_warning |
+
+### 待办项结构
+
+每条待办包含 7 个字段：
+
+```json
+{
+  "task": "以动词开头的任务描述",
+  "owner": "原文明示的负责人姓名，无明确负责人时为 null",
+  "deadline": "原文明示的截止时间，无明确时间时为 null",
+  "priority": "high | medium | low",
+  "status": "explicit | inferred",
+  "evidence": "原文中支撑此待办的具体语句",
+  "confidence": "high | medium | low"
+}
+```
+
+### 字段约束
+
+- `owner` 和 `deadline`：原文没有明确说明时必须为 `null`，严禁根据角色推断或猜测
+- `status`：`explicit` = 任务和负责人均有原文明示；`inferred` = 仅优先级等软属性需标注（但负责人不能 infer）
+- `evidence`：必须是原文中的具体语句，可以直接定位到原文的某句话
 
 ## 输出示例
 
-运行时会显示 Agent 执行进度：
+运行时 Agent 执行进度（CLI 模式）：
 
 ```text
 · 01 理解会议内容
@@ -477,15 +566,38 @@ class MeetingState(TypedDict, total=False):
 ⚠ 生成可能有误，请结合会议原文核对。
 ```
 
+客观视角模式下的标题：
+
+```text
+── 客观会议纪要 ──
+── 客观待办事项（全员） ──
+```
+
+## Gradio Web 界面
+
+项目提供了 Gradio Web 前端（`gradio_app.py`），零侵入复用 `MeetingAgentSystem`：
+
+- **输入区**：会议内容文本框（支持粘贴或上传 .txt）、用户画像 JSON（支持粘贴或上传 .json）、客观全员视角复选框
+- **模板区**（可折叠）：支持上传自定义 Markdown 模板或直接粘贴
+- **执行进度**：实时显示每个 Agent 的开始和完成状态
+- **结果区**：分别展示会议纪要和待办事项
+- **后台线程**：Agent 在后台线程运行，前端通过轮询 + 线程锁实时推送进度
+
+启动方式：
+
+```bash
+python gradio_app.py
+```
+
 ## 自定义与扩展
 
 ### 修改会议输入
 
-直接编辑 `summary/meeting.txt` 或创建新的 `.txt` 文件。
+编辑 `summary/` 目录下的 `.txt` 文件，或通过 `--summary` 指定新文件。
 
 ### 增加用户画像
 
-在 `profile/` 目录创建新的 `.json` 文件，或通过命令行指定：
+在 `profile/` 目录创建新的 `.json` 文件，或通过 `--profile` 指定：
 
 ```bash
 python app.py --summary summary/meeting.txt --profile profile/new_user.json
@@ -493,27 +605,66 @@ python app.py --summary summary/meeting.txt --profile profile/new_user.json
 
 ### 修改 Agent 行为
 
-编辑 `src/meeting_agent/agents/` 下对应文件，通常修改：
+编辑 `src/meeting_agent/prompts/` 下对应文件，通常修改：
 - `SYSTEM_PROMPT` — 业务规则和职责描述
 - `OUTPUT_CONTRACT` — 输出 JSON 模板
 
 **注意**：如果修改了输出字段，必须同步更新：
-- `models.py` — 对应的 dataclass 定义
-- `validation.py` — 对应的校验逻辑
+- `models.py` — 对应的 dataclass 定义和 `validate` 方法
+- `prompts/` — 对应的 `OUTPUT_CONTRACT`
 
 否则严格校验会拒绝新结构。
 
-### 扩展为多用户批量处理
+### 新增数据模型
 
-参考 `app.py` 中的循环模式，可以改为遍历多个画像文件：
+1. 在 `models.py` 中定义 dataclass，实现 `validate` 类方法
+2. 在 `prompts/` 中添加对应的 prompt 文件
+3. 在 `agents/` 中添加 Agent 类
+4. 在 `orchestrator.py` 中注册图节点
+
+校验系统会自动发现新模型的 `validate` 方法，无需修改 `validation.py`。
+
+### 添加新的 LLM 厂商
+
+在 `config.py` 的 `PROVIDER_PRESETS` 中添加预设，`PROVIDER_ALIASES` 中添加别名即可：
 
 ```python
+PROVIDER_PRESETS["new_provider"] = {
+    "base_url": "https://api.example.com",
+    "model": "model-name",
+    "temperature": "0",
+    "api_key_envs": "LLM_API_KEY,NEWPROVIDER_API_KEY",
+    ...
+}
+```
+
+### 扩展为多用户批量处理
+
+```python
+from pathlib import Path
 profile_dir = Path("profile")
 for profile_file in profile_dir.glob("*.json"):
     user = UserIdentity(**json.loads(profile_file.read_text()))
     result = await system.run(transcript, user)
     print_result(result)
 ```
+
+## 准确性边界
+
+项目能够严格保证的是**输出结构**，不可能仅靠 LLM 绝对保证语义永远正确。
+
+当前提高准确性的手段包括：
+
+- 会议理解和用户建模分开，避免角色偏见污染事实提取
+- 纪要与待办分开生成，各司其职
+- Supervisor 二次审核，四维度交叉验证
+- 待办保留 `evidence` 字段，可追溯到原文具体语句
+- `owner` 必须匹配当前用户（个人模式）或原文明示的姓名
+- 禁止仅凭角色推断任务——"因为你是志愿者所以你应该引导居民"这种推理被明确禁止
+- `temperature=0` 保证输出确定性
+- 所有结果经过固定契约校验
+
+如果后续对准确率要求更高，可以新增事实核验 Agent，逐条检查最终纪要和待办能否在原文中找到依据。
 
 ## 常见问题
 
@@ -531,11 +682,11 @@ python -m pip install -r requirements.txt
 
 ### API Key 无效
 
-检查 `.env` 中 API Key 是否正确填写且未过期。不要把 Key 写入代码或 `.env.example`。
+检查 `.env` 中 API Key 是否正确填写且未过期。不要把 Key 写入代码或提交到 Git。
 
 ### 运行时没有立即输出
 
-每个用户正常需要 6 次 LLM 调用，发生返工需 8-9 次。程序开始时显示"正在生成"，具体耗时取决于 LLM 响应速度。
+每个用户正常需要 6 次 LLM 调用，发生返工需 8-9 次。程序开始时显示 Agent 执行进度，具体耗时取决于 LLM 响应速度。
 
 ### 输出结构错误
 
@@ -545,10 +696,14 @@ python -m pip install -r requirements.txt
 
 检查画像：姓名是否不同、角色职责是否有区分、会议原文是否明确提到该用户。
 
+### Gradio 界面运行出错
+
+确保已安装 `gradio>=5.0`，且 `.env` 配置正确。Gradio 启动时会自动加载 `.env`。
+
 ## GitHub 安全
 
-**可上传**：`app.py`、`src/`、`examples/`、`README.md`、`ARCHITECTURE.md`、`requirements.txt`、`pyproject.toml`、`.env.example`、`.gitignore`
+**可上传**：`app.py`、`gradio_app.py`、`src/`、`template/`、`README.md`、`ARCHITECTURE.md`、`requirements.txt`、`pyproject.toml`、`.gitignore`
 
-**不可上传**：`.env`、`.venv/`、`__pycache__/`、`*.pyc`
+**不可上传**：`.env`、`.venv/`、`__pycache__/`、`*.pyc`、`summary/*.txt`、`profile/*.json`
 
 `.gitignore` 已配置这些规则。真实 API Key 一旦公开，应立即撤销并重新生成。
