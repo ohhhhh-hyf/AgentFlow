@@ -1,4 +1,4 @@
-"""Gradio Web 前端 —— 零侵入，复用现有 MeetingAgentSystem。"""
+"""Gradio Web 前端 —— 展示 Agent 工作流架构与实时状态。"""
 from __future__ import annotations
 
 import asyncio
@@ -18,59 +18,126 @@ from meeting_agent.logging_config import setup_logging
 from meeting_agent.models import UserIdentity
 from meeting_agent.orchestrator import MeetingAgentSystem
 
+# ── Agent 架构定义 ────────────────────────────────────────────
+# 每个 Agent: key(唯一标识), prefix(匹配progress label), label(中文名), layer(层级)
+_AGENTS = [
+    {"key": "meeting_understanding", "prefix": "MeetingUnderstandingAgent", "label": "理解会议内容", "layer": 1},
+    {"key": "perspective_modeling", "prefix": "PerspectiveModelingAgent", "label": "建立用户视角", "layer": 1},
+    {"key": "minutes_generation", "prefix": "MinutesGenerationAgent", "label": "生成纪要草稿", "layer": 2},
+    {"key": "action_items", "prefix": "ActionItemsAgent", "label": "提取待办事项", "layer": 2},
+    {"key": "supervisor_review", "prefix": "SupervisorAgent", "label": "审核结果质量", "layer": 3},
+    {"key": "revision", "prefix": "Revision", "label": "返工修正", "layer": 4},
+    {"key": "final_render", "prefix": "FinalRenderer", "label": "整理最终展示", "layer": 4},
+    {"key": "fallback_render", "prefix": "FallbackRenderer", "label": "降级兜底输出", "layer": 4},
+]
 
-# ---- 核心逻辑 ---------------------------------------------------------
-def _generate_stream(
-    meeting_text: str,
-    profile_json: str,
-    objective_mode: bool,
-    template: str = "",
-):
-    """生成器：先实时推送各 Agent 执行进度，完成后推送纪要+待办。"""
-    # 1. 解析输入
-    if objective_mode:
-        user = UserIdentity(perspective="objective")
-    else:
-        if not profile_json.strip():
-            yield "请输入用户画像 JSON 或勾选客观全员视角", "", ""
-            return
-        try:
-            user = UserIdentity(**json.loads(profile_json))
-        except (json.JSONDecodeError, TypeError) as exc:
-            yield f"用户画像 JSON 格式错误：{exc}", "", ""
-            return
 
-    if not meeting_text.strip():
-        yield "请输入会议内容", "", ""
+def _key(label: str) -> str:
+    for a in _AGENTS:
+        if label.startswith(a["prefix"]):
+            return a["key"]
+    return "unknown"
+
+
+def _build_pipeline(states: dict[str, str]) -> str:
+    """构建工作流架构 HTML：按层排列，显示每个 Agent 的状态。"""
+    max_layer = max(a["layer"] for a in _AGENTS)
+    layers: dict[int, list[dict]] = {}
+    for i in range(1, max_layer + 1):
+        layers[i] = []
+    for a in _AGENTS:
+        s = states.get(a["key"], "pending")
+        # 非核心 agent 未触发则不显示 (revision, fallback)
+        core_keys = {"meeting_understanding", "perspective_modeling", "minutes_generation",
+                     "action_items", "supervisor_review", "final_render"}
+        if a["key"] not in core_keys and s == "pending":
+            continue
+        layers[a["layer"]].append({**a, "status": s})
+
+    # 状态样式
+    def _dot(s):
+        return {"pending": "#d1d5db", "running": "#3b82f6", "done": "#22c55e"}.get(s, "#d1d5db")
+    def _bd(s):
+        return {"pending": "#e5e7eb", "running": "#bfdbfe", "done": "#bbf7d0"}.get(s, "#e5e7eb")
+    def _bg(s):
+        return {"pending": "#fafafa", "running": "#f0f7ff", "done": "#f5fdf7"}.get(s, "#fafafa")
+    def _text(s):
+        return {"pending": "等待中", "running": "执行中", "done": "已完成"}.get(s, "等待中")
+    def _txt_color(s):
+        return {"pending": "#9ca3af", "running": "#1d4ed8", "done": "#15803d"}.get(s, "#9ca3af")
+
+    rows: list[str] = []
+    for layer_num in range(1, max_layer + 1):
+        cards = layers[layer_num]
+        if not cards:
+            continue
+        if rows:
+            rows.append('<div style="text-align:center;line-height:1;margin:2px 0;">'
+                        '<span style="color:#d1d5db;font-size:16px;">│</span></div>')
+        items: list[str] = []
+        for c in cards:
+            s = c["status"]
+            pulse = "animation:p 1.2s ease-in-out infinite;" if s == "running" else ""
+            items.append(
+                f'<div style="display:inline-flex;flex-direction:column;align-items:center;'
+                f'margin:0 8px;padding:10px 18px;border-radius:8px;'
+                f'background:{_bg(s)};border:1.5px solid {_bd(s)};{pulse}'
+                f'min-width:130px;">'
+                f'<span style="display:inline-block;width:10px;height:10px;'
+                f'border-radius:50%;background:{_dot(s)};margin-bottom:6px;flex-shrink:0;"></span>'
+                f'<span style="font-size:14px;font-weight:600;color:#1f2937;white-space:nowrap;">{c["label"]}</span>'
+                f'<span style="font-size:11px;color:{_txt_color(s)};margin-top:3px;">{_text(s)}</span>'
+                f'</div>'
+            )
+        rows.append('<div style="text-align:center;">' + "".join(items) + '</div>')
+
+    return (
+        '<style>@keyframes p{0%,100%{opacity:1}50%{opacity:.4}}</style>'
+        '<div style="font-family:system-ui,sans-serif;padding:12px 0;">'
+        + "".join(rows) +
+        '</div>'
+    )
+
+
+# ── 主生成器 ──────────────────────────────────────────────────
+def _generate(meeting_text: str, profile_json: str, template: str = ""):
+    # 解析输入
+    if not profile_json.strip():
+        yield _build_pipeline({}), "请输入用户画像 JSON", ""
+        return
+    try:
+        user = UserIdentity(**json.loads(profile_json))
+    except (json.JSONDecodeError, TypeError) as exc:
+        yield _build_pipeline({}), f"用户画像 JSON 格式错误：{exc}", ""
         return
 
-    # 2. 线程安全的进度收集
-    progress_lines: list[str] = []
+    if not meeting_text.strip():
+        yield _build_pipeline({}), "请输入会议内容", ""
+        return
+
+    # Agent 状态追踪
+    agent_states: dict[str, str] = {}
     lock = threading.Lock()
-    index = 0
 
     def _on_progress(event: str, label: str) -> None:
-        nonlocal index
-        if "｜" in label:
-            label = label.split("｜", 1)[1].strip()
+        k = _key(label)
+        if k == "unknown":
+            return
         with lock:
             if event == "start":
-                index += 1
-                progress_lines.append(f"{index:02d}  {label}  ...")
-            elif event == "done":
-                progress_lines.append(f"{index:02d}  {label}  完成")
+                agent_states[k] = "running"
+            else:
+                agent_states[k] = "done"
 
-    # 3. 后台线程跑 Agent
+    # 后台运行
     result_holder: dict = {}
     error_holder: dict = {}
 
     def _run() -> None:
         try:
             async def _inner() -> None:
-                system = MeetingAgentSystem(progress_handler=_on_progress)
-                result_holder["result"] = await system.run(
-                    meeting_text, user, template=template,
-                )
+                s = MeetingAgentSystem(progress_handler=_on_progress)
+                result_holder["result"] = await s.run(meeting_text, user, template=template)
             asyncio.run(_inner())
         except Exception as exc:
             error_holder["error"] = str(exc)
@@ -78,50 +145,65 @@ def _generate_stream(
     thread = threading.Thread(target=_run, daemon=True)
     thread.start()
 
-    # 4. 轮询进度，实时推送到前端
-    last_count = 0
+    # 轮询推送
+    last_snapshot = ""
     while thread.is_alive():
         with lock:
-            current = len(progress_lines)
-        if current > last_count:
-            last_count = current
+            cur = json.dumps(agent_states, sort_keys=True)
+        if cur != last_snapshot:
+            last_snapshot = cur
             with lock:
-                text = "\n".join(progress_lines)
-            yield text, "", ""
-        time.sleep(0.1)
-
+                sc = dict(agent_states)
+            yield _build_pipeline(sc), "", ""
+        time.sleep(0.15)
     thread.join()
 
     if error_holder:
-        yield f"运行出错：{error_holder['error']}", "", ""
+        with lock:
+            sc = dict(agent_states)
+        yield _build_pipeline(sc), f"运行出错：{error_holder['error']}", ""
         return
 
-    # 5. 格式化最终结果
+    # 最终结果
+    with lock:
+        sc = dict(agent_states)
+    html = _build_pipeline(sc)
+
     result = result_holder.get("result")
     if result is None:
-        yield "未获取到结果", "", ""
+        yield html, "未获取到结果", ""
         return
 
     minutes = result.personalized_minutes or "（暂无内容）"
-    actions_list: list[str] = []
+    if result.quality_warning:
+        minutes += f"\n\n{result.quality_warning}"
+
     if result.action_items:
-        for i, item in enumerate(result.action_items, start=1):
+        acts: list[str] = []
+        for i, item in enumerate(result.action_items, 1):
             meta = []
             if item.get("owner"):
                 meta.append(f"负责人：{item['owner']}")
             if item.get("deadline"):
                 meta.append(f"截止：{item['deadline']}")
             suffix = f"（{'；'.join(meta)}）" if meta else ""
-            actions_list.append(f"{i}. {item['task']}{suffix}")
-    actions = "\n".join(actions_list) if actions_list else "暂无待办事项"
-    if result.quality_warning:
-        minutes += f"\n\n{result.quality_warning}"
+            acts.append(f"{i}. {item['task']}{suffix}")
+        actions = "\n".join(acts)
+    else:
+        actions = "暂无待办事项"
 
-    # 完成态：进度显示全部完成 + 纪要 + 待办
-    with lock:
-        progress_lines.append("")
-        progress_lines.append("全部完成")
-    yield "\n".join(progress_lines), minutes, actions
+    # 流式输出纪要文本
+    MINUTES_STREAM = True
+    if MINUTES_STREAM and minutes:
+        streamed = ""
+        chunk_size = max(1, len(minutes) // 60)
+        for i in range(0, len(minutes), chunk_size):
+            streamed = minutes[: i + chunk_size]
+            yield html, streamed, ""
+            time.sleep(0.03)
+        yield html, minutes, actions
+    else:
+        yield html, minutes, actions
 
 
 def load_text_file(file) -> str:
@@ -130,7 +212,7 @@ def load_text_file(file) -> str:
     return Path(file.name).read_text(encoding="utf-8")
 
 
-# ---- UI ---------------------------------------------------------------
+# ── UI ────────────────────────────────────────────────────────
 with gr.Blocks(title="会议纪要 Agent") as demo:
     gr.Markdown("# 会议纪要多 Agent 系统")
 
@@ -148,11 +230,10 @@ with gr.Blocks(title="会议纪要 Agent") as demo:
             profile_json = gr.Textbox(
                 label="用户画像 (JSON)",
                 placeholder='{"name": "李明", "role": "居民志愿者", ...}',
-                lines=8,
+                lines=14,
             )
             profile_file = gr.File(label="上传 .json 文件", file_types=[".json"])
             profile_file.change(load_text_file, profile_file, profile_json)
-            objective_mode = gr.Checkbox(label="客观全员视角", value=False)
 
     with gr.Accordion("输出模板（可选）", open=False):
         with gr.Row():
@@ -166,24 +247,21 @@ with gr.Blocks(title="会议纪要 Agent") as demo:
 
     generate_btn = gr.Button("生成纪要", variant="primary")
 
+    gr.Markdown("### Agent 工作流")
+    pipeline_output = gr.HTML(value=_build_pipeline({}))
+
     with gr.Row():
-        with gr.Column(scale=1):
-            gr.Markdown("### 执行进度")
-            progress_output = gr.Textbox(label="", lines=10, interactive=False)
-        with gr.Column(scale=2):
+        with gr.Column():
             gr.Markdown("### 会议纪要")
             minutes_output = gr.Textbox(label="", lines=14, interactive=False)
-
-    gr.Markdown("### 待办事项")
-    actions_output = gr.Textbox(label="", lines=6, interactive=False)
+        with gr.Column():
+            gr.Markdown("### 待办事项")
+            actions_output = gr.Textbox(label="", lines=14, interactive=False)
 
     generate_btn.click(
-        _generate_stream,
-        [meeting_text, profile_json, objective_mode, template_text],
-        [progress_output, minutes_output, actions_output],
-    ).then(
-        # 生成完成后关闭加载动画（如果有的话）
-        None, None, None,
+        _generate,
+        [meeting_text, profile_json, template_text],
+        [pipeline_output, minutes_output, actions_output],
     )
 
 
