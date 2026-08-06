@@ -24,5 +24,7 @@ class MeetingState(TypedDict, total=False):
     # 并行渲染结果：纪要正文 + 待办列表
     rendered_minutes: str
     formatted_actions: list[dict]
+    # 流式模式：图内渲染节点跳过 LLM 调用，由 run_streaming 接管流式输出
+    streaming: bool
     # 可选：最终纪要以此 Markdown 模板格式输出（占位符 [描述] 将被填充）
     template: str

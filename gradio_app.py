@@ -105,6 +105,26 @@ def _build_pipeline(states: dict[str, str]) -> str:
     )
 
 
+def _format_actions(items: list[dict]) -> str:
+    """把待办条目格式化为可读多行文本（无条目时给出占位提示）。"""
+    if not items:
+        return "暂无待办事项"
+    _prio = {"high": "高优先", "medium": "中优先", "low": "低优先"}
+    lines: list[str] = []
+    for i, item in enumerate(items, 1):
+        meta = []
+        prio = item.get("priority", "")
+        if prio and prio in _prio:
+            meta.append(_prio[prio])
+        if item.get("owner"):
+            meta.append(f"负责人：{item['owner']}")
+        if item.get("deadline"):
+            meta.append(f"截止：{item['deadline']}")
+        suffix = f"（{'；'.join(meta)}）" if meta else ""
+        lines.append(f"{i}. {item['task']}{suffix}")
+    return "\n".join(lines)
+
+
 # ── 主生成器 ──────────────────────────────────────────────────
 def _generate(meeting_text: str, profile_json: str, template: str = ""):
     template = template or ""
@@ -136,85 +156,65 @@ def _generate(meeting_text: str, profile_json: str, template: str = ""):
             else:
                 agent_states[k] = "done"
 
-    # 后台运行
-    result_holder: dict = {}
-    error_holder: dict = {}
+    # 后台运行：消费 run_streaming 并行事件流（待办秒出 + 纪要真流式）
+    event_holder: dict = {"events": [], "error": None, "done": False}
 
     def _run() -> None:
         try:
             async def _inner() -> None:
                 s = MeetingAgentSystem(progress_handler=_on_progress)
-                result_holder["result"] = await s.run(meeting_text, user, template=template)
+                async for event in s.run_streaming(meeting_text, user, template=template):
+                    event_holder["events"].append(event)
             asyncio.run(_inner())
         except Exception as exc:
-            error_holder["error"] = str(exc)
+            event_holder["error"] = str(exc)
+        finally:
+            event_holder["done"] = True
 
     thread = threading.Thread(target=_run, daemon=True)
     thread.start()
 
-    # 轮询推送
+    # 轮询推送：进度快照 + 纪要与待办两条流并行更新
     last_snapshot = ""
-    while thread.is_alive():
+    minutes_text = ""
+    actions_text = ""
+    event_index = 0
+    while not event_holder["done"] or event_index < len(event_holder["events"]):
+        time.sleep(0.15)
+        # 进度快照
         with lock:
             cur = json.dumps(agent_states, sort_keys=True)
-        if cur != last_snapshot:
-            last_snapshot = cur
-            with lock:
-                sc = dict(agent_states)
-            yield _build_pipeline(sc), "", ""
-        time.sleep(0.15)
-    thread.join()
-
-    if error_holder:
-        with lock:
             sc = dict(agent_states)
-        yield _build_pipeline(sc), f"运行出错：{error_holder['error']}", ""
-        return
+        # 消费本轮新事件（只推进实际消费数，避免与后台 append 竞态丢事件）
+        new_events = event_holder["events"][event_index:]
+        event_index += len(new_events)
+        changed = cur != last_snapshot
+        for ev in new_events:
+            changed = True
+            etype = ev["type"]
+            if etype == "actions":
+                actions_text = _format_actions(ev["items"])
+            elif etype == "minutes_chunk":
+                minutes_text += ev["text"]
+            elif etype == "done":
+                if ev.get("quality_warning"):
+                    minutes_text += f"\n\n{ev['quality_warning']}"
+        if changed:
+            last_snapshot = cur
+            yield (
+                _build_pipeline(sc),
+                minutes_text or "（生成中…）",
+                actions_text or "（生成中…）",
+            )
 
-    # 最终结果
+    # 收尾：错误或最终结果
     with lock:
         sc = dict(agent_states)
     html = _build_pipeline(sc)
-
-    result = result_holder.get("result")
-    if result is None:
-        yield html, "未获取到结果", ""
+    if event_holder["error"]:
+        yield html, f"运行出错：{event_holder['error']}", actions_text or "暂无待办事项"
         return
-
-    minutes = result.personalized_minutes or "（暂无内容）"
-    if result.quality_warning:
-        minutes += f"\n\n{result.quality_warning}"
-
-    if result.action_items:
-        acts: list[str] = []
-        _prio = {"high": "高优先", "medium": "中优先", "low": "低优先"}
-        for i, item in enumerate(result.action_items, 1):
-            meta = []
-            prio = item.get("priority", "")
-            if prio and prio in _prio:
-                meta.append(_prio[prio])
-            if item.get("owner"):
-                meta.append(f"负责人：{item['owner']}")
-            if item.get("deadline"):
-                meta.append(f"截止：{item['deadline']}")
-            suffix = f"（{'；'.join(meta)}）" if meta else ""
-            acts.append(f"{i}. {item['task']}{suffix}")
-        actions = "\n".join(acts)
-    else:
-        actions = "暂无待办事项"
-
-    # 流式输出纪要文本（待办在首帧即展示，不等待纪要流结束）
-    MINUTES_STREAM = True
-    if MINUTES_STREAM and minutes:
-        yield html, "", actions  # 待办结果即刻展示
-        streamed = ""
-        chunk_size = max(1, len(minutes) // 60)
-        for i in range(0, len(minutes), chunk_size):
-            streamed = minutes[: i + chunk_size]
-            yield html, streamed, actions
-            time.sleep(0.03)
-    else:
-        yield html, minutes, actions
+    yield html, minutes_text or "（暂无内容）", actions_text or "暂无待办事项"
 
 
 def load_text_file(file) -> str:

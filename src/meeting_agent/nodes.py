@@ -349,6 +349,10 @@ class _Nodes:
     async def _render_minutes_node(self, state: MeetingState) -> dict:
         label = "RenderMinutes｜渲染纪要正文"
         self._progress("start", label)
+        if state.get("streaming"):
+            # 流式模式：图内不调用 LLM，由 run_streaming 接管流式输出
+            self._progress("done", label)
+            return {"rendered_minutes": "", "quality_degraded": False}
         minutes = await self.final_renderer.run_minutes_only(
             self._render_context(state, fallback=False),
             template=state.get("template", ""),
@@ -367,6 +371,10 @@ class _Nodes:
         """降级渲染纪要正文。"""
         label = "FallbackMinutes｜降级渲染纪要"
         self._progress("start", label)
+        if state.get("streaming"):
+            # 流式模式：图内不调用 LLM，由 run_streaming 接管降级输出
+            self._progress("done", label)
+            return {"rendered_minutes": "", "quality_degraded": True}
         context = self._render_context(state, fallback=True)
         try:
             minutes = await self.final_renderer.run_minutes_only(

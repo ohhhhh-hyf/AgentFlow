@@ -5,7 +5,8 @@ MeetingAgentSystem 负责：构建 DAG 图、注册节点、条件路由、启�
 """
 from __future__ import annotations
 
-from collections.abc import Callable
+import asyncio
+from collections.abc import AsyncIterator, Callable
 
 from langgraph.graph import END, START, StateGraph
 
@@ -212,3 +213,96 @@ class MeetingAgentSystem(_Nodes):
             fallback = self._assemble_report_from_drafts(state)
             fallback.quality_warning = QUALITY_WARNING
             return fallback
+
+    # ── 流式并行输出 ─────────────────────────────────────────
+
+    async def run_streaming(
+        self,
+        transcript: str,
+        user: UserIdentity | None = None,
+        template: str = "",
+    ) -> AsyncIterator[dict]:
+        """流式版本：审核通过后，纪要 LLM token 逐块推送、待办确定性即时推送，两者并行互不等待。
+
+        事件协议（async generator，按产出顺序 yield dict）：
+
+        - ``{"type": "actions", "items": [待办 dict, ...]}``
+          待办列表（确定性拼装，秒出，不等纪要）
+        - ``{"type": "minutes_chunk", "text": str}``
+          纪要流式增量块（LLM SSE token 流，逐块追加即为全文）
+        - ``{"type": "done", "quality_warning": str | None}``
+          结束标记；quality_warning 非空表示输出降级，需提示核对
+
+        与 ``run()`` 的区别：``run()`` 返回合并的 ``FinalReport``；
+        本方法把纪要与待办作为两条并行事件流分别产出。
+        """
+        if not transcript.strip():
+            raise ValueError("会议文字不能为空")
+
+        # 前置阶段与 run() 完全一致：归一化 → 图执行（分析 + 审核 + 返工）
+        transcript = _normalize_transcript(transcript)
+        template = template or ""
+        user = user or UserIdentity()
+        objective_mode = is_objective_perspective(user)
+        user_data = user.model_dump()
+        if objective_mode and not user_data.get("perspective"):
+            user_data["perspective"] = "objective"
+
+        initial_state: MeetingState = {
+            "transcript": transcript,
+            "user": user_data,
+            "objective_perspective": objective_mode,
+            "revision_count": 0,
+            "template": template,
+            "streaming": True,  # 图内渲染节点跳过 LLM，由本方法接管流式输出
+        }
+        state = await self.graph.ainvoke(initial_state)
+
+        actions = state.get("formatted_actions") or []
+        degraded = bool(state.get("quality_degraded"))
+        quality_warning = QUALITY_WARNING if degraded else None
+
+        # 并行启动两个事件源，通过队列合并：纪要流式生成期间待办已可交付
+        queue: asyncio.Queue = asyncio.Queue()
+
+        async def _produce_actions() -> None:
+            try:
+                await queue.put({"type": "actions", "items": actions})
+            except Exception as exc:
+                await queue.put(exc)  # 异常对象作为事件传出，由主循环抛出
+            finally:
+                await queue.put(None)
+
+        async def _produce_minutes() -> None:
+            try:
+                if degraded:
+                    # 降级路径：确定性拼装，一次性整段交付
+                    report = self._assemble_report_from_drafts(state)
+                    await queue.put(
+                        {"type": "minutes_chunk", "text": report.personalized_minutes}
+                    )
+                    return
+                context = self._render_context(state, fallback=False)
+                async for chunk in self.final_renderer.stream_minutes_only(
+                    context, template
+                ):
+                    await queue.put({"type": "minutes_chunk", "text": chunk})
+            except Exception as exc:
+                await queue.put(exc)  # 异常对象作为事件传出，由主循环抛出
+            finally:
+                await queue.put(None)
+
+        tasks = [
+            asyncio.create_task(_produce_actions()),
+            asyncio.create_task(_produce_minutes()),
+        ]
+        remaining = len(tasks)
+        while remaining:
+            event = await queue.get()
+            if event is None:
+                remaining -= 1
+                continue
+            if isinstance(event, Exception):
+                raise event
+            yield event
+        yield {"type": "done", "quality_warning": quality_warning}

@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from collections.abc import AsyncIterator
+
 from ..client import LLMClient
 from ..models import FinalReport
 from ..prompts.final_renderer import (
@@ -63,21 +65,37 @@ class FinalRenderer:
             contract,
         )
 
-    async def run_minutes_only(self, approved_context: str, template: str = "") -> str:
-        """仅渲染纪要正文（纯文本），不产出 JSON —— 用于并行渲染节点。"""
+    @staticmethod
+    def _minutes_prompt_and_user(
+        context: str, template: str
+    ) -> tuple[str, str]:
+        """组装「仅渲染纪要」的 prompt 与用户消息（普通与流式共用）。"""
         template = template or ""
         if template.strip():
             prompt = _MINUTES_TEMPLATE_PROMPT
             user = (
-                f"{approved_context}\n\n"
+                f"{context}\n\n"
                 f"══════════════ 【输出模板】 ══════════════\n"
                 f"{template}\n"
                 f"══════════════════════════════════════════"
             )
         else:
             prompt = _MINUTES_ONLY_PROMPT
-            user = approved_context
+            user = context
+        return prompt, user
+
+    async def run_minutes_only(self, approved_context: str, template: str = "") -> str:
+        """仅渲染纪要正文（纯文本），不产出 JSON —— 用于并行渲染节点。"""
+        prompt, user = self._minutes_prompt_and_user(approved_context, template)
         return await self.client.text(
             prompt,
             user,
         )
+
+    async def stream_minutes_only(
+        self, approved_context: str, template: str = ""
+    ) -> AsyncIterator[str]:
+        """流式渲染纪要正文：LLM token 逐块产出（SSE），用于并行流式输出。"""
+        prompt, user = self._minutes_prompt_and_user(approved_context, template)
+        async for chunk in self.client.stream_text(prompt, user):
+            yield chunk

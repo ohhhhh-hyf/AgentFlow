@@ -1,3 +1,16 @@
+"""DeepSeek 配置模块。
+
+本模块只适配 DeepSeek 官方 API。所有配置通过项目根目录的 .env 文件提供，
+最小配置只需一行：
+
+    DEEPSEEK_API_KEY=sk-你的Key
+
+可选覆盖项（均有内置默认值，不配置也能运行）：
+
+    DEEPSEEK_BASE_URL=https://api.deepseek.com
+    DEEPSEEK_MODEL=deepseek-chat
+    DEEPSEEK_TEMPERATURE=0
+"""
 from __future__ import annotations
 
 import os
@@ -5,51 +18,19 @@ from dataclasses import dataclass
 from pathlib import Path
 
 
-# OpenAI 兼容 Chat Completions 的厂商预设
-# temperature：部分 Kimi 模型只允许 1
-PROVIDER_PRESETS: dict[str, dict[str, str]] = {
-    "deepseek": {
-        "base_url": "https://api.deepseek.com",
-        "model": "deepseek-chat",
-        "temperature": "0",
-        "api_key_envs": "LLM_API_KEY,DEEPSEEK_API_KEY",
-        "base_url_envs": "LLM_BASE_URL,DEEPSEEK_BASE_URL",
-        "model_envs": "LLM_MODEL,DEEPSEEK_MODEL",
-        "temperature_envs": "LLM_TEMPERATURE,DEEPSEEK_TEMPERATURE",
-    },
-    "kimi": {
-        # Moonshot / Kimi OpenAI 兼容接口
-        "base_url": "https://api.moonshot.cn/v1",
-        "model": "moonshot-v1-32k",
-        "temperature": "1",
-        "api_key_envs": "LLM_API_KEY,KIMI_API_KEY,MOONSHOT_API_KEY",
-        "base_url_envs": "LLM_BASE_URL,KIMI_BASE_URL,MOONSHOT_BASE_URL",
-        "model_envs": "LLM_MODEL,KIMI_MODEL,MOONSHOT_MODEL",
-        "temperature_envs": "LLM_TEMPERATURE,KIMI_TEMPERATURE,MOONSHOT_TEMPERATURE",
-    },
-    "openai_compatible": {
-        # 通用：vLLM / OneAPI / 其他 OpenAI 兼容服务，必须显式配置
-        "base_url": "http://127.0.0.1:8000/v1",
-        "model": "default",
-        "temperature": "0",
-        "api_key_envs": "LLM_API_KEY,OPENAI_API_KEY",
-        "base_url_envs": "LLM_BASE_URL,OPENAI_BASE_URL",
-        "model_envs": "LLM_MODEL,OPENAI_MODEL",
-        "temperature_envs": "LLM_TEMPERATURE,OPENAI_TEMPERATURE",
-    },
-}
+# DeepSeek 官方默认值
+DEFAULT_BASE_URL = "https://api.deepseek.com"
+DEFAULT_MODEL = "deepseek-chat"
+DEFAULT_TEMPERATURE = 0.0
 
-# 别名，方便写 moonshot / moonshot-v1 等
-PROVIDER_ALIASES: dict[str, str] = {
-    "deepseek": "deepseek",
-    "kimi": "kimi",
-    "moonshot": "kimi",
-    "moonshot-ai": "kimi",
-    "openai": "openai_compatible",
-    "openai_compatible": "openai_compatible",
-    "vllm": "openai_compatible",
-    "local": "openai_compatible",
-}
+# .env 中可用的环境变量名
+ENV_API_KEY = "DEEPSEEK_API_KEY"
+ENV_BASE_URL = "DEEPSEEK_BASE_URL"
+ENV_MODEL = "DEEPSEEK_MODEL"
+ENV_TEMPERATURE = "DEEPSEEK_TEMPERATURE"
+
+# 占位 Key，视为未配置
+_PLACEHOLDER = "your_api_key_here"
 
 
 @dataclass(frozen=True)
@@ -62,7 +43,7 @@ class LLMSettings:
 
 
 def load_env(path: Path) -> None:
-    """使用标准库加载简单的 KEY=VALUE 环境配置。"""
+    """使用标准库加载简单的 KEY=VALUE 环境配置（不覆盖已存在的环境变量）。"""
     if not path.exists():
         return
     for raw_line in path.read_text(encoding="utf-8").splitlines():
@@ -73,38 +54,11 @@ def load_env(path: Path) -> None:
         os.environ.setdefault(key.strip(), value.strip().strip("'\""))
 
 
-def _first_env(names: str) -> str | None:
-    for name in names.split(","):
-        value = os.getenv(name.strip())
-        if value and value.strip() and value.strip() != "your_api_key_here":
-            return value.strip()
-    return None
-
-
-def resolve_provider_name(provider: str | None = None) -> str:
-    raw = (provider or os.getenv("LLM_PROVIDER") or "deepseek").strip().lower()
-    if raw not in PROVIDER_ALIASES:
-        supported = ", ".join(sorted(PROVIDER_PRESETS))
-        raise ValueError(
-            f"不支持的 LLM_PROVIDER={raw!r}，可选：{supported} "
-            f"（也可用别名 kimi/moonshot、openai/vllm/local）"
-        )
-    return PROVIDER_ALIASES[raw]
-
-
-def _resolve_temperature(
-    preset: dict[str, str],
-    temperature: float | None,
-) -> float:
-    if temperature is not None:
-        return float(temperature)
-    raw = _first_env(preset.get("temperature_envs", "LLM_TEMPERATURE"))
-    if raw is not None:
-        try:
-            return float(raw)
-        except ValueError as exc:
-            raise ValueError(f"temperature 必须是数字，当前为：{raw!r}") from exc
-    return float(preset.get("temperature", "0"))
+def _env(name: str, default: str = "") -> str:
+    value = os.getenv(name, "").strip()
+    if value and value != _PLACEHOLDER:
+        return value
+    return default
 
 
 def resolve_llm_settings(
@@ -114,27 +68,37 @@ def resolve_llm_settings(
     model: str | None = None,
     temperature: float | None = None,
 ) -> LLMSettings:
-    """按厂商预设 + 环境变量解析 LLM 连接配置。"""
-    name = resolve_provider_name(provider)
-    preset = PROVIDER_PRESETS[name]
+    """解析 DeepSeek 连接配置。
 
-    resolved_key = api_key or _first_env(preset["api_key_envs"])
+    优先级：显式参数 > .env 环境变量 > 内置默认值。
+    最低配置要求：.env 中设置 DEEPSEEK_API_KEY，其余均可省略。
+
+    provider 参数仅保留以兼容旧调用方，本模块固定使用 deepseek。
+    """
+    resolved_key = api_key or _env(ENV_API_KEY)
     if not resolved_key:
-        envs = preset["api_key_envs"].replace(",", " / ")
         raise ValueError(
-            f"未找到 {name} 的 API Key，请在 .env 中配置其一：{envs}"
+            f"未找到 DeepSeek API Key，请在项目根目录的 .env 中配置："
+            f"{ENV_API_KEY}=sk-你的Key"
         )
 
-    resolved_base = (
-        base_url
-        or _first_env(preset["base_url_envs"])
-        or preset["base_url"]
-    ).rstrip("/")
-    resolved_model = model or _first_env(preset["model_envs"]) or preset["model"]
-    resolved_temperature = _resolve_temperature(preset, temperature)
+    resolved_base = (base_url or _env(ENV_BASE_URL) or DEFAULT_BASE_URL).rstrip("/")
+    resolved_model = model or _env(ENV_MODEL) or DEFAULT_MODEL
+
+    if temperature is not None:
+        resolved_temperature = float(temperature)
+    else:
+        raw = _env(ENV_TEMPERATURE)
+        if raw:
+            try:
+                resolved_temperature = float(raw)
+            except ValueError as exc:
+                raise ValueError(f"temperature 必须是数字，当前为：{raw!r}") from exc
+        else:
+            resolved_temperature = DEFAULT_TEMPERATURE
 
     return LLMSettings(
-        provider=name,
+        provider="deepseek",
         api_key=resolved_key,
         base_url=resolved_base,
         model=resolved_model,

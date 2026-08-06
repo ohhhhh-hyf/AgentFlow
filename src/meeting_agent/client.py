@@ -2,8 +2,10 @@ from __future__ import annotations
 
 import asyncio
 import json
+import threading
 import urllib.error
 import urllib.request
+from collections.abc import AsyncIterator, Iterable
 from typing import TypeVar
 
 from .config import LLMSettings, resolve_llm_settings
@@ -70,6 +72,100 @@ class LLMClient:
             ) from exc
         except urllib.error.URLError as exc:
             raise RuntimeError(f"无法连接 {label} API：{exc.reason}") from exc
+
+    def _stream_sync(
+        self, messages: list[dict[str, str]], *, json_mode: bool = False
+    ) -> Iterable[str]:
+        """同步读取 SSE 流式响应，逐块产出 content 增量（阻塞调用，供线程内使用）。"""
+        body: dict = {
+            "model": self.model,
+            "messages": messages,
+            "temperature": self.temperature,
+            "stream": True,
+        }
+        if json_mode:
+            body["response_format"] = {"type": "json_object"}
+        payload = json.dumps(body, ensure_ascii=False).encode("utf-8")
+        request = urllib.request.Request(
+            f"{self.base_url}/chat/completions",
+            data=payload,
+            headers={
+                "Authorization": f"Bearer {self.api_key}",
+                "Content-Type": "application/json",
+            },
+            method="POST",
+        )
+        label = self.provider
+        try:
+            with urllib.request.urlopen(request, timeout=self.timeout) as response:
+                for raw_line in response:
+                    line = raw_line.decode("utf-8", errors="replace").strip()
+                    if not line.startswith("data:"):
+                        continue
+                    data = line[len("data:"):].strip()
+                    if data == "[DONE]":
+                        break
+                    try:
+                        obj = json.loads(data)
+                    except json.JSONDecodeError:
+                        continue
+                    delta = obj["choices"][0]["delta"]
+                    content = delta.get("content") or ""
+                    if content:
+                        yield content
+        except urllib.error.HTTPError as exc:
+            detail = exc.read().decode("utf-8", errors="replace")
+            raise RuntimeError(
+                f"{label} API 返回 HTTP {exc.code}：{detail}"
+            ) from exc
+        except urllib.error.URLError as exc:
+            raise RuntimeError(f"无法连接 {label} API：{exc.reason}") from exc
+
+    async def stream_text(
+        self,
+        system_prompt: str,
+        user_prompt: str,
+    ) -> AsyncIterator[str]:
+        """流式调用 LLM 返回纯文本增量块（SSE，非 JSON 模式）。
+
+        同步 SSE 读取在后台线程执行，通过 asyncio.Queue 桥接，
+        边读边产出，不阻塞事件循环。
+        """
+        messages = [
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": user_prompt},
+        ]
+        loop = asyncio.get_running_loop()
+        # asyncio.Queue 非线程安全，必须经 loop.call_soon_threadsafe 桥接，
+        # 否则后台线程 put 无法可靠唤醒事件循环中的 get（Windows 下会卡死）
+        queue: asyncio.Queue = asyncio.Queue()
+
+        def _producer() -> None:
+            try:
+                for chunk in self._stream_sync(messages, json_mode=False):
+                    try:
+                        loop.call_soon_threadsafe(queue.put_nowait, chunk)
+                    except RuntimeError:
+                        return  # 事件循环已关闭（调用方提前退出）
+            except Exception as exc:  # 跨线程传递异常
+                try:
+                    loop.call_soon_threadsafe(queue.put_nowait, exc)
+                except RuntimeError:
+                    return
+            finally:
+                try:
+                    loop.call_soon_threadsafe(queue.put_nowait, None)
+                except RuntimeError:
+                    pass
+
+        threading.Thread(target=_producer, daemon=True).start()
+        while True:
+            item = await queue.get()
+            if item is None:
+                return
+            if isinstance(item, Exception):
+                raise item
+            yield item
 
     @staticmethod
     def _parse_and_validate(content: str, response_model: type[T]) -> T:

@@ -8,7 +8,7 @@
 - [核心特性](#核心特性)
 - [项目结构](#项目结构)
 - [快速开始](#快速开始)
-- [配置 LLM 厂商](#配置-llm-厂商)
+- [配置 DeepSeek](#配置-deepseek)
 - [运行方式](#运行方式)
 - [输入格式](#输入格式)
 - [Agent 工作流](#agent-工作流)
@@ -49,7 +49,7 @@
 - **四层质量保障**：Prompt 契约 → 严格结构校验 → 重试+修复 → Supervisor 审核+降级兜底
 - **Supervisor 审核与返工**：四维度审核（事实/视角/待办/一致性），支持定向返工（最多 1 次），不通过时降级兜底
 - **模型自带校验**：每个数据模型的 `validate` 类方法携带自身结构校验逻辑，新增模型只需实现该方法即可接入
-- **多厂商兼容**：支持 DeepSeek、Kimi (Moonshot)、vLLM 及任何 OpenAI 兼容接口
+- **DeepSeek 适配**：开箱即用 DeepSeek 官方 API，`.env` 中一行配置 API Key 即可
 - **Gradio Web 界面**：提供浏览器端的可视化操作界面，实时显示 Agent 执行进度
 - **模板输出**：支持自定义 Markdown 模板，系统自动填充会议内容
 
@@ -58,7 +58,7 @@
 ```text
 meeting_agent/
 ├── bootstrap.py                                    # CLI 启动入口
-├── gradio_bootstrap.py                             # Gradio Web 启动入口
+├── gradio_app.py                             # Gradio Web 启动入口
 ├── README.md                                 # 本文档
 ├── ARCHITECTURE.md                           # 架构深度解析
 ├── requirements.txt                          # Python 依赖
@@ -117,15 +117,13 @@ python -m pip install -r requirements.txt
 
 ### 2. 配置 API Key
 
-在项目根目录创建 `.env` 文件：
+在项目根目录创建 `.env` 文件（可复制 `.env.example` 后填写）：
 
 ```text
-LLM_PROVIDER=deepseek
 DEEPSEEK_API_KEY=sk-你的真实Key
-DEEPSEEK_BASE_URL=https://api.deepseek.com
-DEEPSEEK_MODEL=deepseek-chat
 ```
 
+只需这一行即可运行，base_url、模型名、temperature 均有内置默认值。
 ### 3. 准备输入
 
 在 `summary/` 目录放入会议文本（`.txt`），在 `profile/` 目录放入用户画像（`.json`）。
@@ -140,55 +138,29 @@ python bootstrap.py
 python bootstrap.py --summary summary/meeting.txt --profile profile/user_profile.json
 
 # Web 界面
-python gradio_bootstrap.py
+python gradio_app.py
 ```
 
-## 配置 LLM 厂商
+## 配置 DeepSeek
 
-通过 `LLM_PROVIDER` 环境变量切换厂商（均为 OpenAI 兼容接口）。所有厂商都支持 `LLM_API_KEY` / `LLM_BASE_URL` / `LLM_MODEL` 通用覆盖变量。
+本版本只适配 DeepSeek 官方 API。在项目根目录创建 `.env` 文件，配置 API Key 即可运行。
 
-### DeepSeek（默认）
+### 最小配置
 
 ```text
-LLM_PROVIDER=deepseek
 DEEPSEEK_API_KEY=sk-xxx
-DEEPSEEK_BASE_URL=https://api.deepseek.com
-DEEPSEEK_MODEL=deepseek-chat
 ```
 
-### Kimi / Moonshot
+### 可选配置
 
-```text
-LLM_PROVIDER=kimi
-KIMI_API_KEY=sk-xxx
-KIMI_BASE_URL=https://api.moonshot.cn/v1
-KIMI_MODEL=moonshot-v1-32k
-```
+| 变量 | 默认值 | 说明 |
+|---|---|---|
+| `DEEPSEEK_API_KEY` | 无（必填） | DeepSeek API Key，在 [platform.deepseek.com](https://platform.deepseek.com) 申请 |
+| `DEEPSEEK_BASE_URL` | `https://api.deepseek.com` | API 地址，一般无需修改 |
+| `DEEPSEEK_MODEL` | `deepseek-chat` | 模型名，如 `deepseek-reasoner` |
+| `DEEPSEEK_TEMPERATURE` | `0` | 温度参数，0 保证输出确定性 |
 
-别名：`moonshot`、`moonshot-ai`。国际站 base_url 可用 `https://api.moonshot.ai/v1`。
-
-### 本地 vLLM / 其他 OpenAI 兼容服务
-
-```text
-LLM_PROVIDER=openai_compatible
-LLM_API_KEY=local-key
-LLM_BASE_URL=http://127.0.0.1:8000/v1
-LLM_MODEL=qwen-local
-```
-
-别名：`openai`、`vllm`、`local`。
-
-### 环境变量优先级
-
-| 变量 | 说明 |
-|---|---|
-| `LLM_PROVIDER` | 厂商名称（deepseek / kimi / openai_compatible，默认 deepseek） |
-| `LLM_API_KEY` | 通用 API Key（优先级高于厂商专用变量） |
-| `LLM_BASE_URL` | 通用 Base URL |
-| `LLM_MODEL` | 通用模型名 |
-| `LLM_TEMPERATURE` | 温度参数（默认 0，Kimi 默认 1） |
-
-通用变量（`LLM_*`）优先级高于厂商专用变量（如 `DEEPSEEK_*`）。
+配置优先级：代码显式参数 > `.env` 环境变量 > 内置默认值。
 
 ## 运行方式
 
@@ -220,7 +192,7 @@ python bootstrap.py \
 ### Gradio Web
 
 ```bash
-python gradio_bootstrap.py
+python gradio_app.py
 ```
 
 浏览器访问 `http://127.0.0.1:7860`，可以在页面上粘贴会议内容和用户画像、上传文件、勾选客观视角、选择输出模板，点击"生成纪要"后实时查看 Agent 执行进度和最终结果。
@@ -575,7 +547,7 @@ class MeetingState(TypedDict, total=False):
 
 ## Gradio Web 界面
 
-项目提供了 Gradio Web 前端（`gradio_bootstrap.py`），零侵入复用 `MeetingAgentSystem`：
+项目提供了 Gradio Web 前端（`gradio_app.py`），零侵入复用 `MeetingAgentSystem`：
 
 - **输入区**：会议内容文本框（支持粘贴或上传 .txt）、用户画像 JSON（支持粘贴或上传 .json）、客观全员视角复选框
 - **模板区**（可折叠）：支持上传自定义 Markdown 模板或直接粘贴
@@ -586,7 +558,7 @@ class MeetingState(TypedDict, total=False):
 启动方式：
 
 ```bash
-python gradio_bootstrap.py
+python gradio_app.py
 ```
 
 ## 自定义与扩展
@@ -624,19 +596,9 @@ python bootstrap.py --summary summary/meeting.txt --profile profile/new_user.jso
 
 校验系统会自动发现新模型的 `validate` 方法，无需修改 `validation.py`。
 
-### 添加新的 LLM 厂商
+### 更换 LLM 厂商
 
-在 `config.py` 的 `PROVIDER_PRESETS` 中添加预设，`PROVIDER_ALIASES` 中添加别名即可：
-
-```python
-PROVIDER_PRESETS["new_provider"] = {
-    "base_url": "https://api.example.com",
-    "model": "model-name",
-    "temperature": "0",
-    "api_key_envs": "LLM_API_KEY,NEWPROVIDER_API_KEY",
-    ...
-}
-```
+当前版本只适配 DeepSeek。如需接入其他 OpenAI 兼容服务，修改 `src/meeting_agent/config.py` 中 `resolve_llm_settings()` 的默认值与环境变量名即可，调用方（`client.py` 等）无需改动。
 
 ### 扩展为多用户批量处理
 
@@ -702,7 +664,7 @@ python -m pip install -r requirements.txt
 
 ## GitHub 安全
 
-**可上传**：`bootstrap.py`、`gradio_bootstrap.py`、`src/`、`template/`、`README.md`、`ARCHITECTURE.md`、`requirements.txt`、`pyproject.toml`、`.gitignore`
+**可上传**：`bootstrap.py`、`gradio_app.py`、`src/`、`template/`、`README.md`、`ARCHITECTURE.md`、`requirements.txt`、`pyproject.toml`、`.gitignore`
 
 **不可上传**：`.env`、`.venv/`、`__pycache__/`、`*.pyc`、`summary/*.txt`、`profile/*.json`
 

@@ -3,6 +3,7 @@ from __future__ import annotations
 import argparse
 import asyncio
 import json
+import logging
 import sys
 from pathlib import Path
 
@@ -14,7 +15,10 @@ from meeting_agent.config import load_env
 from meeting_agent.logging_config import setup_logging
 from meeting_agent.models import UserIdentity, is_objective_perspective
 from meeting_agent.orchestrator import MeetingAgentSystem
-from meeting_agent.presenter import print_result
+from meeting_agent.presenter import _format_action, _section
+
+
+logger = logging.getLogger(__name__)
 
 
 DEFAULT_SUMMARY_PATH = PROJECT_ROOT / "summary"
@@ -108,6 +112,11 @@ def _load_user(profile_path: Path) -> UserIdentity:
 async def run(
     summary: Path, profile: Path, env_file: Path, template: Path | None
 ) -> None:
+    """默认启动方式：流式并行输出。
+
+    待办确定性拼装，纪要生成期间即完整显示；纪要正文由 LLM
+    流式生成、逐段实时打印（两条输出流并行，互不等待）。
+    """
     setup_logging()
     load_env(_resolve_path(env_file))
 
@@ -119,9 +128,40 @@ async def run(
         if not template_text:
             raise ValueError(f"模板文件为空：{template}")
 
+    objective = is_objective_perspective(user)
+    minutes_title = "客观会议纪要" if objective else f"{user.name or '用户'}视角会议纪要"
+    actions_title = "客观待办事项（全员）" if objective else "待办事项"
+
     system = MeetingAgentSystem()
-    result = await system.run(transcript, user, template=template_text)
-    print_result(result, objective_perspective=is_objective_perspective(user))
+    minutes_started = False
+    async for event in system.run_streaming(
+        transcript, user, template=template_text
+    ):
+        etype = event["type"]
+        if etype == "actions":
+            # 待办确定性拼装，纪要生成期间即显示
+            logger.info("")
+            _section(actions_title)
+            items = event["items"]
+            if not items:
+                logger.info("暂无明确待办")
+            else:
+                for index, item in enumerate(items, start=1):
+                    logger.info(_format_action(index, item))
+        elif etype == "minutes_chunk":
+            if not minutes_started:
+                logger.info("")
+                _section(minutes_title)
+                minutes_started = True
+            sys.stdout.write(event["text"])
+            sys.stdout.flush()
+        elif etype == "done":
+            if event.get("quality_warning"):
+                logger.warning("⚠ %s", event["quality_warning"])
+    if minutes_started:
+        sys.stdout.write("\n")
+    else:
+        logger.info("（暂无内容）")
 
 
 def main() -> None:
