@@ -13,4 +13,10 @@ dependencies = [
 ]
 
 [tool.hatch.build.targets.wheel]
-packages = ["src/meeting_agent"]
+packages = [
+    "src/domain/meeting",
+    "src/supervisor",
+    "src/schema_repair",
+    "src/llm_client",
+    "src/tools",
+]

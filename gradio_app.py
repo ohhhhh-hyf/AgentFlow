@@ -13,10 +13,10 @@ import gradio as gr
 PROJECT_ROOT = Path(__file__).resolve().parent
 sys.path.insert(0, str(PROJECT_ROOT / "src"))
 
-from meeting_agent.config import load_env
-from meeting_agent.logging_config import setup_logging
-from meeting_agent.models import UserIdentity
-from meeting_agent.orchestrator import MeetingAgentSystem
+from llm_client.config import load_env
+from tools.logging_config import setup_logging
+from domain.meeting.models import UserIdentity
+from domain.meeting.orchestrator import MeetingAgentSystem
 
 # ── Agent 架构定义 ────────────────────────────────────────────
 # 每个 Agent: key(唯一标识), prefix(匹配progress label), label(中文名), layer(层级)
@@ -27,10 +27,12 @@ _AGENTS = [
     # Layer 2 — 并行
     {"key": "minutes_generation", "prefix": "MinutesGenerationAgent", "label": "生成纪要草稿", "layer": 2, "core": True},
     {"key": "action_items", "prefix": "ActionItemsAgent", "label": "提取待办事项", "layer": 2, "core": True},
-    # Layer 3 — 串行
-    {"key": "supervisor_review", "prefix": "SupervisorAgent", "label": "审核结果质量", "layer": 3, "core": True},
-    # Layer 4 — 返工（条件触发）
-    {"key": "revision", "prefix": "Revision", "label": "返工修正", "layer": 4, "core": False},
+    # Layer 3 — 双线并行监督
+    {"key": "minutes_supervisor", "prefix": "MinutesSupervisorAgent", "label": "审核纪要质量", "layer": 3, "core": True},
+    {"key": "actions_supervisor", "prefix": "ActionsSupervisorAgent", "label": "审核待办质量", "layer": 3, "core": True},
+    # Layer 4 — 返工（条件触发，双线各自闭环）
+    {"key": "minutes_revision", "prefix": "MinutesRevision", "label": "纪要返工", "layer": 4, "core": False},
+    {"key": "actions_revision", "prefix": "ActionsRevision", "label": "待办返工", "layer": 4, "core": False},
     # Layer 5 — 并行输出
     {"key": "render_minutes", "prefix": "RenderMinutes", "label": "渲染纪要正文", "layer": 5, "core": True},
     {"key": "format_actions", "prefix": "FormatActions", "label": "格式化待办事项", "layer": 5, "core": True},
@@ -126,8 +128,14 @@ def _format_actions(items: list[dict]) -> str:
 
 
 # ── 主生成器 ──────────────────────────────────────────────────
-def _generate(meeting_text: str, profile_json: str, template: str = ""):
+def _generate(
+    meeting_text: str,
+    profile_json: str,
+    template: str = "",
+    item_template: str = "",
+):
     template = template or ""
+    item_template = item_template or ""
     # 解析输入
     if not profile_json.strip():
         yield _build_pipeline({}), "请输入用户画像 JSON", ""
@@ -163,7 +171,11 @@ def _generate(meeting_text: str, profile_json: str, template: str = ""):
         try:
             async def _inner() -> None:
                 s = MeetingAgentSystem(progress_handler=_on_progress)
-                async for event in s.run_streaming(meeting_text, user, template=template):
+                async for event in s.run_streaming(
+                    meeting_text, user,
+                    template=template,
+                    item_template=item_template,
+                ):
                     event_holder["events"].append(event)
             asyncio.run(_inner())
         except Exception as exc:
@@ -178,6 +190,7 @@ def _generate(meeting_text: str, profile_json: str, template: str = ""):
     last_snapshot = ""
     minutes_text = ""
     actions_text = ""
+    actions_chunk_started = False
     event_index = 0
     while not event_holder["done"] or event_index < len(event_holder["events"]):
         time.sleep(0.15)
@@ -194,6 +207,12 @@ def _generate(meeting_text: str, profile_json: str, template: str = ""):
             etype = ev["type"]
             if etype == "actions":
                 actions_text = _format_actions(ev["items"])
+            elif etype == "actions_chunk":
+                # 待办模板渲染流：首个块起覆盖列表展示，逐块追加（与纪要流对称）
+                if not actions_chunk_started:
+                    actions_text = ""
+                    actions_chunk_started = True
+                actions_text += ev["text"]
             elif etype == "minutes_chunk":
                 minutes_text += ev["text"]
             elif etype == "done":
@@ -224,8 +243,8 @@ def load_text_file(file) -> str:
 
 
 # ── UI ────────────────────────────────────────────────────────
-with gr.Blocks(title="会议纪要 Agent") as demo:
-    gr.Markdown("# 会议纪要多 Agent 系统")
+with gr.Blocks(title="会议纪要 · 待办强化输出") as demo:
+    gr.Markdown("# 会议纪要 · 待办强化输出")
 
     with gr.Row():
         with gr.Column():
@@ -248,15 +267,30 @@ with gr.Blocks(title="会议纪要 Agent") as demo:
 
     with gr.Accordion("输出模板（可选）", open=False):
         with gr.Row():
-            template_text = gr.Textbox(
-                label="Markdown 模板",
-                placeholder="不填则使用默认格式。模板中用 [描述] 作为占位符，系统将自动填充。",
-                lines=5,
-            )
-            template_file = gr.File(label="上传 .md 模板", file_types=[".md"])
-            template_file.change(load_text_file, template_file, template_text)
+            with gr.Column():
+                gr.Markdown("#### 纪要模板（summary_template）")
+                template_text = gr.Textbox(
+                    label="Markdown 模板",
+                    placeholder="不填则使用默认格式。模板中用 [描述] 作为占位符，系统将自动填充。",
+                    lines=5,
+                )
+                template_file = gr.File(label="上传 .md 模板", file_types=[".md"])
+                template_file.change(load_text_file, template_file, template_text)
+            with gr.Column():
+                gr.Markdown("#### 待办模板（item_template）")
+                item_template_text = gr.Textbox(
+                    label="Markdown 模板",
+                    placeholder="不填则使用默认列表格式。可写 [描述] 占位符，或提供格式规范 + 示例。",
+                    lines=5,
+                )
+                item_template_file = gr.File(
+                    label="上传 .md 模板", file_types=[".md"]
+                )
+                item_template_file.change(
+                    load_text_file, item_template_file, item_template_text
+                )
 
-    generate_btn = gr.Button("生成纪要", variant="primary")
+    generate_btn = gr.Button("纪要、待办强化输出", variant="primary")
 
     gr.Markdown("### Agent 工作流")
     pipeline_output = gr.HTML(value=_build_pipeline({}))
@@ -271,7 +305,7 @@ with gr.Blocks(title="会议纪要 Agent") as demo:
 
     generate_btn.click(
         _generate,
-        [meeting_text, profile_json, template_text],
+        [meeting_text, profile_json, template_text, item_template_text],
         [pipeline_output, minutes_output, actions_output],
     )
 
@@ -279,4 +313,4 @@ with gr.Blocks(title="会议纪要 Agent") as demo:
 if __name__ == "__main__":
     load_env(PROJECT_ROOT / ".env")
     setup_logging()
-    demo.launch()
+    demo.launch(server_name="0.0.0.0")

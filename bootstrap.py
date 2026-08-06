@@ -4,6 +4,7 @@ import argparse
 import asyncio
 import json
 import logging
+import os
 import sys
 from pathlib import Path
 
@@ -11,18 +12,30 @@ from pathlib import Path
 PROJECT_ROOT = Path(__file__).resolve().parent
 sys.path.insert(0, str(PROJECT_ROOT / "src"))
 
-from meeting_agent.config import load_env
-from meeting_agent.logging_config import setup_logging
-from meeting_agent.models import UserIdentity, is_objective_perspective
-from meeting_agent.orchestrator import MeetingAgentSystem
-from meeting_agent.presenter import _format_action, _section
+from llm_client.config import load_env
+from domain.meeting import SAMPLES_DIR
+from tools.logging_config import setup_logging
+from domain.meeting.models import UserIdentity, is_objective_perspective
+from domain.meeting.orchestrator import MeetingAgentSystem
 
 
 logger = logging.getLogger(__name__)
 
 
-DEFAULT_SUMMARY_PATH = PROJECT_ROOT / "summary"
-DEFAULT_PROFILE_PATH = PROJECT_ROOT / "profile"
+DEFAULT_SUMMARY_PATH = SAMPLES_DIR / "summary"
+DEFAULT_PROFILE_PATH = SAMPLES_DIR / "profile"
+
+# .env 中可选的路径配置项（命令行显式参数优先于这些配置）
+ENV_SUMMARY = "MEETING_SUMMARY"
+ENV_PROFILE = "MEETING_PROFILE"
+ENV_SUMMARY_TEMPLATE = "MEETING_SUMMARY_TEMPLATE"
+ENV_ITEM_TEMPLATE = "MEETING_ITEM_TEMPLATE"
+
+
+def _env_path(key: str, default: Path | None) -> Path | None:
+    """从环境变量（.env）读取路径；未配置时返回默认值。"""
+    value = os.getenv(key, "").strip()
+    return Path(value) if value else default
 
 
 def _parser() -> argparse.ArgumentParser:
@@ -34,7 +47,7 @@ def _parser() -> argparse.ArgumentParser:
         "--summary-dir",
         dest="summary",
         type=Path,
-        default=DEFAULT_SUMMARY_PATH,
+        default=_env_path(ENV_SUMMARY, DEFAULT_SUMMARY_PATH),
         help="会议文本文件或目录。传目录时，目录中需要包含一个 .txt 文件",
     )
     parser.add_argument(
@@ -42,7 +55,7 @@ def _parser() -> argparse.ArgumentParser:
         "--profile-dir",
         dest="profile",
         type=Path,
-        default=DEFAULT_PROFILE_PATH,
+        default=_env_path(ENV_PROFILE, DEFAULT_PROFILE_PATH),
         help="用户画像 JSON 文件或目录。传目录时，目录中需要包含一个 .json 文件",
     )
     parser.add_argument(
@@ -52,11 +65,20 @@ def _parser() -> argparse.ArgumentParser:
         help="环境变量文件路径",
     )
     parser.add_argument(
-        "--template",
+        "--summary_template",
+        dest="template",
         type=Path,
-        default=None,
+        default=_env_path(ENV_SUMMARY_TEMPLATE, None),
         help="最终纪要输出格式模板（.md 文件）。模板中用 [描述] 作为占位符，"
         "系统将自动填充会议内容。不指定则使用默认的自由段落格式",
+    )
+    parser.add_argument(
+        "--item_template",
+        dest="item_template",
+        type=Path,
+        default=_env_path(ENV_ITEM_TEMPLATE, None),
+        help="最终待办输出格式模板（.md 文件）。模板中用 [描述] 作为占位符，"
+        "系统将自动填充待办内容。不指定则使用默认的列表格式",
     )
     return parser
 
@@ -64,7 +86,11 @@ def _parser() -> argparse.ArgumentParser:
 def _resolve_path(path: Path) -> Path:
     if path.is_absolute():
         return path
-    return (PROJECT_ROOT / path).resolve()
+    root_candidate = (PROJECT_ROOT / path).resolve()
+    if root_candidate.exists():
+        return root_candidate
+    # 回退：相对领域样例目录（SAMPLES_DIR）解析，省去 src/domain/meeting/samples 前缀
+    return (SAMPLES_DIR / path).resolve()
 
 
 def _pick_single_file(folder: Path, pattern: str, label: str) -> Path:
@@ -95,6 +121,24 @@ def _resolve_input_file(path: Path, suffix: str, label: str) -> Path:
     raise ValueError(f"{label}路径既不是文件也不是目录：{path}")
 
 
+def _section(title: str) -> None:
+    logger.info("── %s ──", title)
+
+
+def _format_action(index: int, item: dict) -> str:
+    _prio = {"high": "高优先", "medium": "中优先", "low": "低优先"}
+    meta = []
+    prio = item.get("priority", "")
+    if prio and prio in _prio:
+        meta.append(_prio[prio])
+    if item.get("owner"):
+        meta.append(f"负责人：{item['owner']}")
+    if item.get("deadline"):
+        meta.append(f"截止：{item['deadline']}")
+    suffix = f"（{'；'.join(meta)}）" if meta else ""
+    return f"{index}. {item['task']}{suffix}"
+
+
 def _load_transcript(summary_path: Path) -> str:
     meeting_file = _resolve_input_file(summary_path, ".txt", "会议文本")
     transcript = meeting_file.read_text(encoding="utf-8").strip()
@@ -110,12 +154,16 @@ def _load_user(profile_path: Path) -> UserIdentity:
 
 
 async def run(
-    summary: Path, profile: Path, env_file: Path, template: Path | None
+    summary: Path,
+    profile: Path,
+    env_file: Path,
+    template: Path | None,
+    item_template: Path | None = None,
 ) -> None:
     """默认启动方式：流式并行输出。
 
-    待办确定性拼装，纪要生成期间即完整显示；纪要正文由 LLM
-    流式生成、逐段实时打印（两条输出流并行，互不等待）。
+    待办确定性拼装（或按 item_template 模板渲染），纪要生成期间即完整显示；
+    纪要正文由 LLM 流式生成、逐段实时打印（两条输出流并行，互不等待）。
     """
     setup_logging()
     load_env(_resolve_path(env_file))
@@ -127,6 +175,13 @@ async def run(
         template_text = _resolve_path(template).read_text(encoding="utf-8").strip()
         if not template_text:
             raise ValueError(f"模板文件为空：{template}")
+    item_template_text = ""
+    if item_template is not None:
+        item_template_text = (
+            _resolve_path(item_template).read_text(encoding="utf-8").strip()
+        )
+        if not item_template_text:
+            raise ValueError(f"待办模板文件为空：{item_template}")
 
     objective = is_objective_perspective(user)
     minutes_title = "客观会议纪要" if objective else f"{user.name or '用户'}视角会议纪要"
@@ -134,20 +189,31 @@ async def run(
 
     system = MeetingAgentSystem()
     minutes_started = False
+    actions_streamed = False
     async for event in system.run_streaming(
-        transcript, user, template=template_text
+        transcript,
+        user,
+        template=template_text,
+        item_template=item_template_text,
     ):
         etype = event["type"]
         if etype == "actions":
-            # 待办确定性拼装，纪要生成期间即显示
             logger.info("")
             _section(actions_title)
+            if item_template_text:
+                # 有待办模板：文本由 actions_chunk 流式提供，这里只打标题
+                continue
             items = event["items"]
             if not items:
                 logger.info("暂无明确待办")
             else:
                 for index, item in enumerate(items, start=1):
                     logger.info(_format_action(index, item))
+        elif etype == "actions_chunk":
+            # 待办模板渲染流：逐块实时打印（与纪要流对称）
+            actions_streamed = True
+            sys.stdout.write(event["text"])
+            sys.stdout.flush()
         elif etype == "minutes_chunk":
             if not minutes_started:
                 logger.info("")
@@ -160,11 +226,16 @@ async def run(
                 logger.warning("⚠ %s", event["quality_warning"])
     if minutes_started:
         sys.stdout.write("\n")
+    elif actions_streamed:
+        # 待办流式已输出但无纪要：补一个换行收尾
+        sys.stdout.write("\n")
     else:
         logger.info("（暂无内容）")
 
 
 def main() -> None:
+    # 先加载默认 .env，使 parser 默认值可被 .env 中的 MEETING_* 配置覆盖
+    load_env(PROJECT_ROOT / ".env")
     args = _parser().parse_args()
     try:
         asyncio.run(
@@ -173,6 +244,7 @@ def main() -> None:
                 args.profile,
                 args.env,
                 args.template,
+                args.item_template,
             )
         )
     except (OSError, ValueError, TypeError, json.JSONDecodeError, RuntimeError) as exc:
