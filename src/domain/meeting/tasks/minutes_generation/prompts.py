@@ -109,7 +109,23 @@ MINUTES_SUPERVISOR_DOMAIN_PROMPT = """## 领域审核规则：纪要生成
 
 写不出具体返工意见 → approve。犹豫不决 → approve。"""
 
-ls
+MINUTES_SUPERVISOR_OUTPUT_CONTRACT = """{
+  "decision": "approve|revise|reject",
+  "facts_check": {
+    "status": "pass|fail",
+    "findings": ["仅记录严重问题，轻微问题不记录"]
+  },
+  "perspective_check": {
+    "status": "pass|fail",
+    "findings": ["仅记录严重问题"]
+  },
+  "consistency_check": {
+    "status": "pass|fail",
+    "findings": ["仅记录严重问题"]
+  },
+  "feedback": ["仅当 decision=revise 时填写，必须具体可执行、有原文依据"]
+}"""
+
 # ── 纪要渲染（仅渲染正文，纯文本）────────────────────────────
 
 MINUTES_RENDER_PROMPT = """你是会议纪要渲染器。根据已审核通过的会议分析结果，渲染一段连贯精简的纪要正文。
