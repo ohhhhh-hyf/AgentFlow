@@ -303,17 +303,38 @@ class ActionsReport(ModelMixin):
 def _merge_degraded(a: bool | None, b: bool | None) -> bool:
     """quality_degraded 的 LangGraph reducer：任一为 True 则降级。
 
-    双线并行时两条 fallback 节点可能同时写该键，
+    双线并行时多个节点可能同时写该键，
     用 or 合并避免并发写冲突（InvalidUpdateError）。
     """
     return bool(a) or bool(b)
 
 
+def _merge_lines(a: dict | None, b: dict | None) -> dict:
+    """任务线子空间（lines）的 LangGraph reducer：按线名浅合并。
+
+    双线并行时各线同时写自己的子空间（不同 key），
+    同一条线内的多次更新（draft / review / count）也做字段级合并，
+    避免整线替换丢失已有字段。
+    """
+    out = {name: dict(patch or {}) for name, patch in (a or {}).items()}
+    for name, patch in (b or {}).items():
+        cur = out.get(name)
+        if isinstance(cur, dict) and isinstance(patch, dict):
+            merged = dict(cur)
+            merged.update(patch)
+            out[name] = merged
+        else:
+            out[name] = patch
+    return out
+
+
 class MeetingState(TypedDict, total=False):
     """LangGraph 在一次运行中跨节点传递的共享上下文。
 
-    纪要（minutes）与待办（action_items）为两条独立流水线，
-    各自的审核结果、返工反馈与返工计数分开维护。
+    核心层（会议理解/视角建模）为公共事实底座；
+    每条任务线是一个自包含子空间（``lines[线名]``），内含草稿、
+    审核结果、返工反馈与计数、降级标记，各线互不干扰。
+    新增任务线只需在 ``orchestrator.TASK_LINES`` 注册，无需修改本状态。
     """
 
     transcript: str
@@ -323,21 +344,11 @@ class MeetingState(TypedDict, total=False):
     # 核心 Agent 输出（公共事实底座）
     meeting_understanding: dict
     perspective_profile: dict
-    # 任务线草稿
-    minutes_draft: dict
-    extracted_action_items: dict
-    # 各自领域的审核结果与返工反馈
-    minutes_supervisor_review: dict
-    actions_supervisor_review: dict
-    minutes_revision_feedback: list[str]
-    actions_revision_feedback: list[str]
-    minutes_revision_count: int
-    actions_revision_count: int
-    # Supervisor 未批准时仍输出结果，标记为降级兜底（双线并发写，or 合并）
+    # 任务线子空间：lines[线名] = {draft, supervisor_review,
+    #   revision_feedback, revision_count, degraded}
+    lines: Annotated[dict[str, dict], _merge_lines]
+    # 任意层降级（core 或任一任务线），用于最终质量警告（并发写，or 合并）
     quality_degraded: Annotated[bool, _merge_degraded]
-    # 按线隔离的降级标记：避免一条线降级牵连另一条线的渲染方式
-    minutes_degraded: Annotated[bool, _merge_degraded]
-    actions_degraded: Annotated[bool, _merge_degraded]
     # 并行渲染结果：纪要正文 + 待办列表
     rendered_minutes: str
     formatted_actions: list[dict]

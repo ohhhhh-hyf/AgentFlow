@@ -26,7 +26,12 @@ class ActionItemsRender:
         客观视角：全员已分配待办 + 未分配待办；
         个人视角：仅用户本人待办。
         """
-        actions = state.get("extracted_action_items") or {}
+        actions = (
+            (state.get("lines") or {})
+            .get("action_items", {})
+            .get("draft")
+            or {}
+        )
         if state.get("objective_perspective"):
             items = list(actions.get("my_actions") or [])
             items.extend(actions.get("unassigned_actions") or [])

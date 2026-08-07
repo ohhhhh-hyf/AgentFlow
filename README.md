@@ -459,9 +459,9 @@ SchemaRepairAgent 只修复 JSON 结构问题，**绝不修改业务事实**。�
 `MeetingAgentSystem` 是系统的核心编排器，负责：
 
 1. **构建双线并行 DAG**：核心层（会议理解 + 视角建模）先行并行，之后纪要线与待办线各自独立运行（生成 → 监督 → 渲染/返工/降级），两条线互不阻塞
-2. **管理共享状态**：`MeetingState`（TypedDict）在节点间传递，每个节点只更新自己负责的字段，LangGraph 自动合并
+2. **管理共享状态**：`MeetingState`（TypedDict）在节点间传递；每条任务线的内部状态收进 `lines[线名]` 子空间（含草稿、审核结果、返工反馈与计数、降级标记），经 `_merge_lines` reducer 按线名合并，LangGraph 自动处理双线并发写
 3. **双线条件路由**：每条线各自按监督结果路由——`approve` → 渲染/格式化；`revise` → 本线返工；`reject` / 返工超限 → 本线降级
-4. **返工控制**：`minutes_revision_count` / `actions_revision_count` 分别跟踪两条线的返工次数，达到 `MAX_REVISIONS=1` 后强制走兜底路径
+4. **返工控制**：每条线在 `lines` 子空间内各自维护 `revision_count`，达到 `MAX_REVISIONS=1` 后强制走兜底路径
 5. **降级兜底**：`_assemble_report_from_drafts()` 方法用纯确定性逻辑从中间草稿拼装可读结果，不依赖 LLM，保证系统在任何情况下都有输出
 
 ### 共享状态（models.py 中的 MeetingState）
@@ -473,20 +473,31 @@ class MeetingState(TypedDict, total=False):
     objective_perspective: bool        # 是否客观视角
     meeting_understanding: dict        # 核心 Agent 1 输出
     perspective_profile: dict          # 核心 Agent 2 输出
-    minutes_draft: dict                # 纪要线草稿
-    extracted_action_items: dict       # 待办线结果
-    minutes_supervisor_review: dict    # 纪要线审核结果
-    actions_supervisor_review: dict    # 待办线审核结果
-    minutes_revision_feedback: list    # 纪要返工意见
-    actions_revision_feedback: list    # 待办返工意见
-    minutes_revision_count: int        # 纪要返工计数
-    actions_revision_count: int        # 待办返工计数
-    quality_degraded: bool             # 降级标记
+    # 任务线子空间：每条线一个自包含 dict
+    # lines[线名] = {draft, supervisor_review,
+    #                revision_feedback, revision_count, degraded}
+    lines: Annotated[dict, _merge_lines]
+    quality_degraded: bool             # 任意层降级标记（用于质量警告）
     rendered_minutes: str              # 渲染后的纪要正文
     formatted_actions: list            # 格式化后的待办列表
+    formatted_actions_text: str        # 待办模板渲染文本（可选）
     streaming: bool                    # 流式模式标记
     template: str                      # 可选输出模板
+    item_template: str                 # 可选待办输出模板
 ```
+
+### 任务线注册表（orchestrator.py 中的 TASK_LINES）
+
+任务线采用**注册表驱动**：`TASK_LINES` 声明每条线的中文名、agent/supervisor 实例、空草稿、reject 兜底审核、进度 label 等；
+同构节点（agent / supervisor / revision / route）由注册表自动生成，render / fallback 为各线专属实现。
+
+新增一条任务线只需三步，**state 与节点逻辑零改动**：
+
+1. 在 `tasks/` 下新建任务组（agent + supervisor + render 三个类 + prompts）
+2. 在 `meeting_factory.py` 的 `create()` 注册三个实例
+3. 在 `TASK_LINES` 注册一行（线名 + 配置）
+
+同构节点的降级行为（LLM 失败 → 空草稿/按 reject 转降级）、返工闭环、按线隔离的降级标记均自动生效。
 
 ### LLM 客户端（llm_client/，通用层）
 

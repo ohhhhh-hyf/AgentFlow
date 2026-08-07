@@ -1,13 +1,16 @@
 """LangGraph 工作流编排。
 
 MeetingAgentSystem 负责：组装 Agent 依赖、构建双线并行 DAG、条件路由、启动运行。
-图节点实现位于本文件（_Nodes mixin）与 tasks/ 下的各任务组 Agent。
 
-架构：
+架构（注册表驱动）：
 - meeting_core：会议理解 + 视角建模（公共事实底座，先行并行执行）
 - tasks/minutes_generation：纪要线（生成 → 监督 → 渲染/返工闭环）
 - tasks/action_items：待办线（提取 → 监督 → 格式化/返工闭环）
 - 两条任务线并行执行，互不阻塞；全局监督标准由 src/supervisor 注入各任务 supervisor。
+- 每条任务线的同构节点（agent / supervisor / revision / route）由 ``TASK_LINES``
+  注册表自动生成；render / fallback 为各线专属实现。
+  新增任务线：写 agent/supervisor/render 三个类 + prompts，在 ``TASK_LINES``
+  注册一行即可，state（MeetingState.lines）与节点逻辑零改动。
 """
 from __future__ import annotations
 
@@ -104,6 +107,41 @@ _REJECT_ACTIONS_REVIEW = {
     "feedback": ["LLM 调用失败，未完成审核，转降级输出"],
 }
 
+# ── 任务线注册表 ──────────────────────────────────────────────
+# 每条任务线的同构节点（agent/supervisor/revision/route）据此自动生成；
+# render/fallback 为各线专属实现（见 _render_nodes / _fallback_nodes）。
+# 新增任务线：写三个类 + prompts 后在此注册一行即可，state 与节点逻辑零改动。
+TASK_LINES: dict[str, dict] = {
+    "minutes_generation": {
+        "cn_name": "纪要",
+        "draft_title": "纪要草稿",
+        "agent_attr": "minutes_generation_agent",
+        "supervisor_attr": "minutes_supervisor",
+        "empty_draft": _EMPTY_MINUTES_DRAFT,
+        "reject_review": _REJECT_MINUTES_REVIEW,
+        "agent_labels": (
+            "MinutesGenerationAgent｜生成客观会议纪要草稿",
+            "MinutesGenerationAgent｜生成用户视角纪要",
+        ),
+        "supervisor_label": "MinutesSupervisorAgent｜审核纪要质量",
+        "revision_label": "MinutesRevision｜纪要返工",
+    },
+    "action_items": {
+        "cn_name": "待办",
+        "draft_title": "待办提取结果",
+        "agent_attr": "action_items_agent",
+        "supervisor_attr": "actions_supervisor",
+        "empty_draft": _EMPTY_ACTIONS,
+        "reject_review": _REJECT_ACTIONS_REVIEW,
+        "agent_labels": (
+            "ActionItemsAgent｜提取全员客观待办",
+            "ActionItemsAgent｜提取待办事项",
+        ),
+        "supervisor_label": "ActionsSupervisorAgent｜审核待办质量",
+        "revision_label": "ActionsRevision｜待办返工",
+    },
+}
+
 
 def _normalize_transcript(text: str) -> str:
     """规范化会议文本：合并段落内硬换行，保留段落间空行。
@@ -131,8 +169,16 @@ def _json(value: object) -> str:
     return json.dumps(value, ensure_ascii=False, indent=2)
 
 
+def _line(state: MeetingState, line_name: str) -> dict:
+    """读取某条任务线的子空间（未初始化时返回空 dict）。"""
+    return (state.get("lines") or {}).get(line_name) or {}
+
+
 class _Nodes:
     """图节点实现（mixin，供 MeetingAgentSystem 继承）。
+
+    同构节点（agent / supervisor / revision / route）由 TASK_LINES 注册表
+    通过工厂方法生成；render / fallback 为各线专属方法。
 
     每个节点方法签名与 LangGraph 节点要求一致：
     接收 state，返回部分更新的 dict。
@@ -167,8 +213,10 @@ class _Nodes:
             return context
         return f"{context}\n\nSupervisor {label}：\n{_json(feedback)}"
 
-    def _minutes_supervisor_context(self, state: MeetingState) -> str:
-        revision_count = state.get("minutes_revision_count", 0)
+    def _supervisor_context(self, state: MeetingState, line_name: str) -> str:
+        cfg = TASK_LINES[line_name]
+        sub = _line(state, line_name)
+        revision_count = sub.get("revision_count", 0)
         mode = self._mode_label(state)
         allowed = (
             "本轮可以选择 approve、revise 或 reject。"
@@ -177,50 +225,29 @@ class _Nodes:
         )
         return (
             f"视角模式：{mode}\n"
-            f"纪要返工次数：{revision_count}/{self.MAX_REVISIONS}\n{allowed}\n\n"
+            f"{cfg['cn_name']}返工次数：{revision_count}/{self.MAX_REVISIONS}\n"
+            f"{allowed}\n\n"
             f"会议原文（最高事实来源）：\n{state['transcript']}\n\n"
             f"用户画像：\n{_json(state['user'])}\n\n"
             f"会议理解：\n{_json(state['meeting_understanding'])}\n\n"
             f"用户视角模型：\n{_json(state['perspective_profile'])}\n\n"
-            f"纪要草稿：\n{_json(state['minutes_draft'])}"
-        )
-
-    def _actions_supervisor_context(self, state: MeetingState) -> str:
-        revision_count = state.get("actions_revision_count", 0)
-        mode = self._mode_label(state)
-        allowed = (
-            "本轮可以选择 approve、revise 或 reject。"
-            if revision_count < self.MAX_REVISIONS
-            else "返工次数已用完，本轮只能选择 approve 或 reject。"
-        )
-        return (
-            f"视角模式：{mode}\n"
-            f"待办返工次数：{revision_count}/{self.MAX_REVISIONS}\n{allowed}\n\n"
-            f"会议原文（最高事实来源）：\n{state['transcript']}\n\n"
-            f"用户画像：\n{_json(state['user'])}\n\n"
-            f"会议理解：\n{_json(state['meeting_understanding'])}\n\n"
-            f"用户视角模型：\n{_json(state['perspective_profile'])}\n\n"
-            f"待办提取结果：\n{_json(state['extracted_action_items'])}"
+            f"{cfg['draft_title']}：\n{_json(sub['draft'])}"
         )
 
     def _minutes_render_context(
         self, state: MeetingState, *, fallback: bool
     ) -> str:
         mode = self._mode_label(state)
+        minutes_line = _line(state, "minutes_generation")
+        review = minutes_line.get("supervisor_review") or {}
         header = ""
         if fallback:
-            findings = self._collect_supervisor_findings(
-                state.get("minutes_supervisor_review") or {}
-            )
+            findings = self._collect_supervisor_findings(review)
             findings_text = (
                 "；".join(findings) if findings
                 else "Supervisor 未批准当前纪要"
             )
-            decision = (
-                (state.get("minutes_supervisor_review") or {}).get(
-                    "decision", "reject"
-                )
-            )
+            decision = review.get("decision", "reject")
             header = (
                 "注意：以下纪要未通过 Supervisor 审核，你仍需基于现有草稿整理可读输出，"
                 "不得编造草稿和原文中没有的事实；优先保留有明确证据的内容。"
@@ -235,8 +262,8 @@ class _Nodes:
             f"用户画像：\n{_json(state['user'])}\n\n"
             f"已审核会议理解：\n{_json(state.get('meeting_understanding'))}\n\n"
             f"已审核用户视角：\n{_json(state.get('perspective_profile'))}\n\n"
-            f"已批准纪要草稿：\n{_json(state.get('minutes_draft'))}\n\n"
-            f"纪要审核结论：\n{_json(state.get('minutes_supervisor_review'))}"
+            f"已批准纪要草稿：\n{_json(minutes_line.get('draft'))}\n\n"
+            f"纪要审核结论：\n{_json(review)}"
         )
 
     @staticmethod
@@ -252,8 +279,8 @@ class _Nodes:
         state: MeetingState,
     ) -> tuple[MinutesReport, ActionsReport]:
         """不依赖 LLM 的确定性兜底：从中间草稿分别拼出纪要、待办两个输出。"""
-        minutes = state.get("minutes_draft") or {}
-        actions = state.get("extracted_action_items") or {}
+        minutes = _line(state, "minutes_generation").get("draft") or {}
+        actions = _line(state, "action_items").get("draft") or {}
         user = state.get("user") or {}
         objective = bool(state.get("objective_perspective"))
         user_name = user.get("name") or ("客观记录" if objective else "用户")
@@ -351,68 +378,120 @@ class _Nodes:
         self._progress("done", label)
         return {"perspective_profile": result.model_dump()}
 
-    # ── 纪要线：生成 → 监督 → 返工 / 渲染 ────────────────────
+    # ── 同构节点工厂（由 TASK_LINES 注册表生成）───────────────
 
-    async def _minutes_generation_node(
-        self, state: MeetingState
-    ) -> dict:
-        objective = bool(state.get("objective_perspective"))
-        label = (
-            "MinutesGenerationAgent｜生成客观会议纪要草稿"
-            if objective
-            else "MinutesGenerationAgent｜生成用户视角纪要"
-        )
-        self._progress("start", label)
-        try:
-            result = await self.minutes_generation_agent.run(
-                self._revision_context(
-                    self._shared_context(state),
-                    state.get("minutes_revision_feedback", []),
-                    "纪要返工意见",
+    def _make_agent_node(self, line_name: str):
+        """生成某任务线的「生成/提取」节点（agent → 草稿）。"""
+        cfg = TASK_LINES[line_name]
+
+        async def node(state: MeetingState) -> dict:
+            objective = bool(state.get("objective_perspective"))
+            label = (
+                cfg["agent_labels"][0] if objective else cfg["agent_labels"][1]
+            )
+            self._progress("start", label)
+            agent = getattr(self, cfg["agent_attr"])
+            try:
+                result = await agent.run(
+                    self._revision_context(
+                        self._shared_context(state),
+                        _line(state, line_name).get("revision_feedback", []),
+                        f"{cfg['cn_name']}返工意见",
+                    )
                 )
-            )
-        except Exception as exc:
-            logger.warning("纪要生成失败，使用空草稿继续", exc_info=True)
+            except Exception as exc:
+                logger.warning(
+                    f"{cfg['cn_name']}生成失败，使用空草稿继续", exc_info=True
+                )
+                self._progress("done", label)
+                return {
+                    "lines": {
+                        line_name: {
+                            "draft": cfg["empty_draft"],
+                            "degraded": True,
+                        }
+                    },
+                    "quality_degraded": True,
+                }
             self._progress("done", label)
-            return {
-                "minutes_draft": _EMPTY_MINUTES_DRAFT,
-                "quality_degraded": True,
-                "minutes_degraded": True,
-            }
-        self._progress("done", label)
-        return {"minutes_draft": result.model_dump()}
+            return {"lines": {line_name: {"draft": result.model_dump()}}}
 
-    async def _minutes_supervisor_node(self, state: MeetingState) -> dict:
-        label = "MinutesSupervisorAgent｜审核纪要质量"
-        self._progress("start", label)
-        try:
-            review = await self.minutes_supervisor.review(
-                self._minutes_supervisor_context(state)
+        return node
+
+    def _make_supervisor_node(self, line_name: str):
+        """生成某任务线的「审核」节点（supervisor → approve/revise/reject）。"""
+        cfg = TASK_LINES[line_name]
+
+        async def node(state: MeetingState) -> dict:
+            self._progress("start", cfg["supervisor_label"])
+            supervisor = getattr(self, cfg["supervisor_attr"])
+            try:
+                review = await supervisor.review(
+                    self._supervisor_context(state, line_name)
+                )
+            except Exception as exc:
+                logger.warning(
+                    f"{cfg['cn_name']}审核失败，按 reject 转降级", exc_info=True
+                )
+                self._progress("done", cfg["supervisor_label"])
+                return {
+                    "lines": {
+                        line_name: {
+                            "supervisor_review": cfg["reject_review"],
+                            "revision_feedback": list(
+                                cfg["reject_review"]["feedback"]
+                            ),
+                            "degraded": True,
+                        }
+                    },
+                    "quality_degraded": True,
+                }
+            self._progress("done", cfg["supervisor_label"])
+            return {
+                "lines": {
+                    line_name: {
+                        "supervisor_review": review.model_dump(),
+                        "revision_feedback": review.feedback,
+                    }
+                }
+            }
+
+        return node
+
+    def _make_revision_node(self, line_name: str, agent_node):
+        """生成某任务线的「返工」节点：重跑 agent 并累计返工次数。"""
+        cfg = TASK_LINES[line_name]
+
+        async def node(state: MeetingState) -> dict:
+            self._progress("start", cfg["revision_label"])
+            updates = await agent_node(state)
+            line_patch = updates.setdefault("lines", {}).setdefault(
+                line_name, {}
             )
-        except Exception as exc:
-            logger.warning("纪要审核失败，按 reject 转降级", exc_info=True)
-            self._progress("done", label)
-            return {
-                "minutes_supervisor_review": _REJECT_MINUTES_REVIEW,
-                "minutes_revision_feedback": list(
-                    _REJECT_MINUTES_REVIEW["feedback"]
-                ),
-                "quality_degraded": True,
-            }
-        self._progress("done", label)
-        return {
-            "minutes_supervisor_review": review.model_dump(),
-            "minutes_revision_feedback": review.feedback,
-        }
+            line_patch["revision_count"] = (
+                _line(state, line_name).get("revision_count", 0) + 1
+            )
+            self._progress("done", cfg["revision_label"])
+            return updates
 
-    async def _minutes_revision_node(self, state: MeetingState) -> dict:
-        self._progress("start", "MinutesRevision｜纪要返工")
-        updates = await self._minutes_generation_node(state)
-        updates["minutes_revision_count"] = (
-            state.get("minutes_revision_count", 0) + 1
-        )
-        self._progress("done", "MinutesRevision｜纪要返工")
-        return updates
+        return node
+
+    def _make_route(self, line_name: str):
+        """生成某任务线的条件路由（approve→render / reject或超限→fallback / 否则返工）。"""
+
+        def route(state: MeetingState) -> str:
+            decision = _line(state, line_name)["supervisor_review"]["decision"]
+            if decision == "approve":
+                return f"{line_name}_render"
+            if decision == "reject" or _line(state, line_name).get(
+                "revision_count", 0
+            ) >= self.MAX_REVISIONS:
+                return f"{line_name}_fallback"
+            return f"{line_name}_revision"
+
+        return route
+
+    # ── 纪要线专属节点：渲染 + 降级 ───────────────────────────
 
     async def _minutes_render_node(self, state: MeetingState) -> dict:
         label = "RenderMinutes｜渲染纪要正文"
@@ -449,7 +528,7 @@ class _Nodes:
             return {
                 "rendered_minutes": "",
                 "quality_degraded": True,
-                "minutes_degraded": True,
+                "lines": {"minutes_generation": {"degraded": True}},
             }
         context = self._minutes_render_context(state, fallback=True)
         try:
@@ -470,69 +549,10 @@ class _Nodes:
         return {
             "rendered_minutes": minutes,
             "quality_degraded": True,
-            "minutes_degraded": True,
+            "lines": {"minutes_generation": {"degraded": True}},
         }
 
-    # ── 待办线：提取 → 监督 → 返工 / 格式化 ──────────────────
-
-    async def _action_items_node(self, state: MeetingState) -> dict:
-        objective = bool(state.get("objective_perspective"))
-        label = (
-            "ActionItemsAgent｜提取全员客观待办"
-            if objective
-            else "ActionItemsAgent｜提取待办事项"
-        )
-        self._progress("start", label)
-        try:
-            result = await self.action_items_agent.run(
-                self._revision_context(
-                    self._shared_context(state),
-                    state.get("actions_revision_feedback", []),
-                    "待办返工意见",
-                )
-            )
-        except Exception as exc:
-            logger.warning("待办提取失败，使用空结果继续", exc_info=True)
-            self._progress("done", label)
-            return {
-                "extracted_action_items": _EMPTY_ACTIONS,
-                "quality_degraded": True,
-                "actions_degraded": True,
-            }
-        self._progress("done", label)
-        return {"extracted_action_items": result.model_dump()}
-
-    async def _actions_supervisor_node(self, state: MeetingState) -> dict:
-        label = "ActionsSupervisorAgent｜审核待办质量"
-        self._progress("start", label)
-        try:
-            review = await self.actions_supervisor.review(
-                self._actions_supervisor_context(state)
-            )
-        except Exception as exc:
-            logger.warning("待办审核失败，按 reject 转降级", exc_info=True)
-            self._progress("done", label)
-            return {
-                "actions_supervisor_review": _REJECT_ACTIONS_REVIEW,
-                "actions_revision_feedback": list(
-                    _REJECT_ACTIONS_REVIEW["feedback"]
-                ),
-                "quality_degraded": True,
-            }
-        self._progress("done", label)
-        return {
-            "actions_supervisor_review": review.model_dump(),
-            "actions_revision_feedback": review.feedback,
-        }
-
-    async def _actions_revision_node(self, state: MeetingState) -> dict:
-        self._progress("start", "ActionsRevision｜待办返工")
-        updates = await self._action_items_node(state)
-        updates["actions_revision_count"] = (
-            state.get("actions_revision_count", 0) + 1
-        )
-        self._progress("done", "ActionsRevision｜待办返工")
-        return updates
+    # ── 待办线专属节点：格式化 + 降级 ─────────────────────────
 
     async def _actions_render_node(self, state: MeetingState) -> dict:
         label = "FormatActions｜格式化待办事项"
@@ -546,12 +566,14 @@ class _Nodes:
                     state, item_template
                 )
             except Exception as exc:
-                logger.warning("待办模板渲染失败，退化为确定性列表", exc_info=True)
+                logger.warning(
+                    "待办模板渲染失败，退化为确定性列表", exc_info=True
+                )
                 self._progress("done", label)
                 return {
                     "formatted_actions": items,
                     "quality_degraded": True,
-                    "actions_degraded": True,
+                    "lines": {"action_items": {"degraded": True}},
                 }
             self._progress("done", label)
             return {"formatted_actions": items, "formatted_actions_text": text}
@@ -567,30 +589,8 @@ class _Nodes:
         return {
             "formatted_actions": items,
             "quality_degraded": True,
-            "actions_degraded": True,
+            "lines": {"action_items": {"degraded": True}},
         }
-
-    # ── 条件路由 ──────────────────────────────────────────────
-
-    def _route_minutes(self, state: MeetingState) -> str:
-        decision = state["minutes_supervisor_review"]["decision"]
-        if decision == "approve":
-            return "minutes_render"
-        if decision == "reject" or state.get(
-            "minutes_revision_count", 0
-        ) >= self.MAX_REVISIONS:
-            return "minutes_fallback"
-        return "minutes_revision"
-
-    def _route_actions(self, state: MeetingState) -> str:
-        decision = state["actions_supervisor_review"]["decision"]
-        if decision == "approve":
-            return "actions_render"
-        if decision == "reject" or state.get(
-            "actions_revision_count", 0
-        ) >= self.MAX_REVISIONS:
-            return "actions_fallback"
-        return "actions_revision"
 
 
 class MeetingAgentSystem(_Nodes):
@@ -628,6 +628,16 @@ class MeetingAgentSystem(_Nodes):
         self.action_items_render: ActionItemsRender = agents[
             "actions_render"
         ]
+
+        # 各线专属的渲染 / 降级节点（同构节点由注册表在 _build_graph 中生成）
+        self._render_nodes = {
+            "minutes_generation": self._minutes_render_node,
+            "action_items": self._actions_render_node,
+        }
+        self._fallback_nodes = {
+            "minutes_generation": self._minutes_fallback_node,
+            "action_items": self._actions_fallback_node,
+        }
         self.graph = self._build_graph()
 
     # ── 进度回调 ──────────────────────────────────────────────
@@ -636,7 +646,7 @@ class MeetingAgentSystem(_Nodes):
         if self.progress_handler:
             self.progress_handler(event, label)
 
-    # ── 图构建（双线并行）──────────────────────────────────────
+    # ── 图构建（注册表驱动，双线并行）─────────────────────────
 
     def _build_graph(self) -> object:
         builder = StateGraph(MeetingState)
@@ -648,59 +658,40 @@ class MeetingAgentSystem(_Nodes):
         builder.add_node(
             "perspective_modeling", self._perspective_modeling_node
         )
-
-        # 纪要线
-        builder.add_node("minutes_generation", self._minutes_generation_node)
-        builder.add_node("minutes_supervisor", self._minutes_supervisor_node)
-        builder.add_node("minutes_revision", self._minutes_revision_node)
-        builder.add_node("minutes_render", self._minutes_render_node)
-        builder.add_node("minutes_fallback", self._minutes_fallback_node)
-
-        # 待办线
-        builder.add_node("action_items", self._action_items_node)
-        builder.add_node("actions_supervisor", self._actions_supervisor_node)
-        builder.add_node("actions_revision", self._actions_revision_node)
-        builder.add_node("actions_render", self._actions_render_node)
-        builder.add_node("actions_fallback", self._actions_fallback_node)
-
-        # 核心层并行执行
         builder.add_edge(START, "meeting_understanding")
         builder.add_edge(START, "perspective_modeling")
-
-        # 核心层汇合 → 双任务线并行
         core = ["meeting_understanding", "perspective_modeling"]
-        builder.add_edge(core, "minutes_generation")
-        builder.add_edge(core, "action_items")
 
-        # 纪要线：生成 → 监督 → 条件路由（渲染 / 返工 / 降级）
-        builder.add_edge("minutes_generation", "minutes_supervisor")
-        builder.add_conditional_edges(
-            "minutes_supervisor",
-            self._route_minutes,
-            {
-                "minutes_render": "minutes_render",
-                "minutes_revision": "minutes_revision",
-                "minutes_fallback": "minutes_fallback",
-            },
-        )
-        builder.add_edge("minutes_revision", "minutes_supervisor")
-        builder.add_edge("minutes_render", END)
-        builder.add_edge("minutes_fallback", END)
+        # 任务线：由注册表生成同构节点（agent/supervisor/revision/route）
+        for line_name in TASK_LINES:
+            agent_node = self._make_agent_node(line_name)
+            supervisor_node = self._make_supervisor_node(line_name)
+            revision_node = self._make_revision_node(line_name, agent_node)
+            route = self._make_route(line_name)
 
-        # 待办线：提取 → 监督 → 条件路由（格式化 / 返工 / 降级）
-        builder.add_edge("action_items", "actions_supervisor")
-        builder.add_conditional_edges(
-            "actions_supervisor",
-            self._route_actions,
-            {
-                "actions_render": "actions_render",
-                "actions_revision": "actions_revision",
-                "actions_fallback": "actions_fallback",
-            },
-        )
-        builder.add_edge("actions_revision", "actions_supervisor")
-        builder.add_edge("actions_render", END)
-        builder.add_edge("actions_fallback", END)
+            builder.add_node(f"{line_name}_agent", agent_node)
+            builder.add_node(f"{line_name}_supervisor", supervisor_node)
+            builder.add_node(f"{line_name}_revision", revision_node)
+            builder.add_node(f"{line_name}_render", self._render_nodes[line_name])
+            builder.add_node(
+                f"{line_name}_fallback", self._fallback_nodes[line_name]
+            )
+
+            # 核心层汇合 → 本线 agent → supervisor → 条件路由
+            builder.add_edge(core, f"{line_name}_agent")
+            builder.add_edge(f"{line_name}_agent", f"{line_name}_supervisor")
+            builder.add_conditional_edges(
+                f"{line_name}_supervisor",
+                route,
+                {
+                    f"{line_name}_render": f"{line_name}_render",
+                    f"{line_name}_revision": f"{line_name}_revision",
+                    f"{line_name}_fallback": f"{line_name}_fallback",
+                },
+            )
+            builder.add_edge(f"{line_name}_revision", f"{line_name}_supervisor")
+            builder.add_edge(f"{line_name}_render", END)
+            builder.add_edge(f"{line_name}_fallback", END)
 
         return builder.compile()
 
@@ -739,11 +730,8 @@ class MeetingAgentSystem(_Nodes):
         except Exception as exc:
             # 最后防线：图内任何未接住的异常都不让运行崩溃，走确定性兜底
             logger.warning("图执行失败，使用确定性兜底输出", exc_info=True)
-            fallback_state = dict(initial_state)
-            fallback_state.setdefault("minutes_draft", {})
-            fallback_state.setdefault("extracted_action_items", {})
             minutes_fb, actions_fb = self._assemble_report_from_drafts(
-                fallback_state
+                initial_state
             )
             minutes_fb.quality_warning = QUALITY_WARNING
             actions_fb.quality_warning = QUALITY_WARNING
@@ -835,11 +823,8 @@ class MeetingAgentSystem(_Nodes):
         except Exception as exc:
             # 最后防线：图内任何未接住的异常都不让运行崩溃，走确定性兜底
             logger.warning("图执行失败，使用确定性兜底输出", exc_info=True)
-            fallback_state = dict(initial_state)
-            fallback_state.setdefault("minutes_draft", {})
-            fallback_state.setdefault("extracted_action_items", {})
             minutes_fb, actions_fb = self._assemble_report_from_drafts(
-                fallback_state
+                initial_state
             )
             yield {
                 "type": "minutes_chunk",
@@ -851,8 +836,12 @@ class MeetingAgentSystem(_Nodes):
 
         actions = state.get("formatted_actions") or []
         # 按线隔离的降级标记：一条线降级不牵连另一条的渲染方式
-        minutes_degraded = bool(state.get("minutes_degraded"))
-        actions_degraded = bool(state.get("actions_degraded"))
+        minutes_degraded = bool(
+            _line(state, "minutes_generation").get("degraded")
+        )
+        actions_degraded = bool(
+            _line(state, "action_items").get("degraded")
+        )
         quality_warning = (
             QUALITY_WARNING
             if (
