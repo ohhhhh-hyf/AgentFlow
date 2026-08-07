@@ -3,7 +3,7 @@ from __future__ import annotations
 from supervisor import GlobalSupervisor
 
 from llm_client import LLMClient
-from ...models import ActionsSupervisorReview
+from ...models import ActionItemsSupervisorReview
 from .prompts import (
     ACTION_ITEMS_SUPERVISOR_DOMAIN_PROMPT,
     ACTION_ITEMS_SUPERVISOR_OUTPUT_CONTRACT,
@@ -23,10 +23,10 @@ class ActionItemsSupervisor:
             ACTION_ITEMS_SUPERVISOR_DOMAIN_PROMPT
         )
 
-    async def review(self, context: str) -> ActionsSupervisorReview:
+    async def review(self, context: str) -> ActionItemsSupervisorReview:
         return await self.client.structured(
             self._system_prompt,
             context,
-            ActionsSupervisorReview,
+            ActionItemsSupervisorReview,
             ACTION_ITEMS_SUPERVISOR_OUTPUT_CONTRACT,
         )

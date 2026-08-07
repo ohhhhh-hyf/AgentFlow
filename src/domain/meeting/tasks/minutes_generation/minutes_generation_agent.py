@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from llm_client import LLMClient
-from ...models import PersonalizedMinutes
+from ...models import Minutes
 from .prompts import (
     MINUTES_GENERATION_OUTPUT_CONTRACT,
     MINUTES_GENERATION_SYSTEM_PROMPT,
@@ -14,10 +14,10 @@ class MinutesGenerationAgent:
     def __init__(self, client: LLMClient) -> None:
         self.client = client
 
-    async def run(self, shared_context: str) -> PersonalizedMinutes:
+    async def run(self, shared_context: str) -> Minutes:
         return await self.client.structured(
             MINUTES_GENERATION_SYSTEM_PROMPT,
             shared_context,
-            PersonalizedMinutes,
+            Minutes,
             MINUTES_GENERATION_OUTPUT_CONTRACT,
         )

@@ -16,10 +16,37 @@ from llm_client.config import load_env
 from domain.meeting import SAMPLES_DIR
 from tools.logging_config import setup_logging
 from domain.meeting.models import UserIdentity, is_objective_perspective
-from domain.meeting.orchestrator import MeetingAgentSystem
+from domain.meeting.orchestrator import MeetingAgentSystem, TASK_LINES
 
 
 logger = logging.getLogger(__name__)
+
+
+# 友好任务名 → 任务线名（未列出的名称原样透传，如 minutes_generation / action_items）
+TASK_ALIASES: dict[str, str] = {
+    "minutes": "minutes_generation",
+    "纪要": "minutes_generation",
+    "actions": "action_items",
+    "待办": "action_items",
+}
+
+
+def _normalize_tasks(
+    tasks: list[str] | None, known_lines: set[str]
+) -> list[str] | None:
+    """把 --task 传入的任务名统一解析成线名；未知名称直接报错。"""
+    if not tasks:
+        return None
+    result: list[str] = []
+    for name in tasks:
+        name = name.strip()
+        line = TASK_ALIASES.get(name, name)
+        if line not in known_lines:
+            raise ValueError(
+                f"未知任务线：{name}（可用：{sorted(known_lines)}）"
+            )
+        result.append(line)
+    return result
 
 
 DEFAULT_SUMMARY_PATH = SAMPLES_DIR / "summary"
@@ -40,7 +67,7 @@ def _env_path(key: str, default: Path | None) -> Path | None:
 
 def _parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
-        description="生成用户视角会议纪要和待办事项",
+        description="生成会议纪要 / 待办事项（可用 --task 指定生成哪条线）",
     )
     parser.add_argument(
         "--summary",
@@ -65,8 +92,9 @@ def _parser() -> argparse.ArgumentParser:
         help="环境变量文件路径",
     )
     parser.add_argument(
+        "--minutes_template",
         "--summary_template",
-        dest="template",
+        dest="minutes_template",
         type=Path,
         default=_env_path(ENV_SUMMARY_TEMPLATE, None),
         help="最终纪要输出格式模板（.md 文件）。模板中用 [描述] 作为占位符，"
@@ -79,6 +107,16 @@ def _parser() -> argparse.ArgumentParser:
         default=_env_path(ENV_ITEM_TEMPLATE, None),
         help="最终待办输出格式模板（.md 文件）。模板中用 [描述] 作为占位符，"
         "系统将自动填充待办内容。不指定则使用默认的列表格式",
+    )
+    parser.add_argument(
+        "--task",
+        dest="tasks",
+        action="append",
+        default=None,
+        metavar="任务",
+        help="要生成的任务，可多次指定（如 --task minutes --task actions）。"
+        f"可用：{' / '.join(sorted(TASK_LINES))}，也支持友好名 "
+        f"{' / '.join(sorted(TASK_ALIASES))}；不指定则全部生成",
     )
     return parser
 
@@ -125,20 +163,6 @@ def _section(title: str) -> None:
     logger.info("── %s ──", title)
 
 
-def _format_action(index: int, item: dict) -> str:
-    _prio = {"high": "高优先", "medium": "中优先", "low": "低优先"}
-    meta = []
-    prio = item.get("priority", "")
-    if prio and prio in _prio:
-        meta.append(_prio[prio])
-    if item.get("owner"):
-        meta.append(f"负责人：{item['owner']}")
-    if item.get("deadline"):
-        meta.append(f"截止：{item['deadline']}")
-    suffix = f"（{'；'.join(meta)}）" if meta else ""
-    return f"{index}. {item['task']}{suffix}"
-
-
 def _load_transcript(summary_path: Path) -> str:
     meeting_file = _resolve_input_file(summary_path, ".txt", "会议文本")
     transcript = meeting_file.read_text(encoding="utf-8").strip()
@@ -157,10 +181,14 @@ async def run(
     summary: Path,
     profile: Path,
     env_file: Path,
-    template: Path | None,
+    minutes_template: Path | None,
     item_template: Path | None = None,
+    tasks: list[str] | None = None,
 ) -> None:
     """默认启动方式：流式并行输出。
+
+    ``tasks`` 指定要生成的任务（对应 run_streaming 的 lines 参数，已由
+    ``_normalize_tasks`` 解析成线名）：只传部分任务时未选中的线不运行、不产出事件。
 
     待办确定性拼装（或按 item_template 模板渲染），纪要生成期间即完整显示；
     纪要正文由 LLM 流式生成、逐段实时打印（两条输出流并行，互不等待）。
@@ -170,18 +198,24 @@ async def run(
 
     transcript = _load_transcript(summary)
     user = _load_user(profile)
-    template_text = ""
-    if template is not None:
-        template_text = _resolve_path(template).read_text(encoding="utf-8").strip()
+    # 任务名 → 线名（未知名称在此报错，不进入运行）
+    line_names = _normalize_tasks(tasks, set(TASK_LINES))
+    # 模板按线统一收纳：纪要模板 → templates["minutes_generation"]，待办模板 → templates["action_items"]
+    templates: dict[str, str] = {}
+    if minutes_template is not None:
+        template_text = (
+            _resolve_path(minutes_template).read_text(encoding="utf-8").strip()
+        )
         if not template_text:
-            raise ValueError(f"模板文件为空：{template}")
-    item_template_text = ""
+            raise ValueError(f"纪要模板文件为空：{minutes_template}")
+        templates["minutes_generation"] = template_text
     if item_template is not None:
         item_template_text = (
             _resolve_path(item_template).read_text(encoding="utf-8").strip()
         )
         if not item_template_text:
             raise ValueError(f"待办模板文件为空：{item_template}")
+        templates["action_items"] = item_template_text
 
     objective = is_objective_perspective(user)
     minutes_title = "客观会议纪要" if objective else f"{user.name or '用户'}视角会议纪要"
@@ -193,24 +227,19 @@ async def run(
     async for event in system.run_streaming(
         transcript,
         user,
-        template=template_text,
-        item_template=item_template_text,
+        templates=templates,
+        lines=line_names,
     ):
         etype = event["type"]
         if etype == "actions":
             logger.info("")
             _section(actions_title)
-            if item_template_text:
-                # 有待办模板：文本由 actions_chunk 流式提供，这里只打标题
-                continue
+            # 结构化列表事件：只打标题；文本统一由 actions_chunk 流式提供
             items = event["items"]
-            if not items:
+            if not items and not templates.get("action_items"):
                 logger.info("暂无明确待办")
-            else:
-                for index, item in enumerate(items, start=1):
-                    logger.info(_format_action(index, item))
         elif etype == "actions_chunk":
-            # 待办模板渲染流：逐块实时打印（与纪要流对称）
+            # 待办文本流：无模板逐条、有模板 LLM 流式（与纪要流对称）
             actions_streamed = True
             sys.stdout.write(event["text"])
             sys.stdout.flush()
@@ -243,8 +272,9 @@ def main() -> None:
                 args.summary,
                 args.profile,
                 args.env,
-                args.template,
+                args.minutes_template,
                 args.item_template,
+                args.tasks,
             )
         )
     except (OSError, ValueError, TypeError, json.JSONDecodeError, RuntimeError) as exc:

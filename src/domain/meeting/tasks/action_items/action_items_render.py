@@ -44,6 +44,21 @@ class ActionItemsRender:
         return self.extract_actions(state)
 
     @staticmethod
+    def format_action(index: int, item: dict) -> str:
+        """把一条待办格式化为文本行（流式展示与 CLI 共用）。"""
+        _prio = {"high": "高优先", "medium": "中优先", "low": "低优先"}
+        meta = []
+        prio = item.get("priority", "")
+        if prio and prio in _prio:
+            meta.append(_prio[prio])
+        if item.get("owner"):
+            meta.append(f"负责人：{item['owner']}")
+        if item.get("deadline"):
+            meta.append(f"截止：{item['deadline']}")
+        suffix = f"（{'；'.join(meta)}）" if meta else ""
+        return f"{index}. {item['task']}{suffix}"
+
+    @staticmethod
     def _context(state: MeetingState) -> str:
         mode = "objective" if state.get("objective_perspective") else "personal"
         items = ActionItemsRender.extract_actions(state)

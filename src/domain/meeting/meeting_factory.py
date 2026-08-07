@@ -33,22 +33,23 @@ class MeetingAgentFactory:
 
         Keys:
             meeting_understanding / perspective_modeling —— 核心层
-            minutes_generation / minutes_supervisor / minutes_render —— 纪要线
-            action_items / actions_supervisor / actions_render —— 待办线
+            minutes_generation / minutes_generation_supervisor / minutes_generation_render —— 纪要线
+            action_items / action_items_supervisor / action_items_render —— 待办线
         """
         return {
             # 核心层
             "meeting_understanding": MeetingUnderstandingAgent(client),
             "perspective_modeling": PerspectiveModelingAgent(client),
-            # 纪要线
-            "minutes_generation": MinutesGenerationAgent(client),
-            "minutes_supervisor": MinutesGenerationSupervisor(client),
-            "minutes_render": MinutesGenerationRender(client),
-            # 待办线
+            # ── 任务线装配生成区：由 tools/scripts/factory_contract.py 生成，勿手改 ──
+
             "action_items": ActionItemsAgent(client),
-            "actions_supervisor": ActionItemsSupervisor(client),
-            # 待办渲染：无模板时确定性逻辑，有模板时需 LLM
-            "actions_render": ActionItemsRender(client),
+            "action_items_supervisor": ActionItemsSupervisor(client),
+            "action_items_render": ActionItemsRender(client),
+            "minutes_generation": MinutesGenerationAgent(client),
+            "minutes_generation_supervisor": MinutesGenerationSupervisor(client),
+            "minutes_generation_render": MinutesGenerationRender(client),
+
+            # ── 任务线装配生成区结束 ──
         }
 
 

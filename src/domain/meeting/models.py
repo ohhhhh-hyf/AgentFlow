@@ -11,6 +11,7 @@ from tools.validation import (
     _review_check,
     _string,
     _string_list,
+    validate_supervisor_semantics,
 )
 
 
@@ -39,44 +40,77 @@ def is_objective_perspective(user: UserIdentity | dict | None) -> bool:
     return str(data.get("perspective") or "").strip().lower() == "objective"
 
 
-# ── 业务数据模型（每个都自带 validate 类方法） ──────────────────────
+# ── 生成模型生成区：由 tools/scripts/generation_contract.py 生成，勿手改 ──
+
+@dataclass
+class ActionItems(ModelMixin):
+    """待办提取输出（浅校验：仅校验第一层键与类型，嵌套不校验）。"""
+
+    my_actions: list[dict[str, Any]] = field(default_factory=list)
+    delegated_actions: list[dict[str, Any]] = field(default_factory=list)
+    unassigned_actions: list[dict[str, Any]] = field(default_factory=list)
+
+    @classmethod
+    def validate(cls, data: dict) -> "ActionItems":
+        _exact_fields(data, [f.name for f in fields(cls)], cls.__name__)
+        if not isinstance(data["my_actions"], list):
+            raise OutputValidationError("my_actions 必须是数组")
+        if not isinstance(data["delegated_actions"], list):
+            raise OutputValidationError("delegated_actions 必须是数组")
+        if not isinstance(data["unassigned_actions"], list):
+            raise OutputValidationError("unassigned_actions 必须是数组")
+        return cls(**data)
+
 
 @dataclass
 class MeetingUnderstanding(ModelMixin):
+    """会议理解输出（浅校验：仅校验第一层键与类型，嵌套不校验）。"""
+
     meeting_purpose: str
-    topics: list[dict[str, Any]]
+    topics: list[dict[str, Any]] = field(default_factory=list)
     decisions: list[str] = field(default_factory=list)
     open_questions: list[str] = field(default_factory=list)
     risks: list[str] = field(default_factory=list)
 
     @classmethod
     def validate(cls, data: dict) -> "MeetingUnderstanding":
-        _exact_fields(
-            data,
-            [f.name for f in fields(cls)],
-            cls.__name__,
-        )
+        _exact_fields(data, [f.name for f in fields(cls)], cls.__name__)
         _string(data["meeting_purpose"], "meeting_purpose")
         if not isinstance(data["topics"], list):
-            raise OutputValidationError("topics 必须是对象数组")
-        for index, topic in enumerate(data["topics"]):
-            path = f"topics[{index}]"
-            _exact_fields(
-                topic,
-                {"title", "discussion", "conclusion", "participants"},
-                path,
-            )
-            _string(topic["title"], f"{path}.title")
-            _string(topic["discussion"], f"{path}.discussion")
-            _string(topic["conclusion"], f"{path}.conclusion", nullable=True)
-            _string_list(topic["participants"], f"{path}.participants")
-        for key in ("decisions", "open_questions", "risks"):
-            _string_list(data[key], key)
+            raise OutputValidationError("topics 必须是数组")
+        _string_list(data["decisions"], "decisions")
+        _string_list(data["open_questions"], "open_questions")
+        _string_list(data["risks"], "risks")
         return cls(**data)
 
 
 @dataclass
-class PerspectiveProfile(ModelMixin):
+class Minutes(ModelMixin):
+    """纪要草稿输出（浅校验：仅校验第一层键与类型，嵌套不校验）。"""
+
+    headline: str
+    executive_summary: list[str] = field(default_factory=list)
+    key_decisions: list[str] = field(default_factory=list)
+    personally_relevant_points: list[str] = field(default_factory=list)
+    risks_and_blockers: list[str] = field(default_factory=list)
+    unresolved_questions: list[str] = field(default_factory=list)
+
+    @classmethod
+    def validate(cls, data: dict) -> "Minutes":
+        _exact_fields(data, [f.name for f in fields(cls)], cls.__name__)
+        _string(data["headline"], "headline")
+        _string_list(data["executive_summary"], "executive_summary")
+        _string_list(data["key_decisions"], "key_decisions")
+        _string_list(data["personally_relevant_points"], "personally_relevant_points")
+        _string_list(data["risks_and_blockers"], "risks_and_blockers")
+        _string_list(data["unresolved_questions"], "unresolved_questions")
+        return cls(**data)
+
+
+@dataclass
+class PerspectiveModeling(ModelMixin):
+    """视角建模输出（浅校验：仅校验第一层键与类型，嵌套不校验）。"""
+
     confidence: Literal["high", "medium", "low"]
     name: str | None = None
     inferred_role: str | None = None
@@ -87,56 +121,22 @@ class PerspectiveProfile(ModelMixin):
     evidence: list[str] = field(default_factory=list)
 
     @classmethod
-    def validate(cls, data: dict) -> "PerspectiveProfile":
+    def validate(cls, data: dict) -> "PerspectiveModeling":
         _exact_fields(data, [f.name for f in fields(cls)], cls.__name__)
         _choice(data["confidence"], {"high", "medium", "low"}, "confidence")
         _string(data["name"], "name", nullable=True)
         _string(data["inferred_role"], "inferred_role", nullable=True)
-        for key in (
-            "responsibilities", "goals", "concerns",
-            "relevant_topics", "evidence",
-        ):
-            _string_list(data[key], key)
+        _string_list(data["responsibilities"], "responsibilities")
+        _string_list(data["goals"], "goals")
+        _string_list(data["concerns"], "concerns")
+        _string_list(data["relevant_topics"], "relevant_topics")
+        _string_list(data["evidence"], "evidence")
         return cls(**data)
 
 
-@dataclass
-class PersonalizedMinutes(ModelMixin):
-    headline: str
-    executive_summary: list[str]
-    key_decisions: list[str] = field(default_factory=list)
-    personally_relevant_points: list[str] = field(default_factory=list)
-    risks_and_blockers: list[str] = field(default_factory=list)
-    unresolved_questions: list[str] = field(default_factory=list)
+# ── 生成模型生成区结束 ──
 
-    @classmethod
-    def validate(cls, data: dict) -> "PersonalizedMinutes":
-        _exact_fields(data, [f.name for f in fields(cls)], cls.__name__)
-        _string(data["headline"], "headline")
-        for key in (
-            "executive_summary", "key_decisions", "personally_relevant_points",
-            "risks_and_blockers", "unresolved_questions",
-        ):
-            _string_list(data[key], key)
-        return cls(**data)
-
-
-@dataclass
-class ActionItems(ModelMixin):
-    my_actions: list[dict[str, Any]] = field(default_factory=list)
-    delegated_actions: list[dict[str, Any]] = field(default_factory=list)
-    unassigned_actions: list[dict[str, Any]] = field(default_factory=list)
-
-    @classmethod
-    def validate(cls, data: dict) -> "ActionItems":
-        _exact_fields(data, [f.name for f in fields(cls)], cls.__name__)
-        for key in ("my_actions", "delegated_actions", "unassigned_actions"):
-            if not isinstance(data[key], list):
-                raise OutputValidationError(f"{key} 必须是数组")
-            for index, item in enumerate(data[key]):
-                _action(item, f"{key}[{index}]")
-        return cls(**data)
-
+# ── 审核模型生成区：由 tools/scripts/supervisor_contract.py 生成，勿手改 ──
 
 @dataclass
 class MinutesSupervisorReview(ModelMixin):
@@ -148,74 +148,63 @@ class MinutesSupervisorReview(ModelMixin):
     consistency_check: dict[str, Any]
     feedback: list[str] = field(default_factory=list)
 
+    # 本模型的全部检查项（供结构校验与公共语义校验使用）
+    CHECK_KEYS = ("facts_check", "perspective_check", "consistency_check")
+
     @classmethod
     def validate(cls, data: dict) -> "MinutesSupervisorReview":
         _exact_fields(data, [f.name for f in fields(cls)], cls.__name__)
-
-        _choice(data["decision"], {"approve", "revise", "reject"}, "decision")
-
-        check_keys = (
-            "facts_check", "perspective_check", "consistency_check",
-        )
-        for key in check_keys:
+        for key in cls.CHECK_KEYS:
             _review_check(data[key], key)
-
         _string_list(data["feedback"], "feedback")
-
-        failed = [
-            key for key in check_keys
-            if data[key]["status"] == "fail"
-        ]
-        if data["decision"] == "approve" and failed:
-            raise OutputValidationError(
-                f"decision=approve 时检查项不得失败：{failed}"
-            )
-        if data["decision"] == "approve" and data["feedback"]:
-            raise OutputValidationError("decision=approve 时返工意见必须为空")
-        if data["decision"] == "revise" and not data["feedback"]:
-            raise OutputValidationError("revise 决定必须提供 feedback")
-        if data["decision"] == "reject" and not failed:
-            raise OutputValidationError("decision=reject 时至少一个检查项必须失败")
-
+        # 公共语义规则：decision 枚举 + 与检查项/feedback 的联动约束
+        validate_supervisor_semantics(
+            data["decision"],
+            data["feedback"],
+            {key: data[key] for key in cls.CHECK_KEYS},
+        )
         return cls(**data)
 
 
 @dataclass
-class ActionsSupervisorReview(ModelMixin):
+class ActionItemsSupervisorReview(ModelMixin):
     """待办任务线的领域审核结果。"""
 
     decision: Literal["approve", "revise", "reject"]
     action_items_check: dict[str, Any]
     feedback: list[str] = field(default_factory=list)
 
+    # 本模型的全部检查项（供结构校验与公共语义校验使用）
+    CHECK_KEYS = ("action_items_check",)
+
     @classmethod
-    def validate(cls, data: dict) -> "ActionsSupervisorReview":
+    def validate(cls, data: dict) -> "ActionItemsSupervisorReview":
         _exact_fields(data, [f.name for f in fields(cls)], cls.__name__)
-
-        _choice(data["decision"], {"approve", "revise", "reject"}, "decision")
-
-        _review_check(data["action_items_check"], "action_items_check")
+        for key in cls.CHECK_KEYS:
+            _review_check(data[key], key)
         _string_list(data["feedback"], "feedback")
-
-        failed = data["action_items_check"]["status"] == "fail"
-        if data["decision"] == "approve" and failed:
-            raise OutputValidationError("decision=approve 时检查项不得失败")
-        if data["decision"] == "approve" and data["feedback"]:
-            raise OutputValidationError("decision=approve 时返工意见必须为空")
-        if data["decision"] == "revise" and not data["feedback"]:
-            raise OutputValidationError("revise 决定必须提供 feedback")
-        if data["decision"] == "reject" and not failed:
-            raise OutputValidationError("decision=reject 时至少一个检查项必须失败")
-
+        # 公共语义规则：decision 枚举 + 与检查项/feedback 的联动约束
+        validate_supervisor_semantics(
+            data["decision"],
+            data["feedback"],
+            {key: data[key] for key in cls.CHECK_KEYS},
+        )
         return cls(**data)
+
+
+# ── 审核模型生成区结束 ──
 
 
 @dataclass
 class MinutesReport(ModelMixin):
-    """纪要输出（与待办输出分离，各自独立）。"""
+    """纪要输出（与待办输出分离，各自独立）。
 
-    title: str
-    personalized_minutes: str
+    字段的 ``metadata["source"]`` 供通用组装器从 state 抽屉取值：
+    ``title`` → 视角标题（通用计算）；``rendered`` → 渲染正文。
+    """
+
+    title: str = field(metadata={"source": "title"})
+    personalized_minutes: str = field(metadata={"source": "rendered"})
     # 仅由系统在兜底路径写入；LLM 输出不需要也不应包含该字段
     quality_warning: str | None = None
 
@@ -254,13 +243,21 @@ class MinutesReport(ModelMixin):
 
 @dataclass
 class ActionsReport(ModelMixin):
-    """待办输出（与纪要输出分离，各自独立）。"""
+    """待办输出（与纪要输出分离，各自独立）。
 
-    action_items: list[dict[str, Any]] = field(default_factory=list)
+    字段的 ``metadata["source"]`` 供通用组装器从 state 抽屉取值：
+    ``rendered`` → 待办列表；``rendered_text`` → 模板渲染文本。
+    """
+
+    action_items: list[dict[str, Any]] = field(
+        default_factory=list, metadata={"source": "rendered"}
+    )
     # 仅由系统在兜底路径写入；LLM 输出不需要也不应包含该字段
     quality_warning: str | None = None
     # 待办模板渲染文本（--item_template 时 LLM 按模板输出；无模板为 None）
-    personalized_text: str | None = None
+    personalized_text: str | None = field(
+        default=None, metadata={"source": "rendered_text"}
+    )
 
     @classmethod
     def validate(cls, data: dict) -> "ActionsReport":
@@ -345,18 +342,11 @@ class MeetingState(TypedDict, total=False):
     meeting_understanding: dict
     perspective_profile: dict
     # 任务线子空间：lines[线名] = {draft, supervisor_review,
-    #   revision_feedback, revision_count, degraded}
+    #   revision_feedback, revision_count, degraded, rendered, rendered_text}
     lines: Annotated[dict[str, dict], _merge_lines]
     # 任意层降级（core 或任一任务线），用于最终质量警告（并发写，or 合并）
     quality_degraded: Annotated[bool, _merge_degraded]
-    # 并行渲染结果：纪要正文 + 待办列表
-    rendered_minutes: str
-    formatted_actions: list[dict]
-    # 待办模板渲染文本（--item_template 时 LLM 按模板输出）
-    formatted_actions_text: str
     # 流式模式：图内渲染节点跳过 LLM 调用，由运行入口接管流式输出
     streaming: bool
-    # 可选：最终纪要以此 Markdown 模板格式输出（占位符 [描述] 将被填充）
-    template: str
-    # 可选：最终待办以此模板格式输出（--item_template）
-    item_template: str
+    # 可选：各任务线的输出模板（线名 → 模板文本；占位符 [描述] 将被填充）
+    templates: dict[str, str]

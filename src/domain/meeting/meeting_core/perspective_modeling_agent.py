@@ -1,9 +1,9 @@
 from __future__ import annotations
 
 from llm_client import LLMClient
-from ..models import PerspectiveProfile
+from ..models import PerspectiveModeling
 from .prompts import (
-    PERSPECTIVE_MODELING_OUTPUT_CONTRACT,
+    PERSPECTIVE_MODELING_GENERATION_OUTPUT_CONTRACT,
     PERSPECTIVE_MODELING_SYSTEM_PROMPT,
 )
 
@@ -18,10 +18,10 @@ class PerspectiveModelingAgent:
         self,
         transcript: str,
         user_json: str,
-    ) -> PerspectiveProfile:
+    ) -> PerspectiveModeling:
         return await self.client.structured(
             PERSPECTIVE_MODELING_SYSTEM_PROMPT,
             f"用户画像：\n{user_json}\n\n会议原文：\n{transcript}",
-            PerspectiveProfile,
-            PERSPECTIVE_MODELING_OUTPUT_CONTRACT,
+            PerspectiveModeling,
+            PERSPECTIVE_MODELING_GENERATION_OUTPUT_CONTRACT,
         )

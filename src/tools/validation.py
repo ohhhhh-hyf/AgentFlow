@@ -64,6 +64,43 @@ def _action(item: dict, path: str) -> None:
     _choice(item["confidence"], {"high", "medium", "low"}, f"{path}.confidence")
 
 
+def validate_supervisor_semantics(
+    decision: object,
+    feedback: list,
+    checks: dict[str, dict],
+) -> None:
+    """审核模型的公共语义校验（所有审核模型共用）。
+
+    审核模型（Minutes/Actions/Risk 等）的通用骨架规则：
+    - decision 只能是 approve / revise / reject
+    - approve 时不得有失败检查项、不得有返工意见
+    - revise 时必须有返工意见
+    - reject 时至少一个检查项失败
+
+    Args:
+        decision: decision 字段的值（approve / revise / reject）。
+        feedback: feedback 字段的值（字符串数组）。
+        checks: 本模型的全部检查项，键为检查项名、值为检查项 dict
+            （{"status": "pass|fail", "findings": [...]}）。
+    """
+    _choice(decision, {"approve", "revise", "reject"}, "decision")
+
+    failed = [
+        key for key, check in checks.items()
+        if check["status"] == "fail"
+    ]
+    if decision == "approve" and failed:
+        raise OutputValidationError(
+            f"decision=approve 时检查项不得失败：{failed}"
+        )
+    if decision == "approve" and feedback:
+        raise OutputValidationError("decision=approve 时返工意见必须为空")
+    if decision == "revise" and not feedback:
+        raise OutputValidationError("revise 决定必须提供 feedback")
+    if decision == "reject" and not failed:
+        raise OutputValidationError("decision=reject 时至少一个检查项必须失败")
+
+
 # ── 统一入口 ──────────────────────────────────────────────────
 
 def validate_payload(response_model: type[T], data: dict) -> T:

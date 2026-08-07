@@ -17,7 +17,6 @@
 - [架构详解](#架构详解)
 - [数据模型](#数据模型)
 - [输出示例](#输出示例)
-- [Gradio Web 界面](#gradio-web-界面)
 - [自定义与扩展](#自定义与扩展)
 - [准确性边界](#准确性边界)
 - [常见问题](#常见问题)
@@ -50,7 +49,6 @@
 - **双线监督与返工**：纪要/待办各有独立监督者（注入全局整体标准），各自返工闭环（最多 1 次），不通过时各自降级兜底
 - **模型自带校验**：每个数据模型的 `validate` 类方法携带自身结构校验逻辑，新增模型只需实现该方法即可接入
 - **DeepSeek 适配**：开箱即用 DeepSeek 官方 API，`.env` 中一行配置 API Key 即可
-- **Gradio Web 界面**：提供浏览器端的可视化操作界面，实时显示 Agent 执行进度
 - **模板输出**：支持自定义 Markdown 模板，系统自动填充会议内容
 
 ## 项目结构
@@ -58,7 +56,6 @@
 ```text
 meeting/
 ├── bootstrap.py                                    # CLI 启动入口
-├── gradio_app.py                             # Gradio Web 启动入口
 ├── README.md                                 # 本文档
 ├── ARCHITECTURE.md                           # 架构深度解析
 ├── requirements.txt                          # Python 依赖
@@ -164,9 +161,6 @@ python bootstrap.py
 
 # 指定文件
 python bootstrap.py --summary src/domain/meeting/samples/summary/meeting.txt --profile src/domain/meeting/samples/profile/user_profile.json
-
-# Web 界面
-python gradio_app.py
 ```
 
 ## 配置 DeepSeek
@@ -219,14 +213,6 @@ python bootstrap.py \
 - `--summary` 传目录时，目录中需要只有一个 `.txt` 文件
 - `--profile` 传目录时，目录中需要只有一个 `.json` 文件
 - 如果目录里有多个文件，程序会提示直接指定其中一个
-
-### Gradio Web
-
-```bash
-python gradio_app.py
-```
-
-浏览器访问 `http://127.0.0.1:7860`，可以在页面上粘贴会议内容和用户画像、上传文件、勾选客观视角、选择输出模板，点击"生成纪要"后实时查看 Agent 执行进度和最终结果。
 
 ## 输入格式
 
@@ -331,11 +317,11 @@ Layer 4（并行输出）
 | # | Agent | 职责 | 输入 | 输出 |
 |---|---|---|---|---|
 | 1 | **MeetingUnderstandingAgent** | 客观提取会议事实：议题、决策、风险、未决问题 | 会议原文 | `MeetingUnderstanding` |
-| 2 | **PerspectiveModelingAgent** | 将用户画像映射到本次会议，建立关注视角 | 会议原文 + 用户画像 | `PerspectiveProfile` |
-| 3 | **MinutesGenerationAgent** | 生成个性化 / 客观纪要草稿 | 会议理解 + 视角模型 + 原文 + 画像 | `PersonalizedMinutes` |
+| 2 | **PerspectiveModelingAgent** | 将用户画像映射到本次会议，建立关注视角 | 会议原文 + 用户画像 | `PerspectiveModeling` |
+| 3 | **MinutesGenerationAgent** | 生成个性化 / 客观纪要草稿 | 会议理解 + 视角模型 + 原文 + 画像 | `Minutes` |
 | 4 | **ActionItemsAgent** | 提取待办，区分本人 / 他人 / 未分配 | 会议理解 + 视角模型 + 原文 + 画像 | `ActionItems` |
 | 5 | **MinutesSupervisorAgent** | 纪要领域审核（注入全局整体标准），决定放行 / 返工 / 拒绝 | 纪要草稿 + 原文 | `MinutesSupervisorReview` |
-| 6 | **ActionsSupervisorAgent** | 待办领域审核（注入全局整体标准），决定放行 / 返工 / 拒绝 | 待办结果 + 原文 | `ActionsSupervisorReview` |
+| 6 | **ActionsSupervisorAgent** | 待办领域审核（注入全局整体标准），决定放行 / 返工 / 拒绝 | 待办结果 + 原文 | `ActionItemsSupervisorReview` |
 | 7 | **MinutesGenerationRender** | 将已批准纪要草稿渲染为正文（支持流式 / 模板） | 已审核纪要草稿 | 纪要文本 |
 | 8 | **ActionItemsRender** | 待办输出：无模板时确定性格式化列表；指定 `--item_template` 时由 LLM 按模板渲染 | 已审核待办结果 | 待办列表 / 模板文本 |
 | — | **SchemaRepairAgent**（`src/schema_repair/`，通用） | 修复 JSON 结构（仅格式，不改事实），用于结构化输出最后兜底 | 不合规输出 + 契约 + 错误 | 修复后的 JSON |
@@ -540,11 +526,11 @@ class MeetingState(TypedDict, total=False):
 |---|---|---|
 | `UserIdentity` | 用户画像输入 | name, role, responsibilities, interests, perspective |
 | `MeetingUnderstanding` | 会议事实提取结果 | meeting_purpose, topics, decisions, risks, open_questions |
-| `PerspectiveProfile` | 用户视角模型 | confidence, goals, concerns, relevant_topics, evidence |
-| `PersonalizedMinutes` | 纪要草稿 | headline, executive_summary, key_decisions, personally_relevant_points |
+| `PerspectiveModeling` | 用户视角模型 | confidence, goals, concerns, relevant_topics, evidence |
+| `Minutes` | 纪要草稿 | headline, executive_summary, key_decisions, personally_relevant_points |
 | `ActionItems` | 待办列表 | my_actions, delegated_actions, unassigned_actions |
 | `MinutesSupervisorReview` | 纪要线审核结果 | decision, facts_check, perspective_check, consistency_check, feedback |
-| `ActionsSupervisorReview` | 待办线审核结果 | decision, action_items_check, feedback |
+| `ActionItemsSupervisorReview` | 待办线审核结果 | decision, action_items_check, feedback |
 | `MinutesReport` | 纪要输出 | title, personalized_minutes, quality_warning |
 | `ActionsReport` | 待办输出 | action_items, quality_warning |
 
@@ -610,22 +596,6 @@ class MeetingState(TypedDict, total=False):
 ```text
 ── 客观会议纪要 ──
 ── 客观待办事项（全员） ──
-```
-
-## Gradio Web 界面
-
-项目提供了 Gradio Web 前端（`gradio_app.py`），零侵入复用 `MeetingAgentSystem`：
-
-- **输入区**：会议内容文本框（支持粘贴或上传 .txt）、用户画像 JSON（支持粘贴或上传 .json）、客观全员视角复选框
-- **模板区**（可折叠）：支持上传自定义 Markdown 模板或直接粘贴
-- **执行进度**：实时显示每个 Agent 的开始和完成状态
-- **结果区**：分别展示会议纪要和待办事项
-- **后台线程**：Agent 在后台线程运行，前端通过轮询 + 线程锁实时推送进度
-
-启动方式：
-
-```bash
-python gradio_app.py
 ```
 
 ## 自定义与扩展
@@ -732,13 +702,9 @@ python -m pip install -r requirements.txt
 
 检查画像：姓名是否不同、角色职责是否有区分、会议原文是否明确提到该用户。
 
-### Gradio 界面运行出错
-
-确保已安装 `gradio>=5.0`，且 `.env` 配置正确。Gradio 启动时会自动加载 `.env`。
-
 ## GitHub 安全
 
-**可上传**：`bootstrap.py`、`gradio_app.py`、`src/`、`src/domain/meeting/samples/summary_template/`、`README.md`、`ARCHITECTURE.md`、`requirements.txt`、`pyproject.toml`、`.gitignore`
+**可上传**：`bootstrap.py`、`src/`、`src/domain/meeting/samples/summary_template/`、`README.md`、`ARCHITECTURE.md`、`requirements.txt`、`pyproject.toml`、`.gitignore`
 
 **不可上传**：`.env`、`.venv/`、`__pycache__/`、`*.pyc`、`src/domain/meeting/samples/summary/*.txt`、`src/domain/meeting/samples/profile/*.json`
 

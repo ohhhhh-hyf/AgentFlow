@@ -53,7 +53,7 @@ ACTION_ITEMS_SYSTEM_PROMPT = """你是待办事项 Agent。从会议内容中提
 |---|---|
 | **my_actions** | 仅当前用户本人明确承诺/被分配的任务。须同时满足：①原文有明确任务表述 ②原文明确指向该用户 ③非角色推断 |
 | **delegated_actions** | 原文明示由**他人**负责的任务 |
-| **unassigned_actions** | 无明确负责人的任务。**对照 PerspectiveProfile**：若任务落在用户 responsibilities 或 relevant_topics 范围内 → 纳入此分类，evidence 中标注"职责匹配，非直接分配"。若完全无关 → 不纳入 |
+| **unassigned_actions** | 无明确负责人的任务。**对照 PerspectiveModeling**：若任务落在用户 responsibilities 或 relevant_topics 范围内 → 纳入此分类，evidence 中标注"职责匹配，非直接分配"。若完全无关 → 不纳入 |
 
 ---
 
@@ -107,7 +107,7 @@ ACTION_ITEMS_SYSTEM_PROMPT = """你是待办事项 Agent。从会议内容中提
 - priority / deadline / confidence 只依据原文信号词判定；同一信号词在不同运行中应得到同样标注
 - 拿不准是否提取时，倾向不提取，且该倾向在全部条目上保持一致"""
 
-ACTION_ITEMS_OUTPUT_CONTRACT = """{
+ACTION_ITEMS_GENERATION_OUTPUT_CONTRACT = """{
   "my_actions": [
     {
       "task": "以动词开头的任务描述，条件型任务写清触发条件",

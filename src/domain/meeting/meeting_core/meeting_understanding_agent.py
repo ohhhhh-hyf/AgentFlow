@@ -3,7 +3,7 @@ from __future__ import annotations
 from llm_client import LLMClient
 from ..models import MeetingUnderstanding
 from .prompts import (
-    MEETING_UNDERSTANDING_OUTPUT_CONTRACT,
+    MEETING_UNDERSTANDING_GENERATION_OUTPUT_CONTRACT,
     MEETING_UNDERSTANDING_SYSTEM_PROMPT,
 )
 
@@ -19,5 +19,5 @@ class MeetingUnderstandingAgent:
             MEETING_UNDERSTANDING_SYSTEM_PROMPT,
             f"会议原文：\n{transcript}",
             MeetingUnderstanding,
-            MEETING_UNDERSTANDING_OUTPUT_CONTRACT,
+            MEETING_UNDERSTANDING_GENERATION_OUTPUT_CONTRACT,
         )

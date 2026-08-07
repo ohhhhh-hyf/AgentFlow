@@ -51,7 +51,7 @@ MEETING_UNDERSTANDING_SYSTEM_PROMPT = """你是会议理解 Agent。从会议原
 - 概括时优先组合原文关键词，尽量少做同义改写，减少不必要的措辞漂移
 - 对「讨论 vs 决策」拿不准时，倾向归入讨论（topics.discussion），且该倾向在所有议题上保持一致"""
 
-MEETING_UNDERSTANDING_OUTPUT_CONTRACT = """{
+MEETING_UNDERSTANDING_GENERATION_OUTPUT_CONTRACT = """{
   "meeting_purpose": "一句话概括会议目的",
   "topics": [
     {
@@ -140,7 +140,7 @@ PERSPECTIVE_MODELING_SYSTEM_PROMPT = """你是视角建模 Agent。将用户画�
 - evidence 优先引用原文中最短的一句完整原话，并标注其支撑的字段，便于复核与复现
 - responsibilities / goals / concerns 只随原文事实增减，不随运行次数变化；原文没提的不因生成倾向而补充"""
 
-PERSPECTIVE_MODELING_OUTPUT_CONTRACT = """{
+PERSPECTIVE_MODELING_GENERATION_OUTPUT_CONTRACT = """{
   "confidence": "high|medium|low",
   "name": "用户姓名，客观模式下通常为null",
   "inferred_role": "基于原文推断的角色，无依据时为null",

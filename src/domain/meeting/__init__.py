@@ -2,8 +2,8 @@ from pathlib import Path
 
 from .meeting_factory import MeetingAgentFactory
 from .models import (
+    ActionItemsSupervisorReview,
     ActionsReport,
-    ActionsSupervisorReview,
     MinutesReport,
     MinutesSupervisorReview,
     UserIdentity,
@@ -14,8 +14,8 @@ from .orchestrator import MeetingAgentSystem
 SAMPLES_DIR = Path(__file__).resolve().parent / "samples"
 
 __all__ = [
+    "ActionItemsSupervisorReview",
     "ActionsReport",
-    "ActionsSupervisorReview",
     "MeetingAgentFactory",
     "MeetingAgentSystem",
     "MinutesReport",

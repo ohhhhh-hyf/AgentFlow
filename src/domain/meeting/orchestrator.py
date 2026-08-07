@@ -17,7 +17,8 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
-from collections.abc import AsyncIterator, Callable
+from collections.abc import AsyncIterator, Iterable
+from dataclasses import fields
 
 from langgraph.graph import END, START, StateGraph
 
@@ -27,6 +28,7 @@ from .meeting_core import (
     PerspectiveModelingAgent,
 )
 from .meeting_factory import MeetingAgentFactory
+from .line_registry import LINE_CN_NAMES
 from .models import (
     ActionsReport,
     MinutesReport,
@@ -48,21 +50,36 @@ from tools.validation import validate_payload
 
 logger = logging.getLogger(__name__)
 
-ProgressHandler = Callable[[str, str], None]
-
 QUALITY_WARNING = "生成可能有误，请结合会议原文核对。"
 QUALITY_DISCLAIMER = "（生成可能有误）"
 
-# ── 节点降级兜底用的最小空结构（LLM 调用失败时保证图继续运行）──
-_EMPTY_UNDERSTANDING = {
+# ── 空结构常量生成区：由 tools/scripts/generation_contract.py 生成，勿手改 ──
+
+_EMPTY_ACTION_ITEMS = {
+    "my_actions": [],
+    "delegated_actions": [],
+    "unassigned_actions": [],
+}
+
+_EMPTY_MEETING_UNDERSTANDING = {
     "meeting_purpose": "",
     "topics": [],
     "decisions": [],
     "open_questions": [],
     "risks": [],
 }
-_EMPTY_PROFILE = {
-    "confidence": "low",
+
+_EMPTY_MINUTES = {
+    "headline": "",
+    "executive_summary": [],
+    "key_decisions": [],
+    "personally_relevant_points": [],
+    "risks_and_blockers": [],
+    "unresolved_questions": [],
+}
+
+_EMPTY_PERSPECTIVE_MODELING = {
+    "confidence": "high",
     "name": None,
     "inferred_role": None,
     "responsibilities": [],
@@ -71,76 +88,120 @@ _EMPTY_PROFILE = {
     "relevant_topics": [],
     "evidence": [],
 }
-_EMPTY_MINUTES_DRAFT = {
-    "headline": "",
-    "executive_summary": [],
-    "key_decisions": [],
-    "personally_relevant_points": [],
-    "risks_and_blockers": [],
-    "unresolved_questions": [],
-}
-_EMPTY_ACTIONS = {
-    "my_actions": [],
-    "delegated_actions": [],
-    "unassigned_actions": [],
-}
-# decision=reject 且至少一个检查项失败，满足模型校验约束，路由到 fallback
+
+
+# ── 空结构常量生成区结束 ──
+
+# ── 拒绝审核常量生成区：由 tools/scripts/supervisor_contract.py 生成，勿手改 ──
+
 _REJECT_MINUTES_REVIEW = {
     "decision": "reject",
     "facts_check": {"status": "fail", "findings": ["LLM 调用失败，未完成审核"]},
-    "perspective_check": {
-        "status": "fail",
-        "findings": ["LLM 调用失败，未完成审核"],
-    },
-    "consistency_check": {
-        "status": "fail",
-        "findings": ["LLM 调用失败，未完成审核"],
-    },
-    "feedback": ["LLM 调用失败，未完成审核，转降级输出"],
-}
-_REJECT_ACTIONS_REVIEW = {
-    "decision": "reject",
-    "action_items_check": {
-        "status": "fail",
-        "findings": ["LLM 调用失败，未完成审核"],
-    },
+    "perspective_check": {"status": "fail", "findings": ["LLM 调用失败，未完成审核"]},
+    "consistency_check": {"status": "fail", "findings": ["LLM 调用失败，未完成审核"]},
     "feedback": ["LLM 调用失败，未完成审核，转降级输出"],
 }
 
-# ── 任务线注册表 ──────────────────────────────────────────────
-# 每条任务线的同构节点（agent/supervisor/revision/route）据此自动生成；
-# render/fallback 为各线专属实现（见 _render_nodes / _fallback_nodes）。
-# 新增任务线：写三个类 + prompts 后在此注册一行即可，state 与节点逻辑零改动。
+_REJECT_ACTION_ITEMS_REVIEW = {
+    "decision": "reject",
+    "action_items_check": {"status": "fail", "findings": ["LLM 调用失败，未完成审核"]},
+    "feedback": ["LLM 调用失败，未完成审核，转降级输出"],
+}
+
+
+# ── 拒绝审核常量生成区结束 ──
+
+# ── 任务线注册生成区：由 tools/scripts/factory_contract.py 生成，勿手改 ──
+
 TASK_LINES: dict[str, dict] = {
-    "minutes_generation": {
-        "cn_name": "纪要",
-        "draft_title": "纪要草稿",
-        "agent_attr": "minutes_generation_agent",
-        "supervisor_attr": "minutes_supervisor",
-        "empty_draft": _EMPTY_MINUTES_DRAFT,
-        "reject_review": _REJECT_MINUTES_REVIEW,
-        "agent_labels": (
-            "MinutesGenerationAgent｜生成客观会议纪要草稿",
-            "MinutesGenerationAgent｜生成用户视角纪要",
-        ),
-        "supervisor_label": "MinutesSupervisorAgent｜审核纪要质量",
-        "revision_label": "MinutesRevision｜纪要返工",
-    },
     "action_items": {
-        "cn_name": "待办",
-        "draft_title": "待办提取结果",
         "agent_attr": "action_items_agent",
-        "supervisor_attr": "actions_supervisor",
-        "empty_draft": _EMPTY_ACTIONS,
-        "reject_review": _REJECT_ACTIONS_REVIEW,
-        "agent_labels": (
-            "ActionItemsAgent｜提取全员客观待办",
-            "ActionItemsAgent｜提取待办事项",
-        ),
-        "supervisor_label": "ActionsSupervisorAgent｜审核待办质量",
-        "revision_label": "ActionsRevision｜待办返工",
+        "supervisor_attr": "action_items_supervisor",
+        "empty_draft": _EMPTY_ACTION_ITEMS,
+        "reject_review": _REJECT_ACTION_ITEMS_REVIEW,
+    },
+    "minutes_generation": {
+        "agent_attr": "minutes_generation_agent",
+        "supervisor_attr": "minutes_generation_supervisor",
+        "empty_draft": _EMPTY_MINUTES,
+        "reject_review": _REJECT_MINUTES_REVIEW,
     },
 }
+
+# ── 任务线注册生成区结束 ──
+
+
+def _line_cn(line_name: str) -> str:
+    """线名 → 中文名（查共享注册表，未注册则回退英文线名）。"""
+    return LINE_CN_NAMES.get(line_name, line_name)
+
+
+def _line_draft_title(line_name: str) -> str:
+    """线名 → 草稿标题（自动推导为「中文名草稿」）。"""
+    return f"{_line_cn(line_name)}草稿"
+
+
+def _normalize_templates(
+    template: str,
+    item_template: str,
+    templates: dict[str, str] | None,
+) -> dict[str, str]:
+    """按线统一收纳输出模板：``templates`` 优先，便捷参数兜底。
+
+    ``template`` → ``templates["minutes_generation"]``；
+    ``item_template`` → ``templates["action_items"]``；
+    两者同时传时以 ``templates`` 中的对应键为准。
+    """
+    result = dict(templates or {})
+    if template and "minutes_generation" not in result:
+        result["minutes_generation"] = template
+    if item_template and "action_items" not in result:
+        result["action_items"] = item_template
+    return result
+
+
+def _compute_title(state: MeetingState) -> str:
+    """视角标题（通用规则：客观 → 客观会议纪要；个人 → 姓名视角会议纪要）。"""
+    if bool(state.get("objective_perspective")):
+        return "客观会议纪要"
+    user = state.get("user") or {}
+    return f"{user.get('name', '用户')}视角会议纪要"
+
+
+def _assemble_report(
+    state: MeetingState,
+    warning: str | None,
+    report_cls: type,
+    line_name: str,
+) -> object:
+    """通用 Report 组装器：按字段 metadata["source"] 从 state 抽屉取值。
+
+    source 约定：
+    - ``title`` → 视角标题（_compute_title 通用计算）
+    - ``rendered`` → lines[线名]["rendered"]（渲染正文/列表）
+    - ``rendered_text`` → lines[线名]["rendered_text"]（模板文本）
+    - ``draft.xxx`` → lines[线名]["draft"]["xxx"]（草稿字段）
+    - 无 source → 不赋值（留给 dataclass default）
+    - quality_warning 固定填 warning（降级状态）
+    """
+    data: dict = {}
+    for f in fields(report_cls):
+        src = f.metadata.get("source")
+        if src is None:
+            continue
+        if src == "title":
+            data[f.name] = _compute_title(state)
+        elif src == "rendered":
+            data[f.name] = _line(state, line_name).get("rendered")
+        elif src == "rendered_text":
+            data[f.name] = _line(state, line_name).get("rendered_text")
+        elif src.startswith("draft."):
+            draft = _line(state, line_name).get("draft") or {}
+            data[f.name] = draft.get(src[len("draft."):])
+    names = {f.name for f in fields(report_cls)}
+    if "quality_warning" in names:
+        data["quality_warning"] = warning
+    return report_cls(**data)
 
 
 def _normalize_transcript(text: str) -> str:
@@ -225,16 +286,16 @@ class _Nodes:
         )
         return (
             f"视角模式：{mode}\n"
-            f"{cfg['cn_name']}返工次数：{revision_count}/{self.MAX_REVISIONS}\n"
+            f"{_line_cn(line_name)}返工次数：{revision_count}/{self.MAX_REVISIONS}\n"
             f"{allowed}\n\n"
             f"会议原文（最高事实来源）：\n{state['transcript']}\n\n"
             f"用户画像：\n{_json(state['user'])}\n\n"
             f"会议理解：\n{_json(state['meeting_understanding'])}\n\n"
             f"用户视角模型：\n{_json(state['perspective_profile'])}\n\n"
-            f"{cfg['draft_title']}：\n{_json(sub['draft'])}"
+            f"{_line_draft_title(line_name)}：\n{_json(sub['draft'])}"
         )
 
-    def _minutes_render_context(
+    def _minutes_generation_render_context(
         self, state: MeetingState, *, fallback: bool
     ) -> str:
         mode = self._mode_label(state)
@@ -337,32 +398,21 @@ class _Nodes:
     async def _meeting_understanding_node(
         self, state: MeetingState
     ) -> dict:
-        label = "MeetingUnderstandingAgent｜理解会议内容"
-        self._progress("start", label)
         try:
             result = await self.meeting_understanding_agent.run(
                 state["transcript"]
             )
         except Exception as exc:
             logger.warning("会议理解失败，使用空理解继续", exc_info=True)
-            self._progress("done", label)
             return {
-                "meeting_understanding": _EMPTY_UNDERSTANDING,
+                "meeting_understanding": _EMPTY_MEETING_UNDERSTANDING,
                 "quality_degraded": True,
             }
-        self._progress("done", label)
         return {"meeting_understanding": result.model_dump()}
 
     async def _perspective_modeling_node(
         self, state: MeetingState
     ) -> dict:
-        objective = bool(state.get("objective_perspective"))
-        label = (
-            "PerspectiveModelingAgent｜建立客观全员视角"
-            if objective
-            else "PerspectiveModelingAgent｜建立用户视角"
-        )
-        self._progress("start", label)
         try:
             result = await self.perspective_modeling_agent.run(
                 state["transcript"],
@@ -370,12 +420,10 @@ class _Nodes:
             )
         except Exception as exc:
             logger.warning("视角建模失败，使用空视角继续", exc_info=True)
-            self._progress("done", label)
             return {
-                "perspective_profile": _EMPTY_PROFILE,
+                "perspective_profile": _EMPTY_PERSPECTIVE_MODELING,
                 "quality_degraded": True,
             }
-        self._progress("done", label)
         return {"perspective_profile": result.model_dump()}
 
     # ── 同构节点工厂（由 TASK_LINES 注册表生成）───────────────
@@ -385,25 +433,19 @@ class _Nodes:
         cfg = TASK_LINES[line_name]
 
         async def node(state: MeetingState) -> dict:
-            objective = bool(state.get("objective_perspective"))
-            label = (
-                cfg["agent_labels"][0] if objective else cfg["agent_labels"][1]
-            )
-            self._progress("start", label)
             agent = getattr(self, cfg["agent_attr"])
             try:
                 result = await agent.run(
                     self._revision_context(
                         self._shared_context(state),
                         _line(state, line_name).get("revision_feedback", []),
-                        f"{cfg['cn_name']}返工意见",
+                        f"{_line_cn(line_name)}返工意见",
                     )
                 )
             except Exception as exc:
                 logger.warning(
-                    f"{cfg['cn_name']}生成失败，使用空草稿继续", exc_info=True
+                    f"{_line_cn(line_name)}生成失败，使用空草稿继续", exc_info=True
                 )
-                self._progress("done", label)
                 return {
                     "lines": {
                         line_name: {
@@ -413,7 +455,6 @@ class _Nodes:
                     },
                     "quality_degraded": True,
                 }
-            self._progress("done", label)
             return {"lines": {line_name: {"draft": result.model_dump()}}}
 
         return node
@@ -423,7 +464,6 @@ class _Nodes:
         cfg = TASK_LINES[line_name]
 
         async def node(state: MeetingState) -> dict:
-            self._progress("start", cfg["supervisor_label"])
             supervisor = getattr(self, cfg["supervisor_attr"])
             try:
                 review = await supervisor.review(
@@ -431,9 +471,8 @@ class _Nodes:
                 )
             except Exception as exc:
                 logger.warning(
-                    f"{cfg['cn_name']}审核失败，按 reject 转降级", exc_info=True
+                    f"{_line_cn(line_name)}审核失败，按 reject 转降级", exc_info=True
                 )
-                self._progress("done", cfg["supervisor_label"])
                 return {
                     "lines": {
                         line_name: {
@@ -446,7 +485,6 @@ class _Nodes:
                     },
                     "quality_degraded": True,
                 }
-            self._progress("done", cfg["supervisor_label"])
             return {
                 "lines": {
                     line_name: {
@@ -463,7 +501,6 @@ class _Nodes:
         cfg = TASK_LINES[line_name]
 
         async def node(state: MeetingState) -> dict:
-            self._progress("start", cfg["revision_label"])
             updates = await agent_node(state)
             line_patch = updates.setdefault("lines", {}).setdefault(
                 line_name, {}
@@ -471,7 +508,6 @@ class _Nodes:
             line_patch["revision_count"] = (
                 _line(state, line_name).get("revision_count", 0) + 1
             )
-            self._progress("done", cfg["revision_label"])
             return updates
 
         return node
@@ -491,49 +527,53 @@ class _Nodes:
 
         return route
 
+    # ── 专属节点方法生成区：由 tools/scripts/factory_contract.py 生成骨架，函数体可改 ──
+
     # ── 纪要线专属节点：渲染 + 降级 ───────────────────────────
 
-    async def _minutes_render_node(self, state: MeetingState) -> dict:
-        label = "RenderMinutes｜渲染纪要正文"
-        self._progress("start", label)
+    async def _minutes_generation_render_node(
+        self, state: MeetingState
+    ) -> dict:
         if state.get("streaming"):
             # 流式模式：图内不调用 LLM，由 run_streaming 接管流式输出
-            self._progress("done", label)
-            return {"rendered_minutes": ""}
+            return {"lines": {"minutes_generation": {"rendered": ""}}}
         try:
-            minutes = await self.minutes_render.run(
-                self._minutes_render_context(state, fallback=False),
-                template=state.get("template", ""),
+            minutes = await self.minutes_generation_render.run(
+                self._minutes_generation_render_context(state, fallback=False),
+                template=state.get("templates", {}).get(
+                    "minutes_generation", ""
+                ),
             )
         except Exception as exc:
             logger.warning("纪要渲染失败，使用确定性拼装", exc_info=True)
             minutes_report, _ = self._assemble_report_from_drafts(state)
             minutes = minutes_report.personalized_minutes
-            self._progress("done", label)
             return {
-                "rendered_minutes": minutes,
+                "lines": {"minutes_generation": {"rendered": minutes}},
                 "quality_degraded": True,
             }
-        self._progress("done", label)
         # 渲染本身成功不写 degraded（由 supervisor 判定或 fallback 标记）
-        return {"rendered_minutes": minutes}
+        return {"lines": {"minutes_generation": {"rendered": minutes}}}
 
-    async def _minutes_fallback_node(self, state: MeetingState) -> dict:
+    async def _minutes_generation_fallback_node(
+        self, state: MeetingState
+    ) -> dict:
         """纪要线降级：先尝试 LLM 渲染，失败则确定性拼装。"""
-        label = "FallbackMinutes｜降级渲染纪要"
-        self._progress("start", label)
         if state.get("streaming"):
             # 流式模式：图内不调用 LLM，由 run_streaming 接管降级输出
-            self._progress("done", label)
             return {
-                "rendered_minutes": "",
+                "lines": {
+                    "minutes_generation": {"rendered": "", "degraded": True}
+                },
                 "quality_degraded": True,
-                "lines": {"minutes_generation": {"degraded": True}},
             }
-        context = self._minutes_render_context(state, fallback=True)
+        context = self._minutes_generation_render_context(state, fallback=True)
         try:
-            minutes = await self.minutes_render.run(
-                context, template=state.get("template", "")
+            minutes = await self.minutes_generation_render.run(
+                context,
+                template=state.get("templates", {}).get(
+                    "minutes_generation", ""
+                ),
             )
         except Exception as exc:
             logger.warning("降级渲染纪要失败，使用确定性拼装", exc_info=True)
@@ -545,20 +585,22 @@ class _Nodes:
                 if minutes
                 else QUALITY_DISCLAIMER
             )
-        self._progress("done", label)
         return {
-            "rendered_minutes": minutes,
+            "lines": {
+                "minutes_generation": {"rendered": minutes, "degraded": True}
+            },
             "quality_degraded": True,
-            "lines": {"minutes_generation": {"degraded": True}},
         }
 
     # ── 待办线专属节点：格式化 + 降级 ─────────────────────────
 
-    async def _actions_render_node(self, state: MeetingState) -> dict:
-        label = "FormatActions｜格式化待办事项"
-        self._progress("start", label)
+    async def _action_items_render_node(
+        self, state: MeetingState
+    ) -> dict:
         items = self.action_items_render.extract_actions(state)
-        item_template = state.get("item_template", "")
+        item_template = state.get("templates", {}).get(
+            "action_items", ""
+        )
         if item_template.strip() and not state.get("streaming"):
             # 指定了待办模板：LLM 按模板渲染文本（流式模式由 run_streaming 接管）
             try:
@@ -569,40 +611,117 @@ class _Nodes:
                 logger.warning(
                     "待办模板渲染失败，退化为确定性列表", exc_info=True
                 )
-                self._progress("done", label)
                 return {
-                    "formatted_actions": items,
+                    "lines": {
+                        "action_items": {
+                            "rendered": items,
+                            "degraded": True,
+                        }
+                    },
                     "quality_degraded": True,
-                    "lines": {"action_items": {"degraded": True}},
                 }
-            self._progress("done", label)
-            return {"formatted_actions": items, "formatted_actions_text": text}
-        self._progress("done", label)
-        return {"formatted_actions": items}
+            return {
+                "lines": {
+                    "action_items": {"rendered": items, "rendered_text": text}
+                }
+            }
+        return {"lines": {"action_items": {"rendered": items}}}
 
-    async def _actions_fallback_node(self, state: MeetingState) -> dict:
+    async def _action_items_fallback_node(
+        self, state: MeetingState
+    ) -> dict:
         """待办线降级：确定性提取（不调 LLM）。"""
-        label = "FallbackActions｜降级提取待办"
-        self._progress("start", label)
         items = self.action_items_render.extract_actions(state)
-        self._progress("done", label)
         return {
-            "formatted_actions": items,
+            "lines": {
+                "action_items": {"rendered": items, "degraded": True}
+            },
             "quality_degraded": True,
-            "lines": {"action_items": {"degraded": True}},
         }
+
+    # ── 专属节点方法生成区结束 ──
+
+    @staticmethod
+    def _pack_fallback(
+        line_names: list[str],
+        minutes_fb: MinutesReport,
+        actions_fb: ActionsReport,
+    ) -> dict:
+        """兜底路径按线过滤：只返回选中线的 Report（未选中的不输出）。"""
+        reports: dict = {}
+        if "minutes_generation" in line_names:
+            reports["minutes"] = minutes_fb
+        if "action_items" in line_names:
+            reports["actions"] = actions_fb
+        return reports
+
+    async def _produce(
+        self,
+        line_name: str,
+        state: MeetingState,
+        queue: asyncio.Queue,
+    ) -> None:
+        """通用流式生产者：把指定任务线的文本流式塞进队列（并行事件源）。
+
+        线 → 事件映射（注册表驱动）：
+        - 输出键 ``output_key`` → 事件类型 ``{output_key}_chunk``（如 minutes_chunk）
+        - ``emit_items=True`` 的线先发结构化列表事件 ``{output_key}``（如 actions）
+        - render 实例按命名约定取 ``self.{line_name}_render``
+        - 上下文方法按命名约定取 ``self._{line_name}_render_context``
+        - render.stream 签名统一 ``(context, template="")``
+        """
+        output_key, _report_cls, emit_items = self._report_assemblers[line_name]
+        render = getattr(self, f"{line_name}_render")
+        event_type = f"{output_key}_chunk"
+        degraded = bool(_line(state, line_name).get("degraded"))
+        templates = state.get("templates", {}) or {}
+        template = templates.get(line_name, "") or ""
+        item_template = templates.get("action_items", "") or ""
+        try:
+            if emit_items:
+                # 结构化列表事件（如待办）：程序消费 + 文本流式化
+                items = _line(state, line_name).get("rendered") or []
+                await queue.put({"type": output_key, "items": items})
+                if item_template.strip() and not degraded:
+                    async for chunk in render.stream_with_template(
+                        state, item_template
+                    ):
+                        await queue.put({"type": event_type, "text": chunk})
+                else:
+                    for index, item in enumerate(items, start=1):
+                        await queue.put(
+                            {
+                                "type": event_type,
+                                "text": render.format_action(index, item)
+                                + "\n",
+                            }
+                        )
+                return
+            if degraded:
+                # 降级：确定性兜底文本一次性整段交付
+                await queue.put(
+                    {
+                        "type": event_type,
+                        "text": _line(state, line_name).get("rendered") or "",
+                    }
+                )
+                return
+            # 正常：调该线 Render 的 stream 流式渲染
+            context_fn = getattr(self, f"_{line_name}_render_context")
+            context = context_fn(state, fallback=False)
+            async for chunk in render.stream(context, template):
+                await queue.put({"type": event_type, "text": chunk})
+        except Exception as exc:
+            await queue.put(exc)  # 异常对象作为事件传出，由主循环抛出
+        finally:
+            await queue.put(None)
 
 
 class MeetingAgentSystem(_Nodes):
     """使用 LangGraph 编排会议分析、双线并行审核返工与最终输出。"""
 
-    def __init__(
-        self,
-        client: LLMClient | None = None,
-        progress_handler: ProgressHandler | None = None,
-    ) -> None:
+    def __init__(self, client: LLMClient | None = None) -> None:
         self.client = client or LLMClient()
-        self.progress_handler = progress_handler
 
         # 通过工厂组装全部 Agent 依赖
         agents = MeetingAgentFactory.create(self.client)
@@ -615,40 +734,64 @@ class MeetingAgentSystem(_Nodes):
         self.minutes_generation_agent: MinutesGenerationAgent = agents[
             "minutes_generation"
         ]
-        self.minutes_supervisor: MinutesGenerationSupervisor = agents[
-            "minutes_supervisor"
+        self.minutes_generation_supervisor: MinutesGenerationSupervisor = agents[
+            "minutes_generation_supervisor"
         ]
-        self.minutes_render: MinutesGenerationRender = agents[
-            "minutes_render"
+        self.minutes_generation_render: MinutesGenerationRender = agents[
+            "minutes_generation_render"
         ]
         self.action_items_agent: ActionItemsAgent = agents["action_items"]
-        self.actions_supervisor: ActionItemsSupervisor = agents[
-            "actions_supervisor"
+        self.action_items_supervisor: ActionItemsSupervisor = agents[
+            "action_items_supervisor"
         ]
         self.action_items_render: ActionItemsRender = agents[
-            "actions_render"
+            "action_items_render"
         ]
 
         # 各线专属的渲染 / 降级节点（同构节点由注册表在 _build_graph 中生成）
         self._render_nodes = {
-            "minutes_generation": self._minutes_render_node,
-            "action_items": self._actions_render_node,
+            "minutes_generation": self._minutes_generation_render_node,
+            "action_items": self._action_items_render_node,
         }
         self._fallback_nodes = {
-            "minutes_generation": self._minutes_fallback_node,
-            "action_items": self._actions_fallback_node,
+            "minutes_generation": self._minutes_generation_fallback_node,
+            "action_items": self._action_items_fallback_node,
         }
-        self.graph = self._build_graph()
 
-    # ── 进度回调 ──────────────────────────────────────────────
-
-    def _progress(self, event: str, label: str) -> None:
-        if self.progress_handler:
-            self.progress_handler(event, label)
+        # 各线 Report 组装器：线名 → (输出键, Report 类, emit_items)
+        # emit_items=True 的线（如待办）先发结构化列表事件；其余仅文本流
+        self._report_assemblers = {
+            "minutes_generation": ("minutes", MinutesReport, False),
+            "action_items": ("actions", ActionsReport, True),
+        }
 
     # ── 图构建（注册表驱动，双线并行）─────────────────────────
 
-    def _build_graph(self) -> object:
+    def _normalize_lines(
+        self, lines: Iterable[str] | None
+    ) -> list[str]:
+        """规范化 lines 参数：None → 全部任务线；校验未知/空值。"""
+        if lines is None:
+            return list(TASK_LINES)
+        result = list(lines)
+        unknown = [name for name in result if name not in TASK_LINES]
+        if unknown:
+            raise ValueError(
+                f"未知任务线 {unknown}，可用：{list(TASK_LINES)}"
+            )
+        if not result:
+            raise ValueError("lines 不能为空，至少指定一条任务线")
+        return result
+
+    def _build_graph(
+        self, line_names: Iterable[str] | None = None
+    ) -> object:
+        """构建 LangGraph：core（会议理解/视角建模）+ 指定任务线。
+
+        ``line_names`` 为 None 时构建全部任务线；否则只构建选中的线
+        （core 始终构建——任何任务线都需要会议理解与视角建模）。
+        """
+        line_names = self._normalize_lines(line_names)
         builder = StateGraph(MeetingState)
 
         # 核心层：会议理解 + 视角建模（并行）
@@ -663,7 +806,7 @@ class MeetingAgentSystem(_Nodes):
         core = ["meeting_understanding", "perspective_modeling"]
 
         # 任务线：由注册表生成同构节点（agent/supervisor/revision/route）
-        for line_name in TASK_LINES:
+        for line_name in line_names:
             agent_node = self._make_agent_node(line_name)
             supervisor_node = self._make_supervisor_node(line_name)
             revision_node = self._make_revision_node(line_name, agent_node)
@@ -703,7 +846,27 @@ class MeetingAgentSystem(_Nodes):
         user: UserIdentity | None = None,
         template: str = "",
         item_template: str = "",
-    ) -> tuple[MinutesReport, ActionsReport]:
+        templates: dict[str, str] | None = None,
+        lines: Iterable[str] | None = None,
+    ) -> dict[str, "MinutesReport | ActionsReport"]:
+        """运行会议分析流水线，按线交付结果。
+
+        ``lines`` 指定要执行的任务线（默认全部）：None 或省略 = 全部任务线；
+        只传部分线名（如 ``["minutes_generation"]``）时，未选中的线完全跳过
+        （不构建节点、不调用 LLM），对应键为空的 Report。
+
+        ``templates`` 按线指定输出模板：``{线名: 模板文本}``（如
+        ``{"minutes_generation": "【纪要】[描述]"}``）。便捷参数 ``template``
+        等价于 ``templates["minutes_generation"]``，``item_template`` 等价于
+        ``templates["action_items"]``，两者同时传时以 ``templates`` 为准。
+
+        返回 dict（键 = 任务线名，值 = 该线的 Report）：
+        - ``{"minutes": MinutesReport, "actions": ActionsReport}``
+        - 只跑纪要：``{"minutes": MinutesReport}``
+        - 只跑待办：``{"actions": ActionsReport}``
+
+        纪要/待办两条线互不依赖、并行执行，需要哪条就跑哪条。
+        """
         if not transcript.strip():
             raise ValueError("会议文字不能为空")
 
@@ -717,16 +880,20 @@ class MeetingAgentSystem(_Nodes):
         user_data = user.model_dump()
         if objective_mode and not user_data.get("perspective"):
             user_data["perspective"] = "objective"
+        # 模板按线统一收纳（须在 initial_state 前）：templates 优先，便捷参数兜底
+        templates = _normalize_templates(template, item_template, templates)
 
         initial_state: MeetingState = {
             "transcript": transcript,
             "user": user_data,
             "objective_perspective": objective_mode,
-            "template": template,
-            "item_template": item_template,
+            "templates": templates,
         }
+        # lines 校验放在 try 外：非法线名/空列表直接抛给调用方，不走兜底
+        line_names = self._normalize_lines(lines)
         try:
-            state = await self.graph.ainvoke(initial_state)
+            graph = self._build_graph(line_names)
+            state = await graph.ainvoke(initial_state)
         except Exception as exc:
             # 最后防线：图内任何未接住的异常都不让运行崩溃，走确定性兜底
             logger.warning("图执行失败，使用确定性兜底输出", exc_info=True)
@@ -735,41 +902,33 @@ class MeetingAgentSystem(_Nodes):
             )
             minutes_fb.quality_warning = QUALITY_WARNING
             actions_fb.quality_warning = QUALITY_WARNING
-            return minutes_fb, actions_fb
-
-        # 从并行渲染结果分别组装纪要、待办两个独立输出
-        minutes = state.get("rendered_minutes") or ""
-        actions = state.get("formatted_actions") or []
-        actions_text = state.get("formatted_actions_text")
-        quality_degraded = bool(state.get("quality_degraded"))
-
-        if objective_mode:
-            title = "客观会议纪要"
-        else:
-            title = f"{user_data.get('name', '用户')}视角会议纪要"
-
-        warning = QUALITY_WARNING if quality_degraded else None
-        minutes_report = MinutesReport(
-            title=title,
-            personalized_minutes=minutes,
-            quality_warning=warning,
-        )
-        actions_report = ActionsReport(
-            action_items=actions,
-            quality_warning=warning,
-            personalized_text=actions_text,
-        )
-        try:
-            return (
-                validate_payload(MinutesReport, minutes_report.model_dump()),
-                validate_payload(ActionsReport, actions_report.model_dump()),
+            return self._pack_fallback(
+                line_names, minutes_fb, actions_fb
             )
+
+        # 从并行渲染结果按线组装 Report（通用组装器按字段 metadata 读取抽屉）
+        quality_degraded = bool(state.get("quality_degraded"))
+        warning = QUALITY_WARNING if quality_degraded else None
+        reports: dict = {}
+        for line_name in line_names:
+            output_key, report_cls, _emit_items = self._report_assemblers[
+                line_name
+            ]
+            reports[output_key] = _assemble_report(
+                state, warning, report_cls, line_name
+            )
+
+        try:
+            return {
+                key: validate_payload(type(report), report.model_dump())
+                for key, report in reports.items()
+            }
         except Exception:
             logger.warning("输出校验失败，退回确定性兜底", exc_info=True)
             minutes_fb, actions_fb = self._assemble_report_from_drafts(state)
             minutes_fb.quality_warning = QUALITY_WARNING
             actions_fb.quality_warning = QUALITY_WARNING
-            return minutes_fb, actions_fb
+            return self._pack_fallback(line_names, minutes_fb, actions_fb)
 
     # ── 流式并行输出 ─────────────────────────────────────────
 
@@ -779,8 +938,13 @@ class MeetingAgentSystem(_Nodes):
         user: UserIdentity | None = None,
         template: str = "",
         item_template: str = "",
+        templates: dict[str, str] | None = None,
+        lines: Iterable[str] | None = None,
     ) -> AsyncIterator[dict]:
         """流式版本：纪要 LLM token 逐块推送、待办即时推送，两者并行互不等待。
+
+        ``lines`` 指定要执行的任务线（默认全部）：只传部分线名时，
+        未选中的线不构建节点、不调用 LLM，也不会产出对应事件。
 
         事件协议（async generator，按产出顺序 yield dict）：
 
@@ -809,32 +973,40 @@ class MeetingAgentSystem(_Nodes):
         user_data = user.model_dump()
         if objective_mode and not user_data.get("perspective"):
             user_data["perspective"] = "objective"
+        # 模板按线统一收纳（须在 initial_state 前）：templates 优先，便捷参数兜底
+        templates = _normalize_templates(template, item_template, templates)
 
         initial_state: MeetingState = {
             "transcript": transcript,
             "user": user_data,
             "objective_perspective": objective_mode,
-            "template": template,
-            "item_template": item_template,
+            "templates": templates,
             "streaming": True,  # 图内渲染节点跳过 LLM，由本方法接管流式输出
         }
+        # lines 校验放在 try 外：非法线名/空列表直接抛给调用方，不走兜底
+        line_names = self._normalize_lines(lines)
+        minutes_in = "minutes_generation" in line_names
+        actions_in = "action_items" in line_names
         try:
-            state = await self.graph.ainvoke(initial_state)
+            graph = self._build_graph(line_names)
+            state = await graph.ainvoke(initial_state)
         except Exception as exc:
             # 最后防线：图内任何未接住的异常都不让运行崩溃，走确定性兜底
             logger.warning("图执行失败，使用确定性兜底输出", exc_info=True)
             minutes_fb, actions_fb = self._assemble_report_from_drafts(
                 initial_state
             )
-            yield {
-                "type": "minutes_chunk",
-                "text": minutes_fb.personalized_minutes,
-            }
-            yield {"type": "actions", "items": actions_fb.action_items}
+            if minutes_in:
+                yield {
+                    "type": "minutes_chunk",
+                    "text": minutes_fb.personalized_minutes,
+                }
+            if actions_in:
+                yield {"type": "actions", "items": actions_fb.action_items}
             yield {"type": "done", "quality_warning": QUALITY_WARNING}
             return
 
-        actions = state.get("formatted_actions") or []
+        actions = _line(state, "action_items").get("rendered") or []
         # 按线隔离的降级标记：一条线降级不牵连另一条的渲染方式
         minutes_degraded = bool(
             _line(state, "minutes_generation").get("degraded")
@@ -852,55 +1024,14 @@ class MeetingAgentSystem(_Nodes):
             else None
         )
 
-        # 并行启动两个事件源，通过队列合并：纪要流式生成期间待办已可交付
+        # 并行启动各线事件源，通过队列合并：纪要流式生成期间待办已可交付
         queue: asyncio.Queue = asyncio.Queue()
 
-        async def _produce_actions() -> None:
-            try:
-                if item_template.strip() and not actions_degraded:
-                    # 待办模板 + 待办线未降级：先发结构化列表，再 LLM 流式渲染文本
-                    await queue.put({"type": "actions", "items": actions})
-                    async for chunk in (
-                        self.action_items_render.stream_with_template(
-                            state, item_template
-                        )
-                    ):
-                        await queue.put(
-                            {"type": "actions_chunk", "text": chunk}
-                        )
-                else:
-                    await queue.put({"type": "actions", "items": actions})
-            except Exception as exc:
-                await queue.put(exc)  # 异常对象作为事件传出，由主循环抛出
-            finally:
-                await queue.put(None)
-
-        async def _produce_minutes() -> None:
-            try:
-                if minutes_degraded:
-                    # 纪要线降级：确定性拼装，一次性整段交付
-                    minutes_report, _ = self._assemble_report_from_drafts(state)
-                    await queue.put(
-                        {
-                            "type": "minutes_chunk",
-                            "text": minutes_report.personalized_minutes,
-                        }
-                    )
-                    return
-                context = self._minutes_render_context(state, fallback=False)
-                async for chunk in self.minutes_render.stream(
-                    context, template
-                ):
-                    await queue.put({"type": "minutes_chunk", "text": chunk})
-            except Exception as exc:
-                await queue.put(exc)  # 异常对象作为事件传出，由主循环抛出
-            finally:
-                await queue.put(None)
-
-        tasks = [
-            asyncio.create_task(_produce_actions()),
-            asyncio.create_task(_produce_minutes()),
-        ]
+        tasks = []
+        for line_name in line_names:
+            tasks.append(
+                asyncio.create_task(self._produce(line_name, state, queue))
+            )
         remaining = len(tasks)
         while remaining:
             event = await queue.get()
