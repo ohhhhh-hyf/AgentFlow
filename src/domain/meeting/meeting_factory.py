@@ -37,15 +37,15 @@ class MeetingAgentFactory:
             action_items / action_items_supervisor / action_items_render —— 待办线
         """
         return {
-            # 核心层
-            "meeting_understanding": MeetingUnderstandingAgent(client),
-            "perspective_modeling": PerspectiveModelingAgent(client),
+            # 核心层（键 = 属性名，与任务线统一：{角色}_agent）
+            "meeting_understanding_agent": MeetingUnderstandingAgent(client),
+            "perspective_modeling_agent": PerspectiveModelingAgent(client),
             # ── 任务线装配生成区：由 tools/scripts/factory_contract.py 生成，勿手改 ──
 
-            "action_items": ActionItemsAgent(client),
+            "action_items_agent": ActionItemsAgent(client),
             "action_items_supervisor": ActionItemsSupervisor(client),
             "action_items_render": ActionItemsRender(client),
-            "minutes_generation": MinutesGenerationAgent(client),
+            "minutes_generation_agent": MinutesGenerationAgent(client),
             "minutes_generation_supervisor": MinutesGenerationSupervisor(client),
             "minutes_generation_render": MinutesGenerationRender(client),
 

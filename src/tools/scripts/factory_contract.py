@@ -47,6 +47,14 @@ NODE_ZONE_END = "# ── 专属节点方法生成区结束 ──"
 TL_ZONE_START = "# ── 任务线注册生成区：由 tools/scripts/factory_contract.py 生成，勿手改 ──"
 TL_ZONE_END = "# ── 任务线注册生成区结束 ──"
 
+# Agent 挂载生成区标记（orchestrator.py 的 __init__ 内，任务线挂载）
+MOUNT_ZONE_START = "# ── Agent 挂载生成区：由 tools/scripts/factory_contract.py 生成，勿手改 ──"
+MOUNT_ZONE_END = "# ── Agent 挂载生成区结束 ──"
+
+# 节点映射生成区标记（orchestrator.py 的 __init__ 内，_render_nodes/_fallback_nodes）
+NODEMAP_ZONE_START = "# ── 节点映射生成区：由 tools/scripts/factory_contract.py 生成，勿手改 ──"
+NODEMAP_ZONE_END = "# ── 节点映射生成区结束 ──"
+
 # 生成区正则：允许标记前有缩进（生成区嵌在 create() 函数体内，行首带空格）
 _ZONE_PATTERN = (
     r"[ \t]*"
@@ -68,6 +76,22 @@ _TL_ZONE_PATTERN = (
     re.escape(TL_ZONE_START)
     + r"\r*\n(.*?)\r*\n"
     + re.escape(TL_ZONE_END)
+)
+
+# Agent 挂载生成区正则（__init__ 方法体内，行首 8 空格缩进）
+_MOUNT_ZONE_PATTERN = (
+    r"[ \t]*"
+    + re.escape(MOUNT_ZONE_START)
+    + r"\r*\n(.*?)\r*\n[ \t]*"
+    + re.escape(MOUNT_ZONE_END)
+)
+
+# 节点映射生成区正则（__init__ 方法体内，行首 8 空格缩进）
+_NODEMAP_ZONE_PATTERN = (
+    r"[ \t]*"
+    + re.escape(NODEMAP_ZONE_START)
+    + r"\r*\n(.*?)\r*\n[ \t]*"
+    + re.escape(NODEMAP_ZONE_END)
 )
 
 
@@ -94,12 +118,16 @@ def line_class_name(line: str, suffix: str) -> str:
 def generate_lines_code(lines: list[str]) -> str:
     """生成装配代码：每条线 3 行（agent / supervisor / render）。
 
+    键名统一为 ``{line}_agent`` / ``{line}_supervisor`` / ``{line}_render``，
+    与 __init__ 挂载的属性名、TASK_LINES 的 agent_attr 完全一致
+    （一个名字贯穿工厂→挂载→注册表→getattr）。
+
     行首不带缩进（写入时由 _write_target 统一加 create() 函数体缩进）。
     """
     blocks = []
     for line in lines:
         blocks.append(
-            f'"{line}": {line_class_name(line, "Agent")}(client),'
+            f'"{line}_agent": {line_class_name(line, "Agent")}(client),'
             f'\n"{line}_supervisor": {line_class_name(line, "Supervisor")}(client),'
             f'\n"{line}_render": {line_class_name(line, "Render")}(client),'
         )
@@ -194,6 +222,47 @@ def generate_task_lines_code(
             f"    }},"
         )
     return "TASK_LINES: dict[str, dict] = {\n" + "\n".join(blocks) + "\n}"
+
+
+# ── __init__ 挂载与节点映射生成 ──────────────────────────────
+
+def generate_mount_code(lines: list[str]) -> str:
+    """生成 __init__ 的 Agent 挂载代码（每条线 3 行，行首 8 空格缩进）。
+
+    键名/属性名/类型注解全部由命名约定推导，与工厂键、TASK_LINES 对齐：
+    ``self.{line}_{role}: {PascalCase(line)}{Role} = agents["{line}_{role}"]``
+    """
+    blocks = []
+    for line in lines:
+        for role, suffix in (
+            ("agent", "Agent"),
+            ("supervisor", "Supervisor"),
+            ("render", "Render"),
+        ):
+            blocks.append(
+                f"        self.{line}_{role}: {line_class_name(line, suffix)} = "
+                f'agents["{line}_{role}"]'
+            )
+    return "\n".join(blocks)
+
+
+def generate_node_map_code(lines: list[str]) -> str:
+    """生成 __init__ 的渲染/降级节点映射（{} + 追加式，行首 8 空格缩进）。
+
+    _render_nodes / _fallback_nodes 每行完全同构：
+    ``self._render_nodes["{line}"] = self._{line}_render_node``
+    """
+    blocks = ["        self._render_nodes: dict[str, object] = {}"]
+    blocks += [
+        f'        self._render_nodes["{line}"] = self._{line}_render_node'
+        for line in lines
+    ]
+    blocks.append("        self._fallback_nodes: dict[str, object] = {}")
+    blocks += [
+        f'        self._fallback_nodes["{line}"] = self._{line}_fallback_node'
+        for line in lines
+    ]
+    return "\n".join(blocks)
 
 
 # ── 写入 / 校验（复用 generation_contract.py 的生成区模式）──
@@ -375,12 +444,119 @@ def check_task_lines(path: Path, lines: list[str]) -> int:
     return 1
 
 
+# ── __init__ 挂载生成区（orchestrator.py）：整体替换 ──────────
+
+def write_mount(path: Path, lines: list[str]) -> None:
+    """整体重写 orchestrator.py 的 Agent 挂载生成区。"""
+    raw = _read_raw(path)
+    if MOUNT_ZONE_START not in raw or MOUNT_ZONE_END not in raw:
+        sys.exit(
+            f"{path.name} 中未找到 Agent 挂载生成区标记。请先手动添加：\n"
+            f"{MOUNT_ZONE_START}\n（现有任务线挂载代码移入此处）\n{MOUNT_ZONE_END}"
+        )
+    nl = "\r\n" if "\r\n" in raw else "\n"
+    code = nl.join(generate_mount_code(lines).split("\n"))
+    block = (
+        f"        {MOUNT_ZONE_START}"
+        + nl
+        + nl
+        + code
+        + nl
+        + nl
+        + f"        {MOUNT_ZONE_END}"
+    )
+    new_raw = re.sub(
+        _MOUNT_ZONE_PATTERN,
+        lambda _m: block,
+        raw,
+        flags=re.S,
+    )
+    with open(path, "w", encoding="utf-8", newline="") as fh:
+        fh.write(new_raw)
+    print(f"已写入 {path} Agent 挂载生成区")
+
+
+def check_mount(path: Path, lines: list[str]) -> int:
+    """校验 Agent 挂载生成区与目录一致；一致返回 0，否则返回 1。"""
+    raw = _read_raw(path)
+    m = re.search(_MOUNT_ZONE_PATTERN, raw, re.S)
+    if m is None:
+        print(f"{path.name} 中未找到 Agent 挂载生成区标记", file=sys.stderr)
+        return 1
+    zone = _normalize_newlines(m.group(1)).strip()
+    expected = _normalize_newlines(generate_mount_code(lines)).strip()
+    if zone == expected:
+        print(f"OK：Agent 挂载生成区与目录一致（{path.name}）")
+        return 0
+    print(
+        f"不一致：Agent 挂载生成区与当前目录生成的代码有差异（请运行 --write 更新）",
+        file=sys.stderr,
+    )
+    return 1
+
+
+# ── 节点映射生成区（orchestrator.py）：整体替换 ───────────────
+
+def write_node_map(path: Path, lines: list[str]) -> None:
+    """整体重写 orchestrator.py 的节点映射生成区（_render_nodes/_fallback_nodes）。"""
+    raw = _read_raw(path)
+    if NODEMAP_ZONE_START not in raw or NODEMAP_ZONE_END not in raw:
+        sys.exit(
+            f"{path.name} 中未找到节点映射生成区标记。请先手动添加：\n"
+            f"{NODEMAP_ZONE_START}\n（现有节点映射代码移入此处）\n{NODEMAP_ZONE_END}"
+        )
+    nl = "\r\n" if "\r\n" in raw else "\n"
+    code = nl.join(generate_node_map_code(lines).split("\n"))
+    block = (
+        f"        {NODEMAP_ZONE_START}"
+        + nl
+        + nl
+        + code
+        + nl
+        + nl
+        + f"        {NODEMAP_ZONE_END}"
+    )
+    new_raw = re.sub(
+        _NODEMAP_ZONE_PATTERN,
+        lambda _m: block,
+        raw,
+        flags=re.S,
+    )
+    with open(path, "w", encoding="utf-8", newline="") as fh:
+        fh.write(new_raw)
+    print(f"已写入 {path} 节点映射生成区")
+
+
+def check_node_map(path: Path, lines: list[str]) -> int:
+    """校验节点映射生成区与目录一致；一致返回 0，否则返回 1。"""
+    raw = _read_raw(path)
+    m = re.search(_NODEMAP_ZONE_PATTERN, raw, re.S)
+    if m is None:
+        print(f"{path.name} 中未找到节点映射生成区标记", file=sys.stderr)
+        return 1
+    zone = _normalize_newlines(m.group(1)).strip()
+    expected = _normalize_newlines(generate_node_map_code(lines)).strip()
+    if zone == expected:
+        print(f"OK：节点映射生成区与目录一致（{path.name}）")
+        return 0
+    print(
+        f"不一致：节点映射生成区与当前目录生成的代码有差异（请运行 --write 更新）",
+        file=sys.stderr,
+    )
+    return 1
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(
-        description="从 tasks/ 目录生成任务线装配代码、TASK_LINES 注册与专属节点方法骨架"
+        description="从 tasks/ 目录生成任务线装配代码、TASK_LINES 注册、"
+        "__init__ 挂载与节点映射、专属节点方法骨架"
     )
     group = parser.add_mutually_exclusive_group()
-    group.add_argument("--write", action="store_true", help="写入装配区 + TASK_LINES 区 + 追加节点骨架")
+    group.add_argument(
+        "--write",
+        action="store_true",
+        help="写入装配区 + TASK_LINES 区 + 挂载区 + 节点映射区 + 追加节点骨架",
+    )
     group.add_argument("--check", action="store_true", help="校验全部生成区（CI 用）")
     args = parser.parse_args()
 
@@ -389,10 +565,14 @@ def main() -> None:
     if args.write:
         _write_target(FACTORY_PATH, code)
         write_task_lines(ORCH_PATH, lines)
+        write_mount(ORCH_PATH, lines)
+        write_node_map(ORCH_PATH, lines)
         write_nodes(ORCH_PATH, lines)
     elif args.check:
         rc = _check_target(FACTORY_PATH, code)
         rc |= check_task_lines(ORCH_PATH, lines)
+        rc |= check_mount(ORCH_PATH, lines)
+        rc |= check_node_map(ORCH_PATH, lines)
         rc |= check_nodes(ORCH_PATH, lines)
         sys.exit(rc)
     else:
@@ -402,7 +582,11 @@ def main() -> None:
             print(f"            {line}")
         print("\n② TASK_LINES 注册（写入 orchestrator.py 任务线注册生成区）：\n")
         print(generate_task_lines_code(lines))
-        print("\n③ 专属节点方法骨架（写入 orchestrator.py 生成区，函数体由你填）：\n")
+        print("\n③ Agent 挂载（写入 orchestrator.py __init__ 挂载生成区）：\n")
+        print(generate_mount_code(lines))
+        print("\n④ 节点映射（写入 orchestrator.py __init__ 节点映射生成区）：\n")
+        print(generate_node_map_code(lines))
+        print("\n⑤ 专属节点方法骨架（写入 orchestrator.py 生成区，函数体由你填）：\n")
         print(generate_node_skeletons(lines))
 
 

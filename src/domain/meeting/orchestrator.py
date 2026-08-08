@@ -723,40 +723,39 @@ class MeetingAgentSystem(_Nodes):
     def __init__(self, client: LLMClient | None = None) -> None:
         self.client = client or LLMClient()
 
-        # 通过工厂组装全部 Agent 依赖
+        # 通过工厂组装全部 Agent 依赖（键名 = 属性名，与 TASK_LINES 的 *_attr 对齐）
         agents = MeetingAgentFactory.create(self.client)
+
+        # core 层挂载（手写，生成区外——不属于任务线，脚本扫描不到）
         self.meeting_understanding_agent: MeetingUnderstandingAgent = agents[
-            "meeting_understanding"
+            "meeting_understanding_agent"
         ]
         self.perspective_modeling_agent: PerspectiveModelingAgent = agents[
-            "perspective_modeling"
-        ]
-        self.minutes_generation_agent: MinutesGenerationAgent = agents[
-            "minutes_generation"
-        ]
-        self.minutes_generation_supervisor: MinutesGenerationSupervisor = agents[
-            "minutes_generation_supervisor"
-        ]
-        self.minutes_generation_render: MinutesGenerationRender = agents[
-            "minutes_generation_render"
-        ]
-        self.action_items_agent: ActionItemsAgent = agents["action_items"]
-        self.action_items_supervisor: ActionItemsSupervisor = agents[
-            "action_items_supervisor"
-        ]
-        self.action_items_render: ActionItemsRender = agents[
-            "action_items_render"
+            "perspective_modeling_agent"
         ]
 
+        # ── Agent 挂载生成区：由 tools/scripts/factory_contract.py 生成，勿手改 ──
+
+        self.action_items_agent: ActionItemsAgent = agents["action_items_agent"]
+        self.action_items_supervisor: ActionItemsSupervisor = agents["action_items_supervisor"]
+        self.action_items_render: ActionItemsRender = agents["action_items_render"]
+        self.minutes_generation_agent: MinutesGenerationAgent = agents["minutes_generation_agent"]
+        self.minutes_generation_supervisor: MinutesGenerationSupervisor = agents["minutes_generation_supervisor"]
+        self.minutes_generation_render: MinutesGenerationRender = agents["minutes_generation_render"]
+
+        # ── Agent 挂载生成区结束 ──
+
         # 各线专属的渲染 / 降级节点（同构节点由注册表在 _build_graph 中生成）
-        self._render_nodes = {
-            "minutes_generation": self._minutes_generation_render_node,
-            "action_items": self._action_items_render_node,
-        }
-        self._fallback_nodes = {
-            "minutes_generation": self._minutes_generation_fallback_node,
-            "action_items": self._action_items_fallback_node,
-        }
+        # ── 节点映射生成区：由 tools/scripts/factory_contract.py 生成，勿手改 ──
+
+        self._render_nodes: dict[str, object] = {}
+        self._render_nodes["action_items"] = self._action_items_render_node
+        self._render_nodes["minutes_generation"] = self._minutes_generation_render_node
+        self._fallback_nodes: dict[str, object] = {}
+        self._fallback_nodes["action_items"] = self._action_items_fallback_node
+        self._fallback_nodes["minutes_generation"] = self._minutes_generation_fallback_node
+
+        # ── 节点映射生成区结束 ──
 
         # 各线 Report 组装器：线名 → (输出键, Report 类, emit_items)
         # emit_items=True 的线（如待办）先发结构化列表事件；其余仅文本流
