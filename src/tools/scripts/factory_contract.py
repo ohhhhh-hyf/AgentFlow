@@ -76,6 +76,10 @@ REPORT_IMPORT_ZONE_END = "# ── Report import 生成区结束 ──"
 REPORT_ZONE_START = "# ── Report 组装器生成区：由 tools/scripts/factory_contract.py 生成，勿手改 ──"
 REPORT_ZONE_END = "# ── Report 组装器生成区结束 ──"
 
+# FallbackRules 注册生成区标记（orchestrator.py 的 __init__ 内，整体生成勿手改）
+FALLBACK_RULES_ZONE_START = "# ── FallbackRules 注册生成区：由 tools/scripts/factory_contract.py 生成，勿手改 ──"
+FALLBACK_RULES_ZONE_END = "# ── FallbackRules 注册生成区结束 ──"
+
 # 生成区正则：允许标记前有缩进（生成区嵌在 create() 函数体内，行首带空格）
 _ZONE_PATTERN = (
     r"[ \t]*"
@@ -145,6 +149,14 @@ _REPORT_ZONE_PATTERN = (
     + re.escape(REPORT_ZONE_START)
     + r"\r*\n(.*?)\r*\n[ \t]*"
     + re.escape(REPORT_ZONE_END)
+)
+
+# FallbackRules 注册生成区正则（__init__ 方法体内，行首 8 空格缩进）
+_FALLBACK_RULES_ZONE_PATTERN = (
+    r"[ \t]*"
+    + re.escape(FALLBACK_RULES_ZONE_START)
+    + r"\r*\n(.*?)\r*\n[ \t]*"
+    + re.escape(FALLBACK_RULES_ZONE_END)
 )
 
 
@@ -619,6 +631,77 @@ def check_report_assemblers(path: Path, lines: list[str]) -> int:
     return 0
 
 
+def generate_fallback_rules_code(lines: list[str]) -> str:
+    """生成 __init__ 的 FallbackRules 注册（行首 8 空格缩进）。
+
+    ``self._fallback_rules = {线名: {BASE}_FALLBACK_RULES}``——图异常兜底
+    （_fallback_reports）按线名取该线降级规则。只含声明了 FallbackRules 子类的线。
+    """
+    blocks = ["        self._fallback_rules = {"]
+    for line in lines:
+        if _has_fallback_rules(line):
+            blocks.append(
+                f'            "{line}": {_contract_base(line)}_FALLBACK_RULES,'
+            )
+    blocks.append("        }")
+    return "\n".join(blocks)
+
+
+def write_fallback_rules(path: Path, lines: list[str]) -> None:
+    """整体重写 orchestrator.py 的 FallbackRules 注册生成区。"""
+    raw = _read_raw(path)
+    if FALLBACK_RULES_ZONE_START not in raw or FALLBACK_RULES_ZONE_END not in raw:
+        sys.exit(
+            f"{path.name} 中未找到 FallbackRules 注册生成区标记。请先手动添加：\n"
+            f"        {FALLBACK_RULES_ZONE_START}\n"
+            f"（现有手写 _fallback_rules 移入此处）\n"
+            f"        {FALLBACK_RULES_ZONE_END}"
+        )
+    m = re.search(_FALLBACK_RULES_ZONE_PATTERN, raw, re.S)
+    if m is None:
+        sys.exit(f"{path.name} 中 FallbackRules 注册生成区标记不完整")
+    nl = "\r\n" if "\r\n" in raw else "\n"
+    code = nl.join(generate_fallback_rules_code(lines).split("\n"))
+    block = (
+        f"        {FALLBACK_RULES_ZONE_START}"
+        + nl
+        + nl
+        + code
+        + nl
+        + nl
+        + f"        {FALLBACK_RULES_ZONE_END}"
+    )
+    new_raw = re.sub(
+        _FALLBACK_RULES_ZONE_PATTERN,
+        lambda _m: block,
+        raw,
+        flags=re.S,
+    )
+    with open(path, "w", encoding="utf-8", newline="") as fh:
+        fh.write(new_raw)
+    print(f"已写入 {path.name} FallbackRules 注册生成区")
+
+
+def check_fallback_rules(path: Path, lines: list[str]) -> int:
+    """校验 FallbackRules 注册生成区与当前目录生成一致。"""
+    raw = _read_raw(path)
+    m = re.search(_FALLBACK_RULES_ZONE_PATTERN, raw, re.S)
+    if m is None:
+        print(f"{path.name} 中未找到 FallbackRules 注册生成区标记", file=sys.stderr)
+        return 1
+    zone = m.group(1)
+    expected = generate_fallback_rules_code(lines)
+    if zone.strip() != expected.strip():
+        print(
+            f"不一致：FallbackRules 注册生成区与当前目录生成的代码有差异"
+            f"（请运行 --write 更新）",
+            file=sys.stderr,
+        )
+        return 1
+    print(f"OK：FallbackRules 注册生成区一致（{len(lines)} 条线）")
+    return 0
+
+
 # ── 写入 / 校验（复用 generation_contract.py 的生成区模式）──
 
 def _read_raw(path: Path) -> str:
@@ -923,6 +1006,7 @@ def main() -> None:
         write_fallback_imports(ORCH_PATH, lines)
         write_report_imports(ORCH_PATH, lines)
         write_report_assemblers(ORCH_PATH, lines)
+        write_fallback_rules(ORCH_PATH, lines)
         write_nodes(ORCH_PATH, lines)
     elif args.check:
         rc = _check_target(FACTORY_PATH, code)
@@ -933,6 +1017,7 @@ def main() -> None:
         rc |= check_fallback_imports(ORCH_PATH, lines)
         rc |= check_report_imports(ORCH_PATH, lines)
         rc |= check_report_assemblers(ORCH_PATH, lines)
+        rc |= check_fallback_rules(ORCH_PATH, lines)
         rc |= check_nodes(ORCH_PATH, lines)
         sys.exit(rc)
     else:

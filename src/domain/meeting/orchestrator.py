@@ -441,23 +441,31 @@ class _Nodes:
 
     # ── 渲染上下文生成区结束 ──
 
-    def _fallback_reports(self, state: MeetingState) -> dict:
-        """图异常/校验失败时的确定性 Report（按线声明式规则拼装，不调 LLM）。"""
-        minutes_text, _ = _fallback_text(
-            state, "minutes_generation", MINUTES_FALLBACK_RULES
-        )
-        actions_text, actions_items = _fallback_text(
-            state, "action_items", ACTION_ITEMS_FALLBACK_RULES
-        )
+    def _fallback_reports(
+        self, state: MeetingState, line_names: list[str]
+    ) -> dict:
+        """图异常/校验失败时的确定性 Report（按线声明式拼装，零线级特判）。
+
+        对每条选中线：用该线 FALLBACK_RULES 拼文本 → 写回抽屉 → 通用组装器
+        （_assemble_report 按 source 取 rendered/items/title）产出 Report。
+        新增任务线自动覆盖（无需改此处）。
+        """
+        lines = state.setdefault("lines", {})
+        for line_name in line_names:
+            rules = self._fallback_rules[line_name]
+            text, items = _fallback_text(state, line_name, rules)
+            line_dict = lines.setdefault(line_name, {})
+            line_dict["rendered"] = text
+            if items is not None:
+                line_dict["items"] = items
         return {
-            "minutes_generation": MinutesReport(
-                title=_compute_title(state),
-                personalized_minutes=minutes_text,
-            ),
-            "action_items": ActionItemsReport(
-                action_items=actions_items or [],
-                personalized_text=actions_text or "暂无明确待办",
-            ),
+            line_name: _assemble_report(
+                state,
+                QUALITY_WARNING,
+                self._report_assemblers[line_name],
+                line_name,
+            )
+            for line_name in line_names
         }
 
     # ── 核心节点：会议理解 + 视角建模 ─────────────────────────
@@ -623,20 +631,6 @@ class _Nodes:
 
     # ── 专属节点方法生成区结束 ──
 
-    @staticmethod
-    def _pack_fallback(
-        line_names: list[str],
-        minutes_fb: MinutesReport,
-        actions_fb: ActionItemsReport,
-    ) -> dict:
-        """兜底路径按线过滤：只返回选中线的 Report（键 = 线名，与 chunk.line 一致）。"""
-        reports: dict = {}
-        if "minutes_generation" in line_names:
-            reports["minutes_generation"] = minutes_fb
-        if "action_items" in line_names:
-            reports["action_items"] = actions_fb
-        return reports
-
     def _line_title(self, state: MeetingState, line_name: str) -> str:
         """线 → 展示标题（按视角模式区分；新线用通用默认）。"""
         objective = bool(state.get("objective_perspective"))
@@ -754,6 +748,16 @@ class MeetingAgentSystem(_Nodes):
         }
 
         # ── Report 组装器生成区结束 ──
+
+        # 各线降级规则：线名 → FallbackRules 实例（脚本生成，图异常兜底用）
+        # ── FallbackRules 注册生成区：由 tools/scripts/factory_contract.py 生成，勿手改 ──
+
+        self._fallback_rules = {
+            "action_items": ACTION_ITEMS_FALLBACK_RULES,
+            "minutes_generation": MINUTES_FALLBACK_RULES,
+        }
+
+        # ── FallbackRules 注册生成区结束 ──
 
     # ── 图构建（注册表驱动，双线并行）─────────────────────────
 
@@ -882,30 +886,20 @@ class MeetingAgentSystem(_Nodes):
         except Exception as exc:
             # 最后防线：图内任何未接住的异常都不让运行崩溃，走确定性兜底
             logger.warning("图执行失败，使用确定性兜底输出", exc_info=True)
-            fb = self._fallback_reports(initial_state)
-            minutes_fb = fb["minutes_generation"]
-            actions_fb = fb["action_items"]
+            fb = self._fallback_reports(initial_state, line_names)
             for line_name in line_names:
-                if line_name == "minutes_generation":
+                if line_name in fb:
                     yield {
                         "type": "chunk",
                         "line": line_name,
                         "title": self._line_title(initial_state, line_name),
-                        "text": minutes_fb.personalized_minutes,
-                    }
-                elif line_name == "action_items":
-                    yield {
-                        "type": "chunk",
-                        "line": line_name,
-                        "title": self._line_title(initial_state, line_name),
-                        "text": actions_fb.personalized_text or "",
+                        "text": _line(initial_state, line_name).get("rendered")
+                        or "",
                     }
             yield {
                 "type": "done",
                 "quality_warning": QUALITY_WARNING,
-                "reports": self._pack_fallback(
-                    line_names, minutes_fb, actions_fb
-                ),
+                "reports": fb,
             }
             return
 
@@ -975,11 +969,4 @@ class MeetingAgentSystem(_Nodes):
             }
         except Exception:
             logger.warning("输出校验失败，退回确定性兜底", exc_info=True)
-            fb = self._fallback_reports(state)
-            minutes_fb = fb["minutes_generation"]
-            actions_fb = fb["action_items"]
-            minutes_fb.quality_warning = QUALITY_WARNING
-            actions_fb.quality_warning = QUALITY_WARNING
-            return self._pack_fallback(
-                line_names, minutes_fb, actions_fb
-            )
+            return self._fallback_reports(state, line_names)
