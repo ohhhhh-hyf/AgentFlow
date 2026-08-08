@@ -242,7 +242,7 @@ class MinutesReport(ModelMixin):
 
 
 @dataclass
-class ActionsReport(ModelMixin):
+class ActionItemsReport(ModelMixin):
     """待办输出（与纪要输出分离，各自独立）。
 
     字段的 ``metadata["source"]`` 供通用组装器从 state 抽屉取值：
@@ -262,22 +262,22 @@ class ActionsReport(ModelMixin):
     )
 
     @classmethod
-    def validate(cls, data: dict) -> "ActionsReport":
+    def validate(cls, data: dict) -> "ActionItemsReport":
         allowed = {"action_items", "quality_warning", "personalized_text"}
         required = {"action_items"}
 
         if not isinstance(data, dict):
-            raise OutputValidationError("ActionsReport 必须是 JSON 对象")
+            raise OutputValidationError("ActionItemsReport 必须是 JSON 对象")
 
         actual = set(data)
         if not required.issubset(actual):
             raise OutputValidationError(
-                f"ActionsReport 字段不一致：缺失={sorted(required - actual)}"
+                f"ActionItemsReport 字段不一致：缺失={sorted(required - actual)}"
             )
         extra = actual - allowed
         if extra:
             raise OutputValidationError(
-                f"ActionsReport 字段不一致：多余={sorted(extra)}"
+                f"ActionItemsReport 字段不一致：多余={sorted(extra)}"
             )
 
         if not isinstance(data["action_items"], list):

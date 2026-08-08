@@ -29,9 +29,16 @@ from .meeting_core import (
 )
 from .meeting_factory import MeetingAgentFactory
 from .line_registry import LINE_CN_NAMES
+
+# ── Report import 生成区：由 tools/scripts/factory_contract.py 生成，勿手改 ──
+
 from .models import (
-    ActionsReport,
+    ActionItemsReport,
     MinutesReport,
+)
+# ── Report import 生成区结束 ──
+
+from .models import (
     MeetingState,
     UserIdentity,
     is_objective_perspective,
@@ -46,6 +53,14 @@ from .tasks.minutes_generation import (
     MinutesGenerationRender,
     MinutesGenerationSupervisor,
 )
+
+# ── FallbackRules import 生成区：由 tools/scripts/factory_contract.py 生成，勿手改 ──
+
+from .tasks.action_items.contracts import ACTION_ITEMS_FALLBACK_RULES
+from .tasks.minutes_generation.contracts import MINUTES_FALLBACK_RULES
+
+# ── FallbackRules import 生成区结束 ──
+
 from tools.validation import validate_payload
 
 logger = logging.getLogger(__name__)
@@ -240,14 +255,95 @@ def _line_template(state: MeetingState, line_name: str) -> str:
     return (state.get("templates") or {}).get(line_name, "")
 
 
-def _format_actions_text(
-    items: list[dict], renderer: ActionItemsRender
-) -> str:
-    """确定性待办文本拼装（降级 / 渲染失败兜底用，不调 LLM）。"""
-    return "\n".join(
-        renderer.format_action(index, item)
-        for index, item in enumerate(items, start=1)
-    )
+def _sec_attr(sec, name, default=None):
+    """取段/规则属性：兼容 FallbackRules 对象与裸 dict。"""
+    if isinstance(sec, dict):
+        return sec.get(name, default)
+    return getattr(sec, name, default)
+
+
+def _pick_label(sec, objective: bool) -> str:
+    """段标签：支持视角联动（{objective: ..., personal: ...}）。"""
+    label = _sec_attr(sec, "label")
+    if isinstance(label, dict):
+        return label.get("objective" if objective else "personal", "未命名")
+    return label or "未命名"
+
+
+def _field_values(draft: dict, sec, objective: bool) -> list:
+    """取段字段值：支持 merge（客观视角合并多个字段）。"""
+    merge = _sec_attr(sec, "merge")
+    field = _sec_attr(sec, "field")
+    if merge:
+        values = list(draft.get(merge[0]) or [])
+        if objective:
+            for extra in merge[1:]:
+                values.extend(draft.get(extra) or [])
+        return values
+    return draft.get(field) or []
+
+
+def _fallback_text(
+    state: MeetingState, line_name: str, rules
+) -> tuple[str, list | None]:
+    """按声明式规则把草稿拼成确定性文本（+ 可选结构化列表）。
+
+    rules 为 FallbackRules 子类实例（见 tools/fallback_rules.py）：
+    - sections: 有序段列表（Raw/KV/Join/Lines/Bullets）
+    - empty_prefix / empty_text / empty_purpose：全空时兜底文案
+    - disclaimer: 是否追加 QUALITY_DISCLAIMER
+    - structured: {merge: [...]} 客观合并的结构化列表（items，Report 用）
+    """
+    draft = _line(state, line_name).get("draft") or {}
+    objective = bool(state.get("objective_perspective"))
+    sections: list[str] = []
+    for sec in _sec_attr(rules, "sections", []) or []:
+        values = _field_values(draft, sec, objective)
+        kind = _sec_attr(sec, "kind", "raw")
+        if kind == "raw":
+            if values:
+                sections.append(str(values))
+        elif kind == "kv":
+            if values:
+                sections.append(f"{_pick_label(sec, objective)}：{values}")
+        elif kind == "join":
+            body = "；".join(str(v) for v in values if v)
+            if body:
+                sections.append(f"{_pick_label(sec, objective)}：{body}")
+        elif kind == "lines":
+            for index, item in enumerate(values, start=1):
+                sections.append(ActionItemsRender.format_action(index, item))
+        elif kind == "bullets":
+            for item in values:
+                if item:
+                    sections.append(f"- {item}")
+    if not sections:
+        text = _sec_attr(rules, "empty_text", "") or ""
+        prefix = _sec_attr(rules, "empty_prefix", "") or ""
+        if prefix:
+            purpose = (state.get("meeting_understanding") or {}).get(
+                "meeting_purpose"
+            )
+            if purpose and _sec_attr(rules, "empty_purpose", False):
+                text = f"{prefix}会议目的：{purpose}"
+            else:
+                text = f"{prefix}{text}"
+        text = text or "（暂无内容）"
+    else:
+        text = "\n".join(sections)
+    if _sec_attr(rules, "disclaimer", False) and text \
+            and QUALITY_DISCLAIMER not in text:
+        text = f"{text}\n\n{QUALITY_DISCLAIMER}"
+    items = None
+    structured = _sec_attr(rules, "structured")
+    if structured:
+        merge = structured.get("merge") or []
+        if merge:
+            items = list(draft.get(merge[0]) or [])
+            if objective:
+                for extra in merge[1:]:
+                    items.extend(draft.get(extra) or [])
+    return text, items
 
 
 class _Nodes:
@@ -310,146 +406,59 @@ class _Nodes:
             f"{_line_draft_title(line_name)}：\n{_json(sub['draft'])}"
         )
 
-    def _minutes_generation_render_context(
-        self, state: MeetingState, *, fallback: bool
-    ) -> str:
+    # ── 渲染上下文生成区：由 tools/scripts/factory_contract.py 生成，勿手改 ──
+
+    def _action_items_render_context(self, state: MeetingState) -> str:
         mode = self._mode_label(state)
-        minutes_line = _line(state, "minutes_generation")
-        review = minutes_line.get("supervisor_review") or {}
-        header = ""
-        if fallback:
-            findings = self._collect_supervisor_findings(review)
-            findings_text = (
-                "；".join(findings) if findings
-                else "Supervisor 未批准当前纪要"
-            )
-            decision = review.get("decision", "reject")
-            header = (
-                "注意：以下纪要未通过 Supervisor 审核，你仍需基于现有草稿整理可读输出，"
-                "不得编造草稿和原文中没有的事实；优先保留有明确证据的内容。"
-                f"\n未通过原因摘要：{findings_text}"
-                f"\nSupervisor 决定：{decision}\n\n"
-            )
+        line = _line(state, "action_items")
+        review = line.get("supervisor_review") or {}
         return (
-            f"{header}"
             f"视角模式：{mode}\n"
             f"objective_perspective：{bool(state.get('objective_perspective'))}\n\n"
             f"会议原文：\n{state['transcript']}\n\n"
             f"用户画像：\n{_json(state['user'])}\n\n"
             f"已审核会议理解：\n{_json(state.get('meeting_understanding'))}\n\n"
             f"已审核用户视角：\n{_json(state.get('perspective_profile'))}\n\n"
-            f"已批准纪要草稿：\n{_json(minutes_line.get('draft'))}\n\n"
-            f"纪要审核结论：\n{_json(review)}"
-        )
-
-    @staticmethod
-    def _collect_supervisor_findings(review: dict) -> list[str]:
-        findings: list[str] = []
-        for key in ("facts_check", "perspective_check", "consistency_check"):
-            check = review.get(key) or {}
-            findings.extend(check.get("findings") or [])
-        return findings
-
-    def _action_items_render_context(
-        self, state: MeetingState, *, fallback: bool
-    ) -> str:
-        mode = self._mode_label(state)
-        actions_line = _line(state, "action_items")
-        review = actions_line.get("supervisor_review") or {}
-        header = ""
-        if fallback:
-            findings = self._collect_action_findings(review)
-            findings_text = (
-                "；".join(findings) if findings
-                else "Supervisor 未批准当前待办"
-            )
-            decision = review.get("decision", "reject")
-            header = (
-                "注意：以下待办未通过 Supervisor 审核，你仍需基于现有草稿整理可读输出，"
-                "不得编造草稿和原文中没有的事实；优先保留有明确证据的内容。"
-                f"\n未通过原因摘要：{findings_text}"
-                f"\nSupervisor 决定：{decision}\n\n"
-            )
-        return (
-            f"{header}"
-            f"视角模式：{mode}\n"
-            f"objective_perspective：{bool(state.get('objective_perspective'))}\n\n"
-            f"会议原文：\n{state['transcript']}\n\n"
-            f"用户画像：\n{_json(state['user'])}\n\n"
-            f"已审核会议理解：\n{_json(state.get('meeting_understanding'))}\n\n"
-            f"已审核用户视角：\n{_json(state.get('perspective_profile'))}\n\n"
-            f"已批准待办草稿：\n{_json(actions_line.get('draft'))}\n\n"
+            f"已批准待办草稿：\n{_json(line.get('draft'))}\n\n"
             f"待办审核结论：\n{_json(review)}"
         )
 
-    @staticmethod
-    def _collect_action_findings(review: dict) -> list[str]:
-        check = review.get("action_items_check") or {}
-        return list(check.get("findings") or [])
-
-    @staticmethod
-    def _assemble_report_from_drafts(
-        state: MeetingState,
-    ) -> tuple[MinutesReport, ActionsReport]:
-        """不依赖 LLM 的确定性兜底：从中间草稿分别拼出纪要、待办两个输出。"""
-        minutes = _line(state, "minutes_generation").get("draft") or {}
-        actions = _line(state, "action_items").get("draft") or {}
-        user = state.get("user") or {}
-        objective = bool(state.get("objective_perspective"))
-        user_name = user.get("name") or ("客观记录" if objective else "用户")
-
-        sections: list[str] = []
-        headline = minutes.get("headline")
-        if headline:
-            sections.append(str(headline))
-
-        section_map = (
-            ("executive_summary", "会议要点"),
-            ("key_decisions", "关键决策"),
-            (
-                "personally_relevant_points",
-                "全员执行要点" if objective else "职责相关事项",
-            ),
-            ("risks_and_blockers", "风险与阻塞"),
-            ("unresolved_questions", "未决问题"),
-        )
-        for key, label in section_map:
-            items = minutes.get(key) or []
-            if not items:
-                continue
-            body = "；".join(str(item) for item in items if item)
-            if body:
-                sections.append(f"{label}：{body}")
-
-        if sections:
-            text = "\n".join(sections)
-        else:
-            purpose = (state.get("meeting_understanding") or {}).get(
-                "meeting_purpose"
-            )
-            text = (
-                "系统未能通过质量审核，以下为基于现有材料的粗略整理。"
-                f"{f'会议目的：{purpose}' if purpose else '请直接参考会议原文。'}"
-            )
-
-        if objective:
-            action_items = list(actions.get("my_actions") or [])
-            action_items.extend(actions.get("unassigned_actions") or [])
-            title = "客观会议纪要"
-        else:
-            action_items = list(actions.get("my_actions") or [])
-            title = f"{user_name}视角会议纪要"
-
+    def _minutes_generation_render_context(self, state: MeetingState) -> str:
+        mode = self._mode_label(state)
+        line = _line(state, "minutes_generation")
+        review = line.get("supervisor_review") or {}
         return (
-            MinutesReport(title=title, personalized_minutes=text),
-            ActionsReport(
-                action_items=action_items,
-                personalized_text=(
-                    _format_actions_text(action_items, ActionItemsRender)
-                    or "暂无明确待办"
-                ),
-            ),
+            f"视角模式：{mode}\n"
+            f"objective_perspective：{bool(state.get('objective_perspective'))}\n\n"
+            f"会议原文：\n{state['transcript']}\n\n"
+            f"用户画像：\n{_json(state['user'])}\n\n"
+            f"已审核会议理解：\n{_json(state.get('meeting_understanding'))}\n\n"
+            f"已审核用户视角：\n{_json(state.get('perspective_profile'))}\n\n"
+            f"已批准纪要草稿：\n{_json(line.get('draft'))}\n\n"
+            f"纪要审核结论：\n{_json(review)}"
         )
+
+
+    # ── 渲染上下文生成区结束 ──
+
+    def _fallback_reports(self, state: MeetingState) -> dict:
+        """图异常/校验失败时的确定性 Report（按线声明式规则拼装，不调 LLM）。"""
+        minutes_text, _ = _fallback_text(
+            state, "minutes_generation", MINUTES_FALLBACK_RULES
+        )
+        actions_text, actions_items = _fallback_text(
+            state, "action_items", ACTION_ITEMS_FALLBACK_RULES
+        )
+        return {
+            "minutes_generation": MinutesReport(
+                title=_compute_title(state),
+                personalized_minutes=minutes_text,
+            ),
+            "action_items": ActionItemsReport(
+                action_items=actions_items or [],
+                personalized_text=actions_text or "暂无明确待办",
+            ),
+        }
 
     # ── 核心节点：会议理解 + 视角建模 ─────────────────────────
 
@@ -571,12 +580,16 @@ class _Nodes:
         return node
 
     def _make_route(self, line_name: str):
-        """生成某任务线的条件路由（approve→render / reject或超限→fallback / 否则返工）。"""
+        """生成某任务线的条件路由（approve→直接结束 / reject或超限→fallback / 否则返工）。
+
+        渲染节点已移除：approve 后文本渲染由 run_streaming 的 ``_produce``
+        接管，路由返回哨兵 ``"__end__"`` 映射到 END。
+        """
 
         def route(state: MeetingState) -> str:
             decision = _line(state, line_name)["supervisor_review"]["decision"]
             if decision == "approve":
-                return f"{line_name}_render"
+                return "__end__"
             if decision == "reject" or _line(state, line_name).get(
                 "revision_count", 0
             ) >= self.MAX_REVISIONS:
@@ -587,59 +600,26 @@ class _Nodes:
 
     # ── 专属节点方法生成区：由 tools/scripts/factory_contract.py 生成骨架，函数体可改 ──
 
-    # ── 纪要线专属节点：渲染 + 降级 ───────────────────────────
 
-    async def _minutes_generation_render_node(
-        self, state: MeetingState
-    ) -> dict:
-        # 流式模式：图内不调用 LLM，由 run_streaming 接管流式输出
-        return {"lines": {"minutes_generation": {"rendered": ""}}}
+    # ── 纪要线专属节点：降级 ──────────────────────────────────
 
-    async def _minutes_generation_fallback_node(
-        self, state: MeetingState
-    ) -> dict:
-        """纪要线降级：确定性拼装（不调 LLM）。"""
-        minutes_report, _ = self._assemble_report_from_drafts(state)
-        minutes = minutes_report.personalized_minutes
-        if QUALITY_DISCLAIMER not in (minutes or ""):
-            minutes = (
-                f"{minutes}\n\n{QUALITY_DISCLAIMER}"
-                if minutes
-                else QUALITY_DISCLAIMER
-            )
-        return {
-            "lines": {
-                "minutes_generation": {"rendered": minutes, "degraded": True}
-            },
-            "quality_degraded": True,
-        }
+    # ── 待办线专属节点：降级 ──────────────────────────────────
 
-    # ── 待办线专属节点：格式化 + 降级 ─────────────────────────
+    async def _action_items_fallback_node(self, state: MeetingState) -> dict:
+        text, items = _fallback_text(
+            state, "action_items", ACTION_ITEMS_FALLBACK_RULES)
+        line_dict = {"rendered": text, "degraded": True}
+        if items is not None:
+            line_dict["items"] = items
+        return {"lines": {"action_items": line_dict}, "quality_degraded": True}
 
-    async def _action_items_render_node(
-        self, state: MeetingState
-    ) -> dict:
-        # 流式模式：图内不调用 LLM，由 run_streaming 接管流式输出；
-        # items 仍确定性提取，供 done 事件的最终 Report 组装
-        items = self.action_items_render.extract_actions(state)
-        return {
-            "lines": {"action_items": {"rendered": "", "items": items}}
-        }
-
-    async def _action_items_fallback_node(
-        self, state: MeetingState
-    ) -> dict:
-        """待办线降级：确定性提取（不调 LLM）。"""
-        items = self.action_items_render.extract_actions(state)
-        text = _format_actions_text(items, self.action_items_render)
-        return {
-            "lines": {
-                "action_items": {
-                    "rendered": text, "items": items, "degraded": True
-                }
-            },
-            "quality_degraded": True,
-        }
+    async def _minutes_generation_fallback_node(self, state: MeetingState) -> dict:
+        text, items = _fallback_text(
+            state, "minutes_generation", MINUTES_FALLBACK_RULES)
+        line_dict = {"rendered": text, "degraded": True}
+        if items is not None:
+            line_dict["items"] = items
+        return {"lines": {"minutes_generation": line_dict}, "quality_degraded": True}
 
     # ── 专属节点方法生成区结束 ──
 
@@ -647,7 +627,7 @@ class _Nodes:
     def _pack_fallback(
         line_names: list[str],
         minutes_fb: MinutesReport,
-        actions_fb: ActionsReport,
+        actions_fb: ActionItemsReport,
     ) -> dict:
         """兜底路径按线过滤：只返回选中线的 Report（键 = 线名，与 chunk.line 一致）。"""
         reports: dict = {}
@@ -684,9 +664,6 @@ class _Nodes:
         - render.stream 签名统一 ``(context, template="")``
         - 降级线：直接整段交付 fallback 节点写的确定性文本
         """
-        output_key, _report_cls, _emit_items = self._report_assemblers[
-            line_name
-        ]
         render = getattr(self, f"{line_name}_render")
         title = self._line_title(state, line_name)
         degraded = bool(_line(state, line_name).get("degraded"))
@@ -706,7 +683,7 @@ class _Nodes:
                 return
             # 正常：调该线 Render 的 stream 流式渲染
             context_fn = getattr(self, f"_{line_name}_render_context")
-            context = context_fn(state, fallback=False)
+            context = context_fn(state)
             parts: list[str] = []
             async for chunk in render.stream(context, template):
                 parts.append(chunk)
@@ -720,6 +697,11 @@ class _Nodes:
                 )
             # 流式结束后写回完整文本，供 done 事件的最终 Report 组装
             _line(state, line_name)["rendered"] = "".join(parts)
+            # 待办线额外写回结构化列表（渲染节点已移除，items 在此补充）
+            if line_name == "action_items":
+                _line(state, line_name)["items"] = (
+                    self.action_items_render.extract_actions(state)
+                )
         except Exception as exc:
             await queue.put(exc)  # 异常对象作为事件传出，由主循环抛出
         finally:
@@ -757,21 +739,21 @@ class MeetingAgentSystem(_Nodes):
         # 各线专属的渲染 / 降级节点（同构节点由注册表在 _build_graph 中生成）
         # ── 节点映射生成区：由 tools/scripts/factory_contract.py 生成，勿手改 ──
 
-        self._render_nodes: dict[str, object] = {}
-        self._render_nodes["action_items"] = self._action_items_render_node
-        self._render_nodes["minutes_generation"] = self._minutes_generation_render_node
         self._fallback_nodes: dict[str, object] = {}
         self._fallback_nodes["action_items"] = self._action_items_fallback_node
         self._fallback_nodes["minutes_generation"] = self._minutes_generation_fallback_node
 
         # ── 节点映射生成区结束 ──
 
-        # 各线 Report 组装器：线名 → (输出键, Report 类, emit_items)
-        # 全部线统一为文本流（rendered 存 LLM 文本）；emit_items 保留为 False
+        # 各线 Report 组装器：线名 → Report 类（脚本生成，键 = 线名与 chunk.line 一致）
+        # ── Report 组装器生成区：由 tools/scripts/factory_contract.py 生成，勿手改 ──
+
         self._report_assemblers = {
-            "minutes_generation": ("minutes", MinutesReport, False),
-            "action_items": ("actions", ActionsReport, False),
+            "action_items": ActionItemsReport,
+            "minutes_generation": MinutesReport,
         }
+
+        # ── Report 组装器生成区结束 ──
 
     # ── 图构建（注册表驱动，双线并行）─────────────────────────
 
@@ -823,7 +805,6 @@ class MeetingAgentSystem(_Nodes):
             builder.add_node(f"{line_name}_agent", agent_node)
             builder.add_node(f"{line_name}_supervisor", supervisor_node)
             builder.add_node(f"{line_name}_revision", revision_node)
-            builder.add_node(f"{line_name}_render", self._render_nodes[line_name])
             builder.add_node(
                 f"{line_name}_fallback", self._fallback_nodes[line_name]
             )
@@ -835,13 +816,12 @@ class MeetingAgentSystem(_Nodes):
                 f"{line_name}_supervisor",
                 route,
                 {
-                    f"{line_name}_render": f"{line_name}_render",
+                    "__end__": END,
                     f"{line_name}_revision": f"{line_name}_revision",
                     f"{line_name}_fallback": f"{line_name}_fallback",
                 },
             )
             builder.add_edge(f"{line_name}_revision", f"{line_name}_supervisor")
-            builder.add_edge(f"{line_name}_render", END)
             builder.add_edge(f"{line_name}_fallback", END)
 
         return builder.compile()
@@ -902,9 +882,9 @@ class MeetingAgentSystem(_Nodes):
         except Exception as exc:
             # 最后防线：图内任何未接住的异常都不让运行崩溃，走确定性兜底
             logger.warning("图执行失败，使用确定性兜底输出", exc_info=True)
-            minutes_fb, actions_fb = self._assemble_report_from_drafts(
-                initial_state
-            )
+            fb = self._fallback_reports(initial_state)
+            minutes_fb = fb["minutes_generation"]
+            actions_fb = fb["action_items"]
             for line_name in line_names:
                 if line_name == "minutes_generation":
                     yield {
@@ -984,9 +964,7 @@ class MeetingAgentSystem(_Nodes):
         """
         reports: dict = {}
         for line_name in line_names:
-            _output_key, report_cls, _emit = self._report_assemblers[
-                line_name
-            ]
+            report_cls = self._report_assemblers[line_name]
             reports[line_name] = _assemble_report(
                 state, warning, report_cls, line_name
             )
@@ -997,9 +975,9 @@ class MeetingAgentSystem(_Nodes):
             }
         except Exception:
             logger.warning("输出校验失败，退回确定性兜底", exc_info=True)
-            minutes_fb, actions_fb = self._assemble_report_from_drafts(
-                state
-            )
+            fb = self._fallback_reports(state)
+            minutes_fb = fb["minutes_generation"]
+            actions_fb = fb["action_items"]
             minutes_fb.quality_warning = QUALITY_WARNING
             actions_fb.quality_warning = QUALITY_WARNING
             return self._pack_fallback(

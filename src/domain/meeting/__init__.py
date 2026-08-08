@@ -3,7 +3,7 @@ from pathlib import Path
 from .meeting_factory import MeetingAgentFactory
 from .models import (
     ActionItemsSupervisorReview,
-    ActionsReport,
+    ActionItemsReport,
     MinutesReport,
     MinutesSupervisorReview,
     UserIdentity,
@@ -15,7 +15,7 @@ SAMPLES_DIR = Path(__file__).resolve().parent / "samples"
 
 __all__ = [
     "ActionItemsSupervisorReview",
-    "ActionsReport",
+    "ActionItemsReport",
     "MeetingAgentFactory",
     "MeetingAgentSystem",
     "MinutesReport",
