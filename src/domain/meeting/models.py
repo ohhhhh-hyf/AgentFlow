@@ -112,8 +112,8 @@ class PerspectiveModeling(ModelMixin):
     """视角建模输出（浅校验：仅校验第一层键与类型，嵌套不校验）。"""
 
     confidence: Literal["high", "medium", "low"]
-    name: str | None = None
-    inferred_role: str | None = None
+    name: str
+    inferred_role: str
     responsibilities: list[str] = field(default_factory=list)
     goals: list[str] = field(default_factory=list)
     concerns: list[str] = field(default_factory=list)
@@ -124,8 +124,8 @@ class PerspectiveModeling(ModelMixin):
     def validate(cls, data: dict) -> "PerspectiveModeling":
         _exact_fields(data, [f.name for f in fields(cls)], cls.__name__)
         _choice(data["confidence"], {"high", "medium", "low"}, "confidence")
-        _string(data["name"], "name", nullable=True)
-        _string(data["inferred_role"], "inferred_role", nullable=True)
+        _string(data["name"], "name")
+        _string(data["inferred_role"], "inferred_role")
         _string_list(data["responsibilities"], "responsibilities")
         _string_list(data["goals"], "goals")
         _string_list(data["concerns"], "concerns")
@@ -246,17 +246,19 @@ class ActionsReport(ModelMixin):
     """待办输出（与纪要输出分离，各自独立）。
 
     字段的 ``metadata["source"]`` 供通用组装器从 state 抽屉取值：
-    ``rendered`` → 待办列表；``rendered_text`` → 模板渲染文本。
+    ``items`` → 结构化待办列表（extract_actions 合并结果）；
+    ``rendered`` → LLM 渲染文本（无模板普通渲染 / 有模板按模板）。
     """
 
+    # 结构化待办列表（客观视角 = 全员已分配 + 未分配；个人视角 = 本人）
     action_items: list[dict[str, Any]] = field(
-        default_factory=list, metadata={"source": "rendered"}
+        default_factory=list, metadata={"source": "items"}
     )
     # 仅由系统在兜底路径写入；LLM 输出不需要也不应包含该字段
     quality_warning: str | None = None
-    # 待办模板渲染文本（--item_template 时 LLM 按模板输出；无模板为 None）
+    # 待办渲染文本（无模板 / 有模板均为 LLM 输出）
     personalized_text: str | None = field(
-        default=None, metadata={"source": "rendered_text"}
+        default=None, metadata={"source": "rendered"}
     )
 
     @classmethod
@@ -342,7 +344,7 @@ class MeetingState(TypedDict, total=False):
     meeting_understanding: dict
     perspective_profile: dict
     # 任务线子空间：lines[线名] = {draft, supervisor_review,
-    #   revision_feedback, revision_count, degraded, rendered, rendered_text}
+    #   revision_feedback, revision_count, degraded, rendered, items}
     lines: Annotated[dict[str, dict], _merge_lines]
     # 任意层降级（core 或任一任务线），用于最终质量警告（并发写，or 合并）
     quality_degraded: Annotated[bool, _merge_degraded]

@@ -26,8 +26,7 @@
 from __future__ import annotations
 
 import argparse
-import ast
-import json
+import importlib
 import re
 import sys
 from pathlib import Path
@@ -52,94 +51,72 @@ import sys as _sys
 
 _sys.path.insert(0, str(ROOT / "src"))
 from domain.meeting.line_registry import LINE_CN_NAMES  # noqa: E402
+from tools.contracts import Check, SupervisorContract  # noqa: E402
 
-_CHECK_KEYS = {"status", "findings"}
+# 审阅契约类名的强制后缀
+CONTRACT_CLASS_SUFFIX = "SupervisorContract"
 
 
 # ── 契约发现与解析 ──────────────────────────────────────────
 
+def _import_module(path: Path):
+    """按文件路径 import contracts.py 模块（模块名 = src 下的相对包路径）。"""
+    rel = path.relative_to(ROOT / "src").with_suffix("")
+    mod_name = ".".join(rel.parts)
+    return importlib.import_module(mod_name)
+
+
 def find_contracts() -> list[dict]:
-    """遍历 meeting 下的 prompts.py，提取全部 *_OUTPUT_CONTRACT 常量。"""
+    """遍历 meeting 下的 contracts.py，提取全部 SupervisorContract 子类。
+
+    审阅契约类定义在各 {目录}/contracts.py；其输出模板常量
+    （{基名大写}_SUPERVISOR_OUTPUT_CONTRACT）由同文件 to_json_template() 显式赋值，
+    此处直接从类对象读结构（checks / decision / feedback）。
+    """
     contracts = []
-    for path in MEETING_DIR.rglob("prompts.py"):
-        tree = ast.parse(path.read_text(encoding="utf-8"))
-        for node in tree.body:
-            if not (isinstance(node, ast.Assign) and len(node.targets) == 1):
-                continue
-            name = node.targets[0].id
-            if not name.endswith("_OUTPUT_CONTRACT"):
-                continue
-            if not (isinstance(node.value, ast.Constant) and isinstance(node.value.value, str)):
-                continue
-            contracts.append({
-                "name": name,
-                "text": node.value.value,
-                "path": path,
-            })
+    for path in MEETING_DIR.rglob("contracts.py"):
+        mod = _import_module(path)
+        for attr_name in dir(mod):
+            obj = getattr(mod, attr_name)
+            if (
+                isinstance(obj, type)
+                and issubclass(obj, SupervisorContract)
+                and obj is not SupervisorContract
+            ):
+                contracts.append({"cls": obj, "path": path})
     return contracts
 
 
-def _classify_contract(text: str) -> dict | None:
-    """解析契约并识别审核模型。
+def _classify_contract(cls: type) -> dict:
+    """从审阅契约类读取结构，返回 {fields: {键: 类型信息}}。
 
-    返回 {fields: {键: 类型信息}}；非审核模型（无 decision）返回 None。
     类型信息：{"kind": "enum", "values": [...]} | {"kind": "check"} | {"kind": "str_list"}
     """
-    try:
-        data = json.loads(text)
-    except json.JSONDecodeError:
-        return None
-    if not isinstance(data, dict):
-        return None
-    if "decision" not in data or "feedback" not in data:
-        return None  # 业务输出模型，暂不支持自动生成
-
-    fields = {}
-    for key, value in data.items():
-        if isinstance(value, str) and "|" in value:
-            fields[key] = {"kind": "enum", "values": [v.strip() for v in value.split("|")]}
-        elif isinstance(value, list):
-            fields[key] = {"kind": "str_list"}
-        elif isinstance(value, dict) and set(value) == _CHECK_KEYS:
-            fields[key] = {"kind": "check"}
-        else:
-            raise ValueError(
-                f"审核模型契约含无法推导的字段：{key}={value!r}（仅支持枚举/字符串数组/{{status,findings}} 检查项）"
-            )
+    checks = list(cls.checks)
+    if not checks:
+        raise ValueError(f"{cls.__name__} 缺少检查项（checks 列表为空）")
+    fields: dict = {
+        "decision": {"kind": "enum", "values": list(cls.decision.values)},
+        "feedback": {"kind": "str_list"},
+    }
+    for ck in checks:
+        if not isinstance(ck, Check):
+            raise ValueError(f"{cls.__name__} 的 checks 元素必须是 Check 实例")
+        fields[ck.name] = {"kind": "check"}
     return fields
 
 
-# 审核模型契约的强制命名后缀（开发人员必须遵守）：
-#   {线名}_SUPERVISOR_OUTPUT_CONTRACT  →  类名 {线名}PascalCase + "SupervisorReview"
-SUPERVISOR_CONTRACT_SUFFIX = "_SUPERVISOR_OUTPUT_CONTRACT"
-
-
-def _class_name(contract_name: str) -> str:
-    """审核模型契约名 → 类名。
-
-    命名规范（强制）：契约必须命名为 ``{线名}_SUPERVISOR_OUTPUT_CONTRACT``，
-    生成的类名为 ``{线名}PascalCase`` + ``SupervisorReview``。
-
-    例：
-        MINUTES_SUPERVISOR_OUTPUT_CONTRACT  → MinutesSupervisorReview
-        ACTION_ITEMS_SUPERVISOR_OUTPUT_CONTRACT → ActionItemsSupervisorReview
-        RISK_SUPERVISOR_OUTPUT_CONTRACT     → RiskSupervisorReview
-
-    Raises:
-        ValueError: 契约名不符合 ``*_SUPERVISOR_OUTPUT_CONTRACT`` 规范。
-    """
-    if not contract_name.endswith(SUPERVISOR_CONTRACT_SUFFIX):
-        raise ValueError(
-            f"审核模型契约命名不符合规范：{contract_name!r}\n"
-            f"必须命名为 {{线名}}{SUPERVISOR_CONTRACT_SUFFIX}"
-        )
-    base = contract_name.removesuffix(SUPERVISOR_CONTRACT_SUFFIX)
-    prefix = "".join(part.capitalize() for part in base.split("_"))
-    return prefix + "SupervisorReview"
+def _review_class_name(cls: type) -> str:
+    """审阅契约类 → 审核模型类名（MinutesSupervisorContract → MinutesSupervisorReview）。"""
+    name = cls.__name__
+    if not name.endswith(CONTRACT_CLASS_SUFFIX):
+        raise ValueError(f"审阅契约类命名不符合规范：{name!r}")
+    base = name[: -len(CONTRACT_CLASS_SUFFIX)]
+    return f"{base}SupervisorReview"
 
 
 def _cn_name(path: Path) -> str:
-    """从契约所在目录推导中文名（tasks/{line_name}/prompts.py）。"""
+    """从契约所在目录推导中文名（tasks/{line_name}/contracts.py）。"""
     if "tasks" not in path.parts:
         return "任务"
     line_name = path.parts[path.parts.index("tasks") + 1]
@@ -186,7 +163,7 @@ class {cls}(ModelMixin):
 
 
 def _line_sort_key(contract: dict) -> int:
-    """按 LINE_CN_NAMES 注册顺序排序（tasks/{线名}/prompts.py → 注册下标）。"""
+    """按 LINE_CN_NAMES 注册顺序排序（tasks/{线名}/contracts.py → 注册下标）。"""
     path = contract["path"]
     if "tasks" not in path.parts:
         return len(LINE_CN_NAMES)  # 非 tasks 目录的契约排最后
@@ -232,12 +209,15 @@ def generate_all() -> tuple[str, str]:
     reject_consts = []
     # 按任务线注册顺序输出（与 models.py 现有顺序一致，保证 diff 最小）
     for contract in sorted(find_contracts(), key=_line_sort_key):
-        fields = _classify_contract(contract["text"])
-        if fields is None:
-            continue  # 非审核契约，跳过
-        cls = _class_name(contract["name"])
-        generated.append(generate_review_model(cls, _cn_name(contract["path"]), fields))
-        reject_consts.append(generate_reject_constants(cls, fields))
+        cls = contract["cls"]
+        fields = _classify_contract(cls)
+        review_cls = _review_class_name(cls)
+        generated.append(
+            generate_review_model(
+                review_cls, _cn_name(contract["path"]), fields
+            )
+        )
+        reject_consts.append(generate_reject_constants(review_cls, fields))
     if not generated:
         print("未发现审核模型契约", file=sys.stderr)
         return "", ""

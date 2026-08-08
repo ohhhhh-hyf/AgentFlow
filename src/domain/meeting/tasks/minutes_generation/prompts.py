@@ -6,6 +6,8 @@
 """
 from __future__ import annotations
 
+from tools.template_prompt import build_template_render_prompt
+
 # ── 纪要草稿生成 ──────────────────────────────────────────────
 
 MINUTES_GENERATION_SYSTEM_PROMPT = """你是会议纪要草稿 Agent。基于会议理解、用户画像和视角模型，生成结构化纪要草稿。
@@ -67,17 +69,6 @@ MINUTES_GENERATION_SYSTEM_PROMPT = """你是会议纪要草稿 Agent。基于会
 - 概括措辞优先贴近原文，能沿用原文关键词就不换说法；改写仅用于消解原文的重复与口语冗余
 - 宁缺毋滥的标准始终一致：同一段内容在不同运行中应得到同样的「提取或不提取」结论"""
 
-MINUTES_GENERATION_OUTPUT_CONTRACT = """{
-  "headline": "会议纪要标题",
-  "executive_summary": ["概述要点（通常2-3条，内容不足时不强求，每条1-2句）"],
-  "key_decisions": ["决策（来自MeetingUnderstanding.decisions，列出全量，不要筛选）"],
-  "personally_relevant_points": ["执行要点（有明确分工则写，无则[]，每条一句）"],
-  "risks_and_blockers": ["风险（每条一句，无则[]）"],
-  "unresolved_questions": ["未决问题（每条一句，无则[]）"]
-}"""
-
-# ── 纪要领域监督（注入全局标准后使用）────────────────────────
-
 MINUTES_SUPERVISOR_DOMAIN_PROMPT = """## 领域审核规则：纪要生成
 
 ### 模式选择
@@ -109,23 +100,6 @@ MINUTES_SUPERVISOR_DOMAIN_PROMPT = """## 领域审核规则：纪要生成
 
 写不出具体返工意见 → approve。犹豫不决 → approve。"""
 
-MINUTES_SUPERVISOR_OUTPUT_CONTRACT = """{
-  "decision": "approve|revise|reject",
-  "facts_check": {
-    "status": "pass|fail",
-    "findings": ["仅记录严重问题，轻微问题不记录"]
-  },
-  "perspective_check": {
-    "status": "pass|fail",
-    "findings": ["仅记录严重问题"]
-  },
-  "consistency_check": {
-    "status": "pass|fail",
-    "findings": ["仅记录严重问题"]
-  },
-  "feedback": ["仅当 decision=revise 时填写，必须具体可执行、有原文依据"]
-}"""
-
 # ── 纪要渲染（仅渲染正文，纯文本）────────────────────────────
 
 MINUTES_RENDER_PROMPT = """你是会议纪要渲染器。根据已审核通过的会议分析结果，渲染一段连贯精简的纪要正文。
@@ -143,14 +117,12 @@ MINUTES_RENDER_PROMPT = """你是会议纪要渲染器。根据已审核通过�
 
 视角模式、会议原文、用户画像、已审核的分析结果都在下方用户消息中。"""
 
-MINUTES_RENDER_TEMPLATE_PROMPT = """你是会议纪要渲染器。根据已审核通过的会议分析结果和下方输出模板，渲染会议纪要。
-
-操作步骤：
-1. 识别模板中的固定文字（保留）和 [描述] 占位符（需替换）
-2. 替换占位符为已批准草稿中的内容，信息不足填「未提及」
-3. [xxx / yyy / zzz] = 多选一，含 emoji
-4. 含 [xxx] 的表格行 = 行模板，根据内容生成对应行数（表头原样保留）
-5. 输出与模板逐字符对齐，仅 [xxx] 被替换
-6. 严禁编造事实
-7. 只输出填充后的完整内容，不要输出 JSON 包装
-8. 输出一致性：同一输入重复填充时，填充内容优先沿用草稿措辞，避免无必要的改写"""
+MINUTES_RENDER_TEMPLATE_PROMPT = build_template_render_prompt(
+    renderer="会议纪要渲染器",
+    source="已审核通过的会议分析结果",
+    empty_rule="信息不足时占位符填「未提及」，不编造",
+    extra_rules=[
+        "严禁编造事实",
+        "只输出填充后的完整内容，不要输出 JSON 包装",
+    ],
+)

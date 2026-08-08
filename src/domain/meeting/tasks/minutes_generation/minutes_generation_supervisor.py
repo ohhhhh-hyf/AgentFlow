@@ -6,8 +6,8 @@ from llm_client import LLMClient
 from ...models import MinutesSupervisorReview
 from .prompts import (
     MINUTES_SUPERVISOR_DOMAIN_PROMPT,
-    MINUTES_SUPERVISOR_OUTPUT_CONTRACT,
 )
+from .contracts import MINUTES_SUPERVISOR_OUTPUT_CONTRACT
 
 
 class MinutesGenerationSupervisor:

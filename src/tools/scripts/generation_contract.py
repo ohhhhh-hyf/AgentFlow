@@ -26,8 +26,7 @@
 from __future__ import annotations
 
 import argparse
-import ast
-import json
+import importlib
 import re
 import sys
 from pathlib import Path
@@ -46,8 +45,9 @@ ZONE_END = "# ── 生成模型生成区结束 ──"
 ZONE_EMPTY_START = "# ── 空结构常量生成区：由 tools/scripts/generation_contract.py 生成，勿手改 ──"
 ZONE_EMPTY_END = "# ── 空结构常量生成区结束 ──"
 
-# 生成契约的强制命名后缀
+# 生成契约的强制命名后缀（类名约定）
 GENERATION_CONTRACT_SUFFIX = "_GENERATION_OUTPUT_CONTRACT"
+GENERATION_CLASS_SUFFIX = "GenerationContract"
 
 # 生成契约 → 中文名（用于 docstring；新增生成契约时在此补充）
 GENERATION_CN_NAMES = {
@@ -57,100 +57,78 @@ GENERATION_CN_NAMES = {
     "ACTION_ITEMS_GENERATION_OUTPUT_CONTRACT": "待办提取",
 }
 
+sys.path.insert(0, str(ROOT / "src"))
+from tools.contracts import GenerationContract  # noqa: E402
+
+
+def _const_name(cls: type) -> str:
+    """生成契约类 → 输出模板常量名（MinutesGenerationContract → MINUTES_GENERATION_OUTPUT_CONTRACT）。"""
+    base = cls.__name__.removesuffix(GENERATION_CLASS_SUFFIX)
+    return f"{re.sub(r'(?<!^)(?=[A-Z])', '_', base).upper()}_GENERATION_OUTPUT_CONTRACT"
+
 
 # ── 契约发现 ──────────────────────────────────────────────────
 
 def find_contracts() -> list[dict]:
-    """遍历 meeting 下的 prompts.py，提取全部 *_GENERATION_OUTPUT_CONTRACT 常量。"""
+    """遍历 meeting 下的 contracts.py，提取全部 GenerationContract 子类。
+
+    生成契约类定义在各 {目录}/contracts.py；其输出模板常量
+    （{基名大写}_GENERATION_OUTPUT_CONTRACT）由同文件 to_json_template() 显式赋值，
+    此处直接从类对象读字段结构。
+    """
     contracts = []
-    for path in MEETING_DIR.rglob("prompts.py"):
-        tree = ast.parse(path.read_text(encoding="utf-8"))
-        for node in tree.body:
-            if not (isinstance(node, ast.Assign) and len(node.targets) == 1):
-                continue
-            name = node.targets[0].id
-            if not name.endswith(GENERATION_CONTRACT_SUFFIX):
-                continue
-            if not (isinstance(node.value, ast.Constant) and isinstance(node.value.value, str)):
-                continue
-            contracts.append({
-                "name": name,
-                "text": node.value.value,
-                "path": path,
-            })
+    for path in MEETING_DIR.rglob("contracts.py"):
+        rel = path.relative_to(ROOT / "src").with_suffix("")
+        mod = importlib.import_module(".".join(rel.parts))
+        for attr_name in dir(mod):
+            obj = getattr(mod, attr_name)
+            if (
+                isinstance(obj, type)
+                and issubclass(obj, GenerationContract)
+                and obj is not GenerationContract
+            ):
+                contracts.append({"cls": obj, "path": path})
     return contracts
 
 
 # ── 字段类型推断（浅层）──────────────────────────────────────
 
-def parse_generation_contract(text: str) -> list[dict]:
-    """解析生成契约，推导第一层每个字段的类型信息。
+def parse_generation_contract(cls: type) -> list[dict]:
+    """从生成契约类读取字段结构，推导第一层每个字段的类型信息。
 
     返回有序列表：[{key, kind, values?}]；
     kind ∈ {"str", "str_null", "enum", "str_list", "obj_list", "dict"}。
-    推断规则（浅层、启发式）：
-    - 字符串值：含 "|" → 枚举；含 "null" → 可空字符串；否则字符串
-    - 数组值：首元素为 dict → 对象数组；首元素为 str → 字符串数组；
-      空数组 → 保守推断对象数组（现有契约的空数组均为对象数组）
-    - 字典值 → dict（防御，现有生成契约顶层无此形状）
+    与旧版 JSON 解析产出的结构一致（生成逻辑无需改动）。
     """
-    try:
-        data = json.loads(text)
-    except json.JSONDecodeError as exc:
-        raise ValueError(f"契约不是合法 JSON：{exc}") from exc
-    if not isinstance(data, dict):
-        raise ValueError("契约顶层必须是 JSON 对象")
-
     fields = []
-    for key, value in data.items():
-        if isinstance(value, str):
-            if "|" in value:
-                fields.append({
-                    "key": key,
-                    "kind": "enum",
-                    "values": [v.strip() for v in value.split("|")],
-                })
-            elif "null" in value:
-                fields.append({"key": key, "kind": "str_null"})
-            else:
-                fields.append({"key": key, "kind": "str"})
-        elif isinstance(value, list):
-            if value and isinstance(value[0], dict):
-                fields.append({"key": key, "kind": "obj_list"})
-            elif value and isinstance(value[0], str):
-                fields.append({"key": key, "kind": "str_list"})
-            else:
-                fields.append({"key": key, "kind": "obj_list"})  # 空数组
-        elif isinstance(value, dict):
-            fields.append({"key": key, "kind": "dict"})
-        else:
-            raise ValueError(
-                f"生成契约含无法推导的字段：{key}={value!r}"
-                "（仅支持字符串/枚举/数组/对象）"
-            )
+    for f in cls.fields:
+        entry: dict = {"key": f.name, "kind": f.kind}
+        if f.kind == "enum":
+            entry["values"] = list(f.values)
+        fields.append(entry)
     return fields
 
 
 # ── 命名 ──────────────────────────────────────────────────────
 
-def generation_class_name(contract_name: str) -> str:
-    """生成契约名 → 类名。
+def generation_class_name(cls: type) -> str:
+    """生成契约类 → 模型类名。
 
-    命名规范（强制）：契约必须命名为 ``{线名/功能}_GENERATION_OUTPUT_CONTRACT``，
-    生成的类名为 ``{线名/功能}PascalCase``。
+    命名规范（强制）：类必须命名为 ``{线名/功能}GenerationContract``，
+    生成的模型类名为 ``{线名/功能}PascalCase``（去 GenerationContract 后缀）。
 
     例：
-        MEETING_UNDERSTANDING_GENERATION_OUTPUT_CONTRACT → MeetingUnderstanding
-        MINUTES_GENERATION_OUTPUT_CONTRACT              → Minutes
-        ACTION_ITEMS_GENERATION_OUTPUT_CONTRACT         → ActionItems
+        MeetingUnderstandingGenerationContract → MeetingUnderstanding
+        MinutesGenerationContract            → Minutes
+        ActionItemsGenerationContract        → ActionItems
     """
-    if not contract_name.endswith(GENERATION_CONTRACT_SUFFIX):
+    name = cls.__name__
+    if not name.endswith(GENERATION_CLASS_SUFFIX):
         raise ValueError(
-            f"生成契约命名不符合规范：{contract_name!r}\n"
-            f"必须命名为 {{线名/功能}}{GENERATION_CONTRACT_SUFFIX}"
+            f"生成契约类命名不符合规范：{name!r}\n"
+            f"必须命名为 {{线名/功能}}{GENERATION_CLASS_SUFFIX}"
         )
-    base = contract_name.removesuffix(GENERATION_CONTRACT_SUFFIX)
-    return "".join(part.capitalize() for part in base.split("_"))
+    return name.removesuffix(GENERATION_CLASS_SUFFIX)
 
 
 # ── 代码生成（浅校验模板）────────────────────────────────────
@@ -261,12 +239,13 @@ def generate_all() -> tuple[str, str]:
     """
     generated = []
     empty_consts = []
-    for contract in sorted(find_contracts(), key=lambda c: c["name"]):
-        fields = parse_generation_contract(contract["text"])
-        cls = generation_class_name(contract["name"])
-        cn = GENERATION_CN_NAMES.get(contract["name"], cls)
-        generated.append(generate_generation_model(cls, cn, fields))
-        empty_consts.append(generate_empty_constants(cls, fields))
+    for contract in sorted(find_contracts(), key=lambda c: c["cls"].__name__):
+        cls = contract["cls"]
+        fields = parse_generation_contract(cls)
+        model_cls = generation_class_name(cls)
+        cn = GENERATION_CN_NAMES.get(_const_name(cls), model_cls)
+        generated.append(generate_generation_model(model_cls, cn, fields))
+        empty_consts.append(generate_empty_constants(model_cls, fields))
     if not generated:
         print("未发现生成契约", file=sys.stderr)
         return "", ""

@@ -80,8 +80,8 @@ _EMPTY_MINUTES = {
 
 _EMPTY_PERSPECTIVE_MODELING = {
     "confidence": "high",
-    "name": None,
-    "inferred_role": None,
+    "name": "",
+    "inferred_role": "",
     "responsibilities": [],
     "goals": [],
     "concerns": [],
@@ -178,8 +178,8 @@ def _assemble_report(
 
     source 约定：
     - ``title`` → 视角标题（_compute_title 通用计算）
-    - ``rendered`` → lines[线名]["rendered"]（渲染正文/列表）
-    - ``rendered_text`` → lines[线名]["rendered_text"]（模板文本）
+    - ``rendered`` → lines[线名]["rendered"]（LLM 渲染文本）
+    - ``items`` → lines[线名]["items"]（结构化列表，待办线）
     - ``draft.xxx`` → lines[线名]["draft"]["xxx"]（草稿字段）
     - 无 source → 不赋值（留给 dataclass default）
     - quality_warning 固定填 warning（降级状态）
@@ -193,8 +193,8 @@ def _assemble_report(
             data[f.name] = _compute_title(state)
         elif src == "rendered":
             data[f.name] = _line(state, line_name).get("rendered")
-        elif src == "rendered_text":
-            data[f.name] = _line(state, line_name).get("rendered_text")
+        elif src == "items":
+            data[f.name] = _line(state, line_name).get("items")
         elif src.startswith("draft."):
             draft = _line(state, line_name).get("draft") or {}
             data[f.name] = draft.get(src[len("draft."):])
@@ -233,6 +233,21 @@ def _json(value: object) -> str:
 def _line(state: MeetingState, line_name: str) -> dict:
     """读取某条任务线的子空间（未初始化时返回空 dict）。"""
     return (state.get("lines") or {}).get(line_name) or {}
+
+
+def _line_template(state: MeetingState, line_name: str) -> str:
+    """取某条任务线的输出模板（未传模板时返回空串）。"""
+    return (state.get("templates") or {}).get(line_name, "")
+
+
+def _format_actions_text(
+    items: list[dict], renderer: ActionItemsRender
+) -> str:
+    """确定性待办文本拼装（降级 / 渲染失败兜底用，不调 LLM）。"""
+    return "\n".join(
+        renderer.format_action(index, item)
+        for index, item in enumerate(items, start=1)
+    )
 
 
 class _Nodes:
@@ -335,6 +350,43 @@ class _Nodes:
             findings.extend(check.get("findings") or [])
         return findings
 
+    def _action_items_render_context(
+        self, state: MeetingState, *, fallback: bool
+    ) -> str:
+        mode = self._mode_label(state)
+        actions_line = _line(state, "action_items")
+        review = actions_line.get("supervisor_review") or {}
+        header = ""
+        if fallback:
+            findings = self._collect_action_findings(review)
+            findings_text = (
+                "；".join(findings) if findings
+                else "Supervisor 未批准当前待办"
+            )
+            decision = review.get("decision", "reject")
+            header = (
+                "注意：以下待办未通过 Supervisor 审核，你仍需基于现有草稿整理可读输出，"
+                "不得编造草稿和原文中没有的事实；优先保留有明确证据的内容。"
+                f"\n未通过原因摘要：{findings_text}"
+                f"\nSupervisor 决定：{decision}\n\n"
+            )
+        return (
+            f"{header}"
+            f"视角模式：{mode}\n"
+            f"objective_perspective：{bool(state.get('objective_perspective'))}\n\n"
+            f"会议原文：\n{state['transcript']}\n\n"
+            f"用户画像：\n{_json(state['user'])}\n\n"
+            f"已审核会议理解：\n{_json(state.get('meeting_understanding'))}\n\n"
+            f"已审核用户视角：\n{_json(state.get('perspective_profile'))}\n\n"
+            f"已批准待办草稿：\n{_json(actions_line.get('draft'))}\n\n"
+            f"待办审核结论：\n{_json(review)}"
+        )
+
+    @staticmethod
+    def _collect_action_findings(review: dict) -> list[str]:
+        check = review.get("action_items_check") or {}
+        return list(check.get("findings") or [])
+
     @staticmethod
     def _assemble_report_from_drafts(
         state: MeetingState,
@@ -390,7 +442,13 @@ class _Nodes:
 
         return (
             MinutesReport(title=title, personalized_minutes=text),
-            ActionsReport(action_items=action_items),
+            ActionsReport(
+                action_items=action_items,
+                personalized_text=(
+                    _format_actions_text(action_items, ActionItemsRender)
+                    or "暂无明确待办"
+                ),
+            ),
         )
 
     # ── 核心节点：会议理解 + 视角建模 ─────────────────────────
@@ -534,51 +592,15 @@ class _Nodes:
     async def _minutes_generation_render_node(
         self, state: MeetingState
     ) -> dict:
-        if state.get("streaming"):
-            # 流式模式：图内不调用 LLM，由 run_streaming 接管流式输出
-            return {"lines": {"minutes_generation": {"rendered": ""}}}
-        try:
-            minutes = await self.minutes_generation_render.run(
-                self._minutes_generation_render_context(state, fallback=False),
-                template=state.get("templates", {}).get(
-                    "minutes_generation", ""
-                ),
-            )
-        except Exception as exc:
-            logger.warning("纪要渲染失败，使用确定性拼装", exc_info=True)
-            minutes_report, _ = self._assemble_report_from_drafts(state)
-            minutes = minutes_report.personalized_minutes
-            return {
-                "lines": {"minutes_generation": {"rendered": minutes}},
-                "quality_degraded": True,
-            }
-        # 渲染本身成功不写 degraded（由 supervisor 判定或 fallback 标记）
-        return {"lines": {"minutes_generation": {"rendered": minutes}}}
+        # 流式模式：图内不调用 LLM，由 run_streaming 接管流式输出
+        return {"lines": {"minutes_generation": {"rendered": ""}}}
 
     async def _minutes_generation_fallback_node(
         self, state: MeetingState
     ) -> dict:
-        """纪要线降级：先尝试 LLM 渲染，失败则确定性拼装。"""
-        if state.get("streaming"):
-            # 流式模式：图内不调用 LLM，由 run_streaming 接管降级输出
-            return {
-                "lines": {
-                    "minutes_generation": {"rendered": "", "degraded": True}
-                },
-                "quality_degraded": True,
-            }
-        context = self._minutes_generation_render_context(state, fallback=True)
-        try:
-            minutes = await self.minutes_generation_render.run(
-                context,
-                template=state.get("templates", {}).get(
-                    "minutes_generation", ""
-                ),
-            )
-        except Exception as exc:
-            logger.warning("降级渲染纪要失败，使用确定性拼装", exc_info=True)
-            minutes_report, _ = self._assemble_report_from_drafts(state)
-            minutes = minutes_report.personalized_minutes
+        """纪要线降级：确定性拼装（不调 LLM）。"""
+        minutes_report, _ = self._assemble_report_from_drafts(state)
+        minutes = minutes_report.personalized_minutes
         if QUALITY_DISCLAIMER not in (minutes or ""):
             minutes = (
                 f"{minutes}\n\n{QUALITY_DISCLAIMER}"
@@ -597,44 +619,24 @@ class _Nodes:
     async def _action_items_render_node(
         self, state: MeetingState
     ) -> dict:
+        # 流式模式：图内不调用 LLM，由 run_streaming 接管流式输出；
+        # items 仍确定性提取，供 done 事件的最终 Report 组装
         items = self.action_items_render.extract_actions(state)
-        item_template = state.get("templates", {}).get(
-            "action_items", ""
-        )
-        if item_template.strip() and not state.get("streaming"):
-            # 指定了待办模板：LLM 按模板渲染文本（流式模式由 run_streaming 接管）
-            try:
-                text = await self.action_items_render.render_with_template(
-                    state, item_template
-                )
-            except Exception as exc:
-                logger.warning(
-                    "待办模板渲染失败，退化为确定性列表", exc_info=True
-                )
-                return {
-                    "lines": {
-                        "action_items": {
-                            "rendered": items,
-                            "degraded": True,
-                        }
-                    },
-                    "quality_degraded": True,
-                }
-            return {
-                "lines": {
-                    "action_items": {"rendered": items, "rendered_text": text}
-                }
-            }
-        return {"lines": {"action_items": {"rendered": items}}}
+        return {
+            "lines": {"action_items": {"rendered": "", "items": items}}
+        }
 
     async def _action_items_fallback_node(
         self, state: MeetingState
     ) -> dict:
         """待办线降级：确定性提取（不调 LLM）。"""
         items = self.action_items_render.extract_actions(state)
+        text = _format_actions_text(items, self.action_items_render)
         return {
             "lines": {
-                "action_items": {"rendered": items, "degraded": True}
+                "action_items": {
+                    "rendered": text, "items": items, "degraded": True
+                }
             },
             "quality_degraded": True,
         }
@@ -647,13 +649,24 @@ class _Nodes:
         minutes_fb: MinutesReport,
         actions_fb: ActionsReport,
     ) -> dict:
-        """兜底路径按线过滤：只返回选中线的 Report（未选中的不输出）。"""
+        """兜底路径按线过滤：只返回选中线的 Report（键 = 线名，与 chunk.line 一致）。"""
         reports: dict = {}
         if "minutes_generation" in line_names:
-            reports["minutes"] = minutes_fb
+            reports["minutes_generation"] = minutes_fb
         if "action_items" in line_names:
-            reports["actions"] = actions_fb
+            reports["action_items"] = actions_fb
         return reports
+
+    def _line_title(self, state: MeetingState, line_name: str) -> str:
+        """线 → 展示标题（按视角模式区分；新线用通用默认）。"""
+        objective = bool(state.get("objective_perspective"))
+        user = state.get("user") or {}
+        name = user.get("name") or "用户"
+        if line_name == "minutes_generation":
+            return "客观会议纪要" if objective else f"{name}视角会议纪要"
+        if line_name == "action_items":
+            return "客观待办事项（全员）" if objective else "待办事项"
+        return f"{_line_cn(line_name)}输出"
 
     async def _produce(
         self,
@@ -664,53 +677,49 @@ class _Nodes:
         """通用流式生产者：把指定任务线的文本流式塞进队列（并行事件源）。
 
         线 → 事件映射（注册表驱动）：
-        - 输出键 ``output_key`` → 事件类型 ``{output_key}_chunk``（如 minutes_chunk）
-        - ``emit_items=True`` 的线先发结构化列表事件 ``{output_key}``（如 actions）
+        - chunk 事件统一携带 ``line``（线名）与 ``title``（展示标题），
+          消费端无需感知具体线类型
         - render 实例按命名约定取 ``self.{line_name}_render``
         - 上下文方法按命名约定取 ``self._{line_name}_render_context``
         - render.stream 签名统一 ``(context, template="")``
+        - 降级线：直接整段交付 fallback 节点写的确定性文本
         """
-        output_key, _report_cls, emit_items = self._report_assemblers[line_name]
+        output_key, _report_cls, _emit_items = self._report_assemblers[
+            line_name
+        ]
         render = getattr(self, f"{line_name}_render")
-        event_type = f"{output_key}_chunk"
+        title = self._line_title(state, line_name)
         degraded = bool(_line(state, line_name).get("degraded"))
-        templates = state.get("templates", {}) or {}
-        template = templates.get(line_name, "") or ""
-        item_template = templates.get("action_items", "") or ""
+        template = _line_template(state, line_name)
         try:
-            if emit_items:
-                # 结构化列表事件（如待办）：程序消费 + 文本流式化
-                items = _line(state, line_name).get("rendered") or []
-                await queue.put({"type": output_key, "items": items})
-                if item_template.strip() and not degraded:
-                    async for chunk in render.stream_with_template(
-                        state, item_template
-                    ):
-                        await queue.put({"type": event_type, "text": chunk})
-                else:
-                    for index, item in enumerate(items, start=1):
-                        await queue.put(
-                            {
-                                "type": event_type,
-                                "text": render.format_action(index, item)
-                                + "\n",
-                            }
-                        )
-                return
             if degraded:
                 # 降级：确定性兜底文本一次性整段交付
                 await queue.put(
                     {
-                        "type": event_type,
-                        "text": _line(state, line_name).get("rendered") or "",
+                        "type": "chunk",
+                        "line": line_name,
+                        "title": title,
+                        "text": _line(state, line_name).get("rendered")
+                        or "",
                     }
                 )
                 return
             # 正常：调该线 Render 的 stream 流式渲染
             context_fn = getattr(self, f"_{line_name}_render_context")
             context = context_fn(state, fallback=False)
+            parts: list[str] = []
             async for chunk in render.stream(context, template):
-                await queue.put({"type": event_type, "text": chunk})
+                parts.append(chunk)
+                await queue.put(
+                    {
+                        "type": "chunk",
+                        "line": line_name,
+                        "title": title,
+                        "text": chunk,
+                    }
+                )
+            # 流式结束后写回完整文本，供 done 事件的最终 Report 组装
+            _line(state, line_name)["rendered"] = "".join(parts)
         except Exception as exc:
             await queue.put(exc)  # 异常对象作为事件传出，由主循环抛出
         finally:
@@ -758,10 +767,10 @@ class MeetingAgentSystem(_Nodes):
         # ── 节点映射生成区结束 ──
 
         # 各线 Report 组装器：线名 → (输出键, Report 类, emit_items)
-        # emit_items=True 的线（如待办）先发结构化列表事件；其余仅文本流
+        # 全部线统一为文本流（rendered 存 LLM 文本）；emit_items 保留为 False
         self._report_assemblers = {
             "minutes_generation": ("minutes", MinutesReport, False),
-            "action_items": ("actions", ActionsReport, True),
+            "action_items": ("actions", ActionsReport, False),
         }
 
     # ── 图构建（注册表驱动，双线并行）─────────────────────────
@@ -837,98 +846,6 @@ class MeetingAgentSystem(_Nodes):
 
         return builder.compile()
 
-    # ── 启动入口 ──────────────────────────────────────────────
-
-    async def run(
-        self,
-        transcript: str,
-        user: UserIdentity | None = None,
-        template: str = "",
-        item_template: str = "",
-        templates: dict[str, str] | None = None,
-        lines: Iterable[str] | None = None,
-    ) -> dict[str, "MinutesReport | ActionsReport"]:
-        """运行会议分析流水线，按线交付结果。
-
-        ``lines`` 指定要执行的任务线（默认全部）：None 或省略 = 全部任务线；
-        只传部分线名（如 ``["minutes_generation"]``）时，未选中的线完全跳过
-        （不构建节点、不调用 LLM），对应键为空的 Report。
-
-        ``templates`` 按线指定输出模板：``{线名: 模板文本}``（如
-        ``{"minutes_generation": "【纪要】[描述]"}``）。便捷参数 ``template``
-        等价于 ``templates["minutes_generation"]``，``item_template`` 等价于
-        ``templates["action_items"]``，两者同时传时以 ``templates`` 为准。
-
-        返回 dict（键 = 任务线名，值 = 该线的 Report）：
-        - ``{"minutes": MinutesReport, "actions": ActionsReport}``
-        - 只跑纪要：``{"minutes": MinutesReport}``
-        - 只跑待办：``{"actions": ActionsReport}``
-
-        纪要/待办两条线互不依赖、并行执行，需要哪条就跑哪条。
-        """
-        if not transcript.strip():
-            raise ValueError("会议文字不能为空")
-
-        # 规范化文本：合并段落内的硬换行（PDF/OCR 常见问题），保留段落间空行
-        transcript = _normalize_transcript(transcript)
-
-        template = template or ""
-        item_template = item_template or ""
-        user = user or UserIdentity()
-        objective_mode = is_objective_perspective(user)
-        user_data = user.model_dump()
-        if objective_mode and not user_data.get("perspective"):
-            user_data["perspective"] = "objective"
-        # 模板按线统一收纳（须在 initial_state 前）：templates 优先，便捷参数兜底
-        templates = _normalize_templates(template, item_template, templates)
-
-        initial_state: MeetingState = {
-            "transcript": transcript,
-            "user": user_data,
-            "objective_perspective": objective_mode,
-            "templates": templates,
-        }
-        # lines 校验放在 try 外：非法线名/空列表直接抛给调用方，不走兜底
-        line_names = self._normalize_lines(lines)
-        try:
-            graph = self._build_graph(line_names)
-            state = await graph.ainvoke(initial_state)
-        except Exception as exc:
-            # 最后防线：图内任何未接住的异常都不让运行崩溃，走确定性兜底
-            logger.warning("图执行失败，使用确定性兜底输出", exc_info=True)
-            minutes_fb, actions_fb = self._assemble_report_from_drafts(
-                initial_state
-            )
-            minutes_fb.quality_warning = QUALITY_WARNING
-            actions_fb.quality_warning = QUALITY_WARNING
-            return self._pack_fallback(
-                line_names, minutes_fb, actions_fb
-            )
-
-        # 从并行渲染结果按线组装 Report（通用组装器按字段 metadata 读取抽屉）
-        quality_degraded = bool(state.get("quality_degraded"))
-        warning = QUALITY_WARNING if quality_degraded else None
-        reports: dict = {}
-        for line_name in line_names:
-            output_key, report_cls, _emit_items = self._report_assemblers[
-                line_name
-            ]
-            reports[output_key] = _assemble_report(
-                state, warning, report_cls, line_name
-            )
-
-        try:
-            return {
-                key: validate_payload(type(report), report.model_dump())
-                for key, report in reports.items()
-            }
-        except Exception:
-            logger.warning("输出校验失败，退回确定性兜底", exc_info=True)
-            minutes_fb, actions_fb = self._assemble_report_from_drafts(state)
-            minutes_fb.quality_warning = QUALITY_WARNING
-            actions_fb.quality_warning = QUALITY_WARNING
-            return self._pack_fallback(line_names, minutes_fb, actions_fb)
-
     # ── 流式并行输出 ─────────────────────────────────────────
 
     async def run_streaming(
@@ -940,30 +857,25 @@ class MeetingAgentSystem(_Nodes):
         templates: dict[str, str] | None = None,
         lines: Iterable[str] | None = None,
     ) -> AsyncIterator[dict]:
-        """流式版本：纪要 LLM token 逐块推送、待办即时推送，两者并行互不等待。
+        """流式输出：各任务线文本并行逐块推送，按线携带展示标题。
 
         ``lines`` 指定要执行的任务线（默认全部）：只传部分线名时，
         未选中的线不构建节点、不调用 LLM，也不会产出对应事件。
 
         事件协议（async generator，按产出顺序 yield dict）：
 
-        - ``{"type": "actions", "items": [待办 dict, ...]}``
-          待办列表（无待办模板时确定性拼装，秒出；有模板时先发结构化数据）
-        - ``{"type": "actions_chunk", "text": str}``
-          待办模板渲染流式块（指定 --item_template 时，LLM 按模板流式渲染，
-          与 minutes_chunk 对称；逐块追加即为完整待办文本）
-        - ``{"type": "minutes_chunk", "text": str}``
-          纪要流式增量块（LLM SSE token 流，逐块追加即为全文）
-        - ``{"type": "done", "quality_warning": str | None}``
-          结束标记；quality_warning 非空表示输出降级，需提示核对
-
-        与 ``run()`` 的区别：``run()`` 返回 ``(MinutesReport, ActionsReport)`` 两个独立对象；
-        本方法把纪要与待办作为两条并行事件流分别产出。
+        - ``{"type": "chunk", "line": str, "title": str, "text": str}``
+          某条线的文本流式块（line = 线名，如 "minutes_generation"；
+          title = 展示标题，如 "李明视角会议纪要"）；逐块追加即为完整输出
+        - ``{"type": "done", "quality_warning": str | None, "reports": dict}``
+          结束标记；quality_warning 非空表示输出降级，需提示核对；
+          reports = {线名: Report}（如 {"minutes_generation": MinutesReport, ...}），
+          流式消费后可从此取最终结构化结果（键与 chunk 的 line 一致）
         """
         if not transcript.strip():
             raise ValueError("会议文字不能为空")
 
-        # 前置阶段与 run() 完全一致：归一化 → 图执行（分析 + 双线审核 + 返工）
+        # 前置阶段：归一化 → 图执行（分析 + 各线审核 + 返工）
         transcript = _normalize_transcript(transcript)
         template = template or ""
         item_template = item_template or ""
@@ -984,8 +896,6 @@ class MeetingAgentSystem(_Nodes):
         }
         # lines 校验放在 try 外：非法线名/空列表直接抛给调用方，不走兜底
         line_names = self._normalize_lines(lines)
-        minutes_in = "minutes_generation" in line_names
-        actions_in = "action_items" in line_names
         try:
             graph = self._build_graph(line_names)
             state = await graph.ainvoke(initial_state)
@@ -995,14 +905,28 @@ class MeetingAgentSystem(_Nodes):
             minutes_fb, actions_fb = self._assemble_report_from_drafts(
                 initial_state
             )
-            if minutes_in:
-                yield {
-                    "type": "minutes_chunk",
-                    "text": minutes_fb.personalized_minutes,
-                }
-            if actions_in:
-                yield {"type": "actions", "items": actions_fb.action_items}
-            yield {"type": "done", "quality_warning": QUALITY_WARNING}
+            for line_name in line_names:
+                if line_name == "minutes_generation":
+                    yield {
+                        "type": "chunk",
+                        "line": line_name,
+                        "title": self._line_title(initial_state, line_name),
+                        "text": minutes_fb.personalized_minutes,
+                    }
+                elif line_name == "action_items":
+                    yield {
+                        "type": "chunk",
+                        "line": line_name,
+                        "title": self._line_title(initial_state, line_name),
+                        "text": actions_fb.personalized_text or "",
+                    }
+            yield {
+                "type": "done",
+                "quality_warning": QUALITY_WARNING,
+                "reports": self._pack_fallback(
+                    line_names, minutes_fb, actions_fb
+                ),
+            }
             return
 
         actions = _line(state, "action_items").get("rendered") or []
@@ -1040,4 +964,44 @@ class MeetingAgentSystem(_Nodes):
             if isinstance(event, Exception):
                 raise event
             yield event
-        yield {"type": "done", "quality_warning": quality_warning}
+        yield {
+            "type": "done",
+            "quality_warning": quality_warning,
+            "reports": self._final_reports(
+                state, line_names, quality_warning
+            ),
+        }
+
+    def _final_reports(
+        self,
+        state: MeetingState,
+        line_names: list[str],
+        warning: str | None,
+    ) -> dict:
+        """图执行成功后按线组装最终 Report（validate 失败退回确定性兜底）。
+
+        reports 键 = 线名（与 chunk 事件的 ``line`` 一致），消费端按线名取。
+        """
+        reports: dict = {}
+        for line_name in line_names:
+            _output_key, report_cls, _emit = self._report_assemblers[
+                line_name
+            ]
+            reports[line_name] = _assemble_report(
+                state, warning, report_cls, line_name
+            )
+        try:
+            return {
+                key: validate_payload(type(report), report.model_dump())
+                for key, report in reports.items()
+            }
+        except Exception:
+            logger.warning("输出校验失败，退回确定性兜底", exc_info=True)
+            minutes_fb, actions_fb = self._assemble_report_from_drafts(
+                state
+            )
+            minutes_fb.quality_warning = QUALITY_WARNING
+            actions_fb.quality_warning = QUALITY_WARNING
+            return self._pack_fallback(
+                line_names, minutes_fb, actions_fb
+            )

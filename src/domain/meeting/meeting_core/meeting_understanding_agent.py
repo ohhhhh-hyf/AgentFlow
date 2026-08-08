@@ -3,9 +3,9 @@ from __future__ import annotations
 from llm_client import LLMClient
 from ..models import MeetingUnderstanding
 from .prompts import (
-    MEETING_UNDERSTANDING_GENERATION_OUTPUT_CONTRACT,
     MEETING_UNDERSTANDING_SYSTEM_PROMPT,
 )
+from .contracts import MEETING_UNDERSTANDING_GENERATION_OUTPUT_CONTRACT
 
 
 class MeetingUnderstandingAgent:

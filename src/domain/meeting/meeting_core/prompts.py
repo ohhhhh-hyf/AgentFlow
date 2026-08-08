@@ -51,20 +51,6 @@ MEETING_UNDERSTANDING_SYSTEM_PROMPT = """你是会议理解 Agent。从会议原
 - 概括时优先组合原文关键词，尽量少做同义改写，减少不必要的措辞漂移
 - 对「讨论 vs 决策」拿不准时，倾向归入讨论（topics.discussion），且该倾向在所有议题上保持一致"""
 
-MEETING_UNDERSTANDING_GENERATION_OUTPUT_CONTRACT = """{
-  "meeting_purpose": "一句话概括会议目的",
-  "topics": [
-    {
-      "title": "议题名称",
-      "discussion": "讨论内容概述",
-      "conclusion": "该议题的结论，无结论时为null",
-      "participants": ["原文中明确出现的发言人姓名"]
-    }
-  ],
-  "decisions": ["已明确拍板/达成共识的结论"],
-  "open_questions": ["尚未达成一致或需后续确认的事项"],
-  "risks": ["原文明确提到的风险/隐患/阻碍"]
-}"""
 
 # ── PerspectiveModelingAgent ──────────────────────────────────
 
@@ -140,13 +126,3 @@ PERSPECTIVE_MODELING_SYSTEM_PROMPT = """你是视角建模 Agent。将用户画�
 - evidence 优先引用原文中最短的一句完整原话，并标注其支撑的字段，便于复核与复现
 - responsibilities / goals / concerns 只随原文事实增减，不随运行次数变化；原文没提的不因生成倾向而补充"""
 
-PERSPECTIVE_MODELING_GENERATION_OUTPUT_CONTRACT = """{
-  "confidence": "high|medium|low",
-  "name": "用户姓名，客观模式下通常为null",
-  "inferred_role": "基于原文推断的角色，无依据时为null",
-  "responsibilities": ["本次会议中涉及的该用户/全员职责"],
-  "goals": ["本次会议中该用户/全员应达成的目标"],
-  "concerns": ["该用户/全员应关注的风险、不确定因素"],
-  "relevant_topics": ["与该用户/全员直接相关的议题"],
-  "evidence": ["原文中支撑以上判断的具体语句"]
-}"""

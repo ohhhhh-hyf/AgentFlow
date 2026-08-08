@@ -180,29 +180,22 @@ def generate_node_skeletons(lines: list[str]) -> str:
 # ── TASK_LINES 注册生成 ──────────────────────────────────────
 
 def _contract_base(line: str, tasks_dir: Path | None = None) -> str:
-    """线名 → 契约基名：解析该线 prompts.py 的生成契约名，去后缀。
+    """线名 → 契约基名：从该线 contracts.py 的契约类名推导。
 
-    例：minutes_generation/prompts.py 里 MINUTES_GENERATION_OUTPUT_CONTRACT
-    → 返回 "MINUTES"（用于推导 _EMPTY_MINUTES / _REJECT_MINUTES_REVIEW）。
+    例：minutes_generation/contracts.py 里 MinutesGenerationContract
+    → 类名去 GenerationContract 后缀 "Minutes" → 全大写 "MINUTES"
+    （用于推导 _EMPTY_MINUTES / _REJECT_MINUTES_REVIEW）。
     """
     tasks_dir = tasks_dir or TASKS_DIR
-    prompts_path = tasks_dir / line / "prompts.py"
-    if not prompts_path.exists():
-        raise ValueError(f"{prompts_path} 不存在（无法解析生成契约）")
-    tree = ast.parse(prompts_path.read_text(encoding="utf-8"))
-    for node in tree.body:
-        if (
-            isinstance(node, ast.Assign)
-            and len(node.targets) == 1
-            and isinstance(node.targets[0], ast.Name)
-            and isinstance(node.value, ast.Constant)
-            and isinstance(node.value.value, str)
-        ):
-            name = node.targets[0].id
-            if name.endswith("_GENERATION_OUTPUT_CONTRACT"):
-                return name.removesuffix("_GENERATION_OUTPUT_CONTRACT")
+    contracts_path = tasks_dir / line / "contracts.py"
+    if not contracts_path.exists():
+        raise ValueError(f"{contracts_path} 不存在（无法解析生成契约）")
+    text = contracts_path.read_text(encoding="utf-8")
+    for cls_name in re.findall(r"class\s+(\w+GenerationContract)\b", text):
+        base = cls_name.removesuffix("GenerationContract")
+        return re.sub(r"(?<!^)(?=[A-Z])", "_", base).upper()
     raise ValueError(
-        f"{prompts_path} 未找到 *_GENERATION_OUTPUT_CONTRACT 生成契约"
+        f"{contracts_path} 未找到 *GenerationContract 生成契约类"
     )
 
 

@@ -15,7 +15,7 @@ sys.path.insert(0, str(PROJECT_ROOT / "src"))
 from llm_client.config import load_env
 from domain.meeting import SAMPLES_DIR
 from tools.logging_config import setup_logging
-from domain.meeting.models import UserIdentity, is_objective_perspective
+from domain.meeting.models import UserIdentity
 from domain.meeting.orchestrator import MeetingAgentSystem, TASK_LINES
 
 
@@ -32,11 +32,9 @@ TASK_ALIASES: dict[str, str] = {
 
 
 def _normalize_tasks(
-    tasks: list[str] | None, known_lines: set[str]
-) -> list[str] | None:
+    tasks: list[str], known_lines: set[str]
+) -> list[str]:
     """把 --task 传入的任务名统一解析成线名；未知名称直接报错。"""
-    if not tasks:
-        return None
     result: list[str] = []
     for name in tasks:
         name = name.strip()
@@ -112,11 +110,11 @@ def _parser() -> argparse.ArgumentParser:
         "--task",
         dest="tasks",
         action="append",
-        default=None,
+        required=True,
         metavar="任务",
         help="要生成的任务，可多次指定（如 --task minutes --task actions）。"
         f"可用：{' / '.join(sorted(TASK_LINES))}，也支持友好名 "
-        f"{' / '.join(sorted(TASK_ALIASES))}；不指定则全部生成",
+        f"{' / '.join(sorted(TASK_ALIASES))}",
     )
     return parser
 
@@ -185,13 +183,13 @@ async def run(
     item_template: Path | None = None,
     tasks: list[str] | None = None,
 ) -> None:
-    """默认启动方式：流式并行输出。
+    """流式并行输出（--task 必填，只跑选中的任务线）。
 
     ``tasks`` 指定要生成的任务（对应 run_streaming 的 lines 参数，已由
-    ``_normalize_tasks`` 解析成线名）：只传部分任务时未选中的线不运行、不产出事件。
+    ``_normalize_tasks`` 解析成线名）：未选中的线不运行、不产出事件。
 
-    待办确定性拼装（或按 item_template 模板渲染），纪要生成期间即完整显示；
-    纪要正文由 LLM 流式生成、逐段实时打印（两条输出流并行，互不等待）。
+    各线文本由 LLM 流式生成、逐块实时打印（多条输出流并行，互不等待）；
+    消费完全按任务线维度通用（chunk 事件自带 line/title），新增任务线无需改此处。
     """
     setup_logging()
     load_env(_resolve_path(env_file))
@@ -217,13 +215,9 @@ async def run(
             raise ValueError(f"待办模板文件为空：{item_template}")
         templates["action_items"] = item_template_text
 
-    objective = is_objective_perspective(user)
-    minutes_title = "客观会议纪要" if objective else f"{user.name or '用户'}视角会议纪要"
-    actions_title = "客观待办事项（全员）" if objective else "待办事项"
-
     system = MeetingAgentSystem()
-    minutes_started = False
-    actions_streamed = False
+    printed: dict[str, bool] = {}  # line → 是否已打标题
+    any_output = False
     async for event in system.run_streaming(
         transcript,
         user,
@@ -231,32 +225,20 @@ async def run(
         lines=line_names,
     ):
         etype = event["type"]
-        if etype == "actions":
-            logger.info("")
-            _section(actions_title)
-            # 结构化列表事件：只打标题；文本统一由 actions_chunk 流式提供
-            items = event["items"]
-            if not items and not templates.get("action_items"):
-                logger.info("暂无明确待办")
-        elif etype == "actions_chunk":
-            # 待办文本流：无模板逐条、有模板 LLM 流式（与纪要流对称）
-            actions_streamed = True
-            sys.stdout.write(event["text"])
-            sys.stdout.flush()
-        elif etype == "minutes_chunk":
-            if not minutes_started:
+        if etype == "chunk":
+            # 通用流式块：按 line 首次输出打标题，正文逐块追加
+            line = event["line"]
+            if not printed.get(line):
                 logger.info("")
-                _section(minutes_title)
-                minutes_started = True
+                _section(event["title"])
+                printed[line] = True
+            any_output = True
             sys.stdout.write(event["text"])
             sys.stdout.flush()
         elif etype == "done":
             if event.get("quality_warning"):
                 logger.warning("⚠ %s", event["quality_warning"])
-    if minutes_started:
-        sys.stdout.write("\n")
-    elif actions_streamed:
-        # 待办流式已输出但无纪要：补一个换行收尾
+    if any_output:
         sys.stdout.write("\n")
     else:
         logger.info("（暂无内容）")

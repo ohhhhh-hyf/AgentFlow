@@ -6,8 +6,8 @@ from llm_client import LLMClient
 from ...models import ActionItemsSupervisorReview
 from .prompts import (
     ACTION_ITEMS_SUPERVISOR_DOMAIN_PROMPT,
-    ACTION_ITEMS_SUPERVISOR_OUTPUT_CONTRACT,
 )
+from .contracts import ACTION_ITEMS_SUPERVISOR_OUTPUT_CONTRACT
 
 
 class ActionItemsSupervisor:

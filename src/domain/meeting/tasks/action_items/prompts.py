@@ -1,6 +1,8 @@
 """action_items 任务组的 prompt 与输出契约。"""
 from __future__ import annotations
 
+from tools.template_prompt import build_template_render_prompt
+
 # ── 待办提取 ──────────────────────────────────────────────────
 
 ACTION_ITEMS_SYSTEM_PROMPT = """你是待办事项 Agent。从会议内容中提取可独立执行的行动项，按视角模式正确分类。
@@ -107,24 +109,6 @@ ACTION_ITEMS_SYSTEM_PROMPT = """你是待办事项 Agent。从会议内容中提
 - priority / deadline / confidence 只依据原文信号词判定；同一信号词在不同运行中应得到同样标注
 - 拿不准是否提取时，倾向不提取，且该倾向在全部条目上保持一致"""
 
-ACTION_ITEMS_GENERATION_OUTPUT_CONTRACT = """{
-  "my_actions": [
-    {
-      "task": "以动词开头的任务描述，条件型任务写清触发条件",
-      "owner": "原文明示的负责人姓名，无明确负责人时为null",
-      "deadline": "原文明示的截止时间，无明确时间时为null",
-      "priority": "high|medium|low",
-      "status": "explicit|inferred",
-      "evidence": "原文中支撑此待办的具体语句（可直接定位）",
-      "confidence": "high|medium|low"
-    }
-  ],
-  "delegated_actions": [],
-  "unassigned_actions": []
-}"""
-
-# ── 待办领域监督（注入全局标准后使用）────────────────────────
-
 ACTION_ITEMS_SUPERVISOR_DOMAIN_PROMPT = """## 领域审核规则：待办提取
 
 ### 模式选择
@@ -154,32 +138,19 @@ ACTION_ITEMS_SUPERVISOR_DOMAIN_PROMPT = """## 领域审核规则：待办提取
 
 写不出具体返工意见 → approve。犹豫不决 → approve。"""
 
-ACTION_ITEMS_SUPERVISOR_OUTPUT_CONTRACT = """{
-  "decision": "approve|revise|reject",
-  "action_items_check": {
-    "status": "pass|fail",
-    "findings": ["仅记录严重问题"]
-  },
-  "feedback": ["仅当 decision=revise 时填写，必须具体可执行、有原文依据"]
-}"""
+# ── 待办渲染（无模板 / --item_template 时使用）────────────────
 
-# ── 待办模板渲染（--item_template 时使用）────────────────────
+ITEM_RENDER_PROMPT = """你是待办事项渲染器。根据已审核通过的待办提取结果，生成一份清晰的待办清单文本。
 
-ITEM_RENDER_TEMPLATE_PROMPT = """你是待办事项渲染器。根据已审核通过的待办提取结果和下方输出模板，生成待办事项输出。
+要求：
+- 以条目形式呈现每条待办（任务、负责人、截止时间、优先级）
+- 客观准确，只使用草稿中的信息，不补充原文没有的内容
+"""
 
-下方模板有两种可能类型，先判断属于哪种，再按对应规则执行：
-
-【类型一：占位符模板】模板含 [描述] / [xxx] 占位符
-- 保留模板中所有固定文字，仅替换占位符为已批准待办中的内容
-- [xxx / yyy / zzz] = 多选一，含 emoji；含 [xxx] 的表格行 = 行模板，按内容生成对应行数
-- 输出与模板逐字符对齐
-
-【类型二：格式规范模板】模板无占位符，而是输出格式说明 + 示例
-- 把已批准待办按模板规定的字段结构与格式输出（例如标准 JSON 数组、表格等）
-- 模板中的示例仅用于演示格式，不要照抄示例里的输入内容
-
-通用规则：
-1. 以「已批准待办事项列表」为唯一内容来源：不新增待办、不改变负责人/截止时间/描述，只做格式转换
-2. 待办列表为空时，按模板对「无内容」的要求输出（如输出 [] 或空表格）
-3. 只输出最终内容，不要输出解释、不要输出 Markdown 代码块包装
-4. 输出一致性：同一输入重复生成时结果稳定，措辞优先沿用待办结果"""
+ITEM_RENDER_TEMPLATE_PROMPT = build_template_render_prompt(
+    renderer="待办事项渲染器",
+    source="已审核通过的待办提取结果",
+    empty_rule=(
+        "待办列表为空时，按模板对「无内容」的要求输出（如输出 [] 或空表格）"
+    ),
+)
