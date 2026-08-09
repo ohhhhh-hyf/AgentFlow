@@ -40,11 +40,11 @@ def is_objective_perspective(user: UserIdentity | dict | None) -> bool:
     return str(data.get("perspective") or "").strip().lower() == "objective"
 
 
-# ── 生成模型生成区：由 tools/scripts/generation_contract.py 生成，勿手改 ──
+# ── 生成模型生成区：由 tools/scripts/sync_contracts.py 生成，勿手改 ──
 
 @dataclass
 class ActionItems(ModelMixin):
-    """待办提取输出（浅校验：仅校验第一层键与类型，嵌套不校验）。"""
+    """ActionItems输出（浅校验：仅校验第一层键与类型，嵌套不校验）。"""
 
     my_actions: list[dict[str, Any]] = field(default_factory=list)
     delegated_actions: list[dict[str, Any]] = field(default_factory=list)
@@ -64,7 +64,7 @@ class ActionItems(ModelMixin):
 
 @dataclass
 class MeetingUnderstanding(ModelMixin):
-    """会议理解输出（浅校验：仅校验第一层键与类型，嵌套不校验）。"""
+    """MeetingUnderstanding输出（浅校验：仅校验第一层键与类型，嵌套不校验）。"""
 
     meeting_purpose: str
     topics: list[dict[str, Any]] = field(default_factory=list)
@@ -86,7 +86,7 @@ class MeetingUnderstanding(ModelMixin):
 
 @dataclass
 class Minutes(ModelMixin):
-    """纪要草稿输出（浅校验：仅校验第一层键与类型，嵌套不校验）。"""
+    """Minutes输出（浅校验：仅校验第一层键与类型，嵌套不校验）。"""
 
     headline: str
     executive_summary: list[str] = field(default_factory=list)
@@ -109,7 +109,7 @@ class Minutes(ModelMixin):
 
 @dataclass
 class PerspectiveModeling(ModelMixin):
-    """视角建模输出（浅校验：仅校验第一层键与类型，嵌套不校验）。"""
+    """PerspectiveModeling输出（浅校验：仅校验第一层键与类型，嵌套不校验）。"""
 
     confidence: Literal["high", "medium", "low"]
     name: str
@@ -136,7 +136,7 @@ class PerspectiveModeling(ModelMixin):
 
 # ── 生成模型生成区结束 ──
 
-# ── 审核模型生成区：由 tools/scripts/supervisor_contract.py 生成，勿手改 ──
+# ── 审核模型生成区：由 tools/scripts/sync_contracts.py 生成，勿手改 ──
 
 @dataclass
 class MinutesSupervisorReview(ModelMixin):
@@ -194,9 +194,72 @@ class ActionItemsSupervisorReview(ModelMixin):
 
 # ── 审核模型生成区结束 ──
 
+# ── Report 校验生成区：由 tools/scripts/sync_contracts.py 生成，勿手改 ──
+
+class ActionItemsReportValidation:
+    """ActionItemsReport 的校验逻辑（由脚本按手写字段自动生成）。"""
+
+    @classmethod
+    def validate(cls, data: dict) -> "ActionItemsReport":
+        allowed = {"action_items", "quality_warning", "personalized_text"}
+
+        if not isinstance(data, dict):
+            raise OutputValidationError("ActionItemsReport 必须是 JSON 对象")
+
+        extra = set(data) - allowed
+        if extra:
+            raise OutputValidationError(
+                f"ActionItemsReport 字段不一致：多余={sorted(extra)}"
+            )
+
+        if not isinstance(data.get("action_items") or [], list):
+            raise OutputValidationError("action_items 必须是数组")
+        for index, item in enumerate(data.get("action_items") or []):
+            _action(item, f"action_items[{index}]")
+        if data.get("quality_warning") is not None:
+            _string(data["quality_warning"], "quality_warning")
+        if data.get("personalized_text") is not None:
+            _string(data["personalized_text"], "personalized_text")
+
+        return cls(
+            action_items=data.get("action_items") or [],
+            quality_warning=data.get("quality_warning"),
+            personalized_text=data.get("personalized_text"),
+        )
+
+
+class MinutesReportValidation:
+    """MinutesReport 的校验逻辑（由脚本按手写字段自动生成）。"""
+
+    @classmethod
+    def validate(cls, data: dict) -> "MinutesReport":
+        allowed = {"title", "personalized_minutes", "quality_warning"}
+
+        if not isinstance(data, dict):
+            raise OutputValidationError("MinutesReport 必须是 JSON 对象")
+
+        extra = set(data) - allowed
+        if extra:
+            raise OutputValidationError(
+                f"MinutesReport 字段不一致：多余={sorted(extra)}"
+            )
+
+        _string(data.get("title") or "", "title")
+        _string(data.get("personalized_minutes") or "", "personalized_minutes")
+        if data.get("quality_warning") is not None:
+            _string(data["quality_warning"], "quality_warning")
+
+        return cls(
+            title=data.get("title") or "",
+            personalized_minutes=data.get("personalized_minutes") or "",
+            quality_warning=data.get("quality_warning"),
+        )
+
+# ── Report 校验生成区结束 ──
+
 
 @dataclass
-class MinutesReport(ModelMixin):
+class MinutesReport(ModelMixin, MinutesReportValidation):
     """纪要输出（与待办输出分离，各自独立）。
 
     字段的 ``metadata["source"]`` 供通用组装器从 state 抽屉取值：
@@ -208,51 +271,23 @@ class MinutesReport(ModelMixin):
     # 仅由系统在兜底路径写入；LLM 输出不需要也不应包含该字段
     quality_warning: str | None = None
 
-    @classmethod
-    def validate(cls, data: dict) -> "MinutesReport":
-        # quality_warning 仅系统附加，LLM 不必输出；title 与纪要正文必填
-        allowed = {"title", "personalized_minutes", "quality_warning"}
-        required = {"title", "personalized_minutes"}
-
-        if not isinstance(data, dict):
-            raise OutputValidationError("MinutesReport 必须是 JSON 对象")
-
-        actual = set(data)
-        if not required.issubset(actual):
-            raise OutputValidationError(
-                f"MinutesReport 字段不一致：缺失={sorted(required - actual)}"
-            )
-        extra = actual - allowed
-        if extra:
-            raise OutputValidationError(
-                f"MinutesReport 字段不一致：多余={sorted(extra)}"
-            )
-
-        _string(data["title"], "title")
-        _string(data["personalized_minutes"], "personalized_minutes")
-        if "quality_warning" in data and data["quality_warning"] is not None:
-            _string(data["quality_warning"], "quality_warning")
-
-        # 标准化：只保留三个合法字段
-        return cls(
-            title=data["title"],
-            personalized_minutes=data["personalized_minutes"],
-            quality_warning=data.get("quality_warning"),
-        )
-
 
 @dataclass
-class ActionItemsReport(ModelMixin):
+class ActionItemsReport(ModelMixin, ActionItemsReportValidation):
     """待办输出（与纪要输出分离，各自独立）。
 
     字段的 ``metadata["source"]`` 供通用组装器从 state 抽屉取值：
-    ``items`` → 结构化待办列表（extract_actions 合并结果）；
+    ``structure`` → 结构化待办列表（extract_actions 合并结果）；
     ``rendered`` → LLM 渲染文本（无模板普通渲染 / 有模板按模板）。
     """
 
     # 结构化待办列表（客观视角 = 全员已分配 + 未分配；个人视角 = 本人）
     action_items: list[dict[str, Any]] = field(
-        default_factory=list, metadata={"source": "items"}
+        default_factory=list,
+        metadata={
+            "source": "structure",
+            "item_validator": "action",  # 逐条待办结构校验器（生成 validate 用）
+        },
     )
     # 仅由系统在兜底路径写入；LLM 输出不需要也不应包含该字段
     quality_warning: str | None = None
@@ -260,41 +295,6 @@ class ActionItemsReport(ModelMixin):
     personalized_text: str | None = field(
         default=None, metadata={"source": "rendered"}
     )
-
-    @classmethod
-    def validate(cls, data: dict) -> "ActionItemsReport":
-        allowed = {"action_items", "quality_warning", "personalized_text"}
-        required = {"action_items"}
-
-        if not isinstance(data, dict):
-            raise OutputValidationError("ActionItemsReport 必须是 JSON 对象")
-
-        actual = set(data)
-        if not required.issubset(actual):
-            raise OutputValidationError(
-                f"ActionItemsReport 字段不一致：缺失={sorted(required - actual)}"
-            )
-        extra = actual - allowed
-        if extra:
-            raise OutputValidationError(
-                f"ActionItemsReport 字段不一致：多余={sorted(extra)}"
-            )
-
-        if not isinstance(data["action_items"], list):
-            raise OutputValidationError("action_items 必须是数组")
-        for index, item in enumerate(data["action_items"]):
-            _action(item, f"action_items[{index}]")
-        if "quality_warning" in data and data["quality_warning"] is not None:
-            _string(data["quality_warning"], "quality_warning")
-        if "personalized_text" in data and data["personalized_text"] is not None:
-            _string(data["personalized_text"], "personalized_text")
-
-        # 标准化：只保留合法字段
-        return cls(
-            action_items=data["action_items"],
-            quality_warning=data.get("quality_warning"),
-            personalized_text=data.get("personalized_text"),
-        )
 
 
 # ── LangGraph 共享状态 ────────────────────────────────────────
@@ -344,7 +344,7 @@ class MeetingState(TypedDict, total=False):
     meeting_understanding: dict
     perspective_profile: dict
     # 任务线子空间：lines[线名] = {draft, supervisor_review,
-    #   revision_feedback, revision_count, degraded, rendered, items}
+    #   revision_feedback, revision_count, degraded, rendered, structure}
     lines: Annotated[dict[str, dict], _merge_lines]
     # 任意层降级（core 或任一任务线），用于最终质量警告（并发写，or 合并）
     quality_degraded: Annotated[bool, _merge_degraded]

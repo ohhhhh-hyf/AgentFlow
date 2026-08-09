@@ -41,7 +41,7 @@ class MinutesSupervisorContract(SupervisorContract):
 MINUTES_GENERATION_OUTPUT_CONTRACT = MinutesGenerationContract.to_json_template()
 MINUTES_SUPERVISOR_OUTPUT_CONTRACT = MinutesSupervisorContract.to_json_template()
 
-# 降级拼装规则（声明式类）：fallback 节点由 factory_contract.py 检测子类后生成
+# 降级拼装规则（声明式类）：fallback 节点由 sync_contracts.py 检测子类后生成
 class MinutesFallbackRules(FallbackRules):
     """纪要降级拼装：headline + 5 段（带标签）+ 免责声明。"""
 

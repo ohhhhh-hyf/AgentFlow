@@ -19,7 +19,7 @@
 该常量一物两用：
 - 运行时：``client.structured(..., output_contract=...)`` 拼进 system prompt，
   作为 LLM 的"唯一合法输出模板"
-- 脚本期：``supervisor_contract.py`` import 契约类读结构（checks / decision /
+- 脚本期：``sync_contracts.py`` import 契约类读结构（checks / decision /
   feedback），生成审核模型 + 拒绝态兜底常量
 """
 from __future__ import annotations

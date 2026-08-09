@@ -40,7 +40,7 @@ class MeetingAgentFactory:
             # 核心层（键 = 属性名，与任务线统一：{角色}_agent）
             "meeting_understanding_agent": MeetingUnderstandingAgent(client),
             "perspective_modeling_agent": PerspectiveModelingAgent(client),
-            # ── 任务线装配生成区：由 tools/scripts/factory_contract.py 生成，勿手改 ──
+            # ── 任务线装配生成区：由 tools/scripts/sync_contracts.py 生成，勿手改 ──
 
             "action_items_agent": ActionItemsAgent(client),
             "action_items_supervisor": ActionItemsSupervisor(client),

@@ -14,6 +14,7 @@ sys.path.insert(0, str(PROJECT_ROOT / "src"))
 
 from llm_client.config import load_env
 from domain.meeting import SAMPLES_DIR
+from domain.meeting.line_registry import LINE_CN_NAMES
 from tools.logging_config import setup_logging
 from domain.meeting.models import UserIdentity
 from domain.meeting.orchestrator import MeetingAgentSystem, TASK_LINES
@@ -22,13 +23,14 @@ from domain.meeting.orchestrator import MeetingAgentSystem, TASK_LINES
 logger = logging.getLogger(__name__)
 
 
-# 友好任务名 → 任务线名（未列出的名称原样透传，如 minutes_generation / action_items）
+# 友好任务名 → 任务线名：线名本身 + 中文名自动构建（加线零改动），
+# 英文短名手写补充（非每线必须，未列出的名称原样透传）。
 TASK_ALIASES: dict[str, str] = {
     "minutes": "minutes_generation",
-    "纪要": "minutes_generation",
     "actions": "action_items",
-    "待办": "action_items",
 }
+TASK_ALIASES.update({line: line for line in TASK_LINES})
+TASK_ALIASES.update({cn: line for line, cn in LINE_CN_NAMES.items()})  # 中文名 → 线名
 
 
 def _normalize_tasks(
@@ -198,22 +200,22 @@ async def run(
     user = _load_user(profile)
     # 任务名 → 线名（未知名称在此报错，不进入运行）
     line_names = _normalize_tasks(tasks, set(TASK_LINES))
-    # 模板按线统一收纳：纪要模板 → templates["minutes_generation"]，待办模板 → templates["action_items"]
-    templates: dict[str, str] = {}
+    # 模板读取（线名分派由 run_streaming 按线形态自动完成：
+    # template → 纯文本线如纪要/风险；item_template → 结构化线如待办）
+    template_text = ""
     if minutes_template is not None:
         template_text = (
             _resolve_path(minutes_template).read_text(encoding="utf-8").strip()
         )
         if not template_text:
             raise ValueError(f"纪要模板文件为空：{minutes_template}")
-        templates["minutes_generation"] = template_text
+    item_template_text = ""
     if item_template is not None:
         item_template_text = (
             _resolve_path(item_template).read_text(encoding="utf-8").strip()
         )
         if not item_template_text:
             raise ValueError(f"待办模板文件为空：{item_template}")
-        templates["action_items"] = item_template_text
 
     system = MeetingAgentSystem()
     printed: dict[str, bool] = {}  # line → 是否已打标题
@@ -221,7 +223,8 @@ async def run(
     async for event in system.run_streaming(
         transcript,
         user,
-        templates=templates,
+        template=template_text,
+        item_template=item_template_text,
         lines=line_names,
     ):
         etype = event["type"]

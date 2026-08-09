@@ -30,7 +30,7 @@ from .meeting_core import (
 from .meeting_factory import MeetingAgentFactory
 from .line_registry import LINE_CN_NAMES
 
-# ── Report import 生成区：由 tools/scripts/factory_contract.py 生成，勿手改 ──
+# ── Report import 生成区：由 tools/scripts/sync_contracts.py 生成，勿手改 ──
 
 from .models import (
     ActionItemsReport,
@@ -43,18 +43,23 @@ from .models import (
     UserIdentity,
     is_objective_perspective,
 )
+# ── 任务线 import 生成区：由 tools/scripts/sync_contracts.py 生成，勿手改 ──
+
 from .tasks.action_items import (
     ActionItemsAgent,
     ActionItemsRender,
     ActionItemsSupervisor,
 )
+
 from .tasks.minutes_generation import (
     MinutesGenerationAgent,
     MinutesGenerationRender,
     MinutesGenerationSupervisor,
 )
 
-# ── FallbackRules import 生成区：由 tools/scripts/factory_contract.py 生成，勿手改 ──
+# ── 任务线 import 生成区结束 ──
+
+# ── FallbackRules import 生成区：由 tools/scripts/sync_contracts.py 生成，勿手改 ──
 
 from .tasks.action_items.contracts import ACTION_ITEMS_FALLBACK_RULES
 from .tasks.minutes_generation.contracts import MINUTES_FALLBACK_RULES
@@ -68,7 +73,7 @@ logger = logging.getLogger(__name__)
 QUALITY_WARNING = "生成可能有误，请结合会议原文核对。"
 QUALITY_DISCLAIMER = "（生成可能有误）"
 
-# ── 空结构常量生成区：由 tools/scripts/generation_contract.py 生成，勿手改 ──
+# ── 空结构常量生成区：由 tools/scripts/sync_contracts.py 生成，勿手改 ──
 
 _EMPTY_ACTION_ITEMS = {
     "my_actions": [],
@@ -107,7 +112,7 @@ _EMPTY_PERSPECTIVE_MODELING = {
 
 # ── 空结构常量生成区结束 ──
 
-# ── 拒绝审核常量生成区：由 tools/scripts/supervisor_contract.py 生成，勿手改 ──
+# ── 拒绝审核常量生成区：由 tools/scripts/sync_contracts.py 生成，勿手改 ──
 
 _REJECT_MINUTES_REVIEW = {
     "decision": "reject",
@@ -126,7 +131,7 @@ _REJECT_ACTION_ITEMS_REVIEW = {
 
 # ── 拒绝审核常量生成区结束 ──
 
-# ── 任务线注册生成区：由 tools/scripts/factory_contract.py 生成，勿手改 ──
+# ── 任务线注册生成区：由 tools/scripts/sync_contracts.py 生成，勿手改 ──
 
 TASK_LINES: dict[str, dict] = {
     "action_items": {
@@ -156,22 +161,38 @@ def _line_draft_title(line_name: str) -> str:
     return f"{_line_cn(line_name)}草稿"
 
 
+def _line_has_structure(report_cls: type) -> bool:
+    """该线 Report 是否输出结构化列表（存在 source="structure" 字段）。"""
+    return any(
+        f.metadata.get("source") == "structure"
+        for f in fields(report_cls)
+    )
+
+
 def _normalize_templates(
     template: str,
     item_template: str,
     templates: dict[str, str] | None,
+    line_names: list[str],
+    report_assemblers: dict,
 ) -> dict[str, str]:
     """按线统一收纳输出模板：``templates`` 优先，便捷参数兜底。
 
-    ``template`` → ``templates["minutes_generation"]``；
-    ``item_template`` → ``templates["action_items"]``；
-    两者同时传时以 ``templates`` 中的对应键为准。
+    - ``template`` → 纯文本输出线（Report 无 structure 字段：纪要/风险类）
+    - ``item_template`` → 结构化输出线（Report 有 structure 字段：待办类）
+    线名来自 ``line_names``（调用方），结构判定来自 Report 字段声明，
+    均不写死具体线——加新线自动按形态分派。
     """
     result = dict(templates or {})
-    if template and "minutes_generation" not in result:
-        result["minutes_generation"] = template
-    if item_template and "action_items" not in result:
-        result["action_items"] = item_template
+    for line in line_names:
+        if line in result:
+            continue  # templates 显式传入优先
+        report_cls = report_assemblers[line]
+        if _line_has_structure(report_cls):
+            if item_template:
+                result[line] = item_template
+        elif template:
+            result[line] = template
     return result
 
 
@@ -194,7 +215,7 @@ def _assemble_report(
     source 约定：
     - ``title`` → 视角标题（_compute_title 通用计算）
     - ``rendered`` → lines[线名]["rendered"]（LLM 渲染文本）
-    - ``items`` → lines[线名]["items"]（结构化列表，待办线）
+    - ``structure`` → lines[线名]["structure"]（结构化列表，待办线）
     - ``draft.xxx`` → lines[线名]["draft"]["xxx"]（草稿字段）
     - 无 source → 不赋值（留给 dataclass default）
     - quality_warning 固定填 warning（降级状态）
@@ -208,8 +229,8 @@ def _assemble_report(
             data[f.name] = _compute_title(state)
         elif src == "rendered":
             data[f.name] = _line(state, line_name).get("rendered")
-        elif src == "items":
-            data[f.name] = _line(state, line_name).get("items")
+        elif src == "structure":
+            data[f.name] = _line(state, line_name).get("structure")
         elif src.startswith("draft."):
             draft = _line(state, line_name).get("draft") or {}
             data[f.name] = draft.get(src[len("draft."):])
@@ -292,7 +313,7 @@ def _fallback_text(
     - sections: 有序段列表（Raw/KV/Join/Lines/Bullets）
     - empty_prefix / empty_text / empty_purpose：全空时兜底文案
     - disclaimer: 是否追加 QUALITY_DISCLAIMER
-    - structured: {merge: [...]} 客观合并的结构化列表（items，Report 用）
+    - structured: {merge: [...]} 客观合并的结构化列表（structure，Report 用）
     """
     draft = _line(state, line_name).get("draft") or {}
     objective = bool(state.get("objective_perspective"))
@@ -334,16 +355,16 @@ def _fallback_text(
     if _sec_attr(rules, "disclaimer", False) and text \
             and QUALITY_DISCLAIMER not in text:
         text = f"{text}\n\n{QUALITY_DISCLAIMER}"
-    items = None
+    structure = None
     structured = _sec_attr(rules, "structured")
     if structured:
         merge = structured.get("merge") or []
         if merge:
-            items = list(draft.get(merge[0]) or [])
+            structure = list(draft.get(merge[0]) or [])
             if objective:
                 for extra in merge[1:]:
-                    items.extend(draft.get(extra) or [])
-    return text, items
+                    structure.extend(draft.get(extra) or [])
+    return text, structure
 
 
 class _Nodes:
@@ -406,7 +427,7 @@ class _Nodes:
             f"{_line_draft_title(line_name)}：\n{_json(sub['draft'])}"
         )
 
-    # ── 渲染上下文生成区：由 tools/scripts/factory_contract.py 生成，勿手改 ──
+    # ── 渲染上下文生成区：由 tools/scripts/sync_contracts.py 生成，勿手改 ──
 
     def _action_items_render_context(self, state: MeetingState) -> str:
         mode = self._mode_label(state)
@@ -447,17 +468,17 @@ class _Nodes:
         """图异常/校验失败时的确定性 Report（按线声明式拼装，零线级特判）。
 
         对每条选中线：用该线 FALLBACK_RULES 拼文本 → 写回抽屉 → 通用组装器
-        （_assemble_report 按 source 取 rendered/items/title）产出 Report。
+        （_assemble_report 按 source 取 rendered/structure/title）产出 Report。
         新增任务线自动覆盖（无需改此处）。
         """
         lines = state.setdefault("lines", {})
         for line_name in line_names:
             rules = self._fallback_rules[line_name]
-            text, items = _fallback_text(state, line_name, rules)
+            text, structure = _fallback_text(state, line_name, rules)
             line_dict = lines.setdefault(line_name, {})
             line_dict["rendered"] = text
-            if items is not None:
-                line_dict["items"] = items
+            if structure is not None:
+                line_dict["structure"] = structure
         return {
             line_name: _assemble_report(
                 state,
@@ -606,7 +627,7 @@ class _Nodes:
 
         return route
 
-    # ── 专属节点方法生成区：由 tools/scripts/factory_contract.py 生成骨架，函数体可改 ──
+    # ── 专属节点方法生成区：由 tools/scripts/sync_contracts.py 生成骨架，函数体可改 ──
 
 
     # ── 纪要线专属节点：降级 ──────────────────────────────────
@@ -614,19 +635,19 @@ class _Nodes:
     # ── 待办线专属节点：降级 ──────────────────────────────────
 
     async def _action_items_fallback_node(self, state: MeetingState) -> dict:
-        text, items = _fallback_text(
+        text, structure = _fallback_text(
             state, "action_items", ACTION_ITEMS_FALLBACK_RULES)
         line_dict = {"rendered": text, "degraded": True}
-        if items is not None:
-            line_dict["items"] = items
+        if structure is not None:
+            line_dict["structure"] = structure
         return {"lines": {"action_items": line_dict}, "quality_degraded": True}
 
     async def _minutes_generation_fallback_node(self, state: MeetingState) -> dict:
-        text, items = _fallback_text(
+        text, structure = _fallback_text(
             state, "minutes_generation", MINUTES_FALLBACK_RULES)
         line_dict = {"rendered": text, "degraded": True}
-        if items is not None:
-            line_dict["items"] = items
+        if structure is not None:
+            line_dict["structure"] = structure
         return {"lines": {"minutes_generation": line_dict}, "quality_degraded": True}
 
     # ── 专属节点方法生成区结束 ──
@@ -691,9 +712,9 @@ class _Nodes:
                 )
             # 流式结束后写回完整文本，供 done 事件的最终 Report 组装
             _line(state, line_name)["rendered"] = "".join(parts)
-            # 待办线额外写回结构化列表（渲染节点已移除，items 在此补充）
+            # 待办线额外写回结构化列表（渲染节点已移除，structure 在此补充）
             if line_name == "action_items":
-                _line(state, line_name)["items"] = (
+                _line(state, line_name)["structure"] = (
                     self.action_items_render.extract_actions(state)
                 )
         except Exception as exc:
@@ -719,7 +740,7 @@ class MeetingAgentSystem(_Nodes):
             "perspective_modeling_agent"
         ]
 
-        # ── Agent 挂载生成区：由 tools/scripts/factory_contract.py 生成，勿手改 ──
+        # ── Agent 挂载生成区：由 tools/scripts/sync_contracts.py 生成，勿手改 ──
 
         self.action_items_agent: ActionItemsAgent = agents["action_items_agent"]
         self.action_items_supervisor: ActionItemsSupervisor = agents["action_items_supervisor"]
@@ -731,7 +752,7 @@ class MeetingAgentSystem(_Nodes):
         # ── Agent 挂载生成区结束 ──
 
         # 各线专属的渲染 / 降级节点（同构节点由注册表在 _build_graph 中生成）
-        # ── 节点映射生成区：由 tools/scripts/factory_contract.py 生成，勿手改 ──
+        # ── 节点映射生成区：由 tools/scripts/sync_contracts.py 生成，勿手改 ──
 
         self._fallback_nodes: dict[str, object] = {}
         self._fallback_nodes["action_items"] = self._action_items_fallback_node
@@ -740,7 +761,7 @@ class MeetingAgentSystem(_Nodes):
         # ── 节点映射生成区结束 ──
 
         # 各线 Report 组装器：线名 → Report 类（脚本生成，键 = 线名与 chunk.line 一致）
-        # ── Report 组装器生成区：由 tools/scripts/factory_contract.py 生成，勿手改 ──
+        # ── Report 组装器生成区：由 tools/scripts/sync_contracts.py 生成，勿手改 ──
 
         self._report_assemblers = {
             "action_items": ActionItemsReport,
@@ -750,7 +771,7 @@ class MeetingAgentSystem(_Nodes):
         # ── Report 组装器生成区结束 ──
 
         # 各线降级规则：线名 → FallbackRules 实例（脚本生成，图异常兜底用）
-        # ── FallbackRules 注册生成区：由 tools/scripts/factory_contract.py 生成，勿手改 ──
+        # ── FallbackRules 注册生成区：由 tools/scripts/sync_contracts.py 生成，勿手改 ──
 
         self._fallback_rules = {
             "action_items": ACTION_ITEMS_FALLBACK_RULES,
@@ -868,8 +889,16 @@ class MeetingAgentSystem(_Nodes):
         user_data = user.model_dump()
         if objective_mode and not user_data.get("perspective"):
             user_data["perspective"] = "objective"
+        # lines 校验（提前到模板分发前，供按线分派使用；非法线名直接抛给调用方）
+        line_names = self._normalize_lines(lines)
         # 模板按线统一收纳（须在 initial_state 前）：templates 优先，便捷参数兜底
-        templates = _normalize_templates(template, item_template, templates)
+        templates = _normalize_templates(
+            template,
+            item_template,
+            templates,
+            line_names,
+            self._report_assemblers,
+        )
 
         initial_state: MeetingState = {
             "transcript": transcript,
@@ -878,8 +907,6 @@ class MeetingAgentSystem(_Nodes):
             "templates": templates,
             "streaming": True,  # 图内渲染节点跳过 LLM，由本方法接管流式输出
         }
-        # lines 校验放在 try 外：非法线名/空列表直接抛给调用方，不走兜底
-        line_names = self._normalize_lines(lines)
         try:
             graph = self._build_graph(line_names)
             state = await graph.ainvoke(initial_state)
