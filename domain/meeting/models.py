@@ -40,7 +40,7 @@ def is_objective_perspective(user: UserIdentity | dict | None) -> bool:
     return str(data.get("perspective") or "").strip().lower() == "objective"
 
 
-# ── 生成模型生成区：由 tools/scripts/sync_contracts.py 生成，勿手改 ──
+# ── 生成模型生成区：由 tools/scripts/codegen.py 生成，勿手改 ──
 
 @dataclass
 class ActionItems(ModelMixin):
@@ -136,7 +136,7 @@ class PerspectiveModeling(ModelMixin):
 
 # ── 生成模型生成区结束 ──
 
-# ── 审核模型生成区：由 tools/scripts/sync_contracts.py 生成，勿手改 ──
+# ── 审核模型生成区：由 tools/scripts/codegen.py 生成，勿手改 ──
 
 @dataclass
 class MinutesSupervisorReview(ModelMixin):
@@ -194,7 +194,7 @@ class ActionItemsSupervisorReview(ModelMixin):
 
 # ── 审核模型生成区结束 ──
 
-# ── Report 校验生成区：由 tools/scripts/sync_contracts.py 生成，勿手改 ──
+# ── Report 校验生成区：由 tools/scripts/codegen.py 生成，勿手改 ──
 
 class ActionItemsReportValidation:
     """ActionItemsReport 的校验逻辑（由脚本按手写字段自动生成）。"""
@@ -256,45 +256,6 @@ class MinutesReportValidation:
         )
 
 # ── Report 校验生成区结束 ──
-
-
-@dataclass
-class MinutesReport(ModelMixin, MinutesReportValidation):
-    """纪要输出（与待办输出分离，各自独立）。
-
-    字段的 ``metadata["source"]`` 供通用组装器从 state 抽屉取值：
-    ``title`` → 视角标题（通用计算）；``rendered`` → 渲染正文。
-    """
-
-    title: str = field(metadata={"source": "title"})
-    personalized_minutes: str = field(metadata={"source": "rendered"})
-    # 仅由系统在兜底路径写入；LLM 输出不需要也不应包含该字段
-    quality_warning: str | None = None
-
-
-@dataclass
-class ActionItemsReport(ModelMixin, ActionItemsReportValidation):
-    """待办输出（与纪要输出分离，各自独立）。
-
-    字段的 ``metadata["source"]`` 供通用组装器从 state 抽屉取值：
-    ``structure`` → 结构化待办列表（extract_actions 合并结果）；
-    ``rendered`` → LLM 渲染文本（无模板普通渲染 / 有模板按模板）。
-    """
-
-    # 结构化待办列表（客观视角 = 全员已分配 + 未分配；个人视角 = 本人）
-    action_items: list[dict[str, Any]] = field(
-        default_factory=list,
-        metadata={
-            "source": "structure",
-            "item_validator": "action",  # 逐条待办结构校验器（生成 validate 用）
-        },
-    )
-    # 仅由系统在兜底路径写入；LLM 输出不需要也不应包含该字段
-    quality_warning: str | None = None
-    # 待办渲染文本（无模板 / 有模板均为 LLM 输出）
-    personalized_text: str | None = field(
-        default=None, metadata={"source": "rendered"}
-    )
 
 
 # ── LangGraph 共享状态 ────────────────────────────────────────

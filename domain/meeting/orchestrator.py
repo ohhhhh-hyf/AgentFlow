@@ -6,7 +6,7 @@ MeetingAgentSystem 负责：组装 Agent 依赖、构建双线并行 DAG、条�
 - meeting_core：会议理解 + 视角建模（公共事实底座，先行并行执行）
 - tasks/minutes_generation：纪要线（生成 → 监督 → 渲染/返工闭环）
 - tasks/action_items：待办线（提取 → 监督 → 格式化/返工闭环）
-- 两条任务线并行执行，互不阻塞；全局监督标准由 src/supervisor 注入各任务 supervisor。
+- 两条任务线并行执行，互不阻塞；全局监督标准由 supervisor 注入各任务 supervisor。
 - 每条任务线的同构节点（agent / supervisor / revision / route）由 ``TASK_LINES``
   注册表自动生成；render / fallback 为各线专属实现。
   新增任务线：写 agent/supervisor/render 三个类 + prompts，在 ``TASK_LINES``
@@ -28,11 +28,11 @@ from .meeting_core import (
     PerspectiveModelingAgent,
 )
 from .meeting_factory import MeetingAgentFactory
-from .line_registry import LINE_CN_NAMES
+from .domain_config import LINE_CN_NAMES
 
-# ── Report import 生成区：由 tools/scripts/sync_contracts.py 生成，勿手改 ──
+# ── Report import 生成区：由 tools/scripts/codegen.py 生成，勿手改 ──
 
-from .models import (
+from .reports import (
     ActionItemsReport,
     MinutesReport,
 )
@@ -43,7 +43,7 @@ from .models import (
     UserIdentity,
     is_objective_perspective,
 )
-# ── 任务线 import 生成区：由 tools/scripts/sync_contracts.py 生成，勿手改 ──
+# ── 任务线 import 生成区：由 tools/scripts/codegen.py 生成，勿手改 ──
 
 from .tasks.action_items import (
     ActionItemsAgent,
@@ -59,7 +59,7 @@ from .tasks.minutes_generation import (
 
 # ── 任务线 import 生成区结束 ──
 
-# ── FallbackRules import 生成区：由 tools/scripts/sync_contracts.py 生成，勿手改 ──
+# ── FallbackRules import 生成区：由 tools/scripts/codegen.py 生成，勿手改 ──
 
 from .tasks.action_items.contracts import ACTION_ITEMS_FALLBACK_RULES
 from .tasks.minutes_generation.contracts import MINUTES_FALLBACK_RULES
@@ -73,7 +73,7 @@ logger = logging.getLogger(__name__)
 QUALITY_WARNING = "生成可能有误，请结合会议原文核对。"
 QUALITY_DISCLAIMER = "（生成可能有误）"
 
-# ── 空结构常量生成区：由 tools/scripts/sync_contracts.py 生成，勿手改 ──
+# ── 空结构常量生成区：由 tools/scripts/codegen.py 生成，勿手改 ──
 
 _EMPTY_ACTION_ITEMS = {
     "my_actions": [],
@@ -112,7 +112,7 @@ _EMPTY_PERSPECTIVE_MODELING = {
 
 # ── 空结构常量生成区结束 ──
 
-# ── 拒绝审核常量生成区：由 tools/scripts/sync_contracts.py 生成，勿手改 ──
+# ── 拒绝审核常量生成区：由 tools/scripts/codegen.py 生成，勿手改 ──
 
 _REJECT_MINUTES_REVIEW = {
     "decision": "reject",
@@ -131,7 +131,7 @@ _REJECT_ACTION_ITEMS_REVIEW = {
 
 # ── 拒绝审核常量生成区结束 ──
 
-# ── 任务线注册生成区：由 tools/scripts/sync_contracts.py 生成，勿手改 ──
+# ── 任务线注册生成区：由 tools/scripts/codegen.py 生成，勿手改 ──
 
 TASK_LINES: dict[str, dict] = {
     "action_items": {
@@ -427,7 +427,7 @@ class _Nodes:
             f"{_line_draft_title(line_name)}：\n{_json(sub['draft'])}"
         )
 
-    # ── 渲染上下文生成区：由 tools/scripts/sync_contracts.py 生成，勿手改 ──
+    # ── 渲染上下文生成区：由 tools/scripts/codegen.py 生成，勿手改 ──
 
     def _action_items_render_context(self, state: MeetingState) -> str:
         mode = self._mode_label(state)
@@ -627,7 +627,16 @@ class _Nodes:
 
         return route
 
-    # ── 专属节点方法生成区：由 tools/scripts/sync_contracts.py 生成骨架，函数体可改 ──
+    # ── 专属节点方法生成区：由 tools/scripts/codegen.py 生成骨架，函数体可改 ──
+
+
+
+
+
+
+
+
+
 
 
     # ── 纪要线专属节点：降级 ──────────────────────────────────
@@ -740,7 +749,7 @@ class MeetingAgentSystem(_Nodes):
             "perspective_modeling_agent"
         ]
 
-        # ── Agent 挂载生成区：由 tools/scripts/sync_contracts.py 生成，勿手改 ──
+        # ── Agent 挂载生成区：由 tools/scripts/codegen.py 生成，勿手改 ──
 
         self.action_items_agent: ActionItemsAgent = agents["action_items_agent"]
         self.action_items_supervisor: ActionItemsSupervisor = agents["action_items_supervisor"]
@@ -752,7 +761,7 @@ class MeetingAgentSystem(_Nodes):
         # ── Agent 挂载生成区结束 ──
 
         # 各线专属的渲染 / 降级节点（同构节点由注册表在 _build_graph 中生成）
-        # ── 节点映射生成区：由 tools/scripts/sync_contracts.py 生成，勿手改 ──
+        # ── 节点映射生成区：由 tools/scripts/codegen.py 生成，勿手改 ──
 
         self._fallback_nodes: dict[str, object] = {}
         self._fallback_nodes["action_items"] = self._action_items_fallback_node
@@ -761,7 +770,7 @@ class MeetingAgentSystem(_Nodes):
         # ── 节点映射生成区结束 ──
 
         # 各线 Report 组装器：线名 → Report 类（脚本生成，键 = 线名与 chunk.line 一致）
-        # ── Report 组装器生成区：由 tools/scripts/sync_contracts.py 生成，勿手改 ──
+        # ── Report 组装器生成区：由 tools/scripts/codegen.py 生成，勿手改 ──
 
         self._report_assemblers = {
             "action_items": ActionItemsReport,
@@ -771,7 +780,7 @@ class MeetingAgentSystem(_Nodes):
         # ── Report 组装器生成区结束 ──
 
         # 各线降级规则：线名 → FallbackRules 实例（脚本生成，图异常兜底用）
-        # ── FallbackRules 注册生成区：由 tools/scripts/sync_contracts.py 生成，勿手改 ──
+        # ── FallbackRules 注册生成区：由 tools/scripts/codegen.py 生成，勿手改 ──
 
         self._fallback_rules = {
             "action_items": ACTION_ITEMS_FALLBACK_RULES,

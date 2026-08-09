@@ -1,9 +1,9 @@
-"""sync_contracts.py —— 一次生成全部契约生成区的唯一脚本入口。
+"""codegen.py —— 一次生成全部契约生成区的唯一脚本入口。
 
 新增任务线只需：
 
-    python sync_contracts.py --write     # 一次生成全部生成区
-    python sync_contracts.py --check     # 一次校验全部生成区（CI 用）
+    python codegen.py --write     # 一次生成全部生成区
+    python codegen.py --check     # 一次校验全部生成区（CI 用）
 
 内部按三段执行（原三个独立脚本的合并体，职责分段清晰）：
 
@@ -24,10 +24,17 @@ import re
 import sys
 from pathlib import Path
 
-# 项目根（脚本位于 src/tools/scripts/sync_contracts.py）
-ROOT = Path(__file__).resolve().parents[3]
+# 项目根（脚本位于 tools/scripts/codegen.py）
+ROOT = Path(__file__).resolve().parents[2]
 
-sys.path.insert(0, str(ROOT / "src"))
+sys.path.insert(0, str(ROOT))
+
+
+def _log(*args, **kwargs) -> None:
+    """静默日志：成功/校验细节不输出；命令结尾统一输出 SUCCESS! / FAIL!!!。"""
+    return None
+
+
 from tools.contracts import (  # noqa: E402
     GenerationContract,
     SupervisorContract,
@@ -44,16 +51,17 @@ def _pascal_name(name: str) -> str:
 class _Domain:
     """当前目标领域：路径 + 配置全部由此推导/懒加载。
 
-    配置从 ``src/domain/<name>/domain_config.py`` 读取（STATE_CLASS /
+    配置从 ``domain/<name>/domain_config.py`` 读取（STATE_CLASS /
     RENDER_CONTEXT_STATE_LINES）；中文名注册表从
-    ``src/domain/<name>/line_registry.py`` 读取（LINE_CN_NAMES）。
+    ``domain/<name>/domain_config.py`` 读取（LINE_CN_NAMES）。
     """
 
     def __init__(self, name: str):
         self.name = name
-        self.dir = ROOT / "src" / "domain" / name
+        self.dir = ROOT / "domain" / name
         self.tasks_dir = self.dir / "tasks"
         self.factory_path = self.dir / f"{name}_factory.py"
+        self.reports_path = self.dir / "reports.py"
         self.models_path = self.dir / "models.py"
         self.orch_path = self.dir / "orchestrator.py"
         self._config: dict | None = None
@@ -96,9 +104,9 @@ class _Domain:
 
     def line_cn_names(self) -> dict:
         if self._cn_names is None:
-            path = self.dir / "line_registry.py"
+            path = self.dir / "domain_config.py"
             if not path.exists():
-                raise SystemExit(f"{path} 不存在——请先创建领域骨架（含 line_registry.py）")
+                raise SystemExit(f"{path} 不存在——请先创建领域骨架（含 domain_config.py）")
             tree = ast.parse(path.read_text(encoding="utf-8"))
             found = None
             for node in tree.body:
@@ -132,18 +140,18 @@ def set_domain(name: str) -> None:
     CURRENT = _Domain(name)
 
 
-GEN_ZONE_START = "# ── 生成模型生成区：由 tools/scripts/sync_contracts.py 生成，勿手改 ──"
+GEN_ZONE_START = "# ── 生成模型生成区：由 tools/scripts/codegen.py 生成，勿手改 ──"
 GEN_ZONE_END = "# ── 生成模型生成区结束 ──"
 
 # 空结构常量生成区标记（orchestrator.py）
-GEN_ZONE_EMPTY_START = "# ── 空结构常量生成区：由 tools/scripts/sync_contracts.py 生成，勿手改 ──"
+GEN_ZONE_EMPTY_START = "# ── 空结构常量生成区：由 tools/scripts/codegen.py 生成，勿手改 ──"
 GEN_ZONE_EMPTY_END = "# ── 空结构常量生成区结束 ──"
 
 # 生成契约的强制命名后缀（类名约定）
 GENERATION_CONTRACT_SUFFIX = "_GENERATION_OUTPUT_CONTRACT"
 GENERATION_CLASS_SUFFIX = "GenerationContract"
 
-sys.path.insert(0, str(ROOT / "src"))
+sys.path.insert(0, str(ROOT))
 from tools.contracts import GenerationContract  # noqa: E402
 
 
@@ -342,7 +350,7 @@ def gen_generate_all() -> tuple[str, str]:
         generated.append(generate_generation_model(model_cls, fields))
         empty_consts.append(generate_empty_constants(model_cls, fields))
     if not generated:
-        print("未发现生成契约", file=sys.stderr)
+        _log("未发现生成契约", file=sys.stderr)
         return "", ""
     return "\n\n\n".join(generated), "\n\n".join(empty_consts)
 
@@ -383,7 +391,7 @@ def _gen_write_target(path: Path, start: str, end: str, code: str, label: str) -
     )
     with open(path, "w", encoding="utf-8", newline="") as fh:
         fh.write(new_raw)
-    print(f"已写入 {path}")
+    _log(f"已写入 {path}")
 
 
 def _gen_normalize_newlines(text: str) -> str:
@@ -395,12 +403,12 @@ def _gen_check_target(path: Path, start: str, end: str, code: str, label: str) -
     """校验生成区与契约一致；一致返回 0，否则返回 1。"""
     zone = _gen_zone_content(_gen_read_raw(path), start, end)
     if zone is None:
-        print(f"{path.name} 中未找到 {label} 生成区标记", file=sys.stderr)
+        _log(f"{path.name} 中未找到 {label} 生成区标记", file=sys.stderr)
         return 1
     if _gen_normalize_newlines(zone) == _gen_normalize_newlines(code.strip()):
-        print(f"OK：{label}生成区与契约一致")
+        _log(f"OK：{label}生成区与契约一致")
         return 0
-    print(f"不一致：{label}生成区与当前契约生成的代码有差异（请运行 --write 更新）", file=sys.stderr)
+    _log(f"不一致：{label}生成区与当前契约生成的代码有差异（请运行 --write 更新）", file=sys.stderr)
     return 1
 
 
@@ -412,14 +420,14 @@ def _gen_targets() -> list[tuple]:
     ]
 
 
-SUP_ZONE_START = "# ── 审核模型生成区：由 tools/scripts/sync_contracts.py 生成，勿手改 ──"
+SUP_ZONE_START = "# ── 审核模型生成区：由 tools/scripts/codegen.py 生成，勿手改 ──"
 SUP_ZONE_END = "# ── 审核模型生成区结束 ──"
 
 # 拒绝审核常量生成区标记（orchestrator.py）
-SUP_ZONE_REJECT_START = "# ── 拒绝审核常量生成区：由 tools/scripts/sync_contracts.py 生成，勿手改 ──"
+SUP_ZONE_REJECT_START = "# ── 拒绝审核常量生成区：由 tools/scripts/codegen.py 生成，勿手改 ──"
 SUP_ZONE_REJECT_END = "# ── 拒绝审核常量生成区结束 ──"
 
-# 任务线目录名 → 中文名（共享注册表 src/domain/<name>/line_registry.py；
+# 任务线目录名 → 中文名（共享注册表 domain/<name>/domain_config.py；
 # 新增任务线时在注册表补充，脚本与运行时共用同一份；由 _Domain.line_cn_names() 动态加载）
 from tools.contracts import Check, SupervisorContract  # noqa: E402
 
@@ -588,7 +596,7 @@ def sup_generate_all() -> tuple[str, str]:
         )
         reject_consts.append(generate_reject_constants(review_cls, fields))
     if not generated:
-        print("未发现审核模型契约", file=sys.stderr)
+        _log("未发现审核模型契约", file=sys.stderr)
         return "", ""
     # 类之间空两行（PEP8 模块级类间距，与 models.py 现有格式一致）
     return "\n\n\n".join(generated), "\n\n".join(reject_consts)
@@ -632,7 +640,7 @@ def _sup_write_target(path, start: str, end: str, code: str, label: str) -> None
     )
     with open(path, "w", encoding="utf-8", newline="") as fh:
         fh.write(new_raw)
-    print(f"已写入 {path}")
+    _log(f"已写入 {path}")
 
 
 def _sup_normalize_newlines(text: str) -> str:
@@ -644,12 +652,12 @@ def _sup_check_target(path, start: str, end: str, code: str, label: str) -> int:
     """校验生成区与当前契约生成的代码一致；一致返回 0，否则返回 1。"""
     zone = _sup_zone_content(_sup_read_raw(path), start, end)
     if zone is None:
-        print(f"{path.name} 中未找到 {label} 生成区标记", file=sys.stderr)
+        _log(f"{path.name} 中未找到 {label} 生成区标记", file=sys.stderr)
         return 1
     if _sup_normalize_newlines(zone) == _sup_normalize_newlines(code.strip()):
-        print(f"OK：{label}生成区与契约一致")
+        _log(f"OK：{label}生成区与契约一致")
         return 0
-    print(f"不一致：{label}生成区与当前契约生成的代码有差异（请运行 --write 更新）", file=sys.stderr)
+    _log(f"不一致：{label}生成区与当前契约生成的代码有差异（请运行 --write 更新）", file=sys.stderr)
     return 1
 
 
@@ -661,53 +669,57 @@ def _sup_targets() -> list[tuple]:
     ]
 
 
-FAC_ZONE_START = "# ── 任务线装配生成区：由 tools/scripts/sync_contracts.py 生成，勿手改 ──"
+FAC_ZONE_START = "# ── 任务线装配生成区：由 tools/scripts/codegen.py 生成，勿手改 ──"
 FAC_ZONE_END = "# ── 任务线装配生成区结束 ──"
 
 # 专属节点方法生成区标记（orchestrator.py 的 _Nodes 类内）
 # 语义与纯生成区不同：脚本只生成骨架（签名 + 占位注释），函数体由开发者填写；
 # --write 遇已有实现跳过，--check 只验证签名存在，不比较函数体。
-NODE_ZONE_START = "# ── 专属节点方法生成区：由 tools/scripts/sync_contracts.py 生成骨架，函数体可改 ──"
+NODE_ZONE_START = "# ── 专属节点方法生成区：由 tools/scripts/codegen.py 生成骨架，函数体可改 ──"
 NODE_ZONE_END = "# ── 专属节点方法生成区结束 ──"
 
 # 任务线注册生成区标记（orchestrator.py 模块级 TASK_LINES 定义）
-TL_ZONE_START = "# ── 任务线注册生成区：由 tools/scripts/sync_contracts.py 生成，勿手改 ──"
+TL_ZONE_START = "# ── 任务线注册生成区：由 tools/scripts/codegen.py 生成，勿手改 ──"
 TL_ZONE_END = "# ── 任务线注册生成区结束 ──"
 
 # Agent 挂载生成区标记（orchestrator.py 的 __init__ 内，任务线挂载）
-MOUNT_ZONE_START = "# ── Agent 挂载生成区：由 tools/scripts/sync_contracts.py 生成，勿手改 ──"
+MOUNT_ZONE_START = "# ── Agent 挂载生成区：由 tools/scripts/codegen.py 生成，勿手改 ──"
 MOUNT_ZONE_END = "# ── Agent 挂载生成区结束 ──"
 
 # 节点映射生成区标记（orchestrator.py 的 __init__ 内，_fallback_nodes）
-NODEMAP_ZONE_START = "# ── 节点映射生成区：由 tools/scripts/sync_contracts.py 生成，勿手改 ──"
+NODEMAP_ZONE_START = "# ── 节点映射生成区：由 tools/scripts/codegen.py 生成，勿手改 ──"
 NODEMAP_ZONE_END = "# ── 节点映射生成区结束 ──"
 
 # 渲染上下文生成区标记（orchestrator.py 的 _Nodes 类内，完整生成勿手改）
-CTX_ZONE_START = "# ── 渲染上下文生成区：由 tools/scripts/sync_contracts.py 生成，勿手改 ──"
+CTX_ZONE_START = "# ── 渲染上下文生成区：由 tools/scripts/codegen.py 生成，勿手改 ──"
 CTX_ZONE_END = "# ── 渲染上下文生成区结束 ──"
 
 # FallbackRules import 生成区标记（orchestrator.py 顶部 import 区，整体生成勿手改）
-IMPORT_ZONE_START = "# ── FallbackRules import 生成区：由 tools/scripts/sync_contracts.py 生成，勿手改 ──"
+IMPORT_ZONE_START = "# ── FallbackRules import 生成区：由 tools/scripts/codegen.py 生成，勿手改 ──"
 IMPORT_ZONE_END = "# ── FallbackRules import 生成区结束 ──"
 
 # Report import 生成区标记（orchestrator.py 顶部 import 区，整体生成勿手改）
-REPORT_IMPORT_ZONE_START = "# ── Report import 生成区：由 tools/scripts/sync_contracts.py 生成，勿手改 ──"
+REPORT_IMPORT_ZONE_START = "# ── Report import 生成区：由 tools/scripts/codegen.py 生成，勿手改 ──"
 REPORT_IMPORT_ZONE_END = "# ── Report import 生成区结束 ──"
 
 # 任务线 import 生成区标记（orchestrator.py 顶部，from .tasks.{线} import 三件套）
-LINE_IMPORT_ZONE_START = "# ── 任务线 import 生成区：由 tools/scripts/sync_contracts.py 生成，勿手改 ──"
+LINE_IMPORT_ZONE_START = "# ── 任务线 import 生成区：由 tools/scripts/codegen.py 生成，勿手改 ──"
 LINE_IMPORT_ZONE_END = "# ── 任务线 import 生成区结束 ──"
 
 # Report 校验生成区标记（models.py，手写 Report 区之前；validate 由脚本按手写字段生成）
-REPORT_VALIDATION_ZONE_START = "# ── Report 校验生成区：由 tools/scripts/sync_contracts.py 生成，勿手改 ──"
+REPORT_VALIDATION_ZONE_START = "# ── Report 校验生成区：由 tools/scripts/codegen.py 生成，勿手改 ──"
 REPORT_VALIDATION_ZONE_END = "# ── Report 校验生成区结束 ──"
 
+# Report 基类 import 生成区标记（reports.py 顶部：ModelMixin + 各线 Validation）
+REPORT_BASE_IMPORT_ZONE_START = "# ── Report 基类 import 生成区：由 tools/scripts/codegen.py 生成，勿手改 ──"
+REPORT_BASE_IMPORT_ZONE_END = "# ── Report 基类 import 生成区结束 ──"
+
 # Report 组装器生成区标记（orchestrator.py 的 __init__ 内，整体生成勿手改）
-REPORT_ZONE_START = "# ── Report 组装器生成区：由 tools/scripts/sync_contracts.py 生成，勿手改 ──"
+REPORT_ZONE_START = "# ── Report 组装器生成区：由 tools/scripts/codegen.py 生成，勿手改 ──"
 REPORT_ZONE_END = "# ── Report 组装器生成区结束 ──"
 
 # FallbackRules 注册生成区标记（orchestrator.py 的 __init__ 内，整体生成勿手改）
-FALLBACK_RULES_ZONE_START = "# ── FallbackRules 注册生成区：由 tools/scripts/sync_contracts.py 生成，勿手改 ──"
+FALLBACK_RULES_ZONE_START = "# ── FallbackRules 注册生成区：由 tools/scripts/codegen.py 生成，勿手改 ──"
 FALLBACK_RULES_ZONE_END = "# ── FallbackRules 注册生成区结束 ──"
 
 # 生成区正则：允许标记前有缩进（生成区嵌在 create() 函数体内，行首带空格）
@@ -831,6 +843,94 @@ def _field_metadata(call_node: ast.Call) -> dict:
     return md
 
 
+# Report 基类 import 生成区正则（reports.py 顶部）
+_REPORT_BASE_IMPORT_ZONE_PATTERN = (
+    r"[ \t]*"
+    + re.escape(REPORT_BASE_IMPORT_ZONE_START)
+    + r"\r*\n(.*?)\r*\n[ \t]*"
+    + re.escape(REPORT_BASE_IMPORT_ZONE_END)
+)
+
+
+def generate_report_base_imports_code(lines: list[str]) -> str:
+    """生成 reports.py 顶部的 Report 基类 import（ModelMixin + 各线 Validation）。
+
+    只包含 reports.py 里**已定义** Report 类的线（未定义则跳过，避免 NameError）。
+    """
+    names = ["ModelMixin"]
+    for line in lines:
+        # 所有已注册线都引入 Validation（register 阶段生成占位，类写后重写为真实）
+        names.append(f"{_report_class(line)}Validation")
+    return (
+        "from .models import (\n"
+        + "".join(f"    {n},\n" for n in names)
+        + ")\n"
+    )
+
+
+def write_report_base_imports(path: Path, lines: list[str]) -> None:
+    """整体重写 reports.py 的 Report 基类 import 生成区（缺失时先创建骨架）。"""
+    if not path.exists():
+        path.write_text(
+            '"""会议域全部任务线的最终输出 Report 类 —— 手写区。"""\n'
+            "from __future__ import annotations\n"
+            "\n"
+            "from dataclasses import dataclass, field\n"
+            "\n"
+            f"{REPORT_BASE_IMPORT_ZONE_START}\n"
+            f"{REPORT_BASE_IMPORT_ZONE_END}\n"
+            "\n"
+        )
+        _log(f"已创建 {path.name}（骨架，请追加 Report 类）")
+        return
+    raw = _fac_read_raw(path)
+    if (
+        REPORT_BASE_IMPORT_ZONE_START not in raw
+        or REPORT_BASE_IMPORT_ZONE_END not in raw
+    ):
+        sys.exit(
+            f"{path.name} 中未找到 Report 基类 import 生成区标记。请先手动添加：\n"
+            f"{REPORT_BASE_IMPORT_ZONE_START}\n"
+            f"from .models import (ModelMixin, 各线 Validation)\n"
+            f"{REPORT_BASE_IMPORT_ZONE_END}"
+        )
+    m = re.search(_REPORT_BASE_IMPORT_ZONE_PATTERN, raw, re.S)
+    if m is None:
+        sys.exit(f"{path.name} 中 Report 基类 import 生成区标记不完整")
+    nl = "\r\n" if "\r\n" in raw else "\n"
+    code = generate_report_base_imports_code(lines)
+    block = (
+        f"{REPORT_BASE_IMPORT_ZONE_START}"
+        + nl
+        + (nl + code + nl if code else nl)
+        + f"{REPORT_BASE_IMPORT_ZONE_END}"
+    )
+    new_raw = re.sub(
+        _REPORT_BASE_IMPORT_ZONE_PATTERN,
+        lambda _m: block,
+        raw,
+        flags=re.S,
+    )
+    with open(path, "w", encoding="utf-8", newline="") as fh:
+        fh.write(new_raw)
+    _log(f"已写入 {path.name} Report 基类 import 生成区")
+
+
+def check_report_base_imports(path: Path, lines: list[str]) -> int:
+    """校验 reports.py 的 Report 基类 import 生成区与已定义 Report 一致。"""
+    raw = _fac_read_raw(path)
+    m = re.search(_REPORT_BASE_IMPORT_ZONE_PATTERN, raw, re.S)
+    if m is None:
+        _log(f"{path.name} 中未找到 Report 基类 import 生成区标记", file=sys.stderr)
+        return 1
+    expected = generate_report_base_imports_code(lines)
+    if m.group(1).strip() != expected.strip():
+        _log(f"不一致：{path.name} Report 基类 import 生成区与已定义 Report 类有差异（请运行 --write 更新）", file=sys.stderr)
+        return 1
+    _log(f"OK：Report 基类 import 生成区一致（{len(lines)} 条线）")
+    return 0
+
+
 def _parse_report_fields(report_cls: str) -> list[dict]:
     """ast 解析手写 Report 类的字段声明。
 
@@ -838,7 +938,7 @@ def _parse_report_fields(report_cls: str) -> list[dict]:
     - kind：由类型注解推导（str/str_null/str_list/obj_list/dict）
     - item_validator：``field(metadata={"item_validator": "action"})``（obj_list 逐条校验器名）
     """
-    tree = ast.parse(CURRENT.models_path.read_text(encoding="utf-8"))
+    tree = ast.parse(CURRENT.reports_path.read_text(encoding="utf-8"))
     for node in tree.body:
         if isinstance(node, ast.ClassDef) and node.name == report_cls:
             out = []
@@ -925,6 +1025,12 @@ def generate_report_validation_code(lines: list[str]) -> str:
         report_cls = _report_class(line)
         fields_info = _parse_report_fields(report_cls)
         if not fields_info:
+            # 占位：Report 类尚未手写（register 阶段）——先放空类，
+            # 类一旦定义（写字段）后 codegen 全量会按字段重写为真实校验。
+            blocks.append(
+                f"class {report_cls}Validation:\n"
+                f"    pass\n"
+            )
             continue
         allowed = ", ".join(f'"{f["name"]}"' for f in fields_info)
         assign_lines = [
@@ -990,7 +1096,7 @@ def write_report_validation(path: Path, lines: list[str]) -> None:
     )
     with open(path, "w", encoding="utf-8", newline="") as fh:
         fh.write(new_raw)
-    print(f"已写入 {path.name} Report 校验生成区")
+    _log(f"已写入 {path.name} Report 校验生成区")
 
 
 def check_report_validation(path: Path, lines: list[str]) -> int:
@@ -998,18 +1104,18 @@ def check_report_validation(path: Path, lines: list[str]) -> int:
     raw = _fac_read_raw(path)
     m = re.search(_REPORT_VALIDATION_ZONE_PATTERN, raw, re.S)
     if m is None:
-        print(f"{path.name} 中未找到 Report 校验生成区标记", file=sys.stderr)
+        _log(f"{path.name} 中未找到 Report 校验生成区标记", file=sys.stderr)
         return 1
     zone = m.group(1)
     expected = generate_report_validation_code(lines)
     if zone.strip() != expected.strip():
-        print(
+        _log(
             f"不一致：Report 校验生成区与手写 Report 字段有差异"
             f"（请运行 --write 更新）",
             file=sys.stderr,
         )
         return 1
-    print(f"OK：Report 校验生成区一致（{len(lines)} 条线）")
+    _log(f"OK：Report 校验生成区一致（{len(lines)} 条线）")
     return 0
 
 
@@ -1143,6 +1249,242 @@ def _contract_base(line: str, tasks_dir: Path | None = None) -> str:
     )
 
 
+def _task_model_class(line: str) -> str:
+    """线名 → 生成模型类名（MinutesGenerationContract → Minutes；Risk → Risk）。"""
+    contracts_path = CURRENT.tasks_dir / line / "contracts.py"
+    if contracts_path.exists():
+        text = contracts_path.read_text(encoding="utf-8")
+        for cls_name in re.findall(r"class\s+(\w+GenerationContract)\b", text):
+            return cls_name.removesuffix("GenerationContract")
+    return _pascal(_contract_base(line))
+
+
+def generate_task_agent_code(line: str) -> str:
+    """生成 {line}_agent.py（骨架；文件已存在则保留用户实现，不覆盖）。"""
+    upper, cls, model, cn = (
+        line.upper(),
+        line_class_name(line, "Agent"),
+        _task_model_class(line),
+        CURRENT.line_cn_names().get(line, line),
+    )
+    return (
+        "from __future__ import annotations\n"
+        "\n"
+        "from llm_client import LLMClient\n"
+        f"from ....models import {model}\n"
+        f"from ..prompts import (\n"
+        f"    {upper}_GENERATION_SYSTEM_PROMPT,\n"
+        ")\n"
+        f"from ..contracts import {upper}_GENERATION_OUTPUT_CONTRACT\n"
+        "\n"
+        "\n"
+        f"class {cls}:\n"
+        f'    """基于会议理解和视角模型生成{cn}草稿（个人视角或客观全员视角）。"""\n'
+        "\n"
+        "    def __init__(self, client: LLMClient) -> None:\n"
+        "        self.client = client\n"
+        "\n"
+        f"    async def run(self, shared_context: str) -> {model}:\n"
+        "        return await self.client.structured(\n"
+        f"            {upper}_GENERATION_SYSTEM_PROMPT,\n"
+        "            shared_context,\n"
+        f"            {model},\n"
+        f"            {upper}_GENERATION_OUTPUT_CONTRACT,\n"
+        "        )\n"
+    )
+
+
+def generate_task_supervisor_code(line: str) -> str:
+    """生成 {line}_supervisor.py（骨架；文件已存在则保留用户实现，不覆盖）。"""
+    upper, cls, model, cn = (
+        line.upper(),
+        line_class_name(line, "Supervisor"),
+        _task_model_class(line),
+        CURRENT.line_cn_names().get(line, line),
+    )
+    return (
+        "from __future__ import annotations\n"
+        "\n"
+        "from supervisor import GlobalSupervisor\n"
+        "\n"
+        "from llm_client import LLMClient\n"
+        f"from ....models import {model}SupervisorReview\n"
+        f"from ..prompts import (\n"
+        f"    {upper}_SUPERVISOR_DOMAIN_PROMPT,\n"
+        ")\n"
+        f"from ..contracts import {upper}_SUPERVISOR_OUTPUT_CONTRACT\n"
+        "\n"
+        "\n"
+        f"class {cls}:\n"
+        f'    """{cn}任务的领域监督者。\n'
+        "\n"
+        f"    prompt = 全局整体标准（注入） + {cn}领域审核规则，\n"
+        "    一次 LLM 调用完成双重评判，决定 approve / revise / reject。\n"
+        '    """\n'
+        "\n"
+        "    def __init__(self, client: LLMClient) -> None:\n"
+        "        self.client = client\n"
+        "        self._system_prompt = GlobalSupervisor.build_prompt(\n"
+        f"            {upper}_SUPERVISOR_DOMAIN_PROMPT\n"
+        "        )\n"
+        "\n"
+        f"    async def review(self, context: str) -> {model}SupervisorReview:\n"
+        "        return await self.client.structured(\n"
+        "            self._system_prompt,\n"
+        "            context,\n"
+        f"            {model}SupervisorReview,\n"
+        f"            {upper}_SUPERVISOR_OUTPUT_CONTRACT,\n"
+        "        )\n"
+    )
+
+
+def generate_task_render_code(line: str) -> str:
+    """生成 {line}_render.py（基础骨架；需要额外方法（如 extract_actions）在生成后手加）。"""
+    upper, cls, cn = (
+        line.upper(),
+        line_class_name(line, "Render"),
+        CURRENT.line_cn_names().get(line, line),
+    )
+    return (
+        "from __future__ import annotations\n"
+        "\n"
+        "from collections.abc import AsyncIterator\n"
+        "\n"
+        "from tools.prompt_utils import build_render_prompt\n"
+        "\n"
+        "from llm_client import LLMClient\n"
+        f"from ..prompts import {upper}_RENDER_PROMPT, {upper}_RENDER_TEMPLATE_PROMPT\n"
+        "\n"
+        "\n"
+        f"class {cls}:\n"
+        f'    """把已批准的{cn}草稿渲染为最终输出（支持模板与流式）。"""\n'
+        "\n"
+        "    def __init__(self, client: LLMClient) -> None:\n"
+        "        self.client = client\n"
+        "\n"
+        "    @staticmethod\n"
+        "    def _prompt_and_user(context: str, template: str) -> tuple[str, str]:\n"
+        '        """组装渲染 prompt 与用户消息（普通与流式共用）。"""\n'
+        "        return build_render_prompt(\n"
+        "            context,\n"
+        "            template,\n"
+        f"            {upper}_RENDER_PROMPT,\n"
+        f"            {upper}_RENDER_TEMPLATE_PROMPT,\n"
+        "        )\n"
+        "\n"
+        '    async def run(self, approved_context: str, template: str = "") -> str:\n'
+        "        prompt, user = self._prompt_and_user(approved_context, template)\n"
+        "        return await self.client.text(prompt, user)\n"
+        "\n"
+        '    async def stream(self, approved_context: str, template: str = "") -> AsyncIterator[str]:\n'
+        "        prompt, user = self._prompt_and_user(approved_context, template)\n"
+        "        async for chunk in self.client.stream_text(prompt, user):\n"
+        "            yield chunk\n"
+    )
+
+
+def generate_task_init_code(line: str) -> str:
+    """生成 tasks/{line}/__init__.py（纯导出模板，整体重写）。"""
+    cls_agent, cls_render, cls_sup, cn = (
+        line_class_name(line, "Agent"),
+        line_class_name(line, "Render"),
+        line_class_name(line, "Supervisor"),
+        CURRENT.line_cn_names().get(line, line),
+    )
+    return (
+        f'"""{line} —— {cn}任务组。\n'
+        "\n"
+        f"流水线：agent（生成{cn}草稿）→ supervisor（领域审核 + 全局标准）→ render（渲染正文）。\n"
+        '"""\n'
+        "\n"
+        f"from .steps.{line}_agent import {cls_agent}\n"
+        f"from .steps.{line}_render import {cls_render}\n"
+        f"from .steps.{line}_supervisor import {cls_sup}\n"
+        "\n"
+        "__all__ = [\n"
+        f'    "{cls_agent}",\n'
+        f'    "{cls_render}",\n'
+        f'    "{cls_sup}",\n'
+        "]\n"
+    )
+
+
+def write_task_skels(lines: list[str]) -> None:
+    """为每条线创建缺失的任务线四件套（steps/ 三件 + 任务线 __init__.py）。
+
+    - ``steps/`` 下 agent/supervisor/render：文件已存在则保留（可能含用户手写的
+      额外方法），只创建缺失文件；``steps/__init__.py`` 缺失时创建包标记。
+    - 任务线 ``__init__.py``：纯导出模板，**始终整体重写**——PyCharm 新建包会
+      生成空 ``__init__.py``，必须填充导出，否则 ``from .tasks.xxx import`` 失败。
+    """
+    for line in lines:
+        d = CURRENT.tasks_dir / line
+        d.mkdir(parents=True, exist_ok=True)
+        steps = d / "steps"
+        steps.mkdir(parents=True, exist_ok=True)
+        steps_init = steps / "__init__.py"
+        if not steps_init.exists():
+            steps_init.write_text(
+                f'"""{line} 流水线步骤：agent（生成草稿）→ supervisor（审核）→ render（渲染）。"""\n',
+                encoding="utf-8",
+            )
+            _log(f"已创建 {steps_init.relative_to(CURRENT.dir)}")
+        for fname, gen in (
+            (f"{line}_agent.py", generate_task_agent_code),
+            (f"{line}_supervisor.py", generate_task_supervisor_code),
+            (f"{line}_render.py", generate_task_render_code),
+            ("__init__.py", generate_task_init_code),
+        ):
+            path = (steps if fname != "__init__.py" else d) / fname
+            if fname == "__init__.py":
+                path.write_text(gen(line), encoding="utf-8")
+                _log(f"已更新 {path.relative_to(CURRENT.dir)}")
+            elif path.exists():
+                continue
+            else:
+                path.write_text(gen(line), encoding="utf-8")
+                _log(f"已创建 {path.relative_to(CURRENT.dir)}")
+
+
+def check_task_skels(lines: list[str]) -> int:
+    """校验任务线四件套：文件存在 + 必要类/方法齐全（函数体可改，内容不校验）。"""
+    rc = 0
+    for line in lines:
+        d = CURRENT.tasks_dir / line
+        steps = d / "steps"
+        cls = line_class_name(line, "")
+        required = {
+            f"{line}_agent.py": (
+                f"class {cls}Agent",
+                "async def run",
+            ),
+            f"{line}_supervisor.py": (
+                f"class {cls}Supervisor",
+                "async def review",
+            ),
+            f"{line}_render.py": (
+                f"class {cls}Render",
+                "async def run",
+                "async def stream",
+            ),
+            "__init__.py": (f"{cls}Agent", f"{cls}Render", f"{cls}Supervisor"),
+        }
+        for fname, needles in required.items():
+            path = (steps if fname != "__init__.py" else d) / fname
+            if not path.exists():
+                _log(f"缺失：{path.relative_to(CURRENT.dir)}（请运行 --write 生成骨架）", file=sys.stderr)
+                rc = 1
+                continue
+            text = path.read_text(encoding="utf-8")
+            missing = [n for n in needles if n not in text]
+            if missing:
+                _log(f"{path.relative_to(CURRENT.dir)} 缺少必要结构：{missing}", file=sys.stderr)
+                rc = 1
+    if not rc:
+        _log(f"OK：任务线骨架齐全（{len(lines)} 条线 × 四件套）")
+    return rc
+
+
 def generate_task_lines_code(
     lines: list[str], tasks_dir: Path | None = None
 ) -> str:
@@ -1201,7 +1543,7 @@ def generate_render_context_code(lines: list[str]) -> str:
 
     所有线的 render_context 完全同构：视角模式 / objective_perspective /
     state 上下文行（领域配置 RENDER_CONTEXT_STATE_LINES）/
-    已批准{中文名}草稿 / {中文名}审核结论。中文名查领域 line_registry。
+    已批准{中文名}草稿 / {中文名}审核结论。中文名查领域 domain_config。
     """
     blocks = []
     for line in lines:
@@ -1256,7 +1598,7 @@ def write_render_context(path: Path, lines: list[str]) -> None:
     )
     with open(path, "w", encoding="utf-8", newline="") as fh:
         fh.write(new_raw)
-    print(f"已写入 {path.name} 渲染上下文生成区")
+    _log(f"已写入 {path.name} 渲染上下文生成区")
 
 
 def check_render_context(path: Path, lines: list[str]) -> int:
@@ -1264,18 +1606,18 @@ def check_render_context(path: Path, lines: list[str]) -> int:
     raw = _fac_read_raw(path)
     m = re.search(_CTX_ZONE_PATTERN, raw, re.S)
     if m is None:
-        print(f"{path.name} 中未找到渲染上下文生成区标记", file=sys.stderr)
+        _log(f"{path.name} 中未找到渲染上下文生成区标记", file=sys.stderr)
         return 1
     zone = m.group(1)
     expected = generate_render_context_code(lines)
     if zone.strip() != expected.strip():
-        print(
+        _log(
             f"不一致：渲染上下文生成区与当前目录生成的代码有差异"
             f"（请运行 --write 更新）",
             file=sys.stderr,
         )
         return 1
-    print(f"OK：渲染上下文生成区一致（{len(lines)} 条线）")
+    _log(f"OK：渲染上下文生成区一致（{len(lines)} 条线）")
     return 0
 
 
@@ -1323,7 +1665,7 @@ def write_fallback_imports(path: Path, lines: list[str]) -> None:
     )
     with open(path, "w", encoding="utf-8", newline="") as fh:
         fh.write(new_raw)
-    print(f"已写入 {path.name} FallbackRules import 生成区")
+    _log(f"已写入 {path.name} FallbackRules import 生成区")
 
 
 def check_fallback_imports(path: Path, lines: list[str]) -> int:
@@ -1331,18 +1673,18 @@ def check_fallback_imports(path: Path, lines: list[str]) -> int:
     raw = _fac_read_raw(path)
     m = re.search(_IMPORT_ZONE_PATTERN, raw, re.S)
     if m is None:
-        print(f"{path.name} 中未找到 FallbackRules import 生成区标记", file=sys.stderr)
+        _log(f"{path.name} 中未找到 FallbackRules import 生成区标记", file=sys.stderr)
         return 1
     zone = m.group(1)
     expected = generate_fallback_import_code(lines)
     if zone.strip() != expected.strip():
-        print(
+        _log(
             f"不一致：FallbackRules import 生成区与当前目录生成的代码有差异"
             f"（请运行 --write 更新）",
             file=sys.stderr,
         )
         return 1
-    print(f"OK：FallbackRules import 生成区一致（{len(lines)} 条线）")
+    _log(f"OK：FallbackRules import 生成区一致（{len(lines)} 条线）")
     return 0
 
 
@@ -1361,11 +1703,11 @@ def _report_class(line: str) -> str:
 
 
 def _has_report_class(line: str) -> bool:
-    """models.py 是否已定义该线的 Report 类（未定义则不生成引用，避免 NameError）。"""
+    """reports.py 是否已定义该线的 Report 类（未定义则不生成引用，避免 NameError）。"""
     return bool(
         re.search(
             rf"class\s+{re.escape(_report_class(line))}\b",
-            CURRENT.models_path.read_text(encoding="utf-8"),
+            CURRENT.reports_path.read_text(encoding="utf-8"),
         )
     )
 
@@ -1379,7 +1721,7 @@ def generate_report_import_code(lines: list[str]) -> str:
              if _has_report_class(line) for cls in [_report_class(line)]]
     if not names:
         return ""
-    return f"from .models import (\n    " + ",\n    ".join(names) + ",\n)"
+    return f"from .reports import (\n    " + ",\n    ".join(names) + ",\n)"
 
 
 def generate_report_assembler_code(lines: list[str]) -> str:
@@ -1439,7 +1781,15 @@ def write_line_imports(path: Path, lines: list[str]) -> None:
     )
     with open(path, "w", encoding="utf-8", newline="") as fh:
         fh.write(new_raw)
-    print(f"已写入 {path.name} 任务线 import 生成区")
+    _log(f"已写入 {path.name} 任务线 import 生成区")
+
+
+def write_factory_line_imports(lines: list[str]) -> None:
+    """写 meeting_factory.py 的任务线 import 生成区（与 orchestrator 同模板）。
+
+    供 register.py（新增线第一步）与 _run_write_factory 共用。
+    """
+    write_line_imports(CURRENT.factory_path, lines)
 
 
 def check_line_imports(path: Path, lines: list[str]) -> int:
@@ -1447,18 +1797,18 @@ def check_line_imports(path: Path, lines: list[str]) -> int:
     raw = _fac_read_raw(path)
     m = re.search(_LINE_IMPORT_ZONE_PATTERN, raw, re.S)
     if m is None:
-        print(f"{path.name} 中未找到 任务线 import 生成区标记", file=sys.stderr)
+        _log(f"{path.name} 中未找到 任务线 import 生成区标记", file=sys.stderr)
         return 1
     zone = m.group(1)
     expected = generate_line_imports_code(lines)
     if zone.strip() != expected.strip():
-        print(
+        _log(
             f"不一致：任务线 import 生成区与当前目录生成的代码有差异"
             f"（请运行 --write 更新）",
             file=sys.stderr,
         )
         return 1
-    print(f"OK：任务线 import 生成区一致（{len(lines)} 条线）")
+    _log(f"OK：任务线 import 生成区一致（{len(lines)} 条线）")
     return 0
 
 
@@ -1490,7 +1840,7 @@ def write_report_imports(path: Path, lines: list[str]) -> None:
     )
     with open(path, "w", encoding="utf-8", newline="") as fh:
         fh.write(new_raw)
-    print(f"已写入 {path.name} Report import 生成区")
+    _log(f"已写入 {path.name} Report import 生成区")
 
 
 def check_report_imports(path: Path, lines: list[str]) -> int:
@@ -1498,18 +1848,18 @@ def check_report_imports(path: Path, lines: list[str]) -> int:
     raw = _fac_read_raw(path)
     m = re.search(_REPORT_IMPORT_ZONE_PATTERN, raw, re.S)
     if m is None:
-        print(f"{path.name} 中未找到 Report import 生成区标记", file=sys.stderr)
+        _log(f"{path.name} 中未找到 Report import 生成区标记", file=sys.stderr)
         return 1
     zone = m.group(1)
     expected = generate_report_import_code(lines)
     if zone.strip() != expected.strip():
-        print(
+        _log(
             f"不一致：Report import 生成区与当前目录生成的代码有差异"
             f"（请运行 --write 更新）",
             file=sys.stderr,
         )
         return 1
-    print(f"OK：Report import 生成区一致（{len(lines)} 条线）")
+    _log(f"OK：Report import 生成区一致（{len(lines)} 条线）")
     return 0
 
 
@@ -1544,7 +1894,7 @@ def write_report_assemblers(path: Path, lines: list[str]) -> None:
     )
     with open(path, "w", encoding="utf-8", newline="") as fh:
         fh.write(new_raw)
-    print(f"已写入 {path.name} Report 组装器生成区")
+    _log(f"已写入 {path.name} Report 组装器生成区")
 
 
 def check_report_assemblers(path: Path, lines: list[str]) -> int:
@@ -1552,18 +1902,18 @@ def check_report_assemblers(path: Path, lines: list[str]) -> int:
     raw = _fac_read_raw(path)
     m = re.search(_REPORT_ZONE_PATTERN, raw, re.S)
     if m is None:
-        print(f"{path.name} 中未找到 Report 组装器生成区标记", file=sys.stderr)
+        _log(f"{path.name} 中未找到 Report 组装器生成区标记", file=sys.stderr)
         return 1
     zone = m.group(1)
     expected = generate_report_assembler_code(lines)
     if zone.strip() != expected.strip():
-        print(
+        _log(
             f"不一致：Report 组装器生成区与当前目录生成的代码有差异"
             f"（请运行 --write 更新）",
             file=sys.stderr,
         )
         return 1
-    print(f"OK：Report 组装器生成区一致（{len(lines)} 条线）")
+    _log(f"OK：Report 组装器生成区一致（{len(lines)} 条线）")
     return 0
 
 
@@ -1615,7 +1965,7 @@ def write_fallback_rules(path: Path, lines: list[str]) -> None:
     )
     with open(path, "w", encoding="utf-8", newline="") as fh:
         fh.write(new_raw)
-    print(f"已写入 {path.name} FallbackRules 注册生成区")
+    _log(f"已写入 {path.name} FallbackRules 注册生成区")
 
 
 def check_fallback_rules(path: Path, lines: list[str]) -> int:
@@ -1623,22 +1973,22 @@ def check_fallback_rules(path: Path, lines: list[str]) -> int:
     raw = _fac_read_raw(path)
     m = re.search(_FALLBACK_RULES_ZONE_PATTERN, raw, re.S)
     if m is None:
-        print(f"{path.name} 中未找到 FallbackRules 注册生成区标记", file=sys.stderr)
+        _log(f"{path.name} 中未找到 FallbackRules 注册生成区标记", file=sys.stderr)
         return 1
     zone = m.group(1)
     expected = generate_fallback_rules_code(lines)
     if zone.strip() != expected.strip():
-        print(
+        _log(
             f"不一致：FallbackRules 注册生成区与当前目录生成的代码有差异"
             f"（请运行 --write 更新）",
             file=sys.stderr,
         )
         return 1
-    print(f"OK：FallbackRules 注册生成区一致（{len(lines)} 条线）")
+    _log(f"OK：FallbackRules 注册生成区一致（{len(lines)} 条线）")
     return 0
 
 
-# ── 写入 / 校验（复用 sync_contracts.py 的生成区模式）──
+# ── 写入 / 校验（复用 codegen.py 的生成区模式）──
 
 def _fac_read_raw(path: Path) -> str:
     with open(path, encoding="utf-8", newline="") as fh:
@@ -1675,7 +2025,7 @@ def _fac_write_target(path: Path, code: str) -> None:
     )
     with open(path, "w", encoding="utf-8", newline="") as fh:
         fh.write(new_raw)
-    print(f"已写入 {path}")
+    _log(f"已写入 {path}")
 
 
 def _fac_normalize_newlines(text: str) -> str:
@@ -1687,16 +2037,16 @@ def _fac_check_target(path: Path, code: str) -> int:
     raw = _fac_read_raw(path)
     m = re.search(_ZONE_PATTERN, raw, re.S)
     if m is None:
-        print(f"{path.name} 中未找到任务线装配生成区标记", file=sys.stderr)
+        _log(f"{path.name} 中未找到任务线装配生成区标记", file=sys.stderr)
         return 1
     zone_lines = [
         ln.strip() for ln in m.group(1).splitlines() if ln.strip()
     ]
     zone = "\n".join(zone_lines)
     if zone == _fac_normalize_newlines(code.strip()):
-        print(f"OK：任务线装配生成区与目录一致（{path.name}）")
+        _log(f"OK：任务线装配生成区与目录一致（{path.name}）")
         return 0
-    print(
+    _log(
         f"不一致：任务线装配生成区与当前目录生成的代码有差异（请运行 --write 更新）",
         file=sys.stderr,
     )
@@ -1727,7 +2077,7 @@ def write_nodes(path: Path, lines: list[str]) -> None:
         if f"async def {fn}" not in zone:
             additions.append(generate_node_skeleton(line))
     if not additions:
-        print(f"无新增骨架：{path.name} 全部任务线已有降级节点方法")
+        _log(f"无新增骨架：{path.name} 全部任务线已有降级节点方法")
         return
     nl = "\r\n" if "\r\n" in raw else "\n"
     new_zone = zone.rstrip("\r\n") + nl + nl + nl.join(additions) + nl
@@ -1746,7 +2096,7 @@ def write_nodes(path: Path, lines: list[str]) -> None:
     )
     with open(path, "w", encoding="utf-8", newline="") as fh:
         fh.write(new_raw)
-    print(f"已追加 {len(additions)} 个降级节点方法骨架到 {path}")
+    _log(f"已追加 {len(additions)} 个降级节点方法骨架到 {path}")
 
 
 def check_nodes(path: Path, lines: list[str]) -> int:
@@ -1754,7 +2104,7 @@ def check_nodes(path: Path, lines: list[str]) -> int:
     raw = _fac_read_raw(path)
     m = re.search(_NODE_ZONE_PATTERN, raw, re.S)
     if m is None:
-        print(f"{path.name} 中未找到专属节点方法生成区标记", file=sys.stderr)
+        _log(f"{path.name} 中未找到专属节点方法生成区标记", file=sys.stderr)
         return 1
     zone = m.group(1)
     missing = []
@@ -1763,9 +2113,9 @@ def check_nodes(path: Path, lines: list[str]) -> int:
         if f"async def {fn}" not in zone:
             missing.append(fn)
     if missing:
-        print(f"缺失降级节点方法骨架: {missing}", file=sys.stderr)
+        _log(f"缺失降级节点方法骨架: {missing}", file=sys.stderr)
         return 1
-    print(f"OK：降级节点方法签名齐全（{len(lines)} 条线 × fallback）")
+    _log(f"OK：降级节点方法签名齐全（{len(lines)} 条线 × fallback）")
     return 0
 
 
@@ -1792,7 +2142,7 @@ def write_task_lines(path: Path, lines: list[str]) -> None:
     )
     with open(path, "w", encoding="utf-8", newline="") as fh:
         fh.write(new_raw)
-    print(f"已写入 {path} 任务线注册生成区")
+    _log(f"已写入 {path} 任务线注册生成区")
 
 
 def check_task_lines(path: Path, lines: list[str]) -> int:
@@ -1800,15 +2150,15 @@ def check_task_lines(path: Path, lines: list[str]) -> int:
     raw = _fac_read_raw(path)
     m = re.search(_TL_ZONE_PATTERN, raw, re.S)
     if m is None:
-        print(f"{path.name} 中未找到任务线注册生成区标记", file=sys.stderr)
+        _log(f"{path.name} 中未找到任务线注册生成区标记", file=sys.stderr)
         return 1
     # 保留行内缩进：只 strip 首尾空白，逐行比较前统一换行
     zone = _fac_normalize_newlines(m.group(1)).strip()
     expected = _fac_normalize_newlines(generate_task_lines_code(lines)).strip()
     if zone == expected:
-        print(f"OK：任务线注册生成区与目录一致（{path.name}）")
+        _log(f"OK：任务线注册生成区与目录一致（{path.name}）")
         return 0
-    print(
+    _log(
         f"不一致：任务线注册生成区与当前目录生成的代码有差异（请运行 --write 更新）",
         file=sys.stderr,
     )
@@ -1844,7 +2194,7 @@ def write_mount(path: Path, lines: list[str]) -> None:
     )
     with open(path, "w", encoding="utf-8", newline="") as fh:
         fh.write(new_raw)
-    print(f"已写入 {path} Agent 挂载生成区")
+    _log(f"已写入 {path} Agent 挂载生成区")
 
 
 def check_mount(path: Path, lines: list[str]) -> int:
@@ -1852,14 +2202,14 @@ def check_mount(path: Path, lines: list[str]) -> int:
     raw = _fac_read_raw(path)
     m = re.search(_MOUNT_ZONE_PATTERN, raw, re.S)
     if m is None:
-        print(f"{path.name} 中未找到 Agent 挂载生成区标记", file=sys.stderr)
+        _log(f"{path.name} 中未找到 Agent 挂载生成区标记", file=sys.stderr)
         return 1
     zone = _fac_normalize_newlines(m.group(1)).strip()
     expected = _fac_normalize_newlines(generate_mount_code(lines)).strip()
     if zone == expected:
-        print(f"OK：Agent 挂载生成区与目录一致（{path.name}）")
+        _log(f"OK：Agent 挂载生成区与目录一致（{path.name}）")
         return 0
-    print(
+    _log(
         f"不一致：Agent 挂载生成区与当前目录生成的代码有差异（请运行 --write 更新）",
         file=sys.stderr,
     )
@@ -1895,7 +2245,7 @@ def write_node_map(path: Path, lines: list[str]) -> None:
     )
     with open(path, "w", encoding="utf-8", newline="") as fh:
         fh.write(new_raw)
-    print(f"已写入 {path} 节点映射生成区")
+    _log(f"已写入 {path} 节点映射生成区")
 
 
 def check_node_map(path: Path, lines: list[str]) -> int:
@@ -1903,14 +2253,14 @@ def check_node_map(path: Path, lines: list[str]) -> int:
     raw = _fac_read_raw(path)
     m = re.search(_NODEMAP_ZONE_PATTERN, raw, re.S)
     if m is None:
-        print(f"{path.name} 中未找到节点映射生成区标记", file=sys.stderr)
+        _log(f"{path.name} 中未找到节点映射生成区标记", file=sys.stderr)
         return 1
     zone = _fac_normalize_newlines(m.group(1)).strip()
     expected = _fac_normalize_newlines(generate_node_map_code(lines)).strip()
     if zone == expected:
-        print(f"OK：节点映射生成区与目录一致（{path.name}）")
+        _log(f"OK：节点映射生成区与目录一致（{path.name}）")
         return 0
-    print(
+    _log(
         f"不一致：节点映射生成区与当前目录生成的代码有差异（请运行 --write 更新）",
         file=sys.stderr,
     )
@@ -1943,13 +2293,16 @@ def _run_write_factory() -> None:
     """段③装配/注册：装配 / TASK_LINES / 挂载 / 节点映射 / 上下文 / import / 组装器 / fallback。"""
     lines = find_lines()
     _fac_write_target(CURRENT.factory_path, generate_lines_code(lines))
+    write_task_skels(lines)
     write_task_lines(CURRENT.orch_path, lines)
     write_mount(CURRENT.orch_path, lines)
     write_node_map(CURRENT.orch_path, lines)
     write_render_context(CURRENT.orch_path, lines)
     write_fallback_imports(CURRENT.orch_path, lines)
     write_line_imports(CURRENT.orch_path, lines)
+    write_line_imports(CURRENT.factory_path, lines)
     write_report_imports(CURRENT.orch_path, lines)
+    write_report_base_imports(CURRENT.reports_path, lines)
     write_report_validation(CURRENT.models_path, lines)
     write_report_assemblers(CURRENT.orch_path, lines)
     write_fallback_rules(CURRENT.orch_path, lines)
@@ -1977,82 +2330,31 @@ def _run_check() -> int:
     rc |= check_render_context(CURRENT.orch_path, lines)
     rc |= check_fallback_imports(CURRENT.orch_path, lines)
     rc |= check_line_imports(CURRENT.orch_path, lines)
+    rc |= check_line_imports(CURRENT.factory_path, lines)
     rc |= check_report_imports(CURRENT.orch_path, lines)
+    rc |= check_report_base_imports(CURRENT.reports_path, lines)
     rc |= check_report_validation(CURRENT.models_path, lines)
     rc |= check_report_assemblers(CURRENT.orch_path, lines)
+    rc |= check_task_skels(lines)
     rc |= check_fallback_rules(CURRENT.orch_path, lines)
     rc |= check_nodes(CURRENT.orch_path, lines)
     return rc
 
 
-def _register_line(task: str, name: str) -> None:
-    """把任务线注册写进当前领域的 line_registry.py（LINE_CN_NAMES 追加一行）。
-
-    幂等：线名已存在则跳过。用 ast 定位 LINE_CN_NAMES 的 dict 字面量，
-    在其结束行（``}``）前插入 ``    "线名": "中文名",``，保留文件其余内容。
-    """
-    path = CURRENT.dir / "line_registry.py"
-    if not path.exists():
-        raise SystemExit(f"{path} 不存在——请先创建领域骨架（含 line_registry.py）")
-    raw = path.read_text(encoding="utf-8")
-    tree = ast.parse(raw)
-    dict_node = None
-    target_name = None
-    for node in tree.body:
-        if (
-            isinstance(node, ast.AnnAssign)
-            and isinstance(node.target, ast.Name)
-            and node.target.id == "LINE_CN_NAMES"
-        ):
-            dict_node, target_name = node.value, node.target.id
-            break
-        if isinstance(node, ast.Assign) and any(
-            isinstance(t, ast.Name) and t.id == "LINE_CN_NAMES" for t in node.targets
-        ):
-            dict_node, target_name = node.value, node.targets[0].id
-            break
-    if not isinstance(dict_node, ast.Dict):
-        raise SystemExit(f"{path} 未找到 LINE_CN_NAMES 的 dict 定义")
-    keys = [k.value for k in dict_node.keys if k is not None]
-    if task in keys:
-        print(f"line_registry 已存在 {task!r}，跳过（无需重复注册）")
-        return
-    lines = raw.split("\n")
-    if dict_node.end_lineno == dict_node.lineno:
-        # 单行 dict（LINE_CN_NAMES = {}）→ 展开为多行
-        lines[dict_node.end_lineno - 1] = (
-            f'{target_name}: dict[str, str] = {{\n    "{task}": "{name}",\n}}'
-        )
-    else:
-        lines.insert(dict_node.end_lineno - 1, f'    "{task}": "{name}",')
-    path.write_text("\n".join(lines), encoding="utf-8")
-    print(f"已注册任务线：{task!r} → {name!r}（{path}）")
-
-
 def main(argv: list[str] | None = None) -> None:
     parser = argparse.ArgumentParser(
-        description="一次生成全部契约生成区（新增任务线后跑这一个即可）"
+        description="生成当前领域的全部契约生成区（新增任务线请先跑 register.py）"
     )
     parser.add_argument(
         "--domain",
         required=True,
-        help="目标领域（src/domain/<name>，含 line_registry + domain_config）",
-    )
-    parser.add_argument(
-        "--task",
-        metavar="线名",
-        help='注册任务线到 line_registry.py（配合 --name，如 --task risk --name "风险"）',
-    )
-    parser.add_argument(
-        "--name",
-        metavar="中文名",
-        help="任务线中文名（配合 --task 使用，写入 line_registry.py）",
+        help="目标领域（src/domain/<name>，含 domain_config）",
     )
     group = parser.add_mutually_exclusive_group()
     group.add_argument(
         "--write",
         action="store_true",
-        help="生成全部生成区（默认动作，可省略；与 --task/--name 组合时先注册再生成）",
+        help="生成全部生成区（默认动作，可省略）",
     )
     group.add_argument("--check", action="store_true", help="仅校验全部生成区（CI 用）")
     group.add_argument(
@@ -2064,28 +2366,35 @@ def main(argv: list[str] | None = None) -> None:
     )
     args = parser.parse_args(argv)
 
-    set_domain(args.domain)
+    try:
+        set_domain(args.domain)
 
-    if args.name and not args.task:
-        parser.error("--name 需要配合 --task <线名>")
-    if args.task:
-        if not args.name:
-            parser.error("--task 需要配合 --name <中文名>")
-        _register_line(args.task, args.name)
+        if args.check:
+            rc = _run_check()
+            if rc != 0:
+                sys.exit(1)
+            print("SUCCESS!")
+            return
 
-    if args.check:
-        sys.exit(_run_check())
-
-    # 默认动作 = --write（可省略显式传入）
-    print("\n── 段① 生成契约 ──")
-    _run_write()
-    print("\n── 段② 审阅契约 ──")
-    _run_write_supervisor()
-    if args.model:
-        print("\n── 跳过段③（--model，装配/注册留到业务类写完再跑）──")
-    else:
-        print("\n── 段③ 装配/注册 ──")
-        _run_write_factory()
+        # 默认动作 = --write（可省略显式传入）
+        _run_write()
+        _run_write_supervisor()
+        if not args.model:
+            _run_write_factory()
+        print("SUCCESS!")
+    except SystemExit as e:
+        # 失败：stdout 只输出 FAIL!!!；细节（sys.exit 的消息）留给 stderr
+        if isinstance(e.code, int):
+            rc = e.code
+        else:
+            _log(e.code, file=sys.stderr)
+            rc = 1
+        print("FAIL!!!")
+        sys.exit(rc)
+    except Exception:
+        # 非 SystemExit 异常（如路径不存在）：traceback 到 stderr，stdout 只 FAIL!!!
+        print("FAIL!!!")
+        sys.exit(1)
 
 
 if __name__ == "__main__":

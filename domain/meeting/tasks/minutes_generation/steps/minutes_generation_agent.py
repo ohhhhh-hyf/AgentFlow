@@ -1,11 +1,11 @@
 from __future__ import annotations
 
 from llm_client import LLMClient
-from ...models import Minutes
-from .prompts import (
+from ....models import Minutes
+from ..prompts import (
     MINUTES_GENERATION_SYSTEM_PROMPT,
 )
-from .contracts import MINUTES_GENERATION_OUTPUT_CONTRACT
+from ..contracts import MINUTES_GENERATION_OUTPUT_CONTRACT
 
 
 class MinutesGenerationAgent:

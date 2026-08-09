@@ -5,7 +5,7 @@ from collections.abc import AsyncIterator
 from tools.prompt_utils import build_render_prompt
 
 from llm_client import LLMClient
-from .prompts import MINUTES_RENDER_PROMPT, MINUTES_RENDER_TEMPLATE_PROMPT
+from ..prompts import MINUTES_RENDER_PROMPT, MINUTES_RENDER_TEMPLATE_PROMPT
 
 
 class MinutesGenerationRender:

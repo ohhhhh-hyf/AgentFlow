@@ -1,6 +1,6 @@
-"""meeting 领域配置 —— sync_contracts.py 生成骨架/文案的领域专属数据。
+"""meeting 领域配置 —— codegen.py 生成骨架/文案的领域专属数据。
 
-脚本不再硬编码任何领域：每个领域在 ``src/domain/<name>/domain_config.py``
+脚本不再硬编码任何领域：每个领域在 ``domain/<name>/domain_config.py``
 提供自己的配置，脚本按配置生成。meeting 是第一个配置实例。
 
 字段说明：
@@ -20,3 +20,13 @@ RENDER_CONTEXT_STATE_LINES = [
     '            f"已审核会议理解：\\n{_json(state.get(\'meeting_understanding\'))}\\n\\n"',
     '            f"已审核用户视角：\\n{_json(state.get(\'perspective_profile\'))}\\n\\n"',
 ]
+
+# ── 任务线中文名注册表（脚本与运行时共享的唯一来源）──────────────
+# 新增任务线时 register.py 会自动在此追加一行（也可手动加）：
+# "线名": "中文名"。中文名供 supervisor 上下文与日志使用，
+# 草稿标题自动推导为 {中文名}草稿。
+LINE_CN_NAMES: dict[str, str] = {
+    "minutes_generation": "纪要",
+    "action_items": "待办",
+    "x": "x",
+}

@@ -5,8 +5,8 @@ from collections.abc import AsyncIterator
 from llm_client import LLMClient
 from tools.prompt_utils import build_render_prompt
 
-from ...models import MeetingState
-from .prompts import ITEM_RENDER_PROMPT, ITEM_RENDER_TEMPLATE_PROMPT
+from ....models import MeetingState
+from ..prompts import ITEM_RENDER_PROMPT, ITEM_RENDER_TEMPLATE_PROMPT
 
 
 class ActionItemsRender:

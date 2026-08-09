@@ -10,11 +10,11 @@ from pathlib import Path
 
 
 PROJECT_ROOT = Path(__file__).resolve().parent
-sys.path.insert(0, str(PROJECT_ROOT / "src"))
+sys.path.insert(0, str(PROJECT_ROOT))
 
 from llm_client.config import load_env
 from domain.meeting import SAMPLES_DIR
-from domain.meeting.line_registry import LINE_CN_NAMES
+from domain.meeting.domain_config import LINE_CN_NAMES
 from tools.logging_config import setup_logging
 from domain.meeting.models import UserIdentity
 from domain.meeting.orchestrator import MeetingAgentSystem, TASK_LINES
@@ -159,10 +159,6 @@ def _resolve_input_file(path: Path, suffix: str, label: str) -> Path:
     raise ValueError(f"{label}路径既不是文件也不是目录：{path}")
 
 
-def _section(title: str) -> None:
-    logger.info("── %s ──", title)
-
-
 def _load_transcript(summary_path: Path) -> str:
     meeting_file = _resolve_input_file(summary_path, ".txt", "会议文本")
     transcript = meeting_file.read_text(encoding="utf-8").strip()
@@ -218,7 +214,6 @@ async def run(
             raise ValueError(f"待办模板文件为空：{item_template}")
 
     system = MeetingAgentSystem()
-    printed: dict[str, bool] = {}  # line → 是否已打标题
     any_output = False
     async for event in system.run_streaming(
         transcript,
@@ -229,12 +224,7 @@ async def run(
     ):
         etype = event["type"]
         if etype == "chunk":
-            # 通用流式块：按 line 首次输出打标题，正文逐块追加
-            line = event["line"]
-            if not printed.get(line):
-                logger.info("")
-                _section(event["title"])
-                printed[line] = True
+            # 通用流式块：不打印分节标题，正文逐块追加
             any_output = True
             sys.stdout.write(event["text"])
             sys.stdout.flush()

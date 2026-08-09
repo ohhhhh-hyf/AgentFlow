@@ -12,17 +12,22 @@ from .meeting_core import (
     MeetingUnderstandingAgent,
     PerspectiveModelingAgent,
 )
+
+# ── 任务线 import 生成区：由 tools/scripts/codegen.py 生成，勿手改 ──
+
 from .tasks.action_items import (
     ActionItemsAgent,
     ActionItemsRender,
     ActionItemsSupervisor,
 )
+
 from .tasks.minutes_generation import (
     MinutesGenerationAgent,
     MinutesGenerationRender,
     MinutesGenerationSupervisor,
 )
 
+# ── 任务线 import 生成区结束 ──
 
 class MeetingAgentFactory:
     """组装 Agent 依赖的工厂。"""
@@ -40,7 +45,7 @@ class MeetingAgentFactory:
             # 核心层（键 = 属性名，与任务线统一：{角色}_agent）
             "meeting_understanding_agent": MeetingUnderstandingAgent(client),
             "perspective_modeling_agent": PerspectiveModelingAgent(client),
-            # ── 任务线装配生成区：由 tools/scripts/sync_contracts.py 生成，勿手改 ──
+            # ── 任务线装配生成区：由 tools/scripts/codegen.py 生成，勿手改 ──
 
             "action_items_agent": ActionItemsAgent(client),
             "action_items_supervisor": ActionItemsSupervisor(client),
