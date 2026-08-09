@@ -148,7 +148,6 @@ GEN_ZONE_EMPTY_START = "# ── 空结构常量生成区：由 tools/scripts/co
 GEN_ZONE_EMPTY_END = "# ── 空结构常量生成区结束 ──"
 
 # 生成契约的强制命名后缀（类名约定）
-GENERATION_CONTRACT_SUFFIX = "_GENERATION_OUTPUT_CONTRACT"
 GENERATION_CLASS_SUFFIX = "GenerationContract"
 
 sys.path.insert(0, str(ROOT))
@@ -201,7 +200,7 @@ def parse_generation_contract(cls: type) -> list[dict]:
     """从生成契约类读取字段结构，推导第一层每个字段的类型信息。
 
     返回有序列表：[{key, kind, values?}]；
-    kind ∈ {"str", "str_null", "enum", "str_list", "obj_list", "dict"}。
+    kind ∈ {"str", "enum", "str_list", "obj_list", "dict"}。
     与旧版 JSON 解析产出的结构一致（生成逻辑无需改动）。
     """
     fields = []
@@ -242,8 +241,6 @@ def _field_declaration(field: dict) -> str:
     key, kind = field["key"], field["kind"]
     if kind == "str":
         return f"    {key}: str"
-    if kind == "str_null":
-        return f"    {key}: str | None = None"
     if kind == "enum":
         values = ", ".join(f'"{v}"' for v in field["values"])
         return f"    {key}: Literal[{values}]"
@@ -261,8 +258,6 @@ def _validation_line(field: dict) -> str:
     key, kind = field["key"], field["kind"]
     if kind == "str":
         return f'        _string(data["{key}"], "{key}")'
-    if kind == "str_null":
-        return f'        _string(data["{key}"], "{key}", nullable=True)'
     if kind == "enum":
         values = ", ".join(f'"{v}"' for v in field["values"])
         return f'        _choice(data["{key}"], {{{values}}}, "{key}")'
@@ -286,7 +281,7 @@ def generate_generation_model(cls: str, fields: list[dict]) -> str:
     字段按 dataclass 规则排序：无默认值的字段（str/enum）在前，
     有默认值的字段（list/可空）在后，避免 non-default-after-default 报错。
     """
-    has_default = {"str_null", "str_list", "obj_list", "dict"}
+    has_default = {"str_list", "obj_list", "dict"}
     ordered = sorted(fields, key=lambda f: f["kind"] in has_default)
 
     field_lines = "\n".join(_field_declaration(f) for f in ordered)
@@ -305,7 +300,7 @@ class {cls}(ModelMixin):
         return cls(**data)"""
 
 
-def _gen_upper_snake(cls: str) -> str:
+def _upper_snake(cls: str) -> str:
     """PascalCase → UPPER_SNAKE（MeetingUnderstanding → MEETING_UNDERSTANDING）。"""
     return re.sub(r"(?<!^)(?=[A-Z])", "_", cls).upper()
 
@@ -316,14 +311,12 @@ def generate_empty_constants(cls: str, fields: list[dict]) -> str:
     类型 → 空值映射：str → ""；str|null → None；枚举 → 契约第一个值；
     字符串/对象数组 → []；对象 → {}。
     """
-    name = "_EMPTY_" + _gen_upper_snake(cls)
+    name = "_EMPTY_" + _upper_snake(cls)
     structure = []
     for f in fields:
         key = f["key"]
         if f["kind"] == "str":
             structure.append(f'    "{key}": "",')
-        elif f["kind"] == "str_null":
-            structure.append(f'    "{key}": None,')
         elif f["kind"] == "enum":
             structure.append(f'    "{key}": "{f["values"][0]}",')
         elif f["kind"] in ("str_list", "obj_list"):
@@ -358,7 +351,7 @@ def gen_generate_all() -> tuple[str, str]:
 # ── 写入 / 校验生成区（通用）────────────────────────────
 
 
-def _gen_read_raw(path: Path) -> str:
+def _read_raw(path: Path) -> str:
     with open(path, encoding="utf-8", newline="") as fh:
         return fh.read()
 
@@ -374,7 +367,7 @@ def _gen_zone_content(raw: str, start: str, end: str) -> str | None:
 
 def _gen_write_target(path: Path, start: str, end: str, code: str, label: str) -> None:
     """把生成的代码写入指定文件的生成区（无标记则报错提示）。"""
-    raw = _gen_read_raw(path)
+    raw = _read_raw(path)
     if start not in raw or end not in raw:
         sys.exit(
             f"{path.name} 中未找到 {label} 生成区标记。请先手动添加：\n"
@@ -394,18 +387,18 @@ def _gen_write_target(path: Path, start: str, end: str, code: str, label: str) -
     _log(f"已写入 {path}")
 
 
-def _gen_normalize_newlines(text: str) -> str:
+def _normalize_newlines(text: str) -> str:
     """统一行尾为 \\n（用于内容比较，与文件实际行尾无关）。"""
     return re.sub(r"\r*\n", "\n", text)
 
 
 def _gen_check_target(path: Path, start: str, end: str, code: str, label: str) -> int:
     """校验生成区与契约一致；一致返回 0，否则返回 1。"""
-    zone = _gen_zone_content(_gen_read_raw(path), start, end)
+    zone = _gen_zone_content(_read_raw(path), start, end)
     if zone is None:
         _log(f"{path.name} 中未找到 {label} 生成区标记", file=sys.stderr)
         return 1
-    if _gen_normalize_newlines(zone) == _gen_normalize_newlines(code.strip()):
+    if _normalize_newlines(zone) == _normalize_newlines(code.strip()):
         _log(f"OK：{label}生成区与契约一致")
         return 0
     _log(f"不一致：{label}生成区与当前契约生成的代码有差异（请运行 --write 更新）", file=sys.stderr)
@@ -550,10 +543,6 @@ def _sup_line_sort_key(contract: dict) -> int:
     return len(line_cn)
 
 
-def _sup_upper_snake(cls: str) -> str:
-    """PascalCase → UPPER_SNAKE（MinutesSupervisorReview → MINUTES_SUPERVISOR_REVIEW）。"""
-    return re.sub(r"(?<!^)(?=[A-Z])", "_", cls).upper()
-
 
 def generate_reject_constants(cls: str, fields: dict) -> str:
     """从审核契约推导拒绝态兜底常量（_REJECT_{线名}_REVIEW）。
@@ -562,7 +551,7 @@ def generate_reject_constants(cls: str, fields: dict) -> str:
     满足审核模型的校验约束（reject 时至少一个检查项失败）。
     """
     base = cls.removesuffix("SupervisorReview")  # MinutesSupervisorReview → Minutes
-    name = "_REJECT_" + _sup_upper_snake(base) + "_REVIEW"  # → _REJECT_MINUTES_REVIEW
+    name = "_REJECT_" + _upper_snake(base) + "_REVIEW"  # → _REJECT_MINUTES_REVIEW
     checks = [k for k, info in fields.items() if info["kind"] == "check"]
     if not checks:
         raise ValueError(f"{cls} 契约缺少检查项，无法生成拒绝态兜底")
@@ -605,10 +594,6 @@ def sup_generate_all() -> tuple[str, str]:
 # ── 写入 / 校验生成区（通用）────────────────────────────
 
 
-def _sup_read_raw(path) -> str:
-    with open(path, encoding="utf-8", newline="") as fh:
-        return fh.read()
-
 
 def _sup_zone_content(raw: str, start: str, end: str) -> str | None:
     # 兼容 CRLF / LF 及历史坏行尾（\r\r\n）：边界用 \r*\n
@@ -622,7 +607,7 @@ def _sup_zone_content(raw: str, start: str, end: str) -> str | None:
 
 def _sup_write_target(path, start: str, end: str, code: str, label: str) -> None:
     """把生成的代码写入指定文件的生成区（无标记则报错提示）。"""
-    raw = _sup_read_raw(path)
+    raw = _read_raw(path)
     if start not in raw or end not in raw:
         sys.exit(
             f"{path.name} 中未找到 {label} 生成区标记。请先手动添加：\n"
@@ -643,18 +628,14 @@ def _sup_write_target(path, start: str, end: str, code: str, label: str) -> None
     _log(f"已写入 {path}")
 
 
-def _sup_normalize_newlines(text: str) -> str:
-    """统一行尾为 \\n（用于内容比较，与文件实际行尾无关）。"""
-    return re.sub(r"\r*\n", "\n", text)
-
 
 def _sup_check_target(path, start: str, end: str, code: str, label: str) -> int:
     """校验生成区与当前契约生成的代码一致；一致返回 0，否则返回 1。"""
-    zone = _sup_zone_content(_sup_read_raw(path), start, end)
+    zone = _sup_zone_content(_read_raw(path), start, end)
     if zone is None:
         _log(f"{path.name} 中未找到 {label} 生成区标记", file=sys.stderr)
         return 1
-    if _sup_normalize_newlines(zone) == _sup_normalize_newlines(code.strip()):
+    if _normalize_newlines(zone) == _normalize_newlines(code.strip()):
         _log(f"OK：{label}生成区与契约一致")
         return 0
     _log(f"不一致：{label}生成区与当前契约生成的代码有差异（请运行 --write 更新）", file=sys.stderr)
@@ -883,7 +864,7 @@ def write_report_base_imports(path: Path, lines: list[str]) -> None:
         )
         _log(f"已创建 {path.name}（骨架，请追加 Report 类）")
         return
-    raw = _fac_read_raw(path)
+    raw = _read_raw(path)
     if (
         REPORT_BASE_IMPORT_ZONE_START not in raw
         or REPORT_BASE_IMPORT_ZONE_END not in raw
@@ -918,7 +899,7 @@ def write_report_base_imports(path: Path, lines: list[str]) -> None:
 
 def check_report_base_imports(path: Path, lines: list[str]) -> int:
     """校验 reports.py 的 Report 基类 import 生成区与已定义 Report 一致。"""
-    raw = _fac_read_raw(path)
+    raw = _read_raw(path)
     m = re.search(_REPORT_BASE_IMPORT_ZONE_PATTERN, raw, re.S)
     if m is None:
         _log(f"{path.name} 中未找到 Report 基类 import 生成区标记", file=sys.stderr)
@@ -1066,7 +1047,7 @@ def generate_report_validation_code(lines: list[str]) -> str:
 
 def write_report_validation(path: Path, lines: list[str]) -> None:
     """整体重写 models.py 的 Report 校验生成区。"""
-    raw = _fac_read_raw(path)
+    raw = _read_raw(path)
     if (
         REPORT_VALIDATION_ZONE_START not in raw
         or REPORT_VALIDATION_ZONE_END not in raw
@@ -1101,7 +1082,7 @@ def write_report_validation(path: Path, lines: list[str]) -> None:
 
 def check_report_validation(path: Path, lines: list[str]) -> int:
     """校验 Report 校验生成区与手写 Report 字段一致。"""
-    raw = _fac_read_raw(path)
+    raw = _read_raw(path)
     m = re.search(_REPORT_VALIDATION_ZONE_PATTERN, raw, re.S)
     if m is None:
         _log(f"{path.name} 中未找到 Report 校验生成区标记", file=sys.stderr)
@@ -1149,7 +1130,7 @@ def find_lines(tasks_dir: Path | None = None) -> list[str]:
 
 
 def line_class_name(line: str, suffix: str) -> str:
-    """线名 + 后缀 → 类名。例：risk + Agent → RiskAgent。"""
+    """线名 + 后缀 → 类名。例：minutes_generation + Agent → MinutesGenerationAgent。"""
     prefix = "".join(part.capitalize() for part in line.split("_"))
     return f"{prefix}{suffix}"
 
@@ -1219,15 +1200,6 @@ def generate_node_skeleton(line: str, tasks_dir: Path | None = None) -> str:
     )
 
 
-def generate_node_skeletons(lines: list[str]) -> str:
-    """生成全部线的专属节点方法骨架（仅 fallback，按线排序）。"""
-    blocks = []
-    for line in lines:
-        blocks.append(generate_node_skeleton(line))
-    return "\n".join(blocks)
-
-
-# ── TASK_LINES 注册生成 ──────────────────────────────────────
 
 def _contract_base(line: str, tasks_dir: Path | None = None) -> str:
     """线名 → 契约基名：从该线 contracts.py 的契约类名推导。
@@ -1250,7 +1222,7 @@ def _contract_base(line: str, tasks_dir: Path | None = None) -> str:
 
 
 def _task_model_class(line: str) -> str:
-    """线名 → 生成模型类名（MinutesGenerationContract → Minutes；Risk → Risk）。"""
+    """线名 → 生成模型类名（MinutesGenerationContract → Minutes）。"""
     contracts_path = CURRENT.tasks_dir / line / "contracts.py"
     if contracts_path.exists():
         text = contracts_path.read_text(encoding="utf-8")
@@ -1569,7 +1541,7 @@ def generate_render_context_code(lines: list[str]) -> str:
 
 def write_render_context(path: Path, lines: list[str]) -> None:
     """整体重写 orchestrator.py 的渲染上下文生成区。"""
-    raw = _fac_read_raw(path)
+    raw = _read_raw(path)
     if CTX_ZONE_START not in raw or CTX_ZONE_END not in raw:
         sys.exit(
             f"{path.name} 中未找到渲染上下文生成区标记。请先手动添加：\n"
@@ -1603,7 +1575,7 @@ def write_render_context(path: Path, lines: list[str]) -> None:
 
 def check_render_context(path: Path, lines: list[str]) -> int:
     """校验渲染上下文生成区与当前目录生成一致。"""
-    raw = _fac_read_raw(path)
+    raw = _read_raw(path)
     m = re.search(_CTX_ZONE_PATTERN, raw, re.S)
     if m is None:
         _log(f"{path.name} 中未找到渲染上下文生成区标记", file=sys.stderr)
@@ -1636,7 +1608,7 @@ def generate_fallback_import_code(lines: list[str]) -> str:
 
 def write_fallback_imports(path: Path, lines: list[str]) -> None:
     """整体重写 orchestrator.py 的 FallbackRules import 生成区。"""
-    raw = _fac_read_raw(path)
+    raw = _read_raw(path)
     if IMPORT_ZONE_START not in raw or IMPORT_ZONE_END not in raw:
         sys.exit(
             f"{path.name} 中未找到 FallbackRules import 生成区标记。请先手动添加：\n"
@@ -1670,7 +1642,7 @@ def write_fallback_imports(path: Path, lines: list[str]) -> None:
 
 def check_fallback_imports(path: Path, lines: list[str]) -> int:
     """校验 FallbackRules import 生成区与当前目录生成一致。"""
-    raw = _fac_read_raw(path)
+    raw = _read_raw(path)
     m = re.search(_IMPORT_ZONE_PATTERN, raw, re.S)
     if m is None:
         _log(f"{path.name} 中未找到 FallbackRules import 生成区标记", file=sys.stderr)
@@ -1755,7 +1727,7 @@ def generate_line_imports_code(lines: list[str]) -> str:
 
 def write_line_imports(path: Path, lines: list[str]) -> None:
     """整体重写 orchestrator.py 的任务线 import 生成区。"""
-    raw = _fac_read_raw(path)
+    raw = _read_raw(path)
     if LINE_IMPORT_ZONE_START not in raw or LINE_IMPORT_ZONE_END not in raw:
         sys.exit(
             f"{path.name} 中未找到 任务线 import 生成区标记。请先手动添加：\n"
@@ -1794,7 +1766,7 @@ def write_factory_line_imports(lines: list[str]) -> None:
 
 def check_line_imports(path: Path, lines: list[str]) -> int:
     """校验任务线 import 生成区与当前目录生成一致。"""
-    raw = _fac_read_raw(path)
+    raw = _read_raw(path)
     m = re.search(_LINE_IMPORT_ZONE_PATTERN, raw, re.S)
     if m is None:
         _log(f"{path.name} 中未找到 任务线 import 生成区标记", file=sys.stderr)
@@ -1814,7 +1786,7 @@ def check_line_imports(path: Path, lines: list[str]) -> int:
 
 def write_report_imports(path: Path, lines: list[str]) -> None:
     """整体重写 orchestrator.py 的 Report import 生成区。"""
-    raw = _fac_read_raw(path)
+    raw = _read_raw(path)
     if REPORT_IMPORT_ZONE_START not in raw or REPORT_IMPORT_ZONE_END not in raw:
         sys.exit(
             f"{path.name} 中未找到 Report import 生成区标记。请先手动添加：\n"
@@ -1845,7 +1817,7 @@ def write_report_imports(path: Path, lines: list[str]) -> None:
 
 def check_report_imports(path: Path, lines: list[str]) -> int:
     """校验 Report import 生成区与当前目录生成一致。"""
-    raw = _fac_read_raw(path)
+    raw = _read_raw(path)
     m = re.search(_REPORT_IMPORT_ZONE_PATTERN, raw, re.S)
     if m is None:
         _log(f"{path.name} 中未找到 Report import 生成区标记", file=sys.stderr)
@@ -1865,7 +1837,7 @@ def check_report_imports(path: Path, lines: list[str]) -> int:
 
 def write_report_assemblers(path: Path, lines: list[str]) -> None:
     """整体重写 orchestrator.py 的 Report 组装器生成区。"""
-    raw = _fac_read_raw(path)
+    raw = _read_raw(path)
     if REPORT_ZONE_START not in raw or REPORT_ZONE_END not in raw:
         sys.exit(
             f"{path.name} 中未找到 Report 组装器生成区标记。请先手动添加：\n"
@@ -1899,7 +1871,7 @@ def write_report_assemblers(path: Path, lines: list[str]) -> None:
 
 def check_report_assemblers(path: Path, lines: list[str]) -> int:
     """校验 Report 组装器生成区与当前目录生成一致。"""
-    raw = _fac_read_raw(path)
+    raw = _read_raw(path)
     m = re.search(_REPORT_ZONE_PATTERN, raw, re.S)
     if m is None:
         _log(f"{path.name} 中未找到 Report 组装器生成区标记", file=sys.stderr)
@@ -1935,7 +1907,7 @@ def generate_fallback_rules_code(lines: list[str]) -> str:
 
 def write_fallback_rules(path: Path, lines: list[str]) -> None:
     """整体重写 orchestrator.py 的 FallbackRules 注册生成区。"""
-    raw = _fac_read_raw(path)
+    raw = _read_raw(path)
     if FALLBACK_RULES_ZONE_START not in raw or FALLBACK_RULES_ZONE_END not in raw:
         sys.exit(
             f"{path.name} 中未找到 FallbackRules 注册生成区标记。请先手动添加：\n"
@@ -1970,7 +1942,7 @@ def write_fallback_rules(path: Path, lines: list[str]) -> None:
 
 def check_fallback_rules(path: Path, lines: list[str]) -> int:
     """校验 FallbackRules 注册生成区与当前目录生成一致。"""
-    raw = _fac_read_raw(path)
+    raw = _read_raw(path)
     m = re.search(_FALLBACK_RULES_ZONE_PATTERN, raw, re.S)
     if m is None:
         _log(f"{path.name} 中未找到 FallbackRules 注册生成区标记", file=sys.stderr)
@@ -1990,14 +1962,10 @@ def check_fallback_rules(path: Path, lines: list[str]) -> int:
 
 # ── 写入 / 校验（复用 codegen.py 的生成区模式）──
 
-def _fac_read_raw(path: Path) -> str:
-    with open(path, encoding="utf-8", newline="") as fh:
-        return fh.read()
-
 
 def _fac_write_target(path: Path, code: str) -> None:
     """把生成的装配代码写入指定文件的生成区（无标记则报错提示）。"""
-    raw = _fac_read_raw(path)
+    raw = _read_raw(path)
     if FAC_ZONE_START not in raw or FAC_ZONE_END not in raw:
         sys.exit(
             f"{path.name} 中未找到任务线装配生成区标记。请先手动添加：\n"
@@ -2028,13 +1996,10 @@ def _fac_write_target(path: Path, code: str) -> None:
     _log(f"已写入 {path}")
 
 
-def _fac_normalize_newlines(text: str) -> str:
-    return re.sub(r"\r*\n", "\n", text)
-
 
 def _fac_check_target(path: Path, code: str) -> int:
     """校验生成区与目录一致；一致返回 0，否则返回 1。"""
-    raw = _fac_read_raw(path)
+    raw = _read_raw(path)
     m = re.search(_ZONE_PATTERN, raw, re.S)
     if m is None:
         _log(f"{path.name} 中未找到任务线装配生成区标记", file=sys.stderr)
@@ -2043,7 +2008,7 @@ def _fac_check_target(path: Path, code: str) -> int:
         ln.strip() for ln in m.group(1).splitlines() if ln.strip()
     ]
     zone = "\n".join(zone_lines)
-    if zone == _fac_normalize_newlines(code.strip()):
+    if zone == _normalize_newlines(code.strip()):
         _log(f"OK：任务线装配生成区与目录一致（{path.name}）")
         return 0
     _log(
@@ -2061,7 +2026,7 @@ def write_nodes(path: Path, lines: list[str]) -> None:
     已有实现（生成区内已有 ``async def _{线名}_{kind}_node``）的线跳过，
     不覆盖开发者填写的函数体；仅追加完全没有对应方法的线的骨架。
     """
-    raw = _fac_read_raw(path)
+    raw = _read_raw(path)
     if NODE_ZONE_START not in raw or NODE_ZONE_END not in raw:
         sys.exit(
             f"{path.name} 中未找到专属节点方法生成区标记。请先手动添加：\n"
@@ -2101,7 +2066,7 @@ def write_nodes(path: Path, lines: list[str]) -> None:
 
 def check_nodes(path: Path, lines: list[str]) -> int:
     """校验每条线的 render/fallback 骨架签名都存在（不比较函数体）。"""
-    raw = _fac_read_raw(path)
+    raw = _read_raw(path)
     m = re.search(_NODE_ZONE_PATTERN, raw, re.S)
     if m is None:
         _log(f"{path.name} 中未找到专属节点方法生成区标记", file=sys.stderr)
@@ -2123,7 +2088,7 @@ def check_nodes(path: Path, lines: list[str]) -> int:
 
 def write_task_lines(path: Path, lines: list[str]) -> None:
     """整体重写 orchestrator.py 的任务线注册生成区。"""
-    raw = _fac_read_raw(path)
+    raw = _read_raw(path)
     if TL_ZONE_START not in raw or TL_ZONE_END not in raw:
         sys.exit(
             f"{path.name} 中未找到任务线注册生成区标记。请先手动添加：\n"
@@ -2147,14 +2112,14 @@ def write_task_lines(path: Path, lines: list[str]) -> None:
 
 def check_task_lines(path: Path, lines: list[str]) -> int:
     """校验任务线注册生成区与目录一致；一致返回 0，否则返回 1。"""
-    raw = _fac_read_raw(path)
+    raw = _read_raw(path)
     m = re.search(_TL_ZONE_PATTERN, raw, re.S)
     if m is None:
         _log(f"{path.name} 中未找到任务线注册生成区标记", file=sys.stderr)
         return 1
     # 保留行内缩进：只 strip 首尾空白，逐行比较前统一换行
-    zone = _fac_normalize_newlines(m.group(1)).strip()
-    expected = _fac_normalize_newlines(generate_task_lines_code(lines)).strip()
+    zone = _normalize_newlines(m.group(1)).strip()
+    expected = _normalize_newlines(generate_task_lines_code(lines)).strip()
     if zone == expected:
         _log(f"OK：任务线注册生成区与目录一致（{path.name}）")
         return 0
@@ -2169,7 +2134,7 @@ def check_task_lines(path: Path, lines: list[str]) -> int:
 
 def write_mount(path: Path, lines: list[str]) -> None:
     """整体重写 orchestrator.py 的 Agent 挂载生成区。"""
-    raw = _fac_read_raw(path)
+    raw = _read_raw(path)
     if MOUNT_ZONE_START not in raw or MOUNT_ZONE_END not in raw:
         sys.exit(
             f"{path.name} 中未找到 Agent 挂载生成区标记。请先手动添加：\n"
@@ -2199,13 +2164,13 @@ def write_mount(path: Path, lines: list[str]) -> None:
 
 def check_mount(path: Path, lines: list[str]) -> int:
     """校验 Agent 挂载生成区与目录一致；一致返回 0，否则返回 1。"""
-    raw = _fac_read_raw(path)
+    raw = _read_raw(path)
     m = re.search(_MOUNT_ZONE_PATTERN, raw, re.S)
     if m is None:
         _log(f"{path.name} 中未找到 Agent 挂载生成区标记", file=sys.stderr)
         return 1
-    zone = _fac_normalize_newlines(m.group(1)).strip()
-    expected = _fac_normalize_newlines(generate_mount_code(lines)).strip()
+    zone = _normalize_newlines(m.group(1)).strip()
+    expected = _normalize_newlines(generate_mount_code(lines)).strip()
     if zone == expected:
         _log(f"OK：Agent 挂载生成区与目录一致（{path.name}）")
         return 0
@@ -2220,7 +2185,7 @@ def check_mount(path: Path, lines: list[str]) -> int:
 
 def write_node_map(path: Path, lines: list[str]) -> None:
     """整体重写 orchestrator.py 的节点映射生成区（仅 _fallback_nodes）。"""
-    raw = _fac_read_raw(path)
+    raw = _read_raw(path)
     if NODEMAP_ZONE_START not in raw or NODEMAP_ZONE_END not in raw:
         sys.exit(
             f"{path.name} 中未找到节点映射生成区标记。请先手动添加：\n"
@@ -2250,13 +2215,13 @@ def write_node_map(path: Path, lines: list[str]) -> None:
 
 def check_node_map(path: Path, lines: list[str]) -> int:
     """校验节点映射生成区与目录一致；一致返回 0，否则返回 1。"""
-    raw = _fac_read_raw(path)
+    raw = _read_raw(path)
     m = re.search(_NODEMAP_ZONE_PATTERN, raw, re.S)
     if m is None:
         _log(f"{path.name} 中未找到节点映射生成区标记", file=sys.stderr)
         return 1
-    zone = _fac_normalize_newlines(m.group(1)).strip()
-    expected = _fac_normalize_newlines(generate_node_map_code(lines)).strip()
+    zone = _normalize_newlines(m.group(1)).strip()
+    expected = _normalize_newlines(generate_node_map_code(lines)).strip()
     if zone == expected:
         _log(f"OK：节点映射生成区与目录一致（{path.name}）")
         return 0
@@ -2361,7 +2326,7 @@ def main(argv: list[str] | None = None) -> None:
         "--model",
         action="store_true",
         help="只生成段①②（业务模型+审核模型到 models.py），不写装配/注册——"
-        "两阶段流程第一步：先写 contracts.py 跑这个生成 Risk/RiskSupervisorReview，"
+        "两阶段流程第一步：先写 contracts.py 跑这个生成生成/审核模型，"
         "再写 agent/supervisor 等业务类，最后跑全量",
     )
     args = parser.parse_args(argv)

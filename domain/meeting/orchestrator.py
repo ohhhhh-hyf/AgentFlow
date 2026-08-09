@@ -310,7 +310,7 @@ def _fallback_text(
     """按声明式规则把草稿拼成确定性文本（+ 可选结构化列表）。
 
     rules 为 FallbackRules 子类实例（见 tools/fallback_rules.py）：
-    - sections: 有序段列表（Raw/KV/Join/Lines/Bullets）
+    - sections: 有序段列表（Raw/Join/Lines）
     - empty_prefix / empty_text / empty_purpose：全空时兜底文案
     - disclaimer: 是否追加 QUALITY_DISCLAIMER
     - structured: {merge: [...]} 客观合并的结构化列表（structure，Report 用）
@@ -324,9 +324,6 @@ def _fallback_text(
         if kind == "raw":
             if values:
                 sections.append(str(values))
-        elif kind == "kv":
-            if values:
-                sections.append(f"{_pick_label(sec, objective)}：{values}")
         elif kind == "join":
             body = "；".join(str(v) for v in values if v)
             if body:
@@ -334,10 +331,6 @@ def _fallback_text(
         elif kind == "lines":
             for index, item in enumerate(values, start=1):
                 sections.append(ActionItemsRender.format_action(index, item))
-        elif kind == "bullets":
-            for item in values:
-                if item:
-                    sections.append(f"- {item}")
     if not sections:
         text = _sec_attr(rules, "empty_text", "") or ""
         prefix = _sec_attr(rules, "empty_prefix", "") or ""
@@ -639,6 +632,7 @@ class _Nodes:
 
 
 
+
     # ── 纪要线专属节点：降级 ──────────────────────────────────
 
     # ── 待办线专属节点：降级 ──────────────────────────────────
@@ -658,7 +652,6 @@ class _Nodes:
         if structure is not None:
             line_dict["structure"] = structure
         return {"lines": {"minutes_generation": line_dict}, "quality_degraded": True}
-
     # ── 专属节点方法生成区结束 ──
 
     def _line_title(self, state: MeetingState, line_name: str) -> str:
@@ -914,7 +907,6 @@ class MeetingAgentSystem(_Nodes):
             "user": user_data,
             "objective_perspective": objective_mode,
             "templates": templates,
-            "streaming": True,  # 图内渲染节点跳过 LLM，由本方法接管流式输出
         }
         try:
             graph = self._build_graph(line_names)
@@ -939,7 +931,6 @@ class MeetingAgentSystem(_Nodes):
             }
             return
 
-        actions = _line(state, "action_items").get("rendered") or []
         # 按线隔离的降级标记：一条线降级不牵连另一条的渲染方式
         minutes_degraded = bool(
             _line(state, "minutes_generation").get("degraded")

@@ -3,18 +3,18 @@
 开发者用这些类在 ``contracts.py`` 里声明"降级时如何把草稿拼成文本"，
 替代裸 dict（语义自明、与 GenerationContract/SupervisorContract 同风格）：
 
-    class RiskFallbackRules(FallbackRules):
+    class MinutesFallbackRules(FallbackRules):
         sections = [
-            Bullets("risk_items"),
-            KV("overall_risk_level", "整体风险等级"),
+            Raw("headline"),
+            Join("executive_summary", "会议要点"),
         ]
-        empty_text = "未识别到明确风险"
-        disclaimer = False
+        empty_text = "请直接参考会议原文"
+        disclaimer = True
 
-    RISK_FALLBACK_RULES = RiskFallbackRules()
+    MINUTES_FALLBACK_RULES = MinutesFallbackRules()
 
 工厂脚本检测到 ``FallbackRules`` 子类后，自动生成完整的 fallback 节点
-（调用 orchestrator 的 ``_fallback_text(state, "risk", RISK_FALLBACK_RULES)``）。
+（调用 orchestrator 的 ``_fallback_text(state, "minutes_generation", MINUTES_FALLBACK_RULES)``）。
 """
 
 
@@ -40,11 +40,6 @@ class Raw(Section):
     kind = "raw"
 
 
-class KV(Section):
-    """单值带标签输出：``{label}：{value}``（如整体风险等级）。"""
-
-    kind = "kv"
-
 
 class Join(Section):
     """字符串列表带标签输出：``{label}：{v1；v2}``（空段跳过）。"""
@@ -57,11 +52,6 @@ class Lines(Section):
 
     kind = "lines"
 
-
-class Bullets(Section):
-    """字符串列表逐行输出：``- {item}``。"""
-
-    kind = "bullets"
 
 
 class FallbackRules:

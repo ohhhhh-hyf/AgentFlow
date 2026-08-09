@@ -28,5 +28,4 @@ RENDER_CONTEXT_STATE_LINES = [
 LINE_CN_NAMES: dict[str, str] = {
     "minutes_generation": "纪要",
     "action_items": "待办",
-    "x": "x",
 }

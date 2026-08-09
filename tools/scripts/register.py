@@ -1,13 +1,13 @@
 """register.py —— 新增任务线第一步：注册 + 四件套骨架 + 工厂 import。
 
-用法：python register.py --domain meeting --task risk --name "风险"
+用法：python register.py --domain meeting --task 线名 --name 中文名
 
 自动做：
-1. domain_config.py 的 LINE_CN_NAMES 追加 ``"risk": "风险",``（幂等，已存在则跳过）
-2. 创建 tasks/risk/ 四件套骨架（risk_agent.py / risk_supervisor.py / risk_render.py / __init__.py）
+1. domain_config.py 的 LINE_CN_NAMES 追加 ``"线名": "中文名",``（幂等，已存在则跳过）
+2. 创建 tasks/{线名}/ 四件套骨架（{线名}_agent.py / {线名}_supervisor.py / {线名}_render.py / __init__.py）
 3. meeting_factory.py 任务线 import 生成区（自动含新线）
 
-之后手写 models.py 的 RiskReport 类，再跑 codegen.py --domain meeting 全量生成。
+之后手写 reports.py 的 XxxReport 类，再跑 codegen.py --domain meeting 全量生成。
 """
 from __future__ import annotations
 
@@ -77,7 +77,7 @@ def main() -> None:
     parser.add_argument(
         "--domain", required=True, help="目标领域（domain/<name>，含 domain_config）"
     )
-    parser.add_argument("--task", required=True, metavar="线名", help="任务线目录名，如 risk")
+    parser.add_argument("--task", required=True, metavar="线名", help="任务线目录名，如 minutes_generation")
     parser.add_argument("--name", required=True, metavar="中文名", help="任务线中文名，如 风险")
     args = parser.parse_args()
 

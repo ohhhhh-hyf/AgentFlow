@@ -29,11 +29,6 @@ import sys
 from typing import ClassVar
 
 
-def _to_upper_snake(name: str) -> str:
-    """PascalCase → UPPER_SNAKE（ActionItems → ACTION_ITEMS）。"""
-    return re.sub(r"(?<!^)(?=[A-Z])", "_", name).upper()
-
-
 class Decision:
     """审核决策枚举（固定三值，与 validate_supervisor_semantics 对齐）。"""
 
@@ -140,13 +135,6 @@ class StrField(Field):
         return "str"
 
 
-class StrNullField(Field):
-    """可空字符串字段（对应 JSON 值含 "null" 的说明）。"""
-
-    @property
-    def kind(self) -> str:
-        return "str_null"
-
 
 class EnumField(Field):
     """枚举字段（JSON 值形如 ``"high|medium|low"``）。"""
@@ -215,8 +203,6 @@ class GenerationContract:
     def _value_json(cls, f: Field) -> str:
         if isinstance(f, StrField):
             return f'"{f.desc}"'
-        if isinstance(f, StrNullField):
-            return f'"{f.desc}"'
         if isinstance(f, EnumField):
             return f'"{ "|".join(f.values) }"'
         if isinstance(f, StrListField):
@@ -256,5 +242,5 @@ class GenerationContract:
 __all__ = [
     "Check", "Decision", "EnumField", "Feedback", "Field",
     "GenerationContract", "ObjField", "ObjListField", "StrField",
-    "StrListField", "StrNullField", "SupervisorContract",
+    "StrListField", "SupervisorContract",
 ]

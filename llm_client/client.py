@@ -283,6 +283,3 @@ class LLMClient:
                 await self._retry_delay(attempt)
         raise RuntimeError("text() 重试耗尽（不可达）")
 
-
-# 兼容旧导入名
-DeepSeekClient = LLMClient

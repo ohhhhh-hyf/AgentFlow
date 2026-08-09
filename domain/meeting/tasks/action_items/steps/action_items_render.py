@@ -62,10 +62,6 @@ class ActionItemsRender:
             items = list(actions.get("my_actions") or [])
         return items
 
-    def format(self, state: MeetingState) -> list[dict]:
-        """输出最终待办列表（等价于 extract_actions 的稳定入口）。"""
-        return self.extract_actions(state)
-
     @staticmethod
     def format_action(index: int, item: dict) -> str:
         """把一条待办格式化为文本行（确定性降级输出用）。"""

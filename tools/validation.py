@@ -71,7 +71,7 @@ def validate_supervisor_semantics(
 ) -> None:
     """审核模型的公共语义校验（所有审核模型共用）。
 
-    审核模型（Minutes/Actions/Risk 等）的通用骨架规则：
+    审核模型（Minutes/Actions 等）的通用骨架规则：
     - decision 只能是 approve / revise / reject
     - approve 时不得有失败检查项、不得有返工意见
     - revise 时必须有返工意见

@@ -309,7 +309,5 @@ class MeetingState(TypedDict, total=False):
     lines: Annotated[dict[str, dict], _merge_lines]
     # 任意层降级（core 或任一任务线），用于最终质量警告（并发写，or 合并）
     quality_degraded: Annotated[bool, _merge_degraded]
-    # 流式模式：图内渲染节点跳过 LLM 调用，由运行入口接管流式输出
-    streaming: bool
     # 可选：各任务线的输出模板（线名 → 模板文本；占位符 [描述] 将被填充）
     templates: dict[str, str]
