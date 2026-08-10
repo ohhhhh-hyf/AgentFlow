@@ -7,7 +7,7 @@
 from __future__ import annotations
 
 from tools.contracts import (
-    EnumField, GenerationContract, ObjListField, StrField, StrListField,
+    GenerationContract, ObjListField, StrField, StrListField,
 )
 
 
@@ -28,30 +28,10 @@ class MeetingUnderstandingGenerationContract(GenerationContract):
     ]
 
 
-class PerspectiveModelingGenerationContract(GenerationContract):
-    """视角建模输出契约。"""
-
-    fields = [
-        EnumField("confidence", ["high", "medium", "low"]),
-        StrField("name", "用户姓名，客观模式下通常为null"),
-        StrField("inferred_role", "基于原文推断的角色，无依据时为null"),
-        StrListField("responsibilities", "本次会议中涉及的该用户/全员职责"),
-        StrListField("goals", "本次会议中该用户/全员应达成的目标"),
-        StrListField("concerns", "该用户/全员应关注的风险、不确定因素"),
-        StrListField("relevant_topics", "与该用户/全员直接相关的议题"),
-        StrListField("evidence", "原文中支撑以上判断的具体语句"),
-    ]
-
-
 MEETING_UNDERSTANDING_GENERATION_OUTPUT_CONTRACT = (
     MeetingUnderstandingGenerationContract.to_json_template()
 )
 
-PERSPECTIVE_MODELING_GENERATION_OUTPUT_CONTRACT = (
-    PerspectiveModelingGenerationContract.to_json_template()
-)
-
 __all__ = [
     "MEETING_UNDERSTANDING_GENERATION_OUTPUT_CONTRACT",
-    "PERSPECTIVE_MODELING_GENERATION_OUTPUT_CONTRACT",
 ]

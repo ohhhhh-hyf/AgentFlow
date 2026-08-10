@@ -1,12 +1,12 @@
-"""meeting_core —— 会议理解与视角建模（核心 Agent）。
+"""meeting_core —— 会议理解（核心 Agent）+ 公共视角建模转发。
 
-这两个 Agent 是会议处理的事实底座：
-- MeetingUnderstandingAgent：客观提取议题、决策、风险、未决问题
-- PerspectiveModelingAgent：把用户画像映射到本次会议，构建关注视角
+- MeetingUnderstandingAgent：客观提取议题、决策、风险、未决问题（meeting 域专属）
+- PerspectiveModelingAgent：公共组件（perspective 包），此处转发导出，
+  保持 orchestrator / meeting_factory 既有 import 不变
 """
 
 from .meeting_understanding_agent import MeetingUnderstandingAgent
-from .perspective_modeling_agent import PerspectiveModelingAgent
+from perspective import PerspectiveModelingAgent
 
 __all__ = [
     "MeetingUnderstandingAgent",

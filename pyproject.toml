@@ -5,7 +5,7 @@ build-backend = "hatchling.build"
 [project]
 name = "meeting-agent"
 version = "0.1.0"
-description = "多 Agent 个性化会议纪要与待办生成器（支持 DeepSeek / Kimi 等）"
+description = "多 Agent 个性化会议纪要与待办生成器（支持 DeepSeek）"
 readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
@@ -15,6 +15,7 @@ dependencies = [
 [tool.hatch.build.targets.wheel]
 packages = [
     "domain/meeting",
+    "perspective",
     "supervisor",
     "schema_repair",
     "llm_client",

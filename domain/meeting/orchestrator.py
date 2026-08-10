@@ -23,6 +23,7 @@ from dataclasses import fields
 from langgraph.graph import END, START, StateGraph
 
 from llm_client import LLMClient
+from perspective import EMPTY_PERSPECTIVE_MODELING
 from .meeting_core import (
     MeetingUnderstandingAgent,
     PerspectiveModelingAgent,
@@ -96,17 +97,6 @@ _EMPTY_MINUTES = {
     "personally_relevant_points": [],
     "risks_and_blockers": [],
     "unresolved_questions": [],
-}
-
-_EMPTY_PERSPECTIVE_MODELING = {
-    "confidence": "high",
-    "name": "",
-    "inferred_role": "",
-    "responsibilities": [],
-    "goals": [],
-    "concerns": [],
-    "relevant_topics": [],
-    "evidence": [],
 }
 
 
@@ -510,7 +500,7 @@ class _Nodes:
         except Exception as exc:
             logger.warning("视角建模失败，使用空视角继续", exc_info=True)
             return {
-                "perspective_profile": _EMPTY_PERSPECTIVE_MODELING,
+                "perspective_profile": EMPTY_PERSPECTIVE_MODELING,
                 "quality_degraded": True,
             }
         return {"perspective_profile": result.model_dump()}
@@ -633,6 +623,8 @@ class _Nodes:
 
 
 
+
+
     # ── 纪要线专属节点：降级 ──────────────────────────────────
 
     # ── 待办线专属节点：降级 ──────────────────────────────────
@@ -652,6 +644,7 @@ class _Nodes:
         if structure is not None:
             line_dict["structure"] = structure
         return {"lines": {"minutes_generation": line_dict}, "quality_degraded": True}
+
     # ── 专属节点方法生成区结束 ──
 
     def _line_title(self, state: MeetingState, line_name: str) -> str:

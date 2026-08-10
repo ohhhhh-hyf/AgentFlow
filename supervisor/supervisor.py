@@ -36,8 +36,4 @@ class GlobalSupervisor:
         return inject_global_standard(domain_prompt)
 
 
-__all__ = [
-    "GLOBAL_SUPERVISOR_PROMPT",
-    "GlobalSupervisor",
-    "inject_global_standard",
-]
+__all__ = ["GlobalSupervisor"]

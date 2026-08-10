@@ -59,3 +59,4 @@ class ActionItemsReport(ModelMixin, ActionItemsReportValidation):
     personalized_text: str | None = field(
         default=None, metadata={"source": "rendered"}
     )
+

@@ -15,13 +15,14 @@ domain/
     reports.py                # 全部任务线最终输出 Report 类（手写区）
     orchestrator.py           # 双线并行图 + 节点 + run/run_streaming
     meeting_factory.py        # Agent 依赖组装工厂
-    meeting_core/             # 核心层：会议理解 + 视角建模
+    meeting_core/             # 核心层：会议理解（客观事实底座）
     tasks/
       minutes_generation/     # 纪要线（contracts.py / prompts.py / steps/）
       action_items/           # 待办线（contracts.py / prompts.py / steps/）
       ...                     # 新增任务线同构
       {line}/steps/           # agent / supervisor / render 三步骤实现
     samples/                  # 示例会议文本 / 用户画像 / 模板
+perspective/                  # 跨 domain 公共视角建模（agent/模型/迷你生成器）
 llm_client/                   # DeepSeek 客户端 + 配置（.env）
 supervisor/                   # 全局监督标准（prompt 注入，不单独调 LLM）
 schema_repair/                # 结构化输出修复（LLM 输出非法时）

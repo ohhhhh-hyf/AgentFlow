@@ -19,7 +19,6 @@ from __future__ import annotations
 import argparse
 import ast
 import importlib
-import json
 import re
 import sys
 from pathlib import Path
@@ -1582,7 +1581,7 @@ def check_render_context(path: Path, lines: list[str]) -> int:
         return 1
     zone = m.group(1)
     expected = generate_render_context_code(lines)
-    if zone.strip() != expected.strip():
+    if _normalize_newlines(zone).strip() != _normalize_newlines(expected).strip():
         _log(
             f"不一致：渲染上下文生成区与当前目录生成的代码有差异"
             f"（请运行 --write 更新）",
@@ -1649,7 +1648,7 @@ def check_fallback_imports(path: Path, lines: list[str]) -> int:
         return 1
     zone = m.group(1)
     expected = generate_fallback_import_code(lines)
-    if zone.strip() != expected.strip():
+    if _normalize_newlines(zone).strip() != _normalize_newlines(expected).strip():
         _log(
             f"不一致：FallbackRules import 生成区与当前目录生成的代码有差异"
             f"（请运行 --write 更新）",
@@ -1878,7 +1877,7 @@ def check_report_assemblers(path: Path, lines: list[str]) -> int:
         return 1
     zone = m.group(1)
     expected = generate_report_assembler_code(lines)
-    if zone.strip() != expected.strip():
+    if _normalize_newlines(zone).strip() != _normalize_newlines(expected).strip():
         _log(
             f"不一致：Report 组装器生成区与当前目录生成的代码有差异"
             f"（请运行 --write 更新）",
@@ -1949,7 +1948,7 @@ def check_fallback_rules(path: Path, lines: list[str]) -> int:
         return 1
     zone = m.group(1)
     expected = generate_fallback_rules_code(lines)
-    if zone.strip() != expected.strip():
+    if _normalize_newlines(zone).strip() != _normalize_newlines(expected).strip():
         _log(
             f"不一致：FallbackRules 注册生成区与当前目录生成的代码有差异"
             f"（请运行 --write 更新）",

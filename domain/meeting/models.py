@@ -6,7 +6,6 @@ from typing import Annotated, Any, Literal, TypedDict
 from tools.validation import (
     OutputValidationError,
     _action,
-    _choice,
     _exact_fields,
     _review_check,
     _string,
@@ -104,33 +103,6 @@ class Minutes(ModelMixin):
         _string_list(data["personally_relevant_points"], "personally_relevant_points")
         _string_list(data["risks_and_blockers"], "risks_and_blockers")
         _string_list(data["unresolved_questions"], "unresolved_questions")
-        return cls(**data)
-
-
-@dataclass
-class PerspectiveModeling(ModelMixin):
-    """PerspectiveModeling输出（浅校验：仅校验第一层键与类型，嵌套不校验）。"""
-
-    confidence: Literal["high", "medium", "low"]
-    name: str
-    inferred_role: str
-    responsibilities: list[str] = field(default_factory=list)
-    goals: list[str] = field(default_factory=list)
-    concerns: list[str] = field(default_factory=list)
-    relevant_topics: list[str] = field(default_factory=list)
-    evidence: list[str] = field(default_factory=list)
-
-    @classmethod
-    def validate(cls, data: dict) -> "PerspectiveModeling":
-        _exact_fields(data, [f.name for f in fields(cls)], cls.__name__)
-        _choice(data["confidence"], {"high", "medium", "low"}, "confidence")
-        _string(data["name"], "name")
-        _string(data["inferred_role"], "inferred_role")
-        _string_list(data["responsibilities"], "responsibilities")
-        _string_list(data["goals"], "goals")
-        _string_list(data["concerns"], "concerns")
-        _string_list(data["relevant_topics"], "relevant_topics")
-        _string_list(data["evidence"], "evidence")
         return cls(**data)
 
 
