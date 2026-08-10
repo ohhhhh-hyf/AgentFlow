@@ -1,4 +1,4 @@
-"""LangGraph 工作流编排。
+﻿"""LangGraph 工作流编排。
 
 MeetingAgentSystem 负责：组装 Agent 依赖、构建双线并行 DAG、条件路由、启动运行。
 
@@ -23,19 +23,17 @@ from dataclasses import fields
 from langgraph.graph import END, START, StateGraph
 
 from llm_client import LLMClient
-from perspective import EMPTY_PERSPECTIVE_MODELING
-from .meeting_core import (
-    MeetingUnderstandingAgent,
-    PerspectiveModelingAgent,
-)
+from perspective import EMPTY_PERSPECTIVE_MODELING, PerspectiveModelingAgent
 from .meeting_factory import MeetingAgentFactory
+from .meeting_core import MeetingUnderstandingAgent
 from .domain_config import LINE_CN_NAMES
 
-# ── Report import 生成区：由 tools/scripts/codegen.py 生成，勿手改 ──
+# ── Report import 生成区：由 tools/scripts/sync_domain.py 生成，勿手改 ──
 
 from .reports import (
     ActionItemsReport,
     MinutesReport,
+    RiskReport,
 )
 # ── Report import 生成区结束 ──
 
@@ -44,7 +42,7 @@ from .models import (
     UserIdentity,
     is_objective_perspective,
 )
-# ── 任务线 import 生成区：由 tools/scripts/codegen.py 生成，勿手改 ──
+# ── 任务线 import 生成区：由 tools/scripts/sync_domain.py 生成，勿手改 ──
 
 from .tasks.action_items import (
     ActionItemsAgent,
@@ -58,12 +56,19 @@ from .tasks.minutes_generation import (
     MinutesGenerationSupervisor,
 )
 
+from .tasks.risk import (
+    RiskAgent,
+    RiskRender,
+    RiskSupervisor,
+)
+
 # ── 任务线 import 生成区结束 ──
 
-# ── FallbackRules import 生成区：由 tools/scripts/codegen.py 生成，勿手改 ──
+# ── FallbackRules import 生成区：由 tools/scripts/sync_domain.py 生成，勿手改 ──
 
 from .tasks.action_items.contracts import ACTION_ITEMS_FALLBACK_RULES
 from .tasks.minutes_generation.contracts import MINUTES_FALLBACK_RULES
+from .tasks.risk.contracts import RISK_FALLBACK_RULES
 
 # ── FallbackRules import 生成区结束 ──
 
@@ -74,7 +79,7 @@ logger = logging.getLogger(__name__)
 QUALITY_WARNING = "生成可能有误，请结合会议原文核对。"
 QUALITY_DISCLAIMER = "（生成可能有误）"
 
-# ── 空结构常量生成区：由 tools/scripts/codegen.py 生成，勿手改 ──
+# ── 空结构常量生成区：由 tools/scripts/sync_domain.py 生成，勿手改 ──
 
 _EMPTY_ACTION_ITEMS = {
     "my_actions": [],
@@ -99,10 +104,13 @@ _EMPTY_MINUTES = {
     "unresolved_questions": [],
 }
 
+_EMPTY_RISK = {
+    "risks": [],
+}
 
 # ── 空结构常量生成区结束 ──
 
-# ── 拒绝审核常量生成区：由 tools/scripts/codegen.py 生成，勿手改 ──
+# ── 拒绝审核常量生成区：由 tools/scripts/sync_domain.py 生成，勿手改 ──
 
 _REJECT_MINUTES_REVIEW = {
     "decision": "reject",
@@ -118,10 +126,15 @@ _REJECT_ACTION_ITEMS_REVIEW = {
     "feedback": ["LLM 调用失败，未完成审核，转降级输出"],
 }
 
+_REJECT_RISK_REVIEW = {
+    "decision": "reject",
+    "risk_check": {"status": "fail", "findings": ["LLM 调用失败，未完成审核"]},
+    "feedback": ["LLM 调用失败，未完成审核，转降级输出"],
+}
 
 # ── 拒绝审核常量生成区结束 ──
 
-# ── 任务线注册生成区：由 tools/scripts/codegen.py 生成，勿手改 ──
+# ── 任务线注册生成区：由 tools/scripts/sync_domain.py 生成，勿手改 ──
 
 TASK_LINES: dict[str, dict] = {
     "action_items": {
@@ -136,20 +149,23 @@ TASK_LINES: dict[str, dict] = {
         "empty_draft": _EMPTY_MINUTES,
         "reject_review": _REJECT_MINUTES_REVIEW,
     },
+    "risk": {
+        "agent_attr": "risk_agent",
+        "supervisor_attr": "risk_supervisor",
+        "empty_draft": _EMPTY_RISK,
+        "reject_review": _REJECT_RISK_REVIEW,
+    },
 }
 
 # ── 任务线注册生成区结束 ──
-
 
 def _line_cn(line_name: str) -> str:
     """线名 → 中文名（查共享注册表，未注册则回退英文线名）。"""
     return LINE_CN_NAMES.get(line_name, line_name)
 
-
 def _line_draft_title(line_name: str) -> str:
     """线名 → 草稿标题（自动推导为「中文名草稿」）。"""
     return f"{_line_cn(line_name)}草稿"
-
 
 def _line_has_structure(report_cls: type) -> bool:
     """该线 Report 是否输出结构化列表（存在 source="structure" 字段）。"""
@@ -157,7 +173,6 @@ def _line_has_structure(report_cls: type) -> bool:
         f.metadata.get("source") == "structure"
         for f in fields(report_cls)
     )
-
 
 def _normalize_templates(
     template: str,
@@ -185,14 +200,12 @@ def _normalize_templates(
             result[line] = template
     return result
 
-
 def _compute_title(state: MeetingState) -> str:
     """视角标题（通用规则：客观 → 客观会议纪要；个人 → 姓名视角会议纪要）。"""
     if bool(state.get("objective_perspective")):
         return "客观会议纪要"
     user = state.get("user") or {}
     return f"{user.get('name', '用户')}视角会议纪要"
-
 
 def _assemble_report(
     state: MeetingState,
@@ -229,7 +242,6 @@ def _assemble_report(
         data["quality_warning"] = warning
     return report_cls(**data)
 
-
 def _normalize_transcript(text: str) -> str:
     """规范化会议文本：合并段落内硬换行，保留段落间空行。
 
@@ -248,23 +260,19 @@ def _normalize_transcript(text: str) -> str:
     text = text.replace("\x00", "\n\n")
     return text.strip()
 
-
 def _json(value: object) -> str:
     """将模型或字典序列化为 JSON 字符串。"""
     if hasattr(value, "model_dump"):
         value = value.model_dump()
     return json.dumps(value, ensure_ascii=False, indent=2)
 
-
 def _line(state: MeetingState, line_name: str) -> dict:
     """读取某条任务线的子空间（未初始化时返回空 dict）。"""
     return (state.get("lines") or {}).get(line_name) or {}
 
-
 def _line_template(state: MeetingState, line_name: str) -> str:
     """取某条任务线的输出模板（未传模板时返回空串）。"""
     return (state.get("templates") or {}).get(line_name, "")
-
 
 def _sec_attr(sec, name, default=None):
     """取段/规则属性：兼容 FallbackRules 对象与裸 dict。"""
@@ -272,14 +280,12 @@ def _sec_attr(sec, name, default=None):
         return sec.get(name, default)
     return getattr(sec, name, default)
 
-
 def _pick_label(sec, objective: bool) -> str:
     """段标签：支持视角联动（{objective: ..., personal: ...}）。"""
     label = _sec_attr(sec, "label")
     if isinstance(label, dict):
         return label.get("objective" if objective else "personal", "未命名")
     return label or "未命名"
-
 
 def _field_values(draft: dict, sec, objective: bool) -> list:
     """取段字段值：支持 merge（客观视角合并多个字段）。"""
@@ -292,7 +298,6 @@ def _field_values(draft: dict, sec, objective: bool) -> list:
                 values.extend(draft.get(extra) or [])
         return values
     return draft.get(field) or []
-
 
 def _fallback_text(
     state: MeetingState, line_name: str, rules
@@ -348,7 +353,6 @@ def _fallback_text(
                 for extra in merge[1:]:
                     structure.extend(draft.get(extra) or [])
     return text, structure
-
 
 class _Nodes:
     """图节点实现（mixin，供 MeetingAgentSystem 继承）。
@@ -410,12 +414,24 @@ class _Nodes:
             f"{_line_draft_title(line_name)}：\n{_json(sub['draft'])}"
         )
 
-    # ── 渲染上下文生成区：由 tools/scripts/codegen.py 生成，勿手改 ──
+    async def _meeting_understanding_node(self, state: MeetingState) -> dict:
+        """meeting理解：提取主题、结构、术语和待澄清问题。"""
+        try:
+            result = await self.meeting_understanding_agent.run(state["transcript"])
+        except Exception:
+            logger.warning("meeting理解失败，使用空理解继续", exc_info=True)
+            return {
+                "meeting_understanding": _EMPTY_MEETING_UNDERSTANDING,
+                "quality_degraded": True,
+            }
+        return {"meeting_understanding": result.model_dump()}
+
+    # ── 渲染上下文生成区：由 tools/scripts/sync_domain.py 生成，勿手改 ──
 
     def _action_items_render_context(self, state: MeetingState) -> str:
         mode = self._mode_label(state)
         line = _line(state, "action_items")
-        review = line.get("supervisor_review") or {}
+        review = line.get("review") or {}
         return (
             f"视角模式：{mode}\n"
             f"objective_perspective：{bool(state.get('objective_perspective'))}\n\n"
@@ -430,7 +446,7 @@ class _Nodes:
     def _minutes_generation_render_context(self, state: MeetingState) -> str:
         mode = self._mode_label(state)
         line = _line(state, "minutes_generation")
-        review = line.get("supervisor_review") or {}
+        review = line.get("review") or {}
         return (
             f"视角模式：{mode}\n"
             f"objective_perspective：{bool(state.get('objective_perspective'))}\n\n"
@@ -442,6 +458,20 @@ class _Nodes:
             f"纪要审核结论：\n{_json(review)}"
         )
 
+    def _risk_render_context(self, state: MeetingState) -> str:
+        mode = self._mode_label(state)
+        line = _line(state, "risk")
+        review = line.get("review") or {}
+        return (
+            f"视角模式：{mode}\n"
+            f"objective_perspective：{bool(state.get('objective_perspective'))}\n\n"
+            f"会议原文：\n{state['transcript']}\n\n"
+            f"用户画像：\n{_json(state['user'])}\n\n"
+            f"已审核会议理解：\n{_json(state.get('meeting_understanding'))}\n\n"
+            f"已审核用户视角：\n{_json(state.get('perspective_profile'))}\n\n"
+            f"已批准风险分析草稿：\n{_json(line.get('draft'))}\n\n"
+            f"风险分析审核结论：\n{_json(review)}"
+        )
 
     # ── 渲染上下文生成区结束 ──
 
@@ -610,20 +640,7 @@ class _Nodes:
 
         return route
 
-    # ── 专属节点方法生成区：由 tools/scripts/codegen.py 生成骨架，函数体可改 ──
-
-
-
-
-
-
-
-
-
-
-
-
-
+    # ── 专属节点方法生成区：由 tools/scripts/sync_domain.py 生成骨架，函数体可改 ──
 
     # ── 纪要线专属节点：降级 ──────────────────────────────────
 
@@ -644,6 +661,14 @@ class _Nodes:
         if structure is not None:
             line_dict["structure"] = structure
         return {"lines": {"minutes_generation": line_dict}, "quality_degraded": True}
+
+    async def _risk_fallback_node(self, state: MeetingState) -> dict:
+        text, structure = _fallback_text(
+            state, "risk", RISK_FALLBACK_RULES)
+        line_dict = {"rendered": text, "degraded": True}
+        if structure is not None:
+            line_dict["structure"] = structure
+        return {"lines": {"risk": line_dict}, "quality_degraded": True}
 
     # ── 专属节点方法生成区结束 ──
 
@@ -706,7 +731,29 @@ class _Nodes:
                     }
                 )
             # 流式结束后写回完整文本，供 done 事件的最终 Report 组装
-            _line(state, line_name)["rendered"] = "".join(parts)
+            full_text = "".join(parts)
+            _line(state, line_name)["rendered"] = full_text
+            # 模板路由校验（只读、无副作用）：仅记录问题，不改变输出内容
+            if template:
+                from tools.template_router import (
+                    is_router_enabled,
+                    validate_rendered_output,
+                )
+
+                if is_router_enabled():
+                    try:
+                        issues = validate_rendered_output(full_text, template)
+                    except Exception:  # noqa: BLE001 - 校验失败仅记日志，绝不影响交付
+                        logger.warning(
+                            "模板渲染校验异常（%s）", line_name, exc_info=True
+                        )
+                    else:
+                        if issues:
+                            logger.warning(
+                                "模板渲染校验未通过（%s）：%s",
+                                line_name,
+                                "；".join(issues),
+                            )
             # 待办线额外写回结构化列表（渲染节点已移除，structure 在此补充）
             if line_name == "action_items":
                 _line(state, line_name)["structure"] = (
@@ -716,7 +763,6 @@ class _Nodes:
             await queue.put(exc)  # 异常对象作为事件传出，由主循环抛出
         finally:
             await queue.put(None)
-
 
 class MeetingAgentSystem(_Nodes):
     """使用 LangGraph 编排会议分析、双线并行审核返工与最终输出。"""
@@ -735,7 +781,7 @@ class MeetingAgentSystem(_Nodes):
             "perspective_modeling_agent"
         ]
 
-        # ── Agent 挂载生成区：由 tools/scripts/codegen.py 生成，勿手改 ──
+        # ── Agent 挂载生成区：由 tools/scripts/sync_domain.py 生成，勿手改 ──
 
         self.action_items_agent: ActionItemsAgent = agents["action_items_agent"]
         self.action_items_supervisor: ActionItemsSupervisor = agents["action_items_supervisor"]
@@ -743,34 +789,40 @@ class MeetingAgentSystem(_Nodes):
         self.minutes_generation_agent: MinutesGenerationAgent = agents["minutes_generation_agent"]
         self.minutes_generation_supervisor: MinutesGenerationSupervisor = agents["minutes_generation_supervisor"]
         self.minutes_generation_render: MinutesGenerationRender = agents["minutes_generation_render"]
+        self.risk_agent: RiskAgent = agents["risk_agent"]
+        self.risk_supervisor: RiskSupervisor = agents["risk_supervisor"]
+        self.risk_render: RiskRender = agents["risk_render"]
 
         # ── Agent 挂载生成区结束 ──
 
         # 各线专属的渲染 / 降级节点（同构节点由注册表在 _build_graph 中生成）
-        # ── 节点映射生成区：由 tools/scripts/codegen.py 生成，勿手改 ──
+        # ── 节点映射生成区：由 tools/scripts/sync_domain.py 生成，勿手改 ──
 
         self._fallback_nodes: dict[str, object] = {}
         self._fallback_nodes["action_items"] = self._action_items_fallback_node
         self._fallback_nodes["minutes_generation"] = self._minutes_generation_fallback_node
+        self._fallback_nodes["risk"] = self._risk_fallback_node
 
         # ── 节点映射生成区结束 ──
 
         # 各线 Report 组装器：线名 → Report 类（脚本生成，键 = 线名与 chunk.line 一致）
-        # ── Report 组装器生成区：由 tools/scripts/codegen.py 生成，勿手改 ──
+        # ── Report 组装器生成区：由 tools/scripts/sync_domain.py 生成，勿手改 ──
 
         self._report_assemblers = {
             "action_items": ActionItemsReport,
             "minutes_generation": MinutesReport,
+            "risk": RiskReport,
         }
 
         # ── Report 组装器生成区结束 ──
 
         # 各线降级规则：线名 → FallbackRules 实例（脚本生成，图异常兜底用）
-        # ── FallbackRules 注册生成区：由 tools/scripts/codegen.py 生成，勿手改 ──
+        # ── FallbackRules 注册生成区：由 tools/scripts/sync_domain.py 生成，勿手改 ──
 
         self._fallback_rules = {
             "action_items": ACTION_ITEMS_FALLBACK_RULES,
             "minutes_generation": MINUTES_FALLBACK_RULES,
+            "risk": RISK_FALLBACK_RULES,
         }
 
         # ── FallbackRules 注册生成区结束 ──

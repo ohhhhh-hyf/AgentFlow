@@ -11,16 +11,16 @@ from dataclasses import dataclass, field
 
 from typing import Any
 
-# ── Report 基类 import 生成区：由 tools/scripts/codegen.py 生成，勿手改 ──
+# ── Report 基类 import 生成区：由 tools/scripts/sync_domain.py 生成，勿手改 ──
 
 from .models import (
     ModelMixin,
     ActionItemsReportValidation,
     MinutesReportValidation,
+    RiskReportValidation,
 )
 
 # ── Report 基类 import 生成区结束 ──
-
 
 @dataclass
 class MinutesReport(ModelMixin, MinutesReportValidation):
@@ -34,7 +34,6 @@ class MinutesReport(ModelMixin, MinutesReportValidation):
     personalized_minutes: str = field(metadata={"source": "rendered"})
     # 仅由系统在兜底路径写入；LLM 输出不需要也不应包含该字段
     quality_warning: str | None = None
-
 
 @dataclass
 class ActionItemsReport(ModelMixin, ActionItemsReportValidation):
@@ -60,3 +59,16 @@ class ActionItemsReport(ModelMixin, ActionItemsReportValidation):
         default=None, metadata={"source": "rendered"}
     )
 
+@dataclass
+class RiskReport(ModelMixin, RiskReportValidation):
+    """风险分析输出。"""
+
+    risks: list[dict[str, Any]] = field(
+        default_factory=list,
+        metadata={"source": "structure"},
+    )
+    quality_warning: str | None = None
+    personalized_text: str | None = field(
+        default=None,
+        metadata={"source": "rendered"},
+    )

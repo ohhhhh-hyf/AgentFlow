@@ -1,4 +1,4 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 from collections.abc import AsyncIterator
 
@@ -6,7 +6,10 @@ from llm_client import LLMClient
 from tools.prompt_utils import build_render_prompt
 
 from ....models import MeetingState
-from ..prompts import ITEM_RENDER_PROMPT, ITEM_RENDER_TEMPLATE_PROMPT
+from ..prompts import (
+    ACTION_ITEMS_RENDER_PROMPT,
+    ACTION_ITEMS_RENDER_TEMPLATE_PROMPT,
+)
 
 
 class ActionItemsRender:
@@ -25,8 +28,8 @@ class ActionItemsRender:
         return build_render_prompt(
             context,
             template,
-            ITEM_RENDER_PROMPT,
-            ITEM_RENDER_TEMPLATE_PROMPT,
+            ACTION_ITEMS_RENDER_PROMPT,
+            ACTION_ITEMS_RENDER_TEMPLATE_PROMPT,
         )
 
     async def run(self, context: str, template: str = "") -> str:

@@ -1,4 +1,4 @@
-"""minutes_generation 任务组的 prompt 与输出契约。
+﻿"""minutes_generation 任务组的 prompt 与输出契约。
 
 - 生成：MINUTES_GENERATION_SYSTEM_PROMPT
 - 监督：MINUTES_SUPERVISOR_DOMAIN_PROMPT（注入全局标准后使用）

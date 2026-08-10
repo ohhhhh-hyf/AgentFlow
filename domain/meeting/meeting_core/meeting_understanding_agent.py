@@ -1,4 +1,4 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 from llm_client import LLMClient
 from ..models import MeetingUnderstanding

@@ -1,11 +1,11 @@
-"""action_items 任务组的 prompt 与输出契约。"""
+﻿"""action_items 任务组的 prompt 与输出契约。"""
 from __future__ import annotations
 
 from tools.template_prompt import build_template_render_prompt
 
 # ── 待办提取 ──────────────────────────────────────────────────
 
-ACTION_ITEMS_SYSTEM_PROMPT = """你是待办事项 Agent。从会议内容中提取可独立执行的行动项，按视角模式正确分类。
+ACTION_ITEMS_GENERATION_SYSTEM_PROMPT = """你是待办事项 Agent。从会议内容中提取可独立执行的行动项，按视角模式正确分类。
 
 **最高原则：宁缺毋滥。** 原文没有明确信息的字段一律留 null 或 []。不要因为"应该有个负责人""应该有个截止时间"就去推断或编造。一条只有 task 没有 owner、没有 deadline、没有 priority 的待办，远比一条编造了这些字段的待办好。
 
@@ -109,6 +109,8 @@ ACTION_ITEMS_SYSTEM_PROMPT = """你是待办事项 Agent。从会议内容中提
 - priority / deadline / confidence 只依据原文信号词判定；同一信号词在不同运行中应得到同样标注
 - 拿不准是否提取时，倾向不提取，且该倾向在全部条目上保持一致"""
 
+ACTION_ITEMS_SYSTEM_PROMPT = ACTION_ITEMS_GENERATION_SYSTEM_PROMPT
+
 ACTION_ITEMS_SUPERVISOR_DOMAIN_PROMPT = """## 领域审核规则：待办提取
 
 ### 模式选择
@@ -147,6 +149,8 @@ ITEM_RENDER_PROMPT = """你是待办事项渲染器。根据已审核通过的�
 - 客观准确，只使用草稿中的信息，不补充原文没有的内容
 """
 
+ACTION_ITEMS_RENDER_PROMPT = ITEM_RENDER_PROMPT
+
 ITEM_RENDER_TEMPLATE_PROMPT = build_template_render_prompt(
     renderer="待办事项渲染器",
     source="已审核通过的待办提取结果",
@@ -154,3 +158,5 @@ ITEM_RENDER_TEMPLATE_PROMPT = build_template_render_prompt(
         "待办列表为空时，按模板对「无内容」的要求输出（如输出 [] 或空表格）"
     ),
 )
+
+ACTION_ITEMS_RENDER_TEMPLATE_PROMPT = ITEM_RENDER_TEMPLATE_PROMPT

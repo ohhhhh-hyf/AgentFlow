@@ -1,4 +1,4 @@
-"""contracts.py —— 审阅契约构件类（Decision / Check / Feedback / SupervisorContract）。
+﻿"""contracts.py —— 审阅契约构件类（Decision / Check / Feedback / SupervisorContract）。
 
 开发者用这些类在 ``prompts.py`` 里声明审阅契约，替代手写 JSON 字符串：
 
@@ -19,7 +19,7 @@
 该常量一物两用：
 - 运行时：``client.structured(..., output_contract=...)`` 拼进 system prompt，
   作为 LLM 的"唯一合法输出模板"
-- 脚本期：``codegen.py`` import 契约类读结构（checks / decision /
+- 脚本期：``sync_domain.py`` import 契约类读结构（checks / decision /
   feedback），生成审核模型 + 拒绝态兜底常量
 """
 from __future__ import annotations

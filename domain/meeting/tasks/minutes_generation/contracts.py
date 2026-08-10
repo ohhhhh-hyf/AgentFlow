@@ -1,4 +1,4 @@
-"""minutes_generation 的契约定义（prompt 文本见 prompts.py）。
+﻿"""minutes_generation 的契约定义（prompt 文本见 prompts.py）。
 
 本模块只放"结构化规范"：
 - 生成契约类 MinutesGenerationContract → to_json_template() 生成生成契约 prompt
@@ -41,7 +41,7 @@ class MinutesSupervisorContract(SupervisorContract):
 MINUTES_GENERATION_OUTPUT_CONTRACT = MinutesGenerationContract.to_json_template()
 MINUTES_SUPERVISOR_OUTPUT_CONTRACT = MinutesSupervisorContract.to_json_template()
 
-# 降级拼装规则（声明式类）：fallback 节点由 codegen.py 检测子类后生成
+# 降级拼装规则（声明式类）：fallback 节点由 sync_domain.py 检测子类后生成
 class MinutesFallbackRules(FallbackRules):
     """纪要降级拼装：headline + 5 段（带标签）+ 免责声明。"""
 

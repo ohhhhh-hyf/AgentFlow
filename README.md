@@ -1,4 +1,4 @@
-# 个性化会议纪要多 Agent 系统
+﻿# 个性化会议纪要多 Agent 系统
 
 基于 DeepSeek 的会议纪要/待办生成系统：双任务线并行流水线（纪要 + 待办），
 每条线独立执行"生成 → 领域审核（+全局标准注入）→ 渲染"，互不阻塞；
@@ -32,8 +32,8 @@ tools/
   validation.py               # 输出校验工具
   prompt_utils.py / template_prompt.py   # 渲染 prompt 构建
   scripts/
-    codegen.py                # 代码生成器：从契约生成模型/装配/骨架（--write/--check）
-    register.py               # 新增任务线第一步：注册 + 骨架 + 工厂 import
+    sync_domain.py                # 代码生成器：从契约生成模型/装配/骨架（--write/--check）
+    register_task.py               # 新增任务线第一步：注册 + 骨架 + 工厂 import
 ```
 
 ## 快速开始
@@ -80,21 +80,21 @@ python bootstrap.py ... --minutes_template .\domain\meeting\samples\summary_temp
 
 ```
 ① 手写 domain/meeting/tasks/xxx/contracts.py      # 生成/审核契约 + 降级规则
-② python tools/scripts/register.py --domain meeting --task xxx --name "中文名"
+② python tools/scripts/register_task.py --domain meeting --task xxx --name "中文名"
    # 自动：注册中文名 + steps/ 三件套 + 工厂 import + 占位校验类
 ③ 手写 domain/meeting/tasks/xxx/prompts.py         # 4 个 prompt 常量
 ④ reports.py 末尾追加 XxxReport 类（继承 ModelMixin, XxxReportValidation）
-⑤ python tools/scripts/codegen.py --domain meeting   # 全量生成 → SUCCESS!
-⑥ python tools/scripts/codegen.py --domain meeting --check   # 校验 → SUCCESS!
+⑤ python tools/scripts/sync_domain.py --domain meeting   # 全量生成 → SUCCESS!
+⑥ python tools/scripts/sync_domain.py --domain meeting --check   # 校验 → SUCCESS!
 ⑦ python bootstrap.py --task xxx --summary ... --profile ...
 ```
 
 ## 架构要点
 
 - **双线并行**：纪要/待办各自监督返工闭环（approve/revise≤1次/reject→降级），互不阻塞
-- **契约驱动**：每条任务线的模型/校验/装配由 `contracts.py` 声明，`codegen.py` 生成
+- **契约驱动**：每条任务线的模型/校验/装配由 `contracts.py` 声明，`sync_domain.py` 生成
 - **生成区**：`models.py` / `orchestrator.py` / `meeting_factory.py` 的生成区由脚本管理
   （`--write` 重写、`--check` 校验），手写区（contracts/prompts/reports 类）脚本不碰
 - **全局标准注入**：`supervisor/` 的全局标准经 `GlobalSupervisor.build_prompt` 注入各线 supervisor
 - **占位校验**：register 阶段预生成 `XxxReportValidation: pass`，写 Report 类无 NameError，
-  codegen 全量后按字段生成真实校验
+  sync_domain 全量后按字段生成真实校验

@@ -1,4 +1,4 @@
-"""meeting_core 的契约定义（prompt 文本见 prompts.py）。
+﻿"""meeting_core 的契约定义（prompt 文本见 prompts.py）。
 
 本模块只放"结构化规范"：
 - 生成契约类（MeetingUnderstandingGenerationContract 等）→ to_json_template() 生成 prompt 常量

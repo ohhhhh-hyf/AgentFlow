@@ -4,6 +4,11 @@
 - 有模板：用模板 prompt，模板原样拼进用户消息（LLM 只替换占位符）
 - 无模板：用普通渲染 prompt，用户消息就是上下文本身
 
+模板路由（tools.template_router）：有模板时先自动判型分派——
+占位符模板 / 格式规范模板 / 自然语言描述三类各自最优处理；
+任何无法处理的情况回退旧路径（原样拼模板），不影响现有逻辑。
+开关：环境变量 ``TEMPLATE_ROUTER=off`` 关闭路由。
+
 用法（任务线 render 内）：
     from tools.prompt_utils import build_render_prompt
 
@@ -13,6 +18,8 @@
         )
 """
 from __future__ import annotations
+
+from tools.template_router import route_template
 
 
 def build_render_prompt(
@@ -32,12 +39,16 @@ def build_render_prompt(
     Returns:
         (prompt, user)：
         - 有模板 → (template_prompt, f"{context}\\n\\n{template}")
+          先经模板路由分派；无法处理时回退此旧路径
         - 无模板 → (render_prompt, context)
     """
     template = template or ""
-    if template.strip():
-        return template_prompt, f"{context}\n\n{template}"
-    return render_prompt, context
+    if not template.strip():
+        return render_prompt, context
+    routed = route_template(context, template, render_prompt, template_prompt)
+    if routed is not None:
+        return routed
+    return template_prompt, f"{context}\n\n{template}"
 
 
 __all__ = ["build_render_prompt"]

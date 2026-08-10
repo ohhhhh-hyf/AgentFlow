@@ -1,4 +1,4 @@
-"""meeting_core 的 prompt 与输出契约（会议理解 + 视角建模）。"""
+﻿"""meeting_core 的 prompt 与输出契约（会议理解 + 视角建模）。"""
 from __future__ import annotations
 
 # ── MeetingUnderstandingAgent ─────────────────────────────────

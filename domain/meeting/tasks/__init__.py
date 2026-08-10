@@ -1,4 +1,4 @@
-"""tasks —— 任务型 Agent 组。
+﻿"""tasks —— 任务型 Agent 组。
 
 每个任务组是一条独立流水线（agent → supervisor → render），
 彼此并行、互不阻塞：

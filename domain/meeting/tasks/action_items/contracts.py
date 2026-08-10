@@ -1,4 +1,4 @@
-"""action_items 的契约定义（prompt 文本见 prompts.py）。
+﻿"""action_items 的契约定义（prompt 文本见 prompts.py）。
 
 本模块只放"结构化规范"：
 - 生成契约类 ActionItemsGenerationContract → to_json_template() 生成生成契约 prompt
@@ -44,7 +44,7 @@ class ActionItemsSupervisorContract(SupervisorContract):
 ACTION_ITEMS_GENERATION_OUTPUT_CONTRACT = ActionItemsGenerationContract.to_json_template()
 ACTION_ITEMS_SUPERVISOR_OUTPUT_CONTRACT = ActionItemsSupervisorContract.to_json_template()
 
-# 降级拼装规则（声明式类）：fallback 节点由 codegen.py 检测子类后生成
+# 降级拼装规则（声明式类）：fallback 节点由 sync_domain.py 检测子类后生成
 class ActionItemsFallbackRules(FallbackRules):
     """待办降级拼装：客观合并后逐行格式化 + 结构化 items。"""
 

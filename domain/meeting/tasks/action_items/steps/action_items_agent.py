@@ -1,9 +1,9 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 from llm_client import LLMClient
 from ....models import ActionItems
 from ..prompts import (
-    ACTION_ITEMS_SYSTEM_PROMPT,
+    ACTION_ITEMS_GENERATION_SYSTEM_PROMPT,
 )
 from ..contracts import ACTION_ITEMS_GENERATION_OUTPUT_CONTRACT
 
@@ -16,7 +16,7 @@ class ActionItemsAgent:
 
     async def run(self, shared_context: str) -> ActionItems:
         return await self.client.structured(
-            ACTION_ITEMS_SYSTEM_PROMPT,
+            ACTION_ITEMS_GENERATION_SYSTEM_PROMPT,
             shared_context,
             ActionItems,
             ACTION_ITEMS_GENERATION_OUTPUT_CONTRACT,

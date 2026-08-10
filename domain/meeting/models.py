@@ -1,4 +1,4 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 from dataclasses import asdict, dataclass, field, fields
 from typing import Annotated, Any, Literal, TypedDict
@@ -13,11 +13,9 @@ from tools.validation import (
     validate_supervisor_semantics,
 )
 
-
 class ModelMixin:
     def model_dump(self) -> dict[str, Any]:
         return asdict(self)
-
 
 @dataclass
 class UserIdentity(ModelMixin):
@@ -30,7 +28,6 @@ class UserIdentity(ModelMixin):
     # "objective" = 全会客观视角；缺省或其它值 = 具体用户视角
     perspective: str | None = None
 
-
 def is_objective_perspective(user: UserIdentity | dict | None) -> bool:
     """画像 perspective 为 objective 时走客观纪要/待办口径。"""
     if user is None:
@@ -38,8 +35,7 @@ def is_objective_perspective(user: UserIdentity | dict | None) -> bool:
     data = user.model_dump() if hasattr(user, "model_dump") else dict(user)
     return str(data.get("perspective") or "").strip().lower() == "objective"
 
-
-# ── 生成模型生成区：由 tools/scripts/codegen.py 生成，勿手改 ──
+# ── 生成模型生成区：由 tools/scripts/sync_domain.py 生成，勿手改 ──
 
 @dataclass
 class ActionItems(ModelMixin):
@@ -59,7 +55,6 @@ class ActionItems(ModelMixin):
         if not isinstance(data["unassigned_actions"], list):
             raise OutputValidationError("unassigned_actions 必须是数组")
         return cls(**data)
-
 
 @dataclass
 class MeetingUnderstanding(ModelMixin):
@@ -81,7 +76,6 @@ class MeetingUnderstanding(ModelMixin):
         _string_list(data["open_questions"], "open_questions")
         _string_list(data["risks"], "risks")
         return cls(**data)
-
 
 @dataclass
 class Minutes(ModelMixin):
@@ -105,10 +99,22 @@ class Minutes(ModelMixin):
         _string_list(data["unresolved_questions"], "unresolved_questions")
         return cls(**data)
 
+@dataclass
+class Risk(ModelMixin):
+    """Risk输出（浅校验：仅校验第一层键与类型，嵌套不校验）。"""
+
+    risks: list[dict[str, Any]] = field(default_factory=list)
+
+    @classmethod
+    def validate(cls, data: dict) -> "Risk":
+        _exact_fields(data, [f.name for f in fields(cls)], cls.__name__)
+        if not isinstance(data["risks"], list):
+            raise OutputValidationError("risks 必须是数组")
+        return cls(**data)
 
 # ── 生成模型生成区结束 ──
 
-# ── 审核模型生成区：由 tools/scripts/codegen.py 生成，勿手改 ──
+# ── 审核模型生成区：由 tools/scripts/sync_domain.py 生成，勿手改 ──
 
 @dataclass
 class MinutesSupervisorReview(ModelMixin):
@@ -137,7 +143,6 @@ class MinutesSupervisorReview(ModelMixin):
         )
         return cls(**data)
 
-
 @dataclass
 class ActionItemsSupervisorReview(ModelMixin):
     """待办任务线的领域审核结果。"""
@@ -163,10 +168,34 @@ class ActionItemsSupervisorReview(ModelMixin):
         )
         return cls(**data)
 
+@dataclass
+class RiskSupervisorReview(ModelMixin):
+    """风险分析任务线的领域审核结果。"""
+
+    decision: Literal["approve", "revise", "reject"]
+    risk_check: dict[str, Any]
+    feedback: list[str] = field(default_factory=list)
+
+    # 本模型的全部检查项（供结构校验与公共语义校验使用）
+    CHECK_KEYS = ("risk_check",)
+
+    @classmethod
+    def validate(cls, data: dict) -> "RiskSupervisorReview":
+        _exact_fields(data, [f.name for f in fields(cls)], cls.__name__)
+        for key in cls.CHECK_KEYS:
+            _review_check(data[key], key)
+        _string_list(data["feedback"], "feedback")
+        # 公共语义规则：decision 枚举 + 与检查项/feedback 的联动约束
+        validate_supervisor_semantics(
+            data["decision"],
+            data["feedback"],
+            {key: data[key] for key in cls.CHECK_KEYS},
+        )
+        return cls(**data)
 
 # ── 审核模型生成区结束 ──
 
-# ── Report 校验生成区：由 tools/scripts/codegen.py 生成，勿手改 ──
+# ── Report 校验生成区：由 tools/scripts/sync_domain.py 生成，勿手改 ──
 
 class ActionItemsReportValidation:
     """ActionItemsReport 的校验逻辑（由脚本按手写字段自动生成）。"""
@@ -199,7 +228,6 @@ class ActionItemsReportValidation:
             personalized_text=data.get("personalized_text"),
         )
 
-
 class MinutesReportValidation:
     """MinutesReport 的校验逻辑（由脚本按手写字段自动生成）。"""
 
@@ -227,8 +255,36 @@ class MinutesReportValidation:
             quality_warning=data.get("quality_warning"),
         )
 
-# ── Report 校验生成区结束 ──
+class RiskReportValidation:
+    """RiskReport 的校验逻辑（由脚本按手写字段自动生成）。"""
 
+    @classmethod
+    def validate(cls, data: dict) -> "RiskReport":
+        allowed = {"risks", "quality_warning", "personalized_text"}
+
+        if not isinstance(data, dict):
+            raise OutputValidationError("RiskReport 必须是 JSON 对象")
+
+        extra = set(data) - allowed
+        if extra:
+            raise OutputValidationError(
+                f"RiskReport 字段不一致：多余={sorted(extra)}"
+            )
+
+        if not isinstance(data.get("risks") or [], list):
+            raise OutputValidationError("risks 必须是数组")
+        if data.get("quality_warning") is not None:
+            _string(data["quality_warning"], "quality_warning")
+        if data.get("personalized_text") is not None:
+            _string(data["personalized_text"], "personalized_text")
+
+        return cls(
+            risks=data.get("risks") or [],
+            quality_warning=data.get("quality_warning"),
+            personalized_text=data.get("personalized_text"),
+        )
+
+# ── Report 校验生成区结束 ──
 
 # ── LangGraph 共享状态 ────────────────────────────────────────
 
@@ -239,7 +295,6 @@ def _merge_degraded(a: bool | None, b: bool | None) -> bool:
     用 or 合并避免并发写冲突（InvalidUpdateError）。
     """
     return bool(a) or bool(b)
-
 
 def _merge_lines(a: dict | None, b: dict | None) -> dict:
     """任务线子空间（lines）的 LangGraph reducer：按线名浅合并。
@@ -258,7 +313,6 @@ def _merge_lines(a: dict | None, b: dict | None) -> dict:
         else:
             out[name] = patch
     return out
-
 
 class MeetingState(TypedDict, total=False):
     """LangGraph 在一次运行中跨节点传递的共享上下文。

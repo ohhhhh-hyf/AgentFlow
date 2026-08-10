@@ -1,9 +1,9 @@
-"""codegen.py —— 一次生成全部契约生成区的唯一脚本入口。
+﻿"""sync_domain.py —— 一次生成全部契约生成区的唯一脚本入口。
 
 新增任务线只需：
 
-    python codegen.py --write     # 一次生成全部生成区
-    python codegen.py --check     # 一次校验全部生成区（CI 用）
+    python sync_domain.py --write     # 一次生成全部生成区
+    python sync_domain.py --check     # 一次校验全部生成区（CI 用）
 
 内部按三段执行（原三个独立脚本的合并体，职责分段清晰）：
 
@@ -21,9 +21,10 @@ import ast
 import importlib
 import re
 import sys
+import traceback
 from pathlib import Path
 
-# 项目根（脚本位于 tools/scripts/codegen.py）
+# 项目根（脚本位于 tools/scripts/sync_domain.py）
 ROOT = Path(__file__).resolve().parents[2]
 
 sys.path.insert(0, str(ROOT))
@@ -32,6 +33,27 @@ sys.path.insert(0, str(ROOT))
 def _log(*args, **kwargs) -> None:
     """静默日志：成功/校验细节不输出；命令结尾统一输出 SUCCESS! / FAIL!!!。"""
     return None
+
+
+def _info(message: str) -> None:
+    print(message)
+
+
+def _read_py(path: Path) -> str:
+    """读取 Python 源码，兼容 Windows 工具写入的 UTF-8 BOM。"""
+    return path.read_text(encoding="utf-8-sig")
+
+
+def _compact_blank_lines(text: str) -> str:
+    """Normalize line endings and collapse excessive blank lines."""
+    text = text.replace("\r\n", "\n").replace("\r", "\n")
+    lines = text.split("\n")
+    blank_count = sum(1 for line in lines if not line.strip())
+    nonblank_count = max(1, len(lines) - blank_count)
+    if blank_count > nonblank_count * 0.6:
+        text = "\n".join(line for line in lines if line.strip())
+    text = re.sub(r"\n[ \t]*\n(?:[ \t]*\n)+", "\n\n", text)
+    return text
 
 
 from tools.contracts import (  # noqa: E402
@@ -74,7 +96,7 @@ class _Domain:
                 "RENDER_CONTEXT_STATE_LINES": [],
             }
             if path.exists():
-                tree = ast.parse(path.read_text(encoding="utf-8"))
+                tree = ast.parse(_read_py(path))
                 for node in tree.body:
                     if (
                         isinstance(node, ast.Assign)
@@ -106,7 +128,7 @@ class _Domain:
             path = self.dir / "domain_config.py"
             if not path.exists():
                 raise SystemExit(f"{path} 不存在——请先创建领域骨架（含 domain_config.py）")
-            tree = ast.parse(path.read_text(encoding="utf-8"))
+            tree = ast.parse(_read_py(path))
             found = None
             for node in tree.body:
                 if (
@@ -139,11 +161,11 @@ def set_domain(name: str) -> None:
     CURRENT = _Domain(name)
 
 
-GEN_ZONE_START = "# ── 生成模型生成区：由 tools/scripts/codegen.py 生成，勿手改 ──"
+GEN_ZONE_START = "# ── 生成模型生成区：由 tools/scripts/sync_domain.py 生成，勿手改 ──"
 GEN_ZONE_END = "# ── 生成模型生成区结束 ──"
 
 # 空结构常量生成区标记（orchestrator.py）
-GEN_ZONE_EMPTY_START = "# ── 空结构常量生成区：由 tools/scripts/codegen.py 生成，勿手改 ──"
+GEN_ZONE_EMPTY_START = "# ── 空结构常量生成区：由 tools/scripts/sync_domain.py 生成，勿手改 ──"
 GEN_ZONE_EMPTY_END = "# ── 空结构常量生成区结束 ──"
 
 # 生成契约的强制命名后缀（类名约定）
@@ -173,7 +195,7 @@ def _load_module_file(path: Path):
 
 
 def find_gen_contracts() -> list[dict]:
-    """遍历 meeting 下的 contracts.py，提取全部 GenerationContract 子类。
+    """遍历当前 domain 下的 contracts.py，提取全部 GenerationContract 子类。
 
     生成契约类定义在各 {目录}/contracts.py；其输出模板常量
     （{基名大写}_GENERATION_OUTPUT_CONTRACT）由同文件 to_json_template() 显式赋值，
@@ -352,7 +374,7 @@ def gen_generate_all() -> tuple[str, str]:
 
 def _read_raw(path: Path) -> str:
     with open(path, encoding="utf-8", newline="") as fh:
-        return fh.read()
+        return _compact_blank_lines(fh.read())
 
 
 def _gen_zone_content(raw: str, start: str, end: str) -> str | None:
@@ -388,7 +410,7 @@ def _gen_write_target(path: Path, start: str, end: str, code: str, label: str) -
 
 def _normalize_newlines(text: str) -> str:
     """统一行尾为 \\n（用于内容比较，与文件实际行尾无关）。"""
-    return re.sub(r"\r*\n", "\n", text)
+    return _compact_blank_lines(re.sub(r"\r*\n", "\n", text)).strip()
 
 
 def _gen_check_target(path: Path, start: str, end: str, code: str, label: str) -> int:
@@ -397,7 +419,7 @@ def _gen_check_target(path: Path, start: str, end: str, code: str, label: str) -
     if zone is None:
         _log(f"{path.name} 中未找到 {label} 生成区标记", file=sys.stderr)
         return 1
-    if _normalize_newlines(zone) == _normalize_newlines(code.strip()):
+    if _normalize_newlines(zone) == _normalize_newlines(code):
         _log(f"OK：{label}生成区与契约一致")
         return 0
     _log(f"不一致：{label}生成区与当前契约生成的代码有差异（请运行 --write 更新）", file=sys.stderr)
@@ -412,11 +434,11 @@ def _gen_targets() -> list[tuple]:
     ]
 
 
-SUP_ZONE_START = "# ── 审核模型生成区：由 tools/scripts/codegen.py 生成，勿手改 ──"
+SUP_ZONE_START = "# ── 审核模型生成区：由 tools/scripts/sync_domain.py 生成，勿手改 ──"
 SUP_ZONE_END = "# ── 审核模型生成区结束 ──"
 
 # 拒绝审核常量生成区标记（orchestrator.py）
-SUP_ZONE_REJECT_START = "# ── 拒绝审核常量生成区：由 tools/scripts/codegen.py 生成，勿手改 ──"
+SUP_ZONE_REJECT_START = "# ── 拒绝审核常量生成区：由 tools/scripts/sync_domain.py 生成，勿手改 ──"
 SUP_ZONE_REJECT_END = "# ── 拒绝审核常量生成区结束 ──"
 
 # 任务线目录名 → 中文名（共享注册表 domain/<name>/domain_config.py；
@@ -435,7 +457,7 @@ def _sup_import_module(path: Path):
 
 
 def find_sup_contracts() -> list[dict]:
-    """遍历 meeting 下的 contracts.py，提取全部 SupervisorContract 子类。
+    """遍历当前 domain 下的 contracts.py，提取全部 SupervisorContract 子类。
 
     审阅契约类定义在各 {目录}/contracts.py；其输出模板常量
     （{基名大写}_SUPERVISOR_OUTPUT_CONTRACT）由同文件 to_json_template() 显式赋值，
@@ -649,57 +671,57 @@ def _sup_targets() -> list[tuple]:
     ]
 
 
-FAC_ZONE_START = "# ── 任务线装配生成区：由 tools/scripts/codegen.py 生成，勿手改 ──"
+FAC_ZONE_START = "# ── 任务线装配生成区：由 tools/scripts/sync_domain.py 生成，勿手改 ──"
 FAC_ZONE_END = "# ── 任务线装配生成区结束 ──"
 
 # 专属节点方法生成区标记（orchestrator.py 的 _Nodes 类内）
 # 语义与纯生成区不同：脚本只生成骨架（签名 + 占位注释），函数体由开发者填写；
 # --write 遇已有实现跳过，--check 只验证签名存在，不比较函数体。
-NODE_ZONE_START = "# ── 专属节点方法生成区：由 tools/scripts/codegen.py 生成骨架，函数体可改 ──"
+NODE_ZONE_START = "# ── 专属节点方法生成区：由 tools/scripts/sync_domain.py 生成骨架，函数体可改 ──"
 NODE_ZONE_END = "# ── 专属节点方法生成区结束 ──"
 
 # 任务线注册生成区标记（orchestrator.py 模块级 TASK_LINES 定义）
-TL_ZONE_START = "# ── 任务线注册生成区：由 tools/scripts/codegen.py 生成，勿手改 ──"
+TL_ZONE_START = "# ── 任务线注册生成区：由 tools/scripts/sync_domain.py 生成，勿手改 ──"
 TL_ZONE_END = "# ── 任务线注册生成区结束 ──"
 
 # Agent 挂载生成区标记（orchestrator.py 的 __init__ 内，任务线挂载）
-MOUNT_ZONE_START = "# ── Agent 挂载生成区：由 tools/scripts/codegen.py 生成，勿手改 ──"
+MOUNT_ZONE_START = "# ── Agent 挂载生成区：由 tools/scripts/sync_domain.py 生成，勿手改 ──"
 MOUNT_ZONE_END = "# ── Agent 挂载生成区结束 ──"
 
 # 节点映射生成区标记（orchestrator.py 的 __init__ 内，_fallback_nodes）
-NODEMAP_ZONE_START = "# ── 节点映射生成区：由 tools/scripts/codegen.py 生成，勿手改 ──"
+NODEMAP_ZONE_START = "# ── 节点映射生成区：由 tools/scripts/sync_domain.py 生成，勿手改 ──"
 NODEMAP_ZONE_END = "# ── 节点映射生成区结束 ──"
 
 # 渲染上下文生成区标记（orchestrator.py 的 _Nodes 类内，完整生成勿手改）
-CTX_ZONE_START = "# ── 渲染上下文生成区：由 tools/scripts/codegen.py 生成，勿手改 ──"
+CTX_ZONE_START = "# ── 渲染上下文生成区：由 tools/scripts/sync_domain.py 生成，勿手改 ──"
 CTX_ZONE_END = "# ── 渲染上下文生成区结束 ──"
 
 # FallbackRules import 生成区标记（orchestrator.py 顶部 import 区，整体生成勿手改）
-IMPORT_ZONE_START = "# ── FallbackRules import 生成区：由 tools/scripts/codegen.py 生成，勿手改 ──"
+IMPORT_ZONE_START = "# ── FallbackRules import 生成区：由 tools/scripts/sync_domain.py 生成，勿手改 ──"
 IMPORT_ZONE_END = "# ── FallbackRules import 生成区结束 ──"
 
 # Report import 生成区标记（orchestrator.py 顶部 import 区，整体生成勿手改）
-REPORT_IMPORT_ZONE_START = "# ── Report import 生成区：由 tools/scripts/codegen.py 生成，勿手改 ──"
+REPORT_IMPORT_ZONE_START = "# ── Report import 生成区：由 tools/scripts/sync_domain.py 生成，勿手改 ──"
 REPORT_IMPORT_ZONE_END = "# ── Report import 生成区结束 ──"
 
 # 任务线 import 生成区标记（orchestrator.py 顶部，from .tasks.{线} import 三件套）
-LINE_IMPORT_ZONE_START = "# ── 任务线 import 生成区：由 tools/scripts/codegen.py 生成，勿手改 ──"
+LINE_IMPORT_ZONE_START = "# ── 任务线 import 生成区：由 tools/scripts/sync_domain.py 生成，勿手改 ──"
 LINE_IMPORT_ZONE_END = "# ── 任务线 import 生成区结束 ──"
 
 # Report 校验生成区标记（models.py，手写 Report 区之前；validate 由脚本按手写字段生成）
-REPORT_VALIDATION_ZONE_START = "# ── Report 校验生成区：由 tools/scripts/codegen.py 生成，勿手改 ──"
+REPORT_VALIDATION_ZONE_START = "# ── Report 校验生成区：由 tools/scripts/sync_domain.py 生成，勿手改 ──"
 REPORT_VALIDATION_ZONE_END = "# ── Report 校验生成区结束 ──"
 
 # Report 基类 import 生成区标记（reports.py 顶部：ModelMixin + 各线 Validation）
-REPORT_BASE_IMPORT_ZONE_START = "# ── Report 基类 import 生成区：由 tools/scripts/codegen.py 生成，勿手改 ──"
+REPORT_BASE_IMPORT_ZONE_START = "# ── Report 基类 import 生成区：由 tools/scripts/sync_domain.py 生成，勿手改 ──"
 REPORT_BASE_IMPORT_ZONE_END = "# ── Report 基类 import 生成区结束 ──"
 
 # Report 组装器生成区标记（orchestrator.py 的 __init__ 内，整体生成勿手改）
-REPORT_ZONE_START = "# ── Report 组装器生成区：由 tools/scripts/codegen.py 生成，勿手改 ──"
+REPORT_ZONE_START = "# ── Report 组装器生成区：由 tools/scripts/sync_domain.py 生成，勿手改 ──"
 REPORT_ZONE_END = "# ── Report 组装器生成区结束 ──"
 
 # FallbackRules 注册生成区标记（orchestrator.py 的 __init__ 内，整体生成勿手改）
-FALLBACK_RULES_ZONE_START = "# ── FallbackRules 注册生成区：由 tools/scripts/codegen.py 生成，勿手改 ──"
+FALLBACK_RULES_ZONE_START = "# ── FallbackRules 注册生成区：由 tools/scripts/sync_domain.py 生成，勿手改 ──"
 FALLBACK_RULES_ZONE_END = "# ── FallbackRules 注册生成区结束 ──"
 
 # 生成区正则：允许标记前有缩进（生成区嵌在 create() 函数体内，行首带空格）
@@ -918,7 +940,7 @@ def _parse_report_fields(report_cls: str) -> list[dict]:
     - kind：由类型注解推导（str/str_null/str_list/obj_list/dict）
     - item_validator：``field(metadata={"item_validator": "action"})``（obj_list 逐条校验器名）
     """
-    tree = ast.parse(CURRENT.reports_path.read_text(encoding="utf-8"))
+    tree = ast.parse(_read_py(CURRENT.reports_path))
     for node in tree.body:
         if isinstance(node, ast.ClassDef) and node.name == report_cls:
             out = []
@@ -1006,7 +1028,7 @@ def generate_report_validation_code(lines: list[str]) -> str:
         fields_info = _parse_report_fields(report_cls)
         if not fields_info:
             # 占位：Report 类尚未手写（register 阶段）——先放空类，
-            # 类一旦定义（写字段）后 codegen 全量会按字段重写为真实校验。
+            # 类一旦定义（写字段）后 sync_domain 全量会按字段重写为真实校验。
             blocks.append(
                 f"class {report_cls}Validation:\n"
                 f"    pass\n"
@@ -1088,7 +1110,7 @@ def check_report_validation(path: Path, lines: list[str]) -> int:
         return 1
     zone = m.group(1)
     expected = generate_report_validation_code(lines)
-    if zone.strip() != expected.strip():
+    if _normalize_newlines(zone) != _normalize_newlines(expected):
         _log(
             f"不一致：Report 校验生成区与手写 Report 字段有差异"
             f"（请运行 --write 更新）",
@@ -1228,6 +1250,98 @@ def _task_model_class(line: str) -> str:
         for cls_name in re.findall(r"class\s+(\w+GenerationContract)\b", text):
             return cls_name.removesuffix("GenerationContract")
     return _pascal(_contract_base(line))
+
+
+def _task_readiness_issues(line: str) -> list[str]:
+    """Return actionable issues that block runtime wiring for one task line."""
+    issues: list[str] = []
+    task_dir = CURRENT.tasks_dir / line
+    contracts_path = task_dir / "contracts.py"
+    prompts_path = task_dir / "prompts.py"
+    report_cls = ""
+    upper = _contract_base(line) if contracts_path.exists() else line.upper()
+    cls = line_class_name(line, "")
+
+    if not contracts_path.exists():
+        issues.append(f"缺少 {contracts_path.relative_to(ROOT)}")
+    else:
+        text = contracts_path.read_text(encoding="utf-8-sig")
+        if not re.search(r"class\s+\w+GenerationContract\b", text):
+            issues.append(
+                f"{contracts_path.relative_to(ROOT)} 还没有 *GenerationContract"
+            )
+        else:
+            report_cls = _report_class(line)
+        if not re.search(r"class\s+\w+SupervisorContract\b", text):
+            issues.append(
+                f"{contracts_path.relative_to(ROOT)} 还没有 *SupervisorContract"
+            )
+        if f"{upper}_GENERATION_OUTPUT_CONTRACT" not in text:
+            issues.append(
+                f"{contracts_path.relative_to(ROOT)} 还没有 "
+                f"{upper}_GENERATION_OUTPUT_CONTRACT"
+            )
+        if f"{upper}_SUPERVISOR_OUTPUT_CONTRACT" not in text:
+            issues.append(
+                f"{contracts_path.relative_to(ROOT)} 还没有 "
+                f"{upper}_SUPERVISOR_OUTPUT_CONTRACT"
+            )
+
+    if not prompts_path.exists():
+        issues.append(f"缺少 {prompts_path.relative_to(ROOT)}")
+    else:
+        text = prompts_path.read_text(encoding="utf-8-sig")
+        for name in (
+            f"{upper}_GENERATION_SYSTEM_PROMPT",
+            f"{upper}_SUPERVISOR_DOMAIN_PROMPT",
+            f"{upper}_RENDER_PROMPT",
+            f"{upper}_RENDER_TEMPLATE_PROMPT",
+        ):
+            if name not in text:
+                issues.append(f"{prompts_path.relative_to(ROOT)} 还没有 {name}")
+
+    step_specs = {
+        f"{line}_agent.py": (f"class {cls}Agent", "async def run"),
+        f"{line}_supervisor.py": (f"class {cls}Supervisor", "async def review"),
+        f"{line}_render.py": (f"class {cls}Render", "async def run", "async def stream"),
+    }
+    for fname, needles in step_specs.items():
+        path = task_dir / "steps" / fname
+        if not path.exists():
+            issues.append(f"缺少 {path.relative_to(ROOT)}")
+            continue
+        text = path.read_text(encoding="utf-8-sig")
+        missing = [needle for needle in needles if needle not in text]
+        if missing:
+            issues.append(
+                f"{path.relative_to(ROOT)} 还没有必要结构：{', '.join(missing)}"
+            )
+
+    if report_cls and not _has_report_class(line):
+        issues.append(
+            f"{CURRENT.reports_path.relative_to(ROOT)} 还没有 class {report_cls}"
+        )
+
+    return issues
+
+
+def _runtime_readiness_issues(lines: list[str]) -> list[str]:
+    issues: list[str] = []
+    for line in lines:
+        issues.extend(_task_readiness_issues(line))
+    return issues
+
+
+def _print_readiness_issues(issues: list[str]) -> None:
+    if not issues:
+        return
+    print("需要先补齐任务线业务代码：", file=sys.stderr)
+    for issue in issues:
+        print(f"  - {issue}", file=sys.stderr)
+    print("", file=sys.stderr)
+    print("提示：sync_domain 已经先同步 models.py 中的模型/审核模型。", file=sys.stderr)
+    print("下一步：补齐上面的文件后重新运行：", file=sys.stderr)
+    print(f"  python tools/scripts/sync_domain.py --domain {CURRENT.name}", file=sys.stderr)
 
 
 def generate_task_agent_code(line: str) -> str:
@@ -1524,7 +1638,7 @@ def generate_render_context_code(lines: list[str]) -> str:
             f"    def _{line}_render_context(self, state: {CURRENT.state_class()}) -> str:\n"
             f"        mode = self._mode_label(state)\n"
             f'        line = _line(state, "{line}")\n'
-            f'        review = line.get("supervisor_review") or {{}}\n'
+            f'        review = line.get("review") or {{}}\n'
             f"        return (\n"
             f'            f"视角模式：{{mode}}\\n"\n'
             f'            f"objective_perspective：'
@@ -1756,9 +1870,9 @@ def write_line_imports(path: Path, lines: list[str]) -> None:
 
 
 def write_factory_line_imports(lines: list[str]) -> None:
-    """写 meeting_factory.py 的任务线 import 生成区（与 orchestrator 同模板）。
+    """写当前 domain factory.py 的任务线 import 生成区（与 orchestrator 同模板）。
 
-    供 register.py（新增线第一步）与 _run_write_factory 共用。
+    供 register_task.py（新增线第一步）与 _run_write_factory 共用。
     """
     write_line_imports(CURRENT.factory_path, lines)
 
@@ -1959,7 +2073,7 @@ def check_fallback_rules(path: Path, lines: list[str]) -> int:
     return 0
 
 
-# ── 写入 / 校验（复用 codegen.py 的生成区模式）──
+# ── 写入 / 校验（复用 sync_domain.py 的生成区模式）──
 
 
 def _fac_write_target(path: Path, code: str) -> None:
@@ -2233,12 +2347,228 @@ def check_node_map(path: Path, lines: list[str]) -> int:
 
 
 
+# ── 领域 core understanding 自动接线 ─────────────────────────
+
+def _core_understanding_info() -> dict | None:
+    """发现约定式领域理解 Agent。"""
+    core_dir = CURRENT.dir / f"{CURRENT.name}_core"
+    agent_path = core_dir / f"{CURRENT.name}_understanding_agent.py"
+    if not agent_path.exists():
+        return None
+    pascal = _pascal_name(CURRENT.name)
+    upper = re.sub(r"(?<!^)(?=[A-Z])", "_", pascal).upper()
+    return {
+        "core_dir": core_dir,
+        "class": f"{pascal}UnderstandingAgent",
+        "state_key": f"{CURRENT.name}_understanding",
+        "attr": f"{CURRENT.name}_understanding_agent",
+        "node": f"_{CURRENT.name}_understanding_node",
+        "graph_node": f"{CURRENT.name}_understanding",
+        "empty_const": f"_EMPTY_{upper}_UNDERSTANDING",
+    }
+
+
+def _write_text_if_changed(path: Path, text: str) -> None:
+    text = _compact_blank_lines(text)
+    old = _compact_blank_lines(path.read_text(encoding="utf-8-sig")) if path.exists() else ""
+    if old != text:
+        path.write_text(text, encoding="utf-8")
+
+
+def _ensure_line_after(raw: str, anchor_line: str, new_line: str) -> str:
+    """Ensure a line exists after the first matching stripped anchor line."""
+    lines = raw.splitlines()
+    if any(line.strip() == new_line for line in lines):
+        return raw
+    for index, line in enumerate(lines):
+        if line.strip() == anchor_line:
+            lines.insert(index + 1, new_line)
+            suffix = "\n" if raw.endswith(("\n", "\r\n")) else ""
+            return "\n".join(lines) + suffix
+    return raw
+
+
+def _insert_after_once(raw: str, needle: str, addition: str) -> str:
+    return raw if addition.strip() in raw or needle not in raw else raw.replace(
+        needle, needle + addition, 1
+    )
+
+
+def _insert_before_once(raw: str, needle: str, addition: str) -> str:
+    return raw if addition.strip() in raw or needle not in raw else raw.replace(
+        needle, addition + needle, 1
+    )
+
+
+def _insert_after_exact_once(raw: str, needle: str, addition: str) -> str:
+    return raw if addition in raw or needle not in raw else raw.replace(
+        needle, needle + addition, 1
+    )
+
+
+def _insert_before_exact_once(raw: str, needle: str, addition: str) -> str:
+    return raw if addition in raw or needle not in raw else raw.replace(
+        needle, addition + needle, 1
+    )
+
+
+def _ensure_before_each(raw: str, needle: str, addition: str) -> str:
+    """Ensure addition appears before every occurrence of needle."""
+    start = 0
+    while True:
+        pos = raw.find(needle, start)
+        if pos == -1:
+            return raw
+        window = raw[max(0, pos - 500):pos]
+        if addition.strip() not in window:
+            raw = raw[:pos] + addition + raw[pos:]
+            start = pos + len(addition) + len(needle)
+        else:
+            start = pos + len(needle)
+
+
+def write_core_understanding() -> None:
+    """自动接入 {domain}_core/{domain}_understanding_agent.py。"""
+    info = _core_understanding_info()
+    if info is None:
+        return
+
+    cls = info["class"]
+    attr = info["attr"]
+    state_key = info["state_key"]
+    node = info["node"]
+    graph_node = info["graph_node"]
+    empty_const = info["empty_const"]
+    state_cls = CURRENT.state_class()
+    label = CURRENT.name
+
+    core_init = info["core_dir"] / "__init__.py"
+    _write_text_if_changed(
+        core_init,
+        f'"""{CURRENT.name}核心层。"""\n\n'
+        f"from .{CURRENT.name}_understanding_agent import {cls}\n\n"
+        f'__all__ = ["{cls}"]\n',
+    )
+
+    raw = _read_raw(CURRENT.factory_path)
+    raw = _ensure_line_after(
+        raw,
+        "from perspective import PerspectiveModelingAgent",
+        f"from .{CURRENT.name}_core import {cls}",
+    )
+    raw = _insert_after_exact_once(
+        raw,
+        '"perspective_modeling_agent": PerspectiveModelingAgent(client),',
+        f'\n            "{attr}": {cls}(client),',
+    )
+    _write_text_if_changed(CURRENT.factory_path, raw)
+
+    raw = _read_raw(CURRENT.models_path)
+    raw = _insert_before_once(
+        raw,
+        "    templates: dict[str, str]",
+        f"    {state_key}: dict\n",
+    )
+    _write_text_if_changed(CURRENT.models_path, raw)
+
+    raw = _read_raw(CURRENT.orch_path)
+    raw = _insert_after_exact_once(
+        raw,
+        f"from .{CURRENT.name}_factory import {_pascal_name(CURRENT.name)}AgentFactory\n",
+        f"from .{CURRENT.name}_core import {cls}\n",
+    )
+    context_line = (
+        f'            f"{label}理解：\\n{{_json(state.get(\'{state_key}\'))}}\\n\\n"\n'
+    )
+    raw = _ensure_before_each(
+        raw,
+        '            f"原文：\\n{state[\'transcript\']}"',
+        context_line,
+    )
+    raw = _ensure_before_each(
+        raw,
+        '            f"原文（最高事实来源）：\\n{state[\'transcript\']}\\n\\n"',
+        context_line,
+    )
+    node_code = f'''
+    async def {node}(self, state: {state_cls}) -> dict:
+        """{label}理解：提取主题、结构、术语和待澄清问题。"""
+        try:
+            result = await self.{attr}.run(state["transcript"])
+        except Exception:
+            logger.warning("{label}理解失败，使用空理解继续", exc_info=True)
+            return {{
+                "{state_key}": {empty_const},
+                "quality_degraded": True,
+            }}
+        return {{"{state_key}": result.model_dump()}}
+
+'''
+    raw = _insert_before_exact_once(
+        raw,
+        "    # ── 渲染上下文生成区：由 tools/scripts/sync_domain.py 生成，勿手改 ──",
+        node_code,
+    )
+    mount_code = (
+        f"        self.{attr}: {cls} = agents[\n"
+        f'            "{attr}"\n'
+        f"        ]\n"
+    )
+    raw = _insert_after_exact_once(
+        raw,
+        '        self.perspective_modeling_agent: PerspectiveModelingAgent = agents[\n'
+        '            "perspective_modeling_agent"\n'
+        '        ]\n',
+        mount_code,
+    )
+    old_graph = (
+        '        builder.add_node(\n'
+        '            "perspective_modeling", self._perspective_modeling_node\n'
+        '        )\n'
+        '        builder.add_edge(START, "perspective_modeling")\n'
+        '        core = ["perspective_modeling"]'
+    )
+    new_graph = (
+        f'        builder.add_node("{graph_node}", self.{node})\n'
+        '        builder.add_node(\n'
+        '            "perspective_modeling", self._perspective_modeling_node\n'
+        '        )\n'
+        f'        builder.add_edge(START, "{graph_node}")\n'
+        '        builder.add_edge(START, "perspective_modeling")\n'
+        f'        core = ["{graph_node}", "perspective_modeling"]'
+    )
+    if old_graph in raw and new_graph not in raw:
+        raw = raw.replace(old_graph, new_graph, 1)
+    _write_text_if_changed(CURRENT.orch_path, raw)
+
+
+def check_core_understanding() -> int:
+    info = _core_understanding_info()
+    if info is None:
+        return 0
+    checks = [
+        (CURRENT.factory_path, info["class"], info["attr"]),
+        (CURRENT.models_path, f'{info["state_key"]}: dict'),
+        (CURRENT.orch_path, info["class"], info["node"], info["graph_node"]),
+        (info["core_dir"] / "__init__.py", info["class"]),
+    ]
+    rc = 0
+    for path, *needles in checks:
+        text = path.read_text(encoding="utf-8") if path.exists() else ""
+        missing = [needle for needle in needles if needle not in text]
+        if missing:
+            _log(f"{path.name} 缺少 core understanding 接线：{missing}", file=sys.stderr)
+            rc = 1
+    return rc
+
+
 # ══════════════════════════════════════════════════════════════
 # 合并入口：--write / --check 一次跑完三段
 # ══════════════════════════════════════════════════════════════
 
 def _run_write() -> None:
     """段①生成契约：业务模型 + 空结构常量。"""
+    _info(f"[1/3] 同步 {CURRENT.name} 的生成模型与空结构常量...")
     models_code, empty_code = gen_generate_all()
     for path, start, end, label in _gen_targets():
         code = models_code if label == "生成模型" else empty_code
@@ -2247,6 +2577,7 @@ def _run_write() -> None:
 
 def _run_write_supervisor() -> None:
     """段②审阅契约：审核模型 + 拒绝态常量。"""
+    _info(f"[2/3] 同步 {CURRENT.name} 的审核模型与拒绝兜底...")
     models_code, reject_code = sup_generate_all()
     for path, start, end, label in _sup_targets():
         code = models_code if label == "审核模型" else reject_code
@@ -2255,8 +2586,11 @@ def _run_write_supervisor() -> None:
 
 def _run_write_factory() -> None:
     """段③装配/注册：装配 / TASK_LINES / 挂载 / 节点映射 / 上下文 / import / 组装器 / fallback。"""
+    _info(f"[3/3] 同步 {CURRENT.name} 的任务线装配与运行时编排...")
     lines = find_lines()
+    write_core_understanding()
     _fac_write_target(CURRENT.factory_path, generate_lines_code(lines))
+    write_core_understanding()
     write_task_skels(lines)
     write_task_lines(CURRENT.orch_path, lines)
     write_mount(CURRENT.orch_path, lines)
@@ -2271,6 +2605,7 @@ def _run_write_factory() -> None:
     write_report_assemblers(CURRENT.orch_path, lines)
     write_fallback_rules(CURRENT.orch_path, lines)
     write_nodes(CURRENT.orch_path, lines)
+    write_core_understanding()
 
 
 def _run_check() -> int:
@@ -2287,6 +2622,11 @@ def _run_check() -> int:
         rc |= _sup_check_target(path, start, end, code, label)
 
     lines = find_lines()
+    rc |= check_core_understanding()
+    issues = _runtime_readiness_issues(lines)
+    if issues:
+        _print_readiness_issues(issues)
+        return 1
     rc |= _fac_check_target(CURRENT.factory_path, generate_lines_code(lines))
     rc |= check_task_lines(CURRENT.orch_path, lines)
     rc |= check_mount(CURRENT.orch_path, lines)
@@ -2307,7 +2647,7 @@ def _run_check() -> int:
 
 def main(argv: list[str] | None = None) -> None:
     parser = argparse.ArgumentParser(
-        description="生成当前领域的全部契约生成区（新增任务线请先跑 register.py）"
+        description="生成当前领域的全部契约生成区（新增任务线请先跑 register_task.py）"
     )
     parser.add_argument(
         "--domain",
@@ -2324,7 +2664,8 @@ def main(argv: list[str] | None = None) -> None:
     group.add_argument(
         "--model",
         action="store_true",
-        help="只生成段①②（业务模型+审核模型到 models.py），不写装配/注册——"
+        help="只生成模型相关内容（业务模型+审核模型+ReportValidation 到 models.py，"
+        "并刷新 reports.py 的校验基类 import），不写装配/注册——"
         "两阶段流程第一步：先写 contracts.py 跑这个生成生成/审核模型，"
         "再写 agent/supervisor 等业务类，最后跑全量",
     )
@@ -2334,18 +2675,33 @@ def main(argv: list[str] | None = None) -> None:
         set_domain(args.domain)
 
         if args.check:
+            _info(f"检查 domain/{args.domain} 的生成区一致性...")
             rc = _run_check()
             if rc != 0:
+                print("CHECK FAILED: 生成区或任务线文件还不完整。", file=sys.stderr)
+                print(
+                    f"建议先运行：python tools/scripts/sync_domain.py --domain {args.domain}",
+                    file=sys.stderr,
+                )
                 sys.exit(1)
-            print("SUCCESS!")
+            print(f"SUCCESS! domain/{args.domain} 生成区检查通过。")
             return
 
         # 默认动作 = --write（可省略显式传入）
         _run_write()
         _run_write_supervisor()
-        if not args.model:
+        if args.model:
+            lines = find_lines()
+            write_report_validation(CURRENT.models_path, lines)
+            write_report_base_imports(CURRENT.reports_path, lines)
+        else:
+            issues = _runtime_readiness_issues(find_lines())
+            if issues:
+                _print_readiness_issues(issues)
+                print("PARTIAL: models.py 已同步，运行时装配尚未写入。")
+                sys.exit(2)
             _run_write_factory()
-        print("SUCCESS!")
+        print(f"SUCCESS! domain/{args.domain} 已同步完成。")
     except SystemExit as e:
         # 失败：stdout 只输出 FAIL!!!；细节（sys.exit 的消息）留给 stderr
         if isinstance(e.code, int):
@@ -2356,7 +2712,8 @@ def main(argv: list[str] | None = None) -> None:
         print("FAIL!!!")
         sys.exit(rc)
     except Exception:
-        # 非 SystemExit 异常（如路径不存在）：traceback 到 stderr，stdout 只 FAIL!!!
+        # 非 SystemExit 异常（如路径不存在）：打印 traceback，方便定位脚手架问题。
+        traceback.print_exc(file=sys.stderr)
         print("FAIL!!!")
         sys.exit(1)
 

@@ -2,45 +2,98 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+import importlib
 import json
 import logging
 import os
 import sys
+from dataclasses import dataclass
 from pathlib import Path
 
 
 PROJECT_ROOT = Path(__file__).resolve().parent
 sys.path.insert(0, str(PROJECT_ROOT))
 
-from llm_client.config import load_env
-from domain.meeting import SAMPLES_DIR
-from domain.meeting.domain_config import LINE_CN_NAMES
-from tools.logging_config import setup_logging
-from domain.meeting.models import UserIdentity
-from domain.meeting.orchestrator import MeetingAgentSystem, TASK_LINES
+from llm_client.config import load_env  # noqa: E402
+from tools.logging_config import setup_logging  # noqa: E402
+from tools.template_router import maybe_compile_natural_template  # noqa: E402
 
 
 logger = logging.getLogger(__name__)
 
 
-# 友好任务名 → 任务线名：线名本身 + 中文名自动构建（加线零改动），
-# 英文短名手写补充（非每线必须，未列出的名称原样透传）。
-TASK_ALIASES: dict[str, str] = {
-    "minutes": "minutes_generation",
-    "actions": "action_items",
+# 各域预留的英文短名（线名/中文名永远可用；短名按域可选补充）
+_SHORT_ALIASES: dict[str, dict[str, str]] = {
+    "meeting": {
+        "minutes": "minutes_generation",
+        "actions": "action_items",
+    },
 }
-TASK_ALIASES.update({line: line for line in TASK_LINES})
-TASK_ALIASES.update({cn: line for line, cn in LINE_CN_NAMES.items()})  # 中文名 → 线名
+
+
+@dataclass
+class _DomainContext:
+    """运行时解析的领域上下文（bootstrap 与具体 domain 解耦）。"""
+
+    name: str
+    module: object
+    config: object
+    models: object
+    orchestrator: object
+    system_cls: type
+    samples_dir: Path
+    line_cn_names: dict[str, str]
+    task_lines: dict[str, dict]
+    task_aliases: dict[str, str]
+    env_prefix: str
+
+    @property
+    def default_summary_dir(self) -> Path:
+        return self.samples_dir / "summary"
+
+    @property
+    def default_profile_dir(self) -> Path:
+        return self.samples_dir / "profile"
+
+
+def _load_domain(name: str) -> _DomainContext:
+    """按领域名加载 domain.<name> 各模块并解析别名 / 系统类名。"""
+    module = importlib.import_module(f"domain.{name}")
+    config = importlib.import_module(f"domain.{name}.domain_config")
+    models = importlib.import_module(f"domain.{name}.models")
+    orchestrator = importlib.import_module(f"domain.{name}.orchestrator")
+    pascal = name[0].upper() + name[1:]
+    system_cls = getattr(orchestrator, f"{pascal}AgentSystem")
+    line_cn_names = getattr(config, "LINE_CN_NAMES", {})
+    task_lines = getattr(orchestrator, "TASK_LINES", {})
+    # 友好任务名 → 任务线名：线名本身 + 中文名自动构建（加线零改动），
+    # 英文短名按域补充（未列出的名称原样透传，供 _normalize_tasks 报错）。
+    aliases = dict(_SHORT_ALIASES.get(name, {}))
+    aliases.update({line: line for line in task_lines})
+    aliases.update({cn: line for line, cn in line_cn_names.items()})
+    return _DomainContext(
+        name=name,
+        module=module,
+        config=config,
+        models=models,
+        orchestrator=orchestrator,
+        system_cls=system_cls,
+        samples_dir=getattr(module, "SAMPLES_DIR"),
+        line_cn_names=line_cn_names,
+        task_lines=task_lines,
+        task_aliases=aliases,
+        env_prefix=name.upper(),
+    )
 
 
 def _normalize_tasks(
-    tasks: list[str], known_lines: set[str]
+    ctx: _DomainContext, tasks: list[str], known_lines: set[str]
 ) -> list[str]:
     """把 --task 传入的任务名统一解析成线名；未知名称直接报错。"""
     result: list[str] = []
-    for name in tasks:
-        name = name.strip()
-        line = TASK_ALIASES.get(name, name)
+    for raw in tasks:
+        name = raw.strip()
+        line = ctx.task_aliases.get(name, name)
         if line not in known_lines:
             raise ValueError(
                 f"未知任务线：{name}（可用：{sorted(known_lines)}）"
@@ -49,40 +102,35 @@ def _normalize_tasks(
     return result
 
 
-DEFAULT_SUMMARY_PATH = SAMPLES_DIR / "summary"
-DEFAULT_PROFILE_PATH = SAMPLES_DIR / "profile"
-
-# .env 中可选的路径配置项（命令行显式参数优先于这些配置）
-ENV_SUMMARY = "MEETING_SUMMARY"
-ENV_PROFILE = "MEETING_PROFILE"
-ENV_SUMMARY_TEMPLATE = "MEETING_SUMMARY_TEMPLATE"
-ENV_ITEM_TEMPLATE = "MEETING_ITEM_TEMPLATE"
-
-
-def _env_path(key: str, default: Path | None) -> Path | None:
+def _env_path(ctx: _DomainContext, key: str, default: Path | None) -> Path | None:
     """从环境变量（.env）读取路径；未配置时返回默认值。"""
-    value = os.getenv(key, "").strip()
+    value = os.getenv(f"{ctx.env_prefix}_{key}", "").strip()
     return Path(value) if value else default
 
 
-def _parser() -> argparse.ArgumentParser:
+def _parser(ctx: _DomainContext) -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
-        description="生成会议纪要 / 待办事项（可用 --task 指定生成哪条线）",
+        description=f"运行 {ctx.name} 域任务线（可用 --task 指定生成哪条线）",
+    )
+    parser.add_argument(
+        "--domain",
+        default=ctx.name,
+        help=f"领域名（默认 {ctx.name}）",
     )
     parser.add_argument(
         "--summary",
         "--summary-dir",
         dest="summary",
         type=Path,
-        default=_env_path(ENV_SUMMARY, DEFAULT_SUMMARY_PATH),
-        help="会议文本文件或目录。传目录时，目录中需要包含一个 .txt 文件",
+        default=_env_path(ctx, "SUMMARY", ctx.default_summary_dir),
+        help="输入文本文件或目录。传目录时，目录中需要包含一个 .txt 文件",
     )
     parser.add_argument(
         "--profile",
         "--profile-dir",
         dest="profile",
         type=Path,
-        default=_env_path(ENV_PROFILE, DEFAULT_PROFILE_PATH),
+        default=_env_path(ctx, "PROFILE", ctx.default_profile_dir),
         help="用户画像 JSON 文件或目录。传目录时，目录中需要包含一个 .json 文件",
     )
     parser.add_argument(
@@ -96,17 +144,17 @@ def _parser() -> argparse.ArgumentParser:
         "--summary_template",
         dest="minutes_template",
         type=Path,
-        default=_env_path(ENV_SUMMARY_TEMPLATE, None),
-        help="最终纪要输出格式模板（.md 文件）。模板中用 [描述] 作为占位符，"
-        "系统将自动填充会议内容。不指定则使用默认的自由段落格式",
+        default=_env_path(ctx, "SUMMARY_TEMPLATE", None),
+        help="最终输出格式模板（.md 文件）。模板中用 [描述] 作为占位符，"
+        "系统将自动填充内容。不指定则使用默认的自由段落格式",
     )
     parser.add_argument(
         "--item_template",
         dest="item_template",
         type=Path,
-        default=_env_path(ENV_ITEM_TEMPLATE, None),
-        help="最终待办输出格式模板（.md 文件）。模板中用 [描述] 作为占位符，"
-        "系统将自动填充待办内容。不指定则使用默认的列表格式",
+        default=_env_path(ctx, "ITEM_TEMPLATE", None),
+        help="结构化输出格式模板（.md 文件）。模板中用 [描述] 作为占位符，"
+        "系统将自动填充条目内容。不指定则使用默认的列表格式",
     )
     parser.add_argument(
         "--task",
@@ -114,21 +162,21 @@ def _parser() -> argparse.ArgumentParser:
         action="append",
         required=True,
         metavar="任务",
-        help="要生成的任务，可多次指定（如 --task minutes --task actions）。"
-        f"可用：{' / '.join(sorted(TASK_LINES))}，也支持友好名 "
-        f"{' / '.join(sorted(TASK_ALIASES))}",
+        help="要生成的任务，可多次指定。"
+        f"可用：{' / '.join(sorted(ctx.task_lines))}，也支持友好名 "
+        f"{' / '.join(sorted(ctx.task_aliases))}",
     )
     return parser
 
 
-def _resolve_path(path: Path) -> Path:
+def _resolve_path(ctx: _DomainContext, path: Path) -> Path:
     if path.is_absolute():
         return path
     root_candidate = (PROJECT_ROOT / path).resolve()
     if root_candidate.exists():
         return root_candidate
-    # 回退：相对领域样例目录（SAMPLES_DIR）解析，省去 src/domain/meeting/samples 前缀
-    return (SAMPLES_DIR / path).resolve()
+    # 回退：相对领域样例目录（SAMPLES_DIR）解析，省去 domain/<name>/samples 前缀
+    return (ctx.samples_dir / path).resolve()
 
 
 def _pick_single_file(folder: Path, pattern: str, label: str) -> Path:
@@ -143,8 +191,10 @@ def _pick_single_file(folder: Path, pattern: str, label: str) -> Path:
     return files[0]
 
 
-def _resolve_input_file(path: Path, suffix: str, label: str) -> Path:
-    path = _resolve_path(path)
+def _resolve_input_file(
+    ctx: _DomainContext, path: Path, suffix: str, label: str
+) -> Path:
+    path = _resolve_path(ctx, path)
     if not path.exists():
         raise FileNotFoundError(f"{label}路径不存在：{path}")
 
@@ -159,21 +209,22 @@ def _resolve_input_file(path: Path, suffix: str, label: str) -> Path:
     raise ValueError(f"{label}路径既不是文件也不是目录：{path}")
 
 
-def _load_transcript(summary_path: Path) -> str:
-    meeting_file = _resolve_input_file(summary_path, ".txt", "会议文本")
-    transcript = meeting_file.read_text(encoding="utf-8").strip()
+def _load_transcript(ctx: _DomainContext, summary_path: Path) -> str:
+    text_file = _resolve_input_file(ctx, summary_path, ".txt", "输入文本")
+    transcript = text_file.read_text(encoding="utf-8").strip()
     if not transcript:
-        raise ValueError(f"{meeting_file} 是空文件，请写入会议内容")
+        raise ValueError(f"{text_file} 是空文件，请写入内容")
     return transcript
 
 
-def _load_user(profile_path: Path) -> UserIdentity:
-    profile_file = _resolve_input_file(profile_path, ".json", "用户画像")
+def _load_user(ctx: _DomainContext, profile_path: Path):
+    profile_file = _resolve_input_file(ctx, profile_path, ".json", "用户画像")
     profile = json.loads(profile_file.read_text(encoding="utf-8"))
-    return UserIdentity(**profile)
+    return ctx.models.UserIdentity(**profile)
 
 
 async def run(
+    ctx: _DomainContext,
     summary: Path,
     profile: Path,
     env_file: Path,
@@ -190,30 +241,34 @@ async def run(
     消费完全按任务线维度通用（chunk 事件自带 line/title），新增任务线无需改此处。
     """
     setup_logging()
-    load_env(_resolve_path(env_file))
+    load_env(_resolve_path(ctx, env_file))
 
-    transcript = _load_transcript(summary)
-    user = _load_user(profile)
+    transcript = _load_transcript(ctx, summary)
+    user = _load_user(ctx, profile)
     # 任务名 → 线名（未知名称在此报错，不进入运行）
-    line_names = _normalize_tasks(tasks, set(TASK_LINES))
+    line_names = _normalize_tasks(ctx, tasks, set(ctx.task_lines))
     # 模板读取（线名分派由 run_streaming 按线形态自动完成：
-    # template → 纯文本线如纪要/风险；item_template → 结构化线如待办）
+    # template → 纯文本线；item_template → 结构化线）
     template_text = ""
     if minutes_template is not None:
         template_text = (
-            _resolve_path(minutes_template).read_text(encoding="utf-8").strip()
+            _resolve_path(ctx, minutes_template).read_text(encoding="utf-8").strip()
         )
         if not template_text:
-            raise ValueError(f"纪要模板文件为空：{minutes_template}")
+            raise ValueError(f"模板文件为空：{minutes_template}")
+        # 自然语言描述模板 → 先编译为占位符模板（失败自动回退原文，不阻塞）
+        template_text = await maybe_compile_natural_template(template_text)
     item_template_text = ""
     if item_template is not None:
         item_template_text = (
-            _resolve_path(item_template).read_text(encoding="utf-8").strip()
+            _resolve_path(ctx, item_template).read_text(encoding="utf-8").strip()
         )
         if not item_template_text:
-            raise ValueError(f"待办模板文件为空：{item_template}")
+            raise ValueError(f"条目模板文件为空：{item_template}")
+        # 自然语言描述模板 → 先编译为占位符模板（失败自动回退原文，不阻塞）
+        item_template_text = await maybe_compile_natural_template(item_template_text)
 
-    system = MeetingAgentSystem()
+    system = ctx.system_cls()
     any_output = False
     async for event in system.run_streaming(
         transcript,
@@ -238,12 +293,18 @@ async def run(
 
 
 def main() -> None:
-    # 先加载默认 .env，使 parser 默认值可被 .env 中的 MEETING_* 配置覆盖
+    # 先解析 --domain（在 --task 校验前拿到领域上下文）
+    pre = argparse.ArgumentParser(add_help=False)
+    pre.add_argument("--domain", default="meeting")
+    pre_args, _ = pre.parse_known_args()
+    ctx = _load_domain(pre_args.domain)
+    # 加载默认 .env，使 parser 默认值可被 .env 中的 {领域}_* 配置覆盖
     load_env(PROJECT_ROOT / ".env")
-    args = _parser().parse_args()
+    args = _parser(ctx).parse_args()
     try:
         asyncio.run(
             run(
+                ctx,
                 args.summary,
                 args.profile,
                 args.env,
@@ -252,7 +313,21 @@ def main() -> None:
                 args.tasks,
             )
         )
-    except (OSError, ValueError, TypeError, json.JSONDecodeError, RuntimeError) as exc:
+    except (
+        OSError,
+        ValueError,
+        TypeError,
+        json.JSONDecodeError,
+        RuntimeError,
+        ImportError,
+        AttributeError,
+        NameError,
+    ) as exc:
+        if isinstance(exc, (ImportError, AttributeError, NameError)):
+            raise SystemExit(
+                f"错误：领域装配不完整：{exc}\n"
+                f"请先运行：python tools/scripts/sync_domain.py --domain {pre_args.domain}"
+            ) from exc
         raise SystemExit(f"错误：{exc}") from exc
 
 
