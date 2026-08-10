@@ -1,5 +1,9 @@
 # Domain Scaffolding Scripts
 
+Canonical naming conventions live in `../../SCAFFOLDING_CONVENTIONS.md`.
+If this README and the root convention document ever disagree, follow the root
+document and update this README.
+
 These scripts create domain/task skeletons and sync generated zones.
 
 The scripts write files as UTF-8. CLI output is intentionally mostly ASCII to
@@ -93,6 +97,10 @@ If a task line is incomplete, full sync first updates `models.py`, then prints
 the missing items and stops before writing incomplete runtime wiring.
 
 ## Naming Rules
+
+See `SCAFFOLDING_CONVENTIONS.md` for the complete rules. The key point is that
+task constants use the contract model base, not necessarily the task directory
+name. For example, `MinutesGenerationContract` uses the `MINUTES` prefix.
 
 ### Domain
 

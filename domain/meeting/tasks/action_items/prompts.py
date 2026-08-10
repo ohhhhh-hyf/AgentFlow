@@ -109,8 +109,6 @@ ACTION_ITEMS_GENERATION_SYSTEM_PROMPT = """你是待办事项 Agent。从会议�
 - priority / deadline / confidence 只依据原文信号词判定；同一信号词在不同运行中应得到同样标注
 - 拿不准是否提取时，倾向不提取，且该倾向在全部条目上保持一致"""
 
-ACTION_ITEMS_SYSTEM_PROMPT = ACTION_ITEMS_GENERATION_SYSTEM_PROMPT
-
 ACTION_ITEMS_SUPERVISOR_DOMAIN_PROMPT = """## 领域审核规则：待办提取
 
 ### 模式选择
@@ -142,21 +140,17 @@ ACTION_ITEMS_SUPERVISOR_DOMAIN_PROMPT = """## 领域审核规则：待办提取
 
 # ── 待办渲染（无模板 / --item_template 时使用）────────────────
 
-ITEM_RENDER_PROMPT = """你是待办事项渲染器。根据已审核通过的待办提取结果，生成一份清晰的待办清单文本。
+ACTION_ITEMS_RENDER_PROMPT = """你是待办事项渲染器。根据已审核通过的待办提取结果，生成一份清晰的待办清单文本。
 
 要求：
 - 以条目形式呈现每条待办（任务、负责人、截止时间、优先级）
 - 客观准确，只使用草稿中的信息，不补充原文没有的内容
 """
 
-ACTION_ITEMS_RENDER_PROMPT = ITEM_RENDER_PROMPT
-
-ITEM_RENDER_TEMPLATE_PROMPT = build_template_render_prompt(
+ACTION_ITEMS_RENDER_TEMPLATE_PROMPT = build_template_render_prompt(
     renderer="待办事项渲染器",
     source="已审核通过的待办提取结果",
     empty_rule=(
         "待办列表为空时，按模板对「无内容」的要求输出（如输出 [] 或空表格）"
     ),
 )
-
-ACTION_ITEMS_RENDER_TEMPLATE_PROMPT = ITEM_RENDER_TEMPLATE_PROMPT
