@@ -8,6 +8,7 @@ import logging
 import os
 import sys
 from dataclasses import dataclass
+from datetime import datetime
 from pathlib import Path
 
 
@@ -16,6 +17,12 @@ sys.path.insert(0, str(PROJECT_ROOT))
 
 from llm_client.config import load_env  # noqa: E402
 from tools.logging_config import setup_logging  # noqa: E402
+from tools.mindmap import (  # noqa: E402
+    markmap_available,
+    mindmap_png_available,
+    render_mindmap_html,
+    render_mindmap_png,
+)
 from tools.template_router import maybe_compile_natural_template  # noqa: E402
 
 
@@ -166,6 +173,14 @@ def _parser(ctx: _DomainContext) -> argparse.ArgumentParser:
         f"可用：{' / '.join(sorted(ctx.task_lines))}，也支持友好名 "
         f"{' / '.join(sorted(ctx.task_aliases))}",
     )
+    parser.add_argument(
+        "--mindmap-format",
+        dest="mindmap_format",
+        choices=["png", "html", "both"],
+        default="png",
+        help="思维导图导出格式：png（默认，图片，需 pip install playwright "
+        "&& playwright install chromium）/ html（交互式单文件）/ both",
+    )
     return parser
 
 
@@ -223,6 +238,48 @@ def _load_user(ctx: _DomainContext, profile_path: Path):
     return ctx.models.UserIdentity(**profile)
 
 
+def _export_mindmap_html(reports: dict) -> Path | None:
+    """从 done 事件的 reports 中提取 mindmap 大纲并导出 HTML。
+
+    - 无 mindmap 线 / 大纲为空 → 返回 None
+    - npx 不可用 / markmap 失败 → 记 warning，返回 None（不影响主流程）
+    """
+    mindmap_report = reports.get("mindmap")
+    outline = getattr(mindmap_report, "outline", None) if mindmap_report else None
+    if not outline or not outline.strip():
+        return None
+    if not markmap_available():
+        logger.warning("未检测到 npx/node，跳过思维导图 HTML 生成")
+        return None
+    out_dir = PROJECT_ROOT / "output"
+    filename = f"meeting_mindmap_{datetime.now():%Y%m%d_%H%M%S}.html"
+    return render_mindmap_html(outline, out_dir, filename)
+
+
+async def _export_mindmap_png(
+    reports: dict, html_path: Path | None = None
+) -> Path | None:
+    """从 done 事件的 reports 中提取 mindmap 大纲并导出 PNG。
+
+    - 无 mindmap 线 / 大纲为空 → 返回 None
+    - playwright 未安装 / chromium 缺失 / 截图失败 → 记 warning，返回 None
+    - 传入 html_path 时复用该 HTML 截图（--mindmap-format both 场景）
+    """
+    mindmap_report = reports.get("mindmap")
+    outline = getattr(mindmap_report, "outline", None) if mindmap_report else None
+    if not outline or not outline.strip():
+        return None
+    if not mindmap_png_available():
+        logger.warning(
+            "未安装 playwright，跳过思维导图 PNG 生成"
+            "（安装：pip install playwright && playwright install chromium）"
+        )
+        return None
+    out_dir = PROJECT_ROOT / "output"
+    filename = f"meeting_mindmap_{datetime.now():%Y%m%d_%H%M%S}.png"
+    return await render_mindmap_png(outline, out_dir, filename, html_path=html_path)
+
+
 async def run(
     ctx: _DomainContext,
     summary: Path,
@@ -231,6 +288,7 @@ async def run(
     minutes_template: Path | None,
     item_template: Path | None = None,
     tasks: list[str] | None = None,
+    mindmap_format: str = "html",
 ) -> None:
     """流式并行输出（--task 必填，只跑选中的任务线）。
 
@@ -270,6 +328,7 @@ async def run(
 
     system = ctx.system_cls()
     any_output = False
+    mindmap_silent = "mindmap" in line_names
     async for event in system.run_streaming(
         transcript,
         user,
@@ -279,6 +338,9 @@ async def run(
     ):
         etype = event["type"]
         if etype == "chunk":
+            # 思维导图线静默：大纲不打印，只需 HTML 产物（其余线照常流式输出）
+            if event.get("line") == "mindmap":
+                continue
             # 通用流式块：不打印分节标题，正文逐块追加
             any_output = True
             sys.stdout.write(event["text"])
@@ -286,9 +348,22 @@ async def run(
         elif etype == "done":
             if event.get("quality_warning"):
                 logger.warning("⚠ %s", event["quality_warning"])
+            # 思维导图导出（按 --mindmap-format；失败仅提示，不影响主流程）
+            reports = event.get("reports") or {}
+            fmt = mindmap_format or "html"
+            html_path = None
+            if fmt in ("html", "both"):
+                html_path = _export_mindmap_html(reports)
+                if html_path:
+                    sys.stdout.write(f"\n[思维导图] 已生成 HTML：{html_path}\n")
+            if fmt in ("png", "both"):
+                png_path = await _export_mindmap_png(reports, html_path=html_path)
+                if png_path:
+                    sys.stdout.write(f"[思维导图] 已生成 PNG：{png_path}\n")
     if any_output:
         sys.stdout.write("\n")
-    else:
+    elif not mindmap_silent:
+        # mindmap 线静默输出，不触发「暂无内容」误报（HTML 产物另行提示）
         logger.info("（暂无内容）")
 
 
@@ -311,6 +386,7 @@ def main() -> None:
                 args.minutes_template,
                 args.item_template,
                 args.tasks,
+                args.mindmap_format,
             )
         )
     except (

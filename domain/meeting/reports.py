@@ -16,6 +16,7 @@ from typing import Any
 from .models import (
     ModelMixin,
     ActionItemsReportValidation,
+    MindmapReportValidation,
     MinutesReportValidation,
     RiskReportValidation,
 )
@@ -72,3 +73,14 @@ class RiskReport(ModelMixin, RiskReportValidation):
         default=None,
         metadata={"source": "rendered"},
     )
+
+@dataclass
+class MindmapReport(ModelMixin, MindmapReportValidation):
+    """思维导图输出：outline（Markdown 大纲，markmap 的直接输入）。
+
+    字段的 ``metadata["source"]`` 供通用组装器从 state 抽屉取值：
+    ``rendered`` → 渲染后的规范大纲（LLM 渲染结果）。
+    """
+
+    outline: str = field(default="", metadata={"source": "rendered"})
+    quality_warning: str | None = None

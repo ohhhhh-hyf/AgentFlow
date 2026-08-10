@@ -78,6 +78,20 @@ class MeetingUnderstanding(ModelMixin):
         return cls(**data)
 
 @dataclass
+class Mindmap(ModelMixin):
+    """Mindmap输出（浅校验：仅校验第一层键与类型，嵌套不校验）。"""
+
+    title: str
+    outline: str
+
+    @classmethod
+    def validate(cls, data: dict) -> "Mindmap":
+        _exact_fields(data, [f.name for f in fields(cls)], cls.__name__)
+        _string(data["title"], "title")
+        _string(data["outline"], "outline")
+        return cls(**data)
+
+@dataclass
 class Minutes(ModelMixin):
     """Minutes输出（浅校验：仅校验第一层键与类型，嵌套不校验）。"""
 
@@ -193,6 +207,31 @@ class RiskSupervisorReview(ModelMixin):
         )
         return cls(**data)
 
+@dataclass
+class MindmapSupervisorReview(ModelMixin):
+    """思维导图任务线的领域审核结果。"""
+
+    decision: Literal["approve", "revise", "reject"]
+    mindmap_check: dict[str, Any]
+    feedback: list[str] = field(default_factory=list)
+
+    # 本模型的全部检查项（供结构校验与公共语义校验使用）
+    CHECK_KEYS = ("mindmap_check",)
+
+    @classmethod
+    def validate(cls, data: dict) -> "MindmapSupervisorReview":
+        _exact_fields(data, [f.name for f in fields(cls)], cls.__name__)
+        for key in cls.CHECK_KEYS:
+            _review_check(data[key], key)
+        _string_list(data["feedback"], "feedback")
+        # 公共语义规则：decision 枚举 + 与检查项/feedback 的联动约束
+        validate_supervisor_semantics(
+            data["decision"],
+            data["feedback"],
+            {key: data[key] for key in cls.CHECK_KEYS},
+        )
+        return cls(**data)
+
 # ── 审核模型生成区结束 ──
 
 # ── Report 校验生成区：由 tools/scripts/sync_domain.py 生成，勿手改 ──
@@ -226,6 +265,31 @@ class ActionItemsReportValidation:
             action_items=data.get("action_items") or [],
             quality_warning=data.get("quality_warning"),
             personalized_text=data.get("personalized_text"),
+        )
+
+class MindmapReportValidation:
+    """MindmapReport 的校验逻辑（由脚本按手写字段自动生成）。"""
+
+    @classmethod
+    def validate(cls, data: dict) -> "MindmapReport":
+        allowed = {"outline", "quality_warning"}
+
+        if not isinstance(data, dict):
+            raise OutputValidationError("MindmapReport 必须是 JSON 对象")
+
+        extra = set(data) - allowed
+        if extra:
+            raise OutputValidationError(
+                f"MindmapReport 字段不一致：多余={sorted(extra)}"
+            )
+
+        _string(data.get("outline") or "", "outline")
+        if data.get("quality_warning") is not None:
+            _string(data["quality_warning"], "quality_warning")
+
+        return cls(
+            outline=data.get("outline") or "",
+            quality_warning=data.get("quality_warning"),
         )
 
 class MinutesReportValidation:

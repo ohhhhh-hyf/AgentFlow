@@ -19,6 +19,12 @@ from .tasks.action_items import (
     ActionItemsSupervisor,
 )
 
+from .tasks.mindmap import (
+    MindmapAgent,
+    MindmapRender,
+    MindmapSupervisor,
+)
+
 from .tasks.minutes_generation import (
     MinutesGenerationAgent,
     MinutesGenerationRender,
@@ -54,6 +60,9 @@ class MeetingAgentFactory:
             "action_items_agent": ActionItemsAgent(client),
             "action_items_supervisor": ActionItemsSupervisor(client),
             "action_items_render": ActionItemsRender(client),
+            "mindmap_agent": MindmapAgent(client),
+            "mindmap_supervisor": MindmapSupervisor(client),
+            "mindmap_render": MindmapRender(client),
             "minutes_generation_agent": MinutesGenerationAgent(client),
             "minutes_generation_supervisor": MinutesGenerationSupervisor(client),
             "minutes_generation_render": MinutesGenerationRender(client),

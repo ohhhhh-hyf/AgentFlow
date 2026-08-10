@@ -32,6 +32,7 @@ from .domain_config import LINE_CN_NAMES
 
 from .reports import (
     ActionItemsReport,
+    MindmapReport,
     MinutesReport,
     RiskReport,
 )
@@ -48,6 +49,12 @@ from .tasks.action_items import (
     ActionItemsAgent,
     ActionItemsRender,
     ActionItemsSupervisor,
+)
+
+from .tasks.mindmap import (
+    MindmapAgent,
+    MindmapRender,
+    MindmapSupervisor,
 )
 
 from .tasks.minutes_generation import (
@@ -67,6 +74,7 @@ from .tasks.risk import (
 # ── FallbackRules import 生成区：由 tools/scripts/sync_domain.py 生成，勿手改 ──
 
 from .tasks.action_items.contracts import ACTION_ITEMS_FALLBACK_RULES
+from .tasks.mindmap.contracts import MINDMAP_FALLBACK_RULES
 from .tasks.minutes_generation.contracts import MINUTES_FALLBACK_RULES
 from .tasks.risk.contracts import RISK_FALLBACK_RULES
 
@@ -93,6 +101,11 @@ _EMPTY_MEETING_UNDERSTANDING = {
     "decisions": [],
     "open_questions": [],
     "risks": [],
+}
+
+_EMPTY_MINDMAP = {
+    "title": "",
+    "outline": "",
 }
 
 _EMPTY_MINUTES = {
@@ -132,6 +145,12 @@ _REJECT_RISK_REVIEW = {
     "feedback": ["LLM 调用失败，未完成审核，转降级输出"],
 }
 
+_REJECT_MINDMAP_REVIEW = {
+    "decision": "reject",
+    "mindmap_check": {"status": "fail", "findings": ["LLM 调用失败，未完成审核"]},
+    "feedback": ["LLM 调用失败，未完成审核，转降级输出"],
+}
+
 # ── 拒绝审核常量生成区结束 ──
 
 # ── 任务线注册生成区：由 tools/scripts/sync_domain.py 生成，勿手改 ──
@@ -142,6 +161,12 @@ TASK_LINES: dict[str, dict] = {
         "supervisor_attr": "action_items_supervisor",
         "empty_draft": _EMPTY_ACTION_ITEMS,
         "reject_review": _REJECT_ACTION_ITEMS_REVIEW,
+    },
+    "mindmap": {
+        "agent_attr": "mindmap_agent",
+        "supervisor_attr": "mindmap_supervisor",
+        "empty_draft": _EMPTY_MINDMAP,
+        "reject_review": _REJECT_MINDMAP_REVIEW,
     },
     "minutes_generation": {
         "agent_attr": "minutes_generation_agent",
@@ -299,6 +324,32 @@ def _field_values(draft: dict, sec, objective: bool) -> list:
         return values
     return draft.get(field) or []
 
+def _format_risk_item(index: int, item: dict) -> str:
+    """把一条风险格式化为文本行（确定性降级输出用，与 LLM 渲染格式一致）。"""
+    _sev = {"high": "高", "medium": "中", "low": "低"}
+    meta = []
+    sev = item.get("severity", "")
+    if sev in _sev:
+        meta.append(_sev[sev])
+    if item.get("source"):
+        meta.append(f"来源：{item['source']}")
+    if item.get("impact"):
+        meta.append(f"影响：{item['impact']}")
+    if item.get("owner"):
+        meta.append(f"负责人：{item['owner']}")
+    if item.get("mitigation"):
+        meta.append(f"应对：{item['mitigation']}")
+    text = item.get("risk") or ""
+    suffix = f"（{'；'.join(meta)}）" if meta else ""
+    return f"{index}. {text}{suffix}"
+
+# Lines 段逐条格式化器注册表（线名 → 格式化函数(index, item) -> str）
+# action_items / risk 的降级输出格式与各自 LLM 渲染 prompt 保持一致
+_LINES_FORMATTERS: dict[str, object] = {
+    "action_items": ActionItemsRender.format_action,
+    "risk": _format_risk_item,
+}
+
 def _fallback_text(
     state: MeetingState, line_name: str, rules
 ) -> tuple[str, list | None]:
@@ -324,8 +375,11 @@ def _fallback_text(
             if body:
                 sections.append(f"{_pick_label(sec, objective)}：{body}")
         elif kind == "lines":
+            formatter = _LINES_FORMATTERS.get(line_name)
+            if formatter is None:
+                continue  # 未注册该线逐条格式化器：跳过（结构由 structured 提供）
             for index, item in enumerate(values, start=1):
-                sections.append(ActionItemsRender.format_action(index, item))
+                sections.append(formatter(index, item))
     if not sections:
         text = _sec_attr(rules, "empty_text", "") or ""
         prefix = _sec_attr(rules, "empty_prefix", "") or ""
@@ -414,18 +468,6 @@ class _Nodes:
             f"{_line_draft_title(line_name)}：\n{_json(sub['draft'])}"
         )
 
-    async def _meeting_understanding_node(self, state: MeetingState) -> dict:
-        """meeting理解：提取主题、结构、术语和待澄清问题。"""
-        try:
-            result = await self.meeting_understanding_agent.run(state["transcript"])
-        except Exception:
-            logger.warning("meeting理解失败，使用空理解继续", exc_info=True)
-            return {
-                "meeting_understanding": _EMPTY_MEETING_UNDERSTANDING,
-                "quality_degraded": True,
-            }
-        return {"meeting_understanding": result.model_dump()}
-
     # ── 渲染上下文生成区：由 tools/scripts/sync_domain.py 生成，勿手改 ──
 
     def _action_items_render_context(self, state: MeetingState) -> str:
@@ -441,6 +483,21 @@ class _Nodes:
             f"已审核用户视角：\n{_json(state.get('perspective_profile'))}\n\n"
             f"已批准待办草稿：\n{_json(line.get('draft'))}\n\n"
             f"待办审核结论：\n{_json(review)}"
+        )
+
+    def _mindmap_render_context(self, state: MeetingState) -> str:
+        mode = self._mode_label(state)
+        line = _line(state, "mindmap")
+        review = line.get("review") or {}
+        return (
+            f"视角模式：{mode}\n"
+            f"objective_perspective：{bool(state.get('objective_perspective'))}\n\n"
+            f"会议原文：\n{state['transcript']}\n\n"
+            f"用户画像：\n{_json(state['user'])}\n\n"
+            f"已审核会议理解：\n{_json(state.get('meeting_understanding'))}\n\n"
+            f"已审核用户视角：\n{_json(state.get('perspective_profile'))}\n\n"
+            f"已批准思维导图草稿：\n{_json(line.get('draft'))}\n\n"
+            f"思维导图审核结论：\n{_json(review)}"
         )
 
     def _minutes_generation_render_context(self, state: MeetingState) -> str:
@@ -670,6 +727,14 @@ class _Nodes:
             line_dict["structure"] = structure
         return {"lines": {"risk": line_dict}, "quality_degraded": True}
 
+    async def _mindmap_fallback_node(self, state: MeetingState) -> dict:
+        text, structure = _fallback_text(
+            state, "mindmap", MINDMAP_FALLBACK_RULES)
+        line_dict = {"rendered": text, "degraded": True}
+        if structure is not None:
+            line_dict["structure"] = structure
+        return {"lines": {"mindmap": line_dict}, "quality_degraded": True}
+
     # ── 专属节点方法生成区结束 ──
 
     def _line_title(self, state: MeetingState, line_name: str) -> str:
@@ -786,6 +851,9 @@ class MeetingAgentSystem(_Nodes):
         self.action_items_agent: ActionItemsAgent = agents["action_items_agent"]
         self.action_items_supervisor: ActionItemsSupervisor = agents["action_items_supervisor"]
         self.action_items_render: ActionItemsRender = agents["action_items_render"]
+        self.mindmap_agent: MindmapAgent = agents["mindmap_agent"]
+        self.mindmap_supervisor: MindmapSupervisor = agents["mindmap_supervisor"]
+        self.mindmap_render: MindmapRender = agents["mindmap_render"]
         self.minutes_generation_agent: MinutesGenerationAgent = agents["minutes_generation_agent"]
         self.minutes_generation_supervisor: MinutesGenerationSupervisor = agents["minutes_generation_supervisor"]
         self.minutes_generation_render: MinutesGenerationRender = agents["minutes_generation_render"]
@@ -800,6 +868,7 @@ class MeetingAgentSystem(_Nodes):
 
         self._fallback_nodes: dict[str, object] = {}
         self._fallback_nodes["action_items"] = self._action_items_fallback_node
+        self._fallback_nodes["mindmap"] = self._mindmap_fallback_node
         self._fallback_nodes["minutes_generation"] = self._minutes_generation_fallback_node
         self._fallback_nodes["risk"] = self._risk_fallback_node
 
@@ -810,6 +879,7 @@ class MeetingAgentSystem(_Nodes):
 
         self._report_assemblers = {
             "action_items": ActionItemsReport,
+            "mindmap": MindmapReport,
             "minutes_generation": MinutesReport,
             "risk": RiskReport,
         }
@@ -821,6 +891,7 @@ class MeetingAgentSystem(_Nodes):
 
         self._fallback_rules = {
             "action_items": ACTION_ITEMS_FALLBACK_RULES,
+            "mindmap": MINDMAP_FALLBACK_RULES,
             "minutes_generation": MINUTES_FALLBACK_RULES,
             "risk": RISK_FALLBACK_RULES,
         }

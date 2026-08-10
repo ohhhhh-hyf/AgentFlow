@@ -67,8 +67,12 @@ class ActionItemsRender:
 
     @staticmethod
     def format_action(index: int, item: dict) -> str:
-        """把一条待办格式化为文本行（确定性降级输出用）。"""
-        _prio = {"high": "高优先", "medium": "中优先", "low": "低优先"}
+        """把一条待办格式化为文本行（确定性降级输出用）。
+
+        与 LLM 渲染 prompt 的格式约定一致：high → 高优先 / low → 低优先；
+        medium 是默认值，不显示。
+        """
+        _prio = {"high": "高优先", "low": "低优先"}
         meta = []
         prio = item.get("priority", "")
         if prio and prio in _prio:

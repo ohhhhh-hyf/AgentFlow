@@ -5,7 +5,6 @@ from collections.abc import AsyncIterator
 from llm_client import LLMClient
 from tools.prompt_utils import build_render_prompt
 
-from ....models import NotesState
 from ..prompts import POINTS_RENDER_PROMPT, POINTS_RENDER_TEMPLATE_PROMPT
 
 
@@ -34,13 +33,3 @@ class PointsRender:
         prompt, user = self._prompt_and_user(approved_context, template)
         async for chunk in self.client.stream_text(prompt, user):
             yield chunk
-
-    @staticmethod
-    def extract_points(state: NotesState) -> list[dict]:
-        draft = (
-            (state.get("lines") or {})
-            .get("points", {})
-            .get("draft")
-            or {}
-        )
-        return list(draft.get("points") or [])

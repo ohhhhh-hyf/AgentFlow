@@ -5,11 +5,11 @@ from collections.abc import AsyncIterator
 from llm_client import LLMClient
 from tools.prompt_utils import build_render_prompt
 
-from ..prompts import RISK_RENDER_PROMPT, RISK_RENDER_TEMPLATE_PROMPT
+from ..prompts import MINDMAP_RENDER_PROMPT, MINDMAP_RENDER_TEMPLATE_PROMPT
 
 
-class RiskRender:
-    """把已批准的风险分析结果渲染为最终输出。"""
+class MindmapRender:
+    """Render the approved 思维导图 result."""
 
     def __init__(self, client: LLMClient) -> None:
         self.client = client
@@ -19,8 +19,8 @@ class RiskRender:
         return build_render_prompt(
             context,
             template,
-            RISK_RENDER_PROMPT,
-            RISK_RENDER_TEMPLATE_PROMPT,
+            MINDMAP_RENDER_PROMPT,
+            MINDMAP_RENDER_TEMPLATE_PROMPT,
         )
 
     async def run(self, approved_context: str, template: str = "") -> str:

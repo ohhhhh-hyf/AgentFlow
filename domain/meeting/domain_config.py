@@ -29,4 +29,5 @@ LINE_CN_NAMES: dict[str, str] = {
     "minutes_generation": "纪要",
     "action_items": "待办",
     "risk": "风险分析",
+    "mindmap": "思维导图",
 }

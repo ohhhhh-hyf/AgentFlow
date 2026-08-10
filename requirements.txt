@@ -1,2 +1,7 @@
 # Agent workflow orchestration
 langgraph==1.2.10
+
+# 可选依赖：思维导图 PNG 导出（markmap HTML 截图）需要浏览器内核
+#   安装：pip install playwright && playwright install chromium
+#   未安装时 --task mindmap 自动降级（仅 HTML 或跳过 PNG），不影响其他功能
+playwright>=1.40
