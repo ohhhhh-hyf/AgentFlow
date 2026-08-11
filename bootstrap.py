@@ -7,7 +7,7 @@ import json
 import logging
 import os
 import sys
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass, is_dataclass
 from datetime import datetime
 from pathlib import Path
 
@@ -16,6 +16,10 @@ PROJECT_ROOT = Path(__file__).resolve().parent
 sys.path.insert(0, str(PROJECT_ROOT))
 
 from llm_client.config import load_env  # noqa: E402
+from tools.knowledge_graph import (  # noqa: E402
+    graphviz_available,
+    render_knowledge_graph_bundle,
+)
 from tools.logging_config import setup_logging  # noqa: E402
 from tools.mindmap import (  # noqa: E402
     markmap_available,
@@ -55,7 +59,8 @@ class _DomainContext:
     env_prefix: str
 
     @property
-    def default_summary_dir(self) -> Path:
+    def default_file_dir(self) -> Path:
+        # 保持实际样本目录名（samples/summary/），仅 CLI 参数名改为 --file
         return self.samples_dir / "summary"
 
     @property
@@ -125,16 +130,14 @@ def _parser(ctx: _DomainContext) -> argparse.ArgumentParser:
         help=f"领域名（默认 {ctx.name}）",
     )
     parser.add_argument(
-        "--summary",
-        "--summary-dir",
-        dest="summary",
+        "--file",
+        dest="file",
         type=Path,
-        default=_env_path(ctx, "SUMMARY", ctx.default_summary_dir),
+        default=_env_path(ctx, "FILE", ctx.default_file_dir),
         help="输入文本文件或目录。传目录时，目录中需要包含一个 .txt 文件",
     )
     parser.add_argument(
         "--profile",
-        "--profile-dir",
         dest="profile",
         type=Path,
         default=_env_path(ctx, "PROFILE", ctx.default_profile_dir),
@@ -146,23 +149,17 @@ def _parser(ctx: _DomainContext) -> argparse.ArgumentParser:
         default=PROJECT_ROOT / ".env",
         help="环境变量文件路径",
     )
-    parser.add_argument(
-        "--minutes_template",
-        "--summary_template",
-        dest="minutes_template",
-        type=Path,
-        default=_env_path(ctx, "SUMMARY_TEMPLATE", None),
-        help="最终输出格式模板（.md 文件）。模板中用 [描述] 作为占位符，"
-        "系统将自动填充内容。不指定则使用默认的自由段落格式",
-    )
-    parser.add_argument(
-        "--item_template",
-        dest="item_template",
-        type=Path,
-        default=_env_path(ctx, "ITEM_TEMPLATE", None),
-        help="结构化输出格式模板（.md 文件）。模板中用 [描述] 作为占位符，"
-        "系统将自动填充条目内容。不指定则使用默认的列表格式",
-    )
+    # 每个任务线一个模板参数：--{线名}_template（如 --minutes_generation_template）
+    for line in sorted(ctx.task_lines):
+        cn = ctx.line_cn_names.get(line, line)
+        parser.add_argument(
+            f"--{line}_template",
+            dest=f"{line}_template",
+            type=Path,
+            default=_env_path(ctx, f"{line.upper()}_TEMPLATE", None),
+            help=f"{cn}线渲染模板（.md 文件）。模板中用 [描述] 作为占位符，"
+            "系统将自动填充内容。不指定则使用默认格式",
+        )
     parser.add_argument(
         "--task",
         dest="tasks",
@@ -171,15 +168,7 @@ def _parser(ctx: _DomainContext) -> argparse.ArgumentParser:
         metavar="任务",
         help="要生成的任务，可多次指定。"
         f"可用：{' / '.join(sorted(ctx.task_lines))}，也支持友好名 "
-        f"{' / '.join(sorted(ctx.task_aliases))}",
-    )
-    parser.add_argument(
-        "--mindmap-format",
-        dest="mindmap_format",
-        choices=["png", "html", "both"],
-        default="png",
-        help="思维导图导出格式：png（默认，图片，需 pip install playwright "
-        "&& playwright install chromium）/ html（交互式单文件）/ both",
+            f"{' / '.join(sorted(ctx.task_aliases))}",
     )
     return parser
 
@@ -224,8 +213,8 @@ def _resolve_input_file(
     raise ValueError(f"{label}路径既不是文件也不是目录：{path}")
 
 
-def _load_transcript(ctx: _DomainContext, summary_path: Path) -> str:
-    text_file = _resolve_input_file(ctx, summary_path, ".txt", "输入文本")
+def _load_transcript(ctx: _DomainContext, file_path: Path) -> str:
+    text_file = _resolve_input_file(ctx, file_path, ".txt", "输入文本")
     transcript = text_file.read_text(encoding="utf-8").strip()
     if not transcript:
         raise ValueError(f"{text_file} 是空文件，请写入内容")
@@ -238,7 +227,75 @@ def _load_user(ctx: _DomainContext, profile_path: Path):
     return ctx.models.UserIdentity(**profile)
 
 
-def _export_mindmap_html(reports: dict) -> Path | None:
+def _task_output_dir(ctx: _DomainContext, line_name: str) -> Path:
+    out_dir = PROJECT_ROOT / "output" / ctx.name / line_name
+    out_dir.mkdir(parents=True, exist_ok=True)
+    return out_dir
+
+
+def _report_to_dict(report: object) -> dict:
+    if hasattr(report, "model_dump"):
+        return report.model_dump()
+    if is_dataclass(report):
+        return asdict(report)
+    if isinstance(report, dict):
+        return report
+    return {"value": str(report)}
+
+
+def _report_text(data: dict) -> str:
+    for key in (
+        "personalized_minutes",
+        "personalized_text",
+        "outline",
+        "rendered",
+        "text",
+    ):
+        value = data.get(key)
+        if isinstance(value, str) and value.strip():
+            return value.strip()
+    return ""
+
+
+def _save_report_artifacts(
+    ctx: _DomainContext,
+    line_name: str,
+    report: object,
+    timestamp: str,
+) -> dict[str, Path]:
+    out_dir = _task_output_dir(ctx, line_name)
+    data = _report_to_dict(report)
+    paths: dict[str, Path] = {}
+    json_path = out_dir / f"report_{timestamp}.json"
+    json_path.write_text(
+        json.dumps(data, ensure_ascii=False, indent=2),
+        encoding="utf-8",
+    )
+    paths["json"] = json_path
+    text = _report_text(data)
+    if text:
+        md_path = out_dir / f"result_{timestamp}.md"
+        md_path.write_text(text, encoding="utf-8")
+        paths["text"] = md_path
+    return paths
+
+
+def _save_all_reports(
+    ctx: _DomainContext,
+    reports: dict,
+    timestamp: str,
+) -> dict[str, dict[str, Path]]:
+    saved: dict[str, dict[str, Path]] = {}
+    for line_name, report in reports.items():
+        if line_name not in ctx.task_lines:
+            continue
+        if line_name == "knowledge_graph":
+            continue
+        saved[line_name] = _save_report_artifacts(ctx, line_name, report, timestamp)
+    return saved
+
+
+def _export_mindmap_html(reports: dict, out_dir: Path) -> Path | None:
     """从 done 事件的 reports 中提取 mindmap 大纲并导出 HTML。
 
     - 无 mindmap 线 / 大纲为空 → 返回 None
@@ -251,19 +308,18 @@ def _export_mindmap_html(reports: dict) -> Path | None:
     if not markmap_available():
         logger.warning("未检测到 npx/node，跳过思维导图 HTML 生成")
         return None
-    out_dir = PROJECT_ROOT / "output"
-    filename = f"meeting_mindmap_{datetime.now():%Y%m%d_%H%M%S}.html"
+    filename = f"mindmap_{datetime.now():%Y%m%d_%H%M%S}.html"
     return render_mindmap_html(outline, out_dir, filename)
 
 
 async def _export_mindmap_png(
-    reports: dict, html_path: Path | None = None
+    reports: dict, out_dir: Path, html_path: Path | None = None
 ) -> Path | None:
     """从 done 事件的 reports 中提取 mindmap 大纲并导出 PNG。
 
     - 无 mindmap 线 / 大纲为空 → 返回 None
     - playwright 未安装 / chromium 缺失 / 截图失败 → 记 warning，返回 None
-    - 传入 html_path 时复用该 HTML 截图（--mindmap-format both 场景）
+    - 传入 html_path 时复用该 HTML 截图
     """
     mindmap_report = reports.get("mindmap")
     outline = getattr(mindmap_report, "outline", None) if mindmap_report else None
@@ -275,25 +331,49 @@ async def _export_mindmap_png(
             "（安装：pip install playwright && playwright install chromium）"
         )
         return None
-    out_dir = PROJECT_ROOT / "output"
-    filename = f"meeting_mindmap_{datetime.now():%Y%m%d_%H%M%S}.png"
+    filename = f"mindmap_{datetime.now():%Y%m%d_%H%M%S}.png"
     return await render_mindmap_png(outline, out_dir, filename, html_path=html_path)
+
+
+def _export_knowledge_graph(reports: dict, out_dir: Path) -> dict[str, Path]:
+    """从 done 事件的 reports 中提取 knowledge_graph 图数据并导出图谱文件。
+
+    - 无 knowledge_graph 线 / nodes 为空 → 返回空 dict
+    - graphviz（dot）不可用 / 渲染失败 → PNG/SVG 跳过，HTML 仍尽量生成
+    """
+    kg = reports.get("knowledge_graph")
+    nodes = getattr(kg, "nodes", None) if kg else None
+    if not nodes:
+        return {}
+    if not graphviz_available():
+        logger.warning("未检测到 graphviz（dot），跳过知识图谱 PNG/SVG 生成")
+    edges = getattr(kg, "edges", None) or []
+    outline = getattr(kg, "outline", "") or ""
+    title = str(getattr(kg, "title", "") or "").strip()
+    for line in outline.splitlines():
+        stripped = line.strip()
+        if not title and stripped.startswith("# "):
+            title = stripped[2:].strip()
+            break
+    stem = f"knowledge_graph_{datetime.now():%Y%m%d_%H%M%S}"
+    return render_knowledge_graph_bundle(nodes, edges, out_dir, stem, title=title)
 
 
 async def run(
     ctx: _DomainContext,
-    summary: Path,
+    file: Path,
     profile: Path,
     env_file: Path,
-    minutes_template: Path | None,
-    item_template: Path | None = None,
+    templates: dict[str, Path] | None = None,
     tasks: list[str] | None = None,
-    mindmap_format: str = "html",
 ) -> None:
     """流式并行输出（--task 必填，只跑选中的任务线）。
 
     ``tasks`` 指定要生成的任务（对应 run_streaming 的 lines 参数，已由
     ``_normalize_tasks`` 解析成线名）：未选中的线不运行、不产出事件。
+
+    ``templates`` 按线名 → 模板文件路径（来自 ``--{线名}_template`` 参数）；
+    未指定的线用默认渲染格式。
 
     各线文本由 LLM 流式生成、逐块实时打印（多条输出流并行，互不等待）；
     消费完全按任务线维度通用（chunk 事件自带 line/title），新增任务线无需改此处。
@@ -301,45 +381,36 @@ async def run(
     setup_logging()
     load_env(_resolve_path(ctx, env_file))
 
-    transcript = _load_transcript(ctx, summary)
+    transcript = _load_transcript(ctx, file)
     user = _load_user(ctx, profile)
     # 任务名 → 线名（未知名称在此报错，不进入运行）
     line_names = _normalize_tasks(ctx, tasks, set(ctx.task_lines))
-    # 模板读取（线名分派由 run_streaming 按线形态自动完成：
-    # template → 纯文本线；item_template → 结构化线）
-    template_text = ""
-    if minutes_template is not None:
-        template_text = (
-            _resolve_path(ctx, minutes_template).read_text(encoding="utf-8").strip()
-        )
-        if not template_text:
-            raise ValueError(f"模板文件为空：{minutes_template}")
+    # 按线读取模板（--{线名}_template → 模板文本；自然语言描述先编译）
+    template_texts: dict[str, str] = {}
+    for line, path in (templates or {}).items():
+        if path is None:
+            continue
+        text = _resolve_path(ctx, Path(path)).read_text(encoding="utf-8").strip()
+        if not text:
+            raise ValueError(f"{line} 模板文件为空：{path}")
         # 自然语言描述模板 → 先编译为占位符模板（失败自动回退原文，不阻塞）
-        template_text = await maybe_compile_natural_template(template_text)
-    item_template_text = ""
-    if item_template is not None:
-        item_template_text = (
-            _resolve_path(ctx, item_template).read_text(encoding="utf-8").strip()
-        )
-        if not item_template_text:
-            raise ValueError(f"条目模板文件为空：{item_template}")
-        # 自然语言描述模板 → 先编译为占位符模板（失败自动回退原文，不阻塞）
-        item_template_text = await maybe_compile_natural_template(item_template_text)
+        template_texts[line] = await maybe_compile_natural_template(text)
 
     system = ctx.system_cls()
     any_output = False
-    mindmap_silent = "mindmap" in line_names
+    # 图类线静默：大纲不打印，只需图片产物（mindmap / knowledge_graph）
+    silent_graph_lines = {"mindmap", "knowledge_graph"}
+    graph_silent = any(line in silent_graph_lines for line in line_names)
     async for event in system.run_streaming(
         transcript,
         user,
-        template=template_text,
-        item_template=item_template_text,
+        templates=template_texts,
         lines=line_names,
     ):
         etype = event["type"]
         if etype == "chunk":
-            # 思维导图线静默：大纲不打印，只需 HTML 产物（其余线照常流式输出）
-            if event.get("line") == "mindmap":
+            # 图类线静默：大纲不打印，只需图片产物（其余线照常流式输出）
+            if event.get("line") in silent_graph_lines:
                 continue
             # 通用流式块：不打印分节标题，正文逐块追加
             any_output = True
@@ -348,22 +419,45 @@ async def run(
         elif etype == "done":
             if event.get("quality_warning"):
                 logger.warning("⚠ %s", event["quality_warning"])
-            # 思维导图导出（按 --mindmap-format；失败仅提示，不影响主流程）
             reports = event.get("reports") or {}
-            fmt = mindmap_format or "html"
-            html_path = None
-            if fmt in ("html", "both"):
-                html_path = _export_mindmap_html(reports)
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            saved_reports = _save_all_reports(ctx, reports, timestamp)
+            for line_name, paths in saved_reports.items():
+                if paths.get("json"):
+                    sys.stdout.write(
+                        f"[{ctx.line_cn_names.get(line_name, line_name)}] "
+                        f"已保存 JSON：{paths['json']}\n"
+                    )
+                if paths.get("text"):
+                    sys.stdout.write(
+                        f"[{ctx.line_cn_names.get(line_name, line_name)}] "
+                        f"已保存文本：{paths['text']}\n"
+                    )
+            # 思维导图固定导出 HTML + PNG；失败仅提示，不影响主流程
+            if "mindmap" in reports:
+                mindmap_dir = _task_output_dir(ctx, "mindmap")
+                html_path = _export_mindmap_html(reports, mindmap_dir)
                 if html_path:
                     sys.stdout.write(f"\n[思维导图] 已生成 HTML：{html_path}\n")
-            if fmt in ("png", "both"):
-                png_path = await _export_mindmap_png(reports, html_path=html_path)
+                png_path = await _export_mindmap_png(
+                    reports, mindmap_dir, html_path=html_path
+                )
                 if png_path:
                     sys.stdout.write(f"[思维导图] 已生成 PNG：{png_path}\n")
+            # 知识图谱导出（PNG/SVG/HTML；失败仅提示，不影响主流程）
+            if "knowledge_graph" in reports:
+                kg_dir = _task_output_dir(ctx, "knowledge_graph")
+                kg_paths = _export_knowledge_graph(reports, kg_dir)
+                if kg_paths.get("png"):
+                    sys.stdout.write(f"[知识图谱] 已生成 PNG：{kg_paths['png']}\n")
+                if kg_paths.get("svg"):
+                    sys.stdout.write(f"[知识图谱] 已生成 SVG：{kg_paths['svg']}\n")
+                if kg_paths.get("html"):
+                    sys.stdout.write(f"[知识图谱] 已生成 HTML：{kg_paths['html']}\n")
     if any_output:
         sys.stdout.write("\n")
-    elif not mindmap_silent:
-        # mindmap 线静默输出，不触发「暂无内容」误报（HTML 产物另行提示）
+    elif not graph_silent:
+        # 图类线静默输出，不触发「暂无内容」误报（图片产物另行提示）
         logger.info("（暂无内容）")
 
 
@@ -376,17 +470,21 @@ def main() -> None:
     # 加载默认 .env，使 parser 默认值可被 .env 中的 {领域}_* 配置覆盖
     load_env(PROJECT_ROOT / ".env")
     args = _parser(ctx).parse_args()
+    # 收集各线模板（--{线名}_template → 线名: 路径）
+    templates: dict[str, Path] = {}
+    for line in ctx.task_lines:
+        path = getattr(args, f"{line}_template")
+        if path is not None:
+            templates[line] = path
     try:
         asyncio.run(
             run(
                 ctx,
-                args.summary,
+                args.file,
                 args.profile,
                 args.env,
-                args.minutes_template,
-                args.item_template,
+                templates,
                 args.tasks,
-                args.mindmap_format,
             )
         )
     except (

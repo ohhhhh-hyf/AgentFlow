@@ -11,6 +11,12 @@ from .notes_core import NotesUnderstandingAgent
 
 # ── 任务线 import 生成区：由 tools/scripts/sync_domain.py 生成，勿手改 ──
 
+from .tasks.knowledge_graph import (
+    KnowledgeGraphAgent,
+    KnowledgeGraphRender,
+    KnowledgeGraphSupervisor,
+)
+
 from .tasks.points import (
     PointsAgent,
     PointsRender,
@@ -31,6 +37,9 @@ class NotesAgentFactory:
             "notes_understanding_agent": NotesUnderstandingAgent(client),
             # ── 任务线装配生成区：由 tools/scripts/sync_domain.py 生成，勿手改 ──
 
+            "knowledge_graph_agent": KnowledgeGraphAgent(client),
+            "knowledge_graph_supervisor": KnowledgeGraphSupervisor(client),
+            "knowledge_graph_render": KnowledgeGraphRender(client),
             "points_agent": PointsAgent(client),
             "points_supervisor": PointsSupervisor(client),
             "points_render": PointsRender(client),

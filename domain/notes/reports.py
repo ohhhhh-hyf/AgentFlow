@@ -1,4 +1,4 @@
-﻿"""notes 域全部任务线的最终输出 Report 类 —— 手写区。
+"""notes 域全部任务线的最终输出 Report 类 —— 手写区。
 
 每个任务线在文件末尾追加一个 Report dataclass，字段按
 ``metadata["source"]`` 标签由通用组装器 _assemble_report 取值：
@@ -23,6 +23,7 @@ from typing import Any
 
 from .models import (
     ModelMixin,
+    KnowledgeGraphReportValidation,
     PointsReportValidation,
 )
 
@@ -41,3 +42,26 @@ class PointsReport(ModelMixin, PointsReportValidation):
         default=None,
         metadata={"source": "rendered"},
     )
+
+@dataclass
+class KnowledgeGraphReport(ModelMixin, KnowledgeGraphReportValidation):
+    """知识图谱输出。
+
+    字段的 ``metadata["source"]`` 供通用组装器从 state 抽屉取值：
+    - ``rendered`` → 树形大纲文本（markmap 可可视化）
+    - ``draft.nodes`` / ``draft.edges`` → 已批准图数据（graphviz 渲染图谱用）
+    """
+
+    # 树形大纲（LLM 渲染，人可读 / markmap 树形视图）
+    outline: str = field(default="", metadata={"source": "rendered"})
+    title: str = field(default="", metadata={"source": "draft.title"})
+    # 图数据：节点与关系边（bootstrap 据此渲染 graphviz 知识图谱）
+    nodes: list[dict[str, Any]] = field(
+        default_factory=list,
+        metadata={"source": "draft.nodes"},
+    )
+    edges: list[dict[str, Any]] = field(
+        default_factory=list,
+        metadata={"source": "draft.edges"},
+    )
+    quality_warning: str | None = None

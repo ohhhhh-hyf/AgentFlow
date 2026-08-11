@@ -33,11 +33,18 @@ from .notes_core import NotesUnderstandingAgent
 # ── Report import 生成区：由 tools/scripts/sync_domain.py 生成，勿手改 ──
 
 from .reports import (
+    KnowledgeGraphReport,
     PointsReport,
 )
 # ── Report import 生成区结束 ──
 
 # ── 任务线 import 生成区：由 tools/scripts/sync_domain.py 生成，勿手改 ──
+
+from .tasks.knowledge_graph import (
+    KnowledgeGraphAgent,
+    KnowledgeGraphRender,
+    KnowledgeGraphSupervisor,
+)
 
 from .tasks.points import (
     PointsAgent,
@@ -49,6 +56,7 @@ from .tasks.points import (
 
 # ── FallbackRules import 生成区：由 tools/scripts/sync_domain.py 生成，勿手改 ──
 
+from .tasks.knowledge_graph.contracts import KNOWLEDGE_GRAPH_FALLBACK_RULES
 from .tasks.points.contracts import POINTS_FALLBACK_RULES
 
 # ── FallbackRules import 生成区结束 ──
@@ -61,6 +69,12 @@ QUALITY_WARNING = "生成可能有误，请结合原文核对。"
 QUALITY_DISCLAIMER = "（生成可能有误）"
 
 # ── 空结构常量生成区：由 tools/scripts/sync_domain.py 生成，勿手改 ──
+
+_EMPTY_KNOWLEDGE_GRAPH = {
+    "title": "",
+    "nodes": [],
+    "edges": [],
+}
 
 _EMPTY_NOTES_UNDERSTANDING = {
     "note_purpose": "",
@@ -83,11 +97,23 @@ _REJECT_POINTS_REVIEW = {
     "feedback": ["LLM 调用失败，未完成审核，转降级输出"],
 }
 
+_REJECT_KNOWLEDGE_GRAPH_REVIEW = {
+    "decision": "reject",
+    "graph_check": {"status": "fail", "findings": ["LLM 调用失败，未完成审核"]},
+    "feedback": ["LLM 调用失败，未完成审核，转降级输出"],
+}
+
 # ── 拒绝审核常量生成区结束 ──
 
 # ── 任务线注册生成区：由 tools/scripts/sync_domain.py 生成，勿手改 ──
 
 TASK_LINES: dict[str, dict] = {
+    "knowledge_graph": {
+        "agent_attr": "knowledge_graph_agent",
+        "supervisor_attr": "knowledge_graph_supervisor",
+        "empty_draft": _EMPTY_KNOWLEDGE_GRAPH,
+        "reject_review": _REJECT_KNOWLEDGE_GRAPH_REVIEW,
+    },
     "points": {
         "agent_attr": "points_agent",
         "supervisor_attr": "points_supervisor",
@@ -223,7 +249,17 @@ def _field_values(draft: dict, sec, objective: bool) -> list:
 
 # ── Lines 段逐条格式化器注册表（domain 按需填写）───────────────
 # 例：lines 段需要逐条格式化时注册 {线名: 格式化函数(index, item) -> str}
-_LINES_FORMATTERS: dict[str, object] = {}
+def _format_graph_node(index: int, item: dict) -> str:
+    """把知识图谱节点格式化为文本行（确定性降级输出用）。"""
+    name = str(item.get("name") or "").strip()
+    definition = str(item.get("definition") or "").strip()
+    if definition:
+        return f"{index}. {name}（{definition[:30]}）"
+    return f"{index}. {name}"
+
+_LINES_FORMATTERS: dict[str, object] = {
+    "knowledge_graph": _format_graph_node,
+}
 
 def _empty_purpose(state: NotesState) -> str:
     """empty_purpose 兜底时的「目的」文案（领域有核心理解时覆写）。"""
@@ -382,6 +418,20 @@ class _Nodes:
         return {"notes_understanding": result.model_dump()}
 
     # ── 渲染上下文生成区：由 tools/scripts/sync_domain.py 生成，勿手改 ──
+
+    def _knowledge_graph_render_context(self, state: NotesState) -> str:
+        mode = self._mode_label(state)
+        line = _line(state, "knowledge_graph")
+        review = line.get("review") or {}
+        return (
+            f"视角模式：{mode}\n"
+            f"objective_perspective：{bool(state.get('objective_perspective'))}\n\n"
+            f"原文：\n{state['transcript']}\n\n"
+            f"用户画像：\n{_json(state['user'])}\n\n"
+            f"已审核用户视角：\n{_json(state.get('perspective_profile'))}\n\n"
+            f"已批准知识图谱草稿：\n{_json(line.get('draft'))}\n\n"
+            f"知识图谱审核结论：\n{_json(review)}"
+        )
 
     def _points_render_context(self, state: NotesState) -> str:
         mode = self._mode_label(state)
@@ -553,6 +603,12 @@ class _Nodes:
                     }
                 )
                 return
+            if line_name == "knowledge_graph" and not template:
+                draft = _line(state, line_name).get("draft") or {}
+                _line(state, line_name)["rendered"] = (
+                    f"# {draft.get('title') or _line_cn(line_name)}"
+                )
+                return
             context_fn = getattr(self, f"_{line_name}_render_context")
             context = context_fn(state)
             parts: list[str] = []
@@ -588,6 +644,14 @@ class _Nodes:
         if structure is not None:
             line_dict["structure"] = structure
         return {"lines": {"points": line_dict}, "quality_degraded": True}
+
+    async def _knowledge_graph_fallback_node(self, state: NotesState) -> dict:
+        text, structure = _fallback_text(
+            state, "knowledge_graph", KNOWLEDGE_GRAPH_FALLBACK_RULES)
+        line_dict = {"rendered": text, "degraded": True}
+        if structure is not None:
+            line_dict["structure"] = structure
+        return {"lines": {"knowledge_graph": line_dict}, "quality_degraded": True}
 
     # ── 专属节点方法生成区结束 ──
 
@@ -632,6 +696,9 @@ class NotesAgentSystem(_Nodes):
 
         # ── Agent 挂载生成区：由 tools/scripts/sync_domain.py 生成，勿手改 ──
 
+        self.knowledge_graph_agent: KnowledgeGraphAgent = agents["knowledge_graph_agent"]
+        self.knowledge_graph_supervisor: KnowledgeGraphSupervisor = agents["knowledge_graph_supervisor"]
+        self.knowledge_graph_render: KnowledgeGraphRender = agents["knowledge_graph_render"]
         self.points_agent: PointsAgent = agents["points_agent"]
         self.points_supervisor: PointsSupervisor = agents["points_supervisor"]
         self.points_render: PointsRender = agents["points_render"]
@@ -642,6 +709,7 @@ class NotesAgentSystem(_Nodes):
         # ── 节点映射生成区：由 tools/scripts/sync_domain.py 生成，勿手改 ──
 
         self._fallback_nodes: dict[str, object] = {}
+        self._fallback_nodes["knowledge_graph"] = self._knowledge_graph_fallback_node
         self._fallback_nodes["points"] = self._points_fallback_node
 
         # ── 节点映射生成区结束 ──
@@ -649,6 +717,7 @@ class NotesAgentSystem(_Nodes):
         # ── Report 组装器生成区：由 tools/scripts/sync_domain.py 生成，勿手改 ──
 
         self._report_assemblers = {
+            "knowledge_graph": KnowledgeGraphReport,
             "points": PointsReport,
         }
 
@@ -657,6 +726,7 @@ class NotesAgentSystem(_Nodes):
         # ── FallbackRules 注册生成区：由 tools/scripts/sync_domain.py 生成，勿手改 ──
 
         self._fallback_rules = {
+            "knowledge_graph": KNOWLEDGE_GRAPH_FALLBACK_RULES,
             "points": POINTS_FALLBACK_RULES,
         }
 

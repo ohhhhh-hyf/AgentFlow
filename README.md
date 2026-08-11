@@ -25,7 +25,7 @@ domain/
       ...                     # 新增任务线同构
       {line}/steps/           # agent / supervisor / render 三步骤实现
     samples/                  # 示例会议文本 / 用户画像 / 模板
-  notes/                      # 笔记域：笔记理解 + 知识点总结（points 线）
+  notes/                      # 笔记域：笔记理解 + 知识点（points）+ 知识图谱（knowledge_graph）
 perspective/                  # 跨 domain 公共视角建模（agent/模型/迷你生成器）
 llm_client/                   # DeepSeek 客户端 + 配置（.env）
 supervisor/                   # 全局监督标准（prompt 注入，不单独调 LLM）
@@ -37,6 +37,7 @@ tools/
   prompt_utils.py / template_prompt.py   # 渲染 prompt 构建
   template_router.py          # 模板路由：占位符/格式规范/自然语言三类自动判型 + 编译
   mindmap.py                  # 思维导图导出：markmap-cli（HTML）+ Playwright（PNG）
+  knowledge_graph.py          # 知识图谱导出：nodes/edges → PNG/SVG/交互式 HTML
   scripts/
     sync_domain.py                # 代码生成器：从契约生成模型/装配/骨架（--write/--check）
     register_task.py               # 新增任务线第一步：注册 + 骨架 + 工厂 import
@@ -51,6 +52,15 @@ tools/
 pip install -r requirements.txt
 ```
 
+Linux 推荐配置：
+
+| 目的 | Ubuntu / Debian | CentOS / RHEL / Fedora | 验证命令 |
+|---|---|---|---|
+| Python 运行环境 | `sudo apt-get update && sudo apt-get install -y python3 python3-pip python3-venv` | `sudo dnf install -y python3 python3-pip` | `python3 --version` |
+| 知识图谱 PNG/SVG | `sudo apt-get install -y graphviz fonts-noto-cjk` | `sudo dnf install -y graphviz google-noto-sans-cjk-fonts` | `dot -V` |
+| 思维导图 HTML | `sudo apt-get install -y nodejs npm` | `sudo dnf install -y nodejs npm` | `node -v && npx -v` |
+| 思维导图 PNG | `python3 -m pip install playwright && python3 -m playwright install chromium` | `python3 -m pip install playwright && python3 -m playwright install chromium` | `python3 -m playwright --version` |
+
 可选前置（按需）：
 
 ```bash
@@ -58,6 +68,8 @@ pip install -r requirements.txt
 # 思维导图 PNG 导出还需要浏览器内核：
 pip install playwright && playwright install chromium
 ```
+
+> 知识图谱的 PNG/SVG 依赖系统 Graphviz，不是 Python 包；只 `pip install -r requirements.txt` 不会安装 `dot`。
 
 ### 2. 配置 API Key
 
@@ -77,24 +89,121 @@ DEEPSEEK_TEMPERATURE=0.0
 
 ### 3. 运行
 
+常用任务：
+
+| 场景 | 命令 |
+|---|---|
+| 会议纪要 + 待办 | `python bootstrap.py --task minutes_generation --task action_items --file .\domain\meeting\samples\summary\meeting_all.txt --profile .\domain\meeting\samples\profile\object_profile.json` |
+| 思维导图演示 | `python bootstrap.py --task mindmap --file .\domain\meeting\samples\summary\meeting_all.txt --profile .\domain\meeting\samples\profile\object_profile.json` |
+| 笔记知识点 | `python bootstrap.py --domain notes --task points --file .\domain\notes\samples\note.txt --profile .\domain\meeting\samples\profile\object_profile.json` |
+| 知识图谱演示 | `python bootstrap.py --domain notes --task knowledge_graph --file .\domain\notes\samples\student_math_notes.txt --profile .\domain\meeting\samples\profile\object_profile.json` |
+
+Linux/macOS 路径写法示例：
+
+```bash
+python3 bootstrap.py --domain notes --task knowledge_graph \
+  --file ./domain/notes/samples/student_math_notes.txt \
+  --profile ./domain/meeting/samples/profile/object_profile.json
+```
+
+Windows PowerShell 路径写法示例：
+
 ```bash
 # 指定任务线（可多值）
 python bootstrap.py --task minutes_generation --task action_items \
-  --summary .\domain\meeting\samples\summary\meeting_all.txt \
+  --file .\domain\meeting\samples\summary\meeting_all.txt \
   --profile .\domain\meeting\samples\profile\object_profile.json
 
-# 思维导图：默认直接输出 PNG 图片到 output/（--mindmap-format png|html|both）
+# 思维导图：默认同时输出 HTML 和 PNG 到 output/meeting/mindmap/
 python bootstrap.py --task mindmap \
-  --summary .\domain\meeting\samples\summary\meeting_all.txt \
+  --file .\domain\meeting\samples\summary\meeting_all.txt \
   --profile .\domain\meeting\samples\profile\object_profile.json
 
-# 笔记域：知识点总结
-python bootstrap.py --domain notes --task points --summary .\domain\notes\samples\note.txt --profile <画像.json>
+# 笔记域：知识点总结 + 知识图谱
+python bootstrap.py --domain notes --task points --file .\domain\notes\samples\note.txt --profile <画像.json>
+
+# 笔记域：知识图谱（默认输出 PNG/SVG/HTML 到 output/notes/knowledge_graph/；PNG/SVG 需系统安装 Graphviz）
+python bootstrap.py --domain notes --task knowledge_graph --file .\domain\notes\samples\student_math_notes.txt --profile <画像.json>
+```
+
+CLI 参数：
+
+| 参数 | 是否必填 | 默认值 | 说明 | 示例 |
+|---|---:|---|---|---|
+| `--domain` | 否 | `meeting` | 选择领域。会议域用 `meeting`，笔记域用 `notes`。 | `--domain notes` |
+| `--task` | 是 | 无 | 要运行的任务线，可重复传多个。 | `--task minutes_generation --task action_items` |
+| `--file` | 否 | 领域样例目录 | 输入 `.txt` 文件或只含一个 `.txt` 的目录。 | `--file ./domain/notes/samples/student_math_notes.txt` |
+| `--profile` | 否 | 领域画像目录 | 用户画像 `.json` 文件或只含一个 `.json` 的目录。 | `--profile ./domain/meeting/samples/profile/object_profile.json` |
+| `--env` | 否 | `./.env` | 环境变量文件路径。 | `--env ./.env` |
+| `--{线名}_template` | 否 | 无 | 指定某条任务线的渲染模板。 | `--minutes_generation_template ./template.md` |
+
+模板参数是按当前 `--domain` 动态注册的。可用参数如下：
+
+| 领域 | 任务线 | 模板参数 | 环境变量 | 说明 |
+|---|---|---|---|---|
+| `meeting` | `minutes_generation` | `--minutes_generation_template` | `MEETING_MINUTES_GENERATION_TEMPLATE` | 会议纪要输出模板 |
+| `meeting` | `action_items` | `--action_items_template` | `MEETING_ACTION_ITEMS_TEMPLATE` | 待办事项输出模板 |
+| `meeting` | `risk` | `--risk_template` | `MEETING_RISK_TEMPLATE` | 风险分析输出模板 |
+| `meeting` | `mindmap` | `--mindmap_template` | `MEETING_MINDMAP_TEMPLATE` | 思维导图 Markdown 大纲模板 |
+| `notes` | `points` | `--points_template` | `NOTES_POINTS_TEMPLATE` | 笔记知识点输出模板 |
+| `notes` | `knowledge_graph` | `--knowledge_graph_template` | `NOTES_KNOWLEDGE_GRAPH_TEMPLATE` | 知识图谱 Markdown 大纲模板；不传模板时直接导出 PNG/SVG/HTML |
+
+任务线：
+
+| 领域 | 任务线 | 输出内容 | 主要产物 |
+|---|---|---|---|
+| `meeting` | `minutes_generation` | 会议纪要 | 终端文本 |
+| `meeting` | `action_items` | 待办事项 | 终端文本 |
+| `meeting` | `risk` | 风险分析 | 终端文本 |
+| `meeting` | `mindmap` | 思维导图 | `output/meeting/mindmap/mindmap_*.png` / `.html` |
+| `notes` | `points` | 笔记知识点总结 | 终端文本 |
+| `notes` | `knowledge_graph` | 知识图谱 | `output/notes/knowledge_graph/knowledge_graph_*.png` / `.svg` / `.html` |
+
+输出归档规则：
+
+| 目录 | 内容 | 说明 |
+|---|---|---|
+| `output/{domain}/{task}/report_时间戳.json` | 完整最终数据 | 除 `knowledge_graph` 外的任务线都会保存，包含结构化字段和质量提示 |
+| `output/{domain}/{task}/result_时间戳.md` | 最终文本 / 大纲 | 除 `knowledge_graph` 外，仅当该任务线有文本正文或 Markdown 大纲时保存 |
+| `output/meeting/mindmap/mindmap_时间戳.html` | 思维导图 HTML | `mindmap` 线额外产物 |
+| `output/meeting/mindmap/mindmap_时间戳.png` | 思维导图 PNG | `mindmap` 线额外产物；Playwright 不可用时跳过 |
+| `output/notes/knowledge_graph/knowledge_graph_时间戳.png` | 知识图谱 PNG | `knowledge_graph` 线额外产物；Graphviz 不可用时跳过 |
+| `output/notes/knowledge_graph/knowledge_graph_时间戳.svg` | 知识图谱 SVG | 高清矢量图，适合演示 |
+| `output/notes/knowledge_graph/knowledge_graph_时间戳.html` | 知识图谱交互 HTML | Cytoscape.js 交互演示版；知识图谱目录只保留 PNG/SVG/HTML |
+
+知识图谱输出文件：
+
+| 文件 | 用途 | 依赖 | 说明 |
+|---|---|---|---|
+| `knowledge_graph_时间戳.png` | 快速预览、图片粘贴 | Graphviz `dot` | 位图，放大后可能变糊 |
+| `knowledge_graph_时间戳.svg` | PPT/浏览器高清演示 | Graphviz `dot` | 矢量图，中文和线条缩放更清楚 |
+| `knowledge_graph_时间戳.html` | 交互演示 | 浏览器；联网可加载 Cytoscape.js CDN | 可缩放、拖拽、点击节点/关系查看定义和 evidence |
+
+可选环境变量（.env，均有默认值）：
+
+```
+MEETING_FILE=<会议文本路径>                     # 对应 --file
+MEETING_PROFILE=<用户画像路径>                  # 对应 --profile
+MEETING_MINUTES_GENERATION_TEMPLATE=<模板路径>  # 对应 --minutes_generation_template
+NOTES_FILE=<笔记文本路径>                       # 对应 --file
+NOTES_PROFILE=<用户画像路径>                    # 对应 --profile
+NOTES_KNOWLEDGE_GRAPH_TEMPLATE=<模板路径>       # 对应 --knowledge_graph_template
 ```
 
 ## 自定义输出模板
 
-用 `--minutes_template` 指定纪要输出模板（`.md` 文件）。模板支持三种形式，系统**自动判型**处理：
+用 `--{线名}_template` 指定对应任务线的渲染模板（`.md` 文件）。每个任务线一个参数：
+
+| 任务线 | 模板参数 |
+|---|---|
+| minutes_generation | `--minutes_generation_template` |
+| action_items | `--action_items_template` |
+| risk | `--risk_template` |
+| mindmap | `--mindmap_template` |
+| points | `--points_template` |
+| knowledge_graph | `--knowledge_graph_template` |
+
+模板支持三种形式，系统**自动判型**处理：
 
 | 形式 | 示例 | 处理方式 |
 |---|---|---|
@@ -103,8 +212,13 @@ python bootstrap.py --domain notes --task points --summary .\domain\notes\sample
 | **自然语言描述** | "第一行是标题，括号里跟时间和人物" | LLM 先编译成占位符模板再填充 |
 
 ```bash
-python bootstrap.py --task minutes_generation --summary ... --profile ... \
-  --minutes_template .\domain\meeting\samples\summary_template\simple_minutes.md
+python bootstrap.py --task minutes_generation --file ... --profile ... \
+  --minutes_generation_template .\domain\meeting\samples\summary_template\simple_minutes.md
+
+python bootstrap.py --domain notes --task knowledge_graph \
+  --file .\domain\notes\samples\student_math_notes.txt \
+  --profile .\domain\meeting\samples\profile\object_profile.json \
+  --knowledge_graph_template .\domain\notes\samples\knowledge_graph_template.md
 ```
 
 开关：环境变量 `TEMPLATE_ROUTER=off` 关闭模板路由，恢复旧行为。
@@ -121,7 +235,7 @@ python bootstrap.py --task minutes_generation --summary ... --profile ... \
 ④ reports.py 末尾追加 XxxReport 类（继承 ModelMixin, XxxReportValidation）
 ⑤ python tools/scripts/sync_domain.py --domain meeting   # 全量生成 → SUCCESS!
 ⑥ python tools/scripts/sync_domain.py --domain meeting --check   # 校验 → SUCCESS!
-⑦ python bootstrap.py --task xxx --summary ... --profile ...
+⑦ python bootstrap.py --task xxx --file ... --profile ...
 ```
 
 ## 架构要点
@@ -135,8 +249,12 @@ python bootstrap.py --task minutes_generation --summary ... --profile ... \
   sync_domain 全量后按字段生成真实校验
 - **模板路由**：`tools/template_router.py` 自动判型三类模板并分派最优处理，
   任何失败回退旧路径；渲染输出附带只读校验（残留占位符/JSON 合法性）
-- **思维导图**：mindmap 线产出 Markdown 大纲，经 `tools/mindmap.py` 导出
-  交互式 HTML（markmap，离线单文件）或 PNG 图片（Playwright 截图）；
-  `--mindmap-format` 默认 png，npx/playwright 缺失时自动降级不影响主流程
+- **思维导图**：mindmap 线产出 Markdown 大纲，经 `tools/mindmap.py` 固定导出
+  交互式 HTML（markmap，离线单文件）和 PNG 图片（Playwright 截图）；
+  npx/playwright 缺失时自动降级不影响主流程
+- **知识图谱**：notes 域 knowledge_graph 线提取概念节点与关系边（nodes/edges，
+  均锚定原文 + evidence），经 `tools/knowledge_graph.py` 同时导出 PNG、SVG
+  和 Cytoscape.js 交互式 HTML（默认输出到 `output/notes/knowledge_graph/`）；悬空边自动过滤、
+  中文 label 自动探测字体，dot 缺失时 PNG/SVG 自动跳过，HTML 仍尽量生成
 - **输出稳定性**：各线 prompt 采用确定性规则（数量由内容决定、措辞锚定原文、
   顺序按原文出现、空字段 null/[]），同一输入重复运行保持内容与篇幅稳定

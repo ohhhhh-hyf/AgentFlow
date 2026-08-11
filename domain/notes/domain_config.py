@@ -13,4 +13,5 @@ RENDER_CONTEXT_STATE_LINES = [
 # ── 任务线中文名注册表（脚本与运行时共享的唯一来源）──────────────
 LINE_CN_NAMES: dict[str, str] = {
     "points": "知识点总结",
+    "knowledge_graph": "知识图谱",
 }
