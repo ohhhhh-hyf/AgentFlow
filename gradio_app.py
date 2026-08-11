@@ -222,11 +222,13 @@ body {
   color: #0f172a;
   font-weight: 700;
   letter-spacing: 0;
+  text-align: center;
 }
 #title-block p {
   margin: 10px 0 0;
   color: #475569;
   font-size: 14px;
+  text-align: center;
 }
 #config-panel, #result-panel {
   padding: 18px;
@@ -400,8 +402,8 @@ def build_app() -> gr.Blocks:
         gr.HTML(
             """
             <div id="title-block">
-              <h1>AgentFlow 协作式Agent系统</h1>
-              <p>选择领域和任务线，添加输入文件后运行。结果会保存到 output，并在这里直接预览或下载。</p>
+              <h1>XiaoYi-TaskAgent</h1>
+              <p>选择领域和任务线，添加输入文件后运行，支持图片预览或下载预览。</p>
             </div>
             """
         )

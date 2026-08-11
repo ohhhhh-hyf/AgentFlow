@@ -13,7 +13,26 @@ def resolve_path(ctx: DomainContext, path: Path) -> Path:
     root_candidate = (ctx.project_root / path).resolve()
     if root_candidate.exists():
         return root_candidate
+    samples_candidate = (ctx.cli_samples_dir / path).resolve()
+    if samples_candidate.exists():
+        return samples_candidate
     return (ctx.samples_dir / path).resolve()
+
+
+def resolve_sample_path(ctx: DomainContext, path: Path, sample_kind: str) -> Path:
+    """Resolve a CLI path against samples/{domain}/{sample_kind} first."""
+    if path.is_absolute():
+        return path
+    root_candidate = (ctx.project_root / path).resolve()
+    if root_candidate.exists():
+        return root_candidate
+    kind_candidate = (ctx.cli_samples_dir / sample_kind / path).resolve()
+    if kind_candidate.exists():
+        return kind_candidate
+    samples_candidate = (ctx.cli_samples_dir / path).resolve()
+    if samples_candidate.exists():
+        return samples_candidate
+    return (ctx.cli_samples_dir / sample_kind / path).resolve()
 
 
 def pick_single_file(folder: Path, pattern: str, label: str) -> Path:
@@ -44,7 +63,12 @@ def resolve_input_file(
 
 
 def load_transcript(ctx: DomainContext, file_path: Path) -> str:
-    text_file = resolve_input_file(ctx, file_path, ".txt", "输入文本")
+    text_file = resolve_input_file(
+        ctx,
+        resolve_sample_path(ctx, file_path, "file"),
+        ".txt",
+        "输入文本",
+    )
     transcript = text_file.read_text(encoding="utf-8").strip()
     if not transcript:
         raise ValueError(f"{text_file} 是空文件，请写入内容")
@@ -52,7 +76,12 @@ def load_transcript(ctx: DomainContext, file_path: Path) -> str:
 
 
 def load_user(ctx: DomainContext, profile_path: Path):
-    profile_file = resolve_input_file(ctx, profile_path, ".json", "用户画像")
+    profile_file = resolve_input_file(
+        ctx,
+        resolve_sample_path(ctx, profile_path, "profile"),
+        ".json",
+        "用户画像",
+    )
     profile = json.loads(profile_file.read_text(encoding="utf-8"))
     return ctx.models.UserIdentity(**profile)
 
@@ -63,4 +92,5 @@ __all__ = [
     "pick_single_file",
     "resolve_input_file",
     "resolve_path",
+    "resolve_sample_path",
 ]

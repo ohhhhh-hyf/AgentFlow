@@ -1,2 +1,0 @@
-[permissions]
-allow = ["Edit", "Bash=py --version 2>&1; echo \"---\"; python --version 2>&1; echo \"---\"; where python py 2>&1 | head -5"]

@@ -24,8 +24,8 @@ domain/
       mindmap/                # 思维导图线（大纲 → markmap HTML/PNG）
       ...                     # 新增任务线同构
       {line}/steps/           # agent / supervisor / render 三步骤实现
-    samples/                  # 示例会议文本 / 用户画像 / 模板
   notes/                      # 笔记域：笔记理解 + 知识点（points）+ 知识图谱（knowledge_graph）
+samples/                      # 终端参数对应的样例输入：samples/{domain}/{file|profile|task_template}
 perspective/                  # 跨 domain 公共视角建模（agent/模型/迷你生成器）
 llm_client/                   # DeepSeek 客户端 + 配置（.env）
 supervisor/                   # 全局监督标准（prompt 注入，不单独调 LLM）
@@ -111,17 +111,17 @@ python gradio_app.py
 
 | 场景 | 命令 |
 |---|---|
-| 会议纪要 + 待办 | `python bootstrap.py --task minutes_generation --task action_items --file .\domain\meeting\samples\summary\meeting_all.txt --profile .\domain\meeting\samples\profile\object_profile.json` |
-| 思维导图演示 | `python bootstrap.py --task mindmap --file .\domain\meeting\samples\summary\meeting_all.txt --profile .\domain\meeting\samples\profile\object_profile.json` |
-| 笔记知识点 | `python bootstrap.py --domain notes --task points --file .\domain\notes\samples\note.txt --profile .\domain\meeting\samples\profile\object_profile.json` |
-| 知识图谱演示 | `python bootstrap.py --domain notes --task knowledge_graph --file .\domain\notes\samples\student_math_notes.txt --profile .\domain\meeting\samples\profile\object_profile.json` |
+| 会议纪要 + 待办 | `python bootstrap.py --task minutes_generation --task action_items` |
+| 思维导图演示 | `python bootstrap.py --task mindmap` |
+| 笔记知识点 | `python bootstrap.py --domain notes --task points` |
+| 知识图谱演示 | `python bootstrap.py --domain notes --task knowledge_graph` |
 
 Linux/macOS 路径写法示例：
 
 ```bash
 python3 bootstrap.py --domain notes --task knowledge_graph \
-  --file ./domain/notes/samples/student_math_notes.txt \
-  --profile ./domain/meeting/samples/profile/object_profile.json
+  --file student_math_notes.txt \
+  --profile object_profile.json
 ```
 
 Windows PowerShell 路径写法示例：
@@ -129,19 +129,19 @@ Windows PowerShell 路径写法示例：
 ```bash
 # 指定任务线（可多值）
 python bootstrap.py --task minutes_generation --task action_items \
-  --file .\domain\meeting\samples\summary\meeting_all.txt \
-  --profile .\domain\meeting\samples\profile\object_profile.json
+  --file meeting_all.txt \
+  --profile object_profile.json
 
 # 思维导图：默认同时输出 HTML 和 PNG 到 output/meeting/mindmap/
 python bootstrap.py --task mindmap \
-  --file .\domain\meeting\samples\summary\meeting_all.txt \
-  --profile .\domain\meeting\samples\profile\object_profile.json
+  --file meeting_all.txt \
+  --profile object_profile.json
 
 # 笔记域：知识点总结 + 知识图谱
-python bootstrap.py --domain notes --task points --file .\domain\notes\samples\note.txt --profile <画像.json>
+python bootstrap.py --domain notes --task points --file student_math_notes.txt --profile object_profile.json
 
 # 笔记域：知识图谱（默认输出 PNG/SVG/HTML 到 output/notes/knowledge_graph/；PNG/SVG 需系统安装 Graphviz）
-python bootstrap.py --domain notes --task knowledge_graph --file .\domain\notes\samples\student_math_notes.txt --profile <画像.json>
+python bootstrap.py --domain notes --task knowledge_graph --file student_math_notes.txt --profile object_profile.json
 ```
 
 CLI 参数：
@@ -150,10 +150,37 @@ CLI 参数：
 |---|---:|---|---|---|
 | `--domain` | 否 | `meeting` | 选择领域。会议域用 `meeting`，笔记域用 `notes`。 | `--domain notes` |
 | `--task` | 是 | 无 | 要运行的任务线，可重复传多个。 | `--task minutes_generation --task action_items` |
-| `--file` | 否 | 领域样例目录 | 输入 `.txt` 文件或只含一个 `.txt` 的目录。 | `--file ./domain/notes/samples/student_math_notes.txt` |
-| `--profile` | 否 | 领域画像目录 | 用户画像 `.json` 文件或只含一个 `.json` 的目录。 | `--profile ./domain/meeting/samples/profile/object_profile.json` |
+| `--file` | 否 | `samples/{domain}/file` | 输入 `.txt` 文件、目录，或 `samples/{domain}/file` 下的文件名。 | `--file student_math_notes.txt` |
+| `--profile` | 否 | `samples/{domain}/profile` | 用户画像 `.json` 文件、目录，或 `samples/{domain}/profile` 下的文件名。 | `--profile object_profile.json` |
 | `--env` | 否 | `./.env` | 环境变量文件路径。 | `--env ./.env` |
 | `--{线名}_template` | 否 | 无 | 指定某条任务线的渲染模板。 | `--minutes_generation_template ./template.md` |
+
+根目录 `samples/` 与终端参数一一对应：
+
+| 目录 | 对应参数 | 当前样例 |
+|---|---|---|
+| `samples/meeting/file/` | `--domain meeting --file` | `meeting_all.txt` |
+| `samples/meeting/profile/` | `--domain meeting --profile` | `object_profile.json` |
+| `samples/meeting/minutes_generation_template/` | `--minutes_generation_template` | `simple_minutes.md` / `project_progress.md` / `test.md` |
+| `samples/meeting/action_items_template/` | `--action_items_template` | `action_items.md` |
+| `samples/meeting/risk_template/` | `--risk_template` | 可放置 `.md` 模板 |
+| `samples/meeting/mindmap_template/` | `--mindmap_template` | 可放置 `.md` 模板 |
+| `samples/notes/file/` | `--domain notes --file` | `student_math_notes.txt` |
+| `samples/notes/profile/` | `--domain notes --profile` | `object_profile.json` |
+| `samples/notes/points_template/` | `--points_template` | 可放置 `.md` 模板 |
+| `samples/notes/knowledge_graph_template/` | `--knowledge_graph_template` | 可放置 `.md` 模板 |
+
+路径解析规则：
+
+| 写法 | 解析方式 |
+|---|---|
+| 不传 `--file` | 自动读取 `samples/{domain}/file/`，目录内必须只有一个 `.txt` |
+| `--file student_math_notes.txt` | 自动解析为 `samples/{domain}/file/student_math_notes.txt` |
+| `--file ./some/path/input.txt` | 使用项目根目录下的显式路径 |
+| 不传 `--profile` | 自动读取 `samples/{domain}/profile/`，目录内必须只有一个 `.json` |
+| `--profile object_profile.json` | 自动解析为 `samples/{domain}/profile/object_profile.json` |
+| 不传 `--xx_template` | 自动查看 `samples/{domain}/xx_template/`；目录为空则不用模板，只有一个模板则自动使用 |
+| `--xx_template simple.md` | 自动解析为 `samples/{domain}/xx_template/simple.md` |
 
 模板参数是按当前 `--domain` 动态注册的。可用参数如下：
 
@@ -231,12 +258,12 @@ NOTES_KNOWLEDGE_GRAPH_TEMPLATE=<模板路径>       # 对应 --knowledge_graph_t
 
 ```bash
 python bootstrap.py --task minutes_generation --file ... --profile ... \
-  --minutes_generation_template .\domain\meeting\samples\summary_template\simple_minutes.md
+  --minutes_generation_template simple_minutes.md
 
 python bootstrap.py --domain notes --task knowledge_graph \
-  --file .\domain\notes\samples\student_math_notes.txt \
-  --profile .\domain\meeting\samples\profile\object_profile.json \
-  --knowledge_graph_template .\domain\notes\samples\knowledge_graph_template.md
+  --file student_math_notes.txt \
+  --profile object_profile.json \
+  --knowledge_graph_template <模板文件名>.md
 ```
 
 开关：环境变量 `TEMPLATE_ROUTER=off` 关闭模板路由，恢复旧行为。

@@ -33,12 +33,19 @@ class DomainContext:
     project_root: Path
 
     @property
+    def cli_samples_dir(self) -> Path:
+        return self.project_root / "samples" / self.name
+
+    @property
     def default_file_dir(self) -> Path:
-        return self.samples_dir / "summary"
+        return self.cli_samples_dir / "file"
 
     @property
     def default_profile_dir(self) -> Path:
-        return self.samples_dir / "profile"
+        return self.cli_samples_dir / "profile"
+
+    def default_template_dir(self, line_name: str) -> Path:
+        return self.cli_samples_dir / f"{line_name}_template"
 
 
 def load_domain(name: str, project_root: Path) -> DomainContext:

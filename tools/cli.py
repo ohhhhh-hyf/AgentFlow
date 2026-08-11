@@ -42,7 +42,11 @@ def build_parser(ctx: DomainContext) -> argparse.ArgumentParser:
             f"--{line}_template",
             dest=f"{line}_template",
             type=Path,
-            default=env_path(ctx, f"{line.upper()}_TEMPLATE", None),
+            default=env_path(
+                ctx,
+                f"{line.upper()}_TEMPLATE",
+                ctx.default_template_dir(line),
+            ),
             help=f"{cn}线渲染模板（.md 文件）。模板中用 [描述] 作为占位符，"
             "系统将自动填充内容。不指定则使用默认格式",
         )

@@ -14,7 +14,7 @@ from .exporters import (
     export_mindmap_html,
     export_mindmap_png,
 )
-from .io import load_transcript, load_user, resolve_path
+from .io import load_transcript, load_user, pick_single_file, resolve_path, resolve_sample_path
 from .logging_config import setup_logging
 from .runtime_context import DomainContext, normalize_tasks
 from .template_router import maybe_compile_natural_template
@@ -40,11 +40,16 @@ async def run(
 
     template_texts: dict[str, str] = {}
     for line, path in (templates or {}).items():
+        if line not in line_names:
+            continue
         if path is None:
             continue
-        text = resolve_path(ctx, Path(path)).read_text(encoding="utf-8").strip()
+        template_file = _resolve_template_file(ctx, line, Path(path))
+        if template_file is None:
+            continue
+        text = template_file.read_text(encoding="utf-8").strip()
         if not text:
-            raise ValueError(f"{line} 模板文件为空：{path}")
+            raise ValueError(f"{line} 模板文件为空：{template_file}")
         template_texts[line] = await maybe_compile_natural_template(text)
 
     system = ctx.system_cls()
@@ -106,6 +111,28 @@ async def _handle_done(ctx: DomainContext, event: dict) -> None:
             sys.stdout.write(f"[知识图谱] 已生成 SVG：{kg_paths['svg']}\n")
         if kg_paths.get("html"):
             sys.stdout.write(f"[知识图谱] 已生成 HTML：{kg_paths['html']}\n")
+
+
+def _resolve_template_file(
+    ctx: DomainContext, line_name: str, path: Path
+) -> Path | None:
+    resolved = resolve_sample_path(ctx, path, f"{line_name}_template")
+    if resolved.is_file():
+        return resolved
+    if resolved.is_dir():
+        files = sorted(
+            item for item in resolved.iterdir()
+            if item.is_file() and item.suffix.lower() in {".md", ".txt"}
+        )
+        if not files:
+            return None
+        if len(files) > 1:
+            names = "\n".join(f"- {file.name}" for file in files)
+            raise ValueError(
+                f"{line_name} 模板目录中发现多个模板文件，请直接指定其中一个：\n{names}"
+            )
+        return files[0]
+    return pick_single_file(resolved.parent, resolved.name, f"{line_name} 模板")
 
 
 __all__ = ["run"]
