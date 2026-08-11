@@ -95,6 +95,18 @@ DEEPSEEK_TEMPERATURE=0.0
 
 ### 3. 运行
 
+#### Gradio 测试平台
+
+```bash
+python gradio_app.py
+```
+
+打开终端提示的本地地址后，可以在页面中选择 `domain`、任务线，添加输入文本、用户画像和可选模板文件。运行完成后，页面右侧会显示运行日志、PNG 预览，以及可直接点击查看或下载的产物文件（如 HTML / SVG / PNG / JSON / Markdown）。
+
+平台标题：**AgentFlow 协作式Agent系统**
+
+#### 命令行
+
 常用任务：
 
 | 场景 | 命令 |
