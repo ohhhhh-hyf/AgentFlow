@@ -9,6 +9,11 @@ import urllib.request
 from collections.abc import AsyncIterator, Iterable
 from typing import TypeVar
 
+try:
+    import websockets
+except ModuleNotFoundError:  # pragma: no cover - depends on selected backend
+    websockets = None
+
 from tools.validation import OutputValidationError, validate_payload
 
 from .config import LLMSettings, resolve_llm_settings
@@ -36,10 +41,19 @@ class LLMClient:
             model=model,
         )
         self.provider = cfg.provider
+        self.backend = cfg.backend
         self.api_key = cfg.api_key
         self.base_url = cfg.base_url
         self.model = cfg.model
         self.temperature = cfg.temperature
+        self.ws_url = cfg.ws_url
+        self.ws_sender = cfg.ws_sender
+        self.ws_user = cfg.ws_user
+        self.top_p = cfg.top_p
+        self.top_k = cfg.top_k
+        self.max_tokens = cfg.max_tokens
+        self.stop = cfg.stop
+        self.enable_thinking = cfg.enable_thinking
         self.timeout = timeout
         self.max_retries = max_retries
 
@@ -53,6 +67,9 @@ class LLMClient:
         await asyncio.sleep(self._retry_delay_seconds(attempt))
 
     def _post(self, messages: list[dict[str, str]], *, json_mode: bool = True) -> str:
+        if self.backend == "websocket":
+            return asyncio.run(self._ws_chat(messages, stream=False))
+
         body: dict = {
             "model": self.model,
             "messages": messages,
@@ -86,6 +103,10 @@ class LLMClient:
     def _stream_sync(
         self, messages: list[dict[str, str]], *, json_mode: bool = False
     ) -> Iterable[str]:
+        if self.backend == "websocket":
+            yield asyncio.run(self._ws_chat(messages, stream=False))
+            return
+
         """同步读取 SSE 流式响应，逐块产出 content 增量（阻塞调用，供线程内使用）。"""
         body: dict = {
             "model": self.model,
@@ -140,6 +161,92 @@ class LLMClient:
                 if started or attempt >= self.max_retries:
                     raise RuntimeError(f"无法连接 {label} API：{exc.reason}") from exc
                 time.sleep(self._retry_delay_seconds(attempt))
+
+    def _ws_body(self, messages: list[dict[str, str]], *, stream: bool) -> dict:
+        body: dict = {
+            "api_key": self.api_key,
+            "model": self.model,
+            "stream": stream,
+            "extra_body": {
+                "enable_thinking": self.enable_thinking,
+            },
+            "stream_options": {
+                "include_usage": True,
+                "debug_usage": True,
+            },
+            "temperature": self.temperature,
+            "top_p": self.top_p,
+            "top_k": self.top_k,
+            "max_tokens": self.max_tokens,
+            "messages": messages,
+        }
+        if self.ws_user:
+            body["user"] = self.ws_user
+        if self.stop:
+            body["stop"] = list(self.stop)
+        return body
+
+    def _ws_connect(self, headers: dict[str, str]):
+        if websockets is None:
+            raise RuntimeError(
+                "当前环境未安装 websockets，请先执行：pip install -r requirements.txt"
+            )
+        try:
+            return websockets.connect(self.ws_url, additional_headers=headers)
+        except TypeError:
+            return websockets.connect(self.ws_url, extra_headers=headers)
+
+    @staticmethod
+    def _choice_content(choice: dict) -> str:
+        message = choice.get("message") or {}
+        if message.get("content"):
+            return message["content"]
+        delta = choice.get("delta") or {}
+        if delta.get("content"):
+            return delta["content"]
+        return choice.get("text") or ""
+
+    async def _ws_chat(self, messages: list[dict[str, str]], *, stream: bool) -> str:
+        headers = {"sender": self.ws_sender} if self.ws_sender else {}
+        payload = json.dumps(
+            self._ws_body(messages, stream=stream),
+            ensure_ascii=False,
+        )
+        chunks: list[str] = []
+        label = self.provider
+        try:
+            async with self._ws_connect(headers) as websocket:
+                await websocket.send(payload)
+                while True:
+                    try:
+                        raw = await asyncio.wait_for(websocket.recv(), timeout=self.timeout)
+                    except websockets.exceptions.ConnectionClosedOK:
+                        break
+                    if not raw:
+                        continue
+                    obj = json.loads(raw)
+                    choices = obj.get("choices") or []
+                    if not choices:
+                        continue
+                    choice = choices[0]
+                    content = self._choice_content(choice)
+                    if content:
+                        chunks.append(content)
+                    if choice.get("finish_reason"):
+                        break
+        except TimeoutError as exc:
+            raise RuntimeError(f"{label} WebSocket 调用超时") from exc
+        except OSError as exc:
+            raise RuntimeError(f"无法连接 {label} WebSocket：{exc}") from exc
+        except Exception as exc:
+            if websockets is not None and isinstance(
+                exc, websockets.exceptions.WebSocketException
+            ):
+                raise RuntimeError(f"{label} WebSocket 返回异常：{exc}") from exc
+            raise
+        if not chunks:
+            raise RuntimeError(f"{label} WebSocket 未返回有效内容")
+        return "".join(chunks)
 
     async def stream_text(
         self,

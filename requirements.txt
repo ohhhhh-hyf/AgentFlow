@@ -4,6 +4,7 @@ langgraph==1.2.10
 # Web testing / demo UI
 # The current gradio_app.py uses the Gradio 6 launch API.
 gradio>=6.0
+websockets>=12.0
 
 # 可选依赖：思维导图 PNG 导出（markmap HTML 截图）需要浏览器内核。
 # 安装 Python 包后，还需要执行：python -m playwright install chromium
