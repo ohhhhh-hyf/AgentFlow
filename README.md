@@ -31,6 +31,12 @@ llm_client/                   # DeepSeek 客户端 + 配置（.env）
 supervisor/                   # 全局监督标准（prompt 注入，不单独调 LLM）
 schema_repair/                # 结构化输出修复（LLM 输出非法时）
 tools/
+  runtime_context.py          # 领域加载 / 任务别名 / env 默认路径
+  cli.py                      # CLI 参数解析与模板参数收集
+  io.py                       # 输入文本和用户画像读取
+  runner.py                   # 任务运行循环：流式输出 + done 事件处理
+  archive.py                  # output/{domain}/{task}/ 归档
+  exporters.py                # mindmap / knowledge_graph 产物导出编排
   contracts.py                # 契约 DSL（GenerationContract / SupervisorContract）
   fallback_rules.py           # 降级拼装规则 DSL（Raw / Join / Lines）
   validation.py               # 输出校验工具

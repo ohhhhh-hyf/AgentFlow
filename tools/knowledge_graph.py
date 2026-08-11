@@ -161,9 +161,9 @@ def nodes_edges_to_dot(
         "    outputorder=edgesfirst,",
         "    overlap=false,",
         "    splines=true,",
-        "    K=0.38,",
-        "    sep=\"+8\",",
-        "    size=\"13,7!\",",
+        "    K=0.28,",
+        "    sep=\"+5\",",
+        "    size=\"11,6!\",",
         "    ratio=compress,",
         "    dpi=180,",
         "    concentrate=true,",
@@ -178,7 +178,7 @@ def nodes_edges_to_dot(
         "    penwidth=2.2,",
         "    fillcolor=\"#dbeafe\",",
         "    fontcolor=\"#0f172a\",",
-        "    fontsize=12,",
+        "    fontsize=14,",
         "    margin=\"0.04,0.04\"",
         "  ];",
         "  edge [",
@@ -226,10 +226,10 @@ def nodes_edges_to_dot(
         degree = degrees.get(name, 0)
         is_anchor = _is_section_anchor(node)
         ratio = degree / max(max_degree, 1)
-        size = 0.72 + (0.34 * ratio)
+        size = 0.92 + (0.42 * ratio)
         if is_anchor:
-            size = max(size, 1.08)
-        fontsize = 15 if is_anchor else 10 if len(name) > 8 else 11
+            size = max(size, 1.34)
+        fontsize = 18 if is_anchor else 13 if len(name) > 8 else 14
         fontcolor = "#ffffff" if is_anchor else "#0f172a"
         attrs = [
             f'label="{_dot_quote(_wrap_label(name, width=5 if is_anchor else 4, max_len=18))}"',
@@ -277,13 +277,13 @@ def nodes_edges_to_dot(
             attrs.append(f'fontcolor="{_RELATION_COLORS.get(relation, "#475569")}"')
         if relation in {"包含", "属于"}:
             attrs.append('weight="4"')
-            attrs.append('len="0.85"')
+            attrs.append('len="0.62"')
         elif relation in {"相关", "示例"}:
             attrs.append('style="dashed"')
             attrs.append('weight="1"')
-            attrs.append('len="1.18"')
+            attrs.append('len="0.9"')
         else:
-            attrs.append('len="1.05"')
+            attrs.append('len="0.78"')
         edge_attr = f" [{', '.join(attrs)}]" if attrs else ""
         lines.append(f'  "{_dot_quote(source)}" -> "{_dot_quote(target)}"{edge_attr};')
     lines.append("}")
@@ -390,7 +390,7 @@ def _cytoscape_elements(nodes: list[dict], edges: list[dict]) -> list[dict]:
         seen_nodes.add(name)
         degree = degrees.get(name, 0)
         is_anchor = _is_section_anchor(node)
-        size = 92 if is_anchor else 42 + round(26 * degree / max(max_degree, 1))
+        size = 112 if is_anchor else 56 + round(30 * degree / max(max_degree, 1))
         elements.append(
             {
                 "data": {
@@ -580,9 +580,9 @@ def render_knowledge_graph_html(
             style: {{
               'label': 'data(label)',
               'text-wrap': 'wrap',
-              'text-max-width': 78,
+              'text-max-width': 96,
               'font-family': 'Microsoft YaHei, PingFang SC, Noto Sans CJK SC, Arial, sans-serif',
-              'font-size': ele => ele.data('anchor') ? 14 : 10,
+              'font-size': ele => ele.data('anchor') ? 17 : 13,
               'font-weight': 600,
               'color': ele => ele.data('anchor') ? '#ffffff' : '#0f172a',
               'text-valign': 'center',
@@ -633,12 +633,12 @@ def render_knowledge_graph_html(
           name: 'cose',
           animate: false,
           randomize: true,
-          componentSpacing: 140,
-          nodeRepulsion: 12000,
-          idealEdgeLength: edge => edge.data('relation') === '包含' || edge.data('relation') === '属于' ? 96 : 138,
+          componentSpacing: 100,
+          nodeRepulsion: 7600,
+          idealEdgeLength: edge => edge.data('relation') === '包含' || edge.data('relation') === '属于' ? 74 : 104,
           edgeElasticity: 72,
           nestingFactor: 0.9,
-          gravity: 0.36,
+          gravity: 0.52,
           numIter: 2400
         }}
       }});
