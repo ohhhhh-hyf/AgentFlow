@@ -8,6 +8,7 @@ import io
 import os
 import sys
 import re
+import tempfile
 from pathlib import Path
 
 import gradio as gr
@@ -23,8 +24,8 @@ from tools.runner import run  # noqa: E402
 
 DOMAIN_NAMES = ["meeting", "notes"]
 DOMAIN_LABELS = {
-    "meeting": "meeting · 会议",
-    "notes": "notes · 笔记",
+    "meeting": "meeting - 会议",
+    "notes": "notes - 笔记",
 }
 DOMAIN_CHOICES = [(DOMAIN_LABELS[name], name) for name in DOMAIN_NAMES]
 
@@ -36,28 +37,16 @@ def _ctx(domain: str):
 def _task_choices(domain: str) -> list[str]:
     ctx = _ctx(domain)
     return [
-        f"{line} · {ctx.line_cn_names.get(line, line)}"
+        f"{line} - {ctx.line_cn_names.get(line, line)}"
         for line in ctx.task_lines
     ]
 
 
-def _sample_choices(domain: str, kind: str) -> list[tuple[str, str]]:
-    folder = PROJECT_ROOT / "samples" / domain / kind
-    if not folder.exists():
-        return []
-    files = sorted(path for path in folder.iterdir() if path.is_file())
-    return [(path.name, str(path)) for path in files]
-
-
-def _template_choices(domain: str, task_label: str | None) -> list[tuple[str, str]]:
-    if not task_label:
-        return []
-    task = _task_value(task_label)
-    return _sample_choices(domain, f"{task}_template")
-
-
 def _task_value(label: str) -> str:
-    return label.split(" · ", 1)[0].strip()
+    for separator in (" 路 ", " · ", " - "):
+        if separator in label:
+            return label.split(separator, 1)[0].strip()
+    return label.strip()
 
 
 def _output_files(domain: str, tasks: list[str]) -> set[Path]:
@@ -131,77 +120,94 @@ def update_domain(domain_label: str):
     domain = _domain_value(domain_label)
     choices = _task_choices(domain)
     selected_task = choices[0] if choices else None
-    file_choices = _sample_choices(domain, "file")
-    profile_choices = _sample_choices(domain, "profile")
-    template_choices = _template_choices(domain, selected_task)
-    return (
-        gr.update(choices=choices, value=selected_task),
-        gr.update(choices=file_choices, value=file_choices[0][1] if file_choices else None),
-        gr.update(choices=profile_choices, value=profile_choices[0][1] if profile_choices else None),
-        gr.update(choices=template_choices, value=None),
-    )
-
-
-def update_template_choices(domain_label: str, task_label: str):
-    domain = _domain_value(domain_label)
-    choices = _template_choices(domain, task_label)
-    return gr.update(choices=choices, value=None)
+    return gr.update(choices=choices, value=selected_task)
 
 
 def _domain_value(value: str) -> str:
     if value in DOMAIN_NAMES:
         return value
-    return value.split(" · ", 1)[0].strip()
+    return _task_value(value)
 
 
 def run_from_ui(
     domain_label: str,
-    task_labels: list[str],
-    server_file_path: str | None,
-    server_profile_path: str | None,
-    server_template_path: str | None,
+    task_label: str | None,
+    input_upload,
+    input_text: str | None,
+    template_upload,
+    template_text: str | None,
 ):
     domain = _domain_value(domain_label)
-    if not task_labels:
+    if not task_label:
         return "请选择任务线。", [], '<div class="download-empty">暂无生成文件</div>'
-    tasks = [_task_value(task_labels)]
-    input_file = server_file_path
-    input_profile = server_profile_path
-    input_template = server_template_path
-    if not input_file:
-        return "请选择服务器输入文本。", [], '<div class="download-empty">暂无生成文件</div>'
-    if not input_profile:
-        return "请选择服务器用户画像。", [], '<div class="download-empty">暂无生成文件</div>'
+
+    tasks = [_task_value(task_label)]
+    profile_path = PROJECT_ROOT / "samples" / domain / "profile" / "object_profile.json"
+    if not profile_path.exists():
+        return f"默认 profile 不存在：{profile_path}", [], '<div class="download-empty">暂无生成文件</div>'
 
     ctx = _ctx(domain)
-    templates: dict[str, Path] = {}
-    if input_template:
-        templates[tasks[0]] = Path(input_template)
+    with tempfile.TemporaryDirectory(prefix="agentflow_gradio_") as temp_dir:
+        temp_root = Path(temp_dir)
+        input_file = _input_path(input_upload, input_text, temp_root, "input.txt")
+        if input_file is None:
+            return "请上传输入文件，或直接在文本框里输入内容。", [], '<div class="download-empty">暂无生成文件</div>'
 
-    load_env(PROJECT_ROOT / ".env")
-    before = _output_files(domain, tasks)
-    buffer = io.StringIO()
-    try:
-        with contextlib.redirect_stdout(buffer), contextlib.redirect_stderr(buffer):
-            asyncio.run(
-                run(
-                    ctx,
-                    Path(input_file),
-                    Path(input_profile),
-                    PROJECT_ROOT / ".env",
-                    templates,
-                    tasks,
+        templates: dict[str, Path] = {}
+        template_file = _input_path(template_upload, template_text, temp_root, "template.md")
+        if template_file is not None:
+            templates[tasks[0]] = template_file
+
+        load_env(PROJECT_ROOT / ".env")
+        before = _output_files(domain, tasks)
+        buffer = io.StringIO()
+        try:
+            with contextlib.redirect_stdout(buffer), contextlib.redirect_stderr(buffer):
+                asyncio.run(
+                    run(
+                        ctx,
+                        input_file,
+                        profile_path,
+                        PROJECT_ROOT / ".env",
+                        templates,
+                        tasks,
+                    )
                 )
-            )
-    except Exception as exc:  # noqa: BLE001 - UI should show the error directly
-        buffer.write(f"\n运行失败：{exc}\n")
+        except Exception as exc:  # noqa: BLE001 - UI should show the error directly
+            buffer.write(f"\n运行失败：{exc}\n")
 
-    files = _new_artifacts(domain, tasks, before)
-    log = _clean_log(buffer.getvalue().strip() or "运行完成。")
+        files = _new_artifacts(domain, tasks, before)
+        log = _clean_log(buffer.getvalue().strip() or "运行完成。")
+
     if files:
         log = f"{log}\n\n已生成 {len(files)} 个文件，可在右侧直接查看或下载。"
     return log, _png_previews(files), _artifact_download_html(files)
 
+
+def _uploaded_path(upload) -> Path | None:
+    if upload is None:
+        return None
+    if isinstance(upload, (str, Path)):
+        return Path(upload)
+    name = getattr(upload, "name", None) or getattr(upload, "path", None)
+    if name:
+        return Path(name)
+    if isinstance(upload, dict):
+        for key in ("path", "name"):
+            if upload.get(key):
+                return Path(upload[key])
+    return None
+
+
+def _input_path(upload, text: str | None, temp_root: Path, filename: str) -> Path | None:
+    uploaded = _uploaded_path(upload)
+    if uploaded is not None:
+        return uploaded
+    if text and text.strip():
+        path = temp_root / filename
+        path.write_text(text.strip(), encoding="utf-8")
+        return path
+    return None
 
 def _clean_log(text: str) -> str:
     text = re.sub(r"knowledge_graph_\d{8}_\d{6}", "knowledge_graph", text)
@@ -419,18 +425,12 @@ label, .wrap span {
 def build_app() -> gr.Blocks:
     initial_domain = "notes"
     initial_choices = _task_choices(initial_domain)
-    initial_file_choices = _sample_choices(initial_domain, "file")
-    initial_profile_choices = _sample_choices(initial_domain, "profile")
-    initial_template_choices = _template_choices(
-        initial_domain,
-        initial_choices[0] if initial_choices else None,
-    )
-    with gr.Blocks(title="AgentFlow 协作式Agent系统") as demo:
+    with gr.Blocks(title="AgentFlow 协作式 Agent 系统") as demo:
         gr.HTML(
             """
             <div id="title-block">
               <h1>XiaoYi-TaskAgent</h1>
-              <p>选择领域和任务线，添加服务器样例后运行，支持图片预览或下载预览。</p>
+              <p>选择领域和任务线，上传文件或直接输入内容后运行，支持图片预览和文件下载。</p>
             </div>
             """
         )
@@ -447,21 +447,29 @@ def build_app() -> gr.Blocks:
                     choices=initial_choices,
                     value=initial_choices[0] if initial_choices else None,
                 )
-                gr.HTML('<div class="section-title">服务器样例</div>')
-                server_file = gr.Dropdown(
-                    label="服务器输入文本",
-                    choices=initial_file_choices,
-                    value=initial_file_choices[0][1] if initial_file_choices else None,
+                gr.HTML('<div class="section-title">输入内容</div>')
+                input_upload = gr.File(
+                    label="输入文件",
+                    file_count="single",
+                    file_types=[".txt"],
+                    type="filepath",
                 )
-                server_profile = gr.Dropdown(
-                    label="服务器用户画像",
-                    choices=initial_profile_choices,
-                    value=initial_profile_choices[0][1] if initial_profile_choices else None,
+                input_text = gr.Textbox(
+                    label="或直接输入文本",
+                    lines=8,
+                    placeholder="上传文件和输入文本二选一；如果两者都填写，优先使用上传文件。",
                 )
-                server_template = gr.Dropdown(
-                    label="服务器模板文件",
-                    choices=initial_template_choices,
-                    value=None,
+                gr.HTML('<div class="section-title">模板（可选）</div>')
+                template_upload = gr.File(
+                    label="模板文件",
+                    file_count="single",
+                    file_types=[".md", ".txt"],
+                    type="filepath",
+                )
+                template_text = gr.Textbox(
+                    label="或直接输入模板",
+                    lines=6,
+                    placeholder="可上传模板文件，或把模板内容粘贴到这里。",
                 )
                 run_button = gr.Button("运行", variant="primary")
             with gr.Column(scale=5, elem_id="result-panel"):
@@ -479,27 +487,22 @@ def build_app() -> gr.Blocks:
         domain.change(
             update_domain,
             inputs=domain,
-            outputs=[tasks, server_file, server_profile, server_template],
-        )
-        tasks.change(
-            update_template_choices,
-            inputs=[domain, tasks],
-            outputs=server_template,
+            outputs=tasks,
         )
         run_button.click(
             run_from_ui,
             inputs=[
                 domain,
                 tasks,
-                server_file,
-                server_profile,
-                server_template,
+                input_upload,
+                input_text,
+                template_upload,
+                template_text,
             ],
             outputs=[log_output, image_output, files_output],
             show_progress="minimal",
         )
     return demo
-
 
 def _env_bool(name: str, default: bool = False) -> bool:
     value = os.getenv(name)
