@@ -257,10 +257,10 @@ CLI 参数：
 
 | 目录 | 内容 | 说明 |
 |---|---|---|
-| `output/{domain}/{task}/report_时间戳.json` | 完整最终数据 | 除 `knowledge_graph` 外的任务线都会保存，包含结构化字段和质量提示 |
-| `output/{domain}/{task}/result_时间戳.md` | 最终文本 / 大纲 | 除 `knowledge_graph` 外，仅当该任务线有文本正文或 Markdown 大纲时保存 |
-| `output/meeting/mindmap/mindmap_时间戳.html` | 思维导图 HTML | `mindmap` 线额外产物 |
-| `output/meeting/mindmap/mindmap_时间戳.png` | 思维导图 PNG | `mindmap` 线额外产物；Playwright 不可用时跳过 |
+| `output/{domain}/{task}/report_时间戳.json` | 完整最终数据 | 除 `mindmap` / `knowledge_graph` 外的任务线都会保存，包含结构化字段和质量提示 |
+| `output/{domain}/{task}/result_时间戳.md` | 最终文本 / 大纲 | 除 `mindmap` / `knowledge_graph` 外，仅当该任务线有文本正文或 Markdown 大纲时保存 |
+| `output/meeting/mindmap/mindmap_时间戳.html` | 思维导图 HTML | `mindmap` 目录只保留 HTML/PNG |
+| `output/meeting/mindmap/mindmap_时间戳.png` | 思维导图 PNG | `mindmap` 目录只保留 HTML/PNG；Playwright 不可用时跳过 |
 | `output/notes/knowledge_graph/knowledge_graph_时间戳.png` | 知识图谱 PNG | `knowledge_graph` 线额外产物；Graphviz 不可用时跳过 |
 | `output/notes/knowledge_graph/knowledge_graph_时间戳.svg` | 知识图谱 SVG | 高清矢量图，适合演示 |
 | `output/notes/knowledge_graph/knowledge_graph_时间戳.html` | 知识图谱交互 HTML | Cytoscape.js 交互演示版；知识图谱目录只保留 PNG/SVG/HTML |

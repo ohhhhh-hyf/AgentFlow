@@ -70,7 +70,7 @@ def save_all_reports(
     for line_name, report in reports.items():
         if line_name not in ctx.task_lines:
             continue
-        if line_name == "knowledge_graph":
+        if line_name in {"mindmap", "knowledge_graph"}:
             continue
         saved[line_name] = save_report_artifacts(ctx, line_name, report, timestamp)
     return saved
