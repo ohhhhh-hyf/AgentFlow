@@ -1,11 +1,12 @@
 # Agent workflow orchestration
 langgraph==1.2.10
 
-# Lightweight testing UI
-gradio>=4.44
+# Web testing / demo UI
+# The current gradio_app.py uses the Gradio 6 launch API.
+gradio>=6.0
 
 # 可选依赖：思维导图 PNG 导出（markmap HTML 截图）需要浏览器内核。
-# 安装 Python 包后，还需要执行：playwright install chromium
+# 安装 Python 包后，还需要执行：python -m playwright install chromium
 # 未安装时 --task mindmap 自动降级（仅 HTML 或跳过 PNG），不影响其他功能。
 playwright>=1.40
 

@@ -5,6 +5,7 @@ import base64
 import contextlib
 import html
 import io
+import os
 import sys
 import re
 from pathlib import Path
@@ -38,6 +39,21 @@ def _task_choices(domain: str) -> list[str]:
         f"{line} · {ctx.line_cn_names.get(line, line)}"
         for line in ctx.task_lines
     ]
+
+
+def _sample_choices(domain: str, kind: str) -> list[tuple[str, str]]:
+    folder = PROJECT_ROOT / "samples" / domain / kind
+    if not folder.exists():
+        return []
+    files = sorted(path for path in folder.iterdir() if path.is_file())
+    return [(path.name, str(path)) for path in files]
+
+
+def _template_choices(domain: str, task_label: str | None) -> list[tuple[str, str]]:
+    if not task_label:
+        return []
+    task = _task_value(task_label)
+    return _sample_choices(domain, f"{task}_template")
 
 
 def _task_value(label: str) -> str:
@@ -114,7 +130,22 @@ def _artifact_download_html(files: list[str]) -> str:
 def update_domain(domain_label: str):
     domain = _domain_value(domain_label)
     choices = _task_choices(domain)
-    return gr.update(choices=choices, value=choices[0] if choices else None)
+    selected_task = choices[0] if choices else None
+    file_choices = _sample_choices(domain, "file")
+    profile_choices = _sample_choices(domain, "profile")
+    template_choices = _template_choices(domain, selected_task)
+    return (
+        gr.update(choices=choices, value=selected_task),
+        gr.update(choices=file_choices, value=file_choices[0][1] if file_choices else None),
+        gr.update(choices=profile_choices, value=profile_choices[0][1] if profile_choices else None),
+        gr.update(choices=template_choices, value=None),
+    )
+
+
+def update_template_choices(domain_label: str, task_label: str):
+    domain = _domain_value(domain_label)
+    choices = _template_choices(domain, task_label)
+    return gr.update(choices=choices, value=None)
 
 
 def _domain_value(value: str) -> str:
@@ -126,23 +157,26 @@ def _domain_value(value: str) -> str:
 def run_from_ui(
     domain_label: str,
     task_labels: list[str],
-    file_path: str | None,
-    profile_path: str | None,
-    template_path: str | None,
+    server_file_path: str | None,
+    server_profile_path: str | None,
+    server_template_path: str | None,
 ):
     domain = _domain_value(domain_label)
     if not task_labels:
         return "请选择任务线。", [], '<div class="download-empty">暂无生成文件</div>'
     tasks = [_task_value(task_labels)]
-    if not file_path:
-        return "请添加输入文本文件（.txt）。", [], '<div class="download-empty">暂无生成文件</div>'
-    if not profile_path:
-        return "请添加用户画像文件（.json）。", [], '<div class="download-empty">暂无生成文件</div>'
+    input_file = server_file_path
+    input_profile = server_profile_path
+    input_template = server_template_path
+    if not input_file:
+        return "请选择服务器输入文本。", [], '<div class="download-empty">暂无生成文件</div>'
+    if not input_profile:
+        return "请选择服务器用户画像。", [], '<div class="download-empty">暂无生成文件</div>'
 
     ctx = _ctx(domain)
     templates: dict[str, Path] = {}
-    if template_path:
-        templates[tasks[0]] = Path(template_path)
+    if input_template:
+        templates[tasks[0]] = Path(input_template)
 
     load_env(PROJECT_ROOT / ".env")
     before = _output_files(domain, tasks)
@@ -152,8 +186,8 @@ def run_from_ui(
             asyncio.run(
                 run(
                     ctx,
-                    Path(file_path),
-                    Path(profile_path),
+                    Path(input_file),
+                    Path(input_profile),
                     PROJECT_ROOT / ".env",
                     templates,
                     tasks,
@@ -231,11 +265,28 @@ body {
   text-align: center;
 }
 #config-panel, #result-panel {
-  padding: 18px;
+  padding: 20px;
+}
+#config-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+#config-panel .form {
+  gap: 14px !important;
+}
+.section-title {
+  margin: 4px 0 -4px;
+  color: #334155;
+  font-size: 13px;
+  font-weight: 700;
 }
 button.primary, .primary {
   background: #1f4e5f !important;
   border-color: #1f4e5f !important;
+  min-height: 44px !important;
+  border-radius: 10px !important;
+  font-weight: 700 !important;
 }
 label, .wrap span {
   color: #0f172a !important;
@@ -261,44 +312,6 @@ label, .wrap span {
 .gradio-container .block p,
 .gradio-container .block div {
   color: #111827;
-}
-.gradio-container [data-testid="file"],
-.gradio-container .upload-container,
-.gradio-container .file-preview,
-.gradio-container .file-drop,
-.gradio-container .dropzone {
-  background: #f8fafc !important;
-  color: #111827 !important;
-  border-color: #c8d3de !important;
-}
-.gradio-container [data-testid="file"] svg,
-.gradio-container .upload-container svg {
-  color: #1f4e5f !important;
-  stroke: #1f4e5f !important;
-}
-.gradio-container [data-testid="file"] * ,
-.gradio-container .file-preview * ,
-.gradio-container .file-preview-holder * {
-  color: #0f172a !important;
-}
-.gradio-container [data-testid="file"] a,
-.gradio-container [data-testid="file"] span,
-.gradio-container .file-preview a,
-.gradio-container .file-preview span {
-  background: #ffffff !important;
-  color: #0f172a !important;
-}
-.gradio-container [data-testid="file"] .file-size,
-.gradio-container .file-preview .file-size,
-.gradio-container [data-testid="file"] button,
-.gradio-container .file-preview button {
-  color: #1f4e5f !important;
-}
-.gradio-container [data-testid="file"] > div,
-.gradio-container .file-preview {
-  background: #ffffff !important;
-  border: 1px solid #cbd5e1 !important;
-  border-radius: 8px !important;
 }
 .gradio-container .checkbox-label,
 .gradio-container .checkbox-label span,
@@ -392,23 +405,38 @@ label, .wrap span {
   font-size: 12px;
   font-weight: 700;
 }
+@media (max-width: 860px) {
+  #title-block {
+    margin-top: 10px;
+  }
+  #config-panel, #result-panel {
+    padding: 16px;
+  }
+}
 """
 
 
 def build_app() -> gr.Blocks:
-    initial_domain = "meeting"
+    initial_domain = "notes"
     initial_choices = _task_choices(initial_domain)
+    initial_file_choices = _sample_choices(initial_domain, "file")
+    initial_profile_choices = _sample_choices(initial_domain, "profile")
+    initial_template_choices = _template_choices(
+        initial_domain,
+        initial_choices[0] if initial_choices else None,
+    )
     with gr.Blocks(title="AgentFlow 协作式Agent系统") as demo:
         gr.HTML(
             """
             <div id="title-block">
               <h1>XiaoYi-TaskAgent</h1>
-              <p>选择领域和任务线，添加输入文件后运行，支持图片预览或下载预览。</p>
+              <p>选择领域和任务线，添加服务器样例后运行，支持图片预览或下载预览。</p>
             </div>
             """
         )
         with gr.Row(equal_height=True):
             with gr.Column(scale=4, elem_id="config-panel"):
+                gr.HTML('<div class="section-title">任务配置</div>')
                 domain = gr.Dropdown(
                     label="领域",
                     choices=DOMAIN_CHOICES,
@@ -419,21 +447,21 @@ def build_app() -> gr.Blocks:
                     choices=initial_choices,
                     value=initial_choices[0] if initial_choices else None,
                 )
-                with gr.Row():
-                    file_input = gr.File(
-                        label="输入文本",
-                        file_types=[".txt"],
-                        type="filepath",
-                    )
-                    profile_input = gr.File(
-                        label="用户画像",
-                        file_types=[".json"],
-                        type="filepath",
-                    )
-                template_input = gr.File(
-                    label="模板文件",
-                    file_types=[".md", ".txt"],
-                    type="filepath",
+                gr.HTML('<div class="section-title">服务器样例</div>')
+                server_file = gr.Dropdown(
+                    label="服务器输入文本",
+                    choices=initial_file_choices,
+                    value=initial_file_choices[0][1] if initial_file_choices else None,
+                )
+                server_profile = gr.Dropdown(
+                    label="服务器用户画像",
+                    choices=initial_profile_choices,
+                    value=initial_profile_choices[0][1] if initial_profile_choices else None,
+                )
+                server_template = gr.Dropdown(
+                    label="服务器模板文件",
+                    choices=initial_template_choices,
+                    value=None,
                 )
                 run_button = gr.Button("运行", variant="primary")
             with gr.Column(scale=5, elem_id="result-panel"):
@@ -451,16 +479,21 @@ def build_app() -> gr.Blocks:
         domain.change(
             update_domain,
             inputs=domain,
-            outputs=[tasks],
+            outputs=[tasks, server_file, server_profile, server_template],
+        )
+        tasks.change(
+            update_template_choices,
+            inputs=[domain, tasks],
+            outputs=server_template,
         )
         run_button.click(
             run_from_ui,
             inputs=[
                 domain,
                 tasks,
-                file_input,
-                profile_input,
-                template_input,
+                server_file,
+                server_profile,
+                server_template,
             ],
             outputs=[log_output, image_output, files_output],
             show_progress="minimal",
@@ -468,8 +501,28 @@ def build_app() -> gr.Blocks:
     return demo
 
 
+def _env_bool(name: str, default: bool = False) -> bool:
+    value = os.getenv(name)
+    if value is None:
+        return default
+    return value.strip().lower() in {"1", "true", "yes", "on"}
+
+
+def _env_int(name: str, default: int) -> int:
+    value = os.getenv(name)
+    if not value:
+        return default
+    try:
+        return int(value)
+    except ValueError:
+        return default
+
+
 if __name__ == "__main__":
     build_app().launch(
+        server_name=os.getenv("GRADIO_SERVER_NAME", "127.0.0.1"),
+        server_port=_env_int("GRADIO_SERVER_PORT", 7860),
+        share=_env_bool("GRADIO_SHARE", False),
         theme=gr.themes.Soft(primary_hue="teal", neutral_hue="slate"),
         css=CSS,
     )

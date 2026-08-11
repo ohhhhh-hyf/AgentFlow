@@ -65,14 +65,14 @@ Linux 推荐配置：
 | Python 运行环境 | `sudo apt-get update && sudo apt-get install -y python3 python3-pip python3-venv` | `sudo dnf install -y python3 python3-pip` | `python3 --version` |
 | 知识图谱 PNG/SVG | `sudo apt-get install -y graphviz fonts-noto-cjk` | `sudo dnf install -y graphviz google-noto-sans-cjk-fonts` | `dot -V` |
 | 思维导图 HTML | `sudo apt-get install -y nodejs npm` | `sudo dnf install -y nodejs npm` | `node -v && npx -v` |
-| 思维导图 PNG | `python3 -m pip install playwright && python3 -m playwright install chromium` | `python3 -m pip install playwright && python3 -m playwright install chromium` | `python3 -m playwright --version` |
+| 思维导图 PNG | `python3 -m playwright install --with-deps chromium` | `python3 -m playwright install chromium` | `python3 -m playwright --version` |
 
 可选前置（按需）：
 
 ```bash
 # 思维导图 HTML 导出需要 Node.js（npx 首次自动下载 markmap-cli，无需全局安装）
 # 思维导图 PNG 导出还需要浏览器内核：
-pip install playwright && playwright install chromium
+python -m playwright install chromium
 ```
 
 > 知识图谱的 PNG/SVG 依赖系统 Graphviz，不是 Python 包；只 `pip install -r requirements.txt` 不会安装 `dot`。
@@ -101,9 +101,58 @@ DEEPSEEK_TEMPERATURE=0.0
 python gradio_app.py
 ```
 
-打开终端提示的本地地址后，可以在页面中选择 `domain`、任务线，添加输入文本、用户画像和可选模板文件。运行完成后，页面右侧会显示运行日志、PNG 预览，以及可直接点击查看或下载的产物文件（如 HTML / SVG / PNG / JSON / Markdown）。
+打开终端提示的本地地址后，可以在页面中选择领域、任务线和服务器样例文件。运行完成后，页面右侧会显示运行记录、PNG 预览，以及可下载后查看的产物文件（如 HTML / SVG / PNG / JSON / Markdown）。
 
-平台标题：**AgentFlow 协作式Agent系统**
+平台标题：**XiaoYi-TaskAgent**
+
+#### 服务器部署
+
+Gradio 页面会从项目根目录的 `samples/` 中读取服务器侧文件，适合部署到 Linux 服务器后直接选择样例运行。
+
+推荐目录约定：
+
+| 目录 | 用途 | 页面中的控件 |
+|---|---|---|
+| `samples/{domain}/file/` | 输入文本 `.txt` | 服务器输入文本 |
+| `samples/{domain}/profile/` | 用户画像 `.json` | 服务器用户画像 |
+| `samples/{domain}/{task}_template/` | 任务模板 `.md` / `.txt` | 服务器模板文件 |
+| `output/{domain}/{task}/` | 运行结果归档 | 页面预览 / 下载 |
+
+服务器首次部署示例：
+
+```bash
+cd /path/to/AgentFlow
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+python -m playwright install chromium
+```
+
+Ubuntu / Debian 如果需要思维导图 PNG 截图，建议安装 Playwright 系统依赖：
+
+```bash
+python -m playwright install --with-deps chromium
+```
+
+启动服务：
+
+| 场景 | 命令 |
+|---|---|
+| 本机测试 | `python gradio_app.py` |
+| 服务器外部访问 | `GRADIO_SERVER_NAME=0.0.0.0 GRADIO_SERVER_PORT=7860 python gradio_app.py` |
+| 临时公网分享 | `GRADIO_SHARE=true python gradio_app.py` |
+| 后台运行 | `nohup env GRADIO_SERVER_NAME=0.0.0.0 GRADIO_SERVER_PORT=7860 python gradio_app.py > gradio.log 2>&1 &` |
+
+部署注意事项：
+
+| 项目 | 说明 |
+|---|---|
+| API Key | 项目根目录需要 `.env`，至少配置 `DEEPSEEK_API_KEY` |
+| 访问地址 | 云服务器需要开放安全组 / 防火墙端口，例如 `7860` |
+| 文件选择 | 页面中的服务器文件来自 `项目绝对路径/samples/`，不是浏览器本地文件系统 |
+| 输出保存 | 所有任务都会自动创建并写入 `output/{domain}/{task}/` |
+| 知识图谱 | PNG/SVG 需要系统安装 Graphviz；HTML 可用于交互演示 |
+| 思维导图 | HTML 需要 Node.js/npx；PNG 需要 Playwright Chromium |
 
 #### 命令行
 
