@@ -44,6 +44,7 @@ tools/
   template_router.py          # 模板路由：占位符/格式规范/自然语言三类自动判型 + 编译
   mindmap.py                  # 思维导图导出：markmap-cli（HTML）+ Playwright（PNG）
   knowledge_graph.py          # 知识图谱导出：nodes/edges → PNG/SVG/交互式 HTML
+  rag/                        # 公共 RAG 组件：本地入库 / keyword fallback / embedding provider
   scripts/
     sync_domain.py                # 代码生成器：从契约生成模型/装配/骨架（--write/--check）
     register_task.py               # 新增任务线第一步：注册 + 骨架 + 工厂 import
@@ -91,6 +92,18 @@ DEEPSEEK_API_KEY=sk-你的Key
 DEEPSEEK_MODEL=deepseek-chat
 DEEPSEEK_BASE_URL=https://api.deepseek.com
 DEEPSEEK_TEMPERATURE=0.0
+
+# RAG 可选配置；不配置时默认 keyword 模式，不需要 Embedding Key
+RAG_ENABLED=true
+RAG_MODE=keyword
+RAG_PROVIDER=siliconflow
+RAG_EMBEDDING_MODEL=BAAI/bge-m3
+RAG_TOP_K=5
+RAG_MIN_SCORE=0
+RAG_SCORE_RATIO=0.25
+RAG_STORE_DIR=./rag_store
+SILICONFLOW_API_KEY=你的硅基流动Key
+# 或：ZHIPU_API_KEY=你的智谱Key
 ```
 
 ### 3. 运行
@@ -272,6 +285,81 @@ CLI 参数：
 | `knowledge_graph_时间戳.png` | 快速预览、图片粘贴 | Graphviz `dot` | 位图，放大后可能变糊 |
 | `knowledge_graph_时间戳.svg` | PPT/浏览器高清演示 | Graphviz `dot` | 矢量图，中文和线条缩放更清楚 |
 | `knowledge_graph_时间戳.html` | 交互演示 | 浏览器；联网可加载 Cytoscape.js CDN | 可缩放、拖拽、点击节点/关系查看定义和 evidence |
+
+## 公共 RAG 组件
+
+第一阶段 RAG 是独立工具，不会改变现有 `bootstrap.py`、Gradio 和各 domain 任务线行为。它用于先验证“历史资料入库 → 检索相似片段 → 生成可注入 prompt 的上下文”这条链路。
+
+目录约定：
+
+| 目录 | 用途 |
+|---|---|
+| `samples/{domain}/rag/` | 原始 RAG 资料，可放 `.md` / `.txt` / `.json` |
+| `samples/{domain}/rag/{task}/` | 某条任务线专用 RAG 资料，优先级高于上一级目录 |
+| `rag_store/{domain}/{task}/` | 本地索引库，自动生成 |
+
+本地索引库文件：
+
+| 文件 | 说明 |
+|---|---|
+| `chunks.jsonl` | 分块后的文本、来源文件、chunk id |
+| `vectors.jsonl` | 向量模式下保存的 embedding 向量 |
+| `manifest.json` | 索引模式、模型、分块参数和 chunk 数量 |
+
+检索过滤参数：
+
+| 参数 | 默认值 | 说明 |
+|---|---:|---|
+| `RAG_TOP_K` | `5` | 最多返回多少条候选 |
+| `RAG_MIN_SCORE` | `0` | 绝对最低分，低于该分数会被过滤 |
+| `RAG_SCORE_RATIO` | `0.25` | 相对最高分过滤，低于 `top1_score * ratio` 的弱相关片段会被过滤 |
+
+默认会至少保留最高分结果，避免因为阈值过高导致完全没有上下文。
+
+默认 keyword 模式不需要 Embedding API Key：
+
+```bash
+python -m tools.rag.cli ingest --domain meeting --task risk
+
+python -m tools.rag.cli search \
+  --domain meeting \
+  --task risk \
+  --query "支付接口响应慢影响上线"
+```
+
+向量模式需要在 `.env` 配置 Key：
+
+```bash
+RAG_MODE=vector
+RAG_PROVIDER=siliconflow
+RAG_EMBEDDING_MODEL=BAAI/bge-m3
+SILICONFLOW_API_KEY=你的硅基流动Key
+```
+
+然后重新入库并检索：
+
+```bash
+python -m tools.rag.cli ingest --domain meeting --task risk
+python -m tools.rag.cli search --domain meeting --task risk --query "接口超时导致上线风险"
+```
+
+也可以切换智谱：
+
+```bash
+RAG_MODE=vector
+RAG_PROVIDER=zhipu
+RAG_EMBEDDING_MODEL=embedding-3
+ZHIPU_API_KEY=你的智谱Key
+```
+
+验证 RAG 是否有效：
+
+| 检查项 | 预期现象 |
+|---|---|
+| 入库 | 终端显示 documents / chunks 数量，`rag_store/{domain}/{task}/` 下生成索引文件 |
+| 检索 | 查询“接口超时”“支付响应慢”时，能命中 `risk_cases.md` 中的支付接口历史案例 |
+| 可追溯 | 检索结果包含 `source`、`chunk`、`score` 和原文片段 |
+| 可切换 | `RAG_MODE=keyword` 不需要 Key；`RAG_MODE=vector` 使用 Embedding API |
 
 可选环境变量（.env，均有默认值）：
 

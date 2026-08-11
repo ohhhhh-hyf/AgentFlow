@@ -10,9 +10,8 @@ PROJECT_ROOT = Path(__file__).resolve().parent
 sys.path.insert(0, str(PROJECT_ROOT))
 
 from llm_client.config import load_env  # noqa: E402
-from tools.cli import build_parser, collect_templates, parse_domain_name  # noqa: E402
+from tools.runner import build_parser, collect_templates, parse_domain_name, run  # noqa: E402
 from tools.runtime_context import load_domain  # noqa: E402
-from tools.runner import run  # noqa: E402
 
 
 def main() -> None:
