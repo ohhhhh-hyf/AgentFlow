@@ -698,12 +698,30 @@ button.primary:disabled {
   box-shadow: none !important;
   transition: border-color 0.12s ease, background 0.12s ease;
 }
-/* 下拉选中值与任务选项同字号 */
+/* 下拉（领域 meeting - 会议 等）与任务选项同字号 */
 .gradio-container .wrap .single-select,
 .gradio-container [class*="secondary-wrap"] span,
 .gradio-container .dropdown-arrow + div,
-.gradio-container input[type="text"] {
+.gradio-container input[type="text"],
+.gradio-container [role="listbox"],
+.gradio-container [role="option"],
+.gradio-container [role="listbox"] *,
+.gradio-container [role="option"] *,
+.gradio-container .wrap.svelte-select-input,
+.gradio-container .wrap .token,
+.gradio-container .wrap .token > *,
+.gradio-container .wrap input,
+.gradio-container .secondary-wrap,
+.gradio-container .secondary-wrap *,
+#domain-select,
+#domain-select *,
+#domain-select span,
+#domain-select input {
   font-size: 0.95rem !important;
+  font-weight: 500 !important;
+  line-height: 1.4 !important;
+  color: #1c1b19 !important;
+  font-family: inherit !important;
 }
 .gradio-container .checkbox-label:has(input:checked),
 .gradio-container .radio-label:has(input:checked),
@@ -1135,6 +1153,7 @@ def build_app() -> gr.Blocks:
                     label="领域",
                     choices=DOMAIN_CHOICES,
                     value=initial_domain,
+                    elem_id="domain-select",
                 )
                 tasks = gr.Radio(
                     label="任务",
