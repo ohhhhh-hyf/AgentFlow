@@ -104,27 +104,103 @@ def parse_char_budget(text: str) -> dict[str, Any]:
     }
 
 
+def is_section_scoped_char_budget(text: str) -> bool:
+    """字数约束是否只针对某一段/节，而非全文。
+
+    例：
+    - 「第一段是纪要内容，200字左右」→ True（段落级）
+    - 「纪要约200字；风险表3行」→ True
+    - 「200-300字，概括背景、对象」→ False（全文级）
+    - 「全文约200字」→ False
+    """
+    raw = (text or "").strip()
+    if not raw:
+        return False
+    # 明确全文 → 不是段落级
+    if re.search(r"(?:全文|整篇|通篇|全文合计|总共|共计)\s*(?:约|大约)?\s*\d+", raw):
+        return False
+    # 第N段/节/部分 … 字
+    if re.search(
+        r"第[一二三四五六七八九十\d]+[段节部分]"
+        r"[^。；;\n]{0,40}?(?:约|大约)?\s*\d+\s*(?:[-–—~～至到]\s*\d+\s*)?字",
+        raw,
+    ):
+        return True
+    # 栏目名 + 约N字（纪要/摘要/总结…）
+    if re.search(
+        r"(?:纪要|摘要|总结|概述|正文|内容)"
+        r"[^。；;\n]{0,12}?(?:约|大约)?\s*\d+\s*(?:[-–—~～至到]\s*\d+\s*)?字"
+        r"|(?:约|大约)?\s*\d+\s*字(?:左右|上下)?"
+        r"[^。；;\n]{0,8}?(?:的)?(?:纪要|摘要|总结|概述|正文)",
+        raw,
+    ):
+        # 若开头就是全局「约N字，…」且未点名栏目，不算段落级
+        if re.match(
+            r"^(?:请)?(?:约|大约)?\s*\d+\s*[-–—~～至到]?\s*\d*\s*字",
+            raw,
+        ) and not re.search(r"第[一二三四五六七八九十\d]+[段节部分]", raw):
+            return False
+        return True
+    # 多分段结构 + 字数，且无全文标记 → 视为段落级
+    if re.search(r"分[两二三四五六七八九十\d]+段|三段|两段|三段输出", raw) and re.search(
+        r"\d+\s*字", raw
+    ):
+        return True
+    return False
+
+
 def parse_document_char_budget(template: str) -> dict[str, Any]:
-    """解析**全文**字数预算，忽略占位符内部的「100字以内」等字段级提示。
+    """解析**全文**字数预算，忽略字段/段落级「约N字」提示。
 
     优先从去掉 ``[...]`` 后的固定文字/自然语言描述中解析；
     避免滤芯模板里「[…，100字以内]」被误当成全文 100 字。
     自然语言编译后常见「全文合计约200-300字」写在占位说明内，也会识别。
+    若描述里字数只挂在「第一段/纪要…」上，不当作全文预算。
     """
+    empty: dict[str, Any] = {"lo": None, "hi": None, "cap": None, "label": ""}
     raw = template or ""
-    # 去掉占位符内容，只保留固定文字与自然语言描述
-    outer = re.sub(r"\[[^\[\]]*\]", " ", raw)
-    outer = re.sub(r"[ \t]+\n", "\n", outer).strip()
-    budget = parse_char_budget(outer)
-    if budget.get("hi"):
-        return budget
-    # 首行自然语言（# 标题之前）再试一次
-    first = raw.strip().splitlines()[0] if raw.strip() else ""
-    if first and not first.lstrip().startswith("#"):
-        budget = parse_char_budget(first)
-        if budget.get("hi"):
-            return budget
-    # 编译后的占位符：识别「全文合计约200-300字 / 全文约 x 字」等全文级提示
+    # 段落级字数（本段/本栏约N字）绝不升格为全文预算
+    if is_section_scoped_char_budget(raw) and not re.search(
+        r"全文(?:合计)?|整篇|通篇", raw
+    ):
+        # 仍允许占位里显式的「全文合计约N字」
+        pass
+    else:
+        # 去掉占位符内容，只保留固定文字与自然语言描述
+        outer = re.sub(r"\[[^\[\]]*\]", " ", raw)
+        outer = re.sub(r"[ \t]+\n", "\n", outer).strip()
+        # 段落级描述：outer 里的「200字」不能当全文
+        if outer and not is_section_scoped_char_budget(outer):
+            budget = parse_char_budget(outer)
+            if budget.get("hi"):
+                # 开头全局约束，或含全文标记
+                if re.search(r"全文|整篇|通篇|合计|总共", outer) or re.match(
+                    r"^(?:请)?(?:约|大约)?\s*\d+",
+                    outer.strip(),
+                ):
+                    return budget
+                # 多栏目模板固定文字里散落的「约N字」也不要误判全文
+                # 仅当字数出现在首句/总述位置
+                first_sent = re.split(r"[。；;\n]", outer, maxsplit=1)[0]
+                if parse_char_budget(first_sent).get("hi") and not re.search(
+                    r"第[一二三四五六七八九十\d]+[段节部分]|纪要|摘要",
+                    first_sent,
+                ):
+                    return parse_char_budget(first_sent)
+        # 首行自然语言（# 标题之前）再试一次
+        first = raw.strip().splitlines()[0] if raw.strip() else ""
+        if (
+            first
+            and not first.lstrip().startswith("#")
+            and not is_section_scoped_char_budget(first)
+        ):
+            budget = parse_char_budget(first)
+            if budget.get("hi") and re.match(
+                r"^(?:请)?(?:约|大约|全文)?\s*\d+",
+                first.strip(),
+            ):
+                return budget
+    # 编译后的占位符：仅识别显式「全文合计约…字 / 全文约 x 字」
     full_doc_hints = re.findall(
         r"全文(?:合计)?[^\[\]\n]{0,12}?(?:约|大约)?\s*"
         r"(?:(\d+)\s*[-–—~～至到]\s*(\d+)\s*字|(\d+)\s*字)",
@@ -151,7 +227,7 @@ def parse_document_char_budget(template: str) -> dict[str, Any]:
                 "cap": cap,
                 "label": f"约{hi}字量级（内部参考，略超可接受）",
             }
-    return {"lo": None, "hi": None, "cap": None, "label": ""}
+    return empty
 
 
 def fix_glued_table_rows(text: str) -> str:
@@ -380,6 +456,7 @@ __all__ = [
     "extract_markdown_tables",
     "extract_template_table_constraints",
     "fix_glued_table_rows",
+    "is_section_scoped_char_budget",
     "parse_char_budget",
     "parse_document_char_budget",
     "parse_char_hint",

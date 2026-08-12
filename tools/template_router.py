@@ -108,7 +108,7 @@ _COMPILE_CACHE: dict[str, str] = {}
 _COMPILE_FAIL_COUNTS: dict[str, int] = {}
 _COMPILE_FAIL_SKIP_THRESHOLD = 3
 # 缓存版本：规则升级后自动失效旧缓存
-_COMPILE_CACHE_VERSION = "v21-strip-outer-fence"
+_COMPILE_CACHE_VERSION = "v22-section-char-budget"
 
 
 def _looks_like_placeholder(content: str, next_char: str = "") -> bool:
@@ -729,10 +729,10 @@ _PLACEHOLDER_FILL_SYSTEM = """你是占位符填充器。根据「内容来源�
 - 禁止把多个字段内容机械粘成病句；并列信息用顿号/逗号理顺
 
 ## 篇幅与信息量（两遍法）
-- 仅模板总述/固定文字中的「约 x / a-b 字」约束全文；占位内「100字以内」只限该栏
-- 先按各栏主题写全实质内容，再对照全文区间整体调节
+- 仅「全文合计约 x 字」或模板总述中的全文预算约束**整篇**；占位内「本段约N字 / 100字以内」**只限该栏**
+- 先按各栏主题写全实质内容，再对照各自约束调节；不要用某一段的字数去压缩其它段或表格
 - 模板写「简洁 / 粗略 / 概要 / 无需深入」时：省略展开论证与次要枝节，但**每栏仍须写清原文中与该栏相关的主要事实与要点**（可多句），禁止每栏只剩一句空泛套话而丢掉可写的关键信息
-- 全部字段汉字合计必须落在声明区间内，目标靠近区间中位；禁止截断半句
+- 若存在全文预算：全部字段汉字合计落在区间内；若仅有段落预算：只约束对应字段
 
 ## 忠实
 - 句句有据；禁止照抄「如：」示范；禁止用外部常识/百科补履历、成果或评价
@@ -1347,6 +1347,19 @@ def check_compile_fidelity(description: str, compiled: str) -> list[str]:
             issues.append(
                 "字数约束写进了固定文字，会泄漏到正文；请只写在占位说明内"
             )
+        # 段落级字数禁止写成「全文合计」
+        try:
+            from tools.template_eval import is_section_scoped_char_budget
+        except Exception:  # noqa: BLE001
+            is_section_scoped_char_budget = None  # type: ignore[assignment]
+        if is_section_scoped_char_budget and is_section_scoped_char_budget(
+            description or ""
+        ):
+            if re.search(r"全文合计约\s*\d+", compiled_l):
+                issues.append(
+                    "用户字数约束只针对某一段/栏目，请写成「本段约N字」，"
+                    "不要写成「全文合计约N字」"
+                )
 
     # 「不遗漏关键…」是质量要求，不应单独开栏导致超字数
     if re.search(r"不遗漏关键|勿漏关键|不要遗漏关键", description or ""):
@@ -1469,12 +1482,15 @@ def _build_compile_system(
    - **禁止**把栏目正文写进一级标题占位：`# [一大段背景…]`（这会导致「没有标题、只有内容」）
    - **禁止**合并：`## A与B` + 一个占位；必须 `## A` / `## B` 各一节
 3. 用户说"类似 XX" → 对齐该体裁常规形态，仍以用户点名部分为准
-4. 数量 / 字数 / 行数约束：
-   - "约 200 字" / "200-300 字" → **只**写进某个占位的说明文字内
-     （如 `[…；全文合计约200-300字]`），**绝对禁止**写成单独一行固定文字或引用块
-     （否则会出现在用户正文里，如「约250字」）
-   - "三行" / "三条" → 对应数量占位或在说明里注明
-   - "简洁 / 粗略" → 写进占位说明（省略次要枝节，但仍须覆盖该栏主要事实），不删栏目
+4. 数量 / 字数 / 行数约束（**作用域必须分清**）：
+   - **段落/栏目级**（常见）：「第一段…200字左右」「纪要约200字」「摘要100字以内」
+     → 只写进**对应那一节**的占位说明，用「本段约200字 / 本栏约200字」，
+     **禁止**写成「全文合计约200字」（会误伤其它段与表格）
+   - **全文级**（少见）：「全文约200字」「整篇200-300字」或句首总起「约200字，概括…」
+     且未点名某一段 → 才用「全文合计约200字」，仍只写进占位说明、不写固定文字行
+   - "三行" / "三条" / "以表格展示" → 对应表行或在说明里注明；表格段不要塞全文字数
+   - "简洁 / 粗略" → 写进占位说明，不删栏目
+   - **绝对禁止**把字数写成单独一行固定文字（否则会出现在用户正文里）
 
 ## 占位符写法
 - [短中文说明]：填什么 + 从原文哪类信息提炼 + 信息不足怎么办
@@ -1488,28 +1504,33 @@ def _build_compile_system(
 - 完全无法理解 → 只输出 __NEED_CLARIFICATION__
 
 ## 示例（仅演示写法，不是目标结构）
-用户："约200字，概括主题甲、主题乙，并梳理推进过程与主线结论"
-正确编译：
+
+用户甲（全文级）："约200字，概括主题甲、主题乙"
 ```text
 ## 主题甲
-[从原文提炼与本栏相关的信息，通顺完整句；无则写「未提及」]
-
-## 主题乙
 [从原文提炼与本栏相关的信息；无则写「未提及」]
 
-## 推进过程
-[按原文真实顺序梳理；全文合计约200字]
-
-## 主线结论
-[概括主线观点；无则写「未提及」]
-```
-错误编译（禁止）：
-```text
-# [把主题甲的内容直接当一级标题]
 ## 主题乙
-…
-约200字
+[从原文提炼与本栏相关的信息；全文合计约200字]
 ```
+
+用户乙（段落级，注意不要写「全文合计」）：
+"分三段输出。第一段是纪要内容，200字左右，第二段是待办事项，以表格展示。第三段是风险提取，以表格展示。"
+```text
+## 纪要内容
+[从原文提炼会议核心讨论与结论，通顺完整句；本段约200字；无则写「未提及」]
+
+## 待办事项
+| 任务 | 负责人 | 截止时间 |
+| --- | --- | --- |
+| [任务] | [负责人；未提及则写「未提及」] | [截止时间；未提及则写「未提及」] |
+
+## 风险提取
+| 风险描述 | 影响程度 | 应对措施 |
+| --- | --- | --- |
+| [风险] | [影响；未提及则写「未提及」] | [应对；未提及则写「未提及」] |
+```
+错误：把「本段约200字」写成「全文合计约200字」，或把字数约束套到待办/风险表上。
 
 只输出编译后的模板正文，不要解释；**禁止**用 Markdown 代码围栏（``` 或 ```text）包裹整段输出。
 {revision}"""
@@ -1540,18 +1561,70 @@ def clear_compile_caches() -> None:
 
 
 def _ensure_document_char_budget_line(source: str, compiled: str) -> str:
-    """若自然语言源有全文字数而编译结果丢失，把全文预算写入首个占位说明。
+    """若自然语言源有**全文级**字数而编译结果丢失，把全文预算写入首个占位说明。
 
+    段落级（「第一段…200字」「纪要约200字」）不注入「全文合计」，避免误伤其它段。
     不写进固定文字行，避免 assemble 后用户正文出现「全文约××字」。
     """
     try:
-        from tools.template_eval import parse_document_char_budget
+        from tools.template_eval import (
+            is_section_scoped_char_budget,
+            parse_char_budget,
+            parse_document_char_budget,
+        )
     except Exception:  # noqa: BLE001
         return compiled
-    src_b = parse_document_char_budget(source or "")
+
+    src = source or ""
+    body = compiled or ""
+
+    # 段落级：确保对应节占位有「本段约N字」，绝不写「全文合计」
+    if is_section_scoped_char_budget(src) and not re.search(
+        r"全文(?:合计)?|整篇|通篇", src
+    ):
+        b = parse_char_budget(src)
+        if not b.get("hi"):
+            return compiled
+        hi = int(b["hi"])
+        lo = b.get("lo")
+        section_hint = (
+            f"本段约{int(lo)}-{hi}字" if lo and int(lo) != hi else f"本段约{hi}字"
+        )
+        # 已有本段/本栏字数则不动；若误写成全文合计则改回本段
+        if re.search(r"本段约\s*\d+|本栏约\s*\d+", body):
+            body2 = re.sub(
+                r"全文合计约\s*(\d+(?:\s*[-–—~～至到]\s*\d+)?)\s*字",
+                lambda m: f"本段约{m.group(1).replace('至', '-').replace('到', '-')}字",
+                body,
+            )
+            return body2
+        if re.search(r"全文合计约\s*\d+", body):
+            return re.sub(
+                r"全文合计约\s*(\d+(?:\s*[-–—~～至到]\s*\d+)?)\s*字",
+                lambda m: f"本段约{m.group(1).replace('至', '-').replace('到', '-')}字",
+                body,
+            )
+        # 注入第一个正文占位（跳过表格行内占位：所在行含 |）
+        for m in re.finditer(r"\[[^\[\]]+\]", body):
+            line_start = body.rfind("\n", 0, m.start()) + 1
+            line_end = body.find("\n", m.end())
+            if line_end < 0:
+                line_end = len(body)
+            line = body[line_start:line_end]
+            if "|" in line:
+                continue
+            inner = m.group(0)[1:-1].strip()
+            if re.search(r"本段约|本栏约|全文合计", inner):
+                return body
+            new_ph = f"[{inner}；{section_hint}]"
+            return body[: m.start()] + new_ph + body[m.end() :]
+        return compiled
+
+    # 全文级：仅在源描述确为全文预算时注入
+    src_b = parse_document_char_budget(src)
     if not src_b.get("hi"):
         return compiled
-    dst_b = parse_document_char_budget(compiled or "")
+    dst_b = parse_document_char_budget(body)
     if dst_b.get("hi"):
         return compiled
     lo, hi = src_b.get("lo"), src_b.get("hi")
@@ -1559,10 +1632,8 @@ def _ensure_document_char_budget_line(source: str, compiled: str) -> str:
         hint = f"全文合计约{int(lo)}-{int(hi)}字"
     else:
         hint = f"全文合计约{int(hi)}字"
-    body = compiled or ""
     if hint in body or re.search(r"全文(?:合计)?约?\s*\d+", body):
         return compiled
-    # 注入第一个 [占位]
     m = re.search(r"\[[^\[\]]+\]", body)
     if not m:
         return compiled

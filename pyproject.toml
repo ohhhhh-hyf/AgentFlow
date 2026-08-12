@@ -5,13 +5,13 @@ build-backend = "hatchling.build"
 [project]
 name = "meeting-agent"
 version = "0.1.0"
-description = "多 Agent 个性化会议纪要与待办生成器（支持 DeepSeek）"
+description = "多 Agent 个性化会议纪要与待办生成器（支持 HTTP / WebSocket LLM）"
 readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
-  "langgraph>=1.0,<2",
-  # Web testing / demo UI（gradio_app.py）
-  "gradio>=6.0",
+  "langgraph>=0.6.0,<2",
+  # Web testing / demo UI（gradio_app.py，Gradio 4.x API）
+  "gradio>=4.44.0,<6",
   # WebSocket LLM 后端（llm_client/client.py）
   "websockets>=12.0",
   # 思维导图 PNG 导出（tools/mindmap.py，可选但声明以保打包完整）

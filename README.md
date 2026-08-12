@@ -1,14 +1,17 @@
-﻿# 个性化会议纪要多 Agent 系统
+﻿# 小艺慧记 · 多 Agent 任务系统
 
-基于 DeepSeek 的会议纪要/知识点多 Agent 系统：多任务线并行流水线
-（会议纪要 / 待办 / 风险分析 / 思维导图 / 知识点），每条线独立执行
-"生成 → 领域审核（+全局标准注入）→ 渲染"，互不阻塞；
+会议纪要 / 知识点多 Agent 系统：多任务线并行流水线
+（会议纪要 / 待办 / 风险分析 / 思维导图 / 知识点 / 知识图谱），每条线独立执行
+「生成 → 领域审核（+全局标准注入）→ 渲染」，互不阻塞；
 支持客观视角与个人视角；可扩展任意新任务线。
+
+LLM 支持 **HTTP（如 DeepSeek）** 与 **WebSocket OpenAI 兼容接口** 两种后端（见 `.env`）。
 
 ## 项目结构
 
 ```
 bootstrap.py                  # CLI 入口
+gradio_app.py                 # Web 测试台（小艺慧记Agent测试）
 domain/
   meeting/
     domain_config.py          # 领域配置：STATE_CLASS / LINE_CN_NAMES（中文名注册表）
@@ -25,29 +28,30 @@ domain/
       ...                     # 新增任务线同构
       {line}/steps/           # agent / supervisor / render 三步骤实现
   notes/                      # 笔记域：笔记理解 + 知识点（points）+ 知识图谱（knowledge_graph）
-samples/                      # 终端参数对应的样例输入：samples/{domain}/{file|profile|task_template}
-perspective/                  # 跨 domain 公共视角建模（agent/模型/迷你生成器）
-llm_client/                   # DeepSeek 客户端 + 配置（.env）
+samples/                      # 样例输入：samples/{domain}/{file|profile|task_template}
+perspective/                  # 跨 domain 公共视角建模
+llm_client/                   # LLM 客户端（HTTP / WebSocket）+ 配置（.env）
 supervisor/                   # 全局监督标准（prompt 注入，不单独调 LLM）
 schema_repair/                # 结构化输出修复（LLM 输出非法时）
 tools/
   runtime_context.py          # 领域加载 / 任务别名 / env 默认路径
   io.py                       # 输入文本和用户画像读取
-  runner.py                   # CLI 参数 + 任务运行循环：流式输出 + done 事件处理
+  runner.py                   # CLI 参数 + 任务运行循环
   outputs.py                  # 报告 JSON/Markdown 落盘 + mindmap/knowledge_graph 导出
   domain_engine.py            # 多 domain 共享编排内核（生成→审核→渲染）
-  contracts.py                # 契约 DSL（GenerationContract / SupervisorContract）
-  fallback_rules.py           # 降级拼装规则 DSL（Raw / Join / Lines）
+  contracts.py                # 契约 DSL
+  fallback_rules.py           # 降级拼装规则 DSL
   validation.py               # 输出校验工具
   prompt_utils.py / template_prompt.py   # 渲染 prompt 构建
-  template_router.py          # 模板路由：占位符/格式规范/自然语言三类自动判型 + 编译
-  template_eval.py            # 模板约束评测 + Markdown 表格粘连修复（通用）
-  mindmap.py                  # 思维导图导出：markmap-cli（HTML）+ Playwright（PNG）
-  knowledge_graph.py          # 知识图谱导出：nodes/edges → PNG/SVG/交互式 HTML
-  rag/                        # 公共 RAG 组件：本地入库 / keyword fallback / embedding provider
+  template_router.py          # 模板路由：占位符/格式规范/自然语言三类判型 + 编译
+  template_eval.py            # 模板约束评测 + 表格粘连修复
+  hard_execution.py           # 强执行：上游硬对齐 / 门禁 / 元说明剥离
+  mindmap.py                  # 思维导图导出
+  knowledge_graph.py          # 知识图谱导出
+  rag/                        # 公共 RAG 组件
   scripts/
-    sync_domain.py                # 代码生成器：从契约生成模型/装配/骨架（--write/--check）
-    register_task.py               # 新增任务线第一步：注册 + 骨架 + 工厂 import
+    sync_domain.py            # 代码生成器
+    register_task.py          # 新增任务线注册
 ```
 
 ## 快速开始
@@ -78,76 +82,77 @@ python -m playwright install chromium
 
 > 知识图谱的 PNG/SVG 依赖系统 Graphviz，不是 Python 包；只 `pip install -r requirements.txt` 不会安装 `dot`。
 
-### 2. 配置 API Key
+### 2. 配置 LLM（`.env`）
 
-在项目根目录创建 `.env`：
+在项目根目录创建 `.env`，二选一后端：
+
+#### 方式 A：HTTP（DeepSeek 等）
 
 ```
+LLM_BACKEND=http
 DEEPSEEK_API_KEY=sk-你的Key
-```
-
-可选配置（均有默认值）：
-
-```
 DEEPSEEK_MODEL=deepseek-chat
 DEEPSEEK_BASE_URL=https://api.deepseek.com
 DEEPSEEK_TEMPERATURE=0.0
+```
 
-# RAG 可选配置；不配置时默认 keyword 模式，不需要 Embedding Key
+#### 方式 B：WebSocket（OpenAI Chat Completions 兼容）
+
+```
+LLM_BACKEND=websocket
+LLM_WS_URL=ws://host:port/llm/websocket/openai/chat/completions
+LLM_WS_API_KEY=你的Key
+LLM_WS_MODEL=你的模型名
+# 可选：LLM_WS_SENDER / LLM_WS_USER / LLM_WS_TEMPERATURE / LLM_WS_MAX_TOKENS 等
+```
+
+依赖 `websockets`（已在 `requirements.txt` 中）。内网请保证机器能访问 `LLM_WS_URL`（`ws://` 或 `wss://`）。
+
+#### RAG 可选配置
+
+```
 RAG_ENABLED=true
 RAG_MODE=keyword
 RAG_PROVIDER=siliconflow
 RAG_EMBEDDING_MODEL=BAAI/bge-m3
 RAG_TOP_K=5
-RAG_MIN_SCORE=0
-RAG_SCORE_RATIO=0.25
 RAG_STORE_DIR=./rag_store
 SILICONFLOW_API_KEY=你的硅基流动Key
 # 或：ZHIPU_API_KEY=你的智谱Key
 ```
 
+不配置时默认 keyword 模式，不需要 Embedding Key。
+
 ### 3. 运行
 
-#### Gradio 测试平台
+#### Gradio 测试平台（小艺慧记Agent测试）
 
 ```bash
 python gradio_app.py
 ```
 
-打开终端提示的本地地址后，可以在页面中选择领域、任务线和服务器样例文件。运行完成后，页面右侧会显示运行记录、PNG 预览，以及可下载后查看的产物文件（如 HTML / SVG / PNG / JSON / Markdown）。
+默认打开本机 `http://127.0.0.1:7860`。页面能力：
 
-平台标题：**XiaoYi-TaskAgent**
+| 能力 | 说明 |
+|---|---|
+| 默认领域 | `meeting`（会议） |
+| 输入 | 上传 `.txt` 或粘贴文本 |
+| 模板 | 支持自然语言描述 → 编译成可编辑模板 → 修改后确认运行；也可上传/粘贴现成 Markdown 模板 |
+| 结果 | 日志；有 `.md` 时 Markdown 预览；有 PNG 时图片预览；产物下载 |
+| 防重复 | 运行中锁定按钮，结束后恢复 |
 
 #### 服务器部署
-
-Gradio 页面会从项目根目录的 `samples/` 中读取服务器侧文件，适合部署到 Linux 服务器后直接选择样例运行。
-
-推荐目录约定：
-
-| 目录 | 用途 | 页面中的控件 |
-|---|---|---|
-| `samples/{domain}/file/` | 输入文本 `.txt` | 服务器输入文本 |
-| `samples/{domain}/profile/` | 用户画像 `.json` | 服务器用户画像 |
-| `samples/{domain}/{task}_template/` | 任务模板 `.md` / `.txt` | 服务器模板文件 |
-| `output/{domain}/{task}/` | 运行结果归档 | 页面预览 / 下载 |
-
-服务器首次部署示例：
 
 ```bash
 cd /path/to/AgentFlow
 python3 -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
+# 可选：思维导图 PNG
 python -m playwright install chromium
 ```
 
-Ubuntu / Debian 如果需要思维导图 PNG 截图，建议安装 Playwright 系统依赖：
-
-```bash
-python -m playwright install --with-deps chromium
-```
-
-启动服务：
+启动：
 
 | 场景 | 命令 |
 |---|---|
@@ -156,16 +161,23 @@ python -m playwright install --with-deps chromium
 | 临时公网分享 | `GRADIO_SHARE=true python gradio_app.py` |
 | 后台运行 | `nohup env GRADIO_SERVER_NAME=0.0.0.0 GRADIO_SERVER_PORT=7860 python gradio_app.py > gradio.log 2>&1 &` |
 
-部署注意事项：
-
 | 项目 | 说明 |
 |---|---|
-| API Key | 项目根目录需要 `.env`，至少配置 `DEEPSEEK_API_KEY` |
-| 访问地址 | 云服务器需要开放安全组 / 防火墙端口，例如 `7860` |
-| 文件选择 | 页面中的服务器文件来自 `项目绝对路径/samples/`，不是浏览器本地文件系统 |
-| 输出保存 | 所有任务都会自动创建并写入 `output/{domain}/{task}/` |
-| 知识图谱 | PNG/SVG 需要系统安装 Graphviz；HTML 可用于交互演示 |
-| 思维导图 | HTML 需要 Node.js/npx；PNG 需要 Playwright Chromium |
+| `.env` | HTTP 至少配置 `DEEPSEEK_API_KEY`；WebSocket 配置 `LLM_BACKEND=websocket` + `LLM_WS_*` |
+| 端口 | 云服务器需开放安全组 / 防火墙（如 `7860`） |
+| 反代 | 若用 Nginx，需放行 WebSocket（`Upgrade` / `Connection`），Gradio 队列依赖 WS |
+| 输出 | 写入 `output/{domain}/{task}/` |
+| 知识图谱 | PNG/SVG 需系统 Graphviz；HTML 可交互演示 |
+| 思维导图 | HTML 需 Node.js/npx；PNG 需 Playwright Chromium |
+
+样例与输出目录：
+
+| 目录 | 用途 |
+|---|---|
+| `samples/{domain}/file/` | 输入文本 `.txt` |
+| `samples/{domain}/profile/` | 用户画像 `.json` |
+| `samples/{domain}/{task}_template/` | 任务模板 `.md` / `.txt` |
+| `output/{domain}/{task}/` | 运行结果归档 |
 
 #### 命令行
 
