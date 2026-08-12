@@ -133,7 +133,9 @@ def assemble_report(
             data[f.name] = draft.get(src[len("draft."):])
     names = {f.name for f in fields(report_cls)}
     if "quality_warning" in names:
-        data["quality_warning"] = warning
+        # 线级门禁警告优先，否则用全局降级警告
+        line_warn = line(state, line_name).get("quality_warning")
+        data["quality_warning"] = line_warn or warning
     return report_cls(**data)
 
 
@@ -608,127 +610,264 @@ class DomainNodes:
                     }
                 )
                 return
-            # 正常渲染：有占位符模板时优先「字段 JSON + 程序拼装」；失败再流式自由渲染
+            # 强执行渲染管线：
+            # 1) placeholder 只走 assemble（失败才 freeform 兜底）
+            # 2) 程序硬约束（粘连修复/行数截断/空表）
+            # 3) 验收门禁：硬伤则 repair；仍失败则 gate_ok=False（不落通过 md）
+            import sys
+
+            from tools.hard_execution import gate_render_output
+            from tools.template_router import (
+                detect_template_kind,
+                fill_placeholder_template,
+                is_router_enabled,
+            )
+
             context_fn = getattr(self, f"_{line_name}_render_context")
             context = context_fn(state)
             full_text = ""
-            used_stable_fill = False
+            fill_mode = "none"
+            gate_ok: bool | None = None
+            gate_issues: list[str] = []
+            enforce_notes: list[str] = []
+            streamed = False
+            kind = detect_template_kind(template) if template else ""
 
-            if template:
-                from tools.template_router import (
-                    detect_template_kind,
-                    fill_placeholder_template,
-                    is_router_enabled,
-                    validate_rendered_output,
-                )
-
-                if (
-                    is_router_enabled()
-                    and detect_template_kind(template) == "placeholder"
-                ):
-                    client = getattr(render, "client", None)
-                    if client is not None:
-                        try:
-                            filled = await fill_placeholder_template(
-                                client, context, template
-                            )
-                        except Exception:  # noqa: BLE001
-                            logger.warning(
-                                "稳定填充异常（%s），回退流式渲染",
-                                line_name,
-                                exc_info=True,
-                            )
-                            filled = None
-                        if filled:
-                            full_text = filled
-                            used_stable_fill = True
-                            await queue.put(
-                                {
-                                    "type": "chunk",
-                                    "line": line_name,
-                                    "title": title,
-                                    "text": full_text,
-                                }
-                            )
-
-            if not used_stable_fill:
-                parts: list[str] = []
-                async for chunk in render.stream(context, template):
-                    parts.append(chunk)
-                    await queue.put(
-                        {
-                            "type": "chunk",
-                            "line": line_name,
-                            "title": title,
-                            "text": chunk,
-                        }
-                    )
-                full_text = "".join(parts)
-
-            # 模板校验：失败则整段重渲染一次（带问题列表），仍失败只记日志
-            if template and full_text:
-                from tools.template_router import (
-                    is_router_enabled,
-                    validate_rendered_output,
-                )
-
-                if is_router_enabled():
+            # ── 1) 有占位符模板：强制优先 assemble ──
+            if template and is_router_enabled() and kind == "placeholder":
+                client = getattr(render, "client", None)
+                if client is not None:
                     try:
-                        issues = validate_rendered_output(full_text, template)
-                    except Exception:  # noqa: BLE001 - 校验失败仅记日志
+                        filled = await fill_placeholder_template(
+                            client, context, template
+                        )
+                    except Exception:  # noqa: BLE001
                         logger.warning(
-                            "模板渲染校验异常（%s）", line_name, exc_info=True
+                            "assemble 异常（%s）", line_name, exc_info=True
                         )
-                        issues = []
-                    if issues and hasattr(render, "run"):
-                        logger.warning(
-                            "模板渲染校验未通过（%s），尝试修复重渲染：%s",
-                            line_name,
-                            "；".join(issues),
-                        )
-                        repair_context = (
-                            f"{context}\n\n【上次输出未通过模板校验，请修正】\n"
-                            + "\n".join(f"- {x}" for x in issues)
-                        )
-                        try:
-                            repaired = await render.run(repair_context, template)
-                        except Exception:  # noqa: BLE001
-                            logger.warning(
-                                "模板修复重渲染失败（%s）",
-                                line_name,
-                                exc_info=True,
-                            )
-                            repaired = ""
-                        if repaired and repaired.strip():
-                            try:
-                                repair_issues = validate_rendered_output(
-                                    repaired, template
-                                )
-                            except Exception:  # noqa: BLE001
-                                repair_issues = []
-                            if not repair_issues or len(repair_issues) < len(issues):
-                                full_text = repaired
-                                if repair_issues:
-                                    logger.warning(
-                                        "修复后仍有问题（%s）：%s",
-                                        line_name,
-                                        "；".join(repair_issues),
-                                    )
-                            else:
-                                logger.warning(
-                                    "修复未改善（%s），保留原输出：%s",
-                                    line_name,
-                                    "；".join(issues),
-                                )
-                    elif issues:
-                        logger.warning(
-                            "模板渲染校验未通过（%s）：%s",
-                            line_name,
-                            "；".join(issues),
-                        )
+                        filled = None
+                    if filled:
+                        full_text = filled
+                        fill_mode = "assemble"
 
-            line(state, line_name)["rendered"] = full_text
-            # 领域 render 后特判（如结构化列表写回）
+            # ── 2) assemble 失败：有模板用整段 freeform；无模板才 stream ──
+            if fill_mode == "none":
+                use_block = bool(
+                    template
+                    and hasattr(render, "run")
+                    and kind in {"placeholder", "spec"}
+                )
+                if use_block:
+                    full_text = await render.run(context, template)
+                    fill_mode = "freeform"
+                else:
+                    parts: list[str] = []
+                    async for chunk in render.stream(context, template):
+                        parts.append(chunk)
+                        await queue.put(
+                            {
+                                "type": "chunk",
+                                "line": line_name,
+                                "title": title,
+                                "text": chunk,
+                            }
+                        )
+                        streamed = True
+                    full_text = "".join(parts)
+                    fill_mode = "freeform" if template else "none"
+
+            # ── 3) 篇幅软修订（freeform/repair 路径；assemble 内部已自检）──
+            if (
+                template
+                and full_text
+                and is_router_enabled()
+                and fill_mode in {"freeform", "repair"}
+                and hasattr(render, "run")
+            ):
+                try:
+                    from tools.template_eval import parse_document_char_budget
+                    from tools.template_router import _body_han_count
+                except Exception:  # noqa: BLE001
+                    parse_document_char_budget = None  # type: ignore[assignment]
+                    _body_han_count = None  # type: ignore[assignment]
+                if parse_document_char_budget and _body_han_count:
+                    bud = parse_document_char_budget(template)
+                    hi = bud.get("hi")
+                    lo = bud.get("lo")
+                    if hi:
+                        hi_i = int(hi)
+                        lo_i = int(lo or 0)
+                        for _rev in range(2):
+                            han = _body_han_count(full_text)
+                            if han > hi_i:
+                                target = (
+                                    (lo_i + hi_i) // 2
+                                    if lo_i
+                                    else max(hi_i - 40, hi_i * 4 // 5)
+                                )
+                                try:
+                                    compressed = await render.run(
+                                        f"{context}\n\n【篇幅修订·压缩】当前正文汉字约 {han}，"
+                                        f"超过模板约 {lo_i or hi_i}–{hi_i} 字上界。"
+                                        f"请**整体改写压缩**到约 {target}–{hi_i} 字（汉字合计必须≤{hi_i}），"
+                                        "不是截断半句或硬砍半段："
+                                        "每节改短句、删套话/长清单/次要枝节，"
+                                        "只留关键结论/数字/归属；结构贴合模板点名栏目；"
+                                        "压缩后语句须完整通顺；勿虚构、勿在正文写字数说明。\n\n"
+                                        f"【当前正文】\n{full_text}",
+                                        template,
+                                    )
+                                except Exception:  # noqa: BLE001
+                                    compressed = ""
+                                if compressed and compressed.strip():
+                                    full_text = compressed
+                                    fill_mode = "repair"
+                                    logger.info(
+                                        "freeform 偏长（%s>%s），压缩修订#%s（%s）",
+                                        han,
+                                        hi_i,
+                                        _rev + 1,
+                                        line_name,
+                                    )
+                                    continue
+                            elif lo_i and han < int(lo_i * 0.85):
+                                try:
+                                    expanded = await render.run(
+                                        f"{context}\n\n【篇幅修订·扩写】当前正文汉字约 {han}，"
+                                        f"少于模板约 {lo_i}–{hi_i} 字。"
+                                        "请在忠实原文前提下**整体扩写**："
+                                        "补原文已有的具体事实与推进，使合计接近区间中位；"
+                                        "语句完整通顺；勿空话注水、勿截断、勿写字数说明。\n\n"
+                                        f"【当前正文】\n{full_text}",
+                                        template,
+                                    )
+                                except Exception:  # noqa: BLE001
+                                    expanded = ""
+                                if expanded and expanded.strip():
+                                    full_text = expanded
+                                    fill_mode = "repair"
+                                    logger.info(
+                                        "freeform 偏短（%s<%s），扩写修订#%s（%s）",
+                                        han,
+                                        lo_i,
+                                        _rev + 1,
+                                        line_name,
+                                    )
+                                    continue
+                            break
+
+            # ── 4) 强执行 + 门禁（仅有模板时）──
+            if template and full_text and is_router_enabled():
+                gate = gate_render_output(template, full_text)
+                full_text = gate["text"]
+                enforce_notes = list(gate.get("notes") or [])
+                gate_issues = list(gate.get("issues") or [])
+                gate_ok = bool(gate.get("gate_ok"))
+                hard0 = list(gate.get("hard_issues") or [])
+
+                if (gate_issues or not gate_ok) and hasattr(render, "run"):
+                    logger.warning(
+                        "模板门禁未通过（%s），尝试 repair：%s",
+                        line_name,
+                        "；".join(gate_issues),
+                    )
+                    repair_context = (
+                        f"{context}\n\n【强执行门禁未通过，必须修正】\n"
+                        + "\n".join(f"- {x}" for x in gate_issues)
+                        + "\n\n硬性要求：每条表格数据独占一行；遵守模板约 N 行；"
+                        "禁止残留 [占位符]；禁止空表。"
+                    )
+                    try:
+                        repaired = await render.run(repair_context, template)
+                    except Exception:  # noqa: BLE001
+                        logger.warning(
+                            "repair 失败（%s）", line_name, exc_info=True
+                        )
+                        repaired = ""
+                    if repaired and repaired.strip():
+                        gate2 = gate_render_output(template, repaired)
+                        hard2 = list(gate2.get("hard_issues") or [])
+                        if gate2["gate_ok"] or len(hard2) < len(hard0):
+                            full_text = gate2["text"]
+                            enforce_notes = list(gate2.get("notes") or [])
+                            gate_issues = list(gate2.get("issues") or [])
+                            gate_ok = bool(gate2.get("gate_ok"))
+                            fill_mode = "repair"
+                            hard0 = hard2
+
+                # freeform 仍硬伤：再强攻 assemble
+                if (
+                    not gate_ok
+                    and kind == "placeholder"
+                    and fill_mode != "assemble"
+                    and getattr(render, "client", None) is not None
+                ):
+                    try:
+                        filled2 = await fill_placeholder_template(
+                            render.client, context, template
+                        )
+                    except Exception:  # noqa: BLE001
+                        filled2 = None
+                    if filled2:
+                        gate3 = gate_render_output(template, filled2)
+                        hard3 = list(gate3.get("hard_issues") or [])
+                        if gate3["gate_ok"] or len(hard3) < len(hard0):
+                            full_text = gate3["text"]
+                            enforce_notes = list(gate3.get("notes") or [])
+                            gate_issues = list(gate3.get("issues") or [])
+                            gate_ok = bool(gate3.get("gate_ok"))
+                            fill_mode = "assemble"
+
+            # 未 stream 过的路径：整段推送最终正文
+            if not streamed and full_text is not None:
+                await queue.put(
+                    {
+                        "type": "chunk",
+                        "line": line_name,
+                        "title": title,
+                        "text": full_text,
+                    }
+                )
+
+            line_state = line(state, line_name)
+            line_state["rendered"] = full_text
+            line_state["fill_mode"] = fill_mode
+            line_state["render_gate_ok"] = gate_ok
+            line_state["render_gate_issues"] = gate_issues
+            if enforce_notes:
+                line_state["enforce_notes"] = enforce_notes
+            if template and gate_ok is False:
+                line_state["quality_warning"] = (
+                    "模板强执行门禁未通过：" + "；".join(gate_issues[:5])
+                )
+                state["quality_degraded"] = True
+
+            cn = line_cn(line_name, self._line_cn_names)
+            gate_s = (
+                "n/a"
+                if gate_ok is None
+                else ("pass" if gate_ok else "fail")
+            )
+            sys.stdout.write(
+                f"[模板渲染] {cn} fill_mode={fill_mode} gate={gate_s}\n"
+            )
+            if enforce_notes:
+                sys.stdout.write(
+                    f"[强执行] {cn} " + "；".join(enforce_notes) + "\n"
+                )
+            if gate_ok is False:
+                sys.stdout.write(
+                    f"[门禁失败] {cn} 不写入通过态 result.md："
+                    + "；".join(gate_issues[:5])
+                    + "\n"
+                )
+            sys.stdout.flush()
+            logger.info(
+                "模板渲染 %s fill_mode=%s gate=%s",
+                line_name,
+                fill_mode,
+                gate_s,
+            )
             self._post_render_hook(state, line_name)
         except Exception as exc:  # noqa: BLE001 - 单线渲染失败不拖垮整条流水线
             logger.warning(
@@ -955,10 +1094,15 @@ class DomainNodes:
             if (any_line_degraded or bool(state.get("quality_degraded")))
             else None
         )
+        gate_by_line = {
+            name: line(state, name).get("render_gate_ok")
+            for name in line_names
+        }
         yield {
             "type": "done",
             "quality_warning": quality_warning,
             "reports": self._final_reports(state, line_names, quality_warning),
+            "gate_by_line": gate_by_line,
         }
 
     def _final_reports(

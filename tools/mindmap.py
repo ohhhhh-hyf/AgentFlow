@@ -17,6 +17,8 @@ import re
 import shutil
 import subprocess
 import sys
+from collections import OrderedDict
+from dataclasses import dataclass, field
 from pathlib import Path
 
 logger = logging.getLogger(__name__)
@@ -70,6 +72,400 @@ def _native_path(path: Path) -> str:
     return s
 
 
+_TABLE_ROW_RE = re.compile(r"^\s*\|.*\|\s*$")
+_TABLE_SEP_RE = re.compile(r"^\s*\|?\s*:?-{2,}:?\s*(\|\s*:?-{2,}:?\s*)+\|?\s*$")
+_HTML_TABLE_RE = re.compile(
+    r"<table\b[\s\S]*?</table>",
+    re.IGNORECASE,
+)
+
+
+def _is_table_row(line: str) -> bool:
+    s = line.strip()
+    if not s.startswith("|"):
+        return False
+    # 至少两段竖线才视为表格行（避免普通句子里的单个 |）
+    return s.count("|") >= 2
+
+
+def _is_table_separator(line: str) -> bool:
+    return bool(_TABLE_SEP_RE.match(line.strip()))
+
+
+def _split_table_cells(line: str) -> list[str]:
+    s = line.strip()
+    if s.startswith("|"):
+        s = s[1:]
+    if s.endswith("|"):
+        s = s[:-1]
+    return [c.strip() for c in s.split("|")]
+
+
+def _short_node(text: str, max_len: int = 28) -> str:
+    text = re.sub(r"\s+", " ", (text or "").strip())
+    # 去掉状态图标等噪音
+    text = text.replace("✅", "").replace("🟡", "").replace("🔴", "").strip()
+    if len(text) <= max_len:
+        return text
+    return text[: max_len - 1].rstrip() + "…"
+
+
+def _table_block_to_bullets(table_lines: list[str]) -> list[str]:
+    """把 Markdown 表转为短分支叶子；不保留表头/分隔行。"""
+    rows: list[list[str]] = []
+    for line in table_lines:
+        if _is_table_separator(line):
+            continue
+        cells = _split_table_cells(line)
+        if not cells or all(not c for c in cells):
+            continue
+        rows.append(cells)
+    if not rows:
+        return []
+
+    # 首行若像表头（含「状态/负责人/事项」等），跳过
+    header_hints = (
+        "模块",
+        "事项",
+        "状态",
+        "负责人",
+        "责任",
+        "进度",
+        "风险",
+        "等级",
+        "时间",
+        "计划",
+        "交付",
+        "标准",
+        "依赖",
+        "当前",
+        "下一",
+        "瓶颈",
+        "范围",
+        "应对",
+        "待办",
+        "截止",
+    )
+    start = 0
+    if rows and any(h in "".join(rows[0]) for h in header_hints):
+        start = 1
+
+    bullets: list[str] = []
+    seen: set[str] = set()
+    for cells in rows[start:]:
+        # 优先第一列作分支名；第二列有实质内容时作补充（截断）
+        primary = _short_node(cells[0] if cells else "")
+        if not primary:
+            continue
+        secondary = ""
+        if len(cells) > 1:
+            # 跳过纯状态词单独展示过长进展
+            for c in cells[1:]:
+                c2 = c.strip()
+                if not c2:
+                    continue
+                if c2 in {"已完成", "进行中", "待开始", "未明确", "高", "中", "低"}:
+                    secondary = c2
+                    break
+                secondary = _short_node(c2, 18)
+                break
+        label = primary if not secondary else f"{primary}：{secondary}"
+        label = _short_node(label, 36)
+        if label in seen:
+            continue
+        seen.add(label)
+        bullets.append(f"- {label}")
+    return bullets
+
+
+def sanitize_mindmap_outline(outline: str) -> str:
+    """清理思维导图大纲：去掉表格/HTML 表，只保留标题层级与短分支。
+
+    markmap 会把 Markdown 表格渲染成嵌在节点上的整表，破坏「分支展示分支」
+    的可读性。本函数在渲染前做硬约束：
+    - ``|...|`` 表格块 → 数据行改为 ``- 短句`` 叶子
+    - ``<table>...</table>`` 直接删除
+    - 过长节点截断
+    """
+    text = (outline or "").strip()
+    if not text:
+        return ""
+
+    text = _HTML_TABLE_RE.sub("", text)
+    lines = text.splitlines()
+    out: list[str] = []
+    i = 0
+    n = len(lines)
+    while i < n:
+        line = lines[i]
+        if _is_table_row(line):
+            block = [line]
+            i += 1
+            while i < n and (
+                _is_table_row(lines[i])
+                or _is_table_separator(lines[i])
+                or not lines[i].strip()
+            ):
+                # 空行结束表格（若后面不再是表行）
+                if not lines[i].strip():
+                    # 前瞻：空行后仍是表则吞掉空行，否则结束
+                    j = i + 1
+                    while j < n and not lines[j].strip():
+                        j += 1
+                    if j < n and _is_table_row(lines[j]):
+                        i = j
+                        continue
+                    break
+                block.append(lines[i])
+                i += 1
+            bullets = _table_block_to_bullets(block)
+            out.extend(bullets if bullets else [])
+            continue
+
+        stripped = line.strip()
+        # 禁止残留 HTML 标签碎片
+        if stripped.lower().startswith(("<tr", "<td", "<th", "<thead", "<tbody", "</")):
+            i += 1
+            continue
+
+        # 标题/列表保留；普通长行截断为短节点
+        if stripped.startswith("#"):
+            # 标题本身也不宜过长
+            m = re.match(r"^(#{1,4}\s+)(.*)$", stripped)
+            if m:
+                out.append(f"{m.group(1)}{_short_node(m.group(2), 40)}")
+            else:
+                out.append(stripped)
+        elif stripped.startswith(("- ", "* ", "+ ")):
+            mark = stripped[:2]
+            body = stripped[2:]
+            out.append(f"{mark}{_short_node(body, 36)}")
+        elif stripped.startswith(("1.", "2.", "3.", "4.", "5.", "6.", "7.", "8.", "9.")):
+            m = re.match(r"^(\d+\.\s+)(.*)$", stripped)
+            if m:
+                out.append(f"- {_short_node(m.group(2), 36)}")
+            else:
+                out.append(f"- {_short_node(stripped, 36)}")
+        elif not stripped:
+            # 压缩多余空行
+            if out and out[-1] != "":
+                out.append("")
+        else:
+            # 游离段落 → 短叶子，避免整段贴在节点上
+            out.append(f"- {_short_node(stripped, 36)}")
+        i += 1
+
+    # 收尾空行
+    while out and out[-1] == "":
+        out.pop()
+    cleaned = "\n".join(out).strip()
+    # 确保至少有一个一级标题，markmap 才稳定
+    if cleaned and not re.search(r"(?m)^#\s+\S", cleaned):
+        cleaned = f"# 思维导图\n\n{cleaned}"
+    # 同前缀叶子上提为子分支（如多条「技术组：…」→ ### 技术组 + 叶子）
+    cleaned = factor_common_prefixes(cleaned)
+    return cleaned
+
+
+# ── 公共前缀上提为子分支 ─────────────────────────────────────
+
+# 叶子「类别：具体内容」；类别宜短，避免把整句当前缀
+_PREFIX_SPLIT_RE = re.compile(r"^(.{1,12}?)[：:](.+)$")
+# 次选：短类别 + 破折号/间隔（少见）
+_PREFIX_DASH_RE = re.compile(r"^(.{2,10}?)[-–—]\s*(.+)$")
+
+
+@dataclass
+class _MMNode:
+    kind: str  # "heading" | "bullet"
+    level: int  # heading 1-4；bullet 继承父级
+    text: str
+    children: list["_MMNode"] = field(default_factory=list)
+
+
+def _split_leaf_prefix(text: str) -> tuple[str | None, str | None]:
+    """把叶子拆成 (公共前缀, 剩余)。无法拆则 (None, None)。"""
+    text = (text or "").strip()
+    if not text:
+        return None, None
+    m = _PREFIX_SPLIT_RE.match(text)
+    if m:
+        pref, rest = m.group(1).strip(), m.group(2).strip()
+        if pref and rest and not re.search(r"[，。；;]", pref):
+            return pref, rest
+    m = _PREFIX_DASH_RE.match(text)
+    if m:
+        pref, rest = m.group(1).strip(), m.group(2).strip()
+        # 破折号更易误伤，前缀需像专名/部门（含中文或短词）
+        if pref and rest and re.search(r"[\u4e00-\u9fff]", pref):
+            return pref, rest
+    return None, None
+
+
+def _parse_outline_tree(outline: str) -> _MMNode:
+    root = _MMNode("heading", 0, "", [])
+    stack: list[_MMNode] = [root]
+    for raw in (outline or "").splitlines():
+        line = raw.strip()
+        if not line:
+            continue
+        if line.startswith("#"):
+            m = re.match(r"^(#{1,6})\s+(.*)$", line)
+            if not m:
+                continue
+            level = min(len(m.group(1)), 4)
+            text = m.group(2).strip()
+            node = _MMNode("heading", level, text, [])
+            while len(stack) > 1 and stack[-1].level >= level:
+                stack.pop()
+            stack[-1].children.append(node)
+            stack.append(node)
+            continue
+        if line.startswith(("- ", "* ", "+ ")):
+            body = line[2:].strip()
+            parent = stack[-1]
+            parent.children.append(_MMNode("bullet", parent.level, body, []))
+            continue
+        # 游离行挂到当前节点
+        parent = stack[-1]
+        parent.children.append(_MMNode("bullet", parent.level, line, []))
+    return root
+
+
+def _factor_bullet_run(
+    bullets: list[_MMNode], parent_level: int
+) -> list[_MMNode]:
+    """同一父节点下，≥2 条共享「前缀：」的叶子 → 提升为子标题。"""
+    if len(bullets) < 2:
+        return list(bullets)
+
+    # 按首次出现顺序记录前缀；无前缀的按原序穿插
+    groups: "OrderedDict[str, list[str]]" = OrderedDict()
+    sequence: list[tuple[str, str]] = []  # ("g", pref) | ("p", text)
+
+    for b in bullets:
+        pref, rest = _split_leaf_prefix(b.text)
+        if pref and rest:
+            if pref not in groups:
+                groups[pref] = []
+                sequence.append(("g", pref))
+            groups[pref].append(rest)
+        else:
+            sequence.append(("p", b.text))
+
+    # 仅出现 1 次的前缀不提升，还原为「前缀：内容」
+    promote = {p for p, items in groups.items() if len(items) >= 2}
+    if not promote:
+        return list(bullets)
+
+    # Markdown/markmap 约定：标题后的 - 叶子会挂在该标题下。
+    # 因此必须先输出「仍挂在父级的叶子」，再输出上提后的 ### 子分支，
+    # 否则无前缀叶子 / 仅 1 条的「类别：」会被错误吞进上一个 ###。
+    plain_out: list[_MMNode] = []
+    branch_out: list[_MMNode] = []
+    emitted: set[str] = set()
+    for kind, val in sequence:
+        if kind == "p":
+            plain_out.append(_MMNode("bullet", parent_level, val, []))
+            continue
+        pref = val
+        items = groups[pref]
+        if pref in emitted:
+            continue
+        emitted.add(pref)
+        if pref not in promote or parent_level >= 4:
+            for rest in items:
+                plain_out.append(
+                    _MMNode("bullet", parent_level, f"{pref}：{rest}", [])
+                )
+            continue
+        # root(level=0) 下直接生成 ##，避免再造一个 #
+        if parent_level <= 0:
+            child_level = 2
+        else:
+            child_level = min(parent_level + 1, 4)
+        branch = _MMNode("heading", child_level, _short_node(pref, 20), [])
+        for rest in items:
+            branch.children.append(
+                _MMNode("bullet", child_level, _short_node(rest, 36), [])
+            )
+        branch_out.append(branch)
+    return plain_out + branch_out
+
+
+def _factor_tree(node: _MMNode) -> None:
+    if not node.children:
+        return
+    new_children: list[_MMNode] = []
+    i = 0
+    kids = node.children
+    while i < len(kids):
+        ch = kids[i]
+        if ch.kind == "heading":
+            _factor_tree(ch)
+            new_children.append(ch)
+            i += 1
+            continue
+        # 连续 bullet 段
+        j = i
+        while j < len(kids) and kids[j].kind == "bullet":
+            j += 1
+        run = kids[i:j]
+        new_children.extend(_factor_bullet_run(run, parent_level=node.level))
+        i = j
+    node.children = new_children
+    # 提升后的子标题内部若还有可提升结构，再扫一层
+    for ch in node.children:
+        if ch.kind == "heading":
+            _factor_tree(ch)
+
+
+def _serialize_outline_tree(root: _MMNode) -> str:
+    lines: list[str] = []
+
+    def walk(n: _MMNode) -> None:
+        if n.kind == "heading" and n.level > 0:
+            lines.append(f"{'#' * n.level} {_short_node(n.text, 40)}")
+        for ch in n.children:
+            if ch.kind == "bullet":
+                lines.append(f"- {_short_node(ch.text, 36)}")
+            else:
+                walk(ch)
+        # 主分支之间空一行，markmap 更清晰
+        if n.kind == "heading" and n.level == 2 and lines and lines[-1] != "":
+            lines.append("")
+
+    for ch in root.children:
+        walk(ch)
+    while lines and lines[-1] == "":
+        lines.pop()
+    return "\n".join(lines).strip()
+
+
+def factor_common_prefixes(outline: str) -> str:
+    """将同级叶子中重复的「类别：内容」上提为子分支。
+
+    例：
+        ## 整改项
+        - 技术组：A
+        - 技术组：B
+        - 现场安装：C
+    →
+        ## 整改项
+        ### 技术组
+        - A
+        - B
+        ### 现场安装
+        - C
+    """
+    text = (outline or "").strip()
+    if not text:
+        return ""
+    root = _parse_outline_tree(text)
+    _factor_tree(root)
+    return _serialize_outline_tree(root)
+
+
 def render_mindmap_html(
     outline: str,
     out_dir: Path | str,
@@ -85,7 +481,7 @@ def render_mindmap_html(
     Returns:
         生成的 HTML 文件路径；任何失败返回 ``None``（不抛异常）。
     """
-    outline = (outline or "").strip()
+    outline = sanitize_mindmap_outline(outline or "")
     if not outline:
         logger.warning("思维导图大纲为空，跳过 HTML 生成")
         return None
@@ -230,11 +626,6 @@ def _png_pixel_stats(path: Path, sample_every: int = 4) -> tuple[int, float]:
     return len(colors), ratio
 
 
-def _png_color_count(path: Path, sample_every: int = 4) -> int:
-    """兼容旧调用：仅返回采样颜色数。"""
-    return _png_pixel_stats(path, sample_every=sample_every)[0]
-
-
 async def render_mindmap_png(
     outline: str,
     out_dir: Path | str,
@@ -258,7 +649,7 @@ async def render_mindmap_png(
         （``async_playwright``）；Sync API 会报
         "Sync API inside the asyncio loop" 错误。
     """
-    outline = (outline or "").strip()
+    outline = sanitize_mindmap_outline(outline or "")
     if not outline:
         logger.warning("思维导图大纲为空，跳过 PNG 生成")
         return None
@@ -406,6 +797,8 @@ async def render_mindmap_png(
 __all__ = [
     "markmap_available",
     "mindmap_png_available",
+    "sanitize_mindmap_outline",
+    "factor_common_prefixes",
     "render_mindmap_html",
     "render_mindmap_png",
 ]

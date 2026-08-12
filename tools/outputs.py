@@ -63,7 +63,16 @@ def save_report_artifacts(
     line_name: str,
     report: object,
     timestamp: str,
+    *,
+    gate_ok: bool | None = None,
 ) -> dict[str, Path]:
+    """落盘 JSON；门禁通过才写 result_*.md，失败写 result_*_rejected.md 备查。
+
+    Args:
+        gate_ok: True 通过 / False 失败 / None 未做门禁（无模板）→ 仍写正式 md。
+    """
+    from .hard_execution import should_write_result_md
+
     out_dir = task_output_dir(ctx, line_name)
     data = report_to_dict(report)
     paths: dict[str, Path] = {}
@@ -74,10 +83,28 @@ def save_report_artifacts(
     )
     paths["json"] = json_path
     text = report_text(data)
-    if text:
+    if not text:
+        return paths
+
+    # has_template：仅当显式走过门禁（True/False）时视为有模板约束
+    has_template = gate_ok is not None
+    if should_write_result_md(gate_ok, has_template=has_template):
         md_path = out_dir / f"result_{timestamp}.md"
         md_path.write_text(text, encoding="utf-8")
         paths["text"] = md_path
+    elif gate_ok is False:
+        rej = out_dir / f"result_{timestamp}_rejected.md"
+        header = (
+            "<!-- 强执行门禁未通过：本文件不作为正式 result，仅供排查 -->\n"
+        )
+        warn = data.get("quality_warning") or ""
+        if warn:
+            header += f"<!-- {warn} -->\n\n"
+        rej.write_text(header + text, encoding="utf-8")
+        paths["rejected"] = rej
+        logger.warning(
+            "门禁失败，已写入 rejected 文本而非 result.md：%s", rej
+        )
     return paths
 
 
@@ -85,14 +112,27 @@ def save_all_reports(
     ctx: DomainContext,
     reports: dict,
     timestamp: str,
+    *,
+    gate_by_line: dict[str, bool | None] | None = None,
 ) -> dict[str, dict[str, Path]]:
+    """保存各线报告。
+
+    gate_by_line: 线名 → gate_ok（True/False/None）；False 时不写正式 result.md。
+    """
     saved: dict[str, dict[str, Path]] = {}
+    gate_by_line = gate_by_line or {}
     for line_name, report in reports.items():
         if line_name not in ctx.task_lines:
             continue
         if line_name in {"mindmap", "knowledge_graph"}:
             continue
-        saved[line_name] = save_report_artifacts(ctx, line_name, report, timestamp)
+        saved[line_name] = save_report_artifacts(
+            ctx,
+            line_name,
+            report,
+            timestamp,
+            gate_ok=gate_by_line.get(line_name),
+        )
     return saved
 
 

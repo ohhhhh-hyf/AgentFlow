@@ -108,7 +108,7 @@ _COMPILE_CACHE: dict[str, str] = {}
 _COMPILE_FAIL_COUNTS: dict[str, int] = {}
 _COMPILE_FAIL_SKIP_THRESHOLD = 3
 # 缓存版本：规则升级后自动失效旧缓存
-_COMPILE_CACHE_VERSION = "v5-prompt-constraints"
+_COMPILE_CACHE_VERSION = "v21-strip-outer-fence"
 
 
 def _looks_like_placeholder(content: str, next_char: str = "") -> bool:
@@ -234,16 +234,129 @@ def _describe_field(index: int, seg: dict) -> str:
         desc += f"：多选一 {' / '.join(seg['enum'])}"
     if seg["missing"]:
         desc += "：信息不足时按占位符说明写（如「未提及」/「未明确」）"
+    if re.search(r"如[:：]", seg.get("hint") or ""):
+        desc += "【注意：hint 中「如：」后仅为写法示例，禁止原样照抄，须按内容来源重写】"
     return desc
+
+
+def _char_budget_lines(template: str) -> list[str]:
+    """字数软提示（仅注入模型，不写入用户可见正文）。用全文预算，忽略字段内「100字以内」。"""
+    try:
+        from tools.template_eval import parse_document_char_budget
+    except Exception:  # noqa: BLE001
+        return []
+    budget = parse_document_char_budget(template or "")
+    if not budget.get("hi"):
+        return []
+    lo, hi = budget.get("lo"), budget.get("hi")
+    lo_i = int(lo or hi)
+    hi_i = int(hi)
+    # 目标取区间中位，允许在 [lo, hi] 内浮动
+    mid = (lo_i + hi_i) // 2  # 例如 200–300 → 250
+    n_fields = max(1, len(re.findall(r"\[[^\[\]]+\]", template or "")))
+    per = max(22, mid // max(n_fields, 1))
+    if hi_i <= 300:
+        dens = "各节写满该栏关键事实（可 1～3 句），删套话不删要点"
+    elif hi_i <= 450:
+        dens = "各节 2～3 句；写清推进与要点"
+    else:
+        dens = "每节 2～4 句；写清推进与要点，仍勿灌水"
+    return [
+        f"【全文篇幅·两遍法】约 {lo_i}–{hi_i} 字（汉字合计，目标约 {mid}，必须 ≤{hi_i} 且不宜远低于 {lo_i}）。",
+        "先按栏目写全、写通顺的一版，再整体压缩或扩写使合计落入区间；"
+        "禁止截断半句、禁止硬砍导致语病。",
+        "【严禁写入正文】字段值与正文中不得出现「约N字」「全文合计…字」「字数」等元说明；"
+        "字数只用于你内部控制，不要输出。",
+        f"约 {n_fields} 栏，平均每栏约 {per} 字。{dens}。句句有据。",
+    ]
+
+
+# 正文中不应出现的字数元说明（整行或行尾）
+_CHAR_META_LINE_RE = re.compile(
+    r"^\s*(?:>\s*)?(?:全文(?:合计)?|合计|共计)?\s*约?\s*"
+    r"\d+\s*(?:[-–—~～至到]\s*\d+\s*)?字\s*[。．.]?\s*$"
+)
+_CHAR_META_TAIL_RE = re.compile(
+    r"(?:\s|[，,；;。．])?(?:全文(?:合计)?|合计|共计)?\s*约\s*"
+    r"\d+(?:\s*[-–—~～至到]\s*\d+)?\s*字\s*[。．.]?\s*$"
+)
+
+
+def strip_char_budget_meta(text: str) -> str:
+    """从渲染正文中剔除字数元说明（如「约250字」「全文合计约200-300字」）。"""
+    if not text:
+        return text or ""
+    out: list[str] = []
+    for line in text.splitlines(keepends=True):
+        ended = line.endswith("\n")
+        body = line[:-1] if ended else line
+        if _CHAR_META_LINE_RE.match(body.strip()):
+            continue
+        cleaned = _CHAR_META_TAIL_RE.sub("", body).rstrip()
+        if cleaned.strip() == "" and body.strip() != "":
+            # 整行被剥成空 → 丢弃
+            continue
+        out.append(cleaned + ("\n" if ended else ""))
+    # 去掉文末多余空行
+    result = "".join(out)
+    result = re.sub(r"\n{3,}", "\n\n", result)
+    return result.rstrip() + ("\n" if text.endswith("\n") else "")
+
+
+def strip_outer_markdown_fence(text: str) -> str:
+    """剥掉模型误加的最外层 Markdown 代码围栏（``` / ```text / ```markdown 等）。
+
+    只处理包住**整段**输出的外层 fence；正文内部的代码块示例不碰。
+    可重复剥离（最多 3 层）。通用、不绑定业务内容。
+    """
+    if not text:
+        return text or ""
+    s = text.strip()
+    if not s:
+        return ""
+    for _ in range(3):
+        m = re.match(
+            r"^```[a-zA-Z0-9_+-]*[ \t]*\r?\n([\s\S]*?)\r?\n[ \t]*```[ \t]*$",
+            s,
+        )
+        if m:
+            s = m.group(1).strip()
+            continue
+        # 容错：首行 ```xxx，末行单独 ```
+        if s.lstrip().startswith("```"):
+            lines = s.splitlines()
+            if len(lines) >= 2 and lines[0].lstrip().startswith("```"):
+                # 找最后一个仅含 ``` 的行
+                end_i = None
+                for i in range(len(lines) - 1, 0, -1):
+                    if re.fullmatch(r"[ \t]*```[ \t]*", lines[i]):
+                        end_i = i
+                        break
+                if end_i is not None and end_i > 0:
+                    s = "\n".join(lines[1:end_i]).strip()
+                    continue
+        break
+    # fence 剥离后残留的语言标签行
+    s = re.sub(
+        r"^(?:text|markdown|md|plaintext|json)\s*\r?\n",
+        "",
+        s,
+        count=1,
+        flags=re.I,
+    )
+    return s
 
 
 def _build_placeholder_user(context: str, template: str, segments: list[dict]) -> str:
     lines = [
-        "本模板已判定为【类型一：占位符模板】，请直接按「保留固定文字、仅替换占位符、"
-        "输出与模板结构对齐」执行。",
-        "模板正文里的数量/字数/范围等说明（如约3行、约200字）必须遵守，不要全量堆砌。",
-        "各小节/各表只填该位置应有的内容，不要把 A 节内容写进 B 节。",
-        "模板结构已由系统解析如下：",
+        "类型：占位符模板。保留固定文字与表结构，只替换 [占位]。",
+        "有据才写；无依据「未提及」；禁止照抄「如：」示范；禁止编造原文没有的环节/数字/履历。",
+        "谁做了什么、数值日期以原文为准；预计/可能不要写成已定事实。",
+        "模板点名的栏目都要覆盖：从原文提炼与该栏主题相关的信息，勿因「无同名小标题」就空写。",
+        "顿号或「与/和/及」连接的主题分别写清；流程只按原文真实顺序。",
+        "语句完整通顺，无缺字、无半截句。",
+        *_char_budget_lines(template),
+        "模板结构解析：",
     ]
     field_no = 0
     for seg in segments:
@@ -362,11 +475,17 @@ def validate_rendered_output(
         if leftovers:
             errors.append(f"输出残留占位符：{'、'.join(leftovers)}")
         segments = parse_placeholder_template(template)
-        fixed = [
-            s["text"].strip()
-            for s in segments
-            if s["kind"] == "text" and len(s["text"].strip()) >= 4
-        ]
+        fixed = []
+        for s in segments:
+            if s["kind"] != "text":
+                continue
+            raw = s["text"].strip()
+            if len(raw) < 4:
+                continue
+            # 空表行/仅竖线空白（如「| | | | | |」）不算必须保留的固定文案
+            if not re.sub(r"[\s|:\-]+", "", raw):
+                continue
+            fixed.append(raw)
         # 归一化空白后再比对，避免换行差异误报
         rendered_norm = re.sub(r"\s+", " ", rendered)
         missing_fixed = 0
@@ -592,16 +711,45 @@ _PLACEHOLDER_FILL_SYSTEM = """你是占位符填充器。根据「内容来源�
   ]
 }
 
-通用规则（适用于任意模板，不要假设固定栏目名）：
+## 输出约定
 1. fields 的 key 为字符串数字，与标量字段清单编号一致
-2. tables[i] 对应第 i 个表格行模板；列顺序与该表字段清单一致
-3. **以模板原文为准**：模板里写明的字数、条数/行数、范围、语气等约束必须遵守
-   （例如「约200字」「约3行」「不超过5条」→ 控制体量，精选最重要内容，禁止全量堆砌）
-4. 每个小节/每张表只填该位置应有的信息；不要把某一节的内容写进另一节/另一张表
-5. 有可写内容时不要交空表、不要输出全空单元格行；信息不足写「未提及」或「—」
-6. 多选一字段只能取枚举中的一项
-7. 值中不要保留方括号占位符
-8. 仅一张表时也可用兼容字段 rows（= tables[0]）"""
+2. tables[i] 对应第 i 个表格行模板；只输出数据行单元格，不要表头
+3. 多选一只能取枚举中的一项；值中不要残留 [占位符]
+4. 仅一张表时也可用 rows（= tables[0]）
+5. **字段值只写该栏正文内容**，不要写 Markdown 标题（# / ##），不要重复栏目标题作前缀
+6. **严禁**在任何字段值中写「约N字」「全文合计…字」「字数」等元说明
+7. **严禁**用 ``` / ```text 等代码围栏包裹字段值或整段输出
+
+## 结构（标题由模板固定文字负责）
+- 模板里的 `## 栏目标题` 是固定文字，程序会原样保留；你只填方括号对应的正文
+- 不要把某一栏的正文填进「文档总标题」占位里冒充栏目；有独立栏目就填到对应编号字段
+
+## 语句通顺
+- 每个字段值须是完整通顺的中文（或指令要求的短语），主谓齐全，无缺字漏字、无重复赘字、无半截句
+- 禁止把多个字段内容机械粘成病句；并列信息用顿号/逗号理顺
+
+## 篇幅与信息量（两遍法）
+- 仅模板总述/固定文字中的「约 x / a-b 字」约束全文；占位内「100字以内」只限该栏
+- 先按各栏主题写全实质内容，再对照全文区间整体调节
+- 模板写「简洁 / 粗略 / 概要 / 无需深入」时：省略展开论证与次要枝节，但**每栏仍须写清原文中与该栏相关的主要事实与要点**（可多句），禁止每栏只剩一句空泛套话而丢掉可写的关键信息
+- 全部字段汉字合计必须落在声明区间内，目标靠近区间中位；禁止截断半句
+
+## 忠实
+- 句句有据；禁止照抄「如：」示范；禁止用外部常识/百科补履历、成果或评价
+- 身份/称谓栏只写原文出现的名字与角色
+- 归属/数字/日期忠实原文；预计/可能/有望保持原语气，勿改成已发生
+
+## 覆盖（栏目主题）
+- 每个占位/每栏都填：按栏目标题与占位说明的主题，从内容来源提炼对应信息
+- 仅当来源对该栏主题完全无信息时，才按默认写法（如「未提及」）
+- 栏目标题或占位说明中用「与/和/及」并列的两侧主题，字段正文内须分别写清，勿混成一锅
+- 压缩时优先保留关键结论、数字、责任人与时限；不另开无关栏
+
+## 表格
+- 列对齐；一行一条数据；人名/公司名等用内容来源原文，禁止沿用「如：」示范名
+- 数字若原文是预计/有望/可能，单元格内保留该语气
+- 无则按默认写法（如「未提及」）
+"""
 
 
 def build_placeholder_fill_user(
@@ -613,13 +761,19 @@ def build_placeholder_fill_user(
     """构造字段 JSON 填充的用户消息。"""
     plan = plan_placeholder_fill(template)
     lines = [
-        "请根据「内容来源」填充模板，只输出 JSON。",
-        "务必通读【模板原文】中的全部说明与约束（字数、行数、栏目分工等），并严格遵守。",
+        "根据内容来源填充模板，只输出 JSON。",
+        "固定标题/表头由模板保留，你只填 [占位] 正文；字段值里不要写 #/## 标题，不要重复栏目标题前缀。",
+        "有据才写；某栏主题在来源中完全无信息时才「未提及」。",
+        "勿照抄「如：」示例；勿张冠李戴；勿改数字；勿用百科补履历；勿虚构原文没有的内容。",
+        "各栏按主题分别写清；「与/和/及」并列主题勿揉成一句糊涂话。",
+        "简洁/粗略≠空洞：每栏写清该栏主要事实与要点，可多句。",
+        *_char_budget_lines(template),
+        "语句完整通顺，无半截句；严禁输出「约N字」等字数元说明。",
         "",
         "【内容来源】",
         context,
         "",
-        "【模板原文】（约束以这里为准）",
+        "【模板原文】",
         template,
         "",
         "【标量字段清单】（不含表格行内字段）",
@@ -721,27 +875,53 @@ async def _client_text(
     *,
     json_mode: bool = False,
     temperature: float = 0.0,
+    use_cache: bool = False,
 ) -> str:
-    """低温度调用 client.text；兼容无额外参数的 LLMClient。"""
-    prev_temp = getattr(client, "temperature", None)
+    """统一走 client.text 的 per-call 参数（温度/JSON/缓存）。"""
     try:
-        if prev_temp is not None:
-            client.temperature = temperature
-        # 优先走 text；json_mode 时尽量用 _post
-        if json_mode and hasattr(client, "_post"):
-            messages = [
-                {"role": "system", "content": system},
-                {"role": "user", "content": user},
-            ]
-            import asyncio
+        return (
+            await client.text(
+                system,
+                user,
+                temperature=temperature,
+                json_mode=json_mode,
+                use_cache=use_cache,
+            )
+        ).strip()
+    except TypeError:
+        # 兼容旧版 text() 无关键字参数
+        prev_temp = getattr(client, "temperature", None)
+        try:
+            if prev_temp is not None:
+                client.temperature = temperature
+            if json_mode and hasattr(client, "_post"):
+                import asyncio
 
-            return (
-                await asyncio.to_thread(client._post, messages, json_mode=True)
-            ).strip()
-        return (await client.text(system, user)).strip()
-    finally:
-        if prev_temp is not None:
-            client.temperature = prev_temp
+                messages = [
+                    {"role": "system", "content": system},
+                    {"role": "user", "content": user},
+                ]
+                return (
+                    await asyncio.to_thread(
+                        client._post, messages, json_mode=True
+                    )
+                ).strip()
+            return (await client.text(system, user)).strip()
+        finally:
+            if prev_temp is not None:
+                client.temperature = prev_temp
+
+
+def _body_han_count(text: str) -> int:
+    """正文汉字数（去掉 Markdown 标题行），供填充篇幅自检。"""
+    lines: list[str] = []
+    for line in (text or "").splitlines():
+        if re.match(r"^\s*#{1,6}\s+", line):
+            continue
+        if (line or "").strip().startswith("<!--"):
+            continue
+        lines.append(line)
+    return len(re.findall(r"[\u4e00-\u9fff]", "\n".join(lines)))
 
 
 async def fill_placeholder_template(
@@ -753,6 +933,7 @@ async def fill_placeholder_template(
 
     约束（行数/字数/栏目分工等）全部由 prompt + 模板正文表达；
     代码只做通用结构拼装与校验（残留占位符、固定文字、去空行）。
+    若模板有字数提示且明显偏短，会再给一轮「扩写」修订（不写进用户正文）。
     """
     if not template or not template.strip():
         return None
@@ -762,9 +943,17 @@ async def fill_placeholder_template(
     if not plan["scalars"] and not plan["row_templates"]:
         return None
 
+    try:
+        from tools.template_eval import parse_document_char_budget
+    except Exception:  # noqa: BLE001
+        parse_document_char_budget = None  # type: ignore[assignment]
+    budget = (
+        parse_document_char_budget(template) if parse_document_char_budget else {}
+    )
+
     revision = ""
     try:
-        for attempt in range(2):
+        for attempt in range(3):
             raw = await _client_text(
                 client,
                 _PLACEHOLDER_FILL_SYSTEM,
@@ -772,7 +961,7 @@ async def fill_placeholder_template(
                     context, template, revision_notes=revision
                 ),
                 json_mode=True,
-                temperature=0.0,
+                temperature=0.0 if attempt == 0 else 0.2,
             )
             fields, rows, tables = parse_fill_response(raw)
             if not tables and rows:
@@ -780,29 +969,73 @@ async def fill_placeholder_template(
             while len(tables) < len(plan["row_templates"]):
                 tables.append([])
             tables = normalize_fill_tables(tables, plan["row_templates"])
+            # 字段值内若误写字数元说明 / 代码围栏，先剥掉再拼装
+            fields = {
+                k: strip_char_budget_meta(strip_outer_markdown_fence(v)).strip()
+                if isinstance(v, str)
+                else v
+                for k, v in fields.items()
+            }
             assembled = assemble_placeholder_output(
                 template,
                 fields,
                 tables=tables,
             )
-            issues = validate_rendered_output(
-                assembled, template, kind="placeholder"
-            )
-            if not issues:
+            assembled = strip_outer_markdown_fence(assembled)
+            assembled = strip_char_budget_meta(assembled)
+            # 篇幅自检：偏短扩写、偏长压缩（不改结构、不写进用户正文）
+            lo = budget.get("lo") if isinstance(budget, dict) else None
+            hi = budget.get("hi") if isinstance(budget, dict) else None
+            if (lo or hi) and attempt < 2:
+                han = _body_han_count(assembled)
+                lo_i = int(lo or 0)
+                hi_i = int(hi or 0)
+                if lo_i and han < int(lo_i * 0.85):
+                    revision = (
+                        f"当前各字段合计约 {han} 字，少于模板约 {lo_i}–{hi_i or lo_i} 字。"
+                        "请在保持结构与忠实原文的前提下整体扩写："
+                        "为各节补充原文已有的具体事实、推进与结论，语句通顺完整，"
+                        "使合计接近区间中位；勿空话注水、勿截断半句、勿写字数说明。"
+                    )
+                    logger.info(
+                        "占位符填充偏短（%s<%s），attempt=%s 请求扩写",
+                        han,
+                        lo_i,
+                        attempt + 1,
+                    )
+                    continue
+                if hi_i and han > hi_i:
+                    target = (lo_i + hi_i) // 2 if lo_i else max(hi_i - 40, hi_i * 4 // 5)
+                    revision = (
+                        f"当前各字段合计约 {han} 字，超过模板上界 {hi_i} 字。"
+                        f"请整体压缩改写到约 {target}–{hi_i} 字（不是截断半句）："
+                        "每节改短句、删套话与次要枝节，保留关键结论、数字与归属；"
+                        "压缩后语句仍须完整通顺；勿改结构、勿虚构。"
+                    )
+                    logger.info(
+                        "占位符填充偏长（%s>%s），attempt=%s 请求压缩",
+                        han,
+                        hi_i,
+                        attempt + 1,
+                    )
+                    continue
+            # 强执行：截断/去粘连/空表占位后再验收
+            from tools.hard_execution import gate_render_output
+
+            gate = gate_render_output(template, assembled)
+            assembled = gate["text"]
+            issues = list(gate.get("issues") or [])
+            if gate.get("gate_ok"):
                 return assembled
             revision = "\n".join(f"- {x}" for x in issues)
             logger.info(
-                "占位符填充未过结构校验（attempt=%s）：%s",
+                "占位符填充未过门禁（attempt=%s）：%s",
                 attempt + 1,
                 "；".join(issues),
             )
-            if attempt == 1:
-                # 结构类硬伤才丢弃；否则交付第二次结果
-                hard = [
-                    x
-                    for x in issues
-                    if "残留占位符" in x or "固定文字丢失" in x or "输出为空" in x
-                ]
+            if attempt >= 1:
+                # 多轮后仍无硬伤则接受当前拼装，交给上层 freeform/repair 的情况仅在硬伤时
+                hard = list(gate.get("hard_issues") or [])
                 if not hard:
                     return assembled
         return None
@@ -851,6 +1084,206 @@ def _parse_count_token(token: str) -> int | None:
     return mapping.get(token)
 
 
+def _split_aspect_connectors(phrase: str) -> list[str]:
+    """把「A与B」「A和B」「A及B」拆成并列要点（两侧都像短主题名时才拆）。
+
+    例：要点概述与补充说明 → [要点概述, 补充说明]
+    不拆：与会者、和平、以及（整词）、过长从句
+    """
+    phrase = (phrase or "").strip()
+    if not phrase or not re.search(r"[与和及]", phrase):
+        return [phrase] if phrase else []
+    # 避免拆开「与会」「以及」等
+    if "与会" in phrase or phrase.startswith("以及"):
+        return [phrase]
+    # 仅当连接词两侧都是短名词短语时拆分
+    parts = re.split(r"[与和及]", phrase)
+    parts = [p.strip() for p in parts if p.strip()]
+    if len(parts) < 2:
+        return [phrase]
+    if all(
+        2 <= len(p) <= 12 and re.fullmatch(r"[\u4e00-\u9fffA-Za-z0-9]+", p)
+        for p in parts
+    ):
+        return parts
+    return [phrase]
+
+
+def extract_listed_aspects(description: str) -> list[str]:
+    """从自然语言里抽出并列要点名（顿号 / 与 / 和 / 及），用于编译保真。
+
+    例：
+    - 「概括背景、对象、核心目的」→ 三项
+    - 「整体梳理流程与核心脉络」→ [流程, 核心脉络]
+    """
+    text = description or ""
+    aspects: list[str] = []
+
+    def _strip_lead(chunk: str) -> str:
+        # 可叠剥引导语：整体梳理…、概括…、只要三部分：…、只要…
+        prev = None
+        while prev != chunk:
+            prev = chunk
+            chunk = re.sub(
+                r"^(?:请)?(?:约?\d+\s*[-–—~～]?\s*\d*\s*字)",
+                "",
+                chunk,
+            ).strip(" ，,：:")
+            chunk = re.sub(
+                r"^(?:只要|仅需|只需|需要)(?:约)?"
+                r"(?:[一二三四五六七八九十两\d]+\s*(?:部分|段|块|节|点))?"
+                r"[：:，,\s]*",
+                "",
+                chunk,
+            ).strip(" ，,：:")
+            chunk = re.sub(
+                r"^(?:约)?"
+                r"[一二三四五六七八九十两\d]+\s*(?:部分|段|块|节|点)"
+                r"[：:，,\s]*",
+                "",
+                chunk,
+            ).strip(" ，,：:")
+            chunk = re.sub(
+                r"^(?:整体|分别|依次|逐一|并|再|并请)",
+                "",
+                chunk,
+            ).strip(" ，,：:")
+            chunk = re.sub(
+                r"^(?:用[^，,]{0,12})?(?:概括|梳理|说明|写清|写明|覆盖|包含|包括|"
+                r"总结|提炼|描述|介绍|回顾)",
+                "",
+                chunk,
+            ).strip(" ，,：:")
+            # 尾部数量壳：「…两段」「…三部分」
+            chunk = re.sub(
+                r"(?:约)?[一二三四五六七八九十两\d]+\s*(?:部分|段|块|节|点)$",
+                "",
+                chunk,
+            ).strip(" ，,：:")
+        return chunk
+
+    def _clean_piece(p: str) -> str:
+        p = (p or "").strip()
+        p = re.sub(r"^(?:以及|和|与|及)", "", p).strip()
+        p = _strip_lead(p)
+        return p.strip()
+
+    # 按句号/分号/逗号切开，再在片段内处理顿号与「与/和/及」
+    for chunk in re.split(r"[。；;\n，,]", text):
+        chunk = chunk.strip()
+        if not chunk:
+            continue
+        # 纯字数约束片段跳过
+        if re.fullmatch(r"(?:约?\d+\s*[-–—~～]?\s*\d*\s*字)", chunk):
+            continue
+        if "、" not in chunk and not re.search(r"[与和及]", chunk):
+            continue
+        chunk = _strip_lead(chunk)
+        if not chunk:
+            continue
+        pieces = (
+            [p.strip() for p in chunk.split("、") if p.strip()]
+            if "、" in chunk
+            else [chunk]
+        )
+        for p in pieces:
+            p = _clean_piece(p)
+            if not p:
+                continue
+            for sub in _split_aspect_connectors(p):
+                sub = _clean_piece(sub)
+                # 过滤纯数字/字数
+                if re.fullmatch(r"[\d\s\-–—~～字约]+", sub):
+                    continue
+                if 2 <= len(sub) <= 16 and re.search(r"[\u4e00-\u9fff]", sub):
+                    aspects.append(sub)
+
+    # 去重保序
+    seen: set[str] = set()
+    out: list[str] = []
+    for a in aspects:
+        if a not in seen:
+            seen.add(a)
+            out.append(a)
+    return out
+
+
+def _strip_heading_number(title: str) -> str:
+    """去掉「一、」「1.」「## 」等编号前缀，便于比对栏目名。"""
+    t = (title or "").strip()
+    t = re.sub(r"^#{1,6}\s*", "", t)
+    t = re.sub(r"^[0-9一二三四五六七八九十两]+[、.．\s]+", "", t)
+    return t.strip()
+
+
+def _heading_covers_aspect_alone(
+    title: str, aspect: str, all_aspects: list[str]
+) -> bool:
+    """标题是否单独承载某一并列要点（拒绝「A与B」合并标题冒充两侧都覆盖）。"""
+    clean = _strip_heading_number(title)
+    if not clean or aspect not in clean:
+        return False
+    others = [a for a in all_aspects if a != aspect and a in clean]
+    if others and re.search(r"[与和及、]", clean):
+        return False
+    return True
+
+
+def _heading_line_is_placeholder_only(heading_inner: str) -> bool:
+    """标题行内容是否几乎只是一个占位（如 ``[写背景]``），没有固定栏目名。"""
+    inner = (heading_inner or "").strip()
+    # 去掉编号后再看
+    inner = _strip_heading_number(inner)
+    if not inner:
+        return True
+    # 整段就是一个 [占位]
+    if re.fullmatch(r"\[[^\[\]]+\]", inner):
+        return True
+    # 去掉所有占位后几乎没有中文固定字
+    fixed = re.sub(r"\[[^\[\]]+\]", "", inner).strip()
+    return not re.search(r"[\u4e00-\u9fffA-Za-z]{2,}", fixed)
+
+
+def _aspect_has_fixed_heading(
+    aspect: str, compiled: str, all_aspects: list[str]
+) -> bool:
+    """并列要点是否有**固定文字**小节标题（栏目名可见，非「标题即占位」）。"""
+    for m in re.finditer(r"(?m)^(#{1,3})\s+(.+)$", compiled or ""):
+        raw_title = m.group(2).strip()
+        if _heading_line_is_placeholder_only(raw_title):
+            continue
+        if _heading_covers_aspect_alone(raw_title, aspect, all_aspects):
+            return True
+    for m in re.finditer(
+        r"(?m)^\s*(?:[0-9]+[\.、]|[一二三四五六七八九十]+[、.])\s*(\S.+)$",
+        compiled or "",
+    ):
+        raw_title = m.group(1).strip()
+        if _heading_line_is_placeholder_only(raw_title):
+            continue
+        if _heading_covers_aspect_alone(raw_title, aspect, all_aspects):
+            return True
+    return False
+
+
+def _aspect_has_own_slot(
+    aspect: str, compiled: str, all_aspects: list[str]
+) -> bool:
+    """并列要点是否拥有独立小节标题或独立占位说明。"""
+    if _aspect_has_fixed_heading(aspect, compiled, all_aspects):
+        return True
+    # 占位说明单独点名该要点，且同占位未同时塞进另一并列要点
+    for m in _PLACEHOLDER_RE.finditer(compiled or ""):
+        hint = m.group(1)
+        if aspect not in hint:
+            continue
+        others = [a for a in all_aspects if a != aspect and a in hint]
+        if others and re.search(r"[与和及、]", hint):
+            continue
+        return True
+    return False
+
+
 def check_compile_fidelity(description: str, compiled: str) -> list[str]:
     """检查编译结果是否忠实于用户描述；返回问题列表（空=通过）。"""
     issues: list[str] = []
@@ -866,6 +1299,61 @@ def check_compile_fidelity(description: str, compiled: str) -> list[str]:
     cues = extract_description_cues(description)
     flags: set[str] = cues["flags"]
     compiled_l = compiled
+
+    # 用户用顿号/与/和/及并列的多个要点 → 必须各有独立**固定标题**小节 + 占位
+    aspects = extract_listed_aspects(description)
+    if len(aspects) >= 2:
+        missing_heading = [
+            a
+            for a in aspects
+            if not _aspect_has_fixed_heading(a, compiled_l, aspects)
+        ]
+        if missing_heading:
+            issues.append(
+                "用户并列要求的要点缺少固定小节标题（栏目名须写成 ## 固定文字，"
+                "内容放在标题下的占位里，禁止用「# [整段内容]」吞掉栏目名）："
+                + "、".join(missing_heading[:6])
+            )
+        missing_own = [
+            a for a in aspects if not _aspect_has_own_slot(a, compiled_l, aspects)
+        ]
+        if missing_own and not missing_heading:
+            issues.append(
+                "用户并列要求的要点未各自拆成独立小节/占位："
+                + "、".join(missing_own[:6])
+                + "（禁止合并成「A与B」一个标题）"
+            )
+        # 只有 1 个占位却要求多个方面 → 覆盖不足
+        if len(fields) < min(len(aspects), 3) and len(aspects) >= 3:
+            issues.append(
+                f"用户列了 {len(aspects)} 个要点，但模板仅 {len(fields)} 个占位，"
+                "请按要点拆成多个小节"
+            )
+        # 仍存在「A与B」合并标题，且 A、B 都是用户并列要点 → 明确报错
+        for m in re.finditer(r"(?m)^#{1,3}\s+(.+)$", compiled_l):
+            clean = _strip_heading_number(m.group(1))
+            if not re.search(r"[与和及]", clean):
+                continue
+            hit = [a for a in aspects if a in clean]
+            if len(hit) >= 2:
+                issues.append(
+                    f"标题 {m.group(1).strip()!r} 把并列要点合并了，"
+                    "请拆成各自独立的 ## 小节"
+                )
+                break
+        # 字数约束不得出现在固定文字行
+        outer = re.sub(r"\[[^\[\]]*\]", " ", compiled_l)
+        if re.search(r"(?:约\s*)?\d+\s*[-–—~～]?\s*\d*\s*字", outer):
+            issues.append(
+                "字数约束写进了固定文字，会泄漏到正文；请只写在占位说明内"
+            )
+
+    # 「不遗漏关键…」是质量要求，不应单独开栏导致超字数
+    if re.search(r"不遗漏关键|勿漏关键|不要遗漏关键", description or ""):
+        if re.search(r"(?m)^##\s*关键", compiled_l):
+            issues.append(
+                "「不遗漏关键要点」无需单独开「## 关键…」节，请并入流程/脉络并控制总字数"
+            )
 
     # 用户点名的结构应有对应痕迹（固定字或占位说明）
     flag_needles: dict[str, list[str]] = {
@@ -936,59 +1424,94 @@ def _build_compile_system(
             f"当前任务上下文：domain={domain or '未知'}，任务线={line_name or '未知'}。"
         )
     if schema_hint.strip():
-        ctx_lines.append(f"可用的上游内容字段（占位符说明应对齐这些来源，勿编造其它栏目）：\n{schema_hint.strip()}")
+        ctx_lines.append(
+            f"可用的上游内容字段（占位说明对齐这些来源，勿编造其它栏目）：\n{schema_hint.strip()}"
+        )
     ctx_block = ("\n".join(ctx_lines) + "\n\n") if ctx_lines else ""
 
     revision = ""
     if revision_notes.strip():
         revision = (
-            "\n\n【上次编译未通过保真检查，请按下列意见修正】\n"
+            "\n\n【上次编译未通过保真检查，请修正】\n"
             f"{revision_notes.strip()}\n"
-            "务必删除用户未要求的栏目，补全用户点名但缺失的结构。\n"
+            "删除用户未要求的栏目；补全用户点名结构；控制总字数提示。\n"
         )
 
-    return f"""你是模板编译器。用户用自然语言描述想要的输出格式，请把它编译成「给人看、也好改」的占位符模板。
-{ctx_block}【读者是最终用户，不是程序员】
-模板必须一眼能懂，像一张可编辑的稿纸：
-- 用简短中文标题/小标题组织（如 ## 进展），不要写长段系统指令
-- 固定文字直接写出来（用户可改）
-- 需要系统填的内容用方括号，括号里写短中文说明，读起来像「填空」
-  好： [会议主题]  [纪要正文，约200字]  [风险描述]
-  差： [根据已审核通过的会议分析结果中的 executive_summary 字段提取……]
-- 说明控制在一句话内；默认写法用「未提及」即可
-- 表格用简单 Markdown；表头用中文；**每个表只保留 1 行占位行模板**
-- 用户说「三行左右/约N行」时：必须在对应小节标题写上（约N行），供后续填充限行
-- 用户说「约K字」时：写进对应占位说明（如 [纪要正文，约200字]）
-- 不要输出 JSON schema、不要输出「规则/注意/说明」段落、不要代码块包装
+    return f"""你是模板编译器：把中文用户用自然语言描述的"输出格式要求"，精确编译成一个可编辑的占位符模板。
+{ctx_block}
 
-「占位符模板」形式示例（仅示范风格，勿照抄栏目）：
-# [标题]
+## 第一步：先解析用户意图（在脑中完成，不要输出）
+动手编译前，把描述拆成四层，缺的层按中文表达习惯补全：
+1. **结构**：用户要哪几个部分（标题 / 元信息行 / 段落 / 列表 / 表格），先后顺序
+2. **位置与固定文字**：哪些文字原样保留（标题、括号、标签、分隔符），哪些位置是可变占位
+3. **体裁参照**：用户说"类似 / 像 …一样"时，该体裁的常规形态是什么
+4. **约束与偏好**：数量、字数、行数、风格（正式/简洁/突出重点）、排除项（"不要…"）
 
-## 会议纪要
-[纪要正文，约200字]
+## 中文表达习惯（帮助理解省略与隐含结构）
+- **句间承接**：中文口语常省略主语，一句接一句的隐含顺序 = 表述顺序
+- **"XX 一行"** → 该部分占一行
+- **"括号里写 XX"** → 括号是固定文字，括号内是占位
+- **"然后 / 接着 / 最后"** → 结构顺序
+- **"类似 / 像 …一样"** → 体裁参照，不新增用户没点的栏目
+- **"不要 / 别加 / 不用 …"** → 明确排除
+- **数量词**："几行 / 约 N 字 / 三条" → 约束，只进占位说明
 
-## 风险识别（约3行）
-| 风险描述 | 影响程度 | 应对建议 |
-| --- | --- | --- |
-| [风险描述] | [高/中/低] | [应对建议] |
+## 忠实于用户描述（最重要）
+1. 只保留用户点名的结构，不增不减；顺序与用户表述一致
+2. **栏目名 = 固定标题（强制）**：用户点名的每个写作栏目（如用顿号/与/和/及列出的
+   「背景、对象、目的…」）必须写成：
+   ```text
+   ## 栏目名
+   [该栏正文占位说明…]
+   ```
+   - `## 栏目名` 是**固定文字**（用户打开文档能看见的标题），禁止省略
+   - 正文只写在标题下方的 `[占位]` 里
+   - **禁止**把栏目正文写进一级标题占位：`# [一大段背景…]`（这会导致「没有标题、只有内容」）
+   - **禁止**合并：`## A与B` + 一个占位；必须 `## A` / `## B` 各一节
+3. 用户说"类似 XX" → 对齐该体裁常规形态，仍以用户点名部分为准
+4. 数量 / 字数 / 行数约束：
+   - "约 200 字" / "200-300 字" → **只**写进某个占位的说明文字内
+     （如 `[…；全文合计约200-300字]`），**绝对禁止**写成单独一行固定文字或引用块
+     （否则会出现在用户正文里，如「约250字」）
+   - "三行" / "三条" → 对应数量占位或在说明里注明
+   - "简洁 / 粗略" → 写进占位说明（省略次要枝节，但仍须覆盖该栏主要事实），不删栏目
 
-## 待办事项（约3行）
-| 待办事项 | 负责人 | 截止时间 |
-| --- | --- | --- |
-| [待办事项] | [负责人] | [截止时间] |
+## 占位符写法
+- [短中文说明]：填什么 + 从原文哪类信息提炼 + 信息不足怎么办
+- 禁止在占位里写具体答案示范（如「如：张三」）
+- 默认空值：用户指定则用用户的，否则「未提及」
+- 不要单独增加一个「字数说明」占位或固定行
 
-【忠实优先——最重要】
-1. 只保留用户明确要求的区块；用户没点名的章节/字段/表格一律不要加
-2. 禁止按「标准会议纪要/笔记惯例」自行扩写
-3. 描述很短或出现「只要/仅要/简洁」时，输出必须短小
-4. 有歧义写在短占位说明里，不要静默发明栏目
-5. 用户提到的数量/字数约束必须写进模板固定文字或占位说明
-   （后续填充只读模板正文，代码不会单独解析业务规则）
-6. 若完全无法理解，只输出：__NEED_CLARIFICATION__
+## 描述模糊时的处理
+- 有歧义时按最自然的理解补全，并在占位说明标注「按理解」
+- 拿不准时宁可少加结构，不要擅自补栏目
+- 完全无法理解 → 只输出 __NEED_CLARIFICATION__
 
-其它：
-- 只输出模板正文本身
-- 占位说明用白话，不要写系统字段英文名
+## 示例（仅演示写法，不是目标结构）
+用户："约200字，概括主题甲、主题乙，并梳理推进过程与主线结论"
+正确编译：
+```text
+## 主题甲
+[从原文提炼与本栏相关的信息，通顺完整句；无则写「未提及」]
+
+## 主题乙
+[从原文提炼与本栏相关的信息；无则写「未提及」]
+
+## 推进过程
+[按原文真实顺序梳理；全文合计约200字]
+
+## 主线结论
+[概括主线观点；无则写「未提及」]
+```
+错误编译（禁止）：
+```text
+# [把主题甲的内容直接当一级标题]
+## 主题乙
+…
+约200字
+```
+
+只输出编译后的模板正文，不要解释；**禁止**用 Markdown 代码围栏（``` 或 ```text）包裹整段输出。
 {revision}"""
 
 
@@ -1014,6 +1537,40 @@ def clear_compile_caches() -> None:
     """测试/调试用：清空编译缓存与失败计数。"""
     _COMPILE_CACHE.clear()
     _COMPILE_FAIL_COUNTS.clear()
+
+
+def _ensure_document_char_budget_line(source: str, compiled: str) -> str:
+    """若自然语言源有全文字数而编译结果丢失，把全文预算写入首个占位说明。
+
+    不写进固定文字行，避免 assemble 后用户正文出现「全文约××字」。
+    """
+    try:
+        from tools.template_eval import parse_document_char_budget
+    except Exception:  # noqa: BLE001
+        return compiled
+    src_b = parse_document_char_budget(source or "")
+    if not src_b.get("hi"):
+        return compiled
+    dst_b = parse_document_char_budget(compiled or "")
+    if dst_b.get("hi"):
+        return compiled
+    lo, hi = src_b.get("lo"), src_b.get("hi")
+    if lo and hi:
+        hint = f"全文合计约{int(lo)}-{int(hi)}字"
+    else:
+        hint = f"全文合计约{int(hi)}字"
+    body = compiled or ""
+    if hint in body or re.search(r"全文(?:合计)?约?\s*\d+", body):
+        return compiled
+    # 注入第一个 [占位]
+    m = re.search(r"\[[^\[\]]+\]", body)
+    if not m:
+        return compiled
+    inner = m.group(0)[1:-1].strip()
+    if "全文" in inner:
+        return compiled
+    new_ph = f"[{inner}；{hint}]"
+    return body[: m.start()] + new_ph + body[m.end() :]
 
 
 async def maybe_compile_natural_template(
@@ -1056,16 +1613,20 @@ async def maybe_compile_natural_template(
                 revision_notes=revision,
             )
             compiled = (
-                await _client_text(client, system, text, temperature=0.0)
+                await _client_text(
+                    client,
+                    system,
+                    text,
+                    temperature=0.0,
+                    use_cache=(attempt == 0 and not revision),
+                )
             ).strip()
             last_compiled = compiled
             if not compiled or compiled == "__NEED_CLARIFICATION__":
                 revision = "输出无法使用：请生成含 [占位符] 的模板，不要解释。"
                 continue
-            # 去掉偶尔包裹的代码块
-            if compiled.startswith("```"):
-                compiled = re.sub(r"^```(?:markdown|md)?\s*", "", compiled)
-                compiled = re.sub(r"\s*```$", "", compiled).strip()
+            # 去掉模型误包的代码围栏（```text / ```markdown 等）
+            compiled = strip_outer_markdown_fence(compiled)
             if detect_template_kind(compiled) != "placeholder":
                 revision = "结果缺少 [占位符]：请把可变部分写成 [说明] 形式。"
                 continue
@@ -1078,6 +1639,7 @@ async def maybe_compile_natural_template(
                     "；".join(fidelity),
                 )
                 continue
+            compiled = _ensure_document_char_budget_line(text, compiled)
             _COMPILE_CACHE[key] = compiled
             _COMPILE_FAIL_COUNTS.pop(key, None)
             return compiled
@@ -1085,6 +1647,7 @@ async def maybe_compile_natural_template(
         # 两次都未完美：若最后一稿至少是 placeholder，降级采用并打 warning
         if last_compiled and detect_template_kind(last_compiled) == "placeholder":
             soft = check_compile_fidelity(text, last_compiled)
+            last_compiled = _ensure_document_char_budget_line(text, last_compiled)
             logger.warning(
                 "自然语言模板保真未完全通过，仍采用编译结果（issues=%s）",
                 "；".join(soft) if soft else "n/a",
@@ -1111,7 +1674,7 @@ LINE_SCHEMA_HINTS: dict[str, str] = {
         "my_actions / unassigned_actions；每项含 task, owner, deadline, priority, status"
     ),
     "risk": "risks 列表（描述、等级、相关方、缓解建议等）",
-    "mindmap": "outline（Markdown 大纲）",
+    "mindmap": "outline（Markdown 树状大纲：#/##/### 与 - 短分支；禁止表格）",
     "points": "知识点列表（title, summary, details 等）",
     "knowledge_graph": "nodes / edges / outline",
 }
@@ -1125,6 +1688,7 @@ __all__ = [
     "clear_compile_caches",
     "detect_template_kind",
     "extract_description_cues",
+    "extract_listed_aspects",
     "fill_placeholder_template",
     "is_router_enabled",
     "maybe_compile_natural_template",
@@ -1134,5 +1698,7 @@ __all__ = [
     "plan_placeholder_fill",
     "route_template",
     "split_spec_template",
+    "strip_char_budget_meta",
+    "strip_outer_markdown_fence",
     "validate_rendered_output",
 ]

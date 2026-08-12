@@ -1,4 +1,4 @@
-﻿"""{{DOMAIN}} 域全部任务线的最终输出 Report 类 —— 手写区。
+"""{{DOMAIN}} 域全部任务线的最终输出 Report 类 —— 手写区。
 
 每个任务线在文件末尾追加一个 Report dataclass，字段按
 ``metadata["source"]`` 标签由通用组装器 _assemble_report 取值：

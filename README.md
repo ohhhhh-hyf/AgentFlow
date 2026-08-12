@@ -32,16 +32,16 @@ supervisor/                   # 全局监督标准（prompt 注入，不单独�
 schema_repair/                # 结构化输出修复（LLM 输出非法时）
 tools/
   runtime_context.py          # 领域加载 / 任务别名 / env 默认路径
-  cli.py                      # CLI 参数解析与模板参数收集
   io.py                       # 输入文本和用户画像读取
-  runner.py                   # 任务运行循环：流式输出 + done 事件处理
-  archive.py                  # output/{domain}/{task}/ 归档
-  exporters.py                # mindmap / knowledge_graph 产物导出编排
+  runner.py                   # CLI 参数 + 任务运行循环：流式输出 + done 事件处理
+  outputs.py                  # 报告 JSON/Markdown 落盘 + mindmap/knowledge_graph 导出
+  domain_engine.py            # 多 domain 共享编排内核（生成→审核→渲染）
   contracts.py                # 契约 DSL（GenerationContract / SupervisorContract）
   fallback_rules.py           # 降级拼装规则 DSL（Raw / Join / Lines）
   validation.py               # 输出校验工具
   prompt_utils.py / template_prompt.py   # 渲染 prompt 构建
   template_router.py          # 模板路由：占位符/格式规范/自然语言三类自动判型 + 编译
+  template_eval.py            # 模板约束评测 + Markdown 表格粘连修复（通用）
   mindmap.py                  # 思维导图导出：markmap-cli（HTML）+ Playwright（PNG）
   knowledge_graph.py          # 知识图谱导出：nodes/edges → PNG/SVG/交互式 HTML
   rag/                        # 公共 RAG 组件：本地入库 / keyword fallback / embedding provider

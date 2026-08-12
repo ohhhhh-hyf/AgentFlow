@@ -1,4 +1,4 @@
-﻿"""register_domain.py —— 新建领域骨架：目录 + 骨架文件 + 生成区填充。
+"""register_domain.py —— 新建领域骨架：目录 + 骨架文件 + 生成区填充。
 
 用法：python register_domain.py --domain notes --name "笔记" [--state NotesState]
 

@@ -1,4 +1,4 @@
-﻿"""{{DOMAIN}} 领域数据模型（手写区 + 生成区）。
+"""{{DOMAIN}} 领域数据模型（手写区 + 生成区）。
 
 手写区：ModelMixin / UserIdentity / is_objective_perspective /
 {{STATE_CLASS}}（LangGraph 共享状态）/ reducer；

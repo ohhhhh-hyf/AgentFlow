@@ -1,4 +1,4 @@
-﻿"""{{DOMAIN}} —— {{CN_NAME}}领域。
+"""{{DOMAIN}} —— {{CN_NAME}}领域。
 
 基于 register_domain.py 生成的干净骨架：
 - 视角建模（perspective 公共组件）已内置：orchestrator 自动挂载节点、

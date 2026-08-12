@@ -1,4 +1,4 @@
-﻿"""contracts.py —— 审阅契约构件类（Decision / Check / Feedback / SupervisorContract）。
+"""contracts.py —— 审阅契约构件类（Decision / Check / Feedback / SupervisorContract）。
 
 开发者用这些类在 ``prompts.py`` 里声明审阅契约，替代手写 JSON 字符串：
 

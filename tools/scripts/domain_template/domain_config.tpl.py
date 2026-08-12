@@ -1,4 +1,4 @@
-﻿"""{{DOMAIN}} 领域配置 —— sync_domain.py 生成骨架/文案的领域专属数据。"""
+"""{{DOMAIN}} 领域配置 —— sync_domain.py 生成骨架/文案的领域专属数据。"""
 # state 类型注解类名（生成骨架用）
 STATE_CLASS = "{{STATE_CLASS}}"
 

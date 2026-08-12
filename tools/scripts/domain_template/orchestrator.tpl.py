@@ -1,4 +1,4 @@
-﻿"""{{DOMAIN}} 编排层：LangGraph 图 + 节点 + 流式输出（{{CN_NAME}} 域）。
+"""{{DOMAIN}} 编排层：LangGraph 图 + 节点 + 流式输出（{{CN_NAME}} 域）。
 
 手写区 = 领域钩子覆写 + 领域专属节点（可选）；
 生成区（由 tools/scripts/sync_domain.py 生成）：任务线注册 / Agent 挂载 /

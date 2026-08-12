@@ -29,9 +29,13 @@ class MinutesGenerationRender:
         )
 
     async def run(self, approved_context: str, template: str = "") -> str:
-        """整段渲染纪要正文（纯文本）。"""
+        """整段渲染纪要正文（纯文本）。有模板时用低温度稳住结构。"""
         prompt, user = self._prompt_and_user(approved_context, template)
-        return await self.client.text(prompt, user)
+        temp = 0.0 if (template or "").strip() else None
+        try:
+            return await self.client.text(prompt, user, temperature=temp)
+        except TypeError:
+            return await self.client.text(prompt, user)
 
     async def stream(self, approved_context: str, template: str = "") -> AsyncIterator[str]:
         """流式渲染纪要正文：LLM token 逐块产出（SSE）。"""

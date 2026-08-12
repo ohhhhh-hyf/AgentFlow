@@ -1,4 +1,4 @@
-﻿"""{{PASCAL}}AgentFactory —— 组装 {{DOMAIN}} 域全部 Agent 依赖。"""
+"""{{PASCAL}}AgentFactory —— 组装 {{DOMAIN}} 域全部 Agent 依赖。"""
 from __future__ import annotations
 
 from typing import Any

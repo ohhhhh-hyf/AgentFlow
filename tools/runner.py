@@ -164,7 +164,12 @@ async def _handle_done(ctx: DomainContext, event: dict) -> None:
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S_%f")[:-3]
 
     try:
-        saved_reports = save_all_reports(ctx, reports, timestamp)
+        saved_reports = save_all_reports(
+            ctx,
+            reports,
+            timestamp,
+            gate_by_line=event.get("gate_by_line") or {},
+        )
     except Exception:  # noqa: BLE001 - 落盘失败不中断其余导出
         logger.error("报告落盘失败", exc_info=True)
         saved_reports = {}
@@ -174,6 +179,10 @@ async def _handle_done(ctx: DomainContext, event: dict) -> None:
             sys.stdout.write(f"[{cn}] 已保存 JSON：{paths['json']}\n")
         if paths.get("text"):
             sys.stdout.write(f"[{cn}] 已保存文本：{paths['text']}\n")
+        if paths.get("rejected"):
+            sys.stdout.write(
+                f"[{cn}] 门禁未通过，已保存排查文本：{paths['rejected']}\n"
+            )
 
     if "mindmap" in reports:
         try:

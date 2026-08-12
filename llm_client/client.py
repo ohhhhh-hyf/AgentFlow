@@ -1,13 +1,15 @@
 from __future__ import annotations
 
 import asyncio
+import hashlib
 import json
+import logging
 import threading
 import time
 import urllib.error
 import urllib.request
 from collections.abc import AsyncIterator, Iterable
-from typing import TypeVar
+from typing import Any, TypeVar
 
 try:
     import websockets
@@ -19,10 +21,18 @@ from tools.validation import OutputValidationError, validate_payload
 from .config import LLMSettings, resolve_llm_settings
 
 T = TypeVar("T")
+logger = logging.getLogger(__name__)
 
 
 class LLMClient:
-    """OpenAI 兼容 Chat Completions 客户端（DeepSeek / Kimi / vLLM 等）。"""
+    """OpenAI 兼容 Chat Completions 客户端（DeepSeek / Kimi / vLLM 等）。
+
+    支持：
+    - 每次调用覆盖 temperature / json_mode / max_tokens / timeout
+    - 网络错误指数退避重试
+    - 可选进程内文本缓存（``use_cache=True``）
+    - token usage 累计（``usage_totals`` / ``last_usage``）
+    """
 
     def __init__(
         self,
@@ -58,25 +68,110 @@ class LLMClient:
         self.enable_thinking = cfg.enable_thinking
         self.timeout = cfg.timeout
         self.max_retries = cfg.max_retries
+        # 调用统计
+        self.last_usage: dict[str, int] = {}
+        self.usage_totals: dict[str, int] = {
+            "prompt_tokens": 0,
+            "completion_tokens": 0,
+            "total_tokens": 0,
+            "calls": 0,
+            "cache_hits": 0,
+        }
+        # 进程内缓存：key → content（仅 text 且 use_cache=True）
+        self._response_cache: dict[str, str] = {}
 
     @staticmethod
     def _retry_delay_seconds(attempt: int) -> float:
         """指数退避：attempt 从 0 开始，依次 1s → 2s → 4s。"""
-        return 1.0 * (2 ** attempt)
+        return 1.0 * (2**attempt)
 
     async def _retry_delay(self, attempt: int) -> None:
         """异步版指数退避（不阻塞事件循环）。"""
         await asyncio.sleep(self._retry_delay_seconds(attempt))
 
-    def _post(self, messages: list[dict[str, str]], *, json_mode: bool = True) -> str:
-        if self.backend == "websocket":
-            return asyncio.run(self._ws_chat(messages, stream=False))
+    def _record_usage(self, usage: dict | None, *, count_call: bool = True) -> None:
+        if count_call:
+            self.usage_totals["calls"] += 1
+        if not usage or not isinstance(usage, dict):
+            self.last_usage = {}
+            return
+        prompt = int(usage.get("prompt_tokens") or usage.get("input_tokens") or 0)
+        completion = int(
+            usage.get("completion_tokens") or usage.get("output_tokens") or 0
+        )
+        total = int(usage.get("total_tokens") or (prompt + completion))
+        self.last_usage = {
+            "prompt_tokens": prompt,
+            "completion_tokens": completion,
+            "total_tokens": total,
+        }
+        self.usage_totals["prompt_tokens"] += prompt
+        self.usage_totals["completion_tokens"] += completion
+        self.usage_totals["total_tokens"] += total
+        if total:
+            logger.debug(
+                "LLM usage provider=%s model=%s prompt=%s completion=%s total=%s",
+                self.provider,
+                self.model,
+                prompt,
+                completion,
+                total,
+            )
 
-        body: dict = {
+    def usage_summary(self) -> dict[str, int]:
+        """返回累计 token / 调用统计的浅拷贝。"""
+        return dict(self.usage_totals)
+
+    def clear_cache(self) -> None:
+        self._response_cache.clear()
+
+    def _cache_key(
+        self,
+        messages: list[dict[str, str]],
+        *,
+        temperature: float,
+        json_mode: bool,
+        max_tokens: int | None,
+    ) -> str:
+        payload = {
+            "model": self.model,
+            "temperature": temperature,
+            "json_mode": json_mode,
+            "max_tokens": max_tokens,
+            "messages": messages,
+        }
+        raw = json.dumps(payload, ensure_ascii=False, sort_keys=True)
+        return hashlib.sha256(raw.encode("utf-8")).hexdigest()
+
+    def _post(
+        self,
+        messages: list[dict[str, str]],
+        *,
+        json_mode: bool = True,
+        temperature: float | None = None,
+        max_tokens: int | None = None,
+        timeout: float | None = None,
+    ) -> str:
+        temp = self.temperature if temperature is None else float(temperature)
+        tok = self.max_tokens if max_tokens is None else max_tokens
+        to = self.timeout if timeout is None else float(timeout)
+
+        if self.backend == "websocket":
+            # websocket 路径暂不支持逐参数覆盖 temperature 以外的全部选项
+            prev = self.temperature
+            try:
+                self.temperature = temp
+                return asyncio.run(self._ws_chat(messages, stream=False))
+            finally:
+                self.temperature = prev
+
+        body: dict[str, Any] = {
             "model": self.model,
             "messages": messages,
-            "temperature": self.temperature,
+            "temperature": temp,
         }
+        if tok is not None:
+            body["max_tokens"] = tok
         if json_mode:
             body["response_format"] = {"type": "json_object"}
         payload = json.dumps(body, ensure_ascii=False).encode("utf-8")
@@ -91,15 +186,13 @@ class LLMClient:
         )
         label = self.provider
         try:
-            with urllib.request.urlopen(request, timeout=self.timeout) as response:
+            with urllib.request.urlopen(request, timeout=to) as response:
                 raw = response.read().decode("utf-8")
                 try:
-                    body = json.loads(raw)
-                    return body["choices"][0]["message"]["content"]
+                    resp = json.loads(raw)
+                    self._record_usage(resp.get("usage"), count_call=True)
+                    return resp["choices"][0]["message"]["content"]
                 except (json.JSONDecodeError, KeyError, IndexError, TypeError) as exc:
-                    # HTTP 200 但响应非标准（非 JSON / 字段缺失）：
-                    # 包装为 RuntimeError，让上层重试 / schema_repair 路径接管，
-                    # 而不是原样冒出绕过 structured() 的修复逻辑。
                     raise RuntimeError(
                         f"{label} API 返回非标准响应：{raw[:200]!r}"
                     ) from exc
@@ -112,36 +205,46 @@ class LLMClient:
             raise RuntimeError(f"无法连接 {label} API：{exc.reason}") from exc
 
     def _stream_sync(
-        self, messages: list[dict[str, str]], *, json_mode: bool = False
+        self,
+        messages: list[dict[str, str]],
+        *,
+        json_mode: bool = False,
+        temperature: float | None = None,
+        max_tokens: int | None = None,
+        timeout: float | None = None,
     ) -> Iterable[str]:
-        """同步读取流式响应，逐块产出 content 增量（阻塞调用，供线程内使用）。
+        """同步读取流式响应，逐块产出 content 增量。"""
+        temp = self.temperature if temperature is None else float(temperature)
+        tok = self.max_tokens if max_tokens is None else max_tokens
+        to = self.timeout if timeout is None else float(timeout)
 
-        - HTTP 后端：SSE 逐块产出；连接阶段失败（尚未产出任何 chunk）时
-          指数退避重试，一旦开始产出内容，中途断流不再重试（避免已输出块重复）。
-        - WebSocket 后端：无真正的逐块流，一次取回全量文本；_ws_chat 抛出的
-          RuntimeError（连接/超时/未返回有效内容）指数退避重试，协议类异常
-          （如非 JSON 响应）不重试——重试无意义，直接冒泡。
-        """
         if self.backend == "websocket":
-            for attempt in range(self.max_retries + 1):
-                try:
-                    text = asyncio.run(self._ws_chat(messages, stream=False))
-                except RuntimeError:
-                    if attempt >= self.max_retries:
-                        raise
-                    time.sleep(self._retry_delay_seconds(attempt))
-                    continue
-                if text:
-                    yield text
-                return
-            return  # 不可达：重试耗尽必然已抛出
+            prev = self.temperature
+            try:
+                self.temperature = temp
+                for attempt in range(self.max_retries + 1):
+                    try:
+                        text = asyncio.run(self._ws_chat(messages, stream=False))
+                    except RuntimeError:
+                        if attempt >= self.max_retries:
+                            raise
+                        time.sleep(self._retry_delay_seconds(attempt))
+                        continue
+                    if text:
+                        yield text
+                    return
+            finally:
+                self.temperature = prev
+            return
 
-        body: dict = {
+        body: dict[str, Any] = {
             "model": self.model,
             "messages": messages,
-            "temperature": self.temperature,
+            "temperature": temp,
             "stream": True,
         }
+        if tok is not None:
+            body["max_tokens"] = tok
         if json_mode:
             body["response_format"] = {"type": "json_object"}
         payload = json.dumps(body, ensure_ascii=False).encode("utf-8")
@@ -156,27 +259,31 @@ class LLMClient:
         )
         label = self.provider
         started = False
-        # 连接阶段失败（尚未产出任何 chunk）时指数退避重试；
-        # 一旦开始产出内容，中途断流不再重试（避免已输出块重复）。
         for attempt in range(self.max_retries + 1):
             try:
-                with urllib.request.urlopen(request, timeout=self.timeout) as response:
+                with urllib.request.urlopen(request, timeout=to) as response:
                     for raw_line in response:
                         line = raw_line.decode("utf-8", errors="replace").strip()
                         if not line.startswith("data:"):
                             continue
-                        data = line[len("data:"):].strip()
+                        data = line[len("data:") :].strip()
                         if data == "[DONE]":
+                            self.usage_totals["calls"] += 1
                             return
                         try:
                             obj = json.loads(data)
                         except json.JSONDecodeError:
                             continue
-                        delta = obj["choices"][0]["delta"]
+                        # 部分后端在 stream 末包 usage
+                        if obj.get("usage"):
+                            self._record_usage(obj.get("usage"))
+                        delta = obj["choices"][0].get("delta") or {}
                         content = delta.get("content") or ""
                         if content:
                             started = True
                             yield content
+                if not started:
+                    self.usage_totals["calls"] += 1
                 return
             except urllib.error.HTTPError as exc:
                 if started or attempt >= self.max_retries:
@@ -247,12 +354,16 @@ class LLMClient:
                 await websocket.send(payload)
                 while True:
                     try:
-                        raw = await asyncio.wait_for(websocket.recv(), timeout=self.timeout)
+                        raw = await asyncio.wait_for(
+                            websocket.recv(), timeout=self.timeout
+                        )
                     except websockets.exceptions.ConnectionClosedOK:
                         break
                     if not raw:
                         continue
                     obj = json.loads(raw)
+                    if obj.get("usage"):
+                        self._record_usage(obj.get("usage"))
                     choices = obj.get("choices") or []
                     if not choices:
                         continue
@@ -274,34 +385,39 @@ class LLMClient:
             raise
         if not chunks:
             raise RuntimeError(f"{label} WebSocket 未返回有效内容")
+        self.usage_totals["calls"] += 1
         return "".join(chunks)
 
     async def stream_text(
         self,
         system_prompt: str,
         user_prompt: str,
+        *,
+        temperature: float | None = None,
+        max_tokens: int | None = None,
+        timeout: float | None = None,
     ) -> AsyncIterator[str]:
-        """流式调用 LLM 返回纯文本增量块（SSE，非 JSON 模式）。
-
-        同步 SSE 读取在后台线程执行，通过 asyncio.Queue 桥接，
-        边读边产出，不阻塞事件循环。
-        """
+        """流式调用 LLM 返回纯文本增量块（SSE，非 JSON 模式）。"""
         messages = [
             {"role": "system", "content": system_prompt},
             {"role": "user", "content": user_prompt},
         ]
         loop = asyncio.get_running_loop()
-        # asyncio.Queue 非线程安全，必须经 loop.call_soon_threadsafe 桥接，
-        # 否则后台线程 put 无法可靠唤醒事件循环中的 get（Windows 下会卡死）
         queue: asyncio.Queue = asyncio.Queue()
 
         def _producer() -> None:
             try:
-                for chunk in self._stream_sync(messages, json_mode=False):
+                for chunk in self._stream_sync(
+                    messages,
+                    json_mode=False,
+                    temperature=temperature,
+                    max_tokens=max_tokens,
+                    timeout=timeout,
+                ):
                     try:
                         loop.call_soon_threadsafe(queue.put_nowait, chunk)
                     except RuntimeError:
-                        return  # 事件循环已关闭（调用方提前退出）
+                        return
             except Exception as exc:  # 跨线程传递异常
                 try:
                     loop.call_soon_threadsafe(queue.put_nowait, exc)
@@ -336,6 +452,10 @@ class LLMClient:
         user_prompt: str,
         response_model: type[T],
         output_contract: str,
+        *,
+        temperature: float | None = 0.0,
+        max_tokens: int | None = None,
+        timeout: float | None = None,
     ) -> T:
         contract = output_contract.strip()
         messages = [
@@ -355,13 +475,20 @@ class LLMClient:
         ]
         last_content = ""
         last_error = ""
+        # structured 默认更低温度以稳住 schema
+        temp = 0.0 if temperature is None else temperature
 
         for attempt in range(self.max_retries + 1):
             try:
-                last_content = await asyncio.to_thread(self._post, messages)
+                last_content = await asyncio.to_thread(
+                    self._post,
+                    messages,
+                    json_mode=True,
+                    temperature=temp,
+                    max_tokens=max_tokens,
+                    timeout=timeout,
+                )
             except RuntimeError:
-                # 网络类错误（连接失败/超时/限流）：与内容无关，
-                # 指数退避后重发同一请求；耗尽则抛出交给上层降级。
                 if attempt >= self.max_retries:
                     raise
                 await self._retry_delay(attempt)
@@ -400,21 +527,56 @@ class LLMClient:
         self,
         system_prompt: str,
         user_prompt: str,
+        *,
+        temperature: float | None = None,
+        json_mode: bool = False,
+        max_tokens: int | None = None,
+        timeout: float | None = None,
+        use_cache: bool = False,
     ) -> str:
-        """调用 LLM 返回纯文本（非 JSON 模式）。
+        """调用 LLM 返回文本。
 
-        网络类错误（连接失败/超时/限流）指数退避重试，耗尽后抛出。
+        Args:
+            temperature: 覆盖默认采样温度；None 用客户端默认。
+            json_mode: 是否要求 JSON object 响应格式。
+            max_tokens: 覆盖默认 max_tokens。
+            timeout: 覆盖默认超时（秒）。
+            use_cache: 命中相同 messages+参数时返回缓存（适合编译类幂等调用）。
         """
         messages = [
             {"role": "system", "content": system_prompt},
             {"role": "user", "content": user_prompt},
         ]
+        temp = self.temperature if temperature is None else float(temperature)
+        cache_key = ""
+        if use_cache:
+            cache_key = self._cache_key(
+                messages,
+                temperature=temp,
+                json_mode=json_mode,
+                max_tokens=max_tokens,
+            )
+            hit = self._response_cache.get(cache_key)
+            if hit is not None:
+                self.usage_totals["cache_hits"] += 1
+                logger.debug("LLM cache hit key=%s…", cache_key[:12])
+                return hit
+
         for attempt in range(self.max_retries + 1):
             try:
-                return await asyncio.to_thread(self._post, messages, json_mode=False)
+                content = await asyncio.to_thread(
+                    self._post,
+                    messages,
+                    json_mode=json_mode,
+                    temperature=temp,
+                    max_tokens=max_tokens,
+                    timeout=timeout,
+                )
+                if use_cache and cache_key:
+                    self._response_cache[cache_key] = content
+                return content
             except RuntimeError:
                 if attempt >= self.max_retries:
                     raise
                 await self._retry_delay(attempt)
         raise RuntimeError("text() 重试耗尽（不可达）")
-

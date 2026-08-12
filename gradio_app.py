@@ -100,8 +100,8 @@ def _mime_type(path: Path) -> str:
 
 def _artifact_download_html(files: list[str]) -> str:
     if not files:
-        return '<div class="download-empty">暂无生成文件</div>'
-    cards = ['<div class="download-list">']
+        return '<p class="dl-empty">暂无生成文件</p>'
+    rows = ['<ul class="dl-list">']
     for file in files:
         path = Path(file)
         try:
@@ -111,18 +111,16 @@ def _artifact_download_html(files: list[str]) -> str:
         clean_name = _clean_filename(path.name)
         suffix = path.suffix.lower().lstrip(".") or "file"
         href = f"data:{_mime_type(path)};base64,{payload}"
-        cards.append(
-            '<a class="download-card" '
-            f'href="{href}" download="{html.escape(clean_name)}">'
-            '<span class="download-main">'
-            f'<span class="download-name">{html.escape(clean_name)}</span>'
-            f'<span class="download-path">{html.escape(path.parent.name)}</span>'
-            "</span>"
-            f'<span class="download-badge">{html.escape(suffix.upper())}</span>'
-            "</a>"
+        rows.append(
+            "<li class=\"dl-item\">"
+            f'<a href="{href}" download="{html.escape(clean_name)}">'
+            f'<span class="dl-name">{html.escape(clean_name)}</span>'
+            f'<span class="dl-meta">{html.escape(path.parent.name)}'
+            f" · {html.escape(suffix)}</span>"
+            "</a></li>"
         )
-    cards.append("</div>")
-    return "\n".join(cards)
+    rows.append("</ul>")
+    return "\n".join(rows)
 
 
 def update_domain(domain_label: str):
@@ -138,6 +136,50 @@ def _domain_value(value: str) -> str:
     return _task_value(value)
 
 
+EMPTY_DOWNLOAD = '<p class="dl-empty">暂无生成文件</p>'
+
+
+def _hitl_ui(show_editor: bool, editor_value: str = ""):
+    """可编辑模板区（Group）+ 运行按钮文案 的联动状态。"""
+    compiled = gr.update(value=editor_value if show_editor else "")
+    wrap = gr.update(visible=show_editor)
+    run_btn = gr.update(
+        value="确认模板并运行" if show_editor else "运行",
+    )
+    return compiled, wrap, run_btn
+
+
+def clear_compiled_template():
+    """清除可编辑模板，回到第一步（可重新从自然语言编译）。"""
+    return (
+        "已清除可编辑模板。若上方仍是自然语言描述，下次点击「运行」会重新编译。",
+        *_hitl_ui(False),
+    )
+
+
+def clear_results_only():
+    """只清空右侧结果展示，保留左侧配置与输入，方便同一设置再测。"""
+    return (
+        "已清空结果区。左侧配置与输入仍保留，改完后直接再点「运行」即可，无需刷新页面。",
+        [],
+        EMPTY_DOWNLOAD,
+    )
+
+
+def reset_form():
+    """清空输入、模板与结果，保留领域/任务，相当于不刷新的软重置。"""
+    return (
+        "已重置表单（领域/任务保留）。可重新上传或粘贴内容后再运行；无需刷新浏览器。",
+        [],
+        EMPTY_DOWNLOAD,
+        gr.update(value=None),  # input_upload
+        "",  # input_text
+        gr.update(value=None),  # template_upload
+        "",  # template_text
+        *_hitl_ui(False),
+    )
+
+
 def run_from_ui(
     domain_label: str,
     task_label: str | None,
@@ -148,9 +190,13 @@ def run_from_ui(
     compiled_template: str | None,
 ):
     domain = _domain_value(domain_label)
-    empty_download = '<div class="download-empty">暂无生成文件</div>'
     if not task_label:
-        return "请选择任务线。", [], empty_download, gr.update(visible=False)
+        return (
+            "请选择任务线。",
+            [],
+            EMPTY_DOWNLOAD,
+            *_hitl_ui(False),
+        )
 
     tasks = [_task_value(task_label)]
     profile_path = PROJECT_ROOT / "samples" / domain / "profile" / "object_profile.json"
@@ -158,8 +204,8 @@ def run_from_ui(
         return (
             f"默认 profile 不存在：{profile_path}",
             [],
-            empty_download,
-            gr.update(visible=False),
+            EMPTY_DOWNLOAD,
+            *_hitl_ui(False),
         )
 
     ctx = _ctx(domain)
@@ -170,8 +216,8 @@ def run_from_ui(
             return (
                 "请上传输入文件，或直接在文本框里输入内容。",
                 [],
-                empty_download,
-                gr.update(visible=False),
+                EMPTY_DOWNLOAD,
+                *_hitl_ui(False),
             )
 
         # 须在自然语言模板编译之前加载 .env，否则 LLMClient 读不到 API Key
@@ -189,9 +235,14 @@ def run_from_ui(
             template_source = (template_text or "").strip()
 
         confirmed = (compiled_template or "").strip()
-        # 情况 A：下方「可编辑模板」已有内容 → 视为用户确认/修改后的模板，直接运行
+        editor_value = confirmed  # 运行后仍回填编辑框，避免 HITL 状态丢失
+        show_editor = bool(confirmed)
+
+        # 情况 A：下方「可编辑模板」已有内容 → 用户已确认/修改，真正跑任务
         if confirmed:
             final_template = confirmed
+            show_editor = True
+            editor_value = confirmed
         # 情况 B：源模板是自然语言 → 只编译展示，不跑任务
         elif template_source and detect_template_kind(template_source) == "natural":
             try:
@@ -207,37 +258,37 @@ def run_from_ui(
                 return (
                     f"自然语言模板编译失败：{exc}\n请检查 .env 中的 API Key 后重试。",
                     [],
-                    empty_download,
-                    gr.update(visible=False, value=""),
+                    EMPTY_DOWNLOAD,
+                    *_hitl_ui(False),
                 )
-            # 编译失败会原样返回自然语言，不能当作已确认模板
             if (
                 not compiled
                 or compiled == template_source
                 or detect_template_kind(compiled) != "placeholder"
             ):
                 return (
-                    "未能把自然语言描述编译成可编辑模板。\n"
-                    "请换一种更具体的描述（例如「只要三部分：进展、问题、下一步」），"
-                    "或直接粘贴带 [占位符] 的模板后再运行。",
+                    "未能编译为可编辑模板。请写得更具体一些，例如：\n"
+                    "「约400字；第一行标题；纪要约200字；风险表约3行；待办表约3行」\n"
+                    "也可直接粘贴带 [占位符] 的 Markdown 模板后再运行。",
                     [],
-                    empty_download,
-                    gr.update(visible=False, value=""),
+                    EMPTY_DOWNLOAD,
+                    *_hitl_ui(False),
                 )
             return (
-                "已根据你的自然语言描述生成「可编辑模板」（见下方）。\n"
-                "请检查并修改：\n"
-                "  · 固定文字（标题、表头）可直接改\n"
-                "  · 方括号 [……] 表示待系统填写的内容，可改说明文字\n"
-                "确认无误后，再次点击「运行」才会真正生成任务结果。\n"
-                "（本次仅编译模板，尚未执行任务。）",
+                "【第 1 步完成】自然语言已编译为可编辑模板（见左侧灰框）。\n"
+                "请检查/修改固定文字与 [占位符] 说明，满意后点击「确认模板并运行」。\n"
+                "本次只完成编译，尚未生成结果。",
                 [],
-                empty_download,
-                gr.update(visible=True, value=compiled),
+                EMPTY_DOWNLOAD,
+                *_hitl_ui(True, compiled),
             )
-        # 情况 C：无编译框内容，源模板是占位符/格式规范/空 → 直接运行
+        # 情况 C：占位符 / 格式规范 / 空模板 → 直接运行
         else:
             final_template = template_source
+            # 占位符模板也放进编辑框，方便下一轮微调
+            if final_template and detect_template_kind(final_template) == "placeholder":
+                show_editor = True
+                editor_value = final_template
 
         templates: dict[str, Path] = {}
         if final_template:
@@ -266,13 +317,23 @@ def run_from_ui(
         log = _clean_log(buffer.getvalue().strip() or "运行完成。")
 
     if files:
-        log = f"{log}\n\n已生成 {len(files)} 个文件，可在右侧直接查看或下载。"
-    # 若本次是用「可编辑模板」跑的，结束后继续展示，方便再改再跑
-    compiled_state = gr.update(
-        visible=bool(confirmed),
-        value=confirmed if confirmed else "",
+        log = (
+            f"{log}\n\n已生成 {len(files)} 个文件，可在右侧查看或下载。\n"
+            "再测：改输入后直接再点「运行」即可（无需刷新）；"
+            "右侧会换成新结果。仅想清屏可用「清空结果」，从头填表用「重置表单」。"
+        )
+    if show_editor and editor_value:
+        log = (
+            f"{log}\n\n"
+            "本次结果按「可编辑模板」生成。"
+            "可继续改模板后再次「确认模板并运行」；点「清除可编辑模板」才会重新从自然语言编译。"
+        )
+    return (
+        log,
+        _png_previews(files),
+        _artifact_download_html(files),
+        *_hitl_ui(show_editor, editor_value if show_editor else ""),
     )
-    return log, _png_previews(files), _artifact_download_html(files), compiled_state
 
 
 def _uploaded_path(upload) -> Path | None:
@@ -310,205 +371,435 @@ def _clean_log(text: str) -> str:
 
 
 CSS = """
+/* 纸面工作台：中性灰、细线框、无渐变/大阴影 */
 :root, .dark, .gradio-container {
-  --body-background-fill: #edf3f6 !important;
-  --body-text-color: #111827 !important;
+  --body-background-fill: #f4f4f2 !important;
+  --body-text-color: #1a1a1a !important;
   --block-background-fill: #ffffff !important;
-  --block-border-color: #d5dde6 !important;
-  --block-label-background-fill: #ffffff !important;
-  --block-label-text-color: #24313a !important;
+  --block-border-color: #d8d8d4 !important;
+  --block-label-background-fill: transparent !important;
+  --block-label-text-color: #3a3a38 !important;
+  --block-title-text-color: #1a1a1a !important;
   --input-background-fill: #ffffff !important;
-  --input-border-color: #c8d3de !important;
-  --input-placeholder-color: #64748b !important;
-  --neutral-950: #111827 !important;
-  --neutral-900: #1f2937 !important;
-  --neutral-800: #334155 !important;
-  --neutral-700: #475569 !important;
-  --neutral-600: #64748b !important;
-  --neutral-100: #f1f5f9 !important;
-  --neutral-50: #f8fafc !important;
+  --input-border-color: #cfcfc9 !important;
+  --input-placeholder-color: #8a8a84 !important;
+  --border-color-primary: #d8d8d4 !important;
+  --button-primary-background-fill: #2a2a28 !important;
+  --button-primary-background-fill-hover: #1a1a1a !important;
+  --button-primary-text-color: #fafaf9 !important;
+  --button-secondary-background-fill: #ececea !important;
+  --button-secondary-text-color: #1a1a1a !important;
+  --neutral-950: #1a1a1a !important;
+  --neutral-900: #2a2a28 !important;
+  --neutral-800: #3a3a38 !important;
+  --neutral-700: #5c5c58 !important;
+  --neutral-600: #8a8a84 !important;
+  --neutral-200: #d8d8d4 !important;
+  --neutral-100: #ececea !important;
+  --neutral-50: #f4f4f2 !important;
+  --primary-500: #2a2a28 !important;
+  --primary-600: #1a1a1a !important;
+  --table-odd-background-fill: #e6e6e0 !important;
+  --table-even-background-fill: #f0f0ea !important;
+  --link-text-color: #1a1a1a !important;
+  --link-text-color-hover: #000000 !important;
+  --link-text-color-visited: #2a2a28 !important;
+  --link-text-color-active: #000000 !important;
+  --body-text-color-subdued: #5c5c58 !important;
+}
+html, body {
+  background: #f4f4f2 !important;
+  overflow-x: hidden !important;
 }
 .gradio-container {
-  max-width: 1180px !important;
+  max-width: 1120px !important;
   margin: 0 auto !important;
-  color: #111827;
-  font-family: "Microsoft YaHei", "PingFang SC", "Noto Sans CJK SC", Arial, sans-serif;
+  padding: 28px 20px 48px !important;
+  color: #1a1a1a !important;
+  font-family: "IBM Plex Sans", "Source Han Sans SC", "Noto Sans SC",
+    "PingFang SC", "Microsoft YaHei", sans-serif !important;
+  overflow-x: hidden !important;
 }
-body {
-  background: #edf3f6 !important;
+/* 防止 flex 子项撑出横向滚动 */
+#work-row, #col-input, #col-output,
+#col-input > *, #col-output > *,
+#tpl-box, #tpl-box * {
+  min-width: 0 !important;
+  max-width: 100% !important;
+  box-sizing: border-box !important;
 }
-#title-block, #config-panel, #result-panel {
-  border: 1px solid #cbd5e1;
-  background: #ffffff;
-  box-shadow: 0 14px 34px rgba(15, 23, 42, 0.10);
-  border-radius: 14px;
+/* 顶栏 */
+#app-header {
+  margin: 0 0 28px;
+  padding: 0 0 18px;
+  border-bottom: 1px solid #d0d0ca;
 }
-#title-block {
-  padding: 22px 26px;
-  margin: 18px 0 16px;
-}
-#title-block h1 {
-  font-size: 28px;
-  line-height: 1.25;
+#app-header h1 {
   margin: 0;
-  color: #0f172a;
-  font-weight: 700;
-  letter-spacing: 0;
-  text-align: center;
+  font-size: 1.35rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: #1a1a1a;
+  line-height: 1.3;
 }
-#title-block p {
-  margin: 10px 0 0;
-  color: #475569;
-  font-size: 14px;
-  text-align: center;
+#app-header p {
+  margin: 6px 0 0;
+  font-size: 0.875rem;
+  color: #5c5c58;
+  line-height: 1.5;
+  max-width: 36em;
 }
-#config-panel, #result-panel {
-  padding: 20px;
+/* 栏位 */
+#work-row {
+  gap: 20px !important;
+  align-items: stretch !important;
 }
-#config-panel {
-  display: flex;
-  flex-direction: column;
-  gap: 14px;
+#col-input, #col-output {
+  border: 1px solid #d0d0ca;
+  background: #fafaf9;
+  border-radius: 2px;
+  padding: 18px 18px 20px !important;
+  box-shadow: none !important;
 }
-#config-panel .form {
-  gap: 14px !important;
+.panel-label {
+  margin: 0 0 14px;
+  padding: 0 0 8px;
+  border-bottom: 1px solid #e4e4df;
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #5c5c58;
 }
-.section-title {
-  margin: 4px 0 -4px;
-  color: #334155;
-  font-size: 13px;
-  font-weight: 700;
+.field-hint {
+  margin: -4px 0 12px;
+  font-size: 0.8rem;
+  color: #8a8a84;
+  line-height: 1.45;
 }
-button.primary, .primary {
-  background: #1f4e5f !important;
-  border-color: #1f4e5f !important;
-  min-height: 44px !important;
-  border-radius: 10px !important;
-  font-weight: 700 !important;
-}
-label, .wrap span {
-  color: #0f172a !important;
-}
-.gradio-container textarea,
-.gradio-container input,
-.gradio-container select {
-  color: #111827 !important;
+/* 控件：领域 / 任务 / 文本框等统一白底 */
+.gradio-container .block {
   background: #ffffff !important;
-  border-color: #cbd5e1 !important;
+  border: none !important;
+  box-shadow: none !important;
+  padding: 0 !important;
 }
-.gradio-container .block,
 .gradio-container .form,
 .gradio-container .wrap,
-.gradio-container .panel,
-.gradio-container .input-container {
+.gradio-container .wrap-inner,
+.gradio-container .secondary-wrap,
+.gradio-container .padded,
+.gradio-container .block > .wrap {
   background: #ffffff !important;
-  color: #111827 !important;
-  border-color: #d5dde6 !important;
 }
-.gradio-container .block label,
-.gradio-container .block span,
-.gradio-container .block p,
-.gradio-container .block div {
-  color: #111827;
+.gradio-container label,
+.gradio-container .label-wrap span {
+  color: #3a3a38 !important;
+  font-size: 0.82rem !important;
+  font-weight: 500 !important;
+  background: transparent !important;
 }
+.gradio-container textarea,
+.gradio-container input[type="text"],
+.gradio-container input:not([type="radio"]):not([type="checkbox"]),
+.gradio-container select {
+  color: #1a1a1a !important;
+  background: #ffffff !important;
+  border: 1px solid #cfcfc9 !important;
+  border-radius: 2px !important;
+  box-shadow: none !important;
+}
+.gradio-container textarea:focus,
+.gradio-container input:focus {
+  border-color: #8a8a84 !important;
+  outline: none !important;
+  box-shadow: none !important;
+}
+/* 下拉框本体白底 */
+.gradio-container .dropdown-arrow,
+.gradio-container [class*="container"] > .wrap {
+  background: #ffffff !important;
+}
+/* Radio / checkbox：白底选项，选中浅灰描边 */
 .gradio-container .checkbox-label,
-.gradio-container .checkbox-label span,
 .gradio-container .radio-label,
-.gradio-container .radio-label span {
-  background: #eef3f7 !important;
-  color: #10202a !important;
-  border-color: #9fb0bf !important;
+.gradio-container label:has(input[type="radio"]),
+.gradio-container label:has(input[type="checkbox"]),
+.gradio-container .wrap label {
+  background: #ffffff !important;
+  border: 1px solid #cfcfc9 !important;
+  border-radius: 2px !important;
+  color: #1a1a1a !important;
+  box-shadow: none !important;
 }
 .gradio-container .checkbox-label:has(input:checked),
-.gradio-container .checkbox-label:has(input:checked) span,
 .gradio-container .radio-label:has(input:checked),
-.gradio-container .radio-label:has(input:checked) span {
-  background: #1f4e5f !important;
-  color: #ffffff !important;
-  border-color: #1f4e5f !important;
+.gradio-container label:has(input[type="radio"]:checked),
+.gradio-container label:has(input[type="checkbox"]:checked) {
+  background: #f0f0ec !important;
+  border-color: #8a8a84 !important;
+  color: #1a1a1a !important;
 }
-.gradio-container .checkbox-label input,
-.gradio-container .radio-label input {
-  accent-color: #1f4e5f !important;
+.gradio-container input[type="radio"],
+.gradio-container input[type="checkbox"] {
+  accent-color: #2a2a28 !important;
 }
+/* 按钮 */
+#run-btn,
+button.primary,
+.primary {
+  background: #2a2a28 !important;
+  color: #fafaf9 !important;
+  border: 1px solid #2a2a28 !important;
+  border-radius: 2px !important;
+  min-height: 40px !important;
+  font-weight: 500 !important;
+  letter-spacing: 0.04em !important;
+  box-shadow: none !important;
+}
+#run-btn:hover,
+button.primary:hover {
+  background: #1a1a1a !important;
+}
+#top-actions {
+  gap: 10px !important;
+  margin: 0 0 16px !important;
+  align-items: center !important;
+}
+#top-actions .field-hint {
+  margin: 0 !important;
+  flex: 1 1 auto;
+}
+#clear-results-btn,
+#reset-form-btn,
+button.secondary {
+  background: #ffffff !important;
+  color: #1a1a1a !important;
+  border: 1px solid #cfcfc9 !important;
+  border-radius: 2px !important;
+  box-shadow: none !important;
+  min-height: 36px !important;
+}
+#clear-results-btn:hover,
+#reset-form-btn:hover,
+button.secondary:hover {
+  background: #f0f0ec !important;
+  border-color: #8a8a84 !important;
+}
+/* 下拉 */
 .gradio-container [role="listbox"],
 .gradio-container [role="option"] {
   background: #ffffff !important;
-  color: #111827 !important;
+  color: #1a1a1a !important;
+  border-color: #cfcfc9 !important;
 }
 .gradio-container [role="option"][aria-selected="true"],
 .gradio-container [role="option"]:hover {
-  background: #dbeafe !important;
-  color: #0f172a !important;
+  background: #ececea !important;
+  color: #1a1a1a !important;
 }
-.gradio-container .gallery,
+/* 图库 */
+.gradio-container .gallery {
+  background: #ffffff !important;
+  border: 1px solid #d0d0ca !important;
+  border-radius: 2px !important;
+  box-shadow: none !important;
+}
+/* 上传区：白底 + 深字，禁止横向滚动 */
+.gradio-container .upload-container,
+.gradio-container .wrap.default.full,
+#col-input .block {
+  max-width: 100% !important;
+  overflow-x: hidden !important;
+}
+.gradio-container .upload-container {
+  background: #ffffff !important;
+  border: 1px solid #d0d0ca !important;
+  border-radius: 2px !important;
+  box-shadow: none !important;
+  color: #1a1a1a !important;
+}
+/* 已上传文件列表（Gradio FilePreview 表格） */
 .gradio-container .file-preview-holder {
-  background: #f8fafc !important;
-  border-color: #d5dde6 !important;
+  overflow-x: hidden !important;
+  overflow-y: auto !important;
+  max-width: 100% !important;
+  background: #ffffff !important;
+  border: 1px solid #b8b8b0 !important;
+  border-radius: 2px !important;
+  margin-top: 4px !important;
 }
-.download-list {
-  display: grid;
-  gap: 10px;
+.gradio-container table.file-preview {
+  width: 100% !important;
+  max-width: 100% !important;
+  table-layout: fixed !important;
+  color: #1a1a1a !important;
+  margin: 0 !important;
 }
-.download-empty {
-  padding: 18px;
-  border: 1px dashed #cbd5e1;
-  border-radius: 12px;
-  background: #f8fafc;
-  color: #64748b;
+.gradio-container tr.file,
+.gradio-container table.file-preview tbody > tr,
+.gradio-container table.file-preview tbody > tr:nth-child(odd),
+.gradio-container table.file-preview tbody > tr:nth-child(even) {
+  display: flex !important;
+  width: 100% !important;
+  max-width: 100% !important;
+  background: #e4e4dc !important;
+  border-bottom: 1px solid #c8c8c0 !important;
+  color: #111111 !important;
 }
-.download-card {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 14px;
-  padding: 13px 15px;
-  border: 1px solid #d5dde6;
-  border-radius: 12px;
-  background: linear-gradient(180deg, #ffffff 0%, #f8fafc 100%);
-  color: #0f172a !important;
+.gradio-container tr.file:hover {
+  background: #d8d8d0 !important;
+}
+.gradio-container td.filename,
+.gradio-container td.filename .stem,
+.gradio-container td.filename .ext,
+.gradio-container .file-preview-holder span {
+  color: #111111 !important;
+  opacity: 1 !important;
+  font-weight: 500 !important;
+}
+.gradio-container td.filename {
+  flex: 1 1 auto !important;
+  min-width: 0 !important;
+  overflow: hidden !important;
+}
+.gradio-container td.filename .stem {
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+  white-space: nowrap !important;
+}
+.gradio-container td.download {
+  flex: 0 0 auto !important;
+  min-width: 0 !important;
+  width: auto !important;
+  max-width: 7rem !important;
+  color: #3a3a38 !important;
+}
+.gradio-container td.download a {
+  color: #1a1a1a !important;
   text-decoration: none !important;
-  box-shadow: 0 6px 18px rgba(15, 23, 42, 0.06);
-  transition: border-color 140ms ease, box-shadow 140ms ease, transform 140ms ease;
+  font-weight: 500 !important;
 }
-.download-card:hover {
-  border-color: #1f4e5f;
-  box-shadow: 0 10px 24px rgba(31, 78, 95, 0.14);
-  transform: translateY(-1px);
+.gradio-container td.download a:hover {
+  text-decoration: underline !important;
+  color: #000000 !important;
 }
-.download-main {
-  display: grid;
-  gap: 3px;
-  min-width: 0;
+.gradio-container .label-clear-button {
+  color: #3a3a38 !important;
 }
-.download-name {
-  color: #0f172a;
-  font-weight: 700;
+/* 左栏 / 模板区：去掉横向滚动 */
+#col-input,
+#tpl-box,
+#tpl-box > *,
+#tpl-box .block {
+  overflow-x: hidden !important;
+  max-width: 100% !important;
+}
+#col-input,
+#tpl-box,
+.gradio-container .file-preview-holder {
+  scrollbar-width: thin;
+}
+#col-input::-webkit-scrollbar:horizontal,
+#tpl-box::-webkit-scrollbar:horizontal,
+.gradio-container .file-preview-holder::-webkit-scrollbar:horizontal {
+  height: 0 !important;
+  display: none !important;
+}
+#tpl-box textarea,
+#tpl-box input,
+#col-input textarea {
+  max-width: 100% !important;
+  overflow-x: hidden !important;
+  word-break: break-word !important;
+  overflow-wrap: anywhere !important;
+}
+/* 可编辑模板：编译后更醒目，强调第二步 */
+#compiled-wrap {
+  margin-top: 14px;
+  padding: 12px 12px 4px;
+  border: 1px solid #a8a8a0;
+  background: #ffffff;
+  border-radius: 2px;
+}
+#compiled-wrap .step-banner {
+  margin: 0 0 8px;
+  font-size: 0.8rem;
+  color: #3a3a38;
+  line-height: 1.5;
+}
+#compiled-wrap .step-banner strong {
+  color: #111111;
+  font-weight: 600;
+}
+#compiled-tpl textarea {
+  background: #fafaf7 !important;
+  border: 1px solid #a8a8a0 !important;
+  min-height: 12rem !important;
+  color: #111111 !important;
+}
+#clear-tpl-btn {
+  margin-top: 4px !important;
+}
+/* 下载列表 */
+.dl-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  border: 1px solid #d0d0ca;
+  background: #ffffff;
+}
+.dl-item {
+  border-bottom: 1px solid #e8e8e4;
+}
+.dl-item:last-child {
+  border-bottom: none;
+}
+.dl-item a {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 12px;
+  padding: 10px 12px;
+  text-decoration: none !important;
+  color: #1a1a1a !important;
+}
+.dl-item a:hover {
+  background: #f0f0ec;
+}
+.dl-name {
+  font-size: 0.9rem;
+  font-weight: 500;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.download-path {
-  color: #64748b;
-  font-size: 12px;
-}
-.download-badge {
+.dl-meta {
   flex: 0 0 auto;
-  min-width: 52px;
-  text-align: center;
-  padding: 5px 9px;
-  border-radius: 999px;
-  background: #1f4e5f;
-  color: #ffffff;
-  font-size: 12px;
-  font-weight: 700;
+  font-size: 0.75rem;
+  color: #8a8a84;
+  font-variant-numeric: tabular-nums;
 }
-@media (max-width: 860px) {
-  #title-block {
-    margin-top: 10px;
+.dl-empty {
+  margin: 0;
+  padding: 16px 12px;
+  border: 1px solid #e0e0da;
+  background: #ffffff;
+  color: #8a8a84;
+  font-size: 0.875rem;
+}
+/* 日志区略紧凑 */
+#log-box textarea {
+  font-family: "IBM Plex Mono", "Cascadia Mono", "Consolas", monospace !important;
+  font-size: 0.8rem !important;
+  line-height: 1.45 !important;
+}
+@media (max-width: 900px) {
+  .gradio-container {
+    padding: 16px 12px 32px !important;
   }
-  #config-panel, #result-panel {
-    padding: 16px;
+  #col-input, #col-output {
+    padding: 14px !important;
   }
 }
 """
@@ -517,75 +808,130 @@ label, .wrap span {
 def build_app() -> gr.Blocks:
     initial_domain = "notes"
     initial_choices = _task_choices(initial_domain)
-    with gr.Blocks(title="AgentFlow 协作式 Agent 系统") as demo:
+    with gr.Blocks(title="AgentFlow") as demo:
         gr.HTML(
             """
-            <div id="title-block">
-              <h1>XiaoYi-TaskAgent</h1>
-              <p>选择领域和任务线，上传文件或直接输入内容后运行，支持图片预览和文件下载。</p>
-            </div>
+            <header id="app-header">
+              <h1>AgentFlow</h1>
+              <p>选择领域与任务，提供文本或文件，可选模板后运行。
+              再次测试直接再点「运行」即可，无需刷新。</p>
+            </header>
             """
         )
-        with gr.Row(equal_height=True):
-            with gr.Column(scale=4, elem_id="config-panel"):
-                gr.HTML('<div class="section-title">任务配置</div>')
+        # 第一行：清空 / 重置（再测入口，不埋在表单底部）
+        with gr.Row(elem_id="top-actions"):
+            clear_results_btn = gr.Button(
+                "清空结果",
+                variant="secondary",
+                elem_id="clear-results-btn",
+            )
+            reset_form_btn = gr.Button(
+                "重置表单",
+                variant="secondary",
+                elem_id="reset-form-btn",
+            )
+        gr.HTML(
+            '<p class="field-hint" style="margin:-8px 0 14px">'
+            "「清空结果」只清右侧；「重置表单」清空输入与模板（保留领域/任务）。"
+            "改完直接再运行，无需刷新浏览器。"
+            "</p>"
+        )
+        with gr.Row(elem_id="work-row", equal_height=False):
+            with gr.Column(scale=5, elem_id="col-input"):
+                gr.HTML('<div class="panel-label">配置</div>')
                 domain = gr.Dropdown(
                     label="领域",
                     choices=DOMAIN_CHOICES,
                     value=initial_domain,
                 )
                 tasks = gr.Radio(
-                    label="任务线",
+                    label="任务",
                     choices=initial_choices,
                     value=initial_choices[0] if initial_choices else None,
                 )
-                gr.HTML('<div class="section-title">输入内容</div>')
+                gr.HTML('<div class="panel-label" style="margin-top:18px">输入</div>')
+                gr.HTML(
+                    '<p class="field-hint">文件与文本二选一；同时提供时优先使用文件。</p>'
+                )
                 input_upload = gr.File(
-                    label="输入文件",
+                    label="文本文件",
                     file_count="single",
                     file_types=[".txt"],
                     type="filepath",
                 )
                 input_text = gr.Textbox(
-                    label="或直接输入文本",
-                    lines=8,
-                    placeholder="上传文件和输入文本二选一；如果两者都填写，优先使用上传文件。",
+                    label="文本",
+                    lines=7,
+                    placeholder="粘贴会议记录或笔记原文…",
                 )
-                gr.HTML('<div class="section-title">模板（可选）</div>')
-                template_upload = gr.File(
-                    label="模板文件",
-                    file_count="single",
-                    file_types=[".md", ".txt"],
-                    type="filepath",
+                gr.HTML(
+                    '<div class="panel-label" style="margin-top:18px">模板（可选）</div>'
                 )
-                template_text = gr.Textbox(
-                    label="或直接输入模板 / 自然语言描述",
-                    lines=6,
-                    placeholder=(
-                        "可上传或粘贴：① 带 [占位符] 的模板  ② 格式说明+示例  "
-                        "③ 自然语言（如「只要三部分：进展、问题、下一步」）。\n"
-                        "若是自然语言：第一次点运行只生成下方可编辑模板，确认后再点一次才真正出结果。"
-                    ),
+                gr.HTML(
+                    '<p class="field-hint">'
+                    "三种写法任选：① 带 [占位符] 的 Markdown；② 格式/结构说明；"
+                    "③ 自然语言（如「约400字，标题+纪要+风险表3行+待办表3行」）。"
+                    "自然语言会先编译成可编辑模板，确认后再生成。"
+                    "</p>"
                 )
-                compiled_template = gr.Textbox(
-                    label="可编辑模板（自然语言会先编译到这里；改完后再次点「运行」才执行任务）",
+                with gr.Column(elem_id="tpl-box"):
+                    template_upload = gr.File(
+                        label="模板文件",
+                        file_count="single",
+                        file_types=[".md", ".txt"],
+                        type="filepath",
+                        elem_id="tpl-file",
+                    )
+                    template_text = gr.Textbox(
+                        label="模板正文或自然语言",
+                        lines=5,
+                        max_lines=10,
+                        placeholder=(
+                            "自然语言示例：\n"
+                            "约400字。第一行做标题；\n"
+                            "纪要约200字；风险做成表格约3行；待办做成表格约3行。"
+                        ),
+                    )
+                # 折叠区外：编译结果始终可见，形成清晰两步流
+                with gr.Group(visible=False, elem_id="compiled-wrap") as compiled_wrap:
+                    gr.HTML(
+                        '<p class="step-banner">'
+                        "<strong>第 2 步 · 确认模板</strong>　"
+                        "可改固定文字与 [占位符] 说明，满意后点下方按钮生成结果。"
+                        "若要重新用自然语言编译，先点「清除可编辑模板」。"
+                        "</p>"
+                    )
+                    compiled_template = gr.Textbox(
+                        label="可编辑模板",
+                        lines=10,
+                        max_lines=22,
+                        elem_id="compiled-tpl",
+                        placeholder="自然语言编译结果会出现在这里。",
+                        show_label=True,
+                    )
+                    clear_tpl_btn = gr.Button(
+                        "清除可编辑模板",
+                        variant="secondary",
+                        elem_id="clear-tpl-btn",
+                        size="sm",
+                    )
+                run_button = gr.Button("运行", variant="primary", elem_id="run-btn")
+
+            with gr.Column(scale=6, elem_id="col-output"):
+                gr.HTML('<div class="panel-label">结果</div>')
+                log_output = gr.Textbox(
+                    label="日志",
                     lines=12,
-                    visible=False,
-                    placeholder=(
-                        "固定文字可直接改；[方括号] 是待系统填写的内容，可改括号里的说明。"
-                    ),
+                    elem_id="log-box",
                 )
-                run_button = gr.Button("运行", variant="primary")
-            with gr.Column(scale=5, elem_id="result-panel"):
-                log_output = gr.Textbox(label="运行记录", lines=10)
                 image_output = gr.Gallery(
-                    label="图片预览",
+                    label="图片",
                     columns=2,
-                    height=320,
+                    height=280,
                 )
                 files_output = gr.HTML(
-                    label="下载后查看",
-                    value='<div class="download-empty">暂无生成文件</div>',
+                    label="文件",
+                    value=EMPTY_DOWNLOAD,
                 )
 
         domain.change(
@@ -593,6 +939,8 @@ def build_app() -> gr.Blocks:
             inputs=domain,
             outputs=tasks,
         )
+        hitl_outputs = [compiled_template, compiled_wrap, run_button]
+        result_outputs = [log_output, image_output, files_output]
         run_button.click(
             run_from_ui,
             inputs=[
@@ -604,10 +952,33 @@ def build_app() -> gr.Blocks:
                 template_text,
                 compiled_template,
             ],
-            outputs=[log_output, image_output, files_output, compiled_template],
+            outputs=[*result_outputs, *hitl_outputs],
             show_progress="minimal",
         )
+        clear_tpl_btn.click(
+            clear_compiled_template,
+            inputs=[],
+            outputs=[log_output, *hitl_outputs],
+        )
+        clear_results_btn.click(
+            clear_results_only,
+            inputs=[],
+            outputs=result_outputs,
+        )
+        reset_form_btn.click(
+            reset_form,
+            inputs=[],
+            outputs=[
+                *result_outputs,
+                input_upload,
+                input_text,
+                template_upload,
+                template_text,
+                *hitl_outputs,
+            ],
+        )
     return demo
+
 
 def _env_bool(name: str, default: bool = False) -> bool:
     value = os.getenv(name)
@@ -631,6 +1002,21 @@ if __name__ == "__main__":
         server_name=os.getenv("GRADIO_SERVER_NAME", "127.0.0.1"),
         server_port=_env_int("GRADIO_SERVER_PORT", 7860),
         share=_env_bool("GRADIO_SHARE", False),
-        theme=gr.themes.Soft(primary_hue="teal", neutral_hue="slate"),
+        theme=gr.themes.Base(
+            primary_hue=gr.themes.colors.neutral,
+            secondary_hue=gr.themes.colors.neutral,
+            neutral_hue=gr.themes.colors.neutral,
+        ).set(
+            body_background_fill="#f4f4f2",
+            body_background_fill_dark="#f4f4f2",
+            block_background_fill="#ffffff",
+            block_border_width="0px",
+            block_shadow="none",
+            button_primary_background_fill="#2a2a28",
+            button_primary_background_fill_hover="#1a1a1a",
+            button_primary_text_color="#fafaf9",
+            border_color_primary="#d0d0ca",
+            input_background_fill="#ffffff",
+        ),
         css=CSS,
     )
