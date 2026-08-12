@@ -10,11 +10,18 @@ readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
   "langgraph>=1.0,<2",
+  # Web testing / demo UI（gradio_app.py）
+  "gradio>=6.0",
+  # WebSocket LLM 后端（llm_client/client.py）
+  "websockets>=12.0",
+  # 思维导图 PNG 导出（tools/mindmap.py，可选但声明以保打包完整）
+  "playwright>=1.40",
 ]
 
 [tool.hatch.build.targets.wheel]
 packages = [
     "domain/meeting",
+    "domain/notes",
     "perspective",
     "supervisor",
     "schema_repair",

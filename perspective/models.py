@@ -30,11 +30,15 @@ class PerspectiveModeling(ModelMixin):
     confidence: Literal["high", "medium", "low"]
     name: str
     inferred_role: str
+    personal_summary: str
     responsibilities: list[str] = field(default_factory=list)
     goals: list[str] = field(default_factory=list)
     concerns: list[str] = field(default_factory=list)
     relevant_topics: list[str] = field(default_factory=list)
     evidence: list[str] = field(default_factory=list)
+    attention_points: list[str] = field(default_factory=list)
+    possible_actions: list[str] = field(default_factory=list)
+    preference_signals: list[str] = field(default_factory=list)
 
     @classmethod
     def validate(cls, data: dict) -> "PerspectiveModeling":
@@ -42,11 +46,15 @@ class PerspectiveModeling(ModelMixin):
         _choice(data["confidence"], {"high", "medium", "low"}, "confidence")
         _string(data["name"], "name")
         _string(data["inferred_role"], "inferred_role")
+        _string(data["personal_summary"], "personal_summary")
         _string_list(data["responsibilities"], "responsibilities")
         _string_list(data["goals"], "goals")
         _string_list(data["concerns"], "concerns")
         _string_list(data["relevant_topics"], "relevant_topics")
         _string_list(data["evidence"], "evidence")
+        _string_list(data["attention_points"], "attention_points")
+        _string_list(data["possible_actions"], "possible_actions")
+        _string_list(data["preference_signals"], "preference_signals")
         return cls(**data)
 
 
@@ -59,6 +67,10 @@ EMPTY_PERSPECTIVE_MODELING = {
     "concerns": [],
     "relevant_topics": [],
     "evidence": [],
+    "personal_summary": "",
+    "attention_points": [],
+    "possible_actions": [],
+    "preference_signals": [],
 }
 
 

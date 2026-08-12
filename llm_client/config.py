@@ -54,8 +54,20 @@ ENV_WS_MAX_TOKENS = "LLM_WS_MAX_TOKENS"
 ENV_WS_STOP = "LLM_WS_STOP"
 ENV_WS_ENABLE_THINKING = "LLM_WS_ENABLE_THINKING"
 
+# 网络参数（HTTP / WebSocket 共用）
+ENV_TIMEOUT = "LLM_TIMEOUT"
+ENV_MAX_RETRIES = "LLM_MAX_RETRIES"
+
+DEFAULT_TIMEOUT = 120.0
+DEFAULT_MAX_RETRIES = 2
+
 # 占位 Key，视为未配置
-_PLACEHOLDER = "your_api_key_here"
+_PLACEHOLDERS = {
+    "your_api_key_here",
+    "sk-your-key",
+    "sk-你的Key",
+    "sk-你的key",
+}
 
 
 @dataclass(frozen=True)
@@ -74,6 +86,9 @@ class LLMSettings:
     max_tokens: int = DEFAULT_MAX_TOKENS
     stop: tuple[str, ...] = ()
     enable_thinking: bool = False
+    # 网络参数（HTTP / WebSocket 共用；LLM_TIMEOUT / LLM_MAX_RETRIES 可覆盖）
+    timeout: float = DEFAULT_TIMEOUT
+    max_retries: int = DEFAULT_MAX_RETRIES
 
 
 def load_env(path: Path) -> None:
@@ -90,7 +105,7 @@ def load_env(path: Path) -> None:
 
 def _env(name: str, default: str = "") -> str:
     value = os.getenv(name, "").strip()
-    if value and value != _PLACEHOLDER:
+    if value and value not in _PLACEHOLDERS:
         return value
     return default
 
@@ -135,6 +150,8 @@ def resolve_llm_settings(
     base_url: str | None = None,
     model: str | None = None,
     temperature: float | None = None,
+    timeout: float | None = None,
+    max_retries: int | None = None,
 ) -> LLMSettings:
     """解析 LLM 连接配置。
 
@@ -142,6 +159,12 @@ def resolve_llm_settings(
     HTTP 最低配置要求：.env 中设置 DEEPSEEK_API_KEY，其余均可省略。
     WebSocket 最低配置要求：LLM_WS_URL / LLM_WS_API_KEY / LLM_WS_MODEL。
     """
+    resolved_timeout = timeout if timeout is not None else _env_float(
+        ENV_TIMEOUT, DEFAULT_TIMEOUT
+    )
+    resolved_max_retries = max_retries if max_retries is not None else _env_int(
+        ENV_MAX_RETRIES, DEFAULT_MAX_RETRIES
+    )
     backend = _env(ENV_BACKEND, "http").lower()
     if backend in {"ws", "websocket"}:
         resolved_key = api_key or _env(ENV_WS_API_KEY)
@@ -172,6 +195,8 @@ def resolve_llm_settings(
             max_tokens=_env_int(ENV_WS_MAX_TOKENS, DEFAULT_MAX_TOKENS),
             stop=_env_csv(ENV_WS_STOP),
             enable_thinking=_env_bool(ENV_WS_ENABLE_THINKING, False),
+            timeout=resolved_timeout,
+            max_retries=resolved_max_retries,
         )
 
     resolved_key = api_key or _env(ENV_API_KEY)
@@ -203,4 +228,6 @@ def resolve_llm_settings(
         base_url=resolved_base,
         model=resolved_model,
         temperature=resolved_temperature,
+        timeout=resolved_timeout,
+        max_retries=resolved_max_retries,
     )

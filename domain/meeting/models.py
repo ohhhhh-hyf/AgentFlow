@@ -394,7 +394,7 @@ class MeetingState(TypedDict, total=False):
     # 核心 Agent 输出（公共事实底座）
     meeting_understanding: dict
     perspective_profile: dict
-    # 任务线子空间：lines[线名] = {draft, supervisor_review,
+    # 任务线子空间：lines[线名] = {draft, review,
     #   revision_feedback, revision_count, degraded, rendered, structure}
     lines: Annotated[dict[str, dict], _merge_lines]
     # 任意层降级（core 或任一任务线），用于最终质量警告（并发写，or 合并）

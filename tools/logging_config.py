@@ -16,8 +16,8 @@ def setup_logging(level: int = logging.INFO) -> None:
     handler = logging.StreamHandler(sys.stdout)
     handler.setLevel(level)
 
-    # 简洁格式：只显示消息本身（不显示时间 / 级别前缀）
-    handler.setFormatter(logging.Formatter("%(message)s"))
+    # 带时间戳与级别前缀，便于区分正常输出与降级/错误（不改变业务输出格式）
+    handler.setFormatter(logging.Formatter("%(asctime)s %(levelname)s %(message)s"))
 
     root.setLevel(level)
     root.addHandler(handler)

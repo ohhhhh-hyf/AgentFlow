@@ -19,7 +19,7 @@ from .outputs import (
     task_output_dir,
 )
 from .runtime_context import DomainContext, env_path, normalize_tasks
-from .template_router import maybe_compile_natural_template
+from .template_router import LINE_SCHEMA_HINTS, maybe_compile_natural_template
 
 logger = logging.getLogger(__name__)
 
@@ -122,7 +122,12 @@ async def run(
         text = template_file.read_text(encoding="utf-8").strip()
         if not text:
             raise ValueError(f"{line} 模板文件为空：{template_file}")
-        template_texts[line] = await maybe_compile_natural_template(text)
+        template_texts[line] = await maybe_compile_natural_template(
+            text,
+            domain=ctx.name,
+            line_name=line,
+            schema_hint=LINE_SCHEMA_HINTS.get(line, ""),
+        )
 
     system = ctx.system_cls()
     any_output = False
@@ -155,9 +160,14 @@ async def _handle_done(ctx: DomainContext, event: dict) -> None:
     if event.get("quality_warning"):
         logger.warning("⚠ %s", event["quality_warning"])
     reports = event.get("reports") or {}
-    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    # 毫秒级时间戳：同秒多次运行不互相覆盖产物
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S_%f")[:-3]
 
-    saved_reports = save_all_reports(ctx, reports, timestamp)
+    try:
+        saved_reports = save_all_reports(ctx, reports, timestamp)
+    except Exception:  # noqa: BLE001 - 落盘失败不中断其余导出
+        logger.error("报告落盘失败", exc_info=True)
+        saved_reports = {}
     for line_name, paths in saved_reports.items():
         cn = ctx.line_cn_names.get(line_name, line_name)
         if paths.get("json"):
@@ -166,23 +176,31 @@ async def _handle_done(ctx: DomainContext, event: dict) -> None:
             sys.stdout.write(f"[{cn}] 已保存文本：{paths['text']}\n")
 
     if "mindmap" in reports:
-        mindmap_dir = task_output_dir(ctx, "mindmap")
-        html_path = export_mindmap_html(reports, mindmap_dir)
-        if html_path:
-            sys.stdout.write(f"\n[思维导图] 已生成 HTML：{html_path}\n")
-        png_path = await export_mindmap_png(reports, mindmap_dir, html_path=html_path)
-        if png_path:
-            sys.stdout.write(f"[思维导图] 已生成 PNG：{png_path}\n")
+        try:
+            mindmap_dir = task_output_dir(ctx, "mindmap")
+            html_path = export_mindmap_html(reports, mindmap_dir)
+            if html_path:
+                sys.stdout.write(f"\n[思维导图] 已生成 HTML：{html_path}\n")
+            png_path = await export_mindmap_png(
+                reports, mindmap_dir, html_path=html_path
+            )
+            if png_path:
+                sys.stdout.write(f"[思维导图] 已生成 PNG：{png_path}\n")
+        except Exception:  # noqa: BLE001 - 单类导出失败不中断主流程
+            logger.error("思维导图导出失败", exc_info=True)
 
     if "knowledge_graph" in reports:
-        kg_dir = task_output_dir(ctx, "knowledge_graph")
-        kg_paths = export_knowledge_graph(reports, kg_dir)
-        if kg_paths.get("png"):
-            sys.stdout.write(f"[知识图谱] 已生成 PNG：{kg_paths['png']}\n")
-        if kg_paths.get("svg"):
-            sys.stdout.write(f"[知识图谱] 已生成 SVG：{kg_paths['svg']}\n")
-        if kg_paths.get("html"):
-            sys.stdout.write(f"[知识图谱] 已生成 HTML：{kg_paths['html']}\n")
+        try:
+            kg_dir = task_output_dir(ctx, "knowledge_graph")
+            kg_paths = export_knowledge_graph(reports, kg_dir)
+            if kg_paths.get("png"):
+                sys.stdout.write(f"[知识图谱] 已生成 PNG：{kg_paths['png']}\n")
+            if kg_paths.get("svg"):
+                sys.stdout.write(f"[知识图谱] 已生成 SVG：{kg_paths['svg']}\n")
+            if kg_paths.get("html"):
+                sys.stdout.write(f"[知识图谱] 已生成 HTML：{kg_paths['html']}\n")
+        except Exception:  # noqa: BLE001 - 单类导出失败不中断主流程
+            logger.error("知识图谱导出失败", exc_info=True)
 
 
 def _resolve_template_file(

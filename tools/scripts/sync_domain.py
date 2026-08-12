@@ -2504,11 +2504,14 @@ def write_core_understanding() -> None:
         return {{"{state_key}": result.model_dump()}}
 
 '''
-    raw = _insert_before_exact_once(
-        raw,
-        "    # ── 渲染上下文生成区：由 tools/scripts/sync_domain.py 生成，勿手改 ──",
-        node_code,
-    )
+    # 节点方法已存在（手写或此前已生成）时跳过插入，避免重复定义；
+    # 新领域/新 core 未接线时才在渲染上下文生成区之前插入骨架。
+    if f"async def {node}" not in raw:
+        raw = _insert_before_exact_once(
+            raw,
+            "    # ── 渲染上下文生成区：由 tools/scripts/sync_domain.py 生成，勿手改 ──",
+            node_code,
+        )
     mount_code = (
         f"        self.{attr}: {cls} = agents[\n"
         f'            "{attr}"\n'

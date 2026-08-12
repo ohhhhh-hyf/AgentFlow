@@ -98,6 +98,11 @@ def save_all_reports(
 
 # ── 图类任务导出 ───────────────────────────────────────────────
 
+def _stamp() -> str:
+    """毫秒级时间戳（同秒多次运行不互相覆盖产物）。"""
+    return datetime.now().strftime("%Y%m%d_%H%M%S_%f")[:-3]
+
+
 def export_mindmap_html(reports: dict, out_dir: Path) -> Path | None:
     mindmap_report = reports.get("mindmap")
     outline = getattr(mindmap_report, "outline", None) if mindmap_report else None
@@ -106,7 +111,7 @@ def export_mindmap_html(reports: dict, out_dir: Path) -> Path | None:
     if not markmap_available():
         logger.warning("未检测到 npx/node，跳过思维导图 HTML 生成")
         return None
-    filename = f"mindmap_{datetime.now():%Y%m%d_%H%M%S}.html"
+    filename = f"mindmap_{_stamp()}.html"
     return render_mindmap_html(outline, out_dir, filename)
 
 
@@ -123,7 +128,7 @@ async def export_mindmap_png(
             "（安装：pip install playwright && playwright install chromium）"
         )
         return None
-    filename = f"mindmap_{datetime.now():%Y%m%d_%H%M%S}.png"
+    filename = f"mindmap_{_stamp()}.png"
     return await render_mindmap_png(outline, out_dir, filename, html_path=html_path)
 
 
@@ -142,7 +147,7 @@ def export_knowledge_graph(reports: dict, out_dir: Path) -> dict[str, Path]:
         if not title and stripped.startswith("# "):
             title = stripped[2:].strip()
             break
-    stem = f"knowledge_graph_{datetime.now():%Y%m%d_%H%M%S}"
+    stem = f"knowledge_graph_{_stamp()}"
     return render_knowledge_graph_bundle(nodes, edges, out_dir, stem, title=title)
 
 

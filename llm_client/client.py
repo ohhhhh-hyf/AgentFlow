@@ -30,8 +30,8 @@ class LLMClient:
         base_url: str | None = None,
         model: str | None = None,
         provider: str | None = None,
-        timeout: float = 120.0,
-        max_retries: int = 2,
+        timeout: float | None = None,
+        max_retries: int | None = None,
         settings: LLMSettings | None = None,
     ) -> None:
         cfg = settings or resolve_llm_settings(
@@ -39,6 +39,8 @@ class LLMClient:
             api_key=api_key,
             base_url=base_url,
             model=model,
+            timeout=timeout,
+            max_retries=max_retries,
         )
         self.provider = cfg.provider
         self.backend = cfg.backend
@@ -54,8 +56,8 @@ class LLMClient:
         self.max_tokens = cfg.max_tokens
         self.stop = cfg.stop
         self.enable_thinking = cfg.enable_thinking
-        self.timeout = timeout
-        self.max_retries = max_retries
+        self.timeout = cfg.timeout
+        self.max_retries = cfg.max_retries
 
     @staticmethod
     def _retry_delay_seconds(attempt: int) -> float:
@@ -90,8 +92,17 @@ class LLMClient:
         label = self.provider
         try:
             with urllib.request.urlopen(request, timeout=self.timeout) as response:
-                body = json.loads(response.read().decode("utf-8"))
-                return body["choices"][0]["message"]["content"]
+                raw = response.read().decode("utf-8")
+                try:
+                    body = json.loads(raw)
+                    return body["choices"][0]["message"]["content"]
+                except (json.JSONDecodeError, KeyError, IndexError, TypeError) as exc:
+                    # HTTP 200 但响应非标准（非 JSON / 字段缺失）：
+                    # 包装为 RuntimeError，让上层重试 / schema_repair 路径接管，
+                    # 而不是原样冒出绕过 structured() 的修复逻辑。
+                    raise RuntimeError(
+                        f"{label} API 返回非标准响应：{raw[:200]!r}"
+                    ) from exc
         except urllib.error.HTTPError as exc:
             detail = exc.read().decode("utf-8", errors="replace")
             raise RuntimeError(
@@ -103,11 +114,28 @@ class LLMClient:
     def _stream_sync(
         self, messages: list[dict[str, str]], *, json_mode: bool = False
     ) -> Iterable[str]:
-        if self.backend == "websocket":
-            yield asyncio.run(self._ws_chat(messages, stream=False))
-            return
+        """同步读取流式响应，逐块产出 content 增量（阻塞调用，供线程内使用）。
 
-        """同步读取 SSE 流式响应，逐块产出 content 增量（阻塞调用，供线程内使用）。"""
+        - HTTP 后端：SSE 逐块产出；连接阶段失败（尚未产出任何 chunk）时
+          指数退避重试，一旦开始产出内容，中途断流不再重试（避免已输出块重复）。
+        - WebSocket 后端：无真正的逐块流，一次取回全量文本；_ws_chat 抛出的
+          RuntimeError（连接/超时/未返回有效内容）指数退避重试，协议类异常
+          （如非 JSON 响应）不重试——重试无意义，直接冒泡。
+        """
+        if self.backend == "websocket":
+            for attempt in range(self.max_retries + 1):
+                try:
+                    text = asyncio.run(self._ws_chat(messages, stream=False))
+                except RuntimeError:
+                    if attempt >= self.max_retries:
+                        raise
+                    time.sleep(self._retry_delay_seconds(attempt))
+                    continue
+                if text:
+                    yield text
+                return
+            return  # 不可达：重试耗尽必然已抛出
+
         body: dict = {
             "model": self.model,
             "messages": messages,

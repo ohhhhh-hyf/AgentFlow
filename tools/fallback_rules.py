@@ -16,6 +16,7 @@
 工厂脚本检测到 ``FallbackRules`` 子类后，自动生成完整的 fallback 节点
 （调用 orchestrator 的 ``_fallback_text(state, "minutes_generation", MINUTES_FALLBACK_RULES)``）。
 """
+from __future__ import annotations
 
 
 class Section:

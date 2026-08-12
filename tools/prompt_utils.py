@@ -19,6 +19,7 @@
 """
 from __future__ import annotations
 
+from tools.template_prompt import FALLBACK_TEMPLATE_RULES
 from tools.template_router import route_template
 
 
@@ -48,7 +49,12 @@ def build_render_prompt(
     routed = route_template(context, template, render_prompt, template_prompt)
     if routed is not None:
         return routed
-    return template_prompt, f"{context}\n\n{template}"
+    # 判型失败 / 路由关闭 / 自然语言编译失败：类型未知，
+    # 追加两类型简述让 LLM 自行判断（兜底，与旧行为等价）
+    return (
+        template_prompt + FALLBACK_TEMPLATE_RULES,
+        f"{context}\n\n{template}",
+    )
 
 
 __all__ = ["build_render_prompt"]

@@ -20,6 +20,11 @@ sys.path.insert(0, str(PROJECT_ROOT))
 from llm_client.config import load_env  # noqa: E402
 from tools.runtime_context import load_domain  # noqa: E402
 from tools.runner import run  # noqa: E402
+from tools.template_router import (  # noqa: E402
+    LINE_SCHEMA_HINTS,
+    detect_template_kind,
+    maybe_compile_natural_template,
+)
 
 
 DOMAIN_NAMES = ["meeting", "notes"]
@@ -61,7 +66,11 @@ def _output_files(domain: str, tasks: list[str]) -> set[Path]:
 
 def _new_artifacts(domain: str, tasks: list[str], before: set[Path]) -> list[str]:
     after = _output_files(domain, tasks)
-    new_files = sorted(after - before, key=lambda path: path.stat().st_mtime)
+    # 容错：并发清理/移动时文件可能已消失，跳过即可
+    new_files = sorted(
+        (path for path in (after - before) if path.exists()),
+        key=lambda path: path.stat().st_mtime,
+    )
     return [str(path) for path in new_files]
 
 
@@ -70,7 +79,7 @@ def _png_previews(files: list[str]) -> list[str]:
 
 
 def _clean_filename(name: str) -> str:
-    name = re.sub(r"_(\d{8})_(\d{6})(?=\.)", "", name)
+    name = re.sub(r"_(\d{8})_(\d{6})(?:_\d{3})?(?=\.)", "", name)
     return name
 
 
@@ -136,29 +145,106 @@ def run_from_ui(
     input_text: str | None,
     template_upload,
     template_text: str | None,
+    compiled_template: str | None,
 ):
     domain = _domain_value(domain_label)
+    empty_download = '<div class="download-empty">暂无生成文件</div>'
     if not task_label:
-        return "请选择任务线。", [], '<div class="download-empty">暂无生成文件</div>'
+        return "请选择任务线。", [], empty_download, gr.update(visible=False)
 
     tasks = [_task_value(task_label)]
     profile_path = PROJECT_ROOT / "samples" / domain / "profile" / "object_profile.json"
     if not profile_path.exists():
-        return f"默认 profile 不存在：{profile_path}", [], '<div class="download-empty">暂无生成文件</div>'
+        return (
+            f"默认 profile 不存在：{profile_path}",
+            [],
+            empty_download,
+            gr.update(visible=False),
+        )
 
     ctx = _ctx(domain)
     with tempfile.TemporaryDirectory(prefix="agentflow_gradio_") as temp_dir:
         temp_root = Path(temp_dir)
         input_file = _input_path(input_upload, input_text, temp_root, "input.txt")
         if input_file is None:
-            return "请上传输入文件，或直接在文本框里输入内容。", [], '<div class="download-empty">暂无生成文件</div>'
+            return (
+                "请上传输入文件，或直接在文本框里输入内容。",
+                [],
+                empty_download,
+                gr.update(visible=False),
+            )
+
+        # 须在自然语言模板编译之前加载 .env，否则 LLMClient 读不到 API Key
+        load_env(PROJECT_ROOT / ".env")
+
+        # ── 模板处理（Human-in-the-loop）────────────────────────────────
+        # 1) 自然语言：先编译成易读模板 → 展示给人改 → 本次不跑任务
+        # 2) 人已改编译框 / 直接给了占位符或格式模板：用该模板真正运行
+        template_source = ""
+        if template_upload is not None:
+            uploaded = _uploaded_path(template_upload)
+            if uploaded is not None and uploaded.exists():
+                template_source = uploaded.read_text(encoding="utf-8").strip()
+        if not template_source:
+            template_source = (template_text or "").strip()
+
+        confirmed = (compiled_template or "").strip()
+        # 情况 A：下方「可编辑模板」已有内容 → 视为用户确认/修改后的模板，直接运行
+        if confirmed:
+            final_template = confirmed
+        # 情况 B：源模板是自然语言 → 只编译展示，不跑任务
+        elif template_source and detect_template_kind(template_source) == "natural":
+            try:
+                compiled = asyncio.run(
+                    maybe_compile_natural_template(
+                        template_source,
+                        domain=domain,
+                        line_name=tasks[0],
+                        schema_hint=LINE_SCHEMA_HINTS.get(tasks[0], ""),
+                    )
+                ).strip()
+            except Exception as exc:  # noqa: BLE001
+                return (
+                    f"自然语言模板编译失败：{exc}\n请检查 .env 中的 API Key 后重试。",
+                    [],
+                    empty_download,
+                    gr.update(visible=False, value=""),
+                )
+            # 编译失败会原样返回自然语言，不能当作已确认模板
+            if (
+                not compiled
+                or compiled == template_source
+                or detect_template_kind(compiled) != "placeholder"
+            ):
+                return (
+                    "未能把自然语言描述编译成可编辑模板。\n"
+                    "请换一种更具体的描述（例如「只要三部分：进展、问题、下一步」），"
+                    "或直接粘贴带 [占位符] 的模板后再运行。",
+                    [],
+                    empty_download,
+                    gr.update(visible=False, value=""),
+                )
+            return (
+                "已根据你的自然语言描述生成「可编辑模板」（见下方）。\n"
+                "请检查并修改：\n"
+                "  · 固定文字（标题、表头）可直接改\n"
+                "  · 方括号 [……] 表示待系统填写的内容，可改说明文字\n"
+                "确认无误后，再次点击「运行」才会真正生成任务结果。\n"
+                "（本次仅编译模板，尚未执行任务。）",
+                [],
+                empty_download,
+                gr.update(visible=True, value=compiled),
+            )
+        # 情况 C：无编译框内容，源模板是占位符/格式规范/空 → 直接运行
+        else:
+            final_template = template_source
 
         templates: dict[str, Path] = {}
-        template_file = _input_path(template_upload, template_text, temp_root, "template.md")
-        if template_file is not None:
+        if final_template:
+            template_file = temp_root / "template.md"
+            template_file.write_text(final_template, encoding="utf-8")
             templates[tasks[0]] = template_file
 
-        load_env(PROJECT_ROOT / ".env")
         before = _output_files(domain, tasks)
         buffer = io.StringIO()
         try:
@@ -181,7 +267,12 @@ def run_from_ui(
 
     if files:
         log = f"{log}\n\n已生成 {len(files)} 个文件，可在右侧直接查看或下载。"
-    return log, _png_previews(files), _artifact_download_html(files)
+    # 若本次是用「可编辑模板」跑的，结束后继续展示，方便再改再跑
+    compiled_state = gr.update(
+        visible=bool(confirmed),
+        value=confirmed if confirmed else "",
+    )
+    return log, _png_previews(files), _artifact_download_html(files), compiled_state
 
 
 def _uploaded_path(upload) -> Path | None:
@@ -210,10 +301,11 @@ def _input_path(upload, text: str | None, temp_root: Path, filename: str) -> Pat
     return None
 
 def _clean_log(text: str) -> str:
-    text = re.sub(r"knowledge_graph_\d{8}_\d{6}", "knowledge_graph", text)
-    text = re.sub(r"mindmap_\d{8}_\d{6}", "mindmap", text)
-    text = re.sub(r"report_\d{8}_\d{6}", "report", text)
-    text = re.sub(r"result_\d{8}_\d{6}", "result", text)
+    # 兼容毫秒级时间戳（_HHMMSS_SSS 与旧版 _HHMMSS 均可）
+    text = re.sub(r"knowledge_graph_\d{8}_\d{6}(?:_\d{3})?", "knowledge_graph", text)
+    text = re.sub(r"mindmap_\d{8}_\d{6}(?:_\d{3})?", "mindmap", text)
+    text = re.sub(r"report_\d{8}_\d{6}(?:_\d{3})?", "report", text)
+    text = re.sub(r"result_\d{8}_\d{6}(?:_\d{3})?", "result", text)
     return text
 
 
@@ -467,9 +559,21 @@ def build_app() -> gr.Blocks:
                     type="filepath",
                 )
                 template_text = gr.Textbox(
-                    label="或直接输入模板",
+                    label="或直接输入模板 / 自然语言描述",
                     lines=6,
-                    placeholder="可上传模板文件，或把模板内容粘贴到这里。",
+                    placeholder=(
+                        "可上传或粘贴：① 带 [占位符] 的模板  ② 格式说明+示例  "
+                        "③ 自然语言（如「只要三部分：进展、问题、下一步」）。\n"
+                        "若是自然语言：第一次点运行只生成下方可编辑模板，确认后再点一次才真正出结果。"
+                    ),
+                )
+                compiled_template = gr.Textbox(
+                    label="可编辑模板（自然语言会先编译到这里；改完后再次点「运行」才执行任务）",
+                    lines=12,
+                    visible=False,
+                    placeholder=(
+                        "固定文字可直接改；[方括号] 是待系统填写的内容，可改括号里的说明。"
+                    ),
                 )
                 run_button = gr.Button("运行", variant="primary")
             with gr.Column(scale=5, elem_id="result-panel"):
@@ -498,8 +602,9 @@ def build_app() -> gr.Blocks:
                 input_text,
                 template_upload,
                 template_text,
+                compiled_template,
             ],
-            outputs=[log_output, image_output, files_output],
+            outputs=[log_output, image_output, files_output, compiled_template],
             show_progress="minimal",
         )
     return demo

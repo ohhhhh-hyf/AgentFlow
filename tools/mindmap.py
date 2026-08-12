@@ -153,6 +153,88 @@ def render_mindmap_html(
                 pass
 
 
+def _png_pixel_stats(path: Path, sample_every: int = 4) -> tuple[int, float]:
+    """解码 PNG，返回 (采样不同颜色数, 非近白/近黑像素占比)。
+
+    用于截图质量自检：
+    - 颜色数过少 → 纯色图
+    - 非背景像素过少 → 几乎全白/全黑的"假成功"空白图
+      （入场动画未结束时常见：整图白底仅零星描边色）
+    """
+    import struct
+    import zlib
+
+    with path.open("rb") as fh:
+        data = fh.read()
+    if data[:8] != b"\x89PNG\r\n\x1a\n":
+        return 0, 0.0
+    pos = 8
+    idat = b""
+    width = height = bit_depth = color_type = 0
+    while pos < len(data):
+        length = struct.unpack(">I", data[pos : pos + 4])[0]
+        chunk_type = data[pos + 4 : pos + 8]
+        if chunk_type == b"IHDR":
+            width, height, bit_depth, color_type = struct.unpack(
+                ">IIBB", data[pos + 8 : pos + 18]
+            )
+        elif chunk_type == b"IDAT":
+            idat += data[pos + 8 : pos + 8 + length]
+        pos += 12 + length
+    if bit_depth != 8 or not idat or width <= 0 or height <= 0:
+        return 0, 0.0
+    bpp = 4 if color_type == 6 else (3 if color_type == 2 else 1)
+    raw = zlib.decompress(idat)
+    stride = width * bpp
+    colors: set = set()
+    sample_n = 0
+    content_n = 0
+    p = 0
+    prev = bytearray(stride)
+    for y in range(height):
+        f = raw[p]
+        p += 1
+        line = bytearray(raw[p : p + stride])
+        p += stride
+        if f == 1:  # Sub
+            for i in range(bpp, stride):
+                line[i] = (line[i] + line[i - bpp]) & 0xFF
+        elif f == 2:  # Up
+            for i in range(stride):
+                line[i] = (line[i] + prev[i]) & 0xFF
+        elif f == 3:  # Average
+            for i in range(stride):
+                a = line[i - bpp] if i >= bpp else 0
+                line[i] = (line[i] + ((a + prev[i]) >> 1)) & 0xFF
+        elif f == 4:  # Paeth
+            for i in range(stride):
+                a = line[i - bpp] if i >= bpp else 0
+                b = prev[i]
+                c = prev[i - bpp] if i >= bpp else 0
+                pa, pb, pc = abs(b - c), abs(a - c), abs(a + b - 2 * c)
+                pr = a if pa <= pb and pa <= pc else (b if pb <= pc else c)
+                line[i] = (line[i] + pr) & 0xFF
+        if y % sample_every == 0:
+            for i in range(0, stride, bpp * sample_every):
+                pix = tuple(line[i : i + bpp])
+                colors.add(pix)
+                sample_n += 1
+                # RGB 亮度：近白(>=250) / 近黑(<=5) 视为背景
+                r = pix[0] if bpp >= 3 else pix[0]
+                g = pix[1] if bpp >= 3 else pix[0]
+                b = pix[2] if bpp >= 3 else pix[0]
+                if not (min(r, g, b) >= 250 or max(r, g, b) <= 5):
+                    content_n += 1
+        prev = line
+    ratio = (content_n / sample_n) if sample_n else 0.0
+    return len(colors), ratio
+
+
+def _png_color_count(path: Path, sample_every: int = 4) -> int:
+    """兼容旧调用：仅返回采样颜色数。"""
+    return _png_pixel_stats(path, sample_every=sample_every)[0]
+
+
 async def render_mindmap_png(
     outline: str,
     out_dir: Path | str,
@@ -196,12 +278,14 @@ async def render_mindmap_png(
         png_path = out_dir / filename
 
         if html_path:
-            html = Path(html_path)
+            html = Path(html_path).resolve()
         else:
             # 临时生成 HTML（不覆盖外部产物）
             html = render_mindmap_html(
                 outline, out_dir, f"._{filename}.html"
             )
+            if html is not None:
+                html = html.resolve()
         if html is None or not html.exists():
             logger.warning("思维导图 HTML 源不存在，无法导出 PNG")
             return None
@@ -210,31 +294,103 @@ async def render_mindmap_png(
         async with async_playwright() as p:
             browser = await p.chromium.launch()
             try:
+                # 强制 light：系统深色模式下 markmap 会加 .markmap-dark（白字），
+                # 再补白底会变成白底白字，PNG 看起来全空白。
                 page = await browser.new_page(
                     viewport={"width": 1600, "height": 1200},
                     device_scale_factor=2,
+                    color_scheme="light",
                 )
                 await page.goto(uri, wait_until="load", timeout=30_000)
+                # 1) 等 markmap 实例 + SVG 节点挂载
+                # 2) 再等 getBBox 足够大且连续稳定——markmap 入场有 ~500ms
+                #    d3 过渡动画；节点 DOM 一出现就截图会得到纯白/残缺图。
+                # 注意：不要在稳定前调用 mm.fit()，fit 会重启动画。
                 await page.wait_for_function(
-                    "() => !!(window.mm && window.mm.svg)", timeout=15_000
+                    """() => {
+                        const svg = document.querySelector('svg#mindmap');
+                        if (!(window.mm && svg)) return false;
+                        const g = svg.querySelector('g');
+                        if (!(g && g.childElementCount > 0)) return false;
+                        let bb;
+                        try {
+                            bb = svg.getBBox();
+                        } catch (e) {
+                            return false;
+                        }
+                        // 入场初期 bbox 往往宽高很小（常见 height~20）；
+                        // 动画结束后至少应有基本可视面积（小导图也可能 <200）
+                        if (bb.width < 80 || bb.height < 80) return false;
+                        const key = [
+                            bb.x.toFixed(1),
+                            bb.y.toFixed(1),
+                            bb.width.toFixed(1),
+                            bb.height.toFixed(1),
+                        ].join(',');
+                        if (window.__mmBbKey === key) {
+                            window.__mmBbHits = (window.__mmBbHits || 0) + 1;
+                        } else {
+                            window.__mmBbKey = key;
+                            window.__mmBbHits = 0;
+                        }
+                        // polling 默认约  raf/短间隔；连续命中同一 bbox 视为动画结束
+                        return window.__mmBbHits >= 8;
+                    }""",
+                    timeout=20_000,
                 )
-                await page.wait_for_timeout(500)
-                # 把 SVG 尺寸撑到内容实际大小（含边距），再截整图
+                try:
+                    await page.evaluate("() => document.fonts.ready")
+                except Exception:  # noqa: BLE001 - 字体 API 失败不阻断截图
+                    pass
+                # 按内容 bbox 设 viewBox 并裁白边；补白底避免透明背景。
+                # 不再调用 mm.fit()：create 时已 fit，再次 fit 会重启动画导致空白图。
                 await page.evaluate(
                     """() => {
                         const svg = document.querySelector('svg#mindmap');
                         if (!svg) return;
+                        document.documentElement.classList.remove('markmap-dark');
+                        document.documentElement.style.background = '#ffffff';
+                        document.body.style.background = '#ffffff';
+                        document.body.style.margin = '0';
+                        document.body.style.padding = '0';
+                        svg.style.background = '#ffffff';
                         const bb = svg.getBBox();
-                        const pad = 60;
-                        svg.style.width = (bb.width + pad * 2) + 'px';
-                        svg.style.height = (bb.height + pad * 2) + 'px';
+                        const pad = 48;
+                        const x = bb.x - pad;
+                        const y = bb.y - pad;
+                        const w = Math.max(bb.width + pad * 2, 100);
+                        const h = Math.max(bb.height + pad * 2, 100);
+                        svg.setAttribute('viewBox', `${x} ${y} ${w} ${h}`);
+                        svg.setAttribute('width', String(Math.ceil(w)));
+                        svg.setAttribute('height', String(Math.ceil(h)));
+                        svg.style.width = Math.ceil(w) + 'px';
+                        svg.style.height = Math.ceil(h) + 'px';
+                        svg.style.maxWidth = 'none';
+                        svg.style.display = 'block';
                     }"""
                 )
-                await page.wait_for_timeout(300)
+                await page.wait_for_timeout(150)
                 await page.locator("svg#mindmap").screenshot(path=str(png_path))
             finally:
                 await browser.close()
-        return png_path if png_path.exists() else None
+        if not png_path.exists():
+            return None
+        # 质量自检：纯色 / 几乎无内容像素 → 丢弃（避免 Gradio 展示空白 PNG）
+        color_n, content_ratio = _png_pixel_stats(png_path)
+        if color_n < 8 or content_ratio < 0.005:
+            logger.warning(
+                "思维导图 PNG 截图异常（colors=%s content_ratio=%.4f，"
+                "疑似空白/纯色图），已放弃：%s",
+                color_n,
+                content_ratio,
+                png_path,
+            )
+            try:
+                png_path.unlink(missing_ok=True)
+            except OSError:
+                pass
+            return None
+        return png_path
     except Exception:  # noqa: BLE001 - 截图失败不影响主流程
         logger.warning("思维导图 PNG 生成异常，已跳过", exc_info=True)
         return None

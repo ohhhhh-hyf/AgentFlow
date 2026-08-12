@@ -57,7 +57,7 @@ ACTION_ITEMS_GENERATION_SYSTEM_PROMPT = """你是待办事项 Agent。从会议�
 |---|---|
 | **my_actions** | 仅当前用户本人明确承诺/被分配的任务。须同时满足：①原文有明确任务表述 ②原文明确指向该用户 ③非角色推断 |
 | **delegated_actions** | 原文明示由**他人**负责的任务 |
-| **unassigned_actions** | 无明确负责人的任务。**对照 PerspectiveModeling**：与 responsibilities / relevant_topics 的**具体条目存在实质关键词重叠**才纳入（evidence 标注"职责匹配，非直接分配"）；仅泛泛相关或无关 → 不纳入 |
+| **unassigned_actions** | 无明确负责人的任务。**对照 PerspectiveModeling**：与 responsibilities / relevant_topics / attention_points 的**具体条目存在实质关键词重叠**才纳入（evidence 标注"职责匹配，非直接分配"）；仅泛泛相关或无关 → 不纳入 |
 
 ---
 
