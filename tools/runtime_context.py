@@ -11,6 +11,9 @@ SHORT_ALIASES: dict[str, dict[str, str]] = {
     "meeting": {
         "minutes": "minutes_generation",
         "actions": "action_items",
+        "trace": "minutes_trace",
+        "溯源纪要": "minutes_trace",
+        "minutes_trace": "minutes_trace",
     },
 }
 

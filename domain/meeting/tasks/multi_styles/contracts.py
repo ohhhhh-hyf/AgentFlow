@@ -128,8 +128,8 @@ class MultiStylesSupervisorContract(SupervisorContract):
     ]
 
 
-MULTI_STYLES_GENERATION_OUTPUT_CONTRACT = MultiStylesGenerationContract.to_json_template()
-MULTI_STYLES_SUPERVISOR_OUTPUT_CONTRACT = MultiStylesSupervisorContract.to_json_template()
+MULTI_STYLES_GENERATION_OUTPUT_CONTRACT = MultiStylesGenerationContract.to_output_contract()
+MULTI_STYLES_SUPERVISOR_OUTPUT_CONTRACT = MultiStylesSupervisorContract.to_output_contract()
 
 
 class MultiStylesFallbackRules(FallbackRules):

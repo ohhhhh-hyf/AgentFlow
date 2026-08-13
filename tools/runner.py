@@ -9,7 +9,15 @@ from pathlib import Path
 
 from llm_client.config import load_env
 
-from .io import load_transcript, load_user, pick_single_file, resolve_path, resolve_sample_path
+from .io import (
+    format_trace_extra,
+    load_trace_sidecars,
+    load_transcript,
+    load_user,
+    pick_single_file,
+    resolve_path,
+    resolve_sample_path,
+)
 from .logging_config import setup_logging
 from .outputs import (
     export_knowledge_graph,
@@ -83,21 +91,23 @@ def build_parser(ctx: DomainContext) -> argparse.ArgumentParser:
     )
     for line in sorted(ctx.task_lines):
         cn = ctx.line_cn_names.get(line, line)
-        parser.add_argument(
-            f"--{line}_template",
-            dest=f"{line}_template",
-            type=Path,
-            default=env_path(ctx, f"{line.upper()}_TEMPLATE", None),
-            help=f"{cn}线渲染模板（.md 文件）。模板中用 [描述] 作为占位符，"
-            "系统将自动填充内容。不指定则使用默认格式",
-        )
-        parser.add_argument(
-            f"--{line}_mode",
-            dest=f"{line}_mode",
-            default=None,
-            help=f"{cn}线组织模式（如 multi_styles 的 "
-            "time/logic/causal/party/urgency；仅支持组织模式的线生效）",
-        )
+        if line != "minutes_trace":
+            parser.add_argument(
+                f"--{line}_template",
+                dest=f"{line}_template",
+                type=Path,
+                default=env_path(ctx, f"{line.upper()}_TEMPLATE", None),
+                help=f"{cn}线渲染模板（.md 文件）。模板中用 [描述] 作为占位符，"
+                "系统将自动填充内容。不指定则使用默认格式",
+            )
+        if line != "minutes_trace":
+            parser.add_argument(
+                f"--{line}_mode",
+                dest=f"{line}_mode",
+                default=None,
+                help=f"{cn}线组织模式（如 multi_styles 的 "
+                "time/logic/causal/party/urgency；仅支持组织模式的线生效）",
+            )
     parser.add_argument(
         "--task",
         dest="tasks",
@@ -114,7 +124,7 @@ def build_parser(ctx: DomainContext) -> argparse.ArgumentParser:
 def collect_templates(ctx: DomainContext, args: argparse.Namespace) -> dict[str, Path]:
     templates: dict[str, Path] = {}
     for line in ctx.task_lines:
-        path = getattr(args, f"{line}_template")
+        path = getattr(args, f"{line}_template", None)
         if path is not None:
             templates[line] = path
     return templates
@@ -195,6 +205,14 @@ async def run(
             project_id,
             subject,
         )
+    if "minutes_trace" in line_names:
+        try:
+            extra = format_trace_extra(load_trace_sidecars(ctx, file))
+        except (OSError, ValueError):
+            extra = ""
+        if extra:
+            prev = line_extra.get("minutes_trace") or ""
+            line_extra["minutes_trace"] = f"{prev}\n\n{extra}".strip() if prev else extra
 
     async for event in system.run_streaming(
         transcript,
@@ -250,8 +268,8 @@ async def _handle_done(ctx: DomainContext, event: dict) -> None:
         saved_reports = {}
     for line_name, paths in saved_reports.items():
         cn = ctx.line_cn_names.get(line_name, line_name)
-        if paths.get("json"):
-            sys.stdout.write(f"[{cn}] 已保存 JSON：{paths['json']}\n")
+        if paths.get("html"):
+            sys.stdout.write(f"[{cn}] 已保存 HTML：{paths['html']}\n")
         if paths.get("text"):
             sys.stdout.write(f"[{cn}] 已保存文本：{paths['text']}\n")
         if paths.get("rejected"):

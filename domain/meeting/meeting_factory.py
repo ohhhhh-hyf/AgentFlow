@@ -31,6 +31,12 @@ from .tasks.minutes_generation import (
     MinutesGenerationSupervisor,
 )
 
+from .tasks.minutes_trace import (
+    MinutesTraceAgent,
+    MinutesTraceRender,
+    MinutesTraceSupervisor,
+)
+
 from .tasks.multi_styles import (
     MultiStylesAgent,
     MultiStylesRender,
@@ -72,6 +78,9 @@ class MeetingAgentFactory:
             "minutes_generation_agent": MinutesGenerationAgent(client),
             "minutes_generation_supervisor": MinutesGenerationSupervisor(client),
             "minutes_generation_render": MinutesGenerationRender(client),
+            "minutes_trace_agent": MinutesTraceAgent(client),
+            "minutes_trace_supervisor": MinutesTraceSupervisor(client),
+            "minutes_trace_render": MinutesTraceRender(client),
             "multi_styles_agent": MultiStylesAgent(client),
             "multi_styles_supervisor": MultiStylesSupervisor(client),
             "multi_styles_render": MultiStylesRender(client),

@@ -3,12 +3,11 @@
 合并自 archive.py（报告 JSON/文本落盘）与 exporters.py（导图/图谱导出），
 统一负责"最终输出落盘"：
 
-- 报告类任务：``save_all_reports`` 写入 output/{domain}/{task}/ 的 JSON 与 Markdown
+- 报告类任务：``save_all_reports`` 写入 output/{domain}/{task}/ 的文本产物
 - 图类任务：``export_mindmap_*`` / ``export_knowledge_graph`` 导出 HTML/PNG/SVG
 """
 from __future__ import annotations
 
-import json
 import logging
 from dataclasses import asdict, is_dataclass
 from datetime import datetime
@@ -58,6 +57,42 @@ def report_text(data: dict) -> str:
     return ""
 
 
+def _html_document(title: str, body: str) -> str:
+    return f"""<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{title}</title>
+  <style>
+    body {{ margin: 0; padding: 24px; background: #f0eee9; color: #1c1b19; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }}
+    .page {{ max-width: 1100px; margin: 0 auto; }}
+    .memory-review {{ display: flex; flex-direction: column; border: 1px solid #d4d0c6; background: #fff; border-radius: 8px; overflow: hidden; }}
+    .review-heading {{ padding: 12px 16px 8px; font-weight: 650; background: #faf9f6; border-bottom: 1px solid #ebe8e1; }}
+    .review-row {{ display: grid; grid-template-columns: minmax(0, 1fr) 1px minmax(230px, 32%); border-bottom: 1px solid #ebe8e1; }}
+    .review-row:last-child {{ border-bottom: none; }}
+    .review-left {{ padding: 11px 14px; line-height: 1.65; word-break: break-word; }}
+    .review-rule {{ background: #c8c4b8; }}
+    .review-right {{ padding: 9px 10px; background: #faf9f6; }}
+    .mem-mark {{ text-decoration: underline; text-decoration-thickness: 1.5px; text-underline-offset: 3px; background: #fff6c7; }}
+    .mem-card {{ display: block; padding: 9px 10px; border-left: 3px solid #6b6860; background: #fff; color: #1c1b19; text-decoration: none; border-radius: 4px; }}
+    .mem-card + .mem-card {{ margin-top: 8px; }}
+    .mem-card-title {{ font-size: 0.9rem; font-weight: 650; line-height: 1.4; margin-bottom: 6px; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }}
+    .mem-card-meta {{ font-size: 0.78rem; color: #6b6860; line-height: 1.35; margin-bottom: 4px; }}
+    .mem-card-source {{ font-size: 0.74rem; color: #9a968c; line-height: 1.35; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }}
+    .plain {{ padding: 18px 20px; background: #fff; border: 1px solid #d4d0c6; border-radius: 8px; line-height: 1.65; white-space: pre-wrap; }}
+    @media (max-width: 820px) {{ .review-row {{ grid-template-columns: 1fr; }} .review-rule {{ height: 1px; }} }}
+  </style>
+</head>
+<body>
+  <main class="page">
+{body}
+  </main>
+</body>
+</html>
+"""
+
+
 def save_report_artifacts(
     ctx: DomainContext,
     line_name: str,
@@ -66,7 +101,7 @@ def save_report_artifacts(
     *,
     gate_ok: bool | None = None,
 ) -> dict[str, Path]:
-    """落盘 JSON；门禁通过才写 result_*.md，失败写 result_*_rejected.md 备查。
+    """落盘文本产物；门禁通过才写正式 result，失败写 rejected 备查。
 
     Args:
         gate_ok: True 通过 / False 失败 / None 未做门禁（无模板）→ 仍写正式 md。
@@ -76,12 +111,6 @@ def save_report_artifacts(
     out_dir = task_output_dir(ctx, line_name)
     data = report_to_dict(report)
     paths: dict[str, Path] = {}
-    json_path = out_dir / f"report_{timestamp}.json"
-    json_path.write_text(
-        json.dumps(data, ensure_ascii=False, indent=2),
-        encoding="utf-8",
-    )
-    paths["json"] = json_path
     text = report_text(data)
     if not text:
         return paths
@@ -89,9 +118,26 @@ def save_report_artifacts(
     # has_template：仅当显式走过门禁（True/False）时视为有模板约束
     has_template = gate_ok is not None
     if should_write_result_md(gate_ok, has_template=has_template):
-        md_path = out_dir / f"result_{timestamp}.md"
-        md_path.write_text(text, encoding="utf-8")
-        paths["text"] = md_path
+        if ctx.name == "meeting" and line_name == "minutes_generation":
+            from tools.memory.citations import memory_review_html
+
+            review = memory_review_html(text)
+            if review:
+                body = review
+            else:
+                import html
+
+                body = f'<div class="plain">{html.escape(text)}</div>'
+            html_path = out_dir / f"result_{timestamp}.html"
+            html_path.write_text(
+                _html_document(ctx.line_cn_names.get(line_name, line_name), body),
+                encoding="utf-8",
+            )
+            paths["html"] = html_path
+        else:
+            md_path = out_dir / f"result_{timestamp}.md"
+            md_path.write_text(text, encoding="utf-8")
+            paths["text"] = md_path
     elif gate_ok is False:
         rej = out_dir / f"result_{timestamp}_rejected.md"
         header = (

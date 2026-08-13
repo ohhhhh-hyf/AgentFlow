@@ -33,8 +33,8 @@ class RiskSupervisorContract(SupervisorContract):
     ]
 
 
-RISK_GENERATION_OUTPUT_CONTRACT = RiskGenerationContract.to_json_template()
-RISK_SUPERVISOR_OUTPUT_CONTRACT = RiskSupervisorContract.to_json_template()
+RISK_GENERATION_OUTPUT_CONTRACT = RiskGenerationContract.to_output_contract()
+RISK_SUPERVISOR_OUTPUT_CONTRACT = RiskSupervisorContract.to_output_contract()
 
 
 class RiskFallbackRules(FallbackRules):

@@ -42,8 +42,8 @@ class MindmapSupervisorContract(SupervisorContract):
     ]
 
 
-MINDMAP_GENERATION_OUTPUT_CONTRACT = MindmapGenerationContract.to_json_template()
-MINDMAP_SUPERVISOR_OUTPUT_CONTRACT = MindmapSupervisorContract.to_json_template()
+MINDMAP_GENERATION_OUTPUT_CONTRACT = MindmapGenerationContract.to_output_contract()
+MINDMAP_SUPERVISOR_OUTPUT_CONTRACT = MindmapSupervisorContract.to_output_contract()
 
 
 class MindmapFallbackRules(FallbackRules):

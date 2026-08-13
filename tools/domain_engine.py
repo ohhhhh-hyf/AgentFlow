@@ -589,6 +589,14 @@ class DomainNodes:
                             gate_ok = bool(gate3.get("gate_ok"))
                             fill_mode = "assemble"
 
+            if full_text and not template:
+                try:
+                    from tools.memory.citations import apply_memory_citations
+
+                    full_text = apply_memory_citations(full_text, context)
+                except Exception:  # noqa: BLE001
+                    logger.warning("记忆引用标注失败（%s）", line_name, exc_info=True)
+
             # 未 stream 过的路径：整段推送最终正文
             if not streamed and full_text is not None:
                 await queue.put(
@@ -815,6 +823,9 @@ class DomainNodes:
             "line_modes": dict(line_modes or {}),
             "line_extra": dict(line_extra or {}),
         }
+        # 图执行失败时 state 不会被赋值；先绑定 initial_state，
+        # 保证兜底分支引用 state 不抛 NameError（最后防线自身不崩溃）
+        state = initial_state
         try:
             graph = self._build_graph(line_names)
             state = await graph.ainvoke(initial_state)
@@ -892,9 +903,11 @@ class DomainNodes:
         line_names: list[str],
         warning: str | None,
     ) -> dict:
-        """图执行成功后按线组装最终 Report（validate 失败退回确定性兜底）。
+        """图执行成功后按线组装最终 Report（单线校验失败只降级该线）。
 
         reports 键 = 线名（与 chunk 事件的 ``line`` 一致），消费端按线名取。
+        逐线校验：某条线 Report 校验失败时仅该线退回确定性兜底，
+        不再连累其它正常线的结果（旧实现一条线失败全部线一起降级）。
         """
         reports: dict = {}
         for line_name in line_names:
@@ -902,14 +915,20 @@ class DomainNodes:
             reports[line_name] = assemble_report(
                 state, warning, report_cls, line_name, self._compute_title
             )
-        try:
-            return {
-                key: validate_payload(type(report), report.model_dump())
-                for key, report in reports.items()
-            }
-        except Exception:  # noqa: BLE001 - 有意的降级设计
-            logger.warning("输出校验失败，退回确定性兜底", exc_info=True)
-            return self._fallback_reports(state, line_names)
+        final: dict = {}
+        for key, report in reports.items():
+            try:
+                final[key] = validate_payload(
+                    type(report), report.model_dump()
+                )
+            except Exception:  # noqa: BLE001 - 单线校验失败，仅该线退回确定性兜底
+                logger.warning(
+                    "输出校验失败（%s），该线退回确定性兜底",
+                    key,
+                    exc_info=True,
+                )
+                final[key] = self._fallback_reports(state, [key])[key]
+        return final
 
 
 __all__ = [

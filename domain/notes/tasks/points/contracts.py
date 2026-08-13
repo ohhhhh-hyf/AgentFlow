@@ -33,8 +33,8 @@ class PointsSupervisorContract(SupervisorContract):
     ]
 
 
-POINTS_GENERATION_OUTPUT_CONTRACT = PointsGenerationContract.to_json_template()
-POINTS_SUPERVISOR_OUTPUT_CONTRACT = PointsSupervisorContract.to_json_template()
+POINTS_GENERATION_OUTPUT_CONTRACT = PointsGenerationContract.to_output_contract()
+POINTS_SUPERVISOR_OUTPUT_CONTRACT = PointsSupervisorContract.to_output_contract()
 
 
 class PointsFallbackRules(FallbackRules):

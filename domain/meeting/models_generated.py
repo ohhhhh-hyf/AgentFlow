@@ -17,7 +17,6 @@ from tools.validation import (
 
 from .models_base import ModelMixin
 
-
 # ── 生成模型生成区：由 tools/scripts/sync_domain.py 生成，勿手改 ──
 
 @dataclass
@@ -44,6 +43,7 @@ class MeetingUnderstanding(ModelMixin):
     """MeetingUnderstanding输出（浅校验：仅校验第一层键与类型，嵌套不校验）。"""
 
     meeting_purpose: str
+    scene: Literal["通用", "团队例会", "脑暴/讨论", "项目决策与评审", "专项讨论会", "研讨会", "采访/对话"]
     topics: list[dict[str, Any]] = field(default_factory=list)
     decisions: list[str] = field(default_factory=list)
     open_questions: list[str] = field(default_factory=list)
@@ -53,6 +53,7 @@ class MeetingUnderstanding(ModelMixin):
     def validate(cls, data: dict) -> "MeetingUnderstanding":
         _exact_fields(data, [f.name for f in fields(cls)], cls.__name__)
         _string(data["meeting_purpose"], "meeting_purpose")
+        _choice(data["scene"], {"通用", "团队例会", "脑暴/讨论", "项目决策与评审", "专项讨论会", "研讨会", "采访/对话"}, "scene")
         if not isinstance(data["topics"], list):
             raise OutputValidationError("topics 必须是数组")
         _string_list(data["decisions"], "decisions")
@@ -84,6 +85,7 @@ class Minutes(ModelMixin):
     personally_relevant_points: list[str] = field(default_factory=list)
     risks_and_blockers: list[str] = field(default_factory=list)
     unresolved_questions: list[str] = field(default_factory=list)
+    history_comparison: list[str] = field(default_factory=list)
 
     @classmethod
     def validate(cls, data: dict) -> "Minutes":
@@ -94,6 +96,24 @@ class Minutes(ModelMixin):
         _string_list(data["personally_relevant_points"], "personally_relevant_points")
         _string_list(data["risks_and_blockers"], "risks_and_blockers")
         _string_list(data["unresolved_questions"], "unresolved_questions")
+        _string_list(data["history_comparison"], "history_comparison")
+        return cls(**data)
+
+@dataclass
+class MinutesTrace(ModelMixin):
+    """MinutesTrace输出（浅校验：仅校验第一层键与类型，嵌套不校验）。"""
+
+    scene: Literal["通用", "团队例会", "脑暴/讨论", "项目决策与评审", "专项讨论会", "研讨会", "采访/对话"]
+    minutes_md: str
+    alignments: list[dict[str, Any]] = field(default_factory=list)
+
+    @classmethod
+    def validate(cls, data: dict) -> "MinutesTrace":
+        _exact_fields(data, [f.name for f in fields(cls)], cls.__name__)
+        _choice(data["scene"], {"通用", "团队例会", "脑暴/讨论", "项目决策与评审", "专项讨论会", "研讨会", "采访/对话"}, "scene")
+        _string(data["minutes_md"], "minutes_md")
+        if not isinstance(data["alignments"], list):
+            raise OutputValidationError("alignments 必须是数组")
         return cls(**data)
 
 @dataclass
@@ -261,6 +281,33 @@ class MultiStylesSupervisorReview(ModelMixin):
         )
         return cls(**data)
 
+@dataclass
+class MinutesTraceSupervisorReview(ModelMixin):
+    """溯源纪要任务线的领域审核结果。"""
+
+    decision: Literal["approve", "revise", "reject"]
+    facts_check: dict[str, Any]
+    template_check: dict[str, Any]
+    trace_check: dict[str, Any]
+    feedback: list[str] = field(default_factory=list)
+
+    # 本模型的全部检查项（供结构校验与公共语义校验使用）
+    CHECK_KEYS = ("facts_check", "template_check", "trace_check")
+
+    @classmethod
+    def validate(cls, data: dict) -> "MinutesTraceSupervisorReview":
+        _exact_fields(data, [f.name for f in fields(cls)], cls.__name__)
+        for key in cls.CHECK_KEYS:
+            _review_check(data[key], key)
+        _string_list(data["feedback"], "feedback")
+        # 公共语义规则：decision 枚举 + 与检查项/feedback 的联动约束
+        validate_supervisor_semantics(
+            data["decision"],
+            data["feedback"],
+            {key: data[key] for key in cls.CHECK_KEYS},
+        )
+        return cls(**data)
+
 # ── 审核模型生成区结束 ──
 
 # ── Report 校验生成区：由 tools/scripts/sync_domain.py 生成，勿手改 ──
@@ -337,6 +384,34 @@ class MinutesReportValidation:
         if extra:
             raise OutputValidationError(
                 f"MinutesReport 字段不一致：多余={sorted(extra)}"
+            )
+
+        _string(data.get("title") or "", "title")
+        _string(data.get("personalized_minutes") or "", "personalized_minutes")
+        if data.get("quality_warning") is not None:
+            _string(data["quality_warning"], "quality_warning")
+
+        return cls(
+            title=data.get("title") or "",
+            personalized_minutes=data.get("personalized_minutes") or "",
+            quality_warning=data.get("quality_warning"),
+        )
+
+
+class MinutesTraceReportValidation:
+    """MinutesTraceReport 的校验逻辑（由脚本按手写字段自动生成）。"""
+
+    @classmethod
+    def validate(cls, data: dict) -> "MinutesTraceReport":
+        allowed = {"title", "personalized_minutes", "quality_warning"}
+
+        if not isinstance(data, dict):
+            raise OutputValidationError("MinutesTraceReport 必须是 JSON 对象")
+
+        extra = set(data) - allowed
+        if extra:
+            raise OutputValidationError(
+                f"MinutesTraceReport 字段不一致：多余={sorted(extra)}"
             )
 
         _string(data.get("title") or "", "title")

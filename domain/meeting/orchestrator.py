@@ -1,4 +1,4 @@
-﻿"""LangGraph 工作流编排。
+"""LangGraph 工作流编排。
 
 MeetingAgentSystem 负责：组装 Agent 依赖、构建多线并行 DAG、条件路由、启动运行。
 
@@ -44,6 +44,7 @@ from .reports import (
     ActionItemsReport,
     MindmapReport,
     MinutesReport,
+    MinutesTraceReport,
     MultiStylesReport,
     RiskReport,
 )
@@ -74,6 +75,12 @@ from .tasks.minutes_generation import (
     MinutesGenerationSupervisor,
 )
 
+from .tasks.minutes_trace import (
+    MinutesTraceAgent,
+    MinutesTraceRender,
+    MinutesTraceSupervisor,
+)
+
 from .tasks.multi_styles import (
     MultiStylesAgent,
     MultiStylesRender,
@@ -93,6 +100,7 @@ from .tasks.risk import (
 from .tasks.action_items.contracts import ACTION_ITEMS_FALLBACK_RULES
 from .tasks.mindmap.contracts import MINDMAP_FALLBACK_RULES
 from .tasks.minutes_generation.contracts import MINUTES_FALLBACK_RULES
+from .tasks.minutes_trace.contracts import MINUTES_TRACE_FALLBACK_RULES
 from .tasks.multi_styles.contracts import MULTI_STYLES_FALLBACK_RULES
 from .tasks.risk.contracts import RISK_FALLBACK_RULES
 
@@ -113,6 +121,7 @@ _EMPTY_ACTION_ITEMS = {
 
 _EMPTY_MEETING_UNDERSTANDING = {
     "meeting_purpose": "",
+    "scene": "通用",
     "topics": [],
     "decisions": [],
     "open_questions": [],
@@ -131,6 +140,13 @@ _EMPTY_MINUTES = {
     "personally_relevant_points": [],
     "risks_and_blockers": [],
     "unresolved_questions": [],
+    "history_comparison": [],
+}
+
+_EMPTY_MINUTES_TRACE = {
+    "scene": "通用",
+    "minutes_md": "",
+    "alignments": [],
 }
 
 _EMPTY_MULTI_STYLES = {
@@ -182,6 +198,13 @@ _REJECT_MULTI_STYLES_REVIEW = {
     "feedback": ["LLM 调用失败，未完成审核，转降级输出"],
 }
 
+_REJECT_MINUTES_TRACE_REVIEW = {
+    "decision": "reject",
+    "facts_check": {"status": "fail", "findings": ["LLM 调用失败，未完成审核"]},
+    "template_check": {"status": "fail", "findings": ["LLM 调用失败，未完成审核"]},
+    "trace_check": {"status": "fail", "findings": ["LLM 调用失败，未完成审核"]},
+    "feedback": ["LLM 调用失败，未完成审核，转降级输出"],
+}
 
 # ── 拒绝审核常量生成区结束 ──
 
@@ -205,6 +228,12 @@ TASK_LINES: dict[str, dict] = {
         "supervisor_attr": "minutes_generation_supervisor",
         "empty_draft": _EMPTY_MINUTES,
         "reject_review": _REJECT_MINUTES_REVIEW,
+    },
+    "minutes_trace": {
+        "agent_attr": "minutes_trace_agent",
+        "supervisor_attr": "minutes_trace_supervisor",
+        "empty_draft": _EMPTY_MINUTES_TRACE,
+        "reject_review": _REJECT_MINUTES_TRACE_REVIEW,
     },
     "multi_styles": {
         "agent_attr": "multi_styles_agent",
@@ -407,7 +436,7 @@ class _Nodes(DomainNodes):
         mode = self._mode_label(state)
         line = _line(state, "minutes_generation")
         review = line.get("review") or {}
-        return (
+        context = (
             f"视角模式：{mode}\n"
             f"objective_perspective：{bool(state.get('objective_perspective'))}\n\n"
             f"会议原文：\n{state['transcript']}\n\n"
@@ -416,6 +445,25 @@ class _Nodes(DomainNodes):
             f"已审核用户视角：\n{_json(state.get('perspective_profile'))}\n\n"
             f"已批准纪要草稿：\n{_json(line.get('draft'))}\n\n"
             f"纪要审核结论：\n{_json(review)}"
+        )
+        extra = (state.get("line_extra") or {}).get("minutes_generation")
+        if extra:
+            context = f"{context}\n\n{extra}"
+        return context
+
+    def _minutes_trace_render_context(self, state: MeetingState) -> str:
+        mode = self._mode_label(state)
+        line = _line(state, "minutes_trace")
+        review = line.get("review") or {}
+        return (
+            f"视角模式：{mode}\n"
+            f"objective_perspective：{bool(state.get('objective_perspective'))}\n\n"
+            f"会议原文：\n{state['transcript']}\n\n"
+            f"用户画像：\n{_json(state['user'])}\n\n"
+            f"已审核会议理解：\n{_json(state.get('meeting_understanding'))}\n\n"
+            f"已审核用户视角：\n{_json(state.get('perspective_profile'))}\n\n"
+            f"已批准溯源纪要草稿：\n{_json(line.get('draft'))}\n\n"
+            f"溯源纪要审核结论：\n{_json(review)}"
         )
 
     def _multi_styles_render_context(self, state: MeetingState) -> str:
@@ -496,6 +544,14 @@ class _Nodes(DomainNodes):
             line_dict["structure"] = structure
         return {"lines": {"multi_styles": line_dict}, "quality_degraded": True}
 
+    async def _minutes_trace_fallback_node(self, state: MeetingState) -> dict:
+        text, structure = _fallback_text(
+            state, "minutes_trace", MINUTES_TRACE_FALLBACK_RULES)
+        line_dict = {"rendered": text, "degraded": True}
+        if structure is not None:
+            line_dict["structure"] = structure
+        return {"lines": {"minutes_trace": line_dict}, "quality_degraded": True}
+
     # ── 专属节点方法生成区结束 ──
 
 class MeetingAgentSystem(_Nodes):
@@ -526,6 +582,9 @@ class MeetingAgentSystem(_Nodes):
         self.minutes_generation_agent: MinutesGenerationAgent = agents["minutes_generation_agent"]
         self.minutes_generation_supervisor: MinutesGenerationSupervisor = agents["minutes_generation_supervisor"]
         self.minutes_generation_render: MinutesGenerationRender = agents["minutes_generation_render"]
+        self.minutes_trace_agent: MinutesTraceAgent = agents["minutes_trace_agent"]
+        self.minutes_trace_supervisor: MinutesTraceSupervisor = agents["minutes_trace_supervisor"]
+        self.minutes_trace_render: MinutesTraceRender = agents["minutes_trace_render"]
         self.multi_styles_agent: MultiStylesAgent = agents["multi_styles_agent"]
         self.multi_styles_supervisor: MultiStylesSupervisor = agents["multi_styles_supervisor"]
         self.multi_styles_render: MultiStylesRender = agents["multi_styles_render"]
@@ -542,6 +601,7 @@ class MeetingAgentSystem(_Nodes):
         self._fallback_nodes["action_items"] = self._action_items_fallback_node
         self._fallback_nodes["mindmap"] = self._mindmap_fallback_node
         self._fallback_nodes["minutes_generation"] = self._minutes_generation_fallback_node
+        self._fallback_nodes["minutes_trace"] = self._minutes_trace_fallback_node
         self._fallback_nodes["multi_styles"] = self._multi_styles_fallback_node
         self._fallback_nodes["risk"] = self._risk_fallback_node
 
@@ -554,6 +614,7 @@ class MeetingAgentSystem(_Nodes):
             "action_items": ActionItemsReport,
             "mindmap": MindmapReport,
             "minutes_generation": MinutesReport,
+            "minutes_trace": MinutesTraceReport,
             "multi_styles": MultiStylesReport,
             "risk": RiskReport,
         }
@@ -567,6 +628,7 @@ class MeetingAgentSystem(_Nodes):
             "action_items": ACTION_ITEMS_FALLBACK_RULES,
             "mindmap": MINDMAP_FALLBACK_RULES,
             "minutes_generation": MINUTES_FALLBACK_RULES,
+            "minutes_trace": MINUTES_TRACE_FALLBACK_RULES,
             "multi_styles": MULTI_STYLES_FALLBACK_RULES,
             "risk": RISK_FALLBACK_RULES,
         }

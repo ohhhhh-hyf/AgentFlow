@@ -73,10 +73,10 @@ class KnowledgeGraphSupervisorContract(SupervisorContract):
 
 
 KNOWLEDGE_GRAPH_GENERATION_OUTPUT_CONTRACT = (
-    KnowledgeGraphGenerationContract.to_json_template()
+    KnowledgeGraphGenerationContract.to_output_contract()
 )
 KNOWLEDGE_GRAPH_SUPERVISOR_OUTPUT_CONTRACT = (
-    KnowledgeGraphSupervisorContract.to_json_template()
+    KnowledgeGraphSupervisorContract.to_output_contract()
 )
 
 

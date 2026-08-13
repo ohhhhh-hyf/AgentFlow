@@ -51,7 +51,7 @@ class PerspectiveModelingGenerationContract(GenerationContract):
 
 
 PERSPECTIVE_MODELING_GENERATION_OUTPUT_CONTRACT = (
-    PerspectiveModelingGenerationContract.to_json_template()
+    PerspectiveModelingGenerationContract.to_output_contract()
 )
 
 __all__ = [

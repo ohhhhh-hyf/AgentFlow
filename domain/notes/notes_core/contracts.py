@@ -21,7 +21,7 @@ class NotesUnderstandingGenerationContract(GenerationContract):
 
 
 NOTES_UNDERSTANDING_GENERATION_OUTPUT_CONTRACT = (
-    NotesUnderstandingGenerationContract.to_json_template()
+    NotesUnderstandingGenerationContract.to_output_contract()
 )
 
 __all__ = [

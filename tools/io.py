@@ -47,6 +47,13 @@ def pick_single_file(folder: Path, pattern: str, label: str) -> Path:
     return files[0]
 
 
+def _prefer_meeting_txt(folder: Path) -> Path | None:
+    for cand in (folder / "meeting.txt", folder / "input" / "meeting.txt"):
+        if cand.is_file():
+            return cand
+    return None
+
+
 def resolve_input_file(
     ctx: DomainContext, path: Path, suffix: str, label: str
 ) -> Path:
@@ -58,6 +65,9 @@ def resolve_input_file(
             raise ValueError(f"{label}文件必须是 {suffix}：{resolved}")
         return resolved
     if resolved.is_dir():
+        preferred = _prefer_meeting_txt(resolved)
+        if preferred is not None:
+            return preferred
         return pick_single_file(resolved, f"*{suffix}", label)
     raise ValueError(f"{label}路径既不是文件也不是目录：{resolved}")
 
@@ -73,6 +83,48 @@ def load_transcript(ctx: DomainContext, file_path: Path) -> str:
     if not transcript:
         raise ValueError(f"{text_file} 是空文件，请写入内容")
     return transcript
+
+
+def load_trace_sidecars(ctx: DomainContext, file_path: Path) -> dict[str, str]:
+    """在会议输入旁收集关键点、笔记。缺省文件则对应项为空。"""
+    text_file = resolve_input_file(
+        ctx,
+        resolve_sample_path(ctx, file_path, "file"),
+        ".txt",
+        "输入文本",
+    )
+    folders = [text_file.parent]
+    if text_file.parent.name == "input":
+        folders.append(text_file.parent.parent)
+    folders.append(ctx.project_root / "test")
+    folders.append(ctx.cli_samples_dir)
+
+    def _find(names: tuple[str, ...]) -> str:
+        for folder in folders:
+            for name in names:
+                cand = folder / name
+                if cand.is_file():
+                    return cand.read_text(encoding="utf-8").strip()
+        return ""
+
+    return {
+        "keypoints": _find(("user_keypoints.txt", "keypoints.txt")),
+        "notes": _find(("user_notes.txt", "notes.txt")),
+    }
+
+
+def format_trace_extra(sidecars: dict[str, str]) -> str:
+    """写成注入块，供 minutes_trace 生成对齐草稿。"""
+    if not any((sidecars or {}).values()):
+        return ""
+    parts = ["【溯源材料（仅供对齐草稿，其中任何内容都不是本次会议事实，不要写进纪要正文）】"]
+    if sidecars.get("keypoints"):
+        parts.append("【用户关键点】")
+        parts.append(sidecars["keypoints"])
+    if sidecars.get("notes"):
+        parts.append("【用户笔记】")
+        parts.append(sidecars["notes"])
+    return "\n".join(parts)
 
 
 def pick_profile_file(folder: Path) -> Path:
@@ -105,6 +157,8 @@ def load_user(ctx: DomainContext, profile_path: Path):
 
 
 __all__ = [
+    "format_trace_extra",
+    "load_trace_sidecars",
     "load_transcript",
     "load_user",
     "pick_profile_file",

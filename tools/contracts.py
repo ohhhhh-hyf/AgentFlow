@@ -73,17 +73,40 @@ class SupervisorContract:
 
     @classmethod
     def to_json_template(cls) -> str:
-        """序列化为 LLM 输出模板（JSON 文本），供 structured() 拼进 system prompt。"""
+        """序列化为 LLM 输出模板（JSON 文本），供 structured() 拼进 system prompt。
+
+        中性占位：findings / feedback 用空数组，decision / status 保留枚举取值。
+        说明文字（desc）不进入模板值，避免 LLM 把「字段说明」照抄成输出值；
+        语义说明由 :meth:`to_output_contract` 单独成段提供。
+        """
         lines = ["{"]
         lines.append(f'  "decision": "{"|".join(cls.decision.values)}",')
         for ck in cls.checks:
             lines.append(f'  "{ck.name}": {{')
             lines.append('    "status": "pass|fail",')
-            lines.append(f'    "findings": ["{ck.desc}"]')
+            lines.append('    "findings": []')
             lines.append("  },")
-        lines.append(f'  "feedback": ["{cls.feedback.desc}"]')
+        lines.append('  "feedback": []')
         lines.append("}")
         return "\n".join(lines)
+
+    @classmethod
+    def to_output_contract(cls) -> str:
+        """运行时输出契约：中性 JSON 模板 + 检查项/反馈字段说明（供 structured() 用）。
+
+        模板值保持中性占位，说明文字单独成段，保证 LLM 知道每个字段的语义
+        又不会把说明照抄成输出值。
+        """
+        notes: list[str] = []
+        for ck in cls.checks:
+            notes.append(f"- {ck.name}：{ck.desc}" if ck.desc else f"- {ck.name}")
+        fb_desc = cls.feedback.desc
+        if fb_desc:
+            notes.append(f"- feedback：{fb_desc}")
+        text = cls.to_json_template()
+        if notes:
+            text += "\n\n字段说明：\n" + "\n".join(notes)
+        return text
 
     def __init_subclass__(cls, **kwargs) -> None:
         super().__init_subclass__(**kwargs)
@@ -189,7 +212,13 @@ class GenerationContract:
 
     @classmethod
     def to_json_template(cls) -> str:
-        """序列化为 LLM 输出模板（JSON 文本），供 structured() 拼进 system prompt。"""
+        """序列化为 LLM 输出模板（JSON 文本），供 structured() 拼进 system prompt。
+
+        中性占位：字符串字段用 ``""``、数组用 ``[]``，枚举保留取值集
+        （如 ``"high|medium|low"``）；字段说明文字（desc）不进入模板值，
+        避免 LLM 把「说明示例」照抄成真实输出值。
+        语义说明由 :meth:`to_output_contract` 单独成段提供。
+        """
         lines = ["{"]
         for i, f in enumerate(cls.fields):
             comma = "," if i < len(cls.fields) - 1 else ""
@@ -198,13 +227,45 @@ class GenerationContract:
         return "\n".join(lines)
 
     @classmethod
+    def to_output_contract(cls) -> str:
+        """运行时输出契约：中性 JSON 模板 + 字段说明（供 structured() 用）。
+
+        模板值保持中性占位，字段说明单独成段（嵌套字段递归展开，
+        用 ``父字段[].子字段`` 路径标注），保证 LLM 知道每个字段的语义，
+        又不会把说明文字照抄成输出值。
+        """
+        notes: list[str] = []
+        for f in cls.fields:
+            cls._field_notes(f, "", notes)
+        text = cls.to_json_template()
+        if notes:
+            text += "\n\n字段说明：\n" + "\n".join(notes)
+        return text
+
+    @classmethod
+    def _field_notes(cls, f: Field, prefix: str, notes: list[str]) -> None:
+        """递归收集字段说明行：``{prefix}字段名：desc``。"""
+        path = f"{prefix}{f.name}" if not prefix else f"{prefix}.{f.name}"
+        if f.desc:
+            notes.append(f"- {path}：{f.desc}")
+        elif isinstance(f, (ObjField, ObjListField)) and f.elements:
+            # 嵌套容器本身无 desc 时，仍标注其为结构（避免字段说明缺失该容器）
+            notes.append(f"- {path}：结构见下方子字段")
+        if isinstance(f, ObjListField) and f.elements:
+            for e in f.elements:
+                cls._field_notes(e, f"{path}[]", notes)
+        elif isinstance(f, ObjField) and f.elements:
+            for e in f.elements:
+                cls._field_notes(e, path, notes)
+
+    @classmethod
     def _value_json(cls, f: Field) -> str:
         if isinstance(f, StrField):
-            return f'"{f.desc}"'
+            return '""'
         if isinstance(f, EnumField):
             return f'"{ "|".join(f.values) }"'
         if isinstance(f, StrListField):
-            return f'["{f.desc}"]'
+            return "[]"
         if isinstance(f, ObjListField):
             if not f.elements:
                 return "[]"

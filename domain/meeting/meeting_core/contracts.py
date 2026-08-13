@@ -1,4 +1,4 @@
-﻿"""meeting_core 的契约定义（prompt 文本见 prompts.py）。
+"""meeting_core 的契约定义（prompt 文本见 prompts.py）。
 
 本模块只放"结构化规范"：
 - 生成契约类（MeetingUnderstandingGenerationContract 等）→ to_json_template() 生成 prompt 常量
@@ -7,8 +7,22 @@
 from __future__ import annotations
 
 from tools.contracts import (
-    GenerationContract, ObjListField, StrField, StrListField,
+    EnumField, GenerationContract, ObjListField, StrField, StrListField,
 )
+
+
+# ── 会议场景枚举（公共底座，下游共享）───────────────────────────
+# minutes_trace 等下游按场景取不同组织侧重；理解 agent 结构化输出，
+# 下游 detect_scene 优先消费该字段，启发式只作兜底。
+SCENE_CHOICES = [
+    "通用",
+    "团队例会",
+    "脑暴/讨论",
+    "项目决策与评审",
+    "专项讨论会",
+    "研讨会",
+    "采访/对话",
+]
 
 
 class MeetingUnderstandingGenerationContract(GenerationContract):
@@ -16,6 +30,7 @@ class MeetingUnderstandingGenerationContract(GenerationContract):
 
     fields = [
         StrField("meeting_purpose", "一句话概括会议目的"),
+        EnumField("scene", SCENE_CHOICES),
         ObjListField("topics", [
             StrField("title", "议题名称"),
             StrField("discussion", "讨论内容概述"),
@@ -29,9 +44,10 @@ class MeetingUnderstandingGenerationContract(GenerationContract):
 
 
 MEETING_UNDERSTANDING_GENERATION_OUTPUT_CONTRACT = (
-    MeetingUnderstandingGenerationContract.to_json_template()
+    MeetingUnderstandingGenerationContract.to_output_contract()
 )
 
 __all__ = [
+    "SCENE_CHOICES",
     "MEETING_UNDERSTANDING_GENERATION_OUTPUT_CONTRACT",
 ]

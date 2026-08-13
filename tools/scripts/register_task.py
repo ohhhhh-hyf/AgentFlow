@@ -65,8 +65,8 @@ Required implementation classes:
 Required by tools/scripts/sync_domain.py:
 - class {pascal}GenerationContract(GenerationContract)
 - class {pascal}SupervisorContract(SupervisorContract)
-- {upper}_GENERATION_OUTPUT_CONTRACT = {pascal}GenerationContract.to_json_template()
-- {upper}_SUPERVISOR_OUTPUT_CONTRACT = {pascal}SupervisorContract.to_json_template()
+- {upper}_GENERATION_OUTPUT_CONTRACT = {pascal}GenerationContract.to_output_contract()
+- {upper}_SUPERVISOR_OUTPUT_CONTRACT = {pascal}SupervisorContract.to_output_contract()
 
 Optional fallback:
 - class {pascal}FallbackRules(FallbackRules)
@@ -103,8 +103,8 @@ class {pascal}SupervisorContract(SupervisorContract):
     ]
 
 
-{upper}_GENERATION_OUTPUT_CONTRACT = {pascal}GenerationContract.to_json_template()
-{upper}_SUPERVISOR_OUTPUT_CONTRACT = {pascal}SupervisorContract.to_json_template()
+{upper}_GENERATION_OUTPUT_CONTRACT = {pascal}GenerationContract.to_output_contract()
+{upper}_SUPERVISOR_OUTPUT_CONTRACT = {pascal}SupervisorContract.to_output_contract()
 
 
 class {pascal}FallbackRules(FallbackRules):

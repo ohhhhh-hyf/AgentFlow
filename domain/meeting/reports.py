@@ -18,6 +18,7 @@ from .models import (
     ActionItemsReportValidation,
     MindmapReportValidation,
     MinutesReportValidation,
+    MinutesTraceReportValidation,
     MultiStylesReportValidation,
     RiskReportValidation,
 )
@@ -35,6 +36,14 @@ class MinutesReport(ModelMixin, MinutesReportValidation):
     title: str = field(metadata={"source": "title"})
     personalized_minutes: str = field(metadata={"source": "rendered"})
     # 仅由系统在兜底路径写入；LLM 输出不需要也不应包含该字段
+    quality_warning: str | None = None
+
+@dataclass
+class MinutesTraceReport(ModelMixin, MinutesTraceReportValidation):
+    """溯源纪要输出。"""
+
+    title: str = field(metadata={"source": "title"})
+    personalized_minutes: str = field(metadata={"source": "rendered"})
     quality_warning: str | None = None
 
 @dataclass

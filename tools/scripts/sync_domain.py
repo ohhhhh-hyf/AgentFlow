@@ -1630,25 +1630,51 @@ def generate_render_context_code(lines: list[str]) -> str:
     所有线的 render_context 完全同构：视角模式 / objective_perspective /
     state 上下文行（领域配置 RENDER_CONTEXT_STATE_LINES）/
     已批准{中文名}草稿 / {中文名}审核结论。中文名查领域 domain_config。
+
+    例外：``minutes_generation`` 线在 return 前追加 line_extra 记忆注入
+    （记忆摘录进渲染上下文，供记忆引用标注消费；其它线不需要）。
     """
     blocks = []
     for line in lines:
         cn = CURRENT.line_cn_names().get(line, line)
         state_lines = CURRENT.render_context_state_lines()
+        tail = (
+            '        extra = (state.get("line_extra") or {}).get("minutes_generation")\n'
+            '        if extra:\n'
+            '            context = f"{context}\\n\\n{extra}"\n'
+            '        return context\n'
+        )
+        if line == "minutes_generation":
+            body = (
+                f"        context = (\n"
+                f'            f"视角模式：{{mode}}\\n"\n'
+                f'            f"objective_perspective：'
+                f"{{bool(state.get('objective_perspective'))}}\\n\\n\"\n"
+                + "\n".join(state_lines)
+                + "\n"
+                f'            f"已批准{cn}草稿：\\n{{_json(line.get(\'draft\'))}}\\n\\n\"\n'
+                f'            f"{cn}审核结论：\\n{{_json(review)}}"\n'
+                f"        )\n"
+                + tail
+            )
+        else:
+            body = (
+                f"        return (\n"
+                f'            f"视角模式：{{mode}}\\n"\n'
+                f'            f"objective_perspective：'
+                f"{{bool(state.get('objective_perspective'))}}\\n\\n\"\n"
+                + "\n".join(state_lines)
+                + "\n"
+                f'            f"已批准{cn}草稿：\\n{{_json(line.get(\'draft\'))}}\\n\\n\"\n'
+                f'            f"{cn}审核结论：\\n{{_json(review)}}"\n'
+                f"        )\n"
+            )
         blocks.append(
             f"    def _{line}_render_context(self, state: {CURRENT.state_class()}) -> str:\n"
             f"        mode = self._mode_label(state)\n"
             f'        line = _line(state, "{line}")\n'
             f'        review = line.get("review") or {{}}\n'
-            f"        return (\n"
-            f'            f"视角模式：{{mode}}\\n"\n'
-            f'            f"objective_perspective：'
-            f"{{bool(state.get('objective_perspective'))}}\\n\\n\"\n"
-            + "\n".join(state_lines)
-            + "\n"
-            f'            f"已批准{cn}草稿：\\n{{_json(line.get(\'draft\'))}}\\n\\n\"\n'
-            f'            f"{cn}审核结论：\\n{{_json(review)}}"\n'
-            f"        )\n"
+            + body
         )
     return "\n".join(blocks)
 
