@@ -31,6 +31,12 @@ from .tasks.minutes_generation import (
     MinutesGenerationSupervisor,
 )
 
+from .tasks.multi_styles import (
+    MultiStylesAgent,
+    MultiStylesRender,
+    MultiStylesSupervisor,
+)
+
 from .tasks.risk import (
     RiskAgent,
     RiskRender,
@@ -66,6 +72,9 @@ class MeetingAgentFactory:
             "minutes_generation_agent": MinutesGenerationAgent(client),
             "minutes_generation_supervisor": MinutesGenerationSupervisor(client),
             "minutes_generation_render": MinutesGenerationRender(client),
+            "multi_styles_agent": MultiStylesAgent(client),
+            "multi_styles_supervisor": MultiStylesSupervisor(client),
+            "multi_styles_render": MultiStylesRender(client),
             "risk_agent": RiskAgent(client),
             "risk_supervisor": RiskSupervisor(client),
             "risk_render": RiskRender(client),

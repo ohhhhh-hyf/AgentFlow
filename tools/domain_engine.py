@@ -234,7 +234,7 @@ def fallback_text(
     - sections: 有序段列表（Raw/Join/Lines）
     - empty_prefix / empty_text / empty_purpose：全空时兜底文案
     - disclaimer: 是否追加降级声明
-    - structured: {merge: [...]} 客观合并的结构化列表（structure，Report 用）
+    - structured: {field: 草稿字段} 或 {merge: [字段...]}（structure，Report 用）
     """
     draft = line(state, line_name).get("draft") or {}
     objective = bool(state.get("objective_perspective"))
@@ -272,8 +272,11 @@ def fallback_text(
     structure = None
     structured = sec_attr(rules, "structured")
     if structured:
+        field = structured.get("field")
         merge = structured.get("merge") or []
-        if merge:
+        if field:
+            structure = list(draft.get(field) or [])
+        elif merge:
             structure = list(draft.get(merge[0]) or [])
             if objective:
                 for extra in merge[1:]:
@@ -451,10 +454,15 @@ class DomainNodes:
 
         async def node(state: dict) -> dict:
             agent = getattr(self, cfg["agent_attr"])
+            # 每线可选参数：组织模式（state["line_modes"]）
+            context = self._shared_context(state)
+            mode = (state.get("line_modes") or {}).get(line_name)
+            if mode:
+                context = f"组织模式：{mode}\n\n{context}"
             try:
                 result = await agent.run(
                     self._revision_context(
-                        self._shared_context(state),
+                        context,
                         line(state, line_name).get("revision_feedback", []),
                         f"{cn}返工意见",
                     )
@@ -989,6 +997,7 @@ class DomainNodes:
         item_template: str = "",
         templates: dict[str, str] | None = None,
         lines: Iterable[str] | None = None,
+        line_modes: dict[str, str] | None = None,
     ) -> AsyncIterator[dict]:
         """流式输出：各任务线文本并行逐块推送，按线携带展示标题。
 
@@ -1039,6 +1048,7 @@ class DomainNodes:
             "user": user_data,
             "objective_perspective": objective_mode,
             "templates": templates,
+            "line_modes": dict(line_modes or {}),
         }
         try:
             graph = self._build_graph(line_names)

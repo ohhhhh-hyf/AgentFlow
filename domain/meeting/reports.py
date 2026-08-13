@@ -18,6 +18,7 @@ from .models import (
     ActionItemsReportValidation,
     MindmapReportValidation,
     MinutesReportValidation,
+    MultiStylesReportValidation,
     RiskReportValidation,
 )
 
@@ -84,3 +85,24 @@ class MindmapReport(ModelMixin, MindmapReportValidation):
 
     outline: str = field(default="", metadata={"source": "rendered"})
     quality_warning: str | None = None
+
+@dataclass
+class MultiStylesReport(ModelMixin, MultiStylesReportValidation):
+    """多样式纪要输出（时间线 / 逻辑总分 / 因果推导 / 主体责权 / 决策时效）。
+
+    mode / title / summary / sections 取自草稿（draft.* 与 structure）；
+    personalized_text 为渲染正文。
+    """
+
+    mode: str = field(default="", metadata={"source": "draft.mode"})
+    title: str = field(default="", metadata={"source": "draft.title"})
+    summary: str = field(default="", metadata={"source": "draft.summary"})
+    sections: list[dict[str, Any]] = field(
+        default_factory=list,
+        metadata={"source": "structure"},
+    )
+    quality_warning: str | None = None
+    personalized_text: str | None = field(
+        default=None,
+        metadata={"source": "rendered"},
+    )

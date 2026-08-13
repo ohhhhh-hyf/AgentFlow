@@ -30,4 +30,5 @@ LINE_CN_NAMES: dict[str, str] = {
     "action_items": "待办",
     "risk": "风险分析",
     "mindmap": "思维导图",
+    "multi_styles": "多样式纪要",
 }

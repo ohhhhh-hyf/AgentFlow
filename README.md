@@ -136,9 +136,11 @@ python gradio_app.py
 | 能力 | 说明 |
 |---|---|
 | 默认领域 | `meeting`（会议） |
+| **默认视角** | **客观全员**；可切换个人视角做多视角裁剪 |
+| 用户画像 | 可编辑 JSON / 上传；随视角模式切换默认样例 |
 | 输入 | 上传 `.txt` 或粘贴文本 |
 | 模板 | 支持自然语言描述 → 编译成可编辑模板 → 修改后确认运行；也可上传/粘贴现成 Markdown 模板 |
-| 结果 | 日志；有 `.md` 时 Markdown 预览；有 PNG 时图片预览；产物下载 |
+| 结果 | 日志（含视角模式）；有 `.md` 时 Markdown 预览；有 PNG 时图片预览；产物下载 |
 | 防重复 | 运行中锁定按钮，结束后恢复 |
 
 #### 服务器部署
@@ -225,7 +227,7 @@ CLI 参数：
 | `--domain` | 否 | `meeting` | 选择领域。会议域用 `meeting`，笔记域用 `notes`。 | `--domain notes` |
 | `--task` | 是 | 无 | 要运行的任务线，可重复传多个。 | `--task minutes_generation --task action_items` |
 | `--file` | 否 | `samples/{domain}/file` | 输入 `.txt` 文件、目录，或 `samples/{domain}/file` 下的文件名。 | `--file student_math_notes.txt` |
-| `--profile` | 否 | `samples/{domain}/profile` | 用户画像 `.json` 文件、目录，或 `samples/{domain}/profile` 下的文件名。 | `--profile object_profile.json` |
+| `--profile` | 否 | `object_profile.json` | 用户画像 `.json`。默认客观全员；个人视角用 `personal_profile.json`。 | `--profile personal_profile.json` |
 | `--env` | 否 | `./.env` | 环境变量文件路径。 | `--env ./.env` |
 | `--{线名}_template` | 否 | 无 | 指定某条任务线的渲染模板。 | `--minutes_generation_template ./template.md` |
 

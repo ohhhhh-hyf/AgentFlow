@@ -6,6 +6,7 @@ from typing import Annotated, Any, Literal, TypedDict
 from tools.validation import (
     OutputValidationError,
     _action,
+    _choice,
     _exact_fields,
     _review_check,
     _string,
@@ -111,6 +112,25 @@ class Minutes(ModelMixin):
         _string_list(data["personally_relevant_points"], "personally_relevant_points")
         _string_list(data["risks_and_blockers"], "risks_and_blockers")
         _string_list(data["unresolved_questions"], "unresolved_questions")
+        return cls(**data)
+
+@dataclass
+class MultiStyles(ModelMixin):
+    """MultiStyles输出（浅校验：仅校验第一层键与类型，嵌套不校验）。"""
+
+    mode: Literal["time", "logic", "causal", "party", "urgency"]
+    title: str
+    summary: str
+    sections: list[dict[str, Any]] = field(default_factory=list)
+
+    @classmethod
+    def validate(cls, data: dict) -> "MultiStyles":
+        _exact_fields(data, [f.name for f in fields(cls)], cls.__name__)
+        _choice(data["mode"], {"time", "logic", "causal", "party", "urgency"}, "mode")
+        _string(data["title"], "title")
+        _string(data["summary"], "summary")
+        if not isinstance(data["sections"], list):
+            raise OutputValidationError("sections 必须是数组")
         return cls(**data)
 
 @dataclass
@@ -232,6 +252,33 @@ class MindmapSupervisorReview(ModelMixin):
         )
         return cls(**data)
 
+@dataclass
+class MultiStylesSupervisorReview(ModelMixin):
+    """多样式纪要任务线的领域审核结果。"""
+
+    decision: Literal["approve", "revise", "reject"]
+    mode_check: dict[str, Any]
+    facts_check: dict[str, Any]
+    consistency_check: dict[str, Any]
+    feedback: list[str] = field(default_factory=list)
+
+    # 本模型的全部检查项（供结构校验与公共语义校验使用）
+    CHECK_KEYS = ("mode_check", "facts_check", "consistency_check")
+
+    @classmethod
+    def validate(cls, data: dict) -> "MultiStylesSupervisorReview":
+        _exact_fields(data, [f.name for f in fields(cls)], cls.__name__)
+        for key in cls.CHECK_KEYS:
+            _review_check(data[key], key)
+        _string_list(data["feedback"], "feedback")
+        # 公共语义规则：decision 枚举 + 与检查项/feedback 的联动约束
+        validate_supervisor_semantics(
+            data["decision"],
+            data["feedback"],
+            {key: data[key] for key in cls.CHECK_KEYS},
+        )
+        return cls(**data)
+
 # ── 审核模型生成区结束 ──
 
 # ── Report 校验生成区：由 tools/scripts/sync_domain.py 生成，勿手改 ──
@@ -267,6 +314,7 @@ class ActionItemsReportValidation:
             personalized_text=data.get("personalized_text"),
         )
 
+
 class MindmapReportValidation:
     """MindmapReport 的校验逻辑（由脚本按手写字段自动生成）。"""
 
@@ -291,6 +339,7 @@ class MindmapReportValidation:
             outline=data.get("outline") or "",
             quality_warning=data.get("quality_warning"),
         )
+
 
 class MinutesReportValidation:
     """MinutesReport 的校验逻辑（由脚本按手写字段自动生成）。"""
@@ -318,6 +367,43 @@ class MinutesReportValidation:
             personalized_minutes=data.get("personalized_minutes") or "",
             quality_warning=data.get("quality_warning"),
         )
+
+
+class MultiStylesReportValidation:
+    """MultiStylesReport 的校验逻辑（由脚本按手写字段自动生成）。"""
+
+    @classmethod
+    def validate(cls, data: dict) -> "MultiStylesReport":
+        allowed = {"mode", "title", "summary", "sections", "quality_warning", "personalized_text"}
+
+        if not isinstance(data, dict):
+            raise OutputValidationError("MultiStylesReport 必须是 JSON 对象")
+
+        extra = set(data) - allowed
+        if extra:
+            raise OutputValidationError(
+                f"MultiStylesReport 字段不一致：多余={sorted(extra)}"
+            )
+
+        _string(data.get("mode") or "", "mode")
+        _string(data.get("title") or "", "title")
+        _string(data.get("summary") or "", "summary")
+        if not isinstance(data.get("sections") or [], list):
+            raise OutputValidationError("sections 必须是数组")
+        if data.get("quality_warning") is not None:
+            _string(data["quality_warning"], "quality_warning")
+        if data.get("personalized_text") is not None:
+            _string(data["personalized_text"], "personalized_text")
+
+        return cls(
+            mode=data.get("mode") or "",
+            title=data.get("title") or "",
+            summary=data.get("summary") or "",
+            sections=data.get("sections") or [],
+            quality_warning=data.get("quality_warning"),
+            personalized_text=data.get("personalized_text"),
+        )
+
 
 class RiskReportValidation:
     """RiskReport 的校验逻辑（由脚本按手写字段自动生成）。"""
@@ -401,3 +487,20 @@ class MeetingState(TypedDict, total=False):
     quality_degraded: Annotated[bool, _merge_degraded]
     # 可选：各任务线的输出模板（线名 → 模板文本；占位符 [描述] 将被填充）
     templates: dict[str, str]
+    # 可选：各任务线的组织参数（线名 → 如 multi_styles 的 time/logic/causal/party/urgency）
+    line_modes: dict[str, str]
+
+
+# 多样式纪要：浅校验放行空 sections，这里补结构门禁，供 schema repair 重出。
+from .tasks.multi_styles.contracts import enforce_multi_styles_sections  # noqa: E402
+
+_orig_multi_styles_validate = MultiStyles.validate.__func__
+
+
+@classmethod
+def _validate_multi_styles_strict(cls, data: dict) -> "MultiStyles":
+    enforce_multi_styles_sections(data)
+    return _orig_multi_styles_validate(cls, data)
+
+
+MultiStyles.validate = _validate_multi_styles_strict

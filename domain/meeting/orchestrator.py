@@ -44,6 +44,7 @@ from .reports import (
     ActionItemsReport,
     MindmapReport,
     MinutesReport,
+    MultiStylesReport,
     RiskReport,
 )
 # ── Report import 生成区结束 ──
@@ -73,6 +74,12 @@ from .tasks.minutes_generation import (
     MinutesGenerationSupervisor,
 )
 
+from .tasks.multi_styles import (
+    MultiStylesAgent,
+    MultiStylesRender,
+    MultiStylesSupervisor,
+)
+
 from .tasks.risk import (
     RiskAgent,
     RiskRender,
@@ -86,6 +93,7 @@ from .tasks.risk import (
 from .tasks.action_items.contracts import ACTION_ITEMS_FALLBACK_RULES
 from .tasks.mindmap.contracts import MINDMAP_FALLBACK_RULES
 from .tasks.minutes_generation.contracts import MINUTES_FALLBACK_RULES
+from .tasks.multi_styles.contracts import MULTI_STYLES_FALLBACK_RULES
 from .tasks.risk.contracts import RISK_FALLBACK_RULES
 
 # ── FallbackRules import 生成区结束 ──
@@ -125,6 +133,13 @@ _EMPTY_MINUTES = {
     "unresolved_questions": [],
 }
 
+_EMPTY_MULTI_STYLES = {
+    "mode": "time",
+    "title": "",
+    "sections": [],
+    "summary": "",
+}
+
 _EMPTY_RISK = {
     "risks": [],
 }
@@ -159,6 +174,15 @@ _REJECT_MINDMAP_REVIEW = {
     "feedback": ["LLM 调用失败，未完成审核，转降级输出"],
 }
 
+_REJECT_MULTI_STYLES_REVIEW = {
+    "decision": "reject",
+    "mode_check": {"status": "fail", "findings": ["LLM 调用失败，未完成审核"]},
+    "facts_check": {"status": "fail", "findings": ["LLM 调用失败，未完成审核"]},
+    "consistency_check": {"status": "fail", "findings": ["LLM 调用失败，未完成审核"]},
+    "feedback": ["LLM 调用失败，未完成审核，转降级输出"],
+}
+
+
 # ── 拒绝审核常量生成区结束 ──
 
 # ── 任务线注册生成区：由 tools/scripts/sync_domain.py 生成，勿手改 ──
@@ -182,6 +206,12 @@ TASK_LINES: dict[str, dict] = {
         "empty_draft": _EMPTY_MINUTES,
         "reject_review": _REJECT_MINUTES_REVIEW,
     },
+    "multi_styles": {
+        "agent_attr": "multi_styles_agent",
+        "supervisor_attr": "multi_styles_supervisor",
+        "empty_draft": _EMPTY_MULTI_STYLES,
+        "reject_review": _REJECT_MULTI_STYLES_REVIEW,
+    },
     "risk": {
         "agent_attr": "risk_agent",
         "supervisor_attr": "risk_supervisor",
@@ -200,11 +230,20 @@ def _line_draft_title(line_name: str) -> str:
     """线名 → 草稿标题（自动推导为「中文名草稿」）。"""
     return _engine_line_draft_title(line_name, LINE_CN_NAMES)
 
+def _format_multi_styles_section(index: int, item: dict) -> str:
+    """把多样式纪要的一个组织段落格式化为文本行（确定性降级输出用）。"""
+    title = str(item.get("title") or "").strip()
+    content = str(item.get("content") or "").strip()
+    if title:
+        return f"{title}：{content}" if content else title
+    return content
+
 # Lines 段逐条格式化器注册表（线名 → 格式化函数(index, item) -> str）
-# action_items / risk 的降级输出格式与各自 LLM 渲染 prompt 保持一致
+# action_items / risk / multi_styles 的降级输出格式与各自 LLM 渲染 prompt 保持一致
 _LINES_FORMATTERS: dict[str, object] = {
     "action_items": ActionItemsRender.format_action,
     "risk": format_risk_item,
+    "multi_styles": _format_multi_styles_section,
 }
 
 def _empty_purpose(state) -> str:
@@ -379,6 +418,21 @@ class _Nodes(DomainNodes):
             f"纪要审核结论：\n{_json(review)}"
         )
 
+    def _multi_styles_render_context(self, state: MeetingState) -> str:
+        mode = self._mode_label(state)
+        line = _line(state, "multi_styles")
+        review = line.get("review") or {}
+        return (
+            f"视角模式：{mode}\n"
+            f"objective_perspective：{bool(state.get('objective_perspective'))}\n\n"
+            f"会议原文：\n{state['transcript']}\n\n"
+            f"用户画像：\n{_json(state['user'])}\n\n"
+            f"已审核会议理解：\n{_json(state.get('meeting_understanding'))}\n\n"
+            f"已审核用户视角：\n{_json(state.get('perspective_profile'))}\n\n"
+            f"已批准多样式纪要草稿：\n{_json(line.get('draft'))}\n\n"
+            f"多样式纪要审核结论：\n{_json(review)}"
+        )
+
     def _risk_render_context(self, state: MeetingState) -> str:
         mode = self._mode_label(state)
         line = _line(state, "risk")
@@ -434,6 +488,14 @@ class _Nodes(DomainNodes):
             line_dict["structure"] = structure
         return {"lines": {"mindmap": line_dict}, "quality_degraded": True}
 
+    async def _multi_styles_fallback_node(self, state: MeetingState) -> dict:
+        text, structure = _fallback_text(
+            state, "multi_styles", MULTI_STYLES_FALLBACK_RULES)
+        line_dict = {"rendered": text, "degraded": True}
+        if structure is not None:
+            line_dict["structure"] = structure
+        return {"lines": {"multi_styles": line_dict}, "quality_degraded": True}
+
     # ── 专属节点方法生成区结束 ──
 
 class MeetingAgentSystem(_Nodes):
@@ -464,6 +526,9 @@ class MeetingAgentSystem(_Nodes):
         self.minutes_generation_agent: MinutesGenerationAgent = agents["minutes_generation_agent"]
         self.minutes_generation_supervisor: MinutesGenerationSupervisor = agents["minutes_generation_supervisor"]
         self.minutes_generation_render: MinutesGenerationRender = agents["minutes_generation_render"]
+        self.multi_styles_agent: MultiStylesAgent = agents["multi_styles_agent"]
+        self.multi_styles_supervisor: MultiStylesSupervisor = agents["multi_styles_supervisor"]
+        self.multi_styles_render: MultiStylesRender = agents["multi_styles_render"]
         self.risk_agent: RiskAgent = agents["risk_agent"]
         self.risk_supervisor: RiskSupervisor = agents["risk_supervisor"]
         self.risk_render: RiskRender = agents["risk_render"]
@@ -477,6 +542,7 @@ class MeetingAgentSystem(_Nodes):
         self._fallback_nodes["action_items"] = self._action_items_fallback_node
         self._fallback_nodes["mindmap"] = self._mindmap_fallback_node
         self._fallback_nodes["minutes_generation"] = self._minutes_generation_fallback_node
+        self._fallback_nodes["multi_styles"] = self._multi_styles_fallback_node
         self._fallback_nodes["risk"] = self._risk_fallback_node
 
         # ── 节点映射生成区结束 ──
@@ -488,6 +554,7 @@ class MeetingAgentSystem(_Nodes):
             "action_items": ActionItemsReport,
             "mindmap": MindmapReport,
             "minutes_generation": MinutesReport,
+            "multi_styles": MultiStylesReport,
             "risk": RiskReport,
         }
 
@@ -500,6 +567,7 @@ class MeetingAgentSystem(_Nodes):
             "action_items": ACTION_ITEMS_FALLBACK_RULES,
             "mindmap": MINDMAP_FALLBACK_RULES,
             "minutes_generation": MINUTES_FALLBACK_RULES,
+            "multi_styles": MULTI_STYLES_FALLBACK_RULES,
             "risk": RISK_FALLBACK_RULES,
         }
 

@@ -62,7 +62,8 @@ class FallbackRules:
     - ``sections``：有序段列表（Section 子类实例）
     - ``empty_text`` / ``empty_prefix`` / ``empty_purpose``：全空时兜底文案
     - ``disclaimer``：是否追加（生成可能有误）
-    - ``structured``：``{"merge": [字段...]}`` 客观合并的结构化列表（items）
+    - ``structured``：``{"field": "sections"}`` 单字段，或
+      ``{"merge": [字段...]}`` 客观合并的结构化列表（items）
     """
 
     sections: list[Section] = []

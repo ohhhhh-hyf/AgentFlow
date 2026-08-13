@@ -75,13 +75,31 @@ def load_transcript(ctx: DomainContext, file_path: Path) -> str:
     return transcript
 
 
+def pick_profile_file(folder: Path) -> Path:
+    """多画像时优先客观样例；个人视角请显式指定 personal_profile.json。"""
+    objective = folder / "object_profile.json"
+    if objective.is_file():
+        return objective
+    personal = folder / "personal_profile.json"
+    if personal.is_file():
+        return personal
+    return pick_single_file(folder, "*.json", "用户画像")
+
+
 def load_user(ctx: DomainContext, profile_path: Path):
-    profile_file = resolve_input_file(
-        ctx,
-        resolve_sample_path(ctx, profile_path, "profile"),
-        ".json",
-        "用户画像",
-    )
+    resolved = resolve_sample_path(ctx, profile_path, "profile")
+    if not resolved.exists():
+        # 兼容：未传具体文件时走 samples/{domain}/profile
+        resolved = resolve_path(ctx, profile_path)
+    if resolved.is_dir():
+        profile_file = pick_profile_file(resolved)
+    else:
+        profile_file = resolve_input_file(
+            ctx,
+            resolve_sample_path(ctx, profile_path, "profile"),
+            ".json",
+            "用户画像",
+        )
     profile = json.loads(profile_file.read_text(encoding="utf-8"))
     return ctx.models.UserIdentity(**profile)
 
@@ -89,6 +107,7 @@ def load_user(ctx: DomainContext, profile_path: Path):
 __all__ = [
     "load_transcript",
     "load_user",
+    "pick_profile_file",
     "pick_single_file",
     "resolve_input_file",
     "resolve_path",

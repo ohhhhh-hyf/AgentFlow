@@ -253,3 +253,4 @@ class NotesState(TypedDict, total=False):
     quality_degraded: Annotated[bool, _merge_degraded]
     notes_understanding: dict
     templates: dict[str, str]
+    line_modes: dict[str, str]

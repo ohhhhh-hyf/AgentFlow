@@ -5,11 +5,13 @@ import base64
 import contextlib
 import html
 import io
+import json
 import os
 import sys
 import re
 import tempfile
 from pathlib import Path
+from typing import Any
 
 import gradio as gr
 
@@ -34,6 +36,14 @@ DOMAIN_LABELS = {
 }
 DOMAIN_CHOICES = [(DOMAIN_LABELS[name], name) for name in DOMAIN_NAMES]
 
+# 视角模式：默认客观全员；可切换个人视角做多视角裁剪
+PERSPECTIVE_PERSONAL = "personal"
+PERSPECTIVE_OBJECTIVE = "objective"
+PERSPECTIVE_CHOICES = [
+    ("客观全员（不绑定个人）", PERSPECTIVE_OBJECTIVE),
+    ("个人视角（按用户画像裁剪）", PERSPECTIVE_PERSONAL),
+]
+
 
 def _ctx(domain: str):
     return load_domain(domain, PROJECT_ROOT)
@@ -52,6 +62,115 @@ def _task_value(label: str) -> str:
         if separator in label:
             return label.split(separator, 1)[0].strip()
     return label.strip()
+
+
+def _mode_value(label: str) -> str:
+    """从「time - 时间顺序」这类下拉标签提取模式名。"""
+    for separator in (" - ", " -", "-"):
+        if separator in label:
+            return label.split(separator, 1)[0].strip()
+    return label.strip()
+
+
+def _profile_sample_path(domain: str, mode: str) -> Path:
+    name = (
+        "object_profile.json"
+        if mode == PERSPECTIVE_OBJECTIVE
+        else "personal_profile.json"
+    )
+    return PROJECT_ROOT / "samples" / domain / "profile" / name
+
+
+def _load_profile_json_text(domain: str, mode: str) -> str:
+    path = _profile_sample_path(domain, mode)
+    if path.exists():
+        return path.read_text(encoding="utf-8")
+    # 兜底骨架
+    if mode == PERSPECTIVE_OBJECTIVE:
+        data = {
+            "name": None,
+            "role": "客观记录者",
+            "department": None,
+            "perspective": "objective",
+            "responsibilities": ["完整还原原文事实与决策"],
+            "interests": ["全员可用信息"],
+            "context": "客观全员视角，不绑定个人。",
+        }
+    else:
+        data = {
+            "name": "用户",
+            "role": "请填写角色",
+            "department": None,
+            "perspective": "personal",
+            "responsibilities": ["请填写与输入相关的职责"],
+            "interests": ["请填写关注点"],
+            "context": "个人视角：优先保留与本人职责/被点名事项相关的内容。",
+        }
+    return json.dumps(data, ensure_ascii=False, indent=2)
+
+
+def _parse_profile_payload(
+    mode: str,
+    profile_upload,
+    profile_json: str | None,
+) -> dict[str, Any]:
+    """解析画像：上传 JSON > 文本框 JSON；并与所选视角模式对齐。"""
+    raw = ""
+    uploaded = _uploaded_path(profile_upload)
+    if uploaded is not None and uploaded.exists():
+        raw = uploaded.read_text(encoding="utf-8").strip()
+    if not raw:
+        raw = (profile_json or "").strip()
+    if not raw:
+        raise ValueError("请填写或上传用户画像 JSON（个人视角为核心能力，不可为空）。")
+    try:
+        data = json.loads(raw)
+    except json.JSONDecodeError as exc:
+        raise ValueError(f"用户画像不是合法 JSON：{exc}") from exc
+    if not isinstance(data, dict):
+        raise ValueError("用户画像 JSON 必须是对象（dict）。")
+
+    if mode == PERSPECTIVE_OBJECTIVE:
+        data["perspective"] = "objective"
+    else:
+        # 个人视角：禁止误带 objective
+        if str(data.get("perspective") or "").strip().lower() == "objective":
+            data["perspective"] = "personal"
+        elif not data.get("perspective"):
+            data["perspective"] = "personal"
+        name = str(data.get("name") or "").strip()
+        role = str(data.get("role") or "").strip()
+        if not name and not role:
+            raise ValueError(
+                "个人视角需在画像中填写 name 或 role，否则无法做多视角裁剪。"
+            )
+    return data
+
+
+def update_domain(domain_label: str, perspective_mode: str):
+    domain = _domain_value(domain_label)
+    choices = _task_choices(domain)
+    selected_task = choices[0] if choices else None
+    mode = (
+        PERSPECTIVE_PERSONAL
+        if perspective_mode == PERSPECTIVE_PERSONAL
+        else PERSPECTIVE_OBJECTIVE
+    )
+    profile_text = _load_profile_json_text(domain, mode)
+    return (
+        gr.update(choices=choices, value=selected_task),
+        profile_text,
+    )
+
+
+def update_perspective(perspective_mode: str, domain_label: str):
+    domain = _domain_value(domain_label)
+    mode = (
+        PERSPECTIVE_PERSONAL
+        if perspective_mode == PERSPECTIVE_PERSONAL
+        else PERSPECTIVE_OBJECTIVE
+    )
+    return _load_profile_json_text(domain, mode)
 
 
 def _output_files(domain: str, tasks: list[str]) -> set[Path]:
@@ -169,13 +288,6 @@ def _artifact_download_html(files: list[str]) -> str:
     return "\n".join(rows)
 
 
-def update_domain(domain_label: str):
-    domain = _domain_value(domain_label)
-    choices = _task_choices(domain)
-    selected_task = choices[0] if choices else None
-    return gr.update(choices=choices, value=selected_task)
-
-
 def _domain_value(value: str) -> str:
     if value in DOMAIN_NAMES:
         return value
@@ -227,15 +339,23 @@ def clear_results_only():
     )
 
 
-def reset_form():
-    """清空输入、模板与结果，保留领域/任务，相当于不刷新的软重置。"""
+def reset_form(domain_label: str, perspective_mode: str):
+    """清空输入、模板与结果，保留领域/任务/视角模式，画像恢复为该模式默认样例。"""
+    domain = _domain_value(domain_label)
+    mode = (
+        PERSPECTIVE_PERSONAL
+        if perspective_mode == PERSPECTIVE_PERSONAL
+        else PERSPECTIVE_OBJECTIVE
+    )
     return (
-        "已重置表单（领域/任务保留）。可重新上传或粘贴内容后再运行；无需刷新浏览器。",
+        "已重置表单（领域/任务/视角模式保留）。画像已恢复为当前模式默认样例。",
         EMPTY_GALLERY,
         EMPTY_MD,
         EMPTY_DOWNLOAD,
         gr.update(value=None),  # input_upload
         "",  # input_text
+        gr.update(value=None),  # profile_upload
+        _load_profile_json_text(domain, mode),  # profile_json
         gr.update(value=None),  # template_upload
         "",  # template_text
         *_hitl_ui(False),
@@ -263,11 +383,15 @@ def _run_result(log, files_or_none=None, *hitl, files_html: str | None = None):
 def run_from_ui(
     domain_label: str,
     task_label: str | None,
+    perspective_mode: str | None,
+    profile_upload,
+    profile_json: str | None,
     input_upload,
     input_text: str | None,
     template_upload,
     template_text: str | None,
     compiled_template: str | None,
+    mode_value: str | None,
 ):
     domain = _domain_value(domain_label)
     if not task_label:
@@ -279,19 +403,35 @@ def run_from_ui(
         )
 
     tasks = [_task_value(task_label)]
-    profile_path = PROJECT_ROOT / "samples" / domain / "profile" / "object_profile.json"
-    if not profile_path.exists():
+    mode = (
+        PERSPECTIVE_PERSONAL
+        if perspective_mode == PERSPECTIVE_PERSONAL
+        else PERSPECTIVE_OBJECTIVE
+    )
+    try:
+        profile_data = _parse_profile_payload(mode, profile_upload, profile_json)
+    except ValueError as exc:
         return _run_result(
-            f"默认 profile 不存在：{profile_path}",
+            f"用户画像无效：{exc}",
             None,
             *_hitl_ui(False),
             files_html=EMPTY_DOWNLOAD,
         )
 
+    mode_label = (
+        "客观全员"
+        if str(profile_data.get("perspective") or "").lower() == "objective"
+        else f"个人视角（{profile_data.get('name') or profile_data.get('role') or '未命名'}）"
+    )
     ctx = _ctx(domain)
     files: list[str] = []
     with tempfile.TemporaryDirectory(prefix="agentflow_gradio_") as temp_dir:
         temp_root = Path(temp_dir)
+        profile_path = temp_root / "profile.json"
+        profile_path.write_text(
+            json.dumps(profile_data, ensure_ascii=False, indent=2),
+            encoding="utf-8",
+        )
         input_file = _input_path(input_upload, input_text, temp_root, "input.txt")
         if input_file is None:
             return _run_result(
@@ -381,6 +521,10 @@ def run_from_ui(
         buffer = io.StringIO()
         try:
             with contextlib.redirect_stdout(buffer), contextlib.redirect_stderr(buffer):
+                # 组织模式：仅 multi_styles（多样式纪要）线消费
+                modes: dict[str, str] = {}
+                if tasks[0] == "multi_styles" and mode_value:
+                    modes["multi_styles"] = _mode_value(mode_value)
                 asyncio.run(
                     run(
                         ctx,
@@ -389,6 +533,7 @@ def run_from_ui(
                         PROJECT_ROOT / ".env",
                         templates,
                         tasks,
+                        modes,
                     )
                 )
         except Exception as exc:  # noqa: BLE001 - UI should show the error directly
@@ -397,10 +542,11 @@ def run_from_ui(
         files = _new_artifacts(domain, tasks, before)
         log = _clean_log(buffer.getvalue().strip() or "运行完成。")
 
+    log = f"【视角模式】{mode_label}\n{log}"
     if files:
         log = (
             f"{log}\n\n已生成 {len(files)} 个文件，可在右侧预览 Markdown 或下载。\n"
-            "再测：改输入后直接再点「运行」即可（无需刷新）；"
+            "再测：改输入/画像后直接再点「运行」即可（无需刷新）；"
             "右侧会换成新结果。仅想清屏可用「清空当前结果」，从头填表用「重置表单」。"
         )
     if show_editor and editor_value:
@@ -1123,6 +1269,9 @@ button.secondary:hover {
 def build_app() -> gr.Blocks:
     initial_domain = "meeting"
     initial_choices = _task_choices(initial_domain)
+    initial_profile_json = _load_profile_json_text(
+        initial_domain, PERSPECTIVE_OBJECTIVE
+    )
     with gr.Blocks(title="小艺慧记Agent测试") as demo:
         gr.HTML(
             """
@@ -1159,6 +1308,46 @@ def build_app() -> gr.Blocks:
                     label="任务",
                     choices=initial_choices,
                     value=initial_choices[0] if initial_choices else None,
+                )
+                mode_dropdown = gr.Dropdown(
+                    label="组织模式（多样式纪要）",
+                    choices=[
+                        "time - 时间线（叙事节奏）",
+                        "logic - 逻辑总分（归纳分类）",
+                        "causal - 因果推导（风险与动因）",
+                        "party - 主体责权（立场与博弈）",
+                        "urgency - 决策时效（执行倒计时）",
+                    ],
+                    value="time - 时间线（叙事节奏）",
+                    visible=False,
+                    elem_id="mode-select",
+                )
+                perspective_mode = gr.Radio(
+                    label="视角模式",
+                    choices=PERSPECTIVE_CHOICES,
+                    value=PERSPECTIVE_OBJECTIVE,
+                    elem_id="perspective-mode",
+                )
+                gr.HTML(
+                    '<div class="tpl-guide">'
+                    "<strong>多视角</strong>：默认客观全员。"
+                    "切换到个人视角后，系统按用户画像做视角建模并裁剪纪要/待办/风险等输出；"
+                    "请填写 name/role/职责/兴趣。"
+                    "</div>"
+                )
+                profile_upload = gr.File(
+                    label="用户画像 JSON（可选，上传优先）",
+                    file_count="single",
+                    file_types=[".json"],
+                    type="filepath",
+                )
+                profile_json = gr.Textbox(
+                    label="用户画像 JSON",
+                    lines=8,
+                    max_lines=24,
+                    value=initial_profile_json,
+                    elem_id="profile-json",
+                    placeholder='{"name":"...","role":"...","perspective":"personal",...}',
                 )
                 gr.HTML('<div class="panel-label spaced">输入</div>')
                 input_upload = gr.File(
@@ -1249,8 +1438,24 @@ def build_app() -> gr.Blocks:
 
         domain.change(
             update_domain,
-            inputs=domain,
-            outputs=tasks,
+            inputs=[domain, perspective_mode],
+            outputs=[tasks, profile_json],
+        )
+        perspective_mode.change(
+            update_perspective,
+            inputs=[perspective_mode, domain],
+            outputs=profile_json,
+        )
+
+        def _update_mode_visibility(task_label: str | None):
+            """仅选中「多样式纪要」任务线时显示组织模式下拉。"""
+            visible = bool(task_label and _task_value(task_label) == "multi_styles")
+            return gr.update(visible=visible)
+
+        tasks.change(
+            _update_mode_visibility,
+            inputs=tasks,
+            outputs=mode_dropdown,
         )
         hitl_outputs = [compiled_template, compiled_wrap, run_button]
         result_outputs = [log_output, image_output, md_preview, files_output]
@@ -1266,11 +1471,15 @@ def build_app() -> gr.Blocks:
             inputs=[
                 domain,
                 tasks,
+                perspective_mode,
+                profile_upload,
+                profile_json,
                 input_upload,
                 input_text,
                 template_upload,
                 template_text,
                 compiled_template,
+                mode_dropdown,
             ],
             outputs=[*result_outputs, *hitl_outputs, *side_btns],
             show_progress="minimal",
@@ -1287,11 +1496,13 @@ def build_app() -> gr.Blocks:
         )
         reset_form_btn.click(
             reset_form,
-            inputs=[],
+            inputs=[domain, perspective_mode],
             outputs=[
                 *result_outputs,
                 input_upload,
                 input_text,
+                profile_upload,
+                profile_json,
                 template_upload,
                 template_text,
                 *hitl_outputs,

@@ -42,12 +42,21 @@ def build_parser(ctx: DomainContext) -> argparse.ArgumentParser:
         default=env_path(ctx, "FILE", ctx.default_file_dir),
         help="输入文本文件或目录。传目录时，目录中需要包含一个 .txt 文件",
     )
+    _default_profile = env_path(ctx, "PROFILE", None)
+    if _default_profile is None:
+        _objective = ctx.cli_samples_dir / "profile" / "object_profile.json"
+        _default_profile = (
+            _objective if _objective.exists() else ctx.default_profile_dir
+        )
     parser.add_argument(
         "--profile",
         dest="profile",
         type=Path,
-        default=env_path(ctx, "PROFILE", ctx.default_profile_dir),
-        help="用户画像 JSON 文件或目录。传目录时，目录中需要包含一个 .json 文件",
+        default=_default_profile,
+        help="用户画像 JSON 文件或目录。"
+        "默认 samples/{domain}/profile/object_profile.json（客观全员）；"
+        "个人视角请指定 personal_profile.json。"
+        "传目录时优先 object_profile.json",
     )
     parser.add_argument(
         "--env",
@@ -64,6 +73,13 @@ def build_parser(ctx: DomainContext) -> argparse.ArgumentParser:
             default=env_path(ctx, f"{line.upper()}_TEMPLATE", None),
             help=f"{cn}线渲染模板（.md 文件）。模板中用 [描述] 作为占位符，"
             "系统将自动填充内容。不指定则使用默认格式",
+        )
+        parser.add_argument(
+            f"--{line}_mode",
+            dest=f"{line}_mode",
+            default=None,
+            help=f"{cn}线组织模式（如 multi_styles 的 "
+            "time/logic/causal/party/urgency；仅支持组织模式的线生效）",
         )
     parser.add_argument(
         "--task",
@@ -87,6 +103,16 @@ def collect_templates(ctx: DomainContext, args: argparse.Namespace) -> dict[str,
     return templates
 
 
+def collect_modes(ctx: DomainContext, args: argparse.Namespace) -> dict[str, str]:
+    """收集各线组织模式参数（--{线名}_mode，仅传了才生效）。"""
+    modes: dict[str, str] = {}
+    for line in ctx.task_lines:
+        value = getattr(args, f"{line}_mode", None)
+        if value:
+            modes[line] = value.strip().lower()
+    return modes
+
+
 def parse_domain_name(default: str = "meeting") -> str:
     pre = argparse.ArgumentParser(add_help=False)
     pre.add_argument("--domain", default=default)
@@ -101,6 +127,7 @@ async def run(
     env_file: Path,
     templates: dict[str, Path] | None = None,
     tasks: list[str] | None = None,
+    modes: dict[str, str] | None = None,
 ) -> None:
     """Run selected task lines and persist their final artifacts."""
     setup_logging()
@@ -139,6 +166,7 @@ async def run(
         user,
         templates=template_texts,
         lines=line_names,
+        line_modes=modes or {},
     ):
         etype = event["type"]
         if etype == "chunk":
@@ -234,4 +262,4 @@ def _resolve_template_file(
     return pick_single_file(resolved.parent, resolved.name, f"{line_name} 模板")
 
 
-__all__ = ["build_parser", "collect_templates", "parse_domain_name", "run"]
+__all__ = ["build_parser", "collect_modes", "collect_templates", "parse_domain_name", "run"]

@@ -10,7 +10,13 @@ PROJECT_ROOT = Path(__file__).resolve().parent
 sys.path.insert(0, str(PROJECT_ROOT))
 
 from llm_client.config import load_env  # noqa: E402
-from tools.runner import build_parser, collect_templates, parse_domain_name, run  # noqa: E402
+from tools.runner import (  # noqa: E402
+    build_parser,
+    collect_modes,
+    collect_templates,
+    parse_domain_name,
+    run,
+)
 from tools.runtime_context import load_domain  # noqa: E402
 
 
@@ -20,6 +26,7 @@ def main() -> None:
     load_env(PROJECT_ROOT / ".env")
     args = build_parser(ctx).parse_args()
     templates = collect_templates(ctx, args)
+    modes = collect_modes(ctx, args)
     try:
         asyncio.run(
             run(
@@ -29,6 +36,7 @@ def main() -> None:
                 args.env,
                 templates,
                 args.tasks,
+                modes,
             )
         )
     except (
