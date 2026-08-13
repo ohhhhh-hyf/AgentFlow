@@ -4,8 +4,9 @@
 
 自动做：
 1. 创建 domain/{domain}/ 目录（tasks/ {domain}_core/ samples/ 空骨架）
-2. 从 tools/scripts/domain_template/ 渲染 6 个骨架文件
-   （orchestrator / models / reports / {domain}_factory / domain_config / __init__）
+2. 从 tools/scripts/domain_template/ 渲染骨架文件
+   （orchestrator / models / models_base / models_generated / reports /
+   {domain}_factory / domain_config / __init__）
 3. 内置视角建模（perspective 公共组件：节点 + agent 挂载 + state 字段）
 4. 内部调用 sync_domain 填充全部生成区（等价于跑 sync_domain.py --domain {domain}）
 5. 校验生成区一致性（等价于 --check）
@@ -37,6 +38,8 @@ TEMPLATE_DIR = Path(__file__).resolve().parent / "domain_template"
 TPL_FILES = [
     ("orchestrator.tpl.py", "orchestrator.py"),
     ("models.tpl.py", "models.py"),
+    ("models_base.tpl.py", "models_base.py"),
+    ("models_generated.tpl.py", "models_generated.py"),
     ("reports.tpl.py", "reports.py"),
     ("factory.tpl.py", None),  # -> {domain}_factory.py
     ("domain_config.tpl.py", "domain_config.py"),

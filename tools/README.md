@@ -15,7 +15,8 @@
 
 | 模块 | 职责 |
 |------|------|
-| `domain_engine.py` | 多 domain 共享 LangGraph 节点 / 流式生产 / 降级 / 渲染管线 |
+| `domain_engine.py` | 多 domain 共享 LangGraph 节点 / 流式生产；纯函数再导出自 `domain_engine_text` |
+| `domain_engine_text.py` | 线状态、报告组装、降级拼装等纯函数 |
 | `contracts.py` | Generation / Supervisor 契约 DSL |
 | `fallback_rules.py` | 降级拼装规则 DSL |
 | `validation.py` | 结构化输出校验工具 |
@@ -43,6 +44,7 @@
 | 路径 | 职责 |
 |------|------|
 | `rag/` | 本地 RAG 入库/检索；`risk` 线通过 `build_rag_reference_from_text` 可选注入 |
+| `memory/` | 项目记忆：原文实体挂钩；纪要对照历史；知识图谱增量合并 |
 | `rag/cli.py` | `python -m tools.rag.cli …` 独立 CLI |
 | `scripts/` | `register_domain` / `register_task` / `sync_domain` 脚手架（开发期） |
 

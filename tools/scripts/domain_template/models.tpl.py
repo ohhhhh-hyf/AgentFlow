@@ -1,64 +1,10 @@
-"""{{DOMAIN}} 领域数据模型（手写区 + 生成区）。
-
-手写区：ModelMixin / UserIdentity / is_objective_perspective /
-{{STATE_CLASS}}（LangGraph 共享状态）/ reducer；
-生成区（由 tools/scripts/sync_domain.py 生成）：生成模型 / 审核模型 / Report 校验。
-"""
+"""{{DOMAIN}} 领域数据模型（手写）。生成模型在 models_generated.py。"""
 from __future__ import annotations
 
-from dataclasses import asdict, dataclass, field, fields
-from typing import Annotated, Any, Literal, TypedDict
+from typing import Annotated, Any, TypedDict
 
-from tools.validation import (
-    OutputValidationError,
-    _action,
-    _choice,
-    _exact_fields,
-    _review_check,
-    _string,
-    _string_list,
-    validate_supervisor_semantics,
-)
-
-
-class ModelMixin:
-    def model_dump(self) -> dict[str, Any]:
-        return asdict(self)
-
-
-@dataclass
-class UserIdentity(ModelMixin):
-    """用户画像（与 perspective 公共组件对齐：perspective 字段决定视角模式）。"""
-
-    name: str | None = None
-    role: str | None = None
-    department: str | None = None
-    responsibilities: list[str] = field(default_factory=list)
-    interests: list[str] = field(default_factory=list)
-    context: str | None = None
-    # "objective" = 客观全员视角；缺省或其它值 = 具体用户视角
-    perspective: str | None = None
-
-
-def is_objective_perspective(user: UserIdentity | dict | None) -> bool:
-    """画像 perspective 为 objective 时走客观全员口径。"""
-    if user is None:
-        return False
-    data = user.model_dump() if hasattr(user, "model_dump") else dict(user)
-    return str(data.get("perspective") or "").strip().lower() == "objective"
-
-
-# ── 生成模型生成区：由 tools/scripts/sync_domain.py 生成，勿手改 ──
-
-# ── 生成模型生成区结束 ──
-
-# ── 审核模型生成区：由 tools/scripts/sync_domain.py 生成，勿手改 ──
-
-# ── 审核模型生成区结束 ──
-
-# ── Report 校验生成区：由 tools/scripts/sync_domain.py 生成，勿手改 ──
-
-# ── Report 校验生成区结束 ──
+from .models_base import ModelMixin, UserIdentity, is_objective_perspective
+from .models_generated import *  # noqa: F403
 
 
 # ── LangGraph 共享状态 ────────────────────────────────────────
@@ -98,3 +44,5 @@ class {{STATE_CLASS}}(TypedDict, total=False):
     lines: Annotated[dict[str, dict], _merge_lines]
     quality_degraded: Annotated[bool, _merge_degraded]
     templates: dict[str, str]
+    line_modes: dict[str, str]
+    line_extra: dict[str, str]

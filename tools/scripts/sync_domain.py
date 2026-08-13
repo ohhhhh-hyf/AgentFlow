@@ -84,6 +84,7 @@ class _Domain:
         self.factory_path = self.dir / f"{name}_factory.py"
         self.reports_path = self.dir / "reports.py"
         self.models_path = self.dir / "models.py"
+        self.models_generated_path = self.dir / "models_generated.py"
         self.orch_path = self.dir / "orchestrator.py"
         self._config: dict | None = None
         self._cn_names: dict | None = None
@@ -429,7 +430,7 @@ def _gen_check_target(path: Path, start: str, end: str, code: str, label: str) -
 # 两个生成目标：models.py 的生成模型区 + orchestrator.py 的空结构常量区
 def _gen_targets() -> list[tuple]:
     return [
-        (CURRENT.models_path, GEN_ZONE_START, GEN_ZONE_END, "生成模型"),
+        (CURRENT.models_generated_path, GEN_ZONE_START, GEN_ZONE_END, "生成模型"),
         (CURRENT.orch_path, GEN_ZONE_EMPTY_START, GEN_ZONE_EMPTY_END, "空结构常量"),
     ]
 
@@ -666,7 +667,7 @@ def _sup_check_target(path, start: str, end: str, code: str, label: str) -> int:
 # 两个生成目标：models.py 的审核模型区 + orchestrator.py 的拒绝审核常量区
 def _sup_targets() -> list[tuple]:
     return [
-        (CURRENT.models_path, SUP_ZONE_START, SUP_ZONE_END, "审核模型"),
+        (CURRENT.models_generated_path, SUP_ZONE_START, SUP_ZONE_END, "审核模型"),
         (CURRENT.orch_path, SUP_ZONE_REJECT_START, SUP_ZONE_REJECT_END, "拒绝审核常量"),
     ]
 
@@ -2604,7 +2605,7 @@ def _run_write_factory() -> None:
     write_line_imports(CURRENT.factory_path, lines)
     write_report_imports(CURRENT.orch_path, lines)
     write_report_base_imports(CURRENT.reports_path, lines)
-    write_report_validation(CURRENT.models_path, lines)
+    write_report_validation(CURRENT.models_generated_path, lines)
     write_report_assemblers(CURRENT.orch_path, lines)
     write_fallback_rules(CURRENT.orch_path, lines)
     write_nodes(CURRENT.orch_path, lines)
@@ -2640,7 +2641,7 @@ def _run_check() -> int:
     rc |= check_line_imports(CURRENT.factory_path, lines)
     rc |= check_report_imports(CURRENT.orch_path, lines)
     rc |= check_report_base_imports(CURRENT.reports_path, lines)
-    rc |= check_report_validation(CURRENT.models_path, lines)
+    rc |= check_report_validation(CURRENT.models_generated_path, lines)
     rc |= check_report_assemblers(CURRENT.orch_path, lines)
     rc |= check_task_skels(lines)
     rc |= check_fallback_rules(CURRENT.orch_path, lines)
@@ -2667,7 +2668,7 @@ def main(argv: list[str] | None = None) -> None:
     group.add_argument(
         "--model",
         action="store_true",
-        help="只生成模型相关内容（业务模型+审核模型+ReportValidation 到 models.py，"
+        help="只生成模型相关内容（业务模型+审核模型+ReportValidation 到 models_generated.py，"
         "并刷新 reports.py 的校验基类 import），不写装配/注册——"
         "两阶段流程第一步：先写 contracts.py 跑这个生成生成/审核模型，"
         "再写 agent/supervisor 等业务类，最后跑全量",
@@ -2695,7 +2696,7 @@ def main(argv: list[str] | None = None) -> None:
         _run_write_supervisor()
         if args.model:
             lines = find_lines()
-            write_report_validation(CURRENT.models_path, lines)
+            write_report_validation(CURRENT.models_generated_path, lines)
             write_report_base_imports(CURRENT.reports_path, lines)
         else:
             issues = _runtime_readiness_issues(find_lines())

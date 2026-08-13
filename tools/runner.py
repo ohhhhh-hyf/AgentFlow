@@ -64,6 +64,23 @@ def build_parser(ctx: DomainContext) -> argparse.ArgumentParser:
         default=ctx.project_root / ".env",
         help="环境变量文件路径",
     )
+    parser.add_argument(
+        "--user_id",
+        default=None,
+        help="用户标识。提供后启用项目记忆：纪要对照历史，知识图谱增量合并",
+    )
+    parser.add_argument(
+        "--project",
+        dest="project_id",
+        default=None,
+        help="项目标识（可选）。会议域指定则强制写入该项目；"
+        "笔记域若未传 --subject，可把本项当作学科名",
+    )
+    parser.add_argument(
+        "--subject",
+        default=None,
+        help="学科名称（笔记记忆用）。同一 --user_id + --subject 共用一份知识图谱并增量合并",
+    )
     for line in sorted(ctx.task_lines):
         cn = ctx.line_cn_names.get(line, line)
         parser.add_argument(
@@ -128,6 +145,9 @@ async def run(
     templates: dict[str, Path] | None = None,
     tasks: list[str] | None = None,
     modes: dict[str, str] | None = None,
+    user_id: str | None = None,
+    project_id: str | None = None,
+    subject: str | None = None,
 ) -> None:
     """Run selected task lines and persist their final artifacts."""
     setup_logging()
@@ -161,12 +181,28 @@ async def run(
     silent_graph_lines = {"mindmap", "knowledge_graph"}
     graph_silent = any(line in silent_graph_lines for line in line_names)
 
+    memory_bind = None
+    line_extra: dict[str, str] = {}
+    if user_id:
+        from tools.memory import persist, prepare
+
+        memory_bind, line_extra = prepare(
+            ctx.project_root,
+            ctx.name,
+            user_id,
+            transcript,
+            line_names,
+            project_id,
+            subject,
+        )
+
     async for event in system.run_streaming(
         transcript,
         user,
         templates=template_texts,
         lines=line_names,
         line_modes=modes or {},
+        line_extra=line_extra,
     ):
         etype = event["type"]
         if etype == "chunk":
@@ -177,6 +213,17 @@ async def run(
             sys.stdout.flush()
         elif etype == "done":
             await _handle_done(ctx, event)
+            if user_id and memory_bind is not None:
+                persist(
+                    ctx.project_root,
+                    ctx.name,
+                    user_id,
+                    memory_bind,
+                    event.get("reports") or {},
+                    event.get("understanding") or {},
+                    transcript,
+                    subject,
+                )
 
     if any_output:
         sys.stdout.write("\n")

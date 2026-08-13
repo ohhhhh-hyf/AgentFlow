@@ -37,6 +37,9 @@ def main() -> None:
                 templates,
                 args.tasks,
                 modes,
+                args.user_id,
+                args.project_id,
+                args.subject,
             )
         )
     except (

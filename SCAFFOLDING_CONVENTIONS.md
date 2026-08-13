@@ -20,6 +20,9 @@ my_notes -> MyNotes
 domain/<domain>/
 domain/<domain>/<domain>_factory.py
 domain/<domain>/<domain>_core/
+domain/<domain>/models.py              # 手写：State / 画像再导出
+domain/<domain>/models_base.py         # 手写：ModelMixin / UserIdentity
+domain/<domain>/models_generated.py    # 生成：业务模型 / 审核模型 / Report 校验
 <Pascal>State
 <Pascal>AgentFactory
 <Pascal>AgentSystem

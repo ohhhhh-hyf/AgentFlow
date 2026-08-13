@@ -5,6 +5,7 @@ from tools.hard_execution import (
     enforce_minutes_draft,
     extract_labeled_json,
 )
+from tools.memory.meeting import apply_memory_display
 from ....models import Minutes
 from ..prompts import (
     MINUTES_GENERATION_SYSTEM_PROMPT,
@@ -31,4 +32,5 @@ class MinutesGenerationAgent:
         )
         understanding = extract_labeled_json(shared_context, "会议理解")
         enforced = enforce_minutes_draft(raw, understanding)
+        enforced = apply_memory_display(enforced, shared_context, understanding)
         return Minutes.validate(enforced)
