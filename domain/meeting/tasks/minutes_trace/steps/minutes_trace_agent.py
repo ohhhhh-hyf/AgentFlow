@@ -45,30 +45,22 @@ def _focus_guide(extras: dict[str, object], understanding: dict | None = None) -
         return ""
     lines = [
         "【重点覆盖清单】",
-        "按用户关键点/笔记里反复出现的问题主题归并正文，不要按人列章节。",
-        "能被会议原文支持的主题尽量覆盖。用户批注只用于挂钩来源，禁止写进纪要正文。",
-        "关键点/笔记原文见上方【用户关键点】【用户笔记】块，此处不重复。",
+        "按用户关键点/笔记指向的具体事项归并正文，不要按人列章节。",
+        "能被会议原文支持的关键点/笔记尽量写进对应议题，句子通顺完整，不要写成标签堆。",
+        "正文尽量留下可辨认的专名、数字或动作。原文没有的不要补。批注禁止写进正文。",
+        "关键点/笔记原文见上方对应块，此处不重复。",
     ]
-    # 主题提示：从会议理解议题标题 + 用户关键点里提炼高频主题（2A 主题桥的 LLM 侧呼应）
     hints: list[str] = []
     if isinstance(understanding, dict):
         for topic in understanding.get("topics") or []:
             if isinstance(topic, dict) and str(topic.get("title") or "").strip():
                 hints.append(str(topic["title"]).strip())
-    if keypoints:
-        for kp in keypoints[:3]:
-            for sep in ("：", ":", "——", "，", "。"):
-                if sep in kp:
-                    head = kp.split(sep, 1)[0].strip()
-                    if head and len(head) <= 12:
-                        hints.append(head)
-                        break
     seen_hints: list[str] = []
     for h in hints:
         if h and h not in seen_hints:
             seen_hints.append(h)
     if seen_hints:
-        lines.append("主题提示：" + "、".join(seen_hints[:6]))
+        lines.append("议题标题提示：" + "、".join(seen_hints[:6]))
     return "\n".join(lines)
 
 

@@ -31,7 +31,7 @@ from pathlib import Path
 # DeepSeek 官方默认值
 DEFAULT_BASE_URL = "https://api.deepseek.com"
 DEFAULT_MODEL = "deepseek-chat"
-DEFAULT_TEMPERATURE = 0.0
+DEFAULT_TEMPERATURE = 0.2
 DEFAULT_TOP_P = 0.9
 DEFAULT_TOP_K = 128
 DEFAULT_MAX_TOKENS = 50000

@@ -1,4 +1,4 @@
-"""对齐门禁：只保留有据的关键点/笔记钉，不改正文。"""
+"""对齐门禁：主张级匹配。只保留有据的关键点/笔记钉，不改正文，不写场次词表。"""
 from __future__ import annotations
 
 import re
@@ -42,11 +42,38 @@ def _han_ngrams(text: str, size: int = 3) -> set[str]:
 _GENERIC_MORPHEME = re.compile(
     r"(今年|去年|明年|前年|本|上|下|半|年|月|日|周|季|度|个|次|条|第|"
     r"[0-9一二三四五六七八九十百千万两]|"
-    # 会议高频半泛词：单独出现不足以证明两句在说同一件事
+    # 会议高频半泛词 / 抽象后缀 / 轻动词：单独出现不足以证明同一主张
     r"验收|整改|跟进|事项|安排|问题|工作|会议|讨论|汇报|情况|内容|"
     r"相关|方面|环节|要求|计划|方案|项目|任务|进度|风险|进行|开展|"
-    r"完成|落实|处理|解决|组织|准备|整体|部分)"
+    r"完成|落实|处理|解决|组织|准备|整体|部分|"
+    r"意识|思维|能力|程度|水平|方式|方法|作用|意义|目标|目的|"
+    r"树立|转变|培养|强调|认为|表示|指出|"
+    r"追踪|梳理|评估|判断)"
 )
+_ARABIC_NUM = re.compile(r"\d+(?:\.\d+)?")
+_LATIN_TOKEN = re.compile(r"[A-Za-z][A-Za-z0-9\-]{1,}")
+_LATIN_STOP = {
+    "or",
+    "to",
+    "of",
+    "for",
+    "in",
+    "on",
+    "is",
+    "be",
+    "and",
+    "the",
+    "an",
+    "as",
+    "at",
+    "by",
+    "vs",
+}
+_NEG_CUE = re.compile(
+    r"不足|缺乏|缺少|没有|未能|无法|不能|不可|禁止|难以|失败|下降|降低|减少|未(?!来)"
+)
+_POS_CUE = re.compile(r"加强|提升|提高|增加|增长|改善|已完成|完成了")
+_DUP_HAN = re.compile(r"([\u4e00-\u9fff])\1+")
 
 
 def _is_generic_span(span: str) -> bool:
@@ -117,6 +144,163 @@ def _claim_score(
     return len(inter) / denom, span, len(inter)
 
 
+def _normalize_match_text(text: str) -> str:
+    """仅用于匹配：合并连续重复汉字。不改正文，也不改钉上展示的原文。"""
+    return _DUP_HAN.sub(r"\1", text or "")
+
+
+def _extract_numbers(text: str) -> set[str]:
+    return set(_ARABIC_NUM.findall(text or ""))
+
+
+def _extract_latin(text: str) -> set[str]:
+    out: set[str] = set()
+    for raw in _LATIN_TOKEN.findall(text or ""):
+        tok = raw.lower()
+        if tok not in _LATIN_STOP:
+            out.add(tok)
+    return out
+
+
+def _informative_runs(text: str, min_len: int = 2) -> list[str]:
+    spaced = _GENERIC_MORPHEME.sub(" ", text or "")
+    return [
+        part
+        for part in re.findall(r"[\u4e00-\u9fff]+", spaced)
+        if len(part) >= min_len
+    ]
+
+
+def _approx_in(piece: str, hay: str) -> bool:
+    """连续命中，或整段只差 1 个字（多字/漏字/近形）。不是词表。"""
+    if not piece or not hay:
+        return False
+    if piece in hay:
+        return True
+    n = len(piece)
+    if n < 3:
+        return False
+    for i in range(len(hay) - n + 1):
+        window = hay[i : i + n]
+        if sum(a != b for a, b in zip(piece, window)) <= 1:
+            return True
+    for i in range(n):
+        reduced = piece[:i] + piece[i + 1 :]
+        if len(reduced) >= 2 and reduced in hay and not _is_generic_span(reduced):
+            return True
+    return False
+
+
+def _run_covered(run: str, text: str, runs: list[str]) -> bool:
+    if not run:
+        return False
+    hay = text or ""
+    if _approx_in(run, hay) or run in hay:
+        return True
+    if any(run in other or other in run or _approx_in(run, other) for other in runs if other):
+        return True
+    if len(run) >= 2:
+        for i in range(len(run) - 1):
+            gram = run[i : i + 2]
+            if gram in hay:
+                return True
+    return False
+
+
+def _approx_run_hit(left: str, right: str) -> bool:
+    hb = _han_only(_normalize_match_text(right))
+    for run in _informative_runs(_normalize_match_text(left), min_len=3):
+        if _is_generic_span(run):
+            continue
+        if _approx_in(run, hb):
+            return True
+    return False
+
+
+def _shared_runs(left: str, right: str, min_len: int = 3) -> list[str]:
+    other_han = _han_only(right)
+    other_runs = _informative_runs(right, min_len)
+    return [
+        run
+        for run in _informative_runs(left, min_len)
+        if _run_covered(run, other_han, other_runs)
+    ]
+
+
+def _unique_runs(src: str, other: str, min_len: int = 3) -> list[str]:
+    other_han = _han_only(other)
+    other_runs = _informative_runs(other, min_len)
+    return [
+        run
+        for run in _informative_runs(src, min_len)
+        if not _run_covered(run, other_han, other_runs)
+    ]
+
+
+def _polarity_conflict(left: str, right: str) -> bool:
+    if not _shared_runs(left, right, min_len=3):
+        return False
+    ln, lp = bool(_NEG_CUE.search(left or "")), bool(_POS_CUE.search(left or ""))
+    rn, rp = bool(_NEG_CUE.search(right or "")), bool(_POS_CUE.search(right or ""))
+    if (ln and not lp) and (rp and not rn):
+        return True
+    if (rn and not rp) and (lp and not ln):
+        return True
+    return False
+
+
+def _object_spec_conflict(left: str, right: str) -> bool:
+    """两边若各自点名了对方没有的对象/数字，则不是同一主张。"""
+    shared = _shared_runs(left, right, min_len=3)
+    left_extra = _unique_runs(left, right, min_len=3)
+    right_extra = _unique_runs(right, left, min_len=3)
+    ln, rn = _extract_numbers(left), _extract_numbers(right)
+    left_spec = bool(left_extra) or bool(ln - rn)
+    right_spec = bool(right_extra) or bool(rn - ln)
+    if shared:
+        if left_extra and right_extra:
+            return True
+        if (ln - rn) and right_extra:
+            return True
+        if (rn - ln) and left_extra:
+            return True
+        return False
+    return bool(left_extra and right_extra)
+
+
+def _bare_number_conflict(src: str, sent: str) -> bool:
+    """来源带了数字、句子完全对不上，又没有 4 字以上同指 → 不能只靠空指标词挂上。"""
+    na, nb = _extract_numbers(src), _extract_numbers(sent)
+    if not na or (na & nb):
+        return False
+    span, _ = _best_span(src, sent, min_size=3)
+    if span >= 6:
+        return False
+    return not _shared_runs(src, sent, min_len=4)
+
+
+def _claim_incompatible(left: str, right: str, *, for_note: bool = False) -> bool:
+    """类型化冲突：数字、拉丁专名、极性；关键点再查对象指定。无场次词表。"""
+    a = _normalize_match_text(left)
+    b = _normalize_match_text(right)
+    na, nb = _extract_numbers(a), _extract_numbers(b)
+    if na and nb and not (na & nb):
+        return True
+    la, lb = _extract_latin(a), _extract_latin(b)
+    if la and lb and not (la & lb):
+        return True
+    if _polarity_conflict(a, b):
+        return True
+    span, _ = _best_span(a, b, min_size=6)
+    if span >= 8:
+        return False
+    if not for_note and _bare_number_conflict(a, b):
+        return True
+    if not for_note and _object_spec_conflict(a, b):
+        return True
+    return False
+
+
 def _related(
     left: str,
     right: str,
@@ -126,8 +310,12 @@ def _related(
     df: dict[str, int] | None = None,
     n_docs: int = 0,
 ) -> bool:
+    if _claim_incompatible(left, right):
+        return False
     ratio, span, grams = _claim_score(left, right, df, n_docs)
-    if span >= 4:
+    if span >= 6:
+        return True
+    if _distinctive_short_hit(left, right) or _approx_run_hit(left, right):
         return True
     if ratio >= 0.18 and grams >= min_grams:
         return True
@@ -139,6 +327,24 @@ def _related(
     return False
 
 
+def _distinctive_short_hit(left: str, right: str) -> bool:
+    """3–5 字且去掉泛化语素后仍有特征的短锚；不是词表。"""
+    ha = _han_only(_normalize_match_text(left))
+    hb = _han_only(_normalize_match_text(right))
+    if len(ha) < 3 or len(hb) < 3:
+        return False
+    max_size = min(5, len(ha))
+    for size in range(max_size, 2, -1):
+        for i in range(len(ha) - size + 1):
+            piece = ha[i : i + size]
+            if piece not in hb:
+                continue
+            leftover = _GENERIC_MORPHEME.sub("", piece)
+            if len(leftover) >= 3 and not _is_generic_span(piece):
+                return True
+    return False
+
+
 def _related_strong(
     left: str,
     right: str,
@@ -146,18 +352,201 @@ def _related_strong(
     df: dict[str, int] | None = None,
     n_docs: int = 0,
 ) -> bool:
-    """高相关：长连续重合或高信息重叠。同一关键点可挂多句时用这个门槛。"""
+    """高相关且主张相容：长连续重合、短特征锚或高信息重叠。"""
+    if _claim_incompatible(left, right):
+        return False
     ratio, span, grams = _claim_score(left, right, df, n_docs)
     if span >= 6:
         return True
+    if _distinctive_short_hit(left, right) or _approx_run_hit(left, right):
+        return True
     if ratio >= 0.45 and grams >= 3:
         return True
-    ha, hb = _han_only(left), _han_only(right)
+    ha = _han_only(_normalize_match_text(left))
+    hb = _han_only(_normalize_match_text(right))
     if len(ha) >= 6 and ha in hb:
         return True
     if len(hb) >= 8 and hb in ha:
         return True
     return False
+
+
+def _stutter_collapsed_hit(left: str, sentence: str) -> bool:
+    """左句存在叠字：只认「去叠后新出现」的 2–3 字特征片段。"""
+    raw = _han_only(left)
+    col = _han_only(_normalize_match_text(left))
+    if not col or col == raw:
+        return False
+    hb = _han_only(_normalize_match_text(sentence))
+    if not hb:
+        return False
+    for size in (3, 2):
+        for i in range(len(col) - size + 1):
+            piece = col[i : i + size]
+            leftover = _GENERIC_MORPHEME.sub("", piece)
+            if (
+                piece in hb
+                and len(leftover) >= 2
+                and not _is_generic_span(piece)
+            ):
+                return True
+    return False
+
+
+def _note_related(
+    left: str,
+    sentence: str,
+    *,
+    df: dict[str, int] | None = None,
+    n_docs: int = 0,
+    bridge: str = "",
+) -> bool:
+    """笔记：原话、一字之差、叠字、同义改写；可用原文句给摘要宿主搭桥。"""
+    if _claim_incompatible(left, sentence, for_note=True):
+        return False
+    if _quotes_note_left(left, sentence) or _note_almost_verbatim(left, sentence):
+        return True
+    if _stutter_collapsed_hit(left, sentence) or _approx_run_hit(left, sentence):
+        return True
+    norm_left = _normalize_match_text(left)
+    norm_sent = _normalize_match_text(sentence)
+    if _related_strong(norm_left, norm_sent, df=df, n_docs=n_docs) or _related(
+        norm_left, norm_sent, df=df, n_docs=n_docs
+    ):
+        return True
+    if not (bridge or "").strip():
+        return False
+    if _claim_incompatible(bridge, sentence, for_note=True):
+        return False
+    return (
+        _related(bridge, sentence, df=df, n_docs=n_docs)
+        or _approx_run_hit(bridge, sentence)
+        or _stutter_collapsed_hit(bridge, sentence)
+    )
+
+
+def _supporting_transcript_sentence(left: str, transcript: str) -> str:
+    """原文中能否核对到与笔记左句同一事实。对不上返回空串。"""
+    best_sent = ""
+    best = (-1.0, -1, -1)
+    for sentence in _sentences(transcript):
+        if _claim_incompatible(left, sentence, for_note=True):
+            continue
+        if not (
+            _related(left, sentence)
+            or _note_almost_verbatim(left, sentence)
+            or _stutter_collapsed_hit(left, sentence)
+            or _approx_run_hit(left, sentence)
+        ):
+            continue
+        score = _claim_score(left, sentence)
+        if score > best:
+            best = score
+            best_sent = sentence
+    return best_sent
+
+
+def _note_supported_by_transcript(left: str, transcript: str) -> bool:
+    if not (left or "").strip() or not (transcript or "").strip():
+        return False
+    if _contains_loose(transcript, left):
+        return True
+    collapsed = _normalize_match_text(left)
+    if collapsed != left and _contains_loose(_normalize_match_text(transcript), collapsed):
+        return True
+    if _stutter_collapsed_hit(left, transcript):
+        return True
+    return bool(_supporting_transcript_sentence(left, transcript))
+
+
+def _is_summary_like(sentence: str) -> bool:
+    text = (sentence or "").strip()
+    compact = re.sub(r"^[-*]\s*", "", text)
+    return (
+        compact.startswith("议题小结")
+        or compact.startswith("状态：")
+        or "未提出异议" in compact
+    )
+
+
+def _note_almost_verbatim(left: str, sentence: str) -> bool:
+    ha = _han_only(_normalize_match_text(left))
+    hb = _han_only(_normalize_match_text(sentence))
+    if not ha or not hb:
+        return False
+    if ha in hb:
+        return True
+    need = max(10, int(len(ha) * 0.7))
+    span, _ = _best_span(_normalize_match_text(left), _normalize_match_text(sentence), min_size=min(need, 16))
+    return span >= need
+
+
+def _quotes_note_left(left: str, sentence: str) -> bool:
+    ha = _han_only(_normalize_match_text(left))
+    hb = _han_only(_normalize_match_text(sentence))
+    return bool(ha) and ha in hb
+
+
+def _near_duplicate_sentences(left: str, right: str) -> bool:
+    """两句是否在复述同一事实（议题一/二各写一遍）。"""
+    ha, hb = _han_only(left), _han_only(right)
+    if not ha or not hb:
+        return False
+    shorter, longer = (ha, hb) if len(ha) <= len(hb) else (hb, ha)
+    if len(shorter) >= 12 and shorter in longer:
+        return True
+    span, _ = _best_span(left, right, min_size=10)
+    if span >= 12 and span >= int(min(len(ha), len(hb)) * 0.75):
+        return True
+    return False
+
+
+def _dedup_similar_hits(hits: list[str], *, keep: int = 2) -> list[str]:
+    kept: list[str] = []
+    for sentence in hits:
+        similar_count = sum(
+            1 for prev in kept if _near_duplicate_sentences(sentence, prev)
+        )
+        if similar_count >= keep:
+            continue
+        kept.append(sentence)
+    return kept
+
+
+def _cap_similar_keypoint_pins(
+    items: list[dict[str, str]], *, keep: int = 2
+) -> list[dict[str, str]]:
+    """同一关键点钉在近重复句子上时最多保留 keep 条，按相关度优先。"""
+    others: list[dict[str, str]] = []
+    by_source: dict[str, list[dict[str, str]]] = {}
+    order: list[str] = []
+    for item in items:
+        if item.get("kind") != "keypoint":
+            others.append(item)
+            continue
+        src = item.get("source") or ""
+        if src not in by_source:
+            order.append(src)
+            by_source[src] = []
+        by_source[src].append(item)
+    capped: list[dict[str, str]] = []
+    for src in order:
+        group = by_source[src]
+        group.sort(
+            key=lambda it: _claim_score(src, it.get("sentence") or ""),
+            reverse=True,
+        )
+        sents = _dedup_similar_hits(
+            [it.get("sentence") or "" for it in group], keep=keep
+        )
+        seen_sents = set()
+        for it in group:
+            sent = it.get("sentence") or ""
+            if sent not in sents or sent in seen_sents:
+                continue
+            seen_sents.add(sent)
+            capped.append(it)
+    return others + capped
 
 
 def _contains_loose(haystack: str, needle: str) -> bool:
@@ -246,9 +635,17 @@ def gate_alignments(
             if hit is None:
                 continue
             left, right = hit
-            if not _contains_loose(transcript, left):
+            if not _note_supported_by_transcript(left, transcript):
                 continue
-            if not _related(sentence, left, df=df, n_docs=n_docs):
+            if _is_summary_like(sentence) and not _note_almost_verbatim(left, sentence):
+                continue
+            if not _note_related(
+                left,
+                sentence,
+                df=df,
+                n_docs=n_docs,
+                bridge=_supporting_transcript_sentence(left, transcript),
+            ):
                 continue
             if titles and not _same_topic(sentence, left, segments, titles):
                 continue
@@ -429,11 +826,13 @@ def _same_topic(
             )
             if heading == best_heading and unambiguous:
                 return True
+    if _claim_incompatible(source, sentence):
+        return False
     ratio, span, _ = _claim_score(source, sentence)
-    return span >= 6 or ratio >= 0.4
+    return span >= 6 or ratio >= 0.4 or _distinctive_short_hit(source, sentence)
 
 
-_KEYPOINT_MATCH_CAP = 8
+_KEYPOINT_MATCH_CAP = 4
 
 
 def _best_sentences(
@@ -502,13 +901,19 @@ def backfill_alignments(
             n_docs=n_docs,
             require_strong=True,
         )
-        if not hits:
+        if len(hits) < 2:
             pool = candidates
             if segments:
                 same_topic = _best_segment(keypoint, segments, titles)
                 if same_topic:
                     pool = same_topic
-            hits = _best_sentences(keypoint, pool, limit=1, df=df, n_docs=n_docs)
+            extra = _best_sentences(
+                keypoint, pool, limit=_KEYPOINT_MATCH_CAP, df=df, n_docs=n_docs
+            )
+            for sentence in extra:
+                if sentence not in hits:
+                    hits.append(sentence)
+        hits = _dedup_similar_hits(hits, keep=2)
         for sentence in hits:
             marker = (sentence, "keypoint", keypoint)
             if marker in seen:
@@ -526,17 +931,35 @@ def backfill_alignments(
             )
 
     for left, right in notes:
-        if not _contains_loose(transcript, left):
+        if not _note_supported_by_transcript(left, transcript):
             continue
-        pool = candidates
-        if segments:
-            same_topic = _best_segment(left, segments, titles)
-            if same_topic:
-                pool = same_topic
-        for sentence in _best_sentences(
-            left, pool, limit=1, df=df, n_docs=n_docs
-        ):
-            source = f"{left} **用户批注** {right}"
+        bridge = _supporting_transcript_sentence(left, transcript)
+        scored: list[tuple[int, float, int, str]] = []
+        for sentence in candidates:
+            if _is_summary_like(sentence) and not _note_almost_verbatim(left, sentence):
+                continue
+            if not _note_related(
+                left, sentence, df=df, n_docs=n_docs, bridge=bridge
+            ):
+                continue
+            norm_left = _normalize_match_text(left)
+            norm_sent = _normalize_match_text(sentence)
+            if _quotes_note_left(left, sentence):
+                rank = 2
+            elif (
+                _stutter_collapsed_hit(left, sentence)
+                or _approx_run_hit(left, sentence)
+                or _related_strong(norm_left, norm_sent, df=df, n_docs=n_docs)
+            ):
+                rank = 1
+            else:
+                rank = 0
+            ratio, span, _ = _claim_score(norm_left, norm_sent, df, n_docs)
+            scored.append((rank, ratio, span, sentence))
+        scored.sort(key=lambda item: (-item[0], -item[1], -item[2], len(item[3])))
+        picked = _dedup_similar_hits([item[3] for item in scored], keep=1)[:2]
+        source = f"{left} **用户批注** {right}"
+        for sentence in picked:
             marker = (sentence, "note", source)
             if marker in seen:
                 continue
@@ -550,7 +973,7 @@ def backfill_alignments(
                 }
             )
 
-    return kept
+    return _cap_similar_keypoint_pins(kept, keep=3)
 
 
 def _evidence_for(transcript: str, source: str) -> str:
