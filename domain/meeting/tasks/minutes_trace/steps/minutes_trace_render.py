@@ -29,6 +29,10 @@ class MinutesTraceRender:
     def __init__(self, client: LLMClient) -> None:
         self.client = client
 
+    async def materialize(self, approved_context: str, template: str = "") -> str:
+        """deterministic_pipeline 入口：程序落钉，不调 LLM。"""
+        return await self.run(approved_context, template)
+
     async def run(self, approved_context: str, template: str = "") -> str:
         del template
         draft = _draft_from_context(approved_context)

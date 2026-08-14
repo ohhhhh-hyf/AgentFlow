@@ -48,6 +48,8 @@ python tools/scripts/register_task.py --domain notes --task points --name "Point
 ```
 
 Creates missing files only; existing user code is never overwritten.
+Pass ``--kind llm_extract|llm_document|deterministic_pipeline`` (default extract)
+to register ``LINE_KINDS`` in domain_config.py.
 
 ```text
 domain/notes/tasks/points/
@@ -86,7 +88,8 @@ Syncs generated zones from contracts, prompts, reports, and step files.
 # Models only: generation models, supervisor models, ReportValidation imports.
 python tools/scripts/sync_domain.py --domain notes --model
 
-# Full runtime wiring.
+# Full runtime wiring (models / TASK_LINES / factory / Report assemblers).
+# Does not generate per-line render_context or fallback nodes.
 python tools/scripts/sync_domain.py --domain notes
 
 # Check generated zones.

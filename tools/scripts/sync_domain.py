@@ -9,9 +9,9 @@
 
     # ── 段① 生成契约 ── 生成业务模型（浅校验）+ 空结构常量
     # ── 段② 审阅契约 ── 审核模型（深校验）+ 拒绝态常量
-    # ── 段③ 装配/注册 ─ 装配 / TASK_LINES / 挂载 / 节点映射 /
-    #                  渲染上下文 / import / Report 组装器 /
-    #                  FallbackRules 注册 / fallback 节点
+    # ── 段③ 装配/注册 ─ 装配 / TASK_LINES / 挂载 /
+    #                  import / Report 组装器 / FallbackRules 注册
+    #                  （render / fallback 节点由运行时一份函数生成，不再写样板）
 """
 
 from __future__ import annotations
@@ -73,8 +73,7 @@ class _Domain:
     """当前目标领域：路径 + 配置全部由此推导/懒加载。
 
     配置从 ``domain/<name>/domain_config.py`` 读取（STATE_CLASS /
-    RENDER_CONTEXT_STATE_LINES）；中文名注册表从
-    ``domain/<name>/domain_config.py`` 读取（LINE_CN_NAMES）。
+    LINE_CN_NAMES）。渲染上下文由 DomainNodes 钩子拼装，不再读代码行模板。
     """
 
     def __init__(self, name: str):
@@ -94,7 +93,6 @@ class _Domain:
             path = self.dir / "domain_config.py"
             cfg = {
                 "STATE_CLASS": _pascal_name(self.name) + "State",
-                "RENDER_CONTEXT_STATE_LINES": [],
             }
             if path.exists():
                 tree = ast.parse(_read_py(path))
@@ -103,8 +101,7 @@ class _Domain:
                         isinstance(node, ast.Assign)
                         and len(node.targets) == 1
                         and isinstance(node.targets[0], ast.Name)
-                        and node.targets[0].id
-                        in ("STATE_CLASS", "RENDER_CONTEXT_STATE_LINES")
+                        and node.targets[0].id == "STATE_CLASS"
                     ):
                         try:
                             val = ast.literal_eval(node.value)
@@ -114,15 +111,11 @@ class _Domain:
                             pass
             self._config = {
                 "STATE_CLASS": cfg["STATE_CLASS"],
-                "RENDER_CONTEXT_STATE_LINES": cfg["RENDER_CONTEXT_STATE_LINES"],
             }
         return self._config
 
     def state_class(self) -> str:
         return self.config()["STATE_CLASS"]
-
-    def render_context_state_lines(self) -> list[str]:
-        return self.config()["RENDER_CONTEXT_STATE_LINES"]
 
     def line_cn_names(self) -> dict:
         if self._cn_names is None:
@@ -2531,12 +2524,11 @@ def write_core_understanding() -> None:
         return {{"{state_key}": result.model_dump()}}
 
 '''
-    # 节点方法已存在（手写或此前已生成）时跳过插入，避免重复定义；
-    # 新领域/新 core 未接线时才在渲染上下文生成区之前插入骨架。
+    # 节点方法已存在时跳过；新领域未接线时插在 AgentSystem 类之前。
     if f"async def {node}" not in raw:
         raw = _insert_before_exact_once(
             raw,
-            "    # ── 渲染上下文生成区：由 tools/scripts/sync_domain.py 生成，勿手改 ──",
+            f"class {_pascal_name(CURRENT.name)}AgentSystem",
             node_code,
         )
     mount_code = (
@@ -2615,7 +2607,7 @@ def _run_write_supervisor() -> None:
 
 
 def _run_write_factory() -> None:
-    """段③装配/注册：装配 / TASK_LINES / 挂载 / 节点映射 / 上下文 / import / 组装器 / fallback。"""
+    """段③装配/注册：装配 / TASK_LINES / 挂载 / import / 组装器 / FallbackRules。"""
     _info(f"[3/3] 同步 {CURRENT.name} 的任务线装配与运行时编排...")
     lines = find_lines()
     write_core_understanding()
@@ -2624,8 +2616,6 @@ def _run_write_factory() -> None:
     write_task_skels(lines)
     write_task_lines(CURRENT.orch_path, lines)
     write_mount(CURRENT.orch_path, lines)
-    write_node_map(CURRENT.orch_path, lines)
-    write_render_context(CURRENT.orch_path, lines)
     write_fallback_imports(CURRENT.orch_path, lines)
     write_line_imports(CURRENT.orch_path, lines)
     write_line_imports(CURRENT.factory_path, lines)
@@ -2634,7 +2624,6 @@ def _run_write_factory() -> None:
     write_report_validation(CURRENT.models_generated_path, lines)
     write_report_assemblers(CURRENT.orch_path, lines)
     write_fallback_rules(CURRENT.orch_path, lines)
-    write_nodes(CURRENT.orch_path, lines)
     write_core_understanding()
 
 
@@ -2660,8 +2649,6 @@ def _run_check() -> int:
     rc |= _fac_check_target(CURRENT.factory_path, generate_lines_code(lines))
     rc |= check_task_lines(CURRENT.orch_path, lines)
     rc |= check_mount(CURRENT.orch_path, lines)
-    rc |= check_node_map(CURRENT.orch_path, lines)
-    rc |= check_render_context(CURRENT.orch_path, lines)
     rc |= check_fallback_imports(CURRENT.orch_path, lines)
     rc |= check_line_imports(CURRENT.orch_path, lines)
     rc |= check_line_imports(CURRENT.factory_path, lines)
@@ -2671,7 +2658,6 @@ def _run_check() -> int:
     rc |= check_report_assemblers(CURRENT.orch_path, lines)
     rc |= check_task_skels(lines)
     rc |= check_fallback_rules(CURRENT.orch_path, lines)
-    rc |= check_nodes(CURRENT.orch_path, lines)
     return rc
 
 

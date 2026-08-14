@@ -175,14 +175,22 @@ def _parse_profile_payload(
     return data
 
 
+def _line_policy(domain: str, task: str):
+    if not task:
+        return None
+    return _ctx(domain).line_policies.get(task)
+
+
 def _panel_updates(domain: str, task_label: str | None):
     task = _task_value(task_label or "")
+    policy = _line_policy(domain, task)
+    sidecar = bool(policy and policy.sidecar)
     return (
-        gr.update(visible=task == "multi_styles"),
+        gr.update(visible=bool(policy and policy.cli_mode)),
         gr.update(visible=domain == "meeting"),
         gr.update(visible=domain == "notes"),
-        gr.update(visible=task == "minutes_trace"),
-        gr.update(visible=task != "minutes_trace"),
+        gr.update(visible=sidecar),
+        gr.update(visible=bool(policy and policy.cli_template)),
     )
 
 
@@ -742,7 +750,7 @@ def run_from_ui(
             input_upload,
             input_text,
             temp_root,
-            trace=tasks[0] == "minutes_trace",
+            trace=bool(_line_policy(domain, tasks[0]) and _line_policy(domain, tasks[0]).sidecar),
             keypoints_upload=keypoints_upload,
             keypoints_text=keypoints_text,
             notes_upload=notes_upload,
@@ -762,7 +770,7 @@ def run_from_ui(
         final_template = ""
         editor_value = ""
         show_editor = False
-        if tasks[0] != "minutes_trace":
+        if _line_policy(domain, tasks[0]) is None or _line_policy(domain, tasks[0]).cli_template:
             # ── 模板处理（Human-in-the-loop）────────────────────────────
             # 1) 自然语言：先编译成可编辑预览 → 展示给人填/改 → 确认后运行
             # 2) 已确认（edit_state 存在）：把用户友好模板还原成最终模板
@@ -844,10 +852,10 @@ def run_from_ui(
         buffer = io.StringIO()
         try:
             with contextlib.redirect_stdout(buffer), contextlib.redirect_stderr(buffer):
-                # 组织模式：仅 multi_styles（多样式纪要）线消费
                 modes: dict[str, str] = {}
-                if tasks[0] == "multi_styles" and mode_value:
-                    modes["multi_styles"] = _mode_value(mode_value)
+                _pol = _line_policy(domain, tasks[0])
+                if _pol and _pol.cli_mode and mode_value:
+                    modes[tasks[0]] = _mode_value(mode_value)
                 asyncio.run(
                     run(
                         ctx,

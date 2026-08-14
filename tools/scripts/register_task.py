@@ -5,9 +5,10 @@ Usage:
 
 This script intentionally generates only generic scaffolding. It:
 1. adds ``"<task>": "<name>"`` to domain/<domain>/domain_config.py LINE_CN_NAMES;
-2. creates task files if they are missing;
-3. writes runnable meeting-style templates with TODO business text;
-4. optionally appends a Report class with --with-report.
+2. adds ``"<task>"`` to LINE_KINDS (default llm_extract);
+3. creates task files if they are missing;
+4. writes runnable meeting-style templates with TODO business text;
+5. optionally appends a Report class with --with-report.
 """
 from __future__ import annotations
 
@@ -356,6 +357,52 @@ def _register_line(task: str, name: str) -> bool:
     return True
 
 
+def _register_kind(task: str, kind: str) -> bool:
+    """Register the task line in domain_config.py LINE_KINDS."""
+    path = _sync_domain.CURRENT.dir / "domain_config.py"
+    raw = _read_py(path)
+    tree = ast.parse(raw)
+    dict_node = None
+    target_name = None
+    for node in tree.body:
+        if (
+            isinstance(node, ast.AnnAssign)
+            and isinstance(node.target, ast.Name)
+            and node.target.id == "LINE_KINDS"
+        ):
+            dict_node, target_name = node.value, node.target.id
+            break
+        if isinstance(node, ast.Assign) and any(
+            isinstance(t, ast.Name) and t.id == "LINE_KINDS" for t in node.targets
+        ):
+            dict_node, target_name = node.value, node.targets[0].id
+            break
+    if dict_node is None:
+        suffix = (
+            "\n# 任务线种类（手写）。取值见 tools.runtime.kinds。\n"
+            f'LINE_KINDS: dict[str, object] = {{\n    "{task}": "{kind}",\n}}\n'
+        )
+        path.write_text(raw.rstrip() + suffix, encoding="utf-8")
+        return True
+    if not isinstance(dict_node, ast.Dict):
+        raise SystemExit(f"{path} does not define LINE_KINDS as a dict.")
+    keys = []
+    for key in dict_node.keys:
+        if isinstance(key, ast.Constant):
+            keys.append(key.value)
+    if task in keys:
+        return False
+    lines = raw.split("\n")
+    if dict_node.end_lineno == dict_node.lineno:
+        lines[dict_node.end_lineno - 1] = (
+            f'{target_name}: dict[str, object] = {{\n    "{task}": "{kind}",\n}}'
+        )
+    else:
+        lines.insert(dict_node.end_lineno - 1, f'    "{task}": "{kind}",')
+    path.write_text("\n".join(lines), encoding="utf-8")
+    return True
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(
         description="Register a task line and create standard templates."
@@ -382,11 +429,18 @@ def main() -> None:
         action="store_true",
         help="Append a generic Report class to domain/<domain>/reports.py if missing.",
     )
+    parser.add_argument(
+        "--kind",
+        default="llm_extract",
+        choices=("llm_extract", "llm_document", "deterministic_pipeline"),
+        help="Task line kind (default llm_extract). See tools.runtime.kinds.",
+    )
     args = parser.parse_args()
 
     try:
         set_domain(args.domain)
         registered = _register_line(args.task, args.name)
+        kind_registered = _register_kind(args.task, args.kind)
         created = _ensure_task_skeleton(args.task, args.name)
         report_added = _append_report_if_missing(args.task) if args.with_report else False
         task_dir = _sync_domain.CURRENT.tasks_dir / args.task
@@ -397,6 +451,10 @@ def main() -> None:
             print(f"- Registered LINE_CN_NAMES entry: {args.task} -> {args.name}")
         else:
             print(f"- LINE_CN_NAMES already contains: {args.task}")
+        if kind_registered:
+            print(f"- Registered LINE_KINDS entry: {args.task} -> {args.kind}")
+        else:
+            print(f"- LINE_KINDS already contains: {args.task}")
         if created:
             print("- Created files:")
             for path in created:

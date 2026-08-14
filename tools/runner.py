@@ -27,6 +27,7 @@ from .outputs import (
     task_output_dir,
 )
 from .runtime_context import DomainContext, env_path, normalize_tasks
+from tools.runtime.kinds import sidecar_lines
 from .template_router import LINE_SCHEMA_HINTS, maybe_compile_natural_template
 
 logger = logging.getLogger(__name__)
@@ -91,7 +92,8 @@ def build_parser(ctx: DomainContext) -> argparse.ArgumentParser:
     )
     for line in sorted(ctx.task_lines):
         cn = ctx.line_cn_names.get(line, line)
-        if line != "minutes_trace":
+        policy = (ctx.line_policies or {}).get(line)
+        if policy is None or policy.cli_template:
             parser.add_argument(
                 f"--{line}_template",
                 dest=f"{line}_template",
@@ -100,7 +102,7 @@ def build_parser(ctx: DomainContext) -> argparse.ArgumentParser:
                 help=f"{cn}线渲染模板（.md 文件）。模板中用 [描述] 作为占位符，"
                 "系统将自动填充内容。不指定则使用默认格式",
             )
-        if line != "minutes_trace":
+        if policy is not None and policy.cli_mode:
             parser.add_argument(
                 f"--{line}_mode",
                 dest=f"{line}_mode",
@@ -205,14 +207,16 @@ async def run(
             project_id,
             subject,
         )
-    if "minutes_trace" in line_names:
+    for sidecar_line in sidecar_lines(line_names, ctx.line_policies):
         try:
             extra = format_trace_extra(load_trace_sidecars(ctx, file))
         except (OSError, ValueError):
             extra = ""
         if extra:
-            prev = line_extra.get("minutes_trace") or ""
-            line_extra["minutes_trace"] = f"{prev}\n\n{extra}".strip() if prev else extra
+            prev = line_extra.get(sidecar_line) or ""
+            line_extra[sidecar_line] = (
+                f"{prev}\n\n{extra}".strip() if prev else extra
+            )
 
     async for event in system.run_streaming(
         transcript,

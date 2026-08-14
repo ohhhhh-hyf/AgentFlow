@@ -50,6 +50,11 @@ class ActionItemsRender:
             yield chunk
 
     @staticmethod
+    def extract_structure(state: MeetingState) -> list[dict]:
+        """extract 种类的结构抽取入口（引擎按这个名字调用）。"""
+        return ActionItemsRender.extract_actions(state)
+
+    @staticmethod
     def extract_actions(state: MeetingState) -> list[dict]:
         """从 state 中提取最终待办列表（降级兜底用，不调 LLM）。
 

@@ -6,7 +6,7 @@ meeting 与 notes 两个域的 orchestrator 曾经是同一内核的复制（约
 并已发生多处行为漂移（supervisor 审核键名、revision 节点、路由判断、图异常兜底、
 降级检查、produce 特判）。本模块把共享内核抽到一处，两域 orchestrator 只保留：
 
-- 生成区（由 tools/scripts/sync_domain.py 管理，勿手改）
+- 生成区（模型 / TASK_LINES / 工厂挂载 / Report 组装器；不再生成 render/fallback 方法）
 - 领域专属 core 节点（会议理解 / 笔记理解）
 - 少量钩子覆写（见 ``DomainNodes`` 的"领域钩子"注释）
 
@@ -22,8 +22,8 @@ meeting 与 notes 两个域的 orchestrator 曾经是同一内核的复制（约
   生成区内容不变，``sync_domain.py --check`` 依然通过。
 - 领域类继承 ``DomainNodes`` 后通过覆写钩子定制领域行为；引擎方法一律经
   ``self.xxx`` 读取领域数据（``_task_lines`` / ``_line_cn_names`` / ``_state_class``
-  / ``_quality_warning`` / ``_fallback_rules`` / ``_report_assemblers`` /
-  ``_fallback_nodes``），这些实例属性由领域 __init__ 设置。
+  / ``_quality_warning`` / ``_fallback_rules`` / ``_report_assemblers``），
+  这些实例属性由领域 __init__ 设置。
 """
 from __future__ import annotations
 
@@ -66,10 +66,11 @@ class DomainNodes:
     领域类继承本类，并确保：
     - 实例属性（领域 __init__ 设置）：``_task_lines`` / ``_line_cn_names`` /
       ``_state_class`` / ``_quality_warning``（后三者之外的 ``_fallback_rules`` /
-      ``_report_assemblers`` / ``_fallback_nodes`` 由 sync_domain 生成区写入）
+      ``_report_assemblers`` 由 sync_domain 生成区写入）
     - 可选覆写钩子：``_compute_title`` / ``_line_title`` / ``_shared_context`` /
       ``_supervisor_context`` / ``_build_core`` / ``_pre_render_hook`` /
-      ``_post_render_hook`` / ``_empty_purpose``
+      ``_post_render_hook`` / ``_empty_purpose`` /
+      ``_understanding_key`` / ``_understanding_label`` / ``_transcript_label``
     """
 
     MAX_REVISIONS = 1
@@ -77,6 +78,9 @@ class DomainNodes:
     # 领域钩子：默认值（领域按需覆写为类属性）
     _fallback_formatters: dict[str, object] = {}
     _quality_disclaimer = "（生成可能有误）"
+    _understanding_key = ""
+    _understanding_label = "已审核理解"
+    _transcript_label = "原文"
 
     # ── 辅助方法 ──────────────────────────────────────────────
 
@@ -147,6 +151,66 @@ class DomainNodes:
         """empty_purpose 兜底时的「目的」文案（领域有核心理解时覆写）。"""
         return ""
 
+    def _understanding(self, state: dict) -> dict:
+        """读取本领域核心理解；key 由 ``_understanding_key`` 声明。"""
+        from tools.runtime.context import understanding_of
+
+        return understanding_of(state, self._understanding_key)
+
+    def _render_context_blocks(
+        self, state: dict
+    ) -> list[tuple[str, object, str]]:
+        """渲染上下文里「已批准草稿」之前的块。领域只改三个钩子即可。"""
+        blocks: list[tuple[str, object, str]] = [
+            (self._transcript_label, state.get("transcript") or "", "raw"),
+            ("用户画像", state.get("user") or {}, "json"),
+        ]
+        if self._understanding_key:
+            blocks.append(
+                (
+                    self._understanding_label,
+                    state.get(self._understanding_key),
+                    "json",
+                )
+            )
+        blocks.append(
+            ("已审核用户视角", state.get("perspective_profile"), "json")
+        )
+        return blocks
+
+    def _render_context(self, state: dict, line_name: str) -> str:
+        """运行时拼装渲染上下文；不再生成 ``_{line}_render_context``。"""
+        from tools.runtime.context import build_render_context
+
+        sub = line(state, line_name)
+        extra = (state.get("line_extra") or {}).get(line_name) or ""
+        return build_render_context(
+            mode=self._mode_label(state),
+            objective=bool(state.get("objective_perspective")),
+            blocks=self._render_context_blocks(state),
+            draft=sub.get("draft"),
+            review=sub.get("review") or {},
+            line_cn=line_cn(line_name, self._line_cn_names),
+            extra=extra,
+        )
+
+    def _make_fallback_node(self, line_name: str):
+        """生成某任务线的降级节点（与历史生成区函数体同构）。"""
+
+        async def node(state: dict) -> dict:
+            text, structure = self._domain_fallback_text(
+                state, line_name, self._fallback_rules[line_name]
+            )
+            line_dict = {"rendered": text, "degraded": True}
+            if structure is not None:
+                line_dict["structure"] = structure
+            return {
+                "lines": {line_name: line_dict},
+                "quality_degraded": True,
+            }
+
+        return node
+
     def _domain_fallback_text(self, state: dict, line_name: str, rules):
         """领域降级文本拼装：绑定领域 formatters / empty_purpose / disclaimer。"""
         return fallback_text(
@@ -168,18 +232,37 @@ class DomainNodes:
         builder.add_edge(START, "perspective_modeling")
         return ["perspective_modeling"]
 
+    def _line_policy(self, line_name: str):
+        """读本线种类策略；未声明时按 llm_document 兜底（测试桩可用）。"""
+        from tools.runtime.kinds import LLM_DOCUMENT, policy_for
+
+        policies = getattr(self, "_line_policies", None) or {}
+        if line_name in policies:
+            return policies[line_name]
+        return policy_for(LLM_DOCUMENT)
+
     def _pre_render_hook(self, state: dict, line_name: str) -> bool:
         """render 前钩子：返回 True 表示已自行产出 rendered（跳过 render 调用）。"""
         return False
 
     def _post_render_hook(self, state: dict, line_name: str) -> None:
-        """render 后钩子：默认从草稿提取结构化列表（Report 有 structure 字段时）。
+        """按种类抽结构：pipeline 不抽；extract 抽列表；document 仅当 Report 声明 structure。"""
+        from tools.runtime.kinds import DETERMINISTIC_PIPELINE
 
-        提取规则（与各线 draft 形态约定一致）：
-        - ``draft[线名]`` 存在且为 list → 直接用
-        - 否则草稿中恰好只有一个 list → 用它；多个/零个 → 空列表
-        """
-        if not line_has_structure(self._report_assemblers[line_name]):
+        policy = self._line_policy(line_name)
+        if policy.kind == DETERMINISTIC_PIPELINE:
+            return
+        render = getattr(self, f"{line_name}_render", None)
+        extractor = getattr(render, "extract_structure", None) or getattr(
+            render, "extract_actions", None
+        )
+        if extractor:
+            line(state, line_name)["structure"] = extractor(state)
+            return
+        report_cls = (getattr(self, "_report_assemblers", None) or {}).get(line_name)
+        if not policy.extracts_structure and not (
+            report_cls and line_has_structure(report_cls)
+        ):
             return
         draft = line(state, line_name).get("draft") or {}
         structure = draft.get(line_name)
@@ -217,7 +300,7 @@ class DomainNodes:
             # 每线可选参数：组织模式 / 附加上下文（state["line_modes"] / ["line_extra"]）
             context = self._shared_context(state)
             mode = (state.get("line_modes") or {}).get(line_name)
-            if mode:
+            if mode and self._line_policy(line_name).cli_mode:
                 context = f"组织模式：{mode}\n\n{context}"
             extra = (state.get("line_extra") or {}).get(line_name)
             if extra:
@@ -344,333 +427,10 @@ class DomainNodes:
         state: dict,
         queue: asyncio.Queue,
     ) -> None:
-        """通用流式生产者：把指定任务线的文本流式塞进队列（并行事件源）。
+        """委托给 ``tools.runtime.render``：图外渲染不属于节点 mixin。"""
+        from tools.runtime.render import produce_line
 
-        线 → 事件映射（注册表驱动）：
-        - chunk 事件统一携带 ``line``（线名）与 ``title``（展示标题）
-        - render 实例按命名约定取 ``self.{line_name}_render``
-        - 上下文方法按命名约定取 ``self._{line_name}_render_context``
-        - render.stream 签名统一 ``(context, template="")``
-        - 降级线：直接整段交付 fallback 节点写的确定性文本
-        - 渲染异常：降级为该线的确定性兜底文本，不中断其他线（问题 #4）
-        """
-        render = getattr(self, f"{line_name}_render")
-        title = self._line_title(state, line_name)
-        degraded = bool(line(state, line_name).get("degraded"))
-        template = line_template(state, line_name)
-        try:
-            if degraded:
-                # 降级：确定性兜底文本一次性整段交付
-                await queue.put(
-                    {
-                        "type": "chunk",
-                        "line": line_name,
-                        "title": title,
-                        "text": line(state, line_name).get("rendered") or "",
-                    }
-                )
-                return
-            if self._pre_render_hook(state, line_name):
-                # 领域已自行产出 rendered（跳过 render 调用）
-                await queue.put(
-                    {
-                        "type": "chunk",
-                        "line": line_name,
-                        "title": title,
-                        "text": line(state, line_name).get("rendered") or "",
-                    }
-                )
-                return
-            # 强执行渲染管线：
-            # 1) placeholder 只走 assemble（失败才 freeform 兜底）
-            # 2) 程序硬约束（粘连修复/行数截断/空表）
-            # 3) 验收门禁：硬伤则 repair；仍失败则 gate_ok=False（不落通过 md）
-            import sys
-
-            from tools.hard_execution import gate_render_output
-            from tools.template_router import (
-                detect_template_kind,
-                fill_placeholder_template,
-                is_router_enabled,
-            )
-
-            context_fn = getattr(self, f"_{line_name}_render_context")
-            context = context_fn(state)
-            full_text = ""
-            fill_mode = "none"
-            gate_ok: bool | None = None
-            gate_issues: list[str] = []
-            enforce_notes: list[str] = []
-            streamed = False
-            kind = detect_template_kind(template) if template else ""
-
-            # ── 1) 有占位符模板：强制优先 assemble ──
-            if template and is_router_enabled() and kind == "placeholder":
-                client = getattr(render, "client", None)
-                if client is not None:
-                    try:
-                        filled = await fill_placeholder_template(
-                            client, context, template
-                        )
-                    except Exception:  # noqa: BLE001
-                        logger.warning(
-                            "assemble 异常（%s）", line_name, exc_info=True
-                        )
-                        filled = None
-                    if filled:
-                        full_text = filled
-                        fill_mode = "assemble"
-
-            # ── 2) assemble 失败：有模板用整段 freeform；无模板才 stream ──
-            if fill_mode == "none":
-                use_block = bool(
-                    template
-                    and hasattr(render, "run")
-                    and kind in {"placeholder", "spec"}
-                )
-                if use_block:
-                    full_text = await render.run(context, template)
-                    fill_mode = "freeform"
-                else:
-                    parts: list[str] = []
-                    async for chunk in render.stream(context, template):
-                        parts.append(chunk)
-                        await queue.put(
-                            {
-                                "type": "chunk",
-                                "line": line_name,
-                                "title": title,
-                                "text": chunk,
-                            }
-                        )
-                        streamed = True
-                    full_text = "".join(parts)
-                    fill_mode = "freeform" if template else "none"
-
-            # ── 3) 篇幅软修订（freeform/repair 路径；assemble 内部已自检）──
-            if (
-                template
-                and full_text
-                and is_router_enabled()
-                and fill_mode in {"freeform", "repair"}
-                and hasattr(render, "run")
-            ):
-                try:
-                    from tools.template_eval import parse_document_char_budget
-                    from tools.template_router import _body_han_count
-                except Exception:  # noqa: BLE001
-                    parse_document_char_budget = None  # type: ignore[assignment]
-                    _body_han_count = None  # type: ignore[assignment]
-                if parse_document_char_budget and _body_han_count:
-                    bud = parse_document_char_budget(template)
-                    hi = bud.get("hi")
-                    lo = bud.get("lo")
-                    if hi:
-                        hi_i = int(hi)
-                        lo_i = int(lo or 0)
-                        for _rev in range(2):
-                            han = _body_han_count(full_text)
-                            if han > hi_i:
-                                target = (
-                                    (lo_i + hi_i) // 2
-                                    if lo_i
-                                    else max(hi_i - 40, hi_i * 4 // 5)
-                                )
-                                try:
-                                    compressed = await render.run(
-                                        f"{context}\n\n【篇幅修订·压缩】当前正文汉字约 {han}，"
-                                        f"超过模板约 {lo_i or hi_i}–{hi_i} 字上界。"
-                                        f"请**整体改写压缩**到约 {target}–{hi_i} 字（汉字合计必须≤{hi_i}），"
-                                        "不是截断半句或硬砍半段："
-                                        "每节改短句、删套话/长清单/次要枝节，"
-                                        "只留关键结论/数字/归属；结构贴合模板点名栏目；"
-                                        "压缩后语句须完整通顺；勿虚构、勿在正文写字数说明。\n\n"
-                                        f"【当前正文】\n{full_text}",
-                                        template,
-                                    )
-                                except Exception:  # noqa: BLE001
-                                    compressed = ""
-                                if compressed and compressed.strip():
-                                    full_text = compressed
-                                    fill_mode = "repair"
-                                    logger.info(
-                                        "freeform 偏长（%s>%s），压缩修订#%s（%s）",
-                                        han,
-                                        hi_i,
-                                        _rev + 1,
-                                        line_name,
-                                    )
-                                    continue
-                            elif lo_i and han < int(lo_i * 0.85):
-                                try:
-                                    expanded = await render.run(
-                                        f"{context}\n\n【篇幅修订·扩写】当前正文汉字约 {han}，"
-                                        f"少于模板约 {lo_i}–{hi_i} 字。"
-                                        "请在忠实原文前提下**整体扩写**："
-                                        "补原文已有的具体事实与推进，使合计接近区间中位；"
-                                        "语句完整通顺；勿空话注水、勿截断、勿写字数说明。\n\n"
-                                        f"【当前正文】\n{full_text}",
-                                        template,
-                                    )
-                                except Exception:  # noqa: BLE001
-                                    expanded = ""
-                                if expanded and expanded.strip():
-                                    full_text = expanded
-                                    fill_mode = "repair"
-                                    logger.info(
-                                        "freeform 偏短（%s<%s），扩写修订#%s（%s）",
-                                        han,
-                                        lo_i,
-                                        _rev + 1,
-                                        line_name,
-                                    )
-                                    continue
-                            break
-
-            # ── 4) 强执行 + 门禁（仅有模板时）──
-            if template and full_text and is_router_enabled():
-                gate = gate_render_output(template, full_text)
-                full_text = gate["text"]
-                enforce_notes = list(gate.get("notes") or [])
-                gate_issues = list(gate.get("issues") or [])
-                gate_ok = bool(gate.get("gate_ok"))
-                hard0 = list(gate.get("hard_issues") or [])
-
-                if (gate_issues or not gate_ok) and hasattr(render, "run"):
-                    logger.warning(
-                        "模板门禁未通过（%s），尝试 repair：%s",
-                        line_name,
-                        "；".join(gate_issues),
-                    )
-                    repair_context = (
-                        f"{context}\n\n【强执行门禁未通过，必须修正】\n"
-                        + "\n".join(f"- {x}" for x in gate_issues)
-                        + "\n\n硬性要求：每条表格数据独占一行；遵守模板约 N 行；"
-                        "禁止残留 [占位符]；禁止空表。"
-                    )
-                    try:
-                        repaired = await render.run(repair_context, template)
-                    except Exception:  # noqa: BLE001
-                        logger.warning(
-                            "repair 失败（%s）", line_name, exc_info=True
-                        )
-                        repaired = ""
-                    if repaired and repaired.strip():
-                        gate2 = gate_render_output(template, repaired)
-                        hard2 = list(gate2.get("hard_issues") or [])
-                        if gate2["gate_ok"] or len(hard2) < len(hard0):
-                            full_text = gate2["text"]
-                            enforce_notes = list(gate2.get("notes") or [])
-                            gate_issues = list(gate2.get("issues") or [])
-                            gate_ok = bool(gate2.get("gate_ok"))
-                            fill_mode = "repair"
-                            hard0 = hard2
-
-                # freeform 仍硬伤：再强攻 assemble
-                if (
-                    not gate_ok
-                    and kind == "placeholder"
-                    and fill_mode != "assemble"
-                    and getattr(render, "client", None) is not None
-                ):
-                    try:
-                        filled2 = await fill_placeholder_template(
-                            render.client, context, template
-                        )
-                    except Exception:  # noqa: BLE001
-                        filled2 = None
-                    if filled2:
-                        gate3 = gate_render_output(template, filled2)
-                        hard3 = list(gate3.get("hard_issues") or [])
-                        if gate3["gate_ok"] or len(hard3) < len(hard0):
-                            full_text = gate3["text"]
-                            enforce_notes = list(gate3.get("notes") or [])
-                            gate_issues = list(gate3.get("issues") or [])
-                            gate_ok = bool(gate3.get("gate_ok"))
-                            fill_mode = "assemble"
-
-            if full_text and not template:
-                try:
-                    from tools.memory.citations import apply_memory_citations
-
-                    full_text = apply_memory_citations(full_text, context)
-                except Exception:  # noqa: BLE001
-                    logger.warning("记忆引用标注失败（%s）", line_name, exc_info=True)
-
-            # 未 stream 过的路径：整段推送最终正文
-            if not streamed and full_text is not None:
-                await queue.put(
-                    {
-                        "type": "chunk",
-                        "line": line_name,
-                        "title": title,
-                        "text": full_text,
-                    }
-                )
-
-            line_state = line(state, line_name)
-            line_state["rendered"] = full_text
-            line_state["fill_mode"] = fill_mode
-            line_state["render_gate_ok"] = gate_ok
-            line_state["render_gate_issues"] = gate_issues
-            if enforce_notes:
-                line_state["enforce_notes"] = enforce_notes
-            if template and gate_ok is False:
-                line_state["quality_warning"] = (
-                    "模板强执行门禁未通过：" + "；".join(gate_issues[:5])
-                )
-                state["quality_degraded"] = True
-
-            cn = line_cn(line_name, self._line_cn_names)
-            gate_s = (
-                "n/a"
-                if gate_ok is None
-                else ("pass" if gate_ok else "fail")
-            )
-            sys.stdout.write(
-                f"[模板渲染] {cn} fill_mode={fill_mode} gate={gate_s}\n"
-            )
-            if enforce_notes:
-                sys.stdout.write(
-                    f"[强执行] {cn} " + "；".join(enforce_notes) + "\n"
-                )
-            if gate_ok is False:
-                sys.stdout.write(
-                    f"[门禁失败] {cn} 不写入通过态 result.md："
-                    + "；".join(gate_issues[:5])
-                    + "\n"
-                )
-            sys.stdout.flush()
-            logger.info(
-                "模板渲染 %s fill_mode=%s gate=%s",
-                line_name,
-                fill_mode,
-                gate_s,
-            )
-            self._post_render_hook(state, line_name)
-        except Exception as exc:  # noqa: BLE001 - 单线渲染失败不拖垮整条流水线
-            logger.warning(
-                "%s渲染失败，使用确定性兜底文本",
-                line_cn(line_name, self._line_cn_names),
-                exc_info=True,
-            )
-            line(state, line_name)["degraded"] = True
-            fb_text, fb_structure = self._domain_fallback_text(
-                state, line_name, self._fallback_rules[line_name]
-            )
-            line(state, line_name)["rendered"] = fb_text
-            if fb_structure is not None:
-                line(state, line_name)["structure"] = fb_structure
-            await queue.put(
-                {
-                    "type": "chunk",
-                    "line": line_name,
-                    "title": title,
-                    "text": fb_text,
-                }
-            )
-        finally:
-            await queue.put(None)
+        await produce_line(self, line_name, state, queue)
 
     # ── 图异常 / 校验失败兜底 ─────────────────────────────────
 
@@ -739,9 +499,11 @@ class DomainNodes:
             builder.add_node(f"{line_name}_agent", agent_node)
             builder.add_node(f"{line_name}_supervisor", supervisor_node)
             builder.add_node(f"{line_name}_revision", revision_node)
-            builder.add_node(
-                f"{line_name}_fallback", self._fallback_nodes[line_name]
+            custom = getattr(self, "_fallback_nodes", None) or {}
+            fallback = custom.get(line_name) or self._make_fallback_node(
+                line_name
             )
+            builder.add_node(f"{line_name}_fallback", fallback)
 
             # 核心层汇合 → 本线 agent → supervisor → 条件路由
             builder.add_edge(core, f"{line_name}_agent")
@@ -845,9 +607,7 @@ class DomainNodes:
                 "type": "done",
                 "quality_warning": self._quality_warning,
                 "reports": fb,
-                "understanding": state.get("meeting_understanding")
-                or state.get("notes_understanding")
-                or {},
+                "understanding": self._understanding(state),
             }
             return
 

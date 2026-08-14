@@ -4,20 +4,14 @@ MeetingAgentSystem 负责：组装 Agent 依赖、构建多线并行 DAG、条�
 
 架构（注册表驱动）：
 - meeting_core：会议理解 + 视角建模（公共事实底座，先行并行执行）
-- tasks/{线}：各任务线（生成 → 监督 → 渲染/返工闭环），互不阻塞
-- 共享编排内核位于 ``tools/domain_engine.py``（DomainNodes mixin + 纯函数）；
-  本文件只保留：sync_domain.py 管理的生成区、领域专属 core 节点、
-  领域钩子覆写（上下文文案 / 标题 / core / render 特判 / 降级绑定）。
-- 每条任务线的同构节点（agent / supervisor / revision / route）由 ``TASK_LINES``
-  注册表自动生成；render / fallback 为各线专属实现。
-  新增任务线：写 agent/supervisor/render 三个类 + prompts，在 ``TASK_LINES``
-  注册一行即可，state（MeetingState.lines）与节点逻辑零改动。
+- tasks/{线}：各任务线（生成 → 监督 → 返工闭环），互不阻塞
+- 共享编排内核位于 ``tools/domain_engine.py``；渲染在 ``tools.runtime.render``。
+  本文件只保留：sync_domain 管理的注册/挂载生成区、领域专属 core 节点、
+  领域钩子覆写。render / fallback 由运行时一份函数生成，不再按线出样板。
 """
 from __future__ import annotations
 
-import asyncio
 import logging
-from collections.abc import AsyncIterator, Iterable
 
 from langgraph.graph import START
 
@@ -25,7 +19,7 @@ from llm_client import LLMClient
 from perspective import PerspectiveModelingAgent
 from .meeting_factory import MeetingAgentFactory
 from .meeting_core import MeetingUnderstandingAgent
-from .domain_config import LINE_CN_NAMES
+from .domain_config import LINE_CN_NAMES, LINE_KINDS
 
 # 共享编排内核（领域无关）：纯函数 + DomainNodes 图节点 mixin
 from tools.domain_engine import (
@@ -35,8 +29,8 @@ from tools.domain_engine import (
     line as _line,
     line_cn as _engine_line_cn,
     line_draft_title as _engine_line_draft_title,
-    make_fallback_text,
 )
+from tools.runtime.kinds import resolve_line_policies
 
 # ── Report import 生成区：由 tools/scripts/sync_domain.py 生成，勿手改 ──
 
@@ -50,11 +44,7 @@ from .reports import (
 )
 # ── Report import 生成区结束 ──
 
-from .models import (
-    MeetingState,
-    UserIdentity,
-    is_objective_perspective,
-)
+from .models import MeetingState
 # ── 任务线 import 生成区：由 tools/scripts/sync_domain.py 生成，勿手改 ──
 
 from .tasks.action_items import (
@@ -282,23 +272,16 @@ def _empty_purpose(state) -> str:
     ) or ""
     return f"会议目的：{purpose}" if purpose else ""
 
-# 生成区骨架引用的模块级 _fallback_text（3 参版本，绑定领域 formatters）
-_fallback_text = make_fallback_text(
-    _LINES_FORMATTERS, _empty_purpose, QUALITY_DISCLAIMER
-)
-
 class _Nodes(DomainNodes):
-    """meeting 图节点实现：共享内核（tools/domain_engine.DomainNodes）+ 领域专属。
+    """meeting 图节点实现：共享内核 + 领域专属钩子与会议理解节点。"""
 
-    同构节点（agent / supervisor / revision / route）与流式生产 / 图构建 /
-    运行由引擎提供；本类只保留领域钩子覆写与领域专属节点（会议理解）。
-    专属节点方法生成区（fallback 节点）与渲染上下文生成区由
-    sync_domain.py 管理。
-    """
-
-    # 领域钩子：降级文本绑定（引擎 _domain_fallback_text 读取）
     _fallback_formatters = _LINES_FORMATTERS
     _quality_disclaimer = QUALITY_DISCLAIMER
+    _understanding_key = "meeting_understanding"
+    _understanding_label = "已审核会议理解"
+    _transcript_label = "会议原文"
+    _line_cn_names = LINE_CN_NAMES
+    _line_policies = resolve_line_policies(LINE_KINDS)
 
     # ── 领域钩子：视角标题 / 展示标题 ─────────────────────────
 
@@ -374,17 +357,6 @@ class _Nodes(DomainNodes):
         builder.add_edge(START, "perspective_modeling")
         return ["meeting_understanding", "perspective_modeling"]
 
-    # ── 领域钩子：render 后特判 ───────────────────────────────
-
-    def _post_render_hook(self, state, line_name: str) -> None:
-        """render 后写回结构化列表：待办线用 extract_actions，其余走通用提取。"""
-        if line_name == "action_items":
-            _line(state, line_name)["structure"] = (
-                self.action_items_render.extract_actions(state)
-            )
-            return
-        super()._post_render_hook(state, line_name)
-
     # ── 核心节点：会议理解（公共事实底座）──────────────────────
 
     async def _meeting_understanding_node(self, state) -> dict:
@@ -400,159 +372,6 @@ class _Nodes(DomainNodes):
             }
         return {"meeting_understanding": result.model_dump()}
 
-    # ── 渲染上下文生成区：由 tools/scripts/sync_domain.py 生成，勿手改 ──
-
-    def _action_items_render_context(self, state: MeetingState) -> str:
-        mode = self._mode_label(state)
-        line = _line(state, "action_items")
-        review = line.get("review") or {}
-        return (
-            f"视角模式：{mode}\n"
-            f"objective_perspective：{bool(state.get('objective_perspective'))}\n\n"
-            f"会议原文：\n{state['transcript']}\n\n"
-            f"用户画像：\n{_json(state['user'])}\n\n"
-            f"已审核会议理解：\n{_json(state.get('meeting_understanding'))}\n\n"
-            f"已审核用户视角：\n{_json(state.get('perspective_profile'))}\n\n"
-            f"已批准待办草稿：\n{_json(line.get('draft'))}\n\n"
-            f"待办审核结论：\n{_json(review)}"
-        )
-
-    def _mindmap_render_context(self, state: MeetingState) -> str:
-        mode = self._mode_label(state)
-        line = _line(state, "mindmap")
-        review = line.get("review") or {}
-        return (
-            f"视角模式：{mode}\n"
-            f"objective_perspective：{bool(state.get('objective_perspective'))}\n\n"
-            f"会议原文：\n{state['transcript']}\n\n"
-            f"用户画像：\n{_json(state['user'])}\n\n"
-            f"已审核会议理解：\n{_json(state.get('meeting_understanding'))}\n\n"
-            f"已审核用户视角：\n{_json(state.get('perspective_profile'))}\n\n"
-            f"已批准思维导图草稿：\n{_json(line.get('draft'))}\n\n"
-            f"思维导图审核结论：\n{_json(review)}"
-        )
-
-    def _minutes_generation_render_context(self, state: MeetingState) -> str:
-        mode = self._mode_label(state)
-        line = _line(state, "minutes_generation")
-        review = line.get("review") or {}
-        context = (
-            f"视角模式：{mode}\n"
-            f"objective_perspective：{bool(state.get('objective_perspective'))}\n\n"
-            f"会议原文：\n{state['transcript']}\n\n"
-            f"用户画像：\n{_json(state['user'])}\n\n"
-            f"已审核会议理解：\n{_json(state.get('meeting_understanding'))}\n\n"
-            f"已审核用户视角：\n{_json(state.get('perspective_profile'))}\n\n"
-            f"已批准纪要草稿：\n{_json(line.get('draft'))}\n\n"
-            f"纪要审核结论：\n{_json(review)}"
-        )
-        extra = (state.get("line_extra") or {}).get("minutes_generation")
-        if extra:
-            context = f"{context}\n\n{extra}"
-        return context
-
-    def _minutes_trace_render_context(self, state: MeetingState) -> str:
-        mode = self._mode_label(state)
-        line = _line(state, "minutes_trace")
-        review = line.get("review") or {}
-        return (
-            f"视角模式：{mode}\n"
-            f"objective_perspective：{bool(state.get('objective_perspective'))}\n\n"
-            f"会议原文：\n{state['transcript']}\n\n"
-            f"用户画像：\n{_json(state['user'])}\n\n"
-            f"已审核会议理解：\n{_json(state.get('meeting_understanding'))}\n\n"
-            f"已审核用户视角：\n{_json(state.get('perspective_profile'))}\n\n"
-            f"已批准溯源纪要草稿：\n{_json(line.get('draft'))}\n\n"
-            f"溯源纪要审核结论：\n{_json(review)}"
-        )
-
-    def _multi_styles_render_context(self, state: MeetingState) -> str:
-        mode = self._mode_label(state)
-        line = _line(state, "multi_styles")
-        review = line.get("review") or {}
-        return (
-            f"视角模式：{mode}\n"
-            f"objective_perspective：{bool(state.get('objective_perspective'))}\n\n"
-            f"会议原文：\n{state['transcript']}\n\n"
-            f"用户画像：\n{_json(state['user'])}\n\n"
-            f"已审核会议理解：\n{_json(state.get('meeting_understanding'))}\n\n"
-            f"已审核用户视角：\n{_json(state.get('perspective_profile'))}\n\n"
-            f"已批准多样式纪要草稿：\n{_json(line.get('draft'))}\n\n"
-            f"多样式纪要审核结论：\n{_json(review)}"
-        )
-
-    def _risk_render_context(self, state: MeetingState) -> str:
-        mode = self._mode_label(state)
-        line = _line(state, "risk")
-        review = line.get("review") or {}
-        return (
-            f"视角模式：{mode}\n"
-            f"objective_perspective：{bool(state.get('objective_perspective'))}\n\n"
-            f"会议原文：\n{state['transcript']}\n\n"
-            f"用户画像：\n{_json(state['user'])}\n\n"
-            f"已审核会议理解：\n{_json(state.get('meeting_understanding'))}\n\n"
-            f"已审核用户视角：\n{_json(state.get('perspective_profile'))}\n\n"
-            f"已批准风险分析草稿：\n{_json(line.get('draft'))}\n\n"
-            f"风险分析审核结论：\n{_json(review)}"
-        )
-
-    # ── 渲染上下文生成区结束 ──
-
-    # ── 专属节点方法生成区：由 tools/scripts/sync_domain.py 生成骨架，函数体可改 ──
-
-    # ── 纪要线专属节点：降级 ──────────────────────────────────
-
-    # ── 待办线专属节点：降级 ──────────────────────────────────
-
-    async def _action_items_fallback_node(self, state: MeetingState) -> dict:
-        text, structure = _fallback_text(
-            state, "action_items", ACTION_ITEMS_FALLBACK_RULES)
-        line_dict = {"rendered": text, "degraded": True}
-        if structure is not None:
-            line_dict["structure"] = structure
-        return {"lines": {"action_items": line_dict}, "quality_degraded": True}
-
-    async def _minutes_generation_fallback_node(self, state: MeetingState) -> dict:
-        text, structure = _fallback_text(
-            state, "minutes_generation", MINUTES_FALLBACK_RULES)
-        line_dict = {"rendered": text, "degraded": True}
-        if structure is not None:
-            line_dict["structure"] = structure
-        return {"lines": {"minutes_generation": line_dict}, "quality_degraded": True}
-
-    async def _risk_fallback_node(self, state: MeetingState) -> dict:
-        text, structure = _fallback_text(
-            state, "risk", RISK_FALLBACK_RULES)
-        line_dict = {"rendered": text, "degraded": True}
-        if structure is not None:
-            line_dict["structure"] = structure
-        return {"lines": {"risk": line_dict}, "quality_degraded": True}
-
-    async def _mindmap_fallback_node(self, state: MeetingState) -> dict:
-        text, structure = _fallback_text(
-            state, "mindmap", MINDMAP_FALLBACK_RULES)
-        line_dict = {"rendered": text, "degraded": True}
-        if structure is not None:
-            line_dict["structure"] = structure
-        return {"lines": {"mindmap": line_dict}, "quality_degraded": True}
-
-    async def _multi_styles_fallback_node(self, state: MeetingState) -> dict:
-        text, structure = _fallback_text(
-            state, "multi_styles", MULTI_STYLES_FALLBACK_RULES)
-        line_dict = {"rendered": text, "degraded": True}
-        if structure is not None:
-            line_dict["structure"] = structure
-        return {"lines": {"multi_styles": line_dict}, "quality_degraded": True}
-
-    async def _minutes_trace_fallback_node(self, state: MeetingState) -> dict:
-        text, structure = _fallback_text(
-            state, "minutes_trace", MINUTES_TRACE_FALLBACK_RULES)
-        line_dict = {"rendered": text, "degraded": True}
-        if structure is not None:
-            line_dict["structure"] = structure
-        return {"lines": {"minutes_trace": line_dict}, "quality_degraded": True}
-
-    # ── 专属节点方法生成区结束 ──
 
 class MeetingAgentSystem(_Nodes):
     """使用 LangGraph 编排会议分析、多线并行审核返工与最终输出。"""
@@ -593,19 +412,6 @@ class MeetingAgentSystem(_Nodes):
         self.risk_render: RiskRender = agents["risk_render"]
 
         # ── Agent 挂载生成区结束 ──
-
-        # 各线专属的渲染 / 降级节点（同构节点由注册表在 _build_graph 中生成）
-        # ── 节点映射生成区：由 tools/scripts/sync_domain.py 生成，勿手改 ──
-
-        self._fallback_nodes: dict[str, object] = {}
-        self._fallback_nodes["action_items"] = self._action_items_fallback_node
-        self._fallback_nodes["mindmap"] = self._mindmap_fallback_node
-        self._fallback_nodes["minutes_generation"] = self._minutes_generation_fallback_node
-        self._fallback_nodes["minutes_trace"] = self._minutes_trace_fallback_node
-        self._fallback_nodes["multi_styles"] = self._multi_styles_fallback_node
-        self._fallback_nodes["risk"] = self._risk_fallback_node
-
-        # ── 节点映射生成区结束 ──
 
         # 各线 Report 组装器：线名 → Report 类（脚本生成，键 = 线名与 chunk.line 一致）
         # ── Report 组装器生成区：由 tools/scripts/sync_domain.py 生成，勿手改 ──

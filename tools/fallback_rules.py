@@ -13,8 +13,8 @@
 
     MINUTES_FALLBACK_RULES = MinutesFallbackRules()
 
-工厂脚本检测到 ``FallbackRules`` 子类后，自动生成完整的 fallback 节点
-（调用 orchestrator 的 ``_fallback_text(state, "minutes_generation", MINUTES_FALLBACK_RULES)``）。
+``DomainNodes._make_fallback_node`` 在运行时按线读取本规则，
+不再由 sync_domain 生成 ``_{line}_fallback_node``。
 """
 from __future__ import annotations
 

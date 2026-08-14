@@ -3,8 +3,10 @@ from __future__ import annotations
 
 import importlib
 import os
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
+
+from tools.runtime.kinds import LinePolicy, resolve_line_policies
 
 
 SHORT_ALIASES: dict[str, dict[str, str]] = {
@@ -34,6 +36,7 @@ class DomainContext:
     task_aliases: dict[str, str]
     env_prefix: str
     project_root: Path
+    line_policies: dict[str, LinePolicy] = field(default_factory=dict)
 
     @property
     def cli_samples_dir(self) -> Path:
@@ -61,6 +64,10 @@ def load_domain(name: str, project_root: Path) -> DomainContext:
     system_cls = getattr(orchestrator, f"{pascal}AgentSystem")
     line_cn_names = getattr(config, "LINE_CN_NAMES", {})
     task_lines = getattr(orchestrator, "TASK_LINES", {})
+    line_policies = resolve_line_policies(
+        getattr(config, "LINE_KINDS", {}),
+        required=list(task_lines),
+    )
     aliases = dict(SHORT_ALIASES.get(name, {}))
     aliases.update({line: line for line in task_lines})
     aliases.update({cn: line for line, cn in line_cn_names.items()})
@@ -77,6 +84,7 @@ def load_domain(name: str, project_root: Path) -> DomainContext:
         task_aliases=aliases,
         env_prefix=name.upper(),
         project_root=project_root,
+        line_policies=line_policies,
     )
 
 

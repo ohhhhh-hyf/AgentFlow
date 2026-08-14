@@ -2,11 +2,9 @@
 
 手写区 = 领域钩子覆写（共享上下文 / core 节点 / render 前特判）；
 生成区（由 tools/scripts/sync_domain.py 生成）：任务线注册 / Agent 挂载 /
-节点映射 / 渲染上下文 / 各类 import / Report 组装器 / FallbackRules /
-专属节点骨架。
+各类 import / Report 组装器 / FallbackRules。render / fallback 由运行时一份函数生成。
 
-共享编排内核位于 ``tools/domain_engine.py``（DomainNodes mixin + 纯函数），
-与 meeting 域共用同一套图节点 / 流式生产 / 图构建 / 运行逻辑，
+共享编排内核位于 ``tools/domain_engine.py``，渲染在 ``tools.runtime.render``。
 本文件只保留领域差异：笔记理解 core 节点、含 notes 理解的上下文、
 knowledge_graph 线 render 前特判、降级格式化器。
 
@@ -16,20 +14,14 @@ knowledge_graph 线 render 前特判、降级格式化器。
 """
 from __future__ import annotations
 
-import asyncio
 import logging
-from collections.abc import AsyncIterator, Iterable
 
 from langgraph.graph import START
 
 from llm_client import LLMClient
 from perspective import PerspectiveModelingAgent
-from .domain_config import LINE_CN_NAMES
-from .models import (
-    NotesState,
-    UserIdentity,
-    is_objective_perspective,
-)
+from .domain_config import LINE_CN_NAMES, LINE_KINDS
+from .models import NotesState
 from .notes_factory import NotesAgentFactory
 from .notes_core import NotesUnderstandingAgent
 
@@ -41,9 +33,8 @@ from tools.domain_engine import (
     line as _line,
     line_cn as _engine_line_cn,
     line_draft_title as _engine_line_draft_title,
-    line_template as _line_template,
-    make_fallback_text,
 )
+from tools.runtime.kinds import resolve_line_policies
 
 # ── Report import 生成区：由 tools/scripts/sync_domain.py 生成，勿手改 ──
 
@@ -155,21 +146,16 @@ def _empty_purpose(state) -> str:
     """empty_purpose 兜底时的「目的」文案（领域有核心理解时覆写）。"""
     return ""
 
-# 生成区骨架引用的模块级 _fallback_text（3 参版本，绑定领域 formatters）
-_fallback_text = make_fallback_text(
-    _LINES_FORMATTERS, _empty_purpose, QUALITY_DISCLAIMER
-)
-
 class _Nodes(DomainNodes):
-    """notes 图节点实现：共享内核（tools/domain_engine.DomainNodes）+ 领域专属。
+    """notes 图节点实现：共享内核 + 领域专属钩子与笔记理解节点。"""
 
-    同构节点（agent / supervisor / revision / route）与流式生产 / 图构建 /
-    运行由引擎提供；本类只保留领域钩子覆写与领域专属节点（笔记理解）。
-    """
-
-    # 领域钩子：降级文本绑定（引擎 _domain_fallback_text 读取）
     _fallback_formatters = _LINES_FORMATTERS
     _quality_disclaimer = QUALITY_DISCLAIMER
+    _understanding_key = "notes_understanding"
+    _understanding_label = "已审核笔记理解"
+    _transcript_label = "原文"
+    _line_cn_names = LINE_CN_NAMES
+    _line_policies = resolve_line_policies(LINE_KINDS)
 
     # ── 领域钩子：共享上下文（含笔记理解）──────────────────────
 
@@ -220,18 +206,6 @@ class _Nodes(DomainNodes):
         builder.add_edge(START, "perspective_modeling")
         return ["notes_understanding", "perspective_modeling"]
 
-    # ── 领域钩子：render 前特判（knowledge_graph 无模板直接写标题）──
-
-    def _pre_render_hook(self, state, line_name: str) -> bool:
-        """knowledge_graph 未传模板时跳过 LLM 渲染：直接以草稿标题作为大纲。"""
-        if line_name == "knowledge_graph" and not _line_template(state, line_name):
-            draft = _line(state, line_name).get("draft") or {}
-            _line(state, line_name)["rendered"] = (
-                f"# {draft.get('title') or _line_cn(line_name)}"
-            )
-            return True
-        return False
-
     # ── 核心节点：笔记理解（公共事实底座）──────────────────────
 
     async def _notes_understanding_node(self, state) -> dict:
@@ -246,57 +220,6 @@ class _Nodes(DomainNodes):
             }
         return {"notes_understanding": result.model_dump()}
 
-    # ── 渲染上下文生成区：由 tools/scripts/sync_domain.py 生成，勿手改 ──
-
-    def _knowledge_graph_render_context(self, state: NotesState) -> str:
-        mode = self._mode_label(state)
-        line = _line(state, "knowledge_graph")
-        review = line.get("review") or {}
-        return (
-            f"视角模式：{mode}\n"
-            f"objective_perspective：{bool(state.get('objective_perspective'))}\n\n"
-            f"原文：\n{state['transcript']}\n\n"
-            f"用户画像：\n{_json(state['user'])}\n\n"
-            f"已审核用户视角：\n{_json(state.get('perspective_profile'))}\n\n"
-            f"已批准知识图谱草稿：\n{_json(line.get('draft'))}\n\n"
-            f"知识图谱审核结论：\n{_json(review)}"
-        )
-
-    def _points_render_context(self, state: NotesState) -> str:
-        mode = self._mode_label(state)
-        line = _line(state, "points")
-        review = line.get("review") or {}
-        return (
-            f"视角模式：{mode}\n"
-            f"objective_perspective：{bool(state.get('objective_perspective'))}\n\n"
-            f"原文：\n{state['transcript']}\n\n"
-            f"用户画像：\n{_json(state['user'])}\n\n"
-            f"已审核用户视角：\n{_json(state.get('perspective_profile'))}\n\n"
-            f"已批准知识点总结草稿：\n{_json(line.get('draft'))}\n\n"
-            f"知识点总结审核结论：\n{_json(review)}"
-        )
-
-    # ── 渲染上下文生成区结束 ──
-
-    # ── 专属节点方法生成区：由 tools/scripts/sync_domain.py 生成骨架，函数体可改 ──
-
-    async def _points_fallback_node(self, state: NotesState) -> dict:
-        text, structure = _fallback_text(
-            state, "points", POINTS_FALLBACK_RULES)
-        line_dict = {"rendered": text, "degraded": True}
-        if structure is not None:
-            line_dict["structure"] = structure
-        return {"lines": {"points": line_dict}, "quality_degraded": True}
-
-    async def _knowledge_graph_fallback_node(self, state: NotesState) -> dict:
-        text, structure = _fallback_text(
-            state, "knowledge_graph", KNOWLEDGE_GRAPH_FALLBACK_RULES)
-        line_dict = {"rendered": text, "degraded": True}
-        if structure is not None:
-            line_dict["structure"] = structure
-        return {"lines": {"knowledge_graph": line_dict}, "quality_degraded": True}
-
-    # ── 专属节点方法生成区结束 ──
 
 class NotesAgentSystem(_Nodes):
     """使用 LangGraph 编排核心层、任务线审核返工与最终输出。"""
@@ -325,15 +248,6 @@ class NotesAgentSystem(_Nodes):
         self.points_render: PointsRender = agents["points_render"]
 
         # ── Agent 挂载生成区结束 ──
-
-        # 各线专属的渲染 / 降级节点（同构节点由注册表在 _build_graph 中生成）
-        # ── 节点映射生成区：由 tools/scripts/sync_domain.py 生成，勿手改 ──
-
-        self._fallback_nodes: dict[str, object] = {}
-        self._fallback_nodes["knowledge_graph"] = self._knowledge_graph_fallback_node
-        self._fallback_nodes["points"] = self._points_fallback_node
-
-        # ── 节点映射生成区结束 ──
 
         # ── Report 组装器生成区：由 tools/scripts/sync_domain.py 生成，勿手改 ──
 

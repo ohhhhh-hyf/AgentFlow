@@ -5,7 +5,6 @@ __pycache__/
 .pytest_cache/
 .idea/
 output/
-rag_store/
 memory/
 .claude/
 .reasonix/

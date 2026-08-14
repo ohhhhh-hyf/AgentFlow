@@ -2,6 +2,30 @@
 
 与领域无关的运行时与导出工具。业务代码统一 `from tools.xxx import ...`，**本包不在 `__init__.py` 做顶层 re-export**。
 
+## 分层（第一刀）
+
+旧导入路径保持不变。新代码按层落盘：
+
+| 层 | 路径 | 职责 |
+|---|---|---|
+| 编排内核 | `runtime/` | 理解钩子、渲染上下文、图外 `produce_line`；`DomainNodes` 仍从 `domain_engine` 导入 |
+| 应用 | `app/` | CLI / 领域加载 / IO（re-export `runner` / `runtime_context` / `io`） |
+| 产物 | `artifacts/` | 报告落盘与导图（re-export `outputs`） |
+| 模板 | `templates/` | 判型 / 编译 / 评测 |
+| 记忆 | `memory/` | 可选子系统 |
+
+渲染上下文与降级节点不再由 `sync_domain.py` 按线生成。领域只声明 `_understanding_key` / `_transcript_label` / `_understanding_label`。
+
+任务线种类写在 `domain_config.LINE_KINDS`（手写，见 `tools/runtime/kinds.py`）：
+
+| 种类 | 代表线 | LLM 渲染 | CLI 模板 | sidecar | 结构抽取 |
+|---|---|---|---|---|---|
+| `llm_extract` | risk / points / action_items | 是 | 是 | 否 | 是 |
+| `llm_document` | 纪要 / 多样式 / 思维导图 | 是 | 是 | 否 | 仅当 Report 声明 structure |
+| `deterministic_pipeline` | minutes_trace；无模板 knowledge_graph | 默认否 | 默认否 | 可选 | 否 |
+
+minutes_trace 是文档化的 pipeline + sidecar，不是和 risk 对等的一条 3-step 线。新线用 `register_task.py --kind`。
+
 ## 运行入口与 IO
 
 | 模块 | 职责 |
@@ -43,9 +67,7 @@
 
 | 路径 | 职责 |
 |------|------|
-| `rag/` | 本地 RAG 入库/检索；`risk` 线通过 `build_rag_reference_from_text` 可选注入 |
 | `memory/` | 项目记忆：原文实体挂钩；纪要对照历史；知识图谱增量合并 |
-| `rag/cli.py` | `python -m tools.rag.cli …` 独立 CLI |
 | `scripts/` | `register_domain` / `register_task` / `sync_domain` 脚手架（开发期） |
 
 ## 约定
