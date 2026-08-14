@@ -108,7 +108,21 @@ _COMPILE_CACHE: dict[str, str] = {}
 _COMPILE_FAIL_COUNTS: dict[str, int] = {}
 _COMPILE_FAIL_SKIP_THRESHOLD = 3
 # 缓存版本：规则升级后自动失效旧缓存
-_COMPILE_CACHE_VERSION = "v22-section-char-budget"
+_COMPILE_CACHE_VERSION = "v23-table-row-limit"
+
+_CN_NUM = {
+    "一": 1,
+    "二": 2,
+    "两": 2,
+    "三": 3,
+    "四": 4,
+    "五": 5,
+    "六": 6,
+    "七": 7,
+    "八": 8,
+    "九": 9,
+    "十": 10,
+}
 
 
 def _looks_like_placeholder(content: str, next_char: str = "") -> bool:
@@ -226,6 +240,64 @@ def _parse_field(raw: str) -> dict:
         "enum": enum,
         "missing": missing,
     }
+
+
+def _parse_count_token(token: str) -> int | None:
+    token = (token or "").strip()
+    if not token:
+        return None
+    if token.isdigit():
+        return int(token)
+    if token in _CN_NUM:
+        return _CN_NUM[token]
+    if len(token) == 2 and token.startswith("十") and token[1] in _CN_NUM:
+        return 10 + _CN_NUM[token[1]]
+    if len(token) == 2 and token.endswith("十") and token[0] in _CN_NUM:
+        return _CN_NUM[token[0]] * 10
+    if len(token) == 3 and token[1] == "十" and token[0] in _CN_NUM and token[2] in _CN_NUM:
+        return _CN_NUM[token[0]] * 10 + _CN_NUM[token[2]]
+    return None
+
+
+def _table_row_limit_from_text(text: str) -> int | None:
+    """从占位说明/自然语言片段中解析表格行数上限，如「三行左右」「约3条」。"""
+    if not text:
+        return None
+    patterns = (
+        r"(?:约|大约|左右|控制在|限制在|最多|不超过|不多于)?\s*([一二两三四五六七八九十\d]+)\s*(?:行|条|项)",
+        r"(?:行数|条数)\s*(?:约|大约|为|控制在|限制在|最多|不超过|不多于)?\s*([一二两三四五六七八九十\d]+)",
+    )
+    for pattern in patterns:
+        m = re.search(pattern, text)
+        if not m:
+            continue
+        n = _parse_count_token(m.group(1))
+        if n and n > 0:
+            return n
+    return None
+
+
+def _row_limit_for_template(rt: dict[str, Any]) -> int | None:
+    fields = rt.get("fields") or []
+    text = "；".join(str(f.get("hint") or f.get("raw") or "") for f in fields)
+    return _table_row_limit_from_text(text)
+
+
+def _table_row_confidence_score(row: list[str]) -> tuple[int, int]:
+    """按明确性/信息量粗排表格行，超出用户行数时保留更可信的行。"""
+    text = " ".join(str(c or "").strip() for c in row)
+    empty_markers = {"", "未提及", "未明确", "无", "暂无", "—", "-", "N/A", "n/a"}
+    cells = [str(c or "").strip() for c in row]
+    meaningful = [c for c in cells if c not in empty_markers]
+    score = 0
+    score += len(meaningful) * 10
+    score += min(len(re.findall(r"[\u4e00-\u9fff]", text)), 80)
+    score += 12 if re.search(r"\d|月|日|周|前|后|截止|完成|负责人|负责", text) else 0
+    score += 10 if re.search(r"张|王|李|赵|钱|孙|周|吴|郑|陈|林|刘|黄|负责人|团队|部门", text) else 0
+    score += 8 if re.search(r"风险|阻塞|延期|超时|缺口|问题|影响|应对|缓解", text) else 0
+    score -= 30 * sum(1 for c in cells if c in empty_markers)
+    score -= 20 if re.search(r"待确认|不确定|可能|大概|似乎", text) else 0
+    return score, len(text)
 
 
 def _describe_field(index: int, seg: dict) -> str:
@@ -567,7 +639,7 @@ def normalize_fill_tables(
     tables: list[list[list[str]]],
     row_templates: list[dict[str, Any]],
 ) -> list[list[list[str]]]:
-    """通用清洗：对齐列数、去掉整行空白。不截断行数、不判断栏目语义。"""
+    """通用清洗：对齐列数、去掉整行空白；若模板写了行数约束则截断。"""
     out: list[list[list[str]]] = []
     for i, rt in enumerate(row_templates):
         n_cols = max(len(rt.get("fields") or []), 1)
@@ -582,6 +654,15 @@ def normalize_fill_tables(
             if not any(cells):
                 continue
             cleaned.append(cells)
+        limit = _row_limit_for_template(rt)
+        if limit and len(cleaned) > limit:
+            ranked = sorted(
+                enumerate(cleaned),
+                key=lambda item: (_table_row_confidence_score(item[1]), -item[0]),
+                reverse=True,
+            )
+            keep_idx = sorted(idx for idx, _ in ranked[:limit])
+            cleaned = [cleaned[idx] for idx in keep_idx]
         out.append(cleaned)
     return out
 
@@ -699,6 +780,324 @@ def assemble_placeholder_output(
     return "".join(out_lines)
 
 
+# ── 预览模型：占位模板 ↔ 可编辑文档（面向非程序员用户）──────────
+
+def _hint_clean(hint: str) -> str:
+    """占位说明 → 用户可读的灰字提示（去技术化：去「从原文提炼」等长前缀）。
+
+    例：'从原文提炼会议核心讨论与结论，通顺完整句；本段约200字；无则写「未提及」'
+      → '会议核心讨论与结论（约200字；无则写「未提及」）'
+    """
+    text = " ".join((hint or "").split()).strip()
+    for prefix in ("从原文提炼", "根据原文", "从内容来源提炼", "按原文", "从会议原文提炼"):
+        if text.startswith(prefix):
+            text = text[len(prefix):].lstrip("，,；;：:")
+            break
+    # 去掉「通顺完整句」「主谓齐全」等工程化约束
+    text = re.sub(r"[，,；;]\s*(?:通顺完整句|主谓齐全|无缺字漏字|可多句|语句通顺)", "", text)
+    return text.strip() or "待填写"
+
+
+def _hint_short(hint: str) -> str:
+    """占位说明 → 表头短词（取首个顿号/逗号/空格前的短词，≤6 字）。
+
+    例：'任务内容' → '任务'；'负责人姓名' → '负责人'；'截止时间' → '截止时间'
+    """
+    text = _hint_clean(hint)
+    head = re.split(r"[，,；;、\s（(]", text, maxsplit=1)[0].strip()
+    head = re.sub(r"^(?:该|本|此)[栏项条]", "", head).strip()
+    if head and len(head) <= 8:
+        return head
+    # 过长则截断
+    return text[:8] if text else "待填写"
+
+
+def _table_header_cells(row_line: str, template: str) -> list[str]:
+    """从模板中找表格行模板上方的表头行，返回列名列表（找不到返回空）。
+
+    表头行特征：含 `|`、非分隔行（``|---|``）、不含占位符。
+    """
+    lines = (template or "").splitlines()
+    for idx, line in enumerate(lines):
+        if line.rstrip() != row_line:
+            continue
+        # 向上找最近的非空行，且是含 | 的表头行
+        for j in range(idx - 1, -1, -1):
+            up = lines[j].strip()
+            if not up:
+                continue
+            if _TABLE_SEP_RE.match(up):
+                continue
+            if up.count("|") >= 2 and not _line_placeholders(up):
+                cells = [c.strip() for c in up.strip().strip("|").split("|")]
+                return [c for c in cells if c]
+            break
+    return []
+
+
+def template_to_preview(
+    template: str,
+    *,
+    default_rows: int = 2,
+) -> dict[str, Any]:
+    """把占位符模板翻译成**可编辑文档预览模型**（不展示任何模板语法）。
+
+    预览模型（sections 有序段列表）：
+    - ``{"type": "title", "level", "text"}`` —— 固定标题（只读结构，文字可改）
+    - ``{"type": "label", "text"}`` —— 固定标签行（如「- 时间：」，文字可改）
+    - ``{"type": "field", "hint", "value"}`` —— 段落输入区（灰字提示 + 空内容）
+    - ``{"type": "table", "title", "headers", "rows", "row_hint", "min_rows"}``
+      —— 表格（表头 + 可增删数据行，每格灰字提示）
+
+    同时返回 ``char_budget``（全文/段落字数约束，内部用）与 ``template_raw``
+    （回填用，调用方不得展示给用户）。
+    """
+    segments = parse_placeholder_template(template or "")
+    plan = plan_placeholder_fill(template or "")
+    row_lines = {rt["line"].rstrip("\n") for rt in plan["row_templates"]}
+
+    sections: list[dict[str, Any]] = []
+    pending_text: list[str] = []  # 累积的非占位行，成段输出
+
+    def _flush_text() -> None:
+        nonlocal pending_text
+        if not pending_text:
+            return
+        block = "\n".join(pending_text).strip()
+        pending_text = []
+        if not block:
+            return
+        # 表格行模板前的固定文字（表头/分隔行）由表格段处理，这里只留普通文本
+        if re.search(r"^\|.*\|$", block, re.M):
+            # 分离标题行与非表格文字，跳过纯表格线（表头/分隔）
+            lines = block.splitlines()
+            kept = [ln for ln in lines if not re.match(r"^\s*\|.*\|\s*$", ln)]
+            if kept:
+                sections.append(
+                    {"type": "label", "text": "\n".join(kept).strip(), "raw": "\n".join(kept).strip()}
+                )
+            return
+        sections.append({"type": "label", "text": block, "raw": block})
+
+    # 逐行处理：识别表格行模板 → 表格段；其它行 → 标题/标签/字段
+    lines = (template or "").splitlines(keepends=True)
+    table_idx = 0
+    i = 0
+    while i < len(lines):
+        line = lines[i]
+        body = line.rstrip("\n")
+        if body in row_lines and table_idx < len(plan["row_templates"]):
+            _flush_text()
+            rt = plan["row_templates"][table_idx]
+            fields = rt["fields"]
+            # 表头优先取模板表头行（| 任务 | 负责人 |）的真实列名；
+            # 找不到表头行时回退到行占位提示的短词
+            header_cells = _table_header_cells(body, template)
+            if header_cells and len(header_cells) == len(fields):
+                headers = header_cells
+            else:
+                headers = [_hint_short(f["hint"]) for f in fields]
+            # 表格标题：从刚 flush 的 label 段里找最近的 ## 标题行
+            title = ""
+            for j in range(len(sections) - 1, -1, -1):
+                prev = sections[j]
+                if prev["type"] == "title":
+                    title = prev["text"]
+                    break
+                if prev["type"] == "label":
+                    for ln in str(prev.get("text") or "").splitlines():
+                        m = re.match(r"^\s*#{1,6}\s+(.+)$", ln)
+                        if m:
+                            title = m.group(1).strip()
+                            break
+                    if title:
+                        break
+                if prev["type"] in ("field", "table"):
+                    break
+            sections.append(
+                {
+                    "type": "table",
+                    "title": title,
+                    "headers": headers,
+                    "rows": [["" for _ in fields] for _ in range(default_rows)],
+                    "row_hint": [_hint_clean(f["hint"]) for f in fields],
+                    "min_rows": default_rows,
+                    "raw": body,  # 行模板原文，回写用
+                    "raw_fields": [_parse_field(f["raw"]) for f in fields],
+                }
+            )
+            table_idx += 1
+            i += 1
+            continue
+        # 非表格行：检查是否是含字段的行
+        phs = _line_placeholders(body)
+        if phs:
+            _flush_text()
+            if len(phs) == 1 and re.match(r"^\s*#+\s+.*$", body):
+                # 标题行占位（# [标题]）→ 标题段
+                head = re.match(r"^(\s*#+)\s+", body)
+                level = len(head.group(1).strip()) if head else 1
+                sections.append(
+                    {
+                        "type": "title",
+                        "level": min(level, 6),
+                        "text": _hint_clean(phs[0].group(1)),
+                        "raw": body,
+                        "raw_field": _parse_field(phs[0].group(1)),
+                    }
+                )
+            elif len(phs) == 1 and re.search(r"\[[^\[\]]+\]\s*$", body) and not re.search(r"[:：]\s*\[", body):
+                # 单占位在行尾且无冒号 → 段落输入区（如「## 纪要\n[内容]」展开成 field）
+                sections.append(
+                    {
+                        "type": "field",
+                        "hint": _hint_clean(phs[0].group(1)),
+                        "value": "",
+                        "raw": body,
+                        "raw_field": _parse_field(phs[0].group(1)),
+                    }
+                )
+            else:
+                # 行内含标签 + 占位（如「- **时间**：[时间]」）→ label 段 + 纯占位 field 段
+                text_part = body[: phs[0].start()]
+                ph_raw = body[phs[0].start() :]
+                sections.append(
+                    {"type": "label", "text": text_part.rstrip(), "raw": text_part.rstrip()}
+                )
+                sections.append(
+                    {
+                        "type": "field",
+                        "hint": _hint_clean(phs[0].group(1)),
+                        "value": "",
+                        "raw": ph_raw,  # 只保留占位部分，标签由 label 段输出
+                        "raw_field": _parse_field(phs[0].group(1)),
+                    }
+                )
+            i += 1
+            continue
+        # 纯固定文字行
+        pending_text.append(body)
+        i += 1
+    _flush_text()
+
+    try:
+        from tools.template_eval import parse_document_char_budget
+        budget = parse_document_char_budget(template or "")
+    except Exception:  # noqa: BLE001
+        budget = {}
+
+    return {
+        "sections": sections,
+        "char_budget": {
+            "lo": budget.get("lo"),
+            "hi": budget.get("hi"),
+        },
+        "template_raw": template or "",
+    }
+
+
+def preview_to_template(
+    preview: dict[str, Any],
+    *,
+    default_rows: int = 2,
+) -> str:
+    """把用户编辑后的预览模型转回**占位符模板**（回填内容 / 应用结构改动）。
+
+    - 字段段落：用户填的 ``value`` 写回占位（空值保留占位，让生成 agent 填）
+    - 表格：用户加的行展开成多行数据行；表头文字变化时同步改表头行
+    - 标题/标签文字：用户改了就替换原固定文字
+    - 结构增删（新增段落/表格）不在此支持——增量结构变化走
+      ``modify_template``（自然语言修改）；此处负责"同一结构内的内容/文字回写"。
+    """
+    sections = (preview or {}).get("sections") or []
+    out_lines: list[str] = []
+
+    for sec in sections:
+        stype = sec.get("type")
+        if stype == "title":
+            raw = sec.get("raw") or ""
+            text = str(sec.get("text") or "").strip()
+            if raw and re.search(r"\[[^\[\]]+\]", raw):
+                raw_field = sec.get("raw_field") or {}
+                default_text = _hint_clean(
+                    str(raw_field.get("hint") or raw_field.get("raw") or "")
+                )
+                if text and text != default_text:
+                    # 用户确实改了标题 → 固定为用户标题；否则保留占位让生成器填写
+                    level = re.match(r"^(\s*#+)", raw)
+                    prefix = level.group(1) + " " if level else "# "
+                    out_lines.append(f"{prefix}{text}")
+                else:
+                    out_lines.append(raw)
+            else:
+                out_lines.append(raw or text)
+        elif stype == "label":
+            out_lines.append(str(sec.get("raw") or sec.get("text") or ""))
+        elif stype == "field":
+            raw = sec.get("raw") or ""
+            value = str(sec.get("value") or "").strip()
+            raw_field = sec.get("raw_field") or {}
+            if raw and re.search(r"\[[^\[\]]+\]", raw):
+                if value:
+                    # 有内容 → 替换占位为内容；若行内含标签前缀（如「- 时间：」），
+                    # 该前缀由相邻 label 段单独输出，这里只补内容本身
+                    replaced = re.sub(
+                        r"\[[^\[\]]+\]",
+                        value,
+                        raw,
+                        count=1,
+                    )
+                    out_lines.append(replaced)
+                else:
+                    out_lines.append(raw)  # 空 → 保留占位，生成时填
+            else:
+                out_lines.append(value or raw)
+        elif stype == "table":
+            raw = sec.get("raw") or ""
+            headers = [str(h) for h in (sec.get("headers") or [])]
+            rows = sec.get("rows") or []
+            raw_fields = sec.get("raw_fields") or []
+            if raw and raw_fields:
+                # 用用户表头重建表头行 + 分隔行（保持 Markdown 表格形态）
+                n = max(len(raw_fields), len(headers), 1)
+                header_line = "| " + " | ".join(
+                    (headers[i] if i < len(headers) else _hint_clean(
+                        str(raw_fields[i].get("hint") or ""))) for i in range(n)
+                ) + " |"
+                sep_line = "| " + " | ".join("---" for _ in range(n)) + " |"
+                out_lines.append(header_line)
+                out_lines.append(sep_line)
+                cleaned_rows = [
+                    [str(c).strip() for c in (row or [])]
+                    for row in (rows or [])
+                    if any(str(c).strip() for c in (row or []))
+                ]
+                if not cleaned_rows:
+                    out_lines.append(raw)
+                for row in cleaned_rows:
+                    cells = [str(c) for c in (row or [])]
+                    while len(cells) < n:
+                        cells.append("")
+                    out_lines.append("| " + " | ".join(cells[:n]) + " |")
+            else:
+                # 无原始行模板：按表格标题生成简单占位表
+                title = str(sec.get("title") or "").strip()
+                if title:
+                    out_lines.append(f"## {title}")
+                n = max(len(headers), 1)
+                out_lines.append("| " + " | ".join(headers) + " |")
+                out_lines.append("| " + " | ".join("---" for _ in headers) + " |")
+                for row in (rows or [])[: default_rows]:
+                    cells = [str(c) for c in (row or [])]
+                    while len(cells) < n:
+                        cells.append("")
+                    out_lines.append("| " + " | ".join(cells[:n]) + " |")
+        else:
+            out_lines.append(str(sec.get("raw") or sec.get("text") or ""))
+
+    return "\n".join(out_lines).strip()
+
+
 _PLACEHOLDER_FILL_SYSTEM = """你是占位符填充器。根据「内容来源」与「模板原文」填写字段值。
 只输出一个 JSON 对象，不要 Markdown 代码块，不要解释。
 
@@ -731,6 +1130,8 @@ _PLACEHOLDER_FILL_SYSTEM = """你是占位符填充器。根据「内容来源�
 ## 篇幅与信息量（两遍法）
 - 仅「全文合计约 x 字」或模板总述中的全文预算约束**整篇**；占位内「本段约N字 / 100字以内」**只限该栏**
 - 先按各栏主题写全实质内容，再对照各自约束调节；不要用某一段的字数去压缩其它段或表格
+- 当内容多于用户要求：先保留结论、数字、负责人、期限、明确风险/行动等高价值信息，删去寒暄、重复、背景铺垫、低确定性猜测和不影响结论的枝节；压缩后仍要语句完整。
+- 当内容少于用户要求：可以把原文中已出现的相关事实稍作展开、合并上下文说清楚，但**绝对不能编造**原文没有的事实、数字、责任人、期限或评价。
 - 模板写「简洁 / 粗略 / 概要 / 无需深入」时：省略展开论证与次要枝节，但**每栏仍须写清原文中与该栏相关的主要事实与要点**（可多句），禁止每栏只剩一句空泛套话而丢掉可写的关键信息
 - 若存在全文预算：全部字段汉字合计落在区间内；若仅有段落预算：只约束对应字段
 
@@ -749,6 +1150,12 @@ _PLACEHOLDER_FILL_SYSTEM = """你是占位符填充器。根据「内容来源�
 - 列对齐；一行一条数据；人名/公司名等用内容来源原文，禁止沿用「如：」示范名
 - 数字若原文是预计/有望/可能，单元格内保留该语气
 - 无则按默认写法（如「未提及」）
+- 若模板写了「约N行 / N条左右」，最多输出 N 行。候选项多于 N 行时，按置信度和重要性选择：
+  1) 原文明确点名的人/团队/事项/风险优先；
+  2) 有数字、日期、负责人、截止时间、影响、应对措施的优先；
+  3) 与栏目标题高度相关、可直接执行或直接影响结论的优先；
+  4) 信息缺失多、只是泛泛表态、重复或低确定性的候选项后置或删除。
+- 候选项少于 N 行时，不要为了凑行数编造；只输出有依据的行，必要时一行写「未提及」。
 """
 
 
@@ -786,11 +1193,15 @@ def build_placeholder_fill_user(
     lines.append("【表格行模板】→ tables[0], tables[1], ...")
     if plan["row_templates"]:
         for ti, rt in enumerate(plan["row_templates"]):
-            lines.append(f"- tables[{ti}] 行样例：{rt['line'].rstrip()}")
+            limit = _row_limit_for_template(rt)
+            suffix = f"（最多 {limit} 行；候选多时按置信度/重要性取舍）" if limit else ""
+            lines.append(f"- tables[{ti}] 行样例{suffix}：{rt['line'].rstrip()}")
             for i, seg in enumerate(rt["fields"], start=1):
                 lines.append(f"  - 列{i}（{seg['hint']}）")
         lines.append(
-            "各表独立填充；遵守模板原文对体量/条数的要求；节与表之间不要串内容。"
+            "各表独立填充；遵守模板原文对体量/条数的要求；"
+            "候选多时优先保留证据明确、信息完整、对结论/执行影响更大的行；"
+            "候选少时不要编造凑数；节与表之间不要串内容。"
         )
     else:
         lines.append("（无表格行模板，tables 必须为 []）")
@@ -994,7 +1405,9 @@ async def fill_placeholder_template(
                     revision = (
                         f"当前各字段合计约 {han} 字，少于模板约 {lo_i}–{hi_i or lo_i} 字。"
                         "请在保持结构与忠实原文的前提下整体扩写："
-                        "为各节补充原文已有的具体事实、推进与结论，语句通顺完整，"
+                        "只扩充原文已经出现或能由上下文直接支持的事实、推进、原因、影响与结论，"
+                        "把过短的句子解释清楚、合并相关上下文；"
+                        "绝对不要新增原文没有的人名、数字、期限、评价或因果。"
                         "使合计接近区间中位；勿空话注水、勿截断半句、勿写字数说明。"
                     )
                     logger.info(
@@ -1009,7 +1422,8 @@ async def fill_placeholder_template(
                     revision = (
                         f"当前各字段合计约 {han} 字，超过模板上界 {hi_i} 字。"
                         f"请整体压缩改写到约 {target}–{hi_i} 字（不是截断半句）："
-                        "每节改短句、删套话与次要枝节，保留关键结论、数字与归属；"
+                        "每节改短句，删除寒暄、重复、背景铺垫、低确定性猜测和不影响结论的枝节，"
+                        "优先保留关键结论、数字、责任人、期限、风险影响与应对；"
                         "压缩后语句仍须完整通顺；勿改结构、勿虚构。"
                     )
                     logger.info(
@@ -1471,12 +1885,16 @@ def _build_compile_system(
 
 ## 忠实于用户描述（最重要）
 1. 只保留用户点名的结构，不增不减；顺序与用户表述一致
-2. **栏目名 = 固定标题（强制）**：用户点名的每个写作栏目（如用顿号/与/和/及列出的
-   「背景、对象、目的…」）必须写成：
-   ```text
-   ## 栏目名
-   [该栏正文占位说明…]
-   ```
+2. **按用户描述给结构，不为段落/表格额外加栏目包装标题**：
+   - 用户说「第一行是标题」→ 直接 `# [标题占位]`，不要「## 纪要标题：」包装
+   - 用户说「纪要约200字」→ 直接 `[纪要正文占位，约200字]`（一段），不要「## 纪要」标题
+   - 用户说「风险表约3行」→ 直接给表格（表头+分隔+占位行），不要「## 风险识别」标题
+   - 只有当用户**明确用顿号/与/和/及列出多个并列栏目**（如「概括背景、对象、目的」）
+     时，才给每个栏目一个 `## 栏目名` 固定标题：
+     ```text
+     ## 栏目名
+     [该栏正文占位说明…]
+     ```
    - `## 栏目名` 是**固定文字**（用户打开文档能看见的标题），禁止省略
    - 正文只写在标题下方的 `[占位]` 里
    - **禁止**把栏目正文写进一级标题占位：`# [一大段背景…]`（这会导致「没有标题、只有内容」）
@@ -1488,15 +1906,27 @@ def _build_compile_system(
      **禁止**写成「全文合计约200字」（会误伤其它段与表格）
    - **全文级**（少见）：「全文约200字」「整篇200-300字」或句首总起「约200字，概括…」
      且未点名某一段 → 才用「全文合计约200字」，仍只写进占位说明、不写固定文字行
-   - "三行" / "三条" / "以表格展示" → 对应表行或在说明里注明；表格段不要塞全文字数
+   - "三行" / "三条" / "三行左右" / "约3行" + "以表格展示"
+     → **不要真的生成 3 行占位模板**，表格里只保留 1 行数据模板，
+     并把行数写进该表第一列占位说明，如 `[风险描述；约3行]`
+     或 `[任务；约3行]`；表格段不要塞全文字数
    - "简洁 / 粗略" → 写进占位说明，不删栏目
    - **绝对禁止**把字数写成单独一行固定文字（否则会出现在用户正文里）
 
 ## 占位符写法
 - [短中文说明]：填什么 + 从原文哪类信息提炼 + 信息不足怎么办
+- **说明要简短口语、面向非程序员**（如「会议纪要，约200字」「任务内容」「负责人」），
+  不要写「从原文提炼…通顺完整句…」这类长技术句——占位说明会直接显示为
+  用户在预览框里看到的灰字提示，必须像人话
 - 禁止在占位里写具体答案示范（如「如：张三」）
 - 默认空值：用户指定则用用户的，否则「未提及」
 - 不要单独增加一个「字数说明」占位或固定行
+
+## 表格行数
+- 表格永远只写一行占位数据行，作为生成时的行模板。
+- 用户说「三行左右 / 约3行 / 三条左右」时，必须把约束写入该表第一列占位：
+  `| [风险描述；约3行] | [影响] | [应对] |`
+- 禁止为了表达「3行」而复制 3 条占位数据行；否则后续会被当成多个独立表格模板。
 
 ## 描述模糊时的处理
 - 有歧义时按最自然的理解补全，并在占位说明标注「按理解」
@@ -1515,7 +1945,7 @@ def _build_compile_system(
 ```
 
 用户乙（段落级，注意不要写「全文合计」）：
-"分三段输出。第一段是纪要内容，200字左右，第二段是待办事项，以表格展示。第三段是风险提取，以表格展示。"
+"分三段输出。第一段是纪要内容，200字左右，第二段是待办事项，以表格展示，三行左右。第三段是风险提取，以表格展示，三行左右。"
 ```text
 ## 纪要内容
 [从原文提炼会议核心讨论与结论，通顺完整句；本段约200字；无则写「未提及」]
@@ -1523,12 +1953,12 @@ def _build_compile_system(
 ## 待办事项
 | 任务 | 负责人 | 截止时间 |
 | --- | --- | --- |
-| [任务] | [负责人；未提及则写「未提及」] | [截止时间；未提及则写「未提及」] |
+| [任务；约3行] | [负责人；未提及则写「未提及」] | [截止时间；未提及则写「未提及」] |
 
 ## 风险提取
 | 风险描述 | 影响程度 | 应对措施 |
 | --- | --- | --- |
-| [风险] | [影响；未提及则写「未提及」] | [应对；未提及则写「未提及」] |
+| [风险；约3行] | [影响；未提及则写「未提及」] | [应对；未提及则写「未提及」] |
 ```
 错误：把「本段约200字」写成「全文合计约200字」，或把字数约束套到待办/风险表上。
 
@@ -1644,6 +2074,82 @@ def _ensure_document_char_budget_line(source: str, compiled: str) -> str:
     return body[: m.start()] + new_ph + body[m.end() :]
 
 
+def _extract_table_row_limits(source: str) -> dict[str, int]:
+    """从自然语言描述中抽取表格主题的行数约束。"""
+    limits: dict[str, int] = {}
+    if not source:
+        return limits
+    chunks = re.split(r"[。！？!?；;\n]+", source)
+    for chunk in chunks:
+        text = chunk.strip()
+        if not text:
+            continue
+        limit = _table_row_limit_from_text(text)
+        if not limit:
+            continue
+        if re.search(r"风险|阻塞|问题", text):
+            limits["risk"] = limit
+        if re.search(r"待办|行动|任务|下一步|后续", text):
+            limits["action"] = limit
+        if "表" in text or "表格" in text:
+            limits.setdefault("any", limit)
+    return limits
+
+
+def _table_topic_from_context(lines: list[str], idx: int) -> str:
+    """根据表格附近标题/表头猜测主题。"""
+    nearby: list[str] = []
+    for j in range(max(0, idx - 4), min(len(lines), idx + 1)):
+        nearby.append(lines[j])
+    text = "\n".join(nearby)
+    if re.search(r"风险|阻塞|问题", text):
+        return "risk"
+    if re.search(r"待办|行动|任务|负责人|截止|下一步|后续", text):
+        return "action"
+    return "any"
+
+
+def _inject_row_limit_into_table_row(row: str, limit: int) -> str:
+    """把「约N行」写进表格首个占位说明；已有行数说明则不重复写。"""
+    if not row or "[" not in row:
+        return row
+    if _table_row_limit_from_text(row):
+        return row
+
+    def repl(m: re.Match[str]) -> str:
+        inner = m.group(1).strip()
+        if _table_row_limit_from_text(inner):
+            return m.group(0)
+        return f"[{inner}；约{limit}行]"
+
+    return _PLACEHOLDER_RE.sub(repl, row, count=1)
+
+
+def _ensure_table_row_limits(source: str, compiled: str) -> str:
+    """自然语言编译后补强表格行数约束，并折叠重复模板行。"""
+    limits = _extract_table_row_limits(source)
+    if not limits or not compiled:
+        return compiled
+    lines = compiled.splitlines()
+    out: list[str] = []
+    i = 0
+    while i < len(lines):
+        line = lines[i]
+        if _is_table_data_row(line):
+            topic = _table_topic_from_context(lines, i)
+            limit = limits.get(topic) or limits.get("any")
+            row = _inject_row_limit_into_table_row(line, limit) if limit else line
+            out.append(row)
+            # LLM 有时会按「3行」直接复制 3 行占位模板；这里只保留一行模板。
+            i += 1
+            while i < len(lines) and _is_table_data_row(lines[i]):
+                i += 1
+            continue
+        out.append(line)
+        i += 1
+    return "\n".join(out)
+
+
 async def maybe_compile_natural_template(
     text: str,
     *,
@@ -1711,6 +2217,7 @@ async def maybe_compile_natural_template(
                 )
                 continue
             compiled = _ensure_document_char_budget_line(text, compiled)
+            compiled = _ensure_table_row_limits(text, compiled)
             _COMPILE_CACHE[key] = compiled
             _COMPILE_FAIL_COUNTS.pop(key, None)
             return compiled
@@ -1719,6 +2226,7 @@ async def maybe_compile_natural_template(
         if last_compiled and detect_template_kind(last_compiled) == "placeholder":
             soft = check_compile_fidelity(text, last_compiled)
             last_compiled = _ensure_document_char_budget_line(text, last_compiled)
+            last_compiled = _ensure_table_row_limits(text, last_compiled)
             logger.warning(
                 "自然语言模板保真未完全通过，仍采用编译结果（issues=%s）",
                 "；".join(soft) if soft else "n/a",
@@ -1733,6 +2241,343 @@ async def maybe_compile_natural_template(
         _COMPILE_FAIL_COUNTS[key] = _COMPILE_FAIL_COUNTS.get(key, 0) + 1
         logger.warning("自然语言模板编译失败，已按原样处理（原逻辑）", exc_info=True)
         return text
+
+
+_MODIFY_SYSTEM = """你是模板修改器：基于用户**当前模板**与**修改意见**，输出更新后的占位符模板。
+
+## 规则
+
+1. **只改用户点名的地方**：修改意见没提到的段落、表格、标题，一律原样保留（结构、占位说明、字数约束都不动）。
+2. 修改意见提到加/删/改段落、表格列、字数、标题时，按意见调整；没提到的不要自作主张新增栏目。
+3. 沿用占位符写法（`[短说明]`），占位说明保持简短口语（如「会议纪要，约200字」），不要写长技术句。
+4. **不额外加栏目包装标题**：段落/表格直接给内容与占位，不要为「纪要」「风险表」这类内容段
+   自作主张加 `## 纪要` / `## 风险识别` 标题；仅当修改意见明确要求独立栏目标题时才加。
+5. 字数约束作用域：段落级写「本段约N字」，全文级才写「全文合计约N字」；字数只写进占位说明，不写固定文字行。
+6. 表格：保留表头/分隔行/数据行模板；加列就在表头与数据行都加。
+7. 只输出更新后的模板正文，不要解释，不要 Markdown 代码围栏。
+
+【当前模板】
+{template}
+
+【修改意见】
+{instruction}
+"""
+
+
+async def modify_template(
+    template: str,
+    instruction: str,
+    *,
+    domain: str = "",
+    line_name: str = "",
+    schema_hint: str = "",
+) -> str:
+    """自然语言增量修改占位模板：基于当前模板 + 修改意见 → 新模板。
+
+    - 输入不是占位模板或修改意见为空：原样返回
+    - 修改成功：返回新占位模板（带保真检查 + 最多 2 次重试）
+    - 失败：返回原模板（不阻塞，调用方保留当前预览）
+    """
+    if not instruction or not instruction.strip():
+        return template
+    if detect_template_kind(template or "") != "placeholder":
+        return template
+    try:
+        from llm_client import LLMClient  # 延迟 import
+
+        client = LLMClient()
+        ctx = ""
+        if domain or line_name:
+            ctx += f"当前任务上下文：domain={domain or '未知'}，任务线={line_name or '未知'}。\n"
+        if schema_hint.strip():
+            ctx += f"可用的上游内容字段（占位说明对齐这些来源，勿编造其它栏目）：\n{schema_hint.strip()}\n"
+        user = _MODIFY_SYSTEM.format(template=template, instruction=instruction)
+        if ctx:
+            user = ctx + "\n" + user
+        revision = ""
+        last = ""
+        for attempt in range(2):
+            compiled = (
+                await _client_text(
+                    client,
+                    _build_compile_system(
+                        domain=domain,
+                        line_name=line_name,
+                        schema_hint=schema_hint,
+                        revision_notes=revision,
+                    ),
+                    user + (f"\n\n【上次修改未通过保真检查，请修正】\n{revision}" if revision else ""),
+                    temperature=0.0,
+                )
+            ).strip()
+            last = compiled
+            compiled = strip_outer_markdown_fence(compiled)
+            if detect_template_kind(compiled) != "placeholder":
+                revision = "结果缺少 [占位符]：请保留占位符模板形式。"
+                continue
+            fidelity = check_compile_fidelity(instruction, compiled)
+            if fidelity:
+                revision = "\n".join(f"- {x}" for x in fidelity)
+                continue
+            return compiled
+        if detect_template_kind(last) == "placeholder":
+            logger.warning("模板增量修改保真未完全通过，仍采用（issues=%s）",
+                           "；".join(check_compile_fidelity(instruction, last)) or "n/a")
+            return strip_outer_markdown_fence(last)
+        return template
+    except Exception:  # noqa: BLE001 - 修改失败不阻塞
+        logger.warning("模板增量修改失败，保留当前模板", exc_info=True)
+        return template
+
+
+def merge_preview_fill(old_preview: dict[str, Any], new_template: str) -> dict[str, Any]:
+    """增量修改后保留已填内容：按段类型+标题/提示对齐，结构未变段落回填 value。
+
+    - 段落（field）：hint 相同或标题相邻相同 → 保留旧 value
+    - 表格（table）：标题相同且列数相同 → 保留旧 rows；列数变化 → 丢弃（需重填）
+    - 新增段落/表格：空
+    """
+    if not old_preview or not new_template:
+        return template_to_preview(new_template or "")
+    old_sections = (old_preview or {}).get("sections") or []
+    new_preview = template_to_preview(new_template)
+    new_sections = new_preview.get("sections") or []
+
+    old_fields = [s for s in old_sections if s.get("type") == "field"]
+    old_tables = [s for s in old_sections if s.get("type") == "table"]
+
+    field_i = 0
+    table_i = 0
+    for sec in new_sections:
+        stype = sec.get("type")
+        if stype == "field" and field_i < len(old_fields):
+            old = old_fields[field_i]
+            # 结构未变判定：提示语相同（归一化后）
+            if _hint_clean(str(old.get("hint") or "")) == _hint_clean(
+                str(sec.get("hint") or "")
+            ):
+                sec["value"] = old.get("value") or ""
+            field_i += 1
+        elif stype == "table" and table_i < len(old_tables):
+            old = old_tables[table_i]
+            old_headers = [str(h) for h in (old.get("headers") or [])]
+            new_headers = [str(h) for h in (sec.get("headers") or [])]
+            if old_headers == new_headers:
+                sec["rows"] = old.get("rows") or sec.get("rows") or []
+            table_i += 1
+    return new_preview
+
+
+def preview_to_readable(preview: dict[str, Any]) -> str:
+    """把预览模型渲染成**用户可读的填空文档**（不展示任何模板语法）。
+
+    生成形式（占位符翻译成口语提示，用户直接改内容即可）：
+
+    - 标题：``# 会议主题``（普通文档标题）
+    - 段落：``【填这里：会议纪要，约200字】`` —— 用户把它替换成真实内容
+    - 标签行：原样保留（如 ``- 时间：＿＿＿＿``）
+    - 表格：Markdown 表格（用户看得懂），空行用提示文字
+
+    返回值直接作为「可编辑模板」文本框的内容给用户编辑。
+    """
+    sections = (preview or {}).get("sections") or []
+    out: list[str] = []
+    for sec in sections:
+        stype = sec.get("type")
+        if stype == "title":
+            level = int(sec.get("level") or 1)
+            text = str(sec.get("text") or "").strip()
+            if sec.get("raw_field"):
+                # 标题占位（# [主题]）→ 填空提示，反向映射回占位
+                out.append(f"{'#' * min(level, 6)} 【填这里：{text or '标题'}】")
+            else:
+                out.append(f"{'#' * min(level, 6)} {text}")
+        elif stype == "label":
+            out.append(str(sec.get("text") or ""))
+        elif stype == "field":
+            hint = str(sec.get("hint") or "").strip() or "内容"
+            out.append(f"【填这里：{hint}】")
+        elif stype == "table":
+            title = str(sec.get("title") or "").strip()
+            # 去重：label 段可能已输出 ## 标题，比较去 # 后的文字
+            title_norm = re.sub(r"^#+\s*", "", title)
+            if title and not any(
+                re.sub(r"^#+\s*", "", s.strip()) == title_norm for s in out
+            ):
+                out.append(f"## {title}")
+            headers = [str(h) for h in (sec.get("headers") or [])]
+            out.append("| " + " | ".join(headers) + " |")
+            out.append("| " + " | ".join("---" for _ in headers) + " |")
+            rows = sec.get("rows") or []
+            for row in rows[: 8]:
+                cells = [str(c) for c in (row or [])]
+                while len(cells) < len(headers):
+                    cells.append("")
+                out.append("| " + " | ".join(cells) + " |")
+        else:
+            out.append(str(sec.get("text") or ""))
+    return "\n".join(out).strip()
+
+
+def readable_to_template(readable: str, template_raw: str) -> str:
+    """把用户编辑后的**可读文档**还原成占位模板（供渲染/回填）。
+
+    规则：
+    - 用户已把「【填这里：提示】」替换成真实内容 → 内容保留，作为最终渲染输入
+    - 用户没改的「【填这里：提示】」→ 反向映射回 ``[提示]`` 占位，
+      让渲染 agent 按模板语义填充（不泄漏灰字提示到正文）
+    """
+    text = (readable or "").strip()
+    if not text:
+        return template_raw
+    # 反向映射：`【填这里：提示】` → `[提示]`（用户未填的提示转回占位）
+    text = re.sub(
+        r"【填这里：([^】]*)】",
+        lambda m: f"[{m.group(1).strip() or '内容'}]",
+        text,
+    )
+    return text
+
+
+# ── 结构化编辑模型：预览 ↔ 所见即所得编辑组件数据 ──────────────
+
+def preview_to_edit_model(preview: dict[str, Any]) -> dict[str, Any]:
+    """把预览模型转成**结构化编辑组件**的数据（Gradio 渲染所见即所得编辑器用）。
+
+    返回：
+    - ``title``: 文档标题（第一个 # 标题，若存在）
+    - ``paragraphs``: [{label, hint, value}] —— 每个字段段落一个输入框
+      （label = 相邻标题/标签；hint = 灰字提示；value = 用户已填内容）
+    - ``tables``: [{title, headers, rows, row_hint}] —— 每张表一个可编辑表格
+    - ``labels``: [{text}] —— 固定标签行（如「- 时间：」）
+    - ``char_budget``: 字数约束（内部用）
+    - ``template_raw``: 原始占位模板（回填用，不展示）
+    """
+    sections = (preview or {}).get("sections") or []
+    paragraphs: list[dict[str, Any]] = []
+    tables: list[dict[str, Any]] = []
+    labels: list[dict[str, Any]] = []
+    title = ""
+    pending_label = ""  # 段标签与相邻字段的配对
+
+    for sec in sections:
+        stype = sec.get("type")
+        if stype == "title":
+            text = str(sec.get("text") or "").strip()
+            if not title and text:
+                title = text
+            else:
+                labels.append({"text": text})
+        elif stype == "label":
+            text = str(sec.get("text") or "").strip()
+            if text:
+                pending_label = text
+        elif stype == "field":
+            hint = str(sec.get("hint") or "").strip() or "内容"
+            paragraphs.append(
+                {
+                    "label": pending_label or hint[:12],
+                    "hint": hint,
+                    "value": str(sec.get("value") or ""),
+                }
+            )
+            pending_label = ""
+        elif stype == "table":
+            tables.append(
+                {
+                    "title": str(sec.get("title") or "").strip(),
+                    "headers": [str(h) for h in (sec.get("headers") or [])],
+                    "rows": [
+                        [str(c) for c in (row or [])]
+                        for row in (sec.get("rows") or [])
+                    ],
+                    "row_hint": [str(h) for h in (sec.get("row_hint") or [])],
+                }
+            )
+        else:
+            text = str(sec.get("text") or "").strip()
+            if text:
+                labels.append({"text": text})
+
+    return {
+        "title": title,
+        "paragraphs": paragraphs,
+        "tables": tables,
+        "labels": labels,
+        "char_budget": (preview or {}).get("char_budget") or {},
+        "template_raw": (preview or {}).get("template_raw") or "",
+    }
+
+
+def edit_model_to_template(edit_model: dict[str, Any], template_raw: str) -> str:
+    """把用户编辑后的**结构化编辑数据**组装回占位模板（供渲染/回填）。
+
+    - 段落 value 非空 → 作为该段内容（生成时优先）
+    - 表格 rows 有内容 → 作为表格数据行
+    - 空段落/空表格行 → 保留占位（让渲染 agent 填）
+    返回占位模板：已填部分为实际内容，未填部分为 [提示]。
+    """
+    paragraphs = (edit_model or {}).get("paragraphs") or []
+    tables = (edit_model or {}).get("tables") or []
+    title = str((edit_model or {}).get("title") or "").strip()
+    labels = (edit_model or {}).get("labels") or []
+
+    # 用 template_raw 作为骨架，把用户填的段落/表格写回
+    if template_raw and detect_template_kind(template_raw) == "placeholder":
+        preview = template_to_preview(template_raw)
+        sections = preview.get("sections") or []
+        field_i = 0
+        table_i = 0
+        for sec in sections:
+            stype = sec.get("type")
+            if stype == "field" and field_i < len(paragraphs):
+                sec["value"] = paragraphs[field_i].get("value") or ""
+                field_i += 1
+            elif stype == "table" and table_i < len(tables):
+                t = tables[table_i]
+                headers = [str(h) for h in (t.get("headers") or [])]
+                n = len(headers)
+                rows = [
+                    [str(c) for c in (row or [])] for row in (t.get("rows") or [])
+                ]
+                rows = [r[:n] + [""] * (n - len(r)) if len(r) < n else r[:n] for r in rows]
+                sec["rows"] = rows
+                table_i += 1
+        # 标题/标签文字更新
+        title_done = False
+        for sec in sections:
+            if sec.get("type") == "title" and not title_done and title:
+                sec["text"] = title
+                title_done = True
+        return preview_to_template(preview)
+
+    # 无原始模板：从编辑模型直接组装（标题 + 段落 + 表格）
+    out: list[str] = []
+    if title:
+        out.append(f"# [{title or '标题'}]")
+    for label in labels:
+        text = str(label.get("text") or "").strip()
+        if text:
+            out.append(text)
+    for para in paragraphs:
+        hint = str(para.get("hint") or "").strip() or "内容"
+        value = str(para.get("value") or "").strip()
+        out.append(value if value else f"[{hint}]")
+    for t in tables:
+        t_title = str(t.get("title") or "").strip()
+        headers = [str(h) for h in (t.get("headers") or [])]
+        if t_title:
+            out.append(f"## {t_title}")
+        out.append("| " + " | ".join(headers) + " |")
+        out.append("| " + " | ".join("---" for _ in headers) + " |")
+        rows = t.get("rows") or []
+        if rows:
+            for row in rows:
+                cells = [str(c) for c in (row or [])]
+                while len(cells) < len(headers):
+                    cells.append("")
+                out.append("| " + " | ".join(cells[: len(headers)]) + " |")
+    return "\n".join(out).strip()
 
 
 # 任务线 → 编译时内容字段提示（非 domain 硬依赖，仅字符串表）
@@ -1758,18 +2603,26 @@ __all__ = [
     "check_compile_fidelity",
     "clear_compile_caches",
     "detect_template_kind",
+    "edit_model_to_template",
     "extract_description_cues",
     "extract_listed_aspects",
     "fill_placeholder_template",
     "is_router_enabled",
     "maybe_compile_natural_template",
+    "merge_preview_fill",
+    "modify_template",
     "normalize_fill_tables",
     "parse_fill_response",
     "parse_placeholder_template",
     "plan_placeholder_fill",
+    "preview_to_edit_model",
+    "preview_to_readable",
+    "preview_to_template",
+    "readable_to_template",
     "route_template",
     "split_spec_template",
     "strip_char_budget_meta",
     "strip_outer_markdown_fence",
+    "template_to_preview",
     "validate_rendered_output",
 ]

@@ -118,6 +118,9 @@ def save_report_artifacts(
     # has_template：仅当显式走过门禁（True/False）时视为有模板约束
     has_template = gate_ok is not None
     if should_write_result_md(gate_ok, has_template=has_template):
+        md_path = out_dir / f"result_{timestamp}.md"
+        md_path.write_text(text, encoding="utf-8")
+        paths["text"] = md_path
         if ctx.name == "meeting" and line_name == "minutes_generation":
             from tools.memory.citations import memory_review_html
 
@@ -134,19 +137,11 @@ def save_report_artifacts(
                 encoding="utf-8",
             )
             paths["html"] = html_path
-        else:
-            md_path = out_dir / f"result_{timestamp}.md"
-            md_path.write_text(text, encoding="utf-8")
-            paths["text"] = md_path
     elif gate_ok is False:
         rej = out_dir / f"result_{timestamp}_rejected.md"
-        header = (
-            "<!-- 强执行门禁未通过：本文件不作为正式 result，仅供排查 -->\n"
-        )
-        warn = data.get("quality_warning") or ""
-        if warn:
-            header += f"<!-- {warn} -->\n\n"
-        rej.write_text(header + text, encoding="utf-8")
+        # 门禁失败：不写正式 result.md；落盘内容保持干净（无内部注释标记，
+        # 避免下载后展示给用户时出现「强执行门禁未通过」等排查信息）
+        rej.write_text(text, encoding="utf-8")
         paths["rejected"] = rej
         logger.warning(
             "门禁失败，已写入 rejected 文本而非 result.md：%s", rej

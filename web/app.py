@@ -28,6 +28,9 @@ from tools.template_router import (  # noqa: E402
     LINE_SCHEMA_HINTS,
     detect_template_kind,
     maybe_compile_natural_template,
+    preview_to_readable,
+    readable_to_template,
+    template_to_preview,
 )
 
 
@@ -228,15 +231,19 @@ def _png_previews(files: list[str]) -> list[str]:
 def _md_preview_text(files: list[str]) -> str:
     """收集本次生成的 .md 内容，供页面预览（优先 result_*.md）。"""
     paths: list[Path] = []
+    rejected: list[Path] = []
     for file in files or []:
         path = Path(file)
         if path.suffix.lower() != ".md":
             continue
-        if "_rejected" in path.name:
-            continue
         if not path.is_file():
             continue
-        paths.append(path)
+        if "_rejected" in path.name:
+            rejected.append(path)
+        else:
+            paths.append(path)
+    if not paths:
+        paths = rejected
     if not paths:
         return ""
     paths.sort(
@@ -349,16 +356,23 @@ def _mime_type(path: Path) -> str:
 
 
 def _artifact_download_html(files: list[str]) -> str:
-    if not files:
+    visible_files = [
+        file
+        for file in (files or [])
+        if Path(file).is_file()
+    ]
+    if not visible_files:
         return '<p class="dl-empty">暂无生成文件</p>'
     rows = ['<ul class="dl-list">']
-    for file in files:
+    for file in visible_files:
         path = Path(file)
         try:
             payload = base64.b64encode(path.read_bytes()).decode("ascii")
         except OSError:
             continue
         clean_name = _clean_filename(path.name)
+        if "_rejected" in path.name:
+            clean_name = clean_name.replace("_rejected", "_草稿")
         suffix = path.suffix.lower().lstrip(".") or "file"
         href = f"data:{_mime_type(path)};base64,{payload}"
         rows.append(
@@ -371,6 +385,15 @@ def _artifact_download_html(files: list[str]) -> str:
         )
     rows.append("</ul>")
     return "\n".join(rows)
+
+
+def _download_files_update(files: list[str] | None = None):
+    visible_files = [
+        file
+        for file in (files or [])
+        if Path(file).is_file()
+    ]
+    return gr.update(value=visible_files, visible=bool(visible_files))
 
 
 def _domain_value(value: str) -> str:
@@ -386,17 +409,215 @@ EMPTY_DOWNLOAD = '<p class="dl-empty">暂无生成文件</p>'
 EMPTY_MD = gr.update(value="", visible=False)
 EMPTY_GALLERY = gr.update(value=[], visible=False)
 EMPTY_REVIEW = gr.update(value="", visible=False)
+EMPTY_FILES = gr.update(value=[], visible=False)
+
+def _friendly_template_state(template: str, *, source_kind: str = "placeholder") -> dict:
+    """把占位模板转成用户友好的可编辑文本和隐藏状态。"""
+    preview = template_to_preview(template, default_rows=1)
+    readable = preview_to_readable(preview)
+    return {
+        "template_raw": template,
+        "source_kind": source_kind,
+        "readable_template": _display_readable_template(readable),
+    }
 
 
-def _hitl_ui(show_editor: bool, editor_value: str = ""):
-    """可编辑模板区（Group）+ 运行按钮文案 的联动状态。"""
-    compiled = gr.update(value=editor_value if show_editor else "")
+def _display_readable_template(readable: str) -> str:
+    """把内部可读模板再转成更像普通表单的展示文本。"""
+    out: list[str] = []
+    lines = (readable or "").splitlines()
+    i = 0
+    while i < len(lines):
+        line = lines[i]
+        stripped = line.strip()
+        if stripped.startswith("# "):
+            out.append("标题：" + stripped[2:].strip())
+            i += 1
+            continue
+        if stripped.startswith("## "):
+            out.append(stripped[3:].strip())
+            i += 1
+            continue
+        if stripped.startswith("### "):
+            out.append(stripped[4:].strip())
+            i += 1
+            continue
+        if (
+            stripped.startswith("|")
+            and i + 1 < len(lines)
+            and lines[i + 1].strip().startswith("|")
+            and "---" in lines[i + 1]
+        ):
+            headers = [c.strip() for c in stripped.strip("|").split("|")]
+            # 面向普通用户只展示一行可编辑表格入口；内部模板行数约束
+            # 由占位说明（如「约3行」）和生成阶段硬截断负责。
+            out.append("第1行：" + "；".join(f"{h}：" for h in headers))
+            i += 2
+            while i < len(lines) and lines[i].strip().startswith("|"):
+                i += 1
+            continue
+        out.append(line)
+        i += 1
+    return "\n".join(out).strip()
+
+
+def _restore_display_template(display_text: str, template_raw: str) -> str:
+    """把展示文本恢复为 readable_to_template 能理解的轻 Markdown 结构。"""
+    heading_levels: dict[str, str] = {}
+    table_headers_by_title: dict[str, list[str]] = {}
+    for line in (template_raw or "").splitlines():
+        m = re.match(r"^(#{1,6})\s+(.+?)\s*$", line.strip())
+        if m:
+            text = re.sub(r"\[[^\[\]]+\]", "", m.group(2)).strip(" ：:")
+            if text:
+                heading_levels[text] = m.group(1)
+    raw_lines = (template_raw or "").splitlines()
+    current_title = ""
+    for idx, line in enumerate(raw_lines):
+        hm = re.match(r"^#{1,6}\s+(.+?)\s*$", line.strip())
+        if hm:
+            current_title = re.sub(r"\[[^\[\]]+\]", "", hm.group(1)).strip(" ：:")
+            continue
+        if (
+            line.strip().startswith("|")
+            and idx + 1 < len(raw_lines)
+            and raw_lines[idx + 1].strip().startswith("|")
+            and "---" in raw_lines[idx + 1]
+            and current_title
+        ):
+            headers = [c.strip() for c in line.strip().strip("|").split("|")]
+            if headers:
+                table_headers_by_title[current_title] = headers
+
+    out: list[str] = []
+    current_title = ""
+    pending_table: list[str] = []
+
+    def flush_table() -> None:
+        nonlocal pending_table
+        if not pending_table or current_title not in table_headers_by_title:
+            pending_table = []
+            return
+        headers = table_headers_by_title[current_title]
+        out.append("| " + " | ".join(headers) + " |")
+        out.append("| " + " | ".join("---" for _ in headers) + " |")
+        for row in pending_table:
+            body = row.split("：", 1)[1] if "：" in row else row
+            values: dict[str, str] = {}
+            for part in re.split(r"[；;]", body):
+                if "：" in part:
+                    k, v = part.split("：", 1)
+                    values[k.strip()] = v.strip()
+            out.append("| " + " | ".join(values.get(h, "") for h in headers) + " |")
+        pending_table = []
+
+    for idx, line in enumerate((display_text or "").splitlines()):
+        stripped = line.strip()
+        if re.match(r"^第\d+行[:：]", stripped):
+            pending_table.append(stripped)
+            continue
+        flush_table()
+        if idx == 0 and stripped.startswith("标题："):
+            out.append("# " + stripped.split("：", 1)[1].strip())
+            continue
+        if stripped in heading_levels:
+            current_title = stripped
+            out.append(f"{heading_levels[stripped]} {stripped}")
+            continue
+        out.append(line)
+    flush_table()
+    return "\n".join(out).strip()
+
+
+def _readable_to_generation_template(readable: str, template_raw: str) -> str:
+    """友好模板回写成生成模板，并把未填写的空表格行恢复为占位行。"""
+    restored = _restore_display_template(readable, template_raw)
+    rendered = readable_to_template(restored, template_raw)
+    if not template_raw or not rendered:
+        return rendered
+
+    raw_lines = template_raw.splitlines()
+    table_patterns: list[tuple[str, str, str, int]] = []
+    for i, line in enumerate(raw_lines):
+        if "|" not in line or "[" not in line:
+            continue
+        if i < 2:
+            continue
+        header = raw_lines[i - 2].strip()
+        sep = raw_lines[i - 1].strip()
+        row = line.strip()
+        if header.count("|") >= 2 and sep.count("|") >= 2 and row.count("|") >= 2:
+            cols = len([c for c in row.strip("|").split("|")])
+            table_patterns.append((header, sep, row, cols))
+
+    if not table_patterns:
+        return rendered
+
+    out: list[str] = []
+    lines = rendered.splitlines()
+    i = 0
+    while i < len(lines):
+        matched = False
+        for header, sep, raw_row, cols in table_patterns:
+            if (
+                i + 2 < len(lines)
+                and lines[i].strip() == header
+                and lines[i + 1].strip() == sep
+            ):
+                out.extend([lines[i], lines[i + 1]])
+                i += 2
+                saw_data = False
+                inserted_placeholder = False
+                while i < len(lines) and lines[i].count("|") >= 2:
+                    cells = [c.strip() for c in lines[i].strip().strip("|").split("|")]
+                    if len(cells) == cols and not any(cells):
+                        if not saw_data and not inserted_placeholder:
+                            out.append(raw_row)
+                            inserted_placeholder = True
+                        i += 1
+                        continue
+                    saw_data = True
+                    out.append(lines[i])
+                    i += 1
+                matched = True
+                break
+        if not matched:
+            out.append(lines[i])
+            i += 1
+    return "\n".join(out).strip()
+
+
+def _hitl_ui(
+    show_editor: bool,
+    editor_value: dict | str | None = None,
+):
+    """可编辑友好模板区 + 运行按钮联动。
+
+    editor_value 兼容两种：
+    - dict：包含 template_raw / readable_template 的状态
+    - str：占位模板 → 自动转用户友好模板
+    """
+    state: dict | None = None
+    readable = ""
+    if show_editor:
+        if isinstance(editor_value, dict):
+            state = dict(editor_value)
+            readable = str(state.get("readable_template") or "")
+        elif isinstance(editor_value, str) and editor_value.strip():
+            try:
+                state = _friendly_template_state(editor_value)
+                readable = str(state.get("readable_template") or "")
+            except Exception:  # noqa: BLE001
+                state = None
+                readable = ""
     wrap = gr.update(visible=show_editor)
+    friendly = gr.update(value=readable, visible=show_editor)
+    state_update = gr.update(value=state)
     run_btn = gr.update(
         value="确认模板并运行" if show_editor else "运行",
         interactive=True,
     )
-    return compiled, wrap, run_btn
+    return (friendly, state_update, wrap, run_btn)
 
 
 def begin_run():
@@ -411,10 +632,10 @@ def begin_run():
 
 
 def clear_compiled_template():
-    """清除可编辑模板，回到第一步（可重新从自然语言编译）。"""
+    """清除可编辑预览，回到第一步（可重新从自然语言编译）。"""
     return (
-        "已清除可编辑模板。若上方仍是自然语言描述，下次点击「运行」会重新编译。",
-        *_hitl_ui(False),
+        "已清除可编辑预览。若上方仍是自然语言描述，下次点击「运行」会重新编译。",
+        *_hitl_ui(False, ""),
     )
 
 
@@ -425,6 +646,7 @@ def clear_results_only():
         EMPTY_GALLERY,
         EMPTY_REVIEW,
         EMPTY_MD,
+        EMPTY_FILES,
         EMPTY_DOWNLOAD,
     )
 
@@ -436,6 +658,7 @@ def reset_form():
         EMPTY_GALLERY,
         EMPTY_REVIEW,
         EMPTY_MD,
+        EMPTY_FILES,
         EMPTY_DOWNLOAD,
         gr.update(value=None),
         "",
@@ -466,6 +689,7 @@ def _run_result(log, files_or_none=None, *hitl, files_html: str | None = None):
         _gallery_update(files),
         _memory_review_update(files),
         _md_update(files),
+        _download_files_update(files),
         files_html if files_html is not None else _artifact_download_html(files),
         *hitl,
         *unlock,
@@ -479,16 +703,18 @@ def run_from_ui(
     input_text: str | None,
     template_upload,
     template_text: str | None,
-    compiled_template: str | None,
-    mode_value: str | None,
-    user_id: str | None,
-    project_id: str | None,
-    subject: str | None,
-    keypoints_upload,
-    keypoints_text: str | None,
-    notes_upload,
-    notes_text: str | None,
+    edit_state: dict | None,
+    readable_template: str | None,
+    *preview_args,
+    **kwargs,
 ):
+    """run_from_ui：*preview_args 承载模式/用户参数。
+
+    Gradio 按位置传参（不会自动聚合 list），这里手动拆分：
+    preview_args = [mode, user_id, project_id, subject, kp_upload, kp_text, notes_upload, notes_text]
+    """
+    mode_value, user_id, project_id, subject = preview_args[:4]
+    keypoints_upload, keypoints_text, notes_upload, notes_text = preview_args[4:8]
     domain = _domain_value(domain_label)
     if not task_label:
         return _run_result(
@@ -538,8 +764,8 @@ def run_from_ui(
         show_editor = False
         if tasks[0] != "minutes_trace":
             # ── 模板处理（Human-in-the-loop）────────────────────────────
-            # 1) 自然语言：先编译成易读模板 → 展示给人改 → 本次不跑任务
-            # 2) 人已改编译框 / 直接给了占位符或格式模板：用该模板真正运行
+            # 1) 自然语言：先编译成可编辑预览 → 展示给人填/改 → 确认后运行
+            # 2) 已确认（edit_state 存在）：把用户友好模板还原成最终模板
             template_source = ""
             if template_upload is not None:
                 uploaded = _uploaded_path(template_upload)
@@ -548,16 +774,16 @@ def run_from_ui(
             if not template_source:
                 template_source = (template_text or "").strip()
 
-            confirmed = (compiled_template or "").strip()
-            editor_value = confirmed  # 运行后仍回填编辑框，避免 HITL 状态丢失
-            show_editor = bool(confirmed)
+            show_editor = bool(edit_state)
 
-            # 情况 A：下方「可编辑模板」已有内容 → 用户已确认/修改，真正跑任务
-            if confirmed:
-                final_template = confirmed
-                show_editor = True
-                editor_value = confirmed
-            # 情况 B：源模板是自然语言 → 只编译展示，不跑任务
+            # 情况 A：已有编辑模型（用户确认过预览）→ 合并组件值 → 组装最终模板
+            if show_editor:
+                readable = (readable_template or "").strip()
+                base_template = (edit_state or {}).get("template_raw") or ""
+                final_template = _readable_to_generation_template(readable, base_template)
+                editor_value = dict(edit_state or {})
+                editor_value["readable_template"] = readable
+            # 情况 B：源模板是自然语言 → 编译并渲染成可编辑预览，不停下等编辑
             elif template_source and detect_template_kind(template_source) == "natural":
                 try:
                     compiled = asyncio.run(
@@ -581,28 +807,32 @@ def run_from_ui(
                     or detect_template_kind(compiled) != "placeholder"
                 ):
                     return _run_result(
-                        "未能编译为可编辑模板。请写得更具体一些，例如：\n"
+                        "未能理解这段描述，请写得更具体一些，例如：\n"
                         "「约400字；第一行标题；纪要约200字；风险表约3行；待办表约3行」\n"
-                        "也可直接粘贴带 [占位符] 的 Markdown 模板后再运行。",
+                        "也可直接粘贴现成模板后再运行。",
                         None,
                         *_hitl_ui(False),
                         files_html=EMPTY_DOWNLOAD,
                     )
+                # 占位模板 → 用户友好的编辑模型，进入确认状态
+                editor_value = _friendly_template_state(
+                    compiled,
+                    source_kind="natural",
+                )
                 return _run_result(
-                    "【第 1 步完成】自然语言已编译为可编辑模板（见左侧灰框）。\n"
-                    "请检查/修改固定文字与 [占位符] 说明，满意后点击「确认模板并运行」。\n"
-                    "本次只完成编译，尚未生成结果。",
+                    "已按您的描述生成【可编辑预览】。\n"
+                    "请直接修改左侧这份友好模板；满意后点「确认模板并运行」。",
                     None,
-                    *_hitl_ui(True, compiled),
+                    *_hitl_ui(True, editor_value),
                     files_html=EMPTY_DOWNLOAD,
                 )
             # 情况 C：占位符 / 格式规范 / 空模板 → 直接运行
             else:
                 final_template = template_source
-                # 占位符模板也放进编辑框，方便下一轮微调
+                # 占位符模板也渲染成可编辑预览，方便用户看懂再确认
                 if final_template and detect_template_kind(final_template) == "placeholder":
                     show_editor = True
-                    editor_value = final_template
+                    editor_value = _friendly_template_state(final_template)
 
         templates: dict[str, Path] = {}
         if final_template:
@@ -640,8 +870,14 @@ def run_from_ui(
 
     log = f"【视角】客观全员（前端不展示画像）\n{log}"
     if files:
+        rejected_only = files and all("_rejected" in Path(file).name for file in files)
+        file_note = (
+            "已生成草稿文件，可在右侧预览或下载。"
+            if rejected_only
+            else f"已生成 {len(files)} 个文件，可在右侧预览或下载。"
+        )
         log = (
-            f"{log}\n\n已生成 {len(files)} 个文件，可在右侧预览或下载。\n"
+            f"{log}\n\n{file_note}\n"
             "再测：改输入/画像后直接再点「运行」即可（无需刷新）；"
             "右侧会换成新结果。仅想清屏可用「清空当前结果」，从头填表用「重置表单」。"
         )
@@ -1376,6 +1612,16 @@ button.secondary:hover {
   color: #1c1b19 !important;
   border-radius: 6px !important;
 }
+#friendly-template textarea {
+  background: #fbfaf7 !important;
+  border: 1px solid #d4d0c6 !important;
+  border-radius: 6px !important;
+  color: #1c1b19 !important;
+  min-height: 14rem !important;
+  line-height: 1.55 !important;
+  font-size: 0.9rem !important;
+  font-family: inherit !important;
+}
 #clear-tpl-btn {
   margin-top: 2px !important;
 }
@@ -1734,19 +1980,24 @@ def build_app() -> gr.Blocks:
                     with gr.Group(visible=False, elem_id="compiled-wrap") as compiled_wrap:
                         gr.HTML(
                             '<p class="step-banner">'
-                            "<strong>可编辑模板</strong>　可改；确认后运行；清除后可重编。"
+                            "<strong>可编辑模板</strong>　这是按自然语言生成的友好模板，"
+                            "可直接在下方改文字、增删行；"
+                            "满意后点「确认模板并运行」。"
                             "</p>"
                         )
-                        compiled_template = gr.Textbox(
+                        friendly_template = gr.Textbox(
                             label="可编辑模板",
                             lines=10,
                             max_lines=40,
-                            elem_id="compiled-tpl",
-                            placeholder="编译结果出现在这里，可直接编辑。",
-                            show_label=True,
+                            visible=True,
+                            elem_id="friendly-template",
+                            placeholder="自然语言模板生成后会显示在这里。",
+                            interactive=True,
                         )
+                        # 隐藏状态：保存原始占位模板，用于把友好模板还原后生成纪要
+                        edit_state = gr.State(value=None)
                         clear_tpl_btn = gr.Button(
-                            "清除可编辑模板",
+                            "清除预览",
                             variant="secondary",
                             elem_id="clear-tpl-btn",
                             size="sm",
@@ -1780,13 +2031,31 @@ def build_app() -> gr.Blocks:
                     visible=False,
                     elem_id="img-gallery",
                 )
+                download_files = gr.File(
+                    label="下载文件",
+                    file_count="multiple",
+                    visible=False,
+                    elem_id="download-files",
+                )
                 files_output = gr.HTML(
                     label="文件",
                     value=EMPTY_DOWNLOAD,
                 )
 
-        hitl_outputs = [compiled_template, compiled_wrap, run_button]
-        result_outputs = [log_output, image_output, memory_review, md_preview, files_output]
+        hitl_outputs = [
+            friendly_template,
+            edit_state,
+            compiled_wrap,
+            run_button,
+        ]
+        result_outputs = [
+            log_output,
+            image_output,
+            memory_review,
+            md_preview,
+            download_files,
+            files_output,
+        ]
         side_btns = [clear_results_btn, reset_form_btn, clear_tpl_btn]
         domain.change(
             update_domain,
@@ -1827,7 +2096,8 @@ def build_app() -> gr.Blocks:
                 input_text,
                 template_upload,
                 template_text,
-                compiled_template,
+                edit_state,
+                friendly_template,
                 mode_dropdown,
                 user_id,
                 project_id,

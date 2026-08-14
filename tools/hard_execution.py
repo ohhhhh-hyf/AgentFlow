@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import json
 import logging
+import re
 from typing import Any
 
 from tools.template_eval import (
@@ -144,6 +145,22 @@ def _row_nonempty(row_line: str) -> bool:
     return bool(meaningful)
 
 
+def _row_confidence_score(row_line: str) -> tuple[int, int]:
+    cells = [c.strip() for c in row_line.strip().strip("|").split("|")]
+    text = " ".join(cells)
+    empty_markers = {"", "未提及", "未明确", "无", "暂无", "—", "-", "N/A", "n/a"}
+    meaningful = [c for c in cells if c not in empty_markers]
+    score = 0
+    score += len(meaningful) * 10
+    score += min(len(re.findall(r"[\u4e00-\u9fff]", text)), 80)
+    score += 12 if re.search(r"\d|月|日|周|前|后|截止|完成|负责人|负责", text) else 0
+    score += 10 if re.search(r"张|王|李|赵|钱|孙|周|吴|郑|陈|林|刘|黄|负责人|团队|部门", text) else 0
+    score += 8 if re.search(r"风险|阻塞|延期|超时|缺口|问题|影响|应对|缓解", text) else 0
+    score -= 30 * sum(1 for c in cells if c in empty_markers)
+    score -= 20 if re.search(r"待确认|不确定|可能|大概|似乎", text) else 0
+    return score, len(text)
+
+
 def apply_table_row_limits(text: str, template: str) -> tuple[str, list[str]]:
     """按模板约束硬截断表行、去掉空行；空表写一行占位。
 
@@ -177,8 +194,14 @@ def apply_table_row_limits(text: str, template: str) -> tuple[str, list[str]]:
         raw_rows = t["rows"]
         nonempty = [r for r in raw_rows if _row_nonempty(r)]
         if isinstance(limit, int) and limit > 0 and len(nonempty) > limit:
-            notes.append(f"「{title}」硬截断：{len(nonempty)}→{limit} 行")
-            nonempty = nonempty[:limit]
+            notes.append(f"「{title}」按置信度取舍：{len(nonempty)}→{limit} 行")
+            ranked = sorted(
+                enumerate(nonempty),
+                key=lambda item: (_row_confidence_score(item[1]), -item[0]),
+                reverse=True,
+            )
+            keep_idx = sorted(idx for idx, _ in ranked[:limit])
+            nonempty = [nonempty[idx] for idx in keep_idx]
         if not nonempty:
             # 按表头列数生成占位行
             cols = [c.strip() for c in t["header"].strip().strip("|").split("|")]
@@ -261,7 +284,7 @@ def enforce_render_output(
     # 截断后行数超出类问题应消失，过滤已被强制处理的
     remaining = []
     for issue in list(dict.fromkeys(struct + eval_issues)):
-        if "超出" in issue and any("硬截断" in n for n in notes):
+        if "超出" in issue and any(("硬截断" in n or "取舍" in n) for n in notes):
             continue
         remaining.append(issue)
     return text, notes, remaining

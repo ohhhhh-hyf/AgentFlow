@@ -319,15 +319,21 @@ def extract_template_table_constraints(template: str) -> list[dict[str, Any]]:
             # 找带占位符的数据行模板
             j = i + 2
             has_ph = False
+            row_hint_text = ""
             while j < len(lines) and _is_table_row(lines[j]):
                 if "[" in lines[j] and "]" in lines[j]:
                     has_ph = True
+                    row_hint_text += "\n" + lines[j]
                 j += 1
             if has_ph:
                 ctx = last_heading_full + "\n" + last_heading
                 # 标题上下两行也扫一下
                 window = "\n".join(lines[max(0, i - 3) : i + 1])
-                row_limit = parse_row_hint(ctx) or parse_row_hint(window)
+                row_limit = (
+                    parse_row_hint(ctx)
+                    or parse_row_hint(window)
+                    or parse_row_hint(row_hint_text)
+                )
                 constraints.append(
                     {
                         "section_title": last_heading,
