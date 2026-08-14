@@ -191,7 +191,7 @@ class LLMClient:
                 try:
                     resp = json.loads(raw)
                     self._record_usage(resp.get("usage"), count_call=True)
-                    return resp["choices"][0]["message"]["content"]
+                    return resp["choices"][0]["message"].get("content") or ""
                 except (json.JSONDecodeError, KeyError, IndexError, TypeError) as exc:
                     raise RuntimeError(
                         f"{label} API 返回非标准响应：{raw[:200]!r}"
@@ -307,7 +307,7 @@ class LLMClient:
             },
             "stream_options": {
                 "include_usage": True,
-                "debug_usage": True,
+                "debug_usage": False,
             },
             "temperature": self.temperature,
             "top_p": self.top_p,
@@ -439,9 +439,29 @@ class LLMClient:
             yield item
 
     @staticmethod
+    def _extract_json_payload(content: str) -> str:
+        """去掉围栏/前后废话，只保留第一个 JSON 对象或数组。"""
+        text = (content or "").strip()
+        if text.startswith("```"):
+            text = text.split("\n", 1)[-1]
+            fence = text.rfind("```")
+            if fence >= 0:
+                text = text[:fence].strip()
+            if text[:4].lower() == "json":
+                text = text[4:].lstrip()
+        if text.startswith("{") or text.startswith("["):
+            return text
+        start = text.find("{")
+        end = text.rfind("}")
+        if start >= 0 and end > start:
+            return text[start : end + 1]
+        return text
+
+    @staticmethod
     def _parse_and_validate(content: str, response_model: type[T]) -> T:
+        payload = LLMClient._extract_json_payload(content)
         try:
-            data = json.loads(content)
+            data = json.loads(payload)
         except json.JSONDecodeError as exc:
             raise OutputValidationError(f"不是合法 JSON：{exc}") from exc
         return validate_payload(response_model, data)
@@ -497,6 +517,12 @@ class LLMClient:
                     raise
                 await self._retry_delay(attempt)
                 continue
+            if not (last_content or "").strip():
+                last_error = "模型返回空正文"
+                if attempt < self.max_retries:
+                    await self._retry_delay(attempt)
+                    continue
+                break
             try:
                 return self._parse_and_validate(last_content, response_model)
             except OutputValidationError as exc:
@@ -515,6 +541,11 @@ class LLMClient:
                             },
                         ]
                     )
+
+        if not (last_content or "").strip():
+            raise RuntimeError(
+                f"{response_model.__name__} 输出无法满足结构契约：模型返回空正文"
+            )
 
         from schema_repair import SchemaRepairAgent
 
