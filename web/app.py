@@ -12,7 +12,6 @@ import sys
 import re
 import tempfile
 from pathlib import Path
-from typing import Any
 
 import gradio as gr
 
@@ -21,6 +20,7 @@ PROJECT_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(PROJECT_ROOT))
 
 from llm_client.config import load_env  # noqa: E402
+from tools.memory.runtime import MEMORY_LINES  # noqa: E402
 from tools.runtime_context import load_domain  # noqa: E402
 from tools.runner import run  # noqa: E402
 from tools.memory.citations import memory_review_html as render_memory_review_html  # noqa: E402
@@ -42,20 +42,16 @@ DOMAIN_LABELS = {
 DOMAIN_CHOICES = [(DOMAIN_LABELS[name], name) for name in DOMAIN_NAMES]
 DOMAIN_BY_LABEL = {label: name for name, label in DOMAIN_LABELS.items()}
 
-# 视角模式：默认客观全员；可切换个人视角做多视角裁剪
-PERSPECTIVE_PERSONAL = "personal"
 PERSPECTIVE_OBJECTIVE = "objective"
-PERSPECTIVE_CHOICES = [
-    ("客观全员（不绑定个人）", PERSPECTIVE_OBJECTIVE),
-    ("个人视角（按用户画像裁剪）", PERSPECTIVE_PERSONAL),
-]
+PERSPECTIVE_PERSONAL = "personal"
 
 
 def _ctx(domain: str):
     return load_domain(domain, PROJECT_ROOT)
 
 
-def _task_choices(domain: str) -> list[str]:
+def _task_choices(domain: str) -> list[tuple[str, str]]:
+    """任务标签：(中文名, 线名)，Radio 回传线名。"""
     ctx = _ctx(domain)
     ordered: list[str] = []
     for line in ctx.line_cn_names:
@@ -64,10 +60,7 @@ def _task_choices(domain: str) -> list[str]:
     for line in ctx.task_lines:
         if line not in ordered:
             ordered.append(line)
-    return [
-        f"{line} - {ctx.line_cn_names.get(line, line)}"
-        for line in ordered
-    ]
+    return [(ctx.line_cn_names.get(line, line), line) for line in ordered]
 
 
 MULTI_STYLE_MODE_CHOICES = [
@@ -85,11 +78,21 @@ _TRACE_SIDECARS = (
 )
 
 
-def _task_value(label: str) -> str:
+def _task_value(label: str, domain: str | None = None) -> str:
+    raw = (label or "").strip()
+    if not raw:
+        return ""
+    if domain:
+        ctx = _ctx(domain)
+        if raw in ctx.task_lines:
+            return raw
+        alias = ctx.task_aliases.get(raw)
+        if alias:
+            return alias
     for separator in (" 路 ", " · ", " - "):
-        if separator in label:
-            return label.split(separator, 1)[0].strip()
-    return label.strip()
+        if separator in raw:
+            return raw.split(separator, 1)[0].strip()
+    return raw
 
 
 def _mode_value(label: str) -> str:
@@ -137,58 +140,123 @@ def _load_profile_json_text(domain: str, mode: str) -> str:
     return json.dumps(data, ensure_ascii=False, indent=2)
 
 
-def _parse_profile_payload(
-    mode: str,
-    profile_upload,
-    profile_json: str | None,
-) -> dict[str, Any]:
-    """解析画像：上传 JSON > 文本框 JSON；并与所选视角模式对齐。"""
-    raw = ""
-    uploaded = _uploaded_path(profile_upload)
-    if uploaded is not None and uploaded.exists():
-        raw = uploaded.read_text(encoding="utf-8").strip()
-    if not raw:
-        raw = (profile_json or "").strip()
-    if not raw:
-        raise ValueError("请填写或上传用户画像 JSON（个人视角为核心能力，不可为空）。")
-    try:
-        data = json.loads(raw)
-    except json.JSONDecodeError as exc:
-        raise ValueError(f"用户画像不是合法 JSON：{exc}") from exc
-    if not isinstance(data, dict):
-        raise ValueError("用户画像 JSON 必须是对象（dict）。")
-
-    if mode == PERSPECTIVE_OBJECTIVE:
-        data["perspective"] = "objective"
-    else:
-        # 个人视角：禁止误带 objective
-        if str(data.get("perspective") or "").strip().lower() == "objective":
-            data["perspective"] = "personal"
-        elif not data.get("perspective"):
-            data["perspective"] = "personal"
-        name = str(data.get("name") or "").strip()
-        role = str(data.get("role") or "").strip()
-        if not name and not role:
-            raise ValueError(
-                "个人视角需在画像中填写 name 或 role，否则无法做多视角裁剪。"
-            )
-    return data
-
-
 def _line_policy(domain: str, task: str):
     if not task:
         return None
     return _ctx(domain).line_policies.get(task)
 
 
+def _task_uses_memory(task: str) -> bool:
+    return task in MEMORY_LINES
+
+
+TASK_BRIEFS: dict[str, dict[str, str]] = {
+    "minutes_generation": {
+        "inputs": "会议记录。可选：用户 ID、项目 ID、渲染模板",
+        "outputs": "纪要 Markdown、网页 HTML",
+        "purpose": (
+            "把一场会议整理成可归档的结构化纪要（议题、结论、摘要），方便会后分发。"
+            "亮点：只要填用户 ID 就开记忆，项目 ID 可选；命中历史后，纪要里会打记忆引用，"
+            "右侧结果栏会展开对应的历史会议卡片，用来核对延续事项和本次新进展。"
+        ),
+    },
+    "action_items": {
+        "inputs": "会议记录。可选：渲染模板",
+        "outputs": "待办清单 Markdown",
+        "purpose": (
+            "从本场记录抽出待办，尽量带上事项说明、负责人和截止时间，方便会后跟进。"
+            "亮点：和纪要拆开，只验抽取准不准；不读历史记忆，也不把口头讨论自动当成已分派任务。"
+        ),
+    },
+    "risk": {
+        "inputs": "会议记录。可选：渲染模板",
+        "outputs": "风险分析 Markdown",
+        "purpose": (
+            "把会上提到的风险单独抽成条目，尽量标出严重度、责任人和应对提示。"
+            "亮点：风险和待办分开验，避免把普通跟进误判成风险；不依赖记忆，只看本场原文。"
+        ),
+    },
+    "mindmap": {
+        "inputs": "会议记录。可选：渲染模板",
+        "outputs": "可交互脑图 HTML；本机可另出 PNG",
+        "purpose": (
+            "把会议要点铺成一张可点击思维导图，用来扫议题结构和从属关系。"
+            "亮点：产物是交互网页而不是又一篇纪要；本机还可另存 PNG 看层级。不写项目记忆。"
+        ),
+    },
+    "multi_styles": {
+        "inputs": "会议记录、组织模式。可选：用户 ID、项目 ID、渲染模板",
+        "outputs": "指定风格的纪要 Markdown",
+        "purpose": (
+            "同一场会按时间线、逻辑总分、因果、主体责权或决策时效换一种组织方式重写。"
+            "亮点：换的是读法不是标题；填用户 ID 同样开记忆，右侧也可对照历史引用卡片。"
+        ),
+    },
+    "minutes_trace": {
+        "inputs": "会议记录、用户关键点、用户笔记",
+        "outputs": "带对齐戳的溯源纪要 Markdown",
+        "purpose": (
+            "生成带对齐戳的溯源纪要，让段落回指会议原文，并叠上用户关键点和用户笔记。"
+            "亮点：一条关键点只要和多句高度相关就可以反复挂钉；用来核对有据可查，不是另写摘要。没有项目记忆。"
+        ),
+    },
+    "points": {
+        "inputs": "笔记原文。可选：渲染模板",
+        "outputs": "知识点总结 Markdown",
+        "purpose": (
+            "从一篇笔记抽出可复习的知识点列表，并配一段总结，方便按条回顾。"
+            "亮点：验的是覆盖全不全、措辞贴不贴原文，而不是再生成一篇长文。不读写记忆。"
+        ),
+    },
+    "knowledge_graph": {
+        "inputs": "笔记原文。可选：用户 ID、学科、渲染模板",
+        "outputs": "图谱 SVG、可点击 HTML、学习地图 Markdown",
+        "purpose": (
+            "把笔记里的概念做成可点击知识图谱，并给出按主题分组的学习地图。"
+            "亮点：点节点能在图上「学」（定义、原文摘录、关系、复习提示）；"
+            "同一用户加学科会增量合并，历史节点和本轮新增分开标注。"
+        ),
+    },
+}
+
+
+def _task_brief_html(task: str) -> str:
+    brief = TASK_BRIEFS.get(task)
+    if not brief:
+        return ""
+    return (
+        '<div class="task-brief">'
+        f'<p><span class="k">输入：</span>{html.escape(brief["inputs"])}</p>'
+        f'<p><span class="k">输出：</span>{html.escape(brief["outputs"])}</p>'
+        f'<p><span class="k">用途：</span>{html.escape(brief["purpose"])}</p>'
+        "</div>"
+    )
+
+
+def _memory_field_visibility(domain: str, task: str) -> tuple[bool, bool, bool]:
+    """user_id / project_id / subject：仅记忆任务显示对应字段。"""
+    uses = _task_uses_memory(task)
+    return (
+        uses,
+        uses and domain == "meeting",
+        uses and domain == "notes",
+    )
+
+
 def _panel_updates(domain: str, task_label: str | None):
-    task = _task_value(task_label or "")
+    task = _task_value(task_label or "", domain)
     policy = _line_policy(domain, task)
     sidecar = bool(policy and policy.sidecar)
+    show_user, show_project, show_subject = _memory_field_visibility(domain, task)
+    show_mode = bool(policy and policy.cli_mode)
+    show_config = show_mode or show_user or sidecar
     return (
-        gr.update(visible=bool(policy and policy.cli_mode)),
-        gr.update(visible=domain == "meeting"),
-        gr.update(visible=domain == "notes"),
+        gr.update(value=_task_brief_html(task)),
+        gr.update(visible=show_config),
+        gr.update(visible=show_mode),
+        gr.update(visible=show_user),
+        gr.update(visible=show_project),
+        gr.update(visible=show_subject),
         gr.update(visible=sidecar),
         gr.update(visible=bool(policy and policy.cli_template)),
     )
@@ -197,7 +265,7 @@ def _panel_updates(domain: str, task_label: str | None):
 def update_domain(domain_label: str):
     domain = _domain_value(domain_label)
     choices = _task_choices(domain)
-    selected = choices[0] if choices else None
+    selected = choices[0][1] if choices else None
     return (
         gr.update(choices=choices, value=selected),
         *_panel_updates(domain, selected),
@@ -284,35 +352,6 @@ def _md_update(files: list[str] | None = None):
     """有 Markdown 才展示预览，否则隐藏。"""
     text = _md_preview_text(files or [])
     return gr.update(value=text, visible=bool(text))
-
-
-def _parse_memory_sources(text: str) -> dict[str, str]:
-    if "## 历史记忆引用" not in text:
-        return {}
-    appendix = text.split("## 历史记忆引用", 1)[1]
-    blocks = re.split(r'\n<a id="([^"]+)"></a>\n', appendix)
-    out: dict[str, str] = {}
-    for i in range(1, len(blocks), 2):
-        ref_id = blocks[i]
-        body = blocks[i + 1] if i + 1 < len(blocks) else ""
-        lines = [line.strip() for line in body.strip().splitlines() if line.strip()]
-        if not lines:
-            continue
-        title = re.sub(r"^\*\*来自：|\*\*$", "", lines[0]).strip()
-        meta = lines[1] if len(lines) > 1 else ""
-        quote = ""
-        for line in lines[2:]:
-            if line.startswith(">"):
-                quote = line.lstrip("> ").strip()
-                break
-        card = (
-            f'<div class="mem-card-title">{html.escape(title)}</div>'
-            f'<div class="mem-card-meta">{html.escape(meta)}</div>'
-        )
-        if quote:
-            card += f'<div class="mem-card-quote">{html.escape(quote)}</div>'
-        out[ref_id] = card
-    return out
 
 
 def _memory_review_html(files: list[str]) -> str:
@@ -732,7 +771,9 @@ def run_from_ui(
             files_html=EMPTY_DOWNLOAD,
         )
 
-    tasks = [_task_value(task_label)]
+    tasks = [_task_value(task_label, domain)]
+    if not _task_uses_memory(tasks[0]):
+        user_id = project_id = subject = None
     profile_data = json.loads(
         _load_profile_json_text(domain, PERSPECTIVE_OBJECTIVE)
     )
@@ -1028,10 +1069,10 @@ html, body {
   overflow-x: hidden !important;
 }
 .gradio-container {
-  max-width: min(1480px, 96vw) !important;
+  max-width: min(1840px, 98vw) !important;
   width: 100% !important;
   margin: 0 auto !important;
-  padding: 10px 16px 20px !important;
+  padding: 10px 20px 24px !important;
   color: #1c1b19 !important;
   font-family: "IBM Plex Sans", "Source Han Sans SC", "Noto Sans SC",
     "PingFang SC", "Microsoft YaHei", system-ui, sans-serif !important;
@@ -1044,58 +1085,171 @@ html, body {
   max-width: 100% !important;
   box-sizing: border-box !important;
 }
-/* 顶栏 */
+/* 顶栏：标题左 + 领域开关右，不再叠两排标签 */
+#chrome-row {
+  align-items: center !important;
+  justify-content: space-between !important;
+  flex-wrap: nowrap !important;
+  gap: 12px 20px !important;
+  margin: 0 0 2px !important;
+}
+#chrome-row > * {
+  min-width: 0 !important;
+}
+#chrome-row > *:first-child {
+  flex: 1 1 auto !important;
+  width: auto !important;
+  max-width: none !important;
+}
+#chrome-row > #domain-switch {
+  flex: 0 0 auto !important;
+  flex-basis: auto !important;
+  width: auto !important;
+  max-width: none !important;
+  display: flex !important;
+  justify-content: flex-end !important;
+}
 #app-header {
   display: flex;
-  flex-wrap: wrap;
   align-items: center;
-  justify-content: center;
-  gap: 8px 24px;
+  justify-content: flex-start;
   margin: 0;
-  padding: 0 0 6px;
+  padding: 2px 0;
   border-bottom: none;
-  text-align: center;
+  text-align: left;
 }
 #app-header .brand {
   display: flex;
   flex-direction: column;
-  align-items: center;
+  align-items: flex-start;
   gap: 2px;
-  width: 100%;
+  width: auto;
 }
 #app-header h1 {
   margin: 0;
-  font-size: 1.25rem;
+  font-size: 1.18rem;
   font-weight: 650;
   letter-spacing: 0.02em;
   color: #1c1b19;
   line-height: 1.2;
-  text-align: center;
-  width: 100%;
+  text-align: left;
+  width: auto;
 }
-/* 领域：浏览器式标签，不占配置栏 */
-#domain-tabs {
-  margin: 0 0 8px !important;
+#domain-switch {
+  margin: 0 !important;
   padding: 0 !important;
 }
-#domain-tabs .label-wrap,
-#domain-tabs > label,
-#domain-tabs span[data-testid="block-info"] {
+#domain-switch .label-wrap,
+#domain-switch > label,
+#domain-switch span[data-testid="block-info"] {
   display: none !important;
 }
-#domain-tabs .form,
-#domain-tabs .wrap,
-#domain-tabs .wrap-inner {
+#domain-switch .form,
+#domain-switch .wrap,
+#domain-switch .wrap-inner,
+#domain-switch fieldset,
+#domain-switch [class*="radio"] {
   background: transparent !important;
   border: none !important;
   box-shadow: none !important;
   padding: 0 !important;
   margin: 0 !important;
 }
-#domain-tabs .wrap,
-#domain-tabs .form,
-#domain-tabs fieldset,
-#domain-tabs [class*="radio"] {
+#domain-switch .wrap,
+#domain-switch .form,
+#domain-switch fieldset,
+#domain-switch [class*="radio"] {
+  display: inline-flex !important;
+  flex-wrap: nowrap !important;
+  align-items: center !important;
+  gap: 6px !important;
+  padding: 5px !important;
+  border: 1px solid #d4d0c6 !important;
+  border-radius: 999px !important;
+  background: #e8e4db !important;
+}
+#domain-switch label,
+#domain-switch label:has(input[type="radio"]) {
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  min-width: 132px !important;
+  margin: 0 !important;
+  padding: 10px 36px !important;
+  border: none !important;
+  border-radius: 999px !important;
+  background: transparent !important;
+  color: #6b6860 !important;
+  font-size: 1.05rem !important;
+  font-weight: 650 !important;
+  letter-spacing: 0.08em !important;
+  box-shadow: none !important;
+  cursor: pointer !important;
+  position: static !important;
+  top: auto !important;
+}
+#domain-switch label:has(input[type="radio"]:checked) {
+  background: #2c2a26 !important;
+  border: none !important;
+  color: #faf9f6 !important;
+  font-weight: 700 !important;
+}
+#domain-switch input[type="radio"] {
+  position: absolute !important;
+  opacity: 0 !important;
+  width: 0 !important;
+  height: 0 !important;
+  pointer-events: none !important;
+}
+/* 任务标签 + 轻量操作同一行 */
+#nav-row {
+  align-items: flex-end !important;
+  justify-content: space-between !important;
+  gap: 10px 16px !important;
+  margin: 0 0 10px !important;
+}
+#nav-row > div {
+  min-width: 0 !important;
+}
+#nav-tasks {
+  flex: 1 1 auto !important;
+}
+#nav-actions {
+  flex: 0 0 auto !important;
+  width: auto !important;
+  max-width: none !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: flex-end !important;
+  gap: 8px !important;
+  padding: 0 0 6px !important;
+}
+#nav-actions > div {
+  width: auto !important;
+  flex: 0 0 auto !important;
+}
+#task-tabs {
+  margin: 0 !important;
+  padding: 0 !important;
+}
+#task-tabs .label-wrap,
+#task-tabs > label,
+#task-tabs span[data-testid="block-info"] {
+  display: none !important;
+}
+#task-tabs .form,
+#task-tabs .wrap,
+#task-tabs .wrap-inner {
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+  padding: 0 !important;
+  margin: 0 !important;
+}
+#task-tabs .wrap,
+#task-tabs .form,
+#task-tabs fieldset,
+#task-tabs [class*="radio"] {
   display: flex !important;
   flex-wrap: wrap !important;
   align-items: flex-end !important;
@@ -1105,76 +1259,73 @@ html, body {
   padding: 0 2px !important;
   background: transparent !important;
 }
-#domain-tabs label,
-#domain-tabs label:has(input[type="radio"]) {
+#task-tabs label,
+#task-tabs label:has(input[type="radio"]) {
   display: inline-flex !important;
   align-items: center !important;
   justify-content: center !important;
-  min-width: 88px !important;
+  min-width: 72px !important;
   margin: 0 4px 0 0 !important;
-  padding: 8px 20px 9px !important;
+  padding: 7px 14px 8px !important;
   border: 1px solid #d4d0c6 !important;
   border-bottom: none !important;
   border-radius: 8px 8px 0 0 !important;
   background: #e8e4db !important;
   color: #6b6860 !important;
-  font-size: 0.92rem !important;
+  font-size: 0.86rem !important;
   font-weight: 550 !important;
-  letter-spacing: 0.04em !important;
+  letter-spacing: 0.02em !important;
   box-shadow: none !important;
   cursor: pointer !important;
   position: relative !important;
   top: 1px !important;
 }
-#domain-tabs label:has(input[type="radio"]:checked) {
+#task-tabs label:has(input[type="radio"]:checked) {
   background: #faf9f6 !important;
   color: #1c1b19 !important;
   font-weight: 650 !important;
   z-index: 1 !important;
 }
-#domain-tabs input[type="radio"] {
+#task-tabs input[type="radio"] {
   position: absolute !important;
   opacity: 0 !important;
   width: 0 !important;
   height: 0 !important;
   pointer-events: none !important;
 }
-/* 顶栏操作：左右各一，按钮同宽对齐，说明在下 */
-#top-actions {
-  gap: 12px !important;
-  margin: 0 0 6px !important;
-  align-items: stretch !important;
-  justify-content: space-between !important;
-  width: 100% !important;
+#task-brief {
+  margin: 0 0 12px !important;
+  padding: 0 !important;
 }
-#top-actions > div {
-  flex: 1 1 0 !important;
-  min-width: 0 !important;
-  max-width: none !important;
+#task-brief .task-brief {
+  padding: 12px 14px;
+  background: #ffffff;
+  border: 1px solid #e0dcd2;
+  border-radius: 6px;
 }
-#top-actions .action-cell {
-  display: flex !important;
-  flex-direction: column !important;
-  align-items: center !important;
-  justify-content: flex-start !important;
-  gap: 4px !important;
-  width: 100% !important;
-  text-align: center !important;
+#task-brief .task-brief p {
+  margin: 0 0 8px;
+  font-size: 1.05rem;
+  line-height: 1.6;
+  color: #1c1b19;
 }
-#top-actions .action-cell .block,
-#top-actions .action-cell button {
-  width: 100% !important;
-  max-width: 180px !important;
-  margin-left: auto !important;
-  margin-right: auto !important;
+#task-brief .task-brief p:last-child {
+  margin-bottom: 0;
+}
+#task-brief .k {
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: #2c2a26;
 }
 #clear-results-btn,
 #reset-form-btn {
-  min-height: 32px !important;
-  width: 100% !important;
-  max-width: 180px !important;
+  min-height: 30px !important;
+  width: auto !important;
+  min-width: 88px !important;
+  padding: 0 12px !important;
   border-radius: 6px !important;
   font-weight: 550 !important;
+  font-size: 0.8rem !important;
 }
 .btn-hint {
   margin: 0 !important;
@@ -1314,11 +1465,7 @@ button.primary:disabled {
 .gradio-container .wrap .token > *,
 .gradio-container .wrap input,
 .gradio-container .secondary-wrap,
-.gradio-container .secondary-wrap *,
-#domain-select,
-#domain-select *,
-#domain-select span,
-#domain-select input {
+.gradio-container .secondary-wrap * {
   font-size: 0.95rem !important;
   font-weight: 500 !important;
   line-height: 1.4 !important;
@@ -1336,6 +1483,32 @@ button.primary:disabled {
 .gradio-container input[type="radio"],
 .gradio-container input[type="checkbox"] {
   accent-color: #2c2a26 !important;
+}
+#task-tabs label:has(input[type="radio"]) {
+  box-shadow: none !important;
+}
+#domain-switch label:has(input[type="radio"]) {
+  background: transparent !important;
+  border: none !important;
+  border-radius: 999px !important;
+  color: #6b6860 !important;
+}
+#domain-switch label:has(input[type="radio"]:checked) {
+  background: #2c2a26 !important;
+  border: none !important;
+  color: #faf9f6 !important;
+}
+#task-tabs label:has(input[type="radio"]) {
+  background: #e8e4db !important;
+  border: 1px solid #d4d0c6 !important;
+  border-bottom: none !important;
+  border-radius: 8px 8px 0 0 !important;
+  color: #6b6860 !important;
+}
+#task-tabs label:has(input[type="radio"]:checked) {
+  background: #faf9f6 !important;
+  border-color: #d4d0c6 !important;
+  color: #1c1b19 !important;
 }
 /* 按钮 */
 #run-btn,
@@ -1827,13 +2000,44 @@ button.secondary:hover {
     padding: 10px !important;
   }
 }
+@media (max-width: 820px) {
+  #chrome-row,
+  #nav-row {
+    flex-wrap: wrap !important;
+  }
+  #chrome-row > #domain-switch,
+  #nav-actions {
+    width: 100% !important;
+  }
+  #domain-switch .wrap,
+  #domain-switch .form,
+  #domain-switch fieldset {
+    width: 100% !important;
+  }
+  #domain-switch label,
+  #domain-switch label:has(input[type="radio"]) {
+    flex: 1 1 0 !important;
+  }
+  #nav-actions {
+    justify-content: flex-start !important;
+    padding-bottom: 0 !important;
+  }
+  #work-row {
+    flex-direction: column !important;
+    flex-wrap: nowrap !important;
+  }
+  #col-input,
+  #col-output {
+    width: 100% !important;
+    max-width: 100% !important;
+    flex: 1 1 auto !important;
+  }
+}
 """
 
 
-def build_app() -> gr.Blocks:
-    initial_domain = "meeting"
-    initial_choices = _task_choices(initial_domain)
-    theme = gr.themes.Base(
+def _build_theme() -> gr.themes.Base:
+    return gr.themes.Base(
         primary_hue=gr.themes.colors.neutral,
         secondary_hue=gr.themes.colors.neutral,
         neutral_hue=gr.themes.colors.neutral,
@@ -1849,43 +2053,66 @@ def build_app() -> gr.Blocks:
         border_color_primary="#d4d0c6",
         input_background_fill="#ffffff",
     )
-    with gr.Blocks(title="小艺慧记Agent测试", theme=theme, css=CSS) as demo:
-        gr.HTML(
-            """
-            <header id="app-header">
-              <div class="brand">
-                <h1>小艺慧记Agent测试</h1>
-              </div>
-            </header>
-            """
-        )
-        domain = gr.Radio(
-            choices=DOMAIN_CHOICES,
-            value=initial_domain,
-            show_label=False,
-            container=False,
-            elem_id="domain-tabs",
-        )
-        with gr.Row(elem_id="top-actions", equal_height=True):
-            with gr.Column(scale=1, elem_classes=["action-cell"]):
+
+
+def build_app() -> gr.Blocks:
+    initial_domain = "meeting"
+    initial_choices = _task_choices(initial_domain)
+    initial_task = initial_choices[0][1] if initial_choices else None
+    show_user, show_project, show_subject = _memory_field_visibility(
+        initial_domain, initial_task or ""
+    )
+    initial_policy = _line_policy(initial_domain, initial_task or "")
+    show_config = (
+        bool(initial_policy and initial_policy.cli_mode)
+        or show_user
+        or bool(initial_policy and initial_policy.sidecar)
+    )
+    with gr.Blocks(title="AgentFlow测试") as demo:
+        with gr.Row(elem_id="chrome-row", equal_height=True):
+            gr.HTML(
+                """
+                <header id="app-header">
+                  <div class="brand">
+                    <h1>AgentFlow测试</h1>
+                  </div>
+                </header>
+                """
+            )
+            domain = gr.Radio(
+                choices=DOMAIN_CHOICES,
+                value=initial_domain,
+                show_label=False,
+                container=False,
+                elem_id="domain-switch",
+            )
+        with gr.Row(elem_id="nav-row", equal_height=True):
+            with gr.Column(scale=8, min_width=240, elem_id="nav-tasks"):
+                tasks = gr.Radio(
+                    choices=initial_choices,
+                    value=initial_task,
+                    show_label=False,
+                    container=False,
+                    elem_id="task-tabs",
+                )
+            with gr.Row(elem_id="nav-actions"):
                 clear_results_btn = gr.Button(
-                    "清空当前结果",
+                    "清空结果",
                     variant="secondary",
                     elem_id="clear-results-btn",
+                    size="sm",
                 )
-            with gr.Column(scale=1, elem_classes=["action-cell"]):
                 reset_form_btn = gr.Button(
                     "重置表单",
                     variant="secondary",
                     elem_id="reset-form-btn",
+                    size="sm",
                 )
         with gr.Row(elem_id="work-row", equal_height=False):
-            with gr.Column(scale=5, min_width=380, elem_id="col-input"):
-                gr.HTML('<div class="panel-label">配置</div>')
-                tasks = gr.Radio(
-                    label="任务",
-                    choices=initial_choices,
-                    value=initial_choices[0] if initial_choices else None,
+            with gr.Column(scale=5, min_width=420, elem_id="col-input"):
+                config_label = gr.HTML(
+                    '<div class="panel-label">配置</div>',
+                    visible=show_config,
                 )
                 mode_dropdown = gr.Dropdown(
                     label="组织模式",
@@ -1899,20 +2126,21 @@ def build_app() -> gr.Blocks:
                     lines=1,
                     max_lines=1,
                     placeholder="同一用户多次运行可对照历史",
+                    visible=show_user,
                 )
                 project_id = gr.Textbox(
                     label="项目 ID（可选，会议记忆）",
                     lines=1,
                     max_lines=1,
                     placeholder="会议域：写入并绑定该项目",
-                    visible=True,
+                    visible=show_project,
                 )
                 subject = gr.Textbox(
                     label="学科（可选，笔记记忆）",
                     lines=1,
                     max_lines=1,
                     placeholder="笔记域：同一用户 + 学科增量合并图谱",
-                    visible=False,
+                    visible=show_subject,
                 )
                 with gr.Group(visible=False, elem_id="trace-box") as trace_box:
                     gr.HTML(
@@ -2012,8 +2240,12 @@ def build_app() -> gr.Blocks:
                         )
                 run_button = gr.Button("运行", variant="primary", elem_id="run-btn")
 
-            with gr.Column(scale=7, min_width=380, elem_id="col-output"):
+            with gr.Column(scale=8, min_width=480, elem_id="col-output"):
                 gr.HTML('<div class="panel-label">结果</div>')
+                task_brief = gr.HTML(
+                    value=_task_brief_html(initial_task or ""),
+                    elem_id="task-brief",
+                )
                 log_output = gr.Textbox(
                     label="日志",
                     lines=12,
@@ -2070,7 +2302,10 @@ def build_app() -> gr.Blocks:
             inputs=domain,
             outputs=[
                 tasks,
+                task_brief,
+                config_label,
                 mode_dropdown,
+                user_id,
                 project_id,
                 subject,
                 trace_box,
@@ -2082,7 +2317,10 @@ def build_app() -> gr.Blocks:
             update_task_panel,
             inputs=[domain, tasks],
             outputs=[
+                task_brief,
+                config_label,
                 mode_dropdown,
+                user_id,
                 project_id,
                 subject,
                 trace_box,
@@ -2173,6 +2411,8 @@ def main() -> None:
         server_name=os.getenv("GRADIO_SERVER_NAME", "127.0.0.1"),
         server_port=_env_int("GRADIO_SERVER_PORT", 7860),
         share=_env_bool("GRADIO_SHARE", False),
+        theme=_build_theme(),
+        css=CSS,
     )
 
 

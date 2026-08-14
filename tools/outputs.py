@@ -4,7 +4,7 @@
 统一负责"最终输出落盘"：
 
 - 报告类任务：``save_all_reports`` 写入 output/{domain}/{task}/ 的文本产物
-- 图类任务：``export_mindmap_*`` / ``export_knowledge_graph`` 导出 HTML/PNG/SVG
+- 图类任务：``export_mindmap_*`` / ``export_knowledge_graph`` 导出 HTML/PNG（脑图）或 SVG/HTML（图谱）
 """
 from __future__ import annotations
 
@@ -219,7 +219,7 @@ def export_knowledge_graph(reports: dict, out_dir: Path) -> dict[str, Path]:
     if not nodes:
         return {}
     if not graphviz_available():
-        logger.warning("未检测到 graphviz（dot），跳过知识图谱 PNG/SVG 生成")
+        logger.warning("未检测到 graphviz（dot），跳过知识图谱 SVG 生成")
     edges = getattr(kg, "edges", None) or []
     outline = getattr(kg, "outline", "") or ""
     title = str(getattr(kg, "title", "") or "").strip()

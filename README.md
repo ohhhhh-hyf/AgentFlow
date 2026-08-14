@@ -67,7 +67,7 @@ Linux 推荐配置：
 | 目的 | Ubuntu / Debian | CentOS / RHEL / Fedora | 验证命令 |
 |---|---|---|---|
 | Python 运行环境 | `sudo apt-get update && sudo apt-get install -y python3 python3-pip python3-venv` | `sudo dnf install -y python3 python3-pip` | `python3 --version` |
-| 知识图谱 PNG/SVG | `sudo apt-get install -y graphviz fonts-noto-cjk` | `sudo dnf install -y graphviz google-noto-sans-cjk-fonts` | `dot -V` |
+| 知识图谱 SVG | `sudo apt-get install -y graphviz fonts-noto-cjk` | `sudo dnf install -y graphviz google-noto-sans-cjk-fonts` | `dot -V` |
 | 思维导图 HTML | `sudo apt-get install -y nodejs npm` | `sudo dnf install -y nodejs npm` | `node -v && npx -v` |
 | 思维导图 PNG | `python3 -m playwright install --with-deps chromium` | `python3 -m playwright install chromium` | `python3 -m playwright --version` |
 
@@ -79,7 +79,7 @@ Linux 推荐配置：
 python -m playwright install chromium
 ```
 
-> 知识图谱的 PNG/SVG 依赖系统 Graphviz，不是 Python 包；只 `pip install -r requirements.txt` 不会安装 `dot`。
+> 知识图谱的 SVG 依赖系统 Graphviz，不是 Python 包；只 `pip install -r requirements.txt` 不会安装 `dot`。
 
 ### 2. 配置 LLM（`.env`）
 
@@ -153,7 +153,7 @@ python -m playwright install chromium
 | 端口 | 云服务器需开放安全组 / 防火墙（如 `7860`） |
 | 反代 | 若用 Nginx，需放行 WebSocket（`Upgrade` / `Connection`），Gradio 队列依赖 WS |
 | 输出 | 写入 `output/{domain}/{task}/` |
-| 知识图谱 | PNG/SVG 需系统 Graphviz；HTML 可交互演示 |
+| 知识图谱 | SVG 需系统 Graphviz；HTML 可交互演示 |
 | 思维导图 | HTML 需 Node.js/npx；PNG 需 Playwright Chromium |
 
 样例与输出目录：
@@ -200,7 +200,7 @@ python bootstrap.py --task mindmap \
 # 笔记域：知识点总结 + 知识图谱
 python bootstrap.py --domain notes --task points --file student_math_notes.txt --profile object_profile.json
 
-# 笔记域：知识图谱（默认输出 PNG/SVG/HTML 到 output/notes/knowledge_graph/；PNG/SVG 需系统安装 Graphviz）
+# 笔记域：知识图谱（默认输出 SVG/HTML/学习地图到 output/notes/knowledge_graph/；SVG 需系统安装 Graphviz）
 python bootstrap.py --domain notes --task knowledge_graph --file student_math_notes.txt --profile object_profile.json
 ```
 
@@ -251,7 +251,7 @@ CLI 参数：
 | `meeting` | `risk` | `--risk_template` | `MEETING_RISK_TEMPLATE` | 风险分析输出模板 |
 | `meeting` | `mindmap` | `--mindmap_template` | `MEETING_MINDMAP_TEMPLATE` | 思维导图 Markdown 大纲模板 |
 | `notes` | `points` | `--points_template` | `NOTES_POINTS_TEMPLATE` | 笔记知识点输出模板 |
-| `notes` | `knowledge_graph` | `--knowledge_graph_template` | `NOTES_KNOWLEDGE_GRAPH_TEMPLATE` | 知识图谱 Markdown 大纲模板；不传模板时直接导出 PNG/SVG/HTML |
+| `notes` | `knowledge_graph` | `--knowledge_graph_template` | `NOTES_KNOWLEDGE_GRAPH_TEMPLATE` | 知识图谱 Markdown 大纲模板；不传模板时直接导出 SVG/HTML/学习地图 |
 
 任务线：
 
@@ -262,7 +262,7 @@ CLI 参数：
 | `meeting` | `risk` | 风险分析 | 终端文本 |
 | `meeting` | `mindmap` | 思维导图 | `output/meeting/mindmap/mindmap_*.png` / `.html` |
 | `notes` | `points` | 笔记知识点总结 | 终端文本 |
-| `notes` | `knowledge_graph` | 知识图谱 | `output/notes/knowledge_graph/knowledge_graph_*.png` / `.svg` / `.html` |
+| `notes` | `knowledge_graph` | 知识图谱 | `output/notes/knowledge_graph/knowledge_graph_*.svg` / `.html` / `.md` |
 
 输出归档规则：
 
@@ -272,15 +272,14 @@ CLI 参数：
 | `output/{domain}/{task}/result_时间戳.md` | 最终文本 / 大纲 | 除 `mindmap` / `knowledge_graph` 外，仅当该任务线有文本正文或 Markdown 大纲时保存 |
 | `output/meeting/mindmap/mindmap_时间戳.html` | 思维导图 HTML | `mindmap` 目录只保留 HTML/PNG |
 | `output/meeting/mindmap/mindmap_时间戳.png` | 思维导图 PNG | `mindmap` 目录只保留 HTML/PNG；Playwright 不可用时跳过 |
-| `output/notes/knowledge_graph/knowledge_graph_时间戳.png` | 知识图谱 PNG | `knowledge_graph` 线额外产物；Graphviz 不可用时跳过 |
-| `output/notes/knowledge_graph/knowledge_graph_时间戳.svg` | 知识图谱 SVG | 高清矢量图，适合演示 |
-| `output/notes/knowledge_graph/knowledge_graph_时间戳.html` | 知识图谱交互 HTML | Cytoscape.js 交互演示版；知识图谱目录只保留 PNG/SVG/HTML |
+| `output/notes/knowledge_graph/knowledge_graph_时间戳.svg` | 知识图谱 SVG | 高清矢量图，适合演示；Graphviz 不可用时跳过 |
+| `output/notes/knowledge_graph/knowledge_graph_时间戳.html` | 知识图谱交互 HTML | Cytoscape.js 交互演示版 |
+| `output/notes/knowledge_graph/knowledge_graph_时间戳.md` | 学习地图 | 按主题分组的文本学习路径 |
 
 知识图谱输出文件：
 
 | 文件 | 用途 | 依赖 | 说明 |
 |---|---|---|---|
-| `knowledge_graph_时间戳.png` | 快速预览、图片粘贴 | Graphviz `dot` | 位图，放大后可能变糊 |
 | `knowledge_graph_时间戳.svg` | PPT/浏览器高清演示 | Graphviz `dot` | 矢量图，中文和线条缩放更清楚 |
 | `knowledge_graph_时间戳.html` | 交互演示 | 浏览器；联网可加载 Cytoscape.js CDN | 可缩放、拖拽、点击节点/关系查看定义和 evidence |
 
@@ -358,8 +357,8 @@ python bootstrap.py --domain notes --task knowledge_graph \
   交互式 HTML（markmap，离线单文件）和 PNG 图片（Playwright 截图）；
   npx/playwright 缺失时自动降级不影响主流程
 - **知识图谱**：notes 域 knowledge_graph 线提取概念节点与关系边（nodes/edges，
-  均锚定原文 + evidence），经 `tools/knowledge_graph.py` 同时导出 PNG、SVG
-  和 Cytoscape.js 交互式 HTML（默认输出到 `output/notes/knowledge_graph/`）；悬空边自动过滤、
-  中文 label 自动探测字体，dot 缺失时 PNG/SVG 自动跳过，HTML 仍尽量生成
+  均锚定原文 + evidence），经 `tools/knowledge_graph.py` 同时导出 SVG、
+  Cytoscape.js 交互式 HTML 和学习地图 Markdown（默认输出到 `output/notes/knowledge_graph/`）；悬空边自动过滤、
+  中文 label 自动探测字体，dot 缺失时 SVG 自动跳过，HTML 仍尽量生成
 - **输出稳定性**：各线 prompt 采用确定性规则（数量由内容决定、措辞锚定原文、
   顺序按原文出现、空字段 null/[]），同一输入重复运行保持内容与篇幅稳定

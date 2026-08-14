@@ -1,10 +1,10 @@
 """knowledge_graph.py —— 知识图谱渲染（graphviz 封装，无痛降级）。
 
-把图数据（nodes + edges）渲染为 PNG 知识图谱图：
+把图数据（nodes + edges）渲染为 SVG / 交互 HTML / 学习地图：
 
 - 依赖：系统安装 Graphviz（``dot`` 可执行；Windows 需装 Graphviz，Linux 用
   apt/brew 装 graphviz + 中文字体）
-- 产物：``dot -Tpng`` 输出 PNG；节点带定义 tooltip，边带关系 label
+- 产物：``dot -Tsvg`` 输出矢量图；节点带定义 tooltip，边带关系 label
 - 设计约束（沿用 tools/mindmap.py 的无痛惯例）：
   - ``dot`` 不可用 / 失败 / 超时 → 一律返回 ``None``，不影响主流程
   - 渲染前过滤悬空边（source/target 不在 nodes 中），防 dot 报错
@@ -49,6 +49,91 @@ _RELATION_COLORS = {
     "相关": "#475569",
 }
 _CYTOSCAPE_CDN = "https://cdn.jsdelivr.net/npm/cytoscape@3.31.2/dist/cytoscape.min.js"
+
+
+def _clean_node(node: dict) -> dict[str, str]:
+    return {
+        "name": str(node.get("name") or "").strip(),
+        "definition": str(node.get("definition") or "").strip(),
+        "section": str(node.get("section") or "").strip() or "未分组",
+        "origin": str(node.get("origin") or "").strip(),
+    }
+
+
+def _clean_edge(edge: dict) -> dict[str, str]:
+    return {
+        "source": str(edge.get("source") or "").strip(),
+        "relation": str(edge.get("relation") or "").strip() or "相关",
+        "target": str(edge.get("target") or "").strip(),
+        "evidence": str(edge.get("evidence") or "").strip(),
+    }
+
+
+def _incident_edges(
+    name: str, edges: list[dict]
+) -> tuple[list[dict[str, str]], list[dict[str, str]]]:
+    outgoing: list[dict[str, str]] = []
+    incoming: list[dict[str, str]] = []
+    for raw in edges:
+        edge = _clean_edge(raw)
+        if edge["source"] == name and edge["target"]:
+            outgoing.append(edge)
+        if edge["target"] == name and edge["source"]:
+            incoming.append(edge)
+    return outgoing, incoming
+
+
+def build_learning_map(
+    nodes: list[dict],
+    edges: list[dict] | None = None,
+    title: str = "",
+) -> str:
+    """按章节拼「概念 + 关系 + 证据」学习地图（不调 LLM）。"""
+    heading = (title or "").strip() or "知识图谱"
+    cleaned = [_clean_node(node) for node in (nodes or []) if _clean_node(node)["name"]]
+    if not cleaned:
+        return f"# {heading}"
+    names = {node["name"] for node in cleaned}
+    usable_edges = [
+        _clean_edge(edge)
+        for edge in (edges or [])
+        if _clean_edge(edge)["source"] in names and _clean_edge(edge)["target"] in names
+    ]
+    sections: list[str] = []
+    grouped: dict[str, list[dict[str, str]]] = {}
+    for node in cleaned:
+        grouped.setdefault(node["section"], []).append(node)
+        if node["section"] not in sections:
+            sections.append(node["section"])
+    lines = [f"# {heading}", ""]
+    for section in sections:
+        lines.append(f"## {section}")
+        lines.append("")
+        for node in grouped[section]:
+            suffix = "（新增）" if str(node.get("origin") or "") == "new" else ""
+            lines.append(f"### {node['name']}{suffix}")
+            lines.append(f"- 定义：{node['definition'] or '原文未给出独立定义'}")
+            outgoing, incoming = _incident_edges(node["name"], usable_edges)
+            if outgoing or incoming:
+                lines.append("- 关系：")
+                for edge in outgoing:
+                    lines.append(
+                        f"  - {edge['source']} → {edge['relation']} → {edge['target']}"
+                    )
+                    if edge["evidence"]:
+                        lines.append(f"    - 证据：{edge['evidence']}")
+                for edge in incoming:
+                    if edge in outgoing:
+                        continue
+                    lines.append(
+                        f"  - {edge['source']} → {edge['relation']} → {edge['target']}"
+                    )
+                    if edge["evidence"]:
+                        lines.append(f"    - 证据：{edge['evidence']}")
+            else:
+                lines.append("- 关系：暂无有据边")
+            lines.append("")
+    return "\n".join(lines).rstrip() + "\n"
 
 
 def _find_dot() -> str | None:
@@ -229,6 +314,14 @@ def nodes_edges_to_dot(
         size = 0.92 + (0.42 * ratio)
         if is_anchor:
             size = max(size, 1.34)
+        origin = str(node.get("origin") or "").strip()
+        if origin == "new":
+            size = min(size + 0.12, 1.7)
+            color = "#f59e0b"
+            fill = "#fde68a" if not is_anchor else "#f59e0b"
+        elif origin == "history":
+            color = "#94a3b8"
+            fill = "#e2e8f0" if not is_anchor else "#94a3b8"
         fontsize = 18 if is_anchor else 13 if len(name) > 8 else 14
         fontcolor = "#ffffff" if is_anchor else "#0f172a"
         attrs = [
@@ -240,6 +333,7 @@ def nodes_edges_to_dot(
             f'fillcolor="{fill}"',
             f'color="{color}"',
             f'fontcolor="{fontcolor}"',
+            f'penwidth="{"3.4" if origin == "new" else "1.6" if origin == "history" else "2.2"}"',
         ]
         definition = str(node.get("definition") or "").strip()
         if definition:
@@ -275,6 +369,12 @@ def nodes_edges_to_dot(
             attrs.append(f'label="{_dot_quote(label)}"')
             attrs.append(f'color="{_RELATION_COLORS.get(relation, "#94a3b8")}"')
             attrs.append(f'fontcolor="{_RELATION_COLORS.get(relation, "#475569")}"')
+        if str(edge.get("origin") or "").strip() == "new":
+            attrs.append('penwidth="2.4"')
+            attrs.append('color="#f59e0b"')
+        elif str(edge.get("origin") or "").strip() == "history":
+            attrs.append('penwidth="0.85"')
+            attrs.append('color="#94a3b880"')
         if relation in {"包含", "属于"}:
             attrs.append('weight="4"')
             attrs.append('len="0.62"')
@@ -351,17 +451,6 @@ def _render_graphviz(
         return None
 
 
-def render_knowledge_graph(
-    nodes: list[dict],
-    edges: list[dict],
-    out_dir: Path | str,
-    filename: str = "knowledge_graph.png",
-    title: str = "",
-) -> Path | None:
-    """把图数据渲染为 PNG 知识图谱文件。"""
-    return _render_graphviz(nodes, edges, out_dir, filename, "png", title=title)
-
-
 def render_knowledge_graph_svg(
     nodes: list[dict],
     edges: list[dict],
@@ -401,6 +490,7 @@ def _cytoscape_elements(nodes: list[dict], edges: list[dict]) -> list[dict]:
                     "degree": degree,
                     "size": size,
                     "anchor": is_anchor,
+                    "origin": str(node.get("origin") or "").strip(),
                 }
             }
         )
@@ -424,6 +514,7 @@ def _cytoscape_elements(nodes: list[dict], edges: list[dict]) -> list[dict]:
                     "label": relation,
                     "evidence": str(edge.get("evidence") or "").strip(),
                     "relation": relation,
+                    "origin": str(edge.get("origin") or "").strip(),
                 }
             }
         )
@@ -470,7 +561,7 @@ def render_knowledge_graph_html(
     }}
     .shell {{
       display: grid;
-      grid-template-columns: minmax(0, 1fr) 320px;
+      grid-template-columns: minmax(0, 1fr) 400px;
       height: 100vh;
       min-height: 640px;
     }}
@@ -515,6 +606,40 @@ def render_knowledge_graph_html(
       font-size: 14px;
       word-break: break-word;
     }}
+    .detail .name {{ font-size: 16px; font-weight: 700; margin-bottom: 10px; }}
+    .detail .block {{ margin: 10px 0 0; }}
+    .detail .label {{
+      color: #64748b;
+      font-size: 12px;
+      letter-spacing: 0.02em;
+      margin-bottom: 4px;
+    }}
+    .detail .rel {{
+      margin: 6px 0 0;
+      padding: 8px 10px;
+      background: #fff;
+      border: 1px solid #e2e8f0;
+      border-radius: 6px;
+    }}
+    .detail .rel-line {{ font-weight: 600; color: #0f172a; }}
+    .detail .ev {{ color: #475569; font-size: 13px; margin-top: 4px; }}
+    .detail .chips {{ display: flex; flex-wrap: wrap; gap: 6px; }}
+    .detail .chip {{
+      display: inline-block;
+      padding: 2px 8px;
+      border-radius: 999px;
+      background: #e2e8f0;
+      color: #334155;
+      font-size: 12px;
+    }}
+    .detail .chip-new {{ background: #fde68a; color: #92400e; }}
+    .detail .chip-old {{ background: #e2e8f0; color: #475569; }}
+    .name-row {{
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+    }}
     .legend {{
       display: grid;
       gap: 8px;
@@ -543,9 +668,9 @@ def render_knowledge_graph_html(
     <div id="cy"></div>
     <aside>
       <h1>{escape(title or "知识图谱")}</h1>
-      <div class="meta">滚轮缩放，拖动画布或节点；点击节点查看定义，点击关系查看证据。</div>
+      <div class="meta">滚轮缩放，拖动画布或节点。点击节点查看定义、章节、出入边、原文证据和相关概念。</div>
       <div class="panel-title">当前选中</div>
-      <div id="detail" class="detail">点击一个节点或关系查看详情。</div>
+      <div id="detail" class="detail">点击一个节点查看定义、章节、出入边和相关概念。</div>
       <div class="panel-title">章节</div>
       <div id="legend" class="legend"></div>
     </aside>
@@ -564,6 +689,17 @@ def render_knowledge_graph_html(
       item.innerHTML = `<span class="swatch" style="background:${{color}}"></span><span>${{name}}</span>`;
       legend.appendChild(item);
     }});
+    if (elements.some((el) => el.data && (el.data.origin === 'new' || el.data.origin === 'history'))) {{
+      [
+        ['历史（已有）', '#94a3b8'],
+        ['新增（本场）', '#f59e0b'],
+      ].forEach(([name, color]) => {{
+        const item = document.createElement('div');
+        item.className = 'legend-item';
+        item.innerHTML = `<span class="swatch" style="background:${{color}}"></span><span>${{name}}</span>`;
+        legend.appendChild(item);
+      }});
+    }}
 
     if (!window.cytoscape) {{
       detail.textContent = 'Cytoscape.js 未加载。请联网后重新打开，或使用同目录 SVG 文件演示。';
@@ -591,9 +727,13 @@ def render_knowledge_graph_html(
               'width': 'data(size)',
               'height': 'data(size)',
               'background-color': ele => sectionColors[ele.data('section')] || '#94a3b8',
-              'background-opacity': ele => ele.data('anchor') ? 0.9 : 0.28,
-              'border-color': '#ffffff',
-              'border-width': 2.4,
+              'background-opacity': ele => {{
+                if (ele.data('origin') === 'new') return ele.data('anchor') ? 1 : 0.78;
+                if (ele.data('origin') === 'history') return ele.data('anchor') ? 0.52 : 0.16;
+                return ele.data('anchor') ? 0.9 : 0.28;
+              }},
+              'border-color': ele => ele.data('origin') === 'new' ? '#f59e0b' : '#ffffff',
+              'border-width': ele => ele.data('origin') === 'new' ? 4 : 2.4,
               'shadow-blur': ele => ele.data('anchor') ? 14 : 5,
               'shadow-color': ele => sectionColors[ele.data('section')] || '#94a3b8',
               'shadow-opacity': ele => ele.data('anchor') ? 0.28 : 0.16,
@@ -608,8 +748,8 @@ def render_knowledge_graph_html(
               'target-arrow-shape': 'triangle',
               'target-arrow-color': ele => relationColors[ele.data('relation')] || '#94a3b8',
               'line-color': ele => relationColors[ele.data('relation')] || '#94a3b8',
-              'line-opacity': 0.44,
-              'width': 1.25,
+              'line-opacity': ele => ele.data('origin') === 'new' ? 0.9 : (ele.data('origin') === 'history' ? 0.26 : 0.44),
+              'width': ele => ele.data('origin') === 'new' ? 2.4 : 1.25,
               'label': 'data(label)',
               'font-size': 9,
               'font-family': 'Microsoft YaHei, PingFang SC, Noto Sans CJK SC, Arial, sans-serif',
@@ -643,25 +783,67 @@ def render_knowledge_graph_html(
         }}
       }});
 
+      const esc = (value) => String(value || '').replace(/[&<>"']/g, (ch) => ({{
+        '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+      }})[ch]);
+      const relBlock = (edge) => `
+        <div class="rel">
+          <div class="rel-line">${{esc(edge.source().data('label'))}} → ${{esc(edge.data('label') || '相关')}} → ${{esc(edge.target().data('label'))}}</div>
+          <div class="ev">${{esc(edge.data('evidence') || '暂无原文证据')}}</div>
+        </div>`;
+
       cy.ready(() => cy.fit(undefined, 48));
       cy.on('tap', 'node', event => {{
         const node = event.target;
         cy.elements().addClass('faded');
         node.removeClass('faded').addClass('selected');
         node.neighborhood().removeClass('faded');
-        detail.innerHTML = `<strong>${{node.data('label')}}</strong><br>章节：${{node.data('section') || '未分组'}}<br>${{node.data('definition') || '暂无定义'}}`;
+        const outgoing = node.outgoers('edge');
+        const incoming = node.incomers('edge');
+        const seen = new Set([node.id()]);
+        const related = [];
+        node.neighborhood('node').forEach((nb) => {{
+          const id = nb.id();
+          if (!seen.has(id)) {{
+            seen.add(id);
+            related.push(nb.data('label'));
+          }}
+        }});
+        const relHtml = related.slice(0, 3).map((name) => `<span class="chip">${{esc(name)}}</span>`).join('')
+          || '<span class="ev" style="margin:0">暂无一跳邻居</span>';
+        const origin = node.data('origin');
+        const originChip = origin === 'new'
+          ? '<span class="chip chip-new">新增</span>'
+          : origin === 'history'
+            ? '<span class="chip chip-old">历史</span>'
+            : '';
+        const outHtml = outgoing.length
+          ? outgoing.map(relBlock).join('')
+          : '<div class="ev">暂无出边</div>';
+        const inHtml = incoming.length
+          ? incoming.map(relBlock).join('')
+          : '<div class="ev">暂无入边</div>';
+        detail.innerHTML = `
+          <div class="name-row"><div class="name">${{esc(node.data('label'))}}</div>${{originChip}}</div>
+          <div class="block"><div class="label">所属章节</div>${{esc(node.data('section') || '未分组')}}</div>
+          <div class="block"><div class="label">定义（原文）</div>${{esc(node.data('definition') || '原文未给出独立定义')}}</div>
+          <div class="block"><div class="label">出边</div>${{outHtml}}</div>
+          <div class="block"><div class="label">入边</div>${{inHtml}}</div>
+          <div class="block"><div class="label">相关概念</div><div class="chips">${{relHtml}}</div></div>`;
       }});
       cy.on('tap', 'edge', event => {{
         const edge = event.target;
         cy.elements().addClass('faded');
         edge.removeClass('faded');
         edge.connectedNodes().removeClass('faded').addClass('selected');
-        detail.innerHTML = `<strong>${{edge.source().data('label')}} → ${{edge.target().data('label')}}</strong><br>关系：${{edge.data('label') || '相关'}}<br>${{edge.data('evidence') || '暂无证据'}}`;
+        detail.innerHTML = `
+          <div class="name">${{esc(edge.source().data('label'))}} → ${{esc(edge.data('label') || '相关')}} → ${{esc(edge.target().data('label'))}}</div>
+          <div class="block"><div class="label">原文证据</div>${{esc(edge.data('evidence') || '暂无原文证据')}}</div>`;
       }});
       cy.on('tap', event => {{
         if (event.target === cy) {{
           cy.elements().removeClass('faded selected');
-          detail.textContent = '点击一个节点或关系查看详情。';
+          detail.textContent = '点击一个节点查看定义、章节、出入边和相关概念。';
         }}
       }});
     }}
@@ -684,24 +866,30 @@ def render_knowledge_graph_bundle(
     stem: str = "knowledge_graph",
     title: str = "",
 ) -> dict[str, Path]:
-    """同时导出 PNG、SVG 和交互式 HTML；失败的格式会被跳过。"""
+    """同时导出 SVG、交互式 HTML 和学习地图；失败的格式会被跳过。"""
     paths: dict[str, Path] = {}
-    png_path = render_knowledge_graph(nodes, edges, out_dir, f"{stem}.png", title)
-    if png_path:
-        paths["png"] = png_path
     svg_path = render_knowledge_graph_svg(nodes, edges, out_dir, f"{stem}.svg", title)
     if svg_path:
         paths["svg"] = svg_path
     html_path = render_knowledge_graph_html(nodes, edges, out_dir, f"{stem}.html", title)
     if html_path:
         paths["html"] = html_path
+    try:
+        md_path = Path(out_dir) / f"{stem}.md"
+        md_path.write_text(
+            build_learning_map(nodes, edges, title=title),
+            encoding="utf-8",
+        )
+        paths["text"] = md_path
+    except Exception:  # noqa: BLE001
+        logger.warning("知识图谱学习地图落盘失败，已跳过", exc_info=True)
     return paths
 
 
 __all__ = [
+    "build_learning_map",
     "graphviz_available",
     "nodes_edges_to_dot",
-    "render_knowledge_graph",
     "render_knowledge_graph_bundle",
     "render_knowledge_graph_html",
     "render_knowledge_graph_svg",

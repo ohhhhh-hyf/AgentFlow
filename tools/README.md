@@ -9,9 +9,9 @@
 | 层 | 路径 | 职责 |
 |---|---|---|
 | 编排内核 | `runtime/` | 理解钩子、渲染上下文、图外 `produce_line`；`DomainNodes` 仍从 `domain_engine` 导入 |
-| 应用 | `app/` | CLI / 领域加载 / IO（re-export `runner` / `runtime_context` / `io`） |
-| 产物 | `artifacts/` | 报告落盘与导图（re-export `outputs`） |
-| 模板 | `templates/` | 判型 / 编译 / 评测 |
+| 应用 | `runner.py` / `runtime_context.py` / `io.py` | CLI、领域加载、读入 |
+| 产物 | `outputs.py` | 报告落盘与导图编排 |
+| 模板 | `template_router.py` | 判型 / 编译 / 评测 |
 | 记忆 | `memory/` | 可选子系统 |
 
 渲染上下文与降级节点不再由 `sync_domain.py` 按线生成。领域只声明 `_understanding_key` / `_transcript_label` / `_understanding_label`。
@@ -61,7 +61,7 @@ minutes_trace 是文档化的 pipeline + sidecar，不是和 risk 对等的一�
 |------|------|
 | `outputs.py` | 报告 JSON/Markdown 落盘 + mindmap/图谱导出编排 |
 | `mindmap.py` | markmap HTML + Playwright PNG |
-| `knowledge_graph.py` | Graphviz PNG/SVG + 交互 HTML |
+| `knowledge_graph.py` | Graphviz SVG + 交互 HTML + 学习地图 |
 
 ## 可选子系统（独立使用，不绑死主流程）
 

@@ -139,8 +139,25 @@ def _related(
     return False
 
 
-def _related_loose(left: str, right: str) -> bool:
-    return _related(left, right, min_grams=2, min_span=6)
+def _related_strong(
+    left: str,
+    right: str,
+    *,
+    df: dict[str, int] | None = None,
+    n_docs: int = 0,
+) -> bool:
+    """高相关：长连续重合或高信息重叠。同一关键点可挂多句时用这个门槛。"""
+    ratio, span, grams = _claim_score(left, right, df, n_docs)
+    if span >= 6:
+        return True
+    if ratio >= 0.45 and grams >= 3:
+        return True
+    ha, hb = _han_only(left), _han_only(right)
+    if len(ha) >= 6 and ha in hb:
+        return True
+    if len(hb) >= 8 and hb in ha:
+        return True
+    return False
 
 
 def _contains_loose(haystack: str, needle: str) -> bool:
@@ -416,27 +433,36 @@ def _same_topic(
     return span >= 6 or ratio >= 0.4
 
 
+_KEYPOINT_MATCH_CAP = 8
+
+
 def _best_sentences(
     source: str,
     candidates: list[str],
     limit: int = 2,
     df: dict[str, int] | None = None,
     n_docs: int = 0,
+    *,
+    require_strong: bool = False,
 ) -> list[str]:
     scored: list[tuple[float, int, int, str]] = []
     for sentence in candidates:
-        ratio, span, grams = _claim_score(source, sentence, df, n_docs)
-        if not _related(source, sentence, df=df, n_docs=n_docs):
+        if require_strong:
+            if not _related_strong(source, sentence, df=df, n_docs=n_docs):
+                continue
+        elif not _related(source, sentence, df=df, n_docs=n_docs):
             continue
+        ratio, span, grams = _claim_score(source, sentence, df, n_docs)
         scored.append((ratio, span, grams, sentence))
     if not scored:
         return []
     scored.sort(key=lambda item: (-item[0], -item[1], -item[2], len(item[3])))
     out: list[str] = []
+    cap = len(scored) if limit <= 0 else limit
     for _, _, _, sentence in scored:
         if sentence not in out:
             out.append(sentence)
-        if len(out) >= limit:
+        if len(out) >= cap:
             break
     return out
 
@@ -468,14 +494,22 @@ def backfill_alignments(
     titles = list(topic_titles or [])
 
     for keypoint in keypoints:
-        pool = candidates
-        if segments:
-            same_topic = _best_segment(keypoint, segments, titles)
-            if same_topic:
-                pool = same_topic
-        for sentence in _best_sentences(
-            keypoint, pool, limit=2, df=df, n_docs=n_docs
-        ):
+        hits = _best_sentences(
+            keypoint,
+            candidates,
+            limit=_KEYPOINT_MATCH_CAP,
+            df=df,
+            n_docs=n_docs,
+            require_strong=True,
+        )
+        if not hits:
+            pool = candidates
+            if segments:
+                same_topic = _best_segment(keypoint, segments, titles)
+                if same_topic:
+                    pool = same_topic
+            hits = _best_sentences(keypoint, pool, limit=1, df=df, n_docs=n_docs)
+        for sentence in hits:
             marker = (sentence, "keypoint", keypoint)
             if marker in seen:
                 continue

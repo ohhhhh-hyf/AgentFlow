@@ -299,12 +299,12 @@ async def _handle_done(ctx: DomainContext, event: dict) -> None:
         try:
             kg_dir = task_output_dir(ctx, "knowledge_graph")
             kg_paths = export_knowledge_graph(reports, kg_dir)
-            if kg_paths.get("png"):
-                sys.stdout.write(f"[知识图谱] 已生成 PNG：{kg_paths['png']}\n")
             if kg_paths.get("svg"):
                 sys.stdout.write(f"[知识图谱] 已生成 SVG：{kg_paths['svg']}\n")
             if kg_paths.get("html"):
                 sys.stdout.write(f"[知识图谱] 已生成 HTML：{kg_paths['html']}\n")
+            if kg_paths.get("text"):
+                sys.stdout.write(f"[知识图谱] 已生成学习地图：{kg_paths['text']}\n")
         except Exception:  # noqa: BLE001 - 单类导出失败不中断主流程
             logger.error("知识图谱导出失败", exc_info=True)
 

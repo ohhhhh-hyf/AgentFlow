@@ -2,10 +2,28 @@ from __future__ import annotations
 
 from collections.abc import AsyncIterator
 
+import json
+
 from llm_client import LLMClient
+from tools.knowledge_graph import build_learning_map
 from tools.prompt_utils import build_render_prompt
 
 from ..prompts import KNOWLEDGE_GRAPH_RENDER_PROMPT, KNOWLEDGE_GRAPH_RENDER_TEMPLATE_PROMPT
+
+
+def _draft_from_context(approved_context: str) -> dict:
+    marker = "已批准知识图谱草稿："
+    blob = approved_context or ""
+    if marker in blob:
+        blob = blob.split(marker, 1)[1]
+    start = blob.find("{")
+    if start < 0:
+        return {}
+    try:
+        data, _ = json.JSONDecoder().raw_decode(blob[start:])
+    except json.JSONDecodeError:
+        return {}
+    return data if isinstance(data, dict) else {}
 
 
 class KnowledgeGraphRender:
@@ -25,6 +43,16 @@ class KnowledgeGraphRender:
             template,
             KNOWLEDGE_GRAPH_RENDER_PROMPT,
             KNOWLEDGE_GRAPH_RENDER_TEMPLATE_PROMPT,
+        )
+
+    async def materialize(self, approved_context: str, template: str = "") -> str:
+        """无模板时按 nodes/edges 拼学习地图，不调 LLM。"""
+        del template
+        draft = _draft_from_context(approved_context)
+        return build_learning_map(
+            list(draft.get("nodes") or []),
+            list(draft.get("edges") or []),
+            title=str(draft.get("title") or "").strip(),
         )
 
     async def run(self, approved_context: str, template: str = "") -> str:

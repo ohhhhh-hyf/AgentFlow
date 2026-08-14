@@ -668,12 +668,6 @@ def _sup_targets() -> list[tuple]:
 FAC_ZONE_START = "# ── 任务线装配生成区：由 tools/scripts/sync_domain.py 生成，勿手改 ──"
 FAC_ZONE_END = "# ── 任务线装配生成区结束 ──"
 
-# 专属节点方法生成区标记（orchestrator.py 的 _Nodes 类内）
-# 语义与纯生成区不同：脚本只生成骨架（签名 + 占位注释），函数体由开发者填写；
-# --write 遇已有实现跳过，--check 只验证签名存在，不比较函数体。
-NODE_ZONE_START = "# ── 专属节点方法生成区：由 tools/scripts/sync_domain.py 生成骨架，函数体可改 ──"
-NODE_ZONE_END = "# ── 专属节点方法生成区结束 ──"
-
 # 任务线注册生成区标记（orchestrator.py 模块级 TASK_LINES 定义）
 TL_ZONE_START = "# ── 任务线注册生成区：由 tools/scripts/sync_domain.py 生成，勿手改 ──"
 TL_ZONE_END = "# ── 任务线注册生成区结束 ──"
@@ -681,14 +675,6 @@ TL_ZONE_END = "# ── 任务线注册生成区结束 ──"
 # Agent 挂载生成区标记（orchestrator.py 的 __init__ 内，任务线挂载）
 MOUNT_ZONE_START = "# ── Agent 挂载生成区：由 tools/scripts/sync_domain.py 生成，勿手改 ──"
 MOUNT_ZONE_END = "# ── Agent 挂载生成区结束 ──"
-
-# 节点映射生成区标记（orchestrator.py 的 __init__ 内，_fallback_nodes）
-NODEMAP_ZONE_START = "# ── 节点映射生成区：由 tools/scripts/sync_domain.py 生成，勿手改 ──"
-NODEMAP_ZONE_END = "# ── 节点映射生成区结束 ──"
-
-# 渲染上下文生成区标记（orchestrator.py 的 _Nodes 类内，完整生成勿手改）
-CTX_ZONE_START = "# ── 渲染上下文生成区：由 tools/scripts/sync_domain.py 生成，勿手改 ──"
-CTX_ZONE_END = "# ── 渲染上下文生成区结束 ──"
 
 # FallbackRules import 生成区标记（orchestrator.py 顶部 import 区，整体生成勿手改）
 IMPORT_ZONE_START = "# ── FallbackRules import 生成区：由 tools/scripts/sync_domain.py 生成，勿手改 ──"
@@ -726,14 +712,6 @@ _ZONE_PATTERN = (
     + re.escape(FAC_ZONE_END)
 )
 
-# 节点方法生成区正则（同样允许缩进，生成区在类内）
-_NODE_ZONE_PATTERN = (
-    r"[ \t]*"
-    + re.escape(NODE_ZONE_START)
-    + r"\r*\n(.*?)\r*\n[ \t]*"
-    + re.escape(NODE_ZONE_END)
-)
-
 # 任务线注册生成区正则（模块级顶格）
 _TL_ZONE_PATTERN = (
     re.escape(TL_ZONE_START)
@@ -747,22 +725,6 @@ _MOUNT_ZONE_PATTERN = (
     + re.escape(MOUNT_ZONE_START)
     + r"\r*\n(.*?)\r*\n[ \t]*"
     + re.escape(MOUNT_ZONE_END)
-)
-
-# 节点映射生成区正则（__init__ 方法体内，行首 8 空格缩进）
-_NODEMAP_ZONE_PATTERN = (
-    r"[ \t]*"
-    + re.escape(NODEMAP_ZONE_START)
-    + r"\r*\n(.*?)\r*\n[ \t]*"
-    + re.escape(NODEMAP_ZONE_END)
-)
-
-# 渲染上下文生成区正则（_Nodes 类内，行首 4 空格缩进）
-_CTX_ZONE_PATTERN = (
-    r"[ \t]*"
-    + re.escape(CTX_ZONE_START)
-    + r"\r*\n(.*?)\r*\n[ \t]*"
-    + re.escape(CTX_ZONE_END)
 )
 
 # FallbackRules import 生成区正则（模块级顶格）
@@ -1185,37 +1147,6 @@ def _has_fallback_rules(line: str, tasks_dir: Path | None = None) -> bool:
     )
 
 
-def generate_node_skeleton(line: str, tasks_dir: Path | None = None) -> str:
-    """生成单线降级节点。
-
-    - 该线 contracts.py 声明了 ``FALLBACK_RULES`` → 生成**完整函数体**
-      （调用公共拼装器 ``_fallback_text``，引用 ``{BASE}_FALLBACK_RULES``）
-    - 未声明 → 生成默认骨架（占位 return，开发者手写实现）
-    """
-    fn = f"_{line}_fallback_node"
-    if _has_fallback_rules(line, tasks_dir):
-        base = _contract_base(line, tasks_dir)
-        return (
-            f"    async def {fn}(self, state: {CURRENT.state_class()}) -> dict:\n"
-            f"        text, structure = _fallback_text(\n"
-            f'            state, "{line}", {base}_FALLBACK_RULES)\n'
-            f'        line_dict = {{"rendered": text, "degraded": True}}\n'
-            f"        if structure is not None:\n"
-            f'            line_dict["structure"] = structure\n'
-            f'        return {{\"lines\": {{\"{line}\": line_dict}}, '
-            f'"quality_degraded": True}}\n'
-        )
-    return (
-        f"    async def {fn}(self, state: {CURRENT.state_class()}) -> dict:\n"
-        f"        ## 这里新增你的代码：降级输出（写入 "
-        f'lines["{line}"]["rendered"] + degraded）\n'
-        f"        ## 未实现时返回空降级兜底（保证可运行）；实现后请替换下方 return\n"
-        f'        return {{"lines": {{"{line}": {{"rendered": "（降级）", '
-        f'"degraded": True}}}}, "quality_degraded": True}}\n'
-    )
-
-
-
 def _contract_base(line: str, tasks_dir: Path | None = None) -> str:
     """线名 → 契约基名：从该线 contracts.py 的契约类名推导。
 
@@ -1602,128 +1533,6 @@ def generate_mount_code(lines: list[str]) -> str:
                 f'agents["{line}_{role}"]'
             )
     return "\n".join(blocks)
-
-
-def generate_node_map_code(lines: list[str]) -> str:
-    """生成 __init__ 的降级节点映射（{} + 追加式，行首 8 空格缩进）。
-
-    渲染节点已移除：``_render_nodes`` 不再存在，仅保留 ``_fallback_nodes``。
-    """
-    blocks = ["        self._fallback_nodes: dict[str, object] = {}"]
-    blocks += [
-        f'        self._fallback_nodes["{line}"] = self._{line}_fallback_node'
-        for line in lines
-    ]
-    return "\n".join(blocks)
-
-
-def generate_render_context_code(lines: list[str]) -> str:
-    """生成 _Nodes 类的渲染上下文方法（完整生成，勿手改，行首 4 空格缩进）。
-
-    所有线的 render_context 完全同构：视角模式 / objective_perspective /
-    state 上下文行（领域配置 RENDER_CONTEXT_STATE_LINES）/
-    已批准{中文名}草稿 / {中文名}审核结论。中文名查领域 domain_config。
-
-    例外：``minutes_generation`` 线在 return 前追加 line_extra 记忆注入
-    （记忆摘录进渲染上下文，供记忆引用标注消费；其它线不需要）。
-    """
-    blocks = []
-    for line in lines:
-        cn = CURRENT.line_cn_names().get(line, line)
-        state_lines = CURRENT.render_context_state_lines()
-        tail = (
-            '        extra = (state.get("line_extra") or {}).get("minutes_generation")\n'
-            '        if extra:\n'
-            '            context = f"{context}\\n\\n{extra}"\n'
-            '        return context\n'
-        )
-        if line == "minutes_generation":
-            body = (
-                f"        context = (\n"
-                f'            f"视角模式：{{mode}}\\n"\n'
-                f'            f"objective_perspective：'
-                f"{{bool(state.get('objective_perspective'))}}\\n\\n\"\n"
-                + "\n".join(state_lines)
-                + "\n"
-                f'            f"已批准{cn}草稿：\\n{{_json(line.get(\'draft\'))}}\\n\\n\"\n'
-                f'            f"{cn}审核结论：\\n{{_json(review)}}"\n'
-                f"        )\n"
-                + tail
-            )
-        else:
-            body = (
-                f"        return (\n"
-                f'            f"视角模式：{{mode}}\\n"\n'
-                f'            f"objective_perspective：'
-                f"{{bool(state.get('objective_perspective'))}}\\n\\n\"\n"
-                + "\n".join(state_lines)
-                + "\n"
-                f'            f"已批准{cn}草稿：\\n{{_json(line.get(\'draft\'))}}\\n\\n\"\n'
-                f'            f"{cn}审核结论：\\n{{_json(review)}}"\n'
-                f"        )\n"
-            )
-        blocks.append(
-            f"    def _{line}_render_context(self, state: {CURRENT.state_class()}) -> str:\n"
-            f"        mode = self._mode_label(state)\n"
-            f'        line = _line(state, "{line}")\n'
-            f'        review = line.get("review") or {{}}\n'
-            + body
-        )
-    return "\n".join(blocks)
-
-
-def write_render_context(path: Path, lines: list[str]) -> None:
-    """整体重写 orchestrator.py 的渲染上下文生成区。"""
-    raw = _read_raw(path)
-    if CTX_ZONE_START not in raw or CTX_ZONE_END not in raw:
-        sys.exit(
-            f"{path.name} 中未找到渲染上下文生成区标记。请先手动添加：\n"
-            f"    {CTX_ZONE_START}\n（现有手写 render_context 移入此处）\n"
-            f"    {CTX_ZONE_END}"
-        )
-    m = re.search(_CTX_ZONE_PATTERN, raw, re.S)
-    if m is None:
-        sys.exit(f"{path.name} 中渲染上下文生成区标记不完整")
-    nl = "\r\n" if "\r\n" in raw else "\n"
-    code = nl.join(generate_render_context_code(lines).split("\n"))
-    block = (
-        f"    {CTX_ZONE_START}"
-        + nl
-        + nl
-        + code
-        + nl
-        + nl
-        + f"    {CTX_ZONE_END}"
-    )
-    new_raw = re.sub(
-        _CTX_ZONE_PATTERN,
-        lambda _m: block,
-        raw,
-        flags=re.S,
-    )
-    with open(path, "w", encoding="utf-8", newline="") as fh:
-        fh.write(new_raw)
-    _log(f"已写入 {path.name} 渲染上下文生成区")
-
-
-def check_render_context(path: Path, lines: list[str]) -> int:
-    """校验渲染上下文生成区与当前目录生成一致。"""
-    raw = _read_raw(path)
-    m = re.search(_CTX_ZONE_PATTERN, raw, re.S)
-    if m is None:
-        _log(f"{path.name} 中未找到渲染上下文生成区标记", file=sys.stderr)
-        return 1
-    zone = m.group(1)
-    expected = generate_render_context_code(lines)
-    if _normalize_newlines(zone).strip() != _normalize_newlines(expected).strip():
-        _log(
-            f"不一致：渲染上下文生成区与当前目录生成的代码有差异"
-            f"（请运行 --write 更新）",
-            file=sys.stderr,
-        )
-        return 1
-    _log(f"OK：渲染上下文生成区一致（{len(lines)} 条线）")
-    return 0
 
 
 def generate_fallback_import_code(lines: list[str]) -> str:
@@ -2151,72 +1960,6 @@ def _fac_check_target(path: Path, code: str) -> int:
     return 1
 
 
-# ── 专属节点方法生成区（orchestrator.py）：增量追加骨架 ─────
-
-def write_nodes(path: Path, lines: list[str]) -> None:
-    """向 orchestrator.py 的节点方法生成区追加缺失的骨架。
-
-    已有实现（生成区内已有 ``async def _{线名}_{kind}_node``）的线跳过，
-    不覆盖开发者填写的函数体；仅追加完全没有对应方法的线的骨架。
-    """
-    raw = _read_raw(path)
-    if NODE_ZONE_START not in raw or NODE_ZONE_END not in raw:
-        sys.exit(
-            f"{path.name} 中未找到专属节点方法生成区标记。请先手动添加：\n"
-            f"{NODE_ZONE_START}\n（现有专属节点方法移入此处）\n{NODE_ZONE_END}"
-        )
-    m = re.search(_NODE_ZONE_PATTERN, raw, re.S)
-    if m is None:
-        sys.exit(f"{path.name} 中专属节点方法生成区标记不完整")
-    zone = m.group(1)
-    additions = []
-    for line in lines:
-        fn = f"_{line}_fallback_node"
-        if f"async def {fn}" not in zone:
-            additions.append(generate_node_skeleton(line))
-    if not additions:
-        _log(f"无新增骨架：{path.name} 全部任务线已有降级节点方法")
-        return
-    nl = "\r\n" if "\r\n" in raw else "\n"
-    new_zone = zone.rstrip("\r\n") + nl + nl + nl.join(additions) + nl
-    block = (
-        f"    {NODE_ZONE_START}"
-        + nl
-        + nl
-        + new_zone
-        + f"    {NODE_ZONE_END}"
-    )
-    new_raw = re.sub(
-        _NODE_ZONE_PATTERN,
-        lambda _m: block,
-        raw,
-        flags=re.S,
-    )
-    with open(path, "w", encoding="utf-8", newline="") as fh:
-        fh.write(new_raw)
-    _log(f"已追加 {len(additions)} 个降级节点方法骨架到 {path}")
-
-
-def check_nodes(path: Path, lines: list[str]) -> int:
-    """校验每条线的 render/fallback 骨架签名都存在（不比较函数体）。"""
-    raw = _read_raw(path)
-    m = re.search(_NODE_ZONE_PATTERN, raw, re.S)
-    if m is None:
-        _log(f"{path.name} 中未找到专属节点方法生成区标记", file=sys.stderr)
-        return 1
-    zone = m.group(1)
-    missing = []
-    for line in lines:
-        fn = f"_{line}_fallback_node"
-        if f"async def {fn}" not in zone:
-            missing.append(fn)
-    if missing:
-        _log(f"缺失降级节点方法骨架: {missing}", file=sys.stderr)
-        return 1
-    _log(f"OK：降级节点方法签名齐全（{len(lines)} 条线 × fallback）")
-    return 0
-
-
 # ── TASK_LINES 注册生成区（orchestrator.py）：整体替换 ───────
 
 def write_task_lines(path: Path, lines: list[str]) -> None:
@@ -2312,59 +2055,6 @@ def check_mount(path: Path, lines: list[str]) -> int:
         file=sys.stderr,
     )
     return 1
-
-
-# ── 节点映射生成区（orchestrator.py）：整体替换 ───────────────
-
-def write_node_map(path: Path, lines: list[str]) -> None:
-    """整体重写 orchestrator.py 的节点映射生成区（仅 _fallback_nodes）。"""
-    raw = _read_raw(path)
-    if NODEMAP_ZONE_START not in raw or NODEMAP_ZONE_END not in raw:
-        sys.exit(
-            f"{path.name} 中未找到节点映射生成区标记。请先手动添加：\n"
-            f"{NODEMAP_ZONE_START}\n（现有节点映射代码移入此处）\n{NODEMAP_ZONE_END}"
-        )
-    nl = "\r\n" if "\r\n" in raw else "\n"
-    code = nl.join(generate_node_map_code(lines).split("\n"))
-    block = (
-        f"        {NODEMAP_ZONE_START}"
-        + nl
-        + nl
-        + code
-        + nl
-        + nl
-        + f"        {NODEMAP_ZONE_END}"
-    )
-    new_raw = re.sub(
-        _NODEMAP_ZONE_PATTERN,
-        lambda _m: block,
-        raw,
-        flags=re.S,
-    )
-    with open(path, "w", encoding="utf-8", newline="") as fh:
-        fh.write(new_raw)
-    _log(f"已写入 {path} 节点映射生成区")
-
-
-def check_node_map(path: Path, lines: list[str]) -> int:
-    """校验节点映射生成区与目录一致；一致返回 0，否则返回 1。"""
-    raw = _read_raw(path)
-    m = re.search(_NODEMAP_ZONE_PATTERN, raw, re.S)
-    if m is None:
-        _log(f"{path.name} 中未找到节点映射生成区标记", file=sys.stderr)
-        return 1
-    zone = _normalize_newlines(m.group(1)).strip()
-    expected = _normalize_newlines(generate_node_map_code(lines)).strip()
-    if zone == expected:
-        _log(f"OK：节点映射生成区与目录一致（{path.name}）")
-        return 0
-    _log(
-        f"不一致：节点映射生成区与当前目录生成的代码有差异（请运行 --write 更新）",
-        file=sys.stderr,
-    )
-    return 1
-
-
 
 
 # ── 领域 core understanding 自动接线 ─────────────────────────
