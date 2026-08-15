@@ -11,6 +11,8 @@ STATE_CLASS = "NotesState"
 LINE_CN_NAMES: dict[str, str] = {
     "points": "知识点总结",
     "knowledge_graph": "知识图谱",
+    "review": "笔记审查",
+    "quiz": "自测题",
 }
 
 # 任务线种类（手写，不进 sync_domain 生成区）。
@@ -20,5 +22,15 @@ LINE_KINDS: dict[str, object] = {
         "kind": DETERMINISTIC_PIPELINE,
         "llm_render": "if_template",
         "cli_template": True,
+    },
+    "review": {
+        "kind": LLM_EXTRACT,
+        "cli_template": False,
+        "llm_render": "if_template",
+    },
+    "quiz": {
+        "kind": LLM_EXTRACT,
+        "cli_template": False,
+        "llm_render": "if_template",
     },
 }

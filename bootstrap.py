@@ -40,6 +40,8 @@ def main() -> None:
                 args.user_id,
                 args.project_id,
                 args.subject,
+                getattr(args, "chapter", None),
+                getattr(args, "level", None),
             )
         )
     except (

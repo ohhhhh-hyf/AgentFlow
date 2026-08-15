@@ -25,6 +25,8 @@ from .models import (
     ModelMixin,
     KnowledgeGraphReportValidation,
     PointsReportValidation,
+    QuizReportValidation,
+    ReviewReportValidation,
 )
 
 # ── Report 基类 import 生成区结束 ──
@@ -65,3 +67,51 @@ class KnowledgeGraphReport(ModelMixin, KnowledgeGraphReportValidation):
         metadata={"source": "draft.edges"},
     )
     quality_warning: str | None = None
+
+@dataclass
+class ReviewReport(ModelMixin, ReviewReportValidation):
+    """笔记审查输出：总结 + 对照 HTML + 订正笔记。"""
+
+    knowledge_points: list[dict[str, Any]] = field(
+        default_factory=list,
+        metadata={"source": "draft.knowledge_points"},
+    )
+    issues: list[dict[str, Any]] = field(
+        default_factory=list,
+        metadata={"source": "structure"},
+    )
+    corrected_notes: str = field(
+        default="",
+        metadata={"source": "draft.corrected_notes"},
+    )
+    review_html: str = field(
+        default="",
+        metadata={"source": "draft.review_html"},
+    )
+    original_notes: str = field(
+        default="",
+        metadata={"source": "draft.original_notes"},
+    )
+    quality_warning: str | None = None
+    personalized_text: str | None = field(
+        default=None,
+        metadata={"source": "rendered"},
+    )
+
+@dataclass
+class QuizReport(ModelMixin, QuizReportValidation):
+    """自测题输出：题干展开，参考得分点折叠。"""
+
+    questions: list[dict[str, Any]] = field(
+        default_factory=list,
+        metadata={"source": "structure"},
+    )
+    quiz_html: str = field(
+        default="",
+        metadata={"source": "draft.quiz_html"},
+    )
+    quality_warning: str | None = None
+    personalized_text: str | None = field(
+        default=None,
+        metadata={"source": "rendered"},
+    )

@@ -23,6 +23,18 @@ from .tasks.points import (
     PointsSupervisor,
 )
 
+from .tasks.quiz import (
+    QuizAgent,
+    QuizRender,
+    QuizSupervisor,
+)
+
+from .tasks.review import (
+    ReviewAgent,
+    ReviewRender,
+    ReviewSupervisor,
+)
+
 # ── 任务线 import 生成区结束 ──
 
 class NotesAgentFactory:
@@ -43,6 +55,12 @@ class NotesAgentFactory:
             "points_agent": PointsAgent(client),
             "points_supervisor": PointsSupervisor(client),
             "points_render": PointsRender(client),
+            "quiz_agent": QuizAgent(client),
+            "quiz_supervisor": QuizSupervisor(client),
+            "quiz_render": QuizRender(client),
+            "review_agent": ReviewAgent(client),
+            "review_supervisor": ReviewSupervisor(client),
+            "review_render": ReviewRender(client),
 
             # ── 任务线装配生成区结束 ──
         }

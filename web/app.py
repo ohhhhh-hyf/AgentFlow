@@ -11,6 +11,7 @@ import shutil
 import sys
 import re
 import tempfile
+from datetime import datetime
 from pathlib import Path
 
 import gradio as gr
@@ -217,6 +218,23 @@ TASK_BRIEFS: dict[str, dict[str, str]] = {
             "同一用户加学科会增量合并，历史节点和本轮新增分开标注。"
         ),
     },
+    "review": {
+        "inputs": "笔记原文",
+        "outputs": "带批注对照页 Markdown、订正笔记 Markdown（默认不展示）",
+        "purpose": (
+            "先给出审查摘要，再给出带批注的原文对照页（Markdown，方便前端渲染高亮和批注）。"
+            "订正笔记会同时生成，但不替换原文；用户同意采用后才展示，不同意则保持原稿。"
+        ),
+    },
+    "quiz": {
+        "inputs": "笔记原文。可选：学科、章节、水平",
+        "outputs": "自测题 HTML（答案默认折叠）、Markdown",
+        "purpose": (
+            "读完这份笔记后出一套必须动脑的题，优先问「为什么 A 会导致 B」，"
+            "不能靠原文整句抄出来。每题带 2–3 个参考得分点，页面上点开才显示。"
+            "学科/章节/水平只调难度，不写记忆。"
+        ),
+    },
 }
 
 
@@ -248,8 +266,9 @@ def _panel_updates(domain: str, task_label: str | None):
     policy = _line_policy(domain, task)
     sidecar = bool(policy and policy.sidecar)
     show_user, show_project, show_subject = _memory_field_visibility(domain, task)
+    show_quiz = task == "quiz"
     show_mode = bool(policy and policy.cli_mode)
-    show_config = show_mode or show_user or sidecar
+    show_config = show_mode or show_user or sidecar or show_quiz
     return (
         gr.update(value=_task_brief_html(task)),
         gr.update(visible=show_config),
@@ -257,6 +276,7 @@ def _panel_updates(domain: str, task_label: str | None):
         gr.update(visible=show_user),
         gr.update(visible=show_project),
         gr.update(visible=show_subject),
+        gr.update(visible=show_quiz),
         gr.update(visible=sidecar),
         gr.update(visible=bool(policy and policy.cli_template)),
     )
@@ -314,6 +334,8 @@ def _md_preview_text(files: list[str]) -> str:
             continue
         if not path.is_file():
             continue
+        if "_corrected" in path.name:
+            continue
         if "_rejected" in path.name:
             rejected.append(path)
         else:
@@ -337,6 +359,8 @@ def _md_preview_text(files: list[str]) -> str:
             continue
         if not body:
             continue
+        if "_corrected" in path.name:
+            continue
         title = _clean_filename(path.name)
         parts.append(f"**{html.escape(title)}**\n\n{body}")
     return "\n\n---\n\n".join(parts)
@@ -348,8 +372,23 @@ def _gallery_update(files: list[str] | None = None):
     return gr.update(value=pngs, visible=bool(pngs))
 
 
+def _has_quiz_html(files: list[str] | None) -> bool:
+    for file in files or []:
+        path = Path(file)
+        if not (path.suffix.lower() == ".html" and path.is_file()):
+            continue
+        try:
+            if "quiz-sheet" in path.read_text(encoding="utf-8"):
+                return True
+        except OSError:
+            continue
+    return False
+
+
 def _md_update(files: list[str] | None = None):
-    """有 Markdown 才展示预览，否则隐藏。"""
+    """有 Markdown 才展示预览，否则隐藏。自测题以折叠 HTML 为主，不再摊开答案。"""
+    if _has_quiz_html(files):
+        return EMPTY_MD
     text = _md_preview_text(files or [])
     return gr.update(value=text, visible=bool(text))
 
@@ -370,7 +409,7 @@ def _memory_review_html(files: list[str]) -> str:
             doc = ""
         match = re.search(r"<main[^>]*>(.*?)</main>", doc, re.S | re.I)
         body = match.group(1).strip() if match else doc.strip()
-        return body if "memory-review" in body else ""
+        return body if ("memory-review" in body or "quiz-sheet" in body) else ""
     text = _md_preview_text(files)
     if not text or 'class="memory-link"' not in text:
         return ""
@@ -380,6 +419,17 @@ def _memory_review_html(files: list[str]) -> str:
 def _memory_review_update(files: list[str] | None = None):
     body = _memory_review_html(files or [])
     return gr.update(value=body, visible=bool(body))
+
+
+def _rewrite_btn_update(files: list[str] | None = None):
+    has = any(
+        str(file).endswith(".review.json") or "_corrected.md" in str(file)
+        for file in (files or [])
+    )
+    return gr.update(
+        visible=has,
+        value="同意采用订正笔记",
+    )
 
 
 def _clean_filename(name: str) -> str:
@@ -406,7 +456,7 @@ def _artifact_download_html(files: list[str]) -> str:
     visible_files = [
         file
         for file in (files or [])
-        if Path(file).is_file()
+        if Path(file).is_file() and not str(file).endswith(".review.json")
     ]
     if not visible_files:
         return '<p class="dl-empty">暂无生成文件</p>'
@@ -438,7 +488,7 @@ def _download_files_update(files: list[str] | None = None):
     visible_files = [
         file
         for file in (files or [])
-        if Path(file).is_file()
+        if Path(file).is_file() and not str(file).endswith(".review.json")
     ]
     return gr.update(value=visible_files, visible=bool(visible_files))
 
@@ -456,6 +506,7 @@ EMPTY_DOWNLOAD = '<p class="dl-empty">暂无生成文件</p>'
 EMPTY_MD = gr.update(value="", visible=False)
 EMPTY_GALLERY = gr.update(value=[], visible=False)
 EMPTY_REVIEW = gr.update(value="", visible=False)
+EMPTY_REWRITE = gr.update(visible=False)
 EMPTY_FILES = gr.update(value=[], visible=False)
 
 def _friendly_template_state(template: str, *, source_kind: str = "placeholder") -> dict:
@@ -508,6 +559,25 @@ def _display_readable_template(readable: str) -> str:
     return "\n".join(out).strip()
 
 
+def _heading_key(text: str) -> str:
+    """标题比对用：去掉占位/填空提示，只留可见标题字。"""
+    raw = (text or "").strip()
+    raw = re.sub(r"【填这里：([^】]*)】", r"\1", raw)
+    inner = re.findall(r"\[([^\[\]]+)\]", raw)
+    plain = re.sub(r"\[[^\[\]]+\]", "", raw).strip(" ：:")
+    return plain or (inner[0].strip() if inner else raw)
+
+
+def _match_heading(stripped: str, heading_levels: dict[str, str]) -> tuple[str, str] | None:
+    key = _heading_key(stripped)
+    if key and key in heading_levels:
+        return heading_levels[key], key
+    for title, marks in heading_levels.items():
+        if key and (key.startswith(title) or title.startswith(key)):
+            return marks, title
+    return None
+
+
 def _restore_display_template(display_text: str, template_raw: str) -> str:
     """把展示文本恢复为 readable_to_template 能理解的轻 Markdown 结构。"""
     heading_levels: dict[str, str] = {}
@@ -515,15 +585,15 @@ def _restore_display_template(display_text: str, template_raw: str) -> str:
     for line in (template_raw or "").splitlines():
         m = re.match(r"^(#{1,6})\s+(.+?)\s*$", line.strip())
         if m:
-            text = re.sub(r"\[[^\[\]]+\]", "", m.group(2)).strip(" ：:")
-            if text:
-                heading_levels[text] = m.group(1)
+            key = _heading_key(m.group(2))
+            if key:
+                heading_levels[key] = m.group(1)
     raw_lines = (template_raw or "").splitlines()
     current_title = ""
     for idx, line in enumerate(raw_lines):
         hm = re.match(r"^#{1,6}\s+(.+?)\s*$", line.strip())
         if hm:
-            current_title = re.sub(r"\[[^\[\]]+\]", "", hm.group(1)).strip(" ：:")
+            current_title = _heading_key(hm.group(1))
             continue
         if (
             line.strip().startswith("|")
@@ -540,21 +610,31 @@ def _restore_display_template(display_text: str, template_raw: str) -> str:
     current_title = ""
     pending_table: list[str] = []
 
+    def _row_values(row: str) -> dict[str, str]:
+        body = row.split("：", 1)[1] if "：" in row else row
+        values: dict[str, str] = {}
+        for part in re.split(r"[；;]", body):
+            if "：" in part:
+                k, v = part.split("：", 1)
+                values[k.strip()] = v.strip()
+        return values
+
     def flush_table() -> None:
         nonlocal pending_table
-        if not pending_table or current_title not in table_headers_by_title:
+        if not pending_table:
+            return
+        headers = table_headers_by_title.get(current_title)
+        if not headers:
+            parsed = _row_values(pending_table[0])
+            headers = list(parsed.keys()) if parsed else []
+        if not headers:
+            out.extend(pending_table)
             pending_table = []
             return
-        headers = table_headers_by_title[current_title]
         out.append("| " + " | ".join(headers) + " |")
         out.append("| " + " | ".join("---" for _ in headers) + " |")
         for row in pending_table:
-            body = row.split("：", 1)[1] if "：" in row else row
-            values: dict[str, str] = {}
-            for part in re.split(r"[；;]", body):
-                if "：" in part:
-                    k, v = part.split("：", 1)
-                    values[k.strip()] = v.strip()
+            values = _row_values(row)
             out.append("| " + " | ".join(values.get(h, "") for h in headers) + " |")
         pending_table = []
 
@@ -567,9 +647,11 @@ def _restore_display_template(display_text: str, template_raw: str) -> str:
         if idx == 0 and stripped.startswith("标题："):
             out.append("# " + stripped.split("：", 1)[1].strip())
             continue
-        if stripped in heading_levels:
-            current_title = stripped
-            out.append(f"{heading_levels[stripped]} {stripped}")
+        matched = _match_heading(stripped, heading_levels)
+        if matched:
+            marks, title = matched
+            current_title = title
+            out.append(f"{marks} {stripped}")
             continue
         out.append(line)
     flush_table()
@@ -692,6 +774,7 @@ def clear_results_only():
         "已清空结果区。左侧配置与输入仍保留，改完后直接再点「运行」即可，无需刷新页面。",
         EMPTY_GALLERY,
         EMPTY_REVIEW,
+        EMPTY_REWRITE,
         EMPTY_MD,
         EMPTY_FILES,
         EMPTY_DOWNLOAD,
@@ -704,6 +787,7 @@ def reset_form():
         "已重置表单（领域/任务保留）。视角固定为客观全员，无需填写画像。",
         EMPTY_GALLERY,
         EMPTY_REVIEW,
+        EMPTY_REWRITE,
         EMPTY_MD,
         EMPTY_FILES,
         EMPTY_DOWNLOAD,
@@ -715,6 +799,9 @@ def reset_form():
         "",
         "",
         "",
+        "",
+        "",
+        "不指定",
         gr.update(value=None),
         "",
         gr.update(value=None),
@@ -735,6 +822,7 @@ def _run_result(log, files_or_none=None, *hitl, files_html: str | None = None):
         log,
         _gallery_update(files),
         _memory_review_update(files),
+        _rewrite_btn_update(files),
         _md_update(files),
         _download_files_update(files),
         files_html if files_html is not None else _artifact_download_html(files),
@@ -758,10 +846,14 @@ def run_from_ui(
     """run_from_ui：*preview_args 承载模式/用户参数。
 
     Gradio 按位置传参（不会自动聚合 list），这里手动拆分：
-    preview_args = [mode, user_id, project_id, subject, kp_upload, kp_text, notes_upload, notes_text]
+    preview_args = [mode, user_id, project_id, subject, kp_upload, kp_text,
+                    notes_upload, notes_text, quiz_subject, quiz_chapter, quiz_level]
     """
     mode_value, user_id, project_id, subject = preview_args[:4]
     keypoints_upload, keypoints_text, notes_upload, notes_text = preview_args[4:8]
+    quiz_subject = preview_args[8] if len(preview_args) > 8 else ""
+    quiz_chapter = preview_args[9] if len(preview_args) > 9 else ""
+    quiz_level = preview_args[10] if len(preview_args) > 10 else ""
     domain = _domain_value(domain_label)
     if not task_label:
         return _run_result(
@@ -772,7 +864,14 @@ def run_from_ui(
         )
 
     tasks = [_task_value(task_label, domain)]
-    if not _task_uses_memory(tasks[0]):
+    chapter = level = None
+    if tasks[0] == "quiz":
+        user_id = project_id = None
+        subject = (quiz_subject or "").strip() or None
+        chapter = (quiz_chapter or "").strip() or None
+        raw_level = (quiz_level or "").strip()
+        level = None if raw_level in {"", "不指定"} else raw_level
+    elif not _task_uses_memory(tasks[0]):
         user_id = project_id = subject = None
     profile_data = json.loads(
         _load_profile_json_text(domain, PERSPECTIVE_OBJECTIVE)
@@ -828,10 +927,14 @@ def run_from_ui(
             # 情况 A：已有编辑模型（用户确认过预览）→ 合并组件值 → 组装最终模板
             if show_editor:
                 readable = (readable_template or "").strip()
+                if not readable:
+                    readable = str((edit_state or {}).get("readable_template") or "").strip()
                 base_template = (edit_state or {}).get("template_raw") or ""
                 final_template = _readable_to_generation_template(readable, base_template)
                 editor_value = dict(edit_state or {})
                 editor_value["readable_template"] = readable
+                if final_template:
+                    editor_value["template_raw"] = final_template
             # 情况 B：源模板是自然语言 → 编译并渲染成可编辑预览，不停下等编辑
             elif template_source and detect_template_kind(template_source) == "natural":
                 try:
@@ -909,6 +1012,9 @@ def run_from_ui(
                         (user_id or "").strip() or None,
                         (project_id or "").strip() or None,
                         (subject or "").strip() or None,
+                        chapter,
+                        level,
+                        compile_natural=not show_editor,
                     )
                 )
         except Exception as exc:  # noqa: BLE001 - UI should show the error directly
@@ -940,6 +1046,92 @@ def run_from_ui(
         log,
         files,
         *_hitl_ui(show_editor, editor_value if show_editor else ""),
+    )
+
+
+def _latest_review_payload() -> tuple[Path | None, dict | None]:
+    folder = PROJECT_ROOT / "output" / "notes" / "review"
+    if not folder.exists():
+        return None, None
+    files = sorted(
+        folder.glob("result_*.review.json"),
+        key=lambda path: path.stat().st_mtime,
+        reverse=True,
+    )
+    if not files:
+        return None, None
+    try:
+        return files[0], json.loads(files[0].read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return files[0], None
+
+
+async def _rewrite_corrected_notes(payload: dict) -> str:
+    from domain.notes.tasks.review.display import build_rewrite_user
+    from domain.notes.tasks.review.prompts import REVIEW_REWRITE_SYSTEM_PROMPT
+    from llm_client import LLMClient
+
+    client = LLMClient()
+    user = build_rewrite_user(
+        str(payload.get("original_notes") or ""),
+        {
+            "issues": payload.get("issues") or [],
+            "corrected_notes": payload.get("corrected_notes") or "",
+        },
+    )
+    try:
+        return await client.text(
+            REVIEW_REWRITE_SYSTEM_PROMPT, user, temperature=0.0
+        )
+    except TypeError:
+        return await client.text(REVIEW_REWRITE_SYSTEM_PROMPT, user)
+
+
+def rewrite_notes_from_ui():
+    """用户同意后才展示已生成的订正笔记；不同意则不改原稿。"""
+    path, payload = _latest_review_payload()
+    if not payload:
+        return (
+            "请先运行笔记审查。",
+            EMPTY_MD,
+            EMPTY_FILES,
+            EMPTY_DOWNLOAD,
+        )
+    text = str(payload.get("corrected_notes") or "").strip()
+    if not text:
+        folder = PROJECT_ROOT / "output" / "notes" / "review"
+        corr = sorted(
+            folder.glob("result_*_corrected.md"),
+            key=lambda item: item.stat().st_mtime,
+            reverse=True,
+        )
+        if corr:
+            text = corr[0].read_text(encoding="utf-8").strip()
+    if not text:
+        return (
+            "这次审查没有生成订正笔记，原稿未改动。",
+            EMPTY_MD,
+            EMPTY_FILES,
+            EMPTY_DOWNLOAD,
+        )
+    if path is not None:
+        payload["accepted"] = True
+        path.write_text(
+            json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8"
+        )
+    stamp = datetime.now().strftime("%Y%m%d_%H%M%S_%f")[:-3]
+    out_dir = PROJECT_ROOT / "output" / "notes" / "review"
+    out_dir.mkdir(parents=True, exist_ok=True)
+    shown = out_dir / f"result_{stamp}_accepted.md"
+    shown.write_text(text, encoding="utf-8")
+    files = [str(shown)]
+    if path is not None:
+        files.append(str(path))
+    return (
+        "已同意采用订正笔记。若不同意，不要点这个按钮，原稿不会被改。",
+        gr.update(value=text, visible=True),
+        _download_files_update(files),
+        _artifact_download_html(files),
     )
 
 
@@ -1980,6 +2172,57 @@ button.secondary:hover {
 .mem-empty {
   min-height: 1px;
 }
+.review-analysis {
+  font-size: 0.8rem;
+  color: #3a3832;
+  line-height: 1.5;
+  margin-top: 4px;
+  white-space: pre-wrap;
+}
+.review-fix {
+  font-size: 0.78rem;
+  color: #6b6860;
+  line-height: 1.45;
+  margin-top: 4px;
+}
+.quiz-hint {
+  font-size: 0.78rem;
+  font-weight: 400;
+  color: #6b6860;
+  margin-top: 4px;
+}
+.quiz-item {
+  padding: 12px 16px;
+  border-bottom: 1px solid #ebe8e1;
+}
+.quiz-item:last-child {
+  border-bottom: none;
+}
+.quiz-q {
+  font-weight: 650;
+  line-height: 1.55;
+  margin-bottom: 6px;
+}
+.quiz-dim {
+  font-size: 0.76rem;
+  color: #6b6860;
+  margin-bottom: 8px;
+}
+.quiz-answer summary {
+  cursor: pointer;
+  color: #3a3832;
+  font-size: 0.86rem;
+  user-select: none;
+}
+.quiz-answer ol {
+  margin: 8px 0 0 1.2em;
+  padding: 0;
+  line-height: 1.55;
+}
+.quiz-empty {
+  padding: 14px 16px;
+  color: #6b6860;
+}
 @media (max-width: 820px) {
   .review-row {
     grid-template-columns: 1fr;
@@ -2067,6 +2310,7 @@ def build_app() -> gr.Blocks:
         bool(initial_policy and initial_policy.cli_mode)
         or show_user
         or bool(initial_policy and initial_policy.sidecar)
+        or initial_task == "quiz"
     )
     with gr.Blocks(title="AgentFlow测试") as demo:
         with gr.Row(elem_id="chrome-row", equal_height=True):
@@ -2142,6 +2386,24 @@ def build_app() -> gr.Blocks:
                     placeholder="笔记域：同一用户 + 学科增量合并图谱",
                     visible=show_subject,
                 )
+                with gr.Group(visible=False, elem_id="quiz-box") as quiz_box:
+                    quiz_subject = gr.Textbox(
+                        label="学科/课程（可选）",
+                        lines=1,
+                        max_lines=1,
+                        placeholder="如：高等数学",
+                    )
+                    quiz_chapter = gr.Textbox(
+                        label="章节（可选）",
+                        lines=1,
+                        max_lines=1,
+                        placeholder="如：极限",
+                    )
+                    quiz_level = gr.Dropdown(
+                        label="水平（可选）",
+                        choices=["不指定", "初学者", "期中备考", "考研"],
+                        value="不指定",
+                    )
                 with gr.Group(visible=False, elem_id="trace-box") as trace_box:
                     gr.HTML(
                         '<div class="tpl-guide">'
@@ -2252,16 +2514,22 @@ def build_app() -> gr.Blocks:
                     max_lines=40,
                     elem_id="log-box",
                 )
+                memory_review = gr.HTML(
+                    value="",
+                    label="对照批注",
+                    elem_id="memory-review",
+                    visible=False,
+                )
+                rewrite_btn = gr.Button(
+                    "同意采用订正笔记",
+                    variant="secondary",
+                    elem_id="rewrite-btn",
+                    visible=False,
+                )
                 md_preview = gr.Markdown(
                     value="",
                     label="Markdown 预览",
                     elem_id="md-preview",
-                    visible=False,
-                )
-                memory_review = gr.HTML(
-                    value="",
-                    label="历史会议批注",
-                    elem_id="memory-review",
                     visible=False,
                 )
                 image_output = gr.Gallery(
@@ -2292,6 +2560,7 @@ def build_app() -> gr.Blocks:
             log_output,
             image_output,
             memory_review,
+            rewrite_btn,
             md_preview,
             download_files,
             files_output,
@@ -2308,6 +2577,7 @@ def build_app() -> gr.Blocks:
                 user_id,
                 project_id,
                 subject,
+                quiz_box,
                 trace_box,
                 template_wrap,
                 *hitl_outputs,
@@ -2323,6 +2593,7 @@ def build_app() -> gr.Blocks:
                 user_id,
                 project_id,
                 subject,
+                quiz_box,
                 trace_box,
                 template_wrap,
                 *hitl_outputs,
@@ -2352,6 +2623,9 @@ def build_app() -> gr.Blocks:
                 keypoints_text,
                 notes_upload,
                 notes_text,
+                quiz_subject,
+                quiz_chapter,
+                quiz_level,
             ],
             outputs=[*result_outputs, *hitl_outputs, *side_btns],
             show_progress="minimal",
@@ -2360,6 +2634,12 @@ def build_app() -> gr.Blocks:
             clear_compiled_template,
             inputs=[],
             outputs=[log_output, *hitl_outputs],
+        )
+        rewrite_btn.click(
+            rewrite_notes_from_ui,
+            inputs=[],
+            outputs=[log_output, md_preview, download_files, files_output],
+            show_progress="minimal",
         )
         clear_results_btn.click(
             clear_results_only,
@@ -2379,6 +2659,9 @@ def build_app() -> gr.Blocks:
                 user_id,
                 project_id,
                 subject,
+                quiz_subject,
+                quiz_chapter,
+                quiz_level,
                 keypoints_upload,
                 keypoints_text,
                 notes_upload,

@@ -80,6 +80,17 @@ def _html_document(title: str, body: str) -> str:
     .mem-card-title {{ font-size: 0.9rem; font-weight: 650; line-height: 1.4; margin-bottom: 6px; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }}
     .mem-card-meta {{ font-size: 0.78rem; color: #6b6860; line-height: 1.35; margin-bottom: 4px; }}
     .mem-card-source {{ font-size: 0.74rem; color: #9a968c; line-height: 1.35; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }}
+    .review-analysis {{ font-size: 0.8rem; color: #3a3832; line-height: 1.5; margin-top: 4px; white-space: pre-wrap; }}
+    .review-fix {{ font-size: 0.78rem; color: #6b6860; line-height: 1.45; margin-top: 4px; }}
+    .quiz-hint {{ font-size: 0.78rem; font-weight: 400; color: #6b6860; margin-top: 4px; }}
+    .quiz-item {{ padding: 12px 16px; border-bottom: 1px solid #ebe8e1; }}
+    .quiz-item:last-child {{ border-bottom: none; }}
+    .quiz-q {{ font-weight: 650; line-height: 1.55; margin-bottom: 6px; }}
+    .quiz-dim {{ font-size: 0.76rem; color: #6b6860; margin-bottom: 8px; }}
+    .quiz-answer {{ margin: 0; }}
+    .quiz-answer summary {{ cursor: pointer; color: #3a3832; font-size: 0.86rem; user-select: none; }}
+    .quiz-answer ol {{ margin: 8px 0 0 1.2em; padding: 0; line-height: 1.55; }}
+    .quiz-empty {{ padding: 14px 16px; color: #6b6860; }}
     .plain {{ padding: 18px 20px; background: #fff; border: 1px solid #d4d0c6; border-radius: 8px; line-height: 1.65; white-space: pre-wrap; }}
     @media (max-width: 820px) {{ .review-row {{ grid-template-columns: 1fr; }} .review-rule {{ height: 1px; }} }}
   </style>
@@ -121,7 +132,18 @@ def save_report_artifacts(
         md_path = out_dir / f"result_{timestamp}.md"
         md_path.write_text(text, encoding="utf-8")
         paths["text"] = md_path
-        if ctx.name == "meeting" and line_name == "minutes_generation":
+        review_html = data.get("review_html") or data.get("quiz_html")
+        if isinstance(review_html, str) and (
+            "memory-review" in review_html or "quiz-sheet" in review_html
+        ):
+            body = review_html
+            html_path = out_dir / f"result_{timestamp}.html"
+            html_path.write_text(
+                _html_document(ctx.line_cn_names.get(line_name, line_name), body),
+                encoding="utf-8",
+            )
+            paths["html"] = html_path
+        elif ctx.name == "meeting" and line_name == "minutes_generation":
             from tools.memory.citations import memory_review_html
 
             review = memory_review_html(text)
@@ -137,6 +159,27 @@ def save_report_artifacts(
                 encoding="utf-8",
             )
             paths["html"] = html_path
+        if line_name == "review":
+            import json
+
+            corrected = str(data.get("corrected_notes") or "").strip()
+            if corrected:
+                corr_path = out_dir / f"result_{timestamp}_corrected.md"
+                corr_path.write_text(corrected, encoding="utf-8")
+                paths["corrected"] = corr_path
+            payload = {
+                "original_notes": data.get("original_notes") or "",
+                "knowledge_points": data.get("knowledge_points") or [],
+                "issues": data.get("issues") or [],
+                "corrected_notes": corrected,
+                "accepted": False,
+            }
+            payload_path = out_dir / f"result_{timestamp}.review.json"
+            payload_path.write_text(
+                json.dumps(payload, ensure_ascii=False, indent=2),
+                encoding="utf-8",
+            )
+            paths["review"] = payload_path
     elif gate_ok is False:
         rej = out_dir / f"result_{timestamp}_rejected.md"
         # 门禁失败：不写正式 result.md；落盘内容保持干净（无内部注释标记，

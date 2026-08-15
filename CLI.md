@@ -197,6 +197,30 @@ python bootstrap.py --domain notes --file samples/notes/file/seq_one.txt --task 
 
 同一 `user_id + subject` 再跑会增量合并图谱。
 
+### 笔记审查 `review`
+
+```text
+python bootstrap.py --domain notes --file samples/notes/file/student_math_notes.txt --task review
+```
+
+```text
+python bootstrap.py --domain notes --file samples/notes/file/seq_one.txt --task 笔记审查
+```
+
+输出：带批注对照页 Markdown（`result_*.md`，给前端渲染）+ 订正笔记 Markdown（`result_*_corrected.md`，默认不展示，用户同意后才采用）。
+
+### 自测题 `quiz`
+
+```text
+python bootstrap.py --domain notes --file samples/notes/file/student_math_notes.txt --task quiz
+```
+
+```text
+python bootstrap.py --domain notes --file samples/notes/file/seq_one.txt --task 自测题 --subject 高等数学 --chapter 极限 --level 期中备考
+```
+
+学科 / 章节 / 水平可选，只调题目难度，不写记忆。答案在 HTML 里默认折叠，点击才展开。
+
 ---
 
 ## 一次跑多条任务

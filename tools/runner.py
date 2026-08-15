@@ -88,7 +88,18 @@ def build_parser(ctx: DomainContext) -> argparse.ArgumentParser:
     parser.add_argument(
         "--subject",
         default=None,
-        help="学科名称（笔记记忆用）。同一 --user_id + --subject 共用一份知识图谱并增量合并",
+        help="学科名称。笔记记忆：同一 --user_id + --subject 增量合并图谱；"
+        "自测题：只用来调难度，不写记忆",
+    )
+    parser.add_argument(
+        "--chapter",
+        default=None,
+        help="章节名称（笔记自测题用，可选）",
+    )
+    parser.add_argument(
+        "--level",
+        default=None,
+        help="用户水平：初学者 / 期中备考 / 考研（笔记自测题用，可选）",
     )
     for line in sorted(ctx.task_lines):
         cn = ctx.line_cn_names.get(line, line)
@@ -160,8 +171,15 @@ async def run(
     user_id: str | None = None,
     project_id: str | None = None,
     subject: str | None = None,
+    chapter: str | None = None,
+    level: str | None = None,
+    compile_natural: bool = True,
 ) -> None:
-    """Run selected task lines and persist their final artifacts."""
+    """Run selected task lines and persist their final artifacts.
+
+    compile_natural：为 False 时不再把模板当自然语言二次编译。
+    前端「确认模板并运行」必须关，否则用户改过的友好模板会被重新编译回首稿。
+    """
     setup_logging()
     load_env(resolve_path(ctx, env_file))
 
@@ -181,12 +199,14 @@ async def run(
         text = template_file.read_text(encoding="utf-8").strip()
         if not text:
             raise ValueError(f"{line} 模板文件为空：{template_file}")
-        template_texts[line] = await maybe_compile_natural_template(
-            text,
-            domain=ctx.name,
-            line_name=line,
-            schema_hint=LINE_SCHEMA_HINTS.get(line, ""),
-        )
+        if compile_natural:
+            text = await maybe_compile_natural_template(
+                text,
+                domain=ctx.name,
+                line_name=line,
+                schema_hint=LINE_SCHEMA_HINTS.get(line, ""),
+            )
+        template_texts[line] = text
 
     system = ctx.system_cls()
     any_output = False
@@ -195,6 +215,19 @@ async def run(
 
     memory_bind = None
     line_extra: dict[str, str] = {}
+    if "quiz" in line_names:
+        quiz_rows: list[str] = []
+        if (subject or "").strip():
+            quiz_rows.append(f"学科/课程：{subject.strip()}")
+        if (chapter or "").strip():
+            quiz_rows.append(f"章节：{chapter.strip()}")
+        if (level or "").strip():
+            quiz_rows.append(f"用户水平：{level.strip()}")
+        if quiz_rows:
+            line_extra["quiz"] = (
+                "【出题上下文（只调难度与问法，不是另一份笔记）】\n"
+                + "\n".join(quiz_rows)
+            )
     if user_id:
         from tools.memory import persist, prepare
 

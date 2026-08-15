@@ -41,6 +41,8 @@ from tools.runtime.kinds import resolve_line_policies
 from .reports import (
     KnowledgeGraphReport,
     PointsReport,
+    QuizReport,
+    ReviewReport,
 )
 # ── Report import 生成区结束 ──
 
@@ -58,12 +60,26 @@ from .tasks.points import (
     PointsSupervisor,
 )
 
+from .tasks.quiz import (
+    QuizAgent,
+    QuizRender,
+    QuizSupervisor,
+)
+
+from .tasks.review import (
+    ReviewAgent,
+    ReviewRender,
+    ReviewSupervisor,
+)
+
 # ── 任务线 import 生成区结束 ──
 
 # ── FallbackRules import 生成区：由 tools/scripts/sync_domain.py 生成，勿手改 ──
 
 from .tasks.knowledge_graph.contracts import KNOWLEDGE_GRAPH_FALLBACK_RULES
 from .tasks.points.contracts import POINTS_FALLBACK_RULES
+from .tasks.quiz.contracts import QUIZ_FALLBACK_RULES
+from .tasks.review.contracts import REVIEW_FALLBACK_RULES
 
 # ── FallbackRules import 生成区结束 ──
 
@@ -91,6 +107,19 @@ _EMPTY_POINTS = {
     "points": [],
 }
 
+_EMPTY_QUIZ = {
+    "concepts": [],
+    "relations": [],
+    "details": [],
+    "questions": [],
+}
+
+_EMPTY_REVIEW = {
+    "knowledge_points": [],
+    "issues": [],
+    "corrected_notes": "",
+}
+
 # ── 空结构常量生成区结束 ──
 
 # ── 拒绝审核常量生成区：由 tools/scripts/sync_domain.py 生成，勿手改 ──
@@ -104,6 +133,18 @@ _REJECT_POINTS_REVIEW = {
 _REJECT_KNOWLEDGE_GRAPH_REVIEW = {
     "decision": "reject",
     "graph_check": {"status": "fail", "findings": ["LLM 调用失败，未完成审核"]},
+    "feedback": ["LLM 调用失败，未完成审核，转降级输出"],
+}
+
+_REJECT_REVIEW_REVIEW = {
+    "decision": "reject",
+    "review_check": {"status": "fail", "findings": ["LLM 调用失败，未完成审核"]},
+    "feedback": ["LLM 调用失败，未完成审核，转降级输出"],
+}
+
+_REJECT_QUIZ_REVIEW = {
+    "decision": "reject",
+    "quiz_check": {"status": "fail", "findings": ["LLM 调用失败，未完成审核"]},
     "feedback": ["LLM 调用失败，未完成审核，转降级输出"],
 }
 
@@ -123,6 +164,18 @@ TASK_LINES: dict[str, dict] = {
         "supervisor_attr": "points_supervisor",
         "empty_draft": _EMPTY_POINTS,
         "reject_review": _REJECT_POINTS_REVIEW,
+    },
+    "quiz": {
+        "agent_attr": "quiz_agent",
+        "supervisor_attr": "quiz_supervisor",
+        "empty_draft": _EMPTY_QUIZ,
+        "reject_review": _REJECT_QUIZ_REVIEW,
+    },
+    "review": {
+        "agent_attr": "review_agent",
+        "supervisor_attr": "review_supervisor",
+        "empty_draft": _EMPTY_REVIEW,
+        "reject_review": _REJECT_REVIEW_REVIEW,
     },
 }
 
@@ -162,6 +215,8 @@ class _Nodes(DomainNodes):
     def _shared_context(self, state) -> str:
         """agent 共享上下文（视角模式 + 画像 + 视角模型 + 原文 + 笔记理解）。"""
         mode = self._mode_label(state)
+        extra = str((state.get("line_extra") or {}).get("quiz") or "").strip()
+        extra_block = f"\n\n{extra}" if extra else ""
         return (
             f"视角模式：{mode}\n"
             f"说明：perspective=objective 时为客观全员口径；"
@@ -170,6 +225,7 @@ class _Nodes(DomainNodes):
             f"用户视角模型：\n{_json(state.get('perspective_profile'))}\n\n"
             f"notes理解：\n{_json(state.get('notes_understanding'))}\n\n"
             f"原文：\n{state['transcript']}"
+            f"{extra_block}"
         )
 
     def _supervisor_context(self, state, line_name: str) -> str:
@@ -183,6 +239,8 @@ class _Nodes(DomainNodes):
             if revision_count < self.MAX_REVISIONS
             else "返工次数已用完，本轮只能选择 approve 或 reject。"
         )
+        extra = str((state.get("line_extra") or {}).get(line_name) or "").strip()
+        extra_block = f"\n\n{extra}" if extra else ""
         return (
             f"视角模式：{mode}\n"
             f"{_line_cn(line_name)}返工次数：{revision_count}/{self.MAX_REVISIONS}\n"
@@ -192,6 +250,7 @@ class _Nodes(DomainNodes):
             f"用户画像：\n{_json(state['user'])}\n\n"
             f"用户视角模型：\n{_json(state.get('perspective_profile'))}\n\n"
             f"{_line_draft_title(line_name)}：\n{_json(sub['draft'])}"
+            f"{extra_block}"
         )
 
     # ── 领域钩子：core 节点 ───────────────────────────────────
@@ -206,6 +265,17 @@ class _Nodes(DomainNodes):
         builder.add_edge(START, "perspective_modeling")
         return ["notes_understanding", "perspective_modeling"]
 
+    def _post_render_hook(self, state, line_name: str) -> None:
+        super()._post_render_hook(state, line_name)
+        if line_name == "review":
+            from .tasks.review.display import attach_review_artifacts
+
+            attach_review_artifacts(state)
+        elif line_name == "quiz":
+            from .tasks.quiz.display import attach_quiz_artifacts
+
+            attach_quiz_artifacts(state)
+
     # ── 核心节点：笔记理解（公共事实底座）──────────────────────
 
     async def _notes_understanding_node(self, state) -> dict:
@@ -219,7 +289,6 @@ class _Nodes(DomainNodes):
                 "quality_degraded": True,
             }
         return {"notes_understanding": result.model_dump()}
-
 
 class NotesAgentSystem(_Nodes):
     """使用 LangGraph 编排核心层、任务线审核返工与最终输出。"""
@@ -246,6 +315,12 @@ class NotesAgentSystem(_Nodes):
         self.points_agent: PointsAgent = agents["points_agent"]
         self.points_supervisor: PointsSupervisor = agents["points_supervisor"]
         self.points_render: PointsRender = agents["points_render"]
+        self.quiz_agent: QuizAgent = agents["quiz_agent"]
+        self.quiz_supervisor: QuizSupervisor = agents["quiz_supervisor"]
+        self.quiz_render: QuizRender = agents["quiz_render"]
+        self.review_agent: ReviewAgent = agents["review_agent"]
+        self.review_supervisor: ReviewSupervisor = agents["review_supervisor"]
+        self.review_render: ReviewRender = agents["review_render"]
 
         # ── Agent 挂载生成区结束 ──
 
@@ -254,6 +329,8 @@ class NotesAgentSystem(_Nodes):
         self._report_assemblers = {
             "knowledge_graph": KnowledgeGraphReport,
             "points": PointsReport,
+            "quiz": QuizReport,
+            "review": ReviewReport,
         }
 
         # ── Report 组装器生成区结束 ──
@@ -263,6 +340,8 @@ class NotesAgentSystem(_Nodes):
         self._fallback_rules = {
             "knowledge_graph": KNOWLEDGE_GRAPH_FALLBACK_RULES,
             "points": POINTS_FALLBACK_RULES,
+            "quiz": QUIZ_FALLBACK_RULES,
+            "review": REVIEW_FALLBACK_RULES,
         }
 
         # ── FallbackRules 注册生成区结束 ──

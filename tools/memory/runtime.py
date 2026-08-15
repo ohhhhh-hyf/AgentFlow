@@ -184,7 +184,9 @@ def persist(
             record = merge_notes(record, understanding, stamp, label)
         else:
             _refresh_identity(record, bind, reports, understanding, transcript)
-            record = merge_meeting(record, reports, stamp, understanding)
+            record = merge_meeting(
+                record, reports, stamp, understanding, transcript
+            )
         if reports.get("knowledge_graph") is not None:
             record = merge_graph(record, reports["knowledge_graph"])
         record["user_id"] = user_id

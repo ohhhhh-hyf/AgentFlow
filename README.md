@@ -27,7 +27,7 @@ domain/
       mindmap/                # 思维导图线（大纲 → markmap HTML/PNG）
       ...                     # 新增任务线同构
       {line}/steps/           # agent / supervisor / render 三步骤实现
-  notes/                      # 笔记域：笔记理解 + 知识点（points）+ 知识图谱（knowledge_graph）
+  notes/                      # 笔记域：知识点 / 知识图谱 / 笔记审查 / 自测题
 samples/                      # 样例输入：samples/{domain}/{file|profile|task_template}
 perspective/                  # 跨 domain 公共视角建模
 llm_client/                   # LLM 客户端（HTTP / WebSocket）+ 配置（.env）
@@ -175,6 +175,8 @@ python -m playwright install chromium
 | 思维导图演示 | `python bootstrap.py --task mindmap` |
 | 笔记知识点 | `python bootstrap.py --domain notes --task points` |
 | 知识图谱演示 | `python bootstrap.py --domain notes --task knowledge_graph` |
+| 笔记审查 | `python bootstrap.py --domain notes --task review` |
+| 自测题 | `python bootstrap.py --domain notes --task quiz` |
 
 Linux/macOS 路径写法示例：
 
@@ -263,6 +265,8 @@ CLI 参数：
 | `meeting` | `mindmap` | 思维导图 | `output/meeting/mindmap/mindmap_*.png` / `.html` |
 | `notes` | `points` | 笔记知识点总结 | 终端文本 |
 | `notes` | `knowledge_graph` | 知识图谱 | `output/notes/knowledge_graph/knowledge_graph_*.svg` / `.html` / `.md` |
+| `notes` | `review` | 笔记审查 | `output/notes/review/result_*.md` / `.html` |
+| `notes` | `quiz` | 自测题 | `output/notes/quiz/result_*.md` / `.html` |
 
 输出归档规则：
 

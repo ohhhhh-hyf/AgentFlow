@@ -57,7 +57,8 @@ MINUTES_GENERATION_SYSTEM_PROMPT = """你是「会议纪要草稿 Agent」。在
 
 ### headline（提炼）
 
-- 一句话主题，**优先逐字沿用** meeting_purpose  
+- 会议短标题，宜 8–18 字，像纪要题目，不要把 meeting_purpose 整段搬过来  
+- 可从目的里抽出主题词（项目/阶段/会种），去掉「确认…必须…」这类收口长句  
 - 上游无主题 →「会议纪要」；禁止自创夸张标题  
 
 ### executive_summary（提炼——槽位结构）
