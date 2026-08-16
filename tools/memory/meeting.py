@@ -178,42 +178,6 @@ def query_tokens(transcript: str, record: dict[str, Any] | None = None) -> list[
     return out
 
 
-def _history_entries(record: dict[str, Any]) -> list[tuple[str, str]]:
-    """档案里可供实体检索的结构化条目（种类, 全文）。"""
-    meeting = (record or {}).get("meeting") or {}
-    rows: list[tuple[str, str]] = []
-    purpose = _clean(meeting.get("purpose"))
-    if purpose:
-        rows.append(("目的", purpose))
-    for topic in meeting.get("topics") or []:
-        if not isinstance(topic, dict):
-            continue
-        title = _clean(topic.get("title"))
-        conclusion = _clean(topic.get("conclusion"))
-        discussion = _clean(topic.get("discussion"))
-        if title and conclusion:
-            rows.append(("议题", f"{title}（结论：{conclusion}）"))
-        elif title:
-            rows.append(("议题", title))
-        if discussion:
-            rows.append(("讨论", discussion))
-    for item in meeting.get("open_items") or []:
-        if isinstance(item, dict) and _clean(item.get("item")):
-            rows.append(("未决", _clean(item.get("item"))))
-    for item in meeting.get("decisions") or []:
-        if isinstance(item, dict) and _clean(item.get("decision")):
-            rows.append(("决策", _clean(item.get("decision"))))
-    for item in meeting.get("risks") or []:
-        if not isinstance(item, dict):
-            continue
-        if item.get("status") == "mitigated":
-            continue
-        text = _clean(item.get("risk"))
-        if text:
-            rows.append(("风险", text))
-    return rows
-
-
 def _understanding_entries(understanding: dict[str, Any] | None) -> list[tuple[str, str]]:
     if not isinstance(understanding, dict):
         return []

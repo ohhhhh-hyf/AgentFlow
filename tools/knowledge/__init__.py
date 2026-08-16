@@ -17,12 +17,7 @@ from .tool import (
     AskResult,
     KnowledgeTool,
     SearchResult,
-    add_file,
-    add_files,
-    add_text,
-    ask,
-    locate,
-    search,
+    get_knowledge,
 )
 
 __all__ = [
@@ -30,20 +25,9 @@ __all__ = [
     "KnowledgeTool",
     "KnowledgeToolConfig",
     "SearchResult",
-    "add_file",
-    "add_files",
-    "add_text",
-    "ask",
     "cite_text",
     "format_cite_line",
     "get_knowledge",
     "library_has_docs",
-    "locate",
     "open_knowledge",
-    "search",
 ]
-
-
-def get_knowledge(*, fake: bool = False, persist_dir: str | None = None) -> KnowledgeTool:
-    """按项目根 .env 构造知识库（DeepSeek 复用 DEEPSEEK_API_KEY）。"""
-    return KnowledgeTool(fake=fake, persist_dir=persist_dir)

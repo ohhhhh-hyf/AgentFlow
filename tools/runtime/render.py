@@ -239,23 +239,96 @@ async def produce_line(
                     + "\n\n硬性要求：每条表格数据独占一行；遵守模板约 N 行；"
                     "禁止残留 [占位符]；禁止空表。"
                 )
-                try:
-                    repaired = await render.run(repair_context, template)
-                except Exception:  # noqa: BLE001
-                    logger.warning(
-                        "repair 失败（%s）", line_name, exc_info=True
+                # 字数超限（_overlong_issue 触发）时追加强压缩指令，
+                # 与「篇幅修订·压缩」同强度，避免 LLM 把 issue 当轻提示
+                compress_hi = None
+                over_issue = next(
+                    (x for x in gate_issues if "超出字数上限" in x), None
+                )
+                if over_issue:
+                    try:
+                        from tools.template_eval import parse_document_char_budget
+                    except Exception:  # pragma: no cover
+                        parse_document_char_budget = None  # type: ignore[assignment]
+                    budget = (
+                        parse_document_char_budget(template or "")
+                        if parse_document_char_budget
+                        else {}
                     )
-                    repaired = ""
-                if repaired and repaired.strip():
+                    compress_hi = budget.get("hi")
+                    if compress_hi:
+                        repair_context += (
+                            f"\n\n【字数必须达标】当前正文超出**全文**约 {compress_hi} 字上限。"
+                            f"请**整体改写压缩**到约 {compress_hi} 字以内："
+                            "每句改短，删除过程铺陈/套话/展开论证/次要细节，"
+                            "只留关键结论/数字/责任人/时限；"
+                            "压缩后语句完整通顺；勿虚构；勿在正文写字数说明。"
+                        )
+                    elif "段落字数上限" in over_issue:
+                        repair_context += (
+                            "\n\n【段落字数必须达标】只压缩超限的那一节，"
+                            "不要用某一段的上限去压其它节或表格。"
+                            "压缩后语句完整通顺；勿虚构；勿在正文写字数说明。"
+                        )
+
+                # repair：字数超限时最多两轮压缩，仍超限则句子级截断兜底
+                def _han_count(s: str) -> int:
+                    return sum(1 for c in s if "\u4e00" <= c <= "\u9fff")
+
+                for _round in range(2 if compress_hi else 1):
+                    try:
+                        repaired = await render.run(repair_context, template)
+                    except Exception:  # noqa: BLE001
+                        logger.warning(
+                            "repair 失败（%s）", line_name, exc_info=True
+                        )
+                        repaired = ""
+                    if not (repaired and repaired.strip()):
+                        break
                     gate2 = gate_render_output(template, repaired)
                     hard2 = list(gate2.get("hard_issues") or [])
-                    if gate2["gate_ok"] or len(hard2) < len(hard0):
-                        full_text = gate2["text"]
-                        enforce_notes = list(gate2.get("notes") or [])
-                        gate_issues = list(gate2.get("issues") or [])
-                        gate_ok = bool(gate2.get("gate_ok"))
-                        fill_mode = "repair"
-                        hard0 = hard2
+                    if not (gate2["gate_ok"] or len(hard2) < len(hard0)):
+                        break
+                    full_text = gate2["text"]
+                    enforce_notes = list(gate2.get("notes") or [])
+                    gate_issues = list(gate2.get("issues") or [])
+                    gate_ok = bool(gate2.get("gate_ok"))
+                    fill_mode = "repair"
+                    hard0 = hard2
+                    still_over = compress_hi and any(
+                        "超出字数上限" in x for x in gate_issues
+                    )
+                    if not still_over or _round + 1 >= 2:
+                        break
+                    han_now = _han_count(full_text)
+                    repair_context = (
+                        f"{context}\n\n【字数仍超限，继续压缩】"
+                        f"上一版约 {han_now} 字，仍超过约 {compress_hi} 字。"
+                        f"请进一步压缩到约 {compress_hi} 字：合并同类句、"
+                        "去掉可省修饰，只保留结论/数字/责任人/时限。\n\n"
+                        f"【上一版正文】\n{full_text}"
+                    )
+                # 两轮压缩后仍超限：句子级截断兜底（保完整句，宁少勿多）
+                if (
+                    compress_hi
+                    and full_text
+                    and _han_count(full_text) > int(compress_hi) * 1.05
+                ):
+                    try:
+                        from tools.hard_execution import truncate_to_budget
+                    except Exception:  # pragma: no cover
+                        truncate_to_budget = None  # type: ignore[assignment]
+                    if truncate_to_budget:
+                        truncated = truncate_to_budget(
+                            full_text, int(compress_hi)
+                        )
+                        if truncated and truncated != full_text:
+                            full_text = truncated
+                            gate2 = gate_render_output(template, full_text)
+                            gate_issues = list(gate2.get("issues") or [])
+                            hard0 = list(gate2.get("hard_issues") or [])
+                            gate_ok = bool(gate2.get("gate_ok"))
+                            fill_mode = "repair"
 
             if (
                 not gate_ok

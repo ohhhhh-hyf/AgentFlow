@@ -37,9 +37,9 @@ EXERCISE_SEARCH_APP=
 EXERCISE_SEARCH_APP_SECRET=
 EXERCISE_SEARCH_BASE=https://dnfyyds.tech/server1
 EXERCISE_SEARCH_BANK_BASE=https://dnfyyds.tech/server1/bank
-EXERCISE_SEARCH_ASSET_BASE=https://staticzujuan.xkw.com
+EXERCISE_SEARCH_ASSET_BASE=https://contres.readboy.com
 ```
 
-题干/解析里的图片：完整 `https://` 地址会内嵌成 data URI；`/quesimg/` 走组卷 CDN；`/resources/aixue_paper/` 由 Gradio 同源代理。若配图仍打不开，把能打开该路径的图床写到 `EXERCISE_SEARCH_ASSET_BASE`。
+题干/解析里的图片：`/resources/aixue_paper/...` 拼到 `https://contres.readboy.com` 后下载并内嵌；`/quesimg/` 走组卷 CDN。可用 `EXERCISE_SEARCH_ASSET_BASE` 覆盖图床。
 
 缺省使用题库文档里的实测值。成功码是 `10000`，`page_size` 上限 20。取题走 `/bank/v1/question`，返回 `data.list`。

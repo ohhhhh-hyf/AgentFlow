@@ -22,10 +22,6 @@ from tools.template_eval import (
     extract_template_table_constraints,
     fix_glued_table_rows,
 )
-from tools.template_router import (
-    detect_template_kind,
-    validate_rendered_output,
-)
 
 logger = logging.getLogger(__name__)
 
@@ -74,6 +70,78 @@ def _as_str_list(value: Any) -> list[str]:
     return out
 
 
+_MODE_PREFIXES = ("视角模式：", "视角模式:")
+_SUBSET_MODES = frozenset({"role_template", "personal"})
+_MATCH_KEEP = 0.8
+
+
+def parse_perspective_mode(shared_context: str | None) -> str:
+    """从共享上下文头读取视角模式；读不到则按客观全量处理。"""
+    for raw in (shared_context or "").splitlines()[:12]:
+        line = raw.strip()
+        for prefix in _MODE_PREFIXES:
+            if line.startswith(prefix):
+                mode = line[len(prefix) :].strip().lower()
+                if mode in {"objective", "role_template", "personal"}:
+                    return mode
+                return "objective"
+    return "objective"
+
+
+def _norm_item(text: str) -> str:
+    return re.sub(r"\s+", "", str(text or "").strip())
+
+
+def _match_score(draft_item: str, upstream_item: str) -> float:
+    a, b = _norm_item(draft_item), _norm_item(upstream_item)
+    if not a or not b:
+        return 0.0
+    if a == b:
+        return 1.0
+    if a in b or b in a:
+        shorter, longer = (a, b) if len(a) <= len(b) else (b, a)
+        if len(shorter) >= 6 or (len(longer) and len(shorter) / len(longer) >= 0.4):
+            return 0.92
+        return 0.4
+    sa, sb = set(a), set(b)
+    jaccard = len(sa & sb) / max(len(sa | sb), 1)
+    if min(len(a), len(b)) >= 16 and jaccard >= 0.72:
+        return 0.8
+    return jaccard
+
+
+def subset_upstream_items(upstream: Any, draft: Any) -> list[str]:
+    """职业/真人下采：只保留草稿选中的上游条目（不得增改）。
+
+    对不上任何上游条目则回退为全量，避免空裁剪丢掉底座。
+    选中条目按上游原序、上游原文返回。
+    """
+    up = _as_str_list(upstream)
+    selected = _as_str_list(draft)
+    if not up:
+        return []
+    if not selected:
+        return up
+    used: set[int] = set()
+    picked: list[int] = []
+    for item in selected:
+        best_i = -1
+        best = _MATCH_KEEP
+        for i, src in enumerate(up):
+            if i in used:
+                continue
+            score = _match_score(item, src)
+            if score > best:
+                best = score
+                best_i = i
+        if best_i >= 0:
+            used.add(best_i)
+            picked.append(best_i)
+    if not picked:
+        return up
+    return [up[i] for i in sorted(picked)]
+
+
 def enforce_upstream_carry(
     draft: dict[str, Any],
     upstream: dict[str, Any] | None,
@@ -114,21 +182,32 @@ MINUTES_CARRY_MAP: dict[str, str] = {
 def enforce_minutes_draft(
     draft: dict[str, Any] | Any,
     understanding: dict[str, Any] | None,
+    *,
+    mode: str = "objective",
 ) -> dict[str, Any]:
-    """纪要草稿硬对齐：decisions/risks/open_questions 完全来自会议理解。"""
+    """纪要草稿硬对齐：搬运字段措辞以会议理解为准。
+
+    客观：三项全量拷贝。职业/真人：按草稿下采（只删不改），对不上则回退全量。
+    """
     if hasattr(draft, "model_dump"):
         data = draft.model_dump()
     elif isinstance(draft, dict):
         data = dict(draft)
     else:
         data = dict(draft)
-    return enforce_upstream_carry(
+    out = enforce_upstream_carry(
         data,
         understanding,
         MINUTES_CARRY_MAP,
         headline_field="headline",
         purpose_field="meeting_purpose",
     )
+    if (mode or "objective").strip().lower() not in _SUBSET_MODES:
+        return out
+    upstream = understanding or {}
+    for dst, src in MINUTES_CARRY_MAP.items():
+        out[dst] = subset_upstream_items(upstream.get(src), data.get(dst))
+    return out
 
 
 def _row_nonempty(row_line: str) -> bool:
@@ -251,6 +330,11 @@ def enforce_render_output(
     if not template or not (output or "").strip():
         return output or "", [], (["输出为空"] if not (output or "").strip() else [])
 
+    from tools.template_router import (
+        detect_template_kind,
+        validate_rendered_output,
+    )
+
     notes: list[str] = []
     text = fix_glued_table_rows(output)
     if text != output:
@@ -290,6 +374,31 @@ def enforce_render_output(
     return text, notes, remaining
 
 
+def truncate_to_budget(text: str, hi: int, *, ratio: float = 1.05) -> str:
+    """按句子边界截断到约 hi 字（保完整句，宁少勿多）。
+
+    LLM 压缩仍有极限（对汉字数感知不准），作为字数门禁的最终兜底：
+    优先整句保留（句号/分号/换行切句），超出部分丢弃；
+    极端情况（连一个完整句都放不下）退回字符硬截断。
+    """
+    if not text:
+        return ""
+    han = sum(1 for ch in text if "\u4e00" <= ch <= "\u9fff")
+    if han <= hi * ratio:
+        return text
+    parts = re.split(r"(?<=[。！？；!?;])|\n", text)
+    buf: list[str] = []
+    total = 0
+    for part in parts:
+        part_han = sum(1 for ch in part if "\u4e00" <= ch <= "\u9fff")
+        if buf and total + part_han > hi * ratio:
+            break
+        buf.append(part)
+        total += part_han
+    out = "".join(buf).strip()
+    return out if out else text[:hi]
+
+
 def gate_render_output(
     template: str,
     output: str,
@@ -300,6 +409,9 @@ def gate_render_output(
         text, notes, issues, hard_issues, soft_issues, gate_ok
     """
     text, notes, issues = enforce_render_output(template, output)
+    over = _overlong_issue(template, text)
+    if over:
+        issues.append(over)
     hard, soft = classify_issues(issues)
     # 再跑一轮：若仅有「超出」且已截断，gate 可通过
     gate_ok = len(hard) == 0
@@ -311,6 +423,66 @@ def gate_render_output(
         "soft_issues": soft,
         "gate_ok": gate_ok,
     }
+
+
+def _han_count(text: str) -> int:
+    return sum(1 for ch in (text or "") if "\u4e00" <= ch <= "\u9fff")
+
+
+def _overlong_issue(template: str, text: str) -> str | None:
+    """字数超限时返回提示（触发渲染 repair）。
+
+    - 全文预算（「全文合计约 N 字」）才约束整篇。
+    - 「本段/本栏约 N 字」只检查对应小节，不拿来压整篇。
+    - 不得把段落级「约 200 字」误当成全文上限。
+    """
+    if not template:
+        return None
+    try:
+        from tools.template_eval import (
+            parse_document_char_budget,
+            parse_section_char_budgets,
+            split_markdown_sections,
+        )
+    except Exception:  # pragma: no cover
+        return None
+    full = parse_document_char_budget(template or "")
+    hi = full.get("hi")
+    if hi:
+        han = _han_count(text)
+        if han > int(hi) * 1.2:
+            return (
+                f"超出全文上限：当前正文约 {han} 字，全文合计约 {hi} 字，"
+                f"请把整篇压缩至 {hi} 字以内（保留结论/关键数字/责任人/时限，"
+                "删除过程铺陈/套话/次要细节，语句保持完整通顺）。"
+            )
+        return None
+    sections = parse_section_char_budgets(template or "")
+    if not sections:
+        return None
+    rendered = split_markdown_sections(text or "")
+    issues: list[str] = []
+    for item in sections:
+        title = str(item.get("title") or "")
+        cap = int(item["hi"])
+        body = ""
+        for sec_title, sec_body in rendered:
+            if title and (title in sec_title or sec_title in title):
+                body = sec_body
+                break
+        if not body:
+            continue
+        han = _han_count(body)
+        if han > cap * 1.2:
+            issues.append(f"「{title}」约 {han} 字，本段上限 {cap} 字")
+    if not issues:
+        return None
+    return (
+        "超出段落字数上限："
+        + "；".join(issues)
+        + "。只压缩超限的那一节，其它节和表格不要为了凑字数而删。"
+        "保留结论/关键数字/责任人/时限，语句保持完整通顺。"
+    )
 
 
 def should_write_result_md(gate_ok: bool | None, has_template: bool) -> bool:
@@ -331,6 +503,8 @@ __all__ = [
     "enforce_render_output",
     "enforce_upstream_carry",
     "extract_labeled_json",
+    "parse_perspective_mode",
+    "subset_upstream_items",
     "gate_render_output",
     "should_write_result_md",
 ]

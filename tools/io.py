@@ -188,7 +188,13 @@ def load_user(ctx: DomainContext, profile_path: Path):
             "用户画像",
         )
     profile = json.loads(profile_file.read_text(encoding="utf-8"))
-    return ctx.models.UserIdentity(**profile)
+    if not isinstance(profile, dict):
+        raise ValueError(f"用户画像必须是 JSON 对象：{profile_file}")
+    from tools.profiles import filter_identity_fields, resolve_role_template
+
+    profile = resolve_role_template(profile, profile_file.parent)
+
+    return ctx.models.UserIdentity(**filter_identity_fields(profile, ctx.models.UserIdentity))
 
 
 __all__ = [

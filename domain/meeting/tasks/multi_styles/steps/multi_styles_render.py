@@ -71,13 +71,3 @@ class MultiStylesRender:
         prompt, user = self._prompt_and_user(approved_context, template)
         async for chunk in self.client.stream_text(prompt, user):
             yield chunk
-
-    @staticmethod
-    def extract_sections(state: MeetingState) -> list[dict]:
-        draft = (
-            (state.get("lines") or {})
-            .get("multi_styles", {})
-            .get("draft")
-            or {}
-        )
-        return list(draft.get("sections") or [])

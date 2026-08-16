@@ -9,7 +9,7 @@ from typing import Any
 def open_knowledge():
     """能开库就开；缺 key / 依赖失败返回 None（调用方走旧逻辑）。"""
     try:
-        from tools.knowledge import get_knowledge
+        from tools.knowledge.tool import get_knowledge
     except Exception:
         return None
     fake = os.getenv("KNOWLEDGE_FAKE", "").strip().lower() in {"1", "true", "yes"}

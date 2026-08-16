@@ -14,7 +14,7 @@
 | `--domain` | 否 | `meeting` 或 `notes`。不写则按解析顺序，建议显式指定 |
 | `--task` | 是 | 任务线名或中文名。可重复，一次跑多条线 |
 | `--file` | 否 | 输入文件或目录，可重复。资料入库可一次传多份；其它任务仍用第一个文件。默认 `samples/<domain>/file` |
-| `--profile` | 否 | 用户画像 JSON。默认客观画像 |
+| `--profile` | 否 | 用户画像 JSON。默认 `object_profile.json`（客观全员）。真人用 `personal_profile.json`；职业模板如 `client_manager_profile.json` / `product_manager_profile.json` / `project_manager_profile.json` / `developer_profile.json` |
 | `--env` | 否 | 环境变量文件。默认项目根 `.env` |
 | `--user_id` | 否 | 开启记忆 |
 | `--project` | 否 | 会议域项目 ID；笔记域未传 `--subject` 时可当学科名 |

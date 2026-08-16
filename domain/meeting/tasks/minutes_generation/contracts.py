@@ -18,11 +18,25 @@ class MinutesGenerationContract(GenerationContract):
 
     fields = [
         StrField("headline", "会议纪要标题"),
-        StrListField("executive_summary", "概述要点（通常2-3条，内容不足时不强求，每条1-2句）"),
-        StrListField("key_decisions", "决策（来自MeetingUnderstanding.decisions，列出全量，不要筛选）"),
+        StrListField(
+            "executive_summary",
+            "概述要点（通常2-3条，每条1-2句；客观须含范围边界与成组对照取值；"
+            "商务关注域须含金额与收付款节点——均须写在本字段，不得只放决策段）",
+        ),
+        StrListField(
+            "key_decisions",
+            "决策（来自MeetingUnderstanding.decisions：客观全量搬运；"
+            "职业/真人从上游下采本视角相关，措辞用上游原文，不得改写新增）",
+        ),
         StrListField("personally_relevant_points", "执行要点（有明确分工则写，无则[]，每条一句）"),
-        StrListField("risks_and_blockers", "风险（每条一句，无则[]）"),
-        StrListField("unresolved_questions", "未决问题（每条一句，无则[]）"),
+        StrListField(
+            "risks_and_blockers",
+            "风险（客观全量；职业/真人从上游 risks 下采本视角相关，措辞用上游原文）",
+        ),
+        StrListField(
+            "unresolved_questions",
+            "未决问题（客观全量；职业/真人从上游 open_questions 下采本视角相关，措辞用上游原文）",
+        ),
         StrListField(
             "history_comparison",
             "与历史对比（仅当上下文有历史记忆注入【记忆命中/历史项目状态/项目纪要素材】时填写："

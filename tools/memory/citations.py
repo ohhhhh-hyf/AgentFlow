@@ -293,21 +293,6 @@ def _best_span(line: str, ref: MemoryReference) -> tuple[int, int] | None:
     return None
 
 
-def _underline_span(line: str, ref: MemoryReference) -> str:
-    """标注行内精确锚点；找不到锚点时不标注（绝不整行下划线，防误标）。"""
-    span = _best_span(line, ref)
-    if span is None:
-        return line
-    start, end = span
-    before = escape(line[:start], quote=False)
-    label = escape(line[start:end], quote=False)
-    after = escape(line[end:], quote=False)
-    return (
-        f'{before}<a href="#{ref.ref_id}" class="memory-link">'
-        f"<u>{label}</u></a>{after}"
-    )
-
-
 def _append_markers(
     line: str,
     refs: list[MemoryReference],

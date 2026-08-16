@@ -313,8 +313,10 @@ class _Nodes(DomainNodes):
         mode = self._mode_label(state)
         return (
             f"视角模式：{mode}\n"
-            f"说明：perspective=objective 时为客观全员口径；"
-            f"缺省或其它值为个人用户口径。\n\n"
+            f"说明：objective=客观全员；role_template=职业模板（name 是职业名，不是会场真人）；"
+            f"personal=真人个人（name 是真实姓名）。"
+            f"裁剪时同时遵守画像 focus_areas / interests / principles / constraints / output_style。"
+            f"职业/真人对决策、风险、未决从上游下采（只删不改），关注域内的数字、时限、承诺、口径、范围边界不得省略。\n\n"
             f"用户画像：\n{_json(state['user'])}\n\n"
             f"会议理解：\n{_json(state['meeting_understanding'])}\n\n"
             f"用户视角模型：\n{_json(state['perspective_profile'])}\n\n"

@@ -118,13 +118,6 @@ class LLMClient:
                 total,
             )
 
-    def usage_summary(self) -> dict[str, int]:
-        """返回累计 token / 调用统计的浅拷贝。"""
-        return dict(self.usage_totals)
-
-    def clear_cache(self) -> None:
-        self._response_cache.clear()
-
     def _cache_key(
         self,
         messages: list[dict[str, str]],

@@ -494,7 +494,10 @@ def _render_bank_html(draft: dict[str, Any]) -> list[str]:
             _clean(item.get("analysis")) or "题库未返回解析。",
             quote=False,
         )
-        answer = _clean(item.get("correct_answer"))
+        raw_answer = item.get("correct_answer")
+        answer_html = normalize_bank_html(raw_answer) if raw_answer else ""
+        if not answer_html:
+            answer_html = escape(_clean(raw_answer), quote=False)
         paper = _clean(item.get("paper"))
         body = ['<div class="quiz-item quiz-bank-item">']
         body.append(f'<div class="quiz-q">库{i}.</div>')
@@ -505,10 +508,8 @@ def _render_bank_html(draft: dict[str, Any]) -> list[str]:
             body.append(f'<ol class="quiz-opts">{options}</ol>')
         body.append('<details class="quiz-answer">')
         body.append("<summary>查看解析</summary>")
-        if answer:
-            body.append(
-                f'<div class="quiz-key">参考答案：{escape(answer, quote=False)}</div>'
-            )
+        if answer_html:
+            body.append(f'<div class="quiz-key">参考答案：{answer_html}</div>')
         body.append(f'<div class="quiz-analysis">{analysis}</div>')
         if paper:
             body.append(

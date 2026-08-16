@@ -39,6 +39,10 @@ class PerspectiveModeling(ModelMixin):
     attention_points: list[str] = field(default_factory=list)
     possible_actions: list[str] = field(default_factory=list)
     preference_signals: list[str] = field(default_factory=list)
+    stakeholders: list[str] = field(default_factory=list)
+    conclusions: list[str] = field(default_factory=list)
+    open_questions: list[str] = field(default_factory=list)
+    data_gaps: list[str] = field(default_factory=list)
 
     @classmethod
     def validate(cls, data: dict) -> "PerspectiveModeling":
@@ -55,6 +59,10 @@ class PerspectiveModeling(ModelMixin):
         _string_list(data["attention_points"], "attention_points")
         _string_list(data["possible_actions"], "possible_actions")
         _string_list(data["preference_signals"], "preference_signals")
+        _string_list(data["stakeholders"], "stakeholders")
+        _string_list(data["conclusions"], "conclusions")
+        _string_list(data["open_questions"], "open_questions")
+        _string_list(data["data_gaps"], "data_gaps")
         return cls(**data)
 
 
@@ -71,6 +79,10 @@ EMPTY_PERSPECTIVE_MODELING = {
     "attention_points": [],
     "possible_actions": [],
     "preference_signals": [],
+    "stakeholders": [],
+    "conclusions": [],
+    "open_questions": [],
+    "data_gaps": [],
 }
 
 

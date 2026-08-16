@@ -2,13 +2,11 @@
 
 from __future__ import annotations
 
-import os
 import re
-import tempfile
 import unicodedata
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import List, Optional
+from typing import List
 
 SUPPORTED_EXTS = {".txt", ".md", ".pdf", ".docx", ".pptx", ".xlsx"}
 
@@ -84,10 +82,7 @@ def _extract_pptx(path: str) -> List[TextChunk]:
         parts = []
         for shape in _iter_shapes(slide.shapes):
             if shape.shape_type == MSO_SHAPE_TYPE.PICTURE:
-                # 图片 → OCR 识别文字(可选依赖; 未安装则跳过)
-                img_text = _ocr_picture(shape)
-                if img_text:
-                    parts.append(img_text)
+                # 图片内容暂不解析，直接跳过
                 continue
             if shape.has_text_frame and shape.text_frame.text.strip():
                 parts.append(shape.text_frame.text.strip())
@@ -113,97 +108,6 @@ def _iter_shapes(shapes):
                 yield from _iter_shapes(shape.shapes)
         except Exception:
             pass
-
-
-# ============================================================
-# OCR(可选): 识别 PPT/图片中的文字
-#   后端可选: paddle(PaddleOCR, 百度开源, 最强, 需 pip install paddlepaddle paddleocr)
-#            rapid(RapidOCR, 轻量, 需 pip install rapidocr_onnxruntime)
-#            auto(默认: 优先 paddle, 其次 rapid)
-#   通过环境变量 KNOWLEDGE_OCR_BACKEND 选择; 未安装任何后端时图片静默跳过。
-# ============================================================
-_ocr_engine = None          # None=未初始化; False=不可用; 引擎=已就绪
-_ocr_backend = os.getenv("KNOWLEDGE_OCR_BACKEND", "auto").lower()
-
-
-def _get_ocr():
-    """懒加载 OCR 引擎(全局单例)。无可用后端时返回 None(图片静默跳过)。"""
-    global _ocr_engine
-    if _ocr_engine is not None:
-        return _ocr_engine or None
-
-    backends = (["paddle", "rapid"] if _ocr_backend == "auto"
-                else [_ocr_backend])
-    for backend in backends:
-        engine = _try_load_backend(backend)
-        if engine is not None:
-            _ocr_engine = engine
-            return engine
-    _ocr_engine = False
-    return None
-
-
-def _try_load_backend(backend: str):
-    """尝试加载指定后端, 失败返回 None"""
-    try:
-        if backend == "paddle":
-            from paddleocr import PaddleOCR
-            # PaddleOCR 3.x: 关闭文档方向分类/扭曲矫正/文本行方向(纯识别, 更快更稳)
-            return PaddleOCR(
-                use_doc_orientation_classify=False,
-                use_doc_unwarping=False,
-                use_textline_orientation=False,
-                lang="ch",
-            )
-        if backend == "rapid":
-            from rapidocr_onnxruntime import RapidOCR
-            return RapidOCR()
-    except ImportError:
-        pass
-    except Exception:
-        pass
-    return None
-
-
-def _run_ocr(engine, img_path: str) -> list:
-    """适配不同 OCR 引擎, 统一返回文本行列表"""
-    try:
-        if _ocr_backend == "paddle" or (hasattr(engine, "predict")):
-            # PaddleOCR 3.x: predict() → [{'rec_texts': [...], ...}]
-            results = engine.predict(input=img_path)
-            texts = []
-            for page in results:
-                texts.extend(page.get("rec_texts", []) or [])
-            return texts
-        # RapidOCR: engine(img) → (result, elapse), result=[[box, text, score], ...]
-        result, _ = engine(img_path)
-        return [str(item[1]) for item in (result or []) if len(item) >= 2 and item[1]]
-    except Exception:
-        return []
-
-
-def _ocr_picture(shape) -> str:
-    """提取 shape 内的图片字节 → 临时文件 → OCR, 返回识别文本(空串=失败/未启用)"""
-    engine = _get_ocr()
-    if engine is None:
-        return ""
-    try:
-        blob = shape.image.blob
-        ext = shape.image.ext or "png"
-    except Exception:
-        return ""
-    tmp_path = None
-    try:
-        fd, tmp_path = tempfile.mkstemp(suffix="." + ext)
-        with os.fdopen(fd, "wb") as f:
-            f.write(blob)
-        lines = _run_ocr(engine, tmp_path)
-        return "\n".join(lines)
-    except Exception:
-        return ""
-    finally:
-        if tmp_path and os.path.exists(tmp_path):
-            os.remove(tmp_path)
 
 
 # ============================================================

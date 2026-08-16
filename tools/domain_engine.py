@@ -86,7 +86,12 @@ class DomainNodes:
 
     @staticmethod
     def _mode_label(state: dict) -> str:
-        return "objective" if state.get("objective_perspective") else "personal"
+        if state.get("objective_perspective"):
+            return "objective"
+        user = state.get("user") or {}
+        if str(user.get("persona_type") or "").strip().lower() == "role_template":
+            return "role_template"
+        return "personal"
 
     @staticmethod
     def _revision_context(context: str, feedback: list[str], label: str) -> str:
@@ -118,8 +123,10 @@ class DomainNodes:
         mode = self._mode_label(state)
         return (
             f"视角模式：{mode}\n"
-            f"说明：perspective=objective 时为客观全员口径；"
-            f"缺省或其它值为个人用户口径。\n\n"
+            f"说明：objective=客观全员；role_template=职业模板（name 是职业名，不是会场真人）；"
+            f"personal=真人个人（name 是真实姓名）。"
+            f"裁剪时同时遵守画像 focus_areas / interests / principles / constraints / output_style。"
+            f"职业/真人对决策、风险、未决从上游下采（只删不改），关注域内的数字、时限、承诺、口径、范围边界不得省略。\n\n"
             f"用户画像：\n{json_dumps(state['user'])}\n\n"
             f"用户视角模型：\n{json_dumps(state.get('perspective_profile'))}\n\n"
             f"原文：\n{state['transcript']}"

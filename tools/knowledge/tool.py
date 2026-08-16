@@ -7,11 +7,6 @@
     kb.add_file("考勤制度.pdf", collection="hr")
     result = kb.ask("病假怎么申请?", collection="hr")
     result.answer / result.sources
-
-    # 纯函数式(每次调用独立):
-    from knowledge_tool import add_file, ask, search
-    add_file("考勤制度.pdf", collection="hr")
-    answer = ask("病假怎么申请?", collection="hr")
 """
 
 from __future__ import annotations
@@ -192,70 +187,7 @@ class KnowledgeTool:
         return self.store.list_chunks(collection, filename)
 
 
-# ============================================================
-# 函数式 API(无状态, 读环境变量或显式传 key)
-# ============================================================
-_default_instance: Optional[KnowledgeTool] = None
+def get_knowledge(*, fake: bool = False, persist_dir: str | None = None) -> KnowledgeTool:
+    """按项目根 .env 构造知识库（DeepSeek 复用 DEEPSEEK_API_KEY）。"""
+    return KnowledgeTool(fake=fake, persist_dir=persist_dir)
 
-
-def _get(fake: bool = False, persist_dir: Optional[str] = None,
-         embedding_api_key: str = "", llm_api_key: str = "") -> KnowledgeTool:
-    global _default_instance
-    if _default_instance is None or _default_instance.fake != fake:
-        _default_instance = KnowledgeTool(fake=fake, persist_dir=persist_dir,
-                                          embedding_api_key=embedding_api_key,
-                                          llm_api_key=llm_api_key)
-    return _default_instance
-
-
-def add_file(path: str, collection: str = "default",
-             embedding_api_key: str = "", llm_api_key: str = "",
-             persist_dir: Optional[str] = None) -> int:
-    """入库一个文档(函数式)。"""
-    return _get(embedding_api_key=embedding_api_key,
-                llm_api_key=llm_api_key, persist_dir=persist_dir
-                ).add_file(path, collection)
-
-
-def add_files(paths, collection: str = "default", recursive: bool = True,
-              embedding_api_key: str = "", llm_api_key: str = "",
-              persist_dir: Optional[str] = None) -> dict:
-    """批量入库: 文件路径/目录列表(函数式)。返回 {"added", "files", "skipped", "total_chunks"}。"""
-    return _get(embedding_api_key=embedding_api_key,
-                llm_api_key=llm_api_key, persist_dir=persist_dir
-                ).add_files(paths, collection, recursive)
-
-
-def add_text(text: str, collection: str = "default", source: str = "text",
-             embedding_api_key: str = "", llm_api_key: str = "",
-             persist_dir: Optional[str] = None) -> int:
-    return _get(embedding_api_key=embedding_api_key,
-                llm_api_key=llm_api_key, persist_dir=persist_dir
-                ).add_text(text, collection, source)
-
-
-def search(question: str, collection: str = "default", top_k: Optional[int] = None,
-           embedding_api_key: str = "", llm_api_key: str = "",
-           persist_dir: Optional[str] = None) -> List[SearchResult]:
-    """检索(函数式)。"""
-    return _get(embedding_api_key=embedding_api_key,
-                llm_api_key=llm_api_key, persist_dir=persist_dir
-                ).search(question, collection, top_k)
-
-
-def ask(question: str, collection: str = "default", top_k: Optional[int] = None,
-        embedding_api_key: str = "", llm_api_key: str = "",
-        persist_dir: Optional[str] = None) -> AskResult:
-    """检索 + LLM 问答(函数式)。"""
-    return _get(embedding_api_key=embedding_api_key,
-                llm_api_key=llm_api_key, persist_dir=persist_dir
-                ).ask(question, collection, top_k)
-
-
-def locate(text: str, collection: str = "default", top_k: Optional[int] = None,
-           embedding_api_key: str = "", llm_api_key: str = "",
-           persist_dir: Optional[str] = None) -> List[SearchResult]:
-    """给一段内容找知识库出处(函数式)。"""
-    return _get(embedding_api_key=embedding_api_key,
-                llm_api_key=llm_api_key, persist_dir=persist_dir
-                ).locate(text, collection, top_k)

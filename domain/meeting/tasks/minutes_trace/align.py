@@ -103,11 +103,6 @@ def _best_span(left: str, right: str, min_size: int = 4) -> tuple[int, str]:
     return 0, ""
 
 
-def _span_hit(left: str, right: str, size: int = 4) -> bool:
-    span, _ = _best_span(left, right, min_size=size)
-    return span >= size
-
-
 def _ngram_df(sentences: list[str]) -> dict[str, int]:
     df: dict[str, int] = {}
     for sentence in sentences:

@@ -230,6 +230,104 @@ def parse_document_char_budget(template: str) -> dict[str, Any]:
     return empty
 
 
+def parse_section_char_budgets(template: str) -> list[dict[str, Any]]:
+    """按小节解析「本段/本栏约 N 字」，不含全文合计、不含表格行。"""
+    raw = template or ""
+    if not raw.strip():
+        return []
+    lines = raw.splitlines()
+    out: list[dict[str, Any]] = []
+    i = 0
+    while i < len(lines):
+        head = re.match(r"^(#{1,6})\s+(.+)$", lines[i].strip())
+        if not head:
+            i += 1
+            continue
+        title = re.sub(r"\[[^\[\]]*\]", "", head.group(2)).strip()
+        chunk: list[str] = []
+        j = i + 1
+        while j < len(lines) and not re.match(r"^#{1,6}\s+", lines[j].strip()):
+            chunk.append(lines[j])
+            j += 1
+        blob = "\n".join(chunk)
+        i = j
+        if "|" in blob:
+            continue
+        if re.search(r"全文(?:合计)?", blob) and not re.search(
+            r"本段约|本栏约", blob
+        ):
+            continue
+        if not re.search(r"本段约|本栏约|约\s*\d+\s*字|\d+\s*字", blob):
+            continue
+        budget = parse_char_budget(blob)
+        if not budget.get("hi"):
+            continue
+        out.append(
+            {
+                "title": title or "本节",
+                "lo": budget.get("lo"),
+                "hi": int(budget["hi"]),
+            }
+        )
+    return out
+
+
+def parse_table_row_hints(template: str) -> list[dict[str, Any]]:
+    """表格「约 N 行」约束，带上最近小节标题。"""
+    raw = template or ""
+    if "|" not in raw:
+        return []
+    lines = raw.splitlines()
+    title = ""
+    seen: list[dict[str, Any]] = []
+    for line in lines:
+        head = re.match(r"^(#{1,6})\s+(.+)$", line.strip())
+        if head:
+            title = re.sub(r"\[[^\[\]]*\]", "", head.group(2)).strip()
+            continue
+        if line.count("|") < 2 or "[" not in line:
+            continue
+        if _TABLE_SEP_RE.match(line.strip()):
+            continue
+        n = parse_row_hint(line)
+        if not n:
+            continue
+        seen.append({"title": title or "表格", "rows": n})
+    return seen
+
+
+def split_markdown_sections(text: str) -> list[tuple[str, str]]:
+    """按 ATX 标题切开正文，返回 [(标题或空, 该节正文含标题行)]。"""
+    raw = text or ""
+    if not raw.strip():
+        return []
+    lines = raw.splitlines(keepends=True)
+    preamble: list[str] = []
+    sections: list[tuple[str, list[str]]] = []
+    current_title: str | None = None
+    current: list[str] = []
+    for line in lines:
+        head = re.match(r"^(#{1,6})\s+(.+)$", line.strip())
+        if head:
+            if current_title is None:
+                preamble = current
+            else:
+                sections.append((current_title, current))
+            current_title = re.sub(r"\[[^\[\]]*\]", "", head.group(2)).strip()
+            current = [line]
+        else:
+            current.append(line)
+    if current_title is None:
+        return [("", "".join(current))] if current else []
+    sections.append((current_title, current))
+    out: list[tuple[str, str]] = []
+    if preamble and "".join(preamble).strip():
+        out.append(("", "".join(preamble)))
+    for title, body in sections:
+        out.append((title, "".join(body)))
+    return out
+
+
 def fix_glued_table_rows(text: str) -> str:
     """把同一行里用 ``||`` 粘连的多条表格数据拆成多行（通用 Markdown 修复）。"""
     if not text or "||" not in text:
@@ -467,4 +565,7 @@ __all__ = [
     "parse_document_char_budget",
     "parse_char_hint",
     "parse_row_hint",
+    "parse_section_char_budgets",
+    "parse_table_row_hints",
+    "split_markdown_sections",
 ]

@@ -391,11 +391,6 @@ def build_review_markdown(original: str, draft: dict[str, Any]) -> str:
     return "\n".join(parts).strip() + "\n"
 
 
-def build_corrected_markdown(draft: dict[str, Any]) -> str:
-    """订正后的笔记（独立 Markdown）。没有订正稿则空串。"""
-    return str(draft.get("corrected_notes") or "").strip()
-
-
 def draft_from_context(approved_context: str) -> dict[str, Any]:
     blob = approved_context or ""
     for marker in ("已批准笔记审查草稿：", "已批准审查草稿："):
@@ -429,29 +424,6 @@ def original_from_context(approved_context: str) -> str:
                 break
         return body.strip()
     return ""
-
-
-def build_rewrite_user(original: str, draft: dict[str, Any]) -> str:
-    issues = _issue_items(draft)
-    lines = ["原始笔记：", original.strip() or "（空）", "", "审查问题清单："]
-    if not issues:
-        lines.append("（无问题。请在保持结构的前提下把笔记整理通顺，不要新增章节。）")
-    else:
-        for i, issue in enumerate(issues, 1):
-            label = ISSUE_KINDS.get(issue["kind"], ("·", issue["kind"]))[1]
-            lines.append(f"{i}. [{label}] {issue['problem']}")
-            if issue["quote"]:
-                lines.append(f"   原文片段：{issue['quote']}")
-            if issue["analysis"]:
-                lines.append(f"   分析：{issue['analysis']}")
-            if issue["suggestion"]:
-                lines.append(f"   建议：{issue['suggestion']}")
-    prev = str(draft.get("corrected_notes") or "").strip()
-    if prev:
-        lines.extend(["", "上一版订正笔记（可作参考，但以问题清单为准）：", prev])
-    lines.append("")
-    lines.append("请输出订正后的完整笔记正文。")
-    return "\n".join(lines)
 
 
 def review_payload(original: str, draft: dict[str, Any]) -> dict[str, Any]:
@@ -537,10 +509,8 @@ __all__ = [
     "ISSUE_KINDS",
     "attach_library_hits",
     "attach_review_artifacts",
-    "build_corrected_markdown",
     "build_review_html",
     "build_review_markdown",
-    "build_rewrite_user",
     "draft_from_context",
     "find_quote_span",
     "format_summary_text",

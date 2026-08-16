@@ -33,6 +33,11 @@ from tools.template_router import (  # noqa: E402
     readable_to_template,
     template_to_preview,
 )
+from tools.profiles import (  # noqa: E402
+    default_profile_label,
+    profile_choices,
+    resolve_profile_entry,
+)
 from web.quiz_filters import (  # noqa: E402
     NONE as QUIZ_NONE,
     qtype_choices as quiz_qtype_choices,
@@ -109,16 +114,32 @@ def _mode_value(label: str) -> str:
     return label.strip()
 
 
+def _profile_dir(domain: str) -> Path:
+    return PROJECT_ROOT / "samples" / domain / "profile"
+
+
 def _profile_sample_path(domain: str, mode: str) -> Path:
     name = (
         "object_profile.json"
         if mode == PERSPECTIVE_OBJECTIVE
         else "personal_profile.json"
     )
-    return PROJECT_ROOT / "samples" / domain / "profile" / name
+    return _profile_dir(domain) / name
 
 
-def _load_profile_json_text(domain: str, mode: str) -> str:
+def _profile_dropdown_choices(domain: str) -> list[str]:
+    return profile_choices(_profile_dir(domain))
+
+
+def _profile_dropdown_default(domain: str) -> str:
+    return default_profile_label(_profile_dir(domain))
+
+
+def _load_profile_json_text(domain: str, mode: str = PERSPECTIVE_OBJECTIVE, label: str = "") -> str:
+    if label:
+        entry = resolve_profile_entry(_profile_dir(domain), label)
+        if entry is not None:
+            return json.dumps(entry["data"], ensure_ascii=False, indent=2)
     path = _profile_sample_path(domain, mode)
     if path.exists():
         return path.read_text(encoding="utf-8")
@@ -158,87 +179,85 @@ def _task_uses_memory(task: str) -> bool:
 
 TASK_BRIEFS: dict[str, dict[str, str]] = {
     "minutes_generation": {
-        "inputs": "会议记录。可选：用户 ID、项目 ID、渲染模板",
-        "outputs": "纪要 Markdown、网页 HTML",
+        "inputs": "会议记录。可选：视角（默认客观全员）、用户 ID、项目 ID、模板",
+        "outputs": "结构化纪要 Markdown + 网页 HTML",
         "purpose": (
-            "把一场会议整理成可归档的结构化纪要（议题、结论、摘要），方便会后分发。"
-            "亮点：只要填用户 ID 就开记忆，项目 ID 可选；命中历史后，纪要里会打记忆引用，"
-            "右侧结果栏会展开对应的历史会议卡片，用来核对延续事项和本次新进展。"
+            "把一场会议整理成可归档纪要（议题、结论、摘要），默认客观全员，可选真人或职业视角。"
+            "特别之处：填用户 ID 开记忆，命中历史会议会打引用并展开对照卡片。"
         ),
     },
     "action_items": {
-        "inputs": "会议记录。可选：渲染模板",
+        "inputs": "会议记录。可选：模板",
         "outputs": "待办清单 Markdown",
         "purpose": (
-            "从本场记录抽出待办，尽量带上事项说明、负责人和截止时间，方便会后跟进。"
-            "亮点：和纪要拆开，只验抽取准不准；不读历史记忆，也不把口头讨论自动当成已分派任务。"
+            "抽出带负责人和截止时间的待办清单，方便会后跟进。"
+            "特别之处：与纪要分开验证；只认明确分工，不把口头讨论当已分派任务。"
         ),
     },
     "risk": {
-        "inputs": "会议记录。可选：渲染模板",
+        "inputs": "会议记录。可选：模板",
         "outputs": "风险分析 Markdown",
         "purpose": (
-            "把会上提到的风险单独抽成条目，尽量标出严重度、责任人和应对提示。"
-            "亮点：风险和待办分开验，避免把普通跟进误判成风险；不依赖记忆，只看本场原文。"
+            "把会上提到的风险抽成条目，标注严重度、责任人与应对提示。"
+            "特别之处：风险与待办分开判定，只依据本场原文。"
         ),
     },
     "mindmap": {
-        "inputs": "会议记录。可选：渲染模板",
-        "outputs": "可交互脑图 HTML；本机可另出 PNG",
+        "inputs": "会议记录。可选：模板",
+        "outputs": "可交互脑图 HTML（本机可另存 PNG）",
         "purpose": (
-            "把会议要点铺成一张可点击思维导图，用来扫议题结构和从属关系。"
-            "亮点：产物是交互网页而不是又一篇纪要；本机还可另存 PNG 看层级。不写项目记忆。"
+            "把会议要点铺成可点击思维导图，看议题结构与从属关系。"
+            "特别之处：产物是可交互网页；不写项目记忆。"
         ),
     },
     "multi_styles": {
-        "inputs": "会议记录、组织模式。可选：用户 ID、项目 ID、渲染模板",
-        "outputs": "指定风格的纪要 Markdown",
+        "inputs": "会议记录、组织模式。可选：用户 ID、项目 ID、模板",
+        "outputs": "指定风格纪要 Markdown",
         "purpose": (
-            "同一场会按时间线、逻辑总分、因果、主体责权或决策时效换一种组织方式重写。"
-            "亮点：换的是读法不是标题；填用户 ID 同样开记忆，右侧也可对照历史引用卡片。"
+            "同一场会按时间线、总分、因果、主体责权、决策时效五种组织方式重写。"
+            "特别之处：换的是读法不是标题；填用户 ID 开记忆，可对照历史引用。"
         ),
     },
     "minutes_trace": {
         "inputs": "会议记录、用户关键点、用户笔记",
         "outputs": "带对齐戳的溯源纪要 Markdown",
         "purpose": (
-            "生成带对齐戳的溯源纪要，让段落回指会议原文，并叠上用户关键点和用户笔记。"
-            "亮点：一条关键点只要和多句高度相关就可以反复挂钉；用来核对有据可查，不是另写摘要。没有项目记忆。"
+            "生成段落回指会议原文的溯源纪要，并叠上用户关键点与笔记。"
+            "特别之处：一条关键点可反复挂钉，核对有据可查。"
         ),
     },
     "knowledge_graph": {
-        "inputs": "笔记原文。可选：用户 ID、学科、渲染模板",
-        "outputs": "图谱 SVG、可点击 HTML、学习地图 Markdown",
+        "inputs": "笔记原文。可选：用户 ID、学科、模板",
+        "outputs": "图谱 SVG + 可点击 HTML + 学习地图 Markdown",
         "purpose": (
-            "把笔记里的概念做成可点击知识图谱，并给出按主题分组的学习地图。"
-            "亮点：点节点能在图上「学」（定义、原文摘录、关系、复习提示）；"
-            "同一用户加学科会增量合并，历史节点和本轮新增分开标注。"
+            "把笔记概念做成可点击知识图谱与按主题分组的学习地图。"
+            "特别之处：点节点可在图上「学」（定义、原文摘录、关系、复习提示）；同用户按学科增量合并。"
         ),
     },
     "review": {
         "inputs": "笔记原文",
-        "outputs": "带批注对照页 Markdown、订正笔记 Markdown（默认不展示）",
+        "outputs": "带批注对照页 Markdown + 订正笔记（默认不展示）",
         "purpose": (
-            "审查刚写的笔记：左边高亮问题句，右边尽量钉到知识库里的文件和原文。"
-            "库是空的就按原来的方式挑刺，不编出处。订正稿会生成，同意后才展示。"
+            "审查笔记：高亮问题句，并尽量钉到知识库出处。"
+            "特别之处：库空则按原方式挑刺、不编出处；订正稿需确认后才展示。"
         ),
     },
     "library": {
-        "inputs": "多份笔记、PPT、PDF、Word、Excel，或一个文件夹。不用指定知识库名",
-        "outputs": "信息熵报告：知识增量 + 冲突点（Markdown / HTML）",
+        "inputs": "多份笔记/PPT/PDF/Word/Excel 或一个文件夹",
+        "outputs": "信息熵报告：知识增量 + 冲突点（Markdown/HTML）",
         "purpose": (
-            "一次把多份资料写入同一知识库，并告诉你这批文件让库变聪明了多少。"
-            "亮点：不报解析页数，只报新增独立知识点和需要你裁决的矛盾；"
-            "标完哪份为准，review / quiz 就能引用这份库。"
+            "一次把多份资料写入同一知识库，报告新增独立知识点与矛盾点。"
+            "特别之处：只报增量与冲突不报页数；裁决哪份为准后，review/quiz 可引用该库。"
         ),
     },
     "quiz": {
         "inputs": "笔记原文。可选：难度、题型",
-        "outputs": "自测题 HTML（答案/解析默认折叠）、Markdown",
+        "outputs": "自测题 HTML（答案/解析折叠）+ Markdown",
         "purpose": (
-            "读完这份笔记后出约 6 道必须动脑的题，优先问「为什么 A 会导致 B」。"
-            "水平固定为期中备考；年级和课本版本由笔记对齐到的知识点反推，不用手选。"
-            "题库真题大约 6 道，只收带解析和答案的题；第 1 页不够再翻第 2 页。解析点开才显示。"
+            "根据笔记内容设计思考题，检验是否真正理解（优先问「为什么 A 会导致 B」），"
+            "同时提供对应题目供练习巩固。"
+            "特别之处：题目围绕笔记知识点生成并附答案解析（点开才显示）；"
+            "另从题库配约 6 道同知识点真题，边学边练。"
         ),
     },
 }
@@ -310,11 +329,21 @@ def _panel_updates(domain: str, task_label: str | None, current_upload=None):
     show_user, show_project, show_subject = _memory_field_visibility(domain, task)
     show_quiz = task == "quiz"
     show_mode = bool(policy and policy.cli_mode)
-    show_config = show_mode or show_user or sidecar or show_quiz
+    show_perspective = domain == "meeting" and task == "minutes_generation"
+    show_config = show_mode or show_user or sidecar or show_quiz or show_perspective
+    perspective_choices = _profile_dropdown_choices(domain) if show_perspective else []
+    perspective_value = (
+        _profile_dropdown_default(domain) if show_perspective else None
+    )
     return (
         gr.update(value=_task_brief_html(task)),
         gr.update(visible=show_config),
         gr.update(visible=show_mode),
+        gr.update(
+            visible=show_perspective,
+            choices=perspective_choices or ["客观 · 客观全员"],
+            value=perspective_value or "客观 · 客观全员",
+        ),
         gr.update(visible=show_user),
         gr.update(visible=show_project),
         gr.update(visible=show_subject),
@@ -612,159 +641,66 @@ EMPTY_REVIEW = gr.update(value="", visible=False)
 EMPTY_REWRITE = gr.update(visible=False)
 EMPTY_FILES = gr.update(value=[], visible=False)
 
+def _short_hint(hint: str) -> str:
+    """把占位说明精简成用户看得懂的短标签。
+
+    ``会议纪要正文，约300字；从会议讨论中提炼核心内容，无则写「未提及」``
+    → ``会议纪要正文``：去掉字数、提炼要求、「无则写…」等编译期指令，
+    这些指令在还原时从 ``template_raw`` 恢复，不展示给用户。
+    """
+    part = re.split(r"[；;，,]", str(hint or "").strip(), maxsplit=1)[0].strip()
+    part = re.sub(
+        r"[（(]?(?:本[段栏]|全文)?约?\s*\d+[-~至]?\s*\d*\s*字?[）)]?$", "", part
+    )
+    part = re.sub(r"约\d+[-~]\d+字$", "", part)
+    return part.strip() or str(hint or "").strip()
+
+
 def _friendly_template_state(template: str, *, source_kind: str = "placeholder") -> dict:
-    """把占位模板转成用户友好的可编辑文本和隐藏状态。"""
+    """把占位模板转成用户能看懂的版式稿 + 隐藏的生成模板。"""
     preview = template_to_preview(template, default_rows=1)
     readable = preview_to_readable(preview)
     return {
         "template_raw": template,
         "source_kind": source_kind,
-        "readable_template": _display_readable_template(readable),
+        "readable_template": readable,
     }
 
 
-def _display_readable_template(readable: str) -> str:
-    """把内部可读模板再转成更像普通表单的展示文本。"""
-    out: list[str] = []
-    lines = (readable or "").splitlines()
-    i = 0
-    while i < len(lines):
-        line = lines[i]
-        stripped = line.strip()
-        if stripped.startswith("# "):
-            out.append("标题：" + stripped[2:].strip())
-            i += 1
-            continue
-        if stripped.startswith("## "):
-            out.append(stripped[3:].strip())
-            i += 1
-            continue
-        if stripped.startswith("### "):
-            out.append(stripped[4:].strip())
-            i += 1
-            continue
-        if (
-            stripped.startswith("|")
-            and i + 1 < len(lines)
-            and lines[i + 1].strip().startswith("|")
-            and "---" in lines[i + 1]
-        ):
-            headers = [c.strip() for c in stripped.strip("|").split("|")]
-            # 面向普通用户只展示一行可编辑表格入口；内部模板行数约束
-            # 由占位说明（如「约3行」）和生成阶段硬截断负责。
-            out.append("第1行：" + "；".join(f"{h}：" for h in headers))
-            i += 2
-            while i < len(lines) and lines[i].strip().startswith("|"):
-                i += 1
-            continue
-        out.append(line)
-        i += 1
-    return "\n".join(out).strip()
+def _restore_full_hints(readable: str, template_raw: str) -> str:
+    """把用户未填的短标签「【X】」恢复为 template_raw 的完整占位说明。
 
+    短标签（展示用）只含语义词（如「会议纪要正文」）；完整说明（如
+    「会议纪要正文，约300字；从会议讨论中提炼核心内容，无则写「未提及」」）
+    藏在 template_raw 里。用户没填的空档按前缀/包含匹配找回完整说明，
+    保证字数与「无则写…」指令在渲染时依然生效；用户填过的内容原样保留。
+    """
+    if "【" not in (readable or ""):
+        return readable
+    fulls = re.findall(r"\[([^\[\]]+)\]", template_raw or "")
+    if not fulls:
+        return readable
 
-def _heading_key(text: str) -> str:
-    """标题比对用：去掉占位/填空提示，只留可见标题字。"""
-    raw = (text or "").strip()
-    raw = re.sub(r"【填这里：([^】]*)】", r"\1", raw)
-    inner = re.findall(r"\[([^\[\]]+)\]", raw)
-    plain = re.sub(r"\[[^\[\]]+\]", "", raw).strip(" ：:")
-    return plain or (inner[0].strip() if inner else raw)
+    def _sub(match: re.Match[str]) -> str:
+        short = match.group(1).strip()
+        for full in fulls:
+            if short and (full.startswith(short) or short in full):
+                return f"【填这里：{full}】"
+        return match.group(0)
 
-
-def _match_heading(stripped: str, heading_levels: dict[str, str]) -> tuple[str, str] | None:
-    key = _heading_key(stripped)
-    if key and key in heading_levels:
-        return heading_levels[key], key
-    for title, marks in heading_levels.items():
-        if key and (key.startswith(title) or title.startswith(key)):
-            return marks, title
-    return None
-
-
-def _restore_display_template(display_text: str, template_raw: str) -> str:
-    """把展示文本恢复为 readable_to_template 能理解的轻 Markdown 结构。"""
-    heading_levels: dict[str, str] = {}
-    table_headers_by_title: dict[str, list[str]] = {}
-    for line in (template_raw or "").splitlines():
-        m = re.match(r"^(#{1,6})\s+(.+?)\s*$", line.strip())
-        if m:
-            key = _heading_key(m.group(2))
-            if key:
-                heading_levels[key] = m.group(1)
-    raw_lines = (template_raw or "").splitlines()
-    current_title = ""
-    for idx, line in enumerate(raw_lines):
-        hm = re.match(r"^#{1,6}\s+(.+?)\s*$", line.strip())
-        if hm:
-            current_title = _heading_key(hm.group(1))
-            continue
-        if (
-            line.strip().startswith("|")
-            and idx + 1 < len(raw_lines)
-            and raw_lines[idx + 1].strip().startswith("|")
-            and "---" in raw_lines[idx + 1]
-            and current_title
-        ):
-            headers = [c.strip() for c in line.strip().strip("|").split("|")]
-            if headers:
-                table_headers_by_title[current_title] = headers
-
-    out: list[str] = []
-    current_title = ""
-    pending_table: list[str] = []
-
-    def _row_values(row: str) -> dict[str, str]:
-        body = row.split("：", 1)[1] if "：" in row else row
-        values: dict[str, str] = {}
-        for part in re.split(r"[；;]", body):
-            if "：" in part:
-                k, v = part.split("：", 1)
-                values[k.strip()] = v.strip()
-        return values
-
-    def flush_table() -> None:
-        nonlocal pending_table
-        if not pending_table:
-            return
-        headers = table_headers_by_title.get(current_title)
-        if not headers:
-            parsed = _row_values(pending_table[0])
-            headers = list(parsed.keys()) if parsed else []
-        if not headers:
-            out.extend(pending_table)
-            pending_table = []
-            return
-        out.append("| " + " | ".join(headers) + " |")
-        out.append("| " + " | ".join("---" for _ in headers) + " |")
-        for row in pending_table:
-            values = _row_values(row)
-            out.append("| " + " | ".join(values.get(h, "") for h in headers) + " |")
-        pending_table = []
-
-    for idx, line in enumerate((display_text or "").splitlines()):
-        stripped = line.strip()
-        if re.match(r"^第\d+行[:：]", stripped):
-            pending_table.append(stripped)
-            continue
-        flush_table()
-        if idx == 0 and stripped.startswith("标题："):
-            out.append("# " + stripped.split("：", 1)[1].strip())
-            continue
-        matched = _match_heading(stripped, heading_levels)
-        if matched:
-            marks, title = matched
-            current_title = title
-            out.append(f"{marks} {stripped}")
-            continue
-        out.append(line)
-    flush_table()
-    return "\n".join(out).strip()
+    return re.sub(r"【([^】]+)】", _sub, readable)
 
 
 def _readable_to_generation_template(readable: str, template_raw: str) -> str:
-    """友好模板回写成生成模板，并把未填写的空表格行恢复为占位行。"""
-    restored = _restore_display_template(readable, template_raw)
-    rendered = readable_to_template(restored, template_raw)
+    """友好模板回写成生成模板，并把未填写的空表格行恢复为占位行。
+
+    ``readable`` 是用户编辑后的填空文档：未填的短标签「【X】」先恢复成
+    ``template_raw`` 的完整占位说明，再由 ``readable_to_template`` 还原
+    （「【填这里：提示】」→ ``[提示]``），用户填写的真实内容原样保留。
+    """
+    rendered = readable_to_template(
+        _restore_full_hints(readable, template_raw), template_raw
+    )
     if not template_raw or not rendered:
         return rendered
 
@@ -887,7 +823,7 @@ def clear_results_only():
 def reset_form():
     """清空输入、模板与结果，保留领域和任务。"""
     return (
-        "已重置表单（领域/任务保留）。视角固定为客观全员，无需填写画像。",
+        "已重置表单（领域/任务保留）。纪要默认客观全员，可在配置里改视角。",
         EMPTY_GALLERY,
         EMPTY_REVIEW,
         EMPTY_REWRITE,
@@ -899,6 +835,7 @@ def reset_form():
         gr.update(value=None),
         "",
         DEFAULT_MULTI_STYLE_MODE,
+        _profile_dropdown_default("meeting"),
         "",
         "",
         "",
@@ -950,12 +887,14 @@ def run_from_ui(
 
     Gradio 按位置传参（不会自动聚合 list），这里手动拆分：
     preview_args = [mode, user_id, project_id, subject, kp_upload, kp_text,
-                    notes_upload, notes_text, quiz_difficulty, quiz_qtype]
+                    notes_upload, notes_text, quiz_difficulty, quiz_qtype,
+                    perspective_choice]
     """
     mode_value, user_id, project_id, subject = preview_args[:4]
     keypoints_upload, keypoints_text, notes_upload, notes_text = preview_args[4:8]
     quiz_difficulty = preview_args[8] if len(preview_args) > 8 else ""
     quiz_qtype = preview_args[9] if len(preview_args) > 9 else ""
+    perspective_choice = preview_args[10] if len(preview_args) > 10 else ""
     domain = _domain_value(domain_label)
     if not task_label:
         return _run_result(
@@ -980,10 +919,15 @@ def run_from_ui(
         qtype = None if raw_qtype in {"", QUIZ_NONE} else raw_qtype
     elif not _task_uses_memory(tasks[0]):
         user_id = project_id = subject = None
-    profile_data = json.loads(
-        _load_profile_json_text(domain, PERSPECTIVE_OBJECTIVE)
-    )
-    profile_data["perspective"] = "objective"
+    if tasks[0] == "minutes_generation":
+        profile_data = json.loads(
+            _load_profile_json_text(domain, label=perspective_choice)
+        )
+    else:
+        profile_data = json.loads(
+            _load_profile_json_text(domain, PERSPECTIVE_OBJECTIVE)
+        )
+        profile_data["perspective"] = "objective"
     ctx = _ctx(domain)
     files: list[str] = []
     with tempfile.TemporaryDirectory(prefix="agentflow_gradio_") as temp_dir:
@@ -1080,8 +1024,9 @@ def run_from_ui(
                     source_kind="natural",
                 )
                 return _run_result(
-                    "已按您的描述生成【可编辑预览】。\n"
-                    "请直接修改左侧这份友好模板；满意后点「确认模板并运行」。",
+                    "已按您的描述生成可编辑版式。\n"
+                    "开头【版式】一行写清全文/某一段各多少字；下面是普通标题和表格，"
+                    "空着的位置生成时填写。可改标题、列名、字数，满意后点「确认模板并运行」。",
                     None,
                     *_hitl_ui(True, editor_value),
                     files_html=EMPTY_DOWNLOAD,
@@ -1135,7 +1080,11 @@ def run_from_ui(
         files = _new_artifacts(domain, tasks, before)
         log = _clean_log(buffer.getvalue().strip() or "运行完成。")
 
-    log = f"【视角】客观全员（前端不展示画像）\n{log}"
+    if tasks[0] == "minutes_generation":
+        view_label = (perspective_choice or "").strip() or _profile_dropdown_default(domain)
+        log = f"【视角】{view_label}\n{log}"
+    else:
+        log = f"【视角】客观全员\n{log}"
     if files:
         rejected_only = files and all("_rejected" in Path(file).name for file in files)
         file_note = (
@@ -1176,27 +1125,6 @@ def _latest_review_payload() -> tuple[Path | None, dict | None]:
         return files[0], json.loads(files[0].read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError):
         return files[0], None
-
-
-async def _rewrite_corrected_notes(payload: dict) -> str:
-    from domain.notes.tasks.review.display import build_rewrite_user
-    from domain.notes.tasks.review.prompts import REVIEW_REWRITE_SYSTEM_PROMPT
-    from llm_client import LLMClient
-
-    client = LLMClient()
-    user = build_rewrite_user(
-        str(payload.get("original_notes") or ""),
-        {
-            "issues": payload.get("issues") or [],
-            "corrected_notes": payload.get("corrected_notes") or "",
-        },
-    )
-    try:
-        return await client.text(
-            REVIEW_REWRITE_SYSTEM_PROMPT, user, temperature=0.0
-        )
-    except TypeError:
-        return await client.text(REVIEW_REWRITE_SYSTEM_PROMPT, user)
 
 
 def rewrite_notes_from_ui():
@@ -2660,6 +2588,7 @@ def build_app() -> gr.Blocks:
         or show_user
         or bool(initial_policy and initial_policy.sidecar)
         or initial_task == "quiz"
+        or initial_task == "minutes_generation"
     )
     with gr.Blocks(title="AgentFlow测试") as demo:
         with gr.Row(elem_id="chrome-row", equal_height=True):
@@ -2713,6 +2642,13 @@ def build_app() -> gr.Blocks:
                     value=DEFAULT_MULTI_STYLE_MODE,
                     visible=False,
                     elem_id="mode-select",
+                )
+                perspective_dropdown = gr.Dropdown(
+                    label="视角",
+                    choices=_profile_dropdown_choices(initial_domain),
+                    value=_profile_dropdown_default(initial_domain),
+                    visible=initial_task == "minutes_generation",
+                    elem_id="perspective-select",
                 )
                 user_id = gr.Textbox(
                     label="用户 ID（可选，开启记忆）",
@@ -2796,10 +2732,11 @@ def build_app() -> gr.Blocks:
                     gr.HTML('<div class="panel-label spaced">渲染模板（可选）</div>')
                     gr.HTML(
                         '<div class="tpl-guide">'
-                        "给最终输出套一层版式。支持自然语言描述"
-                        "（如「分三段：纪要约200字；待办表；风险表」），"
-                        "点「运行」后生成可编辑模板，改完再确认；"
-                        "也可上传或粘贴现成模板。"
+                        "给最终输出套一层版式。可写自然语言，例如"
+                        "「分三段：纪要本段约200字；待办表约3行；风险表约3行」"
+                        "或「全文约800字」。点「运行」后会变成能看懂的标题和表格，"
+                        "改完再点「确认模板并运行」。"
+                        "「纪要约200字」只限制那一段，「全文约800字」才限制整篇。"
                         "</div>"
                     )
                     with gr.Column(elem_id="tpl-box"):
@@ -2815,19 +2752,21 @@ def build_app() -> gr.Blocks:
                             lines=6,
                             max_lines=30,
                             placeholder=(
-                                "示例：分三段：纪要约200字；待办表；风险表"
+                                "示例：分三段。第一段纪要本段约200字；"
+                                "第二段待办表约3行；第三段风险表约3行"
                             ),
                         )
                     with gr.Group(visible=False, elem_id="compiled-wrap") as compiled_wrap:
                         gr.HTML(
                             '<p class="step-banner">'
-                            "<strong>可编辑模板</strong>　这是按自然语言生成的友好模板，"
-                            "可直接在下方改文字、增删行；"
-                            "满意后点「确认模板并运行」。"
+                            "<strong>可编辑版式</strong>　这是按你的描述排好的稿纸，"
+                            "不是给机器看的占位符。"
+                            "【版式】区分全文多少字和某一段多少字；"
+                            "下面可改标题、表格列，空着的位置生成时填写。"
                             "</p>"
                         )
                         friendly_template = gr.Textbox(
-                            label="可编辑模板",
+                            label="可编辑版式（不是占位符）",
                             lines=10,
                             max_lines=40,
                             visible=True,
@@ -2924,6 +2863,7 @@ def build_app() -> gr.Blocks:
                 task_brief,
                 config_label,
                 mode_dropdown,
+                perspective_dropdown,
                 user_id,
                 project_id,
                 subject,
@@ -2941,6 +2881,7 @@ def build_app() -> gr.Blocks:
                 task_brief,
                 config_label,
                 mode_dropdown,
+                perspective_dropdown,
                 user_id,
                 project_id,
                 subject,
@@ -3014,6 +2955,7 @@ def build_app() -> gr.Blocks:
                 notes_text,
                 quiz_difficulty,
                 quiz_qtype,
+                perspective_dropdown,
             ],
             outputs=[*result_outputs, *hitl_outputs, *side_btns],
             show_progress="minimal",
@@ -3044,6 +2986,7 @@ def build_app() -> gr.Blocks:
                 template_upload,
                 template_text,
                 mode_dropdown,
+                perspective_dropdown,
                 user_id,
                 project_id,
                 subject,

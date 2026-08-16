@@ -108,7 +108,7 @@ _COMPILE_CACHE: dict[str, str] = {}
 _COMPILE_FAIL_COUNTS: dict[str, int] = {}
 _COMPILE_FAIL_SKIP_THRESHOLD = 3
 # 缓存版本：规则升级后自动失效旧缓存
-_COMPILE_CACHE_VERSION = "v23-table-row-limit"
+_COMPILE_CACHE_VERSION = "v24-char-scope-readable"
 
 _CN_NUM = {
     "一": 1,
@@ -312,35 +312,45 @@ def _describe_field(index: int, seg: dict) -> str:
 
 
 def _char_budget_lines(template: str) -> list[str]:
-    """字数软提示（仅注入模型，不写入用户可见正文）。用全文预算，忽略字段内「100字以内」。"""
+    """字数软提示（仅注入模型）。全文预算约束整篇；本段/本栏预算只约束对应节。"""
     try:
-        from tools.template_eval import parse_document_char_budget
+        from tools.template_eval import (
+            parse_document_char_budget,
+            parse_section_char_budgets,
+            parse_table_row_hints,
+        )
     except Exception:  # noqa: BLE001
         return []
+    lines: list[str] = []
     budget = parse_document_char_budget(template or "")
-    if not budget.get("hi"):
+    sections = parse_section_char_budgets(template or "")
+    tables = parse_table_row_hints(template or "")
+    if budget.get("hi"):
+        lo, hi = budget.get("lo"), budget.get("hi")
+        lo_i = int(lo or hi)
+        hi_i = int(hi)
+        mid = (lo_i + hi_i) // 2
+        lines.extend(
+            [
+                f"【全文篇幅】汉字合计约 {lo_i}–{hi_i} 字（目标约 {mid}，必须 ≤{hi_i}）。",
+                "这是整篇上限，不是某一节的上限。先按栏目写全，再整体压缩或扩写使合计落入区间。",
+            ]
+        )
+    if sections:
+        bits = [
+            f"「{item['title']}」本段约 {item['hi']} 字"
+            for item in sections
+        ]
+        lines.append("【段落篇幅】" + "；".join(bits) + "。只约束该节，不要用它去压其它节或表格。")
+    if tables:
+        bits = [f"「{item['title']}」约 {item['rows']} 行" for item in tables]
+        lines.append("【表格行数】" + "；".join(bits) + "。")
+    if not lines:
         return []
-    lo, hi = budget.get("lo"), budget.get("hi")
-    lo_i = int(lo or hi)
-    hi_i = int(hi)
-    # 目标取区间中位，允许在 [lo, hi] 内浮动
-    mid = (lo_i + hi_i) // 2  # 例如 200–300 → 250
-    n_fields = max(1, len(re.findall(r"\[[^\[\]]+\]", template or "")))
-    per = max(22, mid // max(n_fields, 1))
-    if hi_i <= 300:
-        dens = "各节写满该栏关键事实（可 1～3 句），删套话不删要点"
-    elif hi_i <= 450:
-        dens = "各节 2～3 句；写清推进与要点"
-    else:
-        dens = "每节 2～4 句；写清推进与要点，仍勿灌水"
-    return [
-        f"【全文篇幅·两遍法】约 {lo_i}–{hi_i} 字（汉字合计，目标约 {mid}，必须 ≤{hi_i} 且不宜远低于 {lo_i}）。",
-        "先按栏目写全、写通顺的一版，再整体压缩或扩写使合计落入区间；"
-        "禁止截断半句、禁止硬砍导致语病。",
-        "【严禁写入正文】字段值与正文中不得出现「约N字」「全文合计…字」「字数」等元说明；"
-        "字数只用于你内部控制，不要输出。",
-        f"约 {n_fields} 栏，平均每栏约 {per} 字。{dens}。句句有据。",
-    ]
+    lines.append(
+        "【严禁写入正文】不得出现「约N字」「全文合计…字」「字数」等元说明。"
+    )
+    return lines
 
 
 # 正文中不应出现的字数元说明（整行或行尾）
@@ -1938,10 +1948,10 @@ def _build_compile_system(
 用户甲（全文级）："约200字，概括主题甲、主题乙"
 ```text
 ## 主题甲
-[从原文提炼与本栏相关的信息；无则写「未提及」]
+[从原文提炼与本栏相关的信息；无则写「未提及」；全文合计约200字]
 
 ## 主题乙
-[从原文提炼与本栏相关的信息；全文合计约200字]
+[从原文提炼与本栏相关的信息；无则写「未提及」]
 ```
 
 用户乙（段落级，注意不要写「全文合计」）：
@@ -2368,38 +2378,92 @@ def merge_preview_fill(old_preview: dict[str, Any], new_template: str) -> dict[s
     return new_preview
 
 
+_BANNER_RE = re.compile(r"^【版式】.+$", re.M)
+_SLOT_LINE_RE = re.compile(
+    r"^（(?:生成时填写|本段约\d+.*?生成时填写|约\d+行.*?生成时填写|"
+    r"会议标题，生成时填写|标题，生成时填写)）$"
+)
+_OLD_FILL_RE = re.compile(r"【(?:填这里：)?([^】]+)】")
+
+
+def _format_budget_banner(template: str) -> str:
+    """把全文/本段/表格行数约定写成用户能看懂的一行说明。"""
+    try:
+        from tools.template_eval import (
+            parse_document_char_budget,
+            parse_section_char_budgets,
+            parse_table_row_hints,
+        )
+    except Exception:  # noqa: BLE001
+        return "【版式】按下方标题和表格生成。空着的位置会按会议自动填写。"
+    parts: list[str] = []
+    full = parse_document_char_budget(template or "")
+    if full.get("hi"):
+        lo, hi = full.get("lo"), int(full["hi"])
+        if lo and int(lo) != hi:
+            parts.append(f"全文约{int(lo)}-{hi}字")
+        else:
+            parts.append(f"全文约{hi}字")
+    else:
+        parts.append("全文不限")
+    for item in parse_section_char_budgets(template or ""):
+        parts.append(f"{item['title']}：本段约{item['hi']}字")
+    for item in parse_table_row_hints(template or ""):
+        parts.append(f"{item['title']}：约{item['rows']}行")
+    return "【版式】" + "。".join(parts) + "。空着的位置会按会议自动填写。"
+
+
+def _field_slot_line(hint: str) -> str:
+    text = " ".join((hint or "").split()).strip()
+    section = re.search(r"本段约\s*(\d+(?:\s*[-–—~～至到]\s*\d+)?)\s*字", text)
+    if section:
+        return f"（本段约{section.group(1).replace('至', '-').replace('到', '-')}字，生成时填写）"
+    full = re.search(r"全文(?:合计)?约\s*(\d+(?:\s*[-–—~～至到]\s*\d+)?)\s*字", text)
+    if full:
+        return f"（全文约{full.group(1).replace('至', '-').replace('到', '-')}字，生成时填写）"
+    return "（生成时填写）"
+
+
+def _is_slot_body(text: str) -> bool:
+    body = (text or "").strip()
+    if not body:
+        return True
+    if _SLOT_LINE_RE.match(body):
+        return True
+    if body in {"（生成时填写）", "生成时填写", "待填写", "＿＿＿＿", "____"}:
+        return True
+    if _OLD_FILL_RE.fullmatch(body):
+        return True
+    return False
+
+
 def preview_to_readable(preview: dict[str, Any]) -> str:
-    """把预览模型渲染成**用户可读的填空文档**（不展示任何模板语法）。
+    """把预览模型渲染成用户能看懂、能改的版式稿（不是占位符）。
 
-    生成形式（占位符翻译成口语提示，用户直接改内容即可）：
-
-    - 标题：``# 会议主题``（普通文档标题）
-    - 段落：``【填这里：会议纪要，约200字】`` —— 用户把它替换成真实内容
-    - 标签行：原样保留（如 ``- 时间：＿＿＿＿``）
-    - 表格：Markdown 表格（用户看得懂），空行用提示文字
-
-    返回值直接作为「可编辑模板」文本框的内容给用户编辑。
+    开头一行【版式】写清全文/本段/表格行数；下面是普通 Markdown：
+    标题、空段用「（本段约N字，生成时填写）」，表格是真表头+空行。
     """
+    template = str((preview or {}).get("template_raw") or "")
     sections = (preview or {}).get("sections") or []
-    out: list[str] = []
+    out: list[str] = [_format_budget_banner(template), ""]
     for sec in sections:
         stype = sec.get("type")
         if stype == "title":
             level = int(sec.get("level") or 1)
             text = str(sec.get("text") or "").strip()
             if sec.get("raw_field"):
-                # 标题占位（# [主题]）→ 填空提示，反向映射回占位
-                out.append(f"{'#' * min(level, 6)} 【填这里：{text or '标题'}】")
+                out.append(f"{'#' * min(level, 6)} （标题，生成时填写）")
             else:
                 out.append(f"{'#' * min(level, 6)} {text}")
         elif stype == "label":
             out.append(str(sec.get("text") or ""))
         elif stype == "field":
-            hint = str(sec.get("hint") or "").strip() or "内容"
-            out.append(f"【填这里：{hint}】")
+            hint = str(sec.get("hint") or "").strip()
+            value = str(sec.get("value") or "").strip()
+            out.append(value or _field_slot_line(hint))
+            out.append("")
         elif stype == "table":
             title = str(sec.get("title") or "").strip()
-            # 去重：label 段可能已输出 ## 标题，比较去 # 后的文字
             title_norm = re.sub(r"^#+\s*", "", title)
             if title and not any(
                 re.sub(r"^#+\s*", "", s.strip()) == title_norm for s in out
@@ -2408,35 +2472,186 @@ def preview_to_readable(preview: dict[str, Any]) -> str:
             headers = [str(h) for h in (sec.get("headers") or [])]
             out.append("| " + " | ".join(headers) + " |")
             out.append("| " + " | ".join("---" for _ in headers) + " |")
-            rows = sec.get("rows") or []
-            for row in rows[: 8]:
-                cells = [str(c) for c in (row or [])]
-                while len(cells) < len(headers):
-                    cells.append("")
-                out.append("| " + " | ".join(cells) + " |")
+            row_hints = [str(h) for h in (sec.get("row_hint") or [])]
+            row_n = None
+            for hint in row_hints:
+                m = re.search(r"约\s*(\d+)\s*行", hint)
+                if m:
+                    row_n = m.group(1)
+                    break
+            first = f"（约{row_n}行，生成时填写）" if row_n else "（生成时填写）"
+            cells = [first] + [""] * max(0, len(headers) - 1)
+            if headers:
+                out.append("| " + " | ".join(cells[: len(headers)]) + " |")
+            out.append("")
         else:
             out.append(str(sec.get("text") or ""))
     return "\n".join(out).strip()
 
 
-def readable_to_template(readable: str, template_raw: str) -> str:
-    """把用户编辑后的**可读文档**还原成占位模板（供渲染/回填）。
+def _split_by_heading(text: str) -> list[tuple[str, str, str]]:
+    """[(标题行含# 或空, 标题文字, 节正文不含标题)]。"""
+    lines = (text or "").splitlines()
+    blocks: list[tuple[str, str, list[str]]] = [("", "", [])]
+    for line in lines:
+        head = re.match(r"^(#{1,6}\s+)(.+)$", line.strip())
+        if head:
+            blocks.append((line.strip(), head.group(2).strip(), []))
+        else:
+            blocks[-1][2].append(line)
+    return [
+        (prefix, title, "\n".join(body).strip())
+        for prefix, title, body in blocks
+        if prefix or title or "\n".join(body).strip()
+    ]
 
-    规则：
-    - 用户已把「【填这里：提示】」替换成真实内容 → 内容保留，作为最终渲染输入
-    - 用户没改的「【填这里：提示】」→ 反向映射回 ``[提示]`` 占位，
-      让渲染 agent 按模板语义填充（不泄漏灰字提示到正文）
+
+def _orig_placeholder_for_heading(template_raw: str, title: str) -> str | None:
+    if not template_raw or not title:
+        return None
+    title_norm = re.sub(r"^#+\s*", "", title).strip()
+    chunks = _split_by_heading(template_raw)
+    for _prefix, raw_title, body in chunks:
+        raw_norm = re.sub(r"\[[^\[\]]*\]", "", raw_title).strip()
+        if title_norm and (title_norm == raw_norm or title_norm in raw_norm or raw_norm in title_norm):
+            found = re.search(r"\[[^\[\]]+\]", body)
+            if found:
+                return found.group(0)
+            if "|" in body:
+                return None
+    return None
+
+
+def readable_to_template(readable: str, template_raw: str) -> str:
+    """把用户改过的版式稿还原成占位模板（供渲染）。
+
+    - 空着或仍是「（生成时填写）」→ 用原模板该节的占位（含本段约 N 字）
+    - 用户写成正文 → 当作该节已定内容
+    - 旧版「【填这里：…】」仍兼容
     """
     text = (readable or "").strip()
     if not text:
         return template_raw
-    # 反向映射：`【填这里：提示】` → `[提示]`（用户未填的提示转回占位）
-    text = re.sub(
-        r"【填这里：([^】]*)】",
-        lambda m: f"[{m.group(1).strip() or '内容'}]",
-        text,
-    )
-    return text
+    if _OLD_FILL_RE.search(text) and "【版式】" not in text:
+        text = re.sub(
+            r"【填这里：([^】]*)】",
+            lambda m: f"[{m.group(1).strip() or '内容'}]",
+            text,
+        )
+        text = re.sub(r"【([^】]+)】", lambda m: f"[{m.group(1).strip()}]", text)
+        return text
+
+    banner = ""
+    m_banner = _BANNER_RE.search(text)
+    if m_banner:
+        banner = m_banner.group(0)
+        text = _BANNER_RE.sub("", text).strip()
+
+    orig_chunks = _split_by_heading(template_raw or "")
+    new_chunks = _split_by_heading(text)
+    if not new_chunks:
+        return template_raw
+
+    out: list[str] = []
+    for prefix, title, body in new_chunks:
+        if prefix.startswith("#") and _is_slot_body(title):
+            restored = next(
+                (p for p, _t, _b in orig_chunks if p.startswith("#") and "[" in p),
+                "",
+            )
+            out.append(restored or prefix)
+        elif prefix.startswith("#"):
+            out.append(prefix)
+        elif title:
+            out.append(f"## {title}")
+        if "|" in body:
+            rebuilt = []
+            for line in body.splitlines():
+                if line.count("|") >= 2 and "---" not in line:
+                    cells = [c.strip() for c in line.strip().strip("|").split("|")]
+                    if cells and _is_slot_body(cells[0]) and all(
+                        _is_slot_body(c) for c in cells[1:]
+                    ):
+                        orig_ph = _orig_placeholder_for_heading(template_raw, title)
+                        # 保留原表的占位数据行
+                        orig_body = ""
+                        for _p, ot, ob in orig_chunks:
+                            on = re.sub(r"\[[^\[\]]*\]", "", ot).strip()
+                            if title and (title == on or title in on or on in title):
+                                orig_body = ob
+                                break
+                        row = next(
+                            (
+                                ln
+                                for ln in orig_body.splitlines()
+                                if ln.count("|") >= 2
+                                and "---" not in ln
+                                and "[" in ln
+                            ),
+                            "",
+                        )
+                        rebuilt.append(row or line)
+                        continue
+                rebuilt.append(line)
+            out.append("\n".join(rebuilt).strip())
+            continue
+        if _is_slot_body(body):
+            ph = _orig_placeholder_for_heading(template_raw, title)
+            if ph:
+                out.append(ph)
+            elif body:
+                out.append("[该节正文；无则写「未提及」]")
+        else:
+            out.append(body)
+    result = "\n\n".join(x for x in out if x).strip()
+
+    # 用户改了版式行里的数字时，写回对应占位
+    if banner and result:
+        result = _apply_banner_overrides(banner, result)
+    return result or (template_raw or "")
+
+
+def _apply_banner_overrides(banner: str, template: str) -> str:
+    """把【版式】里用户改过的全文/本段数字写回占位说明。"""
+    body = template
+    full = re.search(r"全文约\s*(\d+)(?:\s*[-–—~～至到]\s*(\d+))?\s*字", banner)
+    if full:
+        lo, hi = full.group(1), full.group(2)
+        hint = f"全文合计约{lo}-{hi}字" if hi else f"全文合计约{lo}字"
+        if re.search(r"全文合计约\s*\d+", body):
+            body = re.sub(
+                r"全文合计约\s*\d+(?:\s*[-–—~～至到]\s*\d+)?\s*字",
+                hint,
+                body,
+                count=1,
+            )
+        else:
+            m = re.search(r"\[[^\[\]]+\]", body)
+            if m:
+                inner = m.group(0)[1:-1].strip()
+                body = body[: m.start()] + f"[{inner}；{hint}]" + body[m.end() :]
+    for title, num in re.findall(r"([^：:。；;]+?)：本段约\s*(\d+)\s*字", banner):
+        title = title.strip()
+        chunks = _split_by_heading(body)
+        rebuilt: list[str] = []
+        for prefix, raw_title, sec in chunks:
+            raw_norm = re.sub(r"\[[^\[\]]*\]", "", raw_title).strip()
+            block = (prefix + ("\n" + sec if sec else "")).strip()
+            if title and (title == raw_norm or title in raw_norm or raw_norm in title):
+                if re.search(r"本段约\s*\d+", block):
+                    block = re.sub(r"本段约\s*\d+\s*字", f"本段约{num}字", block, count=1)
+                elif re.search(r"\[[^\[\]]+\]", block):
+                    def _inject(match: re.Match[str], n: str = num) -> str:
+                        inner = match.group(1).strip()
+                        if "本段约" in inner:
+                            inner = re.sub(r"本段约\s*\d+\s*字", f"本段约{n}字", inner)
+                            return f"[{inner}]"
+                        return f"[{inner}；本段约{n}字]"
+
+                    block = re.sub(r"\[([^\[\]]+)\]", _inject, block, count=1)
+            rebuilt.append(block)
+        body = "\n\n".join(x for x in rebuilt if x)
+    return body
 
 
 # ── 结构化编辑模型：预览 ↔ 所见即所得编辑组件数据 ──────────────

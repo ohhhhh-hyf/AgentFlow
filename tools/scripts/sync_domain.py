@@ -1698,14 +1698,6 @@ def write_line_imports(path: Path, lines: list[str]) -> None:
     _log(f"已写入 {path.name} 任务线 import 生成区")
 
 
-def write_factory_line_imports(lines: list[str]) -> None:
-    """写当前 domain factory.py 的任务线 import 生成区（与 orchestrator 同模板）。
-
-    供 register_task.py（新增线第一步）与 _run_write_factory 共用。
-    """
-    write_line_imports(CURRENT.factory_path, lines)
-
-
 def check_line_imports(path: Path, lines: list[str]) -> int:
     """校验任务线 import 生成区与当前目录生成一致。"""
     raw = _read_raw(path)
@@ -2096,12 +2088,6 @@ def _ensure_line_after(raw: str, anchor_line: str, new_line: str) -> str:
             suffix = "\n" if raw.endswith(("\n", "\r\n")) else ""
             return "\n".join(lines) + suffix
     return raw
-
-
-def _insert_after_once(raw: str, needle: str, addition: str) -> str:
-    return raw if addition.strip() in raw or needle not in raw else raw.replace(
-        needle, needle + addition, 1
-    )
 
 
 def _insert_before_once(raw: str, needle: str, addition: str) -> str:

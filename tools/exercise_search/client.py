@@ -108,6 +108,10 @@ def parse_question(raw: dict[str, Any], *, truncate: int = 0) -> dict[str, Any]:
         answer_text = "；".join(str(item) for item in answer if str(item).strip())
     else:
         answer_text = "" if answer is None else str(answer).strip()
+    if "<tex" in answer_text.lower() or "\\" in answer_text:
+        from .tex import pretty_latex, replace_tex_html
+
+        answer_text = pretty_latex(replace_tex_html(answer_text)) or answer_text
     idea = _field_text(raw.get("idea"))
     step = _field_text(raw.get("step"))
     analysis = _pick_analysis(raw)

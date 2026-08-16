@@ -6,7 +6,6 @@ import os
 import re
 import urllib.error
 import urllib.request
-from typing import Iterable
 
 _IMG_TAG = re.compile(r"<img\b([^>]*?)/?>", re.I)
 _SRC_ATTR = re.compile(r'''src\s*=\s*(['"])(.*?)\1''', re.I)
@@ -15,7 +14,9 @@ _CACHE: dict[str, tuple[bytes, str]] = {}
 _FAILED: set[str] = set()
 
 _STATIC_ZUJUAN = "https://staticzujuan.xkw.com"
+_READBOY_RES = "https://contres.readboy.com"
 _DEFAULT_BASES = (
+    _READBOY_RES,
     _STATIC_ZUJUAN,
     "https://aixue.xkw.com",
     "https://img.xkw.com",
@@ -49,11 +50,11 @@ def absolute_src(src: str) -> str:
     # 组卷公式图：相对 /quesimg/... 就在这个 CDN 上
     if text.startswith("/quesimg/"):
         return _STATIC_ZUJUAN + text
-    # 爱学试卷图：保持相对路径，交给 Gradio 同源 /resources 代理
+    # 爱学试卷图：/resources/aixue_paper/... 在 contres.readboy.com
     if text.startswith("/resources/"):
-        return text
+        return _READBOY_RES + text
     bases = asset_bases()
-    return (bases[0] if bases else _STATIC_ZUJUAN) + text
+    return (bases[0] if bases else _READBOY_RES) + text
 
 
 def _candidate_urls(src: str) -> list[str]:
@@ -84,7 +85,7 @@ def _get(url: str) -> tuple[bytes, str] | None:
                 "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36"
             ),
             "Accept": "image/avif,image/webp,image/apng,image/*,*/*;q=0.8",
-            "Referer": "https://zujuan.xkw.com/",
+            "Referer": "https://contres.readboy.com/",
         },
     )
     try:
@@ -148,6 +149,8 @@ def rewrite_images(raw: object) -> str:
             return match.group(0)
         resolved = data_uri(src)
         kind = "quiz-formula" if "formula" in src.lower() else "quiz-figure"
+        if not resolved.startswith(("data:", "http://", "https://")):
+            return ""
         if src_hit:
             attrs = (
                 attrs[: src_hit.start()]
@@ -156,8 +159,6 @@ def rewrite_images(raw: object) -> str:
             )
         else:
             attrs += f' src="{resolved}"'
-        if "alt=" not in attrs.lower():
-            attrs += ' alt="配图"'
         if re.search(r"\bclass\s*=", attrs, re.I):
             attrs = re.sub(
                 r'''class\s*=\s*(['"])([^'"]*)\1''',
@@ -168,20 +169,13 @@ def rewrite_images(raw: object) -> str:
             )
         else:
             attrs += f' class="{kind}"'
-        if "referrerpolicy" not in attrs.lower() and not resolved.startswith("data:"):
-            attrs += ' referrerpolicy="no-referrer"'
+        if kind == "quiz-figure" and "style=" not in attrs.lower():
+            attrs += ' style="display:block;max-width:100%;height:auto;margin:8px 0"'
         if kind == "quiz-formula" and "style=" not in attrs.lower():
             attrs += ' style="vertical-align:middle"'
         return f"<img{attrs}>"
 
     return _IMG_TAG.sub(_one, text)
-
-
-def iter_image_srcs(raw: object) -> Iterable[str]:
-    for match in _IMG_TAG.finditer(str(raw or "")):
-        hit = _SRC_ATTR.search(match.group(1) or "")
-        if hit:
-            yield hit.group(2).strip()
 
 
 __all__ = [

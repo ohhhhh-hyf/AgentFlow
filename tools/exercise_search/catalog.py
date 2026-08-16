@@ -125,9 +125,6 @@ class HighSchoolCatalog:
     def versions_for(self, course_id: int) -> list[Version]:
         return [item for item in self.versions if item.course_id == course_id]
 
-    def textbooks_for(self, version_id: int) -> list[Textbook]:
-        return [item for item in self.textbooks if item.version_id == version_id]
-
     def keypoints_for_subject(self, subject_id: int) -> list[Keypoint]:
         return [item for item in self.keypoints if item.subject_id == subject_id]
 

@@ -154,6 +154,12 @@ def save_report_artifacts(
     if not text:
         return paths
 
+    # 视角标题（如有）作为 H1 前缀；正文已自带 # 标题时不再重复叠加
+    title = str(data.get("title") or "").strip()
+    if title and not text.lstrip().startswith("# "):
+        text = f"# {title}\n\n{text}"
+    html_title = title or ctx.line_cn_names.get(line_name, line_name)
+
     # has_template：仅当显式走过门禁（True/False）时视为有模板约束
     has_template = gate_ok is not None
     if should_write_result_md(gate_ok, has_template=has_template):
@@ -171,7 +177,7 @@ def save_report_artifacts(
             body = review_html
             html_path = out_dir / f"result_{timestamp}.html"
             html_path.write_text(
-                _html_document(ctx.line_cn_names.get(line_name, line_name), body),
+                _html_document(html_title, body),
                 encoding="utf-8",
             )
             paths["html"] = html_path
@@ -187,7 +193,7 @@ def save_report_artifacts(
                 body = f'<div class="plain">{html.escape(text)}</div>'
             html_path = out_dir / f"result_{timestamp}.html"
             html_path.write_text(
-                _html_document(ctx.line_cn_names.get(line_name, line_name), body),
+                _html_document(html_title, body),
                 encoding="utf-8",
             )
             paths["html"] = html_path
