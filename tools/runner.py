@@ -11,10 +11,12 @@ from llm_client.config import load_env
 
 from .io import (
     format_trace_extra,
+    knowledge_text_preview,
     load_trace_sidecars,
     load_transcript,
     load_user,
     pick_single_file,
+    resolve_knowledge_input,
     resolve_path,
     resolve_sample_path,
 )
@@ -46,10 +48,13 @@ def build_parser(ctx: DomainContext) -> argparse.ArgumentParser:
     )
     parser.add_argument(
         "--file",
-        dest="file",
+        dest="files",
+        action="append",
         type=Path,
-        default=env_path(ctx, "FILE", ctx.default_file_dir),
-        help="输入文本文件或目录。传目录时，目录中需要包含一个 .txt 文件",
+        default=None,
+        help="输入文件或目录，可重复：--file a.pptx --file b.pdf。"
+        "资料入库可一次传多份；其它任务沿用第一个文件。"
+        "不传则用默认样例目录",
     )
     _default_profile = env_path(ctx, "PROFILE", None)
     if _default_profile is None:
@@ -99,7 +104,27 @@ def build_parser(ctx: DomainContext) -> argparse.ArgumentParser:
     parser.add_argument(
         "--level",
         default=None,
-        help="用户水平：初学者 / 期中备考 / 考研（笔记自测题用，可选）",
+        help="已弃用。自测题水平固定为期中备考，传入值会被忽略。",
+    )
+    parser.add_argument(
+        "--grade",
+        default=None,
+        help="已弃用。年级由笔记对齐到的知识点反推，传入值会被忽略。",
+    )
+    parser.add_argument(
+        "--edition",
+        default=None,
+        help="已弃用。课本版本由笔记对齐到的知识点反推，传入值会被忽略。",
+    )
+    parser.add_argument(
+        "--difficulty",
+        default=None,
+        help="题目难度：容易 / 较易 / 适中 / 较难 / 困难（笔记自测题搜题用，可选）",
+    )
+    parser.add_argument(
+        "--qtype",
+        default=None,
+        help="题目类型：单选题 / 多选题 / 填空题 / 解答题 / 判断题（笔记自测题搜题用，可选）",
     )
     for line in sorted(ctx.task_lines):
         cn = ctx.line_cn_names.get(line, line)
@@ -143,6 +168,15 @@ def collect_templates(ctx: DomainContext, args: argparse.Namespace) -> dict[str,
     return templates
 
 
+def collect_input_files(ctx: DomainContext, args: argparse.Namespace) -> list[Path]:
+    """收集 --file（可多次）。未传则回退默认样例路径。"""
+    items = [Path(item) for item in (getattr(args, "files", None) or []) if item]
+    if items:
+        return items
+    fallback = env_path(ctx, "FILE", ctx.default_file_dir)
+    return [Path(fallback)] if fallback else []
+
+
 def collect_modes(ctx: DomainContext, args: argparse.Namespace) -> dict[str, str]:
     """收集各线组织模式参数（--{线名}_mode，仅传了才生效）。"""
     modes: dict[str, str] = {}
@@ -160,9 +194,17 @@ def parse_domain_name(default: str = "meeting") -> str:
     return pre_args.domain
 
 
+def _as_file_list(file: Path | list[Path] | tuple[Path, ...] | None) -> list[Path]:
+    if file is None:
+        return []
+    if isinstance(file, (list, tuple)):
+        return [Path(item) for item in file if item]
+    return [Path(file)]
+
+
 async def run(
     ctx: DomainContext,
-    file: Path,
+    file: Path | list[Path],
     profile: Path,
     env_file: Path,
     templates: dict[str, Path] | None = None,
@@ -173,6 +215,10 @@ async def run(
     subject: str | None = None,
     chapter: str | None = None,
     level: str | None = None,
+    grade: str | None = None,
+    edition: str | None = None,
+    difficulty: str | None = None,
+    qtype: str | None = None,
     compile_natural: bool = True,
 ) -> None:
     """Run selected task lines and persist their final artifacts.
@@ -183,9 +229,25 @@ async def run(
     setup_logging()
     load_env(resolve_path(ctx, env_file))
 
-    transcript = load_transcript(ctx, file)
     user = load_user(ctx, profile)
     line_names = normalize_tasks(ctx, tasks or [], set(ctx.task_lines))
+    file_list = _as_file_list(file)
+    if not file_list:
+        raise ValueError("请用 --file 指定输入文件")
+    file = file_list[0]
+    pending_extra: dict[str, str] = {}
+    if "library" in line_names:
+        sources = [resolve_knowledge_input(ctx, item) for item in file_list]
+        pending_extra["library"] = "【入库文件】\n" + "\n".join(str(item) for item in sources)
+        transcript = "\n\n".join(knowledge_text_preview(item) for item in sources)
+        if not transcript.strip():
+            transcript = "知识库资料入库"
+    else:
+        if len(file_list) > 1:
+            raise ValueError(
+                "该任务只接受一个 --file。多文件入库请使用 --task library"
+            )
+        transcript = load_transcript(ctx, file)
 
     template_texts: dict[str, str] = {}
     for line, path in (templates or {}).items():
@@ -216,18 +278,29 @@ async def run(
     memory_bind = None
     line_extra: dict[str, str] = {}
     if "quiz" in line_names:
-        quiz_rows: list[str] = []
+        quiz_rows: list[str] = ["用户水平：期中备考"]
+        bank_rows: list[str] = []
         if (subject or "").strip():
             quiz_rows.append(f"学科/课程：{subject.strip()}")
         if (chapter or "").strip():
             quiz_rows.append(f"章节：{chapter.strip()}")
-        if (level or "").strip():
-            quiz_rows.append(f"用户水平：{level.strip()}")
+        if (difficulty or "").strip():
+            bank_rows.append(f"题目难度：{difficulty.strip()}")
+        if (qtype or "").strip():
+            bank_rows.append(f"题目类型：{qtype.strip()}")
+        parts: list[str] = []
         if quiz_rows:
-            line_extra["quiz"] = (
+            parts.append(
                 "【出题上下文（只调难度与问法，不是另一份笔记）】\n"
                 + "\n".join(quiz_rows)
             )
+        if bank_rows:
+            parts.append(
+                "【题库检索（只用来搜真题，不要改成本卷题型）】\n"
+                + "\n".join(bank_rows)
+            )
+        if parts:
+            pending_extra["quiz"] = "\n\n".join(parts)
     if user_id:
         from tools.memory import persist, prepare
 
@@ -240,6 +313,9 @@ async def run(
             project_id,
             subject,
         )
+    for key, value in pending_extra.items():
+        prev = line_extra.get(key) or ""
+        line_extra[key] = f"{prev}\n\n{value}".strip() if prev else value
     for sidecar_line in sidecar_lines(line_names, ctx.line_policies):
         try:
             extra = format_trace_extra(load_trace_sidecars(ctx, file))
@@ -364,4 +440,11 @@ def _resolve_template_file(
     return pick_single_file(resolved.parent, resolved.name, f"{line_name} 模板")
 
 
-__all__ = ["build_parser", "collect_modes", "collect_templates", "parse_domain_name", "run"]
+__all__ = [
+    "build_parser",
+    "collect_input_files",
+    "collect_modes",
+    "collect_templates",
+    "parse_domain_name",
+    "run",
+]

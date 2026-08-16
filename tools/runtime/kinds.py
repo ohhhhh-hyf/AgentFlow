@@ -2,7 +2,7 @@
 
 三种衣服：
 
-- ``llm_extract``：列表抽取（risk / points / action_items）
+- ``llm_extract``：列表抽取（risk / action_items / review / quiz）
 - ``llm_document``：成篇文本（纪要 / 多样式 / 思维导图）
 - ``deterministic_pipeline``：程序落钉（minutes_trace；无模板的 knowledge_graph）
 

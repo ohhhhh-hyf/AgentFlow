@@ -63,6 +63,7 @@ def _html_document(title: str, body: str) -> str:
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="referrer" content="no-referrer">
   <title>{title}</title>
   <style>
     body {{ margin: 0; padding: 24px; background: #f0eee9; color: #1c1b19; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }}
@@ -82,6 +83,8 @@ def _html_document(title: str, body: str) -> str:
     .mem-card-source {{ font-size: 0.74rem; color: #9a968c; line-height: 1.35; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }}
     .review-analysis {{ font-size: 0.8rem; color: #3a3832; line-height: 1.5; margin-top: 4px; white-space: pre-wrap; }}
     .review-fix {{ font-size: 0.78rem; color: #6b6860; line-height: 1.45; margin-top: 4px; }}
+    .review-cite {{ font-size: 0.78rem; color: #3a3832; margin-top: 6px; font-weight: 650; }}
+    .review-excerpt {{ font-size: 0.76rem; color: #6b6860; margin-top: 4px; line-height: 1.45; }}
     .quiz-hint {{ font-size: 0.78rem; font-weight: 400; color: #6b6860; margin-top: 4px; }}
     .quiz-item {{ padding: 12px 16px; border-bottom: 1px solid #ebe8e1; }}
     .quiz-item:last-child {{ border-bottom: none; }}
@@ -91,6 +94,31 @@ def _html_document(title: str, body: str) -> str:
     .quiz-answer summary {{ cursor: pointer; color: #3a3832; font-size: 0.86rem; user-select: none; }}
     .quiz-answer ol {{ margin: 8px 0 0 1.2em; padding: 0; line-height: 1.55; }}
     .quiz-empty {{ padding: 14px 16px; color: #6b6860; }}
+    .quiz-section {{ padding: 12px 16px 4px; font-weight: 700; font-size: 0.92rem; background: #f7f5f0; border-bottom: 1px solid #ebe8e1; }}
+    .quiz-bank-query {{ padding: 6px 16px 10px; font-size: 0.78rem; color: #6b6860; }}
+    .quiz-stem {{ line-height: 1.85; margin: 6px 0 8px; word-break: keep-all; }}
+    .quiz-stem p {{ margin: 0 0 .45em; text-indent: 0 !important; }}
+    .quiz-formula {{ display: inline !important; vertical-align: middle !important; height: 1.45em; width: auto !important; max-width: none !important; max-height: 2.6em; }}
+    .quiz-figure {{ display: block; max-width: 100%; height: auto; margin: 8px 0; }}
+    .quiz-blank {{ display: inline-block; min-width: 4em; border-bottom: 1px solid #1c1b19; margin: 0 .15em; }}
+    .quiz-opts {{ list-style: none; margin: 0 0 8px; padding: 0; }}
+    .quiz-opts li {{ margin: 4px 0; line-height: 1.8; }}
+    .quiz-key {{ margin: 8px 0 6px; font-weight: 650; }}
+    .quiz-analysis {{ line-height: 1.55; }}
+    .library-hero {{ padding: 28px 20px 22px; text-align: center; background: #faf9f6; border-bottom: 1px solid #ebe8e1; }}
+    .library-caption {{ margin: 0; font-size: 0.86rem; color: #6b6860; }}
+    .library-count {{ margin: 6px 0 0; font-size: 0.95rem; color: #1c1b19; }}
+    .library-count strong {{ display: block; font-size: 2.6rem; font-weight: 650; letter-spacing: -0.04em; line-height: 1.05; }}
+    .library-files, .library-items, .library-conflicts, .library-peace {{ padding: 12px 16px 16px; }}
+    .library-files ul, .library-items ul {{ margin: 0; padding-left: 1.2em; line-height: 1.6; }}
+    .library-items span {{ color: #9a968c; font-size: 0.78rem; margin-left: 8px; }}
+    .library-verdict {{ margin: 12px 0 0; padding: 12px 14px; border: 1px solid #ebe8e1; border-radius: 8px; background: #fff; }}
+    .library-verdict blockquote {{ margin: 8px 0; padding-left: 10px; border-left: 3px solid #c8c4b8; color: #4a4842; font-size: 0.86rem; }}
+    .library-ask {{ margin: 10px 0 8px; font-weight: 650; }}
+    .library-verdict button {{ margin: 0 8px 0 0; padding: 6px 12px; border: 1px solid #d4d0c6; border-radius: 6px; background: #faf9f6; cursor: pointer; }}
+    .library-verdict button.is-on {{ background: #2c2a26; color: #faf9f6; border-color: #2c2a26; }}
+    .library-picked {{ min-height: 1.2em; font-size: 0.8rem; color: #6b6860; margin: 8px 0 0; }}
+    .library-peace {{ color: #6b6860; }}
     .plain {{ padding: 18px 20px; background: #fff; border: 1px solid #d4d0c6; border-radius: 8px; line-height: 1.65; white-space: pre-wrap; }}
     @media (max-width: 820px) {{ .review-row {{ grid-template-columns: 1fr; }} .review-rule {{ height: 1px; }} }}
   </style>
@@ -132,7 +160,11 @@ def save_report_artifacts(
         md_path = out_dir / f"result_{timestamp}.md"
         md_path.write_text(text, encoding="utf-8")
         paths["text"] = md_path
-        review_html = data.get("review_html") or data.get("quiz_html")
+        review_html = (
+            data.get("review_html")
+            or data.get("quiz_html")
+            or data.get("library_html")
+        )
         if isinstance(review_html, str) and (
             "memory-review" in review_html or "quiz-sheet" in review_html
         ):

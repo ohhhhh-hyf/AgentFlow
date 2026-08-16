@@ -17,10 +17,10 @@ from .tasks.knowledge_graph import (
     KnowledgeGraphSupervisor,
 )
 
-from .tasks.points import (
-    PointsAgent,
-    PointsRender,
-    PointsSupervisor,
+from .tasks.library import (
+    LibraryAgent,
+    LibraryRender,
+    LibrarySupervisor,
 )
 
 from .tasks.quiz import (
@@ -52,9 +52,9 @@ class NotesAgentFactory:
             "knowledge_graph_agent": KnowledgeGraphAgent(client),
             "knowledge_graph_supervisor": KnowledgeGraphSupervisor(client),
             "knowledge_graph_render": KnowledgeGraphRender(client),
-            "points_agent": PointsAgent(client),
-            "points_supervisor": PointsSupervisor(client),
-            "points_render": PointsRender(client),
+            "library_agent": LibraryAgent(client),
+            "library_supervisor": LibrarySupervisor(client),
+            "library_render": LibraryRender(client),
             "quiz_agent": QuizAgent(client),
             "quiz_supervisor": QuizSupervisor(client),
             "quiz_render": QuizRender(client),

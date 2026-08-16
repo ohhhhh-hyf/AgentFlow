@@ -1,7 +1,7 @@
 """register_task.py -- register a task line and create standard templates.
 
 Usage:
-    python tools/scripts/register_task.py --domain notes --task points --name "Points"
+    python tools/scripts/register_task.py --domain notes --task digest --name "Digest"
 
 This script intentionally generates only generic scaffolding. It:
 1. adds ``"<task>": "<name>"`` to domain/<domain>/domain_config.py LINE_CN_NAMES;
@@ -416,13 +416,13 @@ def main() -> None:
         "--task",
         required=True,
         metavar="TASK",
-        help="Task directory name, for example points or action_items.",
+        help="Task directory name, for example digest or action_items.",
     )
     parser.add_argument(
         "--name",
         required=True,
         metavar="NAME",
-        help="Display name, for example Points.",
+        help="Display name, for example Digest.",
     )
     parser.add_argument(
         "--with-report",

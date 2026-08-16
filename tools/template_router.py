@@ -2591,7 +2591,6 @@ LINE_SCHEMA_HINTS: dict[str, str] = {
     ),
     "risk": "risks 列表（描述、等级、相关方、缓解建议等）",
     "mindmap": "outline（Markdown 树状大纲：#/##/### 与 - 短分支；禁止表格）",
-    "points": "知识点列表（title, summary, details 等）",
     "knowledge_graph": "nodes / edges / outline",
     "review": "knowledge_points / issues / corrected_notes",
     "quiz": "questions（prompt, dimension, answer_points）",

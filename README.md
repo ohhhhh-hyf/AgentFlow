@@ -27,7 +27,7 @@ domain/
       mindmap/                # 思维导图线（大纲 → markmap HTML/PNG）
       ...                     # 新增任务线同构
       {line}/steps/           # agent / supervisor / render 三步骤实现
-  notes/                      # 笔记域：知识点 / 知识图谱 / 笔记审查 / 自测题
+  notes/                      # 笔记域：知识图谱 / 笔记审查 / 自测题 / 资料入库
 samples/                      # 样例输入：samples/{domain}/{file|profile|task_template}
 perspective/                  # 跨 domain 公共视角建模
 llm_client/                   # LLM 客户端（HTTP / WebSocket）+ 配置（.env）
@@ -173,10 +173,10 @@ python -m playwright install chromium
 |---|---|
 | 会议纪要 + 待办 | `python bootstrap.py --task minutes_generation --task action_items` |
 | 思维导图演示 | `python bootstrap.py --task mindmap` |
-| 笔记知识点 | `python bootstrap.py --domain notes --task points` |
 | 知识图谱演示 | `python bootstrap.py --domain notes --task knowledge_graph` |
 | 笔记审查 | `python bootstrap.py --domain notes --task review` |
 | 自测题 | `python bootstrap.py --domain notes --task quiz` |
+| 资料入库 | `python bootstrap.py --domain notes --task library --file a.pptx --file b.pdf` |
 
 Linux/macOS 路径写法示例：
 
@@ -199,9 +199,6 @@ python bootstrap.py --task mindmap \
   --file meeting_all.txt \
   --profile object_profile.json
 
-# 笔记域：知识点总结 + 知识图谱
-python bootstrap.py --domain notes --task points --file student_math_notes.txt --profile object_profile.json
-
 # 笔记域：知识图谱（默认输出 SVG/HTML/学习地图到 output/notes/knowledge_graph/；SVG 需系统安装 Graphviz）
 python bootstrap.py --domain notes --task knowledge_graph --file student_math_notes.txt --profile object_profile.json
 ```
@@ -212,10 +209,11 @@ CLI 参数：
 |---|---:|---|---|---|
 | `--domain` | 否 | `meeting` | 选择领域。会议域用 `meeting`，笔记域用 `notes`。 | `--domain notes` |
 | `--task` | 是 | 无 | 要运行的任务线，可重复传多个。 | `--task minutes_generation --task action_items` |
-| `--file` | 否 | `samples/{domain}/file` | 输入 `.txt` 文件、目录，或 `samples/{domain}/file` 下的文件名。 | `--file student_math_notes.txt` |
+| `--file` | 否 | `samples/{domain}/file` | 输入文件或目录，可重复。`library` 一次收多份；其它任务只用第一份。 | `--file student_math_notes.txt` |
 | `--profile` | 否 | `object_profile.json` | 用户画像 `.json`。默认客观全员；个人视角用 `personal_profile.json`。 | `--profile personal_profile.json` |
 | `--env` | 否 | `./.env` | 环境变量文件路径。 | `--env ./.env` |
 | `--{线名}_template` | 否 | 无 | 指定某条任务线的渲染模板。 | `--minutes_generation_template ./template.md` |
+| `--difficulty` / `--qtype` | 否 | 无 | 自测题搜高中真题用：难度、题型。年级和课本版本由笔记对齐知识点后反推。 | `--qtype 单选题` |
 
 根目录 `samples/` 与终端参数一一对应：
 
@@ -229,7 +227,6 @@ CLI 参数：
 | `samples/meeting/mindmap_template/` | `--mindmap_template` | 可放置 `.md` 模板 |
 | `samples/notes/file/` | `--domain notes --file` | `student_math_notes.txt` |
 | `samples/notes/profile/` | `--domain notes --profile` | `object_profile.json` |
-| `samples/notes/points_template/` | `--points_template` | 可放置 `.md` 模板 |
 | `samples/notes/knowledge_graph_template/` | `--knowledge_graph_template` | 可放置 `.md` 模板 |
 
 路径解析规则：
@@ -252,7 +249,6 @@ CLI 参数：
 | `meeting` | `action_items` | `--action_items_template` | `MEETING_ACTION_ITEMS_TEMPLATE` | 待办事项输出模板 |
 | `meeting` | `risk` | `--risk_template` | `MEETING_RISK_TEMPLATE` | 风险分析输出模板 |
 | `meeting` | `mindmap` | `--mindmap_template` | `MEETING_MINDMAP_TEMPLATE` | 思维导图 Markdown 大纲模板 |
-| `notes` | `points` | `--points_template` | `NOTES_POINTS_TEMPLATE` | 笔记知识点输出模板 |
 | `notes` | `knowledge_graph` | `--knowledge_graph_template` | `NOTES_KNOWLEDGE_GRAPH_TEMPLATE` | 知识图谱 Markdown 大纲模板；不传模板时直接导出 SVG/HTML/学习地图 |
 
 任务线：
@@ -263,10 +259,10 @@ CLI 参数：
 | `meeting` | `action_items` | 待办事项 | 终端文本 |
 | `meeting` | `risk` | 风险分析 | 终端文本 |
 | `meeting` | `mindmap` | 思维导图 | `output/meeting/mindmap/mindmap_*.png` / `.html` |
-| `notes` | `points` | 笔记知识点总结 | 终端文本 |
 | `notes` | `knowledge_graph` | 知识图谱 | `output/notes/knowledge_graph/knowledge_graph_*.svg` / `.html` / `.md` |
 | `notes` | `review` | 笔记审查 | `output/notes/review/result_*.md` / `.html` |
-| `notes` | `quiz` | 自测题 | `output/notes/quiz/result_*.md` / `.html` |
+| `notes` | `quiz` | 自测题（推理题 + 高中题库真题） | `output/notes/quiz/result_*.md` / `.html` |
+| `notes` | `library` | 资料入库（信息熵报告） | `output/notes/library/result_*.md` / `.html` |
 
 输出归档规则：
 
@@ -308,7 +304,6 @@ NOTES_KNOWLEDGE_GRAPH_TEMPLATE=<模板路径>       # 对应 --knowledge_graph_t
 | action_items | `--action_items_template` |
 | risk | `--risk_template` |
 | mindmap | `--mindmap_template` |
-| points | `--points_template` |
 | knowledge_graph | `--knowledge_graph_template` |
 
 模板支持三种形式，系统**自动判型**处理：

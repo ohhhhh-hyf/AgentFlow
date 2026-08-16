@@ -9,15 +9,14 @@ STATE_CLASS = "NotesState"
 
 # ── 任务线中文名注册表（脚本与运行时共享的唯一来源）──────────────
 LINE_CN_NAMES: dict[str, str] = {
-    "points": "知识点总结",
     "knowledge_graph": "知识图谱",
     "review": "笔记审查",
     "quiz": "自测题",
+    "library": "资料入库",
 }
 
 # 任务线种类（手写，不进 sync_domain 生成区）。
 LINE_KINDS: dict[str, object] = {
-    "points": LLM_EXTRACT,
     "knowledge_graph": {
         "kind": DETERMINISTIC_PIPELINE,
         "llm_render": "if_template",
@@ -32,5 +31,10 @@ LINE_KINDS: dict[str, object] = {
         "kind": LLM_EXTRACT,
         "cli_template": False,
         "llm_render": "if_template",
+    },
+    "library": {
+        "kind": DETERMINISTIC_PIPELINE,
+        "cli_template": False,
+        "llm_render": "never",
     },
 }

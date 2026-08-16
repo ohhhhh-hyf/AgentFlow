@@ -12,6 +12,7 @@ sys.path.insert(0, str(PROJECT_ROOT))
 from llm_client.config import load_env  # noqa: E402
 from tools.runner import (  # noqa: E402
     build_parser,
+    collect_input_files,
     collect_modes,
     collect_templates,
     parse_domain_name,
@@ -31,7 +32,7 @@ def main() -> None:
         asyncio.run(
             run(
                 ctx,
-                args.file,
+                collect_input_files(ctx, args),
                 args.profile,
                 args.env,
                 templates,
@@ -42,6 +43,10 @@ def main() -> None:
                 args.subject,
                 getattr(args, "chapter", None),
                 getattr(args, "level", None),
+                getattr(args, "grade", None),
+                getattr(args, "edition", None),
+                getattr(args, "difficulty", None),
+                getattr(args, "qtype", None),
             )
         )
     except (

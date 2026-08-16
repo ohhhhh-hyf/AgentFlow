@@ -70,9 +70,12 @@ _LATIN_STOP = {
     "vs",
 }
 _NEG_CUE = re.compile(
-    r"不足|缺乏|缺少|没有|未能|无法|不能|不可|禁止|难以|失败|下降|降低|减少|未(?!来)"
+    r"不足|缺乏|缺少|没有|未能|无法|不能|不可|禁止|难以|失败|"
+    r"下降|降低|减少|降到|降至|未(?!来)"
 )
-_POS_CUE = re.compile(r"加强|提升|提高|增加|增长|改善|已完成|完成了")
+_POS_CUE = re.compile(
+    r"加强|提升|提高|增加|增长|增至|增到|升到|升至|改善|已完成|完成了"
+)
 _DUP_HAN = re.compile(r"([\u4e00-\u9fff])\1+")
 
 
@@ -249,14 +252,28 @@ def _polarity_conflict(left: str, right: str) -> bool:
     return False
 
 
+def _distinctive_extras(runs: list[str]) -> list[str]:
+    out: list[str] = []
+    for run in runs:
+        leftover = _GENERIC_MORPHEME.sub("", run or "")
+        if len(leftover) >= 4 and not _is_generic_span(run):
+            out.append(run)
+    return out
+
+
 def _object_spec_conflict(left: str, right: str) -> bool:
-    """两边若各自点名了对方没有的对象/数字，则不是同一主张。"""
+    """两边各自点名了对方没有的专名/数字，才判不是同一主张。
+
+    一边比另一边更细（多写了修饰）不算冲突；短泛词差也不算。
+    """
     shared = _shared_runs(left, right, min_len=3)
-    left_extra = _unique_runs(left, right, min_len=3)
-    right_extra = _unique_runs(right, left, min_len=3)
+    left_extra = _distinctive_extras(_unique_runs(left, right, min_len=3))
+    right_extra = _distinctive_extras(_unique_runs(right, left, min_len=3))
     ln, rn = _extract_numbers(left), _extract_numbers(right)
-    left_spec = bool(left_extra) or bool(ln - rn)
-    right_spec = bool(right_extra) or bool(rn - ln)
+    if ln and rn and (ln & rn):
+        return False
+    if any(len(item) >= 4 for item in shared) and not ((ln - rn) and (rn - ln)):
+        return False
     if shared:
         if left_extra and right_extra:
             return True
@@ -284,8 +301,11 @@ def _claim_incompatible(left: str, right: str, *, for_note: bool = False) -> boo
     a = _normalize_match_text(left)
     b = _normalize_match_text(right)
     na, nb = _extract_numbers(a), _extract_numbers(b)
-    if na and nb and not (na & nb):
-        return True
+    if na and nb:
+        if not (na & nb):
+            return True
+        if (na - nb) and (nb - na):
+            return True
     la, lb = _extract_latin(a), _extract_latin(b)
     if la and lb and not (la & lb):
         return True
@@ -313,13 +333,13 @@ def _related(
     if _claim_incompatible(left, right):
         return False
     ratio, span, grams = _claim_score(left, right, df, n_docs)
-    if span >= 6:
+    if span >= 5:
         return True
     if _distinctive_short_hit(left, right) or _approx_run_hit(left, right):
         return True
-    if ratio >= 0.18 and grams >= min_grams:
+    if ratio >= 0.16 and grams >= min_grams:
         return True
-    if ratio >= 0.4 and grams >= 1:
+    if ratio >= 0.35 and grams >= 1:
         return True
     a, b = (left or "").strip(), (right or "").strip()
     if a and b and (a in b or b in a):
@@ -637,7 +657,10 @@ def gate_alignments(
             left, right = hit
             if not _note_supported_by_transcript(left, transcript):
                 continue
-            if _is_summary_like(sentence) and not _note_almost_verbatim(left, sentence):
+            if _is_summary_like(sentence) and not (
+                _note_almost_verbatim(left, sentence)
+                or _related_strong(left, sentence, df=df, n_docs=n_docs)
+            ):
                 continue
             if not _note_related(
                 left,
@@ -802,37 +825,42 @@ def _same_topic(
     segments: list[tuple[str, list[str]]],
     topic_titles: list[str],
 ) -> bool:
-    """句子是否与来源同主题（2B 的主题一致性闸门）。
+    """主题闸只拦「明确跨主题且主张也不强」的情况。
 
-    规则：
-    - 句子所在段落标题被来源**明确**匹配（唯一最优、得分≥2）→ 通过
-    - 否则必须强相关（span>=6 或 ratio>=0.4）才通过（守住精度）
+    - 无段落标题（如内容总结）或来源对不上任何议题 → 不因主题拦截
+    - 标题就是来源最匹配的议题 → 通过
+    - 明确属于另一个议题 → 必须主张强相关才挂
+    - 主题分不清 → 交给上游的主张匹配
     """
     heading = _segment_of(sentence, segments)
-    if heading:
-        scored = sorted(
-            (
-                (score, h)
-                for h, _ in segments
-                if h and (score := _topic_score(source, h, topic_titles)) > 0
-            ),
-            key=lambda item: -item[0],
-        )
-        if scored:
-            best_score, best_heading = scored[0]
-            unambiguous = (
-                best_score >= 2
-                and (len(scored) == 1 or best_score - scored[1][0] >= 2)
-            )
-            if heading == best_heading and unambiguous:
-                return True
+    if not heading:
+        return True
+    scored = sorted(
+        (
+            (score, h)
+            for h, _ in segments
+            if h and (score := _topic_score(source, h, topic_titles)) > 0
+        ),
+        key=lambda item: -item[0],
+    )
+    if not scored:
+        return True
+    best_score, best_heading = scored[0]
+    unambiguous = best_score >= 2 and (
+        len(scored) == 1 or best_score - scored[1][0] >= 2
+    )
+    if heading == best_heading:
+        return True
+    if not unambiguous:
+        return True
     if _claim_incompatible(source, sentence):
         return False
     ratio, span, _ = _claim_score(source, sentence)
     return span >= 6 or ratio >= 0.4 or _distinctive_short_hit(source, sentence)
 
 
-_KEYPOINT_MATCH_CAP = 4
+_KEYPOINT_MATCH_CAP = 8
+_NOTE_MATCH_CAP = 4
 
 
 def _best_sentences(
@@ -893,7 +921,7 @@ def backfill_alignments(
     titles = list(topic_titles or [])
 
     for keypoint in keypoints:
-        hits = _best_sentences(
+        strong = _best_sentences(
             keypoint,
             candidates,
             limit=_KEYPOINT_MATCH_CAP,
@@ -901,19 +929,21 @@ def backfill_alignments(
             n_docs=n_docs,
             require_strong=True,
         )
-        if len(hits) < 2:
-            pool = candidates
-            if segments:
-                same_topic = _best_segment(keypoint, segments, titles)
-                if same_topic:
-                    pool = same_topic
-            extra = _best_sentences(
-                keypoint, pool, limit=_KEYPOINT_MATCH_CAP, df=df, n_docs=n_docs
-            )
-            for sentence in extra:
-                if sentence not in hits:
-                    hits.append(sentence)
-        hits = _dedup_similar_hits(hits, keep=2)
+        pool = candidates
+        if segments:
+            same_topic = _best_segment(keypoint, segments, titles)
+            if same_topic:
+                pool = list(dict.fromkeys([*same_topic, *candidates]))
+        related = _best_sentences(
+            keypoint, pool, limit=_KEYPOINT_MATCH_CAP, df=df, n_docs=n_docs
+        )
+        hits: list[str] = []
+        for sentence in [*strong, *related]:
+            if sentence not in hits:
+                hits.append(sentence)
+            if len(hits) >= _KEYPOINT_MATCH_CAP:
+                break
+        hits = _dedup_similar_hits(hits, keep=4)
         for sentence in hits:
             marker = (sentence, "keypoint", keypoint)
             if marker in seen:
@@ -936,7 +966,15 @@ def backfill_alignments(
         bridge = _supporting_transcript_sentence(left, transcript)
         scored: list[tuple[int, float, int, str]] = []
         for sentence in candidates:
-            if _is_summary_like(sentence) and not _note_almost_verbatim(left, sentence):
+            if _is_summary_like(sentence) and not (
+                _note_almost_verbatim(left, sentence)
+                or _related_strong(
+                    _normalize_match_text(left),
+                    _normalize_match_text(sentence),
+                    df=df,
+                    n_docs=n_docs,
+                )
+            ):
                 continue
             if not _note_related(
                 left, sentence, df=df, n_docs=n_docs, bridge=bridge
@@ -957,7 +995,9 @@ def backfill_alignments(
             ratio, span, _ = _claim_score(norm_left, norm_sent, df, n_docs)
             scored.append((rank, ratio, span, sentence))
         scored.sort(key=lambda item: (-item[0], -item[1], -item[2], len(item[3])))
-        picked = _dedup_similar_hits([item[3] for item in scored], keep=1)[:2]
+        picked = _dedup_similar_hits(
+            [item[3] for item in scored], keep=3
+        )[:_NOTE_MATCH_CAP]
         source = f"{left} **用户批注** {right}"
         for sentence in picked:
             marker = (sentence, "note", source)
@@ -973,7 +1013,7 @@ def backfill_alignments(
                 }
             )
 
-    return _cap_similar_keypoint_pins(kept, keep=3)
+    return _cap_similar_keypoint_pins(kept, keep=6)
 
 
 def _evidence_for(transcript: str, source: str) -> str:

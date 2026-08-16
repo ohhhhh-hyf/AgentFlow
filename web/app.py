@@ -33,6 +33,11 @@ from tools.template_router import (  # noqa: E402
     readable_to_template,
     template_to_preview,
 )
+from web.quiz_filters import (  # noqa: E402
+    NONE as QUIZ_NONE,
+    qtype_choices as quiz_qtype_choices,
+    resolve_filters as resolve_quiz_filters,
+)
 
 
 DOMAIN_NAMES = ["meeting", "notes"]
@@ -201,14 +206,6 @@ TASK_BRIEFS: dict[str, dict[str, str]] = {
             "亮点：一条关键点只要和多句高度相关就可以反复挂钉；用来核对有据可查，不是另写摘要。没有项目记忆。"
         ),
     },
-    "points": {
-        "inputs": "笔记原文。可选：渲染模板",
-        "outputs": "知识点总结 Markdown",
-        "purpose": (
-            "从一篇笔记抽出可复习的知识点列表，并配一段总结，方便按条回顾。"
-            "亮点：验的是覆盖全不全、措辞贴不贴原文，而不是再生成一篇长文。不读写记忆。"
-        ),
-    },
     "knowledge_graph": {
         "inputs": "笔记原文。可选：用户 ID、学科、渲染模板",
         "outputs": "图谱 SVG、可点击 HTML、学习地图 Markdown",
@@ -222,17 +219,26 @@ TASK_BRIEFS: dict[str, dict[str, str]] = {
         "inputs": "笔记原文",
         "outputs": "带批注对照页 Markdown、订正笔记 Markdown（默认不展示）",
         "purpose": (
-            "先给出审查摘要，再给出带批注的原文对照页（Markdown，方便前端渲染高亮和批注）。"
-            "订正笔记会同时生成，但不替换原文；用户同意采用后才展示，不同意则保持原稿。"
+            "审查刚写的笔记：左边高亮问题句，右边尽量钉到知识库里的文件和原文。"
+            "库是空的就按原来的方式挑刺，不编出处。订正稿会生成，同意后才展示。"
+        ),
+    },
+    "library": {
+        "inputs": "多份笔记、PPT、PDF、Word、Excel，或一个文件夹。不用指定知识库名",
+        "outputs": "信息熵报告：知识增量 + 冲突点（Markdown / HTML）",
+        "purpose": (
+            "一次把多份资料写入同一知识库，并告诉你这批文件让库变聪明了多少。"
+            "亮点：不报解析页数，只报新增独立知识点和需要你裁决的矛盾；"
+            "标完哪份为准，review / quiz 就能引用这份库。"
         ),
     },
     "quiz": {
-        "inputs": "笔记原文。可选：学科、章节、水平",
-        "outputs": "自测题 HTML（答案默认折叠）、Markdown",
+        "inputs": "笔记原文。可选：难度、题型",
+        "outputs": "自测题 HTML（答案/解析默认折叠）、Markdown",
         "purpose": (
-            "读完这份笔记后出一套必须动脑的题，优先问「为什么 A 会导致 B」，"
-            "不能靠原文整句抄出来。每题带 2–3 个参考得分点，页面上点开才显示。"
-            "学科/章节/水平只调难度，不写记忆。"
+            "读完这份笔记后出约 6 道必须动脑的题，优先问「为什么 A 会导致 B」。"
+            "水平固定为期中备考；年级和课本版本由笔记对齐到的知识点反推，不用手选。"
+            "题库真题大约 6 道，只收带解析和答案的题；第 1 页不够再翻第 2 页。解析点开才显示。"
         ),
     },
 }
@@ -261,7 +267,43 @@ def _memory_field_visibility(domain: str, task: str) -> tuple[bool, bool, bool]:
     )
 
 
-def _panel_updates(domain: str, task_label: str | None):
+_NOTE_SUFFIXES = {".txt", ".md"}
+_LIBRARY_SUFFIXES = {".txt", ".md", ".pdf", ".docx", ".pptx", ".xlsx"}
+
+
+def _upload_incompatible(task: str, upload) -> bool:
+    if upload is None or upload == "":
+        return False
+    paths = _uploaded_paths(upload)
+    if task == "library":
+        return False
+    if isinstance(upload, (list, tuple)):
+        return True
+    if not paths:
+        return bool(upload)
+    if len(paths) != 1:
+        return True
+    return paths[0].suffix.lower() not in _NOTE_SUFFIXES
+
+
+def _upload_update(task: str, current_upload=None):
+    """入库是多文件；其它任务是单份 txt。模式切换时清掉不兼容的旧文件，避免胶囊报错。"""
+    knowledge_task = task == "library"
+    kwargs: dict = {
+        "label": (
+            "资料文件（可多选或上传文件夹内文件）"
+            if knowledge_task
+            else "文本文件"
+        ),
+        "file_types": sorted(_LIBRARY_SUFFIXES) if knowledge_task else [".txt"],
+        "file_count": "multiple" if knowledge_task else "single",
+    }
+    if _upload_incompatible(task, current_upload):
+        kwargs["value"] = None
+    return gr.update(**kwargs)
+
+
+def _panel_updates(domain: str, task_label: str | None, current_upload=None):
     task = _task_value(task_label or "", domain)
     policy = _line_policy(domain, task)
     sidecar = bool(policy and policy.sidecar)
@@ -279,25 +321,79 @@ def _panel_updates(domain: str, task_label: str | None):
         gr.update(visible=show_quiz),
         gr.update(visible=sidecar),
         gr.update(visible=bool(policy and policy.cli_template)),
+        _upload_update(task, current_upload),
     )
 
 
-def update_domain(domain_label: str):
+def update_domain(domain_label: str, current_upload=None):
     domain = _domain_value(domain_label)
     choices = _task_choices(domain)
     selected = choices[0][1] if choices else None
     return (
         gr.update(choices=choices, value=selected),
-        *_panel_updates(domain, selected),
+        *_panel_updates(domain, selected, current_upload),
         *_hitl_ui(False),
     )
 
 
-def update_task_panel(domain_label: str, task_label: str | None):
+def update_task_panel(domain_label: str, task_label: str | None, current_upload=None):
     return (
-        *_panel_updates(_domain_value(domain_label), task_label),
+        *_panel_updates(_domain_value(domain_label), task_label, current_upload),
         *_hitl_ui(False),
     )
+
+
+def _quiz_notes_preview(upload, text: str | None) -> str:
+    pasted = (text or "").strip()
+    if pasted:
+        return pasted
+    path = _uploaded_path(upload)
+    if path is None or not path.exists():
+        return ""
+    if path.suffix.lower() not in _NOTE_SUFFIXES:
+        return ""
+    try:
+        return path.read_text(encoding="utf-8").strip()
+    except (OSError, UnicodeError):
+        return ""
+
+
+def _quiz_filter_updates(resolved: dict) -> tuple:
+    hint = resolved.get("hint") or ""
+    hint_html = (
+        f'<div class="quiz-match-hint">{html.escape(hint)}</div>' if hint else ""
+    )
+    return (
+        gr.update(
+            choices=resolved["qtype_choices"],
+            value=resolved["qtype"],
+        ),
+        hint_html,
+    )
+
+
+def on_quiz_notes_change(qtype, input_upload, input_text):
+    """笔记变更后对齐知识点，刷新题型，并展示反推的年级/版本。"""
+    try:
+        notes = _quiz_notes_preview(input_upload, input_text)
+        resolved = resolve_quiz_filters(notes, qtype or "")
+        return _quiz_filter_updates(resolved)
+    except Exception:
+        return gr.update(), ""
+
+
+def on_task_switch_quiz_filters(
+    domain_label: str,
+    task_label: str | None,
+    qtype,
+    input_upload,
+    input_text,
+):
+    """只有切到自测题才按笔记对齐筛选项，避免入库残留文件把标签打成错误胶囊。"""
+    task = _task_value(task_label or "", _domain_value(domain_label))
+    if task != "quiz":
+        return gr.skip(), gr.skip()
+    return on_quiz_notes_change(qtype, input_upload, input_text)
 
 
 def _output_files(domain: str, tasks: list[str]) -> set[Path]:
@@ -409,7 +505,14 @@ def _memory_review_html(files: list[str]) -> str:
             doc = ""
         match = re.search(r"<main[^>]*>(.*?)</main>", doc, re.S | re.I)
         body = match.group(1).strip() if match else doc.strip()
-        return body if ("memory-review" in body or "quiz-sheet" in body) else ""
+        if "memory-review" not in body and "quiz-sheet" not in body:
+            return ""
+        try:
+            from tools.exercise_search.images import rewrite_images
+
+            return rewrite_images(body)
+        except Exception:
+            return body
     text = _md_preview_text(files)
     if not text or 'class="memory-link"' not in text:
         return ""
@@ -799,9 +902,9 @@ def reset_form():
         "",
         "",
         "",
+        QUIZ_NONE,
+        gr.update(value=QUIZ_NONE, choices=quiz_qtype_choices("")),
         "",
-        "",
-        "不指定",
         gr.update(value=None),
         "",
         gr.update(value=None),
@@ -847,13 +950,12 @@ def run_from_ui(
 
     Gradio 按位置传参（不会自动聚合 list），这里手动拆分：
     preview_args = [mode, user_id, project_id, subject, kp_upload, kp_text,
-                    notes_upload, notes_text, quiz_subject, quiz_chapter, quiz_level]
+                    notes_upload, notes_text, quiz_difficulty, quiz_qtype]
     """
     mode_value, user_id, project_id, subject = preview_args[:4]
     keypoints_upload, keypoints_text, notes_upload, notes_text = preview_args[4:8]
-    quiz_subject = preview_args[8] if len(preview_args) > 8 else ""
-    quiz_chapter = preview_args[9] if len(preview_args) > 9 else ""
-    quiz_level = preview_args[10] if len(preview_args) > 10 else ""
+    quiz_difficulty = preview_args[8] if len(preview_args) > 8 else ""
+    quiz_qtype = preview_args[9] if len(preview_args) > 9 else ""
     domain = _domain_value(domain_label)
     if not task_label:
         return _run_result(
@@ -864,13 +966,18 @@ def run_from_ui(
         )
 
     tasks = [_task_value(task_label, domain)]
-    chapter = level = None
+    chapter = grade = edition = difficulty = qtype = None
+    level = "期中备考" if tasks and tasks[0] == "quiz" else None
     if tasks[0] == "quiz":
         user_id = project_id = None
-        subject = (quiz_subject or "").strip() or None
-        chapter = (quiz_chapter or "").strip() or None
-        raw_level = (quiz_level or "").strip()
-        level = None if raw_level in {"", "不指定"} else raw_level
+        subject = None
+        chapter = None
+        grade = None
+        edition = None
+        raw_diff = (quiz_difficulty or "").strip()
+        difficulty = None if raw_diff in {"", QUIZ_NONE} else raw_diff
+        raw_qtype = (quiz_qtype or "").strip()
+        qtype = None if raw_qtype in {"", QUIZ_NONE} else raw_qtype
     elif not _task_uses_memory(tasks[0]):
         user_id = project_id = subject = None
     profile_data = json.loads(
@@ -891,6 +998,7 @@ def run_from_ui(
             input_text,
             temp_root,
             trace=bool(_line_policy(domain, tasks[0]) and _line_policy(domain, tasks[0]).sidecar),
+            library=tasks[0] == "library",
             keypoints_upload=keypoints_upload,
             keypoints_text=keypoints_text,
             notes_upload=notes_upload,
@@ -1014,6 +1122,10 @@ def run_from_ui(
                         (subject or "").strip() or None,
                         chapter,
                         level,
+                        grade,
+                        edition,
+                        difficulty,
+                        qtype,
                         compile_natural=not show_editor,
                     )
                 )
@@ -1138,6 +1250,12 @@ def rewrite_notes_from_ui():
 def _uploaded_path(upload) -> Path | None:
     if upload is None:
         return None
+    if isinstance(upload, (list, tuple)):
+        for item in upload:
+            found = _uploaded_path(item)
+            if found is not None:
+                return found
+        return None
     if isinstance(upload, (str, Path)):
         return Path(upload)
     name = getattr(upload, "name", None) or getattr(upload, "path", None)
@@ -1148,6 +1266,20 @@ def _uploaded_path(upload) -> Path | None:
             if upload.get(key):
                 return Path(upload[key])
     return None
+
+
+def _uploaded_paths(upload) -> list[Path]:
+    if upload is None:
+        return []
+    if isinstance(upload, (list, tuple)):
+        out: list[Path] = []
+        for item in upload:
+            found = _uploaded_path(item)
+            if found is not None:
+                out.append(found)
+        return out
+    found = _uploaded_path(upload)
+    return [found] if found is not None else []
 
 
 def _input_path(upload, text: str | None, temp_root: Path, filename: str) -> Path | None:
@@ -1174,12 +1306,15 @@ def _prepare_input(
     temp_root: Path,
     *,
     trace: bool,
+    library: bool = False,
     keypoints_upload=None,
     keypoints_text: str | None = None,
     notes_upload=None,
     notes_text: str | None = None,
 ) -> Path | None:
-    """普通任务写单文件；溯源纪要把关键点/笔记放到同一目录。"""
+    """普通任务写单文件；资料入库收多文件；溯源纪要把关键点/笔记放到同一目录。"""
+    if library:
+        return _prepare_library_input(input_upload, input_text, temp_root)
     if not trace:
         return _input_path(input_upload, input_text, temp_root, "input.txt")
 
@@ -1209,6 +1344,50 @@ def _prepare_input(
         if body:
             (work / names[0]).write_text(body, encoding="utf-8")
     return work
+
+
+def _prepare_library_input(
+    input_upload, input_text: str | None, temp_root: Path
+) -> Path | None:
+    """把多份上传和粘贴文本收进一个临时目录，交给 library 展开入库。"""
+    from tools.knowledge.document_processor import SUPPORTED_EXTS
+
+    paths = _uploaded_paths(input_upload)
+    pasted = (input_text or "").strip()
+    if not paths and not pasted:
+        return None
+    work = temp_root / "library_input"
+    work.mkdir(parents=True, exist_ok=True)
+    used: set[str] = set()
+    for src in paths:
+        if src.is_dir():
+            for child in sorted(src.rglob("*")):
+                if child.is_file() and child.suffix.lower() in SUPPORTED_EXTS:
+                    name = child.name
+                    dest = work / name
+                    n = 1
+                    while dest.exists() or dest.name in used:
+                        dest = work / f"{child.stem}_{n}{child.suffix}"
+                        n += 1
+                    shutil.copy(child, dest)
+                    used.add(dest.name)
+            continue
+        dest = work / src.name
+        n = 1
+        while dest.exists() or dest.name in used:
+            dest = work / f"{src.stem}_{n}{src.suffix}"
+            n += 1
+        shutil.copy(src, dest)
+        used.add(dest.name)
+    if pasted:
+        dest = work / "notes.txt"
+        n = 1
+        while dest.exists() or dest.name in used:
+            dest = work / f"notes_{n}.txt"
+            n += 1
+        dest.write_text(pasted, encoding="utf-8")
+    return work
+
 
 def _clean_log(text: str) -> str:
     # 兼容毫秒级时间戳（_HHMMSS_SSS 与旧版 _HHMMSS 均可）
@@ -2185,6 +2364,18 @@ button.secondary:hover {
   line-height: 1.45;
   margin-top: 4px;
 }
+.review-cite {
+  font-size: 0.78rem;
+  color: #3a3832;
+  margin-top: 6px;
+  font-weight: 650;
+}
+.review-excerpt {
+  font-size: 0.76rem;
+  color: #6b6860;
+  margin-top: 4px;
+  line-height: 1.45;
+}
 .quiz-hint {
   font-size: 0.78rem;
   font-weight: 400;
@@ -2221,6 +2412,164 @@ button.secondary:hover {
 }
 .quiz-empty {
   padding: 14px 16px;
+  color: #6b6860;
+}
+.quiz-section {
+  padding: 12px 16px 4px;
+  font-weight: 700;
+  font-size: 0.92rem;
+  color: #2c2a26;
+  background: #f7f5f0;
+  border-bottom: 1px solid #ebe8e1;
+}
+.quiz-bank-query {
+  padding: 6px 16px 10px;
+  font-size: 0.78rem;
+  color: #6b6860;
+}
+.quiz-stem {
+  line-height: 1.85;
+  margin: 6px 0 8px;
+  word-break: keep-all;
+  overflow-wrap: anywhere;
+}
+.quiz-stem p {
+  margin: 0 0 0.45em;
+  text-indent: 0 !important;
+}
+.quiz-stem p:last-child {
+  margin-bottom: 0;
+}
+.quiz-stem img.quiz-formula,
+.quiz-opts img.quiz-formula,
+.quiz-analysis img.quiz-formula,
+#memory-review img.quiz-formula {
+  display: inline !important;
+  vertical-align: middle !important;
+  height: 1.45em;
+  width: auto !important;
+  max-width: none !important;
+  max-height: 2.6em;
+  margin: 0 1px;
+}
+.quiz-stem img.quiz-figure,
+.quiz-analysis img.quiz-figure {
+  display: block;
+  max-width: 100%;
+  height: auto;
+  margin: 8px 0;
+}
+.quiz-blank {
+  display: inline-block;
+  min-width: 4em;
+  border-bottom: 1px solid #1c1b19;
+  line-height: 1;
+  margin: 0 0.15em;
+}
+.quiz-opts {
+  list-style: none;
+  margin: 0 0 8px;
+  padding: 0;
+  line-height: 1.8;
+}
+.quiz-opts li {
+  margin: 4px 0;
+}
+.quiz-key {
+  margin: 8px 0 6px;
+  font-weight: 650;
+}
+.quiz-analysis {
+  line-height: 1.55;
+}
+.quiz-analysis img {
+  max-width: 100%;
+  height: auto;
+}
+.quiz-match-hint {
+  margin: 4px 2px 2px;
+  padding: 8px 10px;
+  font-size: 0.8rem;
+  line-height: 1.45;
+  color: #3a3832;
+  background: #f4f1ea;
+  border-radius: 8px;
+}
+.library-hero {
+  padding: 28px 20px 22px;
+  text-align: center;
+  background: #faf9f6;
+  border-bottom: 1px solid #ebe8e1;
+}
+.library-caption {
+  margin: 0;
+  font-size: 0.86rem;
+  color: #6b6860;
+}
+.library-count {
+  margin: 6px 0 0;
+  font-size: 0.95rem;
+  color: #1c1b19;
+}
+.library-count strong {
+  display: block;
+  font-size: 2.6rem;
+  font-weight: 650;
+  letter-spacing: -0.04em;
+  line-height: 1.05;
+}
+.library-files, .library-items, .library-conflicts, .library-peace {
+  padding: 12px 16px 16px;
+}
+.library-files ul, .library-items ul {
+  margin: 0;
+  padding-left: 1.2em;
+  line-height: 1.6;
+}
+.library-items span {
+  color: #9a968c;
+  font-size: 0.78rem;
+  margin-left: 8px;
+}
+.library-verdict {
+  margin: 12px 0 0;
+  padding: 12px 14px;
+  border: 1px solid #ebe8e1;
+  border-radius: 8px;
+  background: #ffffff;
+}
+.library-verdict blockquote {
+  margin: 8px 0;
+  padding-left: 10px;
+  border-left: 3px solid #c8c4b8;
+  color: #4a4842;
+  font-size: 0.86rem;
+}
+.library-ask {
+  margin: 10px 0 8px;
+  font-weight: 650;
+}
+.library-verdict button {
+  margin: 0 8px 0 0;
+  padding: 6px 12px;
+  border: 1px solid #d4d0c6;
+  border-radius: 6px;
+  background: #faf9f6;
+  color: #1c1b19;
+  cursor: pointer;
+}
+.library-verdict button.is-on {
+  background: #2c2a26;
+  color: #faf9f6;
+  border-color: #2c2a26;
+}
+.library-picked {
+  min-height: 1.2em;
+  font-size: 0.8rem;
+  color: #6b6860;
+  margin: 8px 0 0;
+}
+.library-peace {
   color: #6b6860;
 }
 @media (max-width: 820px) {
@@ -2387,23 +2736,17 @@ def build_app() -> gr.Blocks:
                     visible=show_subject,
                 )
                 with gr.Group(visible=False, elem_id="quiz-box") as quiz_box:
-                    quiz_subject = gr.Textbox(
-                        label="学科/课程（可选）",
-                        lines=1,
-                        max_lines=1,
-                        placeholder="如：高等数学",
-                    )
-                    quiz_chapter = gr.Textbox(
-                        label="章节（可选）",
-                        lines=1,
-                        max_lines=1,
-                        placeholder="如：极限",
-                    )
-                    quiz_level = gr.Dropdown(
-                        label="水平（可选）",
-                        choices=["不指定", "初学者", "期中备考", "考研"],
+                    quiz_difficulty = gr.Dropdown(
+                        label="题目难度",
+                        choices=["不指定", "容易", "较易", "适中", "较难", "困难"],
                         value="不指定",
                     )
+                    quiz_qtype = gr.Dropdown(
+                        label="题目类型",
+                        choices=quiz_qtype_choices(""),
+                        value=QUIZ_NONE,
+                    )
+                    quiz_match_hint = gr.HTML("")
                 with gr.Group(visible=False, elem_id="trace-box") as trace_box:
                     gr.HTML(
                         '<div class="tpl-guide">'
@@ -2514,12 +2857,19 @@ def build_app() -> gr.Blocks:
                     max_lines=40,
                     elem_id="log-box",
                 )
-                memory_review = gr.HTML(
-                    value="",
-                    label="对照批注",
-                    elem_id="memory-review",
-                    visible=False,
-                )
+                html_kwargs = {
+                    "value": "",
+                    "label": "对照批注",
+                    "elem_id": "memory-review",
+                    "visible": False,
+                }
+                try:
+                    memory_review = gr.HTML(**html_kwargs, sanitize_html=False)
+                except TypeError:
+                    try:
+                        memory_review = gr.HTML(**html_kwargs, sanitize=False)
+                    except TypeError:
+                        memory_review = gr.HTML(**html_kwargs)
                 rewrite_btn = gr.Button(
                     "同意采用订正笔记",
                     variant="secondary",
@@ -2568,7 +2918,7 @@ def build_app() -> gr.Blocks:
         side_btns = [clear_results_btn, reset_form_btn, clear_tpl_btn]
         domain.change(
             update_domain,
-            inputs=domain,
+            inputs=[domain, input_upload],
             outputs=[
                 tasks,
                 task_brief,
@@ -2580,12 +2930,13 @@ def build_app() -> gr.Blocks:
                 quiz_box,
                 trace_box,
                 template_wrap,
+                input_upload,
                 *hitl_outputs,
             ],
         )
         tasks.change(
             update_task_panel,
-            inputs=[domain, tasks],
+            inputs=[domain, tasks, input_upload],
             outputs=[
                 task_brief,
                 config_label,
@@ -2596,7 +2947,45 @@ def build_app() -> gr.Blocks:
                 quiz_box,
                 trace_box,
                 template_wrap,
+                input_upload,
                 *hitl_outputs,
+            ],
+        ).then(
+            on_task_switch_quiz_filters,
+            inputs=[
+                domain,
+                tasks,
+                quiz_qtype,
+                input_upload,
+                input_text,
+            ],
+            outputs=[
+                quiz_qtype,
+                quiz_match_hint,
+            ],
+        )
+        input_upload.change(
+            on_quiz_notes_change,
+            inputs=[
+                quiz_qtype,
+                input_upload,
+                input_text,
+            ],
+            outputs=[
+                quiz_qtype,
+                quiz_match_hint,
+            ],
+        )
+        input_text.blur(
+            on_quiz_notes_change,
+            inputs=[
+                quiz_qtype,
+                input_upload,
+                input_text,
+            ],
+            outputs=[
+                quiz_qtype,
+                quiz_match_hint,
             ],
         )
         run_button.click(
@@ -2623,9 +3012,8 @@ def build_app() -> gr.Blocks:
                 keypoints_text,
                 notes_upload,
                 notes_text,
-                quiz_subject,
-                quiz_chapter,
-                quiz_level,
+                quiz_difficulty,
+                quiz_qtype,
             ],
             outputs=[*result_outputs, *hitl_outputs, *side_btns],
             show_progress="minimal",
@@ -2659,9 +3047,9 @@ def build_app() -> gr.Blocks:
                 user_id,
                 project_id,
                 subject,
-                quiz_subject,
-                quiz_chapter,
-                quiz_level,
+                quiz_difficulty,
+                quiz_qtype,
+                quiz_match_hint,
                 keypoints_upload,
                 keypoints_text,
                 notes_upload,
@@ -2669,7 +3057,29 @@ def build_app() -> gr.Blocks:
                 *hitl_outputs,
             ],
         )
+    _mount_bank_assets(demo)
     return demo
+
+
+def _mount_bank_assets(demo) -> None:
+    """把 /resources/aixue_paper/... 代理成可显示的图，避免打到 Gradio 本机 404。"""
+    app = getattr(demo, "app", None)
+    if app is None:
+        return
+    try:
+        from fastapi.responses import Response
+    except ImportError:
+        return
+
+    @app.get("/resources/{rest:path}")
+    def _bank_resource(rest: str):
+        from tools.exercise_search.images import fetch_image
+
+        got = fetch_image("/resources/" + rest)
+        if got is None:
+            return Response(status_code=404)
+        data, mime = got
+        return Response(content=data, media_type=mime)
 
 
 def _env_bool(name: str, default: bool = False) -> bool:

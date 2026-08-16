@@ -38,6 +38,32 @@ class KnowledgeGraph(ModelMixin):
         return cls(**data)
 
 @dataclass
+class Library(ModelMixin):
+    """Library输出（浅校验：仅校验第一层键与类型，嵌套不校验）。"""
+
+    message: str
+    increment: str
+    files: list[dict[str, Any]] = field(default_factory=list)
+    increment_by_file: list[dict[str, Any]] = field(default_factory=list)
+    conflicts: list[dict[str, Any]] = field(default_factory=list)
+    items: list[dict[str, Any]] = field(default_factory=list)
+
+    @classmethod
+    def validate(cls, data: dict) -> "Library":
+        _exact_fields(data, [f.name for f in fields(cls)], cls.__name__)
+        _string(data["message"], "message")
+        _string(data["increment"], "increment")
+        if not isinstance(data["files"], list):
+            raise OutputValidationError("files 必须是数组")
+        if not isinstance(data["increment_by_file"], list):
+            raise OutputValidationError("increment_by_file 必须是数组")
+        if not isinstance(data["conflicts"], list):
+            raise OutputValidationError("conflicts 必须是数组")
+        if not isinstance(data["items"], list):
+            raise OutputValidationError("items 必须是数组")
+        return cls(**data)
+
+@dataclass
 class NotesUnderstanding(ModelMixin):
     """NotesUnderstanding输出（浅校验：仅校验第一层键与类型，嵌套不校验）。"""
 
@@ -54,19 +80,6 @@ class NotesUnderstanding(ModelMixin):
             raise OutputValidationError("sections 必须是数组")
         _string_list(data["key_terms"], "key_terms")
         _string_list(data["open_questions"], "open_questions")
-        return cls(**data)
-
-@dataclass
-class Points(ModelMixin):
-    """Points输出（浅校验：仅校验第一层键与类型，嵌套不校验）。"""
-
-    points: list[dict[str, Any]] = field(default_factory=list)
-
-    @classmethod
-    def validate(cls, data: dict) -> "Points":
-        _exact_fields(data, [f.name for f in fields(cls)], cls.__name__)
-        if not isinstance(data["points"], list):
-            raise OutputValidationError("points 必须是数组")
         return cls(**data)
 
 @dataclass
@@ -112,31 +125,6 @@ class Review(ModelMixin):
 # ── 生成模型生成区结束 ──
 
 # ── 审核模型生成区：由 tools/scripts/sync_domain.py 生成，勿手改 ──
-
-@dataclass
-class PointsSupervisorReview(ModelMixin):
-    """知识点总结任务线的领域审核结果。"""
-
-    decision: Literal["approve", "revise", "reject"]
-    points_check: dict[str, Any]
-    feedback: list[str] = field(default_factory=list)
-
-    # 本模型的全部检查项（供结构校验与公共语义校验使用）
-    CHECK_KEYS = ("points_check",)
-
-    @classmethod
-    def validate(cls, data: dict) -> "PointsSupervisorReview":
-        _exact_fields(data, [f.name for f in fields(cls)], cls.__name__)
-        for key in cls.CHECK_KEYS:
-            _review_check(data[key], key)
-        _string_list(data["feedback"], "feedback")
-        # 公共语义规则：decision 枚举 + 与检查项/feedback 的联动约束
-        validate_supervisor_semantics(
-            data["decision"],
-            data["feedback"],
-            {key: data[key] for key in cls.CHECK_KEYS},
-        )
-        return cls(**data)
 
 @dataclass
 class KnowledgeGraphSupervisorReview(ModelMixin):
@@ -213,6 +201,31 @@ class QuizSupervisorReview(ModelMixin):
         )
         return cls(**data)
 
+@dataclass
+class LibrarySupervisorReview(ModelMixin):
+    """资料入库任务线的领域审核结果。"""
+
+    decision: Literal["approve", "revise", "reject"]
+    library_check: dict[str, Any]
+    feedback: list[str] = field(default_factory=list)
+
+    # 本模型的全部检查项（供结构校验与公共语义校验使用）
+    CHECK_KEYS = ("library_check",)
+
+    @classmethod
+    def validate(cls, data: dict) -> "LibrarySupervisorReview":
+        _exact_fields(data, [f.name for f in fields(cls)], cls.__name__)
+        for key in cls.CHECK_KEYS:
+            _review_check(data[key], key)
+        _string_list(data["feedback"], "feedback")
+        # 公共语义规则：decision 枚举 + 与检查项/feedback 的联动约束
+        validate_supervisor_semantics(
+            data["decision"],
+            data["feedback"],
+            {key: data[key] for key in cls.CHECK_KEYS},
+        )
+        return cls(**data)
+
 # ── 审核模型生成区结束 ──
 
 # ── Report 校验生成区：由 tools/scripts/sync_domain.py 生成，勿手改 ──
@@ -251,31 +264,46 @@ class KnowledgeGraphReportValidation:
         )
 
 
-class PointsReportValidation:
-    """PointsReport 的校验逻辑（由脚本按手写字段自动生成）。"""
+class LibraryReportValidation:
+    """LibraryReport 的校验逻辑（由脚本按手写字段自动生成）。"""
 
     @classmethod
-    def validate(cls, data: dict) -> "PointsReport":
-        allowed = {"points", "quality_warning", "personalized_text"}
+    def validate(cls, data: dict) -> "LibraryReport":
+        allowed = {"increment", "message", "files", "increment_by_file", "conflicts", "items", "library_html", "quality_warning", "personalized_text"}
 
         if not isinstance(data, dict):
-            raise OutputValidationError("PointsReport 必须是 JSON 对象")
+            raise OutputValidationError("LibraryReport 必须是 JSON 对象")
 
         extra = set(data) - allowed
         if extra:
             raise OutputValidationError(
-                f"PointsReport 字段不一致：多余={sorted(extra)}"
+                f"LibraryReport 字段不一致：多余={sorted(extra)}"
             )
 
-        if not isinstance(data.get("points") or [], list):
-            raise OutputValidationError("points 必须是数组")
+        _string(data.get("increment") or "", "increment")
+        _string(data.get("message") or "", "message")
+        if not isinstance(data.get("files") or [], list):
+            raise OutputValidationError("files 必须是数组")
+        if not isinstance(data.get("increment_by_file") or [], list):
+            raise OutputValidationError("increment_by_file 必须是数组")
+        if not isinstance(data.get("conflicts") or [], list):
+            raise OutputValidationError("conflicts 必须是数组")
+        if not isinstance(data.get("items") or [], list):
+            raise OutputValidationError("items 必须是数组")
+        _string(data.get("library_html") or "", "library_html")
         if data.get("quality_warning") is not None:
             _string(data["quality_warning"], "quality_warning")
         if data.get("personalized_text") is not None:
             _string(data["personalized_text"], "personalized_text")
 
         return cls(
-            points=data.get("points") or [],
+            increment=data.get("increment") or "",
+            message=data.get("message") or "",
+            files=data.get("files") or [],
+            increment_by_file=data.get("increment_by_file") or [],
+            conflicts=data.get("conflicts") or [],
+            items=data.get("items") or [],
+            library_html=data.get("library_html") or "",
             quality_warning=data.get("quality_warning"),
             personalized_text=data.get("personalized_text"),
         )
@@ -286,7 +314,7 @@ class QuizReportValidation:
 
     @classmethod
     def validate(cls, data: dict) -> "QuizReport":
-        allowed = {"questions", "quiz_html", "quality_warning", "personalized_text"}
+        allowed = {"questions", "bank_questions", "bank_query", "bank_status", "quiz_html", "quality_warning", "personalized_text"}
 
         if not isinstance(data, dict):
             raise OutputValidationError("QuizReport 必须是 JSON 对象")
@@ -299,6 +327,10 @@ class QuizReportValidation:
 
         if not isinstance(data.get("questions") or [], list):
             raise OutputValidationError("questions 必须是数组")
+        if not isinstance(data.get("bank_questions") or [], list):
+            raise OutputValidationError("bank_questions 必须是数组")
+        _string(data.get("bank_query") or "", "bank_query")
+        _string(data.get("bank_status") or "", "bank_status")
         _string(data.get("quiz_html") or "", "quiz_html")
         if data.get("quality_warning") is not None:
             _string(data["quality_warning"], "quality_warning")
@@ -307,6 +339,9 @@ class QuizReportValidation:
 
         return cls(
             questions=data.get("questions") or [],
+            bank_questions=data.get("bank_questions") or [],
+            bank_query=data.get("bank_query") or "",
+            bank_status=data.get("bank_status") or "",
             quiz_html=data.get("quiz_html") or "",
             quality_warning=data.get("quality_warning"),
             personalized_text=data.get("personalized_text"),

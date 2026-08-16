@@ -87,13 +87,44 @@ def assemble_report(
     return report_cls(**data)
 
 
+_SENTENCE_END = set("。！？；;!?：:")
+
+
+def _keep_linebreak(prev: str, nxt: str) -> bool:
+    """短行、已收句、下一行像条目时保留换行；只合并段落里的硬折行。"""
+    prev = prev.rstrip()
+    nxt = nxt.lstrip()
+    if not prev or not nxt:
+        return True
+    if prev[-1] in _SENTENCE_END:
+        return True
+    if len(prev) <= 16:
+        return True
+    if nxt[:1] in {"#", "-", "*", "•", "（", "("}:
+        return True
+    return False
+
+
 def normalize_transcript(text: str) -> str:
-    """规范化输入文本：合并段落内硬换行，保留段落间空行。"""
-    text = text.replace("\r\n", "\n").replace("\r", "\n")
-    text = re.sub(r"\n{2,}", "\x00", text)
-    text = text.replace("\n", "")
-    text = text.replace("\x00", "\n\n")
-    return text.strip()
+    """规范化输入文本：合并段落内硬换行，保留段落空行和条目换行。"""
+    text = (text or "").replace("\r\n", "\n").replace("\r", "\n").strip()
+    if not text:
+        return ""
+    blocks = re.split(r"\n{2,}", text)
+    out: list[str] = []
+    for block in blocks:
+        lines = block.split("\n")
+        buf = lines[0] if lines else ""
+        kept: list[str] = []
+        for nxt in lines[1:]:
+            if _keep_linebreak(buf, nxt):
+                kept.append(buf)
+                buf = nxt
+            else:
+                buf = f"{buf}{nxt}"
+        kept.append(buf)
+        out.append("\n".join(item for item in kept if item != "" or len(kept) == 1))
+    return "\n\n".join(out)
 
 
 def json_dumps(value: object) -> str:

@@ -20,7 +20,7 @@
 
 | 种类 | 代表线 | LLM 渲染 | CLI 模板 | sidecar | 结构抽取 |
 |---|---|---|---|---|---|
-| `llm_extract` | risk / points / action_items | 是 | 是 | 否 | 是 |
+| `llm_extract` | risk / action_items / review / quiz | 是 | 是 | 否 | 是 |
 | `llm_document` | 纪要 / 多样式 / 思维导图 | 是 | 是 | 否 | 仅当 Report 声明 structure |
 | `deterministic_pipeline` | minutes_trace；无模板 knowledge_graph | 默认否 | 默认否 | 可选 | 否 |
 
@@ -68,6 +68,8 @@ minutes_trace 是文档化的 pipeline + sidecar，不是和 risk 对等的一�
 | 路径 | 职责 |
 |------|------|
 | `memory/` | 项目记忆：原文实体挂钩；纪要对照历史；知识图谱增量合并 |
+| `knowledge/` | 文档知识库：PPT/PDF 等入库、向量检索、问答带来源出处 |
+| `exercise_search/` | 高中题库检索：按笔记对齐知识点并反推年级/版本后取真题，给 `notes.quiz` 用 |
 | `scripts/` | `register_domain` / `register_task` / `sync_domain` 脚手架（开发期） |
 
 ## 约定

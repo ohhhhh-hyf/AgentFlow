@@ -121,12 +121,11 @@ def _refresh_identity(
         "客观会议纪要",
         "用户视角会议纪要",
         "多样式纪要输出",
-        "知识点总结输出",
         "知识图谱输出",
     }
     title = ""
     purpose = _purpose_text(understanding)
-    for key in ("minutes_generation", "multi_styles", "knowledge_graph", "points"):
+    for key in ("minutes_generation", "multi_styles", "knowledge_graph"):
         dump = _dump(reports.get(key))
         cand = str(dump.get("title") or "").strip()
         if cand and cand not in generic_titles and not cand.endswith("视角会议纪要"):

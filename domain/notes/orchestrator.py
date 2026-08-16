@@ -40,7 +40,7 @@ from tools.runtime.kinds import resolve_line_policies
 
 from .reports import (
     KnowledgeGraphReport,
-    PointsReport,
+    LibraryReport,
     QuizReport,
     ReviewReport,
 )
@@ -54,10 +54,10 @@ from .tasks.knowledge_graph import (
     KnowledgeGraphSupervisor,
 )
 
-from .tasks.points import (
-    PointsAgent,
-    PointsRender,
-    PointsSupervisor,
+from .tasks.library import (
+    LibraryAgent,
+    LibraryRender,
+    LibrarySupervisor,
 )
 
 from .tasks.quiz import (
@@ -77,7 +77,7 @@ from .tasks.review import (
 # ── FallbackRules import 生成区：由 tools/scripts/sync_domain.py 生成，勿手改 ──
 
 from .tasks.knowledge_graph.contracts import KNOWLEDGE_GRAPH_FALLBACK_RULES
-from .tasks.points.contracts import POINTS_FALLBACK_RULES
+from .tasks.library.contracts import LIBRARY_FALLBACK_RULES
 from .tasks.quiz.contracts import QUIZ_FALLBACK_RULES
 from .tasks.review.contracts import REVIEW_FALLBACK_RULES
 
@@ -96,15 +96,20 @@ _EMPTY_KNOWLEDGE_GRAPH = {
     "edges": [],
 }
 
+_EMPTY_LIBRARY = {
+    "message": "",
+    "increment": "",
+    "files": [],
+    "increment_by_file": [],
+    "conflicts": [],
+    "items": [],
+}
+
 _EMPTY_NOTES_UNDERSTANDING = {
     "note_purpose": "",
     "sections": [],
     "key_terms": [],
     "open_questions": [],
-}
-
-_EMPTY_POINTS = {
-    "points": [],
 }
 
 _EMPTY_QUIZ = {
@@ -124,12 +129,6 @@ _EMPTY_REVIEW = {
 
 # ── 拒绝审核常量生成区：由 tools/scripts/sync_domain.py 生成，勿手改 ──
 
-_REJECT_POINTS_REVIEW = {
-    "decision": "reject",
-    "points_check": {"status": "fail", "findings": ["LLM 调用失败，未完成审核"]},
-    "feedback": ["LLM 调用失败，未完成审核，转降级输出"],
-}
-
 _REJECT_KNOWLEDGE_GRAPH_REVIEW = {
     "decision": "reject",
     "graph_check": {"status": "fail", "findings": ["LLM 调用失败，未完成审核"]},
@@ -148,6 +147,12 @@ _REJECT_QUIZ_REVIEW = {
     "feedback": ["LLM 调用失败，未完成审核，转降级输出"],
 }
 
+_REJECT_LIBRARY_REVIEW = {
+    "decision": "reject",
+    "library_check": {"status": "fail", "findings": ["LLM 调用失败，未完成审核"]},
+    "feedback": ["LLM 调用失败，未完成审核，转降级输出"],
+}
+
 # ── 拒绝审核常量生成区结束 ──
 
 # ── 任务线注册生成区：由 tools/scripts/sync_domain.py 生成，勿手改 ──
@@ -159,11 +164,11 @@ TASK_LINES: dict[str, dict] = {
         "empty_draft": _EMPTY_KNOWLEDGE_GRAPH,
         "reject_review": _REJECT_KNOWLEDGE_GRAPH_REVIEW,
     },
-    "points": {
-        "agent_attr": "points_agent",
-        "supervisor_attr": "points_supervisor",
-        "empty_draft": _EMPTY_POINTS,
-        "reject_review": _REJECT_POINTS_REVIEW,
+    "library": {
+        "agent_attr": "library_agent",
+        "supervisor_attr": "library_supervisor",
+        "empty_draft": _EMPTY_LIBRARY,
+        "reject_review": _REJECT_LIBRARY_REVIEW,
     },
     "quiz": {
         "agent_attr": "quiz_agent",
@@ -215,8 +220,12 @@ class _Nodes(DomainNodes):
     def _shared_context(self, state) -> str:
         """agent 共享上下文（视角模式 + 画像 + 视角模型 + 原文 + 笔记理解）。"""
         mode = self._mode_label(state)
-        extra = str((state.get("line_extra") or {}).get("quiz") or "").strip()
-        extra_block = f"\n\n{extra}" if extra else ""
+        extras = [
+            str((state.get("line_extra") or {}).get(key) or "").strip()
+            for key in ("quiz", "library")
+        ]
+        extra_block = "\n\n" + "\n\n".join(x for x in extras if x)
+        extra_block = extra_block if extra_block.strip() else ""
         return (
             f"视角模式：{mode}\n"
             f"说明：perspective=objective 时为客观全员口径；"
@@ -270,11 +279,26 @@ class _Nodes(DomainNodes):
         if line_name == "review":
             from .tasks.review.display import attach_review_artifacts
 
-            attach_review_artifacts(state)
+            try:
+                attach_review_artifacts(state)
+            except Exception:
+                logger.exception("笔记审查挂载知识库出处失败")
+            else:
+                render = getattr(self, "review_render", None)
+                extractor = getattr(render, "extract_structure", None)
+                if extractor:
+                    _line(state, line_name)["structure"] = extractor(state)
         elif line_name == "quiz":
             from .tasks.quiz.display import attach_quiz_artifacts
 
-            attach_quiz_artifacts(state)
+            try:
+                attach_quiz_artifacts(state)
+            except Exception:
+                logger.exception("自测题挂载知识库出处或题库检索失败")
+        elif line_name == "library":
+            from .tasks.library.report import attach_library_artifacts
+
+            attach_library_artifacts(state)
 
     # ── 核心节点：笔记理解（公共事实底座）──────────────────────
 
@@ -312,9 +336,9 @@ class NotesAgentSystem(_Nodes):
         self.knowledge_graph_agent: KnowledgeGraphAgent = agents["knowledge_graph_agent"]
         self.knowledge_graph_supervisor: KnowledgeGraphSupervisor = agents["knowledge_graph_supervisor"]
         self.knowledge_graph_render: KnowledgeGraphRender = agents["knowledge_graph_render"]
-        self.points_agent: PointsAgent = agents["points_agent"]
-        self.points_supervisor: PointsSupervisor = agents["points_supervisor"]
-        self.points_render: PointsRender = agents["points_render"]
+        self.library_agent: LibraryAgent = agents["library_agent"]
+        self.library_supervisor: LibrarySupervisor = agents["library_supervisor"]
+        self.library_render: LibraryRender = agents["library_render"]
         self.quiz_agent: QuizAgent = agents["quiz_agent"]
         self.quiz_supervisor: QuizSupervisor = agents["quiz_supervisor"]
         self.quiz_render: QuizRender = agents["quiz_render"]
@@ -328,7 +352,7 @@ class NotesAgentSystem(_Nodes):
 
         self._report_assemblers = {
             "knowledge_graph": KnowledgeGraphReport,
-            "points": PointsReport,
+            "library": LibraryReport,
             "quiz": QuizReport,
             "review": ReviewReport,
         }
@@ -339,7 +363,7 @@ class NotesAgentSystem(_Nodes):
 
         self._fallback_rules = {
             "knowledge_graph": KNOWLEDGE_GRAPH_FALLBACK_RULES,
-            "points": POINTS_FALLBACK_RULES,
+            "library": LIBRARY_FALLBACK_RULES,
             "quiz": QUIZ_FALLBACK_RULES,
             "review": REVIEW_FALLBACK_RULES,
         }

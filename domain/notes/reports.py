@@ -24,26 +24,12 @@ from typing import Any
 from .models import (
     ModelMixin,
     KnowledgeGraphReportValidation,
-    PointsReportValidation,
+    LibraryReportValidation,
     QuizReportValidation,
     ReviewReportValidation,
 )
 
 # ── Report 基类 import 生成区结束 ──
-
-@dataclass
-class PointsReport(ModelMixin, PointsReportValidation):
-    """知识点总结输出。"""
-
-    points: list[dict[str, Any]] = field(
-        default_factory=list,
-        metadata={"source": "structure"},
-    )
-    quality_warning: str | None = None
-    personalized_text: str | None = field(
-        default=None,
-        metadata={"source": "rendered"},
-    )
 
 @dataclass
 class KnowledgeGraphReport(ModelMixin, KnowledgeGraphReportValidation):
@@ -106,9 +92,47 @@ class QuizReport(ModelMixin, QuizReportValidation):
         default_factory=list,
         metadata={"source": "structure"},
     )
+    bank_questions: list[dict[str, Any]] = field(
+        default_factory=list,
+        metadata={"source": "draft.bank_questions"},
+    )
+    bank_query: str = field(default="", metadata={"source": "draft.bank_query"})
+    bank_status: str = field(default="", metadata={"source": "draft.bank_status"})
     quiz_html: str = field(
         default="",
         metadata={"source": "draft.quiz_html"},
+    )
+    quality_warning: str | None = None
+    personalized_text: str | None = field(
+        default=None,
+        metadata={"source": "rendered"},
+    )
+
+@dataclass
+class LibraryReport(ModelMixin, LibraryReportValidation):
+    """资料入库：知识增量与冲突点，不是解析进度条。"""
+
+    increment: str = field(default="0", metadata={"source": "draft.increment"})
+    message: str = field(default="", metadata={"source": "draft.message"})
+    files: list[dict[str, Any]] = field(
+        default_factory=list,
+        metadata={"source": "draft.files"},
+    )
+    increment_by_file: list[dict[str, Any]] = field(
+        default_factory=list,
+        metadata={"source": "draft.increment_by_file"},
+    )
+    conflicts: list[dict[str, Any]] = field(
+        default_factory=list,
+        metadata={"source": "draft.conflicts"},
+    )
+    items: list[dict[str, Any]] = field(
+        default_factory=list,
+        metadata={"source": "draft.items"},
+    )
+    library_html: str = field(
+        default="",
+        metadata={"source": "draft.library_html"},
     )
     quality_warning: str | None = None
     personalized_text: str | None = field(

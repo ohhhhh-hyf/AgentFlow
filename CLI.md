@@ -13,12 +13,14 @@
 | --- | --- | --- |
 | `--domain` | 否 | `meeting` 或 `notes`。不写则按解析顺序，建议显式指定 |
 | `--task` | 是 | 任务线名或中文名。可重复，一次跑多条线 |
-| `--file` | 否 | 输入 `.txt` 或含一个 `.txt` 的目录。默认 `samples/<domain>/file` |
+| `--file` | 否 | 输入文件或目录，可重复。资料入库可一次传多份；其它任务仍用第一个文件。默认 `samples/<domain>/file` |
 | `--profile` | 否 | 用户画像 JSON。默认客观画像 |
 | `--env` | 否 | 环境变量文件。默认项目根 `.env` |
 | `--user_id` | 否 | 开启记忆 |
 | `--project` | 否 | 会议域项目 ID；笔记域未传 `--subject` 时可当学科名 |
-| `--subject` | 否 | 笔记记忆学科。同一 `user_id + subject` 增量合并图谱 |
+| `--subject` | 否 | 笔记记忆学科；自测题也可用来对齐科目 |
+| `--chapter` / `--level` / `--grade` / `--edition` | 否 | 已弃用。自测题水平固定期中备考；年级和课本版本由笔记对齐知识点后反推 |
+| `--difficulty` / `--qtype` | 否 | 自测题搜高中真题：难度、题型（可选） |
 | `--<task>_template` | 否 | 该线渲染模板（`.md` / `.txt`），占位符 `[描述]` |
 | `--<task>_mode` | 否 | 该线组织模式。目前只有 `multi_styles` 生效 |
 
@@ -163,24 +165,6 @@ python bootstrap.py --domain meeting --file test/input/meeting.txt --task minute
 
 记忆按 `--user_id` + `--subject`（未传 `--subject` 时可用 `--project` 当学科名）。
 
-### 知识点总结 `points`
-
-```text
-python bootstrap.py --domain notes --file samples/notes/file/seq_one.txt --task points
-```
-
-```text
-python bootstrap.py --domain notes --file samples/notes/file/seq_one.txt --task 知识点总结
-```
-
-```text
-python bootstrap.py --domain notes --file samples/notes/file/student_math_notes.txt --task points --user_id stu1 --subject 数学
-```
-
-```text
-python bootstrap.py --domain notes --file samples/notes/file/seq_one.txt --task points --points_template path/to/points.md
-```
-
 ### 知识图谱 `knowledge_graph`
 
 ```text
@@ -216,10 +200,26 @@ python bootstrap.py --domain notes --file samples/notes/file/student_math_notes.
 ```
 
 ```text
-python bootstrap.py --domain notes --file samples/notes/file/seq_one.txt --task 自测题 --subject 高等数学 --chapter 极限 --level 期中备考
+python bootstrap.py --domain notes --file samples/notes/file/seq_one.txt --task 自测题 --difficulty 适中 --qtype 单选题
 ```
 
-学科 / 章节 / 水平可选，只调题目难度，不写记忆。答案在 HTML 里默认折叠，点击才展开。
+水平固定为期中备考。学科、年级、课本版本由笔记对齐到的知识点反推，不用手填。难度 / 题型可选，用来在高中题库搜相关真题。答案和解析默认折叠。
+
+```text
+python bootstrap.py --domain notes --file samples/notes/file/student_math_notes.txt --task quiz --difficulty 适中 --qtype 单选题
+```
+
+### 资料入库 `library`
+
+```text
+python bootstrap.py --domain notes --file a.pptx --file b.pdf --file notes.txt --task library
+```
+
+```text
+python bootstrap.py --domain notes --file samples/notes/file --task 资料入库
+```
+
+一次收多份文件或一个文件夹，写入同一默认知识库，并输出信息熵报告：本次新增独立知识点、以及需要你裁决的冲突点。不用指定 collection。跑完以后，同一库可供 `review` / `quiz` 引用。
 
 ---
 
@@ -230,7 +230,7 @@ python bootstrap.py --domain meeting --file samples/meeting/file/seq_one.txt --t
 ```
 
 ```text
-python bootstrap.py --domain notes --file samples/notes/file/seq_one.txt --task points --task knowledge_graph
+python bootstrap.py --domain notes --file samples/notes/file/seq_one.txt --task knowledge_graph --task review
 ```
 
 ---
@@ -244,7 +244,7 @@ python bootstrap.py --domain meeting --file samples/meeting/file/seq_one.txt --t
 ```
 
 ```text
-python bootstrap.py --domain notes --file samples/notes/file/seq_one.txt --task points --profile samples/notes/profile/personal_profile.json
+python bootstrap.py --domain notes --file samples/notes/file/seq_one.txt --task knowledge_graph --profile samples/notes/profile/personal_profile.json
 ```
 
 ---

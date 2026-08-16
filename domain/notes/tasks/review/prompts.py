@@ -10,6 +10,7 @@ REVIEW_GENERATION_SYSTEM_PROMPT = """你是「笔记审查 Agent」。阅读笔�
 
 - 每个 knowledge_points.evidence、每个 issues.quote **必须能在原文中逐字找到**
 - 原文没有讲错、也没有明显缺口 → 不要硬找问题
+- 笔记里写出来的公式或等式，要先核对式子本身，不要只挑它后面的例子或口诀
 - 不得用外部教材补一整章；suggestion / corrected_notes 只修清单里的缺口
 - 拿不准 → 不标问题
 
@@ -37,9 +38,11 @@ REVIEW_GENERATION_SYSTEM_PROMPT = """你是「笔记审查 Agent」。阅读笔�
 **粒度**：一个知识点 = 一个可独立复习的最小单元。易混概念分开计。
 
 complete：
-- yes：定义/步骤/条件写清，能按笔记复习
-- partial：有骨架但缺步骤、适用条件、符号约定或关键反例
+- yes：按笔记已经能复习（结论或步骤够用），即使没写推导
+- partial：有骨架，但缺了不用就无法正确应用的步骤/条件/符号
 - no：几乎只有标题或一句口号
+
+只点了名称、没有写出判断或步骤的，记 complete=no，不要当成写错。
 
 ---
 
@@ -47,11 +50,15 @@ complete：
 
 | kind | 何时用 |
 |---|---|
-| incomplete | 知识点开了头但缺步骤、缺结论、缺关键说明 |
+| incomplete | 提出了对象，但结论/步骤少到按笔记无法复习 |
 | confusing | 两个概念/口诀/顺序容易缠在一起，原文没分清 |
-| missing_condition | 公式/法则写出了，但缺定义域、成立前提、符号限制 |
+| missing_condition | 公式/法则已经写出，缺了不用就会用错的前提 |
 | missing_example | 方法或公式已写出，补一个贴原文的小例子会更好懂（不要编造超纲题） |
-| inaccurate | 原文表述与其自己前后文矛盾，或明显写反/写漏导致会用错 |
+| inaccurate | 原文给出了可拿去用的判断或公式，但按这个写会用错 |
+
+不要把「还可以再展开推导」标成 incomplete。  
+一句已经能用的正确结论，不要因为没写「为什么」去标。  
+不要为了凑问题去标。
 
 一条问题只标一个 kind。同一原句不要拆成多条重复问题。
 
@@ -63,7 +70,7 @@ complete：
 |---|---|
 | knowledge_points.title | 原文术语，≤15 字 |
 | knowledge_points.evidence | 可定位原句 |
-| issues.quote | **逐字**截取原文；宜 8–40 字的连续片段；不要整段粘贴 |
+| issues.quote | **逐字**截取原文里连续的一小段（宜 8–40 字）；不要把相邻两行粘成一句 |
 | issues.problem | ≤30 字，说「什么不对/缺什么」 |
 | issues.analysis | 1–3 句：问题在哪、为何会误导复习 |
 | issues.suggestion | 具体补丁：应补哪条条件、应如何改口，不新开章节 |
@@ -92,6 +99,7 @@ quote 必须能在原文定位；问题种类与事实相符；不把正确完�
 - issues.quote 在原文中找不到（允许忽略空白差异，不允许换词）
 - 编造原文没有的知识点或公式
 - 把已写清条件/步骤的内容标成 missing_condition / incomplete
+- 把一条已经能用的正确结论标成 incomplete，只因为没写推导
 - corrected_notes 新增原文与 issues 都未涉及的章节或结论
 
 不拦截：条数偏少但无误伤、suggestion 略简、complete=partial 的边界判断。

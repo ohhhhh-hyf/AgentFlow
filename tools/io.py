@@ -72,6 +72,41 @@ def resolve_input_file(
     raise ValueError(f"{label}路径既不是文件也不是目录：{resolved}")
 
 
+def resolve_knowledge_input(ctx: DomainContext, file_path: Path) -> Path:
+    """归档入库路径：支持知识库可解析的文件或目录。"""
+    from tools.knowledge.document_processor import SUPPORTED_EXTS
+
+    resolved = resolve_path(ctx, resolve_sample_path(ctx, file_path, "file"))
+    if not resolved.exists():
+        raise FileNotFoundError(f"入库路径不存在：{resolved}")
+    if resolved.is_dir():
+        return resolved
+    if resolved.suffix.lower() not in SUPPORTED_EXTS:
+        raise ValueError(
+            f"入库文件必须是 {', '.join(sorted(SUPPORTED_EXTS))}：{resolved}"
+        )
+    return resolved
+
+
+def knowledge_text_preview(path: Path, *, limit: int = 4000) -> str:
+    """把入库文件抽成图可用的原文预览；目录则用说明句。"""
+    from tools.knowledge.document_processor import process_file
+
+    if path.is_dir():
+        return f"目录入库：{path}"
+    if path.suffix.lower() in {".txt", ".md"}:
+        body = path.read_text(encoding="utf-8", errors="ignore").strip()
+        return body or path.name
+    try:
+        chunks = process_file(str(path))
+    except Exception:
+        return path.name
+    text = "\n\n".join(c.text for c in chunks if c.text).strip()
+    if not text:
+        return path.name
+    return text if len(text) <= limit else text[: limit - 1] + "…"
+
+
 def load_transcript(ctx: DomainContext, file_path: Path) -> str:
     text_file = resolve_input_file(
         ctx,
@@ -160,6 +195,8 @@ __all__ = [
     "format_trace_extra",
     "load_trace_sidecars",
     "load_transcript",
+    "resolve_knowledge_input",
+    "knowledge_text_preview",
     "load_user",
     "pick_profile_file",
     "pick_single_file",

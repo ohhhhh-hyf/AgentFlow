@@ -44,7 +44,7 @@ core understanding agent is optional and can be added later.
 Registers a task line and creates meeting-style runnable templates.
 
 ```powershell
-python tools/scripts/register_task.py --domain notes --task points --name "Points"
+python tools/scripts/register_task.py --domain notes --task digest --name "Digest"
 ```
 
 Creates missing files only; existing user code is never overwritten.
@@ -52,15 +52,15 @@ Pass ``--kind llm_extract|llm_document|deterministic_pipeline`` (default extract
 to register ``LINE_KINDS`` in domain_config.py.
 
 ```text
-domain/notes/tasks/points/
+domain/notes/tasks/digest/
   __init__.py
   contracts.py
   prompts.py
   steps/
     __init__.py
-    points_agent.py
-    points_supervisor.py
-    points_render.py
+    digest_agent.py
+    digest_supervisor.py
+    digest_render.py
 ```
 
 By default, generated files are importable templates:
@@ -68,17 +68,17 @@ By default, generated files are importable templates:
 - `contracts.py` contains `GenerationContract`, `SupervisorContract`, output
   contract constants, and optional fallback rules.
 - `prompts.py` contains the four required prompt constants.
-- `points_agent.py` uses `LLMClient.structured(...)`.
-- `points_supervisor.py` exposes `async def review(...)`.
-- `points_render.py` exposes `async def run(...)` and `async def stream(...)`.
+- `digest_agent.py` uses `LLMClient.structured(...)`.
+- `digest_supervisor.py` exposes `async def review(...)`.
+- `digest_render.py` exposes `async def run(...)` and `async def stream(...)`.
 
 To also append a generic report class:
 
 ```powershell
-python tools/scripts/register_task.py --domain notes --task points --name "Points" --with-report
+python tools/scripts/register_task.py --domain notes --task digest --name "Digest" --with-report
 ```
 
-This appends `PointsReport` to `domain/notes/reports.py` if it is missing.
+This appends `DigestReport` to `domain/notes/reports.py` if it is missing.
 
 ### sync_domain.py
 
@@ -133,7 +133,7 @@ notes_factory.py
 `--task` is the runtime line name and directory name.
 
 ```text
-points             -> Points
+digest             -> Digest
 action_items       -> ActionItems
 minutes_generation -> MinutesGeneration
 ```
@@ -153,7 +153,7 @@ domain/<domain>/tasks/<task>/steps/<task>_render.py
 Required generation contract:
 
 ```python
-class PointsGenerationContract(GenerationContract):
+class DigestGenerationContract(GenerationContract):
     ...
 ```
 
@@ -161,7 +161,7 @@ The class name must end with `GenerationContract`. The generated model class is
 the prefix without that suffix:
 
 ```text
-PointsGenerationContract -> Points
+DigestGenerationContract -> Digest
 ActionItemsGenerationContract -> ActionItems
 MinutesGenerationContract -> Minutes
 ```
@@ -169,21 +169,21 @@ MinutesGenerationContract -> Minutes
 Required supervisor contract:
 
 ```python
-class PointsSupervisorContract(SupervisorContract):
+class DigestSupervisorContract(SupervisorContract):
     ...
 ```
 
 This generates:
 
 ```text
-PointsSupervisorContract -> PointsSupervisorReview
+DigestSupervisorContract -> DigestSupervisorReview
 ```
 
 Required constants:
 
 ```python
-POINTS_GENERATION_OUTPUT_CONTRACT = PointsGenerationContract.to_json_template()
-POINTS_SUPERVISOR_OUTPUT_CONTRACT = PointsSupervisorContract.to_json_template()
+DIGEST_GENERATION_OUTPUT_CONTRACT = DigestGenerationContract.to_json_template()
+DIGEST_SUPERVISOR_OUTPUT_CONTRACT = DigestSupervisorContract.to_json_template()
 ```
 
 Constant names use:
@@ -196,17 +196,17 @@ Constant names use:
 Examples:
 
 ```text
-points       -> POINTS
+digest       -> DIGEST
 action_items -> ACTION_ITEMS
 ```
 
 Optional fallback:
 
 ```python
-class PointsFallbackRules(FallbackRules):
+class DigestFallbackRules(FallbackRules):
     ...
 
-POINTS_FALLBACK_RULES = PointsFallbackRules()
+DIGEST_FALLBACK_RULES = DigestFallbackRules()
 ```
 
 ## prompts.py Rules
@@ -214,29 +214,29 @@ POINTS_FALLBACK_RULES = PointsFallbackRules()
 Required constants:
 
 ```python
-POINTS_GENERATION_SYSTEM_PROMPT
-POINTS_SUPERVISOR_DOMAIN_PROMPT
-POINTS_RENDER_PROMPT
-POINTS_RENDER_TEMPLATE_PROMPT
+DIGEST_GENERATION_SYSTEM_PROMPT
+DIGEST_SUPERVISOR_DOMAIN_PROMPT
+DIGEST_RENDER_PROMPT
+DIGEST_RENDER_TEMPLATE_PROMPT
 ```
 
-Do not shorten `POINTS_GENERATION_SYSTEM_PROMPT` to `POINTS_SYSTEM_PROMPT`;
+Do not shorten `DIGEST_GENERATION_SYSTEM_PROMPT` to `DIGEST_SYSTEM_PROMPT`;
 `sync_domain.py` checks the full name.
 
 ## steps Rules
 
-For task `points`, these classes and methods must exist:
+For task `digest`, these classes and methods must exist:
 
 ```python
-class PointsAgent:
-    async def run(self, shared_context: str) -> Points:
+class DigestAgent:
+    async def run(self, shared_context: str) -> Digest:
         ...
 
-class PointsSupervisor:
-    async def review(self, context: str) -> PointsSupervisorReview:
+class DigestSupervisor:
+    async def review(self, context: str) -> DigestSupervisorReview:
         ...
 
-class PointsRender:
+class DigestRender:
     async def run(self, approved_context: str, template: str = "") -> str:
         ...
 
@@ -271,7 +271,7 @@ Example:
 
 ```python
 @dataclass
-class PointsReport(ModelMixin, PointsReportValidation):
+class DigestReport(ModelMixin, DigestReportValidation):
     items: list[dict[str, Any]] = field(
         default_factory=list,
         metadata={"source": "structure"},
@@ -283,7 +283,7 @@ class PointsReport(ModelMixin, PointsReportValidation):
     )
 ```
 
-`sync_domain.py --model` generates `PointsReportValidation` in `models.py` and
+`sync_domain.py --model` generates `DigestReportValidation` in `models.py` and
 refreshes the generated import block in `reports.py`.
 
 ## Core Understanding Rule
@@ -332,7 +332,7 @@ python tools/scripts/register_domain.py --domain notes --name "Notes"
 python tools/scripts/sync_domain.py --domain notes --model
 python tools/scripts/sync_domain.py --domain notes
 
-python tools/scripts/register_task.py --domain notes --task points --name "Points" --with-report
+python tools/scripts/register_task.py --domain notes --task digest --name "Digest" --with-report
 
 # Customize generated TODOs in contracts.py, prompts.py, steps/*.py, reports.py.
 python tools/scripts/sync_domain.py --domain notes --model

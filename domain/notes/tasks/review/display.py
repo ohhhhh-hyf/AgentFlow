@@ -70,6 +70,10 @@ def _issue_items(draft: dict[str, Any]) -> list[dict[str, Any]]:
                 "problem": _clean(raw.get("problem")),
                 "analysis": _clean(raw.get("analysis")),
                 "suggestion": _clean(raw.get("suggestion")),
+                "kb_file": _clean(raw.get("kb_file")),
+                "kb_page": _clean(raw.get("kb_page")),
+                "kb_excerpt": _clean(raw.get("kb_excerpt")),
+                "kb_miss": bool(raw.get("kb_miss")),
             }
         )
     return out
@@ -186,8 +190,15 @@ def _paragraphs(text: str) -> list[str]:
     raw = (text or "").replace("\r\n", "\n").replace("\r", "\n").strip()
     if not raw:
         return []
-    parts = [p.strip() for p in re.split(r"\n\s*\n", raw) if p.strip()]
-    return parts or [raw]
+    blocks = [part.strip() for part in re.split(r"\n\s*\n", raw) if part.strip()]
+    rows: list[str] = []
+    for block in blocks:
+        lines = [line.strip() for line in block.split("\n") if line.strip()]
+        if len(lines) >= 2:
+            rows.extend(lines)
+        else:
+            rows.append(block)
+    return rows or [raw]
 
 
 def _issues_in_text(chunk: str, issues: list[dict[str, Any]]) -> list[dict[str, Any]]:
@@ -264,13 +275,34 @@ def _issue_card(issue: dict[str, Any]) -> str:
         parts.append(
             f'<div class="review-fix">建议：{escape(suggestion, quote=False)}</div>'
         )
+    cite = _cite_label(issue)
+    if cite:
+        parts.append(
+            f'<div class="review-cite">出处：{escape(cite, quote=False)}</div>'
+        )
+        excerpt = issue.get("kb_excerpt") or ""
+        if excerpt:
+            parts.append(
+                f'<div class="review-excerpt">库中原文：{escape(excerpt, quote=False)}</div>'
+            )
+    elif issue.get("kb_miss"):
+        parts.append('<div class="review-cite">库中未找到</div>')
     parts.append("</div>")
     return "\n".join(parts)
+
+
+def _cite_label(item: dict[str, Any]) -> str:
+    fname = _clean(item.get("kb_file"))
+    if not fname:
+        return ""
+    page = _clean(item.get("kb_page"))
+    return f"{fname} 第{page}页" if page else fname
 
 
 def build_review_html(original: str, draft: dict[str, Any]) -> str:
     """总结 + 左原文高亮 / 右问题分析，复用会议记忆对照的 class。"""
     issues = _issue_items(draft)
+    points = _knowledge_points(draft)
     summary = format_summary_text(draft)
     heading = escape(summary, quote=False).replace("\n", "<br>\n")
     rows: list[str] = [
@@ -281,8 +313,16 @@ def build_review_html(original: str, draft: dict[str, Any]) -> str:
     for para in paragraphs:
         local = _issues_in_text(para, issues)
         left = _mark_text(para, local)
-        if local:
-            cards = "\n".join(_issue_card(item) for item in local)
+        supports = [
+            point
+            for point in points
+            if point.get("kb_supported")
+            and find_quote_span(para, str(point.get("evidence") or point.get("title") or ""))
+        ]
+        cards_html = [ _issue_card(item) for item in local ]
+        cards_html.extend(_support_card(point) for point in supports)
+        if cards_html:
+            cards = "\n".join(cards_html)
         else:
             cards = '<div class="mem-empty"></div>'
         rows.extend(
@@ -326,7 +366,28 @@ def build_review_markdown(original: str, draft: dict[str, Any]) -> str:
                 parts.append(f"- 分析：{issue['analysis']}")
             if issue["suggestion"]:
                 parts.append(f"- 建议：{issue['suggestion']}")
+            cite = _cite_label(issue)
+            if cite:
+                parts.append(f"- 出处：{cite}")
+                if issue.get("kb_excerpt"):
+                    parts.append(f"- 库中原文：{issue['kb_excerpt']}")
+            elif issue.get("kb_miss"):
+                parts.append("- 出处：库中未找到")
             parts.append("")
+    supported = [
+        point
+        for point in _knowledge_points(draft)
+        if point.get("kb_supported") and _cite_label(point)
+    ]
+    if supported:
+        parts.append("## 有据（库内出处）")
+        parts.append("")
+        for point in supported:
+            title = _clean(point.get("title")) or "知识点"
+            parts.append(f"- {title}　出处：{_cite_label(point)}")
+            if _clean(point.get("kb_excerpt")):
+                parts.append(f"  库中原文：{point['kb_excerpt']}")
+        parts.append("")
     return "\n".join(parts).strip() + "\n"
 
 
@@ -403,11 +464,69 @@ def review_payload(original: str, draft: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def attach_library_hits(draft: dict[str, Any], kb: Any = None) -> dict[str, Any]:
+    """有库则给每条主张钉出处；库空不动，走原来的挑刺。"""
+    from tools.knowledge.cite import cite_text, library_has_docs, open_knowledge
+
+    if kb is None:
+        kb = open_knowledge()
+    if not library_has_docs(kb):
+        return draft
+    issues = [dict(item) for item in _as_list(draft.get("issues"))]
+    for issue in issues:
+        query = str(issue.get("quote") or issue.get("problem") or "").strip()
+        hits = cite_text(kb, query)
+        if hits:
+            issue["kb_file"] = hits[0]["file"]
+            issue["kb_page"] = hits[0]["page"]
+            issue["kb_excerpt"] = hits[0]["excerpt"]
+            issue["kb_miss"] = False
+        else:
+            issue["kb_miss"] = True
+            issue.pop("kb_file", None)
+            issue.pop("kb_page", None)
+            issue.pop("kb_excerpt", None)
+    draft["issues"] = issues
+    points = [dict(item) for item in _knowledge_points(draft)]
+    for point in points:
+        query = str(point.get("evidence") or point.get("title") or "").strip()
+        hits = cite_text(kb, query)
+        if hits:
+            point["kb_file"] = hits[0]["file"]
+            point["kb_page"] = hits[0]["page"]
+            point["kb_excerpt"] = hits[0]["excerpt"]
+            point["kb_supported"] = True
+        else:
+            point["kb_supported"] = False
+    draft["knowledge_points"] = points
+    return draft
+
+
+def _support_card(point: dict[str, Any]) -> str:
+    title = _clean(point.get("title")) or "有据"
+    cite = _cite_label(point)
+    excerpt = _clean(point.get("kb_excerpt"))
+    parts = [
+        '<div class="mem-card">',
+        f'<div class="mem-card-title">{escape(title, quote=False)}</div>',
+        '<div class="mem-card-meta">类型：有据</div>',
+    ]
+    if cite:
+        parts.append(f'<div class="review-cite">出处：{escape(cite, quote=False)}</div>')
+    if excerpt:
+        parts.append(
+            f'<div class="review-excerpt">库中原文：{escape(excerpt, quote=False)}</div>'
+        )
+    parts.append("</div>")
+    return "\n".join(parts)
+
+
 def attach_review_artifacts(state: dict[str, Any]) -> None:
     """对照页 Markdown 进 rendered；订正稿留在 draft，默认不进对照页。"""
     sub = line(state, "review")
     draft = dict(sub.get("draft") or {})
     original = str(state.get("transcript") or "")
+    attach_library_hits(draft)
     draft["original_notes"] = original
     draft["review_html"] = build_review_html(original, draft)
     sub["rendered"] = build_review_markdown(original, draft)
@@ -416,6 +535,7 @@ def attach_review_artifacts(state: dict[str, Any]) -> None:
 
 __all__ = [
     "ISSUE_KINDS",
+    "attach_library_hits",
     "attach_review_artifacts",
     "build_corrected_markdown",
     "build_review_html",

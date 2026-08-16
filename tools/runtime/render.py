@@ -33,6 +33,10 @@ async def produce_line(
     template = line_template(state, line_name)
     try:
         if degraded:
+            try:
+                engine._post_render_hook(state, line_name)
+            except Exception:
+                logger.exception("%s 降级后挂载失败", line_name)
             await queue.put(
                 {
                     "type": "chunk",
