@@ -1,4 +1,4 @@
-"""资料入库：多文件写入默认知识库，并给出知识增量与冲突点。"""
+"""资料入库：多文件写入指定知识库，并给出知识增量。"""
 from __future__ import annotations
 
 import os
@@ -11,7 +11,6 @@ from tools.knowledge.document_processor import SUPPORTED_EXTS
 from tools.knowledge.tool import KnowledgeTool
 
 _FILE_MARK = "【入库文件】"
-_CONFLICT_CAP = 8
 _UNIT_CAP = 12
 _SENT_SPLIT = re.compile(r"(?<=[。！？；!\?\n])")
 _STOP = set("的了在是和与及或对把被从到为以会可能进行相关问题情况这个我们没有可以一个")
@@ -138,6 +137,14 @@ def _compact(text: str) -> str:
     return re.sub(r"\s+", "", (text or "").lstrip("\ufeff"))
 
 
+def _ngrams(text: str, size: int) -> set[str]:
+    """按字取 n-gram（去空白后），用于相似度判断。"""
+    blob = _compact(text)
+    if not blob:
+        return set()
+    return {blob[i : i + size] for i in range(len(blob) - size + 1)}
+
+
 def _units(text: str) -> list[str]:
     parts = [
         item.strip().lstrip("\ufeff")
@@ -150,11 +157,6 @@ def _units(text: str) -> list[str]:
     return parts[:_UNIT_CAP]
 
 
-def _ngrams(text: str, size: int) -> set[str]:
-    blob = _compact(text)
-    if len(blob) < size:
-        return {blob} if blob else set()
-    return {blob[i : i + size] for i in range(len(blob) - size + 1)}
 
 
 def _is_independent(text: str, old_texts: list[str]) -> bool:
@@ -182,46 +184,6 @@ def _topic_score(label: str) -> tuple[int, int, int, int]:
     return (weak, lead, tail, digit, abs(len(label) - 4))
 
 
-def _topic_label(left: str, right: str) -> str:
-    a, b = _compact(left), _compact(right)
-    hits: list[str] = []
-    limit = min(len(a), len(b), 12)
-    for size in range(limit, 3, -1):
-        for gram in _ngrams(a, size):
-            if gram not in b:
-                continue
-            if any(ch in _STOP or ch in _PUNCT for ch in gram):
-                continue
-            hits.append(gram)
-    cleaned = []
-    for item in hits:
-        label = "".join(ch for ch in item if ch not in _PUNCT).strip()
-        if len(label) < 4:
-            continue
-        if any(len(g) >= 3 and (g in label or label in g) for g in _GENERIC_TOPIC):
-            continue
-        cjk = sum(1 for ch in label if "\u4e00" <= ch <= "\u9fff")
-        if cjk < 2:
-            continue
-        if any(frag in label for frag in _HEADING_FRAG):
-            continue
-        if any(label in blob for blob in _STRUCTURE_BLOBS):
-            continue
-        latin = sum(1 for ch in label if ch.isascii() and ch.isalpha())
-        if latin >= 2:
-            continue
-        cleaned.append(label)
-    if not cleaned:
-        return ""
-
-    def _rank(label: str) -> tuple[int, int, int, int]:
-        idx = a.find(label)
-        left = a[idx - 1] if idx > 0 else ""
-        after_punct = left in _PUNCT or left in "「『（("
-        start_pen = 0 if after_punct else (1 if idx == 0 and len(a) > 8 else 0)
-        return (*_topic_score(label), start_pen)
-
-    return min(cleaned, key=_rank)
 
 
 _OUTLINE_HEAD = re.compile(
@@ -237,41 +199,10 @@ def _is_chrome(text: str) -> bool:
     return "PPT模板" in (text or "") or "www." in (text or "").lower()
 
 
-def _is_outline(text: str) -> bool:
-    """课标、探究标题、目录行不是知识主张，不参与冲突。"""
-    blob = _compact(text)
-    if not blob:
-        return True
-    if _OUTLINE_HEAD.match(blob):
-        return True
-    if blob.startswith("探究") and any(
-        token in blob for token in ("给角", "给值", "化简", "证明", "条件求值")
-    ):
-        return True
-    return False
 
 
-def _skip_conflict_unit(text: str) -> bool:
-    return _is_chrome(text) or _is_outline(text)
 
 
-def _ambiguity(left: str, right: str) -> int | None:
-    if _skip_conflict_unit(left) or _skip_conflict_unit(right):
-        return None
-    ja, jb = _ngrams(left, 3), _ngrams(right, 3)
-    if not ja or not jb:
-        return None
-    inter = ja & jb
-    union = ja | jb
-    jaccard = len(inter) / len(union)
-    topic = _topic_label(left, right)
-    if not topic:
-        return None
-    if jaccard > 0.78:
-        return None
-    if jaccard < 0.20:
-        return None
-    return max(8, min(92, int(round((1 - jaccard) * 100))))
 
 
 def _safe_chunks(kb: KnowledgeTool, collection: str = "default") -> list[dict[str, Any]]:
@@ -322,46 +253,6 @@ def ingest_library(kb: KnowledgeTool, paths: list[Path],
             increment_items.append({"text": excerpt, "source": source})
 
     conflicts: list[dict[str, Any]] = []
-    others = [
-        item
-        for item in after
-        if str((item.get("metadata") or {}).get("source") or "")
-    ]
-    seen_pairs: set[tuple[str, str, str]] = set()
-    for new in new_chunks:
-        new_file = str((new.get("metadata") or {}).get("source") or "")
-        for new_unit in _units(str(new.get("text") or "")):
-            if _skip_conflict_unit(new_unit):
-                continue
-            for old in others:
-                old_file = str((old.get("metadata") or {}).get("source") or "")
-                if not new_file or not old_file or new_file == old_file:
-                    continue
-                for old_unit in _units(str(old.get("text") or "")):
-                    if _skip_conflict_unit(old_unit):
-                        continue
-                    rate = _ambiguity(new_unit, old_unit)
-                    if rate is None:
-                        continue
-                    topic = _topic_label(new_unit, old_unit)
-                    key = (topic, *sorted((new_file, old_file)))
-                    if key in seen_pairs:
-                        continue
-                    seen_pairs.add(key)
-                    peer = old_file in incoming_names
-                    conflicts.append(
-                        {
-                            "topic": topic,
-                            "new_file": new_file,
-                            "old_file": old_file,
-                            "ambiguity": str(rate),
-                            "peer": "1" if peer else "0",
-                            "new_excerpt": " ".join(new_unit.split())[:80],
-                            "old_excerpt": " ".join(old_unit.split())[:80],
-                        }
-                    )
-    conflicts.sort(key=lambda item: -int(item["ambiguity"]))
-    conflicts = conflicts[:_CONFLICT_CAP]
     return {
         "message": "",
         "increment": str(len(increment_items)),
@@ -374,22 +265,8 @@ def ingest_library(kb: KnowledgeTool, paths: list[Path],
     }
 
 
-def _conflict_peer(item: dict[str, Any], batch_names: set[str]) -> bool:
-    if str(item.get("peer") or "") == "1":
-        return True
-    return str(item.get("old_file") or "") in batch_names
 
 
-def _conflict_sentence(item: dict[str, Any], batch_names: set[str]) -> str:
-    topic = item.get("topic") or "同一主题"
-    rate = item.get("ambiguity") or "?"
-    new_f = item.get("new_file") or "新文件"
-    old_f = item.get("old_file") or "库内文件"
-    other = "同批上传" if _conflict_peer(item, batch_names) else "库内"
-    return (
-        f"注意：您上传的《{new_f}》与{other}《{old_f}》"
-        f"在「{topic}」上存在 {rate}% 的逻辑歧义，请标注哪份为准。"
-    )
 
 
 def build_library_markdown(draft: dict[str, Any]) -> str:
@@ -399,8 +276,6 @@ def build_library_markdown(draft: dict[str, Any]) -> str:
         item for item in (draft.get("increment_by_file") or []) if isinstance(item, dict)
     ]
     items = [item for item in (draft.get("items") or []) if isinstance(item, dict)]
-    conflicts = [item for item in (draft.get("conflicts") or []) if isinstance(item, dict)]
-    batch_names = {str(item.get("name") or "") for item in files if item.get("name")}
     names = "、".join(f"《{item.get('name')}》" for item in files if item.get("name"))
     lines = [
         "# 知识库变化",
@@ -432,34 +307,6 @@ def build_library_markdown(draft: dict[str, Any]) -> str:
             tag = f"（{src}）" if src else ""
             lines.append(f"- {item.get('text') or ''}{tag}")
         lines.append("")
-    lines.extend(["## 冲突点", ""])
-    if not conflicts:
-        lines.append("没有需要你裁决的矛盾。知识库变清楚了，没有变糊涂。")
-        lines.append("")
-    else:
-        lines.append("需要你当一次知识库管理员：同一件事，两份资料说法拧着。")
-        lines.append("")
-        for i, item in enumerate(conflicts, 1):
-            topic = item.get("topic") or "同一主题"
-            rate = item.get("ambiguity") or "?"
-            new_f = item.get("new_file") or "新文件"
-            old_f = item.get("old_file") or "库内文件"
-            other = "同批" if _conflict_peer(item, batch_names) else "库内"
-            lines.extend(
-                [
-                    f"### {i}. {topic} · {rate}% 歧义",
-                    "",
-                    _conflict_sentence(item, batch_names),
-                    "",
-                    f"- 新上传：《{new_f}》",
-                    f"  > {item.get('new_excerpt') or ''}",
-                    f"- {other}：《{old_f}》",
-                    f"  > {item.get('old_excerpt') or ''}",
-                    "",
-                    "请标注哪一份为准。",
-                    "",
-                ]
-            )
     return "\n".join(lines).rstrip() + "\n"
 
 
@@ -467,8 +314,6 @@ def build_library_html(draft: dict[str, Any]) -> str:
     increment = int(str(draft.get("increment") or "0") or 0)
     files = [item for item in (draft.get("files") or []) if isinstance(item, dict)]
     items = [item for item in (draft.get("items") or []) if isinstance(item, dict)]
-    conflicts = [item for item in (draft.get("conflicts") or []) if isinstance(item, dict)]
-    batch_names = {str(item.get("name") or "") for item in files if item.get("name")}
     rows = [
         '<div class="library-report memory-review">',
         '<div class="review-heading">知识库变化'
@@ -496,47 +341,6 @@ def build_library_html(draft: dict[str, Any]) -> str:
             tag = f"<span>{src}</span>" if src else ""
             rows.append(f"<li>{text}{tag}</li>")
         rows.append("</ul></div>")
-    if conflicts:
-        rows.append('<div class="library-conflicts">')
-        rows.append("<p>需要你裁决的矛盾：</p>")
-        for item in conflicts:
-            topic = str(item.get("topic") or "同一主题")
-            rate = str(item.get("ambiguity") or "?")
-            new_f = str(item.get("new_file") or "新文件")
-            old_f = str(item.get("old_file") or "库内文件")
-            other = "同批上传" if _conflict_peer(item, batch_names) else "库内"
-            rows.append(
-                f'<div class="library-verdict" data-topic="{escape(topic)}" '
-                f'data-new="{escape(new_f)}" data-old="{escape(old_f)}">'
-                f"<p>注意：您上传的《{escape(new_f, quote=False)}》与"
-                f"{escape(other, quote=False)}《{escape(old_f, quote=False)}》"
-                f"在「{escape(topic, quote=False)}」上存在 "
-                f"<strong>{escape(rate, quote=False)}%</strong> 的逻辑歧义。</p>"
-                f"<blockquote>新：{escape(str(item.get('new_excerpt') or ''), quote=False)}</blockquote>"
-                f"<blockquote>{escape(other, quote=False)}："
-                f"{escape(str(item.get('old_excerpt') or ''), quote=False)}</blockquote>"
-                '<p class="library-ask">请标注哪一份为准。</p>'
-                f'<button type="button" data-pick="new">以《{escape(new_f, quote=False)}》为准</button> '
-                f'<button type="button" data-pick="old">以《{escape(old_f, quote=False)}》为准</button>'
-                '<p class="library-picked"></p>'
-                "</div>"
-            )
-        rows.append("</div>")
-        rows.append(
-            "<script>"
-            "document.querySelectorAll('.library-verdict button').forEach(function(btn){"
-            "btn.addEventListener('click',function(){"
-            "var box=btn.closest('.library-verdict');"
-            "box.querySelectorAll('button').forEach(function(b){b.classList.remove('is-on');});"
-            "btn.classList.add('is-on');"
-            "var note=box.querySelector('.library-picked');"
-            "if(note){note.textContent=btn.getAttribute('data-pick')==='new'"
-            "?'已标注：以新上传为准':'已标注：以对照文件为准';}"
-            "});});"
-            "</script>"
-        )
-    else:
-        rows.append('<div class="library-peace">没有需要裁决的矛盾。</div>')
     rows.append("</div>")
     return "\n".join(rows)
 

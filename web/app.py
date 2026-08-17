@@ -2671,7 +2671,7 @@ def build_app() -> gr.Blocks:
                     label="用户 ID（可选）",
                     lines=1,
                     max_lines=1,
-                    placeholder="资料入库/期末划重点：同一用户使用自己的知识库",
+                    placeholder="资料入库/last_class：同一用户使用自己的知识库",
                     visible=show_user,
                 )
                 project_id = gr.Textbox(
@@ -2685,7 +2685,7 @@ def build_app() -> gr.Blocks:
                     label="学科（可选，知识库范围）",
                     lines=1,
                     max_lines=1,
-                    placeholder="资料入库/期末划重点：同一用户 + 学科使用同一知识库",
+                    placeholder="资料入库/last_class：同一用户 + 学科使用同一知识库",
                     visible=show_subject,
                 )
                 with gr.Group(visible=False, elem_id="quiz-box") as quiz_box:

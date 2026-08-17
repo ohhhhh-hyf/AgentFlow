@@ -1163,7 +1163,7 @@ def build_last_class_html(
             ".lc-cite-rank{display:inline-block;min-width:1.15em;padding:0 5px;margin-right:4px;border-radius:8px;background:#64748b;color:#fff;font-size:.68rem;font-weight:700;text-align:center;line-height:1.4;}",
             ".lc-cite-card summary{cursor:pointer;display:flex;gap:6px;align-items:center;justify-content:space-between;font-size:.78rem;color:#6b6860;}",
             ".lc-cite-card summary span{display:flex;align-items:center;min-width:0;}",
-            ".lc-cite-card summary strong{font-size:.78rem;color:#3a3832;font-weight:650;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:58%;}",
+            ".lc-cite-card summary strong{font-size:.78rem;color:#3a3832;font-weight:650;flex:1 1 auto;min-width:0;white-space:normal;word-break:break-all;}",
             ".lc-cite-kicker{font-size:.74rem;color:#6b6860;margin-bottom:4px;}",
             ".lc-cite-title{font-size:.86rem;font-weight:650;line-height:1.45;}",
             ".lc-cite-excerpt{font-size:.76rem;color:#6b6860;line-height:1.5;margin-top:5px;white-space:normal;}",
