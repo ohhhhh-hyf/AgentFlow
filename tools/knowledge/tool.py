@@ -188,6 +188,6 @@ class KnowledgeTool:
 
 
 def get_knowledge(*, fake: bool = False, persist_dir: str | None = None) -> KnowledgeTool:
-    """按项目根 .env 构造知识库（DeepSeek 复用 DEEPSEEK_API_KEY）。"""
+    """按项目根 .env 构造知识库（LLM 跟随 LLM_BACKEND：vllm 时复用 LLM_VLLM_*）。"""
     return KnowledgeTool(fake=fake, persist_dir=persist_dir)
 
