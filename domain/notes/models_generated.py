@@ -45,8 +45,6 @@ class LastClass(ModelMixin):
     focus_points: list[dict[str, Any]] = field(default_factory=list)
     exam_hints: list[str] = field(default_factory=list)
     classroom_notes: list[str] = field(default_factory=list)
-    practice_pool: list[str] = field(default_factory=list)
-    other_tips: list[str] = field(default_factory=list)
 
     @classmethod
     def validate(cls, data: dict) -> "LastClass":
@@ -56,8 +54,6 @@ class LastClass(ModelMixin):
             raise OutputValidationError("focus_points 必须是数组")
         _string_list(data["exam_hints"], "exam_hints")
         _string_list(data["classroom_notes"], "classroom_notes")
-        _string_list(data["practice_pool"], "practice_pool")
-        _string_list(data["other_tips"], "other_tips")
         return cls(**data)
 
 @dataclass

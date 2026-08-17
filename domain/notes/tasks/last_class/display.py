@@ -108,6 +108,8 @@ def _focus_points(draft: dict[str, Any]) -> list[dict[str, Any]]:
                 "keywords": _as_list(item.get("keywords")),
                 "practice": _as_list(item.get("practice")),
                 "check_points": _as_list(item.get("check_points")),
+                "example": _clean(item.get("example")),
+                "assignment_refs": _as_list(item.get("assignment_refs")),
                 "related_names": _as_list(item.get("related_names")),
                 "explain_what": _clean(item.get("explain_what")),
                 "explain_why": _clean(item.get("explain_why")),
@@ -249,6 +251,14 @@ def _strip_file_prefix(text: str, source_file: str) -> str:
     return raw
 
 
+def _ensure_end_punct(text: str) -> str:
+    """补句末标点，避免多段拼接时粘连。"""
+    text = (text or "").strip()
+    if text and text[-1] not in "。！？；;…":
+        return text + "。"
+    return text
+
+
 def _join_unique(*parts: str) -> str:
     seen: set[str] = set()
     out: list[str] = []
@@ -295,21 +305,14 @@ def _core_explain(point: dict[str, Any], blurb: dict[str, Any] | None) -> list[s
 
     why = _clean(point.get("explain_why"))
     if len(why) < 50:
-        why = _join_unique(
-            why,
-            f"老师强调{reason}" if reason else "",
-            f"课堂原话点到：{quote}" if quote and quote[:20] not in why else "",
-            f"考试多半落在{qtypes}，按{difficulty}准备。" if qtypes else f"按{difficulty}准备。",
-            f"{degree}级考点，丢了会直接少一块卷面分。",
-        )
+        # 只拼有原文依据的强调（priority_reason），不拼 quote/题型/难度/威胁模板句
+        why = _join_unique(why, f"老师强调：{reason}" if reason else "")
 
     trap = _clean(point.get("explain_trap"))
     if len(trap) < 40:
         trap_bits = []
         if note and any(t in note for t in ("不能", "不要", "易错", "陷阱", "反例", "慎", "乱换", "变形", "先提")):
             trap_bits.append(note)
-        if quote and len(quote) >= 16:
-            trap_bits.append(f"课堂点过：{quote}")
         trap = _join_unique(
             trap,
             *trap_bits,
@@ -330,7 +333,7 @@ def _core_explain(point: dict[str, Any], blurb: dict[str, Any] | None) -> list[s
             ]
         how = " → ".join(_clean(s) for s in steps if _clean(s))
 
-    return [what, why, trap, how]
+    return [_ensure_end_punct(x) for x in [what, why, trap, how]]
 
 
 def _build_relations(points: list[dict[str, Any]]) -> tuple[list[tuple[str, str]], list[tuple[str, str, str]]]:
@@ -542,7 +545,7 @@ _EXAM_MARKS = (
     "选择填空", "计算题一般", "五到六道", "全是极限",
 )
 _PRACTICE_MARKS = ("做十道", "做五道", "默写一遍", "默写九个", "每块做", "错题本过")
-_CLASS_MARKS = ("还有两天", "对照自己的笔记", "PPT上没有", "课件没有", "口头补充")
+_CLASS_MARKS = ("对照自己的笔记", "PPT上没有", "课件没有", "口头补充", "强调", "提醒", "建议", "不要", "一定")
 _OTHER_MARKS = ("错题一定", "考前把错题", "比盲目", "过一遍错题")
 _SKIP_SUPP = ("同学们", "下课", "好，就这些", "先说说整体结构")
 
@@ -563,22 +566,31 @@ def _split_sentences(text: str) -> list[str]:
 
 
 def _exam_supplements(original: str) -> dict[str, list[str]]:
+    """从原文挖两个栏目：考试形式说明 + 课堂补充说明（老师真实建议/强调/提醒）。"""
     buckets = {
         "课堂补充说明": [],
         "考试形式说明": [],
-        "优先练习题": [],
-        "其他提示": [],
     }
     for sent in _split_sentences(original or ""):
         if any(t in sent for t in _EXAM_MARKS):
             buckets["考试形式说明"].append(sent)
-        elif any(t in sent for t in _PRACTICE_MARKS):
-            buckets["优先练习题"].append(sent)
         elif any(t in sent for t in _CLASS_MARKS):
             buckets["课堂补充说明"].append(sent)
-        elif any(t in sent for t in _OTHER_MARKS):
-            buckets["其他提示"].append(sent)
     return buckets
+
+
+def _strip_person(text: str) -> str:
+    """去掉老师口吻里的冗余人称，转成客观陈述：
+    「大家一定要把极限的计算练熟」→「一定要把极限的计算练熟」；
+    「我 PPT 里那张分类表你们要记住」→「PPT 里那张分类表要记住」。"""
+    t = _clean(text)
+    t = re.sub(r"^(大家|同学们|你们|我们|咱们|我)[，,、\s]*", "", t)
+    t = re.sub(r"^最后[，,]\s*", "", t)
+    t = t.replace("我建议", "").replace("你们", "").replace("我们", "").replace("大家", "")
+    # 句中「我 PPT/课件/讲义/黑板/建议」的「我」去掉（连前后空白一起清理）
+    t = re.sub(r"([，,。；;])\s*我\s*(?=(?:PPT|课件|讲义|黑板|建议))", r"\1", t)
+    t = re.sub(r"^[，,、\s]+", "", t)
+    return t
 
 
 def _fallback_supplements(
@@ -586,33 +598,20 @@ def _fallback_supplements(
     draft: dict[str, Any],
     points: list[dict[str, Any]],
 ) -> dict[str, list[str]]:
-    """四个栏目都要有话：先用 LLM 字段，再用原文挖掘，最后按考点归纳。"""
+    """只保留老师真实内容：课堂补充说明（建议/强调/提醒）+ 考试形式说明。
+
+    不生成练习动作、不生成鸡汤提示；课堂补充不足时不强行补废话。
+    """
     mined = _exam_supplements(original)
     buckets = {
         "课堂补充说明": _as_list(draft.get("classroom_notes")),
         "考试形式说明": _as_list(draft.get("exam_hints")),
-        "优先练习题": _as_list(draft.get("practice_pool")),
-        "其他提示": _as_list(draft.get("other_tips")),
     }
     for key, extras in mined.items():
         buckets[key] = list(dict.fromkeys(buckets[key] + extras))
-    practice = _practice_items(points)
-    if practice:
-        buckets["优先练习题"] = list(dict.fromkeys(buckets["优先练习题"] + practice))
 
     must = [p for p in points if _clean(p.get("degree")) == "必考"]
     mid = [p for p in points if _clean(p.get("degree")) == "重点"]
-    low = [p for p in points if _clean(p.get("degree")) == "了解"]
-    strategy = _clean(draft.get("strategy"))
-
-    if len(buckets["课堂补充说明"]) < 2:
-        extra = []
-        if any(t in (original or "") for t in ("还有两天", "两天", "最后这节课")):
-            extra.append("课堂把复习窗口压得很紧，先按老师点名的必考块过完，再补重点。")
-        extra.append("划重点是口头交代，复习时把原话和自己的笔记/课件对上，缺的定义回笔记里补。")
-        if must:
-            extra.append("老师反复点名的主攻块：" + "、".join(_clean(p.get("name")) for p in must[:4]) + "。")
-        buckets["课堂补充说明"] = list(dict.fromkeys(buckets["课堂补充说明"] + extra))
 
     if len(buckets["考试形式说明"]) < 2:
         qset: list[str] = []
@@ -634,39 +633,13 @@ def _fallback_supplements(
             "按老师点名的题型准备，先保证必考块会算、会写。"
         ]
 
-    if len(buckets["优先练习题"]) < 3:
-        extra = []
-        for point in must[:4]:
-            extra.append(f"{_clean(point.get('name'))}：默写结论后做 8-10 道（基础+变形）。")
-        for point in mid[:3]:
-            extra.append(f"{_clean(point.get('name'))}：做 4-6 道，专盯老师点过的易错点。")
-        if low:
-            extra.append(
-                "了解类（"
-                + "、".join(_clean(p.get("name")) for p in low[:3])
-                + "）各复述一遍定义即可。"
-            )
-        buckets["优先练习题"] = list(dict.fromkeys(buckets["优先练习题"] + extra))
-
-    if len(buckets["其他提示"]) < 2:
-        extra = []
-        if strategy:
-            extra.append(strategy)
-        extra.append("错题当天记「错因」，考前只过错题本，比继续盲目刷新题有效。")
-        if must:
-            extra.append(
-                "考前默写一遍必考结论："
-                + "、".join(_clean(p.get("name")) for p in must[:4])
-                + "。"
-            )
-        buckets["其他提示"] = list(dict.fromkeys(buckets["其他提示"] + extra))
-
     for key, items in buckets.items():
         cleaned = [_clean(x) for x in items if _clean(x)]
         compact: list[str] = []
         seen: set[str] = set()
         for item in cleaned:
-            text = item if len(item) <= 120 else _compact_sentence(item, 120)
+            text = _strip_person(item)
+            text = text if len(text) <= 120 else _compact_sentence(text, 120)
             token = re.sub(r"[。！？；;、，,\s]", "", text)[:22]
             if not token or token in seen:
                 continue
@@ -675,17 +648,8 @@ def _fallback_supplements(
             seen.add(token)
             compact.append(text)
         buckets[key] = compact[:6]
-    return buckets
-
-
-def _practice_items(points: list[dict[str, Any]]) -> list[str]:
-    out: list[str] = []
-    for point in points:
-        for item in point.get("practice") or []:
-            item = _clean(item)
-            if item and item not in out:
-                out.append(item)
-    return out
+    # 空栏目不输出（课堂补充没有老师真实内容就不占位）
+    return {key: items for key, items in buckets.items() if items}
 
 
 def build_last_class_markdown(
@@ -809,7 +773,12 @@ def build_last_class_markdown(
             )
         lines.extend(["", "**核心精讲**"])
         what, why, trap, how = _core_explain(p, blurb)
-        core_text = "".join(seg for seg in (what, why, trap, how) if seg)
+        segs = [what, why, trap, how]
+        degree = _clean(p.get("degree"))
+        example = _clean(p.get("example"))
+        if example and degree != "了解":
+            segs.append(f"典型例题：{example}")
+        core_text = "".join(_ensure_end_punct(seg) for seg in segs if seg)
         lines.append(core_text)
 
     lines.extend(["", "## 三、行动清单", "", "### 1. 分阶段复习路径"])
@@ -1115,7 +1084,6 @@ def _last_class_review_html(
             in_core = True
             continue
         rendered = ""
-        full = False
         for marker, renderer in (
             ("last_class_selfcheck", _render_selfcheck_svg),
             ("last_class_relations", _render_relations_svg),
@@ -1125,11 +1093,9 @@ def _last_class_review_html(
             chart = re.match(rf"<!--\s*chart:{marker}\s+(.+?)\s*-->", line)
             if chart:
                 rendered = renderer(chart.group(1))
-                full = True
                 break
         if not rendered:
             kind, rendered = _line_to_html(line)
-            full = kind in {"h1", "h2", "h3"}
             if kind == "h2":
                 current_index = None
             if kind == "h4":
@@ -1143,16 +1109,8 @@ def _last_class_review_html(
             in_core = False
             core_row(line)
             continue
-        if full:
-            rows.append(f'<div class="lc-review-full">{rendered}</div>')
-            continue
-        rows.append(
-            '<div class="review-row lc-review-row">'
-            f'<div class="review-left lc-review-left">{rendered}</div>'
-            '<div class="review-rule"></div>'
-            '<div class="review-right lc-review-right"></div>'
-            "</div>"
-        )
+        # 无溯源的普通行（考法预判/题型等）直接全宽，不再留空右栏
+        rows.append(f'<div class="lc-review-full">{rendered}</div>')
     rows.append("</div>")
     return "\n".join(rows)
 

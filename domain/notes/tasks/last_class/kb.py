@@ -94,30 +94,21 @@ def _collection_has_files(kb: Any, name: str) -> bool:
 
 
 def resolve_collection(user_id: str = "", subject: str = "", hinted: str = "") -> str:
-    """对准入库时的集合：优先 user__subject；学科对得上也可回退。"""
-    preferred = [collection_for(user_id=user_id, subject=subject)]
-    if hinted:
-        preferred.append(hinted.strip())
-    if subject:
-        preferred.append(subject.strip())
+    """精确分库：只返回 collection_for(user_id, subject) 且确实存在的集合。
+
+    严格隔离：缺 user_id 或 subject，或该集合不存在 → 返回空串（调用方不检索，
+    不跨库回退、不按学科名猜集合）。hinted 仅在校验通过后作为备选。
+    """
+    del hinted
+    if not (user_id or "").strip() or not (subject or "").strip():
+        return ""
+    name = collection_for(user_id=user_id, subject=subject)
+    if not name:
+        return ""
     kb = _kb()
-    for name in preferred:
-        if name and _collection_has_files(kb, name):
-            return name
-    if kb is None:
-        return preferred[0] if preferred else "default"
-    subject = (subject or "").strip()
-    try:
-        cols = kb.list_collections() or []
-    except Exception:
-        cols = []
-    names = [c.get("name") if isinstance(c, dict) else str(c) for c in cols]
-    if subject:
-        for name in names:
-            if name == subject or name.endswith("__" + subject):
-                if _collection_has_files(kb, name):
-                    return name
-    return preferred[0] if preferred else "default"
+    if kb is not None and _collection_has_files(kb, name):
+        return name
+    return ""
 
 
 # ── 基础检索 ──────────────────────────────────────────────────
@@ -380,7 +371,10 @@ def _retrieve_point(collection: str, point: dict[str, Any]) -> dict[str, list[di
     兜底检索：keywords 为空或首轮全未命中时，从知识点名提取候选词
     （去掉括注的正式名 + 括号内别名），并用更大 top_k 再检索一次。
     返回 {"notes": [...], "slides": [...], "docs": [...], "all": [...]}
+    集合为空串（严格分库下 user/subject 缺失或库不存在）时不检索，直接返回空。
     """
+    if not (collection or "").strip():
+        return {"notes": [], "slides": [], "docs": [], "all": []}
     queries = list(_topic_tokens(point))
     name = _clean(point.get("name"))
     quote = _clean(point.get("quote"))

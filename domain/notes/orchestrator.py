@@ -108,8 +108,6 @@ _EMPTY_LAST_CLASS = {
     "focus_points": [],
     "exam_hints": [],
     "classroom_notes": [],
-    "practice_pool": [],
-    "other_tips": [],
     "strategy": "",
 }
 
