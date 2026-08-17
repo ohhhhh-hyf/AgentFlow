@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import json
+import re
 from dataclasses import fields
 from pathlib import Path
 from typing import Any
@@ -38,6 +39,11 @@ def resolve_role_template(data: dict[str, Any], profile_dir: Path) -> dict[str, 
     key = str(data.get("role_template") or "").strip()
     if not key:
         return data
+    # 安全：模板名只允许字母/数字/下划线/连字符，禁止路径穿越（../、绝对路径）
+    if not re.fullmatch(r"[\w-]+", key):
+        raise ValueError(
+            f"role_template 只能由字母/数字/下划线/连字符组成：{key!r}"
+        )
     candidates = [profile_dir / f"{key}_profile.json", profile_dir / f"{key}.json"]
     path = next((p for p in candidates if p.is_file()), None)
     if path is None:

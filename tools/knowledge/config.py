@@ -29,21 +29,67 @@ load_env(PROJECT_ROOT / ".env")
 ENV_EMBEDDING_API_KEY = "SILICONFLOW_API_KEY"
 ENV_EMBEDDING_API_KEY_ALT = "EMBEDDING_API_KEY"
 ENV_LLM_API_KEY = "DEEPSEEK_API_KEY"
+ENV_LLM_API_KEY_EXPLICIT = "KNOWLEDGE_LLM_API_KEY"
 
 DEFAULT_EMBEDDING_BASE_URL = os.getenv(
     "KNOWLEDGE_EMBEDDING_BASE_URL", "https://api.siliconflow.cn/v1"
 )
 DEFAULT_EMBEDDING_MODEL = os.getenv("KNOWLEDGE_EMBEDDING_MODEL", "BAAI/bge-m3")
-DEFAULT_LLM_BASE_URL = (
-    os.getenv("KNOWLEDGE_LLM_BASE_URL")
-    or os.getenv("DEEPSEEK_BASE_URL")
-    or "https://api.deepseek.com"
-)
-DEFAULT_LLM_MODEL = (
-    os.getenv("KNOWLEDGE_LLM_MODEL")
-    or os.getenv("DEEPSEEK_MODEL")
-    or "deepseek-chat"
-)
+
+
+def _knowledge_llm_config() -> tuple[str, str]:
+    """知识库 LLM 的 base_url / model：跟随 Agent 后端（LLM_BACKEND）。
+
+    - 显式 KNOWLEDGE_LLM_BASE_URL / KNOWLEDGE_LLM_MODEL 始终优先；
+    - LLM_BACKEND=vllm 时复用 vLLM 服务器（LLM_VLLM_*），
+      与 Agent 共用同一套 OpenAI 兼容 HTTP 接口；
+    - 其它后端（http / websocket）回退 DeepSeek 官方（DEEPSEEK_*）。
+    """
+    explicit_base = os.getenv("KNOWLEDGE_LLM_BASE_URL")
+    explicit_model = os.getenv("KNOWLEDGE_LLM_MODEL")
+    backend = os.getenv("LLM_BACKEND", "").strip().lower()
+    if backend == "vllm":
+        base = (
+            explicit_base
+            or os.getenv("LLM_VLLM_BASE_URL")
+            or "http://127.0.0.1:8000/v1"
+        )
+        model = (
+            explicit_model
+            or os.getenv("LLM_VLLM_MODEL")
+            or "deepseek-v4-flash-0731"
+        )
+    else:
+        base = explicit_base or os.getenv("DEEPSEEK_BASE_URL") or "https://api.deepseek.com"
+        model = explicit_model or os.getenv("DEEPSEEK_MODEL") or "deepseek-chat"
+    return base, model
+
+
+def _knowledge_llm_key() -> str:
+    """知识库 LLM 的 api_key：显式 KNOWLEDGE_LLM_API_KEY 优先，否则跟随后端。
+
+    当显式 key 与当前端点提供方不匹配（如 LLM_BACKEND=vllm 却配置了
+    DeepSeek 的 sk- key）时告警，避免把一家提供方的凭据发给另一家端点。
+    """
+    explicit = os.getenv(ENV_LLM_API_KEY_EXPLICIT, "").strip()
+    backend = os.getenv("LLM_BACKEND", "").strip().lower()
+    if explicit:
+        base = (os.getenv("KNOWLEDGE_LLM_BASE_URL") or "").strip()
+        if not base and backend == "vllm":
+            import logging
+
+            logging.getLogger(__name__).warning(
+                "KNOWLEDGE_LLM_API_KEY 与 vLLM 端点（LLM_VLLM_BASE_URL）"
+                "可能不匹配：显式 key 会发给 vLLM 服务器。"
+                "若确需 vLLM，请改用 LLM_VLLM_API_KEY。"
+            )
+        return explicit
+    if backend == "vllm":
+        return os.getenv("LLM_VLLM_API_KEY", "").strip()
+    return os.getenv(ENV_LLM_API_KEY, "").strip()
+
+
+DEFAULT_LLM_BASE_URL, DEFAULT_LLM_MODEL = _knowledge_llm_config()
 DEFAULT_PERSIST_DIR = os.getenv(
     "KNOWLEDGE_PERSIST_DIR",
     str(PROJECT_ROOT / "data" / "knowledge" / "chromadb"),
@@ -91,7 +137,7 @@ class KnowledgeToolConfig:
         if not self.embedding_api_key:
             self.embedding_api_key = _embedding_key()
         if not self.llm_api_key:
-            self.llm_api_key = os.getenv(ENV_LLM_API_KEY, "").strip()
+            self.llm_api_key = _knowledge_llm_key()
 
     def ensure_keys(self) -> "KnowledgeToolConfig":
         missing = []
@@ -100,7 +146,13 @@ class KnowledgeToolConfig:
                 f"embedding_api_key（环境变量 {ENV_EMBEDDING_API_KEY}）"
             )
         if not self.llm_api_key:
-            missing.append(f"llm_api_key（环境变量 {ENV_LLM_API_KEY}）")
+            backend = os.getenv("LLM_BACKEND", "").strip().lower()
+            llm_key_env = (
+                "LLM_VLLM_API_KEY"
+                if backend == "vllm"
+                else ENV_LLM_API_KEY
+            )
+            missing.append(f"llm_api_key（环境变量 {llm_key_env}）")
         if missing:
             raise ValueError(
                 "缺少 API Key: "

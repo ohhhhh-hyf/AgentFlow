@@ -28,6 +28,8 @@ class LLMClient:
     """OpenAI 兼容 Chat Completions 客户端（DeepSeek / Kimi / vLLM 等）。
 
     支持：
+    - 后端：DeepSeek HTTP（LLM_BACKEND=http）、WebSocket（LLM_BACKEND=websocket）、
+      本地 vLLM 服务器（LLM_BACKEND=vllm，OpenAI 兼容 HTTP）
     - 每次调用覆盖 temperature / json_mode / max_tokens / timeout
     - 网络错误指数退避重试
     - 可选进程内文本缓存（``use_cache=True``）
@@ -167,6 +169,10 @@ class LLMClient:
             body["max_tokens"] = tok
         if json_mode:
             body["response_format"] = {"type": "json_object"}
+        if self.provider == "vllm":
+            # vLLM（OpenAI 兼容）支持 top_p / top_k；DeepSeek 官方不支持 top_k，故仅 vllm 透传
+            body["top_p"] = self.top_p
+            body["top_k"] = self.top_k
         payload = json.dumps(body, ensure_ascii=False).encode("utf-8")
         request = urllib.request.Request(
             f"{self.base_url}/chat/completions",
@@ -240,6 +246,10 @@ class LLMClient:
             body["max_tokens"] = tok
         if json_mode:
             body["response_format"] = {"type": "json_object"}
+        if self.provider == "vllm":
+            # vLLM（OpenAI 兼容）支持 top_p / top_k；DeepSeek 官方不支持 top_k，故仅 vllm 透传
+            body["top_p"] = self.top_p
+            body["top_k"] = self.top_k
         payload = json.dumps(body, ensure_ascii=False).encode("utf-8")
         request = urllib.request.Request(
             f"{self.base_url}/chat/completions",
