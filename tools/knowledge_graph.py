@@ -190,16 +190,17 @@ def _pick_font() -> str:
 
 
 def _dot_quote(text: str) -> str:
-    """DOT 字符串转义：反斜杠与双引号。"""
-    return text.replace("\\", "\\\\").replace('"', '\\"')
+    """DOT 字符串转义：反斜杠、双引号，真实换行转成 \\n 转义序列。"""
+    text = text.replace("\\", "\\\\").replace('"', '\\"')
+    return text.replace("\n", "\\n")
 
 
 def _wrap_label(text: str, width: int = 8, max_len: int = 30) -> str:
-    """把中文短语按固定字数换行，避免节点横向过宽。"""
+    """把中文短语按固定字数换行（真实换行符，_dot_quote 会转成 \\n），避免节点横向过宽。"""
     text = re.sub(r"\s+", " ", text.strip())[:max_len]
     if len(text) <= width:
         return text
-    return "\\n".join(text[i : i + width] for i in range(0, len(text), width))
+    return "\n".join(text[i : i + width] for i in range(0, len(text), width))
 
 
 def _node_degrees(nodes: list[dict], edges: list[dict]) -> dict[str, int]:
@@ -228,15 +229,31 @@ def nodes_edges_to_dot(
     nodes: list[dict],
     edges: list[dict],
     title: str = "",
+    *,  # noqa: C901
+    node_fontsize: int | None = None,
+    edge_fontsize: int | None = None,
+    label_width: int | None = None,
+    compact: bool = False,
 ) -> tuple[str, list[dict]]:
     """把图数据转成 DOT 文本；返回 (dot_text, 有效边)。
 
     - 悬空边（source/target 不在 nodes 中）会被过滤并从返回值带出（供告警）
     - 节点 name 去重（同名节点合并）
+    - node_fontsize / edge_fontsize / label_width：可选覆盖默认字号与换行宽度
+      （默认 None = 知识图谱既有风格：节点 13-14、边 9、每行 4 字）
+    - compact：紧凑布局（整体更小、节点更近、边更短），默认 False 保持原样
     """
     font = _pick_font()
     degrees = _node_degrees(nodes, edges)
     max_degree = max(degrees.values(), default=1)
+    node_font = node_fontsize
+    edge_font = edge_fontsize if edge_fontsize is not None else 9
+    lbl_w = label_width if label_width is not None else 4
+    k_spacing = 0.16 if compact else 0.28
+    sep_pts = "+2" if compact else "+5"
+    graph_size = "8,5!" if compact else "11,6!"
+    dpi = 120 if compact else 180
+    pad_pt = 0.14 if compact else 0.22
     lines = [
         "digraph knowledge_graph {",
         "  graph [",
@@ -246,13 +263,13 @@ def nodes_edges_to_dot(
         "    outputorder=edgesfirst,",
         "    overlap=false,",
         "    splines=true,",
-        "    K=0.28,",
-        "    sep=\"+5\",",
-        "    size=\"11,6!\",",
+        "    K=%s," % k_spacing,
+        "    sep=\"%s\"," % sep_pts,
+        "    size=\"%s\"," % graph_size,
         "    ratio=compress,",
-        "    dpi=180,",
+        "    dpi=%s," % dpi,
         "    concentrate=true,",
-        "    pad=0.22,",
+        "    pad=%s," % pad_pt,
         "    margin=0.04",
         "  ];",
         "  node [",
@@ -268,7 +285,7 @@ def nodes_edges_to_dot(
         "  ];",
         "  edge [",
         f'    fontname="{font}",',
-        "    fontsize=9,",
+        "    fontsize=%s," % edge_font,
         "    fontcolor=\"#64748b\",",
         "    color=\"#94a3b880\",",
         "    arrowsize=0.55,",
@@ -311,9 +328,14 @@ def nodes_edges_to_dot(
         degree = degrees.get(name, 0)
         is_anchor = _is_section_anchor(node)
         ratio = degree / max(max_degree, 1)
-        size = 0.92 + (0.42 * ratio)
+        if compact:
+            size = 0.68 + (0.30 * ratio)
+            anchor_min = 0.98
+        else:
+            size = 0.92 + (0.42 * ratio)
+            anchor_min = 1.34
         if is_anchor:
-            size = max(size, 1.34)
+            size = max(size, anchor_min)
         origin = str(node.get("origin") or "").strip()
         if origin == "new":
             size = min(size + 0.12, 1.7)
@@ -322,10 +344,14 @@ def nodes_edges_to_dot(
         elif origin == "history":
             color = "#94a3b8"
             fill = "#e2e8f0" if not is_anchor else "#94a3b8"
-        fontsize = 18 if is_anchor else 13 if len(name) > 8 else 14
+        fontsize = (
+            node_font
+            if node_font
+            else (18 if is_anchor else 13 if len(name) > 8 else 14)
+        )
         fontcolor = "#ffffff" if is_anchor else "#0f172a"
         attrs = [
-            f'label="{_dot_quote(_wrap_label(name, width=5 if is_anchor else 4, max_len=18))}"',
+            f'label="{_dot_quote(_wrap_label(name, width=5 if is_anchor else lbl_w, max_len=18))}"',
             'fixedsize="true"',
             f'width="{size:.2f}"',
             f'height="{size:.2f}"',
@@ -377,13 +403,13 @@ def nodes_edges_to_dot(
             attrs.append('color="#94a3b880"')
         if relation in {"包含", "属于"}:
             attrs.append('weight="4"')
-            attrs.append('len="0.62"')
+            attrs.append('len="%s"' % ("0.5" if compact else "0.62"))
         elif relation in {"相关", "示例"}:
             attrs.append('style="dashed"')
             attrs.append('weight="1"')
-            attrs.append('len="0.9"')
+            attrs.append('len="%s"' % ("0.7" if compact else "0.9"))
         else:
-            attrs.append('len="0.78"')
+            attrs.append('len="%s"' % ("0.6" if compact else "0.78"))
         edge_attr = f" [{', '.join(attrs)}]" if attrs else ""
         lines.append(f'  "{_dot_quote(source)}" -> "{_dot_quote(target)}"{edge_attr};')
     lines.append("}")
@@ -460,6 +486,63 @@ def render_knowledge_graph_svg(
 ) -> Path | None:
     """把图数据渲染为 SVG 矢量知识图谱文件。"""
     return _render_graphviz(nodes, edges, out_dir, filename, "svg", title=title)
+
+
+def render_graph_to_svg_text(
+    nodes: list[dict],
+    edges: list[dict],
+    title: str = "",
+    *,  # noqa: C901
+    node_fontsize: int | None = None,
+    edge_fontsize: int | None = None,
+    label_width: int | None = None,
+    compact: bool = False,
+) -> str | None:
+    """把图数据渲染为 SVG 文本（供嵌入 HTML 使用）。
+
+    与 render_knowledge_graph_svg 同款 graphviz 风格与数据格式
+    （节点按 section 分组着色、边按 relation 着色、fdp 布局），
+    仅改为输出文本而非写文件；dot 不可用/失败/超时返回 None。
+    node_fontsize / edge_fontsize / label_width / compact 透传给 nodes_edges_to_dot。
+    """
+    if not nodes:
+        return None
+    dot = _find_dot()
+    if not dot:
+        logger.warning("未检测到 graphviz（dot），无法生成 SVG 文本")
+        return None
+    try:
+        dot_text, _valid = nodes_edges_to_dot(
+            nodes,
+            edges,
+            title=title,
+            node_fontsize=node_fontsize,
+            edge_fontsize=edge_fontsize,
+            label_width=label_width,
+            compact=compact,
+        )
+        result = subprocess.run(
+            [dot, "-Kfdp", "-Tsvg"],
+            input=dot_text.encode("utf-8"),
+            capture_output=True,
+            timeout=_RENDER_TIMEOUT_SECONDS,
+            check=False,
+        )
+        if result.returncode != 0:
+            logger.warning(
+                "graphviz 渲染 SVG 文本失败（rc=%s）：%s",
+                result.returncode,
+                (result.stderr or b"").decode("utf-8", errors="replace")[-300:],
+            )
+            return None
+        text = (result.stdout or b"").decode("utf-8", errors="replace")
+        return text or None
+    except subprocess.TimeoutExpired:
+        logger.warning("graphviz 渲染 SVG 文本超时（>%ss）", _RENDER_TIMEOUT_SECONDS)
+        return None
+    except Exception:  # noqa: BLE001 - 渲染失败不影响主流程
+        logger.warning("graphviz 渲染 SVG 文本异常，已跳过", exc_info=True)
+        return None
 
 
 def _cytoscape_elements(nodes: list[dict], edges: list[dict]) -> list[dict]:

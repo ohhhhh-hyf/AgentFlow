@@ -24,12 +24,32 @@ from typing import Any
 from .models import (
     ModelMixin,
     KnowledgeGraphReportValidation,
+    LastClassReportValidation,
     LibraryReportValidation,
     QuizReportValidation,
     ReviewReportValidation,
 )
 
 # ── Report 基类 import 生成区结束 ──
+
+@dataclass
+class LastClassReport(ModelMixin, LastClassReportValidation):
+    """期末划重点复习文档：重点知识点 + 复习策略 + 对照 HTML（右来源）。"""
+
+    focus_points: list[dict[str, Any]] = field(
+        default_factory=list,
+        metadata={"source": "structure"},
+    )
+    strategy: str = field(default="", metadata={"source": "draft.strategy"})
+    review_html: str = field(
+        default="",
+        metadata={"source": "draft.review_html"},
+    )
+    quality_warning: str | None = None
+    personalized_text: str | None = field(
+        default=None,
+        metadata={"source": "rendered"},
+    )
 
 @dataclass
 class KnowledgeGraphReport(ModelMixin, KnowledgeGraphReportValidation):

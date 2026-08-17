@@ -29,6 +29,7 @@ from .outputs import (
     task_output_dir,
 )
 from .runtime_context import DomainContext, env_path, normalize_tasks
+from tools.memory.runtime import MEMORY_LINES
 from tools.runtime.kinds import sidecar_lines
 from .template_router import LINE_SCHEMA_HINTS, maybe_compile_natural_template
 
@@ -93,7 +94,8 @@ def build_parser(ctx: DomainContext) -> argparse.ArgumentParser:
     parser.add_argument(
         "--subject",
         default=None,
-        help="学科名称。笔记记忆：同一 --user_id + --subject 增量合并图谱；"
+        help="学科名称。资料入库/期末划重点：与 --user_id 一起决定知识库范围；"
+        "笔记图谱记忆：同一 --user_id + --subject 增量合并图谱；"
         "自测题：只用来调难度，不写记忆",
     )
     parser.add_argument(
@@ -238,7 +240,12 @@ async def run(
     pending_extra: dict[str, str] = {}
     if "library" in line_names:
         sources = [resolve_knowledge_input(ctx, item) for item in file_list]
-        pending_extra["library"] = "【入库文件】\n" + "\n".join(str(item) for item in sources)
+        lib_extra = "【入库文件】\n" + "\n".join(str(item) for item in sources)
+        if (user_id or "").strip():
+            lib_extra += f"\n【用户ID】{user_id.strip()}"
+        if (subject or "").strip():
+            lib_extra += f"\n【学科/课程】{subject.strip()}"
+        pending_extra["library"] = lib_extra
         transcript = "\n\n".join(knowledge_text_preview(item) for item in sources)
         if not transcript.strip():
             transcript = "知识库资料入库"
@@ -277,6 +284,7 @@ async def run(
 
     memory_bind = None
     line_extra: dict[str, str] = {}
+    memory_enabled = bool(user_id and (set(line_names) & MEMORY_LINES))
     if "quiz" in line_names:
         quiz_rows: list[str] = ["用户水平：期中备考"]
         bank_rows: list[str] = []
@@ -301,7 +309,7 @@ async def run(
             )
         if parts:
             pending_extra["quiz"] = "\n\n".join(parts)
-    if user_id:
+    if memory_enabled:
         from tools.memory import persist, prepare
 
         memory_bind, line_extra = prepare(
@@ -313,6 +321,14 @@ async def run(
             project_id,
             subject,
         )
+    if "last_class" in line_names:
+        lc_extra = []
+        if (user_id or "").strip():
+            lc_extra.append(f"【用户ID】{user_id.strip()}")
+        if (subject or "").strip():
+            lc_extra.append(f"【学科/课程】{subject.strip()}")
+        if lc_extra:
+            pending_extra["last_class"] = "\n".join(lc_extra)
     for key, value in pending_extra.items():
         prev = line_extra.get(key) or ""
         line_extra[key] = f"{prev}\n\n{value}".strip() if prev else value
@@ -344,7 +360,7 @@ async def run(
             sys.stdout.flush()
         elif etype == "done":
             await _handle_done(ctx, event)
-            if user_id and memory_bind is not None:
+            if memory_enabled and memory_bind is not None:
                 persist(
                     ctx.project_root,
                     ctx.name,

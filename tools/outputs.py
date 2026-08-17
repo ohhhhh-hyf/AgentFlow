@@ -85,6 +85,16 @@ def _html_document(title: str, body: str) -> str:
     .review-fix {{ font-size: 0.78rem; color: #6b6860; line-height: 1.45; margin-top: 4px; }}
     .review-cite {{ font-size: 0.78rem; color: #3a3832; margin-top: 6px; font-weight: 650; }}
     .review-excerpt {{ font-size: 0.76rem; color: #6b6860; margin-top: 4px; line-height: 1.45; }}
+    .review-quote {{ font-size: 0.82rem; color: #4a4842; line-height: 1.55; margin-top: 8px; padding: 6px 8px; background: #f7f5f0; border-left: 3px solid #c8c4b8; border-radius: 4px; }}
+    .review-note {{ font-size: 0.8rem; color: #6b6860; line-height: 1.5; margin-top: 6px; }}
+    .review-tags {{ margin-top: 6px; }}
+    .chip {{ display: inline-block; padding: 1px 8px; margin: 2px 4px 0 0; font-size: 0.74rem; color: #3a3832; background: #efece4; border: 1px solid #d4d0c6; border-radius: 10px; }}
+    .degree-badge {{ display: inline-block; padding: 1px 9px; margin-right: 6px; font-size: 0.74rem; font-weight: 700; color: #fff; border-radius: 9px; vertical-align: 1px; }}
+    .degree-must {{ background: #b3402e; }}
+    .degree-key {{ background: #c98a2d; }}
+    .degree-know {{ background: #8a867c; }}
+    .review-blurb {{ font-size: 0.82rem; color: #3a3832; line-height: 1.6; margin-top: 8px; background: #fbfaf7; border: 1px solid #ebe8e1; border-radius: 6px; padding: 7px 9px; }}
+    .mem-empty {{ padding: 10px 12px; color: #9a968c; font-size: 0.78rem; }}
     .quiz-hint {{ font-size: 0.78rem; font-weight: 400; color: #6b6860; margin-top: 4px; }}
     .quiz-item {{ padding: 12px 16px; border-bottom: 1px solid #ebe8e1; }}
     .quiz-item:last-child {{ border-bottom: none; }}

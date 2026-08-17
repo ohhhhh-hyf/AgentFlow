@@ -191,3 +191,14 @@ def get_knowledge(*, fake: bool = False, persist_dir: str | None = None) -> Know
     """按项目根 .env 构造知识库（LLM 跟随 LLM_BACKEND：vllm 时复用 LLM_VLLM_*）。"""
     return KnowledgeTool(fake=fake, persist_dir=persist_dir)
 
+
+def collection_for(*, subject: str = "", user_id: str = "") -> str:
+    """按 user/subject 决定知识库集合（collection）名。
+
+    - 有 subject：``{user_id}__{subject}``（user_id 可空，如 ``数学``）
+    - 都为空：回退 ``default``（旧库兼容）
+    内部经 VectorStore._safe_name 转成 chromadb 合规名，中文名可直接用。
+    """
+    parts = [p for p in (user_id, subject) if (p or "").strip()]
+    return "__".join(parts) if parts else "default"
+

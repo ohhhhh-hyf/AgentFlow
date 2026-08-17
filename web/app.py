@@ -55,6 +55,7 @@ DOMAIN_BY_LABEL = {label: name for name, label in DOMAIN_LABELS.items()}
 
 PERSPECTIVE_OBJECTIVE = "objective"
 PERSPECTIVE_PERSONAL = "personal"
+KNOWLEDGE_SCOPE_LINES = frozenset({"library", "last_class"})
 
 
 def _ctx(domain: str):
@@ -250,6 +251,16 @@ TASK_BRIEFS: dict[str, dict[str, str]] = {
             "特别之处：只报增量与冲突不报页数；裁决哪份为准后，review/quiz 可引用该库。"
         ),
     },
+    "last_class": {
+        "inputs": "老师最后一课划重点文本。可选：用户 ID、学科（决定检索哪个知识库）",
+        "outputs": "期末复习清单 Markdown/HTML（含知识库来源）",
+        "purpose": (
+            "把老师划的重点按知识点抽成复习清单：知识点、重要程度、题型、掌握要求，"
+            "并检索你的知识库给每个知识点挂上出处。"
+            "特别之处：老师原话 / 笔记出处 / 课件出处（含页码）分栏展示，"
+            "必考/重点高亮；没入库时仅输出老师划重点内容。"
+        ),
+    },
     "quiz": {
         "inputs": "笔记原文。可选：难度、题型",
         "outputs": "自测题 HTML（答案/解析折叠）+ Markdown",
@@ -276,13 +287,19 @@ def _task_brief_html(task: str) -> str:
     )
 
 
-def _memory_field_visibility(domain: str, task: str) -> tuple[bool, bool, bool]:
-    """user_id / project_id / subject：仅记忆任务显示对应字段。"""
+def _scope_field_visibility(domain: str, task: str) -> tuple[bool, bool, bool]:
+    """user_id / project_id / subject：按任务需要显示作用域字段。
+
+    library / last_class 虽不写项目记忆，但需要 user_id + subject 确定知识库作用域。
+    """
     uses = _task_uses_memory(task)
+    knowledge_scoped = domain == "notes" and task in KNOWLEDGE_SCOPE_LINES
+    needs_user = uses or knowledge_scoped
+    needs_subject = uses or knowledge_scoped
     return (
-        uses,
+        needs_user,
         uses and domain == "meeting",
-        uses and domain == "notes",
+        needs_subject and domain == "notes",
     )
 
 
@@ -326,7 +343,7 @@ def _panel_updates(domain: str, task_label: str | None, current_upload=None):
     task = _task_value(task_label or "", domain)
     policy = _line_policy(domain, task)
     sidecar = bool(policy and policy.sidecar)
-    show_user, show_project, show_subject = _memory_field_visibility(domain, task)
+    show_user, show_project, show_subject = _scope_field_visibility(domain, task)
     show_quiz = task == "quiz"
     show_mode = bool(policy and policy.cli_mode)
     show_perspective = domain == "meeting" and task == "minutes_generation"
@@ -917,7 +934,7 @@ def run_from_ui(
         difficulty = None if raw_diff in {"", QUIZ_NONE} else raw_diff
         raw_qtype = (quiz_qtype or "").strip()
         qtype = None if raw_qtype in {"", QUIZ_NONE} else raw_qtype
-    elif not _task_uses_memory(tasks[0]):
+    elif not (_task_uses_memory(tasks[0]) or tasks[0] in KNOWLEDGE_SCOPE_LINES):
         user_id = project_id = subject = None
     if tasks[0] == "minutes_generation":
         profile_data = json.loads(
@@ -2579,7 +2596,7 @@ def build_app() -> gr.Blocks:
     initial_domain = "meeting"
     initial_choices = _task_choices(initial_domain)
     initial_task = initial_choices[0][1] if initial_choices else None
-    show_user, show_project, show_subject = _memory_field_visibility(
+    show_user, show_project, show_subject = _scope_field_visibility(
         initial_domain, initial_task or ""
     )
     initial_policy = _line_policy(initial_domain, initial_task or "")
@@ -2651,10 +2668,10 @@ def build_app() -> gr.Blocks:
                     elem_id="perspective-select",
                 )
                 user_id = gr.Textbox(
-                    label="用户 ID（可选，开启记忆）",
+                    label="用户 ID（可选）",
                     lines=1,
                     max_lines=1,
-                    placeholder="同一用户多次运行可对照历史",
+                    placeholder="资料入库/期末划重点：同一用户使用自己的知识库",
                     visible=show_user,
                 )
                 project_id = gr.Textbox(
@@ -2665,10 +2682,10 @@ def build_app() -> gr.Blocks:
                     visible=show_project,
                 )
                 subject = gr.Textbox(
-                    label="学科（可选，笔记记忆）",
+                    label="学科（可选，知识库范围）",
                     lines=1,
                     max_lines=1,
-                    placeholder="笔记域：同一用户 + 学科增量合并图谱",
+                    placeholder="资料入库/期末划重点：同一用户 + 学科使用同一知识库",
                     visible=show_subject,
                 )
                 with gr.Group(visible=False, elem_id="quiz-box") as quiz_box:

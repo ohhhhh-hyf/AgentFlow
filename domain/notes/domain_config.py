@@ -13,6 +13,7 @@ LINE_CN_NAMES: dict[str, str] = {
     "review": "笔记审查",
     "quiz": "自测题",
     "library": "资料入库",
+    "last_class": "期末划重点",
 }
 
 # 任务线种类（手写，不进 sync_domain 生成区）。
@@ -36,5 +37,10 @@ LINE_KINDS: dict[str, object] = {
         "kind": DETERMINISTIC_PIPELINE,
         "cli_template": False,
         "llm_render": "never",
+    },
+    "last_class": {
+        "kind": LLM_EXTRACT,
+        "cli_template": False,
+        "llm_render": "if_template",
     },
 }

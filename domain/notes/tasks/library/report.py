@@ -274,19 +274,20 @@ def _ambiguity(left: str, right: str) -> int | None:
     return max(8, min(92, int(round((1 - jaccard) * 100))))
 
 
-def _safe_chunks(kb: KnowledgeTool) -> list[dict[str, Any]]:
+def _safe_chunks(kb: KnowledgeTool, collection: str = "default") -> list[dict[str, Any]]:
     try:
-        return list(kb.list_chunks() or [])
+        return list(kb.list_chunks(collection=collection) or [])
     except Exception:
         return []
 
 
-def ingest_library(kb: KnowledgeTool, paths: list[Path]) -> dict[str, Any]:
-    before = _safe_chunks(kb)
+def ingest_library(kb: KnowledgeTool, paths: list[Path],
+                   collection: str = "default") -> dict[str, Any]:
+    before = _safe_chunks(kb, collection)
     old_texts = [str(item.get("text") or "") for item in before]
     files: list[dict[str, str]] = []
     for path in paths:
-        stat = kb.add_file(str(path))
+        stat = kb.add_file(str(path), collection=collection)
         files.append(
             {
                 "name": path.name,
@@ -296,7 +297,7 @@ def ingest_library(kb: KnowledgeTool, paths: list[Path]) -> dict[str, Any]:
             }
         )
     incoming_names = {item["name"] for item in files}
-    after = _safe_chunks(kb)
+    after = _safe_chunks(kb, collection)
     new_chunks = [
         item
         for item in after

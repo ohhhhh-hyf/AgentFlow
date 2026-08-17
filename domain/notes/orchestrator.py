@@ -40,6 +40,7 @@ from tools.runtime.kinds import resolve_line_policies
 
 from .reports import (
     KnowledgeGraphReport,
+    LastClassReport,
     LibraryReport,
     QuizReport,
     ReviewReport,
@@ -52,6 +53,12 @@ from .tasks.knowledge_graph import (
     KnowledgeGraphAgent,
     KnowledgeGraphRender,
     KnowledgeGraphSupervisor,
+)
+
+from .tasks.last_class import (
+    LastClassAgent,
+    LastClassRender,
+    LastClassSupervisor,
 )
 
 from .tasks.library import (
@@ -77,6 +84,7 @@ from .tasks.review import (
 # ── FallbackRules import 生成区：由 tools/scripts/sync_domain.py 生成，勿手改 ──
 
 from .tasks.knowledge_graph.contracts import KNOWLEDGE_GRAPH_FALLBACK_RULES
+from .tasks.last_class.contracts import LAST_CLASS_FALLBACK_RULES
 from .tasks.library.contracts import LIBRARY_FALLBACK_RULES
 from .tasks.quiz.contracts import QUIZ_FALLBACK_RULES
 from .tasks.review.contracts import REVIEW_FALLBACK_RULES
@@ -94,6 +102,15 @@ _EMPTY_KNOWLEDGE_GRAPH = {
     "title": "",
     "nodes": [],
     "edges": [],
+}
+
+_EMPTY_LAST_CLASS = {
+    "focus_points": [],
+    "exam_hints": [],
+    "classroom_notes": [],
+    "practice_pool": [],
+    "other_tips": [],
+    "strategy": "",
 }
 
 _EMPTY_LIBRARY = {
@@ -153,6 +170,12 @@ _REJECT_LIBRARY_REVIEW = {
     "feedback": ["LLM 调用失败，未完成审核，转降级输出"],
 }
 
+_REJECT_LAST_CLASS_REVIEW = {
+    "decision": "reject",
+    "last_class_check": {"status": "fail", "findings": ["LLM 调用失败，未完成审核"]},
+    "feedback": ["LLM 调用失败，未完成审核，转降级输出"],
+}
+
 # ── 拒绝审核常量生成区结束 ──
 
 # ── 任务线注册生成区：由 tools/scripts/sync_domain.py 生成，勿手改 ──
@@ -163,6 +186,12 @@ TASK_LINES: dict[str, dict] = {
         "supervisor_attr": "knowledge_graph_supervisor",
         "empty_draft": _EMPTY_KNOWLEDGE_GRAPH,
         "reject_review": _REJECT_KNOWLEDGE_GRAPH_REVIEW,
+    },
+    "last_class": {
+        "agent_attr": "last_class_agent",
+        "supervisor_attr": "last_class_supervisor",
+        "empty_draft": _EMPTY_LAST_CLASS,
+        "reject_review": _REJECT_LAST_CLASS_REVIEW,
     },
     "library": {
         "agent_attr": "library_agent",
@@ -299,6 +328,13 @@ class _Nodes(DomainNodes):
             from .tasks.library.report import attach_library_artifacts
 
             attach_library_artifacts(state)
+        elif line_name == "last_class":
+            from .tasks.last_class.display import attach_last_class_artifacts
+
+            try:
+                attach_last_class_artifacts(state)
+            except Exception:
+                logger.exception("期末划重点挂载知识库来源失败")
 
     # ── 核心节点：笔记理解（公共事实底座）──────────────────────
 
@@ -336,6 +372,9 @@ class NotesAgentSystem(_Nodes):
         self.knowledge_graph_agent: KnowledgeGraphAgent = agents["knowledge_graph_agent"]
         self.knowledge_graph_supervisor: KnowledgeGraphSupervisor = agents["knowledge_graph_supervisor"]
         self.knowledge_graph_render: KnowledgeGraphRender = agents["knowledge_graph_render"]
+        self.last_class_agent: LastClassAgent = agents["last_class_agent"]
+        self.last_class_supervisor: LastClassSupervisor = agents["last_class_supervisor"]
+        self.last_class_render: LastClassRender = agents["last_class_render"]
         self.library_agent: LibraryAgent = agents["library_agent"]
         self.library_supervisor: LibrarySupervisor = agents["library_supervisor"]
         self.library_render: LibraryRender = agents["library_render"]
@@ -352,6 +391,7 @@ class NotesAgentSystem(_Nodes):
 
         self._report_assemblers = {
             "knowledge_graph": KnowledgeGraphReport,
+            "last_class": LastClassReport,
             "library": LibraryReport,
             "quiz": QuizReport,
             "review": ReviewReport,
@@ -363,6 +403,7 @@ class NotesAgentSystem(_Nodes):
 
         self._fallback_rules = {
             "knowledge_graph": KNOWLEDGE_GRAPH_FALLBACK_RULES,
+            "last_class": LAST_CLASS_FALLBACK_RULES,
             "library": LIBRARY_FALLBACK_RULES,
             "quiz": QUIZ_FALLBACK_RULES,
             "review": REVIEW_FALLBACK_RULES,

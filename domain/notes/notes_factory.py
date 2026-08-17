@@ -17,6 +17,12 @@ from .tasks.knowledge_graph import (
     KnowledgeGraphSupervisor,
 )
 
+from .tasks.last_class import (
+    LastClassAgent,
+    LastClassRender,
+    LastClassSupervisor,
+)
+
 from .tasks.library import (
     LibraryAgent,
     LibraryRender,
@@ -52,6 +58,9 @@ class NotesAgentFactory:
             "knowledge_graph_agent": KnowledgeGraphAgent(client),
             "knowledge_graph_supervisor": KnowledgeGraphSupervisor(client),
             "knowledge_graph_render": KnowledgeGraphRender(client),
+            "last_class_agent": LastClassAgent(client),
+            "last_class_supervisor": LastClassSupervisor(client),
+            "last_class_render": LastClassRender(client),
             "library_agent": LibraryAgent(client),
             "library_supervisor": LibrarySupervisor(client),
             "library_render": LibraryRender(client),
