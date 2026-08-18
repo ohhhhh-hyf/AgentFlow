@@ -8,6 +8,8 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import List
 
+from .source_role import classify_source_role, heading_level
+
 SUPPORTED_EXTS = {".txt", ".md", ".pdf", ".docx", ".pptx", ".xlsx"}
 
 # Excel 分块参数
@@ -27,14 +29,77 @@ class TextChunk:
 # ============================================================
 # 文本清洗(减少 embedding NaN / 噪声)
 # ============================================================
-def sanitize_text(text: str) -> str:
-    """NFKC 归一化 + 剔除控制字符 + 压缩空白"""
+def sanitize_text(text: str, keep_newlines: bool = False) -> str:
+    """NFKC 归一化 + 剔除控制字符 + 压缩空白。keep_newlines 时按行清洗，留给标题切块。"""
     if not isinstance(text, str):
         return str(text) if text is not None else ""
     text = unicodedata.normalize("NFKC", text)
     text = re.sub(r"[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]", "", text)
+    if keep_newlines:
+        lines = []
+        for line in text.replace("\r\n", "\n").replace("\r", "\n").split("\n"):
+            line = re.sub(r"[ \t]+", " ", line).strip()
+            if line:
+                lines.append(line)
+        return "\n".join(lines)
     text = re.sub(r"\s+", " ", text)
     return text.strip()
+
+
+def _base_meta(path: str, **extra: object) -> dict:
+    name = Path(path).name
+    meta = {"source": name, "role": classify_source_role(name)}
+    meta.update({key: value for key, value in extra.items() if value not in (None, "")})
+    return meta
+
+
+def _chunks_by_heading(text: str, path: str) -> List[TextChunk]:
+    """按章/节/标题切开，块上带 chapter/topic/heading/role。"""
+    name = Path(path).name
+    role = classify_source_role(name)
+    chapter = ""
+    topic = ""
+    heading = ""
+    buf: list[str] = []
+    chunks: List[TextChunk] = []
+
+    def flush() -> None:
+        body = "\n".join(buf).strip()
+        buf.clear()
+        if not body:
+            return
+        chunks.append(
+            TextChunk(
+                sanitize_text(body, keep_newlines=True),
+                _base_meta(
+                    path,
+                    chapter=chapter,
+                    topic=topic,
+                    heading=heading or topic or chapter or name,
+                ),
+            )
+        )
+
+    for line in sanitize_text(text, keep_newlines=True).splitlines():
+        hit = heading_level(line)
+        if hit:
+            flush()
+            level, title = hit
+            heading = title
+            if level == 1:
+                chapter = title
+                topic = ""
+            elif level == 2:
+                topic = title
+            continue
+        buf.append(line)
+    flush()
+    if chunks:
+        return chunks
+    body = sanitize_text(text, keep_newlines=True)
+    if not body:
+        return []
+    return [TextChunk(body, _base_meta(path, heading=name))]
 
 
 # ============================================================
@@ -50,7 +115,7 @@ def _extract_txt(path: str) -> List[TextChunk]:
             continue
     else:
         raw = Path(path).read_text(errors="ignore")
-    return [TextChunk(sanitize_text(raw), {"source": Path(path).name})]
+    return _chunks_by_heading(raw, path)
 
 
 def _extract_pdf(path: str) -> List[TextChunk]:
@@ -60,17 +125,66 @@ def _extract_pdf(path: str) -> List[TextChunk]:
         for i, page in enumerate(pdf.pages):
             text = page.extract_text() or ""
             if text.strip():
+                first = sanitize_text(text, keep_newlines=True).splitlines()
+                heading = first[0] if first else ""
                 chunks.append(TextChunk(
-                    sanitize_text(text),
-                    {"source": Path(path).name, "page": i + 1}))
+                    sanitize_text(text, keep_newlines=True),
+                    _base_meta(path, page=i + 1, heading=heading)))
     return chunks
 
 
 def _extract_docx(path: str) -> List[TextChunk]:
     import docx
     doc = docx.Document(path)
+    chapter = ""
+    topic = ""
+    heading = ""
+    buf: list[str] = []
+    chunks: List[TextChunk] = []
+
+    def flush() -> None:
+        body = "\n".join(buf).strip()
+        buf.clear()
+        if not body:
+            return
+        chunks.append(
+            TextChunk(
+                sanitize_text(body, keep_newlines=True),
+                _base_meta(path, chapter=chapter, topic=topic, heading=heading or topic or chapter),
+            )
+        )
+
+    for para in doc.paragraphs:
+        raw = (para.text or "").strip()
+        if not raw:
+            continue
+        style = str(getattr(para.style, "name", "") or "").lower()
+        if "heading" in style:
+            flush()
+            heading = raw
+            if "1" in style:
+                chapter = raw
+                topic = ""
+            elif "2" in style:
+                topic = raw
+            continue
+        hit = heading_level(raw)
+        if hit:
+            flush()
+            level, title = hit
+            heading = title
+            if level == 1:
+                chapter = title
+                topic = ""
+            elif level == 2:
+                topic = title
+            continue
+        buf.append(raw)
+    flush()
+    if chunks:
+        return chunks
     text = "\n".join(p.text.strip() for p in doc.paragraphs if p.text.strip())
-    return [TextChunk(sanitize_text(text), {"source": Path(path).name})]
+    return _chunks_by_heading(text, path)
 
 
 def _extract_pptx(path: str) -> List[TextChunk]:
@@ -92,9 +206,10 @@ def _extract_pptx(path: str) -> List[TextChunk]:
                     if cells.strip():
                         parts.append(cells)
         if parts:
+            heading = sanitize_text(parts[0])
             chunks.append(TextChunk(
-                sanitize_text("\n".join(parts)),
-                {"source": Path(path).name, "page": i + 1}))
+                sanitize_text("\n".join(parts), keep_newlines=True),
+                _base_meta(path, page=i + 1, heading=heading)))
     return chunks
 
 

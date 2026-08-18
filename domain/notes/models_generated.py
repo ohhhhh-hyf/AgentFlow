@@ -20,6 +20,63 @@ from .models_base import ModelMixin
 # ── 生成模型生成区：由 tools/scripts/sync_domain.py 生成，勿手改 ──
 
 @dataclass
+class Catalog(ModelMixin):
+    """Catalog输出（浅校验：仅校验第一层键与类型，嵌套不校验）。"""
+
+    course: str
+    version: str
+    mode: str
+    chapters: list[dict[str, Any]] = field(default_factory=list)
+    unmatched_content: list[str] = field(default_factory=list)
+    uncertain_nodes: list[str] = field(default_factory=list)
+    added_chapters: list[str] = field(default_factory=list)
+    added_topics: list[str] = field(default_factory=list)
+    added_knowledge_points: list[str] = field(default_factory=list)
+    updated_knowledge_points: list[str] = field(default_factory=list)
+    merged_nodes: list[str] = field(default_factory=list)
+
+    @classmethod
+    def validate(cls, data: dict) -> "Catalog":
+        _exact_fields(data, [f.name for f in fields(cls)], cls.__name__)
+        _string(data["course"], "course")
+        _string(data["version"], "version")
+        _string(data["mode"], "mode")
+        if not isinstance(data["chapters"], list):
+            raise OutputValidationError("chapters 必须是数组")
+        _string_list(data["unmatched_content"], "unmatched_content")
+        _string_list(data["uncertain_nodes"], "uncertain_nodes")
+        _string_list(data["added_chapters"], "added_chapters")
+        _string_list(data["added_topics"], "added_topics")
+        _string_list(data["added_knowledge_points"], "added_knowledge_points")
+        _string_list(data["updated_knowledge_points"], "updated_knowledge_points")
+        _string_list(data["merged_nodes"], "merged_nodes")
+        return cls(**data)
+
+@dataclass
+class Checklist(ModelMixin):
+    """Checklist输出（浅校验：仅校验第一层键与类型，嵌套不校验）。"""
+
+    course: str
+    catalog_version: str
+    cards: list[dict[str, Any]] = field(default_factory=list)
+    uncertain_quotes: list[str] = field(default_factory=list)
+    strategy: list[str] = field(default_factory=list)
+    phases: list[dict[str, Any]] = field(default_factory=list)
+
+    @classmethod
+    def validate(cls, data: dict) -> "Checklist":
+        _exact_fields(data, [f.name for f in fields(cls)], cls.__name__)
+        _string(data["course"], "course")
+        _string(data["catalog_version"], "catalog_version")
+        if not isinstance(data["cards"], list):
+            raise OutputValidationError("cards 必须是数组")
+        _string_list(data["uncertain_quotes"], "uncertain_quotes")
+        _string_list(data["strategy"], "strategy")
+        if not isinstance(data["phases"], list):
+            raise OutputValidationError("phases 必须是数组")
+        return cls(**data)
+
+@dataclass
 class KnowledgeGraph(ModelMixin):
     """KnowledgeGraph输出（浅校验：仅校验第一层键与类型，嵌套不校验）。"""
 
@@ -246,8 +303,58 @@ class LibrarySupervisorReview(ModelMixin):
         return cls(**data)
 
 @dataclass
+class CatalogSupervisorReview(ModelMixin):
+    """知识目录任务线的领域审核结果。"""
+
+    decision: Literal["approve", "revise", "reject"]
+    catalog_check: dict[str, Any]
+    feedback: list[str] = field(default_factory=list)
+
+    # 本模型的全部检查项（供结构校验与公共语义校验使用）
+    CHECK_KEYS = ("catalog_check",)
+
+    @classmethod
+    def validate(cls, data: dict) -> "CatalogSupervisorReview":
+        _exact_fields(data, [f.name for f in fields(cls)], cls.__name__)
+        for key in cls.CHECK_KEYS:
+            _review_check(data[key], key)
+        _string_list(data["feedback"], "feedback")
+        # 公共语义规则：decision 枚举 + 与检查项/feedback 的联动约束
+        validate_supervisor_semantics(
+            data["decision"],
+            data["feedback"],
+            {key: data[key] for key in cls.CHECK_KEYS},
+        )
+        return cls(**data)
+
+@dataclass
+class ChecklistSupervisorReview(ModelMixin):
+    """复习清单任务线的领域审核结果。"""
+
+    decision: Literal["approve", "revise", "reject"]
+    checklist_check: dict[str, Any]
+    feedback: list[str] = field(default_factory=list)
+
+    # 本模型的全部检查项（供结构校验与公共语义校验使用）
+    CHECK_KEYS = ("checklist_check",)
+
+    @classmethod
+    def validate(cls, data: dict) -> "ChecklistSupervisorReview":
+        _exact_fields(data, [f.name for f in fields(cls)], cls.__name__)
+        for key in cls.CHECK_KEYS:
+            _review_check(data[key], key)
+        _string_list(data["feedback"], "feedback")
+        # 公共语义规则：decision 枚举 + 与检查项/feedback 的联动约束
+        validate_supervisor_semantics(
+            data["decision"],
+            data["feedback"],
+            {key: data[key] for key in cls.CHECK_KEYS},
+        )
+        return cls(**data)
+
+@dataclass
 class LastClassSupervisorReview(ModelMixin):
-    """期末划重点任务线的领域审核结果。"""
+    """last_class任务线的领域审核结果。"""
 
     decision: Literal["approve", "revise", "reject"]
     last_class_check: dict[str, Any]
@@ -273,6 +380,101 @@ class LastClassSupervisorReview(ModelMixin):
 # ── 审核模型生成区结束 ──
 
 # ── Report 校验生成区：由 tools/scripts/sync_domain.py 生成，勿手改 ──
+
+class CatalogReportValidation:
+    """CatalogReport 的校验逻辑（由脚本按手写字段自动生成）。"""
+
+    @classmethod
+    def validate(cls, data: dict) -> "CatalogReport":
+        allowed = {"course", "version", "mode", "chapters", "unmatched_content", "uncertain_nodes", "added_chapters", "added_topics", "added_knowledge_points", "updated_knowledge_points", "merged_nodes", "catalog_html", "quality_warning", "personalized_text"}
+
+        if not isinstance(data, dict):
+            raise OutputValidationError("CatalogReport 必须是 JSON 对象")
+
+        extra = set(data) - allowed
+        if extra:
+            raise OutputValidationError(
+                f"CatalogReport 字段不一致：多余={sorted(extra)}"
+            )
+
+        _string(data.get("course") or "", "course")
+        _string(data.get("version") or "", "version")
+        _string(data.get("mode") or "", "mode")
+        if not isinstance(data.get("chapters") or [], list):
+            raise OutputValidationError("chapters 必须是数组")
+        _string_list(data.get("unmatched_content") or [], "unmatched_content")
+        _string_list(data.get("uncertain_nodes") or [], "uncertain_nodes")
+        _string_list(data.get("added_chapters") or [], "added_chapters")
+        _string_list(data.get("added_topics") or [], "added_topics")
+        _string_list(data.get("added_knowledge_points") or [], "added_knowledge_points")
+        _string_list(data.get("updated_knowledge_points") or [], "updated_knowledge_points")
+        _string_list(data.get("merged_nodes") or [], "merged_nodes")
+        _string(data.get("catalog_html") or "", "catalog_html")
+        if data.get("quality_warning") is not None:
+            _string(data["quality_warning"], "quality_warning")
+        if data.get("personalized_text") is not None:
+            _string(data["personalized_text"], "personalized_text")
+
+        return cls(
+            course=data.get("course") or "",
+            version=data.get("version") or "",
+            mode=data.get("mode") or "",
+            chapters=data.get("chapters") or [],
+            unmatched_content=data.get("unmatched_content") or [],
+            uncertain_nodes=data.get("uncertain_nodes") or [],
+            added_chapters=data.get("added_chapters") or [],
+            added_topics=data.get("added_topics") or [],
+            added_knowledge_points=data.get("added_knowledge_points") or [],
+            updated_knowledge_points=data.get("updated_knowledge_points") or [],
+            merged_nodes=data.get("merged_nodes") or [],
+            catalog_html=data.get("catalog_html") or "",
+            quality_warning=data.get("quality_warning"),
+            personalized_text=data.get("personalized_text"),
+        )
+
+
+class ChecklistReportValidation:
+    """ChecklistReport 的校验逻辑（由脚本按手写字段自动生成）。"""
+
+    @classmethod
+    def validate(cls, data: dict) -> "ChecklistReport":
+        allowed = {"course", "catalog_version", "cards", "phases", "strategy", "uncertain_quotes", "checklist_html", "quality_warning", "personalized_text"}
+
+        if not isinstance(data, dict):
+            raise OutputValidationError("ChecklistReport 必须是 JSON 对象")
+
+        extra = set(data) - allowed
+        if extra:
+            raise OutputValidationError(
+                f"ChecklistReport 字段不一致：多余={sorted(extra)}"
+            )
+
+        _string(data.get("course") or "", "course")
+        _string(data.get("catalog_version") or "", "catalog_version")
+        if not isinstance(data.get("cards") or [], list):
+            raise OutputValidationError("cards 必须是数组")
+        if not isinstance(data.get("phases") or [], list):
+            raise OutputValidationError("phases 必须是数组")
+        _string_list(data.get("strategy") or [], "strategy")
+        _string_list(data.get("uncertain_quotes") or [], "uncertain_quotes")
+        _string(data.get("checklist_html") or "", "checklist_html")
+        if data.get("quality_warning") is not None:
+            _string(data["quality_warning"], "quality_warning")
+        if data.get("personalized_text") is not None:
+            _string(data["personalized_text"], "personalized_text")
+
+        return cls(
+            course=data.get("course") or "",
+            catalog_version=data.get("catalog_version") or "",
+            cards=data.get("cards") or [],
+            phases=data.get("phases") or [],
+            strategy=data.get("strategy") or [],
+            uncertain_quotes=data.get("uncertain_quotes") or [],
+            checklist_html=data.get("checklist_html") or "",
+            quality_warning=data.get("quality_warning"),
+            personalized_text=data.get("personalized_text"),
+        )
+
 
 class KnowledgeGraphReportValidation:
     """KnowledgeGraphReport 的校验逻辑（由脚本按手写字段自动生成）。"""
@@ -313,7 +515,7 @@ class LastClassReportValidation:
 
     @classmethod
     def validate(cls, data: dict) -> "LastClassReport":
-        allowed = {"focus_points", "strategy", "review_html", "quality_warning", "personalized_text"}
+        allowed = {"focus_points", "strategy", "review_html", "mindmap_outline", "quality_warning", "personalized_text"}
 
         if not isinstance(data, dict):
             raise OutputValidationError("LastClassReport 必须是 JSON 对象")
@@ -328,6 +530,7 @@ class LastClassReportValidation:
             raise OutputValidationError("focus_points 必须是数组")
         _string(data.get("strategy") or "", "strategy")
         _string(data.get("review_html") or "", "review_html")
+        _string(data.get("mindmap_outline") or "", "mindmap_outline")
         if data.get("quality_warning") is not None:
             _string(data["quality_warning"], "quality_warning")
         if data.get("personalized_text") is not None:
@@ -337,6 +540,7 @@ class LastClassReportValidation:
             focus_points=data.get("focus_points") or [],
             strategy=data.get("strategy") or "",
             review_html=data.get("review_html") or "",
+            mindmap_outline=data.get("mindmap_outline") or "",
             quality_warning=data.get("quality_warning"),
             personalized_text=data.get("personalized_text"),
         )

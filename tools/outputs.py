@@ -180,16 +180,27 @@ def save_report_artifacts(
             data.get("review_html")
             or data.get("quiz_html")
             or data.get("library_html")
+            or data.get("catalog_html")
+            or data.get("checklist_html")
         )
         if isinstance(review_html, str) and (
-            "memory-review" in review_html or "quiz-sheet" in review_html
+            "memory-review" in review_html
+            or "quiz-sheet" in review_html
+            or "cat-doc" in review_html
+            or "ck-doc" in review_html
+            or "library-hero" in review_html
         ):
             body = review_html
             html_path = out_dir / f"result_{timestamp}.html"
-            html_path.write_text(
-                _html_document(html_title, body),
-                encoding="utf-8",
-            )
+            if line_name in {"last_class", "checklist"} and body.lstrip()[:15].lower().startswith(
+                "<!doctype"
+            ):
+                html_path.write_text(body, encoding="utf-8")
+            else:
+                html_path.write_text(
+                    _html_document(html_title, body),
+                    encoding="utf-8",
+                )
             paths["html"] = html_path
         elif ctx.name == "meeting" and line_name == "minutes_generation":
             from tools.memory.citations import memory_review_html

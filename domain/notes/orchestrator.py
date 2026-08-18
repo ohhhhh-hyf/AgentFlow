@@ -39,6 +39,8 @@ from tools.runtime.kinds import resolve_line_policies
 # ── Report import 生成区：由 tools/scripts/sync_domain.py 生成，勿手改 ──
 
 from .reports import (
+    CatalogReport,
+    ChecklistReport,
     KnowledgeGraphReport,
     LastClassReport,
     LibraryReport,
@@ -48,6 +50,18 @@ from .reports import (
 # ── Report import 生成区结束 ──
 
 # ── 任务线 import 生成区：由 tools/scripts/sync_domain.py 生成，勿手改 ──
+
+from .tasks.catalog import (
+    CatalogAgent,
+    CatalogRender,
+    CatalogSupervisor,
+)
+
+from .tasks.checklist import (
+    ChecklistAgent,
+    ChecklistRender,
+    ChecklistSupervisor,
+)
 
 from .tasks.knowledge_graph import (
     KnowledgeGraphAgent,
@@ -83,6 +97,8 @@ from .tasks.review import (
 
 # ── FallbackRules import 生成区：由 tools/scripts/sync_domain.py 生成，勿手改 ──
 
+from .tasks.catalog.contracts import CATALOG_FALLBACK_RULES
+from .tasks.checklist.contracts import CHECKLIST_FALLBACK_RULES
 from .tasks.knowledge_graph.contracts import KNOWLEDGE_GRAPH_FALLBACK_RULES
 from .tasks.last_class.contracts import LAST_CLASS_FALLBACK_RULES
 from .tasks.library.contracts import LIBRARY_FALLBACK_RULES
@@ -97,6 +113,29 @@ QUALITY_WARNING = "生成可能有误，请结合原文核对。"
 QUALITY_DISCLAIMER = "（生成可能有误）"
 
 # ── 空结构常量生成区：由 tools/scripts/sync_domain.py 生成，勿手改 ──
+
+_EMPTY_CATALOG = {
+    "course": "",
+    "version": "",
+    "mode": "",
+    "chapters": [],
+    "unmatched_content": [],
+    "uncertain_nodes": [],
+    "added_chapters": [],
+    "added_topics": [],
+    "added_knowledge_points": [],
+    "updated_knowledge_points": [],
+    "merged_nodes": [],
+}
+
+_EMPTY_CHECKLIST = {
+    "course": "",
+    "catalog_version": "",
+    "cards": [],
+    "uncertain_quotes": [],
+    "strategy": [],
+    "phases": [],
+}
 
 _EMPTY_KNOWLEDGE_GRAPH = {
     "title": "",
@@ -168,6 +207,18 @@ _REJECT_LIBRARY_REVIEW = {
     "feedback": ["LLM 调用失败，未完成审核，转降级输出"],
 }
 
+_REJECT_CATALOG_REVIEW = {
+    "decision": "reject",
+    "catalog_check": {"status": "fail", "findings": ["LLM 调用失败，未完成审核"]},
+    "feedback": ["LLM 调用失败，未完成审核，转降级输出"],
+}
+
+_REJECT_CHECKLIST_REVIEW = {
+    "decision": "reject",
+    "checklist_check": {"status": "fail", "findings": ["LLM 调用失败，未完成审核"]},
+    "feedback": ["LLM 调用失败，未完成审核，转降级输出"],
+}
+
 _REJECT_LAST_CLASS_REVIEW = {
     "decision": "reject",
     "last_class_check": {"status": "fail", "findings": ["LLM 调用失败，未完成审核"]},
@@ -179,6 +230,18 @@ _REJECT_LAST_CLASS_REVIEW = {
 # ── 任务线注册生成区：由 tools/scripts/sync_domain.py 生成，勿手改 ──
 
 TASK_LINES: dict[str, dict] = {
+    "catalog": {
+        "agent_attr": "catalog_agent",
+        "supervisor_attr": "catalog_supervisor",
+        "empty_draft": _EMPTY_CATALOG,
+        "reject_review": _REJECT_CATALOG_REVIEW,
+    },
+    "checklist": {
+        "agent_attr": "checklist_agent",
+        "supervisor_attr": "checklist_supervisor",
+        "empty_draft": _EMPTY_CHECKLIST,
+        "reject_review": _REJECT_CHECKLIST_REVIEW,
+    },
     "knowledge_graph": {
         "agent_attr": "knowledge_graph_agent",
         "supervisor_attr": "knowledge_graph_supervisor",
@@ -333,6 +396,20 @@ class _Nodes(DomainNodes):
                 attach_last_class_artifacts(state)
             except Exception:
                 logger.exception("期末划重点挂载知识库来源失败")
+        elif line_name == "catalog":
+            from .tasks.catalog.display import attach_catalog_artifacts
+
+            try:
+                attach_catalog_artifacts(state)
+            except Exception:
+                logger.exception("知识目录排版失败")
+        elif line_name == "checklist":
+            from .tasks.checklist.display import attach_checklist_artifacts
+
+            try:
+                attach_checklist_artifacts(state)
+            except Exception:
+                logger.exception("复习清单排版失败")
 
     # ── 核心节点：笔记理解（公共事实底座）──────────────────────
 
@@ -367,6 +444,12 @@ class NotesAgentSystem(_Nodes):
 
         # ── Agent 挂载生成区：由 tools/scripts/sync_domain.py 生成，勿手改 ──
 
+        self.catalog_agent: CatalogAgent = agents["catalog_agent"]
+        self.catalog_supervisor: CatalogSupervisor = agents["catalog_supervisor"]
+        self.catalog_render: CatalogRender = agents["catalog_render"]
+        self.checklist_agent: ChecklistAgent = agents["checklist_agent"]
+        self.checklist_supervisor: ChecklistSupervisor = agents["checklist_supervisor"]
+        self.checklist_render: ChecklistRender = agents["checklist_render"]
         self.knowledge_graph_agent: KnowledgeGraphAgent = agents["knowledge_graph_agent"]
         self.knowledge_graph_supervisor: KnowledgeGraphSupervisor = agents["knowledge_graph_supervisor"]
         self.knowledge_graph_render: KnowledgeGraphRender = agents["knowledge_graph_render"]
@@ -388,6 +471,8 @@ class NotesAgentSystem(_Nodes):
         # ── Report 组装器生成区：由 tools/scripts/sync_domain.py 生成，勿手改 ──
 
         self._report_assemblers = {
+            "catalog": CatalogReport,
+            "checklist": ChecklistReport,
             "knowledge_graph": KnowledgeGraphReport,
             "last_class": LastClassReport,
             "library": LibraryReport,
@@ -400,6 +485,8 @@ class NotesAgentSystem(_Nodes):
         # ── FallbackRules 注册生成区：由 tools/scripts/sync_domain.py 生成，勿手改 ──
 
         self._fallback_rules = {
+            "catalog": CATALOG_FALLBACK_RULES,
+            "checklist": CHECKLIST_FALLBACK_RULES,
             "knowledge_graph": KNOWLEDGE_GRAPH_FALLBACK_RULES,
             "last_class": LAST_CLASS_FALLBACK_RULES,
             "library": LIBRARY_FALLBACK_RULES,

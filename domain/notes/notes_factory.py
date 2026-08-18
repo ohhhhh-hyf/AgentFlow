@@ -11,6 +11,18 @@ from .notes_core import NotesUnderstandingAgent
 
 # ── 任务线 import 生成区：由 tools/scripts/sync_domain.py 生成，勿手改 ──
 
+from .tasks.catalog import (
+    CatalogAgent,
+    CatalogRender,
+    CatalogSupervisor,
+)
+
+from .tasks.checklist import (
+    ChecklistAgent,
+    ChecklistRender,
+    ChecklistSupervisor,
+)
+
 from .tasks.knowledge_graph import (
     KnowledgeGraphAgent,
     KnowledgeGraphRender,
@@ -55,6 +67,12 @@ class NotesAgentFactory:
             "notes_understanding_agent": NotesUnderstandingAgent(client),
             # ── 任务线装配生成区：由 tools/scripts/sync_domain.py 生成，勿手改 ──
 
+            "catalog_agent": CatalogAgent(client),
+            "catalog_supervisor": CatalogSupervisor(client),
+            "catalog_render": CatalogRender(client),
+            "checklist_agent": ChecklistAgent(client),
+            "checklist_supervisor": ChecklistSupervisor(client),
+            "checklist_render": ChecklistRender(client),
             "knowledge_graph_agent": KnowledgeGraphAgent(client),
             "knowledge_graph_supervisor": KnowledgeGraphSupervisor(client),
             "knowledge_graph_render": KnowledgeGraphRender(client),

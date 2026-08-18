@@ -212,14 +212,36 @@ python bootstrap.py --domain notes --file samples/notes/file/student_math_notes.
 ### 资料入库 `library`
 
 ```text
-python bootstrap.py --domain notes --file a.pptx --file b.pdf --file notes.txt --task library
+python bootstrap.py --domain notes --file a.pptx --file b.pdf --file notes.txt --task library --user_id demo_user --subject gaoshu_limit
 ```
+
+课件/讲义当资料骨架，文件名含「笔记」当学生笔记，含 teacher/划重点 的不当骨架。
+
+### 知识目录 `catalog`
+
+```text
+python bootstrap.py --domain notes --task catalog --user_id demo_user --subject gaoshu_limit --file demo/teacher_focus_limits.txt
+```
+
+```text
+python bootstrap.py --domain notes --task catalog --user_id demo_user --subject gaoshu_limit
+```
+
+从已入库资料生成四层目录（章节→主题→知识点→知识项）。`--file` 可选，传老师划重点文本用来标重点；不传也能出目录。同一 `user_id + subject` 再跑会基于已保存目录做增量更新，旧节点 ID 不变。
+
+### 复习清单 `checklist`
+
+```text
+python bootstrap.py --domain notes --task checklist --user_id demo_user --subject gaoshu_limit --file demo/teacher_focus_limits.txt
+```
+
+基于已生成的 Knowledge Catalog 和本次老师划重点文本生成复习清单。必须先跑过 `catalog`。`--file` 是老师重点原文；不改长期目录，也不新建知识点。
 
 ```text
 python bootstrap.py --domain notes --file samples/notes/file --task 资料入库
 ```
 
-一次收多份文件或一个文件夹，写入同一默认知识库，并输出信息熵报告：本次新增独立知识点、以及需要你裁决的冲突点。不用指定 collection。跑完以后，同一库可供 `review` / `quiz` 引用。
+一次收多份文件或一个文件夹，写入同一知识库，并输出信息熵报告。不用指定 collection。跑完以后，同一库可供 `catalog` / `checklist` / `review` / `quiz` / `last_class` 引用。
 
 ---
 

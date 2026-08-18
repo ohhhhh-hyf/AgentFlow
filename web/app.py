@@ -55,7 +55,7 @@ DOMAIN_BY_LABEL = {label: name for name, label in DOMAIN_LABELS.items()}
 
 PERSPECTIVE_OBJECTIVE = "objective"
 PERSPECTIVE_PERSONAL = "personal"
-KNOWLEDGE_SCOPE_LINES = frozenset({"library", "last_class"})
+KNOWLEDGE_SCOPE_LINES = frozenset({"library", "last_class", "catalog", "checklist"})
 
 
 def _ctx(domain: str):
@@ -244,16 +244,32 @@ TASK_BRIEFS: dict[str, dict[str, str]] = {
         ),
     },
     "library": {
-        "inputs": "多份笔记/PPT/PDF/Word/Excel 或一个文件夹",
+        "inputs": "用户 ID、学科，以及多份课件/讲义/笔记（PPT/PDF/Word 等）",
         "outputs": "信息熵报告：知识增量 + 冲突点（Markdown/HTML）",
         "purpose": (
-            "一次把多份资料写入同一知识库，报告新增独立知识点与矛盾点。"
-            "特别之处：只报增量与冲突不报页数；裁决哪份为准后，review/quiz 可引用该库。"
+            "写入该用户该学科的知识库。课件定骨架，笔记标覆盖。"
+            "不用指定 collection 名；同一用户 + 学科就是同一个库。"
+        ),
+    },
+    "catalog": {
+        "inputs": "用户 ID、学科。可选：老师划重点文本。课件和笔记不用再传",
+        "outputs": "四层知识目录 Markdown + HTML，并保存到该用户该学科的目录文件",
+        "purpose": (
+            "从已入库知识库抽资料骨架和学生笔记，老师文本只用来标重点。"
+            "不要上传目录 JSON；有历史目录则增量更新。"
+        ),
+    },
+    "checklist": {
+        "inputs": "用户 ID、学科、老师本次划重点文本。不要上传目录 JSON",
+        "outputs": "复习清单 Markdown + HTML（重点分布、导图、图谱、知识点卡片、行动清单）",
+        "purpose": (
+            "按用户 ID + 学科自动读取已生成的知识目录，再用老师文本激活本次复习。"
+            "不新建知识点、不改长期目录。"
         ),
     },
     "last_class": {
         "inputs": "老师最后一课划重点文本。可选：用户 ID、学科（决定检索哪个知识库）",
-        "outputs": "期末复习清单 Markdown/HTML（含知识库来源）",
+        "outputs": "一份 Markdown + 一份 HTML（内含可点击知识图谱、可编辑思维导图）",
         "purpose": (
             "把老师划的重点按知识点抽成复习清单：知识点、重要程度、题型、掌握要求，"
             "并检索你的知识库给每个知识点挂上出处。"
@@ -305,6 +321,75 @@ def _scope_field_visibility(domain: str, task: str) -> tuple[bool, bool, bool]:
 
 _NOTE_SUFFIXES = {".txt", ".md"}
 _LIBRARY_SUFFIXES = {".txt", ".md", ".pdf", ".docx", ".pptx", ".xlsx"}
+_SCOPE_REQUIRED_TASKS = frozenset({"library", "catalog", "checklist"})
+_TEACHER_TEXT_TASKS = frozenset({"catalog", "checklist", "last_class"})
+
+
+def _scope_labels(task: str) -> tuple[dict[str, str], dict[str, str]]:
+    if task in _SCOPE_REQUIRED_TASKS:
+        return (
+            {
+                "label": "用户 ID（必填）",
+                "placeholder": "用来定位你的知识库，例如 demo_user",
+            },
+            {
+                "label": "学科（必填）",
+                "placeholder": "用来定位这门课的知识库，例如 gaoshu_limit",
+            },
+        )
+    if task == "last_class":
+        return (
+            {
+                "label": "用户 ID",
+                "placeholder": "用来检索对应知识库",
+            },
+            {
+                "label": "学科",
+                "placeholder": "用来检索对应知识库",
+            },
+        )
+    return (
+        {
+            "label": "用户 ID（可选）",
+            "placeholder": "填了则写入/读取该用户的记忆或知识库",
+        },
+        {
+            "label": "学科（可选，知识库范围）",
+            "placeholder": "同一用户 + 学科使用同一知识库",
+        },
+    )
+
+
+def _input_copy(task: str) -> dict[str, str]:
+    if task == "library":
+        return {
+            "upload_label": "资料文件（可多选：课件 / 讲义 / 笔记）",
+            "text_label": "补充说明（可选）",
+            "text_placeholder": "一般不用填。课件和笔记请用上面上传。",
+        }
+    if task == "catalog":
+        return {
+            "upload_label": "老师划重点文本（可选）",
+            "text_label": "老师划重点（可选，也可粘贴）",
+            "text_placeholder": "课件和笔记不用再传，会从已入库知识库读取。这里只填老师本次划重点。",
+        }
+    if task == "checklist":
+        return {
+            "upload_label": "老师本次划重点文本（必填）",
+            "text_label": "老师本次划重点（必填，也可粘贴）",
+            "text_placeholder": "目录 JSON 不用上传。系统按用户 ID + 学科自动读取已生成目录。这里只填老师本次划重点。",
+        }
+    if task == "last_class":
+        return {
+            "upload_label": "老师最后一课划重点文本",
+            "text_label": "老师划重点文本",
+            "text_placeholder": "粘贴老师最后一课划重点…",
+        }
+    return {
+        "upload_label": "文本文件",
+        "text_label": "文本",
+        "text_placeholder": "粘贴会议记录或笔记原文…",
+    }
 
 
 def _upload_incompatible(task: str, upload) -> bool:
@@ -325,18 +410,25 @@ def _upload_incompatible(task: str, upload) -> bool:
 def _upload_update(task: str, current_upload=None):
     """入库是多文件；其它任务是单份 txt。模式切换时清掉不兼容的旧文件，避免胶囊报错。"""
     knowledge_task = task == "library"
+    copy = _input_copy(task)
     kwargs: dict = {
-        "label": (
-            "资料文件（可多选或上传文件夹内文件）"
-            if knowledge_task
-            else "文本文件"
-        ),
-        "file_types": sorted(_LIBRARY_SUFFIXES) if knowledge_task else [".txt"],
+        "label": copy["upload_label"],
+        "file_types": sorted(_LIBRARY_SUFFIXES) if knowledge_task else [".txt", ".md"],
         "file_count": "multiple" if knowledge_task else "single",
     }
     if _upload_incompatible(task, current_upload):
         kwargs["value"] = None
     return gr.update(**kwargs)
+
+
+def _input_text_update(task: str):
+    copy = _input_copy(task)
+    lines = 8 if task in _TEACHER_TEXT_TASKS else (6 if task == "library" else 12)
+    return gr.update(
+        label=copy["text_label"],
+        placeholder=copy["text_placeholder"],
+        lines=lines,
+    )
 
 
 def _panel_updates(domain: str, task_label: str | None, current_upload=None):
@@ -352,6 +444,7 @@ def _panel_updates(domain: str, task_label: str | None, current_upload=None):
     perspective_value = (
         _profile_dropdown_default(domain) if show_perspective else None
     )
+    user_copy, subject_copy = _scope_labels(task)
     return (
         gr.update(value=_task_brief_html(task)),
         gr.update(visible=show_config),
@@ -361,13 +454,14 @@ def _panel_updates(domain: str, task_label: str | None, current_upload=None):
             choices=perspective_choices or ["客观 · 客观全员"],
             value=perspective_value or "客观 · 客观全员",
         ),
-        gr.update(visible=show_user),
+        gr.update(visible=show_user, **user_copy),
         gr.update(visible=show_project),
-        gr.update(visible=show_subject),
+        gr.update(visible=show_subject, **subject_copy),
         gr.update(visible=show_quiz),
         gr.update(visible=sidecar),
         gr.update(visible=bool(policy and policy.cli_template)),
         _upload_update(task, current_upload),
+        _input_text_update(task),
     )
 
 
@@ -514,22 +608,31 @@ def _gallery_update(files: list[str] | None = None):
     return gr.update(value=pngs, visible=bool(pngs))
 
 
-def _has_quiz_html(files: list[str] | None) -> bool:
+def _has_rich_html(files: list[str] | None) -> bool:
+    """右侧已有交互/对照 HTML 时，不再重复摊开 Markdown。"""
+    markers = (
+        "quiz-sheet",
+        "last-class-standalone",
+        "ck-doc",
+        "cat-doc",
+        "library-hero",
+    )
     for file in files or []:
         path = Path(file)
         if not (path.suffix.lower() == ".html" and path.is_file()):
             continue
         try:
-            if "quiz-sheet" in path.read_text(encoding="utf-8"):
-                return True
+            text = path.read_text(encoding="utf-8")
         except OSError:
             continue
+        if any(marker in text for marker in markers):
+            return True
     return False
 
 
 def _md_update(files: list[str] | None = None):
-    """有 Markdown 才展示预览，否则隐藏。自测题以折叠 HTML 为主，不再摊开答案。"""
-    if _has_quiz_html(files):
+    """有 Markdown 才展示预览，否则隐藏。自测题/清单等以 HTML 为主，不再摊开正文。"""
+    if _has_rich_html(files):
         return EMPTY_MD
     text = _md_preview_text(files or [])
     return gr.update(value=text, visible=bool(text))
@@ -549,9 +652,18 @@ def _memory_review_html(files: list[str]) -> str:
             doc = html_paths[0].read_text(encoding="utf-8")
         except OSError:
             doc = ""
+        if "last-class-standalone" in doc or "ck-doc" in doc:
+            title = "复习清单" if "ck-doc" in doc else "期末复习清单"
+            return (
+                f'<iframe class="lc-standalone-frame" title="{title}" '
+                f'srcdoc="{html.escape(doc)}"></iframe>'
+            )
         match = re.search(r"<main[^>]*>(.*?)</main>", doc, re.S | re.I)
         body = match.group(1).strip() if match else doc.strip()
-        if "memory-review" not in body and "quiz-sheet" not in body:
+        if not any(
+            marker in body
+            for marker in ("memory-review", "quiz-sheet", "cat-doc", "library-hero")
+        ):
             return ""
         try:
             from tools.exercise_search.images import rewrite_images
@@ -936,6 +1048,22 @@ def run_from_ui(
         qtype = None if raw_qtype in {"", QUIZ_NONE} else raw_qtype
     elif not (_task_uses_memory(tasks[0]) or tasks[0] in KNOWLEDGE_SCOPE_LINES):
         user_id = project_id = subject = None
+    uid = (user_id or "").strip()
+    subj = (subject or "").strip()
+    if tasks[0] in _SCOPE_REQUIRED_TASKS and (not uid or not subj):
+        return _run_result(
+            "请填写用户 ID 和学科。"
+            "系统用这两个值定位该用户该学科的知识库"
+            + (
+                "和已生成的知识目录"
+                if tasks[0] in {"catalog", "checklist"}
+                else ""
+            )
+            + "，不用再填 collection，也不用上传目录 JSON。",
+            None,
+            *_hitl_ui(False),
+            files_html=EMPTY_DOWNLOAD,
+        )
     if tasks[0] == "minutes_generation":
         profile_data = json.loads(
             _load_profile_json_text(domain, label=perspective_choice)
@@ -965,9 +1093,18 @@ def run_from_ui(
             notes_upload=notes_upload,
             notes_text=notes_text,
         )
-        if input_file is None:
+        if input_file is None and tasks[0] != "catalog":
+            if tasks[0] == "checklist":
+                missing = (
+                    "复习清单必须提供老师本次划重点文本：请上传 txt/md，或在文本框里粘贴。"
+                    "目录 JSON 不用上传，系统会按用户 ID + 学科自动读取已生成目录。"
+                )
+            elif tasks[0] == "library":
+                missing = "资料入库请上传课件 / 讲义 / 笔记（可多选），或在文本框粘贴补充文本。"
+            else:
+                missing = "请上传输入文件，或直接在文本框里输入内容。"
             return _run_result(
-                "请上传输入文件，或直接在文本框里输入内容。",
+                missing,
                 None,
                 *_hitl_ui(False),
                 files_html=EMPTY_DOWNLOAD,
@@ -2212,6 +2349,15 @@ button.secondary:hover {
   background: transparent !important;
   border: none !important;
 }
+.lc-standalone-frame {
+  display: block;
+  width: 100%;
+  min-height: 78vh;
+  height: 82vh;
+  border: 1px solid #d4d0c6;
+  border-radius: 8px;
+  background: #fff;
+}
 .memory-review {
   display: flex;
   flex-direction: column;
@@ -2607,6 +2753,8 @@ def build_app() -> gr.Blocks:
         or initial_task == "quiz"
         or initial_task == "minutes_generation"
     )
+    user_init, subject_init = _scope_labels(initial_task or "")
+    input_init = _input_copy(initial_task or "")
     with gr.Blocks(title="AgentFlow测试") as demo:
         with gr.Row(elem_id="chrome-row", equal_height=True):
             gr.HTML(
@@ -2668,10 +2816,10 @@ def build_app() -> gr.Blocks:
                     elem_id="perspective-select",
                 )
                 user_id = gr.Textbox(
-                    label="用户 ID（可选）",
+                    label=user_init["label"],
                     lines=1,
                     max_lines=1,
-                    placeholder="资料入库/last_class：同一用户使用自己的知识库",
+                    placeholder=user_init["placeholder"],
                     visible=show_user,
                 )
                 project_id = gr.Textbox(
@@ -2682,10 +2830,10 @@ def build_app() -> gr.Blocks:
                     visible=show_project,
                 )
                 subject = gr.Textbox(
-                    label="学科（可选，知识库范围）",
+                    label=subject_init["label"],
                     lines=1,
                     max_lines=1,
-                    placeholder="资料入库/last_class：同一用户 + 学科使用同一知识库",
+                    placeholder=subject_init["placeholder"],
                     visible=show_subject,
                 )
                 with gr.Group(visible=False, elem_id="quiz-box") as quiz_box:
@@ -2733,17 +2881,17 @@ def build_app() -> gr.Blocks:
                     )
                 gr.HTML('<div class="panel-label spaced">输入</div>')
                 input_upload = gr.File(
-                    label="文本文件",
+                    label=input_init["upload_label"],
                     file_count="single",
-                    file_types=[".txt"],
+                    file_types=[".txt", ".md"],
                     type="filepath",
                 )
                 input_text = gr.Textbox(
-                    label="文本",
+                    label=input_init["text_label"],
                     lines=12,
                     max_lines=40,
                     elem_id="input-text",
-                    placeholder="粘贴会议记录或笔记原文…",
+                    placeholder=input_init["text_placeholder"],
                 )
                 with gr.Group(visible=True, elem_id="render-template-wrap") as template_wrap:
                     gr.HTML('<div class="panel-label spaced">渲染模板（可选）</div>')
@@ -2888,6 +3036,7 @@ def build_app() -> gr.Blocks:
                 trace_box,
                 template_wrap,
                 input_upload,
+                input_text,
                 *hitl_outputs,
             ],
         )
@@ -2906,6 +3055,7 @@ def build_app() -> gr.Blocks:
                 trace_box,
                 template_wrap,
                 input_upload,
+                input_text,
                 *hitl_outputs,
             ],
         ).then(

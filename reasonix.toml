@@ -1,2 +1,0 @@
-[permissions]
-allow = ["Bash=ls -a \"D:\\study\\AgentFlow\" | grep -i -E \"venv|conda|\\.python\"; cat \"D:\\study\\AgentFlow\\.env\" 2>/dev/null | sed 's/=.*/=<redacted>/'", "Bash=grep -rn -i \"conda\\|venv\\|python\" \"D:\\study\\AgentFlow\\bootstrap.py\" | head; echo ---; where python python3 py 2>/dev/null; py --list 2>/dev/null | head"]

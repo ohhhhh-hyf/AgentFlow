@@ -190,6 +190,14 @@ def _topic_tokens(point: dict[str, Any]) -> list[str]:
             if len(part) >= 4 and part not in _WEAK_TOPIC
         )
     tokens.extend(_as_list(point.get("keywords")))
+    for quote in _as_list(point.get("quotes"))[:2]:
+        compact = _clean(quote)
+        if len(compact) >= 8:
+            tokens.append(compact[:24])
+    for fact in _as_list(point.get("key_facts"))[:3]:
+        compact = _clean(fact)
+        if 4 <= len(re.sub(r"\s+", "", compact)) <= 24:
+            tokens.append(compact)
     seen: set[str] = set()
     out: list[str] = []
     for token in tokens:
@@ -377,9 +385,9 @@ def _retrieve_point(collection: str, point: dict[str, Any]) -> dict[str, list[di
         return {"notes": [], "slides": [], "docs": [], "all": []}
     queries = list(_topic_tokens(point))
     name = _clean(point.get("name"))
-    quote = _clean(point.get("quote"))
-    if quote:
-        queries.append(quote)
+    for quote in _as_list(point.get("quotes")) or ([_clean(point.get("quote"))] if _clean(point.get("quote")) else []):
+        if quote:
+            queries.append(quote)
     buckets: dict[str, dict[str, dict[str, Any]]] = {
         "notes": {}, "slides": {}, "docs": {}
     }

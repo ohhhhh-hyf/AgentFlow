@@ -8,7 +8,7 @@ from ..prompts import LAST_CLASS_GENERATION_SYSTEM_PROMPT
 
 
 class LastClassAgent:
-    """把老师划重点文本抽成重点知识点，并写满精讲与补充备忘。"""
+    """把老师最后一课文本抽成考点：原话、公式要点、方法、例题和精讲。"""
 
     def __init__(self, client: LLMClient) -> None:
         self.client = client

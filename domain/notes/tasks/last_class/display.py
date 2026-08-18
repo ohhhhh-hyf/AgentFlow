@@ -2,9 +2,8 @@
 
 agent 抽取 focus_points（程度分级 + 老师原话 + 题型 + 检索词 + 掌握要求）→
 supervisor 审核 → render 按学科检索学生知识库 → 生成复习清单：
-- Markdown：汇总表（知识点/重要程度/题型/掌握要求）+ 每知识点区块
-  （老师原话 / 考察要求 / 笔记出处 / 课件出处）
-- HTML：左侧知识点正文，右侧先挂老师原话，再按相关程度挂知识库出处（专题文件优先），多的折叠。
+- Markdown：全局导航 + 老师交代的卷面 + 核心考点（原话/要点/方法/精讲/例题）+ 行动清单
+- HTML：左栏结构化精讲，右栏老师原话 + 知识库出处；图谱可点击，思维导图可编辑。
 """
 from __future__ import annotations
 
@@ -15,10 +14,10 @@ from typing import Any
 
 from .charts import (
     _render_heatmap_chart,
-    _render_qtype_chart,
-    _render_relations_svg,
-    _render_selfcheck_svg,
+    _render_mindmap_html,
+    _render_relations_html,
 )
+from .mindmap import build_last_class_mindmap_outline
 from .kb import (
     _as_list,
     _clean,
@@ -93,11 +92,18 @@ def _focus_points(draft: dict[str, Any]) -> list[dict[str, Any]]:
         name = _clean(item.get("name"))
         if not name:
             continue
+        quotes = _as_list(item.get("quotes"))
+        if not quotes and _clean(item.get("quote")):
+            quotes = [_clean(item.get("quote"))]
+        examples = _as_list(item.get("examples"))
+        if not examples and _clean(item.get("example")):
+            examples = [_clean(item.get("example"))]
         out.append(
             {
                 "degree": str(item.get("degree") or "重点").strip(),
                 "name": name,
-                "quote": _clean(item.get("quote")),
+                "quote": quotes[0] if quotes else "",
+                "quotes": quotes,
                 "note": _clean(item.get("note")),
                 "chapter": _clean(item.get("chapter")),
                 "priority_reason": _clean(item.get("priority_reason")),
@@ -106,9 +112,12 @@ def _focus_points(draft: dict[str, Any]) -> list[dict[str, Any]]:
                 "prerequisites": _as_list(item.get("prerequisites")),
                 "question_types": _as_list(item.get("question_types")),
                 "keywords": _as_list(item.get("keywords")),
+                "key_facts": _as_list(item.get("key_facts")),
+                "methods": _as_list(item.get("methods")),
                 "practice": _as_list(item.get("practice")),
                 "check_points": _as_list(item.get("check_points")),
-                "example": _clean(item.get("example")),
+                "example": examples[0] if examples else "",
+                "examples": examples,
                 "assignment_refs": _as_list(item.get("assignment_refs")),
                 "related_names": _as_list(item.get("related_names")),
                 "explain_what": _clean(item.get("explain_what")),
@@ -188,29 +197,6 @@ def _point_qtypes(point: dict[str, Any]) -> list[str]:
     return out[:2]
 
 
-def _qtype_distribution(point: dict[str, Any]) -> list[dict[str, float]]:
-    """该考点的题型分布（每个知识点的饼图数据，权重均分）。
-
-    优先用 agent 抽取的原始题型（选择/填空/计算/证明/应用），
-    不足 2 个时回退到映射后的概括题型。
-    """
-    raw: list[str] = []
-    for item in point.get("question_types") or []:
-        t = str(item).strip()
-        if t and t not in raw:
-            raw.append(t)
-    if len(raw) < 2:
-        raw = _point_qtypes(point)
-    if len(raw) < 2:
-        return []
-    share = round(100.0 / len(raw), 1)
-    out = [{"label": t, "value": share} for t in raw]
-    # 修正浮点余数，保证合计 100
-    drift = 100.0 - sum(item["value"] for item in out)
-    out[-1]["value"] = round(out[-1]["value"] + drift, 1)
-    return out
-
-
 def _difficulty(priority: str, point: dict[str, Any]) -> str:
     explicit = _clean(point.get("difficulty"))
     text = " ".join(
@@ -226,13 +212,6 @@ def _difficulty(priority: str, point: dict[str, Any]) -> str:
     if priority in {"高", "中"}:
         return "中等"
     return "简单"
-
-
-def _compact_sentence(text: str, limit: int) -> str:
-    text = _clean(text)
-    if len(text) <= limit:
-        return text
-    return text[: max(0, limit - 1)] + "…"
 
 
 def _strip_file_prefix(text: str, source_file: str) -> str:
@@ -274,17 +253,38 @@ def _join_unique(*parts: str) -> str:
     return "".join(out)
 
 
+def _point_quotes(point: dict[str, Any]) -> list[str]:
+    quotes = [_clean(x) for x in (point.get("quotes") or []) if _clean(x)]
+    if not quotes and _clean(point.get("quote")):
+        quotes = [_clean(point.get("quote"))]
+    seen: set[str] = set()
+    out: list[str] = []
+    for quote in quotes:
+        key = re.sub(r"\s+", "", quote)
+        if key in seen:
+            continue
+        seen.add(key)
+        out.append(quote)
+    return out[:3]
+
+
+def _point_examples(point: dict[str, Any]) -> list[str]:
+    examples = [_clean(x) for x in (point.get("examples") or []) if _clean(x)]
+    if not examples and _clean(point.get("example")):
+        examples = [_clean(point.get("example"))]
+    return examples[:3]
+
+
 def _core_explain(point: dict[str, Any], blurb: dict[str, Any] | None) -> list[str]:
-    """核心精讲：是什么 / 为什么 / 易错与变形 / 怎么办。LLM 正文优先，库摘录补定义。"""
+    """精讲四段：是什么 / 为什么 / 易错 / 怎么办。硬知识已在要点与方法里，这里只补正文。"""
     name = _clean(point.get("name"))
     note = _clean(point.get("note"))
     mastery = _clean(point.get("mastery"))
     reason = _clean(point.get("priority_reason"))
-    quote = _clean(point.get("quote"))
     practice = _as_list(point.get("practice"))
     checks = _as_list(point.get("check_points"))
-    qtypes = "、".join(_point_qtypes(point))
-    difficulty = _clean(point.get("difficulty")) or _difficulty(_point_priority(point), point)
+    facts = _as_list(point.get("key_facts"))
+    methods = _as_list(point.get("methods"))
     degree = _clean(point.get("degree")) or "重点"
     blurb_text = ""
     if blurb and blurb.get("excerpt"):
@@ -299,13 +299,13 @@ def _core_explain(point: dict[str, Any], blurb: dict[str, Any] | None) -> list[s
         what = _join_unique(
             what,
             fill if fill and not _is_raw_dump(fill) else "",
+            "；".join(facts[:2]),
             note if note and note not in what else "",
             f"{name}先把定义、关键式子和使用边界钉死，再去对老师点过的变形。",
         )
 
     why = _clean(point.get("explain_why"))
-    if len(why) < 50:
-        # 只拼有原文依据的强调（priority_reason），不拼 quote/题型/难度/威胁模板句
+    if len(why) < 40:
         why = _join_unique(why, f"老师强调：{reason}" if reason else "")
 
     trap = _clean(point.get("explain_trap"))
@@ -320,8 +320,9 @@ def _core_explain(point: dict[str, Any], blurb: dict[str, Any] | None) -> list[s
         )
 
     how = _clean(point.get("explain_how"))
-    if len(how) < 50:
+    if len(how) < 40:
         steps = [mastery] if mastery else []
+        steps.extend(methods[:2])
         steps.extend(practice[:3])
         steps.extend(checks[:2])
         if not steps:
@@ -422,10 +423,10 @@ def _relations_markdown(
     prereq_edges: list[tuple[str, str]],
     relate_edges: list[tuple[str, str, str]],
 ) -> list[str]:
-    """考点关系图说明：细节画在 SVG 里，这里只留一句读法。"""
+    """考点关系图说明：交互图画在 HTML 里，这里只留一句读法。"""
     if not prereq_edges and not relate_edges:
         return []
-    return ["实线箭头：先掌握左边/上游，再攻下游。虚线：对比或同考法。"]
+    return ["滚轮缩放，拖动画布或节点。点击节点查看定义、程度和关系。"]
 
 
 def _heatmap(points: list[dict[str, Any]]) -> dict[str, Any]:
@@ -519,145 +520,12 @@ def _explicit_weights(points: list[dict[str, Any]]) -> dict[str, int]:
     return weights
 
 
-def _prerequisites(points: list[dict[str, Any]]) -> list[tuple[str, list[int]]]:
-    candidates: dict[str, list[int]] = {}
-    for idx, point in enumerate(points, start=1):
-        for item in point.get("prerequisites") or []:
-            item = _clean(item)
-            if item:
-                candidates.setdefault(item, []).append(idx)
-        for key in point.get("keywords") or []:
-            key = _clean(key)
-            if not key or len(key) < 2:
-                continue
-            if any(token in key for token in ("定义", "公式", "性质", "定理", "基础", "概念")):
-                candidates.setdefault(key, []).append(idx)
-    if not candidates:
-        for idx, point in enumerate(points[:4], start=1):
-            name = _clean(point.get("name"))
-            if name:
-                candidates.setdefault(f"{name}的基本定义", []).append(idx)
-    return [(k, v[:4]) for k, v in list(candidates.items())[:6]]
-
-
-_EXAM_MARKS = (
-    "开卷", "闭卷", "计算器", "平时分", "考试形式", "占到", "三成",
-    "选择填空", "计算题一般", "五到六道", "全是极限",
-)
-_PRACTICE_MARKS = ("做十道", "做五道", "默写一遍", "默写九个", "每块做", "错题本过")
-_CLASS_MARKS = ("对照自己的笔记", "PPT上没有", "课件没有", "口头补充", "强调", "提醒", "建议", "不要", "一定")
-_OTHER_MARKS = ("错题一定", "考前把错题", "比盲目", "过一遍错题")
-_SKIP_SUPP = ("同学们", "下课", "好，就这些", "先说说整体结构")
-
-
-def _split_sentences(text: str) -> list[str]:
-    blob = re.sub(r"[\n\r]+", "。", text or "")
-    parts = re.split(r"(?<=[。！？；;])", blob)
-    out: list[str] = []
-    for part in parts:
-        item = _clean(part).strip("；;、，,")
-        if len(item) < 8 or any(tag in item for tag in _SKIP_SUPP):
-            continue
-        if item.endswith(("。", "！", "？")):
-            out.append(item)
-        else:
-            out.append(item + "。")
-    return out
-
-
-def _exam_supplements(original: str) -> dict[str, list[str]]:
-    """从原文挖两个栏目：考试形式说明 + 课堂补充说明（老师真实建议/强调/提醒）。"""
-    buckets = {
-        "课堂补充说明": [],
-        "考试形式说明": [],
-    }
-    for sent in _split_sentences(original or ""):
-        if any(t in sent for t in _EXAM_MARKS):
-            buckets["考试形式说明"].append(sent)
-        elif any(t in sent for t in _CLASS_MARKS):
-            buckets["课堂补充说明"].append(sent)
-    return buckets
-
-
-def _strip_person(text: str) -> str:
-    """去掉老师口吻里的冗余人称，转成客观陈述：
-    「大家一定要把极限的计算练熟」→「一定要把极限的计算练熟」；
-    「我 PPT 里那张分类表你们要记住」→「PPT 里那张分类表要记住」。"""
-    t = _clean(text)
-    t = re.sub(r"^(大家|同学们|你们|我们|咱们|我)[，,、\s]*", "", t)
-    t = re.sub(r"^最后[，,]\s*", "", t)
-    t = t.replace("我建议", "").replace("你们", "").replace("我们", "").replace("大家", "")
-    # 句中「我 PPT/课件/讲义/黑板/建议」的「我」去掉（连前后空白一起清理）
-    t = re.sub(r"([，,。；;])\s*我\s*(?=(?:PPT|课件|讲义|黑板|建议))", r"\1", t)
-    t = re.sub(r"^[，,、\s]+", "", t)
-    return t
-
-
-def _fallback_supplements(
-    original: str,
-    draft: dict[str, Any],
-    points: list[dict[str, Any]],
-) -> dict[str, list[str]]:
-    """只保留老师真实内容：课堂补充说明（建议/强调/提醒）+ 考试形式说明。
-
-    不生成练习动作、不生成鸡汤提示；课堂补充不足时不强行补废话。
-    """
-    mined = _exam_supplements(original)
-    buckets = {
-        "课堂补充说明": _as_list(draft.get("classroom_notes")),
-        "考试形式说明": _as_list(draft.get("exam_hints")),
-    }
-    for key, extras in mined.items():
-        buckets[key] = list(dict.fromkeys(buckets[key] + extras))
-
-    must = [p for p in points if _clean(p.get("degree")) == "必考"]
-    mid = [p for p in points if _clean(p.get("degree")) == "重点"]
-
-    if len(buckets["考试形式说明"]) < 2:
-        qset: list[str] = []
-        for point in points:
-            qset.extend(_point_qtypes(point))
-        uniq = list(dict.fromkeys(qset))
-        extra = []
-        if uniq:
-            extra.append(f"卷面可能覆盖：{'、'.join(uniq)}。")
-        if must:
-            extra.append("必考块按大题准备，概念辨析多半落在选择/填空。")
-        if any(
-            "证明" in " ".join(_as_list(p.get("question_types")))
-            or "零点" in _clean(p.get("name"))
-            for p in points
-        ):
-            extra.append("证明题按老师点过的模板写全步骤，不要只写结论。")
-        buckets["考试形式说明"] = list(dict.fromkeys(buckets["考试形式说明"] + extra)) or [
-            "按老师点名的题型准备，先保证必考块会算、会写。"
-        ]
-
-    for key, items in buckets.items():
-        cleaned = [_clean(x) for x in items if _clean(x)]
-        compact: list[str] = []
-        seen: set[str] = set()
-        for item in cleaned:
-            text = _strip_person(item)
-            text = text if len(text) <= 120 else _compact_sentence(text, 120)
-            token = re.sub(r"[。！？；;、，,\s]", "", text)[:22]
-            if not token or token in seen:
-                continue
-            if any(token.startswith(prev) or prev.startswith(token) for prev in seen):
-                continue
-            seen.add(token)
-            compact.append(text)
-        buckets[key] = compact[:6]
-    # 空栏目不输出（课堂补充没有老师真实内容就不占位）
-    return {key: items for key, items in buckets.items() if items}
-
-
 def build_last_class_markdown(
     original: str,
     draft: dict[str, Any],
     collection: str = "default",
 ) -> str:
-    """复习清单 Markdown：按 purpose 要求输出导航、考点、行动、备忘。"""
+    """复习清单 Markdown：按 purpose 要求输出导航、考点、行动。"""
     points = _focus_points(draft)
     strategy = _clean(draft.get("strategy"))
     subject = ""
@@ -697,22 +565,11 @@ def build_last_class_markdown(
     else:
         lines.append("未能从划重点文本中识别出考点分布。")
 
-    lines.extend(["", "### 2. 前置知识自检清单"])
-    prereqs = _prerequisites(ordered)
-    if prereqs:
-        for name, refs in prereqs:
-            lines.append(
-                f"- {name}：若不熟悉，建议优先补课；与考点 "
-                f"{'、'.join(str(x) for x in refs)} 直接相关"
-            )
-    else:
-        lines.append("本课程核心内容不依赖特定的前置知识，可直接进入复习")
-
     # 复习策略三档：按重要程度分组（必考/重点/了解，永不空）
     high = [p["name"] for p in ordered if _point_priority(p) == "高"]
     mid = [p["name"] for p in ordered if _point_priority(p) == "中"]
     low = [p["name"] for p in ordered if _point_priority(p) == "低"]
-    lines.extend(["", "### 3. 复习策略建议"])
+    lines.extend(["", "### 2. 复习策略建议"])
     if strategy:
         lines.append(f"> {strategy}")
     lines.append(
@@ -728,26 +585,45 @@ def build_last_class_markdown(
         f"（理由：了解即可，概念有印象）"
     )
 
+    exam_hints = [_clean(x) for x in (draft.get("exam_hints") or []) if _clean(x)]
+    class_notes = [_clean(x) for x in (draft.get("classroom_notes") or []) if _clean(x)]
+    if exam_hints or class_notes:
+        lines.extend(["", "### 3. 老师交代的卷面与复习安排"])
+        if exam_hints:
+            lines.append("**卷面（来自课堂原话）**")
+            for hint in exam_hints[:5]:
+                lines.append(f"- {hint}")
+        if class_notes:
+            lines.append("**复习叮嘱（来自课堂原话）**")
+            for note in class_notes[:5]:
+                lines.append(f"- {note}")
+
     # 考点关系图（前置依赖 + 对比关联，风格与知识图谱一致）
     prereq_edges, relate_edges = _build_relations(ordered)
     lines.extend(["", "### 4. 考点关系图"])
     rel_lines = _relations_markdown(prereq_edges, relate_edges)
     if rel_lines:
         lines.extend(rel_lines)
-        lines.append("")
-        rel_chart = {
-            "points": [
-                {"name": _clean(p.get("name")), "degree": str(p.get("degree") or "重点")}
-                for p in ordered
-            ],
-            "prereq": prereq_edges,
-            "relate": relate_edges,
-        }
-        lines.append(
-            f"<!-- chart:last_class_relations {json.dumps(rel_chart, ensure_ascii=False)} -->"
-        )
     else:
-        lines.append("考点间未识别出明显关系。")
+        lines.append("考点间未识别出明显关系，仍可点击节点查看定义。")
+    rel_chart = {
+        "points": [
+            {
+                "name": _clean(p.get("name")),
+                "degree": str(p.get("degree") or "重点"),
+                "definition": _clean(p.get("explain_what"))
+                or "；".join(_as_list(p.get("key_facts"))[:2])
+                or _clean(p.get("note")),
+            }
+            for p in ordered
+        ],
+        "prereq": prereq_edges,
+        "relate": relate_edges,
+    }
+    lines.append("")
+    lines.append(
+        f"<!-- chart:last_class_relations {json.dumps(rel_chart, ensure_ascii=False)} -->"
+    )
 
     lines.extend(["", "## 二、核心考点清单"])
     if len(ordered) < 8:
@@ -761,25 +637,49 @@ def build_last_class_markdown(
         blurb = _knowledge_blurb(p, sources)
         qtypes = "、".join(_point_qtypes(p))
         difficulty = _difficulty(priority, p)
+        degree = _clean(p.get("degree"))
         lines.extend(["", f"#### {idx}. {_clean(p.get('name'))} | 优先级：{priority}", "", "**考法预判**"])
         lines.append(f"- 预测题型：{qtypes}")
         lines.append(f"- 难度等级：{difficulty}")
-        # 每个考点的题型分布饼图（对应知识点，非全局）
-        qdist = _qtype_distribution(p)
-        if len(qdist) >= 2:
-            lines.append("")
-            lines.append(
-                f"<!-- chart:last_class_qtype {json.dumps(qdist, ensure_ascii=False)} -->"
-            )
-        lines.extend(["", "**核心精讲**"])
+        if _clean(p.get("mastery")):
+            lines.append(f"- 掌握要求：{_clean(p.get('mastery'))}")
+        if _clean(p.get("priority_reason")):
+            lines.append(f"- 课堂依据：{_clean(p.get('priority_reason'))}")
+        quotes = _point_quotes(p)
+        if quotes:
+            lines.extend(["", "**课堂依据（老师原话）**"])
+            for quote in quotes:
+                lines.append(f"> {quote}")
+        facts = _as_list(p.get("key_facts"))
+        if facts:
+            lines.extend(["", "**要点与公式**"])
+            for fact in facts:
+                lines.append(f"- {fact}")
+        methods = _as_list(p.get("methods"))
+        if methods:
+            lines.extend(["", "**方法步骤**"])
+            for step in methods:
+                lines.append(f"- {step}")
         what, why, trap, how = _core_explain(p, blurb)
-        segs = [what, why, trap, how]
-        degree = _clean(p.get("degree"))
-        example = _clean(p.get("example"))
-        if example and degree != "了解":
-            segs.append(f"典型例题：{example}")
-        core_text = "".join(_ensure_end_punct(seg) for seg in segs if seg)
-        lines.append(core_text)
+        lines.extend(["", "**核心精讲**"])
+        core_text = "".join(_ensure_end_punct(seg) for seg in (what, why) if seg)
+        lines.append(core_text or _clean(p.get("note")) or _clean(p.get("name")))
+        examples = _point_examples(p)
+        if examples and degree != "了解":
+            lines.extend(["", "**典型例题**"])
+            for n, ex in enumerate(examples, start=1):
+                lines.append(f"{n}. {ex}")
+        if trap:
+            lines.extend(["", "**易错与变形**"])
+            lines.append(trap)
+        if how:
+            lines.extend(["", "**怎么练**"])
+            lines.append(how)
+        refs = _as_list(p.get("assignment_refs"))
+        if refs:
+            lines.extend(["", "**老师指定出处**"])
+            for ref in refs:
+                lines.append(f"- {ref}")
 
     lines.extend(["", "## 三、行动清单", "", "### 1. 分阶段复习路径"])
     high_ids = [str(i) for i, p in enumerate(ordered, start=1) if _point_priority(p) == "高"]
@@ -806,6 +706,10 @@ def build_last_class_markdown(
             if cps:
                 parts.append(f"{p['name']}：{cps[0]}")
                 continue
+            facts = p.get("key_facts") or []
+            if facts:
+                parts.append(f"{p['name']}：{_clean(facts[0])[:30]}")
+                continue
             m = _clean(p.get("mastery")) or _clean(p.get("note"))
             if m:
                 parts.append(f"{p['name']}：{m[:30]}")
@@ -816,43 +720,17 @@ def build_last_class_markdown(
         target = _phase_target(ids)
         lines.append(f"- {name}（建议用时：{hours}）：覆盖考点 {names}；目标：{target}。")
 
-    lines.extend(["", "### 2. 自测检验点"])
-    selfcheck_phases: list[dict[str, Any]] = []
-    for idx, (_name, _hours, ids) in enumerate(usable_phases, start=1):
-        checks: list[str] = []
-        names: list[str] = []
-        for pid in ids:
-            if not pid.isdigit():
-                continue
-            p = ordered[int(pid) - 1]
-            names.append(p["name"])
-            raw_checks = p.get("check_points") or []
-            if raw_checks:
-                checks.extend(_clean(x) for x in raw_checks if _clean(x))
-            else:
-                m = _clean(p.get("mastery")) or _clean(p.get("note"))
-                if m:
-                    checks.append(f"{p['name']}：{m}")
-                else:
-                    checks.append(f"复述 {p['name']} 的结论和限制条件")
-        selfcheck_phases.append(
-            {
-                "label": f"阶段{idx}",
-                "points": "、".join(names[:4]),
-                "checks": checks[:5],
-            }
+    outline = build_last_class_mindmap_outline(draft, subject=subject, points=ordered)
+    mm_title = f"期末复习思维导图 · {subject}" if subject else "期末复习思维导图"
+    lines.extend(["", "### 2. 思维导图"])
+    if outline:
+        lines.append("滚轮缩放，拖动画布。点「编辑大纲」可在本页改节点，点「保存本页」下载这一份 HTML。")
+        lines.append("")
+        lines.append(
+            f"<!-- chart:last_class_mindmap {json.dumps({'outline': outline, 'title': mm_title}, ensure_ascii=False)} -->"
         )
-    lines.append("")
-    lines.append(
-        f"<!-- chart:last_class_selfcheck {json.dumps({'phases': selfcheck_phases}, ensure_ascii=False)} -->"
-    )
-
-    supplements = _fallback_supplements(original, draft, ordered)
-    lines.extend(["", "## 四、补充与备忘"])
-    for title, items in supplements.items():
-        lines.extend(["", f"### {title}"])
-        for item in items:
-            lines.append(f"- {item}")
+    else:
+        lines.append("未生成思维导图大纲。")
     return "\n".join(lines)
 
 
@@ -1000,11 +878,13 @@ def _review_source_cards(point: dict[str, Any] | None, sources: dict[str, list[d
     if not point:
         return '<div class="mem-empty"></div>'
     cards: list[str] = []
-    quote = _clean(point.get("quote"))
-    if quote:
+    quotes = _point_quotes(point)
+    for i, quote in enumerate(quotes):
+        open_attr = " open" if i == 0 else ""
+        label = "老师原话" if i == 0 else f"老师原话 {i + 1}"
         cards.append(
-            '<details class="lc-cite-card lc-cite-teacher" open>'
-            '<summary><span>老师原话</span></summary>'
+            f'<details class="lc-cite-card lc-cite-teacher"{open_attr}>'
+            f'<summary><span>{label}</span></summary>'
             f'<div class="lc-cite-title">「{escape(quote, quote=False)}」</div>'
             "</details>"
         )
@@ -1053,11 +933,9 @@ def _last_class_review_html(
     ordered: list[dict[str, Any]],
     source_cache: dict[int, dict[str, list[dict]]],
 ) -> str:
-    """Word 审阅式 HTML：左正文（核心精讲融合为一段、直接完整展示），右出处。
+    """Word 审阅式 HTML：左栏结构化精讲，右栏老师原话 + 知识库出处。
 
-    核心精讲不再分块也不折叠：md 中「**核心精讲**」标题后紧跟一段连续文本，
-    这里直接完整展示在左栏；右侧统一挂老师原话（默认展开）+ 知识库出处
-    （默认只显示一行，点击展开，多的折叠）。
+    「**核心精讲**」后第一段与右侧出处对齐；课堂原话、要点、方法、例题全宽展示。
     """
     by_name = {_clean(point.get("name")): i for i, point in enumerate(ordered)}
     current_index: int | None = None
@@ -1085,9 +963,8 @@ def _last_class_review_html(
             continue
         rendered = ""
         for marker, renderer in (
-            ("last_class_selfcheck", _render_selfcheck_svg),
-            ("last_class_relations", _render_relations_svg),
-            ("last_class_qtype", _render_qtype_chart),
+            ("last_class_mindmap", _render_mindmap_html),
+            ("last_class_relations", _render_relations_html),
             ("last_class_heatmap", _render_heatmap_chart),
         ):
             chart = re.match(rf"<!--\s*chart:{marker}\s+(.+?)\s*-->", line)
@@ -1120,7 +997,10 @@ def build_last_class_html(
     draft: dict[str, Any],
     collection: str = "default",
 ) -> str:
-    """复习清单 HTML：正文 + 右侧出处审阅模式。"""
+    """一份完整复习 HTML：正文、可点击知识图谱、可在本页编辑的思维导图。"""
+    from tools.knowledge_graph import _CYTOSCAPE_CDN
+    from tools.mindmap import _D3_CDN, _MARKMAP_VIEW_CDN
+
     points = _focus_points(draft)
     ordered = sorted(
         points,
@@ -1129,60 +1009,108 @@ def build_last_class_html(
     source_cache = {i: _retrieve_point(collection, p) for i, p in enumerate(ordered)}
     markdown = build_last_class_markdown(original, draft, collection)
     body = _last_class_review_html(markdown, ordered, source_cache)
-    return "\n".join(
-        [
-            "<style>",
-            ".last-class-doc{display:block;border:1px solid #d4d0c6;background:#fff;border-radius:8px;overflow:hidden;line-height:1.72;}",
-            ".lc-review-doc{display:block;}",
-            ".lc-review-full{padding:18px 28px;border-bottom:1px solid #ebe8e1;background:#fff;}",
-            ".lc-review-row{display:grid;grid-template-columns:minmax(0,1fr) 1px minmax(260px,34%);border-bottom:1px solid #ebe8e1;}",
-            ".lc-review-left{padding:8px 24px;min-width:0;}",
-            ".lc-review-right{padding:8px 10px;background:#faf9f6;}",
-            ".last-class-doc h1{margin:0 0 18px;font-size:1.9rem;line-height:1.25;}",
-            ".last-class-doc h2{margin:0;font-size:1.22rem;}",
-            ".last-class-doc h2:first-of-type{border-top:none;}",
-            ".last-class-doc h3{margin:0;font-size:1.04rem;}",
-            ".last-class-doc h4{margin:0;font-size:1rem;}",
-            ".last-class-doc ul{margin:0;padding-left:1.25em;}",
-            ".last-class-doc li{margin:8px 0;line-height:1.78;}",
-            ".last-class-doc blockquote{margin:8px 0 14px;padding:9px 12px;background:#f7f5f0;border-left:4px solid #c8c4b8;border-radius:4px;color:#4a4842;}",
-            ".last-class-doc p{margin:8px 0;}",
-            ".lc-heatmap-card{display:grid;grid-template-columns:150px minmax(0,1fr);gap:22px;align-items:center;margin:0;padding:16px;border:1px solid #ebe8e1;background:#fbfaf7;border-radius:8px;}",
-            ".lc-pie{width:136px;aspect-ratio:1;border-radius:50%;box-shadow:inset 0 0 0 18px rgba(255,255,255,.62);}",
-            ".lc-qtype-card{display:grid;grid-template-columns:96px minmax(0,1fr);gap:14px;align-items:center;margin:8px 0 12px;padding:10px 14px;border:1px dashed #d4d0c6;background:#fff;border-radius:8px;}",
-            ".lc-pie-sm{width:88px;aspect-ratio:1;border-radius:50%;box-shadow:inset 0 0 0 12px rgba(255,255,255,.62);}",
-            ".lc-legend{display:grid;gap:8px;}",
-            ".lc-legend-item{display:grid;grid-template-columns:14px minmax(0,1fr) auto;gap:8px;align-items:center;font-size:.9rem;}",
-            ".lc-dot{width:10px;height:10px;border-radius:50%;}",
-            ".lc-cite-card{display:block;padding:8px 10px;border-left:3px solid #64748b;background:#fff;color:#1c1b19;text-decoration:none;border-radius:6px;margin-bottom:7px;box-shadow:0 1px 0 rgba(28,27,25,.04);}",
-            ".lc-cite-teacher{border-left-color:#b3402e;background:#fff8f6;}",
-            ".lc-cite-notes{border-left-color:#395f8a;}",
-            ".lc-cite-slides{border-left-color:#c98a2d;}",
-            ".lc-cite-docs{border-left-color:#497a78;}",
-            ".lc-cite-head{font-size:.72rem;font-weight:700;letter-spacing:.04em;color:#6b6860;margin:8px 0 6px;}",
-            ".lc-cite-rank{display:inline-block;min-width:1.15em;padding:0 5px;margin-right:4px;border-radius:8px;background:#64748b;color:#fff;font-size:.68rem;font-weight:700;text-align:center;line-height:1.4;}",
-            ".lc-cite-card summary{cursor:pointer;display:flex;gap:6px;align-items:center;justify-content:space-between;font-size:.78rem;color:#6b6860;}",
-            ".lc-cite-card summary span{display:flex;align-items:center;min-width:0;}",
-            ".lc-cite-card summary strong{font-size:.78rem;color:#3a3832;font-weight:650;flex:1 1 auto;min-width:0;white-space:normal;word-break:break-all;}",
-            ".lc-cite-kicker{font-size:.74rem;color:#6b6860;margin-bottom:4px;}",
-            ".lc-cite-title{font-size:.86rem;font-weight:650;line-height:1.45;}",
-            ".lc-cite-excerpt{font-size:.76rem;color:#6b6860;line-height:1.5;margin-top:5px;white-space:normal;}",
-            ".lc-prose{white-space:pre-wrap;word-break:break-word;}",
-            ".lc-md-table{width:100%;border-collapse:collapse;margin:6px 0;font-size:.76rem;}",
-            ".lc-md-table th,.lc-md-table td{border:1px solid #d4d0c6;padding:4px 6px;text-align:left;vertical-align:top;}",
-            ".lc-md-table th{background:#f7f5f0;color:#3a3832;}",
-            ".lc-core-body{padding:6px 2px 6px 0;font-size:14px;line-height:1.95;color:#2c2a26;text-align:justify;}",
-            ".lc-core-body p{margin:0;}",
-            ".lc-cite-more{margin-top:6px;border:1px dashed #d4d0c6;border-radius:6px;padding:4px 8px;background:#fff;}",
-            ".lc-cite-more>summary{cursor:pointer;font-size:.76rem;color:#6b6860;}",
-            ".lc-cite-miss{font-size:.74rem;color:#9a968c;margin-top:6px;}",
-            ".lc-graph-svg,.lc-selfcheck-svg{background:#fbfaf7;border-radius:12px;}",
-            ".lc-relations-gv{margin:8px 0;background:#fff;border:1px solid #ebe8e1;border-radius:12px;padding:10px;overflow-x:auto;}",
-            "@media(max-width:860px){.lc-review-row{grid-template-columns:1fr}.review-rule{height:1px}.lc-review-right{padding:10px 18px}.lc-heatmap-card{grid-template-columns:1fr}.lc-pie{width:120px}.lc-qtype-card{grid-template-columns:1fr}.lc-pie-sm{width:120px}}",
-            "</style>",
-            body,
-        ]
-    )
+    title = "期末复习清单"
+    if markdown.startswith("# "):
+        title = markdown.splitlines()[0][2:].strip() or title
+    widget_css = """
+.lc-kg{margin:8px 0;border:1px solid #ebe8e1;border-radius:12px;overflow:hidden;background:#fff;}
+.lc-kg-shell{display:grid;grid-template-columns:minmax(0,1fr) minmax(240px,32%);min-height:560px;}
+#lc-cy{width:100%;height:560px;background:linear-gradient(135deg,#ffffff 0%,#f5fbff 48%,#eef7ff 100%);}
+.lc-kg-aside{border-left:1px solid #e2e8f0;background:#faf9f6;padding:14px 12px;overflow:auto;}
+.lc-kg-aside h3{margin:0 0 8px;font-size:1rem;}
+.lc-kg-meta,.lc-kg-ev{color:#64748b;font-size:.78rem;line-height:1.6;}
+.lc-kg-label{font-size:.76rem;color:#475569;margin:14px 0 6px;}
+.lc-kg-detail{border:1px solid #e2e8f0;border-radius:8px;padding:10px;background:#fff;font-size:.86rem;line-height:1.6;}
+.lc-kg-name{font-weight:700;margin-bottom:8px;}
+.lc-kg-block{margin-top:8px;}
+.lc-kg-k{color:#64748b;font-size:.72rem;margin-bottom:3px;}
+.lc-kg-rel{margin-top:6px;padding:6px 8px;border:1px solid #e2e8f0;border-radius:6px;background:#fff;}
+.lc-kg-chips{display:flex;flex-wrap:wrap;gap:6px;}
+.lc-kg-chip{display:inline-block;padding:1px 8px;border-radius:999px;background:#e2e8f0;font-size:.74rem;}
+.lc-kg-legend{display:grid;gap:6px;}
+.lc-kg-legend-item{display:flex;align-items:center;gap:8px;font-size:.8rem;}
+.lc-kg-swatch{width:10px;height:10px;border-radius:50%;}
+.lc-mm{position:relative;margin:8px 0;border:1px solid #ebe8e1;border-radius:12px;overflow:hidden;background:#fff;}
+.lc-mm-bar{display:flex;align-items:center;gap:8px;padding:8px 12px;border-bottom:1px solid #e2e8f0;background:#f8fafc;flex-wrap:wrap;}
+.lc-mm-hint{color:#64748b;font-size:.76rem;flex:1 1 180px;}
+.lc-mm-bar button{border:1px solid #cbd5e1;background:#fff;border-radius:6px;padding:4px 10px;font-size:.8rem;cursor:pointer;}
+.lc-mm-bar button.lc-mm-save{background:#0f172a;color:#fff;border-color:#0f172a;}
+.lc-mm-body{display:grid;grid-template-columns:1fr;height:560px;min-height:560px;}
+.lc-mm-body.editing{grid-template-columns:minmax(200px,34%) 1fr;}
+#lc-mm-editor{display:none;width:100%;height:100%;border:0;border-right:1px solid #e2e8f0;padding:10px;resize:none;font:13px/1.55 ui-monospace,Consolas,monospace;}
+.lc-mm-body.editing #lc-mm-editor{display:block;}
+.lc-mm-canvas{position:relative;min-height:560px;height:100%;background:#fff;}
+#lc-mindmap{position:absolute;inset:0;width:100%;height:100%;display:block;}
+.lc-mm-fallback{padding:12px 20px 16px;overflow:auto;height:100%;}
+.lc-mm-tree{margin:0;padding-left:1.2em;line-height:1.7;}
+.lc-mm-tree ul{margin:.2em 0;padding-left:1.1em;}
+@media(max-width:860px){.lc-kg-shell{grid-template-columns:1fr}.lc-mm-body.editing{grid-template-columns:1fr}#lc-cy{height:420px}.lc-mm-body,.lc-mm-canvas{height:420px;min-height:420px}}
+"""
+    doc_css = """
+.last-class-doc{display:block;border:1px solid #d4d0c6;background:#fff;border-radius:8px;overflow:hidden;line-height:1.72;}
+.lc-review-doc{display:block;}
+.lc-review-full{padding:18px 28px;border-bottom:1px solid #ebe8e1;background:#fff;}
+.lc-review-row{display:grid;grid-template-columns:minmax(0,1fr) 1px minmax(260px,34%);border-bottom:1px solid #ebe8e1;}
+.lc-review-left{padding:8px 24px;min-width:0;}
+.lc-review-right{padding:8px 10px;background:#faf9f6;}
+.last-class-doc h1{margin:0 0 18px;font-size:1.9rem;line-height:1.25;}
+.last-class-doc h2{margin:0;font-size:1.22rem;}
+.last-class-doc h3{margin:0;font-size:1.04rem;}
+.last-class-doc h4{margin:0;font-size:1rem;}
+.last-class-doc ul{margin:0;padding-left:1.25em;}
+.last-class-doc li{margin:8px 0;line-height:1.78;}
+.last-class-doc blockquote{margin:8px 0 14px;padding:9px 12px;background:#f7f5f0;border-left:4px solid #c8c4b8;border-radius:4px;color:#4a4842;}
+.last-class-doc p{margin:8px 0;}
+.lc-heatmap-card{display:grid;grid-template-columns:150px minmax(0,1fr);gap:22px;align-items:center;margin:0;padding:16px;border:1px solid #ebe8e1;background:#fbfaf7;border-radius:8px;}
+.lc-pie{width:136px;aspect-ratio:1;border-radius:50%;box-shadow:inset 0 0 0 18px rgba(255,255,255,.62);}
+.lc-legend{display:grid;gap:8px;}
+.lc-legend-item{display:grid;grid-template-columns:14px minmax(0,1fr) auto;gap:8px;align-items:center;font-size:.9rem;}
+.lc-dot{width:10px;height:10px;border-radius:50%;}
+.lc-cite-card{display:block;padding:8px 10px;border-left:3px solid #64748b;background:#fff;color:#1c1b19;text-decoration:none;border-radius:6px;margin-bottom:7px;}
+.lc-cite-teacher{border-left-color:#b3402e;background:#fff8f6;}
+.lc-cite-notes{border-left-color:#395f8a;}
+.lc-cite-slides{border-left-color:#c98a2d;}
+.lc-cite-docs{border-left-color:#497a78;}
+.lc-cite-head{font-size:.72rem;font-weight:700;letter-spacing:.04em;color:#6b6860;margin:8px 0 6px;}
+.lc-cite-rank{display:inline-block;min-width:1.15em;padding:0 5px;margin-right:4px;border-radius:8px;background:#64748b;color:#fff;font-size:.68rem;font-weight:700;text-align:center;}
+.lc-cite-card summary{cursor:pointer;display:flex;gap:6px;align-items:center;justify-content:space-between;font-size:.78rem;color:#6b6860;}
+.lc-cite-card summary strong{font-size:.78rem;color:#3a3832;font-weight:650;flex:1 1 auto;min-width:0;word-break:break-all;}
+.lc-cite-kicker{font-size:.74rem;color:#6b6860;margin-bottom:4px;}
+.lc-cite-title{font-size:.86rem;font-weight:650;line-height:1.45;}
+.lc-cite-excerpt{font-size:.76rem;color:#6b6860;line-height:1.5;margin-top:5px;}
+.lc-prose{white-space:pre-wrap;word-break:break-word;}
+.lc-md-table{width:100%;border-collapse:collapse;margin:6px 0;font-size:.76rem;}
+.lc-md-table th,.lc-md-table td{border:1px solid #d4d0c6;padding:4px 6px;text-align:left;vertical-align:top;}
+.lc-md-table th{background:#f7f5f0;color:#3a3832;}
+.lc-core-body{padding:6px 2px 6px 0;font-size:14px;line-height:1.95;color:#2c2a26;text-align:justify;}
+.lc-cite-more{margin-top:6px;border:1px dashed #d4d0c6;border-radius:6px;padding:4px 8px;background:#fff;}
+.lc-cite-more>summary{cursor:pointer;font-size:.76rem;color:#6b6860;}
+.lc-cite-miss{font-size:.74rem;color:#9a968c;margin-top:6px;}
+@media(max-width:860px){.lc-review-row{grid-template-columns:1fr}.review-rule{height:1px}.lc-review-right{padding:10px 18px}.lc-heatmap-card{grid-template-columns:1fr}.lc-pie{width:120px}}
+"""
+    return f"""<!doctype html>
+<html lang="zh-CN" class="last-class-standalone">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{escape(title)}</title>
+  <style>
+    body {{ margin: 0; padding: 24px; background: #f0eee9; color: #1c1b19; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Microsoft YaHei", sans-serif; }}
+    .page {{ max-width: 1100px; margin: 0 auto; }}
+    {doc_css}
+    {widget_css}
+  </style>
+  <script src="{_CYTOSCAPE_CDN}"></script>
+  <script src="{_D3_CDN}"></script>
+  <script src="{_MARKMAP_VIEW_CDN}"></script>
+</head>
+<body>
+  <main class="page memory-review last-class-doc">
+{body}
+  </main>
+</body>
+</html>
+"""
 
 
 # ── 挂载到 state ──────────────────────────────────────────────
@@ -1202,6 +1130,7 @@ def attach_last_class_artifacts(state: dict[str, Any]) -> None:
     user_id = user_id_from_context(extra)
     collection = resolve_collection(user_id=user_id, subject=subject)
     render_source = f"{original}\n\n{extra}".strip()
+    draft["mindmap_outline"] = build_last_class_mindmap_outline(draft, subject=subject)
     draft["review_html"] = build_last_class_html(render_source, draft, collection)
     sub["rendered"] = build_last_class_markdown(render_source, draft, collection)
     sub["draft"] = draft

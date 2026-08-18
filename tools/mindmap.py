@@ -794,9 +794,381 @@ async def render_mindmap_png(
                 pass
 
 
+# 与 markmap-cli 锁定同一小版本，保证 last_class / meeting 观感一致
+_MARKMAP_LIB_CDN = (
+    f"https://cdn.jsdelivr.net/npm/markmap-lib@{_MARKMAP_CLI_VERSION}/dist/browser/index.js"
+)
+_MARKMAP_VIEW_CDN = (
+    f"https://cdn.jsdelivr.net/npm/markmap-view@{_MARKMAP_CLI_VERSION}/dist/browser/index.js"
+)
+_MARKMAP_TOOLBAR_CDN = (
+    f"https://cdn.jsdelivr.net/npm/markmap-toolbar@{_MARKMAP_CLI_VERSION}/dist/index.js"
+)
+_D3_CDN = "https://cdn.jsdelivr.net/npm/d3@7.9.0/dist/d3.min.js"
+
+
+def build_editable_mindmap_html(
+    outline: str,
+    title: str = "思维导图",
+) -> str:
+    """生成可编辑、可保存的 markmap HTML（与 meeting 同一套 0.18.12）。
+
+    - 大纲先走 ``sanitize_mindmap_outline``（去表、截断、公共前缀上提）
+    - 页面内可改 Markdown 大纲并即时重绘
+    - 「保存」下载一份仍可继续编辑的完整 HTML
+    """
+    from html import escape
+    from json import dumps
+
+    cleaned = sanitize_mindmap_outline(outline or "")
+    heading = (title or "").strip() or "思维导图"
+    payload = dumps(cleaned, ensure_ascii=False)
+    return f"""<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{escape(heading)}</title>
+  <style>
+    * {{ box-sizing: border-box; }}
+    html, body {{
+      margin: 0;
+      height: 100%;
+      font-family: "Microsoft YaHei", "PingFang SC", "Noto Sans CJK SC", sans-serif;
+      color: #0f172a;
+      background: #ffffff;
+    }}
+    .mm-shell {{
+      display: grid;
+      grid-template-rows: auto minmax(0, 1fr);
+      height: 100%;
+    }}
+    .mm-bar {{
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 12px;
+      border-bottom: 1px solid #e2e8f0;
+      background: #f8fafc;
+    }}
+    .mm-bar h1 {{
+      margin: 0 auto 0 0;
+      font-size: 15px;
+      font-weight: 650;
+    }}
+    .mm-bar button {{
+      border: 1px solid #cbd5e1;
+      background: #fff;
+      color: #0f172a;
+      border-radius: 6px;
+      padding: 5px 12px;
+      font-size: 13px;
+      cursor: pointer;
+    }}
+    .mm-bar button.primary {{
+      background: #0f172a;
+      color: #fff;
+      border-color: #0f172a;
+    }}
+    .mm-bar button:hover {{ filter: brightness(0.97); }}
+    .mm-hint {{ color: #64748b; font-size: 12px; }}
+    .mm-body {{
+      display: grid;
+      grid-template-columns: 1fr;
+      min-height: 0;
+    }}
+    .mm-body.editing {{ grid-template-columns: minmax(220px, 34%) 1fr; }}
+    #mm-editor {{
+      display: none;
+      width: 100%;
+      height: 100%;
+      border: 0;
+      border-right: 1px solid #e2e8f0;
+      padding: 12px;
+      resize: none;
+      font: 13px/1.55 ui-monospace, Consolas, "Microsoft YaHei", monospace;
+      outline: none;
+    }}
+    .mm-body.editing #mm-editor {{ display: block; }}
+    #mindmap {{
+      display: block;
+      width: 100%;
+      height: 100%;
+    }}
+    .mm-toolbar {{
+      position: absolute;
+      bottom: 16px;
+      right: 16px;
+    }}
+  </style>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/markmap-toolbar@{_MARKMAP_CLI_VERSION}/dist/style.css">
+</head>
+<body>
+  <div class="mm-shell">
+    <div class="mm-bar">
+      <h1>{escape(heading)}</h1>
+      <span class="mm-hint">滚轮缩放 · 拖动画布 · 点节点展开</span>
+      <button type="button" id="mm-toggle">编辑大纲</button>
+      <button type="button" id="mm-apply">应用</button>
+      <button type="button" class="primary" id="mm-save">保存</button>
+    </div>
+    <div class="mm-body" id="mm-body">
+      <textarea id="mm-editor" spellcheck="false"></textarea>
+      <svg id="mindmap"></svg>
+    </div>
+  </div>
+  <script type="application/json" id="mm-data">{payload}</script>
+  <script src="{_D3_CDN}"></script>
+  <script src="{_MARKMAP_LIB_CDN}"></script>
+  <script src="{_MARKMAP_VIEW_CDN}"></script>
+  <script src="{_MARKMAP_TOOLBAR_CDN}"></script>
+  <script>
+    const PAGE_TITLE = {dumps(heading, ensure_ascii=False)};
+    const dataEl = document.getElementById('mm-data');
+    const editor = document.getElementById('mm-editor');
+    const body = document.getElementById('mm-body');
+    editor.value = JSON.parse(dataEl.textContent || '""');
+
+    const lib = window.markmap || {{}};
+    const Transformer = lib.Transformer;
+    const Markmap = lib.Markmap;
+    const Toolbar = lib.Toolbar;
+    if (!Transformer || !Markmap) {{
+      document.querySelector('.mm-hint').textContent =
+        'Markmap 未加载。请联网后刷新，或下载本页到本地用浏览器打开。';
+    }} else {{
+      const transformer = new Transformer();
+      let mm = null;
+
+      const render = async (md) => {{
+        const {{ root, features }} = transformer.transform(md || '# 思维导图');
+        const {{ styles, scripts }} = transformer.getUsedAssets(features);
+        if (lib.loadCSS && styles) lib.loadCSS(styles);
+        if (lib.loadJS && scripts) await lib.loadJS(scripts);
+        if (!mm) {{
+          mm = Markmap.create('#mindmap');
+          if (Toolbar) {{
+            const toolbar = new Toolbar();
+            toolbar.attach(mm);
+            const el = toolbar.render();
+            el.classList.add('mm-toolbar');
+            document.body.append(el);
+          }}
+        }}
+        await mm.setData(root);
+        mm.fit();
+      }};
+
+      render(editor.value);
+      document.getElementById('mm-toggle').onclick = () => {{
+        body.classList.toggle('editing');
+        document.getElementById('mm-toggle').textContent =
+          body.classList.contains('editing') ? '收起大纲' : '编辑大纲';
+      }};
+      document.getElementById('mm-apply').onclick = () => render(editor.value);
+      editor.addEventListener('keydown', (ev) => {{
+        if ((ev.ctrlKey || ev.metaKey) && ev.key === 'Enter') {{
+          ev.preventDefault();
+          render(editor.value);
+        }}
+        if ((ev.ctrlKey || ev.metaKey) && ev.key.toLowerCase() === 's') {{
+          ev.preventDefault();
+          document.getElementById('mm-save').click();
+        }}
+      }});
+      document.getElementById('mm-save').onclick = () => {{
+        const next = editor.value;
+        dataEl.textContent = JSON.stringify(next);
+        const blob = new Blob(
+          ['<!doctype html>\\n', document.documentElement.outerHTML],
+          {{ type: 'text/html;charset=utf-8' }}
+        );
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(blob);
+        a.download = (PAGE_TITLE || '思维导图') + '.html';
+        a.click();
+        URL.revokeObjectURL(a.href);
+      }};
+    }}
+  </script>
+</body>
+</html>
+"""
+
+
+def outline_to_markmap_data(outline: str) -> dict:
+    """把 #/##/###/- 大纲转成 markmap-view 的 {content, children} 树。"""
+    cleaned = sanitize_mindmap_outline(outline or "") or "# 思维导图"
+    root: dict = {"content": "思维导图", "children": []}
+    stack: list[tuple[int, dict]] = [(0, root)]
+    for raw in cleaned.splitlines():
+        line = raw.strip()
+        if not line:
+            continue
+        if line.startswith("#"):
+            m = re.match(r"^(#{1,6})\s+(.*)$", line)
+            if not m:
+                continue
+            level = min(len(m.group(1)), 4)
+            node = {"content": m.group(2).strip() or "未命名", "children": []}
+            while stack and stack[-1][0] >= level:
+                stack.pop()
+            stack[-1][1].setdefault("children", []).append(node)
+            stack.append((level, node))
+            continue
+        if line.startswith(("- ", "* ", "+ ")):
+            body = line[2:].strip()
+            if not body:
+                continue
+            stack[-1][1].setdefault("children", []).append(
+                {"content": body, "children": []}
+            )
+    if len(root.get("children") or []) == 1 and not (root["children"][0].get("children") is None):
+        return root["children"][0]
+    return root
+
+
+def build_editable_mindmap_embed(
+    outline: str,
+    title: str = "思维导图",
+) -> str:
+    """可编辑思维导图：只依赖 d3 + markmap-view，不依赖会 404 的 markmap-lib。"""
+    from html import escape
+    from json import dumps
+
+    cleaned = sanitize_mindmap_outline(outline or "") or "# 思维导图"
+    heading = (title or "").strip() or "思维导图"
+    tree = outline_to_markmap_data(cleaned)
+    payload = dumps({"outline": cleaned, "tree": tree}, ensure_ascii=False)
+    page_title = dumps(heading, ensure_ascii=False)
+    return f"""<div class="lc-mm">
+  <div class="lc-mm-bar">
+    <strong>{escape(heading)}</strong>
+    <span class="lc-mm-hint">滚轮缩放 · 点圆点展开/折叠 · 可编辑大纲后保存本页</span>
+    <button type="button" id="lc-mm-toggle">编辑大纲</button>
+    <button type="button" id="lc-mm-apply">应用</button>
+    <button type="button" class="lc-mm-save" id="lc-mm-save">保存本页</button>
+  </div>
+  <div class="lc-mm-body" id="lc-mm-body">
+    <textarea id="lc-mm-editor" spellcheck="false"></textarea>
+    <div class="lc-mm-canvas">
+      <svg id="lc-mindmap"></svg>
+      <div id="lc-mm-fallback" class="lc-mm-fallback" hidden></div>
+    </div>
+  </div>
+</div>
+<script type="application/json" id="lc-mm-data">{payload}</script>
+<script>
+(function () {{
+  const PAGE_TITLE = {page_title};
+  const dataEl = document.getElementById('lc-mm-data');
+  const editor = document.getElementById('lc-mm-editor');
+  const body = document.getElementById('lc-mm-body');
+  const hint = document.querySelector('.lc-mm-hint');
+  const svg = document.getElementById('lc-mindmap');
+  const fallback = document.getElementById('lc-mm-fallback');
+  if (!dataEl || !editor || !body || !svg) return;
+  const pack = JSON.parse(dataEl.textContent || '{{}}');
+  editor.value = pack.outline || '';
+
+  const parseOutline = (md) => {{
+    const root = {{ content: '思维导图', children: [] }};
+    const stack = [{{ level: 0, node: root }}];
+    String(md || '').split(/\\r?\\n/).forEach((raw) => {{
+      const line = raw.trim();
+      if (!line) return;
+      const hm = line.match(/^(#{{1,6}})\\s+(.*)$/);
+      if (hm) {{
+        const level = Math.min(hm[1].length, 4);
+        const node = {{ content: hm[2].trim() || '未命名', children: [] }};
+        while (stack.length && stack[stack.length - 1].level >= level) stack.pop();
+        stack[stack.length - 1].node.children.push(node);
+        stack.push({{ level, node }});
+        return;
+      }}
+      if (/^[-*+]\\s+/.test(line)) {{
+        const text = line.replace(/^[-*+]\\s+/, '').trim();
+        if (text) stack[stack.length - 1].node.children.push({{ content: text, children: [] }});
+      }}
+    }});
+    if (root.children.length === 1) return root.children[0];
+    return root;
+  }};
+
+  const renderFallback = (tree) => {{
+    const walk = (node) => {{
+      const kids = node.children || [];
+      const inner = kids.map(walk).join('');
+      return '<li><span>' + String(node.content || '').replace(/[&<>]/g, (ch) => ({{
+        '&': '&amp;', '<': '&lt;', '>': '&gt;'
+      }})[ch]) + '</span>' + (inner ? '<ul>' + inner + '</ul>' : '') + '</li>';
+    }};
+    fallback.innerHTML = '<ul class="lc-mm-tree">' + walk(tree) + '</ul>';
+    fallback.hidden = false;
+    svg.style.display = 'none';
+  }};
+
+  const render = async (md) => {{
+    const tree = parseOutline(md);
+    const Markmap = window.markmap && window.markmap.Markmap;
+    if (!Markmap || typeof window.d3 === 'undefined') {{
+      if (hint) hint.textContent = '图谱脚本未加载，已改用列表显示。可编辑大纲后保存。';
+      renderFallback(tree);
+      return;
+    }}
+    fallback.hidden = true;
+    svg.style.display = 'block';
+    if (!window.__lcMarkmap) {{
+      window.__lcMarkmap = Markmap.create(svg, {{ autoFit: true, duration: 0 }});
+    }}
+    await window.__lcMarkmap.setData(tree);
+    await window.__lcMarkmap.fit();
+  }};
+
+  render(editor.value).catch((err) => {{
+    console.error(err);
+    renderFallback(parseOutline(editor.value));
+  }});
+  document.getElementById('lc-mm-toggle').onclick = () => {{
+    body.classList.toggle('editing');
+    document.getElementById('lc-mm-toggle').textContent =
+      body.classList.contains('editing') ? '收起大纲' : '编辑大纲';
+    setTimeout(() => {{ if (window.__lcMarkmap) window.__lcMarkmap.fit(); }}, 60);
+  }};
+  document.getElementById('lc-mm-apply').onclick = () => render(editor.value);
+  editor.addEventListener('keydown', (ev) => {{
+    if ((ev.ctrlKey || ev.metaKey) && ev.key === 'Enter') {{
+      ev.preventDefault();
+      render(editor.value);
+    }}
+    if ((ev.ctrlKey || ev.metaKey) && ev.key.toLowerCase() === 's') {{
+      ev.preventDefault();
+      document.getElementById('lc-mm-save').click();
+    }}
+  }});
+  document.getElementById('lc-mm-save').onclick = () => {{
+    const next = editor.value;
+    dataEl.textContent = JSON.stringify({{ outline: next, tree: parseOutline(next) }});
+    const blob = new Blob(
+      ['<!doctype html>\\n', document.documentElement.outerHTML],
+      {{ type: 'text/html;charset=utf-8' }}
+    );
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = (document.title || PAGE_TITLE || '期末复习清单') + '.html';
+    a.click();
+    URL.revokeObjectURL(a.href);
+  }};
+}})();
+</script>"""
+
+
 __all__ = [
+    "build_editable_mindmap_embed",
+    "build_editable_mindmap_html",
     "markmap_available",
     "mindmap_png_available",
+    "outline_to_markmap_data",
     "sanitize_mindmap_outline",
     "factor_common_prefixes",
     "render_mindmap_html",

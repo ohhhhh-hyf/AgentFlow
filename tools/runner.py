@@ -234,9 +234,20 @@ async def run(
     user = load_user(ctx, profile)
     line_names = normalize_tasks(ctx, tasks or [], set(ctx.task_lines))
     file_list = _as_file_list(file)
+    if "catalog" in line_names or "checklist" in line_names:
+        if not (user_id or "").strip() or not (subject or "").strip():
+            raise ValueError(
+                "知识目录/复习清单需要 --user_id 和 --subject，用来定位知识库和已生成目录"
+            )
     if not file_list:
-        raise ValueError("请用 --file 指定输入文件")
-    file = file_list[0]
+        if "checklist" in line_names:
+            raise ValueError("复习清单需要 --file 提供本次老师划重点文本")
+        if "catalog" in line_names:
+            file = None
+        else:
+            raise ValueError("请用 --file 指定输入文件")
+    else:
+        file = file_list[0]
     pending_extra: dict[str, str] = {}
     if "library" in line_names:
         sources = [resolve_knowledge_input(ctx, item) for item in file_list]
@@ -249,6 +260,13 @@ async def run(
         transcript = "\n\n".join(knowledge_text_preview(item) for item in sources)
         if not transcript.strip():
             transcript = "知识库资料入库"
+    elif "catalog" in line_names:
+        if len(file_list) > 1:
+            raise ValueError("知识目录的 --file 只用于老师划重点文本，请只传一份")
+        if file_list:
+            transcript = load_transcript(ctx, file_list[0])
+        else:
+            transcript = "根据已入库资料生成知识目录"
     else:
         if len(file_list) > 1:
             raise ValueError(
@@ -329,12 +347,28 @@ async def run(
             lc_extra.append(f"【学科/课程】{subject.strip()}")
         if lc_extra:
             pending_extra["last_class"] = "\n".join(lc_extra)
+    if "catalog" in line_names:
+        cat_extra = []
+        if (user_id or "").strip():
+            cat_extra.append(f"【用户ID】{user_id.strip()}")
+        if (subject or "").strip():
+            cat_extra.append(f"【学科/课程】{subject.strip()}")
+        if cat_extra:
+            pending_extra["catalog"] = "\n".join(cat_extra)
+    if "checklist" in line_names:
+        ck_extra = []
+        if (user_id or "").strip():
+            ck_extra.append(f"【用户ID】{user_id.strip()}")
+        if (subject or "").strip():
+            ck_extra.append(f"【学科/课程】{subject.strip()}")
+        if ck_extra:
+            pending_extra["checklist"] = "\n".join(ck_extra)
     for key, value in pending_extra.items():
         prev = line_extra.get(key) or ""
         line_extra[key] = f"{prev}\n\n{value}".strip() if prev else value
     for sidecar_line in sidecar_lines(line_names, ctx.line_policies):
         try:
-            extra = format_trace_extra(load_trace_sidecars(ctx, file))
+            extra = format_trace_extra(load_trace_sidecars(ctx, file)) if file else ""
         except (OSError, ValueError):
             extra = ""
         if extra:

@@ -177,6 +177,8 @@ python -m playwright install chromium
 | 笔记审查 | `python bootstrap.py --domain notes --task review` |
 | 自测题 | `python bootstrap.py --domain notes --task quiz` |
 | 资料入库 | `python bootstrap.py --domain notes --task library --file a.pptx --file b.pdf` |
+| 知识目录 | `python bootstrap.py --domain notes --task catalog --user_id demo_user --subject gaoshu_limit --file teacher_focus_limits.txt` |
+| 复习清单 | `python bootstrap.py --domain notes --task checklist --user_id demo_user --subject gaoshu_limit --file teacher_focus_limits.txt` |
 
 Linux/macOS 路径写法示例：
 

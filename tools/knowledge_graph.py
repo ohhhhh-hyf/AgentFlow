@@ -44,10 +44,15 @@ _RELATION_COLORS = {
     "用于": "#2563eb",
     "定义": "#16a34a",
     "前提": "#ea580c",
+    "前置": "#ea580c",
     "等价于": "#9333ea",
     "转化": "#0f766e",
     "相关": "#475569",
+    "对比/配套": "#0f766e",
+    "同考法": "#475569",
+    "互相支撑": "#9333ea",
 }
+_DASHED_RELATIONS = {"相关", "示例", "对比/配套", "同考法", "互相支撑"}
 _CYTOSCAPE_CDN = "https://cdn.jsdelivr.net/npm/cytoscape@3.31.2/dist/cytoscape.min.js"
 
 
@@ -404,7 +409,7 @@ def nodes_edges_to_dot(
         if relation in {"包含", "属于"}:
             attrs.append('weight="4"')
             attrs.append('len="%s"' % ("0.5" if compact else "0.62"))
-        elif relation in {"相关", "示例"}:
+        elif relation in _DASHED_RELATIONS:
             attrs.append('style="dashed"')
             attrs.append('weight="1"')
             attrs.append('len="%s"' % ("0.7" if compact else "0.9"))
@@ -604,31 +609,23 @@ def _cytoscape_elements(nodes: list[dict], edges: list[dict]) -> list[dict]:
     return elements
 
 
-def render_knowledge_graph_html(
+def build_knowledge_graph_html(
     nodes: list[dict],
     edges: list[dict],
-    out_dir: Path | str,
-    filename: str = "knowledge_graph.html",
     title: str = "",
-) -> Path | None:
-    """生成 Cytoscape.js 交互式知识图谱 HTML。"""
-    if not nodes:
-        logger.warning("知识图谱无节点，跳过 HTML 生成")
-        return None
-    out_dir = Path(out_dir)
-    try:
-        out_dir.mkdir(parents=True, exist_ok=True)
-        elements = _cytoscape_elements(nodes, edges)
-        section_names = []
-        for node in nodes:
-            section = str(node.get("section") or "").strip() or "未分组"
-            if section not in section_names:
-                section_names.append(section)
-        section_colors = {
-            section: _SECTION_COLORS[index % len(_SECTION_COLORS)][1]
-            for index, section in enumerate(section_names)
-        }
-        html = f"""<!doctype html>
+) -> str:
+    """生成 Cytoscape.js 交互式知识图谱 HTML 文本（完整可点击页面）。"""
+    elements = _cytoscape_elements(nodes, edges)
+    section_names = []
+    for node in nodes:
+        section = str(node.get("section") or "").strip() or "未分组"
+        if section not in section_names:
+            section_names.append(section)
+    section_colors = {
+        section: _SECTION_COLORS[index % len(_SECTION_COLORS)][1]
+        for index, section in enumerate(section_names)
+    }
+    html = f"""<!doctype html>
 <html lang="zh-CN">
 <head>
   <meta charset="utf-8">
@@ -934,6 +931,24 @@ def render_knowledge_graph_html(
 </body>
 </html>
 """
+    return html
+
+
+def render_knowledge_graph_html(
+    nodes: list[dict],
+    edges: list[dict],
+    out_dir: Path | str,
+    filename: str = "knowledge_graph.html",
+    title: str = "",
+) -> Path | None:
+    """生成 Cytoscape.js 交互式知识图谱 HTML。"""
+    if not nodes:
+        logger.warning("知识图谱无节点，跳过 HTML 生成")
+        return None
+    out_dir = Path(out_dir)
+    try:
+        out_dir.mkdir(parents=True, exist_ok=True)
+        html = build_knowledge_graph_html(nodes, edges, title=title)
         out_path = out_dir / filename
         out_path.write_text(html, encoding="utf-8")
         return out_path
@@ -969,7 +984,163 @@ def render_knowledge_graph_bundle(
     return paths
 
 
+def build_knowledge_graph_embed(
+    nodes: list[dict],
+    edges: list[dict],
+    title: str = "",
+) -> str:
+    """知识图谱可点击组件（嵌进其它 HTML，不单独成页）。"""
+    elements = _cytoscape_elements(nodes, edges)
+    section_names: list[str] = []
+    for node in nodes:
+        section = str(node.get("section") or "").strip() or "未分组"
+        if section not in section_names:
+            section_names.append(section)
+    section_colors = {
+        section: _SECTION_COLORS[index % len(_SECTION_COLORS)][1]
+        for index, section in enumerate(section_names)
+    }
+    heading = (title or "").strip() or "知识图谱"
+    return f"""<div class="lc-kg">
+  <div class="lc-kg-shell">
+    <div id="lc-cy"></div>
+    <aside class="lc-kg-aside">
+      <h3>{escape(heading)}</h3>
+      <p class="lc-kg-meta">滚轮缩放，拖动画布或节点。点击节点查看定义、程度和关系。</p>
+      <div class="lc-kg-label">当前选中</div>
+      <div id="lc-kg-detail" class="lc-kg-detail">点击一个节点查看定义、程度、出入边和相关概念。</div>
+      <div class="lc-kg-label">分组</div>
+      <div id="lc-kg-legend" class="lc-kg-legend"></div>
+    </aside>
+  </div>
+</div>
+<script>
+(function () {{
+  const elements = {dumps(elements, ensure_ascii=False)};
+  const sectionColors = {dumps(section_colors, ensure_ascii=False)};
+  const relationColors = {dumps(_RELATION_COLORS, ensure_ascii=False)};
+  const detail = document.getElementById('lc-kg-detail');
+  const legend = document.getElementById('lc-kg-legend');
+  if (!detail || !legend) return;
+  Object.entries(sectionColors).forEach(([name, color]) => {{
+    const item = document.createElement('div');
+    item.className = 'lc-kg-legend-item';
+    item.innerHTML = '<span class="lc-kg-swatch" style="background:' + color + '"></span><span>' + name + '</span>';
+    legend.appendChild(item);
+  }});
+  if (!window.cytoscape) {{
+    detail.textContent = '知识图谱脚本未加载。请联网后打开本 HTML。';
+    return;
+  }}
+  const cy = cytoscape({{
+    container: document.getElementById('lc-cy'),
+    elements,
+    wheelSensitivity: 0.18,
+    minZoom: 0.18,
+    maxZoom: 2.6,
+    style: [
+      {{
+        selector: 'node',
+        style: {{
+          'label': 'data(label)',
+          'text-wrap': 'wrap',
+          'text-max-width': 96,
+          'font-family': 'Microsoft YaHei, PingFang SC, Noto Sans CJK SC, Arial, sans-serif',
+          'font-size': ele => ele.data('anchor') ? 17 : 13,
+          'font-weight': 600,
+          'color': ele => ele.data('anchor') ? '#ffffff' : '#0f172a',
+          'text-valign': 'center',
+          'text-halign': 'center',
+          'shape': 'ellipse',
+          'width': 'data(size)',
+          'height': 'data(size)',
+          'background-color': ele => sectionColors[ele.data('section')] || '#94a3b8',
+          'background-opacity': ele => ele.data('anchor') ? 0.9 : 0.28,
+          'border-color': '#ffffff',
+          'border-width': 2.4
+        }}
+      }},
+      {{
+        selector: 'edge',
+        style: {{
+          'curve-style': 'bezier',
+          'target-arrow-shape': 'triangle',
+          'target-arrow-color': ele => relationColors[ele.data('relation')] || '#94a3b8',
+          'line-color': ele => relationColors[ele.data('relation')] || '#94a3b8',
+          'line-opacity': 0.5,
+          'width': 1.4,
+          'label': 'data(label)',
+          'font-size': 9,
+          'color': '#475569',
+          'text-background-color': '#ffffff',
+          'text-background-opacity': 0.72,
+          'text-rotation': 'autorotate'
+        }}
+      }},
+      {{ selector: '.faded', style: {{ 'opacity': 0.16, 'text-opacity': 0.16 }} }},
+      {{ selector: '.selected', style: {{ 'border-width': 4, 'z-index': 10 }} }}
+    ],
+    layout: {{
+      name: 'cose',
+      animate: false,
+      randomize: true,
+      componentSpacing: 100,
+      nodeRepulsion: 7600,
+      idealEdgeLength: 96,
+      edgeElasticity: 72,
+      gravity: 0.52,
+      numIter: 2400
+    }}
+  }});
+  const esc = (value) => String(value || '').replace(/[&<>"']/g, (ch) => ({{
+    '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+  }})[ch]);
+  const relBlock = (edge) => '<div class="lc-kg-rel"><div class="lc-kg-rel-line">' +
+    esc(edge.source().data('label')) + ' → ' + esc(edge.data('label') || '相关') +
+    ' → ' + esc(edge.target().data('label')) + '</div></div>';
+  cy.ready(() => cy.fit(undefined, 36));
+  cy.on('tap', 'node', event => {{
+    const node = event.target;
+    cy.elements().addClass('faded');
+    node.removeClass('faded').addClass('selected');
+    node.neighborhood().removeClass('faded');
+    const outgoing = node.outgoers('edge');
+    const incoming = node.incomers('edge');
+    const related = [];
+    node.neighborhood('node').forEach((nb) => related.push(nb.data('label')));
+    const relHtml = related.slice(0, 3).map((name) => '<span class="lc-kg-chip">' + esc(name) + '</span>').join('')
+      || '<span class="lc-kg-ev">暂无一跳邻居</span>';
+    detail.innerHTML =
+      '<div class="lc-kg-name">' + esc(node.data('label')) + '</div>' +
+      '<div class="lc-kg-block"><div class="lc-kg-k">程度 / 分组</div>' + esc(node.data('section') || '未分组') + '</div>' +
+      '<div class="lc-kg-block"><div class="lc-kg-k">定义</div>' + esc(node.data('definition') || '暂无独立定义') + '</div>' +
+      '<div class="lc-kg-block"><div class="lc-kg-k">出边</div>' + (outgoing.length ? outgoing.map(relBlock).join('') : '<div class="lc-kg-ev">暂无出边</div>') + '</div>' +
+      '<div class="lc-kg-block"><div class="lc-kg-k">入边</div>' + (incoming.length ? incoming.map(relBlock).join('') : '<div class="lc-kg-ev">暂无入边</div>') + '</div>' +
+      '<div class="lc-kg-block"><div class="lc-kg-k">相关概念</div><div class="lc-kg-chips">' + relHtml + '</div></div>';
+  }});
+  cy.on('tap', 'edge', event => {{
+    const edge = event.target;
+    cy.elements().addClass('faded');
+    edge.removeClass('faded');
+    edge.connectedNodes().removeClass('faded').addClass('selected');
+    detail.innerHTML =
+      '<div class="lc-kg-name">' + esc(edge.source().data('label')) + ' → ' +
+      esc(edge.data('label') || '相关') + ' → ' + esc(edge.target().data('label')) + '</div>' +
+      '<div class="lc-kg-block"><div class="lc-kg-k">说明</div>' + esc(edge.data('evidence') || '点击两端节点查看定义') + '</div>';
+  }});
+  cy.on('tap', event => {{
+    if (event.target === cy) {{
+      cy.elements().removeClass('faded selected');
+      detail.textContent = '点击一个节点查看定义、程度、出入边和相关概念。';
+    }}
+  }});
+}})();
+</script>"""
+
+
 __all__ = [
+    "build_knowledge_graph_embed",
+    "build_knowledge_graph_html",
     "build_learning_map",
     "graphviz_available",
     "nodes_edges_to_dot",

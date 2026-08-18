@@ -23,6 +23,8 @@ from typing import Any
 
 from .models import (
     ModelMixin,
+    CatalogReportValidation,
+    ChecklistReportValidation,
     KnowledgeGraphReportValidation,
     LastClassReportValidation,
     LibraryReportValidation,
@@ -31,6 +33,87 @@ from .models import (
 )
 
 # ── Report 基类 import 生成区结束 ──
+
+@dataclass
+class CatalogReport(ModelMixin, CatalogReportValidation):
+    """知识目录：四层树 + HTML。"""
+
+    course: str = field(default="", metadata={"source": "draft.course"})
+    version: str = field(default="1", metadata={"source": "draft.version"})
+    mode: str = field(default="build", metadata={"source": "draft.mode"})
+    chapters: list[dict[str, Any]] = field(
+        default_factory=list,
+        metadata={"source": "structure"},
+    )
+    unmatched_content: list[str] = field(
+        default_factory=list,
+        metadata={"source": "draft.unmatched_content"},
+    )
+    uncertain_nodes: list[str] = field(
+        default_factory=list,
+        metadata={"source": "draft.uncertain_nodes"},
+    )
+    added_chapters: list[str] = field(
+        default_factory=list,
+        metadata={"source": "draft.added_chapters"},
+    )
+    added_topics: list[str] = field(
+        default_factory=list,
+        metadata={"source": "draft.added_topics"},
+    )
+    added_knowledge_points: list[str] = field(
+        default_factory=list,
+        metadata={"source": "draft.added_knowledge_points"},
+    )
+    updated_knowledge_points: list[str] = field(
+        default_factory=list,
+        metadata={"source": "draft.updated_knowledge_points"},
+    )
+    merged_nodes: list[str] = field(
+        default_factory=list,
+        metadata={"source": "draft.merged_nodes"},
+    )
+    catalog_html: str = field(
+        default="",
+        metadata={"source": "draft.catalog_html"},
+    )
+    quality_warning: str | None = None
+    personalized_text: str | None = field(
+        default=None,
+        metadata={"source": "rendered"},
+    )
+
+@dataclass
+class ChecklistReport(ModelMixin, ChecklistReportValidation):
+    """复习清单：Catalog 激活 KP + 卡片 + HTML。不回写长期目录。"""
+
+    course: str = field(default="", metadata={"source": "draft.course"})
+    catalog_version: str = field(default="", metadata={"source": "draft.catalog_version"})
+    cards: list[dict[str, Any]] = field(
+        default_factory=list,
+        metadata={"source": "structure"},
+    )
+    phases: list[dict[str, Any]] = field(
+        default_factory=list,
+        metadata={"source": "draft.phases"},
+    )
+    strategy: list[str] = field(
+        default_factory=list,
+        metadata={"source": "draft.strategy"},
+    )
+    uncertain_quotes: list[str] = field(
+        default_factory=list,
+        metadata={"source": "draft.uncertain_quotes"},
+    )
+    checklist_html: str = field(
+        default="",
+        metadata={"source": "draft.checklist_html"},
+    )
+    quality_warning: str | None = None
+    personalized_text: str | None = field(
+        default=None,
+        metadata={"source": "rendered"},
+    )
 
 @dataclass
 class LastClassReport(ModelMixin, LastClassReportValidation):
@@ -44,6 +127,10 @@ class LastClassReport(ModelMixin, LastClassReportValidation):
     review_html: str = field(
         default="",
         metadata={"source": "draft.review_html"},
+    )
+    mindmap_outline: str = field(
+        default="",
+        metadata={"source": "draft.mindmap_outline"},
     )
     quality_warning: str | None = None
     personalized_text: str | None = field(

@@ -13,6 +13,8 @@ LINE_CN_NAMES: dict[str, str] = {
     "review": "笔记审查",
     "quiz": "自测题",
     "library": "资料入库",
+    "catalog": "知识目录",
+    "checklist": "复习清单",
     "last_class": "last_class",
 }
 
@@ -37,6 +39,16 @@ LINE_KINDS: dict[str, object] = {
         "kind": DETERMINISTIC_PIPELINE,
         "cli_template": False,
         "llm_render": "never",
+    },
+    "catalog": {
+        "kind": LLM_EXTRACT,
+        "cli_template": False,
+        "llm_render": "if_template",
+    },
+    "checklist": {
+        "kind": LLM_EXTRACT,
+        "cli_template": False,
+        "llm_render": "if_template",
     },
     "last_class": {
         "kind": LLM_EXTRACT,

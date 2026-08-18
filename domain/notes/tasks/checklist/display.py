@@ -1,0 +1,542 @@
+"""checklist 展示：复习重点分布、导图、关系图、卡片、行动清单。"""
+from __future__ import annotations
+
+import json
+from html import escape
+from typing import Any
+
+from .assemble import distribution
+from .mindmap import build_checklist_mindmap_outline
+from .select import _as_list, _clean
+
+_GRADE = {"S": "核心", "A": "重点", "B": "简要", "C": "结构"}
+_STAR = {"S": 5, "A": 4, "B": 3, "C": 2}
+_REL = {
+    "alternative": "替代",
+    "used_with": "配合",
+    "easily_confused": "易混",
+    "derived_from": "推导",
+    "prerequisite": "前置",
+}
+
+
+def draft_from_context(approved_context: str) -> dict[str, Any]:
+    blob = approved_context or ""
+    for marker in ("已批准复习清单草稿：", "已批准checklist草稿："):
+        if marker in blob:
+            blob = blob.split(marker, 1)[1]
+            break
+    start = blob.find("{")
+    if start < 0:
+        return {}
+    try:
+        data, _ = json.JSONDecoder().raw_decode(blob[start:])
+    except json.JSONDecodeError:
+        return {}
+    return data if isinstance(data, dict) else {}
+
+
+def importance_stars(card: dict[str, Any]) -> str:
+    grade = str(card.get("session_priority") or "C")
+    filled = _STAR.get(grade, 2)
+    try:
+        catalog = int(str(card.get("importance") or 0) or 0)
+    except (TypeError, ValueError):
+        catalog = 0
+    if catalog >= filled:
+        filled = min(5, catalog)
+    filled = max(1, min(5, filled))
+    return "★" * filled + "☆" * (5 - filled)
+
+
+def _grade_label(card: dict[str, Any]) -> str:
+    return _GRADE.get(str(card.get("session_priority") or ""), "简要")
+
+
+def build_checklist_markdown(draft: dict[str, Any]) -> str:
+    course = _clean(draft.get("course")) or "复习清单"
+    cards = [c for c in (draft.get("cards") or []) if isinstance(c, dict)]
+    lines = [f"# {course} · 复习清单", ""]
+    if draft.get("catalog_version"):
+        lines.append(f"基于 Knowledge Catalog v{draft.get('catalog_version')}，不改长期目录。")
+        lines.append("")
+    if not cards:
+        lines.append("没有从老师文本匹配到目录中的知识点。请先确认已运行 catalog，且老师文本能对上目录名称。")
+        return "\n".join(lines)
+
+    lines.extend(["## 一、全局导航", "", "### 1. 复习重点分布", ""])
+    dist = distribution(cards)
+    for row in dist:
+        lines.append(f"- {row['label']}：{row['value']}%")
+    lines.extend(["", "| 优先级 | 知识点 | 重要程度 |", "| --- | --- | --- |"])
+    for card in cards:
+        if card.get("session_priority") not in {"S", "A", "B"}:
+            continue
+        lines.append(
+            f"| {_grade_label(card)} | {_clean(card.get('name'))} | {importance_stars(card)} |"
+        )
+    outline = draft.get("mindmap_outline") or build_checklist_mindmap_outline(draft, cards)
+    lines.extend(["", "### 2. 思维导图", "", outline, "", "### 3. 考点知识图谱", ""])
+    for src, rel, dst in _edges(cards):
+        lines.append(f"- {src} —{rel}→ {dst}")
+
+    lines.extend(["", "## 二、知识点", ""])
+    for card in cards:
+        if card.get("session_priority") == "C":
+            continue
+        brief = card.get("session_priority") not in {"S", "A"}
+        facts = _as_list(card.get("key_facts"))[: 3 if brief else 6]
+        steps = _as_list(card.get("method_steps"))[: 3 if brief else 6]
+        pits = _as_list(card.get("pitfalls"))[: 2 if brief else 4]
+        lines.append(f"### {_clean(card.get('name'))}  （{_grade_label(card)} · {importance_stars(card)}）")
+        lines.append(f"- 考法预判：{_clean(card.get('exam_preview'))}")
+        if facts:
+            lines.append("- 必须先会：")
+            lines.extend(f"  - {item}" for item in facts)
+        lines.append(f"- 知识点讲解：{_clean(card.get('explain'))}")
+        if steps:
+            lines.append("- 方法步骤：")
+            lines.extend(f"  {i}. {step}" for i, step in enumerate(steps, start=1))
+        if pits:
+            lines.append("- 易错提醒：")
+            lines.extend(f"  - {p}" for p in pits)
+        lines.append("")
+
+    lines.extend(_action_markdown(draft))
+    return "\n".join(lines).strip() + "\n"
+
+
+def _action_cards(draft: dict[str, Any]) -> list[dict[str, Any]]:
+    return [p for p in (draft.get("phases") or []) if isinstance(p, dict) and p.get("id")]
+
+
+def _action_markdown(draft: dict[str, Any]) -> list[str]:
+    cards = _action_cards(draft)
+    lines = ["## 三、行动清单", ""]
+    if cards:
+        lines.append(" → ".join(f"{c.get('order')} {c.get('title')}" for c in cards))
+        lines.append("")
+        for card in cards:
+            lines.append(f"### {card.get('order')}. {card.get('title')}")
+            if card.get("subtitle"):
+                lines.append(card.get("subtitle"))
+            if card.get("summary"):
+                lines.append(f"摘要：{card.get('summary')}")
+            if card.get("count_label"):
+                lines.append(f"（{card.get('count_label')}）")
+            lines.append("")
+        lines.append("---")
+        lines.append("")
+    for card in cards:
+        detail = card.get("detail") if isinstance(card.get("detail"), dict) else {}
+        lines.append(f"### 展开 · {card.get('title')}")
+        lines.append("")
+        if detail.get("goal"):
+            lines.append(f"目标：{detail.get('goal')}")
+            lines.append("")
+        for section in detail.get("sections") or []:
+            if not isinstance(section, dict):
+                continue
+            stype = str(section.get("type") or "")
+            title = section.get("title") or ""
+            if stype in {"quick_check", "pass_criteria", "risk_group"}:
+                if title:
+                    lines.append(f"#### {title}")
+                lines.extend(f"- {item}" for item in section.get("items") or [])
+                lines.append("")
+                continue
+            if title:
+                lines.append(f"#### {title}")
+            if section.get("focus"):
+                lines.append(f"本轮重点：{section.get('focus')}")
+            if section.get("tasks"):
+                lines.append("本次任务：" if stype == "task_group" else "重点训练：")
+                lines.extend(f"- {item}" for item in section.get("tasks") or [])
+            if section.get("pass_criteria"):
+                lines.append("过关线：")
+                lines.extend(f"- {item}" for item in section.get("pass_criteria") or [])
+            if section.get("reminder"):
+                lines.append(f"必要提醒：{section.get('reminder')}")
+            lines.append("")
+    return lines
+
+
+def _edges(cards: list[dict[str, Any]]) -> list[tuple[str, str, str]]:
+    names = {_clean(c.get("name")) for c in cards}
+    edges: list[tuple[str, str, str]] = []
+    seen: set[tuple[str, str, str]] = set()
+    for card in cards:
+        src = _clean(card.get("name"))
+        for pre in _as_list(card.get("prerequisites")):
+            if pre in names:
+                key = (pre, "前置", src)
+                if key not in seen:
+                    seen.add(key)
+                    edges.append(key)
+        for rel in card.get("related_points") or []:
+            if not isinstance(rel, dict):
+                continue
+            dst = _clean(rel.get("name"))
+            if dst in names:
+                label = _REL.get(str(rel.get("relation") or ""), "关联")
+                key = (src, label, dst)
+                if key not in seen:
+                    seen.add(key)
+                    edges.append(key)
+        for dst in _as_list(card.get("session_related_points")):
+            if dst in names and dst != src:
+                key = (src, "组合", dst)
+                reverse = (dst, "组合", src)
+                if key not in seen and reverse not in seen:
+                    seen.add(key)
+                    edges.append(key)
+    return edges
+
+
+def _graph_payload(cards: list[dict[str, Any]]) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+    nodes: list[dict[str, Any]] = []
+    for card in cards:
+        name = _clean(card.get("name"))
+        if not name:
+            continue
+        facts = _as_list(card.get("key_facts")) or _as_list(card.get("knowledge_items"))
+        definition = _clean(card.get("explain")) or "；".join(facts[:4])
+        nodes.append(
+            {
+                "name": name,
+                "section": _clean(card.get("topic")) or _grade_label(card),
+                "definition": definition[:280],
+            }
+        )
+    edges = [
+        {"source": src, "target": dst, "relation": rel}
+        for src, rel, dst in _edges(cards)
+    ]
+    return nodes, edges
+
+
+def _pie_html(rows: list[dict[str, float]]) -> str:
+    if len(rows) < 2:
+        return ""
+    colors = ["#b3402e", "#c98a2d", "#497a78", "#6f5f90", "#395f8a", "#7a867c"]
+    total = sum(float(r.get("value") or 0) for r in rows) or 1.0
+    cursor = 0.0
+    segs, legend = [], []
+    for i, row in enumerate(rows):
+        start = cursor
+        cursor += float(row["value"]) / total * 100
+        color = colors[i % len(colors)]
+        segs.append(f"{color} {start:.2f}% {cursor:.2f}%")
+        legend.append(
+            f'<div class="ck-legend-item"><span class="ck-dot" style="background:{color}"></span>'
+            f'<span>{escape(str(row["label"]), quote=False)}</span>'
+            f'<strong>{row["value"]:g}%</strong></div>'
+        )
+    return (
+        '<div class="ck-pie-card">'
+        f'<div class="ck-pie" style="background:conic-gradient({", ".join(segs)});"></div>'
+        f'<div class="ck-legend">{"".join(legend)}</div></div>'
+    )
+
+
+def _checks(items: list[str]) -> str:
+    return "<ul class=\"ck-check\">" + "".join(
+        f"<li>□ {escape(item, quote=False)}</li>" for item in items
+    ) + "</ul>"
+
+
+def _section_html(section: dict[str, Any]) -> str:
+    stype = str(section.get("type") or "")
+    title = escape(str(section.get("title") or ""), quote=False)
+    if stype in {"quick_check", "pass_criteria", "risk_group"}:
+        items = [str(x) for x in (section.get("items") or []) if str(x).strip()]
+        if not items:
+            return ""
+        head = f"<h4>{title}</h4>" if title else ""
+        return head + _checks(items)
+    body = ['<div class="ck-task">']
+    if title:
+        body.append(f"<strong>{title}</strong>")
+    if section.get("focus"):
+        body.append(f'<p><b>本轮重点</b> {escape(str(section.get("focus")), quote=False)}</p>')
+    tasks = [str(x) for x in (section.get("tasks") or []) if str(x).strip()]
+    if tasks:
+        label = "本次任务" if stype == "task_group" else "重点训练"
+        body.append(f"<p><b>{label}</b></p>" + _checks(tasks))
+    criteria = [str(x) for x in (section.get("pass_criteria") or []) if str(x).strip()]
+    if criteria:
+        body.append("<p><b>过关线</b></p>" + _checks(criteria))
+    if section.get("reminder"):
+        body.append(f'<p><b>必要提醒</b> {escape(str(section.get("reminder")), quote=False)}</p>')
+    body.append("</div>")
+    return "".join(body)
+
+
+def _action_html(draft: dict[str, Any]) -> list[str]:
+    cards = _action_cards(draft)
+    if not cards:
+        return []
+    rows = [
+        "<h2>三、行动清单</h2>",
+        '<p class="ck-note" style="margin-bottom:10px">按路线点开卡片看这一阶段要做什么。</p>',
+        '<div class="ck-action">',
+        '<div class="ck-action-grid">',
+    ]
+    for card in cards:
+        cid = escape(str(card.get("id") or ""), quote=True)
+        rows.append(
+            f'<button type="button" class="ck-stage{" is-on" if card.get("order") == 1 else ""}" data-ck-card="{cid}">'
+            f'<span class="ck-stage-no">{escape(str(card.get("order") or ""), quote=False)}</span>'
+            f'<span class="ck-stage-title">{escape(str(card.get("title") or ""), quote=False)}</span>'
+            f'<span class="ck-stage-sub">{escape(str(card.get("subtitle") or ""), quote=False)}</span>'
+            f'<span class="ck-stage-sum">{escape(str(card.get("summary") or ""), quote=False)}</span>'
+            f'<span class="ck-stage-count">{escape(str(card.get("count_label") or ""), quote=False)}</span>'
+            "</button>"
+        )
+    rows.append("</div>")
+    for card in cards:
+        cid = escape(str(card.get("id") or ""), quote=True)
+        hidden = "" if card.get("order") == 1 else " hidden"
+        detail = card.get("detail") if isinstance(card.get("detail"), dict) else {}
+        rows.append(f'<div class="ck-action-detail" data-ck-detail="{cid}"{hidden}>')
+        rows.append(f"<h3>{escape(str(card.get('title') or ''), quote=False)}</h3>")
+        if detail.get("goal"):
+            rows.append(f'<p><b>目标</b> {escape(str(detail.get("goal")), quote=False)}</p>')
+        for section in detail.get("sections") or []:
+            if isinstance(section, dict):
+                html = _section_html(section)
+                if html:
+                    rows.append(html)
+        if not (detail.get("sections") or []):
+            rows.append('<p class="ck-note">这一阶段暂无必须单独展开的任务，进入下一张卡片即可。</p>')
+        rows.append("</div>")
+    rows.append("</div>")
+    rows.append(
+        """<script>
+(function () {
+  const root = document.currentScript && document.currentScript.previousElementSibling;
+  const box = root && root.classList && root.classList.contains('ck-action')
+    ? root
+    : document.querySelector('.ck-action');
+  if (!box) return;
+  const buttons = Array.from(box.querySelectorAll('[data-ck-card]'));
+  const panels = Array.from(box.querySelectorAll('[data-ck-detail]'));
+  const show = (id) => {
+    buttons.forEach((btn) => btn.classList.toggle('is-on', btn.getAttribute('data-ck-card') === id));
+    panels.forEach((panel) => {
+      const on = panel.getAttribute('data-ck-detail') === id;
+      if (on) panel.removeAttribute('hidden');
+      else panel.setAttribute('hidden', '');
+    });
+  };
+  buttons.forEach((btn) => {
+    btn.addEventListener('click', () => show(btn.getAttribute('data-ck-card')));
+  });
+})();
+</script>"""
+    )
+    return rows
+
+
+def _widget_css() -> str:
+    return """
+.ck-stars{color:#c98a2d;letter-spacing:1px;font-size:.95rem;}
+.ck-card p{margin:8px 0;}
+.ck-card ol,.ck-card ul{margin:6px 0 10px;padding-left:1.3em;}
+.ck-card li{margin:4px 0;line-height:1.7;}
+.ck-quote{margin:8px 0 12px;padding:8px 10px;background:#f7f5f0;border-left:3px solid #c8c4b8;border-radius:4px;color:#4a4842;font-size:.88rem;}
+.lc-kg{margin:8px 0;border:1px solid #ebe8e1;border-radius:12px;overflow:hidden;background:#fff;}
+.lc-kg-shell{display:grid;grid-template-columns:minmax(0,1fr) minmax(240px,32%);min-height:560px;}
+#lc-cy{width:100%;height:560px;background:linear-gradient(135deg,#ffffff 0%,#f5fbff 48%,#eef7ff 100%);}
+.lc-kg-aside{border-left:1px solid #e2e8f0;background:#faf9f6;padding:14px 12px;overflow:auto;}
+.lc-kg-aside h3{margin:0 0 8px;font-size:1rem;}
+.lc-kg-meta,.lc-kg-ev{color:#64748b;font-size:.78rem;line-height:1.6;}
+.lc-kg-label{font-size:.76rem;color:#475569;margin:14px 0 6px;}
+.lc-kg-detail{border:1px solid #e2e8f0;border-radius:8px;padding:10px;background:#fff;font-size:.86rem;line-height:1.6;}
+.lc-kg-name{font-weight:700;margin-bottom:8px;}
+.lc-kg-block{margin-top:8px;}
+.lc-kg-k{color:#64748b;font-size:.72rem;margin-bottom:3px;}
+.lc-kg-rel{margin-top:6px;padding:6px 8px;border:1px solid #e2e8f0;border-radius:6px;background:#fff;}
+.lc-kg-chips{display:flex;flex-wrap:wrap;gap:6px;}
+.lc-kg-chip{display:inline-block;padding:1px 8px;border-radius:999px;background:#e2e8f0;font-size:.74rem;}
+.lc-kg-legend{display:grid;gap:6px;}
+.lc-kg-legend-item{display:flex;align-items:center;gap:8px;font-size:.8rem;}
+.lc-kg-swatch{width:10px;height:10px;border-radius:50%;}
+.lc-mm{position:relative;margin:8px 0;border:1px solid #ebe8e1;border-radius:12px;overflow:hidden;background:#fff;}
+.lc-mm-bar{display:flex;align-items:center;gap:8px;padding:8px 12px;border-bottom:1px solid #e2e8f0;background:#f8fafc;flex-wrap:wrap;}
+.lc-mm-hint{color:#64748b;font-size:.76rem;flex:1 1 180px;}
+.lc-mm-bar button{border:1px solid #cbd5e1;background:#fff;border-radius:6px;padding:4px 10px;font-size:.8rem;cursor:pointer;}
+.lc-mm-bar button.lc-mm-save{background:#0f172a;color:#fff;border-color:#0f172a;}
+.lc-mm-body{display:grid;grid-template-columns:1fr;height:560px;min-height:560px;}
+.lc-mm-body.editing{grid-template-columns:minmax(200px,34%) 1fr;}
+#lc-mm-editor{display:none;width:100%;height:100%;border:0;border-right:1px solid #e2e8f0;padding:10px;resize:none;font:13px/1.55 ui-monospace,Consolas,monospace;}
+.lc-mm-body.editing #lc-mm-editor{display:block;}
+.lc-mm-canvas{position:relative;min-height:560px;height:100%;background:#fff;}
+#lc-mindmap{position:absolute;inset:0;width:100%;height:100%;display:block;}
+.lc-mm-fallback{padding:12px 20px 16px;overflow:auto;height:100%;}
+.lc-mm-tree{margin:0;padding-left:1.2em;line-height:1.7;}
+.lc-mm-tree ul{margin:.2em 0;padding-left:1.1em;}
+@media(max-width:860px){.lc-kg-shell{grid-template-columns:1fr}.lc-mm-body.editing{grid-template-columns:1fr}#lc-cy{height:420px}.lc-mm-body,.lc-mm-canvas{height:420px;min-height:420px}}
+"""
+
+
+def build_checklist_html(draft: dict[str, Any]) -> str:
+    from tools.knowledge_graph import _CYTOSCAPE_CDN, build_knowledge_graph_embed
+    from tools.mindmap import _D3_CDN, _MARKMAP_VIEW_CDN, build_editable_mindmap_embed
+
+    course = _clean(draft.get("course")) or "复习清单"
+    cards = [c for c in (draft.get("cards") or []) if isinstance(c, dict)]
+    outline = draft.get("mindmap_outline") or build_checklist_mindmap_outline(draft, cards)
+    nodes, edges = _graph_payload(cards)
+    body: list[str] = [
+        '<div class="ck-doc">',
+        f"<h1>{escape(course, quote=False)} · 复习清单</h1>",
+    ]
+    if draft.get("catalog_version"):
+        body.append(
+            f'<p class="ck-note">基于 Knowledge Catalog v{escape(str(draft.get("catalog_version")), quote=False)}，本次不改长期目录。</p>'
+        )
+    if not cards:
+        body.append("<p>没有从老师文本匹配到目录中的知识点。</p></div>")
+    else:
+        body.append("<h2>一、全局导航</h2><h3>1. 复习重点分布</h3>")
+        body.append(_pie_html(distribution(cards)))
+        body.append(
+            '<table class="ck-table"><thead><tr><th>优先级</th><th>知识点</th><th>重要程度</th></tr></thead><tbody>'
+        )
+        for card in cards:
+            if card.get("session_priority") not in {"S", "A", "B"}:
+                continue
+            body.append(
+                "<tr>"
+                f"<td>{escape(_grade_label(card), quote=False)}</td>"
+                f"<td>{escape(_clean(card.get('name')), quote=False)}</td>"
+                f'<td><span class="ck-stars">{importance_stars(card)}</span></td>'
+                "</tr>"
+            )
+        body.append("</tbody></table>")
+        body.append("<h3>2. 思维导图</h3>")
+        body.append(build_editable_mindmap_embed(outline, title=f"{course} · 复习思维导图"))
+        body.append("<h3>3. 考点知识图谱</h3>")
+        if nodes:
+            body.append(build_knowledge_graph_embed(nodes, edges, title="考点知识图谱"))
+        else:
+            body.append("<p>本次激活点之间没有可画的关系图。</p>")
+        body.append("<h2>二、知识点</h2>")
+        for card in cards:
+            grade = str(card.get("session_priority") or "")
+            if grade == "C":
+                continue
+            brief = grade not in {"S", "A"}
+            badge = "ck-s" if grade == "S" else "ck-a" if grade == "A" else "ck-b"
+            facts = _as_list(card.get("key_facts"))[: 3 if brief else 6]
+            steps = _as_list(card.get("method_steps"))[: 3 if brief else 6]
+            pits = _as_list(card.get("pitfalls"))[: 2 if brief else 4]
+            quotes = [] if brief else _as_list(card.get("session_quotes"))
+            body.append('<div class="ck-card">')
+            body.append(
+                f'<span class="ck-badge {badge}">{escape(_grade_label(card), quote=False)}</span>'
+                f'<span class="ck-stars">{importance_stars(card)}</span> '
+                f"<strong>{escape(_clean(card.get('name')), quote=False)}</strong>"
+            )
+            body.append(f"<p><b>考法预判</b> {escape(_clean(card.get('exam_preview')), quote=False)}</p>")
+            if facts:
+                body.append(
+                    "<p><b>必须先会</b></p><ul>"
+                    + "".join(f"<li>{escape(item, quote=False)}</li>" for item in facts)
+                    + "</ul>"
+                )
+            if quotes:
+                body.append(
+                    f'<div class="ck-quote">{escape(quotes[0], quote=False)}</div>'
+                )
+            body.append(f"<p><b>知识点讲解</b> {escape(_clean(card.get('explain')), quote=False)}</p>")
+            if steps:
+                body.append(
+                    "<p><b>方法步骤</b></p><ol>"
+                    + "".join(f"<li>{escape(step, quote=False)}</li>" for step in steps)
+                    + "</ol>"
+                )
+            if pits:
+                body.append(
+                    "<p><b>易错提醒</b></p><ul>"
+                    + "".join(f"<li>{escape(item, quote=False)}</li>" for item in pits)
+                    + "</ul>"
+                )
+            body.append("</div>")
+        body.extend(_action_html(draft))
+        body.append("</div>")
+
+    title = escape(f"{course} · 复习清单")
+    return f"""<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{title}</title>
+  <style>
+    body {{ margin: 0; padding: 24px; background: #f0eee9; color: #1c1b19; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Microsoft YaHei", sans-serif; }}
+    .page {{ max-width: 1100px; margin: 0 auto; }}
+    .ck-doc{{background:#fff;border:1px solid #d4d0c6;border-radius:10px;padding:22px 28px;line-height:1.7;}}
+    .ck-doc h1{{margin:0 0 8px;font-size:1.7rem;}}
+    .ck-doc h2{{margin:22px 0 10px;font-size:1.2rem;}}
+    .ck-doc h3{{margin:16px 0 8px;font-size:1.05rem;}}
+    .ck-note{{color:#6b6860;font-size:.86rem;}}
+    .ck-pie-card{{display:grid;grid-template-columns:140px 1fr;gap:16px;align-items:center;padding:12px;border:1px solid #ebe8e1;border-radius:8px;background:#fbfaf7;}}
+    .ck-pie{{width:120px;aspect-ratio:1;border-radius:50%;box-shadow:inset 0 0 0 16px rgba(255,255,255,.6);}}
+    .ck-legend{{display:grid;gap:6px;}}
+    .ck-legend-item{{display:grid;grid-template-columns:12px 1fr auto;gap:8px;align-items:center;font-size:.88rem;}}
+    .ck-dot{{width:10px;height:10px;border-radius:50%;}}
+    .ck-table{{width:100%;border-collapse:collapse;font-size:.86rem;margin:10px 0;}}
+    .ck-table th,.ck-table td{{border:1px solid #d4d0c6;padding:5px 8px;text-align:left;}}
+    .ck-table th{{background:#f7f5f0;}}
+    .ck-card{{margin:10px 0 14px;padding:12px 14px;border:1px solid #ebe8e1;border-radius:8px;background:#fbfaf7;}}
+    .ck-badge{{display:inline-block;margin-right:6px;padding:1px 8px;border-radius:10px;font-size:.74rem;background:#efece4;border:1px solid #d4d0c6;}}
+    .ck-s{{background:#fff1ee;border-color:#e8b4ac;color:#b3402e;}}
+    .ck-a{{background:#fff6e8;border-color:#e8d0a4;}}
+    .ck-b{{background:#f3f6f6;border-color:#c5d0cf;color:#497a78;}}
+    .ck-action{{margin:8px 0 6px;}}
+    .ck-action-grid{{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin:0 0 14px;}}
+    .ck-stage{{display:grid;gap:6px;text-align:left;padding:12px 12px 14px;border:1px solid #d4d0c6;border-radius:12px;background:#fbfaf7;cursor:pointer;min-height:168px;}}
+    .ck-stage.is-on{{background:#fff;border-color:#b3402e;box-shadow:0 0 0 1px #b3402e33;}}
+    .ck-stage-no{{width:22px;height:22px;border-radius:50%;background:#efece4;display:inline-flex;align-items:center;justify-content:center;font-size:.78rem;font-weight:700;}}
+    .ck-stage.is-on .ck-stage-no{{background:#b3402e;color:#fff;}}
+    .ck-stage-title{{font-weight:700;font-size:.98rem;}}
+    .ck-stage-sub,.ck-stage-sum{{color:#6b6860;font-size:.78rem;line-height:1.45;}}
+    .ck-stage-count{{font-size:.76rem;color:#3a3832;font-weight:650;}}
+    .ck-action-detail{{border:1px solid #ebe8e1;border-radius:12px;padding:14px 16px;background:#fff;}}
+    .ck-action-detail[hidden]{{display:none;}}
+    .ck-phase{{margin:12px 0 18px;}}
+    .ck-phase h4{{margin:0 0 8px;}}
+    .ck-task{{margin:10px 0;padding:10px 12px;border:1px solid #ebe8e1;border-radius:8px;background:#fbfaf7;}}
+    .ck-meta,.ck-k{{font-size:.86rem;color:#6b6860;margin:8px 0 4px;}}
+    .ck-k{{font-weight:650;color:#3a3832;}}
+    .ck-check{{margin:0 0 8px;padding-left:1.2em;}}
+    .ck-check li{{margin:3px 0;}}
+    @media(max-width:860px){{.ck-action-grid{{grid-template-columns:1fr 1fr}}}}
+    {_widget_css()}
+  </style>
+  <script src="{_CYTOSCAPE_CDN}"></script>
+  <script src="{_D3_CDN}"></script>
+  <script src="{_MARKMAP_VIEW_CDN}"></script>
+</head>
+<body>
+  <main class="page">
+{"".join(body)}
+  </main>
+</body>
+</html>
+"""
+
+
+def attach_checklist_artifacts(state: dict[str, Any]) -> None:
+    from tools.domain_engine_text import line
+
+    sub = line(state, "checklist")
+    draft = dict(sub.get("draft") or {})
+    cards = [c for c in (draft.get("cards") or []) if isinstance(c, dict)]
+    draft["mindmap_outline"] = build_checklist_mindmap_outline(draft, cards)
+    draft["checklist_html"] = build_checklist_html(draft)
+    sub["rendered"] = build_checklist_markdown(draft)
+    sub["draft"] = draft
+    sub["structure"] = cards
