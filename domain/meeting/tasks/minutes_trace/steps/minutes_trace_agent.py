@@ -134,6 +134,7 @@ class MinutesTraceAgent:
             user,
             MinutesTrace,
             MINUTES_TRACE_GENERATION_OUTPUT_CONTRACT,
+            label="minutes_trace/agent",
         )
         data = _dump(raw)
         minutes_md = bulletize_minutes(
@@ -153,6 +154,7 @@ class MinutesTraceAgent:
                 reorg_user,
                 MinutesTrace,
                 MINUTES_TRACE_GENERATION_OUTPUT_CONTRACT,
+                label="minutes_trace/agent",
             )
             repaired_data = _dump(repaired)
             new_md = _normalize_markdown(str(repaired_data.get("minutes_md") or ""))

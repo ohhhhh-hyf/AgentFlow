@@ -23,4 +23,5 @@ class RiskSupervisor:
             context,
             RiskSupervisorReview,
             RISK_SUPERVISOR_OUTPUT_CONTRACT,
+            label="risk/supervisor",
         )

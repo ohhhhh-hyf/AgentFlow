@@ -19,4 +19,5 @@ class NotesUnderstandingAgent:
             f"笔记原文：\n{transcript}",
             NotesUnderstanding,
             NOTES_UNDERSTANDING_GENERATION_OUTPUT_CONTRACT,
+            label="core/notes_understanding",
         )

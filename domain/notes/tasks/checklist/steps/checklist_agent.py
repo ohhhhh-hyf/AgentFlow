@@ -32,7 +32,6 @@ class ChecklistAgent:
             CHECKLIST_GENERATION_SYSTEM_PROMPT,
             briefing,
             Checklist,
-            CHECKLIST_GENERATION_OUTPUT_CONTRACT,
-        )
+            CHECKLIST_GENERATION_OUTPUT_CONTRACT, label='checklist/agent')
         merged = assemble_checklist(catalog, activated, llm_draft.model_dump(), teacher)
         return Checklist.validate(merged)

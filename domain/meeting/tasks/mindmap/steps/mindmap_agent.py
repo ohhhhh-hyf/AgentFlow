@@ -19,4 +19,5 @@ class MindmapAgent:
             shared_context,
             Mindmap,
             MINDMAP_GENERATION_OUTPUT_CONTRACT,
+            label="mindmap/agent",
         )

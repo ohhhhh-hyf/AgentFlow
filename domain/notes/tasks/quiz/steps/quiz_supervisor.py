@@ -22,5 +22,4 @@ class QuizSupervisor:
             self._system_prompt,
             context,
             QuizSupervisorReview,
-            QUIZ_SUPERVISOR_OUTPUT_CONTRACT,
-        )
+            QUIZ_SUPERVISOR_OUTPUT_CONTRACT, label='quiz/supervisor')

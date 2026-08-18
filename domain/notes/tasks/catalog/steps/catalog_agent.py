@@ -22,8 +22,7 @@ class CatalogAgent:
             CATALOG_GENERATION_SYSTEM_PROMPT,
             briefing,
             Catalog,
-            CATALOG_GENERATION_OUTPUT_CONTRACT,
-        )
+            CATALOG_GENERATION_OUTPUT_CONTRACT, label='catalog/agent')
         collection = resolve_collection(
             user_id=user_id_from_context(shared_context),
             subject=subject_from_context(shared_context),

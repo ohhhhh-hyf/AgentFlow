@@ -20,5 +20,4 @@ class ChecklistSupervisor:
             self._system_prompt,
             context,
             ChecklistSupervisorReview,
-            CHECKLIST_SUPERVISOR_OUTPUT_CONTRACT,
-        )
+            CHECKLIST_SUPERVISOR_OUTPUT_CONTRACT, label='checklist/supervisor')

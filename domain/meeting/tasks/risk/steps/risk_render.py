@@ -27,13 +27,13 @@ class RiskRender:
         prompt, user = self._prompt_and_user(approved_context, template)
         temp = 0.0 if (template or "").strip() else None
         try:
-            return await self.client.text(prompt, user, temperature=temp)
+            return await self.client.text(prompt, user, temperature=temp, label="risk/render")
         except TypeError:
-            return await self.client.text(prompt, user)
+            return await self.client.text(prompt, user, label="risk/render")
 
     async def stream(
         self, approved_context: str, template: str = ""
     ) -> AsyncIterator[str]:
         prompt, user = self._prompt_and_user(approved_context, template)
-        async for chunk in self.client.stream_text(prompt, user):
+        async for chunk in self.client.stream_text(prompt, user, label="risk/render"):
             yield chunk

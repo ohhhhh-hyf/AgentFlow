@@ -29,4 +29,5 @@ class MinutesGenerationSupervisor:
             context,
             MinutesSupervisorReview,
             MINUTES_SUPERVISOR_OUTPUT_CONTRACT,
+            label="minutes_generation/supervisor",
         )

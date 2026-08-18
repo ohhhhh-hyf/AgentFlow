@@ -22,5 +22,4 @@ class ReviewSupervisor:
             self._system_prompt,
             context,
             ReviewSupervisorReview,
-            REVIEW_SUPERVISOR_OUTPUT_CONTRACT,
-        )
+            REVIEW_SUPERVISOR_OUTPUT_CONTRACT, label='review/supervisor')

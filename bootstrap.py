@@ -47,6 +47,7 @@ def main() -> None:
                 getattr(args, "edition", None),
                 getattr(args, "difficulty", None),
                 getattr(args, "qtype", None),
+                monitor=not getattr(args, "no_monitor", False),
             )
         )
     except (

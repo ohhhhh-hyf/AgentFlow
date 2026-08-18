@@ -29,4 +29,5 @@ class ActionItemsSupervisor:
             context,
             ActionItemsSupervisorReview,
             ACTION_ITEMS_SUPERVISOR_OUTPUT_CONTRACT,
+            label="action_items/supervisor",
         )

@@ -18,5 +18,4 @@ class QuizAgent:
             QUIZ_GENERATION_SYSTEM_PROMPT,
             shared_context,
             Quiz,
-            QUIZ_GENERATION_OUTPUT_CONTRACT,
-        )
+            QUIZ_GENERATION_OUTPUT_CONTRACT, label='quiz/agent')

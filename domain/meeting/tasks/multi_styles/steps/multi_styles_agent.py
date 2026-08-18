@@ -46,4 +46,5 @@ class MultiStylesAgent:
             shared_context,
             MultiStyles,
             MULTI_STYLES_GENERATION_OUTPUT_CONTRACT,
+            label="multi_styles/agent",
         )

@@ -87,9 +87,28 @@ def prepare(
                     extra[line] = meeting_text
                 if line in GRAPH_LINES and graph_text:
                     extra[line] = graph_text
+        try:
+            from tools.monitor.side import record_memory_prepare
+
+            record_memory_prepare(
+                bound=bool(bind.project_id),
+                created=bool(bind.create),
+                strong=int(bind.strong or 0),
+                hits=int(bind.hits or 0),
+                inject_chars=sum(len(v or "") for v in extra.values()),
+                project_id=str(bind.project_id or ""),
+            )
+        except Exception:  # noqa: BLE001
+            pass
         return bind, extra
     except Exception:  # noqa: BLE001
         logger.warning("记忆准备失败，本次不注入", exc_info=True)
+        try:
+            from tools.monitor.side import record_memory_prepare
+
+            record_memory_prepare(bound=False)
+        except Exception:  # noqa: BLE001
+            pass
         return Bind(project_id=None, create=False), {}
 
 
@@ -176,6 +195,12 @@ def persist(
         record = materialize(project_root, domain, user_id, bind)
         if record is None:
             logger.info("记忆未绑定项目，本次不写回")
+            try:
+                from tools.monitor.side import record_memory_persist
+
+                record_memory_persist(ok=False)
+            except Exception:  # noqa: BLE001
+                pass
             return None
         stamp = now_stamp()
         if (domain or "").strip() == "notes":
@@ -210,9 +235,21 @@ def persist(
             record["run_count"],
             record.get("subject") or record.get("project_key") or "—",
         )
+        try:
+            from tools.monitor.side import record_memory_persist
+
+            record_memory_persist(ok=True, run_count=int(record["run_count"] or 0), project_id=pid)
+        except Exception:  # noqa: BLE001
+            pass
         return record
     except Exception:  # noqa: BLE001
         logger.warning("记忆写回失败，不影响主流程", exc_info=True)
+        try:
+            from tools.monitor.side import record_memory_persist
+
+            record_memory_persist(ok=False)
+        except Exception:  # noqa: BLE001
+            pass
         return None
 
 

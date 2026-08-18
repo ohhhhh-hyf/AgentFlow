@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import argparse
 import logging
+import os
 import sys
 from datetime import datetime
 from pathlib import Path
@@ -37,6 +38,19 @@ logger = logging.getLogger(__name__)
 
 
 # ── CLI 参数解析（bootstrap.py 入口用）─────────────────────────
+
+def _monitor_enabled(no_monitor: bool) -> bool:
+    """任务监控开关：--no-monitor 优先，其次 TASK_MONITOR 环境变量，默认开启。
+
+    TASK_MONITOR 取值：0/false/off/no/disable → 关闭；其它或未设置 → 开启。
+    """
+    if no_monitor:
+        return False
+    env = os.getenv("TASK_MONITOR", "").strip().lower()
+    if env in {"0", "false", "off", "no", "disable", "disabled"}:
+        return False
+    return True
+
 
 def build_parser(ctx: DomainContext) -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
@@ -78,6 +92,14 @@ def build_parser(ctx: DomainContext) -> argparse.ArgumentParser:
         type=Path,
         default=ctx.project_root / ".env",
         help="环境变量文件路径",
+    )
+    parser.add_argument(
+        "--no-monitor",
+        dest="no_monitor",
+        action="store_true",
+        default=False,
+        help="关闭任务监控（token/耗时/按层细分落盘 output/monitor/）。"
+        "默认开启；也可用环境变量 TASK_MONITOR=0 关闭",
     )
     parser.add_argument(
         "--user_id",
@@ -222,11 +244,14 @@ async def run(
     difficulty: str | None = None,
     qtype: str | None = None,
     compile_natural: bool = True,
-) -> None:
+    monitor: bool = True,
+) -> dict | None:
     """Run selected task lines and persist their final artifacts.
 
     compile_natural：为 False 时不再把模板当自然语言二次编译。
     前端「确认模板并运行」必须关，否则用户改过的友好模板会被重新编译回首稿。
+    monitor：是否启用任务监控（tools.monitor）。None 时按环境变量 TASK_MONITOR 决定。
+    返回本次任务监控 payload（关闭监控或初始化失败则为 None）。
     """
     setup_logging()
     load_env(resolve_path(ctx, env_file))
@@ -278,28 +303,34 @@ async def run(
             )
         transcript = load_transcript(ctx, file)
 
-    template_texts: dict[str, str] = {}
-    for line, path in (templates or {}).items():
-        if line not in line_names:
-            continue
-        if path is None:
-            continue
-        template_file = _resolve_template_file(ctx, line, Path(path))
-        if template_file is None:
-            continue
-        text = template_file.read_text(encoding="utf-8").strip()
-        if not text:
-            raise ValueError(f"{line} 模板文件为空：{template_file}")
-        if compile_natural:
-            text = await maybe_compile_natural_template(
-                text,
-                domain=ctx.name,
-                line_name=line,
-                schema_hint=LINE_SCHEMA_HINTS.get(line, ""),
-            )
-        template_texts[line] = text
-
     system = ctx.system_cls()
+    # ── 任务监控（tools.monitor；异常不影响主流程）──────────────
+    # 开关：run(monitor=) 参数（CLI --no-monitor）优先，其次 TASK_MONITOR 环境变量
+    _task_monitor = None
+    if monitor and _monitor_enabled(no_monitor=False):
+        try:
+            from tools.monitor import TaskMonitor
+
+            _task_monitor = TaskMonitor(
+                getattr(system, "client", None),
+                task_name="+".join(line_names),
+                meta={
+                    "domain": ctx.name,
+                    "file": str(file) if file else "",
+                    "profile": str(profile),
+                    "user_id": (user_id or "").strip(),
+                    "subject": (subject or "").strip(),
+                },
+            )
+        except Exception:  # noqa: BLE001 - 监控组件异常不应阻断任务
+            logger.warning("任务监控初始化失败，本次不监控", exc_info=True)
+            _task_monitor = None
+    if _task_monitor is not None:
+        try:
+            _task_monitor.start(transcript=transcript)
+        except Exception:  # noqa: BLE001 - 监控失败不阻断任务
+            logger.warning("任务监控 start 失败，本次不监控", exc_info=True)
+            _task_monitor = None
     any_output = False
     silent_graph_lines = {"mindmap", "knowledge_graph"}
     graph_silent = any(line in silent_graph_lines for line in line_names)
@@ -361,39 +392,83 @@ async def run(
                 f"{prev}\n\n{extra}".strip() if prev else extra
             )
 
-    async for event in system.run_streaming(
-        transcript,
-        user,
-        templates=template_texts,
-        lines=line_names,
-        line_modes=modes or {},
-        line_extra=line_extra,
-    ):
-        etype = event["type"]
-        if etype == "chunk":
-            if event.get("line") in silent_graph_lines:
+    last_done = None
+    run_error: BaseException | None = None
+    monitor_payload = None
+    try:
+        template_texts: dict[str, str] = {}
+        for line, path in (templates or {}).items():
+            if line not in line_names:
                 continue
-            any_output = True
-            sys.stdout.write(event["text"])
-            sys.stdout.flush()
-        elif etype == "done":
-            await _handle_done(ctx, event)
-            if memory_enabled and memory_bind is not None:
-                persist(
-                    ctx.project_root,
-                    ctx.name,
-                    user_id,
-                    memory_bind,
-                    event.get("reports") or {},
-                    event.get("understanding") or {},
-                    transcript,
-                    subject,
+            if path is None:
+                continue
+            template_file = _resolve_template_file(ctx, line, Path(path))
+            if template_file is None:
+                continue
+            text = template_file.read_text(encoding="utf-8").strip()
+            if not text:
+                raise ValueError(f"{line} 模板文件为空：{template_file}")
+            if compile_natural:
+                text = await maybe_compile_natural_template(
+                    text,
+                    domain=ctx.name,
+                    line_name=line,
+                    schema_hint=LINE_SCHEMA_HINTS.get(line, ""),
+                    client=getattr(system, "client", None),
                 )
+            template_texts[line] = text
+        async for event in system.run_streaming(
+            transcript,
+            user,
+            templates=template_texts,
+            lines=line_names,
+            line_modes=modes or {},
+            line_extra=line_extra,
+        ):
+            etype = event["type"]
+            if etype == "chunk":
+                if event.get("line") in silent_graph_lines:
+                    continue
+                any_output = True
+                sys.stdout.write(event["text"])
+                sys.stdout.flush()
+            elif etype == "done":
+                last_done = event
+                await _handle_done(ctx, event)
+                if memory_enabled and memory_bind is not None:
+                    persist(
+                        ctx.project_root,
+                        ctx.name,
+                        user_id,
+                        memory_bind,
+                        event.get("reports") or {},
+                        event.get("understanding") or {},
+                        transcript,
+                        subject,
+                    )
+    except Exception as exc:
+        run_error = exc
+        raise
+    finally:
+        if _task_monitor is not None:
+            try:
+                monitor_payload = _task_monitor.finish(
+                    done_event=last_done,
+                    extra={
+                        "ok": run_error is None and last_done is not None,
+                        "error": str(run_error) if run_error else "",
+                    },
+                )
+            except Exception:  # noqa: BLE001 - 监控落盘失败不影响主流程
+                logger.warning("任务监控落盘失败", exc_info=True)
+        if run_error is not None and monitor_payload is not None:
+            setattr(run_error, "monitor_payload", monitor_payload)
 
     if any_output:
         sys.stdout.write("\n")
     elif not graph_silent:
         logger.info("（暂无内容）")
+    return monitor_payload
 
 
 async def _handle_done(ctx: DomainContext, event: dict) -> None:

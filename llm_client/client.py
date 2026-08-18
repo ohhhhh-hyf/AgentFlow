@@ -79,8 +79,70 @@ class LLMClient:
             "calls": 0,
             "cache_hits": 0,
         }
+        # ── 监控统计（tools.monitor 消费；label 由调用方按层标注）────────
+        # label → {"prompt_tokens", "completion_tokens", "total_tokens", "calls", "cache_hits"}
+        self.usage_by_label: dict[str, dict] = {}
+        # label → {"calls", "total_seconds", "avg_seconds", "max_seconds"}
+        self.latency_by_label: dict[str, dict] = {}
+        self.retries_total: int = 0
+        self.failures_total: int = 0
+        self._monitor_lock = threading.Lock()
         # 进程内缓存：key → content（仅 text 且 use_cache=True）
         self._response_cache: dict[str, str] = {}
+
+    # ── 监控辅助 ────────────────────────────────────────────────
+
+    def _record_latency(self, label: str, seconds: float) -> None:
+        """记录一次对外调用耗时（含失败调用，按 label 聚合）。"""
+        with self._monitor_lock:
+            slot = self.latency_by_label.setdefault(
+                label,
+                {"calls": 0, "total_seconds": 0.0, "avg_seconds": 0.0, "max_seconds": 0.0},
+            )
+            slot["calls"] += 1
+            slot["total_seconds"] += seconds
+            slot["avg_seconds"] = slot["total_seconds"] / slot["calls"]
+            slot["max_seconds"] = max(slot["max_seconds"], seconds)
+
+    def _record_retry(self) -> None:
+        with self._monitor_lock:
+            self.retries_total += 1
+
+    def _record_failure(self) -> None:
+        """记录一次对外调用最终失败（重试耗尽后抛给调用方）。"""
+        with self._monitor_lock:
+            self.failures_total += 1
+
+    def monitor_snapshot(self) -> dict:
+        """返回监控统计快照（usage / 按 label 细分 / 延迟 / 重试 / 失败）。"""
+        with self._monitor_lock:
+            return {
+                "usage_totals": dict(self.usage_totals),
+                "usage_by_label": {
+                    k: dict(v) for k, v in self.usage_by_label.items()
+                },
+                "latency_by_label": {
+                    k: dict(v) for k, v in self.latency_by_label.items()
+                },
+                "retries_total": self.retries_total,
+                "failures_total": self.failures_total,
+            }
+
+    def reset_monitor(self, *, include_usage: bool = False) -> None:
+        """清空监控统计（默认保留 usage_totals 历史累计）。
+
+        include_usage=True 时连同 usage_totals / last_usage 一并清零
+        （适合一次运行一个 client 的独立监控场景）。
+        """
+        with self._monitor_lock:
+            self.usage_by_label.clear()
+            self.latency_by_label.clear()
+            self.retries_total = 0
+            self.failures_total = 0
+            if include_usage:
+                for key in self.usage_totals:
+                    self.usage_totals[key] = 0
+                self.last_usage = {}
 
     @staticmethod
     def _retry_delay_seconds(attempt: int) -> float:
@@ -91,9 +153,9 @@ class LLMClient:
         """异步版指数退避（不阻塞事件循环）。"""
         await asyncio.sleep(self._retry_delay_seconds(attempt))
 
-    def _record_usage(self, usage: dict | None, *, count_call: bool = True) -> None:
-        if count_call:
-            self.usage_totals["calls"] += 1
+    def _record_usage(
+        self, usage: dict | None, *, count_call: bool = True, label: str = ""
+    ) -> None:
         if not usage or not isinstance(usage, dict):
             self.last_usage = {}
             return
@@ -107,9 +169,27 @@ class LLMClient:
             "completion_tokens": completion,
             "total_tokens": total,
         }
-        self.usage_totals["prompt_tokens"] += prompt
-        self.usage_totals["completion_tokens"] += completion
-        self.usage_totals["total_tokens"] += total
+        with self._monitor_lock:
+            if count_call:
+                self.usage_totals["calls"] += 1
+            self.usage_totals["prompt_tokens"] += prompt
+            self.usage_totals["completion_tokens"] += completion
+            self.usage_totals["total_tokens"] += total
+            slot = self.usage_by_label.setdefault(
+                label,
+                {
+                    "prompt_tokens": 0,
+                    "completion_tokens": 0,
+                    "total_tokens": 0,
+                    "calls": 0,
+                    "cache_hits": 0,
+                },
+            )
+            if count_call:
+                slot["calls"] += 1
+            slot["prompt_tokens"] += prompt
+            slot["completion_tokens"] += completion
+            slot["total_tokens"] += total
         if total:
             logger.debug(
                 "LLM usage provider=%s model=%s prompt=%s completion=%s total=%s",
@@ -146,20 +226,34 @@ class LLMClient:
         temperature: float | None = None,
         max_tokens: int | None = None,
         timeout: float | None = None,
+        label: str = "",
     ) -> str:
         temp = self.temperature if temperature is None else float(temperature)
         tok = self.max_tokens if max_tokens is None else max_tokens
         to = self.timeout if timeout is None else float(timeout)
+        t0 = time.monotonic()
+        try:
+            if self.backend == "websocket":
+                # websocket 路径暂不支持逐参数覆盖 temperature 以外的全部选项
+                prev = self.temperature
+                try:
+                    self.temperature = temp
+                    return asyncio.run(self._ws_chat(messages, stream=False, label=label))
+                finally:
+                    self.temperature = prev
+            return self._post_http(messages, json_mode, temp, tok, to, label)
+        finally:
+            self._record_latency(label, time.monotonic() - t0)
 
-        if self.backend == "websocket":
-            # websocket 路径暂不支持逐参数覆盖 temperature 以外的全部选项
-            prev = self.temperature
-            try:
-                self.temperature = temp
-                return asyncio.run(self._ws_chat(messages, stream=False))
-            finally:
-                self.temperature = prev
-
+    def _post_http(
+        self,
+        messages: list[dict[str, str]],
+        json_mode: bool,
+        temp: float,
+        tok: int | None,
+        to: float,
+        label: str,
+    ) -> str:
         body: dict[str, Any] = {
             "model": self.model,
             "messages": messages,
@@ -183,13 +277,13 @@ class LLMClient:
             },
             method="POST",
         )
-        label = self.provider
+        label = label or self.provider
         try:
             with urllib.request.urlopen(request, timeout=to) as response:
                 raw = response.read().decode("utf-8")
                 try:
                     resp = json.loads(raw)
-                    self._record_usage(resp.get("usage"), count_call=True)
+                    self._record_usage(resp.get("usage"), count_call=True, label=label)
                     return resp["choices"][0]["message"].get("content") or ""
                 except (json.JSONDecodeError, KeyError, IndexError, TypeError) as exc:
                     raise RuntimeError(
@@ -211,6 +305,7 @@ class LLMClient:
         temperature: float | None = None,
         max_tokens: int | None = None,
         timeout: float | None = None,
+        label: str = "",
     ) -> Iterable[str]:
         """同步读取流式响应，逐块产出 content 增量。"""
         temp = self.temperature if temperature is None else float(temperature)
@@ -223,10 +318,12 @@ class LLMClient:
                 self.temperature = temp
                 for attempt in range(self.max_retries + 1):
                     try:
-                        text = asyncio.run(self._ws_chat(messages, stream=False))
+                        text = asyncio.run(self._ws_chat(messages, stream=False, label=label))
                     except RuntimeError:
                         if attempt >= self.max_retries:
+                            self._record_failure()
                             raise
+                        self._record_retry()
                         time.sleep(self._retry_delay_seconds(attempt))
                         continue
                     if text:
@@ -260,8 +357,9 @@ class LLMClient:
             },
             method="POST",
         )
-        label = self.provider
+        label = label or self.provider
         started = False
+        usage_seen = False
         for attempt in range(self.max_retries + 1):
             try:
                 with urllib.request.urlopen(request, timeout=to) as response:
@@ -271,7 +369,9 @@ class LLMClient:
                             continue
                         data = line[len("data:") :].strip()
                         if data == "[DONE]":
-                            self.usage_totals["calls"] += 1
+                            if not usage_seen:
+                                with self._monitor_lock:
+                                    self.usage_totals["calls"] += 1
                             return
                         try:
                             obj = json.loads(data)
@@ -279,25 +379,31 @@ class LLMClient:
                             continue
                         # 部分后端在 stream 末包 usage
                         if obj.get("usage"):
-                            self._record_usage(obj.get("usage"))
+                            usage_seen = True
+                            self._record_usage(obj.get("usage"), label=label)
                         delta = obj["choices"][0].get("delta") or {}
                         content = delta.get("content") or ""
                         if content:
                             started = True
                             yield content
-                if not started:
-                    self.usage_totals["calls"] += 1
+                if not started and not usage_seen:
+                    with self._monitor_lock:
+                        self.usage_totals["calls"] += 1
                 return
             except urllib.error.HTTPError as exc:
                 if started or attempt >= self.max_retries:
+                    self._record_failure()
                     detail = exc.read().decode("utf-8", errors="replace")
                     raise RuntimeError(
                         f"{label} API 返回 HTTP {exc.code}：{detail}"
                     ) from exc
+                self._record_retry()
                 time.sleep(self._retry_delay_seconds(attempt))
             except urllib.error.URLError as exc:
                 if started or attempt >= self.max_retries:
+                    self._record_failure()
                     raise RuntimeError(f"无法连接 {label} API：{exc.reason}") from exc
+                self._record_retry()
                 time.sleep(self._retry_delay_seconds(attempt))
 
     def _ws_body(self, messages: list[dict[str, str]], *, stream: bool) -> dict:
@@ -344,14 +450,17 @@ class LLMClient:
             return delta["content"]
         return choice.get("text") or ""
 
-    async def _ws_chat(self, messages: list[dict[str, str]], *, stream: bool) -> str:
+    async def _ws_chat(
+        self, messages: list[dict[str, str]], *, stream: bool, label: str = ""
+    ) -> str:
         headers = {"sender": self.ws_sender} if self.ws_sender else {}
         payload = json.dumps(
             self._ws_body(messages, stream=stream),
             ensure_ascii=False,
         )
         chunks: list[str] = []
-        label = self.provider
+        label = label or self.provider
+        usage_seen = False
         try:
             async with self._ws_connect(headers) as websocket:
                 await websocket.send(payload)
@@ -366,7 +475,8 @@ class LLMClient:
                         continue
                     obj = json.loads(raw)
                     if obj.get("usage"):
-                        self._record_usage(obj.get("usage"))
+                        usage_seen = True
+                        self._record_usage(obj.get("usage"), label=label)
                     choices = obj.get("choices") or []
                     if not choices:
                         continue
@@ -388,7 +498,9 @@ class LLMClient:
             raise
         if not chunks:
             raise RuntimeError(f"{label} WebSocket 未返回有效内容")
-        self.usage_totals["calls"] += 1
+        with self._monitor_lock:
+            if not usage_seen:
+                self.usage_totals["calls"] += 1
         return "".join(chunks)
 
     async def stream_text(
@@ -399,6 +511,7 @@ class LLMClient:
         temperature: float | None = None,
         max_tokens: int | None = None,
         timeout: float | None = None,
+        label: str = "",
     ) -> AsyncIterator[str]:
         """流式调用 LLM 返回纯文本增量块（SSE，非 JSON 模式）。"""
         messages = [
@@ -409,6 +522,7 @@ class LLMClient:
         queue: asyncio.Queue = asyncio.Queue()
 
         def _producer() -> None:
+            t0 = time.monotonic()
             try:
                 for chunk in self._stream_sync(
                     messages,
@@ -416,6 +530,7 @@ class LLMClient:
                     temperature=temperature,
                     max_tokens=max_tokens,
                     timeout=timeout,
+                    label=label,
                 ):
                     try:
                         loop.call_soon_threadsafe(queue.put_nowait, chunk)
@@ -427,6 +542,7 @@ class LLMClient:
                 except RuntimeError:
                     return
             finally:
+                self._record_latency(label, time.monotonic() - t0)
                 try:
                     loop.call_soon_threadsafe(queue.put_nowait, None)
                 except RuntimeError:
@@ -479,6 +595,7 @@ class LLMClient:
         temperature: float | None = 0.0,
         max_tokens: int | None = None,
         timeout: float | None = None,
+        label: str = "",
     ) -> T:
         contract = output_contract.strip()
         messages = [
@@ -514,10 +631,13 @@ class LLMClient:
                     temperature=temp,
                     max_tokens=max_tokens,
                     timeout=timeout,
+                    label=label,
                 )
             except RuntimeError:
                 if attempt >= self.max_retries:
+                    self._record_failure()
                     raise
+                self._record_retry()
                 await self._retry_delay(attempt)
                 continue
             if not (last_content or "").strip():
@@ -546,6 +666,7 @@ class LLMClient:
                     )
 
         if not (last_content or "").strip():
+            self._record_failure()
             raise RuntimeError(
                 f"{response_model.__name__} 输出无法满足结构契约：模型返回空正文"
             )
@@ -557,6 +678,7 @@ class LLMClient:
         try:
             return self._parse_and_validate(repaired, response_model)
         except OutputValidationError as exc:
+            self._record_failure()
             raise RuntimeError(
                 f"{response_model.__name__} 输出无法满足结构契约：{exc}"
             ) from exc
@@ -571,6 +693,7 @@ class LLMClient:
         max_tokens: int | None = None,
         timeout: float | None = None,
         use_cache: bool = False,
+        label: str = "",
     ) -> str:
         """调用 LLM 返回文本。
 
@@ -580,6 +703,7 @@ class LLMClient:
             max_tokens: 覆盖默认 max_tokens。
             timeout: 覆盖默认超时（秒）。
             use_cache: 命中相同 messages+参数时返回缓存（适合编译类幂等调用）。
+            label: 监控分层标签（如 "action_items/render"），归入 usage_by_label。
         """
         messages = [
             {"role": "system", "content": system_prompt},
@@ -596,7 +720,19 @@ class LLMClient:
             )
             hit = self._response_cache.get(cache_key)
             if hit is not None:
-                self.usage_totals["cache_hits"] += 1
+                with self._monitor_lock:
+                    self.usage_totals["cache_hits"] += 1
+                    slot = self.usage_by_label.setdefault(
+                        label,
+                        {
+                            "prompt_tokens": 0,
+                            "completion_tokens": 0,
+                            "total_tokens": 0,
+                            "calls": 0,
+                            "cache_hits": 0,
+                        },
+                    )
+                    slot["cache_hits"] += 1
                 logger.debug("LLM cache hit key=%s…", cache_key[:12])
                 return hit
 
@@ -609,12 +745,15 @@ class LLMClient:
                     temperature=temp,
                     max_tokens=max_tokens,
                     timeout=timeout,
+                    label=label,
                 )
                 if use_cache and cache_key:
                     self._response_cache[cache_key] = content
                 return content
             except RuntimeError:
                 if attempt >= self.max_retries:
+                    self._record_failure()
                     raise
+                self._record_retry()
                 await self._retry_delay(attempt)
         raise RuntimeError("text() 重试耗尽（不可达）")

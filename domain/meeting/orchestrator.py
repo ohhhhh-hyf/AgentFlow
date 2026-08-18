@@ -116,6 +116,9 @@ _EMPTY_MEETING_UNDERSTANDING = {
     "decisions": [],
     "open_questions": [],
     "risks": [],
+    "action_hints": [],
+    "risk_hints": [],
+    "dependencies": [],
 }
 
 _EMPTY_MINDMAP = {
@@ -373,7 +376,6 @@ class _Nodes(DomainNodes):
                 "quality_degraded": True,
             }
         return {"meeting_understanding": result.model_dump()}
-
 
 class MeetingAgentSystem(_Nodes):
     """使用 LangGraph 编排会议分析、多线并行审核返工与最终输出。"""

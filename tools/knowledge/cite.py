@@ -92,6 +92,12 @@ def cite_text(kb: Any, text: str, *, top_k: int = 3) -> list[dict[str, Any]]:
     except Exception:
         packed = []
     if packed:
+        try:
+            from tools.monitor.side import record_knowledge_search
+
+            record_knowledge_search(hits=len(packed), kind="cite")
+        except Exception:  # noqa: BLE001
+            pass
         return packed
     try:
         hits = kb.locate(query, top_k=top_k)
@@ -105,6 +111,12 @@ def cite_text(kb: Any, text: str, *, top_k: int = 3) -> list[dict[str, Any]]:
         item = _pack(getattr(hit, "metadata", None) or {}, excerpt, getattr(hit, "score", None))
         if item:
             out.append(item)
+    try:
+        from tools.monitor.side import record_knowledge_search
+
+        record_knowledge_search(hits=len(out), kind="cite")
+    except Exception:  # noqa: BLE001
+        pass
     return out
 
 

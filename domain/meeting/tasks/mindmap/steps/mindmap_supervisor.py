@@ -23,4 +23,5 @@ class MindmapSupervisor:
             context,
             MindmapSupervisorReview,
             MINDMAP_SUPERVISOR_OUTPUT_CONTRACT,
+            label="mindmap/supervisor",
         )

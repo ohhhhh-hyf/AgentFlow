@@ -19,4 +19,5 @@ class RiskAgent:
             shared_context,
             Risk,
             RISK_GENERATION_OUTPUT_CONTRACT,
+            label="risk/agent",
         )

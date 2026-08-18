@@ -59,7 +59,7 @@ class MultiStylesRender:
         if blocked is not None:
             return blocked
         prompt, user = self._prompt_and_user(approved_context, template)
-        return await self.client.text(prompt, user)
+        return await self.client.text(prompt, user, label="multi_styles/render")
 
     async def stream(
         self, approved_context: str, template: str = ""
@@ -69,5 +69,5 @@ class MultiStylesRender:
             yield blocked
             return
         prompt, user = self._prompt_and_user(approved_context, template)
-        async for chunk in self.client.stream_text(prompt, user):
+        async for chunk in self.client.stream_text(prompt, user, label="multi_styles/render"):
             yield chunk

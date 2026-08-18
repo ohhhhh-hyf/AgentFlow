@@ -23,4 +23,5 @@ class MultiStylesSupervisor:
             context,
             MultiStylesSupervisorReview,
             MULTI_STYLES_SUPERVISOR_OUTPUT_CONTRACT,
+            label="multi_styles/supervisor",
         )

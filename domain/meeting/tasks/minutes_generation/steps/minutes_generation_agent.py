@@ -30,6 +30,7 @@ class MinutesGenerationAgent:
             shared_context,
             Minutes,
             MINUTES_GENERATION_OUTPUT_CONTRACT,
+            label="minutes_generation/agent",
         )
         understanding = extract_labeled_json(shared_context, "会议理解")
         mode = parse_perspective_mode(shared_context)

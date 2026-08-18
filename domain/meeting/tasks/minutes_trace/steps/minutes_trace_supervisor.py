@@ -23,4 +23,5 @@ class MinutesTraceSupervisor:
             context,
             MinutesTraceSupervisorReview,
             MINUTES_TRACE_SUPERVISOR_OUTPUT_CONTRACT,
+            label="minutes_trace/supervisor",
         )

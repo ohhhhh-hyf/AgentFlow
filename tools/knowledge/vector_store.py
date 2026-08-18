@@ -178,12 +178,26 @@ class VectorStore:
     # ---------------- 入库 ----------------
     def add_documents(self, collection: str, chunks: List) -> int:
         """嵌入并 upsert; 返回成功入库块数。id 由 定位键 确定性生成(见 _unique_ids)。"""
+        import time
+
+        t0 = time.monotonic()
         coll = self.client.get_or_create_collection(name=self._internal(collection))
         texts = [c.text for c in chunks]
         embeddings = self.embedding.embed(texts)
         ids = _unique_ids(chunks)
         coll.upsert(ids=ids, embeddings=embeddings,
                     documents=texts, metadatas=[dict(c.metadata) for c in chunks])
+        try:
+            from tools.monitor.side import record_knowledge_ingest
+
+            record_knowledge_ingest(
+                files=1,
+                added=len(ids),
+                seconds=time.monotonic() - t0,
+                collection=collection,
+            )
+        except Exception:  # noqa: BLE001
+            pass
         return len(ids)
 
     def sync_file(self, collection: str, filename: str, chunks: List) -> dict:
@@ -216,27 +230,68 @@ class VectorStore:
             coll.delete(ids=removed)
 
         # upsert 新块(相同 id 覆盖; unchanged 块 id 相同不产生实际写入)
+        import time
+
+        t0 = time.monotonic()
         texts = [c.text for c in chunks]
         embeddings = self.embedding.embed(texts)
         coll.upsert(ids=new_ids, embeddings=embeddings,
                     documents=texts, metadatas=[dict(c.metadata) for c in chunks])
-        return {"added": len(added), "removed": len(removed),
+        result = {"added": len(added), "removed": len(removed),
                 "unchanged": len(unchanged)}
+        try:
+            from tools.monitor.side import record_knowledge_ingest
+
+            record_knowledge_ingest(
+                files=1,
+                added=result["added"],
+                removed=result["removed"],
+                unchanged=result["unchanged"],
+                seconds=time.monotonic() - t0,
+                collection=collection,
+            )
+        except Exception:  # noqa: BLE001
+            pass
+        return result
 
     # ---------------- 检索 ----------------
     def query(self, collection: str, query_text: str, top_k: int) -> List[Dict]:
         """相似度检索 → [{text, metadata, score}], score = 1 - distance"""
+        import time
+
+        t0 = time.monotonic()
         coll = self.client.get_collection(name=self._internal(collection))
         emb = self.embedding.embed([query_text])[0]
         count = coll.count()
         k = min(top_k, count) if count > 0 else top_k
         if k <= 0:
+            try:
+                from tools.monitor.side import record_knowledge_search
+
+                record_knowledge_search(
+                    hits=0,
+                    seconds=time.monotonic() - t0,
+                    collection=collection,
+                )
+            except Exception:  # noqa: BLE001
+                pass
             return []
         got = coll.query(query_embeddings=[emb], n_results=k,
                          include=["documents", "metadatas", "distances"])
         docs, metas, dists = got["documents"][0], got["metadatas"][0], got["distances"][0]
-        return [{"text": d, "metadata": m, "score": round(1 - dist, 4)}
+        rows = [{"text": d, "metadata": m, "score": round(1 - dist, 4)}
                 for d, m, dist in zip(docs, metas, dists)]
+        try:
+            from tools.monitor.side import record_knowledge_search
+
+            record_knowledge_search(
+                hits=len(rows),
+                seconds=time.monotonic() - t0,
+                collection=collection,
+            )
+        except Exception:  # noqa: BLE001
+            pass
+        return rows
 
     # ---------------- 文件级删除 ----------------
     def delete_file(self, collection: str, filename: str) -> int:
@@ -266,4 +321,10 @@ class VectorStore:
         out: List[Dict] = []
         for text, meta in zip(docs, metas):
             out.append({"text": text or "", "metadata": meta or {}})
+        try:
+            from tools.monitor.side import record_knowledge_search
+
+            record_knowledge_search(hits=len(out), collection=collection, kind="scan")
+        except Exception:  # noqa: BLE001
+            pass
         return out

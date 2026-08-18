@@ -18,5 +18,4 @@ class ReviewAgent:
             REVIEW_GENERATION_SYSTEM_PROMPT,
             shared_context,
             Review,
-            REVIEW_GENERATION_OUTPUT_CONTRACT,
-        )
+            REVIEW_GENERATION_OUTPUT_CONTRACT, label='review/agent')

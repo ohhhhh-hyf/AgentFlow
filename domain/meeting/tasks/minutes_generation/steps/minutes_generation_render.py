@@ -33,12 +33,12 @@ class MinutesGenerationRender:
         prompt, user = self._prompt_and_user(approved_context, template)
         temp = 0.0 if (template or "").strip() else None
         try:
-            return await self.client.text(prompt, user, temperature=temp)
+            return await self.client.text(prompt, user, temperature=temp, label="minutes_generation/render")
         except TypeError:
-            return await self.client.text(prompt, user)
+            return await self.client.text(prompt, user, label="minutes_generation/render")
 
     async def stream(self, approved_context: str, template: str = "") -> AsyncIterator[str]:
         """流式渲染纪要正文：LLM token 逐块产出（SSE）。"""
         prompt, user = self._prompt_and_user(approved_context, template)
-        async for chunk in self.client.stream_text(prompt, user):
+        async for chunk in self.client.stream_text(prompt, user, label="minutes_generation/render"):
             yield chunk

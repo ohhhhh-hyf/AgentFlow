@@ -20,4 +20,5 @@ class ActionItemsAgent:
             shared_context,
             ActionItems,
             ACTION_ITEMS_GENERATION_OUTPUT_CONTRACT,
+            label="action_items/agent",
         )

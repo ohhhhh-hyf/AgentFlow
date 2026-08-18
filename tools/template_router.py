@@ -1297,6 +1297,7 @@ async def _client_text(
     json_mode: bool = False,
     temperature: float = 0.0,
     use_cache: bool = False,
+    label: str = "",
 ) -> str:
     """统一走 client.text 的 per-call 参数（温度/JSON/缓存）。"""
     try:
@@ -1307,6 +1308,7 @@ async def _client_text(
                 temperature=temperature,
                 json_mode=json_mode,
                 use_cache=use_cache,
+                label=label,
             )
         ).strip()
     except TypeError:
@@ -2166,6 +2168,7 @@ async def maybe_compile_natural_template(
     domain: str = "",
     line_name: str = "",
     schema_hint: str = "",
+    client: Any = None,
 ) -> str:
     """自然语言描述 → 占位符模板（带保真检查与最多 2 次编译）。
 
@@ -2187,9 +2190,10 @@ async def maybe_compile_natural_template(
         return text
 
     try:
-        from llm_client import LLMClient  # 延迟 import，避免顶层耦合
+        if client is None:
+            from llm_client import LLMClient  # 延迟 import，避免顶层耦合
 
-        client = LLMClient()
+            client = LLMClient()
         revision = ""
         last_compiled = ""
         for attempt in range(2):
@@ -2206,6 +2210,7 @@ async def maybe_compile_natural_template(
                     text,
                     temperature=0.0,
                     use_cache=(attempt == 0 and not revision),
+                    label="template/compile",
                 )
             ).strip()
             last_compiled = compiled
@@ -2318,6 +2323,7 @@ async def modify_template(
                     ),
                     user + (f"\n\n【上次修改未通过保真检查，请修正】\n{revision}" if revision else ""),
                     temperature=0.0,
+                    label="template/compile",
                 )
             ).strip()
             last = compiled

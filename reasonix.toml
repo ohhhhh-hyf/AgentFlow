@@ -1,0 +1,2 @@
+[permissions]
+allow = ["Bash=cd /d/study/AgentFlow && find domain/meeting -type f -name '*.py' | grep -v __pycache__ | sort && echo \"=== total lines ===\" && find domain/meeting -name '*.py' -not -path '*__pycache__*' | xargs wc -l | tail -1", "Bash=cd /d/study/AgentFlow && (py -c \"import sys; print(sys.version)\" 2>/dev/null || python -c \"import sys; print(sys.version)\" 2>/dev/null || echo \"no-python\")"]

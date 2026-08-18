@@ -48,6 +48,9 @@ class MeetingUnderstanding(ModelMixin):
     decisions: list[str] = field(default_factory=list)
     open_questions: list[str] = field(default_factory=list)
     risks: list[str] = field(default_factory=list)
+    action_hints: list[dict[str, Any]] = field(default_factory=list)
+    risk_hints: list[dict[str, Any]] = field(default_factory=list)
+    dependencies: list[str] = field(default_factory=list)
 
     @classmethod
     def validate(cls, data: dict) -> "MeetingUnderstanding":
@@ -59,6 +62,11 @@ class MeetingUnderstanding(ModelMixin):
         _string_list(data["decisions"], "decisions")
         _string_list(data["open_questions"], "open_questions")
         _string_list(data["risks"], "risks")
+        if not isinstance(data["action_hints"], list):
+            raise OutputValidationError("action_hints 必须是数组")
+        if not isinstance(data["risk_hints"], list):
+            raise OutputValidationError("risk_hints 必须是数组")
+        _string_list(data["dependencies"], "dependencies")
         return cls(**data)
 
 @dataclass

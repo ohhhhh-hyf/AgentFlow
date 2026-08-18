@@ -20,4 +20,5 @@ class MeetingUnderstandingAgent:
             f"会议原文：\n{transcript}",
             MeetingUnderstanding,
             MEETING_UNDERSTANDING_GENERATION_OUTPUT_CONTRACT,
+            label="core/meeting_understanding",
         )

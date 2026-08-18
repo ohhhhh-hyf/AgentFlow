@@ -614,6 +614,8 @@ class DomainNodes:
                 "type": "done",
                 "quality_warning": self._quality_warning,
                 "reports": fb,
+                "gate_by_line": {},
+                "pipeline": self._pipeline_by_line(state, line_names),
                 "understanding": self._understanding(state),
             }
             return
@@ -659,10 +661,33 @@ class DomainNodes:
             "quality_warning": quality_warning,
             "reports": self._final_reports(state, line_names, quality_warning),
             "gate_by_line": gate_by_line,
+            "pipeline": self._pipeline_by_line(state, line_names),
             "understanding": state.get("meeting_understanding")
             or state.get("notes_understanding")
             or {},
         }
+
+    def _pipeline_by_line(self, state: dict, line_names: list[str]) -> dict:
+        """各线审核结论 / 返工次数 / 是否降级，供任务监控采集。"""
+        out: dict[str, dict] = {}
+        for name in line_names:
+            sub = line(state, name) or {}
+            review = sub.get("review") or {}
+            if not isinstance(review, dict):
+                review = {}
+            decision = str(review.get("decision") or "").strip()
+            degraded = bool(sub.get("degraded"))
+            try:
+                revisions = int(sub.get("revision_count") or 0)
+            except (TypeError, ValueError):
+                revisions = 0
+            out[name] = {
+                "decision": decision,
+                "revision_count": revisions,
+                "degraded": degraded,
+                "fallback": degraded or decision == "reject",
+            }
+        return out
 
     def _final_reports(
         self,

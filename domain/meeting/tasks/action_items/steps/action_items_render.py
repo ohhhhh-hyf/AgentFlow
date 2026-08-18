@@ -37,16 +37,20 @@ class ActionItemsRender:
         prompt, user = self._prompt_and_user(context, template)
         temp = 0.0 if (template or "").strip() else None
         try:
-            return await self.client.text(prompt, user, temperature=temp)
+            return await self.client.text(
+                prompt, user, temperature=temp, label="action_items/render"
+            )
         except TypeError:
-            return await self.client.text(prompt, user)
+            return await self.client.text(prompt, user, label="action_items/render")
 
     async def stream(
         self, context: str, template: str = ""
     ) -> AsyncIterator[str]:
         """流式渲染待办文本：LLM token 逐块产出（SSE），与纪要流对称。"""
         prompt, user = self._prompt_and_user(context, template)
-        async for chunk in self.client.stream_text(prompt, user):
+        async for chunk in self.client.stream_text(
+            prompt, user, label="action_items/render"
+        ):
             yield chunk
 
     @staticmethod

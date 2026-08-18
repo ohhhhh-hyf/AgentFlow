@@ -22,4 +22,5 @@ class PerspectiveModelingAgent:
             f"用户画像：\n{user_json}\n\n原文：\n{transcript}",
             PerspectiveModeling,
             PERSPECTIVE_MODELING_GENERATION_OUTPUT_CONTRACT,
+            label="core/perspective_modeling",
         )

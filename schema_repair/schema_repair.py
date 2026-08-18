@@ -30,4 +30,6 @@ class SchemaRepairAgent:
                 "content": f"校验错误：{error}\n待修复输出：\n{invalid_output}",
             },
         ]
-        return await asyncio.to_thread(self.client._post, messages)
+        return await asyncio.to_thread(
+            self.client._post, messages, label="schema_repair"
+        )

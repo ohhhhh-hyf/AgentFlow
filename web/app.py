@@ -52,6 +52,9 @@ DOMAIN_LABELS = {
 }
 DOMAIN_CHOICES = [(DOMAIN_LABELS[name], name) for name in DOMAIN_NAMES]
 DOMAIN_BY_LABEL = {label: name for name, label in DOMAIN_LABELS.items()}
+MONITOR_ON = "on"
+MONITOR_OFF = "off"
+MONITOR_CHOICES = [("关", MONITOR_OFF), ("监控", MONITOR_ON)]
 
 PERSPECTIVE_OBJECTIVE = "objective"
 PERSPECTIVE_PERSONAL = "personal"
@@ -739,6 +742,25 @@ EMPTY_GALLERY = gr.update(value=[], visible=False)
 EMPTY_REVIEW = gr.update(value="", visible=False)
 EMPTY_REWRITE = gr.update(visible=False)
 EMPTY_FILES = gr.update(value=[], visible=False)
+EMPTY_MONITOR = gr.update(value="", visible=False)
+
+_MONITOR_LAYER_NAMES = {
+    "core/perspective_modeling": "视角建模",
+    "core/meeting_understanding": "会议理解",
+    "core/notes_understanding": "笔记理解",
+    "template/compile": "模板编译",
+    "schema_repair": "结构修复",
+}
+_MONITOR_ROLE_NAMES = {
+    "agent": "生成",
+    "supervisor": "审核",
+    "render": "排版",
+}
+_MONITOR_DECISION = {
+    "approve": "通过",
+    "revise": "返工",
+    "reject": "未通过",
+}
 
 def _short_hint(hint: str) -> str:
     """把占位说明精简成用户看得懂的短标签。
@@ -891,6 +913,7 @@ def begin_run():
     """点击运行后立即反馈状态，并锁定按钮防止重复请求。"""
     return (
         "正在运行，请稍候…\n结果返回前请勿重复点击。",
+        EMPTY_MONITOR,
         gr.update(interactive=False, value="运行中…"),
         gr.update(interactive=False),
         gr.update(interactive=False),
@@ -916,6 +939,7 @@ def clear_results_only():
         EMPTY_MD,
         EMPTY_FILES,
         EMPTY_DOWNLOAD,
+        EMPTY_MONITOR,
     )
 
 
@@ -929,6 +953,7 @@ def reset_form():
         EMPTY_MD,
         EMPTY_FILES,
         EMPTY_DOWNLOAD,
+        EMPTY_MONITOR,
         gr.update(value=None),
         "",
         gr.update(value=None),
@@ -945,12 +970,308 @@ def reset_form():
         "",
         gr.update(value=None),
         "",
+        MONITOR_ON,
         *_hitl_ui(False),
     )
 
 
-def _run_result(log, files_or_none=None, *hitl, files_html: str | None = None):
-    """统一结果区输出：日志 / 图片(可隐藏) / MD预览(可隐藏) / 下载 / HITL / 解锁按钮。"""
+def _fmt_int(value: object) -> str:
+    try:
+        number = int(value or 0)
+    except (TypeError, ValueError):
+        return "0"
+    if number >= 10000:
+        text = f"{number / 10000:.1f}".rstrip("0").rstrip(".")
+        return f"{text}万"
+    return f"{number:,}"
+
+
+def _fmt_seconds(value: object) -> str:
+    try:
+        seconds = float(value or 0)
+    except (TypeError, ValueError):
+        return "0s"
+    if seconds >= 60:
+        minutes = int(seconds // 60)
+        rest = seconds - minutes * 60
+        return f"{minutes}:{rest:04.1f}"
+    if seconds >= 10:
+        return f"{seconds:.0f}s"
+    return f"{seconds:.1f}s"
+
+
+def _layer_caption(label: str, line_names: dict[str, str]) -> str:
+    if label in _MONITOR_LAYER_NAMES:
+        return _MONITOR_LAYER_NAMES[label]
+    if "/" in (label or ""):
+        line, role = label.split("/", 1)
+        head = line_names.get(line, line)
+        tail = _MONITOR_ROLE_NAMES.get(role, role)
+        return f"{head} · {tail}"
+    return label or "未分层"
+
+
+def _monitor_update(html: str):
+    text = (html or "").strip()
+    return gr.update(value=text, visible=bool(text))
+
+
+def _latest_monitor(task: str) -> dict | None:
+    folder = PROJECT_ROOT / "output" / "monitor"
+    if not folder.exists() or not task:
+        return None
+    files = sorted(
+        folder.glob(f"{task}_*.json"),
+        key=lambda path: path.stat().st_mtime,
+        reverse=True,
+    )
+    if not files:
+        return None
+    try:
+        data = json.loads(files[0].read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return None
+    return data if isinstance(data, dict) else None
+
+
+def _monitor_plain(text: str) -> str:
+    return f'<span class="mon-plain">{html.escape(text)}</span>'
+
+
+def _knowledge_story(kb: dict) -> str:
+    parts: list[str] = []
+    files = int(kb.get("ingest_files") or 0)
+    added = int(kb.get("chunks_added") or 0)
+    removed = int(kb.get("chunks_removed") or 0)
+    unchanged = int(kb.get("chunks_unchanged") or 0)
+    if files or added:
+        bit = f"写入了 {files} 份资料，新增 {added} 个知识块"
+        extras = []
+        if removed:
+            extras.append(f"删掉 {removed} 个过时块")
+        if unchanged:
+            extras.append(f"{unchanged} 个块内容没变")
+        if extras:
+            bit += "（" + "，".join(extras) + "）"
+        parts.append(bit + "。")
+    searches = int(kb.get("search_calls") or 0)
+    hits = int(kb.get("search_hits") or 0)
+    empty = int(kb.get("search_empty") or 0)
+    if searches:
+        bit = f"检索了 {searches} 次，找到 {hits} 条相关内容"
+        if empty:
+            bit += f"，其中 {empty} 次没有结果"
+        parts.append(bit + "。")
+    scans = int(kb.get("scan_chunks") or 0)
+    if int(kb.get("scan_calls") or 0):
+        parts.append(f"从库里通读了 {scans} 个知识块。")
+    cites = int(kb.get("cite_calls") or 0)
+    if cites:
+        parts.append(f"按原文核对出处 {cites} 次。")
+    collection = str(kb.get("collection") or "").strip()
+    if collection:
+        parts.append(f"当前知识库：{collection}。")
+    return "".join(parts)
+
+
+def _memory_story(mem: dict) -> str:
+    bound = int(mem.get("bound") or 0) > 0
+    created = int(mem.get("created") or 0) > 0
+    unbound = int(mem.get("unbound") or 0) > 0 or int(mem.get("prepare_calls") or 0) > 0
+    wrote = int(mem.get("persist_ok") or 0) > 0
+    skipped = int(mem.get("persist_skip") or 0) > 0
+    inject = int(mem.get("inject_chars") or 0)
+    run_n = int(mem.get("run_count") or 0)
+    project = str(mem.get("project_id") or "").strip()
+    strong = int(mem.get("strong") or 0)
+    hits = int(mem.get("hits") or 0)
+    if not (bound or unbound or wrote or skipped):
+        return ""
+
+    parts: list[str] = []
+    if bound:
+        who = f"项目「{project}」" if project else "已有项目"
+        if created:
+            parts.append(f"按新项目建档（{who}）。")
+        else:
+            parts.append(f"对上了{who}，读入了历史记忆。")
+        if inject:
+            parts.append(f"注入了 {inject} 字旧内容供对照。")
+        elif strong:
+            parts.append("这次和历史项目对得比较明确。")
+        elif hits:
+            parts.append("这次和历史项目只有较弱关联。")
+    elif unbound:
+        if created and wrote:
+            parts.append("开始时还没有可对照的历史项目，所以没读旧记忆。")
+        else:
+            parts.append("没有对上已有项目，因此没有读入历史记忆。")
+
+    if wrote:
+        if run_n <= 1:
+            parts.append("结束后已新建档案，这是第 1 次写入。")
+        else:
+            parts.append(f"结束后已写回档案，这是第 {run_n} 次更新。")
+        if project and not bound:
+            parts.append(f"新档案编号：{project}。")
+    elif skipped:
+        parts.append("这次没有把结果写入记忆。")
+    return "".join(parts)
+
+
+def _monitor_io_rows(payload: dict) -> list[str]:
+    rows: list[str] = []
+    kb_text = _knowledge_story(payload.get("knowledge") or {})
+    mem_text = _memory_story(payload.get("memory") or {})
+    if kb_text:
+        rows.append(f'<div class="mon-io-row"><em>知识库</em>{_monitor_plain(kb_text)}</div>')
+    if mem_text:
+        rows.append(f'<div class="mon-io-row"><em>记忆</em>{_monitor_plain(mem_text)}</div>')
+    return rows
+
+
+def _monitor_html(payload: dict | None, *, line_names: dict[str, str] | None = None) -> str:
+    if not payload:
+        return ""
+    names = line_names or {}
+    usage = payload.get("usage") or {}
+    layers = payload.get("usage_by_label") or {}
+    latency = payload.get("latency_by_label") or {}
+    pipeline = payload.get("pipeline") or {}
+    quality = payload.get("quality") or {}
+    scope = payload.get("scope") or {}
+    total_tokens = int(usage.get("total_tokens") or 0)
+    calls = int(usage.get("calls") or 0)
+    retries = int(payload.get("retries") or 0)
+    failures = int(payload.get("failures") or 0)
+    cache_hits = int(usage.get("cache_hits") or 0)
+    duration = payload.get("duration_seconds") or 0
+    ok = bool(payload.get("ok"))
+    warning = quality.get("warning")
+    fallback = bool(quality.get("fallback"))
+    if not ok or payload.get("error"):
+        stamp = "失败"
+        stamp_kind = "bad"
+    elif fallback or warning:
+        stamp = "降级"
+        stamp_kind = "warn"
+    else:
+        stamp = "完成"
+        stamp_kind = "ok"
+
+    stats = [
+        (_fmt_seconds(duration), "耗时"),
+        (_fmt_int(total_tokens), "token"),
+        (str(calls), "次"),
+    ]
+    if retries:
+        stats.append((str(retries), "重试"))
+    if failures:
+        stats.append((str(failures), "失败"))
+    if cache_hits:
+        stats.append((str(cache_hits), "缓存"))
+
+    started = str(payload.get("started_at") or "")
+    finished = str(payload.get("finished_at") or "")
+    clock = ""
+    if started and finished and len(started) >= 16 and len(finished) >= 16:
+        clock = f"{started[11:16]}–{finished[11:16]}"
+    elif started:
+        clock = started
+    meta_bits = []
+    if clock:
+        meta_bits.append(clock)
+    if scope.get("user_id"):
+        meta_bits.append(str(scope["user_id"]))
+    if scope.get("subject"):
+        meta_bits.append(str(scope["subject"]))
+
+    rows: list[str] = [
+        f'<section class="mon-sheet mon-{stamp_kind}">',
+        '<div class="mon-head">',
+        f'<span class="mon-stamp">{stamp}</span>',
+        '<ul class="mon-stats">',
+    ]
+    for value, label in stats:
+        rows.append(
+            f'<li><strong>{html.escape(str(value))}</strong><span>{label}</span></li>'
+        )
+    rows.append("</ul>")
+    if pipeline:
+        rows.append('<div class="mon-pipe">')
+        for line, info in pipeline.items():
+            if not isinstance(info, dict):
+                continue
+            decision = _MONITOR_DECISION.get(str(info.get("decision") or ""), "")
+            revisions = int(info.get("revision_count") or 0)
+            if info.get("fallback"):
+                chip = "改用兜底结果"
+            elif decision == "通过":
+                chip = "审核通过"
+            elif decision == "未通过":
+                chip = "审核未通过"
+            elif decision == "返工":
+                chip = "需要返工"
+            else:
+                chip = "已完成"
+            extra = f"，返工 {revisions} 次" if revisions else ""
+            kind = "warn" if info.get("fallback") else "ok" if decision == "通过" else "plain"
+            rows.append(
+                f'<span class="mon-chip mon-chip-{kind}">'
+                f"{html.escape(names.get(str(line), str(line)))}：{chip}{extra}"
+                "</span>"
+            )
+        rows.append("</div>")
+    if meta_bits:
+        rows.append(f'<p class="mon-meta">{html.escape(" · ".join(meta_bits))}</p>')
+    rows.append("</div>")
+
+    if warning:
+        rows.append(f'<p class="mon-note">{html.escape(str(warning))}</p>')
+    if payload.get("error"):
+        rows.append(f'<p class="mon-note mon-error">{html.escape(str(payload["error"]))}</p>')
+
+    io_rows = _monitor_io_rows(payload)
+    if io_rows:
+        rows.append('<div class="mon-io">')
+        rows.extend(io_rows)
+        rows.append("</div>")
+
+    if layers:
+        ranked = sorted(
+            layers.items(),
+            key=lambda item: int((item[1] or {}).get("total_tokens") or 0),
+            reverse=True,
+        )
+        many = sum(1 for _, slot in ranked if isinstance(slot, dict)) >= 4
+        rows.append(f'<div class="mon-layers{" mon-layers-2" if many else ""}">')
+        for label, slot in ranked:
+            if not isinstance(slot, dict):
+                continue
+            tokens = int(slot.get("total_tokens") or 0)
+            lat = latency.get(label) or {}
+            width = 6 if total_tokens <= 0 else max(6, min(100, round(100 * tokens / total_tokens)))
+            time_bit = _fmt_seconds(lat.get("total_seconds") or 0) if lat else ""
+            rows.append(
+                '<div class="mon-layer">'
+                f'<span class="mon-layer-name">{html.escape(_layer_caption(label, names))}</span>'
+                f'<span class="mon-track"><i style="width:{width}%"></i></span>'
+                f'<em>{_fmt_int(tokens)}{(" · " + time_bit) if time_bit else ""}</em>'
+                "</div>"
+            )
+        rows.append("</div>")
+    rows.append("</section>")
+    return "\n".join(rows)
+
+
+def _run_result(
+    log,
+    files_or_none=None,
+    *hitl,
+    files_html: str | None = None,
+    monitor_html: str = "",
+):
+    """统一结果区输出：日志 / 图片(可隐藏) / MD预览(可隐藏) / 下载 / 监控 / HITL / 解锁按钮。"""
     files = list(files_or_none or [])
     unlock = (
         gr.update(interactive=True),
@@ -965,6 +1286,7 @@ def _run_result(log, files_or_none=None, *hitl, files_html: str | None = None):
         _md_update(files),
         _download_files_update(files),
         files_html if files_html is not None else _artifact_download_html(files),
+        _monitor_update(monitor_html),
         *hitl,
         *unlock,
     )
@@ -987,13 +1309,24 @@ def run_from_ui(
     Gradio 按位置传参（不会自动聚合 list），这里手动拆分：
     preview_args = [mode, user_id, project_id, subject, kp_upload, kp_text,
                     notes_upload, notes_text, quiz_difficulty, quiz_qtype,
-                    perspective_choice]
+                    perspective_choice, monitor_enabled]
     """
     mode_value, user_id, project_id, subject = preview_args[:4]
     keypoints_upload, keypoints_text, notes_upload, notes_text = preview_args[4:8]
     quiz_difficulty = preview_args[8] if len(preview_args) > 8 else ""
     quiz_qtype = preview_args[9] if len(preview_args) > 9 else ""
     perspective_choice = preview_args[10] if len(preview_args) > 10 else ""
+    raw_monitor = preview_args[11] if len(preview_args) > 11 else MONITOR_ON
+    monitor_enabled = str(raw_monitor).strip().lower() not in {
+        "",
+        "0",
+        "off",
+        "false",
+        "关",
+        "no",
+        "disable",
+        "disabled",
+    }
     domain = _domain_value(domain_label)
     if not task_label:
         return _run_result(
@@ -1045,6 +1378,7 @@ def run_from_ui(
         profile_data["perspective"] = "objective"
     ctx = _ctx(domain)
     files: list[str] = []
+    monitor_html = ""
     with tempfile.TemporaryDirectory(prefix="agentflow_gradio_") as temp_dir:
         temp_root = Path(temp_dir)
         profile_path = temp_root / "profile.json"
@@ -1171,13 +1505,14 @@ def run_from_ui(
 
         before = _output_files(domain, tasks)
         buffer = io.StringIO()
+        monitor_payload = None
         try:
             with contextlib.redirect_stdout(buffer), contextlib.redirect_stderr(buffer):
                 modes: dict[str, str] = {}
                 _pol = _line_policy(domain, tasks[0])
                 if _pol and _pol.cli_mode and mode_value:
                     modes[tasks[0]] = _mode_value(mode_value)
-                asyncio.run(
+                monitor_payload = asyncio.run(
                     run(
                         ctx,
                         input_file,
@@ -1196,13 +1531,22 @@ def run_from_ui(
                         difficulty,
                         qtype,
                         compile_natural=not show_editor,
+                        monitor=monitor_enabled,
                     )
                 )
         except Exception as exc:  # noqa: BLE001 - UI should show the error directly
+            monitor_payload = getattr(exc, "monitor_payload", None)
             buffer.write(f"\n运行失败：{exc}\n")
 
         files = _new_artifacts(domain, tasks, before)
         log = _clean_log(buffer.getvalue().strip() or "运行完成。")
+        if monitor_enabled and not monitor_payload:
+            monitor_payload = _latest_monitor("+".join(tasks))
+        monitor_html = (
+            _monitor_html(monitor_payload, line_names=ctx.line_cn_names)
+            if monitor_enabled
+            else ""
+        )
 
     if tasks[0] == "minutes_generation":
         view_label = (perspective_choice or "").strip() or _profile_dropdown_default(domain)
@@ -1231,6 +1575,7 @@ def run_from_ui(
         log,
         files,
         *_hitl_ui(show_editor, editor_value if show_editor else ""),
+        monitor_html=monitor_html,
     )
 
 
@@ -1447,6 +1792,7 @@ def _clean_log(text: str) -> str:
     text = re.sub(r"mindmap_\d{8}_\d{6}(?:_\d{3})?", "mindmap", text)
     text = re.sub(r"report_\d{8}_\d{6}(?:_\d{3})?", "report", text)
     text = re.sub(r"result_\d{8}_\d{6}(?:_\d{3})?", "result", text)
+    text = re.sub(r"任务监控完成[^\n]*\n?", "", text)
     return text
 
 
@@ -1524,13 +1870,21 @@ html, body {
   width: auto !important;
   max-width: none !important;
 }
-#chrome-row > #domain-switch {
+#chrome-row > #chrome-controls {
   flex: 0 0 auto !important;
   flex-basis: auto !important;
   width: auto !important;
   max-width: none !important;
   display: flex !important;
+  align-items: center !important;
   justify-content: flex-end !important;
+  gap: 10px !important;
+  min-width: 0 !important;
+}
+#chrome-controls > #domain-switch,
+#chrome-controls > #monitor-switch {
+  flex: 0 0 auto !important;
+  width: auto !important;
 }
 #app-header {
   display: flex;
@@ -1618,6 +1972,72 @@ html, body {
   font-weight: 700 !important;
 }
 #domain-switch input[type="radio"] {
+  position: absolute !important;
+  opacity: 0 !important;
+  width: 0 !important;
+  height: 0 !important;
+  pointer-events: none !important;
+}
+#monitor-switch {
+  margin: 0 !important;
+  padding: 0 !important;
+}
+#monitor-switch .label-wrap,
+#monitor-switch > label,
+#monitor-switch span[data-testid="block-info"] {
+  display: none !important;
+}
+#monitor-switch .form,
+#monitor-switch .wrap,
+#monitor-switch .wrap-inner,
+#monitor-switch fieldset,
+#monitor-switch [class*="radio"] {
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+  padding: 0 !important;
+  margin: 0 !important;
+}
+#monitor-switch .wrap,
+#monitor-switch .form,
+#monitor-switch fieldset,
+#monitor-switch [class*="radio"] {
+  display: inline-flex !important;
+  flex-wrap: nowrap !important;
+  align-items: center !important;
+  gap: 6px !important;
+  padding: 5px !important;
+  border: 1px solid #d4d0c6 !important;
+  border-radius: 999px !important;
+  background: #e8e4db !important;
+}
+#monitor-switch label,
+#monitor-switch label:has(input[type="radio"]) {
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  min-width: 72px !important;
+  margin: 0 !important;
+  padding: 10px 22px !important;
+  border: none !important;
+  border-radius: 999px !important;
+  background: transparent !important;
+  color: #6b6860 !important;
+  font-size: 1.05rem !important;
+  font-weight: 650 !important;
+  letter-spacing: 0.08em !important;
+  box-shadow: none !important;
+  cursor: pointer !important;
+  position: static !important;
+  top: auto !important;
+}
+#monitor-switch label:has(input[type="radio"]:checked) {
+  background: #2c2a26 !important;
+  border: none !important;
+  color: #faf9f6 !important;
+  font-weight: 700 !important;
+}
+#monitor-switch input[type="radio"] {
   position: absolute !important;
   opacity: 0 !important;
   width: 0 !important;
@@ -1739,6 +2159,212 @@ html, body {
   font-size: 1.05rem;
   font-weight: 700;
   color: #2c2a26;
+}
+#monitor-panel {
+  margin: 0 0 8px !important;
+  padding: 0 !important;
+}
+#monitor-panel .prose,
+#monitor-panel > .wrap,
+#monitor-panel > div {
+  padding: 0 !important;
+  margin: 0 !important;
+  background: transparent !important;
+  border: none !important;
+}
+.mon-sheet {
+  background: #faf8f3;
+  border: 1px solid #d8d3c8;
+  border-radius: 8px;
+  padding: 8px 12px 8px 11px;
+  box-shadow: inset 3px 0 0 #2c2a26;
+}
+.mon-sheet.mon-warn {
+  box-shadow: inset 3px 0 0 #8a5a2b;
+}
+.mon-sheet.mon-bad {
+  box-shadow: inset 3px 0 0 #7a2e24;
+}
+.mon-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 10px;
+}
+.mon-stamp {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 36px;
+  height: 22px;
+  padding: 0 8px;
+  border-radius: 999px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  line-height: 1;
+  background: #2c2a26;
+  color: #faf8f3;
+}
+.mon-warn .mon-stamp {
+  background: #8a5a2b;
+}
+.mon-bad .mon-stamp {
+  background: #7a2e24;
+}
+.mon-stats {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 2px 14px;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.mon-stats li {
+  display: flex;
+  align-items: baseline;
+  gap: 4px;
+}
+.mon-stats strong {
+  font-family: "IBM Plex Mono", ui-monospace, Consolas, monospace;
+  font-size: 0.98rem;
+  font-weight: 650;
+  color: #1c1b19;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+}
+.mon-stats span {
+  font-size: 0.68rem;
+  color: #9a968c;
+}
+.mon-pipe {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-left: auto;
+}
+.mon-chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 1px 7px;
+  border-radius: 999px;
+  font-size: 0.7rem;
+  color: #4a4842;
+  background: #efece4;
+  border: 1px solid transparent;
+}
+.mon-chip-ok {
+  background: #ebe7dc;
+}
+.mon-chip-warn {
+  background: #f3ead8;
+  color: #6b4a22;
+}
+.mon-meta {
+  flex: 1 1 100%;
+  margin: 0;
+  font-size: 0.7rem;
+  color: #9a968c;
+  letter-spacing: 0.02em;
+}
+.mon-note {
+  margin: 6px 0 0;
+  font-size: 0.76rem;
+  color: #6b4a22;
+}
+.mon-note.mon-error {
+  color: #7a2e24;
+}
+.mon-io {
+  margin: 7px 0 0;
+  padding-top: 6px;
+  border-top: 1px solid #e6e1d6;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.mon-io-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 8px;
+  margin: 0;
+  font-size: 0.74rem;
+  color: #3f3d38;
+  line-height: 1.3;
+}
+.mon-io-row em {
+  flex: 0 0 3.2em;
+  font-style: normal;
+  font-size: 0.68rem;
+  letter-spacing: 0.1em;
+  color: #9a968c;
+}
+.mon-plain {
+  flex: 1 1 12em;
+  min-width: 0;
+  font-size: 0.76rem;
+  line-height: 1.5;
+  color: #3f3d38;
+}
+.mon-layers {
+  margin: 7px 0 0;
+  padding-top: 6px;
+  border-top: 1px solid #e6e1d6;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.mon-layers-2 {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  column-gap: 14px;
+  row-gap: 3px;
+}
+.mon-layer {
+  display: grid;
+  grid-template-columns: minmax(4.5em, 7.5em) 1fr auto;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+.mon-layer-name {
+  font-size: 0.7rem;
+  color: #5c5a54;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.mon-track {
+  display: block;
+  height: 3px;
+  background: #e6e1d6;
+  border-radius: 99px;
+  overflow: hidden;
+}
+.mon-track i {
+  display: block;
+  height: 100%;
+  background: #2c2a26;
+  border-radius: 99px;
+}
+.mon-layer em {
+  font-style: normal;
+  font-family: "IBM Plex Mono", ui-monospace, Consolas, monospace;
+  font-size: 0.68rem;
+  color: #9a968c;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+@media (max-width: 720px) {
+  .mon-layers-2 {
+    grid-template-columns: 1fr;
+  }
+  .mon-pipe {
+    margin-left: 0;
+  }
 }
 #clear-results-btn,
 #reset-form-btn {
@@ -1916,10 +2542,17 @@ button.primary:disabled {
   border-radius: 999px !important;
   color: #6b6860 !important;
 }
-#domain-switch label:has(input[type="radio"]:checked) {
+#domain-switch label:has(input[type="radio"]:checked),
+#monitor-switch label:has(input[type="radio"]:checked) {
   background: #2c2a26 !important;
   border: none !important;
   color: #faf9f6 !important;
+}
+#monitor-switch label:has(input[type="radio"]) {
+  background: transparent !important;
+  border: none !important;
+  border-radius: 999px !important;
+  color: #6b6860 !important;
 }
 #task-tabs label:has(input[type="radio"]) {
   background: #e8e4db !important;
@@ -2658,17 +3291,26 @@ button.secondary:hover {
   #nav-row {
     flex-wrap: wrap !important;
   }
+  #chrome-row > #chrome-controls,
   #chrome-row > #domain-switch,
   #nav-actions {
     width: 100% !important;
   }
+  #chrome-controls {
+    justify-content: space-between !important;
+  }
   #domain-switch .wrap,
   #domain-switch .form,
-  #domain-switch fieldset {
+  #domain-switch fieldset,
+  #monitor-switch .wrap,
+  #monitor-switch .form,
+  #monitor-switch fieldset {
     width: 100% !important;
   }
   #domain-switch label,
-  #domain-switch label:has(input[type="radio"]) {
+  #domain-switch label:has(input[type="radio"]),
+  #monitor-switch label,
+  #monitor-switch label:has(input[type="radio"]) {
     flex: 1 1 0 !important;
   }
   #nav-actions {
@@ -2736,13 +3378,21 @@ def build_app() -> gr.Blocks:
                 </header>
                 """
             )
-            domain = gr.Radio(
-                choices=DOMAIN_CHOICES,
-                value=initial_domain,
-                show_label=False,
-                container=False,
-                elem_id="domain-switch",
-            )
+            with gr.Row(elem_id="chrome-controls"):
+                domain = gr.Radio(
+                    choices=DOMAIN_CHOICES,
+                    value=initial_domain,
+                    show_label=False,
+                    container=False,
+                    elem_id="domain-switch",
+                )
+                monitor_checkbox = gr.Radio(
+                    choices=MONITOR_CHOICES,
+                    value=MONITOR_ON,
+                    show_label=False,
+                    container=False,
+                    elem_id="monitor-switch",
+                )
         with gr.Row(elem_id="nav-row", equal_height=True):
             with gr.Column(scale=8, min_width=240, elem_id="nav-tasks"):
                 tasks = gr.Radio(
@@ -2925,6 +3575,18 @@ def build_app() -> gr.Blocks:
                     value=_task_brief_html(initial_task or ""),
                     elem_id="task-brief",
                 )
+                html_monitor_kwargs = {
+                    "value": "",
+                    "elem_id": "monitor-panel",
+                    "visible": False,
+                }
+                try:
+                    monitor_panel = gr.HTML(**html_monitor_kwargs, sanitize_html=False)
+                except TypeError:
+                    try:
+                        monitor_panel = gr.HTML(**html_monitor_kwargs, sanitize=False)
+                    except TypeError:
+                        monitor_panel = gr.HTML(**html_monitor_kwargs)
                 log_output = gr.Textbox(
                     label="日志",
                     lines=12,
@@ -2988,6 +3650,7 @@ def build_app() -> gr.Blocks:
             md_preview,
             download_files,
             files_output,
+            monitor_panel,
         ]
         side_btns = [clear_results_btn, reset_form_btn, clear_tpl_btn]
         domain.change(
@@ -3069,7 +3732,7 @@ def build_app() -> gr.Blocks:
         run_button.click(
             begin_run,
             inputs=[],
-            outputs=[log_output, run_button, *side_btns],
+            outputs=[log_output, monitor_panel, run_button, *side_btns],
             show_progress="hidden",
         ).then(
             run_from_ui,
@@ -3093,6 +3756,7 @@ def build_app() -> gr.Blocks:
                 quiz_difficulty,
                 quiz_qtype,
                 perspective_dropdown,
+                monitor_checkbox,
             ],
             outputs=[*result_outputs, *hitl_outputs, *side_btns],
             show_progress="minimal",
@@ -3134,6 +3798,7 @@ def build_app() -> gr.Blocks:
                 keypoints_text,
                 notes_upload,
                 notes_text,
+                monitor_checkbox,
                 *hitl_outputs,
             ],
         )

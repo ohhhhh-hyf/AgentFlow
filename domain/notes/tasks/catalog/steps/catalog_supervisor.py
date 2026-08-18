@@ -22,5 +22,4 @@ class CatalogSupervisor:
             self._system_prompt,
             context,
             CatalogSupervisorReview,
-            CATALOG_SUPERVISOR_OUTPUT_CONTRACT,
-        )
+            CATALOG_SUPERVISOR_OUTPUT_CONTRACT, label='catalog/supervisor')
