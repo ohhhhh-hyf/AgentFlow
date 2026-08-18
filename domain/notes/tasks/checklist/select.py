@@ -9,7 +9,7 @@ _STRONG = ("必考", "一定出", "每届必出", "必须背", "务必掌握", "
 _MEDIUM = ("重点", "考到的概率", "考到概率", "着重", "要会")
 _LIGHT = ("了解一下", "了解即可", "有印象", "了解就行", "有个印象")
 _EXAM_STRONG = ("必考", "每届必出", "年年有", "一定出", "出大题")
-_EXAM_MID = ("选择题", "填空", "选择填空", "出现过", "证明题", "计算题")
+_EXAM_MID = ("选择题", "填空", "选择填空", "出现过", "证明题", "计算题", "简答", "判断题", "论述")
 _ERROR = ("不能", "不要", "陷阱", "反例", "慎", "容易错", "混淆", "误用", "漏")
 _COUNT_RE = re.compile(r"([0-9]+|十[一二三四五六七八九]?|[一二三四五六七八九两])\s*道")
 _CN_NUM = {
@@ -24,7 +24,8 @@ def _clean(text: object) -> str:
 
 
 def _compact(text: object) -> str:
-    return re.sub(r"\s+", "", str(text or "")).lower()
+    blob = re.sub(r"\s+", "", str(text or "")).lower()
+    return blob.replace("比", "/")
 
 
 def _norm(text: object) -> str:
@@ -56,6 +57,8 @@ def flatten_points(catalog: dict[str, Any] | None) -> list[dict[str, Any]]:
                     continue
                 if not _clean(point.get("id")) or not _clean(point.get("name")):
                     continue
+                if _is_exam_pack(point.get("name") or ""):
+                    continue
                 row = dict(point)
                 row["chapter"] = _clean(point.get("chapter")) or _clean(chapter.get("name"))
                 row["topic"] = _clean(point.get("topic")) or _clean(topic.get("name"))
@@ -66,40 +69,74 @@ def flatten_points(catalog: dict[str, Any] | None) -> list[dict[str, Any]]:
 def _stems(name: str) -> list[str]:
     raw = _clean(name)
     out = [raw]
-    for suffix in ("的定义", "的概念", "的性质", "的分类", "的一般方法"):
+    for suffix in (
+        "的定义",
+        "的概念",
+        "的性质",
+        "的分类",
+        "的一般方法",
+        "的计算方法",
+        "的常用技巧",
+        "的应用",
+        "判断流程",
+        "典型例子",
+        "替换规则",
+    ):
         if raw.endswith(suffix) and len(raw) - len(suffix) >= 3:
             out.append(raw[: -len(suffix)])
+    numbered = re.match(r"^第[一二三四五六七八九十0-9]+个(.+)$", raw)
+    if numbered and len(_compact(numbered.group(1))) >= 4:
+        out.append(numbered.group(1))
+    kinded = re.match(r"^第[一二三四五六七八九十0-9]+类(.+)$", raw)
+    if kinded and len(_compact(kinded.group(1))) >= 3:
+        out.append(kinded.group(1))
     return out
 
 
-def _needles(point: dict[str, Any]) -> list[str]:
-    names = [_clean(point.get("name")), *_as_list(point.get("aliases"))]
-    names.extend(_as_list(point.get("knowledge_items")))
-    expanded: list[str] = []
-    for name in names:
-        expanded.extend(_stems(name))
+def _is_exam_pack(name: str) -> bool:
+    """卷面包装名不是可复习知识点，避免抢走真正被点名的点。"""
+    raw = _clean(name)
+    if raw in {"高频考点", "考点汇总", "期末复习", "复习建议", "考法提示"}:
+        return True
+    return bool(re.search(r"(综合题|判断题|选择题|填空题|应用题)$", raw))
+
+
+def _uniq_needles(names: list[str], *, min_len: int) -> list[str]:
     out: list[str] = []
     seen: set[str] = set()
-    for name in expanded:
+    for name in names:
         key = _compact(name)
-        if len(key) < 2 or key in seen:
+        if len(key) < min_len or key in seen:
             continue
         seen.add(key)
         out.append(name)
     return out
 
 
+def _name_needles(point: dict[str, Any]) -> list[str]:
+    names: list[str] = []
+    for name in [_clean(point.get("name")), *_as_list(point.get("aliases"))]:
+        names.extend(_stems(name))
+    return _uniq_needles(names, min_len=3)
+
+
+def _needles(point: dict[str, Any]) -> list[str]:
+    names = list(_name_needles(point))
+    names.extend(_as_list(point.get("knowledge_items")))
+    return _uniq_needles(names, min_len=3)
+
+
 def _hit_in(text: str, compact: str, needle: str) -> bool:
     raw = _clean(needle)
-    if len(raw) < 2:
+    if len(raw) < 3:
         return False
     if raw in text:
         return True
     key = _compact(raw)
-    if len(key) >= 2 and key in compact:
+    if len(key) >= 3 and key in compact:
         return True
     folded = _norm(raw)
-    return len(folded) >= 2 and folded in _norm(text)
+    return len(folded) >= 3 and folded in _norm(text)
 
 
 def _sentences(teacher: str) -> list[str]:
@@ -150,24 +187,99 @@ def _is_light(blob: str) -> bool:
     return bool(re.search(r"了解.{0,12}(一下|即可|就行|就好)", blob or ""))
 
 
-def _needle_span(sent: str, point: dict[str, Any]) -> int:
+def _name_span(sent: str, point: dict[str, Any]) -> int:
     compact = _compact(sent)
-    spans = [len(_compact(n)) for n in _needles(point) if _hit_in(sent, compact, n)]
+    spans = [len(_compact(n)) for n in _name_needles(point) if _hit_in(sent, compact, n)]
     return max(spans) if spans else 0
 
 
+def _item_span(sent: str, point: dict[str, Any]) -> int:
+    compact = _compact(sent)
+    spans = [
+        len(_compact(n))
+        for n in _as_list(point.get("knowledge_items"))
+        if len(_compact(n)) >= 4 and _hit_in(sent, compact, n)
+    ]
+    return max(spans) if spans else 0
+
+
+def _family_key(point: dict[str, Any]) -> str:
+    raw = _clean(point.get("name"))
+    kinded = re.match(r"^第[一二三四五六七八九十0-9]+类(.+)$", raw)
+    if kinded:
+        raw = kinded.group(1)
+    for suffix in ("判断流程", "典型例子", "的补定义", "替换规则", "的计算方法", "的常用技巧"):
+        if raw.endswith(suffix) and len(raw) - len(suffix) >= 3:
+            raw = raw[: -len(suffix)]
+            break
+    return _compact(raw)
+
+
+def _drop_contained_names(points: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """同句并列命中时，短名被长名包含则丢掉短名，避免「考点」抢走整块必考。"""
+    names = [_compact(p.get("name")) for p in points]
+    keep: list[dict[str, Any]] = []
+    for point, name in zip(points, names):
+        if any(name != other and name in other for other in names):
+            continue
+        keep.append(point)
+    return keep or points
+
+
+def _collapse_family(sent: str, points: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """同一族知识点只留一个代表，避免「第一类/第二类/流程」同时占满重点。"""
+    groups: dict[str, list[dict[str, Any]]] = {}
+    for point in points:
+        groups.setdefault(_family_key(point), []).append(point)
+    for short in list(groups):
+        for long in list(groups):
+            if short != long and short in long and short in groups and long in groups:
+                groups[short].extend(groups.pop(long))
+    compact = _norm(sent)
+    out: list[dict[str, Any]] = []
+    for members in groups.values():
+        if len(members) == 1:
+            out.extend(members)
+            continue
+        out.append(
+            max(
+                members,
+                key=lambda p: (
+                    1 if _norm(p.get("name")) in compact else 0,
+                    1 if any(tok in _clean(p.get("name")) for tok in ("流程", "分类", "方法", "规则")) else 0,
+                    int(str(p.get("importance") or 0) or 0),
+                    int(str(p.get("teacher_emphasis") or 0) or 0),
+                    -len(_clean(p.get("name"))),
+                ),
+            )
+        )
+    return out
+
+
 def _owned_sentences(sentences: list[str], points: list[dict[str, Any]]) -> dict[str, list[str]]:
-    """一句老师原话归最长命中针的 KP，避免短词误抢别人的句子。"""
+    """一句老师原话只归最具体的 KP。"""
     owned: dict[str, list[str]] = {_clean(p.get("id")): [] for p in points}
     for sent in sentences:
-        scored = [(p, _needle_span(sent, p)) for p in points]
-        scored = [(p, span) for p, span in scored if span > 0]
-        if not scored:
-            continue
-        best = max(span for _p, span in scored)
-        for point, span in scored:
-            if span == best:
-                owned.setdefault(_clean(point.get("id")), []).append(sent)
+        named = [p for p in points if _name_span(sent, p) > 0]
+        if named:
+            compact_sent = _compact(sent)
+            explicit = [
+                p for p in named
+                if _compact(p.get("name")) in compact_sent
+            ]
+            cands = _collapse_family(sent, _drop_contained_names(explicit or named))
+        else:
+            scored = [(p, _item_span(sent, p)) for p in points]
+            scored = [(p, span) for p, span in scored if span > 0]
+            if not scored:
+                continue
+            best = max(span for _p, span in scored)
+            cands = [point for point, span in scored if span == best]
+            cands = [
+                max(cands, key=lambda p: (int(str(p.get("importance") or 0) or 0), len(_clean(p.get("name")))))
+            ]
+        for point in cands:
+            owned.setdefault(_clean(point.get("id")), []).append(sent)
     return owned
 
 
@@ -175,7 +287,6 @@ def activate_points(catalog: dict[str, Any] | None, teacher: str) -> list[dict[s
     """匹配老师文本，写 session_* 并给出 S/A/B/C。不创建新 KP。"""
     points = flatten_points(catalog)
     teacher = teacher or ""
-    compact_teacher = _compact(teacher)
     sentences = _sentences(teacher)
     owned = _owned_sentences(sentences, points)
     activated: list[dict[str, Any]] = []
@@ -183,10 +294,7 @@ def activate_points(catalog: dict[str, Any] | None, teacher: str) -> list[dict[s
     for point in points:
         hits = list(owned.get(_clean(point.get("id"))) or [])
         if not hits:
-            if any(_hit_in(teacher, compact_teacher, n) for n in [_clean(point.get("name")), *_as_list(point.get("aliases"))]):
-                hits = [teacher[:80]]
-            else:
-                continue
+            continue
         row = dict(point)
         row["session_emphasis"] = str(_emphasis(hits))
         row["session_focus_items"] = _focus_items(point, hits)
@@ -209,10 +317,12 @@ def activate_points(catalog: dict[str, Any] | None, teacher: str) -> list[dict[s
         row["_score"] = _raw_score(row)
         activated.append(row)
 
+    _assign_priority(activated)
     selected_ids = {_clean(p.get("id")) for p in activated}
-    # 老师点到的 KP 的前置，至少进入清单
     extra: list[dict[str, Any]] = []
     for row in list(activated):
+        if row.get("session_priority") not in {"S", "A"}:
+            continue
         for name in _as_list(row.get("prerequisites")):
             prereq = _find_by_name(points, name)
             if not prereq or _clean(prereq.get("id")) in selected_ids:
@@ -230,10 +340,11 @@ def activate_points(catalog: dict[str, Any] | None, teacher: str) -> list[dict[s
             add["_light"] = False
             add["_prereq_of"] = _clean(row.get("name"))
             add["_score"] = _raw_score(add) + 8
+            add["session_priority"] = "B"
             extra.append(add)
             selected_ids.add(_clean(add.get("id")))
     activated.extend(extra)
-    _assign_priority(activated)
+    _cap_priorities(activated)
     _attach_session_practice(activated, teacher)
     activated.sort(key=lambda p: ({"S": 0, "A": 1, "B": 2, "C": 3}.get(p.get("session_priority"), 9), -p.get("_score", 0)))
     return activated
@@ -279,24 +390,58 @@ def _raw_score(point: dict[str, Any]) -> int:
 
 
 def _assign_priority(rows: list[dict[str, Any]]) -> None:
+    """只按本次老师语气定档：必考=S，点名重点=A，了解/前置=B，其余不进主清单。"""
     for row in rows:
         emph = int(str(row.get("session_emphasis") or 0) or 0)
-        importance = int(str(row.get("importance") or 3) or 3)
-        exam = str(row.get("session_exam_signal") or "none")
         if row.get("_light"):
             row["session_priority"] = "B"
-            continue
-        if emph >= 3:
+        elif emph >= 3:
             row["session_priority"] = "S"
-        elif emph >= 2 or (emph >= 1 and exam == "strong") or (emph >= 1 and importance >= 5):
+        elif emph >= 2:
             row["session_priority"] = "A"
-        elif emph >= 1 or row.get("_prereq_of") or int(str(row.get("foundational_level") or 0) or 0) >= 4:
+        elif row.get("_prereq_of"):
             row["session_priority"] = "B"
         else:
             row["session_priority"] = "C"
-    for row in rows:
-        if row.get("_prereq_of") and row.get("session_priority") not in {"S", "A"}:
-            row["session_priority"] = "B"
+
+
+def _cap_priorities(
+    rows: list[dict[str, Any]],
+    *,
+    s_max: int = 5,
+    a_max: int = 5,
+    b_max: int = 4,
+) -> None:
+    """档位人数封顶，多出来的按分数往下降，避免目录一碎清单就膨胀。"""
+
+    def dedupe(grade: str, nxt: str) -> None:
+        pool = [row for row in rows if row.get("session_priority") == grade]
+        groups: dict[str, list[dict[str, Any]]] = {}
+        for row in pool:
+            groups.setdefault(_family_key(row), []).append(row)
+        for short in list(groups):
+            for long in list(groups):
+                if short != long and short in long and short in groups and long in groups:
+                    groups[short].extend(groups.pop(long))
+        for members in groups.values():
+            if len(members) < 2:
+                continue
+            members.sort(key=lambda row: -int(row.get("_score") or 0))
+            for row in members[1:]:
+                row["session_priority"] = nxt
+
+    def demote(grade: str, nxt: str, limit: int) -> None:
+        pool = [row for row in rows if row.get("session_priority") == grade]
+        pool.sort(key=lambda row: -int(row.get("_score") or 0))
+        for row in pool[limit:]:
+            row["session_priority"] = nxt
+
+    dedupe("S", "A")
+    demote("S", "A", s_max)
+    dedupe("A", "B")
+    demote("A", "B", a_max)
+    dedupe("B", "C")
+    demote("B", "C", b_max)
 
 
 def _to_count(raw: str) -> str:

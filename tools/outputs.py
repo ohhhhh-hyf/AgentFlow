@@ -192,7 +192,7 @@ def save_report_artifacts(
         ):
             body = review_html
             html_path = out_dir / f"result_{timestamp}.html"
-            if line_name in {"last_class", "checklist"} and body.lstrip()[:15].lower().startswith(
+            if line_name == "checklist" and body.lstrip()[:15].lower().startswith(
                 "<!doctype"
             ):
                 html_path.write_text(body, encoding="utf-8")

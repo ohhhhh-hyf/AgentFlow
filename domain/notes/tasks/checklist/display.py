@@ -64,14 +64,14 @@ def build_checklist_markdown(draft: dict[str, Any]) -> str:
         lines.append("没有从老师文本匹配到目录中的知识点。请先确认已运行 catalog，且老师文本能对上目录名称。")
         return "\n".join(lines)
 
+    focus = [c for c in cards if c.get("session_priority") in {"S", "A"}]
+    brief = [c for c in cards if c.get("session_priority") == "B"]
     lines.extend(["## 一、全局导航", "", "### 1. 复习重点分布", ""])
     dist = distribution(cards)
     for row in dist:
         lines.append(f"- {row['label']}：{row['value']}%")
     lines.extend(["", "| 优先级 | 知识点 | 重要程度 |", "| --- | --- | --- |"])
-    for card in cards:
-        if card.get("session_priority") not in {"S", "A", "B"}:
-            continue
+    for card in focus:
         lines.append(
             f"| {_grade_label(card)} | {_clean(card.get('name'))} | {importance_stars(card)} |"
         )
@@ -81,13 +81,10 @@ def build_checklist_markdown(draft: dict[str, Any]) -> str:
         lines.append(f"- {src} —{rel}→ {dst}")
 
     lines.extend(["", "## 二、知识点", ""])
-    for card in cards:
-        if card.get("session_priority") == "C":
-            continue
-        brief = card.get("session_priority") not in {"S", "A"}
-        facts = _as_list(card.get("key_facts"))[: 3 if brief else 6]
-        steps = _as_list(card.get("method_steps"))[: 3 if brief else 6]
-        pits = _as_list(card.get("pitfalls"))[: 2 if brief else 4]
+    for card in focus:
+        facts = _as_list(card.get("key_facts"))[:6]
+        steps = _as_list(card.get("method_steps"))[:6]
+        pits = _as_list(card.get("pitfalls"))[:4]
         lines.append(f"### {_clean(card.get('name'))}  （{_grade_label(card)} · {importance_stars(card)}）")
         lines.append(f"- 考法预判：{_clean(card.get('exam_preview'))}")
         if facts:
@@ -100,6 +97,16 @@ def build_checklist_markdown(draft: dict[str, Any]) -> str:
         if pits:
             lines.append("- 易错提醒：")
             lines.extend(f"  - {p}" for p in pits)
+        lines.extend(_trace_markdown(card))
+        lines.append("")
+    if brief:
+        lines.append("### 简要过一下")
+        lines.append("")
+        for card in brief:
+            lines.append(
+                f"- {_clean(card.get('name'))}（{importance_stars(card)}）："
+                f"{_clean(card.get('exam_preview')) or '知道定义和一条限制即可'}"
+            )
         lines.append("")
 
     lines.extend(_action_markdown(draft))
@@ -380,14 +387,201 @@ def _widget_css() -> str:
 """
 
 
+_SUPPORT_CN = {
+    "priority": "优先级",
+    "exam_prediction": "考法预判",
+    "explanation": "知识点讲解",
+    "method_steps": "方法步骤",
+    "error_warning": "易错提醒",
+}
+
+
+def _trace_pack(card: dict[str, Any]) -> dict[str, list[dict[str, Any]]]:
+    raw = card.get("provenance") if isinstance(card.get("provenance"), dict) else {}
+    teachers = [e for e in (raw.get("teacher_evidence") or []) if isinstance(e, dict)]
+    kb = [e for e in (raw.get("knowledge_evidence") or []) if isinstance(e, dict)]
+    notes = [e for e in (raw.get("note_evidence") or []) if isinstance(e, dict)]
+    return {"teacher": teachers, "kb": kb, "note": notes}
+
+
+def _split_visible(pack: dict[str, list[dict[str, Any]]]) -> tuple[list[tuple[str, dict[str, Any]]], list[tuple[str, dict[str, Any]]]]:
+    """默认：老师原话优先 + 1～2 条知识库 + 至多 1 条笔记，其余折叠。"""
+    visible: list[tuple[str, dict[str, Any]]] = []
+    hidden: list[tuple[str, dict[str, Any]]] = []
+    teachers = pack["teacher"]
+    if teachers:
+        visible.extend(("teacher", ev) for ev in teachers[:2])
+        hidden.extend(("teacher", ev) for ev in teachers[2:])
+    kb = pack["kb"]
+    kb_show = 2 if not teachers else 1
+    visible.extend(("kb", ev) for ev in kb[:kb_show])
+    hidden.extend(("kb", ev) for ev in kb[kb_show:])
+    notes = pack["note"]
+    if notes:
+        visible.append(("note", notes[0]))
+        hidden.extend(("note", ev) for ev in notes[1:])
+    return visible, hidden
+
+
+def _supports_label(ev: dict[str, Any]) -> str:
+    labels = [_SUPPORT_CN.get(str(x), "") for x in (ev.get("supports") or [])]
+    return " / ".join(x for x in labels if x)
+
+
+def _evidence_html(kind: str, ev: dict[str, Any]) -> str:
+    eid = escape(str(ev.get("evidence_id") or ""), quote=True)
+    supports = " ".join(str(x) for x in (ev.get("supports") or []) if x)
+    klass = {"teacher": "ck-ev-teacher", "kb": "ck-ev-kb", "note": "ck-ev-note"}.get(kind, "")
+    head = {
+        "teacher": "老师原话",
+        "kb": "知识库依据",
+        "note": "学生笔记",
+    }.get(kind, "依据")
+    rows = [
+        f'<div class="ck-ev {klass}" data-ev="{eid}" data-supports="{escape(supports, quote=True)}">',
+        f'<div class="ck-ev-k">{escape(str(head), quote=False)}</div>',
+    ]
+    if kind == "teacher":
+        rows.append(f'<div class="ck-ev-quote">“{escape(_clean(ev.get("text")), quote=False)}”</div>')
+        items = _as_list(ev.get("matched_items"))
+        if items:
+            rows.append(
+                f'<div class="ck-ev-meta">对应：{escape("、".join(items[:4]), quote=False)}</div>'
+            )
+    else:
+        source = _clean(ev.get("source"))
+        section = _clean(ev.get("section"))
+        if source:
+            loc = f"{source}" + (f" · {section}" if section else "")
+            rows.append(f'<div class="ck-ev-meta">{escape(loc, quote=False)}</div>')
+        excerpt = _clean(ev.get("excerpt"))
+        full = _clean(ev.get("full")) or excerpt
+        if excerpt:
+            rows.append(f'<div class="ck-ev-quote">{escape(excerpt, quote=False)}</div>')
+        if full and full != excerpt:
+            rows.append(
+                "<details><summary>完整片段</summary>"
+                f'<div class="ck-ev-quote">{escape(full, quote=False)}</div></details>'
+            )
+    sup = _supports_label(ev)
+    if sup:
+        rows.append(f'<div class="ck-ev-sup">支撑：{escape(sup, quote=False)}</div>')
+    rows.append("</div>")
+    return "".join(rows)
+
+
+def _trace_html(card: dict[str, Any]) -> str:
+    pack = _trace_pack(card)
+    visible, hidden = _split_visible(pack)
+    if not visible and not hidden:
+        status = ""
+        raw = card.get("provenance") if isinstance(card.get("provenance"), dict) else {}
+        if raw.get("evidence_status") == "insufficient":
+            status = "这条判断缺少直接依据，未编造出处。"
+        return f'<div class="ck-ev-empty">{status or "暂无足够依据"}</div>'
+    rows = [_evidence_html(kind, ev) for kind, ev in visible]
+    if hidden:
+        rows.append('<details class="ck-ev-more"><summary>查看更多依据</summary>')
+        rows.extend(_evidence_html(kind, ev) for kind, ev in hidden)
+        rows.append("</details>")
+    return "".join(rows)
+
+
+def _card_html(card: dict[str, Any]) -> str:
+    grade = str(card.get("session_priority") or "")
+    brief = grade not in {"S", "A"}
+    badge = "ck-s" if grade == "S" else "ck-a" if grade == "A" else "ck-b"
+    facts = _as_list(card.get("key_facts"))[: 3 if brief else 6]
+    steps = _as_list(card.get("method_steps"))[: 3 if brief else 6]
+    pits = _as_list(card.get("pitfalls"))[: 2 if brief else 4]
+    left = [
+        '<div class="ck-card">',
+        f'<span class="ck-badge {badge}">{escape(_grade_label(card), quote=False)}</span>'
+        f'<span class="ck-stars">{importance_stars(card)}</span> '
+        f"<strong>{escape(_clean(card.get('name')), quote=False)}</strong>",
+        '<div class="ck-field" data-field="exam_prediction">'
+        f"<p><b>考法预判</b> {escape(_clean(card.get('exam_preview')), quote=False)}</p></div>",
+    ]
+    if facts:
+        left.append(
+            "<p><b>必须先会</b></p><ul>"
+            + "".join(f"<li>{escape(item, quote=False)}</li>" for item in facts)
+            + "</ul>"
+        )
+    left.append(
+        '<div class="ck-field" data-field="explanation">'
+        f"<p><b>知识点讲解</b> {escape(_clean(card.get('explain')), quote=False)}</p></div>"
+    )
+    if steps:
+        left.append(
+            '<div class="ck-field" data-field="method_steps"><p><b>方法步骤</b></p><ol>'
+            + "".join(f"<li>{escape(step, quote=False)}</li>" for step in steps)
+            + "</ol></div>"
+        )
+    if pits:
+        left.append(
+            '<div class="ck-field" data-field="error_warning"><p><b>易错提醒</b></p><ul>'
+            + "".join(f"<li>{escape(item, quote=False)}</li>" for item in pits)
+            + "</ul></div>"
+        )
+    left.append("</div>")
+    return (
+        '<div class="ck-review">'
+        f'<div class="ck-review-left">{"".join(left)}</div>'
+        '<div class="ck-review-rule"></div>'
+        f'<div class="ck-review-right">{_trace_html(card)}</div>'
+        "</div>"
+    )
+
+
+def _trace_markdown(card: dict[str, Any]) -> list[str]:
+    pack = _trace_pack(card)
+    if not any(pack.values()):
+        return []
+    lines = ["- 溯源"]
+    for ev in pack["teacher"][:3]:
+        lines.append(f"  - 老师原话：{_clean(ev.get('text'))}")
+    for ev in pack["kb"][:2]:
+        src = _clean(ev.get("source"))
+        excerpt = _clean(ev.get("excerpt"))
+        lines.append(f"  - 知识库：{src} — {excerpt}" if src else f"  - 知识库：{excerpt}")
+    for ev in pack["note"][:1]:
+        lines.append(f"  - 笔记：{_clean(ev.get('excerpt'))}")
+    return lines
+
+
+def _trace_script() -> str:
+    return """<script>
+(function () {
+  document.querySelectorAll('.ck-review').forEach((row) => {
+    const fields = row.querySelectorAll('[data-field]');
+    const evs = row.querySelectorAll('[data-supports]');
+    const clear = () => {
+      fields.forEach((el) => el.classList.remove('is-on'));
+      evs.forEach((el) => el.classList.remove('is-on'));
+    };
+    fields.forEach((field) => {
+      field.addEventListener('click', () => {
+        const key = field.getAttribute('data-field') || '';
+        clear();
+        field.classList.add('is-on');
+        evs.forEach((ev) => {
+          const bag = ' ' + (ev.getAttribute('data-supports') || '') + ' ';
+          if (key && bag.indexOf(' ' + key + ' ') >= 0) ev.classList.add('is-on');
+        });
+      });
+    });
+  });
+})();
+</script>"""
+
+
 def build_checklist_html(draft: dict[str, Any]) -> str:
     from tools.knowledge_graph import _CYTOSCAPE_CDN, build_knowledge_graph_embed
     from tools.mindmap import _D3_CDN, _MARKMAP_VIEW_CDN, build_editable_mindmap_embed
 
     course = _clean(draft.get("course")) or "复习清单"
     cards = [c for c in (draft.get("cards") or []) if isinstance(c, dict)]
-    outline = draft.get("mindmap_outline") or build_checklist_mindmap_outline(draft, cards)
-    nodes, edges = _graph_payload(cards)
     body: list[str] = [
         '<div class="ck-doc">',
         f"<h1>{escape(course, quote=False)} · 复习清单</h1>",
@@ -399,14 +593,16 @@ def build_checklist_html(draft: dict[str, Any]) -> str:
     if not cards:
         body.append("<p>没有从老师文本匹配到目录中的知识点。</p></div>")
     else:
+        focus = [c for c in cards if c.get("session_priority") in {"S", "A"}]
+        brief = [c for c in cards if c.get("session_priority") == "B"]
+        outline = draft.get("mindmap_outline") or build_checklist_mindmap_outline(draft, cards)
+        nodes, edges = _graph_payload(cards)
         body.append("<h2>一、全局导航</h2><h3>1. 复习重点分布</h3>")
         body.append(_pie_html(distribution(cards)))
         body.append(
             '<table class="ck-table"><thead><tr><th>优先级</th><th>知识点</th><th>重要程度</th></tr></thead><tbody>'
         )
-        for card in cards:
-            if card.get("session_priority") not in {"S", "A", "B"}:
-                continue
+        for card in focus:
             body.append(
                 "<tr>"
                 f"<td>{escape(_grade_label(card), quote=False)}</td>"
@@ -423,47 +619,21 @@ def build_checklist_html(draft: dict[str, Any]) -> str:
         else:
             body.append("<p>本次激活点之间没有可画的关系图。</p>")
         body.append("<h2>二、知识点</h2>")
-        for card in cards:
-            grade = str(card.get("session_priority") or "")
-            if grade == "C":
-                continue
-            brief = grade not in {"S", "A"}
-            badge = "ck-s" if grade == "S" else "ck-a" if grade == "A" else "ck-b"
-            facts = _as_list(card.get("key_facts"))[: 3 if brief else 6]
-            steps = _as_list(card.get("method_steps"))[: 3 if brief else 6]
-            pits = _as_list(card.get("pitfalls"))[: 2 if brief else 4]
-            quotes = [] if brief else _as_list(card.get("session_quotes"))
-            body.append('<div class="ck-card">')
-            body.append(
-                f'<span class="ck-badge {badge}">{escape(_grade_label(card), quote=False)}</span>'
-                f'<span class="ck-stars">{importance_stars(card)}</span> '
-                f"<strong>{escape(_clean(card.get('name')), quote=False)}</strong>"
-            )
-            body.append(f"<p><b>考法预判</b> {escape(_clean(card.get('exam_preview')), quote=False)}</p>")
-            if facts:
+        for card in focus:
+            body.append(_card_html(card))
+        if brief:
+            body.append('<div class="ck-brief"><h3>简要过一下</h3><ul>')
+            for card in brief:
+                preview = _clean(card.get("exam_preview")) or "知道定义和一条限制即可"
                 body.append(
-                    "<p><b>必须先会</b></p><ul>"
-                    + "".join(f"<li>{escape(item, quote=False)}</li>" for item in facts)
-                    + "</ul>"
+                    "<li>"
+                    f'<span class="ck-stars">{importance_stars(card)}</span> '
+                    f"<strong>{escape(_clean(card.get('name')), quote=False)}</strong>"
+                    f" {escape(preview, quote=False)}"
+                    "</li>"
                 )
-            if quotes:
-                body.append(
-                    f'<div class="ck-quote">{escape(quotes[0], quote=False)}</div>'
-                )
-            body.append(f"<p><b>知识点讲解</b> {escape(_clean(card.get('explain')), quote=False)}</p>")
-            if steps:
-                body.append(
-                    "<p><b>方法步骤</b></p><ol>"
-                    + "".join(f"<li>{escape(step, quote=False)}</li>" for step in steps)
-                    + "</ol>"
-                )
-            if pits:
-                body.append(
-                    "<p><b>易错提醒</b></p><ul>"
-                    + "".join(f"<li>{escape(item, quote=False)}</li>" for item in pits)
-                    + "</ul>"
-                )
-            body.append("</div>")
+            body.append("</ul></div>")
+        body.append(_trace_script())
         body.extend(_action_html(draft))
         body.append("</div>")
 
@@ -490,7 +660,30 @@ def build_checklist_html(draft: dict[str, Any]) -> str:
     .ck-table{{width:100%;border-collapse:collapse;font-size:.86rem;margin:10px 0;}}
     .ck-table th,.ck-table td{{border:1px solid #d4d0c6;padding:5px 8px;text-align:left;}}
     .ck-table th{{background:#f7f5f0;}}
-    .ck-card{{margin:10px 0 14px;padding:12px 14px;border:1px solid #ebe8e1;border-radius:8px;background:#fbfaf7;}}
+    .ck-review{{display:grid;grid-template-columns:minmax(0,1fr) 1px minmax(240px,34%);border:1px solid #ebe8e1;border-radius:10px;overflow:hidden;margin:10px 0 16px;background:#fff;}}
+    .ck-review-left{{padding:12px 14px;background:#fbfaf7;}}
+    .ck-review-rule{{background:#c8c4b8;}}
+    .ck-review-right{{padding:10px 10px 12px;background:#faf9f6;}}
+    .ck-card{{margin:0;padding:0;border:0;background:transparent;}}
+    .ck-field{{border-radius:6px;padding:2px 0;}}
+    .ck-field.is-on{{background:#fff6c7;}}
+    .ck-ev{{display:block;margin:0 0 8px;padding:8px 9px;border-left:3px solid #c8c4b8;border-radius:4px;background:#fff;font-size:.82rem;line-height:1.55;}}
+    .ck-ev.is-on{{box-shadow:0 0 0 1px #b3402e55;}}
+    .ck-ev-teacher{{border-left-color:#b3402e;}}
+    .ck-ev-kb{{border-left-color:#395f8a;}}
+    .ck-ev-note{{border-left-color:#497a78;}}
+    .ck-ev-k{{font-size:.72rem;color:#6b6860;margin-bottom:4px;font-weight:650;}}
+    .ck-ev-teacher .ck-ev-k{{color:#b3402e;}}
+    .ck-ev-quote{{color:#4a4842;}}
+    .ck-ev-meta,.ck-ev-sup{{font-size:.74rem;color:#6b6860;margin-top:4px;}}
+    .ck-ev-empty{{font-size:.78rem;color:#9a968c;padding:6px 2px;}}
+    .ck-ev-more{{margin-top:6px;}}
+    .ck-ev-more summary{{cursor:pointer;font-size:.78rem;color:#3a3832;user-select:none;}}
+    .ck-brief{{margin:8px 0 16px;padding:12px 14px;border:1px dashed #d4d0c6;border-radius:10px;background:#fbfaf7;}}
+    .ck-brief h3{{margin:0 0 8px;font-size:1.02rem;}}
+    .ck-brief ul{{margin:0;padding-left:1.2em;}}
+    .ck-brief li{{margin:6px 0;line-height:1.55;}}
+    @media(max-width:860px){{.ck-review{{grid-template-columns:1fr}}.ck-review-rule{{display:none}}}}
     .ck-badge{{display:inline-block;margin-right:6px;padding:1px 8px;border-radius:10px;font-size:.74rem;background:#efece4;border:1px solid #d4d0c6;}}
     .ck-s{{background:#fff1ee;border-color:#e8b4ac;color:#b3402e;}}
     .ck-a{{background:#fff6e8;border-color:#e8d0a4;}}
@@ -532,8 +725,14 @@ def build_checklist_html(draft: dict[str, Any]) -> str:
 def attach_checklist_artifacts(state: dict[str, Any]) -> None:
     from tools.domain_engine_text import line
 
+    from .gather import teacher_from_context
+    from .trace import attach_card_provenance
+
     sub = line(state, "checklist")
     draft = dict(sub.get("draft") or {})
+    extra = str((state.get("line_extra") or {}).get("checklist") or "")
+    context = f"{state.get('transcript') or ''}\n{extra}"
+    draft = attach_card_provenance(draft, context, teacher_from_context(context))
     cards = [c for c in (draft.get("cards") or []) if isinstance(c, dict)]
     draft["mindmap_outline"] = build_checklist_mindmap_outline(draft, cards)
     draft["checklist_html"] = build_checklist_html(draft)

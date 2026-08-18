@@ -241,7 +241,7 @@ python bootstrap.py --domain notes --task checklist --user_id demo_user --subjec
 python bootstrap.py --domain notes --file samples/notes/file --task 资料入库
 ```
 
-一次收多份文件或一个文件夹，写入同一知识库，并输出信息熵报告。不用指定 collection。跑完以后，同一库可供 `catalog` / `checklist` / `review` / `quiz` / `last_class` 引用。
+一次收多份文件或一个文件夹，写入同一知识库，并输出信息熵报告。不用指定 collection。跑完以后，同一库可供 `catalog` / `checklist` / `review` / `quiz` 引用。
 
 ---
 

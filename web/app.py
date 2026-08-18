@@ -55,7 +55,7 @@ DOMAIN_BY_LABEL = {label: name for name, label in DOMAIN_LABELS.items()}
 
 PERSPECTIVE_OBJECTIVE = "objective"
 PERSPECTIVE_PERSONAL = "personal"
-KNOWLEDGE_SCOPE_LINES = frozenset({"library", "last_class", "catalog", "checklist"})
+KNOWLEDGE_SCOPE_LINES = frozenset({"library", "catalog", "checklist"})
 
 
 def _ctx(domain: str):
@@ -253,7 +253,7 @@ TASK_BRIEFS: dict[str, dict[str, str]] = {
     },
     "catalog": {
         "inputs": "用户 ID、学科。可选：老师划重点文本。课件和笔记不用再传",
-        "outputs": "四层知识目录 Markdown + HTML，并保存到该用户该学科的目录文件",
+        "outputs": "简要目录说明（章/主题/知识点数量与结构），正式目录写入该用户该学科的 JSON 文件",
         "purpose": (
             "从已入库知识库抽资料骨架和学生笔记，老师文本只用来标重点。"
             "不要上传目录 JSON；有历史目录则增量更新。"
@@ -265,16 +265,6 @@ TASK_BRIEFS: dict[str, dict[str, str]] = {
         "purpose": (
             "按用户 ID + 学科自动读取已生成的知识目录，再用老师文本激活本次复习。"
             "不新建知识点、不改长期目录。"
-        ),
-    },
-    "last_class": {
-        "inputs": "老师最后一课划重点文本。可选：用户 ID、学科（决定检索哪个知识库）",
-        "outputs": "一份 Markdown + 一份 HTML（内含可点击知识图谱、可编辑思维导图）",
-        "purpose": (
-            "把老师划的重点按知识点抽成复习清单：知识点、重要程度、题型、掌握要求，"
-            "并检索你的知识库给每个知识点挂上出处。"
-            "特别之处：老师原话 / 笔记出处 / 课件出处（含页码）分栏展示，"
-            "必考/重点高亮；没入库时仅输出老师划重点内容。"
         ),
     },
     "quiz": {
@@ -306,7 +296,7 @@ def _task_brief_html(task: str) -> str:
 def _scope_field_visibility(domain: str, task: str) -> tuple[bool, bool, bool]:
     """user_id / project_id / subject：按任务需要显示作用域字段。
 
-    library / last_class 虽不写项目记忆，但需要 user_id + subject 确定知识库作用域。
+    library / catalog / checklist 虽不写项目记忆，但需要 user_id + subject 确定知识库作用域。
     """
     uses = _task_uses_memory(task)
     knowledge_scoped = domain == "notes" and task in KNOWLEDGE_SCOPE_LINES
@@ -321,12 +311,11 @@ def _scope_field_visibility(domain: str, task: str) -> tuple[bool, bool, bool]:
 
 _NOTE_SUFFIXES = {".txt", ".md"}
 _LIBRARY_SUFFIXES = {".txt", ".md", ".pdf", ".docx", ".pptx", ".xlsx"}
-_SCOPE_REQUIRED_TASKS = frozenset({"library", "catalog", "checklist"})
-_TEACHER_TEXT_TASKS = frozenset({"catalog", "checklist", "last_class"})
+_TEACHER_TEXT_TASKS = frozenset({"catalog", "checklist"})
 
 
 def _scope_labels(task: str) -> tuple[dict[str, str], dict[str, str]]:
-    if task in _SCOPE_REQUIRED_TASKS:
+    if task in KNOWLEDGE_SCOPE_LINES:
         return (
             {
                 "label": "用户 ID（必填）",
@@ -335,17 +324,6 @@ def _scope_labels(task: str) -> tuple[dict[str, str], dict[str, str]]:
             {
                 "label": "学科（必填）",
                 "placeholder": "用来定位这门课的知识库，例如 gaoshu_limit",
-            },
-        )
-    if task == "last_class":
-        return (
-            {
-                "label": "用户 ID",
-                "placeholder": "用来检索对应知识库",
-            },
-            {
-                "label": "学科",
-                "placeholder": "用来检索对应知识库",
             },
         )
     return (
@@ -378,12 +356,6 @@ def _input_copy(task: str) -> dict[str, str]:
             "upload_label": "老师本次划重点文本（必填）",
             "text_label": "老师本次划重点（必填，也可粘贴）",
             "text_placeholder": "目录 JSON 不用上传。系统按用户 ID + 学科自动读取已生成目录。这里只填老师本次划重点。",
-        }
-    if task == "last_class":
-        return {
-            "upload_label": "老师最后一课划重点文本",
-            "text_label": "老师划重点文本",
-            "text_placeholder": "粘贴老师最后一课划重点…",
         }
     return {
         "upload_label": "文本文件",
@@ -612,7 +584,6 @@ def _has_rich_html(files: list[str] | None) -> bool:
     """右侧已有交互/对照 HTML 时，不再重复摊开 Markdown。"""
     markers = (
         "quiz-sheet",
-        "last-class-standalone",
         "ck-doc",
         "cat-doc",
         "library-hero",
@@ -652,10 +623,9 @@ def _memory_review_html(files: list[str]) -> str:
             doc = html_paths[0].read_text(encoding="utf-8")
         except OSError:
             doc = ""
-        if "last-class-standalone" in doc or "ck-doc" in doc:
-            title = "复习清单" if "ck-doc" in doc else "期末复习清单"
+        if "ck-doc" in doc:
             return (
-                f'<iframe class="lc-standalone-frame" title="{title}" '
+                '<iframe class="lc-standalone-frame" title="复习清单" '
                 f'srcdoc="{html.escape(doc)}"></iframe>'
             )
         match = re.search(r"<main[^>]*>(.*?)</main>", doc, re.S | re.I)
@@ -1050,7 +1020,7 @@ def run_from_ui(
         user_id = project_id = subject = None
     uid = (user_id or "").strip()
     subj = (subject or "").strip()
-    if tasks[0] in _SCOPE_REQUIRED_TASKS and (not uid or not subj):
+    if tasks[0] in KNOWLEDGE_SCOPE_LINES and (not uid or not subj):
         return _run_result(
             "请填写用户 ID 和学科。"
             "系统用这两个值定位该用户该学科的知识库"

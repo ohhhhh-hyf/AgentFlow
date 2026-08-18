@@ -59,7 +59,7 @@ def _fallback_method(row: dict[str, Any]) -> list[str]:
             f"先判断本题是不是在用{name}",
             "按老师点到的类型选套路：" + "、".join(focus or ["先辨认再动手"]),
             "写出关键变形或中间步骤，不要跳步",
-            "做完回看原题，检查定义域和限制条件是否还成立",
+            "做完回看原题，检查适用条件和限制是否还成立",
             "用老师点过的易错点复查一遍",
         ]
     if kind == "formula":
@@ -87,7 +87,7 @@ def _fallback_pitfalls(row: dict[str, Any]) -> list[str]:
         out.append("笔记缺：" + "、".join(missing[:3]) + "，容易漏条件，对着目录补。")
     kind = str(row.get("knowledge_type") or "")
     if kind == "formula" and not any("条件" in x for x in out):
-        out.append("公式有成立条件，趋向或阶不对时不能硬套。")
+        out.append("公式有成立条件，条件不满足时不能硬套。")
     return out[:4]
 
 
@@ -176,7 +176,10 @@ def assemble_checklist(
     }
 
 
-_UNMATCHED_HINT = ("必考", "重点", "了解", "定理", "准则", "计算题", "证明题", "选择")
+_UNMATCHED_HINT = (
+    "必考", "重点", "了解", "注意", "要求", "定义", "概念", "公式",
+    "定理", "方法", "计算题", "证明题", "选择", "简答",
+)
 
 
 def _unmatched_quotes(teacher: str, activated: list[dict[str, Any]]) -> list[str]:
@@ -187,7 +190,7 @@ def _unmatched_quotes(teacher: str, activated: list[dict[str, Any]]) -> list[str
     for sent in _sentences(teacher):
         if len(sent) < 16 or sent.startswith(("同学们", "下课")):
             continue
-        if re.match(r"^[一二三四]、", sent):
+        if re.match(r"^[一二三四五六七八九十]+、", sent):
             continue
         if not any(mark in sent for mark in _UNMATCHED_HINT):
             continue
@@ -203,7 +206,7 @@ def distribution(cards: list[dict[str, Any]]) -> list[dict[str, float]]:
     weights = {"S": 40.0, "A": 25.0, "B": 15.0, "C": 8.0}
     buckets: dict[str, float] = {}
     for card in cards:
-        label = _clean(card.get("topic")) or _clean(card.get("chapter")) or "其他"
+        label = _clean(card.get("chapter")) or _clean(card.get("topic")) or "其他"
         buckets[label] = buckets.get(label, 0.0) + weights.get(card.get("session_priority") or "C", 8.0)
     total = sum(buckets.values()) or 1.0
     rows = [{"label": k, "value": round(v / total * 100, 1)} for k, v in buckets.items()]

@@ -29,7 +29,7 @@ class CatalogGenerationContract(GenerationContract):
             "chapters",
             [
                 StrField("id", "稳定章节 ID，如 ch_001；增量时复用已有 ID"),
-                StrField("name", "章节名，如「极限与连续」"),
+                StrField("name", "章节标准名，沿用资料原有章名"),
                 EnumField(
                     "change_type",
                     ["unchanged", "added", "updated", "merged", "moved"],
@@ -39,7 +39,7 @@ class CatalogGenerationContract(GenerationContract):
                     "topics",
                     [
                         StrField("id", "稳定主题 ID，如 tp_001"),
-                        StrField("name", "主题名，如「极限计算」"),
+                        StrField("name", "主题标准名，沿用资料原有节/主题名"),
                         EnumField(
                             "change_type",
                             ["unchanged", "added", "updated", "merged", "moved"],

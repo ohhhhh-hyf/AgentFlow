@@ -11,7 +11,7 @@ ROLE_MATERIAL = "material"
 ROLE_NOTES = "notes"
 ROLE_TEACHER = "teacher"
 
-_TEACHER_MARKS = ("teacher", "划重点", "focus", "最后一课", "last_class")
+_TEACHER_MARKS = ("teacher", "划重点", "focus", "最后一课")
 _NOTES_MARKS = ("note", "笔记", "notebook", "错题本")
 
 _CHAPTER = re.compile(

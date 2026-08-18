@@ -13,80 +13,20 @@ from tools.knowledge.tool import KnowledgeTool
 _FILE_MARK = "【入库文件】"
 _UNIT_CAP = 12
 _SENT_SPLIT = re.compile(r"(?<=[。！？；!\?\n])")
-_STOP = set("的了在是和与及或对把被从到为以会可能进行相关问题情况这个我们没有可以一个")
-_PUNCT = set("：:，,。；;！!？?、·()[]【】（）")
-_TAIL = set("上占为了是的与和在把被从到以会")
-_GENERIC_TOPIC = {
-    "答案",
-    "解析",
-    "函数",
-    "课前篇",
-    "课前篇自",
-    "课堂篇",
-    "课标阐释",
-    "内容索引",
-    "当堂检测",
+_CHROME_RE = re.compile(
+    r"(https?://|www\.|\.com\b|模板网|ppt\s*模板|版权所有|请勿转载|内部资料)",
+    re.I,
+)
+_CHROME_EXACT = {
+    "谢谢",
+    "谢谢观看",
     "本课结束",
-    "微判断",
-    "微练习",
-    "微思考",
-    "探究学习",
-    "自主预习",
-    "f(x)",
-    "奇函数",
-    "偶函数",
-    "函数答案",
-    "函数c",
-    "偶函数c",
-    "偶函数d",
-    "数学抽象",
-    "数学运算",
-    "逻辑推理",
-    "思维脉络",
-    "探究一",
-    "探究二",
-    "探究三",
-    "给角求值",
-    "给值求值",
-    "给值求角",
-    "公式解决",
-    "式解决给",
-    "式推导出",
-    "推导出",
-    "利用两角",
-    "三利用两",
-    "素养形成",
-    "方法点睛",
-    "反思感悟",
-    "规范答题",
+    "下课",
+    "提问",
+    "思考",
+    "目录",
+    "contents",
 }
-_HEADING_FRAG = (
-    "探究",
-    "课标",
-    "脉络",
-    "阐释",
-    "给角",
-    "给值",
-    "素养",
-    "当堂",
-    "课堂篇",
-    "内容索",
-    "究一",
-    "究二",
-    "究三",
-    "知识点",
-)
-_STRUCTURE_BLOBS = (
-    "课前篇自主预习课堂篇探究学习内容索引",
-    "课标阐释思维脉络",
-    "当堂检测本课结束",
-    "微判断微练习微思考",
-    "反思感悟方法点睛素养形成规范答题",
-    "知识点拨名师点析要点笔记",
-    "高中同步学案优化设计第一PPT模板网",
-    "当堂检测答案",
-    "课前篇自主预习",
-)
 
 
 def source_paths_from_context(text: str) -> list[str]:
@@ -157,8 +97,6 @@ def _units(text: str) -> list[str]:
     return parts[:_UNIT_CAP]
 
 
-
-
 def _is_independent(text: str, old_texts: list[str]) -> bool:
     blob = _compact(text)
     if len(blob) < 8:
@@ -176,29 +114,15 @@ def _is_independent(text: str, old_texts: list[str]) -> bool:
     return True
 
 
-def _topic_score(label: str) -> tuple[int, int, int, int]:
-    tail = 1 if label and label[-1] in _TAIL else 0
-    digit = 1 if any(ch.isdigit() for ch in label) else 0
-    weak = 1 if any(token in (label or "") for token in ("只谈", "本段", "以下", "本题")) else 0
-    lead = 1 if label and label[0] in "谈看用把被从对将" else 0
-    return (weak, lead, tail, digit, abs(len(label) - 4))
-
-
-
-
-_OUTLINE_HEAD = re.compile(
-    r"^(课标阐释|思维脉络|内容索引|探究[一二三123]|课前篇|课堂篇|"
-    r"自主预习|探究学习|当堂检测|素养形成|方法点睛)"
-)
-
-
 def _is_chrome(text: str) -> bool:
-    blob = _compact(text)
-    if blob.startswith("高中同步") or blob.startswith("不可以在以下"):
+    """过滤页眉页脚、网址、模板水印，不按学科词表丢内容。"""
+    raw = text or ""
+    blob = _compact(raw)
+    if len(blob) < 4:
         return True
-    return "PPT模板" in (text or "") or "www." in (text or "").lower()
-
-
+    if blob.lower() in _CHROME_EXACT:
+        return True
+    return bool(_CHROME_RE.search(raw))
 
 
 

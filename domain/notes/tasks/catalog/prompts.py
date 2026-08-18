@@ -32,10 +32,11 @@ CATALOG_GENERATION_SYSTEM_PROMPT = """你是「知识目录 Agent」。根据资
 Course → Chapter → Topic → Knowledge Point → Knowledge Item
 
 - KP：可独立命名、独立讲解、有独立学习价值。后续复习清单的基本单位。
-- Item：条件、公式细节、分类、性质。不要把 Item 再建成 KP。
+- Item：条件、公式细节、分类、性质、题型变体。不要把 Item 再建成 KP。
 
-错误：把「使用条件 / 变形技巧」升成和母知识点并列的 KP。
-正确：KP 是可独立学习的点；条件、分类、变形放进该点的 knowledge_items。
+错误：把「使用条件 / 变形技巧 / 综合题 / 判断题 / 高频考点 / 期末复习」升成和母知识点并列的 KP。
+正确：KP 是可独立学习的点；条件、分类、变形、题型包装放进该点的 knowledge_items。
+同一主题下通常 2–6 个 KP。一份课件不要拆成一堆并列 KP；同类方法的不同题型并进同一个 KP 的 items。
 
 同一个对象只保留一个主节点。已是独立 KP 的，不要再塞进别的点当 Item；用 related_points 引用。
 
@@ -82,7 +83,7 @@ CATALOG_SUPERVISOR_DOMAIN_PROMPT = """## 领域审核规则：知识目录
 
 默认 approve。只拦住：
 - chapters 全空
-- 大量把例题、提醒、使用条件写成独立 KP
+- 大量把例题、提醒、使用条件、综合题、高频考点写成独立 KP
 - 明显同义知识点未合并
 - 输出了讲解/考法/复习路径/策略正文
 - 层级乱到无法当目录用
@@ -91,9 +92,9 @@ CATALOG_SUPERVISOR_DOMAIN_PROMPT = """## 领域审核规则：知识目录
 个别 importance 偏差、个别关联漏填 → approve。"""
 
 
-CATALOG_RENDER_PROMPT = """你是知识目录渲染器。把已批准的目录树写成 Markdown 目录。
+CATALOG_RENDER_PROMPT = """你是知识目录渲染器。只写一份简要目录说明：课程名、版本、章/主题/知识点数量，以及章-主题-知识点名称树。
 
-只整理树，不新增知识点，不写复习建议。不要输出 JSON。"""
+不要展开字段、不要写复习建议、不要输出 JSON。正式目录已另存为文件。"""
 
 
 CATALOG_RENDER_TEMPLATE_PROMPT = """按模板输出知识目录，只替换占位内容。"""

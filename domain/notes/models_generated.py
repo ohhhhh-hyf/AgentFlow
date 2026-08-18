@@ -95,25 +95,6 @@ class KnowledgeGraph(ModelMixin):
         return cls(**data)
 
 @dataclass
-class LastClass(ModelMixin):
-    """LastClass输出（浅校验：仅校验第一层键与类型，嵌套不校验）。"""
-
-    strategy: str
-    focus_points: list[dict[str, Any]] = field(default_factory=list)
-    exam_hints: list[str] = field(default_factory=list)
-    classroom_notes: list[str] = field(default_factory=list)
-
-    @classmethod
-    def validate(cls, data: dict) -> "LastClass":
-        _exact_fields(data, [f.name for f in fields(cls)], cls.__name__)
-        _string(data["strategy"], "strategy")
-        if not isinstance(data["focus_points"], list):
-            raise OutputValidationError("focus_points 必须是数组")
-        _string_list(data["exam_hints"], "exam_hints")
-        _string_list(data["classroom_notes"], "classroom_notes")
-        return cls(**data)
-
-@dataclass
 class Library(ModelMixin):
     """Library输出（浅校验：仅校验第一层键与类型，嵌套不校验）。"""
 
@@ -352,31 +333,6 @@ class ChecklistSupervisorReview(ModelMixin):
         )
         return cls(**data)
 
-@dataclass
-class LastClassSupervisorReview(ModelMixin):
-    """last_class任务线的领域审核结果。"""
-
-    decision: Literal["approve", "revise", "reject"]
-    last_class_check: dict[str, Any]
-    feedback: list[str] = field(default_factory=list)
-
-    # 本模型的全部检查项（供结构校验与公共语义校验使用）
-    CHECK_KEYS = ("last_class_check",)
-
-    @classmethod
-    def validate(cls, data: dict) -> "LastClassSupervisorReview":
-        _exact_fields(data, [f.name for f in fields(cls)], cls.__name__)
-        for key in cls.CHECK_KEYS:
-            _review_check(data[key], key)
-        _string_list(data["feedback"], "feedback")
-        # 公共语义规则：decision 枚举 + 与检查项/feedback 的联动约束
-        validate_supervisor_semantics(
-            data["decision"],
-            data["feedback"],
-            {key: data[key] for key in cls.CHECK_KEYS},
-        )
-        return cls(**data)
-
 # ── 审核模型生成区结束 ──
 
 # ── Report 校验生成区：由 tools/scripts/sync_domain.py 生成，勿手改 ──
@@ -507,42 +463,6 @@ class KnowledgeGraphReportValidation:
             nodes=data.get("nodes") or [],
             edges=data.get("edges") or [],
             quality_warning=data.get("quality_warning"),
-        )
-
-
-class LastClassReportValidation:
-    """LastClassReport 的校验逻辑（由脚本按手写字段自动生成）。"""
-
-    @classmethod
-    def validate(cls, data: dict) -> "LastClassReport":
-        allowed = {"focus_points", "strategy", "review_html", "mindmap_outline", "quality_warning", "personalized_text"}
-
-        if not isinstance(data, dict):
-            raise OutputValidationError("LastClassReport 必须是 JSON 对象")
-
-        extra = set(data) - allowed
-        if extra:
-            raise OutputValidationError(
-                f"LastClassReport 字段不一致：多余={sorted(extra)}"
-            )
-
-        if not isinstance(data.get("focus_points") or [], list):
-            raise OutputValidationError("focus_points 必须是数组")
-        _string(data.get("strategy") or "", "strategy")
-        _string(data.get("review_html") or "", "review_html")
-        _string(data.get("mindmap_outline") or "", "mindmap_outline")
-        if data.get("quality_warning") is not None:
-            _string(data["quality_warning"], "quality_warning")
-        if data.get("personalized_text") is not None:
-            _string(data["personalized_text"], "personalized_text")
-
-        return cls(
-            focus_points=data.get("focus_points") or [],
-            strategy=data.get("strategy") or "",
-            review_html=data.get("review_html") or "",
-            mindmap_outline=data.get("mindmap_outline") or "",
-            quality_warning=data.get("quality_warning"),
-            personalized_text=data.get("personalized_text"),
         )
 
 

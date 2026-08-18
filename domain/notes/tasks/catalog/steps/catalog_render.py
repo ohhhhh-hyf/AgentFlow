@@ -17,7 +17,7 @@ class CatalogRender:
         del template
         draft = normalize_catalog_draft(draft_from_context(approved_context))
         if not (draft.get("chapters") or draft.get("course")):
-            return "暂未从资料中整理出稳定目录。"
+            return "这次没有整理出可用目录，已有目录文件不会被空结果覆盖。"
         return build_catalog_markdown(draft)
 
     async def stream(

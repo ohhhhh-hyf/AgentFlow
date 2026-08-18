@@ -265,6 +265,8 @@ CLI 参数：
 | `notes` | `review` | 笔记审查 | `output/notes/review/result_*.md` / `.html` |
 | `notes` | `quiz` | 自测题（推理题 + 高中题库真题） | `output/notes/quiz/result_*.md` / `.html` |
 | `notes` | `library` | 资料入库（信息熵报告） | `output/notes/library/result_*.md` / `.html` |
+| `notes` | `catalog` | 知识目录 | `output/notes/catalog/result_*.md` / `.html` |
+| `notes` | `checklist` | 复习清单 | `output/notes/checklist/result_*.md` / `.html` |
 
 输出归档规则：
 

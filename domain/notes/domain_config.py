@@ -15,7 +15,6 @@ LINE_CN_NAMES: dict[str, str] = {
     "library": "资料入库",
     "catalog": "知识目录",
     "checklist": "复习清单",
-    "last_class": "last_class",
 }
 
 # 任务线种类（手写，不进 sync_domain 生成区）。
@@ -46,11 +45,6 @@ LINE_KINDS: dict[str, object] = {
         "llm_render": "if_template",
     },
     "checklist": {
-        "kind": LLM_EXTRACT,
-        "cli_template": False,
-        "llm_render": "if_template",
-    },
-    "last_class": {
         "kind": LLM_EXTRACT,
         "cli_template": False,
         "llm_render": "if_template",

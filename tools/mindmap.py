@@ -794,7 +794,7 @@ async def render_mindmap_png(
                 pass
 
 
-# 与 markmap-cli 锁定同一小版本，保证 last_class / meeting 观感一致
+# 与 markmap-cli 锁定同一小版本，保证 notes / meeting 导图观感一致
 _MARKMAP_LIB_CDN = (
     f"https://cdn.jsdelivr.net/npm/markmap-lib@{_MARKMAP_CLI_VERSION}/dist/browser/index.js"
 )
@@ -1155,7 +1155,7 @@ def build_editable_mindmap_embed(
     );
     const a = document.createElement('a');
     a.href = URL.createObjectURL(blob);
-    a.download = (document.title || PAGE_TITLE || '期末复习清单') + '.html';
+    a.download = (document.title || PAGE_TITLE || '思维导图') + '.html';
     a.click();
     URL.revokeObjectURL(a.href);
   }};

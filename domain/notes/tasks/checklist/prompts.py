@@ -24,7 +24,7 @@ S/A 必须写厚，学生打开就能复习，不要三五行提纲。B/C 也要
 - method_steps：S/A 4-6 步；B/C 2-3 步。每步是可执行动作。
   - method / application：辨认题型 → 选套路 → 变形 → 回代检查
   - theorem / concept：构造/判断条件 → 逐步核验 → 下结论
-  - formula：默写标准形 → 检查趋向与阶 → 凑形代入 → 核对条件
+  - formula：默写标准形 → 检查适用条件 → 代入或套用 → 回核条件
 - pitfalls：S/A 2-4 条；B/C 0-2 条。优先 session_error_signal。无依据留空数组。
 
 ## 策略

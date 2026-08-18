@@ -94,7 +94,7 @@ def build_parser(ctx: DomainContext) -> argparse.ArgumentParser:
     parser.add_argument(
         "--subject",
         default=None,
-        help="学科名称。资料入库/期末划重点：与 --user_id 一起决定知识库范围；"
+        help="学科名称。资料入库/知识目录/复习清单：与 --user_id 一起决定知识库范围；"
         "笔记图谱记忆：同一 --user_id + --subject 增量合并图谱；"
         "自测题：只用来调难度，不写记忆",
     )
@@ -249,13 +249,17 @@ async def run(
     else:
         file = file_list[0]
     pending_extra: dict[str, str] = {}
+    scope_bits: list[str] = []
+    if (user_id or "").strip():
+        scope_bits.append(f"【用户ID】{user_id.strip()}")
+    if (subject or "").strip():
+        scope_bits.append(f"【学科/课程】{subject.strip()}")
+    scope_text = "\n".join(scope_bits)
     if "library" in line_names:
         sources = [resolve_knowledge_input(ctx, item) for item in file_list]
         lib_extra = "【入库文件】\n" + "\n".join(str(item) for item in sources)
-        if (user_id or "").strip():
-            lib_extra += f"\n【用户ID】{user_id.strip()}"
-        if (subject or "").strip():
-            lib_extra += f"\n【学科/课程】{subject.strip()}"
+        if scope_text:
+            lib_extra += "\n" + scope_text
         pending_extra["library"] = lib_extra
         transcript = "\n\n".join(knowledge_text_preview(item) for item in sources)
         if not transcript.strip():
@@ -339,30 +343,10 @@ async def run(
             project_id,
             subject,
         )
-    if "last_class" in line_names:
-        lc_extra = []
-        if (user_id or "").strip():
-            lc_extra.append(f"【用户ID】{user_id.strip()}")
-        if (subject or "").strip():
-            lc_extra.append(f"【学科/课程】{subject.strip()}")
-        if lc_extra:
-            pending_extra["last_class"] = "\n".join(lc_extra)
-    if "catalog" in line_names:
-        cat_extra = []
-        if (user_id or "").strip():
-            cat_extra.append(f"【用户ID】{user_id.strip()}")
-        if (subject or "").strip():
-            cat_extra.append(f"【学科/课程】{subject.strip()}")
-        if cat_extra:
-            pending_extra["catalog"] = "\n".join(cat_extra)
-    if "checklist" in line_names:
-        ck_extra = []
-        if (user_id or "").strip():
-            ck_extra.append(f"【用户ID】{user_id.strip()}")
-        if (subject or "").strip():
-            ck_extra.append(f"【学科/课程】{subject.strip()}")
-        if ck_extra:
-            pending_extra["checklist"] = "\n".join(ck_extra)
+    if scope_text:
+        for extra_line in ("catalog", "checklist"):
+            if extra_line in line_names:
+                pending_extra[extra_line] = scope_text
     for key, value in pending_extra.items():
         prev = line_extra.get(key) or ""
         line_extra[key] = f"{prev}\n\n{value}".strip() if prev else value

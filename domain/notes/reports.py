@@ -26,7 +26,6 @@ from .models import (
     CatalogReportValidation,
     ChecklistReportValidation,
     KnowledgeGraphReportValidation,
-    LastClassReportValidation,
     LibraryReportValidation,
     QuizReportValidation,
     ReviewReportValidation,
@@ -36,7 +35,7 @@ from .models import (
 
 @dataclass
 class CatalogReport(ModelMixin, CatalogReportValidation):
-    """知识目录：四层树 + HTML。"""
+    """知识目录：保存 JSON，页面只给简要说明。"""
 
     course: str = field(default="", metadata={"source": "draft.course"})
     version: str = field(default="1", metadata={"source": "draft.version"})
@@ -108,29 +107,6 @@ class ChecklistReport(ModelMixin, ChecklistReportValidation):
     checklist_html: str = field(
         default="",
         metadata={"source": "draft.checklist_html"},
-    )
-    quality_warning: str | None = None
-    personalized_text: str | None = field(
-        default=None,
-        metadata={"source": "rendered"},
-    )
-
-@dataclass
-class LastClassReport(ModelMixin, LastClassReportValidation):
-    """期末划重点复习文档：重点知识点 + 复习策略 + 对照 HTML（右来源）。"""
-
-    focus_points: list[dict[str, Any]] = field(
-        default_factory=list,
-        metadata={"source": "structure"},
-    )
-    strategy: str = field(default="", metadata={"source": "draft.strategy"})
-    review_html: str = field(
-        default="",
-        metadata={"source": "draft.review_html"},
-    )
-    mindmap_outline: str = field(
-        default="",
-        metadata={"source": "draft.mindmap_outline"},
     )
     quality_warning: str | None = None
     personalized_text: str | None = field(
