@@ -40,9 +40,10 @@ async def _amain(args: argparse.Namespace) -> int:
         history_limit=args.history,
     )
     scope = f"用户 {args.user}" + (f" · 学科 {args.subject}" if args.subject else "")
-    print(f"知识问答已就绪（{scope}）会话 {session.session_id}。输入问题开始，exit 退出。")
-    if session.facts:
-        print(f"（已记住：{'；'.join(f'{k}={v}' for k, v in session.facts.items())}）")
+    if args.session:
+        print(f"已回到之前会话，可继续使用 🤪")
+    else:
+        print(f"知识问答已就绪（{scope}）会话 {session.session_id}。输入问题开始，exit 退出。")
     print("-" * 60)
     while True:
         try:
@@ -60,17 +61,23 @@ async def _amain(args: argparse.Namespace) -> int:
         except Exception as exc:  # noqa: BLE001
             print(f"(回答失败：{type(exc).__name__}: {exc})")
             continue
-        print("AI:", result["answer"])
+        print("🤖:", result["answer"])
         if result["sources"]:
             seen: list[str] = []
             for s in result["sources"]:
                 if s and s not in seen:
                     seen.append(s)
-            print("  📎 来源:", "；".join(seen))
+            print("  [来源]", "；".join(seen))
         print("-" * 60)
 
 
 def main() -> int:
+    # 终端输入容错：SSH 客户端（Xshell/Putty 等）默认 GBK 编码时，Python 3.10
+    # 按 UTF-8 解码 stdin 会抛 UnicodeDecodeError——改用 replace 兜底（乱码不崩）
+    try:
+        sys.stdin.reconfigure(encoding="utf-8", errors="replace")
+    except (AttributeError, ValueError):  # 不支持 reconfigure 的 stdin（如管道）
+        pass
     args = _parse_args()
     return asyncio.run(_amain(args))
 

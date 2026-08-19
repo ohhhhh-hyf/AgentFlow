@@ -47,26 +47,28 @@ def _extract_facts(text: str, current: dict[str, Any]) -> dict[str, Any]:
 
 
 def _source_marks(source: str) -> list[str]:
-    """从来源字符串提取可用于匹配回答的标记（文件名 / 日期 / 标题片段）。"""
+    """从来源字符串提取可用于匹配回答的标记。
+
+    只认「文件名」与「标题」这类可唯一指向来源的片段——
+    不把日期当标记（日期太泛，AI 回答里出现同一天日期不代表引用了该档案）。
+    """
     import re
 
     marks: list[str] = []
-    # 文件名（含扩展名与去扩展名）
+    # 文件名（含扩展名与去扩展名）——知识库来源
     for part in re.findall(r"[\w\u4e00-\u9fa5.\-]+\.(?:txt|md|docx|pptx|pdf)", source):
         if part not in marks:
             marks.append(part)
         stem = part.rsplit(".", 1)[0]
         if stem and stem not in marks:
             marks.append(stem)
-    # 日期（会议记忆 · 2026-08-19 · 标题）
-    m = re.search(r"\d{4}-\d{2}-\d{2}", source)
-    if m and m.group(0) not in marks:
-        marks.append(m.group(0))
-    # 标题片段（· 分隔的 4+ 字中文段）
-    for seg in source.split("·"):
-        seg = seg.strip()
-        if len(seg) >= 4 and seg not in marks:
-            marks.append(seg)
+    # 标题片段（会议记忆 · 日期时间 · 标题 的最后一个 · 段，4+ 字，且非纯日期）
+    segments = [s.strip() for s in source.split("·")]
+    if len(segments) >= 2:
+        title = segments[-1]
+        if len(title) >= 4 and not re.fullmatch(r"[\d\s:\-]+", title):
+            if title not in marks:
+                marks.append(title)
     return marks
 
 
