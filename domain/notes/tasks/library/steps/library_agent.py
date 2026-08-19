@@ -43,7 +43,7 @@ class LibraryAgent:
             )
         try:
             data = ingest_library(
-                kb_from_env(),
+                kb_from_env(_user_id_from_context(shared_context)),
                 expand_inputs(raw),
                 user_id=_user_id_from_context(shared_context),
                 subject=_subject_from_context(shared_context),

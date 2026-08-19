@@ -11,7 +11,7 @@ from tools.knowledge.config import PROJECT_ROOT
 
 logger = logging.getLogger(__name__)
 
-CATALOG_DIR = PROJECT_ROOT / "data" / "knowledge" / "catalogs"
+CATALOG_DIR = PROJECT_ROOT / "data" / "knowledge" / "catalogs"  # 兼容旧路径（无 user 场景）
 
 
 def _safe_name(collection: str) -> str:
@@ -19,8 +19,22 @@ def _safe_name(collection: str) -> str:
     return name[:120]
 
 
+def _catalog_dir_for(collection: str) -> Path:
+    """catalog 目录按 user 顶层隔离：``data/{user_id}/knowledge/catalogs``。
+
+    collection 形如 ``{user_id}__{subject}``（resolve_collection 产出）；
+    无 user 段时回退旧统一目录（兼容）。
+    """
+    head = (collection or "").split("__", 1)[0]
+    if not head or head == "default":
+        return CATALOG_DIR
+    from tools.memory.store import safe_id
+
+    return PROJECT_ROOT / "data" / safe_id(head) / "knowledge" / "catalogs"
+
+
 def catalog_path(collection: str) -> Path:
-    return CATALOG_DIR / f"{_safe_name(collection)}.json"
+    return _catalog_dir_for(collection) / f"{_safe_name(collection)}.json"
 
 
 def load_catalog(collection: str) -> dict[str, Any] | None:
@@ -37,8 +51,8 @@ def load_catalog(collection: str) -> dict[str, Any] | None:
 
 
 def save_catalog(collection: str, draft: dict[str, Any]) -> Path:
-    CATALOG_DIR.mkdir(parents=True, exist_ok=True)
     path = catalog_path(collection)
+    path.parent.mkdir(parents=True, exist_ok=True)
     chapters = draft.get("chapters") or []
     if not chapters:
         if path.exists():

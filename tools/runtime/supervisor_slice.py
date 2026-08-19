@@ -301,8 +301,48 @@ def compact_perspective(profile: object) -> str:
     return json.dumps(slim, ensure_ascii=False, indent=2)
 
 
+_REVIEW_LONG_TEXT = 60   # 超过此长度的字符串值截断（只留前 30 字 + 总长标记）
+_REVIEW_LARGE_LIST = 8   # 内容型列表超过此条数改为计数（审核仍能核对"条数/厚薄"）
+
+
+def _review_compact(node: object) -> object:
+    """把草稿递归压成「审核用骨架」。
+
+    规则（通用，不依赖具体字段名）：
+    - 结构型列表（元素是含 id/name/kp_id 的 dict，如 chapters/topics/cards）
+      → 保留全部元素，内部继续压缩；
+    - 内容型列表（如 key_facts / items / 纯字符串列表）→ 短列表全留，长列表改为计数；
+    - 长字符串（explain / summary 等）→ 截断为前 30 字并标注总长，
+      让审核仍能判断「这段写了多厚」而不必读全文。
+    """
+    if isinstance(node, dict):
+        return {k: _review_compact(v) for k, v in node.items()}
+    if isinstance(node, list):
+        if not node:
+            return node
+        if isinstance(node[0], dict) and (
+            node[0].get("id") or node[0].get("name") or node[0].get("kp_id")
+        ):
+            return [_review_compact(x) for x in node]
+        if len(node) <= _REVIEW_LARGE_LIST:
+            return [_review_compact(x) for x in node]
+        return [f"...（{len(node)} 条，已省略）"]
+    if isinstance(node, str):
+        if len(node) <= _REVIEW_LONG_TEXT:
+            return node
+        return node[:30] + f"...（共 {len(node)} 字）"
+    return node
+
+
+def compact_draft_for_review(draft: object) -> object:
+    """supervisor 审核用草稿摘要：保留结构骨架与短字段，
+    压缩大文本/大列表，显著降低审核输入 token 且不丢核对要素。"""
+    return _review_compact(draft)
+
+
 __all__ = [
     "collect_needles",
+    "compact_draft_for_review",
     "compact_perspective",
     "compact_profile",
     "slice_transcript",

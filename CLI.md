@@ -212,7 +212,7 @@ python bootstrap.py --domain notes --file samples/notes/file/student_math_notes.
 ### 资料入库 `library`
 
 ```text
-python bootstrap.py --domain notes --file a.pptx --file b.pdf --file notes.txt --task library --user_id demo_user --subject gaoshu_limit
+python bootstrap.py --domain notes --file a.pptx --file b.pdf --file notes.txt --task library --user_id user_001 --subject 数学
 ```
 
 课件/讲义当资料骨架，文件名含「笔记」当学生笔记，含 teacher/划重点 的不当骨架。
@@ -220,11 +220,11 @@ python bootstrap.py --domain notes --file a.pptx --file b.pdf --file notes.txt -
 ### 知识目录 `catalog`
 
 ```text
-python bootstrap.py --domain notes --task catalog --user_id demo_user --subject gaoshu_limit --file demo/teacher_focus_limits.txt
+python bootstrap.py --domain notes --task catalog --user_id user_001 --subject 数学 --file demo/teacher_focus_limits.txt
 ```
 
 ```text
-python bootstrap.py --domain notes --task catalog --user_id demo_user --subject gaoshu_limit
+python bootstrap.py --domain notes --task catalog --user_id user_001 --subject 数学
 ```
 
 从已入库资料生成四层目录（章节→主题→知识点→知识项）。`--file` 可选，传老师划重点文本用来标重点；不传也能出目录。同一 `user_id + subject` 再跑会基于已保存目录做增量更新，旧节点 ID 不变。
@@ -232,7 +232,7 @@ python bootstrap.py --domain notes --task catalog --user_id demo_user --subject 
 ### 复习清单 `checklist`
 
 ```text
-python bootstrap.py --domain notes --task checklist --user_id demo_user --subject gaoshu_limit --file demo/teacher_focus_limits.txt
+python bootstrap.py --domain notes --task checklist --user_id user_001 --subject 数学 --file demo/teacher_focus_limits.txt
 ```
 
 基于已生成的 Knowledge Catalog 和本次老师划重点文本生成复习清单。必须先跑过 `catalog`。`--file` 是老师重点原文；不改长期目录，也不新建知识点。
@@ -282,3 +282,13 @@ python bootstrap.py --domain meeting --help
 ```text
 python bootstrap.py --domain notes --help
 ```
+
+## 运行测试
+
+```bash
+python -m pytest          # 跑全部（纯函数单测 + 3.10 语法兼容检查）
+python -m pytest tests/test_merge.py   # 跑单个测试文件
+```
+
+测试不调用 LLM / 外部 API，秒级完成。详见 `README.md` 的「运行测试」章节。
+

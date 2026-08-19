@@ -72,7 +72,7 @@ def profile_choice_label(data: dict[str, Any], filename: str = "", profile_dir: 
     if not name:
         name = Path(filename).stem.replace("_profile", "") or "未命名"
     role = str(data.get("role") or "").strip()
-    # 真人引用职业模板且未自写 role 时，用模板的 role 展示（如「真人 · 张三（开发人员）」）
+    # 真人引用职业模板且未自写 role 时，用模板的 role 展示（如「真人 · 姓名（职业）」）
     if not role and profile_dir is not None:
         try:
             merged = resolve_role_template(data, profile_dir)

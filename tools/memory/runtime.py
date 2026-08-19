@@ -279,7 +279,7 @@ def persist(
         try:
             from .embed import get_embedder
 
-            get_embedder().sync_record(user_id, domain, record)
+            get_embedder(user_id=user_id).sync_record(user_id, domain, record)
         except Exception:  # noqa: BLE001 - 向量同步失败不阻断写回
             logger.warning("记忆向量同步异常，跳过", exc_info=True)
         logger.info(

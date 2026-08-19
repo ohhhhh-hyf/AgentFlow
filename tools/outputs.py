@@ -28,7 +28,15 @@ logger = logging.getLogger(__name__)
 # ── 报告类任务落盘 ─────────────────────────────────────────────
 
 def task_output_dir(ctx: DomainContext, line_name: str) -> Path:
-    out_dir = ctx.project_root / "output" / ctx.name / line_name
+    """产物目录：有 user 时 ``output/{user_id}/{domain}/{line_name}``，否则旧路径。"""
+    if (ctx.user_id or "").strip():
+        from tools.memory.store import safe_id
+
+        out_dir = (
+            ctx.project_root / "output" / safe_id(ctx.user_id) / ctx.name / line_name
+        )
+    else:
+        out_dir = ctx.project_root / "output" / ctx.name / line_name
     out_dir.mkdir(parents=True, exist_ok=True)
     return out_dir
 

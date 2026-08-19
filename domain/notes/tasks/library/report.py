@@ -286,7 +286,7 @@ def attach_library_artifacts(state: dict[str, Any]) -> None:
     sub["draft"] = draft
 
 
-def kb_from_env() -> KnowledgeTool:
+def kb_from_env(user_id: str = "") -> KnowledgeTool:
     fake = os.getenv("KNOWLEDGE_FAKE", "").strip().lower() in {"1", "true", "yes"}
     persist = os.getenv("KNOWLEDGE_PERSIST_DIR") or None
-    return KnowledgeTool(fake=fake, persist_dir=persist)
+    return KnowledgeTool(fake=fake, persist_dir=persist, user_id=user_id)

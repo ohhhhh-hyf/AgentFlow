@@ -25,15 +25,18 @@ def parse_scope(context: str) -> dict[str, str]:
     return out
 
 
-def open_knowledge():
-    """能开库就开；缺 key / 依赖失败返回 None（调用方走旧逻辑）。"""
+def open_knowledge(user_id: str = ""):
+    """能开库就开；缺 key / 依赖失败返回 None（调用方走旧逻辑）。
+
+    ``user_id`` 非空时按用户顶层物理隔离（``data/{user_id}/knowledge/chromadb``）。
+    """
     try:
         from tools.knowledge.tool import get_knowledge
     except Exception:
         return None
     fake = os.getenv("KNOWLEDGE_FAKE", "").strip().lower() in {"1", "true", "yes"}
     try:
-        return get_knowledge(fake=fake)
+        return get_knowledge(fake=fake, user_id=user_id)
     except Exception:
         return None
 

@@ -10,6 +10,12 @@ from typing import Dict, List, Optional
 
 from .config import KnowledgeToolConfig
 
+try:  # chromadb 缺失时降级（离线/测试环境）
+    from chromadb.errors import NotFoundError as _COLLECTION_MISSING
+except Exception:  # pragma: no cover - noqa: BLE001
+    _COLLECTION_MISSING = Exception  # type: ignore[misc]
+
+
 # ChromaDB 集合名要求: 3-512 字符, [a-zA-Z0-9._-], 首尾字母数字
 _NAME_RE = re.compile(r"^[a-zA-Z0-9][a-zA-Z0-9._-]{1,510}[a-zA-Z0-9]$")
 
@@ -387,7 +393,10 @@ class VectorStore:
         import time
 
         t0 = time.monotonic()
-        coll = self.client.get_collection(name=self._internal(collection))
+        try:
+            coll = self.client.get_collection(name=self._internal(collection))
+        except _COLLECTION_MISSING:
+            return []  # 用户库尚未创建时视为空库
         emb = self.embedding.embed([query_text])[0]
         # 旧库兼容：chroma 默认 L2 空间（score=1-L2 与余弦语义不同），
         # 该空间的 min_score 阈值不生效，保持旧行为；cosine 空间才启用阈值。
@@ -495,7 +504,10 @@ class VectorStore:
         where: Optional[Dict] = None,
     ) -> List[Dict]:
         """列出某库中的块；可按来源文件/行级 where 过滤（多条件 AND）。"""
-        coll = self.client.get_collection(name=self._internal(collection))
+        try:
+            coll = self.client.get_collection(name=self._internal(collection))
+        except _COLLECTION_MISSING:
+            return []  # 用户库尚未创建时视为空库
         cond: Dict = {}
         if filename:
             cond["source"] = filename

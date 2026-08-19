@@ -94,6 +94,21 @@ DEFAULT_PERSIST_DIR = os.getenv(
     "KNOWLEDGE_PERSIST_DIR",
     str(PROJECT_ROOT / "data" / "knowledge" / "chromadb"),
 )
+
+
+def persist_dir_for_user(user_id: str) -> str:
+    """按用户隔离的知识库向量目录：``data/{user_id}/knowledge/chromadb``。
+
+    user 顶层物理隔离：每个用户一个独立 chroma 库；学科仍用
+    metadata where 细分（见 ``_scope``）。
+    """
+    uid = (user_id or "").strip()
+    if not uid:
+        return DEFAULT_PERSIST_DIR
+    from tools.memory.store import safe_id
+
+    return str(PROJECT_ROOT / "data" / safe_id(uid) / "knowledge" / "chromadb")
+
 def _env_int(name: str, default: int) -> int:
     raw = (os.getenv(name) or "").split("#", 1)[0].strip().strip("'\"")
     if not raw:

@@ -11,7 +11,7 @@
 | 编排内核 | `runtime/` | 理解钩子、渲染上下文、图外 `produce_line`；`DomainNodes` 仍从 `domain_engine` 导入 |
 | 应用 | `runner.py` / `runtime_context.py` / `io.py` | CLI、领域加载、读入 |
 | 产物 | `outputs.py` | 报告落盘与导图编排 |
-| 模板 | `template_router.py` | 判型 / 编译 / 评测 |
+| 模板 | `template_router/` | 判型 / 编译 / 评测 |
 | 记忆 | `memory/` | 可选子系统 |
 
 渲染上下文与降级节点不再由 `sync_domain.py` 按线生成。领域只声明 `_understanding_key` / `_transcript_label` / `_understanding_label`。
@@ -49,7 +49,7 @@ minutes_trace 是文档化的 pipeline + sidecar，不是和 risk 对等的一�
 
 | 模块 | 职责 |
 |------|------|
-| `template_router.py` | 三类模板判型、编译、占位符拼装填充 |
+| `template_router/` | 三类模板判型、编译、占位符拼装填充 |
 | `template_prompt.py` | 模板渲染 system 规则拼装 |
 | `template_eval.py` | 通用约束评测、表格粘连修复 |
 | `prompt_utils.py` | `build_render_prompt` 统一入口 |

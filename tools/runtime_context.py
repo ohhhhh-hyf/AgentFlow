@@ -37,6 +37,8 @@ class DomainContext:
     env_prefix: str
     project_root: Path
     line_policies: dict[str, LinePolicy] = field(default_factory=dict)
+    # 产物/监控按用户顶层隔离（output/{user_id}/...）；空则回退 output/...（兼容）
+    user_id: str = ""
 
     @property
     def cli_samples_dir(self) -> Path:

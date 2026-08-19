@@ -594,7 +594,7 @@ def _semantic_hits(
     try:
         from .embed import MEMORY_EMBED_MIN_SCORE, get_embedder
 
-        embedder = get_embedder()
+        embedder = get_embedder(user_id=user_id)
         if not embedder.enabled:
             return None
         rows = embedder.search_entries(transcript, user_id, project_id, top_k=8)
@@ -825,7 +825,7 @@ def _match_open_items_semantic(
     try:
         from .embed import get_embedder
 
-        embedder = get_embedder()
+        embedder = get_embedder(user_id=user_id)
         if not embedder.enabled or embedder._store is None:
             return exact
         texts = pkeys + ikeys

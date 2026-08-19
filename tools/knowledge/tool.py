@@ -71,9 +71,18 @@ class KnowledgeTool:
                  chunk_overlap: Optional[int] = None,
                  top_k: Optional[int] = None,
                  max_tokens: Optional[int] = None,
-                 fake: bool = False):
+                 fake: bool = False,
+                 user_id: str = ""):
         """参数缺省时依次回退: .env → 环境变量 → 代码默认值(config.py)。
-        fake=True 时不校验 API Key, 用伪向量+假 LLM 离线验证。"""
+        fake=True 时不校验 API Key, 用伪向量+假 LLM 离线验证。
+
+        ``user_id`` 非空且未显式传 ``persist_dir`` 时，按用户顶层物理隔离
+        （``data/{user_id}/knowledge/chromadb``）。
+        """
+        if persist_dir is None and user_id:
+            from tools.knowledge.config import persist_dir_for_user
+
+            persist_dir = persist_dir_for_user(user_id)
         cfg = KnowledgeToolConfig(
             embedding_api_key=embedding_api_key,
             llm_api_key=llm_api_key,
@@ -264,9 +273,27 @@ class KnowledgeTool:
         return self.store.list_chunks(coll, filename, where=where)
 
 
-def get_knowledge(*, fake: bool = False, persist_dir: str | None = None) -> KnowledgeTool:
-    """按项目根 .env 构造知识库（LLM 跟随 LLM_BACKEND：vllm 时复用 LLM_VLLM_*）。"""
+def get_knowledge(
+    *,
+    fake: bool = False,
+    persist_dir: str | None = None,
+    user_id: str = "",
+) -> KnowledgeTool:
+    """按项目根 .env 构造知识库（LLM 跟随 LLM_BACKEND：vllm 时复用 LLM_VLLM_*）。
+
+    传 ``user_id`` 时按用户顶层物理隔离（``data/{user_id}/knowledge/chromadb``），
+    不传则用默认统一库路径。
+    """
+    if persist_dir is None and user_id:
+        from tools.knowledge.config import persist_dir_for_user
+
+        persist_dir = persist_dir_for_user(user_id)
     return KnowledgeTool(fake=fake, persist_dir=persist_dir)
+
+
+def knowledge_for_user(user_id: str, *, fake: bool = False) -> KnowledgeTool:
+    """按用户隔离的知识库实例（user 顶层物理隔离，subject 仍走 where）。"""
+    return get_knowledge(fake=fake, user_id=user_id)
 
 
 # 行级隔离的统一知识库 collection 名（owner/subject 走 metadata + where 过滤）

@@ -256,6 +256,9 @@ async def run(
     setup_logging()
     load_env(resolve_path(ctx, env_file))
 
+    # 产物/监控按用户顶层隔离（output/{user_id}/...）
+    ctx.user_id = user_id or ""
+
     user = load_user(ctx, profile)
     line_names = normalize_tasks(ctx, tasks or [], set(ctx.task_lines))
     file_list = _as_file_list(file)
@@ -311,6 +314,14 @@ async def run(
         try:
             from tools.monitor import TaskMonitor
 
+            from tools.memory.store import safe_id
+
+            monitor_dir = (
+                ctx.project_root / "output" / safe_id(user_id or "")
+                / "monitor"
+                if (user_id or "").strip()
+                else None
+            )
             _task_monitor = TaskMonitor(
                 getattr(system, "client", None),
                 task_name="+".join(line_names),
@@ -321,6 +332,7 @@ async def run(
                     "user_id": (user_id or "").strip(),
                     "subject": (subject or "").strip(),
                 },
+                out_dir=monitor_dir,
             )
         except Exception:  # noqa: BLE001 - 监控组件异常不应阻断任务
             logger.warning("任务监控初始化失败，本次不监控", exc_info=True)

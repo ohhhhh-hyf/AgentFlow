@@ -1,4 +1,4 @@
-﻿# 小艺慧记 · 多 Agent 任务系统
+# AgentFlow · 多 Agent 任务系统
 
 会议纪要 / 知识点多 Agent 系统：多任务线并行流水线
 （会议纪要 / 待办 / 风险分析 / 思维导图 / 知识点 / 知识图谱），每条线独立执行
@@ -11,7 +11,9 @@ LLM 支持 **HTTP（如 DeepSeek）** 与 **WebSocket OpenAI 兼容接口** 两�
 
 ```
 bootstrap.py                  # CLI 入口
-gradio_app.py                 # Web 测试台（小艺慧记Agent测试）
+gradio_app.py                 # Web 测试台（AgentFlow Web UI）
+tests/                        # pytest 测试（纯函数单测 + 3.10 语法兼容检查）
+demo/                         # 示例数据（分章资料 + 老师重点文本）
 domain/
   meeting/
     domain_config.py          # 领域配置：STATE_CLASS / LINE_CN_NAMES（中文名注册表）
@@ -27,7 +29,7 @@ domain/
       mindmap/                # 思维导图线（大纲 → markmap HTML/PNG）
       ...                     # 新增任务线同构
       {line}/steps/           # agent / supervisor / render 三步骤实现
-  notes/                      # 笔记域：知识图谱 / 笔记审查 / 自测题 / 资料入库
+  notes/                      # 笔记域：知识图谱 / 笔记审查 / 自测题 / 资料入库 / 知识目录 / 复习清单
 samples/                      # 样例输入：samples/{domain}/{file|profile|task_template}
 perspective/                  # 跨 domain 公共视角建模
 llm_client/                   # LLM 客户端（HTTP / WebSocket）+ 配置（.env）
@@ -38,12 +40,17 @@ tools/
   io.py                       # 输入文本和用户画像读取
   runner.py                   # CLI 参数 + 任务运行循环
   outputs.py                  # 报告 JSON/Markdown 落盘 + mindmap/knowledge_graph 导出
+  domain_engine.py            # 领域引擎基类：图构建 / 共享节点 / 流式运行
+  monitor/                    # 任务监控：token / 缓存命中 / 按层耗时 / 知识库与记忆计数
+  knowledge/                  # 知识库：PPT/PDF/docx/xlsx 入库 + 向量检索 + 出处（RAG）
+  memory/                     # 跨会话记忆：记录累积 / 语义检索 / 引用标注
+```
   domain_engine.py            # 多 domain 共享编排内核（生成→审核→渲染）
   contracts.py                # 契约 DSL
   fallback_rules.py           # 降级拼装规则 DSL
   validation.py               # 输出校验工具
   prompt_utils.py / template_prompt.py   # 渲染 prompt 构建
-  template_router.py          # 模板路由：占位符/格式规范/自然语言三类判型 + 编译
+  template_router/           # 模板路由包：_detect 判型 / _placeholder 填充 / _gate 门禁编译 / _preview 可读化
   template_eval.py            # 模板约束评测 + 表格粘连修复
   hard_execution.py           # 强执行：上游硬对齐 / 门禁 / 元说明剥离
   mindmap.py                  # 思维导图导出
@@ -60,7 +67,14 @@ tools/
 ```bash
 # Python >= 3.10，安装依赖
 pip install -r requirements.txt
+
+# 测试（可选）：运行 pytest 单测 + 3.10 语法兼容检查
+pip install pytest && python -m pytest
 ```
+
+> **版本说明**：`gradio` 已实测兼容 **5.x**（如 5.50）与 **6.x**（如 6.22）；
+> 注意 5.x 与 6.x 的 `theme/css` 参数位置不同（本项目已兼容两者）。
+> 开发/测试请优先使用 **Python 3.10** 环境（项目部分语法在 ≤3.11 下才能被完整校验）。
 
 Linux 推荐配置：
 
@@ -109,7 +123,7 @@ LLM_WS_MODEL=你的模型名
 
 ### 3. 运行
 
-#### Gradio 测试平台（小艺慧记Agent测试）
+#### Gradio 测试平台
 
 ```bash
 python gradio_app.py
@@ -177,8 +191,8 @@ python -m playwright install chromium
 | 笔记审查 | `python bootstrap.py --domain notes --task review` |
 | 自测题 | `python bootstrap.py --domain notes --task quiz` |
 | 资料入库 | `python bootstrap.py --domain notes --task library --file a.pptx --file b.pdf` |
-| 知识目录 | `python bootstrap.py --domain notes --task catalog --user_id demo_user --subject gaoshu_limit --file teacher_focus_limits.txt` |
-| 复习清单 | `python bootstrap.py --domain notes --task checklist --user_id demo_user --subject gaoshu_limit --file teacher_focus_limits.txt` |
+| 知识目录 | `python bootstrap.py --domain notes --task catalog --user_id user_001 --subject 数学 --file teacher_focus_limits.txt` |
+| 复习清单 | `python bootstrap.py --domain notes --task checklist --user_id user_001 --subject 数学 --file teacher_focus_limits.txt` |
 
 Linux/macOS 路径写法示例：
 
@@ -298,6 +312,28 @@ NOTES_PROFILE=<用户画像路径>                    # 对应 --profile
 NOTES_KNOWLEDGE_GRAPH_TEMPLATE=<模板路径>       # 对应 --knowledge_graph_template
 ```
 
+## 运行测试
+
+项目带一组 **pytest** 测试（`tests/`）：核心纯函数单测（目录合并 / 枚举归一化 / 重点分布 / 审核草稿压缩）+ **全库 Python 3.10 语法兼容检查**（拦截 f-string 反斜杠等 ≤3.11 语法回归）。
+
+```bash
+# 安装测试依赖（首次）
+pip install pytest
+
+# 运行全部测试（建议在 Python 3.10 环境跑，语法兼容检查才真正生效）
+python -m pytest
+```
+
+示例输出：
+
+```text
+16 passed in 0.70s
+```
+
+- 纯函数测试不调用 LLM / 外部 API，秒级完成
+- `tests/test_syntax_310.py` 会扫描全库 `.py`，任何在 Python 3.10 下不合法的语法（如 `f"{'\n'}"`）都会在提交时被拦截，而不是等到运行期卡死
+- 新增纯函数逻辑（merge / 统计 / 压缩 / 校验类）时，建议在 `tests/` 追加对应用例
+
 ## 自定义输出模板
 
 用 `--{线名}_template` 指定对应任务线的渲染模板（`.md` 文件）。每个任务线一个参数：
@@ -354,7 +390,7 @@ python bootstrap.py --domain notes --task knowledge_graph \
 - **全局标准注入**：`supervisor/` 的全局标准经 `GlobalSupervisor.build_prompt` 注入各线 supervisor
 - **占位校验**：register 阶段预生成 `XxxReportValidation: pass`，写 Report 类无 NameError，
   sync_domain 全量后按字段生成真实校验
-- **模板路由**：`tools/template_router.py` 自动判型三类模板并分派最优处理，
+- **模板路由**：`tools/template_router/` 包自动判型三类模板并分派最优处理，
   任何失败回退旧路径；渲染输出附带只读校验（残留占位符/JSON 合法性）
 - **思维导图**：mindmap 线产出 Markdown 大纲，经 `tools/mindmap.py` 固定导出
   交互式 HTML（markmap，离线单文件）和 PNG 图片（Playwright 截图）；

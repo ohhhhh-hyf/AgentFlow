@@ -5,7 +5,7 @@ HTML 思维导图（markmap）：
 
 - 依赖：Node + npx（``npx --yes markmap-cli`` 首次自动下载，无需全局安装）
 - 产物：``--offline`` 单文件 HTML，所有 JS/CSS 内联，可离线打开/分享
-- 设计约束（沿用 tools/template_router.py 的无痛惯例）：
+- 设计约束（沿用 tools/template_router/ 的无痛惯例）：
   - ``npx`` 不可用 / 网络失败 / 超时 → 一律返回 ``None``，**不影响主流程**
   - 纯函数，不 import 任何任务线 / domain
   - 临时文件放输出目录，且自动处理 WSL(linux) 调 Windows node 的路径差异

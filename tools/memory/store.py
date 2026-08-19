@@ -30,7 +30,8 @@ def safe_id(name: str) -> str:
 
 
 def user_dir(project_root: Path, domain: str, user_id: str) -> Path:
-    out = project_root / "data" / "memory" / "records" / domain / safe_id(user_id)
+    """用户顶层隔离：``data/{user_id}/memory/records/{domain}``。"""
+    out = project_root / "data" / safe_id(user_id) / "memory" / "records" / domain
     out.mkdir(parents=True, exist_ok=True)
     return out
 

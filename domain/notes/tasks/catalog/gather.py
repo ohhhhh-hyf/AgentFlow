@@ -52,7 +52,7 @@ def resolve_collection(user_id: str = "", subject: str = "") -> str:
     ``kb.list_chunks(user_id=..., subject=...)`` 行级过滤。
     """
     preferred = collection_for(user_id=user_id, subject=subject)
-    kb = open_knowledge()
+    kb = open_knowledge(user_id=user_id)
     if kb is None:
         return preferred
     try:
@@ -172,7 +172,7 @@ def build_catalog_briefing(shared_context: str) -> str:
     collection = resolve_collection(user_id=user_id, subject=subject)
     existing = load_catalog(collection)
     mode = "incremental_update" if existing else "build"
-    kb = open_knowledge()
+    kb = open_knowledge(user_id=user_id)
     parts = [
         "【任务】生成或增量更新课程知识目录，不要写复习建议。",
         f"【学科/课程】{subject or '未标注'}",

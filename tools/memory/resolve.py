@@ -165,7 +165,7 @@ def resolve(
     # 只在该层可用且候选唯一达标时绑定；多候选并列或不可用 → 继续走弱实体规则。
     from .embed import MEMORY_EMBED_MIN_SCORE, get_embedder
 
-    embedder = get_embedder()
+    embedder = get_embedder(user_id=user_id)
     if embedder.enabled:
         try:
             cands = [

@@ -37,6 +37,16 @@ MEMORY_PERSIST_DIR = os.getenv(
 )
 
 
+def memory_persist_dir_for_user(user_id: str) -> str:
+    """按用户隔离的记忆向量目录：``data/{user_id}/memory/chromadb``。"""
+    uid = (user_id or "").strip()
+    if not uid:
+        return MEMORY_PERSIST_DIR
+    from .store import safe_id
+
+    return str(_PROJECT_ROOT / "data" / safe_id(uid) / "memory" / "chromadb")
+
+
 def _embedding_enabled() -> bool:
     """动态读开关（运行中改 env 也生效）；默认开启。"""
     return (
@@ -431,14 +441,34 @@ class MemoryEmbedder:
 
 
 _embedder: MemoryEmbedder | None = None
+_user_embedders: dict[str, MemoryEmbedder] = {}
 
 
-def get_embedder(fake: bool = False) -> MemoryEmbedder:
-    """模块级单例（懒加载）。"""
-    global _embedder
-    if _embedder is None:
-        _embedder = MemoryEmbedder(fake=fake)
-    return _embedder
+def get_embedder(fake: bool = False, user_id: str = "") -> MemoryEmbedder:
+    """记忆向量库（懒加载）。
+
+    - 不传 ``user_id``：默认统一库单例（兼容旧路径）
+    - 传 ``user_id``：按用户顶层物理隔离（``data/{user_id}/memory/chromadb``），
+      每用户一个实例
+    """
+    uid = (user_id or "").strip()
+    if not uid:
+        global _embedder
+        if _embedder is None:
+            _embedder = MemoryEmbedder(fake=fake)
+        return _embedder
+    key = _project_uid_key(uid)
+    if key not in _user_embedders:
+        _user_embedders[key] = MemoryEmbedder(
+            fake=fake, persist_dir=memory_persist_dir_for_user(uid)
+        )
+    return _user_embedders[key]
+
+
+def _project_uid_key(user_id: str) -> str:
+    from .store import safe_id
+
+    return safe_id(user_id)
 
 
 __all__ = [

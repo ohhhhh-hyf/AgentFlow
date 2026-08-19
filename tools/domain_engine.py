@@ -174,6 +174,8 @@ class DomainNodes:
         return "\n\n".join(parts)
 
     def _supervisor_context(self, state: dict, line_name: str) -> str:
+        from tools.runtime.supervisor_slice import compact_draft_for_review
+
         cfg = self._task_lines[line_name]
         sub = line(state, line_name)
         revision_count = sub.get("revision_count", 0)
@@ -190,7 +192,7 @@ class DomainNodes:
             f"{allowed}\n\n"
             f"{self._supervisor_source_pack(state, line_name)}\n\n"
             f"{line_draft_title(line_name, self._line_cn_names)}：\n"
-            f"{json_dumps(sub['draft'])}"
+            f"{json_dumps(compact_draft_for_review(sub['draft']))}"
         )
 
     def _empty_purpose(self, state: dict) -> str:

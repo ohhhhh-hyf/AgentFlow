@@ -512,8 +512,8 @@ def on_task_switch_quiz_filters(
     return on_quiz_notes_change(qtype, input_upload, input_text)
 
 
-def _output_files(domain: str, tasks: list[str]) -> set[Path]:
-    root = PROJECT_ROOT / "output" / domain
+def _output_files(domain: str, tasks: list[str], user_id: str = "") -> set[Path]:
+    root = _output_root(domain, user_id)
     files: set[Path] = set()
     for task in tasks:
         folder = root / task
@@ -522,8 +522,17 @@ def _output_files(domain: str, tasks: list[str]) -> set[Path]:
     return files
 
 
-def _new_artifacts(domain: str, tasks: list[str], before: set[Path]) -> list[str]:
-    after = _output_files(domain, tasks)
+def _output_root(domain: str, user_id: str = "") -> Path:
+    """产物根：有 user 时 ``output/{user_id}/{domain}``，否则旧路径。"""
+    if (user_id or "").strip():
+        from tools.memory.store import safe_id
+
+        return PROJECT_ROOT / "output" / safe_id(user_id) / domain
+    return PROJECT_ROOT / "output" / domain
+
+
+def _new_artifacts(domain: str, tasks: list[str], before: set[Path], user_id: str = "") -> list[str]:
+    after = _output_files(domain, tasks, user_id)
     # 容错：并发清理/移动时文件可能已消失，跳过即可
     new_files = sorted(
         (path for path in (after - before) if path.exists()),
@@ -1004,8 +1013,13 @@ def _monitor_update(html: str):
     return gr.update(value=text, visible=bool(text))
 
 
-def _latest_monitor(task: str) -> dict | None:
-    folder = PROJECT_ROOT / "output" / "monitor"
+def _latest_monitor(task: str, user_id: str = "") -> dict | None:
+    if (user_id or "").strip():
+        from tools.memory.store import safe_id
+
+        folder = PROJECT_ROOT / "output" / safe_id(user_id) / "monitor"
+    else:
+        folder = PROJECT_ROOT / "output" / "monitor"
     if not folder.exists() or not task:
         return None
     files = sorted(
@@ -1524,7 +1538,7 @@ def run_from_ui(
             template_file.write_text(final_template, encoding="utf-8")
             templates[tasks[0]] = template_file
 
-        before = _output_files(domain, tasks)
+        before = _output_files(domain, tasks, user_id)
         buffer = io.StringIO()
         monitor_payload = None
         try:
@@ -1559,10 +1573,10 @@ def run_from_ui(
             monitor_payload = getattr(exc, "monitor_payload", None)
             buffer.write(f"\n运行失败：{exc}\n")
 
-        files = _new_artifacts(domain, tasks, before)
+        files = _new_artifacts(domain, tasks, before, user_id)
         log = _clean_log(buffer.getvalue().strip() or "运行完成。")
         if monitor_enabled and not monitor_payload:
-            monitor_payload = _latest_monitor("+".join(tasks))
+            monitor_payload = _latest_monitor("+".join(tasks), user_id)
         monitor_html = (
             _monitor_html(monitor_payload, line_names=ctx.line_cn_names)
             if monitor_enabled
