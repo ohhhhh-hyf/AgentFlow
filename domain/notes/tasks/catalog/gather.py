@@ -11,6 +11,9 @@ from tools.knowledge.source_role import ROLE_MATERIAL, ROLE_NOTES, ROLE_TEACHER,
 from tools.knowledge.tool import collection_for
 from .store import load_catalog
 
+# briefing 中知识块/笔记标题的总量上限：骨架已够建树，超出截断避免输入过大拖慢 LLM
+_MAX_BRIEF_TITLES = 400
+
 
 def subject_from_context(text: str) -> str:
     m = re.search(r"【学科/课程】\s*([^【】\n]+)", text or "")
@@ -130,19 +133,14 @@ def _compact_existing(catalog: dict[str, Any]) -> str:
             for point in topic.get("knowledge_points") or []:
                 if not isinstance(point, dict):
                     continue
-                items = "、".join(
-                    str(x) for x in (point.get("knowledge_items") or []) if str(x).strip()
-                )
-                aliases = "、".join(str(x) for x in (point.get("aliases") or []) if str(x).strip())
-                extra = f" 别名={aliases}" if aliases else ""
-                role = str(point.get("learning_role") or "").strip() or "缺"
-                practice = "、".join(str(x) for x in (point.get("practice_type") or []) if str(x).strip()) or "缺"
-                criteria = "、".join(str(x) for x in (point.get("completion_criteria") or []) if str(x).strip()) or "缺"
-                risks = "、".join(str(x) for x in (point.get("risk_tags") or []) if str(x).strip()) or "缺"
+                missing = [
+                    f
+                    for f in ("practice_type", "completion_criteria", "learning_role", "risk_tags")
+                    if not (point.get(f) or [])
+                ]
+                mark = f"（缺字段：{'、'.join(missing)}）" if missing else ""
                 lines.append(
-                    f"    - [{point.get('id') or ''}] {point.get('name') or ''} "
-                    f"items=[{items}]{extra} role={role} practice=[{practice}] "
-                    f"criteria=[{criteria}] risk=[{risks}]"
+                    f"      - [{point.get('id') or ''}] {point.get('name') or ''}{mark}"
                 )
     return "\n".join(lines)
 
@@ -218,7 +216,10 @@ def build_catalog_briefing(shared_context: str) -> str:
             for row in material_titled:
                 by_file[row["source"]].append(row)
             known = known_source_documents(existing) if existing else set()
+            emitted = 0
             for fname, rows in list(by_file.items())[:20]:
+                if emitted >= _MAX_BRIEF_TITLES:
+                    break
                 tag = "（已在目录中）" if fname in known else "（新资料/待匹配）"
                 parts.append(f"- 文件 {fname} {tag}")
                 seen_paths: set[str] = set()
@@ -229,6 +230,9 @@ def build_catalog_briefing(shared_context: str) -> str:
                     if path and path not in seen_paths:
                         seen_paths.add(path)
                         parts.append(f"  · {path}")
+                        emitted += 1
+            if emitted >= _MAX_BRIEF_TITLES:
+                parts.append("  · …（骨架标题过多，已截断到 400 条）")
             # 课件有骨架时，笔记仍只标覆盖、补知识项
             if notes:
                 parts.append("【学生笔记标题】（只用来标覆盖、补知识项）")
@@ -236,9 +240,12 @@ def build_catalog_briefing(shared_context: str) -> str:
                 for row in notes:
                     by_file[row["source"]].append(row)
                 for fname, rows in list(by_file.items())[:8]:
+                    if emitted >= _MAX_BRIEF_TITLES:
+                        break
                     heads = [row.get("heading") or row.get("topic") or row.get("chapter") for row in rows[:30]]
                     heads = [h for h in heads if h]
                     parts.append(f"- {fname}：{'；'.join(heads[:20])}")
+                    emitted += len(heads)
             else:
                 parts.append("【学生笔记标题】未识别到笔记角色文件，note_coverage 多为 none。")
         elif notes:
@@ -248,7 +255,10 @@ def build_catalog_briefing(shared_context: str) -> str:
             by_file = defaultdict(list)
             for row in notes:
                 by_file[row["source"]].append(row)
+            emitted = 0
             for fname, rows in list(by_file.items())[:8]:
+                if emitted >= _MAX_BRIEF_TITLES:
+                    break
                 seen_paths = set()
                 paths: list[str] = []
                 for row in rows[:40]:
@@ -262,6 +272,9 @@ def build_catalog_briefing(shared_context: str) -> str:
                     parts.append(f"- {fname}（学生笔记）")
                     for p in paths[:20]:
                         parts.append(f"  · {p}")
+                        emitted += 1
+            if emitted >= _MAX_BRIEF_TITLES:
+                parts.append("  · …（骨架标题过多，已截断到 400 条）")
         else:
             # ③ 都缺 → 不编章名兜底
             parts.append("【资料骨架】库中还没有课件/讲义/笔记标题，请尽量从老师文本归纳，但不要编章名。")

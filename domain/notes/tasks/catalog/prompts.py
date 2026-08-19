@@ -18,6 +18,10 @@ CATALOG_GENERATION_SYSTEM_PROMPT = """你是「知识目录 Agent」。根据资
   已有 KP 若缺 practice_type / completion_criteria / learning_role / risk_tags，本次必须补上；不要为此新建重复 KP，不要改稳定 ID。
   无法匹配的进 unmatched_content，没把握的进 uncertain_nodes。
   填写 added_chapters / added_topics / added_knowledge_points / updated_knowledge_points / merged_nodes。
+  增量输出规则（务必遵守）：change_type=unchanged 的节点只输出最小占位
+  {"id": "节点ID", "change_type": "unchanged"}，不要重复输出该节点的 name / topics /
+  knowledge_points 等内容字段；仅新增或更新的节点才完整输出内容。
+  程序会按 ID 保留已有节点的完整内容，占位节点不会丢失任何数据。
 
 ## 三类输入
 

@@ -9,7 +9,7 @@ from .assemble import distribution
 from .mindmap import build_checklist_mindmap_outline
 from .select import _as_list, _clean
 
-_GRADE = {"S": "核心", "A": "重点", "B": "简要", "C": "结构"}
+_GRADE = {"S": "核心", "A": "重点", "B": "简要", "C": "补充"}
 _STAR = {"S": 5, "A": 4, "B": 3, "C": 2}
 _REL = {
     "alternative": "替代",
@@ -66,15 +66,23 @@ def build_checklist_markdown(draft: dict[str, Any]) -> str:
 
     focus = [c for c in cards if c.get("session_priority") in {"S", "A"}]
     brief = [c for c in cards if c.get("session_priority") == "B"]
+    extra = [c for c in cards if c.get("session_priority") == "C"]
     lines.extend(["## 一、全局导航", "", "### 1. 复习重点分布", ""])
     dist = distribution(cards)
     for row in dist:
         lines.append(f"- {row['label']}：{row['value']}%")
-    lines.extend(["", "| 优先级 | 知识点 | 重要程度 |", "| --- | --- | --- |"])
-    for card in focus:
+    main_cards = [c for c in cards if c.get("session_priority") in {"S", "A", "B"}]
+    lines.extend(["", "| 优先级 | 知识点 | 重要程度 | 所属章节 |", "| --- | --- | --- | --- |"])
+    for card in main_cards:
         lines.append(
-            f"| {_grade_label(card)} | {_clean(card.get('name'))} | {importance_stars(card)} |"
+            f"| {_grade_label(card)} | {_clean(card.get('name'))} | {importance_stars(card)} | {_clean(card.get('chapter')) or '—'} |"
         )
+    if extra:
+        lines.extend(["", "**补充**（老师未重点点、但知识结构中需要了解的）", "", "| 知识点 | 重要程度 | 所属章节 |", "| --- | --- | --- |"])
+        for card in extra:
+            lines.append(
+                f"| {_clean(card.get('name'))} | {importance_stars(card)} | {_clean(card.get('chapter')) or '—'} |"
+            )
     outline = draft.get("mindmap_outline") or build_checklist_mindmap_outline(draft, cards)
     lines.extend(["", "### 2. 思维导图", "", outline, "", "### 3. 考点知识图谱", ""])
     for src, rel, dst in _edges(cards):
@@ -106,6 +114,20 @@ def build_checklist_markdown(draft: dict[str, Any]) -> str:
             lines.append(
                 f"- {_clean(card.get('name'))}（{importance_stars(card)}）："
                 f"{_clean(card.get('exam_preview')) or '知道定义和一条限制即可'}"
+            )
+        lines.append("")
+    if extra:
+        lines.append("### 补充")
+        lines.append("")
+        for card in extra:
+            kb_src = ""
+            for ev in (_trace_pack(card).get("kb") or [])[:1]:
+                src = _clean(ev.get("source")) or _clean(ev.get("excerpt"))[:40]
+                if src:
+                    kb_src = f"　溯源：{src}"
+            lines.append(
+                f"- {_clean(card.get('name'))}（{importance_stars(card)}）："
+                f"{_clean(card.get('exam_preview')) or '结构了解即可'}{kb_src}"
             )
         lines.append("")
 
@@ -226,13 +248,14 @@ def _pie_html(rows: list[dict[str, float]]) -> str:
     if len(rows) < 2:
         return ""
     colors = ["#b3402e", "#c98a2d", "#497a78", "#6f5f90", "#395f8a", "#7a867c"]
+    other_color = "#9a968c"
     total = sum(float(r.get("value") or 0) for r in rows) or 1.0
     cursor = 0.0
     segs, legend = [], []
     for i, row in enumerate(rows):
         start = cursor
         cursor += float(row["value"]) / total * 100
-        color = colors[i % len(colors)]
+        color = other_color if str(row["label"]) == "其他" else colors[i % len(colors)]
         segs.append(f"{color} {start:.2f}% {cursor:.2f}%")
         legend.append(
             f'<div class="ck-legend-item"><span class="ck-dot" style="background:{color}"></span>'
@@ -595,22 +618,39 @@ def build_checklist_html(draft: dict[str, Any]) -> str:
     else:
         focus = [c for c in cards if c.get("session_priority") in {"S", "A"}]
         brief = [c for c in cards if c.get("session_priority") == "B"]
+        extra = [c for c in cards if c.get("session_priority") == "C"]
         outline = draft.get("mindmap_outline") or build_checklist_mindmap_outline(draft, cards)
         nodes, edges = _graph_payload(cards)
         body.append("<h2>一、全局导航</h2><h3>1. 复习重点分布</h3>")
         body.append(_pie_html(distribution(cards)))
+        main_cards = [c for c in cards if c.get("session_priority") in {"S", "A", "B"}]
         body.append(
-            '<table class="ck-table"><thead><tr><th>优先级</th><th>知识点</th><th>重要程度</th></tr></thead><tbody>'
+            '<table class="ck-table"><thead><tr><th>优先级</th><th>知识点</th><th>重要程度</th><th>所属章节</th></tr></thead><tbody>'
         )
-        for card in focus:
+        for card in main_cards:
             body.append(
                 "<tr>"
                 f"<td>{escape(_grade_label(card), quote=False)}</td>"
                 f"<td>{escape(_clean(card.get('name')), quote=False)}</td>"
                 f'<td><span class="ck-stars">{importance_stars(card)}</span></td>'
+                f"<td>{escape(_clean(card.get('chapter')) or '—', quote=False)}</td>"
                 "</tr>"
             )
         body.append("</tbody></table>")
+        if extra:
+            body.append(
+                '<div class="ck-subtitle">补充（老师未重点点、但知识结构中需要了解的）</div>'
+                '<table class="ck-table"><thead><tr><th>知识点</th><th>重要程度</th><th>所属章节</th></tr></thead><tbody>'
+            )
+            for card in extra:
+                body.append(
+                    "<tr>"
+                    f"<td>{escape(_clean(card.get('name')), quote=False)}</td>"
+                    f'<td><span class="ck-stars">{importance_stars(card)}</span></td>'
+                    f"<td>{escape(_clean(card.get('chapter')) or '—', quote=False)}</td>"
+                    "</tr>"
+                )
+            body.append("</tbody></table>")
         body.append("<h3>2. 思维导图</h3>")
         body.append(build_editable_mindmap_embed(outline, title=f"{course} · 复习思维导图"))
         body.append("<h3>3. 考点知识图谱</h3>")
@@ -630,6 +670,26 @@ def build_checklist_html(draft: dict[str, Any]) -> str:
                     f'<span class="ck-stars">{importance_stars(card)}</span> '
                     f"<strong>{escape(_clean(card.get('name')), quote=False)}</strong>"
                     f" {escape(preview, quote=False)}"
+                    "</li>"
+                )
+            body.append("</ul></div>")
+        if extra:
+            body.append('<div class="ck-brief"><h3>补充</h3><ul>')
+            for card in extra:
+                preview = _clean(card.get("exam_preview")) or "结构了解即可"
+                kb_src = ""
+                for ev in (_trace_pack(card).get("kb") or [])[:1]:
+                    src = _clean(ev.get("source")) or _clean(ev.get("excerpt"))[:40]
+                    if src:
+                        kb_src = (
+                            f' <span style="color:#6b6860;font-size:0.78rem;">'
+                            f"溯源：{escape(src, quote=False)}</span>"
+                        )
+                body.append(
+                    "<li>"
+                    f'<span class="ck-stars">{importance_stars(card)}</span> '
+                    f"<strong>{escape(_clean(card.get('name')), quote=False)}</strong>"
+                    f" {escape(preview, quote=False)}{kb_src}"
                     "</li>"
                 )
             body.append("</ul></div>")
@@ -682,6 +742,7 @@ def build_checklist_html(draft: dict[str, Any]) -> str:
     .ck-brief{{margin:8px 0 16px;padding:12px 14px;border:1px dashed #d4d0c6;border-radius:10px;background:#fbfaf7;}}
     .ck-brief h3{{margin:0 0 8px;font-size:1.02rem;}}
     .ck-brief ul{{margin:0;padding-left:1.2em;}}
+    .ck-subtitle{{margin:14px 0 6px;font-size:0.9rem;font-weight:650;color:#6b6860;}}
     .ck-brief li{{margin:6px 0;line-height:1.55;}}
     @media(max-width:860px){{.ck-review{{grid-template-columns:1fr}}.ck-review-rule{{display:none}}}}
     .ck-badge{{display:inline-block;margin-right:6px;padding:1px 8px;border-radius:10px;font-size:.74rem;background:#efece4;border:1px solid #d4d0c6;}}

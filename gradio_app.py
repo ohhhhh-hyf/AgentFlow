@@ -1,4 +1,4 @@
-"""小艺慧记 Agent 测试台（Web UI）入口。
+"""AgentFlow Web UI 入口。
 
 启动地址/端口在这里配置（环境变量可覆盖）：
 - GRADIO_SERVER_NAME  监听地址（默认 127.0.0.1；服务器部署用 0.0.0.0）

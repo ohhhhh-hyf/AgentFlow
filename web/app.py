@@ -323,11 +323,11 @@ def _scope_labels(task: str) -> tuple[dict[str, str], dict[str, str]]:
         return (
             {
                 "label": "用户 ID（必填）",
-                "placeholder": "用来定位你的知识库，例如 demo_user",
+                "placeholder": "用来定位你的知识库，例如 user_001",
             },
             {
                 "label": "学科（必填）",
-                "placeholder": "用来定位这门课的知识库，例如 gaoshu_limit",
+                "placeholder": "用来定位这门课的知识库，例如 数学",
             },
         )
     return (

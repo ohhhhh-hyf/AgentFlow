@@ -203,14 +203,26 @@ def _unmatched_quotes(teacher: str, activated: list[dict[str, Any]]) -> list[str
 
 
 def distribution(cards: list[dict[str, Any]]) -> list[dict[str, float]]:
+    """按知识点（card.name）分组累加权重，取 Top10，其余并入「其他」。
+
+    复习重点分布按「知识点」而非章节展示：重点知识点不能太多，
+    超出 10 个的部分在饼图中合并为「其他」一节。
+    """
     weights = {"S": 40.0, "A": 25.0, "B": 15.0, "C": 8.0}
     buckets: dict[str, float] = {}
     for card in cards:
-        label = _clean(card.get("chapter")) or _clean(card.get("topic")) or "其他"
-        buckets[label] = buckets.get(label, 0.0) + weights.get(card.get("session_priority") or "C", 8.0)
+        label = _clean(card.get("name")) or _clean(card.get("topic")) or "未命名"
+        buckets[label] = buckets.get(label, 0.0) + weights.get(
+            card.get("session_priority") or "C", 8.0
+        )
     total = sum(buckets.values()) or 1.0
-    rows = [{"label": k, "value": round(v / total * 100, 1)} for k, v in buckets.items()]
-    if rows:
+    ranked = sorted(buckets.items(), key=lambda kv: -kv[1])
+    top = ranked[:10]
+    others = sum(v for _, v in ranked[10:])
+    rows = [{"label": k, "value": round(v / total * 100, 1)} for k, v in top]
+    if others > 0:
+        rows.append({"label": "其他", "value": round(others / total * 100, 1)})
+    if rows:  # 归一化 round 误差到末项
         drift = 100.0 - sum(r["value"] for r in rows)
         rows[-1]["value"] = round(rows[-1]["value"] + drift, 1)
     return rows
