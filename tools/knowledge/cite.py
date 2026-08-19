@@ -5,6 +5,25 @@ import os
 import re
 from typing import Any
 
+_SCOPE_RE = re.compile(r"【(用户ID|学科/课程)】\s*([^\n【]*)")
+_SCOPE_ALIAS = {"学科/课程": "subject"}
+
+
+def parse_scope(context: str) -> dict[str, str]:
+    """从注入上下文解析行级作用域：{user_id, subject}（用于知识库 where 过滤）。
+
+    识别【用户ID】与【学科/课程】标签；没有则对应字段为空串。
+    """
+    out = {"user_id": "", "subject": ""}
+    for match in _SCOPE_RE.finditer(context or ""):
+        key, value = match.group(1), match.group(2).strip()
+        if not value:
+            continue
+        field = _SCOPE_ALIAS.get(key, "user_id")
+        if not out.get(field):
+            out[field] = value
+    return out
+
 
 def open_knowledge():
     """能开库就开；缺 key / 依赖失败返回 None（调用方走旧逻辑）。"""
@@ -71,15 +90,25 @@ def _pack(meta: dict, excerpt: str, score: object) -> dict[str, Any] | None:
     }
 
 
-def cite_text(kb: Any, text: str, *, top_k: int = 3) -> list[dict[str, Any]]:
-    """检索出处。只返回库里真有、且和查询对得上的命中。"""
+def cite_text(
+    kb: Any,
+    text: str,
+    *,
+    top_k: int = 3,
+    user_id: str = "",
+    subject: str = "",
+) -> list[dict[str, Any]]:
+    """检索出处。只返回库里真有、且和查询对得上的命中。
+
+    user_id/subject：行级隔离——只在该用户/该学科的知识库内对出处。
+    """
     query = " ".join(str(text or "").split()).strip()
     if kb is None or len(query) < 4:
         return []
     packed: list[dict[str, Any]] = []
     try:
         scored: list[tuple[int, dict[str, Any]]] = []
-        for chunk in kb.list_chunks():
+        for chunk in kb.list_chunks(user_id=user_id, subject=subject):
             body = str(chunk.get("text") or "")
             score = _overlap_score(query, body)
             if score <= 0:
@@ -100,7 +129,7 @@ def cite_text(kb: Any, text: str, *, top_k: int = 3) -> list[dict[str, Any]]:
             pass
         return packed
     try:
-        hits = kb.locate(query, top_k=top_k)
+        hits = kb.locate(query, top_k=top_k, user_id=user_id, subject=subject)
     except Exception:
         return []
     out: list[dict[str, Any]] = []

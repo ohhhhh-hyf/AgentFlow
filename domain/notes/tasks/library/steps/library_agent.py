@@ -41,13 +41,13 @@ class LibraryAgent:
                     "items": [],
                 }
             )
-        collection = collection_for(
-            user_id=_user_id_from_context(shared_context),
-            subject=_subject_from_context(shared_context),
-        )
         try:
-            data = ingest_library(kb_from_env(), expand_inputs(raw),
-                                  collection=collection)
+            data = ingest_library(
+                kb_from_env(),
+                expand_inputs(raw),
+                user_id=_user_id_from_context(shared_context),
+                subject=_subject_from_context(shared_context),
+            )
         except Exception as exc:
             return Library.validate(
                 {

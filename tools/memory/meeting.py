@@ -11,6 +11,7 @@ _OPEN_CAP = 30
 _CLOSED_CAP = 30
 _DECISION_CAP = 40
 _RISK_CAP = 30
+_EVENTS_CAP = 200
 _TOPIC_CAP = 30
 _SESSION_CAP = 8
 _RECALL_ENTITY_CAP = 6
@@ -575,12 +576,60 @@ def build_accumulated_minutes(record: dict[str, Any]) -> str:
     return "\n".join(blocks)
 
 
+def _semantic_hits(
+    record: dict[str, Any],
+    transcript: str = "",
+) -> list[dict[str, Any]] | None:
+    """方案 B：语义摘录检索（embedding）→ 与 build_entity_recall 同构的 hits。
+
+    返回 None 表示 embedding 不可用（调用方回退实体召回）；
+    返回 [] 表示可用但无语义相关条目。
+    """
+    if not record or not (transcript or "").strip():
+        return None
+    user_id = str(record.get("user_id") or "")
+    project_id = str(record.get("project_id") or "")
+    if not user_id or not project_id:
+        return None
+    try:
+        from .embed import MEMORY_EMBED_MIN_SCORE, get_embedder
+
+        embedder = get_embedder()
+        if not embedder.enabled:
+            return None
+        rows = embedder.search_entries(transcript, user_id, project_id, top_k=8)
+        rows = [r for r in rows if float(r.get("score") or 0.0) >= MEMORY_EMBED_MIN_SCORE]
+        if not rows:
+            return []
+        history: list[str] = []
+        origins: list[dict[str, Any]] = []
+        for row in rows[:6]:
+            text = _clean(row.get("text"))
+            if not text:
+                continue
+            history.append(text)
+            origins.append({
+                "line": text,
+                "seq": int(row.get("seq") or 0),
+                "title": str(row.get("title") or ""),
+                "at": str(row.get("at") or ""),
+            })
+        if not history:
+            return []
+        return [{"entity": "项目", "history": history, "origins": origins, "current": []}]
+    except Exception:  # noqa: BLE001 - 语义摘录异常降级回实体召回
+        logger.warning("记忆语义摘录失败，降级实体召回", exc_info=True)
+        return None
+
+
 def inject_meeting(record: dict[str, Any], transcript: str = "") -> str:
     """把已融合的项目理解写成对照文本。空状态返回空串。"""
     meeting = (record or {}).get("meeting") or {}
     if not record or int(record.get("run_count") or 0) <= 0:
         return ""
-    hits = build_entity_recall(record, transcript)
+    hits = _semantic_hits(record, transcript)
+    if hits is None:
+        hits = build_entity_recall(record, transcript)
     parts: list[str] = []
     if hits:
         names = [str(h.get("entity") or "") for h in hits if h.get("entity")]
@@ -748,6 +797,57 @@ def _collapse_by_key(items: list[dict[str, Any]], key: str) -> list[dict[str, An
         merged[key] = text
         by_text[text] = merged
     return list(by_text.values())
+
+
+def _match_open_items_semantic(
+    prev_open: list[dict[str, Any]],
+    incoming_opens: list[dict[str, Any]],
+    threshold: float = 0.80,
+) -> dict[str, str]:
+    """同一未决事项的语义匹配（优化 B）：改写表述 → 仍视为同一项。
+
+    返回 {incoming_clean_key: prev_clean_key}；精确相同优先，
+    语义相似（embedding 余弦 ≥ threshold）次之，embedding 不可用回退精确。
+    用于保留 since/owner/deadline 继续跟踪，避免"换说法 → 误判新事项/误闭环"。
+
+    阈值 0.80：实测同一事项改写 cos≈0.85、不同事项 cos≈0.42-0.48，
+    0.80 在两者之间留足安全区。
+    """
+    if not prev_open or not incoming_opens:
+        return {}
+    pkeys = [_clean(i.get("item")) for i in prev_open]
+    ikeys = [_clean(i.get("item")) for i in incoming_opens]
+    exact = {}
+    for i, ik in enumerate(ikeys):
+        if ik and ik in pkeys:
+            exact[ik] = ik
+    # 剩余未精确命中的 incoming 做语义匹配
+    try:
+        from .embed import get_embedder
+
+        embedder = get_embedder()
+        if not embedder.enabled or embedder._store is None:
+            return exact
+        texts = pkeys + ikeys
+        vecs = embedder._store.embedding.embed(texts)
+        n_prev = len(pkeys)
+        for i, ik in enumerate(ikeys):
+            if not ik or ik in exact:
+                continue
+            best_p, best_s = -1, 0.0
+            for p in range(n_prev):
+                a, b = vecs[p], vecs[n_prev + i]
+                dot = sum(x * y for x, y in zip(a, b))
+                na = sum(x * x for x in a) ** 0.5 or 1.0
+                nb = sum(y * y for y in b) ** 0.5 or 1.0
+                s = dot / (na * nb)
+                if s > best_s:
+                    best_p, best_s = p, s
+            if best_s >= threshold and pkeys[best_p]:
+                exact[ik] = pkeys[best_p]
+    except Exception:  # noqa: BLE001 - 语义匹配失败回退精确匹配
+        pass
+    return exact
 
 
 def _merge_people(old: list[str], new: list[str]) -> list[str]:
@@ -928,14 +1028,22 @@ def _session_snapshot(
     }
 
 
-def _merge_identity(rec: dict[str, Any], understanding: dict[str, Any]) -> dict[str, Any]:
-    """写回时增量维护短名别名与实体，让档案「越用越准」。
+def _merge_identity(
+    rec: dict[str, Any],
+    understanding: dict[str, Any],
+    stamp: str = "",
+    seq: int = 0,
+) -> dict[str, Any]:
+    """写回时增量维护短名别名与结构化实体，让档案「越用越准」。
 
-    - 实体：从本场理解拼文提取，与已有 entities 合并去重（弱匹配素材，宽进）
+    - 实体：结构化 {name, type, first_seen, last_seen, status, sessions[]}，
+      从本场理解拼文提取并合并；新实体记 first_seen=本场，已存在更新 last_seen/sessions
     - 别名：只登记「与现有身份（project_key/已登记别名）存在子串包含」的本场
       引号专名——解决「玉米面加工厂项目」↔「玉米面加工厂」这类写法漂移导致
       后续对不上；全新叫法无法确定性判定，宁可不登也不误登
     """
+    from .entities import entity_type, normalize_entities
+
     meeting = (rec or {}).get("meeting") if isinstance(rec, dict) else {}
     understanding = understanding if isinstance(understanding, dict) else {}
     purpose = _clean(understanding.get("meeting_purpose") or understanding.get("purpose"))
@@ -952,12 +1060,47 @@ def _merge_identity(rec: dict[str, Any], understanding: dict[str, Any]) -> dict[
     src_bits.extend(_str_list(understanding.get("risks")))
     src = " ".join(bit for bit in src_bits if bit)
 
-    # 实体增量合并（弱匹配素材，去重即可）
-    old_entities = [str(e) for e in (rec.get("entities") or []) if str(e).strip()]
+    # 实体：结构化合并（兼容旧 str 格式）
+    ent_map = normalize_entities(rec.get("entities"), stamp)
     for entity in extract_entities(src):
-        if entity not in old_entities:
-            old_entities.append(entity)
-    rec["entities"] = old_entities[:40]
+        prev = ent_map.get(entity)
+        if prev is None:
+            ent_map[entity] = {
+                "name": entity,
+                "type": entity_type(entity),
+                "first_seen": stamp,
+                "last_seen": stamp,
+                "status": "active",
+                "sessions": [seq] if seq else [],
+            }
+        else:
+            if stamp:
+                prev["last_seen"] = stamp
+            if seq:
+                sessions = prev.setdefault("sessions", [])
+                if seq not in sessions:
+                    sessions.append(seq)
+    rec["entities"] = sorted(ent_map.values(), key=lambda e: str(e.get("first_seen") or ""))[:40]
+
+    # ── 关联增强字段（供向量身份文本 / 记忆关联排序，确定性提取）──
+    # key_terms：代表项目主题的高频词（与 entities 同源但更精简、新在前）
+    from .entities import extract_entities as _extract_terms
+
+    fresh_terms = _extract_terms(src, limit=20)
+    prev_terms = [str(t) for t in (rec.get("key_terms") or []) if str(t).strip()]
+    merged_terms = list(dict.fromkeys(fresh_terms + prev_terms))
+    rec["key_terms"] = merged_terms[:15]
+    # recent_topics：最近议题标题（新在前，cap 8）
+    topics_now = [
+        _clean(t.get("title"))
+        for t in (understanding.get("topics") or [])
+        if isinstance(t, dict) and _clean(t.get("title"))
+    ]
+    prev_topics = [str(t) for t in (rec.get("recent_topics") or []) if str(t).strip()]
+    rec["recent_topics"] = list(dict.fromkeys(topics_now + prev_topics))[:8]
+    # active_summary：本场最新目的/状态（覆盖式，代表项目"现在进行到哪"）
+    if purpose:
+        rec["active_summary"] = purpose
 
     # 别名：只登与现有身份子串相关的引号专名
     aliases = [str(a) for a in (rec.get("name_aliases") or []) if str(a).strip()]
@@ -986,6 +1129,23 @@ def merge_meeting(
     rec = dict(record)
     meeting = dict(rec.get("meeting") or {})
     understanding = understanding if isinstance(understanding, dict) else {}
+    # 变更事件收集（状态跟踪）：本场 seq 提前计算，供各事件引用
+    next_seq = int(rec.get("run_count") or 0) + 1
+    events = [dict(e) for e in (rec.get("events") or []) if isinstance(e, dict)]
+
+    def _event(etype: str, text: str, **extra: Any) -> None:
+        text = _clean(text)
+        if not text:
+            return
+        event: dict[str, Any] = {
+            "seq": next_seq,
+            "at": stamp,
+            "type": etype,
+            "text": text,
+        }
+        event.update({k: v for k, v in extra.items() if v not in (None, "")})
+        events.append(event)
+
     incoming_topics = [
         topic
         for topic in (_as_topic(item, stamp) for item in (understanding.get("topics") or []))
@@ -1021,6 +1181,11 @@ def merge_meeting(
             meeting["purpose"] = f"{old_purpose}；{purpose}"
 
     meeting["topics"] = _merge_topics(meeting.get("topics") or [], incoming_topics, stamp)
+    prev_decision_keys = {
+        _clean(d.get("decision"))
+        for d in (meeting.get("decisions") or [])
+        if isinstance(d, dict) and _clean(d.get("decision"))
+    }
     meeting["decisions"] = _merge_labeled(
         list(meeting.get("decisions") or []),
         incoming_decisions,
@@ -1028,9 +1193,17 @@ def merge_meeting(
         stamp,
         _DECISION_CAP,
     )
+    for d in incoming_decisions:
+        text = _clean(d.get("decision"))
+        if text and text not in prev_decision_keys:
+            _event("decision_added", text)
 
     prev_risks = [dict(r) for r in (meeting.get("risks") or []) if isinstance(r, dict)]
     incoming_risk_keys = {_clean(r.get("risk")) for r in incoming_risks if _clean(r.get("risk"))}
+    for r in incoming_risks:
+        text = _clean(r.get("risk"))
+        if text and text not in {_clean(x.get("risk")) for x in prev_risks}:
+            _event("risk_added", text)
     meeting["risks"] = _merge_labeled(
         prev_risks, incoming_risks, "risk", stamp, _RISK_CAP
     )
@@ -1039,17 +1212,21 @@ def merge_meeting(
             text = _clean(risk.get("risk"))
             if text and text not in incoming_risk_keys:
                 risk["status"] = "mitigated"
+                _event("risk_mitigated", text)
             else:
                 risk["status"] = risk.get("status") or "active"
 
     decided = {_clean(d.get("decision")) for d in incoming_decisions}
     fresh_keys = [_clean(i.get("item")) for i in incoming_opens if _clean(i.get("item"))]
     prev_open = [dict(i) for i in (meeting.get("open_items") or []) if isinstance(i, dict)]
+    prev_map = {_clean(i.get("item")): i for i in prev_open}
     if fresh_keys:
+        # 优化 B：同一未决事项语义匹配（改写表述仍视为同一项，保留 since/owner/deadline）
+        matched_prev = _match_open_items_semantic(prev_open, incoming_opens)
+        matched_prev_keys = set(matched_prev.values())
         closed = list(meeting.get("closed_items") or [])
-        prev_map = {_clean(i.get("item")): i for i in prev_open}
         for key, item in prev_map.items():
-            if key not in fresh_keys or key in decided:
+            if key not in matched_prev_keys or key in decided:
                 closed.append(
                     {
                         "item": key,
@@ -1057,6 +1234,7 @@ def merge_meeting(
                         "owner": item.get("owner"),
                     }
                 )
+                _event("item_closed", key, since=item.get("since"), closed_at=stamp)
         kept = []
         seen: set[str] = set()
         for item in incoming_opens:
@@ -1064,7 +1242,12 @@ def merge_meeting(
             if not key or key in decided or key in seen:
                 continue
             seen.add(key)
-            prev = prev_map.get(key, {})
+            # 语义匹配到旧项 → 沿用旧 key（跨场一致 + since 追踪）
+            prev_key = matched_prev.get(key, key)
+            prev = prev_map.get(prev_key, {})
+            if prev_key != key and prev:
+                key = prev_key
+            opened_now = not prev.get("since")
             kept.append(
                 {
                     "item": key,
@@ -1076,6 +1259,8 @@ def merge_meeting(
                     "priority": item.get("priority") or prev.get("priority"),
                 }
             )
+            if opened_now:
+                _event("item_opened", key)
         meeting["open_items"] = kept[:_OPEN_CAP]
         meeting["closed_items"] = closed[-_CLOSED_CAP:]
     elif decided:
@@ -1091,7 +1276,6 @@ def merge_meeting(
         meeting["closed_items"] = closed[-_CLOSED_CAP:]
 
     sessions = list(meeting.get("sessions") or [])
-    next_seq = int(rec.get("run_count") or 0) + 1
     sessions.append(
         _session_snapshot(
             understanding,
@@ -1104,7 +1288,9 @@ def merge_meeting(
     meeting["sessions"] = sessions[-_SESSION_CAP:]
     meeting["summary"] = _rebuild_summary(meeting)
     rec["meeting"] = meeting
-    rec = _merge_identity(rec, understanding)
+    rec["events"] = events[-_EVENTS_CAP:]
+    rec["last_meeting_at"] = stamp
+    rec = _merge_identity(rec, understanding, stamp=stamp, seq=next_seq)
     return rec
 
 

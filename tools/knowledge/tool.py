@@ -104,26 +104,62 @@ class KnowledgeTool:
     def delete_collection(self, name: str) -> None:
         self.store.delete_collection(name)
 
-    def list_files(self, collection: str = "default") -> List[str]:
-        return self.store.list_files(collection)
+    def list_files(
+        self,
+        collection: str = "default",
+        user_id: str = "",
+        subject: str = "",
+    ) -> List[str]:
+        coll, where = _scope(collection, user_id, subject)
+        return self.store.list_files(coll, where=where)
 
-    def delete_file(self, collection: str, filename: str) -> int:
-        return self.store.delete_file(collection, filename)
+    def delete_file(
+        self,
+        collection: str,
+        filename: str,
+        user_id: str = "",
+        subject: str = "",
+    ) -> int:
+        coll, where = _scope(collection, user_id, subject)
+        return self.store.delete_file(coll, filename, where=where)
 
     # ---------------- 入库 ----------------
-    def add_file(self, path: str, collection: str = "default") -> dict:
+    def add_file(
+        self,
+        path: str,
+        collection: str = "default",
+        user_id: str = "",
+        subject: str = "",
+    ) -> dict:
         """解析文档 → 增量同步入库(处理"更新/替换同名文件"场景)。
 
         返回 {"added": 新增块数, "removed": 清理的旧块数, "unchanged": 未变化块数}。
         - 新文件: removed=0
         - 替换同名文件: 旧版本独有块被删除, 新块入库, 未变块保留
         - 重复上传同内容: 全部 unchanged
-        """
-        chunks = process_file(path, self.cfg.chunk_size, self.cfg.chunk_overlap)
-        return self.store.sync_file(collection, os.path.basename(path), chunks)
 
-    def add_files(self, paths, collection: str = "default",
-                  recursive: bool = True) -> dict:
+        user_id/subject：行级隔离模式——数据进统一 ``knowledge`` 库，
+        metadata 补 owner/subject；检索按 where 过滤。全不传则走旧 collection 行为。
+        """
+        coll, _ = _scope(collection, user_id, subject)
+        chunks = process_file(path, self.cfg.chunk_size, self.cfg.chunk_overlap)
+        for chunk in chunks:
+            meta = dict(chunk.metadata)
+            if (user_id or "").strip():
+                meta["owner"] = (user_id or "").strip()
+            if (subject or "").strip():
+                meta["subject"] = (subject or "").strip()
+            chunk.metadata = meta
+        return self.store.sync_file(coll, os.path.basename(path), chunks)
+
+    def add_files(
+        self,
+        paths,
+        collection: str = "default",
+        recursive: bool = True,
+        user_id: str = "",
+        subject: str = "",
+    ) -> dict:
         """批量导入: 接受文件路径或目录的列表/单个路径。
         - 目录会递归(recursive=True)收集其中支持格式的文件
         - 返回 {"added": 入库文件数, "files": [{path, added, removed, unchanged}...],
@@ -149,7 +185,9 @@ class KnowledgeTool:
         result = {"added": 0, "files": [], "skipped": [], "total_chunks": 0}
         for fp in file_list:
             try:
-                r = self.add_file(fp, collection=collection)
+                r = self.add_file(
+                    fp, collection=collection, user_id=user_id, subject=subject
+                )
                 result["files"].append({"path": fp, **r})
                 result["added"] += 1
                 result["total_chunks"] += r["added"]
@@ -157,39 +195,99 @@ class KnowledgeTool:
                 result["skipped"].append({"path": fp, "error": str(e)})
         return result
 
-    def add_text(self, text: str, collection: str = "default",
-                 source: str = "text") -> int:
+    def add_text(
+        self,
+        text: str,
+        collection: str = "default",
+        source: str = "text",
+        user_id: str = "",
+        subject: str = "",
+    ) -> int:
         """直接以文本入库(便于 Agent 传递非文件内容)"""
         from .document_processor import TextChunk
-        chunks = [TextChunk(text, {"source": source})]
-        return self.store.add_documents(collection, chunks)
+
+        meta: Dict = {"source": source}
+        if (user_id or "").strip():
+            meta["owner"] = (user_id or "").strip()
+        if (subject or "").strip():
+            meta["subject"] = (subject or "").strip()
+        coll, _ = _scope(collection, user_id, subject)
+        chunks = [TextChunk(text, meta)]
+        return self.store.add_documents(coll, chunks)
 
     # ---------------- 检索与问答 ----------------
-    def search(self, question: str, collection: str = "default",
-               top_k: Optional[int] = None) -> List[SearchResult]:
-        docs = self.rag.search(collection, question, top_k)
+    def search(
+        self,
+        question: str,
+        collection: str = "default",
+        top_k: Optional[int] = None,
+        user_id: str = "",
+        subject: str = "",
+    ) -> List[SearchResult]:
+        coll, where = _scope(collection, user_id, subject)
+        docs = self.rag.search(coll, question, top_k, where=where)
         return [SearchResult(text=d["text"], metadata=d["metadata"],
                              score=d["score"]) for d in docs]
 
-    def ask(self, question: str, collection: str = "default",
-            top_k: Optional[int] = None) -> AskResult:
-        result = self.rag.ask(collection, question, top_k)
+    def ask(
+        self,
+        question: str,
+        collection: str = "default",
+        top_k: Optional[int] = None,
+        user_id: str = "",
+        subject: str = "",
+    ) -> AskResult:
+        coll, where = _scope(collection, user_id, subject)
+        result = self.rag.ask(coll, question, top_k, where=where)
         return AskResult(answer=result["answer"], sources=result["sources"])
 
-    def locate(self, text: str, collection: str = "default",
-               top_k: Optional[int] = None) -> List[SearchResult]:
+    def locate(
+        self,
+        text: str,
+        collection: str = "default",
+        top_k: Optional[int] = None,
+        user_id: str = "",
+        subject: str = "",
+    ) -> List[SearchResult]:
         """给一段内容找知识库出处（只检索，不调 LLM）。"""
-        return self.search(text, collection, top_k)
+        return self.search(text, collection, top_k, user_id=user_id, subject=subject)
 
-    def list_chunks(self, collection: str = "default",
-                    filename: str = "") -> List[Dict]:
-        """列出已入库的知识块（可按来源文件过滤）。"""
-        return self.store.list_chunks(collection, filename)
+    def list_chunks(
+        self,
+        collection: str = "default",
+        filename: str = "",
+        user_id: str = "",
+        subject: str = "",
+    ) -> List[Dict]:
+        """列出已入库的知识块（可按来源文件 / 行级 owner+subject 过滤）。"""
+        coll, where = _scope(collection, user_id, subject)
+        return self.store.list_chunks(coll, filename, where=where)
 
 
 def get_knowledge(*, fake: bool = False, persist_dir: str | None = None) -> KnowledgeTool:
     """按项目根 .env 构造知识库（LLM 跟随 LLM_BACKEND：vllm 时复用 LLM_VLLM_*）。"""
     return KnowledgeTool(fake=fake, persist_dir=persist_dir)
+
+
+# 行级隔离的统一知识库 collection 名（owner/subject 走 metadata + where 过滤）
+KB_COLLECTION = "knowledge"
+
+
+def _scope(collection: str, user_id: str = "", subject: str = "") -> tuple[str, dict | None]:
+    """行级模式路由：传了 user_id/subject 时固定统一库 + where 过滤；全空则旧 collection 行为。
+
+    返回 (collection 名, where dict 或 None)。
+    """
+    uid = (user_id or "").strip()
+    subj = (subject or "").strip()
+    if uid or subj:
+        where: dict = {}
+        if uid:
+            where["owner"] = uid
+        if subj:
+            where["subject"] = subj
+        return KB_COLLECTION, where
+    return (collection or "default"), None
 
 
 def collection_for(*, subject: str = "", user_id: str = "") -> str:
@@ -198,6 +296,9 @@ def collection_for(*, subject: str = "", user_id: str = "") -> str:
     - 有 subject：``{user_id}__{subject}``（user_id 可空，如 ``数学``）
     - 都为空：回退 ``default``（旧库兼容）
     内部经 VectorStore._safe_name 转成 chromadb 合规名，中文名可直接用。
+
+    注：行级隔离模式下业务方应改用 ``add_file(..., user_id=, subject=)`` /
+    ``search(..., user_id=, subject=)`` 直接传参；本函数保留给旧调用与兼容。
     """
     parts = [p for p in (user_id, subject) if (p or "").strip()]
     return "__".join(parts) if parts else "default"

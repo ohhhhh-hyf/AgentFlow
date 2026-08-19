@@ -57,36 +57,3 @@ def heading_level(line: str) -> tuple[int, str] | None:
     return None
 
 
-def outline_from_text(text: str, *, source: str = "", role: str = "") -> list[dict[str, str]]:
-    """从正文抽标题路径，供入库元数据和 catalog 骨架。"""
-    chapter = ""
-    topic = ""
-    rows: list[dict[str, str]] = []
-    seen: set[tuple[str, str, str]] = set()
-    for raw in str(text or "").splitlines():
-        hit = heading_level(raw)
-        if not hit:
-            continue
-        level, title = hit
-        if not title:
-            continue
-        if level == 1:
-            chapter = title
-            topic = ""
-        elif level == 2:
-            topic = title
-        key = (chapter, topic, title if level >= 3 else "")
-        if key in seen:
-            continue
-        seen.add(key)
-        rows.append(
-            {
-                "source": source,
-                "role": role or classify_source_role(source),
-                "chapter": chapter,
-                "topic": topic,
-                "heading": title,
-                "level": str(level),
-            }
-        )
-    return rows

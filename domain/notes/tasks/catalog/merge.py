@@ -501,3 +501,102 @@ def _merge_topic(
     merged["knowledge_points"] = points
     merged["change_type"] = "updated" if any(changes.values()) else "unchanged"
     return merged, changes
+
+
+# ── 枚举/数值归一化（消除模型输出的表面差异，提升同输入稳定性）──
+
+_CHANGE_TYPE_MAP = {
+    "added": "added", "新增": "added", "new": "added",
+    "unchanged": "unchanged", "未变": "unchanged", "不变": "unchanged",
+    "updated": "updated", "更新": "updated",
+    "merged": "merged", "合并": "merged",
+    "moved": "moved", "移动": "moved",
+}
+_KNOWLEDGE_TYPE_MAP = {
+    "concept": "concept", "概念": "concept",
+    "formula": "formula", "公式": "formula",
+    "theorem": "theorem", "定理": "theorem",
+    "method": "method", "方法": "method",
+    "application": "application", "应用": "application",
+    "mixed": "mixed", "混合": "mixed", "综合": "mixed",
+}
+_EXAM_SIGNAL_MAP = {
+    "none": "none", "无": "none",
+    "weak": "weak", "弱": "weak",
+    "medium": "medium", "中": "medium",
+    "strong": "strong", "强": "strong",
+}
+_COVERAGE_MAP = {
+    "none": "none", "无": "none",
+    "mentioned": "mentioned", "提及": "mentioned",
+    "partial": "partial", "部分": "partial",
+    "detailed": "detailed", "详细": "detailed",
+}
+
+
+def _norm_enum(value: object, mapping: dict[str, str], default: str) -> str:
+    raw = str(value or "").strip().lower()
+    return mapping.get(raw, default)
+
+
+def _norm_rank(value: object, lo: int, hi: int) -> str:
+    try:
+        n = int(str(value or "").strip())
+    except (TypeError, ValueError):
+        return str(lo)
+    return str(max(lo, min(hi, n)))
+
+
+def normalize_catalog_enums(catalog: dict[str, Any]) -> dict[str, Any]:
+    """把目录树里的枚举/数值字段归一到契约合法值（确定性）。
+
+    LLM 偶发输出中文枚举（"概念"）、越界数值或非标准值，会让同一
+    批数据的两次结果表面差异大；此处统一映射，保持输出骨架稳定。
+    未知枚举取契约默认值，越界数值钳制到范围；ID 由 merge 层处理。
+    """
+    out = dict(catalog)
+    chapters: list[dict[str, Any]] = []
+    for chapter in catalog.get("chapters") or []:
+        if not isinstance(chapter, dict):
+            continue
+        chapter = dict(chapter)
+        chapter["change_type"] = _norm_enum(
+            chapter.get("change_type"), _CHANGE_TYPE_MAP, "unchanged"
+        )
+        topics: list[dict[str, Any]] = []
+        for topic in chapter.get("topics") or []:
+            if not isinstance(topic, dict):
+                continue
+            topic = dict(topic)
+            topic["change_type"] = _norm_enum(
+                topic.get("change_type"), _CHANGE_TYPE_MAP, "unchanged"
+            )
+            points: list[dict[str, Any]] = []
+            for kp in topic.get("knowledge_points") or []:
+                if not isinstance(kp, dict):
+                    continue
+                kp = dict(kp)
+                kp["knowledge_type"] = _norm_enum(
+                    kp.get("knowledge_type"), _KNOWLEDGE_TYPE_MAP, "concept"
+                )
+                kp["importance"] = _norm_rank(kp.get("importance"), 1, 5)
+                kp["difficulty"] = _norm_rank(kp.get("difficulty"), 1, 5)
+                kp["foundational_level"] = _norm_rank(
+                    kp.get("foundational_level"), 1, 5
+                )
+                kp["teacher_emphasis"] = _norm_rank(
+                    kp.get("teacher_emphasis"), 0, 3
+                )
+                kp["exam_signal"] = _norm_enum(
+                    kp.get("exam_signal"), _EXAM_SIGNAL_MAP, "none"
+                )
+                kp["note_coverage"] = _norm_enum(
+                    kp.get("note_coverage"), _COVERAGE_MAP, "none"
+                )
+                points.append(kp)
+            topic["knowledge_points"] = points
+            topics.append(topic)
+        chapter["topics"] = topics
+        chapters.append(chapter)
+    out["chapters"] = chapters
+    return out

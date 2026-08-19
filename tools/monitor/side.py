@@ -21,6 +21,8 @@ _INT_KEYS = (
     "kb_cite_hits",
     "kb_scan_calls",
     "kb_scan_chunks",
+    "embed_calls",
+    "embed_tokens",
     "mem_prepare_calls",
     "mem_bound",
     "mem_unbound",
@@ -31,6 +33,9 @@ _INT_KEYS = (
     "mem_persist_calls",
     "mem_persist_ok",
     "mem_persist_skip",
+    "mem_embed_calls",
+    "mem_embed_hits",
+    "mem_embed_fail",
 )
 _FLOAT_KEYS = (
     "kb_ingest_seconds",
@@ -72,6 +77,18 @@ def _bump(**kwargs: Any) -> None:
                 _stats[key] = float(_stats.get(key) or 0.0) + float(value or 0.0)
             elif key in _STR_KEYS and value:
                 _stats[key] = str(value)
+
+
+def record_embed(*, calls: int = 1, tokens: int = 0) -> None:
+    """记录 embedding 模型消耗（调用次数 / 输入 token 数）。
+
+    供知识库/记忆等所有 embedding 调用方使用；与 LLM 的 usage 分开统计。
+    任何异常都吞掉，避免监控拖垮主流程。
+    """
+    try:
+        _bump(embed_calls=calls, embed_tokens=tokens)
+    except Exception:  # noqa: BLE001
+        pass
 
 
 def record_knowledge_ingest(
@@ -176,6 +193,23 @@ def record_memory_persist(
         return
 
 
+def record_memory_embed(
+    *,
+    ok: bool = True,
+    hits: int = 0,
+    calls: int = 0,
+) -> None:
+    """记忆向量索引调用计数（归属/摘录检索 + 同步）。"""
+    try:
+        _bump(
+            mem_embed_calls=calls,
+            mem_embed_hits=hits,
+            mem_embed_fail=0 if ok else 1,
+        )
+    except Exception:  # noqa: BLE001
+        return
+
+
 def diff_side(base: dict[str, Any] | None, now: dict[str, Any] | None) -> dict[str, Any]:
     before = base or {}
     after = now or {}
@@ -208,6 +242,8 @@ def split_side(diff: dict[str, Any]) -> tuple[dict[str, Any], dict[str, Any]]:
         "scan_calls": diff.get("kb_scan_calls") or 0,
         "scan_chunks": diff.get("kb_scan_chunks") or 0,
         "collection": diff.get("kb_last_collection") or "",
+        "embed_calls": diff.get("embed_calls") or 0,
+        "embed_tokens": diff.get("embed_tokens") or 0,
     }
     memory = {
         "prepare_calls": diff.get("mem_prepare_calls") or 0,
@@ -222,6 +258,9 @@ def split_side(diff: dict[str, Any]) -> tuple[dict[str, Any], dict[str, Any]]:
         "persist_skip": diff.get("mem_persist_skip") or 0,
         "run_count": diff.get("mem_run_count") or 0,
         "project_id": diff.get("mem_last_project") or "",
+        "embed_calls": diff.get("mem_embed_calls") or 0,
+        "embed_hits": diff.get("mem_embed_hits") or 0,
+        "embed_fail": diff.get("mem_embed_fail") or 0,
     }
     return knowledge, memory
 
@@ -230,6 +269,10 @@ __all__ = [
     "diff_side",
     "record_knowledge_ingest",
     "record_knowledge_search",
+    "record_embed",
+    "record_knowledge_ingest",
+    "record_knowledge_search",
+    "record_memory_embed",
     "record_memory_persist",
     "record_memory_prepare",
     "snapshot",

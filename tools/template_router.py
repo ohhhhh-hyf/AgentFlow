@@ -1850,33 +1850,8 @@ def check_compile_fidelity(description: str, compiled: str) -> list[str]:
     return issues
 
 
-def _build_compile_system(
-    *,
-    domain: str = "",
-    line_name: str = "",
-    schema_hint: str = "",
-    revision_notes: str = "",
-) -> str:
-    ctx_lines = []
-    if domain or line_name:
-        ctx_lines.append(
-            f"当前任务上下文：domain={domain or '未知'}，任务线={line_name or '未知'}。"
-        )
-    if schema_hint.strip():
-        ctx_lines.append(
-            f"可用的上游内容字段（占位说明对齐这些来源，勿编造其它栏目）：\n{schema_hint.strip()}"
-        )
-    ctx_block = ("\n".join(ctx_lines) + "\n\n") if ctx_lines else ""
-
-    revision = ""
-    if revision_notes.strip():
-        revision = (
-            "\n\n【上次编译未通过保真检查，请修正】\n"
-            f"{revision_notes.strip()}\n"
-            "删除用户未要求的栏目；补全用户点名结构；控制总字数提示。\n"
-        )
-
-    return f"""你是模板编译器：把中文用户用自然语言描述的"输出格式要求"，精确编译成一个可编辑的占位符模板。
+# 模板编译 system prompt（从 _build_compile_system 抽出，独立便于调整）
+COMPILE_SYSTEM_PROMPT_TEMPLATE = """你是模板编译器：把中文用户用自然语言描述的"输出格式要求"，精确编译成一个可编辑的占位符模板。
 {ctx_block}
 
 ## 第一步：先解析用户意图（在脑中完成，不要输出）
@@ -1976,6 +1951,37 @@ def _build_compile_system(
 
 只输出编译后的模板正文，不要解释；**禁止**用 Markdown 代码围栏（``` 或 ```text）包裹整段输出。
 {revision}"""
+
+
+def _build_compile_system(
+    *,
+    domain: str = "",
+    line_name: str = "",
+    schema_hint: str = "",
+    revision_notes: str = "",
+) -> str:
+    ctx_lines = []
+    if domain or line_name:
+        ctx_lines.append(
+            f"当前任务上下文：domain={domain or '未知'}，任务线={line_name or '未知'}。"
+        )
+    if schema_hint.strip():
+        ctx_lines.append(
+            f"可用的上游内容字段（占位说明对齐这些来源，勿编造其它栏目）：\n{schema_hint.strip()}"
+        )
+    ctx_block = ("\n".join(ctx_lines) + "\n\n") if ctx_lines else ""
+
+    revision = ""
+    if revision_notes.strip():
+        revision = (
+            "\n\n【上次编译未通过保真检查，请修正】\n"
+            f"{revision_notes.strip()}\n"
+            "删除用户未要求的栏目；补全用户点名结构；控制总字数提示。\n"
+        )
+
+    return COMPILE_SYSTEM_PROMPT_TEMPLATE.format(
+        ctx_block=ctx_block, revision=revision
+    )
 
 
 def _compile_cache_key(

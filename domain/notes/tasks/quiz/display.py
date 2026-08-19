@@ -35,42 +35,6 @@ def _clean(text: object) -> str:
     return " ".join(str(text or "").split()).strip()
 
 
-def format_quiz_context(
-    subject: str | None = None,
-    chapter: str | None = None,
-    level: str | None = None,
-    grade: str | None = None,
-    edition: str | None = None,
-    difficulty: str | None = None,
-    qtype: str | None = None,
-) -> str:
-    """可选上下文：水平固定期中备考；年级/版本由知识点反推，不写进 extra。"""
-    rows: list[str] = []
-    if _clean(subject):
-        rows.append(f"学科/课程：{_clean(subject)}")
-    if _clean(chapter):
-        rows.append(f"章节：{_clean(chapter)}")
-    if _clean(level):
-        rows.append(f"用户水平：{_clean(level)}")
-    bank: list[str] = []
-    if _clean(grade):
-        bank.append(f"年级：{_clean(grade)}")
-    if _clean(edition):
-        bank.append(f"课本版本：{_clean(edition)}")
-    if _clean(difficulty):
-        bank.append(f"题目难度：{_clean(difficulty)}")
-    if _clean(qtype):
-        bank.append(f"题目类型：{_clean(qtype)}")
-    parts: list[str] = []
-    if rows:
-        parts.append(
-            "【出题上下文（只调难度与问法，不是另一份笔记）】\n" + "\n".join(rows)
-        )
-    if bank:
-        parts.append(
-            "【题库检索（只用来搜真题，不要改成本卷题型）】\n" + "\n".join(bank)
-        )
-    return "\n\n".join(parts)
 
 
 def _as_list(value: object) -> list[dict[str, Any]]:
@@ -625,7 +589,9 @@ def _quiz_cite(item: dict[str, Any]) -> str:
     return f"{fname} 第{page}页" if page else fname
 
 
-def attach_quiz_library(draft: dict[str, Any], kb=None) -> dict[str, Any]:
+def attach_quiz_library(
+    draft: dict[str, Any], kb=None, user_id: str = "", subject: str = ""
+) -> dict[str, Any]:
     from tools.knowledge.cite import cite_text, library_has_docs, open_knowledge
 
     if kb is None:
@@ -635,7 +601,7 @@ def attach_quiz_library(draft: dict[str, Any], kb=None) -> dict[str, Any]:
     questions = [dict(item) for item in (draft.get("questions") or []) if isinstance(item, dict)]
     for item in questions:
         query = str(item.get("note_hook") or item.get("prompt") or "").strip()
-        hits = cite_text(kb, query)
+        hits = cite_text(kb, query, user_id=user_id, subject=subject)
         if hits:
             item["kb_file"] = hits[0]["file"]
             item["kb_page"] = hits[0]["page"]
@@ -689,7 +655,12 @@ def attach_quiz_artifacts(state: dict[str, Any]) -> None:
     understanding = state.get("notes_understanding")
     if not isinstance(understanding, dict):
         understanding = {}
-    attach_quiz_library(draft)
+    from tools.knowledge.cite import parse_scope
+
+    scope = parse_scope(extra)
+    attach_quiz_library(
+        draft, user_id=scope["user_id"], subject=scope["subject"]
+    )
     attach_quiz_bank(
         draft,
         notes=original,
@@ -714,7 +685,6 @@ __all__ = [
     "draft_from_context",
     "extra_from_context",
     "filter_questions",
-    "format_quiz_context",
     "looks_like_copy_question",
     "normalize_bank_html",
     "original_from_context",

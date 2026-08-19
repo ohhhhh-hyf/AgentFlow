@@ -487,5 +487,3 @@ def _attach_session_practice(rows: list[dict[str, Any]], teacher: str) -> None:
                     row["session_practice_count"] = count
 
 
-def catalog_index(points: list[dict[str, Any]]) -> dict[str, dict[str, Any]]:
-    return {_clean(p.get("id")): p for p in points}

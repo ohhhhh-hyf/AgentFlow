@@ -27,8 +27,8 @@ LINE_CN_NAMES: dict[str, str] = {
 # minutes_trace 是 deterministic_pipeline + sidecar，不是和 risk 对等的 3-step 线。
 LINE_KINDS: dict[str, object] = {
     "minutes_generation": LLM_DOCUMENT,
-    "action_items": LLM_EXTRACT,
-    "risk": LLM_EXTRACT,
+    "action_items": {"kind": LLM_EXTRACT, "llm_render": "if_template"},
+    "risk": {"kind": LLM_EXTRACT, "llm_render": "if_template"},
     "mindmap": LLM_DOCUMENT,
     "multi_styles": {"kind": LLM_DOCUMENT, "cli_mode": True},
     "minutes_trace": {"kind": DETERMINISTIC_PIPELINE, "sidecar": True},

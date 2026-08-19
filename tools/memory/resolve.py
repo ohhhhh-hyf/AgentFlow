@@ -57,7 +57,9 @@ def identity_keys(record: dict[str, Any]) -> list[str]:
 
 
 def _score_record(transcript: str, found: list[str], rec: dict[str, Any]) -> tuple[int, int]:
-    stored = [str(x).strip() for x in (rec.get("entities") or []) if str(x).strip()]
+    from .entities import entity_names
+
+    stored = entity_names(rec.get("entities"))
     stored.extend(str(a).strip() for a in (rec.get("name_aliases") or []) if str(a).strip())
     name = str(rec.get("display_name") or "").strip()
     if name:
@@ -159,6 +161,32 @@ def resolve(
             entities=entities,
         )
 
+    # ── embedding 语义归属（方案 B：规则未命中时用向量相似度找回同一项目）──
+    # 只在该层可用且候选唯一达标时绑定；多候选并列或不可用 → 继续走弱实体规则。
+    from .embed import MEMORY_EMBED_MIN_SCORE, get_embedder
+
+    embedder = get_embedder()
+    if embedder.enabled:
+        try:
+            cands = [
+                c for c in embedder.search_projects(transcript, user_id, top_k=3)
+                if float(c.get("score") or 0.0) >= MEMORY_EMBED_MIN_SCORE
+            ]
+            if cands:
+                top = cands[0]
+                second_ok = len(cands) > 1 and float(cands[1].get("score") or 0.0) >= MEMORY_EMBED_MIN_SCORE
+                if not second_ok:
+                    return Bind(
+                        project_id=str(top["project_id"]),
+                        create=False,
+                        hits=int(float(top.get("score") or 0.0) * 100),
+                        strong=0,
+                        entities=entities,
+                        project_key=str(top.get("project_key") or ""),
+                    )
+        except Exception:  # noqa: BLE001 - 语义层异常降级回规则
+            logger.warning("记忆语义归属失败，降级规则匹配", exc_info=True)
+
     best_weak = max(row[1] for row in scored)
     winners = [row for row in scored if row[1] == best_weak and row[1] >= MIN_WEAK_HITS]
     if best_weak >= MIN_WEAK_HITS and len(winners) == 1:
@@ -171,9 +199,12 @@ def resolve(
             entities=entities,
             project_key=key,
         )
+    # 都不匹配：视为「新项目首会」→ 新建（支持同一用户多个独立项目）。
+    # 注意：输入被假定为会议纪要；若担心无关/闲聊输入也会建档，
+    # persist 有「新建门槛」——理解无实质内容（无议题/决策/未决）时跳过写回。
     return Bind(
         project_id=None,
-        create=False,
+        create=True,
         hits=best_weak,
         entities=entities,
     )

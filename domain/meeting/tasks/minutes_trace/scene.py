@@ -245,8 +245,6 @@ def detect_scene(
     return label or GENERIC_SCENE
 
 
-def scene_prompt(pack: dict[str, str]) -> str:
-    return (pack.get("conference_scenario_filtering") or "").strip()
 
 
 def generic_spec(pack: dict[str, str], pack_raw: str = "") -> tuple[str, str]:
@@ -282,19 +280,15 @@ def scene_spec(pack: dict[str, str], label: str = "") -> tuple[str, str]:
     return req, fmt
 
 
-def fill_src(prompt: str, src: str) -> str:
-    return (prompt or "").replace("{src}", src or "")
 
 
 __all__ = [
     "GENERIC_SCENE",
     "SCENE_LABELS",
     "detect_scene",
-    "fill_src",
     "generic_spec",
     "heuristic_scene_label",
     "normalize_scene_label",
     "parse_scene_pack",
-    "scene_prompt",
     "scene_spec",
 ]

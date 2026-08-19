@@ -493,61 +493,6 @@ def render_knowledge_graph_svg(
     return _render_graphviz(nodes, edges, out_dir, filename, "svg", title=title)
 
 
-def render_graph_to_svg_text(
-    nodes: list[dict],
-    edges: list[dict],
-    title: str = "",
-    *,  # noqa: C901
-    node_fontsize: int | None = None,
-    edge_fontsize: int | None = None,
-    label_width: int | None = None,
-    compact: bool = False,
-) -> str | None:
-    """把图数据渲染为 SVG 文本（供嵌入 HTML 使用）。
-
-    与 render_knowledge_graph_svg 同款 graphviz 风格与数据格式
-    （节点按 section 分组着色、边按 relation 着色、fdp 布局），
-    仅改为输出文本而非写文件；dot 不可用/失败/超时返回 None。
-    node_fontsize / edge_fontsize / label_width / compact 透传给 nodes_edges_to_dot。
-    """
-    if not nodes:
-        return None
-    dot = _find_dot()
-    if not dot:
-        logger.warning("未检测到 graphviz（dot），无法生成 SVG 文本")
-        return None
-    try:
-        dot_text, _valid = nodes_edges_to_dot(
-            nodes,
-            edges,
-            title=title,
-            node_fontsize=node_fontsize,
-            edge_fontsize=edge_fontsize,
-            label_width=label_width,
-            compact=compact,
-        )
-        result = subprocess.run(
-            [dot, "-Kfdp", "-Tsvg"],
-            input=dot_text.encode("utf-8"),
-            capture_output=True,
-            timeout=_RENDER_TIMEOUT_SECONDS,
-            check=False,
-        )
-        if result.returncode != 0:
-            logger.warning(
-                "graphviz 渲染 SVG 文本失败（rc=%s）：%s",
-                result.returncode,
-                (result.stderr or b"").decode("utf-8", errors="replace")[-300:],
-            )
-            return None
-        text = (result.stdout or b"").decode("utf-8", errors="replace")
-        return text or None
-    except subprocess.TimeoutExpired:
-        logger.warning("graphviz 渲染 SVG 文本超时（>%ss）", _RENDER_TIMEOUT_SECONDS)
-        return None
-    except Exception:  # noqa: BLE001 - 渲染失败不影响主流程
-        logger.warning("graphviz 渲染 SVG 文本异常，已跳过", exc_info=True)
-        return None
 
 
 def _cytoscape_elements(nodes: list[dict], edges: list[dict]) -> list[dict]:

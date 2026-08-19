@@ -327,8 +327,7 @@ class _Nodes(DomainNodes):
         )
 
     def _supervisor_context(self, state, line_name: str) -> str:
-        """审核上下文（会议原文为最高事实来源，含会议理解）。"""
-        cfg = TASK_LINES[line_name]
+        """审核上下文：原文按草稿事实点摘录，理解只给摘要。"""
         sub = _line(state, line_name)
         revision_count = sub.get("revision_count", 0)
         mode = self._mode_label(state)
@@ -341,17 +340,15 @@ class _Nodes(DomainNodes):
             f"视角模式：{mode}\n"
             f"{_line_cn(line_name)}返工次数：{revision_count}/{self.MAX_REVISIONS}\n"
             f"{allowed}\n\n"
-            f"会议原文（最高事实来源）：\n{state['transcript']}\n\n"
-            f"用户画像：\n{_json(state['user'])}\n\n"
-            f"会议理解：\n{_json(state['meeting_understanding'])}\n\n"
-            f"用户视角模型：\n{_json(state['perspective_profile'])}\n\n"
+            f"{self._supervisor_source_pack(state, line_name)}\n\n"
             f"{_line_draft_title(line_name)}：\n{_json(sub['draft'])}"
         )
 
     # ── 领域钩子：core 节点 ───────────────────────────────────
 
-    def _build_core(self, builder) -> list[str]:
-        """核心层：会议理解 + 视角建模（并行，任何任务线都需要）。"""
+    def _build_core(self, builder, line_names=None) -> list[str]:
+        """核心层：会议理解 + 视角建模（并行，会议任务线都需要）。"""
+        del line_names
         builder.add_node(
             "meeting_understanding", self._meeting_understanding_node
         )

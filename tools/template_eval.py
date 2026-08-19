@@ -57,12 +57,6 @@ def parse_row_hint(text: str) -> int | None:
     return _to_int(tok) if tok else None
 
 
-def parse_char_hint(text: str) -> int | None:
-    """解析单一字数提示；若有区间则返回上界。"""
-    budget = parse_char_budget(text)
-    if budget.get("hi"):
-        return int(budget["hi"])
-    return None
 
 
 def parse_char_budget(text: str) -> dict[str, Any]:
@@ -544,17 +538,9 @@ def evaluate_output_against_template(
     return issues
 
 
-def evaluate_and_fix(
-    template: str, output: str
-) -> tuple[str, list[str]]:
-    """先做通用表格粘连修复，再评测；返回 (fixed_output, issues)。"""
-    fixed = fix_glued_table_rows(output or "")
-    issues = evaluate_output_against_template(template, fixed)
-    return fixed, issues
 
 
 __all__ = [
-    "evaluate_and_fix",
     "evaluate_output_against_template",
     "extract_char_constraints",
     "extract_markdown_tables",
@@ -563,7 +549,6 @@ __all__ = [
     "is_section_scoped_char_budget",
     "parse_char_budget",
     "parse_document_char_budget",
-    "parse_char_hint",
     "parse_row_hint",
     "parse_section_char_budgets",
     "parse_table_row_hints",

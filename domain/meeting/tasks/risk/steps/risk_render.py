@@ -31,6 +31,19 @@ class RiskRender:
         except TypeError:
             return await self.client.text(prompt, user, label="risk/render")
 
+    @staticmethod
+    def render_draft(state: dict) -> str:
+        """无模板时按草稿字段排清单，与渲染 prompt 格式一致，不调 LLM。"""
+        from tools.domain_engine_text import format_risk_item
+
+        draft = (state.get("lines") or {}).get("risk", {}).get("draft") or {}
+        items = draft.get("risks") or []
+        lines = []
+        for index, item in enumerate(items, start=1):
+            if isinstance(item, dict) and (item.get("risk") or "").strip():
+                lines.append(format_risk_item(index, item))
+        return "\n".join(lines) if lines else "暂无明确风险"
+
     async def stream(
         self, approved_context: str, template: str = ""
     ) -> AsyncIterator[str]:

@@ -157,6 +157,59 @@ def overlap_score(query: list[str], stored: list[str]) -> int:
     return hits
 
 
+# ── 结构化实体（优化 C）：entities 从 list[str] 升级为实体档案 ──
+# 实体 = {name, type, first_seen, last_seen, status, sessions[]}
+_ENTITY_TYPE_RE = re.compile(r"(项目|工程|系统|平台|厂|公司|集团|中心)")
+_LATIN_RE = re.compile(r"[A-Za-z][A-Za-z0-9_\-]*")
+
+
+def entity_type(name: str) -> str:
+    """启发式实体类型：项目/组织、技术名、关键词（不维护业务词表）。"""
+    text = (name or "").strip()
+    if not text:
+        return "keyword"
+    if _ENTITY_TYPE_RE.search(text):
+        return "project"
+    if _LATIN_RE.fullmatch(text):
+        return "tech"
+    return "keyword"
+
+
+def entity_names(entities: object) -> list[str]:
+    """兼容新旧实体格式：dict{name,...} 或 str → name 列表（结构化实体优化后仍可用）。"""
+    out: list[str] = []
+    for item in entities or []:
+        if isinstance(item, dict):
+            name = str(item.get("name") or "").strip()
+        else:
+            name = str(item).strip()
+        if name:
+            out.append(name)
+    return out
+
+
+def normalize_entities(entities: object, stamp: str = "") -> dict[str, dict[str, Any]]:
+    """把新旧格式实体统一成结构化 map：{name: {name, type, first_seen, last_seen, status, sessions[]}}。"""
+    out: dict[str, dict[str, Any]] = {}
+    for item in entities or []:
+        if isinstance(item, dict):
+            name = str(item.get("name") or "").strip()
+            ent = dict(item)
+        else:
+            name = str(item).strip()
+            ent = {}
+        if not name:
+            continue
+        ent.setdefault("name", name)
+        ent.setdefault("type", entity_type(name))
+        ent.setdefault("first_seen", stamp)
+        ent.setdefault("last_seen", stamp)
+        ent.setdefault("status", "active")
+        ent.setdefault("sessions", [])
+        out[name] = ent
+    return out
+
+
 __all__ = [
     "extract_entities",
     "extract_quoted",

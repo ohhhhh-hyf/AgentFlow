@@ -27,19 +27,6 @@ def parse_trace_extras(context: str) -> dict[str, object]:
     }
 
 
-def understanding_src(context: str) -> str:
-    """给场景分类用的短输入：优先会议理解，其次原文头。"""
-    text = context or ""
-    for marker in ("会议理解：", "已审核会议理解："):
-        if marker in text:
-            chunk = text.split(marker, 1)[1]
-            for stop in ("\n用户", "\n原文", "\n【"):
-                if stop in chunk:
-                    chunk = chunk.split(stop, 1)[0]
-            return chunk.strip()[:2000]
-    if "原文：" in text:
-        return text.split("原文：", 1)[1].strip()[:2000]
-    return text[:2000]
 
 
-__all__ = ["parse_trace_extras", "understanding_src"]
+__all__ = ["parse_trace_extras"]

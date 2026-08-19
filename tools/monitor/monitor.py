@@ -147,7 +147,7 @@ class TaskMonitor:
         now_totals = snap.get("usage_totals") or {}
         usage = {
             key: self._diff_value(base_totals, now_totals, key)
-            for key in ("prompt_tokens", "completion_tokens", "total_tokens", "calls", "cache_hits")
+            for key in ("prompt_tokens", "completion_tokens", "total_tokens", "calls", "cache_hits", "cache_hit_tokens")
         }
 
         base_labels = base.get("usage_by_label") or {}
@@ -158,7 +158,7 @@ class TaskMonitor:
             n = now_labels.get(label) or {}
             usage_by_label[label] = {
                 key: self._diff_value(b, n, key)
-                for key in ("prompt_tokens", "completion_tokens", "total_tokens", "calls", "cache_hits")
+                for key in ("prompt_tokens", "completion_tokens", "total_tokens", "calls", "cache_hits", "cache_hit_tokens")
             }
         # 去掉空槽（无调用也无消耗）
         usage_by_label = {k: v for k, v in usage_by_label.items() if v.get("calls") or v.get("total_tokens")}

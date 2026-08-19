@@ -79,6 +79,20 @@ class ActionItemsRender:
         return items
 
     @staticmethod
+    def render_draft(state: dict) -> str:
+        """无模板时按草稿字段排清单，与渲染 prompt 格式一致，不调 LLM。"""
+        actions = (
+            (state.get("lines") or {}).get("action_items", {}).get("draft") or {}
+        )
+        items = list(actions.get("my_actions") or [])
+        items.extend(actions.get("unassigned_actions") or [])
+        lines = []
+        for index, item in enumerate(items, start=1):
+            if isinstance(item, dict) and (item.get("task") or "").strip():
+                lines.append(ActionItemsRender.format_action(index, item))
+        return "\n".join(lines) if lines else "暂无明确待办"
+
+    @staticmethod
     def format_action(index: int, item: dict) -> str:
         """把一条待办格式化为文本行（确定性降级输出用）。
 

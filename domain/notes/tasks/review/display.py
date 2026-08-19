@@ -426,17 +426,11 @@ def original_from_context(approved_context: str) -> str:
     return ""
 
 
-def review_payload(original: str, draft: dict[str, Any]) -> dict[str, Any]:
-    return {
-        "original_notes": original,
-        "knowledge_points": _knowledge_points(draft),
-        "issues": _issue_items(draft),
-        "corrected_notes": str(draft.get("corrected_notes") or "").strip(),
-        "summary": summarize_review(draft),
-    }
 
 
-def attach_library_hits(draft: dict[str, Any], kb: Any = None) -> dict[str, Any]:
+def attach_library_hits(
+    draft: dict[str, Any], kb: Any = None, user_id: str = "", subject: str = ""
+) -> dict[str, Any]:
     """有库则给每条主张钉出处；库空不动，走原来的挑刺。"""
     from tools.knowledge.cite import cite_text, library_has_docs, open_knowledge
 
@@ -447,7 +441,7 @@ def attach_library_hits(draft: dict[str, Any], kb: Any = None) -> dict[str, Any]
     issues = [dict(item) for item in _as_list(draft.get("issues"))]
     for issue in issues:
         query = str(issue.get("quote") or issue.get("problem") or "").strip()
-        hits = cite_text(kb, query)
+        hits = cite_text(kb, query, user_id=user_id, subject=subject)
         if hits:
             issue["kb_file"] = hits[0]["file"]
             issue["kb_page"] = hits[0]["page"]
@@ -462,7 +456,7 @@ def attach_library_hits(draft: dict[str, Any], kb: Any = None) -> dict[str, Any]
     points = [dict(item) for item in _knowledge_points(draft)]
     for point in points:
         query = str(point.get("evidence") or point.get("title") or "").strip()
-        hits = cite_text(kb, query)
+        hits = cite_text(kb, query, user_id=user_id, subject=subject)
         if hits:
             point["kb_file"] = hits[0]["file"]
             point["kb_page"] = hits[0]["page"]
@@ -498,7 +492,14 @@ def attach_review_artifacts(state: dict[str, Any]) -> None:
     sub = line(state, "review")
     draft = dict(sub.get("draft") or {})
     original = str(state.get("transcript") or "")
-    attach_library_hits(draft)
+    from tools.knowledge.cite import parse_scope
+
+    scope = parse_scope(
+        "\n".join(str(v) for v in (state.get("line_extra") or {}).values())
+    )
+    attach_library_hits(
+        draft, user_id=scope["user_id"], subject=scope["subject"]
+    )
     draft["original_notes"] = original
     draft["review_html"] = build_review_html(original, draft)
     sub["rendered"] = build_review_markdown(original, draft)
@@ -515,6 +516,5 @@ __all__ = [
     "find_quote_span",
     "format_summary_text",
     "original_from_context",
-    "review_payload",
     "summarize_review",
 ]

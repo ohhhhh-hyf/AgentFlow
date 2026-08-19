@@ -129,20 +129,26 @@ def _is_chrome(text: str) -> bool:
 
 
 
-def _safe_chunks(kb: KnowledgeTool, collection: str = "default") -> list[dict[str, Any]]:
+def _safe_chunks(
+    kb: KnowledgeTool, user_id: str = "", subject: str = ""
+) -> list[dict[str, Any]]:
     try:
-        return list(kb.list_chunks(collection=collection) or [])
+        return list(kb.list_chunks(user_id=user_id, subject=subject) or [])
     except Exception:
         return []
 
 
-def ingest_library(kb: KnowledgeTool, paths: list[Path],
-                   collection: str = "default") -> dict[str, Any]:
-    before = _safe_chunks(kb, collection)
+def ingest_library(
+    kb: KnowledgeTool,
+    paths: list[Path],
+    user_id: str = "",
+    subject: str = "",
+) -> dict[str, Any]:
+    before = _safe_chunks(kb, user_id, subject)
     old_texts = [str(item.get("text") or "") for item in before]
     files: list[dict[str, str]] = []
     for path in paths:
-        stat = kb.add_file(str(path), collection=collection)
+        stat = kb.add_file(str(path), user_id=user_id, subject=subject)
         files.append(
             {
                 "name": path.name,
@@ -152,7 +158,7 @@ def ingest_library(kb: KnowledgeTool, paths: list[Path],
             }
         )
     incoming_names = {item["name"] for item in files}
-    after = _safe_chunks(kb, collection)
+    after = _safe_chunks(kb, user_id, subject)
     new_chunks = [
         item
         for item in after

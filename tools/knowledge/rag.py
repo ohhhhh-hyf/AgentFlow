@@ -84,15 +84,26 @@ class RagService:
         return self._client
 
     # ---------------- 检索 ----------------
-    def search(self, collection: str, question: str, top_k: Optional[int] = None) -> List[Dict]:
+    def search(
+        self,
+        collection: str,
+        question: str,
+        top_k: Optional[int] = None,
+        where: Optional[Dict] = None,
+    ) -> List[Dict]:
         k = _effective_top_k(question, top_k or self.cfg.top_k)
-        return self.store.query(collection, question, k)
+        return self.store.query(collection, question, k, where=where)
 
     # ---------------- 问答 ----------------
-    def ask(self, collection: str, question: str,
-            top_k: Optional[int] = None) -> Dict:
+    def ask(
+        self,
+        collection: str,
+        question: str,
+        top_k: Optional[int] = None,
+        where: Optional[Dict] = None,
+    ) -> Dict:
         """检索 + LLM 回答 → {"answer": str, "sources": [...]}"""
-        docs = self.search(collection, question, top_k)
+        docs = self.search(collection, question, top_k, where=where)
         if not docs:
             return {"answer": "在当前知识库中未找到相关信息，请确认知识库中已导入相关文档。",
                     "sources": []}

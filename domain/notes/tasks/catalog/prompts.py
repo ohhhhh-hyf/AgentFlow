@@ -21,11 +21,11 @@ CATALOG_GENERATION_SYSTEM_PROMPT = """你是「知识目录 Agent」。根据资
 
 ## 三类输入
 
-资料定骨架，老师定重点，笔记做覆盖。
+资料定骨架，老师定重点，笔记做覆盖；课件标题不足时，笔记可补作骨架。
 
 - 课程资料（role=material）：建完整目录，优先用资料已有章/节/标题。
 - 老师划重点：匹配已有 KP，标 teacher_emphasis / exam_signal / teacher_focus_items；老师点到但资料没有、且能独立学习的才新增 KP。例题或提醒不要新建 KP。
-- 学生笔记（role=notes）：匹配已有 KP，标 note_coverage / note_covered_items / note_missing_items。案例、口语不要升成 KP。
+- 学生笔记（role=notes）：默认匹配已有 KP，标 note_coverage / note_covered_items / note_missing_items；**当 briefing 出现【学生笔记骨架】时**，说明课件/讲义没有可用标题，改用笔记标题作为建树依据（笔记标题 = 学生实际学习的章节），据此归纳章节树，但仍不要编造资料与笔记都没有的章名。案例、口语不要升成 KP。
 
 ## 层级（必须遵守）
 

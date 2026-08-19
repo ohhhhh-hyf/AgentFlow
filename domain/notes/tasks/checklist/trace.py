@@ -32,8 +32,7 @@ def attach_card_provenance(
     teacher_text = _clean(teacher) or teacher_from_context(context)
     user_id = user_id_from_context(context)
     subject = subject_from_context(context)
-    coll = collection or resolve_collection(user_id=user_id, subject=subject)
-    chunks = _load_chunks(coll) if coll else []
+    chunks = _load_chunks(user_id=user_id, subject=subject)
     out: list[dict[str, Any]] = []
     for card in cards:
         if str(card.get("session_priority") or "") == "C":
@@ -368,18 +367,18 @@ def _status(
     return "insufficient" if strong else "none"
 
 
-def _load_chunks(collection: str) -> list[dict[str, Any]]:
+def _load_chunks(user_id: str = "", subject: str = "") -> list[dict[str, Any]]:
     kb = open_knowledge()
-    if kb is None or not collection:
+    if kb is None:
         return []
     try:
-        files = kb.list_files(collection)
+        files = kb.list_files(user_id=user_id, subject=subject)
     except Exception:
         files = []
     if not files:
         return []
     try:
-        raw = kb.list_chunks(collection)
+        raw = kb.list_chunks(user_id=user_id, subject=subject)
     except Exception:
         return []
     out: list[dict[str, Any]] = []

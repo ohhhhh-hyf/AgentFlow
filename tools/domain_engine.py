@@ -132,6 +132,47 @@ class DomainNodes:
             f"原文：\n{state['transcript']}"
         )
 
+    def _supervisor_source_pack(self, state: dict, line_name: str) -> str:
+        """审核用原文：按草稿事实点摘录，短文仍给全文。"""
+        from tools.runtime.supervisor_slice import (
+            collect_needles,
+            compact_perspective,
+            compact_profile,
+            slice_transcript,
+            summarize_understanding,
+        )
+
+        sub = line(state, line_name)
+        draft = sub.get("draft") or {}
+        understanding = self._understanding(state)
+        needles = collect_needles(draft) + collect_needles(understanding)
+        raw = state.get("transcript") or ""
+        excerpt, hits, used = slice_transcript(raw, needles)
+        if not excerpt.strip():
+            excerpt = raw.strip()
+            used = len(raw)
+        is_full = used >= len(raw)
+        if is_full:
+            source_note = "原文（最高事实来源）："
+            excerpt = raw
+        else:
+            source_note = (
+                "以下原文按草稿事实点摘录，仍是最高事实来源。"
+                f"已覆盖草稿中 {hits} 处可定位表述。"
+                "摘录未覆盖处不得凭空补全；不足以核对某条时 revise 并指出缺哪句。"
+            )
+        parts = [f"{source_note}\n{excerpt}"]
+        summary = summarize_understanding(understanding)
+        if summary:
+            parts.append(f"{self._understanding_label}（摘要）：\n{summary}")
+        profile = compact_profile(state.get("user") or {})
+        if profile:
+            parts.append(f"用户画像：\n{profile}")
+        perspective = compact_perspective(state.get("perspective_profile"))
+        if perspective:
+            parts.append(f"用户视角模型：\n{perspective}")
+        return "\n\n".join(parts)
+
     def _supervisor_context(self, state: dict, line_name: str) -> str:
         cfg = self._task_lines[line_name]
         sub = line(state, line_name)
@@ -147,9 +188,7 @@ class DomainNodes:
             f"视角模式：{mode}\n"
             f"{cn}返工次数：{revision_count}/{self.MAX_REVISIONS}\n"
             f"{allowed}\n\n"
-            f"原文（最高事实来源）：\n{state['transcript']}\n\n"
-            f"用户画像：\n{json_dumps(state['user'])}\n\n"
-            f"用户视角模型：\n{json_dumps(state.get('perspective_profile'))}\n\n"
+            f"{self._supervisor_source_pack(state, line_name)}\n\n"
             f"{line_draft_title(line_name, self._line_cn_names)}：\n"
             f"{json_dumps(sub['draft'])}"
         )
@@ -180,9 +219,10 @@ class DomainNodes:
                     "json",
                 )
             )
-        blocks.append(
-            ("已审核用户视角", state.get("perspective_profile"), "json")
-        )
+        if state.get("perspective_profile"):
+            blocks.append(
+                ("已审核用户视角", state.get("perspective_profile"), "json")
+            )
         return blocks
 
     def _render_context(self, state: dict, line_name: str) -> str:
@@ -229,12 +269,13 @@ class DomainNodes:
             self._quality_disclaimer,
         )
 
-    def _build_core(self, builder) -> list[str]:
+    def _build_core(self, builder, line_names: list[str] | None = None) -> list[str]:
         """构建 core 层节点，返回 core 节点名列表（任务线汇合点）。
 
         默认只有 perspective 公共组件；领域可追加自己的 core 节点：
         ``builder.add_node("xxx", self._xxx_node)`` / ``builder.add_edge(START, "xxx")``
         """
+        del line_names
         builder.add_node("perspective_modeling", self._perspective_modeling_node)
         builder.add_edge(START, "perspective_modeling")
         return ["perspective_modeling"]
@@ -278,7 +319,16 @@ class DomainNodes:
             structure = lists[0] if len(lists) == 1 else []
         line(state, line_name)["structure"] = structure
 
-    # ── 共享节点：视角建模（perspective 公共组件）──────────────
+    # ── 共享节点：占位入口 + 视角建模（perspective 公共组件）──────
+
+    async def _noop_core_node(self, state: dict) -> dict:
+        """core 层空时的占位入口节点。
+
+        当某次运行的全部任务线都被领域按线跳过 core（如 notes 的
+        library/catalog/checklist 不跑视角建模与笔记理解）时，
+        图仍需一个从 START 出发的入口，直接透传 state。
+        """
+        return {}
 
     async def _perspective_modeling_node(self, state: dict) -> dict:
         """把用户画像映射到本次输入（所有领域共用）。"""
@@ -435,9 +485,16 @@ class DomainNodes:
         queue: asyncio.Queue,
     ) -> None:
         """委托给 ``tools.runtime.render``：图外渲染不属于节点 mixin。"""
-        from tools.runtime.render import produce_line
+        try:
+            from tools.runtime.render import produce_line
 
-        await produce_line(self, line_name, state, queue)
+            await produce_line(self, line_name, state, queue)
+        except Exception as exc:  # 防御：producer 异常必须可见，否则主循环静默等待永不结束
+            logger.error(
+                "任务线 %s 渲染异常：%s", line_name, exc, exc_info=True
+            )
+            queue.put_nowait(exc)
+            queue.put_nowait(None)  # 该线终止，避免 run_streaming 永久等待
 
     # ── 图异常 / 校验失败兜底 ─────────────────────────────────
 
@@ -494,7 +551,7 @@ class DomainNodes:
         builder = StateGraph(self._state_class)
 
         # 核心层：领域钩子（默认 perspective 公共组件；领域可追加）
-        core = self._build_core(builder)
+        core = self._build_core(builder, line_names)
 
         # 任务线：由注册表生成同构节点（agent / supervisor / revision / route）
         for line_name in line_names:

@@ -1,4 +1,9 @@
-"""记忆落盘：memory/{domain}/{user_id}/projects/{project_id}/record.json。"""
+"""记忆落盘：data/memory/records/{domain}/{user_id}/projects/{project_id}/record.json。
+
+与向量索引（data/memory/chromadb/）同目录树分工：
+- records/ = 事实本体（状态：决策/未决/sessions 全文，人可读、可备份）
+- chromadb/ = 检索索引（档案级+摘录级向量，可从 records 重建）
+"""
 from __future__ import annotations
 
 import json
@@ -25,7 +30,7 @@ def safe_id(name: str) -> str:
 
 
 def user_dir(project_root: Path, domain: str, user_id: str) -> Path:
-    out = project_root / "memory" / domain / safe_id(user_id)
+    out = project_root / "data" / "memory" / "records" / domain / safe_id(user_id)
     out.mkdir(parents=True, exist_ok=True)
     return out
 
@@ -54,6 +59,13 @@ def _identity_fields(user_id: str, project_id: str) -> dict[str, Any]:
         "project_key": "",
         "name_aliases": [],
         "entities": [],
+        # 关联增强字段（供向量身份文本 / 记忆关联排序）
+        "key_terms": [],
+        "recent_topics": [],
+        "active_summary": "",
+        "last_meeting_at": "",
+        # 变更事件日志（状态跟踪：决策新增/未决开闭/风险变化，可溯源到场次）
+        "events": [],
     }
 
 

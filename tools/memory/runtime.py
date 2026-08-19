@@ -122,6 +122,22 @@ def _purpose_text(understanding: dict[str, Any] | None) -> str:
     return ""
 
 
+def _has_meeting_content(understanding: dict[str, Any] | None) -> bool:
+    """新建档案门槛：理解里有无实质会议内容（议题/决策/未决/行动线索）。
+
+    防止「匹配不上就新建」把闲聊/无关转写也建成档案；
+    会议纪要通常至少有一个议题或决策。
+    """
+    if not isinstance(understanding, dict):
+        return False
+    return bool(
+        understanding.get("topics")
+        or understanding.get("decisions")
+        or understanding.get("open_questions")
+        or understanding.get("action_hints")
+    )
+
+
 def _refresh_identity(
     record: dict[str, Any],
     bind: Bind,
@@ -129,12 +145,26 @@ def _refresh_identity(
     understanding: dict[str, Any] | None = None,
     transcript: str = "",
 ) -> None:
-    ents: list[str] = []
-    for token in list(record.get("entities") or []) + list(bind.entities):
-        text = str(token).strip()
-        if text and text not in ents:
-            ents.append(text)
-    record["entities"] = ents[:24]
+    from .entities import entity_names, entity_type, normalize_entities
+
+    ents = entity_names(record.get("entities"))
+    ent_map = normalize_entities(record.get("entities"))
+    for token in bind.entities:
+        name = str(token).strip()
+        if not name or name in ent_map:
+            continue
+        ent_map[name] = {
+            "name": name,
+            "type": entity_type(name),
+            "first_seen": "",
+            "last_seen": "",
+            "status": "active",
+            "sessions": [],
+        }
+        ents.append(name)
+    record["entities"] = sorted(
+        ent_map.values(), key=lambda e: str(e.get("first_seen") or "")
+    )[:24]
 
     generic_titles = {
         "客观会议纪要",
@@ -176,8 +206,14 @@ def _refresh_identity(
             aliases.append(incoming_key)
         record["name_aliases"] = aliases[-8:]
     if locked:
-        ents = [locked] + [item for item in ents if item != locked]
-        record["entities"] = ents[:24]
+        ent_list = list(record.get("entities") or [])
+        locked_ent = next(
+            (e for e in ent_list if isinstance(e, dict) and e.get("name") == locked),
+            None,
+        )
+        rest = [e for e in ent_list if not (isinstance(e, dict) and e.get("name") == locked)]
+        if locked_ent:
+            record["entities"] = [locked_ent] + rest[:23]
 
 
 def persist(
@@ -202,6 +238,17 @@ def persist(
             except Exception:  # noqa: BLE001
                 pass
             return None
+        # 新建门槛（仅会议域）：匹配不上触发新建，但本场无实质会议内容 → 不建档
+        if bind.create and (domain or "").strip() == "meeting":
+            if not _has_meeting_content(understanding):
+                logger.info("新建档案但本场无实质会议内容，跳过写回")
+                try:
+                    from tools.monitor.side import record_memory_persist
+
+                    record_memory_persist(ok=False)
+                except Exception:  # noqa: BLE001
+                    pass
+                return None
         stamp = now_stamp()
         if (domain or "").strip() == "notes":
             label = (subject or bind.project_key or "").strip()
@@ -228,6 +275,13 @@ def persist(
                 "subject": record.get("subject") or "",
             },
         )
+        # 方案 B：同步向量索引（档案级 + 摘录级，可重建；失败不影响主流程）
+        try:
+            from .embed import get_embedder
+
+            get_embedder().sync_record(user_id, domain, record)
+        except Exception:  # noqa: BLE001 - 向量同步失败不阻断写回
+            logger.warning("记忆向量同步异常，跳过", exc_info=True)
         logger.info(
             "记忆已更新：%s/%s 第 %s 次（%s）",
             user_id,

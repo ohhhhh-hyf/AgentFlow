@@ -1,6 +1,7 @@
 """从知识库抽出资料骨架 / 笔记标题，拼给 catalog agent。"""
 from __future__ import annotations
 
+import json
 import re
 from collections import defaultdict
 from typing import Any
@@ -21,25 +22,41 @@ def user_id_from_context(text: str) -> str:
     return m.group(1).strip() if m else ""
 
 
+def _understanding_from_context(text: str) -> dict[str, Any]:
+    """从共享上下文提取「notes理解」JSON（缺失/损坏时返回空）。
+
+    笔记理解是 catalog 建树的结构化锚点：让目录基于一次稳定的理解
+    生成，而不是每次直接从原始知识块自由组织。
+    """
+    marker = "notes理解："
+    if marker not in (text or ""):
+        return {}
+    tail = (text or "").split(marker, 1)[1]
+    start = tail.find("{")
+    if start < 0:
+        return {}
+    try:
+        data, _ = json.JSONDecoder().raw_decode(tail[start:])
+    except json.JSONDecodeError:
+        return {}
+    return data if isinstance(data, dict) else {}
+
+
 def resolve_collection(user_id: str = "", subject: str = "") -> str:
+    """解析 catalog 本地文件 key（兼容旧 collection 命名），并做行级库存在判断。
+
+    返回的字符串用作本地目录/文件 key；知识库本体读取一律走
+    ``kb.list_chunks(user_id=..., subject=...)`` 行级过滤。
+    """
     preferred = collection_for(user_id=user_id, subject=subject)
     kb = open_knowledge()
     if kb is None:
         return preferred
     try:
-        if kb.list_files(preferred):
+        if kb.list_files(user_id=user_id, subject=subject):
             return preferred
     except Exception:
         pass
-    if subject:
-        try:
-            cols = kb.list_collections() or []
-        except Exception:
-            cols = []
-        names = [c.get("name") if isinstance(c, dict) else str(c) for c in cols]
-        for name in names:
-            if name == subject or str(name).endswith("__" + subject):
-                return str(name)
     return preferred
 
 
@@ -50,14 +67,16 @@ def _chunk_role(meta: dict[str, Any], source: str) -> str:
     return classify_source_role(source)
 
 
-def _brief_chunks(kb: Any, collection: str) -> dict[str, list[dict[str, str]]]:
+def _brief_chunks(
+    kb: Any, user_id: str = "", subject: str = ""
+) -> dict[str, list[dict[str, str]]]:
     grouped: dict[str, list[dict[str, str]]] = {
         ROLE_MATERIAL: [],
         ROLE_NOTES: [],
         ROLE_TEACHER: [],
     }
     try:
-        chunks = kb.list_chunks(collection) or []
+        chunks = kb.list_chunks(user_id=user_id, subject=subject) or []
     except Exception:
         return grouped
     seen: set[tuple[str, str, str]] = set()
@@ -81,6 +100,16 @@ def _brief_chunks(kb: Any, collection: str) -> dict[str, list[dict[str, str]]]:
                 "topic": topic,
                 "heading": heading,
             }
+        )
+    # 确定性排序：知识块在 briefing 中的顺序必须恒定，
+    # 否则 LLM 每次读到的文本排列不同，目录输出会随库顺序波动
+    for role in grouped:
+        grouped[role].sort(
+            key=lambda r: (
+                str(r.get("source") or ""),
+                str(r.get("chapter") or ""),
+                str(r.get("heading") or r.get("topic") or ""),
+            )
         )
     return grouped
 
@@ -160,40 +189,82 @@ def build_catalog_briefing(shared_context: str) -> str:
             parts.append("【已入库并已编目的文件】" + "、".join(sorted(known)))
     else:
         parts.append("【已有目录】无，按首次 build 生成完整树。")
+    understanding = _understanding_from_context(shared_context)
+    if understanding:
+        parts.append(
+            "【笔记理解】（只用于锚定章节/主题的顺序与命名，避免结构漂移；"
+            "每个主题下的知识要点 KP 必须依据【资料骨架】与知识块细分，"
+            "一个主题下 2-6 个 KP，禁止把理解的单个 section 标题直接当整章/整主题而不拆分）\n"
+            + json.dumps(understanding, ensure_ascii=False)
+        )
     if kb is None:
         parts.append("【知识库】当前不可用，只根据下面老师文本建目录。")
     else:
-        grouped = _brief_chunks(kb, collection)
+        grouped = _brief_chunks(kb, user_id, subject)
         materials = grouped.get(ROLE_MATERIAL) or []
         notes = grouped.get(ROLE_NOTES) or []
-        if materials:
+
+        def _titled(rows: list[dict]) -> list[dict]:
+            return [
+                r for r in rows
+                if r.get("heading") or r.get("topic") or r.get("chapter")
+            ]
+
+        material_titled = _titled(materials)
+        if material_titled:
+            # ① 课件/讲义有标题 → 主骨架
             parts.append("【资料骨架】（课程资料，优先用这些标题建树）")
             by_file: dict[str, list[dict[str, str]]] = defaultdict(list)
-            for row in materials:
+            for row in material_titled:
                 by_file[row["source"]].append(row)
             known = known_source_documents(existing) if existing else set()
             for fname, rows in list(by_file.items())[:20]:
                 tag = "（已在目录中）" if fname in known else "（新资料/待匹配）"
                 parts.append(f"- 文件 {fname} {tag}")
+                seen_paths: set[str] = set()
                 for row in rows[:40]:
                     path = " / ".join(
                         x for x in (row.get("chapter"), row.get("topic"), row.get("heading")) if x
                     )
-                    if path:
+                    if path and path not in seen_paths:
+                        seen_paths.add(path)
                         parts.append(f"  · {path}")
-        else:
-            parts.append("【资料骨架】库中还没有课件/讲义标题，请尽量从笔记和老师文本归纳，但不要编章名。")
-        if notes:
-            parts.append("【学生笔记标题】（只用来标覆盖、补知识项）")
+            # 课件有骨架时，笔记仍只标覆盖、补知识项
+            if notes:
+                parts.append("【学生笔记标题】（只用来标覆盖、补知识项）")
+                by_file = defaultdict(list)
+                for row in notes:
+                    by_file[row["source"]].append(row)
+                for fname, rows in list(by_file.items())[:8]:
+                    heads = [row.get("heading") or row.get("topic") or row.get("chapter") for row in rows[:30]]
+                    heads = [h for h in heads if h]
+                    parts.append(f"- {fname}：{'；'.join(heads[:20])}")
+            else:
+                parts.append("【学生笔记标题】未识别到笔记角色文件，note_coverage 多为 none。")
+        elif notes:
+            # ② 课件无标题但笔记有 → 笔记骨架（第二来源）
+            parts.append("【资料骨架】库中课件/讲义没有可用标题，以下用学生笔记标题作为建树依据：")
+            parts.append("【学生笔记骨架】（来自学生笔记；可据此归纳章节树，但不要编造课件没有的章名）")
             by_file = defaultdict(list)
             for row in notes:
                 by_file[row["source"]].append(row)
             for fname, rows in list(by_file.items())[:8]:
-                heads = [row.get("heading") or row.get("topic") or row.get("chapter") for row in rows[:30]]
-                heads = [h for h in heads if h]
-                parts.append(f"- {fname}：{'；'.join(heads[:20])}")
+                seen_paths = set()
+                paths: list[str] = []
+                for row in rows[:40]:
+                    path = " / ".join(
+                        x for x in (row.get("chapter"), row.get("topic"), row.get("heading")) if x
+                    )
+                    if path and path not in seen_paths:
+                        seen_paths.add(path)
+                        paths.append(path)
+                if paths:
+                    parts.append(f"- {fname}（学生笔记）")
+                    for p in paths[:20]:
+                        parts.append(f"  · {p}")
         else:
-            parts.append("【学生笔记标题】未识别到笔记角色文件，note_coverage 多为 none。")
+            # ③ 都缺 → 不编章名兜底
+            parts.append("【资料骨架】库中还没有课件/讲义/笔记标题，请尽量从老师文本归纳，但不要编章名。")
 
     teacher = _teacher_text(shared_context)
     if teacher:

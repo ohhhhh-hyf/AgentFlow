@@ -78,9 +78,10 @@ class LLMClient:
             "total_tokens": 0,
             "calls": 0,
             "cache_hits": 0,
+            "cache_hit_tokens": 0,
         }
         # ── 监控统计（tools.monitor 消费；label 由调用方按层标注）────────
-        # label → {"prompt_tokens", "completion_tokens", "total_tokens", "calls", "cache_hits"}
+        # label → {"prompt_tokens", "completion_tokens", "total_tokens", "calls", "cache_hits", "cache_hit_tokens"}
         self.usage_by_label: dict[str, dict] = {}
         # label → {"calls", "total_seconds", "avg_seconds", "max_seconds"}
         self.latency_by_label: dict[str, dict] = {}
@@ -164,10 +165,17 @@ class LLMClient:
             usage.get("completion_tokens") or usage.get("output_tokens") or 0
         )
         total = int(usage.get("total_tokens") or (prompt + completion))
+        # 服务端上下文缓存（DeepSeek 官方 prompt_cache_hit_tokens；兼容 cached_tokens）
+        cache_hit = int(
+            usage.get("prompt_cache_hit_tokens")
+            or usage.get("cached_tokens")
+            or 0
+        )
         self.last_usage = {
             "prompt_tokens": prompt,
             "completion_tokens": completion,
             "total_tokens": total,
+            "cache_hit_tokens": cache_hit,
         }
         with self._monitor_lock:
             if count_call:
@@ -175,6 +183,7 @@ class LLMClient:
             self.usage_totals["prompt_tokens"] += prompt
             self.usage_totals["completion_tokens"] += completion
             self.usage_totals["total_tokens"] += total
+            self.usage_totals["cache_hit_tokens"] += cache_hit
             slot = self.usage_by_label.setdefault(
                 label,
                 {
@@ -183,6 +192,7 @@ class LLMClient:
                     "total_tokens": 0,
                     "calls": 0,
                     "cache_hits": 0,
+                    "cache_hit_tokens": 0,
                 },
             )
             if count_call:
@@ -190,6 +200,7 @@ class LLMClient:
             slot["prompt_tokens"] += prompt
             slot["completion_tokens"] += completion
             slot["total_tokens"] += total
+            slot["cache_hit_tokens"] += cache_hit
         if total:
             logger.debug(
                 "LLM usage provider=%s model=%s prompt=%s completion=%s total=%s",

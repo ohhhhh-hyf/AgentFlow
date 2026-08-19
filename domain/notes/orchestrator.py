@@ -289,20 +289,21 @@ class _Nodes(DomainNodes):
         ]
         extra_block = "\n\n" + "\n\n".join(x for x in extras if x)
         extra_block = extra_block if extra_block.strip() else ""
-        return (
+        parts = [
             f"视角模式：{mode}\n"
             f"说明：perspective=objective 时为客观全员口径；"
             f"缺省或其它值为个人用户口径。\n\n"
-            f"用户画像：\n{_json(state['user'])}\n\n"
-            f"用户视角模型：\n{_json(state.get('perspective_profile'))}\n\n"
-            f"notes理解：\n{_json(state.get('notes_understanding'))}\n\n"
-            f"原文：\n{state['transcript']}"
-            f"{extra_block}"
-        )
+            f"用户画像：\n{_json(state['user'])}",
+        ]
+        perspective = state.get("perspective_profile")
+        if perspective:
+            parts.append(f"用户视角模型：\n{_json(perspective)}")
+        parts.append(f"notes理解：\n{_json(state.get('notes_understanding'))}")
+        parts.append(f"原文：\n{state['transcript']}{extra_block}")
+        return "\n\n".join(parts)
 
     def _supervisor_context(self, state, line_name: str) -> str:
-        """审核上下文（原文为最高事实来源，含笔记理解）。"""
-        cfg = TASK_LINES[line_name]
+        """审核上下文：原文按草稿事实点摘录，理解只给摘要。"""
         sub = _line(state, line_name)
         revision_count = sub.get("revision_count", 0)
         mode = self._mode_label(state)
@@ -317,25 +318,45 @@ class _Nodes(DomainNodes):
             f"视角模式：{mode}\n"
             f"{_line_cn(line_name)}返工次数：{revision_count}/{self.MAX_REVISIONS}\n"
             f"{allowed}\n\n"
-            f"notes理解：\n{_json(state.get('notes_understanding'))}\n\n"
-            f"原文（最高事实来源）：\n{state['transcript']}\n\n"
-            f"用户画像：\n{_json(state['user'])}\n\n"
-            f"用户视角模型：\n{_json(state.get('perspective_profile'))}\n\n"
+            f"{self._supervisor_source_pack(state, line_name)}\n\n"
             f"{_line_draft_title(line_name)}：\n{_json(sub['draft'])}"
             f"{extra_block}"
         )
 
     # ── 领域钩子：core 节点 ───────────────────────────────────
 
-    def _build_core(self, builder) -> list[str]:
-        """核心层：笔记理解 + 视角建模（并行，任何任务线都需要）。"""
-        builder.add_node("notes_understanding", self._notes_understanding_node)
-        builder.add_node(
-            "perspective_modeling", self._perspective_modeling_node
+    def _build_core(self, builder, line_names=None) -> list[str]:
+        """核心层：视角建模 / 笔记理解按线按需构建。
+
+        - 视角建模：library / catalog / checklist（客观内容处理，不消费视角）跳过
+        - 笔记理解：library / checklist 跳过；catalog 需要理解锚点（稳定目录）；复习/图谱/出题需要
+        """
+        skip_understanding = frozenset({"library", "checklist"})
+        skip_perspective = frozenset({"library", "catalog", "checklist"})
+        selected = [name for name in (line_names or []) if name]
+        need_understanding = (not selected) or any(
+            name not in skip_understanding for name in selected
         )
-        builder.add_edge(START, "notes_understanding")
-        builder.add_edge(START, "perspective_modeling")
-        return ["notes_understanding", "perspective_modeling"]
+        need_perspective = (not selected) or any(
+            name not in skip_perspective for name in selected
+        )
+        cores: list[str] = []
+        if need_perspective:
+            builder.add_node(
+                "perspective_modeling", self._perspective_modeling_node
+            )
+            builder.add_edge(START, "perspective_modeling")
+            cores.append("perspective_modeling")
+        if need_understanding:
+            builder.add_node("notes_understanding", self._notes_understanding_node)
+            builder.add_edge(START, "notes_understanding")
+            cores.append("notes_understanding")
+        if not cores:
+            # 全部 core 节点都被按线跳过：用占位入口保证图有 START 起点
+            builder.add_node("noop_core", self._noop_core_node)
+            builder.add_edge(START, "noop_core")
+            cores = ["noop_core"]
+        return cores
 
     def _post_render_hook(self, state, line_name: str) -> None:
         super()._post_render_hook(state, line_name)

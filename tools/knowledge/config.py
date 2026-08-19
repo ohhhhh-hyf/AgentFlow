@@ -104,10 +104,32 @@ def _env_int(name: str, default: int) -> int:
         return default
 
 
+def _env_float(name: str, default: float) -> float:
+    raw = (os.getenv(name) or "").split("#", 1)[0].strip().strip("'\"")
+    if not raw:
+        return default
+    try:
+        return float(raw)
+    except ValueError:
+        return default
+
+
+def _env_bool(name: str, default: bool) -> bool:
+    raw = (os.getenv(name) or "").split("#", 1)[0].strip().strip("'\"")
+    if not raw:
+        return default
+    return str(raw).lower() not in {"0", "false", "off", "no", "disable", "disabled"}
+
+
 DEFAULT_CHUNK_SIZE = _env_int("KNOWLEDGE_CHUNK_SIZE", 500)
 DEFAULT_CHUNK_OVERLAP = _env_int("KNOWLEDGE_CHUNK_OVERLAP", 100)
 DEFAULT_TOP_K = _env_int("KNOWLEDGE_TOP_K", 5)
 DEFAULT_MAX_TOKENS = _env_int("KNOWLEDGE_MAX_TOKENS", 1024)
+# 检索质量：score 阈值过滤（低于该相似度的块不进结果）+ 混合检索开关与关键词数
+# 默认 0.50：实测相关块 0.60-0.78、无关块 0.32-0.46，0.50 保住相关且滤掉无关
+DEFAULT_MIN_SCORE = _env_float("KNOWLEDGE_MIN_SCORE", 0.50)
+DEFAULT_HYBRID_SEARCH = _env_bool("KNOWLEDGE_HYBRID_SEARCH", True)
+DEFAULT_HYBRID_KEYWORDS = _env_int("KNOWLEDGE_HYBRID_KEYWORDS", 6)
 
 
 def _embedding_key() -> str:
@@ -132,6 +154,10 @@ class KnowledgeToolConfig:
     top_k: int = DEFAULT_TOP_K
     max_tokens: int = DEFAULT_MAX_TOKENS
     persist_dir: str = DEFAULT_PERSIST_DIR
+    # 检索质量：min_score 过滤低相关块；hybrid_search 开启向量+关键词混合召回
+    min_score: float = DEFAULT_MIN_SCORE
+    hybrid_search: bool = DEFAULT_HYBRID_SEARCH
+    hybrid_keywords: int = DEFAULT_HYBRID_KEYWORDS
 
     def __post_init__(self) -> None:
         if not self.embedding_api_key:
