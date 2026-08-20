@@ -25,7 +25,7 @@ from chat.chat import ChatSession  # noqa: E402
 
 def _parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="知识库/记忆多源检索问答（终端）")
-    parser.add_argument("--user", default="1", help="用户 ID（必填，决定知识库与记忆范围）")
+    parser.add_argument("--user", required=True, help="用户 ID（必填，决定知识库与记忆范围）")
     parser.add_argument("--subject", default="", help="学科（可选，只约束笔记/资料知识库；会议记忆按用户全量）")
     parser.add_argument("--history", type=int, default=8, help="保留的对话轮数（默认 8）")
     parser.add_argument("--session", default="", help="会话 ID（默认新建；传已有 ID 可恢复历史与已知用户信息）")

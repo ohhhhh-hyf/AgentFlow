@@ -164,6 +164,26 @@ def check_compile_fidelity(description: str, compiled: str) -> list[str]:
                 "「不遗漏关键要点」无需单独开「## 关键…」节，请并入流程/脉络并控制总字数"
             )
 
+    # 表格占位行必须含 [方括号] 占位符（LLM 偶发把占位写成（中文括号）→ 填充系统识别不到 → 表格不填）
+    # 只检查「分隔行之后的数据行」——表头行/分隔行本身不含占位符是正常的
+    _sep_re = re.compile(r"^\s*\|?\s*:?-{2,}:?\s*(\|\s*:?-{2,}:?\s*)+\|?\s*$")
+    missing_ph: list[str] = []
+    prev_sep = False
+    for ln in compiled_l.splitlines():
+        if "|" in ln and _sep_re.match(ln):
+            prev_sep = True
+            continue
+        if "|" in ln and prev_sep and not re.search(r"\[[^\[\]]+\]", ln):
+            missing_ph.append(ln)
+        prev_sep = False
+    if missing_ph:
+        issues.append(
+            "表格占位行缺少 [方括号] 占位符："
+            + "；".join(ln.strip() for ln in missing_ph[:3])
+            + "——表格每个可变单元格必须写成 [占位说明]（如 [风险描述；约3行]），"
+            "禁止用（中文括号）或留空单元格"
+        )
+
     # 用户点名的结构应有对应痕迹（固定字或占位说明）
     flag_needles: dict[str, list[str]] = {
         "time": ["时间", "日期"],
@@ -280,7 +300,11 @@ COMPILE_SYSTEM_PROMPT_TEMPLATE = """你是模板编译器：把中文用户用�
 
 ## 表格行数
 - 表格永远只写一行占位数据行，作为生成时的行模板。
-- 用户说「三行左右 / 约3行 / 三条左右」时，必须把约束写入该表第一列占位：
+- 用户说「三行左右 / 约3行 / 三条左右」时，必须把约束写入该表第一列占位。
+- **表格占位行的每个可变单元格必须用 [方括号] 占位符**，
+  如 `| [风险描述；约3行] | [影响程度] | [应对措施] |`；
+  禁止用（中文括号）包裹占位（如 `（约3行，生成时填写）`），
+  禁止把可变单元格写成空单元格或固定文字——否则填充系统识别不到，表格会原样漏出。
   `| [风险描述；约3行] | [影响] | [应对] |`
 - 禁止为了表达「3行」而复制 3 条占位数据行；否则后续会被当成多个独立表格模板。
 

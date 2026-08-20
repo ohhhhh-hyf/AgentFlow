@@ -884,7 +884,15 @@ def _readable_to_generation_template(readable: str, template_raw: str) -> str:
                 inserted_placeholder = False
                 while i < len(lines) and lines[i].count("|") >= 2:
                     cells = [c.strip() for c in lines[i].strip().strip("|").split("|")]
-                    if len(cells) == cols and not any(cells):
+                    # 可读化占位单元格：含「生成时填写」/「约N行」/「填这里」→ 视为未填写的占位行
+                    is_placeholder_row = bool(cells) and all(
+                        not c
+                        or "生成时填写" in c
+                        or "填这里" in c
+                        or re.match(r"^约\s*\d+\s*行", c)
+                        for c in cells
+                    )
+                    if len(cells) == cols and (not any(cells) or is_placeholder_row):
                         if not saw_data and not inserted_placeholder:
                             out.append(raw_row)
                             inserted_placeholder = True
@@ -926,7 +934,9 @@ def _hitl_ui(
                 readable = ""
     wrap = gr.update(visible=show_editor)
     friendly = gr.update(value=readable, visible=show_editor)
-    state_update = gr.update(value=state)
+    state_update = gr.update(
+        value=json.dumps(state, ensure_ascii=False) if state else ""
+    )
     run_btn = gr.update(
         value="确认模板并运行" if show_editor else "运行",
         interactive=True,
@@ -1362,7 +1372,7 @@ def run_from_ui(
     input_text: str | None,
     template_upload,
     template_text: str | None,
-    edit_state: dict | None,
+    edit_state: str | dict | None,
     readable_template: str | None,
     *preview_args,
     **kwargs,
@@ -1374,6 +1384,14 @@ def run_from_ui(
                     notes_upload, notes_text, quiz_difficulty, quiz_qtype,
                     perspective_choice, monitor_enabled]
     """
+    # 兼容 gradio 5.49：edit_state 可能是隐藏 Textbox 传来的 JSON 字符串
+    if isinstance(edit_state, str) and edit_state.strip():
+        try:
+            edit_state = json.loads(edit_state)
+        except (json.JSONDecodeError, TypeError):
+            edit_state = None
+    elif not isinstance(edit_state, dict):
+        edit_state = None
     mode_value, user_id, project_id, subject = preview_args[:4]
     keypoints_upload, keypoints_text, notes_upload, notes_text = preview_args[4:8]
     quiz_difficulty = preview_args[8] if len(preview_args) > 8 else ""
@@ -2090,7 +2108,8 @@ def build_app() -> gr.Blocks:
                             interactive=True,
                         )
                         # 隐藏状态：保存原始占位模板，用于把友好模板还原后生成纪要
-                        edit_state = gr.State(value=None)
+                        # 隐藏状态：保存原始占位模板（gradio 5.49 对 gr.State 的 gr.update 不生效，改用隐藏 Textbox 承载 JSON 状态）
+                        edit_state = gr.Textbox(value="", visible=False, elem_id="edit-state")
                         clear_tpl_btn = gr.Button(
                             "清除预览",
                             variant="secondary",
