@@ -73,16 +73,9 @@ def _ocr_text_rapid(path: str) -> dict:
 
 def _ocr_text_server(path: str) -> dict:
     """调用服务器上的本地 OCR 接口；当前只返回文本行，无 bbox。"""
-    import base64
+    from tools.ocr.server_ocr import ocr_image
 
-    from ocr.ocr_client import OcrInterface
-    from ocr.ocr_parser import extract_lines
-
-    with open(path, "rb") as f:
-        image_base64 = base64.b64encode(f.read()).decode("utf-8")
-    result = OcrInterface().get_ocr(image_base64)
-    lines = extract_lines(result)
-    return {"engine": "serverocr", "lines": lines}
+    return ocr_image(path)
 
 
 def _ocr_text(path: str) -> dict:
