@@ -185,6 +185,19 @@ def _infer_layout_hints(lines: list[dict], image_size: tuple[int, int] | None) -
         )
         item["role_hint"] = role_hint
         item["heading_score"] = round(score, 3)
+        if role_hint == "formula":
+            item["title_decision"] = "locked_body"
+        elif role_hint == "heading" and score >= 0.75:
+            item["title_decision"] = "locked_heading"
+        elif (
+            role_hint == "body"
+            and score <= 0.25
+            and not _HEADING_PATTERN_RE.search(text)
+            and not (short_line and any(keyword in text for keyword in _HEADING_KEYWORDS))
+        ):
+            item["title_decision"] = "locked_body"
+        else:
+            item["title_decision"] = "ambiguous"
         if level is not None:
             item["heading_level_hint"] = level
     for item in rows:

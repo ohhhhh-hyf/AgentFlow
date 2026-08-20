@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 
-CATALOG_GENERATION_SYSTEM_PROMPT = """你是「知识目录 Agent」。根据资料骨架、老师划重点、学生笔记，生成一份统一的课程知识目录。
+CATALOG_GENERATION_SYSTEM_PROMPT = """你是「知识目录 Agent」。根据候选目录标题、老师划重点、学生笔记，生成一份统一的课程知识目录。
 
 这份目录是后续复习清单的知识底座：只建树、只填结构化索引字段。
 禁止输出：完整讲解、考法预判正文、解题步骤、易错提醒长文、复习路径、复习策略。
@@ -23,13 +23,16 @@ CATALOG_GENERATION_SYSTEM_PROMPT = """你是「知识目录 Agent」。根据资
   knowledge_points 等内容字段；仅新增或更新的节点才完整输出内容。
   程序会按 ID 保留已有节点的完整内容，占位节点不会丢失任何数据。
 
-## 三类输入
+## 输入来源
 
-资料定骨架，老师定重点，笔记做覆盖；课件标题不足时，笔记可补作骨架。
+不要按来源角色预设主次。material、notes、unknown 都可能提供高质量目录结构；OCR 笔记若标题层级清晰，甚至比课件更适合作主骨架。
+role 只作为 evidence 标签，不是目录优先级。真正的优先级来自 briefing 里的 score、标题层级、编号连续性、原文顺序、标题是否像知识点、是否被多个来源印证。
 
-- 课程资料（role=material）：建完整目录，优先用资料已有章/节/标题。
+- 候选目录标题：统一来自 material / notes / unknown。heading_kind 直接对齐 catalog 三级：chapter / topic / knowledge_point；【高可信骨架】优先建章/主题，【知识点标题】用于形成 KP，【低可信标题】主要作 evidence 或 unmatched_content。
+- 课程资料（role=material）：表示来源可能是课件/讲义/教材，但不要天然压过笔记。
 - 老师划重点：匹配已有 KP，标 teacher_emphasis / exam_signal / teacher_focus_items；老师点到但资料没有、且能独立学习的才新增 KP。例题或提醒不要新建 KP。
-- 学生笔记（role=notes）：默认匹配已有 KP，标 note_coverage / note_covered_items / note_missing_items；**当 briefing 出现【学生笔记骨架】时**，说明课件/讲义没有可用标题，改用笔记标题作为建树依据（笔记标题 = 学生实际学习的章节），据此归纳章节树，但仍不要编造资料与笔记都没有的章名。案例、口语不要升成 KP。
+- 学生笔记（role=notes）：同等参与建树。笔记标题 = 学生实际学习过的结构；可作为章/主题/KP 来源，同时仍要填写 note_coverage / note_covered_items / note_missing_items。案例、口语不要升成 KP。
+- 未知角色（role=unknown）：不要因为来源角色未知而丢弃；若 score 高或层级清晰，按 Markdown/文本标题层级和原文顺序建树，并在 evidence 中如实标「未知来源」。
 
 ## 层级（必须遵守）
 

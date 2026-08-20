@@ -1,4 +1,4 @@
-"""从知识库抽出资料骨架 / 笔记标题，拼给 catalog agent。"""
+"""从知识库抽出候选目录标题与重点上下文，拼给 catalog agent。"""
 from __future__ import annotations
 
 import json
@@ -7,11 +7,22 @@ from collections import defaultdict
 from typing import Any
 
 from tools.knowledge.cite import open_knowledge
-from tools.knowledge.source_role import ROLE_MATERIAL, ROLE_NOTES, ROLE_TEACHER, classify_source_role
+from tools.knowledge.source_role import (
+    ROLE_MATERIAL,
+    ROLE_NOTES,
+    ROLE_TEACHER,
+    ROLE_UNKNOWN,
+    classify_source_role,
+)
 from .store import load_catalog
 
 # briefing 中知识块/笔记标题的总量上限：骨架已够建树，超出截断避免输入过大拖慢 LLM
 _MAX_BRIEF_TITLES = 400
+_TITLE_KEYWORDS = ("定义", "性质", "定理", "规则", "方法", "公式", "例题", "易错", "注意", "总结", "步骤")
+_BODY_LIKE_ENDINGS = ("。", "；", ";", ".", "！", "？", "!", "?")
+_NUMBERED_TITLE_RE = re.compile(
+    r"^(?:第[一二三四五六七八九十百零0-9]+[章节]|[一二三四五六七八九十]+、|\d+(?:\.\d+){0,3})"
+)
 
 
 def subject_from_context(text: str) -> str:
@@ -46,7 +57,7 @@ def _understanding_from_context(text: str) -> dict[str, Any]:
 
 def _chunk_role(meta: dict[str, Any], source: str) -> str:
     role = str(meta.get("role") or "").strip()
-    if role in {ROLE_MATERIAL, ROLE_NOTES, ROLE_TEACHER}:
+    if role in {ROLE_MATERIAL, ROLE_NOTES, ROLE_TEACHER, ROLE_UNKNOWN}:
         return role
     return classify_source_role(source)
 
@@ -58,6 +69,7 @@ def _brief_chunks(
         ROLE_MATERIAL: [],
         ROLE_NOTES: [],
         ROLE_TEACHER: [],
+        ROLE_UNKNOWN: [],
     }
     try:
         chunks = kb.list_chunks(user_id=user_id, subject=subject) or []
@@ -80,9 +92,15 @@ def _brief_chunks(
         grouped.setdefault(role, []).append(
             {
                 "source": source,
+                "role": role,
                 "chapter": chapter,
                 "topic": topic,
                 "heading": heading,
+                "heading_path_text": str(meta.get("heading_path_text") or ""),
+                "heading_score": str(meta.get("heading_score") or ""),
+                "heading_kind": str(meta.get("heading_kind") or ""),
+                "content_tags": str(meta.get("content_tags") or ""),
+                "contains_formula": str(meta.get("contains_formula") or ""),
             }
         )
     # 确定性排序：知识块在 briefing 中的顺序必须恒定，
@@ -96,6 +114,96 @@ def _brief_chunks(
             )
         )
     return grouped
+
+
+def _clean_title(text: str) -> str:
+    return " ".join(str(text or "").split()).strip()
+
+
+def _title_path(row: dict[str, str]) -> list[str]:
+    path_text = _clean_title(row.get("heading_path_text") or "")
+    if path_text:
+        return [p.strip() for p in path_text.split("/") if p.strip()]
+    parts: list[str] = []
+    for key in ("chapter", "topic", "heading"):
+        title = _clean_title(row.get(key) or "")
+        if title and title not in parts:
+            parts.append(title)
+    return parts
+
+
+def _score_title_candidate(row: dict[str, str]) -> tuple[int, list[str]]:
+    """标题候选评分：来源角色只作证据标签，主要看结构清晰度和学习价值。"""
+    path = _title_path(row)
+    title = path[-1] if path else ""
+    raw_score = str(row.get("heading_score") or "").strip()
+    if raw_score.isdigit():
+        score = int(raw_score)
+        reasons = ["入库标题评分"]
+        kind = str(row.get("heading_kind") or "").strip()
+        tags = str(row.get("content_tags") or "").strip()
+        if kind:
+            reasons.append(f"kind={kind}")
+        if tags:
+            reasons.append(f"tags={tags}")
+        return score, reasons
+    score = 0
+    reasons: list[str] = []
+    if not title:
+        return score, reasons
+    if row.get("chapter"):
+        score += 4
+        reasons.append("有章级标题")
+    if row.get("topic"):
+        score += 3
+        reasons.append("有主题层级")
+    if row.get("heading"):
+        score += 2
+        reasons.append("有标题")
+    if _NUMBERED_TITLE_RE.match(title):
+        score += 2
+        reasons.append("编号/章节格式")
+    if any(word in title for word in _TITLE_KEYWORDS):
+        score += 2
+        reasons.append("知识点关键词")
+    if 2 <= len(title) <= 28:
+        score += 1
+        reasons.append("短标题")
+    if len(title) > 45:
+        score -= 3
+        reasons.append("过长像正文")
+    if title.endswith(_BODY_LIKE_ENDINGS):
+        score -= 3
+        reasons.append("句子结尾")
+    return score, reasons
+
+
+def _title_candidates(grouped: dict[str, list[dict[str, str]]]) -> list[dict[str, Any]]:
+    candidates: list[dict[str, Any]] = []
+    seq = 0
+    for role in (ROLE_MATERIAL, ROLE_NOTES, ROLE_UNKNOWN):
+        for row in grouped.get(role) or []:
+            path = _title_path(row)
+            if not path:
+                continue
+            score, reasons = _score_title_candidate(row)
+            if score <= 0:
+                continue
+            item = dict(row)
+            item["path"] = path
+            item["score"] = score
+            item["reasons"] = reasons
+            item["seq"] = seq
+            candidates.append(item)
+            seq += 1
+    candidates.sort(
+        key=lambda r: (
+            -int(r.get("score") or 0),
+            str(r.get("source") or ""),
+            int(r.get("seq") or 0),
+        )
+    )
+    return candidates
 
 
 def _compact_existing(catalog: dict[str, Any]) -> str:
@@ -171,7 +279,7 @@ def build_catalog_briefing(shared_context: str) -> str:
     if understanding:
         parts.append(
             "【笔记理解】（只用于锚定章节/主题的顺序与命名，避免结构漂移；"
-            "每个主题下的知识要点 KP 必须依据【资料骨架】与知识块细分，"
+            "每个主题下的知识要点 KP 必须依据【候选目录标题】与知识块细分，"
             "一个主题下 2-6 个 KP，禁止把理解的单个 section 标题直接当整章/整主题而不拆分）\n"
             + json.dumps(understanding, ensure_ascii=False)
         )
@@ -179,22 +287,23 @@ def build_catalog_briefing(shared_context: str) -> str:
         parts.append("【知识库】当前不可用，只根据下面老师文本建目录。")
     else:
         grouped = _brief_chunks(kb, user_id, subject)
-        materials = grouped.get(ROLE_MATERIAL) or []
-        notes = grouped.get(ROLE_NOTES) or []
-
-        def _titled(rows: list[dict]) -> list[dict]:
-            return [
-                r for r in rows
-                if r.get("heading") or r.get("topic") or r.get("chapter")
-            ]
-
-        material_titled = _titled(materials)
-        if material_titled:
-            # ① 课件/讲义有标题 → 主骨架
-            parts.append("【资料骨架】（课程资料，优先用这些标题建树）")
-            by_file: dict[str, list[dict[str, str]]] = defaultdict(list)
-            for row in material_titled:
-                by_file[row["source"]].append(row)
+        candidates = _title_candidates(grouped)
+        if candidates:
+            parts.append(
+                "【候选目录标题】以下标题来自 material/notes/unknown 的统一候选池；"
+                "role 只表示来源类型，不决定优先级。请优先使用 score 高、层级连续、路径稳定的标题建树；"
+                "notes 与 material 同等重要，OCR 笔记结构清晰时可以作为主骨架。"
+            )
+            high = [row for row in candidates if int(row.get("score") or 0) >= 8]
+            middle = [row for row in candidates if 5 <= int(row.get("score") or 0) < 8]
+            low = [row for row in candidates if int(row.get("score") or 0) < 5]
+            if high:
+                parts.append("【高可信骨架】（优先形成章/主题；若多来源重复，合并为同一节点）")
+            else:
+                parts.append("【高可信骨架】未发现高分标题，请从下面的知识点标题中保守归纳章节。")
+            by_file: dict[str, list[dict[str, Any]]] = defaultdict(list)
+            for row in high or middle:
+                by_file[str(row.get("source") or "")].append(row)
             known = known_source_documents(existing) if existing else set()
             emitted = 0
             for fname, rows in list(by_file.items())[:20]:
@@ -204,60 +313,32 @@ def build_catalog_briefing(shared_context: str) -> str:
                 parts.append(f"- 文件 {fname} {tag}")
                 seen_paths: set[str] = set()
                 for row in rows[:40]:
-                    path = " / ".join(
-                        x for x in (row.get("chapter"), row.get("topic"), row.get("heading")) if x
-                    )
+                    path = " / ".join(row.get("path") or [])
                     if path and path not in seen_paths:
                         seen_paths.add(path)
-                        parts.append(f"  · {path}")
+                        reason = "、".join(row.get("reasons") or [])
+                        parts.append(
+                            f"  · [score={row.get('score')}; role={row.get('role')}; {reason}] {path}"
+                        )
                         emitted += 1
             if emitted >= _MAX_BRIEF_TITLES:
-                parts.append("  · …（骨架标题过多，已截断到 400 条）")
-            # 课件有骨架时，笔记仍只标覆盖、补知识项
-            if notes:
-                parts.append("【学生笔记标题】（只用来标覆盖、补知识项）")
-                by_file = defaultdict(list)
-                for row in notes:
-                    by_file[row["source"]].append(row)
-                for fname, rows in list(by_file.items())[:8]:
-                    if emitted >= _MAX_BRIEF_TITLES:
-                        break
-                    heads = [row.get("heading") or row.get("topic") or row.get("chapter") for row in rows[:30]]
-                    heads = [h for h in heads if h]
-                    parts.append(f"- {fname}：{'；'.join(heads[:20])}")
-                    emitted += len(heads)
-            else:
-                parts.append("【学生笔记标题】未识别到笔记角色文件，note_coverage 多为 none。")
-        elif notes:
-            # ② 课件无标题但笔记有 → 笔记骨架（第二来源）
-            parts.append("【资料骨架】库中课件/讲义没有可用标题，以下用学生笔记标题作为建树依据：")
-            parts.append("【学生笔记骨架】（来自学生笔记；可据此归纳章节树，但不要编造课件没有的章名）")
-            by_file = defaultdict(list)
-            for row in notes:
-                by_file[row["source"]].append(row)
-            emitted = 0
-            for fname, rows in list(by_file.items())[:8]:
-                if emitted >= _MAX_BRIEF_TITLES:
-                    break
-                seen_paths = set()
-                paths: list[str] = []
-                for row in rows[:40]:
-                    path = " / ".join(
-                        x for x in (row.get("chapter"), row.get("topic"), row.get("heading")) if x
+                parts.append("  · …（候选标题过多，已截断到 400 条）")
+            if middle:
+                parts.append("【知识点标题】（heading_kind=knowledge_point 可直接作为 KP；定义/公式/方法可作 KP，例题/易错/注意通常只作 evidence）")
+                for row in middle[:80]:
+                    parts.append(
+                        f"- [score={row.get('score')}; role={row.get('role')}; source={row.get('source')}] "
+                        + " / ".join(row.get("path") or [])
                     )
-                    if path and path not in seen_paths:
-                        seen_paths.add(path)
-                        paths.append(path)
-                if paths:
-                    parts.append(f"- {fname}（学生笔记）")
-                    for p in paths[:20]:
-                        parts.append(f"  · {p}")
-                        emitted += 1
-            if emitted >= _MAX_BRIEF_TITLES:
-                parts.append("  · …（骨架标题过多，已截断到 400 条）")
+            if low:
+                parts.append("【低可信标题】（只作 evidence 或 unmatched_content，除非上下文强支撑）")
+                for row in low[:40]:
+                    parts.append(
+                        f"- [score={row.get('score')}; role={row.get('role')}; source={row.get('source')}] "
+                        + " / ".join(row.get("path") or [])
+                    )
         else:
-            # ③ 都缺 → 不编章名兜底
-            parts.append("【资料骨架】库中还没有课件/讲义/笔记标题，请尽量从老师文本归纳，但不要编章名。")
+            parts.append("【候选目录标题】知识库里还没有可用标题，请尽量从老师文本归纳，但不要编资料里没有的章名。")
 
     teacher = _teacher_text(shared_context)
     if teacher:

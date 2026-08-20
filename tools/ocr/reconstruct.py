@@ -15,10 +15,10 @@ RECONSTRUCT_SYSTEM_PROMPT = """你是「笔记整理器」。把 OCR 识别出�
 
 要求：
 1. **保留全部内容**：不要漏掉任何识别到的文字、数字、公式；OCR 明显错字可顺手纠正，但不要臆造
-2. **标题优先规则**：输入中 role_hint=heading 的行是版面算法识别出的标题候选。请优先保留这些原文作为标题；只可做轻微 OCR 错字修正，不要凭空新增标题
-3. **推断结构**：结合 heading_level_hint / heading_score / 上下文，推断章节/知识点层级（# 标题、## 小节、### 知识点）
+2. **双轨标题规则**：输入中 title_decision=locked_heading 的行是高置信标题，必须输出为 Markdown 标题；只能轻微修 OCR 错字，不要降为正文。title_decision=locked_body 的行默认保持正文/公式，不要升标题。title_decision=ambiguous 的行才结合上下文判断是否为标题
+3. **推断结构**：对 locked_heading 和 ambiguous 标题，结合 heading_level_hint / heading_score / 上下文，推断章节/知识点层级（# 标题、## 小节、### 知识点）
 4. **标题层级一致**：同类编号（如 一、二、三 或 1.1/1.2）尽量保持同级；页首大标题通常高于普通小节标题
-5. **正文不要误升标题**：长句、以句号/逗号结尾的解释性内容，即使包含关键词，也不要强行改成标题
+5. **正文不要误升标题**：locked_body、长句、以句号/逗号结尾的解释性内容，即使包含关键词，也不要强行改成标题
 6. **重点标注**：对像"重点/必考/关键/注意/易错"的内容用 **加粗** 标出（不要过度标注）
 7. **公式**：已有 ``$$...$$`` 的公式原样保留在对应位置
 8. **表格**：如果内容是成列的数据（行结构明显），整理成 Markdown 表格
@@ -33,10 +33,11 @@ def _fragments_to_text(lines: list[dict]) -> str:
         formula = item.get("formula")
         text = item.get("text") or ""
         role = item.get("role_hint")
+        decision = item.get("title_decision")
         level = int(item.get("heading_level_hint") or 0)
         if formula:
             parts.append(formula)
-        elif role == "heading" and text:
+        elif text and (decision == "locked_heading" or role == "heading"):
             marks = "#" * min(max(level or 2, 1), 6)
             parts.append(f"{marks} {text}")
         elif text:
@@ -58,6 +59,7 @@ def _lines_to_structured_payload(lines: list[dict]) -> str:
             "text": text,
             "formula": formula,
             "role_hint": item.get("role_hint") or "body",
+            "title_decision": item.get("title_decision") or "ambiguous",
             "heading_score": item.get("heading_score") or 0,
             "heading_level_hint": item.get("heading_level_hint"),
             "conf": round(float(item.get("conf") or 0), 3),

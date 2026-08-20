@@ -2026,7 +2026,7 @@ def build_app() -> gr.Blocks:
                     keypoints_upload = gr.File(
                         label="用户关键点文件",
                         file_count="single",
-                        file_types=[".txt"],
+                        file_types=[".txt", ".md"],
                         type="filepath",
                     )
                     keypoints_text = gr.Textbox(
@@ -2038,7 +2038,7 @@ def build_app() -> gr.Blocks:
                     notes_upload = gr.File(
                         label="用户笔记文件",
                         file_count="single",
-                        file_types=[".txt"],
+                        file_types=[".txt", ".md"],
                         type="filepath",
                     )
                     notes_text = gr.Textbox(

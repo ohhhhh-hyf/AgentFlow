@@ -18,6 +18,25 @@ EXCEL_HEADER_DETECT_MAX_ROWS = 5
 EXCEL_DATA_ROW_MIN_NUMERIC = 2
 EXCEL_DATA_ROW_NUMERIC_RATIO = 0.5
 
+_OCR_NOISE_RE = re.compile(
+    r"^(?:NOTEBOOK|NO\.?|No\.?|DATE|Date|日期|页码|第\s*\d+\s*页|Page\s*\d+)\s*[:：]?\s*\w*\s*$",
+    re.I,
+)
+_TITLE_KEYWORDS = ("定义", "性质", "定理", "规则", "方法", "公式", "例题", "易错", "注意", "总结", "步骤")
+_BODY_LIKE_ENDINGS = ("。", "；", ";", ".", "！", "？", "!", "?")
+_FORMULA_RE = re.compile(
+    r"(?:\\\[|\\\(|\$\$?|[A-Za-z][A-Za-z0-9_']*\s*=|[∑√≈≠≤≥→←⇔]|[+\-*/=]\s*[A-Za-z0-9(])"
+)
+_DISPLAY_FORMULA_RE = re.compile(r"(\$\$.*?\$\$|\\\[.*?\\\]|\\\(.*?\\\))", re.S)
+_CONTENT_TAG_RULES = (
+    ("definition", re.compile(r"(定义|概念|称为)")),
+    ("theorem", re.compile(r"(定理|性质|规律|规则)")),
+    ("formula", re.compile(r"(公式|计算式|表达式|方程|等式)")),
+    ("method", re.compile(r"(方法|步骤|解法|技巧|化简|证明)")),
+    ("example", re.compile(r"(例题|例\s*\d*|example)", re.I)),
+    ("mistake", re.compile(r"(易错|注意|误区|不要|错因|陷阱)")),
+)
+
 
 @dataclass
 class TextChunk:
@@ -46,20 +65,90 @@ def sanitize_text(text: str, keep_newlines: bool = False) -> str:
     return text.strip()
 
 
-def _base_meta(path: str, **extra: object) -> dict:
+def _base_meta(path: str, text: str = "", role: str = "", **extra: object) -> dict:
     name = Path(path).name
-    meta = {"source": name, "role": classify_source_role(name)}
+    meta = {"source": name, "role": role or classify_source_role(name, text)}
     meta.update({key: value for key, value in extra.items() if value not in (None, "")})
     return meta
 
 
+def _clean_ocr_markdown(text: str) -> str:
+    """清理 OCR Markdown 常见页眉页脚、重复空行和相邻重复标题。"""
+    lines = sanitize_text(text, keep_newlines=True).splitlines()
+    out: list[str] = []
+    last_heading = ""
+    for line in lines:
+        if _OCR_NOISE_RE.match(line):
+            continue
+        if re.fullmatch(r"[-_=]{3,}", line):
+            continue
+        hit = heading_level(line)
+        if hit:
+            level, title = hit
+            key = f"{level}:{title}"
+            if key == last_heading:
+                continue
+            last_heading = key
+        elif line:
+            last_heading = ""
+        out.append(line)
+    return "\n".join(out)
+
+
+def _heading_score(title: str, level: int, path_len: int) -> int:
+    title = " ".join(str(title or "").split()).strip()
+    score = 0
+    if level == 1:
+        score += 5
+    elif level == 2:
+        score += 4
+    else:
+        score += 2
+    if path_len >= 2:
+        score += 2
+    if any(word in title for word in _TITLE_KEYWORDS):
+        score += 2
+    if 2 <= len(title) <= 28:
+        score += 1
+    if len(title) > 45:
+        score -= 3
+    if title.endswith(_BODY_LIKE_ENDINGS):
+        score -= 3
+    return max(score, 0)
+
+
+def _heading_kind(title: str, level: int, score: int) -> str:
+    title = str(title or "")
+    if score < 4:
+        return "evidence"
+    if level == 1:
+        return "chapter"
+    if level == 2:
+        return "topic"
+    if any(word in title for word in ("易错", "注意", "例题", "例")):
+        return "evidence"
+    return "knowledge_point"
+
+
+def _content_tags(text: str, heading: str = "") -> str:
+    blob = f"{heading}\n{text or ''}"
+    tags = [name for name, pattern in _CONTENT_TAG_RULES if pattern.search(blob)]
+    if _FORMULA_RE.search(blob) and "formula" not in tags:
+        tags.append("formula")
+    return ",".join(tags)
+
+
+def _contains_formula(text: str) -> bool:
+    return bool(_FORMULA_RE.search(text or ""))
+
+
 def _chunks_by_heading(text: str, path: str) -> List[TextChunk]:
-    """按章/节/标题切开，块上带 chapter/topic/heading/role。"""
+    """按标题切开，块上带完整 heading_path / score / kind / content_tags。"""
     name = Path(path).name
-    role = classify_source_role(name)
-    chapter = ""
-    topic = ""
-    heading = ""
+    text = _clean_ocr_markdown(text)
+    role = classify_source_role(name, text)
+    heading_stack: dict[int, str] = {}
+    current_level = 0
     buf: list[str] = []
     chunks: List[TextChunk] = []
 
@@ -68,29 +157,42 @@ def _chunks_by_heading(text: str, path: str) -> List[TextChunk]:
         buf.clear()
         if not body:
             return
+        path_parts = [heading_stack[i] for i in sorted(heading_stack) if heading_stack.get(i)]
+        heading = path_parts[-1] if path_parts else name
+        level = current_level or len(path_parts) or 1
+        score = _heading_score(heading, level, len(path_parts))
+        kind = _heading_kind(heading, level, score)
         chunks.append(
             TextChunk(
                 sanitize_text(body, keep_newlines=True),
                 _base_meta(
                     path,
-                    chapter=chapter,
-                    topic=topic,
-                    heading=heading or topic or chapter or name,
+                    role=role,
+                    chapter=path_parts[0] if path_parts else "",
+                    topic=path_parts[1] if len(path_parts) > 1 else "",
+                    heading=heading,
+                    heading_level=level,
+                    heading_depth=level,
+                    heading_path_text=" / ".join(path_parts),
+                    heading_score=score,
+                    heading_kind=kind,
+                    content_tags=_content_tags(body, heading),
+                    contains_formula=_contains_formula(body),
+                    block_type="formula_heavy" if _contains_formula(body) else "content",
                 ),
             )
         )
 
-    for line in sanitize_text(text, keep_newlines=True).splitlines():
+    for line in text.splitlines():
         hit = heading_level(line)
         if hit:
             flush()
             level, title = hit
-            heading = title
-            if level == 1:
-                chapter = title
-                topic = ""
-            elif level == 2:
-                topic = title
+            current_level = level
+            heading_stack[level] = title
+            for old_level in list(heading_stack):
+                if old_level > level:
+                    heading_stack.pop(old_level, None)
             continue
         buf.append(line)
     flush()
@@ -99,7 +201,24 @@ def _chunks_by_heading(text: str, path: str) -> List[TextChunk]:
     body = sanitize_text(text, keep_newlines=True)
     if not body:
         return []
-    return [TextChunk(body, _base_meta(path, heading=name))]
+    return [
+        TextChunk(
+            body,
+            _base_meta(
+                path,
+                role=role,
+                heading=name,
+                heading_level=0,
+                heading_depth=0,
+                heading_path_text=name,
+                heading_score=0,
+                heading_kind="evidence",
+                content_tags=_content_tags(body, name),
+                contains_formula=_contains_formula(body),
+                block_type="formula_heavy" if _contains_formula(body) else "content",
+            ),
+        )
+    ]
 
 
 # ============================================================
@@ -122,20 +241,23 @@ def _extract_pdf(path: str) -> List[TextChunk]:
     import pdfplumber
     chunks = []
     with pdfplumber.open(path) as pdf:
-        for i, page in enumerate(pdf.pages):
-            text = page.extract_text() or ""
+        pages_text = [page.extract_text() or "" for page in pdf.pages]
+        role = classify_source_role(Path(path).name, "\n".join(pages_text))
+        for i, text in enumerate(pages_text):
             if text.strip():
                 first = sanitize_text(text, keep_newlines=True).splitlines()
                 heading = first[0] if first else ""
                 chunks.append(TextChunk(
                     sanitize_text(text, keep_newlines=True),
-                    _base_meta(path, page=i + 1, heading=heading)))
+                    _base_meta(path, role=role, page=i + 1, heading=heading)))
     return chunks
 
 
 def _extract_docx(path: str) -> List[TextChunk]:
     import docx
     doc = docx.Document(path)
+    full_text = "\n".join(p.text.strip() for p in doc.paragraphs if p.text.strip())
+    role = classify_source_role(Path(path).name, full_text)
     chapter = ""
     topic = ""
     heading = ""
@@ -150,7 +272,13 @@ def _extract_docx(path: str) -> List[TextChunk]:
         chunks.append(
             TextChunk(
                 sanitize_text(body, keep_newlines=True),
-                _base_meta(path, chapter=chapter, topic=topic, heading=heading or topic or chapter),
+                _base_meta(
+                    path,
+                    role=role,
+                    chapter=chapter,
+                    topic=topic,
+                    heading=heading or topic or chapter,
+                ),
             )
         )
 
@@ -183,8 +311,7 @@ def _extract_docx(path: str) -> List[TextChunk]:
     flush()
     if chunks:
         return chunks
-    text = "\n".join(p.text.strip() for p in doc.paragraphs if p.text.strip())
-    return _chunks_by_heading(text, path)
+    return _chunks_by_heading(full_text, path)
 
 
 def _extract_pptx(path: str) -> List[TextChunk]:
@@ -192,6 +319,7 @@ def _extract_pptx(path: str) -> List[TextChunk]:
     from pptx.enum.shapes import MSO_SHAPE_TYPE
     chunks = []
     prs = Presentation(path)
+    slides_parts: list[list[str]] = []
     for i, slide in enumerate(prs.slides):
         parts = []
         for shape in _iter_shapes(slide.shapes):
@@ -205,11 +333,14 @@ def _extract_pptx(path: str) -> List[TextChunk]:
                     cells = " | ".join(c.text.strip() for c in row.cells)
                     if cells.strip():
                         parts.append(cells)
+        slides_parts.append(parts)
+    role = classify_source_role(Path(path).name, "\n".join("\n".join(parts) for parts in slides_parts))
+    for i, parts in enumerate(slides_parts):
         if parts:
             heading = sanitize_text(parts[0])
             chunks.append(TextChunk(
                 sanitize_text("\n".join(parts), keep_newlines=True),
-                _base_meta(path, page=i + 1, heading=heading)))
+                _base_meta(path, role=role, page=i + 1, heading=heading)))
     return chunks
 
 
@@ -313,46 +444,178 @@ def _extract_xlsx(path: str) -> List[TextChunk]:
 # ============================================================
 # 分块
 # ============================================================
+def _estimated_tokens(text: str) -> int:
+    """粗估 token 数：中文约 1 字 1 token，英文/符号约 4 字 1 token，LaTeX 公式折算更低。"""
+    if not text:
+        return 0
+    total = 0.0
+    pos = 0
+    for match in _DISPLAY_FORMULA_RE.finditer(text):
+        if match.start() > pos:
+            total += _estimated_tokens_plain(text[pos:match.start()])
+        total += max(1.0, len(match.group(0)) * 0.35)
+        pos = match.end()
+    if pos < len(text):
+        total += _estimated_tokens_plain(text[pos:])
+    return max(1, int(total + 0.999))
+
+
+def _estimated_tokens_plain(text: str) -> float:
+    cjk = sum(1 for ch in text if "\u4e00" <= ch <= "\u9fff")
+    other = max(0, len(text) - cjk)
+    return cjk + other / 4
+
+
+def _split_units(text: str, separators: List[str]) -> list[tuple[str, bool]]:
+    """切成可合并单元；公式片段作为不可拆单元。"""
+    units: list[tuple[str, bool]] = []
+    pos = 0
+    for match in _DISPLAY_FORMULA_RE.finditer(text):
+        if match.start() > pos:
+            units.extend(_split_plain_units(text[pos:match.start()], separators))
+        units.append((match.group(0), True))
+        pos = match.end()
+    if pos < len(text):
+        units.extend(_split_plain_units(text[pos:], separators))
+    return [(unit, protected) for unit, protected in units if unit]
+
+
+def _split_plain_units(text: str, separators: List[str]) -> list[tuple[str, bool]]:
+    units = [text]
+    for sep in separators:
+        next_units: list[str] = []
+        for unit in units:
+            if sep not in unit:
+                next_units.append(unit)
+                continue
+            parts = unit.split(sep)
+            for idx, part in enumerate(parts):
+                if part:
+                    next_units.append(part)
+                if idx < len(parts) - 1:
+                    next_units.append(sep)
+        units = next_units
+    return [(unit, False) for unit in units if unit]
+
+
 def split_text(chunks: List[TextChunk], chunk_size: int, chunk_overlap: int) -> List[TextChunk]:
-    """把超大块按分隔符递归切分; 保留元数据, 追加 chunk_index, 过滤过短块"""
+    """把超大块按估算 token 切分；公式片段尽量保持完整。"""
     result: List[TextChunk] = []
     for ci, chunk in enumerate(chunks):
-        if len(chunk.text) <= chunk_size:
+        if _estimated_tokens(chunk.text) <= chunk_size:
+            meta = dict(chunk.metadata)
+            meta["estimated_tokens"] = _estimated_tokens(chunk.text)
+            meta["split_strategy"] = "token_aware"
+            if _DISPLAY_FORMULA_RE.search(chunk.text) and meta["estimated_tokens"] > chunk_size:
+                meta["oversized_formula"] = True
+            chunk.metadata = meta
             result.append(chunk)
             continue
-        pieces = _recursive_split(chunk.text, ["\n\n", "\n", "。", "；", "，", " "],
-                                  chunk_size, chunk_overlap)
+        pieces = _token_aware_split(
+            chunk.text,
+            ["\n\n", "\n", "。", "；", "，", " "],
+            chunk_size,
+            chunk_overlap,
+        )
         for pi, piece in enumerate(pieces):
             piece = sanitize_text(piece)
             if len(piece) < 30:
                 continue
             meta = dict(chunk.metadata)
             meta["chunk_index"] = f"{ci}-{pi}"
+            meta["estimated_tokens"] = _estimated_tokens(piece)
+            meta["split_strategy"] = "token_aware"
+            if _DISPLAY_FORMULA_RE.search(piece) and meta["estimated_tokens"] > chunk_size:
+                meta["oversized_formula"] = True
             result.append(TextChunk(piece, meta))
     return result
 
 
-def _recursive_split(text: str, separators: List[str], chunk_size: int, overlap: int) -> List[str]:
-    if len(text) <= chunk_size:
+def _token_aware_split(text: str, separators: List[str], chunk_size: int, overlap: int) -> List[str]:
+    if _estimated_tokens(text) <= chunk_size:
         return [text]
-    sep = next((s for s in separators if s in text), None)
-    if sep is None:
-        step = max(chunk_size - overlap, 1)
-        return [text[i:i + chunk_size] for i in range(0, len(text), step)]
-    parts = text.split(sep)
-    merged, buf = [], ""
-    for p in parts:
-        if not buf or len(buf) + len(p) + len(sep) <= chunk_size:
-            buf = (buf + sep + p) if buf else p
+    units = _split_units(text, separators)
+    if not units:
+        return []
+    pieces: list[str] = []
+    buf: list[str] = []
+    buf_tokens = 0
+    overlap_units: list[str] = []
+    overlap_tokens = 0
+
+    def push_buf() -> None:
+        nonlocal buf, buf_tokens, overlap_units, overlap_tokens
+        body = "".join(buf).strip()
+        if body:
+            pieces.append(body)
+        if overlap > 0:
+            overlap_units = []
+            overlap_tokens = 0
+            for unit in reversed(buf):
+                tokens = _estimated_tokens(unit)
+                if overlap_units and overlap_tokens + tokens > overlap:
+                    break
+                overlap_units.insert(0, unit)
+                overlap_tokens += tokens
+        buf = list(overlap_units)
+        buf_tokens = overlap_tokens
+
+    for unit, protected in units:
+        tokens = _estimated_tokens(unit)
+        if not protected and tokens > chunk_size:
+            if buf:
+                push_buf()
+            pieces.extend(_hard_split_plain(unit, chunk_size, overlap))
+            buf = []
+            buf_tokens = 0
+            overlap_units = []
+            overlap_tokens = 0
+            continue
+        if not buf or buf_tokens + tokens <= chunk_size:
+            buf.append(unit)
+            buf_tokens += tokens
         else:
-            merged.append(buf)
-            buf = p
+            push_buf()
+            buf.append(unit)
+            buf_tokens += tokens
     if buf:
-        merged.append(buf)
-    out: List[str] = []
-    for m in merged:
-        out.extend(_recursive_split(m, separators[1:], chunk_size, overlap))
-    return out
+        body = "".join(buf).strip()
+        if body and (not pieces or body != pieces[-1]):
+            pieces.append(body)
+    return pieces
+
+
+def _hard_split_plain(text: str, chunk_size: int, overlap: int) -> list[str]:
+    step_tokens = max(chunk_size - overlap, 1)
+    pieces: list[str] = []
+    buf = ""
+    buf_tokens = 0
+    idx = 0
+    while idx < len(text):
+        ch = text[idx]
+        ch_tokens = _estimated_tokens_plain(ch)
+        if buf and buf_tokens + ch_tokens > chunk_size:
+            pieces.append(buf.strip())
+            keep = ""
+            keep_tokens = 0
+            for old_ch in reversed(buf):
+                tok = _estimated_tokens_plain(old_ch)
+                if keep and keep_tokens + tok > overlap:
+                    break
+                keep = old_ch + keep
+                keep_tokens += tok
+            buf = keep
+            buf_tokens = keep_tokens
+            if buf_tokens >= step_tokens:
+                buf = ""
+                buf_tokens = 0
+            continue
+        buf += ch
+        buf_tokens += ch_tokens
+        idx += 1
+    if buf.strip():
+        pieces.append(buf.strip())
+    return pieces
 
 
 # ============================================================

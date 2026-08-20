@@ -11,8 +11,10 @@ import hmac
 import json
 import os
 import time
+from typing import Any
 
 import requests
+from PIL import Image
 
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
 
@@ -128,48 +130,187 @@ class ServerOcrClient:
         return content
 
 
-def _corner_points_to_bbox(points):
+def _first_present(data: dict, keys: tuple[str, ...]):
+    for key in keys:
+        if key in data and data.get(key) not in (None, ""):
+            return data.get(key)
+    return None
+
+
+def _point_xy(point: Any) -> tuple[float, float] | None:
+    try:
+        if isinstance(point, dict):
+            x = _first_present(point, ("x", "X", "left", "Left"))
+            y = _first_present(point, ("y", "Y", "top", "Top"))
+            if x is None or y is None:
+                return None
+            return float(x), float(y)
+        if isinstance(point, (list, tuple)) and len(point) >= 2:
+            return float(point[0]), float(point[1])
+    except Exception:
+        return None
+    return None
+
+
+def _rect_to_bbox(rect: Any) -> list[list[float]] | None:
+    if not rect:
+        return None
+    try:
+        if isinstance(rect, dict):
+            x = _first_present(rect, ("x", "X", "left", "Left"))
+            y = _first_present(rect, ("y", "Y", "top", "Top"))
+            w = _first_present(rect, ("w", "W", "width", "Width"))
+            h = _first_present(rect, ("h", "H", "height", "Height"))
+            right = _first_present(rect, ("right", "Right", "x2", "X2"))
+            bottom = _first_present(rect, ("bottom", "Bottom", "y2", "Y2"))
+            if x is not None and y is not None and w is not None and h is not None:
+                left, top = float(x), float(y)
+                right, bottom = left + float(w), top + float(h)
+            elif x is not None and y is not None and right is not None and bottom is not None:
+                left, top = float(x), float(y)
+                right, bottom = float(right), float(bottom)
+            else:
+                return None
+        elif isinstance(rect, (list, tuple)) and len(rect) >= 4:
+            left, top, third, fourth = [float(v) for v in rect[:4]]
+            # 兼容 [x,y,w,h] 与 [x1,y1,x2,y2]；后者通常第三/第四项更大。
+            if third > left and fourth > top:
+                right, bottom = third, fourth
+            else:
+                right, bottom = left + third, top + fourth
+        else:
+            return None
+    except Exception:
+        return None
+    return [[left, top], [right, top], [right, bottom], [left, bottom]]
+
+
+def _points_to_bbox(points: Any) -> list[list[float]] | None:
     if not points:
         return None
-    bbox = []
+    if isinstance(points, dict):
+        for key in ("points", "polygon", "vertices", "cornerPoints"):
+            if points.get(key):
+                return _points_to_bbox(points.get(key))
+        return _rect_to_bbox(points)
+    if not isinstance(points, (list, tuple)):
+        return None
+    parsed = [_point_xy(point) for point in points]
+    parsed = [point for point in parsed if point is not None]
+    if len(parsed) >= 4:
+        return [[float(x), float(y)] for x, y in parsed[:4]]
+    if len(points) >= 4 and all(isinstance(v, (int, float, str)) for v in points[:4]):
+        return _rect_to_bbox(points)
+    return None
+
+
+def _normalize_bbox(raw: Any, image_size: tuple[int, int] | None = None) -> list[list[float]] | None:
+    bbox = _points_to_bbox(raw) or _rect_to_bbox(raw)
+    if not bbox:
+        return None
+    width, height = image_size or (0, 0)
     try:
-        for point in points:
-            bbox.append([float(point["x"]), float(point["y"])])
+        max_x = max(point[0] for point in bbox)
+        max_y = max(point[1] for point in bbox)
+        min_x = min(point[0] for point in bbox)
+        min_y = min(point[1] for point in bbox)
+        is_percent = width > 1 and height > 1 and 0 <= min_x and 0 <= min_y and max_x <= 1.5 and max_y <= 1.5
+        if is_percent:
+            bbox = [[x * width, y * height] for x, y in bbox]
     except Exception:
         return None
-    return bbox if len(bbox) >= 4 else None
+    return [[round(float(x), 2), round(float(y), 2)] for x, y in bbox]
 
 
-def extract_lines(result: dict) -> list[dict]:
-    lines: list[dict] = []
+def _iter_line_nodes(node: Any):
+    if isinstance(node, list):
+        for item in node:
+            yield from _iter_line_nodes(item)
+        return
+    if not isinstance(node, dict):
+        return
+    text_value = _first_present(
+        node,
+        ("value", "text", "content", "words", "label", "transcription", "recognizedText"),
+    )
+    if isinstance(text_value, (str, int, float)) or (
+        isinstance(text_value, list)
+        and all(isinstance(item, (str, int, float)) for item in text_value)
+    ):
+        yield node
+    for key in ("text", "blocks", "textLines", "lines", "words", "items", "regions", "paragraphs", "results", "data"):
+        child = node.get(key)
+        if isinstance(child, (list, dict)):
+            yield from _iter_line_nodes(child)
+
+
+def _line_text(line: dict) -> str:
+    value = _first_present(
+        line,
+        ("value", "text", "content", "words", "label", "transcription", "recognizedText"),
+    )
+    if isinstance(value, list):
+        value = "".join(str(v) for v in value)
+    return str(value or "").strip()
+
+
+def _line_conf(line: dict) -> float:
+    raw = _first_present(line, ("confidence", "conf", "score", "prob", "probability"))
     try:
-        for block in result.get("text") or []:
-            for text_block in block.get("blocks") or []:
-                for line in text_block.get("textLines") or []:
-                    value = str(line.get("value") or "").strip()
-                    if not value:
-                        continue
-                    bbox = (
-                        _corner_points_to_bbox(line.get("cornerPoints"))
-                        or line.get("bbox")
-                        or line.get("box")
-                        or line.get("points")
-                        or line.get("polygon")
-                    )
-                    lines.append(
-                        {
-                            "text": value,
-                            "conf": float(line.get("confidence") or line.get("score") or 1.0),
-                            "bbox": bbox,
-                        }
-                    )
+        conf = float(raw)
     except Exception:
-        return lines
+        return 1.0
+    return conf / 100 if conf > 1.0 else conf
+
+
+def _line_bbox(line: dict, image_size: tuple[int, int] | None = None) -> list[list[float]] | None:
+    raw = _first_present(
+        line,
+        (
+            "cornerPoints",
+            "bbox",
+            "box",
+            "points",
+            "polygon",
+            "poly",
+            "vertices",
+            "rect",
+            "position",
+            "location",
+        ),
+    )
+    if raw is None:
+        raw = line
+    return _normalize_bbox(raw, image_size)
+
+
+def extract_lines(result: dict, image_size: tuple[int, int] | None = None) -> list[dict]:
+    lines: list[dict] = []
+    seen: set[tuple[str, str]] = set()
+    for line in _iter_line_nodes(result):
+        value = _line_text(line)
+        if not value:
+            continue
+        bbox = _line_bbox(line, image_size)
+        key = (value, json.dumps(bbox, ensure_ascii=False) if bbox else "")
+        if key in seen:
+            continue
+        seen.add(key)
+        item = {"text": value, "conf": _line_conf(line)}
+        if bbox:
+            item["bbox"] = bbox
+        lines.append(item)
     return lines
 
 
 def ocr_image(path: str) -> dict:
     with open(path, "rb") as f:
         image_base64 = base64.b64encode(f.read()).decode("utf-8")
+    image_size = None
+    try:
+        with Image.open(path) as img:
+            image_size = img.size
+    except Exception:
+        image_size = None
     result = ServerOcrClient().get_ocr(image_base64)
-    return {"engine": "serverocr", "lines": extract_lines(result)}
+    return {"engine": "serverocr", "lines": extract_lines(result, image_size=image_size)}

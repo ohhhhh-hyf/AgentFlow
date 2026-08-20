@@ -55,20 +55,24 @@ def _prefer_meeting_txt(folder: Path) -> Path | None:
 
 
 def resolve_input_file(
-    ctx: DomainContext, path: Path, suffix: str, label: str
+    ctx: DomainContext, path: Path, suffix: str | tuple[str, ...], label: str
 ) -> Path:
+    allowed = (suffix,) if isinstance(suffix, str) else tuple(suffix)
     resolved = resolve_path(ctx, path)
     if not resolved.exists():
         raise FileNotFoundError(f"{label}路径不存在：{resolved}")
     if resolved.is_file():
-        if resolved.suffix.lower() != suffix:
-            raise ValueError(f"{label}文件必须是 {suffix}：{resolved}")
+        if resolved.suffix.lower() not in allowed:
+            raise ValueError(
+                f"{label}文件必须是 {'/'.join(allowed)}：{resolved}"
+            )
         return resolved
     if resolved.is_dir():
         preferred = _prefer_meeting_txt(resolved)
         if preferred is not None:
             return preferred
-        return pick_single_file(resolved, f"*{suffix}", label)
+        patterns = [f"*{s}" for s in allowed]
+        return pick_single_file(resolved, patterns[0], label)
     raise ValueError(f"{label}路径既不是文件也不是目录：{resolved}")
 
 
@@ -111,7 +115,7 @@ def load_transcript(ctx: DomainContext, file_path: Path) -> str:
     text_file = resolve_input_file(
         ctx,
         resolve_sample_path(ctx, file_path, "file"),
-        ".txt",
+        (".txt", ".md"),
         "输入文本",
     )
     transcript = text_file.read_text(encoding="utf-8").strip()
@@ -125,7 +129,7 @@ def load_trace_sidecars(ctx: DomainContext, file_path: Path) -> dict[str, str]:
     text_file = resolve_input_file(
         ctx,
         resolve_sample_path(ctx, file_path, "file"),
-        ".txt",
+        (".txt", ".md"),
         "输入文本",
     )
     folders = [text_file.parent]
@@ -143,8 +147,12 @@ def load_trace_sidecars(ctx: DomainContext, file_path: Path) -> dict[str, str]:
         return ""
 
     return {
-        "keypoints": _find(("user_keypoints.txt", "keypoints.txt")),
-        "notes": _find(("user_notes.txt", "notes.txt")),
+        "keypoints": _find(
+            ("user_keypoints.txt", "user_keypoints.md", "keypoints.txt", "keypoints.md")
+        ),
+        "notes": _find(
+            ("user_notes.txt", "user_notes.md", "notes.txt", "notes.md")
+        ),
     }
 
 

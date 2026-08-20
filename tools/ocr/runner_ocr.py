@@ -72,10 +72,24 @@ def _ocr_text_rapid(path: str) -> dict:
 
 
 def _ocr_text_server(path: str) -> dict:
-    """调用服务器上的本地 OCR 接口；当前只返回文本行，无 bbox。"""
+    """调用服务器 OCR；失败或空结果时降级 RapidOCR。"""
     from tools.ocr.server_ocr import ocr_image
 
-    return ocr_image(path)
+    try:
+        payload = ocr_image(path)
+        if payload.get("lines"):
+            return payload
+        fallback = _ocr_text_rapid(path)
+        fallback["engine"] = "rapidocr"
+        fallback["fallback_from"] = "serverocr"
+        fallback["fallback_reason"] = "serverocr 返回空结果"
+        return fallback
+    except Exception as server_exc:  # noqa: BLE001
+        fallback = _ocr_text_rapid(path)
+        fallback["engine"] = "rapidocr"
+        fallback["fallback_from"] = "serverocr"
+        fallback["fallback_reason"] = str(server_exc)
+        return fallback
 
 
 def _ocr_text(path: str) -> dict:
