@@ -346,20 +346,66 @@ chat/
 └── cli.py       # python chat/cli.py --user 1 --subject math
 ```
 
-**检索门控（chat/gate.py）**——"不是检索到了就展示，而是确实需要才检索"：
+### 10.0 检索门控（chat/gate.py）——"不是检索到了就展示，而是确实需要才检索"：
 - 规则短路（零成本）：寒暄短句（"你好"）、自我表露（"我喜欢先给结论再说"）→ 直接不检索
 - LLM 门控：`GateDecision{need_memory, need_knowledge, reason, confidence}` **分开判断**，
   只检索需要的源（问会议只搜记忆、问知识点只搜知识库），省一半检索
 - 保守兜底：门控失败 / 低置信 → 默认两者都检索（宁可多搜，不漏检）
 
-**用户画像（chat/profile.py）**：
-- 每次问答后从对话提取 姓名 / 职业 / 偏好（LLM structured，traits 固定三键：做事风格 / 沟通偏好 / 性格），
-  合并落盘 `data/{uid}/profile/{uid}.json`（同值去重、变更留痕）
-- 职业文本 → 匹配公共职业模板（`perspective/profiles/role/`），命中写 `base_template`；
-  读取时 `resolve_user_profile` 把模板字段合并（模板做基底、用户字段覆盖）
-- **跨会话生效**：新开/回到会话即读画像，注入【用户画像】区（只内部使用，不主动说"我记得你"）
+### 10.1 用户画像设计（chat/profile.py）
 
-**出处机制**：
+**动机**：chat 需要跨会话知道"用户是谁、是什么样的人"（姓名/职业/偏好），
+且职业信息应能复用公共职业模板，而不是每个用户复制一份。
+
+**数据模型**（`data/{uid}/profile/{uid}.json`，位置即身份——放在用户目录下天然是"用户本人"，无需类型标签）：
+
+```json
+{
+  "user_id": "1",
+  "name": "侯业飞",
+  "role": "开发人员",
+  "base_template": "developer",      // 可选：命中的公共职业模板（perspective/profiles/role/）
+  "traits": {"做事风格": "先看结论"},  // 偏好/性格，固定三键
+  "facts": [                          // 事实留痕：field+value 去重，值变更追加历史
+    {"field": "role", "value": "开发人员", "updated_at": "..."}
+  ],
+  "updated_at": "..."
+}
+```
+
+**提取链路**（每轮问答后，失败静默不阻断聊天）：
+```
+对话（最近 6 条用户消息）
+  → client.structured（ChatProfileUpdate 契约：name / role / traits）
+  → 校验白名单：traits 键只允许 做事风格 / 沟通偏好 / 性格（LLM 输出其它键丢弃）
+  → merge_profile 合并：
+      name / role 非空则覆盖；traits 键值合并；
+      facts 按 field+value 全表去重（同值刷新时间、不同值追加记录变更史）
+  → 落盘 data/{uid}/profile/{uid}.json
+```
+
+**职业模板两层关联**（模板存指针，不复制内容）：
+| 环节 | 函数 | 行为 |
+|---|---|---|
+| 写入 | `match_role_template(role)` | 提取到"开发人员"→ 遍历 `perspective/profiles/role/*_profile.json`，按模板 `name`/`role`/文件名**包含匹配** → 命中写 `base_template: "developer"` |
+| 读取 | `resolve_user_profile(uid)` | `base_template` 存在 → 加载 `developer_profile.json` 做基底，**用户字段覆盖模板**（一份模板可被任意多用户引用，改模板一次全体生效） |
+
+**消费路径**：
+- 新开/回到会话：`ChatSession.__init__` 先 `ensure_profile`（建文件 + user_id 字段），`ask()` 前注入【用户画像】区（name/role/traits）
+- 画像只**内部使用**（影响回答风格），不主动说"我记得你"（除非用户询问）
+- 未来任务线（会议纪要等）可复用 `resolve_user_profile` 加载职业化画像
+
+**与会话级 facts 的分工**：
+| 维度 | facts.json（会话级） | profile.json（用户级） |
+|---|---|---|
+| 提取 | 规则正则（"我是…"） | LLM structured（契约 + 白名单） |
+| 作用域 | 当前 session | 跨 session 全局 |
+| 内容 | 姓名/角色（轻量） | 姓名/角色/偏好/模板关联（完整画像） |
+
+**边界与演进**：`facts` 带时间戳可追溯"用户信息何时变更"；`traits` 固定键保证存储稳定；
+后续可扩充字段（如用户显式声明的 override 区，AI 推断不覆盖）。
+
+### 10.2 出处机制
 - 展示格式：`[文件名]`（知识库）、`{标题} · 第N场（{YYYY-MM-DD} 记录）`（会议记忆），每条一行
 - 匹配以**序号回指**为主（回答里的 `[1][2]` → 对应资料块）、文件名/标题原文兜底——
   不依赖 LLM 复述文件名（英文文件名 / 简称场景下可靠，历史问题根因即此）
