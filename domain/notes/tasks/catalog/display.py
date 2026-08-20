@@ -327,7 +327,7 @@ def _html_tree(draft: dict[str, Any]) -> list[str]:
 def attach_catalog_artifacts(state: dict[str, Any]) -> None:
     from tools.domain_engine_text import line
 
-    from .gather import resolve_collection, subject_from_context, user_id_from_context
+    from .gather import subject_from_context, user_id_from_context
     from .store import save_catalog
 
     sub = line(state, "catalog")
@@ -335,11 +335,11 @@ def attach_catalog_artifacts(state: dict[str, Any]) -> None:
     extra = str((state.get("line_extra") or {}).get("catalog") or "")
     transcript = str(state.get("transcript") or "")
     context = f"{transcript}\n{extra}"
-    collection = resolve_collection(
+    saved = save_catalog(
         user_id=user_id_from_context(context),
         subject=subject_from_context(context),
+        draft=draft,
     )
-    saved = save_catalog(collection, draft)
     shown = display_catalog_path(saved)
     draft["catalog_html"] = build_catalog_html(draft, saved_path=shown)
     sub["rendered"] = build_catalog_markdown(draft, saved_path=shown)

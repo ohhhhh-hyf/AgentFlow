@@ -16,7 +16,7 @@ class ChecklistAgent:
         self.client = client
 
     async def run(self, shared_context: str) -> Checklist:
-        catalog, activated, teacher, _collection = load_session(shared_context)
+        catalog, activated, teacher = load_session(shared_context)
         empty = {
             "course": "",
             "catalog_version": "",

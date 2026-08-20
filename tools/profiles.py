@@ -1,4 +1,8 @@
-"""会议/笔记画像分类：客观全员、真人、职业模板。"""
+"""会议/笔记画像分类：客观全员、真人、职业模板。
+
+职业模板（``*_profile.json``）已抽到跨域公共目录 ``perspective/profiles/role/``，
+域名下仍可保留自己的客观/真人画像（``samples/{domain}/profile/``）。
+"""
 from __future__ import annotations
 
 import json
@@ -6,6 +10,11 @@ import re
 from dataclasses import fields
 from pathlib import Path
 from typing import Any
+
+# 跨域公共画像目录：根目录放客观画像，role/ 子目录放职业模板
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
+SHARED_PROFILE_DIR = PROJECT_ROOT / "perspective" / "profiles"
+SHARED_ROLE_DIR = SHARED_PROFILE_DIR / "role"
 
 KIND_OBJECTIVE = "objective"
 KIND_PERSON = "person"
@@ -16,6 +25,16 @@ KIND_LABEL = {
     KIND_PERSON: "真人",
     KIND_ROLE: "职业",
 }
+
+
+def _role_template_candidates(profile_dir: Path, key: str) -> list[Path]:
+    """职业模板候选：先同目录（domain 自带的模板优先），再公共 role 子目录。"""
+    return [
+        profile_dir / f"{key}_profile.json",
+        profile_dir / f"{key}.json",
+        SHARED_ROLE_DIR / f"{key}_profile.json",
+        SHARED_ROLE_DIR / f"{key}.json",
+    ]
 
 
 def classify_profile(data: dict[str, Any] | None) -> str:
@@ -44,12 +63,12 @@ def resolve_role_template(data: dict[str, Any], profile_dir: Path) -> dict[str, 
         raise ValueError(
             f"role_template 只能由字母/数字/下划线/连字符组成：{key!r}"
         )
-    candidates = [profile_dir / f"{key}_profile.json", profile_dir / f"{key}.json"]
-    path = next((p for p in candidates if p.is_file()), None)
+    path = next((p for p in _role_template_candidates(profile_dir, key) if p.is_file()), None)
     if path is None:
         raise ValueError(
             f"role_template 指向的画像不存在：{key}"
-            f"（在 {profile_dir} 下查找 {key}_profile.json 或 {key}.json）"
+            f"（在 {profile_dir} 或公共目录 {SHARED_ROLE_DIR} 下查找"
+            f" {key}_profile.json 或 {key}.json）"
         )
     template = json.loads(path.read_text(encoding="utf-8"))
     if not isinstance(template, dict):
@@ -109,6 +128,25 @@ def list_profile_entries(profile_dir: Path) -> list[dict[str, Any]]:
     return entries
 
 
+def list_profile_entries_multi(dirs: list[Path]) -> list[dict[str, Any]]:
+    """多目录合并扫描：前面的目录优先，同名文件（domain 自带覆盖公共）去重。
+
+    例：``[samples/meeting/profile（若存在）, perspective/profiles]``
+    ——域名下的客观/真人画像在前，公共职业模板在后。
+    """
+    seen: set[str] = set()
+    merged: list[dict[str, Any]] = []
+    for profile_dir in dirs:
+        for entry in list_profile_entries(profile_dir):
+            if entry["filename"] in seen:
+                continue
+            seen.add(entry["filename"])
+            merged.append(entry)
+    order = {KIND_OBJECTIVE: 0, KIND_PERSON: 1, KIND_ROLE: 2}
+    merged.sort(key=lambda item: (order.get(item["kind"], 9), item["label"]))
+    return merged
+
+
 def profile_choices(profile_dir: Path) -> list[str]:
     return [item["label"] for item in list_profile_entries(profile_dir)]
 
@@ -142,10 +180,13 @@ __all__ = [
     "KIND_OBJECTIVE",
     "KIND_PERSON",
     "KIND_ROLE",
+    "SHARED_PROFILE_DIR",
+    "SHARED_ROLE_DIR",
     "classify_profile",
     "default_profile_label",
     "filter_identity_fields",
     "list_profile_entries",
+    "list_profile_entries_multi",
     "profile_choice_label",
     "profile_choices",
     "resolve_profile_entry",

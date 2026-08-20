@@ -62,21 +62,57 @@ def _source_marks(source: str) -> list[str]:
         stem = part.rsplit(".", 1)[0]
         if stem and stem not in marks:
             marks.append(stem)
-    # 标题片段（会议记忆 · 日期时间 · 标题 的最后一个 · 段，4+ 字，且非纯日期）
-    segments = [s.strip() for s in source.split("·")]
+    # 标题片段（会议记忆格式：{标题} · 第N场（{日期} 记录），取第一个 · 段）
+    segments = [s.strip().strip("[]") for s in source.split("·")]
     if len(segments) >= 2:
-        title = segments[-1]
+        title = segments[0]
         if len(title) >= 4 and not re.fullmatch(r"[\d\s:\-]+", title):
             if title not in marks:
                 marks.append(title)
     return marks
 
 
-def referenced_sources(sources: list[str], answer: str) -> list[str]:
-    """只保留「回答中实际引用了」的来源（避免检索命中但未使用的噪声出处）。"""
-    if not sources or not answer:
+def _strip_citation_markers(text: str) -> str:
+    """去掉回答正文里的引用序号标注（[1]、据[1]、[1][2]）与 Markdown 强调符号。
+
+    引用序号是**纯数字**（如 [1]、[2]），与数学闭区间（[0,1]、[-1,1] 含逗号）
+    可精确区分，不会误删。匹配逻辑仍用带序号的原文（referenced_sources），
+    这里只做展示层清洗。
+
+    Markdown：``**x**`` → ``x``、`` `x` `` → ``x``、行首 ``#`` 标题符号去掉；
+    单个 ``*``（数学乘号 a*b）与 ``**`` 不成对出现（如 2**3）不受影响。
+    """
+    text = re.sub(r"据\s*\[\d+\]", "", text or "")       # 据[1] / 据 [1]
+    text = re.sub(r"\[\d+\]", "", text)                   # 残留 [1] [2]（含 [1][2] 连写）
+    text = re.sub(r"（\s*）|\(\s*\)", "", text)           # 清掉被删后遗留的空括号
+    text = re.sub(r"\*\*(.+?)\*\*", r"\1", text)          # **粗体** → 粗体
+    text = re.sub(r"`([^`]+)`", r"\1", text)               # `代码` → 代码
+    text = re.sub(r"(?m)^[ \t]*#{1,6}[ \t]*", "", text)   # 行首 # 标题符号
+    return text.strip()
+
+
+def referenced_sources(docs: list[dict], answer: str) -> list[str]:
+    """只保留「回答中实际引用了」的来源（避免检索命中但未使用的噪声出处）。
+
+    匹配分两路，任一命中即亮：
+    1. 序号回指：回答里出现 ``[i]``（对应【检索到的资料】的第 i 条）→ 直接亮该条
+       （资料块格式 ``[1]（资料 · 文件名）…``，prompt 要求按「据[1]」标注）
+    2. 原文兜底：回答复述了文件名 / 标题原文 → 亮（_source_marks 提取的标记）
+    """
+    if not docs or not answer:
         return []
-    return [s for s in sources if any(m and m in answer for m in _source_marks(s))]
+    used: list[str] = []
+    for m in re.finditer(r"\[(\d+)\]", answer):
+        idx = int(m.group(1))
+        if 1 <= idx <= len(docs):
+            src = str((docs[idx - 1].get("source") or "")).strip()
+            if src and src not in used:
+                used.append(src)
+    all_sources = [str(d.get("source") or "") for d in docs if d.get("source")]
+    for s in all_sources:
+        if s not in used and any(m and m in answer for m in _source_marks(s)):
+            used.append(s)
+    return used
 
 
 class ChatSession:
@@ -115,6 +151,14 @@ class ChatSession:
         self._history = load_history(self._history_path)
         self._facts = load_facts(self._facts_path)
 
+        # 用户画像档案：保证 data/{uid}/profile/{uid}.json 存在（含 user_id）
+        try:
+            from .profile import ensure_profile
+
+            ensure_profile(PROJECT_ROOT, user_id)
+        except Exception:  # noqa: BLE001 - 画像落盘失败不阻断会话
+            logger.warning("用户画像初始化失败", exc_info=True)
+
     @property
     def history(self) -> list[dict[str, str]]:
         return list(self._history)
@@ -142,14 +186,47 @@ class ChatSession:
             self._facts = new_facts
             save_facts(self._facts_path, new_facts)
 
-        docs = gather(question, self.user_id, self.subject, top_k=self.top_k)
+        # 检索门控：规则短路（寒暄零成本）→ LLM 门控 → 按需检索（省成本、不主动翻旧账）
+        from .gate import decide
+
+        gate = await decide(question, self.client, self._history)
+        docs: list[dict[str, Any]] = []
+        if gate.need_knowledge or gate.need_memory:
+            docs = gather(
+                question,
+                self.user_id,
+                self.subject,
+                top_k=self.top_k,
+                need_knowledge=gate.need_knowledge,
+                need_memory=gate.need_memory,
+            )
         context = build_context(docs)
 
-        # 历史 + 已知用户信息 → user 消息（client.text 仅 system+user 两段）
+        # 历史 + 已知用户信息 + 用户画像 → user 消息（client.text 仅 system+user 两段）
         head = ""
         if self._facts:
             bits = [f"{k}={v}" for k, v in sorted(self._facts.items())]
             head += f"【已知用户信息】{ '；'.join(bits) }\n\n"
+        try:
+            from .profile import resolve_user_profile
+
+            profile = resolve_user_profile(PROJECT_ROOT, self.user_id)
+            if profile:
+                bits: list[str] = []
+                for key in ("name", "role"):
+                    value = str(profile.get(key) or "").strip()
+                    if value:
+                        bits.append(f"{key}={value}")
+                traits = profile.get("traits")
+                if isinstance(traits, dict):
+                    for key, value in traits.items():
+                        value = str(value or "").strip()
+                        if value:
+                            bits.append(f"{key}={value}")
+                if bits:
+                    head += "【用户画像】" + "；".join(bits) + "\n\n"
+        except Exception:  # noqa: BLE001 - 画像读取失败不阻断提问
+            logger.warning("读取用户画像失败", exc_info=True)
         if self._history:
             turns = [
                 f"{'用户' if m['role'] == 'user' else '助手'}：{m['content']}"
@@ -169,14 +246,26 @@ class ChatSession:
         )
         answer = (answer or "").strip()
 
-        self._push("user", question)
-        self._push("assistant", answer)
-
         # 只展示回答实际引用了的来源（避免自我介绍等场景显示检索噪声出处）
-        all_sources = [str(d.get("source") or "") for d in docs if d.get("source")]
-        used_sources = referenced_sources(all_sources, answer)
+        used_sources = referenced_sources(docs, answer)
+        # 展示层：去掉正文里的引用序号（匹配已用带序号的 answer 完成）
+        display_answer = _strip_citation_markers(answer)
+
+        self._push("user", question)
+        self._push("assistant", display_answer)
+
+        # 用户画像：每轮问答后从对话提取姓名/角色/偏好，更新 data/{uid}/profile/{uid}.json
+        try:
+            from .profile import update_profile_from_chat
+
+            await update_profile_from_chat(
+                PROJECT_ROOT, self.user_id, self.client, self._history
+            )
+        except Exception:  # noqa: BLE001 - 画像更新失败不阻断回答
+            logger.warning("用户画像更新失败", exc_info=True)
+
         return {
-            "answer": answer,
+            "answer": display_answer,
             "sources": used_sources,
             "retrieved": bool(docs),
         }

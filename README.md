@@ -30,8 +30,8 @@ domain/
       ...                     # 新增任务线同构
       {line}/steps/           # agent / supervisor / render 三步骤实现
   notes/                      # 笔记域：知识图谱 / 笔记审查 / 自测题 / 资料入库 / 知识目录 / 复习清单
-samples/                      # 样例输入：samples/{domain}/{file|profile|task_template}
-perspective/                  # 跨 domain 公共视角建模
+samples/                      # 样例输入：samples/{domain}/{file|task_template}
+perspective/                  # 跨 domain 公共视角建模 + profiles/（客观画像 + role/ 职业模板）
 llm_client/                   # LLM 客户端（HTTP / WebSocket）+ 配置（.env）
 supervisor/                   # 全局监督标准（prompt 注入，不单独调 LLM）
 schema_repair/                # 结构化输出修复（LLM 输出非法时）
@@ -175,7 +175,9 @@ python -m playwright install chromium
 | 目录 | 用途 |
 |---|---|
 | `samples/{domain}/file/` | 输入文本 `.txt` |
-| `samples/{domain}/profile/` | 用户画像 `.json` |
+| `perspective/profiles/` | 跨域公共客观画像 `.json` |
+| `perspective/profiles/role/` | 跨域公共职业模板 `.json` |
+| `samples/{domain}/profile/` | 域名下专属画像（如 notes 的客观/真人）`.json`（可选） |
 | `samples/{domain}/{task}_template/` | 任务模板 `.md` / `.txt` |
 | `output/{domain}/{task}/` | 运行结果归档 |
 
@@ -226,7 +228,7 @@ CLI 参数：
 | `--domain` | 否 | `meeting` | 选择领域。会议域用 `meeting`，笔记域用 `notes`。 | `--domain notes` |
 | `--task` | 是 | 无 | 要运行的任务线，可重复传多个。 | `--task minutes_generation --task action_items` |
 | `--file` | 否 | `samples/{domain}/file` | 输入文件或目录，可重复。`library` 一次收多份；其它任务只用第一份。 | `--file student_math_notes.txt` |
-| `--profile` | 否 | `object_profile.json` | 用户画像 `.json`。默认客观全员；个人视角用 `personal_profile.json`。 | `--profile personal_profile.json` |
+| `--profile` | 否 | `object_profile.json` | 用户画像 `.json`。默认客观全员（`perspective/profiles/`）；职业模板用 `developer_profile.json` 等；个人视角用 `personal_profile.json`。 | `--profile developer_profile.json` |
 | `--env` | 否 | `./.env` | 环境变量文件路径。 | `--env ./.env` |
 | `--{线名}_template` | 否 | 无 | 指定某条任务线的渲染模板。 | `--minutes_generation_template ./template.md` |
 | `--difficulty` / `--qtype` | 否 | 无 | 自测题搜高中真题用：难度、题型。年级和课本版本由笔记对齐知识点后反推。 | `--qtype 单选题` |
@@ -236,7 +238,7 @@ CLI 参数：
 | 目录 | 对应参数 | 当前样例 |
 |---|---|---|
 | `samples/meeting/file/` | `--domain meeting --file` | `meeting_all.txt` |
-| `samples/meeting/profile/` | `--domain meeting --profile` | `object_profile.json` |
+| `perspective/profiles/role/` | `--profile`（跨域公共职业模板） | 6 个职业模板 |
 | `samples/meeting/minutes_generation_template/` | `--minutes_generation_template` | `simple_minutes.md` / `project_progress.md` / `test.md` |
 | `samples/meeting/action_items_template/` | `--action_items_template` | `action_items.md` |
 | `samples/meeting/risk_template/` | `--risk_template` | 可放置 `.md` 模板 |
@@ -252,8 +254,8 @@ CLI 参数：
 | 不传 `--file` | 自动读取 `samples/{domain}/file/`，目录内必须只有一个 `.txt` |
 | `--file student_math_notes.txt` | 自动解析为 `samples/{domain}/file/student_math_notes.txt` |
 | `--file ./some/path/input.txt` | 使用项目根目录下的显式路径 |
-| 不传 `--profile` | 自动读取 `samples/{domain}/profile/`，目录内必须只有一个 `.json` |
-| `--profile object_profile.json` | 自动解析为 `samples/{domain}/profile/object_profile.json` |
+| 不传 `--profile` | 优先 `samples/{domain}/profile/object_profile.json`，无则用 `perspective/profiles/object_profile.json` |
+| `--profile developer_profile.json` | 自动解析：域名目录无则查 `perspective/profiles/role/`（职业模板公共目录） |
 | 不传 `--xx_template` | 自动查看 `samples/{domain}/xx_template/`；目录为空则不用模板，只有一个模板则自动使用 |
 | `--xx_template simple.md` | 自动解析为 `samples/{domain}/xx_template/simple.md` |
 

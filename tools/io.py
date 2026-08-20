@@ -178,6 +178,20 @@ def load_user(ctx: DomainContext, profile_path: Path):
     if not resolved.exists():
         # 兼容：未传具体文件时走 samples/{domain}/profile
         resolved = resolve_path(ctx, profile_path)
+    if not resolved.exists():
+        # 客观画像在公共目录根，职业模板在公共 role/ 子目录
+        from tools.profiles import SHARED_PROFILE_DIR, SHARED_ROLE_DIR
+
+        shared = next(
+            (
+                d / profile_path.name
+                for d in (SHARED_PROFILE_DIR, SHARED_ROLE_DIR)
+                if (d / profile_path.name).exists()
+            ),
+            None,
+        )
+        if shared is not None:
+            resolved = shared
     if resolved.is_dir():
         profile_file = pick_profile_file(resolved)
     else:

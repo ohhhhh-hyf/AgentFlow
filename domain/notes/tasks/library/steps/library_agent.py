@@ -4,7 +4,6 @@ import re
 from pathlib import Path
 
 from llm_client import LLMClient
-from tools.knowledge.tool import collection_for
 
 from ....models import Library
 from ..report import expand_inputs, ingest_library, kb_from_env, source_paths_from_context

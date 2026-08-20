@@ -595,7 +595,7 @@ def attach_quiz_library(
     from tools.knowledge.cite import cite_text, library_has_docs, open_knowledge
 
     if kb is None:
-        kb = open_knowledge()
+        kb = open_knowledge(user_id=user_id)
     if not library_has_docs(kb):
         return draft
     questions = [dict(item) for item in (draft.get("questions") or []) if isinstance(item, dict)]

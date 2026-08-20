@@ -35,9 +35,10 @@ from tools.template_router import (  # noqa: E402
     template_to_preview,
 )
 from tools.profiles import (  # noqa: E402
-    default_profile_label,
-    profile_choices,
-    resolve_profile_entry,
+    KIND_OBJECTIVE,
+    SHARED_PROFILE_DIR,
+    SHARED_ROLE_DIR,
+    list_profile_entries_multi,
 )
 from web.quiz_filters import (  # noqa: E402
     NONE as QUIZ_NONE,
@@ -123,6 +124,19 @@ def _profile_dir(domain: str) -> Path:
     return PROJECT_ROOT / "samples" / domain / "profile"
 
 
+def _profile_dirs(domain: str) -> list[Path]:
+    """该 domain 可见的画像目录：域名下优先（客观/真人），公共客观画像与职业模板在后。"""
+    dirs: list[Path] = []
+    domain_dir = _profile_dir(domain)
+    if domain_dir.is_dir():
+        dirs.append(domain_dir)
+    if SHARED_PROFILE_DIR.is_dir():
+        dirs.append(SHARED_PROFILE_DIR)
+    if SHARED_ROLE_DIR.is_dir():
+        dirs.append(SHARED_ROLE_DIR)
+    return dirs
+
+
 def _profile_sample_path(domain: str, mode: str) -> Path:
     name = (
         "object_profile.json"
@@ -133,21 +147,36 @@ def _profile_sample_path(domain: str, mode: str) -> Path:
 
 
 def _profile_dropdown_choices(domain: str) -> list[str]:
-    return profile_choices(_profile_dir(domain))
+    return [item["label"] for item in list_profile_entries_multi(_profile_dirs(domain))]
 
 
 def _profile_dropdown_default(domain: str) -> str:
-    return default_profile_label(_profile_dir(domain))
+    entries = list_profile_entries_multi(_profile_dirs(domain))
+    for item in entries:
+        if item["kind"] == KIND_OBJECTIVE:
+            return item["label"]
+    return entries[0]["label"] if entries else "客观 · 客观全员"
 
 
 def _load_profile_json_text(domain: str, mode: str = PERSPECTIVE_OBJECTIVE, label: str = "") -> str:
+    entries = list_profile_entries_multi(_profile_dirs(domain))
     if label:
-        entry = resolve_profile_entry(_profile_dir(domain), label)
+        for item in entries:
+            if item["label"] == label:
+                return json.dumps(item["data"], ensure_ascii=False, indent=2)
+        entry = next(
+            (item for item in entries if item["kind"] == KIND_OBJECTIVE), None
+        )
         if entry is not None:
             return json.dumps(entry["data"], ensure_ascii=False, indent=2)
     path = _profile_sample_path(domain, mode)
     if path.exists():
         return path.read_text(encoding="utf-8")
+    # 客观画像已抽到跨域公共目录：domain 目录没有时回退
+    if mode == PERSPECTIVE_OBJECTIVE:
+        shared = SHARED_PROFILE_DIR / "object_profile.json"
+        if shared.exists():
+            return shared.read_text(encoding="utf-8")
     # 兜底骨架
     if mode == PERSPECTIVE_OBJECTIVE:
         data = {

@@ -1,6 +1,14 @@
-"""按知识库集合持久化知识目录，供下次增量更新。"""
+"""按知识库集合持久化知识目录，供下次增量更新。
+
+命名规则（v2）：
+- 目录按 user 顶层隔离：``data/{user_id}/knowledge/catalogs/``
+- 文件名 = ``{学科安全名}_{md5(学科)[:8]}.json``：ASCII 可读部分 + 指纹，
+  中文学科/特殊字符不再被抹平成同一下划线而互相覆盖（旧 ``user_id__subject`` 方案）。
+- 无 user 时回退旧统一目录 ``data/knowledge/catalogs/``（兼容）。
+"""
 from __future__ import annotations
 
+import hashlib
 import json
 import logging
 import re
@@ -14,31 +22,35 @@ logger = logging.getLogger(__name__)
 CATALOG_DIR = PROJECT_ROOT / "data" / "knowledge" / "catalogs"  # 兼容旧路径（无 user 场景）
 
 
-def _safe_name(collection: str) -> str:
-    name = re.sub(r"[^a-zA-Z0-9._-]+", "_", (collection or "default").strip()) or "default"
-    return name[:120]
+def _subject_filename(subject: str) -> str:
+    """学科 → 安全文件名主体：ASCII 可读部分 + md5 指纹（防中文/特殊字符撞名）。
 
-
-def _catalog_dir_for(collection: str) -> Path:
-    """catalog 目录按 user 顶层隔离：``data/{user_id}/knowledge/catalogs``。
-
-    collection 形如 ``{user_id}__{subject}``（resolve_collection 产出）；
-    无 user 段时回退旧统一目录（兼容）。
+    例：``数学`` → ``subject_<md5前8位>``；``math`` → ``math_<md5前8位>``。
+    指纹由原始学科字符串算出，不同学科（含同形不同码）必然不同文件名。
     """
-    head = (collection or "").split("__", 1)[0]
-    if not head or head == "default":
+    ascii_part = re.sub(r"[^a-zA-Z0-9._-]+", "_", (subject or "").strip())
+    ascii_part = ascii_part.strip("._") or "subject"
+    ascii_part = ascii_part[:60]
+    digest = hashlib.md5((subject or "").encode("utf-8")).hexdigest()[:8]
+    return f"{ascii_part}_{digest}"
+
+
+def catalog_dir_for(user_id: str = "") -> Path:
+    """catalog 目录按 user 顶层隔离：``data/{user_id}/knowledge/catalogs``。"""
+    uid = (user_id or "").strip()
+    if not uid:
         return CATALOG_DIR
     from tools.memory.store import safe_id
 
-    return PROJECT_ROOT / "data" / safe_id(head) / "knowledge" / "catalogs"
+    return PROJECT_ROOT / "data" / safe_id(uid) / "knowledge" / "catalogs"
 
 
-def catalog_path(collection: str) -> Path:
-    return _catalog_dir_for(collection) / f"{_safe_name(collection)}.json"
+def catalog_path(user_id: str = "", subject: str = "") -> Path:
+    return catalog_dir_for(user_id) / f"{_subject_filename(subject)}.json"
 
 
-def load_catalog(collection: str) -> dict[str, Any] | None:
-    path = catalog_path(collection)
+def load_catalog(user_id: str = "", subject: str = "") -> dict[str, Any] | None:
+    path = catalog_path(user_id, subject)
     if not path.exists():
         return None
     try:
@@ -50,15 +62,15 @@ def load_catalog(collection: str) -> dict[str, Any] | None:
     return data
 
 
-def save_catalog(collection: str, draft: dict[str, Any]) -> Path:
-    path = catalog_path(collection)
+def save_catalog(user_id: str, subject: str, draft: dict[str, Any]) -> Path:
+    path = catalog_path(user_id, subject)
     path.parent.mkdir(parents=True, exist_ok=True)
     chapters = draft.get("chapters") or []
     if not chapters:
         if path.exists():
             logger.warning("拒绝用空目录覆盖已有文件：%s", path)
             return path
-        logger.warning("目录草稿没有章节，跳过写入：%s", collection)
+        logger.warning("目录草稿没有章节，跳过写入：%s", path)
         return path
     payload = {
         "course": draft.get("course") or "",

@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from domain.notes.tasks.catalog.gather import resolve_collection, subject_from_context, user_id_from_context
+from domain.notes.tasks.catalog.gather import subject_from_context, user_id_from_context
 from domain.notes.tasks.catalog.store import load_catalog
 
 from .select import activate_points
@@ -33,14 +33,13 @@ def teacher_from_context(text: str) -> str:
     return "\n".join(lines).strip()
 
 
-def load_session(shared_context: str) -> tuple[dict[str, Any] | None, list[dict[str, Any]], str, str]:
+def load_session(shared_context: str) -> tuple[dict[str, Any] | None, list[dict[str, Any]], str]:
     user_id = user_id_from_context(shared_context)
     subject = subject_from_context(shared_context)
-    collection = resolve_collection(user_id=user_id, subject=subject)
-    catalog = load_catalog(collection)
+    catalog = load_catalog(user_id=user_id, subject=subject)
     teacher = teacher_from_context(shared_context)
     activated = activate_points(catalog, teacher) if catalog else []
-    return catalog, activated, teacher, collection
+    return catalog, activated, teacher
 
 
 def build_checklist_briefing(

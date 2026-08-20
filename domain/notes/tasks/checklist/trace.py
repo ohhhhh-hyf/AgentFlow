@@ -6,7 +6,7 @@ from typing import Any
 from tools.knowledge.cite import _overlap_score, open_knowledge
 from tools.knowledge.source_role import ROLE_MATERIAL, ROLE_NOTES, ROLE_TEACHER, classify_source_role
 
-from domain.notes.tasks.catalog.gather import resolve_collection, subject_from_context, user_id_from_context
+from domain.notes.tasks.catalog.gather import subject_from_context, user_id_from_context
 
 from .gather import teacher_from_context
 from .select import _as_list, _clean, _compact, _hit_in, _sentences
@@ -368,7 +368,7 @@ def _status(
 
 
 def _load_chunks(user_id: str = "", subject: str = "") -> list[dict[str, Any]]:
-    kb = open_knowledge()
+    kb = open_knowledge(user_id=user_id)
     if kb is None:
         return []
     try:

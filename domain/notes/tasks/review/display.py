@@ -435,7 +435,7 @@ def attach_library_hits(
     from tools.knowledge.cite import cite_text, library_has_docs, open_knowledge
 
     if kb is None:
-        kb = open_knowledge()
+        kb = open_knowledge(user_id=user_id)
     if not library_has_docs(kb):
         return draft
     issues = [dict(item) for item in _as_list(draft.get("issues"))]

@@ -105,7 +105,7 @@ class TestCatalogAgentStub:
             "updated_knowledge_points": [], "merged_nodes": [],
             "unmatched_content": [], "uncertain_nodes": [],
         }
-        save_catalog("stub_user__incr_b", existing)
+        save_catalog(user_id="stub_user", subject="incr_b", draft=existing)
 
         # LLM 返回增量 draft：旧章占位 + 新章
         draft = Catalog.validate({

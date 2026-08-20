@@ -73,7 +73,12 @@ def build_parser(ctx: DomainContext) -> argparse.ArgumentParser:
     )
     _default_profile = env_path(ctx, "PROFILE", None)
     if _default_profile is None:
+        from tools.profiles import SHARED_PROFILE_DIR
+
         _objective = ctx.cli_samples_dir / "profile" / "object_profile.json"
+        if not _objective.exists():
+            # 客观画像已抽到跨域公共目录（perspective/profiles）
+            _objective = SHARED_PROFILE_DIR / "object_profile.json"
         _default_profile = (
             _objective if _objective.exists() else ctx.default_profile_dir
         )

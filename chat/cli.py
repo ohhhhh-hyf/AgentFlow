@@ -20,7 +20,7 @@ if str(ROOT) not in sys.path:
 
 from llm_client.config import load_env  # noqa: E402
 
-from .chat import ChatSession  # noqa: E402
+from chat.chat import ChatSession  # noqa: E402
 
 
 def _parse_args() -> argparse.Namespace:
@@ -39,11 +39,11 @@ async def _amain(args: argparse.Namespace) -> int:
         args.user, args.subject, session_id=args.session or None,
         history_limit=args.history,
     )
-    scope = f"用户 {args.user}" + (f" · 学科 {args.subject}" if args.subject else "")
+    ident = f"[user_id: {args.user} session_id: {session.session_id}]"
     if args.session:
-        print(f"已回到之前会话，可继续使用 🤪")
+        print(f"{ident} 已回到上次会话，继续提问吧！")
     else:
-        print(f"知识问答已就绪（{scope}）会话 {session.session_id}。输入问题开始，exit 退出。")
+        print(f"{ident} 问答助手已启动，开始提问吧！")
     print("-" * 60)
     while True:
         try:
@@ -67,7 +67,9 @@ async def _amain(args: argparse.Namespace) -> int:
             for s in result["sources"]:
                 if s and s not in seen:
                     seen.append(s)
-            print("  [来源]", "；".join(seen))
+            print()  # 空行：正文与来源分隔
+            for s in seen:
+                print("  · " + s)
         print("-" * 60)
 
 

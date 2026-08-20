@@ -34,7 +34,7 @@ def _kb_docs(question: str, user_id: str, subject: str, top_k: int) -> list[dict
         docs.append(
             {
                 "text": str(h.text or ""),
-                "source": src or "知识库",
+                "source": f"[{src}]" if src else "[知识库]",
                 "kind": "资料",
             }
         )
@@ -57,14 +57,23 @@ def _memory_docs(question: str, user_id: str, top_k: int) -> list[dict[str, Any]
             text = str(e.get("text") or "").strip()
             if not text:
                 continue
-            when = str(e.get("at") or "").strip()
-            title = str(e.get("title") or "").strip()
+            title = str(e.get("title") or "").strip() or "历史会议"
+            seq = int(e.get("seq") or 0)
+            at = str(e.get("at") or "").strip()
+            date = at.split()[0] if at else ""
             etype = str(e.get("etype") or "").strip()
-            parts = [p for p in ("会议记忆", when, title) if p]
+            bits = [title]
+            suffix = ""
+            if seq:
+                suffix += f"第{seq}场"
+            if date:
+                suffix += f"（{date} 记录）"
+            if suffix:
+                bits.append(suffix)
             docs.append(
                 {
                     "text": text,
-                    "source": " · ".join(parts) if len(parts) > 1 else "会议记忆",
+                    "source": " · ".join(bits),
                     "kind": f"会议·{etype}" if etype else "会议",
                 }
             )
@@ -77,20 +86,25 @@ def gather(
     subject: str = "",
     *,
     top_k: int = 5,
+    need_knowledge: bool = True,
+    need_memory: bool = True,
 ) -> list[dict[str, Any]]:
     """多源检索聚合。返回 ``[{text, source, kind}]``（按来源分组：资料 → 会议记忆）。
 
-    任一路检索失败仅记日志并跳过，不抛出（保证聊天会话不被单路故障打断）。
+    ``need_knowledge`` / ``need_memory`` 由检索门控（chat/gate.py）决定：
+    不需要的源直接跳过，省检索成本；任一源失败仅记日志并跳过（不中断会话）。
     """
     docs: list[dict[str, Any]] = []
-    for label, fn in (
-        ("知识库", lambda: _kb_docs(question, user_id, subject, top_k)),
-        ("会议记忆", lambda: _memory_docs(question, user_id, top_k)),
-    ):
+    if need_knowledge:
         try:
-            docs.extend(fn())
+            docs.extend(_kb_docs(question, user_id, subject, top_k))
         except Exception as exc:  # noqa: BLE001
-            logger.warning("检索来源 %s 失败：%s", label, exc)
+            logger.warning("检索来源 知识库 失败：%s", exc)
+    if need_memory:
+        try:
+            docs.extend(_memory_docs(question, user_id, top_k))
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("检索来源 会议记忆 失败：%s", exc)
     return docs
 
 

@@ -8,7 +8,6 @@ from typing import Any
 
 from tools.knowledge.cite import open_knowledge
 from tools.knowledge.source_role import ROLE_MATERIAL, ROLE_NOTES, ROLE_TEACHER, classify_source_role
-from tools.knowledge.tool import collection_for
 from .store import load_catalog
 
 # briefing 中知识块/笔记标题的总量上限：骨架已够建树，超出截断避免输入过大拖慢 LLM
@@ -43,24 +42,6 @@ def _understanding_from_context(text: str) -> dict[str, Any]:
     except json.JSONDecodeError:
         return {}
     return data if isinstance(data, dict) else {}
-
-
-def resolve_collection(user_id: str = "", subject: str = "") -> str:
-    """解析 catalog 本地文件 key（兼容旧 collection 命名），并做行级库存在判断。
-
-    返回的字符串用作本地目录/文件 key；知识库本体读取一律走
-    ``kb.list_chunks(user_id=..., subject=...)`` 行级过滤。
-    """
-    preferred = collection_for(user_id=user_id, subject=subject)
-    kb = open_knowledge(user_id=user_id)
-    if kb is None:
-        return preferred
-    try:
-        if kb.list_files(user_id=user_id, subject=subject):
-            return preferred
-    except Exception:
-        pass
-    return preferred
 
 
 def _chunk_role(meta: dict[str, Any], source: str) -> str:
@@ -169,14 +150,13 @@ def build_catalog_briefing(shared_context: str) -> str:
     """给 LLM 的压缩输入：历史目录 + 骨架标题 + 老师原文。"""
     user_id = user_id_from_context(shared_context)
     subject = subject_from_context(shared_context)
-    collection = resolve_collection(user_id=user_id, subject=subject)
-    existing = load_catalog(collection)
+    existing = load_catalog(user_id=user_id, subject=subject)
     mode = "incremental_update" if existing else "build"
     kb = open_knowledge(user_id=user_id)
     parts = [
         "【任务】生成或增量更新课程知识目录，不要写复习建议。",
         f"【学科/课程】{subject or '未标注'}",
-        f"【知识库集合】{collection}",
+        f"【知识库集合】{user_id or ''}__{subject or ''}",
         f"【mode】{mode}",
     ]
     if existing:
