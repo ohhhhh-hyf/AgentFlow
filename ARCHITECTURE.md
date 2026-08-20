@@ -65,7 +65,7 @@ AgentFlow 是一套**多 Agent 任务系统**：会议纪要 / 笔记知识整�
 │  · template_router/ 模板路由：占位符/格式规范/自然语言三类模板分派与编译       │
 │  · outputs.py    产物落盘（HTML/MD/JSON）+ 思维导图/知识图谱导出              │
 │  · llm_client/   LLM 客户端（HTTP/WebSocket）+ token/缓存/延迟统计            │
-│  · perspective/  视角建模（跨域公共组件，三类画像）                           │
+│  · perspective/  视角建模（跨域公共组件）+ profiles/（客观/职业模板画像库）      │
 │  · supervisor/   全局监督标准（prompt 注入，不单独调 LLM）                    │
 │  · scripts/      开发脚手架（sync_domain / register_domain / register_task） │
 └──────────────┬─────────────────────────────────────────────────────────────┘
@@ -76,6 +76,7 @@ AgentFlow 是一套**多 Agent 任务系统**：会议纪要 / 笔记知识整�
 │  data/{user_id}/                                                            │
 │   ├─ knowledge/   chromadb（向量库）+ catalogs/（知识目录 JSON）             │
 │   ├─ memory/      records/{domain}/projects/{pid}/record.json + chromadb    │
+│   ├─ profile/     {uid}.json 用户画像（对话提取：姓名/职业/偏好 + 模板关联）  │
 │   └─ chat/        {session_id}/{history.jsonl, facts.json}                  │
 │  output/{user_id}/{domain}/{task}/...（产物） + monitor/（监控 JSON）        │
 └────────────────────────────────────────────────────────────────────────────┘
@@ -324,28 +325,50 @@ question
   → answer + sources（出处：文档名/片段）
 ```
 
-- **出处纪律**：回答只标注"实际引用"的来源（文件名/日期出现在回答中才亮）；
+- **出处纪律**：回答只标注"实际引用"的来源（**序号回指** `[1]`→资料块，文件名/标题原文兜底）；
   未命中按问题性质分流（知识导向如实说未找到 / 开放型自由简短回答）
-- 聊天场景（chat/）：多源聚合 = 知识库检索 + 会议记忆检索 → 统一上下文 → LLM
+- 聊天场景（chat/）：检索门控 → 多源聚合（知识库 + 会议记忆）→ 统一上下文 → LLM
 
 ---
 
 ## 10. 聊天组件（chat/）
 
-终端与未来 Web 共用的多源问答：
+终端与未来 Web 共用的多源问答。一次提问走「**检索门控 → 多源检索 → 出处标注 → 画像更新**」：
 
 ```
 chat/
-├── sources.py   # 多源检索聚合（知识库 + 会议记忆）
-├── chat.py      # ChatSession：多轮历史 + 会话记忆(facts) + 持久化
-├── prompts.py   # 系统提示（三区规则：会话内记忆不标出处 / 检索命中才标）
+├── gate.py      # 检索门控：规则短路（寒暄/自我表露）→ LLM 门控（need_memory / need_knowledge 分开）
+├── sources.py   # 多源检索聚合（知识库 + 会议记忆，按 need_* 按需跳过）
+├── chat.py      # ChatSession：多轮历史 + 会话记忆(facts) + 用户画像 + 持久化
+├── profile.py   # 用户画像档案：data/{uid}/profile/{uid}.json（对话提取 + base_template 关联职业模板）
+├── prompts.py   # 系统提示（人设 + 三区规则 + 序号标注 + 纯文本输出）
 ├── store.py     # data/{uid}/chat/{sid}/{history.jsonl, facts.json}
-└── cli.py       # python -m chat.cli --user 1 --subject math
+└── cli.py       # python chat/cli.py --user 1 --subject math
 ```
 
-- **"我是谁"记忆**：从自我介绍提取姓名/角色（规则+排除疑问词），注入后续上下文；
-  跨进程用同 `--session` 恢复
-- **出处只展示"回答实际引用"的来源**（文件名/日期/标题出现在回答中才亮）
+**检索门控（chat/gate.py）**——"不是检索到了就展示，而是确实需要才检索"：
+- 规则短路（零成本）：寒暄短句（"你好"）、自我表露（"我喜欢先给结论再说"）→ 直接不检索
+- LLM 门控：`GateDecision{need_memory, need_knowledge, reason, confidence}` **分开判断**，
+  只检索需要的源（问会议只搜记忆、问知识点只搜知识库），省一半检索
+- 保守兜底：门控失败 / 低置信 → 默认两者都检索（宁可多搜，不漏检）
+
+**用户画像（chat/profile.py）**：
+- 每次问答后从对话提取 姓名 / 职业 / 偏好（LLM structured，traits 固定三键：做事风格 / 沟通偏好 / 性格），
+  合并落盘 `data/{uid}/profile/{uid}.json`（同值去重、变更留痕）
+- 职业文本 → 匹配公共职业模板（`perspective/profiles/role/`），命中写 `base_template`；
+  读取时 `resolve_user_profile` 把模板字段合并（模板做基底、用户字段覆盖）
+- **跨会话生效**：新开/回到会话即读画像，注入【用户画像】区（只内部使用，不主动说"我记得你"）
+
+**出处机制**：
+- 展示格式：`[文件名]`（知识库）、`{标题} · 第N场（{YYYY-MM-DD} 记录）`（会议记忆），每条一行
+- 匹配以**序号回指**为主（回答里的 `[1][2]` → 对应资料块）、文件名/标题原文兜底——
+  不依赖 LLM 复述文件名（英文文件名 / 简称场景下可靠，历史问题根因即此）
+- 展示层剥离：正文中的序号标注与 Markdown 符号（`**`、`` ` ``、`#`）在展示前去掉，
+  数学闭区间 `[0,1]`、乘号 `a*b` 不受影响
+
+**"我是谁"记忆**：会话级规则提取（姓名/角色）存 facts.json；跨会话身份走用户画像（profile）
+- **出处只展示"回答实际引用"的来源**（序号回指 + 原文兜底，避免检索命中但未使用的噪声出处）
+
 
 ---
 
@@ -361,6 +384,7 @@ data/{user_id}/
 ├── memory/                    # 记忆存储
 │   ├── records/{domain}/projects/{pid}/record.json + history.jsonl
 │   └── chromadb/              #   记忆向量（每用户独立）
+├── profile/{uid}.json         # 用户画像档案（对话提取：姓名/职业/偏好 + base_template）
 └── chat/{session_id}/         # 聊天会话
     ├── history.jsonl
     └── facts.json
@@ -379,6 +403,7 @@ output/{user_id}/              # 产物与监控输出
 | 记忆记录 | 函数级 user_id | `store.user_dir()` → `data/{uid}/memory/records/...` |
 | 记忆向量 | user_id | `get_embedder(user_id)` 每用户实例 → `data/{uid}/memory/chromadb` |
 | 聊天会话 | user_id + session_id | `chat.store.session_dir()` → `data/{uid}/chat/{sid}/` |
+| 用户画像 | user_id → `data/{uid}/profile/` | `chat.profile.profile_path()` |
 | 任务产物 | `DomainContext.user_id` | `task_output_dir()` → `output/{uid}/{domain}/{line}` |
 | 监控 | user_id | `TaskMonitor(out_dir=output/{uid}/monitor)` |
 
@@ -432,15 +457,16 @@ python -m pytest        # 21 个用例，秒级，零网络
 ## 14. 目录结构速览
 
 ```
-bootstrap.py / gradio_app.py / chat/      入口（CLI / Web / 终端问答）
+bootstrap.py / gradio_app.py / chat/      入口（CLI / Web / 终端问答；chat 含 gate.py / profile.py）
 domain/{meeting,notes}/                   领域（orchestrator/factory/tasks/…）
 tools/
   domain_engine.py / runner.py / outputs.py / io.py
   knowledge/ memory/ monitor/ template_router/
   scripts/{sync_domain,register_domain,register_task}.py
 llm_client/  perspective/  supervisor/  schema_repair/
+perspective/profiles/                    跨域公共画像（客观 + role/ 职业模板）
 web/app.py + web/theme.py                 Gradio 界面
 tests/                                     pytest（21 例）
-data/{user_id}/…  output/{user_id}/…      用户数据与产物（隔离）
+data/{user_id}/…  output/{user_id}/…      用户数据与产物（隔离；含 profile/ 用户画像）
 demo/ samples/                             示例数据（与业务代码解耦）
 ```
