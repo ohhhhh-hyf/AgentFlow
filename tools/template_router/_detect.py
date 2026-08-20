@@ -2,13 +2,9 @@
 from __future__ import annotations
 
 from __future__ import annotations
-import hashlib
-import json
 import logging
-import os
 import re
 from typing import Any
-from tools.template_prompt import PLACEHOLDER_RULES, SPEC_RULES
 
 from ._base import _CHAR_META_LINE_RE, _CHAR_META_TAIL_RE, _CN_RE, _CUE_PATTERNS, _EMOJI_RE, _ENUM_SEP_RE, _HINT_WORD_RE, _MISSING_HINT_RE, _PLACEHOLDER_RE, _SPEC_EXAMPLE_MARKERS, _SPEC_KEYWORDS, _SPEC_SPLIT_MARKERS, _char_budget_lines, _describe_field, _parse_count_token, is_router_enabled, logger
 

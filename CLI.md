@@ -259,10 +259,10 @@ python bootstrap.py --domain notes --file samples/notes/file/seq_one.txt --task 
 
 ## 个人视角
 
-默认客观。要按人裁剪时显式传个人画像：
+默认客观。要按人裁剪时显式传个人画像（职业模板在跨域公共目录 `perspective/profiles/role/`）：
 
 ```text
-python bootstrap.py --domain meeting --file samples/meeting/file/seq_one.txt --task minutes_generation --profile samples/meeting/profile/personal_profile.json
+python bootstrap.py --domain meeting --file samples/meeting/file/seq_one.txt --task minutes_generation --profile perspective/profiles/role/developer_profile.json
 ```
 
 ```text

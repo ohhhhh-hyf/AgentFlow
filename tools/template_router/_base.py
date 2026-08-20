@@ -2,13 +2,11 @@
 from __future__ import annotations
 
 from __future__ import annotations
-import hashlib
 import json
 import logging
 import os
 import re
 from typing import Any
-from tools.template_prompt import PLACEHOLDER_RULES, SPEC_RULES
 
 
 logger = logging.getLogger(__name__)

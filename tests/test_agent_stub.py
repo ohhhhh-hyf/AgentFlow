@@ -10,7 +10,7 @@ import pytest
 
 from domain.notes.tasks.catalog.steps.catalog_agent import CatalogAgent
 from domain.notes.models_generated import Catalog
-from domain.notes.tasks.catalog.store import load_catalog, save_catalog
+from domain.notes.tasks.catalog.store import save_catalog
 from tools.template_router import fill_placeholder_template
 
 

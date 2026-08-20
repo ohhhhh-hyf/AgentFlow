@@ -2,13 +2,9 @@
 from __future__ import annotations
 
 from __future__ import annotations
-import hashlib
-import json
 import logging
-import os
 import re
 from typing import Any
-from tools.template_prompt import PLACEHOLDER_RULES, SPEC_RULES
 
 from ._base import _PLACEHOLDER_FILL_SYSTEM, _PLACEHOLDER_RE, _TABLE_SEP_RE, _body_han_count, _char_budget_lines, _client_text, _describe_field, _extract_json_object, _hint_clean, _hint_short, _parse_row_list, _table_row_confidence_score, logger, strip_outer_markdown_fence
 from ._detect import _looks_like_placeholder, _parse_field, _row_limit_for_template, detect_template_kind, parse_placeholder_template, strip_char_budget_meta

@@ -72,7 +72,6 @@ def _native_path(path: Path) -> str:
     return s
 
 
-_TABLE_ROW_RE = re.compile(r"^\s*\|.*\|\s*$")
 _TABLE_SEP_RE = re.compile(r"^\s*\|?\s*:?-{2,}:?\s*(\|\s*:?-{2,}:?\s*)+\|?\s*$")
 _HTML_TABLE_RE = re.compile(
     r"<table\b[\s\S]*?</table>",
@@ -795,14 +794,8 @@ async def render_mindmap_png(
 
 
 # 与 markmap-cli 锁定同一小版本，保证 notes / meeting 导图观感一致
-_MARKMAP_LIB_CDN = (
-    f"https://cdn.jsdelivr.net/npm/markmap-lib@{_MARKMAP_CLI_VERSION}/dist/browser/index.js"
-)
 _MARKMAP_VIEW_CDN = (
     f"https://cdn.jsdelivr.net/npm/markmap-view@{_MARKMAP_CLI_VERSION}/dist/browser/index.js"
-)
-_MARKMAP_TOOLBAR_CDN = (
-    f"https://cdn.jsdelivr.net/npm/markmap-toolbar@{_MARKMAP_CLI_VERSION}/dist/index.js"
 )
 _D3_CDN = "https://cdn.jsdelivr.net/npm/d3@7.9.0/dist/d3.min.js"
 

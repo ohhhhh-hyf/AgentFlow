@@ -59,7 +59,6 @@ MONITOR_OFF = "off"
 MONITOR_CHOICES = [("关", MONITOR_OFF), ("监控", MONITOR_ON)]
 
 PERSPECTIVE_OBJECTIVE = "objective"
-PERSPECTIVE_PERSONAL = "personal"
 KNOWLEDGE_SCOPE_LINES = frozenset({"library", "catalog", "checklist"})
 
 

@@ -43,15 +43,6 @@ SCENE_LABELS = (
     "采访/对话",
 )
 
-_LABEL_KEYS = {
-    "团队例会": "meeting_team_meeting",
-    "脑暴/讨论": "brain_discuss_meeting",
-    "项目决策与评审": "project_review_meeting",
-    "专项讨论会": "special_session_meeting",
-    "研讨会": "seminars_meeting",
-    "采访/对话": "interview_meeting",
-}
-
 # 各场景的骨架格式（结构按场景本质差异化，不是只换侧重措辞）
 _SCENE_FORMATS = {
     "团队例会": """# 内容总结

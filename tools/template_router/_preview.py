@@ -2,13 +2,9 @@
 from __future__ import annotations
 
 from __future__ import annotations
-import hashlib
-import json
 import logging
-import os
 import re
 from typing import Any
-from tools.template_prompt import PLACEHOLDER_RULES, SPEC_RULES
 
 from ._base import _BANNER_RE, _OLD_FILL_RE, _PLACEHOLDER_RE, _field_slot_line, _format_budget_banner, _is_slot_body, _split_aspect_connectors, _split_by_heading, _strip_heading_number
 from ._detect import detect_template_kind

@@ -6,7 +6,6 @@ from collections.abc import AsyncIterator
 from llm_client import LLMClient
 from tools.prompt_utils import build_render_prompt
 
-from ....models import MeetingState
 from ..prompts import MULTI_STYLES_RENDER_PROMPT, MULTI_STYLES_RENDER_TEMPLATE_PROMPT
 
 def _draft_from_context(approved_context: str) -> dict:

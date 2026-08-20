@@ -316,17 +316,3 @@ def _scope(collection: str, user_id: str = "", subject: str = "") -> tuple[str, 
         return KB_COLLECTION, where
     return (collection or "default"), None
 
-
-def collection_for(*, subject: str = "", user_id: str = "") -> str:
-    """按 user/subject 决定知识库集合（collection）名。
-
-    - 有 subject：``{user_id}__{subject}``（user_id 可空，如 ``数学``）
-    - 都为空：回退 ``default``（旧库兼容）
-    内部经 VectorStore._safe_name 转成 chromadb 合规名，中文名可直接用。
-
-    注：行级隔离模式下业务方应改用 ``add_file(..., user_id=, subject=)`` /
-    ``search(..., user_id=, subject=)`` 直接传参；本函数保留给旧调用与兼容。
-    """
-    parts = [p for p in (user_id, subject) if (p or "").strip()]
-    return "__".join(parts) if parts else "default"
-

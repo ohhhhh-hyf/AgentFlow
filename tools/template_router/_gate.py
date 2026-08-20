@@ -5,10 +5,8 @@ from __future__ import annotations
 import hashlib
 import json
 import logging
-import os
 import re
 from typing import Any
-from tools.template_prompt import PLACEHOLDER_RULES, SPEC_RULES
 
 from ._base import _COMPILE_CACHE, _COMPILE_CACHE_VERSION, _COMPILE_FAIL_COUNTS, _COMPILE_FAIL_SKIP_THRESHOLD, _EXPANSION_GUARDS, _MODIFY_SYSTEM, _PLACEHOLDER_RE, _client_text, _hint_clean, _strip_heading_number, _table_topic_from_context, is_router_enabled, logger, strip_outer_markdown_fence
 from ._detect import _looks_like_placeholder, _table_row_limit_from_text, detect_template_kind, extract_description_cues, parse_placeholder_template
