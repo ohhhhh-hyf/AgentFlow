@@ -1,10 +1,11 @@
 from __future__ import annotations
 
+import json
+
 from llm_client import LLMClient
 from tools.hard_execution import extract_labeled_json
 
 from ....models import MinutesTrace
-from ..align import backfill_alignments
 from ..contracts import MINUTES_TRACE_GENERATION_OUTPUT_CONTRACT
 from ..extras import parse_trace_extras
 from ..prompts import (
@@ -122,18 +123,34 @@ class MinutesTraceAgent:
         people = collect_people(understanding, transcript)
         banned = "、".join(people) if people else "人名、职务称呼、发言者编号"
 
-        user = (
-            f"{shared_context}\n\n"
-            f"【写作要求】\n{requirement}\n\n"
-            f"【输出格式】\n{fmt}\n\n"
-            f"{focus}\n\n"
-            f"【不得作为议题标题的称呼】{banned}\n"
+        # 裁剪输入：只拼 trace 需要的块（原文/会议理解/溯源材料/写作要求/格式），
+        # 去掉对 trace 线无用的 视角模式/用户画像/视角模型（省输入 token、减首 token 延迟）
+        parts: list[str] = []
+        if transcript:
+            parts.append(f"会议原文：\n{transcript}")
+        if understanding:
+            parts.append(
+                f"会议理解：\n{json.dumps(understanding, ensure_ascii=False, indent=2)}"
+            )
+        trace_blocks = "\n\n".join(
+            str(block).strip()
+            for block in (extras.get("key_raw") or "", extras.get("note_raw") or "")
+            if str(block).strip()
         )
+        if trace_blocks:
+            parts.append(trace_blocks)
+        parts.append(f"【写作要求】\n{requirement}")
+        parts.append(f"【输出格式】\n{fmt}")
+        if focus:
+            parts.append(focus)
+        parts.append(f"【不得作为议题标题的称呼】{banned}")
+        user = "\n\n".join(parts)
         raw = await self.client.structured(
             MINUTES_TRACE_GENERATION_SYSTEM_PROMPT,
             user,
             MinutesTrace,
             MINUTES_TRACE_GENERATION_OUTPUT_CONTRACT,
+            max_tokens=16000,
             label="minutes_trace/agent",
         )
         data = _dump(raw)
@@ -160,22 +177,9 @@ class MinutesTraceAgent:
             new_md = _normalize_markdown(str(repaired_data.get("minutes_md") or ""))
             if new_md:
                 minutes_md = bulletize_minutes(new_md)
-                if repaired_data.get("alignments"):
-                    data["alignments"] = repaired_data.get("alignments")
 
-        alignments = backfill_alignments(
-            list(data.get("alignments") or []),
-            minutes_md,
-            transcript,
-            list(extras.get("keypoints") or []),
-            list(extras.get("notes") or []),
-            topic_titles=[
-                str(t.get("title") or "").strip()
-                for t in (understanding.get("topics") or [])
-                if isinstance(t, dict) and str(t.get("title") or "").strip()
-            ] or None,
-        )
+        # alignments 由审核通过后的单独步骤生成（render 阶段），此处草稿不携带
         data["scene"] = scene
         data["minutes_md"] = minutes_md
-        data["alignments"] = alignments
+        data["alignments"] = []
         return MinutesTrace.validate(data)

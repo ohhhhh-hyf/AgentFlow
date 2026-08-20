@@ -322,7 +322,7 @@ class _Nodes(DomainNodes):
             f"职业/真人对决策、风险、未决从上游下采（只删不改），关注域内的数字、时限、承诺、口径、范围边界不得省略。\n\n"
             f"用户画像：\n{_json(state['user'])}\n\n"
             f"会议理解：\n{_json(state['meeting_understanding'])}\n\n"
-            f"用户视角模型：\n{_json(state['perspective_profile'])}\n\n"
+            f"用户视角模型：\n{_json(state.get('perspective_profile') or {})}\n\n"
             f"会议原文：\n{state['transcript']}"
         )
 
@@ -347,17 +347,28 @@ class _Nodes(DomainNodes):
     # ── 领域钩子：core 节点 ───────────────────────────────────
 
     def _build_core(self, builder, line_names=None) -> list[str]:
-        """核心层：会议理解 + 视角建模（并行，会议任务线都需要）。"""
-        del line_names
+        """核心层：会议理解（所有线都需要）+ 视角建模（按线按需）。
+
+        minutes_trace 是 deterministic 溯源线，不消费视角 → 跳过视角建模
+        （省一次 LLM 调用 + 省大输入 token）。
+        """
         builder.add_node(
             "meeting_understanding", self._meeting_understanding_node
         )
-        builder.add_node(
-            "perspective_modeling", self._perspective_modeling_node
-        )
         builder.add_edge(START, "meeting_understanding")
-        builder.add_edge(START, "perspective_modeling")
-        return ["meeting_understanding", "perspective_modeling"]
+        cores = ["meeting_understanding"]
+        selected = [name for name in (line_names or []) if name]
+        skip_perspective = frozenset({"minutes_trace"})
+        need_perspective = (not selected) or any(
+            name not in skip_perspective for name in selected
+        )
+        if need_perspective:
+            builder.add_node(
+                "perspective_modeling", self._perspective_modeling_node
+            )
+            builder.add_edge(START, "perspective_modeling")
+            cores.append("perspective_modeling")
+        return cores
 
     # ── 核心节点：会议理解（公共事实底座）──────────────────────
 

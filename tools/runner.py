@@ -272,6 +272,11 @@ async def run(
             raise ValueError(
                 "知识目录/复习清单需要 --user_id 和 --subject，用来定位知识库和已生成目录"
             )
+    if "library" in line_names and not (user_id or "").strip():
+        raise ValueError(
+            "资料入库需要 --user_id：入库资料按用户隔离，"
+            "不传会进无主统一库、之后按用户检索不到"
+        )
     if not file_list:
         if "checklist" in line_names:
             raise ValueError("复习清单需要 --file 提供本次老师划重点文本")

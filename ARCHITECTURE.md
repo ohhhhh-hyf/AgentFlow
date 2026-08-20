@@ -234,6 +234,42 @@ domain/meeting/tasks/risk/
 
 ---
 
+## 7.5 输出模板路由（tools/template_router）
+
+用 `--{线名}_template` 指定某条线的渲染模板后，系统自动**判型**并按最优路径处理。模板分为三类：
+
+| 类型 | 识别特征 | 处理方式 | fill_mode |
+|---|---|---|---|
+| **占位符模板** | 含 `[占位描述]`（`\[([^\[\]]+)\]`） | 固定文字**逐字符保留**，LLM 只填占位符 → 程序化组装 | `assemble` |
+| **格式规范模板** | 格式说明 + 输入/输出示例（如 JSON 数组） | 指令/示例分离，示例作 few-shot，LLM 自由渲染 | `freeform` |
+| **自然语言描述** | 无占位符的自然语言（如"第一行是标题，括号里跟时间和人物"） | LLM 先**编译**成占位符模板 → 人可编辑预览 → 确认后填充 | `assemble`（编译后） |
+
+**判型与分派**（`detect_template_kind`）：
+```
+自然语言描述 → 无 [占位符] → natural
+含 [占位符]  → placeholder（默认按占位符处理；有示例标记 → spec）
+```
+
+- **占位符路径**：`fill_placeholder_template` 让 LLM 只输出字段 JSON（`{"fields": {"占位": "内容"}}`），
+  程序按占位符顺序组装正文——LLM 不直接写全文，结构由模板保证
+- **自然语言路径**：`maybe_compile_natural_template` 先让 LLM 把自然语言描述编译成占位符模板；
+  用户可在 Web 端编辑（`preview_to_readable` / `readable_to_template` 双向转换），确认后再填充——
+  防止用户改过的模板被重新编译回首稿
+- **环境开关**：`TEMPLATE_ROUTER=off` 一键关闭路由，回退旧行为；任何判型/填充异常回退旧路径
+
+**渲染后的强执行**（`tools/hard_execution.py` + `_gate`，`fill_mode` 演进）：
+```
+freeform（LLM 渲染）
+  → 字数预算检查（全文「合计约 N 字」/ 段落级）：超限 → 压缩修订（repair），过短 → 扩写
+  → 表格行数按置信度取舍（「约 N 行」→ 保高置信行）、空表写占位行、粘连行修复
+  → 门禁（gate）：残留占位符 / 固定文字丢失 / 空表 → 标记硬伤，尝试 repair
+  → 仍超限 → 句子级截断兜底（保完整句）
+```
+- 三类失败回退：占位符填充失败 → 走 LLM 渲染；门禁不过 → 尝试修复（最多两轮）；最终不过 → 该线降级
+- 输出附只读校验：残留占位符 / JSON 合法性 / 行数（记录到 `render_gate_ok` / `render_gate_issues`）
+
+---
+
 ## 8. 记忆系统（tools/memory）
 
 ```

@@ -93,7 +93,6 @@ facts_check / template_check / trace_check — 只记严重问题。
 
 
 MINUTES_TRACE_REORG_PROMPT = """你是纪要结构修订器。下面这份草稿的主要议题按人铺开了，或议题小结变成了同一句套话。
-
 重写 minutes_md，遵守：
 - 按“讨论了什么问题”重新切 3–6 个议题，标题必须是问题/事项，不得包含人名、职务、发言者编号，不得使用「XX汇报」「对XX的建议/点评」「XX工作目标与举措」。
 - 同一问题下合并所有人的事实、观点、建议；对人的点评放回对应问题。
@@ -106,6 +105,37 @@ MINUTES_TRACE_REORG_PROMPT = """你是纪要结构修订器。下面这份草稿
 - 句末不要写溯源钉。
 - alignments 只保留 sentence 仍能在新正文里找到的条目。
 """
+
+
+MINUTES_TRACE_ALIGN_PROMPT = """你是溯源对齐器。根据「已批准纪要正文」「用户关键点」「用户笔记」和「会议原文」，生成 alignments（对齐条目）。
+
+规则（宁多勿漏，有据才列）：
+- sentence：必须是纪要正文里已存在的一句（可截取该句，不能另写）
+- kind：keypoint 或 note
+- source：keypoint = 用户关键点清单里的整行原文；note = 用户笔记箭头前的会议原句片段（不要把批注写进 source）
+- evidence：会议原文里能支撑「这句纪要就是在说这件事」的一句依据
+- 一句纪要可以对应多条关键点/笔记；一条关键点/笔记可挂到正文里所有真正同指的句子上
+- 有据 = 同一对象、数字、动作或极性对得上，或笔记左句能在会议原文里核对到同一事实
+- 专名不同、数字对不上、极性相反、只是章节标题或套话相像：不要挂
+- 主题相近但不是同一件事：不要列；没有依据就不要列
+
+输出格式：
+{"scene": "通用", "minutes_md": "", "alignments": [{"sentence": "", "kind": "keypoint", "source": "", "evidence": ""}]}
+scene 固定 "通用"，minutes_md 固定空字符串，只填 alignments。"""
+
+
+MINUTES_TRACE_ALIGN_OUTPUT_CONTRACT = """{
+  "scene": "通用",
+  "minutes_md": "",
+  "alignments": [
+    {"sentence": "", "kind": "keypoint", "source": "", "evidence": ""}
+  ]
+}
+字段说明：
+- scene：固定填 "通用"
+- minutes_md：固定填 ""
+- alignments：对齐条目数组；sentence 必须是已批准纪要正文里的原句，kind 为 keypoint 或 note，
+  source 为关键点整行或笔记的会议原句片段，evidence 为会议原文依据"""
 
 
 MINUTES_TRACE_RENDER_PROMPT = """你是溯源纪要渲染器。把已批准草稿组织成最终 Markdown。

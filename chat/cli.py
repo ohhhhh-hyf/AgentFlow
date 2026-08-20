@@ -41,9 +41,9 @@ async def _amain(args: argparse.Namespace) -> int:
     )
     ident = f"[user_id: {args.user} session_id: {session.session_id}]"
     if args.session:
-        print(f"{ident} 已回到上次会话，继续提问吧！")
+        print(f"{ident} 🤖 AgentFlow 问答助手已就绪，继续上次会话吧！")
     else:
-        print(f"{ident} 问答助手已启动，开始提问吧！")
+        print(f"{ident} 🤖 AgentFlow 问答助手已启动，开始提问吧！")
     print("-" * 60)
     while True:
         try:
