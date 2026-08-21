@@ -315,7 +315,7 @@ TASK_BRIEFS: dict[str, dict[str, str]] = {
     },
     OCR_TASK: {
         "inputs": "PNG / JPG / JPEG 图片",
-        "outputs": "服务器原始 OCR 文本、LLM 初稿、审校版 Markdown",
+        "outputs": "服务器原始 OCR 文本、审校版 Markdown",
         "purpose": "把图片识别成可入库的 Markdown。生成的 LLM Markdown 可继续上传到资料入库。",
     },
 }
@@ -622,7 +622,7 @@ def _md_preview_text(files: list[str]) -> str:
         return ""
     ocr_llm_paths = [
         path for path in paths
-        if path.parent.parent.name == "ocr" and path.name.endswith("_reviewed.md")
+        if path.parent.parent.name == "ocr" and path.name.endswith("_llmv2.md")
     ]
     if ocr_llm_paths:
         paths = ocr_llm_paths
@@ -653,7 +653,7 @@ def _ocr_preview_text(files: list[str]) -> str:
     ocr_files = [path for path in paths if path.parent.parent.name == "ocr"]
     if not ocr_files:
         return ""
-    by_suffix = {suffix: "" for suffix in ("_server_ocr.txt", "_llm.md", "_reviewed.md")}
+    by_suffix = {suffix: "" for suffix in ("_ocr.txt", "_llmv2.md")}
     for suffix in list(by_suffix):
         matches = [path for path in ocr_files if path.name.endswith(suffix)]
         if not matches:
@@ -666,9 +666,8 @@ def _ocr_preview_text(files: list[str]) -> str:
     if not any(by_suffix.values()):
         return ""
     sections = [
-        ("服务器原始 OCR 文本", by_suffix["_server_ocr.txt"]),
-        ("LLM 初稿", by_suffix["_llm.md"]),
-        ("审校版 Markdown", by_suffix["_reviewed.md"]),
+        ("服务器原始 OCR 文本", by_suffix["_ocr.txt"]),
+        ("审校版 Markdown", by_suffix["_llmv2.md"]),
     ]
     return "\n\n---\n\n".join(
         f"## {title}\n\n{body or '（无内容）'}" for title, body in sections
@@ -1517,7 +1516,7 @@ def run_from_ui(
                 files_html=EMPTY_DOWNLOAD,
             )
         return _run_result(
-            "OCR识别完成。右侧展示服务器原始 OCR 文本、LLM 初稿和审校版 Markdown。"
+            "OCR识别完成。右侧展示服务器原始 OCR 文本和审校版 Markdown。"
             "文件已保存到该用户的 OCR 文件夹。若要进入知识库，请把审校版 Markdown 上传到「资料入库」。",
             files,
             *_hitl_ui(False),
@@ -1843,22 +1842,20 @@ def _recognize_ocr_image(
     out_dir = PROJECT_ROOT / "data" / safe_id(user_id) / "ocr" / safe_id(subject)
     out_dir.mkdir(parents=True, exist_ok=True)
     stem = re.sub(r"[^A-Za-z0-9_.-]+", "_", image_path.stem).strip("._") or "image"
-    raw_path = out_dir / f"{stem}_{stamp}_server_ocr.txt"
-    no_llm_path = out_dir / f"{stem}_{stamp}_no_llm.md"
+    raw_path = out_dir / f"{stem}_{stamp}_ocr.txt"
+    review_notes_path = out_dir / f"{stem}_{stamp}_review.md"
     llm_path = out_dir / f"{stem}_{stamp}_llm.md"
-    reviewed_path = out_dir / f"{stem}_{stamp}_reviewed.md"
-    review_notes_path = out_dir / f"{stem}_{stamp}_review_notes.md"
+    reviewed_path = out_dir / f"{stem}_{stamp}_llmv2.md"
     raw_path.write_text(raw_txt, encoding="utf-8")
-    no_llm_path.write_text(no_llm_md, encoding="utf-8")
+    _ = no_llm_md
     llm_path.write_text(llm_md, encoding="utf-8")
     reviewed_path.write_text(reviewed_md, encoding="utf-8")
     review_notes_path.write_text("# OCR 审校说明\n\n" + review_notes.strip(), encoding="utf-8")
     return raw_txt, no_llm_md, reviewed_md, [
-        str(reviewed_path),
+        str(raw_path),
         str(review_notes_path),
         str(llm_path),
-        str(no_llm_path),
-        str(raw_path),
+        str(reviewed_path),
     ]
 
 
