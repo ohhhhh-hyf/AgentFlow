@@ -205,6 +205,33 @@ def _infer_layout_hints(lines: list[dict], image_size: tuple[int, int] | None) -
     return rows
 
 
+def _visual_region_to_line(region: dict) -> dict:
+    layout = dict(region.get("layout") or {})
+    kind = str(region.get("type") or "diagram")
+    label_map = {
+        "coordinate_plot": "疑似坐标/函数图",
+        "flowchart": "疑似流程/模型图",
+        "table_or_grid": "疑似表格/网格图",
+        "sketch": "疑似手绘草图",
+        "diagram": "疑似图示",
+    }
+    return {
+        "text": "",
+        "bbox": region.get("bbox"),
+        "conf": 1.0,
+        "visual_region": {
+            "id": region.get("id"),
+            "type": kind,
+            "label": label_map.get(kind, "疑似图示"),
+            "ink_density": region.get("ink_density"),
+            "layout": layout,
+        },
+        "layout": layout,
+        "role_hint": "visual",
+        "title_decision": "locked_body",
+    }
+
+
 def _save_crop(img, bbox, pad: int = 6) -> str | None:
     """按 bbox 裁剪一行并存临时文件，返回路径（供公式子进程读取）。"""
     if not bbox:
@@ -266,8 +293,13 @@ def ocr_image_lines(image_path: str) -> list[dict]:
         logger.warning("读取图片尺寸失败：%s", exc)
         img = None
         image_size = None
-    if not lines:
-        return lines
+    visual_regions = [
+        item
+        for item in (payload.get("visual_regions") or [])
+        if isinstance(item, dict)
+    ]
+    if not lines and not visual_regions:
+        return []
 
     # 公式候选：裁剪行 → LaTeX-OCR 子进程
     formula_rows = [ln for ln in lines if _looks_like_formula(ln.get("text") or "")]
@@ -291,7 +323,16 @@ def ocr_image_lines(image_path: str) -> list[dict]:
                         pass
         except Exception as exc:  # noqa: BLE001
             logger.warning("公式行裁剪失败：%s", exc)
-    return _infer_layout_hints(lines, image_size)
+    lines = _infer_layout_hints(lines, image_size) if lines else []
+    visual_lines = [_visual_region_to_line(region) for region in visual_regions]
+    combined = [*lines, *visual_lines]
+    combined.sort(
+        key=lambda item: (
+            float((item.get("layout") or {}).get("top") or 0),
+            float((item.get("layout") or {}).get("left") or 0),
+        )
+    )
+    return combined
 
 
 __all__ = ["ocr_image_lines"]

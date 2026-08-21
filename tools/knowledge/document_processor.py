@@ -28,6 +28,7 @@ _FORMULA_RE = re.compile(
     r"(?:\\\[|\\\(|\$\$?|[A-Za-z][A-Za-z0-9_']*\s*=|[∑√≈≠≤≥→←⇔]|[+\-*/=]\s*[A-Za-z0-9(])"
 )
 _DISPLAY_FORMULA_RE = re.compile(r"(\$\$.*?\$\$|\\\[.*?\\\]|\\\(.*?\\\))", re.S)
+_VISUAL_REGION_RE = re.compile(r"<!--\s*图示:\s*([^;>-]+).*?type=([a-zA-Z0-9_]+)")
 _CONTENT_TAG_RULES = (
     ("definition", re.compile(r"(定义|概念|称为)")),
     ("theorem", re.compile(r"(定理|性质|规律|规则)")),
@@ -135,7 +136,22 @@ def _content_tags(text: str, heading: str = "") -> str:
     tags = [name for name, pattern in _CONTENT_TAG_RULES if pattern.search(blob)]
     if _FORMULA_RE.search(blob) and "formula" not in tags:
         tags.append("formula")
+    if _VISUAL_REGION_RE.search(blob):
+        tags.append("visual")
     return ",".join(tags)
+
+
+def _visual_region_meta(text: str) -> dict[str, object]:
+    hits = _VISUAL_REGION_RE.findall(text or "")
+    if not hits:
+        return {}
+    types = sorted({str(kind).strip() for _label, kind in hits if str(kind).strip()})
+    labels = sorted({str(label).strip() for label, _kind in hits if str(label).strip()})
+    return {
+        "visual_region_count": len(hits),
+        "visual_region_types": ",".join(types),
+        "visual_region_labels": "、".join(labels),
+    }
 
 
 def _contains_formula(text: str) -> bool:
@@ -179,6 +195,7 @@ def _chunks_by_heading(text: str, path: str) -> List[TextChunk]:
                     content_tags=_content_tags(body, heading),
                     contains_formula=_contains_formula(body),
                     block_type="formula_heavy" if _contains_formula(body) else "content",
+                    **_visual_region_meta(body),
                 ),
             )
         )
@@ -216,6 +233,7 @@ def _chunks_by_heading(text: str, path: str) -> List[TextChunk]:
                 content_tags=_content_tags(body, name),
                 contains_formula=_contains_formula(body),
                 block_type="formula_heavy" if _contains_formula(body) else "content",
+                **_visual_region_meta(body),
             ),
         )
     ]

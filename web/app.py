@@ -1725,6 +1725,42 @@ def rewrite_notes_from_ui():
     )
 
 
+def run_ocr_compare_from_ui(image_upload):
+    """图片 OCR 对照：服务器原始文本 / 无 LLM Markdown / LLM Markdown。"""
+    image_path = _uploaded_path(image_upload)
+    if image_path is None or not image_path.exists():
+        return (
+            "请先上传 PNG / JPG / JPEG 图片。",
+            "",
+            "",
+            "",
+        )
+    if image_path.suffix.lower() not in {".png", ".jpg", ".jpeg"}:
+        return (
+            "图片格式暂只支持 PNG / JPG / JPEG。",
+            "",
+            "",
+            "",
+        )
+    try:
+        from tools.ocr import server_ocr_image_compare
+
+        raw_txt, no_llm_md, llm_md = server_ocr_image_compare(str(image_path))
+    except Exception as exc:  # noqa: BLE001
+        return (
+            f"OCR 识别失败：{exc}",
+            "",
+            "",
+            "",
+        )
+    return (
+        "OCR 对照已完成。",
+        raw_txt,
+        no_llm_md,
+        llm_md,
+    )
+
+
 def _uploaded_path(upload) -> Path | None:
     if upload is None:
         return None
@@ -2185,6 +2221,45 @@ def build_app() -> gr.Blocks:
                     value=EMPTY_DOWNLOAD,
                 )
 
+        with gr.Tab("OCR 对照", elem_id="ocr-compare-tab"):
+            with gr.Row(equal_height=False):
+                with gr.Column(scale=4, min_width=320):
+                    ocr_image_upload = gr.File(
+                        label="图片",
+                        file_count="single",
+                        file_types=[".png", ".jpg", ".jpeg"],
+                        type="filepath",
+                    )
+                    ocr_run_button = gr.Button(
+                        "识别对照",
+                        variant="primary",
+                        elem_id="ocr-run-btn",
+                    )
+                    ocr_status = gr.Textbox(
+                        label="状态",
+                        lines=3,
+                        max_lines=8,
+                    )
+                with gr.Column(scale=8, min_width=480):
+                    with gr.Row(equal_height=False):
+                        ocr_raw_txt = gr.Textbox(
+                            label="服务器原始 OCR 文本",
+                            lines=18,
+                            max_lines=40,
+                            show_copy_button=True,
+                        )
+                        ocr_no_llm_md = gr.Textbox(
+                            label="无 LLM Markdown",
+                            lines=18,
+                            max_lines=40,
+                            show_copy_button=True,
+                        )
+                    ocr_llm_md = gr.Markdown(
+                        value="",
+                        label="LLM Markdown",
+                        elem_id="ocr-llm-md-preview",
+                    )
+
         hitl_outputs = [
             friendly_template,
             edit_state,
@@ -2350,6 +2425,12 @@ def build_app() -> gr.Blocks:
                 monitor_checkbox,
                 *hitl_outputs,
             ],
+        )
+        ocr_run_button.click(
+            run_ocr_compare_from_ui,
+            inputs=[ocr_image_upload],
+            outputs=[ocr_status, ocr_raw_txt, ocr_no_llm_md, ocr_llm_md],
+            show_progress="minimal",
         )
     _mount_bank_assets(demo)
     return demo

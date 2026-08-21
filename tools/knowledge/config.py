@@ -145,6 +145,7 @@ DEFAULT_MAX_TOKENS = _env_int("KNOWLEDGE_MAX_TOKENS", 1024)
 DEFAULT_MIN_SCORE = _env_float("KNOWLEDGE_MIN_SCORE", 0.50)
 DEFAULT_HYBRID_SEARCH = _env_bool("KNOWLEDGE_HYBRID_SEARCH", True)
 DEFAULT_HYBRID_KEYWORDS = _env_int("KNOWLEDGE_HYBRID_KEYWORDS", 6)
+DEFAULT_EMBEDDING_VERIFY_SSL = _env_bool("KNOWLEDGE_EMBEDDING_VERIFY_SSL", True)
 
 
 def _embedding_key() -> str:
@@ -173,6 +174,7 @@ class KnowledgeToolConfig:
     min_score: float = DEFAULT_MIN_SCORE
     hybrid_search: bool = DEFAULT_HYBRID_SEARCH
     hybrid_keywords: int = DEFAULT_HYBRID_KEYWORDS
+    embedding_verify_ssl: bool = DEFAULT_EMBEDDING_VERIFY_SSL
 
     def __post_init__(self) -> None:
         if not self.embedding_api_key:

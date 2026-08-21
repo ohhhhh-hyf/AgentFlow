@@ -151,10 +151,16 @@ class EmbeddingClient:
         if self.fake:
             return None
         if self._client is None:
+            import httpx
             from openai import OpenAI
+
             self._client = OpenAI(
                 api_key=self.cfg.embedding_api_key,
                 base_url=self.cfg.embedding_base_url,
+                http_client=httpx.Client(
+                    verify=self.cfg.embedding_verify_ssl,
+                    trust_env=True,
+                ),
             )
         return self._client
 

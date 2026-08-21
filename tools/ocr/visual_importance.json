@@ -1,0 +1,16 @@
+{
+  "_description": "图示区域对目录候选重要度的弱加分配置。只影响结构/重要性评分，不代表识别了图片内容。",
+  "enabled": true,
+  "max_total_boost": 3,
+  "boosts": {
+    "has_visual": 1,
+    "multiple_visuals": 1,
+    "visual_type": {
+      "coordinate_plot": 1,
+      "flowchart": 1,
+      "table_or_grid": 0,
+      "sketch": 0,
+      "diagram": 1
+    }
+  }
+}
