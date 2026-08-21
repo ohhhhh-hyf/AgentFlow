@@ -25,7 +25,7 @@ from contextlib import contextmanager
 logger = logging.getLogger(__name__)
 
 from .layout import ocr_image_lines  # noqa: E402
-from .reconstruct import reconstruct_markdown  # noqa: E402
+from .reconstruct import reconstruct_markdown, review_markdown  # noqa: E402
 
 
 def _clean_ocr_text(value) -> str:
@@ -90,6 +90,12 @@ def _temporary_ocr_engine(engine: str):
 
 def server_ocr_image_compare(image_path: str) -> tuple[str, str, str]:
     """单张图片 → 服务器 OCR 原文 / 无 LLM Markdown / LLM Markdown。"""
+    raw_text, no_llm_md, llm_md, _reviewed_md, _review_notes = server_ocr_image_recognize(image_path)
+    return raw_text, no_llm_md, llm_md
+
+
+def server_ocr_image_recognize(image_path: str) -> tuple[str, str, str, str, str]:
+    """单张图片 → 原文 / 无 LLM Markdown / LLM 初稿 / 审校 Markdown / 审校说明。"""
     from pathlib import Path
 
     path = Path(image_path)
@@ -112,10 +118,12 @@ def server_ocr_image_compare(image_path: str) -> tuple[str, str, str]:
         lines = list(raw_payload.get("lines") or [])
 
     if not lines:
-        return raw_text, "（OCR 未识别到文字）", "（OCR 未识别到文字）"
+        empty = "（OCR 未识别到文字）"
+        return raw_text, empty, empty, empty, "未识别到可审校内容。"
     no_llm_md = _lines_to_text(lines)
     llm_md = reconstruct_markdown(lines)
-    return raw_text, no_llm_md, llm_md
+    reviewed_md, review_notes = review_markdown(llm_md, lines)
+    return raw_text, no_llm_md, llm_md, reviewed_md, review_notes
 
 
 def _lines_to_text(lines: list[dict]) -> str:
@@ -134,4 +142,9 @@ def _lines_to_text(lines: list[dict]) -> str:
     return "\n".join(parts)
 
 
-__all__ = ["ocr_image_to_markdown", "ocr_images_to_markdown", "server_ocr_image_compare"]
+__all__ = [
+    "ocr_image_to_markdown",
+    "ocr_images_to_markdown",
+    "server_ocr_image_compare",
+    "server_ocr_image_recognize",
+]

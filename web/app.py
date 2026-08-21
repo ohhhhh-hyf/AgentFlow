@@ -315,7 +315,7 @@ TASK_BRIEFS: dict[str, dict[str, str]] = {
     },
     OCR_TASK: {
         "inputs": "PNG / JPG / JPEG 图片",
-        "outputs": "LLM 整理版 Markdown、服务器原始 OCR 文本、无 LLM Markdown",
+        "outputs": "服务器原始 OCR 文本、LLM 初稿、审校版 Markdown",
         "purpose": "把图片识别成可入库的 Markdown。生成的 LLM Markdown 可继续上传到资料入库。",
     },
 }
@@ -599,6 +599,9 @@ def _png_previews(files: list[str]) -> list[str]:
 
 def _md_preview_text(files: list[str]) -> str:
     """收集本次生成的 .md 内容，供页面预览（优先 result_*.md）。"""
+    ocr_preview = _ocr_preview_text(files)
+    if ocr_preview:
+        return ocr_preview
     paths: list[Path] = []
     rejected: list[Path] = []
     for file in files or []:
@@ -619,7 +622,7 @@ def _md_preview_text(files: list[str]) -> str:
         return ""
     ocr_llm_paths = [
         path for path in paths
-        if path.parent.parent.name == "ocr" and path.name.endswith("_llm.md")
+        if path.parent.parent.name == "ocr" and path.name.endswith("_reviewed.md")
     ]
     if ocr_llm_paths:
         paths = ocr_llm_paths
@@ -643,6 +646,33 @@ def _md_preview_text(files: list[str]) -> str:
         title = _clean_filename(path.name)
         parts.append(f"**{html.escape(title)}**\n\n{body}")
     return "\n\n---\n\n".join(parts)
+
+
+def _ocr_preview_text(files: list[str]) -> str:
+    paths = [Path(file) for file in files or [] if Path(file).is_file()]
+    ocr_files = [path for path in paths if path.parent.parent.name == "ocr"]
+    if not ocr_files:
+        return ""
+    by_suffix = {suffix: "" for suffix in ("_server_ocr.txt", "_llm.md", "_reviewed.md")}
+    for suffix in list(by_suffix):
+        matches = [path for path in ocr_files if path.name.endswith(suffix)]
+        if not matches:
+            continue
+        matches.sort(key=lambda path: (-path.stat().st_mtime, path.name))
+        try:
+            by_suffix[suffix] = matches[0].read_text(encoding="utf-8").strip()
+        except OSError:
+            by_suffix[suffix] = ""
+    if not any(by_suffix.values()):
+        return ""
+    sections = [
+        ("服务器原始 OCR 文本", by_suffix["_server_ocr.txt"]),
+        ("LLM 初稿", by_suffix["_llm.md"]),
+        ("审校版 Markdown", by_suffix["_reviewed.md"]),
+    ]
+    return "\n\n---\n\n".join(
+        f"## {title}\n\n{body or '（无内容）'}" for title, body in sections
+    )
 
 
 def _gallery_update(files: list[str] | None = None):
@@ -1487,8 +1517,8 @@ def run_from_ui(
                 files_html=EMPTY_DOWNLOAD,
             )
         return _run_result(
-            "OCR识别完成。已生成 LLM Markdown、无 LLM Markdown 和服务器原始 OCR 文本，可在右侧预览或下载；"
-            "文件已保存到该用户的 OCR 文件夹。若要进入知识库，请把 LLM Markdown 上传到「资料入库」。",
+            "OCR识别完成。右侧展示服务器原始 OCR 文本、LLM 初稿和审校版 Markdown。"
+            "文件已保存到该用户的 OCR 文件夹。若要进入知识库，请把审校版 Markdown 上传到「资料入库」。",
             files,
             *_hitl_ui(False),
         )
@@ -1805,10 +1835,10 @@ def _recognize_ocr_image(
     user_id: str,
     subject: str,
 ) -> tuple[str, str, str, list[str]]:
-    from tools.ocr import server_ocr_image_compare
+    from tools.ocr import server_ocr_image_recognize
     from tools.memory.store import safe_id
 
-    raw_txt, no_llm_md, llm_md = server_ocr_image_compare(str(image_path))
+    raw_txt, no_llm_md, llm_md, reviewed_md, review_notes = server_ocr_image_recognize(str(image_path))
     stamp = datetime.now().strftime("%Y%m%d_%H%M%S_%f")[:-3]
     out_dir = PROJECT_ROOT / "data" / safe_id(user_id) / "ocr" / safe_id(subject)
     out_dir.mkdir(parents=True, exist_ok=True)
@@ -1816,10 +1846,20 @@ def _recognize_ocr_image(
     raw_path = out_dir / f"{stem}_{stamp}_server_ocr.txt"
     no_llm_path = out_dir / f"{stem}_{stamp}_no_llm.md"
     llm_path = out_dir / f"{stem}_{stamp}_llm.md"
+    reviewed_path = out_dir / f"{stem}_{stamp}_reviewed.md"
+    review_notes_path = out_dir / f"{stem}_{stamp}_review_notes.md"
     raw_path.write_text(raw_txt, encoding="utf-8")
     no_llm_path.write_text(no_llm_md, encoding="utf-8")
     llm_path.write_text(llm_md, encoding="utf-8")
-    return raw_txt, no_llm_md, llm_md, [str(llm_path), str(no_llm_path), str(raw_path)]
+    reviewed_path.write_text(reviewed_md, encoding="utf-8")
+    review_notes_path.write_text("# OCR 审校说明\n\n" + review_notes.strip(), encoding="utf-8")
+    return raw_txt, no_llm_md, reviewed_md, [
+        str(reviewed_path),
+        str(review_notes_path),
+        str(llm_path),
+        str(no_llm_path),
+        str(raw_path),
+    ]
 
 
 def _uploaded_path(upload) -> Path | None:
