@@ -10,7 +10,9 @@ from __future__ import annotations
 
 import json
 import logging
+import shutil
 import subprocess
+from datetime import datetime
 from pathlib import Path
 
 logger = logging.getLogger(__name__)
@@ -24,6 +26,20 @@ if not _OCR_ENV_PY.is_file():
         _OCR_ENV_PY = Path("python")
 
 _RUNNER = ROOT / "tools" / "ocr" / "runner_ocr.py"
+_OCR_FAILURE_DIR = ROOT / "log" / "ocr_failed"
+
+
+def _log_ocr_failure(image_path: str, detail: str) -> None:
+    try:
+        src = Path(image_path)
+        stamp = datetime.now().strftime("%Y%m%d_%H%M%S_%f")[:-3]
+        folder = _OCR_FAILURE_DIR / stamp
+        folder.mkdir(parents=True, exist_ok=True)
+        if src.is_file():
+            shutil.copy2(src, folder / src.name)
+        (folder / "error.txt").write_text(detail, encoding="utf-8", errors="replace")
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("记录 OCR 失败样本失败：%s", exc)
 
 
 def run_ocr_subprocess(image_path: str, formula: bool = False, timeout: int = 180) -> dict:
@@ -31,25 +47,39 @@ def run_ocr_subprocess(image_path: str, formula: bool = False, timeout: int = 18
     cmd = [str(_OCR_ENV_PY), str(_RUNNER), "--input", str(image_path)]
     if formula:
         cmd.append("--formula")
-    proc = subprocess.run(
-        cmd,
-        capture_output=True,
-        text=True,
-        encoding="utf-8",
-        errors="replace",
-        timeout=timeout,
-    )
-    if proc.returncode != 0:
-        detail = (proc.stderr or proc.stdout or "")[-800:]
-        raise RuntimeError(f"OCR 环境识别失败：{detail}")
-    for line in reversed((proc.stdout or "").splitlines()):
-        line = line.strip()
-        if line.startswith("{"):
-            try:
-                return json.loads(line)
-            except json.JSONDecodeError:
-                continue
-    raise RuntimeError(f"OCR 环境无 JSON 输出：{proc.stdout[-300:]}")
+    attempts = 1 if formula else 3
+    errors: list[str] = []
+    for attempt in range(1, attempts + 1):
+        try:
+            proc = subprocess.run(
+                cmd,
+                capture_output=True,
+                text=True,
+                encoding="utf-8",
+                errors="replace",
+                timeout=timeout,
+            )
+        except Exception as exc:  # noqa: BLE001
+            errors.append(f"[attempt {attempt}] {type(exc).__name__}: {exc}")
+            continue
+        if proc.returncode != 0:
+            detail = (proc.stderr or proc.stdout or "")[-1200:]
+            errors.append(f"[attempt {attempt}] OCR 环境识别失败：{detail}")
+            continue
+        for line in reversed((proc.stdout or "").splitlines()):
+            line = line.strip()
+            if line.startswith("{"):
+                try:
+                    return json.loads(line)
+                except json.JSONDecodeError as exc:
+                    errors.append(f"[attempt {attempt}] JSON 解析失败：{exc}; line={line[-300:]}")
+                    break
+        else:
+            errors.append(f"[attempt {attempt}] OCR 环境无 JSON 输出：{(proc.stdout or '')[-500:]}")
+    detail = "\n".join(errors)[-4000:]
+    if not formula:
+        _log_ocr_failure(image_path, detail)
+    raise RuntimeError(detail)
 
 
 def get_llm_client():
