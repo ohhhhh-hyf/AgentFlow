@@ -11,12 +11,15 @@ import hmac
 import json
 import os
 import time
+from datetime import datetime
+from pathlib import Path
 from typing import Any
 
 import requests
 from PIL import Image
 
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
+OCR_FAILURE_DIR = Path(ROOT) / "log" / "ocr_failed"
 
 
 def _load_env_file() -> None:
@@ -31,6 +34,20 @@ def _load_env_file() -> None:
                     continue
                 key, value = line.split("=", 1)
                 os.environ.setdefault(key.strip(), value.strip().strip('"').strip("'"))
+    except Exception:
+        return
+
+
+def _write_failure_log(title: str, detail: str) -> None:
+    try:
+        stamp = datetime.now().strftime("%Y%m%d_%H%M%S_%f")[:-3]
+        folder = OCR_FAILURE_DIR / stamp
+        folder.mkdir(parents=True, exist_ok=True)
+        (folder / "error.txt").write_text(
+            f"{title}\n\n{detail}",
+            encoding="utf-8",
+            errors="replace",
+        )
     except Exception:
         return
 
@@ -121,12 +138,43 @@ class ServerOcrClient:
             timeout=float(os.getenv("SERVER_OCR_TIMEOUT", "60")),
         )
         response.raise_for_status()
-        result = response.json()
-        if result["result"]["code"] != "0":
-            return {}
-        content = result["result"]["content"][0]
+        try:
+            result = response.json()
+        except Exception as exc:  # noqa: BLE001
+            _write_failure_log(
+                "服务器 OCR 响应不是合法 JSON",
+                f"error={type(exc).__name__}: {exc}\n"
+                f"status={response.status_code}\n"
+                f"headers={dict(response.headers)}\n"
+                f"body_head={(response.text or '')[:2000]}",
+            )
+            raise
+        try:
+            result_info = result["result"]
+            if result_info["code"] != "0":
+                _write_failure_log(
+                    "服务器 OCR 返回非成功 code",
+                    json.dumps(result, ensure_ascii=False, indent=2)[:4000],
+                )
+                return {}
+            content = result_info["content"][0]
+        except Exception as exc:  # noqa: BLE001
+            _write_failure_log(
+                "服务器 OCR 响应结构不符合预期",
+                f"error={type(exc).__name__}: {exc}\n"
+                + json.dumps(result, ensure_ascii=False, indent=2)[:4000],
+            )
+            raise
         if isinstance(content, str):
-            return json.loads(content)
+            try:
+                return json.loads(content)
+            except Exception as exc:  # noqa: BLE001
+                _write_failure_log(
+                    "服务器 OCR content 不是合法 JSON",
+                    f"error={type(exc).__name__}: {exc}\n"
+                    f"content_head={content[:4000]}",
+                )
+                raise
         return content
 
 
