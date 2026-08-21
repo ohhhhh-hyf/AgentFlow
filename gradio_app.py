@@ -7,12 +7,10 @@
 """
 from __future__ import annotations
 
-import os
-
 from web.app import main
 
 if __name__ == "__main__":
     main(
-        host=os.getenv("GRADIO_SERVER_NAME", "127.0.0.1"),
-        port=int(os.getenv("GRADIO_SERVER_PORT", "7860")),
+        host="127.0.0.1",
+        port=7860,
     )
