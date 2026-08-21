@@ -6,6 +6,7 @@
 from __future__ import annotations
 
 import base64
+import io
 import hashlib
 import hmac
 import json
@@ -20,6 +21,7 @@ from PIL import Image
 
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
 OCR_FAILURE_DIR = Path(ROOT) / "log" / "ocr_failed"
+MAX_BASE64_BYTES = int(os.getenv("SERVER_OCR_MAX_BASE64_BYTES", str(950 * 1024)))
 
 
 def _load_env_file() -> None:
@@ -352,8 +354,7 @@ def extract_lines(result: dict, image_size: tuple[int, int] | None = None) -> li
 
 
 def ocr_image(path: str) -> dict:
-    with open(path, "rb") as f:
-        image_base64 = base64.b64encode(f.read()).decode("utf-8")
+    image_base64 = _image_base64_for_request(path)
     image_size = None
     try:
         with Image.open(path) as img:
@@ -370,3 +371,35 @@ def ocr_image(path: str) -> dict:
     except Exception:
         visual_regions = []
     return {"engine": "serverocr", "lines": lines, "visual_regions": visual_regions}
+
+
+def _image_base64_for_request(path: str) -> str:
+    raw = Path(path).read_bytes()
+    encoded = base64.b64encode(raw)
+    if len(encoded) <= MAX_BASE64_BYTES:
+        return encoded.decode("ascii")
+
+    with Image.open(path) as img:
+        img = img.convert("RGB")
+        longest = int(os.getenv("SERVER_OCR_COMPRESS_LONGEST", "2200"))
+        if max(img.size) > longest:
+            img.thumbnail((longest, longest), Image.Resampling.LANCZOS)
+
+        for quality in (88, 84, 80, 76, 72, 68, 64, 60, 55, 50, 45, 40):
+            buf = io.BytesIO()
+            img.save(buf, format="JPEG", quality=quality, optimize=True)
+            data = buf.getvalue()
+            encoded = base64.b64encode(data)
+            if len(encoded) <= MAX_BASE64_BYTES:
+                return encoded.decode("ascii")
+
+        buf = io.BytesIO()
+        img.thumbnail((1600, 1600), Image.Resampling.LANCZOS)
+        img.save(buf, format="JPEG", quality=40, optimize=True)
+        encoded = base64.b64encode(buf.getvalue())
+        if len(encoded) <= MAX_BASE64_BYTES:
+            return encoded.decode("ascii")
+
+    raise ValueError(
+        "图片压缩后仍超过服务器 base64 1M 限制，请裁剪图片或拆成单页后再上传。"
+    )
