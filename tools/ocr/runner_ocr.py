@@ -189,10 +189,17 @@ def main() -> int:
         else:
             payload = _ocr_text(args.input)
     except Exception as exc:  # noqa: BLE001
-        print(json.dumps({"error": str(exc)}, ensure_ascii=False))
+        _write_json_line({"error": str(exc)})
         return 1
-    print(json.dumps(payload, ensure_ascii=False))
+    _write_json_line(payload)
     return 0
+
+
+def _write_json_line(payload: dict) -> None:
+    """Write UTF-8 JSON regardless of the Windows console code page."""
+    data = (json.dumps(payload, ensure_ascii=False) + "\n").encode("utf-8")
+    sys.stdout.buffer.write(data)
+    sys.stdout.buffer.flush()
 
 
 if __name__ == "__main__":
