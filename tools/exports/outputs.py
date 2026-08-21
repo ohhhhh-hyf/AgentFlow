@@ -163,7 +163,7 @@ def save_report_artifacts(
     Args:
         gate_ok: True 通过 / False 失败 / None 未做门禁（无模板）→ 仍写正式 md。
     """
-    from .hard_execution import should_write_result_md
+    from tools.hard_execution import should_write_result_md
 
     out_dir = task_output_dir(ctx, line_name)
     data = report_to_dict(report)

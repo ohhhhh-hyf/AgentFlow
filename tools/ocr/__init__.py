@@ -28,6 +28,17 @@ from .layout import ocr_image_lines  # noqa: E402
 from .reconstruct import reconstruct_markdown  # noqa: E402
 
 
+def _clean_ocr_text(value) -> str:
+    if isinstance(value, bytes):
+        for encoding in ("utf-8", "gb18030", "latin1"):
+            try:
+                return value.decode(encoding).strip()
+            except UnicodeDecodeError:
+                continue
+        return value.decode("utf-8", errors="replace").strip()
+    return str(value or "").strip()
+
+
 def ocr_image_to_markdown(image_path: str, use_llm: bool = True) -> str:
     """单张图片 → 结构化 Markdown 文本。"""
     from pathlib import Path
@@ -89,9 +100,9 @@ def server_ocr_image_compare(image_path: str) -> tuple[str, str, str]:
 
     raw_payload = ocr_image(str(path))
     raw_lines = [
-        str(item.get("text") or "").strip()
+        _clean_ocr_text(item.get("text"))
         for item in (raw_payload.get("lines") or [])
-        if isinstance(item, dict) and str(item.get("text") or "").strip()
+        if isinstance(item, dict) and _clean_ocr_text(item.get("text"))
     ]
     raw_text = "\n".join(raw_lines).strip() or "（服务器 OCR 未识别到文字）"
 
@@ -117,7 +128,7 @@ def _lines_to_text(lines: list[dict]) -> str:
             kind = visual.get("type") or "diagram"
             parts.append(f"<!-- 图示: {label}; type={kind}; bbox={item.get('bbox') or []} -->")
             continue
-        text = item.get("formula") or item.get("text") or ""
+        text = item.get("formula") or _clean_ocr_text(item.get("text"))
         if text:
             parts.append(text)
     return "\n".join(parts)
