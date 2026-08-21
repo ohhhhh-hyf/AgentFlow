@@ -60,6 +60,7 @@ MONITOR_CHOICES = [("关", MONITOR_OFF), ("监控", MONITOR_ON)]
 
 PERSPECTIVE_OBJECTIVE = "objective"
 KNOWLEDGE_SCOPE_LINES = frozenset({"library", "catalog", "checklist"})
+OCR_TASK = "ocr_recognition"
 
 
 def _ctx(domain: str):
@@ -76,7 +77,10 @@ def _task_choices(domain: str) -> list[tuple[str, str]]:
     for line in ctx.task_lines:
         if line not in ordered:
             ordered.append(line)
-    return [(ctx.line_cn_names.get(line, line), line) for line in ordered]
+    choices = [(ctx.line_cn_names.get(line, line), line) for line in ordered]
+    if domain == "notes":
+        choices.append(("OCR识别", OCR_TASK))
+    return choices
 
 
 MULTI_STYLE_MODE_CHOICES = [
@@ -309,6 +313,11 @@ TASK_BRIEFS: dict[str, dict[str, str]] = {
             "另从题库配约 6 道同知识点真题，边学边练。"
         ),
     },
+    OCR_TASK: {
+        "inputs": "PNG / JPG / JPEG 图片",
+        "outputs": "LLM 整理版 Markdown、服务器原始 OCR 文本、无 LLM Markdown",
+        "purpose": "把图片识别成可入库的 Markdown。生成的 LLM Markdown 可继续上传到资料入库。",
+    },
 }
 
 
@@ -332,10 +341,11 @@ def _scope_field_visibility(domain: str, task: str) -> tuple[bool, bool, bool]:
     """
     uses = _task_uses_memory(task)
     knowledge_scoped = domain == "notes" and task in KNOWLEDGE_SCOPE_LINES
+    ocr_scoped = domain == "notes" and task == OCR_TASK
     needs_user = uses or knowledge_scoped
-    needs_subject = uses or knowledge_scoped
+    needs_subject = uses or knowledge_scoped or ocr_scoped
     return (
-        needs_user,
+        needs_user or ocr_scoped,
         uses and domain == "meeting",
         needs_subject and domain == "notes",
     )
@@ -347,7 +357,7 @@ _TEACHER_TEXT_TASKS = frozenset({"catalog", "checklist"})
 
 
 def _scope_labels(task: str) -> tuple[dict[str, str], dict[str, str]]:
-    if task in KNOWLEDGE_SCOPE_LINES:
+    if task in KNOWLEDGE_SCOPE_LINES or task == OCR_TASK:
         return (
             {
                 "label": "用户 ID（必填）",
@@ -371,6 +381,12 @@ def _scope_labels(task: str) -> tuple[dict[str, str], dict[str, str]]:
 
 
 def _input_copy(task: str) -> dict[str, str]:
+    if task == OCR_TASK:
+        return {
+            "upload_label": "图片文件",
+            "text_label": "文本",
+            "text_placeholder": "OCR识别只需要上传图片。",
+        }
     if task == "library":
         return {
             "upload_label": "资料文件（可多选：课件 / 讲义 / 笔记）",
@@ -400,6 +416,8 @@ def _upload_incompatible(task: str, upload) -> bool:
     if upload is None or upload == "":
         return False
     paths = _uploaded_paths(upload)
+    if task == OCR_TASK:
+        return any(path.suffix.lower() not in {".png", ".jpg", ".jpeg"} for path in paths)
     if task == "library":
         return False
     if isinstance(upload, (list, tuple)):
@@ -414,10 +432,15 @@ def _upload_incompatible(task: str, upload) -> bool:
 def _upload_update(task: str, current_upload=None):
     """入库是多文件；其它任务是单份 txt。模式切换时清掉不兼容的旧文件，避免胶囊报错。"""
     knowledge_task = task == "library"
+    ocr_task = task == OCR_TASK
     copy = _input_copy(task)
     kwargs: dict = {
         "label": copy["upload_label"],
-        "file_types": sorted(_LIBRARY_SUFFIXES) if knowledge_task else [".txt", ".md"],
+        "file_types": (
+            [".png", ".jpg", ".jpeg"]
+            if ocr_task
+            else sorted(_LIBRARY_SUFFIXES) if knowledge_task else [".txt", ".md"]
+        ),
         "file_count": "multiple" if knowledge_task else "single",
     }
     if _upload_incompatible(task, current_upload):
@@ -427,11 +450,12 @@ def _upload_update(task: str, current_upload=None):
 
 def _input_text_update(task: str):
     copy = _input_copy(task)
-    lines = 8 if task in _TEACHER_TEXT_TASKS else (6 if task == "library" else 12)
+    lines = 2 if task == OCR_TASK else (8 if task in _TEACHER_TEXT_TASKS else (6 if task == "library" else 12))
     return gr.update(
         label=copy["text_label"],
         placeholder=copy["text_placeholder"],
         lines=lines,
+        visible=task != OCR_TASK,
     )
 
 
@@ -593,6 +617,12 @@ def _md_preview_text(files: list[str]) -> str:
         paths = rejected
     if not paths:
         return ""
+    ocr_llm_paths = [
+        path for path in paths
+        if path.parent.parent.name == "ocr" and path.name.endswith("_llm.md")
+    ]
+    if ocr_llm_paths:
+        paths = ocr_llm_paths
     paths.sort(
         key=lambda p: (
             0 if p.name.startswith("result_") else 1,
@@ -1418,6 +1448,50 @@ def run_from_ui(
         )
 
     tasks = [_task_value(task_label, domain)]
+    if domain == "notes" and tasks[0] == OCR_TASK:
+        uid = (user_id or "").strip()
+        subj = (subject or "").strip()
+        if not uid or not subj:
+            return _run_result(
+                "OCR识别请填写用户 ID 和学科。系统会把识别结果保存到该用户的 OCR 文件夹。",
+                None,
+                *_hitl_ui(False),
+                files_html=EMPTY_DOWNLOAD,
+            )
+        image_path = _uploaded_path(input_upload)
+        if image_path is None or not image_path.exists():
+            return _run_result(
+                "请上传 PNG / JPG / JPEG 图片。",
+                None,
+                *_hitl_ui(False),
+                files_html=EMPTY_DOWNLOAD,
+            )
+        if image_path.suffix.lower() not in {".png", ".jpg", ".jpeg"}:
+            return _run_result(
+                "OCR识别暂只支持 PNG / JPG / JPEG 图片。",
+                None,
+                *_hitl_ui(False),
+                files_html=EMPTY_DOWNLOAD,
+            )
+        try:
+            _raw_txt, _no_llm_md, _llm_md, files = _recognize_ocr_image(
+                image_path,
+                user_id=uid,
+                subject=subj,
+            )
+        except Exception as exc:  # noqa: BLE001
+            return _run_result(
+                f"OCR识别失败：{exc}",
+                None,
+                *_hitl_ui(False),
+                files_html=EMPTY_DOWNLOAD,
+            )
+        return _run_result(
+            "OCR识别完成。已生成 LLM Markdown、无 LLM Markdown 和服务器原始 OCR 文本，可在右侧预览或下载；"
+            "文件已保存到该用户的 OCR 文件夹。若要进入知识库，请把 LLM Markdown 上传到「资料入库」。",
+            files,
+            *_hitl_ui(False),
+        )
     chapter = grade = edition = difficulty = qtype = None
     level = "期中备考" if tasks and tasks[0] == "quiz" else None
     if tasks[0] == "quiz":
@@ -1725,39 +1799,18 @@ def rewrite_notes_from_ui():
     )
 
 
-def run_ocr_compare_from_ui(image_upload):
-    """图片 OCR 对照：服务器原始文本 / 无 LLM Markdown / LLM Markdown。"""
-    image_path = _uploaded_path(image_upload)
-    if image_path is None or not image_path.exists():
-        return (
-            "请先上传 PNG / JPG / JPEG 图片。",
-            "",
-            "",
-            "",
-            gr.update(value=[], visible=False),
-        )
-    if image_path.suffix.lower() not in {".png", ".jpg", ".jpeg"}:
-        return (
-            "图片格式暂只支持 PNG / JPG / JPEG。",
-            "",
-            "",
-            "",
-            gr.update(value=[], visible=False),
-        )
-    try:
-        from tools.ocr import server_ocr_image_compare
+def _recognize_ocr_image(
+    image_path: Path,
+    *,
+    user_id: str,
+    subject: str,
+) -> tuple[str, str, str, list[str]]:
+    from tools.ocr import server_ocr_image_compare
+    from tools.memory.store import safe_id
 
-        raw_txt, no_llm_md, llm_md = server_ocr_image_compare(str(image_path))
-    except Exception as exc:  # noqa: BLE001
-        return (
-            f"OCR 识别失败：{exc}",
-            "",
-            "",
-            "",
-            gr.update(value=[], visible=False),
-        )
+    raw_txt, no_llm_md, llm_md = server_ocr_image_compare(str(image_path))
     stamp = datetime.now().strftime("%Y%m%d_%H%M%S_%f")[:-3]
-    out_dir = PROJECT_ROOT / "output" / "ocr_compare"
+    out_dir = PROJECT_ROOT / "data" / safe_id(user_id) / "ocr" / safe_id(subject)
     out_dir.mkdir(parents=True, exist_ok=True)
     stem = re.sub(r"[^A-Za-z0-9_.-]+", "_", image_path.stem).strip("._") or "image"
     raw_path = out_dir / f"{stem}_{stamp}_server_ocr.txt"
@@ -1766,13 +1819,7 @@ def run_ocr_compare_from_ui(image_upload):
     raw_path.write_text(raw_txt, encoding="utf-8")
     no_llm_path.write_text(no_llm_md, encoding="utf-8")
     llm_path.write_text(llm_md, encoding="utf-8")
-    return (
-        "OCR 对照已完成。",
-        raw_txt,
-        no_llm_md,
-        llm_md,
-        gr.update(value=[str(raw_path), str(no_llm_path), str(llm_path)], visible=True),
-    )
+    return raw_txt, no_llm_md, llm_md, [str(llm_path), str(no_llm_path), str(raw_path)]
 
 
 def _uploaded_path(upload) -> Path | None:
@@ -1966,325 +2013,274 @@ def build_app() -> gr.Blocks:
     user_init, subject_init = _scope_labels(initial_task or "")
     input_init = _input_copy(initial_task or "")
     with gr.Blocks(title="AgentFlow测试", theme=_build_theme(), css=CSS) as demo:
-        with gr.Tab("任务测试", elem_id="main-workbench-tab"):
-            with gr.Row(elem_id="chrome-row", equal_height=True):
-                gr.HTML(
-                    """
-                    <header id="app-header">
-                      <div class="brand">
-                        <h1>AgentFlow测试</h1>
-                      </div>
-                    </header>
-                    """
+        with gr.Row(elem_id="chrome-row", equal_height=True):
+            gr.HTML(
+                """
+                <header id="app-header">
+                  <div class="brand">
+                    <h1>AgentFlow测试</h1>
+                  </div>
+                </header>
+                """
+            )
+            with gr.Row(elem_id="chrome-controls"):
+                domain = gr.Radio(
+                    choices=DOMAIN_CHOICES,
+                    value=initial_domain,
+                    show_label=False,
+                    container=False,
+                    elem_id="domain-switch",
                 )
-                with gr.Row(elem_id="chrome-controls"):
-                    domain = gr.Radio(
-                        choices=DOMAIN_CHOICES,
-                        value=initial_domain,
-                        show_label=False,
-                        container=False,
-                        elem_id="domain-switch",
+                monitor_checkbox = gr.Radio(
+                    choices=MONITOR_CHOICES,
+                    value=MONITOR_ON,
+                    show_label=False,
+                    container=False,
+                    elem_id="monitor-switch",
+                )
+        with gr.Row(elem_id="nav-row", equal_height=True):
+            with gr.Column(scale=8, min_width=240, elem_id="nav-tasks"):
+                tasks = gr.Radio(
+                    choices=initial_choices,
+                    value=initial_task,
+                    show_label=False,
+                    container=False,
+                    elem_id="task-tabs",
+                )
+            with gr.Row(elem_id="nav-actions"):
+                clear_results_btn = gr.Button(
+                    "清空结果",
+                    variant="secondary",
+                    elem_id="clear-results-btn",
+                    size="sm",
+                )
+                reset_form_btn = gr.Button(
+                    "重置表单",
+                    variant="secondary",
+                    elem_id="reset-form-btn",
+                    size="sm",
+                )
+        with gr.Row(elem_id="work-row", equal_height=False):
+            with gr.Column(scale=5, min_width=420, elem_id="col-input"):
+                config_label = gr.HTML(
+                    '<div class="panel-label">配置</div>',
+                    visible=show_config,
+                )
+                mode_dropdown = gr.Dropdown(
+                    label="组织模式",
+                    choices=MULTI_STYLE_MODE_CHOICES,
+                    value=DEFAULT_MULTI_STYLE_MODE,
+                    visible=False,
+                    elem_id="mode-select",
+                )
+                perspective_dropdown = gr.Dropdown(
+                    label="视角",
+                    choices=_profile_dropdown_choices(initial_domain),
+                    value=_profile_dropdown_default(initial_domain),
+                    visible=initial_task == "minutes_generation",
+                    elem_id="perspective-select",
+                )
+                user_id = gr.Textbox(
+                    label=user_init["label"],
+                    lines=1,
+                    max_lines=1,
+                    placeholder=user_init["placeholder"],
+                    visible=show_user,
+                )
+                project_id = gr.Textbox(
+                    label="项目 ID（可选，会议记忆）",
+                    lines=1,
+                    max_lines=1,
+                    placeholder="会议域：写入并绑定该项目",
+                    visible=show_project,
+                )
+                subject = gr.Textbox(
+                    label=subject_init["label"],
+                    lines=1,
+                    max_lines=1,
+                    placeholder=subject_init["placeholder"],
+                    visible=show_subject,
+                )
+                with gr.Group(visible=False, elem_id="quiz-box") as quiz_box:
+                    quiz_difficulty = gr.Dropdown(
+                        label="题目难度",
+                        choices=["不指定", "容易", "较易", "适中", "较难", "困难"],
+                        value="不指定",
                     )
-                    monitor_checkbox = gr.Radio(
-                        choices=MONITOR_CHOICES,
-                        value=MONITOR_ON,
-                        show_label=False,
-                        container=False,
-                        elem_id="monitor-switch",
+                    quiz_qtype = gr.Dropdown(
+                        label="题目类型",
+                        choices=quiz_qtype_choices(""),
+                        value=QUIZ_NONE,
                     )
-            with gr.Row(elem_id="nav-row", equal_height=True):
-                with gr.Column(scale=8, min_width=240, elem_id="nav-tasks"):
-                    tasks = gr.Radio(
-                        choices=initial_choices,
-                        value=initial_task,
-                        show_label=False,
-                        container=False,
-                        elem_id="task-tabs",
+                    quiz_match_hint = gr.HTML("")
+                with gr.Group(visible=False, elem_id="trace-box") as trace_box:
+                    gr.HTML(
+                        '<div class="tpl-guide">'
+                        "<strong>溯源材料</strong>：用户关键点、用户笔记。"
+                        "上传会议文件所在目录若已有同名文件会自动带上；这里填写则覆盖。"
+                        "</div>"
                     )
-                with gr.Row(elem_id="nav-actions"):
-                    clear_results_btn = gr.Button(
-                        "清空结果",
-                        variant="secondary",
-                        elem_id="clear-results-btn",
-                        size="sm",
-                    )
-                    reset_form_btn = gr.Button(
-                        "重置表单",
-                        variant="secondary",
-                        elem_id="reset-form-btn",
-                        size="sm",
-                    )
-            with gr.Row(elem_id="work-row", equal_height=False):
-                with gr.Column(scale=5, min_width=420, elem_id="col-input"):
-                    config_label = gr.HTML(
-                        '<div class="panel-label">配置</div>',
-                        visible=show_config,
-                    )
-                    mode_dropdown = gr.Dropdown(
-                        label="组织模式",
-                        choices=MULTI_STYLE_MODE_CHOICES,
-                        value=DEFAULT_MULTI_STYLE_MODE,
-                        visible=False,
-                        elem_id="mode-select",
-                    )
-                    perspective_dropdown = gr.Dropdown(
-                        label="视角",
-                        choices=_profile_dropdown_choices(initial_domain),
-                        value=_profile_dropdown_default(initial_domain),
-                        visible=initial_task == "minutes_generation",
-                        elem_id="perspective-select",
-                    )
-                    user_id = gr.Textbox(
-                        label=user_init["label"],
-                        lines=1,
-                        max_lines=1,
-                        placeholder=user_init["placeholder"],
-                        visible=show_user,
-                    )
-                    project_id = gr.Textbox(
-                        label="项目 ID（可选，会议记忆）",
-                        lines=1,
-                        max_lines=1,
-                        placeholder="会议域：写入并绑定该项目",
-                        visible=show_project,
-                    )
-                    subject = gr.Textbox(
-                        label=subject_init["label"],
-                        lines=1,
-                        max_lines=1,
-                        placeholder=subject_init["placeholder"],
-                        visible=show_subject,
-                    )
-                    with gr.Group(visible=False, elem_id="quiz-box") as quiz_box:
-                        quiz_difficulty = gr.Dropdown(
-                            label="题目难度",
-                            choices=["不指定", "容易", "较易", "适中", "较难", "困难"],
-                            value="不指定",
-                        )
-                        quiz_qtype = gr.Dropdown(
-                            label="题目类型",
-                            choices=quiz_qtype_choices(""),
-                            value=QUIZ_NONE,
-                        )
-                        quiz_match_hint = gr.HTML("")
-                    with gr.Group(visible=False, elem_id="trace-box") as trace_box:
-                        gr.HTML(
-                            '<div class="tpl-guide">'
-                            "<strong>溯源材料</strong>：用户关键点、用户笔记。"
-                            "上传会议文件所在目录若已有同名文件会自动带上；这里填写则覆盖。"
-                            "</div>"
-                        )
-                        keypoints_upload = gr.File(
-                            label="用户关键点文件",
-                            file_count="single",
-                            file_types=[".txt", ".md"],
-                            type="filepath",
-                        )
-                        keypoints_text = gr.Textbox(
-                            label="用户关键点",
-                            lines=4,
-                            max_lines=16,
-                            placeholder="每行一条关键点",
-                        )
-                        notes_upload = gr.File(
-                            label="用户笔记文件",
-                            file_count="single",
-                            file_types=[".txt", ".md"],
-                            type="filepath",
-                        )
-                        notes_text = gr.Textbox(
-                            label="用户笔记",
-                            lines=4,
-                            max_lines=16,
-                            placeholder="原文片段 -> 用户批注",
-                        )
-                    gr.HTML('<div class="panel-label spaced">输入</div>')
-                    input_upload = gr.File(
-                        label=input_init["upload_label"],
+                    keypoints_upload = gr.File(
+                        label="用户关键点文件",
                         file_count="single",
                         file_types=[".txt", ".md"],
                         type="filepath",
                     )
-                    input_text = gr.Textbox(
-                        label=input_init["text_label"],
-                        lines=12,
-                        max_lines=40,
-                        elem_id="input-text",
-                        placeholder=input_init["text_placeholder"],
+                    keypoints_text = gr.Textbox(
+                        label="用户关键点",
+                        lines=4,
+                        max_lines=16,
+                        placeholder="每行一条关键点",
                     )
-                    with gr.Group(visible=True, elem_id="render-template-wrap") as template_wrap:
-                        gr.HTML('<div class="panel-label spaced">渲染模板（可选）</div>')
-                        gr.HTML(
-                            '<div class="tpl-guide">'
-                            "给最终输出套一层版式。可写自然语言，例如"
-                            "「分三段：纪要本段约200字；待办表约3行；风险表约3行」"
-                            "或「全文约800字」。点「运行」后会变成能看懂的标题和表格，"
-                            "改完再点「确认模板并运行」。"
-                            "「纪要约200字」只限制那一段，「全文约800字」才限制整篇。"
-                            "</div>"
-                        )
-                        with gr.Column(elem_id="tpl-box"):
-                            template_upload = gr.File(
-                                label="模板文件",
-                                file_count="single",
-                                file_types=[".md", ".txt"],
-                                type="filepath",
-                                elem_id="tpl-file",
-                            )
-                            template_text = gr.Textbox(
-                                label="模板或自然语言描述",
-                                lines=6,
-                                max_lines=30,
-                                placeholder=(
-                                    "示例：分三段。第一段纪要本段约200字；"
-                                    "第二段待办表约3行；第三段风险表约3行"
-                                ),
-                            )
-                        with gr.Group(visible=False, elem_id="compiled-wrap") as compiled_wrap:
-                            gr.HTML(
-                                '<p class="step-banner">'
-                                "<strong>可编辑版式</strong>　这是按你的描述排好的稿纸，"
-                                "不是给机器看的占位符。"
-                                "【版式】区分全文多少字和某一段多少字；"
-                                "下面可改标题、表格列，空着的位置生成时填写。"
-                                "</p>"
-                            )
-                            friendly_template = gr.Textbox(
-                                label="可编辑版式（不是占位符）",
-                                lines=10,
-                                max_lines=40,
-                                visible=True,
-                                elem_id="friendly-template",
-                                placeholder="自然语言模板生成后会显示在这里。",
-                                interactive=True,
-                            )
-                            # 隐藏状态：保存原始占位模板，用于把友好模板还原后生成纪要
-                            # 隐藏状态：保存原始占位模板（gradio 5.49 对 gr.State 的 gr.update 不生效，改用隐藏 Textbox 承载 JSON 状态）
-                            edit_state = gr.Textbox(value="", visible=False, elem_id="edit-state")
-                            clear_tpl_btn = gr.Button(
-                                "清除预览",
-                                variant="secondary",
-                                elem_id="clear-tpl-btn",
-                                size="sm",
-                            )
-                    run_button = gr.Button("运行", variant="primary", elem_id="run-btn")
-    
-                with gr.Column(scale=8, min_width=480, elem_id="col-output"):
-                    gr.HTML('<div class="panel-label">结果</div>')
-                    task_brief = gr.HTML(
-                        value=_task_brief_html(initial_task or ""),
-                        elem_id="task-brief",
-                    )
-                    html_monitor_kwargs = {
-                        "value": "",
-                        "elem_id": "monitor-panel",
-                        "visible": False,
-                    }
-                    try:
-                        monitor_panel = gr.HTML(**html_monitor_kwargs, sanitize_html=False)
-                    except TypeError:
-                        try:
-                            monitor_panel = gr.HTML(**html_monitor_kwargs, sanitize=False)
-                        except TypeError:
-                            monitor_panel = gr.HTML(**html_monitor_kwargs)
-                    log_output = gr.Textbox(
-                        label="日志",
-                        lines=12,
-                        max_lines=40,
-                        elem_id="log-box",
-                    )
-                    html_kwargs = {
-                        "value": "",
-                        "label": "对照批注",
-                        "elem_id": "memory-review",
-                        "visible": False,
-                    }
-                    try:
-                        memory_review = gr.HTML(**html_kwargs, sanitize_html=False)
-                    except TypeError:
-                        try:
-                            memory_review = gr.HTML(**html_kwargs, sanitize=False)
-                        except TypeError:
-                            memory_review = gr.HTML(**html_kwargs)
-                    rewrite_btn = gr.Button(
-                        "同意采用订正笔记",
-                        variant="secondary",
-                        elem_id="rewrite-btn",
-                        visible=False,
-                    )
-                    md_preview = gr.Markdown(
-                        value="",
-                        label="Markdown 预览",
-                        elem_id="md-preview",
-                        visible=False,
-                    )
-                    image_output = gr.Gallery(
-                        label="图片",
-                        columns=2,
-                        height=200,
-                        visible=False,
-                        elem_id="img-gallery",
-                    )
-                    download_files = gr.File(
-                        label="下载文件",
-                        file_count="multiple",
-                        visible=False,
-                        elem_id="download-files",
-                    )
-                    files_output = gr.HTML(
-                        label="文件",
-                        value=EMPTY_DOWNLOAD,
-                    )
-    
-        with gr.Tab("OCR 对照", elem_id="ocr-compare-tab"):
-            with gr.Row(equal_height=False):
-                with gr.Column(scale=4, min_width=320):
-                    ocr_image_upload = gr.File(
-                        label="图片",
+                    notes_upload = gr.File(
+                        label="用户笔记文件",
                         file_count="single",
-                        file_types=[".png", ".jpg", ".jpeg"],
+                        file_types=[".txt", ".md"],
                         type="filepath",
                     )
-                    ocr_run_button = gr.Button(
-                        "识别对照",
-                        variant="primary",
-                        elem_id="ocr-run-btn",
+                    notes_text = gr.Textbox(
+                        label="用户笔记",
+                        lines=4,
+                        max_lines=16,
+                        placeholder="原文片段 -> 用户批注",
                     )
-                    ocr_status = gr.Textbox(
-                        label="状态",
-                        lines=3,
-                        max_lines=8,
+                gr.HTML('<div class="panel-label spaced">输入</div>')
+                input_upload = gr.File(
+                    label=input_init["upload_label"],
+                    file_count="single",
+                    file_types=[".txt", ".md"],
+                    type="filepath",
+                )
+                input_text = gr.Textbox(
+                    label=input_init["text_label"],
+                    lines=12,
+                    max_lines=40,
+                    elem_id="input-text",
+                    placeholder=input_init["text_placeholder"],
+                )
+                with gr.Group(visible=True, elem_id="render-template-wrap") as template_wrap:
+                    gr.HTML('<div class="panel-label spaced">渲染模板（可选）</div>')
+                    gr.HTML(
+                        '<div class="tpl-guide">'
+                        "给最终输出套一层版式。可写自然语言，例如"
+                        "「分三段：纪要本段约200字；待办表约3行；风险表约3行」"
+                        "或「全文约800字」。点「运行」后会变成能看懂的标题和表格，"
+                        "改完再点「确认模板并运行」。"
+                        "「纪要约200字」只限制那一段，「全文约800字」才限制整篇。"
+                        "</div>"
                     )
-                with gr.Column(scale=8, min_width=480):
-                    with gr.Tabs(elem_id="ocr-output-tabs"):
-                        with gr.Tab("原始文本"):
-                            ocr_raw_txt = gr.Textbox(
-                                label="服务器原始 OCR 文本",
-                                lines=22,
-                                max_lines=48,
-                                show_copy_button=True,
-                            )
-                        with gr.Tab("无 LLM Markdown"):
-                            ocr_no_llm_md = gr.Textbox(
-                                label="无 LLM Markdown",
-                                lines=22,
-                                max_lines=48,
-                                show_copy_button=True,
-                            )
-                        with gr.Tab("LLM Markdown"):
-                            ocr_llm_md = gr.Textbox(
-                                value="",
-                                label="LLM Markdown",
-                                lines=22,
-                                max_lines=48,
-                                show_copy_button=True,
-                                elem_id="ocr-llm-md-preview",
-                            )
-                    ocr_download_files = gr.File(
-                        label="下载三份结果",
-                        file_count="multiple",
-                        visible=False,
-                    )
+                    with gr.Column(elem_id="tpl-box"):
+                        template_upload = gr.File(
+                            label="模板文件",
+                            file_count="single",
+                            file_types=[".md", ".txt"],
+                            type="filepath",
+                            elem_id="tpl-file",
+                        )
+                        template_text = gr.Textbox(
+                            label="模板或自然语言描述",
+                            lines=6,
+                            max_lines=30,
+                            placeholder=(
+                                "示例：分三段。第一段纪要本段约200字；"
+                                "第二段待办表约3行；第三段风险表约3行"
+                            ),
+                        )
+                    with gr.Group(visible=False, elem_id="compiled-wrap") as compiled_wrap:
+                        gr.HTML(
+                            '<p class="step-banner">'
+                            "<strong>可编辑版式</strong>　这是按你的描述排好的稿纸，"
+                            "不是给机器看的占位符。"
+                            "【版式】区分全文多少字和某一段多少字；"
+                            "下面可改标题、表格列，空着的位置生成时填写。"
+                            "</p>"
+                        )
+                        friendly_template = gr.Textbox(
+                            label="可编辑版式（不是占位符）",
+                            lines=10,
+                            max_lines=40,
+                            visible=True,
+                            elem_id="friendly-template",
+                            placeholder="自然语言模板生成后会显示在这里。",
+                            interactive=True,
+                        )
+                        # 隐藏状态：保存原始占位模板，用于把友好模板还原后生成纪要
+                        # 隐藏状态：保存原始占位模板（gradio 5.49 对 gr.State 的 gr.update 不生效，改用隐藏 Textbox 承载 JSON 状态）
+                        edit_state = gr.Textbox(value="", visible=False, elem_id="edit-state")
+                        clear_tpl_btn = gr.Button(
+                            "清除预览",
+                            variant="secondary",
+                            elem_id="clear-tpl-btn",
+                            size="sm",
+                        )
+                run_button = gr.Button("运行", variant="primary", elem_id="run-btn")
+
+            with gr.Column(scale=8, min_width=480, elem_id="col-output"):
+                gr.HTML('<div class="panel-label">结果</div>')
+                task_brief = gr.HTML(
+                    value=_task_brief_html(initial_task or ""),
+                    elem_id="task-brief",
+                )
+                html_monitor_kwargs = {
+                    "value": "",
+                    "elem_id": "monitor-panel",
+                    "visible": False,
+                }
+                try:
+                    monitor_panel = gr.HTML(**html_monitor_kwargs, sanitize_html=False)
+                except TypeError:
+                    try:
+                        monitor_panel = gr.HTML(**html_monitor_kwargs, sanitize=False)
+                    except TypeError:
+                        monitor_panel = gr.HTML(**html_monitor_kwargs)
+                log_output = gr.Textbox(
+                    label="日志",
+                    lines=12,
+                    max_lines=40,
+                    elem_id="log-box",
+                )
+                html_kwargs = {
+                    "value": "",
+                    "label": "对照批注",
+                    "elem_id": "memory-review",
+                    "visible": False,
+                }
+                try:
+                    memory_review = gr.HTML(**html_kwargs, sanitize_html=False)
+                except TypeError:
+                    try:
+                        memory_review = gr.HTML(**html_kwargs, sanitize=False)
+                    except TypeError:
+                        memory_review = gr.HTML(**html_kwargs)
+                rewrite_btn = gr.Button(
+                    "同意采用订正笔记",
+                    variant="secondary",
+                    elem_id="rewrite-btn",
+                    visible=False,
+                )
+                md_preview = gr.Markdown(
+                    value="",
+                    label="Markdown 预览",
+                    elem_id="md-preview",
+                    visible=False,
+                )
+                image_output = gr.Gallery(
+                    label="图片",
+                    columns=2,
+                    height=200,
+                    visible=False,
+                    elem_id="img-gallery",
+                )
+                download_files = gr.File(
+                    label="下载文件",
+                    file_count="multiple",
+                    visible=False,
+                    elem_id="download-files",
+                )
+                files_output = gr.HTML(
+                    label="文件",
+                    value=EMPTY_DOWNLOAD,
+                )
 
         hitl_outputs = [
             friendly_template,
@@ -2451,18 +2447,6 @@ def build_app() -> gr.Blocks:
                 monitor_checkbox,
                 *hitl_outputs,
             ],
-        )
-        ocr_run_button.click(
-            run_ocr_compare_from_ui,
-            inputs=[ocr_image_upload],
-            outputs=[
-                ocr_status,
-                ocr_raw_txt,
-                ocr_no_llm_md,
-                ocr_llm_md,
-                ocr_download_files,
-            ],
-            show_progress="minimal",
         )
     _mount_bank_assets(demo)
     return demo
