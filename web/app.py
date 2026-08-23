@@ -60,9 +60,11 @@ MONITOR_OFF = "off"
 MONITOR_CHOICES = [("关", MONITOR_OFF), ("监控", MONITOR_ON)]
 OCR_LEVEL_LIGHT = "light"
 OCR_LEVEL_MEDIUM = "medium"
+OCR_LEVEL_HEAVY = "heavy"
 OCR_LEVEL_CHOICES = [
     ("Light - OCR + LLM审校", OCR_LEVEL_LIGHT),
     ("Medium - Light + VLM版面增强", OCR_LEVEL_MEDIUM),
+    ("Heavy - Medium + meta.json", OCR_LEVEL_HEAVY),
 ]
 
 PERSPECTIVE_OBJECTIVE = "objective"
@@ -75,7 +77,7 @@ load_env(PROJECT_ROOT / ".env")
 
 def _ocr_level_value(value: str | None = None) -> str:
     raw = (value or os.getenv("OCR_LEVEL") or OCR_LEVEL_MEDIUM).strip().lower()
-    if raw in {OCR_LEVEL_LIGHT, OCR_LEVEL_MEDIUM}:
+    if raw in {OCR_LEVEL_LIGHT, OCR_LEVEL_MEDIUM, OCR_LEVEL_HEAVY}:
         return raw
     return OCR_LEVEL_MEDIUM
 
@@ -1866,10 +1868,20 @@ def _recognize_ocr_image(
     subject: str,
     ocr_level: str = OCR_LEVEL_MEDIUM,
 ) -> tuple[str, str, str, list[str]]:
-    if _ocr_level_value(ocr_level) == OCR_LEVEL_LIGHT:
+    level = _ocr_level_value(ocr_level)
+    if level == OCR_LEVEL_LIGHT:
         from tools.ocr.levels.light import run_light_ocr
 
         result = run_light_ocr(
+            image_path,
+            user_id=user_id,
+            subject=subject,
+            project_root=PROJECT_ROOT,
+        )
+    elif level == OCR_LEVEL_HEAVY:
+        from tools.ocr.levels.heavy import run_heavy_ocr
+
+        result = run_heavy_ocr(
             image_path,
             user_id=user_id,
             subject=subject,

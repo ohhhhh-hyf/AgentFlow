@@ -234,28 +234,15 @@ data/{user_id}/knowledge/catalogs/{subject}_{hash}.json
 
 ```json
 {
-  "schema_version": "1.0",
-  "recognition_level": "heavy",
-  "subject": "math",
-  "source": {
-    "source_type": "handwritten_notes",
-    "files": ["xxx.jpg"],
-    "md_files": ["xxx_llmv2.md"]
-  },
-  "layout": {
-    "page_type": "single_page | double_page",
-    "reading_order": ["left", "right"],
-    "confidence": 0.86
-  },
   "catalog_hints": [],
   "knowledge_points": [],
   "review_items": [],
   "relations": [],
-  "priority_stats": {},
-  "action_items": [],
-  "warnings": []
+  "action_items": []
 }
 ```
+
+Heavy 的 `meta.json` 只保留这 5 个顶层字段。来源、版面、识别级别等信息只作为生成时的上下文，不写入最终 `meta.json`。
 
 ### catalog_hints
 
@@ -418,34 +405,6 @@ common_mistake
 
 知识图谱可以用 `relations` 生成边，思维导图可以用 `contains` 和 `depends_on` 生成层级。
 
-### priority_stats
-
-用于重点统计。
-
-它应该是汇总信息，不要太细：
-
-```json
-{
-  "priority_stats": {
-    "high": 3,
-    "medium": 5,
-    "low": 2,
-    "has_formulas": true,
-    "has_examples": true,
-    "has_common_mistakes": false
-  }
-}
-```
-
-复习清单可以据此生成：
-
-```text
-本次笔记高优先级知识点 3 个
-包含公式
-包含例题
-暂无明显错题/易错点
-```
-
 ### action_items
 
 用于行动清单。
@@ -473,23 +432,7 @@ common_mistake
 }
 ```
 
-### warnings
-
-用于保守处理不确定内容。
-
-数学笔记里，VLM/LLM 不应该强行修正不确定公式。遇到不确定内容，应该进入 `warnings`：
-
-```json
-{
-  "warnings": [
-    {
-      "type": "low_confidence_formula",
-      "message": "部分公式上下标可能识别不准确，建议人工检查。",
-      "related_topic": "通解公式"
-    }
-  ]
-}
-```
+数学笔记里，VLM/LLM 不应该强行修正不确定公式。遇到需要人工确认的内容，统一写成 `action_items`，例如“人工检查通解公式中的上下标是否识别准确”。
 
 ## VLM 在 Heavy 中应该生成什么
 
@@ -562,9 +505,7 @@ Heavy meta.json
 3. 以 knowledge_points 辅助补充目录节点摘要
 4. 以 review_items 辅助生成复习清单
 5. 以 relations 辅助生成知识图谱/思维导图
-6. 以 priority_stats 辅助重点统计
-7. 以 action_items 生成行动清单
-8. 以 warnings 保留人工检查提示
+6. 以 action_items 生成行动清单和人工检查项
 ```
 
 注意：
@@ -581,7 +522,7 @@ review_hints
 node_summary
 importance
 relations
-warnings
+action_items
 ```
 
 ## 三种级别的最终对比
@@ -660,5 +601,5 @@ VLM 做双页切分、阅读顺序、背景色重要性加权
 4. Heavy 必须包含 Medium，Medium 必须包含 Light。
 5. `meta.json` 不替代正式目录 JSON。
 6. 正式目录 JSON 保存位置不变。
-7. 数学公式不确定时进入 warnings，不让 LLM 自由猜。
+7. 数学公式不确定时进入 action_items 作为人工检查项，不让 LLM 自由猜。
 8. 字段设计宁可少而稳定，不要多而松散。
