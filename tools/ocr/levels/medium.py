@@ -75,7 +75,9 @@ MEDIUM_RECONSTRUCT_SYSTEM_PROMPT = """你是「笔记整理器」。把 OCR 识�
 5. VLM 的 background_marked_regions 只表示对应区域有明显背景色/荧光底色，靠近这些区域的 OCR 内容可以视为更重要
 6. 背景色标记只能用于适度加粗或在本身像标题时提高标题层级，不要仅凭背景色新增事实或强行改写内容
 7. 公式不确定时保留原样，不要自由改写
-8. 输出 Markdown 正文，不要前言后语、不要代码围栏"""
+8. page_region/page_index 只是内部阅读顺序标记，不要输出“第 1 页”“left”“right”等页标题
+9. 输出应像 Light 模式一样是自然笔记 Markdown，以真实笔记标题作为标题层级
+10. 输出 Markdown 正文，不要前言后语、不要代码围栏"""
 
 MIN_DOUBLE_PAGE_CONFIDENCE = 0.65
 GUTTER_OVERLAP_RATIO = 0.015
@@ -423,17 +425,9 @@ def _lines_to_structured_payload(lines: list[dict]) -> str:
 
 def _tag_page_lines(lines: list[dict], page_index: int, region_id: str) -> list[dict]:
     tagged: list[dict] = []
-    marker = {
-        "text": f"第 {page_index} 页（{region_id}）",
-        "role_hint": "heading",
-        "title_decision": "locked_heading",
-        "heading_level_hint": 1,
-        "heading_score": 1.0,
-        "conf": 1.0,
-    }
-    tagged.append(marker)
     for item in lines:
         row = dict(item)
+        row["page_index"] = page_index
         row["page_region"] = region_id
         tagged.append(row)
     return tagged

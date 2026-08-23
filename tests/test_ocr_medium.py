@@ -104,6 +104,7 @@ def test_run_medium_ocr_splits_pages_and_saves_outputs(tmp_path, monkeypatch):
     image_path = tmp_path / "double.jpg"
     Image.new("RGB", (1000, 500), "white").save(image_path)
     seen_hints = {}
+    seen_lines = []
 
     def fake_recognize_image(path: str):
         name = Path(path).name
@@ -112,6 +113,7 @@ def test_run_medium_ocr_splits_pages_and_saves_outputs(tmp_path, monkeypatch):
 
     def fake_reconstruct(lines, visual_hints):
         seen_hints.update(visual_hints)
+        seen_lines.extend(lines)
         return "\n".join(str(item.get("text") or "") for item in lines if item.get("text"))
 
     def fake_review(markdown, lines):
@@ -134,6 +136,9 @@ def test_run_medium_ocr_splits_pages_and_saves_outputs(tmp_path, monkeypatch):
     assert "左页内容" in result.raw_text
     assert "右页内容" in result.raw_text
     assert "审校版" in result.reviewed_markdown
+    assert "第 1 页" not in result.reviewed_markdown
+    assert "第 2 页" not in result.reviewed_markdown
+    assert [item.get("page_region") for item in seen_lines] == ["left", "right"]
     assert seen_hints["background_marked_regions"][0]["location"] == "left page top"
     assert result.raw_path.exists()
     assert result.reviewed_path.exists()
