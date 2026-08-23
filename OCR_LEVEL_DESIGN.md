@@ -15,7 +15,7 @@ Medium 包含 Light
 
 ```text
 Light  = OCR + LLM 审校
-Medium = Light + VLM 版面增强（双页切分 + 颜色标记 + 大标题提示）
+Medium = Light + VLM 版面增强（双页切分 + 阅读顺序 + 背景色重要性加权）
 Heavy  = Medium + VLM/LLM 结构化理解 meta.json
 ```
 
@@ -68,8 +68,7 @@ OCR 接口本身可以识别横向图片，所以 Medium 不负责旋转判断�
 判断是否双页
 给出合适的切分方式
 给出阅读顺序
-观察颜色标记的可能含义
-给出大标题候选或标题位置提示
+观察是否存在明显背景色/荧光底色标记，并把这些区域作为重要性加权提示
 ```
 
 用户仍然只上传一张图，处理过程对用户无感。
@@ -82,8 +81,7 @@ OCR 接口本身可以识别横向图片，所以 Medium 不负责旋转判断�
    -> 是否双页
    -> 双页切分方案
    -> 阅读顺序
-   -> 颜色标记含义
-   -> 大标题候选
+   -> 背景色标记区域
 -> 如果不是双页：回到 Light
 -> 如果是双页：
    -> 按 VLM 建议裁剪左页/右页
@@ -121,23 +119,14 @@ Medium 的 VLM 输出建议：
     }
   ],
   "visual_hints": {
-    "highlight_meanings": [
+    "background_marked_regions": [
       {
-        "color": "yellow",
-        "meaning": "章节标题或重点标题",
-        "confidence": 0.78
-      },
-      {
-        "color": "red",
-        "meaning": "重点公式或强调内容",
-        "confidence": 0.72
-      }
-    ],
-    "title_candidates": [
-      {
-        "text_hint": "标题短文本或空字符串",
         "location": "left page top",
         "confidence": 0.82
+      },
+      {
+        "location": "right page middle",
+        "confidence": 0.76
       }
     ]
   },
@@ -162,8 +151,8 @@ Medium 的准确率优化点：
 4. OCR 结果轻量校验  
    如果裁剪后某一页 OCR 文本极少，或左右页大量重复，可以记录 warning，后续再考虑二次切分。
 
-5. 颜色标记和大标题提示  
-   VLM 观察颜色标记和大标题候选，但这些提示只用于 Markdown 标题层级和重点标注，不作为事实来源，不单独落盘。为了避免视觉模型返回中文字段时出现编码问题，`visual_hints` 中的 `meaning`、`location`、`text_hint` 建议使用 ASCII English 短语；不确定的中文标题不要强行转写。
+5. 背景色重要性加权  
+   VLM 不识别具体颜色名，不判断它是标题、公式还是正文，只返回存在明显背景色/荧光底色的区域位置和置信度。LLM 只能把这些区域附近的 OCR 内容视为更重要：可以适度加粗，或在内容本身像标题时提高标题层级；不能根据背景色提示新增事实或强行改写内容。为了避免视觉模型返回中文字段时出现编码问题，`visual_hints` 中的 `location`、`notes` 建议使用 ASCII English 短语。
 
 6. VLM JSON 稳定性  
    Medium 使用四层保险：Prompt 约束、JSON 提取、轻量 JSON 修复、最终回退 Light。JSON 修复只处理常见格式问题，例如解释文字、Markdown 围栏、中文双引号、尾随逗号、Python 风格 `True/False/None`；不猜测字段语义。
@@ -508,7 +497,7 @@ VLM 不应该单独承担最终事实判断。它更适合生成视觉观察和�
 
 ```text
 标题区域
-颜色重点
+背景色重要性提示
 双页结构
 公式区域
 例题区域
@@ -523,20 +512,20 @@ VLM 可输出给 LLM 的中间结果：
 {
   "visual_observations": [
     {
-      "type": "highlight",
-      "meaning": "黄色标记可能是章节标题或重点",
+      "type": "background_mark",
+      "location": "left page top",
       "related_text": "一阶微分方程",
       "confidence": 0.78
     },
     {
       "type": "formula_region",
-      "meaning": "页面中部存在公式推导区域",
+      "location": "page middle",
       "related_text": "变量分离法",
       "confidence": 0.72
     },
     {
       "type": "example_region",
-      "meaning": "右页下方像是例题或练习",
+      "location": "right page bottom",
       "related_text": "例题",
       "confidence": 0.70
     }
@@ -600,7 +589,7 @@ warnings
 | 级别 | 核心能力 | VLM | 输出 | 目录生成 |
 | --- | --- | --- | --- | --- |
 | Light | OCR + LLM 审校 | 不使用 | txt + md | 通过 llmv2.md 生成目录 |
-| Medium | Light + 版面增强 | 双页切分、颜色标记、大标题提示 | txt + md | 通过更准确的 llmv2.md 生成目录 |
+| Medium | Light + 版面增强 | 双页切分、阅读顺序、背景色重要性加权 | txt + md | 通过更准确的 llmv2.md 生成目录 |
 | Heavy | Medium + 结构化理解 | 做视觉结构观察 | txt + md + meta.json | 通过 llmv2.md + meta.json 生成更有效目录 |
 
 ## 建议的命令行参数
@@ -644,7 +633,7 @@ Light 保持当前逻辑
 
 ```text
 实现 Medium
-VLM 做双页切分、颜色标记、大标题提示
+VLM 做双页切分、阅读顺序、背景色重要性加权
 分区 OCR 后合并，并把 VLM 版面提示用于 Markdown 整理
 ```
 
@@ -666,7 +655,7 @@ VLM 做双页切分、颜色标记、大标题提示
 ## 关键约束
 
 1. Light 不处理双页，不提示双页。
-2. Medium 不处理旋转，只处理双页切分、颜色标记和大标题提示。
+2. Medium 不处理旋转，只处理双页切分、阅读顺序和背景色重要性加权。
 3. Medium 对用户无感，用户仍然只上传原图。
 4. Heavy 必须包含 Medium，Medium 必须包含 Light。
 5. `meta.json` 不替代正式目录 JSON。

@@ -21,11 +21,9 @@ class FakeVLM:
             {"id": "右页", "x1_ratio": 0.48, "y1_ratio": 0, "x2_ratio": 1, "y2_ratio": 1}
           ],
           "visual_hints": {
-            "highlight_meanings": [
-              {"color": "yellow", "meaning": "章节标题或重点标题", "confidence": 0.8}
-            ],
-            "title_candidates": [
-              {"text_hint": "一阶微分方程", "location": "left page top", "confidence": 0.85}
+            "background_marked_regions": [
+              {"location": "left page top", "confidence": 0.85},
+              {"location": "right page middle", "confidence": 0.78}
             ]
           },
           "notes": ["双页"]
@@ -54,8 +52,8 @@ def test_parse_split_plan_normalizes_chinese_ids():
     assert [region.id for region in plan.crop_plan] == ["left", "right"]
     assert plan.crop_plan[0].x2_ratio == 0.52
     assert plan.crop_plan[1].x1_ratio == 0.48
-    assert plan.visual_hints["highlight_meanings"][0]["color"] == "yellow"
-    assert plan.visual_hints["title_candidates"][0]["text_hint"] == "一阶微分方程"
+    assert plan.visual_hints["background_marked_regions"][0]["location"] == "left page top"
+    assert plan.visual_hints["background_marked_regions"][0]["confidence"] == 0.85
 
 
 def test_parse_split_plan_uses_center_default_when_crop_missing():
@@ -136,7 +134,7 @@ def test_run_medium_ocr_splits_pages_and_saves_outputs(tmp_path, monkeypatch):
     assert "左页内容" in result.raw_text
     assert "右页内容" in result.raw_text
     assert "审校版" in result.reviewed_markdown
-    assert seen_hints["highlight_meanings"][0]["color"] == "yellow"
+    assert seen_hints["background_marked_regions"][0]["location"] == "left page top"
     assert result.raw_path.exists()
     assert result.reviewed_path.exists()
     assert result.raw_path.parent == tmp_path / "data" / "u1" / "ocr" / "math" / "txt"
