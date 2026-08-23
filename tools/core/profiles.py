@@ -12,7 +12,7 @@ from pathlib import Path
 from typing import Any
 
 # 跨域公共画像目录：根目录放客观画像，role/ 子目录放职业模板
-PROJECT_ROOT = Path(__file__).resolve().parents[1]
+PROJECT_ROOT = Path(__file__).resolve().parents[2]
 SHARED_PROFILE_DIR = PROJECT_ROOT / "perspective" / "profiles"
 SHARED_ROLE_DIR = SHARED_PROFILE_DIR / "role"
 

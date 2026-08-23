@@ -59,12 +59,8 @@ MONITOR_ON = "on"
 MONITOR_OFF = "off"
 MONITOR_CHOICES = [("关", MONITOR_OFF), ("监控", MONITOR_ON)]
 OCR_LEVEL_LIGHT = "light"
-OCR_LEVEL_MEDIUM = "medium"
-OCR_LEVEL_HEAVY = "heavy"
 OCR_LEVEL_CHOICES = [
     ("Light - OCR + LLM审校", OCR_LEVEL_LIGHT),
-    ("Medium - Light + VLM版面增强", OCR_LEVEL_MEDIUM),
-    ("Heavy - Medium + meta.json", OCR_LEVEL_HEAVY),
 ]
 
 PERSPECTIVE_OBJECTIVE = "objective"
@@ -76,10 +72,7 @@ load_env(PROJECT_ROOT / ".env")
 
 
 def _ocr_level_value(value: str | None = None) -> str:
-    raw = (value or os.getenv("OCR_LEVEL") or OCR_LEVEL_MEDIUM).strip().lower()
-    if raw in {OCR_LEVEL_LIGHT, OCR_LEVEL_MEDIUM, OCR_LEVEL_HEAVY}:
-        return raw
-    return OCR_LEVEL_MEDIUM
+    return OCR_LEVEL_LIGHT
 
 
 def _ctx(domain: str):
@@ -485,7 +478,7 @@ def _panel_updates(domain: str, task_label: str | None, current_upload=None):
     show_user, show_project, show_subject = _scope_field_visibility(domain, task)
     show_quiz = task == "quiz"
     show_mode = bool(policy and policy.cli_mode)
-    show_ocr_level = task == OCR_TASK
+    show_ocr_level = False
     show_perspective = domain == "meeting" and task == "minutes_generation"
     show_config = show_mode or show_user or sidecar or show_quiz or show_perspective or show_ocr_level
     perspective_choices = _profile_dropdown_choices(domain) if show_perspective else []
@@ -1866,36 +1859,16 @@ def _recognize_ocr_image(
     *,
     user_id: str,
     subject: str,
-    ocr_level: str = OCR_LEVEL_MEDIUM,
+    ocr_level: str = OCR_LEVEL_LIGHT,
 ) -> tuple[str, str, str, list[str]]:
-    level = _ocr_level_value(ocr_level)
-    if level == OCR_LEVEL_LIGHT:
-        from tools.ocr.levels.light import run_light_ocr
+    from tools.ocr.levels.light import run_light_ocr
 
-        result = run_light_ocr(
-            image_path,
-            user_id=user_id,
-            subject=subject,
-            project_root=PROJECT_ROOT,
-        )
-    elif level == OCR_LEVEL_HEAVY:
-        from tools.ocr.levels.heavy import run_heavy_ocr
-
-        result = run_heavy_ocr(
-            image_path,
-            user_id=user_id,
-            subject=subject,
-            project_root=PROJECT_ROOT,
-        )
-    else:
-        from tools.ocr.levels.medium import run_medium_ocr
-
-        result = run_medium_ocr(
-            image_path,
-            user_id=user_id,
-            subject=subject,
-            project_root=PROJECT_ROOT,
-        )
+    result = run_light_ocr(
+        image_path,
+        user_id=user_id,
+        subject=subject,
+        project_root=PROJECT_ROOT,
+    )
     return result.raw_text, "", result.reviewed_markdown, result.files
 
 
@@ -2174,7 +2147,7 @@ def build_app() -> gr.Blocks:
                     label="OCR 识别级别",
                     choices=OCR_LEVEL_CHOICES,
                     value=_ocr_level_value(),
-                    visible=initial_task == OCR_TASK,
+                    visible=False,
                     elem_id="ocr-level-select",
                 )
                 perspective_dropdown = gr.Dropdown(
