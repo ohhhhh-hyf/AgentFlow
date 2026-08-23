@@ -15,7 +15,7 @@ Medium 包含 Light
 
 ```text
 Light  = OCR + LLM 审校
-Medium = Light + VLM 版面增强（双页切分 + 阅读顺序 + 背景色重要性加权）
+Medium = Light + VLM 分页预处理（双页切分 + 阅读顺序）
 Heavy  = Medium + VLM/LLM 结构化理解 meta.json
 ```
 
@@ -60,7 +60,7 @@ Light 不主动处理双页，不提示双页风险，不额外调用 VLM。双�
 
 ## Medium 模式
 
-Medium 在 Light 基础上增强版面理解，但仍然只输出 txt + md，不保存 `meta.json`。
+Medium 在 Light 基础上只增强双页预处理，但仍然只输出 txt + md，不保存 `meta.json`。
 
 OCR 接口本身可以识别横向图片，所以 Medium 不负责旋转判断。VLM 的任务是：
 
@@ -68,7 +68,6 @@ OCR 接口本身可以识别横向图片，所以 Medium 不负责旋转判断�
 判断是否双页
 给出合适的切分方式
 给出阅读顺序
-观察是否存在明显背景色/荧光底色标记，并把这些区域作为重要性加权提示
 ```
 
 用户仍然只上传一张图，处理过程对用户无感。
@@ -81,14 +80,13 @@ OCR 接口本身可以识别横向图片，所以 Medium 不负责旋转判断�
    -> 是否双页
    -> 双页切分方案
    -> 阅读顺序
-   -> 背景色标记区域
 -> 如果不是双页：回到 Light
 -> 如果是双页：
    -> 按 VLM 建议裁剪左页/右页
    -> 分别上传 OCR 接口识别
    -> 按阅读顺序合并 OCR 文本
-   -> LLM 根据 OCR 文本 + VLM 版面提示生成 Markdown 初稿
-   -> LLM 审校 Markdown
+   -> 使用 Light 同款 LLM 重构生成 Markdown 初稿
+   -> 使用 Light 同款 LLM 审校 Markdown
 -> 保存 txt + md
 -> 使用 llmv2.md 入库/生成目录
 ```
@@ -118,18 +116,6 @@ Medium 的 VLM 输出建议：
       "y2_ratio": 1.00
     }
   ],
-  "visual_hints": {
-    "background_marked_regions": [
-      {
-        "location": "left page top",
-        "confidence": 0.82
-      },
-      {
-        "location": "right page middle",
-        "confidence": 0.76
-      }
-    ]
-  },
   "notes": [
     "中间装订线明显，左右两页应分开识别",
     "裁剪区域在中缝处保留少量重叠，避免切掉文字"
@@ -151,10 +137,7 @@ Medium 的准确率优化点：
 4. OCR 结果轻量校验  
    如果裁剪后某一页 OCR 文本极少，或左右页大量重复，可以记录 warning，后续再考虑二次切分。
 
-5. 背景色重要性加权  
-   VLM 不识别具体颜色名，不判断它是标题、公式还是正文，只返回存在明显背景色/荧光底色的区域位置和置信度。LLM 只能把这些区域附近的 OCR 内容视为更重要：可以适度加粗，或在内容本身像标题时提高标题层级；不能根据背景色提示新增事实或强行改写内容。为了避免视觉模型返回中文字段时出现编码问题，`visual_hints` 中的 `location`、`notes` 建议使用 ASCII English 短语。
-
-6. VLM JSON 稳定性  
+5. VLM JSON 稳定性  
    Medium 使用四层保险：Prompt 约束、JSON 提取、轻量 JSON 修复、最终回退 Light。JSON 修复只处理常见格式问题，例如解释文字、Markdown 围栏、中文双引号、尾随逗号、Python 风格 `True/False/None`；不猜测字段语义。
 
 Medium 输出仍然只有：
@@ -530,7 +513,7 @@ action_items
 | 级别 | 核心能力 | VLM | 输出 | 目录生成 |
 | --- | --- | --- | --- | --- |
 | Light | OCR + LLM 审校 | 不使用 | txt + md | 通过 llmv2.md 生成目录 |
-| Medium | Light + 版面增强 | 双页切分、阅读顺序、背景色重要性加权 | txt + md | 通过更准确的 llmv2.md 生成目录 |
+| Medium | Light + 分页预处理 | 双页切分、阅读顺序 | txt + md | 通过更准确的 llmv2.md 生成目录 |
 | Heavy | Medium + 结构化理解 | 做视觉结构观察 | txt + md + meta.json | 通过 llmv2.md + meta.json 生成更有效目录 |
 
 ## 建议的命令行参数
@@ -574,8 +557,8 @@ Light 保持当前逻辑
 
 ```text
 实现 Medium
-VLM 做双页切分、阅读顺序、背景色重要性加权
-分区 OCR 后合并，并把 VLM 版面提示用于 Markdown 整理
+VLM 做双页切分、阅读顺序
+分区 OCR 后按顺序合并，并继续使用 Light 同款 Markdown 整理
 ```
 
 第三阶段：
@@ -596,7 +579,7 @@ VLM 做双页切分、阅读顺序、背景色重要性加权
 ## 关键约束
 
 1. Light 不处理双页，不提示双页。
-2. Medium 不处理旋转，只处理双页切分、阅读顺序和背景色重要性加权。
+2. Medium 不处理旋转，只处理双页切分和阅读顺序。
 3. Medium 对用户无感，用户仍然只上传原图。
 4. Heavy 必须包含 Medium，Medium 必须包含 Light。
 5. `meta.json` 不替代正式目录 JSON。

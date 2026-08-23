@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 import json
 import re
 import tempfile
@@ -11,9 +12,10 @@ from PIL import Image
 
 from client import VLMClient
 from client.config import load_env
+from tools.memory.store import safe_id
 from tools.ocr import _clean_ocr_text
 from tools.ocr.adapter import recognize_image
-from tools.ocr.reconstruct import review_markdown
+from tools.ocr.reconstruct import reconstruct_markdown, review_markdown
 
 from .light import LightOcrResult, run_light_ocr, save_light_ocr_outputs
 
@@ -25,13 +27,6 @@ MEDIUM_LAYOUT_PROMPT = """你是笔记图片的版面规划器。
 如果不是左右双页，返回 is_double_page=false。
 如果是左右双页，返回左右页裁剪方案。裁剪比例使用 0 到 1 的相对坐标。
 中缝附近可以保留少量重叠，避免切掉文字。
-
-同时观察图片中是否存在明显背景色/荧光底色标记：
-- 不要识别具体颜色名
-- 不要判断它是标题、公式还是正文
-- 只返回存在背景色标记的区域位置和置信度，用作重要性加权
-- 不要根据视觉线索新增知识事实
-- visual_hints 中的 location、notes 请使用 ASCII English 短语，避免中文编码问题
 
 严格输出一个 JSON object：
 - 第一个字符必须是 {
@@ -53,31 +48,9 @@ JSON schema 示例：
     {"id": "left", "x1_ratio": 0.0, "y1_ratio": 0.0, "x2_ratio": 0.515, "y2_ratio": 1.0},
     {"id": "right", "x1_ratio": 0.485, "y1_ratio": 0.0, "x2_ratio": 1.0, "y2_ratio": 1.0}
   ],
-  "visual_hints": {
-    "background_marked_regions": [
-      {"location": "left page top", "confidence": 0.82},
-      {"location": "right page middle", "confidence": 0.76}
-    ]
-  },
   "notes": []
 }"""
 MEDIUM_SPLIT_PROMPT = MEDIUM_LAYOUT_PROMPT
-
-MEDIUM_RECONSTRUCT_SYSTEM_PROMPT = """你是「笔记整理器」。把 OCR 识别出的笔记碎片整理成结构化 Markdown，供知识库检索。
-
-你会同时拿到 VLM 版面提示。VLM 提示只用于判断阅读顺序和背景色标记区域的重要性加权，不是事实来源。
-
-要求：
-1. 保留 OCR 中能辨认出的全部有效内容，不要漏掉文字、数字、公式
-2. 不要根据 VLM 提示新增 OCR 中没有的知识事实
-3. title_decision=locked_heading 的行必须输出为 Markdown 标题
-4. title_decision=locked_body 的行默认保持正文/公式，不要升标题
-5. VLM 的 background_marked_regions 只表示对应区域有明显背景色/荧光底色，靠近这些区域的 OCR 内容可以视为更重要
-6. 背景色标记只能用于适度加粗或在本身像标题时提高标题层级，不要仅凭背景色新增事实或强行改写内容
-7. 公式不确定时保留原样，不要自由改写
-8. page_region/page_index 只是内部阅读顺序标记，不要输出“第 1 页”“left”“right”等页标题
-9. 输出应像 Light 模式一样是自然笔记 Markdown，以真实笔记标题作为标题层级
-10. 输出 Markdown 正文，不要前言后语、不要代码围栏"""
 
 MIN_DOUBLE_PAGE_CONFIDENCE = 0.65
 GUTTER_OVERLAP_RATIO = 0.015
@@ -123,10 +96,11 @@ class MediumOcrResult:
     reviewed_path: Path
     split_plan: SplitPlan | None = None
     fallback_reason: str = ""
+    debug_files: tuple[Path, ...] = ()
 
     @property
     def files(self) -> list[str]:
-        return [str(self.raw_path), str(self.reviewed_path)]
+        return [str(self.raw_path), str(self.reviewed_path), *[str(path) for path in self.debug_files]]
 
 
 def run_medium_ocr(
@@ -165,7 +139,13 @@ def run_medium_ocr(
         return _from_light(light, split_plan=plan, fallback_reason=reason)
 
     try:
-        raw_text, reviewed_markdown = _recognize_double_page(path, plan)
+        raw_text, reviewed_markdown, debug_files = _recognize_double_page(
+            path,
+            plan,
+            user_id=user_id,
+            subject=subject,
+            project_root=project_root,
+        )
     except Exception as exc:  # noqa: BLE001
         light = run_light_ocr(
             path,
@@ -189,6 +169,7 @@ def run_medium_ocr(
         raw_path=saved.raw_path,
         reviewed_path=saved.reviewed_path,
         split_plan=plan,
+        debug_files=tuple(debug_files),
     )
 
 
@@ -237,16 +218,33 @@ def parse_split_plan(text: str) -> SplitPlan:
     )
 
 
-def _recognize_double_page(image_path: Path, plan: SplitPlan) -> tuple[str, str]:
+def _recognize_double_page(
+    image_path: Path,
+    plan: SplitPlan,
+    *,
+    user_id: str,
+    subject: str,
+    project_root: str | Path,
+) -> tuple[str, str, list[Path]]:
     ordered_regions = _ordered_regions(plan)
+    debug_files: list[Path] = []
     with tempfile.TemporaryDirectory(prefix="agentflow_medium_ocr_") as temp_dir:
         crop_paths = _crop_regions(image_path, ordered_regions, Path(temp_dir))
+        debug_files = _save_debug_crops(
+            image_path,
+            ordered_regions,
+            crop_paths,
+            user_id=user_id,
+            subject=subject,
+            project_root=project_root,
+        )
         page_blocks: list[str] = []
         all_lines: list[dict] = []
         for idx, (region, crop_path) in enumerate(zip(ordered_regions, crop_paths), start=1):
             raw_payload = recognize_image(str(crop_path))
             page_text = _raw_payload_to_text(raw_payload)
-            page_blocks.append(f"[{region.id}]\n{page_text}".strip())
+            if page_text:
+                page_blocks.append(page_text)
             lines = list(raw_payload.get("lines") or [])
             all_lines.extend(_tag_page_lines(lines, idx, region.id))
 
@@ -255,11 +253,11 @@ def _recognize_double_page(image_path: Path, plan: SplitPlan) -> tuple[str, str]
         raw_text = "（服务器 OCR 未识别到文字）"
     if not all_lines:
         empty = "（OCR 未识别到文字）"
-        return raw_text, empty
+        return raw_text, empty, debug_files
 
-    draft = _reconstruct_markdown_with_hints(all_lines, plan.visual_hints)
+    draft = reconstruct_markdown(all_lines)
     reviewed, _review_notes = review_markdown(draft, all_lines)
-    return raw_text, reviewed
+    return raw_text, reviewed, debug_files
 
 
 def _is_usable_double_page_plan(plan: SplitPlan, *, min_confidence: float) -> bool:
@@ -297,6 +295,66 @@ def _crop_regions(image_path: Path, regions: list[CropRegion], output_dir: Path)
             crop.convert("RGB").save(out, format="JPEG", quality=95)
             result.append(out)
     return result
+
+
+def _save_debug_crops(
+    image_path: Path,
+    regions: list[CropRegion],
+    crop_paths: list[Path],
+    *,
+    user_id: str,
+    subject: str,
+    project_root: str | Path,
+) -> list[Path]:
+    if not _debug_crops_enabled():
+        return []
+    stamp = datetime_now()
+    out_dir = (
+        Path(project_root)
+        / "data"
+        / safe_id(user_id)
+        / "ocr"
+        / safe_id(subject)
+        / "debug"
+        / f"{_safe_id(image_path.stem)}_{stamp}"
+    )
+    out_dir.mkdir(parents=True, exist_ok=True)
+    saved: list[Path] = []
+    for index, (region, crop_path) in enumerate(zip(regions, crop_paths), start=1):
+        target = out_dir / f"{index:02d}_{_safe_id(region.id)}.jpg"
+        with Image.open(crop_path) as image:
+            image.convert("RGB").save(target, format="JPEG", quality=95)
+        saved.append(target)
+    plan_path = out_dir / "split_plan.json"
+    plan_path.write_text(
+        json.dumps(
+            [
+                {
+                    "id": region.id,
+                    "x1_ratio": region.x1_ratio,
+                    "y1_ratio": region.y1_ratio,
+                    "x2_ratio": region.x2_ratio,
+                    "y2_ratio": region.y2_ratio,
+                }
+                for region in regions
+            ],
+            ensure_ascii=False,
+            indent=2,
+        ),
+        encoding="utf-8",
+    )
+    return saved
+
+
+def _debug_crops_enabled() -> bool:
+    value = os.getenv("OCR_SAVE_SPLIT_DEBUG", "true")
+    return value.strip().lower() not in {"0", "false", "no", "off", "关"}
+
+
+def datetime_now() -> str:
+    from datetime import datetime
+
+    return datetime.now().strftime("%Y%m%d_%H%M%S_%f")[:-3]
 
 
 def _parse_crop_region(item: dict[str, Any]) -> CropRegion:
@@ -337,90 +395,6 @@ def _raw_payload_to_text(payload: dict[str, Any]) -> str:
         if isinstance(item, dict) and _clean_ocr_text(item.get("text"))
     ]
     return "\n".join(lines).strip()
-
-
-def _reconstruct_markdown_with_hints(lines: list[dict], visual_hints: dict[str, Any]) -> str:
-    raw = _fragments_to_text(lines)
-    if not raw.strip():
-        return "（OCR 未识别到文字）"
-    client = None
-    try:
-        from tools.ocr.engines import get_llm_client
-
-        client = get_llm_client()
-    except Exception:  # noqa: BLE001
-        client = None
-    if client is None:
-        return raw
-    try:
-        import asyncio
-
-        text = asyncio.run(
-            client.text(
-                MEDIUM_RECONSTRUCT_SYSTEM_PROMPT,
-                "OCR 行列表 JSON（按阅读顺序排列，含版面标题提示）：\n"
-                f"{_lines_to_structured_payload(lines)}\n\n"
-                "VLM 版面提示 JSON（只作为阅读顺序和背景色重要性加权参考，不是事实来源）：\n"
-                f"{json.dumps(visual_hints or {}, ensure_ascii=False, separators=(',', ':'))}\n\n"
-                "请输出整理后的 Markdown 正文。",
-                temperature=0.1,
-                max_tokens=8000,
-                label="ocr/medium_reconstruct",
-            )
-        )
-        return str(text).strip()
-    except Exception:
-        return raw
-
-
-def _fragments_to_text(lines: list[dict]) -> str:
-    parts: list[str] = []
-    for item in lines:
-        formula = item.get("formula")
-        text = item.get("text") or ""
-        role = item.get("role_hint")
-        decision = item.get("title_decision")
-        level = int(item.get("heading_level_hint") or 0)
-        if formula:
-            parts.append(str(formula))
-        elif text and (decision == "locked_heading" or role == "heading"):
-            marks = "#" * min(max(level or 2, 1), 6)
-            parts.append(f"{marks} {text}")
-        elif text:
-            parts.append(str(text))
-    return "\n".join(parts)
-
-
-def _lines_to_structured_payload(lines: list[dict]) -> str:
-    payload = []
-    for idx, item in enumerate(lines, start=1):
-        formula = str(item.get("formula") or "").strip()
-        text = str(item.get("text") or "").strip()
-        if not text and not formula:
-            continue
-        layout = item.get("layout") or {}
-        payload.append(
-            {
-                "i": idx,
-                "text": text,
-                "formula": formula,
-                "role_hint": item.get("role_hint") or "body",
-                "title_decision": item.get("title_decision") or "ambiguous",
-                "heading_score": item.get("heading_score") or 0,
-                "heading_level_hint": item.get("heading_level_hint"),
-                "conf": round(float(item.get("conf") or 0), 3),
-                "page_region": item.get("page_region"),
-                "layout": {
-                    "top": layout.get("top"),
-                    "height_ratio": layout.get("height_ratio"),
-                    "gap_before": layout.get("gap_before"),
-                    "gap_after": layout.get("gap_after"),
-                    "centered": layout.get("centered"),
-                    "near_left": layout.get("near_left"),
-                },
-            }
-        )
-    return json.dumps(payload, ensure_ascii=False, separators=(",", ":"))
 
 
 def _tag_page_lines(lines: list[dict], page_index: int, region_id: str) -> list[dict]:
@@ -467,6 +441,7 @@ def _from_light(
         reviewed_path=result.reviewed_path,
         split_plan=split_plan,
         fallback_reason=fallback_reason,
+        debug_files=(),
     )
 
 

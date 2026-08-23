@@ -103,7 +103,6 @@ def test_plan_double_page_split_retries_bad_json(tmp_path):
 def test_run_medium_ocr_splits_pages_and_saves_outputs(tmp_path, monkeypatch):
     image_path = tmp_path / "double.jpg"
     Image.new("RGB", (1000, 500), "white").save(image_path)
-    seen_hints = {}
     seen_lines = []
 
     def fake_recognize_image(path: str):
@@ -111,8 +110,7 @@ def test_run_medium_ocr_splits_pages_and_saves_outputs(tmp_path, monkeypatch):
         text = "左页内容" if name.startswith("left") else "右页内容"
         return {"lines": [{"text": text, "conf": 0.99}]}
 
-    def fake_reconstruct(lines, visual_hints):
-        seen_hints.update(visual_hints)
+    def fake_reconstruct(lines):
         seen_lines.extend(lines)
         return "\n".join(str(item.get("text") or "") for item in lines if item.get("text"))
 
@@ -120,7 +118,7 @@ def test_run_medium_ocr_splits_pages_and_saves_outputs(tmp_path, monkeypatch):
         return f"审校版\n{markdown}", "ok"
 
     monkeypatch.setattr(medium, "recognize_image", fake_recognize_image)
-    monkeypatch.setattr(medium, "_reconstruct_markdown_with_hints", fake_reconstruct)
+    monkeypatch.setattr(medium, "reconstruct_markdown", fake_reconstruct)
     monkeypatch.setattr(medium, "review_markdown", fake_review)
 
     result = medium.run_medium_ocr(
@@ -139,8 +137,12 @@ def test_run_medium_ocr_splits_pages_and_saves_outputs(tmp_path, monkeypatch):
     assert "第 1 页" not in result.reviewed_markdown
     assert "第 2 页" not in result.reviewed_markdown
     assert [item.get("page_region") for item in seen_lines] == ["left", "right"]
-    assert seen_hints["background_marked_regions"][0]["location"] == "left page top"
+    assert result.raw_text == "左页内容\n\n右页内容"
     assert result.raw_path.exists()
     assert result.reviewed_path.exists()
+    assert len(result.debug_files) == 2
+    assert all(path.exists() for path in result.debug_files)
+    assert all(str(path) in result.files for path in result.debug_files)
     assert result.raw_path.parent == tmp_path / "data" / "u1" / "ocr" / "math" / "txt"
     assert result.reviewed_path.parent == tmp_path / "data" / "u1" / "ocr" / "math" / "md"
+    assert result.debug_files[0].parent.parent == tmp_path / "data" / "u1" / "ocr" / "math" / "debug"
