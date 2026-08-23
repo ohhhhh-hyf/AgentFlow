@@ -59,9 +59,12 @@ MONITOR_ON = "on"
 MONITOR_OFF = "off"
 MONITOR_CHOICES = [("关", MONITOR_OFF), ("监控", MONITOR_ON)]
 OCR_LEVEL_LIGHT = "light"
+OCR_LEVEL_STANDARD = "standard"
 OCR_LEVEL_CHOICES = [
     ("Light - OCR + LLM审校", OCR_LEVEL_LIGHT),
+    ("Standard - Light + Meta增强", OCR_LEVEL_STANDARD),
 ]
+OCR_LEVEL_VALUES = {value for _label, value in OCR_LEVEL_CHOICES}
 
 PERSPECTIVE_OBJECTIVE = "objective"
 KNOWLEDGE_SCOPE_LINES = frozenset({"library", "catalog", "checklist"})
@@ -72,7 +75,10 @@ load_env(PROJECT_ROOT / ".env")
 
 
 def _ocr_level_value(value: str | None = None) -> str:
-    return OCR_LEVEL_LIGHT
+    selected = (value or OCR_LEVEL_LIGHT).strip().lower()
+    if selected not in OCR_LEVEL_VALUES:
+        return OCR_LEVEL_LIGHT
+    return selected
 
 
 def _ctx(domain: str):
@@ -424,21 +430,26 @@ def _input_copy(task: str) -> dict[str, str]:
     }
 
 
+def _allowed_upload_suffixes(task: str) -> set[str]:
+    if task == OCR_TASK:
+        return {".png", ".jpg", ".jpeg"}
+    if task == "library":
+        return {suffix.lower() for suffix in _LIBRARY_SUFFIXES}
+    return set(_NOTE_SUFFIXES)
+
+
 def _upload_incompatible(task: str, upload) -> bool:
     if upload is None or upload == "":
         return False
     paths = _uploaded_paths(upload)
-    if task == OCR_TASK:
-        return any(path.suffix.lower() not in {".png", ".jpg", ".jpeg"} for path in paths)
-    if task == "library":
-        return False
-    if isinstance(upload, (list, tuple)):
-        return True
+    allowed = _allowed_upload_suffixes(task)
     if not paths:
         return bool(upload)
-    if len(paths) != 1:
+    if task not in {OCR_TASK, "library"} and (
+        isinstance(upload, (list, tuple)) or len(paths) != 1
+    ):
         return True
-    return paths[0].suffix.lower() not in _NOTE_SUFFIXES
+    return any(path.suffix.lower() not in allowed for path in paths)
 
 
 def _upload_update(task: str, current_upload=None):
@@ -478,7 +489,7 @@ def _panel_updates(domain: str, task_label: str | None, current_upload=None):
     show_user, show_project, show_subject = _scope_field_visibility(domain, task)
     show_quiz = task == "quiz"
     show_mode = bool(policy and policy.cli_mode)
-    show_ocr_level = False
+    show_ocr_level = task == OCR_TASK
     show_perspective = domain == "meeting" and task == "minutes_generation"
     show_config = show_mode or show_user or sidecar or show_quiz or show_perspective or show_ocr_level
     perspective_choices = _profile_dropdown_choices(domain) if show_perspective else []
@@ -1472,9 +1483,12 @@ def run_from_ui(
                 *_hitl_ui(False),
                 files_html=EMPTY_DOWNLOAD,
             )
-        image_paths = _uploaded_paths(input_upload)
-        image_paths = [path for path in image_paths if path.exists()]
-        if not image_paths:
+        image_entries = [
+            (path, name)
+            for path, name in _uploaded_image_entries(input_upload)
+            if path.exists()
+        ]
+        if not image_entries:
             return _run_result(
                 "请上传 PNG / JPG / JPEG 图片。",
                 None,
@@ -1482,8 +1496,8 @@ def run_from_ui(
                 files_html=EMPTY_DOWNLOAD,
             )
         bad_images = [
-            path.name for path in image_paths
-            if path.suffix.lower() not in {".png", ".jpg", ".jpeg"}
+            name for _path, name in image_entries
+            if Path(name).suffix.lower() not in {".png", ".jpg", ".jpeg"}
         ]
         if bad_images:
             return _run_result(
@@ -1493,9 +1507,13 @@ def run_from_ui(
                 *_hitl_ui(False),
                 files_html=EMPTY_DOWNLOAD,
             )
+        selected_level = _ocr_level_value(ocr_level)
+        workers = 4 if selected_level == OCR_LEVEL_STANDARD else 8
+        workers = max(1, min(workers, len(image_entries)))
+        failed_name = image_entries[0][1]
         try:
-            results: list[dict[str, object] | None] = [None] * len(image_paths)
-            with ThreadPoolExecutor(max_workers=4) as pool:
+            results: list[dict[str, object] | None] = [None] * len(image_entries)
+            with ThreadPoolExecutor(max_workers=workers) as pool:
                 future_map = {
                     pool.submit(
                         _recognize_ocr_image,
@@ -1503,21 +1521,26 @@ def run_from_ui(
                         user_id=uid,
                         subject=subj,
                         ocr_level=ocr_level,
-                    ): (idx, image_path)
-                    for idx, image_path in enumerate(image_paths)
+                        output_stem=Path(orig_name).stem,
+                        save_meta=len(image_entries) == 1,
+                    ): (idx, orig_name)
+                    for idx, (image_path, orig_name) in enumerate(image_entries)
                 }
                 for future in as_completed(future_map):
-                    idx, image_path = future_map[future]
-                    raw_txt, _no_llm_md, llm_md, one_files = future.result()
+                    idx, orig_name = future_map[future]
+                    failed_name = orig_name
+                    raw_txt, _no_llm_md, llm_md, one_files, one_meta, one_visual = future.result()
                     results[idx] = {
-                        "name": image_path.name,
+                        "name": orig_name,
                         "raw_text": raw_txt,
                         "reviewed_markdown": llm_md,
                         "files": one_files,
+                        "meta": one_meta,
+                        "visual": one_visual,
                     }
         except Exception as exc:  # noqa: BLE001
             return _run_result(
-                f"OCR识别失败：{image_path.name}：{exc}",
+                f"OCR识别失败：{failed_name}：{exc}",
                 None,
                 *_hitl_ui(False),
                 files_html=EMPTY_DOWNLOAD,
@@ -1529,9 +1552,54 @@ def run_from_ui(
             for file in (item.get("files") or [])
             if isinstance(file, str)
         ]
+        if len(result_items) > 1:
+            from tools.ocr.levels.light import (
+                next_batch_version_stem,
+                save_combined_ocr_outputs,
+            )
+
+            batch_stem = next_batch_version_stem(uid, subj, PROJECT_ROOT)
+            combined = save_combined_ocr_outputs(
+                [
+                    {
+                        "name": str(item.get("name") or ""),
+                        "raw_text": str(item.get("raw_text") or ""),
+                        "reviewed_markdown": str(item.get("reviewed_markdown") or ""),
+                    }
+                    for item in result_items
+                ],
+                user_id=uid,
+                subject=subj,
+                project_root=PROJECT_ROOT,
+                output_stem=batch_stem,
+            )
+            files = combined.files + files
+            if selected_level == OCR_LEVEL_STANDARD:
+                from tools.ocr.levels.standard import save_combined_meta
+
+                meta_path = save_combined_meta(
+                    raw_text=combined.raw_text,
+                    reviewed_markdown=combined.reviewed_markdown,
+                    pages=[
+                        {
+                            "name": str(item.get("name") or ""),
+                            "visual": item.get("visual") or {},
+                        }
+                        for item in result_items
+                    ],
+                    user_id=uid,
+                    output_stem=batch_stem,
+                    project_root=PROJECT_ROOT,
+                )
+                files = [str(meta_path)] + files
         return _run_result(
-            f"OCR识别完成，共成功识别 {len(image_paths)} 张图片。"
-            "原始 OCR 文本已保存到 txt 文件夹，审校版 Markdown 已保存到 md 文件夹。"
+            f"OCR识别完成，共成功识别 {len(image_entries)} 张图片。"
+            + (
+                "多页已按上传顺序合并成一份 Markdown，入库请优先上传合并后的 md。"
+                if len(result_items) > 1
+                else "原始 OCR 文本已保存到 txt 文件夹，审校版 Markdown 已保存到 md 文件夹。"
+            )
+            + "若选择 Standard，还会保存 meta.json 供知识目录增强使用。"
             "若要进入知识库，请把 md 文件夹里的审校版 Markdown 上传到「资料入库」。",
             files,
             *_hitl_ui(False),
@@ -1860,16 +1928,31 @@ def _recognize_ocr_image(
     user_id: str,
     subject: str,
     ocr_level: str = OCR_LEVEL_LIGHT,
-) -> tuple[str, str, str, list[str]]:
-    from tools.ocr.levels.light import run_light_ocr
+    output_stem: str | None = None,
+    save_meta: bool = True,
+) -> tuple[str, str, str, list[str], dict | None, dict | None]:
+    from tools.ocr.levels.light import _safe_stem, run_light_ocr
+    from tools.ocr.levels.standard import run_standard_ocr
 
-    result = run_light_ocr(
-        image_path,
-        user_id=user_id,
-        subject=subject,
-        project_root=PROJECT_ROOT,
-    )
-    return result.raw_text, "", result.reviewed_markdown, result.files
+    selected = _ocr_level_value(ocr_level)
+    kwargs = {
+        "user_id": user_id,
+        "subject": subject,
+        "project_root": PROJECT_ROOT,
+        "output_stem": _safe_stem(output_stem) if output_stem else None,
+    }
+    if selected == OCR_LEVEL_STANDARD:
+        result = run_standard_ocr(image_path, save_meta=save_meta, **kwargs)
+        return (
+            result.raw_text,
+            "",
+            result.reviewed_markdown,
+            result.files,
+            result.meta,
+            result.visual,
+        )
+    result = run_light_ocr(image_path, **kwargs)
+    return result.raw_text, "", result.reviewed_markdown, result.files, None, None
 
 
 def _uploaded_path(upload) -> Path | None:
@@ -1891,6 +1974,33 @@ def _uploaded_path(upload) -> Path | None:
             if upload.get(key):
                 return Path(upload[key])
     return None
+
+
+def _upload_orig_name(upload, fallback: Path | None = None) -> str:
+    orig = getattr(upload, "orig_name", None) if upload is not None else None
+    if orig:
+        return Path(str(orig)).name
+    if isinstance(upload, dict):
+        for key in ("orig_name", "origName"):
+            if upload.get(key):
+                return Path(str(upload[key])).name
+    if fallback is not None:
+        return fallback.name
+    return "image"
+
+
+def _uploaded_image_entries(upload) -> list[tuple[Path, str]]:
+    if upload is None:
+        return []
+    if isinstance(upload, (list, tuple)):
+        entries: list[tuple[Path, str]] = []
+        for item in upload:
+            entries.extend(_uploaded_image_entries(item))
+        return entries
+    path = _uploaded_path(upload)
+    if path is None:
+        return []
+    return [(path, _upload_orig_name(upload, path))]
 
 
 def _uploaded_paths(upload) -> list[Path]:
@@ -2058,7 +2168,7 @@ def _ocr_preview_markdown(items: list[dict[str, str]]) -> str:
             f"## {html.escape(name)}\n\n"
             "### 服务器原始 OCR 文本\n\n"
             f"```text\n{fence_text(raw_text)}\n```\n\n"
-            "### 审校版 Markdown（llmv2.md）\n\n"
+            "### 审校版 Markdown\n\n"
             f"{fence_text(reviewed)}"
         )
     return "\n\n---\n\n".join(parts)

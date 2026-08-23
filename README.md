@@ -161,6 +161,24 @@ python -m playwright install chromium
 | 临时公网分享 | `GRADIO_SHARE=true python gradio_app.py` |
 | 后台运行 | `nohup env GRADIO_SERVER_NAME=0.0.0.0 GRADIO_SERVER_PORT=7860 python gradio_app.py > gradio.log 2>&1 &` |
 
+OCR 兜底依赖（使用 OCR 识别时建议安装）：
+
+```bash
+# OCR_ENGINE=serverocr 时：优先调用服务器 OCR；服务器 OCR 失败/为空时会兜底到本地 RapidOCR
+# OCR_ENGINE=rapidocr 时：直接使用本地 RapidOCR，适合没有服务器 OCR 的测试环境
+pip install "numpy<2" onnxruntime==1.16.3 rapidocr_onnxruntime==1.4.4
+
+# 验证 RapidOCR 是否可用
+python -c "from rapidocr_onnxruntime import RapidOCR; print('RapidOCR OK')"
+```
+
+`.env` 示例：
+
+```env
+OCR_ENGINE=serverocr
+# OCR_ENGINE=rapidocr
+```
+
 | 项目 | 说明 |
 |---|---|
 | `.env` | HTTP 至少配置 `DEEPSEEK_API_KEY`；WebSocket 配置 `LLM_BACKEND=websocket` + `LLM_WS_*` |

@@ -76,6 +76,7 @@ class VLMClient:
         *,
         temperature: float | None = None,
         max_tokens: int | None = None,
+        json_mode: bool = False,
         extra_body: dict[str, Any] | None = None,
     ) -> str:
         """输入本地图片，返回视觉模型输出文本。"""
@@ -96,6 +97,8 @@ class VLMClient:
             kwargs["temperature"] = temperature
         if max_tokens is not None:
             kwargs["max_tokens"] = max_tokens
+        if json_mode:
+            kwargs["response_format"] = {"type": "json_object"}
         if extra_body:
             kwargs["extra_body"] = extra_body
 

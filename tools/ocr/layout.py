@@ -8,6 +8,7 @@
 from __future__ import annotations
 
 import logging
+import os
 import re
 import tempfile
 from pathlib import Path
@@ -269,9 +270,16 @@ def ocr_image_lines(image_path: str) -> list[dict]:
     if not lines:
         return []
 
-    # 公式候选：裁剪行 → LaTeX-OCR 子进程
+    # 公式候选：裁剪行 → LaTeX-OCR 子进程。
+    # 该步骤会为每个候选行额外启动公式模型，手写笔记场景默认关闭，避免本地 RapidOCR 流程被拖慢。
+    formula_enabled = os.getenv("OCR_ENABLE_FORMULA", "false").strip().lower() in {
+        "1",
+        "true",
+        "yes",
+        "on",
+    }
     formula_rows = [ln for ln in lines if _looks_like_formula(ln.get("text") or "")]
-    if img is not None and formula_rows:
+    if formula_enabled and img is not None and formula_rows:
         try:
             for item in formula_rows:
                 crop_path = _save_crop(img, item.get("bbox"))

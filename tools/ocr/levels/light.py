@@ -2,11 +2,16 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass
-from datetime import datetime
 from pathlib import Path
 
 from tools.memory.store import safe_id
 from tools.ocr import server_ocr_image_recognize
+
+_WINDOWS_RESERVED = {
+    "CON", "PRN", "AUX", "NUL",
+    *(f"COM{i}" for i in range(1, 10)),
+    *(f"LPT{i}" for i in range(1, 10)),
+}
 
 
 @dataclass(frozen=True)
@@ -23,8 +28,74 @@ class LightOcrResult:
         return [str(self.raw_path), str(self.reviewed_path)]
 
 
-def _safe_stem(image_path: Path) -> str:
-    return re.sub(r"[^A-Za-z0-9_.-]+", "_", image_path.stem).strip("._") or "image"
+def _safe_stem(image_path: Path | str) -> str:
+    raw = image_path.stem if isinstance(image_path, Path) else Path(str(image_path)).stem
+    stem = re.sub(r'[<>:"/\\|?*\x00-\x1f]', "_", raw).strip(" .") or "image"
+    if stem.upper() in _WINDOWS_RESERVED:
+        stem = f"{stem}_"
+    return stem
+
+
+_VERSION_STEM_RE = re.compile(r"^v(\d+)$", re.I)
+
+
+def next_batch_version_stem(
+    user_id: str,
+    subject: str,
+    project_root: str | Path,
+) -> str:
+    """同一 user+subject 下，多图合并稿按 v1、v2… 递增。"""
+    root = Path(project_root)
+    uid = safe_id(user_id)
+    subj = safe_id(subject)
+    folders = [
+        root / "data" / uid / "ocr" / subj / "md",
+        root / "data" / uid / "ocr" / subj / "txt",
+        root / "data" / uid / "knowledge" / "catalogs",
+    ]
+    highest = 0
+    for folder in folders:
+        if not folder.is_dir():
+            continue
+        for path in folder.iterdir():
+            if not path.is_file():
+                continue
+            stem = path.stem
+            if stem.endswith("_meta"):
+                stem = stem[: -len("_meta")]
+            match = _VERSION_STEM_RE.match(stem)
+            if match:
+                highest = max(highest, int(match.group(1)))
+    return f"v{highest + 1}"
+
+
+def combine_ocr_pages(pages: list[dict[str, str]], *, key: str) -> str:
+    blocks: list[str] = []
+    for idx, page in enumerate(pages, start=1):
+        name = str(page.get("name") or f"page_{idx}")
+        body = str(page.get(key) or "").strip()
+        blocks.append(f"<!-- 第 {idx} 页：{name} -->\n{body}")
+    return "\n\n".join(blocks)
+
+
+def save_combined_ocr_outputs(
+    pages: list[dict[str, str]],
+    *,
+    user_id: str,
+    subject: str,
+    project_root: str | Path,
+    output_stem: str | None = None,
+) -> LightOcrResult:
+    """把并行识别的多页按上传顺序拼成一份 txt/md，便于一次入库。"""
+    stem = output_stem or next_batch_version_stem(user_id, subject, project_root)
+    return save_light_ocr_outputs(
+        Path(stem),
+        raw_text=combine_ocr_pages(pages, key="raw_text"),
+        reviewed_markdown=combine_ocr_pages(pages, key="reviewed_markdown"),
+        user_id=user_id,
+        subject=subject,
+        project_root=project_root,
+    )
 
 
 def run_light_ocr(
@@ -33,6 +104,7 @@ def run_light_ocr(
     user_id: str,
     subject: str,
     project_root: str | Path,
+    output_stem: str | None = None,
 ) -> LightOcrResult:
     """Run the current Light pipeline: server OCR -> LLM draft/review -> txt + md."""
     path = Path(image_path)
@@ -41,7 +113,7 @@ def run_light_ocr(
 
     raw_txt, _no_llm_md, _llm_md, reviewed_md, _review_notes = server_ocr_image_recognize(str(path))
     return save_light_ocr_outputs(
-        path,
+        Path(output_stem) if output_stem else path,
         raw_text=raw_txt,
         reviewed_markdown=reviewed_md,
         user_id=user_id,
@@ -62,7 +134,6 @@ def save_light_ocr_outputs(
     """Save Light-compatible OCR outputs."""
     path = Path(image_path)
 
-    stamp = datetime.now().strftime("%Y%m%d_%H%M%S_%f")[:-3]
     base_dir = (
         Path(project_root)
         / "data"
@@ -76,8 +147,8 @@ def save_light_ocr_outputs(
     md_dir.mkdir(parents=True, exist_ok=True)
 
     stem = _safe_stem(path)
-    raw_path = txt_dir / f"{stem}_{stamp}_ocr.txt"
-    reviewed_path = md_dir / f"{stem}_{stamp}_llmv2.md"
+    raw_path = txt_dir / f"{stem}.txt"
+    reviewed_path = md_dir / f"{stem}.md"
     raw_path.write_text(raw_text, encoding="utf-8")
     reviewed_path.write_text(reviewed_markdown, encoding="utf-8")
 

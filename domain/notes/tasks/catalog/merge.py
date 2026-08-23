@@ -255,7 +255,7 @@ def merge_catalog(existing: dict[str, Any] | None, incoming: dict[str, Any]) -> 
         ]
         result["unmatched_content"] = _as_list(incoming.get("unmatched_content"))
         result["uncertain_nodes"] = _as_list(incoming.get("uncertain_nodes"))
-        return result
+        return _fill_empty_topics(result, stamp)
 
     used_ch, used_tp, used_kp = _collect_ids(existing)
     merged_chapters: list[dict[str, Any]] = []
@@ -303,7 +303,54 @@ def merge_catalog(existing: dict[str, Any] | None, incoming: dict[str, Any]) -> 
         "uncertain_nodes": _as_list(incoming.get("uncertain_nodes")),
         **changes,
     }
-    return result
+    return _fill_empty_topics(result, stamp)
+
+
+def _fill_empty_topics(catalog: dict[str, Any], stamp: str) -> dict[str, Any]:
+    """主题有名字但 0 个 KP 时，用节标题回退生成 1 个点，避免切丢一节。"""
+    _used_ch, _used_tp, used_kp = _collect_ids(catalog)
+    added: list[str] = []
+    for chapter in catalog.get("chapters") or []:
+        if not isinstance(chapter, dict):
+            continue
+        chapter_name = _clean(chapter.get("name"))
+        for topic in chapter.get("topics") or []:
+            if not isinstance(topic, dict):
+                continue
+            name = _clean(topic.get("name"))
+            points = [
+                point
+                for point in (topic.get("knowledge_points") or [])
+                if isinstance(point, dict) and _clean(point.get("name"))
+            ]
+            if points or not name:
+                topic["knowledge_points"] = points or topic.get("knowledge_points") or []
+                continue
+            kid = _next_id("kp", used_kp)
+            topic["knowledge_points"] = [
+                _fresh_point(
+                    {
+                        "name": name,
+                        "chapter": chapter_name,
+                        "topic": name,
+                        "knowledge_type": "mixed",
+                        "knowledge_items": [name],
+                        "importance": "3",
+                        "difficulty": "3",
+                        "note_coverage": "mentioned",
+                        "sources": ["学生笔记"],
+                        "evidence": [f"学生笔记：{name}"],
+                    },
+                    kid,
+                    stamp,
+                )
+            ]
+            added.append(name)
+    if added:
+        catalog["added_knowledge_points"] = _uniq(
+            _as_list(catalog.get("added_knowledge_points")) + added
+        )
+    return catalog
 
 
 def _empty_changes() -> dict[str, list[str]]:

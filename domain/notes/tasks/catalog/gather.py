@@ -6,7 +6,10 @@ import re
 from collections import defaultdict
 from typing import Any
 
+from pathlib import Path
+
 from tools.knowledge.cite import open_knowledge
+from tools.knowledge.config import PROJECT_ROOT
 from tools.knowledge.source_role import (
     ROLE_MATERIAL,
     ROLE_NOTES,
@@ -14,7 +17,7 @@ from tools.knowledge.source_role import (
     ROLE_UNKNOWN,
     classify_source_role,
 )
-from .store import load_catalog
+from .store import load_catalog, load_catalog_metas
 
 # briefing 中知识块/笔记标题的总量上限：骨架已够建树，超出截断避免输入过大拖慢 LLM
 _MAX_BRIEF_TITLES = 400
@@ -55,7 +58,27 @@ def _understanding_from_context(text: str) -> dict[str, Any]:
     return data if isinstance(data, dict) else {}
 
 
-def _chunk_role(meta: dict[str, Any], source: str) -> str:
+def _is_ocr_note_source(source: str, user_id: str = "", subject: str = "") -> bool:
+    stem = Path(source or "").stem
+    if not stem or not (user_id or "").strip() or not (subject or "").strip():
+        return False
+    from tools.memory.store import safe_id
+
+    path = (
+        PROJECT_ROOT
+        / "data"
+        / safe_id(user_id)
+        / "ocr"
+        / safe_id(subject)
+        / "md"
+        / f"{stem}.md"
+    )
+    return path.is_file()
+
+
+def _chunk_role(meta: dict[str, Any], source: str, user_id: str = "", subject: str = "") -> str:
+    if _is_ocr_note_source(source, user_id, subject):
+        return ROLE_NOTES
     role = str(meta.get("role") or "").strip()
     if role in {ROLE_MATERIAL, ROLE_NOTES, ROLE_TEACHER, ROLE_UNKNOWN}:
         return role
@@ -81,7 +104,7 @@ def _brief_chunks(
             continue
         meta = chunk.get("metadata") or {}
         source = str(meta.get("source") or "")
-        role = _chunk_role(meta, source)
+        role = _chunk_role(meta, source, user_id, subject)
         chapter = str(meta.get("chapter") or "")
         topic = str(meta.get("topic") or "")
         heading = str(meta.get("heading") or "")
@@ -254,6 +277,22 @@ def known_source_documents(catalog: dict[str, Any]) -> set[str]:
     return found
 
 
+def _compact_standard_metas(metas: list[dict[str, Any]]) -> str:
+    if not metas:
+        return ""
+    allowed = {"catalog_hints", "knowledge_points"}
+    compacted: list[dict[str, Any]] = []
+    for meta in metas:
+        if not isinstance(meta, dict):
+            continue
+        item = {key: meta.get(key) or [] for key in allowed}
+        source = str(meta.get("source") or "").strip()
+        if source:
+            item["source"] = source
+        compacted.append(item)
+    return json.dumps(compacted, ensure_ascii=False)[:10000]
+
+
 def build_catalog_briefing(shared_context: str) -> str:
     """给 LLM 的压缩输入：历史目录 + 骨架标题 + 老师原文。"""
     user_id = user_id_from_context(shared_context)
@@ -283,10 +322,38 @@ def build_catalog_briefing(shared_context: str) -> str:
             "一个主题下 2-6 个 KP，禁止把理解的单个 section 标题直接当整章/整主题而不拆分）\n"
             + json.dumps(understanding, ensure_ascii=False)
         )
+    standard_metas = load_catalog_metas(user_id=user_id, subject=subject)
+    meta_text = _compact_standard_metas(standard_metas)
+    if meta_text:
+        parts.append(
+            "【OCR Standard Meta 增强信号】\n"
+            "以下 meta 只说明怎么切目录：章节顺序、可学的 KP、公式 items、重要性。"
+            "source 对应同名审校 Markdown，来源是学生笔记。"
+            "不要用小节标题当该节唯一 KP；公式进 knowledge_items；笔记没有的不要编。"
+            "每个主题都要有 KP，名额按主题分配，不要切丢后面的节。"
+            "例题/旁注/页眉页脚不要升成章或 KP。强调只提高已有点的 importance。"
+            "不要让 meta 发明关系网或练习题。\n"
+            + meta_text
+        )
     if kb is None:
         parts.append("【知识库】当前不可用，只根据下面老师文本建目录。")
     else:
         grouped = _brief_chunks(kb, user_id, subject)
+        ocr_notes = sorted(
+            {
+                str(row.get("source") or "").strip()
+                for rows in grouped.values()
+                for row in rows
+                if row.get("role") == ROLE_NOTES and str(row.get("source") or "").strip()
+            }
+        )
+        if ocr_notes:
+            parts.append(
+                "【OCR 学生笔记文件】"
+                + "、".join(ocr_notes)
+                + "。这些文件来自 OCR 入库，sources 写「学生笔记」，"
+                "evidence 用「学生笔记：短片段」，覆盖到的 KP 用 detailed/mentioned，不要标 none。"
+            )
         candidates = _title_candidates(grouped)
         if candidates:
             parts.append(

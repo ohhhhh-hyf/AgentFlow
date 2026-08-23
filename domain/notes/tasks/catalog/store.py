@@ -49,6 +49,79 @@ def catalog_path(user_id: str = "", subject: str = "") -> Path:
     return catalog_dir_for(user_id) / f"{_subject_filename(subject)}.json"
 
 
+def catalog_meta_path(user_id: str = "", stem: str = "") -> Path:
+    name = (stem or "image").strip() or "image"
+    return catalog_dir_for(user_id) / f"{name}_meta.json"
+
+
+def _ocr_output_stems(user_id: str, subject: str) -> list[str]:
+    """Standard 会把原图 xx 存成 ocr/{subject}/md/xx.md，meta 则是 catalogs/xx_meta.json。"""
+    from tools.memory.store import safe_id
+
+    uid = (user_id or "").strip()
+    if not uid:
+        return []
+    base = PROJECT_ROOT / "data" / safe_id(uid) / "ocr" / safe_id(subject)
+    stems: list[str] = []
+    seen: set[str] = set()
+    for folder in (base / "md", base / "txt"):
+        if not folder.is_dir():
+            continue
+        for path in folder.iterdir():
+            if not path.is_file() or path.suffix.lower() not in {".md", ".txt"}:
+                continue
+            stem = path.stem
+            if stem and stem not in seen:
+                seen.add(stem)
+                stems.append(stem)
+    return stems
+
+
+def _meta_source_name(path: Path) -> str:
+    name = path.name
+    stem = name[: -len("_meta.json")] if name.endswith("_meta.json") else path.stem
+    return f"{stem}.md"
+
+
+def load_catalog_metas(user_id: str = "", subject: str = "", limit: int = 50) -> list[dict[str, Any]]:
+    folder = catalog_dir_for(user_id)
+    if not folder.exists():
+        return []
+
+    seen: set[str] = set()
+    paths: list[Path] = []
+
+    def add(path: Path) -> None:
+        if not path.is_file():
+            return
+        key = str(path).lower()
+        if key in seen:
+            return
+        seen.add(key)
+        paths.append(path)
+
+    for stem in _ocr_output_stems(user_id, subject):
+        add(folder / f"{stem}_meta.json")
+    prefix = _subject_filename(subject)
+    for path in folder.glob(f"{prefix}_*_meta.json"):
+        add(path)
+
+    paths.sort(key=lambda path: path.stat().st_mtime, reverse=True)
+    metas: list[dict[str, Any]] = []
+    for path in paths:
+        if len(metas) >= limit:
+            break
+        try:
+            data = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            continue
+        if isinstance(data, dict):
+            payload = dict(data)
+            payload["source"] = _meta_source_name(path)
+            metas.append(payload)
+    return metas
+
+
 def load_catalog(user_id: str = "", subject: str = "") -> dict[str, Any] | None:
     path = catalog_path(user_id, subject)
     if not path.exists():
