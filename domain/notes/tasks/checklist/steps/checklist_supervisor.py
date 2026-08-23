@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from supervisor import GlobalSupervisor
 
-from llm_client import LLMClient
+from client import LLMClient
 from ....models import ChecklistSupervisorReview
 from ..contracts import CHECKLIST_SUPERVISOR_OUTPUT_CONTRACT
 from ..prompts import CHECKLIST_SUPERVISOR_DOMAIN_PROMPT
@@ -21,3 +21,4 @@ class ChecklistSupervisor:
             context,
             ChecklistSupervisorReview,
             CHECKLIST_SUPERVISOR_OUTPUT_CONTRACT, label='checklist/supervisor')
+

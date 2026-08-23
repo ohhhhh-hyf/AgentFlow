@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from supervisor import GlobalSupervisor
 
-from llm_client import LLMClient
+from client import LLMClient
 from ....models import QuizSupervisorReview
 from ..contracts import QUIZ_SUPERVISOR_OUTPUT_CONTRACT
 from ..prompts import QUIZ_SUPERVISOR_DOMAIN_PROMPT
@@ -23,3 +23,4 @@ class QuizSupervisor:
             context,
             QuizSupervisorReview,
             QUIZ_SUPERVISOR_OUTPUT_CONTRACT, label='quiz/supervisor')
+

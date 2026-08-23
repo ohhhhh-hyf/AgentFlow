@@ -1,10 +1,9 @@
-"""OCR 引擎桥接：子进程调用独立 OCR 环境（.ocrvenv），避免与主环境 C 扩展冲突。
+"""OCR 引擎桥接：子进程调用当前 Python 环境执行 OCR。
 
-主环境（agentflow）带 torch/paddle/chromadb 等，与 OCR 推理库（onnxruntime/
-opencv/LaTeX-OCR）存在 OpenMP/DLL 冲突，推理会挂起。因此 OCR 识别在
-``.ocrvenv``（独立 venv，只装 OCR 依赖）中执行，本模块以 subprocess 桥接。
+OCR 依赖现在统一安装在 conda 的 ``agentflow`` 环境中。启动 Gradio/CLI 时只要
+使用 ``agentflow``，OCR 子进程也会沿用同一个 Python。
 
-LLM 重构仍在主环境（llm_client），不冲突。
+LLM 重构仍在主环境（client），不冲突。
 """
 from __future__ import annotations
 
@@ -12,18 +11,14 @@ import json
 import logging
 import shutil
 import subprocess
+import sys
 from datetime import datetime
 from pathlib import Path
 
 logger = logging.getLogger(__name__)
 
 ROOT = Path(__file__).resolve().parents[2]
-# 独立 OCR 环境（Windows venv）；不存在则回退系统 PATH 的 python
-_OCR_ENV_PY = ROOT / ".ocrvenv" / "Scripts" / "python.exe"
-if not _OCR_ENV_PY.is_file():
-    _OCR_ENV_PY = ROOT / ".ocrvenv" / "bin" / "python"
-    if not _OCR_ENV_PY.is_file():
-        _OCR_ENV_PY = Path("python")
+_OCR_ENV_PY = Path(sys.executable)
 
 _RUNNER = ROOT / "tools" / "ocr" / "runner_ocr.py"
 _OCR_FAILURE_DIR = ROOT / "log" / "ocr_failed"
@@ -85,8 +80,8 @@ def run_ocr_subprocess(image_path: str, formula: bool = False, timeout: int = 18
 def get_llm_client():
     """项目现有 LLM 客户端（DeepSeek）——重构用。失败返回 None。"""
     try:
-        from llm_client import LLMClient
-        from llm_client.config import load_env
+        from client import LLMClient
+        from client.config import load_env
 
         load_env(ROOT / ".env")
         return LLMClient()
@@ -96,3 +91,4 @@ def get_llm_client():
 
 
 __all__ = ["get_llm_client", "run_ocr_subprocess"]
+

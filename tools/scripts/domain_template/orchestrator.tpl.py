@@ -24,7 +24,7 @@ import logging
 
 from langgraph.graph import START
 
-from llm_client import LLMClient
+from client import LLMClient
 from perspective import PerspectiveModelingAgent
 from .domain_config import LINE_CN_NAMES, LINE_KINDS
 from .models import {{STATE_CLASS}}
@@ -133,3 +133,4 @@ class {{PASCAL}}AgentSystem(_Nodes):
         self._line_cn_names = LINE_CN_NAMES
         self._state_class = {{STATE_CLASS}}
         self._quality_warning = QUALITY_WARNING
+

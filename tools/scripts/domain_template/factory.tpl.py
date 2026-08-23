@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from llm_client import LLMClient
+from client import LLMClient
 from perspective import PerspectiveModelingAgent
 # 领域核心 Agent（如"{{CN_NAME}}理解"）在此 import：
 # from .{{DOMAIN}}_core import XxxAgent
@@ -29,3 +29,4 @@ class {{PASCAL}}AgentFactory:
 
 
 __all__ = ["{{PASCAL}}AgentFactory"]
+

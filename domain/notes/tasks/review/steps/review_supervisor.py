@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from supervisor import GlobalSupervisor
 
-from llm_client import LLMClient
+from client import LLMClient
 from ....models import ReviewSupervisorReview
 from ..contracts import REVIEW_SUPERVISOR_OUTPUT_CONTRACT
 from ..prompts import REVIEW_SUPERVISOR_DOMAIN_PROMPT
@@ -23,3 +23,4 @@ class ReviewSupervisor:
             context,
             ReviewSupervisorReview,
             REVIEW_SUPERVISOR_OUTPUT_CONTRACT, label='review/supervisor')
+

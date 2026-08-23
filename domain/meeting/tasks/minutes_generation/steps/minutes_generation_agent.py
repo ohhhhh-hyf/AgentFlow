@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from llm_client import LLMClient
+from client import LLMClient
 from tools.hard_execution import (
     enforce_minutes_draft,
     extract_labeled_json,
@@ -37,3 +37,4 @@ class MinutesGenerationAgent:
         enforced = enforce_minutes_draft(raw, understanding, mode=mode)
         enforced = apply_memory_display(enforced, shared_context, understanding)
         return Minutes.validate(enforced)
+

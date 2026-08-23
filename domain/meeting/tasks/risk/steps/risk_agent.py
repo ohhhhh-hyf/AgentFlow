@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from llm_client import LLMClient
+from client import LLMClient
 
 from ....models import Risk
 from ..contracts import RISK_GENERATION_OUTPUT_CONTRACT
@@ -21,3 +21,4 @@ class RiskAgent:
             RISK_GENERATION_OUTPUT_CONTRACT,
             label="risk/agent",
         )
+

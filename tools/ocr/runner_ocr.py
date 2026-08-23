@@ -1,4 +1,4 @@
-"""在独立 OCR 环境（.ocrvenv）中执行的识别脚本。
+"""OCR 子进程识别脚本。
 
 被 tools/ocr/engines.run_ocr_subprocess 以子进程调用：
     python tools/ocr/runner_ocr.py --input 图.png            → {"lines": [...]}

@@ -1280,7 +1280,7 @@ def generate_task_agent_code(line: str) -> str:
     return (
         "from __future__ import annotations\n"
         "\n"
-        "from llm_client import LLMClient\n"
+        "from client import LLMClient\n"
         f"from ....models import {model}\n"
         f"from ..prompts import (\n"
         f"    {upper}_GENERATION_SYSTEM_PROMPT,\n"
@@ -1317,7 +1317,7 @@ def generate_task_supervisor_code(line: str) -> str:
         "\n"
         "from supervisor import GlobalSupervisor\n"
         "\n"
-        "from llm_client import LLMClient\n"
+        "from client import LLMClient\n"
         f"from ....models import {model}SupervisorReview\n"
         f"from ..prompts import (\n"
         f"    {upper}_SUPERVISOR_DOMAIN_PROMPT,\n"
@@ -1362,7 +1362,7 @@ def generate_task_render_code(line: str) -> str:
         "\n"
         "from tools.prompt_utils import build_render_prompt\n"
         "\n"
-        "from llm_client import LLMClient\n"
+        "from client import LLMClient\n"
         f"from ..prompts import {upper}_RENDER_PROMPT, {upper}_RENDER_TEMPLATE_PROMPT\n"
         "\n"
         "\n"
@@ -2412,3 +2412,4 @@ def main(argv: list[str] | None = None) -> None:
 
 if __name__ == "__main__":
     main()
+

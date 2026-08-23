@@ -1,4 +1,4 @@
-﻿"""notes 编排层：LangGraph 图 + 节点 + 流式输出（笔记 域）。
+"""notes 编排层：LangGraph 图 + 节点 + 流式输出（笔记 域）。
 
 手写区 = 领域钩子覆写（共享上下文 / core 节点 / render 前特判）；
 生成区（由 tools/scripts/sync_domain.py 生成）：任务线注册 / Agent 挂载 /
@@ -18,7 +18,7 @@ import logging
 
 from langgraph.graph import START
 
-from llm_client import LLMClient
+from client import LLMClient
 from perspective import PerspectiveModelingAgent
 from .domain_config import LINE_CN_NAMES, LINE_KINDS
 from .models import NotesState
@@ -483,3 +483,4 @@ class NotesAgentSystem(_Nodes):
         self._line_cn_names = LINE_CN_NAMES
         self._state_class = NotesState
         self._quality_warning = QUALITY_WARNING
+

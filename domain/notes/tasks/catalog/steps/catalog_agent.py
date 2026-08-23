@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from llm_client import LLMClient
+from client import LLMClient
 
 from ....models import Catalog
 from ..contracts import CATALOG_GENERATION_OUTPUT_CONTRACT
@@ -32,3 +32,4 @@ class CatalogAgent:
         )
         merged = normalize_catalog_enums(merged)
         return Catalog.validate(merged)
+

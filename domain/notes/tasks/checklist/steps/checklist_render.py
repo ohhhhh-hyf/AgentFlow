@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from collections.abc import AsyncIterator
 
-from llm_client import LLMClient
+from client import LLMClient
 
 from ..display import build_checklist_markdown, draft_from_context
 
@@ -22,3 +22,4 @@ class ChecklistRender:
         text = await self.run(approved_context, template)
         if text:
             yield text
+

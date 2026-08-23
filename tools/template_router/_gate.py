@@ -571,7 +571,7 @@ async def maybe_compile_natural_template(
 
     try:
         if client is None:
-            from llm_client import LLMClient  # 延迟 import，避免顶层耦合
+            from client import LLMClient  # 延迟 import，避免顶层耦合
 
             client = LLMClient()
         revision = ""
@@ -657,7 +657,7 @@ async def modify_template(
     if detect_template_kind(template or "") != "placeholder":
         return template
     try:
-        from llm_client import LLMClient  # 延迟 import
+        from client import LLMClient  # 延迟 import
 
         client = LLMClient()
         ctx = ""
@@ -741,5 +741,6 @@ def merge_preview_fill(old_preview: dict[str, Any], new_template: str) -> dict[s
                 sec["rows"] = old.get("rows") or sec.get("rows") or []
             table_i += 1
     return new_preview
+
 
 

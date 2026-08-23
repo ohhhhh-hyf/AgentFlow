@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import re
 
-from llm_client import LLMClient
+from client import LLMClient
 
 from ....models import MultiStyles
 from ..contracts import MULTI_STYLES_GENERATION_OUTPUT_CONTRACT
@@ -48,3 +48,4 @@ class MultiStylesAgent:
             MULTI_STYLES_GENERATION_OUTPUT_CONTRACT,
             label="multi_styles/agent",
         )
+

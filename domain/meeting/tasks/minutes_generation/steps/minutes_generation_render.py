@@ -1,10 +1,10 @@
-﻿from __future__ import annotations
+from __future__ import annotations
 
 from collections.abc import AsyncIterator
 
 from tools.prompt_utils import build_render_prompt
 
-from llm_client import LLMClient
+from client import LLMClient
 from ..prompts import MINUTES_RENDER_PROMPT, MINUTES_RENDER_TEMPLATE_PROMPT
 
 
@@ -42,3 +42,4 @@ class MinutesGenerationRender:
         prompt, user = self._prompt_and_user(approved_context, template)
         async for chunk in self.client.stream_text(prompt, user, label="minutes_generation/render"):
             yield chunk
+

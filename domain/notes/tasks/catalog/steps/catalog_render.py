@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from collections.abc import AsyncIterator
 
-from llm_client import LLMClient
+from client import LLMClient
 
 from ..display import build_catalog_markdown, draft_from_context, normalize_catalog_draft
 
@@ -26,3 +26,4 @@ class CatalogRender:
         text = await self.run(approved_context, template)
         if text:
             yield text
+

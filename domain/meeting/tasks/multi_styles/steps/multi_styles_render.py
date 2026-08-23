@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 from collections.abc import AsyncIterator
 
-from llm_client import LLMClient
+from client import LLMClient
 from tools.prompt_utils import build_render_prompt
 
 from ..prompts import MULTI_STYLES_RENDER_PROMPT, MULTI_STYLES_RENDER_TEMPLATE_PROMPT
@@ -70,3 +70,4 @@ class MultiStylesRender:
         prompt, user = self._prompt_and_user(approved_context, template)
         async for chunk in self.client.stream_text(prompt, user, label="multi_styles/render"):
             yield chunk
+

@@ -8,7 +8,7 @@ import sys
 from datetime import datetime
 from pathlib import Path
 
-from llm_client.config import load_env
+from client.config import load_env
 
 from .io import (
     format_trace_extra,
@@ -579,3 +579,4 @@ __all__ = [
     "parse_domain_name",
     "run",
 ]
+

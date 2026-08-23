@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from supervisor import GlobalSupervisor
 
-from llm_client import LLMClient
+from client import LLMClient
 from ....models import MinutesTraceSupervisorReview
 from ..contracts import MINUTES_TRACE_SUPERVISOR_OUTPUT_CONTRACT
 from ..prompts import MINUTES_TRACE_SUPERVISOR_DOMAIN_PROMPT
@@ -25,3 +25,4 @@ class MinutesTraceSupervisor:
             MINUTES_TRACE_SUPERVISOR_OUTPUT_CONTRACT,
             label="minutes_trace/supervisor",
         )
+

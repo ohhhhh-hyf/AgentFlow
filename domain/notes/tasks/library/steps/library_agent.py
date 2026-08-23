@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import re
 
-from llm_client import LLMClient
+from client import LLMClient
 
 from ....models import Library
 from ..report import expand_inputs, ingest_library, kb_from_env, source_paths_from_context
@@ -58,3 +58,4 @@ class LibraryAgent:
                 }
             )
         return Library.validate(data)
+

@@ -1,4 +1,4 @@
-﻿"""Agent 工厂 —— 组装全部 Agent 依赖。
+"""Agent 工厂 —— 组装全部 Agent 依赖。
 
 统一创建核心 Agent（meeting_core）与两条任务线（tasks）的全部组件，
 供 MeetingAgentSystem（orchestrator.py）注入使用。
@@ -7,7 +7,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from llm_client import LLMClient
+from client import LLMClient
 from perspective import PerspectiveModelingAgent
 from .meeting_core import MeetingUnderstandingAgent
 
@@ -92,3 +92,4 @@ class MeetingAgentFactory:
         }
 
 __all__ = ["MeetingAgentFactory"]
+

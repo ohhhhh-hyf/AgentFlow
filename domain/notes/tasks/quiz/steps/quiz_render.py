@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from collections.abc import AsyncIterator
 
-from llm_client import LLMClient
+from client import LLMClient
 from tools.prompt_utils import build_render_prompt
 
 from ....models import NotesState
@@ -57,3 +57,4 @@ class QuizRender:
         draft = (state.get("lines") or {}).get("quiz", {}).get("draft") or {}
         questions = draft.get("questions")
         return list(questions) if isinstance(questions, list) else []
+

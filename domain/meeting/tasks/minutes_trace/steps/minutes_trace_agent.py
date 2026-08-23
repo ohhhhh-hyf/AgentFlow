@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import json
 
-from llm_client import LLMClient
+from client import LLMClient
 from tools.hard_execution import extract_labeled_json
 
 from ....models import MinutesTrace
@@ -183,3 +183,4 @@ class MinutesTraceAgent:
         data["minutes_md"] = minutes_md
         data["alignments"] = []
         return MinutesTrace.validate(data)
+

@@ -19,11 +19,10 @@
 from __future__ import annotations
 
 import logging
-import os
-from contextlib import contextmanager
 
 logger = logging.getLogger(__name__)
 
+from .adapter import raw_text_from_lines, recognize_image, temporary_ocr_engine  # noqa: E402
 from .layout import ocr_image_lines  # noqa: E402
 from .reconstruct import reconstruct_markdown, review_markdown  # noqa: E402
 
@@ -75,17 +74,7 @@ def ocr_images_to_markdown(
     return text
 
 
-@contextmanager
-def _temporary_ocr_engine(engine: str):
-    old_engine = os.environ.get("OCR_ENGINE")
-    os.environ["OCR_ENGINE"] = engine
-    try:
-        yield
-    finally:
-        if old_engine is None:
-            os.environ.pop("OCR_ENGINE", None)
-        else:
-            os.environ["OCR_ENGINE"] = old_engine
+_temporary_ocr_engine = temporary_ocr_engine
 
 
 def server_ocr_image_compare(image_path: str) -> tuple[str, str, str]:
@@ -102,20 +91,9 @@ def server_ocr_image_recognize(image_path: str) -> tuple[str, str, str, str, str
     if not path.is_file():
         raise ValueError(f"图片不存在：{image_path}")
 
-    from .server_ocr import ocr_image
-
-    raw_payload = ocr_image(str(path))
-    raw_lines = [
-        _clean_ocr_text(item.get("text"))
-        for item in (raw_payload.get("lines") or [])
-        if isinstance(item, dict) and _clean_ocr_text(item.get("text"))
-    ]
-    raw_text = "\n".join(raw_lines).strip() or "（服务器 OCR 未识别到文字）"
-
-    with _temporary_ocr_engine("serverocr"):
-        lines = ocr_image_lines(str(path))
-    if not lines and raw_payload.get("lines"):
-        lines = list(raw_payload.get("lines") or [])
+    payload = recognize_image(str(path))
+    lines = list(payload.get("lines") or [])
+    raw_text = raw_text_from_lines(lines) or "（OCR 未识别到文字）"
 
     if not lines:
         empty = "（OCR 未识别到文字）"
@@ -145,6 +123,7 @@ def _lines_to_text(lines: list[dict]) -> str:
 __all__ = [
     "ocr_image_to_markdown",
     "ocr_images_to_markdown",
+    "recognize_image",
     "server_ocr_image_compare",
     "server_ocr_image_recognize",
 ]

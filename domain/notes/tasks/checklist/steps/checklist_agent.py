@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from llm_client import LLMClient
+from client import LLMClient
 
 from ....models import Checklist
 from ..assemble import assemble_checklist
@@ -35,3 +35,4 @@ class ChecklistAgent:
             CHECKLIST_GENERATION_OUTPUT_CONTRACT, label='checklist/agent')
         merged = assemble_checklist(catalog, activated, llm_draft.model_dump(), teacher)
         return Checklist.validate(merged)
+

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from supervisor import GlobalSupervisor
 
-from llm_client import LLMClient
+from client import LLMClient
 from ....models import CatalogSupervisorReview
 from ..contracts import CATALOG_SUPERVISOR_OUTPUT_CONTRACT
 from ..prompts import CATALOG_SUPERVISOR_DOMAIN_PROMPT
@@ -23,3 +23,4 @@ class CatalogSupervisor:
             context,
             CatalogSupervisorReview,
             CATALOG_SUPERVISOR_OUTPUT_CONTRACT, label='catalog/supervisor')
+

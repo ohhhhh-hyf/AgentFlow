@@ -177,7 +177,7 @@ Do not add facts that are not present in the approved result.
         steps_dir / "__init__.py": f'"""{task} pipeline steps: agent / supervisor / render."""\n',
         steps_dir / f"{task}_agent.py": f'''from __future__ import annotations
 
-from llm_client import LLMClient
+from client import LLMClient
 
 from ....models import {pascal}
 from ..contracts import {upper}_GENERATION_OUTPUT_CONTRACT
@@ -202,7 +202,7 @@ class {pascal}Agent:
 
 from supervisor import GlobalSupervisor
 
-from llm_client import LLMClient
+from client import LLMClient
 from ....models import {pascal}SupervisorReview
 from ..contracts import {upper}_SUPERVISOR_OUTPUT_CONTRACT
 from ..prompts import {upper}_SUPERVISOR_DOMAIN_PROMPT
@@ -229,7 +229,7 @@ class {pascal}Supervisor:
 
 from collections.abc import AsyncIterator
 
-from llm_client import LLMClient
+from client import LLMClient
 from tools.prompt_utils import build_render_prompt
 
 from ....models import {state_cls}
@@ -519,3 +519,4 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
+

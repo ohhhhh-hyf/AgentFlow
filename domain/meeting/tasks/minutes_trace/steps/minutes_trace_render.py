@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 from collections.abc import AsyncIterator
 
-from llm_client import LLMClient
+from client import LLMClient
 
 from ....models import MinutesTrace
 from ..align import backfill_alignments, stamp_minutes
@@ -111,3 +111,4 @@ class MinutesTraceRender:
         text = await self.run(approved_context, template)
         if text:
             yield text
+

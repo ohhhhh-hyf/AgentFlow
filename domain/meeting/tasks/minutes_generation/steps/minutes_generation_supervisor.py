@@ -1,8 +1,8 @@
-﻿from __future__ import annotations
+from __future__ import annotations
 
 from supervisor import GlobalSupervisor
 
-from llm_client import LLMClient
+from client import LLMClient
 from ....models import MinutesSupervisorReview
 from ..prompts import (
     MINUTES_SUPERVISOR_DOMAIN_PROMPT,
@@ -31,3 +31,4 @@ class MinutesGenerationSupervisor:
             MINUTES_SUPERVISOR_OUTPUT_CONTRACT,
             label="minutes_generation/supervisor",
         )
+

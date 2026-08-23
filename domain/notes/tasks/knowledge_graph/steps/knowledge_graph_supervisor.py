@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from supervisor import GlobalSupervisor
 
-from llm_client import LLMClient
+from client import LLMClient
 from ....models import KnowledgeGraphSupervisorReview
 from ..contracts import KNOWLEDGE_GRAPH_SUPERVISOR_OUTPUT_CONTRACT
 from ..prompts import KNOWLEDGE_GRAPH_SUPERVISOR_DOMAIN_PROMPT
@@ -23,3 +23,4 @@ class KnowledgeGraphSupervisor:
             context,
             KnowledgeGraphSupervisorReview,
             KNOWLEDGE_GRAPH_SUPERVISOR_OUTPUT_CONTRACT, label='knowledge_graph/supervisor')
+

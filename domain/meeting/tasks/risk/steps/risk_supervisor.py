@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from supervisor import GlobalSupervisor
 
-from llm_client import LLMClient
+from client import LLMClient
 from ....models import RiskSupervisorReview
 from ..contracts import RISK_SUPERVISOR_OUTPUT_CONTRACT
 from ..prompts import RISK_SUPERVISOR_DOMAIN_PROMPT

@@ -1,0 +1,6 @@
+"""通用模型客户端接口（与领域无关，供任意业务复用）。"""
+
+from .llmclient import LLMClient
+from .vlmclient import VLMClient
+
+__all__ = ["LLMClient", "VLMClient"]

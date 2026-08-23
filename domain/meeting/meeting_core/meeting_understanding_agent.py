@@ -1,6 +1,6 @@
-﻿from __future__ import annotations
+from __future__ import annotations
 
-from llm_client import LLMClient
+from client import LLMClient
 from ..models import MeetingUnderstanding
 from .prompts import (
     MEETING_UNDERSTANDING_SYSTEM_PROMPT,
@@ -22,3 +22,4 @@ class MeetingUnderstandingAgent:
             MEETING_UNDERSTANDING_GENERATION_OUTPUT_CONTRACT,
             label="core/meeting_understanding",
         )
+

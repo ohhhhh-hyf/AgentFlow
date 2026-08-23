@@ -9,7 +9,7 @@ from pathlib import Path
 PROJECT_ROOT = Path(__file__).resolve().parent
 sys.path.insert(0, str(PROJECT_ROOT))
 
-from llm_client.config import load_env  # noqa: E402
+from client.config import load_env  # noqa: E402
 from tools.runner import (  # noqa: E402
     build_parser,
     collect_input_files,
@@ -70,3 +70,4 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
+

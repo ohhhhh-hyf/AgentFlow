@@ -1,9 +1,9 @@
-﻿"""NotesAgentFactory —— 组装 notes 域全部 Agent 依赖。"""
+"""NotesAgentFactory —— 组装 notes 域全部 Agent 依赖。"""
 from __future__ import annotations
 
 from typing import Any
 
-from llm_client import LLMClient
+from client import LLMClient
 from perspective import PerspectiveModelingAgent
 from .notes_core import NotesUnderstandingAgent
 # 领域核心 Agent（如"笔记理解"）在此 import：
@@ -84,3 +84,4 @@ class NotesAgentFactory:
         }
 
 __all__ = ["NotesAgentFactory"]
+

@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from llm_client import LLMClient
+from client import LLMClient
 from tools.memory.graph import apply_graph_memory, sanitize_graph
 
 from ....models import KnowledgeGraph
@@ -25,3 +25,4 @@ class KnowledgeGraphAgent:
         data = sanitize_graph(data)
         merged = apply_graph_memory(data, shared_context)
         return KnowledgeGraph.validate(merged)
+

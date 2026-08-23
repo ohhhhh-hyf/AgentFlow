@@ -1,8 +1,8 @@
-﻿from __future__ import annotations
+from __future__ import annotations
 
 from collections.abc import AsyncIterator
 
-from llm_client import LLMClient
+from client import LLMClient
 from tools.prompt_utils import build_render_prompt
 
 from ....models import MeetingState
@@ -110,3 +110,4 @@ class ActionItemsRender:
             meta.append(f"截止：{item['deadline']}")
         suffix = f"（{'；'.join(meta)}）" if meta else ""
         return f"{index}. {item['task']}{suffix}"
+

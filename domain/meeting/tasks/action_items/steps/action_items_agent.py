@@ -1,6 +1,6 @@
-﻿from __future__ import annotations
+from __future__ import annotations
 
-from llm_client import LLMClient
+from client import LLMClient
 from ....models import ActionItems
 from ..prompts import (
     ACTION_ITEMS_GENERATION_SYSTEM_PROMPT,
@@ -22,3 +22,4 @@ class ActionItemsAgent:
             ACTION_ITEMS_GENERATION_OUTPUT_CONTRACT,
             label="action_items/agent",
         )
+

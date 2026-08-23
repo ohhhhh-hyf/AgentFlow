@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from llm_client import LLMClient
+from client import LLMClient
 
 from ....models import LibrarySupervisorReview
 
@@ -21,3 +21,4 @@ class LibrarySupervisor:
                 "feedback": ["请用 --file 指定一份或多份资料"] if failed else [],
             }
         )
+

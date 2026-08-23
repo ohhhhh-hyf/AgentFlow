@@ -15,7 +15,7 @@ import logging
 
 from langgraph.graph import START
 
-from llm_client import LLMClient
+from client import LLMClient
 from perspective import PerspectiveModelingAgent
 from .meeting_factory import MeetingAgentFactory
 from .meeting_core import MeetingUnderstandingAgent
@@ -458,3 +458,4 @@ class MeetingAgentSystem(_Nodes):
         self._line_cn_names = LINE_CN_NAMES
         self._state_class = MeetingState
         self._quality_warning = QUALITY_WARNING
+

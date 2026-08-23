@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from llm_client import LLMClient
+from client import LLMClient
 
 from ....models import Mindmap
 from ..contracts import MINDMAP_GENERATION_OUTPUT_CONTRACT
@@ -21,3 +21,4 @@ class MindmapAgent:
             MINDMAP_GENERATION_OUTPUT_CONTRACT,
             label="mindmap/agent",
         )
+

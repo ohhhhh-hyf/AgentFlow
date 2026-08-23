@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from llm_client import LLMClient
+from client import LLMClient
 
 from ....models import Review
 from ..contracts import REVIEW_GENERATION_OUTPUT_CONTRACT
@@ -19,3 +19,4 @@ class ReviewAgent:
             shared_context,
             Review,
             REVIEW_GENERATION_OUTPUT_CONTRACT, label='review/agent')
+

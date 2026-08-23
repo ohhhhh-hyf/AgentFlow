@@ -4,7 +4,7 @@ from collections.abc import AsyncIterator
 
 import json
 
-from llm_client import LLMClient
+from client import LLMClient
 from tools.knowledge_graph import build_learning_map
 from tools.prompt_utils import build_render_prompt
 
@@ -69,3 +69,4 @@ class KnowledgeGraphRender:
         prompt, user = self._prompt_and_user(approved_context, template)
         async for chunk in self.client.stream_text(prompt, user, label='knowledge_graph/render'):
             yield chunk
+

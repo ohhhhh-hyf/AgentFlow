@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from llm_client import LLMClient
+from client import LLMClient
 
 from ....models import Quiz
 from ..contracts import QUIZ_GENERATION_OUTPUT_CONTRACT
@@ -19,3 +19,4 @@ class QuizAgent:
             shared_context,
             Quiz,
             QUIZ_GENERATION_OUTPUT_CONTRACT, label='quiz/agent')
+

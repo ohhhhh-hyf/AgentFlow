@@ -9,7 +9,7 @@ PROJECT_ROOT = PACKAGE_DIR.parents[1]
 DEFAULT_DATA_DIR = PACKAGE_DIR / "data" / "高中"
 
 try:
-    from llm_client.config import load_env
+    from client.config import load_env
 except Exception:  # pragma: no cover
     def load_env(path: Path) -> None:  # type: ignore[misc]
         if not path.exists():
@@ -54,3 +54,4 @@ def exercise_bank_base() -> str:
     if root.endswith("/bank"):
         return root
     return DEFAULT_BANK_BASE if root == DEFAULT_BASE.rstrip("/") else f"{root}/bank"
+

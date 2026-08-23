@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from supervisor import GlobalSupervisor
 
-from llm_client import LLMClient
+from client import LLMClient
 from ....models import MultiStylesSupervisorReview
 from ..contracts import MULTI_STYLES_SUPERVISOR_OUTPUT_CONTRACT
 from ..prompts import MULTI_STYLES_SUPERVISOR_DOMAIN_PROMPT
@@ -25,3 +25,4 @@ class MultiStylesSupervisor:
             MULTI_STYLES_SUPERVISOR_OUTPUT_CONTRACT,
             label="multi_styles/supervisor",
         )
+

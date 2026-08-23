@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 from collections.abc import AsyncIterator
 
-from llm_client import LLMClient
+from client import LLMClient
 
 from ....models import NotesState
 from ..report import build_library_markdown
@@ -45,3 +45,4 @@ class LibraryRender:
     def extract_structure(state: NotesState) -> list[dict]:
         draft = (state.get("lines") or {}).get("library", {}).get("draft") or {}
         return list(draft.get("conflicts") or [])
+

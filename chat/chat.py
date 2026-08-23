@@ -11,7 +11,7 @@ import uuid
 from pathlib import Path
 from typing import Any
 
-from llm_client import LLMClient
+from client import LLMClient
 
 from .prompts import CHAT_SYSTEM_PROMPT, build_user_message
 from .sources import build_context, gather
@@ -269,3 +269,4 @@ class ChatSession:
             "sources": used_sources,
             "retrieved": bool(docs),
         }
+

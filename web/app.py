@@ -12,6 +12,7 @@ import shutil
 import sys
 import re
 import tempfile
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime
 from pathlib import Path
 
@@ -21,7 +22,7 @@ import gradio as gr
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(PROJECT_ROOT))
 
-from llm_client.config import load_env  # noqa: E402
+from client.config import load_env  # noqa: E402
 from tools.memory.runtime import MEMORY_LINES  # noqa: E402
 from tools.runtime_context import load_domain  # noqa: E402
 from tools.runner import run  # noqa: E402
@@ -57,10 +58,26 @@ DOMAIN_BY_LABEL = {label: name for name, label in DOMAIN_LABELS.items()}
 MONITOR_ON = "on"
 MONITOR_OFF = "off"
 MONITOR_CHOICES = [("关", MONITOR_OFF), ("监控", MONITOR_ON)]
+OCR_LEVEL_LIGHT = "light"
+OCR_LEVEL_MEDIUM = "medium"
+OCR_LEVEL_CHOICES = [
+    ("Light - OCR + LLM审校", OCR_LEVEL_LIGHT),
+    ("Medium - Light + VLM版面增强", OCR_LEVEL_MEDIUM),
+]
 
 PERSPECTIVE_OBJECTIVE = "objective"
 KNOWLEDGE_SCOPE_LINES = frozenset({"library", "catalog", "checklist"})
 OCR_TASK = "ocr_recognition"
+
+
+load_env(PROJECT_ROOT / ".env")
+
+
+def _ocr_level_value(value: str | None = None) -> str:
+    raw = (value or os.getenv("OCR_LEVEL") or OCR_LEVEL_MEDIUM).strip().lower()
+    if raw in {OCR_LEVEL_LIGHT, OCR_LEVEL_MEDIUM}:
+        return raw
+    return OCR_LEVEL_MEDIUM
 
 
 def _ctx(domain: str):
@@ -466,8 +483,9 @@ def _panel_updates(domain: str, task_label: str | None, current_upload=None):
     show_user, show_project, show_subject = _scope_field_visibility(domain, task)
     show_quiz = task == "quiz"
     show_mode = bool(policy and policy.cli_mode)
+    show_ocr_level = task == OCR_TASK
     show_perspective = domain == "meeting" and task == "minutes_generation"
-    show_config = show_mode or show_user or sidecar or show_quiz or show_perspective
+    show_config = show_mode or show_user or sidecar or show_quiz or show_perspective or show_ocr_level
     perspective_choices = _profile_dropdown_choices(domain) if show_perspective else []
     perspective_value = (
         _profile_dropdown_default(domain) if show_perspective else None
@@ -477,6 +495,7 @@ def _panel_updates(domain: str, task_label: str | None, current_upload=None):
         gr.update(value=_task_brief_html(task)),
         gr.update(visible=show_config),
         gr.update(visible=show_mode),
+        gr.update(visible=show_ocr_level, value=_ocr_level_value()),
         gr.update(
             visible=show_perspective,
             choices=perspective_choices or ["客观 · 客观全员"],
@@ -1018,6 +1037,7 @@ def reset_form():
         gr.update(value=None),
         "",
         DEFAULT_MULTI_STYLE_MODE,
+        _ocr_level_value(),
         _profile_dropdown_default("meeting"),
         "",
         "",
@@ -1404,7 +1424,7 @@ def run_from_ui(
     """run_from_ui：*preview_args 承载模式/用户参数。
 
     Gradio 按位置传参（不会自动聚合 list），这里手动拆分：
-    preview_args = [mode, user_id, project_id, subject, kp_upload, kp_text,
+    preview_args = [mode, ocr_level, user_id, project_id, subject, kp_upload, kp_text,
                     notes_upload, notes_text, quiz_difficulty, quiz_qtype,
                     perspective_choice, monitor_enabled]
     """
@@ -1416,12 +1436,16 @@ def run_from_ui(
             edit_state = None
     elif not isinstance(edit_state, dict):
         edit_state = None
-    mode_value, user_id, project_id, subject = preview_args[:4]
-    keypoints_upload, keypoints_text, notes_upload, notes_text = preview_args[4:8]
-    quiz_difficulty = preview_args[8] if len(preview_args) > 8 else ""
-    quiz_qtype = preview_args[9] if len(preview_args) > 9 else ""
-    perspective_choice = preview_args[10] if len(preview_args) > 10 else ""
-    raw_monitor = preview_args[11] if len(preview_args) > 11 else MONITOR_ON
+    mode_value = preview_args[0] if len(preview_args) > 0 else ""
+    ocr_level = _ocr_level_value(preview_args[1] if len(preview_args) > 1 else None)
+    user_id = preview_args[2] if len(preview_args) > 2 else ""
+    project_id = preview_args[3] if len(preview_args) > 3 else ""
+    subject = preview_args[4] if len(preview_args) > 4 else ""
+    keypoints_upload, keypoints_text, notes_upload, notes_text = preview_args[5:9]
+    quiz_difficulty = preview_args[9] if len(preview_args) > 9 else ""
+    quiz_qtype = preview_args[10] if len(preview_args) > 10 else ""
+    perspective_choice = preview_args[11] if len(preview_args) > 11 else ""
+    raw_monitor = preview_args[12] if len(preview_args) > 12 else MONITOR_ON
     monitor_enabled = str(raw_monitor).strip().lower() not in {
         "",
         "0",
@@ -1473,15 +1497,23 @@ def run_from_ui(
                 *_hitl_ui(False),
                 files_html=EMPTY_DOWNLOAD,
             )
-        files: list[str] = []
         try:
-            for image_path in image_paths:
-                _raw_txt, _no_llm_md, _llm_md, one_files = _recognize_ocr_image(
-                    image_path,
-                    user_id=uid,
-                    subject=subj,
-                )
-                files.extend(one_files)
+            results: list[list[str] | None] = [None] * len(image_paths)
+            with ThreadPoolExecutor(max_workers=4) as pool:
+                future_map = {
+                    pool.submit(
+                        _recognize_ocr_image,
+                        image_path,
+                        user_id=uid,
+                        subject=subj,
+                        ocr_level=ocr_level,
+                    ): (idx, image_path)
+                    for idx, image_path in enumerate(image_paths)
+                }
+                for future in as_completed(future_map):
+                    idx, image_path = future_map[future]
+                    _raw_txt, _no_llm_md, _llm_md, one_files = future.result()
+                    results[idx] = one_files
         except Exception as exc:  # noqa: BLE001
             return _run_result(
                 f"OCR识别失败：{image_path.name}：{exc}",
@@ -1489,6 +1521,7 @@ def run_from_ui(
                 *_hitl_ui(False),
                 files_html=EMPTY_DOWNLOAD,
             )
+        files = [file for group in results if group for file in group]
         return _run_result(
             f"OCR识别完成，共成功识别 {len(image_paths)} 张图片。"
             "原始 OCR 文本已保存到 txt 文件夹，审校版 Markdown 已保存到 md 文件夹。"
@@ -1809,26 +1842,27 @@ def _recognize_ocr_image(
     *,
     user_id: str,
     subject: str,
+    ocr_level: str = OCR_LEVEL_MEDIUM,
 ) -> tuple[str, str, str, list[str]]:
-    from tools.ocr import server_ocr_image_recognize
-    from tools.memory.store import safe_id
+    if _ocr_level_value(ocr_level) == OCR_LEVEL_LIGHT:
+        from tools.ocr.levels.light import run_light_ocr
 
-    raw_txt, _no_llm_md, _llm_md, reviewed_md, _review_notes = server_ocr_image_recognize(str(image_path))
-    stamp = datetime.now().strftime("%Y%m%d_%H%M%S_%f")[:-3]
-    base_dir = PROJECT_ROOT / "data" / safe_id(user_id) / "ocr" / safe_id(subject)
-    txt_dir = base_dir / "txt"
-    md_dir = base_dir / "md"
-    txt_dir.mkdir(parents=True, exist_ok=True)
-    md_dir.mkdir(parents=True, exist_ok=True)
-    stem = re.sub(r"[^A-Za-z0-9_.-]+", "_", image_path.stem).strip("._") or "image"
-    raw_path = txt_dir / f"{stem}_{stamp}_ocr.txt"
-    reviewed_path = md_dir / f"{stem}_{stamp}_llmv2.md"
-    raw_path.write_text(raw_txt, encoding="utf-8")
-    reviewed_path.write_text(reviewed_md, encoding="utf-8")
-    return raw_txt, "", reviewed_md, [
-        str(raw_path),
-        str(reviewed_path),
-    ]
+        result = run_light_ocr(
+            image_path,
+            user_id=user_id,
+            subject=subject,
+            project_root=PROJECT_ROOT,
+        )
+    else:
+        from tools.ocr.levels.medium import run_medium_ocr
+
+        result = run_medium_ocr(
+            image_path,
+            user_id=user_id,
+            subject=subject,
+            project_root=PROJECT_ROOT,
+        )
+    return result.raw_text, "", result.reviewed_markdown, result.files
 
 
 def _uploaded_path(upload) -> Path | None:
@@ -2018,6 +2052,7 @@ def build_app() -> gr.Blocks:
         or bool(initial_policy and initial_policy.sidecar)
         or initial_task == "quiz"
         or initial_task == "minutes_generation"
+        or initial_task == OCR_TASK
     )
     user_init, subject_init = _scope_labels(initial_task or "")
     input_init = _input_copy(initial_task or "")
@@ -2081,6 +2116,13 @@ def build_app() -> gr.Blocks:
                     value=DEFAULT_MULTI_STYLE_MODE,
                     visible=False,
                     elem_id="mode-select",
+                )
+                ocr_level_dropdown = gr.Dropdown(
+                    label="OCR 识别级别",
+                    choices=OCR_LEVEL_CHOICES,
+                    value=_ocr_level_value(),
+                    visible=initial_task == OCR_TASK,
+                    elem_id="ocr-level-select",
                 )
                 perspective_dropdown = gr.Dropdown(
                     label="视角",
@@ -2316,6 +2358,7 @@ def build_app() -> gr.Blocks:
                 task_brief,
                 config_label,
                 mode_dropdown,
+                ocr_level_dropdown,
                 perspective_dropdown,
                 user_id,
                 project_id,
@@ -2335,6 +2378,7 @@ def build_app() -> gr.Blocks:
                 task_brief,
                 config_label,
                 mode_dropdown,
+                ocr_level_dropdown,
                 perspective_dropdown,
                 user_id,
                 project_id,
@@ -2401,6 +2445,7 @@ def build_app() -> gr.Blocks:
                 edit_state,
                 friendly_template,
                 mode_dropdown,
+                ocr_level_dropdown,
                 user_id,
                 project_id,
                 subject,
@@ -2442,6 +2487,7 @@ def build_app() -> gr.Blocks:
                 template_upload,
                 template_text,
                 mode_dropdown,
+                ocr_level_dropdown,
                 perspective_dropdown,
                 user_id,
                 project_id,
@@ -2511,3 +2557,4 @@ def main(host: str | None = None, port: int | None = None) -> None:
 
 if __name__ == "__main__":
     main()
+

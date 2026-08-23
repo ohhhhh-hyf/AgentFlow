@@ -11,8 +11,8 @@ from pathlib import Path
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 
 try:
-    from llm_client.config import load_env
-except Exception:  # pragma: no cover - 单测/脚手架时允许无 llm_client
+    from client.config import load_env
+except Exception:  # pragma: no cover - 单测/脚手架时允许无 client 包
     def load_env(path: Path) -> None:  # type: ignore[misc]
         if not path.exists():
             return
@@ -203,3 +203,4 @@ class KnowledgeToolConfig:
                 + "。请写入项目根目录 .env，或在 KnowledgeTool(...) 传入。"
             )
         return self
+
