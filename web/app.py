@@ -2060,24 +2060,6 @@ def _build_theme() -> gr.themes.Base:
     )
 
 
-def build_app() -> gr.Blocks:
-    initial_domain = "meeting"
-    initial_choices = _task_choices(initial_domain)
-    initial_task = initial_choices[0][1] if initial_choices else None
-    show_user, show_project, show_subject = _scope_field_visibility(
-        initial_domain, initial_task or ""
-    )
-    initial_policy = _line_policy(initial_domain, initial_task or "")
-    show_config = (
-        bool(initial_policy and initial_policy.cli_mode)
-        or show_user
-        or bool(initial_policy and initial_policy.sidecar)
-        or initial_task == "quiz"
-        or initial_task == "minutes_generation"
-        or initial_task == OCR_TASK
-    )
-
-
 def _ocr_preview_markdown(items: list[dict[str, str]]) -> str:
     def fence_text(value: str) -> str:
         return value.replace("```", "`\u200b``")
@@ -2095,6 +2077,24 @@ def _ocr_preview_markdown(items: list[dict[str, str]]) -> str:
             f"{fence_text(reviewed)}"
         )
     return "\n\n---\n\n".join(parts)
+
+
+def build_app() -> gr.Blocks:
+    initial_domain = "meeting"
+    initial_choices = _task_choices(initial_domain)
+    initial_task = initial_choices[0][1] if initial_choices else None
+    show_user, show_project, show_subject = _scope_field_visibility(
+        initial_domain, initial_task or ""
+    )
+    initial_policy = _line_policy(initial_domain, initial_task or "")
+    show_config = (
+        bool(initial_policy and initial_policy.cli_mode)
+        or show_user
+        or bool(initial_policy and initial_policy.sidecar)
+        or initial_task == "quiz"
+        or initial_task == "minutes_generation"
+        or initial_task == OCR_TASK
+    )
     user_init, subject_init = _scope_labels(initial_task or "")
     input_init = _input_copy(initial_task or "")
     with gr.Blocks(title="AgentFlow测试", theme=_build_theme(), css=CSS) as demo:
