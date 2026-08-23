@@ -4,9 +4,8 @@
 1. 预处理：打开图片（多图=多页）、转 RGB、可选增强
 2. 文字识别：PaddleOCR（中文，RapidOCR 兜底）→ 带坐标的文本行
 3. 版面识别：根据 bbox / 字高 / 留白 / 编号模式标记标题候选和层级提示
-4. 图示检测：遮掉 OCR 文字框后检测大块非文字墨迹，记录位置和粗分类（不理解图内容）
-5. 公式识别：LaTeX-OCR（pix2tex）对公式候选行裁剪 → ``$$ LaTeX $$``
-6. LLM 重构：DeepSeek 把 OCR 碎片整理为结构化 Markdown
+4. 公式识别：LaTeX-OCR（pix2tex）对公式候选行裁剪 → ``$$ LaTeX $$``
+5. LLM 重构：DeepSeek 把 OCR 碎片整理为结构化 Markdown
    （推断标题层级、标注 **重点**、整理表格、合并断行、去 OCR 噪声）
 
 依赖均懒加载：缺 PaddleOCR / RapidOCR / LaTeX-OCR / LLM 时逐级降级（不崩）。
@@ -108,12 +107,6 @@ def _lines_to_text(lines: list[dict]) -> str:
     """无 LLM 时：按坐标顺序拼纯文本。"""
     parts: list[str] = []
     for item in lines:
-        visual = item.get("visual_region") or {}
-        if visual:
-            label = visual.get("label") or "疑似图示"
-            kind = visual.get("type") or "diagram"
-            parts.append(f"<!-- 图示: {label}; type={kind}; bbox={item.get('bbox') or []} -->")
-            continue
         text = item.get("formula") or _clean_ocr_text(item.get("text"))
         if text:
             parts.append(text)

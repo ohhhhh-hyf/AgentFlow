@@ -23,22 +23,6 @@ _BODY_LIKE_ENDINGS = ("。", "；", ";", ".", "！", "？", "!", "?")
 _NUMBERED_TITLE_RE = re.compile(
     r"^(?:第[一二三四五六七八九十百零0-9]+[章节]|[一二三四五六七八九十]+、|\d+(?:\.\d+){0,3})"
 )
-_VISUAL_IMPORTANCE_CONFIG_PACKAGE = "tools.ocr"
-_DEFAULT_VISUAL_IMPORTANCE = {
-    "enabled": True,
-    "max_total_boost": 3,
-    "boosts": {
-        "has_visual": 1,
-        "multiple_visuals": 1,
-        "visual_type": {
-            "coordinate_plot": 1,
-            "flowchart": 1,
-            "table_or_grid": 0,
-            "sketch": 0,
-            "diagram": 1,
-        },
-    },
-}
 
 
 def subject_from_context(text: str) -> str:
@@ -76,64 +60,6 @@ def _chunk_role(meta: dict[str, Any], source: str) -> str:
     if role in {ROLE_MATERIAL, ROLE_NOTES, ROLE_TEACHER, ROLE_UNKNOWN}:
         return role
     return classify_source_role(source)
-
-
-def _load_visual_importance_config() -> dict[str, Any]:
-    try:
-        from importlib.resources import files
-
-        data = json.loads(
-            files(_VISUAL_IMPORTANCE_CONFIG_PACKAGE).joinpath("visual_importance.json").read_text(encoding="utf-8")
-        )
-    except (OSError, ModuleNotFoundError, json.JSONDecodeError):
-        data = {}
-    if not isinstance(data, dict):
-        data = {}
-    merged = dict(_DEFAULT_VISUAL_IMPORTANCE)
-    boosts = dict(_DEFAULT_VISUAL_IMPORTANCE["boosts"])
-    if isinstance(data.get("boosts"), dict):
-        boosts.update(data["boosts"])
-        if isinstance(data["boosts"].get("visual_type"), dict):
-            type_boosts = dict(_DEFAULT_VISUAL_IMPORTANCE["boosts"]["visual_type"])
-            type_boosts.update(data["boosts"]["visual_type"])
-            boosts["visual_type"] = type_boosts
-    merged.update({k: v for k, v in data.items() if k != "boosts"})
-    merged["boosts"] = boosts
-    return merged
-
-
-def _int_value(value: object, default: int = 0) -> int:
-    try:
-        return int(float(str(value).strip()))
-    except (TypeError, ValueError):
-        return default
-
-
-def _visual_score_boost(row: dict[str, str]) -> tuple[int, list[str]]:
-    cfg = _load_visual_importance_config()
-    if not cfg.get("enabled", True):
-        return 0, []
-    count = _int_value(row.get("visual_region_count"))
-    if count <= 0:
-        return 0, []
-    boosts = cfg.get("boosts") if isinstance(cfg.get("boosts"), dict) else {}
-    score = _int_value(boosts.get("has_visual"), 1)
-    reasons = [f"含图示+{score}"]
-    if count >= 2:
-        extra = _int_value(boosts.get("multiple_visuals"), 1)
-        score += extra
-        reasons.append(f"多图示+{extra}")
-    type_boosts = boosts.get("visual_type") if isinstance(boosts.get("visual_type"), dict) else {}
-    types = [t.strip() for t in str(row.get("visual_region_types") or "").split(",") if t.strip()]
-    type_extra = 0
-    for kind in types:
-        type_extra += _int_value(type_boosts.get(kind), 0)
-    if type_extra:
-        score += type_extra
-        reasons.append(f"图示类型+{type_extra}")
-    cap = max(0, _int_value(cfg.get("max_total_boost"), 3))
-    score = min(score, cap)
-    return score, reasons
 
 
 def _brief_chunks(
@@ -175,8 +101,6 @@ def _brief_chunks(
                 "heading_kind": str(meta.get("heading_kind") or ""),
                 "content_tags": str(meta.get("content_tags") or ""),
                 "contains_formula": str(meta.get("contains_formula") or ""),
-                "visual_region_count": str(meta.get("visual_region_count") or ""),
-                "visual_region_types": str(meta.get("visual_region_types") or ""),
             }
         )
     # 确定性排序：知识块在 briefing 中的顺序必须恒定，
@@ -222,10 +146,6 @@ def _score_title_candidate(row: dict[str, str]) -> tuple[int, list[str]]:
             reasons.append(f"kind={kind}")
         if tags:
             reasons.append(f"tags={tags}")
-        visual_boost, visual_reasons = _visual_score_boost(row)
-        if visual_boost:
-            score += visual_boost
-            reasons.extend(visual_reasons)
         return score, reasons
     score = 0
     reasons: list[str] = []
@@ -255,10 +175,6 @@ def _score_title_candidate(row: dict[str, str]) -> tuple[int, list[str]]:
     if title.endswith(_BODY_LIKE_ENDINGS):
         score -= 3
         reasons.append("句子结尾")
-    visual_boost, visual_reasons = _visual_score_boost(row)
-    if visual_boost:
-        score += visual_boost
-        reasons.extend(visual_reasons)
     return score, reasons
 
 

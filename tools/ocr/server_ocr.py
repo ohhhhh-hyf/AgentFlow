@@ -363,14 +363,7 @@ def ocr_image(path: str) -> dict:
         image_size = None
     result = ServerOcrClient().get_ocr(image_base64)
     lines = extract_lines(result, image_size=image_size)
-    visual_regions = []
-    try:
-        from tools.ocr.visual_regions import detect_visual_regions
-
-        visual_regions = detect_visual_regions(path, lines)
-    except Exception:
-        visual_regions = []
-    return {"engine": "serverocr", "lines": lines, "visual_regions": visual_regions}
+    return {"engine": "serverocr", "lines": lines}
 
 
 def _image_base64_for_request(path: str) -> str:

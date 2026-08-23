@@ -1387,6 +1387,7 @@ def _run_result(
     *hitl,
     files_html: str | None = None,
     monitor_html: str = "",
+    md_preview: str | None = None,
 ):
     """统一结果区输出：日志 / 图片(可隐藏) / MD预览(可隐藏) / 下载 / 监控 / HITL / 解锁按钮。"""
     files = list(files_or_none or [])
@@ -1400,7 +1401,7 @@ def _run_result(
         _gallery_update(files),
         _memory_review_update(files),
         _rewrite_btn_update(files),
-        _md_update(files),
+        gr.update(value=md_preview, visible=True) if md_preview is not None else _md_update(files),
         _download_files_update(files),
         files_html if files_html is not None else _artifact_download_html(files),
         _monitor_update(monitor_html),
@@ -1498,7 +1499,7 @@ def run_from_ui(
                 files_html=EMPTY_DOWNLOAD,
             )
         try:
-            results: list[list[str] | None] = [None] * len(image_paths)
+            results: list[dict[str, object] | None] = [None] * len(image_paths)
             with ThreadPoolExecutor(max_workers=4) as pool:
                 future_map = {
                     pool.submit(
@@ -1512,8 +1513,13 @@ def run_from_ui(
                 }
                 for future in as_completed(future_map):
                     idx, image_path = future_map[future]
-                    _raw_txt, _no_llm_md, _llm_md, one_files = future.result()
-                    results[idx] = one_files
+                    raw_txt, _no_llm_md, llm_md, one_files = future.result()
+                    results[idx] = {
+                        "name": image_path.name,
+                        "raw_text": raw_txt,
+                        "reviewed_markdown": llm_md,
+                        "files": one_files,
+                    }
         except Exception as exc:  # noqa: BLE001
             return _run_result(
                 f"OCR识别失败：{image_path.name}：{exc}",
@@ -1521,14 +1527,30 @@ def run_from_ui(
                 *_hitl_ui(False),
                 files_html=EMPTY_DOWNLOAD,
             )
-        files = [file for group in results if group for file in group]
+        result_items = [item for item in results if item]
+        files = [
+            file
+            for item in result_items
+            for file in (item.get("files") or [])
+            if isinstance(file, str)
+        ]
         return _run_result(
             f"OCR识别完成，共成功识别 {len(image_paths)} 张图片。"
             "原始 OCR 文本已保存到 txt 文件夹，审校版 Markdown 已保存到 md 文件夹。"
             "若要进入知识库，请把 md 文件夹里的审校版 Markdown 上传到「资料入库」。",
-            None,
+            files,
             *_hitl_ui(False),
             files_html=EMPTY_DOWNLOAD,
+            md_preview=_ocr_preview_markdown(
+                [
+                    {
+                        "name": str(item.get("name") or ""),
+                        "raw_text": str(item.get("raw_text") or ""),
+                        "reviewed_markdown": str(item.get("reviewed_markdown") or ""),
+                    }
+                    for item in result_items
+                ]
+            ),
         )
     chapter = grade = edition = difficulty = qtype = None
     level = "期中备考" if tasks and tasks[0] == "quiz" else None
@@ -2054,6 +2076,25 @@ def build_app() -> gr.Blocks:
         or initial_task == "minutes_generation"
         or initial_task == OCR_TASK
     )
+
+
+def _ocr_preview_markdown(items: list[dict[str, str]]) -> str:
+    def fence_text(value: str) -> str:
+        return value.replace("```", "`\u200b``")
+
+    parts: list[str] = []
+    for idx, item in enumerate(items, start=1):
+        name = item.get("name") or f"image_{idx}"
+        raw_text = (item.get("raw_text") or "").strip() or "（OCR 未识别到文字）"
+        reviewed = (item.get("reviewed_markdown") or "").strip() or "（未生成审校版 Markdown）"
+        parts.append(
+            f"## {html.escape(name)}\n\n"
+            "### 服务器原始 OCR 文本\n\n"
+            f"```text\n{fence_text(raw_text)}\n```\n\n"
+            "### 审校版 Markdown（llmv2.md）\n\n"
+            f"{fence_text(reviewed)}"
+        )
+    return "\n\n---\n\n".join(parts)
     user_init, subject_init = _scope_labels(initial_task or "")
     input_init = _input_copy(initial_task or "")
     with gr.Blocks(title="AgentFlow测试", theme=_build_theme(), css=CSS) as demo:

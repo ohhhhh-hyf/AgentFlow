@@ -54,9 +54,7 @@ def _ocr_text_paddle(path: str) -> dict:
             conf = float(scores[idx]) if idx < len(scores) else 0.0
             box = _to_list(polys[idx]) if idx < len(polys) else None
             lines.append({"text": text, "conf": conf, "bbox": box})
-    payload = {"engine": "paddleocr", "lines": lines}
-    payload["visual_regions"] = _detect_visual_regions_safe(path, lines)
-    return payload
+    return {"engine": "paddleocr", "lines": lines}
 
 
 def _ocr_text_rapid(path: str) -> dict:
@@ -70,18 +68,7 @@ def _ocr_text_rapid(path: str) -> dict:
         # item = [bbox(4点), text, conf]
         box, text, conf = item[0], item[1], item[2]
         lines.append({"text": str(text), "conf": float(conf), "bbox": box})
-    payload = {"engine": "rapidocr", "lines": lines}
-    payload["visual_regions"] = _detect_visual_regions_safe(path, lines)
-    return payload
-
-
-def _detect_visual_regions_safe(path: str, lines: list[dict]) -> list[dict]:
-    try:
-        from tools.ocr.visual_regions import detect_visual_regions
-
-        return detect_visual_regions(path, lines)
-    except Exception:
-        return []
+    return {"engine": "rapidocr", "lines": lines}
 
 
 def _ocr_text_server(path: str) -> dict:

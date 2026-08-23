@@ -22,10 +22,9 @@ RECONSTRUCT_SYSTEM_PROMPT = """你是「笔记整理器」。把 OCR 识别出�
 5. **正文不要误升标题**：locked_body、长句、以句号/逗号结尾的解释性内容，即使包含关键词，也不要强行改成标题
 6. **重点标注**：对像"重点/必考/关键/注意/易错"的内容用 **加粗** 标出（不要过度标注）
 7. **公式**：已有 ``$$...$$`` 的公式原样保留在对应位置
-8. **图示区域**：role_hint=visual 的条目不是识别出的图内容，只表示页面中存在图示/草图/坐标图/模型图区域。必须在相应位置保留一行 HTML 注释，格式为 ``<!-- 图示: label; type=...; bbox=... -->``；不要臆造图中含义
-9. **表格**：如果内容是成列的数据（行结构明显），整理成 Markdown 表格
-10. 去除 OCR 噪声（孤立标点、乱码），合并被断行的完整句子
-11. 直接输出 Markdown 正文，不要前言后语、不要 Markdown 代码围栏"""
+8. **表格**：如果内容是成列的数据（行结构明显），整理成 Markdown 表格
+9. 去除 OCR 噪声（孤立标点、乱码），合并被断行的完整句子
+10. 直接输出 Markdown 正文，不要前言后语、不要 Markdown 代码围栏"""
 
 REVIEW_SYSTEM_PROMPT = """你是「OCR Markdown 保守审校器」。你会拿到 OCR 原始行和一份已经整理过的 Markdown。
 
@@ -55,18 +54,12 @@ def _fragments_to_text(lines: list[dict]) -> str:
     """行列表 → 拼接文本；无 LLM 时也尽量保留标题层级。"""
     parts: list[str] = []
     for item in lines:
-        visual = item.get("visual_region")
         formula = item.get("formula")
         text = item.get("text") or ""
         role = item.get("role_hint")
         decision = item.get("title_decision")
         level = int(item.get("heading_level_hint") or 0)
-        if visual:
-            label = visual.get("label") or "疑似图示"
-            kind = visual.get("type") or "diagram"
-            bbox = item.get("bbox") or []
-            parts.append(f"<!-- 图示: {label}; type={kind}; bbox={bbox} -->")
-        elif formula:
+        if formula:
             parts.append(formula)
         elif text and (decision == "locked_heading" or role == "heading"):
             marks = "#" * min(max(level or 2, 1), 6)
@@ -82,8 +75,7 @@ def _lines_to_structured_payload(lines: list[dict]) -> str:
     for idx, item in enumerate(lines, start=1):
         formula = str(item.get("formula") or "").strip()
         text = str(item.get("text") or "").strip()
-        visual = item.get("visual_region") or {}
-        if not text and not formula and not visual:
+        if not text and not formula:
             continue
         layout = item.get("layout") or {}
         row = {
@@ -95,13 +87,6 @@ def _lines_to_structured_payload(lines: list[dict]) -> str:
             "heading_score": item.get("heading_score") or 0,
             "heading_level_hint": item.get("heading_level_hint"),
             "conf": round(float(item.get("conf") or 0), 3),
-            "visual_region": {
-                "id": visual.get("id"),
-                "type": visual.get("type"),
-                "label": visual.get("label"),
-                "ink_density": visual.get("ink_density"),
-                "bbox": item.get("bbox") if visual else None,
-            } if visual else None,
             "layout": {
                 "top": layout.get("top"),
                 "height_ratio": layout.get("height_ratio"),

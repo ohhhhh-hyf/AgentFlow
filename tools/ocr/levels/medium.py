@@ -376,18 +376,12 @@ def _reconstruct_markdown_with_hints(lines: list[dict], visual_hints: dict[str, 
 def _fragments_to_text(lines: list[dict]) -> str:
     parts: list[str] = []
     for item in lines:
-        visual = item.get("visual_region")
         formula = item.get("formula")
         text = item.get("text") or ""
         role = item.get("role_hint")
         decision = item.get("title_decision")
         level = int(item.get("heading_level_hint") or 0)
-        if visual:
-            label = visual.get("label") or "疑似图示"
-            kind = visual.get("type") or "diagram"
-            bbox = item.get("bbox") or []
-            parts.append(f"<!-- 图示: {label}; type={kind}; bbox={bbox} -->")
-        elif formula:
+        if formula:
             parts.append(str(formula))
         elif text and (decision == "locked_heading" or role == "heading"):
             marks = "#" * min(max(level or 2, 1), 6)
@@ -402,8 +396,7 @@ def _lines_to_structured_payload(lines: list[dict]) -> str:
     for idx, item in enumerate(lines, start=1):
         formula = str(item.get("formula") or "").strip()
         text = str(item.get("text") or "").strip()
-        visual = item.get("visual_region") or {}
-        if not text and not formula and not visual:
+        if not text and not formula:
             continue
         layout = item.get("layout") or {}
         payload.append(
@@ -417,13 +410,6 @@ def _lines_to_structured_payload(lines: list[dict]) -> str:
                 "heading_level_hint": item.get("heading_level_hint"),
                 "conf": round(float(item.get("conf") or 0), 3),
                 "page_region": item.get("page_region"),
-                "visual_region": {
-                    "id": visual.get("id"),
-                    "type": visual.get("type"),
-                    "label": visual.get("label"),
-                    "ink_density": visual.get("ink_density"),
-                    "bbox": item.get("bbox") if visual else None,
-                } if visual else None,
                 "layout": {
                     "top": layout.get("top"),
                     "height_ratio": layout.get("height_ratio"),
