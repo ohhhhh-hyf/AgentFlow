@@ -12,3 +12,4 @@ output/
 .reasonix/
 
 .ocrvenv/
+/log
