@@ -152,6 +152,7 @@ def build_checklist_markdown(draft: dict[str, Any], *, has_teacher: bool | None 
             )
         lines.append("")
 
+    lines.extend(_strategy_markdown(draft))
     lines.extend(_action_markdown(draft))
     return "\n".join(lines).strip() + "\n"
 
@@ -160,9 +161,21 @@ def _action_cards(draft: dict[str, Any]) -> list[dict[str, Any]]:
     return [p for p in (draft.get("phases") or []) if isinstance(p, dict) and p.get("id")]
 
 
+def _strategy_markdown(draft: dict[str, Any]) -> list[str]:
+    items = [
+        s for s in (draft.get("strategy") or []) if isinstance(s, str) and s.strip()
+    ]
+    if not items:
+        return []
+    lines = ["## 三、复习策略", ""]
+    lines.extend(f"- {item}" for item in items)
+    lines.append("")
+    return lines
+
+
 def _action_markdown(draft: dict[str, Any]) -> list[str]:
     cards = _action_cards(draft)
-    lines = ["## 三、行动清单", ""]
+    lines = ["## 四、行动清单", ""]
     if cards:
         lines.append(" → ".join(f"{c.get('order')} {c.get('title')}" for c in cards))
         lines.append("")
@@ -323,12 +336,26 @@ def _section_html(section: dict[str, Any]) -> str:
     return "".join(body)
 
 
+def _strategy_html(draft: dict[str, Any]) -> list[str]:
+    items = [
+        s for s in (draft.get("strategy") or []) if isinstance(s, str) and s.strip()
+    ]
+    if not items:
+        return []
+    return [
+        "<h2>三、复习策略</h2>",
+        '<ul class="ck-strategy">'
+        + "".join(f"<li>{escape(str(item), quote=False)}</li>" for item in items)
+        + "</ul>",
+    ]
+
+
 def _action_html(draft: dict[str, Any]) -> list[str]:
     cards = _action_cards(draft)
     if not cards:
         return []
     rows = [
-        "<h2>三、行动清单</h2>",
+        "<h2>四、行动清单</h2>",
         '<p class="ck-note" style="margin-bottom:10px">按路线点开卡片看这一阶段要做什么。</p>',
         '<div class="ck-action">',
         '<div class="ck-action-grid">',
@@ -594,6 +621,24 @@ def _trace_markdown(card: dict[str, Any]) -> list[str]:
     return lines
 
 
+_MATHJAX_SCRIPT = """<script>
+(function () {
+  if (window.MathJax && window.MathJax.typesetPromise) {
+    window.MathJax.typesetPromise();
+    return;
+  }
+  window.MathJax = {
+    tex: {inlineMath: [['$', '$'], ['\\(', '\\)']], displayMath: [['$$', '$$'], ['\\[', '\\]']]},
+    options: {skipHtmlTags: ['script', 'noscript', 'style', 'textarea', 'pre', 'code']}
+  };
+  var s = document.createElement('script');
+  s.src = 'https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-chtml.js';
+  s.async = true;
+  document.head.appendChild(s);
+})();
+</script>"""
+
+
 def _trace_script() -> str:
     return """<script>
 (function () {
@@ -713,6 +758,7 @@ def build_checklist_html(draft: dict[str, Any], *, has_teacher: bool | None = No
                 )
             body.append("</ul></div>")
         body.append(_trace_script())
+        body.extend(_strategy_html(draft))
         body.extend(_action_html(draft))
         body.append("</div>")
 
@@ -797,6 +843,7 @@ def build_checklist_html(draft: dict[str, Any], *, has_teacher: bool | None = No
   <main class="page">
 {"".join(body)}
   </main>
+  {_MATHJAX_SCRIPT}
 </body>
 </html>
 """

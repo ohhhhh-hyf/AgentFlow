@@ -284,23 +284,27 @@ def _owned_sentences(sentences: list[str], points: list[dict[str, Any]]) -> dict
 
 
 def activate_from_catalog(catalog: dict[str, Any] | None) -> list[dict[str, Any]]:
-    """无老师重点时：按目录 importance 激活 KP，不做老师原话匹配。"""
+    """无老师重点时：按目录 importance 激活 KP，不做老师原话匹配。
+
+    只出 S/A/B：importance < 3 的低重要性知识点不进入本次清单
+    （无老师语境下不存在「老师轻点」的补充语义，避免出现悬空的 C/补充档）。
+    """
     points = flatten_points(catalog)
     activated: list[dict[str, Any]] = []
     for point in points:
-        row = dict(point)
         try:
             importance = int(str(point.get("importance") or 3) or 3)
         except (TypeError, ValueError):
             importance = 3
+        if importance < 3:
+            continue
+        row = dict(point)
         if importance >= 5:
             row["session_priority"] = "S"
         elif importance >= 4:
             row["session_priority"] = "A"
-        elif importance >= 3:
-            row["session_priority"] = "B"
         else:
-            row["session_priority"] = "C"
+            row["session_priority"] = "B"
         row["session_emphasis"] = "0"
         row["session_focus_items"] = _as_list(point.get("knowledge_items"))[:3]
         row["session_exam_signal"] = str(point.get("exam_signal") or "none")
@@ -324,7 +328,8 @@ def activate_from_catalog(catalog: dict[str, Any] | None) -> list[dict[str, Any]
 
 
 def activate_points(catalog: dict[str, Any] | None, teacher: str) -> list[dict[str, Any]]:
-    """有老师文本则匹配原话；否则按目录激活，不做老师重点溯源。"""
+    """有老师文本时激活：importance≥3 的知识点都出卡（老师没点名也保留，
+    按基础分排）；老师点到的再按语气提档/降档。"""
     points = flatten_points(catalog)
     teacher = teacher or ""
     if not teacher.strip():
@@ -335,27 +340,42 @@ def activate_points(catalog: dict[str, Any] | None, teacher: str) -> list[dict[s
 
     for point in points:
         hits = list(owned.get(_clean(point.get("id"))) or [])
-        if not hits:
-            continue
+        try:
+            importance = int(str(point.get("importance") or 3) or 3)
+        except (TypeError, ValueError):
+            importance = 3
+        if not hits and importance < 3:
+            continue  # 没被老师点到且重要性低 → 不出卡
         row = dict(point)
-        row["session_emphasis"] = str(_emphasis(hits))
-        row["session_focus_items"] = _focus_items(point, hits)
-        row["session_exam_signal"] = _exam_signal(hits)
-        err_sents = [
-            sent
-            for sent in hits
-            if any(mark in sent for mark in _ERROR)
-        ]
-        row["session_error_signal"] = _errors(err_sents or hits)
-        row["session_difficulty_signal"] = (
-            "hard" if any(x in "".join(hits) for x in ("拉开分差", "较难", "难点")) else ""
-        )
-        row["session_related_points"] = _related_in_hits(point, hits, points)
-        row["session_quotes"] = [_clean(sent) for sent in hits[:3] if _clean(sent)]
+        row["_mentioned"] = bool(hits)
+        if hits:
+            row["session_emphasis"] = str(_emphasis(hits))
+            row["session_focus_items"] = _focus_items(point, hits)
+            row["session_exam_signal"] = _exam_signal(hits)
+            err_sents = [
+                sent
+                for sent in hits
+                if any(mark in sent for mark in _ERROR)
+            ]
+            row["session_error_signal"] = _errors(err_sents or hits)
+            row["session_difficulty_signal"] = (
+                "hard" if any(x in "".join(hits) for x in ("拉开分差", "较难", "难点")) else ""
+            )
+            row["session_related_points"] = _related_in_hits(point, hits, points)
+            row["session_quotes"] = [_clean(sent) for sent in hits[:3] if _clean(sent)]
+            blob = "".join(hits)
+            row["_light"] = _is_light(blob) and not any(mark in blob for mark in _STRONG)
+        else:
+            row["session_emphasis"] = "0"
+            row["session_focus_items"] = _as_list(point.get("knowledge_items"))[:3]
+            row["session_exam_signal"] = str(point.get("exam_signal") or "none")
+            row["session_error_signal"] = ""
+            row["session_difficulty_signal"] = ""
+            row["session_related_points"] = []
+            row["session_quotes"] = []
+            row["_light"] = False
         row["session_practice_count"] = ""
         row["session_special_requirement"] = ""
-        blob = "".join(hits)
-        row["_light"] = _is_light(blob) and not any(mark in blob for mark in _STRONG)
         row["_score"] = _raw_score(row)
         activated.append(row)
 
@@ -422,29 +442,57 @@ def _find_by_name(points: list[dict[str, Any]], name: str) -> dict[str, Any] | N
 
 
 def _raw_score(point: dict[str, Any]) -> int:
-    emph = int(str(point.get("session_emphasis") or 0) or 0)
+    """排序/封顶用分：importance 基础分 + 老师提到/强调加分 + 考试信号 + 缺项。"""
     importance = int(str(point.get("importance") or 3) or 3)
     hist = int(str(point.get("teacher_emphasis") or 0) or 0)
     exam = _EXAM_RANK.get(str(point.get("session_exam_signal") or "none"), 0)
     catalog_exam = _EXAM_RANK.get(str(point.get("exam_signal") or "none"), 0)
     missing = min(4, len(_as_list(point.get("note_missing_items"))))
-    return emph * 40 + importance * 8 + hist * 5 + exam * 8 + catalog_exam * 4 + missing * 3
+    mentioned = 1 if point.get("_mentioned") else 0
+    blob = "".join(point.get("session_quotes") or [])
+    strong = 1 if any(mark in blob for mark in _STRONG) else 0
+    return (
+        importance * 8 + mentioned * 10 + strong * 15
+        + hist * 5 + exam * 8 + catalog_exam * 4 + missing * 3
+    )
+
+
+_GRADE_UP = {"C": "B", "B": "A", "A": "S", "S": "S"}
+_GRADE_DOWN = {"S": "A", "A": "B", "B": "C", "C": "C"}
 
 
 def _assign_priority(rows: list[dict[str, Any]]) -> None:
-    """只按本次老师语气定档：必考=S，点名重点=A，了解/前置=B，其余不进主清单。"""
+    """基础档（importance）+ 老师调档：
+
+    - 基础档：importance≥5→S、4→A、3→B、2→C（低 importance 只有被老师点到才进清单）
+    - 被老师提到 → 升一档（最多 S）
+    - 含强词（必考/务必掌握等）→ 再升一档（提到+强调）
+    - 轻提（了解一下，无强词）→ 降一档（至少 C）
+    """
     for row in rows:
-        emph = int(str(row.get("session_emphasis") or 0) or 0)
-        if row.get("_light"):
-            row["session_priority"] = "B"
-        elif emph >= 3:
-            row["session_priority"] = "S"
-        elif emph >= 2:
-            row["session_priority"] = "A"
-        elif row.get("_prereq_of"):
-            row["session_priority"] = "B"
+        try:
+            importance = int(str(row.get("importance") or 3) or 3)
+        except (TypeError, ValueError):
+            importance = 3
+        if importance >= 5:
+            grade = "S"
+        elif importance >= 4:
+            grade = "A"
+        elif importance >= 3:
+            grade = "B"
         else:
-            row["session_priority"] = "C"
+            grade = "C"
+        if not row.get("_mentioned"):
+            row["session_priority"] = grade
+            continue
+        blob = "".join(row.get("session_quotes") or [])
+        if any(mark in blob for mark in _STRONG):
+            grade = _GRADE_UP[_GRADE_UP[grade]]  # 提到 + 强调
+        elif any(mark in blob for mark in _LIGHT):
+            grade = _GRADE_DOWN[grade]  # 轻提降档
+        else:
+            grade = _GRADE_UP[grade]  # 普通提到
+        row["session_priority"] = grade
 
 
 def _cap_priorities(

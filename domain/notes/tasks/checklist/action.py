@@ -438,6 +438,7 @@ def build_action_plan(
     cards: list[dict[str, Any]],
     teacher: str,
     unmatched: list[str] | None = None,
+    strategy: list[str] | None = None,
 ) -> dict[str, Any]:
     del teacher, unmatched
     foundation = _build_foundation(cards)
@@ -454,7 +455,7 @@ def build_action_plan(
     return {
         "route": [card["title"] for card in packed],
         "phases": packed,
-        "strategy": [],
+        "strategy": strategy or [],
         "uncertain_quotes": [],
     }
 

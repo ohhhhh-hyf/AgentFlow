@@ -50,7 +50,71 @@ def load_session(shared_context: str) -> tuple[dict[str, Any] | None, list[dict[
     catalog = load_catalog(user_id=user_id, subject=subject)
     teacher = teacher_from_context(shared_context)
     activated = activate_points(catalog, teacher) if catalog else []
+    if activated:
+        _attach_kb_excerpts(activated, user_id, subject)
     return catalog, activated, teacher
+
+
+_KB_EXCERPT_CHUNKS = 6
+_KB_EXCERPT_CHUNK_LEN = 160
+_KB_EXCERPT_TOTAL = 600
+
+
+def _kb_key(row: dict[str, Any]) -> tuple[str, str]:
+    return (
+        str(row.get("chapter") or "").strip(),
+        str(row.get("topic") or "").strip(),
+    )
+
+
+def _kb_excerpts_from_chunks(
+    rows: list[dict[str, Any]], chunks: list[dict[str, Any]]
+) -> None:
+    """按 KP 的 chapter/topic 匹配 chunk，给 rows 就地塞 _kb_excerpt。"""
+    by_key: dict[tuple[str, str], list[str]] = {}
+    for ch in chunks:
+        meta = ch.get("metadata") or {}
+        text = str(ch.get("text") or "").strip()
+        if not text:
+            continue
+        by_key.setdefault(_kb_key(meta), []).append(text)
+    for row in rows:
+        exact = by_key.get(_kb_key(row)) or []
+        pool = exact or [
+            text
+            for (chapter, topic), texts in by_key.items()
+            if not chapter and topic and topic == _kb_key(row)[1]
+            for text in texts
+        ]
+        if not pool:
+            continue
+        parts: list[str] = []
+        total = 0
+        for text in pool:
+            piece = text[:_KB_EXCERPT_CHUNK_LEN]
+            parts.append(piece)
+            total += len(piece)
+            if len(parts) >= _KB_EXCERPT_CHUNKS or total >= _KB_EXCERPT_TOTAL:
+                break
+        if parts:
+            row["_kb_excerpt"] = "\n".join(parts)
+
+
+def _attach_kb_excerpts(
+    rows: list[dict[str, Any]], user_id: str, subject: str
+) -> None:
+    """开知识库并按 KP 的 chapter/topic 拉原文片段；不可用/无匹配时静默跳过。"""
+    from tools.knowledge.cite import open_knowledge
+
+    kb = open_knowledge(user_id=user_id)
+    if kb is None:
+        return
+    try:
+        chunks = kb.list_chunks(user_id=user_id, subject=subject) or []
+    except Exception:
+        return
+    if chunks:
+        _kb_excerpts_from_chunks(rows, chunks)
 
 
 def build_checklist_briefing(
@@ -89,6 +153,9 @@ def build_checklist_briefing(
                 f"related={','.join(row.get('session_related_points') or [])} | "
                 f"quotes={' / '.join((row.get('session_quotes') or [])[:2])}"
             )
+            excerpt = str(row.get("_kb_excerpt") or "").strip()
+            if excerpt:
+                parts.append(f"    原文片段：{excerpt[:400]}")
     parts.append("【老师划重点原文】")
     parts.append((teacher or "")[:6000] if has_teacher else "（未提供，跳过老师重点溯源）")
     return "\n".join(parts)

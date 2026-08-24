@@ -108,6 +108,172 @@ def _sanitize_exam(text: str, row: dict[str, Any], teacher: str) -> str:
     return raw
 
 
+def _clean_strategy(
+    llm_draft: dict[str, Any] | None, *, has_teacher: bool
+) -> list[str]:
+    """取 LLM 复习策略并清洗：去空、去模板套话、去重，最多 4 条。
+
+    无老师重点时过滤含「老师」字样的条目（LLM 可能不遵守 prompt 编老师话）。
+    """
+    items = [
+        item
+        for item in ((llm_draft or {}).get("strategy") or [])
+        if isinstance(item, str)
+    ]
+    out: list[str] = []
+    seen: set[str] = set()
+    for item in items:
+        text = item.strip()
+        if len(text) < 6:
+            continue
+        if any(mark in text for mark in _STRATEGY_FILLER):
+            continue
+        if not has_teacher and "老师" in text:
+            continue
+        key = text.replace(" ", "").replace("\u3000", "")
+        if key in seen:
+            continue
+        seen.add(key)
+        out.append(text)
+        if len(out) >= 4:
+            break
+    return out
+
+
+_STRATEGY_FILLER = ("多看书", "多做题", "多做练习", "认真复习", "好好复习", "努力", "多练")
+
+
+def _clamp_rank(value: Any, default: int = 3) -> int:
+    """importance/difficulty 归一化到 1-5；缺失或非法取默认 3，不误判。"""
+    try:
+        rank = int(str(value or "") or default)
+    except (TypeError, ValueError):
+        rank = default
+    return max(1, min(5, rank))
+
+
+def _build_priority_facts(rows: list[dict[str, Any]]) -> list[str]:
+    """快赢优先 + 低价值后置：按 importance - difficulty 排执行顺序（纯规则）。
+
+    分组互斥：快赢（重要且简单）/ 硬骨头（重要但难）/ 低价值（难且不重要）。
+    无老师也生效（字段来自 catalog）；少于 2 个点时跳过，避免废话。
+    """
+    scored: list[tuple[str, int, int]] = []
+    for r in rows:
+        name = _clean(r.get("name"))
+        if not name:
+            continue
+        scored.append((name, _clamp_rank(r.get("importance")), _clamp_rank(r.get("difficulty"))))
+    if len(scored) < 2:
+        return []
+    quick = [n for n, imp, diff in scored if imp >= 4 and diff <= 2]
+    hard = [n for n, imp, diff in scored if imp >= 4 and diff >= 4]
+    low = [n for n, imp, diff in scored if imp <= 3 and diff >= 4]
+    facts: list[str] = []
+    if quick:
+        facts.append(
+            f"先做「{'、'.join(quick[:3])}」：重要程度高且容易上手（快赢），优先拿下"
+        )
+    if hard:
+        facts.append(
+            f"「{'、'.join(hard[:3])}」重要但难度高，安排整块时间再啃，别和快赢点混在一起"
+        )
+    if low:
+        facts.append(
+            f"「{'、'.join(low[:3])}」难度高且重要性低，放最后，时间不够先了解即可"
+        )
+    return facts
+
+
+def _build_strategy_facts(
+    rows: list[dict[str, Any]], teacher: str
+) -> list[str]:
+    """从 session 数据抽「有理有据」的复习策略事实；无对应数据不生成。
+
+    顺序指导（快赢优先/低价值后置）放最前，其余事实带依据（老师原话 /
+    目录信号 / 笔记缺项）。没传老师重点时：不生成任何「老师重点/老师原话」相关内容。
+    """
+    has_teacher = bool((teacher or "").strip())
+    facts = _build_priority_facts(rows)
+    named = [r for r in rows if r.get("session_quotes")] if has_teacher else []
+    if named:
+        chapters: dict[str, int] = {}
+        for r in named:
+            ch = _clean(r.get("chapter")) or _clean(r.get("topic")) or "未分章"
+            chapters[ch] = chapters.get(ch, 0) + 1
+        top = "、".join(
+            f"「{ch}」"
+            for ch, _ in sorted(chapters.items(), key=lambda kv: -kv[1])[:3]
+        )
+        first_quote = _clean((named[0].get("session_quotes") or [""])[0])
+        base = f"老师重点集中在{top}，共点名 {len(named)} 个知识点，优先主攻"
+        if first_quote:
+            base += f"（依据：老师原话「{first_quote[:40]}」）"
+        facts.append(base)
+    for r in rows:
+        sig = str(r.get("session_exam_signal") or r.get("exam_signal") or "none")
+        if sig != "strong":
+            continue
+        quotes = _as_list(r.get("session_quotes"))
+        name = _clean(r.get("name"))
+        if quotes and has_teacher:
+            facts.append(
+                f"{name} 有明确考试信号，按大题准备（依据：老师原话「{_clean(quotes[0])[:40]}」）"
+            )
+        else:
+            facts.append(f"{name} 材料里有考试相关信号，按目录题型准备")
+    for r in rows:
+        hard = str(r.get("session_difficulty_signal") or "") == "hard"
+        prove = str(r.get("knowledge_type") or "") == "prove"
+        if hard or prove:
+            facts.append(
+                f"{_clean(r.get('name'))} 属于难点/证明类，建议独立推一遍完整流程"
+            )
+    missing: list[str] = []
+    for r in rows:
+        for item in _as_list(r.get("note_missing_items")):
+            text = _clean(item)
+            if text and text not in missing:
+                missing.append(text)
+    if missing:
+        facts.append(
+            f"笔记缺「{'、'.join(missing[:3])}」，先对着目录补上（依据：note_missing_items）"
+        )
+    for r in rows:
+        err = _clean(r.get("session_error_signal"))
+        if err:
+            if has_teacher:
+                facts.append(f"{_clean(r.get('name'))} 易错：{err[:40]}（依据：老师原话）")
+            else:
+                facts.append(f"{_clean(r.get('name'))} 易错：{err[:40]}")
+    out: list[str] = []
+    seen: set[str] = set()
+    for item in facts:
+        key = item.replace(" ", "")
+        if key in seen:
+            continue
+        seen.add(key)
+        out.append(item)
+        if len(out) >= 6:
+            break
+    return out
+
+
+def _merge_strategy(facts: list[str], llm: list[str]) -> list[str]:
+    """事实策略在前（有据），LLM 方向性策略在后；去重，最多 8 条。"""
+    out = list(facts)
+    seen = {f.replace(" ", "") for f in out}
+    for item in llm:
+        key = item.replace(" ", "")
+        if key in seen:
+            continue
+        seen.add(key)
+        out.append(item)
+        if len(out) >= 8:
+            break
+    return out
+
+
 def assemble_checklist(
     catalog: dict[str, Any] | None,
     activated: list[dict[str, Any]],
@@ -165,7 +331,12 @@ def assemble_checklist(
             }
         )
     unmatched = _unmatched_quotes(teacher, activated) if (teacher or "").strip() else []
-    plan = build_action_plan(cards, teacher, unmatched)
+    has_teacher = bool((teacher or "").strip())
+    strategy = _merge_strategy(
+        _build_strategy_facts(activated, teacher),
+        _clean_strategy(llm_draft, has_teacher=has_teacher),
+    )
+    plan = build_action_plan(cards, teacher, unmatched, strategy=strategy)
     return {
         "course": _clean(catalog.get("course")) or _clean((llm_draft or {}).get("course")) or "课程复习清单",
         "catalog_version": str(catalog.get("version") or ""),
