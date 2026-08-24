@@ -20,98 +20,50 @@ if str(ROOT) not in sys.path:
 os.environ.setdefault("PADDLE_PDX_CACHE_HOME", str(ROOT / ".paddlex_cache"))
 
 
-def _to_list(value):
-    """兼容 PaddleOCR 返回的 numpy array。"""
-    if hasattr(value, "tolist"):
-        return value.tolist()
-    return value
-
-
 def _ocr_text_paddle(path: str) -> dict:
-    """PaddleOCR 3.x 文字识别。"""
-    from paddleocr import PaddleOCR
+    """PaddleOCR / PP-OCRv5，调用与解析见 tools.ocr.paddle_ocr。"""
+    from tools.ocr.paddle_ocr import ocr_image
 
-    ocr = PaddleOCR(
-        lang="ch",
-        use_doc_orientation_classify=False,
-        use_doc_unwarping=False,
-        use_textline_orientation=False,
-    )
-    results = ocr.predict(path)
-    lines: list[dict] = []
-    for page in results or []:
-        texts = list(page.get("rec_texts") or [])
-        scores = list(page.get("rec_scores") or [])
-        polys = page.get("rec_polys")
-        if polys is None or len(polys) == 0:
-            polys = page.get("dt_polys")
-        if polys is None:
-            polys = []
-        for idx, text in enumerate(texts):
-            text = str(text).strip()
-            if not text:
-                continue
-            conf = float(scores[idx]) if idx < len(scores) else 0.0
-            box = _to_list(polys[idx]) if idx < len(polys) else None
-            lines.append({"text": text, "conf": conf, "bbox": box})
-    return {"engine": "paddleocr", "lines": lines}
+    payload = ocr_image(path)
+    if payload.get("lines"):
+        return payload
+    return _empty_payload("paddleocr")
 
 
 def _ocr_text_rapid(path: str) -> dict:
-    """RapidOCR 兜底文字识别。"""
-    from rapidocr_onnxruntime import RapidOCR
+    """RapidOCR，进程内单例见 tools.ocr.rapid_ocr。"""
+    from tools.ocr.rapid_ocr import ocr_image
 
-    ocr = RapidOCR()
-    result, _ = ocr(path)
-    lines: list[dict] = []
-    for item in result or []:
-        # item = [bbox(4点), text, conf]
-        box, text, conf = item[0], item[1], item[2]
-        lines.append({"text": str(text), "conf": float(conf), "bbox": box})
-    return {"engine": "rapidocr", "lines": lines}
+    payload = ocr_image(path)
+    if payload.get("lines"):
+        return payload
+    return _empty_payload("rapidocr")
+
+
+def _empty_payload(engine: str) -> dict:
+    return {"engine": engine, "lines": []}
 
 
 def _ocr_text_server(path: str) -> dict:
-    """调用服务器 OCR；失败或空结果时降级 RapidOCR。"""
+    """调用服务器 OCR；失败或空结果返回空行，由上层重试。"""
     from tools.ocr.server_ocr import ocr_image
 
-    try:
-        payload = ocr_image(path)
-        if payload.get("lines"):
-            return payload
-        fallback = _ocr_text_rapid(path)
-        fallback["engine"] = "rapidocr"
-        fallback["fallback_from"] = "serverocr"
-        fallback["fallback_reason"] = "serverocr 返回空结果"
-        return fallback
-    except Exception as server_exc:  # noqa: BLE001
-        fallback = _ocr_text_rapid(path)
-        fallback["engine"] = "rapidocr"
-        fallback["fallback_from"] = "serverocr"
-        fallback["fallback_reason"] = str(server_exc)
-        return fallback
+    payload = ocr_image(path)
+    if payload.get("lines"):
+        return payload
+    return _empty_payload("serverocr")
 
 
 def _ocr_text(path: str) -> dict:
-    """按 OCR_ENGINE 选择引擎；默认 RapidOCR，服务器 OCR 可选。"""
+    """按 OCR_ENGINE 选择引擎；失败由上层重试，不再跨引擎兜底。"""
     engine = os.environ.get("OCR_ENGINE", "rapidocr").strip().lower()
     if engine in {"server", "serverocr", "remote"}:
         return _ocr_text_server(path)
     if engine in {"paddle", "paddleocr"}:
-        try:
-            return _ocr_text_paddle(path)
-        except Exception as paddle_exc:  # noqa: BLE001
-            payload = _ocr_text_rapid(path)
-            payload["fallback_reason"] = str(paddle_exc)
-            return payload
+        return _ocr_text_paddle(path)
     if engine in {"auto", "best"}:
         return _ocr_text_auto(path)
-    try:
-        return _ocr_text_rapid(path)
-    except Exception as rapid_exc:  # noqa: BLE001
-        payload = _ocr_text_paddle(path)
-        payload["fallback_reason"] = str(rapid_exc)
-        return payload
+    return _ocr_text_rapid(path)
 
 
 def _ocr_text_auto(path: str) -> dict:

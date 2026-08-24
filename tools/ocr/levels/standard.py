@@ -11,7 +11,7 @@ from typing import Any
 
 from client.config import load_env
 from domain.notes.tasks.catalog.store import catalog_meta_path
-from tools.ocr.levels.light import LightOcrResult, _safe_stem, run_light_ocr
+from tools.ocr.levels.light import LightOcrResult, _safe_stem, save_light_ocr_outputs
 
 
 logger = logging.getLogger(__name__)
@@ -33,17 +33,27 @@ VLM_OBSERVATION_PROMPT = """你是学习笔记视觉观察员。只看版面，�
 只输出一个 JSON 对象。第一个字符是 {，最后一个字符是 }。
 不要 Markdown 围栏、注释、中文引号、尾随逗号。
 
-只补三类视觉信息：
-1. ignore：页眉页脚、印刷厂、页码、装订阴影
+只补四类视觉信息：
+1. ignore：页眉页脚、印刷厂、页码、装订阴影的短文本
 2. emphasis：荧光笔、下划线、星号、框起来的关键词；strength 为 1-3
 3. 区块角色：title / example / margin_note / formula；title 可带 level 1-3
+4. chrome_bands：印刷装饰带的纵向范围，供程序切页眉页脚
 
-顶层只能有 reading_order 和 regions。
+chrome_bands 规则：
+- 每条 {kind, y0, y1}；kind 只能是 header 或 footer
+- y0/y1 是相对整图高度的 0~1，不是像素
+- header 必须从页顶开始（y0=0），停在印刷信头/双线之下，不要包含第一行手写标题
+- footer 必须落到页底（y1=1），罩住条码、印刷厂、页码；不要包含最后一行手写正文
+- 横线笔记区、手写标题、公式不是 chrome
+- 没有明显印刷页眉/页脚就输出 []
+- 最多 2 条（一个 header、一个 footer）
+
+顶层只能有 reading_order、regions、chrome_bands。
 regions[].role 只能是：ignore, title, example, margin_note, formula, emphasis
-不要输出普通正文 body。不要编图片里没有的字。最多 12 条。
+不要输出普通正文 body。不要编图片里没有的字。regions 最多 12 条。
 
 合法输出示例：
-{"reading_order":["算符","狄拉克符号","算符运算"],"regions":[{"role":"ignore","text":"印刷厂页脚"},{"role":"title","text":"狄拉克符号","level":2},{"role":"emphasis","text":"形式不变性","strength":2},{"role":"formula","text":"F=ma"},{"role":"example","text":"能量本征方程"}]}
+{"reading_order":["算符","狄拉克符号","算符运算"],"regions":[{"role":"ignore","text":"印刷厂页脚"},{"role":"title","text":"狄拉克符号","level":2},{"role":"emphasis","text":"形式不变性","strength":2},{"role":"formula","text":"F=ma"},{"role":"example","text":"能量本征方程"}],"chrome_bands":[{"kind":"header","y0":0.0,"y1":0.13},{"kind":"footer","y0":0.91,"y1":1.0}]}
 """
 
 META_SYSTEM_PROMPT = """你是 OCR Standard Meta 生成器。只决定目录怎么切，不填满目录的练习/关系/能力标签。
@@ -56,10 +66,10 @@ META_SYSTEM_PROMPT = """你是 OCR Standard Meta 生成器。只决定目录怎�
 2. 公式写进 knowledge_items，短式即可。
 3. 笔记里没有的不要编。例题、旁注、页眉页脚不要升成章或 KP。
 4. catalog_hints 里每一个主题都必须有 KP。名额按主题分配，不要把前面几节写满、后面的节一个点都没有。
-5. 若 Markdown 含「第 n 页」注释，把全文当成同一份笔记重切：跨页同名知识点合并为一条，按主题切，不要按页切成多棵树。
+5. 多页合并稿当成同一份笔记：跨页同名知识点合并为一条，按主题切，不要按页切成多棵树。
 
 VLM 用法：
-- ignore：不能当证据
+- ignore / chrome_bands：不能当证据，页眉页脚不要建成章或 KP
 - emphasis：只提高已有点的 importance，不新造点
 - reading_order / title：校正主题顺序和层级
 - example / margin_note：不要当新章或 KP
@@ -76,15 +86,16 @@ VLM 用法：
 class StandardOcrResult:
     raw_text: str
     reviewed_markdown: str
-    raw_path: Path
-    reviewed_path: Path
+    reviewed_path: Path | None = None
     meta_path: Path | None = None
     meta: dict[str, Any] = field(default_factory=dict)
     visual: dict[str, Any] = field(default_factory=dict)
 
     @property
     def files(self) -> list[str]:
-        files = [str(self.raw_path), str(self.reviewed_path)]
+        files: list[str] = []
+        if self.reviewed_path is not None:
+            files.append(str(self.reviewed_path))
         if self.meta_path is not None:
             files.append(str(self.meta_path))
         return files
@@ -165,6 +176,125 @@ def _json_from_text(text: str) -> dict[str, Any]:
     return {}
 
 
+CHROME_KINDS = {"header", "footer"}
+CHROME_OVERLAP = 0.60
+_MAX_HEADER_SPAN = 0.25
+_MAX_FOOTER_SPAN = 0.20
+_HEADER_Y0_MAX = 0.05
+_FOOTER_Y1_MIN = 0.95
+
+
+def _as_unit_interval(value: Any) -> float | None:
+    try:
+        number = float(value)
+    except (TypeError, ValueError):
+        return None
+    if number != number:  # NaN
+        return None
+    return max(0.0, min(1.0, number))
+
+
+def _normalize_chrome_bands(data: dict[str, Any]) -> list[dict[str, Any]]:
+    """只收贴顶/贴底的印刷带；过宽的带裁短，中部区域直接丢掉。"""
+    header: dict[str, Any] | None = None
+    footer: dict[str, Any] | None = None
+    raw_bands = data.get("chrome_bands")
+    if not raw_bands:
+        raw_bands = data.get("chrome")
+    for item in _as_list(raw_bands):
+        if not isinstance(item, dict):
+            continue
+        kind = _enum(item.get("kind") or item.get("type") or item.get("band"), CHROME_KINDS)
+        y0 = _as_unit_interval(
+            item.get("y0") if item.get("y0") is not None else item.get("top") or item.get("ymin")
+        )
+        y1 = _as_unit_interval(
+            item.get("y1") if item.get("y1") is not None else item.get("bottom") or item.get("ymax")
+        )
+        if not kind or y0 is None or y1 is None:
+            continue
+        if y1 < y0:
+            y0, y1 = y1, y0
+        if y1 - y0 < 0.01:
+            continue
+        if kind == "header":
+            if y0 > _HEADER_Y0_MAX:
+                continue
+            y0 = 0.0
+            y1 = min(y1, _MAX_HEADER_SPAN)
+            if y1 - y0 < 0.01:
+                continue
+            header = {"kind": "header", "y0": round(y0, 4), "y1": round(y1, 4)}
+        elif kind == "footer":
+            if y1 < _FOOTER_Y1_MIN:
+                continue
+            y1 = 1.0
+            y0 = max(y0, 1.0 - _MAX_FOOTER_SPAN)
+            if y1 - y0 < 0.01:
+                continue
+            footer = {"kind": "footer", "y0": round(y0, 4), "y1": round(y1, 4)}
+    bands: list[dict[str, Any]] = []
+    if header:
+        bands.append(header)
+    if footer:
+        bands.append(footer)
+    return bands
+
+
+def _bbox_rect(bbox: Any) -> tuple[float, float, float, float] | None:
+    if not bbox:
+        return None
+    try:
+        xs = [float(point[0]) for point in bbox]
+        ys = [float(point[1]) for point in bbox]
+        return min(xs), min(ys), max(xs), max(ys)
+    except Exception:  # noqa: BLE001
+        return None
+
+
+def _band_overlap_ratio(bbox: Any, band: dict[str, Any], image_height: float) -> float:
+    rect = _bbox_rect(bbox)
+    if not rect or image_height <= 1:
+        return 0.0
+    _left, top, _right, bottom = rect
+    height = max(1.0, bottom - top)
+    band_top = float(band["y0"]) * image_height
+    band_bottom = float(band["y1"]) * image_height
+    overlap = max(0.0, min(bottom, band_bottom) - max(top, band_top))
+    return overlap / height
+
+
+def drop_chrome_lines(
+    lines: list[dict[str, Any]],
+    visual: dict[str, Any] | None,
+    image_size: tuple[int, int] | None,
+) -> list[dict[str, Any]]:
+    """丢掉与印刷带重叠面积 >= 60% 的 OCR 行。失败或会清空全文时原样返回。"""
+    bands = (visual or {}).get("chrome_bands") or []
+    if not lines or not bands or not image_size:
+        return lines
+    _width, height = image_size
+    if height <= 1:
+        return lines
+    kept: list[dict[str, Any]] = []
+    dropped = 0
+    for line in lines:
+        bbox = line.get("bbox")
+        if not bbox:
+            kept.append(line)
+            continue
+        if any(_band_overlap_ratio(bbox, band, height) >= CHROME_OVERLAP for band in bands):
+            dropped += 1
+            continue
+        kept.append(line)
+    if dropped and not kept:
+        logger.warning("Standard chrome 过滤会清空全部 OCR 行，已忽略本次裁切")
+        return lines
+    if dropped:
+        logger.info("Standard chrome 丢掉 %s 行页眉/页脚", dropped)
+    return kept
+
+
 def normalize_visual_observations(
     data: dict[str, Any],
     *,
@@ -203,7 +333,11 @@ def normalize_visual_observations(
                 strength = 0
             row["strength"] = min(max(strength or 1, 1), 3)
         regions.append(row)
-    return {"reading_order": reading_order, "regions": regions}
+    return {
+        "reading_order": reading_order,
+        "regions": regions,
+        "chrome_bands": _normalize_chrome_bands(data),
+    }
 
 
 def _allocate_knowledge_points(points: list[dict[str, Any]]) -> list[dict[str, Any]]:
@@ -325,7 +459,7 @@ def _generate_meta(
             "【OCR 原文】\n"
             f"{raw_text[:raw_limit]}\n\n"
             "【VLM】\n"
-            f"{json.dumps({k: visual.get(k) for k in ('reading_order', 'regions')}, ensure_ascii=False)}\n\n"
+            f"{json.dumps({k: visual.get(k) for k in ('reading_order', 'regions', 'chrome_bands')}, ensure_ascii=False)}\n\n"
             "只输出 catalog_hints 和 knowledge_points。"
         )
         text = asyncio.run(
@@ -355,6 +489,7 @@ def combine_page_visuals(pages: list[dict[str, Any]]) -> dict[str, Any]:
     """把各页 VLM 观察收成一份短上下文，供合并稿 meta 使用。"""
     order: list[str] = []
     regions: list[dict[str, Any]] = []
+    bands: list[dict[str, Any]] = []
     for idx, page in enumerate(pages, start=1):
         label = f"第{idx}页"
         visual = page.get("visual") if isinstance(page.get("visual"), dict) else {}
@@ -370,8 +505,9 @@ def combine_page_visuals(pages: list[dict[str, Any]]) -> dict[str, Any]:
             if text:
                 item["text"] = f"{label}:{text}"
             regions.append(item)
+        bands.extend(item for item in _as_list(visual.get("chrome_bands")) if isinstance(item, dict))
     return normalize_visual_observations(
-        {"reading_order": order, "regions": regions},
+        {"reading_order": order, "regions": regions, "chrome_bands": bands},
         max_order=40,
         max_regions=80,
     )
@@ -401,6 +537,34 @@ def save_combined_meta(
     return _save_meta(meta, user_id=user_id, image_path=Path(output_stem))
 
 
+def _image_size(path: Path) -> tuple[int, int] | None:
+    try:
+        from PIL import Image
+
+        with Image.open(path) as img:
+            return img.size
+    except Exception:  # noqa: BLE001
+        return None
+
+
+def _recognize_lines(image_path: Path) -> list[dict[str, Any]]:
+    from tools.ocr.adapter import recognize_image
+
+    payload = recognize_image(str(image_path))
+    return list(payload.get("lines") or [])
+
+
+def _lines_to_reviewed_markdown(lines: list[dict[str, Any]]) -> tuple[str, str]:
+    from tools.ocr.adapter import raw_text_from_lines
+    from tools.ocr.reconstruct import reconstruct_markdown, review_markdown
+
+    raw_text = raw_text_from_lines(lines) or "（OCR 未识别到文字）"
+    if not lines:
+        return raw_text, raw_text
+    reviewed, _notes = review_markdown(reconstruct_markdown(lines), lines)
+    return raw_text, reviewed
+
+
 def run_standard_ocr(
     image_path: str | Path,
     *,
@@ -409,21 +573,32 @@ def run_standard_ocr(
     project_root: str | Path,
     output_stem: str | None = None,
     save_meta: bool = True,
+    persist: bool = True,
 ) -> StandardOcrResult:
     root = Path(project_root)
     path = Path(image_path)
+    if not path.is_file():
+        raise ValueError(f"图片不存在：{path}")
+
     with ThreadPoolExecutor(max_workers=2) as pool:
-        light_future = pool.submit(
-            run_light_ocr,
-            path,
+        lines_future = pool.submit(_recognize_lines, path)
+        visual_future = pool.submit(_visual_observations, path, root)
+        lines = lines_future.result()
+        visual = visual_future.result()
+
+    lines = drop_chrome_lines(lines, visual, _image_size(path))
+    raw_text, reviewed_md = _lines_to_reviewed_markdown(lines)
+    if persist:
+        light = save_light_ocr_outputs(
+            Path(output_stem) if output_stem else path,
+            raw_text=raw_text,
+            reviewed_markdown=reviewed_md,
             user_id=user_id,
             subject=subject,
             project_root=root,
-            output_stem=output_stem,
         )
-        visual_future = pool.submit(_visual_observations, path, root)
-        light: LightOcrResult = light_future.result()
-        visual = visual_future.result()
+    else:
+        light = LightOcrResult(raw_text=raw_text, reviewed_markdown=reviewed_md)
 
     meta: dict[str, Any] = {}
     meta_path = None
@@ -437,7 +612,6 @@ def run_standard_ocr(
     return StandardOcrResult(
         raw_text=light.raw_text,
         reviewed_markdown=light.reviewed_markdown,
-        raw_path=light.raw_path,
         reviewed_path=light.reviewed_path,
         meta_path=meta_path,
         meta=meta,
@@ -449,6 +623,7 @@ __all__ = [
     "StandardOcrResult",
     "normalize_standard_meta",
     "normalize_visual_observations",
+    "drop_chrome_lines",
     "combine_page_visuals",
     "save_combined_meta",
     "run_standard_ocr",

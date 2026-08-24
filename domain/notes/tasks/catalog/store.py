@@ -64,11 +64,10 @@ def _ocr_output_stems(user_id: str, subject: str) -> list[str]:
     base = PROJECT_ROOT / "data" / safe_id(uid) / "ocr" / safe_id(subject)
     stems: list[str] = []
     seen: set[str] = set()
-    for folder in (base / "md", base / "txt"):
-        if not folder.is_dir():
-            continue
+    folder = base / "md"
+    if folder.is_dir():
         for path in folder.iterdir():
-            if not path.is_file() or path.suffix.lower() not in {".md", ".txt"}:
+            if not path.is_file() or path.suffix.lower() != ".md":
                 continue
             stem = path.stem
             if stem and stem not in seen:

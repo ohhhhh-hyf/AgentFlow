@@ -161,22 +161,23 @@ python -m playwright install chromium
 | 临时公网分享 | `GRADIO_SHARE=true python gradio_app.py` |
 | 后台运行 | `nohup env GRADIO_SERVER_NAME=0.0.0.0 GRADIO_SERVER_PORT=7860 python gradio_app.py > gradio.log 2>&1 &` |
 
-OCR 兜底依赖（使用 OCR 识别时建议安装）：
-
-```bash
-# OCR_ENGINE=serverocr 时：优先调用服务器 OCR；服务器 OCR 失败/为空时会兜底到本地 RapidOCR
-# OCR_ENGINE=rapidocr 时：直接使用本地 RapidOCR，适合没有服务器 OCR 的测试环境
-pip install "numpy<2" onnxruntime==1.16.3 rapidocr_onnxruntime==1.4.4
-
-# 验证 RapidOCR 是否可用
-python -c "from rapidocr_onnxruntime import RapidOCR; print('RapidOCR OK')"
-```
-
-`.env` 示例：
+OCR 引擎（`.env` 的 ``OCR_ENGINE``，三种互不兜底）：
 
 ```env
-OCR_ENGINE=serverocr
-# OCR_ENGINE=rapidocr
+# serverocr | rapidocr | paddleocr
+OCR_ENGINE=paddleocr
+PADDLE_OCR_DEVICE=gpu:0
+PADDLE_OCR_DET_MODEL=PP-OCRv5_server_det
+PADDLE_OCR_REC_MODEL=PP-OCRv5_server_rec
+# PADDLE_OCR_CUDA_VISIBLE_DEVICES=2
+```
+
+```bash
+# RapidOCR（CPU 本地）
+pip install "numpy<2" onnxruntime==1.16.3 rapidocr_onnxruntime==1.4.4
+
+# PaddleOCR 3.x / PP-OCRv5（与 samples/examples/test_paddleOCR.py 相同调用）
+# 按 Paddle 官方安装 GPU/CPU 版 paddleocr
 ```
 
 | 项目 | 说明 |

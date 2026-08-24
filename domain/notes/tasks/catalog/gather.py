@@ -4,9 +4,8 @@ from __future__ import annotations
 import json
 import re
 from collections import defaultdict
-from typing import Any
-
 from pathlib import Path
+from typing import Any
 
 from tools.knowledge.cite import open_knowledge
 from tools.knowledge.config import PROJECT_ROOT

@@ -1,23 +1,11 @@
 from __future__ import annotations
 
-import re
-
 from client import LLMClient
+
+from domain.notes.tasks.catalog.gather import subject_from_context, user_id_from_context
 
 from ....models import Library
 from ..report import expand_inputs, ingest_library, kb_from_env, source_paths_from_context
-
-
-def _subject_from_context(text: str) -> str:
-    """从共享上下文提取「【学科/课程】xxx」，供按学科分库。"""
-    m = re.search(r"【学科/课程】\s*([^【】\n]+)", text or "")
-    return m.group(1).strip() if m else ""
-
-
-def _user_id_from_context(text: str) -> str:
-    """从共享上下文提取「【用户ID】xxx」，供按用户隔离知识库。"""
-    m = re.search(r"【用户ID】\s*([^【】\n]+)", text or "")
-    return m.group(1).strip() if m else ""
 
 
 class LibraryAgent:
@@ -41,10 +29,10 @@ class LibraryAgent:
             )
         try:
             data = ingest_library(
-                kb_from_env(_user_id_from_context(shared_context)),
+                kb_from_env(user_id_from_context(shared_context)),
                 expand_inputs(raw),
-                user_id=_user_id_from_context(shared_context),
-                subject=_subject_from_context(shared_context),
+                user_id=user_id_from_context(shared_context),
+                subject=subject_from_context(shared_context),
             )
         except Exception as exc:
             return Library.validate(

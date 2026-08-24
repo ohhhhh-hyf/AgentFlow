@@ -8,6 +8,17 @@ from typing import Any
 from .layout import ocr_image_lines
 
 
+def _clean_ocr_text(value) -> str:
+    if isinstance(value, bytes):
+        for encoding in ("utf-8", "gb18030", "latin1"):
+            try:
+                return value.decode(encoding).strip()
+            except UnicodeDecodeError:
+                continue
+        return value.decode("utf-8", errors="replace").strip()
+    return str(value or "").strip()
+
+
 @contextmanager
 def temporary_ocr_engine(engine: str):
     old_engine = os.environ.get("OCR_ENGINE")
@@ -28,8 +39,10 @@ def current_ocr_engine() -> str:
 def recognize_image(image_path: str | Path, *, engine: str | None = None) -> dict[str, Any]:
     """Recognize text through one OCR adapter controlled by OCR_ENGINE.
 
-    serverocr: server OCR first, RapidOCR fallback in runner_ocr.py.
-    rapidocr: direct local RapidOCR.
+    serverocr: 主进程直调服务器 FOCUS OCR。
+    paddleocr: 主进程单例 PP-OCRv5。
+    rapidocr: 主进程单例 RapidOCR。
+    各引擎失败重试三次后返回空行，互不兜底。
     """
     selected = (engine or current_ocr_engine()).strip().lower()
     with temporary_ocr_engine(selected):
@@ -38,8 +51,6 @@ def recognize_image(image_path: str | Path, *, engine: str | None = None) -> dic
 
 
 def raw_text_from_lines(lines: list[dict]) -> str:
-    from tools.ocr import _clean_ocr_text
-
     raw_lines = [
         _clean_ocr_text(item.get("text") or item.get("formula"))
         for item in lines

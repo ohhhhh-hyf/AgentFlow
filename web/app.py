@@ -333,7 +333,7 @@ TASK_BRIEFS: dict[str, dict[str, str]] = {
     },
     OCR_TASK: {
         "inputs": "PNG / JPG / JPEG 图片",
-        "outputs": "服务器原始 OCR 文本、审校版 Markdown",
+        "outputs": "审校版 Markdown（Standard 另含 meta.json）",
         "purpose": "把图片识别成可入库的 Markdown。生成的 LLM Markdown 可继续上传到资料入库。",
     },
 }
@@ -1394,14 +1394,25 @@ def _run_result(
     files_html: str | None = None,
     monitor_html: str = "",
     md_preview: str | None = None,
+    busy: bool = False,
 ):
     """统一结果区输出：日志 / 图片(可隐藏) / MD预览(可隐藏) / 下载 / 监控 / HITL / 解锁按钮。"""
     files = list(files_or_none or [])
-    unlock = (
-        gr.update(interactive=True),
-        gr.update(interactive=True),
-        gr.update(interactive=True),
-    )
+    if busy:
+        hitl = list(hitl)
+        if len(hitl) >= 4:
+            hitl[3] = gr.update(interactive=False, value="运行中…")
+        unlock = (
+            gr.update(interactive=False),
+            gr.update(interactive=False),
+            gr.update(interactive=False),
+        )
+    else:
+        unlock = (
+            gr.update(interactive=True),
+            gr.update(interactive=True),
+            gr.update(interactive=True),
+        )
     return (
         log,
         _gallery_update(files),
@@ -1413,6 +1424,169 @@ def _run_result(
         _monitor_update(monitor_html),
         *hitl,
         *unlock,
+    )
+
+
+def _ocr_progress_result(log: str):
+    return _run_result(
+        log,
+        None,
+        *_hitl_ui(False),
+        files_html=EMPTY_DOWNLOAD,
+        busy=True,
+    )
+
+
+def _iter_ocr_task(
+    *,
+    uid: str,
+    subj: str,
+    input_upload,
+    ocr_level: str,
+):
+    image_entries = [
+        (path, name)
+        for path, name in _uploaded_image_entries(input_upload)
+        if path.exists()
+    ]
+    if not image_entries:
+        yield _run_result(
+            "请上传 PNG / JPG / JPEG 图片。",
+            None,
+            *_hitl_ui(False),
+            files_html=EMPTY_DOWNLOAD,
+        )
+        return
+    bad_images = [
+        name for _path, name in image_entries
+        if Path(name).suffix.lower() not in {".png", ".jpg", ".jpeg"}
+    ]
+    if bad_images:
+        yield _run_result(
+            "OCR识别暂只支持 PNG / JPG / JPEG 图片："
+            + "、".join(bad_images),
+            None,
+            *_hitl_ui(False),
+            files_html=EMPTY_DOWNLOAD,
+        )
+        return
+    selected_level = _ocr_level_value(ocr_level)
+    workers = 4 if selected_level == OCR_LEVEL_STANDARD else 8
+    workers = max(1, min(workers, len(image_entries)))
+    total = len(image_entries)
+    persist_pages = total == 1
+    yield _ocr_progress_result(f"开始 OCR：共 {total} 张，并行 {workers} 路。")
+    failed_name = image_entries[0][1]
+    try:
+        results: list[dict[str, object] | None] = [None] * total
+        done = 0
+        with ThreadPoolExecutor(max_workers=workers) as pool:
+            future_map = {
+                pool.submit(
+                    _recognize_ocr_image,
+                    image_path,
+                    user_id=uid,
+                    subject=subj,
+                    ocr_level=ocr_level,
+                    output_stem=Path(orig_name).stem,
+                    save_meta=persist_pages,
+                    persist=persist_pages,
+                ): (idx, orig_name)
+                for idx, (image_path, orig_name) in enumerate(image_entries)
+            }
+            for future in as_completed(future_map):
+                idx, orig_name = future_map[future]
+                failed_name = orig_name
+                raw_txt, _no_llm_md, llm_md, one_files, one_meta, one_visual = future.result()
+                results[idx] = {
+                    "name": orig_name,
+                    "raw_text": raw_txt,
+                    "reviewed_markdown": llm_md,
+                    "files": one_files,
+                    "meta": one_meta,
+                    "visual": one_visual,
+                }
+                done += 1
+                yield _ocr_progress_result(f"OCR 识别中 {done}/{total}：已完成 {orig_name}")
+    except Exception as exc:  # noqa: BLE001
+        yield _run_result(
+            f"OCR识别失败：{failed_name}：{exc}",
+            None,
+            *_hitl_ui(False),
+            files_html=EMPTY_DOWNLOAD,
+        )
+        return
+    result_items = [item for item in results if item]
+    files = [
+        file
+        for item in result_items
+        for file in (item.get("files") or [])
+        if isinstance(file, str)
+    ]
+    if len(result_items) > 1:
+        from tools.ocr.levels.light import (
+            next_batch_version_stem,
+            save_combined_ocr_outputs,
+        )
+
+        yield _ocr_progress_result(f"OCR 识别完成 {len(result_items)}/{total}，正在合并 Markdown…")
+        batch_stem = next_batch_version_stem(uid, subj, PROJECT_ROOT)
+        combined = save_combined_ocr_outputs(
+            [
+                {
+                    "name": str(item.get("name") or ""),
+                    "raw_text": str(item.get("raw_text") or ""),
+                    "reviewed_markdown": str(item.get("reviewed_markdown") or ""),
+                }
+                for item in result_items
+            ],
+            user_id=uid,
+            subject=subj,
+            project_root=PROJECT_ROOT,
+            output_stem=batch_stem,
+        )
+        files = list(combined.files)
+        if selected_level == OCR_LEVEL_STANDARD:
+            from tools.ocr.levels.standard import save_combined_meta
+
+            yield _ocr_progress_result("正在生成 Standard meta…")
+            meta_path = save_combined_meta(
+                raw_text=combined.raw_text,
+                reviewed_markdown=combined.reviewed_markdown,
+                pages=[
+                    {
+                        "name": str(item.get("name") or ""),
+                        "visual": item.get("visual") or {},
+                    }
+                    for item in result_items
+                ],
+                user_id=uid,
+                output_stem=batch_stem,
+                project_root=PROJECT_ROOT,
+            )
+            files = [str(meta_path)] + files
+    yield _run_result(
+        f"OCR识别完成，共成功识别 {len(image_entries)} 张图片。"
+        + (
+            "多页已按上传顺序合并成一份 Markdown。"
+            if len(result_items) > 1
+            else "审校版 Markdown 已保存到 md 文件夹。"
+        )
+        + "若选择 Standard，还会保存 meta.json 供知识目录增强使用。"
+        "若要进入知识库，请把 md 文件夹里的审校版 Markdown 上传到「资料入库」。",
+        files,
+        *_hitl_ui(False),
+        files_html=EMPTY_DOWNLOAD,
+        md_preview=_ocr_preview_markdown(
+            [
+                {
+                    "name": str(item.get("name") or ""),
+                    "raw_text": str(item.get("raw_text") or ""),
+                    "reviewed_markdown": str(item.get("reviewed_markdown") or ""),
+                }
+                for item in result_items
+            ]
+        ),
     )
 
 
@@ -1465,156 +1639,33 @@ def run_from_ui(
     }
     domain = _domain_value(domain_label)
     if not task_label:
-        return _run_result(
+        yield _run_result(
             "请选择任务线。",
             None,
             *_hitl_ui(False),
             files_html=EMPTY_DOWNLOAD,
         )
+        return
 
     tasks = [_task_value(task_label, domain)]
     if domain == "notes" and tasks[0] == OCR_TASK:
         uid = (user_id or "").strip()
         subj = (subject or "").strip()
         if not uid or not subj:
-            return _run_result(
+            yield _run_result(
                 "OCR识别请填写用户 ID 和学科。系统会把识别结果保存到该用户的 OCR 文件夹。",
                 None,
                 *_hitl_ui(False),
                 files_html=EMPTY_DOWNLOAD,
             )
-        image_entries = [
-            (path, name)
-            for path, name in _uploaded_image_entries(input_upload)
-            if path.exists()
-        ]
-        if not image_entries:
-            return _run_result(
-                "请上传 PNG / JPG / JPEG 图片。",
-                None,
-                *_hitl_ui(False),
-                files_html=EMPTY_DOWNLOAD,
-            )
-        bad_images = [
-            name for _path, name in image_entries
-            if Path(name).suffix.lower() not in {".png", ".jpg", ".jpeg"}
-        ]
-        if bad_images:
-            return _run_result(
-                "OCR识别暂只支持 PNG / JPG / JPEG 图片："
-                + "、".join(bad_images),
-                None,
-                *_hitl_ui(False),
-                files_html=EMPTY_DOWNLOAD,
-            )
-        selected_level = _ocr_level_value(ocr_level)
-        workers = 4 if selected_level == OCR_LEVEL_STANDARD else 8
-        workers = max(1, min(workers, len(image_entries)))
-        failed_name = image_entries[0][1]
-        try:
-            results: list[dict[str, object] | None] = [None] * len(image_entries)
-            with ThreadPoolExecutor(max_workers=workers) as pool:
-                future_map = {
-                    pool.submit(
-                        _recognize_ocr_image,
-                        image_path,
-                        user_id=uid,
-                        subject=subj,
-                        ocr_level=ocr_level,
-                        output_stem=Path(orig_name).stem,
-                        save_meta=len(image_entries) == 1,
-                    ): (idx, orig_name)
-                    for idx, (image_path, orig_name) in enumerate(image_entries)
-                }
-                for future in as_completed(future_map):
-                    idx, orig_name = future_map[future]
-                    failed_name = orig_name
-                    raw_txt, _no_llm_md, llm_md, one_files, one_meta, one_visual = future.result()
-                    results[idx] = {
-                        "name": orig_name,
-                        "raw_text": raw_txt,
-                        "reviewed_markdown": llm_md,
-                        "files": one_files,
-                        "meta": one_meta,
-                        "visual": one_visual,
-                    }
-        except Exception as exc:  # noqa: BLE001
-            return _run_result(
-                f"OCR识别失败：{failed_name}：{exc}",
-                None,
-                *_hitl_ui(False),
-                files_html=EMPTY_DOWNLOAD,
-            )
-        result_items = [item for item in results if item]
-        files = [
-            file
-            for item in result_items
-            for file in (item.get("files") or [])
-            if isinstance(file, str)
-        ]
-        if len(result_items) > 1:
-            from tools.ocr.levels.light import (
-                next_batch_version_stem,
-                save_combined_ocr_outputs,
-            )
-
-            batch_stem = next_batch_version_stem(uid, subj, PROJECT_ROOT)
-            combined = save_combined_ocr_outputs(
-                [
-                    {
-                        "name": str(item.get("name") or ""),
-                        "raw_text": str(item.get("raw_text") or ""),
-                        "reviewed_markdown": str(item.get("reviewed_markdown") or ""),
-                    }
-                    for item in result_items
-                ],
-                user_id=uid,
-                subject=subj,
-                project_root=PROJECT_ROOT,
-                output_stem=batch_stem,
-            )
-            files = combined.files + files
-            if selected_level == OCR_LEVEL_STANDARD:
-                from tools.ocr.levels.standard import save_combined_meta
-
-                meta_path = save_combined_meta(
-                    raw_text=combined.raw_text,
-                    reviewed_markdown=combined.reviewed_markdown,
-                    pages=[
-                        {
-                            "name": str(item.get("name") or ""),
-                            "visual": item.get("visual") or {},
-                        }
-                        for item in result_items
-                    ],
-                    user_id=uid,
-                    output_stem=batch_stem,
-                    project_root=PROJECT_ROOT,
-                )
-                files = [str(meta_path)] + files
-        return _run_result(
-            f"OCR识别完成，共成功识别 {len(image_entries)} 张图片。"
-            + (
-                "多页已按上传顺序合并成一份 Markdown，入库请优先上传合并后的 md。"
-                if len(result_items) > 1
-                else "原始 OCR 文本已保存到 txt 文件夹，审校版 Markdown 已保存到 md 文件夹。"
-            )
-            + "若选择 Standard，还会保存 meta.json 供知识目录增强使用。"
-            "若要进入知识库，请把 md 文件夹里的审校版 Markdown 上传到「资料入库」。",
-            files,
-            *_hitl_ui(False),
-            files_html=EMPTY_DOWNLOAD,
-            md_preview=_ocr_preview_markdown(
-                [
-                    {
-                        "name": str(item.get("name") or ""),
-                        "raw_text": str(item.get("raw_text") or ""),
-                        "reviewed_markdown": str(item.get("reviewed_markdown") or ""),
-                    }
-                    for item in result_items
-                ]
-            ),
+            return
+        yield from _iter_ocr_task(
+            uid=uid,
+            subj=subj,
+            input_upload=input_upload,
+            ocr_level=ocr_level,
         )
+        return
     chapter = grade = edition = difficulty = qtype = None
     level = "期中备考" if tasks and tasks[0] == "quiz" else None
     if tasks[0] == "quiz":
@@ -1632,7 +1683,7 @@ def run_from_ui(
     uid = (user_id or "").strip()
     subj = (subject or "").strip()
     if tasks[0] in KNOWLEDGE_SCOPE_LINES and (not uid or not subj):
-        return _run_result(
+        yield _run_result(
             "请填写用户 ID 和学科。"
             "系统用这两个值定位该用户该学科的知识库"
             + (
@@ -1645,6 +1696,7 @@ def run_from_ui(
             *_hitl_ui(False),
             files_html=EMPTY_DOWNLOAD,
         )
+        return
     if tasks[0] == "minutes_generation":
         profile_data = json.loads(
             _load_profile_json_text(domain, label=perspective_choice)
@@ -1685,12 +1737,13 @@ def run_from_ui(
                 missing = "资料入库请上传课件 / 讲义 / 笔记（可多选），或在文本框粘贴补充文本。"
             else:
                 missing = "请上传输入文件，或直接在文本框里输入内容。"
-            return _run_result(
+            yield _run_result(
                 missing,
                 None,
                 *_hitl_ui(False),
                 files_html=EMPTY_DOWNLOAD,
             )
+            return
 
         # 须在自然语言模板编译之前加载 .env，否则 LLMClient 读不到 API Key
         load_env(PROJECT_ROOT / ".env")
@@ -1735,18 +1788,19 @@ def run_from_ui(
                         )
                     ).strip()
                 except Exception as exc:  # noqa: BLE001
-                    return _run_result(
+                    yield _run_result(
                         f"自然语言模板编译失败：{exc}\n请检查 .env 中的 API Key 后重试。",
                         None,
                         *_hitl_ui(False),
                         files_html=EMPTY_DOWNLOAD,
                     )
+                    return
                 if (
                     not compiled
                     or compiled == template_source
                     or detect_template_kind(compiled) != "placeholder"
                 ):
-                    return _run_result(
+                    yield _run_result(
                         "未能理解这段描述，请写得更具体一些，例如：\n"
                         "「约400字；第一行标题；纪要约200字；风险表约3行；待办表约3行」\n"
                         "也可直接粘贴现成模板后再运行。",
@@ -1754,12 +1808,13 @@ def run_from_ui(
                         *_hitl_ui(False),
                         files_html=EMPTY_DOWNLOAD,
                     )
+                    return
                 # 占位模板 → 用户友好的编辑模型，进入确认状态
                 editor_value = _friendly_template_state(
                     compiled,
                     source_kind="natural",
                 )
-                return _run_result(
+                yield _run_result(
                     "已按您的描述生成可编辑版式。\n"
                     "开头【版式】一行写清全文/某一段各多少字；下面是普通标题和表格，"
                     "空着的位置生成时填写。可改标题、列名、字数，满意后点「确认模板并运行」。",
@@ -1767,6 +1822,7 @@ def run_from_ui(
                     *_hitl_ui(True, editor_value),
                     files_html=EMPTY_DOWNLOAD,
                 )
+                return
             # 情况 C：占位符 / 格式规范 / 空模板 → 直接运行
             else:
                 final_template = template_source
@@ -1849,7 +1905,7 @@ def run_from_ui(
             "本次结果按「可编辑模板」生成。"
             "可继续改模板后再次「确认模板并运行」；点「清除可编辑模板」才会重新从自然语言编译。"
         )
-    return _run_result(
+    yield _run_result(
         log,
         files,
         *_hitl_ui(show_editor, editor_value if show_editor else ""),
@@ -1930,6 +1986,7 @@ def _recognize_ocr_image(
     ocr_level: str = OCR_LEVEL_LIGHT,
     output_stem: str | None = None,
     save_meta: bool = True,
+    persist: bool = True,
 ) -> tuple[str, str, str, list[str], dict | None, dict | None]:
     from tools.ocr.levels.light import _safe_stem, run_light_ocr
     from tools.ocr.levels.standard import run_standard_ocr
@@ -1940,6 +1997,7 @@ def _recognize_ocr_image(
         "subject": subject,
         "project_root": PROJECT_ROOT,
         "output_stem": _safe_stem(output_stem) if output_stem else None,
+        "persist": persist,
     }
     if selected == OCR_LEVEL_STANDARD:
         result = run_standard_ocr(image_path, save_meta=save_meta, **kwargs)

@@ -86,7 +86,6 @@ def _lines_to_structured_payload(lines: list[dict]) -> str:
             "title_decision": item.get("title_decision") or "ambiguous",
             "heading_score": item.get("heading_score") or 0,
             "heading_level_hint": item.get("heading_level_hint"),
-            "conf": round(float(item.get("conf") or 0), 3),
             "layout": {
                 "top": layout.get("top"),
                 "height_ratio": layout.get("height_ratio"),
@@ -96,6 +95,8 @@ def _lines_to_structured_payload(lines: list[dict]) -> str:
                 "near_left": layout.get("near_left"),
             },
         }
+        if item.get("conf") is not None:
+            row["conf"] = round(float(item["conf"]), 3)
         payload.append(row)
     return json.dumps(payload, ensure_ascii=False, separators=(",", ":"))
 

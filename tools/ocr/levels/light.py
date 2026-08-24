@@ -20,12 +20,11 @@ class LightOcrResult:
 
     raw_text: str
     reviewed_markdown: str
-    raw_path: Path
-    reviewed_path: Path
+    reviewed_path: Path | None = None
 
     @property
     def files(self) -> list[str]:
-        return [str(self.raw_path), str(self.reviewed_path)]
+        return [str(self.reviewed_path)] if self.reviewed_path else []
 
 
 def _safe_stem(image_path: Path | str) -> str:
@@ -69,12 +68,19 @@ def next_batch_version_stem(
     return f"v{highest + 1}"
 
 
+_PAGE_COMMENT_RE = re.compile(r"^<!--\s*第\s*\d+\s*页[:：].*?-->\s*", re.M)
+
+
+def _strip_page_comments(text: str) -> str:
+    return _PAGE_COMMENT_RE.sub("", text or "").strip()
+
+
 def combine_ocr_pages(pages: list[dict[str, str]], *, key: str) -> str:
     blocks: list[str] = []
-    for idx, page in enumerate(pages, start=1):
-        name = str(page.get("name") or f"page_{idx}")
-        body = str(page.get(key) or "").strip()
-        blocks.append(f"<!-- 第 {idx} 页：{name} -->\n{body}")
+    for page in pages:
+        body = _strip_page_comments(str(page.get(key) or ""))
+        if body:
+            blocks.append(body)
     return "\n\n".join(blocks)
 
 
@@ -86,7 +92,7 @@ def save_combined_ocr_outputs(
     project_root: str | Path,
     output_stem: str | None = None,
 ) -> LightOcrResult:
-    """把并行识别的多页按上传顺序拼成一份 txt/md，便于一次入库。"""
+    """把并行识别的多页按上传顺序拼成一份 md，便于一次入库。"""
     stem = output_stem or next_batch_version_stem(user_id, subject, project_root)
     return save_light_ocr_outputs(
         Path(stem),
@@ -105,13 +111,16 @@ def run_light_ocr(
     subject: str,
     project_root: str | Path,
     output_stem: str | None = None,
+    persist: bool = True,
 ) -> LightOcrResult:
-    """Run the current Light pipeline: server OCR -> LLM draft/review -> txt + md."""
+    """Run the current Light pipeline: server OCR -> LLM draft/review -> md."""
     path = Path(image_path)
     if not path.is_file():
         raise ValueError(f"图片不存在：{path}")
 
     raw_txt, _no_llm_md, _llm_md, reviewed_md, _review_notes = server_ocr_image_recognize(str(path))
+    if not persist:
+        return LightOcrResult(raw_text=raw_txt, reviewed_markdown=reviewed_md)
     return save_light_ocr_outputs(
         Path(output_stem) if output_stem else path,
         raw_text=raw_txt,
@@ -141,20 +150,15 @@ def save_light_ocr_outputs(
         / "ocr"
         / safe_id(subject)
     )
-    txt_dir = base_dir / "txt"
     md_dir = base_dir / "md"
-    txt_dir.mkdir(parents=True, exist_ok=True)
     md_dir.mkdir(parents=True, exist_ok=True)
 
     stem = _safe_stem(path)
-    raw_path = txt_dir / f"{stem}.txt"
     reviewed_path = md_dir / f"{stem}.md"
-    raw_path.write_text(raw_text, encoding="utf-8")
     reviewed_path.write_text(reviewed_markdown, encoding="utf-8")
 
     return LightOcrResult(
         raw_text=raw_text,
         reviewed_markdown=reviewed_markdown,
-        raw_path=raw_path,
         reviewed_path=reviewed_path,
     )

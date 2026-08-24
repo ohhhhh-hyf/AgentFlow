@@ -26,7 +26,7 @@ def main() -> int:
         "--engine",
         choices=("rapidocr", "serverocr", "paddleocr", "auto"),
         default="rapidocr",
-        help="文字 OCR 引擎：rapidocr 默认；serverocr 调服务器接口；paddleocr 可对照；auto 会本地两套粗略择优",
+        help="文字 OCR 引擎：rapidocr / serverocr / paddleocr；auto 仅在本地 Rapid 与 Paddle 间择优",
     )
     args = parser.parse_args()
 

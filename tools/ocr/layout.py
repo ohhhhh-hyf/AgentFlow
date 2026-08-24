@@ -233,9 +233,9 @@ def _save_crop(img, bbox, pad: int = 6) -> str | None:
 
 
 def ocr_image_lines(image_path: str) -> list[dict]:
-    """整图识别（子进程）→ 行列表；公式候选行附加 ``formula``。
+    """整图识别 → 行列表；公式候选行附加 ``formula``。
 
-    OCR 环境不可用/失败时返回空列表（不阻塞主流程）。
+    serverocr / paddleocr / rapidocr 均主进程直调（后两者复用实例）。失败时返回空列表。
     """
     from .engines import run_ocr_subprocess
 
@@ -251,13 +251,10 @@ def ocr_image_lines(image_path: str) -> list[dict]:
         text = str(item.get("text") or "").strip()
         if not text:
             continue
-        lines.append(
-            {
-                "text": text,
-                "bbox": item.get("bbox"),
-                "conf": float(item.get("conf") or 0.0),
-            }
-        )
+        row: dict = {"text": text, "bbox": item.get("bbox")}
+        if item.get("conf") is not None:
+            row["conf"] = float(item["conf"])
+        lines.append(row)
     try:
         from PIL import Image
 
