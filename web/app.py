@@ -1437,6 +1437,97 @@ def _ocr_progress_result(log: str):
     )
 
 
+def _iter_light_ocr_batches(
+    *,
+    uid: str,
+    subj: str,
+    image_entries: list[tuple[Path, str]],
+):
+    """Light 多图：每 8 张并行 OCR → 该批一次整理+审校；最后按批顺序拼接 md。"""
+    from tools.ocr.levels.light import (
+        LIGHT_OCR_BATCH,
+        combine_ocr_pages,
+        next_batch_version_stem,
+        ocr_image_to_lines,
+        reconstruct_and_review_pages,
+        save_light_ocr_outputs,
+    )
+
+    total = len(image_entries)
+    batch_mds: list[str] = []
+    batch_raws: list[str] = []
+    preview_items: list[dict[str, str]] = []
+    failed_name = image_entries[0][1]
+    try:
+        for start in range(0, total, LIGHT_OCR_BATCH):
+            chunk = image_entries[start : start + LIGHT_OCR_BATCH]
+            lo, hi = start + 1, start + len(chunk)
+            workers = len(chunk)
+            yield _ocr_progress_result(
+                f"正在识别第 {lo}–{hi} 张（并行 {workers} 路，共 {total} 张）"
+            )
+            pages: list[dict | None] = [None] * len(chunk)
+            done = 0
+            with ThreadPoolExecutor(max_workers=workers) as pool:
+                future_map = {
+                    pool.submit(ocr_image_to_lines, path): (idx, name)
+                    for idx, (path, name) in enumerate(chunk)
+                }
+                for future in as_completed(future_map):
+                    idx, name = future_map[future]
+                    failed_name = name
+                    raw_text, lines = future.result()
+                    pages[idx] = {
+                        "name": name,
+                        "raw_text": raw_text,
+                        "lines": lines,
+                    }
+                    done += 1
+                    yield _ocr_progress_result(
+                        f"第 {lo}–{hi} 张识别中 {done}/{len(chunk)}：已完成 {name}"
+                    )
+            ordered = [item for item in pages if item]
+            yield _ocr_progress_result(f"第 {lo}–{hi} 张识别完成，正在整理并审校…")
+            reviewed = reconstruct_and_review_pages(ordered)
+            raw_joined = combine_ocr_pages(ordered, key="raw_text")
+            batch_mds.append(reviewed)
+            batch_raws.append(raw_joined)
+            preview_items.append(
+                {
+                    "name": f"第 {lo}–{hi} 张",
+                    "raw_text": raw_joined,
+                    "reviewed_markdown": reviewed,
+                }
+            )
+    except Exception as exc:  # noqa: BLE001
+        yield _run_result(
+            f"OCR识别失败：{failed_name}：{exc}",
+            None,
+            *_hitl_ui(False),
+            files_html=EMPTY_DOWNLOAD,
+        )
+        return
+
+    yield _ocr_progress_result("各批审校完成，正在按顺序合并 Markdown…")
+    batch_stem = next_batch_version_stem(uid, subj, PROJECT_ROOT)
+    combined = save_light_ocr_outputs(
+        Path(batch_stem),
+        raw_text="\n\n".join(item for item in batch_raws if item.strip()),
+        reviewed_markdown="\n\n".join(item for item in batch_mds if item.strip()),
+        user_id=uid,
+        subject=subj,
+        project_root=PROJECT_ROOT,
+    )
+    yield _run_result(
+        f"OCR识别完成，共成功识别 {total} 张图片。"
+        f"已按每 {LIGHT_OCR_BATCH} 张一批整理审校，再按顺序合并成一份 Markdown。",
+        list(combined.files),
+        *_hitl_ui(False),
+        files_html=EMPTY_DOWNLOAD,
+        md_preview=_ocr_preview_markdown(preview_items),
+    )
+
+
 def _iter_ocr_task(
     *,
     uid: str,
@@ -1474,7 +1565,11 @@ def _iter_ocr_task(
     workers = 4 if selected_level == OCR_LEVEL_STANDARD else 8
     workers = max(1, min(workers, len(image_entries)))
     total = len(image_entries)
+    if selected_level != OCR_LEVEL_STANDARD and total > 1:
+        yield from _iter_light_ocr_batches(uid=uid, subj=subj, image_entries=image_entries)
+        return
     persist_pages = total == 1
+    review_pages = selected_level == OCR_LEVEL_STANDARD or persist_pages
     yield _ocr_progress_result(f"开始 OCR：共 {total} 张，并行 {workers} 路。")
     failed_name = image_entries[0][1]
     try:
@@ -1491,13 +1586,14 @@ def _iter_ocr_task(
                     output_stem=Path(orig_name).stem,
                     save_meta=persist_pages,
                     persist=persist_pages,
+                    review=review_pages,
                 ): (idx, orig_name)
                 for idx, (image_path, orig_name) in enumerate(image_entries)
             }
             for future in as_completed(future_map):
                 idx, orig_name = future_map[future]
                 failed_name = orig_name
-                raw_txt, _no_llm_md, llm_md, one_files, one_meta, one_visual = future.result()
+                raw_txt, _no_llm_md, llm_md, one_files, one_meta, one_visual, one_lines = future.result()
                 results[idx] = {
                     "name": orig_name,
                     "raw_text": raw_txt,
@@ -1505,6 +1601,7 @@ def _iter_ocr_task(
                     "files": one_files,
                     "meta": one_meta,
                     "visual": one_visual,
+                    "lines": one_lines,
                 }
                 done += 1
                 yield _ocr_progress_result(f"OCR 识别中 {done}/{total}：已完成 {orig_name}")
@@ -1529,17 +1626,18 @@ def _iter_ocr_task(
             save_combined_ocr_outputs,
         )
 
-        yield _ocr_progress_result(f"OCR 识别完成 {len(result_items)}/{total}，正在合并 Markdown…")
+        yield _ocr_progress_result(f"OCR 识别完成 {len(result_items)}/{total}，正在按顺序合并 Markdown…")
         batch_stem = next_batch_version_stem(uid, subj, PROJECT_ROOT)
+        page_payload = [
+            {
+                "name": str(item.get("name") or ""),
+                "raw_text": str(item.get("raw_text") or ""),
+                "reviewed_markdown": str(item.get("reviewed_markdown") or ""),
+            }
+            for item in result_items
+        ]
         combined = save_combined_ocr_outputs(
-            [
-                {
-                    "name": str(item.get("name") or ""),
-                    "raw_text": str(item.get("raw_text") or ""),
-                    "reviewed_markdown": str(item.get("reviewed_markdown") or ""),
-                }
-                for item in result_items
-            ],
+            page_payload,
             user_id=uid,
             subject=subj,
             project_root=PROJECT_ROOT,
@@ -1987,7 +2085,8 @@ def _recognize_ocr_image(
     output_stem: str | None = None,
     save_meta: bool = True,
     persist: bool = True,
-) -> tuple[str, str, str, list[str], dict | None, dict | None]:
+    review: bool = True,
+) -> tuple[str, str, str, list[str], dict | None, dict | None, list]:
     from tools.ocr.levels.light import _safe_stem, run_light_ocr
     from tools.ocr.levels.standard import run_standard_ocr
 
@@ -2008,9 +2107,18 @@ def _recognize_ocr_image(
             result.files,
             result.meta,
             result.visual,
+            [],
         )
-    result = run_light_ocr(image_path, **kwargs)
-    return result.raw_text, "", result.reviewed_markdown, result.files, None, None
+    result = run_light_ocr(image_path, review=review, **kwargs)
+    return (
+        result.raw_text,
+        "",
+        result.reviewed_markdown,
+        result.files,
+        None,
+        None,
+        list(result.lines or []),
+    )
 
 
 def _uploaded_path(upload) -> Path | None:

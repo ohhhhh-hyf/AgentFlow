@@ -101,7 +101,7 @@ def _lines_to_structured_payload(lines: list[dict]) -> str:
     return json.dumps(payload, ensure_ascii=False, separators=(",", ":"))
 
 
-def reconstruct_markdown(lines: list[dict]) -> str:
+def reconstruct_markdown(lines: list[dict], *, max_tokens: int = 8000) -> str:
     """LLM 重构；失败/无 LLM 时返回原始拼接文本。"""
     raw = _fragments_to_text(lines)
     if not raw.strip():
@@ -125,7 +125,7 @@ def reconstruct_markdown(lines: list[dict]) -> str:
                 f"{_lines_to_structured_payload(lines)}\n\n"
                 "请输出整理后的 Markdown 正文。",
                 temperature=0.1,
-                max_tokens=8000,
+                max_tokens=max_tokens,
                 label="ocr/reconstruct",
             )
         )
@@ -135,7 +135,12 @@ def reconstruct_markdown(lines: list[dict]) -> str:
         return raw
 
 
-def review_markdown(markdown: str, lines: list[dict]) -> tuple[str, str]:
+def review_markdown(
+    markdown: str,
+    lines: list[dict],
+    *,
+    max_tokens: int = 9000,
+) -> tuple[str, str]:
     """LLM 保守审校；失败时返回原稿和说明。"""
     draft = str(markdown or "").strip()
     if not draft:
@@ -160,7 +165,7 @@ def review_markdown(markdown: str, lines: list[dict]) -> tuple[str, str]:
                 "待审校 Markdown：\n"
                 f"{draft}",
                 temperature=0.0,
-                max_tokens=9000,
+                max_tokens=max_tokens,
                 label="ocr/review",
             )
         )

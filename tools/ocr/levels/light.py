@@ -6,6 +6,9 @@ from pathlib import Path
 
 from tools.memory.store import safe_id
 from tools.ocr import server_ocr_image_recognize
+from tools.ocr.reconstruct import reconstruct_markdown, review_markdown
+
+LIGHT_OCR_BATCH = 8
 
 _WINDOWS_RESERVED = {
     "CON", "PRN", "AUX", "NUL",
@@ -21,6 +24,7 @@ class LightOcrResult:
     raw_text: str
     reviewed_markdown: str
     reviewed_path: Path | None = None
+    lines: list | None = None
 
     @property
     def files(self) -> list[str]:
@@ -112,22 +116,35 @@ def run_light_ocr(
     project_root: str | Path,
     output_stem: str | None = None,
     persist: bool = True,
+    review: bool = True,
 ) -> LightOcrResult:
-    """Run the current Light pipeline: server OCR -> LLM draft/review -> md."""
+    """Run the current Light pipeline: OCR -> LLM 整理；默认再审校。"""
     path = Path(image_path)
     if not path.is_file():
         raise ValueError(f"图片不存在：{path}")
 
-    raw_txt, _no_llm_md, _llm_md, reviewed_md, _review_notes = server_ocr_image_recognize(str(path))
+    payload = server_ocr_image_recognize(str(path), review=review)
+    raw_txt, _no_llm_md, _llm_md, reviewed_md, _review_notes = payload[:5]
+    lines = list(payload[5]) if len(payload) > 5 else []
     if not persist:
-        return LightOcrResult(raw_text=raw_txt, reviewed_markdown=reviewed_md)
-    return save_light_ocr_outputs(
+        return LightOcrResult(
+            raw_text=raw_txt,
+            reviewed_markdown=reviewed_md,
+            lines=lines,
+        )
+    saved = save_light_ocr_outputs(
         Path(output_stem) if output_stem else path,
         raw_text=raw_txt,
         reviewed_markdown=reviewed_md,
         user_id=user_id,
         subject=subject,
         project_root=project_root,
+    )
+    return LightOcrResult(
+        raw_text=saved.raw_text,
+        reviewed_markdown=saved.reviewed_markdown,
+        reviewed_path=saved.reviewed_path,
+        lines=lines,
     )
 
 
@@ -162,3 +179,54 @@ def save_light_ocr_outputs(
         reviewed_markdown=reviewed_markdown,
         reviewed_path=reviewed_path,
     )
+
+
+def ocr_image_to_lines(image_path: str | Path) -> tuple[str, list[dict]]:
+    """只做 OCR，不调用整理/审校 LLM。"""
+    from tools.ocr.adapter import raw_text_from_lines, recognize_image
+
+    payload = recognize_image(str(image_path))
+    lines = list(payload.get("lines") or [])
+    raw_text = raw_text_from_lines(lines) or "（OCR 未识别到文字）"
+    return raw_text, lines
+
+
+def concat_page_lines(pages: list[dict]) -> list[dict]:
+    """按上传顺序拼接各页 OCR 行，并把 y 错开，避免后页顶坐标看起来像页首。"""
+    combined: list[dict] = []
+    y_offset = 0.0
+    for page in pages:
+        page_bottom = y_offset
+        for item in page.get("lines") or []:
+            if not isinstance(item, dict):
+                continue
+            line = dict(item)
+            bbox = line.get("bbox")
+            if bbox:
+                shifted = []
+                for point in bbox:
+                    x = float(point[0])
+                    y = float(point[1]) + y_offset
+                    shifted.append([x, y])
+                    page_bottom = max(page_bottom, y)
+                line["bbox"] = shifted
+            layout = dict(line.get("layout") or {})
+            if layout.get("top") is not None:
+                try:
+                    layout["top"] = float(layout["top"]) + y_offset
+                    line["layout"] = layout
+                except (TypeError, ValueError):
+                    pass
+            combined.append(line)
+        y_offset = max(y_offset + 80.0, page_bottom + 80.0)
+    return combined
+
+
+def reconstruct_and_review_pages(pages: list[dict]) -> str:
+    """一批（最多 8 页）OCR 行：一次整理 + 一次审校。"""
+    lines = concat_page_lines(pages)
+    if not lines:
+        return "（OCR 未识别到文字）"
+    draft = reconstruct_markdown(lines, max_tokens=12000)
+    reviewed, _notes = review_markdown(draft, lines, max_tokens=12000)
+    return reviewed or draft

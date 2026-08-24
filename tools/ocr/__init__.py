@@ -52,8 +52,15 @@ def ocr_images_to_markdown(
     return text
 
 
-def server_ocr_image_recognize(image_path: str) -> tuple[str, str, str, str, str]:
-    """单张图片 → 原文 / 无 LLM Markdown / LLM 初稿 / 审校 Markdown / 审校说明。"""
+def server_ocr_image_recognize(
+    image_path: str,
+    *,
+    review: bool = True,
+) -> tuple[str, str, str, str, str, list]:
+    """单张图片 → 原文 / 无 LLM Markdown / LLM 初稿 / 审校 Markdown / 审校说明 / 行列表。
+
+    ``review=False`` 时只整理不审校，供 Light 多页整本审一次。
+    """
     from pathlib import Path
 
     path = Path(image_path)
@@ -66,11 +73,13 @@ def server_ocr_image_recognize(image_path: str) -> tuple[str, str, str, str, str
 
     if not lines:
         empty = "（OCR 未识别到文字）"
-        return raw_text, empty, empty, empty, "未识别到可审校内容。"
+        return raw_text, empty, empty, empty, "未识别到可审校内容。", lines
     no_llm_md = _lines_to_text(lines)
     llm_md = reconstruct_markdown(lines)
+    if not review:
+        return raw_text, no_llm_md, llm_md, llm_md, "跳过单页审校，待整本审校。", lines
     reviewed_md, review_notes = review_markdown(llm_md, lines)
-    return raw_text, no_llm_md, llm_md, reviewed_md, review_notes
+    return raw_text, no_llm_md, llm_md, reviewed_md, review_notes, lines
 
 
 def _lines_to_text(lines: list[dict]) -> str:
