@@ -661,7 +661,9 @@ def _md_preview_text(files: list[str]) -> str:
         if "_corrected" in path.name:
             continue
         title = _clean_filename(path.name)
-        parts.append(f"**{html.escape(title)}**\n\n{body}")
+        from tools.ocr.mathmd import normalize_markdown_math
+
+        parts.append(f"**{html.escape(title)}**\n\n{normalize_markdown_math(body)}")
     return "\n\n---\n\n".join(parts)
 
 
@@ -2327,12 +2329,14 @@ def _ocr_preview_markdown(items: list[dict[str, str]]) -> str:
         name = item.get("name") or f"image_{idx}"
         raw_text = (item.get("raw_text") or "").strip() or "（OCR 未识别到文字）"
         reviewed = (item.get("reviewed_markdown") or "").strip() or "（未生成审校版 Markdown）"
+        from tools.ocr.mathmd import normalize_markdown_math
+
         parts.append(
             f"## {html.escape(name)}\n\n"
             "### 服务器原始 OCR 文本\n\n"
             f"```text\n{fence_text(raw_text)}\n```\n\n"
             "### 审校版 Markdown\n\n"
-            f"{fence_text(reviewed)}"
+            f"{fence_text(normalize_markdown_math(reviewed))}"
         )
     return "\n\n---\n\n".join(parts)
 

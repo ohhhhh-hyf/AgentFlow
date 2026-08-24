@@ -171,8 +171,11 @@ def save_light_ocr_outputs(
     md_dir = base_dir / "md"
     md_dir.mkdir(parents=True, exist_ok=True)
 
+    from tools.ocr.mathmd import normalize_markdown_math
+
     stem = _safe_stem(path)
     reviewed_path = md_dir / f"{stem}.md"
+    reviewed_markdown = normalize_markdown_math(reviewed_markdown)
     reviewed_path.write_text(reviewed_markdown, encoding="utf-8")
 
     return LightOcrResult(
@@ -229,5 +232,5 @@ def reconstruct_and_review_pages(pages: list[dict]) -> str:
     if not lines:
         return "（OCR 未识别到文字）"
     draft = reconstruct_markdown(lines, max_tokens=12000)
-    reviewed, _notes = review_markdown(draft, lines, max_tokens=12000)
+    reviewed, _notes = review_markdown(draft, lines, max_tokens=2000)
     return reviewed or draft

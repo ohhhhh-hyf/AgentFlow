@@ -10,6 +10,8 @@ import json
 import logging
 import re
 
+from .mathmd import normalize_markdown_math
+
 logger = logging.getLogger(__name__)
 
 RECONSTRUCT_SYSTEM_PROMPT = """你是「笔记整理器」。把 OCR 识别出的笔记碎片整理成一份结构化 Markdown，供知识库检索。
@@ -21,19 +23,19 @@ RECONSTRUCT_SYSTEM_PROMPT = """你是「笔记整理器」。把 OCR 识别出�
 4. **标题层级一致**：同类编号（如 一、二、三 或 1.1/1.2）尽量保持同级；页首大标题通常高于普通小节标题
 5. **正文不要误升标题**：locked_body、长句、以句号/逗号结尾的解释性内容，即使包含关键词，也不要强行改成标题
 6. **重点标注**：对像"重点/必考/关键/注意/易错"的内容用 **加粗** 标出（不要过度标注）
-7. **公式**：已有 ``$$...$$`` 的公式原样保留在对应位置
+7. **公式定界**：行内公式只用一对 ``$...$``；独立成行的公式才用 ``$$...$$``。禁止 ``$...$$`` / ``$$...$`` 混用，公式内部不要再写美元符号。已有 ``$$...$$`` 的公式原样保留位置，但定界必须成对
 8. **表格**：如果内容是成列的数据（行结构明显），整理成 Markdown 表格
 9. 去除 OCR 噪声（孤立标点、乱码），合并被断行的完整句子
 10. 直接输出 Markdown 正文，不要前言后语、不要 Markdown 代码围栏"""
 
-REVIEW_SYSTEM_PROMPT = """你是「OCR Markdown 保守审校器」。你会拿到一份已经整理过的 Markdown。
+REVIEW_SYSTEM_PROMPT = """你是「OCR Markdown 保守审校器」。你会拿到一份带行号的整理稿。
 
-任务：只修正稿子里明显由 OCR 或整理造成的问题，不做自由发挥，不新增稿中没有的信息。
+任务：只指出需要改的行，不要重写全文，不要输出 Markdown 正文。
 
 允许修正：
 1. 明显 OCR 误识别：如 sin/sln、lim/1im、上下标/符号孤立错字、重复乱码、断行造成的错拼
 2. Markdown 结构问题：标题层级明显错乱、列表/表格破损、重复标题、代码围栏误包裹
-3. 公式排版问题：明显被拆断的公式可合并；不确定的公式保持原样
+3. 公式排版问题：明显被拆断的公式可合并；把 $...$$ / $$...$ / $$$ 改成合法的 $...$ 或 $$...$$；不确定的公式保持原样
 4. 断句与空白：合并不该断开的句子，移除孤立噪声字符
 
 禁止：
@@ -41,9 +43,23 @@ REVIEW_SYSTEM_PROMPT = """你是「OCR Markdown 保守审校器」。你会拿�
 2. 不要补充稿中没有的知识
 3. 不要把不确定内容改成你认为正确的内容
 4. 不要删除稿中能辨认出的有效信息
+5. 不要做全文短词替换；每条补丁必须对准指定行
+6. 不要把 L00N: 行号写进 from / to
 
-直接输出审校后的 Markdown 全文，不要前言后语，不要 JSON，不要 Markdown 代码围栏。
-如果没有需要修正的地方，原样返回输入稿。"""
+输出严格 JSON 对象，不要 Markdown 代码围栏：
+{"patches":[{"line":42,"from":"该行原文","to":"该行新文"}]}
+
+字段：
+- line：稿子里 L00N 的编号，从 1 起
+- end：可选，跨行合并时的最后一行（含）；单行不要写
+- from：必须从指定行原文原样抄录（不要抄 L00N: 前缀）
+- to：替换后的文本；跨行时 from / to 用换行连接
+
+没有需要修正的地方：{"patches":[]}
+最多 30 条补丁。"""
+
+_LINE_PREFIX_RE = re.compile(r"^L\d+:\s*")
+_REVIEW_MAX_PATCHES = 30
 
 
 def _fragments_to_text(lines: list[dict]) -> str:
@@ -110,7 +126,7 @@ def reconstruct_markdown(lines: list[dict], *, max_tokens: int = 8000) -> str:
     except Exception:  # noqa: BLE001
         client = None
     if client is None:
-        return raw
+        return normalize_markdown_math(raw)
     try:
         import asyncio
 
@@ -125,22 +141,24 @@ def reconstruct_markdown(lines: list[dict], *, max_tokens: int = 8000) -> str:
                 label="ocr/reconstruct",
             )
         )
-        return str(text).strip()
+        return normalize_markdown_math(str(text).strip())
     except Exception as exc:  # noqa: BLE001
         logger.warning("LLM 重构失败，返回原始文本：%s", exc)
-        return raw
+        return normalize_markdown_math(raw)
 
 
 def review_markdown(
     markdown: str,
     lines: list[dict],
     *,
-    max_tokens: int = 9000,
+    max_tokens: int = 2000,
 ) -> tuple[str, str]:
-    """LLM 保守审校；失败时返回原稿和说明。"""
+    """LLM 只出补丁；程序按行号+原文核对后本地改稿。失败时返回原稿。"""
+    del lines
     draft = str(markdown or "").strip()
     if not draft:
         return draft, "未生成可审校的 Markdown。"
+    draft = normalize_markdown_math(draft)
     client = None
     try:
         from .engines import get_llm_client
@@ -156,10 +174,11 @@ def review_markdown(
         text = asyncio.run(
             client.text(
                 REVIEW_SYSTEM_PROMPT,
-                "待审校 Markdown：\n"
-                f"{draft}",
+                "待审校 Markdown（L00N 是行号，不要写进 from/to）：\n"
+                f"{_number_draft_lines(draft)}\n",
                 temperature=0.0,
                 max_tokens=max_tokens,
+                json_mode=True,
                 label="ocr/review",
             )
         )
@@ -167,6 +186,16 @@ def review_markdown(
     except Exception as exc:  # noqa: BLE001
         logger.warning("LLM 审校失败，返回重构稿：%s", exc)
         return draft, f"LLM 审校失败，已保留重构稿：{exc}"
+
+
+def _number_draft_lines(draft: str) -> str:
+    rows = draft.splitlines()
+    width = max(3, len(str(max(len(rows), 1))))
+    return "\n".join(f"L{idx:0{width}d}: {row}" for idx, row in enumerate(rows, start=1))
+
+
+def _strip_line_prefixes(text: str) -> str:
+    return "\n".join(_LINE_PREFIX_RE.sub("", row) for row in (text or "").splitlines())
 
 
 def _strip_md_fences(text: str) -> str:
@@ -178,28 +207,121 @@ def _strip_md_fences(text: str) -> str:
     return raw.strip()
 
 
-def _as_reviewed_markdown(text: str, draft: str) -> tuple[str, str]:
-    """把审校模型输出收成 Markdown。残缺 JSON 信封则退回完整重构稿。"""
+def _json_from_review(text: str):
     raw = _strip_md_fences(text)
     if not raw:
-        return draft, "审校结果为空，已保留重构稿。"
-    if raw.startswith("{"):
+        return None
+    try:
+        return json.loads(raw)
+    except json.JSONDecodeError:
+        pass
+    start_obj, start_arr = raw.find("{"), raw.find("[")
+    starts = [pos for pos in (start_obj, start_arr) if pos >= 0]
+    if not starts:
+        return None
+    start = min(starts)
+    end_token = "}" if raw[start] == "{" else "]"
+    end = raw.rfind(end_token)
+    if end <= start:
+        return None
+    try:
+        return json.loads(raw[start : end + 1])
+    except json.JSONDecodeError:
+        return None
+
+
+def _patch_items(payload) -> list[dict]:
+    if isinstance(payload, list):
+        items = payload
+    elif isinstance(payload, dict):
+        items = payload.get("patches")
+        if items is None:
+            items = payload.get("edits") or []
+    else:
+        return []
+    if not isinstance(items, list):
+        return []
+    return [item for item in items if isinstance(item, dict)]
+
+
+def apply_review_patches(draft: str, patches: list[dict]) -> tuple[str, str]:
+    """按行号+原文核对后打补丁；对不上的跳过。从后往前改，避免行号错位。"""
+    rows = draft.splitlines()
+    accepted: list[tuple[int, int, list[str], str]] = []
+    notes: list[str] = []
+    occupied: list[tuple[int, int]] = []
+
+    for item in patches[:_REVIEW_MAX_PATCHES]:
         try:
-            payload = json.loads(raw)
-        except json.JSONDecodeError:
-            logger.warning("审校 JSON 不完整，已保留重构稿")
-            return draft, "审校 JSON 不完整，已保留重构稿。"
-        if isinstance(payload, dict):
-            reviewed = str(payload.get("markdown") or "").strip()
-            notes = payload.get("notes") or []
-            if isinstance(notes, list):
-                notes_text = "\n".join(
-                    f"- {str(item).strip()}" for item in notes if str(item).strip()
-                )
-            else:
-                notes_text = str(notes).strip()
-            return reviewed or draft, notes_text or "已完成 Markdown 审校。"
-    return raw, "已完成 Markdown 审校。"
+            start = int(item.get("line") or item.get("start") or 0)
+        except (TypeError, ValueError):
+            notes.append("- 补丁行号无效，已跳过")
+            continue
+        end_raw = item.get("end") if item.get("end") is not None else item.get("line_end")
+        try:
+            end = int(end_raw) if end_raw is not None else start
+        except (TypeError, ValueError):
+            notes.append(f"- L{start} 结束行号无效，已跳过")
+            continue
+        if start < 1 or end < start or end > len(rows):
+            notes.append(f"- L{start} 行号超出稿件，已跳过")
+            continue
+        src = _strip_line_prefixes(str(item.get("from") if item.get("from") is not None else item.get("original") or item.get("old") or ""))
+        if "to" in item:
+            dst_raw = item.get("to")
+        elif "text" in item:
+            dst_raw = item.get("text")
+        else:
+            dst_raw = item.get("new")
+        if dst_raw is None:
+            notes.append(f"- L{start} 缺少 to，已跳过")
+            continue
+        dst = _strip_line_prefixes(str(dst_raw))
+        lo, hi = start - 1, end
+        current = "\n".join(rows[lo:hi])
+        new_rows: list[str] | None = None
+        if src == current or src.strip() == current.strip():
+            new_rows = dst.splitlines()
+        elif start == end and src and current.count(src) == 1:
+            new_rows = [current.replace(src, dst, 1)]
+        else:
+            notes.append(f"- L{start} 原文不匹配，已跳过")
+            continue
+        if any(not (hi <= a or lo >= b) for a, b in occupied):
+            notes.append(f"- L{start} 与其他补丁重叠，已跳过")
+            continue
+        occupied.append((lo, hi))
+        label = f"L{start}" if start == end else f"L{start}-{end}"
+        accepted.append((lo, hi, new_rows, f"- {label} 已替换"))
+
+    accepted.sort(key=lambda item: item[0], reverse=True)
+    for lo, hi, new_rows, note in accepted:
+        rows[lo:hi] = new_rows
+        notes.append(note)
+    if not accepted:
+        return draft, "\n".join(notes) if notes else "未发现需要审校修正的问题。"
+    reviewed = "\n".join(rows)
+    if draft.endswith("\n"):
+        reviewed += "\n"
+    return normalize_markdown_math(reviewed), "\n".join(notes)
 
 
-__all__ = ["RECONSTRUCT_SYSTEM_PROMPT", "REVIEW_SYSTEM_PROMPT", "reconstruct_markdown", "review_markdown"]
+def _as_reviewed_markdown(text: str, draft: str) -> tuple[str, str]:
+    """审校模型输出 → 补丁 JSON → 本地改稿。不是补丁则保留重构稿。"""
+    payload = _json_from_review(text)
+    if payload is None:
+        if not str(text or "").strip():
+            return draft, "审校结果为空，已保留重构稿。"
+        logger.warning("审校未返回可解析补丁，已保留重构稿")
+        return draft, "审校未返回补丁，已保留重构稿。"
+    patches = _patch_items(payload)
+    return apply_review_patches(draft, patches)
+
+
+__all__ = [
+    "RECONSTRUCT_SYSTEM_PROMPT",
+    "REVIEW_SYSTEM_PROMPT",
+    "apply_review_patches",
+    "reconstruct_markdown",
+    "review_markdown",
+]
