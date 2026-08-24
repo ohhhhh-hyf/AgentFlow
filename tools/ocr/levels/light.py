@@ -237,7 +237,7 @@ def reconstruct_and_review_pages(pages: list[dict]) -> str:
     if not lines:
         return "（OCR 未识别到文字）"
     draft = reconstruct_markdown(lines, max_tokens=12000)
-    reviewed, _notes = review_markdown(draft, lines, max_tokens=2000)
+    reviewed, _notes = review_markdown(draft, lines, max_tokens=4000)
     return reviewed or draft
 
 

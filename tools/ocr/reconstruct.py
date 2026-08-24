@@ -46,16 +46,21 @@ REVIEW_SYSTEM_PROMPT = """你是「OCR Markdown 保守审校器」。你会拿�
 5. 不要做全文短词替换；每条补丁必须对准指定行
 6. 不要把 L00N: 行号写进 from / to
 
-输出严格 JSON 对象，不要 Markdown 代码围栏：
-{"patches":[{"line":42,"from":"该行原文","to":"该行新文"}]}
+只输出一个 JSON 对象。第一个字符是 {，最后一个字符是 }。
+不要 Markdown 围栏、不要解释、不要输出整理稿正文。
+from/to 里的换行必须写成 \\n，不要直接换行。
+
+合法示例：
+{"patches":[{"line":42,"from":"其中 sln x","to":"其中 sin x"}]}
+无需修改：
+{"patches":[]}
 
 字段：
-- line：稿子里 L00N 的编号，从 1 起
+- line：稿子里 L00N 的编号数字，从 1 起
 - end：可选，跨行合并时的最后一行（含）；单行不要写
-- from：必须从指定行原文原样抄录（不要抄 L00N: 前缀）
-- to：替换后的文本；跨行时 from / to 用换行连接
+- from：该行原文，不要带 L00N: 前缀
+- to：替换后的文本
 
-没有需要修正的地方：{"patches":[]}
 最多 30 条补丁。"""
 
 _LINE_PREFIX_RE = re.compile(r"^L\d+:\s*")
@@ -151,7 +156,7 @@ def review_markdown(
     markdown: str,
     lines: list[dict],
     *,
-    max_tokens: int = 2000,
+    max_tokens: int = 4000,
 ) -> tuple[str, str]:
     """LLM 只出补丁；程序按行号+原文核对后本地改稿。失败时返回原稿。"""
     del lines
@@ -207,27 +212,124 @@ def _strip_md_fences(text: str) -> str:
     return raw.strip()
 
 
+def _escape_raw_newlines_in_strings(text: str) -> str:
+    """把 JSON 字符串里的真实换行收成 \\n，避免 from/to 抄原文时把 JSON 写坏。"""
+    out: list[str] = []
+    in_str = False
+    escaped = False
+    for char in text:
+        if in_str:
+            if escaped:
+                out.append(char)
+                escaped = False
+                continue
+            if char == "\\":
+                out.append(char)
+                escaped = True
+                continue
+            if char == '"':
+                in_str = False
+                out.append(char)
+                continue
+            if char == "\n":
+                out.append("\\n")
+                continue
+            if char == "\r":
+                continue
+            if char == "\t":
+                out.append("\\t")
+                continue
+            out.append(char)
+            continue
+        if char == '"':
+            in_str = True
+        out.append(char)
+    return "".join(out)
+
+
+def _repair_review_json(raw: str) -> str:
+    text = _strip_md_fences(raw)
+    start_obj, start_arr = text.find("{"), text.find("[")
+    starts = [pos for pos in (start_obj, start_arr) if pos >= 0]
+    if starts:
+        start = min(starts)
+        end_token = "}" if text[start] == "{" else "]"
+        end = text.rfind(end_token)
+        if end > start:
+            text = text[start : end + 1]
+    text = (
+        text.replace("“", '"')
+        .replace("”", '"')
+        .replace("‘", "'")
+        .replace("’", "'")
+    )
+    text = re.sub(r"\bTrue\b", "true", text)
+    text = re.sub(r"\bFalse\b", "false", text)
+    text = re.sub(r"\bNone\b", "null", text)
+    text = re.sub(r",(\s*[}\]])", r"\1", text)
+    text = re.sub(r"(\{|,)\s*(patches|edits|line|end|from|to|original|old|text|new)\s*:", r'\1"\2":', text)
+    return _escape_raw_newlines_in_strings(text)
+
+
+def _salvage_patches(raw: str) -> dict | None:
+    """截断 JSON 时尽量收下已经完整的补丁对象。"""
+    key = raw.find('"patches"')
+    if key < 0:
+        key = raw.find("[")
+        if key < 0:
+            return None
+        bracket = key
+    else:
+        bracket = raw.find("[", key)
+    if bracket < 0:
+        if '"patches"' in raw:
+            return {"patches": []}
+        return None
+    decoder = json.JSONDecoder()
+    items: list[dict] = []
+    idx = bracket + 1
+    length = len(raw)
+    while idx < length:
+        while idx < length and raw[idx] in " \t\r\n,":
+            idx += 1
+        if idx >= length or raw[idx] == "]":
+            break
+        if raw[idx] != "{":
+            break
+        try:
+            obj, end = decoder.raw_decode(raw, idx)
+        except json.JSONDecodeError:
+            break
+        if isinstance(obj, dict):
+            items.append(obj)
+        idx = end
+    if items:
+        return {"patches": items}
+    rest = raw[bracket:]
+    if re.match(r"\[\s*\]", rest):
+        return {"patches": []}
+    return None
+
+
 def _json_from_review(text: str):
-    raw = _strip_md_fences(text)
+    raw = (text or "").strip()
     if not raw:
         return None
-    try:
-        return json.loads(raw)
-    except json.JSONDecodeError:
-        pass
-    start_obj, start_arr = raw.find("{"), raw.find("[")
-    starts = [pos for pos in (start_obj, start_arr) if pos >= 0]
-    if not starts:
-        return None
-    start = min(starts)
-    end_token = "}" if raw[start] == "{" else "]"
-    end = raw.rfind(end_token)
-    if end <= start:
-        return None
-    try:
-        return json.loads(raw[start : end + 1])
-    except json.JSONDecodeError:
-        return None
+    candidates = [raw, _strip_md_fences(raw), _repair_review_json(raw)]
+    seen: set[str] = set()
+    for candidate in candidates:
+        blob = (candidate or "").strip()
+        if not blob or blob in seen:
+            continue
+        seen.add(blob)
+        try:
+            return json.loads(blob)
+        except json.JSONDecodeError:
+            salvaged = _salvage_patches(blob)
+            if salvaged is not None:
+                return salvaged
+    logger.warning("审校 JSON 无法解析，head=%s", raw[:240].replace("\n", "\\n"))
+    return None
 
 
 def _patch_items(payload) -> list[dict]:
@@ -253,7 +355,12 @@ def apply_review_patches(draft: str, patches: list[dict]) -> tuple[str, str]:
 
     for item in patches[:_REVIEW_MAX_PATCHES]:
         try:
-            start = int(item.get("line") or item.get("start") or 0)
+            raw_line = item.get("line") if item.get("line") is not None else item.get("start")
+            if isinstance(raw_line, str):
+                matched = re.search(r"(\d+)", raw_line)
+                start = int(matched.group(1)) if matched else 0
+            else:
+                start = int(raw_line or 0)
         except (TypeError, ValueError):
             notes.append("- 补丁行号无效，已跳过")
             continue
@@ -266,7 +373,10 @@ def apply_review_patches(draft: str, patches: list[dict]) -> tuple[str, str]:
         if start < 1 or end < start or end > len(rows):
             notes.append(f"- L{start} 行号超出稿件，已跳过")
             continue
-        src = _strip_line_prefixes(str(item.get("from") if item.get("from") is not None else item.get("original") or item.get("old") or ""))
+        src_raw = item.get("from") if item.get("from") is not None else item.get("original") or item.get("old") or ""
+        if isinstance(src_raw, list):
+            src_raw = "\n".join(str(part) for part in src_raw)
+        src = _strip_line_prefixes(str(src_raw))
         if "to" in item:
             dst_raw = item.get("to")
         elif "text" in item:
@@ -276,6 +386,8 @@ def apply_review_patches(draft: str, patches: list[dict]) -> tuple[str, str]:
         if dst_raw is None:
             notes.append(f"- L{start} 缺少 to，已跳过")
             continue
+        if isinstance(dst_raw, list):
+            dst_raw = "\n".join(str(part) for part in dst_raw)
         dst = _strip_line_prefixes(str(dst_raw))
         lo, hi = start - 1, end
         current = "\n".join(rows[lo:hi])

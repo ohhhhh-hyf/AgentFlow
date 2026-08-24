@@ -90,7 +90,29 @@ def test_as_reviewed_markdown_keeps_draft_on_truncated_json():
     truncated = '{"patches":[{"line":1,"from":"# 导数","to":"'
     reviewed, notes = _as_reviewed_markdown(truncated, draft)
     assert reviewed == draft
-    assert "未返回补丁" in notes
+
+
+def test_as_reviewed_markdown_repairs_newlines_inside_strings():
+    draft = "第一行\n其中 sln x\n第三行"
+    raw = '{"patches":[{"line":2,"from":"其中 sln x","to":"其中 sin x\n且 lim"}]}'
+    reviewed, notes = _as_reviewed_markdown(raw, draft)
+    assert "其中 sin x" in reviewed
+    assert "已替换" in notes
+
+
+def test_as_reviewed_markdown_salvages_complete_patches_before_truncation():
+    draft = "其中 sln\n1im x"
+    raw = '{"patches":[{"line":1,"from":"其中 sln","to":"其中 sin"},{"line":2,"from":"1im x","to":"'
+    reviewed, notes = _as_reviewed_markdown(raw, draft)
+    assert reviewed.splitlines()[0] == "其中 sin"
+    assert "L1 已替换" in notes
+
+
+def test_as_reviewed_markdown_accepts_line_label_and_trailing_comma():
+    draft = "其中 sln"
+    raw = '{"patches":[{"line":"L001","from":"其中 sln","to":"其中 sin",}],}'
+    reviewed, _notes = _as_reviewed_markdown(raw, draft)
+    assert reviewed == "其中 sin"
 
 
 def test_as_reviewed_markdown_ignores_full_markdown_rewrite():
