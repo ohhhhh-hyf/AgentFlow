@@ -1,8 +1,10 @@
 from __future__ import annotations
 
 import re
+from concurrent.futures import FIRST_COMPLETED, ThreadPoolExecutor, as_completed, wait
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Callable, Iterator
 
 from tools.memory.store import safe_id
 from tools.ocr import server_ocr_image_recognize
@@ -234,3 +236,164 @@ def reconstruct_and_review_pages(pages: list[dict]) -> str:
     draft = reconstruct_markdown(lines, max_tokens=12000)
     reviewed, _notes = review_markdown(draft, lines, max_tokens=2000)
     return reviewed or draft
+
+
+def _submit_ocr_chunk(pool: ThreadPoolExecutor, chunk: list[tuple], ocr_fn: Callable):
+    return {
+        pool.submit(ocr_fn, path): (idx, name)
+        for idx, (path, name) in enumerate(chunk)
+    }
+
+
+def _collect_ocr_chunk(
+    futures: dict,
+    *,
+    lo: int,
+    hi: int,
+    total: int,
+) -> Iterator[dict]:
+    pages: list[dict | None] = [None] * len(futures)
+    done = 0
+    for future in as_completed(futures):
+        idx, name = futures[future]
+        raw_text, lines = future.result()
+        pages[idx] = {"name": name, "raw_text": raw_text, "lines": lines}
+        done += 1
+        yield {
+            "type": "ocr_item",
+            "lo": lo,
+            "hi": hi,
+            "done": done,
+            "chunk": len(futures),
+            "name": name,
+            "total": total,
+        }
+    return [item for item in pages if item]
+
+
+def _collect_ocr_chunk_while(
+    futures: dict,
+    *,
+    lo: int,
+    hi: int,
+    total: int,
+    review_lo: int,
+    review_hi: int,
+) -> Iterator[dict]:
+    pages: list[dict | None] = [None] * len(futures)
+    done = 0
+    pending = set(futures)
+    while pending:
+        finished, pending = wait(pending, timeout=0.4, return_when=FIRST_COMPLETED)
+        if not finished:
+            yield {
+                "type": "review_wait",
+                "lo": review_lo,
+                "hi": review_hi,
+                "prefetch_lo": lo,
+                "prefetch_hi": hi,
+                "done": done,
+                "chunk": len(futures),
+                "total": total,
+            }
+            continue
+        for future in finished:
+            idx, name = futures[future]
+            raw_text, lines = future.result()
+            pages[idx] = {"name": name, "raw_text": raw_text, "lines": lines}
+            done += 1
+            yield {
+                "type": "ocr_item",
+                "lo": lo,
+                "hi": hi,
+                "done": done,
+                "chunk": len(futures),
+                "name": name,
+                "total": total,
+            }
+    return [item for item in pages if item]
+
+
+def iter_ocr_review_pipeline(
+    image_entries: list[tuple],
+    *,
+    ocr_fn: Callable | None = None,
+    review_fn: Callable | None = None,
+    batch_size: int = LIGHT_OCR_BATCH,
+) -> Iterator[dict]:
+    """OCR 下一批与当前批整理/审校重叠。一次最多 4 路识别、一次整理审校。"""
+    if not image_entries:
+        return
+    ocr_fn = ocr_fn or ocr_image_to_lines
+    review_fn = review_fn or reconstruct_and_review_pages
+    chunks: list[tuple[int, int, list]] = []
+    for start in range(0, len(image_entries), batch_size):
+        chunk = image_entries[start : start + batch_size]
+        chunks.append((start + 1, start + len(chunk), chunk))
+    total = len(image_entries)
+    ocr_pool = ThreadPoolExecutor(max_workers=max(1, min(batch_size, total)))
+    llm_pool = ThreadPoolExecutor(max_workers=1)
+    try:
+        lo, hi, chunk = chunks[0]
+        yield {
+            "type": "ocr_start",
+            "lo": lo,
+            "hi": hi,
+            "workers": len(chunk),
+            "total": total,
+        }
+        current_pages = yield from _collect_ocr_chunk(
+            _submit_ocr_chunk(ocr_pool, chunk, ocr_fn),
+            lo=lo,
+            hi=hi,
+            total=total,
+        )
+        for index, (lo, hi, _chunk) in enumerate(chunks):
+            next_futures = None
+            prefetch_lo = prefetch_hi = None
+            if index + 1 < len(chunks):
+                prefetch_lo, prefetch_hi, next_chunk = chunks[index + 1]
+                next_futures = _submit_ocr_chunk(ocr_pool, next_chunk, ocr_fn)
+            yield {
+                "type": "review_start",
+                "lo": lo,
+                "hi": hi,
+                "prefetch_lo": prefetch_lo,
+                "prefetch_hi": prefetch_hi,
+                "total": total,
+            }
+            review_future = llm_pool.submit(review_fn, current_pages)
+            next_pages = None
+            if next_futures is not None:
+                next_pages = yield from _collect_ocr_chunk_while(
+                    next_futures,
+                    lo=prefetch_lo,
+                    hi=prefetch_hi,
+                    total=total,
+                    review_lo=lo,
+                    review_hi=hi,
+                )
+            while True:
+                try:
+                    reviewed = review_future.result(timeout=0.5)
+                    break
+                except TimeoutError:
+                    yield {
+                        "type": "review_wait",
+                        "lo": lo,
+                        "hi": hi,
+                        "prefetch_lo": prefetch_lo,
+                        "prefetch_hi": prefetch_hi,
+                        "total": total,
+                    }
+            yield {
+                "type": "batch_done",
+                "lo": lo,
+                "hi": hi,
+                "reviewed": reviewed,
+                "raw": combine_ocr_pages(current_pages, key="raw_text"),
+            }
+            current_pages = next_pages
+    finally:
+        ocr_pool.shutdown(wait=True)
+        llm_pool.shutdown(wait=True)

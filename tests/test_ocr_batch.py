@@ -1,11 +1,14 @@
 # -*- coding: utf-8 -*-
 import json
 
+import time
+
 from tools.ocr.levels.light import (
     LIGHT_OCR_BATCH,
     OCR_PARALLEL,
     combine_ocr_pages,
     concat_page_lines,
+    iter_ocr_review_pipeline,
     next_batch_version_stem,
     reconstruct_and_review_pages,
     save_combined_ocr_outputs,
@@ -183,3 +186,33 @@ def test_reconstruct_and_review_pages_runs_once_each_in_order(monkeypatch):
     assert text.index("波函数") < text.index("宇称")
     assert "审校" in text
     assert "第 1 页" not in text
+
+
+def test_pipeline_prefetches_next_ocr_during_review():
+    ocr_started: dict[str, float] = {}
+    review_started: list[float] = []
+
+    def ocr_fn(path):
+        ocr_started[str(path)] = time.perf_counter()
+        time.sleep(0.08)
+        return f"raw-{path}", [{"text": str(path)}]
+
+    def review_fn(pages):
+        review_started.append(time.perf_counter())
+        time.sleep(0.2)
+        return "|".join(item["name"] for item in pages)
+
+    entries = [(f"im{i}", f"im{i}") for i in range(4)]
+    done = [
+        event["reviewed"]
+        for event in iter_ocr_review_pipeline(
+            entries,
+            ocr_fn=ocr_fn,
+            review_fn=review_fn,
+            batch_size=2,
+        )
+        if event["type"] == "batch_done"
+    ]
+    assert done == ["im0|im1", "im2|im3"]
+    assert len(review_started) == 2
+    assert ocr_started["im2"] < review_started[0] + 0.18

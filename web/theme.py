@@ -1534,4 +1534,48 @@ button.secondary:hover {
     flex: 1 1 auto !important;
   }
 }
+#ocr-timer {
+  position: fixed !important;
+  right: 18px !important;
+  bottom: 16px !important;
+  z-index: 90 !important;
+  width: auto !important;
+  max-width: 240px !important;
+  padding: 0 !important;
+  margin: 0 !important;
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+}
+#ocr-timer .label-wrap,
+#ocr-timer .icon-wrap {
+  display: none !important;
+}
+.ocr-clock {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 2px;
+  pointer-events: none;
+  background: rgba(44, 42, 38, 0.92);
+  color: #faf9f6;
+  border-radius: 8px;
+  padding: 8px 12px 7px;
+  box-shadow: 0 6px 18px rgba(28, 27, 25, 0.18);
+}
+.ocr-clock em {
+  font-size: 0.68rem;
+  letter-spacing: 0.08em;
+  color: #c8c4b8;
+  font-style: normal;
+}
+.ocr-clock strong {
+  font-size: 1.08rem;
+  font-variant-numeric: tabular-nums;
+  font-weight: 650;
+  line-height: 1.15;
+}
+.ocr-clock-done {
+  background: #2c2a26;
+}
 """

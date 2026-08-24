@@ -12,6 +12,7 @@ import shutil
 import sys
 import re
 import tempfile
+import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime
 from pathlib import Path
@@ -833,6 +834,7 @@ EMPTY_REVIEW = gr.update(value="", visible=False)
 EMPTY_REWRITE = gr.update(visible=False)
 EMPTY_FILES = gr.update(value=[], visible=False)
 EMPTY_MONITOR = gr.update(value="", visible=False)
+EMPTY_TIMER = gr.update(value="", visible=False)
 
 _MONITOR_LAYER_NAMES = {
     "core/perspective_modeling": "视角建模",
@@ -1027,6 +1029,7 @@ def clear_results_only():
         EMPTY_FILES,
         EMPTY_DOWNLOAD,
         EMPTY_MONITOR,
+        EMPTY_TIMER,
     )
 
 
@@ -1041,6 +1044,7 @@ def reset_form():
         EMPTY_FILES,
         EMPTY_DOWNLOAD,
         EMPTY_MONITOR,
+        EMPTY_TIMER,
         gr.update(value=None),
         "",
         gr.update(value=None),
@@ -1390,6 +1394,26 @@ def _monitor_html(payload: dict | None, *, line_names: dict[str, str] | None = N
     return "\n".join(rows)
 
 
+def _ocr_timer_html(elapsed_seconds: float, *, running: bool) -> str:
+    label = "OCR 进行中" if running else "OCR 总耗时"
+    kind = "run" if running else "done"
+    return (
+        f'<div class="ocr-clock ocr-clock-{kind}">'
+        f"<em>{html.escape(label)}</em>"
+        f"<strong>{html.escape(_fmt_seconds(elapsed_seconds))}</strong>"
+        "</div>"
+    )
+
+
+def _timer_update(elapsed_seconds: float | None = None, *, running: bool = False):
+    if elapsed_seconds is None:
+        return EMPTY_TIMER
+    return gr.update(
+        value=_ocr_timer_html(elapsed_seconds, running=running),
+        visible=True,
+    )
+
+
 def _run_result(
     log,
     files_or_none=None,
@@ -1397,7 +1421,10 @@ def _run_result(
     files_html: str | None = None,
     monitor_html: str = "",
     md_preview: str | None = None,
+    hide_md: bool = False,
     busy: bool = False,
+    elapsed_seconds: float | None = None,
+    timer_running: bool = False,
 ):
     """统一结果区输出：日志 / 图片(可隐藏) / MD预览(可隐藏) / 下载 / 监控 / HITL / 解锁按钮。"""
     files = list(files_or_none or [])
@@ -1416,27 +1443,40 @@ def _run_result(
             gr.update(interactive=True),
             gr.update(interactive=True),
         )
+    if hide_md:
+        md_update = EMPTY_MD
+    elif md_preview is not None:
+        md_update = gr.update(value=md_preview, visible=True)
+    else:
+        md_update = _md_update(files)
     return (
         log,
         _gallery_update(files),
         _memory_review_update(files),
         _rewrite_btn_update(files),
-        gr.update(value=md_preview, visible=True) if md_preview is not None else _md_update(files),
+        md_update,
         _download_files_update(files),
         files_html if files_html is not None else _artifact_download_html(files),
         _monitor_update(monitor_html),
+        _timer_update(elapsed_seconds, running=timer_running),
         *hitl,
         *unlock,
     )
 
 
-def _ocr_progress_result(log: str):
+def _ocr_elapsed(started_at: float) -> float:
+    return max(0.0, time.perf_counter() - started_at)
+
+
+def _ocr_progress_result(log: str, started_at: float):
     return _run_result(
         log,
         None,
         *_hitl_ui(False),
         files_html=EMPTY_DOWNLOAD,
         busy=True,
+        elapsed_seconds=_ocr_elapsed(started_at),
+        timer_running=True,
     )
 
 
@@ -1445,73 +1485,79 @@ def _iter_light_ocr_batches(
     uid: str,
     subj: str,
     image_entries: list[tuple[Path, str]],
+    started_at: float,
 ):
-    """Light 多图：每 4 张并行 OCR → 该批一次整理+审校；最后按批顺序拼接 md。"""
+    """Light 多图：4 路 OCR 与下一批重叠——这批整理审校时先识别下 4 张。"""
     from tools.ocr.levels.light import (
         LIGHT_OCR_BATCH,
-        combine_ocr_pages,
+        iter_ocr_review_pipeline,
         next_batch_version_stem,
-        ocr_image_to_lines,
-        reconstruct_and_review_pages,
         save_light_ocr_outputs,
     )
 
     total = len(image_entries)
     batch_mds: list[str] = []
     batch_raws: list[str] = []
-    preview_items: list[dict[str, str]] = []
     failed_name = image_entries[0][1]
     try:
-        for start in range(0, total, LIGHT_OCR_BATCH):
-            chunk = image_entries[start : start + LIGHT_OCR_BATCH]
-            lo, hi = start + 1, start + len(chunk)
-            workers = len(chunk)
-            yield _ocr_progress_result(
-                f"正在识别第 {lo}–{hi} 张（并行 {workers} 路，共 {total} 张）"
-            )
-            pages: list[dict | None] = [None] * len(chunk)
-            done = 0
-            with ThreadPoolExecutor(max_workers=workers) as pool:
-                future_map = {
-                    pool.submit(ocr_image_to_lines, path): (idx, name)
-                    for idx, (path, name) in enumerate(chunk)
-                }
-                for future in as_completed(future_map):
-                    idx, name = future_map[future]
-                    failed_name = name
-                    raw_text, lines = future.result()
-                    pages[idx] = {
-                        "name": name,
-                        "raw_text": raw_text,
-                        "lines": lines,
-                    }
-                    done += 1
+        for event in iter_ocr_review_pipeline(image_entries):
+            kind = event.get("type")
+            lo = event.get("lo")
+            hi = event.get("hi")
+            if kind == "ocr_start":
+                yield _ocr_progress_result(
+                    f"正在识别第 {lo}–{hi} 张（并行 {event.get('workers')} 路，共 {total} 张）",
+                    started_at,
+                )
+            elif kind == "ocr_item":
+                failed_name = str(event.get("name") or failed_name)
+                yield _ocr_progress_result(
+                    f"第 {lo}–{hi} 张识别中 {event.get('done')}/{event.get('chunk')}："
+                    f"已完成 {failed_name}",
+                    started_at,
+                )
+            elif kind == "review_start":
+                prefetch_lo = event.get("prefetch_lo")
+                prefetch_hi = event.get("prefetch_hi")
+                if prefetch_lo and prefetch_hi:
                     yield _ocr_progress_result(
-                        f"第 {lo}–{hi} 张识别中 {done}/{len(chunk)}：已完成 {name}"
+                        f"第 {lo}–{hi} 张识别完成，正在整理并审校；"
+                        f"同时识别第 {prefetch_lo}–{prefetch_hi} 张",
+                        started_at,
                     )
-            ordered = [item for item in pages if item]
-            yield _ocr_progress_result(f"第 {lo}–{hi} 张识别完成，正在整理并审校…")
-            reviewed = reconstruct_and_review_pages(ordered)
-            raw_joined = combine_ocr_pages(ordered, key="raw_text")
-            batch_mds.append(reviewed)
-            batch_raws.append(raw_joined)
-            preview_items.append(
-                {
-                    "name": f"第 {lo}–{hi} 张",
-                    "raw_text": raw_joined,
-                    "reviewed_markdown": reviewed,
-                }
-            )
+                else:
+                    yield _ocr_progress_result(
+                        f"第 {lo}–{hi} 张识别完成，正在整理并审校…",
+                        started_at,
+                    )
+            elif kind == "review_wait":
+                prefetch_lo = event.get("prefetch_lo")
+                prefetch_hi = event.get("prefetch_hi")
+                if prefetch_lo and prefetch_hi:
+                    yield _ocr_progress_result(
+                        f"正在整理审校第 {lo}–{hi} 张，同时识别第 {prefetch_lo}–{prefetch_hi} 张…",
+                        started_at,
+                    )
+                elif lo and hi:
+                    yield _ocr_progress_result(
+                        f"正在整理并审校第 {lo}–{hi} 张…",
+                        started_at,
+                    )
+            elif kind == "batch_done":
+                batch_mds.append(str(event.get("reviewed") or ""))
+                batch_raws.append(str(event.get("raw") or ""))
     except Exception as exc:  # noqa: BLE001
+        elapsed = _ocr_elapsed(started_at)
         yield _run_result(
             f"OCR识别失败：{failed_name}：{exc}",
             None,
             *_hitl_ui(False),
             files_html=EMPTY_DOWNLOAD,
+            elapsed_seconds=elapsed,
         )
         return
 
-    yield _ocr_progress_result("各批审校完成，正在按顺序合并 Markdown…")
+    yield _ocr_progress_result("各批审校完成，正在按顺序合并 Markdown…", started_at)
     batch_stem = next_batch_version_stem(uid, subj, PROJECT_ROOT)
     combined = save_light_ocr_outputs(
         Path(batch_stem),
@@ -1521,13 +1567,15 @@ def _iter_light_ocr_batches(
         subject=subj,
         project_root=PROJECT_ROOT,
     )
+    elapsed = _ocr_elapsed(started_at)
     yield _run_result(
         f"OCR识别完成，共成功识别 {total} 张图片。"
-        f"已按每 {LIGHT_OCR_BATCH} 张一批整理审校，再按顺序合并成一份 Markdown。",
+        f"已按每 {LIGHT_OCR_BATCH} 张一批整理审校，再按顺序合并成一份 Markdown。"
+        f"总耗时 {_fmt_seconds(elapsed)}。",
         list(combined.files),
         *_hitl_ui(False),
-        files_html=EMPTY_DOWNLOAD,
-        md_preview=_ocr_preview_markdown(preview_items),
+        hide_md=True,
+        elapsed_seconds=elapsed,
     )
 
 
@@ -1569,12 +1617,21 @@ def _iter_ocr_task(
 
     workers = max(1, min(OCR_PARALLEL, len(image_entries)))
     total = len(image_entries)
+    started_at = time.perf_counter()
     if selected_level != OCR_LEVEL_STANDARD and total > 1:
-        yield from _iter_light_ocr_batches(uid=uid, subj=subj, image_entries=image_entries)
+        yield from _iter_light_ocr_batches(
+            uid=uid,
+            subj=subj,
+            image_entries=image_entries,
+            started_at=started_at,
+        )
         return
     persist_pages = total == 1
     review_pages = selected_level == OCR_LEVEL_STANDARD or persist_pages
-    yield _ocr_progress_result(f"开始 OCR：共 {total} 张，并行 {workers} 路。")
+    yield _ocr_progress_result(
+        f"开始 OCR：共 {total} 张，并行 {workers} 路。",
+        started_at,
+    )
     failed_name = image_entries[0][1]
     try:
         results: list[dict[str, object] | None] = [None] * total
@@ -1608,13 +1665,18 @@ def _iter_ocr_task(
                     "lines": one_lines,
                 }
                 done += 1
-                yield _ocr_progress_result(f"OCR 识别中 {done}/{total}：已完成 {orig_name}")
+                yield _ocr_progress_result(
+                    f"OCR 识别中 {done}/{total}：已完成 {orig_name}",
+                    started_at,
+                )
     except Exception as exc:  # noqa: BLE001
+        elapsed = _ocr_elapsed(started_at)
         yield _run_result(
             f"OCR识别失败：{failed_name}：{exc}",
             None,
             *_hitl_ui(False),
             files_html=EMPTY_DOWNLOAD,
+            elapsed_seconds=elapsed,
         )
         return
     result_items = [item for item in results if item]
@@ -1630,7 +1692,10 @@ def _iter_ocr_task(
             save_combined_ocr_outputs,
         )
 
-        yield _ocr_progress_result(f"OCR 识别完成 {len(result_items)}/{total}，正在按顺序合并 Markdown…")
+        yield _ocr_progress_result(
+            f"OCR 识别完成 {len(result_items)}/{total}，正在按顺序合并 Markdown…",
+            started_at,
+        )
         batch_stem = next_batch_version_stem(uid, subj, PROJECT_ROOT)
         page_payload = [
             {
@@ -1651,7 +1716,7 @@ def _iter_ocr_task(
         if selected_level == OCR_LEVEL_STANDARD:
             from tools.ocr.levels.standard import save_combined_meta
 
-            yield _ocr_progress_result("正在生成 Standard meta…")
+            yield _ocr_progress_result("正在生成 Standard meta…", started_at)
             meta_path = save_combined_meta(
                 raw_text=combined.raw_text,
                 reviewed_markdown=combined.reviewed_markdown,
@@ -1667,6 +1732,7 @@ def _iter_ocr_task(
                 project_root=PROJECT_ROOT,
             )
             files = [str(meta_path)] + files
+    elapsed = _ocr_elapsed(started_at)
     yield _run_result(
         f"OCR识别完成，共成功识别 {len(image_entries)} 张图片。"
         + (
@@ -1675,20 +1741,12 @@ def _iter_ocr_task(
             else "审校版 Markdown 已保存到 md 文件夹。"
         )
         + "若选择 Standard，还会保存 meta.json 供知识目录增强使用。"
-        "若要进入知识库，请把 md 文件夹里的审校版 Markdown 上传到「资料入库」。",
+        "若要进入知识库，请把 md 文件夹里的审校版 Markdown 上传到「资料入库」。"
+        f"总耗时 {_fmt_seconds(elapsed)}。",
         files,
         *_hitl_ui(False),
-        files_html=EMPTY_DOWNLOAD,
-        md_preview=_ocr_preview_markdown(
-            [
-                {
-                    "name": str(item.get("name") or ""),
-                    "raw_text": str(item.get("raw_text") or ""),
-                    "reviewed_markdown": str(item.get("reviewed_markdown") or ""),
-                }
-                for item in result_items
-            ]
-        ),
+        hide_md=True,
+        elapsed_seconds=elapsed,
     )
 
 
@@ -2320,27 +2378,6 @@ def _build_theme() -> gr.themes.Base:
     )
 
 
-def _ocr_preview_markdown(items: list[dict[str, str]]) -> str:
-    def fence_text(value: str) -> str:
-        return value.replace("```", "`\u200b``")
-
-    parts: list[str] = []
-    for idx, item in enumerate(items, start=1):
-        name = item.get("name") or f"image_{idx}"
-        raw_text = (item.get("raw_text") or "").strip() or "（OCR 未识别到文字）"
-        reviewed = (item.get("reviewed_markdown") or "").strip() or "（未生成审校版 Markdown）"
-        from tools.ocr.mathmd import normalize_markdown_math
-
-        parts.append(
-            f"## {html.escape(name)}\n\n"
-            "### 服务器原始 OCR 文本\n\n"
-            f"```text\n{fence_text(raw_text)}\n```\n\n"
-            "### 审校版 Markdown\n\n"
-            f"{fence_text(normalize_markdown_math(reviewed))}"
-        )
-    return "\n\n---\n\n".join(parts)
-
-
 def build_app() -> gr.Blocks:
     initial_domain = "meeting"
     initial_choices = _task_choices(initial_domain)
@@ -2635,6 +2672,18 @@ def build_app() -> gr.Blocks:
                     label="文件",
                     value=EMPTY_DOWNLOAD,
                 )
+                timer_kwargs = {
+                    "value": "",
+                    "elem_id": "ocr-timer",
+                    "visible": False,
+                }
+                try:
+                    ocr_timer = gr.HTML(**timer_kwargs, sanitize_html=False)
+                except TypeError:
+                    try:
+                        ocr_timer = gr.HTML(**timer_kwargs, sanitize=False)
+                    except TypeError:
+                        ocr_timer = gr.HTML(**timer_kwargs)
 
         hitl_outputs = [
             friendly_template,
@@ -2651,6 +2700,7 @@ def build_app() -> gr.Blocks:
             download_files,
             files_output,
             monitor_panel,
+            ocr_timer,
         ]
         side_btns = [clear_results_btn, reset_form_btn, clear_tpl_btn]
         domain.change(
