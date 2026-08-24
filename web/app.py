@@ -314,10 +314,11 @@ TASK_BRIEFS: dict[str, dict[str, str]] = {
         ),
     },
     "checklist": {
-        "inputs": "用户 ID、学科、老师本次划重点文本。不要上传目录 JSON",
+        "inputs": "用户 ID、学科。老师本次划重点文本可选。不要上传目录 JSON",
         "outputs": "复习清单 Markdown + HTML（重点分布、导图、图谱、知识点卡片、行动清单）",
         "purpose": (
-            "按用户 ID + 学科自动读取已生成的知识目录，再用老师文本激活本次复习。"
+            "按用户 ID + 学科读取已生成的知识目录和知识库。"
+            "传了老师重点则做老师原话溯源；不传则只做知识库溯源。"
             "不新建知识点、不改长期目录。"
         ),
     },
@@ -419,9 +420,9 @@ def _input_copy(task: str) -> dict[str, str]:
         }
     if task == "checklist":
         return {
-            "upload_label": "老师本次划重点文本（必填）",
-            "text_label": "老师本次划重点（必填，也可粘贴）",
-            "text_placeholder": "目录 JSON 不用上传。系统按用户 ID + 学科自动读取已生成目录。这里只填老师本次划重点。",
+            "upload_label": "老师本次划重点文本（可选）",
+            "text_label": "老师本次划重点（可选，也可粘贴）",
+            "text_placeholder": "可不填。不填则只按知识目录和知识库生成清单，不做老师原话溯源。",
         }
     return {
         "upload_label": "文本文件",
@@ -1825,13 +1826,8 @@ def run_from_ui(
             notes_upload=notes_upload,
             notes_text=notes_text,
         )
-        if input_file is None and tasks[0] != "catalog":
-            if tasks[0] == "checklist":
-                missing = (
-                    "复习清单必须提供老师本次划重点文本：请上传 txt/md，或在文本框里粘贴。"
-                    "目录 JSON 不用上传，系统会按用户 ID + 学科自动读取已生成目录。"
-                )
-            elif tasks[0] == "library":
+        if input_file is None and tasks[0] not in {"catalog", "checklist"}:
+            if tasks[0] == "library":
                 missing = "资料入库请上传课件 / 讲义 / 笔记（可多选），或在文本框粘贴补充文本。"
             else:
                 missing = "请上传输入文件，或直接在文本框里输入内容。"

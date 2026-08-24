@@ -283,10 +283,52 @@ def _owned_sentences(sentences: list[str], points: list[dict[str, Any]]) -> dict
     return owned
 
 
+def activate_from_catalog(catalog: dict[str, Any] | None) -> list[dict[str, Any]]:
+    """无老师重点时：按目录 importance 激活 KP，不做老师原话匹配。"""
+    points = flatten_points(catalog)
+    activated: list[dict[str, Any]] = []
+    for point in points:
+        row = dict(point)
+        try:
+            importance = int(str(point.get("importance") or 3) or 3)
+        except (TypeError, ValueError):
+            importance = 3
+        if importance >= 5:
+            row["session_priority"] = "S"
+        elif importance >= 4:
+            row["session_priority"] = "A"
+        elif importance >= 3:
+            row["session_priority"] = "B"
+        else:
+            row["session_priority"] = "C"
+        row["session_emphasis"] = "0"
+        row["session_focus_items"] = _as_list(point.get("knowledge_items"))[:3]
+        row["session_exam_signal"] = str(point.get("exam_signal") or "none")
+        row["session_error_signal"] = ""
+        row["session_difficulty_signal"] = ""
+        row["session_related_points"] = []
+        row["session_quotes"] = []
+        row["session_practice_count"] = ""
+        row["session_special_requirement"] = ""
+        row["_light"] = False
+        row["_score"] = _raw_score(row)
+        activated.append(row)
+    _cap_priorities(activated)
+    activated.sort(
+        key=lambda p: (
+            {"S": 0, "A": 1, "B": 2, "C": 3}.get(p.get("session_priority"), 9),
+            -p.get("_score", 0),
+        )
+    )
+    return activated
+
+
 def activate_points(catalog: dict[str, Any] | None, teacher: str) -> list[dict[str, Any]]:
-    """匹配老师文本，写 session_* 并给出 S/A/B/C。不创建新 KP。"""
+    """有老师文本则匹配原话；否则按目录激活，不做老师重点溯源。"""
     points = flatten_points(catalog)
     teacher = teacher or ""
+    if not teacher.strip():
+        return activate_from_catalog(catalog)
     sentences = _sentences(teacher)
     owned = _owned_sentences(sentences, points)
     activated: list[dict[str, Any]] = []

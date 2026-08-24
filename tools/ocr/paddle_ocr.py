@@ -15,6 +15,7 @@ from typing import Any
 logger = logging.getLogger(__name__)
 
 _ENGINE_LOCK = threading.Lock()
+_PREDICT_LOCK = threading.Lock()
 _ENGINE = None
 
 _HEADER_RE = re.compile(
@@ -351,8 +352,11 @@ def ocr_image(path: str) -> dict:
             image_size = img.size
     except Exception:  # noqa: BLE001
         image_size = None
-    result = get_paddle_engine().predict(path)
-    lines = extract_paddle_lines(result, image_size=image_size)
+    # Paddle/PaddleX 的 predict 不是线程安全的；多图并行必须串行调用，否则会
+    # vector::_M_range_check / SIGSEGV（见 8 路 Light 共用单例时的崩溃）。
+    with _PREDICT_LOCK:
+        result = get_paddle_engine().predict(path)
+        lines = extract_paddle_lines(result, image_size=image_size)
     return {"engine": "paddleocr", "lines": lines}
 
 

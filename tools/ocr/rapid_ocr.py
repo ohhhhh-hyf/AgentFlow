@@ -5,6 +5,7 @@ import threading
 from typing import Any
 
 _ENGINE_LOCK = threading.Lock()
+_PREDICT_LOCK = threading.Lock()
 _ENGINE = None
 
 
@@ -25,9 +26,11 @@ def get_rapid_engine():
 
 
 def ocr_image(path: str) -> dict:
-    result, _ = get_rapid_engine()(path)
+    with _PREDICT_LOCK:
+        result, _ = get_rapid_engine()(path)
+        items = list(result or [])
     lines: list[dict] = []
-    for item in result or []:
+    for item in items:
         box, text, conf = item[0], item[1], item[2]
         lines.append(
             {

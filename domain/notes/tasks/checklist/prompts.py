@@ -2,17 +2,18 @@
 from __future__ import annotations
 
 
-CHECKLIST_GENERATION_SYSTEM_PROMPT = """你是「复习清单 Agent」。用户只提供本次老师划重点文本。知识范围只能来自已有 Knowledge Catalog。
+CHECKLIST_GENERATION_SYSTEM_PROMPT = """你是「复习清单 Agent」。知识范围只能来自已有 Knowledge Catalog。老师划重点文本是可选的。
 
 禁止：重新发现知识点、新建 KP、改长期目录、写必考概率（除非老师原话里就有「必考/每届必出/年年有」这种字）。
 
 ## 你要做的
 
 输入里会给出：
-- 已匹配到的 Catalog KP（含 id、Item、本次 session 信号、S/A/B/C）
-- 老师原文
+- 已激活的 Catalog KP（含 id、Item、本次 session 信号、S/A/B/C）
+- 老师原文（可能为空）
 
 你只为这些 KP 写卡片正文。cards.kp_id 必须逐字使用给定 id。不要输出未激活的 KP，不要编 id。
+若标注「未提供老师划重点」：不要写老师原话，uncertain_quotes 必须空，不要假装有老师点名。
 
 ## 卡片怎么写
 

@@ -26,9 +26,9 @@ RECONSTRUCT_SYSTEM_PROMPT = """你是「笔记整理器」。把 OCR 识别出�
 9. 去除 OCR 噪声（孤立标点、乱码），合并被断行的完整句子
 10. 直接输出 Markdown 正文，不要前言后语、不要 Markdown 代码围栏"""
 
-REVIEW_SYSTEM_PROMPT = """你是「OCR Markdown 保守审校器」。你会拿到 OCR 原始行和一份已经整理过的 Markdown。
+REVIEW_SYSTEM_PROMPT = """你是「OCR Markdown 保守审校器」。你会拿到一份已经整理过的 Markdown。
 
-任务：只修正明显由 OCR 或 Markdown 整理造成的问题，不做自由发挥，不新增原文没有的信息。
+任务：只修正稿子里明显由 OCR 或整理造成的问题，不做自由发挥，不新增稿中没有的信息。
 
 允许修正：
 1. 明显 OCR 误识别：如 sin/sln、lim/1im、上下标/符号孤立错字、重复乱码、断行造成的错拼
@@ -38,16 +38,12 @@ REVIEW_SYSTEM_PROMPT = """你是「OCR Markdown 保守审校器」。你会拿�
 
 禁止：
 1. 不要根据常识重写定义、定理、公式或结论
-2. 不要补充图片里没有的知识
+2. 不要补充稿中没有的知识
 3. 不要把不确定内容改成你认为正确的内容
-4. 不要删除原始 OCR 中能辨认出的有效信息
+4. 不要删除稿中能辨认出的有效信息
 
-输出严格 JSON，不要 Markdown 代码围栏：
-{
-  "markdown": "审校后的 Markdown 正文",
-  "notes": ["修正说明1", "修正说明2"]
-}
-如果没有需要修正的地方，markdown 原样返回，notes 写 ["未发现需要审校修正的问题"]。"""
+直接输出审校后的 Markdown 全文，不要前言后语，不要 JSON，不要 Markdown 代码围栏。
+如果没有需要修正的地方，原样返回输入稿。"""
 
 
 def _fragments_to_text(lines: list[dict]) -> str:
@@ -160,8 +156,6 @@ def review_markdown(
         text = asyncio.run(
             client.text(
                 REVIEW_SYSTEM_PROMPT,
-                "OCR 行列表 JSON（只作为证据，不要自由补充）：\n"
-                f"{_lines_to_structured_payload(lines)}\n\n"
                 "待审校 Markdown：\n"
                 f"{draft}",
                 temperature=0.0,
@@ -169,33 +163,43 @@ def review_markdown(
                 label="ocr/review",
             )
         )
-        payload = _json_from_text(str(text))
-        reviewed = str(payload.get("markdown") or "").strip()
-        notes = payload.get("notes") or []
-        if isinstance(notes, list):
-            notes_text = "\n".join(f"- {str(item).strip()}" for item in notes if str(item).strip())
-        else:
-            notes_text = str(notes).strip()
-        return reviewed or draft, notes_text or "未发现需要审校修正的问题。"
+        return _as_reviewed_markdown(str(text), draft)
     except Exception as exc:  # noqa: BLE001
         logger.warning("LLM 审校失败，返回重构稿：%s", exc)
         return draft, f"LLM 审校失败，已保留重构稿：{exc}"
 
 
-def _json_from_text(text: str) -> dict:
+def _strip_md_fences(text: str) -> str:
     raw = (text or "").strip()
-    if raw.startswith("```"):
-        raw = raw.strip("`")
-        raw = re.sub(r"^\s*json\s*", "", raw, flags=re.I)
-    try:
-        data = json.loads(raw)
-    except json.JSONDecodeError:
-        start = raw.find("{")
-        end = raw.rfind("}")
-        if start < 0 or end <= start:
-            raise
-        data = json.loads(raw[start : end + 1])
-    return data if isinstance(data, dict) else {}
+    if not raw.startswith("```"):
+        return raw
+    raw = re.sub(r"^```(?:markdown|md|json)?\s*", "", raw, flags=re.I)
+    raw = re.sub(r"\s*```$", "", raw)
+    return raw.strip()
+
+
+def _as_reviewed_markdown(text: str, draft: str) -> tuple[str, str]:
+    """把审校模型输出收成 Markdown。残缺 JSON 信封则退回完整重构稿。"""
+    raw = _strip_md_fences(text)
+    if not raw:
+        return draft, "审校结果为空，已保留重构稿。"
+    if raw.startswith("{"):
+        try:
+            payload = json.loads(raw)
+        except json.JSONDecodeError:
+            logger.warning("审校 JSON 不完整，已保留重构稿")
+            return draft, "审校 JSON 不完整，已保留重构稿。"
+        if isinstance(payload, dict):
+            reviewed = str(payload.get("markdown") or "").strip()
+            notes = payload.get("notes") or []
+            if isinstance(notes, list):
+                notes_text = "\n".join(
+                    f"- {str(item).strip()}" for item in notes if str(item).strip()
+                )
+            else:
+                notes_text = str(notes).strip()
+            return reviewed or draft, notes_text or "已完成 Markdown 审校。"
+    return raw, "已完成 Markdown 审校。"
 
 
 __all__ = ["RECONSTRUCT_SYSTEM_PROMPT", "REVIEW_SYSTEM_PROMPT", "reconstruct_markdown", "review_markdown"]

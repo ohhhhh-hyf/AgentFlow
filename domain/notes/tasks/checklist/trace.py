@@ -50,7 +50,7 @@ def _trace_card(
 ) -> dict[str, Any]:
     next_card = dict(card)
     claims = _build_claims(next_card)
-    teachers = _teacher_evidence(next_card, teacher, claims)
+    teachers = _teacher_evidence(next_card, teacher, claims) if teacher else []
     kb_hits, note_hits = _library_evidence(next_card, claims, chunks)
     teachers, kb_hits, note_hits = _bind_claims(claims, teachers, kb_hits, note_hits)
     next_card["claims"] = claims

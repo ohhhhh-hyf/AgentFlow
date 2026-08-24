@@ -164,7 +164,7 @@ def assemble_checklist(
                 "detail": True,
             }
         )
-    unmatched = _unmatched_quotes(teacher, activated)
+    unmatched = _unmatched_quotes(teacher, activated) if (teacher or "").strip() else []
     plan = build_action_plan(cards, teacher, unmatched)
     return {
         "course": _clean(catalog.get("course")) or _clean((llm_draft or {}).get("course")) or "课程复习清单",

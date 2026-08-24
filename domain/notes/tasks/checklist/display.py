@@ -61,7 +61,7 @@ def build_checklist_markdown(draft: dict[str, Any]) -> str:
         lines.append(f"基于 Knowledge Catalog v{draft.get('catalog_version')}，不改长期目录。")
         lines.append("")
     if not cards:
-        lines.append("没有从老师文本匹配到目录中的知识点。请先确认已运行 catalog，且老师文本能对上目录名称。")
+        lines.append("没有可复习的知识点。请先运行 catalog / 资料入库；若提供了老师重点，请确认文本能对上目录名称。")
         return "\n".join(lines)
 
     focus = [c for c in cards if c.get("session_priority") in {"S", "A"}]
@@ -614,7 +614,7 @@ def build_checklist_html(draft: dict[str, Any]) -> str:
             f'<p class="ck-note">基于 Knowledge Catalog v{escape(str(draft.get("catalog_version")), quote=False)}，本次不改长期目录。</p>'
         )
     if not cards:
-        body.append("<p>没有从老师文本匹配到目录中的知识点。</p></div>")
+        body.append("<p>没有可复习的知识点。请先运行 catalog / 资料入库；若提供了老师重点，请确认文本能对上目录名称。</p></div>")
     else:
         focus = [c for c in cards if c.get("session_priority") in {"S", "A"}]
         brief = [c for c in cards if c.get("session_priority") == "B"]

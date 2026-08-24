@@ -15,7 +15,7 @@ class ChecklistRender:
         del template
         draft = draft_from_context(approved_context)
         if not (draft.get("cards") or draft.get("course")):
-            return "没有从老师文本匹配到目录中的知识点。"
+            return "没有可复习的知识点。请先运行 catalog / 资料入库；若提供了老师重点，请确认文本能对上目录名称。"
         return build_checklist_markdown(draft)
 
     async def stream(self, approved_context: str, template: str = "") -> AsyncIterator[str]:

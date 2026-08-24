@@ -278,9 +278,7 @@ async def run(
             "不传会进无主统一库、之后按用户检索不到"
         )
     if not file_list:
-        if "checklist" in line_names:
-            raise ValueError("复习清单需要 --file 提供本次老师划重点文本")
-        if "catalog" in line_names:
+        if "catalog" in line_names or "checklist" in line_names:
             file = None
         else:
             raise ValueError("请用 --file 指定输入文件")
@@ -309,6 +307,13 @@ async def run(
             transcript = load_transcript(ctx, file_list[0])
         else:
             transcript = "根据已入库资料生成知识目录"
+    elif "checklist" in line_names:
+        if len(file_list) > 1:
+            raise ValueError("复习清单的 --file 只用于老师划重点文本，请只传一份")
+        if file_list:
+            transcript = load_transcript(ctx, file_list[0])
+        else:
+            transcript = "根据已有知识目录和知识库生成复习清单"
     else:
         if len(file_list) > 1:
             raise ValueError(

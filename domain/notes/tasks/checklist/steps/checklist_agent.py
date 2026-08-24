@@ -10,7 +10,7 @@ from ..prompts import CHECKLIST_GENERATION_SYSTEM_PROMPT
 
 
 class ChecklistAgent:
-    """Catalog 定范围，老师文本激活本次复习，再写卡片。"""
+    """Catalog 定范围；有老师文本则激活重点，否则按目录+知识库写卡片。"""
 
     def __init__(self, client: LLMClient) -> None:
         self.client = client

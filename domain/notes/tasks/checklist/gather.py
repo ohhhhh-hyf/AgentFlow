@@ -22,7 +22,8 @@ def teacher_from_context(text: str) -> str:
         for stop in ("\n\n用户画像：", "\n\n已审核", "\n\n【用户ID】", "\n\n【学科/课程】", "\n\n【"):
             if stop in body:
                 body = body.split(stop, 1)[0]
-        return body.strip()
+        body = body.strip()
+        return "" if _is_placeholder_teacher(body) else body
     lines = []
     for line in raw.splitlines():
         if line.startswith("【用户ID】") or line.startswith("【学科/课程】"):
@@ -30,7 +31,17 @@ def teacher_from_context(text: str) -> str:
         if line.startswith("视角模式：") or line.startswith("说明："):
             continue
         lines.append(line)
-    return "\n".join(lines).strip()
+    body = "\n".join(lines).strip()
+    if _is_placeholder_teacher(body):
+        return ""
+    return body
+
+
+def _is_placeholder_teacher(text: str) -> bool:
+    blob = (text or "").strip()
+    if not blob:
+        return True
+    return blob.startswith("根据已") or blob.startswith("知识库资料入库")
 
 
 def load_session(shared_context: str) -> tuple[dict[str, Any] | None, list[dict[str, Any]], str]:
@@ -52,11 +63,19 @@ def build_checklist_briefing(
         f"【课程】{(catalog or {}).get('course') or ''}",
         f"【目录版本】{(catalog or {}).get('version') or ''}",
     ]
+    has_teacher = bool((teacher or "").strip())
     if not catalog:
         parts.append("【Catalog】不存在。不要编知识点，cards 必须空。")
         return "\n".join(parts)
+    if has_teacher:
+        parts.append("【模式】已提供老师划重点：为匹配到的 KP 写卡片，并做老师原话溯源。")
+    else:
+        parts.append("【模式】未提供老师划重点：不要做老师原话溯源，只依据 Catalog 与知识库写卡片。uncertain_quotes 必须空。")
     if not activated:
-        parts.append("【激活 KP】老师文本没有匹配到目录节点。cards 必须空，uncertain_quotes 收录原话要点。")
+        if has_teacher:
+            parts.append("【激活 KP】老师文本没有匹配到目录节点。cards 必须空，uncertain_quotes 收录原话要点。")
+        else:
+            parts.append("【激活 KP】目录中没有知识点。cards 必须空。")
     else:
         parts.append("【激活 KP】只能给下面这些 id 写卡片：")
         for row in activated:
@@ -71,5 +90,5 @@ def build_checklist_briefing(
                 f"quotes={' / '.join((row.get('session_quotes') or [])[:2])}"
             )
     parts.append("【老师划重点原文】")
-    parts.append((teacher or "")[:6000] or "（空）")
+    parts.append((teacher or "")[:6000] if has_teacher else "（未提供，跳过老师重点溯源）")
     return "\n".join(parts)
