@@ -1,6 +1,4 @@
 # -*- coding: utf-8 -*-
-import json
-
 import time
 
 from tools.ocr.levels.light import (
@@ -13,7 +11,6 @@ from tools.ocr.levels.light import (
     reconstruct_and_review_pages,
     save_combined_ocr_outputs,
 )
-from tools.ocr.levels.standard import combine_page_visuals, save_combined_meta
 
 
 def test_version_stem_starts_at_v1(tmp_path):
@@ -65,67 +62,6 @@ def test_version_stem_increments_for_same_user_subject(tmp_path):
         [{"reviewed_markdown": "<!-- 第 9 页：U202314751_9.jpg -->\n# 算符"}],
         key="reviewed_markdown",
     ) == "# 算符"
-
-
-def test_combined_meta_regenerates_from_full_markdown(tmp_path, monkeypatch):
-    monkeypatch.setattr("domain.notes.tasks.catalog.store.PROJECT_ROOT", tmp_path)
-    captured: dict = {}
-
-    def fake_generate(raw_text, reviewed_markdown, visual, project_root, **kwargs):
-        captured["raw"] = raw_text
-        captured["md"] = reviewed_markdown
-        captured["visual"] = visual
-        captured["kwargs"] = kwargs
-        return {
-            "catalog_hints": [{"title": "算符", "level": "1"}],
-            "knowledge_points": [{"title": "右矢", "topic": "狄拉克符号"}],
-        }
-
-    monkeypatch.setattr("tools.ocr.levels.standard._generate_meta", fake_generate)
-    pages = [
-        {
-            "name": "a.jpg",
-            "raw_text": "raw-a",
-            "reviewed_markdown": "# A",
-            "visual": {
-                "reading_order": ["算符"],
-                "regions": [{"role": "title", "text": "算符", "level": 1}],
-            },
-        },
-        {
-            "name": "b.jpg",
-            "raw_text": "raw-b",
-            "reviewed_markdown": "# B",
-            "visual": {
-                "reading_order": ["基矢"],
-                "regions": [{"role": "title", "text": "基矢", "level": 2}],
-            },
-        },
-    ]
-    stem = next_batch_version_stem("1", "phy", tmp_path)
-    combined = save_combined_ocr_outputs(
-        pages,
-        user_id="1",
-        subject="phy",
-        project_root=tmp_path,
-        output_stem=stem,
-    )
-    meta_path = save_combined_meta(
-        raw_text=combined.raw_text,
-        reviewed_markdown=combined.reviewed_markdown,
-        pages=pages,
-        user_id="1",
-        output_stem=stem,
-        project_root=tmp_path,
-    )
-    assert combined.reviewed_path.name == "v1.md"
-    assert meta_path.name == "v1_meta.json"
-    assert captured["md"].index("# A") < captured["md"].index("# B")
-    assert "第 1 页" not in captured["md"]
-    assert captured["kwargs"].get("max_hints") == 24
-    visual = combine_page_visuals(pages)
-    assert visual["reading_order"][0].startswith("第1页")
-    assert visual["reading_order"][1].startswith("第2页")
 
 
 def test_light_batch_size_is_four():

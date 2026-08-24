@@ -59,27 +59,12 @@ DOMAIN_BY_LABEL = {label: name for name, label in DOMAIN_LABELS.items()}
 MONITOR_ON = "on"
 MONITOR_OFF = "off"
 MONITOR_CHOICES = [("关", MONITOR_OFF), ("监控", MONITOR_ON)]
-OCR_LEVEL_LIGHT = "light"
-OCR_LEVEL_STANDARD = "standard"
-OCR_LEVEL_CHOICES = [
-    ("Light - OCR + LLM审校", OCR_LEVEL_LIGHT),
-    ("Standard - Light + Meta增强", OCR_LEVEL_STANDARD),
-]
-OCR_LEVEL_VALUES = {value for _label, value in OCR_LEVEL_CHOICES}
-
 PERSPECTIVE_OBJECTIVE = "objective"
 KNOWLEDGE_SCOPE_LINES = frozenset({"library", "catalog", "checklist"})
 OCR_TASK = "ocr_recognition"
 
 
 load_env(PROJECT_ROOT / ".env")
-
-
-def _ocr_level_value(value: str | None = None) -> str:
-    selected = (value or OCR_LEVEL_LIGHT).strip().lower()
-    if selected not in OCR_LEVEL_VALUES:
-        return OCR_LEVEL_LIGHT
-    return selected
 
 
 def _ctx(domain: str):
@@ -335,7 +320,7 @@ TASK_BRIEFS: dict[str, dict[str, str]] = {
     },
     OCR_TASK: {
         "inputs": "PNG / JPG / JPEG 图片",
-        "outputs": "审校版 Markdown（Standard 另含 meta.json）",
+        "outputs": "审校版 Markdown",
         "purpose": "把图片识别成可入库的 Markdown。生成的 LLM Markdown 可继续上传到资料入库。",
     },
 }
@@ -491,9 +476,8 @@ def _panel_updates(domain: str, task_label: str | None, current_upload=None):
     show_user, show_project, show_subject = _scope_field_visibility(domain, task)
     show_quiz = task == "quiz"
     show_mode = bool(policy and policy.cli_mode)
-    show_ocr_level = task == OCR_TASK
     show_perspective = domain == "meeting" and task == "minutes_generation"
-    show_config = show_mode or show_user or sidecar or show_quiz or show_perspective or show_ocr_level
+    show_config = show_mode or show_user or sidecar or show_quiz or show_perspective
     perspective_choices = _profile_dropdown_choices(domain) if show_perspective else []
     perspective_value = (
         _profile_dropdown_default(domain) if show_perspective else None
@@ -503,7 +487,6 @@ def _panel_updates(domain: str, task_label: str | None, current_upload=None):
         gr.update(value=_task_brief_html(task)),
         gr.update(visible=show_config),
         gr.update(visible=show_mode),
-        gr.update(visible=show_ocr_level, value=_ocr_level_value()),
         gr.update(
             visible=show_perspective,
             choices=perspective_choices or ["客观 · 客观全员"],
@@ -1050,7 +1033,6 @@ def reset_form():
         gr.update(value=None),
         "",
         DEFAULT_MULTI_STYLE_MODE,
-        _ocr_level_value(),
         _profile_dropdown_default("meeting"),
         "",
         "",
@@ -1581,7 +1563,6 @@ def _iter_ocr_task(
     uid: str,
     subj: str,
     input_upload,
-    ocr_level: str,
 ):
     image_entries = [
         (path, name)
@@ -1609,13 +1590,12 @@ def _iter_ocr_task(
             files_html=EMPTY_DOWNLOAD,
         )
         return
-    selected_level = _ocr_level_value(ocr_level)
     from tools.ocr.levels.light import OCR_PARALLEL
 
     workers = max(1, min(OCR_PARALLEL, len(image_entries)))
     total = len(image_entries)
     started_at = time.perf_counter()
-    if selected_level != OCR_LEVEL_STANDARD and total > 1:
+    if total > 1:
         yield from _iter_light_ocr_batches(
             uid=uid,
             subj=subj,
@@ -1623,8 +1603,8 @@ def _iter_ocr_task(
             started_at=started_at,
         )
         return
-    persist_pages = total == 1
-    review_pages = selected_level == OCR_LEVEL_STANDARD or persist_pages
+    persist_pages = True
+    review_pages = True
     yield _ocr_progress_result(
         f"开始 OCR：共 {total} 张，并行 {workers} 路。",
         started_at,
@@ -1640,7 +1620,6 @@ def _iter_ocr_task(
                     image_path,
                     user_id=uid,
                     subject=subj,
-                    ocr_level=ocr_level,
                     output_stem=Path(orig_name).stem,
                     save_meta=persist_pages,
                     persist=persist_pages,
@@ -1730,25 +1709,6 @@ def _iter_ocr_task(
             output_stem=batch_stem,
         )
         files = list(combined.files)
-        if selected_level == OCR_LEVEL_STANDARD:
-            from tools.ocr.levels.standard import save_combined_meta
-
-            yield _ocr_progress_result("正在生成 Standard meta…", started_at)
-            meta_path = save_combined_meta(
-                raw_text=combined.raw_text,
-                reviewed_markdown=combined.reviewed_markdown,
-                pages=[
-                    {
-                        "name": str(item.get("name") or ""),
-                        "visual": item.get("visual") or {},
-                    }
-                    for item in result_items
-                ],
-                user_id=uid,
-                output_stem=batch_stem,
-                project_root=PROJECT_ROOT,
-            )
-            files = [str(meta_path)] + files
     elapsed = _ocr_elapsed(started_at)
     yield _run_result(
         f"OCR识别完成，共成功识别 {len(image_entries)} 张图片。"
@@ -1757,8 +1717,7 @@ def _iter_ocr_task(
             if len(result_items) > 1
             else "审校版 Markdown 已保存到 md 文件夹。"
         )
-        + "若选择 Standard，还会保存 meta.json 供知识目录增强使用。"
-        "若要进入知识库，请把 md 文件夹里的审校版 Markdown 上传到「资料入库」。"
+        + "若要进入知识库，请把 md 文件夹里的审校版 Markdown 上传到「资料入库」。"
         f"总耗时 {_fmt_seconds(elapsed)}。",
         files,
         *_hitl_ui(False),
@@ -1782,7 +1741,7 @@ def run_from_ui(
     """run_from_ui：*preview_args 承载模式/用户参数。
 
     Gradio 按位置传参（不会自动聚合 list），这里手动拆分：
-    preview_args = [mode, ocr_level, user_id, project_id, subject, kp_upload, kp_text,
+    preview_args = [mode, user_id, project_id, subject, kp_upload, kp_text,
                     notes_upload, notes_text, quiz_difficulty, quiz_qtype,
                     perspective_choice, monitor_enabled]
     """
@@ -1795,15 +1754,14 @@ def run_from_ui(
     elif not isinstance(edit_state, dict):
         edit_state = None
     mode_value = preview_args[0] if len(preview_args) > 0 else ""
-    ocr_level = _ocr_level_value(preview_args[1] if len(preview_args) > 1 else None)
-    user_id = preview_args[2] if len(preview_args) > 2 else ""
-    project_id = preview_args[3] if len(preview_args) > 3 else ""
-    subject = preview_args[4] if len(preview_args) > 4 else ""
-    keypoints_upload, keypoints_text, notes_upload, notes_text = preview_args[5:9]
-    quiz_difficulty = preview_args[9] if len(preview_args) > 9 else ""
-    quiz_qtype = preview_args[10] if len(preview_args) > 10 else ""
-    perspective_choice = preview_args[11] if len(preview_args) > 11 else ""
-    raw_monitor = preview_args[12] if len(preview_args) > 12 else MONITOR_ON
+    user_id = preview_args[1] if len(preview_args) > 1 else ""
+    project_id = preview_args[2] if len(preview_args) > 2 else ""
+    subject = preview_args[3] if len(preview_args) > 3 else ""
+    keypoints_upload, keypoints_text, notes_upload, notes_text = preview_args[4:8]
+    quiz_difficulty = preview_args[8] if len(preview_args) > 8 else ""
+    quiz_qtype = preview_args[9] if len(preview_args) > 9 else ""
+    perspective_choice = preview_args[10] if len(preview_args) > 10 else ""
+    raw_monitor = preview_args[11] if len(preview_args) > 11 else MONITOR_ON
     monitor_enabled = str(raw_monitor).strip().lower() not in {
         "",
         "0",
@@ -1840,7 +1798,6 @@ def run_from_ui(
             uid=uid,
             subj=subj,
             input_upload=input_upload,
-            ocr_level=ocr_level,
         )
         return
     chapter = grade = edition = difficulty = qtype = None
@@ -2155,35 +2112,23 @@ def _recognize_ocr_image(
     *,
     user_id: str,
     subject: str,
-    ocr_level: str = OCR_LEVEL_LIGHT,
     output_stem: str | None = None,
     save_meta: bool = True,
     persist: bool = True,
     review: bool = True,
 ) -> tuple[str, str, str, list[str], dict | None, dict | None, list]:
+    del save_meta
     from tools.ocr.levels.light import _safe_stem, run_light_ocr
-    from tools.ocr.levels.standard import run_standard_ocr
 
-    selected = _ocr_level_value(ocr_level)
-    kwargs = {
-        "user_id": user_id,
-        "subject": subject,
-        "project_root": PROJECT_ROOT,
-        "output_stem": _safe_stem(output_stem) if output_stem else None,
-        "persist": persist,
-    }
-    if selected == OCR_LEVEL_STANDARD:
-        result = run_standard_ocr(image_path, save_meta=save_meta, **kwargs)
-        return (
-            result.raw_text,
-            "",
-            result.reviewed_markdown,
-            result.files,
-            result.meta,
-            result.visual,
-            [],
-        )
-    result = run_light_ocr(image_path, review=review, **kwargs)
+    result = run_light_ocr(
+        image_path,
+        user_id=user_id,
+        subject=subject,
+        project_root=PROJECT_ROOT,
+        output_stem=_safe_stem(output_stem) if output_stem else None,
+        persist=persist,
+        review=review,
+    )
     return (
         result.raw_text,
         "",
@@ -2474,13 +2419,6 @@ def build_app() -> gr.Blocks:
                     visible=False,
                     elem_id="mode-select",
                 )
-                ocr_level_dropdown = gr.Dropdown(
-                    label="OCR 识别级别",
-                    choices=OCR_LEVEL_CHOICES,
-                    value=_ocr_level_value(),
-                    visible=False,
-                    elem_id="ocr-level-select",
-                )
                 perspective_dropdown = gr.Dropdown(
                     label="视角",
                     choices=_profile_dropdown_choices(initial_domain),
@@ -2728,7 +2666,6 @@ def build_app() -> gr.Blocks:
                 task_brief,
                 config_label,
                 mode_dropdown,
-                ocr_level_dropdown,
                 perspective_dropdown,
                 user_id,
                 project_id,
@@ -2748,7 +2685,6 @@ def build_app() -> gr.Blocks:
                 task_brief,
                 config_label,
                 mode_dropdown,
-                ocr_level_dropdown,
                 perspective_dropdown,
                 user_id,
                 project_id,
@@ -2815,7 +2751,6 @@ def build_app() -> gr.Blocks:
                 edit_state,
                 friendly_template,
                 mode_dropdown,
-                ocr_level_dropdown,
                 user_id,
                 project_id,
                 subject,
@@ -2857,7 +2792,6 @@ def build_app() -> gr.Blocks:
                 template_upload,
                 template_text,
                 mode_dropdown,
-                ocr_level_dropdown,
                 perspective_dropdown,
                 user_id,
                 project_id,
