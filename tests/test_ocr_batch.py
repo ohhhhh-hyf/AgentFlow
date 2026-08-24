@@ -188,18 +188,16 @@ def test_reconstruct_and_review_pages_runs_once_each_in_order(monkeypatch):
     assert "第 1 页" not in text
 
 
-def test_pipeline_prefetches_next_ocr_during_review():
-    ocr_started: dict[str, float] = {}
-    review_started: list[float] = []
+def test_pipeline_runs_next_batch_only_after_review():
+    stamps: list[tuple[str, float]] = []
 
     def ocr_fn(path):
-        ocr_started[str(path)] = time.perf_counter()
-        time.sleep(0.08)
+        stamps.append((f"ocr:{path}", time.perf_counter()))
         return f"raw-{path}", [{"text": str(path)}]
 
     def review_fn(pages):
-        review_started.append(time.perf_counter())
-        time.sleep(0.2)
+        stamps.append(("review:" + "|".join(item["name"] for item in pages), time.perf_counter()))
+        time.sleep(0.05)
         return "|".join(item["name"] for item in pages)
 
     entries = [(f"im{i}", f"im{i}") for i in range(4)]
@@ -214,5 +212,55 @@ def test_pipeline_prefetches_next_ocr_during_review():
         if event["type"] == "batch_done"
     ]
     assert done == ["im0|im1", "im2|im3"]
-    assert len(review_started) == 2
-    assert ocr_started["im2"] < review_started[0] + 0.18
+    names = [item[0] for item in stamps]
+    assert names.index("review:im0|im1") < names.index("ocr:im2")
+    assert names.index("review:im0|im1") < names.index("ocr:im3")
+
+
+def test_pipeline_skips_failed_image_and_continues():
+    def ocr_fn(path):
+        if str(path) == "im1":
+            raise RuntimeError()
+        return f"raw-{path}", [{"text": str(path)}]
+
+    def review_fn(pages):
+        return "|".join(item["name"] for item in pages)
+
+    events = list(
+        iter_ocr_review_pipeline(
+            [("im0", "im0"), ("im1", "im1")],
+            ocr_fn=ocr_fn,
+            review_fn=review_fn,
+            batch_size=2,
+        )
+    )
+    fails = [event for event in events if event["type"] == "ocr_fail"]
+    done = [event for event in events if event["type"] == "batch_done"]
+    assert len(fails) == 1
+    assert "RuntimeError" in str(fails[0].get("error") or "")
+    assert done and "im0" in done[0]["reviewed"]
+    assert "im1" in done[0]["reviewed"]
+
+
+def test_pipeline_times_out_stuck_ocr_without_aborting():
+    def ocr_fn(path):
+        if str(path) == "slow":
+            time.sleep(2)
+        return f"raw-{path}", [{"text": str(path)}]
+
+    def review_fn(pages):
+        return "|".join(item["name"] for item in pages)
+
+    events = list(
+        iter_ocr_review_pipeline(
+            [("fast", "fast"), ("slow", "slow")],
+            ocr_fn=ocr_fn,
+            review_fn=review_fn,
+            batch_size=2,
+            item_timeout=0.3,
+        )
+    )
+    fails = [event for event in events if event["type"] == "ocr_fail"]
+    done = [event for event in events if event["type"] == "batch_done"]
+    assert fails and "超时" in str(fails[0].get("error") or "")
+    assert done

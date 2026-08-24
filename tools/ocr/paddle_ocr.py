@@ -16,6 +16,8 @@ from typing import Any
 logger = logging.getLogger(__name__)
 
 PADDLE_OCR_POOL_SIZE = 4
+_PREDICT_TIMEOUT = float(os.getenv("PADDLE_OCR_PREDICT_TIMEOUT", "180"))
+_ACQUIRE_TIMEOUT = float(os.getenv("PADDLE_OCR_ACQUIRE_TIMEOUT", "240"))
 
 _CREATE_LOCK = threading.Lock()
 _IDLE: queue.Queue = queue.Queue()
@@ -350,7 +352,12 @@ def _acquire_engine():
             _CREATED += 1
             logger.info("PaddleOCR 引擎池 %s/%s", _CREATED, PADDLE_OCR_POOL_SIZE)
             return engine
-    return _IDLE.get()
+    try:
+        return _IDLE.get(timeout=_ACQUIRE_TIMEOUT)
+    except queue.Empty as exc:
+        raise RuntimeError(
+            f"PaddleOCR 引擎池等待超时（{int(_ACQUIRE_TIMEOUT)}秒），可能有识别卡死"
+        ) from exc
 
 
 def _release_engine(engine) -> None:
@@ -360,6 +367,27 @@ def _release_engine(engine) -> None:
 def get_paddle_engine():
     """调试入口：取出池中一台引擎。长期占用会少一路并行。"""
     return _acquire_engine()
+
+
+def _predict_with_timeout(engine, path: str):
+    box: dict[str, Any] = {}
+    done = threading.Event()
+
+    def _run() -> None:
+        try:
+            box["result"] = engine.predict(path)
+        except Exception as exc:  # noqa: BLE001
+            box["error"] = exc
+        finally:
+            done.set()
+
+    worker = threading.Thread(target=_run, name="paddle-predict", daemon=True)
+    worker.start()
+    if not done.wait(_PREDICT_TIMEOUT):
+        raise TimeoutError(f"PaddleOCR predict 超过 {int(_PREDICT_TIMEOUT)} 秒未返回")
+    if "error" in box:
+        raise box["error"]
+    return box.get("result")
 
 
 def ocr_image(path: str) -> dict:
@@ -373,10 +401,15 @@ def ocr_image(path: str) -> dict:
     except Exception:  # noqa: BLE001
         image_size = None
     engine = _acquire_engine()
+    leaked = False
     try:
-        result = engine.predict(path)
+        result = _predict_with_timeout(engine, path)
+    except TimeoutError:
+        leaked = True
+        raise
     finally:
-        _release_engine(engine)
+        if not leaked:
+            _release_engine(engine)
     return {"engine": "paddleocr", "lines": extract_paddle_lines(result, image_size=image_size)}
 
 

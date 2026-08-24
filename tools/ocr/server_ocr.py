@@ -154,13 +154,16 @@ class ServerOcrClient:
             raise
         try:
             result_info = result["result"]
-            if result_info["code"] != "0":
-                _write_failure_log(
-                    "服务器 OCR 返回非成功 code",
-                    json.dumps(result, ensure_ascii=False, indent=2)[:4000],
+            code = str(result_info.get("code") or "")
+            if code != "0":
+                des = str(result_info.get("des") or "").strip()
+                raise RuntimeError(
+                    f"服务器 OCR 失败 code={code}"
+                    + (f" des={des}" if des else "")
                 )
-                return {}
             content = result_info["content"][0]
+        except RuntimeError:
+            raise
         except Exception as exc:  # noqa: BLE001
             _write_failure_log(
                 "服务器 OCR 响应结构不符合预期",

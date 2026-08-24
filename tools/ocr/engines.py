@@ -13,6 +13,7 @@ import os
 import shutil
 import subprocess
 import sys
+import time
 from datetime import datetime
 from pathlib import Path
 
@@ -82,6 +83,8 @@ def _run_serverocr_inprocess(image_path: str, timeout: int = 180) -> dict:
         except Exception as exc:  # noqa: BLE001
             errors.append(f"[attempt {attempt}] {type(exc).__name__}: {exc}")
             logger.warning("服务器 OCR 第 %s 次失败：%s", attempt, exc)
+        if attempt < 3:
+            time.sleep(0.6 * attempt)
     detail = "\n".join(errors)[-4000:]
     _log_ocr_failure(image_path, detail)
     logger.warning("服务器 OCR 三次失败，返回空结果")
@@ -100,8 +103,10 @@ def _run_paddle_inprocess(image_path: str, timeout: int = 180) -> dict:
                 return payload
             errors.append(f"[attempt {attempt}] paddleocr 返回空结果")
         except Exception as exc:  # noqa: BLE001
-            errors.append(f"[attempt {attempt}] {type(exc).__name__}: {exc}")
+            errors.append(f"[attempt {attempt}] {type(exc).__name__}: {exc or repr(exc)}")
             logger.warning("PaddleOCR 第 %s 次失败：%s", attempt, exc)
+            if isinstance(exc, TimeoutError):
+                break
     detail = "\n".join(errors)[-4000:]
     _log_ocr_failure(image_path, detail)
     logger.warning("PaddleOCR 三次失败，返回空结果")

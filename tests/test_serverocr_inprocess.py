@@ -63,6 +63,7 @@ def test_serverocr_retries_three_times_then_returns_empty(tmp_path, monkeypatch)
     monkeypatch.setenv("OCR_ENGINE", "serverocr")
     monkeypatch.setattr("tools.ocr.server_ocr.ocr_image", fake_ocr)
     monkeypatch.setattr("subprocess.run", fake_run)
+    monkeypatch.setattr("tools.ocr.engines.time.sleep", lambda *_args, **_kwargs: None)
 
     lines = ocr_image_lines(str(image))
 

@@ -1487,7 +1487,7 @@ def _iter_light_ocr_batches(
     image_entries: list[tuple[Path, str]],
     started_at: float,
 ):
-    """Light 多图：4 路 OCR 与下一批重叠——这批整理审校时先识别下 4 张。"""
+    """Light 多图：每 4 张并行 OCR → 该批整理+审校完成后再处理下一批。"""
     from tools.ocr.levels.light import (
         LIGHT_OCR_BATCH,
         iter_ocr_review_pipeline,
@@ -1516,40 +1516,37 @@ def _iter_light_ocr_batches(
                     f"已完成 {failed_name}",
                     started_at,
                 )
+            elif kind == "ocr_fail":
+                failed_name = str(event.get("name") or failed_name)
+                err = str(event.get("error") or "未知错误")
+                yield _ocr_progress_result(
+                    f"第 {lo}–{hi} 张识别中 {event.get('done')}/{event.get('chunk')}："
+                    f"{failed_name} 失败（{err}），已跳过",
+                    started_at,
+                )
+            elif kind == "ocr_wait":
+                yield _ocr_progress_result(
+                    f"第 {lo}–{hi} 张识别中 {event.get('done')}/{event.get('chunk')}，仍在等待…",
+                    started_at,
+                )
             elif kind == "review_start":
-                prefetch_lo = event.get("prefetch_lo")
-                prefetch_hi = event.get("prefetch_hi")
-                if prefetch_lo and prefetch_hi:
-                    yield _ocr_progress_result(
-                        f"第 {lo}–{hi} 张识别完成，正在整理并审校；"
-                        f"同时识别第 {prefetch_lo}–{prefetch_hi} 张",
-                        started_at,
-                    )
-                else:
-                    yield _ocr_progress_result(
-                        f"第 {lo}–{hi} 张识别完成，正在整理并审校…",
-                        started_at,
-                    )
+                yield _ocr_progress_result(
+                    f"第 {lo}–{hi} 张识别完成，正在整理并审校…",
+                    started_at,
+                )
             elif kind == "review_wait":
-                prefetch_lo = event.get("prefetch_lo")
-                prefetch_hi = event.get("prefetch_hi")
-                if prefetch_lo and prefetch_hi:
-                    yield _ocr_progress_result(
-                        f"正在整理审校第 {lo}–{hi} 张，同时识别第 {prefetch_lo}–{prefetch_hi} 张…",
-                        started_at,
-                    )
-                elif lo and hi:
-                    yield _ocr_progress_result(
-                        f"正在整理并审校第 {lo}–{hi} 张…",
-                        started_at,
-                    )
+                yield _ocr_progress_result(
+                    f"正在整理并审校第 {lo}–{hi} 张…",
+                    started_at,
+                )
             elif kind == "batch_done":
                 batch_mds.append(str(event.get("reviewed") or ""))
                 batch_raws.append(str(event.get("raw") or ""))
     except Exception as exc:  # noqa: BLE001
         elapsed = _ocr_elapsed(started_at)
+        err = str(exc).strip() or repr(exc)
         yield _run_result(
-            f"OCR识别失败：{failed_name}：{exc}",
+            f"OCR识别失败：{failed_name}：{type(exc).__name__}: {err}",
             None,
             *_hitl_ui(False),
             files_html=EMPTY_DOWNLOAD,
@@ -1654,7 +1651,26 @@ def _iter_ocr_task(
             for future in as_completed(future_map):
                 idx, orig_name = future_map[future]
                 failed_name = orig_name
-                raw_txt, _no_llm_md, llm_md, one_files, one_meta, one_visual, one_lines = future.result()
+                try:
+                    raw_txt, _no_llm_md, llm_md, one_files, one_meta, one_visual, one_lines = future.result()
+                except Exception as exc:  # noqa: BLE001
+                    err = str(exc).strip() or repr(exc)
+                    done += 1
+                    results[idx] = {
+                        "name": orig_name,
+                        "raw_text": "（OCR 未识别到文字）",
+                        "reviewed_markdown": "（OCR 未识别到文字）",
+                        "files": [],
+                        "meta": {},
+                        "visual": {},
+                        "lines": [],
+                    }
+                    yield _ocr_progress_result(
+                        f"OCR 识别中 {done}/{total}：{orig_name} 失败"
+                        f"（{type(exc).__name__}: {err}），已跳过",
+                        started_at,
+                    )
+                    continue
                 results[idx] = {
                     "name": orig_name,
                     "raw_text": raw_txt,
@@ -1671,8 +1687,9 @@ def _iter_ocr_task(
                 )
     except Exception as exc:  # noqa: BLE001
         elapsed = _ocr_elapsed(started_at)
+        err = str(exc).strip() or repr(exc)
         yield _run_result(
-            f"OCR识别失败：{failed_name}：{exc}",
+            f"OCR识别失败：{failed_name}：{type(exc).__name__}: {err}",
             None,
             *_hitl_ui(False),
             files_html=EMPTY_DOWNLOAD,
