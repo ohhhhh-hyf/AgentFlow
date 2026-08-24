@@ -108,12 +108,17 @@ def _sanitize_exam(text: str, row: dict[str, Any], teacher: str) -> str:
     return raw
 
 
+_STRATEGY_FILLER = ("多看书", "多做题", "多做练习", "认真复习", "好好复习", "努力", "多练")
+_STRATEGY_JARGON = ("KP", "知识目录", "目录节点", "激活", "S/A 级", "级 KP", "档位")
+
+
 def _clean_strategy(
     llm_draft: dict[str, Any] | None, *, has_teacher: bool
 ) -> list[str]:
     """取 LLM 复习策略并清洗：去空、去模板套话、去重，最多 4 条。
 
-    无老师重点时过滤含「老师」字样的条目（LLM 可能不遵守 prompt 编老师话）。
+    丢弃含内部术语（KP/S级/知识目录等）的条目——复习策略是给用户看的，
+    不能泄漏系统内部概念；无老师重点时额外过滤含「老师」字样的条目。
     """
     items = [
         item
@@ -128,6 +133,8 @@ def _clean_strategy(
             continue
         if any(mark in text for mark in _STRATEGY_FILLER):
             continue
+        if any(mark in text for mark in _STRATEGY_JARGON):
+            continue
         if not has_teacher and "老师" in text:
             continue
         key = text.replace(" ", "").replace("\u3000", "")
@@ -138,9 +145,6 @@ def _clean_strategy(
         if len(out) >= 4:
             break
     return out
-
-
-_STRATEGY_FILLER = ("多看书", "多做题", "多做练习", "认真复习", "好好复习", "努力", "多练")
 
 
 def _clamp_rank(value: Any, default: int = 3) -> int:
@@ -155,8 +159,8 @@ def _clamp_rank(value: Any, default: int = 3) -> int:
 def _build_priority_facts(rows: list[dict[str, Any]]) -> list[str]:
     """快赢优先 + 低价值后置：按 importance - difficulty 排执行顺序（纯规则）。
 
-    分组互斥：快赢（重要且简单）/ 硬骨头（重要但难）/ 低价值（难且不重要）。
-    无老师也生效（字段来自 catalog）；少于 2 个点时跳过，避免废话。
+    条目格式可读：知识点 + 难度/重要性 + 适合怎么做；分组互斥（快赢/硬骨头/
+    低价值），无老师也生效（字段来自 catalog）；少于 2 个点时跳过。
     """
     scored: list[tuple[str, int, int]] = []
     for r in rows:
@@ -172,15 +176,18 @@ def _build_priority_facts(rows: list[dict[str, Any]]) -> list[str]:
     facts: list[str] = []
     if quick:
         facts.append(
-            f"先做「{'、'.join(quick[:3])}」：重要程度高且容易上手（快赢），优先拿下"
+            f"「{'、'.join(quick[:3])}」知识点：难度1-2、重要性4-5，"
+            "重要且不难，适合最先复习、优先拿下"
         )
     if hard:
         facts.append(
-            f"「{'、'.join(hard[:3])}」重要但难度高，安排整块时间再啃，别和快赢点混在一起"
+            f"「{'、'.join(hard[:3])}」知识点：难度4-5、重要性4-5，"
+            "重要但难度高，适合安排整块时间再复习"
         )
     if low:
         facts.append(
-            f"「{'、'.join(low[:3])}」难度高且重要性低，放最后，时间不够先了解即可"
+            f"「{'、'.join(low[:3])}」知识点：难度4-5、重要性1-3，"
+            "难度高且重要性低，适合放最后、时间不够先了解即可"
         )
     return facts
 

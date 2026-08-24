@@ -317,7 +317,14 @@ def activate_from_catalog(catalog: dict[str, Any] | None) -> list[dict[str, Any]
         row["_light"] = False
         row["_score"] = _raw_score(row)
         activated.append(row)
-    _cap_priorities(activated)
+    _cap_priorities(
+        activated,
+        s_max=8,
+        a_max=8,
+        b_max=10,
+        allow_c=False,
+        drop_b=True,  # 无老师重点：S/A 超限降档，B 超限直接丢弃，只有 S/A/B
+    )
     activated.sort(
         key=lambda p: (
             {"S": 0, "A": 1, "B": 2, "C": 3}.get(p.get("session_priority"), 9),
@@ -406,7 +413,13 @@ def activate_points(catalog: dict[str, Any] | None, teacher: str) -> list[dict[s
             extra.append(add)
             selected_ids.add(_clean(add.get("id")))
     activated.extend(extra)
-    _cap_priorities(activated)
+    _cap_priorities(
+        activated,
+        s_max=8,
+        a_max=8,
+        b_max=10,
+        allow_c=True,  # 有老师重点：S/A 超限降档，B 超 10 降 C 作为补充
+    )
     _attach_session_practice(activated, teacher)
     activated.sort(key=lambda p: ({"S": 0, "A": 1, "B": 2, "C": 3}.get(p.get("session_priority"), 9), -p.get("_score", 0)))
     return activated
@@ -501,8 +514,15 @@ def _cap_priorities(
     s_max: int = 5,
     a_max: int = 5,
     b_max: int = 4,
+    allow_c: bool = True,
+    drop_b: bool = False,
 ) -> None:
-    """档位人数封顶，多出来的按分数往下降，避免目录一碎清单就膨胀。"""
+    """档位人数封顶，多出来的按分数往下降，避免目录一碎清单就膨胀。
+
+    - allow_c=True（有老师重点）：B 超限降 C（老师轻点语义）
+    - allow_c=False 且 drop_b=True（无老师重点）：B 超限按分数直接丢弃
+      ——无老师语境下「补充」档没有语义，B 里分数最低的直接不进入清单。
+    """
 
     def dedupe(grade: str, nxt: str) -> None:
         pool = [row for row in rows if row.get("session_priority") == grade]
@@ -530,8 +550,14 @@ def _cap_priorities(
     demote("S", "A", s_max)
     dedupe("A", "B")
     demote("A", "B", a_max)
-    dedupe("B", "C")
-    demote("B", "C", b_max)
+    if allow_c:
+        dedupe("B", "C")
+        demote("B", "C", b_max)
+    elif drop_b:
+        pool = [row for row in rows if row.get("session_priority") == "B"]
+        pool.sort(key=lambda row: -int(row.get("_score") or 0))
+        for row in pool[b_max:]:
+            rows.remove(row)
 
 
 def _to_count(raw: str) -> str:
