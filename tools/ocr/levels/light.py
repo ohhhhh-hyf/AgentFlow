@@ -8,7 +8,8 @@ from tools.memory.store import safe_id
 from tools.ocr import server_ocr_image_recognize
 from tools.ocr.reconstruct import reconstruct_markdown, review_markdown
 
-LIGHT_OCR_BATCH = 8
+OCR_PARALLEL = 4
+LIGHT_OCR_BATCH = OCR_PARALLEL
 
 _WINDOWS_RESERVED = {
     "CON", "PRN", "AUX", "NUL",
@@ -223,7 +224,7 @@ def concat_page_lines(pages: list[dict]) -> list[dict]:
 
 
 def reconstruct_and_review_pages(pages: list[dict]) -> str:
-    """一批（最多 8 页）OCR 行：一次整理 + 一次审校。"""
+    """一批（最多 4 页）OCR 行：一次整理 + 一次审校。"""
     lines = concat_page_lines(pages)
     if not lines:
         return "（OCR 未识别到文字）"

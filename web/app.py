@@ -1444,7 +1444,7 @@ def _iter_light_ocr_batches(
     subj: str,
     image_entries: list[tuple[Path, str]],
 ):
-    """Light 多图：每 8 张并行 OCR → 该批一次整理+审校；最后按批顺序拼接 md。"""
+    """Light 多图：每 4 张并行 OCR → 该批一次整理+审校；最后按批顺序拼接 md。"""
     from tools.ocr.levels.light import (
         LIGHT_OCR_BATCH,
         combine_ocr_pages,
@@ -1563,8 +1563,9 @@ def _iter_ocr_task(
         )
         return
     selected_level = _ocr_level_value(ocr_level)
-    workers = 4 if selected_level == OCR_LEVEL_STANDARD else 8
-    workers = max(1, min(workers, len(image_entries)))
+    from tools.ocr.levels.light import OCR_PARALLEL
+
+    workers = max(1, min(OCR_PARALLEL, len(image_entries)))
     total = len(image_entries)
     if selected_level != OCR_LEVEL_STANDARD and total > 1:
         yield from _iter_light_ocr_batches(uid=uid, subj=subj, image_entries=image_entries)

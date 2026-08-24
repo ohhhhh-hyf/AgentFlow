@@ -8,15 +8,18 @@ from __future__ import annotations
 import json
 import logging
 import os
+import queue
 import re
 import threading
 from typing import Any
 
 logger = logging.getLogger(__name__)
 
-_ENGINE_LOCK = threading.Lock()
-_PREDICT_LOCK = threading.Lock()
-_ENGINE = None
+PADDLE_OCR_POOL_SIZE = 4
+
+_CREATE_LOCK = threading.Lock()
+_IDLE: queue.Queue = queue.Queue()
+_CREATED = 0
 
 _HEADER_RE = re.compile(
     r"(UNIVERSITY|Wuhan|Hubei|HUAZHONG|SCIENCEAND|Tel[:：]|华中科技|中国·武汉)",
@@ -334,12 +337,29 @@ def _build_engine():
         return PaddleOCR(lang="ch")
 
 
+def _acquire_engine():
+    """从最多 4 台引擎里取一台。同一实例不同时 predict，避免 SIGSEGV。"""
+    global _CREATED
+    try:
+        return _IDLE.get_nowait()
+    except queue.Empty:
+        pass
+    with _CREATE_LOCK:
+        if _CREATED < PADDLE_OCR_POOL_SIZE:
+            engine = _build_engine()
+            _CREATED += 1
+            logger.info("PaddleOCR 引擎池 %s/%s", _CREATED, PADDLE_OCR_POOL_SIZE)
+            return engine
+    return _IDLE.get()
+
+
+def _release_engine(engine) -> None:
+    _IDLE.put(engine)
+
+
 def get_paddle_engine():
-    global _ENGINE
-    with _ENGINE_LOCK:
-        if _ENGINE is None:
-            _ENGINE = _build_engine()
-        return _ENGINE
+    """调试入口：取出池中一台引擎。长期占用会少一路并行。"""
+    return _acquire_engine()
 
 
 def ocr_image(path: str) -> dict:
@@ -352,12 +372,12 @@ def ocr_image(path: str) -> dict:
             image_size = img.size
     except Exception:  # noqa: BLE001
         image_size = None
-    # Paddle/PaddleX 的 predict 不是线程安全的；多图并行必须串行调用，否则会
-    # vector::_M_range_check / SIGSEGV（见 8 路 Light 共用单例时的崩溃）。
-    with _PREDICT_LOCK:
-        result = get_paddle_engine().predict(path)
-        lines = extract_paddle_lines(result, image_size=image_size)
-    return {"engine": "paddleocr", "lines": lines}
+    engine = _acquire_engine()
+    try:
+        result = engine.predict(path)
+    finally:
+        _release_engine(engine)
+    return {"engine": "paddleocr", "lines": extract_paddle_lines(result, image_size=image_size)}
 
 
 __all__ = ["extract_paddle_lines", "get_paddle_engine", "ocr_image"]

@@ -3,6 +3,7 @@ import json
 
 from tools.ocr.levels.light import (
     LIGHT_OCR_BATCH,
+    OCR_PARALLEL,
     combine_ocr_pages,
     concat_page_lines,
     next_batch_version_stem,
@@ -124,9 +125,10 @@ def test_combined_meta_regenerates_from_full_markdown(tmp_path, monkeypatch):
     assert visual["reading_order"][1].startswith("第2页")
 
 
-def test_light_batch_size_is_eight():
-    assert LIGHT_OCR_BATCH == 8
-    assert list(range(0, 20, LIGHT_OCR_BATCH)) == [0, 8, 16]
+def test_light_batch_size_is_four():
+    assert OCR_PARALLEL == 4
+    assert LIGHT_OCR_BATCH == 4
+    assert list(range(0, 20, LIGHT_OCR_BATCH)) == [0, 4, 8, 12, 16]
 
 
 def test_concat_page_lines_keeps_order_and_offsets_y():
