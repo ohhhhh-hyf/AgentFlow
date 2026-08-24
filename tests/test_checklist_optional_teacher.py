@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+from domain.notes.tasks.checklist.display import build_checklist_html, build_checklist_markdown
 from domain.notes.tasks.checklist.gather import build_checklist_briefing, teacher_from_context
 from domain.notes.tasks.checklist.select import activate_from_catalog, activate_points
 from domain.notes.tasks.checklist.trace import _trace_card
@@ -75,3 +76,44 @@ def test_trace_card_skips_teacher_evidence_when_empty():
     }
     traced = _trace_card(card, "", [])
     assert traced["provenance"]["teacher_evidence"] == []
+
+
+def _nav_draft() -> dict:
+    return {
+        "course": "量子力学",
+        "catalog_version": "1",
+        "cards": [
+            {"name": "厄米算符", "session_priority": "S", "chapter": "算符", "importance": "5"},
+            {"name": "基矢", "session_priority": "B", "chapter": "表象", "importance": "3", "exam_preview": "会写展开"},
+            {"name": "对易子", "session_priority": "C", "chapter": "算符", "importance": "2"},
+        ],
+    }
+
+
+def test_no_teacher_merges_supplement_into_main_table():
+    draft = _nav_draft()
+    md = build_checklist_markdown(draft, has_teacher=False)
+    html = build_checklist_html(draft, has_teacher=False)
+    assert "| 核心 | 厄米算符 |" in md
+    assert "| 简要 | 基矢 |" in md
+    assert "| 补充 | 对易子 |" in md
+    assert "老师未重点点" not in md
+    assert "### 简要过一下" in md
+    assert "基矢" in md.split("### 简要过一下", 1)[1]
+    assert "### 补充" not in md
+    assert "老师未重点点" not in html
+    assert ">补充<" in html
+    assert "对易子" in html
+    assert "简要过一下" in html
+    assert "<h3>补充</h3>" not in html
+
+
+def test_with_teacher_keeps_separate_supplement_table():
+    draft = _nav_draft()
+    md = build_checklist_markdown(draft, has_teacher=True)
+    html = build_checklist_html(draft, has_teacher=True)
+    assert "老师未重点点" in md
+    assert "### 补充" in md
+    assert "| 补充 | 对易子 |" not in md
+    assert "老师未重点点" in html
+    assert "<h3>补充</h3>" in html

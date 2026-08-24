@@ -202,27 +202,64 @@ def _unmatched_quotes(teacher: str, activated: list[dict[str, Any]]) -> list[str
     return out[:6]
 
 
-def distribution(cards: list[dict[str, Any]]) -> list[dict[str, float]]:
-    """按知识点（card.name）分组累加权重，取 Top10，其余并入「其他」。
+_PIE_MIN_PCT = 5.0
+_PIE_REST = "·其余"
+_PIE_WEIGHTS = {"S": 40.0, "A": 25.0, "B": 15.0, "C": 8.0}
 
-    复习重点分布按「知识点」而非章节展示：重点知识点不能太多，
-    超出 10 个的部分在饼图中合并为「其他」一节。
-    """
-    weights = {"S": 40.0, "A": 25.0, "B": 15.0, "C": 8.0}
-    buckets: dict[str, float] = {}
-    for card in cards:
-        label = _clean(card.get("name")) or _clean(card.get("topic")) or "未命名"
-        buckets[label] = buckets.get(label, 0.0) + weights.get(
-            card.get("session_priority") or "C", 8.0
-        )
+
+def _pie_rows(buckets: dict[str, float]) -> list[dict[str, float]]:
     total = sum(buckets.values()) or 1.0
-    ranked = sorted(buckets.items(), key=lambda kv: -kv[1])
-    top = ranked[:10]
-    others = sum(v for _, v in ranked[10:])
-    rows = [{"label": k, "value": round(v / total * 100, 1)} for k, v in top]
-    if others > 0:
-        rows.append({"label": "其他", "value": round(others / total * 100, 1)})
-    if rows:  # 归一化 round 误差到末项
-        drift = 100.0 - sum(r["value"] for r in rows)
+    rows = [
+        {"label": name, "value": round(weight / total * 100, 1)}
+        for name, weight in sorted(buckets.items(), key=lambda item: -item[1])
+        if weight > 0
+    ]
+    if rows:
+        drift = 100.0 - sum(row["value"] for row in rows)
         rows[-1]["value"] = round(rows[-1]["value"] + drift, 1)
     return rows
+
+
+def _chapter_distribution(cards: list[dict[str, Any]]) -> list[dict[str, float]]:
+    buckets: dict[str, float] = {}
+    for card in cards:
+        chapter = _clean(card.get("chapter")) or _clean(card.get("topic")) or "未分章"
+        grade = str(card.get("session_priority") or "C")
+        buckets[chapter] = buckets.get(chapter, 0.0) + _PIE_WEIGHTS.get(grade, 8.0)
+    return _pie_rows(buckets)
+
+
+def distribution(cards: list[dict[str, Any]]) -> list[dict[str, float]]:
+    """饼图只画核心/重点（S/A）。扇区 ≥5% 单独成块，更小的按章归为「章名·其余」。
+
+    没有核心/重点时退回按章分布。不再写死 Top10，也不用匿名「其他」。
+    """
+    core = [
+        card
+        for card in cards
+        if str(card.get("session_priority") or "") in {"S", "A"}
+    ]
+    if not core:
+        return _chapter_distribution(cards)
+
+    named: dict[str, float] = {}
+    chapter_of: dict[str, str] = {}
+    for card in core:
+        name = _clean(card.get("name")) or _clean(card.get("topic")) or "未命名"
+        chapter = _clean(card.get("chapter")) or _clean(card.get("topic")) or "未分章"
+        grade = str(card.get("session_priority") or "A")
+        named[name] = named.get(name, 0.0) + _PIE_WEIGHTS.get(grade, 25.0)
+        chapter_of.setdefault(name, chapter)
+
+    total = sum(named.values()) or 1.0
+    kept: dict[str, float] = {}
+    rest_by_chapter: dict[str, float] = {}
+    for name, weight in named.items():
+        if weight / total * 100 >= _PIE_MIN_PCT:
+            kept[name] = weight
+        else:
+            chapter = chapter_of.get(name) or "未分章"
+            rest_by_chapter[chapter] = rest_by_chapter.get(chapter, 0.0) + weight
+    for chapter, weight in rest_by_chapter.items():
+        kept[f"{chapter}{_PIE_REST}"] = kept.get(f"{chapter}{_PIE_REST}", 0.0) + weight
+    return _pie_rows(kept)

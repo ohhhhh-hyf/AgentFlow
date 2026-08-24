@@ -53,7 +53,30 @@ def _grade_label(card: dict[str, Any]) -> str:
     return _GRADE.get(str(card.get("session_priority") or ""), "简要")
 
 
-def build_checklist_markdown(draft: dict[str, Any]) -> str:
+def _draft_has_teacher(draft: dict[str, Any], has_teacher: bool | None = None) -> bool:
+    if has_teacher is not None:
+        return bool(has_teacher)
+    if "has_teacher_focus" in draft:
+        return bool(draft.get("has_teacher_focus"))
+    return any(
+        _as_list(card.get("session_quotes"))
+        for card in (draft.get("cards") or [])
+        if isinstance(card, dict)
+    )
+
+
+def _nav_groups(cards: list[dict[str, Any]], *, has_teacher: bool) -> dict[str, list[dict[str, Any]]]:
+    """没传老师重点时，C 档并进主表，不再单独「补充」表/列表。"""
+    focus = [c for c in cards if c.get("session_priority") in {"S", "A"}]
+    brief = [c for c in cards if c.get("session_priority") == "B"]
+    extra = [c for c in cards if c.get("session_priority") == "C"]
+    if has_teacher:
+        main = [c for c in cards if c.get("session_priority") in {"S", "A", "B"}]
+        return {"focus": focus, "brief": brief, "extra": extra, "main": main}
+    return {"focus": focus, "brief": brief, "extra": [], "main": list(cards)}
+
+
+def build_checklist_markdown(draft: dict[str, Any], *, has_teacher: bool | None = None) -> str:
     course = _clean(draft.get("course")) or "复习清单"
     cards = [c for c in (draft.get("cards") or []) if isinstance(c, dict)]
     lines = [f"# {course} · 复习清单", ""]
@@ -64,14 +87,12 @@ def build_checklist_markdown(draft: dict[str, Any]) -> str:
         lines.append("没有可复习的知识点。请先运行 catalog / 资料入库；若提供了老师重点，请确认文本能对上目录名称。")
         return "\n".join(lines)
 
-    focus = [c for c in cards if c.get("session_priority") in {"S", "A"}]
-    brief = [c for c in cards if c.get("session_priority") == "B"]
-    extra = [c for c in cards if c.get("session_priority") == "C"]
+    groups = _nav_groups(cards, has_teacher=_draft_has_teacher(draft, has_teacher))
+    focus, brief, extra, main_cards = groups["focus"], groups["brief"], groups["extra"], groups["main"]
     lines.extend(["## 一、全局导航", "", "### 1. 复习重点分布", ""])
     dist = distribution(cards)
     for row in dist:
         lines.append(f"- {row['label']}：{row['value']}%")
-    main_cards = [c for c in cards if c.get("session_priority") in {"S", "A", "B"}]
     lines.extend(["", "| 优先级 | 知识点 | 重要程度 | 所属章节 |", "| --- | --- | --- | --- |"])
     for card in main_cards:
         lines.append(
@@ -255,7 +276,7 @@ def _pie_html(rows: list[dict[str, float]]) -> str:
     for i, row in enumerate(rows):
         start = cursor
         cursor += float(row["value"]) / total * 100
-        color = other_color if str(row["label"]) == "其他" else colors[i % len(colors)]
+        color = other_color if str(row["label"]).endswith("·其余") else colors[i % len(colors)]
         segs.append(f"{color} {start:.2f}% {cursor:.2f}%")
         legend.append(
             f'<div class="ck-legend-item"><span class="ck-dot" style="background:{color}"></span>'
@@ -599,7 +620,7 @@ def _trace_script() -> str:
 </script>"""
 
 
-def build_checklist_html(draft: dict[str, Any]) -> str:
+def build_checklist_html(draft: dict[str, Any], *, has_teacher: bool | None = None) -> str:
     from tools.knowledge_graph import _CYTOSCAPE_CDN, build_knowledge_graph_embed
     from tools.mindmap import _D3_CDN, _MARKMAP_VIEW_CDN, build_editable_mindmap_embed
 
@@ -616,14 +637,12 @@ def build_checklist_html(draft: dict[str, Any]) -> str:
     if not cards:
         body.append("<p>没有可复习的知识点。请先运行 catalog / 资料入库；若提供了老师重点，请确认文本能对上目录名称。</p></div>")
     else:
-        focus = [c for c in cards if c.get("session_priority") in {"S", "A"}]
-        brief = [c for c in cards if c.get("session_priority") == "B"]
-        extra = [c for c in cards if c.get("session_priority") == "C"]
+        groups = _nav_groups(cards, has_teacher=_draft_has_teacher(draft, has_teacher))
+        focus, brief, extra, main_cards = groups["focus"], groups["brief"], groups["extra"], groups["main"]
         outline = draft.get("mindmap_outline") or build_checklist_mindmap_outline(draft, cards)
         nodes, edges = _graph_payload(cards)
         body.append("<h2>一、全局导航</h2><h3>1. 复习重点分布</h3>")
         body.append(_pie_html(distribution(cards)))
-        main_cards = [c for c in cards if c.get("session_priority") in {"S", "A", "B"}]
         body.append(
             '<table class="ck-table"><thead><tr><th>优先级</th><th>知识点</th><th>重要程度</th><th>所属章节</th></tr></thead><tbody>'
         )
@@ -793,10 +812,12 @@ def attach_checklist_artifacts(state: dict[str, Any]) -> None:
     draft = dict(sub.get("draft") or {})
     extra = str((state.get("line_extra") or {}).get("checklist") or "")
     context = f"{state.get('transcript') or ''}\n{extra}"
-    draft = attach_card_provenance(draft, context, teacher_from_context(context))
+    teacher = teacher_from_context(context)
+    has_teacher = bool(teacher.strip())
+    draft = attach_card_provenance(draft, context, teacher)
     cards = [c for c in (draft.get("cards") or []) if isinstance(c, dict)]
     draft["mindmap_outline"] = build_checklist_mindmap_outline(draft, cards)
-    draft["checklist_html"] = build_checklist_html(draft)
-    sub["rendered"] = build_checklist_markdown(draft)
+    draft["checklist_html"] = build_checklist_html(draft, has_teacher=has_teacher)
+    sub["rendered"] = build_checklist_markdown(draft, has_teacher=has_teacher)
     sub["draft"] = draft
     sub["structure"] = cards
