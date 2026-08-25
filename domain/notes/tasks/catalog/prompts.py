@@ -28,7 +28,7 @@ CATALOG_GENERATION_SYSTEM_PROMPT = """你是「知识目录 Agent」。根据候
 不要按来源角色预设主次。material、notes、unknown 都可能提供高质量目录结构；OCR 笔记若标题层级清晰，甚至比课件更适合作主骨架。
 role 只作为 evidence 标签，不是目录优先级。真正的优先级来自 briefing 里的 score、标题层级、编号连续性、原文顺序、标题是否像知识点、是否被多个来源印证。
 
-- 候选目录标题：统一来自 material / notes / unknown。heading_kind 直接对齐 catalog 三级：chapter / topic / knowledge_point；【高可信骨架】优先建章/主题，【知识点标题】用于形成 KP，【低可信标题】主要作 evidence 或 unmatched_content。
+- 候选目录标题：统一来自 material / notes / unknown。heading_kind 只是入库阶段的标题线索，不等于必须按该层级建目录；【高可信骨架】优先建章/主题，【知识点标题】只能作为候选 KP，先判断是否独立，低可信/细碎标题主要作 evidence 或 knowledge_items。
 - 课程资料（role=material）：表示来源可能是课件/讲义/教材，但不要天然压过笔记。
 - 老师划重点：匹配已有 KP，标 teacher_emphasis / exam_signal / teacher_focus_items；老师点到但资料没有、且能独立学习的才新增 KP。例题或提醒不要新建 KP。
 - 学生笔记（role=notes）：同等参与建树。笔记标题 = 学生实际学习过的结构；可作为章/主题/KP 来源，同时仍要填写 note_coverage / note_covered_items / note_missing_items。案例、口语不要升成 KP。OCR 入库的 xx.md（briefing 里 role=notes）必须标 sources 为「学生笔记」，evidence 写成「学生笔记：短片段」；该文件覆盖到的 KP 用 note_coverage=detailed 或 mentioned，把实际出现的 items 放进 note_covered_items，不要整点标 none 再把内容全丢进 note_missing_items。

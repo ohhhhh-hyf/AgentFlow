@@ -18,9 +18,13 @@ from tools.knowledge.source_role import (
 )
 from .store import load_catalog, load_catalog_metas
 
-# briefing 中知识块/笔记标题的总量上限：骨架已够建树，超出截断避免输入过大拖慢 LLM
-_MAX_BRIEF_TITLES = 400
+# briefing 中标题候选采用动态预算：资料越短越收紧，避免 OCR 短标题诱导过度建 KP。
+_MIN_BRIEF_TITLES = 60
+_MAX_BRIEF_TITLES = 180
+_TITLES_PER_PAGE = 5
+_TITLES_PER_FILE = 24
 _TITLE_KEYWORDS = ("定义", "性质", "定理", "规则", "方法", "公式", "例题", "易错", "注意", "总结", "步骤")
+_ITEM_ONLY_KEYWORDS = ("例题", "易错", "注意", "总结", "步骤", "题型", "技巧", "提醒", "小结")
 _BODY_LIKE_ENDINGS = ("。", "；", ";", ".", "！", "？", "!", "?")
 _NUMBERED_TITLE_RE = re.compile(
     r"^(?:第[一二三四五六七八九十百零0-9]+[章节]|[一二三四五六七八九十]+、|\d+(?:\.\d+){0,3})"
@@ -87,7 +91,8 @@ def _brief_chunks(
         chapter = str(meta.get("chapter") or "")
         topic = str(meta.get("topic") or "")
         heading = str(meta.get("heading") or "")
-        key = (source, chapter, heading or topic)
+        page = str(meta.get("page") or "")
+        key = (source, chapter, heading or topic, page)
         if key in seen:
             continue
         seen.add(key)
@@ -101,6 +106,7 @@ def _brief_chunks(
                 "heading_path_text": str(meta.get("heading_path_text") or ""),
                 "heading_score": str(meta.get("heading_score") or ""),
                 "heading_kind": str(meta.get("heading_kind") or ""),
+                "page": page,
                 "content_tags": str(meta.get("content_tags") or ""),
                 "contains_formula": str(meta.get("contains_formula") or ""),
             }
@@ -144,6 +150,9 @@ def _score_title_candidate(row: dict[str, str]) -> tuple[int, list[str]]:
         reasons = ["入库标题评分"]
         kind = str(row.get("heading_kind") or "").strip()
         tags = str(row.get("content_tags") or "").strip()
+        if _item_only_title(title, row):
+            score = min(score, 4)
+            reasons.append("细碎标题仅作item/evidence")
         if kind:
             reasons.append(f"kind={kind}")
         if tags:
@@ -168,6 +177,9 @@ def _score_title_candidate(row: dict[str, str]) -> tuple[int, list[str]]:
     if any(word in title for word in _TITLE_KEYWORDS):
         score += 2
         reasons.append("知识点关键词")
+    if _item_only_title(title, row):
+        score = min(score, 4)
+        reasons.append("细碎标题仅作item/evidence")
     if 2 <= len(title) <= 28:
         score += 1
         reasons.append("短标题")
@@ -178,6 +190,33 @@ def _score_title_candidate(row: dict[str, str]) -> tuple[int, list[str]]:
         score -= 3
         reasons.append("句子结尾")
     return score, reasons
+
+
+def _item_only_title(title: str, row: dict[str, str]) -> bool:
+    text = _clean_title(title)
+    if any(word in text for word in _ITEM_ONLY_KEYWORDS):
+        return True
+    tags = str(row.get("content_tags") or "")
+    kind = str(row.get("heading_kind") or "")
+    return kind == "knowledge_point" and any(tag in tags for tag in ("example", "mistake"))
+
+
+def _candidate_budget(candidates: list[dict[str, Any]]) -> int:
+    sources = {
+        str(row.get("source") or "").strip()
+        for row in candidates
+        if str(row.get("source") or "").strip()
+    }
+    pages = {
+        (str(row.get("source") or ""), str(row.get("page") or ""))
+        for row in candidates
+        if str(row.get("page") or "").strip()
+    }
+    if pages:
+        raw = len(pages) * _TITLES_PER_PAGE
+    else:
+        raw = len(sources or {"_"}) * _TITLES_PER_FILE
+    return max(_MIN_BRIEF_TITLES, min(_MAX_BRIEF_TITLES, raw))
 
 
 def _title_candidates(grouped: dict[str, list[dict[str, str]]]) -> list[dict[str, Any]]:
@@ -331,7 +370,10 @@ def build_catalog_briefing(shared_context: str) -> str:
                 "【候选目录标题】以下标题来自 material/notes/unknown 的统一候选池；"
                 "role 只表示来源类型，不决定优先级。请优先使用 score 高、层级连续、路径稳定的标题建树；"
                 "notes 与 material 同等重要，OCR 笔记结构清晰时可以作为主骨架。"
+                "heading_kind=knowledge_point 只表示候选知识点，不等于必须新建 KP；"
+                "例题/易错/注意/步骤/题型/小结类标题只能并入父 KP 的 knowledge_items 或 evidence。"
             )
+            budget = _candidate_budget(candidates)
             high = [row for row in candidates if int(row.get("score") or 0) >= 8]
             middle = [row for row in candidates if 5 <= int(row.get("score") or 0) < 8]
             low = [row for row in candidates if int(row.get("score") or 0) < 5]
@@ -345,12 +387,14 @@ def build_catalog_briefing(shared_context: str) -> str:
             known = known_source_documents(existing) if existing else set()
             emitted = 0
             for fname, rows in list(by_file.items())[:20]:
-                if emitted >= _MAX_BRIEF_TITLES:
+                if emitted >= budget:
                     break
                 tag = "（已在目录中）" if fname in known else "（新资料/待匹配）"
                 parts.append(f"- 文件 {fname} {tag}")
                 seen_paths: set[str] = set()
                 for row in rows[:40]:
+                    if emitted >= budget:
+                        break
                     path = " / ".join(row.get("path") or [])
                     if path and path not in seen_paths:
                         seen_paths.add(path)
@@ -359,11 +403,13 @@ def build_catalog_briefing(shared_context: str) -> str:
                             f"  · [score={row.get('score')}; role={row.get('role')}; {reason}] {path}"
                         )
                         emitted += 1
-            if emitted >= _MAX_BRIEF_TITLES:
-                parts.append("  · …（候选标题过多，已截断到 400 条）")
+            if emitted >= budget:
+                parts.append(f"  · …（候选标题过多，已按资料规模截断到 {budget} 条）")
             if middle:
-                parts.append("【知识点标题】（heading_kind=knowledge_point 可直接作为 KP；定义/公式/方法可作 KP，例题/易错/注意通常只作 evidence）")
-                for row in middle[:80]:
+                parts.append("【知识点标题】（仅为候选：定义/公式/方法可考虑作 KP；例题/易错/注意/步骤/题型/小结只能作 item/evidence）")
+                remaining = max(0, budget - emitted)
+                middle_budget = min(60, remaining)
+                for row in middle[:middle_budget]:
                     parts.append(
                         f"- [score={row.get('score')}; role={row.get('role')}; source={row.get('source')}] "
                         + " / ".join(row.get("path") or [])
