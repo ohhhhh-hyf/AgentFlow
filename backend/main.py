@@ -30,11 +30,25 @@ from fastapi import FastAPI, File, Form, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 
-from intent_agent import parse
+from Intent import parse
 
 ROOT = Path(__file__).resolve().parent.parent
 UPLOADS = ROOT / "data" / "uploads"
 UPLOADS.mkdir(parents=True, exist_ok=True)
+
+# 启动时加载项目根目录 .env 到环境变量（如 OCR_ENGINE=rapidocr、LLM 配置等）
+def _load_env_file(env_path: Path) -> None:
+    if not env_path.is_file():
+        return
+    import os
+    for raw in env_path.read_text(encoding="utf-8").splitlines():
+        line = raw.strip()
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+        key, value = line.split("=", 1)
+        os.environ[key.strip()] = value.strip().strip("'\"")
+
+_load_env_file(ROOT / ".env")
 
 from .executor import TaskRunner  # noqa: E402
 
@@ -65,6 +79,106 @@ async def api_perspectives() -> dict:
             {"label": e["label"], "kind": e["kind"], "filename": e["filename"]}
             for e in entries
         ]
+    }
+
+
+# 常见英文/拼音学科名映射为人类易读展示名
+SUBJECT_DISPLAY_MAP = {
+    "math": "数学",
+    "physics": "物理",
+    "chemistry": "化学",
+    "english": "英语",
+    "chinese": "语文",
+    "cs": "计算机",
+    "computer": "计算机",
+    "biology": "生物",
+    "geography": "地理",
+    "history": "历史",
+    "politics": "政治",
+}
+
+
+@app.get("/api/user/{user_id}/context")
+async def api_user_context(user_id: str) -> dict:
+    """获取指定用户的知识库学科列表、会议项目列表与记忆概览。"""
+    user_id = (user_id or "").strip()
+    if not user_id:
+        return {"user_id": "", "subjects": [], "projects": []}
+
+    import json
+    import re
+    from tools.memory.store import safe_id
+    uid_safe = safe_id(user_id)
+    user_dir = ROOT / "data" / uid_safe
+
+    subjects_dict: dict[str, int] = {}
+
+    # 1. 从 ChromaDB 向量库扫描真实 chunk 的 subject 元数据（避免暴露内部集合名 knowledge 或 c_hash）
+    chroma_dir = user_dir / "knowledge" / "chromadb"
+    if chroma_dir.is_dir():
+        try:
+            from tools.knowledge.config import KnowledgeToolConfig
+            from tools.knowledge.vector_store import VectorStore
+            cfg = KnowledgeToolConfig(persist_dir=str(chroma_dir))
+            store = VectorStore(cfg=cfg)
+            for c in store.client.list_collections():
+                if c.count() == 0:
+                    continue
+                try:
+                    res = c.get(include=["metadatas"])
+                    for m in (res.get("metadatas") or []):
+                        if m and m.get("subject"):
+                            s = str(m.get("subject")).strip()
+                            if s and s.lower() not in ("knowledge", "default", "none", "", "undefined"):
+                                clean_s = SUBJECT_DISPLAY_MAP.get(s.lower(), s)
+                                subjects_dict[clean_s] = subjects_dict.get(clean_s, 0) + 1
+                except Exception:
+                    pass
+        except Exception:
+            pass
+
+    # 2. 从 catalogs 目录扫描已生成的大纲与课程名
+    catalogs_dir = user_dir / "knowledge" / "catalogs"
+    if catalogs_dir.is_dir():
+        for f in catalogs_dir.glob("*.json"):
+            if f.stem.endswith("_meta") or f.name.startswith("."):
+                continue
+            try:
+                data = json.loads(f.read_text(encoding="utf-8"))
+                course = (data.get("course") or data.get("subject") or "").strip()
+                if course:
+                    clean_c = SUBJECT_DISPLAY_MAP.get(course.lower(), course)
+                    if not any(k in clean_c for k in subjects_dict):
+                        subjects_dict[clean_c] = subjects_dict.get(clean_c, 0) + 1
+                else:
+                    # 去除内部哈希后缀（例如 math_7e676e9e -> math -> 数学）
+                    raw_stem = re.sub(r"_[a-f0-9]{8}$", "", f.stem)
+                    clean_stem = SUBJECT_DISPLAY_MAP.get(raw_stem.lower(), raw_stem)
+                    if clean_stem.lower() not in ("knowledge", "default", "none", ""):
+                        if clean_stem not in subjects_dict:
+                            subjects_dict[clean_stem] = 1
+            except Exception:
+                pass
+
+    # 3. 扫描会议记忆项目
+    projects_set = set()
+    meeting_mem_dir = user_dir / "memory" / "meeting"
+    if meeting_mem_dir.is_dir():
+        for item in meeting_mem_dir.iterdir():
+            p_name = item.stem
+            if p_name and not p_name.startswith("."):
+                projects_set.add(p_name)
+
+    subjects = [
+        {"name": name, "count": count}
+        for name, count in sorted(subjects_dict.items(), key=lambda x: x[0])
+    ]
+    projects = sorted(projects_set)
+
+    return {
+        "user_id": user_id,
+        "subjects": subjects,
+        "projects": projects,
     }
 
 
@@ -130,10 +244,15 @@ async def api_chat(payload: dict) -> dict:
         raise HTTPException(status_code=400, detail="question 不能为空")
     user_id = str((payload or {}).get("user_id") or "1")
     subject = str((payload or {}).get("subject") or "")
+    session_id = str((payload or {}).get("session_id") or "")
     try:
         from chat.chat import ChatSession
 
-        session = ChatSession(user_id=user_id, subject=subject)
+        session = ChatSession(
+            user_id=user_id,
+            subject=subject,
+            session_id=session_id or None,  # 前端传同一 session_id → 会话历史连续
+        )
         result = await session.ask(question)
     except Exception as exc:  # noqa: BLE001
         raise HTTPException(status_code=500, detail=f"对话失败：{exc}")
@@ -141,6 +260,7 @@ async def api_chat(payload: dict) -> dict:
         "answer": str((result or {}).get("answer") or ""),
         "sources": (result or {}).get("sources") or [],
         "retrieved": bool((result or {}).get("retrieved")),
+        "session_id": session.session_id,
         "user_id": user_id,
         "subject": subject,
     }

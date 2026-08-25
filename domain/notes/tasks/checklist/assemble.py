@@ -40,27 +40,29 @@ def _fallback_explain(row: dict[str, Any], brief: bool = False) -> str:
         f"{name}是目录里已有的知识点，类型是{kind}。",
         "先把必须会的条目钉死：" + "、".join(must[:6] or [name]) + "。",
     ]
-    if focus:
-        parts.append("老师这次点到的是：" + "、".join(focus) + "，复习时按这些条目展开，不要另开新点。")
-    elif quotes:
-        parts.append("对照老师原话来用：" + quotes[0][:80] + "。")
+    if quotes:
+        parts.append("对照重点原话来用：" + quotes[0][:80] + "。")
+    elif focus:
+        parts.append("核心条目梳理：" + "、".join(focus) + "，复习时按这些条目展开。")
     if missing:
         parts.append("笔记里还没写到：" + "、".join(missing[:4]) + "，对着目录 Item 补上即可，不代表没掌握。")
     parts.append("做题时先判断本题是不是在用它，再按方法步骤走，最后回代检查适用条件。")
     return "".join(parts)
 
 
-def _fallback_method(row: dict[str, Any]) -> list[str]:
+def _fallback_method(row: dict[str, Any], has_teacher: bool = False) -> list[str]:
     kind = str(row.get("knowledge_type") or "concept")
     name = _clean(row.get("name"))
     focus = _as_list(row.get("session_focus_items")) or _as_list(row.get("knowledge_items"))[:3]
+    prefix = "按老师点到的类型选套路：" if has_teacher else "按核心题型选择解题思路："
+    check_suffix = "用老师点过的易错点复查一遍" if has_teacher else "用核心易错点和适用边界复查一遍"
     if kind in {"method", "application"}:
         return [
             f"先判断本题是不是在用{name}",
-            "按老师点到的类型选套路：" + "、".join(focus or ["先辨认再动手"]),
+            prefix + "、".join(focus or ["先辨认再动手"]),
             "写出关键变形或中间步骤，不要跳步",
             "做完回看原题，检查适用条件和限制是否还成立",
-            "用老师点过的易错点复查一遍",
+            check_suffix,
         ]
     if kind == "formula":
         return [
@@ -69,9 +71,10 @@ def _fallback_method(row: dict[str, Any]) -> list[str]:
             "先凑成标准形再代入，不要直接套裸公式",
             "代入后回代检查有没有改变原问题",
         ]
+    check_flow = "对照老师点到的判断流程逐步核验：" if has_teacher else "对照核心判断流程逐步核验："
     return [
         f"用自己的话复述{name}的定义或结论，并写出一条限制条件",
-        "对照老师点到的判断流程逐步核验：" + "、".join(focus or ["先看条件再下结论"]),
+        check_flow + "、".join(focus or ["先看条件再下结论"]),
         "用一个正例确认能用，再用一个反例钉住边界",
         "若要写证明，按「构造 → 验证条件 → 下结论」的顺序落笔",
     ]
@@ -93,18 +96,19 @@ def _fallback_pitfalls(row: dict[str, Any]) -> list[str]:
 
 def _sanitize_exam(text: str, row: dict[str, Any], teacher: str) -> str:
     raw = _clean(text)
+    has_teacher = bool((teacher or "").strip())
     allowed = any(mark in (teacher or "") for mark in _MUST_WORDS)
     if not allowed:
-        raw = raw.replace("必考", "老师点到要抓")
+        raw = raw.replace("必考", "老师点到要抓" if has_teacher else "核心考点重点抓")
     raw = _BANNED.sub("考试信号", raw)
     if not raw:
         signal = row.get("session_exam_signal") or row.get("exam_signal") or "none"
-        if signal == "strong" and allowed:
+        if signal == "strong" and allowed and has_teacher:
             raw = "老师原话里有明确考试信号，按大题准备。"
         elif signal in {"medium", "strong"}:
-            raw = "材料里有考试相关信号，按老师点到的题型准备，不估计具体占比。"
+            raw = "材料里有考试相关信号，按老师点到的题型准备。" if has_teacher else "材料里有考试相关信号，按大纲核心考点准备。"
         else:
-            raw = "老师本次没有给出明确考法，先把定义和限制条件钉死。"
+            raw = "本考点重在掌握基础定义和限制条件，注意区分适用边界。"
     return raw
 
 
@@ -302,9 +306,10 @@ def assemble_checklist(
         explain = _clean(blob.get("explain")) or _fallback_explain(row, brief=brief)
         if not brief and len(explain) < 120:
             explain = _fallback_explain(row, brief=False)
-        methods = _as_list(blob.get("method_steps")) or _fallback_method(row)
+        has_teacher = bool((teacher or "").strip())
+        methods = _as_list(blob.get("method_steps")) or _fallback_method(row, has_teacher=has_teacher)
         if not brief and len(methods) < 4:
-            methods = _fallback_method(row)
+            methods = _fallback_method(row, has_teacher=has_teacher)
         pitfalls = _as_list(blob.get("pitfalls")) or _fallback_pitfalls(row)
         facts = _as_list(blob.get("key_facts")) or _fallback_facts(row)
         if brief:

@@ -33,7 +33,7 @@ def temporary_ocr_engine(engine: str):
 
 
 def current_ocr_engine() -> str:
-    return os.environ.get("OCR_ENGINE", "serverocr").strip().lower() or "serverocr"
+    return os.environ.get("OCR_ENGINE", "rapidocr").strip().lower() or "rapidocr"
 
 
 def recognize_image(image_path: str | Path, *, engine: str | None = None) -> dict[str, Any]:

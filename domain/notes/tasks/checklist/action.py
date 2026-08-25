@@ -60,7 +60,7 @@ _CARD_SPECS = (
         "order": 2,
         "kind": "core",
         "title": "核心冲刺",
-        "subtitle": "集中处理老师本次点名的核心内容与方法",
+        "subtitle": "集中处理核心知识大纲中的关键内容与解题方法",
         "summary": "把最重要的知识块练到会判断、会做、会变式",
         "unit": "个核心任务",
         "empty_goal": "本次没有单独列出的核心冲刺任务。",
@@ -488,7 +488,7 @@ def _build_core(cards: list[dict[str, Any]]) -> dict[str, Any]:
             }
         )
     return {
-        "goal": "把老师点名的核心块练到会判断、会做、会变式。",
+        "goal": "把最重要的核心知识块练到会判断、会做、会变式。",
         "count": len(sections),
         "sections": sections,
     }

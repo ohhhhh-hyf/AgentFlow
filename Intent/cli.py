@@ -1,9 +1,9 @@
 # -*- coding: utf-8 -*-
 """意图识别 Agent —— 终端入口。
 
-    python -m intent_agent.cli "把ocr_file里的图片识别后入库到数学"
-    python -m intent_agent.cli "帮我出数学的复习清单" --user_id 1
-    python -m intent_agent.cli "先识别会议录音纪要，再列行动项" --project P1
+    python -m Intent.cli "把ocr_file里的图片识别后入库到数学"
+    python -m Intent.cli "帮我出数学的复习清单" --user_id 1
+    python -m Intent.cli "先识别会议录音纪要，再列行动项" --project P1
 """
 from __future__ import annotations
 
@@ -14,7 +14,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
-from intent_agent import parse  # noqa: E402
+from Intent import parse  # noqa: E402
 
 
 def main() -> int:

@@ -682,7 +682,7 @@ class LLMClient:
                 f"{response_model.__name__} 输出无法满足结构契约：模型返回空正文"
             )
 
-        from schema_repair import SchemaRepairAgent
+        from repair import SchemaRepairAgent
 
         repair_agent = SchemaRepairAgent(self)
         repaired = await repair_agent.run(last_content, contract, last_error)

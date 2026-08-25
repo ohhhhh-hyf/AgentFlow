@@ -49,6 +49,10 @@ def source_paths_from_context(text: str) -> list[str]:
     return paths
 
 
+IMG_EXTS = {".jpg", ".jpeg", ".png", ".bmp", ".webp"}
+ALL_LIBRARY_EXTS = SUPPORTED_EXTS | IMG_EXTS
+
+
 def expand_inputs(raw_paths: list[str | Path]) -> list[Path]:
     files: list[Path] = []
     for raw in raw_paths:
@@ -57,10 +61,10 @@ def expand_inputs(raw_paths: list[str | Path]) -> list[Path]:
             raise FileNotFoundError(f"入库路径不存在：{path}")
         if path.is_dir():
             for child in sorted(path.rglob("*")):
-                if child.is_file() and child.suffix.lower() in SUPPORTED_EXTS:
+                if child.is_file() and child.suffix.lower() in ALL_LIBRARY_EXTS:
                     files.append(child)
             continue
-        if path.suffix.lower() not in SUPPORTED_EXTS:
+        if path.suffix.lower() not in ALL_LIBRARY_EXTS:
             raise ValueError(f"不支持的文件格式：{path}")
         files.append(path)
     # 去重并保持顺序
@@ -180,10 +184,31 @@ def ingest_library(
     user_id: str = "",
     subject: str = "",
 ) -> dict[str, Any]:
+    # 区分常规文本类文档与笔记图片
+    img_paths = [p for p in paths if p.suffix.lower() in IMG_EXTS]
+    doc_paths = [p for p in paths if p.suffix.lower() not in IMG_EXTS]
+
+    final_paths: list[Path] = list(doc_paths)
+
+    # 笔记图片：调用 OCR 批量识别并聚合生成结构化 Markdown
+    if img_paths:
+        print(f"[Library] 检测到 {len(img_paths)} 份笔记图片，正在调用本地 OCR 引擎进行批量识别并合并为结构化 Markdown...")
+        try:
+            from tools.ocr import ocr_images_to_markdown
+            first_parent = img_paths[0].parent
+            ocr_out_path = first_parent / f"ocr_notes_{len(img_paths)}pages.md"
+            ocr_text = ocr_images_to_markdown([str(p) for p in img_paths], output=str(ocr_out_path), use_llm=False)
+            if not ocr_out_path.exists() or ocr_out_path.stat().st_size == 0:
+                ocr_out_path.write_text(ocr_text or f"# OCR 笔记识别汇总 ({len(img_paths)} 页)\n\n", encoding="utf-8")
+            print(f"[Library] OCR 识别完成，已成功合成结构化笔记文档：{ocr_out_path.name}，正在导入知识库...")
+            final_paths.append(ocr_out_path)
+        except Exception as exc:
+            print(f"[Library] OCR 批量识别异常：{exc}")
+
     before = _safe_chunks(kb, user_id, subject)
     old_texts = [str(item.get("text") or "") for item in before]
     files: list[dict[str, str]] = []
-    for path in paths:
+    for path in final_paths:
         stat = kb.add_file(str(path), user_id=user_id, subject=subject)
         files.append(
             {

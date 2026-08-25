@@ -2,11 +2,11 @@
 """意图识别 Agent —— 统一入口。
 
 用法（终端）：
-    python -m intent_agent.cli "把ocr_file里的图片识别后入库到数学"
-    python -m intent_agent.cli "帮我出数学的复习清单" --user_id 1
+    python -m Intent.cli "把ocr_file里的图片识别后入库到数学"
+    python -m Intent.cli "帮我出数学的复习清单" --user_id 1
 
 编程调用：
-    from intent_agent import parse
+    from Intent import parse
     plan = parse("先OCR识别再入库", ctx_params={"user_id": "1", "subject": "数学"})
     plan.to_dict()  # {"explanation", "plan": [...], "execution": [[...]]}
 """

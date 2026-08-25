@@ -153,10 +153,39 @@ def resolve(
                 entities=entities,
                 project_key=key,
             )
+        # 多项目并列：先按 project_key 合并（同一档案因历史场次/误建出现多条时，
+        # 取 run_count 最大的那条绑定，避免同 key 重复档案导致永久无法关联记忆）
+        from collections import defaultdict
+
+        groups: dict[str, list[tuple[tuple[int, int, str, str], int]]] = defaultdict(list)
+        for row in winners:
+            _strong, _weak, _pid, _key = row
+            key_name = _key or _pid
+            rec = next((r for r in existing if str(r.get("project_id") or "") == _pid), {})
+            try:
+                runs = int(rec.get("run_count") or 0)
+            except (TypeError, ValueError):
+                runs = 0
+            groups[key_name].append((row, runs))
+        merged: dict[str, tuple[int, int, str, str]] = {}
+        for key_name, items in groups.items():
+            best = max(items, key=lambda x: (x[1], x[0][1]))  # run_count 大优先，weak 大其次
+            merged[key_name] = best[0]
+        dedup = list(merged.values())
+        if len(dedup) == 1:
+            strong, weak, pid, key = dedup[0]
+            return Bind(
+                project_id=pid,
+                create=False,
+                hits=weak,
+                strong=strong,
+                entities=entities,
+                project_key=key,
+            )
         return Bind(
             project_id=None,
             create=False,
-            hits=max(row[1] for row in winners),
+            hits=max(row[1] for row in dedup),
             strong=best_strong,
             entities=entities,
         )
