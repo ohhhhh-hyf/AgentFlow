@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>AgentFlow · 智能入口</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header class="topbar">
+    <h1>🤖 AgentFlow 智能入口</h1>
+    <div class="ctx" id="ctx-bar">
+      <label>用户ID <input id="ctx-user" value="" placeholder="必填"></label>
+      <label id="ctx-subject-wrap" class="hidden-ctx">学科 <input id="ctx-subject" value="" placeholder="可选"></label>
+      <label id="ctx-project-wrap" class="hidden-ctx">项目 <input id="ctx-project" value="" placeholder="可选"></label>
+    </div>
+  </header>
+
+  <main class="layout">
+    <!-- 聊天区 -->
+    <section class="chat">
+      <div id="messages" class="messages"></div>
+      <form id="chat-form" class="chat-input">
+        <input id="chat-text" type="text" placeholder="比如：把ocr_file里的图片识别后入库到数学，再出复习清单"
+               autocomplete="off">
+        <button type="submit">发送</button>
+      </form>
+    </section>
+
+    <!-- Plan/结果区 -->
+    <section class="work">
+      <div id="plan-box" class="plan hidden">
+        <h2>识别到的任务</h2>
+        <div id="plan-list"></div>
+        <div id="plan-actions"></div>
+      </div>
+      <div id="progress-box" class="progress hidden"></div>
+      <div id="output-box" class="output hidden">
+        <h2>产物</h2>
+        <ul id="output-list"></ul>
+      </div>
+    </section>
+  </main>
+
+  <script src="app.js"></script>
+</body>
+</html>
