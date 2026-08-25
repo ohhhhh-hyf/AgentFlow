@@ -398,12 +398,21 @@ def _strategy_html(draft: dict[str, Any]) -> list[str]:
     ]
     if not items:
         return []
-    return [
+    rows = [
         "<h2>三、复习策略</h2>",
-        '<ul class="ck-strategy">'
-        + "".join(f"<li>{escape(str(item), quote=False)}</li>" for item in items)
-        + "</ul>",
+        '<section class="ck-strategy-panel" aria-label="复习策略">',
+        '<div class="ck-strategy-head"><span>复习顺序</span><em>按重点和难度排好先后</em></div>',
+        '<ol class="ck-strategy">',
     ]
+    for i, item in enumerate(items, start=1):
+        rows.append(
+            "<li>"
+            f'<span class="ck-strategy-no">{i:02d}</span>'
+            f'<span class="ck-strategy-text">{escape(str(item), quote=False)}</span>'
+            "</li>"
+        )
+    rows.extend(["</ol>", "</section>"])
+    return rows
 
 
 def _action_html(draft: dict[str, Any]) -> list[str]:
@@ -870,6 +879,14 @@ def build_checklist_html(draft: dict[str, Any], *, has_teacher: bool | None = No
     .ck-s{{background:#fff1ee;border-color:#e8b4ac;color:#b3402e;}}
     .ck-a{{background:#fff6e8;border-color:#e8d0a4;}}
     .ck-b{{background:#f3f6f6;border-color:#c5d0cf;color:#497a78;}}
+    .ck-strategy-panel{{margin:10px 0 18px;border:1px solid #d4d0c6;border-radius:8px;background:#fbfaf7;overflow:hidden;}}
+    .ck-strategy-head{{display:flex;align-items:baseline;gap:10px;padding:10px 14px;border-bottom:1px solid #ebe8e1;background:#f7f5f0;}}
+    .ck-strategy-head span{{font-weight:750;color:#1c1b19;}}
+    .ck-strategy-head em{{font-style:normal;color:#6b6860;font-size:.78rem;}}
+    .ck-strategy{{list-style:none;margin:0;padding:8px 12px 12px;display:grid;gap:8px;}}
+    .ck-strategy li{{display:grid;grid-template-columns:34px minmax(0,1fr);gap:10px;align-items:start;padding:9px 10px;border:1px solid #ebe8e1;border-radius:8px;background:#fff;}}
+    .ck-strategy-no{{display:inline-flex;align-items:center;justify-content:center;width:28px;height:28px;border-radius:50%;background:#497a78;color:#fff;font-size:.72rem;font-weight:800;line-height:1;}}
+    .ck-strategy-text{{font-size:.9rem;line-height:1.65;color:#2c2a26;}}
     .ck-action{{margin:8px 0 6px;}}
     .ck-action-grid{{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin:0 0 14px;}}
     .ck-stage{{display:grid;gap:6px;text-align:left;padding:12px 12px 14px;border:1px solid #d4d0c6;border-radius:12px;background:#fbfaf7;cursor:pointer;min-height:168px;}}
