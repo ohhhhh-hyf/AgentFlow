@@ -140,6 +140,10 @@ def test_action_plan_uses_structured_source_grounded_tasks():
     md = build_checklist_markdown({"course": "高数", "cards": cards, "phases": plan["phases"]})
     assert "产出：" in md
     assert "依据：老师原话 / 知识目录" in md
+    html = build_checklist_html({"course": "高数", "cards": cards, "phases": plan["phases"]})
+    assert 'class="ck-task-box" type="checkbox"' in html
+    assert "data-ck-percent" in html
+    assert "ck-progress-track" in html
 
 
 def test_trace_html_wraps_plain_formula_for_mathjax():

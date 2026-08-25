@@ -43,6 +43,9 @@ Course → Chapter → Topic → Knowledge Point → Knowledge Item
 
 错误：把「使用条件 / 变形技巧 / 综合题 / 判断题 / 高频考点 / 期末复习」升成和母知识点并列的 KP。
 正确：KP 是可独立学习的点；条件、分类、变形、题型包装放进该点的 knowledge_items。
+强制降级为 Item：适用条件、成立条件、边界条件、变量含义、符号说明、常见变形、计算技巧、判断步骤、证明步骤、例题、题型、易错、注意、误区、陷阱、小结、总结。
+如果标题形如「X 的适用条件 / X 的常见变形 / X 的例题 / X 的易错点」，不要新建 KP；把该短语和其下细项并入 KP「X」的 knowledge_items / risk_tags / evidence。
+禁止用同一个标题凑满三层：chapter.name、topic.name、knowledge_point.name 不得三层完全相同；若真实资料只有一层标题，优先把它作为 KP 或 Topic，不要复制成章-节-点。
 同一主题下通常 2–6 个 KP。一份课件不要拆成一堆并列 KP；同类方法的不同题型并进同一个 KP 的 items。
 每个 Topic 至少 1 个 KP。禁止输出 knowledge_points 为空的主题；该节实在拆不开时，用节标题生成 1 个 KP。
 

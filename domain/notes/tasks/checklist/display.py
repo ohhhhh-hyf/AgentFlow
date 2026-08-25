@@ -341,6 +341,12 @@ def _checks(items: list[str]) -> str:
     ) + "</ul>"
 
 
+def _plain_list(items: list[str]) -> str:
+    return "<ul class=\"ck-task-list\">" + "".join(
+        f"<li><label><input class=\"ck-task-box\" type=\"checkbox\"><span>{item}</span></label></li>" for item in items
+    ) + "</ul>"
+
+
 _MATH_HINT_RE = re.compile(
     r"(?<![$\\])("
     r"\\(?:frac|sqrt|sum|int|lim|alpha|beta|gamma|theta|lambda|mu|sigma|omega|Delta|partial|nabla)\b"
@@ -369,7 +375,7 @@ def _section_html(section: dict[str, Any]) -> str:
         if not items:
             return ""
         head = f"<h4>{title}</h4>" if title else ""
-        return head + "<ul class=\"ck-check\">" + "".join(f"<li>□ {item}</li>" for item in items) + "</ul>"
+        return head + _plain_list(items)
     body = ['<div class="ck-task">']
     if title:
         body.append(f"<strong>{title}</strong>")
@@ -379,9 +385,7 @@ def _section_html(section: dict[str, Any]) -> str:
     if tasks:
         label = "本次任务" if stype == "task_group" else "重点训练"
         body.append(
-            f"<p><b>{label}</b></p><ul class=\"ck-check\">"
-            + "".join(f"<li>□ {item}</li>" for item in tasks)
-            + "</ul>"
+            f"<p><b>{label}</b></p>" + _plain_list(tasks)
         )
     criteria = [str(x) for x in (section.get("pass_criteria") or []) if str(x).strip()]
     if criteria:
@@ -423,6 +427,10 @@ def _action_html(draft: dict[str, Any]) -> list[str]:
         "<h2>四、行动清单</h2>",
         '<p class="ck-note" style="margin-bottom:10px">按路线点开卡片看这一阶段要做什么。</p>',
         '<div class="ck-action">',
+        '<div class="ck-progress" aria-label="行动清单完成度">',
+        '<div class="ck-progress-top"><strong>完成度</strong><span><b data-ck-done>0</b>/<b data-ck-total>0</b> · <b data-ck-percent>0%</b></span></div>',
+        '<div class="ck-progress-track"><span data-ck-bar style="width:0%"></span></div>',
+        "</div>",
         '<div class="ck-action-grid">',
     ]
     for card in cards:
@@ -464,6 +472,20 @@ def _action_html(draft: dict[str, Any]) -> list[str]:
   if (!box) return;
   const buttons = Array.from(box.querySelectorAll('[data-ck-card]'));
   const panels = Array.from(box.querySelectorAll('[data-ck-detail]'));
+  const checks = Array.from(box.querySelectorAll('.ck-task-box'));
+  const doneEl = box.querySelector('[data-ck-done]');
+  const totalEl = box.querySelector('[data-ck-total]');
+  const pctEl = box.querySelector('[data-ck-percent]');
+  const barEl = box.querySelector('[data-ck-bar]');
+  const updateProgress = () => {
+    const total = checks.length;
+    const done = checks.filter((item) => item.checked).length;
+    const pct = total ? Math.round(done / total * 100) : 0;
+    if (doneEl) doneEl.textContent = String(done);
+    if (totalEl) totalEl.textContent = String(total);
+    if (pctEl) pctEl.textContent = pct + '%';
+    if (barEl) barEl.style.width = pct + '%';
+  };
   const show = (id) => {
     buttons.forEach((btn) => btn.classList.toggle('is-on', btn.getAttribute('data-ck-card') === id));
     panels.forEach((panel) => {
@@ -475,6 +497,8 @@ def _action_html(draft: dict[str, Any]) -> list[str]:
   buttons.forEach((btn) => {
     btn.addEventListener('click', () => show(btn.getAttribute('data-ck-card')));
   });
+  checks.forEach((item) => item.addEventListener('change', updateProgress));
+  updateProgress();
 })();
 </script>"""
     )
@@ -888,6 +912,11 @@ def build_checklist_html(draft: dict[str, Any], *, has_teacher: bool | None = No
     .ck-strategy-no{{display:inline-flex;align-items:center;justify-content:center;width:28px;height:28px;border-radius:50%;background:#497a78;color:#fff;font-size:.72rem;font-weight:800;line-height:1;}}
     .ck-strategy-text{{font-size:.9rem;line-height:1.65;color:#2c2a26;}}
     .ck-action{{margin:8px 0 6px;}}
+    .ck-progress{{margin:0 0 12px;padding:11px 12px;border:1px solid #d4d0c6;border-radius:8px;background:#fbfaf7;}}
+    .ck-progress-top{{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:8px;font-size:.88rem;}}
+    .ck-progress-top span{{color:#6b6860;font-size:.82rem;}}
+    .ck-progress-track{{height:9px;border-radius:999px;background:#ebe8e1;overflow:hidden;}}
+    .ck-progress-track span{{display:block;height:100%;border-radius:999px;background:#497a78;transition:width .18s ease;}}
     .ck-action-grid{{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin:0 0 14px;}}
     .ck-stage{{display:grid;gap:6px;text-align:left;padding:12px 12px 14px;border:1px solid #d4d0c6;border-radius:12px;background:#fbfaf7;cursor:pointer;min-height:168px;}}
     .ck-stage.is-on{{background:#fff;border-color:#b3402e;box-shadow:0 0 0 1px #b3402e33;}}
@@ -903,6 +932,11 @@ def build_checklist_html(draft: dict[str, Any], *, has_teacher: bool | None = No
     .ck-task{{margin:10px 0;padding:10px 12px;border:1px solid #ebe8e1;border-radius:8px;background:#fbfaf7;}}
     .ck-meta,.ck-k{{font-size:.86rem;color:#6b6860;margin:8px 0 4px;}}
     .ck-k{{font-weight:650;color:#3a3832;}}
+    .ck-task-list{{list-style:none;margin:0 0 8px;padding:0;display:grid;gap:6px;}}
+    .ck-task-list li{{margin:0;line-height:1.65;}}
+    .ck-task-list label{{display:grid;grid-template-columns:16px minmax(0,1fr);gap:8px;align-items:start;cursor:pointer;}}
+    .ck-task-list input{{width:15px;height:15px;margin:5px 0 0;accent-color:#497a78;cursor:pointer;}}
+    .ck-task-list input:checked + span{{color:#6b6860;text-decoration:line-through;text-decoration-thickness:1px;}}
     .ck-check{{margin:0 0 8px;padding-left:1.2em;}}
     .ck-check li{{margin:3px 0;}}
     @media(max-width:860px){{.ck-action-grid{{grid-template-columns:1fr 1fr}}}}

@@ -214,3 +214,117 @@ class TestNormalizeCatalogEnums:
         assert kp["knowledge_type"] == "method"
         assert kp["importance"] == "3"
         assert kp["exam_signal"] == "medium"
+
+    def test_细碎知识点降级为父知识点_item(self):
+        catalog = {
+            "chapters": [
+                {
+                    "id": "ch_001",
+                    "name": "极限",
+                    "topics": [
+                        {
+                            "id": "tp_001",
+                            "name": "洛必达法则",
+                            "knowledge_points": [
+                                {
+                                    "id": "kp_001",
+                                    "name": "洛必达法则",
+                                    "knowledge_type": "method",
+                                    "knowledge_items": ["0/0型"],
+                                    "importance": "5",
+                                },
+                                {
+                                    "id": "kp_002",
+                                    "name": "洛必达法则的适用条件",
+                                    "knowledge_type": "concept",
+                                    "knowledge_items": ["可导条件", "极限存在条件"],
+                                    "importance": "4",
+                                    "risk_tags": ["condition_check"],
+                                },
+                            ],
+                        }
+                    ],
+                }
+            ],
+            "merged_nodes": [],
+            "added_knowledge_points": ["洛必达法则", "洛必达法则的适用条件"],
+        }
+        norm = normalize_catalog_enums(catalog)
+        points = norm["chapters"][0]["topics"][0]["knowledge_points"]
+        assert [p["name"] for p in points] == ["洛必达法则"]
+        kp = points[0]
+        assert "洛必达法则的适用条件" in kp["knowledge_items"]
+        assert "可导条件" in kp["knowledge_items"]
+        assert "condition_check" in kp["risk_tags"]
+        assert norm["added_knowledge_points"] == ["洛必达法则"]
+        assert norm["merged_nodes"] == ["洛必达法则的适用条件 → 洛必达法则"]
+
+    def test_同层重复知识点合并(self):
+        catalog = {
+            "chapters": [
+                {
+                    "id": "ch_001",
+                    "name": "量子力学",
+                    "topics": [
+                        {
+                            "id": "tp_001",
+                            "name": "电磁场中电荷粒子的哈密顿量",
+                            "knowledge_points": [
+                                {
+                                    "id": "kp_001",
+                                    "name": "电磁场中电荷粒子的哈密顿量",
+                                    "knowledge_type": "formula",
+                                    "knowledge_items": ["正则动量"],
+                                },
+                                {
+                                    "id": "kp_002",
+                                    "name": "电磁场中电荷粒子的哈密顿量",
+                                    "knowledge_type": "formula",
+                                    "knowledge_items": ["哈密顿量表达式"],
+                                },
+                            ],
+                        }
+                    ],
+                }
+            ],
+        }
+        norm = normalize_catalog_enums(catalog)
+        points = norm["chapters"][0]["topics"][0]["knowledge_points"]
+        assert len(points) == 1
+        assert points[0]["knowledge_items"] == ["正则动量", "哈密顿量表达式"]
+
+    def test_同名容器占位知识点并入真实知识点(self):
+        catalog = {
+            "chapters": [
+                {
+                    "id": "ch_001",
+                    "name": "电流分布与磁矩",
+                    "topics": [
+                        {
+                            "id": "tp_001",
+                            "name": "电流分布与磁矩",
+                            "knowledge_points": [
+                                {
+                                    "id": "kp_001",
+                                    "name": "电流分布与磁矩",
+                                    "knowledge_type": "mixed",
+                                    "knowledge_items": ["电流密度"],
+                                    "evidence": ["学生笔记：电流分布与磁矩"],
+                                },
+                                {
+                                    "id": "kp_002",
+                                    "name": "磁矩定义",
+                                    "knowledge_type": "concept",
+                                    "knowledge_items": ["磁矩与电流分布关系"],
+                                },
+                            ],
+                        }
+                    ],
+                }
+            ],
+        }
+        norm = normalize_catalog_enums(catalog)
+        points = norm["chapters"][0]["topics"][0]["knowledge_points"]
+        assert [p["name"] for p in points] == ["磁矩定义"]
+        assert "电流密度" in points[0]["knowledge_items"]
+        assert "学生笔记：电流分布与磁矩" in points[0]["evidence"]

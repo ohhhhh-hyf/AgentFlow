@@ -1,6 +1,7 @@
 """把本次 LLM 目录合并进已有目录：复用 ID，旧章不丢，证据追加。"""
 from __future__ import annotations
 
+import re
 from datetime import datetime, timezone
 from typing import Any
 
@@ -646,4 +647,201 @@ def normalize_catalog_enums(catalog: dict[str, Any]) -> dict[str, Any]:
         chapter["topics"] = topics
         chapters.append(chapter)
     out["chapters"] = chapters
+    return compact_catalog_granularity(out)
+
+
+_FINE_GRAIN_RE = re.compile(
+    r"(使用条件|适用条件|成立条件|边界条件|限制条件|条件检查|"
+    r"常见变形|变形技巧|计算技巧|替换规则|判断步骤|判断流程|证明步骤|"
+    r"例题|典型例子|题型|选择题|填空题|计算题|证明题|综合题|"
+    r"注意|易错|误区|陷阱|提醒|小结|总结|变量含义|符号说明)"
+)
+
+
+def _norm_name(text: object) -> str:
+    return re.sub(r"[\s:：,，。；;、（）()\[\]【】《》“”\"'·\-—_]+", "", str(text or "").lower())
+
+
+def _base_of_fine_point(name: str) -> str:
+    text = _clean(name)
+    for sep in ("的", "之"):
+        if sep in text:
+            head, tail = text.split(sep, 1)
+            if head and _FINE_GRAIN_RE.search(tail):
+                return head
+    for mark in ("使用条件", "适用条件", "成立条件", "常见变形", "计算技巧", "例题", "易错", "注意"):
+        if text.endswith(mark) and len(text) > len(mark) + 1:
+            return text[: -len(mark)]
+    return ""
+
+
+def _is_fine_point(point: dict[str, Any]) -> bool:
+    name = _clean(point.get("name"))
+    if not name:
+        return False
+    if _FINE_GRAIN_RE.search(name):
+        return True
+    kind = str(point.get("knowledge_type") or "")
+    role = str(point.get("learning_role") or "")
+    if kind == "formula" and len(_as_list(point.get("knowledge_items"))) <= 1:
+        return bool(re.search(r"(变量|条件|变形|形式|写法|符号)", name))
+    return role == "application" and bool(re.search(r"(题型|例题|练习)", name))
+
+
+def _merge_into_point(parent: dict[str, Any], child: dict[str, Any]) -> None:
+    child_name = _clean(child.get("name"))
+    items = _as_list(parent.get("knowledge_items"))
+    child_items = _as_list(child.get("knowledge_items"))
+    if child_name and child_name != _clean(parent.get("name")):
+        items.append(child_name)
+    items.extend(child_items)
+    parent["knowledge_items"] = _uniq(items)
+    for key in (
+        "teacher_focus_items",
+        "note_covered_items",
+        "note_missing_items",
+        "prerequisites",
+        "sources",
+        "evidence",
+        "source_documents",
+    ):
+        parent[key] = _uniq(_as_list(parent.get(key)) + _as_list(child.get(key)))
+    for key, allowed in (
+        ("practice_type", _PRACTICE),
+        ("completion_criteria", _CRITERIA),
+        ("risk_tags", _RISKS),
+    ):
+        parent[key] = _enum_list(_as_list(parent.get(key)) + _as_list(child.get(key)), allowed)
+    parent["teacher_emphasis"] = _max_rank(
+        str(parent.get("teacher_emphasis") or "0"),
+        str(child.get("teacher_emphasis") or "0"),
+        _EMPHASIS_RANK,
+        "0",
+    )
+    parent["exam_signal"] = _max_rank(
+        str(parent.get("exam_signal") or "none"),
+        str(child.get("exam_signal") or "none"),
+        _EXAM_RANK,
+        "none",
+    )
+    parent["note_coverage"] = _max_rank(
+        str(parent.get("note_coverage") or "none"),
+        str(child.get("note_coverage") or "none"),
+        _COVERAGE_RANK,
+        "none",
+    )
+    parent["change_type"] = "updated"
+
+
+def _find_parent_point(child: dict[str, Any], siblings: list[dict[str, Any]]) -> dict[str, Any] | None:
+    child_name = _clean(child.get("name"))
+    child_norm = _norm_name(child_name)
+    base_norm = _norm_name(_base_of_fine_point(child_name))
+    for point in siblings:
+        if point is child:
+            continue
+        name = _clean(point.get("name"))
+        norm = _norm_name(name)
+        if not norm:
+            continue
+        if base_norm and (base_norm == norm or base_norm in norm or norm in base_norm):
+            return point
+        if norm != child_norm and (norm in child_norm or child_norm in norm):
+            return point
+    return None
+
+
+def _compact_topic_points(
+    points: list[dict[str, Any]],
+    chapter_name: str,
+    topic_name: str,
+    merged_nodes: list[str],
+) -> list[dict[str, Any]]:
+    kept: list[dict[str, Any]] = []
+    by_name: dict[str, dict[str, Any]] = {}
+    for point in points:
+        name_key = _norm_name(point.get("name"))
+        if name_key and name_key in by_name:
+            parent = by_name[name_key]
+            _merge_into_point(parent, point)
+            merged_nodes.append(f"{_clean(point.get('name'))} → {_clean(parent.get('name'))}")
+            continue
+        kept.append(point)
+        if name_key:
+            by_name[name_key] = point
+
+    out: list[dict[str, Any]] = []
+    for point in list(kept):
+        parent = _find_parent_point(point, kept)
+        if parent is not None and _is_fine_point(point):
+            _merge_into_point(parent, point)
+            merged_nodes.append(f"{_clean(point.get('name'))} → {_clean(parent.get('name'))}")
+            continue
+        out.append(point)
+
+    if len(out) > 1:
+        compacted: list[dict[str, Any]] = []
+        for point in out:
+            same_as_container = _norm_name(point.get("name")) in {
+                _norm_name(chapter_name),
+                _norm_name(topic_name),
+            }
+            parent = next(
+                (
+                    other
+                    for other in out
+                    if other is not point
+                    and _norm_name(other.get("name")) != _norm_name(point.get("name"))
+                ),
+                None,
+            )
+            if same_as_container and parent is not None:
+                _merge_into_point(parent, point)
+                merged_nodes.append(f"{_clean(point.get('name'))} → {_clean(parent.get('name'))}")
+                continue
+            compacted.append(point)
+        out = compacted or out
+    return out
+
+
+def compact_catalog_granularity(catalog: dict[str, Any]) -> dict[str, Any]:
+    """把过细 KP 降级进父 KP 的 items，并合并同层重复点。"""
+    out = dict(catalog or {})
+    merged_nodes = _as_list(out.get("merged_nodes"))
+    chapters: list[dict[str, Any]] = []
+    for chapter in out.get("chapters") or []:
+        if not isinstance(chapter, dict):
+            continue
+        chapter = dict(chapter)
+        chapter_name = _clean(chapter.get("name"))
+        topics: list[dict[str, Any]] = []
+        for topic in chapter.get("topics") or []:
+            if not isinstance(topic, dict):
+                continue
+            topic = dict(topic)
+            topic_name = _clean(topic.get("name"))
+            points = [
+                dict(point)
+                for point in topic.get("knowledge_points") or []
+                if isinstance(point, dict) and _clean(point.get("name"))
+            ]
+            topic["knowledge_points"] = _compact_topic_points(
+                points, chapter_name, topic_name, merged_nodes
+            )
+            topics.append(topic)
+        chapter["topics"] = topics
+        chapters.append(chapter)
+    out["chapters"] = chapters
+    out["merged_nodes"] = _uniq(merged_nodes)
+    if out.get("added_knowledge_points"):
+        active = {
+            _clean(point.get("name"))
+            for chapter in chapters
+            for topic in chapter.get("topics") or []
+            for point in topic.get("knowledge_points") or []
+            if isinstance(point, dict)
+        }
+        out["added_knowledge_points"] = [
+            name for name in _as_list(out.get("added_knowledge_points")) if name in active
+        ]
     return out
