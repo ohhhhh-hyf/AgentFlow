@@ -146,6 +146,47 @@ def test_action_plan_uses_structured_source_grounded_tasks():
     assert "ck-progress-track" in html
 
 
+def test_empty_prerequisites_fall_back_to_same_topic_foundation():
+    catalog = {
+        "course": "量子力学",
+        "chapters": [
+            {
+                "name": "角动量",
+                "topics": [
+                    {
+                        "name": "角动量",
+                        "knowledge_points": [
+                            {
+                                "id": "kp_base",
+                                "name": "角动量算符定义",
+                                "importance": "4",
+                                "foundational_level": "5",
+                                "learning_role": "foundation",
+                                "knowledge_items": ["定义", "分量"],
+                            },
+                            {
+                                "id": "kp_core",
+                                "name": "角动量对易式",
+                                "importance": "5",
+                                "foundational_level": "3",
+                                "learning_role": "core_method",
+                                "knowledge_items": ["对易关系"],
+                                "prerequisites": [],
+                            },
+                        ],
+                    }
+                ],
+            }
+        ],
+    }
+
+    rows = activate_points(catalog, "角动量对易式必考。")
+    core = next(row for row in rows if row["name"] == "角动量对易式")
+
+    assert core["prerequisites"] == ["角动量算符定义"]
+    assert any(row["name"] == "角动量算符定义" for row in rows)
+
+
 def test_trace_html_wraps_plain_formula_for_mathjax():
     draft = {
         "course": "量子力学",

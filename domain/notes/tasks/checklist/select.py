@@ -181,6 +181,40 @@ def _focus_items(point: dict[str, Any], sentences: list[str]) -> list[str]:
     return found
 
 
+def _infer_prerequisites(point: dict[str, Any], points: list[dict[str, Any]], limit: int = 3) -> list[str]:
+    if _as_list(point.get("prerequisites")):
+        return _as_list(point.get("prerequisites"))
+    if str(point.get("learning_role") or "") == "foundation":
+        return []
+    topic = _clean(point.get("topic"))
+    current = _clean(point.get("id"))
+    candidates: list[dict[str, Any]] = []
+    for other in points:
+        if _clean(other.get("id")) == current:
+            continue
+        if topic and _clean(other.get("topic")) != topic:
+            continue
+        role = str(other.get("learning_role") or "")
+        if role == "foundation" or _rank(other.get("foundational_level")) >= 4:
+            candidates.append(other)
+    candidates.sort(
+        key=lambda p: (
+            0 if str(p.get("learning_role") or "") == "foundation" else 1,
+            -_rank(p.get("foundational_level")),
+            -_rank(p.get("importance")),
+            _clean(p.get("name")),
+        )
+    )
+    out: list[str] = []
+    for candidate in candidates:
+        name = _clean(candidate.get("name"))
+        if name and name not in out:
+            out.append(name)
+        if len(out) >= limit:
+            break
+    return out
+
+
 def _is_light(blob: str) -> bool:
     if any(mark in blob for mark in _LIGHT):
         return True
@@ -308,6 +342,7 @@ def activate_from_catalog(catalog: dict[str, Any] | None) -> list[dict[str, Any]
         row["session_quotes"] = []
         row["session_practice_count"] = ""
         row["session_special_requirement"] = ""
+        row["prerequisites"] = _infer_prerequisites(row, points)
         row["_light"] = False
         row["_score"] = _raw_score(row)
         activated.append(row)
@@ -389,6 +424,7 @@ def activate_points(catalog: dict[str, Any] | None, teacher: str) -> list[dict[s
             row["_light"] = False
         row["session_practice_count"] = ""
         row["session_special_requirement"] = ""
+        row["prerequisites"] = _infer_prerequisites(row, points)
         row["_score"] = _raw_score(row)
         activated.append(row)
 

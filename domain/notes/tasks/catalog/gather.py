@@ -20,11 +20,14 @@ from .store import load_catalog, load_catalog_metas
 
 # briefing 中标题候选采用动态预算：资料越短越收紧，避免 OCR 短标题诱导过度建 KP。
 _MIN_BRIEF_TITLES = 60
-_MAX_BRIEF_TITLES = 180
-_TITLES_PER_PAGE = 5
-_TITLES_PER_FILE = 24
-_MIDDLE_TITLES_PER_FILE = 12
-_MIDDLE_TITLES_PER_PAGE = 3
+_MAX_BRIEF_TITLES = 220
+_TITLES_PER_PAGE = 6
+_TITLES_PER_FILE = 30
+_MIDDLE_TITLES_PER_FILE = 24
+_MIDDLE_TITLES_PER_PAGE = 5
+_DETAIL_POOL_LIMIT = 80
+_DETAIL_POOL_PER_FILE = 24
+_DETAIL_POOL_PER_PAGE = 6
 _TITLE_KEYWORDS = ("定义", "性质", "定理", "规则", "方法", "公式", "例题", "易错", "注意", "总结", "步骤")
 _ITEM_ONLY_KEYWORDS = ("例题", "易错", "注意", "总结", "步骤", "题型", "技巧", "提醒", "小结")
 _BODY_LIKE_ENDINGS = ("。", "；", ";", ".", "！", "？", "!", "?")
@@ -298,6 +301,41 @@ def _limited_middle_candidates(
     return selected
 
 
+def _detail_pool_candidates(
+    rows: list[dict[str, Any]],
+    *,
+    total_limit: int = _DETAIL_POOL_LIMIT,
+) -> list[dict[str, Any]]:
+    if total_limit <= 0:
+        return []
+    selected: list[dict[str, Any]] = []
+    file_counts: dict[str, int] = defaultdict(int)
+    page_counts: dict[tuple[str, str], int] = defaultdict(int)
+    seen: set[tuple[str, str]] = set()
+    for row in rows:
+        source = str(row.get("source") or "")
+        page = str(row.get("page") or "")
+        path = " / ".join(row.get("path") or [])
+        if not path:
+            continue
+        key = (source, path)
+        if key in seen:
+            continue
+        if file_counts[source] >= _DETAIL_POOL_PER_FILE:
+            continue
+        page_key = (source, page)
+        if page and page_counts[page_key] >= _DETAIL_POOL_PER_PAGE:
+            continue
+        selected.append(row)
+        seen.add(key)
+        file_counts[source] += 1
+        if page:
+            page_counts[page_key] += 1
+        if len(selected) >= total_limit:
+            break
+    return selected
+
+
 def _point_sources(point: dict[str, Any]) -> set[str]:
     return {
         str(name).strip()
@@ -477,7 +515,8 @@ def build_catalog_briefing(shared_context: str) -> str:
             high = [row for row in candidates if int(row.get("score") or 0) >= 8]
             middle = [row for row in candidates if 5 <= int(row.get("score") or 0) < 8]
             low = [row for row in candidates if int(row.get("score") or 0) < 5]
-            limited_middle = _limited_middle_candidates(middle, total_limit=min(60, budget))
+            limited_middle = _limited_middle_candidates(middle, total_limit=min(90, budget))
+            detail_pool = _detail_pool_candidates(middle + low)
             if high:
                 parts.append("【高可信骨架】（优先形成章/主题；若多来源重复，合并为同一节点）")
             else:
@@ -528,6 +567,24 @@ def build_catalog_briefing(shared_context: str) -> str:
                     f"【低可信标题】共 {len(low)} 条，已从主 prompt 省略；"
                     "只作为知识库 evidence，不要据此新建章/主题/KP。"
                 )
+            if detail_pool:
+                parts.append(
+                    "【细节池】以下内容只能用于补充已有/新建 KP 的 knowledge_items、"
+                    "prerequisites、risk_tags、completion_criteria、evidence；"
+                    "禁止把这里的条目升成 chapter/topic/KP。"
+                )
+                for row in detail_pool:
+                    reason = "、".join(row.get("reasons") or [])
+                    tags = str(row.get("content_tags") or "").strip()
+                    meta = f"score={row.get('score')}; role={row.get('role')}"
+                    if tags:
+                        meta += f"; tags={tags}"
+                    if reason:
+                        meta += f"; {reason}"
+                    parts.append(
+                        f"- [{meta}; source={row.get('source')}; page={row.get('page')}] "
+                        + " / ".join(row.get("path") or [])
+                    )
         else:
             parts.append("【候选目录标题】知识库里还没有可用标题，请尽量从老师文本归纳，但不要编资料里没有的章名。")
 

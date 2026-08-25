@@ -2,6 +2,7 @@
 from domain.notes.tasks.catalog.gather import (
     _candidate_budget,
     _compact_existing,
+    _detail_pool_candidates,
     _limited_middle_candidates,
     _score_title_candidate,
     _title_path,
@@ -36,7 +37,7 @@ def test_candidate_budget_scales_with_pages_not_fixed_400():
         {"source": "notes.md", "page": str(page), "score": 8}
         for page in range(1, 22)
     ]
-    assert _candidate_budget(candidates) == 105
+    assert _candidate_budget(candidates) == 126
 
 
 def test_title_candidates_filter_low_item_only_rows():
@@ -153,6 +154,35 @@ def test_middle_candidates_are_limited_by_file_and_page():
 
     limited = _limited_middle_candidates(rows, total_limit=100)
 
-    assert [row["path"][-1] for row in limited[:3]] == ["中等标题0", "中等标题1", "中等标题2"]
-    assert "中等标题3" not in {row["path"][-1] for row in limited}
-    assert len(limited) == 12
+    assert [row["path"][-1] for row in limited[:5]] == [
+        "中等标题0",
+        "中等标题1",
+        "中等标题2",
+        "中等标题3",
+        "中等标题4",
+    ]
+    assert "中等标题5" not in {row["path"][-1] for row in limited}
+    assert len(limited) == 23
+
+
+def test_detail_pool_keeps_middle_and_low_rows_for_items():
+    rows = [
+        {
+            "source": "notes.md",
+            "page": "1",
+            "path": ["角动量", "角动量对易式"],
+            "score": 6,
+            "content_tags": "formula",
+        },
+        {
+            "source": "notes.md",
+            "page": "1",
+            "path": ["角动量", "注意：边界条件"],
+            "score": 4,
+            "content_tags": "mistake",
+        },
+    ]
+
+    detail = _detail_pool_candidates(rows)
+
+    assert [row["path"][-1] for row in detail] == ["角动量对易式", "注意：边界条件"]
