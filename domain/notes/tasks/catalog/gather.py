@@ -37,26 +37,6 @@ def user_id_from_context(text: str) -> str:
     return m.group(1).strip() if m else ""
 
 
-def _understanding_from_context(text: str) -> dict[str, Any]:
-    """从共享上下文提取「notes理解」JSON（缺失/损坏时返回空）。
-
-    笔记理解是 catalog 建树的结构化锚点：让目录基于一次稳定的理解
-    生成，而不是每次直接从原始知识块自由组织。
-    """
-    marker = "notes理解："
-    if marker not in (text or ""):
-        return {}
-    tail = (text or "").split(marker, 1)[1]
-    start = tail.find("{")
-    if start < 0:
-        return {}
-    try:
-        data, _ = json.JSONDecoder().raw_decode(tail[start:])
-    except json.JSONDecodeError:
-        return {}
-    return data if isinstance(data, dict) else {}
-
-
 def _is_ocr_note_source(source: str, user_id: str = "", subject: str = "") -> bool:
     stem = Path(source or "").stem
     if not stem or not (user_id or "").strip() or not (subject or "").strip():
@@ -313,14 +293,6 @@ def build_catalog_briefing(shared_context: str) -> str:
             parts.append("【已入库并已编目的文件】" + "、".join(sorted(known)))
     else:
         parts.append("【已有目录】无，按首次 build 生成完整树。")
-    understanding = _understanding_from_context(shared_context)
-    if understanding:
-        parts.append(
-            "【笔记理解】（只用于锚定章节/主题的顺序与命名，避免结构漂移；"
-            "每个主题下的知识要点 KP 必须依据【候选目录标题】与知识块细分，"
-            "一个主题下 2-6 个 KP，禁止把理解的单个 section 标题直接当整章/整主题而不拆分）\n"
-            + json.dumps(understanding, ensure_ascii=False)
-        )
     standard_metas = load_catalog_metas(user_id=user_id, subject=subject)
     meta_text = _compact_standard_metas(standard_metas)
     if meta_text:
@@ -396,8 +368,11 @@ def build_catalog_briefing(shared_context: str) -> str:
                         f"- [score={row.get('score')}; role={row.get('role')}; source={row.get('source')}] "
                         + " / ".join(row.get("path") or [])
                     )
-            if low:
-                parts.append("【低可信标题】（只作 evidence 或 unmatched_content，除非上下文强支撑）")
+            if low and not high and not middle:
+                parts.append(
+                    "【低可信标题】知识库里只有低分标题（score<5），保守归纳成章/主题，"
+                    "不要把疑似正文的行升成 KP。"
+                )
                 for row in low[:40]:
                     parts.append(
                         f"- [score={row.get('score')}; role={row.get('role')}; source={row.get('source')}] "

@@ -142,6 +142,37 @@ def _contains_formula(text: str) -> bool:
     return bool(_FORMULA_RE.search(text or ""))
 
 
+_LONG_BODY_LIMIT = 500
+
+
+def _split_long_body(body: str, limit: int = _LONG_BODY_LIMIT) -> list[str]:
+    """超长正文按边界再切，子块继承同一 heading 元数据。
+
+    优先在换行处断（OCR 正文多为硬换行），其次句号/分号，最后字符硬切。
+    """
+    if len(body) <= limit:
+        return [body]
+    pieces: list[str] = []
+    rest = body
+    while len(rest) > limit:
+        cut = rest.rfind("\n", 0, limit + 1)
+        if cut < limit // 2:
+            cut = max(
+                rest.rfind("。", 0, limit + 1),
+                rest.rfind("；", 0, limit + 1),
+                rest.rfind("，", 0, limit + 1),
+            )
+        if cut < limit // 2:
+            cut = limit
+        piece = rest[:cut].strip()
+        rest = rest[cut:].strip()
+        if piece:
+            pieces.append(piece)
+    if rest:
+        pieces.append(rest)
+    return pieces or [body]
+
+
 def _chunks_by_heading(text: str, path: str) -> List[TextChunk]:
     """按标题切开，块上带完整 heading_path / score / kind / content_tags。"""
     name = Path(path).name
@@ -162,26 +193,25 @@ def _chunks_by_heading(text: str, path: str) -> List[TextChunk]:
         level = current_level or len(path_parts) or 1
         score = _heading_score(heading, level, len(path_parts))
         kind = _heading_kind(heading, level, score)
-        chunks.append(
-            TextChunk(
-                sanitize_text(body, keep_newlines=True),
-                _base_meta(
-                    path,
-                    role=role,
-                    chapter=path_parts[0] if path_parts else "",
-                    topic=path_parts[1] if len(path_parts) > 1 else "",
-                    heading=heading,
-                    heading_level=level,
-                    heading_depth=level,
-                    heading_path_text=" / ".join(path_parts),
-                    heading_score=score,
-                    heading_kind=kind,
-                    content_tags=_content_tags(body, heading),
-                    contains_formula=_contains_formula(body),
-                    block_type="formula_heavy" if _contains_formula(body) else "content",
-                ),
-            )
+        meta = _base_meta(
+            path,
+            role=role,
+            chapter=path_parts[0] if path_parts else "",
+            topic=path_parts[1] if len(path_parts) > 1 else "",
+            heading=heading,
+            heading_level=level,
+            heading_depth=level,
+            heading_path_text=" / ".join(path_parts),
+            heading_score=score,
+            heading_kind=kind,
+            content_tags=_content_tags(body, heading),
+            contains_formula=_contains_formula(body),
+            block_type="formula_heavy" if _contains_formula(body) else "content",
         )
+        for piece in _split_long_body(body):
+            chunks.append(
+                TextChunk(sanitize_text(piece, keep_newlines=True), dict(meta))
+            )
 
     for line in text.splitlines():
         hit = heading_level(line)

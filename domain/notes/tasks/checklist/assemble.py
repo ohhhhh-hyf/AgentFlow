@@ -156,39 +156,51 @@ def _clamp_rank(value: Any, default: int = 3) -> int:
     return max(1, min(5, rank))
 
 
-def _build_priority_facts(rows: list[dict[str, Any]]) -> list[str]:
-    """快赢优先 + 低价值后置：按 importance - difficulty 排执行顺序（纯规则）。
+_PRIORITY_TOP_N = 6
 
-    条目格式可读：知识点 + 难度/重要性 + 适合怎么做；分组互斥（快赢/硬骨头/
-    低价值），无老师也生效（字段来自 catalog）；少于 2 个点时跳过。
+
+def _build_priority_facts(rows: list[dict[str, Any]]) -> list[str]:
+    """复习顺序：按「重要性 - 难度」打分从高到低逐个排序（纯规则）。
+
+    每个知识点一条：具体重要性/难度分值 + 优先分 + 适配建议。
+    无老师也生效（字段来自 catalog）；少于 2 个点时跳过。
     """
-    scored: list[tuple[str, int, int]] = []
+    scored: list[tuple[str, int, int, int]] = []
     for r in rows:
         name = _clean(r.get("name"))
         if not name:
             continue
-        scored.append((name, _clamp_rank(r.get("importance")), _clamp_rank(r.get("difficulty"))))
+        imp = _clamp_rank(r.get("importance"))
+        diff = _clamp_rank(r.get("difficulty"))
+        scored.append((name, imp, diff, imp - diff))
     if len(scored) < 2:
         return []
-    quick = [n for n, imp, diff in scored if imp >= 4 and diff <= 2]
-    hard = [n for n, imp, diff in scored if imp >= 4 and diff >= 4]
-    low = [n for n, imp, diff in scored if imp <= 3 and diff >= 4]
+    scored.sort(key=lambda x: (-x[3], -x[1], x[0]))
     facts: list[str] = []
-    if quick:
+    for name, imp, diff, prio in scored[:_PRIORITY_TOP_N]:
+        if prio >= 2:
+            advice = "重要且简单，最先复习"
+        elif prio >= 0:
+            advice = "重要度高于难度，优先复习"
+        elif imp >= 4:
+            advice = "重要但难度高，安排整块时间再复习"
+        else:
+            advice = "难度高于重要性，放最后，时间不够先了解"
         facts.append(
-            f"「{'、'.join(quick[:3])}」知识点：难度1-2、重要性4-5，"
-            "重要且不难，适合最先复习、优先拿下"
+            f"{name}：重要性{imp}、难度{diff}（优先分{prio}）→ {advice}"
         )
-    if hard:
+    low_rest = [
+        f"{n}（难度{d}、重要性{i}）"
+        for n, i, d, p in scored
+        if p <= -1 and i <= 3 and (n, i, d, p) not in scored[:_PRIORITY_TOP_N]
+    ]
+    if low_rest:
         facts.append(
-            f"「{'、'.join(hard[:3])}」知识点：难度4-5、重要性4-5，"
-            "重要但难度高，适合安排整块时间再复习"
+            "放最后：" + "、".join(low_rest[:3]) + "，难度高且重要性低，时间不够先了解即可"
         )
-    if low:
-        facts.append(
-            f"「{'、'.join(low[:3])}」知识点：难度4-5、重要性1-3，"
-            "难度高且重要性低，适合放最后、时间不够先了解即可"
-        )
+    rest = len(scored) - len(facts) - (1 if low_rest else 0)
+    if rest > 0:
+        facts.append(f"其余 {rest} 个知识点按目录顺序依次过，先抓上面的。")
     return facts
 
 
@@ -261,22 +273,7 @@ def _build_strategy_facts(
             continue
         seen.add(key)
         out.append(item)
-        if len(out) >= 6:
-            break
-    return out
-
-
-def _merge_strategy(facts: list[str], llm: list[str]) -> list[str]:
-    """事实策略在前（有据），LLM 方向性策略在后；去重，最多 8 条。"""
-    out = list(facts)
-    seen = {f.replace(" ", "") for f in out}
-    for item in llm:
-        key = item.replace(" ", "")
-        if key in seen:
-            continue
-        seen.add(key)
-        out.append(item)
-        if len(out) >= 8:
+        if len(out) >= 12:
             break
     return out
 
@@ -339,10 +336,9 @@ def assemble_checklist(
         )
     unmatched = _unmatched_quotes(teacher, activated) if (teacher or "").strip() else []
     has_teacher = bool((teacher or "").strip())
-    strategy = _merge_strategy(
-        _build_strategy_facts(activated, teacher),
-        _clean_strategy(llm_draft, has_teacher=has_teacher),
-    )
+    strategy = _clean_strategy(llm_draft, has_teacher=has_teacher)
+    if not strategy:
+        strategy = _build_strategy_facts(activated, teacher)
     plan = build_action_plan(cards, teacher, unmatched, strategy=strategy)
     return {
         "course": _clean(catalog.get("course")) or _clean((llm_draft or {}).get("course")) or "课程复习清单",

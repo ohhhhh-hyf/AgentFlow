@@ -3,6 +3,7 @@ from domain.notes.tasks.checklist.display import build_checklist_html, build_che
 from domain.notes.tasks.checklist.gather import build_checklist_briefing, teacher_from_context
 from domain.notes.tasks.checklist.select import activate_from_catalog, activate_points
 from domain.notes.tasks.checklist.trace import _trace_card
+from domain.notes.tasks.checklist.action import build_action_plan
 
 
 def _catalog() -> dict:
@@ -117,3 +118,51 @@ def test_with_teacher_keeps_separate_supplement_table():
     assert "| 补充 | 对易子 |" not in md
     assert "老师未重点点" in html
     assert "<h3>补充</h3>" in html
+
+
+def test_action_plan_uses_structured_source_grounded_tasks():
+    cards = [
+        {
+            "name": "洛必达法则",
+            "session_priority": "S",
+            "practice_type": ["choose_method", "calculate"],
+            "session_focus_items": ["0/0型", "∞/∞型", "适用条件"],
+            "knowledge_items": ["0/0型", "∞/∞型", "可导条件"],
+            "completion_criteria": ["can_choose_method", "can_solve_variant"],
+            "session_quotes": ["洛必达法则重点看适用条件。"],
+        }
+    ]
+    plan = build_action_plan(cards, "")
+    core = plan["phases"][1]["detail"]["sections"][0]
+    assert core["task_objects"]
+    assert core["task_objects"][0]["target"].startswith("洛必达法则")
+    assert core["task_objects"][0]["output"]
+    md = build_checklist_markdown({"course": "高数", "cards": cards, "phases": plan["phases"]})
+    assert "产出：" in md
+    assert "依据：老师原话 / 知识目录" in md
+
+
+def test_trace_html_wraps_plain_formula_for_mathjax():
+    draft = {
+        "course": "量子力学",
+        "cards": [
+            {
+                "name": "厄米算符",
+                "session_priority": "S",
+                "chapter": "算符",
+                "importance": "5",
+                "provenance": {
+                    "knowledge_evidence": [
+                        {
+                            "evidence_id": "kb_01",
+                            "source": "notes",
+                            "excerpt": "厄米算符满足 A=A^dagger，期望值为实数。",
+                            "supports": ["explanation"],
+                        }
+                    ]
+                },
+            }
+        ],
+    }
+    html = build_checklist_html(draft, has_teacher=False)
+    assert "$A=A^dagger$" in html

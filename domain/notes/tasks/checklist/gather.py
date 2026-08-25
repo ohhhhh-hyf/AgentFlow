@@ -156,6 +156,19 @@ def build_checklist_briefing(
             excerpt = str(row.get("_kb_excerpt") or "").strip()
             if excerpt:
                 parts.append(f"    原文片段：{excerpt[:400]}")
+    try:
+        from .assemble import _build_strategy_facts
+
+        facts = _build_strategy_facts(activated, teacher)
+        if facts:
+            parts.append(
+                "【复习顺序事实】以下是从目录数据（importance/difficulty）与老师文本"
+                "算出的复习顺序与重点，写 strategy 时必须据此润色成连贯建议，"
+                "不得另编一套顺序："
+            )
+            parts.extend(f"- {item}" for item in facts)
+    except Exception:  # noqa: BLE001
+        pass
     parts.append("【老师划重点原文】")
     parts.append((teacher or "")[:6000] if has_teacher else "（未提供，跳过老师重点溯源）")
     return "\n".join(parts)

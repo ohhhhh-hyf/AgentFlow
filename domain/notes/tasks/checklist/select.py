@@ -299,12 +299,6 @@ def activate_from_catalog(catalog: dict[str, Any] | None) -> list[dict[str, Any]
         if importance < 3:
             continue
         row = dict(point)
-        if importance >= 5:
-            row["session_priority"] = "S"
-        elif importance >= 4:
-            row["session_priority"] = "A"
-        else:
-            row["session_priority"] = "B"
         row["session_emphasis"] = "0"
         row["session_focus_items"] = _as_list(point.get("knowledge_items"))[:3]
         row["session_exam_signal"] = str(point.get("exam_signal") or "none")
@@ -317,6 +311,18 @@ def activate_from_catalog(catalog: dict[str, Any] | None) -> list[dict[str, Any]
         row["_light"] = False
         row["_score"] = _raw_score(row)
         activated.append(row)
+    # 分位定档：前 20%→S、20-50%→A、50-80%→B、后 20%→DROP
+    _quantile_assign(activated, allow_c=False)
+    # DROP 硬约束：importance≥4 提到 B（长期重要性不因分层消失），只真丢 imp3
+    kept: list[dict[str, Any]] = []
+    for row in activated:
+        if row["session_priority"] == "DROP":
+            if _rank(row.get("importance")) >= 4:
+                row["session_priority"] = "B"
+                kept.append(row)
+            continue
+        kept.append(row)
+    activated[:] = kept
     _cap_priorities(
         activated,
         s_max=8,
@@ -386,7 +392,21 @@ def activate_points(catalog: dict[str, Any] | None, teacher: str) -> list[dict[s
         row["_score"] = _raw_score(row)
         activated.append(row)
 
-    _assign_priority(activated)
+    # 分位定档：前 20%→S、20-50%→A、50-80%→B、后 20%→C（补充表）
+    _quantile_assign(activated, allow_c=True)
+    # 硬约束：
+    # 1) 被点名（_mentioned）→ 不低于 B（轻提也不落补充表，老师点过=本次相关）
+    # 2) importance≥5 且老师原话含强词（必考等）→ 强制 S（明显核心不被分位挤掉）
+    for row in activated:
+        if not row.get("_mentioned"):
+            continue
+        if row["session_priority"] == "C":
+            row["session_priority"] = "B"
+        blob = "".join(row.get("session_quotes") or [])
+        if _rank(row.get("importance")) >= 5 and any(
+            mark in blob for mark in _STRONG
+        ):
+            row["session_priority"] = "S"
     selected_ids = {_clean(p.get("id")) for p in activated}
     extra: list[dict[str, Any]] = []
     for row in list(activated):
@@ -470,42 +490,53 @@ def _raw_score(point: dict[str, Any]) -> int:
     )
 
 
-_GRADE_UP = {"C": "B", "B": "A", "A": "S", "S": "S"}
-_GRADE_DOWN = {"S": "A", "A": "B", "B": "C", "C": "C"}
+def _rank(value: Any, default: int = 3, lo: int = 1, hi: int = 5) -> int:
+    """枚举/数值归一化到 [lo, hi]；缺失或非法取 default。"""
+    try:
+        n = int(str(value or "") or default)
+    except (TypeError, ValueError):
+        n = default
+    return max(lo, min(hi, n))
 
 
-def _assign_priority(rows: list[dict[str, Any]]) -> None:
-    """基础档（importance）+ 老师调档：
+def _quantile_assign(rows: list[dict[str, Any]], *, allow_c: bool) -> None:
+    """按综合分 _score 分位定档：前 20%→S、20-50%→A、50-80%→B、后 20%→C/DROP。
 
-    - 基础档：importance≥5→S、4→A、3→B、2→C（低 importance 只有被老师点到才进清单）
-    - 被老师提到 → 升一档（最多 S）
-    - 含强词（必考/务必掌握等）→ 再升一档（提到+强调）
-    - 轻提（了解一下，无强词）→ 降一档（至少 C）
+    - 边界同分并档（不拆散同分组，切点向后拉到同分区间末尾）
+    - 少于 5 个点退化：最高分→S、次高→A、其余→B（小目录也分层）
+    - allow_c=True（有老师）：后 20% 记 C（补充表）；否则记 DROP（调用方过滤）
+    就地改 row["session_priority"]。
     """
-    for row in rows:
-        try:
-            importance = int(str(row.get("importance") or 3) or 3)
-        except (TypeError, ValueError):
-            importance = 3
-        if importance >= 5:
-            grade = "S"
-        elif importance >= 4:
-            grade = "A"
-        elif importance >= 3:
-            grade = "B"
+    n = len(rows)
+    srt = sorted(rows, key=lambda r: -int(r.get("_score") or 0))
+    if n < 5:
+        for i, r in enumerate(srt):
+            r["session_priority"] = "S" if i == 0 else "A" if i == 1 else "B"
+        return
+
+    def cut(frac: float) -> int:
+        idx = int(n * frac)
+        if idx <= 0:
+            return 0
+        if idx >= n:
+            return n
+        score = int(srt[idx - 1].get("_score") or 0)
+        while idx < n and int(srt[idx].get("_score") or 0) == score:
+            idx += 1
+        return idx
+
+    s_end = cut(0.20)
+    a_end = cut(0.50)
+    b_end = cut(0.80)
+    for i, r in enumerate(srt):
+        if i < s_end:
+            r["session_priority"] = "S"
+        elif i < a_end:
+            r["session_priority"] = "A"
+        elif i < b_end:
+            r["session_priority"] = "B"
         else:
-            grade = "C"
-        if not row.get("_mentioned"):
-            row["session_priority"] = grade
-            continue
-        blob = "".join(row.get("session_quotes") or [])
-        if any(mark in blob for mark in _STRONG):
-            grade = _GRADE_UP[_GRADE_UP[grade]]  # 提到 + 强调
-        elif any(mark in blob for mark in _LIGHT):
-            grade = _GRADE_DOWN[grade]  # 轻提降档
-        else:
-            grade = _GRADE_UP[grade]  # 普通提到
-        row["session_priority"] = grade
+            r["session_priority"] = "C" if allow_c else "DROP"
 
 
 def _cap_priorities(

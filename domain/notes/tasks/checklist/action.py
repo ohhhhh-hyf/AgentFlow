@@ -232,6 +232,171 @@ def _merged_actions(cards: list[dict[str, Any]], slot: str) -> list[str]:
     return _uniq(actions, 2)
 
 
+_SOURCE_LABELS = {
+    "teacher_quote": "老师原话",
+    "knowledge_items": "知识目录",
+    "kb_excerpt": "知识库原文",
+    "note_missing_items": "笔记缺项",
+    "risk_tags": "风险标签",
+    "completion_criteria": "过关标准",
+}
+
+
+def _sources(card: dict[str, Any], *names: str) -> list[str]:
+    out: list[str] = []
+    for name in names:
+        if name == "teacher_quote" and not _as_list(card.get("session_quotes")):
+            continue
+        if name == "knowledge_items" and not _as_list(card.get("knowledge_items")):
+            continue
+        if name == "kb_excerpt" and not _clean(card.get("_kb_excerpt")):
+            continue
+        if name == "note_missing_items" and not _as_list(card.get("note_missing_items")):
+            continue
+        if name == "risk_tags" and not _as_list(card.get("risk_tags")):
+            continue
+        if name == "completion_criteria" and not _as_list(card.get("completion_criteria")):
+            continue
+        if name not in out:
+            out.append(name)
+    return out
+
+
+def _task_text(task: dict[str, Any]) -> str:
+    action = _clean(task.get("action"))
+    target = _clean(task.get("target"))
+    output = _clean(task.get("output"))
+    check = _clean(task.get("check"))
+    bits = [f"{action}{target}" if action and target else action or target]
+    if output:
+        bits.append(f"产出：{output}")
+    if check:
+        bits.append(f"检查：{check}")
+    return "；".join(bit for bit in bits if bit)
+
+
+def _task(
+    action: str,
+    target: str,
+    output: str,
+    source: list[str],
+    check: str,
+) -> dict[str, Any]:
+    labels = [_SOURCE_LABELS.get(src, src) for src in source if src]
+    return {
+        "action": action,
+        "target": target,
+        "output": output,
+        "source": source,
+        "source_label": " / ".join(labels),
+        "check": check,
+        "text": _task_text(
+            {
+                "action": action,
+                "target": target,
+                "output": output,
+                "check": check,
+            }
+        ),
+    }
+
+
+def _target_items(card: dict[str, Any], limit: int = 4) -> list[str]:
+    return _uniq(
+        _as_list(card.get("session_focus_items"))
+        or _as_list(card.get("knowledge_items"))
+        or [_clean(card.get("name"))],
+        limit,
+    )
+
+
+def _structured_actions(cards: list[dict[str, Any]], slot: str) -> list[dict[str, Any]]:
+    tasks: list[dict[str, Any]] = []
+    for card in cards:
+        name = _clean(card.get("name"))
+        items = _target_items(card)
+        target = f"{name}：{'、'.join(items)}" if items and items != [name] else name
+        kinds = set(_primary_kinds(card, slot))
+        count = _clean(card.get("session_practice_count"))
+        count_text = f"，并完成 {count} 题" if count else ""
+        base_sources = _sources(card, "teacher_quote", "knowledge_items", "kb_excerpt")
+        if "choose_method" in kinds:
+            tasks.append(
+                _task(
+                    "判断",
+                    target,
+                    "写出题目特征、可用方法和不用其他方法的理由" + count_text,
+                    base_sources or ["knowledge_items"],
+                    "看到新题能先说清为什么选这个方法",
+                )
+            )
+        if "calculate" in kinds:
+            tasks.append(
+                _task(
+                    "演算",
+                    target,
+                    "保留关键变形、中间步骤和适用条件检查" + count_text,
+                    base_sources or ["knowledge_items"],
+                    "答案之外，步骤和条件也能对上",
+                )
+            )
+        if "prove" in kinds:
+            tasks.append(
+                _task(
+                    "整理",
+                    target,
+                    "写成条件、推理、结论三段式证明骨架" + count_text,
+                    base_sources or ["knowledge_items"],
+                    "不看资料能复写完整推理链",
+                )
+            )
+        if "distinguish" in kinds:
+            tasks.append(
+                _task(
+                    "对比",
+                    target,
+                    "做一张“概念 / 判断依据 / 易错边界”三列表",
+                    _sources(card, "teacher_quote", "knowledge_items", "risk_tags") or ["knowledge_items"],
+                    "能用一句话分清相近概念",
+                )
+            )
+        if "apply" in kinds or "mixed" in kinds:
+            tasks.append(
+                _task(
+                    "迁移",
+                    target,
+                    "列出可直接套用的场景和一个不能套用的反例" + count_text,
+                    base_sources or ["knowledge_items"],
+                    "换一种问法仍能判断是否适用",
+                )
+            )
+        if not kinds and slot != "foundation":
+            tasks.append(
+                _task(
+                    "复述",
+                    target,
+                    "写下核心定义、限制条件和一个正例",
+                    base_sources or ["knowledge_items"],
+                    "能脱离原文讲清它解决什么问题",
+                )
+            )
+    return _uniq_task_objects(tasks, 4 if slot == "special" else 6)
+
+
+def _uniq_task_objects(tasks: list[dict[str, Any]], limit: int) -> list[dict[str, Any]]:
+    seen: set[str] = set()
+    out: list[dict[str, Any]] = []
+    for task in tasks:
+        key = _clean(task.get("text")).replace(" ", "")
+        if not key or key in seen:
+            continue
+        seen.add(key)
+        out.append(task)
+        if len(out) >= limit:
+            break
+    return out
+
+
 def _focus_line(cards: list[dict[str, Any]]) -> str:
     bits: list[str] = []
     for card in cards:
@@ -276,7 +441,21 @@ def _build_foundation(cards: list[dict[str, Any]]) -> dict[str, Any]:
         "goal": "后面核心内容会直接用到这些定义和前提，先快速确认，不必重学整章。",
         "count": len(confirm),
         "sections": [
-            {"type": "quick_check", "title": "快速确认", "items": _uniq(confirm, 6)},
+            {
+                "type": "quick_check",
+                "title": "快速确认",
+                "items": _uniq(confirm, 6),
+                "task_objects": [
+                    _task(
+                        "确认",
+                        item.split("：", 1)[0],
+                        item.split("：", 1)[1] if "：" in item else "写出定义和一条限制条件",
+                        ["knowledge_items"],
+                        "后续核心题里用到时不用回头翻资料",
+                    )
+                    for item in _uniq(confirm, 6)
+                ],
+            },
             {
                 "type": "pass_criteria",
                 "title": "过关线",
@@ -303,6 +482,7 @@ def _build_core(cards: list[dict[str, Any]]) -> dict[str, Any]:
                 "title": _group_title(group),
                 "focus": _focus_line(group),
                 "tasks": _merged_actions(group, "core"),
+                "task_objects": _structured_actions(group, "core"),
                 "pass_criteria": _pick_criteria(group, 3),
                 "reminder": "；".join(notes) or None,
             }
@@ -341,6 +521,7 @@ def _build_specials(cards: list[dict[str, Any]]) -> tuple[dict[str, Any], list[d
                 "title": _FAMILY_SPECIAL.get(family, "重点专项"),
                 "focus": _focus_line(group),
                 "tasks": (_merged_actions(group, "special") or [_focus_line(group)]) + require,
+                "task_objects": _structured_actions(group, "special"),
                 "pass_criteria": _pick_criteria(group, 3),
             }
         )
@@ -402,6 +583,13 @@ def _build_sweep(cards: list[dict[str, Any]], leftover: list[dict[str, Any]]) ->
     if writing_names:
         writing_items.append("把书写和步骤走完整：" + _join(writing_names))
     writing_items.extend(f"把「{item}」独立走通一遍，确保能写出来" for item in _uniq(missing_items, 3))
+    task_objects: list[dict[str, Any]] = []
+    for name in _uniq(concept_names, 3):
+        task_objects.append(_task("辨析", name, "写出容易混淆对象和判断依据", ["risk_tags"], "遇到相近问法不误判"))
+    for name in _uniq(condition_names + method_names, 4):
+        task_objects.append(_task("核查", name, "列出适用条件、边界和方法选择理由", ["teacher_quote", "risk_tags"], "动手前能先说明条件是否满足"))
+    for item in _uniq(missing_items, 3):
+        task_objects.append(_task("补齐", item, "回到笔记中补出可复述版本", ["note_missing_items"], "合上资料能写出来"))
     groups = [
         {"type": "risk_group", "title": "概念辨析", "items": _uniq(concept_items, 5)},
         {"type": "risk_group", "title": "条件 / 方法", "items": _uniq(method_items, 5)},
@@ -411,7 +599,10 @@ def _build_sweep(cards: list[dict[str, Any]], leftover: list[dict[str, Any]]) ->
     return {
         "goal": "考前集中检查最容易丢分的地方，不再重新讲知识。",
         "count": len(filled),
-        "sections": filled,
+        "sections": [
+            {**section, "task_objects": task_objects[:6]} if idx == 0 and task_objects else section
+            for idx, section in enumerate(filled)
+        ],
     }
 
 

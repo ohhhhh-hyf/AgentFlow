@@ -27,18 +27,34 @@ _SECTION = re.compile(
 )
 _MD_HEAD = re.compile(r"^(#{1,4})\s+(.+)$")
 _NUM_HEAD = re.compile(r"^(\d+(?:\.\d+){0,3})\s+(.+)$")
+_SENT_END_RE = re.compile(r"[。！？；;]$")
+# 兜底标题：行首特征词（定义/定理/易错/例题…）。标题行不进正文块，会丢内容，
+# 所以只认「纯短语」或「特征词+冒号+≤6 字短语」——带实质内容的句子不当标题。
+_TITLE_HEAD_RE = re.compile(
+    r"^(?:定义|定理|性质|公式|例题|例[0-9一二三四五六七八九十]|易错|注意|重点|"
+    r"总结|方法|概念|要点|技巧|步骤|原理|规则|题型|证明|分类|区别|结论|特征|提醒|小结)"
+    r"(?:[\d一二三四五六七八九十]?\s*[：:]?\s*.{0,6})?$"
+)
 
 
 def classify_source_role(filename: str, text: str = "") -> str:
-    """推断来源角色：内容优先，格式其次，文件名只做兜底。"""
+    """推断来源角色：文件名强信号优先，内容其次，格式兜底。
+
+    文件名含 note/笔记 → 笔记；含 teacher/划重点/focus → 老师。
+    避免学生笔记里出现「必考/重点」等词就被整体误判成老师文本。
+    """
     name = Path(filename or "").name.lower()
     stem = Path(filename or "").stem.lower()
     suffix = Path(filename or "").suffix.lower()
     blob = f"{name} {stem}"
     sample = str(text or "")[:4000]
-    if _TEACHER_RE.search(sample) or any(mark in blob for mark in _TEACHER_MARKS):
+    if any(mark in blob for mark in _TEACHER_MARKS):
         return ROLE_TEACHER
-    if _NOTES_RE.search(sample) or any(mark in blob for mark in _NOTES_MARKS):
+    if any(mark in blob for mark in _NOTES_MARKS):
+        return ROLE_NOTES
+    if _TEACHER_RE.search(sample):
+        return ROLE_TEACHER
+    if _NOTES_RE.search(sample):
         return ROLE_NOTES
     if suffix in _MATERIAL_EXTS or _MATERIAL_RE.search(sample):
         return ROLE_MATERIAL
@@ -64,4 +80,8 @@ def heading_level(line: str) -> tuple[int, str] | None:
     if numbered:
         depth = numbered.group(1).count(".") + 1
         return min(depth, 3), numbered.group(2).strip()
+    # 兜底：无编号短行 + 行首特征词（定义/定理/易错/例题…）→ 疑似知识点级标题。
+    # 限 ≤24 字、无句尾标点，避免把正文句子当标题；层级保守取 3（knowledge_point）。
+    if len(text) <= 24 and not _SENT_END_RE.search(text) and _TITLE_HEAD_RE.match(text):
+        return 3, text
     return None

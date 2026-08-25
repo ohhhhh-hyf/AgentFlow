@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import json
+import re
 from html import escape
 from typing import Any
 
@@ -173,6 +174,33 @@ def _strategy_markdown(draft: dict[str, Any]) -> list[str]:
     return lines
 
 
+def _render_task_object(task: dict[str, Any], *, markdown: bool) -> str:
+    action = _clean(task.get("action"))
+    target = _clean(task.get("target"))
+    output = _clean(task.get("output"))
+    check = _clean(task.get("check"))
+    source = _clean(task.get("source_label"))
+    head = f"{action}{target}" if action and target else action or target
+    parts = [head]
+    if output:
+        parts.append(f"产出：{output}")
+    if check:
+        parts.append(f"检查：{check}")
+    text = "；".join(part for part in parts if part)
+    if source:
+        text += f"（依据：{source}）"
+    return text if markdown else escape(text, quote=False)
+
+
+def _render_section_tasks(section: dict[str, Any], *, markdown: bool = True) -> list[str]:
+    task_objects = [
+        task for task in (section.get("task_objects") or []) if isinstance(task, dict)
+    ]
+    if task_objects:
+        return [_render_task_object(task, markdown=markdown) for task in task_objects]
+    return [str(x) for x in (section.get("tasks") or []) if str(x).strip()]
+
+
 def _action_markdown(draft: dict[str, Any]) -> list[str]:
     cards = _action_cards(draft)
     lines = ["## 四、行动清单", ""]
@@ -205,16 +233,20 @@ def _action_markdown(draft: dict[str, Any]) -> list[str]:
             if stype in {"quick_check", "pass_criteria", "risk_group"}:
                 if title:
                     lines.append(f"#### {title}")
-                lines.extend(f"- {item}" for item in section.get("items") or [])
+                rendered_items = _render_section_tasks(section)
+                if not rendered_items:
+                    rendered_items = [str(x) for x in (section.get("items") or []) if str(x).strip()]
+                lines.extend(f"- {item}" for item in rendered_items)
                 lines.append("")
                 continue
             if title:
                 lines.append(f"#### {title}")
             if section.get("focus"):
                 lines.append(f"本轮重点：{section.get('focus')}")
-            if section.get("tasks"):
+            rendered_tasks = _render_section_tasks(section)
+            if rendered_tasks:
                 lines.append("本次任务：" if stype == "task_group" else "重点训练：")
-                lines.extend(f"- {item}" for item in section.get("tasks") or [])
+                lines.extend(f"- {item}" for item in rendered_tasks)
             if section.get("pass_criteria"):
                 lines.append("过关线：")
                 lines.extend(f"- {item}" for item in section.get("pass_criteria") or [])
@@ -309,24 +341,48 @@ def _checks(items: list[str]) -> str:
     ) + "</ul>"
 
 
+_MATH_HINT_RE = re.compile(
+    r"(?<![$\\])("
+    r"\\(?:frac|sqrt|sum|int|lim|alpha|beta|gamma|theta|lambda|mu|sigma|omega|Delta|partial|nabla)\b"
+    r"|[A-Za-z0-9]+(?:\s*[_^]\s*[A-Za-z0-9{}]+)+"
+    r"|[A-Za-z0-9{}\\^_+\-*/(), ]+\s*(?:=|≤|≥|\\le|\\ge|\\neq|≈)\s*[A-Za-z0-9{}\\^_+\-*/(), ]+"
+    r")"
+)
+
+
+def _math_escape(text: object) -> str:
+    from tools.ocr.mathmd import normalize_markdown_math
+
+    raw = normalize_markdown_math(str(text or ""))
+    if "$" not in raw:
+        raw = _MATH_HINT_RE.sub(lambda m: f"${m.group(1).strip()}$", raw)
+    return escape(raw, quote=False)
+
+
 def _section_html(section: dict[str, Any]) -> str:
     stype = str(section.get("type") or "")
     title = escape(str(section.get("title") or ""), quote=False)
     if stype in {"quick_check", "pass_criteria", "risk_group"}:
-        items = [str(x) for x in (section.get("items") or []) if str(x).strip()]
+        items = _render_section_tasks(section, markdown=False)
+        if not items:
+            items = [escape(str(x), quote=False) for x in (section.get("items") or []) if str(x).strip()]
         if not items:
             return ""
         head = f"<h4>{title}</h4>" if title else ""
-        return head + _checks(items)
+        return head + "<ul class=\"ck-check\">" + "".join(f"<li>□ {item}</li>" for item in items) + "</ul>"
     body = ['<div class="ck-task">']
     if title:
         body.append(f"<strong>{title}</strong>")
     if section.get("focus"):
         body.append(f'<p><b>本轮重点</b> {escape(str(section.get("focus")), quote=False)}</p>')
-    tasks = [str(x) for x in (section.get("tasks") or []) if str(x).strip()]
+    tasks = _render_section_tasks(section, markdown=False)
     if tasks:
         label = "本次任务" if stype == "task_group" else "重点训练"
-        body.append(f"<p><b>{label}</b></p>" + _checks(tasks))
+        body.append(
+            f"<p><b>{label}</b></p><ul class=\"ck-check\">"
+            + "".join(f"<li>□ {item}</li>" for item in tasks)
+            + "</ul>"
+        )
     criteria = [str(x) for x in (section.get("pass_criteria") or []) if str(x).strip()]
     if criteria:
         body.append("<p><b>过关线</b></p>" + _checks(criteria))
@@ -513,7 +569,7 @@ def _evidence_html(kind: str, ev: dict[str, Any]) -> str:
         f'<div class="ck-ev-k">{escape(str(head), quote=False)}</div>',
     ]
     if kind == "teacher":
-        rows.append(f'<div class="ck-ev-quote">“{escape(_clean(ev.get("text")), quote=False)}”</div>')
+        rows.append(f'<div class="ck-ev-quote">“{_math_escape(_clean(ev.get("text")))}”</div>')
         items = _as_list(ev.get("matched_items"))
         if items:
             rows.append(
@@ -528,11 +584,11 @@ def _evidence_html(kind: str, ev: dict[str, Any]) -> str:
         excerpt = _clean(ev.get("excerpt"))
         full = _clean(ev.get("full")) or excerpt
         if excerpt:
-            rows.append(f'<div class="ck-ev-quote">{escape(excerpt, quote=False)}</div>')
+            rows.append(f'<div class="ck-ev-quote">{_math_escape(excerpt)}</div>')
         if full and full != excerpt:
             rows.append(
                 "<details><summary>完整片段</summary>"
-                f'<div class="ck-ev-quote">{escape(full, quote=False)}</div></details>'
+                f'<div class="ck-ev-quote">{_math_escape(full)}</div></details>'
             )
     sup = _supports_label(ev)
     if sup:
