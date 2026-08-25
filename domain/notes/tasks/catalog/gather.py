@@ -23,6 +23,8 @@ _MIN_BRIEF_TITLES = 60
 _MAX_BRIEF_TITLES = 180
 _TITLES_PER_PAGE = 5
 _TITLES_PER_FILE = 24
+_MIDDLE_TITLES_PER_FILE = 12
+_MIDDLE_TITLES_PER_PAGE = 3
 _TITLE_KEYWORDS = ("定义", "性质", "定理", "规则", "方法", "公式", "例题", "易错", "注意", "总结", "步骤")
 _ITEM_ONLY_KEYWORDS = ("例题", "易错", "注意", "总结", "步骤", "题型", "技巧", "提醒", "小结")
 _BODY_LIKE_ENDINGS = ("。", "；", ";", ".", "！", "？", "!", "?")
@@ -131,13 +133,26 @@ def _clean_title(text: str) -> str:
 def _title_path(row: dict[str, str]) -> list[str]:
     path_text = _clean_title(row.get("heading_path_text") or "")
     if path_text:
-        return [p.strip() for p in path_text.split("/") if p.strip()]
+        return _dedupe_path([p.strip() for p in path_text.split("/") if p.strip()])
     parts: list[str] = []
     for key in ("chapter", "topic", "heading"):
         title = _clean_title(row.get(key) or "")
         if title and title not in parts:
             parts.append(title)
-    return parts
+    return _dedupe_path(parts)
+
+
+def _dedupe_path(parts: list[str]) -> list[str]:
+    out: list[str] = []
+    for part in parts:
+        if out and _compact_title(out[-1]) == _compact_title(part):
+            continue
+        out.append(part)
+    return out
+
+
+def _compact_title(text: str) -> str:
+    return re.sub(r"[\s:：,，。；;、（）()\[\]【】《》“”\"'·\-—_]+", "", str(text or "").lower())
 
 
 def _score_title_candidate(row: dict[str, str]) -> tuple[int, list[str]]:
@@ -247,7 +262,64 @@ def _title_candidates(grouped: dict[str, list[dict[str, str]]]) -> list[dict[str
     return candidates
 
 
-def _compact_existing(catalog: dict[str, Any]) -> str:
+def _limited_middle_candidates(
+    rows: list[dict[str, Any]],
+    *,
+    total_limit: int,
+) -> list[dict[str, Any]]:
+    """中可信标题只按文件/页抽样，避免 OCR 密集短标题挤占 prompt。"""
+    if total_limit <= 0:
+        return []
+    selected: list[dict[str, Any]] = []
+    file_counts: dict[str, int] = defaultdict(int)
+    page_counts: dict[tuple[str, str], int] = defaultdict(int)
+    seen_paths: set[tuple[str, str]] = set()
+    for row in rows:
+        source = str(row.get("source") or "")
+        page = str(row.get("page") or "")
+        path = " / ".join(row.get("path") or [])
+        if not path:
+            continue
+        key = (source, path)
+        if key in seen_paths:
+            continue
+        if file_counts[source] >= _MIDDLE_TITLES_PER_FILE:
+            continue
+        page_key = (source, page)
+        if page and page_counts[page_key] >= _MIDDLE_TITLES_PER_PAGE:
+            continue
+        selected.append(row)
+        seen_paths.add(key)
+        file_counts[source] += 1
+        if page:
+            page_counts[page_key] += 1
+        if len(selected) >= total_limit:
+            break
+    return selected
+
+
+def _point_sources(point: dict[str, Any]) -> set[str]:
+    return {
+        str(name).strip()
+        for name in point.get("source_documents") or []
+        if str(name).strip()
+    }
+
+
+def _point_missing_required_fields(point: dict[str, Any]) -> list[str]:
+    return [
+        field
+        for field in ("practice_type", "completion_criteria", "learning_role", "risk_tags")
+        if not (point.get(field) or [])
+    ]
+
+
+def _compact_existing(
+    catalog: dict[str, Any],
+    *,
+    detailed_sources: set[str] | None = None,
+) -> str:
+    detailed_sources = detailed_sources or set()
     lines = [
         f"课程：{catalog.get('course') or ''}",
         f"版本：{catalog.get('version') or '1'}",
@@ -260,19 +332,45 @@ def _compact_existing(catalog: dict[str, Any]) -> str:
             if not isinstance(topic, dict):
                 continue
             lines.append(f"  - [{topic.get('id') or ''}] 主题 {topic.get('name') or ''}")
-            for point in topic.get("knowledge_points") or []:
+            points = [
+                point
+                for point in topic.get("knowledge_points") or []
+                if isinstance(point, dict)
+            ]
+            compact_names: list[str] = []
+            expanded = 0
+            for point in points:
                 if not isinstance(point, dict):
                     continue
-                missing = [
-                    f
-                    for f in ("practice_type", "completion_criteria", "learning_role", "risk_tags")
-                    if not (point.get(f) or [])
-                ]
-                mark = f"（缺字段：{'、'.join(missing)}）" if missing else ""
-                lines.append(
-                    f"      - [{point.get('id') or ''}] {point.get('name') or ''}{mark}"
-                )
+                missing = _point_missing_required_fields(point)
+                relevant = bool(_point_sources(point) & detailed_sources)
+                if missing or relevant:
+                    mark = f"（缺字段：{'、'.join(missing)}）" if missing else "（与新资料相关）"
+                    lines.append(
+                        f"      - [{point.get('id') or ''}] {point.get('name') or ''}{mark}"
+                    )
+                    expanded += 1
+                else:
+                    compact_names.append(f"[{point.get('id') or ''}] {point.get('name') or ''}")
+            if compact_names:
+                shown = "、".join(compact_names[:8])
+                rest = len(compact_names) - 8
+                tail = f" 等剩余 {rest} 个" if rest > 0 else ""
+                lines.append(f"      - 已有KP摘要：{shown}{tail}")
+            if expanded and compact_names:
+                lines.append("      - 其余已有 KP 只按摘要匹配；不要重写。")
     return "\n".join(lines)
+
+
+def _sources_from_grouped(grouped: dict[str, list[dict[str, str]]] | None) -> set[str]:
+    if not grouped:
+        return set()
+    return {
+        str(row.get("source") or "").strip()
+        for rows in grouped.values()
+        for row in rows
+        if str(row.get("source") or "").strip()
+    }
 
 
 def known_source_documents(catalog: dict[str, Any]) -> set[str]:
@@ -318,6 +416,8 @@ def build_catalog_briefing(shared_context: str) -> str:
     existing = load_catalog(user_id=user_id, subject=subject)
     mode = "incremental_update" if existing else "build"
     kb = open_knowledge(user_id=user_id)
+    grouped = _brief_chunks(kb, user_id, subject) if kb is not None else None
+    incoming_sources = _sources_from_grouped(grouped)
     parts = [
         "【任务】生成或增量更新课程知识目录，不要写复习建议。",
         f"【学科/课程】{subject or '未标注'}",
@@ -326,7 +426,7 @@ def build_catalog_briefing(shared_context: str) -> str:
     ]
     if existing:
         parts.append("【已有目录】必须复用下列 ID，禁止重建旧章。缺 role/practice/criteria/risk 的 KP 只补这四个字段。")
-        parts.append(_compact_existing(existing))
+        parts.append(_compact_existing(existing, detailed_sources=incoming_sources))
         known = known_source_documents(existing)
         if known:
             parts.append("【已入库并已编目的文件】" + "、".join(sorted(known)))
@@ -348,7 +448,7 @@ def build_catalog_briefing(shared_context: str) -> str:
     if kb is None:
         parts.append("【知识库】当前不可用，只根据下面老师文本建目录。")
     else:
-        grouped = _brief_chunks(kb, user_id, subject)
+        grouped = grouped or {}
         ocr_notes = sorted(
             {
                 str(row.get("source") or "").strip()
@@ -377,15 +477,17 @@ def build_catalog_briefing(shared_context: str) -> str:
             high = [row for row in candidates if int(row.get("score") or 0) >= 8]
             middle = [row for row in candidates if 5 <= int(row.get("score") or 0) < 8]
             low = [row for row in candidates if int(row.get("score") or 0) < 5]
+            limited_middle = _limited_middle_candidates(middle, total_limit=min(60, budget))
             if high:
                 parts.append("【高可信骨架】（优先形成章/主题；若多来源重复，合并为同一节点）")
             else:
                 parts.append("【高可信骨架】未发现高分标题，请从下面的知识点标题中保守归纳章节。")
             by_file: dict[str, list[dict[str, Any]]] = defaultdict(list)
-            for row in high or middle:
+            for row in high or limited_middle:
                 by_file[str(row.get("source") or "")].append(row)
             known = known_source_documents(existing) if existing else set()
             emitted = 0
+            emitted_paths: set[tuple[str, str]] = set()
             for fname, rows in list(by_file.items())[:20]:
                 if emitted >= budget:
                     break
@@ -398,6 +500,7 @@ def build_catalog_briefing(shared_context: str) -> str:
                     path = " / ".join(row.get("path") or [])
                     if path and path not in seen_paths:
                         seen_paths.add(path)
+                        emitted_paths.add((fname, path))
                         reason = "、".join(row.get("reasons") or [])
                         parts.append(
                             f"  · [score={row.get('score')}; role={row.get('role')}; {reason}] {path}"
@@ -405,25 +508,26 @@ def build_catalog_briefing(shared_context: str) -> str:
                         emitted += 1
             if emitted >= budget:
                 parts.append(f"  · …（候选标题过多，已按资料规模截断到 {budget} 条）")
-            if middle:
+            remaining_middle = [
+                row
+                for row in limited_middle
+                if (str(row.get("source") or ""), " / ".join(row.get("path") or []))
+                not in emitted_paths
+            ]
+            if high and remaining_middle:
                 parts.append("【知识点标题】（仅为候选：定义/公式/方法可考虑作 KP；例题/易错/注意/步骤/题型/小结只能作 item/evidence）")
                 remaining = max(0, budget - emitted)
                 middle_budget = min(60, remaining)
-                for row in middle[:middle_budget]:
+                for row in remaining_middle[:middle_budget]:
                     parts.append(
                         f"- [score={row.get('score')}; role={row.get('role')}; source={row.get('source')}] "
                         + " / ".join(row.get("path") or [])
                     )
-            if low and not high and not middle:
+            if low:
                 parts.append(
-                    "【低可信标题】知识库里只有低分标题（score<5），保守归纳成章/主题，"
-                    "不要把疑似正文的行升成 KP。"
+                    f"【低可信标题】共 {len(low)} 条，已从主 prompt 省略；"
+                    "只作为知识库 evidence，不要据此新建章/主题/KP。"
                 )
-                for row in low[:40]:
-                    parts.append(
-                        f"- [score={row.get('score')}; role={row.get('role')}; source={row.get('source')}] "
-                        + " / ".join(row.get("path") or [])
-                    )
         else:
             parts.append("【候选目录标题】知识库里还没有可用标题，请尽量从老师文本归纳，但不要编资料里没有的章名。")
 

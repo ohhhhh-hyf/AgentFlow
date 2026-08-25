@@ -16,7 +16,7 @@ from tools.fallback_rules import FallbackRules, Lines
 class LibraryGenerationContract(GenerationContract):
     fields = [
         StrField("message", "给用户看的一句话"),
-        StrField("increment", "新增独立知识点数"),
+        StrField("increment", "新增可编目知识单元数"),
         ObjListField(
             "files",
             [
@@ -30,7 +30,7 @@ class LibraryGenerationContract(GenerationContract):
             "increment_by_file",
             [
                 StrField("name", "文件名"),
-                StrField("count", "该文件贡献的独立知识点"),
+                StrField("count", "该文件贡献的可编目知识单元"),
             ],
         ),
         ObjListField(

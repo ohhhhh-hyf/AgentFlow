@@ -13,6 +13,8 @@ from tools.knowledge.tool import KnowledgeTool
 _FILE_MARK = "【入库文件】"
 _UNIT_CAP = 12
 _SENT_SPLIT = re.compile(r"(?<=[。！？；!\?\n])")
+_ITEM_ONLY_TAGS = {"example", "mistake"}
+_ITEM_ONLY_HEAD_RE = re.compile(r"(例题|易错|注意|步骤|题型|技巧|提醒|小结|总结)")
 _CHROME_RE = re.compile(
     r"(https?://|www\.|\.com\b|模板网|ppt\s*模板|版权所有|请勿转载|内部资料)",
     re.I,
@@ -97,6 +99,40 @@ def _units(text: str) -> list[str]:
     return parts[:_UNIT_CAP]
 
 
+def _knowledge_units_from_chunk(chunk: dict[str, Any]) -> list[str]:
+    """入库报告按知识块计数，不再按句子/换行膨胀计数。"""
+    meta = chunk.get("metadata") or {}
+    text = str(chunk.get("text") or "")
+    heading = " ".join(str(meta.get("heading") or "").split()).strip()
+    topic = " ".join(str(meta.get("topic") or "").split()).strip()
+    chapter = " ".join(str(meta.get("chapter") or "").split()).strip()
+    kind = str(meta.get("heading_kind") or "").strip()
+    tags = {
+        item.strip()
+        for item in str(meta.get("content_tags") or "").split(",")
+        if item.strip()
+    }
+    label = heading or topic or chapter
+    if kind == "chapter":
+        return []
+    if kind == "evidence":
+        return []
+    if label and (_ITEM_ONLY_HEAD_RE.search(label) or tags & _ITEM_ONLY_TAGS):
+        return []
+    if kind in {"topic", "knowledge_point"} and label:
+        return [label]
+    if label and len(_compact(label)) >= 4:
+        return [label]
+    units = [
+        unit
+        for unit in _units(text)
+        if not _is_chrome(unit) and len(_compact(unit)) >= 18
+    ]
+    if not units:
+        return []
+    return [" ".join("".join(units[:3]).split())[:120]]
+
+
 def _is_independent(text: str, old_texts: list[str]) -> bool:
     blob = _compact(text)
     if len(blob) < 8:
@@ -170,7 +206,7 @@ def ingest_library(
     for chunk in new_chunks:
         meta = chunk.get("metadata") or {}
         source = str(meta.get("source") or "")
-        for unit in _units(str(chunk.get("text") or "")):
+        for unit in _knowledge_units_from_chunk(chunk):
             if _is_chrome(unit):
                 continue
             if not _is_independent(unit, seen_texts):
@@ -214,7 +250,7 @@ def build_library_markdown(draft: dict[str, Any]) -> str:
         "",
         "## 知识增量",
         "",
-        f"**本次新增独立知识点 {increment} 个。**",
+        f"**本次新增可编目知识单元 {increment} 个。**",
         "",
     ]
     if names:
@@ -249,7 +285,7 @@ def build_library_html(draft: dict[str, Any]) -> str:
         '<div class="review-heading">知识库变化'
         '<div class="quiz-hint">看增量，不看进度条</div></div>',
         '<div class="library-hero">',
-        '<p class="library-caption">本次新增独立知识点</p>',
+        '<p class="library-caption">本次新增可编目知识单元</p>',
         f"<p class=\"library-count\"><strong>{increment}</strong> 个</p>",
         "</div>",
     ]

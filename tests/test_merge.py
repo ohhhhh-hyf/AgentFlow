@@ -328,3 +328,64 @@ class TestNormalizeCatalogEnums:
         assert [p["name"] for p in points] == ["磁矩定义"]
         assert "电流密度" in points[0]["knowledge_items"]
         assert "学生笔记：电流分布与磁矩" in points[0]["evidence"]
+
+    def test_章节主题同名时重命名主题避免前端重复(self):
+        catalog = {
+            "chapters": [
+                {
+                    "id": "ch_001",
+                    "name": "一维束缚态",
+                    "topics": [
+                        {
+                            "id": "tp_001",
+                            "name": "一维束缚态",
+                            "knowledge_points": [
+                                {
+                                    "id": "kp_001",
+                                    "name": "一维半无限深方势阱",
+                                    "knowledge_type": "method",
+                                },
+                                {
+                                    "id": "kp_002",
+                                    "name": "一维谐振子",
+                                    "knowledge_type": "method",
+                                },
+                            ],
+                        }
+                    ],
+                }
+            ],
+        }
+        norm = normalize_catalog_enums(catalog)
+        topic = norm["chapters"][0]["topics"][0]
+        assert topic["name"] == "核心知识点"
+        assert [p["topic"] for p in topic["knowledge_points"]] == ["核心知识点", "核心知识点"]
+
+    def test_章节主题知识点三层同名时保留知识点并重命名主题(self):
+        catalog = {
+            "chapters": [
+                {
+                    "id": "ch_001",
+                    "name": "简单塞曼效应",
+                    "topics": [
+                        {
+                            "id": "tp_001",
+                            "name": "简单塞曼效应",
+                            "knowledge_points": [
+                                {
+                                    "id": "kp_001",
+                                    "name": "简单塞曼效应",
+                                    "knowledge_type": "mixed",
+                                    "knowledge_items": ["能级分裂"],
+                                }
+                            ],
+                        }
+                    ],
+                }
+            ],
+        }
+        norm = normalize_catalog_enums(catalog)
+        topic = norm["chapters"][0]["topics"][0]
+        assert topic["name"] == "核心概念"
+        assert topic["knowledge_points"][0]["name"] == "简单塞曼效应"
+        assert topic["knowledge_points"][0]["topic"] == "核心概念"

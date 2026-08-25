@@ -804,6 +804,36 @@ def _compact_topic_points(
     return out
 
 
+def _retitle_duplicate_topic(
+    topic: dict[str, Any],
+    chapter_name: str,
+    merged_nodes: list[str],
+) -> dict[str, Any]:
+    topic_name = _clean(topic.get("name"))
+    if not topic_name or _norm_name(topic_name) != _norm_name(chapter_name):
+        return topic
+    points = [
+        point
+        for point in topic.get("knowledge_points") or []
+        if isinstance(point, dict) and _clean(point.get("name"))
+    ]
+    point_names = [_clean(point.get("name")) for point in points]
+    distinct = [name for name in point_names if _norm_name(name) != _norm_name(topic_name)]
+    if len(points) == 1 and not distinct:
+        next_topic = "核心概念"
+    elif distinct:
+        next_topic = "核心知识点"
+    else:
+        next_topic = "知识概要"
+    topic = dict(topic)
+    topic["name"] = next_topic
+    topic["change_type"] = "updated"
+    for point in points:
+        point["topic"] = next_topic
+    merged_nodes.append(f"主题重命名：{topic_name} → {next_topic}")
+    return topic
+
+
 def compact_catalog_granularity(catalog: dict[str, Any]) -> dict[str, Any]:
     """把过细 KP 降级进父 KP 的 items，并合并同层重复点。"""
     out = dict(catalog or {})
@@ -828,6 +858,7 @@ def compact_catalog_granularity(catalog: dict[str, Any]) -> dict[str, Any]:
             topic["knowledge_points"] = _compact_topic_points(
                 points, chapter_name, topic_name, merged_nodes
             )
+            topic = _retitle_duplicate_topic(topic, chapter_name, merged_nodes)
             topics.append(topic)
         chapter["topics"] = topics
         chapters.append(chapter)
