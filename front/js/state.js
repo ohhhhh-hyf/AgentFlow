@@ -109,9 +109,10 @@ function resetWorkspace() {
   activeOutputName = null;
   currentActiveStep = 0;
 
-  // 2. 重置中间聊天对话流与欢迎区域
-  if (messagesContainer) {
-    messagesContainer.innerHTML = `
+  // 2. 彻底重置中间聊天对话流与欢迎区域
+  const messagesEl = document.getElementById("messages");
+  if (messagesEl) {
+    messagesEl.innerHTML = `
       <div id="chat-welcome" class="chat-welcome">
         <div class="welcome-icon-large">
           <svg viewBox="0 0 24 24" width="26" height="26" fill="currentColor">
@@ -122,11 +123,34 @@ function resetWorkspace() {
         <h2 class="welcome-title">今天有什么需求？</h2>
       </div>
     `;
+    messagesEl.scrollTop = 0;
   }
-  const quickCardsWrap = $("quick-prompt-cards-wrap");
+  const quickCardsWrap = document.getElementById("quick-prompt-cards-wrap");
   if (quickCardsWrap) quickCardsWrap.classList.remove("hidden");
-  if (chatText) chatText.value = "";
+
+  const chatInput = document.getElementById("chat-text");
+  if (chatInput) {
+    chatInput.value = "";
+    chatInput.style.height = "auto";
+  }
   if (typeof autoResizeTextarea === "function") autoResizeTextarea();
+
+  const modeBadge = document.getElementById("mode-badge");
+  if (modeBadge) modeBadge.classList.add("hidden");
+  const modeText = document.getElementById("mode-text");
+  if (modeText) modeText.textContent = "";
+
+  const liveSuggestions = document.getElementById("live-param-suggestions");
+  if (liveSuggestions) {
+    liveSuggestions.innerHTML = "";
+    liveSuggestions.classList.add("hidden");
+  }
+
+  const userAlert = document.getElementById("user-id-required-alert");
+  if (userAlert) userAlert.classList.add("hidden");
+
+  const btnSend = document.getElementById("btn-send");
+  if (btnSend) btnSend.disabled = false;
 
   // 3. 重置随任务动态生成的上下文参数（保留用户 ID）
   if (ctxSubject) ctxSubject.value = "";
@@ -136,7 +160,11 @@ function resetWorkspace() {
   if (ctxProject) ctxProject.classList.remove("input-error");
   if (typeof updateContextBarVisibility === "function") updateContextBarVisibility(null);
 
-  // 4. 彻底重置右侧 Tab 1：任务计划与流水线展示
+  // 4. 彻底重置右侧置顶流水线编排与 Tab 1 任务计划
+  if (workbenchPipelineHeader) workbenchPipelineHeader.classList.add("hidden");
+  if (pipelineVisual) pipelineVisual.innerHTML = "";
+  if (pipelineStagesText) pipelineStagesText.textContent = "串行 / 并行组";
+
   if (planList) planList.innerHTML = "";
   const completionBanner = document.getElementById("pipeline-completion-banner");
   if (completionBanner) completionBanner.remove();
@@ -147,6 +175,9 @@ function resetWorkspace() {
     planCountBadge.textContent = "0";
     planCountBadge.classList.add("hidden");
   }
+
+  const btnSkipStage = $("btn-skip-stage");
+  if (btnSkipStage) btnSkipStage.classList.add("hidden");
 
   if (validationTip) validationTip.classList.add("hidden");
   if (btnExecutePlan) {

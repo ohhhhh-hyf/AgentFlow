@@ -94,6 +94,8 @@ async function switchSession(sessionId) {
     localStorage.setItem("agentflow_session", sessionId);
   } catch (e) {}
 
+  resetWorkspace();
+
   const ctx = getCtx();
   try {
     const res = await fetch(`${API}/user/${encodeURIComponent(ctx.user_id)}/sessions/${sessionId}`);
@@ -104,6 +106,8 @@ async function switchSession(sessionId) {
     if (chatWelcome && chatWelcome.parentNode === messagesContainer) {
       chatWelcome.remove();
     }
+    const quickCardsWrap = $("quick-prompt-cards-wrap");
+    if (quickCardsWrap) quickCardsWrap.classList.add("hidden");
 
     (data.history || []).forEach((msg) => {
       if (msg.role === "user") {

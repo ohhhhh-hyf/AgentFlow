@@ -1,0 +1,1318 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>AgentFlow 使用教程</title>
+  <style>
+    :root {
+      --bg: #f6f7f9;
+      --paper: #ffffff;
+      --ink: #1f2933;
+      --muted: #657383;
+      --soft: #eef2f6;
+      --line: #d8e0e8;
+      --blue: #2563eb;
+      --blue-soft: #e8f0ff;
+      --green: #0f8a5f;
+      --green-soft: #e7f7ef;
+      --amber: #b7791f;
+      --amber-soft: #fff4dc;
+      --rose: #b42318;
+      --rose-soft: #fff0ee;
+      --violet: #6d28d9;
+      --violet-soft: #f0e9ff;
+      --shadow: 0 18px 55px rgba(31, 41, 51, .10);
+      --radius: 18px;
+      --radius-sm: 12px;
+      --max: 1180px;
+    }
+
+    * { box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+    body {
+      margin: 0;
+      color: var(--ink);
+      background:
+        radial-gradient(circle at 10% 0%, rgba(37, 99, 235, .08), transparent 28rem),
+        radial-gradient(circle at 90% 6%, rgba(15, 138, 95, .08), transparent 26rem),
+        var(--bg);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Microsoft YaHei", Arial, sans-serif;
+      line-height: 1.65;
+    }
+
+    a { color: inherit; text-decoration: none; }
+    code, kbd {
+      font-family: ui-monospace, SFMono-Regular, Consolas, "Liberation Mono", monospace;
+      background: #f1f5f9;
+      border: 1px solid #dde6ef;
+      border-radius: 6px;
+      padding: .08rem .35rem;
+      font-size: .92em;
+    }
+
+    .topbar {
+      position: sticky;
+      top: 0;
+      z-index: 10;
+      backdrop-filter: blur(16px);
+      background: rgba(255,255,255,.82);
+      border-bottom: 1px solid rgba(216, 224, 232, .8);
+    }
+
+    .topbar-inner {
+      max-width: var(--max);
+      margin: 0 auto;
+      padding: 12px 24px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-weight: 750;
+      letter-spacing: 0;
+      white-space: nowrap;
+    }
+
+    .brand-mark {
+      width: 34px;
+      height: 34px;
+      border-radius: 10px;
+      display: grid;
+      place-items: center;
+      color: white;
+      background: linear-gradient(135deg, #2563eb, #0f8a5f);
+      box-shadow: 0 10px 26px rgba(37, 99, 235, .18);
+    }
+
+    .nav {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: flex-end;
+      gap: 8px;
+      font-size: 14px;
+      color: var(--muted);
+    }
+
+    .nav a {
+      padding: 7px 10px;
+      border-radius: 999px;
+    }
+
+    .nav a:hover {
+      background: var(--soft);
+      color: var(--ink);
+    }
+
+    .hero {
+      max-width: var(--max);
+      margin: 0 auto;
+      padding: 54px 24px 22px;
+      display: grid;
+      grid-template-columns: minmax(0, 1.2fr) minmax(320px, .8fr);
+      gap: 28px;
+      align-items: stretch;
+    }
+
+    .hero-copy {
+      background: rgba(255,255,255,.76);
+      border: 1px solid rgba(216,224,232,.9);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      padding: 34px;
+    }
+
+    .eyebrow {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      color: var(--green);
+      background: var(--green-soft);
+      border: 1px solid #c7eadb;
+      border-radius: 999px;
+      padding: 6px 11px;
+      font-size: 13px;
+      font-weight: 700;
+    }
+
+    h1 {
+      margin: 18px 0 12px;
+      font-size: clamp(34px, 5vw, 58px);
+      line-height: 1.08;
+      letter-spacing: 0;
+    }
+
+    .lead {
+      margin: 0;
+      color: var(--muted);
+      font-size: 18px;
+      max-width: 68ch;
+    }
+
+    .hero-actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+      margin-top: 26px;
+    }
+
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      border-radius: 12px;
+      padding: 11px 15px;
+      font-weight: 700;
+      border: 1px solid var(--line);
+      background: white;
+    }
+
+    .btn.primary {
+      background: var(--blue);
+      color: white;
+      border-color: var(--blue);
+    }
+
+    .hero-panel {
+      display: grid;
+      gap: 14px;
+    }
+
+    .stat-card, .note-card {
+      background: var(--paper);
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      padding: 20px;
+      box-shadow: 0 10px 32px rgba(31,41,51,.06);
+    }
+
+    .stat-card strong {
+      display: block;
+      font-size: 28px;
+      line-height: 1.2;
+    }
+
+    .stat-card span, .note-card p {
+      color: var(--muted);
+      margin: 6px 0 0;
+    }
+
+    main {
+      max-width: var(--max);
+      margin: 0 auto;
+      padding: 18px 24px 70px;
+    }
+
+    section {
+      margin-top: 28px;
+      scroll-margin-top: 82px;
+    }
+
+    .section-head {
+      display: flex;
+      align-items: end;
+      justify-content: space-between;
+      gap: 18px;
+      margin-bottom: 14px;
+    }
+
+    h2 {
+      margin: 0;
+      font-size: 28px;
+      letter-spacing: 0;
+    }
+
+    .section-sub {
+      margin: 4px 0 0;
+      color: var(--muted);
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 14px;
+    }
+
+    .grid.two {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .card {
+      background: var(--paper);
+      border: 1px solid var(--line);
+      border-radius: var(--radius-sm);
+      padding: 20px;
+      box-shadow: 0 10px 28px rgba(31,41,51,.05);
+    }
+
+    .card h3 {
+      margin: 0 0 8px;
+      font-size: 18px;
+    }
+
+    .card p { margin: 0; color: var(--muted); }
+    .card ul, .card ol { margin: 10px 0 0; padding-left: 20px; color: var(--muted); }
+    .card li + li { margin-top: 5px; }
+
+    .tag {
+      display: inline-flex;
+      width: fit-content;
+      align-items: center;
+      border-radius: 999px;
+      padding: 4px 9px;
+      font-size: 12px;
+      font-weight: 750;
+      margin-bottom: 10px;
+    }
+
+    .tag.blue { color: var(--blue); background: var(--blue-soft); }
+    .tag.green { color: var(--green); background: var(--green-soft); }
+    .tag.amber { color: var(--amber); background: var(--amber-soft); }
+    .tag.violet { color: var(--violet); background: var(--violet-soft); }
+    .tag.rose { color: var(--rose); background: var(--rose-soft); }
+
+    .steps {
+      counter-reset: step;
+      display: grid;
+      gap: 12px;
+    }
+
+    .step {
+      counter-increment: step;
+      display: grid;
+      grid-template-columns: 44px minmax(0, 1fr);
+      gap: 14px;
+      background: var(--paper);
+      border: 1px solid var(--line);
+      border-radius: var(--radius-sm);
+      padding: 18px;
+    }
+
+    .step::before {
+      content: counter(step);
+      width: 34px;
+      height: 34px;
+      border-radius: 10px;
+      display: grid;
+      place-items: center;
+      color: white;
+      background: var(--blue);
+      font-weight: 800;
+    }
+
+    .step h3 {
+      margin: 0 0 4px;
+      font-size: 17px;
+    }
+
+    .step p { margin: 0; color: var(--muted); }
+
+    .workflow {
+      display: grid;
+      gap: 10px;
+    }
+
+    .flow-row {
+      display: grid;
+      grid-template-columns: 150px minmax(0, 1fr);
+      gap: 12px;
+      align-items: start;
+      padding: 14px;
+      border: 1px solid var(--line);
+      border-radius: var(--radius-sm);
+      background: var(--paper);
+    }
+
+    .flow-row strong { color: var(--ink); }
+    .flow-row span { color: var(--muted); }
+
+    .prompt {
+      background: #101828;
+      color: #f8fafc;
+      border-radius: var(--radius-sm);
+      padding: 16px;
+      overflow: auto;
+      font-family: ui-monospace, SFMono-Regular, Consolas, "Liberation Mono", monospace;
+      font-size: 14px;
+      line-height: 1.55;
+    }
+
+    .table-wrap {
+      overflow: auto;
+      border: 1px solid var(--line);
+      border-radius: var(--radius-sm);
+      background: var(--paper);
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      min-width: 760px;
+    }
+
+    th, td {
+      padding: 13px 14px;
+      border-bottom: 1px solid var(--line);
+      text-align: left;
+      vertical-align: top;
+    }
+
+    th {
+      background: #f8fafc;
+      font-size: 13px;
+      color: #475569;
+      white-space: nowrap;
+    }
+
+    td { color: var(--muted); }
+    td strong { color: var(--ink); }
+    tr:last-child td { border-bottom: 0; }
+
+    .callout {
+      border-radius: var(--radius-sm);
+      border: 1px solid #c7d7fe;
+      background: var(--blue-soft);
+      padding: 18px;
+      color: #1e3a8a;
+    }
+
+    .callout.green {
+      border-color: #b7ead2;
+      background: var(--green-soft);
+      color: #075d41;
+    }
+
+    .callout.amber {
+      border-color: #f3d58e;
+      background: var(--amber-soft);
+      color: #704b10;
+    }
+
+    .checklist {
+      display: grid;
+      gap: 9px;
+    }
+
+    .check {
+      display: flex;
+      align-items: flex-start;
+      gap: 10px;
+      background: var(--paper);
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      padding: 12px 14px;
+      color: var(--muted);
+    }
+
+    .check::before {
+      content: "✓";
+      color: var(--green);
+      font-weight: 900;
+    }
+
+    .footer {
+      margin-top: 36px;
+      padding: 22px;
+      border-radius: var(--radius);
+      background: #111827;
+      color: #e5e7eb;
+    }
+
+    .footer p { margin: 6px 0 0; color: #cbd5e1; }
+
+    @media (max-width: 900px) {
+      .hero, .grid, .grid.two { grid-template-columns: 1fr; }
+      .topbar-inner { align-items: flex-start; flex-direction: column; }
+      .nav { justify-content: flex-start; }
+      .flow-row { grid-template-columns: 1fr; }
+    }
+
+    @media print {
+      .topbar { position: static; }
+      body { background: white; }
+      .hero-copy, .stat-card, .note-card, .card, .step, .flow-row, .table-wrap, .footer { box-shadow: none; }
+      .nav, .hero-actions { display: none; }
+    }
+  </style>
+</head>
+<body>
+  <header class="topbar">
+    <div class="topbar-inner">
+      <a class="brand" href="#top" aria-label="AgentFlow 使用教程">
+        <span class="brand-mark">AF</span>
+        <span>AgentFlow 使用教程</span>
+      </a>
+      <nav class="nav" aria-label="页面导航">
+        <a href="#quickstart">快速上手</a>
+        <a href="#layout">界面认识</a>
+        <a href="#profile">职业偏好</a>
+        <a href="#assets">资产区</a>
+        <a href="#templates">模板</a>
+        <a href="#workflows">常用任务</a>
+        <a href="#playbooks">案例</a>
+        <a href="#files">上传规范</a>
+        <a href="#outputs">查看产物</a>
+        <a href="#faq">常见问题</a>
+      </nav>
+    </div>
+  </header>
+
+  <div id="top" class="hero">
+    <div class="hero-copy">
+      <span class="eyebrow">面向使用者 · 不讲代码</span>
+      <h1>从一句需求，到可交付成果</h1>
+      <p class="lead">
+        这份教程教你使用 AgentFlow 完成会议纪要、待办提取、风险分析、资料入库、OCR 图片识别、
+        知识目录、复习清单、自测题和知识图谱。按步骤操作即可，不需要理解系统内部实现。
+      </p>
+      <div class="hero-actions">
+        <a class="btn primary" href="#quickstart">开始使用</a>
+        <a class="btn" href="#prompt-bank">查看示例指令</a>
+      </div>
+    </div>
+    <aside class="hero-panel">
+      <div class="stat-card">
+        <strong>2 个入口</strong>
+        <span>静态前端工作台用于完整交互；Gradio 测试台用于快速验证单个任务。</span>
+      </div>
+      <div class="stat-card">
+        <strong>2 个领域</strong>
+        <span>会议域处理会议材料；笔记域处理学习资料、知识库和复习任务。</span>
+      </div>
+      <div class="note-card">
+        <div class="tag blue">推荐路径</div>
+        <p>先输入用户 ID，再用自然语言说目标。系统会在右侧生成任务计划，你只需补学科、项目、上传文件，然后点击执行。</p>
+      </div>
+    </aside>
+  </div>
+
+  <main>
+    <section id="quickstart">
+      <div class="section-head">
+        <div>
+          <h2>快速上手</h2>
+          <p class="section-sub">第一次使用时，照着这 6 步走最稳。</p>
+        </div>
+      </div>
+
+      <div class="steps">
+        <div class="step">
+          <div>
+            <h3>打开服务页面</h3>
+            <p>静态前端通常访问 <code>http://127.0.0.1:8000</code>。如果使用 Gradio 测试台，访问 <code>http://127.0.0.1:7860</code>。</p>
+          </div>
+        </div>
+        <div class="step">
+          <div>
+            <h3>填写用户 ID</h3>
+            <p>左下角输入用户 ID，例如 <code>user_001</code>。知识库、历史会话、产物云盘都会按用户隔离；不填用户 ID 时，前端会提示先填写。</p>
+          </div>
+        </div>
+        <div class="step">
+          <div>
+            <h3>在中间聊天框说出目标</h3>
+            <p>例如“把这些物理资料入库，并生成复习清单”。系统会把你的话转成右侧的任务计划。</p>
+          </div>
+        </div>
+        <div class="step">
+          <div>
+            <h3>检查右侧任务计划</h3>
+            <p>右侧会显示“流水线编排”。如果缺文件、学科、项目等信息，会在当前任务卡片里提示你补充。</p>
+          </div>
+        </div>
+        <div class="step">
+          <div>
+            <h3>上传文件或补充参数</h3>
+            <p>根据任务上传会议文本、课件、讲义、笔记图片等。笔记域通常还要填写“所属学科”；会议域可选填“所属项目”。</p>
+          </div>
+        </div>
+        <div class="step">
+          <div>
+            <h3>点击执行并查看成果</h3>
+            <p>执行后切到“执行监控”看进度。完成后系统会自动切到“产物中心”，可在线预览或下载生成的 HTML、Markdown、图片等成果。</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section id="layout">
+      <div class="section-head">
+        <div>
+          <h2>界面认识</h2>
+          <p class="section-sub">静态前端是三栏布局：左侧资产，中间对话，右侧任务和产物。</p>
+        </div>
+      </div>
+
+      <div class="grid">
+        <article class="card">
+          <span class="tag green">左侧栏</span>
+          <h3>会话中心、知识库资产、产物云盘</h3>
+          <ul>
+            <li>顶部“+”可以开启新会话。</li>
+            <li>“知识库资产”展示当前用户已有学科。</li>
+            <li>“产物云盘”展示历史生成文件，可点击预览。</li>
+            <li>头像可配置职业视角和个人偏好。</li>
+          </ul>
+        </article>
+        <article class="card">
+          <span class="tag blue">中间栏</span>
+          <h3>自然语言入口</h3>
+          <ul>
+            <li>输入一句需求即可规划任务。</li>
+            <li>系统会识别学科、项目、职业视角等参数建议。</li>
+            <li>如果不是任务型需求，会转为知识库问答。</li>
+            <li>历史会话会按用户 ID 保存。</li>
+          </ul>
+        </article>
+        <article class="card">
+          <span class="tag violet">右侧栏</span>
+          <h3>任务计划、执行监控、产物中心</h3>
+          <ul>
+            <li>“任务计划”用于补参数、传文件、执行阶段。</li>
+            <li>“执行监控”用于查看实时日志和进度。</li>
+            <li>“产物中心”用于预览、下载最终成果。</li>
+          </ul>
+        </article>
+      </div>
+
+      <div class="callout green" style="margin-top:14px;">
+        <strong>最重要的使用习惯：</strong>
+        不要一开始就到处找按钮。先在中间聊天框说出目标，再跟着右侧任务卡片补材料。
+      </div>
+    </section>
+
+    <section id="profile">
+      <div class="section-head">
+        <div>
+          <h2>用户头像：职业视角与偏好设置</h2>
+          <p class="section-sub">左下角头像不只是装饰，它决定系统用什么“身份”和表达习惯来理解你的需求。</p>
+        </div>
+      </div>
+
+      <div class="steps">
+        <div class="step">
+          <div>
+            <h3>先填写用户 ID</h3>
+            <p>头像设置绑定当前用户 ID。左下角没有用户 ID 时，点击头像会提示先填写。建议每个人、每个测试账号都使用固定 ID，例如 <code>user_001</code>、<code>teacher_li</code>。</p>
+          </div>
+        </div>
+        <div class="step">
+          <div>
+            <h3>点击左下角头像</h3>
+            <p>头像旁带有设置标记。点击后会打开“用户画像与偏好设置”弹窗，里面可以查看当前用户 ID、选择职业视角、填写个性化偏好。</p>
+          </div>
+        </div>
+        <div class="step">
+          <div>
+            <h3>选择职业视角</h3>
+            <p>默认是“客观 · 客观全员”。你也可以切到开发人员、产品经理、项目经理、测试工程师、算法工程师、客户经理等职业视角。</p>
+          </div>
+        </div>
+        <div class="step">
+          <div>
+            <h3>填写偏好并保存</h3>
+            <p>可填写“做事风格”“沟通偏好”“性格特质”。保存后，聊天框上方会显示当前职业标签；之后生成纪要、分析风险、总结待办时会参考这些偏好。</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="table-wrap" style="margin-top:14px;">
+        <table>
+          <thead>
+            <tr>
+              <th>职业视角</th>
+              <th>适合场景</th>
+              <th>输出倾向</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><strong>客观全员</strong></td>
+              <td>默认纪要、课堂记录、资料整理</td>
+              <td>尽量中立、完整、面向所有人可读。</td>
+            </tr>
+            <tr>
+              <td><strong>开发人员</strong></td>
+              <td>技术评审、研发周会、缺陷复盘</td>
+              <td>更关注实现细节、技术依赖、接口、上线风险。</td>
+            </tr>
+            <tr>
+              <td><strong>产品经理</strong></td>
+              <td>需求讨论、版本规划、用户反馈会</td>
+              <td>更关注需求边界、验收标准、优先级、用户价值。</td>
+            </tr>
+            <tr>
+              <td><strong>项目经理</strong></td>
+              <td>项目例会、里程碑检查、资源协调</td>
+              <td>更关注时间节点、负责人、阻塞项、交付风险。</td>
+            </tr>
+            <tr>
+              <td><strong>测试工程师</strong></td>
+              <td>测试评审、质量复盘、发布前检查</td>
+              <td>更关注验收用例、缺陷风险、覆盖范围、回归点。</td>
+            </tr>
+            <tr>
+              <td><strong>算法工程师</strong></td>
+              <td>模型评审、实验讨论、算力和指标分析</td>
+              <td>更关注数据、指标、模型效果、训练和部署条件。</td>
+            </tr>
+            <tr>
+              <td><strong>客户经理</strong></td>
+              <td>客户沟通、商务交付、项目汇报</td>
+              <td>更关注客户诉求、承诺事项、商务风险、交付口径。</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="grid two" style="margin-top:14px;">
+        <article class="card">
+          <span class="tag violet">偏好示例</span>
+          <h3>可以这样填写</h3>
+          <ul>
+            <li>做事风格：结论先行，重视可执行步骤。</li>
+            <li>沟通偏好：少套话，多列清单，保留关键责任人。</li>
+            <li>性格特质：严谨，关注风险和遗漏。</li>
+          </ul>
+        </article>
+        <article class="card">
+          <span class="tag amber">使用建议</span>
+          <h3>什么时候要改职业视角</h3>
+          <p>如果你希望同一份会议记录产出不同关注点，可以先改头像职业视角，再重新生成。例如先用“客观全员”出正式纪要，再切“项目经理”出交付跟进版。</p>
+        </article>
+      </div>
+    </section>
+
+    <section id="plan-detail">
+      <div class="section-head">
+        <div>
+          <h2>任务计划页怎么填写</h2>
+          <p class="section-sub">右侧“任务计划”是正式执行前的确认区，所有缺失项都会在这里补齐。</p>
+        </div>
+      </div>
+
+      <div class="grid">
+        <article class="card">
+          <span class="tag blue">流水线编排</span>
+          <h3>看阶段，不看代码</h3>
+          <p>顶部会显示“阶段 1、阶段 2...”这样的流程。当前阶段的任务卡片会展开，其它阶段暂时隐藏。执行完当前阶段后，会自动切到下一阶段。</p>
+        </article>
+        <article class="card">
+          <span class="tag rose">待补全项</span>
+          <h3>按钮灰了先看提示</h3>
+          <p>如果“执行”按钮不可点，底部会提示缺什么，例如缺附件、缺所属学科。补齐后按钮会恢复可点。</p>
+        </article>
+        <article class="card">
+          <span class="tag green">输入依赖自动供给</span>
+          <h3>不要重复上传上游产物</h3>
+          <p>如果任务卡片显示“由上游自动供给”，说明上一步的 OCR、入库或纪要产物会自动传给下一步，不需要手动下载再上传。</p>
+        </article>
+      </div>
+
+      <div class="table-wrap" style="margin-top:14px;">
+        <table>
+          <thead>
+            <tr>
+              <th>你看到的字段</th>
+              <th>什么时候出现</th>
+              <th>应该怎么填</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><strong>所属学科</strong></td>
+              <td>资料入库、知识目录、复习清单、知识图谱、OCR 等笔记域任务</td>
+              <td>填课程或学科名，例如“物理”“数学”“高等数学”。后续任务要保持同一个名字。</td>
+            </tr>
+            <tr>
+              <td><strong>所属项目</strong></td>
+              <td>会议域任务，尤其是会议纪要</td>
+              <td>可填“晨会”“AgentFlow”“版本评审”等，用于区分会议项目。</td>
+            </tr>
+            <tr>
+              <td><strong>文件上传区</strong></td>
+              <td>任务缺文件或缺图片时</td>
+              <td>按任务卡片提示上传。资料入库可多选；OCR 支持多图；普通会议任务通常上传一份文本。</td>
+            </tr>
+            <tr>
+              <td><strong>老师划重点</strong></td>
+              <td>知识目录、复习清单任务</td>
+              <td>可粘贴文本，也可上传重点文件。它是补充材料，不是必须项。</td>
+            </tr>
+            <tr>
+              <td><strong>无需新增知识</strong></td>
+              <td>已有该学科知识库，且当前阶段需要资料但你不想再上传</td>
+              <td>点击后跳过新增入库，直接进入后续目录、清单等任务。</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <section id="assets">
+      <div class="section-head">
+        <div>
+          <h2>左侧资产区：知识库资产、产物云盘、历史会话</h2>
+          <p class="section-sub">左侧栏负责“找回东西”和“复用已有资料”。这是长期使用 AgentFlow 时最重要的区域之一。</p>
+        </div>
+      </div>
+
+      <div class="grid">
+        <article class="card">
+          <span class="tag green">知识库资产</span>
+          <h3>查看当前用户已有学科</h3>
+          <p>点击“知识库资产”可以展开当前用户的学科列表。每个学科后面会显示已有资料切块数量，例如“物理（128条）”。</p>
+          <ul>
+            <li>点击刷新按钮，可以重新扫描当前用户知识库。</li>
+            <li>点击某个学科标签，会自动填入右侧“所属学科”。</li>
+            <li>如果列表为空，说明当前用户还没有入库资料，或用户 ID 填错了。</li>
+          </ul>
+        </article>
+        <article class="card">
+          <span class="tag blue">产物云盘</span>
+          <h3>找回历史生成文件</h3>
+          <p>点击“产物云盘”会展开历史交付物列表，包括 HTML、Markdown、JSON、图片等。</p>
+          <ul>
+            <li>点击刷新按钮，可以重新加载历史产物。</li>
+            <li>点击文件条目，会切到右侧“产物中心”并打开预览。</li>
+            <li>适合找回之前生成的会议纪要、复习清单、知识图谱和导图。</li>
+          </ul>
+        </article>
+        <article class="card">
+          <span class="tag violet">历史会话</span>
+          <h3>回到之前的对话</h3>
+          <p>左侧“历史会话”按用户 ID 展示曾经的聊天记录。点击某条会话即可恢复中间聊天记录。</p>
+          <ul>
+            <li>会话标题通常来自第一句用户问题。</li>
+            <li>点击删除按钮可以移除某条会话。</li>
+            <li>点击左上“+”可以开启全新会话。</li>
+          </ul>
+        </article>
+      </div>
+
+      <div class="table-wrap" style="margin-top:14px;">
+        <table>
+          <thead>
+            <tr>
+              <th>你想做什么</th>
+              <th>去哪里点</th>
+              <th>结果是什么</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><strong>看看当前用户有哪些知识库学科</strong></td>
+              <td>左侧“知识库资产”</td>
+              <td>展开学科标签列表，并显示每个学科已有资料数量。</td>
+            </tr>
+            <tr>
+              <td><strong>把已有学科填入新任务</strong></td>
+              <td>展开“知识库资产”，点击学科标签</td>
+              <td>右侧“所属学科”会自动填入该学科。</td>
+            </tr>
+            <tr>
+              <td><strong>找之前生成的报告</strong></td>
+              <td>左侧“产物云盘”</td>
+              <td>展开历史文件列表，可点开预览或下载。</td>
+            </tr>
+            <tr>
+              <td><strong>继续之前的聊天</strong></td>
+              <td>左侧“历史会话”</td>
+              <td>中间对话区恢复该会话内容。</td>
+            </tr>
+            <tr>
+              <td><strong>开始一个全新任务</strong></td>
+              <td>左侧顶部“+”</td>
+              <td>新建会话，清空当前工作台，保留用户资产。</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="grid two" style="margin-top:14px;">
+        <div class="callout green">
+          <strong>知识库资产和用户 ID 强绑定。</strong>
+          如果你换了用户 ID，左侧看到的学科也会变。找不到之前的学科时，先确认左下角用户 ID 是否和入库时一致。
+        </div>
+        <div class="callout">
+          <strong>产物云盘是“历史成果入口”。</strong>
+          当前任务完成后可以在右侧产物中心看；过一段时间想找回来，就到左侧产物云盘里找。
+        </div>
+      </div>
+    </section>
+
+    <section id="templates">
+      <div class="section-head">
+        <div>
+          <h2>输出模板与纪要场景选择</h2>
+          <p class="section-sub">模板用于控制最终成果的版式。会议纪要、风险、待办、思维导图、知识图谱等任务会显示“输出模板（选填）”。</p>
+        </div>
+      </div>
+
+      <div class="grid">
+        <article class="card">
+          <span class="tag blue">方式一</span>
+          <h3>内置模板选择</h3>
+          <p>点击“输出模板”里的“内置模板选择”，打开下拉菜单。左侧按场景分类，右侧展示对应模板。选中后会显示“已定制模板”。</p>
+        </article>
+        <article class="card">
+          <span class="tag green">方式二</span>
+          <h3>上传模板文件</h3>
+          <p>选择“上传模板文件”，上传 <code>.md</code> 或 <code>.txt</code>。系统会读取模板内容，你可以在预览框里继续编辑。</p>
+        </article>
+        <article class="card">
+          <span class="tag violet">方式三</span>
+          <h3>自然语言描述生成</h3>
+          <p>选择“自然语言描述生成”，直接写你的版式要求，例如“第一部分写结论，第二部分用表格列待办，第三部分列风险”。</p>
+        </article>
+      </div>
+
+      <div class="table-wrap" style="margin-top:14px;">
+        <table>
+          <thead>
+            <tr>
+              <th>内置场景</th>
+              <th>模板名称</th>
+              <th>适合什么材料</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><strong>会议</strong></td>
+              <td>团队例会、项目进度会、决策评审会、工作研讨会、总结复盘会、沟通交流会</td>
+              <td>团队同步、项目推进、评审决策、复盘总结等正式会议。</td>
+            </tr>
+            <tr>
+              <td><strong>学习</strong></td>
+              <td>课堂记录、专题讲座、小组讨论、知识笔记、辩论会</td>
+              <td>课堂转写、讲座整理、学习讨论、知识归纳。</td>
+            </tr>
+            <tr>
+              <td><strong>访谈</strong></td>
+              <td>调研访谈、采访记录</td>
+              <td>用户访谈、调研访谈、采访逐字稿整理。</td>
+            </tr>
+            <tr>
+              <td><strong>面试</strong></td>
+              <td>面试报告、面试复盘</td>
+              <td>招聘面试、候选人评价、面试过程复盘。</td>
+            </tr>
+            <tr>
+              <td><strong>医疗</strong></td>
+              <td>就医咨询、心理咨询</td>
+              <td>咨询记录整理。注意最终判断仍需专业人士确认。</td>
+            </tr>
+            <tr>
+              <td><strong>法律</strong></td>
+              <td>法律咨询、庭审记录、合同审核</td>
+              <td>法律咨询和合同讨论记录。正式用途应再由专业人士审阅。</td>
+            </tr>
+            <tr>
+              <td><strong>发布</strong></td>
+              <td>新闻发布、产品发布、政府报告、媒体问答</td>
+              <td>发布会、媒体沟通、公开问答、正式公告整理。</td>
+            </tr>
+            <tr>
+              <td><strong>日常</strong></td>
+              <td>通用纪要、个人备忘、对话记录、参观游览、家校沟通</td>
+              <td>不确定类型时可选通用纪要；个人记录和日常沟通也适用。</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="grid two" style="margin-top:14px;">
+        <article class="card">
+          <span class="tag amber">查看模板内容</span>
+          <h3>选模板前可以先看</h3>
+          <p>在内置模板模式中，选择具体模板后可点击“查看模板内容”。如果不选模板，系统使用默认输出格式。</p>
+        </article>
+        <article class="card">
+          <span class="tag green">自然语言模板示例</span>
+          <div class="prompt">请生成项目进度会纪要：
+1. 顶部写会议主题、时间、参会人
+2. 正文先给一段 200 字以内总结
+3. 用表格列出待办事项、负责人、截止时间
+4. 最后列出风险和需要协调的资源</div>
+        </article>
+      </div>
+    </section>
+
+    <section id="workflows">
+      <div class="section-head">
+        <div>
+          <h2>常用任务怎么做</h2>
+          <p class="section-sub">下面按最常见场景列出输入、操作和产物。</p>
+        </div>
+      </div>
+
+      <div class="workflow">
+        <div class="flow-row">
+          <strong>会议纪要</strong>
+          <span>输入用户 ID，发送“帮我生成一份会议纪要”，上传会议记录文本。可选填项目 ID；可在头像里选择职业视角。完成后查看纪要 HTML/Markdown。</span>
+        </div>
+        <div class="flow-row">
+          <strong>待办事项</strong>
+          <span>发送“帮我提取这次会议的待办事项”，上传会议记录。系统会生成行动项、负责人、截止时间等内容。</span>
+        </div>
+        <div class="flow-row">
+          <strong>风险分析</strong>
+          <span>发送“帮我识别这次会议里的风险点”，上传会议记录。适合项目复盘、评审会和周会之后使用。</span>
+        </div>
+        <div class="flow-row">
+          <strong>会议思维导图</strong>
+          <span>发送“把这份会议内容生成思维导图”，上传会议记录。成果通常是可交互 HTML，也可能包含图片导出。</span>
+        </div>
+        <div class="flow-row">
+          <strong>资料入库</strong>
+          <span>输入用户 ID 和学科，发送“把这些资料入库到数学”。上传课件、讲义、Word、PDF、Excel、Markdown 或文本。完成后知识库资产会出现对应学科。</span>
+        </div>
+        <div class="flow-row">
+          <strong>图片 OCR</strong>
+          <span>发送“识别这些笔记图片”，上传 PNG/JPG/JPEG 图片。成果是整理后的 Markdown，可继续用于资料入库、审校或出题。</span>
+        </div>
+        <div class="flow-row">
+          <strong>图片入库再复习</strong>
+          <span>发送“把这些图片识别后入库到物理，并生成复习清单”。上传图片，填写学科。系统会先识别，再入库，再生成清单。</span>
+        </div>
+        <div class="flow-row">
+          <strong>知识目录</strong>
+          <span>已有知识库后，发送“基于物理知识库生成知识目录”。可选上传或粘贴老师划重点文本；不需要重复上传已入库课件。</span>
+        </div>
+        <div class="flow-row">
+          <strong>复习清单</strong>
+          <span>已有知识库和目录后，发送“生成物理考点复习清单”。可选补充老师本次划重点；不补也能基于知识库生成。</span>
+        </div>
+        <div class="flow-row">
+          <strong>自测题</strong>
+          <span>发送“根据这份笔记出几道自测题”，上传笔记文本或 OCR 后的 Markdown。可选择难度和题型。</span>
+        </div>
+        <div class="flow-row">
+          <strong>知识图谱</strong>
+          <span>发送“为数学生成知识图谱”。需要用户 ID 和学科，适合在资料已经入库之后查看知识结构。</span>
+        </div>
+        <div class="flow-row">
+          <strong>知识库问答</strong>
+          <span>直接问“我物理知识库里关于动量守恒有哪些重点？”如果没有识别成任务，会进入问答模式并给出参考来源。</span>
+        </div>
+      </div>
+    </section>
+
+    <section id="playbooks">
+      <div class="section-head">
+        <div>
+          <h2>完整案例流程</h2>
+          <p class="section-sub">下面按真实使用顺序写，适合照着操作。</p>
+        </div>
+      </div>
+
+      <div class="grid two">
+        <article class="card">
+          <span class="tag blue">案例一</span>
+          <h3>生成一份项目进度会纪要，并套用模板</h3>
+          <ol>
+            <li>左下角填写用户 ID，例如 <code>pm_001</code>。</li>
+            <li>如果你希望偏项目管理，点击头像，把职业视角改为“项目经理”。</li>
+            <li>在聊天框输入：<code>帮我生成一份项目进度会纪要</code>。</li>
+            <li>右侧出现“会议纪要生成”任务后，填写“所属项目”，例如 <code>AgentFlow</code>。</li>
+            <li>上传会议记录文本。</li>
+            <li>展开“输出模板”，选择“内置模板选择”。</li>
+            <li>在场景里选择“会议场景”，再选“项目进度会”。</li>
+            <li>可点击“查看模板内容”确认格式。</li>
+            <li>点击“执行”，完成后到“产物中心”查看 HTML/Markdown。</li>
+          </ol>
+        </article>
+
+        <article class="card">
+          <span class="tag green">案例二</span>
+          <h3>把一批课件入库，并生成复习清单</h3>
+          <ol>
+            <li>左下角填写用户 ID，例如 <code>student_001</code>。</li>
+            <li>聊天框输入：<code>把这些资料入库到物理，并生成复习清单</code>。</li>
+            <li>如果系统识别到学科建议，点击“学科：物理”；也可以在右侧手动填“物理”。</li>
+            <li>在“资料入库”阶段上传 PDF、PPTX、DOCX、TXT、MD 等资料，可多选。</li>
+            <li>点击执行。入库完成后，下一阶段会继续生成目录或清单。</li>
+            <li>如果“复习清单”阶段出现老师划重点输入框，可选填本次重点；不填也可以执行。</li>
+            <li>完成后查看复习清单 HTML，左侧知识库资产里也会出现“物理”。</li>
+          </ol>
+        </article>
+
+        <article class="card">
+          <span class="tag amber">案例三</span>
+          <h3>把手写图片识别后再入库</h3>
+          <ol>
+            <li>聊天框输入：<code>把这些笔记图片识别后入库到数学</code>。</li>
+            <li>右侧会出现 OCR 和资料入库相关阶段。</li>
+            <li>在 OCR 阶段上传多张 PNG/JPG/JPEG 图片。</li>
+            <li>填写所属学科“数学”。</li>
+            <li>点击执行。OCR 完成后，识别出的 Markdown 会自动供给入库任务。</li>
+            <li>不需要手动下载 OCR 结果再上传。</li>
+            <li>完成后可到产物中心查看 OCR Markdown，也可到知识库资产确认学科。</li>
+          </ol>
+        </article>
+
+        <article class="card">
+          <span class="tag violet">案例四</span>
+          <h3>基于已有知识库生成目录和清单</h3>
+          <ol>
+            <li>确认左下角用户 ID 是之前入库时用的 ID。</li>
+            <li>展开左侧“知识库资产”，点击已有学科，例如“物理”。</li>
+            <li>聊天框输入：<code>基于已有物理知识库生成知识目录和复习清单</code>。</li>
+            <li>如果右侧出现上传资料阶段，但你不想新增资料，可以点击“无需新增知识”。</li>
+            <li>目录阶段可选填老师划重点。</li>
+            <li>清单阶段可选填考前重点或老师强调内容。</li>
+            <li>完成后在产物中心查看目录说明、复习清单和相关 HTML 文件。</li>
+          </ol>
+        </article>
+
+        <article class="card">
+          <span class="tag rose">案例五</span>
+          <h3>生成自测题并控制难度</h3>
+          <ol>
+            <li>聊天框输入：<code>根据这份笔记生成自测题，难度适中</code>。</li>
+            <li>上传笔记文本或 OCR 后的 Markdown。</li>
+            <li>如果页面出现难度和题型选项，选择“适中”“单选题/多选题/解答题”等。</li>
+            <li>点击执行。</li>
+            <li>完成后打开自测题 HTML，通常答案和解析会折叠展示，适合先做题再核对。</li>
+          </ol>
+        </article>
+
+        <article class="card">
+          <span class="tag blue">案例六</span>
+          <h3>从产物云盘找回历史成果</h3>
+          <ol>
+            <li>确认左下角用户 ID 是生成该成果时的用户 ID。</li>
+            <li>点击左侧“产物云盘”。</li>
+            <li>点击刷新按钮，等待历史交付物列表出现。</li>
+            <li>找到目标文件，例如 <code>result_*.html</code>、<code>result_*.md</code>。</li>
+            <li>点击文件条目，右侧会切到产物中心并加载预览。</li>
+            <li>需要保存时，在文件列表中点击下载。</li>
+          </ol>
+        </article>
+      </div>
+    </section>
+
+    <section id="files">
+      <div class="section-head">
+        <div>
+          <h2>上传文件规范</h2>
+          <p class="section-sub">文件传对，后面的结果会顺很多。</p>
+        </div>
+      </div>
+
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>任务</th>
+              <th>建议上传</th>
+              <th>注意事项</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><strong>会议类任务</strong></td>
+              <td>会议记录、转写文本、Markdown</td>
+              <td>通常一份文本即可。内容越完整，纪要、待办、风险越准确。</td>
+            </tr>
+            <tr>
+              <td><strong>资料入库</strong></td>
+              <td>TXT、MD、PDF、DOCX、PPTX、XLSX，也支持图片</td>
+              <td>可多选。建议同一批资料属于同一用户和同一学科。</td>
+            </tr>
+            <tr>
+              <td><strong>OCR 图片识别</strong></td>
+              <td>PNG、JPG、JPEG</td>
+              <td>图片尽量清晰、正向、无遮挡。多页笔记可以一次上传多张。</td>
+            </tr>
+            <tr>
+              <td><strong>知识目录 / 复习清单</strong></td>
+              <td>可选上传老师划重点文本</td>
+              <td>课件和笔记不用重复上传，系统会读取已入库知识库。</td>
+            </tr>
+            <tr>
+              <td><strong>自测题 / 笔记审查</strong></td>
+              <td>笔记文本、Markdown、OCR 结果</td>
+              <td>如果原始材料是图片，建议先 OCR，再基于 OCR 结果出题或审查。</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="grid two" style="margin-top:14px;">
+        <div class="callout amber">
+          <strong>学科一定要一致。</strong>
+          例如入库时写“物理”，后续生成复习清单也写“物理”。同一个用户 ID + 学科会定位到同一个知识库。
+        </div>
+        <div class="callout">
+          <strong>已有知识库时可以跳过新增资料。</strong>
+          如果你只是想基于已有知识库生成目录或清单，选择已有学科并继续执行即可。
+        </div>
+      </div>
+    </section>
+
+    <section id="outputs">
+      <div class="section-head">
+        <div>
+          <h2>查看和下载产物</h2>
+          <p class="section-sub">任务完成后，成果会集中在右侧和左侧资产栏。</p>
+        </div>
+      </div>
+
+      <div class="grid">
+        <article class="card">
+          <span class="tag blue">当前任务</span>
+          <h3>右侧产物中心</h3>
+          <p>执行完成后会自动进入“产物中心”。上方是文件列表，点击文件名可下载；下方是 HTML 或 Markdown 预览。</p>
+        </article>
+        <article class="card">
+          <span class="tag green">历史成果</span>
+          <h3>左侧产物云盘</h3>
+          <p>点击“产物云盘”可以看到历史生成物。点击某个文件，会在右侧预览，适合找回以前的纪要、清单和图谱。</p>
+        </article>
+        <article class="card">
+          <span class="tag violet">知识资产</span>
+          <h3>左侧知识库资产</h3>
+          <p>点击“知识库资产”查看当前用户已有学科。点击学科标签，可以把该学科快速填入当前任务。</p>
+        </article>
+      </div>
+    </section>
+
+    <section id="prompt-bank">
+      <div class="section-head">
+        <div>
+          <h2>推荐指令</h2>
+          <p class="section-sub">可以直接复制这些说法到聊天框，再按右侧提示上传文件。</p>
+        </div>
+      </div>
+
+      <div class="grid two">
+        <div class="card">
+          <span class="tag blue">会议</span>
+          <div class="prompt">帮我生成一份会议纪要
+
+帮我从这次会议里提取待办事项
+
+帮我识别这次会议的风险点
+
+把这份会议记录生成思维导图
+
+以项目经理视角整理这次会议纪要</div>
+        </div>
+        <div class="card">
+          <span class="tag green">学习资料</span>
+          <div class="prompt">把这些资料入库到物理学科
+
+把这些笔记图片识别后入库到数学，并生成复习清单
+
+基于高等数学知识库生成知识目录
+
+根据这份笔记出几道自测题，难度适中
+
+帮我审查这份笔记有没有概念错误</div>
+        </div>
+      </div>
+    </section>
+
+    <section id="gradio">
+      <div class="section-head">
+        <div>
+          <h2>Gradio 测试台怎么用</h2>
+          <p class="section-sub">如果你打开的是 <code>http://127.0.0.1:7860</code>，界面会更像表单。</p>
+        </div>
+      </div>
+
+      <div class="steps">
+        <div class="step">
+          <div>
+            <h3>选择领域和任务</h3>
+            <p>顶部选择“会议”或“笔记”，再选择具体任务，例如纪要、资料入库、复习清单、OCR识别。</p>
+          </div>
+        </div>
+        <div class="step">
+          <div>
+            <h3>填写配置</h3>
+            <p>笔记域的资料入库、目录、清单和 OCR 通常需要用户 ID 与学科；会议纪要可选视角、用户 ID 和项目 ID。</p>
+          </div>
+        </div>
+        <div class="step">
+          <div>
+            <h3>上传或粘贴输入</h3>
+            <p>按页面提示上传文本、资料或图片。资料入库可多文件；OCR 只需要图片；目录和清单可选填老师划重点。</p>
+          </div>
+        </div>
+        <div class="step">
+          <div>
+            <h3>运行并下载</h3>
+            <p>点击“运行”，右侧会显示日志、预览和下载文件。OCR 会显示计时；部分任务会生成 HTML、Markdown、图片等多个文件。</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section id="faq">
+      <div class="section-head">
+        <div>
+          <h2>常见问题</h2>
+          <p class="section-sub">遇到卡住时，先看这一组。</p>
+        </div>
+      </div>
+
+      <div class="grid two">
+        <article class="card">
+          <h3>为什么一直提示输入用户 ID？</h3>
+          <p>当前前端要求先填写用户 ID，用于隔离你的知识库、历史会话和产物。左下角填一个固定 ID 即可，例如 <code>user_001</code>。</p>
+        </article>
+        <article class="card">
+          <h3>为什么复习清单提示缺学科？</h3>
+          <p>复习清单需要知道读取哪个学科的知识库。请在右侧“所属学科”里填写和入库时一致的学科名。</p>
+        </article>
+        <article class="card">
+          <h3>已有资料入库，还要重复上传吗？</h3>
+          <p>不需要。生成目录、复习清单、知识图谱时，选择已有学科即可。老师划重点是可选补充，不是必填资料。</p>
+        </article>
+        <article class="card">
+          <h3>图片识别结果不理想怎么办？</h3>
+          <p>尽量上传清晰、正向、光照均匀的图片。多页笔记建议按页上传，不要把很多页拼在一张图里。</p>
+        </article>
+        <article class="card">
+          <h3>产物中心没有看到想要的文件？</h3>
+          <p>先确认任务是否完成，再切到“产物中心”。也可以打开左侧“产物云盘”刷新历史文件。</p>
+        </article>
+        <article class="card">
+          <h3>一句话识别成了问答，不是任务？</h3>
+          <p>把动作说得更明确，例如“生成”“入库”“识别”“提取”“生成复习清单”。如果只是提问，系统会进入知识库问答。</p>
+        </article>
+      </div>
+    </section>
+
+    <section>
+      <div class="section-head">
+        <div>
+          <h2>运行前检查清单</h2>
+          <p class="section-sub">提交前快速扫一遍，能避免多数失败。</p>
+        </div>
+      </div>
+
+      <div class="checklist">
+        <div class="check">已经填写用户 ID，且后续都用同一个用户 ID。</div>
+        <div class="check">笔记域任务已经填写学科，且学科名和入库时一致。</div>
+        <div class="check">上传文件类型符合任务要求：会议传文本，OCR 传图片，入库可多文件。</div>
+        <div class="check">如果只是基于已有知识库生成目录或清单，没有重复上传旧课件。</div>
+        <div class="check">任务完成后，已在产物中心或产物云盘查看并下载成果。</div>
+      </div>
+    </section>
+
+    <footer class="footer">
+      <strong>一句话记住 AgentFlow 的用法</strong>
+      <p>先填用户 ID，再说目标；右侧补参数和材料；执行后到产物中心查看结果。</p>
+    </footer>
+  </main>
+</body>
+</html>

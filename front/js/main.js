@@ -73,12 +73,13 @@ function setupEventListeners() {
   }
 
   // New Chat / Start Fresh Round
-  if (btnNewChat) {
-    btnNewChat.addEventListener("click", handleNewChatClick);
-  }
   const btnSidebarNew = $("btn-sidebar-new-chat");
   if (btnSidebarNew) {
     btnSidebarNew.addEventListener("click", handleNewChatClick);
+  }
+  const btnBrandNew = $("btn-sidebar-brand-new");
+  if (btnBrandNew) {
+    btnBrandNew.addEventListener("click", handleNewChatClick);
   }
 
   // Unlock User Button
