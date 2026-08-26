@@ -109,9 +109,22 @@ function resetWorkspace() {
   activeOutputName = null;
   currentActiveStep = 0;
 
-  // 2. 重置中间聊天对话流
-  if (messagesContainer) messagesContainer.innerHTML = "";
-  if (chatWelcome && messagesContainer) messagesContainer.appendChild(chatWelcome);
+  // 2. 重置中间聊天对话流与欢迎区域
+  if (messagesContainer) {
+    messagesContainer.innerHTML = `
+      <div id="chat-welcome" class="chat-welcome">
+        <div class="welcome-icon-large">
+          <svg viewBox="0 0 24 24" width="26" height="26" fill="currentColor">
+            <path d="M12 2C12 7.52 7.52 12 2 12C7.52 12 12 16.48 12 22C12 16.48 16.48 12 22 12C16.48 12 12 7.52 12 2Z"/>
+            <path d="M18.5 2.5C18.5 4.71 16.71 6.5 14.5 6.5C16.71 6.5 18.5 8.29 18.5 10.5C18.5 8.29 20.29 6.5 22.5 6.5C20.29 6.5 18.5 4.71 18.5 2.5Z" opacity="0.85"/>
+          </svg>
+        </div>
+        <h2 class="welcome-title">今天有什么需求？</h2>
+      </div>
+    `;
+  }
+  const quickCardsWrap = $("quick-prompt-cards-wrap");
+  if (quickCardsWrap) quickCardsWrap.classList.remove("hidden");
   if (chatText) chatText.value = "";
   if (typeof autoResizeTextarea === "function") autoResizeTextarea();
 

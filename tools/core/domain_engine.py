@@ -654,6 +654,9 @@ class DomainNodes:
         # 图执行失败时 state 不会被赋值；先绑定 initial_state，
         # 保证兜底分支引用 state 不抛 NameError（最后防线自身不崩溃）
         state = initial_state
+        # 阶段提示：图执行（理解+视角建模+审核）是一次性 LLM 调用，期间无流式块；
+        # 先输出提示，前端日志才能看到进度而不是"卡死"。
+        print("▶ 正在分析并理解输入内容（事实与结构化语义提炼）...", flush=True)
         try:
             graph = self._build_graph(line_names)
             state = await graph.ainvoke(initial_state)
@@ -678,6 +681,7 @@ class DomainNodes:
                 "understanding": self._understanding(state),
             }
             return
+        print("▶ 分析完成，正在进行多维审校与终稿排版...", flush=True)
 
         # 并行启动各线事件源，通过队列合并：一条线流式生成期间其他线已可交付
         queue: asyncio.Queue = asyncio.Queue()

@@ -1,5 +1,5 @@
 // ==========================================================================
-// AgentFlow Front-end · Sidebar Drawer & Navigation
+// AgentFlow Front-end · Sidebar Drawer, User Persona & Navigation
 // ==========================================================================
 "use strict";
 
@@ -20,6 +20,144 @@ function unlockUserId() {
   if (ctxUser) ctxUser.classList.remove("hidden");
   if (ctxUserLocked) ctxUserLocked.classList.add("hidden");
   if (ctxUser) ctxUser.focus();
+}
+
+// Update Persona Badges across workspace (Chat Box & Workbench)
+function updateUserProfilePill(profile) {
+  const modeBadge = $("mode-badge");
+  const modeText = $("mode-text");
+
+  if (!profile) {
+    if (modeBadge) modeBadge.classList.add("hidden");
+    return;
+  }
+
+  const baseTpl = (profile.base_template || "").trim().toLowerCase();
+  const roleName = profile.role || (profile.template_label ? profile.template_label.split("·").pop().trim() : "客观全员");
+
+  // 如果是客观视角，不用展示；如果是具体职业，展示浅蓝色背景的职业名称
+  const isObject = baseTpl === "object" || roleName === "客观全员" || roleName === "客观" || roleName.includes("客观");
+  if (isObject || !roleName) {
+    if (modeBadge) modeBadge.classList.add("hidden");
+  } else {
+    if (modeBadge) {
+      modeBadge.classList.remove("hidden");
+      if (modeText) modeText.textContent = roleName;
+    }
+  }
+
+  // 同步工作台上的任务视角卡片徽章
+  const taskBadge = $("task-persona-badge");
+  if (taskBadge) {
+    taskBadge.textContent = profile.template_label || roleName;
+  }
+}
+
+// Open User Profile & Persona Modal
+function openUserProfileModal() {
+  const modal = $("user-profile-modal");
+  if (!modal) return;
+  const ctx = getCtx();
+  const uid = ctx.user_id || "未指定";
+
+  if (!ctx.user_id) {
+    if (ctxUser) {
+      ctxUser.classList.add("input-error");
+      ctxUser.focus();
+    }
+    alert("请先输入您的「用户 ID」");
+    return;
+  }
+
+  const modalUid = $("modal-profile-uid");
+  const modalPath = $("modal-profile-path");
+  if (modalUid) modalUid.textContent = uid;
+  if (modalPath) modalPath.textContent = `data/${uid}/profile/${uid}.json`;
+
+  const prof = (currentUserContext && currentUserContext.profile) || {};
+  const selectRole = $("modal-profile-role-select");
+  if (selectRole) {
+    selectRole.value = prof.base_template || "object";
+  }
+
+  const traits = prof.traits || {};
+  const inputStyle = $("modal-trait-style");
+  const inputComm = $("modal-trait-comm");
+  const inputChar = $("modal-trait-char");
+
+  if (inputStyle) inputStyle.value = traits["做事风格"] || "";
+  if (inputComm) inputComm.value = traits["沟通偏好"] || "";
+  if (inputChar) inputChar.value = traits["性格"] || "";
+
+  const saveStatus = $("modal-save-status");
+  if (saveStatus) saveStatus.textContent = "";
+
+  modal.classList.remove("hidden");
+}
+
+// Close Modal
+function closeUserProfileModal() {
+  const modal = $("user-profile-modal");
+  if (modal) modal.classList.add("hidden");
+}
+
+// Save User Profile to Backend and Refresh
+async function saveUserProfileModal() {
+  const ctx = getCtx();
+  if (!ctx.user_id) {
+    alert("请先输入用户 ID");
+    return;
+  }
+
+  const selectRole = $("modal-profile-role-select");
+  const inputStyle = $("modal-trait-style");
+  const inputComm = $("modal-trait-comm");
+  const inputChar = $("modal-trait-char");
+  const saveStatus = $("modal-save-status");
+
+  const baseTemplate = selectRole ? selectRole.value : "object";
+  const traits = {};
+  if (inputStyle && inputStyle.value.trim()) traits["做事风格"] = inputStyle.value.trim();
+  if (inputComm && inputComm.value.trim()) traits["沟通偏好"] = inputComm.value.trim();
+  if (inputChar && inputChar.value.trim()) traits["性格"] = inputChar.value.trim();
+
+  if (saveStatus) {
+    saveStatus.style.color = "var(--ink-700)";
+    saveStatus.textContent = "正在保存并刷盘...";
+  }
+
+  try {
+    const res = await fetch(`${API}/user/${encodeURIComponent(ctx.user_id)}/profile`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        base_template: baseTemplate,
+        traits: traits,
+      }),
+    });
+
+    if (res.ok) {
+      const data = await res.json();
+      if (data.profile) {
+        currentUserContext.profile = data.profile;
+        updateUserProfilePill(data.profile);
+      }
+      if (saveStatus) {
+        saveStatus.style.color = "#2e7d32";
+        saveStatus.textContent = "✓ 已成功保存并同步刷盘！";
+      }
+      setTimeout(() => {
+        closeUserProfileModal();
+      }, 600);
+    } else {
+      throw new Error("保存失败");
+    }
+  } catch (err) {
+    if (saveStatus) {
+      saveStatus.style.color = "#c62828";
+      saveStatus.textContent = `保存异常：${err.message}`;
+    }
+  }
 }
 
 // Update Knowledge Base Drawer with Discovered Subjects

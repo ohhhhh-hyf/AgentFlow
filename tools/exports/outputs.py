@@ -65,6 +65,173 @@ def report_text(data: dict) -> str:
     return ""
 
 
+import html
+import re
+
+
+def _format_inline_md(text: str) -> str:
+    if not text:
+        return ""
+    # Code `...` first to protect code blocks and identifiers like `minutes_trace`
+    text = re.sub(r"`([^`]+)`", r"<code>\1</code>", text)
+    # Bold **...**
+    text = re.sub(r"\*\*(.+?)\*\*", r"<strong>\1</strong>", text)
+    # Italic *...* (requires non-whitespace inside and boundary checks, avoids snake_case _ identifiers)
+    text = re.sub(r"(?<!\*)\*([^\s\*](?:[^\*]*[^\s\*])?)\*(?!\*)", r"<em>\1</em>", text)
+    # Strikethrough ~~...~~
+    text = re.sub(r"~~([^~]+)~~", r"<del>\1</del>", text)
+    return text
+
+
+def render_markdown_to_html(md_text: str) -> str:
+    """纯 Python Markdown 转结构化 HTML 渲染器。"""
+    if not md_text or not md_text.strip():
+        return '<p class="empty-doc">暂无内容</p>'
+
+    lines = md_text.strip().splitlines()
+    html_out: list[str] = []
+    in_code_block = False
+    code_lang = ""
+    code_lines: list[str] = []
+    in_ul = False
+    in_ol = False
+    in_table = False
+    table_rows: list[list[str]] = []
+
+    def close_lists():
+        nonlocal in_ul, in_ol
+        if in_ul:
+            html_out.append("</ul>")
+            in_ul = False
+        if in_ol:
+            html_out.append("</ol>")
+            in_ol = False
+
+    def close_table():
+        nonlocal in_table, table_rows
+        if in_table and table_rows:
+            html_out.append('<div class="table-wrap"><table class="doc-table">')
+            if len(table_rows) >= 1:
+                html_out.append("<thead><tr>")
+                for cell in table_rows[0]:
+                    html_out.append(f"<th>{_format_inline_md(cell.strip())}</th>")
+                html_out.append("</tr></thead>")
+            if len(table_rows) > 1:
+                html_out.append("<tbody>")
+                for row in table_rows[1:]:
+                    html_out.append("<tr>")
+                    for cell in row:
+                        html_out.append(f"<td>{_format_inline_md(cell.strip())}</td>")
+                    html_out.append("</tr>")
+                html_out.append("</tbody>")
+            html_out.append("</table></div>")
+            in_table = False
+            table_rows = []
+
+    for line in lines:
+        raw_line = line
+        stripped = line.strip()
+
+        # Code block fence
+        if stripped.startswith("```"):
+            if in_code_block:
+                code_content = html.escape("\n".join(code_lines))
+                html_out.append(f'<pre class="code-block"><code class="language-{code_lang}">{code_content}</code></pre>')
+                in_code_block = False
+                code_lines = []
+            else:
+                close_lists()
+                close_table()
+                in_code_block = True
+                code_lang = stripped.lstrip("`").strip() or "text"
+            continue
+
+        if in_code_block:
+            code_lines.append(raw_line)
+            continue
+
+        if not stripped:
+            close_lists()
+            close_table()
+            continue
+
+        # Horizontal rule
+        if stripped in {"---", "***", "___"} or re.match(r"^[-*_]{3,}$", stripped):
+            close_lists()
+            close_table()
+            html_out.append('<hr class="doc-divider"/>')
+            continue
+
+        # Table row
+        if stripped.startswith("|") and stripped.endswith("|"):
+            close_lists()
+            if re.match(r"^\|[\s\-:|]+\|$", stripped):
+                continue
+            cells = [c for c in stripped.split("|")[1:-1]]
+            if not in_table:
+                in_table = True
+                table_rows = []
+            table_rows.append(cells)
+            continue
+        else:
+            close_table()
+
+        # Heading
+        heading_match = re.match(r"^(#{1,6})\s+(.*)$", stripped)
+        if heading_match:
+            close_lists()
+            level = len(heading_match.group(1))
+            heading_content = _format_inline_md(heading_match.group(2))
+            html_out.append(f'<h{level} class="doc-h{level}">{heading_content}</h{level}>')
+            continue
+
+        # Bullet list item
+        ul_match = re.match(r"^[-*+]\s+(.*)$", stripped)
+        if ul_match:
+            if in_ol:
+                html_out.append("</ol>")
+                in_ol = False
+            if not in_ul:
+                html_out.append('<ul class="doc-ul">')
+                in_ul = True
+            item_content = _format_inline_md(ul_match.group(1))
+            html_out.append(f"<li>{item_content}</li>")
+            continue
+
+        # Numbered list item
+        ol_match = re.match(r"^(\d+)\.\s+(.*)$", stripped)
+        if ol_match:
+            if in_ul:
+                html_out.append("</ul>")
+                in_ul = False
+            if not in_ol:
+                html_out.append('<ol class="doc-ol">')
+                in_ol = True
+            item_content = _format_inline_md(ol_match.group(2))
+            html_out.append(f"<li>{item_content}</li>")
+            continue
+
+        # Blockquote
+        if stripped.startswith(">"):
+            close_lists()
+            quote_content = _format_inline_md(stripped.lstrip("> ").strip())
+            html_out.append(f'<blockquote class="doc-quote"><p>{quote_content}</p></blockquote>')
+            continue
+
+        # Normal paragraph
+        close_lists()
+        p_content = _format_inline_md(stripped)
+        html_out.append(f'<p class="doc-p">{p_content}</p>')
+
+    if in_code_block and code_lines:
+        code_content = html.escape("\n".join(code_lines))
+        html_out.append(f'<pre class="code-block"><code>{code_content}</code></pre>')
+    close_lists()
+    close_table()
+
+    return "\n".join(html_out)
+
+
 def _html_document(title: str, body: str) -> str:
     return f"""<!doctype html>
 <html lang="zh-CN">
@@ -74,71 +241,55 @@ def _html_document(title: str, body: str) -> str:
   <meta name="referrer" content="no-referrer">
   <title>{title}</title>
   <style>
-    body {{ margin: 0; padding: 24px; background: #f0eee9; color: #1c1b19; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }}
+    body {{ margin: 0; padding: 24px; background: #f0eee9; color: #1c1b19; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; }}
     .page {{ max-width: 1100px; margin: 0 auto; }}
-    .memory-review {{ display: flex; flex-direction: column; border: 1px solid #d4d0c6; background: #fff; border-radius: 8px; overflow: hidden; }}
-    .review-heading {{ padding: 12px 16px 8px; font-weight: 650; background: #faf9f6; border-bottom: 1px solid #ebe8e1; }}
-    .review-row {{ display: grid; grid-template-columns: minmax(0, 1fr) 1px minmax(230px, 32%); border-bottom: 1px solid #ebe8e1; }}
+
+    /* 两栏记忆溯源 review 视图 */
+    .memory-review {{ display: flex; flex-direction: column; border: 1px solid #d4d0c6; background: #fff; border-radius: 8px; overflow: hidden; box-shadow: 0 2px 10px rgba(0,0,0,0.03); }}
+    .review-heading {{ padding: 14px 18px 10px; font-weight: 700; background: #faf9f6; border-bottom: 1px solid #ebe8e1; color: #1c1b19; }}
+    .review-heading.h1 {{ font-size: 1.35rem; border-left: 4px solid #0d47a1; }}
+    .review-heading.h2 {{ font-size: 1.12rem; border-left: 3px solid #1976d2; margin-top: 6px; }}
+    .review-heading.h3 {{ font-size: 0.98rem; border-left: 2px solid #64b5f6; }}
+    .review-row {{ display: grid; grid-template-columns: minmax(0, 1fr) 1px minmax(240px, 32%); border-bottom: 1px solid #ebe8e1; }}
     .review-row:last-child {{ border-bottom: none; }}
-    .review-left {{ padding: 11px 14px; line-height: 1.65; word-break: break-word; }}
-    .review-rule {{ background: #c8c4b8; }}
-    .review-right {{ padding: 9px 10px; background: #faf9f6; }}
-    .mem-mark {{ text-decoration: underline; text-decoration-thickness: 1.5px; text-underline-offset: 3px; background: #fff6c7; }}
-    .mem-card {{ display: block; padding: 9px 10px; border-left: 3px solid #6b6860; background: #fff; color: #1c1b19; text-decoration: none; border-radius: 4px; }}
+    .review-left {{ padding: 10px 16px; line-height: 1.7; word-break: break-word; font-size: 0.88rem; color: #2c2a26; }}
+    .review-left.list-item {{ display: flex; gap: 8px; }}
+    .review-left .bullet {{ color: #0d47a1; font-weight: 700; flex-shrink: 0; }}
+    .review-left.num-item {{ display: flex; gap: 8px; }}
+    .review-left .num-badge {{ display: inline-flex; align-items: center; justify-content: center; width: 18px; height: 18px; border-radius: 50%; background: #e3f2fd; color: #0d47a1; font-size: 0.72rem; font-weight: 700; flex-shrink: 0; margin-top: 2px; }}
+    .review-rule {{ background: #e0dcd3; }}
+    .review-right {{ padding: 10px 12px; background: #faf9f6; display: flex; flex-direction: column; justify-content: center; }}
+    .mem-mark {{ text-decoration: underline; text-decoration-thickness: 1.8px; text-underline-offset: 3px; background: #fff8d6; padding: 1px 3px; border-radius: 2px; }}
+    .mem-card {{ display: block; padding: 10px 12px; border-left: 3px solid #0d47a1; background: #fff; color: #1c1b19; text-decoration: none; border-radius: 4px; box-shadow: 0 1px 4px rgba(0,0,0,0.04); transition: transform 0.15s ease, box-shadow 0.15s ease; }}
+    .mem-card:hover {{ transform: translateY(-1px); box-shadow: 0 3px 8px rgba(0,0,0,0.08); }}
     .mem-card + .mem-card {{ margin-top: 8px; }}
-    .mem-card-title {{ font-size: 0.9rem; font-weight: 650; line-height: 1.4; margin-bottom: 6px; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }}
-    .mem-card-meta {{ font-size: 0.78rem; color: #6b6860; line-height: 1.35; margin-bottom: 4px; }}
-    .mem-card-source {{ font-size: 0.74rem; color: #9a968c; line-height: 1.35; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }}
-    .review-analysis {{ font-size: 0.8rem; color: #3a3832; line-height: 1.5; margin-top: 4px; white-space: pre-wrap; }}
-    .review-fix {{ font-size: 0.78rem; color: #6b6860; line-height: 1.45; margin-top: 4px; }}
-    .review-cite {{ font-size: 0.78rem; color: #3a3832; margin-top: 6px; font-weight: 650; }}
-    .review-excerpt {{ font-size: 0.76rem; color: #6b6860; margin-top: 4px; line-height: 1.45; }}
-    .review-quote {{ font-size: 0.82rem; color: #4a4842; line-height: 1.55; margin-top: 8px; padding: 6px 8px; background: #f7f5f0; border-left: 3px solid #c8c4b8; border-radius: 4px; }}
-    .review-note {{ font-size: 0.8rem; color: #6b6860; line-height: 1.5; margin-top: 6px; }}
-    .review-tags {{ margin-top: 6px; }}
-    .chip {{ display: inline-block; padding: 1px 8px; margin: 2px 4px 0 0; font-size: 0.74rem; color: #3a3832; background: #efece4; border: 1px solid #d4d0c6; border-radius: 10px; }}
-    .degree-badge {{ display: inline-block; padding: 1px 9px; margin-right: 6px; font-size: 0.74rem; font-weight: 700; color: #fff; border-radius: 9px; vertical-align: 1px; }}
-    .degree-must {{ background: #b3402e; }}
-    .degree-key {{ background: #c98a2d; }}
-    .degree-know {{ background: #8a867c; }}
-    .review-blurb {{ font-size: 0.82rem; color: #3a3832; line-height: 1.6; margin-top: 8px; background: #fbfaf7; border: 1px solid #ebe8e1; border-radius: 6px; padding: 7px 9px; }}
-    .mem-empty {{ padding: 10px 12px; color: #9a968c; font-size: 0.78rem; }}
-    .quiz-hint {{ font-size: 0.78rem; font-weight: 400; color: #6b6860; margin-top: 4px; }}
-    .quiz-item {{ padding: 12px 16px; border-bottom: 1px solid #ebe8e1; }}
-    .quiz-item:last-child {{ border-bottom: none; }}
-    .quiz-q {{ font-weight: 650; line-height: 1.55; margin-bottom: 6px; }}
-    .quiz-dim {{ font-size: 0.76rem; color: #6b6860; margin-bottom: 8px; }}
-    .quiz-answer {{ margin: 0; }}
-    .quiz-answer summary {{ cursor: pointer; color: #3a3832; font-size: 0.86rem; user-select: none; }}
-    .quiz-answer ol {{ margin: 8px 0 0 1.2em; padding: 0; line-height: 1.55; }}
-    .quiz-empty {{ padding: 14px 16px; color: #6b6860; }}
-    .quiz-section {{ padding: 12px 16px 4px; font-weight: 700; font-size: 0.92rem; background: #f7f5f0; border-bottom: 1px solid #ebe8e1; }}
-    .quiz-bank-query {{ padding: 6px 16px 10px; font-size: 0.78rem; color: #6b6860; }}
-    .quiz-stem {{ line-height: 1.85; margin: 6px 0 8px; word-break: keep-all; }}
-    .quiz-stem p {{ margin: 0 0 .45em; text-indent: 0 !important; }}
-    .quiz-formula {{ display: inline !important; vertical-align: middle !important; height: 1.45em; width: auto !important; max-width: none !important; max-height: 2.6em; }}
-    .quiz-figure {{ display: block; max-width: 100%; height: auto; margin: 8px 0; }}
-    .quiz-blank {{ display: inline-block; min-width: 4em; border-bottom: 1px solid #1c1b19; margin: 0 .15em; }}
-    .quiz-opts {{ list-style: none; margin: 0 0 8px; padding: 0; }}
-    .quiz-opts li {{ margin: 4px 0; line-height: 1.8; }}
-    .quiz-key {{ margin: 8px 0 6px; font-weight: 650; }}
-    .quiz-analysis {{ line-height: 1.55; }}
-    .library-hero {{ padding: 28px 20px 22px; text-align: center; background: #faf9f6; border-bottom: 1px solid #ebe8e1; }}
-    .library-caption {{ margin: 0; font-size: 0.86rem; color: #6b6860; }}
-    .library-count {{ margin: 6px 0 0; font-size: 0.95rem; color: #1c1b19; }}
-    .library-count strong {{ display: block; font-size: 2.6rem; font-weight: 650; letter-spacing: -0.04em; line-height: 1.05; }}
-    .library-files, .library-items, .library-conflicts, .library-peace {{ padding: 12px 16px 16px; }}
-    .library-files ul, .library-items ul {{ margin: 0; padding-left: 1.2em; line-height: 1.6; }}
-    .library-items span {{ color: #9a968c; font-size: 0.78rem; margin-left: 8px; }}
-    .library-verdict {{ margin: 12px 0 0; padding: 12px 14px; border: 1px solid #ebe8e1; border-radius: 8px; background: #fff; }}
-    .library-verdict blockquote {{ margin: 8px 0; padding-left: 10px; border-left: 3px solid #c8c4b8; color: #4a4842; font-size: 0.86rem; }}
-    .library-ask {{ margin: 10px 0 8px; font-weight: 650; }}
-    .library-verdict button {{ margin: 0 8px 0 0; padding: 6px 12px; border: 1px solid #d4d0c6; border-radius: 6px; background: #faf9f6; cursor: pointer; }}
-    .library-verdict button.is-on {{ background: #2c2a26; color: #faf9f6; border-color: #2c2a26; }}
-    .library-picked {{ min-height: 1.2em; font-size: 0.8rem; color: #6b6860; margin: 8px 0 0; }}
-    .library-peace {{ color: #6b6860; }}
+    .mem-card-title {{ font-size: 0.84rem; font-weight: 650; line-height: 1.45; margin-bottom: 5px; color: #0f172a; }}
+    .mem-card-meta {{ font-size: 0.76rem; color: #64748b; line-height: 1.4; margin-bottom: 3px; }}
+    .mem-card-source {{ font-size: 0.72rem; color: #0284c7; line-height: 1.35; font-weight: 500; }}
+    .mem-empty {{ min-height: 20px; }}
+
+    /* 单栏文档排版渲染视图 (.markdown-body) */
+    .markdown-body {{ padding: 32px 36px; background: #ffffff; border: 1px solid #d4d0c6; border-radius: 8px; line-height: 1.75; font-size: 0.92rem; color: #2c2a26; box-shadow: 0 2px 10px rgba(0,0,0,0.03); }}
+    .markdown-body h1, .doc-h1 {{ font-size: 1.55rem; font-weight: 750; margin: 0 0 16px; padding-bottom: 8px; border-bottom: 2px solid #0d47a1; color: #0f172a; }}
+    .markdown-body h2, .doc-h2 {{ font-size: 1.25rem; font-weight: 700; margin: 24px 0 12px; color: #1e293b; border-left: 3px solid #1976d2; padding-left: 10px; }}
+    .markdown-body h3, .doc-h3 {{ font-size: 1.05rem; font-weight: 650; margin: 18px 0 8px; color: #334155; }}
+    .markdown-body p, .doc-p {{ margin: 0 0 12px; }}
+    .markdown-body ul, .doc-ul {{ margin: 0 0 14px; padding-left: 20px; }}
+    .markdown-body ol, .doc-ol {{ margin: 0 0 14px; padding-left: 20px; }}
+    .markdown-body li {{ margin-bottom: 6px; }}
+    .markdown-body strong {{ color: #0f172a; font-weight: 650; }}
+    .markdown-body blockquote, .doc-quote {{ margin: 14px 0; padding: 10px 16px; border-left: 4px solid #cbd5e1; background: #f8fafc; color: #475569; border-radius: 0 4px 4px 0; }}
+    .doc-divider {{ border: none; border-top: 1px solid #e2e8f0; margin: 20px 0; }}
+    .table-wrap {{ overflow-x: auto; margin: 16px 0; }}
+    .doc-table {{ width: 100%; border-collapse: collapse; font-size: 0.86rem; }}
+    .doc-table th, .doc-table td {{ border: 1px solid #cbd5e1; padding: 8px 12px; text-align: left; }}
+    .doc-table th {{ background: #f1f5f9; font-weight: 650; color: #1e293b; }}
+    .doc-table tr:nth-child(even) {{ background: #f8fafc; }}
+    .code-block {{ background: #1e293b; color: #f8fafc; padding: 12px 16px; border-radius: 6px; overflow-x: auto; font-family: ui-monospace, SFMono-Regular, Consolas, monospace; font-size: 0.82rem; }}
+    code {{ font-family: ui-monospace, SFMono-Regular, Consolas, monospace; background: #f1f5f9; color: #0f172a; padding: 2px 5px; border-radius: 3px; font-size: 0.84rem; }}
+
     .plain {{ padding: 18px 20px; background: #fff; border: 1px solid #d4d0c6; border-radius: 8px; line-height: 1.65; white-space: pre-wrap; }}
-    @media (max-width: 820px) {{ .review-row {{ grid-template-columns: 1fr; }} .review-rule {{ height: 1px; }} }}
+    @media (max-width: 820px) {{ .review-row {{ grid-template-columns: 1fr; }} .review-rule {{ height: 1px; }} .markdown-body {{ padding: 20px; }} }}
   </style>
 </head>
 <body>
@@ -217,9 +368,15 @@ def save_report_artifacts(
             if review:
                 body = review
             else:
-                import html
-
-                body = f'<div class="plain">{html.escape(text)}</div>'
+                body = f'<div class="markdown-body">{render_markdown_to_html(text)}</div>'
+            html_path = out_dir / f"result_{timestamp}.html"
+            html_path.write_text(
+                _html_document(html_title, body),
+                encoding="utf-8",
+            )
+            paths["html"] = html_path
+        else:
+            body = f'<div class="markdown-body">{render_markdown_to_html(text)}</div>'
             html_path = out_dir / f"result_{timestamp}.html"
             html_path.write_text(
                 _html_document(html_title, body),

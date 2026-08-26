@@ -166,11 +166,172 @@ async def api_user_context(user_id: str) -> dict:
         for name, count in sorted(subjects_dict.items(), key=lambda x: x[0])
     ]
 
+    from chat.profile import ensure_profile
+    user_prof = ensure_profile(ROOT, uid_safe)
+
     return {
         "user_id": user_id,
         "subjects": subjects,
+        "profile": {
+            "user_id": user_id,
+            "name": user_prof.get("name") or "",
+            "role": user_prof.get("role") or "客观全员",
+            "base_template": user_prof.get("base_template") or "object",
+            "template_label": user_prof.get("template_label") or "客观 · 客观全员",
+            "traits": user_prof.get("traits") or {},
+        },
     }
 
+
+@app.post("/api/user/{user_id}/profile")
+async def api_update_user_profile(user_id: str, body: dict) -> dict:
+    """显式更新用户的职业/视角画像及个性化偏好 traits。"""
+    user_id = (user_id or "").strip()
+    if not user_id:
+        raise HTTPException(status_code=400, detail="用户 ID 不能为空")
+    role = str(body.get("role") or body.get("template") or body.get("base_template") or "").strip()
+    traits = body.get("traits")
+    name = str(body.get("name") or "").strip()
+    from chat.profile import update_user_profile_data
+    updated = update_user_profile_data(ROOT, user_id, role=role, traits=traits, name=name)
+    return {"ok": True, "profile": updated}
+
+
+TEMPLATE_MAPPING_INFO = {
+    "general_minutes.md": {"title": "通用纪要", "scenario": "日常"},
+    "team_meeting.md": {"title": "团队例会", "scenario": "会议"},
+    "project_progress.md": {"title": "项目进度会", "scenario": "会议"},
+    "decision_review.md": {"title": "决策评审会", "scenario": "会议"},
+    "workshop_session.md": {"title": "工作研讨会", "scenario": "会议"},
+    "retrospective_session.md": {"title": "总结复盘会", "scenario": "会议"},
+    "exchange_forum.md": {"title": "沟通交流会", "scenario": "会议"},
+    "class_transcript.md": {"title": "课堂记录", "scenario": "学习"},
+    "special_lecture.md": {"title": "专题讲座", "scenario": "学习"},
+    "group_seminar.md": {"title": "小组讨论", "scenario": "学习"},
+    "knowledge_memo.md": {"title": "知识笔记", "scenario": "学习"},
+    "debate_forum.md": {"title": "辩论会", "scenario": "学习"},
+    "research_dialogue.md": {"title": "调研访谈", "scenario": "访谈"},
+    "interview_transcript.md": {"title": "采访记录", "scenario": "访谈"},
+    "hiring_report.md": {"title": "面试报告", "scenario": "面试"},
+    "interview_debrief.md": {"title": "面试复盘", "scenario": "面试"},
+    "clinical_advisory.md": {"title": "就医咨询", "scenario": "医疗"},
+    "psychological_session.md": {"title": "心理咨询", "scenario": "医疗"},
+    "legal_advisory.md": {"title": "法律咨询", "scenario": "法律"},
+    "court_transcript.md": {"title": "庭审记录", "scenario": "法律"},
+    "contract_vetting.md": {"title": "合同审核", "scenario": "法律"},
+    "media_briefing.md": {"title": "新闻发布", "scenario": "发布"},
+    "product_launch.md": {"title": "产品发布", "scenario": "发布"},
+    "government_bulletin.md": {"title": "政府报告", "scenario": "发布"},
+    "media_qa_session.md": {"title": "媒体问答", "scenario": "发布"},
+    "personal_memo.md": {"title": "个人备忘", "scenario": "日常"},
+    "conversation_transcript.md": {"title": "对话记录", "scenario": "日常"},
+    "site_visit_tour.md": {"title": "参观游览", "scenario": "日常"},
+    "home_school_liaison.md": {"title": "家校沟通", "scenario": "日常"},
+}
+
+
+@app.get("/api/templates/{task}")
+async def api_get_templates(task: str) -> dict:
+    """获取指定任务的内置样例模板列表。"""
+    domain = "notes" if task in {"library", "catalog", "checklist", "quiz", "knowledge_graph"} else "meeting"
+    tpl_dir = ROOT / "samples" / domain / f"{task}_template"
+    if not tpl_dir.is_dir():
+        tpl_dir = ROOT / "samples" / domain / "template"
+
+    templates = []
+    if tpl_dir.is_dir():
+        for f in sorted(tpl_dir.glob("*.md")):
+            try:
+                content = f.read_text(encoding="utf-8")
+                info = TEMPLATE_MAPPING_INFO.get(f.name, {})
+                title = info.get("title") or f.stem
+                scenario = info.get("scenario") or "通用"
+                templates.append({
+                    "filename": f.name,
+                    "title": title,
+                    "scenario": scenario,
+                    "display_name": f"{title}（{scenario}）" if scenario else title,
+                    "content": content,
+                })
+            except Exception:
+                pass
+
+    # 按场景和标题排序，default_template 为空（默认不使用模板，原始标准纪要输出）
+    templates.sort(key=lambda x: (x["scenario"], x["title"]))
+    return {"task": task, "default_template": "", "templates": templates}
+
+
+def _build_fallback_placeholder_template(description: str, task: str, domain: str) -> str:
+    """智能解析自然语言需求，生成结构化 Markdown 占位符骨架。"""
+    title = "# [文档标题 / 会议主题]"
+    sections = []
+
+    # 基础信息
+    if any(k in description for k in ["基本", "信息", "时间", "地点", "人员", "参会"]) or task == "minutes_generation":
+        sections.append("## 一、基本信息\n- 会议主题：[会议主题说明]\n- 会议时间：[会议召开日期与具体时间]\n- 会议地点/形式：[会议室或线上会议链接]\n- 参会人员：[参会人员名单及部门职务]\n- 主持人/记录人：[主持人与纪要记录人]")
+
+    # 发言要点/核心讨论
+    if any(k in description for k in ["发言", "要点", "讨论", "内容", "汇报", "纪要"]) or task == "minutes_generation":
+        sections.append("## 二、核心议题与发言要点\n- [按参会人员或重点议题，提炼核心发言观点、业务讨论过程及关键数据]")
+
+    # 风险预警
+    if any(k in description for k in ["风险", "预警", "隐患", "问题", "阻碍"]) or task == "risk":
+        sections.append("## 三、主要风险与应对方案\n- [梳理会议讨论中识别出的技术、业务或进度风险及对应防范措施]")
+
+    # 待办/行动项
+    if any(k in description for k in ["待办", "行动", "计划", "下一步", "安排", "任务", "todo"]) or task == "action_items":
+        sections.append("## 四、待办事项与行动计划 (Action Items)\n| 序号 | 待办事项 | 负责人 | 截止时间 | 交付成果 |\n| :--- | :--- | :--- | :--- | :--- |\n| 1 | [待办任务具体描述] | [指定负责人] | [完成时间节点] | [产出成果或验收标准] |")
+
+    if not sections:
+        sections.append("## 一、核心概述\n- [背景目标与总体结论说明]")
+        sections.append("## 二、关键要点分解\n- [按结构拆解的核心内容与详细阐述]")
+        sections.append("## 三、下一步行动与结论\n- [结论总结与后续跟进安排]")
+
+    return title + "\n\n" + "\n\n".join(sections)
+
+
+@app.post("/api/template/compile")
+async def api_compile_template(payload: dict) -> dict:
+    """自然语言描述编译为占位符模板。"""
+    description = str((payload or {}).get("description") or "").strip()
+    task = str((payload or {}).get("task") or "minutes_generation").strip()
+    domain = "notes" if task in {"library", "catalog", "checklist", "quiz", "knowledge_graph"} else "meeting"
+    if not description:
+        raise HTTPException(status_code=400, detail="description 不能为空")
+
+    from tools.template_router import (
+        maybe_compile_natural_template,
+        check_compile_fidelity,
+        detect_template_kind,
+        LINE_SCHEMA_HINTS,
+    )
+
+    schema_hint = LINE_SCHEMA_HINTS.get(task, "")
+    compiled = ""
+
+    try:
+        from client import LLMClient
+        client = LLMClient()
+        compiled = await maybe_compile_natural_template(
+            description,
+            domain=domain,
+            line_name=task,
+            schema_hint=schema_hint,
+            client=client,
+        )
+    except Exception:
+        compiled = ""
+
+    if not compiled or detect_template_kind(compiled) != "placeholder":
+        compiled = _build_fallback_placeholder_template(description, task, domain)
+
+    issues = check_compile_fidelity(description, compiled)
+    return {
+        "task": task,
+        "description": description,
+        "compiled": compiled,
+        "issues": issues,
+    }
 
 
 @app.get("/api/user/{user_id}/sessions")

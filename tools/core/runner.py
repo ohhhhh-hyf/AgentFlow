@@ -250,6 +250,7 @@ async def run(
     qtype: str | None = None,
     compile_natural: bool = True,
     monitor: bool = True,
+    stream_stdout: bool = True,
 ) -> dict | None:
     """Run selected task lines and persist their final artifacts.
 
@@ -457,8 +458,9 @@ async def run(
                 if event.get("line") in silent_graph_lines:
                     continue
                 any_output = True
-                sys.stdout.write(event["text"])
-                sys.stdout.flush()
+                if stream_stdout:
+                    sys.stdout.write(event["text"])
+                    sys.stdout.flush()
             elif etype == "done":
                 last_done = event
                 await _handle_done(ctx, event)

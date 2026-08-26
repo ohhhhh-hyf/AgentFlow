@@ -44,6 +44,9 @@ async function fetchUserContext(userId) {
     if (res.ok) {
       const data = await res.json();
       currentUserContext = data || { subjects: [], projects: [] };
+      if (data && data.profile && typeof updateUserProfilePill === "function") {
+        updateUserProfilePill(data.profile);
+      }
     }
   } catch {
     currentUserContext = { subjects: [], projects: [] };
@@ -260,6 +263,12 @@ async function fallbackToChat(question, loadingMsgId) {
 
     removeMessage(loadingMsgId);
     appendChatMessage(data);
+
+    // 服务结束（问答完成），持久化并触发左侧历史会话卡片实时刷新
+    const ctx = getCtx();
+    if (ctx.user_id && activeSessionId && data.answer) {
+      saveSessionMessage(ctx.user_id, activeSessionId, "assistant", data.answer);
+    }
     loadUserSessions();
   } catch (err) {
     updateLoadingMessage(loadingMsgId, `问答请求异常：${err.message}`, "err");

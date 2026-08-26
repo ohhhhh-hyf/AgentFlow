@@ -455,8 +455,372 @@ function createTaskCard(item, idx) {
     paramsSec.appendChild(optAccordion);
   }
 
+  // Template Customization Section for Minutes, Risk, Action Items, Mindmap, Knowledge Graph (placed below optional accordion)
+  const templateSec = createTaskTemplateSection(item);
+  if (templateSec) {
+    paramsSec.appendChild(templateSec);
+  }
+
   card.appendChild(paramsSec);
   return card;
+}
+
+// Tasks that support template customization
+const TEMPLATE_SUPPORTED_TASKS = new Set([
+  "minutes_generation",
+  "risk",
+  "action_items",
+  "mindmap",
+  "knowledge_graph"
+]);
+
+function createTaskTemplateSection(item) {
+  if (!TEMPLATE_SUPPORTED_TASKS.has(item.task)) return null;
+
+  const wrap = document.createElement("div");
+  wrap.className = "task-template-section";
+  wrap.id = `template-section-${item.task}`;
+
+  wrap.innerHTML = `
+    <div class="template-section-header">
+      <div class="template-section-title">
+        <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+          <polyline points="14 2 14 8 20 8"/>
+          <line x1="16" y1="13" x2="8" y2="13"/>
+          <line x1="16" y1="17" x2="8" y2="17"/>
+          <polyline points="10 9 9 9 8 9"/>
+        </svg>
+        <span>输出模板（选填）</span>
+      </div>
+      <span class="template-active-badge" id="tpl-badge-${item.task}" style="display:none;">已定制模板 ✓</span>
+    </div>
+
+    <!-- Mode Selector Tabs -->
+    <div class="template-mode-tabs">
+      <button type="button" class="tpl-tab-btn active" data-mode="preset">内置模板选择</button>
+      <button type="button" class="tpl-tab-btn" data-mode="upload">上传模板文件</button>
+      <button type="button" class="tpl-tab-btn" data-mode="natural">自然语言描述生成</button>
+    </div>
+
+    <!-- Mode 1: Preset Templates (Cascading Selector to Right) -->
+    <div class="tpl-pane tpl-pane-preset" id="tpl-pane-preset-${item.task}">
+      <div class="tpl-preset-controls">
+        <div class="tpl-cascade-dropdown-wrap" id="tpl-cascade-wrap-${item.task}">
+          <button type="button" class="tpl-cascade-trigger" id="tpl-cascade-trigger-${item.task}">
+            <span class="tpl-cascade-trigger-text" id="tpl-cascade-text-${item.task}">不使用模板（默认）</span>
+            <svg class="tpl-cascade-arrow" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2">
+              <polyline points="6 9 12 15 18 9"/>
+            </svg>
+          </button>
+
+          <!-- Cascading Menu (Flyout to Right) -->
+          <div class="tpl-cascade-menu hidden" id="tpl-cascade-menu-${item.task}">
+            <div class="tpl-cascade-scenarios" id="tpl-cascade-scenarios-${item.task}"></div>
+            <div class="tpl-cascade-subpanel" id="tpl-cascade-subpanel-${item.task}"></div>
+          </div>
+        </div>
+        <button type="button" class="btn-tpl-preview-preset" id="btn-tpl-preview-preset-${item.task}">查看模板内容</button>
+      </div>
+      <div class="tpl-preset-preview-box hidden" id="tpl-preset-preview-${item.task}">
+        <pre class="tpl-code-block"></pre>
+      </div>
+    </div>
+
+    <!-- Mode 2: Upload File -->
+    <div class="tpl-pane tpl-pane-upload hidden" id="tpl-pane-upload-${item.task}">
+      <div class="tpl-upload-row">
+        <label class="btn-upload-tpl">
+          <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M17 8l-5-5-5 5M12 3v12"/>
+          </svg>
+          <span>上传自定义模板 (.md / .txt)</span>
+          <input type="file" class="tpl-file-input" style="display:none;" accept=".md,.txt,.markdown" />
+        </label>
+        <span class="tpl-upload-status" id="tpl-upload-status-${item.task}">未选择文件</span>
+      </div>
+      <div class="tpl-upload-preview-box hidden" id="tpl-upload-preview-${item.task}">
+        <textarea class="tpl-editable-textarea" rows="5" placeholder="模板内容预览与编辑..."></textarea>
+      </div>
+    </div>
+
+    <!-- Mode 3: Natural Language Description -->
+    <div class="tpl-pane tpl-pane-natural hidden" id="tpl-pane-natural-${item.task}">
+      <div class="tpl-natural-input-wrap">
+        <textarea class="tpl-natural-textarea" id="tpl-natural-text-${item.task}" rows="3" placeholder="请用自然语言描述您想要的版式要求（例如：包含会议基本信息、各方发言要点、主要风险与待办清单表...）"></textarea>
+        <div class="tpl-natural-hint-row">
+          <span class="tpl-natural-tip">已启用自然语言定制版式：填写后可直接点击执行流水线，系统将按此要求自动排版输出。</span>
+        </div>
+      </div>
+    </div>
+  `;
+
+  // Default: no template selected (original standard minutes)
+  delete item.params.template;
+  delete item.params.template_content;
+
+  const cascadeWrap = wrap.querySelector(`#tpl-cascade-wrap-${item.task}`);
+  const cascadeTrigger = wrap.querySelector(`#tpl-cascade-trigger-${item.task}`);
+  const cascadeText = wrap.querySelector(`#tpl-cascade-text-${item.task}`);
+  const cascadeMenu = wrap.querySelector(`#tpl-cascade-menu-${item.task}`);
+  const cascadeScenarios = wrap.querySelector(`#tpl-cascade-scenarios-${item.task}`);
+  const cascadeSubpanel = wrap.querySelector(`#tpl-cascade-subpanel-${item.task}`);
+  const presetPreviewBtn = wrap.querySelector(`#btn-tpl-preview-preset-${item.task}`);
+  const presetPreviewBox = wrap.querySelector(`#tpl-preset-preview-${item.task}`);
+  const badge = wrap.querySelector(`#tpl-badge-${item.task}`);
+
+  let loadedTemplates = [];
+  let scenarioGroups = {};
+  let currentHoveredScenario = "";
+
+  function renderSubpanel(scenarioName) {
+    if (!cascadeSubpanel) return;
+    cascadeSubpanel.innerHTML = "";
+    const items = scenarioGroups[scenarioName] || [];
+    if (!items.length) {
+      cascadeSubpanel.innerHTML = `<div class="tpl-cascade-empty-hint">暂无可用模板</div>`;
+      return;
+    }
+    items.forEach((tpl) => {
+      const leaf = document.createElement("div");
+      const isSelected = item.params.template === tpl.filename;
+      leaf.className = `tpl-cascade-leaf ${isSelected ? "selected" : ""}`;
+      leaf.innerHTML = `
+        <span>${escapeHtml(tpl.title)}</span>
+        ${isSelected ? '<span class="tpl-cascade-check">✓</span>' : ""}
+      `;
+      leaf.addEventListener("click", (e) => {
+        e.stopPropagation();
+        item.params.template = tpl.filename;
+        delete item.params.template_content;
+        if (cascadeText) cascadeText.textContent = tpl.title;
+        if (badge) {
+          badge.textContent = `已定制模板: ${tpl.title} ✓`;
+          badge.style.display = "inline-flex";
+        }
+        if (cascadeMenu) cascadeMenu.classList.add("hidden");
+        if (cascadeTrigger) cascadeTrigger.classList.remove("active");
+        if (presetPreviewBox && !presetPreviewBox.classList.contains("hidden")) {
+          const codeBlock = presetPreviewBox.querySelector(".tpl-code-block");
+          if (codeBlock) codeBlock.textContent = tpl.content;
+        }
+        validatePlanParams();
+      });
+      cascadeSubpanel.appendChild(leaf);
+    });
+  }
+
+  function renderScenarios() {
+    if (!cascadeScenarios) return;
+    cascadeScenarios.innerHTML = "";
+
+    // Clear / Reset to No Template option
+    const resetRow = document.createElement("div");
+    const isResetSelected = !item.params.template && !item.params.template_content;
+    resetRow.className = `tpl-scenario-item tpl-scenario-reset ${isResetSelected ? "selected-reset" : ""}`;
+    resetRow.innerHTML = `
+      <span style="font-weight:600;">不使用模板（默认）</span>
+      ${isResetSelected ? '<span class="tpl-cascade-check">✓</span>' : ""}
+    `;
+    resetRow.addEventListener("mouseenter", () => {
+      currentHoveredScenario = "";
+      cascadeScenarios.querySelectorAll(".tpl-scenario-item").forEach((el) => el.classList.remove("active"));
+      resetRow.classList.add("active");
+      if (cascadeSubpanel) {
+        cascadeSubpanel.innerHTML = `<div class="tpl-cascade-empty-hint">当前模式：不使用任何模板<br/>（使用系统标准原始纪要）</div>`;
+      }
+    });
+    resetRow.addEventListener("click", (e) => {
+      e.stopPropagation();
+      delete item.params.template;
+      delete item.params.template_content;
+      if (cascadeText) cascadeText.textContent = "不使用模板（默认）";
+      if (badge) badge.style.display = "none";
+      if (cascadeMenu) cascadeMenu.classList.add("hidden");
+      if (cascadeTrigger) cascadeTrigger.classList.remove("active");
+      if (presetPreviewBox) presetPreviewBox.classList.add("hidden");
+      validatePlanParams();
+    });
+    cascadeScenarios.appendChild(resetRow);
+
+    // Scenario categories
+    Object.keys(scenarioGroups).forEach((scName) => {
+      const row = document.createElement("div");
+      row.className = `tpl-scenario-item ${scName === currentHoveredScenario ? "active" : ""}`;
+      row.innerHTML = `
+        <span>${escapeHtml(scName)}场景</span>
+        <span class="tpl-scenario-arrow">›</span>
+      `;
+      row.addEventListener("mouseenter", () => {
+        currentHoveredScenario = scName;
+        cascadeScenarios.querySelectorAll(".tpl-scenario-item").forEach((el) => el.classList.remove("active"));
+        row.classList.add("active");
+        renderSubpanel(scName);
+      });
+      row.addEventListener("click", (e) => {
+        e.stopPropagation();
+        currentHoveredScenario = scName;
+        cascadeScenarios.querySelectorAll(".tpl-scenario-item").forEach((el) => el.classList.remove("active"));
+        row.classList.add("active");
+        renderSubpanel(scName);
+      });
+      cascadeScenarios.appendChild(row);
+    });
+
+    if (currentHoveredScenario) {
+      renderSubpanel(currentHoveredScenario);
+    } else {
+      if (cascadeSubpanel) {
+        cascadeSubpanel.innerHTML = `<div class="tpl-cascade-empty-hint">← 悬停左侧场景浏览对应模板<br/>（默认不使用模板）</div>`;
+      }
+    }
+  }
+
+  if (cascadeTrigger && cascadeMenu) {
+    cascadeTrigger.addEventListener("click", (e) => {
+      e.stopPropagation();
+      const isHidden = cascadeMenu.classList.contains("hidden");
+      document.querySelectorAll(".tpl-cascade-menu").forEach((m) => m.classList.add("hidden"));
+      document.querySelectorAll(".tpl-cascade-trigger").forEach((t) => t.classList.remove("active"));
+      if (isHidden) {
+        cascadeMenu.classList.remove("hidden");
+        cascadeTrigger.classList.add("active");
+        const curTpl = loadedTemplates.find((t) => t.filename === item.params.template);
+        if (curTpl && curTpl.scenario) {
+          currentHoveredScenario = curTpl.scenario;
+        } else {
+          currentHoveredScenario = "";
+        }
+        renderScenarios();
+      }
+    });
+
+    document.addEventListener("click", (e) => {
+      if (cascadeWrap && !cascadeWrap.contains(e.target)) {
+        cascadeMenu.classList.add("hidden");
+        cascadeTrigger.classList.remove("active");
+      }
+    });
+  }
+
+  // Fetch preset templates on load
+  fetch(`${API}/templates/${encodeURIComponent(item.task)}`)
+    .then((r) => r.json())
+    .then((d) => {
+      if (d.templates && d.templates.length) {
+        loadedTemplates = d.templates;
+        scenarioGroups = {};
+        d.templates.forEach((tpl) => {
+          const sc = tpl.scenario || "通用";
+          if (!scenarioGroups[sc]) scenarioGroups[sc] = [];
+          scenarioGroups[sc].push(tpl);
+        });
+
+        if (item.params.template) {
+          const curTpl = d.templates.find((t) => t.filename === item.params.template);
+          if (curTpl) {
+            if (cascadeText) cascadeText.textContent = curTpl.title;
+            if (badge) {
+              badge.textContent = `已定制模板: ${curTpl.title} ✓`;
+              badge.style.display = "inline-flex";
+            }
+          }
+        }
+      }
+    })
+    .catch(() => {});
+
+  // Wire up tabs
+  const tabBtns = wrap.querySelectorAll(".tpl-tab-btn");
+  const panes = {
+    preset: wrap.querySelector(`#tpl-pane-preset-${item.task}`),
+    upload: wrap.querySelector(`#tpl-pane-upload-${item.task}`),
+    natural: wrap.querySelector(`#tpl-pane-natural-${item.task}`),
+  };
+
+  tabBtns.forEach((btn) => {
+    btn.addEventListener("click", () => {
+      tabBtns.forEach((b) => b.classList.remove("active"));
+      btn.classList.add("active");
+      const mode = btn.dataset.mode;
+      Object.entries(panes).forEach(([k, p]) => {
+        if (p) p.classList.toggle("hidden", k !== mode);
+      });
+      validatePlanParams();
+    });
+  });
+
+  if (presetPreviewBtn && presetPreviewBox) {
+    presetPreviewBtn.addEventListener("click", () => {
+      if (!item.params.template) {
+        alert("当前为默认无模板模式（使用系统标准原始纪要）。如需使用定制模板，请先在下拉菜单中选择一个具体模板。");
+        return;
+      }
+      const curTpl = loadedTemplates.find((t) => t.filename === item.params.template);
+      const content = curTpl ? curTpl.content : "";
+      if (!content) {
+        alert("未能读取到所选模板内容");
+        return;
+      }
+      const codeBlock = presetPreviewBox.querySelector(".tpl-code-block");
+      if (codeBlock) codeBlock.textContent = content;
+      presetPreviewBox.classList.toggle("hidden");
+    });
+  }
+
+  // Upload file handling
+  const fileInput = wrap.querySelector(".tpl-file-input");
+  const uploadStatus = wrap.querySelector(`#tpl-upload-status-${item.task}`);
+  const uploadPreviewBox = wrap.querySelector(`#tpl-upload-preview-${item.task}`);
+  const uploadTextarea = uploadPreviewBox ? uploadPreviewBox.querySelector(".tpl-editable-textarea") : null;
+
+  if (fileInput) {
+    fileInput.addEventListener("change", () => {
+      const file = fileInput.files && fileInput.files[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        const content = (e.target.result || "").trim();
+        item.params.template_content = content;
+        delete item.params.template;
+        if (uploadStatus) {
+          uploadStatus.innerHTML = `<span style="color:#0d47a1; font-weight:600;">已加载：${escapeHtml(file.name)}</span>`;
+        }
+        if (uploadTextarea) uploadTextarea.value = content;
+        if (uploadPreviewBox) uploadPreviewBox.classList.remove("hidden");
+        if (badge) badge.style.display = "inline-flex";
+        validatePlanParams();
+      };
+      reader.readAsText(file, "utf-8");
+    });
+  }
+
+  if (uploadTextarea) {
+    uploadTextarea.addEventListener("input", () => {
+      item.params.template_content = uploadTextarea.value.trim();
+      delete item.params.template;
+      validatePlanParams();
+    });
+  }
+
+  // Natural language description handling (direct input & execute)
+  const naturalText = wrap.querySelector(`#tpl-natural-text-${item.task}`);
+  if (naturalText) {
+    naturalText.addEventListener("input", () => {
+      const val = naturalText.value.trim();
+      if (val) {
+        item.params.template_content = val;
+        delete item.params.template;
+        if (badge) badge.style.display = "inline-flex";
+      } else {
+        delete item.params.template_content;
+        if (badge && !item.params.template) badge.style.display = "none";
+      }
+      validatePlanParams();
+    });
+  }
+
+  return wrap;
 }
 
 // Create Drag-and-Drop File Upload Zone
@@ -638,137 +1002,77 @@ function createOptionalAccordion(item) {
   const content = document.createElement("div");
   content.className = "optional-content";
 
-  // 1. Meeting Perspective Selection
-  if (isMeetingMinutes) {
-    const pRow = document.createElement("div");
-    pRow.className = "param-input-row";
-    pRow.innerHTML = '<span class="param-input-label">纪要生成视角</span>';
+  // 1. Linked User Persona Profile (自动关联的用户视角画像)
+  const ctx = getCtx();
+  const prof = (currentUserContext && currentUserContext.profile) || {};
+  const currentPersonaLabel = prof.template_label || prof.role || "客观 · 客观全员";
 
-    const select = document.createElement("select");
-    select.className = "param-select";
-
-    const perspectives = cachedPerspectives && cachedPerspectives.length
-      ? cachedPerspectives
-      : ["客观 · 客观全员", "职业 · 开发人员", "职业 · 产品经理", "职业 · 项目经理"];
-
-    perspectives.forEach((label) => {
-      const opt = document.createElement("option");
-      opt.value = label;
-      opt.textContent = label;
-      select.appendChild(opt);
-    });
-
-    if (item.params.perspective) select.value = item.params.perspective;
-
-    select.addEventListener("change", () => {
-      if (select.value && select.value !== "客观 · 客观全员") {
-        item.params.perspective = select.value;
-      } else {
-        delete item.params.perspective;
-      }
-    });
-
-    pRow.appendChild(select);
-    content.appendChild(pRow);
-  }
-
-  // 2. Output Template Upload
-  const tplSection = document.createElement("div");
-  tplSection.className = "template-upload-section";
-
-  tplSection.innerHTML = `
-    <div class="template-section-header">
-      <div class="template-title-wrap">
-        <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2">
-          <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
-          <polyline points="14 2 14 8 20 8"/>
-          <line x1="16" y1="13" x2="8" y2="13"/>
-          <line x1="16" y1="17" x2="8" y2="17"/>
-          <polyline points="10 9 9 9 8 9"/>
-        </svg>
-        <span class="template-section-title">输出模板 (可选)</span>
+  const personaCard = document.createElement("div");
+  personaCard.className = "linked-persona-card";
+  personaCard.innerHTML = `
+    <div class="linked-persona-row">
+      <div class="persona-tag-wrap">
+        <span class="persona-icon-circle">
+          <svg viewBox="0 0 24 24" width="13" height="13" fill="currentColor">
+            <path d="M12 2C12 7.52 7.52 12 2 12C7.52 12 12 16.48 12 22C12 16.48 16.48 12 22 12C16.48 12 12 7.52 12 2Z"/>
+          </svg>
+        </span>
+        <span class="persona-title">已关联视角画像：</span>
+        <span class="persona-role-badge" id="task-persona-badge">${escapeHtml(currentPersonaLabel)}</span>
       </div>
-      <span class="template-badge">选填</span>
+      <button type="button" class="btn-switch-persona" title="快速切换或设定当前职业视角">切换职业 ▾</button>
     </div>
-    <div class="template-section-desc">
-      支持上传自定义 Markdown / 文本模板（.md / .txt），产物将严格依循您的章节结构排版。
-    </div>
-
-    <div class="template-action-row">
-      <label class="btn-template-upload" id="btn-tpl-upload-${item.task}">
-        <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2">
-          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M17 8l-5-5-5 5M12 3v12"/>
-        </svg>
-        <span>上传模板文件 (.md / .txt)</span>
-        <input type="file" class="template-file-input" accept=".md,.txt,.markdown" style="display:none;" />
-      </label>
-      <div class="template-file-chip hidden" id="tpl-chip-${item.task}"></div>
-      <span class="template-default-hint" id="tpl-hint-${item.task}">未上传时采用系统标准模版</span>
+    <div class="persona-quick-chips hidden" id="persona-quick-chips">
+      <button type="button" class="persona-chip" data-role="客观全员">客观全员</button>
+      <button type="button" class="persona-chip" data-role="开发人员">开发人员</button>
+      <button type="button" class="persona-chip" data-role="产品经理">产品经理</button>
+      <button type="button" class="persona-chip" data-role="项目经理">项目经理</button>
+      <button type="button" class="persona-chip" data-role="测试工程师">测试工程师</button>
+      <button type="button" class="persona-chip" data-role="算法工程师">算法工程师</button>
+      <button type="button" class="persona-chip" data-role="客户经理">客户经理</button>
     </div>
   `;
 
-  const btnUpload = tplSection.querySelector(`#btn-tpl-upload-${item.task}`);
-  const tplInput = tplSection.querySelector(".template-file-input");
-  const tplChip = tplSection.querySelector(`#tpl-chip-${item.task}`);
-  const tplHint = tplSection.querySelector(`#tpl-hint-${item.task}`);
-
-  function updateTemplateChip(file) {
-    if (!file) {
-      tplChip.classList.add("hidden");
-      tplChip.innerHTML = "";
-      btnUpload.classList.remove("hidden");
-      tplHint.classList.remove("hidden");
-      return;
-    }
-
-    btnUpload.classList.add("hidden");
-    tplHint.classList.add("hidden");
-    tplChip.classList.remove("hidden");
-    tplChip.innerHTML = `
-      <div class="template-chip-left">
-        <span class="template-chip-icon">📄</span>
-        <div class="template-chip-info">
-          <span class="template-chip-name" title="${escapeHtml(file.name)}">${escapeHtml(file.name)}</span>
-          <span class="template-chip-size">${formatFileSize(file.size)} · 模板已挂载</span>
-        </div>
-      </div>
-      <button class="template-chip-remove" title="移除模板">&times;</button>
-    `;
-
-    const removeBtn = tplChip.querySelector(".template-chip-remove");
-    if (removeBtn) {
-      removeBtn.addEventListener("click", () => {
-        const key = `${item.task}:template`;
-        uploadsMap.delete(key);
-        if (item.params) delete item.params.template;
-        tplInput.value = "";
-        updateTemplateChip(null);
-      });
-    }
-  }
-
-  const existingKey = `${item.task}:template`;
-  const existingFiles = uploadsMap.get(existingKey);
-  if (existingFiles && existingFiles.length) {
-    updateTemplateChip(existingFiles[0]);
-  }
-
-  if (tplInput) {
-    tplInput.addEventListener("change", () => {
-      const file = tplInput.files && tplInput.files[0];
-      if (!file) return;
-
-      const key = `${item.task}:template`;
-      uploadsMap.set(key, [file]);
-      item.params = item.params || {};
-      item.params.template = [file.name];
-      updateTemplateChip(file);
+  const btnSwitch = personaCard.querySelector(".btn-switch-persona");
+  const chipsWrap = personaCard.querySelector("#persona-quick-chips");
+  if (btnSwitch && chipsWrap) {
+    btnSwitch.addEventListener("click", (e) => {
+      e.stopPropagation();
+      chipsWrap.classList.toggle("hidden");
     });
   }
 
-  content.appendChild(tplSection);
+  personaCard.querySelectorAll(".persona-chip").forEach((chip) => {
+    chip.addEventListener("click", async (e) => {
+      e.stopPropagation();
+      const targetRole = chip.getAttribute("data-role");
+      const ctxNow = getCtx();
+      if (ctxNow.user_id) {
+        try {
+          const res = await fetch(`${API}/user/${encodeURIComponent(ctxNow.user_id)}/profile`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ role: targetRole }),
+          });
+          if (res.ok) {
+            const d = await res.json();
+            if (d.profile) {
+              currentUserContext.profile = d.profile;
+              const badge = personaCard.querySelector("#task-persona-badge");
+              if (badge) badge.textContent = d.profile.template_label || targetRole;
+              chipsWrap.classList.add("hidden");
+            }
+          }
+        } catch (err) {
+          console.warn("Failed to switch profile:", err);
+        }
+      }
+    });
+  });
 
-  // 3. Other Optional Inputs
+  content.appendChild(personaCard);
+
+  // 2. Other Optional Inputs
   optionalParams.forEach((param) => {
     if (param === "file" || param === "input") return;
     const optRow = document.createElement("div");
@@ -966,51 +1270,51 @@ async function executeCurrentPlan(isAllStages = false) {
   const totalStages = currentPlan.execution ? currentPlan.execution.length : 1;
   const currentStageTasks = (currentPlan.execution && currentPlan.execution[currentActiveStep]) || [];
 
-  let stagePayload = null;
-  if (isAllStages) {
-    const remainingStages = currentPlan.execution.slice(currentActiveStep);
-    const remainingTaskNames = new Set(remainingStages.flat());
-    const remainingPlanTasks = currentPlan.plan.filter((t) => remainingTaskNames.has(t.task));
-    stagePayload = {
-      ...currentPlan,
-      plan: remainingPlanTasks,
-      execution: remainingStages,
-    };
-  } else {
-    const currentPlanTasks = currentPlan.plan.filter((t) => currentStageTasks.includes(t.task));
-    stagePayload = {
-      ...currentPlan,
-      plan: currentPlanTasks,
-      execution: [currentStageTasks],
-    };
-  }
-
-  const ctx = getCtx();
-  stagePayload.user_id = ctx.user_id || "default_user";
-
-  currentStageTasks.forEach((task) => {
-    const card = document.getElementById(`task-card-${task}`);
-    const badge = document.getElementById(`task-status-badge-${task}`);
-    if (card) card.classList.add("running");
-    if (badge) badge.innerHTML = `<span class="task-state-badge running"><span class="spinner-tiny"></span> 执行中...</span>`;
-    syncChatTableStatus(task);
-  });
-
-  if (pipelineVisual) {
-    const stagePills = pipelineVisual.querySelectorAll(".stage-pill");
-    if (stagePills[currentActiveStep]) {
-      stagePills[currentActiveStep].classList.add("running");
-    }
-  }
-
-  const fd = new FormData();
-  fd.append("plan_json", JSON.stringify(stagePayload));
-
-  uploadsMap.forEach((files) => {
-    files.forEach((f) => fd.append("files", f, f.name));
-  });
-
   try {
+    let stagePayload = null;
+    if (isAllStages) {
+      const remainingStages = currentPlan.execution.slice(currentActiveStep);
+      const remainingTaskNames = new Set(remainingStages.flat());
+      const remainingPlanTasks = currentPlan.plan.filter((t) => remainingTaskNames.has(t.task));
+      stagePayload = {
+        ...currentPlan,
+        plan: remainingPlanTasks,
+        execution: remainingStages,
+      };
+    } else {
+      const currentPlanTasks = currentPlan.plan.filter((t) => currentStageTasks.includes(t.task));
+      stagePayload = {
+        ...currentPlan,
+        plan: currentPlanTasks,
+        execution: [currentStageTasks],
+      };
+    }
+
+    const ctx = getCtx();
+    stagePayload.user_id = ctx.user_id || "default_user";
+
+    currentStageTasks.forEach((task) => {
+      const card = document.getElementById(`task-card-${task}`);
+      const badge = document.getElementById(`task-status-badge-${task}`);
+      if (card) card.classList.add("running");
+      if (badge) badge.innerHTML = `<span class="task-state-badge running"><span class="spinner-tiny"></span> 执行中...</span>`;
+      syncChatTableStatus(task);
+    });
+
+    if (pipelineVisual) {
+      const stagePills = pipelineVisual.querySelectorAll(".stage-pill");
+      if (stagePills[currentActiveStep]) {
+        stagePills[currentActiveStep].classList.add("running");
+      }
+    }
+
+    const fd = new FormData();
+    fd.append("plan_json", JSON.stringify(stagePayload));
+
+    uploadsMap.forEach((files) => {
+      files.forEach((f) => fd.append("files", f, f.name));
+    });
+
     const res = await fetch(`${API}/tasks`, { method: "POST", body: fd });
     const data = await res.json();
 
@@ -1020,7 +1324,9 @@ async function executeCurrentPlan(isAllStages = false) {
 
     activeTaskId = data.task_id;
     if (consoleLogs) {
-      consoleLogs.textContent += `>>> 阶段任务提交成功！Task ID: ${activeTaskId}\n>>> 开始执行...\n\n`;
+      const now = new Date();
+      const timeStr = `${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}:${String(now.getSeconds()).padStart(2, "0")}`;
+      consoleLogs.textContent = `[${timeStr}] 阶段任务已提交，Task ID: ${activeTaskId}\n[${timeStr}] 正在启动执行...\n`;
     }
     startPolling(activeTaskId, isAllStages);
   } catch (err) {
@@ -1265,6 +1571,20 @@ function finishExecution(st, isAllStages = false) {
             if (typeof switchTab === "function") switchTab("tab-outputs");
           });
         }
+      }
+    }
+
+    // 触发保存服务完成状态到会话历史，并实时刷新左侧历史会话卡片
+    if (ctx.user_id && activeSessionId) {
+      const doneTaskLabel = (targetMeta.name || "目标任务").split(" ")[0];
+      saveSessionMessage(
+        ctx.user_id,
+        activeSessionId,
+        "assistant",
+        `流水线全部执行完成 · 目标成果【${doneTaskLabel}】已交付`
+      );
+      if (typeof loadUserSessions === "function") {
+        loadUserSessions();
       }
     }
 

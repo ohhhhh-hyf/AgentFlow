@@ -63,15 +63,21 @@ function detectParameters(text) {
     }
   }
 
-  // 3. Perspective (视角)
+  // 3. Perspective / Role (用户职业视角)
   if (/产品经理|PM/i.test(text)) {
-    res.perspective = "职业 · 产品经理";
-  } else if (/开发人员|程序员|工程师|技术人员|研发/i.test(text)) {
-    res.perspective = "职业 · 开发人员";
-  } else if (/项目经理/i.test(text)) {
-    res.perspective = "职业 · 项目经理";
-  } else if (/客观全员|全员视角/i.test(text)) {
-    res.perspective = "客观 · 客观全员";
+    res.perspective = "产品经理";
+  } else if (/开发人员|程序员|工程师|技术人员|研发|前端|后端|全栈/i.test(text)) {
+    res.perspective = "开发人员";
+  } else if (/项目经理|PMP|Scrum/i.test(text)) {
+    res.perspective = "项目经理";
+  } else if (/测试|QA|质量保障/i.test(text)) {
+    res.perspective = "测试工程师";
+  } else if (/算法|AI算法|机器学习|深度学习/i.test(text)) {
+    res.perspective = "算法工程师";
+  } else if (/客户经理|业务经理|商务|BD/i.test(text)) {
+    res.perspective = "客户经理";
+  } else if (/客观全员|全员视角|客观视角/i.test(text)) {
+    res.perspective = "客观全员";
   }
 
   // 4. Chapter (章节)
@@ -105,21 +111,33 @@ function applyParam(type, value, buttonEl = null) {
     if (ctxProjectWrap) ctxProjectWrap.classList.remove("hidden-ctx");
     if (typeof syncContextToPlan === "function") syncContextToPlan();
     if (typeof validatePlanParams === "function") validatePlanParams();
-  } else if (type === "perspective") {
-    if (currentPlan && currentPlan.plan) {
-      const mg = currentPlan.plan.find((t) => t.task === "minutes_generation");
-      if (mg) {
-        mg.params = mg.params || {};
-        mg.params.perspective = value;
-        const sel = document.querySelector("#task-card-minutes_generation .param-select");
-        if (sel) sel.value = value;
-      }
+  } else if (type === "perspective" || type === "role") {
+    const ctx = getCtx();
+    if (ctx.user_id) {
+      fetch(`${API}/user/${encodeURIComponent(ctx.user_id)}/profile`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ role: value }),
+      })
+        .then((r) => r.json())
+        .then((d) => {
+          if (d.profile) {
+            currentUserContext.profile = d.profile;
+            if (typeof updateUserProfilePill === "function") {
+              updateUserProfilePill(d.profile);
+            }
+          }
+        })
+        .catch(() => {});
     }
   }
 
   if (buttonEl) {
-    buttonEl.classList.add("applied");
-    buttonEl.innerHTML = `已应用: ${escapeHtml(value)}`;
+    buttonEl.remove();
+    if (liveParamSuggestions && !liveParamSuggestions.children.length) {
+      liveParamSuggestions.classList.add("hidden");
+      liveParamSuggestions.innerHTML = "";
+    }
   }
 }
 
@@ -150,11 +168,14 @@ function updateLiveParamSuggestions(text) {
     });
   }
   if (detected.perspective) {
-    items.push({
-      type: "perspective",
-      label: `视角: ${(detected.perspective.split("·")[1] || detected.perspective).trim()}`,
-      val: detected.perspective
-    });
+    const curRole = (currentUserContext && currentUserContext.profile && (currentUserContext.profile.role || currentUserContext.profile.base_template)) || "";
+    if (!curRole.includes(detected.perspective) && !detected.perspective.includes(curRole)) {
+      items.push({
+        type: "perspective",
+        label: `切换职业: ${detected.perspective}`,
+        val: detected.perspective
+      });
+    }
   }
 
   if (items.length) {
@@ -214,12 +235,28 @@ function appendLoadingMessage() {
   group.id = id;
   group.className = "msg-group bot";
 
-  const avatar = createAvatar("bot");
-  const bubble = document.createElement("div");
-  bubble.className = "msg-bubble";
-  bubble.innerHTML = '<span class="status-dot" style="display:inline-block;background:var(--google-blue);animation:spin 1s infinite;"></span> 正在解析需求并规划任务流水线...';
+  const senderLine = document.createElement("div");
+  senderLine.className = "msg-sender-line";
+  senderLine.innerHTML = `
+    <div class="msg-avatar bot">
+      <svg viewBox="0 0 24 24" width="13" height="13" fill="currentColor">
+        <path d="M12 2C12 7.52 7.52 12 2 12C7.52 12 12 16.48 12 22C12 16.48 16.48 12 22 12C16.48 12 12 7.52 12 2Z"/>
+      </svg>
+    </div>
+    <span class="msg-sender-name">AgentFlow</span>
+  `;
 
-  group.appendChild(avatar);
+  const bubble = document.createElement("div");
+  bubble.className = "msg-bubble-thinking";
+  bubble.innerHTML = `
+    <div class="thinking-dots">
+      <span></span>
+      <span></span>
+      <span></span>
+    </div>
+  `;
+
+  group.appendChild(senderLine);
   group.appendChild(bubble);
   if (messagesContainer) {
     messagesContainer.appendChild(group);
@@ -259,13 +296,10 @@ function appendIntentSummaryMessage(data, userQuery = "") {
   const bubble = document.createElement("div");
   bubble.className = "msg-bubble-card";
 
-  const explanation = data.explanation || "好的。已按您的需求规划任务流水线，上游资料将按依赖关系自动结构化流转。";
   const tasks = data.plan || [];
   const execution = data.execution || [[...tasks.map((p) => p.task)]];
 
   let html = `
-    <div class="msg-text-lead">${escapeHtml(explanation)}</div>
-
     <div class="delivery-card">
       <div class="delivery-header">
         <div class="delivery-check-icon">
@@ -579,18 +613,22 @@ async function handleChatSubmit(customText = null, customSubject = null, isDirec
     ctxSubject.value = customSubject;
   }
 
-  // 1. Strict Validation on User ID: must be filled before conversation starts
+  // 1. Strict Validation on User ID: show inline light red alert without running logic
   let ctx = getCtx();
+  const alertEl = $("user-id-required-alert");
   if (!ctx.user_id) {
-    if (ctxUser) {
-      ctxUser.classList.add("input-error");
-      ctxUser.focus();
+    if (alertEl) {
+      alertEl.classList.remove("hidden");
     }
-    appendMessage(
-      "bot",
-      "您好！在开启对话前，请先在左侧栏下方输入您的「用户 ID」（用于隔离个人知识库与跨会话记忆）。"
-    );
+    if (ctxUser) {
+      ctxUser.classList.add("input-error", "input-highlight-pulse");
+      ctxUser.focus();
+      setTimeout(() => ctxUser.classList.remove("input-highlight-pulse"), 2500);
+    }
     return;
+  }
+  if (alertEl) {
+    alertEl.classList.add("hidden");
   }
   if (ctxUser) ctxUser.classList.remove("input-error");
   try {
@@ -601,10 +639,11 @@ async function handleChatSubmit(customText = null, customSubject = null, isDirec
   if (chatText) chatText.value = "";
   if (typeof autoResizeTextarea === "function") autoResizeTextarea();
 
-  // Hide welcome hero on first message
-  if (chatWelcome && messagesContainer && chatWelcome.parentNode === messagesContainer) {
-    chatWelcome.remove();
-  }
+  // Hide welcome hero & quick prompt cards on first message
+  const welcomeEl = $("chat-welcome");
+  if (welcomeEl) welcomeEl.remove();
+  const quickCardsWrap = $("quick-prompt-cards-wrap");
+  if (quickCardsWrap) quickCardsWrap.classList.add("hidden");
 
   // Append user message
   appendMessage("user", text);
@@ -645,7 +684,6 @@ async function handleChatSubmit(customText = null, customSubject = null, isDirec
     const data = await res.json();
 
     if (!res.ok) {
-      updateLoadingMessage(loadingMsgId, "此问题适合直接问答，正在为您检索知识库...");
       await fallbackToChat(text, loadingMsgId);
       return;
     }
@@ -654,6 +692,12 @@ async function handleChatSubmit(customText = null, customSubject = null, isDirec
     appendIntentSummaryMessage(data, text);
     if (typeof renderPlanWorkbench === "function") {
       renderPlanWorkbench(data);
+    }
+
+    // 意图解析/任务规划完成，持久化并触发左侧历史会话卡片实时刷新
+    if (ctx.user_id && activeSessionId) {
+      const taskNames = (data.plan || []).map((t) => (TASK_META[t.task] || {}).name || t.task).join("、");
+      saveSessionMessage(ctx.user_id, activeSessionId, "assistant", `已为您规划任务流水线：${taskNames}`);
     }
     loadUserSessions();
 

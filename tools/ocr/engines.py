@@ -10,11 +10,9 @@ from __future__ import annotations
 import json
 import logging
 import os
-import shutil
 import subprocess
 import sys
 import time
-from datetime import datetime
 from pathlib import Path
 
 logger = logging.getLogger(__name__)
@@ -23,23 +21,9 @@ ROOT = Path(__file__).resolve().parents[2]
 _OCR_ENV_PY = Path(sys.executable)
 
 _RUNNER = ROOT / "tools" / "ocr" / "runner_ocr.py"
-_OCR_FAILURE_DIR = ROOT / "log" / "ocr_failed"
 _SERVER_ENGINES = {"server", "serverocr", "remote"}
 _PADDLE_ENGINES = {"paddle", "paddleocr"}
 _RAPID_ENGINES = {"rapid", "rapidocr"}
-
-
-def _log_ocr_failure(image_path: str, detail: str) -> None:
-    try:
-        src = Path(image_path)
-        stamp = datetime.now().strftime("%Y%m%d_%H%M%S_%f")[:-3]
-        folder = _OCR_FAILURE_DIR / stamp
-        folder.mkdir(parents=True, exist_ok=True)
-        if src.is_file():
-            shutil.copy2(src, folder / src.name)
-        (folder / "error.txt").write_text(detail, encoding="utf-8", errors="replace")
-    except Exception as exc:  # noqa: BLE001
-        logger.warning("记录 OCR 失败样本失败：%s", exc)
 
 
 def _is_server_engine() -> bool:
@@ -86,7 +70,6 @@ def _run_serverocr_inprocess(image_path: str, timeout: int = 180) -> dict:
         if attempt < 3:
             time.sleep(0.6 * attempt)
     detail = "\n".join(errors)[-4000:]
-    _log_ocr_failure(image_path, detail)
     logger.warning("服务器 OCR 三次失败，返回空结果")
     return _empty_payload("serverocr")
 
@@ -108,7 +91,6 @@ def _run_paddle_inprocess(image_path: str, timeout: int = 180) -> dict:
             if isinstance(exc, TimeoutError):
                 break
     detail = "\n".join(errors)[-4000:]
-    _log_ocr_failure(image_path, detail)
     logger.warning("PaddleOCR 三次失败，返回空结果")
     return _empty_payload("paddleocr")
 
@@ -128,7 +110,6 @@ def _run_rapid_inprocess(image_path: str, timeout: int = 180) -> dict:
             errors.append(f"[attempt {attempt}] {type(exc).__name__}: {exc}")
             logger.warning("RapidOCR 第 %s 次失败：%s", attempt, exc)
     detail = "\n".join(errors)[-4000:]
-    _log_ocr_failure(image_path, detail)
     logger.warning("RapidOCR 三次失败，返回空结果")
     return _empty_payload("rapidocr")
 
@@ -170,7 +151,6 @@ def _spawn_ocr_runner(image_path: str, formula: bool = False, timeout: int = 180
     detail = "\n".join(errors)[-4000:]
     if formula:
         raise RuntimeError(detail)
-    _log_ocr_failure(image_path, detail)
     engine = os.environ.get("OCR_ENGINE", "rapidocr").strip().lower() or "rapidocr"
     logger.warning("OCR 子进程三次失败，返回空结果：%s", engine)
     return _empty_payload(engine)

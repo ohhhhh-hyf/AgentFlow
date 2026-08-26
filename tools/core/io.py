@@ -29,6 +29,9 @@ def resolve_sample_path(ctx: DomainContext, path: Path, sample_kind: str) -> Pat
     kind_candidate = (ctx.cli_samples_dir / sample_kind / path).resolve()
     if kind_candidate.exists():
         return kind_candidate
+    tpl_candidate = (ctx.cli_samples_dir / "template" / path).resolve()
+    if tpl_candidate.exists():
+        return tpl_candidate
     samples_candidate = (ctx.cli_samples_dir / path).resolve()
     if samples_candidate.exists():
         return samples_candidate

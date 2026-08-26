@@ -21,7 +21,6 @@ import requests
 from PIL import Image
 
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
-OCR_FAILURE_DIR = Path(ROOT) / "log" / "ocr_failed"
 MAX_BASE64_BYTES = int(os.getenv("SERVER_OCR_MAX_BASE64_BYTES", str(950 * 1024)))
 
 
@@ -40,19 +39,6 @@ def _load_env_file() -> None:
     except Exception:
         return
 
-
-def _write_failure_log(title: str, detail: str) -> None:
-    try:
-        stamp = datetime.now().strftime("%Y%m%d_%H%M%S_%f")[:-3]
-        folder = OCR_FAILURE_DIR / stamp
-        folder.mkdir(parents=True, exist_ok=True)
-        (folder / "error.txt").write_text(
-            f"{title}\n\n{detail}",
-            encoding="utf-8",
-            errors="replace",
-        )
-    except Exception:
-        return
 
 
 class ServerOcrClient:
@@ -144,13 +130,6 @@ class ServerOcrClient:
         try:
             result = response.json()
         except Exception as exc:  # noqa: BLE001
-            _write_failure_log(
-                "服务器 OCR 响应不是合法 JSON",
-                f"error={type(exc).__name__}: {exc}\n"
-                f"status={response.status_code}\n"
-                f"headers={dict(response.headers)}\n"
-                f"body_head={(response.text or '')[:2000]}",
-            )
             raise
         try:
             result_info = result["result"]
@@ -165,21 +144,11 @@ class ServerOcrClient:
         except RuntimeError:
             raise
         except Exception as exc:  # noqa: BLE001
-            _write_failure_log(
-                "服务器 OCR 响应结构不符合预期",
-                f"error={type(exc).__name__}: {exc}\n"
-                + json.dumps(result, ensure_ascii=False, indent=2)[:4000],
-            )
             raise
         if isinstance(content, str):
             try:
                 return json.loads(content)
             except Exception as exc:  # noqa: BLE001
-                _write_failure_log(
-                    "服务器 OCR content 不是合法 JSON",
-                    f"error={type(exc).__name__}: {exc}\n"
-                    f"content_head={content[:4000]}",
-                )
                 raise
         return content
 

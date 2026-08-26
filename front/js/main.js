@@ -18,26 +18,23 @@ function switchTab(tabId) {
 function handleNewChatClick() {
   const ctx = getCtx();
 
-  // 1. 将当前已有会话送入历史会话并刷新左侧列表展示
-  loadUserSessions();
-
-  // 2. 实时刷新产物云盘与知识库学科资产
+  // 1. 实时刷新产物云盘与知识库学科资产
   loadUserOutputsDisk();
   if (ctx.user_id) {
     fetchUserContext(ctx.user_id);
   }
 
-  // 3. 生成全新 Session ID 开启新一轮对话
+  // 2. 生成全新 Session ID 开启新一轮对话
   activeSessionId = "web_" + Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
   try {
     localStorage.setItem("agentflow_session", activeSessionId);
   } catch (e) {}
 
-  // 4. 彻底刷新工作台、右侧流水线、监控日志与产物中心
+  // 3. 彻底刷新工作台、右侧流水线、监控日志与产物中心（恢复初始欢迎语与卡片）
   resetWorkspace();
 
-  // 5. 移除历史会话中的高亮选中状态
-  document.querySelectorAll(".session-item").forEach((el) => el.classList.remove("active"));
+  // 4. 触发左侧历史会话卡片刷新，展示刚结束的历史会话卡片
+  loadUserSessions();
 }
 
 function setupEventListeners() {
@@ -114,8 +111,15 @@ function setupEventListeners() {
     }
   });
 
-  // User ID input blur & Enter: fetch context and reload sessions
+  // User ID input: auto-dismiss alert, fetch context on blur & Enter
   if (ctxUser) {
+    ctxUser.addEventListener("input", () => {
+      if (ctxUser.value.trim()) {
+        const alertEl = $("user-id-required-alert");
+        if (alertEl) alertEl.classList.add("hidden");
+        ctxUser.classList.remove("input-error");
+      }
+    });
     ctxUser.addEventListener("blur", () => {
       const val = ctxUser.value.trim();
       if (val) {
@@ -239,6 +243,38 @@ function setupEventListeners() {
       }
       setTimeout(() => btnRefreshOutputs.classList.remove("spinning"), 500);
     });
+  }
+
+  // 3. User Profile & Persona Modal Event Bindings
+  const btnAvatar = $("btn-sidebar-user-avatar");
+  const userStatus = $("sidebar-user-status");
+  if (btnAvatar) {
+    btnAvatar.addEventListener("click", (e) => {
+      e.stopPropagation();
+      openUserProfileModal();
+    });
+  }
+  if (userStatus) {
+    userStatus.addEventListener("click", (e) => {
+      e.stopPropagation();
+      openUserProfileModal();
+    });
+  }
+
+  const btnCloseProfile = $("btn-close-profile-modal");
+  const btnCancelProfile = $("btn-cancel-profile");
+  const modalProfile = $("user-profile-modal");
+  if (btnCloseProfile) btnCloseProfile.addEventListener("click", closeUserProfileModal);
+  if (btnCancelProfile) btnCancelProfile.addEventListener("click", closeUserProfileModal);
+  if (modalProfile) {
+    modalProfile.addEventListener("click", (e) => {
+      if (e.target === modalProfile) closeUserProfileModal();
+    });
+  }
+
+  const btnSaveProfile = $("btn-save-profile");
+  if (btnSaveProfile) {
+    btnSaveProfile.addEventListener("click", saveUserProfileModal);
   }
 }
 

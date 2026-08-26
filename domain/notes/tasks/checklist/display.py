@@ -81,9 +81,6 @@ def build_checklist_markdown(draft: dict[str, Any], *, has_teacher: bool | None 
     course = _clean(draft.get("course")) or "复习清单"
     cards = [c for c in (draft.get("cards") or []) if isinstance(c, dict)]
     lines = [f"# {course} · 复习清单", ""]
-    if draft.get("catalog_version"):
-        lines.append(f"基于 Knowledge Catalog v{draft.get('catalog_version')}，不改长期目录。")
-        lines.append("")
     if not cards:
         lines.append("没有可复习的知识点。请先运行 catalog / 资料入库；若提供了老师重点，请确认文本能对上目录名称。")
         return "\n".join(lines)
@@ -770,10 +767,6 @@ def build_checklist_html(draft: dict[str, Any], *, has_teacher: bool | None = No
         '<div class="ck-doc">',
         f"<h1>{escape(course, quote=False)} · 复习清单</h1>",
     ]
-    if draft.get("catalog_version"):
-        body.append(
-            f'<p class="ck-note">基于 Knowledge Catalog v{escape(str(draft.get("catalog_version")), quote=False)}，本次不改长期目录。</p>'
-        )
     if not cards:
         body.append("<p>没有可复习的知识点。请先运行 catalog / 资料入库；若提供了老师重点，请确认文本能对上目录名称。</p></div>")
     else:

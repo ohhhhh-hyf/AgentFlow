@@ -8,6 +8,7 @@
 from __future__ import annotations
 
 import asyncio
+import io
 import json
 import uuid
 from pathlib import Path
@@ -17,6 +18,53 @@ from fastapi import UploadFile
 
 # 图片后缀：library 入库时自动先 OCR 的输入类型
 IMAGE_EXTS = {".jpg", ".jpeg", ".png", ".bmp", ".webp", ".tiff", ".tif"}
+
+
+class RealtimeLogStream(io.TextIOBase):
+    """实时将标准输出按行格式化推入 task_state['logs']，记录结构化里程碑时间日志。"""
+
+    def __init__(self, task_state: dict[str, Any], max_logs: int = 1500) -> None:
+        super().__init__()
+        self.task_state = task_state
+        self.max_logs = max_logs
+        self._buffer = ""
+
+    def _append_log(self, text: str) -> None:
+        cleaned = text.strip()
+        if not cleaned:
+            return
+        import time
+
+        if not cleaned.startswith("["):
+            ts = time.strftime("%H:%M:%S")
+            line_str = f"[{ts}] {cleaned}"
+        else:
+            line_str = cleaned
+        logs = self.task_state.setdefault("logs", [])
+        logs.append(line_str)
+        if len(logs) > self.max_logs:
+            del logs[:-self.max_logs]
+
+    def write(self, s: str) -> int:
+        if not s:
+            return 0
+        self._buffer += s
+        if "\n" in self._buffer or "\r" in self._buffer:
+            lines = self._buffer.splitlines(keepends=True)
+            for line in lines[:-1]:
+                self._append_log(line)
+            last = lines[-1]
+            if last.endswith("\n") or last.endswith("\r"):
+                self._append_log(last)
+                self._buffer = ""
+            else:
+                self._buffer = last
+        return len(s)
+
+    def flush(self) -> None:
+        if self._buffer:
+            self._append_log(self._buffer)
+            self._buffer = ""
 
 
 class TaskRunner:
@@ -124,13 +172,19 @@ class TaskRunner:
         plan = state["plan"]
         saved = {k: Path(v) for k, v in state.get("saved", {}).items()}
         entries = plan.get("plan") or []
-        groups: list[list[dict[str, Any]]] = plan.get("execution") or [[e] for e in entries]
+        raw_groups = plan.get("execution")
+        if not raw_groups:
+            raw_groups = [[e.get("task") if isinstance(e, dict) else str(e) for e in entries]]
 
         state["status"] = "running"
         by_task = {str(e.get("task")): e for e in entries}
         plan_tasks = set(by_task.keys())
+        import time
+
+        ts = time.strftime("%H:%M:%S")
+        state.setdefault("logs", []).append(f"[{ts}] 任务流水线已启动，共编排 {len(raw_groups)} 个执行阶段")
         try:
-            for group in groups:
+            for group in raw_groups:
                 async def _one(entry: dict[str, Any]) -> dict[str, Any]:
                     state["current"] = f"{entry.get('task')}"
                     try:
@@ -141,7 +195,12 @@ class TaskRunner:
                         tb = traceback.format_exc()
                         return {"task": entry.get("task"), "ok": False, "error": tb[-1200:]}
 
-                group_entries = [by_task[str(name)] for name in group if str(name) in by_task]
+                group_entries = []
+                for item in group:
+                    tname = item.get("task") if isinstance(item, dict) else str(item)
+                    if tname in by_task:
+                        group_entries.append(by_task[tname])
+
                 if not group_entries:
                     continue
                 results = await asyncio.gather(*[_one(e) for e in group_entries])
@@ -152,6 +211,8 @@ class TaskRunner:
                             f"任务 {r.get('task')} 失败：{r.get('error')}"
                         )
                 self._collect_outputs(state)
+            ts_done = time.strftime("%H:%M:%S")
+            state.setdefault("logs", []).append(f"[{ts_done}] 全部阶段执行完毕，产物已成功生成 ✓")
             state["status"] = "done"
             state["message"] = "全部任务完成"
         except Exception as exc:  # noqa: BLE001
@@ -285,12 +346,13 @@ class TaskRunner:
         import contextlib
         import io
 
+        from chat.profile import resolve_user_profile_file
         from tools.core.profiles import SHARED_PROFILE_DIR
         from tools.core.runner import run
         from tools.runtime_context import load_domain
 
         ctx = load_domain("notes", self.root)
-        profile = SHARED_PROFILE_DIR / "object_profile.json"
+        profile = resolve_user_profile_file(self.root, user_id) if user_id else (SHARED_PROFILE_DIR / "object_profile.json")
         if not profile.exists():
             profile = ctx.default_profile_dir
         out_buf = io.StringIO()
@@ -404,34 +466,70 @@ class TaskRunner:
         ctx: Any,
     ) -> dict[str, Any]:
         import contextlib
-        import io
 
         from tools.core.runner import run
 
-        out_buf = io.StringIO()
         templates = None
         tpl = params.get("template")
+        tpl_content = params.get("template_content")
         if tpl:
             tpl_src = tpl[0] if isinstance(tpl, list) else tpl
-            if isinstance(tpl_src, str) and Path(tpl_src).is_file():
-                templates = {task: Path(tpl_src)}
-        with contextlib.redirect_stdout(out_buf):
-            await run(
-                ctx,
-                file,
-                profile,
-                self.root / ".env",
-                templates,
-                tasks=[task],
-                user_id=params.get("user_id") or None,
-                project_id=params.get("project") or None,
-                subject=params.get("subject") or None,
-                monitor=False,
-            )
-        logs = (out_buf.getvalue() or "").strip().splitlines()
-        state = self._tasks.get(task_id)
-        if state is not None:
-            state.setdefault("logs", []).extend(logs[-50:])
+            if isinstance(tpl_src, str):
+                p = Path(tpl_src)
+                if not p.is_file():
+                    domain = "notes" if task in {"library", "catalog", "checklist", "quiz", "knowledge_graph"} else "meeting"
+                    candidates = [
+                        self.root / "samples" / domain / f"{task}_template" / tpl_src,
+                        self.root / "samples" / domain / "template" / tpl_src,
+                        self.root / "template" / tpl_src,
+                        self.root / tpl_src,
+                    ]
+                    for cand in candidates:
+                        if cand.is_file():
+                            p = cand
+                            break
+                if p.is_file():
+                    templates = {task: p.resolve()}
+        elif tpl_content and isinstance(tpl_content, str) and tpl_content.strip():
+            scratch_tpl_dir = self.root / "scratch" / "templates"
+            scratch_tpl_dir.mkdir(parents=True, exist_ok=True)
+            import time
+
+            scratch_tpl_path = scratch_tpl_dir / f"{task}_{int(time.time()*1000)}.md"
+            scratch_tpl_path.write_text(tpl_content.strip(), encoding="utf-8")
+            templates = {task: scratch_tpl_path.resolve()}
+
+        state = self._tasks.get(task_id, {})
+        out_stream = RealtimeLogStream(state)
+
+        async def _periodic_flush() -> None:
+            """LLM 流式输出可能长时间无换行，定时把累积文本刷入 logs，前端才看得到进度。"""
+            try:
+                while True:
+                    await asyncio.sleep(2)
+                    out_stream.flush()
+            except asyncio.CancelledError:
+                pass
+
+        flush_handle = asyncio.create_task(_periodic_flush())
+        try:
+            with contextlib.redirect_stdout(out_stream):
+                await run(
+                    ctx,
+                    file,
+                    profile,
+                    self.root / ".env",
+                    templates,
+                    tasks=[task],
+                    user_id=params.get("user_id") or None,
+                    project_id=params.get("project") or None,
+                    subject=params.get("subject") or None,
+                    monitor=False,
+                    stream_stdout=False,
+                )
+        finally:
+            flush_handle.cancel()
+            out_stream.flush()
         return {"task": task, "ok": True}
 
     async def _run_runner(self, task_id: str, task: str, params: dict[str, Any]) -> dict[str, Any]:
@@ -450,23 +548,15 @@ class TaskRunner:
             file = [file]
         file = [Path(p) for p in file] if file else None
 
-        profile = SHARED_PROFILE_DIR / "object_profile.json"
-        if not profile.exists():
-            profile = ctx.default_profile_dir
+        user_id = str(params.get("user_id") or "").strip()
+        from chat.profile import resolve_user_profile_file
 
-        # 视角选择：params.perspective（如「职业 · 开发人员」）→ 对应 profile JSON
-        perspective_label = str(params.get("perspective") or "").strip()
-        if perspective_label:
-            resolved = self._resolve_profile(perspective_label)
-            if resolved is not None:
-                import tempfile
-
-                tmp = tempfile.NamedTemporaryFile(
-                    "w", suffix=".json", delete=False, encoding="utf-8"
-                )
-                tmp.write(json.dumps(resolved, ensure_ascii=False, indent=2))
-                tmp.close()
-                profile = Path(tmp.name)
+        if user_id:
+            profile = resolve_user_profile_file(self.root, user_id)
+        else:
+            profile = SHARED_PROFILE_DIR / "object_profile.json"
+            if not profile.exists():
+                profile = ctx.default_profile_dir
 
         # library：图片与文档支持并行处理 —— 常规文档直接先入库，图片并行跑 OCR 合成 md
         if file and task == "library":

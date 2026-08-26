@@ -179,6 +179,7 @@ async def produce_line(
                 template
                 and hasattr(render, "run")
                 and kind in {"placeholder", "spec"}
+                and not hasattr(render, "stream")  # 有 stream 的一律流式，前端日志实时可见
             )
             if use_block:
                 full_text = await render.run(context, template)
@@ -390,7 +391,7 @@ async def produce_line(
                         gate_ok = bool(gate3.get("gate_ok"))
                         fill_mode = "assemble"
 
-        if full_text and not template:
+        if full_text:
             try:
                 from tools.memory.citations import apply_memory_citations
 

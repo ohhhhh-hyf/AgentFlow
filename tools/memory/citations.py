@@ -108,14 +108,13 @@ def _han_ngrams(text: str, size: int = 3) -> set[str]:
     return {chars[i : i + size] for i in range(len(chars) - size + 1)}
 
 
-def _related(left: str, right: str) -> bool:
+def _related(left: str, right: str, entity: str = "") -> bool:
     """判断正文行与记忆片段是否可能相关（保守，宁漏勿滥）。
 
-    只接受强信号，避免弱相关被误标：
     - 整句互相包含且足够长（≥8 字）
     - 长分句（≥8 字）互相包含
+    - 实体匹配 + 共同上下文 (≥4字关键词)
     - 共享 ≥6 字的连续汉字片段
-    不再接受：4 字短块互相包含、3-gram 重叠、拉丁术语任意出现。
     """
     a, b = _clean(left), _clean(right)
     if not a or not b:
@@ -126,6 +125,11 @@ def _related(left: str, right: str) -> bool:
     b_terms = [x for x in re.split(r"[，。；;、\s]+", b) if len(x) >= 8]
     if any(x in b or y in a for x in a_terms for y in b_terms):
         return True
+    ent = _clean(entity)
+    if ent and len(ent) >= 2 and ent in a:
+        short_b_terms = [x for x in re.split(r"[，。；;、\s]+", b) if len(x) >= 4]
+        if any(x in a for x in short_b_terms):
+            return True
     # 6 字连续汉字 n-gram 重叠（size=6，替代旧 3-gram 宽松判定）
     if len(_han_ngrams(a, size=6) & _han_ngrams(b, size=6)) >= 1:
         return True
@@ -258,6 +262,9 @@ def _best_span(line: str, ref: MemoryReference) -> tuple[int, int] | None:
     if not line or not ref_text:
         return None
     candidates: list[str] = []
+    ent = _clean(ref.entity)
+    if ent and len(ent) >= 4 and ent in line:
+        candidates.append(ent)
     for chunk in re.split(r"[，。；;、\s]+", ref_text):
         chunk = _clean(chunk)
         if len(chunk) >= _MIN_ANCHOR:
@@ -303,7 +310,7 @@ def _append_markers(
     hits = [
         ref
         for ref in refs
-        if ref.ref_id not in already_used and _related(line, ref.text)
+        if ref.ref_id not in already_used and _related(line, ref.text, ref.entity)
     ]
     if not hits:
         return line, []
@@ -434,6 +441,21 @@ def _parse_memory_sources(text: str) -> dict[str, str]:
     return out
 
 
+def _format_inline_markdown(text: str) -> str:
+    """把 **bold**、*italic*、`code` 等行内 Markdown 语法转换为标准 HTML，同时保留已有 HTML 标签。"""
+    if not text:
+        return ""
+    # code `...` first to protect code blocks and identifiers
+    text = re.sub(r"`([^`]+)`", r"<code>\1</code>", text)
+    # bold **...**
+    text = re.sub(r"\*\*(.+?)\*\*", r"<strong>\1</strong>", text)
+    # italic *...* (avoids snake_case _ identifiers)
+    text = re.sub(r"(?<!\*)\*([^\s\*](?:[^\*]*[^\s\*])?)\*(?!\*)", r"<em>\1</em>", text)
+    # ~~del~~
+    text = re.sub(r"~~([^~]+)~~", r"<del>\1</del>", text)
+    return text
+
+
 def memory_review_html(markdown: str) -> str:
     """Render memory-linked Markdown into a left-text/right-source review view."""
     text = markdown or ""
@@ -449,9 +471,17 @@ def memory_review_html(markdown: str) -> str:
             continue
         ids = link_re.findall(line)
         cleaned = link_re.sub(lambda m: f'<span class="mem-mark">{m.group(2)}</span>', line)
-        if line.startswith("#"):
-            rows.append(f'<div class="review-heading">{escape(line.lstrip("# ").strip())}</div>')
+
+        # Check headings #, ##, ###
+        heading_match = re.match(r"^(#{1,6})\s+(.*)$", line)
+        if heading_match:
+            level = len(heading_match.group(1))
+            heading_title = heading_match.group(2).strip()
+            heading_title_clean = link_re.sub(lambda m: f'<span class="mem-mark">{m.group(2)}</span>', heading_title)
+            heading_title_clean = _format_inline_markdown(heading_title_clean)
+            rows.append(f'<div class="review-heading h{level}"><span class="heading-text">{heading_title_clean}</span></div>')
             continue
+
         cards = []
         seen: set[str] = set()
         for ref_id, _ in ids:
@@ -462,9 +492,26 @@ def memory_review_html(markdown: str) -> str:
                 cards.append(f'<a class="mem-card" href="#{ref_id}">{sources[ref_id]}</a>')
         if not cards:
             cards.append('<div class="mem-empty"></div>')
+
+        # List items
+        list_match = re.match(r"^[-*+]\s+(.*)$", cleaned)
+        num_match = re.match(r"^(\d+)\.\s+(.*)$", cleaned)
+        if list_match:
+            item_content = _format_inline_markdown(list_match.group(1))
+            left_html = f'<div class="review-left list-item"><span class="bullet">•</span><div class="list-body">{item_content}</div></div>'
+        elif num_match:
+            num_idx = num_match.group(1)
+            item_content = _format_inline_markdown(num_match.group(2))
+            left_html = f'<div class="review-left num-item"><span class="num-badge">{num_idx}</span><div class="list-body">{item_content}</div></div>'
+        elif cleaned in {"---", "***", "___"}:
+            left_html = '<div class="review-left divider"><hr/></div>'
+        else:
+            formatted = _format_inline_markdown(cleaned)
+            left_html = f'<div class="review-left paragraph">{formatted}</div>'
+
         rows.append(
             '<div class="review-row">'
-            f'<div class="review-left">{cleaned}</div>'
+            f'{left_html}'
             '<div class="review-rule"></div>'
             f'<div class="review-right">{"".join(cards)}</div>'
             '</div>'
