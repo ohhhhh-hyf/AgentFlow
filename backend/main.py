@@ -486,7 +486,7 @@ async def api_intent(payload: dict) -> dict:
     data = await asyncio.to_thread(_parse)
     if not data["plan"]:
         raise HTTPException(status_code=422, detail=data.get("explanation") or "未能识别出任务")
-    if user_id and session_id:
+    if user_id and session_id and not (payload or {}).get("hide_history"):
         try:
             from chat.store import history_path, append_turn, load_history
             h_p = history_path(ROOT, user_id, session_id)

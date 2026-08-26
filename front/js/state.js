@@ -115,12 +115,9 @@ function resetWorkspace() {
     messagesEl.innerHTML = `
       <div id="chat-welcome" class="chat-welcome">
         <div class="welcome-icon-large">
-          <svg viewBox="0 0 24 24" width="26" height="26" fill="currentColor">
-            <path d="M12 2C12 7.52 7.52 12 2 12C7.52 12 12 16.48 12 22C12 16.48 16.48 12 22 12C16.48 12 12 7.52 12 2Z"/>
-            <path d="M18.5 2.5C18.5 4.71 16.71 6.5 14.5 6.5C16.71 6.5 18.5 8.29 18.5 10.5C18.5 8.29 20.29 6.5 22.5 6.5C20.29 6.5 18.5 4.71 18.5 2.5Z" opacity="0.85"/>
-          </svg>
+          <img src="img.png" alt="AgentFlow" class="welcome-logo-img">
         </div>
-        <h2 class="welcome-title">今天有什么需求？</h2>
+        <h2 class="welcome-title">任务编排智能体上线，今天有什么需求？</h2>
       </div>
     `;
     messagesEl.scrollTop = 0;
@@ -149,8 +146,12 @@ function resetWorkspace() {
   const userAlert = document.getElementById("user-id-required-alert");
   if (userAlert) userAlert.classList.add("hidden");
 
-  const btnSend = document.getElementById("btn-send");
-  if (btnSend) btnSend.disabled = false;
+  const btnSendEl = document.getElementById("btn-send");
+  if (btnSendEl) {
+    btnSendEl.classList.add("hidden");
+    btnSendEl.disabled = false;
+  }
+  if (typeof updateSendButtonVisibility === "function") updateSendButtonVisibility();
 
   // 3. 重置随任务动态生成的上下文参数（保留用户 ID）
   if (ctxSubject) ctxSubject.value = "";

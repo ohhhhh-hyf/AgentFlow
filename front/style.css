@@ -158,13 +158,20 @@ input, button, select, textarea {
   width: 36px;
   height: 36px;
   border-radius: var(--radius-sm);
-  background: #d8ebfa;
-  color: #0d47a1;
-  border: 1px solid #90caf9;
+  background: #ffffff;
+  border: 1px solid rgba(0, 0, 0, 0.08);
   display: flex;
   align-items: center;
   justify-content: center;
-  box-shadow: 0 1px 4px rgba(13, 71, 161, 0.08);
+  overflow: hidden;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.06);
+}
+
+.brand-logo-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
 }
 
 .brand-title {
@@ -410,22 +417,30 @@ input, button, select, textarea {
 }
 
 .welcome-icon-large {
-  width: 52px;
-  height: 52px;
+  width: 64px;
+  height: 64px;
   border-radius: 50%;
-  background: #d8ebfa;
-  border: 1px solid #90caf9;
-  color: #0d47a1;
+  background: #ffffff;
+  border: 1px solid rgba(0, 0, 0, 0.08);
   display: flex;
   align-items: center;
   justify-content: center;
   margin-bottom: 14px;
-  box-shadow: 0 4px 12px rgba(13, 71, 161, 0.1);
-  transition: transform 0.25s ease;
+  overflow: hidden;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.08);
+  transition: transform 0.25s ease, box-shadow 0.25s ease;
 }
 
 .welcome-icon-large:hover {
-  transform: scale(1.05);
+  transform: scale(1.08);
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.12);
+}
+
+.welcome-logo-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
 }
 
 .welcome-title {
@@ -1515,29 +1530,39 @@ input, button, select, textarea {
 .btn-send {
   width: 32px;
   height: 32px;
-  border-radius: var(--radius-xs);
-  border: 1px solid #90caf9;
-  background: #d8ebfa;
-  color: #0d47a1;
+  border-radius: 50%;
+  border: none;
+  background: #0d47a1;
+  color: #ffffff;
   display: flex;
   align-items: center;
   justify-content: center;
   cursor: pointer;
-  transition: var(--transition-fast);
+  box-shadow: 0 2px 6px rgba(13, 71, 161, 0.28);
+  transition: all 0.18s cubic-bezier(0.4, 0, 0.2, 1);
   flex-shrink: 0;
 }
 
 .btn-send:hover {
-  background: #bbdefb;
-  border-color: #64b5f6;
-  color: #0d47a1;
+  background: #1565c0;
+  box-shadow: 0 3px 8px rgba(13, 71, 161, 0.38);
+  transform: translateY(-1px);
+}
+
+.btn-send:active {
+  transform: scale(0.94);
 }
 
 .btn-send:disabled {
-  background: #f0f4f8;
-  border-color: #dbe4ec;
-  color: #94a3b8;
+  background: #94a3b8;
+  color: #f8fafc;
   cursor: not-allowed;
+  box-shadow: none;
+  transform: none;
+}
+
+.btn-send.hidden {
+  display: none !important;
 }
 
 .input-footer {

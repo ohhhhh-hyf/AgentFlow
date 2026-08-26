@@ -3,10 +3,23 @@
 // ==========================================================================
 "use strict";
 
+function updateSendButtonVisibility() {
+  const btn = $("btn-send") || document.getElementById("btn-send");
+  const input = $("chat-text") || document.getElementById("chat-text");
+  if (!btn) return;
+  const hasText = Boolean(input && input.value.trim().length > 0);
+  if (hasText) {
+    btn.classList.remove("hidden");
+  } else {
+    btn.classList.add("hidden");
+  }
+}
+
 function autoResizeTextarea() {
   if (!chatText) return;
   chatText.style.height = "auto";
   chatText.style.height = `${Math.min(chatText.scrollHeight, 120)}px`;
+  updateSendButtonVisibility();
 }
 
 function switchTab(tabId) {
@@ -66,10 +79,14 @@ function setupEventListeners() {
     chatText.addEventListener("input", () => {
       autoResizeTextarea();
       updateLiveParamSuggestions(chatText.value);
+      updateSendButtonVisibility();
       if (!currentPlan) {
         heuristicContextVisibility(chatText.value.trim());
       }
     });
+
+    chatText.addEventListener("keyup", updateSendButtonVisibility);
+    chatText.addEventListener("change", updateSendButtonVisibility);
   }
 
   // New Chat / Start Fresh Round
@@ -285,6 +302,7 @@ async function init() {
   preloadPerspectives();
   setupEventListeners();
   autoResizeTextarea();
+  updateSendButtonVisibility();
   updateContextBarVisibility(null);
 
   // 默认进入保持用户 ID 为空，由用户主动输入

@@ -109,6 +109,13 @@ function renderPipelineVisual(execution) {
     }
 
     const isParallel = group.length > 1;
+    const hasDynamicTask =
+      currentPlan &&
+      currentPlan.plan &&
+      group.some((task) => {
+        const item = currentPlan.plan.find((p) => p.task === task);
+        return item && item.dynamic;
+      });
     const taskNames = group
       .map((t) => (TASK_META[t] ? TASK_META[t].name.split(" ")[0] : t))
       .join(" ‖ ");
@@ -116,8 +123,11 @@ function renderPipelineVisual(execution) {
     const parallelTag = isParallel
       ? `<span class="badge-parallel">${group.length}项并行</span>`
       : "";
+    const dynamicTag = hasDynamicTask
+      ? `<span class="badge-parallel" style="background:#fff4dc;color:#8a570f;border-color:#f3d58e;">动态</span>`
+      : "";
 
-    pill.innerHTML = `<strong>阶段 ${gIdx + 1}</strong>${parallelTag}: ${escapeHtml(taskNames)}`;
+    pill.innerHTML = `<strong>阶段 ${gIdx + 1}</strong>${parallelTag}${dynamicTag}: ${escapeHtml(taskNames)}`;
 
     pill.addEventListener("click", () => {
       setActiveStep(gIdx);
@@ -333,6 +343,10 @@ function createTaskCard(item, idx) {
     tags.innerHTML += `<span class="tag-badge tag-dep">依赖: ${escapeHtml(item.needs.join(","))}</span>`;
   }
 
+  if (item.dynamic) {
+    tags.innerHTML += `<span class="tag-badge" style="background:#fff4dc;color:#8a570f;border:1px solid #f3d58e;">Supervisor 动态插入</span>`;
+  }
+
   header.appendChild(titleWrap);
   header.appendChild(tags);
 
@@ -347,6 +361,14 @@ function createTaskCard(item, idx) {
   desc.className = "task-note-text";
   desc.textContent = item.note || meta.desc || "待执行流水线任务节点";
   card.appendChild(desc);
+
+  if (item.dynamic && item.dynamic_reason) {
+    const dynamicTip = document.createElement("div");
+    dynamicTip.className = "supervisor-task-tip";
+    dynamicTip.style.cssText = "margin:10px 0 0;padding:10px 12px;border:1px solid #f3d58e;background:#fff8e8;color:#704b10;border-radius:10px;font-size:13px;line-height:1.5;";
+    dynamicTip.innerHTML = `<strong>Supervisor 观察：</strong>${escapeHtml(item.dynamic_reason)}`;
+    card.appendChild(dynamicTip);
+  }
 
   const paramsSec = document.createElement("div");
   paramsSec.className = "params-section";
@@ -1246,6 +1268,75 @@ function validatePlanParams() {
   }
 }
 
+function applySupervisorPlanUpdate(st) {
+  if (!st || !st.plan_updated || !st.plan || !st.plan.plan || !currentPlan) return false;
+
+  const before = (currentPlan.plan || []).map((t) => t.task).join(",");
+  const after = (st.plan.plan || []).map((t) => t.task).join(",");
+  if (before === after && JSON.stringify(currentPlan.execution || []) === JSON.stringify(st.plan.execution || [])) {
+    return false;
+  }
+
+  currentPlan = st.plan;
+
+  if (planCountBadge) {
+    const count = (currentPlan.plan || []).length;
+    planCountBadge.textContent = count;
+    planCountBadge.classList.toggle("hidden", count === 0);
+  }
+
+  renderPipelineVisual(currentPlan.execution || [[...(currentPlan.plan || []).map((p) => p.task)]]);
+
+  if (planList) {
+    planList.innerHTML = "";
+    if (st.replan_events && st.replan_events.length) {
+      const banner = document.createElement("div");
+      banner.id = "supervisor-replan-banner";
+      banner.className = "pipeline-success-card";
+      banner.style.cssText = "margin-bottom:14px;border:1px solid #f3d58e;background:#fff8e8;";
+      const eventItems = st.replan_events
+        .map((evt) => `<li>${escapeHtml(evt.reason || evt.type || "计划已调整")}</li>`)
+        .join("");
+      banner.innerHTML = `
+        <div class="success-icon-wrap" style="background:#b7791f;color:#fff;">
+          <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.5">
+            <path d="M12 2v6M12 16v6M4.93 4.93l4.24 4.24M14.83 14.83l4.24 4.24M2 12h6M16 12h6M4.93 19.07l4.24-4.24M14.83 9.17l4.24-4.24"/>
+          </svg>
+        </div>
+        <div class="success-body">
+          <div class="success-title" style="color:#704b10;">Supervisor 已动态重规划</div>
+          <div class="success-desc" style="color:#704b10;">系统在阶段执行后观察到后续目标需要补充步骤，已刷新右侧流水线。</div>
+          <ul style="margin:8px 0 0;padding-left:18px;color:#704b10;font-size:13px;">${eventItems}</ul>
+        </div>
+      `;
+      planList.appendChild(banner);
+    }
+    (currentPlan.plan || []).forEach((item, idx) => {
+      const card = createTaskCard(item, idx);
+      if (completedTasks.has(item.task)) {
+        card.classList.add("done");
+        const badge = card.querySelector(`#task-status-badge-${item.task}`);
+        if (badge) badge.innerHTML = `<span class="task-state-badge done">已完成</span>`;
+      }
+      planList.appendChild(card);
+    });
+  }
+
+  const stageIdx = (currentPlan.execution || []).findIndex((group) =>
+    group.some((task) => !completedTasks.has(task))
+  );
+  currentActiveStep = stageIdx >= 0 ? stageIdx : Math.max(0, (currentPlan.execution || []).length - 1);
+  setActiveStep(currentActiveStep);
+  validatePlanParams();
+
+  if (consoleLogs && st.replan_events && st.replan_events.length) {
+    const lines = st.replan_events.map((evt) => `[Supervisor] ${evt.reason || evt.type || "计划已调整"}`);
+    consoleLogs.textContent += `\n${lines.join("\n")}\n`;
+    consoleLogs.scrollTop = consoleLogs.scrollHeight;
+  }
+  return true;
+}
+
 async function executeCurrentPlan(isAllStages = false) {
   if (!currentPlan) return;
 
@@ -1280,6 +1371,7 @@ async function executeCurrentPlan(isAllStages = false) {
         ...currentPlan,
         plan: remainingPlanTasks,
         execution: remainingStages,
+        full_plan: currentPlan,
       };
     } else {
       const currentPlanTasks = currentPlan.plan.filter((t) => currentStageTasks.includes(t.task));
@@ -1287,6 +1379,7 @@ async function executeCurrentPlan(isAllStages = false) {
         ...currentPlan,
         plan: currentPlanTasks,
         execution: [currentStageTasks],
+        full_plan: currentPlan,
       };
     }
 
@@ -1399,6 +1492,10 @@ function updateExecutionUI(st, pollCount) {
 
   if (consoleLogs && st.logs && st.logs.length) {
     consoleLogs.textContent = st.logs.join("\n");
+    if (st.replan_events && st.replan_events.length) {
+      const replanLines = st.replan_events.map((evt) => `[Supervisor] ${evt.reason || evt.type || "计划已调整"}`);
+      consoleLogs.textContent += `\n${replanLines.join("\n")}`;
+    }
     consoleLogs.scrollTop = consoleLogs.scrollHeight;
   }
 
@@ -1479,6 +1576,21 @@ function finishExecution(st, isAllStages = false) {
     });
 
     const isLastStage = currentActiveStep >= totalStages - 1;
+    const planChanged = applySupervisorPlanUpdate(st);
+
+    if (planChanged && !isAllStages) {
+      if (taskStatusPill) {
+        taskStatusPill.className = "status-pill done";
+        taskStatusPill.textContent = `Supervisor 已调整计划 · 阶段 ${currentActiveStep + 1} 就绪`;
+      }
+      if (execStatusTitle) {
+        execStatusTitle.textContent = `Supervisor 已调整计划 · 阶段 ${currentActiveStep + 1} 就绪`;
+      }
+      if (execProgressBar) execProgressBar.style.width = "100%";
+      if (btnExecutePlan) btnExecutePlan.disabled = false;
+      if (typeof switchTab === "function") switchTab("tab-plan");
+      return;
+    }
 
     if (!isLastStage && !isAllStages) {
       currentActiveStep += 1;

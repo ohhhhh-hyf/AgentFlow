@@ -278,7 +278,7 @@ function removeMessage(id) {
   if (el) el.remove();
 }
 
-function appendIntentSummaryMessage(data, userQuery = "") {
+function appendIntentSummaryMessage(data, userQuery = "", replaceTargetElement = null) {
   const group = document.createElement("div");
   group.className = "msg-group bot";
 
@@ -401,7 +401,13 @@ function appendIntentSummaryMessage(data, userQuery = "") {
 
   group.appendChild(senderLine);
   group.appendChild(bubble);
-  if (messagesContainer) {
+
+  if (replaceTargetElement && replaceTargetElement.parentNode) {
+    replaceTargetElement.replaceWith(group);
+    if (messagesContainer) {
+      messagesContainer.scrollTop = messagesContainer.scrollHeight;
+    }
+  } else if (messagesContainer) {
     messagesContainer.appendChild(group);
     messagesContainer.scrollTop = messagesContainer.scrollHeight;
   }
@@ -552,14 +558,16 @@ function appendTaskBranchDecisionMessage(originalQuery, detectedSubject, knownSu
       });
 
       const subText = bubble.querySelector(".delivery-sub");
-      if (subText) subText.innerHTML = `已选择知识库已有学科「<strong>${escapeHtml(selectedSub)}</strong>」：`;
+      if (subText) subText.innerHTML = `已选择知识库已有学科「<strong>${escapeHtml(selectedSub)}</strong>」，正在为您编排流水线...`;
 
       btn.id = "active-planning-btn";
       btn.disabled = true;
       btn.innerHTML = `<span>正在规划流水线...</span>`;
 
-      const query = `把上传的资料入库到${selectedSub}学科，并生成${selectedSub}考点复习清单与核心知识大纲`;
-      handleChatSubmit(query, selectedSub, true);
+      // 通用构造：基于选中的学科和用户的原始需求
+      const cleanOriginal = (originalQuery || "").trim();
+      const query = cleanOriginal ? `基于${selectedSub}学科，${cleanOriginal}` : `基于${selectedSub}学科生成核心知识大纲与复习清单`;
+      handleChatSubmit(query, selectedSub, true, group, true);
     });
   });
 
@@ -577,14 +585,16 @@ function appendTaskBranchDecisionMessage(originalQuery, detectedSubject, knownSu
       newSubInput.disabled = true;
 
       const subText = bubble.querySelector(".delivery-sub");
-      if (subText) subText.innerHTML = `已选择建立新学科「<strong>${escapeHtml(targetSub)}</strong>」：`;
+      if (subText) subText.innerHTML = `已选择建立新学科「<strong>${escapeHtml(targetSub)}</strong>」，正在为您编排流水线...`;
 
       btnNewSubmit.id = "active-planning-btn";
       btnNewSubmit.disabled = true;
       btnNewSubmit.innerHTML = `<span>正在规划流水线...</span>`;
 
-      const query = `把上传的资料入库到${targetSub}学科，并生成${targetSub}考点复习清单与核心知识大纲`;
-      handleChatSubmit(query, targetSub, true);
+      // 通用构造：入库到新学科并完成用户的原始需求
+      const cleanOriginal = (originalQuery || "").trim();
+      const query = cleanOriginal ? `把上传的资料入库到${targetSub}学科，并${cleanOriginal}` : `把上传的资料入库到${targetSub}学科，并生成核心知识大纲与复习清单`;
+      handleChatSubmit(query, targetSub, true, group, true);
     };
 
     btnNewSubmit.addEventListener("click", handleNewSubmit);
@@ -605,7 +615,13 @@ function appendTaskBranchDecisionMessage(originalQuery, detectedSubject, knownSu
 }
 
 // Dispatch User Input & Chat Actions
-async function handleChatSubmit(customText = null, customSubject = null, isDirect = false) {
+async function handleChatSubmit(
+  customText = null,
+  customSubject = null,
+  isDirect = false,
+  replaceTargetElement = null,
+  hideUserEcho = false
+) {
   const text = (customText !== null ? customText : (chatText ? chatText.value : "")).trim();
   if (!text) return;
 
@@ -645,10 +661,12 @@ async function handleChatSubmit(customText = null, customSubject = null, isDirec
   const quickCardsWrap = $("quick-prompt-cards-wrap");
   if (quickCardsWrap) quickCardsWrap.classList.add("hidden");
 
-  // Append user message
-  appendMessage("user", text);
-  if (ctx.user_id && activeSessionId) {
-    saveSessionMessage(ctx.user_id, activeSessionId, "user", text);
+  // Append user message (only if not hidden / not a background direct planning submission)
+  if (!hideUserEcho) {
+    appendMessage("user", text);
+    if (ctx.user_id && activeSessionId) {
+      saveSessionMessage(ctx.user_id, activeSessionId, "user", text);
+    }
   }
 
   // 3. Smart Subject & Workflow Branching Interceptor:
@@ -669,8 +687,11 @@ async function handleChatSubmit(customText = null, customSubject = null, isDirec
     return;
   }
 
-  // Append bot loading state
-  const loadingMsgId = appendLoadingMessage();
+  // Append bot loading state (if not replacing an existing decision element)
+  let loadingMsgId = null;
+  if (!replaceTargetElement) {
+    loadingMsgId = appendLoadingMessage();
+  }
   if (btnSend) btnSend.disabled = true;
 
   try {
@@ -678,18 +699,28 @@ async function handleChatSubmit(customText = null, customSubject = null, isDirec
     const res = await fetch(`${API}/intent`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ text, ...ctx, session_id: activeSessionId }),
+      body: JSON.stringify({
+        text,
+        ...ctx,
+        session_id: activeSessionId,
+        hide_history: Boolean(hideUserEcho)
+      }),
     });
 
     const data = await res.json();
 
     if (!res.ok) {
+      if (replaceTargetElement) {
+        replaceTargetElement.remove();
+      }
       await fallbackToChat(text, loadingMsgId);
       return;
     }
 
-    removeMessage(loadingMsgId);
-    appendIntentSummaryMessage(data, text);
+    if (loadingMsgId) {
+      removeMessage(loadingMsgId);
+    }
+    appendIntentSummaryMessage(data, text, replaceTargetElement);
     if (typeof renderPlanWorkbench === "function") {
       renderPlanWorkbench(data);
     }
@@ -706,7 +737,14 @@ async function handleChatSubmit(customText = null, customSubject = null, isDirec
       switchTab("tab-plan");
     }
   } catch (err) {
-    updateLoadingMessage(loadingMsgId, `意图解析请求失败：${err.message}`, "err");
+    if (loadingMsgId) {
+      updateLoadingMessage(loadingMsgId, `意图解析请求失败：${err.message}`, "err");
+    } else if (replaceTargetElement) {
+      const bubble = replaceTargetElement.querySelector(".msg-bubble-card");
+      if (bubble) {
+        bubble.innerHTML = `<div class="delivery-card" style="border-color:#ef4444;"><div style="color:#dc2626; padding:12px;">意图解析请求失败：${escapeHtml(err.message)}</div></div>`;
+      }
+    }
   } finally {
     if (btnSend) btnSend.disabled = false;
   }

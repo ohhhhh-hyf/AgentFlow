@@ -132,8 +132,11 @@ class TaskRunner:
             "uid_safe": uid_safe,
             "workdir": str(workdir),
             "plan": plan,
+            "client_plan": plan.get("full_plan") if isinstance(plan.get("full_plan"), dict) else plan,
             "saved": {k: str(v) for k, v in saved.items()},
             "logs": [],
+            "replan_events": [],
+            "plan_updated": False,
             # 执行前的产物快照：完成后只报告本次新增的产物
             "output_snapshot": self._snapshot(),
         }
@@ -170,6 +173,7 @@ class TaskRunner:
     async def _run_plan(self, task_id: str) -> None:
         state = self._tasks[task_id]
         plan = state["plan"]
+        client_plan = state.get("client_plan") or plan
         saved = {k: Path(v) for k, v in state.get("saved", {}).items()}
         entries = plan.get("plan") or []
         raw_groups = plan.get("execution")
@@ -211,6 +215,7 @@ class TaskRunner:
                             f"任务 {r.get('task')} 失败：{r.get('error')}"
                         )
                 self._collect_outputs(state)
+                self._observe_and_replan(task_id, state, client_plan, results)
             ts_done = time.strftime("%H:%M:%S")
             state.setdefault("logs", []).append(f"[{ts_done}] 全部阶段执行完毕，产物已成功生成 ✓")
             state["status"] = "done"
@@ -219,6 +224,154 @@ class TaskRunner:
             state["status"] = "failed"
             state["message"] = str(exc)
         state["current"] = ""
+
+    def _plan_task_names(self, plan: dict[str, Any]) -> list[str]:
+        return [
+            str(item.get("task") or "")
+            for item in (plan.get("plan") or [])
+            if isinstance(item, dict) and item.get("task")
+        ]
+
+    def _first_task_params(self, plan: dict[str, Any], names: set[str]) -> dict[str, Any]:
+        for item in plan.get("plan") or []:
+            if isinstance(item, dict) and item.get("task") in names:
+                params = item.get("params")
+                return dict(params) if isinstance(params, dict) else {}
+        return {}
+
+    def _insert_client_task_before(
+        self,
+        plan: dict[str, Any],
+        *,
+        new_task: str,
+        before_tasks: set[str],
+        params: dict[str, Any],
+        needs: list[str],
+        note: str,
+    ) -> bool:
+        entries = plan.setdefault("plan", [])
+        if not isinstance(entries, list):
+            return False
+        if new_task in self._plan_task_names(plan):
+            return False
+        insert_at = len(entries)
+        for idx, item in enumerate(entries):
+            if isinstance(item, dict) and item.get("task") in before_tasks:
+                insert_at = idx
+                break
+        entries.insert(
+            insert_at,
+            {
+                "task": new_task,
+                "domain": "notes",
+                "params": params,
+                "missing": [],
+                "optional": ["file"],
+                "needs": needs,
+                "note": note,
+                "dynamic": True,
+                "dynamic_reason": note,
+            },
+        )
+        for item in entries:
+            if isinstance(item, dict) and item.get("task") in before_tasks:
+                curr_needs = list(item.get("needs") or [])
+                if new_task not in curr_needs:
+                    item["needs"] = [new_task if (needs and x in needs) else x for x in curr_needs]
+                    if new_task not in item["needs"]:
+                        item["needs"].append(new_task)
+        self._rebuild_client_execution(plan)
+        return True
+
+    def _rebuild_client_execution(self, plan: dict[str, Any]) -> None:
+        """按当前 plan 重建前端可展示的轻量阶段。"""
+        tasks = [item for item in plan.get("plan") or [] if isinstance(item, dict)]
+        names = [str(item.get("task") or "") for item in tasks]
+        done: set[str] = set()
+        remaining = list(tasks)
+        groups: list[list[str]] = []
+        while remaining:
+            stage = []
+            for item in remaining:
+                task = str(item.get("task") or "")
+                needs = {
+                    str(dep)
+                    for dep in (item.get("needs") or [])
+                    if str(dep) in names and str(dep) != task
+                }
+                if needs.issubset(done):
+                    stage.append(item)
+            if not stage:
+                stage = [remaining[0]]
+            groups.append([str(item.get("task")) for item in stage if item.get("task")])
+            for item in stage:
+                done.add(str(item.get("task") or ""))
+                remaining.remove(item)
+        plan["execution"] = groups
+
+    def _observe_and_replan(
+        self,
+        task_id: str,
+        state: dict[str, Any],
+        client_plan: dict[str, Any],
+        results: list[dict[str, Any]],
+    ) -> None:
+        """阶段后观察：发现后续目标缺关键前置步骤时，更新返回给前端的计划。"""
+        if not isinstance(client_plan, dict):
+            return
+        names = self._plan_task_names(client_plan)
+        name_set = set(names)
+        completed = {str(item.get("task") or "") for item in results if item.get("ok")}
+        if not completed:
+            return
+
+        wants_catalog_based = bool(name_set & {"checklist", "quiz", "knowledge_graph"})
+        missing_catalog = "catalog" not in name_set
+        has_scope = self._first_task_params(
+            client_plan,
+            {"library", "checklist", "quiz", "knowledge_graph"},
+        )
+        subject = str(has_scope.get("subject") or "").strip()
+        user_id = str(has_scope.get("user_id") or state.get("user_id") or "").strip()
+        params = {"user_id": user_id, "subject": subject}
+        params = {k: v for k, v in params.items() if v}
+
+        if wants_catalog_based and missing_catalog and subject and user_id:
+            deps = ["library"] if "library" in name_set else []
+            inserted = self._insert_client_task_before(
+                client_plan,
+                new_task="catalog",
+                before_tasks={"checklist", "quiz", "knowledge_graph"},
+                params=params,
+                needs=deps,
+                note="动态补充：先生成知识目录，再支撑后续复习/出题/图谱任务",
+            )
+            if inserted:
+                event = {
+                    "type": "insert_task",
+                    "task": "catalog",
+                    "reason": "后续任务依赖知识目录，Supervisor 已动态插入目录构建阶段",
+                }
+                state.setdefault("replan_events", []).append(event)
+                state["plan_updated"] = True
+                state["client_plan"] = client_plan
+                state["plan"] = client_plan
+                self._log(task_id, "[动态重规划] 已插入「核心知识目录构建」阶段，用于支撑后续任务")
+
+        # OCR 成功但结果为空时不继续假装高质量；先给出明确观察，后续可升级为 ask_user。
+        for item in results:
+            if item.get("task") != "ocr" or not item.get("ok"):
+                continue
+            out = item.get("output")
+            if out and Path(str(out)).is_file() and Path(str(out)).stat().st_size == 0:
+                event = {
+                    "type": "ask_user",
+                    "task": "ocr",
+                    "reason": "OCR 产物为空，建议重新上传更清晰图片或确认继续使用空结果",
+                }
+                state.setdefault("replan_events", []).append(event)
+                state["plan_updated"] = True
+                self._log(task_id, "[动态观察] OCR 产物为空，建议补充更清晰图片后重试")
 
     async def _run_one(
         self,

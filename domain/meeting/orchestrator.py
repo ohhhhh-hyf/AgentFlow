@@ -288,23 +288,66 @@ class _Nodes(DomainNodes):
 
     # ── 领域钩子：视角标题 / 展示标题 ─────────────────────────
 
-    def _compute_title(self, state) -> str:
-        """视角标题（客观 → 客观会议纪要；个人 → 姓名视角会议纪要）。"""
-        if bool(state.get("objective_perspective")):
-            return "客观会议纪要"
-        user = state.get("user") or {}
-        return f"{user.get('name', '用户')}视角会议纪要"
+    def _extract_meeting_topic(self, state) -> str:
+        """从已分析的会议理解或纪要草稿中提取会议核心主题名称。"""
+        # 1. 优先取 minutes_generation 草稿里的 headline
+        lines = state.get("lines") or {}
+        min_line = lines.get("minutes_generation") or {}
+        draft = min_line.get("draft") if isinstance(min_line, dict) else {}
+        headline = str(
+            (min_line.get("headline") if isinstance(min_line, dict) else "")
+            or (draft.get("headline") if isinstance(draft, dict) else "")
+            or (min_line.get("title") if isinstance(min_line, dict) else "")
+            or ""
+        ).strip()
+        if headline and headline not in {"客观会议纪要", "会议纪要", "纪要", "用户视角会议纪要"}:
+            return headline
 
-    def _line_title(self, state, line_name: str) -> str:
-        """线 → 展示标题（按视角模式区分；新线用通用默认）。"""
+        # 2. 其次取 meeting_understanding 中的 meeting_purpose
+        understanding = state.get("meeting_understanding") or {}
+        purpose = str(understanding.get("meeting_purpose") or "").strip()
+        if purpose and purpose not in {"客观会议纪要", "会议纪要", "纪要", "用户视角会议纪要"}:
+            topic = purpose.rstrip("。；;，,").strip()
+            return topic
+
+        return ""
+
+    def _compute_title(self, state) -> str:
+        """视角标题（客观 → 提取的会议主题纪要；个人 → 提取的会议主题 · 姓名视角纪要）。"""
+        topic = self._extract_meeting_topic(state)
         objective = bool(state.get("objective_perspective"))
         user = state.get("user") or {}
         name = user.get("name") or "用户"
+
+        if topic:
+            if objective:
+                if topic.endswith("纪要") or topic.endswith("会议"):
+                    return topic if topic.endswith("纪要") else f"{topic}纪要"
+                return f"{topic} · 会议纪要"
+            else:
+                return f"{topic} · {name}视角会议纪要"
+
+        return "会议纪要" if objective else f"{name}视角会议纪要"
+
+    def _line_title(self, state, line_name: str) -> str:
+        """线 → 展示标题（按视角模式区分；新线用通用默认）。"""
+        topic = self._extract_meeting_topic(state)
+        objective = bool(state.get("objective_perspective"))
+        user = state.get("user") or {}
+        name = user.get("name") or "用户"
+        prefix = f"{topic} · " if topic else ""
+
         if line_name == "minutes_generation":
-            return "客观会议纪要" if objective else f"{name}视角会议纪要"
+            return self._compute_title(state)
         if line_name == "action_items":
-            return "客观待办事项（全员）" if objective else "待办事项"
-        return f"{_line_cn(line_name)}输出"
+            return f"{prefix}客观待办事项（全员）" if objective else f"{prefix}待办事项"
+        if line_name == "risk":
+            return f"{prefix}潜在风险分析"
+        if line_name == "mindmap":
+            return f"{prefix}思维导图"
+        if line_name == "minutes_trace":
+            return f"{prefix}发言溯源与事实核查"
+        return f"{prefix}{_line_cn(line_name)}输出"
 
     def _empty_purpose(self, state) -> str:
         return _empty_purpose(state)
