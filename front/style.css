@@ -158,11 +158,13 @@ input, button, select, textarea {
   width: 36px;
   height: 36px;
   border-radius: var(--radius-sm);
-  background: #e8dfcf;
-  color: #4a4237;
+  background: #d8ebfa;
+  color: #0d47a1;
+  border: 1px solid #90caf9;
   display: flex;
   align-items: center;
   justify-content: center;
+  box-shadow: 0 1px 4px rgba(13, 71, 161, 0.08);
 }
 
 .brand-title {
@@ -181,10 +183,10 @@ input, button, select, textarea {
 .brand-badge {
   font-size: 0.76rem;
   font-weight: 600;
-  padding: 2px 9px;
-  background: var(--sand-100);
-  color: var(--sand-800);
-  border: 1px solid var(--sand-300);
+  padding: 2px 10px;
+  background: #d8ebfa;
+  color: #0d47a1;
+  border: 1px solid #90caf9;
   border-radius: var(--radius-full);
   letter-spacing: 0.2px;
 }
@@ -306,25 +308,26 @@ input, button, select, textarea {
 .status-indicator {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 7px;
   font-size: 0.82rem;
-  font-weight: 500;
-  color: var(--ink-600);
-  padding: 4px 10px;
+  font-weight: 600;
+  color: #0d47a1;
+  padding: 4px 12px;
   border-radius: var(--radius-full);
-  background: var(--sand-100);
+  background: #d8ebfa;
+  border: 1px solid #90caf9;
 }
 
 .status-dot {
   width: 7px;
   height: 7px;
   border-radius: 50%;
-  background: var(--text-disabled);
+  background: #94a3b8;
 }
 
 .status-indicator.online .status-dot {
-  background: var(--sage-600);
-  box-shadow: 0 0 0 2px var(--sage-200);
+  background: #0288d1;
+  box-shadow: 0 0 0 2.5px rgba(2, 136, 209, 0.25);
 }
 
 .btn-icon-text {
@@ -402,14 +405,33 @@ input, button, select, textarea {
 .welcome-badge {
   display: inline-flex;
   align-items: center;
-  gap: 7px;
-  padding: 4px 12px;
+  gap: 8px;
+  padding: 4px 14px 4px 5px;
   border-radius: var(--radius-full);
-  background: #e8dfcf;
-  color: #4a4237;
-  font-size: 0.8rem;
-  font-weight: 550;
+  background: #f0f7fd;
+  color: #0d47a1;
+  border: 1px solid #cbe0f2;
+  font-size: 0.84rem;
+  font-weight: 600;
   margin-bottom: 14px;
+  box-shadow: 0 1px 3px rgba(13, 71, 161, 0.04);
+}
+
+.welcome-badge-icon {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: #d8ebfa;
+  border: 1px solid #90caf9;
+  color: #0d47a1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.welcome-badge-text {
+  letter-spacing: 0.2px;
 }
 
 .welcome-title {
@@ -535,8 +557,9 @@ input, button, select, textarea {
   justify-content: center;
   font-size: 0.78rem;
   font-weight: 600;
-  background: #e8dfcf;
-  color: #4a4237;
+  background: #d8ebfa;
+  color: #0d47a1;
+  border: 1px solid #90caf9;
 }
 
 .msg-bubble {

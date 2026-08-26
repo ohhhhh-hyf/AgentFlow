@@ -1,5 +1,7 @@
 """自测题：筛掉可抄原文的题，并做成答案默认折叠的对照页。"""
 from __future__ import annotations
+from tools.text_utils import as_dict_list as _as_list
+from tools.text_utils import clean_text as _clean
 
 import json
 import re
@@ -30,26 +32,12 @@ _COPY_STEMS = (
 
 _MIN_CHUNK = 8
 
-
-def _clean(text: object) -> str:
-    return " ".join(str(text or "").split()).strip()
-
-
-
-
-def _as_list(value: object) -> list[dict[str, Any]]:
-    if not isinstance(value, list):
-        return []
-    return [item for item in value if isinstance(item, dict)]
-
-
 def _answer_points(raw: object) -> list[str]:
     if isinstance(raw, str) and raw.strip():
         return [raw.strip()]
     if not isinstance(raw, list):
         return []
     return [_clean(item) for item in raw if _clean(item)]
-
 
 def normalize_dimension(value: object) -> str:
     raw = _clean(value)
@@ -66,7 +54,6 @@ def normalize_dimension(value: object) -> str:
         "迁移": "application",
     }
     return aliases.get(raw, "")
-
 
 def _questions(draft: dict[str, Any]) -> list[dict[str, Any]]:
     out: list[dict[str, Any]] = []
@@ -88,12 +75,10 @@ def _questions(draft: dict[str, Any]) -> list[dict[str, Any]]:
         )
     return out
 
-
 def _note_sentences(notes: str) -> list[str]:
     text = (notes or "").replace("\r\n", "\n")
     bits = re.split(r"[。！？!?\n；;]+", text)
     return [_clean(bit) for bit in bits if len(_clean(bit)) >= _MIN_CHUNK]
-
 
 def _name_only_hook(hook: str) -> bool:
     """只有对象名或名词罗列、没有判断或步骤的条目，不够出题。"""
@@ -124,14 +109,12 @@ def _name_only_hook(hook: str) -> bool:
         return False
     return True
 
-
 def looks_like_unwritten_given(prompt: str, notes: str, note_hook: str = "") -> bool:
     """挂钩只是一个名词罗列、笔记里没有可问关系时丢掉。"""
     del prompt
     if note_hook and _name_only_hook(note_hook):
         return bool(notes)
     return False
-
 
 def looks_like_copy_question(prompt: str, notes: str) -> bool:
     """题干若基本是原文填空/复述结论，视为可抄，应丢掉。"""
@@ -163,9 +146,7 @@ def looks_like_copy_question(prompt: str, notes: str) -> bool:
                 return True
     return False
 
-
 _QUESTION_CAP = 6
-
 
 def _pick_diverse(items: list[dict[str, Any]], cap: int = _QUESTION_CAP) -> list[dict[str, Any]]:
     """先各维度留一题，再按原文顺序补满，最多 cap 道。"""
@@ -190,7 +171,6 @@ def _pick_diverse(items: list[dict[str, Any]], cap: int = _QUESTION_CAP) -> list
             break
     return picked
 
-
 def filter_questions(
     draft: dict[str, Any], notes: str = ""
 ) -> list[dict[str, Any]]:
@@ -212,7 +192,6 @@ def filter_questions(
         seen.add(key)
         kept.append(item)
     return _pick_diverse(kept)
-
 
 def context_from_extra(extra: str) -> dict[str, str]:
     out = {
@@ -241,7 +220,6 @@ def context_from_extra(extra: str) -> dict[str, str]:
             out["qtype"] = line_text.split("：", 1)[1].strip()
     return out
 
-
 def extra_from_context(approved_context: str) -> str:
     raw = approved_context or ""
     chunks: list[str] = []
@@ -256,10 +234,8 @@ def extra_from_context(approved_context: str) -> str:
         chunks.append(head.strip())
     return "\n\n".join(chunks)
 
-
 def _bank_questions(draft: dict[str, Any]) -> list[dict[str, Any]]:
     return _as_list(draft.get("bank_questions"))
-
 
 def _bank_meta(item: dict[str, Any]) -> str:
     bits = [
@@ -268,7 +244,6 @@ def _bank_meta(item: dict[str, Any]) -> str:
         _clean(item.get("matched_keypoint")),
     ]
     return " · ".join(bit for bit in bits if bit)
-
 
 def _render_bank_markdown(draft: dict[str, Any]) -> list[str]:
     items = _bank_questions(draft)
@@ -330,7 +305,6 @@ def _render_bank_markdown(draft: dict[str, Any]) -> list[str]:
         lines.append("")
     return lines
 
-
 def build_quiz_markdown(
     draft: dict[str, Any],
     *,
@@ -378,7 +352,6 @@ def build_quiz_markdown(
     lines.extend(bank_lines)
     return "\n".join(lines).strip() + "\n"
 
-
 _QUIZ_EMBED_STYLE = """<style>
 .quiz-stem,.quiz-analysis,.quiz-opts{line-height:1.85;word-break:keep-all;overflow-wrap:anywhere;}
 .quiz-stem p{margin:0 0 .45em;text-indent:0!important;}
@@ -392,7 +365,6 @@ _QUIZ_EMBED_STYLE = """<style>
 </style>
 """
 
-
 _BK_TAG = re.compile(
     r"<(?:bk|blk)\b[^>]*>.*?</(?:bk|blk)>|<(?:bk|blk)\b[^>]*/?>",
     re.I | re.S,
@@ -402,7 +374,6 @@ _TEX_TAG = re.compile(
     re.I | re.S,
 )
 _P_OPEN = re.compile(r"<p\b[^>]*>", re.I)
-
 
 def normalize_bank_html(raw: object) -> str:
     """保留公式图和配图，填空改成下划线，<tex> 公式转成可读文本。"""
@@ -426,7 +397,6 @@ def normalize_bank_html(raw: object) -> str:
     text = rewrite_images(text)
     text = text.replace("<script", "&lt;script").replace("javascript:", "")
     return text
-
 
 def _render_bank_html(draft: dict[str, Any]) -> list[str]:
     items = _bank_questions(draft)
@@ -483,7 +453,6 @@ def _render_bank_html(draft: dict[str, Any]) -> list[str]:
         body.append("</div>")
         rows.extend(body)
     return rows
-
 
 def build_quiz_html(
     draft: dict[str, Any],
@@ -545,7 +514,6 @@ def build_quiz_html(
     rows.append("</div>")
     return "\n".join(rows)
 
-
 def draft_from_context(approved_context: str) -> dict[str, Any]:
     blob = approved_context or ""
     for marker in ("已批准自测题草稿：", "已批准quiz草稿："):
@@ -560,7 +528,6 @@ def draft_from_context(approved_context: str) -> dict[str, Any]:
     except json.JSONDecodeError:
         return {}
     return data if isinstance(data, dict) else {}
-
 
 def original_from_context(approved_context: str) -> str:
     raw = approved_context or ""
@@ -580,14 +547,12 @@ def original_from_context(approved_context: str) -> str:
         return body.strip()
     return ""
 
-
 def _quiz_cite(item: dict[str, Any]) -> str:
     fname = _clean(item.get("kb_file"))
     if not fname:
         return ""
     page = _clean(item.get("kb_page"))
     return f"{fname} 第{page}页" if page else fname
-
 
 def attach_quiz_library(
     draft: dict[str, Any], kb=None, user_id: str = "", subject: str = ""
@@ -608,7 +573,6 @@ def attach_quiz_library(
             item["kb_excerpt"] = hits[0]["excerpt"]
     draft["questions"] = questions
     return draft
-
 
 def attach_quiz_bank(
     draft: dict[str, Any],
@@ -646,7 +610,6 @@ def attach_quiz_bank(
     draft["bank_status"] = bundle.message
     return draft
 
-
 def attach_quiz_artifacts(state: dict[str, Any]) -> None:
     sub = line(state, "quiz")
     draft = dict(sub.get("draft") or {})
@@ -674,7 +637,6 @@ def attach_quiz_artifacts(state: dict[str, Any]) -> None:
         # 渲染稿若把答案摊开，仍用折叠版覆盖，保证前端可点开
         sub["rendered"] = build_quiz_markdown(draft, notes=original, extra=extra)
     sub["draft"] = draft
-
 
 __all__ = [
     "DIMENSIONS",

@@ -49,11 +49,6 @@ def catalog_path(user_id: str = "", subject: str = "") -> Path:
     return catalog_dir_for(user_id) / f"{_subject_filename(subject)}.json"
 
 
-def catalog_meta_path(user_id: str = "", stem: str = "") -> Path:
-    name = (stem or "image").strip() or "image"
-    return catalog_dir_for(user_id) / f"{name}_meta.json"
-
-
 def _ocr_output_stems(user_id: str, subject: str) -> list[str]:
     """Standard 会把原图 xx 存成 ocr/{subject}/md/xx.md，meta 则是 catalogs/xx_meta.json。"""
     from tools.memory.store import safe_id

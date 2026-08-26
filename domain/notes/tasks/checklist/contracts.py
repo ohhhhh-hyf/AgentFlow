@@ -4,7 +4,6 @@ from __future__ import annotations
 from tools.contracts import (
     Check,
     Decision,
-    EnumField,
     Feedback,
     GenerationContract,
     ObjListField,

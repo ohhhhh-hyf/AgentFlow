@@ -19,8 +19,8 @@ _CN_NUM = {
 _EXAM_RANK = {"none": 0, "weak": 1, "medium": 2, "strong": 3}
 
 
-def _clean(text: object) -> str:
-    return " ".join(str(text or "").split()).strip()
+from tools.text_utils import as_text_list as _as_list  # noqa: F401
+from tools.text_utils import clean_text as _clean
 
 
 def _compact(text: object) -> str:
@@ -30,14 +30,6 @@ def _compact(text: object) -> str:
 
 def _norm(text: object) -> str:
     return re.sub(r"[的地得与和及/]", "", _compact(text))
-
-
-def _as_list(value: object) -> list[str]:
-    if isinstance(value, list):
-        return [_clean(x) for x in value if _clean(x)]
-    if isinstance(value, str) and value.strip():
-        return [value.strip()]
-    return []
 
 
 def flatten_points(catalog: dict[str, Any] | None) -> list[dict[str, Any]]:

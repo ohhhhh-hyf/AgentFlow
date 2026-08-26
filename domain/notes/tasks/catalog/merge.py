@@ -1,5 +1,7 @@
 """把本次 LLM 目录合并进已有目录：复用 ID，旧章不丢，证据追加。"""
 from __future__ import annotations
+from tools.text_utils import as_text_list as _as_list
+from tools.text_utils import clean_text as _clean
 
 import re
 from datetime import datetime, timezone
@@ -44,26 +46,11 @@ _RISKS = {
     "boundary_case",
 }
 
-
 def _now() -> str:
     return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
 
-
-def _clean(text: object) -> str:
-    return " ".join(str(text or "").split()).strip()
-
-
-def _as_list(value: object) -> list[str]:
-    if isinstance(value, list):
-        return [_clean(x) for x in value if _clean(x)]
-    if isinstance(value, str) and value.strip():
-        return [value.strip()]
-    return []
-
-
 def _enum_list(value: object, allowed: set[str]) -> list[str]:
     return [item for item in _uniq(_as_list(value)) if item in allowed]
-
 
 def _uniq(items: list[str]) -> list[str]:
     seen: set[str] = set()
@@ -76,12 +63,10 @@ def _uniq(items: list[str]) -> list[str]:
         out.append(item)
     return out
 
-
 def _names_of(node: dict[str, Any]) -> set[str]:
     names = {_clean(node.get("name"))}
     names.update(_as_list(node.get("aliases")))
     return {n for n in names if n}
-
 
 def _next_id(prefix: str, used: set[str]) -> str:
     seq = 1
@@ -91,7 +76,6 @@ def _next_id(prefix: str, used: set[str]) -> str:
             used.add(candidate)
             return candidate
         seq += 1
-
 
 def _match_node(incoming: dict[str, Any], existing_nodes: list[dict[str, Any]]) -> dict[str, Any] | None:
     iid = _clean(incoming.get("id"))
@@ -107,12 +91,10 @@ def _match_node(incoming: dict[str, Any], existing_nodes: list[dict[str, Any]]) 
             return node
     return None
 
-
 def _max_rank(old: str, new: str, ranks: dict[str, int], default: str) -> str:
     old_v = old if old in ranks else default
     new_v = new if new in ranks else default
     return old_v if ranks[old_v] >= ranks[new_v] else new_v
-
 
 def _merge_point(old: dict[str, Any], new: dict[str, Any], stamp: str) -> tuple[dict[str, Any], bool]:
     merged = dict(old)
@@ -219,7 +201,6 @@ def _merge_point(old: dict[str, Any], new: dict[str, Any], stamp: str) -> tuple[
     merged["created_at"] = _clean(old.get("created_at")) or stamp
     return merged, changed
 
-
 def _fresh_point(point: dict[str, Any], kid: str, stamp: str) -> dict[str, Any]:
     out = dict(point)
     out["id"] = kid
@@ -234,7 +215,6 @@ def _fresh_point(point: dict[str, Any], kid: str, stamp: str) -> dict[str, Any]:
     out["learning_role"] = role if role in _ROLES else ""
     out["risk_tags"] = _enum_list(point.get("risk_tags"), _RISKS)
     return out
-
 
 def merge_catalog(existing: dict[str, Any] | None, incoming: dict[str, Any]) -> dict[str, Any]:
     """有历史目录就增量合并；没有则当作首次生成。"""
@@ -306,7 +286,6 @@ def merge_catalog(existing: dict[str, Any] | None, incoming: dict[str, Any]) -> 
     }
     return _fill_empty_topics(result, stamp)
 
-
 def _fill_empty_topics(catalog: dict[str, Any], stamp: str) -> dict[str, Any]:
     """主题有名字但 0 个 KP 时，用节标题回退生成 1 个点，避免切丢一节。"""
     _used_ch, _used_tp, used_kp = _collect_ids(catalog)
@@ -353,7 +332,6 @@ def _fill_empty_topics(catalog: dict[str, Any], stamp: str) -> dict[str, Any]:
         )
     return catalog
 
-
 def _empty_changes() -> dict[str, list[str]]:
     return {
         "added_chapters": [],
@@ -363,11 +341,9 @@ def _empty_changes() -> dict[str, list[str]]:
         "merged_nodes": [],
     }
 
-
 def _extend_changes(dst: dict[str, list[str]], src: dict[str, list[str]]) -> None:
     for key, values in src.items():
         dst.setdefault(key, []).extend(values)
-
 
 def _collect_ids(catalog: dict[str, Any]) -> tuple[set[str], set[str], set[str]]:
     ch, tp, kp = set(), set(), set()
@@ -386,7 +362,6 @@ def _collect_ids(catalog: dict[str, Any]) -> tuple[set[str], set[str], set[str]]
                     kp.add(_clean(point.get("id")))
     return ch, tp, kp
 
-
 def _assign_tree_ids(
     catalog: dict[str, Any],
     *,
@@ -403,7 +378,6 @@ def _assign_tree_ids(
             chapters.append(_assign_chapter(chapter, used_ch, used_tp, used_kp, stamp, first))
     out["chapters"] = chapters
     return out
-
 
 def _assign_chapter(
     chapter: dict[str, Any],
@@ -431,7 +405,6 @@ def _assign_chapter(
             topics.append(_assign_topic(topic, used_tp, used_kp, stamp, first, _clean(out.get("name"))))
     out["topics"] = topics
     return out
-
 
 def _assign_topic(
     topic: dict[str, Any],
@@ -466,7 +439,6 @@ def _assign_topic(
         points.append(fresh)
     out["knowledge_points"] = points
     return out
-
 
 def _merge_chapter(
     old: dict[str, Any],
@@ -507,7 +479,6 @@ def _merge_chapter(
     if merged["change_type"] == "updated":
         merged["updated_at"] = stamp
     return merged, changes
-
 
 def _merge_topic(
     old: dict[str, Any],
@@ -550,7 +521,6 @@ def _merge_topic(
     merged["change_type"] = "updated" if any(changes.values()) else "unchanged"
     return merged, changes
 
-
 # ── 枚举/数值归一化（消除模型输出的表面差异，提升同输入稳定性）──
 
 _CHANGE_TYPE_MAP = {
@@ -581,11 +551,9 @@ _COVERAGE_MAP = {
     "detailed": "detailed", "详细": "detailed",
 }
 
-
 def _norm_enum(value: object, mapping: dict[str, str], default: str) -> str:
     raw = str(value or "").strip().lower()
     return mapping.get(raw, default)
-
 
 def _norm_rank(value: object, lo: int, hi: int) -> str:
     try:
@@ -593,7 +561,6 @@ def _norm_rank(value: object, lo: int, hi: int) -> str:
     except (TypeError, ValueError):
         return str(lo)
     return str(max(lo, min(hi, n)))
-
 
 def normalize_catalog_enums(catalog: dict[str, Any]) -> dict[str, Any]:
     """把目录树里的枚举/数值字段归一到契约合法值（确定性）。
@@ -649,7 +616,6 @@ def normalize_catalog_enums(catalog: dict[str, Any]) -> dict[str, Any]:
     out["chapters"] = chapters
     return compact_catalog_granularity(out)
 
-
 _FINE_GRAIN_RE = re.compile(
     r"(使用条件|适用条件|成立条件|边界条件|限制条件|条件检查|"
     r"常见变形|变形技巧|计算技巧|替换规则|判断步骤|判断流程|证明步骤|"
@@ -657,10 +623,8 @@ _FINE_GRAIN_RE = re.compile(
     r"注意|易错|误区|陷阱|提醒|小结|总结|变量含义|符号说明)"
 )
 
-
 def _norm_name(text: object) -> str:
     return re.sub(r"[\s:：,，。；;、（）()\[\]【】《》“”\"'·\-—_]+", "", str(text or "").lower())
-
 
 def _base_of_fine_point(name: str) -> str:
     text = _clean(name)
@@ -674,7 +638,6 @@ def _base_of_fine_point(name: str) -> str:
             return text[: -len(mark)]
     return ""
 
-
 def _is_fine_point(point: dict[str, Any]) -> bool:
     name = _clean(point.get("name"))
     if not name:
@@ -686,7 +649,6 @@ def _is_fine_point(point: dict[str, Any]) -> bool:
     if kind == "formula" and len(_as_list(point.get("knowledge_items"))) <= 1:
         return bool(re.search(r"(变量|条件|变形|形式|写法|符号)", name))
     return role == "application" and bool(re.search(r"(题型|例题|练习)", name))
-
 
 def _merge_into_point(parent: dict[str, Any], child: dict[str, Any]) -> None:
     child_name = _clean(child.get("name"))
@@ -732,7 +694,6 @@ def _merge_into_point(parent: dict[str, Any], child: dict[str, Any]) -> None:
     )
     parent["change_type"] = "updated"
 
-
 def _find_parent_point(child: dict[str, Any], siblings: list[dict[str, Any]]) -> dict[str, Any] | None:
     child_name = _clean(child.get("name"))
     child_norm = _norm_name(child_name)
@@ -749,7 +710,6 @@ def _find_parent_point(child: dict[str, Any], siblings: list[dict[str, Any]]) ->
         if norm != child_norm and (norm in child_norm or child_norm in norm):
             return point
     return None
-
 
 def _compact_topic_points(
     points: list[dict[str, Any]],
@@ -803,7 +763,6 @@ def _compact_topic_points(
         out = compacted or out
     return out
 
-
 def _retitle_duplicate_topic(
     topic: dict[str, Any],
     chapter_name: str,
@@ -832,7 +791,6 @@ def _retitle_duplicate_topic(
         point["topic"] = next_topic
     merged_nodes.append(f"主题重命名：{topic_name} → {next_topic}")
     return topic
-
 
 def compact_catalog_granularity(catalog: dict[str, Any]) -> dict[str, Any]:
     """把过细 KP 降级进父 KP 的 items，并合并同层重复点。"""

@@ -1,5 +1,7 @@
 """catalog 展示：简要说明 + 保存复习清单要用的目录 JSON。"""
 from __future__ import annotations
+from tools.text_utils import as_text_list as _as_list
+from tools.text_utils import clean_text as _clean
 
 import json
 from html import escape
@@ -50,19 +52,6 @@ _RISK = {
     "boundary_case": "边界遗漏",
 }
 
-
-def _clean(text: object) -> str:
-    return " ".join(str(text or "").split()).strip()
-
-
-def _as_list(value: object) -> list[str]:
-    if isinstance(value, list):
-        return [_clean(x) for x in value if _clean(x)]
-    if isinstance(value, str) and value.strip():
-        return [value.strip()]
-    return []
-
-
 def _related(value: object) -> list[dict[str, str]]:
     out: list[dict[str, str]] = []
     if not isinstance(value, list):
@@ -82,7 +71,6 @@ def _related(value: object) -> list[dict[str, str]]:
         out.append({"name": name, "relation": rel})
     return out
 
-
 def draft_from_context(approved_context: str) -> dict[str, Any]:
     blob = approved_context or ""
     for marker in ("已批准知识目录草稿：", "已批准catalog草稿："):
@@ -97,7 +85,6 @@ def draft_from_context(approved_context: str) -> dict[str, Any]:
     except json.JSONDecodeError:
         return {}
     return data if isinstance(data, dict) else {}
-
 
 def normalize_catalog_draft(draft: dict[str, Any]) -> dict[str, Any]:
     """补 id / chapter / topic，方便后续复习清单当索引用。"""
@@ -141,14 +128,12 @@ def normalize_catalog_draft(draft: dict[str, Any]) -> dict[str, Any]:
     data["chapters"] = chapters
     return data
 
-
 def display_catalog_path(path: str | Path) -> str:
     target = Path(path)
     try:
         return target.resolve().relative_to(PROJECT_ROOT.resolve()).as_posix()
     except ValueError:
         return str(target)
-
 
 def _tree_counts(draft: dict[str, Any]) -> tuple[int, int, int]:
     chapters = 0
@@ -169,7 +154,6 @@ def _tree_counts(draft: dict[str, Any]) -> tuple[int, int, int]:
             )
     return chapters, topics, points
 
-
 def _change_lines(draft: dict[str, Any]) -> list[str]:
     if _clean(draft.get("mode")) != "incremental_update":
         return []
@@ -189,7 +173,6 @@ def _change_lines(draft: dict[str, Any]) -> list[str]:
         else:
             lines.append(f"{title}：{'、'.join(items)}")
     return lines
-
 
 def _tree_rows(draft: dict[str, Any]) -> list[tuple[int, str]]:
     rows: list[tuple[int, str]] = []
@@ -213,7 +196,6 @@ def _tree_rows(draft: dict[str, Any]) -> list[tuple[int, str]]:
             if names:
                 rows.append((2, "、".join(names)))
     return rows
-
 
 def build_catalog_markdown(draft: dict[str, Any], *, saved_path: str = "") -> str:
     draft = normalize_catalog_draft(draft)
@@ -244,7 +226,6 @@ def build_catalog_markdown(draft: dict[str, Any], *, saved_path: str = "") -> st
     for depth, text in _tree_rows(draft):
         lines.append(f"{'  ' * depth}- {text}")
     return "\n".join(lines).strip() + "\n"
-
 
 def build_catalog_html(draft: dict[str, Any], *, saved_path: str = "") -> str:
     draft = normalize_catalog_draft(draft)
@@ -288,7 +269,6 @@ def build_catalog_html(draft: dict[str, Any], *, saved_path: str = "") -> str:
     rows.append("</div>")
     return "\n".join(rows)
 
-
 def _html_tree(draft: dict[str, Any]) -> list[str]:
     rows = ["<ul>"]
     for chapter in draft.get("chapters") or []:
@@ -322,7 +302,6 @@ def _html_tree(draft: dict[str, Any]) -> list[str]:
         rows.append("</li>")
     rows.append("</ul>")
     return rows
-
 
 def attach_catalog_artifacts(state: dict[str, Any]) -> None:
     from tools.domain_engine_text import line

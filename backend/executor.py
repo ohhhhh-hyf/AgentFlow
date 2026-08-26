@@ -9,7 +9,6 @@ from __future__ import annotations
 
 import asyncio
 import json
-import shutil
 import uuid
 from pathlib import Path
 from typing import Any
@@ -315,10 +314,10 @@ class TaskRunner:
         inputs = params.get("input") or []
         if not inputs:
             raise ValueError("ocr 缺 input（图片路径）")
+        state = self._tasks.get(task_id, {})
         workdir = Path(state.get("workdir") or (self.root / "data" / state.get("uid_safe", "default_user") / "uploads" / task_id))
         output_path = Path(str(params.get("output") or (workdir / "ocr_result.md")))
 
-        state = self._tasks.get(task_id, {})
         def log_msg(msg: str):
             cur_time = time.strftime("%H:%M:%S")
             state.setdefault("logs", []).append(f"[{cur_time}] {msg}")

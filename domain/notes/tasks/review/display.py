@@ -1,5 +1,7 @@
 """笔记审查：确定性总结、原文高亮、左右对照 HTML。"""
 from __future__ import annotations
+from tools.text_utils import as_dict_list as _as_list
+from tools.text_utils import clean_text as _clean
 
 import json
 import re
@@ -27,11 +29,6 @@ _KIND_COUNT_LABELS: dict[str, tuple[str, str]] = {
 _MAX_MARK = 80
 _MIN_QUOTE = 4
 
-
-def _clean(text: object) -> str:
-    return " ".join(str(text or "").split()).strip()
-
-
 def normalize_kind(kind: object) -> str:
     raw = _clean(kind)
     if raw in ISSUE_KINDS:
@@ -48,13 +45,6 @@ def normalize_kind(kind: object) -> str:
         "错误": "inaccurate",
     }
     return aliases.get(raw, raw if raw in ISSUE_KINDS else "")
-
-
-def _as_list(value: object) -> list[dict[str, Any]]:
-    if not isinstance(value, list):
-        return []
-    return [item for item in value if isinstance(item, dict)]
-
 
 def _issue_items(draft: dict[str, Any]) -> list[dict[str, Any]]:
     out: list[dict[str, Any]] = []
@@ -78,10 +68,8 @@ def _issue_items(draft: dict[str, Any]) -> list[dict[str, Any]]:
         )
     return out
 
-
 def _knowledge_points(draft: dict[str, Any]) -> list[dict[str, Any]]:
     return _as_list(draft.get("knowledge_points"))
-
 
 def summarize_review(draft: dict[str, Any]) -> dict[str, int]:
     """从结构化结果计次，不信任模型口头报数。"""
@@ -124,7 +112,6 @@ def summarize_review(draft: dict[str, Any]) -> dict[str, int]:
             counts[kind] += 1
     return counts
 
-
 def format_summary_lines(counts: dict[str, int]) -> list[str]:
     lines = [f"✓ 识别 {int(counts.get('identified') or 0)} 个知识点"]
     order = (
@@ -142,11 +129,9 @@ def format_summary_lines(counts: dict[str, int]) -> list[str]:
         lines.append(f"{mark} {n} {tail}")
     return lines
 
-
 def format_summary_text(draft: dict[str, Any]) -> str:
     body = "\n".join(format_summary_lines(summarize_review(draft)))
     return f"先总结笔记：\n{body}"
-
 
 def find_quote_span(notes: str, quote: str) -> tuple[int, int] | None:
     """只标连续原文。找不到就不标，禁止跨段模糊拼接。"""
@@ -185,7 +170,6 @@ def find_quote_span(notes: str, quote: str) -> tuple[int, int] | None:
         return idx, idx + cut
     return idx, end
 
-
 def _paragraphs(text: str) -> list[str]:
     raw = (text or "").replace("\r\n", "\n").replace("\r", "\n").strip()
     if not raw:
@@ -200,7 +184,6 @@ def _paragraphs(text: str) -> list[str]:
             rows.append(block)
     return rows or [raw]
 
-
 def _issues_in_text(chunk: str, issues: list[dict[str, Any]]) -> list[dict[str, Any]]:
     hits: list[dict[str, Any]] = []
     for issue in issues:
@@ -208,7 +191,6 @@ def _issues_in_text(chunk: str, issues: list[dict[str, Any]]) -> list[dict[str, 
         if span:
             hits.append(issue)
     return hits
-
 
 def _collect_spans(
     chunk: str, indexed: list[tuple[int, dict[str, Any]]]
@@ -225,7 +207,6 @@ def _collect_spans(
     spans.sort()
     return spans
 
-
 def _mark_text(chunk: str, issues: list[dict[str, Any]]) -> str:
     indexed = list(enumerate(issues, 1))
     spans = _collect_spans(chunk, indexed)
@@ -240,7 +221,6 @@ def _mark_text(chunk: str, issues: list[dict[str, Any]]) -> str:
     out.append(escape(chunk[pos:], quote=False))
     return "".join(out).replace("\n", "<br>\n")
 
-
 def _mark_text_md(chunk: str, indexed: list[tuple[int, dict[str, Any]]]) -> str:
     """给前端渲染的 Markdown 高亮：<mark data-review="N">原文</mark>。"""
     spans = _collect_spans(chunk, indexed)
@@ -254,7 +234,6 @@ def _mark_text_md(chunk: str, indexed: list[tuple[int, dict[str, Any]]]) -> str:
         pos = end
     out.append(chunk[pos:])
     return "".join(out)
-
 
 def _issue_card(issue: dict[str, Any]) -> str:
     kind = issue.get("kind") or ""
@@ -290,14 +269,12 @@ def _issue_card(issue: dict[str, Any]) -> str:
     parts.append("</div>")
     return "\n".join(parts)
 
-
 def _cite_label(item: dict[str, Any]) -> str:
     fname = _clean(item.get("kb_file"))
     if not fname:
         return ""
     page = _clean(item.get("kb_page"))
     return f"{fname} 第{page}页" if page else fname
-
 
 def build_review_html(original: str, draft: dict[str, Any]) -> str:
     """总结 + 左原文高亮 / 右问题分析，复用会议记忆对照的 class。"""
@@ -336,7 +313,6 @@ def build_review_html(original: str, draft: dict[str, Any]) -> str:
         )
     rows.append("</div>")
     return "\n".join(rows)
-
 
 def build_review_markdown(original: str, draft: dict[str, Any]) -> str:
     """带批注的对照页（Markdown，给前端渲染）。不含订正全文。"""
@@ -390,7 +366,6 @@ def build_review_markdown(original: str, draft: dict[str, Any]) -> str:
         parts.append("")
     return "\n".join(parts).strip() + "\n"
 
-
 def draft_from_context(approved_context: str) -> dict[str, Any]:
     blob = approved_context or ""
     for marker in ("已批准笔记审查草稿：", "已批准审查草稿："):
@@ -405,7 +380,6 @@ def draft_from_context(approved_context: str) -> dict[str, Any]:
     except json.JSONDecodeError:
         return {}
     return data if isinstance(data, dict) else {}
-
 
 def original_from_context(approved_context: str) -> str:
     raw = approved_context or ""
@@ -424,9 +398,6 @@ def original_from_context(approved_context: str) -> str:
                 break
         return body.strip()
     return ""
-
-
-
 
 def attach_library_hits(
     draft: dict[str, Any], kb: Any = None, user_id: str = "", subject: str = ""
@@ -467,7 +438,6 @@ def attach_library_hits(
     draft["knowledge_points"] = points
     return draft
 
-
 def _support_card(point: dict[str, Any]) -> str:
     title = _clean(point.get("title")) or "有据"
     cite = _cite_label(point)
@@ -486,7 +456,6 @@ def _support_card(point: dict[str, Any]) -> str:
     parts.append("</div>")
     return "\n".join(parts)
 
-
 def attach_review_artifacts(state: dict[str, Any]) -> None:
     """对照页 Markdown 进 rendered；订正稿留在 draft，默认不进对照页。"""
     sub = line(state, "review")
@@ -504,7 +473,6 @@ def attach_review_artifacts(state: dict[str, Any]) -> None:
     draft["review_html"] = build_review_html(original, draft)
     sub["rendered"] = build_review_markdown(original, draft)
     sub["draft"] = draft
-
 
 __all__ = [
     "ISSUE_KINDS",
