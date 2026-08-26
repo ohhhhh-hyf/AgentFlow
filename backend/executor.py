@@ -21,9 +21,9 @@ IMAGE_EXTS = {".jpg", ".jpeg", ".png", ".bmp", ".webp", ".tiff", ".tif"}
 
 
 class TaskRunner:
-    def __init__(self, root: Path, uploads_dir: Path) -> None:
+    def __init__(self, root: Path, uploads_dir: Path | None = None) -> None:
         self.root = root
-        self.uploads_dir = uploads_dir
+        self.uploads_dir = uploads_dir or (root / "data")
         self._tasks: dict[str, dict[str, Any]] = {}
         self._loop: asyncio.AbstractEventLoop | None = None
 
@@ -48,9 +48,24 @@ class TaskRunner:
             state.setdefault("logs", []).append(f"[{ts}] {msg}")
 
     # ── 提交 ──
-    def submit(self, plan: dict[str, Any], files: list[UploadFile]) -> str:
+    def submit(self, plan: dict[str, Any], files: list[UploadFile], user_id: str | None = None) -> str:
         task_id = uuid.uuid4().hex[:10]
-        workdir = self.uploads_dir / task_id
+
+        # 优先提取 user_id：先有 user，再有该 user 的 upload 目录
+        raw_uid = (user_id or plan.get("user_id") or "").strip()
+        if not raw_uid and plan.get("plan"):
+            for step in plan.get("plan"):
+                u = step.get("params", {}).get("user_id")
+                if u:
+                    raw_uid = str(u).strip()
+                    break
+        if not raw_uid:
+            raw_uid = "default_user"
+
+        from tools.memory.store import safe_id
+        uid_safe = safe_id(raw_uid)
+        user_uploads_dir = self.root / "data" / uid_safe / "uploads"
+        workdir = user_uploads_dir / task_id
         workdir.mkdir(parents=True, exist_ok=True)
 
         # 保存上传文件，记录 文件名 → 路径
@@ -66,6 +81,9 @@ class TaskRunner:
             "current": "",
             "outputs": [],
             "task_id": task_id,
+            "user_id": raw_uid,
+            "uid_safe": uid_safe,
+            "workdir": str(workdir),
             "plan": plan,
             "saved": {k: str(v) for k, v in saved.items()},
             "logs": [],
@@ -111,12 +129,13 @@ class TaskRunner:
 
         state["status"] = "running"
         by_task = {str(e.get("task")): e for e in entries}
+        plan_tasks = set(by_task.keys())
         try:
             for group in groups:
                 async def _one(entry: dict[str, Any]) -> dict[str, Any]:
                     state["current"] = f"{entry.get('task')}"
                     try:
-                        return await self._run_one(task_id, entry, saved)
+                        return await self._run_one(task_id, entry, saved, plan_tasks)
                     except Exception as exc:  # noqa: BLE001
                         import traceback
 
@@ -146,6 +165,7 @@ class TaskRunner:
         task_id: str,
         entry: dict[str, Any],
         saved: dict[str, Path],
+        plan_tasks: set[str] | None = None,
     ) -> dict[str, Any]:
         task = str(entry.get("task") or "")
         params = dict(entry.get("params") or {})
@@ -190,7 +210,8 @@ class TaskRunner:
                 if imgs:
                     params["input"] = imgs
             if not params.get("output"):
-                ocr_out = self.uploads_dir / task_id / "ocr_result.md"
+                workdir = Path(state.get("workdir") or (self.root / "data" / state.get("uid_safe", "default_user") / "uploads" / task_id))
+                ocr_out = workdir / "ocr_result.md"
                 params["output"] = str(ocr_out)
                 saved["ocr_result.md"] = ocr_out
                 saved["ocr_output"] = ocr_out
@@ -214,15 +235,21 @@ class TaskRunner:
                 params["file"] = doc_files
 
         if not params.get("file"):
-            if "ocr_result.md" in saved:
+            if task in {"catalog", "checklist", "quiz", "knowledge_graph"}:
+                params["file"] = None
+            elif "ocr_result.md" in saved:
                 params["file"] = [str(saved["ocr_result.md"])]
             elif saved:
                 available = [str(p) for p in saved.values() if not str(p).lower().endswith((".png", ".jpg", ".jpeg"))]
                 if available:
                     params["file"] = available
+        elif task in {"catalog", "checklist", "quiz", "knowledge_graph"}:
+            raw_f = params.get("file")
+            if isinstance(raw_f, list) and len(raw_f) > 1:
+                params["file"] = None
 
-        # checklist 前置：若 plan 中未显式包含 catalog，自动补跑生成目录
-        if task == "checklist":
+        # checklist 前置：plan 未显式包含 catalog 时才自动补跑（避免 catalog 跑两次 → v1+v2）
+        if task == "checklist" and not (plan_tasks and "catalog" in plan_tasks):
             await self._run_catalog_prereq(params)
 
         res = await self._run_runner(task_id, task, params)
@@ -231,11 +258,31 @@ class TaskRunner:
         return res
 
     async def _run_catalog_prereq(self, params: dict[str, Any]) -> None:
-        """checklist 执行前自动跑 catalog（基于该学科知识库）。"""
+        """checklist 执行前若该学科尚未建过目录，则自动跑 catalog（基于该学科知识库构建 v1）。"""
         user_id = str(params.get("user_id") or "").strip()
         subject = str(params.get("subject") or "").strip()
         if not user_id or not subject:
             return  # 缺 user/subject 无法建目录，checklist 走已有目录
+
+        # 1. 核心防护：若该学科已经存在知识目录，绝不再重复跑 catalog（避免重复生成并递增版本）
+        try:
+            from domain.notes.tasks.catalog.store import load_catalog
+
+            if load_catalog(user_id=user_id, subject=subject) is not None:
+                return
+        except Exception:  # noqa: BLE001
+            pass
+
+        # 2. 该学科知识库为空 → 不建目录（避免 LLM 空跑）
+        try:
+            from tools.knowledge.cite import open_knowledge
+
+            kb = open_knowledge(user_id=user_id)
+            chunks = kb.list_chunks(user_id=user_id, subject=subject) if kb else []
+        except Exception:  # noqa: BLE001
+            return  # 知识库不可用也不建目录
+        if not chunks:
+            return
         import contextlib
         import io
 
@@ -268,7 +315,8 @@ class TaskRunner:
         inputs = params.get("input") or []
         if not inputs:
             raise ValueError("ocr 缺 input（图片路径）")
-        output_path = Path(str(params.get("output") or (self.uploads_dir / task_id / "ocr_result.md")))
+        workdir = Path(state.get("workdir") or (self.root / "data" / state.get("uid_safe", "default_user") / "uploads" / task_id))
+        output_path = Path(str(params.get("output") or (workdir / "ocr_result.md")))
 
         state = self._tasks.get(task_id, {})
         def log_msg(msg: str):
@@ -347,81 +395,19 @@ class TaskRunner:
                 return entry.get("data")
         return None
 
-    async def _run_runner(self, task_id: str, task: str, params: dict[str, Any]) -> dict[str, Any]:
-        from tools.runtime_context import load_domain
-        from tools.core.runner import run
-        from tools.profiles import SHARED_PROFILE_DIR
-
-        domain = "notes" if task in {
-            "library", "catalog", "checklist", "quiz", "knowledge_graph",
-        } else "meeting"
-        ctx = load_domain(domain, self.root)
-
-        file = params.get("file") or params.get("input") or []
-        if isinstance(file, str):
-            file = [file]
-        file = [Path(p) for p in file] if file else None
-
-        # library：图片文件先自动 OCR 成 md，再入库（OCR 是入库的预处理步骤）
-        if file and task == "library":
-            images = [p for p in file if p.suffix.lower() in IMAGE_EXTS]
-            docs = [p for p in file if p.suffix.lower() not in IMAGE_EXTS]
-            if images:
-                self._log(
-                    task_id,
-                    f"[OCR] 检测到 {len(images)} 张笔记图片，正在调用本地 OCR 引擎进行文字与公式提取...",
-                )
-                from tools.ocr import ocr_image_to_markdown
-                from tools.ocr.mathmd import normalize_markdown_math
-
-                out_md = self.root / "data" / "uploads" / f"ocr_{uuid.uuid4().hex[:8]}.md"
-
-                def _ocr_all():
-                    blocks = []
-                    for idx, img_p in enumerate(images, 1):
-                        self._log(
-                            task_id,
-                            f"[OCR] 正在识别第 [{idx}/{len(images)}] 张图片: 「{img_p.name}」...",
-                        )
-                        body = ocr_image_to_markdown(str(img_p), use_llm=False).strip()
-                        if body:
-                            blocks.append(f"<!-- Page {idx}: {img_p.name} -->\n" + body)
-                    text = "\n\n---\n\n".join(blocks)
-                    text = normalize_markdown_math(text)
-                    out_md.parent.mkdir(parents=True, exist_ok=True)
-                    out_md.write_text(text, encoding="utf-8")
-                    return text
-
-                await asyncio.to_thread(_ocr_all)
-                self._log(
-                    task_id,
-                    f"[OCR] 批量识别完成！已成功合成排版笔记: 「{out_md.name}」（共 {len(images)} 页），准备导入知识库...",
-                )
-                docs.append(out_md)
-            file = docs or None
-
-        profile = SHARED_PROFILE_DIR / "object_profile.json"
-        if not profile.exists():
-            profile = ctx.default_profile_dir
-
-        # 视角选择：params.perspective（如「职业 · 开发人员」）→ 对应 profile JSON
-        perspective_label = str(params.get("perspective") or "").strip()
-        if perspective_label:
-            resolved = self._resolve_profile(perspective_label)
-            if resolved is not None:
-                import tempfile
-
-                tmp = tempfile.NamedTemporaryFile(
-                    "w", suffix=".json", delete=False, encoding="utf-8"
-                )
-                tmp.write(json.dumps(resolved, ensure_ascii=False, indent=2))
-                tmp.close()
-                profile = Path(tmp.name)
-
-        # runner 流式输出写 sys.stdout.flush()，uvicorn 进程的管道会 OSError 22；
-        # 重定向到内存 buffer，产物照常落盘，日志留作排查。
+    async def _execute_runner_raw(
+        self,
+        task_id: str,
+        task: str,
+        params: dict[str, Any],
+        file: list[Path] | None,
+        profile: Path,
+        ctx: Any,
+    ) -> dict[str, Any]:
         import contextlib
         import io
+
+        from tools.core.runner import run
 
         out_buf = io.StringIO()
         templates = None
@@ -448,3 +434,111 @@ class TaskRunner:
         if state is not None:
             state.setdefault("logs", []).extend(logs[-50:])
         return {"task": task, "ok": True}
+
+    async def _run_runner(self, task_id: str, task: str, params: dict[str, Any]) -> dict[str, Any]:
+        state = self._tasks.get(task_id, {})
+        from tools.runtime_context import load_domain
+        from tools.core.runner import run
+        from tools.profiles import SHARED_PROFILE_DIR
+
+        domain = "notes" if task in {
+            "library", "catalog", "checklist", "quiz", "knowledge_graph",
+        } else "meeting"
+        ctx = load_domain(domain, self.root)
+
+        file = params.get("file") or params.get("input") or []
+        if isinstance(file, str):
+            file = [file]
+        file = [Path(p) for p in file] if file else None
+
+        profile = SHARED_PROFILE_DIR / "object_profile.json"
+        if not profile.exists():
+            profile = ctx.default_profile_dir
+
+        # 视角选择：params.perspective（如「职业 · 开发人员」）→ 对应 profile JSON
+        perspective_label = str(params.get("perspective") or "").strip()
+        if perspective_label:
+            resolved = self._resolve_profile(perspective_label)
+            if resolved is not None:
+                import tempfile
+
+                tmp = tempfile.NamedTemporaryFile(
+                    "w", suffix=".json", delete=False, encoding="utf-8"
+                )
+                tmp.write(json.dumps(resolved, ensure_ascii=False, indent=2))
+                tmp.close()
+                profile = Path(tmp.name)
+
+        # library：图片与文档支持并行处理 —— 常规文档直接先入库，图片并行跑 OCR 合成 md
+        if file and task == "library":
+            images = [p for p in file if p.suffix.lower() in IMAGE_EXTS]
+            docs = [p for p in file if p.suffix.lower() not in IMAGE_EXTS]
+
+            async def _ocr_images_task() -> Path | None:
+                if not images:
+                    return None
+                self._log(
+                    task_id,
+                    f"[OCR] 检测到 {len(images)} 张笔记图片，正在并行调用 OCR 引擎进行文字与公式提取...",
+                )
+                from tools.ocr import ocr_image_to_markdown
+                from tools.ocr.mathmd import normalize_markdown_math
+
+                workdir = Path(state.get("workdir") or (self.root / "data" / state.get("uid_safe", "default_user") / "uploads" / task_id))
+                out_md = workdir / f"ocr_{uuid.uuid4().hex[:8]}.md"
+
+                def _ocr_all():
+                    blocks = []
+                    for idx, img_p in enumerate(images, 1):
+                        self._log(
+                            task_id,
+                            f"[OCR] 正在识别第 [{idx}/{len(images)}] 张图片: 「{img_p.name}」...",
+                        )
+                        body = ocr_image_to_markdown(str(img_p), use_llm=False).strip()
+                        if body:
+                            blocks.append(f"<!-- Page {idx}: {img_p.name} -->\n" + body)
+                    text = "\n\n---\n\n".join(blocks)
+                    text = normalize_markdown_math(text)
+                    out_md.parent.mkdir(parents=True, exist_ok=True)
+                    out_md.write_text(text, encoding="utf-8")
+                    return out_md
+
+                res_md = await asyncio.to_thread(_ocr_all)
+                self._log(
+                    task_id,
+                    f"[OCR] 批量识别完成！已成功合成排版笔记: 「{res_md.name}」（共 {len(images)} 页）",
+                )
+                return res_md
+
+            async def _ingest_docs_task():
+                if not docs:
+                    return None
+                self._log(
+                    task_id,
+                    f"[入库] 检测到 {len(docs)} 份常规文档（无需OCR），直接并行开始分块向量化入库...",
+                )
+                return await self._execute_runner_raw(task_id, task, params, docs, profile, ctx)
+
+            # 1. 混合模式：常规文档直接入库 与 图片 OCR 并行执行
+            if docs and images:
+                ocr_future = asyncio.create_task(_ocr_images_task())
+                docs_future = asyncio.create_task(_ingest_docs_task())
+                await docs_future  # 文档并行秒级入库
+                out_md = await ocr_future  # 等待图片 OCR 完成
+                if out_md:
+                    self._log(task_id, f"[入库] 正在将 OCR 合成的笔记 「{out_md.name}」 追加存入知识库...")
+                    await self._execute_runner_raw(task_id, task, params, [out_md], profile, ctx)
+                return {"task": task, "ok": True}
+
+            # 2. 纯文档模式：直接入库
+            if docs and not images:
+                return await self._execute_runner_raw(task_id, task, params, docs, profile, ctx)
+
+            # 3. 纯图片模式：OCR 完成后入库
+            if images and not docs:
+                out_md = await _ocr_images_task()
+                if out_md:
+                    return await self._execute_runner_raw(task_id, task, params, [out_md], profile, ctx)
+                return {"task": task, "ok": True}
+
+        return await self._execute_runner_raw(task_id, task, params, file, profile, ctx)

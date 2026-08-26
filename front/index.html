@@ -22,59 +22,150 @@
         <span class="brand-name">AgentFlow</span>
         <span class="brand-badge">Multi-Agent Studio</span>
       </div>
-    </div>
-
-    <!-- 全局上下文参数栏 (Context Bar) -->
-    <div class="header-context" id="header-context">
-      <div class="ctx-item" id="ctx-user-wrap" title="全局用户标识，用于跨会话记忆与知识库隔离">
-        <span class="ctx-label">用户 ID <span class="req-star">*</span></span>
-        <div class="ctx-input-wrapper">
-          <input id="ctx-user" class="ctx-input" type="text" value="" placeholder="必填，如 user_01 / 张三" autocomplete="off">
-          <div id="ctx-user-locked" class="ctx-locked-pill hidden">
-            <svg class="locked-icon" viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2">
-              <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
-              <path d="M7 11V7a5 5 0 0110 0v4"/>
-            </svg>
-            <span id="locked-user-name" class="locked-name">user_01</span>
-            <button id="btn-unlock-user" type="button" class="btn-unlock" title="切换用户标识">切换</button>
-          </div>
-        </div>
-      </div>
-
-      <div class="ctx-item hidden-ctx" id="ctx-subject-wrap" title="所属学科分类，笔记域任务所需">
-        <span class="ctx-label">所属学科 <span id="subject-req-star" class="req-star hidden">*</span></span>
-        <div class="ctx-input-wrapper">
-          <input id="ctx-subject" class="ctx-input" type="text" value="" placeholder="如 物理 / 数学" autocomplete="off">
-        </div>
-      </div>
-
-      <div class="ctx-item hidden-ctx" id="ctx-project-wrap" title="项目代号，会议域任务所需（用于会议记忆归属）">
-        <span class="ctx-label">所属项目</span>
-        <div class="ctx-input-wrapper">
-          <input id="ctx-project" class="ctx-input" type="text" value="" placeholder="如 晨会 / AgentFlow" autocomplete="off">
-        </div>
-      </div>
-    </div>
-
     <!-- 顶部操作区 -->
     <div class="header-actions">
       <div id="service-status" class="status-indicator online" title="后端服务运行中">
         <span class="status-dot"></span>
         <span class="status-text">服务正常</span>
       </div>
-      <button id="btn-new-chat" class="btn-icon-text" title="重置对话与任务">
-        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
-          <path d="M12 5v14M5 12h14" stroke-linecap="round"/>
-        </svg>
-        <span>新建会话</span>
-      </button>
     </div>
   </header>
 
-  <!-- 主工作区两栏布局 -->
+  <!-- 主工作区三栏布局 (含左侧导航与历史会话侧边栏) -->
   <main class="app-layout">
-    
-    <!-- 左侧：对话与意图流面板 (Chat & Intent Engine) -->
+
+    <!-- 最左侧：导航与历史会话侧边栏 (from img.png) -->
+    <aside class="app-sidebar" id="app-sidebar">
+      <div class="sidebar-top">
+        <div class="sidebar-brand-row">
+          <div class="sidebar-brand-left">
+            <div class="sidebar-brand-avatar">
+              <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor">
+                <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 14H9V8h2v8zm4 0h-2V8h2v8z"/>
+              </svg>
+            </div>
+            <span class="sidebar-brand-name">会话中心</span>
+          </div>
+          <button id="btn-sidebar-new-chat" class="btn-sidebar-new" title="开启新会话">
+            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5">
+              <path d="M12 5v14M5 12h14" stroke-linecap="round"/>
+            </svg>
+          </button>
+        </div>
+
+        <nav class="sidebar-nav-list">
+          <!-- 1. 知识库资产 (先折叠点击展开，右侧带刷新按钮) -->
+          <div class="sidebar-accordion-group" id="group-knowledge">
+            <div class="sidebar-nav-row">
+              <a class="sidebar-nav-item" id="nav-knowledge-toggle" href="javascript:void(0)" title="点击展开/折叠知识库资产">
+                <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/>
+                  <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/>
+                </svg>
+                <span class="nav-item-title">知识库资产</span>
+                <span class="sidebar-nav-badge" id="sidebar-kb-total-count">0</span>
+                <svg class="chevron-icon" id="kb-chevron" viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.5">
+                  <path d="M6 9l6 6 6-6"/>
+                </svg>
+              </a>
+              <button id="btn-refresh-kb" class="btn-refresh-sidebar" title="刷新知识库学科">
+                <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M23 4v6h-6M1 20v-6h6"/>
+                  <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/>
+                </svg>
+              </button>
+            </div>
+
+            <!-- 折叠抽屉：展示当前用户 knowledge 下的学科 -->
+            <div class="sidebar-kb-drawer hidden" id="sidebar-kb-drawer">
+              <div class="kb-category-block">
+                <div class="kb-category-title">
+                  <svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/>
+                    <path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/>
+                  </svg>
+                  <span>知识库已有学科</span>
+                </div>
+                <div class="kb-items-chips" id="kb-subjects-list">
+                  <span class="kb-empty-text">暂无知识库学科</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- 2. 产物云盘 (先折叠点击展开，右侧带刷新按钮，结构与知识库资产完全对齐) -->
+          <div class="sidebar-accordion-group" id="group-outputs">
+            <div class="sidebar-nav-row">
+              <a class="sidebar-nav-item" id="nav-outputs-toggle" href="javascript:void(0)" title="点击展开/折叠产物云盘">
+                <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>
+                </svg>
+                <span class="nav-item-title">产物云盘</span>
+                <span class="sidebar-nav-badge" id="sidebar-outputs-count">0</span>
+                <svg class="chevron-icon" id="outputs-chevron" viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.5">
+                  <path d="M6 9l6 6 6-6"/>
+                </svg>
+              </a>
+              <button id="btn-refresh-outputs" class="btn-refresh-sidebar" title="刷新产物云盘">
+                <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M23 4v6h-6M1 20v-6h6"/>
+                  <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/>
+                </svg>
+              </button>
+            </div>
+
+            <!-- 折叠抽屉：展示产物云盘文件 -->
+            <div class="sidebar-kb-drawer hidden" id="sidebar-outputs-drawer">
+              <div class="kb-category-block">
+                <div class="kb-category-title">
+                  <svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+                    <polyline points="14 2 14 8 20 8"/>
+                  </svg>
+                  <span>历史交付物</span>
+                </div>
+                <div class="sidebar-outputs-mini-list" id="sidebar-outputs-mini-list">
+                  <span class="kb-empty-text">暂无产物文件</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </nav>
+      </div>
+
+      <!-- 历史会话列表 -->
+      <div class="sidebar-history-wrap">
+        <div class="sidebar-history-head">
+          <span class="sidebar-history-title">历史会话</span>
+          <button id="btn-refresh-sessions" class="btn-refresh-icon" title="刷新历史会话">
+            <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M23 4v6h-6M1 20v-6h6"/>
+              <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/>
+            </svg>
+          </button>
+        </div>
+
+        <div class="sidebar-sessions-list" id="sidebar-sessions-list">
+          <div class="sidebar-empty-sessions">暂无历史会话<br>在右侧输入开启交流</div>
+        </div>
+      </div>
+
+      <!-- 底部用户身份与 User ID 录入栏 (from img.png) -->
+      <div class="sidebar-user-footer" title="用户 ID 隔离各用户知识库与历史会话">
+        <div class="sidebar-user-avatar">
+          <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
+            <circle cx="12" cy="7" r="4"/>
+          </svg>
+        </div>
+        <div class="sidebar-user-input-wrap">
+          <input id="ctx-user" class="sidebar-user-input" type="text" value="" placeholder="用户 ID (必填)" autocomplete="off" />
+        </div>
+        <div class="sidebar-user-status" id="sidebar-user-status" title="用户状态就绪"></div>
+      </div>
+    </aside>
+
+    <!-- 中间：对话与意图流面板 (Chat & Intent Engine) -->
     <section class="panel panel-chat">
       <!-- 聊天消息流区域 -->
       <div id="messages" class="messages-container">
@@ -90,48 +181,30 @@
           <p class="welcome-desc">输入您的目标或提问，系统将自动识别意图、编排执行流水线或直接进行知识库精准检索。</p>
           
           <div class="prompt-chips-grid">
-            <button class="prompt-chip" data-prompt="把上传的图片识别后入库到数学学科，并生成复习清单">
+            <button class="prompt-chip" data-prompt="帮我生成一份复习清单">
               <span class="chip-icon">
                 <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2">
-                  <path d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" stroke-linecap="round" stroke-linejoin="round"/>
+                  <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/>
+                  <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/>
+                  <path d="M8 7h8M8 11h6"/>
                 </svg>
               </span>
               <div class="chip-content">
-                <div class="chip-title">课程资料与复习清单</div>
-                <div class="chip-desc">资料导入入库 ➔ 提炼大纲 ➔ 考点清单</div>
+                <div class="chip-title">帮我生成一份复习清单</div>
+                <div class="chip-desc">学科知识库检索 ➔ 核心大纲提炼 ➔ 考点复习清单</div>
               </div>
             </button>
-            <button class="prompt-chip" data-prompt="请提取会议纪要、待办事项和风险分析">
+            <button class="prompt-chip" data-prompt="帮我生成一份会议纪要">
               <span class="chip-icon">
                 <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2">
-                  <path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" stroke-linecap="round" stroke-linejoin="round"/>
+                  <path d="M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2M9 5a2 2 0 0 0 2 2h2a2 2 0 0 0 2-2M9 5a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2" stroke-linecap="round" stroke-linejoin="round"/>
+                  <line x1="9" y1="12" x2="15" y2="12"/>
+                  <line x1="9" y1="16" x2="13" y2="16"/>
                 </svg>
               </span>
               <div class="chip-content">
-                <div class="chip-title">会议纪要多维度分析</div>
-                <div class="chip-desc">纪要生成 ➔ 行动项待办 ➔ 风险预警</div>
-              </div>
-            </button>
-            <button class="prompt-chip" data-prompt="为当前知识点生成自测题和思维导图">
-              <span class="chip-icon">
-                <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2">
-                  <path d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" stroke-linecap="round" stroke-linejoin="round"/>
-                </svg>
-              </span>
-              <div class="chip-content">
-                <div class="chip-title">知识自测与思维导图</div>
-                <div class="chip-desc">笔记生成自测题 ➔ 知识点结构化导图</div>
-              </div>
-            </button>
-            <button class="prompt-chip" data-prompt="请问知识库中关于向量检索和召回机制的内容是什么？">
-              <span class="chip-icon">
-                <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2">
-                  <path d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" stroke-linecap="round" stroke-linejoin="round"/>
-                </svg>
-              </span>
-              <div class="chip-content">
-                <div class="chip-title">知识库智能问答</div>
-                <div class="chip-desc">基于 RAG 知识检索与精准回答</div>
+                <div class="chip-title">帮我生成一份会议纪要</div>
+                <div class="chip-desc">会议发言归纳 ➔ 行动待办提取 ➔ 潜在风险预警</div>
               </div>
             </button>
           </div>
@@ -166,6 +239,23 @@
 
     <!-- 右侧：任务流与产物工作台 (Pipeline & Artifacts Workbench) -->
     <section class="panel panel-workbench">
+      <!-- 0. 全局上下文参数栏 (位于右侧流水线编排卡片之上) -->
+      <div class="workbench-context-bar" id="header-context">
+        <div class="ctx-item hidden-ctx" id="ctx-subject-wrap" title="所属学科分类，笔记域任务所需">
+          <span class="ctx-label">所属学科 <span id="subject-req-star" class="req-star hidden">*</span></span>
+          <div class="ctx-input-wrapper">
+            <input id="ctx-subject" class="ctx-input" type="text" value="" placeholder="如 物理 / 数学" autocomplete="off">
+          </div>
+        </div>
+
+        <div class="ctx-item hidden-ctx" id="ctx-project-wrap" title="项目代号，会议域任务所需（用于会议记忆归属）">
+          <span class="ctx-label">所属项目</span>
+          <div class="ctx-input-wrapper">
+            <input id="ctx-project" class="ctx-input" type="text" value="" placeholder="如 晨会 / AgentFlow" autocomplete="off">
+          </div>
+        </div>
+      </div>
+
       <!-- 1. 置顶全局共享流水线编排导航卡片 (Global Shared Pipeline Stepper at the TOP) -->
       <div id="workbench-pipeline-header" class="pipeline-header hidden">
         <div class="pipeline-title-row">
@@ -230,11 +320,14 @@
               <span id="validation-tip-text">请补充必填参数或上传所需文件</span>
             </div>
             <div class="footer-actions-group">
+              <button id="btn-skip-stage" class="btn-skip-stage hidden" title="无需新增知识，直接基于已有知识库执行后续任务">
+                <span>无需新增知识 ➔</span>
+              </button>
               <button id="btn-execute-plan" class="btn-execute">
                 <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor">
                   <path d="M8 5v14l11-7z"/>
                 </svg>
-                <span id="btn-execute-text">同意并执行阶段 1 ➔</span>
+                <span id="btn-execute-text">执行 ➔</span>
               </button>
             </div>
           </div>
@@ -263,7 +356,7 @@
         </div>
       </div>
 
-      <!-- Tab 3: 产物中心与在线预览面板 -->
+      <!-- Tab 3: 产物中心与在线预览面板 (顶栏产物行 + 下方大面积全景 HTML 预览) -->
       <div id="tab-outputs" class="tab-content">
         <!-- 空状态 -->
         <div id="outputs-empty" class="tab-empty">
@@ -273,37 +366,29 @@
             </svg>
           </div>
           <h3>暂无产物生成</h3>
-          <p>任务执行完成后，生成的 Markdown 报告、HTML 会议纪要、思维导图等将汇集于此。</p>
+          <p>任务执行完成后，生成的 HTML 会议纪要、考点清单报告等将汇集于此。</p>
         </div>
 
         <!-- 产物主区域 -->
         <div id="outputs-container" class="outputs-container hidden">
-          <div class="outputs-sidebar">
-            <ul id="outputs-file-list" class="outputs-file-list"></ul>
+          <!-- 顶部产物条目块 (按行列出产物，点击文件名直接下载) -->
+          <div class="outputs-top-block" id="outputs-top-block">
+            <div class="outputs-rows-wrap" id="outputs-rows-wrap"></div>
           </div>
-          
-          <div class="outputs-viewer">
-            <div class="viewer-toolbar">
-              <div class="viewer-file-info">
-                <span id="viewer-filename" class="viewer-filename">选择文件以预览</span>
-              </div>
-              <div class="viewer-actions">
-                <button id="btn-download-artifact" class="btn-ghost" title="下载当前产物" disabled>
-                  <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2">
-                    <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5 5 5-5M12 15V3" stroke-linecap="round" stroke-linejoin="round"/>
-                  </svg>
-                  下载
-                </button>
-                <button id="btn-fullscreen-preview" class="btn-ghost" title="新标签页全屏打开" disabled>
-                  <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2">
-                    <path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6M15 3h6v6M10 14L21 3" stroke-linecap="round" stroke-linejoin="round"/>
-                  </svg>
-                  新窗口
-                </button>
+
+          <!-- 下方大面积全景 HTML 预览视窗 (14px 字体) -->
+          <div class="outputs-preview-pane">
+            <div class="preview-pane-header">
+              <div class="preview-title-wrap">
+                <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+                  <polyline points="14 2 14 8 20 8"/>
+                </svg>
+                <span id="viewer-filename" class="viewer-filename">成果 HTML 在线预览</span>
               </div>
             </div>
             <div id="viewer-body" class="viewer-body">
-              <div class="viewer-placeholder">请从左侧列表选择一个产物进行预览</div>
+              <div class="viewer-placeholder">成果生成后将在此处进行大面积全景预览</div>
             </div>
           </div>
         </div>

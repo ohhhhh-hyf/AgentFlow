@@ -591,11 +591,17 @@ def _supports_label(ev: dict[str, Any]) -> str:
 def _evidence_html(kind: str, ev: dict[str, Any]) -> str:
     eid = escape(str(ev.get("evidence_id") or ""), quote=True)
     supports = " ".join(str(x) for x in (ev.get("supports") or []) if x)
-    klass = {"teacher": "ck-ev-teacher", "kb": "ck-ev-kb", "note": "ck-ev-note"}.get(kind, "")
+    klass = {
+        "teacher": "ck-ev-teacher",
+        "kb": "ck-ev-kb",
+        "note": "ck-ev-note",
+        "catalog": "ck-ev-kb",
+    }.get(kind, "")
     head = {
         "teacher": "老师原话",
         "kb": "知识库依据",
         "note": "学生笔记",
+        "catalog": "目录依据",
     }.get(kind, "依据")
     rows = [
         f'<div class="ck-ev {klass}" data-ev="{eid}" data-supports="{escape(supports, quote=True)}">',
@@ -614,7 +620,7 @@ def _evidence_html(kind: str, ev: dict[str, Any]) -> str:
         if source:
             loc = f"{source}" + (f" · {section}" if section else "")
             rows.append(f'<div class="ck-ev-meta">{escape(loc, quote=False)}</div>')
-        excerpt = _clean(ev.get("excerpt"))
+        excerpt = _clean(ev.get("excerpt")) or _clean(ev.get("text"))
         full = _clean(ev.get("full")) or excerpt
         if excerpt:
             rows.append(f'<div class="ck-ev-quote">{_math_escape(excerpt)}</div>')

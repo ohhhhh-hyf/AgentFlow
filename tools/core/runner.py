@@ -302,14 +302,14 @@ async def run(
             transcript = "知识库资料入库"
     elif "catalog" in line_names:
         if len(file_list) > 1:
-            raise ValueError("知识目录的 --file 只用于老师划重点文本，请只传一份")
+            file_list = []
         if file_list:
             transcript = load_transcript(ctx, file_list[0])
         else:
             transcript = "根据已入库资料生成知识目录"
     elif "checklist" in line_names:
         if len(file_list) > 1:
-            raise ValueError("复习清单的 --file 只用于老师划重点文本，请只传一份")
+            file_list = []
         if file_list:
             transcript = load_transcript(ctx, file_list[0])
         else:

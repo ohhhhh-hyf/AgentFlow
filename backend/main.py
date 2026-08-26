@@ -33,8 +33,6 @@ from fastapi.responses import FileResponse
 from Intent import parse
 
 ROOT = Path(__file__).resolve().parent.parent
-UPLOADS = ROOT / "data" / "uploads"
-UPLOADS.mkdir(parents=True, exist_ok=True)
 
 # 启动时加载项目根目录 .env 到环境变量（如 OCR_ENGINE=rapidocr、LLM 配置等）
 def _load_env_file(env_path: Path) -> None:
@@ -60,7 +58,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-_runner = TaskRunner(root=ROOT, uploads_dir=UPLOADS)
+_runner = TaskRunner(root=ROOT)
 
 
 @app.get("/api/health")
@@ -100,45 +98,49 @@ SUBJECT_DISPLAY_MAP = {
 
 @app.get("/api/user/{user_id}/context")
 async def api_user_context(user_id: str) -> dict:
-    """获取指定用户的知识库学科列表、会议项目列表与记忆概览。"""
+    """获取指定用户的 knowledge 知识库学科列表（直接查询 SQLite metadata）。"""
     user_id = (user_id or "").strip()
     if not user_id:
-        return {"user_id": "", "subjects": [], "projects": []}
+        return {"user_id": "", "subjects": []}
 
+    import sqlite3
     import json
     import re
     from tools.memory.store import safe_id
     uid_safe = safe_id(user_id)
-    user_dir = ROOT / "data" / uid_safe
 
     subjects_dict: dict[str, int] = {}
 
-    # 1. 从 ChromaDB 向量库扫描真实 chunk 的 subject 元数据（避免暴露内部集合名 knowledge 或 c_hash）
-    chroma_dir = user_dir / "knowledge" / "chromadb"
-    if chroma_dir.is_dir():
-        try:
-            from tools.knowledge.config import KnowledgeToolConfig
-            from tools.knowledge.vector_store import VectorStore
-            cfg = KnowledgeToolConfig(persist_dir=str(chroma_dir))
-            store = VectorStore(cfg=cfg)
-            for c in store.client.list_collections():
-                if c.count() == 0:
-                    continue
+    # 1. 直接查询 data/{user_id}/knowledge 下的 SQLite 数据库
+    candidates = [
+        ROOT / "data" / uid_safe / "knowledge" / "chromadb" / "chroma.sqlite3",
+        ROOT / "data" / uid_safe / "knowledge" / "chroma.sqlite3",
+        ROOT / "data" / user_id / "knowledge" / "chromadb" / "chroma.sqlite3",
+        ROOT / "data" / user_id / "knowledge" / "chroma.sqlite3",
+    ]
+    for db_path in candidates:
+        if db_path.is_file():
+            try:
+                conn = sqlite3.connect(str(db_path))
                 try:
-                    res = c.get(include=["metadatas"])
-                    for m in (res.get("metadatas") or []):
-                        if m and m.get("subject"):
-                            s = str(m.get("subject")).strip()
-                            if s and s.lower() not in ("knowledge", "default", "none", "", "undefined"):
-                                clean_s = SUBJECT_DISPLAY_MAP.get(s.lower(), s)
-                                subjects_dict[clean_s] = subjects_dict.get(clean_s, 0) + 1
-                except Exception:
-                    pass
-        except Exception:
-            pass
+                    rows = conn.execute(
+                        "SELECT string_value, COUNT(*) FROM embedding_metadata "
+                        "WHERE key='subject' AND string_value IS NOT NULL "
+                        "GROUP BY string_value"
+                    ).fetchall()
+                    for sub, count in rows:
+                        sub_str = str(sub).strip()
+                        if sub_str and sub_str.lower() not in ("knowledge", "default", "none", "", "undefined"):
+                            clean_s = SUBJECT_DISPLAY_MAP.get(sub_str.lower(), sub_str)
+                            subjects_dict[clean_s] = subjects_dict.get(clean_s, 0) + count
+                finally:
+                    conn.close()
+            except Exception:
+                pass
+            break
 
-    # 2. 从 catalogs 目录扫描已生成的大纲与课程名
-    catalogs_dir = user_dir / "knowledge" / "catalogs"
+    # 2. 从 catalogs 目录扫描已生成的大纲
+    catalogs_dir = ROOT / "data" / uid_safe / "knowledge" / "catalogs"
     if catalogs_dir.is_dir():
         for f in catalogs_dir.glob("*.json"):
             if f.stem.endswith("_meta") or f.name.startswith("."):
@@ -148,10 +150,9 @@ async def api_user_context(user_id: str) -> dict:
                 course = (data.get("course") or data.get("subject") or "").strip()
                 if course:
                     clean_c = SUBJECT_DISPLAY_MAP.get(course.lower(), course)
-                    if not any(k in clean_c for k in subjects_dict):
-                        subjects_dict[clean_c] = subjects_dict.get(clean_c, 0) + 1
+                    if clean_c not in subjects_dict:
+                        subjects_dict[clean_c] = 1
                 else:
-                    # 去除内部哈希后缀（例如 math_7e676e9e -> math -> 数学）
                     raw_stem = re.sub(r"_[a-f0-9]{8}$", "", f.stem)
                     clean_stem = SUBJECT_DISPLAY_MAP.get(raw_stem.lower(), raw_stem)
                     if clean_stem.lower() not in ("knowledge", "default", "none", ""):
@@ -160,26 +161,146 @@ async def api_user_context(user_id: str) -> dict:
             except Exception:
                 pass
 
-    # 3. 扫描会议记忆项目
-    projects_set = set()
-    meeting_mem_dir = user_dir / "memory" / "meeting"
-    if meeting_mem_dir.is_dir():
-        for item in meeting_mem_dir.iterdir():
-            p_name = item.stem
-            if p_name and not p_name.startswith("."):
-                projects_set.add(p_name)
-
     subjects = [
         {"name": name, "count": count}
         for name, count in sorted(subjects_dict.items(), key=lambda x: x[0])
     ]
-    projects = sorted(projects_set)
 
     return {
         "user_id": user_id,
         "subjects": subjects,
-        "projects": projects,
     }
+
+
+
+@app.get("/api/user/{user_id}/sessions")
+async def api_user_sessions(user_id: str) -> dict:
+    """获取用户的所有历史会话列表（保留第一条原始问题供前端多行截断展示）。"""
+    user_id = (user_id or "").strip()
+    if not user_id:
+        return {"user_id": "", "sessions": []}
+
+    from chat.store import chat_dir, load_history
+    u_chat = chat_dir(ROOT, user_id)
+    sessions = []
+    if u_chat.is_dir():
+        for s_dir in u_chat.iterdir():
+            if s_dir.is_dir() and not s_dir.name.startswith("."):
+                h_path = s_dir / "history.jsonl"
+                history = load_history(h_path)
+                first_q = ""
+                for msg in history:
+                    if msg.get("role") == "user":
+                        first_q = (msg.get("content") or "").strip()
+                        if first_q:
+                            break
+                title = first_q or "新会话"
+                mtime = h_path.stat().st_mtime if h_path.exists() else s_dir.stat().st_mtime
+                sessions.append({
+                    "session_id": s_dir.name,
+                    "title": title,
+                    "updated_at": int(mtime * 1000),
+                    "message_count": len(history)
+                })
+    sessions.sort(key=lambda x: x["updated_at"], reverse=True)
+    return {"user_id": user_id, "sessions": sessions}
+
+
+@app.get("/api/user/{user_id}/sessions/{session_id}")
+async def api_user_session_detail(user_id: str, session_id: str) -> dict:
+    """获取指定会话的历史消息详情。"""
+    from chat.store import history_path, load_history, facts_path, load_facts
+    h_path = history_path(ROOT, user_id, session_id)
+    f_path = facts_path(ROOT, user_id, session_id)
+    history = load_history(h_path)
+    facts = load_facts(f_path)
+    return {
+        "user_id": user_id,
+        "session_id": session_id,
+        "history": history,
+        "facts": facts,
+    }
+
+
+@app.delete("/api/user/{user_id}/sessions/{session_id}")
+async def api_delete_session(user_id: str, session_id: str) -> dict:
+    """删除指定历史会话。"""
+    import shutil
+    from chat.store import session_dir
+    s_dir = session_dir(ROOT, user_id, session_id)
+    if s_dir.is_dir():
+        shutil.rmtree(s_dir, ignore_errors=True)
+    return {"ok": True, "session_id": session_id}
+
+
+@app.post("/api/user/{user_id}/sessions/{session_id}/message")
+async def api_save_session_message(user_id: str, session_id: str, payload: dict) -> dict:
+    """即时保存单条会话消息（确保第一句原始输入立即落盘为会话标题）。"""
+    role = str((payload or {}).get("role") or "user").strip()
+    content = str((payload or {}).get("content") or "").strip()
+    if user_id and session_id and content:
+        try:
+            from chat.store import history_path, append_turn, load_history
+            h_p = history_path(ROOT, user_id, session_id)
+            history = load_history(h_p)
+            # 避免相邻重复保存
+            if not history or not (history[-1].get("role") == role and history[-1].get("content") == content):
+                append_turn(h_p, role, content)
+        except Exception:
+            pass
+    return {"ok": True}
+
+
+
+@app.get("/api/user/{user_id}/outputs")
+async def api_user_outputs(user_id: str) -> dict:
+    """获取产物云盘历史所有生成交付物。"""
+    user_id = (user_id or "").strip()
+    out_root = ROOT / "output"
+    files = []
+    TASK_NAME_MAP = {
+        "minutes_generation": "会议纪要",
+        "checklist": "考点清单",
+        "catalog": "知识大纲",
+        "quiz": "自测试卷",
+        "mindmap": "思维导图",
+        "action_items": "行动待办",
+        "risk": "风险分析",
+        "multi_styles": "多风格改写",
+        "knowledge_graph": "知识图谱",
+        "ocr": "笔记识别",
+        "library": "资料入库",
+    }
+    if out_root.is_dir():
+        for p in out_root.rglob("*"):
+            if p.is_file() and not p.name.startswith("."):
+                ext = p.suffix.lower().lstrip(".")
+                if ext in ("html", "md", "json", "txt", "pdf", "png", "jpg"):
+                    stat = p.stat()
+                    parent_name = p.parent.name
+                    task_title = TASK_NAME_MAP.get(parent_name, parent_name if parent_name != "output" else "成果产物")
+                    rel_path = str(p.relative_to(out_root)).replace("\\", "/")
+                    files.append({
+                        "name": p.name,
+                        "rel_path": rel_path,
+                        "ext": ext,
+                        "task_type": task_title,
+                        "size": stat.st_size,
+                        "updated_at": int(stat.st_mtime * 1000),
+                    })
+    files.sort(key=lambda x: x["updated_at"], reverse=True)
+    return {"user_id": user_id, "outputs": files}
+
+
+@app.get("/api/outputs/file/{path:path}")
+async def api_get_output_file(path: str):
+    """读取或下载产物云盘中的文件。"""
+    out_root = ROOT / "output"
+    target = (out_root / path).resolve()
+    if not target.is_file() or not str(target).startswith(str(out_root.resolve())):
+        raise HTTPException(status_code=404, detail="产物文件不存在")
+    from fastapi.responses import FileResponse
+    return FileResponse(target, filename=target.name)
 
 
 @app.post("/api/intent")
@@ -187,6 +308,8 @@ async def api_intent(payload: dict) -> dict:
     text = str((payload or {}).get("text") or "").strip()
     if not text:
         raise HTTPException(status_code=400, detail="text 不能为空")
+    user_id = str((payload or {}).get("user_id") or "").strip()
+    session_id = str((payload or {}).get("session_id") or "").strip()
 
     def _parse() -> dict:
         # parse() 内部用 asyncio.run，不能在 FastAPI 事件循环里直接调，放线程
@@ -202,6 +325,17 @@ async def api_intent(payload: dict) -> dict:
     data = await asyncio.to_thread(_parse)
     if not data["plan"]:
         raise HTTPException(status_code=422, detail=data.get("explanation") or "未能识别出任务")
+    if user_id and session_id:
+        try:
+            from chat.store import history_path, append_turn, load_history
+            h_p = history_path(ROOT, user_id, session_id)
+            history = load_history(h_p)
+            if not history or not (history[-1].get("role") == "user" and history[-1].get("content") == text):
+                append_turn(h_p, "user", text)
+            if data.get("explanation"):
+                append_turn(h_p, "assistant", data["explanation"])
+        except Exception:
+            pass
     return data
 
 

@@ -90,6 +90,19 @@ def heading_level(line: str) -> tuple[int, str] | None:
     # 兜底只接收带明确对象的知识标题；例题/注意/步骤等细碎容器留作正文证据。
     if _ITEM_ONLY_HEAD_RE.match(text) or _GENERIC_HEAD_RE.match(text):
         return None
-    if len(text) <= 28 and not _SENT_END_RE.search(text) and _TITLE_HEAD_RE.match(text):
-        return 3, text
+    if re.search(r"(印刷厂|大学|Wuhan|Hubei|China|Tel|No\.|Date|第.*页)", text, re.I):
+        return None
+    if len(text) <= 28 and not _SENT_END_RE.search(text):
+        if _TITLE_HEAD_RE.match(text):
+            return 3, text
+        # 识别笔记中的独立专业知识与主题标题（如「一维束缚态」「一维谐振子」「中心力场」「薛定谔方程」）
+        # 必须至少包含 2 个中文字符，过滤纯英文变量/公式杂音（如 1701572、dx、2E、ds、dH(S)）
+        cjk_count = len(re.findall(r"[\u4e00-\u9fa5]", text))
+        if (
+            cjk_count >= 2
+            and re.match(r"^[\u4e00-\u9fa5A-Za-z0-9\s（）()——·-]{2,22}$", text)
+            and not re.search(r"[=<>≤≥±×÷\\/+_{}\$]", text)
+            and not any(text.startswith(kw) for kw in ("思路", "设", "若", "故", "当", "令", "在", "由", "则", "于是", "第", "页", "电话", "Tel"))
+        ):
+            return 2, text
     return None

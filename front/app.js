@@ -1,3 +1,4 @@
+
 // ==========================================================================
 // AgentFlow Front-end · Google Material 3 / Gemini Aesthetic Client
 // ==========================================================================
@@ -105,6 +106,12 @@ async function init() {
   setupEventListeners();
   autoResizeTextarea();
   updateContextBarVisibility(null);
+
+  // 默认进入保持用户 ID 为空，由用户主动输入
+  ctxUser.value = "";
+  try {
+    localStorage.removeItem("agentflow_user_id");
+  } catch (e) {}
 }
 
 // Check Backend Health
@@ -147,6 +154,22 @@ async function fetchUserContext(userId) {
     }
   } catch {
     currentUserContext = { subjects: [], projects: [] };
+  }
+  updateKnowledgeBaseDrawer(currentUserContext);
+}
+
+// Persist a single session turn immediately to guarantee sidebar title is accurate
+async function saveSessionMessage(userId, sessionId, role, content) {
+  if (!userId || !sessionId || !content) return;
+  try {
+    await fetch(`${API}/user/${encodeURIComponent(userId)}/sessions/${encodeURIComponent(sessionId)}/message`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ role, content }),
+    });
+    loadUserSessions();
+  } catch (e) {
+    console.warn("Failed to persist session message:", e);
   }
 }
 
@@ -362,8 +385,14 @@ function setupEventListeners() {
     }
   });
 
-  // New Chat / Reset
-  btnNewChat.addEventListener("click", resetWorkspace);
+  // New Chat / Start Fresh Round (Sending current chat to history)
+  if (btnNewChat) {
+    btnNewChat.addEventListener("click", handleNewChatClick);
+  }
+  const btnSidebarNew = $("btn-sidebar-new-chat");
+  if (btnSidebarNew) {
+    btnSidebarNew.addEventListener("click", handleNewChatClick);
+  }
 
   // Unlock User Button
   if (btnUnlockUser) {
@@ -391,10 +420,19 @@ function setupEventListeners() {
     });
   });
 
-  // User ID input blur: fetch user context
+  // User ID input blur & Enter: fetch context and reload sessions
   ctxUser.addEventListener("blur", () => {
     const val = ctxUser.value.trim();
-    if (val) fetchUserContext(val);
+    if (val) {
+      try { localStorage.setItem("agentflow_user_id", val); } catch (e) {}
+      fetchUserContext(val);
+      loadUserSessions();
+    }
+  });
+  ctxUser.addEventListener("keydown", (e) => {
+    if (e.key === "Enter") {
+      ctxUser.blur();
+    }
   });
 
   // Execute Plan Button (Agree and Execute Stage)
@@ -402,25 +440,108 @@ function setupEventListeners() {
     btnExecutePlan.addEventListener("click", () => executeCurrentPlan(false));
   }
 
+  // Skip Stage Button (Skip upload/library and proceed to catalog/checklist)
+  const btnSkipStage = $("btn-skip-stage");
+  if (btnSkipStage) {
+    btnSkipStage.addEventListener("click", () => {
+      if (!currentPlan) return;
+      const totalStages = currentPlan.execution ? currentPlan.execution.length : 1;
+      const currentStageTasks = (currentPlan.execution && currentPlan.execution[currentActiveStep]) || [];
+      currentStageTasks.forEach((task) => completedTasks.add(task));
+      if (currentActiveStep < totalStages - 1) {
+        currentActiveStep += 1;
+        setActiveStep(currentActiveStep);
+        validatePlanParams();
+      }
+    });
+  }
+
   // Download Artifact
-  btnDownloadArtifact.addEventListener("click", () => {
-    if (activeTaskId && activeOutputName) {
-      const url = `${API}/tasks/${activeTaskId}/output/${encodeURIComponent(activeOutputName)}`;
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = activeOutputName;
-      a.target = "_blank";
-      a.click();
-    }
-  });
+  if (btnDownloadArtifact) {
+    btnDownloadArtifact.addEventListener("click", () => {
+      if (activeTaskId && activeOutputName) {
+        const url = `${API}/tasks/${activeTaskId}/output/${encodeURIComponent(activeOutputName)}`;
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = activeOutputName;
+        a.target = "_blank";
+        a.click();
+      }
+    });
+  }
 
   // Fullscreen Artifact Preview
-  btnFullscreenPreview.addEventListener("click", () => {
-    if (activeTaskId && activeOutputName) {
-      const url = `${API}/tasks/${activeTaskId}/output/${encodeURIComponent(activeOutputName)}`;
-      window.open(url, "_blank");
-    }
-  });
+  if (btnFullscreenPreview) {
+    btnFullscreenPreview.addEventListener("click", () => {
+      if (activeTaskId && activeOutputName) {
+        const url = `${API}/tasks/${activeTaskId}/output/${encodeURIComponent(activeOutputName)}`;
+        window.open(url, "_blank");
+      }
+    });
+  }
+
+  // 1. Sidebar Knowledge Base Accordion & Refresh
+  const navKnowledgeToggle = $("nav-knowledge-toggle");
+  const groupKnowledge = $("group-knowledge");
+  const drawerKnowledge = $("sidebar-kb-drawer");
+  if (navKnowledgeToggle && drawerKnowledge) {
+    navKnowledgeToggle.addEventListener("click", () => {
+      const isHidden = drawerKnowledge.classList.toggle("hidden");
+      if (groupKnowledge) groupKnowledge.classList.toggle("open", !isHidden);
+      if (!isHidden) {
+        const ctx = getCtx();
+        if (ctx.user_id) fetchUserContext(ctx.user_id);
+      }
+    });
+  }
+
+  const btnRefreshKb = $("btn-refresh-kb");
+  if (btnRefreshKb) {
+    btnRefreshKb.addEventListener("click", async (e) => {
+      e.stopPropagation();
+      btnRefreshKb.classList.add("spinning");
+      const ctx = getCtx();
+      if (ctx.user_id) {
+        await fetchUserContext(ctx.user_id);
+      } else {
+        ctxUser.classList.add("input-error");
+        ctxUser.focus();
+      }
+      if (drawerKnowledge && drawerKnowledge.classList.contains("hidden")) {
+        drawerKnowledge.classList.remove("hidden");
+        if (groupKnowledge) groupKnowledge.classList.add("open");
+      }
+      setTimeout(() => btnRefreshKb.classList.remove("spinning"), 500);
+    });
+  }
+
+  // 2. Sidebar Outputs Cloud Accordion & Refresh
+  const navOutputsToggle = $("nav-outputs-toggle");
+  const groupOutputs = $("group-outputs");
+  const drawerOutputs = $("sidebar-outputs-drawer");
+  if (navOutputsToggle && drawerOutputs) {
+    navOutputsToggle.addEventListener("click", () => {
+      const isHidden = drawerOutputs.classList.toggle("hidden");
+      if (groupOutputs) groupOutputs.classList.toggle("open", !isHidden);
+      switchTab("tab-outputs");
+      loadUserOutputsDisk();
+    });
+  }
+
+  const btnRefreshOutputs = $("btn-refresh-outputs");
+  if (btnRefreshOutputs) {
+    btnRefreshOutputs.addEventListener("click", async (e) => {
+      e.stopPropagation();
+      btnRefreshOutputs.classList.add("spinning");
+      switchTab("tab-outputs");
+      await loadUserOutputsDisk();
+      if (drawerOutputs && drawerOutputs.classList.contains("hidden")) {
+        drawerOutputs.classList.remove("hidden");
+        if (groupOutputs) groupOutputs.classList.add("open");
+      }
+      setTimeout(() => btnRefreshOutputs.classList.remove("spinning"), 500);
+    });
+  }
 }
 
 function autoResizeTextarea() {
@@ -501,37 +622,78 @@ function updateContextBarVisibility(plan) {
   }
 }
 
-// Reset entire workspace to initial state
+// Handle '+' or New Chat click from left sidebar
+function handleNewChatClick() {
+  const ctx = getCtx();
+
+  // 1. 将当前已有会话送入历史会话并刷新左侧列表展示
+  loadUserSessions();
+
+  // 2. 实时刷新产物云盘与知识库学科资产
+  loadUserOutputsDisk();
+  if (ctx.user_id) {
+    fetchUserContext(ctx.user_id);
+  }
+
+  // 3. 生成全新 Session ID 开启新一轮对话
+  activeSessionId = "web_" + Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
+  try {
+    localStorage.setItem("agentflow_session", activeSessionId);
+  } catch (e) {}
+
+  // 4. 彻底刷新工作台、右侧流水线、监控日志与产物中心
+  resetWorkspace();
+
+  // 5. 移除历史会话中的高亮选中状态
+  document.querySelectorAll(".session-item").forEach((el) => el.classList.remove("active"));
+}
+
+// Reset entire workspace to initial state (Chat, Pipeline Plan, Execution Monitor, Outputs)
 function resetWorkspace() {
   if (pollTimer) clearInterval(pollTimer);
+  pollTimer = null;
+
+  // 1. 重置所有执行状态变量与任务映射
   currentPlan = null;
   uploadsMap.clear();
+  completedTasks.clear();
   activeTaskId = null;
   activeOutputName = null;
+  stages = [];
+  currentStageIndex = 0;
+  currentActiveStep = 0;
 
+  // 2. 重置中间聊天对话流
   messagesContainer.innerHTML = "";
   if (chatWelcome) messagesContainer.appendChild(chatWelcome);
+  chatText.value = "";
+  autoResizeTextarea();
 
-  // Clear inputs and unlock user
-  ctxUser.value = "";
+  // 3. 重置随任务动态生成的上下文参数（保留用户 ID）
   ctxSubject.value = "";
   ctxProject.value = "";
-  unlockUserId();
   ctxUser.classList.remove("input-error");
   ctxSubject.classList.remove("input-error");
   ctxProject.classList.remove("input-error");
-
-  currentUserContext = { subjects: [], projects: [] };
-  if (userSubjectsChips) userSubjectsChips.classList.add("hidden");
-  if (userProjectsChips) userProjectsChips.classList.add("hidden");
-
   updateContextBarVisibility(null);
 
-  planEmpty.classList.remove("hidden");
-  planContainer.classList.add("hidden");
-  planCountBadge.classList.add("hidden");
-  planCountBadge.textContent = "0";
+  // 4. 彻底重置右侧 Tab 1：任务计划与流水线展示
+  if (planList) planList.innerHTML = "";
+  const completionBanner = document.getElementById("pipeline-completion-banner");
+  if (completionBanner) completionBanner.remove();
 
+  planContainer.classList.add("hidden");
+  planEmpty.classList.remove("hidden");
+  planCountBadge.textContent = "0";
+  planCountBadge.classList.add("hidden");
+
+  if (validationTip) validationTip.classList.add("hidden");
+  if (btnExecutePlan) {
+    btnExecutePlan.disabled = false;
+    if (btnExecuteText) btnExecuteText.textContent = "执行 ➔";
+  }
+
+  // 5. 彻底重置右侧 Tab 2：执行监控与实时日志
   taskStatusPill.className = "status-pill hidden";
   taskStatusPill.textContent = "待执行";
   execSpinner.classList.remove("active");
@@ -540,16 +702,19 @@ function resetWorkspace() {
   execProgressBar.style.width = "0%";
   consoleLogs.textContent = "暂无日志输出...";
 
-  outputsEmpty.classList.remove("hidden");
+  // 6. 彻底重置右侧 Tab 3：产物中心
   outputsContainer.classList.add("hidden");
-  outputCountBadge.classList.add("hidden");
+  outputsEmpty.classList.remove("hidden");
   outputCountBadge.textContent = "0";
-  outputsFileList.innerHTML = "";
-  viewerFilename.textContent = "选择文件以预览";
-  viewerBody.innerHTML = '<div class="viewer-placeholder">请从左侧列表选择一个产物进行预览</div>';
+  outputCountBadge.classList.add("hidden");
+  const rowsWrap = $("outputs-rows-wrap");
+  if (rowsWrap) rowsWrap.innerHTML = "";
+  if (viewerFilename) viewerFilename.textContent = "选择文件以预览";
+  if (viewerBody) viewerBody.innerHTML = '<div class="viewer-placeholder">成果生成后将在此处进行大面积全景预览</div>';
   btnDownloadArtifact.disabled = true;
   btnFullscreenPreview.disabled = true;
 
+  // 7. 切换回任务计划 Tab
   switchTab("tab-plan");
 }
 
@@ -572,15 +737,14 @@ async function handleChatSubmit(customText = null, customSubject = null, isDirec
     ctxUser.focus();
     appendMessage(
       "bot",
-      "您好！在开启对话前，请先在顶部栏输入您的「用户 ID」（用于隔离个人知识库与跨会话记忆）。"
+      "您好！在开启对话前，请先在左侧栏下方输入您的「用户 ID」（用于隔离个人知识库与跨会话记忆）。"
     );
     return;
   }
-
-  // 2. Lock user ID automatically once conversation begins
-  if (!isUserLocked) {
-    lockUserId(ctx.user_id);
-  }
+  ctxUser.classList.remove("input-error");
+  try {
+    localStorage.setItem("agentflow_user_id", ctx.user_id);
+  } catch (e) {}
 
   // Clear input box
   chatText.value = "";
@@ -593,6 +757,9 @@ async function handleChatSubmit(customText = null, customSubject = null, isDirec
 
   // Append user message
   appendMessage("user", text);
+  if (ctx.user_id && activeSessionId) {
+    saveSessionMessage(ctx.user_id, activeSessionId, "user", text);
+  }
 
   // 3. Smart Subject & Workflow Branching Interceptor:
   // Ensure user context is up to date before checking knowledge base subjects
@@ -625,7 +792,7 @@ async function handleChatSubmit(customText = null, customSubject = null, isDirec
     const res = await fetch(`${API}/intent`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ text, ...ctx }),
+      body: JSON.stringify({ text, ...ctx, session_id: activeSessionId }),
     });
 
     const data = await res.json();
@@ -641,6 +808,7 @@ async function handleChatSubmit(customText = null, customSubject = null, isDirec
     removeMessage(loadingMsgId);
     appendIntentSummaryMessage(data, text);
     renderPlanWorkbench(data);
+    loadUserSessions();
 
     // If currently watching running logs, keep logs tab active and notify via badge
     const isRunningTask = taskStatusPill && taskStatusPill.classList.contains("running");
@@ -666,7 +834,7 @@ function createAvatar(role) {
   return avatar;
 }
 
-// Render Studio Subject Confirmation Card
+// Render Studio Subject & Knowledge Base Decision Card
 function appendTaskBranchDecisionMessage(originalQuery, detectedSubject, knownSubjects) {
   const group = document.createElement("div");
   group.className = "msg-group bot";
@@ -686,7 +854,8 @@ function appendTaskBranchDecisionMessage(originalQuery, detectedSubject, knownSu
   bubble.className = "msg-bubble-card";
 
   const relevantSubjects = knownSubjects || [];
-  const defaultSub = detectedSubject || (ctxSubject ? ctxSubject.value.trim() : "") || "物理";
+  const hasDetected = Boolean(detectedSubject && detectedSubject.trim());
+  const defaultSub = hasDetected ? detectedSubject.trim() : (ctxSubject ? ctxSubject.value.trim() : "");
 
   bubble.innerHTML = `
     <div class="delivery-card" id="chat-delivery-card-active">
@@ -698,59 +867,51 @@ function appendTaskBranchDecisionMessage(originalQuery, detectedSubject, knownSu
           </svg>
         </div>
         <div class="delivery-header-text">
-          <div class="delivery-title">任务规划就绪 · 学科确认</div>
-          <div class="delivery-sub">为您识别到目标学科为「<strong>${escapeHtml(defaultSub)}</strong>」，请确认是否使用此学科？</div>
+          <div class="delivery-title" style="font-size: 14px; font-weight: 600;">任务规划 · 学科确认</div>
+          <div class="delivery-sub" style="font-size: 13px;">请选择知识库已有学科或建立新学科以规划流水线：</div>
         </div>
       </div>
 
-      <div class="subject-choice-container">
-        <div class="subject-primary-actions">
-          <button class="btn-subject-choice primary" id="btn-confirm-subject">
-            <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.5">
-              <polyline points="20 6 9 17 4 12"/>
-            </svg>
-            <span>使用学科「${escapeHtml(defaultSub)}」并规划流水线</span>
-          </button>
-          <button class="btn-subject-choice secondary" id="btn-toggle-custom-subject">
-            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
-              <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
-            </svg>
-            <span>选择其他学科 / 自定义输入</span>
-          </button>
-        </div>
-
-        <div class="custom-subject-drawer hidden" id="custom-subject-drawer">
-          <div class="drawer-title">请输入或选择您的目标学科：</div>
-          <div class="branch-subject-input-wrap">
-            <input type="text" class="custom-subject-input" id="custom-subject-input" value="${escapeHtml(defaultSub)}" placeholder="输入学科名称 (如 物理 / Physics / 高等数学)" />
-          </div>
-
-          ${
-            relevantSubjects.length > 0
-              ? `
-            <div class="branch-existing-section">
-              <div class="branch-section-sub">知识库已有学科：</div>
-              <div class="branch-chips-wrap">
-                ${relevantSubjects
-                  .map(
-                    (s) => `
-                  <button class="branch-chip-btn" data-subject="${escapeHtml(s.name)}">
-                    <span>${escapeHtml(s.name)}</span>
-                    <span class="chip-count">(${s.count || 0}篇)</span>
-                  </button>
-                `
-                  )
-                  .join("")}
-              </div>
+      <div class="branch-decision-body">
+        ${
+          relevantSubjects.length > 0
+            ? `
+          <div class="branch-decision-section">
+            <div class="branch-section-heading">
+              <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>
+              <span>知识库已有学科：</span>
             </div>
-          `
-              : ""
-          }
+            <div class="branch-subject-card-list">
+              ${relevantSubjects
+                .map(
+                  (s) => `
+                <div class="branch-subject-row-item">
+                  <div class="branch-subject-pill">
+                    <span class="branch-subject-name">${escapeHtml(s.name)}</span>
+                    <span class="branch-subject-count">(${s.count || 0}条切块)</span>
+                  </div>
+                  <button type="button" class="btn-build-pipeline btn-existing-pipeline" data-subject="${escapeHtml(s.name)}">
+                    <span>建立流水线 ➔</span>
+                  </button>
+                </div>
+              `
+                )
+                .join("")}
+            </div>
+          </div>
+        `
+            : ""
+        }
 
-          <div class="drawer-actions">
-            <button class="btn-custom-subject-submit" id="btn-custom-subject-submit">
-              <span>回填学科并生成流水线 ➔</span>
+        <div class="branch-decision-section new-subject-section">
+          <div class="branch-section-heading">
+            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg>
+            <span>建立新学科：</span>
+          </div>
+          <div class="branch-new-subject-form">
+            <input type="text" class="custom-subject-input branch-compact-input" id="branch-new-subject-input" value="${escapeHtml(defaultSub && !relevantSubjects.some(s => s.name === defaultSub) ? defaultSub : "")}" placeholder="学科名称 (如 物理 / 高数)" />
+            <button type="button" class="btn-build-pipeline" id="btn-branch-new-submit">
+              <span>建立流水线 ➔</span>
             </button>
           </div>
         </div>
@@ -758,56 +919,65 @@ function appendTaskBranchDecisionMessage(originalQuery, detectedSubject, knownSu
     </div>
   `;
 
-  const btnConfirm = bubble.querySelector("#btn-confirm-subject");
-  const btnToggleCustom = bubble.querySelector("#btn-toggle-custom-subject");
-  const drawerEl = bubble.querySelector("#custom-subject-drawer");
-  const customInput = bubble.querySelector("#custom-subject-input");
-  const btnCustomSubmit = bubble.querySelector("#btn-custom-subject-submit");
-
-  // 1. Confirm detected subject: fill top bar and generate pipeline
-  if (btnConfirm) {
-    btnConfirm.addEventListener("click", () => {
-      applyParam("subject", defaultSub);
-      btnConfirm.disabled = true;
-      btnConfirm.textContent = "已回填学科，正在规划流水线...";
-      const query = `把上传的资料入库到${defaultSub}学科，并生成${defaultSub}考点复习清单与核心知识大纲`;
-      handleChatSubmit(query, defaultSub, true);
-    });
-  }
-
-  // 2. Toggle custom drawer
-  if (btnToggleCustom && drawerEl) {
-    btnToggleCustom.addEventListener("click", () => {
-      drawerEl.classList.toggle("hidden");
-      if (!drawerEl.classList.contains("hidden") && customInput) {
-        customInput.focus();
-        customInput.select();
-      }
-    });
-  }
-
-  // 3. Existing subject chips click
-  bubble.querySelectorAll(".branch-chip-btn").forEach((btn) => {
+  // 1. Existing subject: build pipeline
+  bubble.querySelectorAll(".btn-existing-pipeline").forEach((btn) => {
     btn.addEventListener("click", () => {
       const selectedSub = btn.getAttribute("data-subject");
       applyParam("subject", selectedSub, btn);
+
+      // 仅展示选中的学科，隐藏新学科输入和其它已有学科
+      const newSec = bubble.querySelector(".new-subject-section");
+      if (newSec) newSec.style.display = "none";
+
+      const allRowItems = bubble.querySelectorAll(".branch-subject-row-item");
+      allRowItems.forEach((row) => {
+        if (!row.contains(btn)) {
+          row.style.display = "none";
+        }
+      });
+
+      const subText = bubble.querySelector(".delivery-sub");
+      if (subText) subText.innerHTML = `已选择知识库已有学科「<strong>${escapeHtml(selectedSub)}</strong>」：`;
+
+      btn.id = "active-planning-btn";
+      btn.disabled = true;
+      btn.innerHTML = `<span>正在规划流水线...</span>`;
+
       const query = `把上传的资料入库到${selectedSub}学科，并生成${selectedSub}考点复习清单与核心知识大纲`;
       handleChatSubmit(query, selectedSub, true);
     });
   });
 
-  // 4. Custom input submit
-  if (btnCustomSubmit && customInput) {
-    btnCustomSubmit.addEventListener("click", () => {
-      const targetSub = customInput.value.trim() || defaultSub;
+  // 2. New subject input submit
+  const newSubInput = bubble.querySelector("#branch-new-subject-input");
+  const btnNewSubmit = bubble.querySelector("#btn-branch-new-submit");
+  if (btnNewSubmit && newSubInput) {
+    const handleNewSubmit = () => {
+      const targetSub = newSubInput.value.trim() || defaultSub || "综合学科";
       applyParam("subject", targetSub);
+
+      // 仅展示新学科，隐藏已有学科列表
+      const existingSec = bubble.querySelector(".branch-decision-section:not(.new-subject-section)");
+      if (existingSec) existingSec.style.display = "none";
+
+      newSubInput.disabled = true;
+
+      const subText = bubble.querySelector(".delivery-sub");
+      if (subText) subText.innerHTML = `已选择建立新学科「<strong>${escapeHtml(targetSub)}</strong>」：`;
+
+      btnNewSubmit.id = "active-planning-btn";
+      btnNewSubmit.disabled = true;
+      btnNewSubmit.innerHTML = `<span>正在规划流水线...</span>`;
+
       const query = `把上传的资料入库到${targetSub}学科，并生成${targetSub}考点复习清单与核心知识大纲`;
       handleChatSubmit(query, targetSub, true);
-    });
-    customInput.addEventListener("keydown", (e) => {
+    };
+
+    btnNewSubmit.addEventListener("click", handleNewSubmit);
+    newSubInput.addEventListener("keydown", (e) => {
       if (e.key === "Enter") {
         e.preventDefault();
-        btnCustomSubmit.click();
+        handleNewSubmit();
       }
     });
   }
@@ -869,7 +1039,7 @@ async function fallbackToChat(question, loadingMsgId) {
     const res = await fetch(`${API}/chat`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ question, ...getCtx(), session_id: getSessionId() }),
+      body: JSON.stringify({ question, ...getCtx(), session_id: activeSessionId }),
     });
     const data = await res.json();
 
@@ -880,6 +1050,7 @@ async function fallbackToChat(question, loadingMsgId) {
 
     removeMessage(loadingMsgId);
     appendChatMessage(data);
+    loadUserSessions();
   } catch (err) {
     updateLoadingMessage(loadingMsgId, `问答请求异常：${err.message}`, "err");
   }
@@ -977,10 +1148,7 @@ function appendIntentSummaryMessage(data, userQuery = "") {
       <div class="delivery-inner-card">
         <div class="doc-card-head">
           <span class="doc-type-badge">TABLE</span>
-          <div class="doc-card-titles">
-            <span class="doc-file-name">${escapeHtml(targetDocName)}</span>
-            <span class="doc-file-desc">全链路任务与依赖状态拆解</span>
-          </div>
+          <span class="doc-card-main-title">全链路任务与依赖状态拆解</span>
         </div>
 
         <table class="delivery-table">
@@ -1125,6 +1293,14 @@ function renderPlanWorkbench(data) {
     taskStatusPill.textContent = "待执行";
   }
 
+  // Update any active planning branch button in chat to "流水线规划完成"
+  const activePlanningBtns = document.querySelectorAll("#active-planning-btn, .btn-existing-pipeline:disabled, #btn-branch-new-submit:disabled");
+  activePlanningBtns.forEach((btn) => {
+    btn.id = "";
+    btn.classList.add("done");
+    btn.innerHTML = `<span>流水线规划完成 ✓</span>`;
+  });
+
   const plan = data.plan || [];
   const execution = data.execution || [[...plan.map((p) => p.task)]];
 
@@ -1262,10 +1438,8 @@ function setActiveStep(stepIdx) {
   });
 
   // 3. Update Single Primary Execute/Approval Button text
-  const curTasks = currentPlan.execution[currentActiveStep] || [];
-  const curTaskName = curTasks.map((t) => (TASK_META[t] ? TASK_META[t].name.split(" ")[0] : t)).join(" ‖ ");
   if (btnExecuteText) {
-    btnExecuteText.textContent = `同意并执行第 ${currentActiveStep + 1} 阶段：${curTaskName} ➔`;
+    btnExecuteText.textContent = "执行 ➔";
   }
 
   // 4. Synchronize Left-Hand Chat Table with this Active Stage
@@ -2017,13 +2191,48 @@ function validatePlanParams() {
     ctxSubject.classList.remove("input-error");
   }
 
+  const currentSub = (ctx.subject || "").trim();
+  const isExistingSubject = Boolean(
+    currentUserContext.subjects &&
+    currentUserContext.subjects.some((s) => s.name === currentSub && (s.count || 0) > 0)
+  );
+
+  const totalStages = currentPlan.execution ? currentPlan.execution.length : 1;
+  const btnSkipStage = $("btn-skip-stage");
+
+  const isFileStep = Array.from(currentStageTasks).some((task) => {
+    const t = currentPlan.plan.find((item) => item.task === task);
+    return t && (t.missing || []).some((m) => m === "file" || m === "input");
+  });
+
+  // 1. 只有知识库已有该学科数据时，才允许出现「无需新增知识」跳过逻辑；新建学科必须上传资料，严禁跳过！
+  const canSkipIngest = isExistingSubject && isFileStep && currentActiveStep < totalStages - 1;
+
+  if (btnSkipStage) {
+    if (canSkipIngest) {
+      btnSkipStage.classList.remove("hidden");
+    } else {
+      btnSkipStage.classList.add("hidden");
+    }
+  }
+
+  // 2. 如果支持跳过入库，则无需显示打扰用户的“缺少附件”报警（用户可跳过或上传）
+  let displayPending = [...pending];
+  if (canSkipIngest) {
+    displayPending = displayPending.filter((item) => !item.includes("缺少附件"));
+  }
+
   if (pending.length) {
-    validationTip.classList.remove("hidden");
-    validationTipText.textContent = `待补全项：${pending.join("；")}`;
     btnExecutePlan.disabled = true;
   } else {
-    validationTip.classList.add("hidden");
     btnExecutePlan.disabled = false;
+  }
+
+  if (displayPending.length) {
+    validationTip.classList.remove("hidden");
+    validationTipText.textContent = `待补全项：${displayPending.join("；")}`;
+  } else {
+    validationTip.classList.add("hidden");
   }
 }
 
@@ -2040,8 +2249,8 @@ async function executeCurrentPlan(isAllStages = false) {
   if (btnExecutePlan.disabled) return;
 
   btnExecutePlan.disabled = true;
-    if (btnExecuteText) {
-    btnExecuteText.textContent = `正在执行第 ${currentActiveStep + 1} 阶段...`;
+  if (btnExecuteText) {
+    btnExecuteText.textContent = "正在执行...";
   }
 
   // 默认切换到执行监控界面，实时查看流式日志
@@ -2076,6 +2285,9 @@ async function executeCurrentPlan(isAllStages = false) {
       execution: [currentStageTasks],
     };
   }
+
+  const ctx = getCtx();
+  stagePayload.user_id = ctx.user_id || "default_user";
 
   // Mark current stage cards and pills as running
   currentStageTasks.forEach((task) => {
@@ -2324,61 +2536,37 @@ function finishExecution(st, isAllStages = false) {
     const displayOuts = targetOutputs.length ? targetOutputs : st.outputs || [];
     const outCount = displayOuts.length;
 
-    // ── Update Chat Delivery Card to "成果已交付" format (from 屏幕截图 2026-08-25 195838.png) ──
+    // ── Update Chat Delivery Card to clean 2-line format ──
     const deliveryCards = messagesContainer.querySelectorAll(".delivery-card");
     const deliveryCard = deliveryCards.length ? deliveryCards[deliveryCards.length - 1] : null;
     if (deliveryCard) {
       const primaryOutput = targetOutputs.length ? targetOutputs[0] : (st.outputs && st.outputs[0]) || targetDocName;
       const fileName = primaryOutput.split(/[\\/]/).pop();
-      const ext = fileName.split(".").pop().toUpperCase();
-      const domainPills = {
-        notes: ["核心考点", "大纲解析", "工程文件"],
-        meeting: ["纪要重点", "行动待办", "工程文件"],
-      };
-      const pills = domainPills[targetMeta.domain] || ["结构化成果", "全景大纲", "工程文件"];
+      const cleanTaskName = targetMeta.name ? targetMeta.name.split(" ")[0] : "任务成果";
 
       deliveryCard.innerHTML = `
         <div class="delivery-header">
           <div class="delivery-check-icon">
-            <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.5">
+            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.5">
               <circle cx="12" cy="12" r="10"/>
               <polyline points="16 9 10 15 7 12"/>
             </svg>
           </div>
           <div class="delivery-header-text">
-            <div class="delivery-title">成果已交付</div>
-            <div class="delivery-sub">【${escapeHtml(targetMeta.name.split(" ")[0])}】已经生成，结构化内容与工程文件也已整理。</div>
-          </div>
-        </div>
-
-        <div class="delivery-artifact-card" title="点击在右侧工作台查阅产物">
-          <div class="artifact-thumb-box">
-            <div class="thumb-canvas-mini">
-              <div class="mini-line w-80"></div>
-              <div class="mini-line w-60"></div>
-              <div class="mini-line w-90"></div>
-              <div class="mini-line w-40"></div>
-            </div>
-            <span class="thumb-badge">${escapeHtml(ext)}</span>
-          </div>
-
-          <div class="artifact-details">
-            <div class="artifact-head-row">
-              <span class="doc-type-badge">${escapeHtml(ext)}</span>
-              <span class="artifact-file-name">${escapeHtml(fileName)}</span>
-            </div>
-            <div class="artifact-file-desc">${escapeHtml(targetMeta.name)}与结构化总结素材</div>
-            <div class="artifact-pills-row">
-              ${pills.map((p) => `<span class="artifact-pill-chip">${escapeHtml(p)}</span>`).join("")}
+            <div class="delivery-title" style="font-size: 14px; font-weight: 600;">成果已交付</div>
+            <div class="delivery-body-two-lines">
+              <div class="delivery-line-1" style="font-size: 13.5px;">【${escapeHtml(cleanTaskName)}】已经生成</div>
+              <div class="delivery-line-2">
+                <a class="delivery-action-link" id="btn-delivery-jump-output" href="javascript:void(0)">点击查看 ➔</a>
+              </div>
             </div>
           </div>
         </div>
       `;
 
-      const innerCard = deliveryCard.querySelector(".delivery-artifact-card");
-      if (innerCard) {
-        innerCard.addEventListener("click", () => {
-          previewArtifact(activeTaskId, fileName);
+      const jumpLink = deliveryCard.querySelector("#btn-delivery-jump-output");
+      if (jumpLink) {
+        jumpLink.addEventListener("click", () => {
           switchTab("tab-outputs");
         });
       }
@@ -2482,10 +2670,10 @@ function renderOutputsCenter(taskId, outputs) {
       ? currentPlan.plan[currentPlan.plan.length - 1].task
       : "";
 
-  // Filter outputs: ONLY showcase the final target task's artifacts (intermediates are saved silently)
+  // Collect target outputs (including both HTML and MD)
   let targetOutputs = outputs.filter((f) => isTargetTaskOutput(f, targetTask));
   if (!targetOutputs.length) {
-    targetOutputs = outputs; // fallback if no specific match
+    targetOutputs = outputs;
   }
 
   outputsEmpty.classList.add("hidden");
@@ -2493,42 +2681,81 @@ function renderOutputsCenter(taskId, outputs) {
   outputCountBadge.textContent = targetOutputs.length;
   outputCountBadge.classList.remove("hidden");
 
-  const sidebar = outputsContainer.querySelector(".outputs-sidebar");
-  if (targetOutputs.length <= 1) {
-    if (sidebar) sidebar.style.display = "none";
-    outputsContainer.style.gridTemplateColumns = "1fr";
-  } else {
-    if (sidebar) sidebar.style.display = "flex";
-    outputsContainer.style.gridTemplateColumns = "220px 1fr";
+  const rowsWrap = $("outputs-rows-wrap");
+  if (rowsWrap) {
+    rowsWrap.innerHTML = "";
+
+    targetOutputs.forEach((filePath) => {
+      const name = filePath.split(/[\\/]/).pop();
+      const ext = name.split(".").pop().toLowerCase();
+
+      const item = document.createElement("div");
+      item.className = "output-file-link-item";
+      item.dataset.filename = name;
+      item.title = `点击直接下载 ${name}`;
+
+      item.innerHTML = `
+        <span class="file-icon-badge">${escapeHtml(ext.toUpperCase())}</span>
+        <span class="output-file-link-name">${escapeHtml(name)}</span>
+        <span class="output-file-dl-hint">（点击直接下载）</span>
+        <span class="output-row-state-chip">✓ 已就绪</span>
+      `;
+
+      // Click anywhere on the row / filename to trigger direct download
+      item.addEventListener("click", () => {
+        const url = `${API}/tasks/${taskId}/output/${encodeURIComponent(name)}`;
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = name;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+      });
+
+      rowsWrap.appendChild(item);
+    });
   }
 
-  outputsFileList.innerHTML = "";
+  // Find HTML output specifically for preview (or first item)
+  const htmlFile = targetOutputs.find((f) => f.toLowerCase().endsWith(".html")) || targetOutputs[0];
+  const htmlName = htmlFile.split(/[\\/]/).pop();
+  previewHtmlArtifact(taskId, htmlName);
+}
 
-  targetOutputs.forEach((filePath, idx) => {
-    const name = filePath.split(/[\\/]/).pop();
-    const ext = name.split(".").pop().toLowerCase();
+async function previewHtmlArtifact(taskId, name) {
+  activeTaskId = taskId;
+  activeOutputName = name;
+  if (viewerFilename) viewerFilename.textContent = `成果预览 · ${name}`;
 
-    const li = document.createElement("li");
-    li.className = "output-file-item";
-    if (idx === 0) li.classList.add("active");
+  viewerBody.innerHTML = '<div class="viewer-placeholder"><span class="spinner-ring active" style="display:inline-block; margin-right:8px;"></span> 正在加载产物预览...</div>';
 
-    li.innerHTML = `
-      <span class="file-icon-badge">${escapeHtml(ext.toUpperCase())}</span>
-      <span class="file-name-text" title="${escapeHtml(name)}">${escapeHtml(name)}</span>
-    `;
+  try {
+    const res = await fetch(`${API}/tasks/${taskId}/output/${encodeURIComponent(name)}`);
+    if (!res.ok) throw new Error("获取产物失败");
 
-    li.addEventListener("click", () => {
-      document.querySelectorAll(".output-file-item").forEach((el) => el.classList.remove("active"));
-      li.classList.add("active");
-      previewArtifact(taskId, name);
-    });
+    const text = await res.text();
+    viewerBody.innerHTML = "";
 
-    outputsFileList.appendChild(li);
-  });
-
-  // Preview First Target Item
-  const firstName = targetOutputs[0].split(/[\\/]/).pop();
-  previewArtifact(taskId, firstName);
+    if (name.endsWith(".html")) {
+      const iframe = document.createElement("iframe");
+      iframe.className = "viewer-iframe";
+      iframe.sandbox = "allow-scripts allow-same-origin allow-popups";
+      // Inject 14px base font styling into HTML iframe
+      const injectedHtml = text.replace(
+        "<head>",
+        "<head><style>body { font-size: 14px !important; line-height: 1.6 !important; font-family: -apple-system, BlinkMacSystemFont, Segoe UI, Roboto, sans-serif !important; } h1 { font-size: 1.3rem !important; } h2 { font-size: 1.15rem !important; } h3 { font-size: 1.05rem !important; } p, li, td, th { font-size: 14px !important; }</style>"
+      );
+      iframe.srcdoc = injectedHtml;
+      viewerBody.appendChild(iframe);
+    } else {
+      const mdDiv = document.createElement("div");
+      mdDiv.className = "viewer-markdown";
+      mdDiv.innerHTML = renderMarkdown(text);
+      viewerBody.appendChild(mdDiv);
+    }
+  } catch (err) {
+    viewerBody.innerHTML = `<div class="viewer-placeholder" style="color: var(--terra-600);">加载预览失败：${escapeHtml(err.message)}</div>`;
+  }
 }
 
 async function previewArtifact(taskId, name) {
@@ -2633,4 +2860,256 @@ function formatFileSize(bytes) {
 // Boot application
 window.addEventListener("DOMContentLoaded", init);
 
+
+
+
+
+// ==========================================================================
+// User Sessions & History Engine (Matching img.png)
+// ==========================================================================
+
+let activeSessionId = getSessionId();
+
+async function loadUserSessions() {
+  const ctx = getCtx();
+  if (!ctx.user_id) return;
+  try {
+    const res = await fetch(`${API}/user/${encodeURIComponent(ctx.user_id)}/sessions`);
+    if (!res.ok) return;
+    const data = await res.json();
+    renderSidebarSessions(data.sessions || []);
+  } catch (e) {
+    console.warn("Failed to load user sessions:", e);
+  }
+}
+
+function renderSidebarSessions(sessions) {
+  const list = $("sidebar-sessions-list");
+  if (!list) return;
+  list.innerHTML = "";
+
+  if (!sessions.length) {
+    list.innerHTML = `<div class="sidebar-empty-sessions">暂无历史会话<br>在右侧输入开启交流</div>`;
+    return;
+  }
+
+  sessions.forEach((s) => {
+    const item = document.createElement("div");
+    item.className = `session-item ${s.session_id === activeSessionId ? "active" : ""}`;
+    item.dataset.sessionId = s.session_id;
+
+    const timeStr = formatRelativeTime(s.updated_at);
+
+    item.innerHTML = `
+      <div class="session-item-title" title="${escapeHtml(s.title)}">${escapeHtml(s.title)}</div>
+      <div class="session-item-meta">
+        <span class="session-item-time">${escapeHtml(timeStr)}</span>
+        <button class="session-item-del" title="删除此会话">&times;</button>
+      </div>
+    `;
+
+    item.addEventListener("click", (e) => {
+      if (e.target.closest(".session-item-del")) return;
+      switchSession(s.session_id);
+    });
+
+    const delBtn = item.querySelector(".session-item-del");
+    if (delBtn) {
+      delBtn.addEventListener("click", async (e) => {
+        e.stopPropagation();
+        await deleteSession(s.session_id);
+      });
+    }
+
+    list.appendChild(item);
+  });
+}
+
+async function switchSession(sessionId) {
+  activeSessionId = sessionId;
+  try {
+    localStorage.setItem("agentflow_session", sessionId);
+  } catch (e) {}
+
+  const ctx = getCtx();
+  try {
+    const res = await fetch(`${API}/user/${encodeURIComponent(ctx.user_id)}/sessions/${sessionId}`);
+    if (!res.ok) return;
+    const data = await res.json();
+
+    messagesContainer.innerHTML = "";
+    if (chatWelcome && chatWelcome.parentNode === messagesContainer) {
+      chatWelcome.remove();
+    }
+
+    (data.history || []).forEach((msg) => {
+      if (msg.role === "user") {
+        appendMessage("user", msg.content);
+      } else {
+        appendChatMessage({ answer: msg.content });
+      }
+    });
+
+    loadUserSessions();
+  } catch (e) {
+    console.warn("Failed to switch session:", e);
+  }
+}
+
+async function deleteSession(sessionId) {
+  const ctx = getCtx();
+  try {
+    await fetch(`${API}/user/${encodeURIComponent(ctx.user_id)}/sessions/${sessionId}`, { method: "DELETE" });
+    if (activeSessionId === sessionId) {
+      activeSessionId = "web_" + Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
+      try { localStorage.setItem("agentflow_session", activeSessionId); } catch (e) {}
+      resetWorkspace();
+    }
+    loadUserSessions();
+  } catch (e) {
+    console.warn("Failed to delete session:", e);
+  }
+}
+
+function formatRelativeTime(ts) {
+  if (!ts) return "";
+  const now = Date.now();
+  const diff = Math.floor((now - ts) / 1000);
+  if (diff < 60) return "刚刚";
+  if (diff < 3600) return `${Math.floor(diff / 60)}分前`;
+  if (diff < 86400) return `${Math.floor(diff / 3600)}小时前`;
+  const d = new Date(ts);
+  return `${d.getMonth() + 1}/${d.getDate()}`;
+}
+
+
+
+// ==========================================================================
+// Knowledge Base Assets & Outputs Cloud Disk Engine
+// ==========================================================================
+
+async function loadUserOutputsDisk() {
+  const ctx = getCtx();
+  if (!ctx.user_id) return;
+  try {
+    const res = await fetch(`${API}/user/${encodeURIComponent(ctx.user_id)}/outputs`);
+    if (!res.ok) return;
+    const data = await res.json();
+    const outputs = data.outputs || [];
+
+    renderSidebarOutputsDrawer(outputs);
+  } catch (e) {
+    console.warn("Failed to load user outputs disk:", e);
+  }
+}
+
+function renderSidebarOutputsDrawer(outputs) {
+  const badge = $("sidebar-outputs-count");
+  if (badge) badge.textContent = outputs ? outputs.length : 0;
+
+  const miniList = $("sidebar-outputs-mini-list");
+  if (!miniList) return;
+  miniList.innerHTML = "";
+
+  if (!outputs || !outputs.length) {
+    miniList.innerHTML = '<span class="kb-empty-text">暂无产物文件</span>';
+    return;
+  }
+
+  outputs.forEach((file) => {
+    const item = document.createElement("div");
+    item.className = "sidebar-mini-file-item";
+    item.title = `点击在右侧查看/下载 ${file.name} (${file.task_type})`;
+    item.innerHTML = `
+      <span class="sidebar-mini-file-type">${escapeHtml(file.ext.toUpperCase())}</span>
+      <span class="sidebar-mini-file-name">${escapeHtml(file.name)}</span>
+      <span class="sidebar-mini-file-tag">${escapeHtml(file.task_type)}</span>
+    `;
+    item.addEventListener("click", (e) => {
+      e.stopPropagation();
+      switchTab("tab-outputs");
+      previewHistoricalOutput(file.rel_path, file.name);
+    });
+    miniList.appendChild(item);
+  });
+}
+
+async function previewHistoricalOutput(relPath, name) {
+  outputsEmpty.classList.add("hidden");
+  outputsContainer.classList.remove("hidden");
+
+  if (viewerFilename) viewerFilename.textContent = `云盘成果 · ${name}`;
+  viewerBody.innerHTML = '<div class="viewer-placeholder"><span class="spinner-ring active" style="display:inline-block; margin-right:8px;"></span> 正在加载产物预览...</div>';
+
+  if (btnDownloadArtifact) {
+    btnDownloadArtifact.disabled = false;
+    btnDownloadArtifact.onclick = () => {
+      const url = `${API}/outputs/file/${encodeURIComponent(relPath)}`;
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = name;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+    };
+  }
+
+  try {
+    const res = await fetch(`${API}/outputs/file/${encodeURIComponent(relPath)}`);
+    if (!res.ok) throw new Error("获取产物失败");
+
+    const text = await res.text();
+    viewerBody.innerHTML = "";
+
+    if (name.endsWith(".html")) {
+      const iframe = document.createElement("iframe");
+      iframe.className = "viewer-iframe";
+      iframe.sandbox = "allow-scripts allow-same-origin allow-popups";
+      const injectedHtml = text.replace(
+        "<head>",
+        "<head><style>body { font-size: 14px !important; line-height: 1.6 !important; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif !important; } h1 { font-size: 1.25rem !important; } h2 { font-size: 1.12rem !important; } h3 { font-size: 1.02rem !important; } p, li, td, th { font-size: 14px !important; }</style>"
+      );
+      iframe.srcdoc = injectedHtml;
+      viewerBody.appendChild(iframe);
+    } else {
+      const mdDiv = document.createElement("div");
+      mdDiv.className = "viewer-markdown";
+      mdDiv.innerHTML = renderMarkdown(text);
+      viewerBody.appendChild(mdDiv);
+    }
+  } catch (err) {
+    viewerBody.innerHTML = `<div class="viewer-placeholder" style="color: var(--terra-600);">加载预览失败：${escapeHtml(err.message)}</div>`;
+  }
+}
+
+function updateKnowledgeBaseDrawer(ctxData) {
+  const subjectsList = $("kb-subjects-list");
+  const totalBadge = $("sidebar-kb-total-count");
+
+  const subjects = ctxData.subjects || [];
+
+  if (totalBadge) {
+    totalBadge.textContent = subjects.length;
+  }
+
+  if (subjectsList) {
+    subjectsList.innerHTML = "";
+    if (subjects.length === 0) {
+      subjectsList.innerHTML = '<span class="kb-empty-text">暂无知识库学科</span>';
+    } else {
+      subjects.forEach((s) => {
+        const chip = document.createElement("button");
+        chip.type = "button";
+        chip.className = "kb-chip-item";
+        chip.innerHTML = `<span>${escapeHtml(s.name)}</span><span class="kb-chip-count">(${s.count || 0}条)</span>`;
+        chip.title = `点击填入所属学科：${s.name}`;
+        chip.addEventListener("click", () => {
+          applyParam("subject", s.name);
+          chatText.focus();
+        });
+        subjectsList.appendChild(chip);
+      });
+    }
+  }
+}
 

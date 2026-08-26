@@ -33,26 +33,81 @@ def attach_card_provenance(
     user_id = user_id_from_context(context)
     subject = subject_from_context(context)
     chunks = _load_chunks(user_id=user_id, subject=subject)
+    catalog_evidence = _load_catalog_evidence(user_id=user_id, subject=subject)
     out: list[dict[str, Any]] = []
     for card in cards:
         if str(card.get("session_priority") or "") == "C":
             out.append(card)
             continue
-        out.append(_trace_card(card, teacher_text, chunks))
+        out.append(_trace_card(card, teacher_text, chunks, catalog_evidence=catalog_evidence))
     draft["cards"] = out
     return draft
+
+
+def _load_catalog_evidence(user_id: str = "", subject: str = "") -> dict[str, list[str]]:
+    """从 catalog 加载每个 KP 的 evidence（建目录时标注的来源依据）。
+
+    返回 {kp_name: [evidence, ...]}。catalog 不可用/无 subject 时返回空。
+    """
+    if not (user_id or "").strip() or not (subject or "").strip():
+        return {}
+    try:
+        from domain.notes.tasks.catalog.store import load_catalog
+
+        catalog = load_catalog(user_id=user_id, subject=subject)
+    except Exception:  # noqa: BLE001
+        return {}
+    if not catalog:
+        return {}
+    out: dict[str, list[str]] = {}
+    for ch in catalog.get("chapters") or []:
+        if not isinstance(ch, dict):
+            continue
+        for tp in ch.get("topics") or []:
+            if not isinstance(tp, dict):
+                continue
+            for kp in tp.get("knowledge_points") or []:
+                if not isinstance(kp, dict):
+                    continue
+                name = str(kp.get("name") or "").strip()
+                evs = [str(e).strip() for e in (kp.get("evidence") or []) if str(e or "").strip()]
+                if name and evs:
+                    out.setdefault(name, []).extend(evs)
+    return out
 
 
 def _trace_card(
     card: dict[str, Any],
     teacher: str,
     chunks: list[dict[str, Any]],
+    *,
+    catalog_evidence: dict[str, list[str]] | None = None,
 ) -> dict[str, Any]:
     next_card = dict(card)
     claims = _build_claims(next_card)
     teachers = _teacher_evidence(next_card, teacher, claims) if teacher else []
     kb_hits, note_hits = _library_evidence(next_card, claims, chunks)
     teachers, kb_hits, note_hits = _bind_claims(claims, teachers, kb_hits, note_hits)
+    # catalog 依据兜底：卡片内容匹配不到知识库原文时，用 KP 建目录时标注的 evidence
+    if not (teachers or kb_hits or note_hits) and catalog_evidence:
+        name = str(next_card.get("name") or "").strip()
+        evs = catalog_evidence.get(name) or []
+        if not evs:
+            for alias in _as_list(next_card.get("aliases")) + _as_list(next_card.get("knowledge_items")):
+                if alias and catalog_evidence.get(str(alias)):
+                    evs = catalog_evidence.get(str(alias))
+                    break
+        for text in evs[:3]:
+            kb_hits.append(
+                {
+                    "evidence_id": f"catalog_{len(kb_hits) + 1:02d}",
+                    "type": "catalog",
+                    "label": "目录依据",
+                    "text": str(text)[:200],
+                    "supports": [c["claim_id"] for c in claims[:2]],
+                    "strength": 2,
+                }
+            )
     next_card["claims"] = claims
     next_card["provenance"] = {
         "teacher_evidence": teachers,

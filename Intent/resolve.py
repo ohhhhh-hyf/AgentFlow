@@ -251,8 +251,11 @@ def _rule_recognize(text: str) -> list[str]:
         c_idx = hit.index("checklist")
         hit.insert(c_idx, "catalog")
     if "library" in hit:
-        hit.remove("library")
-        hit.insert(0, "library")
+        if any(kw in text_clean for kw in ("基于已有", "已有知识库", "免传", "直接基于", "跳过入库", "已有资料直接")):
+            hit.remove("library")
+        else:
+            hit.remove("library")
+            hit.insert(0, "library")
 
     return hit
 
