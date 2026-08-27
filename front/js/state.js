@@ -95,6 +95,56 @@ function getCtx() {
   };
 }
 
+// Apply a parameter to context input fields & synchronize with plan
+function applyParam(type, value, btn = null) {
+  if (!type || value === undefined || value === null) return;
+  const val = String(value).trim();
+  if (type === "subject") {
+    if (ctxSubject) {
+      ctxSubject.value = val;
+      ctxSubject.classList.remove("input-error");
+    }
+    if (ctxSubjectWrap) ctxSubjectWrap.classList.remove("hidden-ctx");
+  } else if (type === "project") {
+    if (ctxProject) {
+      ctxProject.value = val;
+      ctxProject.classList.remove("input-error");
+    }
+    if (ctxProjectWrap) ctxProjectWrap.classList.remove("hidden-ctx");
+  } else if (type === "user" || type === "user_id") {
+    if (ctxUser) {
+      ctxUser.value = val;
+      ctxUser.classList.remove("input-error");
+    }
+  } else if (type === "perspective" || type === "role") {
+    const ctx = typeof getCtx === "function" ? getCtx() : { user_id: ctxUser ? ctxUser.value.trim() : "" };
+    if (ctx.user_id) {
+      fetch(`${API}/user/${encodeURIComponent(ctx.user_id)}/profile`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ role: val }),
+      })
+        .then((r) => r.json())
+        .then((d) => {
+          if (d.profile) {
+            currentUserContext.profile = d.profile;
+            if (typeof updateUserProfilePill === "function") {
+              updateUserProfilePill(d.profile);
+            }
+          }
+        })
+        .catch(() => {});
+    }
+  }
+
+  if (typeof syncContextToPlan === "function") syncContextToPlan();
+  if (typeof validatePlanParams === "function") validatePlanParams();
+
+  if (btn && btn.classList) {
+    btn.classList.add("applied");
+  }
+}
+
 // Reset entire workspace to initial state (Chat, Pipeline Plan, Execution Monitor, Outputs)
 function resetWorkspace() {
   if (pollTimer) clearInterval(pollTimer);
