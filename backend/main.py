@@ -58,6 +58,18 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+
+@app.middleware("http")
+async def add_no_cache_header(request, call_next):
+    response = await call_next(request)
+    path = request.url.path
+    if path.endswith((".html", ".js", ".css")) or path == "/" or path.startswith("/js/"):
+        response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
+        response.headers["Pragma"] = "no-cache"
+        response.headers["Expires"] = "0"
+    return response
+
+
 _runner = TaskRunner(root=ROOT)
 
 
@@ -194,6 +206,34 @@ async def api_update_user_profile(user_id: str, body: dict) -> dict:
     name = str(body.get("name") or "").strip()
     from chat.profile import update_user_profile_data
     updated = update_user_profile_data(ROOT, user_id, role=role, traits=traits, name=name)
+    return {"ok": True, "profile": updated}
+
+
+@app.post("/api/user/{user_id}/custom_role")
+async def api_save_custom_role(user_id: str, body: dict) -> dict:
+    """创建并保存用户自定义职业到 user/profile/role.json 并关联 user.json。"""
+    user_id = (user_id or "").strip()
+    if not user_id:
+        raise HTTPException(status_code=400, detail="用户 ID 不能为空")
+    role_name = str(body.get("role_name") or body.get("name") or "").strip()
+    if not role_name:
+        raise HTTPException(status_code=400, detail="职业名称不能为空")
+    department = str(body.get("department") or "").strip()
+    responsibilities = body.get("responsibilities")
+    focus_areas = body.get("focus_areas")
+    output_style = str(body.get("output_style") or "").strip()
+    traits = body.get("traits")
+    from chat.profile import save_custom_role_profile
+    updated = save_custom_role_profile(
+        ROOT,
+        user_id,
+        role_name=role_name,
+        department=department,
+        responsibilities=responsibilities,
+        focus_areas=focus_areas,
+        output_style=output_style,
+        traits=traits,
+    )
     return {"ok": True, "profile": updated}
 
 
@@ -486,6 +526,14 @@ async def api_intent(payload: dict) -> dict:
     data = await asyncio.to_thread(_parse)
     if not data["plan"]:
         raise HTTPException(status_code=422, detail=data.get("explanation") or "未能识别出任务")
+    
+    if user_id:
+        try:
+            from chat.profile import ensure_profile
+            data["profile"] = ensure_profile(ROOT, user_id)
+        except Exception:
+            pass
+
     if user_id and session_id and not (payload or {}).get("hide_history"):
         try:
             from chat.store import history_path, append_turn, load_history

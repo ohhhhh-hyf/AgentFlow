@@ -28,47 +28,64 @@ PROFILE_FACTS_CAP = 200
 TRAIT_KEYS = ("做事风格", "沟通偏好", "性格")
 
 ROLE_TEMPLATE_MAP: dict[str, dict[str, Any]] = {
-    "developer": {
-        "name": "开发人员",
-        "label": "职业 · 开发人员",
-        "file": "role/developer_profile.json",
-        "keywords": ["开发", "研发", "程序员", "前端", "后端", "全栈", "代码", "软件工程师", "架构师", "技术人员", "developer", "dev"],
-    },
-    "product_manager": {
-        "name": "产品经理",
-        "label": "职业 · 产品经理",
-        "file": "role/product_manager_profile.json",
-        "keywords": ["产品", "产品经理", "产品策划", "pm", "需求", "产品总监"],
-    },
-    "project_manager": {
-        "name": "项目经理",
-        "label": "职业 · 项目经理",
-        "file": "role/project_manager_profile.json",
-        "keywords": ["项目经理", "项目管理", "pmp", "scrum", "敏捷教练", "推进", "项目负责人"],
-    },
     "tester": {
         "name": "测试工程师",
         "label": "职业 · 测试工程师",
         "file": "role/tester_profile.json",
-        "keywords": ["测试", "测试工程师", "qa", "质量保障", "自动化测试", "测试人员"],
+        "keywords": [
+            "测试", "测试工程师", "qa", "质量保障", "自动化测试", "测试人员", "做测试", "做测试的",
+            "测开", "测试开发", "软件测试", "测试组", "测试同学", "点点点", "测试管理"
+        ],
     },
     "algorithm_engineer": {
         "name": "算法工程师",
         "label": "职业 · 算法工程师",
         "file": "role/algorithm_engineer_profile.json",
-        "keywords": ["算法", "算法工程师", "ai", "机器学习", "深度学习", "大模型", "大模型算法", "nlp", "cv"],
+        "keywords": [
+            "算法", "算法工程师", "ai", "机器学习", "深度学习", "大模型", "大模型算法", "nlp", "cv",
+            "做算法", "做算法的", "模型工程师", "算法研究员"
+        ],
+    },
+    "product_manager": {
+        "name": "产品经理",
+        "label": "职业 · 产品经理",
+        "file": "role/product_manager_profile.json",
+        "keywords": [
+            "产品", "产品经理", "产品策划", "pm", "需求", "产品总监", "做产品", "做产品的", "产品专家", "产品顾问"
+        ],
+    },
+    "project_manager": {
+        "name": "项目经理",
+        "label": "职业 · 项目经理",
+        "file": "role/project_manager_profile.json",
+        "keywords": [
+            "项目经理", "项目管理", "pmp", "scrum", "敏捷教练", "推进", "项目负责人", "做项目", "做项目的", "项目总监", "项目主管"
+        ],
     },
     "client_manager": {
         "name": "客户经理",
         "label": "职业 · 客户经理",
         "file": "role/client_manager_profile.json",
-        "keywords": ["客户经理", "业务经理", "商务经理", "客户管理", "商务", "销售", "bd", "客户代表"],
+        "keywords": [
+            "客户经理", "业务经理", "商务经理", "客户管理", "商务", "销售", "bd", "客户代表",
+            "做销售", "做销售的", "做商务", "做商务的", "业务代表", "大客户经理"
+        ],
+    },
+    "developer": {
+        "name": "开发人员",
+        "label": "职业 · 开发人员",
+        "file": "role/developer_profile.json",
+        "keywords": [
+            "开发", "研发", "程序员", "前端", "后端", "全栈", "代码", "软件工程师", "架构师",
+            "技术人员", "developer", "dev", "写代码", "写代码的", "做开发", "做开发的",
+            "做研发", "做研发的", "做技术", "做技术的", "码农", "开发人员", "开发工程师", "研发工程师"
+        ],
     },
     "object": {
         "name": "客观全员",
         "label": "客观 · 客观全员",
         "file": "object_profile.json",
-        "keywords": ["客观", "全员", "客观视角", "全员视角", "通用", "中立"],
+        "keywords": ["客观", "全员", "客观视角", "全员视角", "通用", "中立", "客观全员"],
     },
 }
 
@@ -106,6 +123,22 @@ def save_profile(project_root: Path, user_id: str, data: dict[str, Any]) -> Path
     return path
 
 
+def detect_role_from_text(text: str) -> tuple[str, str, str] | None:
+    """从用户输入或自述中识别职业/视角画像。未识别出则返回 None。"""
+    if not text or not text.strip():
+        return None
+    t = text.lower()
+
+    # 按明确的优先级匹配关键词
+    priority_keys = ["tester", "algorithm_engineer", "product_manager", "project_manager", "client_manager", "developer"]
+    for key in priority_keys:
+        info = ROLE_TEMPLATE_MAP[key]
+        for kw in info["keywords"]:
+            if kw.lower() in t:
+                return key, info["name"], info["label"]
+    return None
+
+
 def match_role_template(role_text: str) -> tuple[str, str, str]:
     """匹配角色文本到职业模板。返回 (template_key, role_name, template_label)。
 
@@ -125,9 +158,10 @@ def match_role_template(role_text: str) -> tuple[str, str, str]:
             continue
         if text == info["name"].lower() or text in info["label"].lower():
             return key, info["name"], info["label"]
-        for kw in info["keywords"]:
-            if kw.lower() in text or text in kw.lower():
-                return key, info["name"], info["label"]
+
+    detected = detect_role_from_text(text)
+    if detected:
+        return detected
 
     return "object", "客观全员", "客观 · 客观全员"
 
@@ -173,31 +207,131 @@ def ensure_profile(project_root: Path, user_id: str, role: str = "") -> dict[str
 
 # ── 消费与解析：读取（含职业模板基底合并）─────────────────
 
+def save_custom_role_profile(
+    project_root: Path,
+    user_id: str,
+    role_name: str,
+    department: str = "",
+    responsibilities: list[str] | None = None,
+    focus_areas: list[str] | None = None,
+    output_style: str = "",
+    traits: dict[str, str] | None = None,
+) -> dict[str, Any]:
+    """创建并保存用户自定义职业到 data/<uid>/profile/role.json，并更新关联至 user.json。"""
+    from tools.memory.store import safe_id
+
+    uid = safe_id(user_id or "default")
+    profile_dir = project_root / "data" / uid / "profile"
+    profile_dir.mkdir(parents=True, exist_ok=True)
+    role_path = profile_dir / "role.json"
+
+    r_name = (role_name or "").strip() or "自定义职业"
+    dept = (department or "").strip()
+    style = (output_style or "").strip() or f"{r_name}视角：突出本岗位关注的核心议题、待办分工与风险阻塞；条理清晰，结论先行"
+
+    # 构造标准规范的职业 JSON 结构（必要核心字段齐全）
+    custom_role_data = {
+        "name": r_name,
+        "role": f"{r_name}与专项视角记录者",
+        "department": dept or "业务协同部",
+        "perspective": "personal",
+        "persona_type": "custom_role",
+        "scope": f"{r_name}在会议中的覆盖范围：与{r_name}相关的决策、方案、排期与风险控制",
+        "responsibilities": responsibilities or [
+            f"从{r_name}专业视角理解会议需求与技术方案",
+            f"跟进与{r_name}相关的关键待办与执行细节",
+            "评估潜在风险与阻塞，确保交付质量",
+        ],
+        "interests": [
+            f"{r_name}关注的核心目标与边界",
+            "具体执行分工与节点排期",
+            "跨部门协同与依赖项",
+            "潜在风险与应对预案",
+        ],
+        "principles": [
+            "忠实原文：客观事实与专业判断分开记录",
+            "重点突出：突出本岗位相关的关键交付项",
+            "风险显式：显式记录依赖与阻塞",
+        ],
+        "focus_areas": focus_areas or [
+            f"{r_name}核心职责与行动项",
+            "排期里程碑与进度约束",
+            "跨角色依赖与外部协作",
+            "风险与阻塞应对",
+        ],
+        "constraints": [
+            "不臆造原文未提及的结论",
+            "不遗漏影响交付的关键依赖",
+        ],
+        "values": [
+            "专业性：聚焦岗位核心价值",
+            "落地性：方案与行动项可落地",
+        ],
+        "output_style": style,
+        "context": f"以{r_name}个人视角处理会议内容：优先保留与{r_name}职责、方案、任务排期、依赖与风险相关的内容；明确相关行动项与责任人；纯非相关行政细节可适度精简。",
+    }
+
+    role_path.write_text(json.dumps(custom_role_data, ensure_ascii=False, indent=2), encoding="utf-8")
+
+    # 更新并关联 uid.json
+    existing = load_profile(project_root, uid) or {}
+    existing["user_id"] = uid
+    existing["role"] = r_name
+    existing["base_template"] = "custom_role"
+    existing["template_label"] = f"职业 · {r_name}"
+    existing["role_file"] = "role.json"
+    if traits:
+        cur_traits = dict(existing.get("traits") or {})
+        cur_traits.update({k: v for k, v in traits.items() if v})
+        existing["traits"] = cur_traits
+    existing["updated_at"] = _now_stamp()
+
+    full_data = resolve_user_profile(project_root, uid, user_data=existing)
+    save_profile(project_root, uid, full_data)
+    return full_data
+
+
 def resolve_user_profile(project_root: Path, user_id: str, user_data: dict[str, Any] | None = None) -> dict[str, Any]:
-    """读取用户画像，以关联的职业模板/客观视角为基底，用户自定义字段覆盖，生成完整 Profile。"""
+    """读取用户画像，以关联的职业模板/客观视角或同目录下的 role.json 为基底，用户自定义字段覆盖，生成完整 Profile。"""
     from tools.core.profiles import SHARED_PROFILE_DIR
 
     data = user_data if user_data is not None else (load_profile(project_root, user_id) or {})
     base = str(data.get("base_template") or "object").strip()
 
-    template_info = ROLE_TEMPLATE_MAP.get(base) or ROLE_TEMPLATE_MAP["object"]
-    template_file = SHARED_PROFILE_DIR / template_info["file"]
-
     base_template_data: dict[str, Any] = {}
-    if template_file.is_file():
+
+    # 1. 优先尝试读取同目录下的 role.json
+    role_path = profile_path(project_root, user_id).parent / "role.json"
+    if role_path.is_file():
         try:
-            base_template_data = json.loads(template_file.read_text(encoding="utf-8"))
+            base_template_data = json.loads(role_path.read_text(encoding="utf-8"))
         except Exception:
             base_template_data = {}
+
+    # 2. 若无 role.json，回退到共享模板库
+    if not base_template_data:
+        template_info = ROLE_TEMPLATE_MAP.get(base) or ROLE_TEMPLATE_MAP["object"]
+        template_file = SHARED_PROFILE_DIR / template_info["file"]
+        if template_file.is_file():
+            try:
+                base_template_data = json.loads(template_file.read_text(encoding="utf-8"))
+            except Exception:
+                base_template_data = {}
 
     merged = dict(base_template_data)
     # 保留模板基底，用户显式非空字段覆盖
     merged.update({k: v for k, v in data.items() if v not in (None, "")})
     merged["user_id"] = user_id
     merged["base_template"] = base
-    merged["template_label"] = template_info["label"]
+    # name 字段严格为用户填写的真实姓名；若未填写则保持为空字符串，不从职业模板继承（没有就是没有）
+    merged["name"] = str(data.get("name") or "").strip()
+    if not merged.get("template_label"):
+        template_info = ROLE_TEMPLATE_MAP.get(base) or ROLE_TEMPLATE_MAP["object"]
+        merged["template_label"] = template_info.get("label", f"职业 · {merged.get('role', '客观全员')}")
     if not merged.get("role") or merged.get("role") == "客观全员":
-        merged["role"] = template_info["name"]
+        if base != "object":
+            template_info = ROLE_TEMPLATE_MAP.get(base) or ROLE_TEMPLATE_MAP["object"]
+            merged["role"] = data.get("role") or template_info.get("name") or "客观全员"
     return merged
 
 
@@ -220,9 +354,12 @@ def update_user_profile_data(
     name: str = "",
 ) -> dict[str, Any]:
     """前端直接编辑或代码更新用户的完整画像字段（职业/base_template、偏好 traits、姓名），回填并刷盘。"""
+    from tools.core.profiles import SHARED_PROFILE_DIR
     from tools.memory.store import safe_id
 
     uid = safe_id(user_id or "default")
+    profile_dir = project_root / "data" / uid / "profile"
+    profile_dir.mkdir(parents=True, exist_ok=True)
     existing = load_profile(project_root, uid) or {}
     existing["user_id"] = uid
     stamp = _now_stamp()
@@ -232,6 +369,16 @@ def update_user_profile_data(
         existing["role"] = r_name
         existing["base_template"] = tpl_key
         existing["template_label"] = t_label
+        existing["role_file"] = "role.json"
+
+        # 同步将选定职业的完整模板写入 data/<uid>/profile/role.json
+        template_info = ROLE_TEMPLATE_MAP.get(tpl_key) or ROLE_TEMPLATE_MAP["object"]
+        template_file = SHARED_PROFILE_DIR / template_info["file"]
+        if template_file.is_file():
+            try:
+                (profile_dir / "role.json").write_text(template_file.read_text(encoding="utf-8"), encoding="utf-8")
+            except Exception:
+                pass
     elif not existing.get("base_template"):
         tpl_key, r_name, t_label = match_role_template("object")
         existing["role"] = r_name

@@ -25,7 +25,6 @@ const ctxProject = $("ctx-project");
 const ctxSubjectWrap = $("ctx-subject-wrap");
 const ctxProjectWrap = $("ctx-project-wrap");
 const subjectReqStar = $("subject-req-star");
-const liveParamSuggestions = $("live-param-suggestions");
 
 // Workbench Tabs & Badges
 const tabBtns = document.querySelectorAll(".tab-btn");
@@ -137,11 +136,10 @@ function resetWorkspace() {
   const modeText = document.getElementById("mode-text");
   if (modeText) modeText.textContent = "";
 
-  const liveSuggestions = document.getElementById("live-param-suggestions");
-  if (liveSuggestions) {
-    liveSuggestions.innerHTML = "";
-    liveSuggestions.classList.add("hidden");
-  }
+  const domainBadge = document.getElementById("domain-badge");
+  if (domainBadge) domainBadge.classList.add("hidden");
+  const domainText = document.getElementById("domain-text");
+  if (domainText) domainText.textContent = "";
 
   const userAlert = document.getElementById("user-id-required-alert");
   if (userAlert) userAlert.classList.add("hidden");
@@ -213,4 +211,47 @@ function resetWorkspace() {
 
   // 7. 切换回任务计划 Tab
   if (typeof switchTab === "function") switchTab("tab-plan");
+}
+
+/**
+ * 实时更新对话框上方的领域标识（与职业视角并排排列，采用一致的浅蓝色背景与字体规格）
+ * @param {string|object} domain 领域名称（如 "会议域" / "笔记域"）或包含 plan 数组的对象
+ */
+function updateDomainBadge(domain) {
+  const domainBadge = document.getElementById("domain-badge");
+  const domainText = document.getElementById("domain-text");
+  if (!domainBadge || !domainText) return;
+
+  let label = "";
+  if (typeof domain === "string") {
+    const d = domain.trim().toLowerCase();
+    if (d.includes("meeting") || d.includes("会议") || d.includes("纪要")) {
+      label = "会议域";
+    } else if (d.includes("note") || d.includes("笔记") || d.includes("学科") || d.includes("课程")) {
+      label = "笔记域";
+    }
+  } else if (domain && Array.isArray(domain.plan)) {
+    const tasks = domain.plan.map((t) => (t.task || "").toLowerCase());
+    const hasNotes = tasks.some((t) => ["library", "catalog", "checklist", "quiz", "knowledge_graph"].includes(t));
+    const hasMeeting = tasks.some((t) => ["minutes_generation", "action_items", "risk", "mindmap", "minutes_trace", "multi_styles"].includes(t));
+    if (hasMeeting) {
+      label = "会议域";
+    } else if (hasNotes) {
+      label = "笔记域";
+    }
+  } else if (domain && typeof domain === "object") {
+    const d = String(domain.domain || "").toLowerCase();
+    if (d.includes("meeting") || d.includes("会议")) {
+      label = "会议域";
+    } else if (d.includes("notes") || d.includes("笔记")) {
+      label = "笔记域";
+    }
+  }
+
+  if (label) {
+    domainText.textContent = label;
+    domainBadge.classList.remove("hidden");
+  } else {
+    domainBadge.classList.add("hidden");
+  }
 }

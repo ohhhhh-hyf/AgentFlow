@@ -463,16 +463,17 @@ class TaskRunner:
 
         # checklist 前置：plan 未显式包含 catalog 时才自动补跑（避免 catalog 跑两次 → v1+v2）
         if task == "checklist" and not (plan_tasks and "catalog" in plan_tasks):
-            await self._run_catalog_prereq(params)
+            await self._run_catalog_prereq(params, task_id=task_id)
 
         res = await self._run_runner(task_id, task, params)
         ts_done = time.strftime("%H:%M:%S")
         state.setdefault("logs", []).append(f"[{ts_done}] 任务阶段 [{task_label}] 执行完成\n")
         return res
 
-    async def _run_catalog_prereq(self, params: dict[str, Any]) -> None:
+    async def _run_catalog_prereq(self, params: dict[str, Any], task_id: str = "") -> None:
         """checklist 执行前若该学科尚未建过目录，则自动跑 catalog（基于该学科知识库构建 v1）。"""
-        user_id = str(params.get("user_id") or "").strip()
+        state = self._tasks.get(task_id, {}) if task_id else {}
+        user_id = str(params.get("user_id") or state.get("user_id") or "").strip()
         subject = str(params.get("subject") or "").strip()
         if not user_id or not subject:
             return  # 缺 user/subject 无法建目录，checklist 走已有目录
@@ -674,7 +675,7 @@ class TaskRunner:
                     self.root / ".env",
                     templates,
                     tasks=[task],
-                    user_id=params.get("user_id") or None,
+                    user_id=params.get("user_id") or state.get("user_id") or None,
                     project_id=params.get("project") or None,
                     subject=params.get("subject") or None,
                     monitor=False,
@@ -701,10 +702,26 @@ class TaskRunner:
             file = [file]
         file = [Path(p) for p in file] if file else None
 
-        user_id = str(params.get("user_id") or "").strip()
-        from chat.profile import resolve_user_profile_file
+        user_id = str(params.get("user_id") or state.get("user_id") or "").strip()
+        from chat.profile import resolve_user_profile_file, match_role_template, ROLE_TEMPLATE_MAP
 
-        if user_id:
+        # 优先支持任务参数显式指定的视角/职业
+        explicit_role = str(params.get("perspective") or params.get("role") or params.get("profile") or "").strip()
+        if explicit_role:
+            tpl_key, r_name, t_label = match_role_template(explicit_role)
+            if tpl_key != "object":
+                template_info = ROLE_TEMPLATE_MAP.get(tpl_key)
+                if template_info:
+                    p = SHARED_PROFILE_DIR / template_info["file"]
+                    if p.is_file():
+                        profile = p
+                    else:
+                        profile = resolve_user_profile_file(self.root, user_id) if user_id else (SHARED_PROFILE_DIR / "object_profile.json")
+                else:
+                    profile = resolve_user_profile_file(self.root, user_id) if user_id else (SHARED_PROFILE_DIR / "object_profile.json")
+            else:
+                profile = SHARED_PROFILE_DIR / "object_profile.json"
+        elif user_id:
             profile = resolve_user_profile_file(self.root, user_id)
         else:
             profile = SHARED_PROFILE_DIR / "object_profile.json"

@@ -78,7 +78,6 @@ function setupEventListeners() {
 
     chatText.addEventListener("input", () => {
       autoResizeTextarea();
-      updateLiveParamSuggestions(chatText.value);
       updateSendButtonVisibility();
       if (!currentPlan) {
         heuristicContextVisibility(chatText.value.trim());
@@ -104,7 +103,7 @@ function setupEventListeners() {
     btnUnlockUser.addEventListener("click", unlockUserId);
   }
 
-  // Quick Prompt Chips
+  // Quick Prompt Chips: Fill into chat input and focus, let user send
   document.querySelectorAll(".prompt-chip").forEach((chip) => {
     chip.addEventListener("click", () => {
       const prompt = chip.getAttribute("data-prompt");
@@ -112,9 +111,10 @@ function setupEventListeners() {
         if (chatText) {
           chatText.value = prompt;
           autoResizeTextarea();
+          chatText.focus();
         }
+        updateSendButtonVisibility();
         heuristicContextVisibility(prompt);
-        handleChatSubmit();
       }
     });
   });
@@ -129,7 +129,14 @@ function setupEventListeners() {
     }
   });
 
-  // User ID input: auto-dismiss alert, fetch context on blur & Enter
+  // User ID input: auto-dismiss alert, bind confirm button & Enter key
+  const btnConfirmUser = $("btn-confirm-user");
+  if (btnConfirmUser) {
+    btnConfirmUser.addEventListener("click", () => {
+      confirmUserIdentity(true);
+    });
+  }
+
   if (ctxUser) {
     ctxUser.addEventListener("input", () => {
       if (ctxUser.value.trim()) {
@@ -138,17 +145,10 @@ function setupEventListeners() {
         ctxUser.classList.remove("input-error");
       }
     });
-    ctxUser.addEventListener("blur", () => {
-      const val = ctxUser.value.trim();
-      if (val) {
-        try { localStorage.setItem("agentflow_user_id", val); } catch (e) {}
-        fetchUserContext(val);
-        loadUserSessions();
-      }
-    });
     ctxUser.addEventListener("keydown", (e) => {
       if (e.key === "Enter") {
-        ctxUser.blur();
+        e.preventDefault();
+        confirmUserIdentity(true);
       }
     });
   }
@@ -266,17 +266,29 @@ function setupEventListeners() {
   // 3. User Profile & Persona Modal Event Bindings
   const btnAvatar = $("btn-sidebar-user-avatar");
   const userStatus = $("sidebar-user-status");
-  if (btnAvatar) {
-    btnAvatar.addEventListener("click", (e) => {
-      e.stopPropagation();
+  const handleAvatarClick = (e) => {
+    if (e) e.stopPropagation();
+    const ctx = typeof getCtx === "function" ? getCtx() : { user_id: ctxUser ? ctxUser.value.trim() : "" };
+    if (!ctx.user_id) {
+      const alertEl = $("user-id-required-alert") || document.getElementById("user-id-required-alert");
+      if (alertEl) alertEl.classList.remove("hidden");
+      if (ctxUser) {
+        ctxUser.classList.add("input-error", "input-highlight-pulse");
+        ctxUser.focus();
+        setTimeout(() => ctxUser.classList.remove("input-highlight-pulse"), 2500);
+      }
+      return;
+    }
+    if (typeof openUserProfileModal === "function") {
       openUserProfileModal();
-    });
+    }
+  };
+
+  if (btnAvatar) {
+    btnAvatar.addEventListener("click", handleAvatarClick);
   }
   if (userStatus) {
-    userStatus.addEventListener("click", (e) => {
-      e.stopPropagation();
-      openUserProfileModal();
-    });
+    userStatus.addEventListener("click", handleAvatarClick);
   }
 
   const btnCloseProfile = $("btn-close-profile-modal");

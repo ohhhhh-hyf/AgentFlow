@@ -12,9 +12,11 @@ function heuristicContextVisibility(text) {
   if (isMeeting && !isNotes) {
     if (ctxProjectWrap) ctxProjectWrap.classList.remove("hidden-ctx");
     if (ctxSubjectWrap) ctxSubjectWrap.classList.add("hidden-ctx");
+    if (typeof updateDomainBadge === "function") updateDomainBadge("会议域");
   } else if (isNotes && !isMeeting) {
     if (ctxSubjectWrap) ctxSubjectWrap.classList.remove("hidden-ctx");
     if (ctxProjectWrap) ctxProjectWrap.classList.add("hidden-ctx");
+    if (typeof updateDomainBadge === "function") updateDomainBadge("笔记域");
   }
 }
 
@@ -64,19 +66,19 @@ function detectParameters(text) {
   }
 
   // 3. Perspective / Role (用户职业视角)
-  if (/产品经理|PM/i.test(text)) {
-    res.perspective = "产品经理";
-  } else if (/开发人员|程序员|工程师|技术人员|研发|前端|后端|全栈/i.test(text)) {
-    res.perspective = "开发人员";
-  } else if (/项目经理|PMP|Scrum/i.test(text)) {
-    res.perspective = "项目经理";
-  } else if (/测试|QA|质量保障/i.test(text)) {
+  if (/测试人员|做测试|测试工程师|测试开发|测开|自动化测试|性能测试|软件测试|质量保障|测试组|测试同学|QA\b/i.test(text)) {
     res.perspective = "测试工程师";
-  } else if (/算法|AI算法|机器学习|深度学习/i.test(text)) {
+  } else if (/算法工程师|做算法|AI算法|机器学习|深度学习|大模型|大模型算法|NLP|CV|算法研究员|模型工程师/i.test(text)) {
     res.perspective = "算法工程师";
-  } else if (/客户经理|业务经理|商务|BD/i.test(text)) {
+  } else if (/产品经理|做产品|产品策划|产品总监|需求分析|产品专家|产品顾问|PM\b/i.test(text)) {
+    res.perspective = "产品经理";
+  } else if (/项目经理|做项目|项目管理|PMP\b|Scrum|敏捷教练|项目总监|项目主管|项目推进/i.test(text)) {
+    res.perspective = "项目经理";
+  } else if (/客户经理|商务经理|客户管理|做商务|做销售|客户代表|商务代表|BD\b|大客户/i.test(text)) {
     res.perspective = "客户经理";
-  } else if (/客观全员|全员视角|客观视角/i.test(text)) {
+  } else if (/开发人员|做开发|做研发|研发人员|做技术|程序员|码农|前端开发|后端开发|全栈开发|软件工程师|架构师|技术人员|写代码|前端|后端|全栈|开发工程师|研发工程师|开发\b/i.test(text)) {
+    res.perspective = "开发人员";
+  } else if (/客观全员|全员视角|客观视角|通用视角/i.test(text)) {
     res.perspective = "客观全员";
   }
 
@@ -87,117 +89,6 @@ function detectParameters(text) {
   }
 
   return res;
-}
-
-// One-click Apply Detected Parameter to Global Topbar / Task Config
-function applyParam(type, value, buttonEl = null) {
-  if (!value) return;
-
-  if (type === "subject") {
-    if (ctxSubject) {
-      ctxSubject.value = value;
-      ctxSubject.classList.add("input-highlight-pulse");
-      setTimeout(() => ctxSubject.classList.remove("input-highlight-pulse"), 2500);
-    }
-    if (ctxSubjectWrap) ctxSubjectWrap.classList.remove("hidden-ctx");
-    if (typeof syncContextToPlan === "function") syncContextToPlan();
-    if (typeof validatePlanParams === "function") validatePlanParams();
-  } else if (type === "project") {
-    if (ctxProject) {
-      ctxProject.value = value;
-      ctxProject.classList.add("input-highlight-pulse");
-      setTimeout(() => ctxProject.classList.remove("input-highlight-pulse"), 2500);
-    }
-    if (ctxProjectWrap) ctxProjectWrap.classList.remove("hidden-ctx");
-    if (typeof syncContextToPlan === "function") syncContextToPlan();
-    if (typeof validatePlanParams === "function") validatePlanParams();
-  } else if (type === "perspective" || type === "role") {
-    const ctx = getCtx();
-    if (ctx.user_id) {
-      fetch(`${API}/user/${encodeURIComponent(ctx.user_id)}/profile`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ role: value }),
-      })
-        .then((r) => r.json())
-        .then((d) => {
-          if (d.profile) {
-            currentUserContext.profile = d.profile;
-            if (typeof updateUserProfilePill === "function") {
-              updateUserProfilePill(d.profile);
-            }
-          }
-        })
-        .catch(() => {});
-    }
-  }
-
-  if (buttonEl) {
-    buttonEl.remove();
-    if (liveParamSuggestions && !liveParamSuggestions.children.length) {
-      liveParamSuggestions.classList.add("hidden");
-      liveParamSuggestions.innerHTML = "";
-    }
-  }
-}
-
-// Real-time Parameter Suggestion Bar above Input Box
-function updateLiveParamSuggestions(text) {
-  if (!liveParamSuggestions) return;
-  if (!text || !text.trim()) {
-    liveParamSuggestions.classList.add("hidden");
-    liveParamSuggestions.innerHTML = "";
-    return;
-  }
-
-  const detected = detectParameters(text);
-  const items = [];
-
-  if (detected.subject && ctxSubject && ctxSubject.value !== detected.subject) {
-    items.push({
-      type: "subject",
-      label: `学科: ${detected.subject}`,
-      val: detected.subject
-    });
-  }
-  if (detected.project && ctxProject && ctxProject.value !== detected.project) {
-    items.push({
-      type: "project",
-      label: `项目: ${detected.project}`,
-      val: detected.project
-    });
-  }
-  if (detected.perspective) {
-    const curRole = (currentUserContext && currentUserContext.profile && (currentUserContext.profile.role || currentUserContext.profile.base_template)) || "";
-    if (!curRole.includes(detected.perspective) && !detected.perspective.includes(curRole)) {
-      items.push({
-        type: "perspective",
-        label: `切换职业: ${detected.perspective}`,
-        val: detected.perspective
-      });
-    }
-  }
-
-  if (items.length) {
-    liveParamSuggestions.innerHTML = items
-      .map(
-        (it) =>
-          `<button type="button" class="live-param-chip" data-type="${it.type}" data-val="${escapeHtml(it.val)}">${escapeHtml(it.label)}</button>`
-      )
-      .join("");
-    liveParamSuggestions.classList.remove("hidden");
-
-    liveParamSuggestions.querySelectorAll(".live-param-chip").forEach((btn) => {
-      btn.addEventListener("click", () => {
-        const type = btn.getAttribute("data-type");
-        const val = btn.getAttribute("data-val");
-        applyParam(type, val, btn);
-      });
-    });
-  } else {
-    liveParamSuggestions.classList.add("hidden");
-    liveParamSuggestions.innerHTML = "";
-  }
 }
 
 // Helper to create clean Google Studio avatars
@@ -299,7 +190,21 @@ function appendIntentSummaryMessage(data, userQuery = "", replaceTargetElement =
   const tasks = data.plan || [];
   const execution = data.execution || [[...tasks.map((p) => p.task)]];
 
-  let html = `
+  const detected = detectParameters(userQuery);
+  let suggestionHtml = "";
+  if (detected.perspective) {
+    const roleLabel = (detected.perspective.split("·")[1] || detected.perspective).trim();
+    suggestionHtml = `
+      <div class="msg-suggestion-card">
+        <span class="suggestion-header">识别到职业信息，点击应用：</span>
+        <div class="suggestion-actions">
+          <button type="button" class="btn-suggestion-action btn-msg-param-action" data-type="perspective" data-val="${escapeHtml(detected.perspective)}">视角: ${escapeHtml(roleLabel)}</button>
+        </div>
+      </div>
+    `;
+  }
+
+  const html = suggestionHtml + `
     <div class="delivery-card">
       <div class="delivery-header">
         <div class="delivery-check-icon">
@@ -348,54 +253,32 @@ function appendIntentSummaryMessage(data, userQuery = "", replaceTargetElement =
     </div>
   `;
 
-  const detected = detectParameters(userQuery);
-  const paramButtons = [];
-
-  if (detected.subject && ctxSubject && ctxSubject.value !== detected.subject) {
-    paramButtons.push({
-      type: "subject",
-      label: `学科: ${detected.subject}`,
-      val: detected.subject
-    });
-  }
-  if (detected.project && ctxProject && ctxProject.value !== detected.project) {
-    paramButtons.push({
-      type: "project",
-      label: `项目: ${detected.project}`,
-      val: detected.project
-    });
-  }
-  if (detected.perspective) {
-    paramButtons.push({
-      type: "perspective",
-      label: `视角: ${(detected.perspective.split("·")[1] || detected.perspective).trim()}`,
-      val: detected.perspective
-    });
-  }
-
-  if (paramButtons.length) {
-    html += `
-      <div class="msg-suggestion-card" style="margin-top: 10px;">
-        <div class="suggestion-header">参数建议（点击快速应用至全局配置）：</div>
-        <div class="suggestion-actions">
-          ${paramButtons
-            .map(
-              (btn) =>
-                `<button type="button" class="btn-suggestion-action btn-msg-param-action" data-type="${btn.type}" data-val="${escapeHtml(btn.val)}">${escapeHtml(btn.label)}</button>`
-            )
-            .join("")}
-        </div>
-      </div>
-    `;
-  }
-
   bubble.innerHTML = html;
 
   bubble.querySelectorAll(".btn-msg-param-action").forEach((btn) => {
     btn.addEventListener("click", () => {
-      const type = btn.getAttribute("data-type");
       const val = btn.getAttribute("data-val");
-      applyParam(type, val, btn);
+      const ctx = typeof getCtx === "function" ? getCtx() : { user_id: ctxUser ? ctxUser.value.trim() : "" };
+      if (ctx.user_id) {
+        fetch(`${API}/user/${encodeURIComponent(ctx.user_id)}/profile`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ role: val }),
+        })
+          .then((r) => r.json())
+          .then((d) => {
+            if (d.profile) {
+              currentUserContext.profile = d.profile;
+              if (typeof updateUserProfilePill === "function") {
+                updateUserProfilePill(d.profile);
+              }
+            }
+          })
+          .catch(() => {});
+      }
+      btn.classList.add("applied");
+      btn.textContent = `已应用 视角: ${val}`;
+      btn.disabled = true;
     });
   });
 
@@ -614,6 +497,258 @@ function appendTaskBranchDecisionMessage(originalQuery, detectedSubject, knownSu
   }
 }
 
+// Render Interactive Meeting Role & Persona Decision Card
+function appendMeetingRoleDecisionMessage(originalQuery) {
+  const group = document.createElement("div");
+  group.className = "msg-group bot";
+
+  const senderLine = document.createElement("div");
+  senderLine.className = "msg-sender-line";
+  senderLine.innerHTML = `
+    <div class="msg-avatar bot">
+      <svg viewBox="0 0 24 24" width="13" height="13" fill="currentColor">
+        <path d="M6 17h3l2-4V7H5v6h3zm8 0h3l2-4V7h-6v6h3z"/>
+      </svg>
+    </div>
+    <span class="msg-sender-name">规划 Agent</span>
+  `;
+
+  const bubble = document.createElement("div");
+  bubble.className = "msg-bubble-card";
+
+  bubble.innerHTML = `
+    <div class="delivery-card" id="chat-role-decision-card-active">
+      <div class="delivery-header">
+        <div class="delivery-check-icon">
+          <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.5">
+            <circle cx="12" cy="12" r="10"/>
+            <path d="M12 8v4M12 16h.01"/>
+          </svg>
+        </div>
+        <div class="delivery-header-text">
+          <div class="delivery-title" style="font-size: 14px; font-weight: 600;">会议任务 · 职业视角关联</div>
+          <div class="delivery-sub" style="font-size: 13px; display: none;"></div>
+        </div>
+      </div>
+
+      <div class="role-decision-body">
+        <!-- 两个淡蓝色背景主操作按钮 -->
+        <div class="role-decision-btn-row">
+          <button type="button" class="btn-role-action btn-toggle-preset-role" id="btn-toggle-preset-role">
+            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+            <span>内置视角 ▾</span>
+          </button>
+
+          <button type="button" class="btn-role-action btn-toggle-custom-role" id="btn-toggle-custom-role">
+            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+            <span>新建视角 ▾</span>
+          </button>
+
+          <button type="button" class="btn-role-action btn-skip-objective" id="btn-skip-objective" title="使用默认客观视角直接建立流水线">
+            <span>默认客观视角 ➔</span>
+          </button>
+        </div>
+
+        <!-- 面板 1：选择已有职业面板 (点击展开) -->
+        <div class="role-sub-panel preset-roles-panel hidden" id="preset-roles-panel">
+          <div class="preset-role-chips-grid">
+            <button type="button" class="btn-preset-role-chip" data-role="developer" data-name="开发人员">
+              <strong>开发人员</strong>
+              <span>(技术实现/架构/排期)</span>
+            </button>
+            <button type="button" class="btn-preset-role-chip" data-role="tester" data-name="测试工程师">
+              <strong>测试工程师</strong>
+              <span>(质量保障/用例/风险)</span>
+            </button>
+            <button type="button" class="btn-preset-role-chip" data-role="product_manager" data-name="产品经理">
+              <strong>产品经理</strong>
+              <span>(需求边界/验收/规划)</span>
+            </button>
+            <button type="button" class="btn-preset-role-chip" data-role="project_manager" data-name="项目经理">
+              <strong>项目经理</strong>
+              <span>(里程碑/依赖/推进)</span>
+            </button>
+            <button type="button" class="btn-preset-role-chip" data-role="algorithm_engineer" data-name="算法工程师">
+              <strong>算法工程师</strong>
+              <span>(模型/调优/算力评估)</span>
+            </button>
+            <button type="button" class="btn-preset-role-chip" data-role="client_manager" data-name="客户经理">
+              <strong>客户经理</strong>
+              <span>(商业诉求/合同/商务)</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- 面板 2：自定义新职业表单 (点击展开) -->
+        <div class="role-sub-panel custom-role-panel hidden" id="custom-role-panel">
+          <div class="custom-role-form-grid">
+            <div class="custom-form-field">
+              <label>职业名称 <span style="color:#d32f2f;">*</span></label>
+              <input type="text" class="custom-input" id="custom-role-name-input" placeholder="如：运维工程师 / 安全专家 / HRBP" />
+            </div>
+            <div class="custom-form-field">
+              <label>所属部门</label>
+              <input type="text" class="custom-input" id="custom-role-dept-input" placeholder="如：技术运营部 / 业务协同部" />
+            </div>
+            <div class="custom-form-field full-width">
+              <label>关注重点 / 做事风格</label>
+              <input type="text" class="custom-input" id="custom-role-style-input" placeholder="如：注重服务高可用、部署发布、应急排期与稳定性" />
+            </div>
+            <div class="custom-form-actions full-width">
+              <button type="button" class="btn-submit-custom-role" id="btn-submit-custom-role">
+                <span>保存</span>
+              </button>
+              <span class="custom-role-status" id="custom-role-status"></span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  `;
+
+  const presetBtn = bubble.querySelector("#btn-toggle-preset-role");
+  const customBtn = bubble.querySelector("#btn-toggle-custom-role");
+  const skipBtn = bubble.querySelector("#btn-skip-objective");
+  const presetPanel = bubble.querySelector("#preset-roles-panel");
+  const customPanel = bubble.querySelector("#custom-role-panel");
+  const subText = bubble.querySelector(".delivery-sub");
+
+  if (presetBtn && presetPanel) {
+    presetBtn.addEventListener("click", () => {
+      presetPanel.classList.toggle("hidden");
+      if (customPanel) customPanel.classList.add("hidden");
+    });
+  }
+
+  if (customBtn && customPanel) {
+    customBtn.addEventListener("click", () => {
+      customPanel.classList.toggle("hidden");
+      if (presetPanel) presetPanel.classList.add("hidden");
+    });
+  }
+
+  // 1. 选择已有职业
+  bubble.querySelectorAll(".btn-preset-role-chip").forEach((chip) => {
+    chip.addEventListener("click", async () => {
+      const targetRole = chip.getAttribute("data-role");
+      const targetName = chip.getAttribute("data-name");
+      const ctxNow = getCtx();
+
+      chip.disabled = true;
+      if (subText) {
+        subText.style.display = "block";
+        subText.innerHTML = `已选择关联职业「<strong>${escapeHtml(targetName)}</strong>」，正在写入画像并编排流水线...`;
+      }
+
+      if (ctxNow.user_id) {
+        try {
+          const res = await fetch(`${API}/user/${encodeURIComponent(ctxNow.user_id)}/profile`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ role: targetRole }),
+          });
+          if (res.ok) {
+            const d = await res.json();
+            if (d.profile) {
+              currentUserContext.profile = d.profile;
+              if (typeof updateUserProfilePill === "function") {
+                updateUserProfilePill(d.profile);
+              }
+            }
+          }
+        } catch (err) {
+          console.warn("Failed to update profile:", err);
+        }
+      }
+
+      handleChatSubmit(originalQuery, null, true, group, true);
+    });
+  });
+
+  // 2. 提交自定义新职业
+  const btnSubmitCustom = bubble.querySelector("#btn-submit-custom-role");
+  const inputRoleName = bubble.querySelector("#custom-role-name-input");
+  const inputDept = bubble.querySelector("#custom-role-dept-input");
+  const inputStyle = bubble.querySelector("#custom-role-style-input");
+  const customStatus = bubble.querySelector("#custom-role-status");
+
+  if (btnSubmitCustom && inputRoleName) {
+    btnSubmitCustom.addEventListener("click", async () => {
+      const roleName = inputRoleName.value.trim();
+      if (!roleName) {
+        if (customStatus) {
+          customStatus.style.color = "#d32f2f";
+          customStatus.textContent = "请先输入职业名称";
+        }
+        inputRoleName.focus();
+        return;
+      }
+
+      const dept = inputDept ? inputDept.value.trim() : "";
+      const style = inputStyle ? inputStyle.value.trim() : "";
+      const ctxNow = getCtx();
+
+      btnSubmitCustom.disabled = true;
+      if (customStatus) {
+        customStatus.style.color = "var(--ink-700)";
+        customStatus.textContent = "正在保存至 user/profile/role.json...";
+      }
+
+      if (ctxNow.user_id) {
+        try {
+          const res = await fetch(`${API}/user/${encodeURIComponent(ctxNow.user_id)}/custom_role`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              role_name: roleName,
+              department: dept,
+              output_style: style,
+              traits: style ? { "做事风格": style } : {},
+            }),
+          });
+          if (res.ok) {
+            const d = await res.json();
+            if (d.profile) {
+              currentUserContext.profile = d.profile;
+              if (typeof updateUserProfilePill === "function") {
+                updateUserProfilePill(d.profile);
+              }
+            }
+            if (subText) {
+              subText.style.display = "block";
+              subText.innerHTML = `已创建并关联自定义职业「<strong>${escapeHtml(roleName)}</strong>」，正在为您编排流水线...`;
+            }
+            handleChatSubmit(originalQuery, null, true, group, true);
+            return;
+          }
+        } catch (err) {
+          console.warn("Failed to create custom role:", err);
+        }
+      }
+
+      handleChatSubmit(originalQuery, null, true, group, true);
+    });
+  }
+
+  // 3. 跳过并使用默认客观视角
+  if (skipBtn) {
+    skipBtn.addEventListener("click", () => {
+      if (subText) {
+        subText.style.display = "block";
+        subText.innerHTML = `已选择「默认客观视角」，正在为您编排流水线...`;
+      }
+      handleChatSubmit(originalQuery, null, true, group, true);
+    });
+  }
+
+  group.appendChild(senderLine);
+  group.appendChild(bubble);
+  if (messagesContainer) {
+    messagesContainer.appendChild(group);
+    messagesContainer.scrollTop = messagesContainer.scrollHeight;
+  }
+}
+
 // Dispatch User Input & Chat Actions
 async function handleChatSubmit(
   customText = null,
@@ -670,7 +805,7 @@ async function handleChatSubmit(
   }
 
   // 3. Smart Subject & Workflow Branching Interceptor:
-  if (ctx.user_id && (!currentUserContext.subjects || !currentUserContext.subjects.length)) {
+  if (ctx.user_id && (!currentUserContext.subjects || !currentUserContext.subjects.length || !currentUserContext.profile)) {
     await fetchUserContext(ctx.user_id);
   }
 
@@ -683,7 +818,28 @@ async function handleChatSubmit(
     !/入库|建库|保存进|整理进|识别/i.test(text);
 
   if (isDownstreamNotesTask && !isDirect) {
+    if (typeof updateDomainBadge === "function") updateDomainBadge("笔记域");
     appendTaskBranchDecisionMessage(text, detectedSub, knownSubjects);
+    return;
+  }
+
+  // 4. Meeting Domain Role Association Interceptor:
+  const curProf = (currentUserContext && currentUserContext.profile) || {};
+  const curBaseTpl = (curProf.base_template || "").trim().toLowerCase();
+  const curRole = (curProf.role || "").trim();
+  const hasSpecificRole =
+    curBaseTpl &&
+    curBaseTpl !== "object" &&
+    curRole &&
+    curRole !== "客观全员" &&
+    curRole !== "客观" &&
+    !curRole.includes("客观");
+
+  const isMeetingTask = /会议|纪要|例会|讨论|待办|复盘|站会|周会|月会|述职|评审|沟通|访谈/i.test(text);
+
+  if (isMeetingTask && !hasSpecificRole && !detectedParams.perspective && !isDirect) {
+    if (typeof updateDomainBadge === "function") updateDomainBadge("会议域");
+    appendMeetingRoleDecisionMessage(text);
     return;
   }
 
@@ -717,6 +873,17 @@ async function handleChatSubmit(
       return;
     }
 
+    if (data.profile) {
+      currentUserContext.profile = data.profile;
+      if (typeof updateUserProfilePill === "function") {
+        updateUserProfilePill(data.profile);
+      }
+    }
+
+    if (typeof updateDomainBadge === "function") {
+      updateDomainBadge(data);
+    }
+
     if (loadingMsgId) {
       removeMessage(loadingMsgId);
     }
@@ -747,5 +914,76 @@ async function handleChatSubmit(
     }
   } finally {
     if (btnSend) btnSend.disabled = false;
+  }
+}
+
+/**
+ * 确认用户身份后在对话框中展示已识别的画像与记忆概况
+ */
+function appendUserIdentityConfirmedMessage(userId, profile = {}, subjects = []) {
+  const welcomeEl = $("chat-welcome");
+  if (welcomeEl) welcomeEl.remove();
+
+  const group = document.createElement("div");
+  group.className = "msg-group bot";
+
+  const senderLine = document.createElement("div");
+  senderLine.className = "msg-sender-line";
+  senderLine.innerHTML = `
+    <div class="msg-avatar bot">
+      <svg viewBox="0 0 24 24" width="13" height="13" fill="currentColor">
+        <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 3c1.66 0 3 1.34 3 3s-1.34 3-3 3-3-1.34-3-3 1.34-3 3-3zm0 14.2c-2.5 0-4.71-1.28-6-3.22.03-1.99 4-3.08 6-3.08 1.99 0 5.97 1.09 6 3.08-1.29 1.94-3.5 3.22-6 3.22z"/>
+      </svg>
+    </div>
+    <span class="msg-sender-name">用户记忆 Agent</span>
+  `;
+
+  const bubble = document.createElement("div");
+  bubble.className = "msg-bubble-card";
+
+  const roleName = profile.role || "客观全员";
+  const subCount = subjects.length;
+  const subNames = subCount > 0 ? subjects.map((s) => s.name || s).join("、") : "暂未入库学科";
+
+  bubble.innerHTML = `
+    <div class="delivery-card">
+      <div class="delivery-header">
+        <div class="delivery-check-icon">
+          <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.5">
+            <polyline points="20 6 9 17 4 12"/>
+          </svg>
+        </div>
+        <div class="delivery-header-text">
+          <div class="delivery-title">信息识别完成</div>
+        </div>
+      </div>
+
+      <div class="delivery-inner-card">
+        <div style="display: flex; flex-direction: column; gap: 5px; font-size: 13px;">
+          <div style="display: flex; align-items: center; gap: 8px;">
+            <span style="color: var(--ink-500); width: 68px; flex-shrink: 0;">用户 ID：</span>
+            <strong style="color: var(--ink-900); font-family: var(--font-mono);">${escapeHtml(userId)}</strong>
+          </div>
+          <div style="display: flex; align-items: center; gap: 8px;">
+            <span style="color: var(--ink-500); width: 68px; flex-shrink: 0;">职业视角：</span>
+            <span class="mode-badge" style="display: inline-flex;">
+              <span class="badge-dot"></span>
+              <span>${escapeHtml(roleName)}</span>
+            </span>
+          </div>
+          <div style="display: flex; align-items: center; gap: 8px;">
+            <span style="color: var(--ink-500); width: 68px; flex-shrink: 0;">知识学科：</span>
+            <span style="color: var(--ink-800);">${escapeHtml(subNames)}</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  `;
+
+  group.appendChild(senderLine);
+  group.appendChild(bubble);
+  if (messagesContainer) {
+    messagesContainer.appendChild(group);
+    messagesContainer.scrollTop = messagesContainer.scrollHeight;
   }
 }

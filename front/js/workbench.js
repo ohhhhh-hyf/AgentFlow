@@ -75,6 +75,9 @@ function renderPlanWorkbench(data) {
   if (planContainer) planContainer.classList.remove("hidden");
 
   updateContextBarVisibility(plan);
+  if (typeof updateDomainBadge === "function") {
+    updateDomainBadge(data);
+  }
 
   currentActiveStep = 0;
   renderPipelineVisual(execution);
@@ -325,30 +328,26 @@ function createTaskCard(item, idx) {
   const header = document.createElement("div");
   header.className = "task-card-header";
 
+  const domainClass = item.domain === "meeting" ? "tag-domain-meeting" : "tag-domain-notes";
+  const domainLabel = item.domain === "meeting" ? "会议域" : "笔记域";
+
   const titleWrap = document.createElement("div");
   titleWrap.className = "task-card-title-wrap";
   titleWrap.innerHTML = `
     <span class="task-step-num">${idx + 1}</span>
     <span class="task-name-text">${escapeHtml(meta.name)}</span>
+    <span class="tag-badge ${domainClass}">${domainLabel}</span>
   `;
 
-  const tags = document.createElement("div");
-  tags.className = "task-tags";
-
-  const domainClass = item.domain === "meeting" ? "tag-domain-meeting" : "tag-domain-notes";
-  const domainLabel = item.domain === "meeting" ? "会议域" : "笔记域";
-  tags.innerHTML = `<span class="tag-badge ${domainClass}">${domainLabel}</span>`;
-
   if (item.needs && item.needs.length) {
-    tags.innerHTML += `<span class="tag-badge tag-dep">依赖: ${escapeHtml(item.needs.join(","))}</span>`;
+    titleWrap.innerHTML += `<span class="tag-badge tag-dep">依赖: ${escapeHtml(item.needs.join(","))}</span>`;
   }
 
   if (item.dynamic) {
-    tags.innerHTML += `<span class="tag-badge" style="background:#fff4dc;color:#8a570f;border:1px solid #f3d58e;">Supervisor 动态插入</span>`;
+    titleWrap.innerHTML += `<span class="tag-badge" style="background:#fff4dc;color:#8a570f;border:1px solid #f3d58e;">Supervisor 动态插入</span>`;
   }
 
   header.appendChild(titleWrap);
-  header.appendChild(tags);
 
   const statusWrap = document.createElement("div");
   statusWrap.className = "task-status-wrap";
@@ -1068,6 +1067,8 @@ function createOptionalAccordion(item) {
     chip.addEventListener("click", async (e) => {
       e.stopPropagation();
       const targetRole = chip.getAttribute("data-role");
+      item.params = item.params || {};
+      item.params.perspective = targetRole;
       const ctxNow = getCtx();
       if (ctxNow.user_id) {
         try {
@@ -1080,6 +1081,9 @@ function createOptionalAccordion(item) {
             const d = await res.json();
             if (d.profile) {
               currentUserContext.profile = d.profile;
+              if (typeof updateUserProfilePill === "function") {
+                updateUserProfilePill(d.profile);
+              }
               const badge = personaCard.querySelector("#task-persona-badge");
               if (badge) badge.textContent = d.profile.template_label || targetRole;
               chipsWrap.classList.add("hidden");

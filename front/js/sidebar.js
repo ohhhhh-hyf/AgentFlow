@@ -22,6 +22,63 @@ function unlockUserId() {
   if (ctxUser) ctxUser.focus();
 }
 
+// Confirm and Load User Identity, Profile & Memory
+async function confirmUserIdentity(showCardInChat = true) {
+  const inputEl = $("ctx-user");
+  const val = inputEl ? inputEl.value.trim() : "";
+  if (!val) {
+    const alertEl = $("user-id-required-alert");
+    if (alertEl) alertEl.classList.remove("hidden");
+    if (inputEl) {
+      inputEl.classList.add("input-error", "input-highlight-pulse");
+      inputEl.focus();
+      setTimeout(() => inputEl.classList.remove("input-highlight-pulse"), 2500);
+    }
+    return;
+  }
+
+  try {
+    localStorage.setItem("agentflow_user_id", val);
+  } catch (e) {}
+
+  const alertEl = $("user-id-required-alert");
+  if (alertEl) alertEl.classList.add("hidden");
+  if (inputEl) inputEl.classList.remove("input-error");
+
+  const btnConfirm = $("btn-confirm-user");
+  if (btnConfirm) {
+    btnConfirm.disabled = true;
+    btnConfirm.textContent = "...";
+  }
+
+  try {
+    await fetchUserContext(val);
+    await loadUserSessions();
+    if (typeof loadUserKnowledgeSubjects === "function") {
+      loadUserKnowledgeSubjects(val);
+    }
+    if (typeof loadUserOutputs === "function") {
+      loadUserOutputs(val);
+    }
+
+    const prof = (currentUserContext && currentUserContext.profile) || {};
+    if (typeof updateUserProfilePill === "function") {
+      updateUserProfilePill(prof);
+    }
+
+    if (showCardInChat && typeof appendUserIdentityConfirmedMessage === "function") {
+      appendUserIdentityConfirmedMessage(val, prof, currentUserContext.subjects || []);
+    }
+  } catch (err) {
+    console.warn("Failed to load user identity context:", err);
+  } finally {
+    if (btnConfirm) {
+      btnConfirm.disabled = false;
+      btnConfirm.textContent = "确认";
+    }
+  }
+}
+
 // Update Persona Badges across workspace (Chat Box & Workbench)
 function updateUserProfilePill(profile) {
   const modeBadge = $("mode-badge");
@@ -34,8 +91,9 @@ function updateUserProfilePill(profile) {
 
   const baseTpl = (profile.base_template || "").trim().toLowerCase();
   const roleName = profile.role || (profile.template_label ? profile.template_label.split("·").pop().trim() : "客观全员");
+  const personaLabel = profile.template_label || (baseTpl === "object" ? "客观 · 客观全员" : `职业 · ${roleName}`);
 
-  // 如果是客观视角，不用展示；如果是具体职业，展示浅蓝色背景的职业名称
+  // 1. 对话框上方职业标签：如果是具体职业，展示浅蓝色背景的职业名称
   const isObject = baseTpl === "object" || roleName === "客观全员" || roleName === "客观" || roleName.includes("客观");
   if (isObject || !roleName) {
     if (modeBadge) modeBadge.classList.add("hidden");
@@ -46,10 +104,20 @@ function updateUserProfilePill(profile) {
     }
   }
 
-  // 同步工作台上的任务视角卡片徽章
-  const taskBadge = $("task-persona-badge");
-  if (taskBadge) {
-    taskBadge.textContent = profile.template_label || roleName;
+  // 2. 同步右侧工作台流水线编排中高级可选配置的已关联视角画像
+  document.querySelectorAll(".persona-role-badge, #task-persona-badge").forEach((badge) => {
+    badge.textContent = personaLabel;
+  });
+
+  // 3. 展开右侧高级可选配置并触发视觉高亮
+  if (!isObject) {
+    document.querySelectorAll(".optional-accordion").forEach((acc) => {
+      acc.open = true;
+    });
+    document.querySelectorAll(".linked-persona-card").forEach((card) => {
+      card.classList.add("input-highlight-pulse");
+      setTimeout(() => card.classList.remove("input-highlight-pulse"), 2500);
+    });
   }
 }
 
@@ -61,11 +129,15 @@ function openUserProfileModal() {
   const uid = ctx.user_id || "未指定";
 
   if (!ctx.user_id) {
-    if (ctxUser) {
-      ctxUser.classList.add("input-error");
-      ctxUser.focus();
+    const alertEl = $("user-id-required-alert");
+    if (alertEl) {
+      alertEl.classList.remove("hidden");
     }
-    alert("请先输入您的「用户 ID」");
+    if (ctxUser) {
+      ctxUser.classList.add("input-error", "input-highlight-pulse");
+      ctxUser.focus();
+      setTimeout(() => ctxUser.classList.remove("input-highlight-pulse"), 2500);
+    }
     return;
   }
 
@@ -77,7 +149,18 @@ function openUserProfileModal() {
   const prof = (currentUserContext && currentUserContext.profile) || {};
   const selectRole = $("modal-profile-role-select");
   if (selectRole) {
-    selectRole.value = prof.base_template || "object";
+    let tpl = prof.base_template || "";
+    if (!tpl && prof.role) {
+      const r = prof.role.toLowerCase();
+      if (r.includes("开发") || r.includes("研发") || r.includes("工程")) tpl = "developer";
+      else if (r.includes("测试") || r.includes("qa")) tpl = "tester";
+      else if (r.includes("产品")) tpl = "product_manager";
+      else if (r.includes("项目")) tpl = "project_manager";
+      else if (r.includes("算法")) tpl = "algorithm_engineer";
+      else if (r.includes("客户") || r.includes("商务")) tpl = "client_manager";
+      else tpl = "object";
+    }
+    selectRole.value = tpl || "object";
   }
 
   const traits = prof.traits || {};

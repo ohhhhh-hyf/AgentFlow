@@ -152,13 +152,15 @@
       <!-- 底部用户身份与 User ID 录入栏 (点击头像可配置偏好与职业) -->
       <div class="sidebar-user-footer" id="sidebar-user-footer">
         <div class="sidebar-user-avatar" id="btn-sidebar-user-avatar" title="点击头像：配置个人偏好与职业画像">
-          <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor">
-            <path d="M12 2C12 7.52 7.52 12 2 12C7.52 12 12 16.48 12 22C12 16.48 16.48 12 22 12C16.48 12 12 7.52 12 2Z"/>
+          <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
+            <circle cx="12" cy="7" r="4"/>
           </svg>
           <span class="avatar-click-badge" title="点击配置">⚙</span>
         </div>
         <div class="sidebar-user-input-wrap">
           <input id="ctx-user" class="sidebar-user-input" type="text" value="" placeholder="用户 ID (必填)" autocomplete="off" />
+          <button id="btn-confirm-user" type="button" class="btn-confirm-user" title="确认用户身份并加载画像记忆">确认</button>
         </div>
       </div>
     </aside>
@@ -232,8 +234,10 @@
               <span class="badge-dot"></span>
               <span id="mode-text"></span>
             </span>
-            <!-- 实时识别参数建议条 -->
-            <div id="live-param-suggestions" class="live-param-suggestions hidden"></div>
+            <span class="mode-badge hidden" id="domain-badge" title="当前所属领域">
+              <span class="badge-dot"></span>
+              <span id="domain-text"></span>
+            </span>
           </div>
           <div class="input-row">
             <textarea id="chat-text" rows="1" placeholder="输入您的需求，例如：把图片识别后入库到数学学科，再生成复习清单..." autocomplete="off"></textarea>
@@ -415,8 +419,9 @@
       <div class="user-modal-header">
         <div class="user-modal-title-wrap">
           <span class="user-modal-icon">
-            <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor">
-              <path d="M12 2C12 7.52 7.52 12 2 12C7.52 12 12 16.48 12 22C12 16.48 16.48 12 22 12C16.48 12 12 7.52 12 2Z"/>
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
+              <circle cx="12" cy="7" r="4"/>
             </svg>
           </span>
           <span class="user-modal-title">用户画像与偏好设置</span>
@@ -474,12 +479,12 @@
   </div>
 
   <!-- Modular Client Architecture -->
-  <script src="js/constants.js"></script>
-  <script src="js/state.js"></script>
-  <script src="js/api.js"></script>
-  <script src="js/sidebar.js"></script>
-  <script src="js/chat.js"></script>
-  <script src="js/workbench.js"></script>
-  <script src="js/main.js"></script>
+  <script src="js/constants.js?v=2.9"></script>
+  <script src="js/state.js?v=2.9"></script>
+  <script src="js/api.js?v=2.9"></script>
+  <script src="js/sidebar.js?v=2.9"></script>
+  <script src="js/chat.js?v=2.9"></script>
+  <script src="js/workbench.js?v=2.9"></script>
+  <script src="js/main.js?v=2.9"></script>
 </body>
 </html>

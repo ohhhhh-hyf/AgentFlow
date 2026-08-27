@@ -313,11 +313,11 @@ class _Nodes(DomainNodes):
         return ""
 
     def _compute_title(self, state) -> str:
-        """视角标题（客观 → 提取的会议主题纪要；个人 → 提取的会议主题 · 姓名视角纪要）。"""
+        """视角标题（客观 → 提取的会议主题纪要；个人 → 提取的会议主题 · 姓名/职业视角纪要）。"""
         topic = self._extract_meeting_topic(state)
         objective = bool(state.get("objective_perspective"))
         user = state.get("user") or {}
-        name = user.get("name") or "用户"
+        name = user.get("name") or user.get("role") or "用户"
 
         if topic:
             if objective:
@@ -334,7 +334,7 @@ class _Nodes(DomainNodes):
         topic = self._extract_meeting_topic(state)
         objective = bool(state.get("objective_perspective"))
         user = state.get("user") or {}
-        name = user.get("name") or "用户"
+        name = user.get("name") or user.get("role") or "用户"
         prefix = f"{topic} · " if topic else ""
 
         if line_name == "minutes_generation":
