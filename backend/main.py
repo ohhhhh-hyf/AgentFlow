@@ -26,6 +26,8 @@ for _stream in (sys.stdout, sys.stderr):
     except Exception:  # noqa: BLE001
         pass
 
+from typing import Any, Dict, List, Optional, Tuple, Union
+
 from fastapi import FastAPI, File, Form, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
@@ -551,7 +553,7 @@ async def api_intent(payload: dict) -> dict:
 @app.post("/api/tasks")
 async def api_tasks(
     plan_json: str = Form(...),
-    files: list[UploadFile] = File(default=[]),
+    files: List[UploadFile] = File(default=[]),
 ) -> dict:
     try:
         plan = json.loads(plan_json)

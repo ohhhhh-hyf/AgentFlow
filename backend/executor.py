@@ -12,7 +12,7 @@ import io
 import json
 import uuid
 from pathlib import Path
-from typing import Any
+from typing import Any, Dict, List, Optional, Tuple, Union
 
 from fastapi import UploadFile
 
@@ -95,7 +95,7 @@ class TaskRunner:
             state.setdefault("logs", []).append(f"[{ts}] {msg}")
 
     # ── 提交 ──
-    def submit(self, plan: dict[str, Any], files: list[UploadFile], user_id: str | None = None) -> str:
+    def submit(self, plan: Dict[str, Any], files: List[UploadFile], user_id: Optional[str] = None) -> str:
         task_id = uuid.uuid4().hex[:10]
 
         # 优先提取 user_id：先有 user，再有该 user 的 upload 目录
