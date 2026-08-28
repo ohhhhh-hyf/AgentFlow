@@ -15,21 +15,21 @@ STATE_CLASS = "MeetingState"
 # "线名": "中文名"。中文名供 supervisor 上下文与日志使用，
 # 草稿标题自动推导为 {中文名}草稿。
 LINE_CN_NAMES: dict[str, str] = {
-    "minutes_generation": "纪要",
-    "action_items": "待办",
-    "risk": "风险分析",
+    "minutes": "纪要",
+    "actions": "待办",
+    "risks": "风险分析",
     "mindmap": "思维导图",
-    "multi_styles": "多样式纪要",
+    "minutes_styles": "多样式纪要",
     "minutes_trace": "溯源纪要",
 }
 
 # 任务线种类（手写，不进 sync_domain 生成区）。
-# minutes_trace 是 deterministic_pipeline + sidecar，不是和 risk 对等的 3-step 线。
+# minutes_trace 是 deterministic_pipeline + sidecar，不是和 risks 对等的 3-step 线。
 LINE_KINDS: dict[str, object] = {
-    "minutes_generation": LLM_DOCUMENT,
-    "action_items": {"kind": LLM_EXTRACT, "llm_render": "if_template"},
-    "risk": {"kind": LLM_EXTRACT, "llm_render": "if_template"},
+    "minutes": LLM_DOCUMENT,
+    "actions": {"kind": LLM_EXTRACT, "llm_render": "if_template"},
+    "risks": {"kind": LLM_EXTRACT, "llm_render": "if_template"},
     "mindmap": LLM_DOCUMENT,
-    "multi_styles": {"kind": LLM_DOCUMENT, "cli_mode": True},
+    "minutes_styles": {"kind": LLM_DOCUMENT, "cli_mode": True},
     "minutes_trace": {"kind": DETERMINISTIC_PIPELINE, "sidecar": True},
 }

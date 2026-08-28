@@ -2,9 +2,9 @@
 
 三种衣服：
 
-- ``llm_extract``：列表抽取（risk / action_items / review / quiz）
+- ``llm_extract``：列表抽取（risk / actions / review / quiz）
 - ``llm_document``：成篇文本（纪要 / 多样式 / 思维导图）
-- ``deterministic_pipeline``：程序落钉（minutes_trace；无模板的 knowledge_graph）
+- ``deterministic_pipeline``：程序落钉（minutes_trace；无模板的 graph）
 
 种类写在 ``domain_config.LINE_KINDS``，不进 sync_domain 生成区。
 minutes_trace 是文档化的 pipeline + sidecar，不是和 risk 对等的「又一条 3-step 线」。

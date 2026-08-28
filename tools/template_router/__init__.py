@@ -18,16 +18,16 @@ from ._preview import _apply_banner_overrides, _aspect_has_fixed_heading, _aspec
 from ._gate import COMPILE_SYSTEM_PROMPT_TEMPLATE, _build_compile_system, _compile_cache_key, _ensure_document_char_budget_line, _ensure_table_row_limits, _extract_table_row_limits, _inject_row_limit_into_table_row, check_compile_fidelity, maybe_compile_natural_template, merge_preview_fill, modify_template, validate_rendered_output
 
 LINE_SCHEMA_HINTS: dict[str, str] = {
-    "minutes_generation": (
+    "minutes": (
         "headline, executive_summary, key_decisions, risks_and_blockers, "
         "unresolved_questions, personally_relevant_points"
     ),
-    "action_items": (
+    "actions": (
         "my_actions / unassigned_actions；每项含 task, owner, deadline, priority, status"
     ),
     "risk": "risks 列表（描述、等级、相关方、缓解建议等）",
     "mindmap": "outline（Markdown 树状大纲：#/##/### 与 - 短分支；禁止表格）",
-    "knowledge_graph": "nodes / edges / outline",
+    "graph": "nodes / edges / outline",
     "review": "knowledge_points / issues / corrected_notes",
     "quiz": "questions（prompt, dimension, answer_points）",
 }

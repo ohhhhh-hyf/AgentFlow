@@ -416,7 +416,7 @@ def main() -> None:
         "--task",
         required=True,
         metavar="TASK",
-        help="Task directory name, for example digest or action_items.",
+        help="Task directory name, for example digest or actions.",
     )
     parser.add_argument(
         "--name",

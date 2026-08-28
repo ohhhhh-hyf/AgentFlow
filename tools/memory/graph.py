@@ -138,7 +138,7 @@ def sanitize_graph(draft: dict[str, Any]) -> dict[str, Any]:
     - 节点：name 去空白；同名节点合并（后到字段覆盖空值，definition 取更长）
     - 边：source/relation/target 去空白；同三元组去重；悬空边（两端不在
       nodes）与无效边剥离并计数告警
-    - 与导出侧（tools/knowledge_graph.py 的悬空边过滤）形成
+    - 与导出侧（tools/graph.py 的悬空边过滤）形成
       「生成侧拦截 + 导出侧兜底」双层，避免脏数据进入 memory / 产物
     """
     out = dict(draft or {})

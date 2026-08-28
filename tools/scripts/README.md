@@ -134,8 +134,8 @@ notes_factory.py
 
 ```text
 digest             -> Digest
-action_items       -> ActionItems
-minutes_generation -> MinutesGeneration
+actions       -> ActionItems
+minutes -> MinutesGeneration
 ```
 
 Required layout:
@@ -197,7 +197,7 @@ Examples:
 
 ```text
 digest       -> DIGEST
-action_items -> ACTION_ITEMS
+actions -> ACTION_ITEMS
 ```
 
 Optional fallback:

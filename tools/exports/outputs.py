@@ -4,7 +4,7 @@
 统一负责"最终输出落盘"：
 
 - 报告类任务：``save_all_reports`` 写入 output/{domain}/{task}/ 的文本产物
-- 图类任务：``export_mindmap_*`` / ``export_knowledge_graph`` 导出 HTML/PNG（脑图）或 SVG/HTML（图谱）
+- 图类任务：``export_mindmap_*`` / ``export_graph`` 导出 HTML/PNG（脑图）或 SVG/HTML（图谱）
 """
 from __future__ import annotations
 
@@ -13,7 +13,7 @@ from dataclasses import asdict, is_dataclass
 from datetime import datetime
 from pathlib import Path
 
-from tools.exports.knowledge_graph import graphviz_available, render_knowledge_graph_bundle
+from tools.exports.knowledge_graph import graphviz_available, render_graph_bundle
 from tools.exports.mindmap import (
     markmap_available,
     mindmap_png_available,
@@ -210,7 +210,7 @@ def save_report_artifacts(
                     encoding="utf-8",
                 )
             paths["html"] = html_path
-        elif ctx.name == "meeting" and line_name == "minutes_generation":
+        elif ctx.name == "meeting" and line_name == "minutes":
             from tools.memory.citations import memory_review_html
 
             review = memory_review_html(text)
@@ -275,7 +275,7 @@ def save_all_reports(
     for line_name, report in reports.items():
         if line_name not in ctx.task_lines:
             continue
-        if line_name in {"mindmap", "knowledge_graph"}:
+        if line_name in {"mindmap", "graph"}:
             continue
         saved[line_name] = save_report_artifacts(
             ctx,
@@ -323,8 +323,8 @@ async def export_mindmap_png(
     return await render_mindmap_png(outline, out_dir, filename, html_path=html_path)
 
 
-def export_knowledge_graph(reports: dict, out_dir: Path) -> dict[str, Path]:
-    kg = reports.get("knowledge_graph")
+def export_graph(reports: dict, out_dir: Path) -> dict[str, Path]:
+    kg = reports.get("graph")
     nodes = getattr(kg, "nodes", None) if kg else None
     if not nodes:
         return {}
@@ -338,12 +338,12 @@ def export_knowledge_graph(reports: dict, out_dir: Path) -> dict[str, Path]:
         if not title and stripped.startswith("# "):
             title = stripped[2:].strip()
             break
-    stem = f"knowledge_graph_{_stamp()}"
-    return render_knowledge_graph_bundle(nodes, edges, out_dir, stem, title=title)
+    stem = f"graph_{_stamp()}"
+    return render_graph_bundle(nodes, edges, out_dir, stem, title=title)
 
 
 __all__ = [
-    "export_knowledge_graph",
+    "export_graph",
     "export_mindmap_html",
     "export_mindmap_png",
     "report_text",

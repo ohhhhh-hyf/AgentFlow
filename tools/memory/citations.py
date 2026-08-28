@@ -20,7 +20,9 @@ SECTION_TITLE = "历史记忆引用"
 _MEMORY_SECTION_RE = re.compile(r"\n-{3,}\n\n## 历史记忆引用\b.*\Z", re.S)
 _HAN = re.compile(r"[\u4e00-\u9fff]+")
 _LATIN_TERM = re.compile(r"[A-Za-z][A-Za-z0-9_\-]{2,}")
-_TAG_RE = re.compile(r"(?:<sup>)?\[记忆\d+\]\(#memory-\d+\)(?:</sup>)?|class=\"memory-link\"")
+_TAG_RE = re.compile(
+    r"(?:<sup>)?\[记忆\d+\]\(#memory-\d+\)(?:</sup>)?|class=\"memory-link\"|\[[^\]]+\]\(#memory-\d+\)"
+)
 _DISPLAY_RE = re.compile(r"记忆摘录〔([^〕]+)〕：([^。\n]+(?:。|$))")
 _SOURCE_RE = re.compile(
     r"^- 〔([^〕]+)〕(.+?)(?:｜场次：(第\d+场|未定位))?｜会议：(.+?)｜时间：(.+)$"
@@ -222,7 +224,7 @@ def _is_citeable_line(line: str) -> bool:
 
 def _underline_line(line: str, ref_id: str) -> str:
     label = escape(line, quote=False)
-    return f'<a href="#{ref_id}" class="memory-link"><u>{label}</u></a>'
+    return f"[{label}](#{ref_id})"
 
 
 _MIN_ANCHOR = 8
@@ -329,9 +331,7 @@ def _append_markers(
     for start, end, ref in spans:
         out.append(escape(line[pos:start], quote=False))
         label = escape(line[start:end], quote=False)
-        out.append(
-            f'<a href="#{ref.ref_id}" class="memory-link"><u>{label}</u></a>'
-        )
+        out.append(f"[{label}](#{ref.ref_id})")
         used.append(ref.ref_id)
         pos = end
     out.append(escape(line[pos:], quote=False))
@@ -390,7 +390,9 @@ def apply_memory_citations(markdown: str, context: str) -> str:
         slot = ref.session_label or "未定位"
         appendix.extend(
             [
-                f'<a id="{ref.ref_id}"></a>',
+                # markdown 标题自带锚点：前端 markdown-it + anchor 插件配置
+                # slugify: (s) => s.replace(/^溯源\s+/, "") 使标题 id = ref_id，正文链接可跳转
+                f"#### 溯源 {ref.ref_id}",
                 f"> {ref.text}",
                 f"时间：{at}　场次：{slot}　类型：{kind}　关联：{ref.entity}",
                 f"来源会议：{title}",
@@ -404,10 +406,10 @@ def _parse_memory_sources(text: str) -> dict[str, str]:
     if f"## {SECTION_TITLE}" not in text:
         return {}
     appendix = text.split(f"## {SECTION_TITLE}", 1)[1]
-    blocks = re.split(r'\n<a id="([^"]+)"></a>\n', appendix)
+    blocks = re.split(r'\n#### 溯源 ([^\n]+)\n', appendix)
     out: dict[str, str] = {}
     for i in range(1, len(blocks), 2):
-        ref_id = blocks[i]
+        ref_id = blocks[i].strip()
         body = blocks[i + 1] if i + 1 < len(blocks) else ""
         lines = [line.strip() for line in body.strip().splitlines() if line.strip()]
         if not lines:
@@ -437,24 +439,26 @@ def _parse_memory_sources(text: str) -> dict[str, str]:
 def memory_review_html(markdown: str) -> str:
     """Render memory-linked Markdown into a left-text/right-source review view."""
     text = markdown or ""
-    if 'class="memory-link"' not in text:
+    if "](#" not in text:
         return ""
     main = text.split(f"\n---\n\n## {SECTION_TITLE}", 1)[0]
     sources = _parse_memory_sources(text)
     rows: list[str] = ['<div class="memory-review">']
-    link_re = re.compile(r'<a href="#([^"]+)" class="memory-link"><u>(.*?)</u></a>')
+    link_re = re.compile(r"\[([^\]]+)\]\(#([^)]+)\)")
     for raw in main.splitlines():
         line = raw.strip()
         if not line:
             continue
         ids = link_re.findall(line)
-        cleaned = link_re.sub(lambda m: f'<span class="mem-mark">{m.group(2)}</span>', line)
+        cleaned = link_re.sub(
+            lambda m: f'<span class="mem-mark">{m.group(1)}</span>', line
+        )
         if line.startswith("#"):
             rows.append(f'<div class="review-heading">{escape(line.lstrip("# ").strip())}</div>')
             continue
         cards = []
         seen: set[str] = set()
-        for ref_id, _ in ids:
+        for _, ref_id in ids:
             if ref_id in seen:
                 continue
             seen.add(ref_id)

@@ -33,7 +33,7 @@ def build_render_context(
     ``blocks`` 为 ``(标签, 值, "raw"|"json")``。草稿/审核标签由 ``line_cn``
     推导为「已批准{中文名}草稿」/「{中文名}审核结论」，以保持
     minutes_trace 等按标签抠 JSON 的 render 兼容。
-    ``extra``（如记忆注入）对所有线生效，不再特判 minutes_generation。
+    ``extra``（如记忆注入）对所有线生效，不再特判 minutes。
     """
     serialize = dumps or json_dumps
     head = (

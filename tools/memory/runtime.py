@@ -21,8 +21,8 @@ from .store import (
 
 logger = logging.getLogger(__name__)
 
-MEETING_LINES = frozenset({"minutes_generation", "multi_styles"})
-GRAPH_LINES = frozenset({"knowledge_graph"})
+MEETING_LINES = frozenset({"minutes", "minutes_styles"})
+GRAPH_LINES = frozenset({"graph"})
 MEMORY_LINES = MEETING_LINES | GRAPH_LINES
 
 
@@ -174,7 +174,7 @@ def _refresh_identity(
     }
     title = ""
     purpose = _purpose_text(understanding)
-    for key in ("minutes_generation", "multi_styles", "knowledge_graph"):
+    for key in ("minutes", "minutes_styles", "graph"):
         dump = _dump(reports.get(key))
         cand = str(dump.get("title") or "").strip()
         if cand and cand not in generic_titles and not cand.endswith("视角会议纪要"):
@@ -258,8 +258,8 @@ def persist(
             record = merge_meeting(
                 record, reports, stamp, understanding, transcript
             )
-        if reports.get("knowledge_graph") is not None:
-            record = merge_graph(record, reports["knowledge_graph"])
+        if reports.get("graph") is not None:
+            record = merge_graph(record, reports["graph"])
         record["user_id"] = user_id
         record["updated_at"] = stamp
         record["run_count"] = int(record.get("run_count") or 0) + 1

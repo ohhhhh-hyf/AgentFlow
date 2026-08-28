@@ -93,7 +93,7 @@ def _pick_session_title(
     if theme:
         return theme
     headings: list[str] = []
-    for key in ("minutes_generation", "multi_styles"):
+    for key in ("minutes", "minutes_styles"):
         dump = _dump((reports or {}).get(key))
         for field in ("headline", "title"):
             headings.append(str(dump.get(field) or ""))
@@ -950,10 +950,10 @@ def _rebuild_summary(meeting: dict[str, Any]) -> str:
     return " ".join(parts)
 
 
-def _action_items(reports: dict[str, Any]) -> list[dict[str, Any]]:
+def _actions(reports: dict[str, Any]) -> list[dict[str, Any]]:
     out: list[dict[str, Any]] = []
-    actions = _dump(reports.get("action_items"))
-    for item in actions.get("action_items") or []:
+    actions = _dump(reports.get("actions"))
+    for item in actions.get("actions") or []:
         if not isinstance(item, dict):
             continue
         task = _clean(item.get("task"))
@@ -966,7 +966,7 @@ def _action_items(reports: dict[str, Any]) -> list[dict[str, Any]]:
                 "deadline": item.get("deadline"),
                 "priority": item.get("priority"),
                 "evidence": _clean(item.get("evidence")),
-                "source": "action_items",
+                "source": "actions",
             }
         )
     return out
@@ -1160,7 +1160,7 @@ def merge_meeting(
             {"item": text, "source": "understanding"}
             for text in _str_list(understanding.get("open_questions"))
         ]
-        + _action_items(reports),
+        + _actions(reports),
         "item",
     )
     incoming_risks = _collapse_by_key(

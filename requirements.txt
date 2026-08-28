@@ -1,6 +1,14 @@
 # 编排内核
 langgraph>=0.6.0,<2
 
+# FastAPI 后端接口（app/ 包；启动 uvicorn app.main:app）
+fastapi>=0.110
+uvicorn>=0.29
+PyYAML>=6.0
+
+# 学科目录拼音化（catalog 按 subject 分目录：数学 → shuxue）
+pypinyin>=0.5
+
 # Web 测试 / 演示 UI（gradio_app.py；兼容 Gradio 4.x-5.x API）
 gradio>=4.44.0,<6
 

@@ -192,11 +192,11 @@ class ActionItemsSupervisorReview(ModelMixin):
     """待办任务线的领域审核结果。"""
 
     decision: Literal["approve", "revise", "reject"]
-    action_items_check: dict[str, Any]
+    actions_check: dict[str, Any]
     feedback: list[str] = field(default_factory=list)
 
     # 本模型的全部检查项（供结构校验与公共语义校验使用）
-    CHECK_KEYS = ("action_items_check",)
+    CHECK_KEYS = ("actions_check",)
 
     @classmethod
     def validate(cls, data: dict) -> "ActionItemsSupervisorReview":
@@ -325,7 +325,7 @@ class ActionItemsReportValidation:
 
     @classmethod
     def validate(cls, data: dict) -> "ActionItemsReport":
-        allowed = {"action_items", "quality_warning", "personalized_text"}
+        allowed = {"actions", "quality_warning", "personalized_text"}
 
         if not isinstance(data, dict):
             raise OutputValidationError("ActionItemsReport 必须是 JSON 对象")
@@ -336,17 +336,17 @@ class ActionItemsReportValidation:
                 f"ActionItemsReport 字段不一致：多余={sorted(extra)}"
             )
 
-        if not isinstance(data.get("action_items") or [], list):
-            raise OutputValidationError("action_items 必须是数组")
-        for index, item in enumerate(data.get("action_items") or []):
-            _action(item, f"action_items[{index}]")
+        if not isinstance(data.get("actions") or [], list):
+            raise OutputValidationError("actions 必须是数组")
+        for index, item in enumerate(data.get("actions") or []):
+            _action(item, f"actions[{index}]")
         if data.get("quality_warning") is not None:
             _string(data["quality_warning"], "quality_warning")
         if data.get("personalized_text") is not None:
             _string(data["personalized_text"], "personalized_text")
 
         return cls(
-            action_items=data.get("action_items") or [],
+            actions=data.get("actions") or [],
             quality_warning=data.get("quality_warning"),
             personalized_text=data.get("personalized_text"),
         )

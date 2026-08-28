@@ -80,14 +80,16 @@ def resolve_knowledge_input(ctx: DomainContext, file_path: Path) -> Path:
     """归档入库路径：支持知识库可解析的文件或目录。"""
     from tools.knowledge.document_processor import SUPPORTED_EXTS
 
+    image_exts = {".png", ".jpg", ".jpeg"}
+    allowed = SUPPORTED_EXTS | image_exts
     resolved = resolve_path(ctx, resolve_sample_path(ctx, file_path, "file"))
     if not resolved.exists():
         raise FileNotFoundError(f"入库路径不存在：{resolved}")
     if resolved.is_dir():
         return resolved
-    if resolved.suffix.lower() not in SUPPORTED_EXTS:
+    if resolved.suffix.lower() not in allowed:
         raise ValueError(
-            f"入库文件必须是 {', '.join(sorted(SUPPORTED_EXTS))}：{resolved}"
+            f"入库文件必须是 {', '.join(sorted(allowed))}：{resolved}"
         )
     return resolved
 
@@ -101,6 +103,8 @@ def knowledge_text_preview(path: Path, *, limit: int = 4000) -> str:
     if path.suffix.lower() in {".txt", ".md"}:
         body = path.read_text(encoding="utf-8", errors="ignore").strip()
         return body or path.name
+    if path.suffix.lower() in {".png", ".jpg", ".jpeg"}:
+        return f"图片待 OCR 入库：{path.name}"
     try:
         chunks = process_file(str(path))
     except Exception:
@@ -135,7 +139,7 @@ def load_trace_sidecars(ctx: DomainContext, file_path: Path) -> dict[str, str]:
     folders = [text_file.parent]
     if text_file.parent.name == "input":
         folders.append(text_file.parent.parent)
-    folders.append(ctx.project_root / "test")
+    folders.append(ctx.project_root / "scripts")
     folders.append(ctx.cli_samples_dir)
 
     def _find(names: tuple[str, ...]) -> str:
@@ -187,13 +191,13 @@ def load_user(ctx: DomainContext, profile_path: Path):
         # 兼容：未传具体文件时走 samples/{domain}/profile
         resolved = resolve_path(ctx, profile_path)
     if not resolved.exists():
-        # 客观画像在公共目录根，职业模板在公共 role/ 子目录
-        from tools.profiles import SHARED_PROFILE_DIR, SHARED_ROLE_DIR
+        # 客观画像与职业模板都平铺在公共目录 perspective/profiles/
+        from tools.profiles import SHARED_PROFILE_DIR
 
         shared = next(
             (
                 d / profile_path.name
-                for d in (SHARED_PROFILE_DIR, SHARED_ROLE_DIR)
+                for d in (SHARED_PROFILE_DIR,)
                 if (d / profile_path.name).exists()
             ),
             None,

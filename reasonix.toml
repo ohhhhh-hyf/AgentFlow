@@ -1,0 +1,2 @@
+[permissions]
+allow = ["Bash=where python python3 py 2>/dev/null; echo \"---\"; grep -n \"mode\" \"D:\\AgentFlow\\domain\\meeting\\tasks\\minutes_styles\\contracts.py\" | head -30"]

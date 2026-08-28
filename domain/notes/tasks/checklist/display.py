@@ -755,7 +755,7 @@ def _trace_script() -> str:
 
 
 def build_checklist_html(draft: dict[str, Any], *, has_teacher: bool | None = None) -> str:
-    from tools.knowledge_graph import _CYTOSCAPE_CDN, build_knowledge_graph_embed
+    from tools.graph import _CYTOSCAPE_CDN, build_graph_embed
     from tools.mindmap import _D3_CDN, _MARKMAP_VIEW_CDN, build_editable_mindmap_embed
 
     course = _clean(draft.get("course")) or "复习清单"
@@ -808,7 +808,7 @@ def build_checklist_html(draft: dict[str, Any], *, has_teacher: bool | None = No
         body.append(build_editable_mindmap_embed(outline, title=f"{course} · 复习思维导图"))
         body.append("<h3>3. 考点知识图谱</h3>")
         if nodes:
-            body.append(build_knowledge_graph_embed(nodes, edges, title="考点知识图谱"))
+            body.append(build_graph_embed(nodes, edges, title="考点知识图谱"))
         else:
             body.append("<p>本次激活点之间没有可画的关系图。</p>")
         body.append("<h2>二、知识点</h2>")

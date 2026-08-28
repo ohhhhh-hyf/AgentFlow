@@ -58,7 +58,6 @@ def _is_ocr_note_source(source: str, user_id: str = "", subject: str = "") -> bo
         / safe_id(user_id)
         / "ocr"
         / safe_id(subject)
-        / "md"
         / f"{stem}.md"
     )
     return path.is_file()

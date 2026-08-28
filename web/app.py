@@ -39,7 +39,6 @@ from tools.template_router import (  # noqa: E402
 from tools.profiles import (  # noqa: E402
     KIND_OBJECTIVE,
     SHARED_PROFILE_DIR,
-    SHARED_ROLE_DIR,
     list_profile_entries_multi,
 )
 from web.quiz_filters import (  # noqa: E402
@@ -61,7 +60,7 @@ MONITOR_OFF = "off"
 MONITOR_CHOICES = [("关", MONITOR_OFF), ("监控", MONITOR_ON)]
 PERSPECTIVE_OBJECTIVE = "objective"
 KNOWLEDGE_SCOPE_LINES = frozenset({"library", "catalog", "checklist"})
-OCR_TASK = "ocr_recognition"
+IMAGE_SUFFIXES = {".png", ".jpg", ".jpeg"}
 
 
 load_env(PROJECT_ROOT / ".env")
@@ -82,8 +81,6 @@ def _task_choices(domain: str) -> list[tuple[str, str]]:
         if line not in ordered:
             ordered.append(line)
     choices = [(ctx.line_cn_names.get(line, line), line) for line in ordered]
-    if domain == "notes":
-        choices.append(("OCR识别", OCR_TASK))
     return choices
 
 
@@ -132,15 +129,13 @@ def _profile_dir(domain: str) -> Path:
 
 
 def _profile_dirs(domain: str) -> list[Path]:
-    """该 domain 可见的画像目录：域名下优先（客观/真人），公共客观画像与职业模板在后。"""
+    """该 domain 可见的画像目录：域名下优先（客观/真人），公共画像目录在后。"""
     dirs: list[Path] = []
     domain_dir = _profile_dir(domain)
     if domain_dir.is_dir():
         dirs.append(domain_dir)
     if SHARED_PROFILE_DIR.is_dir():
         dirs.append(SHARED_PROFILE_DIR)
-    if SHARED_ROLE_DIR.is_dir():
-        dirs.append(SHARED_ROLE_DIR)
     return dirs
 
 
@@ -181,7 +176,7 @@ def _load_profile_json_text(domain: str, mode: str = PERSPECTIVE_OBJECTIVE, labe
         return path.read_text(encoding="utf-8")
     # 客观画像已抽到跨域公共目录：domain 目录没有时回退
     if mode == PERSPECTIVE_OBJECTIVE:
-        shared = SHARED_PROFILE_DIR / "object_profile.json"
+        shared = SHARED_PROFILE_DIR / "object.json"
         if shared.exists():
             return shared.read_text(encoding="utf-8")
     # 兜底骨架
@@ -219,7 +214,7 @@ def _task_uses_memory(task: str) -> bool:
 
 
 TASK_BRIEFS: dict[str, dict[str, str]] = {
-    "minutes_generation": {
+    "minutes": {
         "inputs": "会议记录。可选：视角（默认客观全员）、用户 ID、项目 ID、模板",
         "outputs": "结构化纪要 Markdown + 网页 HTML",
         "purpose": (
@@ -227,7 +222,7 @@ TASK_BRIEFS: dict[str, dict[str, str]] = {
             "特别之处：填用户 ID 开记忆，命中历史会议会打引用并展开对照卡片。"
         ),
     },
-    "action_items": {
+    "actions": {
         "inputs": "会议记录。可选：模板",
         "outputs": "待办清单 Markdown",
         "purpose": (
@@ -235,7 +230,7 @@ TASK_BRIEFS: dict[str, dict[str, str]] = {
             "特别之处：与纪要分开验证；只认明确分工，不把口头讨论当已分派任务。"
         ),
     },
-    "risk": {
+    "risks": {
         "inputs": "会议记录。可选：模板",
         "outputs": "风险分析 Markdown",
         "purpose": (
@@ -251,7 +246,7 @@ TASK_BRIEFS: dict[str, dict[str, str]] = {
             "特别之处：产物是可交互网页；不写项目记忆。"
         ),
     },
-    "multi_styles": {
+    "minutes_styles": {
         "inputs": "会议记录、组织模式。可选：用户 ID、项目 ID、模板",
         "outputs": "指定风格纪要 Markdown",
         "purpose": (
@@ -267,7 +262,7 @@ TASK_BRIEFS: dict[str, dict[str, str]] = {
             "特别之处：一条关键点可反复挂钉，核对有据可查。"
         ),
     },
-    "knowledge_graph": {
+    "graph": {
         "inputs": "笔记原文。可选：用户 ID、学科、模板",
         "outputs": "图谱 SVG + 可点击 HTML + 学习地图 Markdown",
         "purpose": (
@@ -284,10 +279,10 @@ TASK_BRIEFS: dict[str, dict[str, str]] = {
         ),
     },
     "library": {
-        "inputs": "用户 ID、学科，以及多份课件/讲义/笔记（PPT/PDF/Word 等）",
+        "inputs": "用户 ID、学科，以及多份课件/讲义/笔记/图片（PPT/PDF/Word/TXT/图片等）",
         "outputs": "信息熵报告：知识增量 + 冲突点（Markdown/HTML）",
         "purpose": (
-            "写入该用户该学科的知识库。课件定骨架，笔记标覆盖。"
+            "写入该用户该学科的知识库。图片会先批量 OCR 整理成一份 Markdown，再和非图片资料一起入库。课件定骨架，笔记标覆盖。"
             "不用指定 collection 名；同一用户 + 学科就是同一个库。"
         ),
     },
@@ -318,11 +313,6 @@ TASK_BRIEFS: dict[str, dict[str, str]] = {
             "另从题库配约 6 道同知识点真题，边学边练。"
         ),
     },
-    OCR_TASK: {
-        "inputs": "PNG / JPG / JPEG 图片",
-        "outputs": "审校版 Markdown",
-        "purpose": "把图片识别成可入库的 Markdown。生成的 LLM Markdown 可继续上传到资料入库。",
-    },
 }
 
 
@@ -346,11 +336,10 @@ def _scope_field_visibility(domain: str, task: str) -> tuple[bool, bool, bool]:
     """
     uses = _task_uses_memory(task)
     knowledge_scoped = domain == "notes" and task in KNOWLEDGE_SCOPE_LINES
-    ocr_scoped = domain == "notes" and task == OCR_TASK
     needs_user = uses or knowledge_scoped
-    needs_subject = uses or knowledge_scoped or ocr_scoped
+    needs_subject = uses or knowledge_scoped
     return (
-        needs_user or ocr_scoped,
+        needs_user,
         uses and domain == "meeting",
         needs_subject and domain == "notes",
     )
@@ -362,7 +351,7 @@ _TEACHER_TEXT_TASKS = frozenset({"catalog", "checklist"})
 
 
 def _scope_labels(task: str) -> tuple[dict[str, str], dict[str, str]]:
-    if task in KNOWLEDGE_SCOPE_LINES or task == OCR_TASK:
+    if task in KNOWLEDGE_SCOPE_LINES:
         return (
             {
                 "label": "用户 ID（必填）",
@@ -386,17 +375,11 @@ def _scope_labels(task: str) -> tuple[dict[str, str], dict[str, str]]:
 
 
 def _input_copy(task: str) -> dict[str, str]:
-    if task == OCR_TASK:
-        return {
-            "upload_label": "图片文件",
-            "text_label": "文本",
-            "text_placeholder": "OCR识别只需要上传图片。",
-        }
     if task == "library":
         return {
-            "upload_label": "资料文件（可多选：课件 / 讲义 / 笔记）",
+            "upload_label": "资料文件（可多选：课件 / 讲义 / 笔记 / 图片）",
             "text_label": "补充说明（可选）",
-            "text_placeholder": "一般不用填。课件和笔记请用上面上传。",
+            "text_placeholder": "一般不用填。图片会自动 OCR 成 Markdown 后入库。",
         }
     if task == "catalog":
         return {
@@ -418,10 +401,8 @@ def _input_copy(task: str) -> dict[str, str]:
 
 
 def _allowed_upload_suffixes(task: str) -> set[str]:
-    if task == OCR_TASK:
-        return {".png", ".jpg", ".jpeg"}
     if task == "library":
-        return {suffix.lower() for suffix in _LIBRARY_SUFFIXES}
+        return {suffix.lower() for suffix in _LIBRARY_SUFFIXES} | IMAGE_SUFFIXES
     return set(_NOTE_SUFFIXES)
 
 
@@ -432,7 +413,7 @@ def _upload_incompatible(task: str, upload) -> bool:
     allowed = _allowed_upload_suffixes(task)
     if not paths:
         return bool(upload)
-    if task not in {OCR_TASK, "library"} and (
+    if task != "library" and (
         isinstance(upload, (list, tuple)) or len(paths) != 1
     ):
         return True
@@ -442,16 +423,14 @@ def _upload_incompatible(task: str, upload) -> bool:
 def _upload_update(task: str, current_upload=None):
     """入库是多文件；其它任务是单份 txt。模式切换时清掉不兼容的旧文件，避免胶囊报错。"""
     knowledge_task = task == "library"
-    ocr_task = task == OCR_TASK
     copy = _input_copy(task)
     kwargs: dict = {
         "label": copy["upload_label"],
         "file_types": (
-            [".png", ".jpg", ".jpeg"]
-            if ocr_task
-            else sorted(_LIBRARY_SUFFIXES) if knowledge_task else [".txt", ".md"]
+            sorted(_LIBRARY_SUFFIXES | IMAGE_SUFFIXES)
+            if knowledge_task else [".txt", ".md"]
         ),
-        "file_count": "multiple" if knowledge_task or ocr_task else "single",
+        "file_count": "multiple" if knowledge_task else "single",
     }
     if _upload_incompatible(task, current_upload):
         kwargs["value"] = None
@@ -460,12 +439,12 @@ def _upload_update(task: str, current_upload=None):
 
 def _input_text_update(task: str):
     copy = _input_copy(task)
-    lines = 2 if task == OCR_TASK else (8 if task in _TEACHER_TEXT_TASKS else (6 if task == "library" else 12))
+    lines = 8 if task in _TEACHER_TEXT_TASKS else (6 if task == "library" else 12)
     return gr.update(
         label=copy["text_label"],
         placeholder=copy["text_placeholder"],
         lines=lines,
-        visible=task != OCR_TASK,
+        visible=True,
     )
 
 
@@ -476,7 +455,7 @@ def _panel_updates(domain: str, task_label: str | None, current_upload=None):
     show_user, show_project, show_subject = _scope_field_visibility(domain, task)
     show_quiz = task == "quiz"
     show_mode = bool(policy and policy.cli_mode)
-    show_perspective = domain == "meeting" and task == "minutes_generation"
+    show_perspective = domain == "meeting" and task == "minutes"
     show_config = show_mode or show_user or sidecar or show_quiz or show_perspective
     perspective_choices = _profile_dropdown_choices(domain) if show_perspective else []
     perspective_value = (
@@ -1783,23 +1762,6 @@ def run_from_ui(
         return
 
     tasks = [_task_value(task_label, domain)]
-    if domain == "notes" and tasks[0] == OCR_TASK:
-        uid = (user_id or "").strip()
-        subj = (subject or "").strip()
-        if not uid or not subj:
-            yield _run_result(
-                "OCR识别请填写用户 ID 和学科。系统会把识别结果保存到该用户的 OCR 文件夹。",
-                None,
-                *_hitl_ui(False),
-                files_html=EMPTY_DOWNLOAD,
-            )
-            return
-        yield from _iter_ocr_task(
-            uid=uid,
-            subj=subj,
-            input_upload=input_upload,
-        )
-        return
     chapter = grade = edition = difficulty = qtype = None
     level = "期中备考" if tasks and tasks[0] == "quiz" else None
     if tasks[0] == "quiz":
@@ -1831,7 +1793,7 @@ def run_from_ui(
             files_html=EMPTY_DOWNLOAD,
         )
         return
-    if tasks[0] == "minutes_generation":
+    if tasks[0] == "minutes":
         profile_data = json.loads(
             _load_profile_json_text(domain, label=perspective_choice)
         )
@@ -1969,13 +1931,14 @@ def run_from_ui(
         before = _output_files(domain, tasks, user_id)
         buffer = io.StringIO()
         monitor_payload = None
-        try:
+
+        def _invoke_run():
             with contextlib.redirect_stdout(buffer), contextlib.redirect_stderr(buffer):
                 modes: dict[str, str] = {}
                 _pol = _line_policy(domain, tasks[0])
                 if _pol and _pol.cli_mode and mode_value:
                     modes[tasks[0]] = _mode_value(mode_value)
-                monitor_payload = asyncio.run(
+                return asyncio.run(
                     run(
                         ctx,
                         input_file,
@@ -1997,6 +1960,27 @@ def run_from_ui(
                         monitor=monitor_enabled,
                     )
                 )
+
+        try:
+            if tasks[0] == "library":
+                with ThreadPoolExecutor(max_workers=1) as pool:
+                    future = pool.submit(_invoke_run)
+                    last_log = ""
+                    while not future.done():
+                        live_log = _clean_log(buffer.getvalue().strip())
+                        if live_log and live_log != last_log:
+                            last_log = live_log
+                            yield _run_result(
+                                live_log,
+                                None,
+                                *_hitl_ui(False),
+                                files_html=EMPTY_DOWNLOAD,
+                                busy=True,
+                            )
+                        time.sleep(0.6)
+                    monitor_payload = future.result()
+            else:
+                monitor_payload = _invoke_run()
         except Exception as exc:  # noqa: BLE001 - UI should show the error directly
             monitor_payload = getattr(exc, "monitor_payload", None)
             buffer.write(f"\n运行失败：{exc}\n")
@@ -2011,7 +1995,7 @@ def run_from_ui(
             else ""
         )
 
-    if tasks[0] == "minutes_generation":
+    if tasks[0] == "minutes":
         view_label = (perspective_choice or "").strip() or _profile_dropdown_default(domain)
         log = f"【视角】{view_label}\n{log}"
     else:
@@ -2272,6 +2256,7 @@ def _prepare_library_input(
     """把多份上传和粘贴文本收进一个临时目录，交给 library 展开入库。"""
     from tools.knowledge.document_processor import SUPPORTED_EXTS
 
+    allowed = SUPPORTED_EXTS | IMAGE_SUFFIXES
     paths = _uploaded_paths(input_upload)
     pasted = (input_text or "").strip()
     if not paths and not pasted:
@@ -2282,7 +2267,7 @@ def _prepare_library_input(
     for src in paths:
         if src.is_dir():
             for child in sorted(src.rglob("*")):
-                if child.is_file() and child.suffix.lower() in SUPPORTED_EXTS:
+                if child.is_file() and child.suffix.lower() in allowed:
                     name = child.name
                     dest = work / name
                     n = 1
@@ -2311,7 +2296,7 @@ def _prepare_library_input(
 
 def _clean_log(text: str) -> str:
     # 兼容毫秒级时间戳（_HHMMSS_SSS 与旧版 _HHMMSS 均可）
-    text = re.sub(r"knowledge_graph_\d{8}_\d{6}(?:_\d{3})?", "knowledge_graph", text)
+    text = re.sub(r"graph_\d{8}_\d{6}(?:_\d{3})?", "graph", text)
     text = re.sub(r"mindmap_\d{8}_\d{6}(?:_\d{3})?", "mindmap", text)
     text = re.sub(r"report_\d{8}_\d{6}(?:_\d{3})?", "report", text)
     text = re.sub(r"result_\d{8}_\d{6}(?:_\d{3})?", "result", text)
@@ -2353,8 +2338,7 @@ def build_app() -> gr.Blocks:
         or show_user
         or bool(initial_policy and initial_policy.sidecar)
         or initial_task == "quiz"
-        or initial_task == "minutes_generation"
-        or initial_task == OCR_TASK
+        or initial_task == "minutes"
     )
     user_init, subject_init = _scope_labels(initial_task or "")
     input_init = _input_copy(initial_task or "")
@@ -2423,7 +2407,7 @@ def build_app() -> gr.Blocks:
                     label="视角",
                     choices=_profile_dropdown_choices(initial_domain),
                     value=_profile_dropdown_default(initial_domain),
-                    visible=initial_task == "minutes_generation",
+                    visible=initial_task == "minutes",
                     elem_id="perspective-select",
                 )
                 user_id = gr.Textbox(

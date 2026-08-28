@@ -9,7 +9,7 @@ STATE_CLASS = "NotesState"
 
 # ── 任务线中文名注册表（脚本与运行时共享的唯一来源）──────────────
 LINE_CN_NAMES: dict[str, str] = {
-    "knowledge_graph": "知识图谱",
+    "graph": "知识图谱",
     "review": "笔记审查",
     "quiz": "自测题",
     "library": "资料入库",
@@ -19,7 +19,7 @@ LINE_CN_NAMES: dict[str, str] = {
 
 # 任务线种类（手写，不进 sync_domain 生成区）。
 LINE_KINDS: dict[str, object] = {
-    "knowledge_graph": {
+    "graph": {
         "kind": DETERMINISTIC_PIPELINE,
         "llm_render": "if_template",
         "cli_template": True,

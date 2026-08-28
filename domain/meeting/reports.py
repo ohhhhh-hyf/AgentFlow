@@ -56,7 +56,7 @@ class ActionItemsReport(ModelMixin, ActionItemsReportValidation):
     """
 
     # 结构化待办列表（客观视角 = 全员已分配 + 未分配；个人视角 = 本人）
-    action_items: list[dict[str, Any]] = field(
+    actions: list[dict[str, Any]] = field(
         default_factory=list,
         metadata={
             "source": "structure",

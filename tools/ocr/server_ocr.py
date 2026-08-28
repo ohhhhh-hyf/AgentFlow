@@ -59,8 +59,8 @@ class ServerOcrClient:
     def __init__(self):
         _load_env_file()
         self.ocr_url = os.getenv("SERVER_OCR_URL", "http://10.33.111.33:8080/service")
-        self.request_id = os.getenv("SERVER_OCR_REQUEST_ID", "test")
-        self.uuid = os.getenv("SERVER_OCR_UUID", "test")
+        self.request_id = os.getenv("SERVER_OCR_REQUEST_ID", "scripts")
+        self.uuid = os.getenv("SERVER_OCR_UUID", "scripts")
         self.appid = os.getenv("SERVER_OCR_APPID", "hiai")
         self.bid = os.getenv("SERVER_OCR_BID", "test_focusocr_fun")
         self.flowid = os.getenv("SERVER_OCR_FLOWID", "test_focusocr_fun")

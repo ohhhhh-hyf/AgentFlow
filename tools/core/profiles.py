@@ -1,6 +1,7 @@
 """会议/笔记画像分类：客观全员、真人、职业模板。
 
-职业模板（``*_profile.json``）已抽到跨域公共目录 ``perspective/profiles/role/``，
+职业模板（``*.json``）与客观画像一起平铺在跨域公共目录
+``perspective/profiles/``（文件名不含 ``_profile`` 后缀）；
 域名下仍可保留自己的客观/真人画像（``samples/{domain}/profile/``）。
 """
 from __future__ import annotations
@@ -11,10 +12,9 @@ from dataclasses import fields
 from pathlib import Path
 from typing import Any
 
-# 跨域公共画像目录：根目录放客观画像，role/ 子目录放职业模板
+# 跨域公共画像目录：客观画像与职业模板平铺在同一目录
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 SHARED_PROFILE_DIR = PROJECT_ROOT / "perspective" / "profiles"
-SHARED_ROLE_DIR = SHARED_PROFILE_DIR / "role"
 
 KIND_OBJECTIVE = "objective"
 KIND_PERSON = "person"
@@ -28,12 +28,10 @@ KIND_LABEL = {
 
 
 def _role_template_candidates(profile_dir: Path, key: str) -> list[Path]:
-    """职业模板候选：先同目录（domain 自带的模板优先），再公共 role 子目录。"""
+    """职业模板候选：先同目录（domain 自带的模板优先），再公共 profiles 目录。"""
     return [
-        profile_dir / f"{key}_profile.json",
         profile_dir / f"{key}.json",
-        SHARED_ROLE_DIR / f"{key}_profile.json",
-        SHARED_ROLE_DIR / f"{key}.json",
+        SHARED_PROFILE_DIR / f"{key}.json",
     ]
 
 
@@ -49,7 +47,7 @@ def classify_profile(data: dict[str, Any] | None) -> str:
 def resolve_role_template(data: dict[str, Any], profile_dir: Path) -> dict[str, Any]:
     """真人画像引用职业模板：返回合并后的 dict（真人字段覆盖模板字段）。
 
-    - ``data["role_template"]`` 指定模板名（如 "developer" → ``{profile_dir}/developer_profile.json``）
+    - ``data["role_template"]`` 指定模板名（如 "developer" → 公共目录 ``perspective/profiles/developer.json``）
     - 模板字段作基底，真人**显式写且值非 None** 的字段覆盖模板
     - 模板自身不允许再嵌套 ``role_template``（防递归）
     - 真人未显式写 ``persona_type`` 时重置为空（引用模板的真人仍是真人身份）
@@ -67,8 +65,7 @@ def resolve_role_template(data: dict[str, Any], profile_dir: Path) -> dict[str, 
     if path is None:
         raise ValueError(
             f"role_template 指向的画像不存在：{key}"
-            f"（在 {profile_dir} 或公共目录 {SHARED_ROLE_DIR} 下查找"
-            f" {key}_profile.json 或 {key}.json）"
+            f"（在 {profile_dir} 或公共目录 {SHARED_PROFILE_DIR} 下查找 {key}.json）"
         )
     template = json.loads(path.read_text(encoding="utf-8"))
     if not isinstance(template, dict):
@@ -89,7 +86,7 @@ def profile_choice_label(data: dict[str, Any], filename: str = "", profile_dir: 
         return f"{prefix} · 客观全员"
     name = str(data.get("name") or "").strip()
     if not name:
-        name = Path(filename).stem.replace("_profile", "") or "未命名"
+        name = Path(filename).stem or "未命名"
     role = str(data.get("role") or "").strip()
     # 真人引用职业模板且未自写 role 时，用模板的 role 展示（如「真人 · 姓名（职业）」）
     if not role and profile_dir is not None:
@@ -181,7 +178,6 @@ __all__ = [
     "KIND_PERSON",
     "KIND_ROLE",
     "SHARED_PROFILE_DIR",
-    "SHARED_ROLE_DIR",
     "classify_profile",
     "default_profile_label",
     "filter_identity_fields",

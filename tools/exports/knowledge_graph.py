@@ -1,4 +1,4 @@
-"""knowledge_graph.py —— 知识图谱渲染（graphviz 封装，无痛降级）。
+"""graph.py —— 知识图谱渲染（graphviz 封装，无痛降级）。
 
 把图数据（nodes + edges）渲染为 SVG / 交互 HTML / 学习地图：
 
@@ -260,7 +260,7 @@ def nodes_edges_to_dot(
     dpi = 120 if compact else 180
     pad_pt = 0.14 if compact else 0.22
     lines = [
-        "digraph knowledge_graph {",
+        "digraph graph {",
         "  graph [",
         f'    fontname="{font}",',
         "    bgcolor=\"#fbfdff:#eef7ff\",",
@@ -482,11 +482,11 @@ def _render_graphviz(
         return None
 
 
-def render_knowledge_graph_svg(
+def render_graph_svg(
     nodes: list[dict],
     edges: list[dict],
     out_dir: Path | str,
-    filename: str = "knowledge_graph.svg",
+    filename: str = "graph.svg",
     title: str = "",
 ) -> Path | None:
     """把图数据渲染为 SVG 矢量知识图谱文件。"""
@@ -554,7 +554,7 @@ def _cytoscape_elements(nodes: list[dict], edges: list[dict]) -> list[dict]:
     return elements
 
 
-def build_knowledge_graph_html(
+def build_graph_html(
     nodes: list[dict],
     edges: list[dict],
     title: str = "",
@@ -879,11 +879,11 @@ def build_knowledge_graph_html(
     return html
 
 
-def render_knowledge_graph_html(
+def render_graph_html(
     nodes: list[dict],
     edges: list[dict],
     out_dir: Path | str,
-    filename: str = "knowledge_graph.html",
+    filename: str = "graph.html",
     title: str = "",
 ) -> Path | None:
     """生成 Cytoscape.js 交互式知识图谱 HTML。"""
@@ -893,7 +893,7 @@ def render_knowledge_graph_html(
     out_dir = Path(out_dir)
     try:
         out_dir.mkdir(parents=True, exist_ok=True)
-        html = build_knowledge_graph_html(nodes, edges, title=title)
+        html = build_graph_html(nodes, edges, title=title)
         out_path = out_dir / filename
         out_path.write_text(html, encoding="utf-8")
         return out_path
@@ -902,19 +902,19 @@ def render_knowledge_graph_html(
         return None
 
 
-def render_knowledge_graph_bundle(
+def render_graph_bundle(
     nodes: list[dict],
     edges: list[dict],
     out_dir: Path | str,
-    stem: str = "knowledge_graph",
+    stem: str = "graph",
     title: str = "",
 ) -> dict[str, Path]:
     """同时导出 SVG、交互式 HTML 和学习地图；失败的格式会被跳过。"""
     paths: dict[str, Path] = {}
-    svg_path = render_knowledge_graph_svg(nodes, edges, out_dir, f"{stem}.svg", title)
+    svg_path = render_graph_svg(nodes, edges, out_dir, f"{stem}.svg", title)
     if svg_path:
         paths["svg"] = svg_path
-    html_path = render_knowledge_graph_html(nodes, edges, out_dir, f"{stem}.html", title)
+    html_path = render_graph_html(nodes, edges, out_dir, f"{stem}.html", title)
     if html_path:
         paths["html"] = html_path
     try:
@@ -929,7 +929,7 @@ def render_knowledge_graph_bundle(
     return paths
 
 
-def build_knowledge_graph_embed(
+def build_graph_embed(
     nodes: list[dict],
     edges: list[dict],
     title: str = "",
@@ -1084,12 +1084,12 @@ def build_knowledge_graph_embed(
 
 
 __all__ = [
-    "build_knowledge_graph_embed",
-    "build_knowledge_graph_html",
+    "build_graph_embed",
+    "build_graph_html",
     "build_learning_map",
     "graphviz_available",
     "nodes_edges_to_dot",
-    "render_knowledge_graph_bundle",
-    "render_knowledge_graph_html",
-    "render_knowledge_graph_svg",
+    "render_graph_bundle",
+    "render_graph_html",
+    "render_graph_svg",
 ]

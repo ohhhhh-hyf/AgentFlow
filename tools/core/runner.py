@@ -23,9 +23,10 @@ from .io import (
 )
 from .logging_config import setup_logging
 from tools.outputs import (
-    export_knowledge_graph,
+    export_graph,
     export_mindmap_html,
     export_mindmap_png,
+    report_to_dict,
     save_all_reports,
     task_output_dir,
 )
@@ -50,6 +51,33 @@ def _monitor_enabled(no_monitor: bool) -> bool:
     if env in {"0", "false", "off", "no", "disable", "disabled"}:
         return False
     return True
+
+
+_USAGE_KEYS = (
+    "prompt_tokens",
+    "completion_tokens",
+    "total_tokens",
+    "calls",
+    "cache_hits",
+    "cache_hit_tokens",
+)
+
+
+def _client_usage(system) -> dict:
+    """读取 LLM client 的 usage 快照；不可用时返回空。"""
+    try:
+        snapshot = system.client.monitor_snapshot()
+        return dict(snapshot.get("usage_totals") or {})
+    except Exception:  # noqa: BLE001 - 监控统计失败不影响任务
+        return {}
+
+
+def _usage_diff(before: dict, after: dict) -> dict:
+    """基线差值：本次任务实际消耗（供 API 的 token_usage / cache_hit_tokens 字段）。"""
+    return {
+        key: int(after.get(key, 0)) - int(before.get(key, 0))
+        for key in _USAGE_KEYS
+    }
 
 
 def build_parser(ctx: DomainContext) -> argparse.ArgumentParser:
@@ -78,7 +106,7 @@ def build_parser(ctx: DomainContext) -> argparse.ArgumentParser:
         _objective = ctx.cli_samples_dir / "profile" / "object_profile.json"
         if not _objective.exists():
             # 客观画像已抽到跨域公共目录（perspective/profiles）
-            _objective = SHARED_PROFILE_DIR / "object_profile.json"
+            _objective = SHARED_PROFILE_DIR / "object.json"
         _default_profile = (
             _objective if _objective.exists() else ctx.default_profile_dir
         )
@@ -172,7 +200,7 @@ def build_parser(ctx: DomainContext) -> argparse.ArgumentParser:
                 f"--{line}_mode",
                 dest=f"{line}_mode",
                 default=None,
-                help=f"{cn}线组织模式（如 multi_styles 的 "
+                help=f"{cn}线组织模式（如 minutes_styles 的 "
                 "time/logic/causal/party/urgency；仅支持组织模式的线生效）",
             )
     parser.add_argument(
@@ -250,13 +278,21 @@ async def run(
     qtype: str | None = None,
     compile_natural: bool = True,
     monitor: bool = True,
+    collect_reports: bool = False,
+    extra_line_inputs: dict[str, str] | None = None,
 ) -> dict | None:
     """Run selected task lines and persist their final artifacts.
 
     compile_natural：为 False 时不再把模板当自然语言二次编译。
     前端「确认模板并运行」必须关，否则用户改过的友好模板会被重新编译回首稿。
     monitor：是否启用任务监控（tools.monitor）。None 时按环境变量 TASK_MONITOR 决定。
-    返回本次任务监控 payload（关闭监控或初始化失败则为 None）。
+    collect_reports：为 True 时返回结构化结果（供 API 层使用），
+    返回 {"monitor", "reports", "understanding", "quality_warning", "saved", "usage"}：
+      reports = {线名: 报告 dict}；saved = {线名: {text/html/... 产物路径}}；
+      usage = {total_tokens, cache_hit_tokens, ...}（基线差值）；
+    为 False 时保持旧行为，只返回任务监控 payload（或无）。
+    extra_line_inputs：{线名: 注入文本}，直接注入该线的 line_extra（供 API 层传
+    溯源材料等文本，避免落临时 sidecar 文件）。
     """
     setup_logging()
     load_env(resolve_path(ctx, env_file))
@@ -322,6 +358,7 @@ async def run(
         transcript = load_transcript(ctx, file)
 
     system = ctx.system_cls()
+    usage_before = _client_usage(system) if collect_reports else {}
     # ── 任务监控（tools.monitor；异常不影响主流程）──────────────
     # 开关：run(monitor=) 参数（CLI --no-monitor）优先，其次 TASK_MONITOR 环境变量
     _task_monitor = None
@@ -359,7 +396,7 @@ async def run(
             logger.warning("任务监控 start 失败，本次不监控", exc_info=True)
             _task_monitor = None
     any_output = False
-    silent_graph_lines = {"mindmap", "knowledge_graph"}
+    silent_graph_lines = {"mindmap", "graph"}
     graph_silent = any(line in silent_graph_lines for line in line_names)
 
     memory_bind = None
@@ -418,10 +455,23 @@ async def run(
             line_extra[sidecar_line] = (
                 f"{prev}\n\n{extra}".strip() if prev else extra
             )
+    for line_name, value in (extra_line_inputs or {}).items():
+        if line_name not in line_names or not (value or "").strip():
+            continue
+        prev = line_extra.get(line_name) or ""
+        line_extra[line_name] = (
+            f"{prev}\n\n{value}".strip() if prev else value
+        )
 
     last_done = None
     run_error: BaseException | None = None
     monitor_payload = None
+    collected: dict[str, object] = {
+        "reports": {},
+        "understanding": {},
+        "quality_warning": None,
+        "saved": {},
+    }
     try:
         template_texts: dict[str, str] = {}
         for line, path in (templates or {}).items():
@@ -461,7 +511,16 @@ async def run(
                 sys.stdout.flush()
             elif etype == "done":
                 last_done = event
-                await _handle_done(ctx, event)
+                if collect_reports:
+                    collected["reports"] = {
+                        line: report_to_dict(report)
+                        for line, report in (event.get("reports") or {}).items()
+                    }
+                    collected["understanding"] = event.get("understanding") or {}
+                    collected["quality_warning"] = event.get("quality_warning")
+                    collected["saved"] = await _handle_done(ctx, event) or {}
+                else:
+                    await _handle_done(ctx, event)
                 if memory_enabled and memory_bind is not None:
                     persist(
                         ctx.project_root,
@@ -495,15 +554,26 @@ async def run(
         sys.stdout.write("\n")
     elif not graph_silent:
         logger.info("（暂无内容）")
+    if collect_reports:
+        return {
+            "monitor": monitor_payload,
+            "reports": collected["reports"],
+            "understanding": collected["understanding"],
+            "quality_warning": collected["quality_warning"],
+            "saved": collected["saved"],
+            "usage": _usage_diff(usage_before, _client_usage(system)),
+        }
     return monitor_payload
 
 
-async def _handle_done(ctx: DomainContext, event: dict) -> None:
+async def _handle_done(ctx: DomainContext, event: dict) -> dict | None:
+    """处理 done 事件：落盘 + 图类导出；返回各产物路径（供 API 层收集）。"""
     if event.get("quality_warning"):
         logger.warning("⚠ %s", event["quality_warning"])
     reports = event.get("reports") or {}
     # 毫秒级时间戳：同秒多次运行不互相覆盖产物
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S_%f")[:-3]
+    saved: dict[str, dict[str, Path]] = {}
 
     try:
         saved_reports = save_all_reports(
@@ -515,6 +585,7 @@ async def _handle_done(ctx: DomainContext, event: dict) -> None:
     except Exception:  # noqa: BLE001 - 落盘失败不中断其余导出
         logger.error("报告落盘失败", exc_info=True)
         saved_reports = {}
+    saved.update(saved_reports)
     for line_name, paths in saved_reports.items():
         cn = ctx.line_cn_names.get(line_name, line_name)
         if paths.get("html"):
@@ -537,21 +608,28 @@ async def _handle_done(ctx: DomainContext, event: dict) -> None:
             )
             if png_path:
                 sys.stdout.write(f"[思维导图] 已生成 PNG：{png_path}\n")
+            saved["mindmap"] = {
+                "html": html_path,
+                "png": png_path,
+            }
         except Exception:  # noqa: BLE001 - 单类导出失败不中断主流程
             logger.error("思维导图导出失败", exc_info=True)
 
-    if "knowledge_graph" in reports:
+    if "graph" in reports:
         try:
-            kg_dir = task_output_dir(ctx, "knowledge_graph")
-            kg_paths = export_knowledge_graph(reports, kg_dir)
+            kg_dir = task_output_dir(ctx, "graph")
+            kg_paths = export_graph(reports, kg_dir)
             if kg_paths.get("svg"):
                 sys.stdout.write(f"[知识图谱] 已生成 SVG：{kg_paths['svg']}\n")
             if kg_paths.get("html"):
                 sys.stdout.write(f"[知识图谱] 已生成 HTML：{kg_paths['html']}\n")
             if kg_paths.get("text"):
                 sys.stdout.write(f"[知识图谱] 已生成学习地图：{kg_paths['text']}\n")
+            saved["graph"] = kg_paths
         except Exception:  # noqa: BLE001 - 单类导出失败不中断主流程
             logger.error("知识图谱导出失败", exc_info=True)
+
+    return saved
 
 
 def _resolve_template_file(

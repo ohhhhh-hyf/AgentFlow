@@ -13,7 +13,7 @@ from .meeting_core import MeetingUnderstandingAgent
 
 # ── 任务线 import 生成区：由 tools/scripts/sync_domain.py 生成，勿手改 ──
 
-from .tasks.action_items import (
+from .tasks.actions import (
     ActionItemsAgent,
     ActionItemsRender,
     ActionItemsSupervisor,
@@ -25,7 +25,7 @@ from .tasks.mindmap import (
     MindmapSupervisor,
 )
 
-from .tasks.minutes_generation import (
+from .tasks.minutes import (
     MinutesGenerationAgent,
     MinutesGenerationRender,
     MinutesGenerationSupervisor,
@@ -37,13 +37,13 @@ from .tasks.minutes_trace import (
     MinutesTraceSupervisor,
 )
 
-from .tasks.multi_styles import (
+from .tasks.minutes_styles import (
     MultiStylesAgent,
     MultiStylesRender,
     MultiStylesSupervisor,
 )
 
-from .tasks.risk import (
+from .tasks.risks import (
     RiskAgent,
     RiskRender,
     RiskSupervisor,
@@ -60,8 +60,8 @@ class MeetingAgentFactory:
 
         Keys:
             meeting_understanding / perspective_modeling —— 核心层
-            minutes_generation / minutes_generation_supervisor / minutes_generation_render —— 纪要线
-            action_items / action_items_supervisor / action_items_render —— 待办线
+            minutes / minutes_supervisor / minutes_render —— 纪要线
+            actions / actions_supervisor / actions_render —— 待办线
         """
         return {
             # 核心层（键 = 属性名，与任务线统一：{角色}_agent）
@@ -69,21 +69,21 @@ class MeetingAgentFactory:
             "perspective_modeling_agent": PerspectiveModelingAgent(client),
             # ── 任务线装配生成区：由 tools/scripts/sync_domain.py 生成，勿手改 ──
 
-            "action_items_agent": ActionItemsAgent(client),
-            "action_items_supervisor": ActionItemsSupervisor(client),
-            "action_items_render": ActionItemsRender(client),
+            "actions_agent": ActionItemsAgent(client),
+            "actions_supervisor": ActionItemsSupervisor(client),
+            "actions_render": ActionItemsRender(client),
             "mindmap_agent": MindmapAgent(client),
             "mindmap_supervisor": MindmapSupervisor(client),
             "mindmap_render": MindmapRender(client),
-            "minutes_generation_agent": MinutesGenerationAgent(client),
-            "minutes_generation_supervisor": MinutesGenerationSupervisor(client),
-            "minutes_generation_render": MinutesGenerationRender(client),
+            "minutes_agent": MinutesGenerationAgent(client),
+            "minutes_supervisor": MinutesGenerationSupervisor(client),
+            "minutes_render": MinutesGenerationRender(client),
             "minutes_trace_agent": MinutesTraceAgent(client),
             "minutes_trace_supervisor": MinutesTraceSupervisor(client),
             "minutes_trace_render": MinutesTraceRender(client),
-            "multi_styles_agent": MultiStylesAgent(client),
-            "multi_styles_supervisor": MultiStylesSupervisor(client),
-            "multi_styles_render": MultiStylesRender(client),
+            "minutes_styles_agent": MultiStylesAgent(client),
+            "minutes_styles_supervisor": MultiStylesSupervisor(client),
+            "minutes_styles_render": MultiStylesRender(client),
             "risk_agent": RiskAgent(client),
             "risk_supervisor": RiskSupervisor(client),
             "risk_render": RiskRender(client),

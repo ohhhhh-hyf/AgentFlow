@@ -218,19 +218,10 @@ def _tree_rows(draft: dict[str, Any]) -> list[tuple[int, str]]:
 def build_catalog_markdown(draft: dict[str, Any], *, saved_path: str = "") -> str:
     draft = normalize_catalog_draft(draft)
     course = _clean(draft.get("course")) or "课程知识目录"
-    version = _clean(draft.get("version")) or "1"
-    mode_label = "增量更新" if _clean(draft.get("mode")) == "incremental_update" else "首次生成"
-    n_ch, n_tp, n_kp = _tree_counts(draft)
     lines = [
-        f"# {course} · 知识目录已保存",
+        f"# {course} · 知识目录",
         "",
     ]
-    if saved_path:
-        lines.append(f"目录文件：`{saved_path}`")
-        lines.append("")
-    lines.append(f"版本 v{version} · {mode_label}。共 {n_ch} 章、{n_tp} 个主题、{n_kp} 个知识点。")
-    lines.append("这份 JSON 供复习清单自动读取，详细字段不用在这里展开。")
-    lines.append("")
     changes = _change_lines(draft)
     if changes:
         lines.append("本次变更：")
@@ -249,9 +240,6 @@ def build_catalog_markdown(draft: dict[str, Any], *, saved_path: str = "") -> st
 def build_catalog_html(draft: dict[str, Any], *, saved_path: str = "") -> str:
     draft = normalize_catalog_draft(draft)
     course = escape(_clean(draft.get("course")) or "课程知识目录", quote=False)
-    version = escape(_clean(draft.get("version")) or "1", quote=False)
-    mode_label = "增量更新" if _clean(draft.get("mode")) == "incremental_update" else "首次生成"
-    n_ch, n_tp, n_kp = _tree_counts(draft)
     rows = [
         "<style>",
         ".cat-doc{background:#fff;border:1px solid #d4d0c6;border-radius:10px;padding:22px 28px;line-height:1.7;}",
@@ -264,17 +252,8 @@ def build_catalog_html(draft: dict[str, Any], *, saved_path: str = "") -> str:
         ".cat-path{font-family:ui-monospace,Consolas,monospace;font-size:.86rem;}",
         "</style>",
         '<div class="cat-doc">',
-        f"<h1>{course} · 知识目录已保存</h1>",
+        f"<h1>{course} · 知识目录</h1>",
     ]
-    if saved_path:
-        rows.append(
-            f'<p>目录文件：<span class="cat-path">{escape(saved_path, quote=False)}</span></p>'
-        )
-    rows.append(
-        f'<p class="cat-meta">版本 v{version} · {escape(mode_label, quote=False)}。'
-        f"共 {n_ch} 章、{n_tp} 个主题、{n_kp} 个知识点。</p>"
-    )
-    rows.append("<p class=\"cat-meta\">这份 JSON 供复习清单自动读取，详细字段不用在这里展开。</p>")
     changes = _change_lines(draft)
     if changes:
         rows.append("<h2>本次变更</h2><ul>")

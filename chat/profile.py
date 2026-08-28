@@ -158,7 +158,7 @@ async def extract_profile_update(client, user_texts: list[str]) -> ChatProfileUp
 # ── 角色 → 公共职业模板匹配 ─────────────────────────────────
 
 def match_role_template(role_text: str) -> str:
-    """把提取到的角色文本匹配到 perspective/profiles/role/ 下的模板名。
+    """把提取到的角色文本匹配到 perspective/profiles/ 下的模板名。
 
     按模板的 name / role / 文件名做包含匹配；命中返回模板 key（如 "developer"），
     否则返回空串。找不到不算错（用户角色可能没有现成模板）。
@@ -166,20 +166,23 @@ def match_role_template(role_text: str) -> str:
     role = str(role_text or "").strip()
     if not role:
         return ""
-    from tools.profiles import SHARED_ROLE_DIR
+    from tools.profiles import SHARED_PROFILE_DIR
 
-    if not SHARED_ROLE_DIR.is_dir():
+    if not SHARED_PROFILE_DIR.is_dir():
         return ""
-    for path in sorted(SHARED_ROLE_DIR.glob("*_profile.json")):
+    for path in sorted(SHARED_PROFILE_DIR.glob("*.json")):
         try:
             data = json.loads(path.read_text(encoding="utf-8"))
         except (OSError, json.JSONDecodeError):
             continue
         if not isinstance(data, dict):
             continue
+        # 客观全员画像不是职业模板，跳过
+        if str(data.get("perspective") or "").strip().lower() == "objective":
+            continue
         name = str(data.get("name") or "").strip()
         tpl_role = str(data.get("role") or "").strip()
-        key = path.stem.replace("_profile", "")
+        key = path.stem
         if role == name or (name and (name in role or role in name)) or (
             tpl_role and role in tpl_role
         ):
@@ -285,9 +288,9 @@ def resolve_user_profile(project_root: Path, user_id: str) -> dict[str, Any]:
     base = str(data.get("base_template") or "").strip()
     if not base:
         return data
-    from tools.profiles import SHARED_ROLE_DIR
+    from tools.profiles import SHARED_PROFILE_DIR
 
-    path = SHARED_ROLE_DIR / f"{base}_profile.json"
+    path = SHARED_PROFILE_DIR / f"{base}.json"
     if path.is_file():
         try:
             template = json.loads(path.read_text(encoding="utf-8"))

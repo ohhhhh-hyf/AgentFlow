@@ -24,7 +24,7 @@ class UserIdentity(ModelMixin):
     perspective: str | None = None
     # 画像类型：null/缺省 = 真人画像（name 为真实姓名）；"role_template" = 大众职业模板（name 为职业名）
     persona_type: str | None = None
-    # 真人画像引用的职业模板名（如 "developer" → {profile_dir}/developer_profile.json）；合并时加载
+    # 真人画像引用的职业模板名（如 "developer" → 公共目录 perspective/profiles/developer.json）；合并时加载
     role_template: str | None = None
     # ── 视角画像扩展字段（客观/个人视角通用承载）────────────────
     scope: str | None = None          # 覆盖面：全员 / 跨组 / 组织级

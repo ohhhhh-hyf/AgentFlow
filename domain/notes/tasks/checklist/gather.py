@@ -44,10 +44,28 @@ def _is_placeholder_teacher(text: str) -> bool:
     return blob.startswith("根据已") or blob.startswith("知识库资料入库")
 
 
+def catalog_file_from_context(text: str) -> str:
+    """从共享上下文取 API 指定的目录文件名（【目录文件】xxx.json），无则空串。"""
+    import re
+
+    m = re.search(r"【目录文件】\s*([^【】\n]+)", text or "")
+    return m.group(1).strip() if m else ""
+
+
 def load_session(shared_context: str) -> tuple[dict[str, Any] | None, list[dict[str, Any]], str]:
     user_id = user_id_from_context(shared_context)
     subject = subject_from_context(shared_context)
-    catalog = load_catalog(user_id=user_id, subject=subject)
+    catalog: dict[str, Any] | None = None
+    # API 通过 docs 指定目录文件时优先使用；否则按学科自动取最新
+    catalog_file = catalog_file_from_context(shared_context)
+    if catalog_file:
+        from domain.notes.tasks.catalog.store import load_catalog_file, subject_dir_for
+
+        catalog = load_catalog_file(subject_dir_for(user_id, subject) / catalog_file)
+    if catalog is None:
+        from domain.notes.tasks.catalog.store import load_catalog
+
+        catalog = load_catalog(user_id=user_id, subject=subject)
     teacher = teacher_from_context(shared_context)
     activated = activate_points(catalog, teacher) if catalog else []
     if activated:

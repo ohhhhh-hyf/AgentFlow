@@ -1,17 +1,17 @@
 """按知识库集合持久化知识目录，供下次增量更新。
 
-命名规则（v2）：
-- 目录按 user 顶层隔离：``data/{user_id}/knowledge/catalogs/``
-- 文件名 = ``{学科安全名}_{md5(学科)[:8]}.json``：ASCII 可读部分 + 指纹，
-  中文学科/特殊字符不再被抹平成同一下划线而互相覆盖（旧 ``user_id__subject`` 方案）。
+命名规则（v3）：
+- 目录按 user 顶层隔离 + 按 subject 分目录：``data/{user_id}/knowledge/catalogs/{学科安全名}/``
+- 文件名 = ``{时间戳}.json``（如 ``20260827_221500_123.json``），历史版本保留
+- 增量更新：同一 user+subject 下次生成时，取该 subject 目录下时间最近的 json 作为基线
 - 无 user 时回退旧统一目录 ``data/knowledge/catalogs/``（兼容）。
 """
 from __future__ import annotations
 
-import hashlib
 import json
 import logging
 import re
+from datetime import datetime
 from pathlib import Path
 from typing import Any
 
@@ -23,16 +23,20 @@ CATALOG_DIR = PROJECT_ROOT / "data" / "knowledge" / "catalogs"  # 兼容旧路�
 
 
 def _subject_filename(subject: str) -> str:
-    """学科 → 安全文件名主体：ASCII 可读部分 + md5 指纹（防中文/特殊字符撞名）。
+    """学科 → 拼音目录名（无音调、小写、去空格），英文/数字原样保留。
 
-    例：``数学`` → ``subject_<md5前8位>``；``math`` → ``math_<md5前8位>``。
-    指纹由原始学科字符串算出，不同学科（含同形不同码）必然不同文件名。
+    例：``数学`` → ``shuxue``；``phy`` → ``phy``；``高等数学`` → ``gaodengshuxue``。
+    未安装 pypinyin 时回退原文字符清理，保证可 import。
     """
-    ascii_part = re.sub(r"[^a-zA-Z0-9._-]+", "_", (subject or "").strip())
-    ascii_part = ascii_part.strip("._") or "subject"
-    ascii_part = ascii_part[:60]
-    digest = hashlib.md5((subject or "").encode("utf-8")).hexdigest()[:8]
-    return f"{ascii_part}_{digest}"
+    try:
+        from pypinyin import lazy_pinyin
+
+        text = "".join(lazy_pinyin((subject or "").strip()))
+    except Exception:  # pragma: no cover - pypinyin 缺失时兜底
+        text = (subject or "").strip()
+    text = re.sub(r"[^a-zA-Z0-9._-]+", "_", text)
+    text = text.strip("._") or "subject"
+    return text[:80]
 
 
 def catalog_dir_for(user_id: str = "") -> Path:
@@ -45,8 +49,33 @@ def catalog_dir_for(user_id: str = "") -> Path:
     return PROJECT_ROOT / "data" / safe_id(uid) / "knowledge" / "catalogs"
 
 
-def catalog_path(user_id: str = "", subject: str = "") -> Path:
-    return catalog_dir_for(user_id) / f"{_subject_filename(subject)}.json"
+def subject_dir_for(user_id: str = "", subject: str = "") -> Path:
+    """按 subject 分目录：``catalogs/{学科安全名}/``。"""
+    return catalog_dir_for(user_id) / _subject_filename(subject)
+
+
+def latest_catalog_path(user_id: str = "", subject: str = "") -> Path | None:
+    """该 user+subject 下时间最近的 catalog json（增量基线/checklist 默认源），无则 None。"""
+    folder = subject_dir_for(user_id, subject)
+    if not folder.is_dir():
+        return None
+    matches = sorted(
+        folder.glob("*.json"),
+        key=lambda p: p.stat().st_mtime,
+        reverse=True,
+    )
+    return matches[0] if matches else None
+
+
+def new_catalog_path(user_id: str = "", subject: str = "", stamp: str = "") -> Path:
+    """本次生成的新 catalog 文件路径（纯时间戳命名，如 20260827_221500_123.json）。"""
+    stamp = stamp or datetime.now().strftime("%Y%m%d_%H%M%S_%f")[:-3]
+    return subject_dir_for(user_id, subject) / f"{stamp}.json"
+
+
+def catalog_path(user_id: str = "", subject: str = "") -> Path | None:
+    """兼容入口：返回该 user+subject 下最新 catalog 文件（无则 None）。"""
+    return latest_catalog_path(user_id, subject)
 
 
 def catalog_meta_path(user_id: str = "", stem: str = "") -> Path:
@@ -55,7 +84,7 @@ def catalog_meta_path(user_id: str = "", stem: str = "") -> Path:
 
 
 def _ocr_output_stems(user_id: str, subject: str) -> list[str]:
-    """Standard 会把原图 xx 存成 ocr/{subject}/md/xx.md，meta 则是 catalogs/xx_meta.json。"""
+    """Standard 会把原图 xx 存成 ocr/{subject}/xx.md，meta 则是 catalogs/xx_meta.json。"""
     from tools.memory.store import safe_id
 
     uid = (user_id or "").strip()
@@ -64,7 +93,7 @@ def _ocr_output_stems(user_id: str, subject: str) -> list[str]:
     base = PROJECT_ROOT / "data" / safe_id(uid) / "ocr" / safe_id(subject)
     stems: list[str] = []
     seen: set[str] = set()
-    folder = base / "md"
+    folder = base
     if folder.is_dir():
         for path in folder.iterdir():
             if not path.is_file() or path.suffix.lower() != ".md":
@@ -122,8 +151,14 @@ def load_catalog_metas(user_id: str = "", subject: str = "", limit: int = 50) ->
 
 
 def load_catalog(user_id: str = "", subject: str = "") -> dict[str, Any] | None:
-    path = catalog_path(user_id, subject)
-    if not path.exists():
+    """加载该 user+subject 下时间最近的 catalog（增量基线）；无则 None。"""
+    path = latest_catalog_path(user_id, subject)
+    return load_catalog_file(path) if path else None
+
+
+def load_catalog_file(path: Path) -> dict[str, Any] | None:
+    """按指定路径加载 catalog JSON（checklist 用 files 指定文件时调用）。"""
+    if not path.is_file():
         return None
     try:
         data = json.loads(path.read_text(encoding="utf-8"))
@@ -135,7 +170,8 @@ def load_catalog(user_id: str = "", subject: str = "") -> dict[str, Any] | None:
 
 
 def save_catalog(user_id: str, subject: str, draft: dict[str, Any]) -> Path:
-    path = catalog_path(user_id, subject)
+    """保存为新时间戳文件（历史版本保留；下次生成以时间最近者为基线）。"""
+    path = new_catalog_path(user_id, subject)
     path.parent.mkdir(parents=True, exist_ok=True)
     chapters = draft.get("chapters") or []
     if not chapters:

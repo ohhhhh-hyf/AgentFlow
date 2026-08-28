@@ -32,7 +32,7 @@ class TaskMonitor:
 
     用法::
 
-        monitor = TaskMonitor(client, task_name="action_items", meta={"domain": "meeting"})
+        monitor = TaskMonitor(client, task_name="actions", meta={"domain": "meeting"})
         monitor.start(transcript=transcript)
         ...  # 运行 run_streaming
         monitor.finish(done_event=done_event)   # 返回 dict 并落盘 JSON

@@ -57,22 +57,22 @@ class MeetingState(TypedDict, total=False):
     quality_degraded: Annotated[bool, _merge_degraded]
     # 可选：各任务线的输出模板（线名 → 模板文本；占位符 [描述] 将被填充）
     templates: dict[str, str]
-    # 可选：各任务线的组织参数（线名 → 如 multi_styles 的 time/logic/causal/party/urgency）
+    # 可选：各任务线的组织参数（线名 → 如 minutes_styles 的 time/logic/causal/party/urgency）
     line_modes: dict[str, str]
     # 可选：各任务线附加上下文（线名 → 如记忆注入）
     line_extra: dict[str, str]
 
 
 # 多样式纪要：浅校验放行空 sections，这里补结构门禁，供 schema repair 重出。
-from .tasks.multi_styles.contracts import enforce_multi_styles_sections  # noqa: E402
+from .tasks.minutes_styles.contracts import enforce_minutes_styles_sections  # noqa: E402
 
-_orig_multi_styles_validate = MultiStyles.validate.__func__
+_orig_minutes_styles_validate = MultiStyles.validate.__func__
 
 
 @classmethod
-def _validate_multi_styles_strict(cls, data: dict) -> "MultiStyles":
-    enforce_multi_styles_sections(data)
-    return _orig_multi_styles_validate(cls, data)
+def _validate_minutes_styles_strict(cls, data: dict) -> "MultiStyles":
+    enforce_minutes_styles_sections(data)
+    return _orig_minutes_styles_validate(cls, data)
 
 
-MultiStyles.validate = _validate_multi_styles_strict
+MultiStyles.validate = _validate_minutes_styles_strict

@@ -23,7 +23,7 @@ from .tasks.checklist import (
     ChecklistSupervisor,
 )
 
-from .tasks.knowledge_graph import (
+from .tasks.graph import (
     KnowledgeGraphAgent,
     KnowledgeGraphRender,
     KnowledgeGraphSupervisor,
@@ -67,9 +67,9 @@ class NotesAgentFactory:
             "checklist_agent": ChecklistAgent(client),
             "checklist_supervisor": ChecklistSupervisor(client),
             "checklist_render": ChecklistRender(client),
-            "knowledge_graph_agent": KnowledgeGraphAgent(client),
-            "knowledge_graph_supervisor": KnowledgeGraphSupervisor(client),
-            "knowledge_graph_render": KnowledgeGraphRender(client),
+            "graph_agent": KnowledgeGraphAgent(client),
+            "graph_supervisor": KnowledgeGraphSupervisor(client),
+            "graph_render": KnowledgeGraphRender(client),
             "library_agent": LibraryAgent(client),
             "library_supervisor": LibrarySupervisor(client),
             "library_render": LibraryRender(client),

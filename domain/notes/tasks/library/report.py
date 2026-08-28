@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import os
 import re
+from concurrent.futures import ThreadPoolExecutor
 from html import escape
 from pathlib import Path
 from typing import Any
@@ -12,6 +13,7 @@ from tools.knowledge.tool import KnowledgeTool
 
 _FILE_MARK = "【入库文件】"
 _UNIT_CAP = 12
+IMAGE_EXTS = {".png", ".jpg", ".jpeg"}
 _SENT_SPLIT = re.compile(r"(?<=[。！？；!\?\n])")
 _ITEM_ONLY_TAGS = {"example", "mistake"}
 _ITEM_ONLY_HEAD_RE = re.compile(r"(例题|易错|注意|步骤|题型|技巧|提醒|小结|总结)")
@@ -51,16 +53,17 @@ def source_paths_from_context(text: str) -> list[str]:
 
 def expand_inputs(raw_paths: list[str | Path]) -> list[Path]:
     files: list[Path] = []
+    allowed = SUPPORTED_EXTS | IMAGE_EXTS
     for raw in raw_paths:
         path = Path(raw)
         if not path.exists():
             raise FileNotFoundError(f"入库路径不存在：{path}")
         if path.is_dir():
             for child in sorted(path.rglob("*")):
-                if child.is_file() and child.suffix.lower() in SUPPORTED_EXTS:
+                if child.is_file() and child.suffix.lower() in allowed:
                     files.append(child)
             continue
-        if path.suffix.lower() not in SUPPORTED_EXTS:
+        if path.suffix.lower() not in allowed:
             raise ValueError(f"不支持的文件格式：{path}")
         files.append(path)
     # 去重并保持顺序
@@ -73,6 +76,96 @@ def expand_inputs(raw_paths: list[str | Path]) -> list[Path]:
         seen.add(key)
         out.append(item)
     return out
+
+
+def _split_library_inputs(paths: list[Path]) -> tuple[list[Path], list[Path]]:
+    docs: list[Path] = []
+    images: list[Path] = []
+    for path in paths:
+        if path.suffix.lower() in IMAGE_EXTS:
+            images.append(path)
+        else:
+            docs.append(path)
+    return docs, images
+
+
+def _ocr_images_to_library_markdown(
+    images: list[Path],
+    *,
+    user_id: str,
+    subject: str,
+) -> Path | None:
+    if not images:
+        return None
+    from tools.ocr.levels.light import (
+        iter_ocr_review_pipeline,
+        next_batch_version_stem,
+        save_light_ocr_outputs,
+    )
+
+    project_root = Path(__file__).resolve().parents[4]
+    entries = [(path, path.name) for path in images]
+    reviewed_blocks: list[str] = []
+    raw_blocks: list[str] = []
+    total = len(entries)
+    print(f"[资料入库] 图片 OCR 开始：共 {total} 张。", flush=True)
+    for event in iter_ocr_review_pipeline(entries):
+        kind = event.get("type")
+        lo = event.get("lo")
+        hi = event.get("hi")
+        if kind == "ocr_start":
+            print(
+                f"[资料入库] OCR 正在识别第 {lo}-{hi} 张"
+                f"（并行 {event.get('workers')} 路，共 {total} 张）…",
+                flush=True,
+            )
+        elif kind == "ocr_item":
+            print(
+                f"[资料入库] OCR 第 {lo}-{hi} 张进度 "
+                f"{event.get('done')}/{event.get('chunk')}："
+                f"已完成 {event.get('name')}",
+                flush=True,
+            )
+        elif kind == "ocr_fail":
+            print(
+                f"[资料入库] OCR 第 {lo}-{hi} 张进度 "
+                f"{event.get('done')}/{event.get('chunk')}："
+                f"{event.get('name')} 失败（{event.get('error')}），已跳过。",
+                flush=True,
+            )
+        elif kind == "ocr_wait":
+            print(
+                f"[资料入库] OCR 第 {lo}-{hi} 张进度 "
+                f"{event.get('done')}/{event.get('chunk')}，仍在等待…",
+                flush=True,
+            )
+        elif kind == "review_start":
+            print(
+                f"[资料入库] OCR 第 {lo}-{hi} 张识别完成，正在整理并审校 Markdown…",
+                flush=True,
+            )
+        elif kind == "batch_done":
+            reviewed = str(event.get("reviewed") or "").strip()
+            raw = str(event.get("raw") or "").strip()
+            if reviewed:
+                reviewed_blocks.append(reviewed)
+            if raw:
+                raw_blocks.append(raw)
+            print(
+                f"[资料入库] OCR 第 {lo}-{hi} 张整理完成。",
+                flush=True,
+            )
+    stem = next_batch_version_stem(user_id, subject, project_root)
+    saved = save_light_ocr_outputs(
+        Path(stem),
+        raw_text="\n\n".join(raw_blocks),
+        reviewed_markdown="\n\n".join(reviewed_blocks) or "（OCR 未识别到文字）",
+        user_id=user_id,
+        subject=subject,
+        project_root=project_root,
+    )
+    print(f"[资料入库] 图片 OCR 已合并为 Markdown：{saved.reviewed_path}", flush=True)
+    return saved.reviewed_path
 
 
 def _compact(text: str) -> str:
@@ -180,10 +273,13 @@ def ingest_library(
     user_id: str = "",
     subject: str = "",
 ) -> dict[str, Any]:
+    doc_paths, image_paths = _split_library_inputs(paths)
     before = _safe_chunks(kb, user_id, subject)
     old_texts = [str(item.get("text") or "") for item in before]
     files: list[dict[str, str]] = []
-    for path in paths:
+
+    def add_one(path: Path) -> None:
+        print(f"[资料入库] 非图片/Markdown 入库：{path.name}", flush=True)
         stat = kb.add_file(str(path), user_id=user_id, subject=subject)
         files.append(
             {
@@ -193,6 +289,36 @@ def ingest_library(
                 "unchanged": str(stat.get("unchanged") or 0),
             }
         )
+
+    ocr_path: Path | None = None
+    ocr_error = ""
+    with ThreadPoolExecutor(max_workers=1) as pool:
+        if doc_paths and image_paths:
+            print(
+                f"[资料入库] 并行处理：{len(doc_paths)} 份非图片资料直接入库，"
+                f"{len(image_paths)} 张图片先 OCR 成 Markdown 后入库。",
+                flush=True,
+            )
+        ocr_future = (
+            pool.submit(
+                _ocr_images_to_library_markdown,
+                image_paths,
+                user_id=user_id,
+                subject=subject,
+            )
+            if image_paths
+            else None
+        )
+        for path in doc_paths:
+            add_one(path)
+        if ocr_future is not None:
+            try:
+                ocr_path = ocr_future.result()
+            except Exception as exc:  # noqa: BLE001 - 图片失败不影响非图片入库
+                ocr_error = str(exc).strip() or repr(exc)
+
+    if ocr_path is not None:
+        add_one(ocr_path)
     incoming_names = {item["name"] for item in files}
     after = _safe_chunks(kb, user_id, subject)
     new_chunks = [
@@ -220,7 +346,15 @@ def ingest_library(
 
     conflicts: list[dict[str, Any]] = []
     return {
-        "message": "",
+        "message": (
+            f"图片 OCR 失败，非图片资料已继续入库：{ocr_error}"
+            if ocr_error
+            else (
+                f"{len(image_paths)} 张图片已 OCR 合并为《{ocr_path.name}》后入库。"
+                if image_paths and ocr_path is not None
+                else ""
+            )
+        ),
         "increment": str(len(increment_items)),
         "files": files,
         "increment_by_file": [

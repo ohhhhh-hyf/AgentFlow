@@ -4,7 +4,7 @@
 
     from tools.monitor import TaskMonitor
 
-    monitor = TaskMonitor(client, task_name="action_items", meta={"domain": "meeting"})
+    monitor = TaskMonitor(client, task_name="actions", meta={"domain": "meeting"})
     monitor.start(transcript=transcript)
     ...  # 运行任务，拿到 done 事件
     payload = monitor.finish(done_event=done_event)   # 落盘 output/monitor/*.json

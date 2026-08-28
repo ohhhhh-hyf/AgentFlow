@@ -6,7 +6,7 @@
 
 共享编排内核位于 ``tools/domain_engine.py``，渲染在 ``tools.runtime.render``。
 本文件只保留领域差异：笔记理解 core 节点、含 notes 理解的上下文、
-knowledge_graph 线 render 前特判、降级格式化器。
+graph 线 render 前特判、降级格式化器。
 
 新增任务线流程：register_task.py --domain notes --task xxx --name "中文名"
 → 手写 tasks/xxx/prompts.py + reports.py 追加 Report 类
@@ -62,7 +62,7 @@ from .tasks.checklist import (
     ChecklistSupervisor,
 )
 
-from .tasks.knowledge_graph import (
+from .tasks.graph import (
     KnowledgeGraphAgent,
     KnowledgeGraphRender,
     KnowledgeGraphSupervisor,
@@ -92,7 +92,7 @@ from .tasks.review import (
 
 from .tasks.catalog.contracts import CATALOG_FALLBACK_RULES
 from .tasks.checklist.contracts import CHECKLIST_FALLBACK_RULES
-from .tasks.knowledge_graph.contracts import KNOWLEDGE_GRAPH_FALLBACK_RULES
+from .tasks.graph.contracts import KNOWLEDGE_GRAPH_FALLBACK_RULES
 from .tasks.library.contracts import LIBRARY_FALLBACK_RULES
 from .tasks.quiz.contracts import QUIZ_FALLBACK_RULES
 from .tasks.review.contracts import REVIEW_FALLBACK_RULES
@@ -221,9 +221,9 @@ TASK_LINES: dict[str, dict] = {
         "empty_draft": _EMPTY_CHECKLIST,
         "reject_review": _REJECT_CHECKLIST_REVIEW,
     },
-    "knowledge_graph": {
-        "agent_attr": "knowledge_graph_agent",
-        "supervisor_attr": "knowledge_graph_supervisor",
+    "graph": {
+        "agent_attr": "graph_agent",
+        "supervisor_attr": "graph_supervisor",
         "empty_draft": _EMPTY_KNOWLEDGE_GRAPH,
         "reject_review": _REJECT_KNOWLEDGE_GRAPH_REVIEW,
     },
@@ -260,7 +260,7 @@ def _line_draft_title(line_name: str) -> str:
 # Lines 段逐条格式化器注册表（domain 按需填写）
 # 例：lines 段需要逐条格式化时注册 {线名: 格式化函数(index, item) -> str}
 _LINES_FORMATTERS: dict[str, object] = {
-    "knowledge_graph": format_graph_node,
+    "graph": format_graph_node,
 }
 
 def _empty_purpose(state) -> str:
@@ -437,9 +437,9 @@ class NotesAgentSystem(_Nodes):
         self.checklist_agent: ChecklistAgent = agents["checklist_agent"]
         self.checklist_supervisor: ChecklistSupervisor = agents["checklist_supervisor"]
         self.checklist_render: ChecklistRender = agents["checklist_render"]
-        self.knowledge_graph_agent: KnowledgeGraphAgent = agents["knowledge_graph_agent"]
-        self.knowledge_graph_supervisor: KnowledgeGraphSupervisor = agents["knowledge_graph_supervisor"]
-        self.knowledge_graph_render: KnowledgeGraphRender = agents["knowledge_graph_render"]
+        self.graph_agent: KnowledgeGraphAgent = agents["graph_agent"]
+        self.graph_supervisor: KnowledgeGraphSupervisor = agents["graph_supervisor"]
+        self.graph_render: KnowledgeGraphRender = agents["graph_render"]
         self.library_agent: LibraryAgent = agents["library_agent"]
         self.library_supervisor: LibrarySupervisor = agents["library_supervisor"]
         self.library_render: LibraryRender = agents["library_render"]
@@ -457,7 +457,7 @@ class NotesAgentSystem(_Nodes):
         self._report_assemblers = {
             "catalog": CatalogReport,
             "checklist": ChecklistReport,
-            "knowledge_graph": KnowledgeGraphReport,
+            "graph": KnowledgeGraphReport,
             "library": LibraryReport,
             "quiz": QuizReport,
             "review": ReviewReport,
@@ -470,7 +470,7 @@ class NotesAgentSystem(_Nodes):
         self._fallback_rules = {
             "catalog": CATALOG_FALLBACK_RULES,
             "checklist": CHECKLIST_FALLBACK_RULES,
-            "knowledge_graph": KNOWLEDGE_GRAPH_FALLBACK_RULES,
+            "graph": KNOWLEDGE_GRAPH_FALLBACK_RULES,
             "library": LIBRARY_FALLBACK_RULES,
             "quiz": QUIZ_FALLBACK_RULES,
             "review": REVIEW_FALLBACK_RULES,

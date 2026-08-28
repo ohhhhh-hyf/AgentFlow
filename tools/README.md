@@ -20,9 +20,9 @@
 
 | 种类 | 代表线 | LLM 渲染 | CLI 模板 | sidecar | 结构抽取 |
 |---|---|---|---|---|---|
-| `llm_extract` | risk / action_items / review / quiz | 是 | 是 | 否 | 是 |
+| `llm_extract` | risk / actions / review / quiz | 是 | 是 | 否 | 是 |
 | `llm_document` | 纪要 / 多样式 / 思维导图 | 是 | 是 | 否 | 仅当 Report 声明 structure |
-| `deterministic_pipeline` | minutes_trace；无模板 knowledge_graph | 默认否 | 默认否 | 可选 | 否 |
+| `deterministic_pipeline` | minutes_trace；无模板 graph | 默认否 | 默认否 | 可选 | 否 |
 
 minutes_trace 是文档化的 pipeline + sidecar，不是和 risk 对等的一条 3-step 线。新线用 `register_task.py --kind`。
 
@@ -61,7 +61,7 @@ minutes_trace 是文档化的 pipeline + sidecar，不是和 risk 对等的一�
 |------|------|
 | `outputs.py` | 报告 JSON/Markdown 落盘 + mindmap/图谱导出编排 |
 | `mindmap.py` | markmap HTML + Playwright PNG |
-| `knowledge_graph.py` | Graphviz SVG + 交互 HTML + 学习地图 |
+| `graph.py` | Graphviz SVG + 交互 HTML + 学习地图 |
 
 ## 可选子系统（独立使用，不绑死主流程）
 

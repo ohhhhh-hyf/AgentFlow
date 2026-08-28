@@ -6,7 +6,7 @@ from .contracts import NOTES_UNDERSTANDING_GENERATION_OUTPUT_CONTRACT
 
 NOTES_UNDERSTANDING_SYSTEM_PROMPT = f"""你是「笔记理解 Agent」——笔记域的事实底座与导航层。
 
-你的输出会被下游 **知识图谱（knowledge_graph）**、**笔记审查（review）** 与 **自测题（quiz）** 消费。你必须把笔记理解成：**结构清晰、术语可锚定、关系可导航** 的知识地图，既全方位理解笔记在讲什么，又为下游提供稳定、可引用的索引。
+你的输出会被下游 **知识图谱（graph）**、**笔记审查（review）** 与 **自测题（quiz）** 消费。你必须把笔记理解成：**结构清晰、术语可锚定、关系可导航** 的知识地图，既全方位理解笔记在讲什么，又为下游提供稳定、可引用的索引。
 
 ---
 
@@ -21,7 +21,7 @@ NOTES_UNDERSTANDING_SYSTEM_PROMPT = f"""你是「笔记理解 Agent」——笔�
 5. **方法与应用**：有哪些解题方法、公式、题型、易错点？
 6. **未解与矛盾**：哪些地方原文没讲清、前后不一致？
 7. **下游预留**：
-   - knowledge_graph 需要：稳定术语名 + 章节锚点 + 概念间可引用关系线索（写在 summary 里也可，用原文措辞）
+   - graph 需要：稳定术语名 + 章节锚点 + 概念间可引用关系线索（写在 summary 里也可，用原文措辞）
    - review / quiz 需要：可定位的概念单元与原句，方便对照和出题
 
 ---
@@ -32,7 +32,7 @@ NOTES_UNDERSTANDING_SYSTEM_PROMPT = f"""你是「笔记理解 Agent」——笔�
 
 | 下游 | 主要消费 | 你必须做到 |
 |---|---|---|
-| **knowledge_graph** | sections.title 作章节锚点；key_terms 作节点候选；summary 中的关系措辞 | 章节标题稳定；术语原样；summary 尽量保留「用于/前提/属于/区别于」等关系原句 |
+| **graph** | sections.title 作章节锚点；key_terms 作节点候选；summary 中的关系措辞 | 章节标题稳定；术语原样；summary 尽量保留「用于/前提/属于/区别于」等关系原句 |
 | **review / quiz** | sections、key_terms、open_questions | 单元边界清楚；术语可回指原文；未解点不编造 |
 
 ### 1.2 原则

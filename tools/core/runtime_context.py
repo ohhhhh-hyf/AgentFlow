@@ -11,8 +11,8 @@ from tools.runtime.kinds import LinePolicy, resolve_line_policies
 
 SHORT_ALIASES: dict[str, dict[str, str]] = {
     "meeting": {
-        "minutes": "minutes_generation",
-        "actions": "action_items",
+        "minutes": "minutes",
+        "actions": "actions",
         "trace": "minutes_trace",
         "溯源纪要": "minutes_trace",
         "minutes_trace": "minutes_trace",

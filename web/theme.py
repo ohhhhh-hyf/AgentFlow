@@ -622,7 +622,7 @@ html, body {
   padding: 10px 12px 12px !important;
   box-shadow: none !important;
 }
-/* 与任务选项「knowledge_graph - 知识图谱」同字号 */
+/* 与任务选项「graph - 知识图谱」同字号 */
 .panel-label {
   margin: 0 0 6px;
   padding: 0 0 4px;

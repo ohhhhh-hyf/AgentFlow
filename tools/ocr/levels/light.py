@@ -5,6 +5,7 @@ import re
 import time
 from concurrent.futures import FIRST_COMPLETED, ThreadPoolExecutor, wait
 from dataclasses import dataclass
+from datetime import datetime
 from pathlib import Path
 from typing import Callable, Iterator
 
@@ -45,37 +46,28 @@ def _safe_stem(image_path: Path | str) -> str:
     return stem
 
 
-_VERSION_STEM_RE = re.compile(r"^v(\d+)$", re.I)
-
-
 def next_batch_version_stem(
     user_id: str,
     subject: str,
     project_root: str | Path,
 ) -> str:
-    """同一 user+subject 下，多图合并稿按 v1、v2… 递增。"""
+    """同一 user+subject 下，多图合并稿按 ``ocr_datetime`` 命名。"""
     root = Path(project_root)
     uid = safe_id(user_id)
     subj = safe_id(subject)
-    folders = [
-        root / "data" / uid / "ocr" / subj / "md",
-        root / "data" / uid / "ocr" / subj / "txt",
-        root / "data" / uid / "knowledge" / "catalogs",
-    ]
-    highest = 0
-    for folder in folders:
-        if not folder.is_dir():
-            continue
-        for path in folder.iterdir():
-            if not path.is_file():
-                continue
-            stem = path.stem
-            if stem.endswith("_meta"):
-                stem = stem[: -len("_meta")]
-            match = _VERSION_STEM_RE.match(stem)
-            if match:
-                highest = max(highest, int(match.group(1)))
-    return f"v{highest + 1}"
+    folder = root / "data" / uid / "ocr" / subj
+    stamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    stem = f"ocr_{stamp}"
+    if not (folder / f"{stem}.md").exists():
+        return stem
+    stamp = datetime.now().strftime("%Y%m%d_%H%M%S_%f")[:-3]
+    stem = f"ocr_{stamp}"
+    if not (folder / f"{stem}.md").exists():
+        return stem
+    index = 1
+    while (folder / f"{stem}_{index}.md").exists():
+        index += 1
+    return f"{stem}_{index}"
 
 
 _PAGE_COMMENT_RE = re.compile(r"^<!--\s*第\s*\d+\s*页[:：].*?-->\s*", re.M)
@@ -173,13 +165,12 @@ def save_light_ocr_outputs(
         / "ocr"
         / safe_id(subject)
     )
-    md_dir = base_dir / "md"
-    md_dir.mkdir(parents=True, exist_ok=True)
+    base_dir.mkdir(parents=True, exist_ok=True)
 
     from tools.ocr.mathmd import normalize_markdown_math
 
     stem = _safe_stem(path)
-    reviewed_path = md_dir / f"{stem}.md"
+    reviewed_path = base_dir / f"{stem}.md"
     reviewed_markdown = normalize_markdown_math(reviewed_markdown)
     reviewed_path.write_text(reviewed_markdown, encoding="utf-8")
 

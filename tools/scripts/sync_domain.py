@@ -1107,7 +1107,7 @@ def find_lines(tasks_dir: Path | None = None) -> list[str]:
 
 
 def line_class_name(line: str, suffix: str) -> str:
-    """线名 + 后缀 → 类名。例：minutes_generation + Agent → MinutesGenerationAgent。"""
+    """线名 + 后缀 → 类名。例：minutes + Agent → MinutesGenerationAgent。"""
     prefix = "".join(part.capitalize() for part in line.split("_"))
     return f"{prefix}{suffix}"
 
@@ -1150,7 +1150,7 @@ def _has_fallback_rules(line: str, tasks_dir: Path | None = None) -> bool:
 def _contract_base(line: str, tasks_dir: Path | None = None) -> str:
     """线名 → 契约基名：从该线 contracts.py 的契约类名推导。
 
-    例：minutes_generation/contracts.py 里 MinutesGenerationContract
+    例：minutes/contracts.py 里 MinutesGenerationContract
     → 类名去 GenerationContract 后缀 "Minutes" → 全大写 "MINUTES"
     （用于推导 _EMPTY_MINUTES / _REJECT_MINUTES_REVIEW）。
     """
@@ -1610,8 +1610,8 @@ def _pascal(base: str) -> str:
 def _report_class(line: str) -> str:
     """线名 → Report 类名：{PascalCase(契约基名)}Report。
 
-    例：minutes_generation → MINUTES → MinutesReport；
-        action_items → ACTION_ITEMS → ActionItemsReport。
+    例：minutes → MINUTES → MinutesReport；
+        actions → ACTION_ITEMS → ActionItemsReport。
     """
     return f"{_pascal(_contract_base(line))}Report"
 

@@ -47,7 +47,7 @@ from .reports import (
 from .models import MeetingState
 # ── 任务线 import 生成区：由 tools/scripts/sync_domain.py 生成，勿手改 ──
 
-from .tasks.action_items import (
+from .tasks.actions import (
     ActionItemsAgent,
     ActionItemsRender,
     ActionItemsSupervisor,
@@ -59,7 +59,7 @@ from .tasks.mindmap import (
     MindmapSupervisor,
 )
 
-from .tasks.minutes_generation import (
+from .tasks.minutes import (
     MinutesGenerationAgent,
     MinutesGenerationRender,
     MinutesGenerationSupervisor,
@@ -71,13 +71,13 @@ from .tasks.minutes_trace import (
     MinutesTraceSupervisor,
 )
 
-from .tasks.multi_styles import (
+from .tasks.minutes_styles import (
     MultiStylesAgent,
     MultiStylesRender,
     MultiStylesSupervisor,
 )
 
-from .tasks.risk import (
+from .tasks.risks import (
     RiskAgent,
     RiskRender,
     RiskSupervisor,
@@ -87,12 +87,12 @@ from .tasks.risk import (
 
 # ── FallbackRules import 生成区：由 tools/scripts/sync_domain.py 生成，勿手改 ──
 
-from .tasks.action_items.contracts import ACTION_ITEMS_FALLBACK_RULES
+from .tasks.actions.contracts import ACTION_ITEMS_FALLBACK_RULES
 from .tasks.mindmap.contracts import MINDMAP_FALLBACK_RULES
-from .tasks.minutes_generation.contracts import MINUTES_FALLBACK_RULES
+from .tasks.minutes.contracts import MINUTES_FALLBACK_RULES
 from .tasks.minutes_trace.contracts import MINUTES_TRACE_FALLBACK_RULES
-from .tasks.multi_styles.contracts import MULTI_STYLES_FALLBACK_RULES
-from .tasks.risk.contracts import RISK_FALLBACK_RULES
+from .tasks.minutes_styles.contracts import MULTI_STYLES_FALLBACK_RULES
+from .tasks.risks.contracts import RISK_FALLBACK_RULES
 
 # ── FallbackRules import 生成区结束 ──
 
@@ -167,7 +167,7 @@ _REJECT_MINUTES_REVIEW = {
 
 _REJECT_ACTION_ITEMS_REVIEW = {
     "decision": "reject",
-    "action_items_check": {"status": "fail", "findings": ["LLM 调用失败，未完成审核"]},
+    "actions_check": {"status": "fail", "findings": ["LLM 调用失败，未完成审核"]},
     "feedback": ["LLM 调用失败，未完成审核，转降级输出"],
 }
 
@@ -204,9 +204,9 @@ _REJECT_MINUTES_TRACE_REVIEW = {
 # ── 任务线注册生成区：由 tools/scripts/sync_domain.py 生成，勿手改 ──
 
 TASK_LINES: dict[str, dict] = {
-    "action_items": {
-        "agent_attr": "action_items_agent",
-        "supervisor_attr": "action_items_supervisor",
+    "actions": {
+        "agent_attr": "actions_agent",
+        "supervisor_attr": "actions_supervisor",
         "empty_draft": _EMPTY_ACTION_ITEMS,
         "reject_review": _REJECT_ACTION_ITEMS_REVIEW,
     },
@@ -216,9 +216,9 @@ TASK_LINES: dict[str, dict] = {
         "empty_draft": _EMPTY_MINDMAP,
         "reject_review": _REJECT_MINDMAP_REVIEW,
     },
-    "minutes_generation": {
-        "agent_attr": "minutes_generation_agent",
-        "supervisor_attr": "minutes_generation_supervisor",
+    "minutes": {
+        "agent_attr": "minutes_agent",
+        "supervisor_attr": "minutes_supervisor",
         "empty_draft": _EMPTY_MINUTES,
         "reject_review": _REJECT_MINUTES_REVIEW,
     },
@@ -228,13 +228,13 @@ TASK_LINES: dict[str, dict] = {
         "empty_draft": _EMPTY_MINUTES_TRACE,
         "reject_review": _REJECT_MINUTES_TRACE_REVIEW,
     },
-    "multi_styles": {
-        "agent_attr": "multi_styles_agent",
-        "supervisor_attr": "multi_styles_supervisor",
+    "minutes_styles": {
+        "agent_attr": "minutes_styles_agent",
+        "supervisor_attr": "minutes_styles_supervisor",
         "empty_draft": _EMPTY_MULTI_STYLES,
         "reject_review": _REJECT_MULTI_STYLES_REVIEW,
     },
-    "risk": {
+    "risks": {
         "agent_attr": "risk_agent",
         "supervisor_attr": "risk_supervisor",
         "empty_draft": _EMPTY_RISK,
@@ -252,7 +252,7 @@ def _line_draft_title(line_name: str) -> str:
     """线名 → 草稿标题（自动推导为「中文名草稿」）。"""
     return _engine_line_draft_title(line_name, LINE_CN_NAMES)
 
-def _format_multi_styles_section(index: int, item: dict) -> str:
+def _format_minutes_styles_section(index: int, item: dict) -> str:
     """把多样式纪要的一个组织段落格式化为文本行（确定性降级输出用）。"""
     title = str(item.get("title") or "").strip()
     content = str(item.get("content") or "").strip()
@@ -261,11 +261,11 @@ def _format_multi_styles_section(index: int, item: dict) -> str:
     return content
 
 # Lines 段逐条格式化器注册表（线名 → 格式化函数(index, item) -> str）
-# action_items / risk / multi_styles 的降级输出格式与各自 LLM 渲染 prompt 保持一致
+# actions / risks / minutes_styles 的降级输出格式与各自 LLM 渲染 prompt 保持一致
 _LINES_FORMATTERS: dict[str, object] = {
-    "action_items": ActionItemsRender.format_action,
-    "risk": format_risk_item,
-    "multi_styles": _format_multi_styles_section,
+    "actions": ActionItemsRender.format_action,
+    "risks": format_risk_item,
+    "minutes_styles": _format_minutes_styles_section,
 }
 
 def _empty_purpose(state) -> str:
@@ -289,7 +289,14 @@ class _Nodes(DomainNodes):
     # ── 领域钩子：视角标题 / 展示标题 ─────────────────────────
 
     def _compute_title(self, state) -> str:
-        """视角标题（客观 → 客观会议纪要；个人 → 姓名视角会议纪要）。"""
+        """标题：优先用纪要草稿的 headline（根据会议内容总结的主题标题），回退视角标题。"""
+        try:
+            draft = _line(state, "minutes").get("draft") or {}
+            headline = str(draft.get("headline") or "").strip()
+            if headline:
+                return headline
+        except Exception:  # noqa: BLE001 - 取 headline 失败回退视角标题
+            pass
         if bool(state.get("objective_perspective")):
             return "客观会议纪要"
         user = state.get("user") or {}
@@ -300,9 +307,9 @@ class _Nodes(DomainNodes):
         objective = bool(state.get("objective_perspective"))
         user = state.get("user") or {}
         name = user.get("name") or "用户"
-        if line_name == "minutes_generation":
+        if line_name == "minutes":
             return "客观会议纪要" if objective else f"{name}视角会议纪要"
-        if line_name == "action_items":
+        if line_name == "actions":
             return "客观待办事项（全员）" if objective else "待办事项"
         return f"{_line_cn(line_name)}输出"
 
@@ -404,37 +411,43 @@ class MeetingAgentSystem(_Nodes):
 
         # ── Agent 挂载生成区：由 tools/scripts/sync_domain.py 生成，勿手改 ──
 
-        self.action_items_agent: ActionItemsAgent = agents["action_items_agent"]
-        self.action_items_supervisor: ActionItemsSupervisor = agents["action_items_supervisor"]
-        self.action_items_render: ActionItemsRender = agents["action_items_render"]
+        self.actions_agent: ActionItemsAgent = agents["actions_agent"]
+        self.actions_supervisor: ActionItemsSupervisor = agents["actions_supervisor"]
+        self.actions_render: ActionItemsRender = agents["actions_render"]
         self.mindmap_agent: MindmapAgent = agents["mindmap_agent"]
         self.mindmap_supervisor: MindmapSupervisor = agents["mindmap_supervisor"]
         self.mindmap_render: MindmapRender = agents["mindmap_render"]
-        self.minutes_generation_agent: MinutesGenerationAgent = agents["minutes_generation_agent"]
-        self.minutes_generation_supervisor: MinutesGenerationSupervisor = agents["minutes_generation_supervisor"]
-        self.minutes_generation_render: MinutesGenerationRender = agents["minutes_generation_render"]
+        self.minutes_agent: MinutesGenerationAgent = agents["minutes_agent"]
+        self.minutes_supervisor: MinutesGenerationSupervisor = agents["minutes_supervisor"]
+        self.minutes_render: MinutesGenerationRender = agents["minutes_render"]
         self.minutes_trace_agent: MinutesTraceAgent = agents["minutes_trace_agent"]
         self.minutes_trace_supervisor: MinutesTraceSupervisor = agents["minutes_trace_supervisor"]
         self.minutes_trace_render: MinutesTraceRender = agents["minutes_trace_render"]
-        self.multi_styles_agent: MultiStylesAgent = agents["multi_styles_agent"]
-        self.multi_styles_supervisor: MultiStylesSupervisor = agents["multi_styles_supervisor"]
-        self.multi_styles_render: MultiStylesRender = agents["multi_styles_render"]
+        self.minutes_styles_agent: MultiStylesAgent = agents["minutes_styles_agent"]
+        self.minutes_styles_supervisor: MultiStylesSupervisor = agents["minutes_styles_supervisor"]
+        self.minutes_styles_render: MultiStylesRender = agents["minutes_styles_render"]
         self.risk_agent: RiskAgent = agents["risk_agent"]
         self.risk_supervisor: RiskSupervisor = agents["risk_supervisor"]
         self.risk_render: RiskRender = agents["risk_render"]
 
         # ── Agent 挂载生成区结束 ──
 
+        # 兼容别名：线名 risks（复数）与属性 risk_*（单数）的历史映射，
+        # 引擎按 f"{line_name}_render" 取值，需与线名对齐
+        self.risks_agent = self.risk_agent
+        self.risks_supervisor = self.risk_supervisor
+        self.risks_render = self.risk_render
+
         # 各线 Report 组装器：线名 → Report 类（脚本生成，键 = 线名与 chunk.line 一致）
         # ── Report 组装器生成区：由 tools/scripts/sync_domain.py 生成，勿手改 ──
 
         self._report_assemblers = {
-            "action_items": ActionItemsReport,
+            "actions": ActionItemsReport,
             "mindmap": MindmapReport,
-            "minutes_generation": MinutesReport,
+            "minutes": MinutesReport,
             "minutes_trace": MinutesTraceReport,
-            "multi_styles": MultiStylesReport,
-            "risk": RiskReport,
+            "minutes_styles": MultiStylesReport,
+            "risks": RiskReport,
         }
 
         # ── Report 组装器生成区结束 ──
@@ -443,12 +456,12 @@ class MeetingAgentSystem(_Nodes):
         # ── FallbackRules 注册生成区：由 tools/scripts/sync_domain.py 生成，勿手改 ──
 
         self._fallback_rules = {
-            "action_items": ACTION_ITEMS_FALLBACK_RULES,
+            "actions": ACTION_ITEMS_FALLBACK_RULES,
             "mindmap": MINDMAP_FALLBACK_RULES,
-            "minutes_generation": MINUTES_FALLBACK_RULES,
+            "minutes": MINUTES_FALLBACK_RULES,
             "minutes_trace": MINUTES_TRACE_FALLBACK_RULES,
-            "multi_styles": MULTI_STYLES_FALLBACK_RULES,
-            "risk": RISK_FALLBACK_RULES,
+            "minutes_styles": MULTI_STYLES_FALLBACK_RULES,
+            "risks": RISK_FALLBACK_RULES,
         }
 
         # ── FallbackRules 注册生成区结束 ──

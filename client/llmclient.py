@@ -714,7 +714,7 @@ class LLMClient:
             max_tokens: 覆盖默认 max_tokens。
             timeout: 覆盖默认超时（秒）。
             use_cache: 命中相同 messages+参数时返回缓存（适合编译类幂等调用）。
-            label: 监控分层标签（如 "action_items/render"），归入 usage_by_label。
+            label: 监控分层标签（如 "actions/render"），归入 usage_by_label。
         """
         messages = [
             {"role": "system", "content": system_prompt},
