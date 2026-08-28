@@ -33,11 +33,96 @@ _SKIP_EXACT = {
 }
 _SKIP_PREFIX = ("kp_", "ch_", "tp_")
 _FULL_TRANSCRIPT_LIMIT = 3600
-_WINDOW = 280
+_WINDOW = 180
 _MAX_SLICES = 18
-_MAX_SLICE_CHARS = 9000
+_MAX_SLICE_CHARS = 5500
 _MIN_NEEDLE = 4
 _MIN_USEFUL = 6
+
+# 泛词表（与 minutes_trace/align.py 的 _GENERIC_MORPHEME 同源）：
+# 时间/数量词、会议高频半泛词、抽象后缀、轻动词。
+# 用于模糊定位 needle 时剔除高频词，剩余连续中文字符即"信息性片段"。
+_GENERIC_MORPHEME = re.compile(
+    r"(今年|去年|明年|前年|本|上|下|半|年|月|日|周|季|度|个|次|条|第|"
+    r"[0-9一二三四五六七八九十百千万两]|"
+    r"验收|整改|跟进|事项|安排|问题|工作|会议|讨论|汇报|情况|内容|"
+    r"相关|方面|环节|要求|计划|方案|项目|任务|进度|风险|进行|开展|"
+    r"完成|落实|处理|解决|组织|准备|整体|部分|"
+    r"意识|思维|能力|程度|水平|方式|方法|作用|意义|目标|目的|"
+    r"树立|转变|培养|强调|认为|表示|指出|"
+    r"追踪|梳理|评估|判断)"
+)
+
+
+def _informative_runs(text: str, min_len: int = 4) -> list[str]:
+    """剔除非中文与泛词后，剩余连续中文字符片段（needle 模糊定位用）。"""
+    spaced = _GENERIC_MORPHEME.sub(" ", text or "")
+    return [
+        part
+        for part in re.findall(r"[\u4e00-\u9fff]+", spaced)
+        if len(part) >= min_len
+    ]
+
+
+def _fuzzy_fragments(
+    needle: str, win: int = 6, step: int = 3, max_frags: int = 6
+) -> list[str]:
+    """needle 的信息性片段集：泛词剔除后的 runs 切成 6 字滑动窗口。
+
+    长 run 若整体逐字查找，概述改写的任何一字之差都会 miss；
+    切成短窗口后单窗口命中率高，多个窗口聚集即可定位。
+    """
+    runs = _informative_runs(needle, min_len=4)
+    frags: list[str] = []
+    for run in runs:
+        if len(run) <= win:
+            frags.append(run)
+        else:
+            frags.extend(
+                run[i : i + win] for i in range(0, len(run) - win + 1, step)
+            )
+    seen: set[str] = set()
+    out: list[str] = []
+    for frag in frags:
+        if frag in seen:
+            continue
+        seen.add(frag)
+        out.append(frag)
+        if len(out) >= max_frags:
+            break
+    return out
+
+
+def _fuzzy_locate(text: str, needle: str) -> int:
+    """精确 miss 后，用多个信息性片段聚集投票定位（容概述改写的一字之差）。
+
+    每个片段在原文中取前 3 个命中位置；得分 = 400 字符内其他命中
+    片段的长度和（多个片段聚集 = 强证据），返回得分最高的位置。
+    """
+    frags = _fuzzy_fragments(needle)
+    if not frags:
+        return -1
+    positions: list[tuple[int, int]] = []
+    for frag in frags:
+        start = 0
+        for _ in range(3):  # 每片段最多 3 个位置，防高频片段失控
+            pos = text.find(frag, start)
+            if pos < 0:
+                break
+            positions.append((len(frag), pos))
+            start = pos + 1
+    if not positions:
+        return -1
+    best_pos = positions[0][1]
+    best_score = -1
+    for _, pos in positions:
+        score = sum(
+            flen for flen, pos2 in positions if abs(pos2 - pos) <= 400
+        )
+        if score > best_score:
+            best_score = score
+            best_pos = pos
+    return best_pos
 
 
 def _clean(text: object) -> str:
@@ -51,6 +136,9 @@ def _is_useful_needle(text: str) -> bool:
     if low in _SKIP_EXACT:
         return False
     if any(low.startswith(p) for p in _SKIP_PREFIX):
+        return False
+    if "记忆摘录" in text or "历史｜" in text:
+        # 记忆摘录/历史条目是历史场次内容，不在本次原文中，作 needle 必然 miss
         return False
     if text.isdigit() and len(text) < 4:
         return False
@@ -157,6 +245,15 @@ def slice_transcript(transcript: str, needles: list[str]) -> tuple[str, int, int
             start = pos + max(len(needle), 1)
             if len(spans) >= _MAX_SLICES * 2:
                 break
+        if not matched:
+            # 精确 miss（理解层概述改写，措辞与原文不一致）：
+            # 用信息性片段聚集投票定位，窗口以定位位置为中心。
+            pos = _fuzzy_locate(text, needle)
+            if pos >= 0:
+                matched = True
+                left = max(0, pos - _WINDOW // 4)
+                right = min(len(text), pos + len(needle) + _WINDOW)
+                spans.append(_snap(text, left, right))
         if matched:
             hits += 1
         if len(spans) >= _MAX_SLICES * 2:

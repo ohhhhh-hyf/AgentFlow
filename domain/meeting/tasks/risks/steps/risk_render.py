@@ -36,7 +36,7 @@ class RiskRender:
         """无模板时按草稿字段排清单，与渲染 prompt 格式一致，不调 LLM。"""
         from tools.domain_engine_text import format_risk_item
 
-        draft = (state.get("lines") or {}).get("risk", {}).get("draft") or {}
+        draft = (state.get("lines") or {}).get("risks", {}).get("draft") or {}
         items = draft.get("risks") or []
         lines = []
         for index, item in enumerate(items, start=1):

@@ -110,6 +110,7 @@ _EMPTY_ACTION_ITEMS = {
 }
 
 _EMPTY_MEETING_UNDERSTANDING = {
+    "meeting_brief": "",
     "meeting_purpose": "",
     "scene": "通用",
     "topics": [],
@@ -268,6 +269,14 @@ _LINES_FORMATTERS: dict[str, object] = {
     "minutes_styles": _format_minutes_styles_section,
 }
 
+# 理解层按线裁剪：单线运行时跳过的字段（输出 []，字段契约与下游读取不变）。
+# 多线并行共享理解时保持全量，裁剪只在单线场景生效（避免一条线白付其它线字段）。
+UNDERSTANDING_SKIP_FIELDS: dict[str, frozenset[str]] = {
+    "actions": frozenset({"topics", "risks", "open_questions", "risk_hints"}),
+    "risks": frozenset({"topics", "action_hints"}),
+    "minutes": frozenset({"risk_hints"}),
+}
+
 def _empty_purpose(state) -> str:
     """empty_purpose 兜底时的「目的」文案（会议理解的目的）。"""
     purpose = (state.get("meeting_understanding") or {}).get(
@@ -285,6 +294,33 @@ class _Nodes(DomainNodes):
     _transcript_label = "会议原文"
     _line_cn_names = LINE_CN_NAMES
     _line_policies = resolve_line_policies(LINE_KINDS)
+
+    # 理解层参与审核摘录的字段白名单（线名 → 保留字段）。
+    # 该线不消费的字段不进原文摘录，命中点从遍布全文收敛到相关段落；
+    # 未列出的线（minutes_styles / mindmap 等）走默认全字段。
+    _understanding_needle_keep: dict[str, frozenset[str]] = {
+        "actions": frozenset({
+            "meeting_brief", "meeting_purpose", "scene", "decisions",
+            "action_hints", "dependencies",
+        }),
+        "risks": frozenset({
+            "meeting_brief", "meeting_purpose", "scene", "risks",
+            "open_questions", "risk_hints", "dependencies",
+        }),
+        "minutes": frozenset({
+            "meeting_brief", "meeting_purpose", "scene", "topics",
+            "decisions", "risks", "open_questions", "dependencies",
+        }),
+        "minutes_trace": frozenset({
+            "meeting_brief", "meeting_purpose", "scene", "topics",
+            "decisions", "risks", "open_questions", "dependencies",
+        }),
+    }
+
+    def _understanding_needle_fields(self, line_name: str) -> set[str] | None:
+        """审核摘录时理解层的 needle 字段白名单（与按线裁剪同源）。"""
+        keep = self._understanding_needle_keep.get(line_name)
+        return set(keep) if keep else None
 
     # ── 领域钩子：视角标题 / 展示标题 ─────────────────────────
 
@@ -333,6 +369,195 @@ class _Nodes(DomainNodes):
             f"会议原文：\n{state['transcript']}"
         )
 
+    @staticmethod
+    def _compact_user(user: dict) -> dict:
+        """给任务 Agent 的瘦身画像，只保留会影响视角裁剪的字段。"""
+        keys = (
+            "name",
+            "role",
+            "department",
+            "perspective",
+            "persona_type",
+            "responsibilities",
+            "interests",
+            "focus_areas",
+            "constraints",
+            "output_style",
+        )
+        return {key: user.get(key) for key in keys if user.get(key)}
+
+    @staticmethod
+    def _compact_perspective(profile: dict | None) -> dict:
+        """视角模型瘦身：保留与任务相关性判断有关的字段。"""
+        if not isinstance(profile, dict):
+            return {}
+        keys = (
+            "personal_summary",
+            "attention_points",
+            "responsibilities",
+            "goals",
+            "concerns",
+            "relevant_topics",
+            "evidence",
+        )
+        return {key: profile.get(key) for key in keys if profile.get(key)}
+
+    @staticmethod
+    def _topic_brief(topic: dict) -> dict:
+        title = str(topic.get("title") or "").strip()
+        conclusion = topic.get("conclusion")
+        discussion = str(topic.get("discussion") or "").strip()
+        # 兼容未来 key_points 字段；当前模型仍可能只有 discussion。
+        key_points = topic.get("key_points")
+        if not isinstance(key_points, list):
+            key_points = []
+        if discussion and not key_points:
+            key_points = [discussion[:500]]
+        return {
+            "title": title,
+            "key_points": key_points[:6],
+            "conclusion": conclusion,
+            "participants": topic.get("participants") or [],
+        }
+
+    def _meeting_pack(self, state: dict, line_name: str) -> dict:
+        """为每条任务线构造最小必要会议理解包，减少重复上下文。"""
+        u = state.get("meeting_understanding") or {}
+        topics = [
+            self._topic_brief(item)
+            for item in (u.get("topics") or [])
+            if isinstance(item, dict)
+        ]
+        base = {
+            "meeting_brief": u.get("meeting_brief") or u.get("meeting_purpose") or "",
+            "meeting_purpose": u.get("meeting_purpose") or "",
+            "scene": u.get("scene") or "通用",
+        }
+        if line_name == "actions":
+            directive_decisions = [
+                item for item in (u.get("decisions") or [])
+                if any(word in str(item) for word in ("要求", "必须", "务必", "请", "需", "整改", "落实"))
+            ]
+            return {
+                **base,
+                "action_hints": u.get("action_hints") or [],
+                "directive_decisions": directive_decisions,
+                "dependencies": u.get("dependencies") or [],
+            }
+        if line_name == "risks":
+            return {
+                **base,
+                "risk_hints": u.get("risk_hints") or [],
+                "risks": u.get("risks") or [],
+                "dependencies": u.get("dependencies") or [],
+                "risk_related_open_questions": u.get("open_questions") or [],
+            }
+        if line_name == "minutes_trace":
+            return {
+                **base,
+                "topics": topics,
+                "decisions": u.get("decisions") or [],
+                "risks": u.get("risks") or [],
+                "open_questions": u.get("open_questions") or [],
+                "dependencies": u.get("dependencies") or [],
+            }
+        if line_name == "minutes_styles":
+            # 多样式纪要重写全文(上下文另有完整原文),pack 只给理解摘要;
+            # 不需要 action_hints/risk_hints(那是待办/风险线的线索)
+            return {
+                **base,
+                "topics": topics,
+                "decisions": u.get("decisions") or [],
+                "risks": u.get("risks") or [],
+                "open_questions": u.get("open_questions") or [],
+                "dependencies": u.get("dependencies") or [],
+            }
+        if line_name == "minutes":
+            return {
+                **base,
+                "topics": topics,
+                "decisions": u.get("decisions") or [],
+                "risks": u.get("risks") or [],
+                "open_questions": u.get("open_questions") or [],
+                "key_action_hints": (u.get("action_hints") or [])[:12],
+            }
+        return {
+            **base,
+            "topics": topics,
+            "decisions": u.get("decisions") or [],
+            "risks": u.get("risks") or [],
+            "open_questions": u.get("open_questions") or [],
+            "action_hints": u.get("action_hints") or [],
+            "risk_hints": u.get("risk_hints") or [],
+            "dependencies": u.get("dependencies") or [],
+        }
+
+    def _line_shared_context(self, state: dict, line_name: str) -> str:
+        """按任务线裁剪后的 Agent 上下文。
+
+        仍保留「会议理解」标签，兼容 minutes 的硬执行对齐。
+        """
+        mode = self._mode_label(state)
+        pack = self._meeting_pack(state, line_name)
+        parts = [
+            f"视角模式：{mode}",
+            "说明：仅使用本任务上下文包中的事实；需要裁剪视角时参考用户画像和用户视角模型。"
+            "不要从未提供的完整原文中补造事实。",
+            f"用户画像：\n{_json(self._compact_user(state.get('user') or {}))}",
+            f"会议理解：\n{_json(pack)}",
+        ]
+        perspective = self._compact_perspective(state.get("perspective_profile") or {})
+        if perspective:
+            parts.append(f"用户视角模型：\n{_json(perspective)}")
+        # 溯源纪要和多样式纪要仍需要较强的原文/场景依据；其它线优先依赖 evidence。
+        if line_name in {"minutes_trace", "minutes_styles", "mindmap"}:
+            parts.append(f"会议原文：\n{state.get('transcript') or ''}")
+        return "\n\n".join(parts)
+
+    def _make_agent_node(self, line_name: str):
+        """会议域生成节点：给不同任务线注入专属瘦身上下文。"""
+        cfg = self._task_lines[line_name]
+        cn = _line_cn(line_name)
+
+        async def node(state: dict) -> dict:
+            agent = getattr(self, cfg["agent_attr"])
+            context = self._line_shared_context(state, line_name)
+            mode = (state.get("line_modes") or {}).get(line_name)
+            if mode and self._line_policy(line_name).cli_mode:
+                context = f"组织模式：{mode}\n\n{context}"
+            extra = (state.get("line_extra") or {}).get(line_name)
+            if extra:
+                context = f"{context}\n\n{extra}"
+            try:
+                result = await agent.run(
+                    self._revision_context(
+                        context,
+                        _line(state, line_name).get("revision_feedback", []),
+                        f"{cn}返工意见",
+                    )
+                )
+            except Exception:  # noqa: BLE001 - 有意的降级设计
+                logger.warning(f"{cn}生成失败，使用空草稿继续", exc_info=True)
+                return {
+                    "lines": {
+                        line_name: {
+                            "draft": cfg["empty_draft"],
+                            "degraded": True,
+                        }
+                    },
+                    "quality_degraded": True,
+                }
+            return {
+                "lines": {
+                    line_name: {
+                        "draft": result.model_dump(),
+                        "degraded": False,
+                    }
+                }
+            }
+
+        return node
+
     def _supervisor_context(self, state, line_name: str) -> str:
         """审核上下文：原文按草稿事实点摘录，理解只给摘要。"""
         sub = _line(state, line_name)
@@ -351,6 +576,32 @@ class _Nodes(DomainNodes):
             f"{_line_draft_title(line_name)}：\n{_json(sub['draft'])}"
         )
 
+    def _render_context(self, state: dict, line_name: str) -> str:
+        """会议域渲染上下文：默认不给完整原文，避免渲染阶段重复吃大输入。"""
+        from tools.runtime.context import build_render_context
+
+        sub = _line(state, line_name)
+        extra = (state.get("line_extra") or {}).get(line_name) or ""
+        blocks: list[tuple[str, object, str]] = [
+            ("用户画像", self._compact_user(state.get("user") or {}), "json"),
+            ("会议理解", self._meeting_pack(state, line_name), "json"),
+        ]
+        perspective = self._compact_perspective(state.get("perspective_profile") or {})
+        if perspective:
+            blocks.append(("已审核用户视角", perspective, "json"))
+        if line_name in {"minutes_trace", "minutes_styles", "mindmap"}:
+            blocks.insert(0, ("会议原文", state.get("transcript") or "", "raw"))
+        return build_render_context(
+            mode=self._mode_label(state),
+            objective=bool(state.get("objective_perspective")),
+            blocks=blocks,
+            draft=sub.get("draft"),
+            review=sub.get("review") or {},
+            line_cn=_line_cn(line_name),
+            extra=extra,
+            dumps=_json,
+        )
+
     # ── 领域钩子：core 节点 ───────────────────────────────────
 
     def _build_core(self, builder, line_names=None) -> list[str]:
@@ -360,7 +611,8 @@ class _Nodes(DomainNodes):
         （省一次 LLM 调用 + 省大输入 token）。
         """
         builder.add_node(
-            "meeting_understanding", self._meeting_understanding_node
+            "meeting_understanding",
+            self._make_meeting_understanding_node(line_names),
         )
         builder.add_edge(START, "meeting_understanding")
         cores = ["meeting_understanding"]
@@ -379,18 +631,47 @@ class _Nodes(DomainNodes):
 
     # ── 核心节点：会议理解（公共事实底座）──────────────────────
 
-    async def _meeting_understanding_node(self, state) -> dict:
-        try:
-            result = await self.meeting_understanding_agent.run(
-                state["transcript"]
-            )
-        except Exception as exc:
-            logger.warning("会议理解失败，使用空理解继续", exc_info=True)
-            return {
-                "meeting_understanding": _EMPTY_MEETING_UNDERSTANDING,
-                "quality_degraded": True,
-            }
-        return {"meeting_understanding": result.model_dump()}
+    async def _perspective_modeling_node(self, state: dict) -> dict:
+        """客观全员模式跳过视角建模，省一次核心 LLM 调用。"""
+        if bool(state.get("objective_perspective")):
+            from perspective import EMPTY_PERSPECTIVE_MODELING
+
+            return {"perspective_profile": EMPTY_PERSPECTIVE_MODELING}
+        return await super()._perspective_modeling_node(state)
+
+    def _understanding_skip(self, line_names) -> frozenset[str]:
+        """单线运行时的理解输出裁剪集合；多线 / 未注册线保持全量。"""
+        selected = [name for name in (line_names or []) if name]
+        if len(selected) == 1 and selected[0] in UNDERSTANDING_SKIP_FIELDS:
+            return UNDERSTANDING_SKIP_FIELDS[selected[0]]
+        return frozenset()
+
+    def _make_meeting_understanding_node(self, line_names):
+        """会议理解节点：按本次选线裁剪输出（单线 API 场景省输出 token）。
+
+        裁剪只影响理解层输出（跳过字段为 []），不改变字段契约，
+        下游 pack / 审核 / 记忆读取逻辑零改动。
+        """
+        skip = self._understanding_skip(line_names)
+        selected = [name for name in (line_names or []) if name]
+        focus = selected[0] if (skip and selected) else ""
+
+        async def node(state: dict) -> dict:
+            try:
+                result = await self.meeting_understanding_agent.run(
+                    state["transcript"],
+                    focus_line=focus,
+                    skip_fields=skip,
+                )
+            except Exception as exc:
+                logger.warning("会议理解失败，使用空理解继续", exc_info=True)
+                return {
+                    "meeting_understanding": _EMPTY_MEETING_UNDERSTANDING,
+                    "quality_degraded": True,
+                }
+            return {"meeting_understanding": result.model_dump()}
+
+        return node
 
 class MeetingAgentSystem(_Nodes):
     """使用 LangGraph 编排会议分析、多线并行审核返工与最终输出。"""

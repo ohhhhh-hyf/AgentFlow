@@ -19,9 +19,9 @@ RISK_GENERATION_SYSTEM_PROMPT = """你是「会议风险分析 Agent」。从会
 1. **MeetingUnderstanding.risk_hints**：上游的结构化风险线索（含 risk/signal_type/severity_evidence/impact/mitigation/owner）——作为**必覆盖候选**（逐条回原文核对后输出；可补充上游漏掉但原文有信号的风险）  
 2. **MeetingUnderstanding.risks**：上游风险摘要列表——与 risk_hints 一一对应，逐条覆盖  
 3. **MeetingUnderstanding.dependencies**：未确认前置/依赖——「决策依赖未确认信息」型风险的必查来源  
-4. **topics.discussion**：含担忧、卡点、依赖未确认的段落（复核 risk_hints 是否漏条）  
+4. **risk_hints[].evidence**：含担忧、卡点、依赖未确认的原文证据句（复核 risk_hints 是否成立）
 5. **open_questions**：通常是未决问题；仅当原文明确当作风险/隐患表述时才可进入 risks  
-6. **会议原文**：最终裁判；每条 source 必须能指回原句  
+6. **证据句**：本任务通常只收到 `risks_pack`，不再默认通读完整原文；每条 source 必须能指回 risk_hints/dependencies/open_questions 中的 evidence 或原句
 7. **PerspectiveModeling**（个人模式）：可优先保留与用户相关的风险，但**不得**因此编造；客观模式面向全员  
 
 ---
@@ -48,7 +48,7 @@ RISK_GENERATION_SYSTEM_PROMPT = """你是「会议风险分析 Agent」。从会
 | 字段 | 规则 |
 |---|---|
 | risk | 一句话，**逐字沿用原文**（可截取含信号片段） |
-| source | 议题名或可定位原句；**须含支撑 severity 的原文措辞** |
+| source | 议题名或可定位证据句；**须含支撑 severity 的原文措辞** |
 | severity | **优先消费 risk_hints.severity_evidence**（原文强度措辞原句）：含严重/高风险/重大/紧急/必须尽快/较大等 → high；原文明确影响不大/小问题/不急 → low；**无 severity_evidence 或强度不明 → 一律 medium** |
 | impact | 仅原文明确后果；risk_hints.impact 有原文依据时沿用，无 → null |
 | mitigation | 仅原文已有应对；risk_hints.mitigation 有原文依据时沿用，无 → null |

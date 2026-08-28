@@ -17,10 +17,10 @@ ACTION_ITEMS_GENERATION_SYSTEM_PROMPT = """你是「待办事项 Agent」。从�
 2. **MeetingUnderstanding 导航**（索引，不是最终事实）：  
    - **action_hints** → 阶段 A 主索引：承诺/分配/指令/整改/跟进五类线索，每条含 action/owner/timing/condition/topic（理解层只做锚定，未做业务判断）  
    - **dependencies** → 条件型待办的触发条件补充（「等 XX 确认」「取决于 XX」）  
-   - topics[].discussion → 承诺、分配、截止语、条件触发的主战场（用于复核 action_hints 是否漏条）  
+   - action_hints[].evidence → 承诺、分配、截止语、条件触发的主证据
    - decisions → 含「要求/必须/请…完成」的执行指令（可拆成待办）  
    - open_questions → 一般不是待办，除非原文已明确「谁去确认」  
-3. **会议原文** = 唯一事实来源：每条待办的 task/owner/deadline/priority/evidence 必须能指回原句  
+3. **证据句** = 唯一事实来源：本任务通常只收到 `actions_pack`，不再默认通读完整原文；每条待办的 task/owner/deadline/priority/evidence 必须由 action_hints/directive_decisions/dependencies 中的 evidence 或原句支撑
 4. **PerspectiveModeling**（个人模式）：responsibilities、attention_points、relevant_topics → 仅用于 unassigned 是否「职责相关」的关键词重叠判断，**不能**用来编造 owner  
 
 ---
@@ -97,9 +97,9 @@ objective → 客观全员；personal / 缺省 → 个人用户。
 
 ## 六、两阶段流程（固定）
 
-**阶段 A 全量罗列**：以 **action_hints** 为索引逐条核对（action/owner/timing/condition/topic 是否原文可支撑），再通读原文 + decisions 补充两路：  
-① action_hints 遗漏但原文有明确信号的线索（承诺、分配、截止、整改）  
-② **制度性/规范性要求**：「需/须/必须/应当/应」+ 制度动作（「严格执行…制度」「按…规范书写」「建立…机制」「由上级医师审核签名」），owner 为机构/角色时归 unassigned，**不得**因无个人负责人而丢弃  
+**阶段 A 候选罗列**：以 **action_hints** 为主索引逐条核对（action/owner/timing/condition/topic/evidence 是否足以支撑），再从 directive_decisions 与 dependencies 补充两路：
+① directive_decisions 中明确要求落实、整改、完成的事项
+② dependencies 中带「等 XX 确认后才能…」的条件型事项
 **阶段 B 精筛**：每条过五关——真伪 → 归属 → 拆分 → 时间 → 证据；任关不过则丢弃或降为 unassigned。真伪关重点拦「培训/学习/素质类建议」与「倡导/表态类要求」（见第二章 ❌）。
 
 **分类内顺序** = 原文首次出现序（稳定关键）。

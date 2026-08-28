@@ -24,8 +24,8 @@ MINUTES_GENERATION_SYSTEM_PROMPT = """你是「会议纪要草稿 Agent」。在
    - decisions → key_decisions **逐字搬运**（客观全量；职业/真人按下采）  
    - risks → risks_and_blockers **逐字搬运**（客观全量；职业/真人按下采）  
    - open_questions → unresolved_questions **逐字搬运**（客观全量；职业/真人按下采）  
-   - topics[].discussion/conclusion → executive_summary / personally_relevant_points 的事实锚点  
-3. **原文**：仅用于纠错字漏字、确认归属称呼；**不得**用原文新增上游没有的决策/风险条（搬运字段以理解结果为准）
+   - topics[].key_points/conclusion → executive_summary / personally_relevant_points 的事实锚点
+3. **原文/证据**：本任务通常只收到瘦身后的 `minutes_pack`，可能没有完整原文；仅用已提供证据纠错字漏字、确认归属称呼；**不得**新增上游没有的决策/风险条（搬运字段以理解结果为准）
 4. **视角模型**（真人/职业模板）：personal_summary、attention_points、responsibilities → 裁剪与排序「对本视角重要」的内容；同时遵守画像 focus_areas / interests / constraints / output_style。关注域内的数字、日期、承诺、口径、范围边界不得丢掉
 5. **记忆命中**（若上下文有「记忆命中 / 记忆摘录条目 / 历史项目状态 / 项目纪要素材」）：说明本场归入了既有档案。摘录由程序写入摘要，你**不要**再把历史块粘进摘要或搬运字段；槽位 1–3 只写本场理解。禁止把历史写成这次会上新发生的事。历史状态的**置信度分层**：
    - 「未闭环 / 累计风险[active]」= 进行中，可写进 history_comparison 的「延续」类，标注「自第N场」；
@@ -66,7 +66,7 @@ MINUTES_GENERATION_SYSTEM_PROMPT = """你是「会议纪要草稿 Agent」。在
 
 固定 **3 个槽位**依序；槽位无内容则**跳过**；每槽可 1–3 条；每条 1–2 句、宜短：
 
-1. **进展总述**：主题 + 已完成/在推进工作（锚 meeting_purpose 与 topics 中进展事实）  
+1. **进展总述**：主题 + 已完成/在推进工作（优先锚 meeting_brief、meeting_purpose 与 topics 中进展事实）
 2. **总体评价/结论**：仅当原文/上游有明确评价或阶段结论；无则跳过  
 3. **指示/下一步**：领导要求/后续安排（锚 decisions 中「要求/指示」类或原文指示）  
 
@@ -118,8 +118,9 @@ MINUTES_GENERATION_SYSTEM_PROMPT = """你是「会议纪要草稿 Agent」。在
 ### history_comparison（历史对照——仅当有历史记忆注入才写）
 
 - 上下文出现【记忆命中 / 记忆摘录条目 / 历史项目状态 / 项目纪要素材】之一 → 必须产出对照；都没有 → []  
-- 四类对照各至多 1 条，顺序固定：**新增决策 / 延续事项（未闭环）/ 已闭环 / 风险演变（升级或缓解）**  
-- 每条标注来源：场次（「第2场已决策：…」「第1场遗留，本场继续跟踪」）或状态（「自第N场」「已缓解」）  
+- 四类对照各至多 1 条，顺序固定：**新增决策 / 延续事项（未闭环）/ 已闭环 / 风险演变（升级或缓解）**
+- **每条必须是单个字符串（一句话）**，格式如「延续事项（自第2场）：混凝土路面开裂原因继续跟踪」；禁止输出对象数组、禁止带 type/content/source 等字段
+- 每条标注来源：场次（「第2场已决策：…」「第1场遗留，本场继续跟踪」）或状态（「自第N场」「已缓解」）
 - 表述中性：只陈述「本场相对历史的变化」，不重复历史细节、不评价  
 - 已闭环事项只出现在对照段，**不得**混入 executive_summary 或搬运字段当作现状  
 

@@ -77,7 +77,7 @@ FastAPI 后端接口。所有接口走 `/api/v1`，一次请求对应一条任�
 | `docs` | array | 否* | `[]` | 文件名列表（图片/文档/笔记，.png/.jpg/.jpeg/.txt/.md/.pdf/.docx/.pptx/.xlsx/.json），服务端从 `data/{user_id}/docs/` 取，按扩展名分派（图片 OCR、文本直读、文档解析、json=catalog） |
 | `extra` | object | 否 | `{}` | 任务差异参数，见 4.4 |
 
-\* `texts`/`docs` 至少提供一个（`catalog`/`checklist` 除外，它们可以完全依赖已入库资料）。
+\* `texts`/`docs` 至少提供一个（`catalog` 除外，可完全依赖已入库资料；`checklist` 需要 `docs` 传 catalog 文件名，见 6.9）。
 
 ### 4.2 `texts` 对象（四个固定 key）
 
@@ -87,11 +87,11 @@ FastAPI 后端接口。所有接口走 `/api/v1`，一次请求对应一条任�
 |---|---|---|---|
 | `transcript` | 会议转写文本 | 会议记录 / 笔记原文，主输入 | 所有任务的主文本来源 |
 | `teacher_focus` | 老师重点文本 | 老师划重点内容，主输入 | `catalog`/`checklist` 传老师划重点 |
-| `keypoints` | 用户重点文本 | 用户关键点 | `minutes_trace` 溯源材料 |
-| `notes` | 用户笔记文本 | 用户笔记 | `minutes_trace` 溯源材料 |
+| `keypoints` | 用户重点文本 | 用户关键点 | `minutes_trace` 溯源材料（**必填**） |
+| `notes` | 用户笔记文本 | 用户笔记 | `minutes_trace` 溯源材料（**必填**） |
 
 - `transcript` 与 `teacher_focus` 都算**主输入**，按 `transcript` → `teacher_focus` 顺序拼成主文本（各自内部多段用 `\n`）。
-- `keypoints`/`notes` 是 `minutes_trace` 的**溯源辅助材料**，不并入主文本。
+- `keypoints`/`notes` 是 `minutes_trace` 的**溯源材料**，不并入主文本；**`minutes_trace` 必填二者**（缺任一返回 400）。
 - 未提供的 key 省略即可（缺省为空）。
 - 未知 key → 422。
 
@@ -101,6 +101,7 @@ FastAPI 后端接口。所有接口走 `/api/v1`，一次请求对应一条任�
 - 服务端查找链：`data/{user_id}/docs/{name}` → `data/docs/{name}`（公共兜底）。
 - 图片走 OCR（引擎由 `.env` 的 `OCR_ENGINE` 决定），OCR 文本并入主输入。
 - 文档：`.txt/.md` 直读；`.pdf/.pptx/.docx/.xlsx` 走知识库解析；`library` 任务直接入库。
+- **`graph` 必填 `docs`**（笔记 `.txt/.md` 文件，缺了返回 400）。
 - 文件不存在 → 404；文件名含路径分隔符/`..` → 400。
 
 ### 4.4 `extra` 对象字段
@@ -110,8 +111,8 @@ FastAPI 后端接口。所有接口走 `/api/v1`，一次请求对应一条任�
 | `template` | string | `""` | 输出模板，见 4.5；**空 = 不套模板**，用任务默认输出 |
 | `profile` | string | `""` | 视角，见 4.6；**空 = 客观全员** |
 | `project` | string | `""` | 会议关联项目 ID（minutes/minutes_styles 开项目记忆） |
-| `subject` | string | `""` | 学科/课程名（library 可选；catalog/checklist **必填**） |
-| `style` | string | `""` | 多样式纪要组织模式，见 4.7；仅 `minutes_styles` 生效，其余任务忽略 |
+| `subject` | string | `""` | 学科/课程名（library 可选；catalog/checklist **必填**；graph **记忆增量必需**，见 6.6） |
+| `style` | string | `""` | 多样式纪要组织模式，见 4.7；仅 `minutes_styles` 生效，其余任务忽略；**`minutes_styles` 必填**（缺了返回 400） |
 
 非法 `template`/`profile`/`style` → 400。
 
@@ -325,8 +326,8 @@ FastAPI 后端接口。所有接口走 `/api/v1`，一次请求对应一条任�
 ### 6.4 `POST /api/v1/meeting/minutes_styles` —— 多样式纪要
 
 - **用途**：同一场会按指定组织模式重写纪要（时间线/总分/因果/主体责权/决策时效）。
-- **输入**：`texts`（transcript 必填）
-- **生效的 extra**：`template` / `profile` / `project` / **`style`（必填才有效果）**
+- **输入**：`texts`（transcript 必填）+ `extra.style`（**必填**，缺了返回 400）
+- **生效的 extra**：`template` / `profile` / `project` / **`style`（必填）**
 
 ```json
 {
@@ -340,7 +341,7 @@ FastAPI 后端接口。所有接口走 `/api/v1`，一次请求对应一条任�
 ### 6.5 `POST /api/v1/meeting/minutes_trace` —— 溯源纪要
 
 - **用途**：生成段落回指会议原文的溯源纪要，并叠上用户关键点与笔记（一条关键点可反复挂钉）。
-- **输入**：`texts`（transcript 必填，可配 docs）+ **`keypoints` / `notes`**
+- **输入**：`texts`（transcript **必填** + **`keypoints` / `notes` 必填**，缺任一返回 400）
 - **生效的 extra**：`profile` / `project`
 
 ```json
@@ -356,8 +357,16 @@ FastAPI 后端接口。所有接口走 `/api/v1`，一次请求对应一条任�
 ### 6.6 `POST /api/v1/notes/graph` —— 知识图谱
 
 - **用途**：把笔记概念抽成知识图谱（节点带定义/出处/关系），产出学习地图文本；SVG/交互 HTML 落盘。
-- **输入**：`texts`（transcript 必填）
-- **生效的 extra**：`template` / `profile` / `project`
+- **输入**：`docs`（**必填**，笔记 `.txt/.md` 文件，从 `data/{user_id}/docs/` 取）
+- **生效的 extra**：`template` / `profile` / `project` / **`subject`（记忆增量必需）**
+- **记忆增量**：传 `X-User-Id` + **`extra.subject`（学科名）** 时，按学科绑定跨会话记忆档案（`data/{user_id}/memory/records/notes/projects/{学科}/`）——下次同学科调用会注入已积累图谱，同名节点/边合并，**新增节点在学习地图标"（新增）"**，SVG/HTML 中新增橙色高亮、历史暗淡显示。**不传 `subject` 则每次都是独立单次运行**（不建档、不注入、无增量）。
+
+```json
+{
+  "docs": ["gaoshu_limit_notes.txt"],
+  "extra": { "subject": "数学" }
+}
+```
 
 ### 6.7 `POST /api/v1/notes/library` —— 资料入库
 
@@ -391,7 +400,7 @@ FastAPI 后端接口。所有接口走 `/api/v1`，一次请求对应一条任�
 ### 6.9 `POST /api/v1/notes/checklist` —— 复习清单
 
 - **用途**：按已有知识目录和知识库（+ 可选老师划重点）生成复习清单。
-- **输入**：可整体缺省；`texts`（teacher_focus）可选
+- **输入**：`docs`（**必填**，catalog 文件名 `.json`，从 `data/{user_id}/knowledge/catalogs/{学科拼音}/` 取）+ `texts`（teacher_focus 老师划重点，可选）
 - **生效的 extra**：`subject`（**必填**）
 
 ### 6.10 `GET /api/v1/health` —— 健康检查
@@ -457,7 +466,8 @@ data/{user_id}/knowledge/catalogs/{subject拼音}/   ← 按学科分目录（�
 |---|---|---|
 | 缺 `X-User-Id` | 400 | `minutes 需要 X-User-Id（用户标识：会议纪要关联记忆、知识库按用户隔离）` |
 | texts/docs 全空 | 400 | `texts / docs 至少提供一个` |
-| catalog/checklist 缺 subject | 400 | `catalog 需要 extra.subject` |
+| 缺必填字段 | 400 | `graph 缺少必填项：docs（笔记 .txt/.md 文件）` / `minutes_trace 缺少必填项：texts 中 keypoints（用户重点文本）、texts 中 notes（用户笔记文本）` / `minutes_styles 缺少必填项：extra.style（多样式纪要组织模式）` / `checklist 缺少必填项：docs（catalog 文件名，如 phy_8b4dccc8.json）` |
+| catalog 缺 subject | 400 | `catalog 需要 extra.subject` |
 | 非法 style | 400 | `extra.style 非法：bad（可选：causal/logic/party/time/urgency）` |
 | 非法 template | 400 | `extra.template 非法：bad_value（格式为 {场景ID}_{模板ID}）` |
 | 非法 profile | 400 | `extra.profile 非法：not_exist（可选：空=客观全员 或 职业模板名）` |

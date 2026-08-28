@@ -42,6 +42,7 @@ class ActionItems(ModelMixin):
 class MeetingUnderstanding(ModelMixin):
     """MeetingUnderstanding输出（浅校验：仅校验第一层键与类型，嵌套不校验）。"""
 
+    meeting_brief: str
     meeting_purpose: str
     scene: Literal["通用", "团队例会", "脑暴/讨论", "项目决策与评审", "专项讨论会", "研讨会", "采访/对话"]
     topics: list[dict[str, Any]] = field(default_factory=list)
@@ -55,6 +56,7 @@ class MeetingUnderstanding(ModelMixin):
     @classmethod
     def validate(cls, data: dict) -> "MeetingUnderstanding":
         _exact_fields(data, [f.name for f in fields(cls)], cls.__name__)
+        _string(data["meeting_brief"], "meeting_brief")
         _string(data["meeting_purpose"], "meeting_purpose")
         _choice(data["scene"], {"通用", "团队例会", "脑暴/讨论", "项目决策与评审", "专项讨论会", "研讨会", "采访/对话"}, "scene")
         if not isinstance(data["topics"], list):

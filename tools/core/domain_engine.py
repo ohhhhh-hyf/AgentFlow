@@ -132,6 +132,15 @@ class DomainNodes:
             f"原文：\n{state['transcript']}"
         )
 
+    def _understanding_needle_fields(self, line_name: str) -> set[str] | None:
+        """审核摘录时,理解层参与 needle 的字段白名单。
+
+        返回 None = 全部字段参与;返回字段集合 = 只收集这些字段的 needle
+        （该线不消费的字段不进原文摘录,命中点从遍布全文收敛到相关段落）。
+        """
+        del line_name
+        return None
+
     def _supervisor_source_pack(self, state: dict, line_name: str) -> str:
         """审核用原文：按草稿事实点摘录，短文仍给全文。"""
         from tools.runtime.supervisor_slice import (
@@ -145,7 +154,28 @@ class DomainNodes:
         sub = line(state, line_name)
         draft = sub.get("draft") or {}
         understanding = self._understanding(state)
-        needles = collect_needles(draft) + collect_needles(understanding)
+        keep = self._understanding_needle_fields(line_name)
+        if keep is not None and isinstance(understanding, dict):
+            # 白名单外字段只保留 evidence 子字段（原文逐字锚点），
+            # 概述性内容（如 action_hints 的 action/owner）不进 needle
+            understanding_for_needles = {}
+            for key, value in understanding.items():
+                if key in keep:
+                    understanding_for_needles[key] = value
+                elif isinstance(value, list) and any(
+                    isinstance(item, dict) and (item.get("evidence") or "")
+                    for item in value
+                ):
+                    understanding_for_needles[key] = [
+                        {"evidence": item["evidence"]}
+                        for item in value
+                        if isinstance(item, dict) and (item.get("evidence") or "")
+                    ]
+        else:
+            understanding_for_needles = understanding
+        needles = collect_needles(draft) + collect_needles(
+            understanding_for_needles
+        )
         raw = state.get("transcript") or ""
         excerpt, hits, used = slice_transcript(raw, needles)
         if not excerpt.strip():
@@ -160,6 +190,8 @@ class DomainNodes:
                 "以下原文按草稿事实点摘录，仍是最高事实来源。"
                 f"已覆盖草稿中 {hits} 处可定位表述。"
                 "摘录未覆盖处不得凭空补全；不足以核对某条时 revise 并指出缺哪句。"
+                "草稿中从理解层逐字搬运/引用的字段（如决策、风险、未决问题），"
+                "请对照下方理解摘要核对「没改没漏」；原文摘录重点核对提炼字段与理解层本身。"
             )
         parts = [f"{source_note}\n{excerpt}"]
         summary = summarize_understanding(understanding)

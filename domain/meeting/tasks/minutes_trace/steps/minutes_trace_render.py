@@ -6,7 +6,7 @@ from collections.abc import AsyncIterator
 from client import LLMClient
 
 from ....models import MinutesTrace
-from ..align import backfill_alignments, stamp_minutes
+from ..align import backfill_alignments, gate_alignments, stamp_minutes
 from ..extras import parse_trace_extras
 from ..prompts import (
     MINUTES_TRACE_ALIGN_OUTPUT_CONTRACT,
@@ -55,8 +55,17 @@ async def _align_alignments(client, context: str, minutes_md: str) -> list[dict]
     transcript = _transcript_from_context(context)
     key_raw = str(extras.get("key_raw") or "").strip()
     note_raw = str(extras.get("note_raw") or "").strip()
+    # 程序预筛候选（零 LLM）：确定性对齐作基底，LLM 只确认/修正/补漏。
+    # 候选充足时不喂全量原文（候选自带 evidence 窗口），输出规模随之缩小；
+    # 候选为空时回退带全量原文，LLM 自行判断（与旧行为一致，不丢补漏能力）。
+    candidates = backfill_alignments([], minutes_md, transcript, keypoints, notes)
     blocks = [f"已批准纪要正文：\n{minutes_md}"]
-    if transcript:
+    if candidates:
+        blocks.append(
+            "程序对齐候选（逐条核对：误挂删除、evidence 修正、遗漏补充）：\n"
+            + json.dumps(candidates, ensure_ascii=False, indent=1)
+        )
+    elif transcript:
         blocks.append(f"会议原文：\n{transcript}")
     if key_raw:
         blocks.append(key_raw)
@@ -70,20 +79,17 @@ async def _align_alignments(client, context: str, minutes_md: str) -> list[dict]
             MinutesTrace,
             MINUTES_TRACE_ALIGN_OUTPUT_CONTRACT,
             temperature=0.0,
-            max_tokens=12000,
+            max_tokens=16000,
             label="minutes_trace/align",
         )
         data = result.model_dump() if hasattr(result, "model_dump") else dict(result)
-        aligns = backfill_alignments(
-            list(data.get("alignments") or []),
-            minutes_md,
-            transcript,
-            keypoints,
-            notes,
-        )
-        return aligns
-    except Exception:  # noqa: BLE001 - 对齐失败静默，正文不受影响
-        return []
+        llm_aligns = list(data.get("alignments") or [])
+    except Exception:  # noqa: BLE001 - 确认失败降级为程序候选，正文不受影响
+        llm_aligns = []
+    if llm_aligns:
+        # LLM 确认后的输出再过一次程序门禁，防乱挂
+        return gate_alignments(llm_aligns, minutes_md, transcript, keypoints, notes)
+    return candidates
 
 
 class MinutesTraceRender:

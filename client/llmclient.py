@@ -596,6 +596,73 @@ class LLMClient:
             raise OutputValidationError(f"不是合法 JSON：{exc}") from exc
         return validate_payload(response_model, data)
 
+    @staticmethod
+    def _missing_closers(text: str) -> str | None:
+        """线性扫描求缺失的 JSON 闭合符（跳过字符串与转义）。
+
+        返回按嵌套顺序补齐的闭合符（如 "]}"）；文本结构损坏
+        （括号不匹配 / 字符串未闭合）返回 None，调用方回退到更早截断点。
+        """
+        stack: list[str] = []
+        in_str = False
+        escaped = False
+        for ch in text:
+            if in_str:
+                if escaped:
+                    escaped = False
+                elif ch == "\\":
+                    escaped = True
+                elif ch == '"':
+                    in_str = False
+                continue
+            if ch == '"':
+                in_str = True
+            elif ch in "{[":
+                stack.append(ch)
+            elif ch in "}]":
+                if not stack:
+                    return None
+                top = stack.pop()
+                if (ch == "}" and top != "{") or (ch == "]" and top != "["):
+                    return None
+        if in_str:
+            return None
+        return "".join("}" if s == "{" else "]" for s in reversed(stack))
+
+    @staticmethod
+    def _repair_truncated_json(
+        content: str, response_model: type[T]
+    ) -> tuple[str, T] | None:
+        """截断 JSON 程序修复：按行回退 + 括号栈补全，保留最后一个完整条目。
+
+        只处理"输出被 max_tokens 截断"场景（pretty JSON 按行截断）：
+        从末尾逐行删除残片，用括号栈算出缺失的闭合符补全，结果必须过模型校验。
+        长文本字段内部截断（如纪要正文写一半）会因字段缺失校验失败，
+        逐行回退到空后返回 None——调用方再走重试/降级，不用半截内容。
+        """
+        text = LLMClient._extract_json_payload(content or "").strip()
+        if not text:
+            return None
+        lines = text.splitlines()
+        for i in range(len(lines), 0, -1):
+            base = "\n".join(lines[:i]).rstrip()
+            if base.endswith(","):
+                base = base[:-1].rstrip()
+            closers = LLMClient._missing_closers(base)
+            if closers is None:
+                continue
+            candidate = base + closers
+            try:
+                data = json.loads(candidate)
+            except json.JSONDecodeError:
+                continue
+            try:
+                model = validate_payload(response_model, data)
+            except OutputValidationError:
+                continue
+            return candidate, model
+        return None
+
     async def structured(
         self,
         system_prompt: str,
@@ -632,6 +699,8 @@ class LLMClient:
         last_error = ""
         # structured 默认更低温度以稳住 schema
         temp = 0.0 if temperature is None else temperature
+        # 校验失败后的针对性重试只允许一次（网络错误重试不占此名额）
+        validation_retried = False
 
         for attempt in range(self.max_retries + 1):
             try:
@@ -661,38 +730,40 @@ class LLMClient:
                 return self._parse_and_validate(last_content, response_model)
             except OutputValidationError as exc:
                 last_error = str(exc)
-                if attempt < self.max_retries:
-                    messages.extend(
-                        [
-                            {"role": "assistant", "content": last_content},
-                            {
-                                "role": "user",
-                                "content": (
-                                    "输出未通过严格校验。不要改变事实，"
-                                    "请按唯一模板重新输出。"
-                                    f"\n校验错误：{last_error}"
-                                ),
-                            },
-                        ]
+                # 截断类失败：程序修复保留最后一个完整条目，零额外调用
+                if str(exc).startswith("不是合法 JSON"):
+                    repaired = self._repair_truncated_json(
+                        last_content, response_model
                     )
+                    if repaired is not None:
+                        return repaired[1]
+                # 非截断校验错误：最多一次带具体错误的针对性重试
+                if validation_retried:
+                    break
+                validation_retried = True
+                messages.extend(
+                    [
+                        {"role": "assistant", "content": last_content},
+                        {
+                            "role": "user",
+                            "content": (
+                                "输出未通过严格校验。不要改变事实，"
+                                "请按唯一模板重新输出。"
+                                f"\n校验错误：{last_error}"
+                            ),
+                        },
+                    ]
+                )
 
         if not (last_content or "").strip():
             self._record_failure()
             raise RuntimeError(
                 f"{response_model.__name__} 输出无法满足结构契约：模型返回空正文"
             )
-
-        from schema_repair import SchemaRepairAgent
-
-        repair_agent = SchemaRepairAgent(self)
-        repaired = await repair_agent.run(last_content, contract, last_error)
-        try:
-            return self._parse_and_validate(repaired, response_model)
-        except OutputValidationError as exc:
-            self._record_failure()
-            raise RuntimeError(
-                f"{response_model.__name__} 输出无法满足结构契约：{exc}"
-            ) from exc
+        self._record_failure()
+        raise RuntimeError(
+            f"{response_model.__name__} 输出无法满足结构契约：{last_error}"
+        )
 
     async def text(
         self,

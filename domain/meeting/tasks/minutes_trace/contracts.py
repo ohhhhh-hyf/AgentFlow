@@ -40,7 +40,7 @@ class MinutesTraceGenerationContract(GenerationContract):
                 StrField("source", "关键点整行，或笔记的原文片段"),
                 StrField("evidence", "能对上会议原文的一句依据"),
             ],
-            desc="本阶段返回空数组 []；对齐在审核通过后由单独步骤生成",
+            desc="本阶段必须输出该字段，值为空数组 []（不得省略）；对齐在审核通过后由单独步骤生成",
         ),
     ]
 

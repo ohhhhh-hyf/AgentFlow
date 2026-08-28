@@ -56,6 +56,7 @@ class MeetingUnderstandingGenerationContract(GenerationContract):
     """会议理解输出契约。"""
 
     fields = [
+        StrField("meeting_brief", "80字以内概括整场会议主线"),
         StrField("meeting_purpose", "一句话概括会议目的"),
         EnumField("scene", SCENE_CHOICES),
         ObjListField("topics", [
@@ -75,6 +76,7 @@ class MeetingUnderstandingGenerationContract(GenerationContract):
             StrField("condition", "触发条件（如「若XX未确认」「等XX到位」），保留原文；无时为null"),
             StrField("topic", "所属议题标题（对应topics[].title）；无对应时为null"),
             EnumField("kind", ACTION_HINT_KINDS),
+            StrField("evidence", "原文中支撑此行动线索的一句话"),
         ]),
         ObjListField("risk_hints", [
             StrField("risk", "原文风险表述（可截取含信号片段），与risks列表条目可对应"),
@@ -84,6 +86,7 @@ class MeetingUnderstandingGenerationContract(GenerationContract):
             StrField("impact", "原文明确的影响后果；无时为null"),
             StrField("mitigation", "原文已有的应对措施；无时为null"),
             StrField("owner", "原文明示的负责人姓名；无或为占位符时为null"),
+            StrField("evidence", "原文中支撑此风险线索的一句话"),
         ]),
         StrListField("dependencies", "原文明确的未确认前置/依赖（如「等XX确认」「取决于XX」「XX到位后才能YY」）"),
     ]
