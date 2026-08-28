@@ -126,7 +126,7 @@ class KnowledgeGraphReport(ModelMixin, KnowledgeGraphReportValidation):
     # 树形大纲（LLM 渲染，人可读 / markmap 树形视图）
     outline: str = field(default="", metadata={"source": "rendered"})
     title: str = field(default="", metadata={"source": "draft.title"})
-    # 图数据：节点与关系边（bootstrap 据此渲染 graphviz 知识图谱）
+    # 图数据：节点与关系边（导出交互 HTML 与学习地图）
     nodes: list[dict[str, Any]] = field(
         default_factory=list,
         metadata={"source": "draft.nodes"},

@@ -1,6 +1,6 @@
 """服务器 OCR 接口适配。
 
-给 tools.ocr.runner_ocr 使用，避免运行目录缺少根目录 ``ocr/`` 包时报
+供 OCR 引擎调用，避免运行目录缺少根目录包时报
 ``No module named 'ocr'``。
 """
 from __future__ import annotations

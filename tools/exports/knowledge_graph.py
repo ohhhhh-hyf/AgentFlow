@@ -166,12 +166,6 @@ def _find_dot() -> str | None:
     for cand in candidates:
         if cand.exists():
             return str(cand)
-    return None
-
-
-def graphviz_available() -> bool:
-    """dot 是否可用（PATH 或常见安装路径）。"""
-    return _find_dot() is not None
 
 
 def _pick_font() -> str:
@@ -418,80 +412,6 @@ def nodes_edges_to_dot(
         edge_attr = f" [{', '.join(attrs)}]" if attrs else ""
         lines.append(f'  "{_dot_quote(source)}" -> "{_dot_quote(target)}"{edge_attr};')
     lines.append("}")
-    return "\n".join(lines), valid_edges
-
-
-def _render_graphviz(
-    nodes: list[dict],
-    edges: list[dict],
-    out_dir: Path | str,
-    filename: str,
-    output_format: str,
-    title: str = "",
-) -> Path | None:
-    """用 Graphviz 把图数据渲染为指定格式。"""
-    if not nodes:
-        logger.warning("知识图谱无节点，跳过 %s 生成", output_format)
-        return None
-    dot = _find_dot()
-    if not dot:
-        logger.warning(
-            "未检测到 graphviz（dot），无法生成知识图谱 %s"
-            "（安装：Windows 装 Graphviz；Linux 用 apt/brew 安装）"
-            % output_format
-        )
-        return None
-    out_dir = Path(out_dir)
-    try:
-        out_dir.mkdir(parents=True, exist_ok=True)
-        dot_text, valid_edges = nodes_edges_to_dot(nodes, edges, title=title)
-        if len(valid_edges) < len(edges):
-            logger.warning(
-                "知识图谱过滤了 %d 条悬空边（source/target 不在 nodes 中）",
-                len(edges) - len(valid_edges),
-            )
-        out_path = out_dir / filename
-        result = subprocess.run(
-            [dot, "-Kfdp", f"-T{output_format}", "-o", str(out_path)],
-            input=dot_text.encode("utf-8"),
-            capture_output=True,
-            timeout=_RENDER_TIMEOUT_SECONDS,
-            check=False,
-        )
-        if result.returncode != 0:
-            logger.warning(
-                "graphviz 渲染 %s 失败（rc=%s）：%s",
-                output_format,
-                result.returncode,
-                (result.stderr or b"").decode("utf-8", errors="replace")[-500:],
-            )
-            return None
-        if not out_path.exists():
-            logger.warning("graphviz 未产出 %s 文件：%s", output_format, out_path)
-            return None
-        return out_path
-    except subprocess.TimeoutExpired:
-        logger.warning(
-            "graphviz 渲染 %s 超时（>%ss），已放弃",
-            output_format,
-            _RENDER_TIMEOUT_SECONDS,
-        )
-        return None
-    except Exception:  # noqa: BLE001 - 渲染失败不影响主流程
-        logger.warning("知识图谱 %s 生成异常，已跳过", output_format, exc_info=True)
-        return None
-
-
-def render_graph_svg(
-    nodes: list[dict],
-    edges: list[dict],
-    out_dir: Path | str,
-    filename: str = "graph.svg",
-    title: str = "",
-) -> Path | None:
-    """把图数据渲染为 SVG 矢量知识图谱文件。"""
-    return _render_graphviz(nodes, edges, out_dir, filename, "svg", title=title)
-
 
 
 
@@ -909,11 +829,8 @@ def render_graph_bundle(
     stem: str = "graph",
     title: str = "",
 ) -> dict[str, Path]:
-    """同时导出 SVG、交互式 HTML 和学习地图；失败的格式会被跳过。"""
+    """同时导出交互式 HTML 和学习地图；失败的格式会被跳过。"""
     paths: dict[str, Path] = {}
-    svg_path = render_graph_svg(nodes, edges, out_dir, f"{stem}.svg", title)
-    if svg_path:
-        paths["svg"] = svg_path
     html_path = render_graph_html(nodes, edges, out_dir, f"{stem}.html", title)
     if html_path:
         paths["html"] = html_path
@@ -1087,9 +1004,7 @@ __all__ = [
     "build_graph_embed",
     "build_graph_html",
     "build_learning_map",
-    "graphviz_available",
     "nodes_edges_to_dot",
     "render_graph_bundle",
     "render_graph_html",
-    "render_graph_svg",
 ]

@@ -8,7 +8,6 @@
 对外接口：
 - ``ocr_image_to_markdown(image_path, use_llm=True) -> str``
 - ``ocr_images_to_markdown(paths, output=None, use_llm=True) -> str``
-- CLI：``python -m tools.ocr.cli --input 图.png --output out.md``
 """
 from __future__ import annotations
 

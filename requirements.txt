@@ -33,8 +33,5 @@ pytest>=7.0
 pytest-asyncio>=0.23
 
 # 系统依赖不由 pip 安装：
-# - 知识图谱 PNG/SVG：需要 Graphviz `dot` 命令
-#   Ubuntu/Debian: sudo apt-get install -y graphviz fonts-noto-cjk
-#   CentOS/RHEL:   sudo dnf install -y graphviz google-noto-sans-cjk-fonts
-# - 知识图谱 HTML：使用 Cytoscape.js CDN，联网打开效果最佳；离线请使用同目录 SVG。
+# - 知识图谱 HTML：使用 Cytoscape.js CDN，联网打开效果最佳。
 # - 思维导图 HTML：需要 Node.js/npx，npx 会按需拉取 markmap-cli。

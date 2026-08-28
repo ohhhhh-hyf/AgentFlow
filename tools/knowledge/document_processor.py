@@ -121,12 +121,13 @@ def _heading_kind(title: str, level: int, score: int) -> str:
     title = str(title or "")
     if score < 4:
         return "evidence"
+    # item 类标题(例题/易错/示例/练习/小结…)优先判 evidence,不升 KP/主题
+    if any(word in title for word in ("易错", "注意", "例题", "示例", "练习", "小结", "总结", "复习")):
+        return "evidence"
     if level == 1:
         return "chapter"
     if level == 2:
         return "topic"
-    if any(word in title for word in ("易错", "注意", "例题", "例")):
-        return "evidence"
     return "knowledge_point"
 
 
@@ -288,6 +289,18 @@ def _extract_docx(path: str) -> List[TextChunk]:
     doc = docx.Document(path)
     full_text = "\n".join(p.text.strip() for p in doc.paragraphs if p.text.strip())
     role = classify_source_role(Path(path).name, full_text)
+    # 预扫描：是否存在嵌套标题（Heading 2+ / 二级标题），决定 Heading 1 判 chapter 还是主题
+    has_nested = False
+    for para in doc.paragraphs:
+        style = str(getattr(para.style, "name", "") or "").lower()
+        if "heading" in style and any(d in style for d in ("2", "3", "4", "5", "6")):
+            has_nested = True
+            break
+        if not has_nested and "heading" not in style:
+            hit = heading_level((para.text or "").strip())
+            if hit and hit[0] >= 2:
+                has_nested = True
+                break
     chapter = ""
     topic = ""
     heading = ""
@@ -299,6 +312,15 @@ def _extract_docx(path: str) -> List[TextChunk]:
         buf.clear()
         if not body:
             return
+        title = heading or topic or chapter
+        path_parts = [chapter, topic] if topic else ([chapter] if chapter else [])
+        if not path_parts and title:
+            path_parts = [title]
+        # 标题层级：仅当全文存在嵌套标题时 Heading 1 才算 chapter；
+        # 平铺文档的单个标题按主题级判型（避免误判 chapter 导致知识单元被跳过）
+        level = 2 if (topic or not has_nested) else 1
+        score = _heading_score(title, level, len(path_parts))
+        kind = _heading_kind(title, level, score)
         chunks.append(
             TextChunk(
                 sanitize_text(body, keep_newlines=True),
@@ -307,7 +329,15 @@ def _extract_docx(path: str) -> List[TextChunk]:
                     role=role,
                     chapter=chapter,
                     topic=topic,
-                    heading=heading or topic or chapter,
+                    heading=title,
+                    heading_level=level,
+                    heading_depth=len(path_parts),
+                    heading_path_text=" / ".join(path_parts),
+                    heading_score=score,
+                    heading_kind=kind,
+                    content_tags=_content_tags(body, title),
+                    contains_formula=_contains_formula(body),
+                    block_type="formula_heavy" if _contains_formula(body) else "content",
                 ),
             )
         )
@@ -343,7 +373,6 @@ def _extract_docx(path: str) -> List[TextChunk]:
         return chunks
     return _chunks_by_heading(full_text, path)
 
-
 def _extract_pptx(path: str) -> List[TextChunk]:
     from pptx import Presentation
     from pptx.enum.shapes import MSO_SHAPE_TYPE
@@ -366,11 +395,35 @@ def _extract_pptx(path: str) -> List[TextChunk]:
         slides_parts.append(parts)
     role = classify_source_role(Path(path).name, "\n".join("\n".join(parts) for parts in slides_parts))
     for i, parts in enumerate(slides_parts):
-        if parts:
-            heading = sanitize_text(parts[0])
-            chunks.append(TextChunk(
-                sanitize_text("\n".join(parts), keep_newlines=True),
-                _base_meta(path, role=role, page=i + 1, heading=heading)))
+        if not parts:
+            continue
+        title = sanitize_text(parts[0])
+        body = "\n".join(parts)
+        # 页标题按 topic 级评分/判型；小结/练习/目录页不升 KP
+        score = _heading_score(title, 2, 1)
+        if any(word in title for word in ("小结", "练习", "目录", "复习", "总结")):
+            kind = "evidence"
+            score = min(score, 3)
+        else:
+            kind = _heading_kind(title, 2, score)
+        meta = _base_meta(
+            path,
+            role=role,
+            page=i + 1,
+            heading=title,
+            heading_level=2,
+            heading_depth=1,
+            heading_path_text=title,
+            heading_score=score,
+            heading_kind=kind,
+            content_tags=_content_tags(body, title),
+            contains_formula=_contains_formula(body),
+            block_type="formula_heavy" if _contains_formula(body) else "content",
+        )
+        for piece in _split_long_body(sanitize_text(body, keep_newlines=True)):
+            if len(piece.strip()) < 6:
+                continue
+            chunks.append(TextChunk(piece, dict(meta)))
     return chunks
 
 
@@ -651,6 +704,60 @@ def _hard_split_plain(text: str, chunk_size: int, overlap: int) -> list[str]:
 # ============================================================
 # 总入口
 # ============================================================
+def _term_cooccurrence(text: str, heading: str = "") -> dict[str, list[str]]:
+    """块内术语两两共现(轻量版):从标题/公式/内容标签提取候选术语。
+
+    供下游 topic 聚类与 related_points 推断复用;不依赖外部分词,
+    后续可换真实术语提取(字段结构不变)。
+    """
+    terms: list[str] = []
+    seen: set[str] = set()
+
+    def add(term: str) -> None:
+        t = " ".join(str(term or "").split()).strip()[:40]
+        if not t or t in seen:
+            return
+        seen.add(t)
+        terms.append(t)
+
+    for match in _DISPLAY_FORMULA_RE.finditer(text or ""):
+        add(match.group(0))
+    for match in _FORMULA_RE.finditer(text or ""):
+        add(match.group(0))
+    if heading:
+        add(heading)
+    for tag in str(_content_tags(text, heading)).split(","):
+        add(tag)
+    out: dict[str, list[str]] = {}
+    for i, a in enumerate(terms):
+        for b in terms[i + 1 :]:
+            out.setdefault(a, []).append(b)
+    return out
+
+
+def _content_fingerprint(text: str, heading: str = "", tags: str = "") -> str:
+    """块内容指纹:公式信号(≤2 个)+ 内容标签 + 首句(≤50 字)。
+
+    下游 catalog/checklist 用指纹替代重读全文(≤200 字/块)。
+    """
+    parts: list[str] = []
+    for match in _DISPLAY_FORMULA_RE.finditer(text or ""):
+        parts.append(" ".join(match.group(0).split())[:60])
+        if len(parts) >= 2:
+            break
+    if len(parts) < 2:
+        for match in _FORMULA_RE.finditer(text or ""):
+            parts.append(" ".join(match.group(0).split())[:60])
+            if len(parts) >= 2:
+                break
+    if tags:
+        parts.append("标签:" + tags)
+    first = " ".join((text or "").split())[:50]
+    if first:
+        parts.append(first)
+    return " | ".join(parts)[:200]
+
+
 def process_file(file_path: str, chunk_size: int = 500,
                  chunk_overlap: int = 100) -> List[TextChunk]:
     """解析单个文件并分块。Excel 已按行组织, 不再二次切分。"""
@@ -672,5 +779,21 @@ def process_file(file_path: str, chunk_size: int = 500,
     }
     chunks = handlers[ext](str(path))
     if ext in (".xlsx",):
-        return chunks                       # Excel 不再 split_text
-    return split_text(chunks, chunk_size, chunk_overlap)
+        result = chunks                     # Excel 不再 split_text
+    else:
+        result = split_text(chunks, chunk_size, chunk_overlap)
+    # 统一补内容指纹与术语共现(入库时算好,下游 catalog/checklist 免费复用)
+    # 注意:chromadb metadata 只支持标量/列表,term_cooccurrence 序列化为 JSON 字符串
+    import json as _json
+
+    for chunk in result:
+        meta = dict(chunk.metadata)
+        heading = str(meta.get("heading") or "")
+        tags = str(meta.get("content_tags") or "")
+        if not meta.get("content_fingerprint"):
+            meta["content_fingerprint"] = _content_fingerprint(chunk.text, heading, tags)
+        if not meta.get("term_cooccurrence"):
+            co = _term_cooccurrence(chunk.text, heading)
+            meta["term_cooccurrence"] = _json.dumps(co, ensure_ascii=False)
+        chunk.metadata = meta
+    return result

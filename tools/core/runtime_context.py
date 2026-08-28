@@ -22,7 +22,7 @@ SHORT_ALIASES: dict[str, dict[str, str]] = {
 
 @dataclass
 class DomainContext:
-    """Runtime metadata that keeps the bootstrap entrypoint domain-agnostic."""
+    """运行时领域元数据（领域加载 / 任务别名 / 默认路径）。"""
 
     name: str
     module: object

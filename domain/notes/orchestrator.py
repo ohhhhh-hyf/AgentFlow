@@ -278,29 +278,97 @@ class _Nodes(DomainNodes):
     _line_cn_names = LINE_CN_NAMES
     _line_policies = resolve_line_policies(LINE_KINDS)
 
-    # ── 领域钩子：共享上下文（含笔记理解）──────────────────────
+    # ── 领域钩子：共享上下文（按线裁剪，notes 域不注入画像/视角）────────
 
-    def _shared_context(self, state) -> str:
-        """agent 共享上下文（视角模式 + 画像 + 视角模型 + 原文 + 笔记理解）。"""
+    def _understanding_pack(self, state, line_name: str) -> dict:
+        """按线裁剪笔记理解包：只给该线消费的字段（理解输出仍是全量）。
+
+        - graph / catalog：note_purpose + sections + key_terms（open_questions 不消费）
+        - review / quiz：全量（CLI 线，保持现状）
+        - 其余：全量兜底
+        """
+        u = state.get("notes_understanding") or {}
+        if not isinstance(u, dict):
+            return {}
+        if line_name in {"graph", "catalog"}:
+            return {
+                key: u.get(key)
+                for key in ("note_purpose", "sections", "key_terms")
+                if u.get(key) not in (None, "")
+            }
+        return u
+
+    def _line_shared_context(self, state, line_name: str) -> str:
+        """按线拼 agent 上下文（只给该线消费的块）。
+
+        - 原文块对全部线保留：graph/review/quiz 是笔记正文，catalog/checklist 是
+          老师划重点文本（_teacher_text / teacher_from_context 从「原文:」块提取）
+        - 理解包按线裁剪（graph/catalog 跳过 open_questions）；checklist 跳过理解
+        """
         mode = self._mode_label(state)
-        extras = [
-            str((state.get("line_extra") or {}).get(key) or "").strip()
-            for key in ("quiz", "library", "catalog", "checklist")
-        ]
-        extra_block = "\n\n" + "\n\n".join(x for x in extras if x)
-        extra_block = extra_block if extra_block.strip() else ""
-        parts = [
+        head = (
             f"视角模式：{mode}\n"
             f"说明：perspective=objective 时为客观全员口径；"
-            f"缺省或其它值为个人用户口径。\n\n"
-            f"用户画像：\n{_json(state['user'])}",
-        ]
-        perspective = state.get("perspective_profile")
-        if perspective:
-            parts.append(f"用户视角模型：\n{_json(perspective)}")
-        parts.append(f"notes理解：\n{_json(state.get('notes_understanding'))}")
-        parts.append(f"原文：\n{state['transcript']}{extra_block}")
+            f"缺省或其它值为个人用户口径。"
+        )
+        parts = [head]
+        if line_name != "checklist":
+            parts.append(
+                f"notes理解：\n{_json(self._understanding_pack(state, line_name))}"
+            )
+        parts.append(f"原文：\n{state['transcript']}")
         return "\n\n".join(parts)
+
+    def _make_agent_node(self, line_name: str):
+        """笔记域生成节点：使用按线裁剪的上下文（同构共享内核，替换一刀切上下文）。"""
+        cfg = self._task_lines[line_name]
+        cn = _line_cn(line_name)
+
+        async def node(state: dict) -> dict:
+            agent = getattr(self, cfg["agent_attr"])
+            context = self._line_shared_context(state, line_name)
+            extra = (state.get("line_extra") or {}).get(line_name)
+            if extra:
+                context = f"{context}\n\n{extra}"
+            try:
+                result = await agent.run(
+                    self._revision_context(
+                        context,
+                        _line(state, line_name).get("revision_feedback", []),
+                        f"{cn}返工意见",
+                    )
+                )
+            except Exception:  # noqa: BLE001 - 有意的降级设计
+                logger.warning(f"{cn}生成失败，使用空草稿继续", exc_info=True)
+                return {
+                    "lines": {
+                        line_name: {
+                            "draft": cfg["empty_draft"],
+                            "degraded": True,
+                        }
+                    },
+                    "quality_degraded": True,
+                }
+            return {
+                "lines": {
+                    line_name: {
+                        "draft": result.model_dump(),
+                        "degraded": False,
+                    }
+                }
+            }
+
+        return node
+
+    def _understanding_needle_fields(self, line_name: str) -> set[str] | None:
+        """审核摘录时笔记理解参与 needle 的字段白名单（未列出的线走全字段）。"""
+        keep = {
+            "graph": {"note_purpose", "sections", "key_terms"},
+            "catalog": {"note_purpose", "sections", "key_terms"},
+            "review": {"note_purpose", "sections", "key_terms", "open_questions"},
+            "quiz": {"note_purpose", "sections", "key_terms", "open_questions"},
+        }.get(line_name)
+        return set(keep) if keep else None
 
     def _supervisor_context(self, state, line_name: str) -> str:
         """审核上下文：原文按草稿事实点摘录，理解只给摘要。"""
@@ -326,27 +394,19 @@ class _Nodes(DomainNodes):
     # ── 领域钩子：core 节点 ───────────────────────────────────
 
     def _build_core(self, builder, line_names=None) -> list[str]:
-        """核心层：视角建模 / 笔记理解按线按需构建。
+        """核心层：笔记理解按线按需构建（notes 域不跑视角建模）。
 
-        - 视角建模：library / catalog / checklist（客观内容处理，不消费视角）跳过
-        - 笔记理解：library / checklist 跳过；catalog 需要理解锚点（稳定目录）；复习/图谱/出题需要
+        - 视角建模：notes 域全部跳过（graph/catalog 的 prompt 不消费视角模型/画像，
+          省一次读全文的大调用）
+        - 笔记理解：library / checklist 跳过；graph / catalog 需要
+          （catalog 需要理解锚点做稳定目录）
         """
         skip_understanding = frozenset({"library", "checklist"})
-        skip_perspective = frozenset({"library", "catalog", "checklist"})
         selected = [name for name in (line_names or []) if name]
         need_understanding = (not selected) or any(
             name not in skip_understanding for name in selected
         )
-        need_perspective = (not selected) or any(
-            name not in skip_perspective for name in selected
-        )
         cores: list[str] = []
-        if need_perspective:
-            builder.add_node(
-                "perspective_modeling", self._perspective_modeling_node
-            )
-            builder.add_edge(START, "perspective_modeling")
-            cores.append("perspective_modeling")
         if need_understanding:
             builder.add_node("notes_understanding", self._notes_understanding_node)
             builder.add_edge(START, "notes_understanding")

@@ -326,11 +326,7 @@ def activate_from_catalog(catalog: dict[str, Any] | None) -> list[dict[str, Any]
     points = flatten_points(catalog)
     activated: list[dict[str, Any]] = []
     for point in points:
-        try:
-            importance = int(str(point.get("importance") or 3) or 3)
-        except (TypeError, ValueError):
-            importance = 3
-        if importance < 3:
+        if not _activation_gate(point):
             continue
         row = dict(point)
         row["session_emphasis"] = "0"
@@ -346,13 +342,13 @@ def activate_from_catalog(catalog: dict[str, Any] | None) -> list[dict[str, Any]
         row["_light"] = False
         row["_score"] = _raw_score(row)
         activated.append(row)
-    # 分位定档：前 20%→S、20-50%→A、50-80%→B、后 20%→DROP
+    # 分位定档：前 20%→S、20-60%→A、60-90%→B、后 10%→DROP
     _quantile_assign(activated, allow_c=False)
     # DROP 硬约束：importance≥4 提到 B（长期重要性不因分层消失），只真丢 imp3
     kept: list[dict[str, Any]] = []
     for row in activated:
         if row["session_priority"] == "DROP":
-            if _rank(row.get("importance")) >= 4:
+            if _rank(row.get("importance")) >= 4 or _review_weight(row) >= 0.6:
                 row["session_priority"] = "B"
                 kept.append(row)
             continue
@@ -360,8 +356,8 @@ def activate_from_catalog(catalog: dict[str, Any] | None) -> list[dict[str, Any]
     activated[:] = kept
     _cap_priorities(
         activated,
-        s_max=8,
-        a_max=8,
+        s_max=10,
+        a_max=10,
         b_max=10,
         allow_c=False,
         drop_b=True,  # 无老师重点：S/A 超限降档，B 超限直接丢弃，只有 S/A/B
@@ -392,7 +388,7 @@ def activate_points(catalog: dict[str, Any] | None, teacher: str) -> list[dict[s
             importance = int(str(point.get("importance") or 3) or 3)
         except (TypeError, ValueError):
             importance = 3
-        if not hits and importance < 3:
+        if not hits and not _activation_gate(point):
             continue  # 没被老师点到且重要性低 → 不出卡
         row = dict(point)
         row["_mentioned"] = bool(hits)
@@ -428,7 +424,7 @@ def activate_points(catalog: dict[str, Any] | None, teacher: str) -> list[dict[s
         row["_score"] = _raw_score(row)
         activated.append(row)
 
-    # 分位定档：前 20%→S、20-50%→A、50-80%→B、后 20%→C（补充表）
+    # 分位定档：前 20%→S、20-60%→A、60-90%→B、后 10%→C（补充表）
     _quantile_assign(activated, allow_c=True)
     # 硬约束：
     # 1) 被点名（_mentioned）→ 不低于 B（轻提也不落补充表，老师点过=本次相关）
@@ -471,8 +467,8 @@ def activate_points(catalog: dict[str, Any] | None, teacher: str) -> list[dict[s
     activated.extend(extra)
     _cap_priorities(
         activated,
-        s_max=8,
-        a_max=8,
+        s_max=10,
+        a_max=10,
         b_max=10,
         allow_c=True,  # 有老师重点：S/A 超限降档，B 超 10 降 C 作为补充
     )
@@ -510,9 +506,23 @@ def _find_by_name(points: list[dict[str, Any]], name: str) -> dict[str, Any] | N
     return None
 
 
+def _review_weight(point: dict[str, Any]) -> float:
+    """目录程序计算的复习权重(0-1);缺失取 0。"""
+    try:
+        return max(0.0, min(1.0, float(str(point.get("review_weight") or 0) or 0)))
+    except (TypeError, ValueError):
+        return 0.0
+
+
+def _activation_gate(point: dict[str, Any]) -> bool:
+    """激活闸门：importance≥3 或 review_weight≥0.4（程序综合分，覆盖难度/考试信号/前置）。"""
+    return _rank(point.get("importance")) >= 3 or _review_weight(point) >= 0.4
+
+
 def _raw_score(point: dict[str, Any]) -> int:
-    """排序/封顶用分：importance 基础分 + 老师提到/强调加分 + 考试信号 + 缺项。"""
+    """排序/封顶用分：importance 基础分 + review_weight 综合分 + 老师提到/强调 + 考试信号 + 缺项。"""
     importance = int(str(point.get("importance") or 3) or 3)
+    rw = round(_review_weight(point) * 6)
     hist = int(str(point.get("teacher_emphasis") or 0) or 0)
     exam = _EXAM_RANK.get(str(point.get("session_exam_signal") or "none"), 0)
     catalog_exam = _EXAM_RANK.get(str(point.get("exam_signal") or "none"), 0)
@@ -521,7 +531,7 @@ def _raw_score(point: dict[str, Any]) -> int:
     blob = "".join(point.get("session_quotes") or [])
     strong = 1 if any(mark in blob for mark in _STRONG) else 0
     return (
-        importance * 8 + mentioned * 10 + strong * 15
+        importance * 8 + rw * 4 + mentioned * 10 + strong * 15
         + hist * 5 + exam * 8 + catalog_exam * 4 + missing * 3
     )
 
@@ -536,11 +546,11 @@ def _rank(value: Any, default: int = 3, lo: int = 1, hi: int = 5) -> int:
 
 
 def _quantile_assign(rows: list[dict[str, Any]], *, allow_c: bool) -> None:
-    """按综合分 _score 分位定档：前 20%→S、20-50%→A、50-80%→B、后 20%→C/DROP。
+    """按综合分 _score 分位定档：前 20%→S、20-60%→A、60-90%→B、后 10%→C/DROP。
 
     - 边界同分并档（不拆散同分组，切点向后拉到同分区间末尾）
     - 少于 5 个点退化：最高分→S、次高→A、其余→B（小目录也分层）
-    - allow_c=True（有老师）：后 20% 记 C（补充表）；否则记 DROP（调用方过滤）
+    - allow_c=True（有老师）：后 10% 记 C（补充表）；否则记 DROP（调用方过滤）
     就地改 row["session_priority"]。
     """
     n = len(rows)
@@ -562,8 +572,8 @@ def _quantile_assign(rows: list[dict[str, Any]], *, allow_c: bool) -> None:
         return idx
 
     s_end = cut(0.20)
-    a_end = cut(0.50)
-    b_end = cut(0.80)
+    a_end = cut(0.60)
+    b_end = cut(0.90)
     for i, r in enumerate(srt):
         if i < s_end:
             r["session_priority"] = "S"

@@ -638,6 +638,9 @@ class DomainNodes:
 
         事件协议（async generator，按产出顺序 yield dict）：
 
+        - ``{"type": "phase", "node": str}``
+          图内某节点完成（node = 节点名，如 meeting_understanding / minutes_agent /
+          minutes_supervisor）；供流式接口感知阶段进度，同步消费方可直接忽略
         - ``{"type": "chunk", "line": str, "title": str, "text": str}``
           某条线的文本流式块（line = 线名；title = 展示标题）；逐块追加即为完整输出
         - ``{"type": "done", "quality_warning": str | None, "reports": dict}``
@@ -688,7 +691,16 @@ class DomainNodes:
         state = initial_state
         try:
             graph = self._build_graph(line_names)
-            state = await graph.ainvoke(initial_state)
+            # 流式图执行：每完成一个节点即推送 phase 事件（API 流式接口感知进度用），
+            # values 模式的最后一个 chunk 即最终 state（与 ainvoke 等价）。
+            async for mode, chunk in graph.astream(
+                initial_state, stream_mode=["updates", "values"]
+            ):
+                if mode == "updates":
+                    for node_name in chunk:
+                        yield {"type": "phase", "node": node_name}
+                else:
+                    state = chunk
         except Exception as exc:  # noqa: BLE001 - 最后防线：图内异常不崩溃，走确定性兜底
             logger.warning("图执行失败，使用确定性兜底输出", exc_info=True)
             fb = self._fallback_reports(initial_state, line_names)

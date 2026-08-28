@@ -17,13 +17,15 @@ FastAPI 后端接口。所有接口走 `/api/v1`，一次请求对应一条任�
 | 3 | meeting | risks | POST | `/api/v1/meeting/risks` | 风险识别（抽出风险条目，标注严重度与应对） |
 | 4 | meeting | minutes_styles | POST | `/api/v1/meeting/minutes_styles` | 多样式纪要（按组织模式重写纪要：时间线/总分/因果等） |
 | 5 | meeting | minutes_trace | POST | `/api/v1/meeting/minutes_trace` | 溯源纪要（纪要段落回指原文 + 用户重点/笔记挂载） |
-| 6 | notes | graph | POST | `/api/v1/notes/graph` | 知识图谱（笔记概念抽取 → SVG/HTML/学习地图） |
+| 6 | notes | graph | POST | `/api/v1/notes/graph` | 知识图谱（笔记概念抽取 → 交互 HTML/学习地图） |
 | 7 | notes | library | POST | `/api/v1/notes/library` | 资料入库（图片 OCR / 文档解析 → 知识库） |
 | 8 | notes | catalog | POST | `/api/v1/notes/catalog` | 知识目录（按已入库资料生成知识目录） |
 | 9 | notes | checklist | POST | `/api/v1/notes/checklist` | 复习清单（按知识目录与重点生成复习清单） |
 | 10 | - | health | GET | `/api/v1/health` | 健康检查 + 任务线清单 |
 
 > 接口名与内部任务线名保持一致，例如 `minutes`、`actions`、`risks`、`minutes_styles`、`graph`。调用方只需要使用上表中的接口路径与任务名。
+>
+> **流式版本**：每个业务接口都有 `/stream` 后缀的流式端点（NDJSON 事件流，实时感知任务进度），请求体与同步接口一致，见第十章。
 
 ---
 
@@ -33,7 +35,7 @@ FastAPI 后端接口。所有接口走 `/api/v1`，一次请求对应一条任�
 |---|---|---|---|
 | `Content-Type` | 是 | string | 固定 `application/json` |
 | `X-User-Id` | **是** | string | 用户标识。**所有接口必填**。决定数据目录 `data/{user_id}/`；`minutes`/`minutes_styles`/`graph` 关联跨会话记忆（落盘 `data/{user_id}/memory/`）；`library`/`catalog`/`checklist` 按用户隔离知识库 |
-| `X-Request-Id` | 否 | string | 调用方追踪 ID（如 UUID）。透传到响应 `request_id`；缺省服务端生成 |
+| `X-Request-Id` | **是** | string | 调用方追踪 ID，**建议用 UUID**（如 `550e8400-e29b-41d4-a716-446655440000`）。透传到响应 `request_id`；产物目录 `data/{user_id}/output/{request_id}/` 以它为名。缺了返回 400 |
 | `Authorization` | 否 | string | `Bearer <token>`，预留认证，本期不校验 |
 
 ---
@@ -256,13 +258,13 @@ FastAPI 后端接口。所有接口走 `/api/v1`，一次请求对应一条任�
 | 字段 | 类型 | 成功 | 失败 |
 |---|---|---|---|
 | `code` | int | `0` | HTTP 状态码（见 5.2） |
-| `request_id` | string | 与请求头 `X-Request-Id` 一致，缺省为服务端生成值 | 同左 |
+| `request_id` | string | 与请求头 `X-Request-Id` 一致 | 同左 |
 | `message` | string | `ok` | 错误原因（人类可读） |
 | `monitor.token_usage` | int | 本次任务 LLM token 总消耗（prompt+completion） | `0` |
 | `monitor.cache_hit` | int | 本次任务缓存命中的 token 数（服务端上下文缓存） | `0` |
 | `monitor.cost_time` | float | 本次任务耗时（秒） | `0` |
 | `data.text` | string/null | **该任务生成的 Markdown 文本**（含记忆溯源标准链接；`graph` 为学习地图；`library` 为入库报告） | `null` |
-| `data.file_name` | string | 产物文件名：`catalog` 接口返回目录文件名（如 `20260827_223933_068.json`，存于 `data/{user_id}/knowledge/catalogs/{subject拼音}/`），其他接口为空串 | `""` |
+| `data.file_name` | string | 产物文件名：`catalog` 接口返回目录文件名（如 `20260827_223933_068.json`，存于 `data/{user_id}/knowledge/catalogs/{subject拼音}/`）；`checklist` 接口返回本次运行 HTML 文件名（`result.html`，存于 `data/{user_id}/output/{request_id}/`）；其他接口为空串 | `""` |
 
 ### 5.2 `code` 语义（与 HTTP 状态码一致）
 
@@ -356,10 +358,10 @@ FastAPI 后端接口。所有接口走 `/api/v1`，一次请求对应一条任�
 
 ### 6.6 `POST /api/v1/notes/graph` —— 知识图谱
 
-- **用途**：把笔记概念抽成知识图谱（节点带定义/出处/关系），产出学习地图文本；SVG/交互 HTML 落盘。
+- **用途**：把笔记概念抽成知识图谱（节点带定义/出处/关系），产出学习地图文本；交互 HTML 落盘。
 - **输入**：`docs`（**必填**，笔记 `.txt/.md` 文件，从 `data/{user_id}/docs/` 取）
 - **生效的 extra**：`template` / `profile` / `project` / **`subject`（记忆增量必需）**
-- **记忆增量**：传 `X-User-Id` + **`extra.subject`（学科名）** 时，按学科绑定跨会话记忆档案（`data/{user_id}/memory/records/notes/projects/{学科}/`）——下次同学科调用会注入已积累图谱，同名节点/边合并，**新增节点在学习地图标"（新增）"**，SVG/HTML 中新增橙色高亮、历史暗淡显示。**不传 `subject` 则每次都是独立单次运行**（不建档、不注入、无增量）。
+- **记忆增量**：传 `X-User-Id` + **`extra.subject`（学科名）** 时，按学科绑定跨会话记忆档案（`data/{user_id}/memory/records/notes/projects/{学科}/`）——下次同学科调用会注入已积累图谱，同名节点/边合并，**新增节点在学习地图标"（新增）"**，交互 HTML 中新增橙色高亮、历史暗淡显示。**不传 `subject` 则每次都是独立单次运行**（不建档、不注入、无增量）。
 
 ```json
 {
@@ -436,10 +438,10 @@ docs[] 中的文件 →  data/{user_id}/docs/{name}  →  data/docs/{name}
 
 | 文件 | 内容 |
 |---|---|
-| `result.md` | 标准 Markdown 链接版（= 响应 `data` 内容） |
-| `result.html` | 页面版（含记忆卡片对照，可直接打开/预览） |
+| `result.md` | 标准 Markdown 链接版（= 响应 `data` 内容），所有任务线都有 |
+| `result.html` | 页面版（可直接打开/预览）。**仅以下线生成**：`minutes` / `minutes_trace`（记忆对照页，未命中记忆时为纯文本页）、`notes/graph`（交互图谱）、`notes/review` / `quiz` / `checklist`（各自交互页）；`actions` / `risks` / `minutes_styles` / `library` / `catalog` 不生成（产物目录只有 `result.md`） |
 
-`request_id` 缺省为服务端生成的 uuid。未传 `X-User-Id` 时（实际必填，此仅为兜底）为 `data/output/{request_id}/`。
+`request_id` 来自请求头 `X-Request-Id`（必填，建议 UUID）。未传 `X-User-Id` 时（实际必填，此仅为兜底）为 `data/output/{request_id}/`。
 
 ### 7.3 记忆落盘
 
@@ -465,6 +467,7 @@ data/{user_id}/knowledge/catalogs/{subject拼音}/   ← 按学科分目录（�
 | 场景 | HTTP / code | message 示例 |
 |---|---|---|
 | 缺 `X-User-Id` | 400 | `minutes 需要 X-User-Id（用户标识：会议纪要关联记忆、知识库按用户隔离）` |
+| 缺 `X-Request-Id` | 400 | `缺少 X-Request-Id（调用方追踪 ID，建议用 UUID；产物目录 data/{user_id}/output/{request_id}/ 以它为名）` |
 | texts/docs 全空 | 400 | `texts / docs 至少提供一个` |
 | 缺必填字段 | 400 | `graph 缺少必填项：docs（笔记 .txt/.md 文件）` / `minutes_trace 缺少必填项：texts 中 keypoints（用户重点文本）、texts 中 notes（用户笔记文本）` / `minutes_styles 缺少必填项：extra.style（多样式纪要组织模式）` / `checklist 缺少必填项：docs（catalog 文件名，如 phy_8b4dccc8.json）` |
 | catalog 缺 subject | 400 | `catalog 需要 extra.subject` |
@@ -474,6 +477,77 @@ data/{user_id}/knowledge/catalogs/{subject拼音}/   ← 按学科分目录（�
 | domain/task 与路径不一致 | 400 | `请求体 domain='notes' 与路径不一致（应为 meeting）` |
 | 本地文件不存在 | 404 | `本地文件不存在：docs/photo_1.jpg（请放入 data/1/docs/ 或 data/docs/）` |
 | 任务运行失败 | 500 | `任务运行失败：LLM 调用超时` |
+
+---
+
+## 十、流式接口（NDJSON 事件流）
+
+每个业务接口都有对应的流式版本：**路径加 `/stream` 后缀**（如 `POST /api/v1/meeting/minutes/stream`），
+**请求体、请求头与同步接口完全一致**。响应为 `application/x-ndjson` 事件流（每行一个 JSON 对象），
+调用方可在任务运行期间实时感知进度，无需等待任务结束。
+
+### 10.1 端点列表
+
+| 同步端点 | 流式端点 |
+|---|---|
+| `POST /api/v1/meeting/{minutes,actions,risks,minutes_styles,minutes_trace}` | 同路径 + `/stream` |
+| `POST /api/v1/notes/{graph,library,catalog,checklist}` | 同路径 + `/stream` |
+
+### 10.2 事件协议（每行一个 JSON）
+
+| type | 字段 | 说明 |
+|---|---|---|
+| `phase` | `node` | 图内某节点完成（如 `meeting_understanding` / `minutes_agent` / `minutes_supervisor`），用于感知阶段进度；节点名 = 领域节点名 |
+| `chunk` | `line` / `title` / `text` | 渲染文本增量：`line` = 线名、`title` = 展示标题、`text` = 文本块（逐块追加即完整正文） |
+| `done` | `code` / `request_id` / `message` / `quality_warning` / `monitor` / `data` | 最终结果，字段与同步响应同构（`data.text` = 完整 Markdown、`data.file_name` 同同步接口） |
+| `error` | `code` / `message` | 任务运行失败（准备或执行阶段异常） |
+
+**示例事件流**（minutes）：
+
+```jsonc
+{"type": "phase", "node": "meeting_understanding"}
+{"type": "phase", "node": "minutes_agent"}
+{"type": "phase", "node": "minutes_supervisor"}
+{"type": "chunk", "line": "minutes", "title": "客观会议纪要", "text": "# 会议纪要\n本次会议……"}
+{"type": "chunk", "line": "minutes", "title": "客观会议纪要", "text": "会议明确……"}
+{"type": "done", "code": 0, "request_id": "req-0001", "message": "ok", "quality_warning": null,
+ "monitor": {"token_usage": 53268, "cache_hit": 24320, "cost_time": 42.9},
+ "data": {"text": "# 会议纪要\n本次会议……", "file_name": ""}}
+```
+
+### 10.3 行为约定
+
+- **参数校验失败（400/404）仍直接返回 HTTP 错误**，不走流（与同步接口一致）；
+- 流开始后任务失败：HTTP 保持 200，流内推 `error` 事件（业务错误在事件里）；
+- 产物落盘与同步接口一致：`data/{user_id}/output/{request_id}/result.md` / `result.html`；
+- `done` 事件里的 `monitor` / `data` 字段与同步响应完全同构，调用方可直接复用解析逻辑。
+
+### 10.4 调用示例（Python）
+
+```python
+import json, requests
+
+with requests.post(
+    "http://127.0.0.1:8000/api/v1/meeting/minutes/stream",
+    headers={"X-User-Id": "u1"},
+    json={"texts": {"transcript": "会议记录全文……"}},
+    stream=True, timeout=600,
+) as r:
+    for line in r.iter_lines(decode_unicode=True):
+        if not line:
+            continue
+        event = json.loads(line)
+        if event["type"] == "phase":
+            print("阶段:", event["node"])
+        elif event["type"] == "chunk":
+            print(event["text"], end="")
+        elif event["type"] == "done":
+            print("\n完成:", event["monitor"], event["data"]["text"][:50])
+        elif event["type"] == "error":
+            print("失败:", event["message"])
+```
+
+> 前端可用 `fetch` + `ReadableStream` 逐行解析 NDJSON；若经 Nginx 反代，需关闭缓冲（`proxy_buffering off`）保证事件实时到达。
 
 ---
 

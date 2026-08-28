@@ -37,7 +37,7 @@ def _acquire_engine():
         if _CREATED < RAPID_OCR_POOL_SIZE:
             engine = _build_engine()
             _CREATED += 1
-            logger.info("RapidOCR 引擎池 %s/%s", _CREATED, RAPID_OCR_POOL_SIZE)
+            logger.debug("RapidOCR 引擎池 %s/%s", _CREATED, RAPID_OCR_POOL_SIZE)
             return engine
     return _IDLE.get()
 

@@ -55,16 +55,17 @@ Course → Chapter → Topic → Knowledge Point → Knowledge Item
 
 ## 必须处理
 
-1. 同义名称合并进 aliases，只保留一个主节点。
-2. 同层 KP 粒度一致。
-3. 多出来的内容：别名？已有 Item？能独立学习才新增 KP；否则 unmatched_content。
-4. 没把握放 uncertain_nodes。
-5. importance 与 difficulty 分开判断。
-6. 老师重点尽量落到具体 Item（teacher_focus_items ⊆ knowledge_items）。
-7. 笔记只判断覆盖，不推断掌握。
-8. prerequisites / related_points 只能指向本目录里其他 KP 的 name。
-9. 重要标签尽量写 evidence（来源类型 + 短片段）。无老师文本时 teacher_emphasis=0、exam_signal 不要标 strong。
-10. 每个 KP 填稳定 id：kp_001、kp_002… 按树前序递增，不重复。
+1. 节点名称规范：所有 Chapter、Topic、Knowledge Point 的 name 必须是标准纯概念名称，严禁保留「四、」、「五、」、「（一）」、「1.」、「第四章」等层级/序号前缀（例如原文为「四、导数的应用」，标准 name 应提取为「导数的应用」；原文为「1.2 极限的运算法则」，标准 name 应提取为「极限的运算法则」）。
+2. 同义名称合并进 aliases，只保留一个主节点。
+3. 同层 KP 粒度一致。
+4. 多出来的内容：别名？已有 Item？能独立学习才新增 KP；否则 unmatched_content。
+5. 没把握放 uncertain_nodes。
+6. importance 与 difficulty 分开判断。
+7. 老师重点尽量落到具体 Item（teacher_focus_items ⊆ knowledge_items）。
+8. 笔记只判断覆盖，不推断掌握。
+9. prerequisites / related_points 只能指向本目录里其他 KP 的 name。
+10. 重要标签尽量写 evidence（来源类型 + 短片段）。无老师文本时 teacher_emphasis=0、exam_signal 不要标 strong。
+11. 每个 KP 填稳定 id：kp_001、kp_002… 按树前序递增，不重复。
 
 ## 字段
 

@@ -6,12 +6,13 @@ import re
 from html import escape
 from typing import Any
 
-from .assemble import distribution
 from .mindmap import build_checklist_mindmap_outline
 from .select import _as_list, _clean
 
 _GRADE = {"S": "核心", "A": "重点", "B": "简要", "C": "补充"}
 _STAR = {"S": 5, "A": 4, "B": 3, "C": 2}
+_GRADE_ORDER = {"S": 0, "A": 1, "B": 2, "C": 3}
+_GRADE_VALUE = {"S": 45, "A": 30, "B": 18, "C": 8}
 _REL = {
     "alternative": "替代",
     "used_with": "配合",
@@ -19,6 +20,290 @@ _REL = {
     "derived_from": "推导",
     "prerequisite": "前置",
 }
+
+
+def _as_int(value: object, default: int = 0) -> int:
+    try:
+        return int(str(value or "") or default)
+    except (TypeError, ValueError):
+        return default
+
+
+def _review_value(card: dict[str, Any]) -> int:
+    """展示用复习价值，不影响 checklist 的实际分档。"""
+    grade = str(card.get("session_priority") or "B")
+    importance = max(1, min(5, _as_int(card.get("importance"), 3)))
+    difficulty = max(1, min(5, _as_int(card.get("difficulty"), 3)))
+    emphasis = max(0, min(3, _as_int(card.get("session_emphasis"), 0)))
+    exam = {"none": 0, "weak": 5, "medium": 10, "strong": 18}.get(
+        str(card.get("session_exam_signal") or card.get("exam_signal") or "none"),
+        0,
+    )
+    missing = min(12, len(_as_list(card.get("note_missing_items"))) * 4)
+    teacher = 8 if _as_list(card.get("session_quotes")) else 0
+    prereq = 6 if card.get("_prereq_of") else 0
+    return max(
+        1,
+        _GRADE_VALUE.get(grade, 12)
+        + importance * 7
+        + difficulty * 2
+        + emphasis * 7
+        + exam
+        + missing
+        + teacher
+        + prereq,
+    )
+
+
+def _review_reason(card: dict[str, Any]) -> str:
+    parts: list[str] = []
+    if _as_list(card.get("session_quotes")):
+        parts.append("老师点名")
+    if _as_int(card.get("session_emphasis")) >= 2:
+        parts.append("明确强调")
+    sig = str(card.get("session_exam_signal") or card.get("exam_signal") or "none")
+    if sig in {"medium", "strong"}:
+        parts.append("考试信号")
+    if _as_int(card.get("importance"), 3) >= 4:
+        parts.append(f"重要性{_as_int(card.get('importance'), 3)}")
+    if card.get("_prereq_of"):
+        parts.append("前置补齐")
+    if _as_list(card.get("note_missing_items")):
+        parts.append("笔记缺项")
+    return " / ".join(parts[:3]) or "结构复习"
+
+
+def _make_leaf(card: dict[str, Any]) -> dict[str, Any]:
+    kid = _clean(card.get("id")) or _clean(card.get("kp_id")) or _clean(card.get("name"))
+    name = _clean(card.get("name")) or "未命名"
+    chapter = _clean(card.get("chapter")) or "未分章"
+    topic = _clean(card.get("topic")) or chapter
+    grade = str(card.get("session_priority") or "B")
+    value = _review_value(card)
+    return {
+        "id": kid,
+        "name": name,
+        "value": value,
+        "ratio": 0.0,
+        "depth": 3,
+        "parent_id": f"topic::{chapter}::{topic}",
+        "source_node_ids": [kid],
+        "aggregation_type": "none",
+        "session_priority": grade if grade in _GRADE else "B",
+        "reason": _review_reason(card),
+        "chapter": chapter,
+        "topic": topic,
+        "children": [],
+    }
+
+
+def _parent_priority(children: list[dict[str, Any]]) -> str:
+    grades = [str(c.get("session_priority") or "B") for c in children]
+    return min(grades or ["B"], key=lambda g: _GRADE_ORDER.get(g, 9))
+
+
+def _rollup_node(
+    parent: dict[str, Any],
+    children: list[dict[str, Any]],
+    *,
+    aggregation_type: str,
+    name: str | None = None,
+) -> dict[str, Any]:
+    value = sum(float(c.get("value") or 0) for c in children)
+    source_ids: list[str] = []
+    reasons: list[str] = []
+    for child in children:
+        for sid in child.get("source_node_ids") or []:
+            if sid not in source_ids:
+                source_ids.append(str(sid))
+        reason = _clean(child.get("reason"))
+        if reason and reason not in reasons:
+            reasons.append(reason)
+    return {
+        "id": f"{aggregation_type}::{parent.get('id')}::{'|'.join(source_ids[:6])}",
+        "name": name or _clean(parent.get("name")) or "知识块",
+        "value": value,
+        "ratio": 0.0,
+        "depth": parent.get("depth", 1),
+        "parent_id": parent.get("parent_id") or "",
+        "source_node_ids": source_ids,
+        "aggregation_type": aggregation_type,
+        "session_priority": _parent_priority(children),
+        "reason": " / ".join(reasons[:2]) or "语义回卷",
+        "chapter": _clean(parent.get("chapter")) or _clean(parent.get("name")),
+        "topic": _clean(parent.get("topic")) or "",
+        "children": children,
+    }
+
+
+def _build_review_tree(cards: list[dict[str, Any]]) -> dict[str, Any]:
+    root = {"id": "root", "name": "本次复习", "depth": 0, "children": []}
+    chapters: dict[str, dict[str, Any]] = {}
+    topics: dict[tuple[str, str], dict[str, Any]] = {}
+    for card in cards:
+        if str(card.get("session_priority") or "") == "C":
+            continue
+        leaf = _make_leaf(card)
+        chapter = leaf["chapter"]
+        topic = leaf["topic"]
+        ch = chapters.get(chapter)
+        if ch is None:
+            ch = {
+                "id": f"chapter::{chapter}",
+                "name": chapter,
+                "depth": 1,
+                "parent_id": "root",
+                "chapter": chapter,
+                "topic": "",
+                "children": [],
+            }
+            chapters[chapter] = ch
+            root["children"].append(ch)
+        tp_key = (chapter, topic)
+        tp = topics.get(tp_key)
+        if tp is None:
+            tp = {
+                "id": f"topic::{chapter}::{topic}",
+                "name": topic,
+                "depth": 2,
+                "parent_id": ch["id"],
+                "chapter": chapter,
+                "topic": topic,
+                "children": [],
+            }
+            topics[tp_key] = tp
+            ch["children"].append(tp)
+        tp["children"].append(leaf)
+
+    def fill(node: dict[str, Any]) -> float:
+        children = [c for c in node.get("children") or [] if isinstance(c, dict)]
+        if children:
+            value = sum(fill(child) for child in children)
+            node["value"] = value
+            node["source_node_ids"] = [
+                sid
+                for child in children
+                for sid in (child.get("source_node_ids") or [])
+            ]
+            node["session_priority"] = _parent_priority(children)
+            node["reason"] = "语义回卷"
+            return value
+        return float(node.get("value") or 0)
+
+    fill(root)
+    return root
+
+
+def _semantic_rollup(root: dict[str, Any]) -> list[dict[str, Any]]:
+    total = float(root.get("value") or 0) or 1.0
+    candidates = list(root.get("children") or [])
+    target_min, target_max = 4, 8
+    max_slice_ratio, min_slice_ratio = 0.45, 0.05
+    max_expand_count = 20
+
+    while True:
+        expandable: list[tuple[float, dict[str, Any]]] = []
+        for node in candidates:
+            children = [c for c in node.get("children") or [] if isinstance(c, dict)]
+            if not children:
+                continue
+            ratio = float(node.get("value") or 0) / total
+            if len(candidates) < target_min or ratio > max_slice_ratio:
+                score = ratio * 100 + len(children)
+                expandable.append((score, node))
+        if not expandable:
+            break
+        expandable.sort(key=lambda item: -item[0])
+        node = expandable[0][1]
+        children = [c for c in node.get("children") or [] if isinstance(c, dict)]
+        if len(candidates) - 1 + len(children) > max_expand_count:
+            break
+        candidates.remove(node)
+        candidates.extend(children)
+
+    while len(candidates) > target_max:
+        small = [
+            node for node in candidates
+            if float(node.get("value") or 0) / total < min_slice_ratio
+        ]
+        if not small:
+            break
+        groups: dict[str, list[dict[str, Any]]] = {}
+        for node in small:
+            groups.setdefault(str(node.get("parent_id") or ""), []).append(node)
+        parent_id, group = max(
+            groups.items(),
+            key=lambda item: (len(item[1]), sum(float(n.get("value") or 0) for n in item[1])),
+        )
+        if not group:
+            break
+        parent = _find_tree_node(root, parent_id) or {
+            "id": parent_id,
+            "name": "补充知识块",
+            "depth": 1,
+            "parent_id": "root",
+        }
+        for node in group:
+            if node in candidates:
+                candidates.remove(node)
+        siblings = [
+            node for node in candidates
+            if str(node.get("parent_id") or "") == parent_id
+        ]
+        aggregation = "rollup" if not siblings else "partial_rollup"
+        name = _clean(parent.get("name")) if aggregation == "rollup" else f"{_clean(parent.get('name'))}·其余"
+        candidates.append(_rollup_node(parent, group, aggregation_type=aggregation, name=name))
+
+    while len(candidates) > target_max:
+        candidates.sort(key=lambda n: float(n.get("value") or 0))
+        group = candidates[:2]
+        parent_id = str(group[0].get("parent_id") or "")
+        parent = _find_tree_node(root, parent_id) or {
+            "id": parent_id,
+            "name": _clean(group[0].get("chapter")) or "补充知识块",
+            "depth": 1,
+            "parent_id": "root",
+        }
+        for node in group:
+            candidates.remove(node)
+        candidates.append(
+            _rollup_node(parent, group, aggregation_type="partial_rollup", name=f"{_clean(parent.get('name'))}·其余")
+        )
+
+    for node in candidates:
+        node["ratio"] = round(float(node.get("value") or 0) / total, 4)
+    return sorted(
+        candidates,
+        key=lambda n: (_GRADE_ORDER.get(str(n.get("session_priority") or ""), 9), -float(n.get("value") or 0)),
+    )
+
+
+def _find_tree_node(node: dict[str, Any], node_id: str) -> dict[str, Any] | None:
+    if str(node.get("id") or "") == node_id:
+        return node
+    for child in node.get("children") or []:
+        if isinstance(child, dict):
+            found = _find_tree_node(child, node_id)
+            if found is not None:
+                return found
+    return None
+
+
+def _review_overview(cards: list[dict[str, Any]]) -> dict[str, Any]:
+    root = _build_review_tree(cards)
+    items = _semantic_rollup(root) if root.get("children") else []
+    bar_items = sorted(
+        items,
+        key=lambda n: (_GRADE_ORDER.get(str(n.get("session_priority") or ""), 9), -float(n.get("value") or 0)),
+    )[:12]
+    return {
+        "root": {"id": root.get("id"), "name": root.get("name")},
+        "metric": "review_value",
+        "total_value": root.get("value") or 0,
+        "items": items,
+        "bar_items": bar_items,
+        "treemap": {"items": items},
+    }
 
 
 def draft_from_context(approved_context: str) -> dict[str, Any]:
@@ -90,10 +375,18 @@ def build_checklist_markdown(draft: dict[str, Any], *, has_teacher: bool | None 
 
     groups = _nav_groups(cards, has_teacher=_draft_has_teacher(draft, has_teacher))
     focus, brief, extra, main_cards = groups["focus"], groups["brief"], groups["extra"], groups["main"]
-    lines.extend(["## 一、全局导航", "", "### 1. 复习重点分布", ""])
-    dist = distribution(cards)
-    for row in dist:
-        lines.append(f"- {row['label']}：{row['value']}%")
+    overview = _review_overview(main_cards)
+    total_val = float(overview.get("total_value") or 0) or 1.0
+    lines.extend(["## 一、全局导航", "", "### 1. 本次复习结构总览", ""])
+    for item in overview.get("bar_items") or []:
+        grade = _GRADE.get(str(item.get("session_priority") or ""), "简要")
+        reason = _clean(item.get("reason"))
+        val = float(item.get("value") or 0)
+        pct = max(0.1, val / total_val * 100)
+        lines.append(
+            f"- {grade}｜{_clean(item.get('name'))}：{pct:.1f}%"
+            + (f"（{reason}）" if reason else "")
+        )
     lines.extend(["", "| 优先级 | 知识点 | 重要程度 | 所属章节 |", "| --- | --- | --- | --- |"])
     for card in main_cards:
         lines.append(
@@ -308,31 +601,6 @@ def _graph_payload(cards: list[dict[str, Any]]) -> tuple[list[dict[str, Any]], l
         for src, rel, dst in _edges(cards)
     ]
     return nodes, edges
-
-
-def _pie_html(rows: list[dict[str, float]]) -> str:
-    if len(rows) < 2:
-        return ""
-    colors = ["#b3402e", "#c98a2d", "#497a78", "#6f5f90", "#395f8a", "#7a867c"]
-    other_color = "#9a968c"
-    total = sum(float(r.get("value") or 0) for r in rows) or 1.0
-    cursor = 0.0
-    segs, legend = [], []
-    for i, row in enumerate(rows):
-        start = cursor
-        cursor += float(row["value"]) / total * 100
-        color = other_color if str(row["label"]).endswith("·其余") else colors[i % len(colors)]
-        segs.append(f"{color} {start:.2f}% {cursor:.2f}%")
-        legend.append(
-            f'<div class="ck-legend-item"><span class="ck-dot" style="background:{color}"></span>'
-            f'<span>{escape(str(row["label"]), quote=False)}</span>'
-            f'<strong>{row["value"]:g}%</strong></div>'
-        )
-    return (
-        '<div class="ck-pie-card">'
-        f'<div class="ck-pie" style="background:conic-gradient({", ".join(segs)});"></div>'
-        f'<div class="ck-legend">{"".join(legend)}</div></div>'
-    )
 
 
 def _checks(items: list[str]) -> str:
@@ -775,21 +1043,34 @@ def build_checklist_html(draft: dict[str, Any], *, has_teacher: bool | None = No
         focus, brief, extra, main_cards = groups["focus"], groups["brief"], groups["extra"], groups["main"]
         outline = draft.get("mindmap_outline") or build_checklist_mindmap_outline(draft, cards)
         nodes, edges = _graph_payload(cards)
-        body.append("<h2>一、全局导航</h2><h3>1. 复习重点分布</h3>")
-        body.append(_pie_html(distribution(cards)))
+        body.append("<h2>一、全局导航</h2><h3>1. 本次复习结构总览</h3>")
+        overview = _review_overview(main_cards)
+        body.append('<div class="ck-overview-wrap" id="ck-review">')
+        body.append(_overview_html(overview))
         body.append(
-            '<table class="ck-table"><thead><tr><th>优先级</th><th>知识点</th><th>重要程度</th><th>所属章节</th></tr></thead><tbody>'
+            '<div class="ck-table-panel">'
+            '<div class="ck-overview-title">知识点清单与掌握度</div>'
+            '<div class="ck-filter-row">'
+            '<select id="ck-f-grade"><option value="">全部档位</option>'
+            '<option value="S">核心 S</option><option value="A">重点 A</option>'
+            '<option value="B">简要 B</option><option value="C">补充 C</option></select>'
+            '<select id="ck-f-chapter"><option value="">全部章节</option></select>'
+            '<select id="ck-f-type"><option value="">全部类型</option>'
+            '<option value="concept">概念</option><option value="formula">公式</option>'
+            '<option value="theorem">定理</option><option value="method">方法</option>'
+            '<option value="application">应用</option></select>'
+            '<span class="ck-mastery-track"><span id="ck-mastery-fill"></span></span>'
+            '<span id="ck-mastery-text">已掌握 0/0</span></div>'
+            '<table class="ck-table" id="ck-main-table"><thead><tr>'
+            '<th>掌握</th><th data-sort="grade">优先级</th><th data-sort="name">知识点</th>'
+            '<th data-sort="importance">重要程度</th><th data-sort="difficulty">难度</th>'
+            '<th data-sort="chapter">所属章节</th></tr></thead><tbody>'
         )
         for card in main_cards:
-            body.append(
-                "<tr>"
-                f"<td>{escape(_grade_label(card), quote=False)}</td>"
-                f"<td>{escape(_clean(card.get('name')), quote=False)}</td>"
-                f'<td><span class="ck-stars">{importance_stars(card)}</span></td>'
-                f"<td>{escape(_clean(card.get('chapter')) or '—', quote=False)}</td>"
-                "</tr>"
-            )
-        body.append("</tbody></table>")
+            body.append(_dynamic_row(card))
+        body.append("</tbody></table></div>")
+        body.append(_review_dynamic_script(overview))
+        body.append("</div>")
         if extra:
             body.append(
                 '<div class="ck-subtitle">补充（老师未重点点、但知识结构中需要了解的）</div>'
@@ -866,14 +1147,41 @@ def build_checklist_html(draft: dict[str, Any], *, has_teacher: bool | None = No
     .ck-doc h2{{margin:22px 0 10px;font-size:1.2rem;}}
     .ck-doc h3{{margin:16px 0 8px;font-size:1.05rem;}}
     .ck-note{{color:#6b6860;font-size:.86rem;}}
-    .ck-pie-card{{display:grid;grid-template-columns:140px 1fr;gap:16px;align-items:center;padding:12px;border:1px solid #ebe8e1;border-radius:8px;background:#fbfaf7;}}
-    .ck-pie{{width:120px;aspect-ratio:1;border-radius:50%;box-shadow:inset 0 0 0 16px rgba(255,255,255,.6);}}
-    .ck-legend{{display:grid;gap:6px;}}
-    .ck-legend-item{{display:grid;grid-template-columns:12px 1fr auto;gap:8px;align-items:center;font-size:.88rem;}}
+    .ck-review{{margin:10px 0;}}
+    .ck-overview-wrap{{margin:12px 0 24px;display:flex;flex-direction:column;gap:16px;}}
+    .ck-bar-panel,.ck-table-panel{{border:1px solid #e7e4dc;border-radius:12px;background:#ffffff;box-shadow:0 1px 4px rgba(0,0,0,0.03);padding:16px 18px;box-sizing:border-box;}}
+    .ck-overview-title{{display:flex;align-items:baseline;justify-content:space-between;gap:12px;margin:0 0 14px;padding-bottom:8px;border-bottom:1px solid #f0eee9;}}
+    .ck-overview-title span:first-child{{font-size:.95rem;font-weight:750;color:#1c1b19;letter-spacing:0.2px;}}
+    .ck-overview-hint{{font-size:.76rem;color:#8a867c;font-weight:400;}}
+    .ck-bar-panel{{display:grid;gap:10px;align-content:start;}}
+    .ck-bar-item{{display:flex;flex-direction:column;gap:6px;width:100%;border:1px solid #ebe8e1;border-radius:9px;background:#faf9f6;padding:10px 14px;text-align:left;cursor:pointer;font:inherit;box-sizing:border-box;transition:all .2s cubic-bezier(0.16, 1, 0.3, 1);}}
+    .ck-bar-item:hover{{border-color:#395f8a;background:#fff;transform:translateY(-1.5px);box-shadow:0 4px 12px rgba(0,0,0,0.05);}}
+    .ck-bar-item.is-on{{border-color:#b3402e;background:#fff;box-shadow:0 0 0 1.5px #b3402e, 0 4px 12px rgba(179,64,46,0.1);}}
+    .ck-bar-top{{display:flex;align-items:center;justify-content:space-between;gap:10px;width:100%;}}
+    .ck-bar-name{{font-weight:700;font-size:.88rem;color:#1c1b19;flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}}
+    .ck-bar-pct{{font-size:.88rem;font-weight:800;color:#2c2a26;letter-spacing:-0.2px;font-variant-numeric:tabular-nums;}}
+    .ck-bar-track{{width:100%;height:7px;border-radius:999px;background:#eae7df;overflow:hidden;}}
+    .ck-bar-fill{{display:block;height:100%;border-radius:999px;background:linear-gradient(90deg,#497a78,#5c9896);transition:width .4s cubic-bezier(0.4, 0, 0.2, 1);}}
+    .ck-bar-fill.ck-grade-s{{background:linear-gradient(90deg,#ff7875,#d9363e);}}
+    .ck-bar-fill.ck-grade-a{{background:linear-gradient(90deg,#ffc069,#d46b08);}}
+    .ck-bar-fill.ck-grade-b{{background:linear-gradient(90deg,#69c0ff,#1890ff);}}
+    .ck-bar-bottom{{display:flex;align-items:center;justify-content:space-between;gap:8px;font-size:.74rem;color:#8a867c;}}
+    .ck-pill{{display:inline-flex;align-items:center;padding:1px 7px;border-radius:6px;font-size:.72rem;font-weight:700;line-height:1.4;white-space:nowrap;}}
+    .ck-pill.ck-grade-s{{background:#fff1f0;color:#cf1322;border:1px solid #ffa39e;}}
+    .ck-pill.ck-grade-a{{background:#fffbe6;color:#d46b08;border:1px solid #ffe58f;}}
+    .ck-pill.ck-grade-b{{background:#e6f7ff;color:#096dd9;border:1px solid #91d5ff;}}
+    .ck-filter-row{{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:0 0 12px;}}
+    .ck-filter-row select{{padding:4px 8px;border:1px solid #d4d0c6;border-radius:6px;font-size:.82rem;background:#fff;}}
+    .ck-mastery-track{{flex:1;min-width:120px;height:8px;border-radius:999px;background:#e8e4da;overflow:hidden;}}
+    #ck-mastery-fill{{display:block;height:100%;width:0;background:#497a78;transition:width .2s;}}
+    #ck-mastery-text{{font-size:.78rem;color:#6b6860;white-space:nowrap;}}
+    .ck-kp-name{{font-weight:600;}}
+    .ck-row-preview{{font-weight:400;color:#8a867c;font-size:.76rem;margin-top:2px;}}
+    .ck-row-detail{{font-size:.8rem;color:#3a3832;line-height:1.55;padding:6px 2px;}}
     .ck-dot{{width:10px;height:10px;border-radius:50%;}}
-    .ck-table{{width:100%;border-collapse:collapse;font-size:.86rem;margin:10px 0;}}
-    .ck-table th,.ck-table td{{border:1px solid #d4d0c6;padding:5px 8px;text-align:left;}}
-    .ck-table th{{background:#f7f5f0;}}
+    .ck-table{{width:100%;border-collapse:collapse;font-size:.86rem;margin:0;}}
+    .ck-table th,.ck-table td{{border:1px solid #e7e4dc;padding:8px 10px;text-align:left;}}
+    .ck-table th{{background:#f7f5f0;font-weight:700;color:#3a3832;}}
     .ck-review{{display:grid;grid-template-columns:minmax(0,1fr) 1px minmax(240px,34%);border:1px solid #ebe8e1;border-radius:10px;overflow:hidden;margin:10px 0 16px;background:#fff;}}
     .ck-review-left{{padding:12px 14px;background:#fbfaf7;}}
     .ck-review-rule{{background:#c8c4b8;}}
@@ -975,3 +1283,216 @@ def attach_checklist_artifacts(state: dict[str, Any]) -> None:
     sub["rendered"] = build_checklist_markdown(draft, has_teacher=has_teacher)
     sub["draft"] = draft
     sub["structure"] = cards
+
+
+# ── 复习结构总览（语义回卷 / 过滤 / 排序 / 展开 / 掌握度）────
+
+def _dynamic_row(card: dict[str, Any]) -> str:
+    """动态表格行：携带排序/过滤属性 + 掌握度勾选 + 行内详情（点击展开）。"""
+    name = _clean(card.get("name"))
+    kid = _clean(card.get("id")) or _clean(card.get("kp_id")) or name
+    grade = str(card.get("session_priority") or "")
+    chapter = _clean(card.get("chapter")) or "—"
+    ktype = _clean(card.get("knowledge_type")) or ""
+    try:
+        importance = int(str(card.get("importance") or 3) or 3)
+    except (TypeError, ValueError):
+        importance = 3
+    try:
+        difficulty = int(str(card.get("difficulty") or 3) or 3)
+    except (TypeError, ValueError):
+        difficulty = 3
+    preview = _clean(card.get("exam_preview")) or ""
+    explain = _clean(card.get("explain")) or ""
+    method = "；".join(_as_list(card.get("method_steps"))) or ""
+    pitfalls = "；".join(_as_list(card.get("pitfalls"))) or ""
+    detail = explain[:200] if explain else ""
+    if method:
+        detail += f"<br>方法：{escape(method[:120], quote=False)}"
+    if pitfalls:
+        detail += f"<br>易错：{escape(pitfalls[:120], quote=False)}"
+    return (
+        f'<tr data-id="{escape(kid, quote=False)}" data-grade="{escape(grade, quote=False)}" data-name="{escape(name, quote=False)}" '
+        f'data-chapter="{escape(chapter, quote=False)}" data-type="{escape(ktype, quote=False)}" '
+        f'data-importance="{importance}" data-difficulty="{difficulty}">'
+        f'<td><input type="checkbox" class="ck-mastery" data-name="{escape(name, quote=False)}"></td>'
+        f'<td>{escape(_grade_label(card), quote=False)}</td>'
+        f'<td class="ck-kp-name">{escape(name, quote=False)}'
+        f'<div class="ck-row-preview">{escape(preview[:70], quote=False)}</div></td>'
+        f'<td><span class="ck-stars">{importance_stars(card)}</span></td>'
+        f'<td>{difficulty}</td>'
+        f'<td>{escape(chapter, quote=False)}</td>'
+        f'<td class="ck-row-detail" hidden>{detail}</td>'
+        "</tr>"
+    )
+
+
+def _overview_html(overview: dict[str, Any]) -> str:
+    bar_items = [i for i in (overview.get("bar_items") or []) if isinstance(i, dict)]
+    total = float(overview.get("total_value") or 0) or 1.0
+    rows = ['<div class="ck-bar-panel">']
+    rows.append(
+        '<div class="ck-overview-title">'
+        '<span>优先复习排序</span>'
+        '<span class="ck-overview-hint">按复习价值与重点信号计算占比（点击可联动筛选下方表格）</span>'
+        '</div>'
+    )
+    if not bar_items:
+        rows.append('<p class="ck-note">暂无可展示的复习重点。</p>')
+    for item in bar_items:
+        value = float(item.get("value") or 0)
+        pct = max(0.1, min(100.0, value / total * 100))
+        grade = str(item.get("session_priority") or "B")
+        label = _clean(item.get("name"))
+        reason = _clean(item.get("reason"))
+        chapter = _clean(item.get("chapter"))
+        source_ids_list = [str(x) for x in (item.get("source_node_ids") or []) if x]
+        source_ids = " ".join(source_ids_list)
+        count_desc = f"包含 {len(source_ids_list)} 个考点" if len(source_ids_list) > 1 else ""
+        tooltip_parts = [f"复习占比：{pct:.1f}%", f"档位：{_GRADE.get(grade, '简要')} ({grade})"]
+        if chapter:
+            tooltip_parts.append(f"章节：{chapter}")
+        if reason:
+            tooltip_parts.append(f"依据：{reason}")
+        if count_desc:
+            tooltip_parts.append(count_desc)
+        tooltip = " ｜ ".join(tooltip_parts)
+
+        grade_class = f"ck-grade-{grade.lower()}"
+        rows.append(
+            f'<button type="button" class="ck-bar-item {grade_class}" '
+            f'data-grade="{escape(grade, quote=True)}" '
+            f'data-source-ids="{escape(source_ids, quote=True)}" '
+            f'title="{escape(tooltip, quote=True)}">'
+            '<div class="ck-bar-top">'
+            f'<span class="ck-pill {grade_class}">{escape(_GRADE.get(grade, "简要"), quote=False)} {grade}</span>'
+            f'<span class="ck-bar-name">{escape(label, quote=False)}</span>'
+            f'<span class="ck-bar-pct">{pct:.1f}%</span>'
+            '</div>'
+            '<div class="ck-bar-track">'
+            f'<span class="ck-bar-fill {grade_class}" style="width:{pct:.1f}%"></span>'
+            '</div>'
+            '<div class="ck-bar-bottom">'
+            f'<span class="ck-bar-meta">{escape(chapter or "通用章节", quote=False)}'
+            + (f' · {escape(reason, quote=False)}' if reason else '')
+            + '</span>'
+            + (f'<span class="ck-bar-count">{count_desc}</span>' if count_desc else '')
+            + '</div>'
+            '</button>'
+        )
+    rows.append("</div>")
+    return "".join(rows)
+
+
+def _review_dynamic_script(overview: dict[str, Any]) -> str:
+    """复习结构总览交互脚本：条形图/Treemap 过滤 / 排序 / 展开 / 掌握度勾选。
+
+    使用 __OVERVIEW__ 占位符注入数据，避免 f-string 与 JS 花括号冲突。
+    """
+    import json as _json
+
+    data = _json.dumps(overview, ensure_ascii=False).replace("</", "<\\/")
+    template = """<script>
+(function () {
+  const OVERVIEW = __OVERVIEW__;
+  const wrap = document.getElementById('ck-review');
+  if (!wrap) return;
+  const table = document.getElementById('ck-main-table');
+  const rows = table ? Array.from(table.tBodies[0].rows) : [];
+  const fGrade = document.getElementById('ck-f-grade');
+  const fChapter = document.getElementById('ck-f-chapter');
+  const fType = document.getElementById('ck-f-type');
+  let gradeFilter = '', chapterFilter = '', typeFilter = '', sourceFilter = [];
+
+  function applyFilters() {
+    if (!table) return;
+    rows.forEach((row) => {
+      const okGrade = !gradeFilter || row.getAttribute('data-grade') === gradeFilter;
+      const okChapter = !chapterFilter || row.getAttribute('data-chapter') === chapterFilter;
+      const okType = !typeFilter || row.getAttribute('data-type') === typeFilter;
+      const name = row.getAttribute('data-id') || row.getAttribute('data-name') || '';
+      const okSource = !sourceFilter.length || sourceFilter.indexOf(name) >= 0;
+      row.style.display = (okGrade && okChapter && okType && okSource) ? '' : 'none';
+    });
+  }
+
+  function selectOverviewItem(el) {
+    const ids = String(el.getAttribute('data-source-ids') || '').split(/\\s+/).filter(Boolean);
+    sourceFilter = ids;
+    gradeFilter = el.getAttribute('data-grade') || '';
+    if (fGrade) fGrade.value = gradeFilter;
+    wrap.querySelectorAll('.ck-bar-item').forEach((x) => x.classList.toggle('is-on', x === el));
+    applyFilters();
+  }
+
+  wrap.querySelectorAll('.ck-bar-item').forEach((el) => {
+    el.addEventListener('click', () => selectOverviewItem(el));
+  });
+
+  if (fGrade) fGrade.addEventListener('change', () => { gradeFilter = fGrade.value; sourceFilter = []; applyFilters(); });
+  if (fChapter) fChapter.addEventListener('change', () => { chapterFilter = fChapter.value; sourceFilter = []; applyFilters(); });
+  if (fType) fType.addEventListener('change', () => { typeFilter = fType.value; sourceFilter = []; applyFilters(); });
+
+  if (fChapter && rows.length) {
+    const chapters = [];
+    rows.forEach((r) => {
+      const c = r.getAttribute('data-chapter');
+      if (c && chapters.indexOf(c) < 0) chapters.push(c);
+    });
+    chapters.sort().forEach((c) => {
+      const opt = document.createElement('option');
+      opt.value = c; opt.textContent = c;
+      fChapter.appendChild(opt);
+    });
+  }
+
+  if (table) {
+    table.querySelectorAll('th[data-sort]').forEach((th) => {
+      th.style.cursor = 'pointer';
+      th.addEventListener('click', () => {
+        const key = th.getAttribute('data-sort');
+        const tbody = table.tBodies[0];
+        Array.from(tbody.rows)
+          .filter((r) => r.style.display !== 'none')
+          .sort((a, b) => {
+            let va = a.getAttribute('data-' + key) || '', vb = b.getAttribute('data-' + key) || '';
+            if (key === 'importance' || key === 'difficulty') { va = Number(va) || 0; vb = Number(vb) || 0; }
+            return va < vb ? -1 : va > vb ? 1 : 0;
+          })
+          .forEach((r) => tbody.appendChild(r));
+      });
+    });
+    rows.forEach((row) => {
+      row.addEventListener('click', (ev) => {
+        if (ev.target && ev.target.type === 'checkbox') return;
+        const detail = row.querySelector('.ck-row-detail');
+        if (detail) detail.hidden = !detail.hidden;
+      });
+    });
+  }
+
+  // 掌握度勾选（localStorage 按复习清单课程记忆）
+  const storageKey = 'ck-mastery-' + encodeURIComponent(String((document.title || '').split(' ')[0]));
+  let mastered = {};
+  try { mastered = JSON.parse(localStorage.getItem(storageKey) || '{}'); } catch (e) {}
+  const fill = document.getElementById('ck-mastery-fill');
+  const textEl = document.getElementById('ck-mastery-text');
+  const refreshMastery = () => {
+    const boxes = Array.from(wrap.querySelectorAll('.ck-mastery'));
+    const done = boxes.filter((b) => b.checked).length;
+    if (fill) fill.style.width = boxes.length ? (done / boxes.length * 100) + '%' : '0%';
+    if (textEl) textEl.textContent = '已掌握 ' + done + '/' + boxes.length;
+  };
+  wrap.querySelectorAll('.ck-mastery').forEach((box) => {
+    const name = box.getAttribute('data-name');
+    box.checked = !!mastered[name];
+    box.addEventListener('change', () => {
+      mastered[name] = box.checked;
+      try { localStorage.setItem(storageKey, JSON.stringify(mastered)); } catch (e) {}
+      refreshMastery();
+    });
+  });
+  refreshMastery();
+})();
+</script>"""
+    return template.replace("__OVERVIEW__", data)

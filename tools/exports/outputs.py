@@ -13,7 +13,7 @@ from dataclasses import asdict, is_dataclass
 from datetime import datetime
 from pathlib import Path
 
-from tools.exports.knowledge_graph import graphviz_available, render_graph_bundle
+from tools.exports.knowledge_graph import render_graph_bundle
 from tools.exports.mindmap import (
     markmap_available,
     mindmap_png_available,
@@ -210,7 +210,7 @@ def save_report_artifacts(
                     encoding="utf-8",
                 )
             paths["html"] = html_path
-        elif ctx.name == "meeting" and line_name == "minutes":
+        elif ctx.name == "meeting" and line_name in {"minutes", "minutes_trace"}:
             from tools.memory.citations import memory_review_html
 
             review = memory_review_html(text)
@@ -328,8 +328,6 @@ def export_graph(reports: dict, out_dir: Path) -> dict[str, Path]:
     nodes = getattr(kg, "nodes", None) if kg else None
     if not nodes:
         return {}
-    if not graphviz_available():
-        logger.warning("未检测到 graphviz（dot），跳过知识图谱 SVG 生成")
     edges = getattr(kg, "edges", None) or []
     outline = getattr(kg, "outline", "") or ""
     title = str(getattr(kg, "title", "") or "").strip()

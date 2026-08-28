@@ -1,63 +1,53 @@
-# AgentFlow · 多 Agent 任务系统
+# AgentFlow · 多 Agent 后端服务
 
 会议纪要 / 知识点多 Agent 系统：多任务线并行流水线
-（会议纪要 / 待办 / 风险分析 / 思维导图 / 知识点 / 知识图谱），每条线独立执行
-「生成 → 领域审核（+全局标准注入）→ 渲染」，互不阻塞；
+（会议纪要 / 待办 / 风险分析 / 多样式纪要 / 溯源纪要 / 思维导图 / 知识图谱 / 笔记审查 / 自测题 / 资料入库 / 知识目录 / 复习清单），
+每条线独立执行「生成 → 领域审核（+全局标准注入）→ 渲染」，互不阻塞；
 支持客观视角与个人视角；可扩展任意新任务线。
 
-LLM 支持 **HTTP（如 DeepSeek）** 与 **WebSocket OpenAI 兼容接口** 两种后端（见 `.env`）。
+纯后端服务：唯一入口为 **FastAPI**（`uvicorn app.main:app`），全部任务线通过 HTTP 接口调用
+（接口文档见 [API.md](API.md)）。
+
+LLM 支持 **HTTP（如 DeepSeek）**、**WebSocket OpenAI 兼容接口** 与 **vLLM** 三种后端（见 `.env`）。
 
 ## 项目结构
 
 ```
-bootstrap.py                  # CLI 入口
-gradio_app.py                 # Web 测试台（AgentFlow Web UI）
-tests/                        # pytest 测试（纯函数单测 + 3.10 语法兼容检查）
-demo/                         # 示例数据（分章资料 + 老师重点文本）
+app/                          # FastAPI 后端服务（唯一入口）
+  main.py                     # 应用入口：路由挂载 + /api/v1/health
+  routes/{meeting,notes}.py   # 9 个业务接口路由
+  tasks.py                    # 任务执行核心：请求 → 输入组装 → run() → 统一响应
+  schemas.py                  # 请求/响应模型（通用 TaskRequest / TaskResponse）
+  outputs.py                  # API 产物落盘 data/{user_id}/output/{request_id}/
+  requirements.py             # 各接口必填字段声明表
 domain/
-  meeting/
-    domain_config.py          # 领域配置：STATE_CLASS / LINE_CN_NAMES（中文名注册表）
+  meeting/                    # 会议域
+    domain_config.py          # 领域配置：STATE_CLASS / LINE_CN_NAMES / LINE_KINDS
     models.py                 # 数据模型 + 各线生成模型/审核模型（生成区）
     reports.py                # 全部任务线最终输出 Report 类（手写区）
     orchestrator.py           # 多线并行图 + 节点 + run/run_streaming
     meeting_factory.py        # Agent 依赖组装工厂
     meeting_core/             # 核心层：会议理解（客观事实底座）
-    tasks/
-      minutes/     # 纪要线（contracts.py / prompts.py / steps/）
-      actions/           # 待办线（contracts.py / prompts.py / steps/）
-      risk/                   # 风险分析线（contracts.py / prompts.py / steps/）
-      mindmap/                # 思维导图线（大纲 → markmap HTML/PNG）
-      ...                     # 新增任务线同构
-      {line}/steps/           # agent / supervisor / render 三步骤实现
-  notes/                      # 笔记域：知识图谱 / 笔记审查 / 自测题 / 资料入库 / 知识目录 / 复习清单
-samples/                      # 样例输入：samples/{domain}/{file|task_template}
-perspective/                  # 跨 domain 公共视角建模 + profiles/（客观画像 + role/ 职业模板）
-llm_client/                   # LLM 客户端（HTTP / WebSocket）+ 配置（.env）
+    tasks/{minutes,actions,risks,mindmap,minutes_styles,minutes_trace}/
+      contracts.py / prompts.py / steps/{agent,supervisor,render}
+  notes/                      # 笔记域：graph/review/quiz/library/catalog/checklist
+client/                       # LLM 客户端（HTTP / WebSocket / vLLM）+ 配置（.env）
+perspective/                  # 跨 domain 公共视角建模 + profiles/（客观画像 + 职业模板）
 supervisor/                   # 全局监督标准（prompt 注入，不单独调 LLM）
-schema_repair/                # 结构化输出修复（LLM 输出非法时）
 tools/
-  runtime_context.py          # 领域加载 / 任务别名 / env 默认路径
-  io.py                       # 输入文本和用户画像读取
-  runner.py                   # CLI 参数 + 任务运行循环
-  outputs.py                  # 报告 JSON/Markdown 落盘 + mindmap/graph 导出
-  domain_engine.py            # 领域引擎基类：图构建 / 共享节点 / 流式运行
-  monitor/                    # 任务监控：token / 缓存命中 / 按层耗时 / 知识库与记忆计数
+  core/                       # 共享编排内核：domain_engine（图节点 mixin）/ runner（run）/ io
+  runtime/                    # 渲染运行时：render / context / kinds / supervisor_slice
+  template_router/            # 模板路由：判型 / 占位填充 / 门禁 / 可读化
+  exports/                    # 产物落盘：outputs / knowledge_graph / mindmap
+  memory/                     # 跨会话记忆：记录累积 / 语义检索 / 引用标注 / 图谱增量
   knowledge/                  # 知识库：PPT/PDF/docx/xlsx 入库 + 向量检索 + 出处（RAG）
-  memory/                     # 跨会话记忆：记录累积 / 语义检索 / 引用标注
-```
-  domain_engine.py            # 多 domain 共享编排内核（生成→审核→渲染）
-  contracts.py                # 契约 DSL
-  fallback_rules.py           # 降级拼装规则 DSL
-  validation.py               # 输出校验工具
-  prompt_utils.py / template_prompt.py   # 渲染 prompt 构建
-  template_router/           # 模板路由包：_detect 判型 / _placeholder 填充 / _gate 门禁编译 / _preview 可读化
-  template_eval.py            # 模板约束评测 + 表格粘连修复
-  hard_execution.py           # 强执行：上游硬对齐 / 门禁 / 元说明剥离
-  mindmap.py                  # 思维导图导出
-  graph.py          # 知识图谱导出
-  scripts/
-    sync_domain.py            # 代码生成器
-    register_task.py          # 新增任务线注册
+  ocr/                        # OCR 引擎适配（serverocr / rapidocr / paddleocr）
+  monitor/                    # 任务监控：token / 缓存命中 / 按层耗时
+  exercise_search/            # 高中题库检索（notes.quiz 用）
+  scripts/                    # 开发工具：sync_domain / register_task 代码生成器
+  contracts.py 等             # 契约 DSL / 校验 / fallback 规则 / prompt 构建（兼容入口）
+samples/                      # 样例输入：samples/{domain}/file/、profile/、{task}_template/
+template/                     # 模板注册表（cm_template_v2_changed_0722.yaml 的可读副本）
 ```
 
 ## 快速开始
@@ -67,13 +57,8 @@ tools/
 ```bash
 # Python >= 3.10，安装依赖
 pip install -r requirements.txt
-
-# 测试（可选）：运行 pytest 单测 + 3.10 语法兼容检查
-pip install pytest && python -m pytest
 ```
 
-> **版本说明**：`gradio` 已实测兼容 **5.x**（如 5.50）与 **6.x**（如 6.22）；
-> 注意 5.x 与 6.x 的 `theme/css` 参数位置不同（本项目已兼容两者）。
 > 开发/测试请优先使用 **Python 3.10** 环境（项目部分语法在 ≤3.11 下才能被完整校验）。
 
 Linux 推荐配置：
@@ -81,7 +66,6 @@ Linux 推荐配置：
 | 目的 | Ubuntu / Debian | CentOS / RHEL / Fedora | 验证命令 |
 |---|---|---|---|
 | Python 运行环境 | `sudo apt-get update && sudo apt-get install -y python3 python3-pip python3-venv` | `sudo dnf install -y python3 python3-pip` | `python3 --version` |
-| 知识图谱 SVG | `sudo apt-get install -y graphviz fonts-noto-cjk` | `sudo dnf install -y graphviz google-noto-sans-cjk-fonts` | `dot -V` |
 | 思维导图 HTML | `sudo apt-get install -y nodejs npm` | `sudo dnf install -y nodejs npm` | `node -v && npx -v` |
 | 思维导图 PNG | `python3 -m playwright install --with-deps chromium` | `python3 -m playwright install chromium` | `python3 -m playwright --version` |
 
@@ -93,11 +77,9 @@ Linux 推荐配置：
 python -m playwright install chromium
 ```
 
-> 知识图谱的 SVG 依赖系统 Graphviz，不是 Python 包；只 `pip install -r requirements.txt` 不会安装 `dot`。
-
 ### 2. 配置 LLM（`.env`）
 
-在项目根目录创建 `.env`，二选一后端：
+在项目根目录创建 `.env`，三选一后端：
 
 #### 方式 A：HTTP（DeepSeek 等）
 
@@ -121,27 +103,16 @@ LLM_WS_MODEL=你的模型名
 
 依赖 `websockets`（已在 `requirements.txt` 中）。内网请保证机器能访问 `LLM_WS_URL`（`ws://` 或 `wss://`）。
 
-### 3. 运行
+#### 方式 C：本地 vLLM（OpenAI 兼容 HTTP）
 
-#### Gradio 测试平台
-
-```bash
-python gradio_app.py
+```
+LLM_BACKEND=vllm
+LLM_VLLM_BASE_URL=http://127.0.0.1:8000/v1
+LLM_VLLM_API_KEY=你的BearerToken
+LLM_VLLM_MODEL=deepseek-v4-flash-0731
 ```
 
-默认打开本机 `http://127.0.0.1:7860`。页面能力：
-
-| 能力 | 说明 |
-|---|---|
-| 默认领域 | `meeting`（会议） |
-| **默认视角** | **客观全员**；可切换个人视角做多视角裁剪 |
-| 用户画像 | 可编辑 JSON / 上传；随视角模式切换默认样例 |
-| 输入 | 上传 `.txt` 或粘贴文本 |
-| 模板 | 支持自然语言描述 → 编译成可编辑模板 → 修改后确认运行；也可上传/粘贴现成 Markdown 模板 |
-| 结果 | 日志（含视角模式）；有 `.md` 时 Markdown 预览；有 PNG 时图片预览；产物下载 |
-| 防重复 | 运行中锁定按钮，结束后恢复 |
-
-#### 服务器部署
+### 3. 启动服务
 
 ```bash
 cd /path/to/AgentFlow
@@ -156,10 +127,9 @@ python -m playwright install chromium
 
 | 场景 | 命令 |
 |---|---|
-| 本机测试 | `python gradio_app.py` |
-| 服务器外部访问 | `GRADIO_SERVER_NAME=0.0.0.0 GRADIO_SERVER_PORT=7860 python gradio_app.py` |
-| 临时公网分享 | `GRADIO_SHARE=true python gradio_app.py` |
-| 后台运行 | `nohup env GRADIO_SERVER_NAME=0.0.0.0 GRADIO_SERVER_PORT=7860 python gradio_app.py > gradio.log 2>&1 &` |
+| 本机测试 | `uvicorn app.main:app --host 0.0.0.0 --port 8000` |
+| 交互文档 | `http://127.0.0.1:8000/docs`（Swagger UI）/ `/redoc` |
+| 后台运行 | `nohup uvicorn app.main:app --host 0.0.0.0 --port 8000 > app.log 2>&1 &` |
 
 OCR 引擎（`.env` 的 ``OCR_ENGINE``，三种互不兜底）：
 
@@ -176,214 +146,93 @@ PADDLE_OCR_REC_MODEL=PP-OCRv5_server_rec
 # RapidOCR（CPU 本地）
 pip install "numpy<2" onnxruntime==1.16.3 rapidocr_onnxruntime==1.4.4
 
-# PaddleOCR 3.x / PP-OCRv5（与 samples/examples/test_paddleOCR.py 相同调用）
+# PaddleOCR 3.x / PP-OCRv5
 # 按 Paddle 官方安装 GPU/CPU 版 paddleocr
 ```
 
 | 项目 | 说明 |
 |---|---|
 | `.env` | HTTP 至少配置 `DEEPSEEK_API_KEY`；WebSocket 配置 `LLM_BACKEND=websocket` + `LLM_WS_*` |
-| 端口 | 云服务器需开放安全组 / 防火墙（如 `7860`） |
-| 反代 | 若用 Nginx，需放行 WebSocket（`Upgrade` / `Connection`），Gradio 队列依赖 WS |
-| 输出 | 写入 `output/{domain}/{task}/` |
-| 知识图谱 | SVG 需系统 Graphviz；HTML 可交互演示 |
+| 端口 | 云服务器需开放安全组 / 防火墙（如 `8000`） |
+| 反代 | 若用 Nginx，需放行 WebSocket（`Upgrade` / `Connection`） |
+| 产物 | API 产物写入 `data/{user_id}/output/{request_id}/`；CLI 归档写入 `output/{domain}/{task}/` |
+| 知识图谱 | HTML 可交互演示 |
 | 思维导图 | HTML 需 Node.js/npx；PNG 需 Playwright Chromium |
 
-样例与输出目录：
+样例与数据目录：
 
 | 目录 | 用途 |
 |---|---|
-| `samples/{domain}/file/` | 输入文本 `.txt` |
-| `perspective/profiles/` | 跨域公共客观画像 `.json` |
-| `perspective/profiles/role/` | 跨域公共职业模板 `.json` |
-| `samples/{domain}/profile/` | 域名下专属画像（如 notes 的客观/真人）`.json`（可选） |
-| `samples/{domain}/{task}_template/` | 任务模板 `.md` / `.txt` |
-| `output/{domain}/{task}/` | 运行结果归档 |
+| `data/{user_id}/docs/` | 接口 `docs[]` 的输入文件（图片/文档/笔记） |
+| `samples/{domain}/file/` | 样例输入文本 `.txt` |
+| `perspective/profiles/` | 跨域公共画像（客观 + 职业模板）`.json` |
+| `samples/{domain}/{task}_template/` | 任务模板样例 `.md` |
+| `data/{user_id}/output/{request_id}/` | API 每次调用产物（`result.md` / `result.html`） |
+| `data/{user_id}/memory/` | 跨会话记忆（records + chromadb 索引） |
+| `data/{user_id}/knowledge/` | 知识库向量 + 知识目录 JSON |
+| `output/{domain}/{task}/` | CLI 归档产物（时间戳命名） |
 
-#### 命令行
+## 接口调用
 
-常用任务：
+全部 9 个业务接口 + 健康检查，请求/响应结构统一，详见 **[API.md](API.md)**：
 
-| 场景 | 命令 |
-|---|---|
-| 会议纪要 + 待办 | `python bootstrap.py --task minutes --task actions` |
-| 思维导图演示 | `python bootstrap.py --task mindmap` |
-| 知识图谱演示 | `python bootstrap.py --domain notes --task graph` |
-| 笔记审查 | `python bootstrap.py --domain notes --task review` |
-| 自测题 | `python bootstrap.py --domain notes --task quiz` |
-| 资料入库 | `python bootstrap.py --domain notes --task library --file a.pptx --file b.pdf` |
-| 知识目录 | `python bootstrap.py --domain notes --task catalog --user_id user_001 --subject 数学 --file teacher_focus_limits.txt` |
-| 复习清单 | `python bootstrap.py --domain notes --task checklist --user_id user_001 --subject 数学 --file teacher_focus_limits.txt` |
-
-Linux/macOS 路径写法示例：
-
-```bash
-python3 bootstrap.py --domain notes --task graph \
-  --file student_math_notes.txt \
-  --profile object_profile.json
-```
-
-Windows PowerShell 路径写法示例：
-
-```bash
-# 指定任务线（可多值）
-python bootstrap.py --task minutes --task actions \
-  --file meeting_all.txt \
-  --profile object_profile.json
-
-# 思维导图：默认同时输出 HTML 和 PNG 到 output/meeting/mindmap/
-python bootstrap.py --task mindmap \
-  --file meeting_all.txt \
-  --profile object_profile.json
-
-# 笔记域：知识图谱（默认输出 SVG/HTML/学习地图到 output/notes/graph/；SVG 需系统安装 Graphviz）
-python bootstrap.py --domain notes --task graph --file student_math_notes.txt --profile object_profile.json
-```
-
-CLI 参数：
-
-| 参数 | 是否必填 | 默认值 | 说明 | 示例 |
-|---|---:|---|---|---|
-| `--domain` | 否 | `meeting` | 选择领域。会议域用 `meeting`，笔记域用 `notes`。 | `--domain notes` |
-| `--task` | 是 | 无 | 要运行的任务线，可重复传多个。 | `--task minutes --task actions` |
-| `--file` | 否 | `samples/{domain}/file` | 输入文件或目录，可重复。`library` 一次收多份；其它任务只用第一份。 | `--file student_math_notes.txt` |
-| `--profile` | 否 | `object_profile.json` | 用户画像 `.json`。默认客观全员（`perspective/profiles/`）；职业模板用 `developer_profile.json` 等；个人视角用 `personal_profile.json`。 | `--profile developer_profile.json` |
-| `--env` | 否 | `./.env` | 环境变量文件路径。 | `--env ./.env` |
-| `--{线名}_template` | 否 | 无 | 指定某条任务线的渲染模板。 | `--minutes_template ./template.md` |
-| `--difficulty` / `--qtype` | 否 | 无 | 自测题搜高中真题用：难度、题型。年级和课本版本由笔记对齐知识点后反推。 | `--qtype 单选题` |
-
-根目录 `samples/` 与终端参数一一对应：
-
-| 目录 | 对应参数 | 当前样例 |
+| 域 | 接口 | 用途 |
 |---|---|---|
-| `samples/meeting/file/` | `--domain meeting --file` | `meeting_all.txt` |
-| `perspective/profiles/role/` | `--profile`（跨域公共职业模板） | 6 个职业模板 |
-| `samples/meeting/minutes_template/` | `--minutes_template` | `simple_minutes.md` / `project_progress.md` / `test.md` |
-| `samples/meeting/actions_template/` | `--actions_template` | `actions.md` |
-| `samples/meeting/risk_template/` | `--risk_template` | 可放置 `.md` 模板 |
-| `samples/meeting/mindmap_template/` | `--mindmap_template` | 可放置 `.md` 模板 |
-| `samples/notes/file/` | `--domain notes --file` | `student_math_notes.txt` |
-| `samples/notes/profile/` | `--domain notes --profile` | `object_profile.json` |
-| `samples/notes/graph_template/` | `--graph_template` | 可放置 `.md` 模板 |
+| meeting | `POST /api/v1/meeting/minutes` | 会议纪要提取 |
+| meeting | `POST /api/v1/meeting/actions` | 待办提取 |
+| meeting | `POST /api/v1/meeting/risks` | 风险识别 |
+| meeting | `POST /api/v1/meeting/minutes_styles` | 多样式纪要 |
+| meeting | `POST /api/v1/meeting/minutes_trace` | 溯源纪要 |
+| notes | `POST /api/v1/notes/graph` | 知识图谱（学习地图 + 交互 HTML） |
+| notes | `POST /api/v1/notes/library` | 资料入库 |
+| notes | `POST /api/v1/notes/catalog` | 知识目录 |
+| notes | `POST /api/v1/notes/checklist` | 复习清单 |
+| - | `GET /api/v1/health` | 健康检查 + 任务线清单 |
 
-路径解析规则：
-
-| 写法 | 解析方式 |
-|---|---|
-| 不传 `--file` | 自动读取 `samples/{domain}/file/`，目录内必须只有一个 `.txt` |
-| `--file student_math_notes.txt` | 自动解析为 `samples/{domain}/file/student_math_notes.txt` |
-| `--file ./some/path/input.txt` | 使用项目根目录下的显式路径 |
-| 不传 `--profile` | 优先 `samples/{domain}/profile/object_profile.json`，无则用 `perspective/profiles/object_profile.json` |
-| `--profile developer_profile.json` | 自动解析：域名目录无则查 `perspective/profiles/role/`（职业模板公共目录） |
-| 不传 `--xx_template` | 自动查看 `samples/{domain}/xx_template/`；目录为空则不用模板，只有一个模板则自动使用 |
-| `--xx_template simple.md` | 自动解析为 `samples/{domain}/xx_template/simple.md` |
-
-模板参数是按当前 `--domain` 动态注册的。可用参数如下：
-
-| 领域 | 任务线 | 模板参数 | 环境变量 | 说明 |
-|---|---|---|---|---|
-| `meeting` | `minutes` | `--minutes_template` | `MEETING_MINUTES_GENERATION_TEMPLATE` | 会议纪要输出模板 |
-| `meeting` | `actions` | `--actions_template` | `MEETING_ACTION_ITEMS_TEMPLATE` | 待办事项输出模板 |
-| `meeting` | `risk` | `--risk_template` | `MEETING_RISK_TEMPLATE` | 风险分析输出模板 |
-| `meeting` | `mindmap` | `--mindmap_template` | `MEETING_MINDMAP_TEMPLATE` | 思维导图 Markdown 大纲模板 |
-| `notes` | `graph` | `--graph_template` | `NOTES_KNOWLEDGE_GRAPH_TEMPLATE` | 知识图谱 Markdown 大纲模板；不传模板时直接导出 SVG/HTML/学习地图 |
+```bash
+curl -X POST http://127.0.0.1:8000/api/v1/meeting/minutes \
+  -H "Content-Type: application/json" \
+  -H "X-User-Id: u1" \
+  -d '{"texts": {"transcript": "会议记录全文……"}}'
+```
 
 任务线：
 
 | 领域 | 任务线 | 输出内容 | 主要产物 |
 |---|---|---|---|
-| `meeting` | `minutes` | 会议纪要 | 终端文本 |
-| `meeting` | `actions` | 待办事项 | 终端文本 |
-| `meeting` | `risk` | 风险分析 | 终端文本 |
+| `meeting` | `minutes` | 会议纪要 | `output/meeting/minutes/result_*.md` / `.html` |
+| `meeting` | `actions` | 待办事项 | `output/meeting/actions/result_*.md` |
+| `meeting` | `risks` | 风险分析 | `output/meeting/risks/result_*.md` |
+| `meeting` | `minutes_styles` | 多样式纪要 | `output/meeting/minutes_styles/result_*.md` |
+| `meeting` | `minutes_trace` | 溯源纪要 | `output/meeting/minutes_trace/result_*.md` / `.html` |
 | `meeting` | `mindmap` | 思维导图 | `output/meeting/mindmap/mindmap_*.png` / `.html` |
-| `notes` | `graph` | 知识图谱 | `output/notes/graph/graph_*.svg` / `.html` / `.md` |
+| `notes` | `graph` | 知识图谱 | `output/notes/graph/graph_*.html` / `.md` |
 | `notes` | `review` | 笔记审查 | `output/notes/review/result_*.md` / `.html` |
 | `notes` | `quiz` | 自测题（推理题 + 高中题库真题） | `output/notes/quiz/result_*.md` / `.html` |
-| `notes` | `library` | 资料入库（信息熵报告） | `output/notes/library/result_*.md` / `.html` |
-| `notes` | `catalog` | 知识目录 | `output/notes/catalog/result_*.md` / `.html` |
+| `notes` | `library` | 资料入库（信息熵报告） | `output/notes/library/result_*.md` |
+| `notes` | `catalog` | 知识目录 | `output/notes/catalog/result_*.md` |
 | `notes` | `checklist` | 复习清单 | `output/notes/checklist/result_*.md` / `.html` |
 
 输出归档规则：
 
 | 目录 | 内容 | 说明 |
 |---|---|---|
-| `output/{domain}/{task}/report_时间戳.json` | 完整最终数据 | 除 `mindmap` / `graph` 外的任务线都会保存，包含结构化字段和质量提示 |
-| `output/{domain}/{task}/result_时间戳.md` | 最终文本 / 大纲 | 除 `mindmap` / `graph` 外，仅当该任务线有文本正文或 Markdown 大纲时保存 |
+| `output/{domain}/{task}/result_时间戳.md` | 最终文本 / 大纲 | 除 `mindmap` / `graph` 外，仅当该任务线有文本正文或 Markdown 大纲时保存；模板门禁失败时改写为 `result_时间戳_rejected.md` |
+| `output/{domain}/{task}/result_时间戳.html` | 页面版 | 仅以下线生成：`minutes`（记忆对照页/纯文本页）、`minutes_trace`（同 minutes）、`review` / `quiz` / `checklist`（各自交互页）；`actions` / `risks` / `minutes_styles` / `library` / `catalog` 不生成 |
 | `output/meeting/mindmap/mindmap_时间戳.html` | 思维导图 HTML | `mindmap` 目录只保留 HTML/PNG |
 | `output/meeting/mindmap/mindmap_时间戳.png` | 思维导图 PNG | `mindmap` 目录只保留 HTML/PNG；Playwright 不可用时跳过 |
-| `output/notes/graph/graph_时间戳.svg` | 知识图谱 SVG | 高清矢量图，适合演示；Graphviz 不可用时跳过 |
 | `output/notes/graph/graph_时间戳.html` | 知识图谱交互 HTML | Cytoscape.js 交互演示版 |
 | `output/notes/graph/graph_时间戳.md` | 学习地图 | 按主题分组的文本学习路径 |
 
-知识图谱输出文件：
-
-| 文件 | 用途 | 依赖 | 说明 |
-|---|---|---|---|
-| `graph_时间戳.svg` | PPT/浏览器高清演示 | Graphviz `dot` | 矢量图，中文和线条缩放更清楚 |
-| `graph_时间戳.html` | 交互演示 | 浏览器；联网可加载 Cytoscape.js CDN | 可缩放、拖拽、点击节点/关系查看定义和 evidence |
-
-可选环境变量（.env，均有默认值）：
-
-```
-MEETING_FILE=<会议文本路径>                     # 对应 --file
-MEETING_PROFILE=<用户画像路径>                  # 对应 --profile
-MEETING_MINUTES_GENERATION_TEMPLATE=<模板路径>  # 对应 --minutes_template
-NOTES_FILE=<笔记文本路径>                       # 对应 --file
-NOTES_PROFILE=<用户画像路径>                    # 对应 --profile
-NOTES_KNOWLEDGE_GRAPH_TEMPLATE=<模板路径>       # 对应 --graph_template
-```
-
-## 运行测试
-
-项目带一组 **pytest** 测试（`tests/`）：核心纯函数单测（目录合并 / 枚举归一化 / 重点分布 / 审核草稿压缩）+ **全库 Python 3.10 语法兼容检查**（拦截 f-string 反斜杠等 ≤3.11 语法回归）。
-
-```bash
-# 安装测试依赖（首次）
-pip install pytest
-
-# 运行全部测试（建议在 Python 3.10 环境跑，语法兼容检查才真正生效）
-python -m pytest
-```
-
-示例输出：
-
-```text
-16 passed in 0.70s
-```
-
-- 纯函数测试不调用 LLM / 外部 API，秒级完成
-- `tests/test_syntax_310.py` 会扫描全库 `.py`，任何在 Python 3.10 下不合法的语法（如 `f"{'\n'}"`）都会在提交时被拦截，而不是等到运行期卡死
-- 新增纯函数逻辑（merge / 统计 / 压缩 / 校验类）时，建议在 `tests/` 追加对应用例
-
 ## 自定义输出模板
 
-用 `--{线名}_template` 指定对应任务线的渲染模板（`.md` 文件）。每个任务线一个参数：
-
-| 任务线 | 模板参数 |
-|---|---|
-| minutes | `--minutes_template` |
-| actions | `--actions_template` |
-| risk | `--risk_template` |
-| mindmap | `--mindmap_template` |
-| graph | `--graph_template` |
-
-模板支持三种形式，系统**自动判型**处理：
+接口 `extra.template` 支持 29 个预设模板（见 API.md 4.5），也可通过 `TEMPLATE_ROUTER` 机制处理自定义模板。模板支持三种形式，系统**自动判型**处理：
 
 | 形式 | 示例 | 处理方式 |
 |---|---|---|
 | **占位符模板** | `# [会议主题]` / `\| [任务] \| [负责人] \|` | 固定文字逐字符保留，LLM 只填占位符 |
 | **格式规范模板** | 格式说明 + 输入/输出示例（如 JSON 数组） | 指令/示例分离，示例作 few-shot |
 | **自然语言描述** | "第一行是标题，括号里跟时间和人物" | LLM 先编译成占位符模板再填充 |
-
-```bash
-python bootstrap.py --task minutes --file ... --profile ... \
-  --minutes_template simple_minutes.md
-
-python bootstrap.py --domain notes --task graph \
-  --file student_math_notes.txt \
-  --profile object_profile.json \
-  --graph_template <模板文件名>.md
-```
 
 开关：环境变量 `TEMPLATE_ROUTER=off` 关闭模板路由，恢复旧行为。
 
@@ -399,7 +248,7 @@ python bootstrap.py --domain notes --task graph \
 ④ reports.py 末尾追加 XxxReport 类（继承 ModelMixin, XxxReportValidation）
 ⑤ python tools/scripts/sync_domain.py --domain meeting   # 全量生成 → SUCCESS!
 ⑥ python tools/scripts/sync_domain.py --domain meeting --check   # 校验 → SUCCESS!
-⑦ python bootstrap.py --task xxx --file ... --profile ...
+⑦ 在 app/routes/ 注册对应接口路由（参考现有路由）
 ```
 
 ## 架构要点
@@ -413,12 +262,13 @@ python bootstrap.py --domain notes --task graph \
   sync_domain 全量后按字段生成真实校验
 - **模板路由**：`tools/template_router/` 包自动判型三类模板并分派最优处理，
   任何失败回退旧路径；渲染输出附带只读校验（残留占位符/JSON 合法性）
+- **结构化输出加固**：`client/llmclient.py` 的 `structured()` 对截断输出做程序修复
+  （括号栈补全保留有效数据），非截断校验错误最多一次针对性重试，不再依赖 repair 兜底
 - **思维导图**：mindmap 线产出 Markdown 大纲，经 `tools/mindmap.py` 固定导出
   交互式 HTML（markmap，离线单文件）和 PNG 图片（Playwright 截图）；
   npx/playwright 缺失时自动降级不影响主流程
 - **知识图谱**：notes 域 graph 线提取概念节点与关系边（nodes/edges，
-  均锚定原文 + evidence），经 `tools/graph.py` 同时导出 SVG、
-  Cytoscape.js 交互式 HTML 和学习地图 Markdown（默认输出到 `output/notes/graph/`）；悬空边自动过滤、
-  中文 label 自动探测字体，dot 缺失时 SVG 自动跳过，HTML 仍尽量生成
+  均锚定原文 + evidence），经 `tools/graph.py` 导出 Cytoscape.js 交互式 HTML 和学习地图 Markdown（默认输出到 `output/notes/graph/`）；悬空边自动过滤、HTML 仍尽量生成；
+  传 `X-User-Id` + `extra.subject` 时按学科跨会话增量（新增节点高亮，见 API.md 6.6）
 - **输出稳定性**：各线 prompt 采用确定性规则（数量由内容决定、措辞锚定原文、
   顺序按原文出现、空字段 null/[]），同一输入重复运行保持内容与篇幅稳定

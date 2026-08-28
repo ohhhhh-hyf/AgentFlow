@@ -115,33 +115,17 @@ def _ocr_images_to_library_markdown(
         hi = event.get("hi")
         if kind == "ocr_start":
             print(
-                f"[资料入库] OCR 正在识别第 {lo}-{hi} 张"
-                f"（并行 {event.get('workers')} 路，共 {total} 张）…",
-                flush=True,
-            )
-        elif kind == "ocr_item":
-            print(
-                f"[资料入库] OCR 第 {lo}-{hi} 张进度 "
-                f"{event.get('done')}/{event.get('chunk')}："
-                f"已完成 {event.get('name')}",
+                f"[资料入库] 正在识别第 {lo}-{hi} 张（共 {total} 张）…",
                 flush=True,
             )
         elif kind == "ocr_fail":
             print(
-                f"[资料入库] OCR 第 {lo}-{hi} 张进度 "
-                f"{event.get('done')}/{event.get('chunk')}："
-                f"{event.get('name')} 失败（{event.get('error')}），已跳过。",
-                flush=True,
-            )
-        elif kind == "ocr_wait":
-            print(
-                f"[资料入库] OCR 第 {lo}-{hi} 张进度 "
-                f"{event.get('done')}/{event.get('chunk')}，仍在等待…",
+                f"[资料入库] {event.get('name')} 识别失败（{event.get('error')}），已跳过。",
                 flush=True,
             )
         elif kind == "review_start":
             print(
-                f"[资料入库] OCR 第 {lo}-{hi} 张识别完成，正在整理并审校 Markdown…",
+                f"[资料入库] 正在审校整理第 {lo}-{hi} 张 Markdown…",
                 flush=True,
             )
         elif kind == "batch_done":
@@ -152,7 +136,7 @@ def _ocr_images_to_library_markdown(
             if raw:
                 raw_blocks.append(raw)
             print(
-                f"[资料入库] OCR 第 {lo}-{hi} 张整理完成。",
+                f"[资料入库] 第 {lo}-{hi} 张整理完成。",
                 flush=True,
             )
     stem = next_batch_version_stem(user_id, subject, project_root)
@@ -164,7 +148,7 @@ def _ocr_images_to_library_markdown(
         subject=subject,
         project_root=project_root,
     )
-    print(f"[资料入库] 图片 OCR 已合并为 Markdown：{saved.reviewed_path}", flush=True)
+    print(f"[资料入库] 图片 OCR 处理完成，已合并为 Markdown：{saved.reviewed_path}", flush=True)
     return saved.reviewed_path
 
 
@@ -178,6 +162,19 @@ def _ngrams(text: str, size: int) -> set[str]:
     if not blob:
         return set()
     return {blob[i : i + size] for i in range(len(blob) - size + 1)}
+
+
+_NUM_PREFIX_RE = re.compile(r"^\s*(?:第?[0-9一二三四五六七八九十百]+[节章部分讲课]?[.、．]\s*|\d+\s*[.、．]\s*)")
+
+
+def _title_key(text: str) -> str:
+    """标题归一化键：去空白/编号前缀/常见后缀，用于「同名标题不同内容 → 判更新」的匹配。"""
+    blob = _compact(text)
+    blob = _NUM_PREFIX_RE.sub("", blob)
+    for suffix in ("的定义", "的概念", "的性质", "详解", "总结", "小结"):
+        if blob.endswith(suffix) and len(blob) > len(suffix):
+            blob = blob[: -len(suffix)]
+    return blob
 
 
 def _units(text: str) -> list[str]:
@@ -230,11 +227,15 @@ def _is_independent(text: str, old_texts: list[str]) -> bool:
     blob = _compact(text)
     if len(blob) < 8:
         return False
+    norm_key = _title_key(text)
     for old in old_texts:
         other = _compact(old)
         if not other:
             continue
         if blob in other or other in blob:
+            return False
+        # 双键：标题归一化键相同 → 判为同一知识点（不同措辞/编号也算重复）
+        if norm_key and len(norm_key) >= 4 and norm_key == _title_key(old):
             return False
         grams = _ngrams(blob, 6)
         shared = grams & _ngrams(other, 6)
@@ -446,12 +447,11 @@ def build_library_html(draft: dict[str, Any]) -> str:
 
 
 def attach_library_artifacts(state: dict[str, Any]) -> None:
-    """对照页进 rendered；裁决按钮进 library_html。"""
+    """对照页进 rendered。"""
     from tools.domain_engine import line
 
     sub = line(state, "library")
     draft = dict(sub.get("draft") or {})
-    draft["library_html"] = build_library_html(draft)
     sub["rendered"] = build_library_markdown(draft)
     sub["draft"] = draft
 

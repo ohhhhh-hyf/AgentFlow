@@ -1,10 +1,15 @@
-"""Runtime orchestration for selected task lines."""
+"""Runtime orchestration for selected task lines.
+
+- ``prepare_run``：输入组装 + 注入 + 模板编译（run 与 API 流式接口共用）
+- ``run``：准备 + 消费流式事件 + 产物落盘（同步聚合入口）
+- ``_handle_done``：done 事件落盘 + 图类导出
+"""
 from __future__ import annotations
 
-import argparse
 import logging
 import os
 import sys
+from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
 
@@ -30,7 +35,7 @@ from tools.outputs import (
     save_all_reports,
     task_output_dir,
 )
-from .runtime_context import DomainContext, env_path, normalize_tasks
+from .runtime_context import DomainContext, normalize_tasks
 from tools.memory.runtime import MEMORY_LINES
 from tools.runtime.kinds import sidecar_lines
 from tools.template_router import LINE_SCHEMA_HINTS, maybe_compile_natural_template
@@ -38,29 +43,14 @@ from tools.template_router import LINE_SCHEMA_HINTS, maybe_compile_natural_templ
 logger = logging.getLogger(__name__)
 
 
-# ── CLI 参数解析（bootstrap.py 入口用）─────────────────────────
-
 def _monitor_enabled(no_monitor: bool) -> bool:
-    """任务监控开关：--no-monitor 优先，其次 TASK_MONITOR 环境变量，默认开启。
-
-    TASK_MONITOR 取值：0/false/off/no/disable → 关闭；其它或未设置 → 开启。
-    """
+    """任务监控开关：run(monitor=) 参数优先，其次 TASK_MONITOR 环境变量，默认开启。"""
     if no_monitor:
         return False
     env = os.getenv("TASK_MONITOR", "").strip().lower()
     if env in {"0", "false", "off", "no", "disable", "disabled"}:
         return False
     return True
-
-
-_USAGE_KEYS = (
-    "prompt_tokens",
-    "completion_tokens",
-    "total_tokens",
-    "calls",
-    "cache_hits",
-    "cache_hit_tokens",
-)
 
 
 def _client_usage(system) -> dict:
@@ -72,6 +62,15 @@ def _client_usage(system) -> dict:
         return {}
 
 
+_USAGE_KEYS = (
+    "prompt_tokens",
+    "completion_tokens",
+    "total_tokens",
+    "calls",
+    "cache_hit_tokens",
+)
+
+
 def _usage_diff(before: dict, after: dict) -> dict:
     """基线差值：本次任务实际消耗（供 API 的 token_usage / cache_hit_tokens 字段）。"""
     return {
@@ -80,186 +79,34 @@ def _usage_diff(before: dict, after: dict) -> dict:
     }
 
 
-def build_parser(ctx: DomainContext) -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(
-        description=f"运行 {ctx.name} 域任务线（可用 --task 指定生成哪条线）",
-    )
-    parser.add_argument(
-        "--domain",
-        default=ctx.name,
-        help=f"领域名（默认 {ctx.name}）",
-    )
-    parser.add_argument(
-        "--file",
-        dest="files",
-        action="append",
-        type=Path,
-        default=None,
-        help="输入文件或目录，可重复：--file a.pptx --file b.pdf。"
-        "资料入库可一次传多份；其它任务沿用第一个文件。"
-        "不传则用默认样例目录",
-    )
-    _default_profile = env_path(ctx, "PROFILE", None)
-    if _default_profile is None:
-        from tools.profiles import SHARED_PROFILE_DIR
-
-        _objective = ctx.cli_samples_dir / "profile" / "object_profile.json"
-        if not _objective.exists():
-            # 客观画像已抽到跨域公共目录（perspective/profiles）
-            _objective = SHARED_PROFILE_DIR / "object.json"
-        _default_profile = (
-            _objective if _objective.exists() else ctx.default_profile_dir
-        )
-    parser.add_argument(
-        "--profile",
-        dest="profile",
-        type=Path,
-        default=_default_profile,
-        help="用户画像 JSON 文件或目录。"
-        "默认 samples/{domain}/profile/object_profile.json（客观全员）；"
-        "个人视角请指定 personal_profile.json。"
-        "传目录时优先 object_profile.json",
-    )
-    parser.add_argument(
-        "--env",
-        type=Path,
-        default=ctx.project_root / ".env",
-        help="环境变量文件路径",
-    )
-    parser.add_argument(
-        "--no-monitor",
-        dest="no_monitor",
-        action="store_true",
-        default=False,
-        help="关闭任务监控（token/耗时/按层细分落盘 output/monitor/）。"
-        "默认开启；也可用环境变量 TASK_MONITOR=0 关闭",
-    )
-    parser.add_argument(
-        "--user_id",
-        default=None,
-        help="用户标识。提供后启用项目记忆：纪要对照历史，知识图谱增量合并",
-    )
-    parser.add_argument(
-        "--project",
-        dest="project_id",
-        default=None,
-        help="项目标识（可选）。会议域指定则强制写入该项目；"
-        "笔记域若未传 --subject，可把本项当作学科名",
-    )
-    parser.add_argument(
-        "--subject",
-        default=None,
-        help="学科名称。资料入库/知识目录/复习清单：与 --user_id 一起决定知识库范围；"
-        "笔记图谱记忆：同一 --user_id + --subject 增量合并图谱；"
-        "自测题：只用来调难度，不写记忆",
-    )
-    parser.add_argument(
-        "--chapter",
-        default=None,
-        help="章节名称（笔记自测题用，可选）",
-    )
-    parser.add_argument(
-        "--level",
-        default=None,
-        help="已弃用。自测题水平固定为期中备考，传入值会被忽略。",
-    )
-    parser.add_argument(
-        "--grade",
-        default=None,
-        help="已弃用。年级由笔记对齐到的知识点反推，传入值会被忽略。",
-    )
-    parser.add_argument(
-        "--edition",
-        default=None,
-        help="已弃用。课本版本由笔记对齐到的知识点反推，传入值会被忽略。",
-    )
-    parser.add_argument(
-        "--difficulty",
-        default=None,
-        help="题目难度：容易 / 较易 / 适中 / 较难 / 困难（笔记自测题搜题用，可选）",
-    )
-    parser.add_argument(
-        "--qtype",
-        default=None,
-        help="题目类型：单选题 / 多选题 / 填空题 / 解答题 / 判断题（笔记自测题搜题用，可选）",
-    )
-    for line in sorted(ctx.task_lines):
-        cn = ctx.line_cn_names.get(line, line)
-        policy = (ctx.line_policies or {}).get(line)
-        if policy is None or policy.cli_template:
-            parser.add_argument(
-                f"--{line}_template",
-                dest=f"{line}_template",
-                type=Path,
-                default=env_path(ctx, f"{line.upper()}_TEMPLATE", None),
-                help=f"{cn}线渲染模板（.md 文件）。模板中用 [描述] 作为占位符，"
-                "系统将自动填充内容。不指定则使用默认格式",
-            )
-        if policy is not None and policy.cli_mode:
-            parser.add_argument(
-                f"--{line}_mode",
-                dest=f"{line}_mode",
-                default=None,
-                help=f"{cn}线组织模式（如 minutes_styles 的 "
-                "time/logic/causal/party/urgency；仅支持组织模式的线生效）",
-            )
-    parser.add_argument(
-        "--task",
-        dest="tasks",
-        action="append",
-        required=True,
-        metavar="任务",
-        help="要生成的任务，可多次指定。"
-        f"可用：{' / '.join(sorted(ctx.task_lines))}，也支持友好名 "
-        f"{' / '.join(sorted(ctx.task_aliases))}",
-    )
-    return parser
-
-
-def collect_templates(ctx: DomainContext, args: argparse.Namespace) -> dict[str, Path]:
-    templates: dict[str, Path] = {}
-    for line in ctx.task_lines:
-        path = getattr(args, f"{line}_template", None)
-        if path is not None:
-            templates[line] = path
-    return templates
-
-
-def collect_input_files(ctx: DomainContext, args: argparse.Namespace) -> list[Path]:
-    """收集 --file（可多次）。未传则回退默认样例路径。"""
-    items = [Path(item) for item in (getattr(args, "files", None) or []) if item]
-    if items:
-        return items
-    fallback = env_path(ctx, "FILE", ctx.default_file_dir)
-    return [Path(fallback)] if fallback else []
-
-
-def collect_modes(ctx: DomainContext, args: argparse.Namespace) -> dict[str, str]:
-    """收集各线组织模式参数（--{线名}_mode，仅传了才生效）。"""
-    modes: dict[str, str] = {}
-    for line in ctx.task_lines:
-        value = getattr(args, f"{line}_mode", None)
-        if value:
-            modes[line] = value.strip().lower()
-    return modes
-
-
-def parse_domain_name(default: str = "meeting") -> str:
-    pre = argparse.ArgumentParser(add_help=False)
-    pre.add_argument("--domain", default=default)
-    pre_args, _ = pre.parse_known_args()
-    return pre_args.domain
-
-
 def _as_file_list(file: Path | list[Path] | tuple[Path, ...] | None) -> list[Path]:
-    if file is None:
+    if not file:
         return []
     if isinstance(file, (list, tuple)):
         return [Path(item) for item in file if item]
     return [Path(file)]
 
 
-async def run(
+@dataclass
+class PreparedRun:
+    """run() 的共享准备结果：输入组装 + 注入 + 模板编译（同步/流式共用）。"""
+
+    ctx: DomainContext
+    system: object
+    user: object
+    transcript: str
+    line_names: list[str]
+    template_texts: dict[str, str]
+    line_extra: dict[str, str]
+    memory_bind: object | None
+    memory_enabled: bool
+    graph_silent: bool
+    usage_before: dict
+    task_monitor: object | None
+    subject: str | None
+
+
+async def prepare_run(
     ctx: DomainContext,
     file: Path | list[Path],
     profile: Path,
@@ -276,24 +123,13 @@ async def run(
     edition: str | None = None,
     difficulty: str | None = None,
     qtype: str | None = None,
+    *,
     compile_natural: bool = True,
     monitor: bool = True,
     collect_reports: bool = False,
     extra_line_inputs: dict[str, str] | None = None,
-) -> dict | None:
-    """Run selected task lines and persist their final artifacts.
-
-    compile_natural：为 False 时不再把模板当自然语言二次编译。
-    前端「确认模板并运行」必须关，否则用户改过的友好模板会被重新编译回首稿。
-    monitor：是否启用任务监控（tools.monitor）。None 时按环境变量 TASK_MONITOR 决定。
-    collect_reports：为 True 时返回结构化结果（供 API 层使用），
-    返回 {"monitor", "reports", "understanding", "quality_warning", "saved", "usage"}：
-      reports = {线名: 报告 dict}；saved = {线名: {text/html/... 产物路径}}；
-      usage = {total_tokens, cache_hit_tokens, ...}（基线差值）；
-    为 False 时保持旧行为，只返回任务监控 payload（或无）。
-    extra_line_inputs：{线名: 注入文本}，直接注入该线的 line_extra（供 API 层传
-    溯源材料等文本，避免落临时 sidecar 文件）。
-    """
+) -> PreparedRun:
+    """输入组装 + 注入 + 模板编译（run 与流式接口共用；本函数不执行任务）。"""
     setup_logging()
     load_env(resolve_path(ctx, env_file))
 
@@ -360,7 +196,6 @@ async def run(
     system = ctx.system_cls()
     usage_before = _client_usage(system) if collect_reports else {}
     # ── 任务监控（tools.monitor；异常不影响主流程）──────────────
-    # 开关：run(monitor=) 参数（CLI --no-monitor）优先，其次 TASK_MONITOR 环境变量
     _task_monitor = None
     if monitor and _monitor_enabled(no_monitor=False):
         try:
@@ -395,9 +230,7 @@ async def run(
         except Exception:  # noqa: BLE001 - 监控失败不阻断任务
             logger.warning("任务监控 start 失败，本次不监控", exc_info=True)
             _task_monitor = None
-    any_output = False
-    silent_graph_lines = {"mindmap", "graph"}
-    graph_silent = any(line in silent_graph_lines for line in line_names)
+    graph_silent = any(line in {"mindmap", "graph"} for line in line_names)
 
     memory_bind = None
     line_extra: dict[str, str] = {}
@@ -463,6 +296,100 @@ async def run(
             f"{prev}\n\n{value}".strip() if prev else value
         )
 
+    # 模板编译（异步；异常向上抛，由调用方决定降级）
+    template_texts: dict[str, str] = {}
+    for line, path in (templates or {}).items():
+        if line not in line_names:
+            continue
+        if path is None:
+            continue
+        template_file = _resolve_template_file(ctx, line, Path(path))
+        if template_file is None:
+            continue
+        text = template_file.read_text(encoding="utf-8").strip()
+        if not text:
+            raise ValueError(f"{line} 模板文件为空：{template_file}")
+        if compile_natural:
+            text = await maybe_compile_natural_template(
+                text,
+                domain=ctx.name,
+                line_name=line,
+                schema_hint=LINE_SCHEMA_HINTS.get(line, ""),
+                client=getattr(system, "client", None),
+            )
+        template_texts[line] = text
+
+    return PreparedRun(
+        ctx=ctx,
+        system=system,
+        user=user,
+        transcript=transcript,
+        line_names=line_names,
+        template_texts=template_texts,
+        line_extra=line_extra,
+        memory_bind=memory_bind,
+        memory_enabled=memory_enabled,
+        graph_silent=graph_silent,
+        usage_before=usage_before,
+        task_monitor=_task_monitor,
+        subject=subject,
+    )
+
+
+async def run(
+    ctx: DomainContext,
+    file: Path | list[Path],
+    profile: Path,
+    env_file: Path,
+    templates: dict[str, Path] | None = None,
+    tasks: list[str] | None = None,
+    modes: dict[str, str] | None = None,
+    user_id: str | None = None,
+    project_id: str | None = None,
+    subject: str | None = None,
+    chapter: str | None = None,
+    level: str | None = None,
+    grade: str | None = None,
+    edition: str | None = None,
+    difficulty: str | None = None,
+    qtype: str | None = None,
+    compile_natural: bool = True,
+    monitor: bool = True,
+    collect_reports: bool = False,
+    extra_line_inputs: dict[str, str] | None = None,
+) -> dict | None:
+    """Run selected task lines and persist their final artifacts.
+
+    compile_natural：为 False 时不再把模板当自然语言二次编译。
+    monitor：是否启用任务监控（tools.monitor）。None 时按环境变量 TASK_MONITOR 决定。
+    collect_reports：为 True 时返回结构化结果（供 API 层使用），
+    返回 {"monitor", "reports", "understanding", "quality_warning", "saved", "usage"}：
+      reports = {线名: 报告 dict}；saved = {线名: {text/html/... 产物路径}}；
+      usage = {total_tokens, cache_hit_tokens, ...}（基线差值）；
+    为 False 时保持旧行为，只返回任务监控 payload（或无）。
+    extra_line_inputs：{线名: 注入文本}，直接注入该线的 line_extra（供 API 层传
+    溯源材料等文本，避免落临时 sidecar 文件）。
+    """
+    prep = await prepare_run(
+        ctx, file, profile, env_file, templates, tasks, modes, user_id,
+        project_id, subject, chapter, level, grade, edition, difficulty, qtype,
+        compile_natural=compile_natural, monitor=monitor,
+        collect_reports=collect_reports, extra_line_inputs=extra_line_inputs,
+    )
+    system = prep.system
+    ctx = prep.ctx
+    line_names = prep.line_names
+    transcript = prep.transcript
+    user = prep.user
+    template_texts = prep.template_texts
+    line_extra = prep.line_extra
+    memory_enabled = prep.memory_enabled
+    memory_bind = prep.memory_bind
+    graph_silent = prep.graph_silent
+    usage_before = prep.usage_before
+    _task_monitor = prep.task_monitor
+    subject = prep.subject
+
     last_done = None
     run_error: BaseException | None = None
     monitor_payload = None
@@ -472,28 +399,8 @@ async def run(
         "quality_warning": None,
         "saved": {},
     }
+    any_output = False
     try:
-        template_texts: dict[str, str] = {}
-        for line, path in (templates or {}).items():
-            if line not in line_names:
-                continue
-            if path is None:
-                continue
-            template_file = _resolve_template_file(ctx, line, Path(path))
-            if template_file is None:
-                continue
-            text = template_file.read_text(encoding="utf-8").strip()
-            if not text:
-                raise ValueError(f"{line} 模板文件为空：{template_file}")
-            if compile_natural:
-                text = await maybe_compile_natural_template(
-                    text,
-                    domain=ctx.name,
-                    line_name=line,
-                    schema_hint=LINE_SCHEMA_HINTS.get(line, ""),
-                    client=getattr(system, "client", None),
-                )
-            template_texts[line] = text
         async for event in system.run_streaming(
             transcript,
             user,
@@ -504,7 +411,7 @@ async def run(
         ):
             etype = event["type"]
             if etype == "chunk":
-                if event.get("line") in silent_graph_lines:
+                if event.get("line") in {"mindmap", "graph"}:
                     continue
                 any_output = True
                 sys.stdout.write(event["text"])
@@ -522,6 +429,8 @@ async def run(
                 else:
                     await _handle_done(ctx, event)
                 if memory_enabled and memory_bind is not None:
+                    from tools.memory import persist
+
                     persist(
                         ctx.project_root,
                         ctx.name,
@@ -619,8 +528,6 @@ async def _handle_done(ctx: DomainContext, event: dict) -> dict | None:
         try:
             kg_dir = task_output_dir(ctx, "graph")
             kg_paths = export_graph(reports, kg_dir)
-            if kg_paths.get("svg"):
-                sys.stdout.write(f"[知识图谱] 已生成 SVG：{kg_paths['svg']}\n")
             if kg_paths.get("html"):
                 sys.stdout.write(f"[知识图谱] 已生成 HTML：{kg_paths['html']}\n")
             if kg_paths.get("text"):
@@ -654,12 +561,4 @@ def _resolve_template_file(
     return pick_single_file(resolved.parent, resolved.name, f"{line_name} 模板")
 
 
-__all__ = [
-    "build_parser",
-    "collect_input_files",
-    "collect_modes",
-    "collect_templates",
-    "parse_domain_name",
-    "run",
-]
-
+__all__ = ["PreparedRun", "prepare_run", "run"]

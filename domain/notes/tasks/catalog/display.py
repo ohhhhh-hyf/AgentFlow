@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import json
+import re
 from html import escape
 from pathlib import Path
 from typing import Any
@@ -51,8 +52,36 @@ _RISK = {
 }
 
 
+_HEADING_PREFIX_RE = re.compile(
+    r"^(?:"
+    r"[一二三四五六七八九十百]+[、.．:：\s]\s*"
+    r"|[（(][一二三四五六七八九十百\d]+[）)][、.．:：\s]*"
+    r"|\d+(?:\.\d+)*[、.．:：\s]\s*"
+    r"|[IVXLCDMivxlcdm]+[、.．:：\s]\s*"
+    r"|第[0-9一二三四五六七八九十百]+[章节部分讲课项点步阶段周单元][、.．:：\s]*"
+    r")"
+)
+
+
+def strip_heading_prefix(text: object) -> str:
+    """剔除章节/主题/知识点名称中的序号前缀（如：'四、xxxxx'、'（五）xxxx'、'1. xxxx'、'第3节 xxxx'）。"""
+    raw = " ".join(str(text or "").split()).strip()
+    if not raw:
+        return ""
+    cleaned = raw
+    while True:
+        m = _HEADING_PREFIX_RE.match(cleaned)
+        if m:
+            remainder = cleaned[m.end():].strip()
+            if remainder:
+                cleaned = remainder
+                continue
+        break
+    return cleaned or raw
+
+
 def _clean(text: object) -> str:
-    return " ".join(str(text or "").split()).strip()
+    return strip_heading_prefix(text)
 
 
 def _as_list(value: object) -> list[str]:
@@ -306,7 +335,14 @@ def _html_tree(draft: dict[str, Any]) -> list[str]:
 def attach_catalog_artifacts(state: dict[str, Any]) -> None:
     from tools.domain_engine_text import line
 
-    from .gather import subject_from_context, user_id_from_context
+    from .gather import (
+        backfill_catalog_trace,
+        complement_catalog_coverage,
+        compute_catalog_signals,
+        subject_from_context,
+        trim_catalog_scale,
+        user_id_from_context,
+    )
     from .store import save_catalog
 
     sub = line(state, "catalog")
@@ -314,13 +350,17 @@ def attach_catalog_artifacts(state: dict[str, Any]) -> None:
     extra = str((state.get("line_extra") or {}).get("catalog") or "")
     transcript = str(state.get("transcript") or "")
     context = f"{transcript}\n{extra}"
+    # 输出侧流水线(均零 LLM):候选补缺 → 规模合并 → 溯源/老师回填 → 重要性计算
+    draft = complement_catalog_coverage(draft, context)
+    draft = trim_catalog_scale(draft, context)
+    draft = backfill_catalog_trace(draft, context)
+    draft = compute_catalog_signals(draft)
     saved = save_catalog(
         user_id=user_id_from_context(context),
         subject=subject_from_context(context),
         draft=draft,
     )
     shown = display_catalog_path(saved)
-    draft["catalog_html"] = build_catalog_html(draft, saved_path=shown)
     sub["rendered"] = build_catalog_markdown(draft, saved_path=shown)
     sub["draft"] = draft
     sub["structure"] = draft.get("chapters") or []

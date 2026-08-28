@@ -49,8 +49,36 @@ def _now() -> str:
     return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
+_HEADING_PREFIX_RE = re.compile(
+    r"^(?:"
+    r"[一二三四五六七八九十百]+[、.．:：\s]\s*"
+    r"|[（(][一二三四五六七八九十百\d]+[）)][、.．:：\s]*"
+    r"|\d+(?:\.\d+)*[、.．:：\s]\s*"
+    r"|[IVXLCDMivxlcdm]+[、.．:：\s]\s*"
+    r"|第[0-9一二三四五六七八九十百]+[章节部分讲课项点步阶段周单元][、.．:：\s]*"
+    r")"
+)
+
+
+def strip_heading_prefix(text: object) -> str:
+    """剔除章节/主题/知识点名称中的序号前缀（如：'四、xxxxx'、'（五）xxxx'、'1. xxxx'、'第3节 xxxx'）。"""
+    raw = " ".join(str(text or "").split()).strip()
+    if not raw:
+        return ""
+    cleaned = raw
+    while True:
+        m = _HEADING_PREFIX_RE.match(cleaned)
+        if m:
+            remainder = cleaned[m.end():].strip()
+            if remainder:
+                cleaned = remainder
+                continue
+        break
+    return cleaned or raw
+
+
 def _clean(text: object) -> str:
-    return " ".join(str(text or "").split()).strip()
+    return strip_heading_prefix(text)
 
 
 def _as_list(value: object) -> list[str]:
@@ -105,6 +133,12 @@ def _match_node(incoming: dict[str, Any], existing_nodes: list[dict[str, Any]]) 
     for node in existing_nodes:
         if _names_of(node) & names:
             return node
+    # 归一化匹配：同义/改名（去编号前缀）仍复用旧 ID
+    norm = {_norm_name(n) for n in names if _norm_name(n)}
+    if norm:
+        for node in existing_nodes:
+            if {_norm_name(n) for n in _names_of(node) if _norm_name(n)} & norm:
+                return node
     return None
 
 
@@ -180,14 +214,9 @@ def _merge_point(old: dict[str, Any], new: dict[str, Any], stamp: str) -> tuple[
         changed = True
     merged["related_points"] = rel_out
 
-    merged["teacher_emphasis"] = _max_rank(
-        str(old.get("teacher_emphasis") or "0"),
-        str(new.get("teacher_emphasis") or "0"),
-        _EMPHASIS_RANK,
-        "0",
-    )
-    if merged["teacher_emphasis"] != str(old.get("teacher_emphasis") or "0"):
-        changed = True
+    # teacher_emphasis 由程序按本轮老师文本回填（确定性），增量时用新值；
+    # exam_signal 仍保留历史最大值（考试信号可跨场次累积）
+    merged["teacher_emphasis"] = new.get("teacher_emphasis") or old.get("teacher_emphasis")
     merged["exam_signal"] = _max_rank(
         str(old.get("exam_signal") or "none"),
         str(new.get("exam_signal") or "none"),
@@ -203,8 +232,10 @@ def _merge_point(old: dict[str, Any], new: dict[str, Any], stamp: str) -> tuple[
             changed = True
         merged["note_coverage"] = new_cov
 
-    # importance / difficulty / 类型：增量时保持旧值，避免每次重评
-    merged["importance"] = old.get("importance") or new.get("importance")
+    # importance / review_weight 由程序确定性计算，增量时用新值（不抖动、随目录变化更新）；
+    # difficulty / 类型 仍保持旧值（LLM 填写，避免每次重评抖动）
+    merged["importance"] = new.get("importance") or old.get("importance")
+    merged["review_weight"] = new.get("review_weight") or old.get("review_weight")
     merged["difficulty"] = old.get("difficulty") or new.get("difficulty")
     merged["foundational_level"] = old.get("foundational_level") or new.get("foundational_level")
     merged["knowledge_type"] = old.get("knowledge_type") or new.get("knowledge_type")
@@ -659,7 +690,13 @@ _FINE_GRAIN_RE = re.compile(
 
 
 def _norm_name(text: object) -> str:
-    return re.sub(r"[\s:：,，。；;、（）()\[\]【】《》“”\"'·\-—_]+", "", str(text or "").lower())
+    blob = re.sub(r"[\s:：,，。；;、（）()\[\]【】《》“”\"'·\-—_]+", "", str(text or "").lower())
+    # 去编号前缀（「1. 数列极限的定义」「第2节极限」→「数列极限的定义/极限」），改名也能复用 ID
+    return re.sub(
+        r"^(?:第?[0-9一二三四五六七八九十百]+[节章部分讲课]?[.、．]?|\d+[.、．])",
+        "",
+        blob,
+    )
 
 
 def _base_of_fine_point(name: str) -> str:

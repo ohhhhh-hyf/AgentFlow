@@ -161,9 +161,14 @@ def build_checklist_briefing(
     else:
         parts.append("【激活 KP】只能给下面这些 id 写卡片：")
         for row in activated:
+            fingerprint = str(row.get("content_fingerprint") or "").strip()
+            evidence = row.get("evidence") or []
+            if isinstance(evidence, str):
+                evidence = [evidence]
             parts.append(
                 f"- {row.get('id')} | {row.get('name')} | {row.get('session_priority')} | "
-                f"type={row.get('knowledge_type')} | items={','.join(row.get('knowledge_items') or [])} | "
+                f"type={row.get('knowledge_type')} | rw={row.get('review_weight')} | "
+                f"items={','.join(row.get('knowledge_items') or [])} | "
                 f"focus={','.join(row.get('session_focus_items') or [])} | "
                 f"missing={','.join(row.get('note_missing_items') or [])} | "
                 f"emph={row.get('session_emphasis')} | exam={row.get('session_exam_signal')} | "
@@ -171,6 +176,10 @@ def build_checklist_briefing(
                 f"related={','.join(row.get('session_related_points') or [])} | "
                 f"quotes={' / '.join((row.get('session_quotes') or [])[:2])}"
             )
+            if evidence:
+                parts.append(f"    证据：{evidence[0][:150]}")
+            if fingerprint:
+                parts.append(f"    指纹：{fingerprint[:150]}")
             excerpt = str(row.get("_kb_excerpt") or "").strip()
             if excerpt:
                 parts.append(f"    原文片段：{excerpt[:400]}")

@@ -128,8 +128,36 @@ def _brief_chunks(
     return grouped
 
 
+_HEADING_PREFIX_RE = re.compile(
+    r"^(?:"
+    r"[一二三四五六七八九十百]+[、.．:：\s]\s*"
+    r"|[（(][一二三四五六七八九十百\d]+[）)][、.．:：\s]*"
+    r"|\d+(?:\.\d+)*[、.．:：\s]\s*"
+    r"|[IVXLCDMivxlcdm]+[、.．:：\s]\s*"
+    r"|第[0-9一二三四五六七八九十百]+[章节部分讲课项点步阶段周单元][、.．:：\s]*"
+    r")"
+)
+
+
+def strip_heading_prefix(text: object) -> str:
+    """剔除章节/主题/知识点名称中的序号前缀（如：'四、xxxxx'、'（五）xxxx'、'1. xxxx'、'第3节 xxxx'）。"""
+    raw = " ".join(str(text or "").split()).strip()
+    if not raw:
+        return ""
+    cleaned = raw
+    while True:
+        m = _HEADING_PREFIX_RE.match(cleaned)
+        if m:
+            remainder = cleaned[m.end():].strip()
+            if remainder:
+                cleaned = remainder
+                continue
+        break
+    return cleaned or raw
+
+
 def _clean_title(text: str) -> str:
-    return " ".join(str(text or "").split()).strip()
+    return strip_heading_prefix(text)
 
 
 def _title_path(row: dict[str, str]) -> list[str]:
@@ -446,6 +474,28 @@ def _compact_standard_metas(metas: list[dict[str, Any]]) -> str:
     return json.dumps(compacted, ensure_ascii=False)[:10000]
 
 
+def _existing_kp_count(catalog: dict[str, Any] | None) -> int:
+    """统计已有目录的 KP 总数(空壳检测用)。"""
+    if not isinstance(catalog, dict):
+        return 0
+    count = 0
+    for chapter in catalog.get("chapters") or []:
+        if not isinstance(chapter, dict):
+            continue
+        for topic in chapter.get("topics") or []:
+            if not isinstance(topic, dict):
+                continue
+            count += len(topic.get("knowledge_points") or [])
+    return count
+
+
+def _candidates_count(grouped: dict[str, list[dict[str, Any]]] | None) -> int:
+    """候选标题总数(空壳检测用：候选充足才强制重建)。"""
+    if not grouped:
+        return 0
+    return len(_title_candidates(grouped))
+
+
 def build_catalog_briefing(shared_context: str) -> str:
     """给 LLM 的压缩输入：历史目录 + 骨架标题 + 老师原文。"""
     user_id = user_id_from_context(shared_context)
@@ -462,8 +512,17 @@ def build_catalog_briefing(shared_context: str) -> str:
         f"【mode】{mode}",
     ]
     if existing:
-        parts.append("【已有目录】必须复用下列 ID，禁止重建旧章。缺 role/practice/criteria/risk 的 KP 只补这四个字段。")
-        parts.append(_compact_existing(existing, detailed_sources=incoming_sources))
+        # 空壳检测：已有目录近乎为空且候选充足 → 强制重建，避免空壳增量固化
+        if _existing_kp_count(existing) <= 3 and _candidates_count(grouped) >= 5:
+            parts.append(
+                "【空壳目录】检测到已有目录近乎为空（不足 3 个知识点），"
+                "请基于下方候选标题**完整重建**知识树："
+                "按候选的 score 与层级组织章节/主题/知识点，"
+                "不要保留空壳节点（course 可沿用）；每个主题至少 2 个知识点。"
+            )
+        else:
+            parts.append("【已有目录】必须复用下列 ID，禁止重建旧章。缺 role/practice/criteria/risk 的 KP 只补这四个字段。")
+            parts.append(_compact_existing(existing, detailed_sources=incoming_sources))
         known = known_source_documents(existing)
         if known:
             parts.append("【已入库并已编目的文件】" + "、".join(sorted(known)))
@@ -511,8 +570,8 @@ def build_catalog_briefing(shared_context: str) -> str:
                 "例题/易错/注意/步骤/题型/小结类标题只能并入父 KP 的 knowledge_items 或 evidence。"
             )
             budget = _candidate_budget(candidates)
-            high = [row for row in candidates if int(row.get("score") or 0) >= 8]
-            middle = [row for row in candidates if 5 <= int(row.get("score") or 0) < 8]
+            high = [row for row in candidates if int(row.get("score") or 0) >= 6]
+            middle = [row for row in candidates if 4 <= int(row.get("score") or 0) < 6]
             low = [row for row in candidates if int(row.get("score") or 0) < 5]
             limited_middle = _limited_middle_candidates(middle, total_limit=min(90, budget))
             detail_pool = _detail_pool_candidates(middle + low)
@@ -617,3 +676,462 @@ def _teacher_text(shared_context: str) -> str:
     if text.startswith("根据已入库资料生成知识目录"):
         return ""
     return text
+
+
+# ── 输出侧覆盖度补缺(零 LLM)────────────────────────────────────
+
+def _title_key(text: str) -> str:
+    """标题归一化键(覆盖度比对用):去空白/编号前缀/常见后缀。"""
+    blob = re.sub(r"\s+", "", (text or ""))
+    blob = re.sub(
+        r"^(?:第?[0-9一二三四五六七八九十百]+[节章部分讲课]?[.、．]?\s*|\d+\s*[.、．]\s*)",
+        "", blob,
+    )
+    for suffix in ("的定义", "的概念", "的性质", "详解", "总结", "小结"):
+        if blob.endswith(suffix) and len(blob) > len(suffix):
+            blob = blob[: -len(suffix)]
+    return blob
+
+
+def _catalog_kp_names(draft: dict[str, Any]) -> list[str]:
+    """目录中已有的 KP 名列表(归一化比对用)。"""
+    names: list[str] = []
+    for chapter in draft.get("chapters") or []:
+        if not isinstance(chapter, dict):
+            continue
+        for topic in chapter.get("topics") or []:
+            if not isinstance(topic, dict):
+                continue
+            for kp in topic.get("knowledge_points") or []:
+                if isinstance(kp, dict) and _clean_title(str(kp.get("name") or "")):
+                    names.append(str(kp.get("name") or ""))
+    return names
+
+
+def _next_kp_id(draft: dict[str, Any]) -> int:
+    max_no = 0
+    for chapter in draft.get("chapters") or []:
+        if not isinstance(chapter, dict):
+            continue
+        for topic in chapter.get("topics") or []:
+            if not isinstance(topic, dict):
+                continue
+            for kp in topic.get("knowledge_points") or []:
+                if not isinstance(kp, dict):
+                    continue
+                m = re.search(r"kp_(\d+)", str(kp.get("id") or ""))
+                if m:
+                    max_no = max(max_no, int(m.group(1)))
+    return max_no + 1
+
+
+def complement_catalog_coverage(
+    draft: dict[str, Any],
+    shared_context: str,
+) -> dict[str, Any]:
+    """输出侧覆盖度校验：候选池高可信标题未进目录 → 程序补缺（零 LLM）。
+
+    补缺 KP 标记 ``node_status=program_complement``、``change_type=added``；
+    归属：候选有 chapter/topic 层级则匹配目录对应 topic，否则挂首个 chapter 的末 topic。
+    """
+    import logging
+
+    logger = logging.getLogger(__name__)
+    out = dict(draft)
+    user_id = user_id_from_context(shared_context)
+    subject = subject_from_context(shared_context)
+    kb = open_knowledge(user_id=user_id)
+    grouped = _brief_chunks(kb, user_id, subject) if kb is not None else None
+    candidates = _title_candidates(grouped) if grouped else []
+    strong = [
+        c
+        for c in candidates
+        if int(c.get("score") or 0) >= 5
+        and str(c.get("heading_kind") or "") != "evidence"
+        and not _item_only_title(str((c.get("path") or [""])[-1]), c)
+    ]
+    chapters = out.get("chapters") or []
+    if not strong or not chapters:
+        return out
+    existing = _catalog_kp_names(out)
+    next_no = _next_kp_id(out)
+    added = 0
+    for cand in strong:
+        path = list(cand.get("path") or [])
+        title = path[-1] if path else ""
+        key = _title_key(title)
+        if not key or any(key == _title_key(n) for n in existing):
+            continue
+        cand_chapter = _clean_title(path[0]) if path else ""
+        cand_topic = _clean_title(path[1]) if len(path) > 1 else ""
+        # 归属：候选层级优先匹配；否则挂第一个 chapter 的末 topic
+        target_chapter = next(
+            (
+                chapter
+                for chapter in chapters
+                if isinstance(chapter, dict)
+                and cand_chapter
+                and _title_key(cand_chapter) == _title_key(str(chapter.get("name") or ""))
+            ),
+            None,
+        )
+        if target_chapter is None:
+            target_chapter = chapters[0]
+        topics = [t for t in (target_chapter.get("topics") or []) if isinstance(t, dict)]
+        target_topic = None
+        if cand_topic:
+            target_topic = next(
+                (
+                    t
+                    for t in topics
+                    if _title_key(cand_topic) == _title_key(str(t.get("name") or ""))
+                ),
+                None,
+            )
+        if target_topic is None:
+            target_topic = topics[-1] if topics else None
+        if target_topic is None:
+            tp_no = len(
+                [
+                    t
+                    for ch in chapters
+                    if isinstance(ch, dict)
+                    for t in (ch.get("topics") or [])
+                    if isinstance(t, dict) and re.search(r"tp_\d+", str(t.get("id") or ""))
+                ]
+            ) + 1
+            target_topic = {
+                "id": f"tp_{tp_no:03d}",
+                "name": "补充知识点",
+                "change_type": "added",
+                "knowledge_points": [],
+            }
+            target_chapter.setdefault("topics", []).append(target_topic)
+        kp_list = target_topic.setdefault("knowledge_points", [])
+        kp = {
+            "id": f"kp_{next_no:03d}",
+            "name": title,
+            "aliases": [],
+            "knowledge_type": "concept",
+            "knowledge_items": [],
+            "importance": 3,
+            "difficulty": 3,
+            "teacher_emphasis": 0,
+            "change_type": "added",
+            "node_status": "program_complement",
+            "sources": [str(cand.get("source") or "")],
+            "prerequisites": [],
+            "related_points": [],
+            "risk_tags": [],
+            "completion_criteria": [],
+            "exam_signal": "none",
+            "topic": str(target_topic.get("name") or ""),
+            "chapter": str(target_chapter.get("name") or ""),
+            "confidence": "low",
+        }
+        kp_list.append(kp)
+        existing.append(title)
+        next_no += 1
+        added += 1
+    if added:
+        logger.info("目录覆盖度补缺 %d 个候选 KP", added)
+    return out
+
+
+def _max_kp_budget(shared_context: str) -> int:
+    """目录规模上限：页数×1.2（无页数时文件数×3），下限 6、上限 40。
+
+    依据 NOTES_OPTIMIZATION_GUIDE.md 2.3：教材型资料每页约 0.8~1.2 个 KP。
+    """
+    user_id = user_id_from_context(shared_context)
+    subject = subject_from_context(shared_context)
+    kb = open_knowledge(user_id=user_id)
+    grouped = _brief_chunks(kb, user_id, subject) if kb is not None else None
+    pages = {
+        (str(row.get("source") or ""), str(row.get("page") or ""))
+        for rows in (grouped or {}).values()
+        for row in rows
+        if str(row.get("page") or "").strip()
+    }
+    no_page_sources = {
+        str(row.get("source") or "")
+        for rows in (grouped or {}).values()
+        for row in rows
+        if str(row.get("source") or "").strip()
+        and not str(row.get("page") or "").strip()
+    }
+    raw = len(pages) * 1.2 + len(no_page_sources) * 3
+    return max(6, min(40, int(round(raw))))
+
+
+def trim_catalog_scale(
+    draft: dict[str, Any],
+    shared_context: str,
+) -> dict[str, Any]:
+    """规模上限校验：KP 数 > max → 程序合并最弱 KP 进父 topic 的 items（零 LLM）。
+
+    合并顺序：importance 低优先 → program_complement 优先 → 名称长优先；
+    每个 topic 至少保留 1 个 KP。
+    """
+    out = dict(draft)
+    max_kp = _max_kp_budget(shared_context)
+    rows: list[tuple[dict[str, Any], dict[str, Any], dict[str, Any]]] = []
+    for chapter in out.get("chapters") or []:
+        if not isinstance(chapter, dict):
+            continue
+        for topic in chapter.get("topics") or []:
+            if not isinstance(topic, dict):
+                continue
+            for kp in topic.get("knowledge_points") or []:
+                if isinstance(kp, dict) and _clean_title(str(kp.get("name") or "")):
+                    rows.append((chapter, topic, kp))
+    if len(rows) <= max_kp:
+        return out
+
+    def _weakness(kp: dict[str, Any]) -> tuple[int, int, int]:
+        try:
+            imp = int(str(kp.get("importance") or 3) or 3)
+        except (TypeError, ValueError):
+            imp = 3
+        comp = 1 if str(kp.get("node_status") or "") == "program_complement" else 0
+        return (imp, comp, -len(str(kp.get("name") or "")))
+
+    # 每个 topic 至少留 1 个 KP
+    topic_counts: dict[int, int] = {}
+    for _ch, topic, _kp in rows:
+        topic_counts[id(topic)] = topic_counts.get(id(topic), 0) + 1
+    rows.sort(key=lambda x: _weakness(x[2]))
+    overflow = rows[max_kp:]
+    merged = 0
+    for chapter, topic, kp in overflow:
+        if topic_counts.get(id(topic), 0) <= 1:
+            continue
+        name = str(kp.get("name") or "").strip()
+        items = topic.setdefault("knowledge_items", [])
+        if name and name not in items:
+            items.append(name)
+        kp_list = topic.get("knowledge_points") or []
+        if kp in kp_list:
+            kp_list.remove(kp)
+        topic_counts[id(topic)] = topic_counts.get(id(topic), 0) - 1
+        chapter["change_type"] = "updated"
+        topic["change_type"] = "updated"
+        merged += 1
+    if merged:
+        import logging
+
+        logging.getLogger(__name__).info(
+            "目录规模上限校验：合并 %d 个最弱 KP 进父 topic items（上限 %d）",
+            merged,
+            max_kp,
+        )
+    return out
+
+
+# ── 重要性 / 复习权重程序计算(零 LLM)───────────────────────────
+
+def _catalog_kp_index(draft: dict[str, Any]) -> tuple[list[dict[str, Any]], dict[str, int]]:
+    """目录 KP 索引 + 被引用计数（prerequisites/related_points 中出现次数）。"""
+    kps: list[dict[str, Any]] = []
+    ref_count: dict[str, int] = {}
+    for chapter in draft.get("chapters") or []:
+        if not isinstance(chapter, dict):
+            continue
+        for topic in chapter.get("topics") or []:
+            if not isinstance(topic, dict):
+                continue
+            for kp in topic.get("knowledge_points") or []:
+                if not isinstance(kp, dict):
+                    continue
+                kps.append(kp)
+                name = _clean_title(str(kp.get("name") or ""))
+                for ref in list(kp.get("prerequisites") or []) + list(kp.get("related_points") or []):
+                    if isinstance(ref, str):
+                        ref_name = _clean_title(ref)
+                    elif isinstance(ref, dict):
+                        ref_name = _clean_title(str(ref.get("name") or ""))
+                    else:
+                        ref_name = ""
+                    if ref_name:
+                        ref_count[ref_name] = ref_count.get(ref_name, 0) + 1
+    return kps, ref_count
+
+
+def _knowledge_type_weight(ktype: str) -> int:
+    return {"theorem": 5, "formula": 5, "concept": 4, "method": 3, "application": 2}.get(
+        str(ktype or ""), 3
+    )
+
+
+def compute_kp_importance(
+    kp: dict[str, Any],
+    ref_count: dict[str, int],
+) -> int:
+    """程序计算 importance = 0.4×结构 + 0.3×内容 + 0.3×老师，clamp 1-5。
+
+    边界修正：老师明确强调（teacher_emphasis≥2）且与程序分差 ≥2 → 保留 LLM 值。
+    """
+    name = _clean_title(str(kp.get("name") or ""))
+    refs = ref_count.get(name, 0)
+    structure = 1 if refs == 0 else 3 if refs <= 2 else 5
+    ktype = _knowledge_type_weight(str(kp.get("knowledge_type") or ""))
+    items = len(kp.get("knowledge_items") or [])
+    content = min(ktype + (0 if items == 0 else 1 if items <= 2 else 2), 5)
+    try:
+        emph = int(str(kp.get("teacher_emphasis") or 0) or 0)
+    except (TypeError, ValueError):
+        emph = 0
+    teacher = min(emph * 2, 5) if emph else 0
+    computed = round(0.4 * structure + 0.3 * content + 0.3 * teacher)
+    computed = max(1, min(5, computed))
+    try:
+        llm_imp = int(str(kp.get("importance") or 0) or 0)
+    except (TypeError, ValueError):
+        llm_imp = 0
+    if emph >= 2 and llm_imp and abs(llm_imp - computed) >= 2:
+        return max(1, min(5, llm_imp))
+    return computed
+
+
+def compute_review_weight(
+    kp: dict[str, Any],
+    ref_count: dict[str, int],
+) -> float:
+    """复习权重(0-1) = 0.5×importance + 0.2×difficulty + 0.2×考试信号 + 0.1×前置依赖。"""
+    try:
+        importance = int(str(kp.get("importance") or 3) or 3)
+    except (TypeError, ValueError):
+        importance = 3
+    try:
+        difficulty = int(str(kp.get("difficulty") or 3) or 3)
+    except (TypeError, ValueError):
+        difficulty = 3
+    exam = 0.2 if str(kp.get("exam_signal") or "none").strip() not in ("", "none") else 0.0
+    refs = ref_count.get(_clean_title(str(kp.get("name") or "")), 0)
+    prereq = min(refs, 3) / 3 * 0.1
+    w = 0.5 * importance / 5 + 0.2 * difficulty / 5 + 0.2 * exam + prereq
+    return round(max(0.0, min(1.0, w)), 3)
+
+
+def compute_catalog_signals(draft: dict[str, Any]) -> dict[str, Any]:
+    """对目录每个 KP 计算 importance / review_weight 并写回（零 LLM）。"""
+    kps, ref_count = _catalog_kp_index(draft)
+    for kp in kps:
+        kp["importance"] = compute_kp_importance(kp, ref_count)
+        kp["review_weight"] = compute_review_weight(kp, ref_count)
+    return draft
+
+
+# ── 溯源 / 老师重点程序回填(零 LLM)────────────────────────────
+
+def _teacher_emphasis_level(hit_sentences: list[str]) -> int:
+    """老师重点分级:0 未提及 / 1 提及 / 2 明确强调 / 3 反复强调(多句+强词)。"""
+    strong = ("必考", "重点", "掌握", "一定", "反复", "务必", "重要")
+    blob = "".join(hit_sentences)
+    n = len(hit_sentences)
+    has_strong = any(w in blob for w in strong)
+    if n >= 2 and has_strong:
+        return 3
+    if n >= 1 and has_strong:
+        return 2
+    if n >= 1:
+        return 1
+    return 0
+
+
+def _teacher_match(kp: dict[str, Any], teacher: str) -> list[str]:
+    """老师文本命中该 KP 的句子：键 = name + aliases + knowledge_items（归一化匹配）。"""
+    keys = [str(kp.get("name") or "")]
+    keys.extend(str(a) for a in (kp.get("aliases") or []) if isinstance(a, str))
+    keys.extend(str(i) for i in (kp.get("knowledge_items") or []) if isinstance(i, str))
+    norm_keys = [_compact_title(k) for k in keys if _compact_title(k)]
+    hits: list[str] = []
+    for sent in re.split(r"[。！？；\n]+", teacher or ""):
+        s = sent.strip()
+        if not s:
+            continue
+        blob = _compact_title(s)
+        if any(nk and (nk in blob or blob in nk) for nk in norm_keys):
+            hits.append(s)
+            if len(hits) >= 3:
+                break
+    return hits
+
+
+def backfill_catalog_trace(
+    draft: dict[str, Any],
+    shared_context: str,
+) -> dict[str, Any]:
+    """溯源 / 老师重点程序回填（零 LLM）。
+
+    溯源（两类通用）：sources / source_chunk_ids / evidence 从知识库 chunk
+    按名称/内容匹配回填（chunk 标识 = source#heading）。
+
+    老师重点：
+    - 不传老师文本：teacher_emphasis 保持 0，不生成 teacher_focus_items / teacher_evidence；
+    - 传老师文本：程序按 KP 名/items 匹配老师句子 → teacher_emphasis 分级（0-3，取较大值）
+      + teacher_focus_items / teacher_evidence（依据句）。
+    """
+    user_id = user_id_from_context(shared_context)
+    subject = subject_from_context(shared_context)
+    kb = open_knowledge(user_id=user_id)
+    chunks = (
+        list(kb.list_chunks(user_id=user_id, subject=subject) or [])
+        if kb is not None
+        else []
+    )
+    teacher = _teacher_text(shared_context) or ""
+    out = dict(draft)
+    for chapter in out.get("chapters") or []:
+        if not isinstance(chapter, dict):
+            continue
+        for topic in chapter.get("topics") or []:
+            if not isinstance(topic, dict):
+                continue
+            for kp in topic.get("knowledge_points") or []:
+                if not isinstance(kp, dict):
+                    continue
+                name = _clean_title(str(kp.get("name") or ""))
+                key = _compact_title(name)
+                # ── 溯源回填（重建：程序匹配优先，覆盖历史/LLM 编造值）──
+                hits: list[dict[str, Any]] = []
+                for c in chunks:
+                    meta = c.get("metadata") or {}
+                    heading = _clean_title(str(meta.get("heading") or ""))
+                    if heading and key and _compact_title(heading) == key:
+                        hits.append(c)
+                        continue
+                    text = _compact_title(str(c.get("text") or ""))
+                    if key and len(key) >= 4 and key in text:
+                        hits.append(c)
+                if hits:
+                    sources: list[str] = []
+                    cids: list[str] = []
+                    evs: list[str] = []
+                    for h in hits[:3]:
+                        meta = h.get("metadata") or {}
+                        src = str(meta.get("source") or "")
+                        heading = str(meta.get("heading") or "")
+                        cid = f"{src}#{heading}" if src and heading else src
+                        if src and src not in sources:
+                            sources.append(src)
+                        if cid and cid not in cids:
+                            cids.append(cid)
+                        ev = " ".join(str(h.get("text") or "").split())[:120]
+                        if ev and ev not in evs:
+                            evs.append(ev)
+                    kp["sources"] = sources
+                    kp["source_chunk_ids"] = cids
+                    kp["evidence"] = evs
+                    # 内容指纹随溯源回填（checklist 卡片 briefing 用，不重读全文）
+                    fp = str((hits[0].get("metadata") or {}).get("content_fingerprint") or "")
+                    if fp:
+                        kp["content_fingerprint"] = fp
+                # ── 老师重点回填（重建：依据句 = 本轮老师文本命中，覆盖历史）──
+                if teacher.strip():
+                    hit_sents = _teacher_match(kp, teacher)
+                    if hit_sents:
+                        kp["teacher_emphasis"] = _teacher_emphasis_level(hit_sents)
+                        kp["teacher_focus_items"] = hit_sents[:3]
+                        kp["teacher_evidence"] = hit_sents[:3]
+    return out

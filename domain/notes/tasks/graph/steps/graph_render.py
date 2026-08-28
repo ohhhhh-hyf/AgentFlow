@@ -30,7 +30,7 @@ class KnowledgeGraphRender:
     """把已批准的知识图谱数据渲染为树形 Markdown 大纲。
 
     图数据（nodes/edges）经 Report 的 draft.nodes / draft.edges 字段
-    直达 bootstrap，由 graphviz 渲染网状知识图谱；本类只负责树形大纲文本。
+    直达导出层（交互 HTML 网状图谱）；本类只负责树形大纲文本。
     """
 
     def __init__(self, client: LLMClient) -> None:

@@ -8,7 +8,10 @@ import shutil
 import tempfile
 import time
 import uuid
+from dataclasses import dataclass
 from pathlib import Path
+
+from fastapi.responses import StreamingResponse
 
 from .config import PROJECT_ROOT, load_domain, load_env, profile_path, resolve_template_format
 from .outputs import save_task_outputs
@@ -156,6 +159,21 @@ def _catalog_file_name(line: str, user_id: str, subject: str) -> str:
         return ""
 
 
+def _output_file_name(
+    line: str,
+    user_id: str,
+    subject: str,
+    saved_paths: dict[str, Path | None],
+) -> str:
+    """产物文件名：catalog 返回目录文件名；checklist 返回本次运行 HTML 文件名（result.html）。"""
+    name = _catalog_file_name(line, user_id, subject)
+    if name:
+        return name
+    if line == "checklist" and saved_paths.get("html"):
+        return saved_paths["html"].name
+    return ""
+
+
 def _trace_extra(keypoints: str, notes: str) -> str:
     """把用户重点/笔记组装成溯源材料注入块（与 load_trace_sidecars 同格式）。"""
     parts: list[str] = []
@@ -233,17 +251,24 @@ def _profile_file(domain: str, profile_value: str) -> Path:
     return path
 
 
-async def run_task(
-    domain: str,
-    task: str,
-    req: TaskRequest,
-    *,
-    user_id: str = "",
-    request_id: str = "",
-) -> TaskResponse:
-    """执行一次任务调用，返回通用响应（monitor + data）。"""
-    _start_time = time.time()
-    request_id = (request_id or "").strip() or uuid.uuid4().hex
+@dataclass
+class _Prepared:
+    """请求校验 + 输入组装结果（同步 / 流式接口共用）。"""
+
+    line: str
+    ctx: object
+    profile_file: Path
+    templates: dict[str, Path]
+    modes: dict[str, str]
+    extra_line_inputs: dict[str, str]
+    input_files: list[Path] | Path | None
+    user_id: str
+    project: str
+    subject: str
+
+
+def _prepare(domain: str, task: str, req: TaskRequest, user_id: str) -> _Prepared:
+    """校验 + 输入组装（run_task / stream_task 共用；失败抛 ApiError）。"""
     line = _validate(req, domain, task, user_id)
     extra = req.extra
 
@@ -303,25 +328,52 @@ async def run_task(
     if line == "checklist" and catalog_files:
         extra_line_inputs["checklist"] = "【目录文件】" + catalog_files[0]
 
+    return _Prepared(
+        line=line,
+        ctx=ctx,
+        profile_file=profile_file,
+        templates=templates,
+        modes=modes,
+        extra_line_inputs=extra_line_inputs,
+        input_files=input_files,
+        user_id=(user_id or "").strip(),
+        project=(extra.project or "").strip(),
+        subject=(extra.subject or "").strip(),
+    )
+
+
+async def run_task(
+    domain: str,
+    task: str,
+    req: TaskRequest,
+    *,
+    user_id: str = "",
+    request_id: str = "",
+) -> TaskResponse:
+    """执行一次任务调用，返回通用响应（monitor + data）。"""
+    _start_time = time.time()
+    request_id = (request_id or "").strip() or uuid.uuid4().hex
+    p = _prepare(domain, task, req, user_id)
+
     from tools.core.runner import run
 
     try:
         result = await run(
-            ctx,
-            input_files,
-            profile_file,
+            p.ctx,
+            p.input_files,
+            p.profile_file,
             PROJECT_ROOT / ".env",
-            templates,
-            [line],
-            modes,
-            (user_id or "").strip() or None,
-            (extra.project or "").strip() or None,
-            (extra.subject or "").strip() or None,
+            p.templates,
+            [p.line],
+            p.modes,
+            p.user_id or None,
+            p.project or None,
+            p.subject or None,
             None, None, None, None, None, None,
             compile_natural=True,
             monitor=False,
             collect_reports=True,
-            extra_line_inputs=extra_line_inputs,
+            extra_line_inputs=p.extra_line_inputs,
         )
     except ApiError:
         raise
@@ -336,10 +388,10 @@ async def run_task(
     md_text = ""
     if saved_paths.get("md"):
         md_text = Path(saved_paths["md"]).read_text(encoding="utf-8")
-    if not md_text and line in reports:
+    if not md_text and p.line in reports:
         from tools.exports.outputs import report_text
 
-        md_text = report_text(reports[line])
+        md_text = report_text(reports[p.line])
     from .schemas import Monitor, ResponseData
 
     return TaskResponse(
@@ -353,9 +405,141 @@ async def run_task(
         ),
         data=ResponseData(
             text=md_text,
-            file_name=_catalog_file_name(line, user_id, extra.subject),
+            file_name=_output_file_name(p.line, user_id, p.subject, saved_paths),
         ),
     )
 
 
-__all__ = ["ApiError", "LINE_NAMES", "run_task"]
+def _ndjson(payload: dict) -> str:
+    import json
+
+    return json.dumps(payload, ensure_ascii=False) + "\n"
+
+
+async def stream_task(
+    domain: str,
+    task: str,
+    req: TaskRequest,
+    *,
+    user_id: str = "",
+    request_id: str = "",
+) -> StreamingResponse:
+    """流式任务执行：NDJSON 事件流（chunk / done / error），请求字段与同步接口一致。
+
+    事件协议（每行一个 JSON）：
+    - {"type": "chunk", "line": str, "title": str, "text": str}  渲染文本增量
+    - {"type": "done", "code": 0, "request_id": str, "message": "ok",
+       "quality_warning": str|null, "monitor": {...}, "data": {...}}  最终结果（与同步响应同构）
+    - {"type": "error", "code": 500, "message": str}  运行失败
+    参数校验失败（400/404）仍直接返回 HTTP 错误，不走流。
+    """
+    request_id = (request_id or "").strip() or uuid.uuid4().hex
+    p = _prepare(domain, task, req, user_id)
+
+    async def event_stream():
+        from tools.core.runner import _handle_done, prepare_run
+
+        _start_time = time.time()
+        try:
+            prep = await prepare_run(
+                p.ctx,
+                p.input_files,
+                p.profile_file,
+                PROJECT_ROOT / ".env",
+                p.templates,
+                [p.line],
+                p.modes,
+                p.user_id or None,
+                p.project or None,
+                p.subject or None,
+                None, None, None, None, None, None,
+                compile_natural=True,
+                monitor=False,
+                collect_reports=True,
+                extra_line_inputs=p.extra_line_inputs,
+            )
+        except Exception as exc:  # noqa: BLE001 - 准备失败推 error 事件
+            yield _ndjson({"type": "error", "code": 500, "message": f"任务准备失败：{exc}"})
+            return
+
+        system = prep.system
+        last_done = None
+        try:
+            async for event in system.run_streaming(
+                prep.transcript,
+                prep.user,
+                templates=prep.template_texts,
+                lines=prep.line_names,
+                line_modes=p.modes,
+                line_extra=prep.line_extra,
+            ):
+                if event["type"] == "phase":
+                    yield _ndjson({"type": "phase", "node": event["node"]})
+                elif event["type"] == "chunk":
+                    yield _ndjson({
+                        "type": "chunk",
+                        "line": event["line"],
+                        "title": event["title"],
+                        "text": event["text"],
+                    })
+                elif event["type"] == "done":
+                    last_done = event
+                    saved = await _handle_done(prep.ctx, event) or {}
+                    saved_paths = save_task_outputs(user_id, request_id, saved)
+                    md_text = ""
+                    if saved_paths.get("md"):
+                        md_text = Path(saved_paths["md"]).read_text(encoding="utf-8")
+                    if not md_text and p.line in (event.get("reports") or {}):
+                        from tools.exports.outputs import report_text
+
+                        md_text = report_text((event.get("reports") or {})[p.line])
+                    if prep.memory_enabled and prep.memory_bind is not None:
+                        from tools.memory import persist
+
+                        persist(
+                            prep.ctx.project_root,
+                            prep.ctx.name,
+                            user_id,
+                            prep.memory_bind,
+                            event.get("reports") or {},
+                            event.get("understanding") or {},
+                            prep.transcript,
+                            prep.subject,
+                        )
+                    snap = system.client.monitor_snapshot().get("usage_totals") or {}
+                    usage = {
+                        key: int(snap.get(key, 0)) - int(prep.usage_before.get(key, 0))
+                        for key in ("total_tokens", "cache_hit_tokens")
+                    }
+                    yield _ndjson({
+                        "type": "done",
+                        "code": 0,
+                        "request_id": request_id,
+                        "message": "ok",
+                        "quality_warning": event.get("quality_warning"),
+                        "monitor": {
+                            "token_usage": int(usage.get("total_tokens", 0) or 0),
+                            "cache_hit": int(usage.get("cache_hit_tokens", 0) or 0),
+                            "cost_time": round((time.time() - _start_time), 1),
+                        },
+                        "data": {
+                            "text": md_text,
+                            "file_name": _output_file_name(p.line, user_id, p.subject, saved_paths),
+                        },
+                    })
+        except Exception as exc:  # noqa: BLE001 - 运行失败推 error 事件
+            yield _ndjson({"type": "error", "code": 500, "message": f"任务运行失败：{exc}"})
+        finally:
+            if prep.task_monitor is not None:
+                try:
+                    prep.task_monitor.finish(
+                        done_event=last_done,
+                        extra={"ok": last_done is not None, "error": ""},
+                    )
+                except Exception:  # noqa: BLE001 - 监控落盘失败不影响主流程
+                    pass
+
+    return StreamingResponse(event_stream(), media_type="application/x-ndjson")
+
+
+__all__ = ["ApiError", "LINE_NAMES", "run_task", "stream_task"]
