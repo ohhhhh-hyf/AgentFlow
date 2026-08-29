@@ -225,12 +225,8 @@ def _prepare_input_dir(
     return tmp / "input.txt"
 
 
-def _validate(req: TaskRequest, domain: str, task: str, user_id: str) -> str:
-    """基础校验，返回代码线名；失败抛 ApiError。"""
-    if (req.domain or "").strip() and (req.domain or "").strip() != domain:
-        raise ApiError(400, f"请求体 domain={req.domain!r} 与路径不一致（应为 {domain}）")
-    if (req.task or "").strip() and (req.task or "").strip() != task:
-        raise ApiError(400, f"请求体 task={req.task!r} 与路径不一致（应为 {task}）")
+def _validate(req: TaskRequest, task: str, user_id: str) -> str:
+    """基础校验，返回代码线名；失败抛 ApiError。domain/task 由 URL 路径表达。"""
     line = LINE_NAMES.get(task)
     if line is None:
         raise ApiError(404, f"任务线不存在：{task}")
@@ -290,7 +286,7 @@ class _Prepared:
 
 def _prepare(domain: str, task: str, req: TaskRequest, user_id: str) -> _Prepared:
     """校验 + 输入组装（run_task / stream_task 共用；失败抛 ApiError）。"""
-    line = _validate(req, domain, task, user_id)
+    line = _validate(req, task, user_id)
     extra = req.extra
 
     # 必填字段前置校验：一次性列出全部缺失项，秒回 400

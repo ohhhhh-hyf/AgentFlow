@@ -20,8 +20,6 @@ HEADERS = {
 
 # 通用请求体：所有字段都留好，不用的置空
 payload = {
-    "domain": "notes",
-    "task": "graph",
     "texts": {
         "transcript": "",   # graph 用 docs 传笔记文件，不用 transcript
         "keypoints": "",

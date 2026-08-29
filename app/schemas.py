@@ -25,11 +25,13 @@ class Extra(BaseModel):
 
 
 class TaskRequest(BaseModel):
-    """通用请求体。texts 为 {三类 key: 文本内容} 对象；docs 为文件名列表
-    （.json 为 catalog 目录文件；catalog/checklist 的 .txt 为老师重点文件；其余按扩展名分派）。"""
+    """通用请求体。domain/task 由 URL 路径表达，请求体不再携带。
+    texts 为 {三类 key: 文本内容} 对象；docs 为文件名列表
+    （.json 为 catalog 目录文件；catalog/checklist 的 .txt 为老师重点文件；其余按扩展名分派）。
 
-    domain: Optional[str] = None
-    task: Optional[str] = None
+    兼容：历史客户端若仍发送 domain/task 会被 pydantic 静默忽略，不再做一致性校验。
+    """
+
     texts: dict[str, str] = Field(default_factory=dict)
     docs: list[str] = Field(default_factory=list)
     extra: Extra = Field(default_factory=Extra)

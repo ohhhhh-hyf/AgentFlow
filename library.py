@@ -24,8 +24,6 @@ HEADERS = {
 
 # 通用请求体：所有字段都留好，不用的置空
 payload = {
-    "domain": "notes",
-    "task": "checklist",
     "texts": {
         "transcript": "",   # library 的输入只有 docs，texts 不参与
         "keypoints": "",

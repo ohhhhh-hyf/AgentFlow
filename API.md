@@ -44,8 +44,6 @@ FastAPI 后端接口。所有接口走 `/api/v1`，一次请求对应一条任�
 
 ```json
 {
-  "domain": "meeting",
-  "task": "minutes",
   "texts": {
     "transcript": "会议记录全文……",
     "keypoints": "用户关键点……",
@@ -72,13 +70,13 @@ FastAPI 后端接口。所有接口走 `/api/v1`，一次请求对应一条任�
 
 | 字段 | 类型 | 必填 | 默认 | 说明 |
 |---|---|---|---|---|
-| `domain` | string | 否 | 不传 | 冗余校验字段：填了必须与 URL 路径一致（meeting/notes），否则返回 400 |
-| `task` | string | 否 | 不传 | 冗余校验字段：填了必须与 URL 路径一致（如 minutes），否则返回 400 |
 | `texts` | object | 否* | `{}` | 文本对象（四类 key，见 4.2）。`catalog`/`checklist` 可整体缺省（基于已有知识库生成） |
 | `docs` | array | 否* | `[]` | 文件名列表（图片/文档/笔记，.png/.jpg/.jpeg/.txt/.md/.pdf/.docx/.pptx/.xlsx/.json），服务端从 `data/{user_id}/docs/` 取，按扩展名分派（图片 OCR、文本直读、文档解析、json=catalog） |
 | `extra` | object | 否 | `{}` | 任务差异参数，见 4.4 |
 
 \* `texts`/`docs` 至少提供一个（`catalog` 除外，可完全依赖已入库资料；`checklist` 需要 `docs` 传 catalog 文件名，见 6.9）。
+
+> 历史版本请求体中的 `domain` / `task` 字段已移除：任务由 URL 路径唯一表达；旧客户端若仍携带，服务端会忽略（不再做一致性校验）。
 
 ### 4.2 `texts` 对象（四个固定 key）
 
@@ -273,7 +271,7 @@ FastAPI 后端接口。所有接口走 `/api/v1`，一次请求对应一条任�
 | code | 含义 |
 |---|---|
 | `0` | 成功 |
-| `400` | 请求参数错误：请求体非法、输入缺失、`extra` 非法、缺必填字段、`domain`/`task` 与路径不一致 |
+| `400` | 请求参数错误：请求体非法、输入缺失、`extra` 非法、缺必填字段 |
 | `401` | 未认证（预留） |
 | `403` | 无权限（预留） |
 | `404` | 资源不存在：任务线不存在、本地文件不存在 |
@@ -474,7 +472,6 @@ data/{user_id}/knowledge/catalogs/{subject拼音}/   ← 按学科分目录（�
 | 非法 style | 400 | `extra.style 非法：bad（可选：causal/logic/party/time/urgency）` |
 | 非法 template | 400 | `extra.template 非法：bad_value（格式为 {场景ID}_{模板ID}）` |
 | 非法 profile | 400 | `extra.profile 非法：not_exist（可选：空=客观全员 或 职业模板名）` |
-| domain/task 与路径不一致 | 400 | `请求体 domain='notes' 与路径不一致（应为 meeting）` |
 | 本地文件不存在 | 404 | `本地文件不存在：docs/photo_1.jpg（请放入 data/1/docs/ 或 data/docs/）` |
 | 任务运行失败 | 500 | `任务运行失败：LLM 调用超时` |
 
