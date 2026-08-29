@@ -384,10 +384,6 @@ def activate_points(catalog: dict[str, Any] | None, teacher: str) -> list[dict[s
 
     for point in points:
         hits = list(owned.get(_clean(point.get("id"))) or [])
-        try:
-            importance = int(str(point.get("importance") or 3) or 3)
-        except (TypeError, ValueError):
-            importance = 3
         if not hits and not _activation_gate(point):
             continue  # 没被老师点到且重要性低 → 不出卡
         row = dict(point)

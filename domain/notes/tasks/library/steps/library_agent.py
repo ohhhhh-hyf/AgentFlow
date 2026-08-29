@@ -21,6 +21,8 @@ class LibraryAgent:
                 {
                     "message": "没有找到入库文件。",
                     "increment": "0",
+                    "image_count": "0",
+                    "doc_count": "0",
                     "files": [],
                     "increment_by_file": [],
                     "conflicts": [],
@@ -39,6 +41,8 @@ class LibraryAgent:
                 {
                     "message": str(exc),
                     "increment": "0",
+                    "image_count": "0",
+                    "doc_count": "0",
                     "files": [],
                     "increment_by_file": [],
                     "conflicts": [],

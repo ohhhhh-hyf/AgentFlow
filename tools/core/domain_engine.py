@@ -110,9 +110,6 @@ class DomainNodes:
 
     def _line_title(self, state: dict, line_name: str) -> str:
         """线 → 展示标题（通用默认；领域可覆写加线名特判）。"""
-        objective = bool(state.get("objective_perspective"))
-        user = state.get("user") or {}
-        name = user.get("name") or "用户"
         return f"{line_cn(line_name, self._line_cn_names)}输出"
 
     def _shared_context(self, state: dict) -> str:
@@ -208,7 +205,6 @@ class DomainNodes:
     def _supervisor_context(self, state: dict, line_name: str) -> str:
         from tools.runtime.supervisor_slice import compact_draft_for_review
 
-        cfg = self._task_lines[line_name]
         sub = line(state, line_name)
         revision_count = sub.get("revision_count", 0)
         mode = self._mode_label(state)
@@ -371,7 +367,7 @@ class DomainNodes:
                 state["transcript"],
                 json_dumps(state["user"]),
             )
-        except Exception as exc:  # noqa: BLE001 - 有意的降级设计
+        except Exception:  # noqa: BLE001 - 有意的降级设计
             logger.warning("视角建模失败，使用空视角继续", exc_info=True)
             return {
                 "perspective_profile": EMPTY_PERSPECTIVE_MODELING,
@@ -404,7 +400,7 @@ class DomainNodes:
                         f"{cn}返工意见",
                     )
                 )
-            except Exception as exc:  # noqa: BLE001 - 有意的降级设计
+            except Exception:  # noqa: BLE001 - 有意的降级设计
                 logger.warning(f"{cn}生成失败，使用空草稿继续", exc_info=True)
                 return {
                     "lines": {
@@ -442,7 +438,7 @@ class DomainNodes:
                 review = await supervisor.review(
                     self._supervisor_context(state, line_name)
                 )
-            except Exception as exc:  # noqa: BLE001 - 有意的降级设计
+            except Exception:  # noqa: BLE001 - 有意的降级设计
                 logger.warning(
                     f"{cn}审核失败，按 reject 转降级", exc_info=True
                 )
@@ -701,7 +697,7 @@ class DomainNodes:
                         yield {"type": "phase", "node": node_name}
                 else:
                     state = chunk
-        except Exception as exc:  # noqa: BLE001 - 最后防线：图内异常不崩溃，走确定性兜底
+        except Exception:  # noqa: BLE001 - 最后防线：图内异常不崩溃，走确定性兜底
             logger.warning("图执行失败，使用确定性兜底输出", exc_info=True)
             fb = self._fallback_reports(initial_state, line_names)
             for line_name in line_names:

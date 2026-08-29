@@ -7,7 +7,7 @@
     monitor = TaskMonitor(client, task_name="actions", meta={"domain": "meeting"})
     monitor.start(transcript=transcript)
     ...  # 运行任务，拿到 done 事件
-    payload = monitor.finish(done_event=done_event)   # 落盘 output/monitor/*.json
+    payload = monitor.finish(done_event=done_event)   # 落盘 data/monitor/*.json
 """
 from .monitor import DEFAULT_OUT_DIR, TaskMonitor
 from .side import (

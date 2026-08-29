@@ -256,7 +256,7 @@ def persist(
         else:
             _refresh_identity(record, bind, reports, understanding, transcript)
             record = merge_meeting(
-                record, reports, stamp, understanding, transcript
+                record, reports, stamp, understanding, transcript, user_id=user_id
             )
         if reports.get("graph") is not None:
             record = merge_graph(record, reports["graph"])

@@ -17,6 +17,8 @@ class LibraryGenerationContract(GenerationContract):
     fields = [
         StrField("message", "给用户看的一句话"),
         StrField("increment", "新增可编目知识单元数"),
+        StrField("image_count", "导入图片张数（OCR 失败时为 0）"),
+        StrField("doc_count", "导入文档份数（非图片文件均计为文档）"),
         ObjListField(
             "files",
             [

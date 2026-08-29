@@ -155,7 +155,7 @@ pip install "numpy<2" onnxruntime==1.16.3 rapidocr_onnxruntime==1.4.4
 | `.env` | HTTP 至少配置 `DEEPSEEK_API_KEY`；WebSocket 配置 `LLM_BACKEND=websocket` + `LLM_WS_*` |
 | 端口 | 云服务器需开放安全组 / 防火墙（如 `8000`） |
 | 反代 | 若用 Nginx，需放行 WebSocket（`Upgrade` / `Connection`） |
-| 产物 | API 产物写入 `data/{user_id}/output/{request_id}/`；CLI 归档写入 `output/{domain}/{task}/` |
+| 产物 | API 产物写入 `data/{user_id}/output/{request_id}/`；CLI 兜底写入 `data/{user_id}/output/cli_*/`（无根目录归档层） |
 | 知识图谱 | HTML 可交互演示 |
 | 思维导图 | HTML 需 Node.js/npx；PNG 需 Playwright Chromium |
 
@@ -167,10 +167,11 @@ pip install "numpy<2" onnxruntime==1.16.3 rapidocr_onnxruntime==1.4.4
 | `samples/{domain}/file/` | 样例输入文本 `.txt` |
 | `perspective/profiles/` | 跨域公共画像（客观 + 职业模板）`.json` |
 | `samples/{domain}/{task}_template/` | 任务模板样例 `.md` |
-| `data/{user_id}/output/{request_id}/` | API 每次调用产物（`result.md` / `result.html`） |
+| `data/{user_id}/output/{request_id}/` | API 每次调用产物（`result.md` / `{task}.html`） |
 | `data/{user_id}/memory/` | 跨会话记忆（records + chromadb 索引） |
 | `data/{user_id}/knowledge/` | 知识库向量 + 知识目录 JSON |
-| `output/{domain}/{task}/` | CLI 归档产物（时间戳命名） |
+| `data/{user_id}/ocr/` | OCR 合并稿 |
+| `data/monitor/` | 任务监控 JSON（CLI monitor 开启时） |
 
 ## 接口调用
 
@@ -198,31 +199,30 @@ curl -X POST http://127.0.0.1:8000/api/v1/meeting/minutes \
 
 任务线：
 
-| 领域 | 任务线 | 输出内容 | 主要产物 |
+| 领域 | 任务线 | 输出内容 | 主要产物（`data/{user_id}/output/{request_id}/`） |
 |---|---|---|---|
-| `meeting` | `minutes` | 会议纪要 | `output/meeting/minutes/result_*.md` / `.html` |
-| `meeting` | `actions` | 待办事项 | `output/meeting/actions/result_*.md` |
-| `meeting` | `risks` | 风险分析 | `output/meeting/risks/result_*.md` |
-| `meeting` | `minutes_styles` | 多样式纪要 | `output/meeting/minutes_styles/result_*.md` |
-| `meeting` | `minutes_trace` | 溯源纪要 | `output/meeting/minutes_trace/result_*.md` / `.html` |
-| `meeting` | `mindmap` | 思维导图 | `output/meeting/mindmap/mindmap_*.png` / `.html` |
-| `notes` | `graph` | 知识图谱 | `output/notes/graph/graph_*.html` / `.md` |
-| `notes` | `review` | 笔记审查 | `output/notes/review/result_*.md` / `.html` |
-| `notes` | `quiz` | 自测题（推理题 + 高中题库真题） | `output/notes/quiz/result_*.md` / `.html` |
-| `notes` | `library` | 资料入库（信息熵报告） | `output/notes/library/result_*.md` |
-| `notes` | `catalog` | 知识目录 | `output/notes/catalog/result_*.md` |
-| `notes` | `checklist` | 复习清单 | `output/notes/checklist/result_*.md` / `.html` |
+| `meeting` | `minutes` | 会议纪要 | `result.md` + `minutes.html` |
+| `meeting` | `actions` | 待办事项 | `result.md` |
+| `meeting` | `risks` | 风险分析 | `result.md` |
+| `meeting` | `minutes_styles` | 多样式纪要 | `result.md` |
+| `meeting` | `minutes_trace` | 溯源纪要 | `minutes_trace.md` |
+| `meeting` | `mindmap` | 思维导图 | CLI：`data/{user_id}/output/cli_*/mindmap/`（`mindmap_*.png` / `.html`） |
+| `notes` | `graph` | 知识图谱 | `graph.html`（无 md） |
+| `notes` | `review` | 笔记审查 | `result.md` + `review.html` |
+| `notes` | `quiz` | 自测题（推理题 + 高中题库真题） | `result.md` + `quiz.html` |
+| `notes` | `library` | 资料入库 | 仅接口返回文本，不落盘文件 |
+| `notes` | `catalog` | 知识目录 | `result.md` + 目录 JSON（`data/{user_id}/knowledge/catalogs/{学科}/`） |
+| `notes` | `checklist` | 复习清单 | `result.md` + `checklist.html` |
 
-输出归档规则：
+产物落盘规则（均在 `data/` 下，不再有根目录 `output/` 归档层）：
 
 | 目录 | 内容 | 说明 |
 |---|---|---|
-| `output/{domain}/{task}/result_时间戳.md` | 最终文本 / 大纲 | 除 `mindmap` / `graph` 外，仅当该任务线有文本正文或 Markdown 大纲时保存；模板门禁失败时改写为 `result_时间戳_rejected.md` |
-| `output/{domain}/{task}/result_时间戳.html` | 页面版 | 仅以下线生成：`minutes`（记忆对照页/纯文本页）、`minutes_trace`（同 minutes）、`review` / `quiz` / `checklist`（各自交互页）；`actions` / `risks` / `minutes_styles` / `library` / `catalog` 不生成 |
-| `output/meeting/mindmap/mindmap_时间戳.html` | 思维导图 HTML | `mindmap` 目录只保留 HTML/PNG |
-| `output/meeting/mindmap/mindmap_时间戳.png` | 思维导图 PNG | `mindmap` 目录只保留 HTML/PNG；Playwright 不可用时跳过 |
-| `output/notes/graph/graph_时间戳.html` | 知识图谱交互 HTML | Cytoscape.js 交互演示版 |
-| `output/notes/graph/graph_时间戳.md` | 学习地图 | 按主题分组的文本学习路径 |
+| `data/{user_id}/output/{request_id}/result.md` | 最终文本 / 大纲 | 除 `mindmap` / `graph` / `library` 外，仅当该任务线有文本正文或 Markdown 大纲时保存；模板门禁失败时改写为 `result_rejected.md` |
+| `data/{user_id}/output/{request_id}/{task}.html` | 页面版 | 仅以下线生成：`minutes`（记忆对照页/纯文本页）、`review` / `quiz` / `checklist`（各自交互页）、`graph`（交互图谱）；`actions` / `risks` / `minutes_styles` / `minutes_trace` / `library` / `catalog` 不生成 |
+| `data/{user_id}/output/cli_*/mindmap/mindmap_*.html` | 思维导图 HTML | CLI 运行兜底目录；`mindmap` 只保留 HTML/PNG |
+| `data/{user_id}/output/cli_*/mindmap/mindmap_*.png` | 思维导图 PNG | Playwright 不可用时跳过 |
+| `data/{user_id}/output/{request_id}/graph.html` | 知识图谱交互 HTML | Cytoscape.js 交互演示版 |
 
 ## 自定义输出模板
 
@@ -268,7 +268,7 @@ curl -X POST http://127.0.0.1:8000/api/v1/meeting/minutes \
   交互式 HTML（markmap，离线单文件）和 PNG 图片（Playwright 截图）；
   npx/playwright 缺失时自动降级不影响主流程
 - **知识图谱**：notes 域 graph 线提取概念节点与关系边（nodes/edges，
-  均锚定原文 + evidence），经 `tools/graph.py` 导出 Cytoscape.js 交互式 HTML 和学习地图 Markdown（默认输出到 `output/notes/graph/`）；悬空边自动过滤、HTML 仍尽量生成；
+  均锚定原文 + evidence），经 `tools/graph.py` 导出 Cytoscape.js 交互式 HTML 和学习地图 Markdown（默认输出到 `data/{user_id}/output/{request_id}/`）；悬空边自动过滤、HTML 仍尽量生成；
   传 `X-User-Id` + `extra.subject` 时按学科跨会话增量（新增节点高亮，见 API.md 6.6）
 - **输出稳定性**：各线 prompt 采用确定性规则（数量由内容决定、措辞锚定原文、
   顺序按原文出现、空字段 null/[]），同一输入重复运行保持内容与篇幅稳定

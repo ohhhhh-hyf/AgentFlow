@@ -1,13 +1,11 @@
 """tools.template_router.placeholder —— 模板路由·占位符层：占位符模板解析、填充计划与组装。"""
 from __future__ import annotations
-
-from __future__ import annotations
 import logging
 import re
 from typing import Any
 
-from ._base import _PLACEHOLDER_FILL_SYSTEM, _PLACEHOLDER_RE, _TABLE_SEP_RE, _body_han_count, _char_budget_lines, _client_text, _describe_field, _extract_json_object, _hint_clean, _hint_short, _parse_row_list, _table_row_confidence_score, logger, strip_outer_markdown_fence
-from ._detect import _looks_like_placeholder, _parse_field, _row_limit_for_template, detect_template_kind, parse_placeholder_template, strip_char_budget_meta
+from ._base import _PLACEHOLDER_FILL_SYSTEM, _PLACEHOLDER_RE, _TABLE_SEP_RE, _body_han_count, _char_budget_lines, _client_text, _describe_field, _extract_json_object, _hint_clean, _hint_short, _parse_row_list, _table_row_confidence_score, strip_outer_markdown_fence
+from ._detect import _looks_like_placeholder, _parse_field, _row_limit_for_template, detect_template_kind, strip_char_budget_meta
 
 logger = logging.getLogger(__name__)
 
@@ -244,7 +242,6 @@ def template_to_preview(
     同时返回 ``char_budget``（全文/段落字数约束，内部用）与 ``template_raw``
     （回填用，调用方不得展示给用户）。
     """
-    segments = parse_placeholder_template(template or "")
     plan = plan_placeholder_fill(template or "")
     row_lines = {rt["line"].rstrip("\n") for rt in plan["row_templates"]}
 

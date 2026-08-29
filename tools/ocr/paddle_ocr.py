@@ -364,11 +364,6 @@ def _release_engine(engine) -> None:
     _IDLE.put(engine)
 
 
-def get_paddle_engine():
-    """调试入口：取出池中一台引擎。长期占用会少一路并行。"""
-    return _acquire_engine()
-
-
 def _predict_with_timeout(engine, path: str):
     box: dict[str, Any] = {}
     done = threading.Event()
@@ -413,4 +408,4 @@ def ocr_image(path: str) -> dict:
     return {"engine": "paddleocr", "lines": extract_paddle_lines(result, image_size=image_size)}
 
 
-__all__ = ["extract_paddle_lines", "get_paddle_engine", "ocr_image"]
+__all__ = ["extract_paddle_lines", "ocr_image"]

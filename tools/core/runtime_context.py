@@ -44,14 +44,6 @@ class DomainContext:
     def cli_samples_dir(self) -> Path:
         return self.project_root / "samples" / self.name
 
-    @property
-    def default_file_dir(self) -> Path:
-        return self.cli_samples_dir / "file"
-
-    @property
-    def default_profile_dir(self) -> Path:
-        return self.cli_samples_dir / "profile"
-
 
 def load_domain(name: str, project_root: Path) -> DomainContext:
     """Load domain.<name> modules and build aliases for task names."""

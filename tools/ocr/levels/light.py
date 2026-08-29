@@ -10,7 +10,6 @@ from pathlib import Path
 from typing import Callable, Iterator
 
 from tools.memory.store import safe_id
-from tools.ocr import server_ocr_image_recognize
 from tools.ocr.reconstruct import reconstruct_markdown, review_markdown
 
 OCR_PARALLEL = 4
@@ -32,10 +31,6 @@ class LightOcrResult:
     reviewed_markdown: str
     reviewed_path: Path | None = None
     lines: list | None = None
-
-    @property
-    def files(self) -> list[str]:
-        return [str(self.reviewed_path)] if self.reviewed_path else []
 
 
 def _safe_stem(image_path: Path | str) -> str:
@@ -84,66 +79,6 @@ def combine_ocr_pages(pages: list[dict[str, str]], *, key: str) -> str:
         if body:
             blocks.append(body)
     return "\n\n".join(blocks)
-
-
-def save_combined_ocr_outputs(
-    pages: list[dict[str, str]],
-    *,
-    user_id: str,
-    subject: str,
-    project_root: str | Path,
-    output_stem: str | None = None,
-) -> LightOcrResult:
-    """把并行识别的多页按上传顺序拼成一份 md，便于一次入库。"""
-    stem = output_stem or next_batch_version_stem(user_id, subject, project_root)
-    return save_light_ocr_outputs(
-        Path(stem),
-        raw_text=combine_ocr_pages(pages, key="raw_text"),
-        reviewed_markdown=combine_ocr_pages(pages, key="reviewed_markdown"),
-        user_id=user_id,
-        subject=subject,
-        project_root=project_root,
-    )
-
-
-def run_light_ocr(
-    image_path: str | Path,
-    *,
-    user_id: str,
-    subject: str,
-    project_root: str | Path,
-    output_stem: str | None = None,
-    persist: bool = True,
-    review: bool = True,
-) -> LightOcrResult:
-    """Run the current Light pipeline: OCR -> LLM 整理；默认再审校。"""
-    path = Path(image_path)
-    if not path.is_file():
-        raise ValueError(f"图片不存在：{path}")
-
-    payload = server_ocr_image_recognize(str(path), review=review)
-    raw_txt, _no_llm_md, _llm_md, reviewed_md, _review_notes = payload[:5]
-    lines = list(payload[5]) if len(payload) > 5 else []
-    if not persist:
-        return LightOcrResult(
-            raw_text=raw_txt,
-            reviewed_markdown=reviewed_md,
-            lines=lines,
-        )
-    saved = save_light_ocr_outputs(
-        Path(output_stem) if output_stem else path,
-        raw_text=raw_txt,
-        reviewed_markdown=reviewed_md,
-        user_id=user_id,
-        subject=subject,
-        project_root=project_root,
-    )
-    return LightOcrResult(
-        raw_text=saved.raw_text,
-        reviewed_markdown=saved.reviewed_markdown,
-        reviewed_path=saved.reviewed_path,
-        lines=lines,
-    )
 
 
 def save_light_ocr_outputs(

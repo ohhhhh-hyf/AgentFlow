@@ -73,16 +73,6 @@ def new_catalog_path(user_id: str = "", subject: str = "", stamp: str = "") -> P
     return subject_dir_for(user_id, subject) / f"{stamp}.json"
 
 
-def catalog_path(user_id: str = "", subject: str = "") -> Path | None:
-    """兼容入口：返回该 user+subject 下最新 catalog 文件（无则 None）。"""
-    return latest_catalog_path(user_id, subject)
-
-
-def catalog_meta_path(user_id: str = "", stem: str = "") -> Path:
-    name = (stem or "image").strip() or "image"
-    return catalog_dir_for(user_id) / f"{name}_meta.json"
-
-
 def _ocr_output_stems(user_id: str, subject: str) -> list[str]:
     """Standard 会把原图 xx 存成 ocr/{subject}/xx.md，meta 则是 catalogs/xx_meta.json。"""
     from tools.memory.store import safe_id

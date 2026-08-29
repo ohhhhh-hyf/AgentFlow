@@ -100,6 +100,8 @@ class Library(ModelMixin):
 
     message: str
     increment: str
+    image_count: str = "0"
+    doc_count: str = "0"
     files: list[dict[str, Any]] = field(default_factory=list)
     increment_by_file: list[dict[str, Any]] = field(default_factory=list)
     conflicts: list[dict[str, Any]] = field(default_factory=list)
@@ -110,6 +112,8 @@ class Library(ModelMixin):
         _exact_fields(data, [f.name for f in fields(cls)], cls.__name__)
         _string(data["message"], "message")
         _string(data["increment"], "increment")
+        _string(data["image_count"], "image_count")
+        _string(data["doc_count"], "doc_count")
         if not isinstance(data["files"], list):
             raise OutputValidationError("files 必须是数组")
         if not isinstance(data["increment_by_file"], list):

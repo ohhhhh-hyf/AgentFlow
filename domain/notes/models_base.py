@@ -35,10 +35,3 @@ class UserIdentity(ModelMixin):
     output_style: str | None = None   # 输出风格与语言要求
 
 
-def is_objective_perspective(user: UserIdentity | dict | None) -> bool:
-    """画像 perspective 为 objective 时走客观全员口径。"""
-    if user is None:
-        return False
-    data = user.model_dump() if hasattr(user, "model_dump") else dict(user)
-    return str(data.get("perspective") or "").strip().lower() == "objective"
-

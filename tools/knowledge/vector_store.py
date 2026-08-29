@@ -258,64 +258,7 @@ class VectorStore:
             self._save_map()
         return internal
 
-    def _display(self, internal: str) -> str:
-        """内部集合名 → 显示名"""
-        for d, i in self._name_map.items():
-            if i == internal:
-                return d
-        return internal
-
-    # ---------------- 集合 ----------------
-    def list_collections(self) -> List[Dict]:
-        out = []
-        for c in self.client.list_collections():
-            try:
-                out.append({"name": self._display(c.name), "count": c.count()})
-            except Exception:
-                out.append({"name": self._display(c.name), "count": 0})
-        return sorted(out, key=lambda x: x["name"])
-
-    def create_collection(self, name: str) -> str:
-        internal = self._internal(name)
-        # 显式用余弦空间：score = 1 - distance = cos(相似度)，与 min_score 阈值语义一致
-        self.client.get_or_create_collection(
-            name=internal, metadata={"hnsw:space": "cosine"}
-        )
-        return name
-
-    def delete_collection(self, name: str) -> None:
-        internal = self._internal(name)
-        self.client.delete_collection(internal)
-        self._name_map.pop(name, None)
-        self._save_map()
-
     # ---------------- 入库 ----------------
-    def add_documents(self, collection: str, chunks: List) -> int:
-        """嵌入并 upsert; 返回成功入库块数。id 由 定位键 确定性生成(见 _unique_ids)。"""
-        import time
-
-        t0 = time.monotonic()
-        coll = self.client.get_or_create_collection(
-            name=self._internal(collection), metadata={"hnsw:space": "cosine"}
-        )
-        texts = [c.text for c in chunks]
-        embeddings = self.embedding.embed(texts)
-        ids = _unique_ids(chunks)
-        coll.upsert(ids=ids, embeddings=embeddings,
-                    documents=texts, metadatas=[dict(c.metadata) for c in chunks])
-        try:
-            from tools.monitor.side import record_knowledge_ingest
-
-            record_knowledge_ingest(
-                files=1,
-                added=len(ids),
-                seconds=time.monotonic() - t0,
-                collection=collection,
-            )
-        except Exception:  # noqa: BLE001
-            pass
-        return len(ids)
-
     def sync_file(self, collection: str, filename: str, chunks: List) -> dict:
         """增量同步一个文件的知识库内容(处理"用户更新/替换文件"场景):
         - 计算新块 id 集合(md5(source+文本))
@@ -479,21 +422,6 @@ class VectorStore:
         except Exception:  # noqa: BLE001
             pass
         return rows
-
-    # ---------------- 文件级删除 ----------------
-    def delete_file(
-        self, collection: str, filename: str, where: Optional[Dict] = None
-    ) -> int:
-        coll = self.client.get_collection(name=self._internal(collection))
-        cond: Dict = {"source": filename}
-        if where:
-            cond.update(where)
-        got = coll.get(where=_normalize_where(cond), include=["metadatas"])
-        ids = [i for i, m in zip(got.get("ids", []), got.get("metadatas") or [])
-               if m and m.get("source") == filename]
-        if ids:
-            coll.delete(ids=ids)
-        return len(ids)
 
     def list_files(
         self, collection: str, where: Optional[Dict] = None

@@ -4,7 +4,6 @@
 """
 from __future__ import annotations
 
-import shutil
 import tempfile
 import time
 import uuid
@@ -14,7 +13,7 @@ from pathlib import Path
 from fastapi.responses import StreamingResponse
 
 from .config import PROJECT_ROOT, load_domain, load_env, profile_path, resolve_template_format
-from .outputs import save_task_outputs
+from .outputs import output_dir, save_task_outputs
 from .schemas import TaskRequest, TaskResponse
 
 # 内部任务名 → 实际代码线名（两者一致；文档内部任务标识为可读长名）
@@ -92,11 +91,9 @@ def _catalog_input_file(user_id: str, subject: str, name: str) -> Path:
 
 
 def _collect_texts(req: TaskRequest) -> tuple[str, str, str]:
-    """返回 (主文本, keypoints, notes)。transcript 与 teacher_focus 均并入主文本。"""
+    """返回 (主文本, keypoints, notes)。老师重点不再从 texts 获取（经 docs 的 .txt 文件注入）。"""
     texts = req.texts or {}
-    transcript = "\n\n".join(
-        part for part in (texts.get("transcript"), texts.get("teacher_focus")) if (part or "").strip()
-    ).strip()
+    transcript = (texts.get("transcript") or "").strip()
     keypoints = (texts.get("keypoints") or "").strip()
     notes = (texts.get("notes") or "").strip()
     return transcript, keypoints, notes
@@ -108,6 +105,27 @@ def _is_image_name(name: str) -> bool:
 
 def _is_catalog_json_name(name: str) -> bool:
     return Path(name or "").suffix.lower() == ".json"
+
+
+def _is_teacher_txt_name(name: str) -> bool:
+    """catalog / checklist 的 docs：.txt 文件视为老师重点文件。"""
+    return Path(name or "").suffix.lower() == ".txt"
+
+
+def _load_teacher_texts(user_id: str, names: list[str]) -> str:
+    """读取老师重点 .txt 文件（data/{user_id}/docs/），拼成「老师重点」注入块。"""
+    parts: list[str] = []
+    for name in names:
+        path = _input_file(user_id, "docs", name)
+        try:
+            body = path.read_text(encoding="utf-8").strip()
+        except UnicodeDecodeError:
+            body = path.read_text(encoding="gbk", errors="replace").strip()
+        if body:
+            parts.append(body)
+    if not parts:
+        return ""
+    return "【老师重点】\n" + "\n\n".join(parts)
 
 
 def _ocr_docs(user_id: str, docs: list[str]) -> str:
@@ -147,7 +165,7 @@ def _doc_previews(user_id: str, docs: list[str]) -> str:
 
 
 def _catalog_file_name(line: str, user_id: str, subject: str) -> str:
-    """catalog 接口返回生成的目录文件名（如 catalog_20260827_221500_123.json）；其他接口返回空串。"""
+    """catalog 接口返回生成的目录文件名（如 20260827_221500_123.json）；其他接口返回空串。"""
     if line != "catalog" or not (subject or "").strip():
         return ""
     try:
@@ -165,12 +183,15 @@ def _output_file_name(
     subject: str,
     saved_paths: dict[str, Path | None],
 ) -> str:
-    """产物文件名：catalog 返回目录文件名；checklist 返回本次运行 HTML 文件名（result.html）。"""
+    """产物文件名：catalog 返回目录文件名；有页面版返回 {task}.html；
+    只有文本产物（actions/risks/minutes_styles/minutes_trace）返回 {task}.md；无产物返回空串。"""
     name = _catalog_file_name(line, user_id, subject)
     if name:
         return name
-    if line == "checklist" and saved_paths.get("html"):
-        return saved_paths["html"].name
+    if saved_paths.get("html"):
+        return f"{line}.html"
+    if saved_paths.get("md"):
+        return Path(saved_paths["md"]).name
     return ""
 
 
@@ -281,19 +302,36 @@ def _prepare(domain: str, task: str, req: TaskRequest, user_id: str) -> _Prepare
 
     transcript, keypoints, notes = _collect_texts(req)
     catalog_files: list[str] = []
+    teacher_docs: list[str] = []
+    material_docs: list[str] = []
     try:
         if line != "library" and req.docs:
             if line == "checklist":
-                # checklist 的 docs 是 catalog 文件名（.json，非笔记文本）：校验存在并记录
+                # checklist 的 docs：.json 为 catalog 目录文件，.txt 为老师重点文件，其余拒绝
                 for name in req.docs:
-                    if not _is_catalog_json_name(name):
-                        raise ApiError(400, f"checklist 的 docs 应为 catalog 文件名（.json）：{name}")
-                    _catalog_input_file(user_id, extra.subject, name)
-                    catalog_files.append(name.strip())
+                    if _is_catalog_json_name(name):
+                        _catalog_input_file(user_id, extra.subject, name)
+                        catalog_files.append(name.strip())
+                    elif _is_teacher_txt_name(name):
+                        teacher_docs.append(name.strip())
+                    else:
+                        raise ApiError(
+                            400,
+                            f"checklist 的 docs 应为 catalog 文件名（.json）或老师重点文件（.txt）：{name}",
+                        )
+            elif line == "catalog":
+                # catalog 的 docs：.txt 为老师重点文件，其余按资料处理（OCR/解析并入主文本）
+                for name in req.docs:
+                    if _is_teacher_txt_name(name):
+                        teacher_docs.append(name.strip())
+                    else:
+                        material_docs.append(name.strip())
             else:
-                ocr_text = _ocr_docs(user_id, req.docs)
+                material_docs = [name.strip() for name in req.docs]
+            if material_docs:
+                ocr_text = _ocr_docs(user_id, material_docs)
                 transcript = "\n\n".join(part for part in (transcript, ocr_text) if part)
-                preview = _doc_previews(user_id, req.docs)
+                preview = _doc_previews(user_id, material_docs)
                 transcript = "\n\n".join(part for part in (transcript, preview) if part)
     except ApiError:
         raise
@@ -327,6 +365,11 @@ def _prepare(domain: str, task: str, req: TaskRequest, user_id: str) -> _Prepare
             extra_line_inputs["minutes_trace"] = trace_text
     if line == "checklist" and catalog_files:
         extra_line_inputs["checklist"] = "【目录文件】" + catalog_files[0]
+    if line in {"catalog", "checklist"} and teacher_docs:
+        teacher_block = _load_teacher_texts(user_id, teacher_docs)
+        if teacher_block:
+            prev = extra_line_inputs.get(line) or ""
+            extra_line_inputs[line] = f"{prev}\n\n{teacher_block}".strip()
 
     return _Prepared(
         line=line,
@@ -354,6 +397,8 @@ async def run_task(
     _start_time = time.time()
     request_id = (request_id or "").strip() or uuid.uuid4().hex
     p = _prepare(domain, task, req, user_id)
+    # 产物直接写入本次请求目录（data/{user_id}/output/{request_id}/），不再走根目录 output/ 归档
+    p.ctx.output_dir = output_dir(user_id, request_id)
 
     from tools.core.runner import run
 
@@ -397,7 +442,7 @@ async def run_task(
     return TaskResponse(
         code=0,
         request_id=request_id,
-        message="ok",
+        message="success",
         monitor=Monitor(
             token_usage=int(usage.get("total_tokens", 0) or 0),
             cache_hit=int(usage.get("cache_hit_tokens", 0) or 0),
@@ -428,13 +473,15 @@ async def stream_task(
 
     事件协议（每行一个 JSON）：
     - {"type": "chunk", "line": str, "title": str, "text": str}  渲染文本增量
-    - {"type": "done", "code": 0, "request_id": str, "message": "ok",
+    - {"type": "done", "code": 0, "request_id": str, "message": "success",
        "quality_warning": str|null, "monitor": {...}, "data": {...}}  最终结果（与同步响应同构）
     - {"type": "error", "code": 500, "message": str}  运行失败
     参数校验失败（400/404）仍直接返回 HTTP 错误，不走流。
     """
     request_id = (request_id or "").strip() or uuid.uuid4().hex
     p = _prepare(domain, task, req, user_id)
+    # 产物直接写入本次请求目录（data/{user_id}/output/{request_id}/），不再走根目录 output/ 归档
+    p.ctx.output_dir = output_dir(user_id, request_id)
 
     async def event_stream():
         from tools.core.runner import _handle_done, prepare_run
@@ -515,7 +562,7 @@ async def stream_task(
                         "type": "done",
                         "code": 0,
                         "request_id": request_id,
-                        "message": "ok",
+                        "message": "success",
                         "quality_warning": event.get("quality_warning"),
                         "monitor": {
                             "token_usage": int(usage.get("total_tokens", 0) or 0),

@@ -663,7 +663,7 @@ class _Nodes(DomainNodes):
                     focus_line=focus,
                     skip_fields=skip,
                 )
-            except Exception as exc:
+            except Exception:
                 logger.warning("会议理解失败，使用空理解继续", exc_info=True)
                 return {
                     "meeting_understanding": _EMPTY_MEETING_UNDERSTANDING,

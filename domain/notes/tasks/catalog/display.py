@@ -3,11 +3,7 @@ from __future__ import annotations
 
 import json
 import re
-from html import escape
-from pathlib import Path
 from typing import Any
-
-from tools.knowledge.config import PROJECT_ROOT
 
 _RELATION = {
     "alternative": "替代方法",
@@ -171,34 +167,6 @@ def normalize_catalog_draft(draft: dict[str, Any]) -> dict[str, Any]:
     return data
 
 
-def display_catalog_path(path: str | Path) -> str:
-    target = Path(path)
-    try:
-        return target.resolve().relative_to(PROJECT_ROOT.resolve()).as_posix()
-    except ValueError:
-        return str(target)
-
-
-def _tree_counts(draft: dict[str, Any]) -> tuple[int, int, int]:
-    chapters = 0
-    topics = 0
-    points = 0
-    for chapter in draft.get("chapters") or []:
-        if not isinstance(chapter, dict):
-            continue
-        chapters += 1
-        for topic in chapter.get("topics") or []:
-            if not isinstance(topic, dict):
-                continue
-            topics += 1
-            points += sum(
-                1
-                for p in topic.get("knowledge_points") or []
-                if isinstance(p, dict) and _clean(p.get("name"))
-            )
-    return chapters, topics, points
-
-
 def _change_lines(draft: dict[str, Any]) -> list[str]:
     if _clean(draft.get("mode")) != "incremental_update":
         return []
@@ -244,7 +212,7 @@ def _tree_rows(draft: dict[str, Any]) -> list[tuple[int, str]]:
     return rows
 
 
-def build_catalog_markdown(draft: dict[str, Any], *, saved_path: str = "") -> str:
+def build_catalog_markdown(draft: dict[str, Any]) -> str:
     draft = normalize_catalog_draft(draft)
     course = _clean(draft.get("course")) or "课程知识目录"
     lines = [
@@ -264,72 +232,6 @@ def build_catalog_markdown(draft: dict[str, Any], *, saved_path: str = "") -> st
     for depth, text in _tree_rows(draft):
         lines.append(f"{'  ' * depth}- {text}")
     return "\n".join(lines).strip() + "\n"
-
-
-def build_catalog_html(draft: dict[str, Any], *, saved_path: str = "") -> str:
-    draft = normalize_catalog_draft(draft)
-    course = escape(_clean(draft.get("course")) or "课程知识目录", quote=False)
-    rows = [
-        "<style>",
-        ".cat-doc{background:#fff;border:1px solid #d4d0c6;border-radius:10px;padding:22px 28px;line-height:1.7;}",
-        ".cat-doc h1{margin:0 0 12px;font-size:1.45rem;}",
-        ".cat-doc h2{margin:18px 0 8px;font-size:1.05rem;}",
-        ".cat-doc p{margin:0 0 8px;}",
-        ".cat-meta{font-size:.86rem;color:#6b6860;}",
-        ".cat-doc ul{margin:6px 0 0;padding-left:1.25em;}",
-        ".cat-doc li{margin:2px 0;}",
-        ".cat-path{font-family:ui-monospace,Consolas,monospace;font-size:.86rem;}",
-        "</style>",
-        '<div class="cat-doc">',
-        f"<h1>{course} · 知识目录</h1>",
-    ]
-    changes = _change_lines(draft)
-    if changes:
-        rows.append("<h2>本次变更</h2><ul>")
-        rows.extend(f"<li>{escape(item, quote=False)}</li>" for item in changes)
-        rows.append("</ul>")
-    if not (draft.get("chapters") or []):
-        rows.append("<p>这次没有整理出可用目录，已有目录文件不会被空结果覆盖。</p></div>")
-        return "\n".join(rows)
-    rows.append("<h2>目录</h2>")
-    rows.extend(_html_tree(draft))
-    rows.append("</div>")
-    return "\n".join(rows)
-
-
-def _html_tree(draft: dict[str, Any]) -> list[str]:
-    rows = ["<ul>"]
-    for chapter in draft.get("chapters") or []:
-        if not isinstance(chapter, dict):
-            continue
-        cname = _clean(chapter.get("name"))
-        if not cname:
-            continue
-        rows.append(f"<li>{escape(cname, quote=False)}")
-        topic_items: list[str] = []
-        for topic in chapter.get("topics") or []:
-            if not isinstance(topic, dict):
-                continue
-            tname = _clean(topic.get("name"))
-            names = [
-                _clean(p.get("name"))
-                for p in topic.get("knowledge_points") or []
-                if isinstance(p, dict) and _clean(p.get("name"))
-            ]
-            if tname and names:
-                topic_items.append(
-                    f"<li>{escape(tname, quote=False)}"
-                    f"<ul><li>{escape('、'.join(names), quote=False)}</li></ul></li>"
-                )
-            elif tname:
-                topic_items.append(f"<li>{escape(tname, quote=False)}</li>")
-        if topic_items:
-            rows.append("<ul>")
-            rows.extend(topic_items)
-            rows.append("</ul>")
-        rows.append("</li>")
-    rows.append("</ul>")
-    return rows
 
 
 def attach_catalog_artifacts(state: dict[str, Any]) -> None:
@@ -355,12 +257,11 @@ def attach_catalog_artifacts(state: dict[str, Any]) -> None:
     draft = trim_catalog_scale(draft, context)
     draft = backfill_catalog_trace(draft, context)
     draft = compute_catalog_signals(draft)
-    saved = save_catalog(
+    save_catalog(
         user_id=user_id_from_context(context),
         subject=subject_from_context(context),
         draft=draft,
     )
-    shown = display_catalog_path(saved)
-    sub["rendered"] = build_catalog_markdown(draft, saved_path=shown)
+    sub["rendered"] = build_catalog_markdown(draft)
     sub["draft"] = draft
     sub["structure"] = draft.get("chapters") or []

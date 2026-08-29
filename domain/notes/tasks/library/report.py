@@ -4,7 +4,6 @@ from __future__ import annotations
 import os
 import re
 from concurrent.futures import ThreadPoolExecutor
-from html import escape
 from pathlib import Path
 from typing import Any
 
@@ -346,6 +345,8 @@ def ingest_library(
             increment_items.append({"text": excerpt, "source": source})
 
     conflicts: list[dict[str, Any]] = []
+    # 实际导入计数：图片仅在 OCR 合并成功时计入；失败不算导入
+    image_count = len(image_paths) if ocr_path is not None else 0
     return {
         "message": (
             f"图片 OCR 失败，非图片资料已继续入库：{ocr_error}"
@@ -356,6 +357,8 @@ def ingest_library(
                 else ""
             )
         ),
+        "image_count": str(image_count),
+        "doc_count": str(len(doc_paths)),
         "increment": str(len(increment_items)),
         "files": files,
         "increment_by_file": [
@@ -370,89 +373,34 @@ def ingest_library(
 
 
 
-def build_library_markdown(draft: dict[str, Any]) -> str:
-    increment = int(str(draft.get("increment") or "0") or 0)
-    files = [item for item in (draft.get("files") or []) if isinstance(item, dict)]
-    by_file = [
-        item for item in (draft.get("increment_by_file") or []) if isinstance(item, dict)
-    ]
-    items = [item for item in (draft.get("items") or []) if isinstance(item, dict)]
-    names = "、".join(f"《{item.get('name')}》" for item in files if item.get("name"))
-    lines = [
-        "# 知识库变化",
-        "",
-        "这次不是把文件塞进去就结束。下面是这批资料对知识库的**实际改变**。",
-        "",
-        "## 知识增量",
-        "",
-        f"**本次新增可编目知识单元 {increment} 个。**",
-        "",
-    ]
-    if names:
-        lines.append(f"来自 {names}。")
-        lines.append("")
-    if by_file:
-        for item in by_file:
-            lines.append(f"- 《{item.get('name')}》+{item.get('count')}")
-        lines.append("")
-    note = str(draft.get("message") or "").strip()
-    if note:
-        lines.append(note)
-        lines.append("")
-    if increment == 0 and not note:
-        lines.append("库里已经有这些说法，知识边界没有被推开。")
-        lines.append("")
-    elif items:
-        for item in items[:8]:
-            src = item.get("source") or ""
-            tag = f"（{src}）" if src else ""
-            lines.append(f"- {item.get('text') or ''}{tag}")
-        lines.append("")
-    return "\n".join(lines).rstrip() + "\n"
-
-
-def build_library_html(draft: dict[str, Any]) -> str:
-    increment = int(str(draft.get("increment") or "0") or 0)
+def build_library_markdown(draft: dict[str, Any], *, subject: str = "") -> str:
+    """入库报告：成功返回导入统计一句话；失败（无 files/items 的兜底草稿）返回失败原因。"""
     files = [item for item in (draft.get("files") or []) if isinstance(item, dict)]
     items = [item for item in (draft.get("items") or []) if isinstance(item, dict)]
-    rows = [
-        '<div class="library-report memory-review">',
-        '<div class="review-heading">知识库变化'
-        '<div class="quiz-hint">看增量，不看进度条</div></div>',
-        '<div class="library-hero">',
-        '<p class="library-caption">本次新增可编目知识单元</p>',
-        f"<p class=\"library-count\"><strong>{increment}</strong> 个</p>",
-        "</div>",
-    ]
-    if files:
-        rows.append('<div class="library-files"><ul>')
-        for item in files:
-            rows.append(
-                "<li>"
-                f"《{escape(str(item.get('name') or ''), quote=False)}》"
-                f" · 新块 {escape(str(item.get('added') or '0'), quote=False)}"
-                "</li>"
-            )
-        rows.append("</ul></div>")
-    if increment and items:
-        rows.append('<div class="library-items"><ul>')
-        for item in items[:8]:
-            src = escape(str(item.get("source") or ""), quote=False)
-            text = escape(str(item.get("text") or ""), quote=False)
-            tag = f"<span>{src}</span>" if src else ""
-            rows.append(f"<li>{text}{tag}</li>")
-        rows.append("</ul></div>")
-    rows.append("</div>")
-    return "\n".join(rows)
+    message = str(draft.get("message") or "").strip().rstrip("。")
+    if message and not files and not items:
+        return f"入库失败：{message}。\n"
+    increment = int(str(draft.get("increment") or "0") or 0)
+    image_count = int(str(draft.get("image_count") or "0") or 0)
+    doc_count = int(str(draft.get("doc_count") or "0") or 0)
+    name = (subject or "").strip() or "知识库"
+    return (
+        f"入库成功，导入图片{image_count}张，文档{doc_count}份，"
+        f"{name}新增知识单元 {increment} 个。\n"
+    )
 
 
 def attach_library_artifacts(state: dict[str, Any]) -> None:
-    """对照页进 rendered。"""
+    """入库报告进 rendered。"""
     from tools.domain_engine import line
+
+    from domain.notes.tasks.catalog.gather import subject_from_context
 
     sub = line(state, "library")
     draft = dict(sub.get("draft") or {})
-    sub["rendered"] = build_library_markdown(draft)
+    extra = str((state.get("line_extra") or {}).get("library") or "")
+    subject = subject_from_context(extra)
+    sub["rendered"] = build_library_markdown(draft, subject=subject)
     sub["draft"] = draft
 
 

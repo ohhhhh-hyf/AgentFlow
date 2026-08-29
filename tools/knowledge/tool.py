@@ -104,15 +104,6 @@ class KnowledgeTool:
         self.rag = RagService(cfg, self.store, fake=fake)
 
     # ---------------- 知识库管理 ----------------
-    def list_collections(self) -> List[Dict]:
-        return self.store.list_collections()
-
-    def create_collection(self, name: str) -> str:
-        return self.store.create_collection(name)
-
-    def delete_collection(self, name: str) -> None:
-        self.store.delete_collection(name)
-
     def list_files(
         self,
         collection: str = "default",
@@ -121,16 +112,6 @@ class KnowledgeTool:
     ) -> List[str]:
         coll, where = _scope(collection, user_id, subject)
         return self.store.list_files(coll, where=where)
-
-    def delete_file(
-        self,
-        collection: str,
-        filename: str,
-        user_id: str = "",
-        subject: str = "",
-    ) -> int:
-        coll, where = _scope(collection, user_id, subject)
-        return self.store.delete_file(coll, filename, where=where)
 
     # ---------------- 入库 ----------------
     def add_file(
@@ -160,69 +141,6 @@ class KnowledgeTool:
                 meta["subject"] = (subject or "").strip()
             chunk.metadata = meta
         return self.store.sync_file(coll, os.path.basename(path), chunks)
-
-    def add_files(
-        self,
-        paths,
-        collection: str = "default",
-        recursive: bool = True,
-        user_id: str = "",
-        subject: str = "",
-    ) -> dict:
-        """批量导入: 接受文件路径或目录的列表/单个路径。
-        - 目录会递归(recursive=True)收集其中支持格式的文件
-        - 返回 {"added": 入库文件数, "files": [{path, added, removed, unchanged}...],
-                "skipped": [未支持/失败的文件列表], "total_chunks": 总新增块数}
-        """
-        from .document_processor import SUPPORTED_EXTS
-
-        # 展开为文件路径列表
-        file_list: List[str] = []
-        raw = paths if isinstance(paths, (list, tuple, set)) else [paths]
-        for p in raw:
-            p = str(p)
-            if os.path.isdir(p):
-                for root, _, fs in os.walk(p):
-                    for fn in sorted(fs):
-                        if os.path.splitext(fn)[1].lower() in SUPPORTED_EXTS:
-                            file_list.append(os.path.join(root, fn))
-                    if not recursive:
-                        break
-            elif os.path.isfile(p):
-                file_list.append(p)
-
-        result = {"added": 0, "files": [], "skipped": [], "total_chunks": 0}
-        for fp in file_list:
-            try:
-                r = self.add_file(
-                    fp, collection=collection, user_id=user_id, subject=subject
-                )
-                result["files"].append({"path": fp, **r})
-                result["added"] += 1
-                result["total_chunks"] += r["added"]
-            except Exception as e:
-                result["skipped"].append({"path": fp, "error": str(e)})
-        return result
-
-    def add_text(
-        self,
-        text: str,
-        collection: str = "default",
-        source: str = "text",
-        user_id: str = "",
-        subject: str = "",
-    ) -> int:
-        """直接以文本入库(便于 Agent 传递非文件内容)"""
-        from .document_processor import TextChunk
-
-        meta: Dict = {"source": source}
-        if (user_id or "").strip():
-            meta["owner"] = (user_id or "").strip()
-        if (subject or "").strip():
-            meta["subject"] = (subject or "").strip()
-        coll, _ = _scope(collection, user_id, subject)
-        chunks = [TextChunk(text, meta)]
-        return self.store.add_documents(coll, chunks)
 
     # ---------------- 检索与问答 ----------------
     def search(
@@ -289,11 +207,6 @@ def get_knowledge(
 
         persist_dir = persist_dir_for_user(user_id)
     return KnowledgeTool(fake=fake, persist_dir=persist_dir)
-
-
-def knowledge_for_user(user_id: str, *, fake: bool = False) -> KnowledgeTool:
-    """按用户隔离的知识库实例（user 顶层物理隔离，subject 仍走 where）。"""
-    return get_knowledge(fake=fake, user_id=user_id)
 
 
 # 行级隔离的统一知识库 collection 名（owner/subject 走 metadata + where 过滤）

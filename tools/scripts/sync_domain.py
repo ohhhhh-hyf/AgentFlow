@@ -18,7 +18,6 @@ from __future__ import annotations
 
 import argparse
 import ast
-import importlib
 import re
 import sys
 import traceback
@@ -57,6 +56,7 @@ def _compact_blank_lines(text: str) -> str:
 
 
 from tools.contracts import (  # noqa: E402
+    Check,
     GenerationContract,
     SupervisorContract,
 )
@@ -164,9 +164,6 @@ GEN_ZONE_EMPTY_END = "# ── 空结构常量生成区结束 ──"
 
 # 生成契约的强制命名后缀（类名约定）
 GENERATION_CLASS_SUFFIX = "GenerationContract"
-
-sys.path.insert(0, str(ROOT))
-from tools.contracts import GenerationContract  # noqa: E402
 
 
 # ── 契约发现 ──────────────────────────────────────────────────
@@ -437,7 +434,6 @@ SUP_ZONE_REJECT_END = "# ── 拒绝审核常量生成区结束 ──"
 
 # 任务线目录名 → 中文名（共享注册表 domain/<name>/domain_config.py；
 # 新增任务线时在注册表补充，脚本与运行时共用同一份；由 _Domain.line_cn_names() 动态加载）
-from tools.contracts import Check, SupervisorContract  # noqa: E402
 
 # 审阅契约类名的强制后缀
 CONTRACT_CLASS_SUFFIX = "SupervisorContract"
@@ -513,7 +509,7 @@ def generate_review_model(cls: str, cn_name: str, fields: dict) -> str:
     """按统一模板生成审核模型代码（与 models.py 现有手写版本逐字一致）。"""
     checks = [k for k, info in fields.items() if info["kind"] == "check"]
     if not checks:
-        raise ValueError(f"{cls} 契约缺少检查项（{status,findings} 形状字段）")
+        raise ValueError(f"{cls} 契约缺少检查项（(status, findings) 形状字段）")
 
     check_fields = "\n".join(f"    {k}: dict[str, Any]" for k in checks)
     check_keys = ", ".join(f'"{k}"' for k in checks)

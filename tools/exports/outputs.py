@@ -3,7 +3,7 @@
 合并自 archive.py（报告 JSON/文本落盘）与 exporters.py（导图/图谱导出），
 统一负责"最终输出落盘"：
 
-- 报告类任务：``save_all_reports`` 写入 output/{domain}/{task}/ 的文本产物
+- 报告类任务：``save_all_reports`` 写入 data/{user_id}/output/ 下的文本产物
 - 图类任务：``export_mindmap_*`` / ``export_graph`` 导出 HTML/PNG（脑图）或 SVG/HTML（图谱）
 """
 from __future__ import annotations
@@ -28,15 +28,23 @@ logger = logging.getLogger(__name__)
 # ── 报告类任务落盘 ─────────────────────────────────────────────
 
 def task_output_dir(ctx: DomainContext, line_name: str) -> Path:
-    """产物目录：有 user 时 ``output/{user_id}/{domain}/{line_name}``，否则旧路径。"""
+    """产物目录：API 设置 ``ctx.output_dir``（data/{user}/output/{request_id}/）时直接用；
+    CLI 等未设置时兜底为 ``data/{user}/output/cli_{时间戳}/{line_name}/``，不再写根目录 output/。"""
+    requested = getattr(ctx, "output_dir", None)
+    if requested:
+        out_dir = Path(requested)
+        out_dir.mkdir(parents=True, exist_ok=True)
+        return out_dir
     if (ctx.user_id or "").strip():
         from tools.memory.store import safe_id
 
-        out_dir = (
-            ctx.project_root / "output" / safe_id(ctx.user_id) / ctx.name / line_name
-        )
+        uid = safe_id(ctx.user_id)
     else:
-        out_dir = ctx.project_root / "output" / ctx.name / line_name
+        uid = "default"
+    stamp = datetime.now().strftime("%Y%m%d_%H%M%S_%f")[:-3]
+    out_dir = (
+        ctx.project_root / "data" / uid / "output" / f"cli_{stamp}" / line_name
+    )
     out_dir.mkdir(parents=True, exist_ok=True)
     return out_dir
 
@@ -154,16 +162,22 @@ def save_report_artifacts(
     ctx: DomainContext,
     line_name: str,
     report: object,
-    timestamp: str,
     *,
     gate_ok: bool | None = None,
 ) -> dict[str, Path]:
     """落盘文本产物；门禁通过才写正式 result，失败写 rejected 备查。
 
+    md 文件名：只落文本的任务线（actions/risks/minutes_styles）按线命名
+    （{line_name}.md，与 {line_name}.html 模式对齐），其余固定 result.md；
+    目录按请求隔离，不重复叠加时间戳。
+
     Args:
         gate_ok: True 通过 / False 失败 / None 未做门禁（无模板）→ 仍写正式 md。
     """
     from tools.hard_execution import should_write_result_md
+
+    # md 与 html 同模式按线命名的任务线（无 HTML 产物，file_name 直接指向 md）
+    line_named_md = line_name in {"actions", "risks", "minutes_styles", "minutes_trace"}
 
     out_dir = task_output_dir(ctx, line_name)
     data = report_to_dict(report)
@@ -181,57 +195,62 @@ def save_report_artifacts(
     # has_template：仅当显式走过门禁（True/False）时视为有模板约束
     has_template = gate_ok is not None
     if should_write_result_md(gate_ok, has_template=has_template):
-        md_path = out_dir / f"result_{timestamp}.md"
-        md_path.write_text(text, encoding="utf-8")
-        paths["text"] = md_path
-        review_html = (
-            data.get("review_html")
-            or data.get("quiz_html")
-            or data.get("library_html")
-            or data.get("catalog_html")
-            or data.get("checklist_html")
-        )
-        if isinstance(review_html, str) and (
-            "memory-review" in review_html
-            or "quiz-sheet" in review_html
-            or "cat-doc" in review_html
-            or "ck-doc" in review_html
-            or "library-hero" in review_html
-        ):
-            body = review_html
-            html_path = out_dir / f"result_{timestamp}.html"
-            if line_name == "checklist" and body.lstrip()[:15].lower().startswith(
-                "<!doctype"
+        # library / graph 只输出 text（API 响应携带），不落盘 md/html；
+        # graph 的交互 HTML 由 export_graph 单独落盘（见 runner）
+        if line_name not in ("library", "graph"):
+            md_path = out_dir / (
+                f"{line_name}.md" if line_named_md else "result.md"
+            )
+            md_path.write_text(text, encoding="utf-8")
+            paths["text"] = md_path
+            review_html = (
+                data.get("review_html")
+                or data.get("quiz_html")
+                or data.get("library_html")
+                or data.get("catalog_html")
+                or data.get("checklist_html")
+            )
+            if isinstance(review_html, str) and (
+                "memory-review" in review_html
+                or "quiz-sheet" in review_html
+                or "cat-doc" in review_html
+                or "ck-doc" in review_html
+                or "library-hero" in review_html
             ):
-                html_path.write_text(body, encoding="utf-8")
-            else:
+                body = review_html
+                html_path = out_dir / f"{line_name}.html"
+                if line_name == "checklist" and body.lstrip()[:15].lower().startswith(
+                    "<!doctype"
+                ):
+                    html_path.write_text(body, encoding="utf-8")
+                else:
+                    html_path.write_text(
+                        _html_document(html_title, body),
+                        encoding="utf-8",
+                    )
+                paths["html"] = html_path
+            elif ctx.name == "meeting" and line_name == "minutes":
+                from tools.memory.citations import memory_review_html
+
+                review = memory_review_html(text)
+                if review:
+                    body = review
+                else:
+                    import html
+
+                    body = f'<div class="plain">{html.escape(text)}</div>'
+                html_path = out_dir / f"{line_name}.html"
                 html_path.write_text(
                     _html_document(html_title, body),
                     encoding="utf-8",
                 )
-            paths["html"] = html_path
-        elif ctx.name == "meeting" and line_name in {"minutes", "minutes_trace"}:
-            from tools.memory.citations import memory_review_html
-
-            review = memory_review_html(text)
-            if review:
-                body = review
-            else:
-                import html
-
-                body = f'<div class="plain">{html.escape(text)}</div>'
-            html_path = out_dir / f"result_{timestamp}.html"
-            html_path.write_text(
-                _html_document(html_title, body),
-                encoding="utf-8",
-            )
-            paths["html"] = html_path
+                paths["html"] = html_path
         if line_name == "review":
             import json
 
             corrected = str(data.get("corrected_notes") or "").strip()
             if corrected:
-                corr_path = out_dir / f"result_{timestamp}_corrected.md"
+                corr_path = out_dir / "result_corrected.md"
                 corr_path.write_text(corrected, encoding="utf-8")
                 paths["corrected"] = corr_path
             payload = {
@@ -241,14 +260,14 @@ def save_report_artifacts(
                 "corrected_notes": corrected,
                 "accepted": False,
             }
-            payload_path = out_dir / f"result_{timestamp}.review.json"
+            payload_path = out_dir / "result.review.json"
             payload_path.write_text(
                 json.dumps(payload, ensure_ascii=False, indent=2),
                 encoding="utf-8",
             )
             paths["review"] = payload_path
     elif gate_ok is False:
-        rej = out_dir / f"result_{timestamp}_rejected.md"
+        rej = out_dir / "result_rejected.md"
         # 门禁失败：不写正式 result.md；落盘内容保持干净（无内部注释标记，
         # 避免下载后展示给用户时出现「强执行门禁未通过」等排查信息）
         rej.write_text(text, encoding="utf-8")
@@ -262,7 +281,6 @@ def save_report_artifacts(
 def save_all_reports(
     ctx: DomainContext,
     reports: dict,
-    timestamp: str,
     *,
     gate_by_line: dict[str, bool | None] | None = None,
 ) -> dict[str, dict[str, Path]]:
@@ -281,7 +299,6 @@ def save_all_reports(
             ctx,
             line_name,
             report,
-            timestamp,
             gate_ok=gate_by_line.get(line_name),
         )
     return saved
@@ -336,7 +353,7 @@ def export_graph(reports: dict, out_dir: Path) -> dict[str, Path]:
         if not title and stripped.startswith("# "):
             title = stripped[2:].strip()
             break
-    stem = f"graph_{_stamp()}"
+    stem = "graph"
     return render_graph_bundle(nodes, edges, out_dir, stem, title=title)
 
 

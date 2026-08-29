@@ -29,7 +29,7 @@ app = FastAPI(title="AgentFlow API", version="1.0.0")
 app.include_router(meeting.router)
 app.include_router(notes.router)
 
-# html 产物预览（可选）：data/{user_id}/output/{request_id}/result.html
+# html 产物预览（可选）：data/{user_id}/output/{request_id}/{task}.html
 _data_dir = PROJECT_ROOT / "data"
 if _data_dir.is_dir():
     app.mount("/data", StaticFiles(directory=str(_data_dir)), name="data")
@@ -38,13 +38,14 @@ if _data_dir.is_dir():
 @app.exception_handler(ApiError)
 async def _api_error_handler(_request: Request, exc: ApiError) -> JSONResponse:
     request_id = _request.headers.get("X-Request-Id", "")
+    # 错误响应不携带 monitor / data（无监控数据与产物，省去全 0 / 空字段噪音）
     return JSONResponse(
         status_code=exc.status,
         content=TaskResponse(
             code=exc.status,
             request_id=request_id,
             message=exc.message,
-        ).model_dump(),
+        ).model_dump(exclude={"monitor", "data"}),
     )
 
 
@@ -58,7 +59,7 @@ async def _unexpected_handler(_request: Request, exc: Exception) -> JSONResponse
             code=500,
             request_id=request_id,
             message=f"服务内部错误：{exc}",
-        ).model_dump(),
+        ).model_dump(exclude={"monitor", "data"}),
     )
 
 

@@ -1,11 +1,20 @@
 """会议记忆：复用会议理解 / 待办 / 风险的已有结构，跨场融合进档案。"""
 from __future__ import annotations
 
+import logging
 import re
 from typing import Any
 
-from .entities import extract_entities, extract_quoted, is_key_candidate
+from .entities import (
+    extract_entities,
+    extract_quoted,
+    is_generic_entity,
+    is_key_candidate,
+    speaker_names,
+)
 from .resolve import identity_keys
+
+logger = logging.getLogger(__name__)
 
 _OPEN_CAP = 30
 _CLOSED_CAP = 30
@@ -622,6 +631,66 @@ def _semantic_hits(
         return None
 
 
+def _distinctive_tokens(transcript: str, record: dict[str, Any] | None = None) -> list[str]:
+    """本场原文中的强专名：剔除业务泛词与发言人名后的实体。
+
+    注入相关性复核用：历史摘录须含至少一个本场强专名才注入——
+    同项目会议天然共享项目专名（厂区/代号/客户名），
+    不相关会议的摘录一条都含不上，宁缺毋滥。
+
+    取词来源：extract_entities（引号短语单次即收、反复出现的中文块/拉丁专名）
+    ＋ 档案已登记实体名中在本场原文出现的（覆盖单次提及的既有专名）。
+    """
+    from .entities import entity_names
+
+    speakers = speaker_names(transcript)
+    blob = transcript or ""
+    candidates: list[str] = list(extract_entities(blob))
+    if record:
+        for name in entity_names(record.get("entities")):
+            name = str(name or "").strip()
+            if name and len(name) >= 2 and name in blob and name not in candidates:
+                candidates.append(name)
+    out: list[str] = []
+    for tok in candidates:
+        tok = tok.strip()
+        if (not tok or tok in speakers or is_generic_entity(tok)
+                or not is_key_candidate(tok)):
+            continue
+        if any(len(s) >= 2 and (tok.startswith(s) or s.startswith(tok))
+               for s in speakers):
+            continue
+        if tok not in out:
+            out.append(tok)
+    return out
+
+
+def _filter_hits_by_distinctive(
+    hits: list[dict[str, Any]] | None,
+    transcript: str,
+    record: dict[str, Any] | None = None,
+) -> list[dict[str, Any]]:
+    """注入前强专名复核：历史摘录须含本场强专名，否则整条丢弃。"""
+    distinctive = _distinctive_tokens(transcript, record)
+    if not hits or not distinctive:
+        return []
+    filtered: list[dict[str, Any]] = []
+    for hit in hits:
+        history = [
+            item for item in (hit.get("history") or [])
+            if any(tok in _clean(item) for tok in distinctive)
+        ]
+        if not history:
+            continue
+        kept = {_clean(item) for item in history}
+        origins = [
+            o for o in (hit.get("origins") or [])
+            if isinstance(o, dict) and _clean(o.get("line")) in kept
+        ]
+        filtered.append({**hit, "history": history, "origins": origins})
+    return filtered
+
+
 def inject_meeting(record: dict[str, Any], transcript: str = "") -> str:
     """把已融合的项目理解写成对照文本。空状态返回空串。"""
     meeting = (record or {}).get("meeting") or {}
@@ -630,6 +699,11 @@ def inject_meeting(record: dict[str, Any], transcript: str = "") -> str:
     hits = _semantic_hits(record, transcript)
     if hits is None:
         hits = build_entity_recall(record, transcript)
+    hits = _filter_hits_by_distinctive(hits, transcript, record)
+    if not hits:
+        # 本场与档案无任何强专名交集：大概率错绑或全新议题，
+        # 连「历史项目状态」对照块一并抑制，避免不相关会议的溯源外泄
+        return ""
     parts: list[str] = []
     if hits:
         names = [str(h.get("entity") or "") for h in hits if h.get("entity")]
@@ -803,6 +877,7 @@ def _match_open_items_semantic(
     prev_open: list[dict[str, Any]],
     incoming_opens: list[dict[str, Any]],
     threshold: float = 0.80,
+    user_id: str = "",
 ) -> dict[str, str]:
     """同一未决事项的语义匹配（优化 B）：改写表述 → 仍视为同一项。
 
@@ -1044,7 +1119,6 @@ def _merge_identity(
     """
     from .entities import entity_type, normalize_entities
 
-    meeting = (rec or {}).get("meeting") if isinstance(rec, dict) else {}
     understanding = understanding if isinstance(understanding, dict) else {}
     purpose = _clean(understanding.get("meeting_purpose") or understanding.get("purpose"))
     src_bits: list[str] = [purpose]
@@ -1124,6 +1198,7 @@ def merge_meeting(
     stamp: str,
     understanding: dict[str, Any] | None = None,
     transcript: str = "",
+    user_id: str = "",
 ) -> dict[str, Any]:
     """把本场会议理解、待办、风险并进档案，保留细节与场次快照。"""
     rec = dict(record)
@@ -1222,7 +1297,9 @@ def merge_meeting(
     prev_map = {_clean(i.get("item")): i for i in prev_open}
     if fresh_keys:
         # 优化 B：同一未决事项语义匹配（改写表述仍视为同一项，保留 since/owner/deadline）
-        matched_prev = _match_open_items_semantic(prev_open, incoming_opens)
+        matched_prev = _match_open_items_semantic(
+            prev_open, incoming_opens, user_id=user_id
+        )
         matched_prev_keys = set(matched_prev.values())
         closed = list(meeting.get("closed_items") or [])
         for key, item in prev_map.items():

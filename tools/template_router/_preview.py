@@ -1,7 +1,5 @@
 """tools.template_router.preview —— 模板路由·可读化层：预览/可读文本/编辑模型的转换。"""
 from __future__ import annotations
-
-from __future__ import annotations
 import logging
 import re
 from typing import Any
@@ -298,7 +296,6 @@ def readable_to_template(readable: str, template_raw: str) -> str:
                     if cells and _is_slot_body(cells[0]) and all(
                         _is_slot_body(c) for c in cells[1:]
                     ):
-                        orig_ph = _orig_placeholder_for_heading(template_raw, title)
                         # 保留原表的占位数据行
                         orig_body = ""
                         for _p, ot, ob in orig_chunks:

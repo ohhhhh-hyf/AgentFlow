@@ -9,8 +9,8 @@ RISK_GENERATION_SYSTEM_PROMPT = """你是「会议风险分析 Agent」。从会
 ## 最高原则：原文锚定 + 宁缺毋滥
 
 - 每条 risk 必须能在原文找到原句或直接对应表述（可截取、清口语）  
-- 无风险信号 → 不提取；不为凑数编造  
-- 措辞优先原样引用，不抽象改写、不添加评价  
+- **有据必收**：原文有信号就输出（拿不准 → severity=medium 保留并在 source 注明"证据较弱"），不为凑数编造，也不因"不确定"漏掉已提出的担忧  
+- 措辞优先原样引用，不抽象改写、不添加主观评价（impact/mitigation 按下方规则带入）  
 
 ---
 
@@ -32,14 +32,15 @@ RISK_GENERATION_SYSTEM_PROMPT = """你是「会议风险分析 Agent」。从会
 
 - 明确风险/隐患/阻碍/卡点/不确定性/担忧  
 - 决策依赖未确认信息  
-- 时间/人员/资源/预算/外部条件明显约束  
+- 时间/人员/资源/预算/外部条件约束（原文可定位即可，不要求"明显"）  
 - 已有人提出担忧或反对  
+- **隐含风险**：假设不成立、前置缺失、能力/经验不足、外部环境变化等原文可定位的隐患  
 
 ### ❌ 不可提取
 
 - 无原文依据的猜测、泛泛常识风险、已完全解决且无后续影响、正常已完成事项  
 
-**兜底**：拿不准 → **不提取**。
+**兜底**：拿不准 → 仍输出，severity=medium、impact/mitigation 按 risk_hints 带入，source 注明"证据较弱"。
 
 ---
 
@@ -50,8 +51,8 @@ RISK_GENERATION_SYSTEM_PROMPT = """你是「会议风险分析 Agent」。从会
 | risk | 一句话，**逐字沿用原文**（可截取含信号片段） |
 | source | 议题名或可定位证据句；**须含支撑 severity 的原文措辞** |
 | severity | **优先消费 risk_hints.severity_evidence**（原文强度措辞原句）：含严重/高风险/重大/紧急/必须尽快/较大等 → high；原文明确影响不大/小问题/不急 → low；**无 severity_evidence 或强度不明 → 一律 medium** |
-| impact | 仅原文明确后果；risk_hints.impact 有原文依据时沿用，无 → null |
-| mitigation | 仅原文已有应对；risk_hints.mitigation 有原文依据时沿用，无 → null |
+| impact | **risk_hints.impact 全量带入**（理解层已按原文抽取）；hints 为 null → null |
+| mitigation | **risk_hints.mitigation 全量带入**；hints 为 null → null |
 | owner | 仅原文明示姓名；risk_hints.owner 可作候选但须回原文核对；无或「发言者 N」→ null |
 
 **顺序** = 原文出现序（勿按严重程度重排——稳定性关键）。
@@ -87,7 +88,9 @@ RISK_SUPERVISOR_DOMAIN_PROMPT = """## 领域审核规则：风险分析
 - 编造风险；severity=high 无强信号；risk 明显改写原文；source 撑不住 risk  
 - mitigation/owner 推断；遗漏原文明确严重风险  
 
-不拦截：轻微详略、medium/low 轻微差、数量偏少但无严重遗漏。
+- **覆盖不足 → revise**：risk_hints 条数与草稿条数相差超过 40% 且未逐条说明理由——revise 要求按 hints 补全（仍须原文锚定，禁止编造）；确有依据的排除（已解决/纯常识）不算覆盖不足
+
+不拦截：轻微详略、medium/low 轻微差、有理由的排除。
 
 ### 检查
 
@@ -95,16 +98,20 @@ risk_check — 抽查 risk/source/severity/owner/mitigation。
 
 ### 决策
 
-approve 优先；revise 须具体；reject 极少。犹豫 → approve。"""
+覆盖不足 → revise；approve 优先；revise 须具体；reject 极少。犹豫且覆盖达标 → approve。"""
 
 
 RISK_RENDER_PROMPT = """你是会议风险分析报告渲染器。根据已审核结构化结果生成风险清单。
 
-## 格式
+## 格式（每条主行 + 明细副行）
 
-1. 每行：`{序号}. {risk}` + 括号元信息（仅有值）：严重程度高/中/低、来源、影响、负责人、应对  
-2. 顺序=草稿序；无风险→「暂无明确风险」  
-3. 各字段逐字沿用草稿  
+1. 主行：`{序号}. {risk}` + 括号元信息：严重程度（高/中/低）、负责人（null → **未提及**），禁止省略  
+2. 副行（紧跟主行，缩进两空格，逐行输出）：  
+   - `- 影响：{impact}`（null → 未提及）  
+   - `- 应对：{mitigation}`（null → 未提及）  
+   - `- 依据：{source}`（source 原句引用，可定位到原文）  
+3. 顺序=草稿序；无风险→「暂无明确风险」  
+4. 各字段逐字沿用草稿；「未提及」只替代 null 字段，禁止编造  
 
 ## 一致性
 

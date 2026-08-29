@@ -657,6 +657,13 @@ def build_catalog_briefing(shared_context: str) -> str:
 
 def _teacher_text(shared_context: str) -> str:
     raw = shared_context or ""
+    # 老师重点文件（docs 传入的 .txt）注入的专用块优先
+    if "【老师重点】" in raw:
+        body = raw.split("【老师重点】", 1)[1]
+        for stop in ("\n\n【", "\n\n用户画像：", "\n\n已审核", "\n\n原文"):
+            if stop in body:
+                body = body.split(stop, 1)[0]
+        return body.strip()
     for marker in ("原文（最高事实来源）：", "原文："):
         if marker in raw:
             body = raw.split(marker, 1)[1]
@@ -944,7 +951,6 @@ def _catalog_kp_index(draft: dict[str, Any]) -> tuple[list[dict[str, Any]], dict
                 if not isinstance(kp, dict):
                     continue
                 kps.append(kp)
-                name = _clean_title(str(kp.get("name") or ""))
                 for ref in list(kp.get("prerequisites") or []) + list(kp.get("related_points") or []):
                     if isinstance(ref, str):
                         ref_name = _clean_title(ref)

@@ -111,7 +111,6 @@ class MinutesTraceAgent:
     async def run(self, shared_context: str) -> MinutesTrace:
         extras = parse_trace_extras(shared_context)
         pack = extras["pack"] if isinstance(extras["pack"], dict) else {}
-        pack_raw = str(extras.get("pack_raw") or "")
         understanding = extract_labeled_json(shared_context, "会议理解") or {}
         if not isinstance(understanding, dict):
             understanding = {}

@@ -20,13 +20,14 @@ RECONSTRUCT_SYSTEM_PROMPT = """你是「笔记整理器」。把 OCR 识别出�
 1. **保留全部内容**：不要漏掉任何识别到的文字、数字、公式；OCR 明显错字可顺手纠正，但不要臆造
 2. **双轨标题规则**：输入中 title_decision=locked_heading 的行是高置信标题，必须输出为 Markdown 标题；只能轻微修 OCR 错字，不要降为正文。title_decision=locked_body 的行默认保持正文/公式，不要升标题。title_decision=ambiguous 的行才结合上下文判断是否为标题
 3. **推断结构**：对 locked_heading 和 ambiguous 标题，结合 heading_level_hint / heading_score / 上下文，推断章节/知识点层级（# 标题、## 小节、### 知识点）
-4. **标题层级一致**：同类编号（如 一、二、三 或 1.1/1.2）尽量保持同级；页首大标题通常高于普通小节标题
+4. **标题不带编号前缀**：OCR 行里的编号（如「一、」「3、」「（1）」「第X章」「1.2」）只是序号，输出标题时一律去掉，层级用 # 的数量表达，同类编号保持同一层级；正文和列表里的序号原样保留，不要动
 5. **正文不要误升标题**：locked_body、长句、以句号/逗号结尾的解释性内容，即使包含关键词，也不要强行改成标题
 6. **重点标注**：对像"重点/必考/关键/注意/易错"的内容用 **加粗** 标出（不要过度标注）
 7. **公式定界**：行内公式只用一对 ``$...$``；独立成行的公式才用 ``$$...$$``。禁止 ``$...$$`` / ``$$...$`` 混用，公式内部不要再写美元符号。已有 ``$$...$$`` 的公式原样保留位置，但定界必须成对
 8. **表格**：如果内容是成列的数据（行结构明显），整理成 Markdown 表格
 9. 去除 OCR 噪声（孤立标点、乱码），合并被断行的完整句子
-10. 直接输出 Markdown 正文，不要前言后语、不要 Markdown 代码围栏"""
+10. **低置信行**：conf < 0.8 的行 OCR 可信度低，结合上下文谨慎纠错；不确定就原样保留，禁止臆造
+11. 直接输出 Markdown 正文，不要前言后语、不要 Markdown 代码围栏"""
 
 REVIEW_SYSTEM_PROMPT = """你是「OCR Markdown 保守审校器」。你会拿到一份带行号的整理稿。
 
@@ -66,6 +67,106 @@ from/to 里的换行必须写成 \\n，不要直接换行。
 _LINE_PREFIX_RE = re.compile(r"^L\d+:\s*")
 _REVIEW_MAX_PATCHES = 30
 
+# ── 标题归一化：剥编号前缀 + 同类编号归同一层级（确定性后处理，零 token）──
+
+_HEADING_LINE_RE = re.compile(r"^(#{1,6})\s+(.+?)\s*$")
+_FENCE_RE = re.compile(r"^\s*(```|~~~)")
+
+# 单个编号前缀（按序尝试，可叠两层，如「第一章 三、」）
+_NUM_PREFIX_RES = [
+    re.compile(r"^第[0-9一二三四五六七八九十百]+[章节篇讲][、.．]?\s*"),
+    re.compile(r"^[（(][0-9一二三四五六七八九十百]+[)）]\s*"),
+    re.compile(r"^[0-9]+(?:\.[0-9]+)+\s+"),  # 多级编号 1.2 / 2.3.4（后随空白）
+    re.compile(r"^[0-9]+[、.．]\s*"),
+    re.compile(r"^[一二三四五六七八九十百]+[、.．]\s*"),
+]
+
+# 编号家族：同类编号归同一层级
+_FAMILY_RES = [
+    ("zh", re.compile(r"^[一二三四五六七八九十百]+[、.．]")),
+    ("paren_zh", re.compile(r"^[（(][一二三四五六七八九十百]+[)）]")),
+    ("paren_num", re.compile(r"^[（(][0-9]+[)）]")),
+    ("multi", re.compile(r"^[0-9]+(?:\.[0-9]+)+")),
+    ("arabic", re.compile(r"^[0-9]+[、.．]")),
+    ("di", re.compile(r"^第[0-9一二三四五六七八九十百]+[章节篇讲]")),
+]
+
+
+def _strip_numbering_prefix(text: str) -> str:
+    """剥标题开头的编号前缀（最多两层）；剥完为空则保留原文。"""
+    out = text.strip()
+    for _ in range(2):
+        for pattern in _NUM_PREFIX_RES:
+            matched = pattern.match(out)
+            if matched:
+                out = out[matched.end():].lstrip()
+                break
+        else:
+            break
+    return out.strip() or text
+
+
+def _numbering_family(text: str) -> str | None:
+    for name, pattern in _FAMILY_RES:
+        matched = pattern.match(text)
+        if matched:
+            if name == "multi":
+                # 多级编号按段数分家族：1.2（两段）与 2.3.4（三段）层级不同，不互归
+                depth = len(re.findall(r"[0-9]+", matched.group(0)))
+                return f"multi{depth}"
+            return name
+    return None
+
+
+def normalize_heading_numbering(markdown: str) -> str:
+    """确定性归一化 Markdown 标题：
+
+    1. 剥离标题行的编号前缀（一、 / 3、 / （1） / 第X章 / 1.2 等），
+       编号只是序号，不进标题文本；有序列表/正文不受影响（只处理 # 行）。
+    2. 同类编号归同一层级：同家族标题（如 一、二、…）横跨 H1/H2 时，
+       取多数层级校正，消除 LLM 输出的层级漂移。
+
+    幂等：重复执行结果不变。代码围栏内的行不处理。
+    """
+    rows = (markdown or "").splitlines()
+    headings: list[tuple[int, int, str]] = []  # (行号, 级别, 编号家族)
+    in_fence = False
+    for idx, row in enumerate(rows):
+        if _FENCE_RE.match(row):
+            in_fence = not in_fence
+            continue
+        if in_fence:
+            continue
+        matched = _HEADING_LINE_RE.match(row)
+        if not matched:
+            continue
+        level, title = len(matched.group(1)), matched.group(2).strip()
+        family = _numbering_family(title)
+        stripped = _strip_numbering_prefix(title)
+        rows[idx] = f"{'#' * level} {stripped}"
+        if family is not None:
+            headings.append((idx, level, family))
+
+    # 同家族取多数层级（平票取文档中首个该家族标题的层级）
+    families: dict[str, list[tuple[int, int]]] = {}
+    for idx, level, family in headings:
+        families.setdefault(family, []).append((idx, level))
+    for members in families.values():
+        if len(members) < 2:
+            continue
+        counts: dict[int, int] = {}
+        for _idx, level in members:
+            counts[level] = counts.get(level, 0) + 1
+        # max 平票时返回按文档顺序先插入的层级
+        target = max(counts.items(), key=lambda kv: kv[1])[0]
+        if all(level == target for _idx, level in members):
+            continue
+        for idx, _level in members:
+            matched = _HEADING_LINE_RE.match(rows[idx])
+            if matched:
+                rows[idx] = f"{'#' * target} {matched.group(2).strip()}"
+    return "\n".join(rows)
+
 
 def _fragments_to_text(lines: list[dict]) -> str:
     """行列表 → 拼接文本；无 LLM 时也尽量保留标题层级。"""
@@ -87,33 +188,39 @@ def _fragments_to_text(lines: list[dict]) -> str:
 
 
 def _lines_to_structured_payload(lines: list[dict]) -> str:
-    """压缩版 OCR 行 JSON，给 LLM 保留标题/版面提示。"""
+    """压缩版 OCR 行 JSON。locked_body 正文行只发 text/conf，版面明细只随标题候选行发送，
+    大幅压缩输入 token。"""
     payload = []
     for idx, item in enumerate(lines, start=1):
         formula = str(item.get("formula") or "").strip()
         text = str(item.get("text") or "").strip()
         if not text and not formula:
             continue
-        layout = item.get("layout") or {}
-        row = {
+        decision = item.get("title_decision") or "ambiguous"
+        conf = item.get("conf")
+        row: dict = {
             "i": idx,
             "text": text,
-            "formula": formula,
-            "role_hint": item.get("role_hint") or "body",
-            "title_decision": item.get("title_decision") or "ambiguous",
-            "heading_score": item.get("heading_score") or 0,
-            "heading_level_hint": item.get("heading_level_hint"),
-            "layout": {
+            "title_decision": decision,
+        }
+        if formula:
+            row["formula"] = formula
+        if conf is not None and float(conf) < 0.8:
+            row["conf"] = round(float(conf), 3)  # 只标低置信行，供 LLM 谨慎纠错
+        if decision != "locked_body":
+            layout = item.get("layout") or {}
+            row["role_hint"] = item.get("role_hint") or "body"
+            row["heading_score"] = item.get("heading_score") or 0
+            if item.get("heading_level_hint"):
+                row["heading_level_hint"] = item.get("heading_level_hint")
+            row["layout"] = {
                 "top": layout.get("top"),
                 "height_ratio": layout.get("height_ratio"),
                 "gap_before": layout.get("gap_before"),
                 "gap_after": layout.get("gap_after"),
                 "centered": layout.get("centered"),
                 "near_left": layout.get("near_left"),
-            },
-        }
-        if item.get("conf") is not None:
-            row["conf"] = round(float(item["conf"]), 3)
+            }
         payload.append(row)
     return json.dumps(payload, ensure_ascii=False, separators=(",", ":"))
 
@@ -131,7 +238,7 @@ def reconstruct_markdown(lines: list[dict], *, max_tokens: int = 8000) -> str:
     except Exception:  # noqa: BLE001
         client = None
     if client is None:
-        return normalize_markdown_math(raw)
+        return normalize_heading_numbering(normalize_markdown_math(raw))
     try:
         import asyncio
 
@@ -146,10 +253,10 @@ def reconstruct_markdown(lines: list[dict], *, max_tokens: int = 8000) -> str:
                 label="ocr/reconstruct",
             )
         )
-        return normalize_markdown_math(str(text).strip())
+        return normalize_heading_numbering(normalize_markdown_math(str(text).strip()))
     except Exception as exc:  # noqa: BLE001
         logger.warning("LLM 重构失败，返回原始文本：%s", exc)
-        return normalize_markdown_math(raw)
+        return normalize_heading_numbering(normalize_markdown_math(raw))
 
 
 def review_markdown(
@@ -163,7 +270,7 @@ def review_markdown(
     draft = str(markdown or "").strip()
     if not draft:
         return draft, "未生成可审校的 Markdown。"
-    draft = normalize_markdown_math(draft)
+    draft = normalize_heading_numbering(normalize_markdown_math(draft))
     client = None
     try:
         from .engines import get_llm_client
@@ -427,13 +534,15 @@ def _as_reviewed_markdown(text: str, draft: str) -> tuple[str, str]:
         logger.warning("审校未返回可解析补丁，已保留重构稿")
         return draft, "审校未返回补丁，已保留重构稿。"
     patches = _patch_items(payload)
-    return apply_review_patches(draft, patches)
+    reviewed, notes = apply_review_patches(draft, patches)
+    return normalize_heading_numbering(reviewed), notes
 
 
 __all__ = [
     "RECONSTRUCT_SYSTEM_PROMPT",
     "REVIEW_SYSTEM_PROMPT",
     "apply_review_patches",
+    "normalize_heading_numbering",
     "reconstruct_markdown",
     "review_markdown",
 ]

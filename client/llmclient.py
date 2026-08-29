@@ -33,7 +33,7 @@ class LLMClient:
     - 每次调用覆盖 temperature / json_mode / max_tokens / timeout
     - 网络错误指数退避重试
     - 可选进程内文本缓存（``use_cache=True``）
-    - token usage 累计（``usage_totals`` / ``last_usage``）
+    - token usage 累计（``usage_totals``）
     """
 
     def __init__(
@@ -71,7 +71,6 @@ class LLMClient:
         self.timeout = cfg.timeout
         self.max_retries = cfg.max_retries
         # 调用统计
-        self.last_usage: dict[str, int] = {}
         self.usage_totals: dict[str, int] = {
             "prompt_tokens": 0,
             "completion_tokens": 0,
@@ -129,22 +128,6 @@ class LLMClient:
                 "failures_total": self.failures_total,
             }
 
-    def reset_monitor(self, *, include_usage: bool = False) -> None:
-        """清空监控统计（默认保留 usage_totals 历史累计）。
-
-        include_usage=True 时连同 usage_totals / last_usage 一并清零
-        （适合一次运行一个 client 的独立监控场景）。
-        """
-        with self._monitor_lock:
-            self.usage_by_label.clear()
-            self.latency_by_label.clear()
-            self.retries_total = 0
-            self.failures_total = 0
-            if include_usage:
-                for key in self.usage_totals:
-                    self.usage_totals[key] = 0
-                self.last_usage = {}
-
     @staticmethod
     def _retry_delay_seconds(attempt: int) -> float:
         """指数退避：attempt 从 0 开始，依次 1s → 2s → 4s。"""
@@ -158,7 +141,6 @@ class LLMClient:
         self, usage: dict | None, *, count_call: bool = True, label: str = ""
     ) -> None:
         if not usage or not isinstance(usage, dict):
-            self.last_usage = {}
             return
         prompt = int(usage.get("prompt_tokens") or usage.get("input_tokens") or 0)
         completion = int(
@@ -171,12 +153,6 @@ class LLMClient:
             or usage.get("cached_tokens")
             or 0
         )
-        self.last_usage = {
-            "prompt_tokens": prompt,
-            "completion_tokens": completion,
-            "total_tokens": total,
-            "cache_hit_tokens": cache_hit,
-        }
         with self._monitor_lock:
             if count_call:
                 self.usage_totals["calls"] += 1

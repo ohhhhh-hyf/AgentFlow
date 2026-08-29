@@ -464,7 +464,7 @@ class _Nodes(DomainNodes):
         """notes理解：提取主题、结构、术语和待澄清问题。"""
         try:
             result = await self.notes_understanding_agent.run(state["transcript"])
-        except Exception as exc:
+        except Exception:
             logger.warning("notes理解失败，使用空理解继续", exc_info=True)
             return {
                 "notes_understanding": _EMPTY_NOTES_UNDERSTANDING,

@@ -8,7 +8,6 @@ X-Request-Id 必填（建议 UUID，产物目录 data/{user_id}/output/{request_
 请求体为通用结构，不用的字段置空即可（字段说明见 API.md 第四节）。
 graph 必填 docs（笔记 .txt/.md 文件）；extra.subject 传学科名可开启记忆增量（见 API.md 6.6）。
 """
-import json
 import uuid
 
 import requests
@@ -25,11 +24,10 @@ payload = {
     "task": "graph",
     "texts": {
         "transcript": "",   # graph 用 docs 传笔记文件，不用 transcript
-        "teacher_focus": "",
         "keypoints": "",
         "notes": "",
     },
-    "docs": ["seq_one.txt"],   # 必填：笔记 .txt/.md 文件（放 data/{user_id}/docs/ 下）
+    "docs": ["seq_two.txt"],   # 必填：笔记 .txt/.md 文件（放 data/{user_id}/docs/ 下）
     "extra": {
         "template": "",
         "profile": "",

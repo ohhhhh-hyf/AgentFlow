@@ -4,14 +4,21 @@ from __future__ import annotations
 from typing import Any
 
 from domain.notes.tasks.catalog.gather import subject_from_context, user_id_from_context
-from domain.notes.tasks.catalog.store import load_catalog
 
 from .select import activate_points
 
 
 def teacher_from_context(text: str) -> str:
-    """只取共享上下文里最后一段原文，避免 notes 理解 JSON 里的「原文」污染匹配。"""
+    """老师重点优先取「老师重点文件」（docs .txt）注入的【老师重点】块；
+    没有该块时回退取共享上下文里最后一段原文（兼容 CLI / 仅传课堂记录的场景）。"""
     raw = text or ""
+    idx = raw.find("【老师重点】")
+    if idx >= 0:
+        body = raw[idx + len("【老师重点】") :]
+        for stop in ("\n\n【", "\n\n用户画像：", "\n\n已审核", "\n\n原文"):
+            if stop in body:
+                body = body.split(stop, 1)[0]
+        return body.strip()
     idx = raw.rfind("原文（最高事实来源）：")
     marker_len = len("原文（最高事实来源）：")
     if idx < 0:

@@ -48,7 +48,6 @@ FastAPI 后端接口。所有接口走 `/api/v1`，一次请求对应一条任�
   "task": "minutes",
   "texts": {
     "transcript": "会议记录全文……",
-    "teacher_focus": "老师划重点……",
     "keypoints": "用户关键点……",
     "notes": "用户笔记……"
   },
@@ -83,19 +82,19 @@ FastAPI 后端接口。所有接口走 `/api/v1`，一次请求对应一条任�
 
 ### 4.2 `texts` 对象（四个固定 key）
 
-`texts` 是对象，key 固定四选一，值为字符串（多段用 `\n` 拼接）；出现未知 key → 422。
+`texts` 是对象，key 固定三选一，值为字符串（多段用 `\n` 拼接）；出现未知 key → 422。
 
 | key | 中文名 | 语义 | 用途 |
 |---|---|---|---|
 | `transcript` | 会议转写文本 | 会议记录 / 笔记原文，主输入 | 所有任务的主文本来源 |
-| `teacher_focus` | 老师重点文本 | 老师划重点内容，主输入 | `catalog`/`checklist` 传老师划重点 |
 | `keypoints` | 用户重点文本 | 用户关键点 | `minutes_trace` 溯源材料（**必填**） |
 | `notes` | 用户笔记文本 | 用户笔记 | `minutes_trace` 溯源材料（**必填**） |
 
-- `transcript` 与 `teacher_focus` 都算**主输入**，按 `transcript` → `teacher_focus` 顺序拼成主文本（各自内部多段用 `\n`）。
+- `transcript` 是**主输入**。
 - `keypoints`/`notes` 是 `minutes_trace` 的**溯源材料**，不并入主文本；**`minutes_trace` 必填二者**（缺任一返回 400）。
+- **老师重点不在 texts 里传**：通过 `docs` 传 `.txt` 文件名（见 4.3），`catalog` / `checklist` 读取其内容作为「老师重点」。
 - 未提供的 key 省略即可（缺省为空）。
-- 未知 key → 422。
+- 未知 key → 422（`teacher_focus` 已移除，传了会 422）。
 
 ### 4.3 `docs[]`（按扩展名分派）
 
@@ -103,6 +102,7 @@ FastAPI 后端接口。所有接口走 `/api/v1`，一次请求对应一条任�
 - 服务端查找链：`data/{user_id}/docs/{name}` → `data/docs/{name}`（公共兜底）。
 - 图片走 OCR（引擎由 `.env` 的 `OCR_ENGINE` 决定），OCR 文本并入主输入。
 - 文档：`.txt/.md` 直读；`.pdf/.pptx/.docx/.xlsx` 走知识库解析；`library` 任务直接入库。
+- **老师重点文件**：`catalog` / `checklist` 的 `docs` 中，`.txt` 文件视为老师重点（内容不并入主文本，单独作为「老师重点」参与目录生成与清单溯源）；`checklist` 的 `.json` 为 catalog 目录文件，其余扩展名拒绝（400）。
 - **`graph` 必填 `docs`**（笔记 `.txt/.md` 文件，缺了返回 400）。
 - 文件不存在 → 404；文件名含路径分隔符/`..` → 400。
 
@@ -221,7 +221,7 @@ FastAPI 后端接口。所有接口走 `/api/v1`，一次请求对应一条任�
 {
   "code": 0,
   "request_id": "req-0001",
-  "message": "ok",
+  "message": "success",
   "monitor": {
     "token_usage": 8231,
     "cache_hit": 1560,
@@ -260,11 +260,13 @@ FastAPI 后端接口。所有接口走 `/api/v1`，一次请求对应一条任�
 | `code` | int | `0` | HTTP 状态码（见 5.2） |
 | `request_id` | string | 与请求头 `X-Request-Id` 一致 | 同左 |
 | `message` | string | `ok` | 错误原因（人类可读） |
-| `monitor.token_usage` | int | 本次任务 LLM token 总消耗（prompt+completion） | `0` |
-| `monitor.cache_hit` | int | 本次任务缓存命中的 token 数（服务端上下文缓存） | `0` |
-| `monitor.cost_time` | float | 本次任务耗时（秒） | `0` |
-| `data.text` | string/null | **该任务生成的 Markdown 文本**（含记忆溯源标准链接；`graph` 为学习地图；`library` 为入库报告） | `null` |
-| `data.file_name` | string | 产物文件名：`catalog` 接口返回目录文件名（如 `20260827_223933_068.json`，存于 `data/{user_id}/knowledge/catalogs/{subject拼音}/`）；`checklist` 接口返回本次运行 HTML 文件名（`result.html`，存于 `data/{user_id}/output/{request_id}/`）；其他接口为空串 | `""` |
+| `monitor.token_usage` | int | 本次任务 LLM token 总消耗（prompt+completion） | **不返回** |
+| `monitor.cache_hit` | int | 本次任务缓存命中的 token 数（服务端上下文缓存） | **不返回** |
+| `monitor.cost_time` | float | 本次任务耗时（秒） | **不返回** |
+| `data.text` | string/null | **该任务生成的 Markdown 文本**（含记忆溯源标准链接；`graph` 为学习地图；`library` 为入库报告） | **不返回** |
+| `data.file_name` | string | 产物文件名：`catalog` 接口返回目录文件名（如 `20260827_223933_068.json`，存于 `data/{user_id}/knowledge/catalogs/{subject拼音}/`）；其余接口按产物返回：有 HTML 产物返回 `{task}.html`（如 `checklist.html`），只有文本产物（`actions` / `risks` / `minutes_styles` / `minutes_trace`）返回 `{task}.md`（如 `actions.md`）；均存于 `data/{user_id}/output/{request_id}/`，`library` / `graph` 无对应产物类型时为空串 | **不返回** |
+
+> 失败响应只含 `code` / `request_id` / `message` 三个字段，不携带 `monitor` 与 `data`（无监控数据与产物，省去全 0 / 空字段噪音）。
 
 ### 5.2 `code` 语义（与 HTTP 状态码一致）
 
@@ -386,23 +388,21 @@ FastAPI 后端接口。所有接口走 `/api/v1`，一次请求对应一条任�
 
 ### 6.8 `POST /api/v1/notes/catalog` —— 知识目录
 
-- **用途**：按已入库资料（+ 可选老师划重点）生成知识目录。
-- **输入**：可整体缺省；`texts`（teacher_focus 老师划重点）可选
+- **用途**：按已入库资料（+ 可选老师重点）生成知识目录。
+- **输入**：可整体缺省；`docs` 可选（`.txt` 文件为**老师重点**，内容不并入主文本；其他文件按资料 OCR/解析并入主文本）
 - **生效的 extra**：`subject`（**必填**）
 
 ```json
 {
-  "texts": {
-    "teacher_focus": "本章重点：极限与连续……"
-  },
+  "docs": ["teacher_points.txt"],
   "extra": { "subject": "数学" }
 }
 ```
 
 ### 6.9 `POST /api/v1/notes/checklist` —— 复习清单
 
-- **用途**：按已有知识目录和知识库（+ 可选老师划重点）生成复习清单。
-- **输入**：`docs`（**必填**，catalog 文件名 `.json`，从 `data/{user_id}/knowledge/catalogs/{学科拼音}/` 取）+ `texts`（teacher_focus 老师划重点，可选）
+- **用途**：按已有知识目录和知识库（+ 可选老师重点）生成复习清单。
+- **输入**：`docs`（**必填**：`.json` 为 catalog 文件名，从 `data/{user_id}/knowledge/catalogs/{学科拼音}/` 取；`.txt` 可选，为**老师重点**文件；其余扩展名 400）+ `texts` 可选
 - **生效的 extra**：`subject`（**必填**）
 
 ### 6.10 `GET /api/v1/health` —— 健康检查
@@ -438,8 +438,8 @@ docs[] 中的文件 →  data/{user_id}/docs/{name}  →  data/docs/{name}
 
 | 文件 | 内容 |
 |---|---|
-| `result.md` | 标准 Markdown 链接版（= 响应 `data` 内容），所有任务线都有 |
-| `result.html` | 页面版（可直接打开/预览）。**仅以下线生成**：`minutes` / `minutes_trace`（记忆对照页，未命中记忆时为纯文本页）、`notes/graph`（交互图谱）、`notes/review` / `quiz` / `checklist`（各自交互页）；`actions` / `risks` / `minutes_styles` / `library` / `catalog` 不生成（产物目录只有 `result.md`） |
+| `result.md` | 标准 Markdown 链接版（= 响应 `data` 内容）。`actions` / `risks` / `minutes_styles` / `minutes_trace` 按线命名为 `{task}.md`（如 `actions.md`）；**`library` / `graph` 不生成**（仅接口返回文本，不落盘） |
+| `{task}.html`（如 `checklist.html`） | 页面版（可直接打开/预览），按本次请求任务线命名。**仅以下线生成**：`minutes`（记忆对照页，未命中记忆时为纯文本页）、`graph`（交互图谱）、`checklist`（交互页）；`actions` / `risks` / `minutes_styles` / `minutes_trace` / `library` 不生成 html（前四者产物目录只有 `{task}.md`，`library` 为空）；`graph` 产物目录只有 `graph.html` |
 
 `request_id` 来自请求头 `X-Request-Id`（必填，建议 UUID）。未传 `X-User-Id` 时（实际必填，此仅为兜底）为 `data/output/{request_id}/`。
 
@@ -510,7 +510,7 @@ data/{user_id}/knowledge/catalogs/{subject拼音}/   ← 按学科分目录（�
 {"type": "phase", "node": "minutes_supervisor"}
 {"type": "chunk", "line": "minutes", "title": "客观会议纪要", "text": "# 会议纪要\n本次会议……"}
 {"type": "chunk", "line": "minutes", "title": "客观会议纪要", "text": "会议明确……"}
-{"type": "done", "code": 0, "request_id": "req-0001", "message": "ok", "quality_warning": null,
+{"type": "done", "code": 0, "request_id": "req-0001", "message": "success", "quality_warning": null,
  "monitor": {"token_usage": 53268, "cache_hit": 24320, "cost_time": 42.9},
  "data": {"text": "# 会议纪要\n本次会议……", "file_name": ""}}
 ```
@@ -519,7 +519,7 @@ data/{user_id}/knowledge/catalogs/{subject拼音}/   ← 按学科分目录（�
 
 - **参数校验失败（400/404）仍直接返回 HTTP 错误**，不走流（与同步接口一致）；
 - 流开始后任务失败：HTTP 保持 200，流内推 `error` 事件（业务错误在事件里）；
-- 产物落盘与同步接口一致：`data/{user_id}/output/{request_id}/result.md` / `result.html`；
+- 产物落盘与同步接口一致：`data/{user_id}/output/{request_id}/result.md` / `{task}.html`；
 - `done` 事件里的 `monitor` / `data` 字段与同步响应完全同构，调用方可直接复用解析逻辑。
 
 ### 10.4 调用示例（Python）
@@ -574,7 +574,7 @@ curl -X POST http://127.0.0.1:8000/api/v1/meeting/minutes \
 {
   "code": 0,
   "request_id": "req-0001",
-  "message": "ok",
+  "message": "success",
   "monitor": {
     "token_usage": 8231,
     "cache_hit": 1560,
@@ -589,5 +589,5 @@ curl -X POST http://127.0.0.1:8000/api/v1/meeting/minutes \
 
 **前端接入要点**：
 - `data.text` 为 md 文本，用 markdown-it（默认配置即可）渲染；记忆溯源为标准链接，配 anchor 插件可点击跳转。
-- 下载：`data` 内容直接 Blob 存 `.md`；html 预览走 `data/{user_id}/output/{request_id}/result.html`。
+- 下载：`data` 内容直接 Blob 存 `.md`；html 预览走 `data/{user_id}/output/{request_id}/{task}.html`。
 - 长文本用 `JSON.stringify` 序列化，避免裸换行导致的 422。

@@ -1,14 +1,12 @@
 """tools.template_router.gate —— 模板路由·门禁层：输出校验、保真检查与自然语言模板编译。"""
 from __future__ import annotations
-
-from __future__ import annotations
 import hashlib
 import json
 import logging
 import re
 from typing import Any
 
-from ._base import _COMPILE_CACHE, _COMPILE_CACHE_VERSION, _COMPILE_FAIL_COUNTS, _COMPILE_FAIL_SKIP_THRESHOLD, _EXPANSION_GUARDS, _MODIFY_SYSTEM, _PLACEHOLDER_RE, _client_text, _hint_clean, _strip_heading_number, _table_topic_from_context, is_router_enabled, logger, strip_outer_markdown_fence
+from ._base import _COMPILE_CACHE, _COMPILE_CACHE_VERSION, _COMPILE_FAIL_COUNTS, _COMPILE_FAIL_SKIP_THRESHOLD, _EXPANSION_GUARDS, _MODIFY_SYSTEM, _PLACEHOLDER_RE, _client_text, _hint_clean, _strip_heading_number, _table_topic_from_context, is_router_enabled, strip_outer_markdown_fence
 from ._detect import _looks_like_placeholder, _table_row_limit_from_text, detect_template_kind, extract_description_cues, parse_placeholder_template
 from ._placeholder import _is_table_data_row, template_to_preview
 from ._preview import _aspect_has_fixed_heading, _aspect_has_own_slot, extract_listed_aspects
@@ -41,6 +39,13 @@ def validate_rendered_output(
         if leftovers:
             errors.append(f"输出残留占位符：{'、'.join(leftovers)}")
         segments = parse_placeholder_template(template)
+        # 占位表格数据行（| … | … |）：输出中不得原样残留（应已替换为真实数据行）
+        placeholder_rows = [
+            s["row"] for s in segments if s.get("kind") == "table_rows"
+        ]
+        for row in placeholder_rows:
+            if row in rendered:
+                errors.append(f"表格占位数据行未替换：{row!r}")
         fixed = []
         for s in segments:
             if s["kind"] != "text":
@@ -50,6 +55,10 @@ def validate_rendered_output(
                 continue
             # 空表行/仅竖线空白（如「| | | | | |」）不算必须保留的固定文案
             if not re.sub(r"[\s|:\-]+", "", raw):
+                continue
+            # 占位数据行（… 单元格）不算必须保留的固定文案（应替换为真实数据行）
+            if all(cell.strip() in {"…", "...", ""} for cell in raw.strip().strip("|").split("|")) \
+                    and "|" in raw:
                 continue
             fixed.append(raw)
         # 归一化空白后再比对，避免换行差异误报

@@ -313,22 +313,6 @@ class MemoryEmbedder:
             self._record(ok=False)
             return False
 
-    def remove_project(self, user_id: str, domain: str, project_id: str) -> bool:
-        if not self.enabled:
-            return False
-        try:
-            coll = self._coll()
-            got = coll.get(
-                where={"$and": [{"domain": domain}, {"project_id": project_id}]},
-                include=[],
-            )
-            stale = got.get("ids") or []
-            if stale:
-                coll.delete(ids=stale)
-            return True
-        except Exception:  # noqa: BLE001
-            return False
-
     # ── 检索 ──────────────────────────────────────────────────
 
     def search_projects(
@@ -478,5 +462,4 @@ __all__ = [
     "MEMORY_PERSIST_DIR",
     "MemoryEmbedder",
     "get_embedder",
-    "iter_entries",
 ]

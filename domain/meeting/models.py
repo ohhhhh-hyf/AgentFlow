@@ -1,9 +1,9 @@
 """meeting 领域数据模型（手写）。生成模型在 models_generated.py。"""
 from __future__ import annotations
 
-from typing import Annotated, Any, TypedDict
+from typing import Annotated, TypedDict
 
-from .models_base import ModelMixin, UserIdentity, is_objective_perspective
+from .models_base import ModelMixin, UserIdentity
 from .models_generated import *  # noqa: F403
 
 # ── LangGraph 共享状态 ────────────────────────────────────────

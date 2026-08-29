@@ -9,7 +9,7 @@
 - **健壮性**：重试次数 / 失败次数
 - **质量信号**：done 事件的 quality_warning / gate_by_line / 各线输出规模
 
-数据落盘到 ``output/monitor/{task}_{timestamp}.json``，不记录任何输入正文内容。
+数据落盘到 ``data/monitor/{task}_{timestamp}.json``，不记录任何输入正文内容。
 """
 from __future__ import annotations
 
@@ -24,7 +24,7 @@ logger = logging.getLogger(__name__)
 
 # 项目根（tools/monitor/monitor.py → 上两级）
 ROOT = Path(__file__).resolve().parents[2]
-DEFAULT_OUT_DIR = ROOT / "output" / "monitor"
+DEFAULT_OUT_DIR = ROOT / "data" / "monitor"
 
 
 class TaskMonitor:

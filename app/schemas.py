@@ -1,7 +1,9 @@
 """API 请求/响应模型。
 
-texts 为对象，四个固定 key：transcript / teacher_focus / keypoints / notes，
+texts 为对象，三个固定 key：transcript / keypoints / notes，
 值均为字符串（多段用 \n 拼接）。出现未知 key 返回 422。
+老师重点不在 texts 里传：通过 docs 传 .txt 文件名（data/{user_id}/docs/ 下），
+catalog / checklist 会读取其内容作为「老师重点」。
 """
 from __future__ import annotations
 
@@ -9,7 +11,7 @@ from typing import Optional
 
 from pydantic import BaseModel, Field, field_validator
 
-TEXT_KEYS = ("transcript", "teacher_focus", "keypoints", "notes")
+TEXT_KEYS = ("transcript", "keypoints", "notes")
 
 
 class Extra(BaseModel):
@@ -23,7 +25,8 @@ class Extra(BaseModel):
 
 
 class TaskRequest(BaseModel):
-    """通用请求体。texts 为 {四类 key: 文本内容} 对象；docs 为文件名列表（图片/文档/笔记，按扩展名分派）。"""
+    """通用请求体。texts 为 {三类 key: 文本内容} 对象；docs 为文件名列表
+    （.json 为 catalog 目录文件；catalog/checklist 的 .txt 为老师重点文件；其余按扩展名分派）。"""
 
     domain: Optional[str] = None
     task: Optional[str] = None
@@ -49,7 +52,8 @@ class Monitor(BaseModel):
 
 
 class ResponseData(BaseModel):
-    """任务产物：text 为 md 文本；file_name 为产物文件名（catalog 接口返回目录文件名）。"""
+    """任务产物：text 为 md 文本；file_name 为产物文件名（catalog 返回目录文件名，
+    有 HTML 产物返回 {task}.html，仅文本产物返回 result.md，无产物为空串）。"""
 
     text: Optional[str] = None
     file_name: str = ""
@@ -60,7 +64,7 @@ class TaskResponse(BaseModel):
 
     code: int = 0
     request_id: str = ""
-    message: str = "ok"
+    message: str = "success"
     monitor: Monitor = Field(default_factory=Monitor)
     data: ResponseData = Field(default_factory=ResponseData)
 

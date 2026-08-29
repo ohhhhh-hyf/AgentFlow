@@ -1,12 +1,12 @@
 """tools.template_router.detect —— 模板路由·判型层：模板类型识别与规格/占位符输入构建。"""
 from __future__ import annotations
-
-from __future__ import annotations
 import logging
 import re
 from typing import Any
 
-from ._base import _CHAR_META_LINE_RE, _CHAR_META_TAIL_RE, _CN_RE, _CUE_PATTERNS, _EMOJI_RE, _ENUM_SEP_RE, _HINT_WORD_RE, _MISSING_HINT_RE, _PLACEHOLDER_RE, _SPEC_EXAMPLE_MARKERS, _SPEC_KEYWORDS, _SPEC_SPLIT_MARKERS, _char_budget_lines, _describe_field, _parse_count_token, is_router_enabled, logger
+from tools.template_prompt import PLACEHOLDER_RULES, SPEC_RULES
+
+from ._base import _CHAR_META_LINE_RE, _CHAR_META_TAIL_RE, _CN_RE, _CUE_PATTERNS, _EMOJI_RE, _ENUM_SEP_RE, _HINT_WORD_RE, _MISSING_HINT_RE, _PLACEHOLDER_RE, _SPEC_EXAMPLE_MARKERS, _SPEC_KEYWORDS, _SPEC_SPLIT_MARKERS, _char_budget_lines, _describe_field, _parse_count_token, is_router_enabled
 
 logger = logging.getLogger(__name__)
 
@@ -86,6 +86,14 @@ def parse_placeholder_template(template: str) -> list[dict]:
 
     字段段额外字段：``enum``（多选一列表，非空即枚举）、
     ``missing``（占位符内是否声明"未明确/未提及"默认写法）。
+
+    两类特殊段在拆分后标注：
+
+    - ``kind="title"``：``# [栏目标题]`` 式标题占位（heading 行内的方括号），
+      带 ``level``（# 层级）。填充 = 输出该标题行（只放标题文字），不是填正文
+    - ``kind="table_rows"``：表格中整行 ``| … | … |`` 的占位数据行，
+      带 ``row``（占位行原文）与 ``header``（所属表头行）。
+      填充 = 删除占位行、按表头列序生成真实数据行
     """
     segments: list[dict] = []
     pos = 0
@@ -100,6 +108,93 @@ def parse_placeholder_template(template: str) -> list[dict]:
         pos = m.end()
     if pos < len(template):
         segments.append({"kind": "text", "text": template[pos:]})
+    return _mark_title_fields(_split_table_placeholder_rows(segments))
+
+
+_TABLE_PLACEHOLDER_ROW_RE = re.compile(r"^\|(?:\s*[…\.]+\s*\|)+\s*$")
+_TABLE_SEP_LINE_RE = re.compile(r"^\|[\s:\-|]+\|\s*$")
+# 占位单元格：省略号 / 状态 emoji 示例 / 空格子——出现即为"待填数据行"
+_TABLE_PLACEHOLDER_CELLS = {"…", "...", ".", "—", "-", "", "🟢正常", "🟡低风险", "🔴高风险", "无"}
+
+
+def _is_placeholder_table_row(ln: str) -> bool:
+    """整行都是占位单元格（如 ``| … | 🟢正常 | … |``）→ 待填数据行。"""
+    if not ln.lstrip().startswith("|") or not ln.rstrip().endswith("|"):
+        return False
+    cells = [c.strip() for c in ln.strip().strip("|").split("|")]
+    if len(cells) < 2:
+        return False
+    return all(c in _TABLE_PLACEHOLDER_CELLS for c in cells)
+
+
+def _split_table_placeholder_rows(segments: list[dict]) -> list[dict]:
+    """把固定文字段里的「整行 … 占位表格数据行」单独拆成 table_rows 段。
+
+    这类行是模板留的待填数据行（不是固定文案）：
+    拆出来后填充规则才能要求"删除占位行、按表头生成真实数据行"，
+    门禁的固定文字完整性校验也不再强制要求占位行原样出现。
+    """
+    out: list[dict] = []
+    for seg in segments:
+        if seg.get("kind") != "text" or ("…" not in seg["text"] and "..." not in seg["text"]):
+            out.append(seg)
+            continue
+        lines = seg["text"].split("\n")
+        parts: list[dict] = []
+        buf: list[str] = []
+        header = ""
+        prev_sep = False
+
+        def _flush(buf: list[str], parts: list[dict]) -> None:
+            if buf:
+                parts.append({"kind": "text", "text": "\n".join(buf)})
+                buf.clear()
+
+        for ln in lines:
+            if prev_sep and _is_placeholder_table_row(ln):
+                _flush(buf, parts)
+                parts.append({"kind": "table_rows", "row": ln, "header": header})
+                prev_sep = False
+                continue
+            buf.append(ln)
+            if _TABLE_SEP_LINE_RE.match(ln):
+                header = buf[-2] if len(buf) >= 2 else header
+                prev_sep = True
+            else:
+                prev_sep = False
+        _flush(buf, parts)
+        if len(parts) == 1 and parts[0].get("kind") == "text":
+            out.append(seg)  # 没拆出占位行 → 保持原段
+        else:
+            out.extend(parts)
+    return out
+
+
+def _mark_title_fields(segments: list[dict]) -> list[dict]:
+    """heading 行内的方括号占位（``# [栏目标题]``）标记为 title 段。
+
+    判定：前一个固定段以 heading 前缀行结尾 + 字段文字较短无句读 +
+    后一个固定段以换行开头（标题行内除占位无其他内容）。
+    """
+    for i, seg in enumerate(segments):
+        if seg.get("kind") != "field":
+            continue
+        prev = segments[i - 1] if i > 0 else None
+        nxt = segments[i + 1] if i + 1 < len(segments) else None
+        if not prev or prev.get("kind") != "text":
+            continue
+        tail_lines = prev["text"].split("\n")
+        last_line = tail_lines[-1] if tail_lines else ""
+        m = re.match(r"^(#{1,6})\s*$", last_line)
+        if not m:
+            continue
+        hint = str(seg.get("hint") or "").strip()
+        if not hint or len(hint) > 30 or "。" in hint or "，" in hint:
+            continue
+        if nxt and nxt.get("kind") == "text" and not nxt["text"].startswith("\n"):
+            continue
+        seg["kind"] = "title"
+        seg["level"] = len(m.group(1))
     return segments
 
 
@@ -182,6 +277,17 @@ def _build_placeholder_user(context: str, template: str, segments: list[dict]) -
             text = seg["text"]
             preview = text if len(text) <= 60 else text[:57] + "..."
             lines.append(f"- 固定文字（原样保留）：{preview!r}")
+        elif seg["kind"] == "title":
+            lines.append(
+                f"- 栏目标题占位：输出标题行（{'#' * seg['level']} {seg['hint']}），"
+                "标题行只放标题文字；本栏正文写在标题下方的正文占位处"
+            )
+        elif seg["kind"] == "table_rows":
+            lines.append(
+                f"- 表格占位数据行（原样照抄将判不合格）：{seg['row']!r}"
+                f" —— 表头 {seg['header']!r}；输出时删除该占位行，"
+                "按表头列序与本栏占位说明生成真实数据行（1..N 行，各占一行）"
+            )
         else:
             field_no += 1
             lines.append(f"- {_describe_field(field_no, seg)}")

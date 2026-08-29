@@ -46,11 +46,6 @@ def _release_engine(engine) -> None:
     _IDLE.put(engine)
 
 
-def get_rapid_engine():
-    """调试入口：取出池中一台引擎。长期占用会少一路并行。"""
-    return _acquire_engine()
-
-
 def ocr_image(path: str) -> dict:
     engine = _acquire_engine()
     try:
@@ -71,4 +66,4 @@ def ocr_image(path: str) -> dict:
     return {"engine": "rapidocr", "lines": lines}
 
 
-__all__ = ["get_rapid_engine", "ocr_image"]
+__all__ = ["ocr_image"]

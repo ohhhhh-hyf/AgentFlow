@@ -1,8 +1,7 @@
 """OCR recognition levels."""
 
-from .light import LightOcrResult, run_light_ocr
+from .light import LightOcrResult
 
 __all__ = [
     "LightOcrResult",
-    "run_light_ocr",
 ]

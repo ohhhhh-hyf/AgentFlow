@@ -22,11 +22,3 @@ class UserIdentity(ModelMixin):
     context: str | None = None
     # "objective" = 客观全员视角；缺省或其它值 = 具体用户视角
     perspective: str | None = None
-
-
-def is_objective_perspective(user: UserIdentity | dict | None) -> bool:
-    """画像 perspective 为 objective 时走客观全员口径。"""
-    if user is None:
-        return False
-    data = user.model_dump() if hasattr(user, "model_dump") else dict(user)
-    return str(data.get("perspective") or "").strip().lower() == "objective"

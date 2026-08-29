@@ -1,17 +1,14 @@
-"""版面识别：子进程 OCR 文字行 → 结构化行列表；公式候选行走 LaTeX-OCR。
+"""版面识别：引擎 OCR 文字行 → 结构化行列表。
 
 行结构：``{"text": str, "formula": str|None, "bbox": [...], "conf": float, ...}``
 - 普通文字行：text 为 OCR 文本
-- 公式候选行：对裁剪块跑 LaTeX-OCR（子进程）→ formula（``$$...$$``）
+- 公式行：引擎（如 server OCR）直接返回的 formula 字段原样透传，标记 role_hint="formula"
 - 标题候选行：结合 bbox、留白、编号/关键词，给出 role_hint / heading_score / heading_level_hint
 """
 from __future__ import annotations
 
 import logging
-import os
 import re
-import tempfile
-from pathlib import Path
 
 logger = logging.getLogger(__name__)
 
@@ -206,41 +203,15 @@ def _infer_layout_hints(lines: list[dict], image_size: tuple[int, int] | None) -
     return rows
 
 
-def _save_crop(img, bbox, pad: int = 6) -> str | None:
-    """按 bbox 裁剪一行并存临时文件，返回路径（供公式子进程读取）。"""
-    if not bbox:
-        return None
-    try:
-        xs = [int(pt[0]) for pt in bbox]
-        ys = [int(pt[1]) for pt in bbox]
-        left = max(0, min(xs) - pad)
-        top = max(0, min(ys) - pad)
-        right = min(img.width, max(xs) + pad)
-        bottom = min(img.height, max(ys) + pad)
-        if right <= left or bottom <= top:
-            return None
-        crop = img.crop((left, top, right, bottom))
-        fd = tempfile.NamedTemporaryFile(
-            suffix=".png", delete=False, dir=Path(tempfile.gettempdir())
-        )
-        fd.close()
-        path = Path(fd.name)
-        crop.save(path)
-        return str(path)
-    except Exception as exc:  # noqa: BLE001
-        logger.warning("裁剪公式行失败：%s", exc)
-        return None
-
-
 def ocr_image_lines(image_path: str) -> list[dict]:
-    """整图识别 → 行列表；公式候选行附加 ``formula``。
+    """整图识别 → 行列表；引擎返回的 ``formula`` 字段原样透传。
 
     serverocr / paddleocr / rapidocr 均主进程直调（后两者复用实例）。失败时返回空列表。
     """
     from .engines import run_ocr_subprocess
 
     try:
-        payload = run_ocr_subprocess(image_path, formula=False)
+        payload = run_ocr_subprocess(image_path)
     except Exception as exc:  # noqa: BLE001
         logger.warning("OCR 识别失败：%s", exc)
         return []
@@ -249,53 +220,25 @@ def ocr_image_lines(image_path: str) -> list[dict]:
         if not isinstance(item, dict):
             continue
         text = str(item.get("text") or "").strip()
-        if not text:
+        formula = str(item.get("formula") or "").strip()
+        if not text and not formula:
             continue
         row: dict = {"text": text, "bbox": item.get("bbox")}
+        if formula:
+            row["formula"] = formula
         if item.get("conf") is not None:
             row["conf"] = float(item["conf"])
         lines.append(row)
     try:
         from PIL import Image
 
-        img = Image.open(image_path)
-        image_size = img.size
+        image_size = Image.open(image_path).size
     except Exception as exc:  # noqa: BLE001
         logger.warning("读取图片尺寸失败：%s", exc)
-        img = None
         image_size = None
     if not lines:
         return []
 
-    # 公式候选：裁剪行 → LaTeX-OCR 子进程。
-    # 该步骤会为每个候选行额外启动公式模型，手写笔记场景默认关闭，避免本地 RapidOCR 流程被拖慢。
-    formula_enabled = os.getenv("OCR_ENABLE_FORMULA", "false").strip().lower() in {
-        "1",
-        "true",
-        "yes",
-        "on",
-    }
-    formula_rows = [ln for ln in lines if _looks_like_formula(ln.get("text") or "")]
-    if formula_enabled and img is not None and formula_rows:
-        try:
-            for item in formula_rows:
-                crop_path = _save_crop(img, item.get("bbox"))
-                if crop_path is None:
-                    continue
-                try:
-                    payload = run_ocr_subprocess(crop_path, formula=True, timeout=120)
-                    latex = str(payload.get("formula") or "").strip()
-                    if latex:
-                        item["formula"] = f"$${latex}$$"
-                except Exception as exc:  # noqa: BLE001
-                    logger.warning("公式识别失败：%s", exc)
-                finally:
-                    try:
-                        Path(crop_path).unlink(missing_ok=True)
-                    except Exception:  # noqa: BLE001
-                        pass
-        except Exception as exc:  # noqa: BLE001
-            logger.warning("公式行裁剪失败：%s", exc)
     lines = _infer_layout_hints(lines, image_size) if lines else []
     return lines
 

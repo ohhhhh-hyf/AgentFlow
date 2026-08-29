@@ -1,15 +1,19 @@
 """唯一解析入口：显式 id > 短名强命中 > 弱实体重叠 > 首个项目新建 > 不确定则不绑。"""
 from __future__ import annotations
 
+import logging
+import re
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
 from .entities import (
     extract_entities,
+    is_generic_entity,
     is_key_candidate,
     overlap_score,
     pick_project_key,
+    speaker_names,
 )
 from .store import (
     empty_record,
@@ -19,6 +23,8 @@ from .store import (
     record_path,
     safe_id,
 )
+
+logger = logging.getLogger(__name__)
 
 MIN_WEAK_HITS = 2
 MIN_HITS = MIN_WEAK_HITS  # 兼容旧引用：弱 n-gram 门槛
@@ -56,6 +62,40 @@ def identity_keys(record: dict[str, Any]) -> list[str]:
     return [inferred] if inferred else []
 
 
+_GENERIC_TAIL_RE = re.compile(r"(项目|工程|汇报|总结|会议|验收|评审|检查|沟通|讨论|工作|计划|进展|分析|报告)$")
+
+
+def _strong_key_ok(key: str) -> bool:
+    """强命中资格：短名须有项目区分度。
+
+    - 长度 ≥4、形态合格（is_key_candidate）、非业务泛词
+    - 剥掉尾部泛词后（如「月度汇报」→「月度」）剩余部分不得仍是泛词——
+      「蒙泽厂区项目」剥「项目」剩专名 → 合格；「月度汇报」剩「月度」→ 不合格
+    """
+    if not key or len(key) < 4 or not is_key_candidate(key) or is_generic_entity(key):
+        return False
+    stem = _GENERIC_TAIL_RE.sub("", key).strip()
+    return bool(stem) and not is_generic_entity(stem)
+
+
+def _distinctive_entities(transcript: str, found: list[str]) -> list[str]:
+    """绑定计分只认有区分度的实体：剔除业务泛词与发言人名。
+
+    发言人名同团队跨会议共享（「周宁：」式行首），
+    两个不相关会议靠发言人名就能凑满弱命中阈值——必须剔除。
+    """
+    speakers = speaker_names(transcript)
+    out: list[str] = []
+    for tok in found:
+        tok = tok.strip()
+        if not tok or is_generic_entity(tok) or tok in speakers:
+            continue
+        if any(len(s) >= 2 and (tok.startswith(s) or s.startswith(tok)) for s in speakers):
+            continue
+        out.append(tok)
+    return out
+
+
 def _score_record(transcript: str, found: list[str], rec: dict[str, Any]) -> tuple[int, int]:
     from .entities import entity_names
 
@@ -64,10 +104,10 @@ def _score_record(transcript: str, found: list[str], rec: dict[str, Any]) -> tup
     name = str(rec.get("display_name") or "").strip()
     if name:
         stored.append(name)
-    weak = overlap_score(found, stored)
+    weak = overlap_score(_distinctive_entities(transcript, found), stored)
     strong = 0
     for key in identity_keys(rec):
-        if key and key in (transcript or ""):
+        if key and _strong_key_ok(key) and key in (transcript or ""):
             strong = 1
             break
     return strong, weak

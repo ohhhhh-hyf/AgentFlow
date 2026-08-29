@@ -1,7 +1,5 @@
 """tools.template_router.base —— 模板路由·基础层：常量与无依赖工具（判型/解析/计数/文本工具）。"""
 from __future__ import annotations
-
-from __future__ import annotations
 import json
 import logging
 import os

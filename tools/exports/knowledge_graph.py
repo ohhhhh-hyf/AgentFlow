@@ -1,35 +1,22 @@
-"""graph.py —— 知识图谱渲染（graphviz 封装，无痛降级）。
+"""graph.py —— 知识图谱渲染（Cytoscape.js 交互 HTML + 学习地图）。
 
-把图数据（nodes + edges）渲染为 SVG / 交互 HTML / 学习地图：
+把图数据（nodes + edges）渲染为交互 HTML / 学习地图 Markdown：
 
-- 依赖：系统安装 Graphviz（``dot`` 可执行；Windows 需装 Graphviz，Linux 用
-  apt/brew 装 graphviz + 中文字体）
-- 产物：``dot -Tsvg`` 输出矢量图；节点带定义 tooltip，边带关系 label
-- 设计约束（沿用 tools/mindmap.py 的无痛惯例）：
-  - ``dot`` 不可用 / 失败 / 超时 → 一律返回 ``None``，不影响主流程
-  - 渲染前过滤悬空边（source/target 不在 nodes 中），防 dot 报错
-  - 中文 label 自动探测系统字体（Windows → Microsoft YaHei；Linux → fc-match）
+- 产物：Cytoscape.js 交互演示页（单文件离线 HTML）；节点带定义 tooltip，
+  边带关系 label；附学习地图 Markdown 大纲
+- 设计约束：
+  - 渲染前过滤悬空边（source/target 不在 nodes 中），HTML 仍尽量生成
+  - 全流程确定性、零 LLM、零外部进程
 """
 from __future__ import annotations
 
 import logging
-import os
-import re
-import shutil
-import subprocess
-import sys
 from html import escape
 from json import dumps
 from pathlib import Path
 
 logger = logging.getLogger(__name__)
 
-_RENDER_TIMEOUT_SECONDS = 60
-
-# 关系 label 长度上限（过长截断，避免图拥挤）
-_MAX_LABEL_LEN = 12
-# 节点定义 tooltip 长度上限
-_MAX_TOOLTIP_LEN = 80
 _SECTION_COLORS = [
     ("#e0f2fe", "#38bdf8"),
     ("#dcfce7", "#22c55e"),
@@ -141,67 +128,6 @@ def build_learning_map(
     return "\n".join(lines).rstrip() + "\n"
 
 
-def _find_dot() -> str | None:
-    """定位 dot 可执行文件。
-
-    - 优先用 PATH（shutil.which）
-    - Windows 上 PATH 未配置时，探测常见安装位置兜底
-      （Graphviz 安装后 PATH 不生效是常见问题）
-    """
-    dot = shutil.which("dot")
-    if dot:
-        return dot
-    candidates: list[Path] = []
-    if sys.platform.startswith("win"):
-        base = Path(os.environ.get("ProgramFiles", r"C:\Program Files"))
-        base86 = Path(
-            os.environ.get("ProgramFiles(x86)", r"C:\Program Files (x86)")
-        )
-        local = Path(os.environ.get("LOCALAPPDATA", ""))
-        candidates = [
-            base / "Graphviz" / "bin" / "dot.exe",
-            base86 / "Graphviz" / "bin" / "dot.exe",
-            local / "Graphviz" / "bin" / "dot.exe",
-        ]
-    for cand in candidates:
-        if cand.exists():
-            return str(cand)
-
-
-def _pick_font() -> str:
-    """探测中文字体：Windows 用雅黑；Linux/mac 用 fc-match 探测，失败回退 sans-serif。"""
-    if sys.platform.startswith("win"):
-        return "Microsoft YaHei"
-    try:
-        result = subprocess.run(
-            ["fc-match", "-f", "%{family}", "sans-serif:lang=zh"],
-            capture_output=True,
-            text=True,
-            timeout=5,
-            check=False,
-        )
-        family = (result.stdout or "").strip()
-        if family:
-            return family.split(",")[0].strip() or "sans-serif"
-    except Exception:  # noqa: BLE001 - 字体探测失败回退默认
-        pass
-    return "sans-serif"
-
-
-def _dot_quote(text: str) -> str:
-    """DOT 字符串转义：反斜杠、双引号，真实换行转成 \\n 转义序列。"""
-    text = text.replace("\\", "\\\\").replace('"', '\\"')
-    return text.replace("\n", "\\n")
-
-
-def _wrap_label(text: str, width: int = 8, max_len: int = 30) -> str:
-    """把中文短语按固定字数换行（真实换行符，_dot_quote 会转成 \\n），避免节点横向过宽。"""
-    text = re.sub(r"\s+", " ", text.strip())[:max_len]
-    if len(text) <= width:
-        return text
-    return "\n".join(text[i : i + width] for i in range(0, len(text), width))
-
-
 def _node_degrees(nodes: list[dict], edges: list[dict]) -> dict[str, int]:
     names = {
         str(node.get("name") or "").strip()
@@ -222,197 +148,6 @@ def _is_section_anchor(node: dict) -> bool:
     name = str(node.get("name") or "").strip()
     section = str(node.get("section") or "").strip()
     return bool(name and section and name == section)
-
-
-def nodes_edges_to_dot(
-    nodes: list[dict],
-    edges: list[dict],
-    title: str = "",
-    *,  # noqa: C901
-    node_fontsize: int | None = None,
-    edge_fontsize: int | None = None,
-    label_width: int | None = None,
-    compact: bool = False,
-) -> tuple[str, list[dict]]:
-    """把图数据转成 DOT 文本；返回 (dot_text, 有效边)。
-
-    - 悬空边（source/target 不在 nodes 中）会被过滤并从返回值带出（供告警）
-    - 节点 name 去重（同名节点合并）
-    - node_fontsize / edge_fontsize / label_width：可选覆盖默认字号与换行宽度
-      （默认 None = 知识图谱既有风格：节点 13-14、边 9、每行 4 字）
-    - compact：紧凑布局（整体更小、节点更近、边更短），默认 False 保持原样
-    """
-    font = _pick_font()
-    degrees = _node_degrees(nodes, edges)
-    max_degree = max(degrees.values(), default=1)
-    node_font = node_fontsize
-    edge_font = edge_fontsize if edge_fontsize is not None else 9
-    lbl_w = label_width if label_width is not None else 4
-    k_spacing = 0.16 if compact else 0.28
-    sep_pts = "+2" if compact else "+5"
-    graph_size = "8,5!" if compact else "11,6!"
-    dpi = 120 if compact else 180
-    pad_pt = 0.14 if compact else 0.22
-    lines = [
-        "digraph graph {",
-        "  graph [",
-        f'    fontname="{font}",',
-        "    bgcolor=\"#fbfdff:#eef7ff\",",
-        "    layout=fdp,",
-        "    outputorder=edgesfirst,",
-        "    overlap=false,",
-        "    splines=true,",
-        "    K=%s," % k_spacing,
-        "    sep=\"%s\"," % sep_pts,
-        "    size=\"%s\"," % graph_size,
-        "    ratio=compress,",
-        "    dpi=%s," % dpi,
-        "    concentrate=true,",
-        "    pad=%s," % pad_pt,
-        "    margin=0.04",
-        "  ];",
-        "  node [",
-        f'    fontname="{font}",',
-        "    shape=circle,",
-        "    style=\"filled\",",
-        "    color=\"#ffffff\",",
-        "    penwidth=2.2,",
-        "    fillcolor=\"#dbeafe\",",
-        "    fontcolor=\"#0f172a\",",
-        "    fontsize=14,",
-        "    margin=\"0.04,0.04\"",
-        "  ];",
-        "  edge [",
-        f'    fontname="{font}",',
-        "    fontsize=%s," % edge_font,
-        "    fontcolor=\"#64748b\",",
-        "    color=\"#94a3b880\",",
-        "    arrowsize=0.55,",
-        "    penwidth=1.05"
-        "  ];",
-    ]
-    if title:
-        lines.extend(
-            [
-                '  labelloc="t";',
-                '  labeljust="c";',
-                f'  label="{_dot_quote(_wrap_label(title, width=22, max_len=44))}";',
-                "  fontsize=20;",
-                '  fontcolor="#0f172a";',
-            ]
-        )
-    node_names: set[str] = set()
-    seen: set[str] = set()
-    section_order: list[str] = []
-    section_nodes: dict[str, list[dict]] = {}
-    for node in nodes:
-        name = str(node.get("name") or "").strip()
-        if not name or name in seen:
-            continue
-        seen.add(name)
-        node_names.add(name)
-        section = str(node.get("section") or "").strip()
-        if section and section not in section_order:
-            section_order.append(section)
-        section_nodes.setdefault(section, []).append(node)
-
-    rendered_names: set[str] = set()
-
-    def render_node(
-        node: dict,
-        fill: str = "#dbeafe",
-        color: str = "#38bdf8",
-    ) -> str:
-        name = str(node.get("name") or "").strip()
-        degree = degrees.get(name, 0)
-        is_anchor = _is_section_anchor(node)
-        ratio = degree / max(max_degree, 1)
-        if compact:
-            size = 0.68 + (0.30 * ratio)
-            anchor_min = 0.98
-        else:
-            size = 0.92 + (0.42 * ratio)
-            anchor_min = 1.34
-        if is_anchor:
-            size = max(size, anchor_min)
-        origin = str(node.get("origin") or "").strip()
-        if origin == "new":
-            size = min(size + 0.12, 1.7)
-            color = "#f59e0b"
-            fill = "#fde68a" if not is_anchor else "#f59e0b"
-        elif origin == "history":
-            color = "#94a3b8"
-            fill = "#e2e8f0" if not is_anchor else "#94a3b8"
-        fontsize = (
-            node_font
-            if node_font
-            else (18 if is_anchor else 13 if len(name) > 8 else 14)
-        )
-        fontcolor = "#ffffff" if is_anchor else "#0f172a"
-        attrs = [
-            f'label="{_dot_quote(_wrap_label(name, width=5 if is_anchor else lbl_w, max_len=18))}"',
-            'fixedsize="true"',
-            f'width="{size:.2f}"',
-            f'height="{size:.2f}"',
-            f'fontsize="{fontsize}"',
-            f'fillcolor="{fill}"',
-            f'color="{color}"',
-            f'fontcolor="{fontcolor}"',
-            f'penwidth="{"3.4" if origin == "new" else "1.6" if origin == "history" else "2.2"}"',
-        ]
-        definition = str(node.get("definition") or "").strip()
-        if definition:
-            attrs.append(f'tooltip="{_dot_quote(definition[:_MAX_TOOLTIP_LEN])}"')
-        return f'    "{_dot_quote(name)}" [{", ".join(attrs)}];'
-
-    for idx, section in enumerate(section_order):
-        fill, color = _SECTION_COLORS[idx % len(_SECTION_COLORS)]
-        for node in section_nodes.get(section, []):
-            name = str(node.get("name") or "").strip()
-            rendered_names.add(name)
-            node_fill = color if _is_section_anchor(node) else fill
-            lines.append(render_node(node, fill=node_fill, color=color))
-
-    for node in section_nodes.get("", []):
-        name = str(node.get("name") or "").strip()
-        if name in rendered_names:
-            continue
-        rendered_names.add(name)
-        lines.append(render_node(node))
-
-    valid_edges: list[dict] = []
-    for edge in edges:
-        source = str(edge.get("source") or "").strip()
-        target = str(edge.get("target") or "").strip()
-        relation = str(edge.get("relation") or "").strip()
-        if source not in node_names or target not in node_names:
-            continue  # 悬空边：过滤（supervisor 应已拦截，此处防御）
-        valid_edges.append(edge)
-        attrs = []
-        if relation:
-            label = relation if len(relation) <= _MAX_LABEL_LEN else relation[:_MAX_LABEL_LEN] + "…"
-            attrs.append(f'label="{_dot_quote(label)}"')
-            attrs.append(f'color="{_RELATION_COLORS.get(relation, "#94a3b8")}"')
-            attrs.append(f'fontcolor="{_RELATION_COLORS.get(relation, "#475569")}"')
-        if str(edge.get("origin") or "").strip() == "new":
-            attrs.append('penwidth="2.4"')
-            attrs.append('color="#f59e0b"')
-        elif str(edge.get("origin") or "").strip() == "history":
-            attrs.append('penwidth="0.85"')
-            attrs.append('color="#94a3b880"')
-        if relation in {"包含", "属于"}:
-            attrs.append('weight="4"')
-            attrs.append('len="%s"' % ("0.5" if compact else "0.62"))
-        elif relation in _DASHED_RELATIONS:
-            attrs.append('style="dashed"')
-            attrs.append('weight="1"')
-            attrs.append('len="%s"' % ("0.7" if compact else "0.9"))
-        else:
-            attrs.append('len="%s"' % ("0.6" if compact else "0.78"))
-        edge_attr = f" [{', '.join(attrs)}]" if attrs else ""
-        lines.append(f'  "{_dot_quote(source)}" -> "{_dot_quote(target)}"{edge_attr};')
-    lines.append("}")
-
 
 
 def _cytoscape_elements(nodes: list[dict], edges: list[dict]) -> list[dict]:
@@ -829,20 +564,11 @@ def render_graph_bundle(
     stem: str = "graph",
     title: str = "",
 ) -> dict[str, Path]:
-    """同时导出交互式 HTML 和学习地图；失败的格式会被跳过。"""
+    """导出交互式 HTML（学习地图文本由 API 响应携带，不落盘 md）。"""
     paths: dict[str, Path] = {}
     html_path = render_graph_html(nodes, edges, out_dir, f"{stem}.html", title)
     if html_path:
         paths["html"] = html_path
-    try:
-        md_path = Path(out_dir) / f"{stem}.md"
-        md_path.write_text(
-            build_learning_map(nodes, edges, title=title),
-            encoding="utf-8",
-        )
-        paths["text"] = md_path
-    except Exception:  # noqa: BLE001
-        logger.warning("知识图谱学习地图落盘失败，已跳过", exc_info=True)
     return paths
 
 
@@ -1004,7 +730,6 @@ __all__ = [
     "build_graph_embed",
     "build_graph_html",
     "build_learning_map",
-    "nodes_edges_to_dot",
     "render_graph_bundle",
     "render_graph_html",
 ]

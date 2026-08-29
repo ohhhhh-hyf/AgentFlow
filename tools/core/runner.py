@@ -10,7 +10,6 @@ import logging
 import os
 import sys
 from dataclasses import dataclass
-from datetime import datetime
 from pathlib import Path
 
 from client.config import load_env
@@ -204,7 +203,7 @@ async def prepare_run(
             from tools.memory.store import safe_id
 
             monitor_dir = (
-                ctx.project_root / "output" / safe_id(user_id or "")
+                ctx.project_root / "data" / safe_id(user_id or "")
                 / "monitor"
                 if (user_id or "").strip()
                 else None
@@ -260,7 +259,7 @@ async def prepare_run(
         if parts:
             pending_extra["quiz"] = "\n\n".join(parts)
     if memory_enabled:
-        from tools.memory import persist, prepare
+        from tools.memory import prepare
 
         memory_bind, line_extra = prepare(
             ctx.project_root,
@@ -480,15 +479,12 @@ async def _handle_done(ctx: DomainContext, event: dict) -> dict | None:
     if event.get("quality_warning"):
         logger.warning("⚠ %s", event["quality_warning"])
     reports = event.get("reports") or {}
-    # 毫秒级时间戳：同秒多次运行不互相覆盖产物
-    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S_%f")[:-3]
     saved: dict[str, dict[str, Path]] = {}
 
     try:
         saved_reports = save_all_reports(
             ctx,
             reports,
-            timestamp,
             gate_by_line=event.get("gate_by_line") or {},
         )
     except Exception:  # noqa: BLE001 - 落盘失败不中断其余导出
@@ -530,8 +526,6 @@ async def _handle_done(ctx: DomainContext, event: dict) -> dict | None:
             kg_paths = export_graph(reports, kg_dir)
             if kg_paths.get("html"):
                 sys.stdout.write(f"[知识图谱] 已生成 HTML：{kg_paths['html']}\n")
-            if kg_paths.get("text"):
-                sys.stdout.write(f"[知识图谱] 已生成学习地图：{kg_paths['text']}\n")
             saved["graph"] = kg_paths
         except Exception:  # noqa: BLE001 - 单类导出失败不中断主流程
             logger.error("知识图谱导出失败", exc_info=True)
