@@ -1,0 +1,673 @@
+{
+  "user_id": "1",
+  "project_id": "p1",
+  "updated_at": "2026-08-29 15:37:46",
+  "run_count": 1,
+  "display_name": "召开原占比二玉米面加工厂项目中期验收会议，汇报验收工作进展和存在问题，听取各方意见并安排后续整改与验收工作。",
+  "project_key": "",
+  "name_aliases": [],
+  "entities": [
+    {
+      "name": "发言者",
+      "type": "keyword",
+      "first_seen": "",
+      "last_seen": "",
+      "status": "active",
+      "sessions": []
+    },
+    {
+      "name": "验收组",
+      "type": "keyword",
+      "first_seen": "",
+      "last_seen": "2026-08-29 15:37:46",
+      "status": "active",
+      "sessions": [
+        1
+      ]
+    },
+    {
+      "name": "个项目",
+      "type": "project",
+      "first_seen": "",
+      "last_seen": "",
+      "status": "active",
+      "sessions": []
+    },
+    {
+      "name": "验收工作",
+      "type": "keyword",
+      "first_seen": "",
+      "last_seen": "2026-08-29 15:37:46",
+      "status": "active",
+      "sessions": [
+        1
+      ]
+    },
+    {
+      "name": "个验收",
+      "type": "keyword",
+      "first_seen": "",
+      "last_seen": "",
+      "status": "active",
+      "sessions": []
+    },
+    {
+      "name": "技术组",
+      "type": "keyword",
+      "first_seen": "",
+      "last_seen": "",
+      "status": "active",
+      "sessions": []
+    },
+    {
+      "name": "整个项目",
+      "type": "project",
+      "first_seen": "",
+      "last_seen": "",
+      "status": "active",
+      "sessions": []
+    },
+    {
+      "name": "管理组",
+      "type": "keyword",
+      "first_seen": "",
+      "last_seen": "",
+      "status": "active",
+      "sessions": []
+    },
+    {
+      "name": "们验收组",
+      "type": "keyword",
+      "first_seen": "",
+      "last_seen": "",
+      "status": "active",
+      "sessions": []
+    },
+    {
+      "name": "不可预见",
+      "type": "keyword",
+      "first_seen": "",
+      "last_seen": "",
+      "status": "active",
+      "sessions": []
+    },
+    {
+      "name": "可预见费",
+      "type": "keyword",
+      "first_seen": "",
+      "last_seen": "",
+      "status": "active",
+      "sessions": []
+    },
+    {
+      "name": "咱们验收",
+      "type": "keyword",
+      "first_seen": "",
+      "last_seen": "",
+      "status": "active",
+      "sessions": []
+    },
+    {
+      "name": "个问题",
+      "type": "keyword",
+      "first_seen": "",
+      "last_seen": "",
+      "status": "active",
+      "sessions": []
+    },
+    {
+      "name": "卢萨卡",
+      "type": "keyword",
+      "first_seen": "",
+      "last_seen": "2026-08-29 15:37:46",
+      "status": "active",
+      "sessions": [
+        1
+      ]
+    },
+    {
+      "name": "交给外方",
+      "type": "keyword",
+      "first_seen": "",
+      "last_seen": "",
+      "status": "active",
+      "sessions": []
+    },
+    {
+      "name": "执行单位",
+      "type": "keyword",
+      "first_seen": "",
+      "last_seen": "",
+      "status": "active",
+      "sessions": []
+    },
+    {
+      "name": "时间关系",
+      "type": "keyword",
+      "first_seen": "",
+      "last_seen": "",
+      "status": "active",
+      "sessions": []
+    },
+    {
+      "name": "检查验收",
+      "type": "keyword",
+      "first_seen": "",
+      "last_seen": "",
+      "status": "active",
+      "sessions": []
+    },
+    {
+      "name": "范和标准",
+      "type": "keyword",
+      "first_seen": "",
+      "last_seen": "",
+      "status": "active",
+      "sessions": []
+    },
+    {
+      "name": "规范和标",
+      "type": "keyword",
+      "first_seen": "",
+      "last_seen": "",
+      "status": "active",
+      "sessions": []
+    },
+    {
+      "name": "凝土路面",
+      "type": "keyword",
+      "first_seen": "2026-08-29 15:37:46",
+      "last_seen": "2026-08-29 15:37:46",
+      "status": "active",
+      "sessions": [
+        1
+      ]
+    },
+    {
+      "name": "混凝土路",
+      "type": "keyword",
+      "first_seen": "2026-08-29 15:37:46",
+      "last_seen": "2026-08-29 15:37:46",
+      "status": "active",
+      "sessions": [
+        1
+      ]
+    },
+    {
+      "name": "土路面开",
+      "type": "keyword",
+      "first_seen": "2026-08-29 15:37:46",
+      "last_seen": "2026-08-29 15:37:46",
+      "status": "active",
+      "sessions": [
+        1
+      ]
+    },
+    {
+      "name": "收组要求",
+      "type": "keyword",
+      "first_seen": "2026-08-29 15:37:46",
+      "last_seen": "2026-08-29 15:37:46",
+      "status": "active",
+      "sessions": [
+        1
+      ]
+    },
+    {
+      "name": "路面开裂",
+      "type": "keyword",
+      "first_seen": "2026-08-29 15:37:46",
+      "last_seen": "2026-08-29 15:37:46",
+      "status": "active",
+      "sessions": [
+        1
+      ]
+    },
+    {
+      "name": "验收组要",
+      "type": "keyword",
+      "first_seen": "2026-08-29 15:37:46",
+      "last_seen": "2026-08-29 15:37:46",
+      "status": "active",
+      "sessions": [
+        1
+      ]
+    },
+    {
+      "name": "作局领导",
+      "type": "keyword",
+      "first_seen": "2026-08-29 15:37:46",
+      "last_seen": "2026-08-29 15:37:46",
+      "status": "active",
+      "sessions": [
+        1
+      ]
+    },
+    {
+      "name": "内业资料",
+      "type": "keyword",
+      "first_seen": "2026-08-29 15:37:46",
+      "last_seen": "2026-08-29 15:37:46",
+      "status": "active",
+      "sessions": [
+        1
+      ]
+    },
+    {
+      "name": "合作局领",
+      "type": "keyword",
+      "first_seen": "2026-08-29 15:37:46",
+      "last_seen": "2026-08-29 15:37:46",
+      "status": "active",
+      "sessions": [
+        1
+      ]
+    },
+    {
+      "name": "姆皮卡点",
+      "type": "keyword",
+      "first_seen": "2026-08-29 15:37:46",
+      "last_seen": "2026-08-29 15:37:46",
+      "status": "active",
+      "sessions": [
+        1
+      ]
+    },
+    {
+      "name": "局领导要",
+      "type": "keyword",
+      "first_seen": "2026-08-29 15:37:46",
+      "last_seen": "2026-08-29 15:37:46",
+      "status": "active",
+      "sessions": [
+        1
+      ]
+    },
+    {
+      "name": "领导要求",
+      "type": "keyword",
+      "first_seen": "2026-08-29 15:37:46",
+      "last_seen": "2026-08-29 15:37:46",
+      "status": "active",
+      "sessions": [
+        1
+      ]
+    },
+    {
+      "name": "全部验收",
+      "type": "keyword",
+      "first_seen": "2026-08-29 15:37:46",
+      "last_seen": "2026-08-29 15:37:46",
+      "status": "active",
+      "sessions": [
+        1
+      ]
+    },
+    {
+      "name": "分类整理",
+      "type": "keyword",
+      "first_seen": "2026-08-29 15:37:46",
+      "last_seen": "2026-08-29 15:37:46",
+      "status": "active",
+      "sessions": [
+        1
+      ]
+    },
+    {
+      "name": "卢萨卡点",
+      "type": "keyword",
+      "first_seen": "2026-08-29 15:37:46",
+      "last_seen": "2026-08-29 15:37:46",
+      "status": "active",
+      "sessions": [
+        1
+      ]
+    },
+    {
+      "name": "带料调试",
+      "type": "keyword",
+      "first_seen": "2026-08-29 15:37:46",
+      "last_seen": "2026-08-29 15:37:46",
+      "status": "active",
+      "sessions": [
+        1
+      ]
+    },
+    {
+      "name": "控管线接",
+      "type": "keyword",
+      "first_seen": "2026-08-29 15:37:46",
+      "last_seen": "2026-08-29 15:37:46",
+      "status": "active",
+      "sessions": [
+        1
+      ]
+    }
+  ],
+  "key_terms": [
+    "验收组",
+    "凝土路面",
+    "混凝土路",
+    "土路面开",
+    "收组要求",
+    "路面开裂",
+    "验收组要",
+    "作局领导",
+    "内业资料",
+    "合作局领",
+    "姆皮卡点",
+    "局领导要",
+    "领导要求",
+    "验收工作",
+    "卢萨卡"
+  ],
+  "recent_topics": [
+    "验收工作总体进展",
+    "内业检查情况",
+    "外业检查情况",
+    "整改项要求",
+    "财务检查情况",
+    "领导指示与后续安排"
+  ],
+  "active_summary": "召开原占比二玉米面加工厂项目中期验收会议，汇报验收工作进展和存在问题，听取各方意见并安排后续整改与验收工作。",
+  "last_meeting_at": "2026-08-29 15:37:46",
+  "events": [
+    {
+      "seq": 1,
+      "at": "2026-08-29 15:37:46",
+      "type": "decision_added",
+      "text": "验收组要求施工部和管理组完善个别人员进出场时间、护照等履约资料，在验收报告前达到闭合条件。"
+    },
+    {
+      "seq": 1,
+      "at": "2026-08-29 15:37:46",
+      "type": "decision_added",
+      "text": "验收组要求执行单位将三个厂区资料汇总至卢萨卡，分类成册，按竣工文件归档要求组卷。"
+    },
+    {
+      "seq": 1,
+      "at": "2026-08-29 15:37:46",
+      "type": "decision_added",
+      "text": "验收组要求施工方对混凝土路面开裂问题重新清理，用防水材料全部封闭，确保裂纹不再受水侵蚀。"
+    },
+    {
+      "seq": 1,
+      "at": "2026-08-29 15:37:46",
+      "type": "decision_added",
+      "text": "验收组要求施工组全面检查监控管线接头脱落问题，保证有效性和安全性。"
+    },
+    {
+      "seq": 1,
+      "at": "2026-08-29 15:37:46",
+      "type": "decision_added",
+      "text": "验收组要求检查提升通道雨水倒灌问题，必要时增加覆盖面积或采取技术措施解决。"
+    },
+    {
+      "seq": 1,
+      "at": "2026-08-29 15:37:46",
+      "type": "decision_added",
+      "text": "验收组建议在卢萨卡点廊桥端头中间再加两个竖条，增强安全性。"
+    },
+    {
+      "seq": 1,
+      "at": "2026-08-29 15:37:46",
+      "type": "decision_added",
+      "text": "合作局领导要求管理组和总包单位共同分析混凝土路面开裂原因，制定科学合理的整改方案。"
+    },
+    {
+      "seq": 1,
+      "at": "2026-08-29 15:37:46",
+      "type": "decision_added",
+      "text": "合作局领导要求混凝土路面整改在出报告前完成，验收组进行复核。"
+    },
+    {
+      "seq": 1,
+      "at": "2026-08-29 15:37:46",
+      "type": "decision_added",
+      "text": "验收组要求对不可预见费的使用依据、证据和数据做到充分无误。"
+    },
+    {
+      "seq": 1,
+      "at": "2026-08-29 15:37:46",
+      "type": "item_opened",
+      "text": "混凝土路面开裂的具体原因（当地气候、施工工艺还是材料原因）尚未确定。"
+    },
+    {
+      "seq": 1,
+      "at": "2026-08-29 15:37:46",
+      "type": "item_opened",
+      "text": "不可预见费使用的具体内容和证据资料尚需进一步完善和收集。"
+    }
+  ],
+  "meeting": {
+    "purpose": "召开原占比二玉米面加工厂项目中期验收会议，汇报验收工作进展和存在问题，听取各方意见并安排后续整改与验收工作。",
+    "summary": "召开原占比二玉米面加工厂项目中期验收会议，汇报验收工作进展和存在问题，听取各方意见并安排后续整改与验收工作。 已拍板：验收组要求执行单位将三个厂区资料汇总至卢萨卡，分类成册，按竣工文件归档要求组卷。；验收组要求施工方对混凝土路面开裂问题重新清理，用防水材料全部封闭，确保裂纹不再受水侵蚀。；验收组要求施工组全面检查监控管线接头脱落问题，保证有效性和安全性。；验收组要求检查提升通道雨水倒灌问题，必要时增加覆盖面积或采取技术措施解决。；验收组建议在卢萨卡点廊桥端头中间再加两个竖条，增强安全性。；合作局领导要求管理组和总包单位共同分析混凝土路面开裂原因，制定科学合理的整改方案。；合作局领导要求混凝土路面整改在出报告前完成，验收组进行复核。；验收组要求对不可预见费的使用依据、证据和数据做到充分无误。 未决：混凝土路面开裂的具体原因（当地气候、施工工艺还是材料原因）尚未确定。；不可预见费使用的具体内容和证据资料尚需进一步完善和收集。",
+    "topics": [
+      {
+        "title": "验收工作总体进展",
+        "discussion": "验收组于18、19号提前介入，20号召开首次会议，已完成卢萨卡点除带料调试外的全部验收工作，蒙泽点已完成全部验收并顺带完成带料调试试生产。姆皮卡点尚未开展现场验收，内业资料已提前拿到卢萨卡。",
+        "conclusion": "卢萨卡点除带料调试外验收完成，蒙泽点全部验收完成，姆皮卡点待后续现场验收。",
+        "participants": [
+          "王总",
+          "田组长",
+          "龚总",
+          "金昌柱",
+          "林总"
+        ],
+        "first_seen": "2026-08-29 15:37:46",
+        "last_seen": "2026-08-29 15:37:46"
+      },
+      {
+        "title": "内业检查情况",
+        "discussion": "管理组和技术组按合同组建执行团队，编制施工组织计划、管理计划、实施细则和专项预案，内业资料基本满足标准规范要求，但分类整理和少量质检签字规范性需完善，竣工文件基本达到组卷成册要求，但资料分散需汇总。",
+        "conclusion": "内业资料基本满足要求，需进一步规范分类整理和签字，竣工文件需汇总组卷。",
+        "participants": [
+          "王总"
+        ],
+        "first_seen": "2026-08-29 15:37:46",
+        "last_seen": "2026-08-29 15:37:46"
+      },
+      {
+        "title": "外业检查情况",
+        "discussion": "建筑部分原材料品质良好，钢结构安装满足规范，设备按中国标准定制，蒙泽点投料试运行正常，产能符合设计指标。现场发现局部问题：混凝土路面开裂、监控管线接头脱落、提升通道雨水倒灌隐患、廊桥竖条不足等。",
+        "conclusion": "外业整体品质良好，但存在若干需整改的局部问题。",
+        "participants": [
+          "王总"
+        ],
+        "first_seen": "2026-08-29 15:37:46",
+        "last_seen": "2026-08-29 15:37:46"
+      },
+      {
+        "title": "整改项要求",
+        "discussion": "验收组提出整改项：人员履约和合同履约需完善进出场时间、护照、人员统计、特种人员证件；内业资料需规范分类整理和签字；现场需处理混凝土路面开裂、监控管线接头、雨水倒灌、廊桥竖条等问题。",
+        "conclusion": "验收组提出多项整改要求，管理组和技术组承诺会后细化整改。",
+        "participants": [
+          "王总",
+          "田组长",
+          "龚总"
+        ],
+        "first_seen": "2026-08-29 15:37:46",
+        "last_seen": "2026-08-29 15:37:46"
+      },
+      {
+        "title": "财务检查情况",
+        "discussion": "财务验收专家查阅财务资料，账户设置、资金往来、银行开户等符合财务处理规范和标准。",
+        "conclusion": "财务方面符合规范标准。",
+        "participants": [
+          "王总"
+        ],
+        "first_seen": "2026-08-29 15:37:46",
+        "last_seen": "2026-08-29 15:37:46"
+      },
+      {
+        "title": "领导指示与后续安排",
+        "discussion": "合作局领导要求重视混凝土路面开裂问题，分析原因并制定整改方案，在出报告前完成整改并复核；要求做好成品保护；林总强调按合同标准仔细验收、注意交通安全和防疫。会后安排姆皮卡点验收。",
+        "conclusion": "合作局领导要求限期整改并复核，林总强调安全和防疫，会后安排姆皮卡点验收。",
+        "participants": [
+          "金昌柱",
+          "林总",
+          "王总"
+        ],
+        "first_seen": "2026-08-29 15:37:46",
+        "last_seen": "2026-08-29 15:37:46"
+      }
+    ],
+    "open_items": [
+      {
+        "item": "混凝土路面开裂的具体原因（当地气候、施工工艺还是材料原因）尚未确定。",
+        "since": "2026-08-29 15:37:46",
+        "owner": null,
+        "deadline": null,
+        "evidence": "",
+        "source": "understanding",
+        "priority": null
+      },
+      {
+        "item": "不可预见费使用的具体内容和证据资料尚需进一步完善和收集。",
+        "since": "2026-08-29 15:37:46",
+        "owner": null,
+        "deadline": null,
+        "evidence": "",
+        "source": "understanding",
+        "priority": null
+      }
+    ],
+    "closed_items": [],
+    "decisions": [
+      {
+        "decision": "验收组要求施工部和管理组完善个别人员进出场时间、护照等履约资料，在验收报告前达到闭合条件。",
+        "source": "understanding",
+        "first_seen": "2026-08-29 15:37:46",
+        "last_seen": "2026-08-29 15:37:46"
+      },
+      {
+        "decision": "验收组要求执行单位将三个厂区资料汇总至卢萨卡，分类成册，按竣工文件归档要求组卷。",
+        "source": "understanding",
+        "first_seen": "2026-08-29 15:37:46",
+        "last_seen": "2026-08-29 15:37:46"
+      },
+      {
+        "decision": "验收组要求施工方对混凝土路面开裂问题重新清理，用防水材料全部封闭，确保裂纹不再受水侵蚀。",
+        "source": "understanding",
+        "first_seen": "2026-08-29 15:37:46",
+        "last_seen": "2026-08-29 15:37:46"
+      },
+      {
+        "decision": "验收组要求施工组全面检查监控管线接头脱落问题，保证有效性和安全性。",
+        "source": "understanding",
+        "first_seen": "2026-08-29 15:37:46",
+        "last_seen": "2026-08-29 15:37:46"
+      },
+      {
+        "decision": "验收组要求检查提升通道雨水倒灌问题，必要时增加覆盖面积或采取技术措施解决。",
+        "source": "understanding",
+        "first_seen": "2026-08-29 15:37:46",
+        "last_seen": "2026-08-29 15:37:46"
+      },
+      {
+        "decision": "验收组建议在卢萨卡点廊桥端头中间再加两个竖条，增强安全性。",
+        "source": "understanding",
+        "first_seen": "2026-08-29 15:37:46",
+        "last_seen": "2026-08-29 15:37:46"
+      },
+      {
+        "decision": "合作局领导要求管理组和总包单位共同分析混凝土路面开裂原因，制定科学合理的整改方案。",
+        "source": "understanding",
+        "first_seen": "2026-08-29 15:37:46",
+        "last_seen": "2026-08-29 15:37:46"
+      },
+      {
+        "decision": "合作局领导要求混凝土路面整改在出报告前完成，验收组进行复核。",
+        "source": "understanding",
+        "first_seen": "2026-08-29 15:37:46",
+        "last_seen": "2026-08-29 15:37:46"
+      },
+      {
+        "decision": "验收组要求对不可预见费的使用依据、证据和数据做到充分无误。",
+        "source": "understanding",
+        "first_seen": "2026-08-29 15:37:46",
+        "last_seen": "2026-08-29 15:37:46"
+      }
+    ],
+    "risks": [],
+    "sessions": [
+      {
+        "seq": 1,
+        "at": "2026-08-29 15:37:46",
+        "title": "玉米面加工厂项目中期验收会议",
+        "lines": [
+          "minutes"
+        ],
+        "purpose": "召开原占比二玉米面加工厂项目中期验收会议，汇报验收工作进展和存在问题，听取各方意见并安排后续整改与验收工作。",
+        "decisions": [
+          "验收组要求施工部和管理组完善个别人员进出场时间、护照等履约资料，在验收报告前达到闭合条件。",
+          "验收组要求执行单位将三个厂区资料汇总至卢萨卡，分类成册，按竣工文件归档要求组卷。",
+          "验收组要求施工方对混凝土路面开裂问题重新清理，用防水材料全部封闭，确保裂纹不再受水侵蚀。",
+          "验收组要求施工组全面检查监控管线接头脱落问题，保证有效性和安全性。",
+          "验收组要求检查提升通道雨水倒灌问题，必要时增加覆盖面积或采取技术措施解决。",
+          "验收组建议在卢萨卡点廊桥端头中间再加两个竖条，增强安全性。",
+          "合作局领导要求管理组和总包单位共同分析混凝土路面开裂原因，制定科学合理的整改方案。",
+          "合作局领导要求混凝土路面整改在出报告前完成，验收组进行复核。",
+          "验收组要求对不可预见费的使用依据、证据和数据做到充分无误。"
+        ],
+        "open_questions": [
+          "混凝土路面开裂的具体原因（当地气候、施工工艺还是材料原因）尚未确定。",
+          "不可预见费使用的具体内容和证据资料尚需进一步完善和收集。"
+        ],
+        "risks": [],
+        "topics": [
+          {
+            "title": "验收工作总体进展",
+            "conclusion": "卢萨卡点除带料调试外验收完成，蒙泽点全部验收完成，姆皮卡点待后续现场验收。",
+            "participants": [
+              "王总",
+              "田组长",
+              "龚总",
+              "金昌柱",
+              "林总"
+            ]
+          },
+          {
+            "title": "内业检查情况",
+            "conclusion": "内业资料基本满足要求，需进一步规范分类整理和签字，竣工文件需汇总组卷。",
+            "participants": [
+              "王总"
+            ]
+          },
+          {
+            "title": "外业检查情况",
+            "conclusion": "外业整体品质良好，但存在若干需整改的局部问题。",
+            "participants": [
+              "王总"
+            ]
+          },
+          {
+            "title": "整改项要求",
+            "conclusion": "验收组提出多项整改要求，管理组和技术组承诺会后细化整改。",
+            "participants": [
+              "王总",
+              "田组长",
+              "龚总"
+            ]
+          },
+          {
+            "title": "财务检查情况",
+            "conclusion": "财务方面符合规范标准。",
+            "participants": [
+              "王总"
+            ]
+          },
+          {
+            "title": "领导指示与后续安排",
+            "conclusion": "合作局领导要求限期整改并复核，林总强调安全和防疫，会后安排姆皮卡点验收。",
+            "participants": [
+              "金昌柱",
+              "林总",
+              "王总"
+            ]
+          }
+        ]
+      }
+    ]
+  }
+}
