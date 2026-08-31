@@ -99,11 +99,10 @@ def _ocr_images_to_library_markdown(
 ) -> Path | None:
     if not images:
         return None
-    from tools.ocr.engines import ocr_engine_label
     from tools.ocr.levels.light import (
-        OCR_PARALLEL,
-        iter_ocr_review_pipeline,
+        iter_logged_ocr_pipeline,
         next_batch_version_stem,
+        ocr_log,
         save_light_ocr_outputs,
     )
 
@@ -111,38 +110,16 @@ def _ocr_images_to_library_markdown(
     entries = [(path, path.name) for path in images]
     reviewed_blocks: list[str] = []
     raw_blocks: list[str] = []
-    total = len(entries)
 
-    engine = ocr_engine_label()
-    lanes = min(OCR_PARALLEL, total)
-
-    def _ocr_log(msg: str) -> None:
-        print(msg, flush=True)
-        logger.info(msg)
-
-    _ocr_log(f"[OCR] 引擎 {engine}，共 {total} 张，{lanes} 路并行")
-    for event in iter_ocr_review_pipeline(entries):
-        kind = event.get("type")
-        lo = event.get("lo")
-        hi = event.get("hi")
-        done = event.get("done")
-        name = event.get("name") or ""
-        if kind == "ocr_start":
-            workers = event.get("workers") or (int(hi or 0) - int(lo or 0) + 1)
-            _ocr_log(f"[OCR] 开始第 {lo}-{hi} 张（{workers} 路）")
-        elif kind == "ocr_item":
-            _ocr_log(f"[OCR] {done}/{total} 完成 {name}")
-        elif kind == "ocr_fail":
-            err = str(event.get("error") or "失败").split(":")[0]
-            _ocr_log(f"[OCR] {done}/{total} 失败 {name}（{err}）")
-        elif kind == "batch_done":
-            reviewed = str(event.get("reviewed") or "").strip()
-            raw = str(event.get("raw") or "").strip()
-            if reviewed:
-                reviewed_blocks.append(reviewed)
-            if raw:
-                raw_blocks.append(raw)
-            _ocr_log(f"[OCR] 第 {lo}-{hi} 张整理完成")
+    for event in iter_logged_ocr_pipeline(entries):
+        if event.get("type") != "batch_done":
+            continue
+        reviewed = str(event.get("reviewed") or "").strip()
+        raw = str(event.get("raw") or "").strip()
+        if reviewed:
+            reviewed_blocks.append(reviewed)
+        if raw:
+            raw_blocks.append(raw)
     stem = next_batch_version_stem(user_id, subject, project_root)
     saved = save_light_ocr_outputs(
         Path(stem),
@@ -152,7 +129,7 @@ def _ocr_images_to_library_markdown(
         subject=subject,
         project_root=project_root,
     )
-    _ocr_log(f"[OCR] 全部完成 → {saved.reviewed_path.name}")
+    ocr_log(f"[OCR] 全部完成 → {saved.reviewed_path.name}")
     return saved.reviewed_path
 
 
@@ -305,12 +282,22 @@ def ingest_library(
                 f"{len(image_paths)} 张图片先 OCR 成 Markdown 后入库。",
                 flush=True,
             )
+            logger.info(
+                "[资料入库] 并行处理：%s 份非图片资料直接入库，%s 张图片先 OCR 成 Markdown 后入库。",
+                len(doc_paths),
+                len(image_paths),
+            )
+        import contextvars
+
+        ctx = contextvars.copy_context()
         ocr_future = (
             pool.submit(
-                _ocr_images_to_library_markdown,
-                image_paths,
-                user_id=user_id,
-                subject=subject,
+                ctx.run,
+                lambda: _ocr_images_to_library_markdown(
+                    image_paths,
+                    user_id=user_id,
+                    subject=subject,
+                ),
             )
             if image_paths
             else None

@@ -65,13 +65,32 @@ async def request_logs(
     request_id: str,
     after: float = 0.0,
 ) -> JSONResponse:
-    """调试台用：拉取某次请求（X-Request-Id）的后端运行日志。
-
-    after 为起始 epoch 秒（前端提交时刻），只返回该窗口内的日志。
-    """
+    """调试台用：拉取某次请求日志快照（收尾/兼容）。实时看 SSE /api/v1/logs/stream。"""
     from .logs import logs_for
 
     return JSONResponse(content={"logs": logs_for(request_id, after=after)})
+
+
+@app.get("/api/v1/logs/stream", tags=["system"])
+async def request_logs_stream(
+    request: Request,
+    request_id: str,
+    after: float = 0.0,
+):
+    """调试台用：按 request_id 推送运行日志（SSE），一条连接看到 OCR/Agent 进度。"""
+    from fastapi.responses import StreamingResponse
+
+    from .logs import iter_log_sse
+
+    return StreamingResponse(
+        iter_log_sse(request_id, after=after, request=request),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no",
+        },
+    )
 
 
 @app.exception_handler(ApiError)

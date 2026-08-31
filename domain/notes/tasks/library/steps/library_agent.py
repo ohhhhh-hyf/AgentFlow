@@ -31,14 +31,21 @@ class LibraryAgent:
             )
         try:
             import asyncio
+            import contextvars
 
-            data = await asyncio.to_thread(
-                ingest_library,
-                kb_from_env(user_id_from_context(shared_context)),
-                expand_inputs(raw),
-                user_id=user_id_from_context(shared_context),
-                subject=subject_from_context(shared_context),
-            )
+            uid = user_id_from_context(shared_context)
+            subj = subject_from_context(shared_context)
+            ctx = contextvars.copy_context()
+
+            def _ingest():
+                return ingest_library(
+                    kb_from_env(uid),
+                    expand_inputs(raw),
+                    user_id=uid,
+                    subject=subj,
+                )
+
+            data = await asyncio.to_thread(ctx.run, _ingest)
         except Exception as exc:
             return Library.validate(
                 {

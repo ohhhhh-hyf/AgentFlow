@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 import os
 import re
 import time
@@ -11,6 +12,8 @@ from typing import Callable, Iterator
 
 from tools.memory.store import safe_id
 from tools.ocr.reconstruct import reconstruct_markdown, review_markdown
+
+logger = logging.getLogger("agentflow")
 
 OCR_PARALLEL = 4
 LIGHT_OCR_BATCH = OCR_PARALLEL
@@ -116,6 +119,52 @@ def save_light_ocr_outputs(
     )
 
 
+def ocr_log(msg: str) -> None:
+    """OCR 进度：终端 + 调试台日志缓冲各写一份。"""
+    print(msg, flush=True)
+    logger.info("%s", msg)
+
+
+def log_ocr_pipeline_event(event: dict, *, total: int, engine: str) -> None:
+    """把流水线事件打成可读进度（含当前引擎名）。"""
+    kind = event.get("type")
+    lo = event.get("lo")
+    hi = event.get("hi")
+    done = event.get("done")
+    name = event.get("name") or ""
+    tag = f"[OCR/{engine}]"
+    if kind == "ocr_start":
+        workers = event.get("workers") or (int(hi or 0) - int(lo or 0) + 1)
+        ocr_log(f"{tag} 开始第 {lo}-{hi} 张（{workers} 路）")
+    elif kind == "ocr_item":
+        ocr_log(f"{tag} {done}/{total} 完成 {name}")
+    elif kind == "ocr_fail":
+        err = str(event.get("error") or "失败").split(":")[0]
+        ocr_log(f"{tag} {done}/{total} 失败 {name}（{err}）")
+    elif kind == "review_start":
+        ocr_log(f"{tag} 第 {lo}-{hi} 张整理中")
+    elif kind == "batch_done":
+        ocr_log(f"{tag} 第 {lo}-{hi} 张整理完成")
+
+
+def iter_logged_ocr_pipeline(
+    image_entries: list[tuple],
+    **kwargs,
+) -> Iterator[dict]:
+    """iter_ocr_review_pipeline 的带进度日志包装。"""
+    from tools.ocr.engines import ocr_engine_label
+
+    total = len(image_entries)
+    if not total:
+        return
+    engine = ocr_engine_label()
+    lanes = min(OCR_PARALLEL, total)
+    ocr_log(f"[OCR] 使用引擎 {engine}，共 {total} 张，{lanes} 路并行")
+    for event in iter_ocr_review_pipeline(image_entries, **kwargs):
+        log_ocr_pipeline_event(event, total=total, engine=engine)
+        yield event
+
+
 def images_to_reviewed_markdown(
     images: list[Path | str],
     *,
@@ -130,7 +179,7 @@ def images_to_reviewed_markdown(
     entries = [(Path(p), Path(p).name) for p in images]
     reviewed_blocks: list[str] = []
     raw_blocks: list[str] = []
-    for event in iter_ocr_review_pipeline(entries):
+    for event in iter_logged_ocr_pipeline(entries):
         if event.get("type") == "batch_done":
             reviewed = str(event.get("reviewed") or "").strip()
             raw = str(event.get("raw") or "").strip()

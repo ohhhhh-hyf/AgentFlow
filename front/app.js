@@ -472,28 +472,16 @@ async function sendRequest() {
   }
 }
 
-/* 拉取该请求的后端日志（提交时刻 t0 之后的窗口） */
-async function fetchLogs(reqId, t0) {
-  try {
-    const resp = await fetch(`/api/v1/logs?request_id=${encodeURIComponent(reqId)}&after=${t0}`);
-    if (!resp.ok) return null;
-    const data = await resp.json();
-    return data.logs || [];
-  } catch (e) {
-    return null;
-  }
-}
-
+/* 该请求的运行日志：SSE 推送，任务结束时关连接（不再 700ms 轮询） */
 let logSession = 0;
-let logTimer = null;
-let logBusy = false;
+let logSource = null;
+let logBuf = [];
 
 function stopLogPoll() {
-  if (logTimer) {
-    clearInterval(logTimer);
-    logTimer = null;
+  if (logSource) {
+    logSource.close();
+    logSource = null;
   }
-  logBusy = false;
   logSession += 1;
 }
 
@@ -523,37 +511,50 @@ function paintLogs(el, logs, waiting) {
 function startLogPanel(reqId, t0) {
   stopLogPoll();
   const session = logSession;
+  logBuf = [];
   const area = document.getElementById("resp-area");
   area.innerHTML = `
-    <h3>后端运行日志 <span class="log-live-flag" id="log-live-flag">实时拉取中…</span></h3>
+    <h3>运行日志 <span class="log-live-flag" id="log-live-flag">实时推送中…</span></h3>
     <div class="log-view" id="log-live"><span class="log-empty-inline">（等待后端日志…）</span></div>
     <div id="resp-result"></div>
   `;
-  const tick = async () => {
-    if (session !== logSession || logBusy) return;
-    logBusy = true;
-    try {
-      const logs = await fetchLogs(reqId, t0);
-      if (session !== logSession) return;
-      paintLogs(document.getElementById("log-live"), logs, true);
-    } finally {
-      if (session === logSession) logBusy = false;
-    }
+  const url = `/api/v1/logs/stream?request_id=${encodeURIComponent(reqId)}&after=${t0}`;
+  const es = new EventSource(url);
+  logSource = es;
+  es.onmessage = (ev) => {
+    if (session !== logSession) return;
+    let item = null;
+    try { item = JSON.parse(ev.data); } catch (e) { return; }
+    if (!item || !item.message) return;
+    logBuf.push(item);
+    if (logBuf.length > 500) logBuf = logBuf.slice(-500);
+    paintLogs(document.getElementById("log-live"), logBuf, true);
   };
-  tick();
-  logTimer = setInterval(tick, 700);
+  es.onerror = () => {
+    if (session !== logSession) return;
+    if (es.readyState === EventSource.CLOSED) return;
+    // 推送中断时停掉自动重连，避免连打 /logs/stream
+    es.close();
+    if (logSource === es) logSource = null;
+  };
   return session;
 }
 
 async function finishLogPanel(session, reqId, t0) {
-  if (logTimer) {
-    clearInterval(logTimer);
-    logTimer = null;
+  if (logSource) {
+    logSource.close();
+    logSource = null;
   }
   if (session !== logSession) return;
-  const logs = await fetchLogs(reqId, t0);
+  try {
+    const resp = await fetch(`/api/v1/logs?request_id=${encodeURIComponent(reqId)}&after=${t0}`);
+    if (resp.ok) {
+      const data = await resp.json();
+      if (Array.isArray(data.logs) && data.logs.length) logBuf = data.logs;
+    }
+  } catch (e) { /* 收尾快照失败就展示已推到的行 */ }
   if (session !== logSession) return;
-  paintLogs(document.getElementById("log-live"), logs, false);
+  paintLogs(document.getElementById("log-live"), logBuf, false);
   const flag = document.getElementById("log-live-flag");
   if (flag) flag.remove();
 }

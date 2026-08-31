@@ -4,7 +4,6 @@
 """
 from __future__ import annotations
 
-import asyncio
 import logging
 import tempfile
 import time
@@ -134,10 +133,17 @@ def _load_teacher_texts(user_id: str, names: list[str]) -> str:
 
 def _ocr_docs(user_id: str, docs: list[str]) -> str:
     """docs 中的图片 → OCR 文本（逐张，失败降级跳过）。"""
+    names = [name for name in (docs or []) if _is_image_name(name)]
+    if not names:
+        return ""
+    from tools.ocr.engines import ocr_engine_label
+    from tools.ocr.levels.light import ocr_log
+
+    engine = ocr_engine_label()
+    total = len(names)
+    ocr_log(f"[OCR] 使用引擎 {engine}，共 {total} 张")
     parts: list[str] = []
-    for name in docs or []:
-        if not _is_image_name(name):
-            continue
+    for index, name in enumerate(names, 1):
         path = _input_file(user_id, "docs", name)
         try:
             from tools.ocr import ocr_image_to_markdown
@@ -145,8 +151,10 @@ def _ocr_docs(user_id: str, docs: list[str]) -> str:
             body = ocr_image_to_markdown(str(path)).strip()
             if body:
                 parts.append(body)
+            ocr_log(f"[OCR/{engine}] {index}/{total} 完成 {name}")
         except Exception as exc:  # noqa: BLE001 - OCR 失败不阻断主流程
             parts.append(f"（图片 {name} OCR 失败：{exc}）")
+            ocr_log(f"[OCR/{engine}] {index}/{total} 失败 {name}（{exc}）")
     return "\n\n".join(parts).strip()
 
 
@@ -437,7 +445,9 @@ async def _run_task_impl(
     _start_time: float,
 ) -> TaskResponse:
     logger.info("开始任务 %s/%s", domain, task)
-    p = await asyncio.to_thread(_prepare, domain, task, req, user_id)
+    from .logs import to_thread as _to_thread
+
+    p = await _to_thread(_prepare, domain, task, req, user_id)
     # 产物直接写入本次请求目录（data/{user_id}/output/{request_id}/），不再走根目录 output/ 归档
     p.ctx.output_dir = output_dir(user_id, request_id)
 
@@ -561,7 +571,9 @@ async def _stream_task_impl(
     request_id: str,
 ) -> StreamingResponse:
     logger.info("开始任务 %s/%s（流式）", domain, task)
-    p = await asyncio.to_thread(_prepare, domain, task, req, user_id)
+    from .logs import to_thread as _to_thread
+
+    p = await _to_thread(_prepare, domain, task, req, user_id)
     # 产物直接写入本次请求目录（data/{user_id}/output/{request_id}/），不再走根目录 output/ 归档
     p.ctx.output_dir = output_dir(user_id, request_id)
 
