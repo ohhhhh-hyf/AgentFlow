@@ -26,8 +26,8 @@ def _ocr_parallel() -> int:
     return ocr_concurrency()
 
 
-OCR_PARALLEL = 4  # 默认值；实际路数以 ocr_concurrency() 为准
-LIGHT_OCR_BATCH = OCR_PARALLEL
+OCR_PARALLEL = 4  # 默认值；实际 OCR 路数以 ocr_concurrency() 为准
+LIGHT_OCR_BATCH = int(os.getenv("LIGHT_OCR_BATCH", "8") or "8")
 OCR_ITEM_TIMEOUT = float(os.getenv("OCR_ITEM_TIMEOUT", "180"))
 
 _WINDOWS_RESERVED = {
