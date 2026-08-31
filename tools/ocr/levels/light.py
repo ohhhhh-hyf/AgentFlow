@@ -148,10 +148,12 @@ def log_ocr_pipeline_event(event: dict, *, total: int, engine: str) -> None:
         workers = event.get("workers") or (int(hi or 0) - int(lo or 0) + 1)
         ocr_log(f"{tag} 开始第 {lo}-{hi} 张（{workers} 路）")
     elif kind == "ocr_item":
-        ocr_log(f"{tag} {done}/{total} 完成 {name}")
+        done_abs = int(lo or 1) + int(done or 0) - 1
+        ocr_log(f"{tag} {done_abs}/{total} 完成 {name}")
     elif kind == "ocr_fail":
         err = str(event.get("error") or "失败").split(":")[0]
-        ocr_log(f"{tag} {done}/{total} 失败 {name}（{err}）")
+        done_abs = int(lo or 1) + int(done or 0) - 1
+        ocr_log(f"{tag} {done_abs}/{total} 失败 {name}（{err}）")
     elif kind == "review_start":
         ocr_log(f"{tag} 第 {lo}-{hi} 张整理中")
     elif kind == "batch_done":
@@ -169,9 +171,13 @@ def iter_logged_ocr_pipeline(
     if not total:
         return
     engine = ocr_engine_label()
-    lanes = min(_ocr_parallel(), total)
-    ocr_log(f"[OCR] 使用引擎 {engine}，共 {total} 张，{lanes} 路并行")
-    kwargs.setdefault("batch_size", lanes)
+    workers = min(_ocr_parallel(), total)
+    batch_size = int(kwargs.get("batch_size") or LIGHT_OCR_BATCH)
+    batch_size = max(1, min(batch_size, total))
+    ocr_log(
+        f"[OCR] 使用引擎 {engine}，共 {total} 张，{workers} 路并行，"
+        f"{batch_size} 张一组整理"
+    )
     for event in iter_ocr_review_pipeline(image_entries, **kwargs):
         log_ocr_pipeline_event(event, total=total, engine=engine)
         yield event
@@ -442,33 +448,34 @@ def iter_ocr_review_pipeline(
     batch_size: int = LIGHT_OCR_BATCH,
     item_timeout: float | None = None,
 ) -> Iterator[dict]:
-    """每批按引擎实际路数并行 OCR，整理审校完成后再处理下一批。"""
+    """按 batch_size 分组整理；组内 OCR 并发数由引擎能力决定。"""
     if not image_entries:
         return
     ocr_fn = ocr_fn or ocr_image_to_lines
     review_fn = review_fn or reconstruct_and_review_pages
     timeout = float(OCR_ITEM_TIMEOUT if item_timeout is None else item_timeout)
-    lanes = max(1, min(int(batch_size), _ocr_parallel(), len(image_entries)))
+    review_batch = max(1, min(int(batch_size), len(image_entries)))
+    ocr_workers = max(1, min(_ocr_parallel(), review_batch, len(image_entries)))
     chunks: list[tuple[int, int, list]] = []
-    for start in range(0, len(image_entries), lanes):
-        chunk = image_entries[start : start + lanes]
+    for start in range(0, len(image_entries), review_batch):
+        chunk = image_entries[start : start + review_batch]
         chunks.append((start + 1, start + len(chunk), chunk))
     total = len(image_entries)
-    ocr_pool = ThreadPoolExecutor(max_workers=lanes)
+    ocr_pool = ThreadPoolExecutor(max_workers=ocr_workers)
     try:
         from tools.ocr.engines import ocr_engine_label as _ocr_label
 
-        if _ocr_label() == "paddleocr":
+        if _ocr_label() == "paddleocr" and ocr_fn is ocr_image_to_lines:
             from tools.ocr.paddle_ocr import warmup_engines
 
-            ocr_log(f"[OCR/paddleocr] 预热 {lanes} 路引擎（线程绑定）")
+            ocr_log(f"[OCR/paddleocr] 预热 {ocr_workers} 路引擎（线程绑定）")
             warmup_engines()
         for lo, hi, chunk in chunks:
             yield {
                 "type": "ocr_start",
                 "lo": lo,
                 "hi": hi,
-                "workers": len(chunk),
+                "workers": ocr_workers,
                 "total": total,
             }
             pages = yield from _drain_ocr_futures(
