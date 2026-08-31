@@ -31,6 +31,27 @@ ENV_EMBEDDING_API_KEY_ALT = "EMBEDDING_API_KEY"
 ENV_LLM_API_KEY = "DEEPSEEK_API_KEY"
 ENV_LLM_API_KEY_EXPLICIT = "KNOWLEDGE_LLM_API_KEY"
 
+
+def subject_to_pinyin(subject: str) -> str:
+    """学科 → 拼音（无音调、小写、去空格）；英文/数字原样保留。
+
+    例：``物理`` → ``wuli``；``数学`` → ``shuxue``；``phy`` → ``phy``。
+    与 catalog 目录（``knowledge/catalogs/{拼音}/``）保持一致：
+    入库写入、检索过滤、请求侧统一走拼音，避免中文/拼音双轨。
+    未安装 pypinyin 时回退原文字符清理。
+    """
+    import re
+
+    try:
+        from pypinyin import lazy_pinyin
+
+        text = "".join(lazy_pinyin((subject or "").strip()))
+    except Exception:  # pragma: no cover - pypinyin 缺失时兜底
+        text = (subject or "").strip()
+    text = re.sub(r"[^a-zA-Z0-9._-]+", "_", text)
+    text = text.strip("._") or "subject"
+    return text[:80]
+
 DEFAULT_EMBEDDING_BASE_URL = os.getenv(
     "KNOWLEDGE_EMBEDDING_BASE_URL", "https://api.siliconflow.cn/v1"
 )

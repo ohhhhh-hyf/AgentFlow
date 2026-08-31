@@ -1221,10 +1221,12 @@ def _task_readiness_issues(line: str) -> list[str]:
             if name not in text:
                 issues.append(f"{prompts_path.relative_to(ROOT)} 还没有 {name}")
 
+    # 步骤类名按「线名 + 角色」惯例生成（{cls}Agent 等），但手写区允许
+    # 其它命名（如 KnowledgeGraphAgent）——类名检查放宽为「存在该类角色即可」。
     step_specs = {
-        f"{line}_agent.py": (f"class {cls}Agent", "async def run"),
-        f"{line}_supervisor.py": (f"class {cls}Supervisor", "async def review"),
-        f"{line}_render.py": (f"class {cls}Render", "async def run", "async def stream"),
+        f"{line}_agent.py": (re.compile(r"^\s*class \w+Agent\b", re.M), "async def run"),
+        f"{line}_supervisor.py": (re.compile(r"^\s*class \w+Supervisor\b", re.M), "async def review"),
+        f"{line}_render.py": (re.compile(r"^\s*class \w+Render\b", re.M), "async def run", "async def stream"),
     }
     for fname, needles in step_specs.items():
         path = task_dir / "steps" / fname
@@ -1232,7 +1234,10 @@ def _task_readiness_issues(line: str) -> list[str]:
             issues.append(f"缺少 {path.relative_to(ROOT)}")
             continue
         text = path.read_text(encoding="utf-8-sig")
-        missing = [needle for needle in needles if needle not in text]
+        missing = [
+            needle for needle in needles
+            if not (needle.search(text) if hasattr(needle, "search") else needle in text)
+        ]
         if missing:
             issues.append(
                 f"{path.relative_to(ROOT)} 还没有必要结构：{', '.join(missing)}"

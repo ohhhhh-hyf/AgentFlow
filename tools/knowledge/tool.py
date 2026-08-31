@@ -26,6 +26,7 @@ from .config import (
     DEFAULT_PERSIST_DIR,
     DEFAULT_TOP_K,
     KnowledgeToolConfig,
+    subject_to_pinyin,
 )
 from .document_processor import process_file
 from .rag import RagService
@@ -138,7 +139,7 @@ class KnowledgeTool:
             if (user_id or "").strip():
                 meta["owner"] = (user_id or "").strip()
             if (subject or "").strip():
-                meta["subject"] = (subject or "").strip()
+                meta["subject"] = subject_to_pinyin(subject)
             chunk.metadata = meta
         return self.store.sync_file(coll, os.path.basename(path), chunks)
 
@@ -217,6 +218,8 @@ def _scope(collection: str, user_id: str = "", subject: str = "") -> tuple[str, 
     """行级模式路由：传了 user_id/subject 时固定统一库 + where 过滤；全空则旧 collection 行为。
 
     返回 (collection 名, where dict 或 None)。
+    subject 统一转拼音过滤；为兼容历史中文 subject 数据（物理），
+    命中条件同时包含拼音与原始值（{物理, wuli} 都匹配）。
     """
     uid = (user_id or "").strip()
     subj = (subject or "").strip()
@@ -225,7 +228,11 @@ def _scope(collection: str, user_id: str = "", subject: str = "") -> tuple[str, 
         if uid:
             where["owner"] = uid
         if subj:
-            where["subject"] = subj
+            py = subject_to_pinyin(subj)
+            if py and py != subj:
+                where["subject"] = {"$in": [subj, py]}
+            else:
+                where["subject"] = py or subj
         return KB_COLLECTION, where
     return (collection or "default"), None
 

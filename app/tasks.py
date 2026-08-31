@@ -269,6 +269,13 @@ def _profile_file(domain: str, profile_value: str) -> Path:
     return path
 
 
+def _subject_pinyin(subject: str) -> str:
+    """学科统一转拼音（物理 → wuli），与知识库 subject / catalog 目录一致；空值原样。"""
+    from tools.knowledge.config import subject_to_pinyin
+
+    return subject_to_pinyin(subject)
+
+
 @dataclass
 class _Prepared:
     """请求校验 + 输入组装结果（同步 / 流式接口共用）。"""
@@ -393,7 +400,7 @@ def _prepare(domain: str, task: str, req: TaskRequest, user_id: str) -> _Prepare
         input_files=input_files,
         user_id=(user_id or "").strip(),
         project=(extra.project or "").strip(),
-        subject=(extra.subject or "").strip(),
+        subject=_subject_pinyin(extra.subject),
         memory=bool(extra.memory),
     )
 

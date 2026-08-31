@@ -353,23 +353,6 @@ class _Nodes(DomainNodes):
     def _empty_purpose(self, state) -> str:
         return _empty_purpose(state)
 
-    # ── 领域钩子：共享上下文（含会议理解）──────────────────────
-
-    def _shared_context(self, state) -> str:
-        """agent 共享上下文（视角模式 + 画像 + 会议理解 + 视角模型 + 原文）。"""
-        mode = self._mode_label(state)
-        return (
-            f"视角模式：{mode}\n"
-            f"说明：objective=客观全员；role_template=职业模板（name 是职业名，不是会场真人）；"
-            f"personal=真人个人（name 是真实姓名）。"
-            f"裁剪时同时遵守画像 focus_areas / interests / principles / constraints / output_style。"
-            f"职业/真人对决策、风险、未决从上游下采（只删不改），关注域内的数字、时限、承诺、口径、范围边界不得省略。\n\n"
-            f"用户画像：\n{_json(state['user'])}\n\n"
-            f"会议理解：\n{_json(state['meeting_understanding'])}\n\n"
-            f"用户视角模型：\n{_json(state.get('perspective_profile') or {})}\n\n"
-            f"会议原文：\n{state['transcript']}"
-        )
-
     @staticmethod
     def _compact_user(user: dict) -> dict:
         """给任务 Agent 的瘦身画像，只保留会影响视角裁剪的字段。"""

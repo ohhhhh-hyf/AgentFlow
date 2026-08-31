@@ -101,17 +101,7 @@ CATALOG_SUPERVISOR_DOMAIN_PROMPT = """## 领域审核规则：知识目录
 个别 importance 偏差、个别关联漏填 → approve。"""
 
 
-CATALOG_RENDER_PROMPT = """你是知识目录渲染器。只写一份简要目录说明：课程名、版本、章/主题/知识点数量，以及章-主题-知识点名称树。
-
-不要展开字段、不要写复习建议、不要输出 JSON。正式目录已另存为文件。"""
-
-
-CATALOG_RENDER_TEMPLATE_PROMPT = """按模板输出知识目录，只替换占位内容。"""
-
-
 __all__ = [
     "CATALOG_GENERATION_SYSTEM_PROMPT",
     "CATALOG_SUPERVISOR_DOMAIN_PROMPT",
-    "CATALOG_RENDER_PROMPT",
-    "CATALOG_RENDER_TEMPLATE_PROMPT",
 ]

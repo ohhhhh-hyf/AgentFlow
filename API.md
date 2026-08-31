@@ -8,26 +8,26 @@ FastAPI 后端接口。所有接口走 `/api/v1`，一次请求对应一条任�
 
 ---
 
-## 一、接口总览（10 个）
+## 一、接口总览（10 个业务接口 + 7 个下载端点）
 
-| # | 域 | 接口 | 方法 | 路径 | 用途 |
-|---|---|---|---|---|---|
-| 1 | meeting | minutes | POST | `/api/v1/meeting/minutes` | 会议纪要提取（根据会议转写文本生成结构化纪要） |
-| 2 | meeting | actions | POST | `/api/v1/meeting/actions` | 待办提取（抽出带负责人和时限的待办清单） |
-| 3 | meeting | risks | POST | `/api/v1/meeting/risks` | 风险识别（抽出风险条目，标注严重度与应对） |
-| 4 | meeting | minutes_styles | POST | `/api/v1/meeting/minutes_styles` | 多样式纪要（按组织模式重写纪要：时间线/总分/因果等） |
-| 5 | meeting | minutes_trace | POST | `/api/v1/meeting/minutes_trace` | 溯源纪要（纪要段落回指原文 + 用户重点/笔记挂载） |
-| 6 | notes | graph | POST | `/api/v1/notes/graph` | 知识图谱（笔记概念抽取 → 交互 HTML/学习地图） |
-| 7 | notes | library | POST | `/api/v1/notes/library` | 资料入库（图片 OCR / 文档解析 → 知识库） |
-| 8 | notes | catalog | POST | `/api/v1/notes/catalog` | 知识目录（按已入库资料生成知识目录） |
-| 9 | notes | checklist | POST | `/api/v1/notes/checklist` | 复习清单（按知识目录与重点生成复习清单） |
-| 10 | - | health | GET | `/api/v1/health` | 健康检查 + 任务线清单 |
+| # | 域 | 接口 | 同步 POST | 流式 POST | 下载 GET | 用途 |
+|---|---|---|---|---|---|---|
+| 1 | meeting | minutes | `/api/v1/meeting/minutes` | 同路径 + `/stream` | `/api/v1/meeting/minutes/file/{request_id}/{file_name}` | 会议纪要提取 |
+| 2 | meeting | actions | `/api/v1/meeting/actions` | 同路径 + `/stream` | `/api/v1/meeting/actions/file/{request_id}/{file_name}` | 待办提取 |
+| 3 | meeting | risks | `/api/v1/meeting/risks` | 同路径 + `/stream` | `/api/v1/meeting/risks/file/{request_id}/{file_name}` | 风险识别 |
+| 4 | meeting | minutes_styles | `/api/v1/meeting/minutes_styles` | 同路径 + `/stream` | `/api/v1/meeting/minutes_styles/file/{request_id}/{file_name}` | 多样式纪要 |
+| 5 | meeting | minutes_trace | `/api/v1/meeting/minutes_trace` | 同路径 + `/stream` | `/api/v1/meeting/minutes_trace/file/{request_id}/{file_name}` | 溯源纪要 |
+| 6 | notes | graph | `/api/v1/notes/graph` | 同路径 + `/stream` | `/api/v1/notes/graph/file/{request_id}/{file_name}` | 知识图谱 |
+| 7 | notes | library | `/api/v1/notes/library` | 同路径 + `/stream` | —（无落盘产物） | 资料入库 |
+| 8 | notes | catalog | `/api/v1/notes/catalog` | 同路径 + `/stream` | —（file_name 指向目录 JSON） | 知识目录 |
+| 9 | notes | checklist | `/api/v1/notes/checklist` | 同路径 + `/stream` | `/api/v1/notes/checklist/file/{request_id}/{file_name}` | 复习清单 |
+| 10 | - | health | — | — | `GET /api/v1/health` | 健康检查 + 任务线清单 |
 
 > 接口名与内部任务线名保持一致，例如 `minutes`、`actions`、`risks`、`minutes_styles`、`graph`。调用方只需要使用上表中的接口路径与任务名。
 >
 > **流式版本**：每个业务接口都有 `/stream` 后缀的流式端点（NDJSON 事件流，实时感知任务进度），请求体与同步接口一致，见第十章。
 >
-> **下载版本**：7 个有产物文件的接口（minutes / actions / risks / minutes_styles / minutes_trace / graph / checklist）各有配套 `GET /{task}/file/{request_id}/{file_name}` 下载端点（用 POST 响应的 `request_id` 与 `data.file_name` 下载产物文件，见 6.11）。`library`（无落盘）与 `catalog`（file_name 指向知识目录 JSON）不提供下载。
+> **下载版本**：7 个有产物文件的接口（minutes / actions / risks / minutes_styles / minutes_trace / graph / checklist）各有配套 `GET /{task}/file/{request_id}/{file_name}` 下载端点——`request_id` 为生成时请求头 `X-Request-Id`，`file_name` 为响应 `data.file_name`，产物以附件形式返回（强制下载）。`library`（无落盘）与 `catalog`（file_name 指向知识目录 JSON，不在 output 目录）不提供下载。见 6.11。
 
 ---
 
@@ -81,7 +81,7 @@ FastAPI 后端接口。所有接口走 `/api/v1`，一次请求对应一条任�
 
 > 历史版本请求体中的 `domain` / `task` 字段已移除：任务由 URL 路径唯一表达；旧客户端若仍携带，服务端会忽略（不再做一致性校验）。
 
-### 4.2 `texts` 对象（四个固定 key）
+### 4.2 `texts` 对象（三个固定 key）
 
 `texts` 是对象，key 固定三选一，值为字符串（多段用 `\n` 拼接）；出现未知 key → 422。
 
@@ -114,7 +114,7 @@ FastAPI 后端接口。所有接口走 `/api/v1`，一次请求对应一条任�
 | `template` | string | `""` | 输出模板，见 4.5；**空 = 不套模板**，用任务默认输出 |
 | `profile` | string | `""` | 视角，见 4.6；**空 = 客观全员** |
 | `project` | string | `""` | 会议关联项目 ID（`memory=true` 时用于 minutes/minutes_styles 绑定项目记忆） |
-| `subject` | string | `""` | 学科/课程名（library 可选；catalog/checklist **必填**；graph 开启记忆时用于绑定学科，见 6.6） |
+| `subject` | string | `""` | 学科/课程名（library 可选；catalog/checklist **必填**；graph 开启记忆时用于绑定学科，见 6.6）。**中文学科名自动转拼音**：如 `物理` → 知识库 subject 与 catalog 目录统一用 `wuli`（与 `data/{user_id}/knowledge/catalogs/wuli/` 一致），英文/数字原样保留 |
 | `style` | string | `""` | 多样式纪要组织模式，见 4.7；仅 `minutes_styles` 生效，其余任务忽略；**`minutes_styles` 必填**（缺了返回 400） |
 | `memory` | boolean | `false` | 长期记忆开关。`false`=不读取历史记忆、不写入本次记忆；`true`=允许读写长期记忆。`X-User-Id` 只做数据隔离，不会自动开启记忆 |
 
@@ -297,8 +297,13 @@ FastAPI 后端接口。所有接口走 `/api/v1`，一次请求对应一条任�
 ### 6.1 `POST /api/v1/meeting/minutes` —— 纪要提取
 
 - **用途**：把会议转写文本整理成结构化会议纪要（议题、结论、摘要、待办/风险概述）。默认客观全员视角；仅当 `extra.memory=true` 且传 `X-User-Id` 时关联历史记忆，命中历史会议会在对应内容标注溯源。
-- **输入**：`texts`（transcript 必填）+ 可选 `docs`
+- **端点**：
+  - 同步：`POST /api/v1/meeting/minutes`
+  - 流式：`POST /api/v1/meeting/minutes/stream`
+  - 下载：`GET /api/v1/meeting/minutes/file/{request_id}/{file_name}`
+- **必填项**：`texts.transcript`（会议转写文本）+ 请求头 `X-Request-Id` / `X-User-Id`
 - **生效的 extra**：`template` / `profile` / `project` / `memory`
+- **产物与 file_name**：`minutes.html`（记忆对照页/纯文本页）+ `result.md` 落盘 `data/{user_id}/output/{request_id}/`；响应 `data.file_name = "minutes.html"`，下载端点用它拉取页面版。
 
 ```json
 {
@@ -309,11 +314,23 @@ FastAPI 后端接口。所有接口走 `/api/v1`，一次请求对应一条任�
 }
 ```
 
+下载示例：
+
+```bash
+curl -o minutes.html -H "X-User-Id: u1" \
+  "http://127.0.0.1:8000/api/v1/meeting/minutes/file/550e8400-e29b-41d4-a716-446655440000/minutes.html"
+```
+
 ### 6.2 `POST /api/v1/meeting/actions` —— 待办提取
 
 - **用途**：抽出带负责人和截止时间的待办清单，只认明确分工，不把口头讨论当已分派任务。
-- **输入**：`texts`（transcript 必填）
+- **端点**：
+  - 同步：`POST /api/v1/meeting/actions`
+  - 流式：`POST /api/v1/meeting/actions/stream`
+  - 下载：`GET /api/v1/meeting/actions/file/{request_id}/{file_name}`
+- **必填项**：`texts.transcript` + 请求头 `X-Request-Id` / `X-User-Id`
 - **生效的 extra**：`template` / `profile`
+- **产物与 file_name**：仅文本产物 `actions.md` 落盘；响应 `data.file_name = "actions.md"`。
 
 ```json
 {
@@ -326,14 +343,24 @@ FastAPI 后端接口。所有接口走 `/api/v1`，一次请求对应一条任�
 ### 6.3 `POST /api/v1/meeting/risks` —— 风险识别
 
 - **用途**：把会上提到的风险抽成条目，标注严重度、责任人与应对提示，只依据本场原文。
-- **输入**：`texts`（transcript 必填）
+- **端点**：
+  - 同步：`POST /api/v1/meeting/risks`
+  - 流式：`POST /api/v1/meeting/risks/stream`
+  - 下载：`GET /api/v1/meeting/risks/file/{request_id}/{file_name}`
+- **必填项**：`texts.transcript` + 请求头 `X-Request-Id` / `X-User-Id`
 - **生效的 extra**：`template` / `profile`
+- **产物与 file_name**：仅文本产物 `risks.md` 落盘；响应 `data.file_name = "risks.md"`。
 
 ### 6.4 `POST /api/v1/meeting/minutes_styles` —— 多样式纪要
 
 - **用途**：同一场会按指定组织模式重写纪要（时间线/总分/因果/主体责权/决策时效）。
-- **输入**：`texts`（transcript 必填）+ `extra.style`（**必填**，缺了返回 400）
+- **端点**：
+  - 同步：`POST /api/v1/meeting/minutes_styles`
+  - 流式：`POST /api/v1/meeting/minutes_styles/stream`
+  - 下载：`GET /api/v1/meeting/minutes_styles/file/{request_id}/{file_name}`
+- **必填项**：`texts.transcript` + `extra.style`（**必填**，缺了返回 400）+ 请求头 `X-Request-Id` / `X-User-Id`
 - **生效的 extra**：`template` / `profile` / `project` / **`style`（必填）** / `memory`
+- **产物与 file_name**：仅文本产物 `minutes_styles.md` 落盘；响应 `data.file_name = "minutes_styles.md"`。
 
 ```json
 {
@@ -347,8 +374,13 @@ FastAPI 后端接口。所有接口走 `/api/v1`，一次请求对应一条任�
 ### 6.5 `POST /api/v1/meeting/minutes_trace` —— 溯源纪要
 
 - **用途**：生成段落回指会议原文的溯源纪要，并叠上用户关键点与笔记（一条关键点可反复挂钉）。
-- **输入**：`texts`（transcript **必填** + **`keypoints` / `notes` 必填**，缺任一返回 400）
+- **端点**：
+  - 同步：`POST /api/v1/meeting/minutes_trace`
+  - 流式：`POST /api/v1/meeting/minutes_trace/stream`
+  - 下载：`GET /api/v1/meeting/minutes_trace/file/{request_id}/{file_name}`
+- **必填项**：`texts.transcript` + `texts.keypoints` + `texts.notes`（缺任一返回 400）+ 请求头 `X-Request-Id` / `X-User-Id`
 - **生效的 extra**：`profile` / `project`
+- **产物与 file_name**：仅文本产物 `minutes_trace.md` 落盘；响应 `data.file_name = "minutes_trace.md"`。
 
 ```json
 {
@@ -363,9 +395,14 @@ FastAPI 后端接口。所有接口走 `/api/v1`，一次请求对应一条任�
 ### 6.6 `POST /api/v1/notes/graph` —— 知识图谱
 
 - **用途**：把笔记概念抽成知识图谱（节点带定义/出处/关系），产出学习地图文本；交互 HTML 落盘。
-- **输入**：`docs`（**必填**，笔记 `.txt/.md` 文件，从 `data/{user_id}/docs/` 取）
+- **端点**：
+  - 同步：`POST /api/v1/notes/graph`
+  - 流式：`POST /api/v1/notes/graph/stream`
+  - 下载：`GET /api/v1/notes/graph/file/{request_id}/{file_name}`
+- **必填项**：`docs`（**必填**，笔记 `.txt/.md` 文件，从 `data/{user_id}/docs/` 取）+ 请求头 `X-Request-Id` / `X-User-Id`
 - **生效的 extra**：`template` / `profile` / `project` / `subject` / `memory`
-- **记忆增量**：仅当 `extra.memory=true` 且传 `X-User-Id` + `extra.subject`（学科名）时，按学科绑定跨会话记忆档案（`data/{user_id}/memory/records/notes/projects/{学科}/`）——下次同学科且同样 `memory=true` 的调用会注入已积累图谱，同名节点/边合并，**新增节点在学习地图标"（新增）"**，交互 HTML 中新增橙色高亮、历史暗淡显示。`memory=false` 或不传时，每次都是独立单次运行（不建档、不注入、无增量）。
+- **记忆增量**：仅当 `extra.memory=true` 且传 `X-User-Id` + `extra.subject`（学科名）时，按学科绑定跨会话记忆档案（`data/{user_id}/memory/records/notes/projects/{学科拼音}/`）——下次同学科且同样 `memory=true` 的调用会注入已积累图谱，同名节点/边合并，**新增节点在学习地图标"（新增）"**，交互 HTML 中新增橙色高亮、历史暗淡显示。`memory=false` 或不传时，每次都是独立单次运行（不建档、不注入、无增量）。
+- **产物与 file_name**：仅 `graph.html`（交互图谱，无 md）落盘；响应 `data.file_name = "graph.html"`。
 
 ```json
 {
@@ -377,9 +414,14 @@ FastAPI 后端接口。所有接口走 `/api/v1`，一次请求对应一条任�
 ### 6.7 `POST /api/v1/notes/library` —— 资料入库
 
 - **用途**：把图片（OCR）和文档（解析）入库到知识库，产出信息熵报告。图片 OCR 并行（4 路），合并为 md 后入库。
-- **输入**：`docs`（必填，文件或图片）+ `texts`（可配）
-- **生效的 extra**：`subject`（可选，建议填以按学科分类）
+- **端点**：
+  - 同步：`POST /api/v1/notes/library`
+  - 流式：`POST /api/v1/notes/library/stream`
+  - 下载：无（`library` 不落盘产物，`data.file_name` 为空串）
+- **必填项**：`docs`（至少一个文件或图片）+ 请求头 `X-Request-Id` / `X-User-Id`
+- **生效的 extra**：`subject`（可选；填中文学科名时自动转拼音入库，如 `物理` → 知识库 subject `wuli`）
 - **耗时**：多图 OCR 3–10 分钟，属正常。
+- **产物与 file_name**：仅接口返回文本（`data.text` 形如"入库成功，导入图片 0 张，文档 1 份，wuli 新增知识单元 23 个。"），无文件落盘。
 
 ```json
 {
@@ -391,8 +433,13 @@ FastAPI 后端接口。所有接口走 `/api/v1`，一次请求对应一条任�
 ### 6.8 `POST /api/v1/notes/catalog` —— 知识目录
 
 - **用途**：按已入库资料（+ 可选老师重点）生成知识目录。
-- **输入**：可整体缺省；`docs` 可选（`.txt` 文件为**老师重点**，内容不并入主文本；其他文件按资料 OCR/解析并入主文本）
-- **生效的 extra**：`subject`（**必填**）
+- **端点**：
+  - 同步：`POST /api/v1/notes/catalog`
+  - 流式：`POST /api/v1/notes/catalog/stream`
+  - 下载：无（`data.file_name` 是知识目录 JSON 文件名，位于 `data/{user_id}/knowledge/catalogs/{学科拼音}/`，不在 output 目录）
+- **必填项**：`extra.subject`（**必填**，学科名；自动转拼音，如 `物理` → 目录 `catalogs/wuli/`）+ 请求头 `X-Request-Id` / `X-User-Id`
+- **输入**：`docs` 可选（`.txt` 文件为**老师重点**，内容不并入主文本；其他文件按资料 OCR/解析并入主文本）
+- **产物与 file_name**：目录 JSON 落盘 `data/{user_id}/knowledge/catalogs/{学科拼音}/{时间戳}.json`（历史版本全保留，下次生成以最新为基线增量更新）；响应 `data.file_name` 返回该文件名（如 `20260831_081844_697.json`），**checklist 的 `docs` 传它即可定位**。
 
 ```json
 {
@@ -404,8 +451,20 @@ FastAPI 后端接口。所有接口走 `/api/v1`，一次请求对应一条任�
 ### 6.9 `POST /api/v1/notes/checklist` —— 复习清单
 
 - **用途**：按已有知识目录和知识库（+ 可选老师重点）生成复习清单。
-- **输入**：`docs`（**必填**：`.json` 为 catalog 文件名，从 `data/{user_id}/knowledge/catalogs/{学科拼音}/` 取；`.txt` 可选，为**老师重点**文件；其余扩展名 400）+ `texts` 可选
+- **端点**：
+  - 同步：`POST /api/v1/notes/checklist`
+  - 流式：`POST /api/v1/notes/checklist/stream`
+  - 下载：`GET /api/v1/notes/checklist/file/{request_id}/{file_name}`
+- **必填项**：`extra.subject`（**必填**）+ `docs`（**必填**：`.json` 为 catalog 文件名，从 `data/{user_id}/knowledge/catalogs/{学科拼音}/` 取；`.txt` 可选，为**老师重点**文件；其余扩展名 400）+ 请求头 `X-Request-Id` / `X-User-Id`
 - **生效的 extra**：`subject`（**必填**）
+- **产物与 file_name**：`checklist.html`（交互页）+ `result.md` 落盘；响应 `data.file_name = "checklist.html"`（`data.text` 返回精简摘要：统计 + 卡片列表）。
+
+```json
+{
+  "docs": ["20260831_081844_697.json", "teacher_points.txt"],
+  "extra": { "subject": "数学" }
+}
+```
 
 ### 6.10 `GET /api/v1/health` —— 健康检查
 
@@ -505,6 +564,7 @@ data/{user_id}/knowledge/catalogs/{subject拼音}/   ← 按学科分目录（�
 - 文件名 = 纯时间戳 `YYYYMMDD_HHMMSS_fff`（毫秒防同秒冲突），历史版本全保留。
 - 增量：同一 user+subject 下次生成，取该目录时间最近的 json 作基线（`mode=incremental_update`）。
 - `data.file_name` 返回最新文件名（如 `20260827_223136_584.json`）；checklist 的 `docs` 传它即可定位到该目录下的文件。
+- **subject 拼音统一**：请求传中文学科名（如 `物理`）时，服务端统一转拼音 `wuli`——知识库入库的 subject 维度、检索过滤、目录名全部走拼音（历史中文 subject 数据兼容匹配，重新入库后自然统一）。
 
 ---
 

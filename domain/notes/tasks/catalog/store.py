@@ -25,18 +25,12 @@ CATALOG_DIR = PROJECT_ROOT / "data" / "knowledge" / "catalogs"  # 兼容旧路�
 def _subject_filename(subject: str) -> str:
     """学科 → 拼音目录名（无音调、小写、去空格），英文/数字原样保留。
 
-    例：``数学`` → ``shuxue``；``phy`` → ``phy``；``高等数学`` → ``gaodengshuxue``。
-    未安装 pypinyin 时回退原文字符清理，保证可 import。
+    统一复用知识库层 ``subject_to_pinyin``（物理 → wuli），
+    保证 catalog 目录与知识库 subject 维度一致。
     """
-    try:
-        from pypinyin import lazy_pinyin
+    from tools.knowledge.config import subject_to_pinyin
 
-        text = "".join(lazy_pinyin((subject or "").strip()))
-    except Exception:  # pragma: no cover - pypinyin 缺失时兜底
-        text = (subject or "").strip()
-    text = re.sub(r"[^a-zA-Z0-9._-]+", "_", text)
-    text = text.strip("._") or "subject"
-    return text[:80]
+    return subject_to_pinyin(subject)
 
 
 def catalog_dir_for(user_id: str = "") -> Path:
