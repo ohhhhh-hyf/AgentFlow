@@ -1232,9 +1232,13 @@ def build_checklist_html(draft: dict[str, Any], *, has_teacher: bool | None = No
             '<span class="ck-mastery-track"><span id="ck-mastery-fill"></span></span>'
             '<span id="ck-mastery-text">已掌握 0/0</span></div>'
             '<table class="ck-table" id="ck-main-table"><thead><tr>'
-            '<th>掌握</th><th data-sort="grade">优先级</th><th data-sort="name">知识点</th>'
-            '<th data-sort="importance">重要程度</th><th data-sort="difficulty">难度</th>'
-            '<th data-sort="chapter">所属章节</th></tr></thead><tbody>'
+            '<th class="ck-th-check">掌握</th>'
+            '<th class="ck-th-grade" data-sort="grade">优先级 ↕</th>'
+            '<th class="ck-th-name" data-sort="name">知识点 ↕</th>'
+            '<th class="ck-th-imp" data-sort="importance">重要程度 ↕</th>'
+            '<th class="ck-th-diff" data-sort="difficulty">难度 ↕</th>'
+            '<th class="ck-th-chap" data-sort="chapter">所属章节 ↕</th>'
+            '</tr></thead><tbody>'
         )
         for card in main_cards:
             body.append(_dynamic_row(card))
@@ -1323,22 +1327,35 @@ def build_checklist_html(draft: dict[str, Any], *, has_teacher: bool | None = No
     .ck-overview-title{{display:flex;align-items:baseline;justify-content:space-between;gap:12px;margin:0 0 14px;padding-bottom:8px;border-bottom:1px solid #f0eee9;}}
     .ck-overview-title span:first-child{{font-size:.95rem;font-weight:750;color:#1c1b19;letter-spacing:0.2px;}}
     .ck-overview-hint{{font-size:.76rem;color:#8a867c;font-weight:400;}}
-    .ck-pill{{display:inline-flex;align-items:center;padding:1px 7px;border-radius:6px;font-size:.72rem;font-weight:700;line-height:1.4;white-space:nowrap;}}
+    .ck-pill{{display:inline-flex;align-items:center;padding:2px 8px;border-radius:6px;font-size:.74rem;font-weight:700;line-height:1.4;white-space:nowrap;}}
     .ck-pill.ck-grade-s{{background:#fff1f0;color:#cf1322;border:1px solid #ffa39e;}}
     .ck-pill.ck-grade-a{{background:#fffbe6;color:#d46b08;border:1px solid #ffe58f;}}
     .ck-pill.ck-grade-b{{background:#e6f7ff;color:#096dd9;border:1px solid #91d5ff;}}
-    .ck-filter-row{{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:0 0 12px;}}
-    .ck-filter-row select{{padding:4px 8px;border:1px solid #d4d0c6;border-radius:6px;font-size:.82rem;background:#fff;}}
-    .ck-mastery-track{{flex:1;min-width:120px;height:8px;border-radius:999px;background:#e8e4da;overflow:hidden;}}
+    .ck-filter-row{{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin:0 0 14px;}}
+    .ck-filter-row select{{padding:5px 10px;border:1px solid #d4d0c6;border-radius:6px;font-size:.82rem;background:#fff;}}
+    .ck-mastery-track{{flex:1;min-width:140px;height:8px;border-radius:999px;background:#e8e4da;overflow:hidden;}}
     #ck-mastery-fill{{display:block;height:100%;width:0;background:#497a78;transition:width .2s;}}
-    #ck-mastery-text{{font-size:.78rem;color:#6b6860;white-space:nowrap;}}
-    .ck-kp-name{{font-weight:600;}}
-    .ck-row-preview{{font-weight:400;color:#8a867c;font-size:.76rem;margin-top:2px;}}
-    .ck-row-detail{{font-size:.8rem;color:#3a3832;line-height:1.55;padding:6px 2px;}}
+    #ck-mastery-text{{font-size:.8rem;color:#6b6860;white-space:nowrap;font-weight:600;}}
+    .ck-table{{width:100%;border-collapse:collapse;font-size:.88rem;margin:0;background:#fff;}}
+    .ck-table th,.ck-table td{{border:1px solid #e7e4dc;padding:10px 12px;text-align:left;vertical-align:middle;}}
+    .ck-table th{{background:#f7f5f0;font-weight:750;color:#2c2a26;white-space:nowrap;user-select:none;font-size:.82rem;}}
+    .ck-table th[data-sort]{{cursor:pointer;}}
+    .ck-table th[data-sort]:hover{{background:#eeebe3;}}
+    .ck-table tbody tr:hover{{background:#faf8f5;}}
+    .ck-th-check{{width:54px;text-align:center !important;}}
+    .ck-th-grade{{width:90px;text-align:center !important;}}
+    .ck-th-name{{min-width:260px;}}
+    .ck-th-imp{{width:110px;text-align:center !important;}}
+    .ck-th-diff{{width:80px;text-align:center !important;}}
+    .ck-th-chap{{width:170px;}}
+    .ck-cell-center{{text-align:center !important;}}
+    .ck-mastery{{width:16px;height:16px;accent-color:#497a78;cursor:pointer;vertical-align:middle;}}
+    .ck-diff-badge{{display:inline-flex;align-items:center;justify-content:center;padding:1px 7px;border-radius:4px;background:#f0eee9;font-size:.76rem;font-weight:700;color:#555;border:1px solid #e0dcd4;white-space:nowrap;}}
+    .ck-chap-tag{{display:inline-block;max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#6b6860;font-size:.82rem;}}
+    .ck-stars{{color:#d46b08;white-space:nowrap;letter-spacing:1.5px;font-size:.88rem;}}
+    .ck-kp-name{{font-weight:700;color:#1c1b19;}}
+    .ck-row-preview{{font-weight:400;color:#8a867c;font-size:.76rem;margin-top:3px;line-height:1.45;}}
     .ck-dot{{width:10px;height:10px;border-radius:50%;}}
-    .ck-table{{width:100%;border-collapse:collapse;font-size:.86rem;margin:0;}}
-    .ck-table th,.ck-table td{{border:1px solid #e7e4dc;padding:8px 10px;text-align:left;}}
-    .ck-table th{{background:#f7f5f0;font-weight:700;color:#3a3832;}}
     .ck-review{{display:grid;grid-template-columns:minmax(0,1fr) 1px minmax(240px,34%);border:1px solid #ebe8e1;border-radius:10px;overflow:hidden;margin:10px 0 16px;background:#fff;}}
     .ck-review-left{{padding:12px 14px;background:#fbfaf7;}}
     .ck-review-rule{{background:#c8c4b8;}}
@@ -1456,10 +1473,10 @@ def attach_checklist_artifacts(state: dict[str, Any]) -> None:
 # ── 复习结构总览（语义回卷 / 过滤 / 排序 / 展开 / 掌握度）────
 
 def _dynamic_row(card: dict[str, Any]) -> str:
-    """动态表格行：携带排序/过滤属性 + 掌握度勾选 + 行内详情（点击展开）。"""
+    """动态表格行：携带排序/过滤属性 + 掌握度勾选 + 优雅列排版。"""
     name = _clean(card.get("name"))
     kid = _clean(card.get("id")) or _clean(card.get("kp_id")) or name
-    grade = str(card.get("session_priority") or "")
+    grade = str(card.get("session_priority") or "B")
     chapter = _clean(card.get("chapter")) or "—"
     ktype = _clean(card.get("knowledge_type")) or ""
     try:
@@ -1471,27 +1488,20 @@ def _dynamic_row(card: dict[str, Any]) -> str:
     except (TypeError, ValueError):
         difficulty = 3
     preview = _clean(card.get("exam_preview")) or ""
-    explain = _clean(card.get("explain")) or ""
-    method = "；".join(_as_list(card.get("method_steps"))) or ""
-    pitfalls = "；".join(_as_list(card.get("pitfalls"))) or ""
-    detail = _math_escape(_clip_preview_text(explain, 200)) if explain else ""
-    if method:
-        detail += f"<br>方法：{_math_escape(_clip_preview_text(method, 120))}"
-    if pitfalls:
-        detail += f"<br>易错：{_math_escape(_clip_preview_text(pitfalls, 120))}"
+    badge_class = f"ck-pill ck-grade-{grade.lower()}" if grade.lower() in {"s", "a", "b"} else "ck-pill"
+    badge_label = f"{_grade_label(card)} {grade}".strip()
     return (
         f'<tr data-id="{escape(kid, quote=False)}" data-grade="{escape(grade, quote=False)}" data-name="{escape(name, quote=False)}" '
         f'data-chapter="{escape(chapter, quote=False)}" data-type="{escape(ktype, quote=False)}" '
         f'data-importance="{importance}" data-difficulty="{difficulty}">'
-        f'<td><input type="checkbox" class="ck-mastery" data-name="{escape(name, quote=False)}"></td>'
-        f'<td>{escape(_grade_label(card), quote=False)}</td>'
+        f'<td class="ck-cell-center"><input type="checkbox" class="ck-mastery" data-name="{escape(name, quote=False)}" title="标记为已掌握"></td>'
+        f'<td class="ck-cell-center"><span class="{badge_class}">{badge_label}</span></td>'
         f'<td class="ck-kp-name">{escape(name, quote=False)}'
-        f'<div class="ck-row-preview">{escape(preview[:70], quote=False)}</div></td>'
-        f'<td><span class="ck-stars">{importance_stars(card)}</span></td>'
-        f'<td>{difficulty}</td>'
-        f'<td>{escape(chapter, quote=False)}</td>'
-        f'<td class="ck-row-detail" hidden>{detail}</td>'
-        "</tr>"
+        f'<div class="ck-row-preview">{escape(preview[:75], quote=False)}</div></td>'
+        f'<td class="ck-cell-center"><span class="ck-stars">{importance_stars(card)}</span></td>'
+        f'<td class="ck-cell-center"><span class="ck-diff-badge">Lv.{difficulty}</span></td>'
+        f'<td><span class="ck-chap-tag" title="{escape(chapter, quote=False)}">{escape(chapter, quote=False)}</span></td>'
+        f'</tr>'
     )
 
 
