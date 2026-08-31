@@ -4,6 +4,7 @@
 """
 from __future__ import annotations
 
+import asyncio
 import logging
 import tempfile
 import time
@@ -427,13 +428,7 @@ async def run_task(
     """执行一次任务调用，返回通用响应（monitor + data）。"""
     _start_time = time.time()
     request_id = (request_id or "").strip() or uuid.uuid4().hex
-    from .logs import reset_request_id, set_request_id
-
-    _log_token = set_request_id(request_id)
-    try:
-        return await _run_task_impl(domain, task, req, user_id, request_id, _start_time)
-    finally:
-        reset_request_id(_log_token)
+    return await _run_task_impl(domain, task, req, user_id, request_id, _start_time)
 
 
 async def _run_task_impl(
@@ -444,10 +439,7 @@ async def _run_task_impl(
     request_id: str,
     _start_time: float,
 ) -> TaskResponse:
-    logger.info("开始任务 %s/%s", domain, task)
-    from .logs import to_thread as _to_thread
-
-    p = await _to_thread(_prepare, domain, task, req, user_id)
+    p = await asyncio.to_thread(_prepare, domain, task, req, user_id)
     # 产物直接写入本次请求目录（data/{user_id}/output/{request_id}/），不再走根目录 output/ 归档
     p.ctx.output_dir = output_dir(user_id, request_id)
 
@@ -554,13 +546,7 @@ async def stream_task(
     参数校验失败（400/404）仍直接返回 HTTP 错误，不走流。
     """
     request_id = (request_id or "").strip() or uuid.uuid4().hex
-    from .logs import reset_request_id, set_request_id
-
-    _log_token = set_request_id(request_id)
-    try:
-        return await _stream_task_impl(domain, task, req, user_id, request_id)
-    finally:
-        reset_request_id(_log_token)
+    return await _stream_task_impl(domain, task, req, user_id, request_id)
 
 
 async def _stream_task_impl(
@@ -570,10 +556,7 @@ async def _stream_task_impl(
     user_id: str,
     request_id: str,
 ) -> StreamingResponse:
-    logger.info("开始任务 %s/%s（流式）", domain, task)
-    from .logs import to_thread as _to_thread
-
-    p = await _to_thread(_prepare, domain, task, req, user_id)
+    p = await asyncio.to_thread(_prepare, domain, task, req, user_id)
     # 产物直接写入本次请求目录（data/{user_id}/output/{request_id}/），不再走根目录 output/ 归档
     p.ctx.output_dir = output_dir(user_id, request_id)
 

@@ -14,7 +14,7 @@ if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
 from fastapi import FastAPI, Request  # noqa: E402
-from fastapi.responses import HTMLResponse, JSONResponse  # noqa: E402
+from fastapi.responses import JSONResponse  # noqa: E402
 from fastapi.staticfiles import StaticFiles  # noqa: E402
 
 from .config import load_env  # noqa: E402
@@ -34,63 +34,6 @@ app.include_router(notes.router)
 _data_dir = PROJECT_ROOT / "data"
 if _data_dir.is_dir():
     app.mount("/data", StaticFiles(directory=str(_data_dir)), name="data")
-
-# 简易接口调试前端（可选）：front/ 目录存在时挂载，访问 /front/ 打开
-_front_dir = PROJECT_ROOT / "front"
-if _front_dir.is_dir():
-    app.mount("/front", StaticFiles(directory=str(_front_dir), html=True), name="front")
-
-# 样例文件只读挂载（调试台"从文件加载"用）：samples/meeting/file、samples/notes/file
-_samples_dir = PROJECT_ROOT / "samples"
-if _samples_dir.is_dir():
-    app.mount("/samples", StaticFiles(directory=str(_samples_dir)), name="samples")
-
-# 请求日志缓冲（调试台展示用）：挂 root logger，按 request_id 收集
-from .logs import install as _install_logs  # noqa: E402
-
-_install_logs()
-
-
-@app.get("/", include_in_schema=False)
-async def _index() -> HTMLResponse:
-    """根路径直接打开接口调试台（front/index.html）。"""
-    index_file = _front_dir / "index.html"
-    if index_file.is_file():
-        return HTMLResponse(index_file.read_text(encoding="utf-8"))
-    return JSONResponse(content={"detail": "front 目录不存在"}, status_code=404)
-
-
-@app.get("/api/v1/logs", tags=["system"])
-async def request_logs(
-    request_id: str,
-    after: float = 0.0,
-) -> JSONResponse:
-    """调试台用：拉取某次请求日志快照（收尾/兼容）。实时看 SSE /api/v1/logs/stream。"""
-    from .logs import logs_for
-
-    return JSONResponse(content={"logs": logs_for(request_id, after=after)})
-
-
-@app.get("/api/v1/logs/stream", tags=["system"])
-async def request_logs_stream(
-    request: Request,
-    request_id: str,
-    after: float = 0.0,
-):
-    """调试台用：按 request_id 推送运行日志（SSE），一条连接看到 OCR/Agent 进度。"""
-    from fastapi.responses import StreamingResponse
-
-    from .logs import iter_log_sse
-
-    return StreamingResponse(
-        iter_log_sse(request_id, after=after, request=request),
-        media_type="text/event-stream",
-        headers={
-            "Cache-Control": "no-cache",
-            "Connection": "keep-alive",
-            "X-Accel-Buffering": "no",
-        },
-    )
 
 
 @app.exception_handler(ApiError)

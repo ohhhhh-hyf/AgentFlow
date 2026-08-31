@@ -253,6 +253,14 @@ class LLMClient:
         return "\n".join(str(item.get("content") or "") for item in messages)
 
     @staticmethod
+    def _sanitize_content(content: str) -> str:
+        """清洗 LLM 输出中的私有区/零宽字符（部分模型用 U+E000 区域做排版标记，
+        会破坏 Markdown 渲染与 JSON 解析）。"""
+        import re
+
+        return re.sub(r"[\ue000-\uf8ff\ufeff]", "", content or "")
+
+    @staticmethod
     def _estimate_tokens(text: str) -> int:
         """偏高估计：中文约 1 字/token，其它约 2 字符/token。"""
         cjk = sum(1 for char in text if "\u4e00" <= char <= "\u9fff")
@@ -367,7 +375,9 @@ class LLMClient:
             try:
                 resp = json.loads(raw)
                 self._record_usage(resp.get("usage"), count_call=True, label=label)
-                return resp["choices"][0]["message"].get("content") or ""
+                return self._sanitize_content(
+                    resp["choices"][0]["message"].get("content") or ""
+                )
             except (json.JSONDecodeError, KeyError, IndexError, TypeError) as exc:
                 raise RuntimeError(
                     f"{label} API 返回非标准响应：{raw[:200]!r}"
@@ -578,7 +588,7 @@ class LLMClient:
         with self._monitor_lock:
             if not usage_seen:
                 self.usage_totals["calls"] += 1
-        return "".join(chunks)
+        return self._sanitize_content("".join(chunks))
 
     async def stream_text(
         self,
@@ -787,7 +797,6 @@ class LLMClient:
                     self._record_failure()
                     raise
                 self._record_retry()
-                logger.warning("LLM 调用失败（%s）重试：%s", tag, exc)
                 await self._retry_delay(attempt)
                 continue
             if not (last_content or "").strip():
@@ -910,6 +919,5 @@ class LLMClient:
                     self._record_failure()
                     raise
                 self._record_retry()
-                logger.warning("LLM 调用失败（%s）重试：%s", tag, exc)
                 await self._retry_delay(attempt)
         raise RuntimeError("text() 重试耗尽（不可达）")
