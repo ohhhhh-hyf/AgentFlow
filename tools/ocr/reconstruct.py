@@ -225,7 +225,7 @@ def _lines_to_structured_payload(lines: list[dict]) -> str:
     return json.dumps(payload, ensure_ascii=False, separators=(",", ":"))
 
 
-def reconstruct_markdown(lines: list[dict], *, max_tokens: int = 8000) -> str:
+def reconstruct_markdown(lines: list[dict], *, max_tokens: int = 5000) -> str:
     """LLM 重构；失败/无 LLM 时返回原始拼接文本。"""
     raw = _fragments_to_text(lines)
     if not raw.strip():
@@ -257,6 +257,14 @@ def reconstruct_markdown(lines: list[dict], *, max_tokens: int = 8000) -> str:
     except Exception as exc:  # noqa: BLE001
         logger.warning("LLM 重构失败，返回原始文本：%s", exc)
         return normalize_heading_numbering(normalize_markdown_math(raw))
+
+
+def deterministic_reconstruct_markdown(lines: list[dict]) -> str:
+    """Program-only OCR reconstruction for high-confidence plain text batches."""
+    raw = _fragments_to_text(lines)
+    if not raw.strip():
+        return "（OCR 未识别到文字）"
+    return normalize_heading_numbering(normalize_markdown_math(raw))
 
 
 def review_markdown(

@@ -46,6 +46,20 @@ def ocr_engine_label() -> str:
     return module_name.replace("_", "")
 
 
+def ocr_concurrency() -> int:
+    """当前引擎实际可并行路数（Paddle GPU=1，CPU 默认 4）。"""
+    label = ocr_engine_label()
+    if label == "paddleocr":
+        from tools.ocr.paddle_ocr import paddle_concurrency
+
+        return paddle_concurrency()
+    raw = os.getenv("OCR_PARALLEL", "4").strip() or "4"
+    try:
+        return max(1, min(8, int(raw)))
+    except ValueError:
+        return 4
+
+
 def _log_ocr_failure(image_path: str, detail: str) -> None:
     try:
         src = Path(image_path)
@@ -111,4 +125,4 @@ def get_llm_client():
         return None
 
 
-__all__ = ["get_llm_client", "run_ocr_subprocess"]
+__all__ = ["get_llm_client", "ocr_concurrency", "ocr_engine_label", "run_ocr_subprocess"]

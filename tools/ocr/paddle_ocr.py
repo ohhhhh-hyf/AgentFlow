@@ -8,20 +8,45 @@ from __future__ import annotations
 import json
 import logging
 import os
-import queue
 import re
 import threading
+import time
+from concurrent.futures import ThreadPoolExecutor
 from typing import Any
 
 logger = logging.getLogger(__name__)
 
-PADDLE_OCR_POOL_SIZE = 4
-_PREDICT_TIMEOUT = float(os.getenv("PADDLE_OCR_PREDICT_TIMEOUT", "180"))
-_ACQUIRE_TIMEOUT = float(os.getenv("PADDLE_OCR_ACQUIRE_TIMEOUT", "240"))
+# 必须在 import paddle 之前限制 OpenMP，否则 4 路推理会互相抢满 CPU，看起来像串行。
+_cpu_threads = os.getenv("PADDLE_OCR_CPU_THREADS", "1").strip() or "1"
+for _key in (
+    "OMP_NUM_THREADS",
+    "MKL_NUM_THREADS",
+    "OPENBLAS_NUM_THREADS",
+    "NUMEXPR_NUM_THREADS",
+    "FLAGS_omp_num_threads",
+):
+    os.environ.setdefault(_key, _cpu_threads)
 
 _CREATE_LOCK = threading.Lock()
-_IDLE: queue.Queue = queue.Queue()
+_TLS = threading.local()
 _CREATED = 0
+_POOL: ThreadPoolExecutor | None = None
+
+
+def _device() -> str:
+    return os.getenv("PADDLE_OCR_DEVICE", "cpu").strip() or "cpu"
+
+
+def paddle_concurrency() -> int:
+    """CPU 上 4 路各绑一台引擎；GPU 上 Paddle 基本只能串行，强制 1 路。"""
+    device = _device().lower()
+    if device.startswith("gpu") or device.startswith("cuda"):
+        return 1
+    raw = os.getenv("PADDLE_OCR_POOL_SIZE", "4").strip() or "4"
+    try:
+        return max(1, min(8, int(raw)))
+    except ValueError:
+        return 4
 
 _HEADER_RE = re.compile(
     r"(UNIVERSITY|Wuhan|Hubei|HUAZHONG|SCIENCEAND|Tel[:：]|华中科技|中国·武汉)",
@@ -314,7 +339,7 @@ def _build_engine():
         os.environ["CUDA_VISIBLE_DEVICES"] = cuda
     from paddleocr import PaddleOCR
 
-    device = os.getenv("PADDLE_OCR_DEVICE", "cpu").strip() or "cpu"
+    device = _device()
     det = os.getenv("PADDLE_OCR_DET_MODEL", "PP-OCRv5_server_det").strip()
     rec = os.getenv("PADDLE_OCR_REC_MODEL", "PP-OCRv5_server_rec").strip()
     use_doc = os.getenv("PADDLE_OCR_DOC_ORIENTATION", "true").strip().lower() in {
@@ -339,54 +364,42 @@ def _build_engine():
         return PaddleOCR(lang="ch")
 
 
-def _acquire_engine():
-    """从最多 4 台引擎里取一台。同一实例不同时 predict，避免 SIGSEGV。"""
-    global _CREATED
-    try:
-        return _IDLE.get_nowait()
-    except queue.Empty:
-        pass
+def _worker_pool() -> ThreadPoolExecutor:
+    """常驻线程池：引擎与线程绑定后跨请求复用，避免每批新建线程导致无法并行。"""
+    global _POOL
     with _CREATE_LOCK:
-        if _CREATED < PADDLE_OCR_POOL_SIZE:
-            engine = _build_engine()
-            _CREATED += 1
-            logger.info("PaddleOCR 引擎池 %s/%s", _CREATED, PADDLE_OCR_POOL_SIZE)
+        if _POOL is None:
+            n = paddle_concurrency()
+            _POOL = ThreadPoolExecutor(max_workers=n, thread_name_prefix="paddle-ocr")
+        return _POOL
+
+
+def _thread_engine():
+    """引擎绑在当前线程：创建和 predict 必须同一线程，否则 Paddle 会串行/抢上下文。"""
+    global _CREATED
+    engine = getattr(_TLS, "engine", None)
+    if engine is not None:
+        return engine
+    n = paddle_concurrency()
+    with _CREATE_LOCK:
+        engine = getattr(_TLS, "engine", None)
+        if engine is not None:
             return engine
-    try:
-        return _IDLE.get(timeout=_ACQUIRE_TIMEOUT)
-    except queue.Empty as exc:
-        raise RuntimeError(
-            f"PaddleOCR 引擎池等待超时（{int(_ACQUIRE_TIMEOUT)}秒），可能有识别卡死"
-        ) from exc
+        if _CREATED >= n:
+            raise RuntimeError(
+                f"PaddleOCR 并发超过 {n} 路（device={_device()}）。"
+                "CPU 用 PADDLE_OCR_POOL_SIZE，GPU 固定 1 路。"
+            )
+        idx = _CREATED + 1
+        logger.info("PaddleOCR 初始化引擎 %s/%s（device=%s，线程绑定）", idx, n, _device())
+        engine = _build_engine()
+        _CREATED += 1
+        _TLS.engine = engine
+        logger.info("PaddleOCR 引擎 %s/%s 就绪", idx, n)
+        return engine
 
 
-def _release_engine(engine) -> None:
-    _IDLE.put(engine)
-
-
-def _predict_with_timeout(engine, path: str):
-    box: dict[str, Any] = {}
-    done = threading.Event()
-
-    def _run() -> None:
-        try:
-            box["result"] = engine.predict(path)
-        except Exception as exc:  # noqa: BLE001
-            box["error"] = exc
-        finally:
-            done.set()
-
-    worker = threading.Thread(target=_run, name="paddle-predict", daemon=True)
-    worker.start()
-    if not done.wait(_PREDICT_TIMEOUT):
-        raise TimeoutError(f"PaddleOCR predict 超过 {int(_PREDICT_TIMEOUT)} 秒未返回")
-    if "error" in box:
-        raise box["error"]
-    return box.get("result")
-
-
-def ocr_image(path: str) -> dict:
-    """对齐 samples/examples/test_paddleOCR.py：``predict`` 后解析 ``res.json``。"""
+def _ocr_predict(path: str) -> dict:
     image_size = None
     try:
         from PIL import Image
@@ -395,17 +408,37 @@ def ocr_image(path: str) -> dict:
             image_size = img.size
     except Exception:  # noqa: BLE001
         image_size = None
-    engine = _acquire_engine()
-    leaked = False
-    try:
-        result = _predict_with_timeout(engine, path)
-    except TimeoutError:
-        leaked = True
-        raise
-    finally:
-        if not leaked:
-            _release_engine(engine)
+    engine = _thread_engine()
+    t0 = time.monotonic()
+    result = engine.predict(path)
+    logger.info("PaddleOCR 完成 %s（%.1fs）", os.path.basename(path), time.monotonic() - t0)
     return {"engine": "paddleocr", "lines": extract_paddle_lines(result, image_size=image_size)}
 
 
-__all__ = ["extract_paddle_lines", "ocr_image"]
+def _ocr_on_worker(path: str) -> dict:
+    _TLS.worker = True
+    return _ocr_predict(path)
+
+
+def warmup_engines() -> None:
+    """在常驻池里先把各路引擎建好，后面的批次才能真正并行。"""
+    n = paddle_concurrency()
+
+    def _bind(_: int) -> None:
+        _TLS.worker = True
+        _thread_engine()
+
+    list(_worker_pool().map(_bind, range(n)))
+
+
+def ocr_image(path: str) -> dict:
+    """对齐 samples/examples/test_paddleOCR.py：``predict`` 后解析 ``res.json``。
+
+    无论从哪条线程调用，都丢进 Paddle 常驻池，保证 4 路引擎各自只在自己的线程里 predict。
+    """
+    if getattr(_TLS, "worker", False):
+        return _ocr_predict(path)
+    return _worker_pool().submit(_ocr_on_worker, path).result()
+
+
+__all__ = ["extract_paddle_lines", "ocr_image", "paddle_concurrency", "warmup_engines"]

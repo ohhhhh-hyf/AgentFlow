@@ -702,16 +702,19 @@ class LLMClient:
                     timeout=timeout,
                     label=label,
                 )
-            except RuntimeError:
+            except RuntimeError as exc:
+                last_error = str(exc)
                 if attempt >= self.max_retries:
                     self._record_failure()
                     raise
                 self._record_retry()
+                logger.warning("LLM 调用失败（%s）重试：%s", tag, last_error)
                 await self._retry_delay(attempt)
                 continue
             if not (last_content or "").strip():
                 last_error = "模型返回空正文"
                 if attempt < self.max_retries:
+                    logger.warning("LLM 调用失败（%s）重试：模型返回空正文", tag)
                     await self._retry_delay(attempt)
                     continue
                 break
@@ -730,6 +733,7 @@ class LLMClient:
                 if validation_retried:
                     break
                 validation_retried = True
+                logger.warning("LLM 输出校验失败（%s）：%s，针对性重试", tag, last_error)
                 messages.extend(
                     [
                         {"role": "assistant", "content": last_content},

@@ -11,11 +11,22 @@ from pathlib import Path
 from typing import Callable, Iterator
 
 from tools.memory.store import safe_id
-from tools.ocr.reconstruct import reconstruct_markdown, review_markdown
+from tools.ocr.reconstruct import (
+    deterministic_reconstruct_markdown,
+    reconstruct_markdown,
+    review_markdown,
+)
 
 logger = logging.getLogger("agentflow")
 
-OCR_PARALLEL = 4
+
+def _ocr_parallel() -> int:
+    from tools.ocr.engines import ocr_concurrency
+
+    return ocr_concurrency()
+
+
+OCR_PARALLEL = 4  # 默认值；实际路数以 ocr_concurrency() 为准
 LIGHT_OCR_BATCH = OCR_PARALLEL
 OCR_ITEM_TIMEOUT = float(os.getenv("OCR_ITEM_TIMEOUT", "180"))
 
@@ -158,8 +169,9 @@ def iter_logged_ocr_pipeline(
     if not total:
         return
     engine = ocr_engine_label()
-    lanes = min(OCR_PARALLEL, total)
+    lanes = min(_ocr_parallel(), total)
     ocr_log(f"[OCR] 使用引擎 {engine}，共 {total} 张，{lanes} 路并行")
+    kwargs.setdefault("batch_size", lanes)
     for event in iter_ocr_review_pipeline(image_entries, **kwargs):
         log_ocr_pipeline_event(event, total=total, engine=engine)
         yield event
@@ -237,13 +249,95 @@ def concat_page_lines(pages: list[dict]) -> list[dict]:
     return combined
 
 
+def _line_quality_stats(lines: list[dict]) -> dict[str, int | float]:
+    total = max(len(lines), 1)
+    low_conf = 0
+    very_low_conf = 0
+    bad_conf = 0
+    formula = 0
+    ambiguous = 0
+    for item in lines:
+        conf = item.get("conf")
+        if conf is not None:
+            try:
+                value = float(conf)
+                if value < 0.8:
+                    low_conf += 1
+                if value < 0.65:
+                    very_low_conf += 1
+            except (TypeError, ValueError):
+                bad_conf += 1
+        if str(item.get("formula") or "").strip():
+            formula += 1
+        if str(item.get("role_hint") or "") == "formula":
+            formula += 1
+        if str(item.get("title_decision") or "ambiguous") == "ambiguous":
+            ambiguous += 1
+    return {
+        "total": total,
+        "low_conf": low_conf,
+        "very_low_conf": very_low_conf,
+        "bad_conf": bad_conf,
+        "formula": formula,
+        "ambiguous": ambiguous,
+        "low_conf_ratio": low_conf / total,
+        "ambiguous_ratio": ambiguous / total,
+    }
+
+
+def _needs_reconstruct_llm(lines: list[dict]) -> bool:
+    """Only use LLM reconstruction when layout or OCR quality needs judgment."""
+    stats = _line_quality_stats(lines)
+    if int(stats["bad_conf"]) or int(stats["very_low_conf"]):
+        return True
+    if int(stats["formula"]):
+        return True
+    if int(stats["low_conf"]) >= 2 and float(stats["low_conf_ratio"]) >= 0.06:
+        return True
+    if int(stats["ambiguous"]) >= 3 and float(stats["ambiguous_ratio"]) >= 0.12:
+        return True
+    return False
+
+
+def _needs_review(lines: list[dict]) -> bool:
+    """Review only when errors are likely enough to justify a second LLM call."""
+    stats = _line_quality_stats(lines)
+    if int(stats["bad_conf"]) or int(stats["very_low_conf"]):
+        return True
+    if int(stats["formula"]) >= 2:
+        return True
+    if int(stats["low_conf"]) >= 3 and float(stats["low_conf_ratio"]) >= 0.08:
+        return True
+    return False
+
+
+def _estimate_reconstruct_tokens(lines: list[dict]) -> int:
+    """按本批 OCR 行内容量估算重构输出上限，避免 max_tokens 下调后长批被静默截断。
+
+    估算：整理后输出字数约为输入的 40%（去噪音/去重），中文 1 token ≈ 1.2 字（保守取大）；
+    短批落 5000，内容越多上限越高，最高 9000。
+    """
+    total = sum(
+        len(str(item.get("text") or "")) + len(str(item.get("formula") or ""))
+        for item in lines
+    )
+    needed = int(total * 0.4 / 1.2)
+    return max(5000, min(9000, needed))
+
+
 def reconstruct_and_review_pages(pages: list[dict]) -> str:
-    """一批（最多 4 页）OCR 行：一次整理 + 一次审校。"""
+    """一批（最多 4 页）OCR 行：必要时 LLM 整理；高置信文本走程序重构。"""
     lines = concat_page_lines(pages)
     if not lines:
         return "（OCR 未识别到文字）"
-    draft = reconstruct_markdown(lines, max_tokens=12000)
-    reviewed, _notes = review_markdown(draft, lines, max_tokens=4000)
+    if _needs_reconstruct_llm(lines):
+        draft = reconstruct_markdown(lines, max_tokens=_estimate_reconstruct_tokens(lines))
+    else:
+        ocr_log("[OCR] 高置信纯文本批次，跳过 LLM 整理")
+        draft = deterministic_reconstruct_markdown(lines)
+    if not _needs_review(lines):
+        return draft
+    reviewed, _notes = review_markdown(draft, lines, max_tokens=2000)
     return reviewed or draft
 
 
@@ -348,19 +442,27 @@ def iter_ocr_review_pipeline(
     batch_size: int = LIGHT_OCR_BATCH,
     item_timeout: float | None = None,
 ) -> Iterator[dict]:
-    """每批最多 4 路 OCR，整理审校完成后再处理下一批。"""
+    """每批按引擎实际路数并行 OCR，整理审校完成后再处理下一批。"""
     if not image_entries:
         return
     ocr_fn = ocr_fn or ocr_image_to_lines
     review_fn = review_fn or reconstruct_and_review_pages
     timeout = float(OCR_ITEM_TIMEOUT if item_timeout is None else item_timeout)
+    lanes = max(1, min(int(batch_size), _ocr_parallel(), len(image_entries)))
     chunks: list[tuple[int, int, list]] = []
-    for start in range(0, len(image_entries), batch_size):
-        chunk = image_entries[start : start + batch_size]
+    for start in range(0, len(image_entries), lanes):
+        chunk = image_entries[start : start + lanes]
         chunks.append((start + 1, start + len(chunk), chunk))
     total = len(image_entries)
-    ocr_pool = ThreadPoolExecutor(max_workers=max(1, min(batch_size, total)))
+    ocr_pool = ThreadPoolExecutor(max_workers=lanes)
     try:
+        from tools.ocr.engines import ocr_engine_label as _ocr_label
+
+        if _ocr_label() == "paddleocr":
+            from tools.ocr.paddle_ocr import warmup_engines
+
+            ocr_log(f"[OCR/paddleocr] 预热 {lanes} 路引擎（线程绑定）")
+            warmup_engines()
         for lo, hi, chunk in chunks:
             yield {
                 "type": "ocr_start",
