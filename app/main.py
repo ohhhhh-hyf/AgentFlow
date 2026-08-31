@@ -13,9 +13,7 @@ PROJECT_ROOT = Path(__file__).resolve().parents[1]
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
-from typing import Optional  # noqa: E402
-
-from fastapi import FastAPI, Header, Request  # noqa: E402
+from fastapi import FastAPI, Request  # noqa: E402
 from fastapi.responses import HTMLResponse, JSONResponse  # noqa: E402
 from fastapi.staticfiles import StaticFiles  # noqa: E402
 
@@ -30,31 +28,6 @@ app = FastAPI(title="AgentFlow API", version="1.0.0")
 
 app.include_router(meeting.router)
 app.include_router(notes.router)
-
-
-@app.get("/api/v1/files", tags=["system"])
-async def list_input_files(
-    user_id: str = "",
-    subject: str = "",
-    x_user_id: Optional[str] = Header(default=None, alias="X-User-Id"),
-) -> JSONResponse:
-    """调试台用：列出 data/{user_id}/docs/ 可引用文件。"""
-    from .outputs import list_user_input_files
-
-    uid = (x_user_id or user_id or "").strip()
-    if not uid:
-        return JSONResponse(
-            status_code=400,
-            content={"detail": "缺少 X-User-Id（按用户列出 data/{user_id}/docs/）"},
-        )
-    payload = list_user_input_files(uid, subject)
-    logger.info(
-        "列出输入文件 user=%s docs=%s from %s",
-        uid,
-        len(payload.get("docs") or []),
-        payload.get("docs_dir") or "",
-    )
-    return JSONResponse(content=payload)
 
 
 # html 产物预览（可选）：data/{user_id}/output/{request_id}/{task}.html

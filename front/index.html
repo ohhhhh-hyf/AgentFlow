@@ -64,22 +64,9 @@
   .field textarea.big { min-height: 140px; }
   .field input.invalid, .field textarea.invalid { border-color: var(--danger); background: #fdf0f0; }
   .field textarea.docs-list { min-height: 72px; }
-  .docs-pick, .file-load {
+  .file-load {
     display: flex; gap: 6px; margin-top: 4px; align-items: center; flex-wrap: wrap;
   }
-  .docs-pick select {
-    min-width: 220px; max-width: 46%; padding: 4px 8px; border: 1px solid var(--border);
-    border-radius: 5px; font-size: 12px; font-family: Consolas, monospace; background: #fff;
-  }
-  .docs-pick input[type=text] {
-    flex: 1; min-width: 140px; padding: 4px 8px; border: 1px solid var(--border);
-    border-radius: 5px; font-size: 12px; font-family: Consolas, monospace;
-  }
-  .docs-pick button {
-    padding: 4px 10px; border: 1px solid var(--border); border-radius: 5px;
-    background: var(--code-bg); font-size: 12px; cursor: pointer; white-space: nowrap;
-  }
-  .docs-pick button:hover { background: #e4e7ec; }
   .file-load input {
     flex: 1; padding: 4px 8px; border: 1px solid var(--border); border-radius: 5px;
     font-size: 12px; font-family: Consolas, monospace;
@@ -89,8 +76,8 @@
     background: var(--code-bg); font-size: 12px; cursor: pointer; white-space: nowrap;
   }
   .file-load button:hover { background: #e4e7ec; }
-  .file-load .fl-msg, .docs-pick .fl-msg { font-size: 12px; color: var(--muted); }
-  .file-load .fl-msg.err, .docs-pick .fl-msg.err { color: var(--danger); }
+  .file-load .fl-msg { font-size: 12px; color: var(--muted); }
+  .file-load .fl-msg.err { color: var(--danger); }
   .field .checkbox-row { display: flex; align-items: center; gap: 8px; }
   .field .checkbox-row input { width: 16px; height: 16px; }
   .headers { display: flex; gap: 12px; margin-bottom: 14px; }
@@ -177,6 +164,6 @@
   </main>
 </div>
 
-<script src="/front/app.js?v=docs-list3"></script>
+<script src="/front/app.js?v=docs-name-only"></script>
 </body>
 </html>

@@ -236,13 +236,7 @@ function fieldHtml(field, value) {
   const val = esc(value || "");
   let input = "";
   if (field.type === "docs") {
-    input = `<textarea class="docs-list" data-key="${field.key}" placeholder="每行一个文件名，如：&#10;ocr_20260829_164512.md">${val}</textarea>
-      <div class="docs-pick">
-        <select data-docs-pick="${field.key}"><option value="">从 docs 选择文件…</option></select>
-        <input type="text" placeholder="或填写文件名后加入" data-docs-name="${field.key}">
-        <button type="button" data-docs-add="${field.key}">加入列表</button>
-        <span class="fl-msg" data-docs-msg="${field.key}"></span>
-      </div>`;
+    input = `<textarea class="docs-list" data-key="${field.key}" placeholder="每行一个文件名，如：&#10;ocr_20260829_164512.md">${val}</textarea>`;
   } else if (field.type === "textarea") {
     const cls = field.big ? "big" : "";
     input = `<textarea class="${cls}" data-key="${field.key}" placeholder="">${val}</textarea>
@@ -317,7 +311,6 @@ function renderForm() {
       if (el.classList.contains("invalid")) el.classList.remove("invalid");
     });
   });
-  bindDocsPickers();
 }
 
 /* ============ 请求体拼装 ============ */
@@ -368,162 +361,6 @@ function uuid() {
     const r = (Math.random() * 16) | 0;
     return (c === "x" ? r : (r & 0x3) | 0x8).toString(16);
   });
-}
-
-function docsNames(text) {
-  return String(text || "").split(/\r?\n/).map((s) => s.trim()).filter(Boolean);
-}
-
-function setDocsValue(key, names) {
-  const unique = [];
-  for (const n of names) {
-    if (n && !unique.includes(n)) unique.push(n);
-  }
-  const text = unique.join("\n");
-  const ta = document.querySelector(`#form-area textarea[data-key="${key}"]`);
-  if (ta) {
-    ta.value = text;
-    ta.classList.remove("invalid");
-  }
-  if (currentApi) {
-    currentApi.__store = currentApi.__store || {};
-    currentApi.__store[key] = text;
-  }
-}
-
-function appendDoc(key, name, msgEl) {
-  const file = String(name || "").trim();
-  if (!file) {
-    if (msgEl) { msgEl.textContent = "请选择或填写文件名"; msgEl.className = "fl-msg err"; }
-    return;
-  }
-  if (/[\\/]/.test(file) || file === "." || file === "..") {
-    if (msgEl) { msgEl.textContent = "文件名不能含路径"; msgEl.className = "fl-msg err"; }
-    return;
-  }
-  const ta = document.querySelector(`#form-area textarea[data-key="${key}"]`);
-  const cur = docsNames(ta ? ta.value : ((currentApi && currentApi.__store) || {})[key]);
-  if (cur.includes(file)) {
-    if (msgEl) { msgEl.textContent = "已在列表中"; msgEl.className = "fl-msg"; }
-    return;
-  }
-  cur.push(file);
-  setDocsValue(key, cur);
-  if (msgEl) { msgEl.textContent = "已加入 " + file; msgEl.className = "fl-msg"; }
-}
-
-async function loadDocsPicker() {
-  const picks = document.querySelectorAll("[data-docs-pick]");
-  if (!picks.length) return;
-  const user = (document.getElementById("hdr-user") || {}).value.trim() || "1";
-  const subjectEl = document.querySelector('#form-area [data-key="extra.subject"]');
-  const subject = subjectEl ? String(subjectEl.value || "").trim() : "";
-  let docs = [];
-  let catalogs = [];
-  let err = "";
-  let docsDir = `data/${user}/docs`;
-  try {
-    const qs = new URLSearchParams({ user_id: user });
-    if (subject) qs.set("subject", subject);
-    const query = qs.toString();
-    let resp = await fetch(`/api/v1/notes/input-files?${query}`, {
-      headers: { "X-User-Id": user },
-    });
-    if (resp.status === 404) {
-      resp = await fetch(`/api/v1/files?${query}`, {
-        headers: { "X-User-Id": user },
-      });
-    }
-    const data = await resp.json().catch(() => ({}));
-    if (!resp.ok) {
-      err = data.detail || ("HTTP " + resp.status);
-    } else {
-      docs = data.docs || [];
-      catalogs = data.catalogs || [];
-      if (data.docs_dir) docsDir = data.docs_dir;
-    }
-  } catch (e) {
-    err = e.message || "无法连接列目录接口";
-  }
-  picks.forEach((sel) => {
-    const msg = document.querySelector(`[data-docs-msg="${sel.dataset.docsPick}"]`);
-    sel.innerHTML = '<option value="">从 docs 选择文件…</option>';
-    if (catalogs.length) {
-      const g = document.createElement("optgroup");
-      g.label = `知识目录 catalogs/（${catalogs.length}）`;
-      catalogs.forEach((n) => {
-        const o = document.createElement("option");
-        o.value = n;
-        o.textContent = n;
-        g.appendChild(o);
-      });
-      sel.appendChild(g);
-    }
-    const g2 = document.createElement("optgroup");
-    g2.label = `docs/（${docs.length}）`;
-    if (!docs.length) {
-      const o = document.createElement("option");
-      o.disabled = true;
-      o.textContent = err
-        ? `无法列出：${err}`
-        : `（${docsDir} 下没有文件）`;
-      g2.appendChild(o);
-    } else {
-      docs.forEach((n) => {
-        const o = document.createElement("option");
-        o.value = n;
-        o.textContent = n;
-        g2.appendChild(o);
-      });
-    }
-    sel.appendChild(g2);
-    if (msg) {
-      msg.className = err ? "fl-msg err" : "fl-msg";
-      msg.textContent = err
-        ? err
-        : `已列出 ${docs.length} 个文件`;
-    }
-  });
-}
-
-function bindDocsPickers() {
-  document.querySelectorAll("[data-docs-pick]").forEach((sel) => {
-    sel.addEventListener("change", () => {
-      const name = sel.value;
-      if (!name) return;
-      const key = sel.dataset.docsPick;
-      const msg = document.querySelector(`[data-docs-msg="${CSS.escape(key)}"]`);
-      appendDoc(key, name, msg);
-      sel.selectedIndex = 0;
-    });
-  });
-  document.querySelectorAll("[data-docs-add]").forEach((btn) => {
-    btn.addEventListener("click", () => {
-      const key = btn.dataset.docsAdd;
-      const input = document.querySelector(`[data-docs-name="${CSS.escape(key)}"]`);
-      const msg = document.querySelector(`[data-docs-msg="${CSS.escape(key)}"]`);
-      appendDoc(key, input ? input.value : "", msg);
-      if (input) input.value = "";
-    });
-  });
-  document.querySelectorAll("[data-docs-name]").forEach((input) => {
-    input.addEventListener("keydown", (ev) => {
-      if (ev.key !== "Enter") return;
-      ev.preventDefault();
-      const key = input.dataset.docsName;
-      const msg = document.querySelector(`[data-docs-msg="${CSS.escape(key)}"]`);
-      appendDoc(key, input.value, msg);
-      input.value = "";
-    });
-  });
-  const userEl = document.getElementById("hdr-user");
-  if (userEl) userEl.addEventListener("change", loadDocsPicker);
-  const subj = document.querySelector('#form-area [data-key="extra.subject"]');
-  if (subj) {
-    subj.addEventListener("change", loadDocsPicker);
-    subj.addEventListener("blur", loadDocsPicker);
-  }
-  loadDocsPicker();
 }
 
 /* ============ 发送与响应展示 ============ */
