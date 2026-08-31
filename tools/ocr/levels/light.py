@@ -297,36 +297,79 @@ def concat_page_lines(pages: list[dict]) -> list[dict]:
     return combined
 
 
-def _line_quality_stats(lines: list[dict]) -> dict[str, int | float]:
+def _line_conf(item: dict) -> float | None:
+    conf = item.get("conf")
+    if conf is None:
+        return None
+    try:
+        return float(conf)
+    except (TypeError, ValueError):
+        return None
+
+
+def _line_text(item: dict) -> str:
+    return str(item.get("formula") or item.get("text") or "").strip()
+
+
+def _is_formula_line(item: dict) -> bool:
+    return bool(str(item.get("formula") or "").strip()) or str(item.get("role_hint") or "") == "formula"
+
+
+def _formula_needs_llm(item: dict) -> bool:
+    """Simple formulas can be normalized locally; only broken/uncertain formulas need LLM."""
+    text = _line_text(item)
+    if not text:
+        return False
+    conf = _line_conf(item)
+    if conf is not None and conf < 0.78:
+        return True
+    pairs = (("(", ")"), ("（", "）"), ("[", "]"), ("{", "}"))
+    if any(text.count(left) != text.count(right) for left, right in pairs):
+        return True
+    if text.count("=") > 2 or re.search(r"[$]{3,}|[$].*[$][$]|[$][$].*[$](?![$])", text):
+        return True
+    return False
+
+
+def _line_quality_stats(lines: list[dict]) -> dict[str, int | float | bool]:
     total = max(len(lines), 1)
     low_conf = 0
     very_low_conf = 0
     bad_conf = 0
+    conf_count = 0
+    conf_total = 0.0
     formula = 0
+    formula_needs_llm = 0
     ambiguous = 0
     for item in lines:
-        conf = item.get("conf")
-        if conf is not None:
-            try:
-                value = float(conf)
-                if value < 0.8:
-                    low_conf += 1
-                if value < 0.65:
-                    very_low_conf += 1
-            except (TypeError, ValueError):
+        if item.get("conf") is not None:
+            value = _line_conf(item)
+            if value is None:
                 bad_conf += 1
-        if str(item.get("formula") or "").strip():
+            else:
+                conf_count += 1
+                conf_total += value
+                if value < 0.75:
+                    low_conf += 1
+                if value < 0.55:
+                    very_low_conf += 1
+        if _is_formula_line(item):
             formula += 1
-        if str(item.get("role_hint") or "") == "formula":
-            formula += 1
+            if _formula_needs_llm(item):
+                formula_needs_llm += 1
         if str(item.get("title_decision") or "ambiguous") == "ambiguous":
             ambiguous += 1
+    avg_conf = conf_total / conf_count if conf_count else 0.0
     return {
         "total": total,
         "low_conf": low_conf,
         "very_low_conf": very_low_conf,
         "bad_conf": bad_conf,
+        "conf_count": conf_count,
+        "has_conf": conf_count > 0,
+        "avg_conf": avg_conf,
         "formula": formula,
+        "formula_needs_llm": formula_needs_llm,
         "ambiguous": ambiguous,
         "low_conf_ratio": low_conf / total,
         "ambiguous_ratio": ambiguous / total,
@@ -336,31 +379,34 @@ def _line_quality_stats(lines: list[dict]) -> dict[str, int | float]:
 def _needs_reconstruct_llm(lines: list[dict]) -> bool:
     """Only use LLM reconstruction when layout or OCR quality needs judgment."""
     stats = _line_quality_stats(lines)
+    if (
+        bool(stats["has_conf"])
+        and float(stats["avg_conf"]) >= 0.9
+        and int(stats["very_low_conf"]) == 0
+        and float(stats["low_conf_ratio"]) <= 0.05
+        and int(stats["formula_needs_llm"]) == 0
+        and float(stats["ambiguous_ratio"]) <= 0.18
+    ):
+        return False
     if int(stats["bad_conf"]) or int(stats["very_low_conf"]):
         return True
-    if int(stats["formula"]):
+    if int(stats["formula_needs_llm"]):
         return True
-    if int(stats["low_conf"]) >= 2 and float(stats["low_conf_ratio"]) >= 0.06:
+    if int(stats["low_conf"]) >= 3 and float(stats["low_conf_ratio"]) >= 0.10:
         return True
-    if int(stats["ambiguous"]) >= 3 and float(stats["ambiguous_ratio"]) >= 0.12:
+    if int(stats["ambiguous"]) >= 5 and float(stats["ambiguous_ratio"]) >= 0.20:
         return True
     return False
 
 
 def _needs_review(lines: list[dict]) -> bool:
-    """Review only when errors are likely enough to justify a second LLM call.
-
-    8 张图一批：公式/低置信/页眉页脚出现概率高，审校触发更频繁（更严格）；
-    存在页眉页脚候选时也触发——重构稿中模式外残留的噪音由审校 LLM 兜底剔除。
-    """
+    """Review only when local OCR evidence can justify a targeted patch call."""
     stats = _line_quality_stats(lines)
     if int(stats["bad_conf"]) or int(stats["very_low_conf"]):
         return True
-    if int(stats["formula"]) >= 2:
+    if int(stats["formula_needs_llm"]):
         return True
-    if int(stats["low_conf"]) >= 3 and float(stats["low_conf_ratio"]) >= 0.08:
-        return True
-    if any(str(item.get("role_hint") or "") == "boilerplate" for item in lines):
+    if bool(stats["has_conf"]) and int(stats["low_conf"]):
         return True
     return False
 
@@ -380,7 +426,7 @@ def _estimate_reconstruct_tokens(lines: list[dict]) -> int:
 
 
 def reconstruct_and_review_pages(pages: list[dict]) -> str:
-    """一批（最多 4 页）OCR 行：必要时 LLM 整理；高置信文本走程序重构。"""
+    """一批 OCR 行：必要时 LLM 整理；高置信文本走程序重构。"""
     lines = concat_page_lines(pages)
     if not lines:
         return "（OCR 未识别到文字）"
@@ -391,7 +437,7 @@ def reconstruct_and_review_pages(pages: list[dict]) -> str:
         draft = deterministic_reconstruct_markdown(lines)
     if not _needs_review(lines):
         return draft
-    reviewed, _notes = review_markdown(draft, lines, max_tokens=2000)
+    reviewed, _notes = review_markdown(draft, lines, max_tokens=800)
     return reviewed or draft
 
 

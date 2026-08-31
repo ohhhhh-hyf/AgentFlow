@@ -29,7 +29,7 @@ RECONSTRUCT_SYSTEM_PROMPT = """你是「笔记整理器」。把 OCR 识别出�
 10. **低置信行**：conf < 0.8 的行 OCR 可信度低，结合上下文谨慎纠错；不确定就原样保留，禁止臆造
 11. 直接输出 Markdown 正文，不要前言后语、不要 Markdown 代码围栏"""
 
-REVIEW_SYSTEM_PROMPT = """你是「OCR Markdown 保守审校器」。你会拿到一份带行号的整理稿。
+REVIEW_SYSTEM_PROMPT = """你是「OCR Markdown 保守审校器」。你会拿到少量可疑 OCR 原文窗口，以及与之相关的带行号 Markdown 行。
 
 任务：只指出需要改的行，不要重写全文，不要输出 Markdown 正文。
 
@@ -47,6 +47,7 @@ REVIEW_SYSTEM_PROMPT = """你是「OCR Markdown 保守审校器」。你会拿�
 4. 不要删除稿中能辨认出的有效信息
 5. 不要做全文短词替换；每条补丁必须对准指定行
 6. 不要把 L00N: 行号写进 from / to
+7. 没有 OCR 原文窗口支持的修改不要输出补丁
 
 只输出一个 JSON 对象。第一个字符是 {，最后一个字符是 }。
 不要 Markdown 围栏、不要解释、不要输出整理稿正文。
@@ -279,11 +280,14 @@ def review_markdown(
     max_tokens: int = 4000,
 ) -> tuple[str, str]:
     """LLM 只出补丁；程序按行号+原文核对后本地改稿。失败时返回原稿。"""
-    del lines
     draft = str(markdown or "").strip()
     if not draft:
         return draft, "未生成可审校的 Markdown。"
     draft = normalize_heading_numbering(normalize_markdown_math(draft))
+    evidence = _suspect_ocr_windows(lines)
+    selected = _select_review_draft_lines(draft, evidence)
+    if not evidence or not selected:
+        return draft, "未发现可定位的局部审校窗口。"
     client = None
     try:
         from .engines import get_llm_client
@@ -299,8 +303,10 @@ def review_markdown(
         text = asyncio.run(
             client.text(
                 REVIEW_SYSTEM_PROMPT,
-                "待审校 Markdown（L00N 是行号，不要写进 from/to）：\n"
-                f"{_number_draft_lines(draft)}\n",
+                "可疑 OCR 原文窗口（只能依据这些证据修正）：\n"
+                f"{json.dumps(evidence, ensure_ascii=False, separators=(',', ':'))}\n\n"
+                "相关 Markdown 行（L00N 是全文行号，不要写进 from/to）：\n"
+                f"{_number_selected_draft_lines(draft, selected)}\n",
                 temperature=0.0,
                 max_tokens=max_tokens,
                 json_mode=True,
@@ -317,6 +323,134 @@ def _number_draft_lines(draft: str) -> str:
     rows = draft.splitlines()
     width = max(3, len(str(max(len(rows), 1))))
     return "\n".join(f"L{idx:0{width}d}: {row}" for idx, row in enumerate(rows, start=1))
+
+
+def _number_selected_draft_lines(draft: str, line_numbers: list[int]) -> str:
+    rows = draft.splitlines()
+    if not rows:
+        return ""
+    width = max(3, len(str(len(rows))))
+    output: list[str] = []
+    last = 0
+    for line_no in sorted(set(line_numbers)):
+        if line_no < 1 or line_no > len(rows):
+            continue
+        if last and line_no > last + 1:
+            output.append("...")
+        output.append(f"L{line_no:0{width}d}: {rows[line_no - 1]}")
+        last = line_no
+    return "\n".join(output)
+
+
+def _plain_for_match(text: str) -> str:
+    cleaned = re.sub(r"^[#>\-\s*\d.、()（）]+", "", text or "")
+    cleaned = re.sub(r"[*_`$\\\s]+", "", cleaned)
+    return cleaned.strip()
+
+
+def _line_conf(item: dict) -> float | None:
+    if item.get("conf") is None:
+        return None
+    try:
+        return float(item.get("conf"))
+    except (TypeError, ValueError):
+        return None
+
+
+def _is_formula_like(item: dict) -> bool:
+    text = str(item.get("formula") or item.get("text") or "")
+    return bool(item.get("formula")) or str(item.get("role_hint") or "") == "formula" or bool(
+        re.search(r"[=＋×÷−√∫∑≥≤≠≈∞]|\\frac|\\sum|\\int|\\lim|\\sqrt", text)
+    )
+
+
+def _formula_suspicious(text: str, conf: float | None) -> bool:
+    if conf is not None and conf < 0.78:
+        return True
+    pairs = (("(", ")"), ("（", "）"), ("[", "]"), ("{", "}"))
+    return any(text.count(left) != text.count(right) for left, right in pairs)
+
+
+def _is_suspect_ocr_line(item: dict) -> bool:
+    text = str(item.get("formula") or item.get("text") or "").strip()
+    if not text:
+        return False
+    conf = _line_conf(item)
+    role = str(item.get("role_hint") or "")
+    decision = str(item.get("title_decision") or "")
+    if conf is not None and conf < (0.80 if role == "heading" or decision == "ambiguous" else 0.75):
+        return True
+    if _is_formula_like(item) and _formula_suspicious(text, conf):
+        return True
+    if decision == "ambiguous" and len(_plain_for_match(text)) <= 24 and re.search(r"[章节定义定理性质例题重点难点]", text):
+        return True
+    return False
+
+
+def _compact_ocr_line(item: dict) -> dict:
+    text = str(item.get("formula") or item.get("text") or "").strip()
+    row: dict = {"text": text}
+    conf = _line_conf(item)
+    if conf is not None:
+        row["conf"] = round(conf, 3)
+    role = str(item.get("role_hint") or "")
+    decision = str(item.get("title_decision") or "")
+    if role:
+        row["role"] = role
+    if decision:
+        row["title"] = decision
+    return row
+
+
+def _suspect_ocr_windows(lines: list[dict]) -> list[dict]:
+    """Build tiny source-evidence windows instead of sending all OCR lines to review."""
+    evidence: list[dict] = []
+    clean_lines = [item for item in lines if str(item.get("role_hint") or "") != "boilerplate"]
+    for idx, item in enumerate(clean_lines):
+        if not _is_suspect_ocr_line(item):
+            continue
+        lo = max(0, idx - 1)
+        hi = min(len(clean_lines), idx + 2)
+        evidence.append(
+            {
+                "ocr_line": idx + 1,
+                "prev": [_compact_ocr_line(line) for line in clean_lines[lo:idx]],
+                "target": _compact_ocr_line(item),
+                "next": [_compact_ocr_line(line) for line in clean_lines[idx + 1:hi]],
+            }
+        )
+        if len(evidence) >= 16:
+            break
+    return evidence
+
+
+def _select_review_draft_lines(draft: str, evidence: list[dict]) -> list[int]:
+    rows = draft.splitlines()
+    selected: set[int] = set()
+    for window in evidence:
+        target = _plain_for_match(str((window.get("target") or {}).get("text") or ""))
+        if len(target) < 2:
+            continue
+        for idx, row in enumerate(rows, start=1):
+            plain = _plain_for_match(row)
+            if plain and (target in plain or plain in target):
+                selected.add(idx)
+                for line_no in _nearest_nonblank_lines(rows, idx, limit=1, direction=-1):
+                    selected.add(line_no)
+                for line_no in _nearest_nonblank_lines(rows, idx, limit=1, direction=1):
+                    selected.add(line_no)
+                break
+    return sorted(selected)
+
+
+def _nearest_nonblank_lines(rows: list[str], start: int, *, limit: int, direction: int) -> list[int]:
+    found: list[int] = []
+    idx = start + direction
+    while 1 <= idx <= len(rows) and len(found) < limit:
+        if _plain_for_match(rows[idx - 1]):
+            found.append(idx)
+        idx += direction
+    return found
 
 
 def _strip_line_prefixes(text: str) -> str:

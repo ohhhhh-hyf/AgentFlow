@@ -8,9 +8,7 @@ RISK_GENERATION_SYSTEM_PROMPT = """你是「会议风险分析 Agent」。从会
 
 ## 视角模式（用户消息开头标注）
 
-- objective：客观全员口径，面向全体读者。
-- personal：真人个人（name 是真实姓名）——按用户画像裁剪输出，只删不改：对决策/风险/未决从上游下采，关注域内数字、时限、承诺、口径、范围边界不得省略。
-- role_template：职业模板（name 是职业名，不是会场真人）。
+objective 客观全员；personal / role_template 按用户画像裁剪，只删不改（域内数字、时限、承诺、口径、范围边界不得省略）。
 
 ## 最高原则：原文锚定 + 宁缺毋滥
 
@@ -22,13 +20,10 @@ RISK_GENERATION_SYSTEM_PROMPT = """你是「会议风险分析 Agent」。从会
 
 ## 〇、感知清单
 
-1. **MeetingUnderstanding.risk_hints**：上游的结构化风险线索（含 risk/signal_type/severity_evidence/impact/mitigation/owner）——作为**必覆盖候选**（逐条回原文核对后输出；可补充上游漏掉但原文有信号的风险；不要把多条候选合并成一条）
-2. **MeetingUnderstanding.risks**：上游风险摘要列表——与 risk_hints 一一对应，逐条覆盖；若上游把多个风险写在一句里，输出时按风险对象拆开
-3. **MeetingUnderstanding.dependencies**：未确认前置/依赖——「决策依赖未确认信息」型风险的必查来源
-4. **risk_hints[].evidence**：含担忧、卡点、依赖未确认的原文证据句（复核 risk_hints 是否成立）
-5. **open_questions**：通常是未决问题；仅当原文明确当作风险/隐患表述时才可进入 risks
-6. **证据句**：本任务通常只收到 `risks_pack`，不再默认通读完整原文；每条 source 必须能指回 risk_hints/dependencies/open_questions 中的 evidence 或原句
-7. **PerspectiveModeling**（个人模式）：可优先保留与用户相关的风险，但**不得**因此编造；客观模式面向全员
+1. **risk_hints**：必覆盖候选，逐条回原文核对后输出；可补充上游漏掉但原文有信号的风险；不把多条候选合并；risks 与其一一对应，多条写在一句时按对象拆开
+2. **dependencies**：未确认前置/依赖，是「决策依赖未确认信息」型风险的必查来源；risk_hints[].evidence 用于复核候选是否成立
+3. **open_questions**：通常不进 risks，仅当原文明确当作风险/隐患表述时收录
+4. **证据句** = 唯一事实来源：只收到 `risks_pack`，不再通读完整原文；每条 source 须能指回 pack 中 evidence 或原句。个人模式可优先保留与用户相关的风险，但不得因此编造
 
 ---
 
@@ -46,8 +41,6 @@ RISK_GENERATION_SYSTEM_PROMPT = """你是「会议风险分析 Agent」。从会
 ### ❌ 不可提取
 
 - 无原文依据的猜测、泛泛常识风险、已完全解决且无后续影响、正常已完成事项
-
-**兜底**：拿不准 → 仍输出，severity=medium、impact/mitigation 按 risk_hints 带入，source 注明"证据较弱"。
 
 ---
 
@@ -68,31 +61,24 @@ RISK_GENERATION_SYSTEM_PROMPT = """你是「会议风险分析 Agent」。从会
 
 ## 三、表述通顺（不改变事实）
 
-- **risk 主谓完整**：以风险对象/现象为主体直接陈述（如"蒙泽厂区混凝土路面出现开裂"），避免残缺片段或只有关键词的碎片
-- **不夹带评价与方案**：risk 字段只陈述事实与风险信号，不写"这很严重""建议尽快处理"等评价；解决建议留给 mitigation（仅当原文有应对时）
-- **risk 与 source 可对应**：risk 一句话与 source 原句之间保持可对照，读者能一眼看出 risk 从哪句原文来
-- **severity 与表述一致**：表述体现的严重程度与 severity 字段一致（说"小问题"不标 high，说"必须尽快"不标 low）
+- **risk 主谓完整**：以风险对象/现象为主体直接陈述，避免残缺碎片
+- **不带评价**：risk 只陈述事实与风险信号，解决建议留给 mitigation（仅当原文有应对时）
+- **risk 与 source 可对应**：一眼能看出 risk 从哪句原文来
+- **severity 与表述一致**：说"小问题"不标 high，说"必须尽快"不标 low
 
 ---
 
 ## 四、稳定性自检
 
-1. risk 是否原文截取？
-2. severity 是否与 risk_hints.severity_evidence 一致？无证据是否默认 medium？high 是否 source 可定位强信号？
-3. impact/mitigation/owner 是否未推断？
-4. 顺序是否原文序？上游 risk_hints 中有依据的是否已覆盖？多个风险对象是否被拆条而不是合并？
-5. 同输入复跑：集合与措辞应稳定，禁止时而 high 时而 medium 无依据抖动。"""
+1. risk/source/severity/owner 是否原文可支撑（severity 无证据默认 medium，high 须强信号）？impact/mitigation 是否未推断？
+2. 顺序是否原文序？risk_hints 有依据的是否已覆盖、多对象是否拆条？复跑集合与措辞稳定？"""
 
 
 RISK_SUPERVISOR_DOMAIN_PROMPT = """## 领域审核规则：风险分析
 
 ### 视角模式
 
-读取「视角模式」：objective（客观全员）/ personal（真人个人，按画像裁剪，只删不改）/ role_template（职业模板）。
-
-### 审核目标
-
-忠于原文、有依据、不编造不夸大。
+objective 客观全员；personal / role_template 按画像只删不改。
 
 ### 拦截标准
 
@@ -101,15 +87,13 @@ RISK_SUPERVISOR_DOMAIN_PROMPT = """## 领域审核规则：风险分析
 
 - **覆盖不足 → revise**：risk_hints 条数与草稿条数相差超过 40% 且未逐条说明理由——revise 要求按 hints 补全（仍须原文锚定，禁止编造）；确有依据的排除（已解决/纯常识）不算覆盖不足
 
-不拦截：轻微详略、medium/low 轻微差、有理由的排除。
-
 ### 检查
 
 risk_check — 抽查 risk/source/severity/owner/mitigation。
 
 ### 决策
 
-覆盖不足 → revise；approve 优先；revise 须具体；reject 极少。犹豫且覆盖达标 → approve。"""
+覆盖不足 → revise；否则 approve（revise 须具体，reject 极少）。"""
 
 
 RISK_RENDER_PROMPT = """你是会议风险分析报告渲染器。根据已审核结构化结果生成风险清单。
@@ -122,11 +106,7 @@ RISK_RENDER_PROMPT = """你是会议风险分析报告渲染器。根据已审�
    - `- 应对：{mitigation}`（null → 未提及）
    - `- 依据：{source}`（source 原句引用，可定位到原文）
 3. 顺序=草稿序；无风险→「暂无明确风险」
-4. 各字段逐字沿用草稿；「未提及」只替代 null 字段，禁止编造
-
-## 一致性
-
-同输入：条数、顺序、措辞与草稿一致。"""
+4. 各字段逐字沿用草稿；「未提及」只替代 null 字段，禁止编造"""
 
 
 RISK_RENDER_TEMPLATE_PROMPT = build_template_render_prompt(

@@ -26,23 +26,23 @@ class ChecklistGenerationContract(GenerationContract):
                 StrField("kp_id", "必须是 Catalog 里已有的 id，如 kp_006"),
                 StrField(
                     "exam_preview",
-                    "考法预判 2-4 句。写清题型、老师点到的变形/流程；无依据不要写必考或具体概率",
+                    "考法预判：S/A 2-4 句；B/C 1-2 句（说明这次只需了解/当前置）。写清题型、老师点到的变形/流程；无依据不要写必考或具体概率",
                 ),
                 StrListField(
                     "key_facts",
-                    "3-6 条必须会的硬知识：公式、判断标准、适用条件、老师点名的变形。不要写成「老师说了」",
+                    "必须会的硬知识：S/A 3-6 条；B/C 2-3 条。公式或判断标准写完整；不要写成「老师说了」",
                 ),
                 StrField(
                     "explain",
-                    "S/A 讲解 180-320 字：定义或公式 + 适用边界 + 老师点到的变形长什么样 + 笔记缺项补什么。禁止空话",
+                    "讲解：S/A 180-320 字；B/C 60-120 字（定义 + 一条限制），档位见输入中每张卡。定义或公式 + 适用边界 + 老师点到的变形 + 笔记缺项补什么；禁止空话",
                 ),
                 StrListField(
                     "method_steps",
-                    "4-6 步可执行动作。method/application=解题；theorem/concept=判断流程；formula=使用与条件检查。每步写具体操作，不要「按方法做」",
+                    "可执行步骤：S/A 4-6 步；B/C 2-3 步。method/application=解题；theorem/concept=判断流程；formula=使用与条件检查。每步写具体操作，不要「按方法做」",
                 ),
                 StrListField(
                     "pitfalls",
-                    "2-4 条易错，优先老师原话限制，并给具体反例或使用边界；无依据不要编",
+                    "易错：S/A 2-4 条；B/C 0-2 条。优先老师原话限制，并给具体反例或使用边界；无依据不要编",
                 ),
             ],
         ),

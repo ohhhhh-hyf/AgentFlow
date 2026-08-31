@@ -4,6 +4,7 @@ import json
 from collections.abc import AsyncIterator
 
 from client import LLMClient
+from tools.hard_execution import extract_labeled_json
 from tools.runtime.progress import progress
 
 from ....models import MinutesTrace
@@ -42,6 +43,20 @@ def _transcript_from_context(context: str) -> str:
     return ""
 
 
+def _topic_titles_from_context(context: str) -> list[str]:
+    understanding = extract_labeled_json(context, "会议理解") or {}
+    if not isinstance(understanding, dict):
+        return []
+    titles: list[str] = []
+    for topic in understanding.get("topics") or []:
+        if not isinstance(topic, dict):
+            continue
+        title = str(topic.get("title") or "").strip()
+        if title and title not in titles:
+            titles.append(title)
+    return titles
+
+
 async def _align_alignments(client, context: str, minutes_md: str) -> list[dict]:
     """审核通过后生成对齐条目：程序落钉优先，LLM 只在程序挂不上时补漏。"""
     extras = parse_trace_extras(context)
@@ -50,12 +65,15 @@ async def _align_alignments(client, context: str, minutes_md: str) -> list[dict]
     if not keypoints and not notes:
         return []
     transcript = _transcript_from_context(context)
+    topic_titles = _topic_titles_from_context(context)
     key_raw = str(extras.get("key_raw") or "").strip()
     note_raw = str(extras.get("note_raw") or "").strip()
     # 程序预筛候选（零 LLM）：确定性对齐作基底，LLM 只确认/修正/补漏。
     # 候选充足时不喂全量原文（候选自带 evidence 窗口），输出规模随之缩小；
     # 候选为空时回退带全量原文，LLM 自行判断（与旧行为一致，不丢补漏能力）。
-    candidates = backfill_alignments([], minutes_md, transcript, keypoints, notes)
+    candidates = backfill_alignments(
+        [], minutes_md, transcript, keypoints, notes, topic_titles
+    )
     # 程序候选已经过主张级门禁。再让 LLM「确认」会多一轮审核、复跑钉子易抖。
     # 有候选就直接落钉；只有程序挂不上时才用 LLM 补漏。
     if candidates:
@@ -86,7 +104,9 @@ async def _align_alignments(client, context: str, minutes_md: str) -> list[dict]
         llm_aligns = []
     if llm_aligns:
         # LLM 确认后的输出再过一次程序门禁，防乱挂
-        return gate_alignments(llm_aligns, minutes_md, transcript, keypoints, notes)
+        return gate_alignments(
+            llm_aligns, minutes_md, transcript, keypoints, notes, topic_titles
+        )
     return candidates
 
 

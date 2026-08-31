@@ -607,6 +607,17 @@ def build_catalog_briefing(shared_context: str) -> str:
             )
         candidates = _title_candidates(grouped)
         if candidates:
+            topic_count = _topic_count_from_candidates(candidates)
+            kp_budget = (
+                max(8, min(60, topic_count * 4))
+                if topic_count
+                else _max_kp_budget(shared_context)
+            )
+            parts.append(
+                f"【KP 预算】本目录预计约 {kp_budget} 个知识点（按资料结构动态计算）。"
+                "按重要性取舍：次要内容并入父知识点的 knowledge_items，"
+                "不要为凑数建点；不足就少建。"
+            )
             parts.append(
                 "【候选目录标题】以下标题来自 material/notes/unknown 的统一候选池；"
                 "role 只表示来源类型，不决定优先级。请优先使用 score 高、层级连续、路径稳定的标题建树；"
@@ -890,15 +901,37 @@ def complement_catalog_coverage(
     return out
 
 
-def _max_kp_budget(shared_context: str) -> int:
-    """目录规模上限：页数×1.2（无页数时文件数×3），下限 6、上限 40。
+def _topic_count_from_candidates(candidates: list[dict[str, Any]]) -> int:
+    """去重候选主题数：(章, 主题) 对去重——预算跟随树形状的动态参照。
 
-    依据 NOTES_OPTIMIZATION_GUIDE.md 2.3：教材型资料每页约 0.8~1.2 个 KP。
+    候选 path 第一级是章、第二级是主题（与 prompt 层级映射一致），
+    去重后的主题数即 LLM 即将建树规模的最直接信号。
+    """
+    topics: set[tuple[str, str]] = set()
+    for row in candidates:
+        path = row.get("path") or []
+        if len(path) >= 2:
+            chapter = _clean_title(path[0])
+            topic = _clean_title(path[1])
+            if topic:
+                topics.add((chapter, topic))
+    return len(topics)
+
+
+def _max_kp_budget(shared_context: str) -> int:
+    """目录规模上限：动态跟随候选树形状，不写死。
+
+    预算 = 去重候选主题数 × 4（每主题 KP 密度中值，对齐 prompt 的 2–6 个/主题），
+    clamp(8, 60)。无候选主题（纯老师文本建目录）时回退页数/文件估算（旧行为）。
     """
     user_id = user_id_from_context(shared_context)
     subject = subject_from_context(shared_context)
     kb = open_knowledge(user_id=user_id)
     grouped = _brief_chunks(kb, user_id, subject) if kb is not None else None
+    candidates = _title_candidates(grouped) if grouped else []
+    topic_count = _topic_count_from_candidates(candidates)
+    if topic_count > 0:
+        return max(8, min(60, topic_count * 4))
     pages = {
         (str(row.get("source") or ""), str(row.get("page") or ""))
         for rows in (grouped or {}).values()

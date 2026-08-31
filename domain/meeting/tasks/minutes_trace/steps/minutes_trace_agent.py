@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import re
 
 from client import LLMClient
 from tools.hard_execution import extract_labeled_json
@@ -78,6 +79,14 @@ def _normalize_markdown(text: str) -> str:
             line = f"{prefix} {title}".rstrip()
         lines.append(line)
     return "\n".join(lines).strip()
+
+
+_SPEAKER_REF = re.compile(r"发言者\s*\d+")
+
+
+def _remove_speaker_placeholders(text: str) -> str:
+    """转写占位符不是真实人名，正文侧统一改成中性来源。"""
+    return _SPEAKER_REF.sub("相关发言", text or "")
 
 
 def _extract_transcript(shared_context: str, understanding: dict) -> str:
@@ -179,7 +188,9 @@ class MinutesTraceAgent:
         )
         data = _dump(raw)
         minutes_md = bulletize_minutes(
-            _normalize_markdown(str(data.get("minutes_md") or ""))
+            _remove_speaker_placeholders(
+                _normalize_markdown(str(data.get("minutes_md") or ""))
+            )
         )
         reasons = _needs_reorg(minutes_md, people)
         if reasons:
@@ -200,7 +211,7 @@ class MinutesTraceAgent:
             repaired_data = _dump(repaired)
             new_md = _normalize_markdown(str(repaired_data.get("minutes_md") or ""))
             if new_md:
-                minutes_md = bulletize_minutes(new_md)
+                minutes_md = bulletize_minutes(_remove_speaker_placeholders(new_md))
 
         # alignments 由审核通过后的单独步骤生成（render 阶段），此处草稿不携带
         data["scene"] = scene

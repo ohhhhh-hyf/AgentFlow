@@ -45,9 +45,9 @@ _GENERIC_MORPHEME = re.compile(
     # 会议高频半泛词 / 抽象后缀 / 轻动词：单独出现不足以证明同一主张
     r"验收|整改|跟进|事项|安排|问题|工作|会议|讨论|汇报|情况|内容|"
     r"相关|方面|环节|要求|计划|方案|项目|任务|进度|风险|进行|开展|"
-    r"完成|落实|处理|解决|组织|准备|整体|部分|"
+    r"完成|落实|处理|解决|组织|准备|整体|部分|建议|需要|需|"
     r"意识|思维|能力|程度|水平|方式|方法|作用|意义|目标|目的|"
-    r"树立|转变|培养|强调|认为|表示|指出|"
+    r"树立|转变|培养|强调|认为|表示|指出|加强|提升|提高|"
     r"追踪|梳理|评估|判断)"
 )
 _ARABIC_NUM = re.compile(r"\d+(?:\.\d+)?")
@@ -126,7 +126,8 @@ def _claim_score(
     n_docs: int = 0,
 ) -> tuple[float, int, int]:
     """返回 (信息重叠比, 最长连续命中, 重叠 gram 数)。"""
-    src, sent = (source or "").strip(), (sentence or "").strip()
+    src = _normalize_match_text((source or "").strip())
+    sent = _normalize_match_text((sentence or "").strip())
     if not src or not sent:
         return 0.0, 0, 0
     ha, hb = _han_only(src), _han_only(sent)
@@ -144,6 +145,11 @@ def _claim_score(
 
 def _normalize_match_text(text: str) -> str:
     """仅用于匹配：合并连续重复汉字。不改正文，也不改钉上展示的原文。"""
+    text = _DUP_HAN.sub(r"\1", text or "")
+    return re.sub(r"(这个|那个|的话|呢|就是|一个|这个)", "", text)
+
+
+def _collapse_stutter(text: str) -> str:
     return _DUP_HAN.sub(r"\1", text or "")
 
 
@@ -389,7 +395,7 @@ def _related_strong(
 def _stutter_collapsed_hit(left: str, sentence: str) -> bool:
     """左句存在叠字：只认「去叠后新出现」的 2–3 字特征片段。"""
     raw = _han_only(left)
-    col = _han_only(_normalize_match_text(left))
+    col = _han_only(_collapse_stutter(left))
     if not col or col == raw:
         return False
     hb = _han_only(_normalize_match_text(sentence))
@@ -421,23 +427,16 @@ def _note_related(
         return False
     if _quotes_note_left(left, sentence) or _note_almost_verbatim(left, sentence):
         return True
-    if _stutter_collapsed_hit(left, sentence) or _approx_run_hit(left, sentence):
+    if _object_spec_conflict(left, sentence):
+        return False
+    if _stutter_collapsed_hit(left, sentence):
         return True
     norm_left = _normalize_match_text(left)
     norm_sent = _normalize_match_text(sentence)
-    if _related_strong(norm_left, norm_sent, df=df, n_docs=n_docs) or _related(
-        norm_left, norm_sent, df=df, n_docs=n_docs
-    ):
+    _, span, _ = _claim_score(norm_left, norm_sent, df, n_docs)
+    if span >= 8:
         return True
-    if not (bridge or "").strip():
-        return False
-    if _claim_incompatible(bridge, sentence, for_note=True):
-        return False
-    return (
-        _related(bridge, sentence, df=df, n_docs=n_docs)
-        or _approx_run_hit(bridge, sentence)
-        or _stutter_collapsed_hit(bridge, sentence)
-    )
+    return False
 
 
 def _supporting_transcript_sentence(left: str, transcript: str) -> str:
@@ -528,6 +527,53 @@ def _dedup_similar_hits(hits: list[str], *, keep: int = 2) -> list[str]:
     return kept
 
 
+def _has_evidence(transcript: str, evidence: str) -> bool:
+    return bool((evidence or "").strip()) and _contains_loose(transcript, evidence)
+
+
+def _source_supported_by_transcript(source: str, transcript: str) -> bool:
+    """关键点必须能在原文中找到同指依据；找不到就不落钉。"""
+    evidence = _evidence_for(transcript, source)
+    if not _has_evidence(transcript, evidence):
+        return False
+    if _claim_incompatible(source, evidence):
+        return False
+    return _related(source, evidence) or _related_strong(source, evidence)
+
+
+def _high_confidence_keypoint_hit(
+    source: str,
+    sentence: str,
+    evidence: str,
+    df: dict[str, int] | None = None,
+    n_docs: int = 0,
+) -> bool:
+    """关键点落钉只收高置信：来源、正文句、原文证据三者需同指。"""
+    if not evidence or _claim_incompatible(source, sentence):
+        return False
+    if _claim_incompatible(source, evidence):
+        return False
+    if _claim_incompatible(evidence, sentence):
+        return False
+    ratio, span, grams = _claim_score(source, sentence, df, n_docs)
+    ev_ratio, ev_span, ev_grams = _claim_score(source, evidence)
+    sent_ev_ratio, sent_ev_span, sent_ev_grams = _claim_score(evidence, sentence)
+    evidence_ties_sentence = (
+        sent_ev_span >= 6 or (sent_ev_ratio >= 0.18 and sent_ev_grams >= 2)
+    )
+    if not evidence_ties_sentence:
+        return False
+    if span >= 6 and ev_span >= 5:
+        return True
+    if ratio >= 0.35 and grams >= 3 and ev_ratio >= 0.20 and ev_grams >= 2:
+        return True
+    if _related_strong(source, sentence, df=df, n_docs=n_docs) and (
+        _related(source, evidence) or _related_strong(source, evidence)
+    ):
+        return True
+    return False
+
+
 def _cap_similar_keypoint_pins(
     items: list[dict[str, str]], *, keep: int = 2
 ) -> list[dict[str, str]]:
@@ -562,6 +608,32 @@ def _cap_similar_keypoint_pins(
             seen_sents.add(sent)
             capped.append(it)
     return others + capped
+
+
+def _cap_sentence_pins(
+    items: list[dict[str, str]], *, max_sources: int = 2
+) -> list[dict[str, str]]:
+    """限制单句钉子数量，保留更同指的来源，避免相邻主题堆到一句上。"""
+    by_sentence: dict[str, list[dict[str, str]]] = {}
+    order: list[str] = []
+    for item in items:
+        sent = item.get("sentence") or ""
+        if sent not in by_sentence:
+            order.append(sent)
+            by_sentence[sent] = []
+        by_sentence[sent].append(item)
+    out: list[dict[str, str]] = []
+    for sent in order:
+        group = by_sentence[sent]
+        group.sort(
+            key=lambda it: (
+                it.get("kind") == "note",
+                *_claim_score(it.get("source") or "", sent),
+            ),
+            reverse=True,
+        )
+        out.extend(group[:max_sources])
+    return out
 
 
 def _contains_loose(haystack: str, needle: str) -> bool:
@@ -674,6 +746,12 @@ def gate_alignments(
         # 2C：evidence 必须能在原文中模糊匹配，否则置空（不伪造依据）
         if evidence and not _contains_loose(transcript, evidence):
             evidence = ""
+        if kind == "keypoint":
+            evidence = evidence or _evidence_for(transcript, stamp)
+            if not _high_confidence_keypoint_hit(
+                stamp, sentence, evidence, df=df, n_docs=n_docs
+            ):
+                continue
         marker = (sentence, kind, stamp)
         if marker in seen:
             continue
@@ -854,8 +932,8 @@ def _same_topic(
     return span >= 6 or ratio >= 0.4 or _distinctive_short_hit(source, sentence)
 
 
-_KEYPOINT_MATCH_CAP = 8
-_NOTE_MATCH_CAP = 4
+_KEYPOINT_MATCH_CAP = 3
+_NOTE_MATCH_CAP = 2
 
 
 def _best_sentences(
@@ -916,6 +994,11 @@ def backfill_alignments(
     titles = list(topic_titles or [])
 
     for keypoint in keypoints:
+        evidence = _evidence_for(transcript, keypoint)
+        if not _has_evidence(transcript, evidence):
+            continue
+        if not _source_supported_by_transcript(keypoint, transcript):
+            continue
         strong = _best_sentences(
             keypoint,
             candidates,
@@ -940,12 +1023,14 @@ def backfill_alignments(
                 break
         hits = _dedup_similar_hits(hits, keep=4)
         for sentence in hits:
+            if not _high_confidence_keypoint_hit(
+                keypoint, sentence, evidence, df=df, n_docs=n_docs
+            ):
+                continue
             marker = (sentence, "keypoint", keypoint)
             if marker in seen:
                 continue
             seen.add(marker)
-            # 2C：用原文中与关键点最重合的片段作为依据
-            evidence = _evidence_for(transcript, keypoint)
             kept.append(
                 {
                     "sentence": sentence,
@@ -990,9 +1075,9 @@ def backfill_alignments(
             ratio, span, _ = _claim_score(norm_left, norm_sent, df, n_docs)
             scored.append((rank, ratio, span, sentence))
         scored.sort(key=lambda item: (-item[0], -item[1], -item[2], len(item[3])))
-        picked = _dedup_similar_hits(
-            [item[3] for item in scored], keep=3
-        )[:_NOTE_MATCH_CAP]
+        picked = _dedup_similar_hits([item[3] for item in scored], keep=2)[
+            :_NOTE_MATCH_CAP
+        ]
         source = f"{left} **用户批注** {right}"
         for sentence in picked:
             marker = (sentence, "note", source)
@@ -1008,7 +1093,7 @@ def backfill_alignments(
                 }
             )
 
-    return _cap_similar_keypoint_pins(kept, keep=6)
+    return _cap_sentence_pins(_cap_similar_keypoint_pins(kept, keep=3), max_sources=2)
 
 
 def _evidence_for(transcript: str, source: str) -> str:

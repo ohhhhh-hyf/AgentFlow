@@ -91,6 +91,22 @@ def _fallback_pitfalls(row: dict[str, Any]) -> list[str]:
     return out[:4]
 
 
+def _clip_explain(text: str, limit: int = 320) -> str:
+    """超长 explain 按句号切分取完整句到 limit 内，不截半句；无完整句可放时兜底截断。"""
+    raw = _clean(text)
+    if len(raw) <= limit:
+        return raw
+    parts = [part for part in re.split(r"(?<=[。！？；])", raw) if part.strip()]
+    out = ""
+    for part in parts:
+        if len(out) + len(part) > limit:
+            break
+        out += part
+    if not out:
+        out = raw[: max(0, limit - 1)].rstrip("，。；;、 ") + "…"
+    return out
+
+
 def _sanitize_exam(text: str, row: dict[str, Any], teacher: str) -> str:
     raw = _clean(text)
     allowed = any(mark in (teacher or "") for mark in _MUST_WORDS)
@@ -301,7 +317,9 @@ def assemble_checklist(
         brief = grade not in {"S", "A"}
         explain = _clean(blob.get("explain")) or _fallback_explain(row, brief=brief)
         if not brief and len(explain) < 180:
-            explain = _fallback_explain(row, brief=False)
+            # 不足：保留 LLM 具体内容，拼接程序补充句，不整体替换成模板
+            explain += _fallback_explain(row, brief=False)
+        explain = _clip_explain(explain, limit=160 if brief else 320)
         methods = _as_list(blob.get("method_steps")) or _fallback_method(row)
         if not brief and len(methods) < 5:
             methods = _fallback_method(row)
@@ -311,8 +329,6 @@ def assemble_checklist(
             facts = facts[:3]
             methods = methods[:3]
             pitfalls = pitfalls[:2]
-            if len(explain) > 160:
-                explain = explain[:157].rstrip("，。；;、 ") + "。"
         exam = _sanitize_exam(_clean(blob.get("exam_preview")), row, teacher)
         cards.append(
             {
