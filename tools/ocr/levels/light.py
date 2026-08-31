@@ -327,14 +327,14 @@ def _estimate_reconstruct_tokens(lines: list[dict]) -> int:
     """按本批 OCR 行内容量估算重构输出上限，避免 max_tokens 下调后长批被静默截断。
 
     估算：整理后输出字数约为输入的 40%（去噪音/去重），中文 1 token ≈ 1.2 字（保守取大）；
-    短批落 5000，内容越多上限越高，最高 9000。
+    短批落 5000，内容越多上限越高，最高 20000。
     """
     total = sum(
         len(str(item.get("text") or "")) + len(str(item.get("formula") or ""))
         for item in lines
     )
     needed = int(total * 0.4 / 1.2)
-    return max(5000, min(9000, needed))
+    return max(5000, min(20000, needed))
 
 
 def reconstruct_and_review_pages(pages: list[dict]) -> str:
