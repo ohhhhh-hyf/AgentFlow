@@ -15,6 +15,42 @@ logger = logging.getLogger(__name__)
 
 _PLACEHOLDER_RE = re.compile(r"\[([^\[\]]+)\]")
 
+_REQ_COMMENT_RE = re.compile(
+    r"<!--\s*requirement\s*:?\s*(.*?)\s*-->",
+    re.IGNORECASE | re.DOTALL,
+)
+
+
+def split_template_meta(text: str) -> tuple[str, str]:
+    """剥掉模板里的 ``<!-- requirement ... -->``，返回 (正文, 写作要求)。
+
+    写作要求只进填充/渲染 prompt，不得当作固定文案出现在终稿。
+    """
+    reqs: list[str] = []
+
+    def _keep(match: re.Match[str]) -> str:
+        body = (match.group(1) or "").strip()
+        if body:
+            reqs.append(body)
+        return ""
+
+    cleaned = _REQ_COMMENT_RE.sub(_keep, text or "")
+    cleaned = re.sub(r"\n{3,}", "\n\n", cleaned).strip()
+    if cleaned and (text or "").endswith("\n"):
+        cleaned += "\n"
+    return cleaned, "\n\n".join(reqs)
+
+
+def wrap_template_requirement(fmt: str, requirement: str) -> str:
+    """把写作要求包进注释，与 format 正文一起交给渲染管线。"""
+    body = (fmt or "").strip()
+    req = (requirement or "").strip()
+    if not req:
+        return body
+    if _REQ_COMMENT_RE.search(body):
+        return body
+    return f"<!-- requirement\n{req}\n-->\n\n{body}\n"
+
 
 _ENUM_SEP_RE = re.compile(r"\s*/\s*")
 
@@ -165,12 +201,15 @@ def _table_row_confidence_score(row: list[str]) -> tuple[int, int]:
 
 
 def _describe_field(index: int, seg: dict) -> str:
-    desc = f"字段{index}（{seg['hint']}）"
-    if seg["enum"]:
+    hint = str(seg.get("hint") or "")
+    desc = f"字段{index}（{hint}）"
+    if seg.get("enum"):
         desc += f"：多选一 {' / '.join(seg['enum'])}"
-    if seg["missing"]:
+    if seg.get("missing"):
         desc += "：信息不足时按占位符说明写（如「未提及」/「未明确」）"
-    if re.search(r"如[:：]", seg.get("hint") or ""):
+    if re.search(r"概括|概况|综述|摘要", hint):
+        desc += "：写成完整段落（4–8句、约150–400字），覆盖进展/里程碑/风险与下一步，带原文数字地点责任人；禁止单句空话"
+    if re.search(r"如[:：]", hint):
         desc += "【注意：hint 中「如：」后仅为写法示例，禁止原样照抄，须按内容来源重写】"
     return desc
 
@@ -325,8 +364,10 @@ _PLACEHOLDER_FILL_SYSTEM = """你是占位符填充器。根据「内容来源�
 7. **严禁**用 ``` / ```text 等代码围栏包裹字段值或整段输出
 
 ## 结构（标题由模板固定文字负责）
-- 模板里的 `## 栏目标题` 是固定文字，程序会原样保留；你只填方括号对应的正文
-- 不要把某一栏的正文填进「文档总标题」占位里冒充栏目；有独立栏目就填到对应编号字段
+- 形如 `# [栏目标题]` / `## [栏目标题]` 的标题行由程序用栏名原样生成（几个 # 就几个 #），不会出现在 fields 清单里；你只填标题下方的正文占位
+- 不要把某一栏的正文填进标题；有独立栏目就填到对应编号字段
+- 表格里整行 `…` 的样例数据行对应 tables[i]：必须输出原文事实行，禁止整行照抄省略号样例
+- 若用户消息含【模板写作要求】，字段值与表格行必须遵守（不要把要求原文写进 JSON）
 
 ## 语句通顺
 - 每个字段值须是完整通顺的中文（或指令要求的短语），主谓齐全，无缺字漏字、无重复赘字、无半截句
@@ -334,6 +375,8 @@ _PLACEHOLDER_FILL_SYSTEM = """你是占位符填充器。根据「内容来源�
 
 ## 篇幅与信息量（两遍法）
 - 仅「全文合计约 x 字」或模板总述中的全文预算约束**整篇**；占位内「本段约N字 / 100字以内」**只限该栏**
+- **没有全文字数上限时禁止主动压缩**，按栏目把原文事实写全
+- 「一段话概括 / 概况」= **完整信息段**（通常 4–8 句、约 150–400 字），写清整体进展、关键里程碑/节点、主要风险或阻塞、下一步；必须带原文中的数字、地点、责任人；**禁止只有一句空泛总结**
 - 先按各栏主题写全实质内容，再对照各自约束调节；不要用某一段的字数去压缩其它段或表格
 - 当内容多于用户要求：先保留结论、数字、负责人、期限、明确风险/行动等高价值信息，删去寒暄、重复、背景铺垫、低确定性猜测和不影响结论的枝节；压缩后仍要语句完整。
 - 当内容少于用户要求：可以把原文中已出现的相关事实稍作展开、合并上下文说清楚，但**绝对不能编造**原文没有的事实、数字、责任人、期限或评价。

@@ -15,6 +15,7 @@ from tools.knowledge.source_role import (
     ROLE_TEACHER,
     ROLE_UNKNOWN,
     classify_source_role,
+    is_ocr_notes_file,
 )
 from .store import load_catalog, load_catalog_metas
 
@@ -47,6 +48,8 @@ def user_id_from_context(text: str) -> str:
 
 
 def _is_ocr_note_source(source: str, user_id: str = "", subject: str = "") -> bool:
+    if is_ocr_notes_file(source):
+        return True
     stem = Path(source or "").stem
     if not stem or not (user_id or "").strip() or not (subject or "").strip():
         return False
@@ -183,6 +186,24 @@ def _dedupe_path(parts: list[str]) -> list[str]:
 
 def _compact_title(text: str) -> str:
     return re.sub(r"[\s:：,，。；;、（）()\[\]【】《》“”\"'·\-—_]+", "", str(text or "").lower())
+
+
+def _titles_related(left: str, right: str, *, min_len: int = 4) -> bool:
+    """KP 名与笔记标题不必整句相同：包含或共享连续 4+ 字即可。"""
+    a = _compact_title(left)
+    b = _compact_title(right)
+    if not a or not b:
+        return False
+    if a == b or a in b or b in a:
+        return True
+    limit = min(len(a), len(b))
+    if limit < min_len:
+        return False
+    for size in range(min(10, limit), min_len - 1, -1):
+        for i in range(0, len(a) - size + 1):
+            if a[i : i + size] in b:
+                return True
+    return False
 
 
 def _score_title_candidate(row: dict[str, str]) -> tuple[int, list[str]]:
@@ -1104,16 +1125,23 @@ def backfill_catalog_trace(
                     continue
                 name = _clean_title(str(kp.get("name") or ""))
                 key = _compact_title(name)
+                aliases = [
+                    _clean_title(str(a))
+                    for a in (kp.get("aliases") or [])
+                    if str(a or "").strip()
+                ]
                 # ── 溯源回填（重建：程序匹配优先，覆盖历史/LLM 编造值）──
                 hits: list[dict[str, Any]] = []
                 for c in chunks:
                     meta = c.get("metadata") or {}
                     heading = _clean_title(str(meta.get("heading") or ""))
-                    if heading and key and _compact_title(heading) == key:
-                        hits.append(c)
-                        continue
-                    text = _compact_title(str(c.get("text") or ""))
-                    if key and len(key) >= 4 and key in text:
+                    text_key = _compact_title(str(c.get("text") or ""))
+                    heading_hit = bool(heading) and (
+                        _titles_related(name, heading)
+                        or any(_titles_related(alias, heading) for alias in aliases)
+                    )
+                    body_hit = bool(key) and len(key) >= 4 and key in text_key
+                    if heading_hit or body_hit:
                         hits.append(c)
                 if hits:
                     sources: list[str] = []

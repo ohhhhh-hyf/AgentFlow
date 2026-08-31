@@ -31,6 +31,7 @@ from tools.domain_engine import (
     line_draft_title as _engine_line_draft_title,
 )
 from tools.runtime.kinds import resolve_line_policies
+from tools.runtime.progress import progress
 from tools.runtime.supervisor_slice import compact_draft_for_review
 
 # ── Report import 生成区：由 tools/scripts/sync_domain.py 生成，勿手改 ──
@@ -457,9 +458,24 @@ class _Nodes(DomainNodes):
                 "dependencies": u.get("dependencies") or [],
             }
         if line_name == "minutes":
+            full_topics = []
+            for item in (u.get("topics") or []):
+                if not isinstance(item, dict):
+                    continue
+                discussion = str(item.get("discussion") or "").strip()
+                key_points = item.get("key_points")
+                if not isinstance(key_points, list):
+                    key_points = [discussion] if discussion else []
+                full_topics.append({
+                    "title": str(item.get("title") or "").strip(),
+                    "key_points": [str(p).strip() for p in key_points if str(p).strip()][:12],
+                    "discussion": discussion,
+                    "conclusion": item.get("conclusion"),
+                    "participants": item.get("participants") or [],
+                })
             return {
                 **base,
-                "topics": topics,
+                "topics": full_topics or topics,
                 "decisions": u.get("decisions") or [],
                 "risks": u.get("risks") or [],
                 "open_questions": u.get("open_questions") or [],
@@ -482,18 +498,28 @@ class _Nodes(DomainNodes):
         """
         mode = self._mode_label(state)
         pack = self._meeting_pack(state, line_name)
+        if line_name == "minutes":
+            fact_note = (
+                "说明：会议理解是议题/决策/风险索引；写摘要与分工时必须对照会议原文"
+                "把细节展开成自然段。不得编造原文没有的事实，也不得只把索引短句原样输出交差。"
+                "裁剪视角时参考用户画像和用户视角模型。"
+            )
+        else:
+            fact_note = (
+                "说明：仅使用本任务上下文包中的事实；需要裁剪视角时参考用户画像和用户视角模型。"
+                "不要从未提供的完整原文中补造事实。"
+            )
         parts = [
             f"视角模式：{mode}",
-            "说明：仅使用本任务上下文包中的事实；需要裁剪视角时参考用户画像和用户视角模型。"
-            "不要从未提供的完整原文中补造事实。",
+            fact_note,
             f"用户画像：\n{_json(self._compact_user(state.get('user') or {}))}",
             f"会议理解：\n{_json(pack)}",
         ]
         perspective = self._compact_perspective(state.get("perspective_profile") or {})
         if perspective:
             parts.append(f"用户视角模型：\n{_json(perspective)}")
-        # 溯源纪要和多样式纪要仍需要较强的原文/场景依据；其它线优先依赖 evidence。
-        if line_name in {"minutes_trace", "minutes_styles", "mindmap"}:
+        # 纪要成段需要原文细节；溯源/多样式/导图同样需要原文。其它线优先依赖 evidence。
+        if line_name in {"minutes", "minutes_trace", "minutes_styles", "mindmap"}:
             parts.append(f"会议原文：\n{state.get('transcript') or ''}")
         return "\n\n".join(parts)
 
@@ -503,6 +529,7 @@ class _Nodes(DomainNodes):
         cn = _line_cn(line_name)
 
         async def node(state: dict) -> dict:
+            progress("正在处理：%s生成 Agent", cn)
             agent = getattr(self, cfg["agent_attr"])
             context = self._line_shared_context(state, line_name)
             mode = (state.get("line_modes") or {}).get(line_name)
@@ -530,6 +557,7 @@ class _Nodes(DomainNodes):
                     },
                     "quality_degraded": True,
                 }
+            progress("完成：%s生成 Agent", cn)
             return {
                 "lines": {
                     line_name: {
@@ -560,7 +588,7 @@ class _Nodes(DomainNodes):
         )
 
     def _render_context(self, state: dict, line_name: str) -> str:
-        """会议域渲染上下文：默认不给完整原文，避免渲染阶段重复吃大输入。"""
+        """会议域渲染上下文。纪要/溯源/多样式/导图带会议原文以便成段写开；其它线不带全文。"""
         from tools.runtime.context import build_render_context
 
         sub = _line(state, line_name)
@@ -572,7 +600,7 @@ class _Nodes(DomainNodes):
         perspective = self._compact_perspective(state.get("perspective_profile") or {})
         if perspective:
             blocks.append(("已审核用户视角", perspective, "json"))
-        if line_name in {"minutes_trace", "minutes_styles", "mindmap"}:
+        if line_name in {"minutes", "minutes_trace", "minutes_styles", "mindmap"}:
             blocks.insert(0, ("会议原文", state.get("transcript") or "", "raw"))
         return build_render_context(
             mode=self._mode_label(state),
@@ -619,6 +647,7 @@ class _Nodes(DomainNodes):
         if bool(state.get("objective_perspective")):
             from perspective import EMPTY_PERSPECTIVE_MODELING
 
+            progress("跳过视角建模（客观全员）")
             return {"perspective_profile": EMPTY_PERSPECTIVE_MODELING}
         return await super()._perspective_modeling_node(state)
 
@@ -640,6 +669,7 @@ class _Nodes(DomainNodes):
         focus = selected[0] if (skip and selected) else ""
 
         async def node(state: dict) -> dict:
+            progress("正在处理：会议理解 Agent")
             try:
                 result = await self.meeting_understanding_agent.run(
                     state["transcript"],
@@ -652,6 +682,7 @@ class _Nodes(DomainNodes):
                     "meeting_understanding": _EMPTY_MEETING_UNDERSTANDING,
                     "quality_degraded": True,
                 }
+            progress("完成：会议理解 Agent")
             return {"meeting_understanding": result.model_dump()}
 
         return node

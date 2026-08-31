@@ -6,7 +6,7 @@ from typing import Any
 
 from tools.template_prompt import PLACEHOLDER_RULES, SPEC_RULES
 
-from ._base import _CHAR_META_LINE_RE, _CHAR_META_TAIL_RE, _CN_RE, _CUE_PATTERNS, _EMOJI_RE, _ENUM_SEP_RE, _HINT_WORD_RE, _MISSING_HINT_RE, _PLACEHOLDER_RE, _SPEC_EXAMPLE_MARKERS, _SPEC_KEYWORDS, _SPEC_SPLIT_MARKERS, _char_budget_lines, _describe_field, _parse_count_token, is_router_enabled
+from ._base import _CHAR_META_LINE_RE, _CHAR_META_TAIL_RE, _CN_RE, _CUE_PATTERNS, _EMOJI_RE, _ENUM_SEP_RE, _HINT_WORD_RE, _MISSING_HINT_RE, _PLACEHOLDER_RE, _SPEC_EXAMPLE_MARKERS, _SPEC_KEYWORDS, _SPEC_SPLIT_MARKERS, _char_budget_lines, _describe_field, _parse_count_token, is_router_enabled, split_template_meta
 
 logger = logging.getLogger(__name__)
 
@@ -48,6 +48,7 @@ def detect_template_kind(text: str) -> str:
     """
     if not text or not text.strip():
         return "natural"
+    text, _ = split_template_meta(text)
     if any(
         _looks_like_placeholder(
             m.group(1), next_char=text[m.end() : m.end() + 1]
@@ -95,6 +96,7 @@ def parse_placeholder_template(template: str) -> list[dict]:
       带 ``row``（占位行原文）与 ``header``（所属表头行）。
       填充 = 删除占位行、按表头列序生成真实数据行
     """
+    template, _ = split_template_meta(template)
     segments: list[dict] = []
     pos = 0
     for m in _PLACEHOLDER_RE.finditer(template):
@@ -347,15 +349,17 @@ def route_template(
     """
     if not is_router_enabled():
         return None
+    template, requirement = split_template_meta(template)
     kind = detect_template_kind(template)
     try:
         if kind == "placeholder":
             segments = parse_placeholder_template(template)
             if not any(s["kind"] == "field" for s in segments):
                 return None
-            return template_prompt + PLACEHOLDER_RULES, _build_placeholder_user(
-                context, template, segments
-            )
+            user = _build_placeholder_user(context, template, segments)
+            if requirement.strip():
+                user = f"{user}\n\n【模板写作要求】\n{requirement.strip()}"
+            return template_prompt + PLACEHOLDER_RULES, user
         if kind == "spec":
             instruction, example = split_spec_template(template)
             if not example:

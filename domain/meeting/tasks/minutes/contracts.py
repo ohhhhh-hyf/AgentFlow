@@ -20,15 +20,22 @@ class MinutesGenerationContract(GenerationContract):
         StrField("headline", "会议纪要标题"),
         StrListField(
             "executive_summary",
-            "概述要点（通常2-3条，每条1-2句；客观须含范围边界与成组对照取值；"
-            "商务关注域须含金额与收付款节点——均须写在本字段，不得只放决策段）",
+            "概述（数组每项=一整段多句正文，不是标题、不是一句话。"
+            "通常3段：进展/结论/下一步；进展段原文有多个模块则可按模块再拆段。"
+            "每段4–8句、约150–400字，写清数字/地点/责任人/时限；一条只有一句视为不合格；"
+            "客观须含范围边界与成组对照取值；商务关注域须含金额与收付款节点——"
+            "均须写在本字段，不得只放决策段）",
         ),
         StrListField(
             "key_decisions",
             "决策（来自MeetingUnderstanding.decisions：客观全量搬运；"
             "职业/真人从上游下采本视角相关，措辞用上游原文，不得改写新增）",
         ),
-        StrListField("personally_relevant_points", "执行要点（有明确分工则写，无则[]，每条一句）"),
+        StrListField(
+            "personally_relevant_points",
+            "执行要点（有明确分工则写，无则[]；每条一小段3–6句："
+            "谁、具体做什么、相关要求/协同对象、时间；禁止一条只有半句或一句）",
+        ),
         StrListField(
             "risks_and_blockers",
             "风险（客观全量；职业/真人从上游 risks 下采本视角相关，措辞用上游原文）",

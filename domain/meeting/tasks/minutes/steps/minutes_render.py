@@ -1,11 +1,34 @@
 from __future__ import annotations
 
+import re
 from collections.abc import AsyncIterator
 
 from tools.prompt_utils import build_render_prompt
 
 from client import LLMClient
 from ..prompts import MINUTES_RENDER_PROMPT, MINUTES_RENDER_TEMPLATE_PROMPT
+
+
+def compact_untemplated_minutes(text: str) -> str:
+    """普通纪要 / 溯源纪要：段与段只保留一个换行，去掉空行。
+
+    文末「历史记忆引用」附录单独保留；正文和附录之间的 ``---`` 全部去掉，
+    避免压缩时重复插入分隔线。
+    """
+    body = (text or "").replace("\r\n", "\n").replace("\r", "\n")
+    marker = "## 历史记忆引用"
+    appendix = ""
+    if marker in body:
+        body, appendix = body.split(marker, 1)
+        appendix = marker + appendix
+    body = re.sub(r"[ \t]+\n", "\n", body)
+    body = re.sub(r"\n{2,}", "\n", body).strip()
+    body = re.sub(r"(?:\n+-{3,})+\s*$", "", body).strip()
+    if appendix:
+        appendix = re.sub(r"[ \t]+\n", "\n", appendix).strip()
+        appendix = re.sub(r"^(?:-{3,}\s*)+", "", appendix).strip()
+        return f"{body}\n{appendix}\n"
+    return body
 
 
 class MinutesGenerationRender:
@@ -31,11 +54,15 @@ class MinutesGenerationRender:
     async def run(self, approved_context: str, template: str = "") -> str:
         """整段渲染纪要正文（纯文本）。有模板时用低温度稳住结构。"""
         prompt, user = self._prompt_and_user(approved_context, template)
-        temp = 0.0 if (template or "").strip() else None
+        has_template = bool((template or "").strip())
+        temp = 0.0 if has_template else None
         try:
-            return await self.client.text(prompt, user, temperature=temp, label="minutes/render")
+            text = await self.client.text(prompt, user, temperature=temp, label="minutes/render")
         except TypeError:
-            return await self.client.text(prompt, user, label="minutes/render")
+            text = await self.client.text(prompt, user, label="minutes/render")
+        if not has_template:
+            return compact_untemplated_minutes(text)
+        return text
 
     async def stream(self, approved_context: str, template: str = "") -> AsyncIterator[str]:
         """流式渲染纪要正文：LLM token 逐块产出（SSE）。"""

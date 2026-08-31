@@ -79,7 +79,11 @@ async def produce_line(
     title = engine._line_title(state, line_name)
     degraded = bool(line(state, line_name).get("degraded"))
     template = line_template(state, line_name)
+    cn = line_cn(line_name, engine._line_cn_names)
     try:
+        from tools.runtime.progress import progress
+
+        progress("正在处理：%s渲染", cn)
         if degraded:
             try:
                 engine._post_render_hook(state, line_name)
@@ -390,13 +394,19 @@ async def produce_line(
                         gate_ok = bool(gate3.get("gate_ok"))
                         fill_mode = "assemble"
 
-        if full_text and not template:
+        if full_text and line_name in {"minutes", "minutes_styles"}:
             try:
                 from tools.memory.citations import apply_memory_citations
 
                 full_text = apply_memory_citations(full_text, context)
             except Exception:  # noqa: BLE001
                 logger.warning("记忆引用标注失败（%s）", line_name, exc_info=True)
+        if full_text and not template and line_name in {"minutes", "minutes_trace"}:
+            from domain.meeting.tasks.minutes.steps.minutes_render import (
+                compact_untemplated_minutes,
+            )
+
+            full_text = compact_untemplated_minutes(full_text)
 
         if not streamed and full_text is not None:
             await queue.put(
@@ -447,6 +457,7 @@ async def produce_line(
             fill_mode,
             gate_s,
         )
+        progress("完成：%s渲染", cn)
         engine._post_render_hook(state, line_name)
     except Exception:  # noqa: BLE001 - 单线渲染失败不拖垮整条流水线
         logger.warning(

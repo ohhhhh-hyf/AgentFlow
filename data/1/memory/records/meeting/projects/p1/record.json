@@ -1,0 +1,889 @@
+{
+  "user_id": "1",
+  "project_id": "p1",
+  "updated_at": "2026-08-31 15:00:15",
+  "run_count": 2,
+  "display_name": "复盘小艺慧记Agent开发进展第一阶段情况，确认8月下旬内测前必须收口的事项。",
+  "project_key": "小艺慧记Agent开发进展",
+  "name_aliases": [
+    "跟进小艺慧记Agent开发进展，确认内测前收口项推进情况并识别阻碍8月下旬内测的问题。"
+  ],
+  "entities": [
+    {
+      "name": "小艺慧记Agent开发进展",
+      "type": "keyword",
+      "first_seen": "",
+      "last_seen": "",
+      "status": "active",
+      "sessions": []
+    },
+    {
+      "name": "小艺慧记",
+      "type": "keyword",
+      "first_seen": "",
+      "last_seen": "",
+      "status": "active",
+      "sessions": []
+    },
+    {
+      "name": "开发进展",
+      "type": "keyword",
+      "first_seen": "",
+      "last_seen": "",
+      "status": "active",
+      "sessions": []
+    },
+    {
+      "name": "记忆引用",
+      "type": "keyword",
+      "first_seen": "",
+      "last_seen": "2026-08-31 15:00:15",
+      "status": "active",
+      "sessions": [
+        1,
+        2
+      ]
+    },
+    {
+      "name": "关键点",
+      "type": "keyword",
+      "first_seen": "",
+      "last_seen": "2026-08-31 14:59:08",
+      "status": "active",
+      "sessions": [
+        1
+      ]
+    },
+    {
+      "name": "负责人",
+      "type": "keyword",
+      "first_seen": "",
+      "last_seen": "",
+      "status": "active",
+      "sessions": []
+    },
+    {
+      "name": "Agent",
+      "type": "tech",
+      "first_seen": "",
+      "last_seen": "",
+      "status": "active",
+      "sessions": []
+    },
+    {
+      "name": "历史会议",
+      "type": "keyword",
+      "first_seen": "",
+      "last_seen": "2026-08-31 15:00:15",
+      "status": "active",
+      "sessions": [
+        2
+      ]
+    },
+    {
+      "name": "用户笔记",
+      "type": "keyword",
+      "first_seen": "",
+      "last_seen": "2026-08-31 14:59:08",
+      "status": "active",
+      "sessions": [
+        1
+      ]
+    },
+    {
+      "name": "minutes_trace",
+      "type": "tech",
+      "first_seen": "",
+      "last_seen": "2026-08-31 14:59:08",
+      "status": "active",
+      "sessions": [
+        1
+      ]
+    },
+    {
+      "name": "Gradio",
+      "type": "tech",
+      "first_seen": "",
+      "last_seen": "2026-08-31 15:00:15",
+      "status": "active",
+      "sessions": [
+        1,
+        2
+      ]
+    },
+    {
+      "name": "次会议",
+      "type": "keyword",
+      "first_seen": "",
+      "last_seen": "",
+      "status": "active",
+      "sessions": []
+    },
+    {
+      "name": "用了哪次历史会议",
+      "type": "keyword",
+      "first_seen": "",
+      "last_seen": "",
+      "status": "active",
+      "sessions": []
+    },
+    {
+      "name": "记忆1、记忆2",
+      "type": "keyword",
+      "first_seen": "",
+      "last_seen": "2026-08-31 14:59:08",
+      "status": "active",
+      "sessions": [
+        1
+      ]
+    },
+    {
+      "name": "记忆命中显示",
+      "type": "keyword",
+      "first_seen": "",
+      "last_seen": "2026-08-31 14:59:08",
+      "status": "active",
+      "sessions": [
+        1
+      ]
+    },
+    {
+      "name": "能不能生成",
+      "type": "keyword",
+      "first_seen": "",
+      "last_seen": "",
+      "status": "active",
+      "sessions": []
+    },
+    {
+      "name": "一次会议",
+      "type": "keyword",
+      "first_seen": "",
+      "last_seen": "",
+      "status": "active",
+      "sessions": []
+    },
+    {
+      "name": "任务目录",
+      "type": "keyword",
+      "first_seen": "",
+      "last_seen": "2026-08-31 14:59:08",
+      "status": "active",
+      "sessions": [
+        1
+      ]
+    },
+    {
+      "name": "会议名称",
+      "type": "keyword",
+      "first_seen": "",
+      "last_seen": "2026-08-31 14:59:08",
+      "status": "active",
+      "sessions": [
+        1
+      ]
+    },
+    {
+      "name": "会议时间",
+      "type": "keyword",
+      "first_seen": "",
+      "last_seen": "",
+      "status": "active",
+      "sessions": []
+    },
+    {
+      "name": "下划线",
+      "type": "keyword",
+      "first_seen": "",
+      "last_seen": "2026-08-31 15:00:15",
+      "status": "active",
+      "sessions": [
+        2
+      ]
+    },
+    {
+      "name": "会议来源",
+      "type": "keyword",
+      "first_seen": "",
+      "last_seen": "2026-08-31 15:00:15",
+      "status": "active",
+      "sessions": [
+        2
+      ]
+    },
+    {
+      "name": "史会议来",
+      "type": "keyword",
+      "first_seen": "",
+      "last_seen": "2026-08-31 15:00:15",
+      "status": "active",
+      "sessions": [
+        2
+      ]
+    },
+    {
+      "name": "历史记忆",
+      "type": "keyword",
+      "first_seen": "",
+      "last_seen": "",
+      "status": "active",
+      "sessions": []
+    },
+    {
+      "name": "下划线加",
+      "type": "keyword",
+      "first_seen": "2026-08-31 15:00:15",
+      "last_seen": "2026-08-31 15:00:15",
+      "status": "active",
+      "sessions": [
+        2
+      ]
+    },
+    {
+      "name": "划线加底",
+      "type": "keyword",
+      "first_seen": "2026-08-31 15:00:15",
+      "last_seen": "2026-08-31 15:00:15",
+      "status": "active",
+      "sessions": [
+        2
+      ]
+    },
+    {
+      "name": "底部来源",
+      "type": "keyword",
+      "first_seen": "2026-08-31 15:00:15",
+      "last_seen": "2026-08-31 15:00:15",
+      "status": "active",
+      "sessions": [
+        2
+      ]
+    },
+    {
+      "name": "文下划线",
+      "type": "keyword",
+      "first_seen": "2026-08-31 15:00:15",
+      "last_seen": "2026-08-31 15:00:15",
+      "status": "active",
+      "sessions": [
+        2
+      ]
+    },
+    {
+      "name": "正文下划",
+      "type": "keyword",
+      "first_seen": "2026-08-31 15:00:15",
+      "last_seen": "2026-08-31 15:00:15",
+      "status": "active",
+      "sessions": [
+        2
+      ]
+    },
+    {
+      "name": "线加底部",
+      "type": "keyword",
+      "first_seen": "2026-08-31 15:00:15",
+      "last_seen": "2026-08-31 15:00:15",
+      "status": "active",
+      "sessions": [
+        2
+      ]
+    },
+    {
+      "name": "通用兜底",
+      "type": "keyword",
+      "first_seen": "2026-08-31 15:00:15",
+      "last_seen": "2026-08-31 15:00:15",
+      "status": "active",
+      "sessions": [
+        2
+      ]
+    },
+    {
+      "name": "memory",
+      "type": "tech",
+      "first_seen": "2026-08-31 15:00:15",
+      "last_seen": "2026-08-31 15:00:15",
+      "status": "active",
+      "sessions": [
+        2
+      ]
+    },
+    {
+      "name": "用户是否理解并信任",
+      "type": "keyword",
+      "first_seen": "2026-08-31 15:00:15",
+      "last_seen": "2026-08-31 15:00:15",
+      "status": "active",
+      "sessions": [
+        2
+      ]
+    },
+    {
+      "name": "来自历史会议",
+      "type": "keyword",
+      "first_seen": "2026-08-31 15:00:15",
+      "last_seen": "2026-08-31 15:00:15",
+      "status": "active",
+      "sessions": [
+        2
+      ]
+    },
+    {
+      "name": "功能不可用",
+      "type": "keyword",
+      "first_seen": "2026-08-31 15:00:15",
+      "last_seen": "2026-08-31 15:00:15",
+      "status": "active",
+      "sessions": [
+        2
+      ]
+    },
+    {
+      "name": "三类回归",
+      "type": "keyword",
+      "first_seen": "2026-08-31 15:00:15",
+      "last_seen": "2026-08-31 15:00:15",
+      "status": "active",
+      "sessions": [
+        2
+      ]
+    },
+    {
+      "name": "不再支持",
+      "type": "keyword",
+      "first_seen": "2026-08-31 15:00:15",
+      "last_seen": "2026-08-31 15:00:15",
+      "status": "active",
+      "sessions": [
+        2
+      ]
+    },
+    {
+      "name": "会议纪要",
+      "type": "keyword",
+      "first_seen": "2026-08-31 15:00:15",
+      "last_seen": "2026-08-31 15:00:15",
+      "status": "active",
+      "sessions": [
+        2
+      ]
+    }
+  ],
+  "key_terms": [
+    "下划线",
+    "历史会议",
+    "下划线加",
+    "会议来源",
+    "划线加底",
+    "史会议来",
+    "底部来源",
+    "文下划线",
+    "正文下划",
+    "线加底部",
+    "记忆引用",
+    "通用兜底",
+    "memory",
+    "Gradio",
+    "用户是否理解并信任"
+  ],
+  "recent_topics": [
+    "minutes_trace优化",
+    "记忆引用展示",
+    "Gradio界面调整",
+    "测试回归",
+    "整体进度与用户关注点",
+    "算法侧进展与问题",
+    "后端任务目录与记忆写回",
+    "前端界面优化"
+  ],
+  "active_summary": "跟进小艺慧记Agent开发进展，确认内测前收口项推进情况并识别阻碍8月下旬内测的问题。",
+  "last_meeting_at": "2026-08-31 15:00:15",
+  "events": [
+    {
+      "seq": 1,
+      "at": "2026-08-31 14:59:08",
+      "type": "decision_added",
+      "text": "8月18日前林夏继续优化minutes_trace的场景匹配、模板输出要求和证据对齐策略，目标是用户关键点和笔记在不捏造事实的前提下尽可能挂上。"
+    },
+    {
+      "seq": 1,
+      "at": "2026-08-31 14:59:08",
+      "type": "decision_added",
+      "text": "赵衡在8月19日前补齐记忆引用的来源字段，包括历史会议时间、会议名称、类型和关联对象。"
+    },
+    {
+      "seq": 1,
+      "at": "2026-08-31 14:59:08",
+      "type": "decision_added",
+      "text": "钱屿在8月20日前把Gradio界面中minutes_trace的模板入口彻底移除，并保留关键点、笔记上传入口。"
+    },
+    {
+      "seq": 1,
+      "at": "2026-08-31 14:59:08",
+      "type": "decision_added",
+      "text": "陈澄在8月21日前准备一组前后两场会议的记忆测试样例，重点验证第二场是否能接住第一场的项目进展。"
+    },
+    {
+      "seq": 1,
+      "at": "2026-08-31 14:59:08",
+      "type": "risk_added",
+      "text": "记忆能力已可用，但可解释性还不够像用户产品。"
+    },
+    {
+      "seq": 1,
+      "at": "2026-08-31 14:59:08",
+      "type": "risk_added",
+      "text": "minutes_trace的证据挂载如果太少，会削弱用户对溯源纪要的信任。"
+    },
+    {
+      "seq": 1,
+      "at": "2026-08-31 14:59:08",
+      "type": "item_opened",
+      "text": "是否在内测版默认开启记忆引用下划线展示，还是先作为实验开关提供。"
+    },
+    {
+      "seq": 2,
+      "at": "2026-08-31 15:00:15",
+      "type": "decision_added",
+      "text": "minutes_trace不再支持用户自定义模板，后续只走场景匹配和通用兜底模板。"
+    },
+    {
+      "seq": 2,
+      "at": "2026-08-31 15:00:15",
+      "type": "decision_added",
+      "text": "记忆引用默认采用正文下划线加底部历史会议来源，文案尽量改成用户能理解的“来自历史会议”，不要暴露“记忆1”这类编号。"
+    },
+    {
+      "seq": 2,
+      "at": "2026-08-31 15:00:15",
+      "type": "decision_added",
+      "text": "Gradio界面目前可以进入内测候选，但下划线hover提示和底部来源文案还要再打磨。"
+    },
+    {
+      "seq": 2,
+      "at": "2026-08-31 15:00:15",
+      "type": "decision_added",
+      "text": "测试侧8月20日前完成三类回归：会议纪要记忆、溯源纪要、笔记知识图谱。"
+    },
+    {
+      "seq": 2,
+      "at": "2026-08-31 15:00:15",
+      "type": "risk_added",
+      "text": "如果用户笔记是情绪化批注，模型有时会把批注原样带得太重，需要再控制语气。"
+    },
+    {
+      "seq": 2,
+      "at": "2026-08-31 15:00:15",
+      "type": "risk_added",
+      "text": "有一条历史风险被过度关联到了行动项里。"
+    },
+    {
+      "seq": 2,
+      "at": "2026-08-31 15:00:15",
+      "type": "risk_added",
+      "text": "内测主要风险从“功能不可用”转为“用户是否理解并信任”。"
+    },
+    {
+      "seq": 2,
+      "at": "2026-08-31 15:00:15",
+      "type": "risk_added",
+      "text": "如果下划线标记太多，用户可能觉得正文被打扰；如果标记太少，又看不出历史记忆的价值。"
+    },
+    {
+      "seq": 2,
+      "at": "2026-08-31 15:00:15",
+      "type": "risk_mitigated",
+      "text": "记忆能力已可用，但可解释性还不够像用户产品。"
+    },
+    {
+      "seq": 2,
+      "at": "2026-08-31 15:00:15",
+      "type": "risk_mitigated",
+      "text": "minutes_trace的证据挂载如果太少，会削弱用户对溯源纪要的信任。"
+    },
+    {
+      "seq": 2,
+      "at": "2026-08-31 15:00:15",
+      "type": "item_closed",
+      "text": "是否在内测版默认开启记忆引用下划线展示，还是先作为实验开关提供。",
+      "since": "2026-08-31 14:59:08",
+      "closed_at": "2026-08-31 15:00:15"
+    },
+    {
+      "seq": 2,
+      "at": "2026-08-31 15:00:15",
+      "type": "item_opened",
+      "text": "内测版是否把历史会议来源默认展开，还是默认收起只在点击后查看。"
+    }
+  ],
+  "meeting": {
+    "purpose": "复盘小艺慧记Agent开发进展第一阶段情况，确认8月下旬内测前必须收口的事项。；跟进小艺慧记Agent开发进展，确认内测前收口项推进情况并识别阻碍8月下旬内测的问题。",
+    "summary": "复盘小艺慧记Agent开发进展第一阶段情况，确认8月下旬内测前必须收口的事项。；跟进小艺慧记Agent开发进展，确认内测前收口项推进情况并识别阻碍8月下旬内测的问题。 已拍板：8月18日前林夏继续优化minutes_trace的场景匹配、模板输出要求和证据对齐策略，目标是用户关键点和笔记在不捏造事实的前提下尽可能挂上。；赵衡在8月19日前补齐记忆引用的来源字段，包括历史会议时间、会议名称、类型和关联对象。；钱屿在8月20日前把Gradio界面中minutes_trace的模板入口彻底移除，并保留关键点、笔记上传入口。；陈澄在8月21日前准备一组前后两场会议的记忆测试样例，重点验证第二场是否能接住第一场的项目进展。；minutes_trace不再支持用户自定义模板，后续只走场景匹配和通用兜底模板。；记忆引用默认采用正文下划线加底部历史会议来源，文案尽量改成用户能理解的“来自历史会议”，不要暴露“记忆1”这类编号。；Gradio界面目前可以进入内测候选，但下划线hover提示和底部来源文案还要再打磨。；测试侧8月20日前完成三类回归：会议纪要记忆、溯源纪要、笔记知识图谱。 未决：内测版是否把历史会议来源默认展开，还是默认收起只在点击后查看。 风险：如果用户笔记是情绪化批注，模型有时会把批注原样带得太重，需要再控制语气。；有一条历史风险被过度关联到了行动项里。；内测主要风险从“功能不可用”转为“用户是否理解并信任”。；如果下划线标记太多，用户可能觉得正文被打扰；如果标记太少，又看不出历史记忆的价值。",
+    "topics": [
+      {
+        "title": "整体进度与用户关注点",
+        "discussion": "整体进度约60%，会议纪要、待办提取、风险分析、思维导图主线已跑通，Gradio测试界面支持上传会议文本、选择任务并预览结果。用户最关心生成内容是否稳定、结构是否清楚、能否解释为什么这么写。",
+        "conclusion": "",
+        "participants": [
+          "周宁"
+        ],
+        "first_seen": "2026-08-31 14:59:08",
+        "last_seen": "2026-08-31 14:59:08"
+      },
+      {
+        "title": "算法侧进展与问题",
+        "discussion": "会议理解和纪要生成主流程稳定，基础事实抽取改善。问题：会议模板匹配不准，销售复盘会被识别成普通项目周会；用户笔记和关键点溯源不充分，模型有时只挂十几条证据。已新增minutes_trace任务，目标是将用户笔记和关键点挂到对应段落，需优化对齐策略。",
+        "conclusion": "",
+        "participants": [
+          "林夏"
+        ],
+        "first_seen": "2026-08-31 14:59:08",
+        "last_seen": "2026-08-31 14:59:08"
+      },
+      {
+        "title": "后端任务目录与记忆写回",
+        "discussion": "任务目录已整理，meeting和notes公共逻辑归到tools层。memory仅在meeting的minutes、minutes_styles和notes的graph上启用。会议记忆写回能记录项目目的、议题、决策、风险、未决项和场次快照。第一次会议不传project自动生成p1，传了则按项目写入。后续会议先用project_key和显式项目名匹配，再用实体重叠弱匹配。",
+        "conclusion": "",
+        "participants": [
+          "赵衡"
+        ],
+        "first_seen": "2026-08-31 14:59:08",
+        "last_seen": "2026-08-31 14:59:08"
+      },
+      {
+        "title": "前端界面优化",
+        "discussion": "修复上传控件高度不够、字体被挡住问题，移除minutes_trace自定义模板入口，因已有前置场景匹配和通用兜底模板。溯源材料区只保留用户关键点和用户笔记。建议记忆引用展示更自然，不用“记忆1、记忆2”标记，对历史记忆内容加下划线，点击展开来源。",
+        "conclusion": "",
+        "participants": [
+          "钱屿"
+        ],
+        "first_seen": "2026-08-31 14:59:08",
+        "last_seen": "2026-08-31 14:59:08"
+      },
+      {
+        "title": "测试发现的问题",
+        "discussion": "三类问题：minutes_trace在复杂会议中可能把会议结论写散，风险、阻塞、行动项边界不清；记忆引用出现但用户看不出自哪次会议；部分输出有“记忆命中显示”等系统表达，不自然。建议记忆来源展示放底部，显示历史会议名称、时间、类型和原片段。",
+        "conclusion": "",
+        "participants": [
+          "陈澄"
+        ],
+        "first_seen": "2026-08-31 14:59:08",
+        "last_seen": "2026-08-31 14:59:08"
+      },
+      {
+        "title": "交付视角",
+        "discussion": "内测用户用真实会议资料，不理解内部task名称。最重要的是结构稳定、证据可信、历史进展能接上。例如今天会议写入记忆，下一场讲同一项目应知道之前已完成任务目录整理、Gradio基础界面、minutes_trace初版和会议记忆写回。",
+        "conclusion": "",
+        "participants": [
+          "沈越"
+        ],
+        "first_seen": "2026-08-31 14:59:08",
+        "last_seen": "2026-08-31 14:59:08"
+      },
+      {
+        "title": "总结与结论",
+        "discussion": "周宁总结形成四项结论，并指出风险与未决事项。",
+        "conclusion": "四项结论：1. 8月18日前林夏优化minutes_trace场景匹配、模板输出要求和证据对齐策略；2. 8月19日前赵衡补齐记忆引用来源字段；3. 8月20日前钱屿彻底移除Gradio界面minutes_trace模板入口，保留关键点、笔记上传入口；4. 8月21日前陈澄准备前后两场会议的记忆测试样例。",
+        "participants": [
+          "周宁"
+        ],
+        "first_seen": "2026-08-31 14:59:08",
+        "last_seen": "2026-08-31 14:59:08"
+      },
+      {
+        "title": "minutes_trace优化",
+        "discussion": "林夏汇报两轮优化：场景模板改为先匹配后通用兜底，prompt加强溯源要求，测试中有效钉从14个增加，但情绪化批注可能被带得过重。",
+        "conclusion": "minutes_trace不再支持用户自定义模板，后续只走场景匹配和通用兜底模板。",
+        "participants": [
+          "林夏",
+          "周宁"
+        ],
+        "first_seen": "2026-08-31 15:00:15",
+        "last_seen": "2026-08-31 15:00:15"
+      },
+      {
+        "title": "记忆引用展示",
+        "discussion": "赵衡汇报展示方式改为正文下划线加底部来源，新增来源索引不进入正文。陈澄测试发现历史风险被过度关联到行动项。许安建议避免使用“memory”等词。",
+        "conclusion": "记忆引用默认采用正文下划线加底部历史会议来源，文案改为“来自历史会议”，不暴露编号。",
+        "participants": [
+          "赵衡",
+          "陈澄",
+          "许安",
+          "周宁"
+        ],
+        "first_seen": "2026-08-31 15:00:15",
+        "last_seen": "2026-08-31 15:00:15"
+      },
+      {
+        "title": "Gradio界面调整",
+        "discussion": "钱屿汇报界面已同步改完，隐藏模板区、处理旧模板状态、调整上传控件高度。剩余下划线样式朴素，需加hover提示。",
+        "conclusion": "Gradio界面可进入内测候选，但下划线hover提示和底部来源文案需再打磨。",
+        "participants": [
+          "钱屿",
+          "周宁"
+        ],
+        "first_seen": "2026-08-31 15:00:15",
+        "last_seen": "2026-08-31 15:00:15"
+      },
+      {
+        "title": "测试回归",
+        "discussion": "陈澄汇报三组测试结果，建议内测前再做一次回归，重点看memory引用是否误标普通事实。",
+        "conclusion": "测试侧8月20日前完成三类回归：会议纪要记忆、溯源纪要、笔记知识图谱。",
+        "participants": [
+          "陈澄",
+          "周宁"
+        ],
+        "first_seen": "2026-08-31 15:00:15",
+        "last_seen": "2026-08-31 15:00:15"
+      }
+    ],
+    "open_items": [
+      {
+        "item": "内测版是否把历史会议来源默认展开，还是默认收起只在点击后查看。",
+        "since": "2026-08-31 15:00:15",
+        "owner": null,
+        "deadline": null,
+        "evidence": "",
+        "source": "understanding",
+        "priority": null
+      }
+    ],
+    "closed_items": [
+      {
+        "item": "是否在内测版默认开启记忆引用下划线展示，还是先作为实验开关提供。",
+        "closed_at": "2026-08-31 15:00:15",
+        "owner": null
+      }
+    ],
+    "decisions": [
+      {
+        "decision": "8月18日前林夏继续优化minutes_trace的场景匹配、模板输出要求和证据对齐策略，目标是用户关键点和笔记在不捏造事实的前提下尽可能挂上。",
+        "source": "understanding",
+        "first_seen": "2026-08-31 14:59:08",
+        "last_seen": "2026-08-31 14:59:08"
+      },
+      {
+        "decision": "赵衡在8月19日前补齐记忆引用的来源字段，包括历史会议时间、会议名称、类型和关联对象。",
+        "source": "understanding",
+        "first_seen": "2026-08-31 14:59:08",
+        "last_seen": "2026-08-31 14:59:08"
+      },
+      {
+        "decision": "钱屿在8月20日前把Gradio界面中minutes_trace的模板入口彻底移除，并保留关键点、笔记上传入口。",
+        "source": "understanding",
+        "first_seen": "2026-08-31 14:59:08",
+        "last_seen": "2026-08-31 14:59:08"
+      },
+      {
+        "decision": "陈澄在8月21日前准备一组前后两场会议的记忆测试样例，重点验证第二场是否能接住第一场的项目进展。",
+        "source": "understanding",
+        "first_seen": "2026-08-31 14:59:08",
+        "last_seen": "2026-08-31 14:59:08"
+      },
+      {
+        "decision": "minutes_trace不再支持用户自定义模板，后续只走场景匹配和通用兜底模板。",
+        "source": "understanding",
+        "first_seen": "2026-08-31 15:00:15",
+        "last_seen": "2026-08-31 15:00:15"
+      },
+      {
+        "decision": "记忆引用默认采用正文下划线加底部历史会议来源，文案尽量改成用户能理解的“来自历史会议”，不要暴露“记忆1”这类编号。",
+        "source": "understanding",
+        "first_seen": "2026-08-31 15:00:15",
+        "last_seen": "2026-08-31 15:00:15"
+      },
+      {
+        "decision": "Gradio界面目前可以进入内测候选，但下划线hover提示和底部来源文案还要再打磨。",
+        "source": "understanding",
+        "first_seen": "2026-08-31 15:00:15",
+        "last_seen": "2026-08-31 15:00:15"
+      },
+      {
+        "decision": "测试侧8月20日前完成三类回归：会议纪要记忆、溯源纪要、笔记知识图谱。",
+        "source": "understanding",
+        "first_seen": "2026-08-31 15:00:15",
+        "last_seen": "2026-08-31 15:00:15"
+      }
+    ],
+    "risks": [
+      {
+        "risk": "记忆能力已可用，但可解释性还不够像用户产品。",
+        "source": "understanding",
+        "first_seen": "2026-08-31 14:59:08",
+        "last_seen": "2026-08-31 14:59:08",
+        "status": "mitigated"
+      },
+      {
+        "risk": "minutes_trace的证据挂载如果太少，会削弱用户对溯源纪要的信任。",
+        "source": "understanding",
+        "first_seen": "2026-08-31 14:59:08",
+        "last_seen": "2026-08-31 14:59:08",
+        "status": "mitigated"
+      },
+      {
+        "risk": "如果用户笔记是情绪化批注，模型有时会把批注原样带得太重，需要再控制语气。",
+        "source": "understanding",
+        "first_seen": "2026-08-31 15:00:15",
+        "last_seen": "2026-08-31 15:00:15",
+        "status": "active"
+      },
+      {
+        "risk": "有一条历史风险被过度关联到了行动项里。",
+        "source": "understanding",
+        "first_seen": "2026-08-31 15:00:15",
+        "last_seen": "2026-08-31 15:00:15",
+        "status": "active"
+      },
+      {
+        "risk": "内测主要风险从“功能不可用”转为“用户是否理解并信任”。",
+        "source": "understanding",
+        "first_seen": "2026-08-31 15:00:15",
+        "last_seen": "2026-08-31 15:00:15",
+        "status": "active"
+      },
+      {
+        "risk": "如果下划线标记太多，用户可能觉得正文被打扰；如果标记太少，又看不出历史记忆的价值。",
+        "source": "understanding",
+        "first_seen": "2026-08-31 15:00:15",
+        "last_seen": "2026-08-31 15:00:15",
+        "status": "active"
+      }
+    ],
+    "sessions": [
+      {
+        "seq": 1,
+        "at": "2026-08-31 14:59:08",
+        "title": "小艺慧记Agent开发进展阶段复盘",
+        "lines": [
+          "minutes"
+        ],
+        "purpose": "复盘小艺慧记Agent开发进展第一阶段情况，确认8月下旬内测前必须收口的事项。",
+        "decisions": [
+          "8月18日前林夏继续优化minutes_trace的场景匹配、模板输出要求和证据对齐策略，目标是用户关键点和笔记在不捏造事实的前提下尽可能挂上。",
+          "赵衡在8月19日前补齐记忆引用的来源字段，包括历史会议时间、会议名称、类型和关联对象。",
+          "钱屿在8月20日前把Gradio界面中minutes_trace的模板入口彻底移除，并保留关键点、笔记上传入口。",
+          "陈澄在8月21日前准备一组前后两场会议的记忆测试样例，重点验证第二场是否能接住第一场的项目进展。"
+        ],
+        "open_questions": [
+          "是否在内测版默认开启记忆引用下划线展示，还是先作为实验开关提供。"
+        ],
+        "risks": [
+          "记忆能力已可用，但可解释性还不够像用户产品。",
+          "minutes_trace的证据挂载如果太少，会削弱用户对溯源纪要的信任。"
+        ],
+        "topics": [
+          {
+            "title": "整体进度与用户关注点",
+            "conclusion": "",
+            "participants": [
+              "周宁"
+            ]
+          },
+          {
+            "title": "算法侧进展与问题",
+            "conclusion": "",
+            "participants": [
+              "林夏"
+            ]
+          },
+          {
+            "title": "后端任务目录与记忆写回",
+            "conclusion": "",
+            "participants": [
+              "赵衡"
+            ]
+          },
+          {
+            "title": "前端界面优化",
+            "conclusion": "",
+            "participants": [
+              "钱屿"
+            ]
+          },
+          {
+            "title": "测试发现的问题",
+            "conclusion": "",
+            "participants": [
+              "陈澄"
+            ]
+          },
+          {
+            "title": "交付视角",
+            "conclusion": "",
+            "participants": [
+              "沈越"
+            ]
+          },
+          {
+            "title": "总结与结论",
+            "conclusion": "四项结论：1. 8月18日前林夏优化minutes_trace场景匹配、模板输出要求和证据对齐策略；2. 8月19日前赵衡补齐记忆引用来源字段；3. 8月20日前钱屿彻底移除Gradio界面minutes_trace模板入口，保留关键点、笔记上传入口；4. 8月21日前陈澄准备前后两场会议的记忆测试样例。",
+            "participants": [
+              "周宁"
+            ]
+          }
+        ]
+      },
+      {
+        "seq": 2,
+        "at": "2026-08-31 15:00:15",
+        "title": "小艺慧记Agent开发进展内测前推进会",
+        "lines": [
+          "minutes"
+        ],
+        "purpose": "跟进小艺慧记Agent开发进展，确认内测前收口项推进情况并识别阻碍8月下旬内测的问题。",
+        "decisions": [
+          "minutes_trace不再支持用户自定义模板，后续只走场景匹配和通用兜底模板。",
+          "记忆引用默认采用正文下划线加底部历史会议来源，文案尽量改成用户能理解的“来自历史会议”，不要暴露“记忆1”这类编号。",
+          "Gradio界面目前可以进入内测候选，但下划线hover提示和底部来源文案还要再打磨。",
+          "测试侧8月20日前完成三类回归：会议纪要记忆、溯源纪要、笔记知识图谱。"
+        ],
+        "open_questions": [
+          "内测版是否把历史会议来源默认展开，还是默认收起只在点击后查看。"
+        ],
+        "risks": [
+          "如果用户笔记是情绪化批注，模型有时会把批注原样带得太重，需要再控制语气。",
+          "有一条历史风险被过度关联到了行动项里。",
+          "内测主要风险从“功能不可用”转为“用户是否理解并信任”。",
+          "如果下划线标记太多，用户可能觉得正文被打扰；如果标记太少，又看不出历史记忆的价值。"
+        ],
+        "topics": [
+          {
+            "title": "minutes_trace优化",
+            "conclusion": "minutes_trace不再支持用户自定义模板，后续只走场景匹配和通用兜底模板。",
+            "participants": [
+              "林夏",
+              "周宁"
+            ]
+          },
+          {
+            "title": "记忆引用展示",
+            "conclusion": "记忆引用默认采用正文下划线加底部历史会议来源，文案改为“来自历史会议”，不暴露编号。",
+            "participants": [
+              "赵衡",
+              "陈澄",
+              "许安",
+              "周宁"
+            ]
+          },
+          {
+            "title": "Gradio界面调整",
+            "conclusion": "Gradio界面可进入内测候选，但下划线hover提示和底部来源文案需再打磨。",
+            "participants": [
+              "钱屿",
+              "周宁"
+            ]
+          },
+          {
+            "title": "测试回归",
+            "conclusion": "测试侧8月20日前完成三类回归：会议纪要记忆、溯源纪要、笔记知识图谱。",
+            "participants": [
+              "陈澄",
+              "周宁"
+            ]
+          }
+        ]
+      }
+    ]
+  }
+}

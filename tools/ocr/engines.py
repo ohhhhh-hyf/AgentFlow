@@ -37,6 +37,15 @@ _ENGINE_ALIASES: dict[str, str] = {
 }
 
 
+def ocr_engine_label() -> str:
+    """当前 OCR 引擎展示名：serverocr / paddleocr / rapidocr。"""
+    alias = os.environ.get("OCR_ENGINE", "serverocr").strip().lower() or "serverocr"
+    module_name = _ENGINE_ALIASES.get(alias)
+    if not module_name:
+        return alias
+    return module_name.replace("_", "")
+
+
 def _log_ocr_failure(image_path: str, detail: str) -> None:
     try:
         src = Path(image_path)

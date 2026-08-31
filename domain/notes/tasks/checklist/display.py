@@ -1020,8 +1020,8 @@ def _split_visible(pack: dict[str, list[dict[str, Any]]]) -> tuple[list[tuple[st
     hidden.extend(("kb", ev) for ev in kb[kb_show:])
     notes = pack["note"]
     if notes:
-        visible.append(("note", notes[0]))
-        hidden.extend(("note", ev) for ev in notes[1:])
+        visible.extend(("note", ev) for ev in notes[:2])
+        hidden.extend(("note", ev) for ev in notes[2:])
     return visible, hidden
 
 
@@ -1147,12 +1147,14 @@ def _trace_markdown(card: dict[str, Any]) -> list[str]:
         src = _clean(ev.get("source"))
         excerpt = _math_text(ev.get("excerpt"))
         lines.append(f"  - 知识库：{src} — {excerpt}" if src else f"  - 知识库：{excerpt}")
-    for ev in pack["note"][:1]:
+    for ev in pack["note"][:2]:
         lines.append(f"  - 笔记：{_math_text(ev.get('excerpt'))}")
     return lines
 
 
-_MATHJAX_SCRIPT = """<script>
+# 必须用 raw 字符串：Python '\\[' 写进 HTML 会变成 JS 的 '\['，JS 再把 \[ 读成 [，
+# 对易子 [A,B] 就会被当成独立公式块，整行被拆成「如 / =B / + / C」。
+_MATHJAX_SCRIPT = r"""<script>
 (function () {
   if (window.MathJax && window.MathJax.typesetPromise) {
     window.MathJax.typesetPromise();

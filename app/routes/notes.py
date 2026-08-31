@@ -4,13 +4,29 @@ from __future__ import annotations
 from typing import Optional
 
 from fastapi import APIRouter, Header, HTTPException
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, JSONResponse
 
-from ..outputs import resolve_output_file
+from ..outputs import list_user_input_files, resolve_output_file
 from ..schemas import TaskRequest, TaskResponse
 from ..tasks import run_task, stream_task
 
 router = APIRouter(prefix="/api/v1/notes", tags=["notes"])
+
+
+@router.get("/input-files")
+async def list_notes_input_files(
+    user_id: str = "",
+    subject: str = "",
+    x_user_id: Optional[str] = Header(default=None, alias="X-User-Id"),
+) -> JSONResponse:
+    """列出 data/{user_id}/docs/ 文件（调试台下拉框）。"""
+    uid = (x_user_id or user_id or "").strip()
+    if not uid:
+        return JSONResponse(
+            status_code=400,
+            content={"detail": "缺少 X-User-Id（按用户列出 data/{user_id}/docs/）"},
+        )
+    return JSONResponse(content=list_user_input_files(uid, subject))
 
 
 def _headers(x_request_id: str | None, x_user_id: str | None) -> tuple[str, str]:

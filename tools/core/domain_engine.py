@@ -52,6 +52,7 @@ from tools.domain_engine_text import (
     pick_label,
     sec_attr,
 )
+from tools.runtime.progress import node_label, progress
 from tools.validation import validate_payload
 
 logger = logging.getLogger(__name__)
@@ -360,6 +361,7 @@ class DomainNodes:
 
     async def _perspective_modeling_node(self, state: dict) -> dict:
         """把用户画像映射到本次输入（所有领域共用）。"""
+        progress("正在处理：视角建模 Agent")
         try:
             result = await self.perspective_modeling_agent.run(
                 self._perspective_input_context(state),
@@ -371,6 +373,7 @@ class DomainNodes:
                 "perspective_profile": EMPTY_PERSPECTIVE_MODELING,
                 "quality_degraded": True,
             }
+        progress("完成：视角建模 Agent")
         return {"perspective_profile": result.model_dump()}
 
     def _perspective_input_context(self, state: dict) -> str:
@@ -391,6 +394,7 @@ class DomainNodes:
         cn = line_cn(line_name, self._line_cn_names)
 
         async def node(state: dict) -> dict:
+            progress("正在处理：%s生成 Agent", cn)
             agent = getattr(self, cfg["agent_attr"])
             # 每线可选参数：组织模式 / 附加上下文（state["line_modes"] / ["line_extra"]）
             context = self._shared_context(state)
@@ -420,6 +424,7 @@ class DomainNodes:
                     "quality_degraded": True,
                 }
             # 显式写 degraded=False：返工成功后清除此前失败标记
+            progress("完成：%s生成 Agent", cn)
             return {
                 "lines": {
                     line_name: {
@@ -441,6 +446,7 @@ class DomainNodes:
         cn = line_cn(line_name, self._line_cn_names)
 
         async def node(state: dict) -> dict:
+            progress("正在处理：%s审核 Agent", cn)
             supervisor = getattr(self, cfg["supervisor_attr"])
             try:
                 review = await supervisor.review(
@@ -459,10 +465,12 @@ class DomainNodes:
                     },
                     "quality_degraded": True,
                 }
+            payload = review.model_dump() if hasattr(review, "model_dump") else dict(review)
+            progress("完成：%s审核 Agent（%s）", cn, payload.get("decision") or "已返回")
             return {
                 "lines": {
                     line_name: {
-                        "review": review.model_dump(),
+                        "review": payload,
                         "degraded": False,
                     }
                 }
@@ -477,6 +485,8 @@ class DomainNodes:
         并把 feedback / revision_count 持久化回 state。
         """
         async def node(state: dict) -> dict:
+            cn = line_cn(line_name, self._line_cn_names)
+            progress("正在处理：%s返工", cn)
             review = line(state, line_name).get("review") or {}
             feedback = review.get("feedback", []) or []
             sub = line(state, line_name)
@@ -695,6 +705,10 @@ class DomainNodes:
         state = initial_state
         try:
             graph = self._build_graph(line_names)
+            progress(
+                "开始编排：%s",
+                "、".join(line_cn(n, self._line_cn_names) for n in line_names),
+            )
             # 流式图执行：每完成一个节点即推送 phase 事件（API 流式接口感知进度用），
             # values 模式的最后一个 chunk 即最终 state（与 ainvoke 等价）。
             async for mode, chunk in graph.astream(
@@ -702,6 +716,10 @@ class DomainNodes:
             ):
                 if mode == "updates":
                     for node_name in chunk:
+                        progress(
+                            "节点完成：%s",
+                            node_label(node_name, self._line_cn_names),
+                        )
                         yield {"type": "phase", "node": node_name}
                 else:
                     state = chunk

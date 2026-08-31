@@ -50,6 +50,8 @@ def _to_int(token: str) -> int | None:
 
 def parse_row_hint(text: str) -> int | None:
     """从任意文本解析行数提示；解析不到返回 None（不硬编码业务）。"""
+    if re.search(r"(?:每|一)\s*行\s*(?:一个|一条|一项|一件)", text or ""):
+        return None
     m = _ROW_HINT_RE.search(text or "")
     if not m:
         return None

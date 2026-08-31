@@ -4,8 +4,30 @@ import logging
 import re
 from typing import Any
 
-from ._base import _PLACEHOLDER_FILL_SYSTEM, _PLACEHOLDER_RE, _TABLE_SEP_RE, _body_han_count, _char_budget_lines, _client_text, _describe_field, _extract_json_object, _hint_clean, _hint_short, _parse_row_list, _table_row_confidence_score, strip_outer_markdown_fence
-from ._detect import _looks_like_placeholder, _parse_field, _row_limit_for_template, detect_template_kind, strip_char_budget_meta
+from ._base import (
+    _PLACEHOLDER_FILL_SYSTEM,
+    _PLACEHOLDER_RE,
+    _TABLE_SEP_RE,
+    _body_han_count,
+    _char_budget_lines,
+    _client_text,
+    _describe_field,
+    _extract_json_object,
+    _hint_clean,
+    _hint_short,
+    _parse_row_list,
+    _table_row_confidence_score,
+    split_template_meta,
+    strip_outer_markdown_fence,
+)
+from ._detect import (
+    _is_placeholder_table_row,
+    _looks_like_placeholder,
+    _parse_field,
+    _row_limit_for_template,
+    detect_template_kind,
+    strip_char_budget_meta,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -19,32 +41,80 @@ def _line_placeholders(line: str) -> list[re.Match[str]]:
     return out
 
 
+_SECTION_TITLE_RE = re.compile(r"^(#{1,6})\s*\[([^\[\]]+)\]\s*$")
+
+
+def _section_title_match(line: str) -> re.Match[str] | None:
+    """`# [项目概况]` 这类标题占位：栏名短、无句读 → 程序用栏名生成标题，不送 LLM。
+
+    「自主概括的议程模块名称」这类是要模型起标题，不当固定栏名。
+    """
+    body = line.rstrip("\n")
+    match = _SECTION_TITLE_RE.match(body)
+    if not match:
+        return None
+    hint = match.group(2).strip()
+    if not hint or len(hint) > 30 or "。" in hint or "，" in hint:
+        return None
+    if re.search(r"自主|概括|填写|根据|提取|写出|生成|待填", hint):
+        return None
+    return match
+
+
 def _is_table_data_row(line: str) -> bool:
-    if line.count("|") < 2:
+    body = line.rstrip("\n")
+    if body.count("|") < 2:
         return False
-    if _TABLE_SEP_RE.match(line):
+    if _TABLE_SEP_RE.match(body):
         return False
-    return bool(_line_placeholders(line))
+    if _line_placeholders(body):
+        return True
+    return _is_placeholder_table_row(body)
+
+
+def _table_cells(line: str) -> list[str]:
+    return [c.strip() for c in line.strip().strip("|").split("|")]
+
+
+def _ellipsis_row_fields(line: str, template: str) -> list[dict]:
+    """无 [方括号] 的省略号样例行：按表头列名（或列序号）生成待填字段。"""
+    n = max(len(_table_cells(line)), 1)
+    headers = _table_header_cells(line, template)
+    if len(headers) < n:
+        headers = list(headers) + [f"列{i + 1}" for i in range(len(headers), n)]
+    return [
+        {
+            "kind": "field",
+            "raw": headers[i],
+            "hint": headers[i],
+            "enum": None,
+            "missing": False,
+        }
+        for i in range(n)
+    ]
 
 
 def plan_placeholder_fill(template: str) -> dict[str, Any]:
     """分析模板结构（通用）：标量占位符顺序 + 表格行模板。
 
-    不做任何业务语义判断（行数/栏目含义等约束由 prompt + 模板正文表达）。
+    表格行模板包括两类：单元格里的 ``[占位符]``，以及整行 ``| … | … |`` 样例。
     """
+    template, _ = split_template_meta(template)
     scalars: list[dict] = []
     row_templates: list[dict[str, Any]] = []
     for line in template.splitlines(keepends=True):
-        phs = _line_placeholders(line)
-        if not phs:
+        if _section_title_match(line):
             continue
+        phs = _line_placeholders(line)
         if _is_table_data_row(line):
-            row_templates.append(
-                {
-                    "line": line,
-                    "fields": [_parse_field(m.group(1)) for m in phs],
-                }
+            fields = (
+                [_parse_field(m.group(1)) for m in phs]
+                if phs
+                else _ellipsis_row_fields(line, template)
             )
+            row_templates.append({"line": line, "fields": fields})
+            continue
+        if not phs:
             continue
         for m in phs:
             scalars.append(_parse_field(m.group(1)))
@@ -89,6 +159,31 @@ def normalize_fill_tables(
     return out
 
 
+def _emit_md_row(cells: list[str], ended: bool) -> str:
+    body = "| " + " | ".join(cells) + " |"
+    return body + ("\n" if ended else "")
+
+
+def _render_table_data_row(
+    line: str,
+    values: list[str],
+    fields: list[dict] | None = None,
+) -> str:
+    """把一行表格模板填成数据行。``[占位]`` 行替换括号；省略号样例行按列重建。"""
+    if _line_placeholders(line):
+        rendered = _replace_placeholders_in_line(line, values, fields)
+        if not rendered.endswith("\n") and line.endswith("\n"):
+            rendered += "\n"
+        return rendered
+    n = max(len(fields or []), len(_table_cells(line)), 1)
+    cells = [("" if v is None else str(v).strip()) for v in values]
+    if len(cells) < n:
+        cells.extend(["—"] * (n - len(cells)))
+    else:
+        cells = cells[:n]
+    return _emit_md_row(cells, ended=True)
+
+
 def _replace_placeholders_in_line(
     line: str,
     values: list[str],
@@ -129,6 +224,7 @@ def assemble_placeholder_output(
         table_rows: 兼容参数 = 第 0 张表的多行数据。
         tables: 多张表 ``[table0_rows, table1_rows, ...]``；优先于 table_rows。
     """
+    template, _ = split_template_meta(template)
     if isinstance(field_values, list):
         scalar_list = [("" if v is None else str(v)) for v in field_values]
     else:
@@ -158,11 +254,13 @@ def assemble_placeholder_output(
     expanded_row_ids: set[int] = set()
 
     for line in template.splitlines(keepends=True):
-        phs = _line_placeholders(line)
-        if not phs:
-            out_lines.append(line)
+        title_m = _section_title_match(line)
+        if title_m:
+            hashes, title = title_m.group(1), title_m.group(2).strip()
+            rendered = f"{hashes} {title}"
+            out_lines.append(rendered + ("\n" if line.endswith("\n") else ""))
             continue
-
+        phs = _line_placeholders(line)
         row_idx = next(
             (
                 i
@@ -171,6 +269,10 @@ def assemble_placeholder_output(
             ),
             None,
         )
+        if row_idx is None and not phs:
+            out_lines.append(line)
+            continue
+
         if row_idx is not None:
             expanded_row_ids.add(row_idx)
             rt = row_templates[row_idx]
@@ -180,14 +282,16 @@ def assemble_placeholder_output(
             if not use_rows:
                 use_rows = [["未提及"] + ["—"] * (n_cols - 1)]
             for row in use_rows:
-                rendered = _replace_placeholders_in_line(
-                    line, list(row), rt["fields"]
-                )
+                rendered = _render_table_data_row(line, list(row), rt["fields"])
                 # 多行展开时每行必须独立成行；模板末行常无尾换行，
                 # 若只在 line.endswith("\n") 时补换行，会把多行糊成一行（|| 粘连）
                 if not rendered.endswith("\n"):
                     rendered += "\n"
                 out_lines.append(rendered)
+            continue
+
+        if not phs:
+            out_lines.append(line)
             continue
 
         # 标量行：按全局标量顺序取下一段 values
@@ -207,9 +311,10 @@ def _table_header_cells(row_line: str, template: str) -> list[str]:
 
     表头行特征：含 `|`、非分隔行（``|---|``）、不含占位符。
     """
+    target = (row_line or "").rstrip("\n")
     lines = (template or "").splitlines()
     for idx, line in enumerate(lines):
-        if line.rstrip() != row_line:
+        if line.rstrip("\n") != target:
             continue
         # 向上找最近的非空行，且是含 | 的表头行
         for j in range(idx - 1, -1, -1):
@@ -494,16 +599,27 @@ def build_placeholder_fill_user(
     revision_notes: str = "",
 ) -> str:
     """构造字段 JSON 填充的用户消息。"""
+    template, requirement = split_template_meta(template)
     plan = plan_placeholder_fill(template)
     lines = [
         "根据内容来源填充模板，只输出 JSON。",
-        "固定标题/表头由模板保留，你只填 [占位] 正文；字段值里不要写 #/## 标题，不要重复栏目标题前缀。",
+        "形如 `# [栏名]` 的标题行由程序生成，不要填进 fields；你只填标题下方正文占位。",
+        "固定表头由模板保留；`| … |` 样例行必须换成原文事实，禁止整行照抄省略号。",
+        "字段值里不要写 #/## 标题，不要重复栏目标题作前缀。",
         "有据才写；某栏主题在来源中完全无信息时才「未提及」。",
         "勿照抄「如：」示例；勿张冠李戴；勿改数字；勿用百科补履历；勿虚构原文没有的内容。",
         "各栏按主题分别写清；「与/和/及」并列主题勿揉成一句糊涂话。",
         "简洁/粗略≠空洞：每栏写清该栏主要事实与要点，可多句。",
+        "「一段话概括」不是一句空话：概况段写成完整段落（4–8句、约150–400字），含整体进展、里程碑/节点、主要风险、下一步，并带原文数字/地点/责任人；禁止单句交差。",
+        "进度追踪：正文写清各模块进展；表格一行一个模块/工点，原文有几处写几行，不要压成一行。",
+        "风险预警：原文提到的风险分行填写，等级与责任人必填（无则「未明确」）；后续计划写交付物、时间点与依赖。",
+        "没有全文字数上限时不要压缩整篇。",
         *_char_budget_lines(template),
         "语句完整通顺，无半截句；严禁输出「约N字」等字数元说明。",
+    ]
+    if requirement.strip():
+        lines.extend(["", "【模板写作要求】（必须遵守，不要写进 JSON）", requirement.strip()])
+    lines.extend([
         "",
         "【内容来源】",
         context,
@@ -512,7 +628,7 @@ def build_placeholder_fill_user(
         template,
         "",
         "【标量字段清单】（不含表格行内字段）",
-    ]
+    ])
     if not plan["scalars"]:
         lines.append("（无标量字段）")
     for i, seg in enumerate(plan["scalars"], start=1):
@@ -530,6 +646,7 @@ def build_placeholder_fill_user(
             "各表独立填充；遵守模板原文对体量/条数的要求；"
             "候选多时优先保留证据明确、信息完整、对结论/执行影响更大的行；"
             "候选少时不要编造凑数；节与表之间不要串内容。"
+            "有「等级」列须填 高/中/低 或模板给出的评级符号；有「责任人」列须填原文明示的人，无则「未明确」。"
         )
     else:
         lines.append("（无表格行模板，tables 必须为 []）")
@@ -538,6 +655,45 @@ def build_placeholder_fill_user(
         lines.append("【上次输出未通过校验，请修正】")
         lines.append(revision_notes.strip())
     return "\n".join(lines)
+
+
+def _thin_fill_notes(
+    plan: dict[str, Any],
+    fields: dict[str, str],
+    tables: list[list[list[str]]],
+    assembled: str,
+) -> list[str]:
+    """概况过短、表格压成一行时给出扩写意见（不编造）。"""
+    notes: list[str] = []
+    empty = {"", "未提及", "未明确", "无", "暂无", "—", "-", "…", "..."}
+    for i, seg in enumerate(plan.get("scalars") or [], start=1):
+        hint = str(seg.get("hint") or "")
+        val = str(fields.get(str(i)) or "")
+        han = _body_han_count(val)
+        if re.search(r"概括|概况|综述|摘要", hint) and han < 150:
+            notes.append(
+                f"字段{i}（概况）约 {han} 字过短：写成 4–8 句、约150–400字完整段落，"
+                "写清整体进展、里程碑/节点、主要风险与下一步，带原文数字/地点/责任人，禁止一句空话。"
+            )
+        elif hint and han < 25 and not any(m in val for m in ("未提及", "未明确")):
+            notes.append(f"字段{i}约 {han} 字过短：按占位说明补全原文要点，可多句。")
+    for ti, _rt in enumerate(plan.get("row_templates") or []):
+        rows = tables[ti] if ti < len(tables) else []
+        nonempty = [
+            r for r in rows
+            if any(str(c or "").strip() not in empty for c in r)
+        ]
+        if len(nonempty) <= 1:
+            notes.append(
+                f"tables[{ti}] 有效数据行 {len(nonempty)}："
+                "按原文把各模块/工点/风险分成多行，不要整场压成一行。"
+            )
+    han_all = _body_han_count(assembled)
+    if han_all < 280 and not notes:
+        notes.append(
+            f"全文约 {han_all} 字过短：各栏按原文补全事实与表格行，不要压成一两句。"
+        )
+    return notes
 
 
 def parse_fill_response(
@@ -624,6 +780,13 @@ async def fill_placeholder_template(
             )
             assembled = strip_outer_markdown_fence(assembled)
             assembled = strip_char_budget_meta(assembled)
+            # 无预算时也拦截「概况一句带过 / 整表一行」
+            if attempt < 2:
+                thin = _thin_fill_notes(plan, fields, tables, assembled)
+                if thin:
+                    revision = "\n".join(f"- {x}" for x in thin)
+                    logger.info("占位符填充过短（attempt=%s）：%s", attempt + 1, "；".join(thin))
+                    continue
             # 篇幅自检：偏短扩写、偏长压缩（不改结构、不写进用户正文）
             lo = budget.get("lo") if isinstance(budget, dict) else None
             hi = budget.get("hi") if isinstance(budget, dict) else None

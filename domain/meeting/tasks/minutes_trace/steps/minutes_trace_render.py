@@ -4,6 +4,7 @@ import json
 from collections.abc import AsyncIterator
 
 from client import LLMClient
+from tools.runtime.progress import progress
 
 from ....models import MinutesTrace
 from ..align import backfill_alignments, gate_alignments, stamp_minutes
@@ -42,11 +43,7 @@ def _transcript_from_context(context: str) -> str:
 
 
 async def _align_alignments(client, context: str, minutes_md: str) -> list[dict]:
-    """审核通过后单独生成对齐条目：输入已批准纪要 + 溯源材料 + 原文。
-
-    拆分设计：agent 阶段不生成 alignments（输出小、快），审核通过后在这里
-    一次结构化调用补齐对齐，再程序 backfill 兜底。失败静默返回空。
-    """
+    """审核通过后生成对齐条目：程序落钉优先，LLM 只在程序挂不上时补漏。"""
     extras = parse_trace_extras(context)
     keypoints = list(extras.get("keypoints") or [])
     notes = list(extras.get("notes") or [])
@@ -59,13 +56,14 @@ async def _align_alignments(client, context: str, minutes_md: str) -> list[dict]
     # 候选充足时不喂全量原文（候选自带 evidence 窗口），输出规模随之缩小；
     # 候选为空时回退带全量原文，LLM 自行判断（与旧行为一致，不丢补漏能力）。
     candidates = backfill_alignments([], minutes_md, transcript, keypoints, notes)
-    blocks = [f"已批准纪要正文：\n{minutes_md}"]
+    # 程序候选已经过主张级门禁。再让 LLM「确认」会多一轮审核、复跑钉子易抖。
+    # 有候选就直接落钉；只有程序挂不上时才用 LLM 补漏。
     if candidates:
-        blocks.append(
-            "程序对齐候选（逐条核对：误挂删除、evidence 修正、遗漏补充）：\n"
-            + json.dumps(candidates, ensure_ascii=False, indent=1)
-        )
-    elif transcript:
+        progress("溯源落钉：程序对齐 %d 条，跳过 LLM 确认", len(candidates))
+        return candidates
+    progress("溯源落钉：程序未命中，改用 LLM 对齐")
+    blocks = [f"已批准纪要正文：\n{minutes_md}"]
+    if transcript:
         blocks.append(f"会议原文：\n{transcript}")
     if key_raw:
         blocks.append(key_raw)
@@ -109,7 +107,11 @@ class MinutesTraceRender:
         if not body:
             return "请直接参考会议原文。"
         alignments = await _align_alignments(self.client, approved_context, body)
-        return stamp_minutes(body, alignments)
+        from domain.meeting.tasks.minutes.steps.minutes_render import (
+            compact_untemplated_minutes,
+        )
+
+        return compact_untemplated_minutes(stamp_minutes(body, alignments))
 
     async def stream(
         self, approved_context: str, template: str = ""

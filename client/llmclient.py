@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import contextvars
 import hashlib
 import json
 import logging
@@ -204,6 +205,15 @@ class LLMClient:
         }
         raw = json.dumps(payload, ensure_ascii=False, sort_keys=True)
         return hashlib.sha256(raw.encode("utf-8")).hexdigest()
+
+    async def _in_thread(self, fn, /, *args, **kwargs):
+        """把同步 LLM 调用丢到线程，并拷贝 contextvars（request_id 才能进日志缓冲）。"""
+        ctx = contextvars.copy_context()
+
+        def runner():
+            return ctx.run(lambda: fn(*args, **kwargs))
+
+        return await asyncio.to_thread(runner)
 
     def _post(
         self,
@@ -660,7 +670,7 @@ class LLMClient:
                     + "\n\n输出规则："
                     + "\n1. 只输出一个 JSON 对象，不要输出 Markdown 或解释。"
                     + "\n2. 字段名称、字段数量、字段类型必须与模板完全一致。"
-                    + "\n3. 不得增加字段，不得省略字段，不得用字符串代替数组。"
+                    + "\n3. 不得增加字段，不得省略字段，不得用字符串代替数组，不得用对象代替字符串。"
                     + "\n4. 未知文本使用 null，无内容的数组使用 []。"
                     + "\n5. 模板中字符串字段的占位是空字符串 \"\"、数组占位是 []："
                     "按字段语义填真实内容，不要原样输出占位。"
@@ -680,7 +690,10 @@ class LLMClient:
 
         for attempt in range(self.max_retries + 1):
             try:
-                last_content = await asyncio.to_thread(
+                tag = label or response_model.__name__
+                extra = f" 第{attempt + 1}次" if attempt else ""
+                logger.info("LLM 调用中（%s，结构化%s）…", tag, extra)
+                last_content = await self._in_thread(
                     self._post,
                     messages,
                     json_mode=True,
@@ -796,7 +809,10 @@ class LLMClient:
 
         for attempt in range(self.max_retries + 1):
             try:
-                content = await asyncio.to_thread(
+                tag = label or "text"
+                extra = f" 第{attempt + 1}次" if attempt else ""
+                logger.info("LLM 调用中（%s，文本%s）…", tag, extra)
+                content = await self._in_thread(
                     self._post,
                     messages,
                     json_mode=json_mode,

@@ -16,6 +16,54 @@ from pathlib import Path
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 
 
+def _list_plain_files(folder: Path) -> list[str]:
+    if not folder.is_dir():
+        return []
+    names: list[str] = []
+    for path in sorted(folder.iterdir(), key=lambda p: p.name.lower()):
+        if not path.is_file():
+            continue
+        name = path.name
+        if not name or name.startswith(".") or "/" in name or "\\" in name:
+            continue
+        names.append(name)
+    return names
+
+
+def list_user_input_files(user_id: str, subject: str = "") -> dict[str, object]:
+    """列出任务可引用的输入文件（与 docs 查找链一致）。"""
+    uid = (user_id or "").strip()
+    data_root = PROJECT_ROOT / "data"
+    docs_dirs = [data_root / uid / "docs", data_root / "docs"] if uid else [data_root / "docs"]
+    seen: set[str] = set()
+    docs: list[str] = []
+    scanned: list[str] = []
+    for folder in docs_dirs:
+        scanned.append(str(folder.resolve()) if folder.exists() else str(folder))
+        for name in _list_plain_files(folder):
+            if name in seen:
+                continue
+            seen.add(name)
+            docs.append(name)
+    catalogs: list[str] = []
+    catalog_dir = ""
+    if uid and (subject or "").strip():
+        try:
+            from tools.knowledge.config import subject_to_pinyin
+
+            folder = data_root / uid / "knowledge" / "catalogs" / subject_to_pinyin(subject)
+            catalog_dir = str(folder)
+            catalogs = _list_plain_files(folder)
+        except Exception:  # noqa: BLE001
+            catalogs = []
+    return {
+        "docs": docs,
+        "catalogs": catalogs,
+        "docs_dir": scanned[0] if scanned else "",
+        "catalog_dir": catalog_dir,
+    }
+
+
 def output_dir(user_id: str, request_id: str) -> Path:
     """本次调用的产物目录。request_id 缺省可用 uuid4 或模拟值。"""
     root = PROJECT_ROOT / "data"
@@ -75,4 +123,4 @@ def save_task_outputs(
     return result
 
 
-__all__ = ["output_dir", "resolve_output_file", "save_task_outputs"]
+__all__ = ["list_user_input_files", "output_dir", "resolve_output_file", "save_task_outputs"]

@@ -6,7 +6,13 @@ import re
 from typing import Any
 
 from tools.knowledge.cite import _overlap_score, open_knowledge
-from tools.knowledge.source_role import ROLE_MATERIAL, ROLE_NOTES, ROLE_TEACHER, classify_source_role
+from tools.knowledge.source_role import (
+    ROLE_MATERIAL,
+    ROLE_NOTES,
+    ROLE_TEACHER,
+    classify_source_role,
+    is_ocr_notes_file,
+)
 
 from domain.notes.tasks.catalog.gather import subject_from_context, user_id_from_context
 
@@ -288,9 +294,9 @@ def _candidate_layers(
     """分层候选池（只缩小扫描范围，候选仍须过重合校验）：
 
     L1 source_chunk_ids 精确锚点 → L2 chapter+topic → L3 源文件+标题 →
-    L4 向量 topK 召回 → L5 全库（仅当前四层全空时兜底）。
+    L4 向量 topK 召回 → L5 全库。
     任一层校验出结果即停；池空或校验无结果降级下一层。
-    池按需惰性计算：前层命中时，后续层（尤其向量检索）不执行。
+    向量层即使召回了未过校验的块，仍继续全库兜底（核心 KP 标题常与笔记小标题不完全同名）。
     """
     anchored = _anchored_chunks(card, indexed)
     yield "anchored", anchored
@@ -300,8 +306,7 @@ def _candidate_layers(
     yield "source_heading", src_pool
     vec_pool = _vector_chunks(card, kb, user_id=user_id, subject=subject)
     yield "vector", vec_pool
-    if not (anchored or topic_pool or src_pool or vec_pool):
-        yield "full", chunks
+    yield "full", chunks
 
 
 def _anchored_chunks(
@@ -344,8 +349,13 @@ def _source_heading_chunks(
     card: dict[str, Any],
     indexed: dict[str, dict[str, list[dict[str, Any]]]],
 ) -> list[dict[str, Any]]:
-    """L3：卡片 sources 文件内，heading 与 topic/name/aliases 互相包含。"""
+    """L3：卡片 sources 文件内，heading 与 topic/name/aliases 部分重合即可。
+
+    catalog 若没回填 sources，仍扫描 OCR 笔记文件，避免核心 KP 因空 sources 整层跳过。
+    """
     sources = [s for s in _as_list(card.get("sources")) if _clean(s)]
+    if not sources:
+        sources = [s for s in indexed.get("by_source", {}) if is_ocr_notes_file(s)]
     if not sources:
         return []
     names = [
@@ -362,7 +372,7 @@ def _source_heading_chunks(
             heading = _compact(_clean(chunk.get("heading")))
             if not heading:
                 continue
-            if not any(n and (n in heading or heading in n) for n in names):
+            if not any(_heading_related(n, heading) for n in names):
                 continue
             key = (src, _compact(chunk.get("text") or "")[:40])
             if key in seen:
@@ -398,9 +408,7 @@ def _vector_chunks(
             continue
         source = str(meta.get("source") or "")
         heading = _clean(meta.get("heading") or "")
-        role = str(meta.get("role") or "").strip()
-        if role not in {ROLE_MATERIAL, ROLE_NOTES, ROLE_TEACHER}:
-            role = classify_source_role(source)
+        role = _chunk_role(source, str(meta.get("role") or "").strip())
         section = heading
         page = meta.get("page")
         if page not in (None, ""):
@@ -441,7 +449,8 @@ def _rank_library_evidence(
     seen: set[tuple[str, str]] = set()
     scored: list[tuple[int, dict[str, Any]]] = []
     for chunk in chunks:
-        role = str(chunk.get("role") or "")
+        source = str(chunk.get("source") or "")
+        role = _chunk_role(source, str(chunk.get("role") or ""))
         if role == ROLE_TEACHER:
             continue
         body = chunk.get("_clean")
@@ -452,18 +461,22 @@ def _rank_library_evidence(
         body_c = chunk.get("_compact")
         if body_c is None:
             body_c = _compact(body)
-        score = _align_score(query_c, body_c, name_c, item_cs, claim_cs, notes=role == ROLE_NOTES)
-        if score < 80:
+        heading_c = _compact(_clean(chunk.get("heading") or chunk.get("section") or ""))
+        hay_c = f"{heading_c}{body_c}"
+        score = _align_score(
+            query_c, hay_c, name_c, item_cs, claim_cs, heading_c=heading_c
+        )
+        if score < 50:
             continue
-        key = (str(chunk.get("source") or ""), body_c[:40])
+        key = (source, body_c[:40])
         if key in seen:
             continue
         seen.add(key)
-        supports = _chunk_supports(body, body_c, claims, claim_cs)
+        supports = _chunk_supports(body, hay_c, claims, claim_cs)
         if not supports:
             continue
         item = {
-            "type": "knowledge_base" if role != ROLE_NOTES else "student_note",
+            "type": "student_note" if role == ROLE_NOTES else "knowledge_base",
             "source": str(chunk.get("source") or ""),
             "section": str(chunk.get("section") or ""),
             "excerpt": _excerpt(body, body_c, query_c, limit=90),
@@ -539,6 +552,31 @@ def _overlap_pre(q: str, e: str) -> int:
     return 0
 
 
+def _heading_related(name_c: str, heading_c: str) -> bool:
+    """笔记小标题常比目录 KP 名短，共享连续 4 字即可，不必整句相等。"""
+    if not name_c or not heading_c:
+        return False
+    if name_c in heading_c or heading_c in name_c:
+        return True
+    limit = min(len(name_c), len(heading_c))
+    if limit < 4:
+        return False
+    for size in range(min(8, limit), 3, -1):
+        for i in range(0, len(name_c) - size + 1):
+            if name_c[i : i + size] in heading_c:
+                return True
+    return False
+
+
+def _chunk_role(source: str, role: str = "") -> str:
+    if is_ocr_notes_file(source):
+        return ROLE_NOTES
+    raw = (role or "").strip()
+    if raw in {ROLE_MATERIAL, ROLE_NOTES, ROLE_TEACHER}:
+        return raw
+    return classify_source_role(source)
+
+
 def _align_score(
     query_c: str,
     body_c: str,
@@ -546,20 +584,25 @@ def _align_score(
     item_cs: list[str],
     claim_cs: list[str],
     *,
+    heading_c: str = "",
     notes: bool = False,
 ) -> int:
-    name_score = _overlap_pre(name_c, body_c) if name_c else 0
+    hay = body_c or ""
+    name_score = _overlap_pre(name_c, hay) if name_c else 0
+    if name_c and heading_c:
+        name_score = max(name_score, _overlap_pre(name_c, heading_c))
     item_score = 0
     for item_c in item_cs:
-        item_score = max(item_score, _overlap_pre(item_c, body_c))
+        item_score = max(item_score, _overlap_pre(item_c, hay))
+        if heading_c:
+            item_score = max(item_score, _overlap_pre(item_c, heading_c))
     claim_score = 0
     for claim_c in claim_cs:
-        claim_score = max(claim_score, _overlap_pre(claim_c, body_c))
-    query_score = _overlap_pre(query_c, body_c)
-    # 必须先对上 KP / Item，避免只靠讲解长句误命中
-    if name_score < 60 and item_score < 80:
-        return 0
-    if notes and name_score < 80 and item_score < 120:
+        claim_score = max(claim_score, _overlap_pre(claim_c, hay))
+    query_score = _overlap_pre(query_c, hay)
+    # 标题口语化：KP 名与笔记小标题部分重合即可，不再要求整名写进正文。
+    # 笔记门槛与知识库相同——核心点标题更长，加严只会让它们先掉出处。
+    if name_score < 40 and item_score < 50:
         return 0
     return name_score + item_score + min(200, claim_score) + min(120, query_score)
 
@@ -710,9 +753,7 @@ def _load_chunks(user_id: str = "", subject: str = "") -> list[dict[str, Any]]:
         meta = chunk.get("metadata") if isinstance(chunk, dict) else {}
         meta = meta or {}
         source = str(meta.get("source") or "")
-        role = str(meta.get("role") or "").strip()
-        if role not in {ROLE_MATERIAL, ROLE_NOTES, ROLE_TEACHER}:
-            role = classify_source_role(source)
+        role = _chunk_role(source, str(meta.get("role") or "").strip())
         section_base = _clean(meta.get("heading") or meta.get("topic") or meta.get("chapter") or "")
         section = section_base
         page = meta.get("page")

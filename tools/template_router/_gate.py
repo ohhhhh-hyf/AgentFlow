@@ -6,7 +6,7 @@ import logging
 import re
 from typing import Any
 
-from ._base import _COMPILE_CACHE, _COMPILE_CACHE_VERSION, _COMPILE_FAIL_COUNTS, _COMPILE_FAIL_SKIP_THRESHOLD, _EXPANSION_GUARDS, _MODIFY_SYSTEM, _PLACEHOLDER_RE, _client_text, _hint_clean, _strip_heading_number, _table_topic_from_context, is_router_enabled, strip_outer_markdown_fence
+from ._base import _COMPILE_CACHE, _COMPILE_CACHE_VERSION, _COMPILE_FAIL_COUNTS, _COMPILE_FAIL_SKIP_THRESHOLD, _EXPANSION_GUARDS, _MODIFY_SYSTEM, _PLACEHOLDER_RE, _client_text, _hint_clean, _strip_heading_number, _table_topic_from_context, is_router_enabled, split_template_meta, strip_outer_markdown_fence
 from ._detect import _looks_like_placeholder, _table_row_limit_from_text, detect_template_kind, extract_description_cues, parse_placeholder_template
 from ._placeholder import _is_table_data_row, template_to_preview
 from ._preview import _aspect_has_fixed_heading, _aspect_has_own_slot, extract_listed_aspects
@@ -27,6 +27,7 @@ def validate_rendered_output(
     errors: list[str] = []
     if not rendered or not rendered.strip():
         return ["渲染输出为空"]
+    template, _ = split_template_meta(template)
     kind = kind or detect_template_kind(template)
     if kind == "placeholder":
         leftovers = [

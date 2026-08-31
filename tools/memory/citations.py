@@ -17,7 +17,9 @@ except Exception:  # pragma: no cover - keeps this module importable during scaf
 
 
 SECTION_TITLE = "历史记忆引用"
-_MEMORY_SECTION_RE = re.compile(r"\n-{3,}\n\n## 历史记忆引用\b.*\Z", re.S)
+_MEMORY_SECTION_RE = re.compile(
+    r"\n(?:-{3,}\s*\n+)*## 历史记忆引用\b.*\Z", re.S
+)
 _HAN = re.compile(r"[\u4e00-\u9fff]+")
 _LATIN_TERM = re.compile(r"[A-Za-z][A-Za-z0-9_\-]{2,}")
 _TAG_RE = re.compile(
@@ -381,7 +383,7 @@ def apply_memory_citations(markdown: str, context: str) -> str:
     if not used:
         return markdown
 
-    appendix = ["", "---", "", f"## {SECTION_TITLE}", ""]
+    appendix = ["", f"## {SECTION_TITLE}", ""]
     for ref_id in used:
         ref = by_id[ref_id]
         kind = ref.kind or "历史片段"
@@ -402,78 +404,176 @@ def apply_memory_citations(markdown: str, context: str) -> str:
     return "\n".join(lines).rstrip() + "\n" + "\n".join(appendix).rstrip()
 
 
-def _parse_memory_sources(text: str) -> dict[str, str]:
-    if f"## {SECTION_TITLE}" not in text:
-        return {}
-    appendix = text.split(f"## {SECTION_TITLE}", 1)[1]
-    blocks = re.split(r'\n#### 溯源 ([^\n]+)\n', appendix)
-    out: dict[str, str] = {}
+_APPENDIX_SPLIT_RE = re.compile(
+    r"(?:\n-{3,}\s*)?##\s*" + re.escape(SECTION_TITLE) + r"\b"
+)
+_LINK_RE = re.compile(r"\[([^\]]+)\]\(#([^)]+)\)")
+_BLOCK_SPLIT_RE = re.compile(r"\n*####\s*溯源\s+([^\n]+)\n*")
+
+
+def _split_memory_doc(markdown: str) -> tuple[str, str]:
+    text = markdown or ""
+    match = _APPENDIX_SPLIT_RE.search(text)
+    if not match:
+        return text.strip(), ""
+    return text[: match.start()].rstrip(), text[match.end() :]
+
+
+def _parse_memory_sources(text: str) -> dict[str, dict[str, str]]:
+    _, appendix = _split_memory_doc(text)
+    if not appendix.strip():
+        if f"## {SECTION_TITLE}" in (text or ""):
+            appendix = text.split(f"## {SECTION_TITLE}", 1)[1]
+        else:
+            return {}
+    blocks = _BLOCK_SPLIT_RE.split(appendix)
+    out: dict[str, dict[str, str]] = {}
     for i in range(1, len(blocks), 2):
         ref_id = blocks[i].strip()
         body = blocks[i + 1] if i + 1 < len(blocks) else ""
         lines = [line.strip() for line in body.strip().splitlines() if line.strip()]
-        if not lines:
+        if not ref_id or not lines:
             continue
         title = ""
         meta = ""
         quote = ""
+        kind = ""
         for line in lines:
             if line.startswith(">"):
                 quote = line.lstrip("> ").strip()
             elif line.startswith("时间："):
                 meta = line
+                kind_m = re.search(r"类型：([^\s　]+)", line)
+                if kind_m:
+                    kind = kind_m.group(1)
             elif line.startswith("来源会议："):
                 title = line.removeprefix("来源会议：").strip()
             elif line.startswith("**来自："):
                 title = re.sub(r"^\*\*来自：|\*\*$", "", line).strip()
-        card = (
-            f'<div class="mem-card-title">{escape(quote or title)}</div>'
-            f'<div class="mem-card-meta">{escape(meta)}</div>'
-        )
-        if title and quote:
-            card += f'<div class="mem-card-source">{escape(title)}</div>'
-        out[ref_id] = card
+        out[ref_id] = {
+            "quote": quote,
+            "meta": meta,
+            "title": title,
+            "kind": kind or "历史片段",
+        }
     return out
 
 
+def _mark_line(line: str) -> tuple[str, list[str]]:
+    """把 Markdown 记忆链接变成高亮，其余转义，避免把 md 原文露出来。"""
+    parts: list[str] = []
+    ids: list[str] = []
+    pos = 0
+    for match in _LINK_RE.finditer(line):
+        parts.append(escape(line[pos : match.start()], quote=False))
+        ref_id = match.group(2).strip()
+        parts.append(
+            f'<mark class="mem-mark" data-mem="{escape(ref_id, quote=True)}">'
+            f"{escape(match.group(1), quote=False)}</mark>"
+        )
+        ids.append(ref_id)
+        pos = match.end()
+    parts.append(escape(line[pos:], quote=False))
+    return "".join(parts), ids
+
+
+def _memory_card_html(ref_id: str, info: dict[str, str]) -> str:
+    quote = info.get("quote") or ""
+    title = info.get("title") or ""
+    meta = info.get("meta") or ""
+    kind = info.get("kind") or "历史片段"
+    return (
+        f'<aside class="mem-card" id="card-{escape(ref_id, quote=True)}" '
+        f'data-mem="{escape(ref_id, quote=True)}">'
+        f'<div class="mem-card-kicker">{escape(kind, quote=False)}</div>'
+        f'<div class="mem-card-title">{escape(quote or title or ref_id, quote=False)}</div>'
+        + (f'<div class="mem-card-meta">{escape(meta, quote=False)}</div>' if meta else "")
+        + (
+            f'<div class="mem-card-source">{escape(title, quote=False)}</div>'
+            if title and quote
+            else ""
+        )
+        + "</aside>"
+    )
+
+
+_MEMORY_SCRIPT = """<script>
+(function () {
+  const root = document.querySelector('.memory-review');
+  if (!root) return;
+  const clear = () => {
+    root.querySelectorAll('.is-on').forEach((el) => el.classList.remove('is-on'));
+  };
+  const activate = (id) => {
+    if (!id) return;
+    clear();
+    root.querySelectorAll('[data-mem="' + id + '"]').forEach((el) => el.classList.add('is-on'));
+    const card = root.querySelector('.mem-card[data-mem="' + id + '"]');
+    if (card) card.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+  };
+  root.addEventListener('click', (ev) => {
+    const hit = ev.target.closest('[data-mem]');
+    if (!hit) { clear(); return; }
+    activate(hit.getAttribute('data-mem') || '');
+  });
+})();
+</script>"""
+
+
 def memory_review_html(markdown: str) -> str:
-    """Render memory-linked Markdown into a left-text/right-source review view."""
+    """把带记忆链接的纪要渲成左正文高亮 / 右记忆批注（Word 审阅栏）。
+
+    只渲染已有 Markdown（``[原文片段](#memory-N)`` + 文末历史记忆引用），不改生成。
+    """
     text = markdown or ""
     if "](#" not in text:
         return ""
-    main = text.split(f"\n---\n\n## {SECTION_TITLE}", 1)[0]
+    main, _appendix = _split_memory_doc(text)
     sources = _parse_memory_sources(text)
-    rows: list[str] = ['<div class="memory-review">']
-    link_re = re.compile(r"\[([^\]]+)\]\(#([^)]+)\)")
+    rows: list[str] = [
+        '<div class="memory-shell">',
+        '<p class="memory-legend">黄色高亮为命中的历史记忆，点击可对照右侧批注。</p>',
+        '<div class="memory-review">',
+        '<div class="review-head-row">',
+        '<div class="review-left">本次纪要</div>',
+        '<div class="review-rule"></div>',
+        '<div class="review-right">记忆批注</div>',
+        "</div>",
+    ]
     for raw in main.splitlines():
         line = raw.strip()
         if not line:
             continue
-        ids = link_re.findall(line)
-        cleaned = link_re.sub(
-            lambda m: f'<span class="mem-mark">{m.group(1)}</span>', line
-        )
-        if line.startswith("#"):
-            rows.append(f'<div class="review-heading">{escape(line.lstrip("# ").strip())}</div>')
+        hashes = len(line) - len(line.lstrip("#"))
+        if hashes and line.lstrip("#")[:1].isspace():
+            title = _mark_line(line.lstrip("# ").strip())[0]
+            rows.append(f'<div class="review-heading">{title}</div>')
             continue
-        cards = []
+        cleaned, ids = _mark_line(line)
+        cards: list[str] = []
         seen: set[str] = set()
-        for _, ref_id in ids:
+        for ref_id in ids:
             if ref_id in seen:
                 continue
             seen.add(ref_id)
-            if ref_id in sources:
-                cards.append(f'<a class="mem-card" href="#{ref_id}">{sources[ref_id]}</a>')
-        if not cards:
-            cards.append('<div class="mem-empty"></div>')
+            info = sources.get(ref_id) or {
+                "quote": "",
+                "meta": "",
+                "title": "",
+                "kind": "历史片段",
+            }
+            cards.append(_memory_card_html(ref_id, info))
+        right = "".join(cards) if cards else ""
+        row_cls = "review-row has-mem" if cards else "review-row"
         rows.append(
-            '<div class="review-row">'
+            f'<div class="{row_cls}">'
             f'<div class="review-left">{cleaned}</div>'
             '<div class="review-rule"></div>'
-            f'<div class="review-right">{"".join(cards)}</div>'
-            '</div>'
+            f'<div class="review-right">{right}</div>'
+            "</div>"
         )
-    rows.append("</div>")
+    rows.append("</div></div>")
+    rows.append(_MEMORY_SCRIPT)
     return "\n".join(rows)
 
 

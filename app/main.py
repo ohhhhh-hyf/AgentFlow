@@ -13,8 +13,10 @@ PROJECT_ROOT = Path(__file__).resolve().parents[1]
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
-from fastapi import FastAPI, Request  # noqa: E402
-from fastapi.responses import JSONResponse  # noqa: E402
+from typing import Optional  # noqa: E402
+
+from fastapi import FastAPI, Header, Request  # noqa: E402
+from fastapi.responses import HTMLResponse, JSONResponse  # noqa: E402
 from fastapi.staticfiles import StaticFiles  # noqa: E402
 
 from .config import load_env  # noqa: E402
@@ -29,10 +31,74 @@ app = FastAPI(title="AgentFlow API", version="1.0.0")
 app.include_router(meeting.router)
 app.include_router(notes.router)
 
+
+@app.get("/api/v1/files", tags=["system"])
+async def list_input_files(
+    user_id: str = "",
+    subject: str = "",
+    x_user_id: Optional[str] = Header(default=None, alias="X-User-Id"),
+) -> JSONResponse:
+    """调试台用：列出 data/{user_id}/docs/ 可引用文件。"""
+    from .outputs import list_user_input_files
+
+    uid = (x_user_id or user_id or "").strip()
+    if not uid:
+        return JSONResponse(
+            status_code=400,
+            content={"detail": "缺少 X-User-Id（按用户列出 data/{user_id}/docs/）"},
+        )
+    payload = list_user_input_files(uid, subject)
+    logger.info(
+        "列出输入文件 user=%s docs=%s from %s",
+        uid,
+        len(payload.get("docs") or []),
+        payload.get("docs_dir") or "",
+    )
+    return JSONResponse(content=payload)
+
+
 # html 产物预览（可选）：data/{user_id}/output/{request_id}/{task}.html
 _data_dir = PROJECT_ROOT / "data"
 if _data_dir.is_dir():
     app.mount("/data", StaticFiles(directory=str(_data_dir)), name="data")
+
+# 简易接口调试前端（可选）：front/ 目录存在时挂载，访问 /front/ 打开
+_front_dir = PROJECT_ROOT / "front"
+if _front_dir.is_dir():
+    app.mount("/front", StaticFiles(directory=str(_front_dir), html=True), name="front")
+
+# 样例文件只读挂载（调试台"从文件加载"用）：samples/meeting/file、samples/notes/file
+_samples_dir = PROJECT_ROOT / "samples"
+if _samples_dir.is_dir():
+    app.mount("/samples", StaticFiles(directory=str(_samples_dir)), name="samples")
+
+# 请求日志缓冲（调试台展示用）：挂 root logger，按 request_id 收集
+from .logs import install as _install_logs  # noqa: E402
+
+_install_logs()
+
+
+@app.get("/", include_in_schema=False)
+async def _index() -> HTMLResponse:
+    """根路径直接打开接口调试台（front/index.html）。"""
+    index_file = _front_dir / "index.html"
+    if index_file.is_file():
+        return HTMLResponse(index_file.read_text(encoding="utf-8"))
+    return JSONResponse(content={"detail": "front 目录不存在"}, status_code=404)
+
+
+@app.get("/api/v1/logs", tags=["system"])
+async def request_logs(
+    request_id: str,
+    after: float = 0.0,
+) -> JSONResponse:
+    """调试台用：拉取某次请求（X-Request-Id）的后端运行日志。
+
+    after 为起始 epoch 秒（前端提交时刻），只返回该窗口内的日志。
+    """
+    from .logs import logs_for
+
+    return JSONResponse(content={"logs": logs_for(request_id, after=after)})
 
 
 @app.exception_handler(ApiError)

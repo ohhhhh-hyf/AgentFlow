@@ -35,6 +35,7 @@ from tools.domain_engine import (
     line_draft_title as _engine_line_draft_title,
 )
 from tools.runtime.kinds import resolve_line_policies
+from tools.runtime.progress import progress
 from tools.runtime.supervisor_slice import compact_draft_for_review
 
 # ── Report import 生成区：由 tools/scripts/sync_domain.py 生成，勿手改 ──
@@ -326,6 +327,7 @@ class _Nodes(DomainNodes):
         cn = _line_cn(line_name)
 
         async def node(state: dict) -> dict:
+            progress("正在处理：%s生成 Agent", cn)
             agent = getattr(self, cfg["agent_attr"])
             context = self._line_shared_context(state, line_name)
             extra = (state.get("line_extra") or {}).get(line_name)
@@ -350,6 +352,7 @@ class _Nodes(DomainNodes):
                     },
                     "quality_degraded": True,
                 }
+            progress("完成：%s生成 Agent", cn)
             return {
                 "lines": {
                     line_name: {
@@ -463,6 +466,7 @@ class _Nodes(DomainNodes):
 
     async def _notes_understanding_node(self, state) -> dict:
         """notes理解：提取主题、结构、术语和待澄清问题。"""
+        progress("正在处理：笔记理解 Agent")
         try:
             result = await self.notes_understanding_agent.run(state["transcript"])
         except Exception:
@@ -471,6 +475,7 @@ class _Nodes(DomainNodes):
                 "notes_understanding": _EMPTY_NOTES_UNDERSTANDING,
                 "quality_degraded": True,
             }
+        progress("完成：笔记理解 Agent")
         return {"notes_understanding": result.model_dump()}
 
 class NotesAgentSystem(_Nodes):

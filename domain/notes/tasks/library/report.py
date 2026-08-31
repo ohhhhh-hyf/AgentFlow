@@ -1,6 +1,7 @@
 """资料入库：多文件写入指定知识库，并给出知识增量。"""
 from __future__ import annotations
 
+import logging
 import os
 import re
 from concurrent.futures import ThreadPoolExecutor
@@ -9,6 +10,8 @@ from typing import Any
 
 from tools.knowledge.document_processor import SUPPORTED_EXTS
 from tools.knowledge.tool import KnowledgeTool
+
+logger = logging.getLogger("agentflow")
 
 _FILE_MARK = "【入库文件】"
 _UNIT_CAP = 12
@@ -96,7 +99,9 @@ def _ocr_images_to_library_markdown(
 ) -> Path | None:
     if not images:
         return None
+    from tools.ocr.engines import ocr_engine_label
     from tools.ocr.levels.light import (
+        OCR_PARALLEL,
         iter_ocr_review_pipeline,
         next_batch_version_stem,
         save_light_ocr_outputs,
@@ -107,26 +112,29 @@ def _ocr_images_to_library_markdown(
     reviewed_blocks: list[str] = []
     raw_blocks: list[str] = []
     total = len(entries)
-    print(f"[资料入库] 图片 OCR 开始：共 {total} 张。", flush=True)
+
+    engine = ocr_engine_label()
+    lanes = min(OCR_PARALLEL, total)
+
+    def _ocr_log(msg: str) -> None:
+        print(msg, flush=True)
+        logger.info(msg)
+
+    _ocr_log(f"[OCR] 引擎 {engine}，共 {total} 张，{lanes} 路并行")
     for event in iter_ocr_review_pipeline(entries):
         kind = event.get("type")
         lo = event.get("lo")
         hi = event.get("hi")
+        done = event.get("done")
+        name = event.get("name") or ""
         if kind == "ocr_start":
-            print(
-                f"[资料入库] 正在识别第 {lo}-{hi} 张（共 {total} 张）…",
-                flush=True,
-            )
+            workers = event.get("workers") or (int(hi or 0) - int(lo or 0) + 1)
+            _ocr_log(f"[OCR] 开始第 {lo}-{hi} 张（{workers} 路）")
+        elif kind == "ocr_item":
+            _ocr_log(f"[OCR] {done}/{total} 完成 {name}")
         elif kind == "ocr_fail":
-            print(
-                f"[资料入库] {event.get('name')} 识别失败（{event.get('error')}），已跳过。",
-                flush=True,
-            )
-        elif kind == "review_start":
-            print(
-                f"[资料入库] 正在审校整理第 {lo}-{hi} 张 Markdown…",
-                flush=True,
-            )
+            err = str(event.get("error") or "失败").split(":")[0]
+            _ocr_log(f"[OCR] {done}/{total} 失败 {name}（{err}）")
         elif kind == "batch_done":
             reviewed = str(event.get("reviewed") or "").strip()
             raw = str(event.get("raw") or "").strip()
@@ -134,10 +142,7 @@ def _ocr_images_to_library_markdown(
                 reviewed_blocks.append(reviewed)
             if raw:
                 raw_blocks.append(raw)
-            print(
-                f"[资料入库] 第 {lo}-{hi} 张整理完成。",
-                flush=True,
-            )
+            _ocr_log(f"[OCR] 第 {lo}-{hi} 张整理完成")
     stem = next_batch_version_stem(user_id, subject, project_root)
     saved = save_light_ocr_outputs(
         Path(stem),
@@ -147,7 +152,7 @@ def _ocr_images_to_library_markdown(
         subject=subject,
         project_root=project_root,
     )
-    print(f"[资料入库] 图片 OCR 处理完成，已合并为 Markdown：{saved.reviewed_path}", flush=True)
+    _ocr_log(f"[OCR] 全部完成 → {saved.reviewed_path.name}")
     return saved.reviewed_path
 
 
@@ -280,6 +285,7 @@ def ingest_library(
 
     def add_one(path: Path) -> None:
         print(f"[资料入库] 非图片/Markdown 入库：{path.name}", flush=True)
+        logger.info("[资料入库] 非图片/Markdown 入库：%s", path.name)
         stat = kb.add_file(str(path), user_id=user_id, subject=subject)
         files.append(
             {

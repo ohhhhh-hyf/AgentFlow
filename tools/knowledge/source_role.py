@@ -44,10 +44,17 @@ _GENERIC_HEAD_RE = re.compile(
 )
 
 
+def is_ocr_notes_file(filename: str) -> bool:
+    """OCR 入库产物（ocr_时间戳.md）一律按学生笔记，不看正文里有没有「笔记」二字。"""
+    stem = Path(filename or "").stem.lower()
+    return stem.startswith("ocr_")
+
+
 def classify_source_role(filename: str, text: str = "") -> str:
     """推断来源角色：文件名强信号优先，内容其次，格式兜底。
 
     文件名含 note/笔记 → 笔记；含 teacher/划重点/focus → 老师。
+    OCR 导出的 ``ocr_*.md`` 视为学生笔记。
     避免学生笔记里出现「必考/重点」等词就被整体误判成老师文本。
     """
     name = Path(filename or "").name.lower()
@@ -57,7 +64,7 @@ def classify_source_role(filename: str, text: str = "") -> str:
     sample = str(text or "")[:4000]
     if any(mark in blob for mark in _TEACHER_MARKS):
         return ROLE_TEACHER
-    if any(mark in blob for mark in _NOTES_MARKS):
+    if any(mark in blob for mark in _NOTES_MARKS) or is_ocr_notes_file(filename):
         return ROLE_NOTES
     if _TEACHER_RE.search(sample):
         return ROLE_TEACHER

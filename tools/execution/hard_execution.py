@@ -2,9 +2,9 @@
 
 三类机制（通用、不绑定具体栏目业务名）：
 
-1. **上游硬对齐**：把 LLM 草稿中的「搬运类」字段强制改写为上游列表副本  
-2. **结构硬约束**：表格粘连修复、按模板「约 N 行」截断、空表占位  
-3. **验收门禁**：结构校验 + 模板评测；硬伤标记 gate_ok=False  
+1. **上游硬对齐**：把 LLM 草稿中的「搬运类」字段强制改写为上游列表副本
+2. **结构硬约束**：表格粘连修复、按模板「约 N 行」截断、空表占位
+3. **验收门禁**：结构校验 + 模板评测；硬伤标记 gate_ok=False
 
 业务字段名仅出现在「配置映射」中（如纪要搬运字段 ↔ understanding 字段），
 新增 domain 时可复用同一套函数并传入映射。
@@ -28,6 +28,7 @@ logger = logging.getLogger(__name__)
 # 硬伤：验收门禁失败（仍可落盘 JSON，但默认不落「通过」的 result.md）
 HARD_ISSUE_MARKERS = (
     "残留占位符",
+    "表格占位数据行未替换",
     "固定文字丢失",
     "输出为空",
     "缺少对应表",
@@ -303,6 +304,47 @@ def apply_table_row_limits(text: str, template: str) -> tuple[str, list[str]]:
     return "".join(lines), notes
 
 
+def clean_template_render_text(text: str) -> tuple[str, list[str]]:
+    """Clean harmless template-render artifacts without changing factual content."""
+    if not text:
+        return "", []
+    notes: list[str] = []
+    lines = (text or "").splitlines()
+    cleaned: list[str] = []
+    removed_slash = False
+    removed_dup = False
+    i = 0
+    while i < len(lines):
+        line = lines[i].rstrip()
+        if line.strip() == "\\":
+            removed_slash = True
+            i += 1
+            continue
+        m = re.match(r"^(#{1,6})\s+(.+?)\s*$", line)
+        if m:
+            heading_text = re.sub(r"\s+", "", m.group(2))
+            j = i + 1
+            while j < len(lines) and (
+                not lines[j].strip() or lines[j].strip() == "\\"
+            ):
+                j += 1
+            if (
+                j < len(lines)
+                and len(heading_text) >= 24
+                and re.sub(r"\s+", "", lines[j].strip()) == heading_text
+            ):
+                removed_dup = True
+                i += 1
+                continue
+        cleaned.append(line)
+        i += 1
+    if removed_slash:
+        notes.append("已清理模板输出中的单独反斜杠行")
+    if removed_dup:
+        notes.append("已清理标题占位误填导致的相邻重复段落")
+    return "\n".join(cleaned).strip(), notes
+
+
 def classify_issues(issues: list[str]) -> tuple[list[str], list[str]]:
     """拆成 (hard, soft)。"""
     hard: list[str] = []
@@ -339,6 +381,9 @@ def enforce_render_output(
     text = fix_glued_table_rows(output)
     if text != output:
         notes.append("已修复表格行粘连（||）")
+    text2, cnotes = clean_template_render_text(text)
+    text = text2
+    notes.extend(cnotes)
 
     # 剔除误包的外层代码围栏 + 字数元说明
     try:

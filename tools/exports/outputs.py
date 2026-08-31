@@ -25,6 +25,104 @@ from tools.runtime_context import DomainContext
 logger = logging.getLogger(__name__)
 
 
+# ── 轻量 Markdown → HTML（产物页面用，无外部依赖）──────────────
+
+def md_to_html(text: str) -> str:
+    """把 Markdown 文本渲染成 HTML（标题/表格/列表/粗体/斜体/链接/行内代码/引用）。
+
+    先转义再结构化，防注入；仅覆盖产物页面常用语法。
+    """
+    import html as _html
+    import re as _re
+
+    lines = str(text or "").replace("\r\n", "\n").replace("\r", "\n").split("\n")
+    out: list[str] = []
+    list_buf: list[str] = []
+    ol_buf: list[str] = []
+
+    def flush_ul() -> None:
+        if list_buf:
+            out.append("<ul>" + "".join(f"<li>{x}</li>" for x in list_buf) + "</ul>")
+            list_buf.clear()
+
+    def flush_ol() -> None:
+        if ol_buf:
+            out.append("<ol>" + "".join(f"<li>{x}</li>" for x in ol_buf) + "</ol>")
+            ol_buf.clear()
+
+    def flush_list() -> None:
+        flush_ul()
+        flush_ol()
+
+    def inline(s: str) -> str:
+        esc = _html.escape(s)
+        esc = _re.sub(r"\[([^\]]+)\]\(([^)]+)\)", r'<a href="\2">\1</a>', esc)
+        esc = _re.sub(r"\*\*(.+?)\*\*", r"<strong>\1</strong>", esc)
+        esc = _re.sub(r"(?<!\*)\*(?!\*)(.+?)(?<!\*)\*(?!\*)", r"<em>\1</em>", esc)
+        esc = _re.sub(r"`([^`]+)`", r"<code>\1</code>", esc)
+        return esc
+
+    i = 0
+    while i < len(lines):
+        line = lines[i]
+        m = _re.match(r"^(#{1,6})\s+(.*)$", line)
+        if m:
+            flush_list()
+            level = min(len(m.group(1)), 6)
+            out.append(f"<h{level}>{inline(m.group(2))}</h{level}>")
+            i += 1
+            continue
+        if _re.match(r"^\s*\|.*\|\s*$", line):
+            flush_list()
+            rows = []
+            while i < len(lines) and _re.match(r"^\s*\|.*\|\s*$", lines[i]):
+                rows.append([c.strip() for c in lines[i].split("|")[1:-1]])
+                i += 1
+            if rows:
+                head = rows[0]
+                body_rows = [
+                    r for r in rows[1:]
+                    if not all(_re.fullmatch(r":?-+:?", c) for c in r)
+                ]
+                out.append(
+                    "<table><thead><tr>"
+                    + "".join(f"<th>{inline(c)}</th>" for c in head)
+                    + "</tr></thead><tbody>"
+                    + "".join(
+                        "<tr>" + "".join(f"<td>{inline(c)}</td>" for c in r) + "</tr>"
+                        for r in body_rows
+                    )
+                    + "</tbody></table>"
+                )
+            continue
+        if _re.match(r"^\s*[-*]\s+", line):
+            flush_ol()
+            list_buf.append(inline(_re.sub(r"^\s*[-*]\s+", "", line)))
+            i += 1
+            continue
+        if _re.match(r"^\s*\d+[.)、]\s+", line):
+            flush_ul()
+            ol_buf.append(inline(_re.sub(r"^\s*\d+[.)、]\s+", "", line)))
+            i += 1
+            continue
+        if _re.match(r"^\s*>\s?", line):
+            flush_list()
+            quote = _re.sub(r"^\s*>\s?", "", line)
+            out.append(f"<blockquote>{inline(quote)}</blockquote>")
+            i += 1
+            continue
+        if not line.strip():
+            flush_list()
+            out.append("<br>")
+            i += 1
+            continue
+        flush_list()
+        out.append(f"<p>{inline(line)}</p>")
+        i += 1
+    flush_list()
+    return "".join(out)
+
+
 # ── 报告类任务落盘 ─────────────────────────────────────────────
 
 def task_output_dir(ctx: DomainContext, line_name: str) -> Path:
@@ -83,19 +181,38 @@ def _html_document(title: str, body: str) -> str:
   <title>{title}</title>
   <style>
     body {{ margin: 0; padding: 24px; background: #f0eee9; color: #1c1b19; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }}
-    .page {{ max-width: 1100px; margin: 0 auto; }}
+    .page {{ max-width: 1180px; margin: 0 auto; }}
+    .plain {{ padding: 18px 20px; background: #fff; border: 1px solid #d4d0c6; border-radius: 8px; line-height: 1.7; word-break: break-word; }}
+    .plain h1, .plain h2, .plain h3, .plain h4 {{ margin: 18px 0 8px; line-height: 1.35; }}
+    .plain h1 {{ font-size: 1.5rem; }} .plain h2 {{ font-size: 1.25rem; }}
+    .plain h3 {{ font-size: 1.08rem; }} .plain h4 {{ font-size: 1rem; }}
+    .plain table {{ border-collapse: collapse; margin: 10px 0; width: 100%; background: #fff; }}
+    .plain th, .plain td {{ border: 1px solid #d8d4ca; padding: 7px 10px; font-size: 0.92rem; }}
+    .plain th {{ background: #f4f1ea; font-weight: 650; }}
+    .plain code {{ background: #efece4; border-radius: 4px; padding: 1px 5px; font-size: 0.88em; }}
+    .plain blockquote {{ margin: 8px 0; padding: 6px 12px; border-left: 3px solid #c8c4b8; color: #4a4842; background: #faf9f6; }}
+    .plain ul {{ margin: 6px 0; padding-left: 1.4em; }}
+    .memory-shell {{ }}
+    .memory-legend {{ margin: 0 0 10px; font-size: 0.82rem; color: #6b6860; }}
     .memory-review {{ display: flex; flex-direction: column; border: 1px solid #d4d0c6; background: #fff; border-radius: 8px; overflow: hidden; }}
-    .review-heading {{ padding: 12px 16px 8px; font-weight: 650; background: #faf9f6; border-bottom: 1px solid #ebe8e1; }}
-    .review-row {{ display: grid; grid-template-columns: minmax(0, 1fr) 1px minmax(230px, 32%); border-bottom: 1px solid #ebe8e1; }}
+    .review-heading {{ padding: 14px 16px; font-weight: 700; font-size: 1.15rem; background: #faf9f6; border-bottom: 1px solid #ebe8e1; }}
+    .review-head-row, .review-row {{ display: grid; grid-template-columns: minmax(0, 1.4fr) 1px minmax(260px, 34%); }}
+    .review-head-row {{ background: #f3f0e8; border-bottom: 1px solid #e2ddd3; font-size: 0.78rem; font-weight: 700; letter-spacing: 0.04em; color: #6b6860; text-transform: none; }}
+    .review-head-row .review-left, .review-head-row .review-right {{ padding: 8px 14px; }}
+    .review-row {{ border-bottom: 1px solid #ebe8e1; align-items: stretch; }}
     .review-row:last-child {{ border-bottom: none; }}
-    .review-left {{ padding: 11px 14px; line-height: 1.65; word-break: break-word; }}
-    .review-rule {{ background: #c8c4b8; }}
-    .review-right {{ padding: 9px 10px; background: #faf9f6; }}
-    .mem-mark {{ text-decoration: underline; text-decoration-thickness: 1.5px; text-underline-offset: 3px; background: #fff6c7; }}
-    .mem-card {{ display: block; padding: 9px 10px; border-left: 3px solid #6b6860; background: #fff; color: #1c1b19; text-decoration: none; border-radius: 4px; }}
+    .review-row.has-mem {{ background: #fffdf5; }}
+    .review-left {{ padding: 12px 16px; line-height: 1.75; word-break: break-word; }}
+    .review-rule {{ background: #ddd8cc; }}
+    .review-right {{ padding: 10px 12px; background: #f7f5f0; }}
+    .mem-mark {{ background: #fff189; border-bottom: 2px solid #e0b400; padding: 0 2px; cursor: pointer; font-style: normal; }}
+    .mem-mark.is-on {{ background: #ffd54a; box-shadow: 0 0 0 2px rgba(224,180,0,0.25); }}
+    .mem-card {{ display: block; padding: 10px 11px; border-left: 3px solid #c9a227; background: #fffef8; color: #1c1b19; border-radius: 4px; box-shadow: 0 1px 2px rgba(0,0,0,0.04); }}
     .mem-card + .mem-card {{ margin-top: 8px; }}
-    .mem-card-title {{ font-size: 0.9rem; font-weight: 650; line-height: 1.4; margin-bottom: 6px; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }}
-    .mem-card-meta {{ font-size: 0.78rem; color: #6b6860; line-height: 1.35; margin-bottom: 4px; }}
+    .mem-card.is-on {{ border-left-color: #9a6b00; box-shadow: 0 0 0 2px rgba(201,162,39,0.35); }}
+    .mem-card-kicker {{ font-size: 0.7rem; font-weight: 700; color: #9a6b00; letter-spacing: 0.06em; margin-bottom: 4px; }}
+    .mem-card-title {{ font-size: 0.88rem; font-weight: 650; line-height: 1.45; margin-bottom: 6px; }}
+    .mem-card-meta {{ font-size: 0.76rem; color: #6b6860; line-height: 1.4; margin-bottom: 4px; }}
     .mem-card-source {{ font-size: 0.74rem; color: #9a968c; line-height: 1.35; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }}
     .review-analysis {{ font-size: 0.8rem; color: #3a3832; line-height: 1.5; margin-top: 4px; white-space: pre-wrap; }}
     .review-fix {{ font-size: 0.78rem; color: #6b6860; line-height: 1.45; margin-top: 4px; }}
@@ -145,7 +262,6 @@ def _html_document(title: str, body: str) -> str:
     .library-verdict button.is-on {{ background: #2c2a26; color: #faf9f6; border-color: #2c2a26; }}
     .library-picked {{ min-height: 1.2em; font-size: 0.8rem; color: #6b6860; margin: 8px 0 0; }}
     .library-peace {{ color: #6b6860; }}
-    .plain {{ padding: 18px 20px; background: #fff; border: 1px solid #d4d0c6; border-radius: 8px; line-height: 1.65; white-space: pre-wrap; }}
     @media (max-width: 820px) {{ .review-row {{ grid-template-columns: 1fr; }} .review-rule {{ height: 1px; }} }}
   </style>
 </head>
@@ -186,14 +302,19 @@ def save_report_artifacts(
     if not text:
         return paths
 
+    # has_template：仅当显式走过门禁（True/False）时视为有模板约束
+    has_template = gate_ok is not None
     # 视角标题（如有）作为 H1 前缀；正文已自带 # 标题时不再重复叠加
     title = str(data.get("title") or "").strip()
     if title and not text.lstrip().startswith("# "):
         text = f"# {title}\n\n{text}"
-    html_title = title or ctx.line_cn_names.get(line_name, line_name)
+    if line_name in {"minutes", "minutes_trace"} and not has_template:
+        from domain.meeting.tasks.minutes.steps.minutes_render import (
+            compact_untemplated_minutes,
+        )
 
-    # has_template：仅当显式走过门禁（True/False）时视为有模板约束
-    has_template = gate_ok is not None
+        text = compact_untemplated_minutes(text)
+    html_title = title or ctx.line_cn_names.get(line_name, line_name)
     if should_write_result_md(gate_ok, has_template=has_template):
         # library / graph 只输出 text（API 响应携带），不落盘 md/html；
         # graph 的交互 HTML 由 export_graph 单独落盘（见 runner）
@@ -233,12 +354,7 @@ def save_report_artifacts(
                 from tools.memory.citations import memory_review_html
 
                 review = memory_review_html(text)
-                if review:
-                    body = review
-                else:
-                    import html
-
-                    body = f'<div class="plain">{html.escape(text)}</div>'
+                body = review if review else f'<div class="plain">{md_to_html(text)}</div>'
                 html_path = out_dir / f"{line_name}.html"
                 html_path.write_text(
                     _html_document(html_title, body),
