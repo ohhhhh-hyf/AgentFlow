@@ -47,7 +47,7 @@ def ocr_engine_label() -> str:
 
 
 def ocr_concurrency() -> int:
-    """当前引擎实际可并行路数（Paddle GPU=1，CPU 默认 4）。"""
+    """当前引擎实际可并行路数；Paddle 由实例池大小决定，默认 4 路。"""
     label = ocr_engine_label()
     if label == "paddleocr":
         from tools.ocr.paddle_ocr import paddle_concurrency

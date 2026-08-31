@@ -148,14 +148,20 @@ def log_ocr_pipeline_event(event: dict, *, total: int, engine: str) -> None:
         workers = event.get("workers") or (int(hi or 0) - int(lo or 0) + 1)
         ocr_log(f"{tag} 开始第 {lo}-{hi} 张（{workers} 路）")
     elif kind == "ocr_item":
-        done_abs = int(lo or 1) + int(done or 0) - 1
-        ocr_log(f"{tag} {done_abs}/{total} 完成 {name}")
+        page = event.get("page")
+        page_abs = int(page) if page else int(lo or 1) + int(done or 0) - 1
+        chunk = event.get("chunk")
+        batch_note = f"（本组 {done}/{chunk}）" if done and chunk else ""
+        ocr_log(f"{tag} 第 {page_abs}/{total} 张完成 {name}{batch_note}")
     elif kind == "ocr_fail":
         err = str(event.get("error") or "失败").split(":")[0]
-        done_abs = int(lo or 1) + int(done or 0) - 1
-        ocr_log(f"{tag} {done_abs}/{total} 失败 {name}（{err}）")
+        page = event.get("page")
+        page_abs = int(page) if page else int(lo or 1) + int(done or 0) - 1
+        chunk = event.get("chunk")
+        batch_note = f"（本组 {done}/{chunk}）" if done and chunk else ""
+        ocr_log(f"{tag} 第 {page_abs}/{total} 张失败 {name}（{err}）{batch_note}")
     elif kind == "review_start":
-        ocr_log(f"{tag} 第 {lo}-{hi} 张整理中")
+        ocr_log(f"{tag} 第 {lo}-{hi} 张按原顺序整理中")
     elif kind == "batch_done":
         ocr_log(f"{tag} 第 {lo}-{hi} 张整理完成")
 
@@ -356,9 +362,15 @@ def _empty_ocr_page(name: str) -> dict:
     return {"name": name, "raw_text": "（OCR 未识别到文字）", "lines": []}
 
 
-def _submit_ocr_chunk(pool: ThreadPoolExecutor, chunk: list[tuple], ocr_fn: Callable):
+def _submit_ocr_chunk(
+    pool: ThreadPoolExecutor,
+    chunk: list[tuple],
+    ocr_fn: Callable,
+    *,
+    first_page: int = 1,
+):
     return {
-        pool.submit(ocr_fn, path): (idx, name)
+        pool.submit(ocr_fn, path): (idx, first_page + idx, name)
         for idx, (path, name) in enumerate(chunk)
     }
 
@@ -381,13 +393,14 @@ def _drain_ocr_futures(
         now = time.monotonic()
         for future in [item for item in pending if now - started[item] >= item_timeout]:
             pending.discard(future)
-            idx, name = futures[future]
+            idx, page_no, name = futures[future]
             pages[idx] = _empty_ocr_page(name)
             done += 1
             yield {
                 "type": "ocr_fail",
                 "lo": lo,
                 "hi": hi,
+                "page": page_no,
                 "done": done,
                 "chunk": len(futures),
                 "name": name,
@@ -405,7 +418,7 @@ def _drain_ocr_futures(
             }
             continue
         for future in finished:
-            idx, name = futures[future]
+            idx, page_no, name = futures[future]
             try:
                 raw_text, lines = future.result()
             except Exception as exc:  # noqa: BLE001
@@ -415,6 +428,7 @@ def _drain_ocr_futures(
                     "type": "ocr_fail",
                     "lo": lo,
                     "hi": hi,
+                    "page": page_no,
                     "done": done,
                     "chunk": len(futures),
                     "name": name,
@@ -432,11 +446,13 @@ def _drain_ocr_futures(
                 "type": "ocr_item",
                 "lo": lo,
                 "hi": hi,
+                "page": page_no,
                 "done": done,
                 "chunk": len(futures),
                 "name": name,
                 "total": total,
             }
+    # OCR futures can finish out of order; this list restores the original page order for review.
     return [item for item in pages if item]
 
 
@@ -471,15 +487,16 @@ def iter_ocr_review_pipeline(
             ocr_log(f"[OCR/paddleocr] 预热 {ocr_workers} 路引擎（线程绑定）")
             warmup_engines()
         for lo, hi, chunk in chunks:
+            chunk_workers = min(ocr_workers, len(chunk))
             yield {
                 "type": "ocr_start",
                 "lo": lo,
                 "hi": hi,
-                "workers": ocr_workers,
+                "workers": chunk_workers,
                 "total": total,
             }
             pages = yield from _drain_ocr_futures(
-                _submit_ocr_chunk(ocr_pool, chunk, ocr_fn),
+                _submit_ocr_chunk(ocr_pool, chunk, ocr_fn, first_page=lo),
                 lo=lo,
                 hi=hi,
                 total=total,

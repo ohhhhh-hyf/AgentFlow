@@ -38,13 +38,12 @@ def _device() -> str:
 
 
 def paddle_concurrency() -> int:
-    """CPU 上 4 路各绑一台引擎；GPU 上 Paddle 基本只能串行，强制 1 路。"""
+    """PaddleOCR worker count. Each worker owns one thread-bound OCR instance."""
     device = _device().lower()
-    if device.startswith("gpu") or device.startswith("cuda"):
-        return 1
     raw = os.getenv("PADDLE_OCR_POOL_SIZE", "4").strip() or "4"
+    cap = 4 if device.startswith(("gpu", "cuda")) else 8
     try:
-        return max(1, min(8, int(raw)))
+        return max(1, min(cap, int(raw)))
     except ValueError:
         return 4
 
@@ -388,7 +387,7 @@ def _thread_engine():
         if _CREATED >= n:
             raise RuntimeError(
                 f"PaddleOCR 并发超过 {n} 路（device={_device()}）。"
-                "CPU 用 PADDLE_OCR_POOL_SIZE，GPU 固定 1 路。"
+                "请用 PADDLE_OCR_POOL_SIZE 调整实例数；显存紧张时降到 2 或 1。"
             )
         idx = _CREATED + 1
         logger.info("PaddleOCR 初始化引擎 %s/%s（device=%s，线程绑定）", idx, n, _device())
