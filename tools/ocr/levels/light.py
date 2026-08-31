@@ -230,16 +230,51 @@ def ocr_image_to_lines(image_path: str | Path) -> tuple[str, list[dict]]:
     return raw_text, lines
 
 
+def _mark_cross_page_boilerplate(lines: list[dict]) -> None:
+    """跨页重复检测：同一短行文本出现在 ≥2 页 → 页眉页脚特征，标 boilerplate。
+
+    页眉页脚/页码行在每页重复；正文内容很少整行逐字重复（引用除外，长度限制降低误伤）。
+    """
+    from collections import Counter
+
+    page_of: dict[int, str] = {}
+    texts: list[tuple[str, int]] = []
+    for idx, item in enumerate(lines):
+        text = str(item.get("text") or "").strip()
+        if not text or len(text) > 60:
+            continue
+        page_of[idx] = str(item.get("_page") or "")
+        texts.append((text, idx))
+    counter = Counter(t for t, _ in texts)
+    repeated_pages: dict[str, set] = {}
+    for text, idx in texts:
+        if counter[text] < 2:
+            continue
+        repeated_pages.setdefault(text, set()).add(page_of[idx])
+    for text, pages in repeated_pages.items():
+        if len(pages) >= 2 and str(item_role(lines, text)) != "formula":
+            for idx in (i for t, i in texts if t == text):
+                lines[idx]["role_hint"] = "boilerplate"
+
+
+def item_role(lines: list[dict], text: str) -> str:
+    for item in lines:
+        if str(item.get("text") or "").strip() == text:
+            return str(item.get("role_hint") or "")
+    return ""
+
+
 def concat_page_lines(pages: list[dict]) -> list[dict]:
     """按上传顺序拼接各页 OCR 行，并把 y 错开，避免后页顶坐标看起来像页首。"""
     combined: list[dict] = []
     y_offset = 0.0
-    for page in pages:
+    for page_index, page in enumerate(pages):
         page_bottom = y_offset
         for item in page.get("lines") or []:
             if not isinstance(item, dict):
                 continue
             line = dict(item)
+            line["_page"] = str(page_index)
             bbox = line.get("bbox")
             if bbox:
                 shifted = []
@@ -258,6 +293,7 @@ def concat_page_lines(pages: list[dict]) -> list[dict]:
                     pass
             combined.append(line)
         y_offset = max(y_offset + 80.0, page_bottom + 80.0)
+    _mark_cross_page_boilerplate(combined)
     return combined
 
 
@@ -312,13 +348,19 @@ def _needs_reconstruct_llm(lines: list[dict]) -> bool:
 
 
 def _needs_review(lines: list[dict]) -> bool:
-    """Review only when errors are likely enough to justify a second LLM call."""
+    """Review only when errors are likely enough to justify a second LLM call.
+
+    8 张图一批：公式/低置信/页眉页脚出现概率高，审校触发更频繁（更严格）；
+    存在页眉页脚候选时也触发——重构稿中模式外残留的噪音由审校 LLM 兜底剔除。
+    """
     stats = _line_quality_stats(lines)
     if int(stats["bad_conf"]) or int(stats["very_low_conf"]):
         return True
     if int(stats["formula"]) >= 2:
         return True
     if int(stats["low_conf"]) >= 3 and float(stats["low_conf_ratio"]) >= 0.08:
+        return True
+    if any(str(item.get("role_hint") or "") == "boilerplate" for item in lines):
         return True
     return False
 

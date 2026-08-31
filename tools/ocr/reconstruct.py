@@ -38,6 +38,7 @@ REVIEW_SYSTEM_PROMPT = """你是「OCR Markdown 保守审校器」。你会拿�
 2. Markdown 结构问题：标题层级明显错乱、列表/表格破损、重复标题、代码围栏误包裹
 3. 公式排版问题：明显被拆断的公式可合并；把 $...$$ / $$...$ / $$$ 改成合法的 $...$ 或 $$...$$；不确定的公式保持原样
 4. 断句与空白：合并不该断开的句子，移除孤立噪声字符
+5. 页眉页脚/机构信息剔除：页码、页眉页脚、机构地址、电话、传真、邮箱、网址、邮编、版权行等与正文无关的行，用补丁整行删除
 
 禁止：
 1. 不要根据常识重写定义、定理、公式或结论
@@ -169,7 +170,7 @@ def normalize_heading_numbering(markdown: str) -> str:
 
 
 def _fragments_to_text(lines: list[dict]) -> str:
-    """行列表 → 拼接文本；无 LLM 时也尽量保留标题层级。"""
+    """行列表 → 拼接文本；无 LLM 时也尽量保留标题层级。页眉页脚行剔除。"""
     parts: list[str] = []
     for item in lines:
         formula = item.get("formula")
@@ -177,6 +178,8 @@ def _fragments_to_text(lines: list[dict]) -> str:
         role = item.get("role_hint")
         decision = item.get("title_decision")
         level = int(item.get("heading_level_hint") or 0)
+        if role == "boilerplate":
+            continue  # 页眉页脚/地址电话/版权行不进拼接
         if formula:
             parts.append(formula)
         elif text and (decision == "locked_heading" or role == "heading"):
@@ -189,13 +192,15 @@ def _fragments_to_text(lines: list[dict]) -> str:
 
 def _lines_to_structured_payload(lines: list[dict]) -> str:
     """压缩版 OCR 行 JSON。locked_body 正文行只发 text/conf，版面明细只随标题候选行发送，
-    大幅压缩输入 token。"""
+    大幅压缩输入 token。页眉页脚/机构信息行（role_hint=boilerplate）直接剔除。"""
     payload = []
     for idx, item in enumerate(lines, start=1):
         formula = str(item.get("formula") or "").strip()
         text = str(item.get("text") or "").strip()
         if not text and not formula:
             continue
+        if str(item.get("role_hint") or "") == "boilerplate":
+            continue  # 页眉页脚/地址电话/版权行不进 LLM 输入
         decision = item.get("title_decision") or "ambiguous"
         conf = item.get("conf")
         row: dict = {

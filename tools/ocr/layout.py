@@ -47,6 +47,39 @@ _HEADING_KEYWORDS = (
     "概念",
 )
 
+# 页眉页脚 / 机构信息模式（地址、电话、邮箱、网址、邮编、版权、P.R.China 等）
+_BOILERPLATE_PATTERNS = (
+    r"Tel[:：]?\s*[+\d(（]",
+    r"电话[:：]",
+    r"传真[:：]|Fax[:：]",
+    r"[\w.+-]+@[\w-]+\.[\w.]+",
+    r"https?://|www\.\w",
+    r"P\.?\s?R\.?\s?China",
+    r"©|版权所有|Copyright|All Rights Reserved",
+    r"\b\d{6}\b",  # 邮编（6 位数字）
+    r"(?:Hubei|Wuhan|湖北|武汉|Beijing|上海|北京|深圳|广州)\s*[,，]?\s*\d{3,}",
+)
+
+
+def _looks_like_boilerplate(text: str) -> bool:
+    """页眉页脚/机构信息识别：命中强信号（电话/邮箱/网址/版权）即判；
+    邮编/地址组合需 ≥2 个信号。
+
+    例：「华中科技大学 Wuhan 430074, Hubei, P.R.China 中国·武汉 Tel:(027)...」
+    命中 P.R.China / 邮编 / Tel 多个信号 → 判为噪音行。
+    """
+    t = (text or "").strip()
+    if not t:
+        return False
+    strong = re.search(
+        r"Tel[:：]?|电话[:：]|邮编[:：]|@[\w-]+\.|https?://|www\.|©|版权所有|Copyright",
+        t,
+    )
+    if strong:
+        return True
+    hits = sum(1 for p in _BOILERPLATE_PATTERNS if re.search(p, t))
+    return hits >= 2
+
 
 def _looks_like_formula(text: str) -> bool:
     return bool(_MATH_RE.search(text or ""))
@@ -163,6 +196,9 @@ def _infer_layout_hints(lines: list[dict], image_size: tuple[int, int] | None) -
         role_hint = "heading" if score >= 0.52 else "body"
         if item.get("formula"):
             role_hint = "formula"
+        # 页眉页脚/机构信息：模式命中优先于标题/正文判定
+        if _looks_like_boilerplate(text):
+            role_hint = "boilerplate"
         level = None
         if role_hint == "heading":
             if centered and (page_top or height_ratio >= 1.28):
