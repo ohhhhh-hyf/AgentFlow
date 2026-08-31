@@ -32,6 +32,12 @@ _DETAIL_POOL_PER_PAGE = 6
 _TITLE_KEYWORDS = ("定义", "性质", "定理", "规则", "方法", "公式", "例题", "易错", "注意", "总结", "步骤")
 _ITEM_ONLY_KEYWORDS = ("例题", "易错", "注意", "总结", "步骤", "题型", "技巧", "提醒", "小结")
 _BODY_LIKE_ENDINGS = ("。", "；", ";", ".", "！", "？", "!", "?")
+_NOISE_TITLE_RE = re.compile(
+    r"(华中科技大学|科技大学|大学|university|wuhan|hubei|tel[:：]?|"
+    r"印刷厂|附属印刷|第\s*\d+\s*页|^\s*页\s*$)",
+    re.I,
+)
+_NOISE_SHORT_TITLES = {"科技", "大学", "学院", "学校", "页", "目录"}
 _NUMBERED_TITLE_RE = re.compile(
     r"^(?:第[一二三四五六七八九十百零0-9]+[章节]|[一二三四五六七八九十]+、|\d+(?:\.\d+){0,3})"
 )
@@ -210,6 +216,8 @@ def _score_title_candidate(row: dict[str, str]) -> tuple[int, list[str]]:
     """标题候选评分：来源角色只作证据标签，主要看结构清晰度和学习价值。"""
     path = _title_path(row)
     title = path[-1] if path else ""
+    if _is_noise_title(title, row):
+        return 0, ["页眉页脚/OCR噪声"]
     raw_score = str(row.get("heading_score") or "").strip()
     if raw_score.isdigit():
         score = int(raw_score)
@@ -256,6 +264,22 @@ def _score_title_candidate(row: dict[str, str]) -> tuple[int, list[str]]:
         score -= 3
         reasons.append("句子结尾")
     return score, reasons
+
+
+def _is_noise_title(title: str, row: dict[str, str] | None = None) -> bool:
+    text = _clean_title(title)
+    compact = _compact_title(text)
+    if not text:
+        return True
+    if compact in {_compact_title(item) for item in _NOISE_SHORT_TITLES}:
+        return True
+    if _NOISE_TITLE_RE.search(text):
+        return True
+    row = row or {}
+    path_text = " / ".join(_title_path(row)) if row else text
+    if _NOISE_TITLE_RE.search(path_text):
+        return True
+    return False
 
 
 def _item_only_title(title: str, row: dict[str, str]) -> bool:
@@ -777,6 +801,7 @@ def complement_catalog_coverage(
         if int(c.get("score") or 0) >= 5
         and str(c.get("heading_kind") or "") != "evidence"
         and not _item_only_title(str((c.get("path") or [""])[-1]), c)
+        and not _is_noise_title(str((c.get("path") or [""])[-1]), c)
     ]
     chapters = out.get("chapters") or []
     if not strong or not chapters:

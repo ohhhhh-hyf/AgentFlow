@@ -57,6 +57,12 @@ _HEADING_PREFIX_RE = re.compile(
     r"|第[0-9一二三四五六七八九十百]+[章节部分讲课项点步阶段周单元][、.．:：\s]*"
     r")"
 )
+_NOISE_TITLE_RE = re.compile(
+    r"(华中科技大学|科技大学|大学|university|wuhan|hubei|tel[:：]?|"
+    r"印刷厂|附属印刷|第\s*\d+\s*页|^\s*页\s*$)",
+    re.I,
+)
+_NOISE_SHORT_TITLES = {"科技", "大学", "学院", "学校", "页", "目录"}
 
 
 def strip_heading_prefix(text: object) -> str:
@@ -78,6 +84,19 @@ def strip_heading_prefix(text: object) -> str:
 
 def _clean(text: object) -> str:
     return strip_heading_prefix(text)
+
+
+def _compact(text: object) -> str:
+    return re.sub(r"[\s:：,，。；;、（）()\[\]【】《》“”\"'·\-—_]+", "", str(text or "").lower())
+
+
+def _is_noise_title(text: object) -> bool:
+    raw = _clean(text)
+    if not raw:
+        return True
+    if _compact(raw) in {_compact(item) for item in _NOISE_SHORT_TITLES}:
+        return True
+    return bool(_NOISE_TITLE_RE.search(raw))
 
 
 def _as_list(value: object) -> list[str]:
@@ -188,27 +207,69 @@ def _change_lines(draft: dict[str, Any]) -> list[str]:
     return lines
 
 
-def _tree_rows(draft: dict[str, Any]) -> list[tuple[int, str]]:
-    rows: list[tuple[int, str]] = []
+def _tree_rows(draft: dict[str, Any]) -> list[str]:
+    rows: list[str] = []
+    visible_chapters: list[tuple[str, list[dict[str, Any]]]] = []
     for chapter in draft.get("chapters") or []:
         if not isinstance(chapter, dict):
             continue
         cname = _clean(chapter.get("name"))
+        chapter_noise = _is_noise_title(cname)
+        topics = [topic for topic in chapter.get("topics") or [] if isinstance(topic, dict)]
+        if cname and not chapter_noise:
+            visible_chapters.append((cname, topics))
+        elif topics:
+            visible_chapters.append(("", topics))
+
+    for ch_idx, (cname, topics) in enumerate(visible_chapters):
+        ch_last = ch_idx == len(visible_chapters) - 1
+        ch_prefix = "└─ " if ch_last else "├─ "
+        child_prefix = "   " if ch_last else "│  "
         if cname:
-            rows.append((0, cname))
-        for topic in chapter.get("topics") or []:
+            rows.append(f"{ch_prefix}{cname}")
+        else:
+            child_prefix = ""
+        visible_topics: list[tuple[str, list[str], bool]] = []
+        for topic in topics:
             if not isinstance(topic, dict):
                 continue
             tname = _clean(topic.get("name"))
-            if tname:
-                rows.append((1, tname))
+            if _is_noise_title(tname):
+                tname = ""
             names = [
                 _clean(p.get("name"))
                 for p in topic.get("knowledge_points") or []
-                if isinstance(p, dict) and _clean(p.get("name"))
+                if isinstance(p, dict)
+                and _clean(p.get("name"))
+                and not _is_noise_title(p.get("name"))
             ]
-            if names:
-                rows.append((2, "、".join(names)))
+            uniq_names: list[str] = []
+            seen: set[str] = set()
+            for name in names:
+                key = _compact(name)
+                if not key or key in seen:
+                    continue
+                seen.add(key)
+                uniq_names.append(name)
+            # 同名容器是 catalog 内部层级，不在 text 里重复展示成两行。
+            same_single = bool(tname and len(uniq_names) == 1 and _compact(tname) == _compact(uniq_names[0]))
+            if tname or uniq_names:
+                visible_topics.append((tname, uniq_names, same_single))
+        for tp_idx, (tname, uniq_names, same_single) in enumerate(visible_topics):
+            tp_last = tp_idx == len(visible_topics) - 1
+            tp_prefix = "└─ " if tp_last else "├─ "
+            kp_prefix = "   " if tp_last else "│  "
+            if same_single:
+                rows.append(f"{child_prefix}{tp_prefix}{uniq_names[0]}")
+                continue
+            if tname:
+                rows.append(f"{child_prefix}{tp_prefix}{tname}")
+            if uniq_names:
+                names_line = "、".join(uniq_names)
+                if tname:
+                    rows.append(f"{child_prefix}{kp_prefix}└─ {names_line}")
+                else:
+                    rows.append(f"{child_prefix}{tp_prefix}{names_line}")
     return rows
 
 
@@ -229,8 +290,7 @@ def build_catalog_markdown(draft: dict[str, Any]) -> str:
         return "\n".join(lines).strip() + "\n"
     lines.append("## 目录")
     lines.append("")
-    for depth, text in _tree_rows(draft):
-        lines.append(f"{'  ' * depth}- {text}")
+    lines.extend(_tree_rows(draft))
     return "\n".join(lines).strip() + "\n"
 
 
