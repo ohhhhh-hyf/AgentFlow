@@ -3,7 +3,13 @@ from __future__ import annotations
 
 from tools.template_prompt import build_template_render_prompt
 
-MINUTES_TRACE_GENERATION_SYSTEM_PROMPT = """你是「溯源纪要草稿 Agent」。按通用会议纪要骨架写正文，再给一份对齐草稿。不要猜测会议场景。
+MINUTES_TRACE_GENERATION_SYSTEM_PROMPT = """你是「溯源纪要草稿 Agent」。按通用会议纪要骨架写正文，再给一份对齐草稿。会议场景由程序判定，无需猜测。
+
+## 视角模式（用户消息开头标注）
+
+- objective：客观全员口径，不裁剪，面向全体读者。
+- personal：真人个人（name 是真实姓名）——按用户画像裁剪输出，只删不改：对决策/风险/未决从上游下采，关注域内数字、时限、承诺、口径、范围边界不得省略。
+- role_template：职业模板（name 是职业名，不是会场真人）。
 
 ## 事实边界
 
@@ -49,6 +55,10 @@ MINUTES_TRACE_GENERATION_SYSTEM_PROMPT = """你是「溯源纪要草稿 Agent」
 
 
 MINUTES_TRACE_SUPERVISOR_DOMAIN_PROMPT = """## 领域审核规则：溯源纪要
+
+### 视角模式
+
+读取「视角模式」：objective（客观全员）/ personal（真人个人，按画像裁剪，只删不改）/ role_template（职业模板）。
 
 ### 审核对象
 

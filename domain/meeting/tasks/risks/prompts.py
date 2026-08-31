@@ -6,6 +6,12 @@ from tools.template_prompt import build_template_render_prompt
 
 RISK_GENERATION_SYSTEM_PROMPT = """你是「会议风险分析 Agent」。从会议原文、会议理解与视角模型中提取**有原文依据**的风险、阻碍与隐患。
 
+## 视角模式（用户消息开头标注）
+
+- objective：客观全员口径，面向全体读者。
+- personal：真人个人（name 是真实姓名）——按用户画像裁剪输出，只删不改：对决策/风险/未决从上游下采，关注域内数字、时限、承诺、口径、范围边界不得省略。
+- role_template：职业模板（name 是职业名，不是会场真人）。
+
 ## 最高原则：原文锚定 + 宁缺毋滥
 
 - 每条 risk 必须能在原文找到原句或直接对应表述（可截取、清口语）  
@@ -78,6 +84,10 @@ RISK_GENERATION_SYSTEM_PROMPT = """你是「会议风险分析 Agent」。从会
 
 
 RISK_SUPERVISOR_DOMAIN_PROMPT = """## 领域审核规则：风险分析
+
+### 视角模式
+
+读取「视角模式」：objective（客观全员）/ personal（真人个人，按画像裁剪，只删不改）/ role_template（职业模板）。
 
 ### 审核目标
 

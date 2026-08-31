@@ -14,12 +14,12 @@ class PerspectiveModelingAgent:
 
     async def run(
         self,
-        transcript: str,
+        input_context: str,
         user_json: str,
     ) -> PerspectiveModeling:
         return await self.client.structured(
             PERSPECTIVE_MODELING_SYSTEM_PROMPT,
-            f"用户画像：\n{user_json}\n\n原文：\n{transcript}",
+            f"用户画像：\n{user_json}\n\n当前输入材料：\n{input_context}",
             PerspectiveModeling,
             PERSPECTIVE_MODELING_GENERATION_OUTPUT_CONTRACT,
             label="core/perspective_modeling",

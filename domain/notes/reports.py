@@ -108,6 +108,10 @@ class ChecklistReport(ModelMixin, ChecklistReportValidation):
         default="",
         metadata={"source": "draft.checklist_html"},
     )
+    trace_stats: dict[str, Any] = field(
+        default_factory=dict,
+        metadata={"source": "draft.trace_stats"},
+    )
     quality_warning: str | None = None
     personalized_text: str | None = field(
         default=None,

@@ -116,6 +116,37 @@ def save_light_ocr_outputs(
     )
 
 
+def images_to_reviewed_markdown(
+    images: list[Path | str],
+    *,
+    persist_dir: Path | str | None = None,
+) -> str:
+    """多张图片 → OCR → LLM 整理审校 → 合并 Markdown 文本（纯文本返回，不入库）。
+
+    供 graph 等直接消费 md 的任务使用；与 library 的批处理同一条
+    OCR + 整理 + 审校流水线（每批 4 路并行，批内一次整理 + 一次审校）。
+    传 ``persist_dir`` 时额外把合并稿落盘留档（同 ocr 目录命名规则）。
+    """
+    entries = [(Path(p), Path(p).name) for p in images]
+    reviewed_blocks: list[str] = []
+    raw_blocks: list[str] = []
+    for event in iter_ocr_review_pipeline(entries):
+        if event.get("type") == "batch_done":
+            reviewed = str(event.get("reviewed") or "").strip()
+            raw = str(event.get("raw") or "").strip()
+            if reviewed:
+                reviewed_blocks.append(reviewed)
+            if raw:
+                raw_blocks.append(raw)
+    merged = "\n\n".join(reviewed_blocks)
+    if persist_dir is not None and merged:
+        stamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        folder = Path(persist_dir)
+        folder.mkdir(parents=True, exist_ok=True)
+        (folder / f"ocr_{stamp}.md").write_text(merged, encoding="utf-8")
+    return merged or "（OCR 未识别到文字）"
+
+
 def ocr_image_to_lines(image_path: str | Path) -> tuple[str, list[dict]]:
     """只做 OCR，不调用整理/审校 LLM。"""
     from tools.ocr.adapter import raw_text_from_lines, recognize_image

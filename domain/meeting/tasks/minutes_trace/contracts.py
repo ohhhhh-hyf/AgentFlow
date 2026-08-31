@@ -30,7 +30,7 @@ class MinutesTraceGenerationContract(GenerationContract):
     """溯源纪要草稿：场景 + 正文 + 对齐草稿。"""
 
     fields = [
-        EnumField("scene", SCENE_CHOICES),
+        EnumField("scene", SCENE_CHOICES, desc="会议场景由程序判定，输出固定值「通用」，无需猜测"),
         StrField("minutes_md", "按所选场景骨架写出的正文，句末不要带溯源钉"),
         ObjListField(
             "alignments",

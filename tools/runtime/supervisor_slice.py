@@ -398,31 +398,55 @@ def compact_perspective(profile: object) -> str:
 
 
 _REVIEW_LONG_TEXT = 60   # 超过此长度的字符串值截断（只留前 30 字 + 总长标记）
-_REVIEW_LARGE_LIST = 8   # 内容型列表超过此条数改为计数（审核仍能核对"条数/厚薄"）
+_REVIEW_LARGE_LIST = 8
+_REVIEW_HEAD_ITEMS = 6
+_REVIEW_TAIL_ITEMS = 2
+_REVIEW_KEEP_ALL_LIST_KEYS = frozenset({
+    "actions",
+    "action_hints",
+    "alignments",
+    "cards",
+    "decisions",
+    "delegated_actions",
+    "key_decisions",
+    "my_actions",
+    "open_questions",
+    "risks",
+    "risks_and_blockers",
+    "risk_hints",
+    "sections",
+    "topics",
+    "unassigned_actions",
+})
 
 
-def _review_compact(node: object) -> object:
+def _review_compact(node: object, *, key: str = "") -> object:
     """把草稿递归压成「审核用骨架」。
 
     规则（通用，不依赖具体字段名）：
-    - 结构型列表（元素是含 id/name/kp_id 的 dict，如 chapters/topics/cards）
-      → 保留全部元素，内部继续压缩；
-    - 内容型列表（如 key_facts / items / 纯字符串列表）→ 短列表全留，长列表改为计数；
+    - dict 元素列表（结构型如 chapters/topics/cards，条目型如 actions/risks 的
+      task/owner 条目）→ 保留全部元素，内部继续压缩——条目必须可见，
+      否则「覆盖不足/是否编造」这类核对在条目层面无法执行；
+    - 审核关键字段列表（actions/risks/decisions/alignments/sections/cards 等）
+      → 保留全部条目，内部压缩，避免 supervisor 看不到具体条目；
+    - 普通纯字符串/标量长列表 → 保留前 6 条 + 省略计数 + 后 2 条，
+      让审核仍能看到内容样本，而不是只看到一个计数；
     - 长字符串（explain / summary 等）→ 截断为前 30 字并标注总长，
       让审核仍能判断「这段写了多厚」而不必读全文。
     """
     if isinstance(node, dict):
-        return {k: _review_compact(v) for k, v in node.items()}
+        return {k: _review_compact(v, key=str(k)) for k, v in node.items()}
     if isinstance(node, list):
         if not node:
             return node
-        if isinstance(node[0], dict) and (
-            node[0].get("id") or node[0].get("name") or node[0].get("kp_id")
-        ):
-            return [_review_compact(x) for x in node]
+        if isinstance(node[0], dict) or key in _REVIEW_KEEP_ALL_LIST_KEYS:
+            return [_review_compact(x, key=key) for x in node]
         if len(node) <= _REVIEW_LARGE_LIST:
-            return [_review_compact(x) for x in node]
-        return [f"...（{len(node)} 条，已省略）"]
+            return [_review_compact(x, key=key) for x in node]
+        omitted = len(node) - _REVIEW_HEAD_ITEMS - _REVIEW_TAIL_ITEMS
+        head = [_review_compact(x, key=key) for x in node[:_REVIEW_HEAD_ITEMS]]
+        tail = [_review_compact(x, key=key) for x in node[-_REVIEW_TAIL_ITEMS:]]
+        return head + [f"...（中间 {omitted} 条已省略，共 {len(node)} 条）"] + tail
     if isinstance(node, str):
         if len(node) <= _REVIEW_LONG_TEXT:
             return node

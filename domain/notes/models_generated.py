@@ -398,7 +398,7 @@ class ChecklistReportValidation:
 
     @classmethod
     def validate(cls, data: dict) -> "ChecklistReport":
-        allowed = {"course", "catalog_version", "cards", "phases", "strategy", "uncertain_quotes", "checklist_html", "quality_warning", "personalized_text"}
+        allowed = {"course", "catalog_version", "cards", "phases", "strategy", "uncertain_quotes", "checklist_html", "trace_stats", "quality_warning", "personalized_text"}
 
         if not isinstance(data, dict):
             raise OutputValidationError("ChecklistReport 必须是 JSON 对象")
@@ -418,6 +418,8 @@ class ChecklistReportValidation:
         _string_list(data.get("strategy") or [], "strategy")
         _string_list(data.get("uncertain_quotes") or [], "uncertain_quotes")
         _string(data.get("checklist_html") or "", "checklist_html")
+        if not isinstance(data.get("trace_stats") or {}, dict):
+            raise OutputValidationError("trace_stats 必须是对象")
         if data.get("quality_warning") is not None:
             _string(data["quality_warning"], "quality_warning")
         if data.get("personalized_text") is not None:
@@ -431,6 +433,7 @@ class ChecklistReportValidation:
             strategy=data.get("strategy") or [],
             uncertain_quotes=data.get("uncertain_quotes") or [],
             checklist_html=data.get("checklist_html") or "",
+            trace_stats=data.get("trace_stats") or {},
             quality_warning=data.get("quality_warning"),
             personalized_text=data.get("personalized_text"),
         )

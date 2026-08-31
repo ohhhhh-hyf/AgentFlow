@@ -372,19 +372,10 @@ def build_checklist_markdown(draft: dict[str, Any], *, has_teacher: bool | None 
 
     groups = _nav_groups(cards, has_teacher=_draft_has_teacher(draft, has_teacher))
     focus, brief, extra, main_cards = groups["focus"], groups["brief"], groups["extra"], groups["main"]
+    # 结构总览数据（md 不再展示文本表；章节复习权重补充进「三、复习策略」）
     overview = _review_overview(main_cards)
-    total_val = float(overview.get("total_value") or 0) or 1.0
-    lines.extend(["## 一、全局导航", "", "### 1. 本次复习结构总览", ""])
-    for item in overview.get("bar_items") or []:
-        grade = _GRADE.get(str(item.get("session_priority") or ""), "简要")
-        reason = _clean(item.get("reason"))
-        val = float(item.get("value") or 0)
-        pct = max(0.1, val / total_val * 100)
-        lines.append(
-            f"- {grade}｜{_clean(item.get('name'))}：{pct:.1f}%"
-            + (f"（{reason}）" if reason else "")
-        )
-    lines.extend(["", "| 优先级 | 知识点 | 重要程度 | 所属章节 |", "| --- | --- | --- | --- |"])
+    lines.extend(["## 一、全局导航", ""])
+    lines.extend(["| 优先级 | 知识点 | 重要程度 | 所属章节 |", "| --- | --- | --- | --- |"])
     for card in main_cards:
         lines.append(
             f"| {_grade_label(card)} | {_clean(card.get('name'))} | {importance_stars(card)} | {_clean(card.get('chapter')) or '—'} |"
@@ -396,7 +387,7 @@ def build_checklist_markdown(draft: dict[str, Any], *, has_teacher: bool | None 
                 f"| {_clean(card.get('name'))} | {importance_stars(card)} | {_clean(card.get('chapter')) or '—'} |"
             )
     outline = draft.get("mindmap_outline") or build_checklist_mindmap_outline(draft, cards)
-    lines.extend(["", "### 2. 思维导图", "", outline, "", "### 3. 考点知识图谱", ""])
+    lines.extend(["", "### 1. 思维导图", "", outline, "", "### 2. 考点知识图谱", ""])
     for src, rel, dst in _edges(cards):
         lines.append(f"- {src} —{rel}→ {dst}")
 
@@ -406,17 +397,17 @@ def build_checklist_markdown(draft: dict[str, Any], *, has_teacher: bool | None 
         steps = _as_list(card.get("method_steps"))[:6]
         pits = _as_list(card.get("pitfalls"))[:4]
         lines.append(f"### {_clean(card.get('name'))}  （{_grade_label(card)} · {importance_stars(card)}）")
-        lines.append(f"- 考法预判：{_clean(card.get('exam_preview'))}")
+        lines.append(f"- 考法预判：{_math_text(card.get('exam_preview'))}")
         if facts:
             lines.append("- 必须先会：")
-            lines.extend(f"  - {item}" for item in facts)
-        lines.append(f"- 知识点讲解：{_clean(card.get('explain'))}")
+            lines.extend(f"  - {_math_text(item)}" for item in facts)
+        lines.append(f"- 知识点讲解：{_math_text(card.get('explain'))}")
         if steps:
             lines.append("- 方法步骤：")
-            lines.extend(f"  {i}. {step}" for i, step in enumerate(steps, start=1))
+            lines.extend(f"  {i}. {_math_text(step)}" for i, step in enumerate(steps, start=1))
         if pits:
             lines.append("- 易错提醒：")
-            lines.extend(f"  - {p}" for p in pits)
+            lines.extend(f"  - {_math_text(p)}" for p in pits)
         lines.extend(_trace_markdown(card))
         lines.append("")
     if brief:
@@ -443,7 +434,7 @@ def build_checklist_markdown(draft: dict[str, Any], *, has_teacher: bool | None 
             )
         lines.append("")
 
-    lines.extend(_strategy_markdown(draft))
+    lines.extend(_strategy_markdown(draft, overview))
     lines.extend(_action_markdown(draft))
     return "\n".join(lines).strip() + "\n"
 
@@ -452,14 +443,173 @@ def _action_cards(draft: dict[str, Any]) -> list[dict[str, Any]]:
     return [p for p in (draft.get("phases") or []) if isinstance(p, dict) and p.get("id")]
 
 
-def _strategy_markdown(draft: dict[str, Any]) -> list[str]:
-    items = [
-        s for s in (draft.get("strategy") or []) if isinstance(s, str) and s.strip()
+def _strategy_cards(draft: dict[str, Any]) -> list[dict[str, Any]]:
+    cards = [
+        c for c in (draft.get("cards") or []) if isinstance(c, dict) and _clean(c.get("name"))
     ]
-    if not items:
+    return sorted(cards, key=_strategy_sort_key)
+
+
+def _strategy_sort_key(c: dict[str, Any]) -> tuple[int, int, int, str]:
+    grade = str(c.get("session_priority") or "B")
+    imp = max(1, min(5, _as_int(c.get("importance"), 3)))
+    diff = max(1, min(5, _as_int(c.get("difficulty"), 3)))
+    exam = {"none": 0, "weak": 1, "medium": 2, "strong": 3}.get(
+        str(c.get("session_exam_signal") or c.get("exam_signal") or "none"),
+        0,
+    )
+    teacher = 1 if _as_list(c.get("session_quotes")) else 0
+    prereq = 1 if c.get("prerequisites") or c.get("_prereq_of") else 0
+    value = _GRADE_VALUE.get(grade, 12) + imp * 8 + exam * 8 + teacher * 6 + prereq * 4
+    return (-value, diff, -imp, _clean(c.get("name")))
+
+
+def _matrix_bucket(card: dict[str, Any]) -> tuple[str, str]:
+    imp = max(1, min(5, _as_int(card.get("importance"), 3)))
+    diff = max(1, min(5, _as_int(card.get("difficulty"), 3)))
+    imp_key = "high" if imp >= 4 else "mid" if imp == 3 else "low"
+    diff_key = "hard" if diff >= 4 else "easy"
+    return imp_key, diff_key
+
+
+def _names(cards: list[dict[str, Any]], limit: int = 5) -> list[str]:
+    out: list[str] = []
+    for card in cards:
+        name = _clean(card.get("name"))
+        if name and name not in out:
+            out.append(name)
+        if len(out) >= limit:
+            break
+    return out
+
+
+def _strategy_matrix(cards: list[dict[str, Any]]) -> dict[tuple[str, str], list[dict[str, Any]]]:
+    matrix: dict[tuple[str, str], list[dict[str, Any]]] = {}
+    for card in cards:
+        matrix.setdefault(_matrix_bucket(card), []).append(card)
+    return matrix
+
+
+def _stage(
+    title: str,
+    cards: list[dict[str, Any]],
+    why: str,
+    action: str,
+    check: str,
+) -> dict[str, Any] | None:
+    names = _names(cards, 6)
+    if not names:
+        return None
+    return {"title": title, "names": names, "why": why, "action": action, "check": check}
+
+
+def _strategy_stages(cards: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    matrix = _strategy_matrix(cards)
+    stages: list[dict[str, Any]] = []
+    easy_core = matrix.get(("high", "easy"), [])
+    hard_core = matrix.get(("high", "hard"), [])
+    easy_mid = matrix.get(("mid", "easy"), []) + matrix.get(("low", "easy"), [])
+    hard_mid = matrix.get(("mid", "hard"), [])
+    hard_tail = matrix.get(("low", "hard"), [])
+    prereq = [c for c in cards if c.get("prerequisites") or c.get("_prereq_of")]
+    missing = [c for c in cards if _as_list(c.get("note_missing_items"))]
+    pitfalls = [
+        c for c in cards
+        if _as_list(c.get("pitfalls")) or _clean(c.get("session_error_signal"))
+    ]
+    for item in (
+        _stage(
+            "先拿分",
+            easy_core,
+            "重要度高、难度不高，最适合先建立信心和基础分。",
+            "每个点按“定义/公式一句话 → 适用条件 → 一个典型问法 → 一个易错点”快速闭卷复述。",
+            "能不看卡片写出核心结论，并说出至少一个使用条件。",
+        ),
+        _stage(
+            "攻核心",
+            hard_core,
+            "重要且难，是本轮真正拉开差距的部分。",
+            "拆成“结论 → 推导/步骤 → 条件 → 变形题入口”四栏，逐点慢推，不要只背结果。",
+            "能独立写出主公式或证明骨架，并解释每一步为什么成立。",
+        ),
+        _stage(
+            "快速补齐",
+            easy_mid,
+            "难度不高但容易散落，适合用短时间扫完，避免丢基础分。",
+            "用对比表整理定义、符号、适用范围和常见问法，只保留能直接用于答题的句子。",
+            "看到题干能判断是否相关，能说出定义和一条限制。",
+        ),
+        _stage(
+            "抓框架",
+            hard_mid,
+            "有一定重要性但难度偏高，不适合一开始硬啃。",
+            "先抓定义、关键结论、适用条件和一条典型问法；复杂证明先画出结构，不急着补细节。",
+            "能说清它解决什么问题，并知道遇到题时从哪一步开始。",
+        ),
+        _stage(
+            "补洞复查",
+            prereq + missing + pitfalls,
+            "这些点牵涉前置、笔记缺项或易错边界，不补会影响后面的题。",
+            "把缺项补到对应卡片里；每张卡最后写一个“我最可能错在哪里”的反例或边界条件。",
+            "能指出前置关系，且能用易错点反查自己的答案。",
+        ),
+        _stage(
+            "最后兜底",
+            hard_tail,
+            "难度偏高但当前优先级没那么靠前，时间紧时不宜抢占核心时间。",
+            "只抓定义、关键结论、适用条件和一条典型问法；复杂推导先留标记。",
+            "至少能识别题型，不把它和核心点混淆。",
+        ),
+    ):
+        if item:
+            stages.append(item)
+    seen: set[str] = set()
+    unique: list[dict[str, Any]] = []
+    for stage in stages:
+        key = "、".join(stage["names"])
+        if key in seen:
+            continue
+        seen.add(key)
+        unique.append(stage)
+    return unique[:6]
+
+
+def _strategy_markdown(draft: dict[str, Any], overview: dict[str, Any] | None = None) -> list[str]:
+    """复习路线：用矩阵和阶段卡片表达，不消耗额外 LLM token。"""
+    del overview
+    cards = _strategy_cards(draft)
+    if not cards:
         return []
+    matrix = _strategy_matrix(cards)
+    stages = _strategy_stages(cards)
     lines = ["## 三、复习策略", ""]
-    lines.extend(f"- {item}" for item in items)
+    lines.extend(["### 优先级矩阵", ""])
+    labels = {
+        ("high", "easy"): "先拿下",
+        ("high", "hard"): "集中攻克",
+        ("mid", "easy"): "快速扫过",
+        ("mid", "hard"): "抓框架",
+        ("low", "easy"): "有空再看",
+        ("low", "hard"): "最后兜底",
+    }
+    rows = [("重要高", "high"), ("重要中", "mid"), ("重要低", "low")]
+    lines.extend(["|  | 难度低/中 | 难度高 |", "| --- | --- | --- |"])
+    for title, imp_key in rows:
+        cells: list[str] = []
+        for diff_key in ("easy", "hard"):
+            names = _names(matrix.get((imp_key, diff_key), []), 4)
+            label = labels[(imp_key, diff_key)]
+            cells.append(f"{label}：" + ("、".join(names) if names else "—"))
+        lines.append(f"| {title} | {cells[0]} | {cells[1]} |")
+    if stages:
+        lines.extend(["", "### 今日复习路线", ""])
+        for i, stage in enumerate(stages, start=1):
+            lines.append(f"#### {i}. {stage['title']}")
+            lines.append(f"- 知识点：{'、'.join(stage['names'])}")
+            lines.append(f"- 为什么这样排：{stage['why']}")
+            lines.append(f"- 怎么复习：{stage['action']}")
+            lines.append(f"- 过关标准：{stage['check']}")
+            lines.append("")
     lines.append("")
     return lines
 
@@ -612,21 +762,17 @@ def _plain_list(items: list[str]) -> str:
     ) + "</ul>"
 
 
-_MATH_HINT_RE = re.compile(
-    r"(?<![$\\])("
-    r"\\(?:frac|sqrt|sum|int|lim|alpha|beta|gamma|theta|lambda|mu|sigma|omega|Delta|partial|nabla)\b"
-    r"|[A-Za-z0-9]+(?:\s*[_^]\s*[A-Za-z0-9{}]+)+"
-    r"|[A-Za-z0-9{}\\^_+\-*/(), ]+\s*(?:=|≤|≥|\\le|\\ge|\\neq|≈)\s*[A-Za-z0-9{}\\^_+\-*/(), ]+"
-    r")"
-)
+def _math_text(text: object) -> str:
+    r"""Markdown 文本的公式归一化（修复 $ 定界与不成对 \left/\right）。"""
+    from tools.ocr.mathmd import normalize_markdown_math
+
+    return normalize_markdown_math(str(text or "")).strip()
 
 
 def _math_escape(text: object) -> str:
     from tools.ocr.mathmd import normalize_markdown_math
 
     raw = normalize_markdown_math(str(text or ""))
-    if "$" not in raw:
-        raw = _MATH_HINT_RE.sub(lambda m: f"${m.group(1).strip()}$", raw)
     return escape(raw, quote=False)
 
 
@@ -661,26 +807,57 @@ def _section_html(section: dict[str, Any]) -> str:
     return "".join(body)
 
 
-def _strategy_html(draft: dict[str, Any]) -> list[str]:
-    items = [
-        s for s in (draft.get("strategy") or []) if isinstance(s, str) and s.strip()
-    ]
-    if not items:
+def _strategy_html(draft: dict[str, Any], overview: dict[str, Any] | None = None) -> list[str]:
+    del overview
+    cards = _strategy_cards(draft)
+    if not cards:
         return []
+    matrix = _strategy_matrix(cards)
+    stages = _strategy_stages(cards)
+
+    def cell(imp_key: str, diff_key: str, label: str) -> str:
+        names = _names(matrix.get((imp_key, diff_key), []), 4)
+        chips = "".join(f"<span>{escape(name, quote=False)}</span>" for name in names)
+        if not chips:
+            chips = '<em>—</em>'
+        return f"<td><b>{label}</b><div>{chips}</div></td>"
+
     rows = [
         "<h2>三、复习策略</h2>",
         '<section class="ck-strategy-panel" aria-label="复习策略">',
-        '<div class="ck-strategy-head"><span>复习顺序</span><em>按重点和难度排好先后</em></div>',
-        '<ol class="ck-strategy">',
+        '<div class="ck-strategy-head"><span>优先级矩阵</span><em>重要程度 × 难度</em></div>',
+        '<table class="ck-priority-matrix">',
+        "<thead><tr><th></th><th>难度低/中</th><th>难度高</th></tr></thead>",
+        "<tbody>",
+        "<tr><th>重要高</th>" + cell("high", "easy", "先拿下") + cell("high", "hard", "集中攻克") + "</tr>",
+        "<tr><th>重要中</th>" + cell("mid", "easy", "快速扫过") + cell("mid", "hard", "抓框架") + "</tr>",
+        "<tr><th>重要低</th>" + cell("low", "easy", "有空再看") + cell("low", "hard", "最后兜底") + "</tr>",
+        "</tbody></table>",
     ]
-    for i, item in enumerate(items, start=1):
+    if stages:
+        rows.extend([
+            '<div class="ck-strategy-head ck-strategy-route"><span>今日复习路线</span><em>按学生实际下手顺序</em></div>',
+            '<ol class="ck-strategy">',
+        ])
+    for i, stage in enumerate(stages, start=1):
+        chips = "".join(
+            f"<span>{escape(name, quote=False)}</span>" for name in stage["names"]
+        )
         rows.append(
             "<li>"
             f'<span class="ck-strategy-no">{i:02d}</span>'
-            f'<span class="ck-strategy-text">{escape(str(item), quote=False)}</span>'
+            '<div class="ck-strategy-text">'
+            f"<h3>{escape(str(stage['title']), quote=False)}</h3>"
+            f'<div class="ck-strategy-chips">{chips}</div>'
+            f"<p><b>为什么这样排</b> {escape(str(stage['why']), quote=False)}</p>"
+            f"<p><b>怎么复习</b> {escape(str(stage['action']), quote=False)}</p>"
+            f"<p><b>过关标准</b> {escape(str(stage['check']), quote=False)}</p>"
+            "</div>"
             "</li>"
         )
-    rows.extend(["</ol>", "</section>"])
+    if stages:
+        rows.append("</ol>")
+    rows.append("</section>")
     return rows
 
 
@@ -925,22 +1102,22 @@ def _card_html(card: dict[str, Any]) -> str:
         f'<span class="ck-stars">{importance_stars(card)}</span> '
         f"<strong>{escape(_clean(card.get('name')), quote=False)}</strong>",
         '<div class="ck-field" data-field="exam_prediction">'
-        f"<p><b>考法预判</b> {escape(_clean(card.get('exam_preview')), quote=False)}</p></div>",
+        f"<p><b>考法预判</b> {_math_escape(_clean(card.get('exam_preview')))}</p></div>",
     ]
     if facts:
         left.append(
             "<p><b>必须先会</b></p><ul>"
-            + "".join(f"<li>{escape(item, quote=False)}</li>" for item in facts)
+            + "".join(f"<li>{_math_escape(item)}</li>" for item in facts)
             + "</ul>"
         )
     left.append(
         '<div class="ck-field" data-field="explanation">'
-        f"<p><b>知识点讲解</b> {escape(_clean(card.get('explain')), quote=False)}</p></div>"
+        f"<p><b>知识点讲解</b> {_math_escape(_clean(card.get('explain')))}</p></div>"
     )
     if steps:
         left.append(
             '<div class="ck-field" data-field="method_steps"><p><b>方法步骤</b></p><ol>'
-            + "".join(f"<li>{escape(step, quote=False)}</li>" for step in steps)
+            + "".join(f"<li>{_math_escape(step)}</li>" for step in steps)
             + "</ol></div>"
         )
     if pits:
@@ -965,13 +1142,13 @@ def _trace_markdown(card: dict[str, Any]) -> list[str]:
         return []
     lines = ["- 溯源"]
     for ev in pack["teacher"][:3]:
-        lines.append(f"  - 老师原话：{_clean(ev.get('text'))}")
+        lines.append(f"  - 老师原话：{_math_text(ev.get('text'))}")
     for ev in pack["kb"][:2]:
         src = _clean(ev.get("source"))
-        excerpt = _clean(ev.get("excerpt"))
+        excerpt = _math_text(ev.get("excerpt"))
         lines.append(f"  - 知识库：{src} — {excerpt}" if src else f"  - 知识库：{excerpt}")
     for ev in pack["note"][:1]:
-        lines.append(f"  - 笔记：{_clean(ev.get('excerpt'))}")
+        lines.append(f"  - 笔记：{_math_text(ev.get('excerpt'))}")
     return lines
 
 
@@ -1036,10 +1213,8 @@ def build_checklist_html(draft: dict[str, Any], *, has_teacher: bool | None = No
         focus, brief, extra, main_cards = groups["focus"], groups["brief"], groups["extra"], groups["main"]
         outline = draft.get("mindmap_outline") or build_checklist_mindmap_outline(draft, cards)
         nodes, edges = _graph_payload(cards)
-        body.append("<h2>一、全局导航</h2><h3>1. 本次复习结构总览</h3>")
-        overview = _review_overview(main_cards)
+        body.append("<h2>一、全局导航</h2>")
         body.append('<div class="ck-overview-wrap" id="ck-review">')
-        body.append(_overview_html(overview))
         body.append(
             '<div class="ck-table-panel">'
             '<div class="ck-overview-title">知识点清单与掌握度</div>'
@@ -1062,7 +1237,7 @@ def build_checklist_html(draft: dict[str, Any], *, has_teacher: bool | None = No
         for card in main_cards:
             body.append(_dynamic_row(card))
         body.append("</tbody></table></div>")
-        body.append(_review_dynamic_script(overview))
+        body.append(_review_dynamic_script())
         body.append("</div>")
         if extra:
             body.append(
@@ -1096,7 +1271,7 @@ def build_checklist_html(draft: dict[str, Any], *, has_teacher: bool | None = No
                     "<li>"
                     f'<span class="ck-stars">{importance_stars(card)}</span> '
                     f"<strong>{escape(_clean(card.get('name')), quote=False)}</strong>"
-                    f" {escape(preview, quote=False)}"
+                    f" {_math_escape(preview)}"
                     "</li>"
                 )
             body.append("</ul></div>")
@@ -1116,12 +1291,12 @@ def build_checklist_html(draft: dict[str, Any], *, has_teacher: bool | None = No
                     "<li>"
                     f'<span class="ck-stars">{importance_stars(card)}</span> '
                     f"<strong>{escape(_clean(card.get('name')), quote=False)}</strong>"
-                    f" {escape(preview, quote=False)}{kb_src}"
+                    f" {_math_escape(preview)}{kb_src}"
                     "</li>"
                 )
             body.append("</ul></div>")
         body.append(_trace_script())
-        body.extend(_strategy_html(draft))
+        body.extend(_strategy_html(draft, _review_overview(main_cards)))
         body.extend(_action_html(draft))
         body.append("</div>")
 
@@ -1141,24 +1316,11 @@ def build_checklist_html(draft: dict[str, Any], *, has_teacher: bool | None = No
     .ck-doc h3{{margin:16px 0 8px;font-size:1.05rem;}}
     .ck-note{{color:#6b6860;font-size:.86rem;}}
     .ck-review{{margin:10px 0;}}
+    .ck-table-panel{{border:1px solid #e7e4dc;border-radius:12px;background:#ffffff;box-shadow:0 1px 4px rgba(0,0,0,0.03);padding:16px 18px;box-sizing:border-box;}}
     .ck-overview-wrap{{margin:12px 0 24px;display:flex;flex-direction:column;gap:16px;}}
-    .ck-bar-panel,.ck-table-panel{{border:1px solid #e7e4dc;border-radius:12px;background:#ffffff;box-shadow:0 1px 4px rgba(0,0,0,0.03);padding:16px 18px;box-sizing:border-box;}}
     .ck-overview-title{{display:flex;align-items:baseline;justify-content:space-between;gap:12px;margin:0 0 14px;padding-bottom:8px;border-bottom:1px solid #f0eee9;}}
     .ck-overview-title span:first-child{{font-size:.95rem;font-weight:750;color:#1c1b19;letter-spacing:0.2px;}}
     .ck-overview-hint{{font-size:.76rem;color:#8a867c;font-weight:400;}}
-    .ck-bar-panel{{display:grid;gap:10px;align-content:start;}}
-    .ck-bar-item{{display:flex;flex-direction:column;gap:6px;width:100%;border:1px solid #ebe8e1;border-radius:9px;background:#faf9f6;padding:10px 14px;text-align:left;cursor:pointer;font:inherit;box-sizing:border-box;transition:all .2s cubic-bezier(0.16, 1, 0.3, 1);}}
-    .ck-bar-item:hover{{border-color:#395f8a;background:#fff;transform:translateY(-1.5px);box-shadow:0 4px 12px rgba(0,0,0,0.05);}}
-    .ck-bar-item.is-on{{border-color:#b3402e;background:#fff;box-shadow:0 0 0 1.5px #b3402e, 0 4px 12px rgba(179,64,46,0.1);}}
-    .ck-bar-top{{display:flex;align-items:center;justify-content:space-between;gap:10px;width:100%;}}
-    .ck-bar-name{{font-weight:700;font-size:.88rem;color:#1c1b19;flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}}
-    .ck-bar-pct{{font-size:.88rem;font-weight:800;color:#2c2a26;letter-spacing:-0.2px;font-variant-numeric:tabular-nums;}}
-    .ck-bar-track{{width:100%;height:7px;border-radius:999px;background:#eae7df;overflow:hidden;}}
-    .ck-bar-fill{{display:block;height:100%;border-radius:999px;background:linear-gradient(90deg,#497a78,#5c9896);transition:width .4s cubic-bezier(0.4, 0, 0.2, 1);}}
-    .ck-bar-fill.ck-grade-s{{background:linear-gradient(90deg,#ff7875,#d9363e);}}
-    .ck-bar-fill.ck-grade-a{{background:linear-gradient(90deg,#ffc069,#d46b08);}}
-    .ck-bar-fill.ck-grade-b{{background:linear-gradient(90deg,#69c0ff,#1890ff);}}
-    .ck-bar-bottom{{display:flex;align-items:center;justify-content:space-between;gap:8px;font-size:.74rem;color:#8a867c;}}
     .ck-pill{{display:inline-flex;align-items:center;padding:1px 7px;border-radius:6px;font-size:.72rem;font-weight:700;line-height:1.4;white-space:nowrap;}}
     .ck-pill.ck-grade-s{{background:#fff1f0;color:#cf1322;border:1px solid #ffa39e;}}
     .ck-pill.ck-grade-a{{background:#fffbe6;color:#d46b08;border:1px solid #ffe58f;}}
@@ -1208,10 +1370,21 @@ def build_checklist_html(draft: dict[str, Any], *, has_teacher: bool | None = No
     .ck-strategy-head{{display:flex;align-items:baseline;gap:10px;padding:10px 14px;border-bottom:1px solid #ebe8e1;background:#f7f5f0;}}
     .ck-strategy-head span{{font-weight:750;color:#1c1b19;}}
     .ck-strategy-head em{{font-style:normal;color:#6b6860;font-size:.78rem;}}
+    .ck-strategy-route{{border-top:1px solid #ebe8e1;}}
+    .ck-priority-matrix{{width:100%;border-collapse:collapse;background:#fff;font-size:.84rem;}}
+    .ck-priority-matrix th,.ck-priority-matrix td{{border:1px solid #ebe8e1;padding:9px 10px;vertical-align:top;text-align:left;}}
+    .ck-priority-matrix th{{width:82px;background:#f7f5f0;color:#3a3832;font-weight:750;}}
+    .ck-priority-matrix td b{{display:block;margin-bottom:5px;color:#1c1b19;}}
+    .ck-priority-matrix td div{{display:flex;gap:5px;flex-wrap:wrap;}}
+    .ck-priority-matrix td span,.ck-strategy-chips span{{display:inline-flex;align-items:center;max-width:100%;padding:1px 7px;border:1px solid #d4d0c6;border-radius:999px;background:#fbfaf7;color:#3a3832;font-size:.74rem;line-height:1.45;}}
+    .ck-priority-matrix td em{{font-style:normal;color:#9a968c;}}
     .ck-strategy{{list-style:none;margin:0;padding:8px 12px 12px;display:grid;gap:8px;}}
     .ck-strategy li{{display:grid;grid-template-columns:34px minmax(0,1fr);gap:10px;align-items:start;padding:9px 10px;border:1px solid #ebe8e1;border-radius:8px;background:#fff;}}
     .ck-strategy-no{{display:inline-flex;align-items:center;justify-content:center;width:28px;height:28px;border-radius:50%;background:#497a78;color:#fff;font-size:.72rem;font-weight:800;line-height:1;}}
     .ck-strategy-text{{font-size:.9rem;line-height:1.65;color:#2c2a26;}}
+    .ck-strategy-text h3{{margin:0 0 5px;font-size:.96rem;line-height:1.35;}}
+    .ck-strategy-text p{{margin:5px 0 0;}}
+    .ck-strategy-chips{{display:flex;gap:5px;flex-wrap:wrap;margin:0 0 7px;}}
     .ck-action{{margin:8px 0 6px;}}
     .ck-progress{{margin:0 0 12px;padding:11px 12px;border:1px solid #d4d0c6;border-radius:8px;background:#fbfaf7;}}
     .ck-progress-top{{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:8px;font-size:.88rem;}}
@@ -1299,11 +1472,11 @@ def _dynamic_row(card: dict[str, Any]) -> str:
     explain = _clean(card.get("explain")) or ""
     method = "；".join(_as_list(card.get("method_steps"))) or ""
     pitfalls = "；".join(_as_list(card.get("pitfalls"))) or ""
-    detail = explain[:200] if explain else ""
+    detail = _math_escape(_clip_preview_text(explain, 200)) if explain else ""
     if method:
-        detail += f"<br>方法：{escape(method[:120], quote=False)}"
+        detail += f"<br>方法：{_math_escape(_clip_preview_text(method, 120))}"
     if pitfalls:
-        detail += f"<br>易错：{escape(pitfalls[:120], quote=False)}"
+        detail += f"<br>易错：{_math_escape(_clip_preview_text(pitfalls, 120))}"
     return (
         f'<tr data-id="{escape(kid, quote=False)}" data-grade="{escape(grade, quote=False)}" data-name="{escape(name, quote=False)}" '
         f'data-chapter="{escape(chapter, quote=False)}" data-type="{escape(ktype, quote=False)}" '
@@ -1320,74 +1493,28 @@ def _dynamic_row(card: dict[str, Any]) -> str:
     )
 
 
-def _overview_html(overview: dict[str, Any]) -> str:
-    bar_items = [i for i in (overview.get("bar_items") or []) if isinstance(i, dict)]
-    total = float(overview.get("total_value") or 0) or 1.0
-    rows = ['<div class="ck-bar-panel">']
-    rows.append(
-        '<div class="ck-overview-title">'
-        '<span>优先复习排序</span>'
-        '<span class="ck-overview-hint">按复习价值与重点信号计算占比（点击可联动筛选下方表格）</span>'
-        '</div>'
-    )
-    if not bar_items:
-        rows.append('<p class="ck-note">暂无可展示的复习重点。</p>')
-    for item in bar_items:
-        value = float(item.get("value") or 0)
-        pct = max(0.1, min(100.0, value / total * 100))
-        grade = str(item.get("session_priority") or "B")
-        label = _clean(item.get("name"))
-        reason = _clean(item.get("reason"))
-        chapter = _clean(item.get("chapter"))
-        source_ids_list = [str(x) for x in (item.get("source_node_ids") or []) if x]
-        source_ids = " ".join(source_ids_list)
-        count_desc = f"包含 {len(source_ids_list)} 个考点" if len(source_ids_list) > 1 else ""
-        tooltip_parts = [f"复习占比：{pct:.1f}%", f"档位：{_GRADE.get(grade, '简要')} ({grade})"]
-        if chapter:
-            tooltip_parts.append(f"章节：{chapter}")
-        if reason:
-            tooltip_parts.append(f"依据：{reason}")
-        if count_desc:
-            tooltip_parts.append(count_desc)
-        tooltip = " ｜ ".join(tooltip_parts)
-
-        grade_class = f"ck-grade-{grade.lower()}"
-        rows.append(
-            f'<button type="button" class="ck-bar-item {grade_class}" '
-            f'data-grade="{escape(grade, quote=True)}" '
-            f'data-source-ids="{escape(source_ids, quote=True)}" '
-            f'title="{escape(tooltip, quote=True)}">'
-            '<div class="ck-bar-top">'
-            f'<span class="ck-pill {grade_class}">{escape(_GRADE.get(grade, "简要"), quote=False)} {grade}</span>'
-            f'<span class="ck-bar-name">{escape(label, quote=False)}</span>'
-            f'<span class="ck-bar-pct">{pct:.1f}%</span>'
-            '</div>'
-            '<div class="ck-bar-track">'
-            f'<span class="ck-bar-fill {grade_class}" style="width:{pct:.1f}%"></span>'
-            '</div>'
-            '<div class="ck-bar-bottom">'
-            f'<span class="ck-bar-meta">{escape(chapter or "通用章节", quote=False)}'
-            + (f' · {escape(reason, quote=False)}' if reason else '')
-            + '</span>'
-            + (f'<span class="ck-bar-count">{count_desc}</span>' if count_desc else '')
-            + '</div>'
-            '</button>'
-        )
-    rows.append("</div>")
-    return "".join(rows)
+def _clip_preview_text(text: str, limit: int) -> str:
+    """表格预览截断：优先在自然边界收口，避免公式/表达式断成残片。"""
+    raw = _clean(text)
+    if len(raw) <= limit:
+        return raw
+    head = raw[:limit]
+    candidates = [
+        head.rfind(mark)
+        for mark in ("。", "；", ";", "，", ",", "、", " ")
+    ]
+    cut = max(candidates)
+    if cut >= max(24, int(limit * 0.55)):
+        head = head[:cut]
+    else:
+        head = re.sub(r"[\w\\^_{}+\-*/=()（）\\[\\],，、;；:： ]{1,36}$", "", head).rstrip()
+    return head.rstrip("，。；;、:： ") + "…"
 
 
-def _review_dynamic_script(overview: dict[str, Any]) -> str:
-    """复习结构总览交互脚本：条形图/Treemap 过滤 / 排序 / 展开 / 掌握度勾选。
-
-    使用 __OVERVIEW__ 占位符注入数据，避免 f-string 与 JS 花括号冲突。
-    """
-    import json as _json
-
-    data = _json.dumps(overview, ensure_ascii=False).replace("</", "<\\/")
+def _review_dynamic_script() -> str:
+    """知识点表格交互脚本：档位/章节/类型筛选 / 排序 / 掌握度勾选。"""
     template = """<script>
 (function () {
-  const OVERVIEW = __OVERVIEW__;
   const wrap = document.getElementById('ck-review');
   if (!wrap) return;
   const table = document.getElementById('ck-main-table');
@@ -1395,7 +1522,7 @@ def _review_dynamic_script(overview: dict[str, Any]) -> str:
   const fGrade = document.getElementById('ck-f-grade');
   const fChapter = document.getElementById('ck-f-chapter');
   const fType = document.getElementById('ck-f-type');
-  let gradeFilter = '', chapterFilter = '', typeFilter = '', sourceFilter = [];
+  let gradeFilter = '', chapterFilter = '', typeFilter = '';
 
   function applyFilters() {
     if (!table) return;
@@ -1403,28 +1530,13 @@ def _review_dynamic_script(overview: dict[str, Any]) -> str:
       const okGrade = !gradeFilter || row.getAttribute('data-grade') === gradeFilter;
       const okChapter = !chapterFilter || row.getAttribute('data-chapter') === chapterFilter;
       const okType = !typeFilter || row.getAttribute('data-type') === typeFilter;
-      const name = row.getAttribute('data-id') || row.getAttribute('data-name') || '';
-      const okSource = !sourceFilter.length || sourceFilter.indexOf(name) >= 0;
-      row.style.display = (okGrade && okChapter && okType && okSource) ? '' : 'none';
+      row.style.display = (okGrade && okChapter && okType) ? '' : 'none';
     });
   }
 
-  function selectOverviewItem(el) {
-    const ids = String(el.getAttribute('data-source-ids') || '').split(/\\s+/).filter(Boolean);
-    sourceFilter = ids;
-    gradeFilter = el.getAttribute('data-grade') || '';
-    if (fGrade) fGrade.value = gradeFilter;
-    wrap.querySelectorAll('.ck-bar-item').forEach((x) => x.classList.toggle('is-on', x === el));
-    applyFilters();
-  }
-
-  wrap.querySelectorAll('.ck-bar-item').forEach((el) => {
-    el.addEventListener('click', () => selectOverviewItem(el));
-  });
-
-  if (fGrade) fGrade.addEventListener('change', () => { gradeFilter = fGrade.value; sourceFilter = []; applyFilters(); });
-  if (fChapter) fChapter.addEventListener('change', () => { chapterFilter = fChapter.value; sourceFilter = []; applyFilters(); });
-  if (fType) fType.addEventListener('change', () => { typeFilter = fType.value; sourceFilter = []; applyFilters(); });
+  if (fGrade) fGrade.addEventListener('change', () => { gradeFilter = fGrade.value; applyFilters(); });
+  if (fChapter) fChapter.addEventListener('change', () => { chapterFilter = fChapter.value; applyFilters(); });
+  if (fType) fType.addEventListener('change', () => { typeFilter = fType.value; applyFilters(); });
 
   if (fChapter && rows.length) {
     const chapters = [];
@@ -1488,4 +1600,48 @@ def _review_dynamic_script(overview: dict[str, Any]) -> str:
   refreshMastery();
 })();
 </script>"""
-    return template.replace("__OVERVIEW__", data)
+    return template
+
+def build_checklist_summary(
+    course: str,
+    catalog_version: str,
+    cards: list[dict],
+) -> str:
+    """清单速览摘要（API data.text 用）：统计 + 卡片列表，不含卡片正文。
+
+    完整内容见产物 checklist.html（交互页）与 result.md（全量存档）。
+    """
+    from .assemble import _clean
+
+    del catalog_version
+    graded: dict[str, list[dict]] = {"S": [], "A": [], "B": [], "C": []}
+    for card in cards:
+        if not isinstance(card, dict):
+            continue
+        name = _clean(card.get("name"))
+        if not name:
+            continue
+        graded.setdefault(str(card.get("session_priority") or "B"), []).append(card)
+    total = sum(len(v) for v in graded.values())
+    if not total:
+        return "暂无复习卡片。\n"
+    labels = {"S": "核心", "A": "重点", "B": "简要", "C": "补充"}
+    lines = [
+        f"# {course or '知识'} · 复习清单",
+        f"本次清单：{total} 张卡（"
+        + " · ".join(f"{labels[k]} {len(v)}" for k, v in graded.items() if v)
+        + "）",
+        "",
+    ]
+    for grade in ("S", "A", "B", "C"):
+        rows = graded.get(grade) or []
+        if not rows:
+            continue
+        lines.append(f"## {labels[grade]}（{len(rows)}）")
+        for card in rows:
+            name = _clean(card.get("name"))
+            chapter = _clean(card.get("chapter")) or _clean(card.get("topic")) or ""
+            lines.append(f"- {name}" + (f" —— {chapter}" if chapter else ""))
+        lines.append("")
+    lines.append("完整内容见产物 checklist.html（交互页）与 result.md。")
+    return "\n".join(lines)

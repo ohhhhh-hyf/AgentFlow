@@ -4,6 +4,7 @@
 """
 from __future__ import annotations
 
+import asyncio
 import tempfile
 import time
 import uuid
@@ -232,7 +233,7 @@ def _validate(req: TaskRequest, task: str, user_id: str) -> str:
         raise ApiError(404, f"任务线不存在：{task}")
 
     if not (user_id or "").strip():
-        raise ApiError(400, f"{task} 需要 X-User-Id（用户标识：会议纪要关联记忆、知识库按用户隔离）")
+        raise ApiError(400, f"{task} 需要 X-User-Id（用户标识：数据目录和知识库按用户隔离）")
     if line in {"catalog", "checklist"} and not (req.extra.subject or "").strip():
         raise ApiError(400, f"{task} 需要 extra.subject")
     if line == "minutes_styles" and (req.extra.style or "").strip():
@@ -282,10 +283,12 @@ class _Prepared:
     user_id: str
     project: str
     subject: str
+    memory: bool
 
 
 def _prepare(domain: str, task: str, req: TaskRequest, user_id: str) -> _Prepared:
     """校验 + 输入组装（run_task / stream_task 共用；失败抛 ApiError）。"""
+    load_env()  # 提前加载：docs 的 OCR 引擎分派依赖 OCR_ENGINE
     line = _validate(req, task, user_id)
     extra = req.extra
 
@@ -324,7 +327,21 @@ def _prepare(domain: str, task: str, req: TaskRequest, user_id: str) -> _Prepare
                         material_docs.append(name.strip())
             else:
                 material_docs = [name.strip() for name in req.docs]
-            if material_docs:
+            if material_docs and line == "graph":
+                # graph：图片走「OCR + LLM 整理审校」生成 md 后直接解析图谱（不经知识库入库）；
+                # 非图片文档仍走正文预览
+                image_docs = [n for n in material_docs if _is_image_name(n)]
+                other_docs = [n for n in material_docs if not _is_image_name(n)]
+                if image_docs:
+                    from tools.ocr.levels.light import images_to_reviewed_markdown
+
+                    image_paths = [_input_file(user_id, "docs", n) for n in image_docs]
+                    md_text = images_to_reviewed_markdown(image_paths)
+                    transcript = "\n\n".join(part for part in (transcript, md_text) if part)
+                if other_docs:
+                    preview = _doc_previews(user_id, other_docs)
+                    transcript = "\n\n".join(part for part in (transcript, preview) if part)
+            elif material_docs:
                 ocr_text = _ocr_docs(user_id, material_docs)
                 transcript = "\n\n".join(part for part in (transcript, ocr_text) if part)
                 preview = _doc_previews(user_id, material_docs)
@@ -332,7 +349,6 @@ def _prepare(domain: str, task: str, req: TaskRequest, user_id: str) -> _Prepare
     except ApiError:
         raise
 
-    load_env()
     ctx = load_domain(domain)
     profile_file = _profile_file(domain, extra.profile)
     template_path = _template_file(domain, line, extra.template)
@@ -378,6 +394,7 @@ def _prepare(domain: str, task: str, req: TaskRequest, user_id: str) -> _Prepare
         user_id=(user_id or "").strip(),
         project=(extra.project or "").strip(),
         subject=(extra.subject or "").strip(),
+        memory=bool(extra.memory),
     )
 
 
@@ -392,7 +409,7 @@ async def run_task(
     """执行一次任务调用，返回通用响应（monitor + data）。"""
     _start_time = time.time()
     request_id = (request_id or "").strip() or uuid.uuid4().hex
-    p = _prepare(domain, task, req, user_id)
+    p = await asyncio.to_thread(_prepare, domain, task, req, user_id)
     # 产物直接写入本次请求目录（data/{user_id}/output/{request_id}/），不再走根目录 output/ 归档
     p.ctx.output_dir = output_dir(user_id, request_id)
 
@@ -415,6 +432,7 @@ async def run_task(
             monitor=False,
             collect_reports=True,
             extra_line_inputs=p.extra_line_inputs,
+            memory=p.memory,
         )
     except ApiError:
         raise
@@ -427,7 +445,30 @@ async def run_task(
     usage = (result or {}).get("usage") or {}
 
     md_text = ""
-    if saved_paths.get("md"):
+    if p.line == "checklist" and p.line in reports:
+        # checklist 以 HTML 交互页为主：data.text 返回精简摘要（统计 + 卡片列表），
+        # 全量 Markdown 仍落盘 result.md 存档
+        from domain.notes.tasks.checklist.display import build_checklist_summary
+
+        _report = reports[p.line]
+        _cards = (
+            _report.get("cards")
+            if isinstance(_report, dict)
+            else getattr(_report, "cards", None)
+        ) or []
+        if _cards:
+            if isinstance(_report, dict):
+                _course = _report.get("course") or ""
+                _version = _report.get("catalog_version") or ""
+            else:
+                _course = getattr(_report, "course", "") or ""
+                _version = getattr(_report, "catalog_version", "") or ""
+            md_text = build_checklist_summary(
+                course=str(_course),
+                catalog_version=str(_version),
+                cards=_cards,
+            )
+    if not md_text and saved_paths.get("md"):
         md_text = Path(saved_paths["md"]).read_text(encoding="utf-8")
     if not md_text and p.line in reports:
         from tools.exports.outputs import report_text
@@ -475,7 +516,7 @@ async def stream_task(
     参数校验失败（400/404）仍直接返回 HTTP 错误，不走流。
     """
     request_id = (request_id or "").strip() or uuid.uuid4().hex
-    p = _prepare(domain, task, req, user_id)
+    p = await asyncio.to_thread(_prepare, domain, task, req, user_id)
     # 产物直接写入本次请求目录（data/{user_id}/output/{request_id}/），不再走根目录 output/ 归档
     p.ctx.output_dir = output_dir(user_id, request_id)
 
@@ -500,6 +541,7 @@ async def stream_task(
                 monitor=False,
                 collect_reports=True,
                 extra_line_inputs=p.extra_line_inputs,
+                memory=p.memory,
             )
         except Exception as exc:  # noqa: BLE001 - 准备失败推 error 事件
             yield _ndjson({"type": "error", "code": 500, "message": f"任务准备失败：{exc}"})
@@ -532,10 +574,24 @@ async def stream_task(
                     md_text = ""
                     if saved_paths.get("md"):
                         md_text = Path(saved_paths["md"]).read_text(encoding="utf-8")
-                    if not md_text and p.line in (event.get("reports") or {}):
-                        from tools.exports.outputs import report_text
+                    if p.line == "checklist" and p.line in (event.get("reports") or {}):
+                        from domain.notes.tasks.checklist.display import build_checklist_summary
+                        from tools.exports.outputs import report_to_dict
 
-                        md_text = report_text((event.get("reports") or {})[p.line])
+                        _report = report_to_dict((event.get("reports") or {})[p.line])
+                        _cards = _report.get("cards") or []
+                        if _cards:
+                            md_text = build_checklist_summary(
+                                course=str(_report.get("course") or ""),
+                                catalog_version=str(_report.get("catalog_version") or ""),
+                                cards=_cards,
+                            )
+                    if not md_text and p.line in (event.get("reports") or {}):
+                        from tools.exports.outputs import report_text, report_to_dict
+
+                        md_text = report_text(
+                            report_to_dict((event.get("reports") or {})[p.line])
+                        )
                     if prep.memory_enabled and prep.memory_bind is not None:
                         from tools.memory import persist
 

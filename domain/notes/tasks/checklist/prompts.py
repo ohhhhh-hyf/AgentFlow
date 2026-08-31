@@ -30,7 +30,7 @@ S/A 必须写厚，学生打开就能复习，不要三五行提纲。B/C 也要
 
 ## 策略
 
-strategy 3-5 条：把【复习顺序事实】润色成连贯的复习建议——每条是完整句子，按「先做 → 后做」顺序排列，保留知识点原名和难度/重要性判断；可以把同批的点合并成一句（如「极限的定义和两个重要极限既重要又不难，建议最先复习」）。禁止用 S/A/B/KP 等术语，禁止自编目录里没有的顺序，禁止「多看书多做题」。
+strategy 直接输出空数组 []。复习路线由程序基于 importance / difficulty / exam_signal / prerequisites / note_missing_items 自动生成，避免重复消耗 token。
 
 uncertain_quotes：老师原话对不上任何给定 KP 的短句。
 """

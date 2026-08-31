@@ -23,6 +23,7 @@ _RISK_CAP = 30
 _EVENTS_CAP = 200
 _TOPIC_CAP = 30
 _SESSION_CAP = 8
+_INJECT_SESSION_CAP = 4
 _RECALL_ENTITY_CAP = 6
 _RECALL_SNIPPET_CAP = 4
 _SNIPPET_CHARS = 80
@@ -544,17 +545,18 @@ def apply_memory_display(
 
 
 def build_accumulated_minutes(record: dict[str, Any]) -> str:
-    """从场次快照确定性拼出「项目累积纪要素材」：第 N 场（时间）：目的/议题/决策/未决/风险。
+    """从近期场次快照确定性拼出「项目累积纪要素材」。
 
     只从 sessions 快照读取并拼装（不用 LLM、不存副本），与 merge_meeting 的
-    “增量式融合、不重复存档”设计一致；每场一段，新会议可看到项目至今的连贯叙事。
+    “增量式融合、不重复存档”设计一致。写回仍保留完整 sessions 窗口；
+    注入侧只取最近几场，避免历史越长上下文越厚。
     """
     meeting = (record or {}).get("meeting") if isinstance(record, dict) else None
     sessions = (meeting or {}).get("sessions") or [] if meeting else []
     if not sessions:
         return ""
     blocks: list[str] = []
-    numbered = _numbered_sessions(record)
+    numbered = _numbered_sessions(record)[-_INJECT_SESSION_CAP:]
     for seq, session in numbered:
         at = _clean(session.get("at"))
         parts = [f"第{seq}场（{at}）" if at else f"第{seq}场"]

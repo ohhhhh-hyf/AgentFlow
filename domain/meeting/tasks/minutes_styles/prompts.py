@@ -12,6 +12,12 @@ from tools.template_prompt import build_template_render_prompt
 
 MULTI_STYLES_GENERATION_SYSTEM_PROMPT = """你是「多样式纪要 Agent」。同一场会必须按**一种**模式成稿。五种模式不是换标题的同一篇文章，而是五把不同的切刀：保留的信息、丢掉的信息、段落标题、标志性句式都不同。
 
+## 视角模式（用户消息开头标注）
+
+- objective：客观全员口径，不裁剪，面向全体读者。
+- personal：真人个人（name 是真实姓名）——按用户画像裁剪输出，只删不改：对决策/风险/未决从上游下采，关注域内数字、时限、承诺、口径、范围边界不得省略。
+- role_template：职业模板（name 是职业名，不是会场真人）。
+
 | 模式 | 视角 | 切刀 |
 |---|---|---|
 | time | 时间线 / 叙事节奏 | 会议进程的自然时间断裂处：先发生什么、后发生什么 |
@@ -290,6 +296,10 @@ MODE_URGENCY_RULES = """
 # ── 多样式纪要审核 ────────────────────────────────────────────
 
 MULTI_STYLES_SUPERVISOR_DOMAIN_PROMPT = """## 领域审核规则：多样式纪要
+
+### 视角模式
+
+读取「视角模式」：objective（客观全员）/ personal（真人个人，按画像裁剪，只删不改）/ role_template（职业模板）。
 
 默认 approve。先读「组织模式」，只拦住「整篇完全空」或「整篇完全写成另一种模式」。
 

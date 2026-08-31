@@ -1,0 +1,110 @@
+{
+  "course": "物理",
+  "version": "2",
+  "mode": "incremental_update",
+  "chapters": [
+    {
+      "id": "ch1",
+      "name": "测试章节",
+      "topics": [
+        {
+          "id": "t1",
+          "name": "测试主题",
+          "knowledge_points": [
+            {
+              "id": "kp1",
+              "name": "测试知识点",
+              "aliases": [],
+              "knowledge_type": "concept",
+              "knowledge_items": [
+                "定义",
+                "用途"
+              ],
+              "importance": 2,
+              "difficulty": "2",
+              "foundational_level": "2",
+              "note_coverage": "partial",
+              "note_missing_items": [],
+              "prerequisites": [],
+              "related_points": [],
+              "practice_type": [
+                "recall"
+              ],
+              "completion_criteria": [
+                "can_recall"
+              ],
+              "learning_role": "",
+              "risk_tags": [],
+              "evidence": [],
+              "created_at": "2026-08-30T15:19:27Z",
+              "updated_at": "2026-08-30T15:19:27Z",
+              "node_status": "active",
+              "change_type": "unchanged",
+              "source_documents": [],
+              "chapter": "测试章节",
+              "topic": "测试主题",
+              "teacher_emphasis": 1,
+              "exam_signal": "none",
+              "teacher_focus_items": [
+                "测试章节：测试知识点，定义和用途"
+              ],
+              "teacher_evidence": [
+                "测试章节：测试知识点，定义和用途"
+              ],
+              "review_weight": 0.28,
+              "note_covered_items": [],
+              "sources": []
+            },
+            {
+              "id": "kp_001",
+              "name": "api_test_note.txt",
+              "aliases": [],
+              "knowledge_type": "concept",
+              "knowledge_items": [],
+              "importance": 2,
+              "difficulty": "3",
+              "teacher_emphasis": "0",
+              "change_type": "unchanged",
+              "node_status": "program_complement",
+              "sources": [
+                "api_test_note.txt"
+              ],
+              "prerequisites": [],
+              "related_points": [],
+              "risk_tags": [],
+              "completion_criteria": [],
+              "exam_signal": "none",
+              "topic": "测试主题",
+              "chapter": "测试章节",
+              "source_chunk_ids": [
+                "api_test_note.txt#api_test_note.txt"
+              ],
+              "evidence": [
+                "接口测试笔记:牛顿定律与能量守恒。"
+              ],
+              "content_fingerprint": "接口测试笔记:牛顿定律与能量守恒。",
+              "review_weight": 0.32,
+              "foundational_level": "1",
+              "note_coverage": "none",
+              "practice_type": [],
+              "learning_role": ""
+            }
+          ],
+          "change_type": "unchanged"
+        }
+      ],
+      "created_at": "2026-08-30T15:19:27Z",
+      "updated_at": "2026-08-30T15:19:27Z",
+      "node_status": "active",
+      "change_type": "unchanged",
+      "source_documents": []
+    }
+  ],
+  "unmatched_content": [],
+  "uncertain_nodes": [],
+  "added_chapters": [],
+  "added_topics": [],
+  "added_knowledge_points": [],
+  "updated_knowledge_points": [],
+  "merged_nodes": []
+}

@@ -35,6 +35,7 @@ from tools.domain_engine import (
     line_draft_title as _engine_line_draft_title,
 )
 from tools.runtime.kinds import resolve_line_policies
+from tools.runtime.supervisor_slice import compact_draft_for_review
 
 # ── Report import 生成区：由 tools/scripts/sync_domain.py 生成，勿手改 ──
 
@@ -387,7 +388,7 @@ class _Nodes(DomainNodes):
             f"{_line_cn(line_name)}返工次数：{revision_count}/{self.MAX_REVISIONS}\n"
             f"{allowed}\n\n"
             f"{self._supervisor_source_pack(state, line_name)}\n\n"
-            f"{_line_draft_title(line_name)}：\n{_json(sub['draft'])}"
+            f"{_line_draft_title(line_name)}：\n{_json(compact_draft_for_review(sub['draft']))}"
             f"{extra_block}"
         )
 

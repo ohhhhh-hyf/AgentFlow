@@ -1,0 +1,3194 @@
+{
+  "course": "物理",
+  "version": "5",
+  "mode": "incremental_update",
+  "chapters": [
+    {
+      "id": "ch_001",
+      "name": "一维束缚态",
+      "change_type": "updated",
+      "topics": [
+        {
+          "id": "tp_001",
+          "name": "定理1(势函数不连续时)",
+          "change_type": "updated",
+          "knowledge_points": [
+            {
+              "id": "kp_001",
+              "name": "势函数不连续时的波函数条件",
+              "aliases": [],
+              "chapter": "一维束缚态",
+              "topic": "定理1(势函数不连续时)",
+              "knowledge_type": "theorem",
+              "knowledge_items": [
+                "波函数连续",
+                "波函数导数条件",
+                "束缚态边界条件",
+                "势函数不连续点处理",
+                "波函数及其导数连续条件",
+                "势函数不连续点处的连接条件",
+                "波函数连续条件",
+                "ψ(x)与ψ'(x)在跳跃点连续",
+                "概率幅连续性",
+                "证明思路1：|ψ|<∞且E→0",
+                "证明思路2：反证法排除冲击项",
+                "证明思路3：连续性方程"
+              ],
+              "importance": 3,
+              "difficulty": "3",
+              "teacher_emphasis": 1,
+              "foundational_level": "4",
+              "exam_signal": "medium",
+              "note_coverage": "detailed",
+              "note_missing_items": [],
+              "practice_type": [
+                "recall",
+                "apply",
+                "prove"
+              ],
+              "completion_criteria": [
+                "can_recall",
+                "can_apply",
+                "can_solve_standard",
+                "can_explain",
+                "can_prove"
+              ],
+              "learning_role": "foundation",
+              "risk_tags": [
+                "condition_check",
+                "boundary_case",
+                "proof_format"
+              ],
+              "prerequisites": [],
+              "related_points": [
+                {
+                  "name": "一维半无限深方势阱",
+                  "relation": "used_with"
+                }
+              ],
+              "evidence": [
+                "学生笔记：定理1(势函数不连续时)",
+                "老师重点：定理1（势函数不连续时）"
+              ],
+              "node_status": "active",
+              "change_type": "updated",
+              "created_at": "2026-08-29T12:41:34Z",
+              "updated_at": "2026-08-30T15:36:23Z",
+              "source_documents": [],
+              "review_weight": 0.527,
+              "teacher_focus_items": [
+                "）",
+                "---",
+                "---"
+              ],
+              "note_covered_items": [],
+              "sources": [],
+              "teacher_evidence": [
+                "）",
+                "---",
+                "---"
+              ]
+            }
+          ],
+          "knowledge_items": [
+            "定理1(势函数不连续时)"
+          ]
+        },
+        {
+          "id": "tp_002",
+          "name": "一维半无限深方势阱",
+          "change_type": "updated",
+          "knowledge_points": [
+            {
+              "id": "kp_002",
+              "name": "一维半无限深方势阱",
+              "aliases": [],
+              "chapter": "一维束缚态",
+              "topic": "一维半无限深方势阱",
+              "knowledge_type": "formula",
+              "knowledge_items": [
+                "束缚态能级公式",
+                "波函数形式",
+                "束缚态条件",
+                "能级方程",
+                "波函数求解",
+                "束缚态能级条件",
+                "波函数求解步骤",
+                "奇偶性分析",
+                "分区求解：x<0, 0<x<a, x>a",
+                "边界条件：ψ(0)=0, ψ(a)连续",
+                "超越方程tan(ka)=-k/β",
+                "能量量子化条件",
+                "归一化系数A_n, B_n"
+              ],
+              "importance": 4,
+              "difficulty": "3",
+              "teacher_emphasis": 1,
+              "foundational_level": "3",
+              "exam_signal": "medium",
+              "note_coverage": "detailed",
+              "note_missing_items": [],
+              "practice_type": [
+                "calculate",
+                "apply"
+              ],
+              "completion_criteria": [
+                "can_solve_standard",
+                "can_apply",
+                "can_solve_variant"
+              ],
+              "learning_role": "core_method",
+              "risk_tags": [
+                "condition_check",
+                "calculation_error",
+                "boundary_case"
+              ],
+              "prerequisites": [
+                "势函数不连续时的波函数条件"
+              ],
+              "related_points": [
+                {
+                  "name": "一维谐振子",
+                  "relation": "used_with"
+                },
+                {
+                  "name": "一维谐振子",
+                  "relation": "alternative"
+                }
+              ],
+              "evidence": [
+                "$$V(x) = \\begin{cases} \\infty, & x < 0 \\\\ 0, & 0 < x < a \\\\ V_0, & x > a \\end{cases}$$ 定态薛定谔方程:$-\\frac{\\hbar^2}{2\\mu}\\fr",
+                "$\\because \\psi(x) \\xrightarrow{x \\to \\infty} 0$,若 $\\beta$ 为虚数(即 $V_0 < E$),$\\psi(x)$ 周期振荡不满足束缚态,故仅考虑 $\\beta$ 为实数且 $>0$。 ",
+                "$$E = \\frac{\\hbar^2 k^2}{2\\mu} = \\frac{\\hbar^2}{2\\mu a^2}\\left[1 - \\cos(2ka)\\right] \\cdot \\frac{1}{\\sin^2 ka}, \\quad \\co"
+              ],
+              "node_status": "active",
+              "change_type": "updated",
+              "created_at": "2026-08-29T12:41:34Z",
+              "updated_at": "2026-08-30T15:36:23Z",
+              "source_documents": [],
+              "sources": [
+                "ocr_20260829_162807.md"
+              ],
+              "source_chunk_ids": [
+                "ocr_20260829_162807.md#一维半无限深方势阱"
+              ],
+              "content_fingerprint": "$$V(x) = \\begin{cases} \\infty, & x < 0 \\\\ 0, & 0 < x < a \\\\  | $$ | 标签:formula | $$V(x) = \\begin{cases} \\infty, & x < 0 \\\\ 0, & 0 <",
+              "review_weight": 0.66,
+              "teacher_focus_items": [
+                "）",
+                "## 一维半无限深方势阱",
+                "---"
+              ],
+              "note_covered_items": [],
+              "teacher_evidence": [
+                "）",
+                "## 一维半无限深方势阱",
+                "---"
+              ]
+            }
+          ]
+        },
+        {
+          "id": "tp_003",
+          "name": "一维谐振子",
+          "change_type": "updated",
+          "knowledge_points": [
+            {
+              "id": "kp_003",
+              "name": "一维谐振子",
+              "aliases": [],
+              "chapter": "一维束缚态",
+              "topic": "一维谐振子",
+              "knowledge_type": "formula",
+              "knowledge_items": [
+                "能级公式",
+                "波函数",
+                "厄米多项式",
+                "零点能",
+                "能量本征值",
+                "厄米方程两种解法",
+                "波函数与厄米多项式",
+                "厄米多项式解",
+                "波函数递推关系",
+                "势能V(x)=1/2μω²x²",
+                "无量纲化：s=αx, λ=2E/ℏω",
+                "厄米方程与厄米多项式",
+                "能量量子化E_n=(n+1/2)ℏω",
+                "归一化波函数ψ_n(x)",
+                "幂级数解法",
+                "母函数法"
+              ],
+              "importance": 4,
+              "difficulty": "4",
+              "teacher_emphasis": 1,
+              "foundational_level": "4",
+              "exam_signal": "strong",
+              "note_coverage": "detailed",
+              "note_missing_items": [],
+              "practice_type": [
+                "calculate",
+                "prove"
+              ],
+              "completion_criteria": [
+                "can_solve_standard",
+                "can_solve_variant",
+                "can_prove"
+              ],
+              "learning_role": "core_concept",
+              "risk_tags": [
+                "formula_misuse",
+                "calculation_error",
+                "method_selection"
+              ],
+              "prerequisites": [
+                "势函数不连续时的波函数条件"
+              ],
+              "related_points": [
+                {
+                  "name": "一维半无限深方势阱",
+                  "relation": "used_with"
+                },
+                {
+                  "name": "一维半无限深方势阱",
+                  "relation": "alternative"
+                }
+              ],
+              "evidence": [
+                "$$V(x) = \\frac{1}{2}kx^2 = \\frac{1}{2}\\mu\\omega^2 x^2 \\quad \\left(-\\frac{dV}{dx} = -kx = \\mu\\ddot{x}, \\quad \\ddot{x} + \\",
+                "$$\\frac{d^2\\phi(\\xi)}{d\\xi^2} + (\\lambda - \\xi^2)\\phi(\\xi) = 0, \\quad \\lambda = \\frac{2E}{\\hbar\\omega}$$ 为“消除”$\\xi^2$ 项,",
+                "$$\\phi_n(\\xi) = N_n e^{-\\xi^2/2}H_n(\\xi), \\quad N_n = \\left(\\frac{\\alpha}{\\sqrt{\\pi}\\,2^n n!}\\right)^{1/2}, \\quad \\psi_n"
+              ],
+              "node_status": "active",
+              "change_type": "updated",
+              "created_at": "2026-08-29T12:41:34Z",
+              "updated_at": "2026-08-30T15:36:23Z",
+              "source_documents": [],
+              "sources": [
+                "ocr_20260829_162807.md"
+              ],
+              "source_chunk_ids": [
+                "ocr_20260829_162807.md#一维谐振子"
+              ],
+              "content_fingerprint": "$$V(x) = \\frac{1}{2}kx^2 = \\frac{1}{2}\\mu\\omega^2 x^2 \\quad  | $$\\left[-\\frac{\\hbar^2}{2\\mu}\\frac{d^2}{dx^2} + \\frac{1}{2}\\ | 标签:formula,method | $$V(x) = \\frac{1}{2}kx^2 = \\frac{1}{2}\\mu\\omega^2 ",
+              "review_weight": 0.7,
+              "teacher_focus_items": [
+                "）",
+                "## 一维谐振子",
+                "**厄米多项式性质：**"
+              ],
+              "note_covered_items": [],
+              "teacher_evidence": [
+                "）",
+                "## 一维谐振子",
+                "**厄米多项式性质：**"
+              ]
+            }
+          ],
+          "knowledge_items": [
+            "1 厄米算符属于不同本征值的本征态必然正交",
+            "三维问题:球坐标分离变量",
+            "2 本征态的完备性",
+            "一维束缚态",
+            "守恒量"
+          ]
+        }
+      ],
+      "created_at": "2026-08-29T12:41:34Z",
+      "updated_at": "2026-08-30T15:36:23Z",
+      "node_status": "active",
+      "source_documents": []
+    },
+    {
+      "id": "ch_002",
+      "name": "三维问题:球坐标下的分离变量",
+      "change_type": "updated",
+      "topics": [
+        {
+          "id": "tp_004",
+          "name": "氢原子",
+          "change_type": "updated",
+          "knowledge_points": [
+            {
+              "id": "kp_004",
+              "name": "氢原子",
+              "aliases": [],
+              "chapter": "三维问题:球坐标下的分离变量",
+              "topic": "氢原子",
+              "knowledge_type": "formula",
+              "knowledge_items": [
+                "径向方程",
+                "角向方程",
+                "能级公式",
+                "波函数",
+                "库仑势V(r)=-e²/(4πε₀r)",
+                "能级公式E_n",
+                "波函数R(r)Θ(θ)Φ(φ)"
+              ],
+              "importance": 4,
+              "difficulty": "4",
+              "teacher_emphasis": 1,
+              "foundational_level": "5",
+              "exam_signal": "strong",
+              "note_coverage": "detailed",
+              "note_missing_items": [],
+              "practice_type": [
+                "calculate",
+                "apply"
+              ],
+              "completion_criteria": [
+                "can_solve_standard",
+                "can_apply"
+              ],
+              "learning_role": "core_concept",
+              "risk_tags": [
+                "formula_misuse",
+                "calculation_error"
+              ],
+              "prerequisites": [
+                "一维谐振子",
+                "角向方程的求解"
+              ],
+              "related_points": [
+                {
+                  "name": "概率密度与角度分布",
+                  "relation": "used_with"
+                },
+                {
+                  "name": "角向方程的求解",
+                  "relation": "used_with"
+                }
+              ],
+              "evidence": [
+                "**径向方程:** $$\\frac{1}{r^2}\\frac{d}{dr}\\left(r^2\\frac{dR}{dr}\\right) + \\left[\\frac{2\\mu}{\\hbar^2}\\left(E - V(r)\\right) - \\",
+                "$$\\frac{d^2u}{dr^2} + \\left[\\frac{2\\mu}{\\hbar^2}\\left(E + \\frac{e^2}{4\\pi\\varepsilon_0 r}\\right) - \\frac{l(l+1)}{r^2}\\ri",
+                "$$\\frac{d^2u}{d\\rho^2} + \\left[\\frac{\\lambda}{\\rho} - \\frac{1}{4} - \\frac{l(l+1)}{\\rho^2}\\right]u(\\rho) = 0$$ 其中 $\\lambd"
+              ],
+              "node_status": "active",
+              "change_type": "updated",
+              "created_at": "2026-08-29T12:41:34Z",
+              "updated_at": "2026-08-30T15:36:23Z",
+              "source_documents": [],
+              "sources": [
+                "ocr_20260829_162807.md"
+              ],
+              "source_chunk_ids": [
+                "ocr_20260829_162807.md#氢原子"
+              ],
+              "content_fingerprint": "$$\\frac{1}{r^2}\\frac{d}{dr}\\left(r^2\\frac{dR}{dr}\\right) + \\ | $$\\frac{1}{r^2}\\frac{d}{dr}\\left(r^2\\frac{dR}{dr}\\right) + \\ | 标签:formula | **径向方程:** $$\\frac{1}{r^2}\\frac{d}{dr}\\left(r^2\\fra",
+              "review_weight": 0.7,
+              "teacher_focus_items": [
+                "）",
+                "归一化波函数：",
+                "**径向方程：**"
+              ],
+              "note_covered_items": [],
+              "teacher_evidence": [
+                "）",
+                "归一化波函数：",
+                "**径向方程：**"
+              ]
+            }
+          ]
+        },
+        {
+          "id": "tp_005",
+          "name": "角向方程的求解",
+          "change_type": "updated",
+          "knowledge_points": [
+            {
+              "id": "kp_042",
+              "name": "三维问题:球坐标下的分离变量",
+              "aliases": [
+                "角向方程的求解"
+              ],
+              "knowledge_type": "concept",
+              "knowledge_items": [
+                "球谐函数",
+                "角动量量子数",
+                "磁量子数",
+                "分离变量步骤",
+                "分离变量ψ=RΘΦ",
+                "角向方程",
+                "勒让德方程",
+                "球谐函数Y_lm",
+                "正交归一性"
+              ],
+              "importance": 3,
+              "difficulty": "3",
+              "teacher_emphasis": 1,
+              "change_type": "updated",
+              "node_status": "program_complement",
+              "sources": [
+                "ocr_20260829_162807.md"
+              ],
+              "prerequisites": [],
+              "related_points": [
+                {
+                  "name": "氢原子",
+                  "relation": "used_with"
+                }
+              ],
+              "risk_tags": [
+                "formula_misuse",
+                "method_selection",
+                "calculation_error",
+                "condition_check"
+              ],
+              "completion_criteria": [
+                "can_solve_standard",
+                "can_apply"
+              ],
+              "exam_signal": "medium",
+              "topic": "角向方程的求解",
+              "chapter": "三维问题:球坐标下的分离变量",
+              "source_chunk_ids": [
+                "ocr_20260829_162807.md#三维问题:球坐标下的分离变量"
+              ],
+              "evidence": [
+                "在球坐标中,拉普拉斯算符为: $$\\nabla^2 = \\frac{1}{r^2}\\frac{\\partial}{\\partial r}\\left(r^2\\frac{\\partial}{\\partial r}\\right) + \\frac{",
+                "$$\\frac{1}{R}\\frac{d}{dr}\\left(r^2\\frac{dR}{dr}\\right) + \\frac{2\\mu r^2}{\\hbar^2}[E - V(r)] = -\\frac{1}{Y}\\left[\\frac{1}",
+                "$$\\frac{1}{\\sin\\theta}\\frac{\\partial}{\\partial\\theta}\\left(\\sin\\theta\\frac{\\partial Y}{\\partial\\theta}\\right) + \\frac{1}"
+              ],
+              "content_fingerprint": "$$\\nabla^2 = \\frac{1}{r^2}\\frac{\\partial}{\\partial r}\\left(r | $$ | 标签:formula | 在球坐标中,拉普拉斯算符为: $$\\nabla^2 = \\frac{1}{r^2}\\frac{\\pa",
+              "review_weight": 0.46,
+              "teacher_focus_items": [
+                "）",
+                "**角向方程：**",
+                "### ① 角向方程的求解"
+              ],
+              "note_covered_items": [],
+              "note_missing_items": [],
+              "source_documents": [],
+              "practice_type": [
+                "calculate",
+                "apply"
+              ],
+              "learning_role": "core_method",
+              "note_coverage": "detailed",
+              "foundational_level": "4",
+              "updated_at": "2026-08-30T15:36:23Z",
+              "created_at": "2026-08-29T13:07:56Z",
+              "teacher_evidence": [
+                "）",
+                "**角向方程：**",
+                "### ① 角向方程的求解"
+              ]
+            }
+          ],
+          "knowledge_items": [
+            "角向方程的求解",
+            "1 角向方程的求解"
+          ]
+        }
+      ],
+      "created_at": "2026-08-29T12:41:34Z",
+      "updated_at": "2026-08-30T15:36:23Z",
+      "node_status": "active",
+      "source_documents": []
+    },
+    {
+      "id": "ch_003",
+      "name": "不确定度关系的严格证明",
+      "change_type": "updated",
+      "topics": [
+        {
+          "id": "tp_006",
+          "name": "共同本征函数",
+          "change_type": "updated",
+          "knowledge_points": [
+            {
+              "id": "kp_006",
+              "name": "共同本征函数",
+              "aliases": [],
+              "chapter": "不确定度关系的严格证明",
+              "topic": "共同本征函数",
+              "knowledge_type": "concept",
+              "knowledge_items": [
+                "对易算符的共同本征函数",
+                "完备性",
+                "正交性",
+                "对易算符的共同本征态",
+                "不确定度关系",
+                "共同本征函数的定义",
+                "共同本征函数定义",
+                "对易条件"
+              ],
+              "importance": 3,
+              "difficulty": "4",
+              "teacher_emphasis": 1,
+              "foundational_level": "4",
+              "exam_signal": "medium",
+              "note_coverage": "detailed",
+              "note_missing_items": [],
+              "practice_type": [
+                "recall",
+                "distinguish",
+                "prove"
+              ],
+              "completion_criteria": [
+                "can_recall",
+                "can_distinguish",
+                "can_prove",
+                "can_explain"
+              ],
+              "learning_role": "core_concept",
+              "risk_tags": [
+                "concept_confusion"
+              ],
+              "prerequisites": [
+                "厄米算符本征值的实数性"
+              ],
+              "related_points": [
+                {
+                  "name": "厄米算符本征态的正交性与完备性",
+                  "relation": "used_with"
+                },
+                {
+                  "name": "厄米算符本征值的实数性",
+                  "relation": "used_with"
+                }
+              ],
+              "evidence": [
+                "$$\\Theta_{lm}(\\theta) = \\sqrt{\\frac{(2l+1)(l-|m|)!}{2(l+|m|)!}}P_l^{|m|}(\\cos\\theta)$$ **球谐函数:** $$Y_{lm}(\\theta, \\varph",
+                "设 $A\\psi_a=A_a\\psi_a$,$B\\psi_b=B_b\\psi_b$。若 $[A,B]\\neq 0$,则 $\\psi_a$ 不是 $B$ 的本征函数,$\\psi_b$ 不是 $A$ 的本征函数。 若 $[A,B]=0$,则可能",
+                "**证明:** $[A,B]=0\\Rightarrow AB=BA$,$BA|k\\rangle=B\\cdot a_k|k\\rangle=a_k B|k\\rangle$。则 $A(B|k\\rangle)=a_k(B|k\\rangle)$,$\\"
+              ],
+              "node_status": "active",
+              "change_type": "updated",
+              "created_at": "2026-08-29T12:41:34Z",
+              "updated_at": "2026-08-30T15:36:23Z",
+              "source_documents": [],
+              "sources": [
+                "ocr_20260829_162807.md"
+              ],
+              "source_chunk_ids": [
+                "ocr_20260829_162807.md#1 角向方程的求解",
+                "ocr_20260829_162807.md#共同本征函数"
+              ],
+              "content_fingerprint": "$$\\Theta_{lm}(\\theta) = \\sqrt{\\frac{(2l+1)(l-|m|)!}{2(l+|m|) | $$Y_{lm}(\\theta, \\varphi) = \\Theta_{lm}(\\theta)\\Phi_m(\\varph | 标签:formula | $$\\Theta_{lm}(\\theta) = \\sqrt{\\frac{(2l+1)(l-|m|)!",
+              "review_weight": 0.533,
+              "teacher_focus_items": [
+                "）",
+                "$L^2$ 和 $L_z$ 的共同本征函数为 $Y_{lm}$",
+                "---"
+              ],
+              "note_covered_items": [],
+              "teacher_evidence": [
+                "）",
+                "$L^2$ 和 $L_z$ 的共同本征函数为 $Y_{lm}$",
+                "---"
+              ]
+            }
+          ]
+        },
+        {
+          "id": "tp_007",
+          "name": "厄米算符本征值与本征态的特性",
+          "change_type": "updated",
+          "knowledge_points": [
+            {
+              "id": "kp_007",
+              "name": "厄米算符本征值的实数性",
+              "aliases": [],
+              "chapter": "不确定度关系的严格证明",
+              "topic": "厄米算符本征值与本征态的特性",
+              "knowledge_type": "theorem",
+              "knowledge_items": [
+                "厄米算符本征值为实数",
+                "证明",
+                "厄米算符定义",
+                "本征值实数性证明",
+                "本征态正交性",
+                "完备性",
+                "完备性与封闭性",
+                "封闭性",
+                "不同本征值的本征态正交",
+                "本征态完备性"
+              ],
+              "importance": 4,
+              "difficulty": "3",
+              "teacher_emphasis": 1,
+              "foundational_level": "4",
+              "exam_signal": "strong",
+              "note_coverage": "detailed",
+              "note_missing_items": [],
+              "practice_type": [
+                "prove",
+                "recall"
+              ],
+              "completion_criteria": [
+                "can_prove",
+                "can_recall"
+              ],
+              "learning_role": "foundation",
+              "risk_tags": [
+                "proof_format",
+                "concept_confusion"
+              ],
+              "prerequisites": [],
+              "related_points": [
+                {
+                  "name": "厄米算符本征态的正交性与完备性",
+                  "relation": "used_with"
+                },
+                {
+                  "name": "共同本征函数",
+                  "relation": "used_with"
+                }
+              ],
+              "evidence": [
+                "$F|k\\rangle=\\lambda_k|k\\rangle$,则 $\\langle k|F|k\\rangle=\\bar{F}=\\langle k|\\lambda_k|k\\rangle=\\lambda_k\\langle k|k\\rangle",
+                "$\\hat{F}|k\\rangle = \\lambda_k|k\\rangle$,则 $\\langle k|\\hat{F}|k\\rangle = \\bar{F} = \\langle k|\\lambda_k|k\\rangle = \\lambda"
+              ],
+              "node_status": "active",
+              "change_type": "updated",
+              "created_at": "2026-08-29T12:41:34Z",
+              "updated_at": "2026-08-30T15:36:23Z",
+              "source_documents": [],
+              "sources": [
+                "ocr_20260829_162807.md",
+                "ocr_20260829_164512.md"
+              ],
+              "source_chunk_ids": [
+                "ocr_20260829_162807.md#厄米算符本征值的实数性",
+                "ocr_20260829_164512.md#厄米算符本征值的实数性"
+              ],
+              "content_fingerprint": "$ | rangle= | 标签:formula | $F|k\\rangle=\\lambda_k|k\\rangle$,则 $\\langle k|F|k\\r",
+              "review_weight": 0.66,
+              "teacher_focus_items": [
+                "）",
+                "**证明思路：**",
+                "---"
+              ],
+              "note_covered_items": [],
+              "teacher_evidence": [
+                "）",
+                "**证明思路：**",
+                "---"
+              ]
+            }
+          ],
+          "knowledge_items": [
+            "厄米算符本征值与本征态的特性",
+            "厄米算符本征态的正交性与完备性"
+          ]
+        },
+        {
+          "id": "tp_008",
+          "name": "守恒量与能级简并度",
+          "change_type": "updated",
+          "knowledge_points": [
+            {
+              "id": "kp_010",
+              "name": "力学量平均值的时间依赖特性",
+              "aliases": [],
+              "chapter": "不确定度关系的严格证明",
+              "topic": "守恒量与能级简并度",
+              "knowledge_type": "formula",
+              "knowledge_items": [
+                "平均值随时间的变化",
+                "运动常数",
+                "平均值随时间变化",
+                "守恒量条件",
+                "能级简并度",
+                "平均值随时间变化公式",
+                "能级简并与守恒量关系",
+                "能级简并度与守恒量关系"
+              ],
+              "importance": 3,
+              "difficulty": "3",
+              "teacher_emphasis": 1,
+              "foundational_level": "3",
+              "exam_signal": "medium",
+              "note_coverage": "detailed",
+              "note_missing_items": [],
+              "practice_type": [
+                "calculate",
+                "apply",
+                "recall",
+                "prove"
+              ],
+              "completion_criteria": [
+                "can_apply",
+                "can_solve_standard",
+                "can_recall",
+                "can_prove"
+              ],
+              "learning_role": "core_concept",
+              "risk_tags": [
+                "formula_misuse",
+                "concept_confusion"
+              ],
+              "prerequisites": [
+                "守恒量",
+                "厄米算符本征值的实数性"
+              ],
+              "related_points": [
+                {
+                  "name": "守恒量",
+                  "relation": "used_with"
+                },
+                {
+                  "name": "守恒量",
+                  "relation": "derived_from"
+                }
+              ],
+              "evidence": [
+                "$\\bar{A}(t)=\\langle\\psi(t)|A|\\psi(t)\\rangle$,薛定谔方程:$i\\hbar\\frac{\\partial}{\\partial t}|\\psi\\rangle=H|\\psi\\rangle$。在左矢空间中:",
+                "\\psi|AH|\\psi\\rangle$ $=\\frac{1}{i\\hbar}\\langle\\psi|[A,H]|\\psi\\rangle+\\langle\\psi|\\frac{\\partial A}{\\partial t}|\\psi\\rang",
+                "$\\bar{A}(t) = \\langle\\psi(t)|\\hat{A}|\\psi(t)\\rangle$,薛定谔方程:$i\\hbar\\frac{\\partial}{\\partial t}|\\psi\\rangle = \\hat{H}|\\psi"
+              ],
+              "node_status": "active",
+              "change_type": "updated",
+              "created_at": "2026-08-29T12:41:34Z",
+              "updated_at": "2026-08-30T15:36:23Z",
+              "source_documents": [],
+              "sources": [
+                "ocr_20260829_162807.md",
+                "ocr_20260829_164512.md"
+              ],
+              "source_chunk_ids": [
+                "ocr_20260829_162807.md#力学量平均值的时间依赖特性",
+                "ocr_20260829_164512.md#力学量平均值的时间依赖特性"
+              ],
+              "content_fingerprint": "$ | $ | 标签:formula | $\\bar{A}(t)=\\langle\\psi(t)|A|\\psi(t)\\rangle$,薛定谔方程",
+              "review_weight": 0.46,
+              "teacher_focus_items": [
+                "）",
+                "**能级简并：** $n = n_r + l + 1$，能级简并度 $\\sum_{l=0}^{n-1}(2l + 1) = n^2$",
+                "$l' = -\\frac{1}{2} + \\sqrt{(l + \\frac{1}{2})^2 - 2\\lambda} = -\\frac{1}{2} + (l + \\frac{1}{2})\\sqrt{1 - \\frac{2\\lambda}{(l+1/2)^2}}$，与 $l$ 有关，能级简并度为 $2l' + 1$"
+              ],
+              "note_covered_items": [],
+              "teacher_evidence": [
+                "）",
+                "**能级简并：** $n = n_r + l + 1$，能级简并度 $\\sum_{l=0}^{n-1}(2l + 1) = n^2$",
+                "$l' = -\\frac{1}{2} + \\sqrt{(l + \\frac{1}{2})^2 - 2\\lambda} = -\\frac{1}{2} + (l + \\frac{1}{2})\\sqrt{1 - \\frac{2\\lambda}{(l+1/2)^2}}$，与 $l$ 有关，能级简并度为 $2l' + 1$"
+              ]
+            }
+          ],
+          "knowledge_items": [
+            "守恒量",
+            "不确定度关系的严格证明"
+          ]
+        }
+      ],
+      "created_at": "2026-08-29T12:41:34Z",
+      "updated_at": "2026-08-30T15:36:23Z",
+      "node_status": "active",
+      "source_documents": []
+    },
+    {
+      "id": "ch_004",
+      "name": "常见对易恒等式",
+      "change_type": "updated",
+      "topics": [
+        {
+          "id": "tp_009",
+          "name": "利用对易关系求解平均值问题",
+          "change_type": "updated",
+          "knowledge_points": [
+            {
+              "id": "kp_046",
+              "name": "常见对易恒等式",
+              "aliases": [
+                "利用对易关系求解平均值问题"
+              ],
+              "knowledge_type": "concept",
+              "knowledge_items": [
+                "基本对易关系",
+                "对易恒等式",
+                "平均值计算",
+                "对易式运算恒等式",
+                "利用对易关系求平均值",
+                "对易关系应用",
+                "[x,p]=iℏ"
+              ],
+              "importance": 3,
+              "difficulty": "3",
+              "teacher_emphasis": 1,
+              "change_type": "updated",
+              "node_status": "program_complement",
+              "sources": [
+                "ocr_20260829_162807.md",
+                "ocr_20260829_164512.md"
+              ],
+              "prerequisites": [
+                "厄米算符本征值的实数性",
+                "角动量与坐标的对易关系"
+              ],
+              "related_points": [
+                {
+                  "name": "角动量与坐标的对易关系",
+                  "relation": "used_with"
+                }
+              ],
+              "risk_tags": [
+                "formula_misuse",
+                "calculation_error",
+                "method_selection"
+              ],
+              "completion_criteria": [
+                "can_solve_standard",
+                "can_apply"
+              ],
+              "exam_signal": "medium",
+              "topic": "利用对易关系求解平均值问题",
+              "chapter": "常见对易恒等式",
+              "source_chunk_ids": [
+                "ocr_20260829_162807.md#常见对易恒等式",
+                "ocr_20260829_164512.md#常见对易恒等式"
+              ],
+              "evidence": [
+                "[A,B]=-[B,A] [A,B+C]=[A,B]+[A,C] [A,BC]=[A,B]C+B[A,C] [AB,C]=A[B,C]+[A,C]B [A,B+C]+[B,A+C]+[C,A+B]=0 [A,[B,C]]+[B,[C,A]]"
+              ],
+              "content_fingerprint": "+C | +B | 标签:formula | [A,B]=-[B,A] [A,B+C]=[A,B]+[A,C] [A,BC]=[A,B]C+B[A",
+              "review_weight": 0.46,
+              "teacher_focus_items": [
+                "）",
+                "---",
+                "---"
+              ],
+              "note_covered_items": [],
+              "note_missing_items": [],
+              "source_documents": [],
+              "practice_type": [
+                "calculate",
+                "apply"
+              ],
+              "learning_role": "core_method",
+              "note_coverage": "detailed",
+              "foundational_level": "4",
+              "updated_at": "2026-08-30T15:36:23Z",
+              "created_at": "2026-08-29T13:07:56Z",
+              "teacher_evidence": [
+                "）",
+                "---",
+                "---"
+              ]
+            }
+          ],
+          "knowledge_items": [
+            "利用对易关系求解平均值问题"
+          ]
+        }
+      ],
+      "created_at": "2026-08-29T12:41:34Z",
+      "updated_at": "2026-08-30T15:36:23Z",
+      "node_status": "active",
+      "source_documents": []
+    },
+    {
+      "id": "ch_005",
+      "name": "氢原子与碱金属原子",
+      "change_type": "updated",
+      "topics": [
+        {
+          "id": "tp_010",
+          "name": "概率密度与角度分布",
+          "change_type": "updated",
+          "knowledge_points": [
+            {
+              "id": "kp_012",
+              "name": "概率密度与角度分布",
+              "aliases": [],
+              "chapter": "氢原子与碱金属原子",
+              "topic": "概率密度与角度分布",
+              "knowledge_type": "formula",
+              "knowledge_items": [
+                "径向概率密度",
+                "角度分布",
+                "球谐函数",
+                "角向概率密度",
+                "电子云",
+                "角向概率分布"
+              ],
+              "importance": 4,
+              "difficulty": "3",
+              "teacher_emphasis": 1,
+              "foundational_level": "3",
+              "exam_signal": "weak",
+              "note_coverage": "detailed",
+              "note_missing_items": [],
+              "practice_type": [
+                "calculate",
+                "apply",
+                "recall"
+              ],
+              "completion_criteria": [
+                "can_solve_standard",
+                "can_apply",
+                "can_recall",
+                "can_explain"
+              ],
+              "learning_role": "application",
+              "risk_tags": [
+                "formula_misuse",
+                "concept_confusion",
+                "calculation_error"
+              ],
+              "prerequisites": [
+                "氢原子"
+              ],
+              "related_points": [
+                {
+                  "name": "电流分布与磁矩",
+                  "relation": "used_with"
+                }
+              ],
+              "evidence": [
+                "概率密度角度分布在 $(\\theta,\\varphi)$ 方向的立体角 $d\\Omega$ 中电子的概率为 $|Y_{lm}(\\theta,\\varphi)|^2 d\\Omega = |Y_{lm}(\\theta,\\varphi)|^2 \\",
+                "概率密度角度分布在 $(\\theta, \\varphi)$ 方向的立体角 $d\\Omega$ 中电子的概率为 $|Y_{lm}(\\theta, \\varphi)|^2 d\\Omega = |Y_{lm}(\\theta, \\varphi)|^"
+              ],
+              "node_status": "active",
+              "change_type": "updated",
+              "created_at": "2026-08-29T12:41:34Z",
+              "updated_at": "2026-08-30T15:36:23Z",
+              "source_documents": [],
+              "sources": [
+                "ocr_20260829_162807.md",
+                "ocr_20260829_164512.md"
+              ],
+              "source_chunk_ids": [
+                "ocr_20260829_162807.md#概率密度与角度分布",
+                "ocr_20260829_164512.md#概率密度与角度分布"
+              ],
+              "content_fingerprint": "$$P(\\theta,\\varphi)\\, d\\theta\\, d\\varphi = \\int |R_{nl}(r) Y | $ | 标签:formula | 概率密度角度分布在 $(\\theta,\\varphi)$ 方向的立体角 $d\\Omega$ 中电子的",
+              "review_weight": 0.66,
+              "teacher_focus_items": [
+                "）",
+                "球谐函数：",
+                "**球谐函数满足正交关系：**"
+              ],
+              "note_covered_items": [],
+              "teacher_evidence": [
+                "）",
+                "球谐函数：",
+                "**球谐函数满足正交关系：**"
+              ]
+            }
+          ]
+        },
+        {
+          "id": "tp_011",
+          "name": "电流分布与磁矩",
+          "change_type": "updated",
+          "knowledge_points": [
+            {
+              "id": "kp_013",
+              "name": "电流分布与磁矩",
+              "aliases": [],
+              "chapter": "氢原子与碱金属原子",
+              "topic": "电流分布与磁矩",
+              "knowledge_type": "formula",
+              "knowledge_items": [
+                "电流密度",
+                "磁矩公式",
+                "轨道磁矩",
+                "轨道磁矩与角动量关系"
+              ],
+              "importance": 3,
+              "difficulty": "3",
+              "teacher_emphasis": 1,
+              "foundational_level": "3",
+              "exam_signal": "weak",
+              "note_coverage": "detailed",
+              "note_missing_items": [],
+              "practice_type": [
+                "calculate",
+                "apply"
+              ],
+              "completion_criteria": [
+                "can_solve_standard",
+                "can_apply"
+              ],
+              "learning_role": "application",
+              "risk_tags": [
+                "formula_misuse",
+                "calculation_error"
+              ],
+              "prerequisites": [
+                "概率密度与角度分布",
+                "氢原子"
+              ],
+              "related_points": [
+                {
+                  "name": "概率密度与角度分布",
+                  "relation": "used_with"
+                }
+              ],
+              "evidence": [
+                "电流密度 = 电荷 × 概率流密度: $$\\vec{j}_c = (-e) \\cdot \\frac{i\\hbar}{2m}(\\psi \\nabla \\psi^* - \\psi^* \\nabla \\psi)$$ 其中 $\\psi_{nlm}(",
+                "$$d\\mu = (r\\sin\\theta)^2 \\pi \\cdot j_\\varphi \\, dr\\, d\\theta$$",
+                "电流密度 = 电荷 × 概率流密度:$\\vec{j}_c = (-e) \\cdot \\frac{\\hbar}{2mi}(\\psi^* \\nabla \\psi - \\psi \\nabla \\psi^*)$。 其中 $\\psi_{nlm}(r,"
+              ],
+              "node_status": "active",
+              "change_type": "updated",
+              "created_at": "2026-08-29T12:41:34Z",
+              "updated_at": "2026-08-30T15:36:23Z",
+              "source_documents": [],
+              "sources": [
+                "ocr_20260829_162807.md",
+                "ocr_20260829_164512.md"
+              ],
+              "source_chunk_ids": [
+                "ocr_20260829_162807.md#电流分布与磁矩",
+                "ocr_20260829_164512.md#电流分布与磁矩"
+              ],
+              "content_fingerprint": "$$\\vec{j}_c = (-e) \\cdot \\frac{i\\hbar}{2m}(\\psi \\nabla \\psi^ | $$j_\\varphi = \\frac{e\\hbar m}{m_e r \\sin\\theta} |\\psi_{nlm}| | 标签:formula | 电流密度 = 电荷 × 概率流密度: $$\\vec{j}_c = (-e) \\cdot \\frac{",
+              "review_weight": 0.493,
+              "teacher_focus_items": [
+                "）",
+                "## 电流分布与磁矩",
+                "电流密度 = 电荷 × 概率流密度：$\\vec{j}_c = (-e) \\cdot \\frac{\\hbar}{2mi}(\\psi^* \\nabla \\psi - \\psi \\nabla \\psi^*)$"
+              ],
+              "note_covered_items": [],
+              "teacher_evidence": [
+                "）",
+                "## 电流分布与磁矩",
+                "电流密度 = 电荷 × 概率流密度：$\\vec{j}_c = (-e) \\cdot \\frac{\\hbar}{2mi}(\\psi^* \\nabla \\psi - \\psi \\nabla \\psi^*)$"
+              ]
+            }
+          ]
+        },
+        {
+          "id": "tp_012",
+          "name": "碱金属原子",
+          "change_type": "updated",
+          "knowledge_points": [
+            {
+              "id": "kp_014",
+              "name": "碱金属原子",
+              "aliases": [],
+              "chapter": "氢原子与碱金属原子",
+              "topic": "碱金属原子",
+              "knowledge_type": "concept",
+              "knowledge_items": [
+                "碱金属原子结构",
+                "能级分裂",
+                "量子亏损",
+                "价电子",
+                "原子实",
+                "碱金属原子能级特点",
+                "价电子模型",
+                "与氢原子的区别",
+                "碱金属能级"
+              ],
+              "importance": 4,
+              "difficulty": "3",
+              "teacher_emphasis": 1,
+              "foundational_level": "3",
+              "exam_signal": "weak",
+              "note_coverage": "detailed",
+              "note_missing_items": [],
+              "practice_type": [
+                "recall",
+                "distinguish"
+              ],
+              "completion_criteria": [
+                "can_recall",
+                "can_distinguish",
+                "can_explain"
+              ],
+              "learning_role": "core_concept",
+              "risk_tags": [
+                "concept_confusion"
+              ],
+              "prerequisites": [
+                "氢原子"
+              ],
+              "related_points": [
+                {
+                  "name": "简单塞曼效应",
+                  "relation": "used_with"
+                },
+                {
+                  "name": "氢原子",
+                  "relation": "easily_confused"
+                },
+                {
+                  "name": "氢原子",
+                  "relation": "derived_from"
+                },
+                {
+                  "name": "简单塞曼效应",
+                  "relation": "easily_confused"
+                }
+              ],
+              "evidence": [
+                "碱金属原子势能: $$V(r) = -\\frac{e^2}{4\\pi\\varepsilon_0 r} \\quad (\\text{氢原子})$$ $$V(r) = -\\frac{e^2}{4\\pi\\varepsilon_0 r} - \\fra",
+                "$$E_n = -\\frac{m e^4}{2\\hbar^2 (4\\pi\\varepsilon_0)^2 n'^2}, \\quad n' = n_r + l' + 1$$ 其中: $$l' = -\\frac{1}{2} + \\sqrt{\\l",
+                "则 $\\frac{1}{r^2}\\frac{d}{dr}\\left(r^2\\frac{dR}{dr}\\right)+\\left[\\frac{2\\mu}{\\hbar^2}\\left(E_0+\\frac{k}{r}+\\frac{\\lambda "
+              ],
+              "node_status": "active",
+              "change_type": "updated",
+              "created_at": "2026-08-29T12:41:34Z",
+              "updated_at": "2026-08-30T15:36:23Z",
+              "source_documents": [],
+              "sources": [
+                "ocr_20260829_162807.md"
+              ],
+              "source_chunk_ids": [
+                "ocr_20260829_162807.md#碱金属原子",
+                "ocr_20260829_162807.md#简单塞曼效应"
+              ],
+              "content_fingerprint": "$$V(r) = -\\frac{e^2}{4\\pi\\varepsilon_0 r} \\quad (\\text{氢原子}) | $$V(r) = -\\frac{e^2}{4\\pi\\varepsilon_0 r} - \\frac{k e^2}{r^2 | 标签:formula | 碱金属原子势能: $$V(r) = -\\frac{e^2}{4\\pi\\varepsilon_0 r}",
+              "review_weight": 0.66,
+              "teacher_focus_items": [
+                "）",
+                "# 氢原子与碱金属原子",
+                "## 碱金属原子"
+              ],
+              "note_covered_items": [],
+              "teacher_evidence": [
+                "）",
+                "# 氢原子与碱金属原子",
+                "## 碱金属原子"
+              ]
+            }
+          ]
+        }
+      ],
+      "created_at": "2026-08-29T12:41:34Z",
+      "updated_at": "2026-08-30T15:36:23Z",
+      "node_status": "active",
+      "source_documents": []
+    },
+    {
+      "id": "ch_006",
+      "name": "补充:坐标系变换",
+      "change_type": "updated",
+      "topics": [
+        {
+          "id": "tp_013",
+          "name": "典型空间中的度规",
+          "change_type": "updated",
+          "knowledge_points": [
+            {
+              "id": "kp_015",
+              "name": "典型空间中的度规",
+              "aliases": [],
+              "chapter": "补充:坐标系变换",
+              "topic": "典型空间中的度规",
+              "knowledge_type": "formula",
+              "knowledge_items": [
+                "直角坐标度规",
+                "柱坐标度规",
+                "球坐标度规",
+                "笛卡尔坐标度规"
+              ],
+              "importance": 4,
+              "difficulty": "2",
+              "teacher_emphasis": 1,
+              "foundational_level": "2",
+              "exam_signal": "weak",
+              "note_coverage": "detailed",
+              "note_missing_items": [],
+              "practice_type": [
+                "recall",
+                "calculate",
+                "distinguish"
+              ],
+              "completion_criteria": [
+                "can_recall",
+                "can_distinguish"
+              ],
+              "learning_role": "foundation",
+              "risk_tags": [
+                "formula_misuse",
+                "concept_confusion"
+              ],
+              "prerequisites": [],
+              "related_points": [
+                {
+                  "name": "梯度算子",
+                  "relation": "used_with"
+                },
+                {
+                  "name": "散度",
+                  "relation": "used_with"
+                },
+                {
+                  "name": "旋度",
+                  "relation": "used_with"
+                }
+              ],
+              "evidence": [
+                "二维空间,线元 $ds^2 = (dx)^2 + (dy)^2 = (dx, dy)\\begin{pmatrix} dx \\\\ dy \\end{pmatrix} = g_{ij} dx^i dx^j$。 若取极坐标系 $(r, \\varph",
+                "三维欧氏空间,线元 $ds^2 = (dx)^2 + (dy)^2 + (dz)^2 = \\delta_{ij} dx^i dx^j$,$\\delta = \\begin{pmatrix} 1 & 0 & 0 \\\\ 0 & 1 & 0 \\\\ ",
+                "二维空间,线元 $ds^2 = (dx)^2 + (dy)^2 = (dx, dy)\\begin{pmatrix} dx \\\\ dy \\end{pmatrix} = g_{ij} dx^i dx^j$。 若取极坐标系 $r, \\varphi"
+              ],
+              "node_status": "active",
+              "change_type": "updated",
+              "created_at": "2026-08-29T12:41:34Z",
+              "updated_at": "2026-08-30T15:36:23Z",
+              "source_documents": [],
+              "sources": [
+                "ocr_20260829_162807.md",
+                "ocr_20260829_164512.md"
+              ],
+              "source_chunk_ids": [
+                "ocr_20260829_162807.md#典型空间中的度规",
+                "ocr_20260829_164512.md#典型空间中的度规"
+              ],
+              "content_fingerprint": "$$ds^2 = (dr\\cos\\varphi - r\\sin\\varphi\\, d\\varphi)^2 + (dr\\s | $$ds^2 = g_{ij} dx^i dx^j, \\quad G = \\begin{pmatrix} 1 & 0 \\ | 标签:formula | 二维空间,线元 $ds^2 = (dx)^2 + (dy)^2 = (dx, dy)\\begin{p",
+              "review_weight": 0.62,
+              "teacher_focus_items": [
+                "）",
+                "## 典型空间中的度规",
+                "---"
+              ],
+              "note_covered_items": [],
+              "teacher_evidence": [
+                "）",
+                "## 典型空间中的度规",
+                "---"
+              ]
+            }
+          ]
+        },
+        {
+          "id": "tp_014",
+          "name": "散度",
+          "change_type": "updated",
+          "knowledge_points": [
+            {
+              "id": "kp_016",
+              "name": "散度",
+              "aliases": [],
+              "chapter": "补充:坐标系变换",
+              "topic": "散度",
+              "knowledge_type": "formula",
+              "knowledge_items": [
+                "散度定义",
+                "直角坐标表达式",
+                "球坐标表达式",
+                "笛卡尔坐标表达式",
+                "各坐标系中的表达式",
+                "物理意义",
+                "球坐标散度公式",
+                "柱坐标散度公式"
+              ],
+              "importance": 4,
+              "difficulty": "2",
+              "teacher_emphasis": 1,
+              "foundational_level": "2",
+              "exam_signal": "weak",
+              "note_coverage": "detailed",
+              "note_missing_items": [],
+              "practice_type": [
+                "calculate",
+                "apply"
+              ],
+              "completion_criteria": [
+                "can_apply"
+              ],
+              "learning_role": "foundation",
+              "risk_tags": [
+                "formula_misuse",
+                "calculation_error"
+              ],
+              "prerequisites": [
+                "典型空间中的度规"
+              ],
+              "related_points": [
+                {
+                  "name": "旋度",
+                  "relation": "used_with"
+                },
+                {
+                  "name": "旋度",
+                  "relation": "alternative"
+                },
+                {
+                  "name": "梯度算子",
+                  "relation": "used_with"
+                }
+              ],
+              "evidence": [
+                "向量场在闭合曲面的通量等于向量场的散度在曲面包围区域的体积分。 $$\\oint_S \\vec{a} \\cdot d\\vec{S} = \\int_V \\nabla \\cdot \\vec{a}\\, dV$$ 考虑平行于 $d\\vec{S}$ 的",
+                "$$\\therefore (\\nabla \\cdot \\vec{F}) V = (\\nabla \\cdot \\vec{F}) J\\, dudvdw = \\left[\\frac{\\partial}{\\partial u}(a_u H_v H_",
+                "$$\\nabla \\cdot \\vec{F} = \\frac{1}{r^2\\sin\\theta}\\left[\\frac{\\partial}{\\partial r}(r^2\\sin\\theta\\, F_r) + \\frac{\\partial}"
+              ],
+              "node_status": "active",
+              "change_type": "updated",
+              "created_at": "2026-08-29T12:41:34Z",
+              "updated_at": "2026-08-30T15:36:23Z",
+              "source_documents": [],
+              "sources": [
+                "ocr_20260829_162807.md"
+              ],
+              "source_chunk_ids": [
+                "ocr_20260829_162807.md#散度"
+              ],
+              "content_fingerprint": "$$\\oint_S \\vec{a} \\cdot d\\vec{S} = \\int_V \\nabla \\cdot \\vec{ | $$a_u(u,v,w) \\cdot H_v H_w \\, dv\\, dw$$ | 标签:formula | 向量场在闭合曲面的通量等于向量场的散度在曲面包围区域的体积分。 $$\\oint_S \\vec{a} ",
+              "review_weight": 0.62,
+              "teacher_focus_items": [
+                "）",
+                "## 散度",
+                "向量场在闭合曲面的通量等于向量场的散度在曲面包围区域的体积分"
+              ],
+              "note_covered_items": [],
+              "teacher_evidence": [
+                "）",
+                "## 散度",
+                "向量场在闭合曲面的通量等于向量场的散度在曲面包围区域的体积分"
+              ]
+            }
+          ]
+        },
+        {
+          "id": "tp_015",
+          "name": "旋度",
+          "change_type": "updated",
+          "knowledge_points": [
+            {
+              "id": "kp_017",
+              "name": "旋度",
+              "aliases": [],
+              "chapter": "补充:坐标系变换",
+              "topic": "旋度",
+              "knowledge_type": "formula",
+              "knowledge_items": [
+                "旋度定义",
+                "直角坐标表达式",
+                "球坐标表达式",
+                "笛卡尔坐标表达式",
+                "各坐标系中的表达式",
+                "物理意义",
+                "球坐标旋度公式",
+                "柱坐标旋度公式"
+              ],
+              "importance": 4,
+              "difficulty": "2",
+              "teacher_emphasis": 1,
+              "foundational_level": "2",
+              "exam_signal": "weak",
+              "note_coverage": "detailed",
+              "note_missing_items": [],
+              "practice_type": [
+                "calculate",
+                "apply"
+              ],
+              "completion_criteria": [
+                "can_apply"
+              ],
+              "learning_role": "foundation",
+              "risk_tags": [
+                "formula_misuse",
+                "calculation_error"
+              ],
+              "prerequisites": [
+                "典型空间中的度规"
+              ],
+              "related_points": [
+                {
+                  "name": "散度",
+                  "relation": "used_with"
+                },
+                {
+                  "name": "散度",
+                  "relation": "alternative"
+                },
+                {
+                  "name": "梯度算子",
+                  "relation": "used_with"
+                }
+              ],
+              "evidence": [
+                "$$\\text{rot}\\, \\vec{a} = \\lim_{S \\to 0} \\frac{\\oint \\vec{a} \\cdot d\\vec{l}}{S}, \\quad \\vec{a} = a_u \\hat{e}_u + a_v \\hat",
+                "$$\\int_{M_2 N_2} \\vec{a} \\cdot d\\vec{l} = a(u, v+\\Delta v, w) \\cdot \\vec{H}_w \\, dw = a_w(u, v+\\Delta v, w) H_w(u, v+\\De",
+                "$$\\oint \\vec{a} \\cdot d\\vec{l} = \\left[\\frac{\\partial}{\\partial v}(a_w H_w) - \\frac{\\partial}{\\partial w}(a_v H_v)\\right"
+              ],
+              "node_status": "active",
+              "change_type": "updated",
+              "created_at": "2026-08-29T12:41:34Z",
+              "updated_at": "2026-08-30T15:36:23Z",
+              "source_documents": [],
+              "sources": [
+                "ocr_20260829_162807.md"
+              ],
+              "source_chunk_ids": [
+                "ocr_20260829_162807.md#旋度"
+              ],
+              "content_fingerprint": "$$\\text{rot}\\, \\vec{a} = \\lim_{S \\to 0} \\frac{\\oint \\vec{a}  | $$\\int_{M_1 M_2} \\vec{a} \\cdot d\\vec{l} = a(u,v,w) \\cdot \\ve | 标签:formula | $$\\text{rot}\\, \\vec{a} = \\lim_{S \\to 0} \\frac{\\oin",
+              "review_weight": 0.62,
+              "teacher_focus_items": [
+                "）",
+                "## 旋度",
+                "---"
+              ],
+              "note_covered_items": [],
+              "teacher_evidence": [
+                "）",
+                "## 旋度",
+                "---"
+              ]
+            }
+          ]
+        },
+        {
+          "id": "tp_016",
+          "name": "梯度算子",
+          "change_type": "updated",
+          "knowledge_points": [
+            {
+              "id": "kp_068",
+              "name": "梯度算子",
+              "aliases": [],
+              "knowledge_type": "concept",
+              "knowledge_items": [
+                "梯度定义",
+                "笛卡尔坐标系中的表示",
+                "各坐标系中的表达式",
+                "球坐标表示",
+                "球坐标梯度公式"
+              ],
+              "importance": 4,
+              "difficulty": "3",
+              "teacher_emphasis": 1,
+              "change_type": "updated",
+              "node_status": "program_complement",
+              "sources": [
+                "ocr_20260829_162807.md",
+                "ocr_20260829_164512.md"
+              ],
+              "prerequisites": [
+                "典型空间中的度规"
+              ],
+              "related_points": [
+                {
+                  "name": "散度",
+                  "relation": "used_with"
+                },
+                {
+                  "name": "旋度",
+                  "relation": "used_with"
+                }
+              ],
+              "risk_tags": [
+                "formula_misuse",
+                "calculation_error"
+              ],
+              "completion_criteria": [
+                "can_apply"
+              ],
+              "exam_signal": "weak",
+              "topic": "梯度算子",
+              "chapter": "补充:坐标系变换",
+              "source_chunk_ids": [
+                "ocr_20260829_162807.md#梯度算子",
+                "ocr_20260829_164512.md#梯度算子"
+              ],
+              "evidence": [
+                "$$h_i = \\sqrt{\\left(\\frac{\\partial x}{\\partial q_i}\\right)^2 + \\left(\\frac{\\partial y}{\\partial q_i}\\right)^2 + \\left(\\f",
+                "$h_i = \\sqrt{\\left(\\frac{\\partial x}{\\partial q_i}\\right)^2 + \\left(\\frac{\\partial y}{\\partial q_i}\\right)^2 + \\left(\\fr"
+              ],
+              "content_fingerprint": "$$h_i = \\sqrt{\\left(\\frac{\\partial x}{\\partial q_i}\\right)^2 | $$\\nabla u = \\frac{1}{h_1}\\frac{\\partial u}{\\partial q_1}\\ha | 标签:formula | $$h_i = \\sqrt{\\left(\\frac{\\partial x}{\\partial q_i",
+              "review_weight": 0.66,
+              "teacher_focus_items": [
+                "）",
+                "## 梯度算子",
+                "### 笛卡尔坐标系中的表示"
+              ],
+              "note_covered_items": [],
+              "note_missing_items": [],
+              "source_documents": [],
+              "practice_type": [
+                "calculate",
+                "apply"
+              ],
+              "learning_role": "core_method",
+              "note_coverage": "detailed",
+              "foundational_level": "3",
+              "updated_at": "2026-08-30T15:36:23Z",
+              "created_at": "2026-08-29T14:10:02Z",
+              "teacher_evidence": [
+                "）",
+                "## 梯度算子",
+                "### 笛卡尔坐标系中的表示"
+              ]
+            }
+          ],
+          "knowledge_items": [
+            "梯度算子",
+            "笛卡尔坐标系中的表示"
+          ]
+        }
+      ],
+      "created_at": "2026-08-29T12:41:34Z",
+      "updated_at": "2026-08-30T15:36:23Z",
+      "node_status": "active",
+      "source_documents": []
+    },
+    {
+      "id": "ch_007",
+      "name": "表象变换与矩阵力学",
+      "change_type": "updated",
+      "topics": [
+        {
+          "id": "tp_017",
+          "name": "表象的定义",
+          "change_type": "updated",
+          "knowledge_points": [
+            {
+              "id": "kp_019",
+              "name": "表象的定义",
+              "aliases": [],
+              "chapter": "表象变换与矩阵力学",
+              "topic": "表象的定义",
+              "knowledge_type": "concept",
+              "knowledge_items": [
+                "表象概念",
+                "基矢",
+                "坐标表象",
+                "动量表象",
+                "基矢与展开系数",
+                "波函数在表象中的表示"
+              ],
+              "importance": 3,
+              "difficulty": "3",
+              "teacher_emphasis": 1,
+              "foundational_level": "3",
+              "exam_signal": "medium",
+              "note_coverage": "detailed",
+              "note_missing_items": [],
+              "practice_type": [
+                "recall",
+                "distinguish"
+              ],
+              "completion_criteria": [
+                "can_recall",
+                "can_distinguish",
+                "can_explain"
+              ],
+              "learning_role": "core_concept",
+              "risk_tags": [
+                "concept_confusion"
+              ],
+              "prerequisites": [
+                "厄米算符本征态的正交性与完备性",
+                "厄米算符本征值的实数性"
+              ],
+              "related_points": [
+                {
+                  "name": "表象间的转化",
+                  "relation": "used_with"
+                }
+              ],
+              "evidence": [
+                "设 $F=(A_1, A_2, \\cdots, A_n)$ 是一组力学量完全集,$|k\\rangle$ 是其共同本征态,其中 $k$ 表征所有量子数。 $|k\\rangle$ 是正交归一的,满足 $\\langle k|m\\rangle = "
+              ],
+              "node_status": "active",
+              "change_type": "updated",
+              "created_at": "2026-08-29T12:41:34Z",
+              "updated_at": "2026-08-30T15:36:23Z",
+              "source_documents": [],
+              "sources": [
+                "ocr_20260829_162807.md"
+              ],
+              "source_chunk_ids": [
+                "ocr_20260829_162807.md#表象的定义"
+              ],
+              "content_fingerprint": "$ | F= | 标签:definition,formula | 设 $F=(A_1, A_2, \\cdots, A_n)$ 是一组力学量完全集,$|k\\rangle",
+              "review_weight": 0.527,
+              "teacher_focus_items": [
+                "）",
+                "---",
+                "---"
+              ],
+              "note_covered_items": [],
+              "teacher_evidence": [
+                "）",
+                "---",
+                "---"
+              ]
+            }
+          ]
+        },
+        {
+          "id": "tp_018",
+          "name": "表象间的转化",
+          "change_type": "updated",
+          "knowledge_points": [
+            {
+              "id": "kp_048",
+              "name": "表象变换与矩阵力学",
+              "aliases": [
+                "表象间的转化"
+              ],
+              "knowledge_type": "concept",
+              "knowledge_items": [
+                "变换矩阵",
+                "幺正变换",
+                "矩阵表示"
+              ],
+              "importance": 3,
+              "difficulty": "3",
+              "teacher_emphasis": 1,
+              "change_type": "updated",
+              "node_status": "program_complement",
+              "sources": [
+                "ocr_20260829_162807.md",
+                "ocr_20260829_164512.md"
+              ],
+              "prerequisites": [
+                "表象的定义"
+              ],
+              "related_points": [
+                {
+                  "name": "表象的定义",
+                  "relation": "used_with"
+                }
+              ],
+              "risk_tags": [
+                "method_selection",
+                "calculation_error"
+              ],
+              "completion_criteria": [
+                "can_solve_standard",
+                "can_apply"
+              ],
+              "exam_signal": "medium",
+              "topic": "表象间的转化",
+              "chapter": "表象变换与矩阵力学",
+              "source_chunk_ids": [
+                "ocr_20260829_162807.md#表象变换与矩阵力学",
+                "ocr_20260829_164512.md#表象变换与矩阵力学"
+              ],
+              "evidence": [
+                "华印科技大学 Wuhan 430074, Hubei, P.R.China 中国·武汉 Tel: (027)",
+                "Wuhan 430074,Hubei,P.R.China 中国·武汉 Tel:(027) 设 $F=(A_1, A_2, \\cdots, A_n)$ 是一组力学量完全集,$|k\\rangle$ 是其共同本征态,其中 $k$ 表征所有量子数。"
+              ],
+              "content_fingerprint": "华印科技大学 Wuhan 430074, Hubei, P.R.China 中国·武汉 Tel: (",
+              "review_weight": 0.46,
+              "teacher_focus_items": [
+                "）",
+                "---",
+                "---"
+              ],
+              "note_covered_items": [],
+              "note_missing_items": [],
+              "source_documents": [],
+              "practice_type": [
+                "calculate",
+                "apply"
+              ],
+              "learning_role": "core_method",
+              "note_coverage": "detailed",
+              "foundational_level": "4",
+              "updated_at": "2026-08-30T15:36:23Z",
+              "created_at": "2026-08-29T13:07:56Z",
+              "teacher_evidence": [
+                "）",
+                "---",
+                "---"
+              ]
+            }
+          ],
+          "knowledge_items": [
+            "表象间的转化"
+          ]
+        }
+      ],
+      "created_at": "2026-08-29T12:41:34Z",
+      "updated_at": "2026-08-30T15:36:23Z",
+      "node_status": "active",
+      "source_documents": []
+    },
+    {
+      "id": "ch_008",
+      "name": "近独立粒子系的麦克斯韦—玻尔兹曼分布能量分布律",
+      "change_type": "updated",
+      "topics": [
+        {
+          "id": "tp_019",
+          "name": "等概率原理和最概然统计",
+          "change_type": "updated",
+          "knowledge_points": [
+            {
+              "id": "kp_021",
+              "name": "等概率原理和最概然统计",
+              "aliases": [],
+              "chapter": "近独立粒子系的麦克斯韦—玻尔兹曼分布能量分布律",
+              "topic": "等概率原理和最概然统计",
+              "knowledge_type": "concept",
+              "knowledge_items": [
+                "等概率原理",
+                "最概然分布",
+                "统计方法",
+                "最概然统计",
+                "微观态等概率",
+                "最概然统计方法",
+                "统计物理基本假设",
+                "统计假设"
+              ],
+              "importance": 4,
+              "difficulty": "3",
+              "teacher_emphasis": 1,
+              "foundational_level": "4",
+              "exam_signal": "medium",
+              "note_coverage": "detailed",
+              "note_missing_items": [],
+              "practice_type": [
+                "recall",
+                "distinguish"
+              ],
+              "completion_criteria": [
+                "can_recall",
+                "can_distinguish",
+                "can_explain"
+              ],
+              "learning_role": "foundation",
+              "risk_tags": [
+                "concept_confusion"
+              ],
+              "prerequisites": [],
+              "related_points": [
+                {
+                  "name": "最概然分布求算",
+                  "relation": "used_with"
+                },
+                {
+                  "name": "宏观态与微观态",
+                  "relation": "used_with"
+                }
+              ],
+              "evidence": [
+                "若系统的各微观态无更多限制,就假定一切符合所有约束条件的微观态出现的概率相等。 **最概然统计**:认为出现概率最大(即微观态数最多)的那个宏观态分布对应于系统的平衡态。"
+              ],
+              "node_status": "active",
+              "change_type": "updated",
+              "created_at": "2026-08-29T12:41:34Z",
+              "updated_at": "2026-08-30T15:36:23Z",
+              "source_documents": [],
+              "sources": [
+                "ocr_20260829_162807.md",
+                "ocr_20260829_164512.md"
+              ],
+              "source_chunk_ids": [
+                "ocr_20260829_162807.md#等概率原理和最概然统计",
+                "ocr_20260829_164512.md#等概率原理和最概然统计"
+              ],
+              "content_fingerprint": "若系统的各微观态无更多限制,就假定一切符合所有约束条件的微观态出现的概率相等。 **最概然统计**:",
+              "review_weight": 0.66,
+              "teacher_focus_items": [
+                "）",
+                "---",
+                "---"
+              ],
+              "note_covered_items": [],
+              "teacher_evidence": [
+                "）",
+                "---",
+                "---"
+              ]
+            }
+          ]
+        },
+        {
+          "id": "tp_020",
+          "name": "宏观态与微观态",
+          "change_type": "updated",
+          "knowledge_points": [
+            {
+              "id": "kp_022",
+              "name": "宏观态与微观态",
+              "aliases": [],
+              "chapter": "近独立粒子系的麦克斯韦—玻尔兹曼分布能量分布律",
+              "topic": "宏观态与微观态",
+              "knowledge_type": "concept",
+              "knowledge_items": [
+                "宏观态定义",
+                "微观态定义",
+                "宏观分布与微观态对应",
+                "宏观态与微观态关系",
+                "宏观分布与组态",
+                "微观分布数"
+              ],
+              "importance": 4,
+              "difficulty": "2",
+              "teacher_emphasis": 1,
+              "foundational_level": "3",
+              "exam_signal": "medium",
+              "note_coverage": "detailed",
+              "note_missing_items": [],
+              "practice_type": [
+                "recall",
+                "distinguish"
+              ],
+              "completion_criteria": [
+                "can_recall",
+                "can_distinguish",
+                "can_explain"
+              ],
+              "learning_role": "foundation",
+              "risk_tags": [
+                "concept_confusion"
+              ],
+              "prerequisites": [
+                "等概率原理和最概然统计"
+              ],
+              "related_points": [
+                {
+                  "name": "最概然分布求算",
+                  "relation": "used_with"
+                }
+              ],
+              "evidence": [
+                "宏观态 $\\Delta_j$ 可继续细分: - 一种分布有多种实现方法(多个组态) - $\\mu$ 空间的分布:一个组态有多种微观态 即:宏观态 → 组态 → 微观态,对应 $\\{a_j\\}$ 的分布。",
+                "**宏观态 $\\Delta_j$ 可继续细分**:一种分布有多种实现方法(多个组态);$\\mu$ 空间的分布中,一个组态对应多种微观态。"
+              ],
+              "node_status": "active",
+              "change_type": "updated",
+              "created_at": "2026-08-29T12:41:34Z",
+              "updated_at": "2026-08-30T15:36:23Z",
+              "source_documents": [],
+              "sources": [
+                "ocr_20260829_162807.md",
+                "ocr_20260829_164512.md"
+              ],
+              "source_chunk_ids": [
+                "ocr_20260829_162807.md#宏观态与微观态",
+                "ocr_20260829_164512.md#宏观态与微观态"
+              ],
+              "content_fingerprint": "$ | $ | 标签:method,formula | 宏观态 $\\Delta_j$ 可继续细分: - 一种分布有多种实现方法(多个组态) - $\\mu$ ",
+              "review_weight": 0.62,
+              "teacher_focus_items": [
+                "）",
+                "---",
+                "---"
+              ],
+              "note_covered_items": [],
+              "teacher_evidence": [
+                "）",
+                "---",
+                "---"
+              ]
+            }
+          ]
+        },
+        {
+          "id": "tp_021",
+          "name": "最概然分布求算",
+          "change_type": "updated",
+          "knowledge_points": [
+            {
+              "id": "kp_023",
+              "name": "最概然分布求算",
+              "aliases": [],
+              "chapter": "近独立粒子系的麦克斯韦—玻尔兹曼分布能量分布律",
+              "topic": "最概然分布求算",
+              "knowledge_type": "method",
+              "knowledge_items": [
+                "拉格朗日乘子法",
+                "麦克斯韦-玻尔兹曼分布",
+                "配分函数",
+                "最概然分布条件",
+                "偏离最概然分布的概率",
+                "最概然分布公式"
+              ],
+              "importance": 4,
+              "difficulty": "4",
+              "teacher_emphasis": 1,
+              "foundational_level": "4",
+              "exam_signal": "strong",
+              "note_coverage": "detailed",
+              "note_missing_items": [],
+              "practice_type": [
+                "calculate",
+                "apply"
+              ],
+              "completion_criteria": [
+                "can_solve_standard",
+                "can_apply"
+              ],
+              "learning_role": "core_method",
+              "risk_tags": [
+                "method_selection",
+                "calculation_error"
+              ],
+              "prerequisites": [
+                "等概率原理和最概然统计",
+                "宏观态与微观态"
+              ],
+              "related_points": [
+                {
+                  "name": "等概率原理和最概然统计",
+                  "relation": "used_with"
+                },
+                {
+                  "name": "量子态与相空间体积之间的对应关系",
+                  "relation": "used_with"
+                }
+              ],
+              "evidence": [
+                "由斯特林公式,当 $M$ 足够大时,有 $\\ln M! \\approx M\\ln M - M$。 则 $\\delta(\\ln a_j - \\ln \\mu_j)\\delta a_j = (\\ln a_j - \\ln \\mu_j)\\delta ",
+                "$\\beta = \\frac{1}{kT}$,是一个普遍量,$a_j = \\mu_j e^{-\\alpha - \\beta E_j}$。 由 $\\sum a_j = N$ 得 $\\sum \\mu_j e^{-\\alpha - \\beta E",
+                "由斯特林公式,当 $M$ 足够大时,有 $\\ln M! \\approx M\\ln M - M$。 对 $\\delta(\\ln W - \\alpha N - \\beta E) = 0$ 展开: $$\\delta\\left(\\sum_j a_j"
+              ],
+              "node_status": "active",
+              "change_type": "updated",
+              "created_at": "2026-08-29T12:41:34Z",
+              "updated_at": "2026-08-30T15:36:23Z",
+              "source_documents": [],
+              "sources": [
+                "ocr_20260829_162807.md",
+                "ocr_20260829_164512.md"
+              ],
+              "source_chunk_ids": [
+                "ocr_20260829_162807.md#最概然分布求算",
+                "ocr_20260829_164512.md#最概然分布求算"
+              ],
+              "content_fingerprint": "$$a_j = \\mu_j e^{-\\alpha - \\beta E_j}$$ | $ | 标签:formula | 由斯特林公式,当 $M$ 足够大时,有 $\\ln M! \\approx M\\ln M - M$。 则",
+              "review_weight": 0.7,
+              "teacher_focus_items": [
+                "）",
+                "---",
+                "---"
+              ],
+              "note_covered_items": [],
+              "teacher_evidence": [
+                "）",
+                "---",
+                "---"
+              ]
+            }
+          ],
+          "knowledge_items": [
+            "偏离最概然分布的概率"
+          ]
+        },
+        {
+          "id": "tp_022",
+          "name": "转子的转动能量",
+          "change_type": "updated",
+          "knowledge_points": [
+            {
+              "id": "kp_024",
+              "name": "转子的转动能量",
+              "aliases": [],
+              "chapter": "近独立粒子系的麦克斯韦—玻尔兹曼分布能量分布律",
+              "topic": "转子的转动能量",
+              "knowledge_type": "formula",
+              "knowledge_items": [
+                "刚性转子模型",
+                "转动能级",
+                "转动惯量",
+                "转动能量公式",
+                "量子化条件"
+              ],
+              "importance": 4,
+              "difficulty": "3",
+              "teacher_emphasis": 1,
+              "foundational_level": "3",
+              "exam_signal": "weak",
+              "note_coverage": "detailed",
+              "note_missing_items": [],
+              "practice_type": [
+                "calculate",
+                "apply"
+              ],
+              "completion_criteria": [
+                "can_solve_standard",
+                "can_apply"
+              ],
+              "learning_role": "application",
+              "risk_tags": [
+                "formula_misuse"
+              ],
+              "prerequisites": [
+                "最概然分布求算",
+                "量子态与相空间体积之间的对应关系"
+              ],
+              "related_points": [
+                {
+                  "name": "分子的平均动能与理想气体系统的内能",
+                  "relation": "used_with"
+                },
+                {
+                  "name": "转子(双原子分子整体刚性转动)",
+                  "relation": "alternative"
+                },
+                {
+                  "name": "转子(双原子分子整体刚性转动)",
+                  "relation": "derived_from"
+                }
+              ],
+              "evidence": [
+                "系统转动能量 $T=\\frac{1}{2}m_1r_1^2(\\dot{\\theta}^2+\\sin^2\\theta\\dot{\\phi}^2)+\\frac{1}{2}m_2r_2^2(\\dot{\\theta}^2+\\sin^2\\theta\\d",
+                "$$T=\\frac{1}{2}\\mu r^2\\dot{\\theta}^2+\\frac{1}{2}\\mu r^2\\sin^2\\theta\\dot{\\phi}^2=\\frac{1}{2I}\\left(p_\\theta^2+\\frac{p_\\ph",
+                "$I_{总} = m_1 r_1^2 + m_2 r_2^2 = m r^2$,系统转动能量 $T = \\frac{1}{2}m_1 r_1^2(\\dot{\\theta}^2 + \\sin^2\\theta\\dot{\\phi}^2) + \\f"
+              ],
+              "node_status": "active",
+              "change_type": "updated",
+              "created_at": "2026-08-29T12:41:34Z",
+              "updated_at": "2026-08-30T15:36:23Z",
+              "source_documents": [],
+              "sources": [
+                "ocr_20260829_162807.md",
+                "ocr_20260829_164512.md"
+              ],
+              "source_chunk_ids": [
+                "ocr_20260829_162807.md#转子的转动能量",
+                "ocr_20260829_164512.md#转子的转动能量"
+              ],
+              "content_fingerprint": "$ | T= | 标签:formula | 系统转动能量 $T=\\frac{1}{2}m_1r_1^2(\\dot{\\theta}^2+\\sin^",
+              "review_weight": 0.66,
+              "teacher_focus_items": [
+                "）",
+                "---",
+                "---"
+              ],
+              "note_covered_items": [],
+              "teacher_evidence": [
+                "）",
+                "---",
+                "---"
+              ]
+            }
+          ]
+        },
+        {
+          "id": "tp_023",
+          "name": "量子态与相空间体积之间的对应关系",
+          "change_type": "updated",
+          "knowledge_points": [
+            {
+              "id": "kp_025",
+              "name": "量子态与相空间体积之间的对应关系",
+              "aliases": [],
+              "chapter": "近独立粒子系的麦克斯韦—玻尔兹曼分布能量分布律",
+              "topic": "量子态与相空间体积之间的对应关系",
+              "knowledge_type": "concept",
+              "knowledge_items": [
+                "相空间",
+                "相格",
+                "量子态数",
+                "相空间体积",
+                "对应关系",
+                "量子态对应"
+              ],
+              "importance": 4,
+              "difficulty": "3",
+              "teacher_emphasis": 1,
+              "foundational_level": "3",
+              "exam_signal": "medium",
+              "note_coverage": "detailed",
+              "note_missing_items": [],
+              "practice_type": [
+                "recall",
+                "distinguish",
+                "apply"
+              ],
+              "completion_criteria": [
+                "can_recall",
+                "can_distinguish",
+                "can_apply",
+                "can_explain"
+              ],
+              "learning_role": "foundation",
+              "risk_tags": [
+                "concept_confusion"
+              ],
+              "prerequisites": [
+                "宏观态与微观态",
+                "量子态中的 $\\mu$ 空间"
+              ],
+              "related_points": [
+                {
+                  "name": "量子态中的 $\\mu$ 空间",
+                  "relation": "used_with"
+                }
+              ],
+              "evidence": [
+                "对于一个自由度为 $r$ 的粒子,它的 $\\mu$ 空间中大小为 $h^r$ 的相体积对应一个量子态。 第一象限 $0 \\sim p$ 范围内的总量子态数: $$\\Phi(p) = \\frac{1}{h^3} \\cdot \\frac{4\\p",
+                "对于一个自由度为 $r$ 的粒子,它的 $\\mu$ 空间中大小为 $h^r$ 的相体积对应一个量子态。 第一象限 $0 \\sim p$ 范围内的总量子态数: $$\\Phi(E) = \\frac{1}{h^3}\\cdot\\frac{4\\pi}"
+              ],
+              "node_status": "active",
+              "change_type": "updated",
+              "created_at": "2026-08-29T12:41:34Z",
+              "updated_at": "2026-08-30T15:36:23Z",
+              "source_documents": [],
+              "sources": [
+                "ocr_20260829_162807.md",
+                "ocr_20260829_164512.md"
+              ],
+              "source_chunk_ids": [
+                "ocr_20260829_162807.md#量子态与相空间体积之间的对应关系",
+                "ocr_20260829_164512.md#量子态与相空间体积之间的对应关系"
+              ],
+              "content_fingerprint": "$$\\Phi(p) = \\frac{1}{h^3} \\cdot \\frac{4\\pi}{3} p^3 \\cdot V = | $ | 标签:formula | 对于一个自由度为 $r$ 的粒子,它的 $\\mu$ 空间中大小为 $h^r$ 的相体积对应一个量子态",
+              "review_weight": 0.66,
+              "teacher_focus_items": [
+                "）",
+                "---",
+                "---"
+              ],
+              "note_covered_items": [],
+              "teacher_evidence": [
+                "）",
+                "---",
+                "---"
+              ]
+            }
+          ]
+        },
+        {
+          "id": "tp_024",
+          "name": "量子态中的 $\\mu$ 空间",
+          "change_type": "updated",
+          "knowledge_points": [
+            {
+              "id": "kp_026",
+              "name": "量子态中的 $\\mu$ 空间",
+              "aliases": [],
+              "chapter": "近独立粒子系的麦克斯韦—玻尔兹曼分布能量分布律",
+              "topic": "量子态中的 $\\mu$ 空间",
+              "knowledge_type": "concept",
+              "knowledge_items": [
+                "μ空间",
+                "量子态表示",
+                "相格",
+                "μ空间定义",
+                "相格划分",
+                "量子态对应",
+                "量子态与相格对应",
+                "微观态计数"
+              ],
+              "importance": 3,
+              "difficulty": "3",
+              "teacher_emphasis": 1,
+              "foundational_level": "3",
+              "exam_signal": "medium",
+              "note_coverage": "detailed",
+              "note_missing_items": [],
+              "practice_type": [
+                "recall",
+                "distinguish",
+                "apply"
+              ],
+              "completion_criteria": [
+                "can_recall",
+                "can_distinguish",
+                "can_apply",
+                "can_explain"
+              ],
+              "learning_role": "foundation",
+              "risk_tags": [
+                "concept_confusion"
+              ],
+              "prerequisites": [
+                "量子态与相空间体积之间的对应关系",
+                "宏观态与微观态"
+              ],
+              "related_points": [
+                {
+                  "name": "量子态与相空间体积之间的对应关系",
+                  "relation": "used_with"
+                }
+              ],
+              "evidence": [
+                "由不确定关系 $\\Delta x \\Delta p_x \\geq \\hbar$,一个粒子的代表点不再是点,而是一团“小空间”。粒子的状态是分立的,不再需要用“$\\mu$ 空间”,只需考虑分立能级上的分布即可。 **刚性转子能级**:$E =",
+                "由不确定关系 $\\Delta x \\Delta p_x \\geq \\hbar$,一个粒子的代表点不再是点,而是一团\"小空间\",粒子的状态是分立的,不再需要用 $\\mu$ 空间,只需考虑分立能级上的分布即可。 | 系统 | 能级公式 | 备注"
+              ],
+              "node_status": "active",
+              "change_type": "updated",
+              "created_at": "2026-08-29T12:41:34Z",
+              "updated_at": "2026-08-30T15:36:23Z",
+              "source_documents": [],
+              "sources": [
+                "ocr_20260829_162807.md",
+                "ocr_20260829_164512.md"
+              ],
+              "source_chunk_ids": [
+                "ocr_20260829_162807.md#量子态中的 $\\mu$ 空间",
+                "ocr_20260829_164512.md#量子态中的 $\\mu$ 空间"
+              ],
+              "content_fingerprint": "$$E = \\left(n + \\frac{1}{2}\\right)\\hbar\\omega$$ | $ | 标签:formula | 由不确定关系 $\\Delta x \\Delta p_x \\geq \\hbar$,一个粒子的代表点不再",
+              "review_weight": 0.527,
+              "teacher_focus_items": [
+                "）",
+                "---",
+                "---"
+              ],
+              "note_covered_items": [],
+              "teacher_evidence": [
+                "）",
+                "---",
+                "---"
+              ]
+            }
+          ]
+        },
+        {
+          "id": "tp_025",
+          "name": "角动量的对易式",
+          "change_type": "updated",
+          "knowledge_points": [
+            {
+              "id": "kp_073",
+              "name": "角动量的对易式",
+              "aliases": [],
+              "knowledge_type": "concept",
+              "knowledge_items": [],
+              "importance": 2,
+              "difficulty": 3,
+              "teacher_emphasis": 1,
+              "change_type": "added",
+              "node_status": "program_complement",
+              "sources": [
+                "ocr_20260829_162807.md",
+                "ocr_20260829_164512.md"
+              ],
+              "prerequisites": [],
+              "related_points": [],
+              "risk_tags": [],
+              "completion_criteria": [],
+              "exam_signal": "none",
+              "topic": "角动量的对易式",
+              "chapter": "近独立粒子系的麦克斯韦—玻尔兹曼分布能量分布律",
+              "source_chunk_ids": [
+                "ocr_20260829_162807.md#角动量的对易式",
+                "ocr_20260829_164512.md#角动量的对易式"
+              ],
+              "evidence": [
+                "角动量算符:$\\hat{l} = \\hat{r} \\times \\hat{p}$,即: $$\\hat{l}_x = y\\hat{p}_z - z\\hat{p}_y, \\quad \\hat{l}_y = z\\hat{p}_x - x\\hat{",
+                "角动量算符:$\\hat{l} = \\hat{r} \\times \\hat{p}$,即: $$\\hat{l}_x = \\hat{y}\\hat{p}_z - \\hat{z}\\hat{p}_y, \\quad \\hat{l}_y = \\hat{z}"
+              ],
+              "content_fingerprint": "$$\\hat{l}_x = y\\hat{p}_z - z\\hat{p}_y, \\quad \\hat{l}_y = z\\h | $ | 标签:formula | 角动量算符:$\\hat{l} = \\hat{r} \\times \\hat{p}$,即: $$\\hat",
+              "teacher_focus_items": [
+                "）",
+                "---",
+                "---"
+              ],
+              "teacher_evidence": [
+                "）",
+                "---",
+                "---"
+              ],
+              "review_weight": 0.32
+            }
+          ],
+          "knowledge_items": [
+            "角动量的对易式",
+            "角动量各分量之间的对易关系",
+            "角动量与动量的对易关系",
+            "角动量与坐标的对易关系"
+          ]
+        },
+        {
+          "id": "tp_026",
+          "name": "算符与狄拉克符号",
+          "change_type": "updated",
+          "knowledge_points": [
+            {
+              "id": "kp_061",
+              "name": "角动量平方算符",
+              "aliases": [],
+              "knowledge_type": "concept",
+              "knowledge_items": [
+                "角动量平方算符定义",
+                "本征值",
+                "本征函数",
+                "与角动量分量对易",
+                "对易关系",
+                "L²算符表达式",
+                "本征值l(l+1)ℏ²",
+                "与L_z对易"
+              ],
+              "importance": 3,
+              "difficulty": "3",
+              "teacher_emphasis": 1,
+              "change_type": "updated",
+              "node_status": "program_complement",
+              "sources": [
+                "ocr_20260829_162807.md",
+                "ocr_20260829_164512.md"
+              ],
+              "prerequisites": [
+                "角动量与坐标的对易关系"
+              ],
+              "related_points": [
+                {
+                  "name": "角动量与坐标的对易关系",
+                  "relation": "used_with"
+                }
+              ],
+              "risk_tags": [
+                "formula_misuse"
+              ],
+              "completion_criteria": [
+                "can_prove",
+                "can_recall",
+                "can_solve_standard",
+                "can_apply"
+              ],
+              "exam_signal": "medium",
+              "topic": "算符与狄拉克符号",
+              "chapter": "近独立粒子系的麦克斯韦—玻尔兹曼分布能量分布律",
+              "source_chunk_ids": [
+                "ocr_20260829_162807.md#角动量平方算符",
+                "ocr_20260829_164512.md#角动量平方算符"
+              ],
+              "evidence": [
+                "令 $\\hat{l}^2 = \\hat{l}_x^2 + \\hat{l}_y^2 + \\hat{l}_z^2$,可证明 $[\\hat{l}^2, \\hat{l}_\\alpha] = 0$($\\alpha = x, y, z$)。",
+                "$$\\hat{l}^2 = \\hat{l}_x^2 + \\hat{l}_y^2 + \\hat{l}_z^2 = \\hat{y}^2\\hat{p}_z^2 + \\hat{z}^2\\hat{p}_y^2 - \\hat{y}\\hat{p}_z(\\",
+                "y}\\hat{x}\\hat{p}_y\\hat{p}_x)$$"
+              ],
+              "content_fingerprint": "$ | $ | 标签:method,formula | 令 $\\hat{l}^2 = \\hat{l}_x^2 + \\hat{l}_y^2 + \\hat{l}",
+              "review_weight": 0.46,
+              "teacher_focus_items": [
+                "当 $V_1 - V_2$ 有限时，能量本征函数 $\\psi(x)$ 及其导函数 $\\psi'(x) = \\frac{d\\psi}{dx}$ 在 $a$ 点是连续的",
+                "）",
+                "$L^2$ 和 $L_z$ 的共同本征函数为 $Y_{lm}$"
+              ],
+              "note_covered_items": [],
+              "note_missing_items": [],
+              "source_documents": [],
+              "practice_type": [
+                "calculate",
+                "prove",
+                "recall",
+                "apply"
+              ],
+              "learning_role": "core_method",
+              "note_coverage": "detailed",
+              "foundational_level": "4",
+              "updated_at": "2026-08-30T15:36:23Z",
+              "created_at": "2026-08-29T13:07:56Z",
+              "teacher_evidence": [
+                "当 $V_1 - V_2$ 有限时，能量本征函数 $\\psi(x)$ 及其导函数 $\\psi'(x) = \\frac{d\\psi}{dx}$ 在 $a$ 点是连续的",
+                "）",
+                "$L^2$ 和 $L_z$ 的共同本征函数为 $Y_{lm}$"
+              ]
+            }
+          ],
+          "knowledge_items": [
+            "对易式运算恒等式",
+            "狄拉克符号",
+            "角动量各分量之间的对易式",
+            "左、右矢空间的算符运算",
+            "角动量与动量的对易式",
+            "角动量与坐标的对易式",
+            "狄拉克符号基本概念",
+            "基矢与本征方程"
+          ]
+        },
+        {
+          "id": "tp_027",
+          "name": "微观粒子基本运动状态的经典描述(能量、坐标、动量)",
+          "change_type": "updated",
+          "knowledge_points": [
+            {
+              "id": "kp_032",
+              "name": "转子(双原子分子整体刚性转动)",
+              "aliases": [],
+              "chapter": "近独立粒子系的麦克斯韦—玻尔兹曼分布能量分布律",
+              "topic": "微观粒子基本运动状态的经典描述(能量、坐标、动量)",
+              "knowledge_type": "formula",
+              "knowledge_items": [
+                "刚性转子模型",
+                "转动能量",
+                "转动惯量",
+                "转子模型",
+                "角动量",
+                "经典描述",
+                "量子化"
+              ],
+              "importance": 3,
+              "difficulty": "2",
+              "teacher_emphasis": 1,
+              "foundational_level": "2",
+              "exam_signal": "weak",
+              "note_coverage": "detailed",
+              "note_missing_items": [],
+              "practice_type": [
+                "recall",
+                "calculate",
+                "apply"
+              ],
+              "completion_criteria": [
+                "can_recall",
+                "can_apply"
+              ],
+              "learning_role": "foundation",
+              "risk_tags": [
+                "formula_misuse",
+                "concept_confusion"
+              ],
+              "prerequisites": [
+                "自由平动粒子",
+                "转子的转动能量",
+                "量子态与相空间体积之间的对应关系"
+              ],
+              "related_points": [
+                {
+                  "name": "转子的转动能量",
+                  "relation": "used_with"
+                },
+                {
+                  "name": "转子的转动能量",
+                  "relation": "alternative"
+                },
+                {
+                  "name": "转子的转动能量",
+                  "relation": "derived_from"
+                }
+              ],
+              "evidence": [
+                "考虑质量为 $m$ 的质点 $A$ 被具有一定长度的轻杆系于原点时所做运动($r$ 一定) $$E=\\frac{1}{2}m(\\dot{x}^2+\\dot{y}^2+\\dot{z}^2),\\quad x=r\\sin\\theta\\cos\\ph",
+                "考虑质量为 $m$ 的质点 $A$ 被具有一定长度的轻杆系于原点时所做运动($r$ 一定) $$E = \\frac{1}{2}m(\\dot{x}^2 + \\dot{y}^2 + \\dot{z}^2), \\quad x = r\\sin\\the"
+              ],
+              "node_status": "active",
+              "change_type": "updated",
+              "created_at": "2026-08-29T12:41:34Z",
+              "updated_at": "2026-08-30T15:36:23Z",
+              "source_documents": [],
+              "sources": [
+                "ocr_20260829_162807.md",
+                "ocr_20260829_164512.md"
+              ],
+              "source_chunk_ids": [
+                "ocr_20260829_162807.md#转子(双原子分子整体刚性转动)",
+                "ocr_20260829_164512.md#转子(双原子分子整体刚性转动)"
+              ],
+              "content_fingerprint": "$$E=\\frac{1}{2}m(\\dot{x}^2+\\dot{y}^2+\\dot{z}^2),\\quad x=r\\si | $$E=\\frac{1}{2}m(r^2\\dot{\\theta}^2+r^2\\sin^2\\theta\\dot{\\phi} | 标签:formula | 考虑质量为 $m$ 的质点 $A$ 被具有一定长度的轻杆系于原点时所做运动($r$ 一定) $$E=",
+              "review_weight": 0.487,
+              "teacher_focus_items": [
+                "）",
+                "且 $\\cot(ka) < 0$，能量是量子化的",
+                "**氢原子轨道角动量的取值：**"
+              ],
+              "note_covered_items": [],
+              "teacher_evidence": [
+                "）",
+                "且 $\\cot(ka) < 0$，能量是量子化的",
+                "**氢原子轨道角动量的取值：**"
+              ]
+            },
+            {
+              "id": "kp_011",
+              "name": "线性谐振子",
+              "aliases": [],
+              "chapter": "近独立粒子系的麦克斯韦—玻尔兹曼分布能量分布律",
+              "topic": "微观粒子基本运动状态的经典描述(能量、坐标、动量)",
+              "knowledge_type": "concept",
+              "knowledge_items": [
+                "经典谐振子能量",
+                "量子化能级"
+              ],
+              "importance": 2,
+              "difficulty": "2",
+              "teacher_emphasis": 1,
+              "foundational_level": "2",
+              "exam_signal": "none",
+              "note_coverage": "mentioned",
+              "note_missing_items": [],
+              "practice_type": [
+                "recall"
+              ],
+              "completion_criteria": [
+                "can_recall"
+              ],
+              "learning_role": "foundation",
+              "risk_tags": [],
+              "prerequisites": [
+                "一维谐振子"
+              ],
+              "related_points": [
+                {
+                  "name": "一维谐振子",
+                  "relation": "derived_from"
+                }
+              ],
+              "evidence": [
+                "质量为 $m$ 的粒子在弹性力 $F=-kx$ 作用下在平衡点附近作简谐运动,振动圆频率 $\\omega=\\sqrt{\\frac{k}{m}}$ $$E=\\frac{p^2}{2m}+\\frac{1}{2}kx^2=\\frac{p^2}{2",
+                "**一维线性谐振子**:$E = \\frac{p^2}{2m} + \\frac{1}{2}m\\omega^2 x^2$,$\\frac{p^2}{2mE} + \\frac{m\\omega^2 x^2}{2E} = 1$,代表点的轨迹为椭圆($",
+                "质量为 $m$ 的粒子在弹性力 $F = -kx$ 作用下在平衡点附近作简谐运动,振动圆频率 $\\omega = \\sqrt{\\frac{k}{m}}$ $$E = \\frac{p^2}{2m} + \\frac{1}{2}kx^2 = \\f"
+              ],
+              "node_status": "active",
+              "change_type": "added",
+              "created_at": "2026-08-30T15:36:23Z",
+              "updated_at": "2026-08-30T15:36:23Z",
+              "source_documents": [],
+              "sources": [
+                "ocr_20260829_162807.md",
+                "ocr_20260829_164512.md"
+              ],
+              "source_chunk_ids": [
+                "ocr_20260829_162807.md#线性谐振子",
+                "ocr_20260829_162807.md#$\\Delta M$ 的分割举例",
+                "ocr_20260829_164512.md#线性谐振子"
+              ],
+              "content_fingerprint": "$$E=\\frac{p^2}{2m}+\\frac{1}{2}kx^2=\\frac{p^2}{2m}+\\frac{1}{2 | $ | 标签:formula | 质量为 $m$ 的粒子在弹性力 $F=-kx$ 作用下在平衡点附近作简谐运动,振动圆频率 $\\ome",
+              "teacher_focus_items": [
+                "）",
+                "---",
+                "---"
+              ],
+              "teacher_evidence": [
+                "）",
+                "---",
+                "---"
+              ],
+              "review_weight": 0.28
+            }
+          ],
+          "knowledge_items": [
+            "自由平动粒子",
+            "一个分布的微观分布数",
+            "μ空间分割(宏观)",
+            "线性谐振子"
+          ]
+        }
+      ],
+      "created_at": "2026-08-29T12:41:34Z",
+      "updated_at": "2026-08-30T15:36:23Z",
+      "node_status": "active",
+      "source_documents": []
+    },
+    {
+      "id": "ch_009",
+      "name": "分子混沌性假设:平衡态时,气体分子的热运动速度无择优方向",
+      "change_type": "updated",
+      "topics": [
+        {
+          "id": "tp_028",
+          "name": "分子的平均动能与理想气体系统的内能",
+          "change_type": "updated",
+          "knowledge_points": [
+            {
+              "id": "kp_033",
+              "name": "分子的平均动能与理想气体系统的内能",
+              "aliases": [],
+              "chapter": "分子混沌性假设:平衡态时,气体分子的热运动速度无择优方向",
+              "topic": "分子的平均动能与理想气体系统的内能",
+              "knowledge_type": "formula",
+              "knowledge_items": [
+                "平均动能公式",
+                "内能公式",
+                "能量均分定理",
+                "自由度"
+              ],
+              "importance": 3,
+              "difficulty": "3",
+              "teacher_emphasis": 1,
+              "foundational_level": "3",
+              "exam_signal": "medium",
+              "note_coverage": "detailed",
+              "note_missing_items": [],
+              "practice_type": [
+                "calculate",
+                "apply"
+              ],
+              "completion_criteria": [
+                "can_solve_standard",
+                "can_apply"
+              ],
+              "learning_role": "core_concept",
+              "risk_tags": [
+                "formula_misuse"
+              ],
+              "prerequisites": [
+                "自由平动粒子",
+                "理想气体的微观模型"
+              ],
+              "related_points": [
+                {
+                  "name": "转子的转动能量",
+                  "relation": "used_with"
+                },
+                {
+                  "name": "理想气体的微观模型",
+                  "relation": "used_with"
+                }
+              ],
+              "evidence": [
+                "只考虑分子平动动能,$U=N\\overline{\\varepsilon_t}=\\frac{3}{2}NkT=\\frac{3}{2}RT$ 定体热容 $C_V=\\left(\\frac{\\partial U}{\\partial T}\\right",
+                "只考虑分子平动动能,$U = N\\overline{E_k} = \\frac{3}{2}NkT = \\frac{3}{2}RT$ 定体热容 $C_V = \\left(\\frac{\\partial U}{\\partial T}\\right)_"
+              ],
+              "node_status": "active",
+              "change_type": "updated",
+              "created_at": "2026-08-29T12:41:34Z",
+              "updated_at": "2026-08-30T15:36:23Z",
+              "source_documents": [],
+              "sources": [
+                "ocr_20260829_162807.md",
+                "ocr_20260829_164512.md"
+              ],
+              "source_chunk_ids": [
+                "ocr_20260829_162807.md#分子的平均动能与理想气体系统的内能",
+                "ocr_20260829_164512.md#分子的平均动能与理想气体系统的内能"
+              ],
+              "content_fingerprint": "$ | U= | 标签:formula | 只考虑分子平动动能,$U=N\\overline{\\varepsilon_t}=\\frac{3}{2}",
+              "review_weight": 0.527,
+              "teacher_focus_items": [
+                "）",
+                "---",
+                "## 分子的平均动能与理想气体系统的内能"
+              ],
+              "note_covered_items": [],
+              "teacher_evidence": [
+                "）",
+                "---",
+                "## 分子的平均动能与理想气体系统的内能"
+              ]
+            }
+          ],
+          "knowledge_items": [
+            "分子混沌性假设:平衡态时,气体分子的热运动速度无择优方向"
+          ]
+        }
+      ],
+      "created_at": "2026-08-29T12:41:34Z",
+      "updated_at": "2026-08-30T15:36:23Z",
+      "node_status": "active",
+      "source_documents": []
+    },
+    {
+      "id": "ch_010",
+      "name": "分子在两次碰撞间做匀速直线运动",
+      "change_type": "updated",
+      "topics": [
+        {
+          "id": "tp_029",
+          "name": "分子运动模型",
+          "change_type": "updated",
+          "knowledge_points": [
+            {
+              "id": "kp_044",
+              "name": "分子在两次碰撞间做匀速直线运动",
+              "aliases": [],
+              "knowledge_type": "concept",
+              "knowledge_items": [
+                "分子运动模型",
+                "碰撞间隔",
+                "平均自由程",
+                "匀速直线运动假设",
+                "碰撞间运动",
+                "分子运动假设",
+                "碰撞模型",
+                "碰撞假设"
+              ],
+              "importance": 3,
+              "difficulty": "3",
+              "teacher_emphasis": 1,
+              "change_type": "updated",
+              "node_status": "program_complement",
+              "sources": [
+                "ocr_20260829_162807.md",
+                "ocr_20260829_164512.md"
+              ],
+              "prerequisites": [
+                "理想气体的微观模型"
+              ],
+              "related_points": [
+                {
+                  "name": "理想气体的微观模型",
+                  "relation": "used_with"
+                }
+              ],
+              "risk_tags": [
+                "concept_confusion"
+              ],
+              "completion_criteria": [
+                "can_recall",
+                "can_distinguish"
+              ],
+              "exam_signal": "weak",
+              "topic": "分子运动模型",
+              "chapter": "分子在两次碰撞间做匀速直线运动",
+              "source_chunk_ids": [
+                "ocr_20260829_162807.md#分子在两次碰撞间做匀速直线运动",
+                "ocr_20260829_164512.md#分子在两次碰撞间做匀速直线运动"
+              ],
+              "evidence": [
+                "**压强的微观模型**:"
+              ],
+              "content_fingerprint": "**压强的微观模型**:",
+              "review_weight": 0.493,
+              "teacher_focus_items": [
+                "）",
+                "---",
+                "③ 分子在两次碰撞间做匀速直线运动"
+              ],
+              "note_covered_items": [],
+              "note_missing_items": [],
+              "source_documents": [],
+              "practice_type": [
+                "recall",
+                "distinguish"
+              ],
+              "learning_role": "foundation",
+              "note_coverage": "detailed",
+              "foundational_level": "2",
+              "updated_at": "2026-08-30T15:36:23Z",
+              "created_at": "2026-08-29T13:07:56Z",
+              "teacher_evidence": [
+                "）",
+                "---",
+                "③ 分子在两次碰撞间做匀速直线运动"
+              ]
+            }
+          ],
+          "knowledge_items": [
+            "分子运动模型"
+          ]
+        }
+      ],
+      "created_at": "2026-08-29T12:41:34Z",
+      "updated_at": "2026-08-30T15:36:23Z",
+      "node_status": "active",
+      "source_documents": []
+    },
+    {
+      "id": "ch_011",
+      "name": "理想气体的微观模型",
+      "change_type": "updated",
+      "topics": [
+        {
+          "id": "tp_030",
+          "name": "理想气体微观模型",
+          "change_type": "updated",
+          "knowledge_points": [
+            {
+              "id": "kp_047",
+              "name": "理想气体的微观模型",
+              "aliases": [],
+              "knowledge_type": "concept",
+              "knowledge_items": [
+                "分子无规则运动",
+                "分子间无相互作用",
+                "分子大小忽略",
+                "理想气体假设",
+                "分子模型",
+                "统计假设",
+                "分子间作用力忽略",
+                "分子体积忽略",
+                "碰撞为弹性"
+              ],
+              "importance": 4,
+              "difficulty": "3",
+              "teacher_emphasis": 1,
+              "change_type": "updated",
+              "node_status": "program_complement",
+              "sources": [
+                "ocr_20260829_162807.md",
+                "ocr_20260829_164512.md"
+              ],
+              "prerequisites": [],
+              "related_points": [
+                {
+                  "name": "分子在两次碰撞间做匀速直线运动",
+                  "relation": "used_with"
+                },
+                {
+                  "name": "分子的平均动能与理想气体系统的内能",
+                  "relation": "used_with"
+                }
+              ],
+              "risk_tags": [
+                "concept_confusion"
+              ],
+              "completion_criteria": [
+                "can_recall",
+                "can_distinguish"
+              ],
+              "exam_signal": "weak",
+              "topic": "理想气体微观模型",
+              "chapter": "理想气体的微观模型",
+              "source_chunk_ids": [
+                "ocr_20260829_162807.md#理想气体的微观模型",
+                "ocr_20260829_164512.md#理想气体的微观模型"
+              ],
+              "evidence": [
+                "标准状态下的气体分子数密度 $n_0=\\frac{p_0}{kT_0}=2.69\\times10^{25}\\text{ m}^{-3}$,表示每 $\\text{m}^3$ 理想气体中的微观粒子数。 分子线度为 $d$,则 $\\frac{d}",
+                "标准状态下的气体分子数密度 $n_0 = \\frac{p_0}{kT_0} = 2.69 \\times 10^{25} \\text{ m}^{-3}$,表示每 $\\text{m}^3$ 理想气体中的微观粒子数。 分子线度为 $d$,则 $a"
+              ],
+              "content_fingerprint": "$ | n_0= | 标签:formula | 标准状态下的气体分子数密度 $n_0=\\frac{p_0}{kT_0}=2.69\\times10^{",
+              "review_weight": 0.66,
+              "teacher_focus_items": [
+                "）",
+                "---",
+                "# 理想气体的微观模型"
+              ],
+              "note_covered_items": [],
+              "note_missing_items": [],
+              "source_documents": [],
+              "practice_type": [
+                "recall",
+                "distinguish"
+              ],
+              "learning_role": "foundation",
+              "note_coverage": "detailed",
+              "foundational_level": "2",
+              "updated_at": "2026-08-30T15:36:23Z",
+              "created_at": "2026-08-29T13:07:56Z",
+              "teacher_evidence": [
+                "）",
+                "---",
+                "# 理想气体的微观模型"
+              ]
+            }
+          ],
+          "knowledge_items": [
+            "理想气体微观模型"
+          ]
+        }
+      ],
+      "created_at": "2026-08-29T12:41:34Z",
+      "updated_at": "2026-08-30T15:36:23Z",
+      "node_status": "active",
+      "source_documents": []
+    },
+    {
+      "id": "ch_012",
+      "name": "电磁场中电荷粒子的哈密顿量",
+      "change_type": "updated",
+      "topics": [
+        {
+          "id": "tp_031",
+          "name": "核心概念",
+          "change_type": "updated",
+          "knowledge_points": [
+            {
+              "id": "kp_036",
+              "name": "电磁场中电荷粒子的哈密顿量",
+              "aliases": [],
+              "chapter": "电磁场中电荷粒子的哈密顿量",
+              "topic": "核心概念",
+              "knowledge_type": "formula",
+              "knowledge_items": [
+                "哈密顿量表达式",
+                "正则动量",
+                "矢势与标势",
+                "规范变换"
+              ],
+              "importance": 3,
+              "difficulty": "3",
+              "teacher_emphasis": 1,
+              "foundational_level": "3",
+              "exam_signal": "medium",
+              "note_coverage": "detailed",
+              "note_missing_items": [],
+              "practice_type": [
+                "recall",
+                "calculate",
+                "apply"
+              ],
+              "completion_criteria": [
+                "can_recall",
+                "can_apply",
+                "can_solve_standard"
+              ],
+              "learning_role": "core_concept",
+              "risk_tags": [
+                "formula_misuse",
+                "condition_check"
+              ],
+              "prerequisites": [],
+              "related_points": [],
+              "evidence": [
+                "在电磁场中,存在带电量为 $q$、质量为 $m$ 的粒子,粒子受力: $$\\vec{F} = q\\vec{E} + q\\vec{v} \\times \\vec{B}$$ 由 $\\nabla \\cdot \\vec{B} = 0$,引入矢势 $\\",
+                "$$F_x = q\\left[-\\frac{\\partial \\varphi}{\\partial x} - \\frac{\\partial A_x}{\\partial t} + v_y\\left(\\frac{\\partial A_y}{\\pa",
+                "$$F_x = q\\left[-\\frac{\\partial \\varphi}{\\partial x} - \\frac{dA_x}{dt} + \\frac{\\partial}{\\partial x}(\\vec{v} \\cdot \\vec{A"
+              ],
+              "node_status": "active",
+              "change_type": "updated",
+              "created_at": "2026-08-29T12:41:34Z",
+              "updated_at": "2026-08-30T15:36:23Z",
+              "source_documents": [],
+              "sources": [
+                "ocr_20260829_162807.md"
+              ],
+              "source_chunk_ids": [
+                "ocr_20260829_162807.md#电磁场中电荷粒子的哈密顿量"
+              ],
+              "content_fingerprint": "$$\\vec{F} = q\\vec{E} + q\\vec{v} \\times \\vec{B}$$ | $$\\vec{A} = (A_x, A_y, A_z)$$ | 标签:formula | 在电磁场中,存在带电量为 $q$、质量为 $m$ 的粒子,粒子受力: $$\\vec{F} = q\\v",
+              "review_weight": 0.527,
+              "teacher_focus_items": [
+                "）",
+                "# 电磁场中电荷粒子的哈密顿量",
+                "---"
+              ],
+              "note_covered_items": [],
+              "teacher_evidence": [
+                "）",
+                "# 电磁场中电荷粒子的哈密顿量",
+                "---"
+              ]
+            }
+          ]
+        }
+      ],
+      "created_at": "2026-08-29T12:41:34Z",
+      "updated_at": "2026-08-30T15:36:23Z",
+      "node_status": "active",
+      "source_documents": []
+    },
+    {
+      "id": "ch_013",
+      "name": "碱金属原子",
+      "change_type": "updated",
+      "topics": [
+        {
+          "id": "tp_032",
+          "name": "核心概念",
+          "change_type": "updated",
+          "knowledge_points": [
+            {
+              "id": "kp_037",
+              "name": "碱金属原子",
+              "aliases": [],
+              "chapter": "碱金属原子",
+              "topic": "核心概念",
+              "knowledge_type": "concept",
+              "knowledge_items": [
+                "碱金属原子结构",
+                "能级分裂",
+                "量子亏损",
+                "价电子",
+                "原子实",
+                "能级特点",
+                "与氢原子区别",
+                "碱金属能级"
+              ],
+              "importance": 4,
+              "difficulty": "3",
+              "teacher_emphasis": 1,
+              "foundational_level": "3",
+              "exam_signal": "weak",
+              "note_coverage": "detailed",
+              "note_missing_items": [],
+              "practice_type": [
+                "recall",
+                "distinguish"
+              ],
+              "completion_criteria": [
+                "can_recall",
+                "can_distinguish",
+                "can_explain"
+              ],
+              "learning_role": "core_concept",
+              "risk_tags": [
+                "concept_confusion"
+              ],
+              "prerequisites": [
+                "氢原子"
+              ],
+              "related_points": [
+                {
+                  "name": "碱金属原子",
+                  "relation": "alternative"
+                },
+                {
+                  "name": "氢原子",
+                  "relation": "easily_confused"
+                },
+                {
+                  "name": "氢原子",
+                  "relation": "derived_from"
+                },
+                {
+                  "name": "简单塞曼效应",
+                  "relation": "easily_confused"
+                }
+              ],
+              "evidence": [
+                "碱金属原子势能: $$V(r) = -\\frac{e^2}{4\\pi\\varepsilon_0 r} \\quad (\\text{氢原子})$$ $$V(r) = -\\frac{e^2}{4\\pi\\varepsilon_0 r} - \\fra",
+                "$$E_n = -\\frac{m e^4}{2\\hbar^2 (4\\pi\\varepsilon_0)^2 n'^2}, \\quad n' = n_r + l' + 1$$ 其中: $$l' = -\\frac{1}{2} + \\sqrt{\\l",
+                "则 $\\frac{1}{r^2}\\frac{d}{dr}\\left(r^2\\frac{dR}{dr}\\right)+\\left[\\frac{2\\mu}{\\hbar^2}\\left(E_0+\\frac{k}{r}+\\frac{\\lambda "
+              ],
+              "node_status": "active",
+              "change_type": "updated",
+              "created_at": "2026-08-29T12:41:34Z",
+              "updated_at": "2026-08-30T15:36:23Z",
+              "source_documents": [],
+              "sources": [
+                "ocr_20260829_162807.md"
+              ],
+              "source_chunk_ids": [
+                "ocr_20260829_162807.md#碱金属原子",
+                "ocr_20260829_162807.md#简单塞曼效应"
+              ],
+              "content_fingerprint": "$$V(r) = -\\frac{e^2}{4\\pi\\varepsilon_0 r} \\quad (\\text{氢原子}) | $$V(r) = -\\frac{e^2}{4\\pi\\varepsilon_0 r} - \\frac{k e^2}{r^2 | 标签:formula | 碱金属原子势能: $$V(r) = -\\frac{e^2}{4\\pi\\varepsilon_0 r}",
+              "review_weight": 0.66,
+              "teacher_focus_items": [
+                "）",
+                "# 氢原子与碱金属原子",
+                "## 碱金属原子"
+              ],
+              "note_covered_items": [],
+              "teacher_evidence": [
+                "）",
+                "# 氢原子与碱金属原子",
+                "## 碱金属原子"
+              ]
+            }
+          ]
+        }
+      ],
+      "created_at": "2026-08-29T12:41:34Z",
+      "updated_at": "2026-08-30T15:36:23Z",
+      "node_status": "active",
+      "source_documents": []
+    },
+    {
+      "id": "ch_014",
+      "name": "简单塞曼效应",
+      "change_type": "updated",
+      "topics": [
+        {
+          "id": "tp_033",
+          "name": "核心概念",
+          "change_type": "updated",
+          "knowledge_points": [
+            {
+              "id": "kp_038",
+              "name": "简单塞曼效应",
+              "aliases": [],
+              "chapter": "简单塞曼效应",
+              "topic": "核心概念",
+              "knowledge_type": "concept",
+              "knowledge_items": [
+                "塞曼效应定义",
+                "能级分裂",
+                "谱线分裂",
+                "塞曼分裂",
+                "磁场中的能级",
+                "选择定则",
+                "塞曼效应现象",
+                "磁场中光谱线分裂",
+                "磁场中能级分裂"
+              ],
+              "importance": 4,
+              "difficulty": "3",
+              "teacher_emphasis": 1,
+              "foundational_level": "3",
+              "exam_signal": "weak",
+              "note_coverage": "detailed",
+              "note_missing_items": [],
+              "practice_type": [
+                "recall",
+                "distinguish",
+                "apply"
+              ],
+              "completion_criteria": [
+                "can_recall",
+                "can_distinguish",
+                "can_apply",
+                "can_explain"
+              ],
+              "learning_role": "core_concept",
+              "risk_tags": [
+                "concept_confusion"
+              ],
+              "prerequisites": [
+                "碱金属原子",
+                "氢原子",
+                "电磁场中电荷粒子的哈密顿量"
+              ],
+              "related_points": [
+                {
+                  "name": "碱金属原子",
+                  "relation": "used_with"
+                },
+                {
+                  "name": "氢原子",
+                  "relation": "used_with"
+                },
+                {
+                  "name": "电磁场中电荷粒子的哈密顿量",
+                  "relation": "used_with"
+                },
+                {
+                  "name": "碱金属原子",
+                  "relation": "easily_confused"
+                }
+              ],
+              "evidence": [
+                "无外加电磁场时,$H=\\frac{p^2}{2\\mu}+V(r)$,$V(r)=-\\frac{k}{r}-\\frac{\\lambda k}{r^2}$ 加入磁场 $\\mathbf{B}=B\\mathbf{e}_z$,$H'=\\frac{q}",
+                "其中 $L_z=xp_y-yp_x$,$\\rho^2=x^2+y^2$ $$H=\\frac{p^2}{2\\mu}+\\frac{qB}{2\\mu}L_z+\\frac{q^2B^2}{8\\mu}\\rho^2+V(r)$$ $$H\\psi_{nl",
+                "于是有 $\\frac{1}{r^2}\\frac{d}{dr}\\left(r^2\\frac{dR}{dr}\\right)+\\left[\\frac{2\\mu}{\\hbar^2}(E-V)-\\frac{l(l+1)}{r^2}\\right]R=0"
+              ],
+              "node_status": "active",
+              "change_type": "updated",
+              "created_at": "2026-08-29T12:41:34Z",
+              "updated_at": "2026-08-30T15:36:23Z",
+              "source_documents": [],
+              "sources": [
+                "ocr_20260829_162807.md"
+              ],
+              "source_chunk_ids": [
+                "ocr_20260829_162807.md#简单塞曼效应"
+              ],
+              "content_fingerprint": "$$H=\\frac{1}{2\\mu}\\left[p_x^2+p_y^2+p_z^2+\\frac{qB}{2}(xp_y- | $ | 标签:formula,mistake | 无外加电磁场时,$H=\\frac{p^2}{2\\mu}+V(r)$,$V(r)=-\\frac{k}{",
+              "review_weight": 0.66,
+              "teacher_focus_items": [
+                "）",
+                "# 简单塞曼效应",
+                "$B \\neq 0$ 时，原本的能级分裂为 $(2l+1)$ 个，一个能级对应一个量子态，不简并"
+              ],
+              "note_covered_items": [],
+              "teacher_evidence": [
+                "）",
+                "# 简单塞曼效应",
+                "$B \\neq 0$ 时，原本的能级分裂为 $(2l+1)$ 个，一个能级对应一个量子态，不简并"
+              ]
+            }
+          ]
+        }
+      ],
+      "created_at": "2026-08-29T12:41:34Z",
+      "updated_at": "2026-08-30T15:36:23Z",
+      "node_status": "active",
+      "source_documents": []
+    }
+  ],
+  "unmatched_content": [],
+  "uncertain_nodes": [],
+  "added_chapters": [],
+  "added_topics": [],
+  "added_knowledge_points": [
+    "守恒量",
+    "狄拉克符号",
+    "自由平动粒子",
+    "线性谐振子"
+  ],
+  "updated_knowledge_points": [
+    "势函数不连续时的波函数条件",
+    "一维半无限深方势阱",
+    "一维谐振子",
+    "氢原子",
+    "三维问题:球坐标下的分离变量",
+    "共同本征函数",
+    "厄米算符本征值的实数性",
+    "力学量平均值的时间依赖特性",
+    "常见对易恒等式",
+    "概率密度与角度分布",
+    "电流分布与磁矩",
+    "碱金属原子",
+    "典型空间中的度规",
+    "散度",
+    "旋度",
+    "梯度算子",
+    "表象的定义",
+    "表象变换与矩阵力学",
+    "等概率原理和最概然统计",
+    "宏观态与微观态",
+    "最概然分布求算",
+    "转子的转动能量",
+    "量子态与相空间体积之间的对应关系",
+    "量子态中的 $\\mu$ 空间",
+    "角动量与坐标的对易关系",
+    "角动量平方算符",
+    "转子(双原子分子整体刚性转动)",
+    "分子的平均动能与理想气体系统的内能",
+    "分子在两次碰撞间做匀速直线运动",
+    "理想气体的微观模型",
+    "电磁场中电荷粒子的哈密顿量",
+    "碱金属原子",
+    "简单塞曼效应"
+  ],
+  "merged_nodes": []
+}

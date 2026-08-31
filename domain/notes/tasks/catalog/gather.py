@@ -834,7 +834,6 @@ def complement_catalog_coverage(
             "exam_signal": "none",
             "topic": str(target_topic.get("name") or ""),
             "chapter": str(target_chapter.get("name") or ""),
-            "confidence": "low",
         }
         kp_list.append(kp)
         existing.append(title)
@@ -990,6 +989,12 @@ def compute_kp_importance(
     teacher = min(emph * 2, 5) if emph else 0
     computed = round(0.4 * structure + 0.3 * content + 0.3 * teacher)
     computed = max(1, min(5, computed))
+    # 校准边界（对齐 prompt 规则）：内容充实的 KP 不应被结构/老师分压得过低；
+    # 空占位不高评
+    if items >= 3 and computed < 3:
+        computed = 3
+    if items == 0 and computed > 2:
+        computed = 2
     try:
         llm_imp = int(str(kp.get("importance") or 0) or 0)
     except (TypeError, ValueError):

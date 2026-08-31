@@ -320,13 +320,14 @@ def _owned_sentences(sentences: list[str], points: list[dict[str, Any]]) -> dict
 def activate_from_catalog(catalog: dict[str, Any] | None) -> list[dict[str, Any]]:
     """无老师重点时：按目录 importance 激活 KP，不做老师原话匹配。
 
-    只出 S/A/B：importance < 3 的低重要性知识点不进入本次清单
-    （无老师语境下不存在「老师轻点」的补充语义，避免出现悬空的 C/补充档）。
+    只出 S/A/B：importance < 2 的低重要性知识点不进入本次清单
+    （无老师语境下按目录全量复习，importance≥2 的普通知识点也出卡；
+    分位后不再丢弃，全部保留为 B 低优先，避免目录有而清单漏）。
     """
     points = flatten_points(catalog)
     activated: list[dict[str, Any]] = []
     for point in points:
-        if not _activation_gate(point):
+        if not _activation_gate(point, floor=2):
             continue
         row = dict(point)
         row["session_emphasis"] = "0"
@@ -344,23 +345,21 @@ def activate_from_catalog(catalog: dict[str, Any] | None) -> list[dict[str, Any]
         activated.append(row)
     # 分位定档：前 20%→S、20-60%→A、60-90%→B、后 10%→DROP
     _quantile_assign(activated, allow_c=False)
-    # DROP 硬约束：importance≥4 提到 B（长期重要性不因分层消失），只真丢 imp3
-    kept: list[dict[str, Any]] = []
+    # DROP 不丢卡：importance≥4 或 rw≥0.6 提到 B（长期重要性不因分层消失），
+    # 其余也保留为 B（低优先），保证目录有而清单不漏
     for row in activated:
         if row["session_priority"] == "DROP":
             if _rank(row.get("importance")) >= 4 or _review_weight(row) >= 0.6:
                 row["session_priority"] = "B"
-                kept.append(row)
-            continue
-        kept.append(row)
-    activated[:] = kept
+            else:
+                row["session_priority"] = "B"
     _cap_priorities(
         activated,
         s_max=10,
         a_max=10,
         b_max=10,
         allow_c=False,
-        drop_b=True,  # 无老师重点：S/A 超限降档，B 超限直接丢弃，只有 S/A/B
+        drop_b=False,  # 无老师重点：S/A 超限降档，B 超限保留（低优先），不丢卡
     )
     activated.sort(
         key=lambda p: (
@@ -384,7 +383,7 @@ def activate_points(catalog: dict[str, Any] | None, teacher: str) -> list[dict[s
 
     for point in points:
         hits = list(owned.get(_clean(point.get("id"))) or [])
-        if not hits and not _activation_gate(point):
+        if not hits and not _activation_gate(point, floor=3):
             continue  # 没被老师点到且重要性低 → 不出卡
         row = dict(point)
         row["_mentioned"] = bool(hits)
@@ -510,9 +509,13 @@ def _review_weight(point: dict[str, Any]) -> float:
         return 0.0
 
 
-def _activation_gate(point: dict[str, Any]) -> bool:
-    """激活闸门：importance≥3 或 review_weight≥0.4（程序综合分，覆盖难度/考试信号/前置）。"""
-    return _rank(point.get("importance")) >= 3 or _review_weight(point) >= 0.4
+def _activation_gate(point: dict[str, Any], *, floor: int = 3) -> bool:
+    """激活闸门：importance≥floor 或 review_weight≥0.4（程序综合分，覆盖难度/考试信号/前置）。
+
+    有老师重点路径保持 floor=3；无老师重点路径放宽到 floor=2
+    （无老师语境下目录全量复习，重要性 2 的普通知识点也应出卡）。
+    """
+    return _rank(point.get("importance")) >= floor or _review_weight(point) >= 0.4
 
 
 def _raw_score(point: dict[str, Any]) -> int:

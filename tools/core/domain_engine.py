@@ -115,15 +115,13 @@ class DomainNodes:
     def _shared_context(self, state: dict) -> str:
         """agent 共享上下文（视角模式 + 画像 + 视角模型 + 原文）。
 
+        视角模式语义由各线 system prompt 承担（system 固定、会话级读一次），
+        用户消息只保留模式标签，避免每次调用重复约 400 字的模式说明。
         领域专属上下文（如核心理解结果）在此追加。
         """
         mode = self._mode_label(state)
         return (
-            f"视角模式：{mode}\n"
-            f"说明：objective=客观全员；role_template=职业模板（name 是职业名，不是会场真人）；"
-            f"personal=真人个人（name 是真实姓名）。"
-            f"裁剪时同时遵守画像 focus_areas / interests / principles / constraints / output_style。"
-            f"职业/真人对决策、风险、未决从上游下采（只删不改），关注域内的数字、时限、承诺、口径、范围边界不得省略。\n\n"
+            f"视角模式：{mode}\n\n"
             f"用户画像：\n{json_dumps(state['user'])}\n\n"
             f"用户视角模型：\n{json_dumps(state.get('perspective_profile'))}\n\n"
             f"原文：\n{state['transcript']}"
@@ -364,7 +362,7 @@ class DomainNodes:
         """把用户画像映射到本次输入（所有领域共用）。"""
         try:
             result = await self.perspective_modeling_agent.run(
-                state["transcript"],
+                self._perspective_input_context(state),
                 json_dumps(state["user"]),
             )
         except Exception:  # noqa: BLE001 - 有意的降级设计
@@ -374,6 +372,16 @@ class DomainNodes:
                 "quality_degraded": True,
             }
         return {"perspective_profile": result.model_dump()}
+
+    def _perspective_input_context(self, state: dict) -> str:
+        """视角建模输入：优先使用领域理解摘要，避免重复发送全文。"""
+        understanding = self._understanding(state)
+        if understanding:
+            return (
+                f"{self._understanding_label}：\n"
+                f"{json_dumps(understanding)}"
+            )
+        return state.get("transcript") or ""
 
     # ── 同构节点工厂（由 TASK_LINES 注册表生成）───────────────
 

@@ -176,6 +176,7 @@ def _merge_point(old: dict[str, Any], new: dict[str, Any], stamp: str) -> tuple[
     put_list("sources")
     put_list("evidence")
     put_list("source_documents")
+    put_list("source_chunk_ids")
 
     for key, allowed in (
         ("practice_type", _PRACTICE),
@@ -687,8 +688,13 @@ _FINE_GRAIN_RE = re.compile(
     r"例题|典型例子|题型|选择题|填空题|计算题|证明题|综合题|"
     r"注意|易错|误区|陷阱|提醒|小结|总结|变量含义|符号说明)"
 )
-
-
+_GENERIC_TOPIC_NAMES = {
+    "核心概念",
+    "核心知识点",
+    "知识概要",
+    "补充知识点",
+    "其他",
+}
 def _norm_name(text: object) -> str:
     blob = re.sub(r"[\s:：,，。；;、（）()\[\]【】《》“”\"'·\-—_]+", "", str(text or "").lower())
     # 去编号前缀（「1. 数列极限的定义」「第2节极限」→「数列极限的定义/极限」），改名也能复用 ID
@@ -697,6 +703,9 @@ def _norm_name(text: object) -> str:
         "",
         blob,
     )
+
+
+_GENERIC_TOPIC_KEYS = {_norm_name(name) for name in _GENERIC_TOPIC_NAMES}
 
 
 def _base_of_fine_point(name: str) -> str:
@@ -741,6 +750,7 @@ def _merge_into_point(parent: dict[str, Any], child: dict[str, Any]) -> None:
         "sources",
         "evidence",
         "source_documents",
+        "source_chunk_ids",
     ):
         parent[key] = _uniq(_as_list(parent.get(key)) + _as_list(child.get(key)))
     for key, allowed in (
@@ -871,8 +881,153 @@ def _retitle_duplicate_topic(
     return topic
 
 
+def _source_key_set(point: dict[str, Any]) -> set[str]:
+    keys: set[str] = set()
+    for key in ("source_chunk_ids", "sources", "source_documents"):
+        keys.update(_as_list(point.get(key)))
+    return {_norm_name(item) for item in keys if _norm_name(item)}
+
+
+def _evidence_key_set(point: dict[str, Any]) -> set[str]:
+    keys: set[str] = set()
+    for item in _as_list(point.get("evidence")):
+        norm = _norm_name(item)
+        if norm:
+            keys.add(norm[:120])
+    return keys
+
+
+def _same_global_point(left: dict[str, Any], right: dict[str, Any]) -> bool:
+    """判断跨章节同名 KP 是否确实是同一知识点，避免误合并泛名节点。"""
+    left_name = _norm_name(left.get("name"))
+    right_name = _norm_name(right.get("name"))
+    if not left_name or left_name != right_name:
+        return False
+    left_sources = _source_key_set(left)
+    right_sources = _source_key_set(right)
+    if left_sources or right_sources:
+        return bool(left_sources & right_sources)
+    left_evidence = _evidence_key_set(left)
+    right_evidence = _evidence_key_set(right)
+    if left_evidence or right_evidence:
+        return bool(left_evidence & right_evidence)
+    return len(left_name) >= 4 and left_name not in _GENERIC_TOPIC_KEYS
+
+
+def _id_order(point: dict[str, Any]) -> int:
+    match = re.search(r"(\d+)$", str(point.get("id") or ""))
+    return int(match.group(1)) if match else 999999
+
+
+def _canonical_score(row: tuple[dict[str, Any], dict[str, Any], dict[str, Any]]) -> tuple[int, int]:
+    chapter, topic, point = row
+    point_name = _norm_name(point.get("name"))
+    topic_name = _norm_name(topic.get("name"))
+    chapter_name = _norm_name(chapter.get("name"))
+    score = 0
+    if topic_name and topic_name not in _GENERIC_TOPIC_KEYS:
+        score += 30
+    if chapter_name and chapter_name != point_name:
+        score += 20
+    if topic_name and topic_name == point_name:
+        score += 8
+    score += min(len(_as_list(point.get("knowledge_items"))), 12)
+    score += min(len(_source_key_set(point)), 8)
+    score += min(len(_evidence_key_set(point)), 5)
+    return score, -_id_order(point)
+
+
+def _cluster_duplicate_points(
+    rows: list[tuple[dict[str, Any], dict[str, Any], dict[str, Any]]]
+) -> list[list[tuple[dict[str, Any], dict[str, Any], dict[str, Any]]]]:
+    clusters: list[list[tuple[dict[str, Any], dict[str, Any], dict[str, Any]]]] = []
+    for row in rows:
+        point = row[2]
+        for cluster in clusters:
+            if any(_same_global_point(point, other[2]) for other in cluster):
+                cluster.append(row)
+                break
+        else:
+            clusters.append([row])
+    return clusters
+
+
+def _remove_point(topic: dict[str, Any], target: dict[str, Any]) -> None:
+    topic["knowledge_points"] = [
+        point
+        for point in topic.get("knowledge_points") or []
+        if point is not target
+    ]
+
+
+def _point_path(row: tuple[dict[str, Any], dict[str, Any], dict[str, Any]]) -> str:
+    chapter, topic, point = row
+    return " / ".join(
+        item
+        for item in (
+            _clean(chapter.get("name")),
+            _clean(topic.get("name")),
+            _clean(point.get("name")),
+        )
+        if item
+    )
+
+
+def _drop_empty_containers(chapters: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    kept_chapters: list[dict[str, Any]] = []
+    for chapter in chapters:
+        topics: list[dict[str, Any]] = []
+        for topic in chapter.get("topics") or []:
+            points = [
+                point
+                for point in topic.get("knowledge_points") or []
+                if isinstance(point, dict) and _clean(point.get("name"))
+            ]
+            if points or _as_list(topic.get("knowledge_items")):
+                topic["knowledge_points"] = points
+                topics.append(topic)
+        if topics:
+            chapter["topics"] = topics
+            kept_chapters.append(chapter)
+    return kept_chapters
+
+
+def _merge_global_duplicate_points(
+    chapters: list[dict[str, Any]],
+    merged_nodes: list[str],
+) -> list[dict[str, Any]]:
+    by_name: dict[str, list[tuple[dict[str, Any], dict[str, Any], dict[str, Any]]]] = {}
+    for chapter in chapters:
+        for topic in chapter.get("topics") or []:
+            for point in topic.get("knowledge_points") or []:
+                if not isinstance(point, dict):
+                    continue
+                key = _norm_name(point.get("name"))
+                if key:
+                    by_name.setdefault(key, []).append((chapter, topic, point))
+
+    for rows in by_name.values():
+        if len(rows) < 2:
+            continue
+        for cluster in _cluster_duplicate_points(rows):
+            if len(cluster) < 2:
+                continue
+            keep = max(cluster, key=_canonical_score)
+            keep_point = keep[2]
+            for row in cluster:
+                if row is keep:
+                    continue
+                dup_point = row[2]
+                _merge_into_point(keep_point, dup_point)
+                _remove_point(row[1], dup_point)
+                merged_nodes.append(
+                    f"{_point_path(row)} → {_point_path(keep)}"
+                )
+    return _drop_empty_containers(chapters)
+
+
 def compact_catalog_granularity(catalog: dict[str, Any]) -> dict[str, Any]:
-    """把过细 KP 降级进父 KP 的 items，并合并同层重复点。"""
+    """把过细 KP 降级进父 KP 的 items，并合并同层/跨层重复点。"""
     out = dict(catalog or {})
     merged_nodes = _as_list(out.get("merged_nodes"))
     chapters: list[dict[str, Any]] = []
@@ -899,6 +1054,7 @@ def compact_catalog_granularity(catalog: dict[str, Any]) -> dict[str, Any]:
             topics.append(topic)
         chapter["topics"] = topics
         chapters.append(chapter)
+    chapters = _merge_global_duplicate_points(chapters, merged_nodes)
     out["chapters"] = chapters
     out["merged_nodes"] = _uniq(merged_nodes)
     if out.get("added_knowledge_points"):

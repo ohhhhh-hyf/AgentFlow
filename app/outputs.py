@@ -24,6 +24,22 @@ def output_dir(user_id: str, request_id: str) -> Path:
     return (root / "output" / (request_id or "default")).resolve()
 
 
+def resolve_output_file(user_id: str, request_id: str, file_name: str) -> Path | None:
+    """校验并定位产物文件 data/{user_id}/output/{request_id}/{file_name}。
+
+    参数含路径分隔符/`.`/`..` 视为非法；文件不存在返回 None（路由层转 404）。
+    """
+    for part in (user_id, request_id, file_name):
+        if not part or "/" in part or "\\" in part or part in {".", ".."}:
+            return None
+    out = output_dir(user_id, request_id)
+    path = (out / file_name).resolve()
+    data_root = (PROJECT_ROOT / "data").resolve()
+    if path.is_file() and data_root in path.parents:
+        return path
+    return None
+
+
 def _copy_as(src: Path, dest: Path) -> Path:
     dest.parent.mkdir(parents=True, exist_ok=True)
     if src.resolve() == dest.resolve():
@@ -59,4 +75,4 @@ def save_task_outputs(
     return result
 
 
-__all__ = ["output_dir", "save_task_outputs"]
+__all__ = ["output_dir", "resolve_output_file", "save_task_outputs"]

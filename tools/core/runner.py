@@ -127,6 +127,7 @@ async def prepare_run(
     monitor: bool = True,
     collect_reports: bool = False,
     extra_line_inputs: dict[str, str] | None = None,
+    memory: bool = False,
 ) -> PreparedRun:
     """输入组装 + 注入 + 模板编译（run 与流式接口共用；本函数不执行任务）。"""
     setup_logging()
@@ -233,7 +234,7 @@ async def prepare_run(
 
     memory_bind = None
     line_extra: dict[str, str] = {}
-    memory_enabled = bool(user_id and (set(line_names) & MEMORY_LINES))
+    memory_enabled = bool(memory and user_id and (set(line_names) & MEMORY_LINES))
     if "quiz" in line_names:
         quiz_rows: list[str] = ["用户水平：期中备考"]
         bank_rows: list[str] = []
@@ -356,6 +357,7 @@ async def run(
     monitor: bool = True,
     collect_reports: bool = False,
     extra_line_inputs: dict[str, str] | None = None,
+    memory: bool = False,
 ) -> dict | None:
     """Run selected task lines and persist their final artifacts.
 
@@ -374,6 +376,7 @@ async def run(
         project_id, subject, chapter, level, grade, edition, difficulty, qtype,
         compile_natural=compile_natural, monitor=monitor,
         collect_reports=collect_reports, extra_line_inputs=extra_line_inputs,
+        memory=memory,
     )
     system = prep.system
     ctx = prep.ctx

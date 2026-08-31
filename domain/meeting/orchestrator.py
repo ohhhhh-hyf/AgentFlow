@@ -31,6 +31,7 @@ from tools.domain_engine import (
     line_draft_title as _engine_line_draft_title,
 )
 from tools.runtime.kinds import resolve_line_policies
+from tools.runtime.supervisor_slice import compact_draft_for_review
 
 # ── Report import 生成区：由 tools/scripts/sync_domain.py 生成，勿手改 ──
 
@@ -479,7 +480,6 @@ class _Nodes(DomainNodes):
                 "decisions": u.get("decisions") or [],
                 "risks": u.get("risks") or [],
                 "open_questions": u.get("open_questions") or [],
-                "key_action_hints": (u.get("action_hints") or [])[:12],
             }
         return {
             **base,
@@ -573,7 +573,7 @@ class _Nodes(DomainNodes):
             f"{_line_cn(line_name)}返工次数：{revision_count}/{self.MAX_REVISIONS}\n"
             f"{allowed}\n\n"
             f"{self._supervisor_source_pack(state, line_name)}\n\n"
-            f"{_line_draft_title(line_name)}：\n{_json(sub['draft'])}"
+            f"{_line_draft_title(line_name)}：\n{_json(compact_draft_for_review(sub['draft']))}"
         )
 
     def _render_context(self, state: dict, line_name: str) -> str:
@@ -625,8 +625,8 @@ class _Nodes(DomainNodes):
             builder.add_node(
                 "perspective_modeling", self._perspective_modeling_node
             )
-            builder.add_edge(START, "perspective_modeling")
-            cores.append("perspective_modeling")
+            builder.add_edge("meeting_understanding", "perspective_modeling")
+            cores = ["perspective_modeling"]
         return cores
 
     # ── 核心节点：会议理解（公共事实底座）──────────────────────

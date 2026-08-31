@@ -190,6 +190,11 @@ pip install "numpy<2" onnxruntime==1.16.3 rapidocr_onnxruntime==1.4.4
 | notes | `POST /api/v1/notes/checklist` | 复习清单 |
 | - | `GET /api/v1/health` | 健康检查 + 任务线清单 |
 
+> **下载端点**：`minutes` / `actions` / `risks` / `minutes_styles` / `minutes_trace` / `graph` / `checklist`
+> 各有配套 `GET /api/v1/{domain}/{task}/file/{request_id}/{file_name}` 下载接口
+> （`request_id` = POST 时的 `X-Request-Id`，`file_name` = 响应 `data.file_name`，产物以附件形式返回），
+> 详见 API.md 6.11。`library`（无落盘）与 `catalog`（file_name 指向知识目录 JSON）不提供下载。
+
 ```bash
 curl -X POST http://127.0.0.1:8000/api/v1/meeting/minutes \
   -H "Content-Type: application/json" \
@@ -223,6 +228,8 @@ curl -X POST http://127.0.0.1:8000/api/v1/meeting/minutes \
 | `data/{user_id}/output/cli_*/mindmap/mindmap_*.html` | 思维导图 HTML | CLI 运行兜底目录；`mindmap` 只保留 HTML/PNG |
 | `data/{user_id}/output/cli_*/mindmap/mindmap_*.png` | 思维导图 PNG | Playwright 不可用时跳过 |
 | `data/{user_id}/output/{request_id}/graph.html` | 知识图谱交互 HTML | Cytoscape.js 交互演示版 |
+
+产物文件可通过配套下载端点获取（`GET /api/v1/{domain}/{task}/file/{request_id}/{file_name}`，强制下载），也可直接访问静态路径 `/data/{user_id}/output/{request_id}/{file_name}`（浏览器直接打开，无鉴权）。
 
 ## 自定义输出模板
 
@@ -269,6 +276,6 @@ curl -X POST http://127.0.0.1:8000/api/v1/meeting/minutes \
   npx/playwright 缺失时自动降级不影响主流程
 - **知识图谱**：notes 域 graph 线提取概念节点与关系边（nodes/edges，
   均锚定原文 + evidence），经 `tools/graph.py` 导出 Cytoscape.js 交互式 HTML 和学习地图 Markdown（默认输出到 `data/{user_id}/output/{request_id}/`）；悬空边自动过滤、HTML 仍尽量生成；
-  传 `X-User-Id` + `extra.subject` 时按学科跨会话增量（新增节点高亮，见 API.md 6.6）
+  传 `extra.memory=true` + `X-User-Id` + `extra.subject` 时按学科跨会话增量（新增节点高亮，见 API.md 6.6）
 - **输出稳定性**：各线 prompt 采用确定性规则（数量由内容决定、措辞锚定原文、
   顺序按原文出现、空字段 null/[]），同一输入重复运行保持内容与篇幅稳定

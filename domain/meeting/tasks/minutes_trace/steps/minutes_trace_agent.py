@@ -102,6 +102,30 @@ def _needs_reorg(minutes_md: str, people: list[str]) -> list[str]:
     return reasons
 
 
+# trace 实际消费的理解字段：程序（topics/meeting_purpose）+ LLM
+# （scene/meeting_brief/topics/decisions/risks/open_questions）。
+# action_hints / risk_hints / dependencies / perspective_profile 等
+# 是 actions/risks 线的候选池，trace 用不到——user 侧只发消费字段，省输入 token。
+_TRACE_UNDERSTANDING_KEYS = (
+    "scene",
+    "meeting_brief",
+    "topics",
+    "decisions",
+    "risks",
+    "open_questions",
+    "meeting_purpose",
+)
+
+
+def _trace_understanding(understanding: dict) -> dict:
+    """按 trace 消费字段裁剪理解 JSON（只影响发给 LLM 的内容，不动程序用数据）。"""
+    return {
+        key: value
+        for key, value in (understanding or {}).items()
+        if key in _TRACE_UNDERSTANDING_KEYS
+    }
+
+
 class MinutesTraceAgent:
     """按通用模板写纪要 + 对齐草稿；门禁在返回前执行。"""
 
@@ -127,9 +151,10 @@ class MinutesTraceAgent:
         parts: list[str] = []
         if transcript:
             parts.append(f"会议原文：\n{transcript}")
-        if understanding:
+        llm_understanding = _trace_understanding(understanding)
+        if llm_understanding:
             parts.append(
-                f"会议理解：\n{json.dumps(understanding, ensure_ascii=False, indent=2)}"
+                f"会议理解：\n{json.dumps(llm_understanding, ensure_ascii=False, indent=2)}"
             )
         trace_blocks = "\n\n".join(
             str(block).strip()

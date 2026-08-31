@@ -300,10 +300,10 @@ def assemble_checklist(
         grade = row.get("session_priority") or "C"
         brief = grade not in {"S", "A"}
         explain = _clean(blob.get("explain")) or _fallback_explain(row, brief=brief)
-        if not brief and len(explain) < 120:
+        if not brief and len(explain) < 180:
             explain = _fallback_explain(row, brief=False)
         methods = _as_list(blob.get("method_steps")) or _fallback_method(row)
-        if not brief and len(methods) < 4:
+        if not brief and len(methods) < 5:
             methods = _fallback_method(row)
         pitfalls = _as_list(blob.get("pitfalls")) or _fallback_pitfalls(row)
         facts = _as_list(blob.get("key_facts")) or _fallback_facts(row)
@@ -319,6 +319,7 @@ def assemble_checklist(
                 **{k: row.get(k) for k in (
                     "id", "name", "aliases", "chapter", "topic", "knowledge_type",
                     "knowledge_items", "importance", "difficulty", "foundational_level",
+                    "sources", "source_chunk_ids", "evidence", "content_fingerprint",
                     "note_coverage", "note_missing_items", "prerequisites", "related_points",
                     "practice_type", "completion_criteria", "learning_role", "risk_tags",
                     "session_emphasis", "session_focus_items", "session_exam_signal",

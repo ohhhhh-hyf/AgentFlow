@@ -26,6 +26,8 @@ FastAPI 后端接口。所有接口走 `/api/v1`，一次请求对应一条任�
 > 接口名与内部任务线名保持一致，例如 `minutes`、`actions`、`risks`、`minutes_styles`、`graph`。调用方只需要使用上表中的接口路径与任务名。
 >
 > **流式版本**：每个业务接口都有 `/stream` 后缀的流式端点（NDJSON 事件流，实时感知任务进度），请求体与同步接口一致，见第十章。
+>
+> **下载版本**：7 个有产物文件的接口（minutes / actions / risks / minutes_styles / minutes_trace / graph / checklist）各有配套 `GET /{task}/file/{request_id}/{file_name}` 下载端点（用 POST 响应的 `request_id` 与 `data.file_name` 下载产物文件，见 6.11）。`library`（无落盘）与 `catalog`（file_name 指向知识目录 JSON）不提供下载。
 
 ---
 
@@ -34,7 +36,7 @@ FastAPI 后端接口。所有接口走 `/api/v1`，一次请求对应一条任�
 | Header | 必填 | 类型 | 说明 |
 |---|---|---|---|
 | `Content-Type` | 是 | string | 固定 `application/json` |
-| `X-User-Id` | **是** | string | 用户标识。**所有接口必填**。决定数据目录 `data/{user_id}/`；`minutes`/`minutes_styles`/`graph` 关联跨会话记忆（落盘 `data/{user_id}/memory/`）；`library`/`catalog`/`checklist` 按用户隔离知识库 |
+| `X-User-Id` | **是** | string | 用户标识。**所有接口必填**。决定数据目录 `data/{user_id}/` 和知识库隔离；不代表开启长期记忆 |
 | `X-Request-Id` | **是** | string | 调用方追踪 ID，**建议用 UUID**（如 `550e8400-e29b-41d4-a716-446655440000`）。透传到响应 `request_id`；产物目录 `data/{user_id}/output/{request_id}/` 以它为名。缺了返回 400 |
 | `Authorization` | 否 | string | `Bearer <token>`，预留认证，本期不校验 |
 
@@ -55,7 +57,8 @@ FastAPI 后端接口。所有接口走 `/api/v1`，一次请求对应一条任�
     "profile": "developer",
     "project": "P-1001",
     "subject": "数学",
-    "style": "time"
+    "style": "time",
+    "memory": false
   }
 }
 ```
@@ -110,9 +113,10 @@ FastAPI 后端接口。所有接口走 `/api/v1`，一次请求对应一条任�
 |---|---|---|---|
 | `template` | string | `""` | 输出模板，见 4.5；**空 = 不套模板**，用任务默认输出 |
 | `profile` | string | `""` | 视角，见 4.6；**空 = 客观全员** |
-| `project` | string | `""` | 会议关联项目 ID（minutes/minutes_styles 开项目记忆） |
-| `subject` | string | `""` | 学科/课程名（library 可选；catalog/checklist **必填**；graph **记忆增量必需**，见 6.6） |
+| `project` | string | `""` | 会议关联项目 ID（`memory=true` 时用于 minutes/minutes_styles 绑定项目记忆） |
+| `subject` | string | `""` | 学科/课程名（library 可选；catalog/checklist **必填**；graph 开启记忆时用于绑定学科，见 6.6） |
 | `style` | string | `""` | 多样式纪要组织模式，见 4.7；仅 `minutes_styles` 生效，其余任务忽略；**`minutes_styles` 必填**（缺了返回 400） |
+| `memory` | boolean | `false` | 长期记忆开关。`false`=不读取历史记忆、不写入本次记忆；`true`=允许读写长期记忆。`X-User-Id` 只做数据隔离，不会自动开启记忆 |
 
 非法 `template`/`profile`/`style` → 400。
 
@@ -261,7 +265,7 @@ FastAPI 后端接口。所有接口走 `/api/v1`，一次请求对应一条任�
 | `monitor.token_usage` | int | 本次任务 LLM token 总消耗（prompt+completion） | **不返回** |
 | `monitor.cache_hit` | int | 本次任务缓存命中的 token 数（服务端上下文缓存） | **不返回** |
 | `monitor.cost_time` | float | 本次任务耗时（秒） | **不返回** |
-| `data.text` | string/null | **该任务生成的 Markdown 文本**（含记忆溯源标准链接；`graph` 为学习地图；`library` 为入库报告） | **不返回** |
+| `data.text` | string/null | **该任务生成的 Markdown 文本**（含记忆溯源标准链接；`graph` 为学习地图；`library` 为入库报告；**`checklist` 为精简摘要**——统计 + 卡片列表，完整内容见产物 `checklist.html` 与 `result.md`） | **不返回** |
 | `data.file_name` | string | 产物文件名：`catalog` 接口返回目录文件名（如 `20260827_223933_068.json`，存于 `data/{user_id}/knowledge/catalogs/{subject拼音}/`）；其余接口按产物返回：有 HTML 产物返回 `{task}.html`（如 `checklist.html`），只有文本产物（`actions` / `risks` / `minutes_styles` / `minutes_trace`）返回 `{task}.md`（如 `actions.md`）；均存于 `data/{user_id}/output/{request_id}/`，`library` / `graph` 无对应产物类型时为空串 | **不返回** |
 
 > 失败响应只含 `code` / `request_id` / `message` 三个字段，不携带 `monitor` 与 `data`（无监控数据与产物，省去全 0 / 空字段噪音）。
@@ -292,16 +296,16 @@ FastAPI 后端接口。所有接口走 `/api/v1`，一次请求对应一条任�
 
 ### 6.1 `POST /api/v1/meeting/minutes` —— 纪要提取
 
-- **用途**：把会议转写文本整理成结构化会议纪要（议题、结论、摘要、待办/风险概述）。默认客观全员视角；填 `X-User-Id` 关联历史记忆，命中历史会议会在对应内容标注溯源。
+- **用途**：把会议转写文本整理成结构化会议纪要（议题、结论、摘要、待办/风险概述）。默认客观全员视角；仅当 `extra.memory=true` 且传 `X-User-Id` 时关联历史记忆，命中历史会议会在对应内容标注溯源。
 - **输入**：`texts`（transcript 必填）+ 可选 `docs`
-- **生效的 extra**：`template` / `profile` / `project`
+- **生效的 extra**：`template` / `profile` / `project` / `memory`
 
 ```json
 {
   "texts": {
     "transcript": "会议记录全文……"
   },
-  "extra": { "template": "meeting_minutes_team_meeting", "profile": "developer", "project": "P-1001" }
+  "extra": { "template": "meeting_minutes_team_meeting", "profile": "developer", "project": "P-1001", "memory": true }
 }
 ```
 
@@ -329,7 +333,7 @@ FastAPI 后端接口。所有接口走 `/api/v1`，一次请求对应一条任�
 
 - **用途**：同一场会按指定组织模式重写纪要（时间线/总分/因果/主体责权/决策时效）。
 - **输入**：`texts`（transcript 必填）+ `extra.style`（**必填**，缺了返回 400）
-- **生效的 extra**：`template` / `profile` / `project` / **`style`（必填）**
+- **生效的 extra**：`template` / `profile` / `project` / **`style`（必填）** / `memory`
 
 ```json
 {
@@ -360,13 +364,13 @@ FastAPI 后端接口。所有接口走 `/api/v1`，一次请求对应一条任�
 
 - **用途**：把笔记概念抽成知识图谱（节点带定义/出处/关系），产出学习地图文本；交互 HTML 落盘。
 - **输入**：`docs`（**必填**，笔记 `.txt/.md` 文件，从 `data/{user_id}/docs/` 取）
-- **生效的 extra**：`template` / `profile` / `project` / **`subject`（记忆增量必需）**
-- **记忆增量**：传 `X-User-Id` + **`extra.subject`（学科名）** 时，按学科绑定跨会话记忆档案（`data/{user_id}/memory/records/notes/projects/{学科}/`）——下次同学科调用会注入已积累图谱，同名节点/边合并，**新增节点在学习地图标"（新增）"**，交互 HTML 中新增橙色高亮、历史暗淡显示。**不传 `subject` 则每次都是独立单次运行**（不建档、不注入、无增量）。
+- **生效的 extra**：`template` / `profile` / `project` / `subject` / `memory`
+- **记忆增量**：仅当 `extra.memory=true` 且传 `X-User-Id` + `extra.subject`（学科名）时，按学科绑定跨会话记忆档案（`data/{user_id}/memory/records/notes/projects/{学科}/`）——下次同学科且同样 `memory=true` 的调用会注入已积累图谱，同名节点/边合并，**新增节点在学习地图标"（新增）"**，交互 HTML 中新增橙色高亮、历史暗淡显示。`memory=false` 或不传时，每次都是独立单次运行（不建档、不注入、无增量）。
 
 ```json
 {
   "docs": ["gaoshu_limit_notes.txt"],
-  "extra": { "subject": "数学" }
+  "extra": { "subject": "数学", "memory": true }
 }
 ```
 
@@ -419,6 +423,50 @@ FastAPI 后端接口。所有接口走 `/api/v1`，一次请求对应一条任�
 
 ---
 
+### 6.11 `GET /{task}/file/{request_id}/{file_name}` —— 下载产物文件
+
+7 个有产物文件的接口各配一个下载端点，用 POST 生成后拿到的两个值直接下载：
+
+| 接口 | 下载端点 |
+|---|---|
+| minutes | `GET /api/v1/meeting/minutes/file/{request_id}/{file_name}` |
+| actions | `GET /api/v1/meeting/actions/file/{request_id}/{file_name}` |
+| risks | `GET /api/v1/meeting/risks/file/{request_id}/{file_name}` |
+| minutes_styles | `GET /api/v1/meeting/minutes_styles/file/{request_id}/{file_name}` |
+| minutes_trace | `GET /api/v1/meeting/minutes_trace/file/{request_id}/{file_name}` |
+| graph | `GET /api/v1/notes/graph/file/{request_id}/{file_name}` |
+| checklist | `GET /api/v1/notes/checklist/file/{request_id}/{file_name}` |
+
+参数：
+
+| 参数 | 来源 | 说明 |
+|---|---|---|
+| `request_id`（路径） | POST 请求头 `X-Request-Id` | 即 POST 响应里的 `request_id`；产物目录 `data/{user_id}/output/{request_id}/` 以它为名 |
+| `file_name`（路径） | POST 响应 `data.file_name` | 产物文件名（如 `minutes.html`、`actions.md`） |
+
+请求头：`X-User-Id` **必填**（产物按用户隔离，缺了返回 400）。
+
+响应：文件字节流 + `Content-Disposition: attachment`（浏览器弹保存框强制下载），`filename` 为请求的 `file_name`。
+
+错误：
+
+| 场景 | 状态码 |
+|---|---|
+| 缺 `X-User-Id` | 400 |
+| 文件不存在（含 `request_id`/`file_name` 非法或带路径穿越） | 404 |
+
+示例：
+
+```bash
+curl -o checklist.html -H "X-User-Id: u1" \
+  "http://127.0.0.1:8000/api/v1/notes/checklist/file/550e8400-e29b-41d4-a716-446655440000/checklist.html"
+```
+
+> 说明：`X-User-Id` 走请求头，浏览器地址栏直接打开会 400，需用 fetch/axios 带 header 下载。
+> `library` 无落盘产物（file_name 为空）、`catalog` 的 file_name 指向知识目录 JSON（在 `data/{user_id}/knowledge/catalogs/` 下，不在 output 目录），两者不提供下载端点。
+
+---
+
 ## 七、文件与产物
 
 ### 7.1 输入文件查找
@@ -443,7 +491,7 @@ docs[] 中的文件 →  data/{user_id}/docs/{name}  →  data/docs/{name}
 
 ### 7.3 记忆落盘
 
-`minutes`/`minutes_styles`/`graph` 任务命中记忆时，记忆写入 **`data/{user_id}/memory/`**（records/domain/projects/...），下次同用户任务自动命中历史并溯源。
+仅当 `extra.memory=true` 时，`minutes`/`minutes_styles`/`graph` 任务才会读取并写入 **`data/{user_id}/memory/`**（records/domain/projects/...）。默认 `memory=false`，即使传了 `X-User-Id`、`extra.project` 或 `extra.subject` 也只做数据隔离，不读写长期记忆。
 
 ### 7.4 catalog 目录存储
 
@@ -464,7 +512,7 @@ data/{user_id}/knowledge/catalogs/{subject拼音}/   ← 按学科分目录（�
 
 | 场景 | HTTP / code | message 示例 |
 |---|---|---|
-| 缺 `X-User-Id` | 400 | `minutes 需要 X-User-Id（用户标识：会议纪要关联记忆、知识库按用户隔离）` |
+| 缺 `X-User-Id` | 400 | `minutes 需要 X-User-Id（用户标识：数据目录和知识库按用户隔离）` |
 | 缺 `X-Request-Id` | 400 | `缺少 X-Request-Id（调用方追踪 ID，建议用 UUID；产物目录 data/{user_id}/output/{request_id}/ 以它为名）` |
 | texts/docs 全空 | 400 | `texts / docs 至少提供一个` |
 | 缺必填字段 | 400 | `graph 缺少必填项：docs（笔记 .txt/.md 文件）` / `minutes_trace 缺少必填项：texts 中 keypoints（用户重点文本）、texts 中 notes（用户笔记文本）` / `minutes_styles 缺少必填项：extra.style（多样式纪要组织模式）` / `checklist 缺少必填项：docs（catalog 文件名，如 phy_8b4dccc8.json）` |
@@ -473,6 +521,8 @@ data/{user_id}/knowledge/catalogs/{subject拼音}/   ← 按学科分目录（�
 | 非法 template | 400 | `extra.template 非法：bad_value（格式为 {场景ID}_{模板ID}）` |
 | 非法 profile | 400 | `extra.profile 非法：not_exist（可选：空=客观全员 或 职业模板名）` |
 | 本地文件不存在 | 404 | `本地文件不存在：docs/photo_1.jpg（请放入 data/1/docs/ 或 data/docs/）` |
+| 下载缺 `X-User-Id` | 400 | `缺少 X-User-Id（产物按用户隔离）` |
+| 下载文件不存在（GET /file/...） | 404 | `产物文件不存在：output/{request_id}/{file_name}`（含 `request_id`/`file_name` 非法或路径穿越） |
 | 任务运行失败 | 500 | `任务运行失败：LLM 调用超时` |
 
 ---

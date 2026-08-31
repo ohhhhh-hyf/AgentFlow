@@ -52,7 +52,7 @@ class ChecklistGenerationContract(GenerationContract):
         ),
         StrListField(
             "strategy",
-            "2-4 条针对本次的复习策略：重点是否集中、高难度点、前置是否要先补、笔记缺项；禁止空话",
+            "复习策略由程序生成，模型直接输出空数组 []",
         ),
         ObjListField(
             "phases",
@@ -63,6 +63,7 @@ class ChecklistGenerationContract(GenerationContract):
                 StrListField("names", "本阶段 KP 名"),
                 StrField("check", "完成标准"),
             ],
+            desc="复习阶段计划由程序生成（按卡片数据重排），模型直接输出空数组 []",
         ),
     ]
 

@@ -33,8 +33,8 @@ def teacher_from_context(text: str) -> str:
         return "" if _is_placeholder_teacher(body) else body
     lines = []
     for line in raw.splitlines():
-        if line.startswith("【用户ID】") or line.startswith("【学科/课程】"):
-            continue
+        if line.startswith("【"):
+            continue  # 系统标记行（【用户ID】【学科/课程】【目录文件】等）不是老师文本
         if line.startswith("视角模式：") or line.startswith("说明："):
             continue
         lines.append(line)
@@ -75,71 +75,7 @@ def load_session(shared_context: str) -> tuple[dict[str, Any] | None, list[dict[
         catalog = load_catalog(user_id=user_id, subject=subject)
     teacher = teacher_from_context(shared_context)
     activated = activate_points(catalog, teacher) if catalog else []
-    if activated:
-        _attach_kb_excerpts(activated, user_id, subject)
     return catalog, activated, teacher
-
-
-_KB_EXCERPT_CHUNKS = 6
-_KB_EXCERPT_CHUNK_LEN = 160
-_KB_EXCERPT_TOTAL = 600
-
-
-def _kb_key(row: dict[str, Any]) -> tuple[str, str]:
-    return (
-        str(row.get("chapter") or "").strip(),
-        str(row.get("topic") or "").strip(),
-    )
-
-
-def _kb_excerpts_from_chunks(
-    rows: list[dict[str, Any]], chunks: list[dict[str, Any]]
-) -> None:
-    """按 KP 的 chapter/topic 匹配 chunk，给 rows 就地塞 _kb_excerpt。"""
-    by_key: dict[tuple[str, str], list[str]] = {}
-    for ch in chunks:
-        meta = ch.get("metadata") or {}
-        text = str(ch.get("text") or "").strip()
-        if not text:
-            continue
-        by_key.setdefault(_kb_key(meta), []).append(text)
-    for row in rows:
-        exact = by_key.get(_kb_key(row)) or []
-        pool = exact or [
-            text
-            for (chapter, topic), texts in by_key.items()
-            if not chapter and topic and topic == _kb_key(row)[1]
-            for text in texts
-        ]
-        if not pool:
-            continue
-        parts: list[str] = []
-        total = 0
-        for text in pool:
-            piece = text[:_KB_EXCERPT_CHUNK_LEN]
-            parts.append(piece)
-            total += len(piece)
-            if len(parts) >= _KB_EXCERPT_CHUNKS or total >= _KB_EXCERPT_TOTAL:
-                break
-        if parts:
-            row["_kb_excerpt"] = "\n".join(parts)
-
-
-def _attach_kb_excerpts(
-    rows: list[dict[str, Any]], user_id: str, subject: str
-) -> None:
-    """开知识库并按 KP 的 chapter/topic 拉原文片段；不可用/无匹配时静默跳过。"""
-    from tools.knowledge.cite import open_knowledge
-
-    kb = open_knowledge(user_id=user_id)
-    if kb is None:
-        return
-    try:
-        chunks = kb.list_chunks(user_id=user_id, subject=subject) or []
-    except Exception:
-        return
-    if chunks:
-        _kb_excerpts_from_chunks(rows, chunks)
 
 
 def build_checklist_briefing(
@@ -168,14 +104,11 @@ def build_checklist_briefing(
     else:
         parts.append("【激活 KP】只能给下面这些 id 写卡片：")
         for row in activated:
-            fingerprint = str(row.get("content_fingerprint") or "").strip()
-            evidence = row.get("evidence") or []
-            if isinstance(evidence, str):
-                evidence = [evidence]
             parts.append(
                 f"- {row.get('id')} | {row.get('name')} | {row.get('session_priority')} | "
                 f"type={row.get('knowledge_type')} | rw={row.get('review_weight')} | "
                 f"items={','.join(row.get('knowledge_items') or [])} | "
+                f"sources={','.join(row.get('source_chunk_ids') or [])} | "
                 f"focus={','.join(row.get('session_focus_items') or [])} | "
                 f"missing={','.join(row.get('note_missing_items') or [])} | "
                 f"emph={row.get('session_emphasis')} | exam={row.get('session_exam_signal')} | "
@@ -183,13 +116,6 @@ def build_checklist_briefing(
                 f"related={','.join(row.get('session_related_points') or [])} | "
                 f"quotes={' / '.join((row.get('session_quotes') or [])[:2])}"
             )
-            if evidence:
-                parts.append(f"    证据：{evidence[0][:150]}")
-            if fingerprint:
-                parts.append(f"    指纹：{fingerprint[:150]}")
-            excerpt = str(row.get("_kb_excerpt") or "").strip()
-            if excerpt:
-                parts.append(f"    原文片段：{excerpt[:400]}")
     try:
         from .assemble import _build_strategy_facts
 

@@ -30,7 +30,10 @@ class LibraryAgent:
                 }
             )
         try:
-            data = ingest_library(
+            import asyncio
+
+            data = await asyncio.to_thread(
+                ingest_library,
                 kb_from_env(user_id_from_context(shared_context)),
                 expand_inputs(raw),
                 user_id=user_id_from_context(shared_context),

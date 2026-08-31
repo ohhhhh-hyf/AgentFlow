@@ -87,18 +87,10 @@ class CatalogGenerationContract(GenerationContract):
                                     ["none", "weak", "medium", "strong"],
                                     "材料里的考试信号强弱；只能依据老师或资料明确说法，不要写必考概率",
                                 ),
-                                StrListField(
-                                    "teacher_focus_items",
-                                    "老师点到的具体 Item，必须是 knowledge_items 里已有的短名",
-                                ),
                                 EnumField(
                                     "note_coverage",
                                     ["none", "mentioned", "partial", "detailed"],
                                     "学生笔记覆盖，不要推断是否掌握",
-                                ),
-                                StrListField(
-                                    "note_covered_items",
-                                    "笔记写到了的 Item 短名",
                                 ),
                                 StrListField(
                                     "note_missing_items",
@@ -137,20 +129,8 @@ class CatalogGenerationContract(GenerationContract):
                                     ],
                                 ),
                                 StrListField(
-                                    "sources",
-                                    "来源角色：课程资料 / 老师重点 / 学生笔记，有才写",
-                                ),
-                                StrListField(
                                     "evidence",
                                     "短依据：来源类型 + 可核对片段，如「老师重点：……」",
-                                ),
-                                StrField(
-                                    "confidence",
-                                    "0-1 置信度，不确定就低一点，不要硬填高分",
-                                ),
-                                StrListField(
-                                    "source_documents",
-                                    "支撑该点的资料文件名",
                                 ),
                                 EnumField(
                                     "node_status",
@@ -176,10 +156,10 @@ class CatalogGenerationContract(GenerationContract):
             "uncertain_nodes",
             "分类没把握的节点，不要强行塞进某章",
         ),
-        StrListField("added_chapters", "本次新增的章节名"),
-        StrListField("added_topics", "本次新增的主题名"),
-        StrListField("added_knowledge_points", "本次新增的知识点名"),
-        StrListField("updated_knowledge_points", "本次有补充/修正的已有知识点名"),
+        StrListField("added_chapters", "程序统计，输出空数组 []"),
+        StrListField("added_topics", "程序统计，输出空数组 []"),
+        StrListField("added_knowledge_points", "程序统计，输出空数组 []"),
+        StrListField("updated_knowledge_points", "程序统计，输出空数组 []"),
         StrListField("merged_nodes", "本次合并记录，如「别名 A → kp_003 标准名」"),
     ]
 
@@ -202,6 +182,121 @@ CATALOG_GENERATION_OUTPUT_CONTRACT = CatalogGenerationContract.to_output_contrac
 CATALOG_SUPERVISOR_OUTPUT_CONTRACT = CatalogSupervisorContract.to_output_contract()
 
 
+class CatalogSlimGenerationContract(GenerationContract):
+    """catalog 的 LLM 瘦身契约：只让模型写树结构与不可稳定推导的内容。"""
+
+    fields = [
+        StrField("course", "课程名，优先用资料/学科名，不要编教材版本"),
+        StrField("version", "目录版本号，首次为 1；增量成功后由程序递增，模型可回填当前值"),
+        StrField(
+            "mode",
+            "build=首次生成；incremental_update=基于已有目录更新。有历史目录时必须 incremental_update",
+        ),
+        ObjListField(
+            "chapters",
+            [
+                StrField("id", "稳定章节 ID，如 ch_001；增量时复用已有 ID"),
+                StrField("name", "章节标准名，沿用资料原有章名"),
+                EnumField(
+                    "change_type",
+                    ["unchanged", "added", "updated", "merged", "moved"],
+                    "本次变更类型；旧节点无变化时用 unchanged",
+                ),
+                ObjListField(
+                    "topics",
+                    [
+                        StrField("id", "稳定主题 ID，如 tp_001"),
+                        StrField("name", "主题标准名，沿用资料原有节/主题名"),
+                        EnumField(
+                            "change_type",
+                            ["unchanged", "added", "updated", "merged", "moved"],
+                            "本次变更类型；旧节点无变化时用 unchanged",
+                        ),
+                        ObjListField(
+                            "knowledge_points",
+                            [
+                                StrField("id", "稳定唯一 ID，增量时必须复用已有 kp_id，禁止换号"),
+                                StrField("name", "可独立学习的知识点标准名"),
+                                StrListField("aliases", "同义名称，合并后放这里；没有则 []"),
+                                StrField("chapter", "所属章节名，与上层 chapter.name 一致"),
+                                StrField("topic", "所属主题名，与上层 topic.name 一致"),
+                                EnumField(
+                                    "knowledge_type",
+                                    ["concept", "formula", "theorem", "method", "application", "mixed"],
+                                    "知识类型；不确定用 mixed",
+                                ),
+                                StrListField(
+                                    "knowledge_items",
+                                    "该点下的条件/公式/分类/性质短名，不要升成独立知识点",
+                                ),
+                                EnumField(
+                                    "importance",
+                                    ["1", "2", "3", "4", "5"],
+                                    "重点程度；程序会按 items 和信号二次校准",
+                                ),
+                                EnumField(
+                                    "difficulty",
+                                    ["1", "2", "3", "4", "5"],
+                                    "难度；与重点分开",
+                                ),
+                                StrListField(
+                                    "note_missing_items",
+                                    "该 KP 有、但笔记没写到的 Item 短名；没有则 []",
+                                ),
+                                StrListField(
+                                    "prerequisites",
+                                    "前置 KP 的 name，必须是本目录里其他知识点；没有则 []",
+                                ),
+                                ObjListField(
+                                    "related_points",
+                                    [
+                                        StrField("name", "关联 KP 的标准名"),
+                                        EnumField(
+                                            "relation",
+                                            ["alternative", "used_with", "easily_confused", "derived_from"],
+                                            "关联类型",
+                                        ),
+                                    ],
+                                ),
+                                StrListField(
+                                    "evidence",
+                                    "短依据：来源类型 + 可核对片段，如「学生笔记：……」",
+                                ),
+                                EnumField(
+                                    "node_status",
+                                    ["active", "merged", "deprecated", "uncertain"],
+                                    "正常用 active",
+                                ),
+                                EnumField(
+                                    "change_type",
+                                    ["unchanged", "added", "updated", "merged", "moved"],
+                                    "本次对该点做了什么",
+                                ),
+                            ],
+                        ),
+                    ],
+                ),
+            ],
+        ),
+        StrListField(
+            "unmatched_content",
+            "无法挂到树上但不要丢的内容，各写一条短说明",
+        ),
+        StrListField(
+            "uncertain_nodes",
+            "分类没把握的节点，不要强行塞进某章",
+        ),
+        StrListField("added_chapters", "程序统计，输出空数组 []"),
+        StrListField("added_topics", "程序统计，输出空数组 []"),
+        StrListField("added_knowledge_points", "程序统计，输出空数组 []"),
+        StrListField("updated_knowledge_points", "程序统计，输出空数组 []"),
+        StrListField("merged_nodes", "本次合并记录，没有则 []"),
+    ]
+
+
+CATALOG_SLIM_GENERATION_OUTPUT_CONTRACT = CatalogSlimGenerationContract.to_output_contract()
+
+
 class CatalogFallbackRules(FallbackRules):
     sections = [
         Raw("course"),
@@ -216,5 +311,6 @@ CATALOG_FALLBACK_RULES = CatalogFallbackRules()
 __all__ = [
     "CATALOG_FALLBACK_RULES",
     "CATALOG_GENERATION_OUTPUT_CONTRACT",
+    "CATALOG_SLIM_GENERATION_OUTPUT_CONTRACT",
     "CATALOG_SUPERVISOR_OUTPUT_CONTRACT",
 ]

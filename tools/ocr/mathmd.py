@@ -1,4 +1,4 @@
-"""把整理稿里的 $ / $$ 定界修成 KaTeX 能解析的形式。"""
+"""把整理稿里的 $ / $$ 定界修成 KaTeX 能解析的形式，并修复不成对的 \\left/\\right。"""
 from __future__ import annotations
 
 import re
@@ -6,9 +6,60 @@ import re
 _FENCE_RE = re.compile(r"(```[\s\S]*?```|`[^`]+`)")
 _TRIPLE_DOLLAR_RE = re.compile(r"\${3,}")
 
+# 大分隔符命令（KaTeX 报「Missing or unrecognized delimiter for \right」的根因：
+# 公式体内 \left 与 \right 不成对——OCR 截断或 LLM 生成不完整）
+_LEFT_CMD_RE = re.compile(r"\\left(?![a-zA-Z])")
+_RIGHT_CMD_RE = re.compile(r"\\right(?![a-zA-Z])")
+_LEFT_DELIM_RE = re.compile(r"\\[a-zA-Z]+|\S")  # \left 后的分隔符（命令或单字符）
+
+
+def _fix_left_right_math(body: str) -> str:
+    """修复公式体内不成对的 \\left/\\right。
+
+    - 孤立的 \\rightX（前面没有配对的 \\left）→ 在它前面补 \\left.（隐形分隔符）
+    - 孤立的 \\leftX（后面没有配对的 \\right）→ 在分隔符后补 \\right.
+    补 \\left. / \\right. 不改变显示，只让 KaTeX 能解析。
+    """
+    toks: list[tuple[int, str]] = []
+    for m in _LEFT_CMD_RE.finditer(body):
+        toks.append((m.start(), "L"))
+    for m in _RIGHT_CMD_RE.finditer(body):
+        toks.append((m.start(), "R"))
+    if not toks:
+        return body
+    toks.sort(key=lambda item: item[0])
+    stack: list[int] = []
+    orphan_right: list[int] = []  # 孤立 \right 的位置
+    for pos, kind in toks:
+        if kind == "L":
+            stack.append(pos)
+        elif stack:
+            stack.pop()
+        else:
+            orphan_right.append(pos)
+    orphan_left = stack  # 孤立 \left 的位置
+
+    if not orphan_right and not orphan_left:
+        return body
+    out = body
+    # 孤立 \rightX → 前面插 \left.：\left.\rightX
+    for pos in sorted(orphan_right, reverse=True):
+        out = out[:pos] + "\\left." + out[pos:]
+    # 孤立 \leftX → 分隔符后插 \right.：\leftX\right.
+    for pos in sorted(orphan_left, reverse=True):
+        m = _LEFT_CMD_RE.search(out, pos)
+        if not m:
+            continue
+        after = m.end()
+        dm = _LEFT_DELIM_RE.match(out, after)
+        if dm:
+            after = dm.end()
+        out = out[:after] + "\\right." + out[after:]
+    return out
+
 
 def normalize_markdown_math(text: str) -> str:
-    """修 $...$$、$$...$、$$$，避免 KaTeX 'Can't use function $ in math mode'。"""
+    """修 $...$$、$$...$、$$$ 与不成对的 \\left/\\right，避免 KaTeX 解析报错。"""
     raw = text or ""
     if "$" not in raw:
         return raw
@@ -38,7 +89,7 @@ def _normalize_math_chunk(chunk: str) -> str:
                 out.append("\\$\\$" + chunk[i + 2 :])
                 break
             body, end = closer
-            out.append("$$" + body + "$$")
+            out.append("$$" + _fix_left_right_math(body) + "$$")
             i = end
             continue
         if chunk[i] == "$":
@@ -47,7 +98,7 @@ def _normalize_math_chunk(chunk: str) -> str:
                 out.append("\\$" + chunk[i + 1 :])
                 break
             body, end = closer
-            out.append("$" + body + "$")
+            out.append("$" + _fix_left_right_math(body) + "$")
             i = end
             continue
         out.append(chunk[i])

@@ -22,6 +22,7 @@ class Extra(BaseModel):
     project: str = ""
     subject: str = ""
     style: str = ""
+    memory: bool = False
 
 
 class TaskRequest(BaseModel):

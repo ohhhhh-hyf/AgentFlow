@@ -245,6 +245,7 @@ def attach_catalog_artifacts(state: dict[str, Any]) -> None:
         trim_catalog_scale,
         user_id_from_context,
     )
+    from .merge import compact_catalog_granularity
     from .store import save_catalog
 
     sub = line(state, "catalog")
@@ -256,6 +257,7 @@ def attach_catalog_artifacts(state: dict[str, Any]) -> None:
     draft = complement_catalog_coverage(draft, context)
     draft = trim_catalog_scale(draft, context)
     draft = backfill_catalog_trace(draft, context)
+    draft = compact_catalog_granularity(draft)
     draft = compute_catalog_signals(draft)
     save_catalog(
         user_id=user_id_from_context(context),
