@@ -394,13 +394,21 @@ def compact_perspective(profile: object) -> str:
     slim = {key: profile.get(key) for key in keep if profile.get(key) not in (None, "", [])}
     if not slim:
         return ""
-    return json.dumps(slim, ensure_ascii=False, indent=2)
+    return json.dumps(slim, ensure_ascii=False, separators=(",", ":"))
 
 
 _REVIEW_LONG_TEXT = 60   # 超过此长度的字符串值截断（只留前 30 字 + 总长标记）
 _REVIEW_LARGE_LIST = 8
 _REVIEW_HEAD_ITEMS = 6
 _REVIEW_TAIL_ITEMS = 2
+# 程序内部字段，审核对质量判断没有增量
+_REVIEW_DROP_KEYS = frozenset({
+    "content_fingerprint",
+    "source_chunk_ids",
+    "_prereq_of",
+    "detail",
+    "session_practice_count",
+})
 _REVIEW_KEEP_ALL_LIST_KEYS = frozenset({
     "actions",
     "action_hints",
@@ -435,7 +443,11 @@ def _review_compact(node: object, *, key: str = "") -> object:
       让审核仍能判断「这段写了多厚」而不必读全文。
     """
     if isinstance(node, dict):
-        return {k: _review_compact(v, key=str(k)) for k, v in node.items()}
+        return {
+            k: _review_compact(v, key=str(k))
+            for k, v in node.items()
+            if k not in _REVIEW_DROP_KEYS
+        }
     if isinstance(node, list):
         if not node:
             return node

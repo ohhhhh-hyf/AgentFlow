@@ -131,7 +131,7 @@ def json_dumps(value: object) -> str:
     """将模型或字典序列化为 JSON 字符串。"""
     if hasattr(value, "model_dump"):
         value = value.model_dump()
-    return json.dumps(value, ensure_ascii=False, indent=2)
+    return json.dumps(value, ensure_ascii=False, separators=(",", ":"))
 
 
 def sec_attr(sec, name, default=None):

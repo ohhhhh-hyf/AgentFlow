@@ -5,6 +5,7 @@ import contextvars
 import hashlib
 import json
 import logging
+import re
 import threading
 import time
 import urllib.error
@@ -23,6 +24,9 @@ from .config import LLMSettings, resolve_llm_settings
 
 T = TypeVar("T")
 logger = logging.getLogger(__name__)
+
+_CONTEXT_LEN_RE = re.compile(r"maximum context length is (\d+)", re.I)
+_CONTEXT_IN_RE = re.compile(r"prompt contains at least (\d+) input tokens", re.I)
 
 
 class LLMClient:
@@ -71,6 +75,7 @@ class LLMClient:
         self.enable_thinking = cfg.enable_thinking
         self.timeout = cfg.timeout
         self.max_retries = cfg.max_retries
+        self.context_length = int(getattr(cfg, "context_length", 0) or 65536)
         # 调用统计
         self.usage_totals: dict[str, int] = {
             "prompt_tokens": 0,
@@ -228,6 +233,7 @@ class LLMClient:
         temp = self.temperature if temperature is None else float(temperature)
         tok = self.max_tokens if max_tokens is None else max_tokens
         to = self.timeout if timeout is None else float(timeout)
+        tok = self._fit_max_tokens(messages, tok)
         t0 = time.monotonic()
         try:
             if self.backend == "websocket":
@@ -242,7 +248,89 @@ class LLMClient:
         finally:
             self._record_latency(label, time.monotonic() - t0)
 
+    @staticmethod
+    def _prompt_text(messages: list[dict[str, str]]) -> str:
+        return "\n".join(str(item.get("content") or "") for item in messages)
+
+    @staticmethod
+    def _estimate_tokens(text: str) -> int:
+        """偏高估计：中文约 1 字/token，其它约 2 字符/token。"""
+        cjk = sum(1 for char in text if "\u4e00" <= char <= "\u9fff")
+        rest = max(0, len(text) - cjk)
+        return cjk + rest // 2 + 32
+
+    def _fit_max_tokens(self, messages: list[dict[str, str]], tok: int | None) -> int | None:
+        """input + max_tokens 不得超过模型上下文，否则网关直接 400。"""
+        if tok is None:
+            return None
+        ctx = max(1024, int(self.context_length or 65536))
+        est = self._estimate_tokens(self._prompt_text(messages))
+        room = ctx - est - 256
+        if room < 256:
+            room = 256
+        fitted = min(int(tok), room)
+        if fitted < int(tok):
+            logger.info(
+                "max_tokens %s → %s（上下文 %s，输入约 %s）",
+                tok,
+                fitted,
+                ctx,
+                est,
+            )
+        return fitted
+
+    def _max_tokens_from_context_error(self, detail: str) -> int | None:
+        ctx_m = _CONTEXT_LEN_RE.search(detail or "")
+        in_m = _CONTEXT_IN_RE.search(detail or "")
+        if not ctx_m or not in_m:
+            return None
+        ctx = int(ctx_m.group(1))
+        inp = int(in_m.group(1))
+        self.context_length = ctx
+        room = ctx - inp - 64
+        if room < 256:
+            return None
+        return room
+
+    @staticmethod
+    def _retryable_runtime_error(exc: BaseException) -> bool:
+        msg = str(exc)
+        if "HTTP 400" in msg or "HTTP 401" in msg or "HTTP 403" in msg or "HTTP 404" in msg:
+            return False
+        if "HTTP 422" in msg:
+            return False
+        return True
+
     def _post_http(
+        self,
+        messages: list[dict[str, str]],
+        json_mode: bool,
+        temp: float,
+        tok: int | None,
+        to: float,
+        label: str,
+    ) -> str:
+        label = label or self.provider
+        try:
+            return self._http_once(messages, json_mode, temp, tok, to, label)
+        except urllib.error.HTTPError as exc:
+            detail = exc.read().decode("utf-8", errors="replace")
+            if exc.code == 400:
+                fitted = self._max_tokens_from_context_error(detail)
+                if fitted is not None and (tok is None or fitted < int(tok)):
+                    logger.warning(
+                        "上下文溢出（HTTP 400），max_tokens %s → %s 后重试一次",
+                        tok,
+                        fitted,
+                    )
+                    return self._http_once(messages, json_mode, temp, fitted, to, label)
+            raise RuntimeError(
+                f"{label} API 返回 HTTP {exc.code}：{detail}"
+            ) from exc
+        except urllib.error.URLError as exc:
+            raise RuntimeError(f"无法连接 {label} API：{exc.reason}") from exc
+
+    def _http_once(
         self,
         messages: list[dict[str, str]],
         json_mode: bool,
@@ -274,25 +362,16 @@ class LLMClient:
             },
             method="POST",
         )
-        label = label or self.provider
-        try:
-            with urllib.request.urlopen(request, timeout=to) as response:
-                raw = response.read().decode("utf-8")
-                try:
-                    resp = json.loads(raw)
-                    self._record_usage(resp.get("usage"), count_call=True, label=label)
-                    return resp["choices"][0]["message"].get("content") or ""
-                except (json.JSONDecodeError, KeyError, IndexError, TypeError) as exc:
-                    raise RuntimeError(
-                        f"{label} API 返回非标准响应：{raw[:200]!r}"
-                    ) from exc
-        except urllib.error.HTTPError as exc:
-            detail = exc.read().decode("utf-8", errors="replace")
-            raise RuntimeError(
-                f"{label} API 返回 HTTP {exc.code}：{detail}"
-            ) from exc
-        except urllib.error.URLError as exc:
-            raise RuntimeError(f"无法连接 {label} API：{exc.reason}") from exc
+        with urllib.request.urlopen(request, timeout=to) as response:
+            raw = response.read().decode("utf-8")
+            try:
+                resp = json.loads(raw)
+                self._record_usage(resp.get("usage"), count_call=True, label=label)
+                return resp["choices"][0]["message"].get("content") or ""
+            except (json.JSONDecodeError, KeyError, IndexError, TypeError) as exc:
+                raise RuntimeError(
+                    f"{label} API 返回非标准响应：{raw[:200]!r}"
+                ) from exc
 
     def _stream_sync(
         self,
@@ -308,6 +387,7 @@ class LLMClient:
         temp = self.temperature if temperature is None else float(temperature)
         tok = self.max_tokens if max_tokens is None else max_tokens
         to = self.timeout if timeout is None else float(timeout)
+        tok = self._fit_max_tokens(messages, tok)
 
         if self.backend == "websocket":
             prev = self.temperature
@@ -703,18 +783,16 @@ class LLMClient:
                     label=label,
                 )
             except RuntimeError as exc:
-                last_error = str(exc)
-                if attempt >= self.max_retries:
+                if attempt >= self.max_retries or not self._retryable_runtime_error(exc):
                     self._record_failure()
                     raise
                 self._record_retry()
-                logger.warning("LLM 调用失败（%s）重试：%s", tag, last_error)
+                logger.warning("LLM 调用失败（%s）重试：%s", tag, exc)
                 await self._retry_delay(attempt)
                 continue
             if not (last_content or "").strip():
                 last_error = "模型返回空正文"
                 if attempt < self.max_retries:
-                    logger.warning("LLM 调用失败（%s）重试：模型返回空正文", tag)
                     await self._retry_delay(attempt)
                     continue
                 break
@@ -733,7 +811,6 @@ class LLMClient:
                 if validation_retried:
                     break
                 validation_retried = True
-                logger.warning("LLM 输出校验失败（%s）：%s，针对性重试", tag, last_error)
                 messages.extend(
                     [
                         {"role": "assistant", "content": last_content},
@@ -828,10 +905,11 @@ class LLMClient:
                 if use_cache and cache_key:
                     self._response_cache[cache_key] = content
                 return content
-            except RuntimeError:
-                if attempt >= self.max_retries:
+            except RuntimeError as exc:
+                if attempt >= self.max_retries or not self._retryable_runtime_error(exc):
                     self._record_failure()
                     raise
                 self._record_retry()
+                logger.warning("LLM 调用失败（%s）重试：%s", tag, exc)
                 await self._retry_delay(attempt)
         raise RuntimeError("text() 重试耗尽（不可达）")

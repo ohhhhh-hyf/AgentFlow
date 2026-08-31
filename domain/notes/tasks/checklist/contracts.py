@@ -50,10 +50,7 @@ class ChecklistGenerationContract(GenerationContract):
             "uncertain_quotes",
             "老师原话里对不上任何 Catalog KP 的片段，不要为此新建知识点",
         ),
-        StrListField(
-            "strategy",
-            "复习策略由程序生成，模型直接输出空数组 []",
-        ),
+        StrListField("strategy", "程序生成，输出 []"),
         ObjListField(
             "phases",
             [
@@ -63,7 +60,7 @@ class ChecklistGenerationContract(GenerationContract):
                 StrListField("names", "本阶段 KP 名"),
                 StrField("check", "完成标准"),
             ],
-            desc="复习阶段计划由程序生成（按卡片数据重排），模型直接输出空数组 []",
+            desc="程序生成，输出 []",
         ),
     ]
 

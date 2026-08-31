@@ -104,31 +104,73 @@ def build_checklist_briefing(
     else:
         parts.append("【激活 KP】只能给下面这些 id 写卡片：")
         for row in activated:
-            parts.append(
-                f"- {row.get('id')} | {row.get('name')} | {row.get('session_priority')} | "
-                f"type={row.get('knowledge_type')} | rw={row.get('review_weight')} | "
-                f"items={','.join(row.get('knowledge_items') or [])} | "
-                f"sources={','.join(row.get('source_chunk_ids') or [])} | "
-                f"focus={','.join(row.get('session_focus_items') or [])} | "
-                f"missing={','.join(row.get('note_missing_items') or [])} | "
-                f"emph={row.get('session_emphasis')} | exam={row.get('session_exam_signal')} | "
-                f"error={(row.get('session_error_signal') or '')[:80]} | "
-                f"related={','.join(row.get('session_related_points') or [])} | "
-                f"quotes={' / '.join((row.get('session_quotes') or [])[:2])}"
-            )
-    try:
-        from .assemble import _build_strategy_facts
-
-        facts = _build_strategy_facts(activated, teacher)
-        if facts:
-            parts.append(
-                "【复习顺序事实】以下是从目录数据（importance/difficulty）与老师文本"
-                "算出的复习顺序与重点，写 strategy 时必须据此润色成连贯建议，"
-                "不得另编一套顺序："
-            )
-            parts.extend(f"- {item}" for item in facts)
-    except Exception:  # noqa: BLE001
-        pass
+            bits = [
+                str(row.get("id") or ""),
+                str(row.get("name") or ""),
+                str(row.get("session_priority") or ""),
+                f"type={row.get('knowledge_type') or ''}",
+            ]
+            items = [str(x) for x in (row.get("knowledge_items") or []) if x]
+            if items:
+                bits.append("items=" + ",".join(items[:8]))
+            focus = [str(x) for x in (row.get("session_focus_items") or []) if x]
+            if focus:
+                bits.append("focus=" + ",".join(focus[:6]))
+            missing = [str(x) for x in (row.get("note_missing_items") or []) if x]
+            if missing:
+                bits.append("missing=" + ",".join(missing[:4]))
+            exam = str(row.get("session_exam_signal") or "").strip()
+            if exam and exam not in {"none", "null"}:
+                bits.append(f"exam={exam}")
+            err = str(row.get("session_error_signal") or "").strip()
+            if err:
+                bits.append("error=" + err[:80])
+            quotes = [str(x).strip() for x in (row.get("session_quotes") or []) if str(x).strip()]
+            if quotes:
+                bits.append("quotes=" + " / ".join(quotes[:2]))
+            parts.append("- " + " | ".join(bits))
     parts.append("【老师划重点原文】")
     parts.append((teacher or "")[:6000] if has_teacher else "（未提供，跳过老师重点溯源）")
     return "\n".join(parts)
+
+
+_EXAM_MARKS = ("必考", "每届必出", "年年有", "一定出")
+
+
+def compact_checklist_for_supervisor(draft: dict[str, Any], teacher: str = "") -> str:
+    """审核只需核对 kp_id / 空清单 / 无依据「必考」，不把卡片全文再喂一遍。"""
+    import json
+
+    cards_in = [c for c in (draft or {}).get("cards") or [] if isinstance(c, dict)]
+    slim: list[dict[str, Any]] = []
+    for card in cards_in:
+        exam = str(card.get("exam_preview") or "")
+        explain = str(card.get("explain") or "")
+        slim.append(
+            {
+                "kp_id": str(card.get("kp_id") or card.get("id") or ""),
+                "name": str(card.get("name") or ""),
+                "grade": str(card.get("session_priority") or ""),
+                "exam_preview": exam[:80],
+                "explain_len": len(explain),
+                "facts": len(card.get("key_facts") or []),
+                "steps": len(card.get("method_steps") or []),
+                "pitfalls": [str(x)[:40] for x in (card.get("pitfalls") or [])[:3] if x],
+            }
+        )
+    teacher = (teacher or "").strip()
+    if not teacher:
+        teacher_note = "老师划重点：无。不得出现必考/具体考试概率。"
+    elif any(mark in teacher for mark in _EXAM_MARKS):
+        teacher_note = "老师划重点含考试信号，摘录：\n" + teacher[:1500]
+    else:
+        teacher_note = "老师划重点：有，但原文无「必考/每届必出/年年有」。"
+    allowed = [item["kp_id"] for item in slim if item["kp_id"]]
+    return "\n".join(
+        [
+            f"允许的 kp_id（{len(allowed)}）：" + (", ".join(allowed) if allowed else "（无）"),
+            teacher_note,
+            f"卡片摘要（{len(slim)} 张，正文已生成，审核只看 id/空卡/必考）：",
+            json.dumps(slim, ensure_ascii=False, separators=(",", ":")),
+        ]
+    )

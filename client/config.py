@@ -72,9 +72,11 @@ ENV_VLLM_MAX_TOKENS = "LLM_VLLM_MAX_TOKENS"
 # 网络参数（HTTP / WebSocket 共用）
 ENV_TIMEOUT = "LLM_TIMEOUT"
 ENV_MAX_RETRIES = "LLM_MAX_RETRIES"
+ENV_CONTEXT_LENGTH = "LLM_CONTEXT_LENGTH"
 
 DEFAULT_TIMEOUT = 120.0
 DEFAULT_MAX_RETRIES = 2
+DEFAULT_CONTEXT_LENGTH = 65536
 
 # 占位 Key，视为未配置
 _PLACEHOLDERS = {
@@ -104,6 +106,7 @@ class LLMSettings:
     # 网络参数（HTTP / WebSocket 共用；LLM_TIMEOUT / LLM_MAX_RETRIES 可覆盖）
     timeout: float = DEFAULT_TIMEOUT
     max_retries: int = DEFAULT_MAX_RETRIES
+    context_length: int = DEFAULT_CONTEXT_LENGTH
 
 
 def load_env(path: Path) -> None:
@@ -180,6 +183,7 @@ def resolve_llm_settings(
     resolved_max_retries = max_retries if max_retries is not None else _env_int(
         ENV_MAX_RETRIES, DEFAULT_MAX_RETRIES
     )
+    resolved_context = _env_int(ENV_CONTEXT_LENGTH, DEFAULT_CONTEXT_LENGTH)
     backend = _env(ENV_BACKEND, "http").lower()
     if backend in {"ws", "websocket"}:
         resolved_key = api_key or _env(ENV_WS_API_KEY)
@@ -212,6 +216,7 @@ def resolve_llm_settings(
             enable_thinking=_env_bool(ENV_WS_ENABLE_THINKING, False),
             timeout=resolved_timeout,
             max_retries=resolved_max_retries,
+            context_length=resolved_context,
         )
 
     if backend in {"vllm"}:
@@ -243,6 +248,7 @@ def resolve_llm_settings(
             max_tokens=_env_int(ENV_VLLM_MAX_TOKENS, DEFAULT_MAX_TOKENS),
             timeout=resolved_timeout,
             max_retries=resolved_max_retries,
+            context_length=resolved_context,
         )
 
     resolved_key = api_key or _env(ENV_API_KEY)
@@ -276,4 +282,5 @@ def resolve_llm_settings(
         temperature=resolved_temperature,
         timeout=resolved_timeout,
         max_retries=resolved_max_retries,
+        context_length=resolved_context,
     )

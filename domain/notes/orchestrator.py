@@ -384,12 +384,24 @@ class _Nodes(DomainNodes):
             if revision_count < self.MAX_REVISIONS
             else "返工次数已用完，本轮只能选择 approve 或 reject。"
         )
-        extra = str((state.get("line_extra") or {}).get(line_name) or "").strip()
-        extra_block = f"\n\n{extra}" if extra else ""
-        return (
+        head = (
             f"视角模式：{mode}\n"
             f"{_line_cn(line_name)}返工次数：{revision_count}/{self.MAX_REVISIONS}\n"
             f"{allowed}\n\n"
+        )
+        if line_name == "checklist":
+            from domain.notes.tasks.checklist.gather import (
+                compact_checklist_for_supervisor,
+                teacher_from_context,
+            )
+
+            extra = str((state.get("line_extra") or {}).get(line_name) or "")
+            teacher = teacher_from_context(f"{extra}\n\n原文：\n{state.get('transcript') or ''}")
+            return head + compact_checklist_for_supervisor(sub.get("draft") or {}, teacher)
+        extra = str((state.get("line_extra") or {}).get(line_name) or "").strip()
+        extra_block = f"\n\n{extra}" if extra else ""
+        return (
+            f"{head}"
             f"{self._supervisor_source_pack(state, line_name)}\n\n"
             f"{_line_draft_title(line_name)}：\n{_json(compact_draft_for_review(sub['draft']))}"
             f"{extra_block}"
