@@ -127,9 +127,12 @@ async def produce_line(
                 )
             if full_text:
                 try:
-                    from tools.memory.citations import apply_memory_citations
+                    from tools.meeting_memory.render import apply_memory_citations
 
-                    full_text = apply_memory_citations(full_text, context)
+                    citation_context = (
+                        line(state, line_name).get("memory_context") or context
+                    )
+                    full_text = apply_memory_citations(full_text, citation_context)
                 except Exception:  # noqa: BLE001
                     logger.warning("记忆引用标注失败（%s）", line_name, exc_info=True)
             line_state = line(state, line_name)
@@ -396,9 +399,12 @@ async def produce_line(
 
         if full_text and line_name in {"minutes", "minutes_styles"}:
             try:
-                from tools.memory.citations import apply_memory_citations
+                from tools.meeting_memory.render import apply_memory_citations
 
-                full_text = apply_memory_citations(full_text, context)
+                citation_context = (
+                    line(state, line_name).get("memory_context") or context
+                )
+                full_text = apply_memory_citations(full_text, citation_context)
             except Exception:  # noqa: BLE001
                 logger.warning("记忆引用标注失败（%s）", line_name, exc_info=True)
         if full_text and not template and line_name in {"minutes", "minutes_trace"}:

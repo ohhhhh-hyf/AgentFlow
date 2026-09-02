@@ -128,6 +128,7 @@ async def prepare_run(
     collect_reports: bool = False,
     extra_line_inputs: dict[str, str] | None = None,
     memory: bool = False,
+    meeting_time: str = "",
 ) -> PreparedRun:
     """输入组装 + 注入 + 模板编译（run 与流式接口共用；本函数不执行任务）。"""
     setup_logging()
@@ -235,6 +236,12 @@ async def prepare_run(
     memory_bind = None
     line_extra: dict[str, str] = {}
     memory_enabled = bool(memory and user_id and (set(line_names) & MEMORY_LINES))
+    meeting_memory_v2 = bool(
+        memory
+        and user_id
+        and ctx.name == "meeting"
+        and (set(line_names) & {"minutes", "minutes_styles"})
+    )
     if "quiz" in line_names:
         quiz_rows: list[str] = ["用户水平：期中备考"]
         bank_rows: list[str] = []
@@ -259,7 +266,22 @@ async def prepare_run(
             )
         if parts:
             pending_extra["quiz"] = "\n\n".join(parts)
-    if memory_enabled:
+    if meeting_memory_v2:
+        from tools.meeting_memory.runtime import META_KEY, encode_meta
+
+        request_id = ""
+        try:
+            request_id = str(getattr(ctx, "output_dir", "") and Path(ctx.output_dir).name)
+        except Exception:
+            request_id = ""
+        line_extra[META_KEY] = encode_meta(
+            ctx.project_root,
+            user_id,
+            project_id or "",
+            request_id,
+            meeting_time,
+        )
+    elif memory_enabled:
         from tools.memory import prepare
 
         memory_bind, line_extra = prepare(
@@ -358,6 +380,7 @@ async def run(
     collect_reports: bool = False,
     extra_line_inputs: dict[str, str] | None = None,
     memory: bool = False,
+    meeting_time: str = "",
 ) -> dict | None:
     """Run selected task lines and persist their final artifacts.
 
@@ -376,7 +399,7 @@ async def run(
         project_id, subject, chapter, level, grade, edition, difficulty, qtype,
         compile_natural=compile_natural, monitor=monitor,
         collect_reports=collect_reports, extra_line_inputs=extra_line_inputs,
-        memory=memory,
+        memory=memory, meeting_time=meeting_time,
     )
     system = prep.system
     ctx = prep.ctx
@@ -427,10 +450,32 @@ async def run(
                     }
                     collected["understanding"] = event.get("understanding") or {}
                     collected["quality_warning"] = event.get("quality_warning")
-                    collected["saved"] = await _handle_done(ctx, event) or {}
+                    collected["saved"] = await _handle_done(
+                        ctx, event, memory_on=bool((line_extra or {}).get("__meeting_memory__"))
+                    ) or {}
                 else:
-                    await _handle_done(ctx, event)
-                if memory_enabled and memory_bind is not None:
+                    await _handle_done(
+                        ctx, event, memory_on=bool((line_extra or {}).get("__meeting_memory__"))
+                    )
+                if (line_extra or {}).get("__meeting_memory__"):
+                    from tools.meeting_memory.runtime import persist_after_run
+
+                    request_id = ""
+                    try:
+                        request_id = str(getattr(ctx, "output_dir", "") and Path(ctx.output_dir).name)
+                    except Exception:
+                        request_id = ""
+                    persist_after_run(
+                        ctx.project_root,
+                        user_id or "",
+                        project_id or "",
+                        request_id,
+                        transcript,
+                        event.get("reports") or {},
+                        event.get("understanding") or {},
+                        meeting_time=meeting_time,
+                    )
+                elif memory_enabled and memory_bind is not None:
                     from tools.memory import persist
 
                     persist(
@@ -477,7 +522,9 @@ async def run(
     return monitor_payload
 
 
-async def _handle_done(ctx: DomainContext, event: dict) -> dict | None:
+async def _handle_done(
+    ctx: DomainContext, event: dict, *, memory_on: bool = False
+) -> dict | None:
     """处理 done 事件：落盘 + 图类导出；返回各产物路径（供 API 层收集）。"""
     if event.get("quality_warning"):
         logger.warning("⚠ %s", event["quality_warning"])
@@ -489,6 +536,7 @@ async def _handle_done(ctx: DomainContext, event: dict) -> dict | None:
             ctx,
             reports,
             gate_by_line=event.get("gate_by_line") or {},
+            memory_on=memory_on,
         )
     except Exception:  # noqa: BLE001 - 落盘失败不中断其余导出
         logger.error("报告落盘失败", exc_info=True)

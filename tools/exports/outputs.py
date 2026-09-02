@@ -210,10 +210,9 @@ def _html_document(title: str, body: str) -> str:
     .mem-card {{ display: block; padding: 10px 11px; border-left: 3px solid #c9a227; background: #fffef8; color: #1c1b19; border-radius: 4px; box-shadow: 0 1px 2px rgba(0,0,0,0.04); }}
     .mem-card + .mem-card {{ margin-top: 8px; }}
     .mem-card.is-on {{ border-left-color: #9a6b00; box-shadow: 0 0 0 2px rgba(201,162,39,0.35); }}
-    .mem-card-kicker {{ font-size: 0.7rem; font-weight: 700; color: #9a6b00; letter-spacing: 0.06em; margin-bottom: 4px; }}
     .mem-card-title {{ font-size: 0.88rem; font-weight: 650; line-height: 1.45; margin-bottom: 6px; }}
-    .mem-card-meta {{ font-size: 0.76rem; color: #6b6860; line-height: 1.4; margin-bottom: 4px; }}
-    .mem-card-source {{ font-size: 0.74rem; color: #9a968c; line-height: 1.35; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }}
+    .mem-card-quote {{ font-size: 0.8rem; color: #4a4842; line-height: 1.5; margin-bottom: 4px; padding: 5px 7px; background: #f7f5f0; border-left: 3px solid #c8c4b8; border-radius: 4px; }}
+    .mem-card-time {{ font-size: 0.74rem; color: #9a968c; line-height: 1.35; margin-top: 4px; }}
     .review-analysis {{ font-size: 0.8rem; color: #3a3832; line-height: 1.5; margin-top: 4px; white-space: pre-wrap; }}
     .review-fix {{ font-size: 0.78rem; color: #6b6860; line-height: 1.45; margin-top: 4px; }}
     .review-cite {{ font-size: 0.78rem; color: #3a3832; margin-top: 6px; font-weight: 650; }}
@@ -280,6 +279,7 @@ def save_report_artifacts(
     report: object,
     *,
     gate_ok: bool | None = None,
+    memory_on: bool = False,
 ) -> dict[str, Path]:
     """落盘文本产物；门禁通过才写正式 result，失败写 rejected 备查。
 
@@ -351,7 +351,7 @@ def save_report_artifacts(
                     )
                 paths["html"] = html_path
             elif ctx.name == "meeting" and line_name == "minutes":
-                from tools.memory.citations import memory_review_html
+                from tools.meeting_memory.render import memory_review_html
 
                 review = memory_review_html(text)
                 body = review if review else f'<div class="plain">{md_to_html(text)}</div>'
@@ -399,10 +399,12 @@ def save_all_reports(
     reports: dict,
     *,
     gate_by_line: dict[str, bool | None] | None = None,
+    memory_on: bool = False,
 ) -> dict[str, dict[str, Path]]:
     """保存各线报告。
 
     gate_by_line: 线名 → gate_ok（True/False/None）；False 时不写正式 result.md。
+    memory_on: 本次开启会议记忆（meeting+minutes 无命中时也输出左右审阅栏）。
     """
     saved: dict[str, dict[str, Path]] = {}
     gate_by_line = gate_by_line or {}
@@ -416,6 +418,7 @@ def save_all_reports(
             line_name,
             report,
             gate_ok=gate_by_line.get(line_name),
+            memory_on=memory_on,
         )
     return saved
 

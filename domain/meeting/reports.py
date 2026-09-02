@@ -18,8 +18,8 @@ from .models import (
     ActionItemsReportValidation,
     MindmapReportValidation,
     MinutesReportValidation,
-    MinutesTraceReportValidation,
     MultiStylesReportValidation,
+    MinutesTraceReportValidation,
     RiskReportValidation,
 )
 

@@ -156,94 +156,6 @@ def _pick_analysis(raw: dict[str, Any]) -> str:
     return "".join(parts)
 
 
-def get_courses(subject_id: int | None = None, stage_id: int | None = None) -> list[dict]:
-    params: dict[str, Any] = {}
-    if subject_id is not None:
-        params["subject_id"] = subject_id
-    if stage_id is not None:
-        params["stage_id"] = stage_id
-    path = "/v1/get/course"
-    if params:
-        path += "?" + urllib.parse.urlencode(params)
-    data = _api_get(path)
-    return list(data or [])
-
-
-def get_keypoints(subject_id: int, stage_id: int, name: str | None = None) -> list[dict]:
-    params: dict[str, Any] = {"subject_id": subject_id, "stage_id": stage_id}
-    if name:
-        params["name"] = name
-    data = _api_get("/v1/get/key/point?" + urllib.parse.urlencode(params), bank=True)
-    return list(data or [])
-
-
-def get_question_types(subject_id: int, stage_id: int) -> list[dict]:
-    params = {"subject_id": subject_id, "stage_id": stage_id}
-    data = _api_get("/v1/get/question/type?" + urllib.parse.urlencode(params), bank=True)
-    flat: list[dict] = []
-
-    def walk(nodes: Any) -> None:
-        for node in nodes or []:
-            payload = (node or {}).get("data") or {}
-            if payload.get("id") is not None:
-                flat.append(
-                    {
-                        "id": payload.get("id"),
-                        "name": payload.get("name"),
-                        "parent_id": payload.get("parent_id"),
-                    }
-                )
-            walk((node or {}).get("children"))
-
-    walk(data)
-    return flat
-
-
-def get_textbook_versions(
-    course_id: int | None = None,
-    subject_id: int | None = None,
-    stage_id: int | None = None,
-    name: str | None = None,
-) -> list[dict]:
-    params: dict[str, Any] = {}
-    if course_id is not None:
-        params["course_id"] = course_id
-    if subject_id is not None:
-        params["subject_id"] = subject_id
-    if stage_id is not None:
-        params["stage_id"] = stage_id
-    if name:
-        params["name"] = name
-    path = "/v1/get/textbook-version"
-    if params:
-        path += "?" + urllib.parse.urlencode(params)
-    data = _api_get(path) or {}
-    if isinstance(data, dict):
-        return list(data.get("version_list") or [])
-    return list(data or [])
-
-
-def get_textbooks(
-    version_id: int | None = None,
-    textbook_id: str | None = None,
-    grade_id: int | None = None,
-) -> list[dict]:
-    params: dict[str, Any] = {}
-    if version_id is not None:
-        params["version_id"] = version_id
-    if textbook_id:
-        params["textbook_id"] = textbook_id
-    if grade_id is not None:
-        params["grade_id"] = grade_id
-    path = "/v1/xkwtextbook" if version_id is not None else "/v1/get/textbook"
-    if params:
-        path += "?" + urllib.parse.urlencode(params)
-    data = (_api_get(path, bank=version_id is not None) if version_id is not None else _api_get(path)) or {}
-    if isinstance(data, dict):
-        return list(data.get("textbook_list") or [])
-    return list(data or [])
-
-
 def get_questions(
     course_id: int,
     *,
@@ -297,12 +209,7 @@ def get_questions(
 
 
 __all__ = [
-    "get_courses",
-    "get_keypoints",
-    "get_question_types",
     "get_questions",
-    "get_textbook_versions",
-    "get_textbooks",
     "parse_question",
     "_pick_analysis",
 ]

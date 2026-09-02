@@ -408,34 +408,6 @@ class MinutesReportValidation:
         )
 
 
-class MinutesTraceReportValidation:
-    """MinutesTraceReport 的校验逻辑（由脚本按手写字段自动生成）。"""
-
-    @classmethod
-    def validate(cls, data: dict) -> "MinutesTraceReport":
-        allowed = {"title", "personalized_minutes", "quality_warning"}
-
-        if not isinstance(data, dict):
-            raise OutputValidationError("MinutesTraceReport 必须是 JSON 对象")
-
-        extra = set(data) - allowed
-        if extra:
-            raise OutputValidationError(
-                f"MinutesTraceReport 字段不一致：多余={sorted(extra)}"
-            )
-
-        _string(data.get("title") or "", "title")
-        _string(data.get("personalized_minutes") or "", "personalized_minutes")
-        if data.get("quality_warning") is not None:
-            _string(data["quality_warning"], "quality_warning")
-
-        return cls(
-            title=data.get("title") or "",
-            personalized_minutes=data.get("personalized_minutes") or "",
-            quality_warning=data.get("quality_warning"),
-        )
-
-
 class MultiStylesReportValidation:
     """MultiStylesReport 的校验逻辑（由脚本按手写字段自动生成）。"""
 
@@ -469,6 +441,34 @@ class MultiStylesReportValidation:
             sections=data.get("sections") or [],
             quality_warning=data.get("quality_warning"),
             personalized_text=data.get("personalized_text"),
+        )
+
+
+class MinutesTraceReportValidation:
+    """MinutesTraceReport 的校验逻辑（由脚本按手写字段自动生成）。"""
+
+    @classmethod
+    def validate(cls, data: dict) -> "MinutesTraceReport":
+        allowed = {"title", "personalized_minutes", "quality_warning"}
+
+        if not isinstance(data, dict):
+            raise OutputValidationError("MinutesTraceReport 必须是 JSON 对象")
+
+        extra = set(data) - allowed
+        if extra:
+            raise OutputValidationError(
+                f"MinutesTraceReport 字段不一致：多余={sorted(extra)}"
+            )
+
+        _string(data.get("title") or "", "title")
+        _string(data.get("personalized_minutes") or "", "personalized_minutes")
+        if data.get("quality_warning") is not None:
+            _string(data["quality_warning"], "quality_warning")
+
+        return cls(
+            title=data.get("title") or "",
+            personalized_minutes=data.get("personalized_minutes") or "",
+            quality_warning=data.get("quality_warning"),
         )
 
 

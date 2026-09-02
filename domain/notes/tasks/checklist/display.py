@@ -949,40 +949,44 @@ def _action_html(draft: dict[str, Any]) -> list[str]:
 
 def _widget_css() -> str:
     return """
-.ck-stars{color:#c98a2d;letter-spacing:1px;font-size:.95rem;}
-.ck-card p{margin:8px 0;}
-.ck-card ol,.ck-card ul{margin:6px 0 10px;padding-left:1.3em;}
-.ck-card li{margin:4px 0;line-height:1.7;}
-.ck-quote{margin:8px 0 12px;padding:8px 10px;background:#f7f5f0;border-left:3px solid #c8c4b8;border-radius:4px;color:#4a4842;font-size:.88rem;}
-.lc-kg{margin:8px 0;border:1px solid #ebe8e1;border-radius:12px;overflow:hidden;background:#fff;}
-.lc-kg-shell{display:grid;grid-template-columns:minmax(0,1fr) minmax(240px,32%);min-height:560px;}
-#lc-cy{width:100%;height:560px;background:linear-gradient(135deg,#ffffff 0%,#f5fbff 48%,#eef7ff 100%);}
-.lc-kg-aside{border-left:1px solid #e2e8f0;background:#faf9f6;padding:14px 12px;overflow:auto;}
-.lc-kg-aside h3{margin:0 0 8px;font-size:1rem;}
-.lc-kg-meta,.lc-kg-ev{color:#64748b;font-size:.78rem;line-height:1.6;}
-.lc-kg-label{font-size:.76rem;color:#475569;margin:14px 0 6px;}
-.lc-kg-detail{border:1px solid #e2e8f0;border-radius:8px;padding:10px;background:#fff;font-size:.86rem;line-height:1.6;}
-.lc-kg-name{font-weight:700;margin-bottom:8px;}
+.ck-stars{color:#b86a04;letter-spacing:1.5px;font-size:.88rem;white-space:nowrap;}
+.ck-quote{margin:8px 0 12px;padding:8px 12px;background:#faf9f6;border-left:3.5px solid #222222;border-radius:2px;color:#222222;font-size:.88rem;font-style:italic;}
+
+/* Knowledge Graph in LaTeX Paper Style */
+.lc-kg{margin:12px 0 20px;border:1px solid #222222;border-radius:2px;overflow:hidden;background:#ffffff;box-shadow:0 1px 3px rgba(0,0,0,0.03);}
+.lc-kg-shell{display:grid;grid-template-columns:minmax(0,1fr) minmax(260px,32%);min-height:560px;}
+#lc-cy{width:100%;height:560px;background:#ffffff;}
+.lc-kg-aside{border-left:1px solid #222222;background:#faf9f6;padding:16px 14px;overflow:auto;}
+.lc-kg-aside h3{margin:0 0 8px;font-size:1rem;font-weight:700;color:#111;}
+.lc-kg-meta,.lc-kg-ev{color:#555555;font-size:.78rem;line-height:1.6;font-style:italic;}
+.lc-kg-label{font-size:.76rem;color:#222222;margin:14px 0 6px;font-weight:700;text-transform:uppercase;letter-spacing:0.3px;}
+.lc-kg-detail{border:1px solid #d4d0c7;border-radius:2px;padding:12px;background:#ffffff;font-size:.86rem;line-height:1.6;}
+.lc-kg-name{font-weight:700;margin-bottom:8px;font-size:.96rem;color:#111;}
 .lc-kg-block{margin-top:8px;}
-.lc-kg-k{color:#64748b;font-size:.72rem;margin-bottom:3px;}
-.lc-kg-rel{margin-top:6px;padding:6px 8px;border:1px solid #e2e8f0;border-radius:6px;background:#fff;}
+.lc-kg-k{color:#555555;font-size:.74rem;margin-bottom:3px;font-weight:700;}
+.lc-kg-rel{margin-top:6px;padding:6px 8px;border:1px solid #e0dcd4;border-radius:2px;background:#faf9f6;}
 .lc-kg-chips{display:flex;flex-wrap:wrap;gap:6px;}
-.lc-kg-chip{display:inline-block;padding:1px 8px;border-radius:999px;background:#e2e8f0;font-size:.74rem;}
+.lc-kg-chip{display:inline-block;padding:1px 8px;border-radius:2px;background:#ede9e1;border:1px solid #d4d0c7;font-size:.74rem;color:#222;}
 .lc-kg-legend{display:grid;gap:6px;}
 .lc-kg-legend-item{display:flex;align-items:center;gap:8px;font-size:.8rem;}
-.lc-kg-swatch{width:10px;height:10px;border-radius:50%;}
-.lc-mm{position:relative;margin:8px 0;border:1px solid #ebe8e1;border-radius:12px;overflow:hidden;background:#fff;}
-.lc-mm-bar{display:flex;align-items:center;gap:8px;padding:8px 12px;border-bottom:1px solid #e2e8f0;background:#f8fafc;flex-wrap:wrap;}
-.lc-mm-hint{color:#64748b;font-size:.76rem;flex:1 1 180px;}
-.lc-mm-bar button{border:1px solid #cbd5e1;background:#fff;border-radius:6px;padding:4px 10px;font-size:.8rem;cursor:pointer;}
-.lc-mm-bar button.lc-mm-save{background:#0f172a;color:#fff;border-color:#0f172a;}
+.lc-kg-swatch{width:10px;height:10px;border-radius:2px;}
+
+/* Mindmap in LaTeX Paper Style */
+.lc-mm{position:relative;margin:12px 0 20px;border:1px solid #222222;border-radius:2px;overflow:hidden;background:#ffffff;box-shadow:0 1px 3px rgba(0,0,0,0.03);}
+.lc-mm-bar{display:flex;align-items:center;gap:8px;padding:8px 14px;border-bottom:1px solid #222222;background:#faf9f6;flex-wrap:wrap;}
+.lc-mm-bar strong{font-size:.95rem;font-weight:700;color:#111;}
+.lc-mm-hint{color:#666666;font-size:.78rem;flex:1 1 180px;font-style:italic;}
+.lc-mm-bar button{border:1px solid #333333;background:#ffffff;border-radius:2px;padding:4px 12px;font-size:.8rem;font-family:inherit;font-weight:600;cursor:pointer;transition:all .15s;}
+.lc-mm-bar button:hover{background:#eeebe3;}
+.lc-mm-bar button.lc-mm-save{background:#111111;color:#ffffff;border-color:#111111;}
+.lc-mm-bar button.lc-mm-save:hover{background:#333333;}
 .lc-mm-body{display:grid;grid-template-columns:1fr;height:560px;min-height:560px;}
 .lc-mm-body.editing{grid-template-columns:minmax(200px,34%) 1fr;}
-#lc-mm-editor{display:none;width:100%;height:100%;border:0;border-right:1px solid #e2e8f0;padding:10px;resize:none;font:13px/1.55 ui-monospace,Consolas,monospace;}
+#lc-mm-editor{display:none;width:100%;height:100%;border:0;border-right:1px solid #222222;padding:12px;resize:none;font:13px/1.6 "Latin Modern Mono",Consolas,monospace;box-sizing:border-box;background:#faf9f6;}
 .lc-mm-body.editing #lc-mm-editor{display:block;}
-.lc-mm-canvas{position:relative;min-height:560px;height:100%;background:#fff;}
+.lc-mm-canvas{position:relative;min-height:560px;height:100%;background:#ffffff;}
 #lc-mindmap{position:absolute;inset:0;width:100%;height:100%;display:block;}
-.lc-mm-fallback{padding:12px 20px 16px;overflow:auto;height:100%;}
+.lc-mm-fallback{padding:14px 20px 16px;overflow:auto;height:100%;font-family:inherit;}
 .lc-mm-tree{margin:0;padding-left:1.2em;line-height:1.7;}
 .lc-mm-tree ul{margin:.2em 0;padding-left:1.1em;}
 @media(max-width:860px){.lc-kg-shell{grid-template-columns:1fr}.lc-mm-body.editing{grid-template-columns:1fr}#lc-cy{height:420px}.lc-mm-body,.lc-mm-canvas{height:420px;min-height:420px}}
@@ -1030,8 +1034,66 @@ def _supports_label(ev: dict[str, Any]) -> str:
     return " / ".join(x for x in labels if x)
 
 
+def _prepare_card_evidence(
+    card: dict[str, Any],
+) -> tuple[dict[str, list[dict[str, Any]]], list[dict[str, Any]]]:
+    """为卡片关联的所有依据分配连续编号 [1], [2]... 并按字段建立索引。"""
+    pack = _trace_pack(card)
+    teachers = pack["teacher"]
+    kb = pack["kb"]
+    notes = pack["note"]
+    all_raw = [("teacher", ev) for ev in teachers] + [("kb", ev) for ev in kb] + [("note", ev) for ev in notes]
+
+    field_to_evs: dict[str, list[dict[str, Any]]] = {
+        "priority": [],
+        "exam_prediction": [],
+        "explanation": [],
+        "method_steps": [],
+        "error_warning": [],
+    }
+
+    all_evs: list[dict[str, Any]] = []
+
+    for idx, (kind, ev) in enumerate(all_raw, start=1):
+        ev_copy = dict(ev)
+        ev_copy["cite_num"] = idx
+        ev_copy["kind"] = kind
+        supports = [str(x) for x in (ev.get("supports") or []) if str(x)]
+        if not supports:
+            supports = ["explanation"]
+        for sup in supports:
+            if sup in field_to_evs:
+                field_to_evs[sup].append(ev_copy)
+        all_evs.append(ev_copy)
+
+    return field_to_evs, all_evs
+
+
+def _cite_tags(ev_list: list[dict[str, Any]]) -> str:
+    """生成学术论文样式的蓝色高亮引用标签 [1], [2]。"""
+    if not ev_list:
+        return ""
+    seen: set[int] = set()
+    tags: list[str] = []
+    for ev in ev_list:
+        cnum = ev.get("cite_num")
+        if not cnum or cnum in seen:
+            continue
+        seen.add(cnum)
+        eid = escape(str(ev.get("evidence_id") or ""), quote=True)
+        kind = str(ev.get("kind") or "")
+        head = "老师原话" if kind == "teacher" else ("知识库" if kind == "kb" else ("笔记" if kind == "note" else "依据"))
+        source = _clean(ev.get("source"))
+        label = f"{head}: {source}" if source and kind != "teacher" else head
+        tags.append(
+            f'<a href="javascript:void(0)" class="ck-cite-ref" data-target-ev="{eid}" title="点击查看出处 [{cnum}] · {escape(label, quote=True)}">[{cnum}]</a>'
+        )
+    return "".join(tags)
+
+
 def _evidence_html(kind: str, ev: dict[str, Any]) -> str:
     eid = escape(str(ev.get("evidence_id") or ""), quote=True)
+    cnum = ev.get("cite_num") or 1
     supports = " ".join(str(x) for x in (ev.get("supports") or []) if x)
     klass = {"teacher": "ck-ev-teacher", "kb": "ck-ev-kb", "note": "ck-ev-note"}.get(kind, "")
     head = {
@@ -1040,8 +1102,8 @@ def _evidence_html(kind: str, ev: dict[str, Any]) -> str:
         "note": "学生笔记",
     }.get(kind, "依据")
     rows = [
-        f'<div class="ck-ev {klass}" data-ev="{eid}" data-supports="{escape(supports, quote=True)}">',
-        f'<div class="ck-ev-k">{escape(str(head), quote=False)}</div>',
+        f'<div class="ck-ev {klass}" data-ev="{eid}" data-cite="{cnum}" data-supports="{escape(supports, quote=True)}">',
+        f'<div class="ck-ev-k"><a class="ck-ev-cite-tag" href="javascript:void(0);">[{cnum}]</a> <span class="ck-ev-kind-badge">{escape(str(head), quote=False)}</span></div>',
     ]
     if kind == "teacher":
         rows.append(f'<div class="ck-ev-quote">“{_math_escape(_clean(ev.get("text")))}”</div>')
@@ -1062,7 +1124,7 @@ def _evidence_html(kind: str, ev: dict[str, Any]) -> str:
             rows.append(f'<div class="ck-ev-quote">{_math_escape(excerpt)}</div>')
         if full and full != excerpt:
             rows.append(
-                "<details><summary>完整片段</summary>"
+                "<details><summary class=\"ck-proof-toggle\">完整片段 ▾</summary>"
                 f'<div class="ck-ev-quote">{_math_escape(full)}</div></details>'
             )
     sup = _supports_label(ev)
@@ -1072,66 +1134,85 @@ def _evidence_html(kind: str, ev: dict[str, Any]) -> str:
     return "".join(rows)
 
 
-def _trace_html(card: dict[str, Any]) -> str:
-    pack = _trace_pack(card)
-    visible, hidden = _split_visible(pack)
-    if not visible and not hidden:
+def _trace_html(card: dict[str, Any], all_evs: list[dict[str, Any]]) -> str:
+    if not all_evs:
         status = ""
         raw = card.get("provenance") if isinstance(card.get("provenance"), dict) else {}
         if raw.get("evidence_status") == "insufficient":
             status = "这条判断缺少直接依据，未编造出处。"
         return f'<div class="ck-ev-empty">{status or "暂无足够依据"}</div>'
-    rows = [_evidence_html(kind, ev) for kind, ev in visible]
-    if hidden:
-        rows.append('<details class="ck-ev-more"><summary>查看更多依据</summary>')
-        rows.extend(_evidence_html(kind, ev) for kind, ev in hidden)
-        rows.append("</details>")
+    rows = [
+        '<div class="ck-provenance-head"><span class="ck-ref-icon">§</span> 来源与证据溯源 (References)</div>',
+        '<div class="ck-ev-list">',
+    ]
+    rows.extend(_evidence_html(str(ev.get("kind") or "kb"), ev) for ev in all_evs)
+    rows.append('</div>')
     return "".join(rows)
 
 
-def _card_html(card: dict[str, Any]) -> str:
-    grade = str(card.get("session_priority") or "")
+def _card_html(card: dict[str, Any], card_idx: int = 1) -> str:
+    grade = str(card.get("session_priority") or "B")
     brief = grade not in {"S", "A"}
     badge = "ck-s" if grade == "S" else "ck-a" if grade == "A" else "ck-b"
+    card_theme_class = "is-s" if grade == "S" else "is-a" if grade == "A" else "is-b"
+    thm_type = "Definition" if grade == "S" else "Theorem" if grade == "A" else "Remark"
+
+    field_to_evs, all_evs = _prepare_card_evidence(card)
+
     facts = _as_list(card.get("key_facts"))[: 3 if brief else 6]
     steps = _as_list(card.get("method_steps"))[: 3 if brief else 6]
     pits = _as_list(card.get("pitfalls"))[: 2 if brief else 4]
+
+    exam_cites = _cite_tags(field_to_evs.get("exam_prediction", []))
+    explain_cites = _cite_tags(field_to_evs.get("explanation", []))
+    method_cites = _cite_tags(field_to_evs.get("method_steps", []))
+    error_cites = _cite_tags(field_to_evs.get("error_warning", []))
+    prio_cites = _cite_tags(field_to_evs.get("priority", []))
+
+    name = escape(_clean(card.get("name")), quote=False)
+
     left = [
-        '<div class="ck-card">',
-        f'<span class="ck-badge {badge}">{escape(_grade_label(card), quote=False)}</span>'
-        f'<span class="ck-stars">{importance_stars(card)}</span> '
-        f"<strong>{escape(_clean(card.get('name')), quote=False)}</strong>",
-        '<div class="ck-field" data-field="exam_prediction">'
-        f"<p><b>考法预判</b> {_math_escape(_clean(card.get('exam_preview')))}</p></div>",
+        f'<div class="ck-card {card_theme_class}">',
+        '<div class="ck-card-header">',
+        f'<span class="ck-badge {badge}">{escape(_grade_label(card), quote=False)}</span>',
+        f'<span class="ck-stars">{importance_stars(card)}</span> ',
+        f'<span class="ck-thm-title"><strong>{thm_type} {card_idx} ({name})</strong></span>',
+        f'{prio_cites}',
+        '</div>',
+        '<div class="ck-field" data-field="exam_prediction">',
+        f"<p><b class=\"ck-thm-label\">考法预判.</b> {_math_escape(_clean(card.get('exam_preview')))} {exam_cites}</p></div>",
     ]
     if facts:
         left.append(
-            "<p><b>必须先会</b></p><ul>"
+            "<div class=\"ck-field\"><p><b class=\"ck-thm-label\">必须先会.</b></p><ul class=\"ck-thm-list\">"
             + "".join(f"<li>{_math_escape(item)}</li>" for item in facts)
-            + "</ul>"
+            + "</ul></div>"
         )
     left.append(
         '<div class="ck-field" data-field="explanation">'
-        f"<p><b>知识点讲解</b> {_math_escape(_clean(card.get('explain')))}</p></div>"
+        f"<p><b class=\"ck-thm-label\">知识点讲解.</b> {_math_escape(_clean(card.get('explain')))} {explain_cites}</p></div>"
     )
     if steps:
         left.append(
-            '<div class="ck-field" data-field="method_steps"><p><b>方法步骤</b></p><ol>'
+            '<div class="ck-field" data-field="method_steps"><p><b class=\"ck-thm-label\">方法步骤.</b> '
+            + f'{method_cites}</p><ol class="ck-thm-enum">'
             + "".join(f"<li>{_math_escape(step)}</li>" for step in steps)
             + "</ol></div>"
         )
     if pits:
         left.append(
-            '<div class="ck-field" data-field="error_warning"><p><b>易错提醒</b></p><ul>'
+            '<div class="ck-field" data-field="error_warning"><div class="ck-remark-box"><p><b class=\"ck-thm-label\">易错提醒.</b> '
+            + f'{error_cites}</p><ul class="ck-thm-list">'
             + "".join(f"<li>{escape(item, quote=False)}</li>" for item in pits)
-            + "</ul></div>"
+            + "</ul></div></div>"
         )
     left.append("</div>")
+
     return (
         '<div class="ck-review">'
         f'<div class="ck-review-left">{"".join(left)}</div>'
         '<div class="ck-review-rule"></div>'
-        f'<div class="ck-review-right">{_trace_html(card)}</div>'
+        f'<div class="ck-review-right">{_trace_html(card, all_evs)}</div>'
         "</div>"
     )
 
@@ -1156,13 +1237,21 @@ def _trace_markdown(card: dict[str, Any]) -> list[str]:
 # 对易子 [A,B] 就会被当成独立公式块，整行被拆成「如 / =B / + / C」。
 _MATHJAX_SCRIPT = r"""<script>
 (function () {
+  const onReady = () => {
+    if (window.__adjustEvidenceFolding) window.__adjustEvidenceFolding();
+  };
   if (window.MathJax && window.MathJax.typesetPromise) {
-    window.MathJax.typesetPromise();
+    window.MathJax.typesetPromise().then(onReady);
     return;
   }
   window.MathJax = {
     tex: {inlineMath: [['$', '$'], ['\\(', '\\)']], displayMath: [['$$', '$$'], ['\\[', '\\]']]},
-    options: {skipHtmlTags: ['script', 'noscript', 'style', 'textarea', 'pre', 'code']}
+    options: {skipHtmlTags: ['script', 'noscript', 'style', 'textarea', 'pre', 'code']},
+    startup: {
+      pageReady: () => {
+        return MathJax.startup.defaultPageReady().then(onReady);
+      }
+    }
   };
   var s = document.createElement('script');
   s.src = 'https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-chtml.js';
@@ -1175,24 +1264,139 @@ _MATHJAX_SCRIPT = r"""<script>
 def _trace_script() -> str:
     return """<script>
 (function () {
+  function adjustEvidenceFolding() {
+    const isDesktop = window.innerWidth > 860;
+    document.querySelectorAll('.ck-review').forEach((row) => {
+      const leftEl = row.querySelector('.ck-review-left');
+      const rightEl = row.querySelector('.ck-review-right');
+      const listEl = row.querySelector('.ck-ev-list');
+      if (!leftEl || !rightEl || !listEl) return;
+
+      // 还原之前已折叠的元素，重新获取自然高度
+      const existingDetails = listEl.querySelector('.ck-ev-more');
+      if (existingDetails) {
+        const itemsInside = Array.from(existingDetails.querySelectorAll('.ck-ev'));
+        itemsInside.forEach((ev) => existingDetails.before(ev));
+        existingDetails.remove();
+      }
+
+      const allEvs = Array.from(listEl.querySelectorAll(':scope > .ck-ev'));
+      if (allEvs.length <= 1) return;
+
+      const headEl = rightEl.querySelector('.ck-provenance-head');
+      const headHeight = headEl ? headEl.offsetHeight + 14 : 36;
+      const leftHeight = leftEl.offsetHeight;
+
+      let totalHeight = headHeight;
+      const itemsToFold = [];
+
+      allEvs.forEach((ev, idx) => {
+        if (!isDesktop) {
+          if (idx >= 3) itemsToFold.push(ev);
+          return;
+        }
+        const evHeight = ev.offsetHeight + 10;
+        // 只有当右侧依据累积高度明显超过左侧知识点卡片高度（留 20px 余量）且至少展示了 1 条时，才折叠超出部分
+        if (totalHeight + evHeight > leftHeight + 20 && idx >= 1) {
+          itemsToFold.push(ev);
+        } else {
+          totalHeight += evHeight;
+        }
+      });
+
+      if (itemsToFold.length > 0) {
+        const details = document.createElement('details');
+        details.className = 'ck-ev-more';
+        const summary = document.createElement('summary');
+        summary.className = 'ck-proof-toggle';
+        summary.innerHTML = `查看更多依据 (${itemsToFold.length}) ▾`;
+        details.appendChild(summary);
+
+        itemsToFold[0].before(details);
+        itemsToFold.forEach((ev) => details.appendChild(ev));
+      }
+    });
+  }
+
+  window.__adjustEvidenceFolding = adjustEvidenceFolding;
+
   document.querySelectorAll('.ck-review').forEach((row) => {
+    const cites = row.querySelectorAll('.ck-cite-ref');
     const fields = row.querySelectorAll('[data-field]');
-    const evs = row.querySelectorAll('[data-supports]');
-    const clear = () => {
+    const evs = row.querySelectorAll('.ck-ev');
+
+    const clearHighlights = () => {
       fields.forEach((el) => el.classList.remove('is-on'));
-      evs.forEach((el) => el.classList.remove('is-on'));
+      evs.forEach((el) => el.classList.remove('is-on', 'is-highlighted'));
+      cites.forEach((c) => c.classList.remove('is-active'));
     };
+
+    const highlightEv = (targetEvId) => {
+      clearHighlights();
+      let targetEl = null;
+      row.querySelectorAll('.ck-ev').forEach((ev) => {
+        if (ev.getAttribute('data-ev') === targetEvId) {
+          targetEl = ev;
+          const parentDetails = ev.closest('details');
+          if (parentDetails) parentDetails.open = true;
+          ev.classList.add('is-on', 'is-highlighted');
+          ev.style.animation = 'none';
+          void ev.offsetHeight;
+          ev.style.animation = 'citePulse 1.2s ease';
+        }
+      });
+      cites.forEach((c) => {
+        if (c.getAttribute('data-target-ev') === targetEvId) {
+          c.classList.add('is-active');
+        }
+      });
+      if (targetEl) {
+        targetEl.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      }
+    };
+
+    cites.forEach((btn) => {
+      btn.addEventListener('click', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        const targetId = btn.getAttribute('data-target-ev');
+        if (targetId) highlightEv(targetId);
+      });
+    });
+
     fields.forEach((field) => {
-      field.addEventListener('click', () => {
+      field.addEventListener('click', (e) => {
+        if (e.target.closest('.ck-cite-ref')) return;
         const key = field.getAttribute('data-field') || '';
-        clear();
+        clearHighlights();
         field.classList.add('is-on');
-        evs.forEach((ev) => {
+        row.querySelectorAll('.ck-ev').forEach((ev) => {
           const bag = ' ' + (ev.getAttribute('data-supports') || '') + ' ';
-          if (key && bag.indexOf(' ' + key + ' ') >= 0) ev.classList.add('is-on');
+          if (key && bag.indexOf(' ' + key + ' ') >= 0) {
+            const parentDetails = ev.closest('details');
+            if (parentDetails) parentDetails.open = true;
+            ev.classList.add('is-on');
+          }
         });
       });
     });
+
+    row.addEventListener('click', (e) => {
+      const ev = e.target.closest('.ck-ev');
+      if (ev) {
+        const eid = ev.getAttribute('data-ev');
+        if (eid) highlightEv(eid);
+      }
+    });
+  });
+
+  // 初始自适应计算与延时校验
+  adjustEvidenceFolding();
+  window.addEventListener('load', adjustEvidenceFolding);
+  let resizeTimer = null;
+  window.addEventListener('resize', () => {
+    clearTimeout(resizeTimer);
+    resizeTimer = setTimeout(adjustEvidenceFolding, 100);
   });
 })();
 </script>"""
@@ -1206,7 +1410,10 @@ def build_checklist_html(draft: dict[str, Any], *, has_teacher: bool | None = No
     cards = [c for c in (draft.get("cards") or []) if isinstance(c, dict)]
     body: list[str] = [
         '<div class="ck-doc">',
+        '<header class="ck-doc-header">',
         f"<h1>{escape(course, quote=False)} · 复习清单</h1>",
+        '<div class="ck-doc-meta"><span>知识复习与考点全景分析报告</span> · <span>Generated by AgentFlow</span></div>',
+        '</header>',
     ]
     if not cards:
         body.append("<p>没有可复习的知识点。请先运行 catalog / 资料入库；若提供了老师重点，请确认文本能对上目录名称。</p></div>")
@@ -1219,7 +1426,7 @@ def build_checklist_html(draft: dict[str, Any], *, has_teacher: bool | None = No
         body.append('<div class="ck-overview-wrap" id="ck-review">')
         body.append(
             '<div class="ck-table-panel">'
-            '<div class="ck-overview-title">知识点清单与掌握度</div>'
+            '<div class="ck-overview-title"><span>知识点清单与掌握度</span><span class="ck-overview-hint">Table 1 · 知识点多维检索与掌握状态管理</span></div>'
             '<div class="ck-filter-row">'
             '<select id="ck-f-grade"><option value="">全部档位</option>'
             '<option value="S">核心 S</option><option value="A">重点 A</option>'
@@ -1267,8 +1474,8 @@ def build_checklist_html(draft: dict[str, Any], *, has_teacher: bool | None = No
         else:
             body.append("<p>本次激活点之间没有可画的关系图。</p>")
         body.append("<h2>二、知识点</h2>")
-        for card in focus:
-            body.append(_card_html(card))
+        for i, card in enumerate(focus, start=1):
+            body.append(_card_html(card, card_idx=i))
         if brief:
             body.append('<div class="ck-brief"><h3>简要过一下</h3><ul>')
             for card in brief:
@@ -1290,8 +1497,8 @@ def build_checklist_html(draft: dict[str, Any], *, has_teacher: bool | None = No
                     src = _clean(ev.get("source")) or _clean(ev.get("excerpt"))[:40]
                     if src:
                         kb_src = (
-                            f' <span style="color:#6b6860;font-size:0.78rem;">'
-                            f"溯源：{escape(src, quote=False)}</span>"
+                            f' <span style="color:#0047ab;font-size:0.8rem;">'
+                            f"[溯源：{escape(src, quote=False)}]</span>"
                         )
                 body.append(
                     "<li>"
@@ -1314,125 +1521,560 @@ def build_checklist_html(draft: dict[str, Any], *, has_teacher: bool | None = No
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>{title}</title>
   <style>
-    body {{ margin: 0; padding: 24px; background: #f0eee9; color: #1c1b19; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Microsoft YaHei", sans-serif; }}
-    .page {{ max-width: 1100px; margin: 0 auto; }}
-    .ck-doc{{background:#fff;border:1px solid #d4d0c6;border-radius:10px;padding:22px 28px;line-height:1.7;}}
-    .ck-doc h1{{margin:0 0 8px;font-size:1.7rem;}}
-    .ck-doc h2{{margin:22px 0 10px;font-size:1.2rem;}}
-    .ck-doc h3{{margin:16px 0 8px;font-size:1.05rem;}}
-    .ck-note{{color:#6b6860;font-size:.86rem;}}
-    .ck-review{{margin:10px 0;}}
-    .ck-table-panel{{border:1px solid #e7e4dc;border-radius:12px;background:#ffffff;box-shadow:0 1px 4px rgba(0,0,0,0.03);padding:16px 18px;box-sizing:border-box;}}
-    .ck-overview-wrap{{margin:12px 0 24px;display:flex;flex-direction:column;gap:16px;}}
-    .ck-overview-title{{display:flex;align-items:baseline;justify-content:space-between;gap:12px;margin:0 0 14px;padding-bottom:8px;border-bottom:1px solid #f0eee9;}}
-    .ck-overview-title span:first-child{{font-size:.95rem;font-weight:750;color:#1c1b19;letter-spacing:0.2px;}}
-    .ck-overview-hint{{font-size:.76rem;color:#8a867c;font-weight:400;}}
-    .ck-pill{{display:inline-flex;align-items:center;padding:2px 8px;border-radius:6px;font-size:.74rem;font-weight:700;line-height:1.4;white-space:nowrap;}}
-    .ck-pill.ck-grade-s{{background:#fff1f0;color:#cf1322;border:1px solid #ffa39e;}}
-    .ck-pill.ck-grade-a{{background:#fffbe6;color:#d46b08;border:1px solid #ffe58f;}}
-    .ck-pill.ck-grade-b{{background:#e6f7ff;color:#096dd9;border:1px solid #91d5ff;}}
-    .ck-filter-row{{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin:0 0 14px;}}
-    .ck-filter-row select{{padding:5px 10px;border:1px solid #d4d0c6;border-radius:6px;font-size:.82rem;background:#fff;}}
-    .ck-mastery-track{{flex:1;min-width:140px;height:8px;border-radius:999px;background:#e8e4da;overflow:hidden;}}
-    #ck-mastery-fill{{display:block;height:100%;width:0;background:#497a78;transition:width .2s;}}
-    #ck-mastery-text{{font-size:.8rem;color:#6b6860;white-space:nowrap;font-weight:600;}}
-    .ck-table{{width:100%;border-collapse:collapse;font-size:.88rem;margin:0;background:#fff;}}
-    .ck-table th,.ck-table td{{border:1px solid #e7e4dc;padding:10px 12px;text-align:left;vertical-align:middle;}}
-    .ck-table th{{background:#f7f5f0;font-weight:750;color:#2c2a26;white-space:nowrap;user-select:none;font-size:.82rem;}}
-    .ck-table th[data-sort]{{cursor:pointer;}}
-    .ck-table th[data-sort]:hover{{background:#eeebe3;}}
-    .ck-table tbody tr:hover{{background:#faf8f5;}}
-    .ck-th-check{{width:54px;text-align:center !important;}}
-    .ck-th-grade{{width:90px;text-align:center !important;}}
-    .ck-th-name{{min-width:260px;}}
-    .ck-th-imp{{width:110px;text-align:center !important;}}
-    .ck-th-diff{{width:80px;text-align:center !important;}}
-    .ck-th-chap{{width:170px;}}
-    .ck-cell-center{{text-align:center !important;}}
-    .ck-mastery{{width:16px;height:16px;accent-color:#497a78;cursor:pointer;vertical-align:middle;}}
-    .ck-diff-badge{{display:inline-flex;align-items:center;justify-content:center;padding:1px 7px;border-radius:4px;background:#f0eee9;font-size:.76rem;font-weight:700;color:#555;border:1px solid #e0dcd4;white-space:nowrap;}}
-    .ck-chap-tag{{display:inline-block;max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#6b6860;font-size:.82rem;}}
-    .ck-stars{{color:#d46b08;white-space:nowrap;letter-spacing:1.5px;font-size:.88rem;}}
-    .ck-kp-name{{font-weight:700;color:#1c1b19;}}
-    .ck-row-preview{{font-weight:400;color:#8a867c;font-size:.76rem;margin-top:3px;line-height:1.45;}}
-    .ck-dot{{width:10px;height:10px;border-radius:50%;}}
-    .ck-review{{display:grid;grid-template-columns:minmax(0,1fr) 1px minmax(240px,34%);border:1px solid #ebe8e1;border-radius:10px;overflow:hidden;margin:10px 0 16px;background:#fff;}}
-    .ck-review-left{{padding:12px 14px;background:#fbfaf7;}}
-    .ck-review-rule{{background:#c8c4b8;}}
-    .ck-review-right{{padding:10px 10px 12px;background:#faf9f6;}}
-    .ck-card{{margin:0;padding:0;border:0;background:transparent;}}
-    .ck-field{{border-radius:6px;padding:2px 0;}}
-    .ck-field.is-on{{background:#fff6c7;}}
-    .ck-ev{{display:block;margin:0 0 8px;padding:8px 9px;border-left:3px solid #c8c4b8;border-radius:4px;background:#fff;font-size:.82rem;line-height:1.55;}}
-    .ck-ev.is-on{{box-shadow:0 0 0 1px #b3402e55;}}
-    .ck-ev-teacher{{border-left-color:#b3402e;}}
-    .ck-ev-kb{{border-left-color:#395f8a;}}
-    .ck-ev-note{{border-left-color:#497a78;}}
-    .ck-ev-k{{font-size:.72rem;color:#6b6860;margin-bottom:4px;font-weight:650;}}
-    .ck-ev-teacher .ck-ev-k{{color:#b3402e;}}
-    .ck-ev-quote{{color:#4a4842;}}
-    .ck-ev-meta,.ck-ev-sup{{font-size:.74rem;color:#6b6860;margin-top:4px;}}
-    .ck-ev-empty{{font-size:.78rem;color:#9a968c;padding:6px 2px;}}
-    .ck-ev-more{{margin-top:6px;}}
-    .ck-ev-more summary{{cursor:pointer;font-size:.78rem;color:#3a3832;user-select:none;}}
-    .ck-brief{{margin:8px 0 16px;padding:12px 14px;border:1px dashed #d4d0c6;border-radius:10px;background:#fbfaf7;}}
-    .ck-brief h3{{margin:0 0 8px;font-size:1.02rem;}}
-    .ck-brief ul{{margin:0;padding-left:1.2em;}}
-    .ck-subtitle{{margin:14px 0 6px;font-size:0.9rem;font-weight:650;color:#6b6860;}}
-    .ck-brief li{{margin:6px 0;line-height:1.55;}}
-    @media(max-width:860px){{.ck-review{{grid-template-columns:1fr}}.ck-review-rule{{display:none}}}}
-    .ck-badge{{display:inline-block;margin-right:6px;padding:1px 8px;border-radius:10px;font-size:.74rem;background:#efece4;border:1px solid #d4d0c6;}}
-    .ck-s{{background:#fff1ee;border-color:#e8b4ac;color:#b3402e;}}
-    .ck-a{{background:#fff6e8;border-color:#e8d0a4;}}
-    .ck-b{{background:#f3f6f6;border-color:#c5d0cf;color:#497a78;}}
-    .ck-strategy-panel{{margin:10px 0 18px;border:1px solid #d4d0c6;border-radius:8px;background:#fbfaf7;overflow:hidden;}}
-    .ck-strategy-head{{display:flex;align-items:baseline;gap:10px;padding:10px 14px;border-bottom:1px solid #ebe8e1;background:#f7f5f0;}}
-    .ck-strategy-head span{{font-weight:750;color:#1c1b19;}}
-    .ck-strategy-head em{{font-style:normal;color:#6b6860;font-size:.78rem;}}
-    .ck-strategy-route{{border-top:1px solid #ebe8e1;}}
-    .ck-priority-matrix{{width:100%;border-collapse:collapse;background:#fff;font-size:.84rem;}}
-    .ck-priority-matrix th,.ck-priority-matrix td{{border:1px solid #ebe8e1;padding:9px 10px;vertical-align:top;text-align:left;}}
-    .ck-priority-matrix th{{width:82px;background:#f7f5f0;color:#3a3832;font-weight:750;}}
-    .ck-priority-matrix td b{{display:block;margin-bottom:5px;color:#1c1b19;}}
-    .ck-priority-matrix td div{{display:flex;gap:5px;flex-wrap:wrap;}}
-    .ck-priority-matrix td span,.ck-strategy-chips span{{display:inline-flex;align-items:center;max-width:100%;padding:1px 7px;border:1px solid #d4d0c6;border-radius:999px;background:#fbfaf7;color:#3a3832;font-size:.74rem;line-height:1.45;}}
-    .ck-priority-matrix td em{{font-style:normal;color:#9a968c;}}
-    .ck-strategy{{list-style:none;margin:0;padding:8px 12px 12px;display:grid;gap:8px;}}
-    .ck-strategy li{{display:grid;grid-template-columns:34px minmax(0,1fr);gap:10px;align-items:start;padding:9px 10px;border:1px solid #ebe8e1;border-radius:8px;background:#fff;}}
-    .ck-strategy-no{{display:inline-flex;align-items:center;justify-content:center;width:28px;height:28px;border-radius:50%;background:#497a78;color:#fff;font-size:.72rem;font-weight:800;line-height:1;}}
-    .ck-strategy-text{{font-size:.9rem;line-height:1.65;color:#2c2a26;}}
-    .ck-strategy-text h3{{margin:0 0 5px;font-size:.96rem;line-height:1.35;}}
-    .ck-strategy-text p{{margin:5px 0 0;}}
-    .ck-strategy-chips{{display:flex;gap:5px;flex-wrap:wrap;margin:0 0 7px;}}
-    .ck-action{{margin:8px 0 6px;}}
-    .ck-progress{{margin:0 0 12px;padding:11px 12px;border:1px solid #d4d0c6;border-radius:8px;background:#fbfaf7;}}
-    .ck-progress-top{{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:8px;font-size:.88rem;}}
-    .ck-progress-top span{{color:#6b6860;font-size:.82rem;}}
-    .ck-progress-track{{height:9px;border-radius:999px;background:#ebe8e1;overflow:hidden;}}
-    .ck-progress-track span{{display:block;height:100%;border-radius:999px;background:#497a78;transition:width .18s ease;}}
-    .ck-action-grid{{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin:0 0 14px;}}
-    .ck-stage{{display:grid;gap:6px;text-align:left;padding:12px 12px 14px;border:1px solid #d4d0c6;border-radius:12px;background:#fbfaf7;cursor:pointer;min-height:168px;}}
-    .ck-stage.is-on{{background:#fff;border-color:#b3402e;box-shadow:0 0 0 1px #b3402e33;}}
-    .ck-stage-no{{width:22px;height:22px;border-radius:50%;background:#efece4;display:inline-flex;align-items:center;justify-content:center;font-size:.78rem;font-weight:700;}}
-    .ck-stage.is-on .ck-stage-no{{background:#b3402e;color:#fff;}}
-    .ck-stage-title{{font-weight:700;font-size:.98rem;}}
-    .ck-stage-sub,.ck-stage-sum{{color:#6b6860;font-size:.78rem;line-height:1.45;}}
-    .ck-stage-count{{font-size:.76rem;color:#3a3832;font-weight:650;}}
-    .ck-action-detail{{border:1px solid #ebe8e1;border-radius:12px;padding:14px 16px;background:#fff;}}
-    .ck-action-detail[hidden]{{display:none;}}
-    .ck-phase{{margin:12px 0 18px;}}
-    .ck-phase h4{{margin:0 0 8px;}}
-    .ck-task{{margin:10px 0;padding:10px 12px;border:1px solid #ebe8e1;border-radius:8px;background:#fbfaf7;}}
-    .ck-meta,.ck-k{{font-size:.86rem;color:#6b6860;margin:8px 0 4px;}}
-    .ck-k{{font-weight:650;color:#3a3832;}}
-    .ck-task-list{{list-style:none;margin:0 0 8px;padding:0;display:grid;gap:6px;}}
-    .ck-task-list li{{margin:0;line-height:1.65;}}
-    .ck-task-list label{{display:grid;grid-template-columns:16px minmax(0,1fr);gap:8px;align-items:start;cursor:pointer;}}
-    .ck-task-list input{{width:15px;height:15px;margin:5px 0 0;accent-color:#497a78;cursor:pointer;}}
-    .ck-task-list input:checked + span{{color:#6b6860;text-decoration:line-through;text-decoration-thickness:1px;}}
-    .ck-check{{margin:0 0 8px;padding-left:1.2em;}}
-    .ck-check li{{margin:3px 0;}}
-    @media(max-width:860px){{.ck-action-grid{{grid-template-columns:1fr 1fr}}}}
+    body {{
+      margin: 0;
+      padding: 32px 16px;
+      background: #f6f5f0;
+      color: #1a1a1a;
+      font-family: "Latin Modern Roman", "Computer Modern Roman", "CMU Serif", "Times New Roman", Times, "Songti SC", "SimSun", "STSong", serif;
+      -webkit-font-smoothing: antialiased;
+    }}
+    .page {{ max-width: 1140px; margin: 0 auto; }}
+    .ck-doc {{
+      background: #ffffff;
+      border: 1px solid #d4d0c7;
+      border-radius: 4px;
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.05), 0 1px 3px rgba(0,0,0,0.03);
+      padding: 36px 44px;
+      line-height: 1.72;
+      font-size: 0.96rem;
+    }}
+    .ck-doc h1 {{
+      margin: 0 0 10px;
+      font-size: 1.85rem;
+      font-weight: 700;
+      letter-spacing: 0.4px;
+      text-align: center;
+      font-variant: small-caps;
+      color: #111111;
+    }}
+    .ck-doc-header {{
+      margin-bottom: 28px;
+      padding-bottom: 16px;
+      border-bottom: 2px solid #111111;
+      text-align: center;
+    }}
+    .ck-doc-meta {{
+      font-size: 0.85rem;
+      color: #555555;
+      font-style: italic;
+    }}
+    .ck-doc h2 {{
+      margin: 32px 0 16px;
+      font-size: 1.25rem;
+      font-weight: 700;
+      color: #111111;
+      border-bottom: 1.5px solid #222222;
+      padding-bottom: 5px;
+      letter-spacing: 0.3px;
+    }}
+    .ck-doc h3 {{
+      margin: 20px 0 10px;
+      font-size: 1.05rem;
+      font-weight: 700;
+      color: #222222;
+    }}
+    .ck-note {{ color: #555555; font-size: 0.86rem; font-style: italic; }}
+    
+    /* Booktabs Table Style */
+    .ck-table-panel {{
+      border: 1px solid #dcd8cf;
+      border-radius: 4px;
+      background: #ffffff;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.02);
+      padding: 18px 20px;
+      box-sizing: border-box;
+    }}
+    .ck-overview-wrap {{ margin: 14px 0 24px; display: flex; flex-direction: column; gap: 16px; }}
+    .ck-overview-title {{
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+      gap: 12px;
+      margin: 0 0 14px;
+      padding-bottom: 8px;
+      border-bottom: 1px solid #e7e4dc;
+      font-family: inherit;
+    }}
+    .ck-overview-title span:first-child {{
+      font-size: 0.96rem;
+      font-weight: 700;
+      color: #111111;
+      letter-spacing: 0.3px;
+    }}
+    .ck-overview-hint {{ font-size: 0.78rem; color: #666666; font-style: italic; }}
+    .ck-filter-row {{ display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin: 0 0 14px; }}
+    .ck-filter-row select {{
+      padding: 4px 10px;
+      border: 1px solid #888888;
+      border-radius: 3px;
+      font-size: 0.82rem;
+      background: #ffffff;
+      font-family: inherit;
+      color: #111111;
+    }}
+    .ck-mastery-track {{ flex: 1; min-width: 140px; height: 8px; border-radius: 4px; background: #e5e2da; overflow: hidden; border: 1px solid #ccc; }}
+    #ck-mastery-fill {{ display: block; height: 100%; width: 0; background: #0047ab; transition: width .2s; }}
+    #ck-mastery-text {{ font-size: 0.82rem; color: #444444; white-space: nowrap; font-weight: 600; font-family: inherit; }}
+    .ck-table {{
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.88rem;
+      margin: 0;
+      background: #ffffff;
+      border-top: 2px solid #222222;
+      border-bottom: 2px solid #222222;
+    }}
+    .ck-table th, .ck-table td {{
+      padding: 9px 12px;
+      text-align: left;
+      vertical-align: middle;
+    }}
+    .ck-table th {{
+      background: #fbfaf7;
+      border-bottom: 1.2px solid #222222;
+      font-weight: 700;
+      color: #111111;
+      white-space: nowrap;
+      user-select: none;
+      font-size: 0.83rem;
+      letter-spacing: 0.3px;
+    }}
+    .ck-table th[data-sort] {{ cursor: pointer; }}
+    .ck-table th[data-sort]:hover {{ background: #f0ede6; }}
+    .ck-table td {{ border-bottom: 1px solid #ede9e1; }}
+    .ck-table tbody tr:hover {{ background: #faf8f5; }}
+    .ck-th-check {{ width: 54px; text-align: center !important; }}
+    .ck-th-grade {{ width: 90px; text-align: center !important; }}
+    .ck-th-name {{ min-width: 260px; }}
+    .ck-th-imp {{ width: 110px; text-align: center !important; }}
+    .ck-th-diff {{ width: 80px; text-align: center !important; }}
+    .ck-th-chap {{ width: 170px; }}
+    .ck-cell-center {{ text-align: center !important; }}
+    .ck-mastery {{ width: 16px; height: 16px; accent-color: #0047ab; cursor: pointer; vertical-align: middle; }}
+    
+    /* LaTeX Academic Badges */
+    .ck-pill {{
+      display: inline-flex;
+      align-items: center;
+      padding: 1px 7px;
+      border-radius: 2px;
+      font-size: 0.74rem;
+      font-weight: 700;
+      line-height: 1.4;
+      white-space: nowrap;
+      font-family: inherit;
+      border: 1px solid #666;
+    }}
+    .ck-pill.ck-grade-s {{ background: #fff1f0; color: #a8071a; border-color: #cf1322; }}
+    .ck-pill.ck-grade-a {{ background: #fffbe6; color: #ad4e00; border-color: #d46b08; }}
+    .ck-pill.ck-grade-b {{ background: #e6f4ff; color: #0958d9; border-color: #1677ff; }}
+    .ck-pill.ck-grade-c {{ background: #f5f5f5; color: #595959; border-color: #8c8c8c; }}
+    
+    .ck-badge {{
+      display: inline-block;
+      margin-right: 6px;
+      padding: 1px 8px;
+      border-radius: 2px;
+      font-size: 0.74rem;
+      font-weight: 700;
+      font-family: inherit;
+      border: 1px solid #222;
+    }}
+    .ck-s {{ background: #fff1f0; border-color: #cf1322; color: #a8071a; }}
+    .ck-a {{ background: #fffbe6; border-color: #d46b08; color: #ad4e00; }}
+    .ck-b {{ background: #e6f4ff; border-color: #1677ff; color: #0958d9; }}
+    
+    .ck-stars {{ color: #b86a04; white-space: nowrap; letter-spacing: 1.5px; font-size: 0.88rem; }}
+    .ck-diff-badge {{
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      padding: 1px 6px;
+      border-radius: 2px;
+      background: #fbfaf7;
+      font-size: 0.76rem;
+      font-weight: 700;
+      color: #444;
+      border: 1px solid #ccc;
+      white-space: nowrap;
+    }}
+    .ck-chap-tag {{ display: inline-block; max-width: 160px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: #555555; font-size: 0.82rem; }}
+    .ck-kp-name {{ font-weight: 700; color: #111111; }}
+    .ck-row-preview {{ font-weight: 400; color: #666666; font-size: 0.76rem; margin-top: 3px; line-height: 1.45; }}
+    
+    /* Section 2: LaTeX Review & Card Styles */
+    .ck-review {{
+      display: grid;
+      grid-template-columns: minmax(0, 1.35fr) 1px minmax(260px, 0.95fr);
+      border: 1px solid #d4d0c7;
+      border-radius: 4px;
+      overflow: hidden;
+      margin: 14px 0 20px;
+      background: #ffffff;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.03);
+    }}
+    .ck-review-left {{ padding: 18px 22px; background: #ffffff; }}
+    .ck-review-rule {{ background: #dcd8cf; }}
+    .ck-review-right {{
+      padding: 14px 16px;
+      background: #faf9f6;
+      box-sizing: border-box;
+      display: flex;
+      flex-direction: column;
+    }}
+    .ck-ev-list {{
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }}
+    
+    /* Theorem & Definition Boxes as seen in img.png */
+    .ck-card {{
+      margin: 0;
+      padding: 0;
+      border: 0;
+      background: transparent;
+    }}
+    .ck-card.is-s {{
+      border: 1.5px solid #222222;
+      padding: 14px 16px;
+      background: #ffffff;
+      border-radius: 2px;
+    }}
+    .ck-card.is-a {{
+      border: 1px solid #e0dcd4;
+      border-left: 4px solid #222222;
+      padding: 14px 16px;
+      background: #fdfdfc;
+      border-radius: 2px;
+    }}
+    .ck-card.is-b {{
+      border: 1px solid #e0dcd4;
+      border-left: 3px solid #666666;
+      padding: 12px 14px;
+      background: #faf9f6;
+      border-radius: 2px;
+    }}
+    .ck-card-header {{
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-wrap: wrap;
+      margin-bottom: 10px;
+      padding-bottom: 6px;
+      border-bottom: 1px solid #ede9e1;
+    }}
+    .ck-thm-title {{
+      font-size: 1.02rem;
+      font-weight: 700;
+      color: #111111;
+    }}
+    .ck-thm-label {{
+      font-weight: 700;
+      color: #111111;
+      margin-right: 4px;
+      font-family: inherit;
+    }}
+    .ck-thm-list, .ck-thm-enum {{
+      margin: 4px 0 8px;
+      padding-left: 1.4em;
+      line-height: 1.68;
+    }}
+    .ck-thm-list li, .ck-thm-enum li {{
+      margin: 3px 0;
+    }}
+    .ck-remark-box {{
+      margin: 8px 0;
+      padding: 8px 12px;
+      background: #fbfaf7;
+      border-left: 3px solid #b86a04;
+      border-radius: 2px;
+      font-size: 0.92rem;
+    }}
+    
+    /* Blue Hyperref Citations */
+    .ck-cite-ref {{
+      color: #0047ab;
+      font-weight: 600;
+      font-family: "Latin Modern Roman", "Computer Modern Roman", "Times New Roman", serif;
+      text-decoration: none;
+      cursor: pointer;
+      padding: 0 2px;
+      margin: 0 1px;
+      border-radius: 2px;
+      transition: all 0.15s ease;
+      font-size: 0.92em;
+      vertical-align: baseline;
+      user-select: none;
+    }}
+    .ck-cite-ref:hover {{
+      text-decoration: underline;
+      background: #e8f0fe;
+      color: #003380;
+    }}
+    .ck-cite-ref.is-active {{
+      background: #d2e3fc;
+      color: #002266;
+      font-weight: 700;
+      box-shadow: 0 0 0 1px #0047ab;
+    }}
+    
+    .ck-field {{
+      border-radius: 3px;
+      padding: 4px 6px;
+      margin: 4px -6px;
+      transition: background 0.18s ease;
+      cursor: pointer;
+    }}
+    .ck-field:hover {{ background: #faf8f0; }}
+    .ck-field.is-on {{ background: #fff8db; border-left: 2px solid #b86a04; }}
+    
+    /* Right Provenance Panel */
+    .ck-provenance-head {{
+      font-size: 0.82rem;
+      font-weight: 700;
+      color: #222222;
+      margin: 0 0 12px;
+      padding-bottom: 6px;
+      border-bottom: 1px solid #e0dcd4;
+      letter-spacing: 0.3px;
+      text-transform: uppercase;
+    }}
+    .ck-ref-icon {{ color: #0047ab; margin-right: 4px; }}
+    .ck-ev {{
+      display: block;
+      margin: 0;
+      padding: 9px 11px;
+      border: 1px solid #dedad2;
+      border-left: 3.5px solid #888888;
+      border-radius: 2px;
+      background: #ffffff;
+      font-size: 0.82rem;
+      line-height: 1.55;
+      transition: all 0.2s ease;
+      cursor: pointer;
+    }}
+    .ck-ev-more {{
+      margin-top: 2px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }}
+    .ck-ev-more[open] {{
+      margin-top: 4px;
+    }}
+    .ck-ev-more summary {{
+      margin-bottom: 6px;
+    }}
+    .ck-ev:hover {{ border-color: #b5b0a5; }}
+    .ck-ev-teacher {{ border-left-color: #b32424; background: #fffcfc; }}
+    .ck-ev-kb {{ border-left-color: #0047ab; background: #fdfdfe; }}
+    .ck-ev-note {{ border-left-color: #1e7e34; background: #fbfdfb; }}
+    
+    .ck-ev.is-on, .ck-ev.is-highlighted {{
+      border-color: #0047ab;
+      box-shadow: 0 0 0 2px #0047ab, 0 3px 8px rgba(0,71,171,0.15);
+      background: #f0f5ff;
+    }}
+    @keyframes citePulse {{
+      0% {{ background: #dbeafe; box-shadow: 0 0 0 3px #0047ab; }}
+      50% {{ background: #bfdbfe; box-shadow: 0 0 0 4px #0047ab; }}
+      100% {{ background: #f0f5ff; box-shadow: 0 0 0 2px #0047ab; }}
+    }}
+    .ck-ev-k {{
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 0.75rem;
+      color: #444444;
+      margin-bottom: 4px;
+      font-weight: 700;
+    }}
+    .ck-ev-cite-tag {{
+      color: #0047ab;
+      font-weight: 700;
+      font-family: "Latin Modern Roman", serif;
+      text-decoration: none;
+    }}
+    .ck-ev-kind-badge {{ color: #333333; }}
+    .ck-ev-teacher .ck-ev-kind-badge {{ color: #b32424; }}
+    .ck-ev-kb .ck-ev-kind-badge {{ color: #0047ab; }}
+    .ck-ev-note .ck-ev-kind-badge {{ color: #1e7e34; }}
+    
+    .ck-ev-quote {{ color: #222222; font-style: italic; font-family: inherit; }}
+    .ck-ev-meta, .ck-ev-sup {{ font-size: 0.74rem; color: #555555; margin-top: 4px; }}
+    .ck-ev-empty {{ font-size: 0.78rem; color: #888888; padding: 6px 2px; font-style: italic; }}
+    .ck-ev-more {{ margin-top: 8px; }}
+    .ck-proof-toggle {{
+      cursor: pointer;
+      font-size: 0.82rem;
+      color: #0047ab;
+      user-select: none;
+      font-family: inherit;
+      padding: 2px 0;
+    }}
+    .ck-proof-toggle:hover {{ text-decoration: underline; }}
+    
+    /* Brief & Extra sections */
+    .ck-brief {{
+      margin: 12px 0 20px;
+      padding: 14px 18px;
+      border: 1px solid #d4d0c7;
+      border-left: 4px solid #666666;
+      border-radius: 2px;
+      background: #faf9f6;
+    }}
+    .ck-brief h3 {{ margin: 0 0 8px; font-size: 1.02rem; font-weight: 700; }}
+    .ck-brief ul {{ margin: 0; padding-left: 1.2em; }}
+    .ck-subtitle {{ margin: 16px 0 6px; font-size: 0.92rem; font-weight: 700; color: #444444; }}
+    .ck-brief li {{ margin: 6px 0; line-height: 1.6; }}
+    
+    /* Section 3: Review Strategy */
+    .ck-strategy-panel {{
+      margin: 12px 0 20px;
+      border: 1px solid #d4d0c7;
+      border-radius: 3px;
+      background: #ffffff;
+      overflow: hidden;
+    }}
+    .ck-strategy-head {{
+      display: flex;
+      align-items: baseline;
+      gap: 10px;
+      padding: 10px 16px;
+      border-bottom: 1px solid #dcd8cf;
+      background: #faf9f6;
+    }}
+    .ck-strategy-head span {{ font-weight: 700; color: #111111; font-size: 0.95rem; }}
+    .ck-strategy-head em {{ font-style: italic; color: #666666; font-size: 0.78rem; }}
+    .ck-strategy-route {{ border-top: 1.5px solid #222222; }}
+    .ck-priority-matrix {{
+      width: 100%;
+      border-collapse: collapse;
+      background: #ffffff;
+      font-size: 0.85rem;
+      border-top: 2px solid #222222;
+      border-bottom: 2px solid #222222;
+    }}
+    .ck-priority-matrix th, .ck-priority-matrix td {{
+      border: 1px solid #ede9e1;
+      padding: 10px 12px;
+      vertical-align: top;
+      text-align: left;
+    }}
+    .ck-priority-matrix th {{ width: 88px; background: #faf9f6; color: #111; font-weight: 700; border-bottom: 1.2px solid #222222; }}
+    .ck-priority-matrix td b {{ display: block; margin-bottom: 5px; color: #111111; }}
+    .ck-priority-matrix td div {{ display: flex; gap: 5px; flex-wrap: wrap; }}
+    .ck-priority-matrix td span, .ck-strategy-chips span {{
+      display: inline-flex;
+      align-items: center;
+      max-width: 100%;
+      padding: 1px 7px;
+      border: 1px solid #b5b0a5;
+      border-radius: 2px;
+      background: #faf9f6;
+      color: #222222;
+      font-size: 0.75rem;
+      line-height: 1.45;
+    }}
+    .ck-priority-matrix td em {{ font-style: italic; color: #888888; }}
+    
+    .ck-strategy {{ list-style: none; margin: 0; padding: 12px 14px; display: grid; gap: 10px; }}
+    .ck-strategy li {{
+      display: grid;
+      grid-template-columns: 32px minmax(0, 1fr);
+      gap: 12px;
+      align-items: start;
+      padding: 11px 13px;
+      border: 1px solid #dedad2;
+      border-left: 3.5px solid #0047ab;
+      border-radius: 2px;
+      background: #ffffff;
+    }}
+    .ck-strategy-no {{
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 28px;
+      height: 28px;
+      border-radius: 2px;
+      background: #0047ab;
+      color: #ffffff;
+      font-size: 0.75rem;
+      font-weight: 700;
+      line-height: 1;
+      font-family: inherit;
+    }}
+    .ck-strategy-text {{ font-size: 0.9rem; line-height: 1.65; color: #222222; }}
+    .ck-strategy-text h3 {{ margin: 0 0 5px; font-size: 0.98rem; font-weight: 700; color: #111; }}
+    .ck-strategy-text p {{ margin: 5px 0 0; }}
+    .ck-strategy-chips {{ display: flex; gap: 5px; flex-wrap: wrap; margin: 0 0 7px; }}
+    
+    /* Section 4: Action Checklist */
+    .ck-action {{ margin: 10px 0 8px; }}
+    .ck-progress {{ margin: 0 0 14px; padding: 12px 14px; border: 1px solid #d4d0c7; border-radius: 3px; background: #faf9f6; }}
+    .ck-progress-top {{ display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 8px; font-size: 0.88rem; }}
+    .ck-progress-top span {{ color: #555555; font-size: 0.82rem; font-family: inherit; }}
+    .ck-progress-track {{ height: 8px; border-radius: 4px; background: #e0dcd4; overflow: hidden; border: 1px solid #ccc; }}
+    .ck-progress-track span {{ display: block; height: 100%; border-radius: 4px; background: #0047ab; transition: width .18s ease; }}
+    .ck-action-grid {{ display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; margin: 0 0 14px; }}
+    .ck-stage {{
+      display: grid;
+      gap: 6px;
+      text-align: left;
+      padding: 12px 12px 14px;
+      border: 1px solid #d4d0c7;
+      border-radius: 3px;
+      background: #faf9f6;
+      cursor: pointer;
+      min-height: 160px;
+      font-family: inherit;
+      transition: all 0.15s ease;
+    }}
+    .ck-stage:hover {{ background: #f4f1ea; }}
+    .ck-stage.is-on {{
+      background: #ffffff;
+      border-color: #0047ab;
+      border-width: 1.5px;
+      box-shadow: 0 0 0 1px #0047ab;
+    }}
+    .ck-stage-no {{
+      width: 22px;
+      height: 22px;
+      border-radius: 2px;
+      background: #e8e4db;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 0.78rem;
+      font-weight: 700;
+    }}
+    .ck-stage.is-on .ck-stage-no {{ background: #0047ab; color: #ffffff; }}
+    .ck-stage-title {{ font-weight: 700; font-size: 0.96rem; color: #111; }}
+    .ck-stage-sub, .ck-stage-sum {{ color: #555555; font-size: 0.78rem; line-height: 1.45; }}
+    .ck-stage-count {{ font-size: 0.76rem; color: #222222; font-weight: 700; }}
+    .ck-action-detail {{ border: 1px solid #dedad2; border-radius: 3px; padding: 16px 18px; background: #ffffff; }}
+    .ck-action-detail[hidden] {{ display: none; }}
+    .ck-phase {{ margin: 12px 0 18px; }}
+    .ck-phase h4 {{ margin: 0 0 8px; }}
+    .ck-task {{ margin: 10px 0; padding: 11px 13px; border: 1px solid #dedad2; border-radius: 2px; background: #faf9f6; }}
+    .ck-meta, .ck-k {{ font-size: 0.86rem; color: #555555; margin: 8px 0 4px; }}
+    .ck-k {{ font-weight: 700; color: #111111; }}
+    .ck-task-list {{ list-style: none; margin: 0 0 8px; padding: 0; display: grid; gap: 6px; }}
+    .ck-task-list li {{ margin: 0; line-height: 1.65; }}
+    .ck-task-list label {{ display: grid; grid-template-columns: 16px minmax(0, 1fr); gap: 8px; align-items: start; cursor: pointer; }}
+    .ck-task-list input {{ width: 15px; height: 15px; margin: 5px 0 0; accent-color: #0047ab; cursor: pointer; }}
+    .ck-task-list input:checked + span {{ color: #777777; text-decoration: line-through; text-decoration-thickness: 1px; }}
+    .ck-check {{ margin: 0 0 8px; padding-left: 1.2em; }}
+    .ck-check li {{ margin: 3px 0; }}
+    
+    @media(max-width: 860px) {{
+      .ck-doc {{ padding: 22px 18px; }}
+      .ck-review {{ grid-template-columns: 1fr; }}
+      .ck-review-rule {{ display: none; }}
+      .ck-action-grid {{ grid-template-columns: 1fr 1fr; }}
+    }}
     {_widget_css()}
   </style>
   <script src="{_CYTOSCAPE_CDN}"></script>

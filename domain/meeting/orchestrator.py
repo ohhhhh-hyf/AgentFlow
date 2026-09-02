@@ -202,6 +202,7 @@ _REJECT_MINUTES_TRACE_REVIEW = {
     "feedback": ["LLM 调用失败，未完成审核，转降级输出"],
 }
 
+
 # ── 拒绝审核常量生成区结束 ──
 
 # ── 任务线注册生成区：由 tools/scripts/sync_domain.py 生成，勿手改 ──
@@ -536,6 +537,19 @@ class _Nodes(DomainNodes):
             if mode and self._line_policy(line_name).cli_mode:
                 context = f"组织模式：{mode}\n\n{context}"
             extra = (state.get("line_extra") or {}).get(line_name)
+            try:
+                from tools.meeting_memory.runtime import build_line_extra
+
+                memory_extra = build_line_extra(
+                    state,
+                    line_name,
+                    line_extra=state.get("line_extra") or {},
+                )
+            except Exception:
+                logger.warning("会议记忆 v2 注入失败（%s）", line_name, exc_info=True)
+                memory_extra = ""
+            if memory_extra:
+                extra = f"{extra}\n\n{memory_extra}".strip() if extra else memory_extra
             if extra:
                 context = f"{context}\n\n{extra}"
             try:
@@ -563,6 +577,7 @@ class _Nodes(DomainNodes):
                     line_name: {
                         "draft": result.model_dump(),
                         "degraded": False,
+                        "memory_context": memory_extra,
                     }
                 }
             }

@@ -137,7 +137,7 @@ def _project_document(record: dict[str, Any]) -> str:
 def _iter_entries(record: dict[str, Any]) -> Iterator[tuple[int, str, str, str, str]]:
     """从 record 提取摘录条目：(seq, title, at, etype, text)。
 
-    与 merge_meeting 的 sessions 快照对齐；seq 缺失时按 run_count 回推。
+    兼容旧档案的 sessions 快照；seq 缺失时按 run_count 回推。
     """
     meeting = record.get("meeting") if isinstance(record.get("meeting"), dict) else {}
     sessions = [

@@ -36,6 +36,8 @@ class TaskRequest(BaseModel):
     texts: dict[str, str] = Field(default_factory=dict)
     docs: list[str] = Field(default_factory=list)
     extra: Extra = Field(default_factory=Extra)
+    # 任务时间（会议开始或转录完成时刻），可为空；非空时写入会议记忆并在溯源卡片展示
+    time: str = ""
 
     @field_validator("texts")
     @classmethod

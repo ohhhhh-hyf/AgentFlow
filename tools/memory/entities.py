@@ -234,28 +234,6 @@ def entity_names(entities: object) -> list[str]:
     return out
 
 
-def normalize_entities(entities: object, stamp: str = "") -> dict[str, dict[str, Any]]:
-    """把新旧格式实体统一成结构化 map：{name: {name, type, first_seen, last_seen, status, sessions[]}}。"""
-    out: dict[str, dict[str, Any]] = {}
-    for item in entities or []:
-        if isinstance(item, dict):
-            name = str(item.get("name") or "").strip()
-            ent = dict(item)
-        else:
-            name = str(item).strip()
-            ent = {}
-        if not name:
-            continue
-        ent.setdefault("name", name)
-        ent.setdefault("type", entity_type(name))
-        ent.setdefault("first_seen", stamp)
-        ent.setdefault("last_seen", stamp)
-        ent.setdefault("status", "active")
-        ent.setdefault("sessions", [])
-        out[name] = ent
-    return out
-
-
 __all__ = [
     "extract_entities",
     "extract_quoted",

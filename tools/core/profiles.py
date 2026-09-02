@@ -125,49 +125,6 @@ def list_profile_entries(profile_dir: Path) -> list[dict[str, Any]]:
     return entries
 
 
-def list_profile_entries_multi(dirs: list[Path]) -> list[dict[str, Any]]:
-    """多目录合并扫描：前面的目录优先，同名文件（domain 自带覆盖公共）去重。
-
-    例：``[samples/meeting/profile（若存在）, perspective/profiles]``
-    ——域名下的客观/真人画像在前，公共职业模板在后。
-    """
-    seen: set[str] = set()
-    merged: list[dict[str, Any]] = []
-    for profile_dir in dirs:
-        for entry in list_profile_entries(profile_dir):
-            if entry["filename"] in seen:
-                continue
-            seen.add(entry["filename"])
-            merged.append(entry)
-    order = {KIND_OBJECTIVE: 0, KIND_PERSON: 1, KIND_ROLE: 2}
-    merged.sort(key=lambda item: (order.get(item["kind"], 9), item["label"]))
-    return merged
-
-
-def profile_choices(profile_dir: Path) -> list[str]:
-    return [item["label"] for item in list_profile_entries(profile_dir)]
-
-
-def default_profile_label(profile_dir: Path) -> str:
-    entries = list_profile_entries(profile_dir)
-    for item in entries:
-        if item["kind"] == KIND_OBJECTIVE:
-            return item["label"]
-    return entries[0]["label"] if entries else "客观 · 客观全员"
-
-
-def resolve_profile_entry(profile_dir: Path, label: str) -> dict[str, Any] | None:
-    entries = list_profile_entries(profile_dir)
-    text = (label or "").strip()
-    for item in entries:
-        if item["label"] == text:
-            return item
-    for item in entries:
-        if item["kind"] == KIND_OBJECTIVE:
-            return item
-    return entries[0] if entries else None
-
-
 def filter_identity_fields(data: dict[str, Any], identity_cls: type) -> dict[str, Any]:
     allowed = {item.name for item in fields(identity_cls)}
     return {key: value for key, value in (data or {}).items() if key in allowed}
@@ -179,12 +136,8 @@ __all__ = [
     "KIND_ROLE",
     "SHARED_PROFILE_DIR",
     "classify_profile",
-    "default_profile_label",
     "filter_identity_fields",
     "list_profile_entries",
-    "list_profile_entries_multi",
     "profile_choice_label",
-    "profile_choices",
-    "resolve_profile_entry",
     "resolve_role_template",
 ]

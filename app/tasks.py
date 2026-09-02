@@ -303,6 +303,7 @@ class _Prepared:
     project: str
     subject: str
     memory: bool
+    time: str = ""
 
 
 def _prepare(domain: str, task: str, req: TaskRequest, user_id: str) -> _Prepared:
@@ -414,6 +415,7 @@ def _prepare(domain: str, task: str, req: TaskRequest, user_id: str) -> _Prepare
         project=(extra.project or "").strip(),
         subject=_subject_pinyin(extra.subject),
         memory=bool(extra.memory),
+        time=(req.time or "").strip(),
     )
 
 
@@ -463,6 +465,7 @@ async def _run_task_impl(
             collect_reports=True,
             extra_line_inputs=p.extra_line_inputs,
             memory=p.memory,
+            meeting_time=p.time,
         )
     except ApiError:
         raise
@@ -582,6 +585,7 @@ async def _stream_task_impl(
                 collect_reports=True,
                 extra_line_inputs=p.extra_line_inputs,
                 memory=p.memory,
+                meeting_time=p.time,
             )
         except Exception as exc:  # noqa: BLE001 - 准备失败推 error 事件
             yield _ndjson({"type": "error", "code": 500, "message": f"任务准备失败：{exc}"})
@@ -609,7 +613,11 @@ async def _stream_task_impl(
                     })
                 elif event["type"] == "done":
                     last_done = event
-                    saved = await _handle_done(prep.ctx, event) or {}
+                    saved = await _handle_done(
+                        prep.ctx,
+                        event,
+                        memory_on=bool((prep.line_extra or {}).get("__meeting_memory__")),
+                    ) or {}
                     saved_paths = save_task_outputs(user_id, request_id, saved)
                     md_text = ""
                     if saved_paths.get("md"):
@@ -632,7 +640,21 @@ async def _stream_task_impl(
                         md_text = report_text(
                             report_to_dict((event.get("reports") or {})[p.line])
                         )
-                    if prep.memory_enabled and prep.memory_bind is not None:
+                    meeting_meta = (prep.line_extra or {}).get("__meeting_memory__")
+                    if meeting_meta:
+                        from tools.meeting_memory.runtime import persist_after_run
+
+                        persist_after_run(
+                            prep.ctx.project_root,
+                            user_id,
+                            p.project or "",
+                            request_id,
+                            prep.transcript,
+                            event.get("reports") or {},
+                            event.get("understanding") or {},
+                            meeting_time=p.time,
+                        )
+                    elif prep.memory_enabled and prep.memory_bind is not None:
                         from tools.memory import persist
 
                         persist(
