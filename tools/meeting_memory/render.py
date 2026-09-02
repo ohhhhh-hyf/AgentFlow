@@ -331,25 +331,293 @@ def apply_memory_citations(markdown: str, context: str) -> str:
     return "\n".join(lines) + "\n" + "\n".join(appendix)
 
 
-# ── HTML 审阅栏 ─────────────────────────────────────────────
+def _latex_paper_css() -> str:
+    return """
+    body {
+      margin: 0;
+      padding: 32px 16px;
+      background: #f6f5f0;
+      color: #1a1a1a;
+      font-family: "Latin Modern Roman", "Computer Modern Roman", "CMU Serif", "Times New Roman", Times, "Songti SC", "SimSun", "STSong", serif;
+      -webkit-font-smoothing: antialiased;
+    }
+    .page { max-width: 1140px; margin: 0 auto; }
+    .ck-doc {
+      background: #ffffff;
+      border: 1px solid #d4d0c7;
+      border-radius: 4px;
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.05), 0 1px 3px rgba(0,0,0,0.03);
+      padding: 36px 44px;
+      line-height: 1.75;
+      font-size: 0.96rem;
+    }
+    .ck-doc h1 {
+      margin: 0 0 10px;
+      font-size: 1.85rem;
+      font-weight: 700;
+      letter-spacing: 0.4px;
+      text-align: center;
+      font-variant: small-caps;
+      color: #111111;
+    }
+    .ck-doc-header {
+      margin-bottom: 24px;
+      padding-bottom: 16px;
+      border-bottom: 2px solid #111111;
+      text-align: center;
+    }
+    .ck-doc-meta {
+      font-size: 0.85rem;
+      color: #555555;
+      font-style: italic;
+    }
+    .ck-doc h2, .ck-doc-h2 {
+      margin: 28px 0 14px;
+      font-size: 1.22rem;
+      font-weight: 700;
+      color: #111111;
+      border-bottom: 1.5px solid #222222;
+      padding-bottom: 5px;
+      letter-spacing: 0.3px;
+    }
+    .ck-doc h3, .ck-doc-h3 {
+      margin: 20px 0 10px;
+      font-size: 1.05rem;
+      font-weight: 700;
+      color: #222222;
+    }
+    .ck-doc h4, .ck-doc-h4 {
+      margin: 16px 0 8px;
+      font-size: 0.98rem;
+      font-weight: 700;
+      color: #333333;
+    }
+    .ck-doc p {
+      margin: 10px 0;
+      line-height: 1.75;
+      text-align: justify;
+    }
+    .ck-doc ul, .ck-doc ol {
+      margin: 8px 0 12px;
+      padding-left: 1.5em;
+      line-height: 1.72;
+    }
+    .ck-doc li {
+      margin: 4px 0;
+    }
+    .ck-doc blockquote, .ck-quote {
+      margin: 10px 0 14px;
+      padding: 8px 14px;
+      background: #faf9f6;
+      border-left: 3.5px solid #222222;
+      border-radius: 2px;
+      color: #222222;
+      font-size: 0.92rem;
+      font-style: italic;
+    }
+    .ck-doc code {
+      background: #f3f0e8;
+      border: 1px solid #e2ddd3;
+      border-radius: 3px;
+      padding: 1px 6px;
+      font-family: "Latin Modern Mono", Consolas, monospace;
+      font-size: 0.88em;
+    }
+    .ck-doc table, .ck-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.88rem;
+      margin: 14px 0;
+      background: #ffffff;
+      border-top: 2px solid #222222;
+      border-bottom: 2px solid #222222;
+    }
+    .ck-doc table th, .ck-doc table td, .ck-table th, .ck-table td {
+      padding: 9px 12px;
+      text-align: left;
+      vertical-align: middle;
+      border-bottom: 1px solid #ede9e1;
+    }
+    .ck-doc table th, .ck-table th {
+      background: #fbfaf7;
+      border-bottom: 1.2px solid #222222;
+      font-weight: 700;
+      color: #111111;
+      letter-spacing: 0.3px;
+    }
 
+    /* Review Grid */
+    .ck-review {
+      display: grid;
+      grid-template-columns: minmax(0, 1.35fr) 1px minmax(260px, 0.95fr);
+      border: 1px solid #d4d0c7;
+      border-radius: 4px;
+      overflow: hidden;
+      margin: 14px 0 20px;
+      background: #ffffff;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.03);
+    }
+    .ck-review-left {
+      padding: 22px 26px;
+      background: #ffffff;
+      line-height: 1.75;
+    }
+    .ck-review-rule { background: #dcd8cf; }
+    .ck-review-right {
+      padding: 16px 18px;
+      background: #faf9f6;
+      box-sizing: border-box;
+      display: flex;
+      flex-direction: column;
+    }
+    .ck-ev-list {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
 
-def _mark_line(line: str) -> tuple[str, list[str]]:
-    """把 Markdown 记忆链接变成高亮，其余转义。"""
-    parts: list[str] = []
-    ids: list[str] = []
-    pos = 0
-    for match in re.finditer(r"\[([^\]]+)\]\(#(memory-\d+)\)", line):
-        parts.append(escape(line[pos : match.start()], quote=False))
-        ref_id = match.group(2).strip()
-        parts.append(
-            f'<mark class="mem-mark" data-mem="{escape(ref_id, quote=True)}">'
-            f"{escape(match.group(1), quote=False)}</mark>"
-        )
-        ids.append(ref_id)
-        pos = match.end()
-    parts.append(escape(line[pos:], quote=False))
-    return "".join(parts), ids
+    /* Entity Highlight in LaTeX Paper Style */
+    .ck-cite-entity {
+      background: #fff8db;
+      border-bottom: 1.5px solid #b86a04;
+      padding: 1px 4px;
+      border-radius: 2px;
+      cursor: pointer;
+      transition: all 0.18s ease;
+      color: #111111;
+      font-weight: 600;
+    }
+    .ck-cite-entity:hover {
+      background: #ffe58f;
+      color: #000000;
+    }
+    .ck-cite-entity.is-on {
+      background: #ffd54a;
+      border-bottom-color: #0047ab;
+      box-shadow: 0 0 0 2px rgba(0,71,171,0.25);
+    }
+
+    /* Blue Hyperref Citations [1], [2] */
+    .ck-cite-ref {
+      color: #0047ab;
+      font-weight: 600;
+      font-family: "Latin Modern Roman", "Computer Modern Roman", "Times New Roman", serif;
+      text-decoration: none;
+      cursor: pointer;
+      padding: 0 2px;
+      margin: 0 2px;
+      border-radius: 2px;
+      transition: all 0.15s ease;
+      font-size: 0.92em;
+      vertical-align: baseline;
+      user-select: none;
+    }
+    .ck-cite-ref:hover {
+      text-decoration: underline;
+      background: #e8f0fe;
+      color: #003380;
+    }
+    .ck-cite-ref.is-active {
+      background: #d2e3fc;
+      color: #002266;
+      font-weight: 700;
+      box-shadow: 0 0 0 1px #0047ab;
+    }
+
+    /* Right Memory Cards in LaTeX Paper Style */
+    .ck-provenance-head {
+      font-size: 0.82rem;
+      font-weight: 700;
+      color: #222222;
+      margin: 0 0 12px;
+      padding-bottom: 6px;
+      border-bottom: 1px solid #e0dcd4;
+      letter-spacing: 0.3px;
+      text-transform: uppercase;
+    }
+    .ck-ref-icon { color: #0047ab; margin-right: 4px; }
+    .ck-ev {
+      display: block;
+      margin: 0;
+      padding: 10px 12px;
+      border: 1px solid #dedad2;
+      border-left: 3.5px solid #0047ab;
+      border-radius: 2px;
+      background: #ffffff;
+      font-size: 0.82rem;
+      line-height: 1.55;
+      transition: all 0.2s ease;
+      cursor: pointer;
+    }
+    .ck-ev:hover { border-color: #b5b0a5; }
+    .ck-ev.is-on, .ck-ev.is-highlighted {
+      border-color: #0047ab;
+      box-shadow: 0 0 0 2px #0047ab, 0 3px 8px rgba(0,71,171,0.15);
+      background: #f0f5ff;
+    }
+    @keyframes citePulse {
+      0% { background: #dbeafe; box-shadow: 0 0 0 3px #0047ab; }
+      50% { background: #bfdbfe; box-shadow: 0 0 0 4px #0047ab; }
+      100% { background: #f0f5ff; box-shadow: 0 0 0 2px #0047ab; }
+    }
+    .ck-ev-k {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 0.75rem;
+      color: #444444;
+      margin-bottom: 5px;
+      font-weight: 700;
+    }
+    .ck-ev-cite-tag {
+      color: #0047ab;
+      font-weight: 700;
+      font-family: "Latin Modern Roman", serif;
+      text-decoration: none;
+    }
+    .ck-mem-title {
+      font-weight: 700;
+      color: #111111;
+      font-size: 0.88rem;
+      margin-bottom: 6px;
+      line-height: 1.45;
+    }
+    .ck-ev-quote {
+      color: #222222;
+      font-style: normal;
+      font-family: inherit;
+      margin: 4px 0 6px;
+      padding: 0;
+      background: transparent;
+      border: none;
+      line-height: 1.6;
+      font-size: 0.84rem;
+    }
+    .ck-ev-meta { font-size: 0.76rem; color: #666666; margin-top: 6px; }
+    .ck-ev-more {
+      margin-top: 2px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+    .ck-ev-more[open] { margin-top: 4px; }
+    .ck-ev-more summary { margin-bottom: 6px; }
+    .ck-proof-toggle {
+      cursor: pointer;
+      font-size: 0.82rem;
+      color: #0047ab;
+      user-select: none;
+      font-family: inherit;
+      padding: 2px 0;
+    }
+    .ck-proof-toggle:hover { text-decoration: underline; }
+
+    @media(max-width: 860px) {
+      .ck-doc { padding: 22px 18px; }
+      .ck-review { grid-template-columns: 1fr; }
+      .ck-review-rule { display: none; }
+    }
+"""
 
 
 def _parse_memory_sources(markdown: str) -> dict[str, dict[str, str]]:
@@ -380,108 +648,345 @@ def _parse_memory_sources(markdown: str) -> dict[str, dict[str, str]]:
     return out
 
 
-def _memory_card_html(ref_id: str, info: dict[str, str]) -> str:
-    """渲染溯源卡片：标题 = 历史会议标题，正文为原文摘录，最下侧为会议时间（如有）。"""
-    quote = info.get("quote") or ""
-    title = info.get("title") or ""
-    mtime = info.get("time") or ""
-    card_title = title or quote or ref_id
-    return (
-        f'<aside class="mem-card" id="card-{escape(ref_id, quote=True)}" '
-        f'data-mem="{escape(ref_id, quote=True)}">'
-        f'<div class="mem-card-title">{escape(card_title, quote=False)}</div>'
-        + (
-            f'<div class="mem-card-quote">{escape(quote, quote=False)}</div>'
-            if quote and title
-            else ""
-        )
-        + (
-            f'<div class="mem-card-time">{escape(f"会议时间：{mtime}", quote=False)}</div>'
-            if mtime
-            else ""
-        )
-        + "</aside>"
-    )
+def _format_minutes_html(
+    markdown_text: str,
+    sources: dict[str, dict[str, str]],
+    ref_id_to_num: dict[str, int],
+) -> tuple[str, str]:
+    """将纪要正文解析为带有实体高亮与蓝色 [i] 引用的 HTML。返回 (meeting_title, body_html)。"""
+    lines = markdown_text.strip().splitlines()
+    meeting_title = "会议纪要"
+    if lines and lines[0].startswith("# "):
+        meeting_title = lines[0][2:].strip()
+        lines = lines[1:]
+
+    out: list[str] = []
+    list_buf: list[str] = []
+    ol_buf: list[str] = []
+
+    def flush_list() -> None:
+        if list_buf:
+            out.append("<ul>" + "".join(f"<li>{x}</li>" for x in list_buf) + "</ul>")
+            list_buf.clear()
+        if ol_buf:
+            out.append("<ol>" + "".join(f"<li>{x}</li>" for x in ol_buf) + "</ol>")
+            ol_buf.clear()
+
+    def inline_format(s: str) -> str:
+        parts: list[str] = []
+        pos = 0
+        for m in re.finditer(r"\[([^\]]+)\]\(#(memory-\d+)\)", s):
+            parts.append(escape(s[pos : m.start()], quote=False))
+            entity = m.group(1)
+            ref_id = m.group(2).strip()
+            num = ref_id_to_num.get(ref_id, 1)
+            info = sources.get(ref_id, {})
+            source_title = info.get("title") or info.get("quote") or "历史会议"
+            parts.append(
+                f'<span class="ck-cite-entity" data-mem="{escape(ref_id, quote=True)}" data-cite="{num}">{escape(entity, quote=False)}</span>'
+                f'<a href="javascript:void(0)" class="ck-cite-ref" data-target-mem="{escape(ref_id, quote=True)}" title="点击查看历史会议 [{num}] · {escape(source_title, quote=True)}">[{num}]</a>'
+            )
+            pos = m.end()
+        parts.append(escape(s[pos:], quote=False))
+        text = "".join(parts)
+
+        # Markdown bold, italic, code
+        text = re.sub(r"\*\*(.+?)\*\*", r"<strong>\1</strong>", text)
+        text = re.sub(r"(?<!\*)\*(?!\*)(.+?)(?<!\*)\*(?!\*)", r"<em>\1</em>", text)
+        text = re.sub(r"`([^`]+)`", r"<code>\1</code>", text)
+        return text
+
+    i = 0
+    while i < len(lines):
+        raw_line = lines[i]
+        stripped = raw_line.strip()
+        if not stripped:
+            flush_list()
+            i += 1
+            continue
+
+        if stripped.startswith("### "):
+            flush_list()
+            out.append(f'<h3 class="ck-doc-h3">{inline_format(stripped[4:])}</h3>')
+            i += 1
+            continue
+        if stripped.startswith("## "):
+            flush_list()
+            out.append(f'<h2 class="ck-doc-h2">{inline_format(stripped[3:])}</h2>')
+            i += 1
+            continue
+        if stripped.startswith("# "):
+            flush_list()
+            out.append(f'<h2>{inline_format(stripped[2:])}</h2>')
+            i += 1
+            continue
+
+        if re.match(r"^\s*[-*]\s+", raw_line):
+            if ol_buf:
+                flush_list()
+            list_buf.append(inline_format(re.sub(r"^\s*[-*]\s+", "", raw_line)))
+            i += 1
+            continue
+
+        if re.match(r"^\s*\d+[.)、]\s+", raw_line):
+            if list_buf:
+                flush_list()
+            ol_buf.append(inline_format(re.sub(r"^\s*\d+[.)、]\s+", "", raw_line)))
+            i += 1
+            continue
+
+        if stripped.startswith(">"):
+            flush_list()
+            out.append(f'<div class="ck-quote">{inline_format(stripped.lstrip("> "))}</div>')
+            i += 1
+            continue
+
+        flush_list()
+        out.append(f'<p>{inline_format(stripped)}</p>')
+        i += 1
+
+    flush_list()
+    return meeting_title, "".join(out)
 
 
 _MEMORY_SCRIPT = """<script>
 (function () {
-  const root = document.querySelector('.memory-review');
-  if (!root) return;
-  const clear = () => {
-    root.querySelectorAll('.is-on').forEach((el) => el.classList.remove('is-on'));
-  };
-  const activate = (id) => {
-    if (!id) return;
-    clear();
-    root.querySelectorAll('[data-mem="' + id + '"]').forEach((el) => el.classList.add('is-on'));
-    const card = root.querySelector('.mem-card[data-mem="' + id + '"]');
-    if (card) card.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
-  };
-  root.addEventListener('click', (ev) => {
-    const hit = ev.target.closest('[data-mem]');
-    if (!hit) { clear(); return; }
-    activate(hit.getAttribute('data-mem') || '');
+  function getActualContentHeight(el) {
+    const children = Array.from(el.children);
+    if (!children.length) return el.scrollHeight;
+    let top = Infinity;
+    let bottom = -Infinity;
+    children.forEach((child) => {
+      const rect = child.getBoundingClientRect();
+      if (rect.top < top) top = rect.top;
+      if (rect.bottom > bottom) bottom = rect.bottom;
+    });
+    if (bottom > top && top !== Infinity) {
+      return bottom - top;
+    }
+    return el.scrollHeight;
+  }
+
+  function adjustMemoryFolding() {
+    const isDesktop = window.innerWidth > 860;
+    document.querySelectorAll('.ck-review').forEach((row) => {
+      const leftEl = row.querySelector('.ck-review-left');
+      const rightEl = row.querySelector('.ck-review-right');
+      const listEl = row.querySelector('.ck-ev-list');
+      if (!leftEl || !rightEl || !listEl) return;
+
+      // 还原之前已折叠的元素，重新获取自然高度
+      const existingDetails = listEl.querySelector('.ck-ev-more');
+      if (existingDetails) {
+        const itemsInside = Array.from(existingDetails.querySelectorAll('.ck-ev'));
+        itemsInside.forEach((ev) => existingDetails.before(ev));
+        existingDetails.remove();
+      }
+
+      const allEvs = Array.from(listEl.querySelectorAll(':scope > .ck-ev'));
+      if (allEvs.length <= 1) return;
+
+      const leftContentHeight = getActualContentHeight(leftEl);
+
+      let totalHeight = 0;
+      const itemsToFold = [];
+
+      allEvs.forEach((ev, idx) => {
+        if (!isDesktop) {
+          if (idx >= 3) itemsToFold.push(ev);
+          return;
+        }
+        const evRect = ev.getBoundingClientRect();
+        const evHeight = (evRect && evRect.height > 0) ? evRect.height + 10 : ev.offsetHeight + 10;
+        // 当右侧卡片累积高度超过左侧正文纪要内容高度时，对超出的卡片进行折叠
+        if (totalHeight + evHeight > leftContentHeight && idx >= 1) {
+          itemsToFold.push(ev);
+        } else {
+          totalHeight += evHeight;
+        }
+      });
+
+      if (itemsToFold.length > 0) {
+        const details = document.createElement('details');
+        details.className = 'ck-ev-more';
+        const summary = document.createElement('summary');
+        summary.className = 'ck-proof-toggle';
+        summary.innerHTML = `查看更多历史会议 (${itemsToFold.length}) ▾`;
+        details.appendChild(summary);
+
+        itemsToFold[0].before(details);
+        itemsToFold.forEach((ev) => details.appendChild(ev));
+      }
+    });
+  }
+
+  window.__adjustMemoryFolding = adjustMemoryFolding;
+
+  document.querySelectorAll('.ck-review').forEach((row) => {
+    const cites = row.querySelectorAll('.ck-cite-ref');
+    const entities = row.querySelectorAll('.ck-cite-entity');
+    const cards = row.querySelectorAll('.ck-ev');
+
+    const clearHighlights = () => {
+      entities.forEach((el) => el.classList.remove('is-on'));
+      cards.forEach((el) => el.classList.remove('is-on', 'is-highlighted'));
+      cites.forEach((c) => c.classList.remove('is-active'));
+    };
+
+    const highlightMem = (targetMemId) => {
+      clearHighlights();
+      let targetCard = null;
+      row.querySelectorAll('.ck-ev').forEach((card) => {
+        if (card.getAttribute('data-mem') === targetMemId) {
+          targetCard = card;
+          const parentDetails = card.closest('details');
+          if (parentDetails) parentDetails.open = true;
+          card.classList.add('is-on', 'is-highlighted');
+          card.style.animation = 'none';
+          void card.offsetHeight;
+          card.style.animation = 'citePulse 1.2s ease';
+        }
+      });
+      entities.forEach((ent) => {
+        if (ent.getAttribute('data-mem') === targetMemId) {
+          ent.classList.add('is-on');
+        }
+      });
+      cites.forEach((c) => {
+        if (c.getAttribute('data-target-mem') === targetMemId) {
+          c.classList.add('is-active');
+        }
+      });
+      if (targetCard) {
+        targetCard.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      }
+    };
+
+    cites.forEach((btn) => {
+      btn.addEventListener('click', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        const targetId = btn.getAttribute('data-target-mem');
+        if (targetId) highlightMem(targetId);
+      });
+    });
+
+    entities.forEach((ent) => {
+      ent.addEventListener('click', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        const targetId = ent.getAttribute('data-mem');
+        if (targetId) highlightMem(targetId);
+      });
+    });
+
+    row.addEventListener('click', (e) => {
+      const card = e.target.closest('.ck-ev');
+      if (card) {
+        const memId = card.getAttribute('data-mem');
+        if (memId) highlightMem(memId);
+      }
+    });
+  });
+
+  adjustMemoryFolding();
+  window.addEventListener('load', adjustMemoryFolding);
+  let resizeTimer = null;
+  window.addEventListener('resize', () => {
+    clearTimeout(resizeTimer);
+    resizeTimer = setTimeout(adjustMemoryFolding, 100);
   });
 })();
 </script>"""
 
 
 def memory_review_html(markdown: str) -> str:
-    """把带记忆链接的纪要渲成左正文高亮 / 右记忆批注（Word 审阅栏）。
+    """把带记忆链接的纪要渲染为与 checklist 一致的 LaTeX Paper 风格 HTML。
 
-    只渲染已有 Markdown（``[原文片段](#memory-N)`` + 文末历史记忆引用），
-    复用 outputs._html_document 的 review CSS 类名。无记忆链接时一律返回空串，
-    调用方回退普通全宽纪要（.plain），不渲染左右骨架与"未命中"提示。
+    左侧：纪要正文排版，命中记忆的实体高亮并在后面附加蓝色 [1], [2] 序号标签。
+    右侧：历史记忆溯源卡片，带有连续序号 [1], [2] 与来源会议/摘录/时间。
+    交互：点击左侧实体或蓝色序号可点亮对应右侧记忆卡片并带光晕脉冲动画；右侧超出左侧高度时自适应折叠。
     """
     text = markdown or ""
     if "](#" not in text:
         return ""
     main, _appendix = re.split(r"\n## " + re.escape(SECTION_TITLE) + r"\b", text, maxsplit=1)
     sources = _parse_memory_sources(text)
-    rows: list[str] = [
-        '<div class="memory-shell">',
-        '<p class="memory-legend">黄色高亮为命中的历史记忆，点击可对照右侧批注。</p>',
-        '<div class="memory-review">',
-        '<div class="review-head-row">',
-        '<div class="review-left">本次纪要</div>',
-        '<div class="review-rule"></div>',
-        '<div class="review-right">记忆批注</div>',
-        "</div>",
-    ]
-    for raw in main.splitlines():
-        line = raw.strip()
-        if not line:
-            continue
-        hashes = len(line) - len(line.lstrip("#"))
-        if hashes and line.lstrip("#")[:1].isspace():
-            title = _mark_line(line.lstrip("# ").strip())[0]
-            rows.append(f'<div class="review-heading">{title}</div>')
-            continue
-        cleaned, ids = _mark_line(line)
-        cards: list[str] = []
-        seen: set[str] = set()
-        for ref_id in ids:
-            if ref_id in seen:
-                continue
-            seen.add(ref_id)
-            info = sources.get(ref_id) or {
-                "quote": "",
-                "title": "",
-            }
-            cards.append(_memory_card_html(ref_id, info))
-        right = "".join(cards) if cards else ""
-        row_cls = "review-row has-mem" if cards else "review-row"
-        rows.append(
-            f'<div class="{row_cls}">'
-            f'<div class="review-left">{cleaned}</div>'
-            '<div class="review-rule"></div>'
-            f'<div class="review-right">{right}</div>'
-            "</div>"
-        )
-    rows.append("</div></div>")
-    rows.append(_MEMORY_SCRIPT)
-    return "\n".join(rows)
+
+    # 提取所有出现的 ref_id，按正文首次出现顺序赋予连续编号 [1], [2], [3]...
+    ref_id_to_num: dict[str, int] = {}
+    ordered_ref_ids: list[str] = []
+
+    for m in re.finditer(r"\[([^\]]+)\]\(#(memory-\d+)\)", main):
+        ref_id = m.group(2).strip()
+        if ref_id not in ref_id_to_num:
+            num = len(ordered_ref_ids) + 1
+            ref_id_to_num[ref_id] = num
+            ordered_ref_ids.append(ref_id)
+
+    for ref_id in sources:
+        if ref_id not in ref_id_to_num:
+            num = len(ordered_ref_ids) + 1
+            ref_id_to_num[ref_id] = num
+            ordered_ref_ids.append(ref_id)
+
+    meeting_title, left_html = _format_minutes_html(main, sources, ref_id_to_num)
+
+    cards_html: list[str] = []
+    for ref_id in ordered_ref_ids:
+        num = ref_id_to_num.get(ref_id, 1)
+        info = sources.get(ref_id, {})
+        title = info.get("title") or "历史会议"
+        quote = info.get("quote") or ""
+        mtime = info.get("time") or ""
+
+        card = [
+            f'<aside class="ck-ev ck-mem-card" id="card-{escape(ref_id, quote=True)}" data-mem="{escape(ref_id, quote=True)}" data-cite="{num}">',
+            f'<div class="ck-ev-k"><a class="ck-ev-cite-tag" href="javascript:void(0);">[{num}]</a> <span class="ck-ev-kind-badge">历史会议</span></div>',
+            f'<div class="ck-mem-title"><strong>{escape(title, quote=False)}</strong></div>',
+        ]
+        if quote:
+            card.append(f'<div class="ck-ev-quote">“{escape(quote, quote=False)}”</div>')
+        if mtime:
+            card.append(f'<div class="ck-ev-meta">会议时间：{escape(mtime, quote=False)}</div>')
+        card.append("</aside>")
+        cards_html.append("".join(card))
+
+    doc_title = escape(f"{meeting_title} · 会议纪要", quote=False)
+    page_html = f"""<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{doc_title}</title>
+  <style>
+{_latex_paper_css()}
+  </style>
+</head>
+<body>
+  <main class="page">
+    <div class="ck-doc">
+      <header class="ck-doc-header">
+        <h1>{escape(meeting_title, quote=False)}</h1>
+      </header>
+      <div class="ck-review">
+        <div class="ck-review-left">
+          {left_html}
+        </div>
+        <div class="ck-review-rule"></div>
+        <div class="ck-review-right">
+          <div class="ck-ev-list">
+            {"".join(cards_html)}
+          </div>
+        </div>
+      </div>
+    </div>
+  </main>
+{_MEMORY_SCRIPT}
+</body>
+</html>
+"""
+    return page_html
 
 
 __all__ = [
@@ -491,3 +996,4 @@ __all__ = [
     "memory_review_html",
     "parse_memory_items",
 ]
+

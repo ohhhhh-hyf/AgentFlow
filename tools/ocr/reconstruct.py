@@ -276,8 +276,6 @@ def deterministic_reconstruct_markdown(lines: list[dict]) -> str:
 def review_markdown(
     markdown: str,
     lines: list[dict],
-    *,
-    max_tokens: int = 4000,
 ) -> tuple[str, str]:
     """LLM 只出补丁；程序按行号+原文核对后本地改稿。失败时返回原稿。"""
     draft = str(markdown or "").strip()
@@ -288,6 +286,7 @@ def review_markdown(
     selected = _select_review_draft_lines(draft, evidence)
     if not evidence or not selected:
         return draft, "未发现可定位的局部审校窗口。"
+    review_max_tokens = max(800, min(3000, len(evidence) * 120))
     client = None
     try:
         from .engines import get_llm_client
@@ -308,7 +307,7 @@ def review_markdown(
                 "相关 Markdown 行（L00N 是全文行号，不要写进 from/to）：\n"
                 f"{_number_selected_draft_lines(draft, selected)}\n",
                 temperature=0.0,
-                max_tokens=max_tokens,
+                max_tokens=review_max_tokens,
                 json_mode=True,
                 label="ocr/review",
             )

@@ -414,15 +414,15 @@ def _needs_review(lines: list[dict]) -> bool:
 def _estimate_reconstruct_tokens(lines: list[dict]) -> int:
     """按本批 OCR 行内容量估算重构输出上限，避免 max_tokens 下调后长批被静默截断。
 
-    估算：整理后输出字数约为输入的 40%（去噪音/去重），中文 1 token ≈ 1.2 字（保守取大）；
-    短批落 5000，内容越多上限越高，最高 20000。
+    手写笔记、公式和表格通常需要接近完整保留，按输入量的 100% 估算；
+    短批落 5000，内容越多上限越高，最高 50000。
     """
     total = sum(
         len(str(item.get("text") or "")) + len(str(item.get("formula") or ""))
         for item in lines
     )
-    needed = int(total * 0.4 / 1.2)
-    return max(5000, min(20000, needed))
+    needed = int(total / 1.2)
+    return max(5000, min(50000, needed))
 
 
 def reconstruct_and_review_pages(pages: list[dict]) -> str:
@@ -437,7 +437,7 @@ def reconstruct_and_review_pages(pages: list[dict]) -> str:
         draft = deterministic_reconstruct_markdown(lines)
     if not _needs_review(lines):
         return draft
-    reviewed, _notes = review_markdown(draft, lines, max_tokens=800)
+    reviewed, _notes = review_markdown(draft, lines)
     return reviewed or draft
 
 
