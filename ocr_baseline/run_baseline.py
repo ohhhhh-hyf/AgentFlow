@@ -566,6 +566,19 @@ def run_pipeline(images, *, batch_size: int, item_timeout, holder, out_dir):
     }
 
 
+def _pipeline_overlap_flag(pipe: dict) -> bool:
+    """重叠是否真的启用：与 light 管线同规则（env 开关 + 多于一组），
+    不能以 chunk_stats 存在性判断（串行路径同样会发 chunk_stats）。"""
+    if (pipe.get("batches") or []) and len(pipe["batches"]) < 2:
+        return False
+    try:
+        from tools.ocr.levels import light as _light_mod
+
+        return bool(_light_mod._overlap_enabled())
+    except Exception:  # noqa: BLE001 旧代码无该函数时按事件估算
+        return bool((pipe.get("stage") or {}).get("overlap"))
+
+
 def _kb_ingest(md_file: Path, *, engine: str, kb_mode: str, out_dir: Path) -> dict:
     """生产同款「md 文件入库 + 知识单元计数」（isolated 库，不污染真实数据）。"""
     from domain.notes.tasks.library.report import ingest_library, kb_from_env
@@ -836,7 +849,7 @@ def main() -> None:
             "batch_count": len(pipe["batches"]),
             "ocr_concurrency": settings["ocr_concurrency"],
             "env_overrides": env_overrides,
-            "pipeline_overlap": bool((pipe.get("stage") or {}).get("overlap")),
+            "pipeline_overlap": _pipeline_overlap_flag(pipe),
             "llm_provider": (recorder.real.provider if recorder is not None else None),
             "llm_model": (recorder.real.model if recorder is not None else None),
             "llm_available": recorder is not None,
