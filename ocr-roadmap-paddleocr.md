@@ -44,6 +44,7 @@
 >   - 触发只认两类：正文近整行丢失、稿尾截断（缺失延伸到最后一行，或稿尾结构残片信号）；
 >   - 补写独立 label `ocr/reconstruct/fix`；片段 $ 定界不平衡自动回退原文兜底；超预算余段一律原文兜底；
 >   - 每次自检产出一条事件：run.json 的 `completeness`（按批归并进 `batches[].completeness`），跨语料观察触发率与开销，不做单语料调参；
+>   - 第三轮修正（噪声纪律）：恢复前先过"可恢复资格"过滤（页码/机构信息/纯数字符号残渣/乱码指纹，与管线噪声口径一致），补写片段与原文兜底同用；缺失段按 ≤2 行间隔合并；片段合入后复检未覆盖行转入兜底——LLM 主动删除的 OCR 噪声不再被塞回稿子；
 > - A/B 开关：`OCR_COMPLETENESS_FIX=0` 关闭闭环；`OCR_CONTINUE_MAX_CALLS`（默认 2）、`OCR_CONTINUE_MAX_TOKENS`（默认 3000）可调。
 
 **预期**：截断=0；kept80 ≥0.965（现 0.9496）；入库增量 ≥26（现 24）；批尾锚点内容残留检测=0。
@@ -58,13 +59,18 @@
 
 **要解决的问题**：
 - 时间：LLM 201s 占墙钟 85%，是 3 次"8 页一锅 55~63s"的**串行长文重写**；单路 ~90 tok/s 是硬约束，唯一的墙钟杠杆是并发。
-- 质量：8 页超长上下文，页尾注意力衰减 + 上限截断双亏（Step 1 只是止血）；且**批路径没接 layout.py 的版面推断**（role_hint/title_decision/locked_heading 只被单图路径用），LLM 拿到的全是"裸行"→ 每行 ambiguous → 门控恒真、标题全靠文本猜，双轨标题规则空转——这是"更接近图片笔记"缺的关键一环。
+- 质量：8 页超长上下文，页尾注意力衰减 + 上限截断双亏（Step 1 只是止血）；整理单位过大使页级门控与确定性路径（干净页零 token）无从生效——标题双轨（locked/ambiguous）虽有版面推断支撑（经 adapter→layout 已生效，早期"批路径未接版面"的判断有误），但门控与门控阈值作用在整批混合行上，单页质量无法单独判断。
 
 **改法（3 小步）**：
 
 1. **处理单元从"8 页一批"改成"1~2 页一批"**：`iter_ocr_review_pipeline` 的批内 review 改为页级分派，每页一个短整理调用（prompt ~1.2~1.5k、输出 ~1k，远离上限 → 截断消失），4~6 路并发（复用现有线程池模型；paddle 引擎实例池与整理并发互不冲突——OCR 线程与 LLM 线程分开）。跨页连续性：每页 prompt 附上一页最后一个标题行（防新页首标题层级漂移），页输出按序拼接，最后跑全局 `normalize_heading_numbering` 归并同族标题。
 2. **OCR 后、整理前逐页补版面推断**：把 `layout._infer_layout_hints`（tools/ocr/layout.py:113，已实现、零成本）挂到页行上 → LLM 输入里带 locked_heading/locked_body/ambiguous + heading_score，标题层级按版面而非纯文本猜；boilerplate（页眉页脚/印刷厂行）在进 LLM 前剔除，少喂噪声。
-3. **页级门控复活确定性路径**：版面推断 + paddle 已有 conf 后，`_needs_reconstruct_llm` 对"平均 conf≥0.9 且无低置信行且标题已锁定"的页返回 False → 走 `deterministic_reconstruct_markdown`（0 token）。本次手写/印刷混排语料能命中的页不多（页均 conf 0.763），但公式少、打印清晰的页能省；未来纯打印资料收益大。先实现、用数据说话，不达标不强求。
+3. **页级门控复活确定性路径**：版面推断 + paddle 已有 conf 后，`_needs_reconstruct_llm` 对"平均 conf≥0.9 且无低置信行且标题已锁定"的页返回 False → 走 `deterministic_reconstruct_markdown`（0 token）。打印清晰的页能省整次 LLM；以数据为准，不达标不强求。
+
+> **实现状态（2026-09-03 已落地，shared 管线双引擎自动生效；paddle 先验收）**：
+> - `reconstruct_and_review_pages` 默认走页级整理（`OCR_PAGE_RECONSTRUCT=0` 回退整批一次长文重写做 A/B）：每页独立门控，需 LLM 的页并发短整理（`OCR_RECONSTRUCT_WORKERS`，默认 4），干净页确定性零 token；跨页只传上一页末尾 locked 标题（`reconstruct_markdown(context=…)`）防层级漂移；按页序合并后仍按批做完整性闭环与审校（事件 1:1 不破坏基线观测）；
+> - 版面推断确认已通过 adapter→layout 在批路径生效（早期文档判断有误，已更正），页级化后按页自然参与门控；
+> - 已知观测限制：页级并发下 llm_calls 的逐调用 token 分账可能交错失真，成本以 `llm_client_snapshot`/`llm_by_label` 汇总为准。
 
 **为什么省/值**：
 - 时间：LLM 201s → 每页生成 3~6s×并发 4~6 路 ≈ 35~60s（vLLM 连续批处理下并发吞吐通常显著高于单路 90 tok/s；若服务端排队导致退化，保守也 ≤90s）。OCR 34.8s 不变。

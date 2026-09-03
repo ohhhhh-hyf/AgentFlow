@@ -42,6 +42,8 @@
 >   公式行/编号标题行不参与缺失判定；触发只认近整行丢失与稿尾截断（含结构残片信号）；
 >   补写独立 label `ocr/reconstruct/fix`，定界不平衡/超预算一律原文兜底；
 > - 自检事件进 run.json 的 `completeness`（按批归并），跨语料观察触发率；
+> - 第三轮修正（噪声纪律）：恢复前过"可恢复资格"过滤（页码/机构/数字符号残渣/乱码指纹），
+>   片段与兜底同用；缺失段按小间隔合并；片段合入后复检未覆盖行转兜底，OCR 噪声不再被塞回稿子；
 > - A/B 开关：`OCR_COMPLETENESS_FIX=0` 关闭；`OCR_CONTINUE_MAX_CALLS` / `OCR_CONTINUE_MAX_TOKENS` 可调。
 
 **预期**：截断=0；kept80 ≥0.92（现 0.899）；入库增量 ≥22（现 20）。
@@ -56,7 +58,7 @@
 
 **要解决的问题（serverocr 与 paddle 的核心差异）**：
 - **服务不返回 confidence**：`server_ocr.py` 的 `_optional_conf`（tools/ocr/server_ocr.py:403）已支持 confidence/conf/score/prob/probability 字段映射，但 21/21 页全 None → 服务端响应没带（或字段名不在清单里）。连锁后果：a) `_needs_review` 永不触发，OCR 错字无第二道修补（这是 serverocr kept80 0.899 < paddle 0.950 的重要成因——LLM 不知道哪些行不可信，纠错全靠猜）；b) reconstruct prompt 里"低置信行谨慎纠错"规则空转；c) 确定性快路径（依赖 conf 门控）不可能触发。
-- **批路径没接 layout.py 版面推断**：与 paddle 相同，全部行 ambiguous → 标题双轨规则空转、boilerplate（"华中科技大学附属印刷厂/1701572/页"这类服务返回的页脚噪声）混进 LLM 输入。
+- **版面特征已生效但无 conf 仍是信号缺口**：版面推断经 adapter→layout 在批路径生效（早期"批路径未接版面"的判断有误，已更正）；serverocr 行的真正短板是**无 confidence**——低置信谨慎纠错、review 门控、确定性路径全部依赖 conf，缺它这些机制空转。
 
 **改法（3 小步，按依赖顺序）**：
 
@@ -64,7 +66,7 @@
    - 与服务方确认：响应里是否有 per-line 置信/得分字段，字段名是什么；`_optional_conf` 的 `_first_present` 清单按实际字段扩展即可（改动一行）。
    - 取证脚本：抓 1 页的原始响应 JSON 落盘（在 server_ocr 的解析处临时 dump 一条），确认字段形态后再定映射；**不要本地编造 conf**（伪 conf 会误导门控与纠错）。
    - 若服务端确认无法提供：跳过 conf 依赖，改用第 3 步的启发式 review 触发。
-2. **版面特征入批**：OCR 后逐页跑 `layout._infer_layout_hints`（tools/ocr/layout.py:113，已实现）→ 行带 role_hint/title_decision/heading_score；boilerplate 页脚行在进 LLM 前剔除（serverocr 的页脚噪声比 paddle 多，收益更明显）；LLM 拿到 locked/ambiguous 标题双轨，标题层级贴原图。
+2. **版面与页级门控（shared 已落地，随引擎自动生效）**：版面推断经 adapter→layout 已在批路径生效（行带 role_hint/title_decision/heading_score，页脚噪声在进 LLM 前剔除）；页级整理默认开启后（`OCR_PAGE_RECONSTRUCT`/`OCR_RECONSTRUCT_WORKERS`），门控按页生效——但 serverocr 无 conf，页级确定性路径与 review 门控仍不会触发，这是本步骤要解决的核心缺口。
 3. **门控与 review 激活**：
    - 拿到 conf 后：低置信行进 prompt 标记（谨慎纠错规则生效）、`_needs_review` 恢复（低置信行存在即触发）、高置信页可走确定性路径（0 token）。
    - 拿不到 conf 的兜底：改 `_needs_review` 增加"无 conf 启发式"分支——按"疑似公式行 + 短行含乱码/孤符号 + 数字字母混排"选窗（窗口机制已现成，只换选窗标准），让 serverocr 也有审校轮。

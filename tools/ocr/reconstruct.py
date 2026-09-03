@@ -231,8 +231,12 @@ def _lines_to_structured_payload(lines: list[dict]) -> str:
     return json.dumps(payload, ensure_ascii=False, separators=(",", ":"))
 
 
-def reconstruct_markdown(lines: list[dict], *, max_tokens: int = 5000) -> str:
-    """LLM 重构；失败/无 LLM 时返回原始拼接文本。"""
+def reconstruct_markdown(lines: list[dict], *, max_tokens: int = 5000, context: str = "") -> str:
+    """LLM 重构；失败/无 LLM 时返回原始拼接文本。
+
+    context：可选的跨页上下文（上一页末尾标题/小节），提示模型保持跨页标题层级
+    连续；为空时行为与原来完全一致。
+    """
     raw = _fragments_to_text(lines)
     if not raw.strip():
         return "（OCR 未识别到文字）"
@@ -245,15 +249,20 @@ def reconstruct_markdown(lines: list[dict], *, max_tokens: int = 5000) -> str:
         client = None
     if client is None:
         return normalize_heading_numbering(normalize_markdown_math(raw))
+    user_prompt = "OCR 行列表 JSON（按阅读顺序排列，含版面标题提示）：\n" f"{_lines_to_structured_payload(lines)}\n\n请输出整理后的 Markdown 正文。"
+    if context:
+        user_prompt = (
+            "【跨页上下文】上一页末尾的标题/小节：\n" + context.strip()[:120]
+            + "\n本页开头可能是它的延续：请保持标题层级连续；"
+            "只有本页内容确为新的章节时才另起同级标题。\n\n" + user_prompt
+        )
     try:
         import asyncio
 
         text = asyncio.run(
             client.text(
                 RECONSTRUCT_SYSTEM_PROMPT,
-                "OCR 行列表 JSON（按阅读顺序排列，含版面标题提示）：\n"
-                f"{_lines_to_structured_payload(lines)}\n\n"
-                "请输出整理后的 Markdown 正文。",
+                user_prompt,
                 temperature=0.1,
                 max_tokens=max_tokens,
                 label="ocr/reconstruct",
@@ -697,6 +706,11 @@ def _as_reviewed_markdown(text: str, draft: str) -> tuple[str, str]:
 #   · 无缺失 → 零 LLM 调用；补写调用独立 label（ocr/reconstruct/fix）便于成本归因；
 #   · 每批调用数 ≤ OCR_CONTINUE_MAX_CALLS（默认 2）；超预算缺失段一律原文兜底，内容不丢；
 #   · 片段自身 $ 定界不平衡 → 判定失败，回退原文追加，不留半截公式残片。
+# 噪声纪律（1→2→3 修正）：LLM 在整理规则下有权删除 OCR 噪声（乱码/页码/页眉页脚
+#   残留/纯数字符号串）。恢复机制不得把它已删的噪声再塞回稿子：
+#   1) 行必须先过"可恢复资格"过滤（与管线噪声口径一致：页码/机构信息/纯数字符号残渣/
+#      乱码指纹）才允许被判"缺失"；2) 恢复两侧（补写片段与原文兜底）同用该过滤；
+#   3) 缺失段先按小间隔合并，减少零散段与兜底。
 # 观测：每次自检产生一条事件（take_completeness_events 供基线采集进 run.json），
 #       跨语料收集触发率证据；开关 OCR_COMPLETENESS_FIX=0 关闭（A/B 用）。
 _CONTINUE_MAX_CALLS = 2        # 每批最多补写调用次数（OCR_CONTINUE_MAX_CALLS 可覆盖）
@@ -707,7 +721,23 @@ _ABSENT_SINGLE_MIN_LEN = 10
 _TAIL_ROWS_CAP = 40            # 续尾最多携带的原始行数（含公式行）
 _TAIL_SEGMENT_MAX = 1200       # 稿尾结构信号扫描的尾部窗口
 _TAIL_MODE_GARBAGE_MAX = 900   # 续尾前最多可裁掉的尾部残片长度
+_MID_COALESCE_GAP = 2          # 缺失段之间间隔 ≤2 个存在行 → 合并为一段补写
 _FIX_LABEL = "ocr/reconstruct/fix"
+
+# ── 可恢复资格过滤（与管线噪声口径一致，通用类别，无语料调参）──
+_PAGEISH_RE = re.compile(
+    r"^(?:第\s*[0-9一二三四五六七八九十百]+\s*页|page\s*\d+|p\.?\s*\d+|no\.?\s*\d*)$",
+    re.I,
+)
+_CHROME_RE = re.compile(
+    r"tel[:：]?\s*[+\d]|电话[:：]|传真[:：]|@[\w-]+\.[\w.]+|https?://|www\.\w"
+    r"|©|版权所有|copyright|all\s+rights\s+reserved",
+    re.I,
+)
+_DIGIT_PUNCT_RE = re.compile(
+    r"^[\d\s\-–—:：.．,，;；/\\|()（）\[\]{}<>+=*^$%&@#~`'\"_]+$"
+)
+_ASCII_PUNCT_OK = set(" .,;:!?'\"()-–—/&%")
 
 _ROW_NOISE_RE = re.compile(r"[0-9A-Za-z\u4e00-\u9fff]")
 _NUM_HEAD_ISH_RE = re.compile(
@@ -722,14 +752,16 @@ _CONTINUE_TAIL_INSTRUCT = (
     "1. 若断点处的句子/公式/表格被切断或残留乱码，先忽略残片、按断点后的原文行重新补完整\n"
     "2. 不要重复稿尾已有内容，不要重写全文，不要输出 Markdown 围栏\n"
     "3. 公式用 $/$$ 定界、标题用 #，风格与主稿一致；不确定的 OCR 原样保留，禁止臆造\n"
-    "4. 输出必须以完整句子或闭合公式结束，禁止以半截句子/公式/列表项收尾"
+    "4. 输出必须以完整句子或闭合公式结束，禁止以半截句子/公式/列表项收尾\n"
+    "5. 缺失行清单里若混有明显 OCR 噪声/乱码/页码页眉残留，不要输出它们"
 )
 _CONTINUE_MID_INSTRUCT = (
     "这组 OCR 行在稿件中被遗漏了。把它们整理成 Markdown 片段补回原稿合适位置：\n"
     "1. 片段可用标题/段落/公式/列表，风格与主稿一致\n"
     "2. 不要重复已有内容，不要重写全文，不要输出 Markdown 围栏\n"
     "3. 不确定的 OCR 原样保留，禁止臆造\n"
-    "4. 输出必须以完整句子或闭合公式结束，禁止以半截句子/公式/列表项收尾"
+    "4. 输出必须以完整句子或闭合公式结束，禁止以半截句子/公式/列表项收尾\n"
+    "5. 缺失行清单里若混有明显 OCR 噪声/乱码/页码页眉残留，不要输出它们"
 )
 
 
@@ -767,9 +799,81 @@ def _row_ngrams_present(line: str, md_compact_blob: str, md_grams: set[str]) -> 
     return False
 
 
+def _recoverable_row(text: str) -> bool:
+    """行是否"有资格被恢复"：按管线自身噪声口径过滤（页码/机构信息/纯数字符号
+    残渣/乱码指纹）。公式行由调用方另行放行，不走此过滤。
+
+    判定基于通用内容形态（中文成句 / 英文成词 / 符号占比），不是对任何语料的拟合：
+    - 页眉页脚/机构/页码/纯数字符号残渣 → 不可恢复（LLM 删除它们是对的）；
+    - 无中文且无 ≥2 字母词的符号串、数字占多数的单片段行 → 不可恢复（乱码指纹）。
+    """
+    t = str(text or "").strip()
+    if not t or len(t) < 2:
+        return False
+    if _PAGEISH_RE.match(t) or _CHROME_RE.search(t):
+        return False
+    if _DIGIT_PUNCT_RE.fullmatch(t):
+        return False
+    cjk = sum(1 for ch in t if "\u4e00" <= ch <= "\u9fff")
+    letters = sum(1 for ch in t if "a" <= ch <= "z" or "A" <= ch <= "Z")
+    digits = sum(1 for ch in t if "0" <= ch <= "9")
+    words = re.findall(r"[A-Za-z]{2,}", t)
+    other = len(t) - cjk - letters - digits - sum(
+        1 for ch in t
+        if ch in _ASCII_PUNCT_OK or "\u3000" <= ch <= "\u303f" or "\uff00" <= ch <= "\uffef"
+    )
+    other_ratio = other / max(len(t), 1)
+    if cjk:
+        return other_ratio <= 0.5
+    if not words:
+        return False
+    if other_ratio > 0.25:
+        return False
+    if len(words) == 1:
+        if digits > letters:
+            return False
+        if letters + digits < 12:
+            return False
+    return True
+
+
+def _coalesce_runs(runs: list[dict], gap: int = _MID_COALESCE_GAP) -> list[dict]:
+    """把间隔 ≤gap 个存在行的缺失段合并成一段（同一段被零散丢掉的文本）。"""
+    merged: list[dict] = []
+    for run in runs:
+        if (
+            merged
+            and run["rows"][0]["index"] - merged[-1]["rows"][-1]["index"] - 1 <= gap
+        ):
+            merged[-1]["rows"].extend(run["rows"])
+        else:
+            merged.append({"rows": list(run["rows"])})
+    for item in merged:
+        item["chars"] = sum(len(r["line"]) for r in item["rows"])
+    return merged
+
+
+def _keep_for_append(rows: list[dict]) -> list[dict]:
+    """兜底追加前过滤：公式行放行（引擎认定的公式内容），其余必须有恢复资格。"""
+    return [r for r in rows if r.get("formula") or r.get("recoverable")]
+
+
+def _still_missing_rows(rows: list[dict], markdown: str) -> list[dict]:
+    """片段合入后的确定性复检：该段非公式行中仍不在稿里的行（防模型只补了一部分）。
+    公式行不做复检（LaTeX 化后原文串不可比，信任片段）。"""
+    md_blob = _md_compact(markdown)
+    md_grams = {md_blob[i:i + _NGRAM_WINDOW] for i in range(max(0, len(md_blob) - _NGRAM_WINDOW + 1))}
+    missing = [
+        r for r in rows
+        if not r.get("formula") and not r.get("num_head") and r.get("recoverable")
+        and not _row_ngrams_present(r["line"], md_blob, md_grams)
+    ]
+    return missing
+
+
 def _draft_completeness(lines: list[dict], markdown: str) -> dict:
-    """行级完整性报告（零 LLM）。rows_all 每行带类别与"是否存在于稿"标记；
-    absent = 正文行中不存在于稿的近整行丢失（显式缺失，触发候选）。"""
+    """行级完整性报告（零 LLM）。rows_all 每行带类别/"是否存在于稿"/"恢复资格"标记；
+    absent = 有恢复资格的正文行中不存在于稿的近整行丢失（显式缺失，触发候选）。"""
     md_blob = _md_compact(markdown)
     md_grams = {md_blob[i:i + _NGRAM_WINDOW] for i in range(max(0, len(md_blob) - _NGRAM_WINDOW + 1))}
     rows_all: list[dict] = []
@@ -785,12 +889,13 @@ def _draft_completeness(lines: list[dict], markdown: str) -> dict:
         rows_all.append({
             "index": len(rows_all), "text": text, "line": line,
             "formula": formula, "num_head": num_head,
+            "recoverable": formula or _recoverable_row(text),
             "present": _row_ngrams_present(line, md_blob, md_grams),
         })
     present = {r["index"] for r in rows_all if r["present"]}
     absent = [
         r for r in rows_all
-        if not r["formula"] and not r["num_head"] and not r["present"]
+        if not r["formula"] and not r["num_head"] and r["recoverable"] and not r["present"]
     ]
     return {
         "rows_all": rows_all,
@@ -875,6 +980,14 @@ def _count_unescaped_dollars(text: str) -> int:
 
 def _dollars_balanced(text: str) -> bool:
     return _count_unescaped_dollars(text) % 2 == 0
+
+
+def _fragment_has_content(text: str) -> bool:
+    """补写片段内容门：至少含一个可读字符，防止纯符号/空壳片段入库。"""
+    t = (text or "").strip()
+    if len(t) < 2:
+        return False
+    return bool(re.search(r"[0-9A-Za-z\u4e00-\u9fff]", t))
 
 
 def _cut_incomplete_tail(draft: str) -> str:
@@ -1074,11 +1187,14 @@ def ensure_markdown_complete(markdown: str, lines: list[dict]) -> str:
     absent = check["absent_rows"]
     n = len(rows_all)
     last_present = max(present) if present else -1
-    absent_runs = _group_runs(absent)
+    absent_runs = _coalesce_runs(_group_runs(absent))
 
     tail_cut_signal = _tail_looks_cut(raw)
-    # 尾部区域：最后一个"可确认存在"的行之后的所有行（含公式行，覆盖率均 < 阈值）
-    tail_rows = [r for r in rows_all if r["index"] > last_present][:_TAIL_ROWS_CAP]
+    # 尾部区域：最后一个"可确认存在"的行之后、且有恢复资格的行（公式行放行）
+    tail_rows = [
+        r for r in rows_all
+        if r["index"] > last_present and (r["formula"] or r["recoverable"])
+    ][:_TAIL_ROWS_CAP]
     tail_absent = any(run["rows"][-1]["index"] >= n - 1 for run in absent_runs)
     needs_tail = bool(tail_rows) and (tail_cut_signal or tail_absent)
     # 中段：缺失段未延伸到尾部区域，且有实质内容量
@@ -1119,9 +1235,9 @@ def ensure_markdown_complete(markdown: str, lines: list[dict]) -> str:
     if client is None:
         appended_rows: list[dict] = []
         if needs_tail:
-            appended_rows.extend(tail_rows)
+            appended_rows.extend(_keep_for_append(tail_rows))
         for run in sorted(mid_candidates, key=lambda r: -r["chars"]):
-            appended_rows.extend(run["rows"])
+            appended_rows.extend(_keep_for_append(run["rows"]))
         event["fallback_rows"] = len(appended_rows)
         logger.warning("完整性补写不可用(无 LLM 客户端)，缺失 %d 行原文兜底追加", len(appended_rows))
         final = raw + "\n\n" + "\n".join(r["text"] for r in appended_rows)
@@ -1147,16 +1263,17 @@ def ensure_markdown_complete(markdown: str, lines: list[dict]) -> str:
 
     def _sanitize_fragment(fragment: str) -> str:
         frag = _strip_md_fences(_trim_duplicate_head(fragment, draft)).strip()
-        if not frag or not _dollars_balanced(frag):
+        if not frag or not _dollars_balanced(frag) or not _fragment_has_content(frag):
             return ""
         return frag
 
     def _fallback_append(rows: list[dict]) -> None:
         nonlocal draft, event
-        if not rows:
+        kept = _keep_for_append(rows)
+        if not kept:
             return
-        draft = (draft.rstrip() + "\n\n" + "\n".join(r["text"] for r in rows))
-        event["fallback_rows"] += len(rows)
+        draft = (draft.rstrip() + "\n\n" + "\n".join(r["text"] for r in kept))
+        event["fallback_rows"] += len(kept)
 
     # 1) 稿尾截断（优先，最多 1 次）
     if needs_tail and fired < budget_calls:
@@ -1181,6 +1298,10 @@ def ensure_markdown_complete(markdown: str, lines: list[dict]) -> str:
             draft = (draft.rstrip() + "\n\n" + fragment) if draft.strip() else fragment
             fired += 1
             modes.append("tail")
+            # 复检：片段未覆盖的尾行转入兜底（公式行除外）
+            still = _still_missing_rows(tail_rows, draft)
+            if still:
+                _fallback_append(still)
         else:
             _fallback_append(tail_rows)
 
@@ -1206,6 +1327,10 @@ def ensure_markdown_complete(markdown: str, lines: list[dict]) -> str:
             draft = _insert_fragment(draft, fragment, rows_all, present, run)
             fired += 1
             modes.append("mid")
+            # 复检：片段未覆盖的行转入兜底，防"补了一段但段内仍有遗漏"静默丢失
+            still = _still_missing_rows(run["rows"], draft)
+            if still:
+                _fallback_append(still)
         else:
             _fallback_append(run["rows"])
 

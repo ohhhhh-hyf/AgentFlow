@@ -175,6 +175,45 @@ def main() -> None:
     assert len(ev) == 1 and ev[0]["gate"] == "on" and rc.take_completeness_events() == []
     print("PASS 事件配对与清空")
 
+    # ── 噪声纪律 2：页码/数字残渣/乱码指纹行不可恢复、不触发 ──
+    noise_rows = [
+        "1701572",                       # 纯数字（页码）
+        ":6944192702325",                # 数字+冒号
+        "第 3 页",                        # 页码短语
+        "Huau $H_v}_v}$ Hwaw",           # 拉丁乱码+排版残渣
+        "0 0 0 D 0 $r^{2}smθ 0 0",       # 数字/符号汤
+    ]
+    for nr in noise_rows:
+        assert not rc._recoverable_row(nr), nr
+    lines_noise = [body(P_A)] + [body(nr) for nr in noise_rows] + [body(P_C)]
+    md_noise = md_of([lines_noise[0]["text"], lines_noise[-1]["text"]])
+    client = reset()
+    out_noise = rc.ensure_markdown_complete(md_noise, lines_noise)
+    assert out_noise == md_noise and not client.calls, client.calls   # 全是噪声 → 零调用
+    assert "Huau" not in out_noise and "1701572" not in out_noise
+    rc.take_completeness_events()
+    print("PASS 噪声行不触发不恢复")
+
+    # ── 公式行尾部恢复放行：只有公式行缺失 + 稿尾结构信号 → 仍续尾 ──
+    client = reset("$$x^{2}+y^{2}=z^{2}$$")
+    formula_missing = {"formula": "x^{2}+y^{2}=z^{2} 直角坐标勾股关系", "text": "", "conf": 0.6}
+    lines9 = [body(P_A), formula_missing]
+    md9 = md_of([P_A, "\\$\\$[ 残片"])
+    out9 = rc.ensure_markdown_complete(md9, lines9)
+    assert client.calls and "ocr/reconstruct/fix" == client.calls[0]["label"]
+    ev = rc.take_completeness_events()
+    assert ev[0]["modes"] == ["tail"], ev[0]
+    print("PASS 公式行尾恢复放行")
+
+    # ── 噪声提示进补写 prompt ──
+    client = reset("补回：" + P_B + "（完整）")
+    lines10 = [body(P_A), body(P_B), body("零星噪声符号串xyz"), body(P_C)]
+    md10 = md_of([lines10[0]["text"], lines10[3]["text"]])
+    rc.ensure_markdown_complete(md10, lines10)
+    assert client.calls and "OCR 噪声" in client.calls[0]["system"], client.calls[0]["system"][:200]
+    rc.take_completeness_events()
+    print("PASS 补写 prompt 含噪声过滤指令")
+
     print("ALL_STEP1_TESTS_OK")
 
 

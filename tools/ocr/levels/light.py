@@ -429,16 +429,108 @@ def _estimate_reconstruct_tokens(lines: list[dict]) -> int:
     return max(9000, min(50000, needed))
 
 
+def _page_mode_enabled() -> bool:
+    """页级整理开关（默认开；OCR_PAGE_RECONSTRUCT=0 回退整批一次重写，做 A/B）。"""
+    return os.getenv("OCR_PAGE_RECONSTRUCT", "1").strip().lower() in {"1", "true", "yes", "on"}
+
+
+def _page_workers() -> int:
+    """页级整理并发路数（OCR_RECONSTRUCT_WORKERS，默认 4，上限 8）。"""
+    raw = os.getenv("OCR_RECONSTRUCT_WORKERS", "4").strip() or "4"
+    try:
+        return max(1, min(8, int(raw)))
+    except ValueError:
+        return 4
+
+
+def _page_heading_hint(lines: list[dict]) -> str:
+    """本页最后一个标题候选（版面 locked/heading），作为下一页的跨页上下文。"""
+    for item in reversed(lines or []):
+        role = str(item.get("role_hint") or "")
+        decision = str(item.get("title_decision") or "")
+        text = str(item.get("text") or "").strip()
+        if text and role != "formula" and (role == "heading" or decision == "locked_heading"):
+            return text[:60]
+    return ""
+
+
+def _draft_pagewise(pages: list[dict], all_lines: list[dict]) -> str:
+    """页级整理（Step 2）：每页独立门控，需要 LLM 的页并行短整理，
+    高置信页走确定性重构（零 token）；跨页只传上一页末尾标题防层级漂移。
+
+    返回按页序合并的草稿；完整性闭环与审校仍按批次在合并稿上执行。
+    """
+    n = len(pages)
+    if n <= 1:
+        lines = all_lines
+        if _needs_reconstruct_llm(lines):
+            return reconstruct_markdown(lines, max_tokens=_estimate_reconstruct_tokens(lines))
+        ocr_log("[OCR] 高置信纯文本页，跳过 LLM 整理")
+        return deterministic_reconstruct_markdown(lines)
+
+    by_page: dict[str, list[dict]] = {}
+    for item in all_lines:
+        by_page.setdefault(str(item.get("_page") or ""), []).append(item)
+
+    hints: list[str] = []
+    prev = ""
+    for idx in range(n):
+        hints.append(prev)
+        plines = by_page.get(str(idx)) or []
+        if plines:
+            heading = _page_heading_hint(plines)
+            if heading:
+                prev = heading
+
+    workers = min(_page_workers(), n)
+    deterministic_pages = 0
+
+    def _one(idx: int):
+        plines = by_page.get(str(idx)) or []
+        if not plines:
+            return "", False
+        if _needs_reconstruct_llm(plines):
+            return (
+                reconstruct_markdown(
+                    plines,
+                    max_tokens=_estimate_reconstruct_tokens(plines),
+                    context=hints[idx],
+                ),
+                True,
+            )
+        return deterministic_reconstruct_markdown(plines), False
+
+    drafts: list[str] = []
+    with ThreadPoolExecutor(max_workers=workers) as pool:
+        futures = [pool.submit(_one, idx) for idx in range(n)]
+        for future in futures:
+            md, used_llm = future.result()
+            if not used_llm and md.strip():
+                deterministic_pages += 1
+            if md and md.strip():
+                drafts.append(md)
+    ocr_log(f"[OCR] 页级整理：{n} 页，并发 {workers}，确定性 {deterministic_pages} 页（零 LLM）")
+    return "\n\n".join(drafts)
+
+
 def reconstruct_and_review_pages(pages: list[dict]) -> str:
-    """一批 OCR 行：必要时 LLM 整理；高置信文本走程序重构。"""
+    """一批 OCR 行：页级（默认）或整批 LLM 整理；高置信文本走程序重构。
+
+    页级模式（OCR_PAGE_RECONSTRUCT=1，默认）：每页短整理并发执行，单页远离
+    输出上限（截断不再发生），页级门控让干净页零 token；随后按批做完整性
+    闭环与审校。OCR_PAGE_RECONSTRUCT=0 回退为整批一次长文重写（A/B 对照）。
+    """
     lines = concat_page_lines(pages)
     if not lines:
         return "（OCR 未识别到文字）"
-    if _needs_reconstruct_llm(lines):
-        draft = reconstruct_markdown(lines, max_tokens=_estimate_reconstruct_tokens(lines))
+    if _page_mode_enabled():
+        draft = _draft_pagewise(pages, lines)
     else:
-        ocr_log("[OCR] 高置信纯文本批次，跳过 LLM 整理")
-        draft = deterministic_reconstruct_markdown(lines)
+        if _needs_reconstruct_llm(lines):
+            draft = reconstruct_markdown(lines, max_tokens=_estimate_reconstruct_tokens(lines))
+        else:
+            ocr_log("[OCR] 高置信纯文本批次，跳过 LLM 整理")
+            draft = deterministic_reconstruct_markdown(lines)
     # 完整性闭环：零成本行级自检，检出截断/漏行时用一次小续写补回（review 补不了丢失行）。
     # 可用环境变量 OCR_COMPLETENESS_FIX=0 关闭做 A/B 对照。
     draft = ensure_markdown_complete(draft, lines)
