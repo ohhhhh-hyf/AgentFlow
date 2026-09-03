@@ -780,6 +780,28 @@ def main() -> None:
     else:
         completeness_agg = None
 
+    # 审校轮留痕（与批次数按序 1:1；观测审校是否空转/是否值回 token，跨语料判定）
+    review_events: list[dict] = []
+    try:
+        from tools.ocr.levels import light as _light_mod
+
+        review_events = _light_mod.take_review_events()
+    except Exception:  # noqa: BLE001 旧代码无该接口时跳过
+        pass
+    for idx, b in enumerate(pipe["batches"]):
+        if idx < len(review_events):
+            b["review"] = review_events[idx]
+    if review_events:
+        review_agg = {
+            "batches": len(review_events),
+            "disabled": sum(1 for e in review_events if not e.get("review_enabled", True)),
+            "ran": sum(1 for e in review_events if e.get("ran")),
+            "draft_changed": sum(1 for e in review_events if e.get("draft_changed")),
+            "applied_patches": sum(int(e.get("applied_patches") or 0) for e in review_events),
+        }
+    else:
+        review_agg = None
+
     t_ingest0 = time.monotonic()
     ingest = _kb_ingest(out_dir / merged_name, engine=settings["engine"],
                         kb_mode=args.kb_mode, out_dir=out_dir)
@@ -817,6 +839,7 @@ def main() -> None:
         "llm_calls": calls,
         "llm_client_snapshot": llm_snapshot,
         "completeness": completeness_agg,
+        "review_stats": review_agg,
         "whole": whole,
         "ingest": ingest,
         "artifacts": {

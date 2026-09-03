@@ -143,6 +143,32 @@ def main() -> None:
     assert _FAKE.calls and "跨页上下文" not in _FAKE.calls[-1]["user"]
     print("PASS context 参数直达 prompt（空 context 行为不变）")
 
+    # ── 页界整段重复去重：只动交界处、多层可剥、内部合法重复不受影响 ──
+    tail_block = "$$\\frac{d}{dr}\\left(r^2\\frac{dR}{dr}\\right) = \\frac{l(l+1)}{r^2}R$$ 这是页尾的完整公式段内容"
+    head_same = "$$\\frac{d}{dr}\\left(r^2\\frac{dR}{dr}\\right) = \\frac{l(l+1)}{r^2}R$$ 这是页尾的完整公式段内容"
+    inner_dup = "文档内部的合法重复段：同一个公式在文中不同位置出现两遍属正常内容"
+    drafts_in = [
+        "第一页开头内容甲\n\n" + inner_dup + "\n\n" + tail_block,
+        head_same + "\n\n第二页正文内容乙继续",
+        "第三页开头内容丙\n\n" + tail_block,
+    ]
+    cleaned, removed, chars = light._dedupe_page_boundary_blocks(drafts_in)
+    merged = "\n\n".join(cleaned)
+    assert removed == 1 and chars > 20, (removed, chars)
+    assert merged.count(tail_block) == 2          # 交界 1 处被去重 + 第三页合法重复保留
+    assert inner_dup in merged and merged.count(inner_dup) == 1
+    assert "第二页正文内容乙继续" in merged and "第三页开头内容丙" in merged
+    # 多层重复可剥：下一页连续两块都与上一页尾重复
+    drafts_in2 = ["首页内容\n\nAB块重复内容足够长避免误伤甲乙丙丁戊己庚辛壬癸子丑寅卯",
+                  "AB块重复内容足够长避免误伤甲乙丙丁戊己庚辛壬癸子丑寅卯\n\n" +
+                  "CD块第二层重复内容也足够长甲乙丙丁戊己庚辛壬癸子丑寅卯",
+                  "CD块第二层重复内容也足够长甲乙丙丁戊己庚辛壬癸子丑寅卯\n\n末页真实新内容"]
+    cleaned2, removed2, _c2 = light._dedupe_page_boundary_blocks(drafts_in2)
+    merged2 = "\n\n".join(cleaned2)
+    assert removed2 == 2, removed2
+    assert merged2.count("AB块重复内容") == 1 and merged2.count("CD块第二层重复内容") == 1
+    print("PASS 页界整段重复确定性去重")
+
     print("ALL_STEP2_TESTS_OK")
 
 

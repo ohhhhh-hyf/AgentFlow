@@ -3,7 +3,9 @@ from __future__ import annotations
 import logging
 import os
 import re
+import tempfile
 import time
+import uuid
 from concurrent.futures import FIRST_COMPLETED, ThreadPoolExecutor, wait
 from dataclasses import dataclass
 from datetime import datetime
@@ -222,13 +224,72 @@ def images_to_reviewed_markdown(
 
 
 def ocr_image_to_lines(image_path: str | Path) -> tuple[str, list[dict]]:
-    """只做 OCR，不调用整理/审校 LLM。"""
-    from tools.ocr.adapter import raw_text_from_lines, recognize_image
+    """只做 OCR（含页内版面推断），不调用整理/审校 LLM。
 
-    payload = recognize_image(str(image_path))
-    lines = list(payload.get("lines") or [])
+    paddle 引擎可选的识别前放大预处理：OCR_UPSCALE=1 时把图片长边放大到
+    OCR_UPSCALE_LONG（默认 2400px，上限 OCR_UPSCALE_MAX_PIXELS=8000）再送识别，
+    用于小字/低分辨率拍摄内容；默认关闭，开关只对 paddleocr 生效。
+    """
+    from tools.ocr.adapter import raw_text_from_lines
+    from tools.ocr.layout import ocr_image_lines
+
+    src = Path(image_path)
+    prepared, applied = _prepare_ocr_image(src)
+    try:
+        lines = ocr_image_lines(str(prepared))
+    finally:
+        if applied:
+            try:
+                prepared.unlink(missing_ok=True)
+            except OSError:
+                pass
+    if applied:
+        ocr_log(f"[OCR] 识别前放大预处理：{src.name}")
     raw_text = raw_text_from_lines(lines) or "（OCR 未识别到文字）"
     return raw_text, lines
+
+
+def _prepare_ocr_image(path: Path) -> tuple[Path, bool]:
+    """paddle 识别前放大（默认关）：OCR_UPSCALE=1 且引擎为 paddleocr 时生效。
+
+    按长边等比放大到 OCR_UPSCALE_LONG（默认 2400），任一边不超过
+    OCR_UPSCALE_MAX_PIXELS（默认 8000）；返回临时 PNG 路径供识别，
+    由调用方负责清理。任何失败都回退原图（不阻断 OCR）。
+    """
+    upscale = os.getenv("OCR_UPSCALE", "0").strip().lower() in {"1", "true", "yes", "on"}
+    if not upscale:
+        return path, False
+    try:
+        from tools.ocr.engines import ocr_engine_label
+
+        if ocr_engine_label() != "paddleocr":
+            return path, False
+        raw_target = os.getenv("OCR_UPSCALE_LONG", "2400").strip() or "2400"
+        raw_cap = os.getenv("OCR_UPSCALE_MAX_PIXELS", "8000").strip() or "8000"
+        target = max(1000, min(8000, int(float(raw_target))))
+        cap = max(2000, min(12000, int(float(raw_cap))))
+    except Exception:  # noqa: BLE001
+        return path, False
+    try:
+        from PIL import Image
+
+        with Image.open(path) as img:
+            width, height = img.size
+            long_edge = max(width, height)
+            if long_edge >= target:
+                return path, False
+            scale = target / long_edge
+            new_size = (max(1, int(width * scale)), max(1, int(height * scale)))
+            if max(new_size) > cap:
+                shrink = cap / max(new_size)
+                new_size = (max(1, int(new_size[0] * shrink)), max(1, int(new_size[1] * shrink)))
+            tmp = Path(tempfile.gettempdir()) / f"agentflow_ocrprep_{uuid.uuid4().hex}.png"
+            img = img.convert("RGB")
+            img = img.resize(new_size, Image.LANCZOS)
+            img.save(tmp, format="PNG")
+            return tmp, True
+    except Exception:  # noqa: BLE001
+        return path, False
 
 
 def _mark_cross_page_boilerplate(lines: list[dict]) -> None:
@@ -454,9 +515,46 @@ def _page_heading_hint(lines: list[dict]) -> str:
     return ""
 
 
+def _dedupe_page_boundary_blocks(drafts: list[str], min_chars: int = 20) -> tuple[list[str], int, int]:
+    """页界整段重复的确定性去重（零 token）。
+
+    页级整理时，下一页常把上一页结尾的段落/公式原样再输出一遍（断点续写的
+    常见形态）。规则只作用于**相邻两页的交界处**：
+    - 上一页稿的末尾块与下一页稿的首块，空白折叠后**整块相等**且长度 ≥ min_chars
+      → 丢弃下一页的首块（保留上一页的尾块），可连续剥除多层重复；
+    - 不触碰文档内部任何重复（同一段落在文中多处出现是合法内容，不在交界处
+      不受影响）；短块（≤ min_chars）不去重，避免误伤"（续）"类微块。
+    """
+    def _norm(text: str) -> str:
+        return "".join((text or "").split())
+
+    if len(drafts) <= 1:
+        return list(drafts), 0, 0
+    blocks_per_page = [
+        [b.strip() for b in re.split(r"\n[ \t]*\n", d or "") if b.strip()]
+        for d in drafts
+    ]
+    removed_pages = 0
+    removed_chars = 0
+    for idx in range(len(blocks_per_page) - 1):
+        prev_blocks = blocks_per_page[idx]
+        next_blocks = blocks_per_page[idx + 1]
+        while prev_blocks and next_blocks:
+            tail = _norm(prev_blocks[-1])
+            head = _norm(next_blocks[0])
+            if len(tail) < min_chars or tail != head:
+                break
+            removed_chars += len(next_blocks[0])
+            next_blocks.pop(0)
+            removed_pages += 1
+    cleaned = ["\n\n".join(blocks) for blocks in blocks_per_page]
+    return cleaned, removed_pages, removed_chars
+
+
 def _draft_pagewise(pages: list[dict], all_lines: list[dict]) -> str:
     """页级整理（Step 2）：每页独立门控，需要 LLM 的页并行短整理，
-    高置信页走确定性重构（零 token）；跨页只传上一页末尾标题防层级漂移。
+    高置信页走确定性重构（零 token）；跨页只传上一页末尾标题防层级漂移；
+    合并前对页界整段重复做确定性去重。
 
     返回按页序合并的草稿；完整性闭环与审校仍按批次在合并稿上执行。
     """
@@ -509,8 +607,25 @@ def _draft_pagewise(pages: list[dict], all_lines: list[dict]) -> str:
                 deterministic_pages += 1
             if md and md.strip():
                 drafts.append(md)
-    ocr_log(f"[OCR] 页级整理：{n} 页，并发 {workers}，确定性 {deterministic_pages} 页（零 LLM）")
+    drafts, deduped_blocks, deduped_chars = _dedupe_page_boundary_blocks(drafts)
+    note = f"，页界去重 {deduped_blocks} 段/{deduped_chars} 字符" if deduped_blocks else ""
+    ocr_log(f"[OCR] 页级整理：{n} 页，并发 {workers}，确定性 {deterministic_pages} 页（零 LLM）{note}")
     return "\n\n".join(drafts)
+
+
+_REVIEW_EVENTS: list[dict] = []
+
+
+def take_review_events() -> list[dict]:
+    """取走并清空审校留痕（与 review_fn/批次调用次序 1:1，供基线归并）。"""
+    events = list(_REVIEW_EVENTS)
+    _REVIEW_EVENTS.clear()
+    return events
+
+
+def _review_enabled() -> bool:
+    """审校轮开关（默认开；OCR_REVIEW=0 关闭做 A/B，检查审校是否值回 token）。"""
+    return os.getenv("OCR_REVIEW", "1").strip().lower() in {"1", "true", "yes", "on"}
 
 
 def reconstruct_and_review_pages(pages: list[dict]) -> str:
@@ -518,10 +633,13 @@ def reconstruct_and_review_pages(pages: list[dict]) -> str:
 
     页级模式（OCR_PAGE_RECONSTRUCT=1，默认）：每页短整理并发执行，单页远离
     输出上限（截断不再发生），页级门控让干净页零 token；随后按批做完整性
-    闭环与审校。OCR_PAGE_RECONSTRUCT=0 回退为整批一次长文重写（A/B 对照）。
+    闭环与审校。OCR_PAGE_RECONSTRUCT=0 回退为整批一次长文重写（A/B 对照）；
+    OCR_REVIEW=0 关闭审校轮（A/B：观察 kept80/公式 avg/入库增量是否受影响）。
+    每次调用产出一条审校留痕（take_review_events），用于跨语料判定审校价值。
     """
     lines = concat_page_lines(pages)
     if not lines:
+        _REVIEW_EVENTS.append({"ran": False, "reason": "no_lines"})
         return "（OCR 未识别到文字）"
     if _page_mode_enabled():
         draft = _draft_pagewise(pages, lines)
@@ -534,10 +652,22 @@ def reconstruct_and_review_pages(pages: list[dict]) -> str:
     # 完整性闭环：零成本行级自检，检出截断/漏行时用一次小续写补回（review 补不了丢失行）。
     # 可用环境变量 OCR_COMPLETENESS_FIX=0 关闭做 A/B 对照。
     draft = ensure_markdown_complete(draft, lines)
-    if not _needs_review(lines):
+    event: dict = {"review_enabled": _review_enabled(), "needs_review": bool(_needs_review(lines))}
+    if not event["review_enabled"] or not event["needs_review"]:
+        event.update({"ran": False, "draft_changed": False, "applied_patches": 0})
+        _REVIEW_EVENTS.append(event)
         return draft
-    reviewed, _notes = review_markdown(draft, lines)
-    return reviewed or draft
+    t0 = time.monotonic()
+    reviewed, notes = review_markdown(draft, lines)
+    final = reviewed or draft
+    event.update({
+        "ran": True,
+        "seconds": round(time.monotonic() - t0, 3),
+        "draft_changed": final != draft,
+        "applied_patches": (notes or "").count("已替换"),
+    })
+    _REVIEW_EVENTS.append(event)
+    return final
 
 
 def _fmt_ocr_exc(exc: BaseException) -> str:

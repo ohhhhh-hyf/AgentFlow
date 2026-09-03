@@ -71,6 +71,7 @@
 > - `reconstruct_and_review_pages` 默认走页级整理（`OCR_PAGE_RECONSTRUCT=0` 回退整批一次长文重写做 A/B）：每页独立门控，需 LLM 的页并发短整理（`OCR_RECONSTRUCT_WORKERS`，默认 4），干净页确定性零 token；跨页只传上一页末尾 locked 标题（`reconstruct_markdown(context=…)`）防层级漂移；按页序合并后仍按批做完整性闭环与审校（事件 1:1 不破坏基线观测）；
 > - 版面推断确认已通过 adapter→layout 在批路径生效（早期文档判断有误，已更正），页级化后按页自然参与门控；
 > - 已知观测口径（已修）：页级并发下逐调用 token 差分会交叠失真——基线已改为 token 一律取客户端快照 `usage_by_label`（锁内累计，并发安全），`llm_calls` 只记耗时；`llm_by_label.seconds` 是各调用耗时之和（并发下可大于墙钟，墙钟以 `wall.review_seconds` 为准）；A/B 环境开关用 `--set-env OCR_PAGE_RECONSTRUCT=0`（shell 无关，且记入 run.json config.env_overrides）。
+> - 页界重复清理（已落地）：合并前对相邻页交界处"整块空白折叠后相等且 ≥20 字符"的重复段做确定性去重（`_dedupe_page_boundary_blocks`，可剥多层；文档内部合法重复不受影响），消除页级续写把上一页尾块再输出一遍的形态。
 
 **为什么省/值**：
 - 时间：LLM 201s → 每页生成 3~6s×并发 4~6 路 ≈ 35~60s（vLLM 连续批处理下并发吞吐通常显著高于单路 90 tok/s；若服务端排队导致退化，保守也 ≤90s）。OCR 34.8s 不变。
@@ -90,6 +91,11 @@
 **改法（3 小步）**：
 
 1. **保真闸门升级为留痕机制**：Step 1 的自检结果（每批缺失行数/字数/位置 首·中·尾）写进 run.json 与日志，让"漏了什么"可见可回归；闸门只补 Step 1 兜不住的漏写型缺失。
+
+> **实现状态（2026-09-03/04 已落地）**：
+> - 保真闸门留痕：见 Step 1（`completeness` 事件已含 absent/tail/fallback/modes）；
+> - review 旁路开关 `OCR_REVIEW=0`（默认开）+ 每批审校留痕：run.json `batches[].review`（review_enabled/needs_review/ran/draft_changed/applied_patches）与 `review_stats` 汇总——用于跨语料判定"审校是否空转/是否值回 token"，判定规则只做性质判断（applied_patches≈0 且质量不降 → 默认收紧或关闭），不预设数值；
+> - paddle 识别前放大预处理层（默认关）：`OCR_UPSCALE=1`（仅 paddleocr 生效）把图片长边放大到 `OCR_UPSCALE_LONG`（默认 2400，上限 `OCR_UPSCALE_MAX_PIXELS` 8000）再送识别，用于小字/低分辨率拍摄；临时文件识别后即清理，失败静默回退原图。
 2. **review A/B 实验**：关掉 review（`_needs_review` 恒 False）跑一轮对照，对比 kept80/公式 avg/入库增量。若差异 <0.005 则把 review 触发条件收紧为"公式行 >20 或低置信行 >5 且 evidence 窗口能定位"，预期省 ~10k prompt token + ~30s；若差异明显则保留现窗口机制，只做 Step 1 的"先补全再审校"顺序修正。
 3. **检出量补强（paddle 特有）**：先用 r2 的 `per_image` 定位低行数页，与 serverocr 同页差集分析漏检形态（整段漏 vs 边缘漏）；按结论二选一或组合：
    - OCR 输入预处理：拍照图先放大到长边 ≥2000px / 轻度锐化再送 paddle（PP-OCRv5 对低分辨率小字漏检明显）；
