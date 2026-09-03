@@ -2,13 +2,13 @@
 from __future__ import annotations
 
 import re
+from dataclasses import dataclass
 from typing import Any
 
-TRACE_URL = "https://example.com/annotation"
 _ARROW = re.compile(r"\s*->\s*")
 _SENTENCE_SPLIT = re.compile(r"(?<=[。！？；])\s*|\n+")
-# 已有溯源钉标记（stamp_minutes 防重复插入用）
-_TAG_RE = re.compile(r"###\[【[^】]*】\]\([^)]*\)")
+# 已有溯源钉标记（stamp_minutes 防重复插入用；兼容旧版带 (url) 的钉）
+_TAG_RE = re.compile(r"###\[【[^】]*】\](?:\([^)]*\))?")
 
 
 def parse_keypoints(text: str) -> list[str]:
@@ -26,6 +26,71 @@ def parse_notes(text: str) -> list[tuple[str, str]]:
         if left and right:
             rows.append((left, right))
     return rows
+
+
+# ── 用户材料优先级（轻量启发式，不调 LLM）─────────────────────
+# 高优先级：明确日期/数字、拉丁专名/模块、负责人、强决策/风险动作、right 强关注。
+_PRI_STRONG_ACT_RE = re.compile(
+    r"不再支持|必须|务必|不允许|已确认|已拍板|拍板|决定|要求|负责|必须移除|强制|承诺"
+)
+_PRI_RISK_RE = re.compile(
+    r"存在.{0,10}风险|削弱|影响.{0,6}信任|信任.{0,4}受损|隐患|担忧"
+)
+_PRI_RIGHT_FOCUS_RE = re.compile(r"重点|必须|不要|别|风险|影响|注意|强调|担心|关注")
+_PRI_LOW_RE = re.compile(
+    r"结构(?:要|需|应|更|再)?(?:清楚|清晰|完整)|内容(?:要|需)?完整|表达(?:自然|通顺)|"
+    r"体验(?:要)?好|用户(?:体验)?(?:要)?好|排版|美观|写清楚|再润色"
+)
+
+
+def classify_priority(text: str, right: str = "") -> str:
+    """用户材料优先级：high / medium / low（启发式，供分槽落钉与排序）。"""
+    blob = " ".join(x for x in (text or "", right or "") if x and x.strip())
+    if not blob.strip():
+        return "low"
+    if re.search(r"\d", blob):  # 含数字/日期 → 强事实信号
+        return "high"
+    if re.search(r"[A-Za-z][A-Za-z0-9_\-]{2,}", blob):
+        return "high"
+    if _PRI_STRONG_ACT_RE.search(blob) or _PRI_RISK_RE.search(blob):
+        return "high"
+    if right and _PRI_RIGHT_FOCUS_RE.search(right):
+        return "high"
+    han = _han_only(blob)
+    if _PRI_LOW_RE.search(blob) or len(han) <= 4:
+        return "low"
+    return "medium"
+
+
+# 分槽位挂载上限：每材料按 priority → (全文条数上限, 同一 section 条数上限)
+# keypoint: high 尽量覆盖(总4/节2)、medium 只挂直接(总2/节1)、low 仅强直接(总1/节1)
+_PRI_KEYPOINT_CAP = {"high": (4, 2), "medium": (2, 1), "low": (1, 1)}
+# note: high(总2/节1)、medium(总1/节1)、low 默认不挂，仅原文几乎复现时允许 1
+_PRI_NOTE_CAP = {"high": (2, 1), "medium": (1, 1), "low": (1, 1)}
+
+# note 保守链式判据参数（通用语言依据，非样例标定）：
+#  - 3 字以上才算一段“实义复用”：更短的公共片段太常见，不足以证明正文复述了原话；
+#  - 至少 2 段独立复用：同一主张被正文重述时会在多处留下相互分离的实义片段，
+#    只撞上 1 段（单个业务词/词族）不足以排除偶合；
+#  - token 覆盖下限 4：正文句至少复用原话 4 个归一 token（2-gram 或数字）才视为复述过。
+_NOTE_PHRASE_MIN_LEN = 3
+_NOTE_CHAIN_MIN_PHRASES = 2
+_NOTE_CHAIN_MIN_TOKENS = 4
+
+# 叠字压缩只应修正本词，不影响远处内容：只取叠字压缩点前后各 3 字的小窗找修复片段。
+_STUTTER_CTX_BEFORE = 3
+_STUTTER_CTX_AFTER = 3
+
+
+@dataclass
+class TraceIndex:
+    """正文/原文预索引：集中计算句子、段落归属，供对齐与候选包复用。"""
+
+    minutes_sentences: list[str]
+    segments: list[tuple[str, list[str]]]
+    sentence_sections: dict[str, str]
+    topic_titles: list[str]
+    understanding_pool: list[str]
 
 
 def _han_only(text: str) -> str:
@@ -143,10 +208,18 @@ def _claim_score(
     return len(inter) / denom, span, len(inter)
 
 
+# 匹配用的口语填充词（仅删无信息量的虚词；不动可能承载语义的词；不进入正文与钉展示）
+_DISCARD_WORDS = re.compile(
+    r"(这个|那个|的话|呢|啊|呀|嘛|嗯|唉|就是|一个|一些|"
+    r"然后|其实|目前|接下来|这一块|基本上|这边|那边|"
+    r"这样的话|这样的|这种|这个这个|就是说是)"
+)
+
+
 def _normalize_match_text(text: str) -> str:
-    """仅用于匹配：合并连续重复汉字。不改正文，也不改钉上展示的原文。"""
-    text = _DUP_HAN.sub(r"\1", text or "")
-    return re.sub(r"(这个|那个|的话|呢|就是|一个|这个)", "", text)
+    """仅用于匹配：去口语填充词、合并连续重复汉字。不改正文，也不改钉上展示的原文。"""
+    text = _collapse_stutter(text)
+    return _DISCARD_WORDS.sub("", text or "")
 
 
 def _collapse_stutter(text: str) -> str:
@@ -303,9 +376,10 @@ def _claim_incompatible(left: str, right: str, *, for_note: bool = False) -> boo
     b = _normalize_match_text(right)
     na, nb = _extract_numbers(a), _extract_numbers(b)
     if na and nb:
+        # 存在共享数字即相容；"各带独有数字"不判冲突——
+        # 来源可能是数量演进/对比口径，或句子补充分项等，均不判冲突。
+        # 纯对不上由 _bare_number_conflict 兜底。
         if not (na & nb):
-            return True
-        if (na - nb) and (nb - na):
             return True
     la, lb = _extract_latin(a), _extract_latin(b)
     if la and lb and not (la & lb):
@@ -393,7 +467,10 @@ def _related_strong(
 
 
 def _stutter_collapsed_hit(left: str, sentence: str) -> bool:
-    """左句存在叠字：只认「去叠后新出现」的 2–3 字特征片段。"""
+    """左句存在叠字（语音识别把单字重复成叠字）：只认叠字压缩点附近的修复片段。
+
+    不做全句扫描——整句去叠会把远处与叠字无关的共享业务词也当同指，造成误挂。
+    """
     raw = _han_only(left)
     col = _han_only(_collapse_stutter(left))
     if not col or col == raw:
@@ -401,16 +478,32 @@ def _stutter_collapsed_hit(left: str, sentence: str) -> bool:
     hb = _han_only(_normalize_match_text(sentence))
     if not hb:
         return False
-    for size in (3, 2):
-        for i in range(len(col) - size + 1):
-            piece = col[i : i + size]
-            leftover = _GENERIC_MORPHEME.sub("", piece)
-            if (
-                piece in hb
-                and len(leftover) >= 2
-                and not _is_generic_span(piece)
-            ):
-                return True
+    # 定位压缩点：raw 中相邻重复字，在 col 中只保留一次的位置
+    dup_pos: list[int] = []
+    p = q = 0
+    while p < len(raw) and q < len(col):
+        ch = raw[p]
+        if col[q] != ch:
+            q += 1
+            continue
+        if p + 1 < len(raw) and raw[p + 1] == ch:
+            dup_pos.append(q)
+        p += 1
+        q += 1
+    if not dup_pos:
+        return False
+    for j in dup_pos:
+        window = col[max(0, j - _STUTTER_CTX_BEFORE) : j + _STUTTER_CTX_AFTER + 1]
+        for size in (4, 3, 2):
+            for i in range(len(window) - size + 1):
+                piece = window[i : i + size]
+                leftover = _GENERIC_MORPHEME.sub("", piece)
+                if (
+                    piece in hb
+                    and len(leftover) >= 2
+                    and not _is_generic_span(piece)
+                ):
+                    return True
     return False
 
 
@@ -435,6 +528,11 @@ def _note_related(
     norm_sent = _normalize_match_text(sentence)
     _, span, _ = _claim_score(norm_left, norm_sent, df, n_docs)
     if span >= 8:
+        return True
+    # 保守链式：note 有原文证据（外层已查）+ 正文句承载足够实义 token 与片段
+    # （≥2 个 ≥3 字段）→ 口语原话与提炼句的跨改写同指。token 少或片段单一
+    # （单一业务词族的偶合）不放行，避免批注挂到不同事实的句上。
+    if _note_chain_hit(left, sentence):
         return True
     return False
 
@@ -531,14 +629,123 @@ def _has_evidence(transcript: str, evidence: str) -> bool:
     return bool((evidence or "").strip()) and _contains_loose(transcript, evidence)
 
 
-def _source_supported_by_transcript(source: str, transcript: str) -> bool:
-    """关键点必须能在原文中找到同指依据；找不到就不落钉。"""
-    evidence = _evidence_for(transcript, source)
-    if not _has_evidence(transcript, evidence):
+def _understanding_pool(understanding: dict | None) -> list[str]:
+    """会议理解中的规范化条目（决策/风险/未决/议题标题）作证据池：
+    用户关键点是概括、与原文不逐字时，用这些提炼条目做同指桥。"""
+    if not isinstance(understanding, dict):
+        return []
+    out: list[str] = []
+    for key in ("decisions", "risks", "open_questions"):
+        for text in understanding.get(key) or []:
+            t = " ".join(str(text or "").split()).strip()
+            if t and t not in out:
+                out.append(t)
+    for topic in understanding.get("topics") or []:
+        if isinstance(topic, dict):
+            t = " ".join(str(topic.get("title") or "").split()).strip()
+            if t and t not in out:
+                out.append(t)
+    return out[:40]
+
+
+def _resolve_keypoint_evidence(
+    keypoint: str, transcript: str, pool: list[str]
+) -> str:
+    """关键点证据：优先原文直接定位；否则经证据池条目在原文回填。
+
+    保证返回片段能在原文模糊匹配（不伪造依据）。找不到返回空串。
+    """
+    ev = _evidence_for(transcript, keypoint)
+    if _has_evidence(transcript, ev):
+        return ev
+    for item in pool:
+        if _related(keypoint, item) or _related_strong(keypoint, item):
+            pev = _evidence_for(transcript, item)
+            if _has_evidence(transcript, pev) and not _claim_incompatible(keypoint, pev):
+                return pev
+    return ""
+
+
+def _note_targets_pool(left: str, pool: list[str]) -> bool:
+    """笔记 left 与某条决策/风险/议题同指 → 批注针对具体结论，允许挂到总结/结论句。"""
+    if not (left or "").strip():
         return False
-    if _claim_incompatible(source, evidence):
-        return False
-    return _related(source, evidence) or _related_strong(source, evidence)
+    return any(
+        (_related(left, item) or _related_strong(left, item)) for item in pool
+    )
+
+
+def _evidence_mode(source: str, evidence: str, transcript: str) -> str:
+    """证据可信等级：direct=source 直接能在原文定位；bridged=经理解池条目回填。"""
+    if not (source or "").strip() or not (evidence or "").strip():
+        return "bridged"
+    direct = _evidence_for(transcript, source)
+    if direct and (
+        direct == evidence or direct in evidence or evidence in direct
+    ):
+        return "direct"
+    return "bridged"
+
+
+def _evidence_candidates(
+    source: str, transcript: str, pool: list[str], limit: int = 3
+) -> list[dict[str, Any]]:
+    """原文证据候选：source 直接匹配的原文句在前，理解池桥接回填次之（供候选包）。"""
+    if not (source or "").strip():
+        return []
+    src_grams = _han_ngrams(source, size=2)
+    rows: list[tuple[int, str]] = []
+    if transcript:
+        for sent in _SENTENCE_SPLIT.split(transcript):
+            line = re.sub(r"^[-*]\s*", "", sent).strip()
+            if not line:
+                continue
+            hits = len(src_grams & _han_ngrams(line, size=2))
+            if hits >= 1:
+                rows.append((hits, _clip(line, 120)))
+    rows.sort(key=lambda r: (-r[0], len(r[1])))
+    out: list[dict[str, Any]] = []
+    seen: set[str] = set()
+    for hits, line in rows[:2]:
+        if line in seen:
+            continue
+        seen.add(line)
+        out.append({"kind": "direct", "text": line, "score": round(min(hits / 4, 1.0), 2)})
+    for item in pool:
+        if len(out) >= limit:
+            break
+        if _related(source, item) or _related_strong(source, item):
+            pev = _evidence_for(transcript, item)
+            if pev and pev not in seen:
+                seen.add(pev)
+                out.append({"kind": "bridged", "text": pev, "score": 0.6})
+    return out[:limit]
+
+
+def _sentence_candidates(
+    source: str,
+    sentences: list[str],
+    df: dict[str, int],
+    n_docs: int,
+    limit: int = 5,
+) -> list[str]:
+    """正文句候选：按主张相似度排序取 top（供候选包，宽松交给 LLM 裁判）。"""
+    scored: list[tuple[float, int, int, str]] = []
+    for sentence in sentences:
+        if _claim_incompatible(source, sentence):
+            continue
+        ratio, span, grams = _claim_score(source, sentence, df, n_docs)
+        if ratio <= 0 and span < 3 and not _related(source, sentence, df=df, n_docs=n_docs):
+            continue
+        scored.append((ratio, span, grams, sentence))
+    scored.sort(key=lambda item: (-item[0], -item[1], -item[2], len(item[3])))
+    out: list[str] = []
+    for _, _, _, sentence in scored:
+        if sentence not in out:
+            out.append(sentence)
+        if len(out) >= limit:
+            break
+    return out
 
 
 def _high_confidence_keypoint_hit(
@@ -557,13 +764,10 @@ def _high_confidence_keypoint_hit(
         return False
     ratio, span, grams = _claim_score(source, sentence, df, n_docs)
     ev_ratio, ev_span, ev_grams = _claim_score(source, evidence)
-    sent_ev_ratio, sent_ev_span, sent_ev_grams = _claim_score(evidence, sentence)
-    evidence_ties_sentence = (
-        sent_ev_span >= 6 or (sent_ev_ratio >= 0.18 and sent_ev_grams >= 2)
-    )
-    if not evidence_ties_sentence:
-        return False
-    if span >= 6 and ev_span >= 5:
+    # 链式同指：evidence 是按 source 从原文定位出的依据（source↔evidence 有据），
+    # 三对冲突均已查过。故正文句只要逐字/近字承载 source（span≥6）即可置信，
+    # 不再苛求 evidence↔正文句的字面 tie——正文常是口语原文的复合改写，字面会稀释。
+    if span >= 6:
         return True
     if ratio >= 0.35 and grams >= 3 and ev_ratio >= 0.20 and ev_grams >= 2:
         return True
@@ -683,11 +887,13 @@ def gate_alignments(
     keypoints: list[str],
     notes: list[tuple[str, str]],
     topic_titles: list[str] | None = None,
+    understanding: dict | None = None,
 ) -> list[dict[str, str]]:
     """丢掉无据对齐。返回可落钉的规范化条目。
 
     topic_titles：meeting_core 议题标题列表（主题桥用）；传入后启用
     主题一致性闸门（同主题弱相关放行、跨主题必须强相关），提升召回且守住精度。
+    understanding：会议理解条目作证据池，概括型关键点经池同指放行（②）。
     """
     kept: list[dict[str, str]] = []
     seen: set[tuple[str, str, str]] = set()
@@ -696,6 +902,7 @@ def gate_alignments(
     n_docs = len(corpus)
     segments = segment_minutes(minutes_md) if topic_titles else []
     titles = list(topic_titles or [])
+    pool = _understanding_pool(understanding)
     for raw in alignments or []:
         if not isinstance(raw, dict):
             continue
@@ -725,11 +932,12 @@ def gate_alignments(
             if not _note_supported_by_transcript(left, transcript):
                 continue
             if _is_summary_like(sentence) and not (
-                _note_almost_verbatim(left, sentence)
+                _note_targets_pool(left, pool)
+                or _note_almost_verbatim(left, sentence)
                 or _related_strong(left, sentence, df=df, n_docs=n_docs)
             ):
                 continue
-            if not _note_related(
+            if not (_is_summary_like(sentence) and _note_targets_pool(left, pool)) and not _note_related(
                 left,
                 sentence,
                 df=df,
@@ -747,7 +955,7 @@ def gate_alignments(
         if evidence and not _contains_loose(transcript, evidence):
             evidence = ""
         if kind == "keypoint":
-            evidence = evidence or _evidence_for(transcript, stamp)
+            evidence = evidence or _resolve_keypoint_evidence(stamp, transcript, pool)
             if not _high_confidence_keypoint_hit(
                 stamp, sentence, evidence, df=df, n_docs=n_docs
             ):
@@ -775,6 +983,32 @@ def _sentences(markdown: str) -> list[str]:
             continue
         line = re.sub(r"^[-*]\s*", "", line).strip()
         if line:
+            out.append(line)
+    return out
+
+
+def _minutes_sentences(minutes_md: str) -> list[str]:
+    """正文挂载候选句：按行取，跳过标题与「内容总结」段落区。
+
+    内容总结是概况综述（成段文字），不作为溯源挂载目标——挂载只发生在
+    议题正文与动态章节的具体句子上。行内含多个分句时整行保留（不按句号再拆），
+    避免把一条完整事实拆碎。
+    """
+    out: list[str] = []
+    in_summary = False
+    for raw in (minutes_md or "").splitlines():
+        line = raw.strip()
+        if not line:
+            continue
+        if line.startswith("#"):
+            in_summary = line.lstrip("#").strip() == "内容总结"
+            continue
+        if in_summary:
+            continue
+        if line.startswith(">") or line.startswith("---"):
+            continue
+        line = re.sub(r"^[-*]\s*", "", line).strip()
+        if line and not line.startswith("###[【"):
             out.append(line)
     return out
 
@@ -932,10 +1166,6 @@ def _same_topic(
     return span >= 6 or ratio >= 0.4 or _distinctive_short_hit(source, sentence)
 
 
-_KEYPOINT_MATCH_CAP = 3
-_NOTE_MATCH_CAP = 2
-
-
 def _best_sentences(
     source: str,
     candidates: list[str],
@@ -974,80 +1204,146 @@ def backfill_alignments(
     keypoints: list[str],
     notes: list[tuple[str, str]],
     topic_titles: list[str] | None = None,
+    understanding: dict | None = None,
+    audit: dict | None = None,
 ) -> list[dict[str, str]]:
     """补挂明显相关的来源。只追加钉子，不改正文，不引入用户批注为事实。
 
     topic_titles：启用主题桥——先在关键点/笔记同主题的段落内找句（2A），
     找不到再回退全局；补挂的 evidence 用原文片段回填（2C），不再留空。
+    understanding：会议理解条目作证据池，概括型关键点/针对结论的笔记经池同指放行。
+    audit：可选 dict，收集 dropped 原因与 summary 统计（阶段 A debug，不写正式文件）。
+    执行顺序：先证据成立 → 再正文候选 → 后三方一致 + 分槽位 cap（按材料优先级）。
     """
     kept = gate_alignments(
-        alignments, minutes_md, transcript, keypoints, notes, topic_titles
+        alignments, minutes_md, transcript, keypoints, notes, topic_titles, understanding
     )
+    index = TraceIndex(
+        minutes_sentences=_minutes_sentences(minutes_md),
+        segments=segment_minutes(minutes_md),
+        sentence_sections={},
+        topic_titles=list(topic_titles or []),
+        understanding_pool=_understanding_pool(understanding),
+    )
+    for sent in index.minutes_sentences:
+        index.sentence_sections[sent] = _segment_of(sent, index.segments)
+    candidates = index.minutes_sentences
+    df = _ngram_df(candidates)
+    n_docs = len(candidates)
+    segments = index.segments
+    titles = index.topic_titles
+    pool = index.understanding_pool
     seen = {
         (item.get("sentence", ""), item.get("kind", ""), item.get("source", ""))
         for item in kept
     }
-    candidates = _sentences(minutes_md)
-    df = _ngram_df(candidates)
-    n_docs = len(candidates)
-    segments = segment_minutes(minutes_md) if topic_titles else []
-    titles = list(topic_titles or [])
+    audit_sum = audit.setdefault("summary", {}) if isinstance(audit, dict) else {}
+    audit_drops = audit.setdefault("dropped", []) if isinstance(audit, dict) else None
 
+    def _drop(source: str, reason: str, priority: str) -> None:
+        if audit_drops is not None:
+            audit_drops.append({"source": source, "reason": reason, "priority": priority})
+
+    # ── keypoint：先证据 → 再正文候选 → 三方一致 + 分槽 cap ──
+    kp_total = len(keypoints)
+    kp_supported = 0
+    kp_pinned = 0
     for keypoint in keypoints:
-        evidence = _evidence_for(transcript, keypoint)
+        pri = classify_priority(keypoint)
+        total_cap, section_cap = _PRI_KEYPOINT_CAP.get(pri, (2, 1))
+        evidence = _resolve_keypoint_evidence(keypoint, transcript, pool)
         if not _has_evidence(transcript, evidence):
+            _drop(keypoint, "no_transcript_evidence", pri)
             continue
-        if not _source_supported_by_transcript(keypoint, transcript):
-            continue
-        strong = _best_sentences(
-            keypoint,
-            candidates,
-            limit=_KEYPOINT_MATCH_CAP,
-            df=df,
-            n_docs=n_docs,
-            require_strong=True,
-        )
-        pool = candidates
-        if segments:
-            same_topic = _best_segment(keypoint, segments, titles)
-            if same_topic:
-                pool = list(dict.fromkeys([*same_topic, *candidates]))
-        related = _best_sentences(
-            keypoint, pool, limit=_KEYPOINT_MATCH_CAP, df=df, n_docs=n_docs
-        )
-        hits: list[str] = []
-        for sentence in [*strong, *related]:
-            if sentence not in hits:
-                hits.append(sentence)
-            if len(hits) >= _KEYPOINT_MATCH_CAP:
-                break
+        kp_supported += 1
+        # ②正文候选：low 只收强相关；high/medium 强相关优先 + 主题桥放宽
+        if pri == "low":
+            hits = _best_sentences(
+                keypoint, candidates, limit=total_cap, df=df, n_docs=n_docs,
+                require_strong=True,
+            )
+        else:
+            strong = _best_sentences(
+                keypoint, candidates, limit=total_cap, df=df, n_docs=n_docs,
+                require_strong=True,
+            )
+            search_pool = candidates
+            if segments:
+                same_topic = _best_segment(keypoint, segments, titles)
+                if same_topic:
+                    search_pool = list(dict.fromkeys([*same_topic, *candidates]))
+            related = _best_sentences(
+                keypoint, search_pool, limit=total_cap, df=df, n_docs=n_docs
+            )
+            hits = []
+            for sentence in [*strong, *related]:
+                if sentence not in hits:
+                    hits.append(sentence)
+                if len(hits) >= total_cap:
+                    break
         hits = _dedup_similar_hits(hits, keep=4)
+        # ③三方一致 + 同 section 分槽
+        section_counts: dict[str, int] = {}
+        pinned_here = 0
         for sentence in hits:
+            if pinned_here >= total_cap:
+                break
             if not _high_confidence_keypoint_hit(
                 keypoint, sentence, evidence, df=df, n_docs=n_docs
             ):
+                continue
+            sec = index.sentence_sections.get(sentence, "")
+            if sec and section_counts.get(sec, 0) >= section_cap:
                 continue
             marker = (sentence, "keypoint", keypoint)
             if marker in seen:
                 continue
             seen.add(marker)
+            section_counts[sec] = section_counts.get(sec, 0) + 1
+            pinned_here += 1
             kept.append(
                 {
                     "sentence": sentence,
                     "kind": "keypoint",
                     "source": keypoint,
                     "evidence": evidence,
+                    "confidence": _evidence_mode(keypoint, evidence, transcript),
                 }
             )
+        kp_pinned += pinned_here
+        if pinned_here == 0:
+            _drop(keypoint, "weak_minutes_match", pri)
 
+    # ── note：只用 left 找证据；right 只影响优先级；low 仅原文几乎复现 ──
+    note_total = len(notes)
+    note_supported = 0
+    note_pinned = 0
     for left, right in notes:
+        pri = classify_priority(left, right)
+        total_cap, section_cap = _PRI_NOTE_CAP.get(pri, (1, 1))
         if not _note_supported_by_transcript(left, transcript):
+            _drop(f"{left} -> {right}", "note_left_no_transcript_evidence", pri)
             continue
+        note_supported += 1
+        if pri == "low":
+            # low 笔记默认不挂，仅当正文有几乎原文复现的句子
+            strong_verbatim = [
+                s for s in candidates
+                if _note_almost_verbatim(left, s) or _quotes_note_left(left, s)
+            ]
+            if not strong_verbatim:
+                _drop(f"{left} -> {right}", "low_priority_skipped", pri)
+                continue
+            scan = strong_verbatim
+        else:
+            scan = candidates
         bridge = _supporting_transcript_sentence(left, transcript)
+        targets_pool = _note_targets_pool(left, pool)
         scored: list[tuple[int, float, int, str]] = []
-        for sentence in candidates:
+        for sentence in scan:
             if _is_summary_like(sentence) and not (
-                _note_almost_verbatim(left, sentence)
+                targets_pool
+                or _note_almost_verbatim(left, sentence)
                 or _related_strong(
                     _normalize_match_text(left),
                     _normalize_match_text(sentence),
@@ -1056,7 +1352,7 @@ def backfill_alignments(
                 )
             ):
                 continue
-            if not _note_related(
+            if not (_is_summary_like(sentence) and targets_pool) and not _note_related(
                 left, sentence, df=df, n_docs=n_docs, bridge=bridge
             ):
                 continue
@@ -1075,56 +1371,143 @@ def backfill_alignments(
             ratio, span, _ = _claim_score(norm_left, norm_sent, df, n_docs)
             scored.append((rank, ratio, span, sentence))
         scored.sort(key=lambda item: (-item[0], -item[1], -item[2], len(item[3])))
-        picked = _dedup_similar_hits([item[3] for item in scored], keep=2)[
-            :_NOTE_MATCH_CAP
-        ]
+        raw_picked = _dedup_similar_hits([item[3] for item in scored], keep=2)
         source = f"{left} **用户批注** {right}"
-        for sentence in picked:
+        sec_counts: dict[str, int] = {}
+        pinned_here = 0
+        for sentence in raw_picked:
+            if pinned_here >= total_cap:
+                break
+            sec = index.sentence_sections.get(sentence, "")
+            if sec and sec_counts.get(sec, 0) >= section_cap:
+                continue
             marker = (sentence, "note", source)
             if marker in seen:
                 continue
             seen.add(marker)
+            sec_counts[sec] = sec_counts.get(sec, 0) + 1
+            pinned_here += 1
             kept.append(
                 {
                     "sentence": sentence,
                     "kind": "note",
                     "source": source,
                     "evidence": _evidence_for(transcript, left) or left,
+                    "confidence": "direct",
                 }
             )
+        note_pinned += pinned_here
+        if pinned_here == 0:
+            _drop(f"{left} -> {right}", "weak_minutes_match", pri)
 
+    if isinstance(audit, dict):
+        audit_sum.update(
+            {
+                "keypoint_total": kp_total,
+                "keypoint_supported": kp_supported,
+                "keypoint_pinned": kp_pinned,
+                "note_total": note_total,
+                "note_supported": note_supported,
+                "note_pinned": note_pinned,
+            }
+        )
     return _cap_sentence_pins(_cap_similar_keypoint_pins(kept, keep=3), max_sources=2)
+
+
+def _match_tokens(text: str) -> set[str]:
+    """匹配用 token 集：汉字 2-gram ∪ 数字 token。
+
+    数字带 # 前缀作为独立 token 与汉字 gram 同权参与交集，无任何专门阈值；
+    共享数字即共享 token，凑满判中数才会命中。
+    """
+    tokens = set(_han_ngrams(text or "", size=2))
+    for n in _extract_numbers(text or ""):
+        tokens.add(f"#{n}")
+    return tokens
+
+
+def _shared_phrase_count(left: str, right: str, min_len: int = _NOTE_PHRASE_MIN_LEN) -> int:
+    """双方归一后汉字串中互不重叠的公共连续段（≥min_len）数量。
+
+    度量“正文句复用了原话多少处实义表达”：只撞上单一业务词族只能凑 1 段，
+    同事实改写通常留下 ≥2 段独立复用。
+    """
+    ha = _han_only(_normalize_match_text(left or ""))
+    hb = _han_only(_normalize_match_text(right or ""))
+    if not ha or not hb:
+        return 0
+    shorter, longer = (ha, hb) if len(ha) <= len(hb) else (hb, ha)
+    segs: list[tuple[int, int]] = []
+    for i in range(len(shorter) - min_len + 1):
+        longest = 0
+        for size in range(min_len, min(len(shorter) - i, len(longer)) + 1):
+            if shorter[i : i + size] in longer:
+                longest = size
+            else:
+                break
+        if longest >= min_len:
+            segs.append((i, longest))
+    segs.sort()
+    count = 0
+    last_end = -1
+    for i, length in segs:
+        if i >= last_end:
+            count += 1
+            last_end = i + length
+        else:
+            last_end = max(last_end, i + length)
+    return count
+
+
+def _note_chain_hit(left: str, sentence: str) -> bool:
+    """note 保守链式同指：正文句复用原话 ≥4 个匹配 token，且 ≥2 段独立实义复用。"""
+    lt = _match_tokens(_normalize_match_text(left or ""))
+    ls = _match_tokens(_normalize_match_text(sentence or ""))
+    if not lt or not ls:
+        return False
+    if len(lt & ls) < _NOTE_CHAIN_MIN_TOKENS:
+        return False
+    return _shared_phrase_count(left, sentence) >= _NOTE_CHAIN_MIN_PHRASES
+
+
+def _evidence_snippet(line: str) -> str:
+    """evidence 截断为原文子串（不加省略号，保证能在原文中复核到）。"""
+    line = " ".join((line or "").split()).strip()
+    return line[:120] if len(line) > 120 else line
 
 
 def _evidence_for(transcript: str, source: str) -> str:
     """从原文中找与来源最相关的句子作为依据；找不到返回空串。
 
-    2C：不再补挂空 evidence——逐句扫描取 2-gram 重叠最多的原文句，
+    2C：不再补挂空 evidence——逐句扫描取 token 重叠最多的原文句，
     并还原该句中与来源重合的连续片段（保留标点），保证可溯源。
+    token 集 = 汉字 2-gram ∪ 数字 token（数字同权参与匹配，无任何专门阈值；
+    口语/提炼常只共享数字也能被定位，数字与汉字一样至少凑满 2 个才判中）。
     """
-    src = " ".join((source or "").split()).strip()
+    src = _normalize_match_text(" ".join((source or "").split()).strip())
     if not src or not transcript:
         return ""
-    src_grams = _han_ngrams(src, size=2)
-    best_sent = ""
+    src_tokens = _match_tokens(src)
+    best_line = ""
     best_hits = 0
     for sent in _SENTENCE_SPLIT.split(transcript or ""):
         line = re.sub(r"^[-*]\s*", "", sent).strip()
         if not line:
             continue
-        hits = len(src_grams & _han_ngrams(line, size=2))
+        hits = len(src_tokens & _match_tokens(_normalize_match_text(line)))
         if hits > best_hits:
             best_hits = hits
-            best_sent = line
-    if best_hits >= 2 and best_sent:
-        return _clip(best_sent, 120)
+            best_line = line
+    if best_hits >= 2 and best_line:
+        return _evidence_snippet(best_line)
     # 弱匹配回退：最长公共连续片段（含标点还原）
-    span, piece = _best_span(transcript, src, min_size=6)
+    span, piece = _best_span(transcript, source, min_size=6)
     return piece if span >= 6 else ""
 
 
 def format_tag(source: str) -> str:
-    return f"###[【{source}】]({TRACE_URL})"
+    # 溯源钉为结构化标记，不带超链接；前端如需跳转由客户端按 source 定位。
+    return f"###[【{source}】]"
 
 
 def stamp_minutes(minutes_md: str, alignments: list[dict[str, str]]) -> str:
@@ -1195,7 +1578,6 @@ def stamp_minutes(minutes_md: str, alignments: list[dict[str, str]]) -> str:
 
 
 __all__ = [
-    "TRACE_URL",
     "backfill_alignments",
     "format_tag",
     "gate_alignments",

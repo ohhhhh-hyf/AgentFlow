@@ -246,7 +246,7 @@ def _validate(req: TaskRequest, task: str, user_id: str) -> str:
 
     if not (user_id or "").strip():
         raise ApiError(400, f"{task} 需要 X-User-Id（用户标识：数据目录和知识库按用户隔离）")
-    if line in {"catalog", "checklist"} and not (req.extra.subject or "").strip():
+    if line in {"library", "catalog", "checklist"} and not (req.extra.subject or "").strip():
         raise ApiError(400, f"{task} 需要 extra.subject")
     if line == "minutes_styles" and (req.extra.style or "").strip():
         style = req.extra.style.strip().lower()

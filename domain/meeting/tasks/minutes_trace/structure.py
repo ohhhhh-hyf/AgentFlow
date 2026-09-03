@@ -100,9 +100,13 @@ def _split_points(text: str) -> list[str]:
 
 
 def bulletize_minutes(minutes_md: str) -> str:
-    """把粘在一起的正文拆成 Markdown 列表，不改事实、不动表格和标题。"""
+    """把粘在一起的正文拆成 Markdown 列表，不改事实、不动表格和标题。
+
+    内容总结区除外：其正文保持成段文字（段落按行原样保留，不拆句、不加列表符）。
+    """
     out: list[str] = []
     in_table = False
+    in_summary = False
     for raw in (minutes_md or "").splitlines():
         stripped = raw.strip()
         if stripped.startswith("|"):
@@ -116,12 +120,19 @@ def bulletize_minutes(minutes_md: str) -> str:
             else:
                 out.append(raw.rstrip())
             continue
+        if stripped.startswith("#"):
+            in_summary = stripped.lstrip("#").strip() == "内容总结"
+            out.append(raw.rstrip())
+            continue
         if (
             not stripped
-            or stripped.startswith("#")
             or stripped.startswith(">")
             or stripped.startswith("---")
         ):
+            out.append(raw.rstrip())
+            continue
+        if in_summary:
+            # 内容总结段落：原样保留，不按句号拆行，不加列表符号
             out.append(raw.rstrip())
             continue
         points = _split_points(stripped)

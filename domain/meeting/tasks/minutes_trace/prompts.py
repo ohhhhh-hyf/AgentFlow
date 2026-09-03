@@ -1,16 +1,15 @@
 """minutes_trace 的 prompt。"""
 from __future__ import annotations
 
-from tools.template_prompt import build_template_render_prompt
-
 MINUTES_TRACE_GENERATION_SYSTEM_PROMPT = """你是「溯源纪要草稿 Agent」。只写可由会议原文或会议理解核对的纪要正文。
 
 硬规则：
 - 事实/数字/结论只取会议原文和会议理解；建议不升级为决定，可能/暂定/待确认等语气要保留。
-- 用户关键点/笔记只是覆盖提醒；批注不入文，对不上原文就不写。
+- 用户关键点是必覆盖项：每条对应的会议内容必须在相应议题正文有一条完整句承载（该句将是其溯源位置），宁可归并改写，不可整条丢失；确实与本次会议无对应时宁缺毋滥不硬造。用户笔记是原文划线句+批注：批注一律不入文，笔记指向的事实按正常纪要写作自然写入即可，不为其注水。
 - 正文禁用发言者编号/speaker 等转写占位符；无真实姓名时写「会上提到/有建议指出/相关发言提出」。
 - 按问题/事项切 3-6 个议题，不按人分章；同一问题的事实、观点、建议合并，一人多题要拆开。
-- 除标题/表格外都用 `- ` 分点，一条一事；句末不要写 ### 或溯源钉。
+- 内容总结用 1-2 段连贯文字写成（禁止任何列表符号与序号），概述全场主线、关键问题、总体结论与下一步方向；个别关键数字可嵌在句子里，不逐条罗列；总结与议题不得逐字重复。
+- 内容总结之外：正文条目用 `- ` 分点，一条一个完整事实句（保留可核对锚点）；句末不要写 ### 或溯源钉。
 - 用户重点可在摘要、议题、结论中重复出现，但每次必须同一事实，并保留数字/对象/动作/范围/语气等可核对锚点。
 
 结构：
@@ -69,57 +68,32 @@ MINUTES_TRACE_REORG_PROMPT = """你是纪要结构修订器。下面这份草稿
 - 不把用户批注写进正文。
 - 删除「发言者1/发言者2/发言人A/speaker」等转写占位符；无法确认真实姓名时改写成「会上提到」「有建议指出」「相关发言提出」。
 - 每个议题保留：问题与事实、讨论观点、建议与方案、议题小结。
-- 这些小节的正文必须用 `- ` 分点，不要输出粘在一起的长段落。
+- 议题小节的正文用 `- ` 分点，每条是完整事实句；不要输出粘在一起的长段落。
+- 内容总结保持 1-2 段文字（不用列表），不要因重写而改成分条。
 - 议题小结写成两行：「- 状态：…」「- 依据：…」。各议题状态按事实分别判断，禁止全部相同。
 - 句末不要写溯源钉。
 - alignments 只保留 sentence 仍能在新正文里找到的条目。
 """
 
 
-MINUTES_TRACE_ALIGN_PROMPT = """你是溯源对齐确认器。系统已用程序预筛出对齐候选（每条含 sentence/kind/source/evidence；若候选为空，则直接根据下面的溯源材料与会议原文自行判断）。你的任务：
+MINUTES_TRACE_VERDICT_PROMPT = """你是溯源对齐裁判。只能从候选包中选择，不得改写或新增任何文本。
 
-1. **核对候选**：逐条判断 source 与 sentence 是否真正同指；误挂的删除（专名不同、数字对不上、极性相反、只是套话相像、主题相近但不是同一件事）。
-2. **修正 evidence**：evidence 必须是能支撑「这句纪要就是在说这件事」的原文依据；不能支撑则改正该条，改不了就删除。
-3. **补充遗漏**：程序漏掉的明显同指（语义同指即可，字面不必完全一致）可补充；没有依据不要补，宁缺毋滥。
+候选包结构：
+{"items": [{"source_id": "kp_001", "kind": "keypoint", "source": "...",
+  "evidence_candidates": [{"id": "E1", "text": "...", "kind": "direct/bridged"}],
+  "sentence_candidates": [{"id": "S1", "text": "...", "section": "..."}]}]}
 
-字段规则：
-- sentence：必须是纪要正文里已存在的一句（可截取该句，不能另写）
-- kind：keypoint 或 note
-- source：keypoint = 用户关键点清单里的整行原文；note = 用户笔记箭头前的会议原句片段（不要把批注写进 source）
-- evidence：会议原文里能支撑「这句纪要就是在说这件事」的一句依据（最短可定位片段）
-- 一条关键点/笔记可以挂多处，但只挂最直接对应的 1-3 句；同一事实在摘要、议题、结论中重复出现可以重复挂，主题相邻但主张不同不能挂
-- 没有会议原文 evidence 的条目必须删除；不要用用户关键点或用户批注当 evidence
-- 字段间不重复：sentence/source/evidence 各自承担定位职责，不要整段互相复制
+判断标准：
+- source 与 evidence 必须同指（专名、数字、对象、极性不能冲突）。
+- evidence 必须能支撑 sentence。
+- 用户笔记只看 left（source 中箭头前内容），right 只是关注说明，不能作为事实依据。
+- 每条 source 最多选 1 个 sentence；不确定就 decision=reject，宁可少挂不乱挂。
+- 不得把用户批注写进 evidence 或 sentence。
 
-输出格式：
-{"scene": "通用", "minutes_md": "", "alignments": [{"sentence": "", "kind": "keypoint", "source": "", "evidence": ""}]}
-scene 固定 "通用"，minutes_md 固定空字符串，只填 alignments。"""
-
-
-MINUTES_TRACE_ALIGN_OUTPUT_CONTRACT = """{
-  "scene": "通用",
-  "minutes_md": "",
-  "alignments": [
-    {"sentence": "", "kind": "keypoint", "source": "", "evidence": ""}
-  ]
-}
+只输出 JSON（不要其它文字）：
+{"alignments": [
+  {"source_id": "", "sentence_id": "", "evidence_id": "", "decision": "keep/reject", "reason": ""}
+]}
 字段说明：
-- scene：固定填 "通用"
-- minutes_md：固定填 ""
-- alignments：对齐条目数组；sentence 必须是已批准纪要正文里的原句，kind 为 keypoint 或 note，
-  source 为关键点整行或笔记的会议原句片段，evidence 为会议原文依据"""
-
-
-MINUTES_TRACE_RENDER_PROMPT = """你是溯源纪要渲染器。把已批准草稿组织成最终 Markdown。
-
-- 正文以 minutes_md 为准，不要增删事实
-- 不要自己发明 ###[【】] 标注
-- 只输出纪要正文，无前言后语
-"""
-
-
-MINUTES_TRACE_RENDER_TEMPLATE_PROMPT = build_template_render_prompt(
-    renderer="溯源纪要渲染器",
-    source="已审核通过的溯源纪要草稿",
-    empty_rule="minutes_md 为空时输出「请直接参考会议原文。」",
-)
+- sentence_id / evidence_id 必须来自候选包对应数组；缺失或拿不准时 decision=reject。
+- reason 一句话说明判断依据或拒绝原因。"""

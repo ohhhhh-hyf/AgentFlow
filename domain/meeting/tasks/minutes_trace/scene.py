@@ -3,12 +3,18 @@
 结构统一（内容总结 / 主要议题 / 关键决策 / 行动项 / 会议结论），
 但各场景在议题侧重、小结侧重上不同；「按问题切 3–6 个议题、不按人分章」是
 所有场景的硬约束（见 structure.py 与生成 prompt）。
+
+骨架正文存放在同目录 ``scenes/*.md``（便于直接编辑模板），
+``_SCENE_FORMATS`` 保留原值作文件缺失时的回退，二者内容一致。
 """
 from __future__ import annotations
 
 import re
+from pathlib import Path
 
 GENERIC_SCENE = "通用"
+
+_SCENES_DIR = Path(__file__).resolve().parent / "scenes"
 
 _DEFAULT_REQUIREMENT = (
     "忠实原文；按议题组织；事实与观点分离；讨论与决策分离；"
@@ -76,6 +82,28 @@ _ASSIGN = re.compile(
     r"^([A-Za-z_][A-Za-z0-9_]*)\s*=\s*('{3}|\"{3})",
     re.M,
 )
+
+
+def _scene_file(label: str) -> Path:
+    """场景 label → scenes 目录下的 md 文件（斜杠以 _ 代，如 脑暴/讨论 → 脑暴_讨论.md）。"""
+    fname = label.replace("/", "_") + ".md"
+    return _SCENES_DIR / fname
+
+
+def load_scene_format(label: str) -> str:
+    """按场景读取骨架正文；文件缺失时回退内置 _SCENE_FORMATS 常量。"""
+    scene = normalize_scene_label(label or "")
+    try:
+        path = _scene_file(scene if scene else GENERIC_SCENE)
+        if path.is_file():
+            text = path.read_text(encoding="utf-8").strip()
+            if text:
+                return text
+    except OSError:
+        pass
+    if scene and scene in _SCENE_FORMATS:
+        return _SCENE_FORMATS[scene]
+    return _DEFAULT_FORMAT
 
 
 def parse_scene_pack(raw: str) -> dict[str, str]:
@@ -173,15 +201,15 @@ def generic_spec(pack: dict[str, str], pack_raw: str = "") -> tuple[str, str]:
     if not req:
         req = _DEFAULT_REQUIREMENT
     if not fmt:
-        fmt = _DEFAULT_FORMAT
+        fmt = load_scene_format(GENERIC_SCENE)
     return req, fmt
 
 
 def scene_spec(pack: dict[str, str], label: str = "") -> tuple[str, str]:
     """按场景返回骨架：该场景的侧重格式 + 场景化要求；未知/空回通用。"""
     scene = normalize_scene_label(label or "")
-    fmt = _SCENE_FORMATS.get(scene)
-    if fmt is None:
+    fmt = load_scene_format(scene) if scene else ""
+    if not fmt:
         return generic_spec(pack)
     data = pack if isinstance(pack, dict) else {}
     global_rule = (data.get("GLOBAL_CONSTRAINT") or "").strip()
@@ -201,6 +229,7 @@ __all__ = [
     "detect_scene",
     "generic_spec",
     "heuristic_scene_label",
+    "load_scene_format",
     "normalize_scene_label",
     "parse_scene_pack",
     "scene_spec",

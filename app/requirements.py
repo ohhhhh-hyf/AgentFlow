@@ -47,6 +47,7 @@ REQUIRED_FIELDS: dict[str, dict[str, str]] = {
     },
     "library": {
         "user_id": "X-User-Id",
+        "extra.subject": "extra.subject（学科）",
         "docs_any": "docs（文件或图片）",
     },
     "catalog": {

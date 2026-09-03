@@ -350,7 +350,39 @@ def save_report_artifacts(
                         encoding="utf-8",
                     )
                 paths["html"] = html_path
-            elif ctx.name == "meeting" and line_name in ("minutes", "minutes_trace", "minutes_styles"):
+            elif ctx.name == "meeting" and line_name == "risks":
+                from tools.meeting_memory.render import render_risks_html
+
+                html_doc = render_risks_html(html_title, text, data)
+                html_path = out_dir / f"{line_name}.html"
+                html_path.write_text(html_doc, encoding="utf-8")
+                paths["html"] = html_path
+            elif ctx.name == "meeting" and line_name == "actions":
+                from tools.meeting_memory.render import render_actions_html
+
+                html_doc = render_actions_html(html_title, text, data)
+                html_path = out_dir / f"{line_name}.html"
+                html_path.write_text(html_doc, encoding="utf-8")
+                paths["html"] = html_path
+            elif ctx.name == "meeting" and line_name == "minutes_trace":
+                # 溯源纪要：md 保持溯源钉不变；html 渲染为 LaTeX Paper 风格左正文 / 右证据审阅栏
+                from domain.meeting.tasks.minutes_trace.html import trace_review_html
+
+                review = trace_review_html(text)
+                html_path = out_dir / f"{line_name}.html"
+                if review and review.lstrip()[:15].lower().startswith("<!doctype"):
+                    html_path.write_text(review, encoding="utf-8")
+                else:
+                    body = review if review else f'<div class="plain">{md_to_html(text)}</div>'
+                    html_path.write_text(
+                        _html_document(html_title, body),
+                        encoding="utf-8",
+                    )
+                paths["html"] = html_path
+            elif ctx.name == "meeting" and line_name in (
+                "minutes",
+                "minutes_styles",
+            ):
                 from tools.meeting_memory.render import memory_review_html
 
                 review = memory_review_html(text)

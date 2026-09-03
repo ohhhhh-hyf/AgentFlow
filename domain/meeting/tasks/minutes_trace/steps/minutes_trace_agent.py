@@ -32,39 +32,54 @@ def _dump(obj: object) -> dict:
 
 
 def _focus_guide(extras: dict[str, object], understanding: dict | None = None) -> str:
-    """生成【重点覆盖清单】：只给归并指令 + 主题提示，不再重复注入原文。
+    """生成【关键点覆盖要求】+【用户笔记提示】。
 
-    3C：原文已在共享上下文的【用户关键点】【用户笔记】块中（runner 注入），
-    这里只提炼主题提示（结合会议理解议题标题），省 token 且口径一致。
+    关键点逐条列出并声明为必覆盖验收项(正文必须为每条留承载句,句位即溯源位);
+    笔记只提示、不列清单(批注不入文,笔记所指事实按正常纪要写作自然写入即可)。
+    原文已在共享上下文的【用户关键点】【用户笔记】块中(runner 注入),此处不重复原文。
     """
-    keypoints = [str(x).strip() for x in (extras.get("keypoints") or []) if str(x).strip()]
+    keypoints = [
+        str(x).strip()
+        for x in (extras.get("keypoints") or [])
+        if str(x).strip()
+    ]
     notes = [
         (str(left).strip(), str(right).strip())
         for left, right in (extras.get("notes") or [])
         if str(left).strip() and str(right).strip()
     ]
-    if not keypoints and not notes:
-        return ""
-    lines = [
-        "【重点覆盖清单】",
-        "按用户关键点/笔记指向的具体事项归并正文，不要按人列章节。",
-        "能被会议原文支持的关键点/笔记尽量写进对应议题，句子通顺完整，不要写成标签堆。",
-        "同一事项若在事实、讨论、小结里都会写到，每处都写成完整句，方便后面对齐；不要为挂钩注水。",
-        "正文尽量留下可辨认的专名、数字或动作。原文没有的不要补。批注禁止写进正文。",
-        "关键点/笔记原文见上方对应块，此处不重复。",
-    ]
-    hints: list[str] = []
+    parts: list[str] = []
+    if keypoints:
+        lines = [
+            "【关键点覆盖要求】",
+            f"本次会议有 {len(keypoints)} 条用户关键点，逐条列出如下。",
+            "每条关键点对应的会议内容，必须在纪要正文的相应议题中至少有一条完整、通顺的正文句承载：",
+            "可在该议题的「问题与事实 / 讨论观点 / 建议与方案 / 议题小结」下与其它内容合并改写，不必逐字复述；",
+            "这条承载句将作为该关键点的溯源与定位位置。任一条关键点在正文找不到对应内容，视为本次生成的缺陷。",
+            "正文句要保留可辨认的专名、数字、动作与范围，便于与会议原文核对；会议原文没有的内容不要补充。",
+            "不要为覆盖而把同一条内容重复堆叠成多句；同义内容自然出现在多处属正常。",
+            "若某条关键点与本次会议内容确实无对应(一般不会发生)，宁可省略不写，也不要硬造正文或凭空发挥。",
+        ]
+        for i, kp in enumerate(keypoints, 1):
+            lines.append(f"{i}. {kp}")
+        parts.append("\n".join(lines))
+    if notes:
+        parts.append(
+            "【用户笔记提示】\n"
+            f"另有 {len(notes)} 条用户笔记(原文划线句 + 批注，原文见上方【用户笔记】块)，不列入覆盖清单：\n"
+            "- 批注文字一律不得写入正文；\n"
+            "- 笔记指向的会议事实若属实质内容，按正常纪要写作在对应议题中体现即可；不为挂载而注水、不整句照抄口语原文。"
+        )
     if isinstance(understanding, dict):
+        hints: list[str] = []
         for topic in understanding.get("topics") or []:
             if isinstance(topic, dict) and str(topic.get("title") or "").strip():
-                hints.append(str(topic["title"]).strip())
-    seen_hints: list[str] = []
-    for h in hints:
-        if h and h not in seen_hints:
-            seen_hints.append(h)
-    if seen_hints:
-        lines.append("议题标题提示：" + "、".join(seen_hints[:6]))
-    return "\n".join(lines)
+                title = str(topic["title"]).strip()
+                if title not in hints:
+                    hints.append(title)
+        if hints:
+            parts.append("议题标题提示：" + "、".join(hints[:6]))
+    return "\n\n".join(parts)
 
 
 def _normalize_markdown(text: str) -> str:

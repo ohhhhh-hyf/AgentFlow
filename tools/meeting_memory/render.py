@@ -446,6 +446,41 @@ def _latex_paper_css() -> str:
       letter-spacing: 0.3px;
     }
 
+    /* Roomy & Spacious Academic Risk Table */
+    .ck-risk-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 18px 0 28px;
+      background: #ffffff;
+      border-top: 2.2px solid #111111;
+      border-bottom: 2.2px solid #111111;
+      font-size: 0.93rem;
+      line-height: 1.72;
+    }
+    .ck-risk-table th {
+      background: #faf8f5;
+      border-bottom: 1.5px solid #111111;
+      padding: 15px 16px;
+      font-weight: 700;
+      color: #111111;
+      letter-spacing: 0.3px;
+      text-align: left;
+      vertical-align: middle;
+    }
+    .ck-risk-table td {
+      padding: 16px 16px;
+      border-bottom: 1px solid #ede8e0;
+      vertical-align: top;
+      color: #1a1a1a;
+      word-break: break-word;
+    }
+    .ck-risk-table tr:nth-child(even) td {
+      background: #fdfcfb;
+    }
+    .ck-risk-table tr:hover td {
+      background: #f6f3eb;
+    }
+
     /* Review Grid */
     .ck-review {
       display: grid;
@@ -574,6 +609,24 @@ def _latex_paper_css() -> str:
       font-weight: 700;
       font-family: "Latin Modern Roman", serif;
       text-decoration: none;
+    }
+    .ck-ev-kind-badge {
+      display: inline-block;
+      padding: 1px 6px;
+      border-radius: 2px;
+      font-size: 0.72rem;
+      font-weight: 600;
+      letter-spacing: 0.2px;
+    }
+    .ck-badge-keypoint {
+      border: 1px solid #0047ab;
+      color: #0047ab;
+      background: #f0f5ff;
+    }
+    .ck-badge-note {
+      border: 1px solid #b86a04;
+      color: #b86a04;
+      background: #fff8eb;
     }
     .ck-mem-title {
       font-weight: 700;
@@ -989,11 +1042,437 @@ def memory_review_html(markdown: str) -> str:
     return page_html
 
 
+# ── 风险提取（Risks）与 待办提取（Actions）LaTeX Paper 渲染 ─────────────────
+
+
+def _render_markdown_content(text: str) -> str:
+    """把 Markdown 转换为符合 LaTeX Paper 风格的 HTML 片段（保留 Markdown 原始格式）。"""
+    lines = str(text or "").replace("\r\n", "\n").replace("\r", "\n").split("\n")
+    out: list[str] = []
+    list_buf: list[str] = []
+    ol_buf: list[str] = []
+
+    def flush_ul() -> None:
+        if list_buf:
+            out.append("<ul>" + "".join(f"<li>{x}</li>" for x in list_buf) + "</ul>")
+            list_buf.clear()
+
+    def flush_ol() -> None:
+        if ol_buf:
+            out.append("<ol>" + "".join(f"<li>{x}</li>" for x in ol_buf) + "</ol>")
+            ol_buf.clear()
+
+    def flush_list() -> None:
+        flush_ul()
+        flush_ol()
+
+    def inline(s: str) -> str:
+        esc = escape(s, quote=False)
+        esc = re.sub(r"\[([^\]]+)\]\(([^)]+)\)", r'<a href="\2">\1</a>', esc)
+        esc = re.sub(r"\*\*(.+?)\*\*", r"<strong>\1</strong>", esc)
+        esc = re.sub(r"(?<!\*)\*(?!\*)(.+?)(?<!\*)\*(?!\*)", r"<em>\1</em>", esc)
+        esc = re.sub(r"`([^`]+)`", r"<code>\1</code>", esc)
+        return esc
+
+    i = 0
+    while i < len(lines):
+        line = lines[i]
+        stripped = line.strip()
+        if not stripped:
+            flush_list()
+            i += 1
+            continue
+
+        m_head = re.match(r"^(#{1,6})\s+(.*)$", stripped)
+        if m_head:
+            flush_list()
+            level = len(m_head.group(1))
+            cls_name = f"ck-doc-h{level}" if level in (2, 3, 4) else ""
+            cls_attr = f' class="{cls_name}"' if cls_name else ""
+            out.append(f"<h{level}{cls_attr}>{inline(m_head.group(2))}</h{level}>")
+            i += 1
+            continue
+
+        if re.match(r"^\s*\|.*\|\s*$", line):
+            flush_list()
+            rows = []
+            while i < len(lines) and re.match(r"^\s*\|.*\|\s*$", lines[i]):
+                rows.append([c.strip() for c in lines[i].split("|")[1:-1]])
+                i += 1
+            if rows:
+                head = rows[0]
+                body_rows = [
+                    r for r in rows[1:]
+                    if not all(re.fullmatch(r":?-+:?", c) for c in r)
+                ]
+                out.append(
+                    '<table class="ck-table"><thead><tr>'
+                    + "".join(f"<th>{inline(c)}</th>" for c in head)
+                    + "</tr></thead><tbody>"
+                    + "".join(
+                        "<tr>" + "".join(f"<td>{inline(c)}</td>" for c in r) + "</tr>"
+                        for r in body_rows
+                    )
+                    + "</tbody></table>"
+                )
+            continue
+
+        if re.match(r"^\s*[-*]\s+", line):
+            flush_ol()
+            list_buf.append(inline(re.sub(r"^\s*[-*]\s+", "", line)))
+            i += 1
+            continue
+
+        if re.match(r"^\s*\d+[.)、]\s+", line):
+            flush_ul()
+            ol_buf.append(inline(re.sub(r"^\s*\d+[.)、]\s+", "", line)))
+            i += 1
+            continue
+
+        if re.match(r"^\s*>\s?", line):
+            flush_list()
+            quote = re.sub(r"^\s*>\s?", "", line)
+            out.append(f'<div class="ck-quote">{inline(quote)}</div>')
+            i += 1
+            continue
+
+        flush_list()
+        out.append(f"<p>{inline(stripped)}</p>")
+        i += 1
+
+    flush_list()
+    return "".join(out)
+
+
+def render_markdown_page_html(title: str, markdown: str) -> str:
+    """按 LaTeX Paper 风格渲染纯 Markdown 文本为独立 HTML 文档。
+    
+    保留 Markdown 原始排版、序号与层级，标题采用指定中文名。
+    """
+    text = (markdown or "").strip()
+    lines = text.splitlines()
+    if lines and lines[0].strip().startswith("# "):
+        first_head = lines[0].strip()[2:].strip()
+        if first_head == title or not title:
+            title = first_head or title
+            text = "\n".join(lines[1:]).strip()
+
+    display_title = title or "会议分析报告"
+    content_html = _render_markdown_content(text)
+    doc_title = escape(display_title, quote=False)
+
+    page_html = f"""<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{doc_title}</title>
+  <style>
+{_latex_paper_css()}
+  </style>
+</head>
+<body>
+  <main class="page">
+    <div class="ck-doc">
+      <header class="ck-doc-header">
+        <h1>{doc_title}</h1>
+      </header>
+      <div class="ck-doc-content">
+        {content_html}
+      </div>
+    </div>
+  </main>
+</body>
+</html>
+"""
+    return page_html
+
+
+def _parse_risks_from_text(text: str) -> list[dict[str, Any]]:
+    """从纯文本或 Markdown 清单中解析结构化风险条目。"""
+    risks: list[dict[str, Any]] = []
+    lines = (text or "").strip().splitlines()
+    for line in lines:
+        line_s = line.strip()
+        if not line_s:
+            continue
+        m = re.match(r"^(\d+)[\.、\s]+(.+?)(?:（|\()(.*)(?:）|\))$", line_s)
+        if m:
+            desc = m.group(2).strip()
+            meta_str = m.group(3).strip()
+            sev = "medium"
+            if re.search(r"\b高\b|高风险|high", meta_str, re.I):
+                sev = "high"
+            elif re.search(r"\b低\b|低风险|low", meta_str, re.I):
+                sev = "low"
+
+            source = ""
+            impact = ""
+            mitigation = ""
+            owner = ""
+            for seg in re.split(r"[；;]", meta_str):
+                seg = seg.strip()
+                if not seg:
+                    continue
+                if re.match(r"^来源[:：]", seg):
+                    source = re.sub(r"^来源[:：]\s*", "", seg)
+                elif re.match(r"^影响[:：]", seg):
+                    impact = re.sub(r"^影响[:：]\s*", "", seg)
+                elif re.match(r"^(?:应对|整改|措施)[:：]", seg):
+                    mitigation = re.sub(r"^(?:应对|整改|措施)[:：]\s*", "", seg)
+                elif re.match(r"^(?:负责人|责任人|责任主体)[:：]", seg):
+                    owner = re.sub(r"^(?:负责人|责任人|责任主体)[:：]\s*", "", seg)
+                elif seg in ("高", "中", "低", "高风险", "中风险", "低风险"):
+                    if "高" in seg:
+                        sev = "high"
+                    elif "低" in seg:
+                        sev = "low"
+                    else:
+                        sev = "medium"
+            risks.append({
+                "risk": desc,
+                "severity": sev,
+                "source": source,
+                "impact": impact,
+                "mitigation": mitigation,
+                "owner": owner,
+            })
+        else:
+            if line_s.startswith(("#", "```", "---")):
+                continue
+            clean_desc = re.sub(r"^[-*•\d\.\s]+", "", line_s).strip()
+            if clean_desc:
+                risks.append({
+                    "risk": clean_desc,
+                    "severity": "medium",
+                    "source": "",
+                    "impact": "",
+                    "mitigation": "",
+                    "owner": "",
+                })
+    return risks
+
+
+def render_risks_html(title: str, text: str, data: dict | None = None) -> str:
+    """渲染风险分析为宽敞优雅的 LaTeX Paper 风格学术三线表格。
+    
+    包含列：序号、风险描述、风险程度、来源、影响、应对。
+    """
+    raw_risks = (data or {}).get("risks")
+    if isinstance(raw_risks, list) and raw_risks and isinstance(raw_risks[0], dict):
+        risks = raw_risks
+    else:
+        risks = _parse_risks_from_text(text)
+
+    display_title = "风险分析"
+
+    sev_map = {
+        "high": ("高", "ck-s"),
+        "高": ("高", "ck-s"),
+        "高风险": ("高", "ck-s"),
+        "medium": ("中", "ck-a"),
+        "中": ("中", "ck-a"),
+        "中风险": ("中", "ck-a"),
+        "low": ("低", "ck-b"),
+        "低": ("低", "ck-b"),
+        "低风险": ("低", "ck-b"),
+    }
+
+    rows_html = []
+    for idx, item in enumerate(risks, start=1):
+        sev_key = str(item.get("severity") or "medium").lower().strip()
+        sev_cn, badge_cls = sev_map.get(sev_key, ("中", "ck-a"))
+        risk_desc = escape(str(item.get("risk") or "").strip(), quote=False)
+        source = escape(str(item.get("source") or "").strip(), quote=False)
+        impact = escape(str(item.get("impact") or "").strip(), quote=False)
+        mitigation = escape(str(item.get("mitigation") or "").strip(), quote=False)
+
+        rows_html.append(
+            f'<tr>'
+            f'<td style="text-align: center; font-weight: 700; color: #333;">{idx}</td>'
+            f'<td><strong style="color: #111111; line-height: 1.65; display: block;">{risk_desc}</strong></td>'
+            f'<td style="text-align: center;"><span class="ck-badge {badge_cls}">{sev_cn}</span></td>'
+            f'<td style="color: #444444; line-height: 1.6;">{source or "—"}</td>'
+            f'<td style="color: #333333; line-height: 1.6;">{impact or "—"}</td>'
+            f'<td style="line-height: 1.6;">{mitigation or "—"}</td>'
+            f'</tr>'
+        )
+
+    empty_row = '<tr><td colspan="6" style="text-align:center; color:#888; padding: 28px;">暂无明确风险</td></tr>'
+    table_body = "".join(rows_html) if rows_html else empty_row
+    doc_title = escape(display_title, quote=False)
+
+    page_html = f"""<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{doc_title}</title>
+  <style>
+{_latex_paper_css()}
+  </style>
+</head>
+<body>
+  <main class="page">
+    <div class="ck-doc">
+      <header class="ck-doc-header">
+        <h1>{doc_title}</h1>
+      </header>
+      <div class="ck-doc-content">
+        <table class="ck-risk-table">
+          <thead>
+            <tr>
+              <th style="width: 58px; text-align: center; white-space: nowrap;">序号</th>
+              <th style="width: 26%; text-align: center;">风险描述</th>
+              <th style="width: 72px; text-align: center; line-height: 1.35; white-space: nowrap;">风险<br>程度</th>
+              <th style="width: 24%; text-align: center;">来源</th>
+              <th style="width: 20%; text-align: center;">影响</th>
+              <th style="width: 23%; text-align: center;">应对</th>
+            </tr>
+          </thead>
+          <tbody>
+            {table_body}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </main>
+</body>
+</html>
+"""
+    return page_html
+
+
+def _parse_actions_from_text(text: str) -> list[dict[str, Any]]:
+    """从纯文本或 Markdown 清单中解析结构化待办条目。"""
+    actions: list[dict[str, Any]] = []
+    lines = (text or "").strip().splitlines()
+    for line in lines:
+        line_s = line.strip()
+        if not line_s:
+            continue
+        m = re.match(r"^(\d+)[\.、\s]+(.+?)(?:（|\()(.*)(?:）|\))$", line_s)
+        if m:
+            task = m.group(2).strip()
+            meta_str = m.group(3).strip()
+            owner = ""
+            deadline = ""
+            prio = "medium"
+            for seg in re.split(r"[；;]", meta_str):
+                seg = seg.strip()
+                if not seg:
+                    continue
+                if re.match(r"^(?:负责人|责任人|执行人)[:：]", seg):
+                    owner = re.sub(r"^(?:负责人|责任人|执行人)[:：]\s*", "", seg)
+                elif re.match(r"^(?:截止|截止时间|时间|交付)[:：]", seg):
+                    deadline = re.sub(r"^(?:截止|截止时间|时间|交付)[:：]\s*", "", seg)
+                elif re.search(r"高优先|高\b|high", seg, re.I):
+                    prio = "high"
+                elif re.search(r"低优先|低\b|low", seg, re.I):
+                    prio = "low"
+            actions.append({
+                "task": task,
+                "owner": owner,
+                "deadline": deadline,
+                "priority": prio,
+            })
+        else:
+            if line_s.startswith(("#", "```", "---")):
+                continue
+            clean_task = re.sub(r"^[-*•\d\.\s]+", "", line_s).strip()
+            if clean_task:
+                actions.append({
+                    "task": clean_task,
+                    "owner": "",
+                    "deadline": "",
+                    "priority": "medium",
+                })
+    return actions
+
+
+def render_actions_html(title: str, text: str, data: dict | None = None) -> str:
+    """渲染待办提取为宽敞优雅的 LaTeX Paper 风格学术三线表格。
+    
+    包含列：序号、待办内容、负责人、截止时间。
+    内容不存在时使用 "-" 居中展示。
+    """
+    raw_actions = (data or {}).get("actions")
+    if isinstance(raw_actions, list) and raw_actions and isinstance(raw_actions[0], dict):
+        actions = raw_actions
+    else:
+        actions = _parse_actions_from_text(text)
+
+    display_title = "待办提取"
+
+    rows_html = []
+    for idx, item in enumerate(actions, start=1):
+        task_desc = escape(str(item.get("task") or "").strip(), quote=False)
+        owner = escape(str(item.get("owner") or "").strip(), quote=False)
+        deadline = escape(str(item.get("deadline") or "").strip(), quote=False)
+
+        owner_display = f'<div style="text-align: center;">{owner}</div>' if (owner and owner not in ("未分配", "null", "None", "无", "-")) else '<div style="text-align: center; color: #888;">-</div>'
+        deadline_display = f'<div style="text-align: center; color: #b86a04; font-weight: 600;">{deadline}</div>' if (deadline and deadline not in ("待排期", "未指定", "null", "None", "无", "-")) else '<div style="text-align: center; color: #888;">-</div>'
+        task_display = f'<strong style="color: #111111; line-height: 1.65; display: block;">{task_desc}</strong>' if task_desc else '<div style="text-align: center; color: #888;">-</div>'
+
+        rows_html.append(
+            f'<tr>'
+            f'<td style="text-align: center; font-weight: 700; color: #333;">{idx}</td>'
+            f'<td>{task_display}</td>'
+            f'<td>{owner_display}</td>'
+            f'<td>{deadline_display}</td>'
+            f'</tr>'
+        )
+
+    empty_row = '<tr><td colspan="4" style="text-align:center; color:#888; padding: 28px;">暂无明确待办</td></tr>'
+    table_body = "".join(rows_html) if rows_html else empty_row
+    doc_title = escape(display_title, quote=False)
+
+    page_html = f"""<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{doc_title}</title>
+  <style>
+{_latex_paper_css()}
+  </style>
+</head>
+<body>
+  <main class="page">
+    <div class="ck-doc">
+      <header class="ck-doc-header">
+        <h1>{doc_title}</h1>
+      </header>
+      <div class="ck-doc-content">
+        <table class="ck-risk-table">
+          <thead>
+            <tr>
+              <th style="width: 58px; text-align: center; white-space: nowrap;">序号</th>
+              <th style="width: 56%; text-align: center;">待办内容</th>
+              <th style="width: 20%; text-align: center;">负责人</th>
+              <th style="width: 20%; text-align: center;">截止时间</th>
+            </tr>
+          </thead>
+          <tbody>
+            {table_body}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </main>
+</body>
+</html>
+"""
+    return page_html
+
+
 __all__ = [
     "MemoryItem",
     "SECTION_TITLE",
     "apply_memory_citations",
     "memory_review_html",
     "parse_memory_items",
+    "render_actions_html",
+    "render_markdown_page_html",
+    "render_risks_html",
 ]
-

@@ -207,8 +207,8 @@ curl -X POST http://127.0.0.1:8000/api/v1/meeting/minutes \
 | 领域 | 任务线 | 输出内容 | 主要产物（`data/{user_id}/output/{request_id}/`） |
 |---|---|---|---|
 | `meeting` | `minutes` | 会议纪要 | `result.md` + `minutes.html` |
-| `meeting` | `actions` | 待办事项 | `result.md` |
-| `meeting` | `risks` | 风险分析 | `result.md` |
+| `meeting` | `actions` | 待办事项 | `actions.md` + `actions.html` |
+| `meeting` | `risks` | 风险分析 | `risks.md` + `risks.html` |
 | `meeting` | `minutes_styles` | 多样式纪要 | `result.md` |
 | `meeting` | `minutes_trace` | 溯源纪要 | `minutes_trace.md` |
 | `meeting` | `mindmap` | 思维导图 | CLI：`data/{user_id}/output/cli_*/mindmap/`（`mindmap_*.png` / `.html`） |
@@ -223,8 +223,8 @@ curl -X POST http://127.0.0.1:8000/api/v1/meeting/minutes \
 
 | 目录 | 内容 | 说明 |
 |---|---|---|
-| `data/{user_id}/output/{request_id}/result.md` | 最终文本 / 大纲 | 除 `mindmap` / `graph` / `library` 外，仅当该任务线有文本正文或 Markdown 大纲时保存；模板门禁失败时改写为 `result_rejected.md` |
-| `data/{user_id}/output/{request_id}/{task}.html` | 页面版 | 仅以下线生成：`minutes`（记忆对照页/纯文本页）、`review` / `quiz` / `checklist`（各自交互页）、`graph`（交互图谱）；`actions` / `risks` / `minutes_styles` / `minutes_trace` / `library` / `catalog` 不生成 |
+| `data/{user_id}/output/{request_id}/result.md` | 最终文本 / 大纲 | `minutes` / `catalog` / `checklist` 等使用；`actions` / `risks` / `minutes_styles` / `minutes_trace` 按任务线命名为 `{task}.md`；模板门禁失败时改写为 `result_rejected.md` |
+| `data/{user_id}/output/{request_id}/{task}.html` | 页面版 | 生成线：`minutes` / `actions` / `risks` / `minutes_styles` / `minutes_trace` / `review` / `quiz` / `checklist` / `graph`；`library` / `catalog` 不生成页面版 |
 | `data/{user_id}/output/cli_*/mindmap/mindmap_*.html` | 思维导图 HTML | CLI 运行兜底目录；`mindmap` 只保留 HTML/PNG |
 | `data/{user_id}/output/cli_*/mindmap/mindmap_*.png` | 思维导图 PNG | Playwright 不可用时跳过 |
 | `data/{user_id}/output/{request_id}/graph.html` | 知识图谱交互 HTML | Cytoscape.js 交互演示版 |
