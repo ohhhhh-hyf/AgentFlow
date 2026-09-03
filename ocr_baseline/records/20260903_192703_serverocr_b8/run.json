@@ -1,0 +1,693 @@
+{
+  "schema": "agentflow-ocr-baseline/v1",
+  "run_at": "2026-09-03T19:30:20",
+  "config": {
+    "engine": "serverocr",
+    "engine_env_before": "serverocr",
+    "images": 21,
+    "image_files": [
+      "U202314751_1.jpg",
+      "U202314751_10.jpg",
+      "U202314751_11.jpg",
+      "U202314751_12.jpg",
+      "U202314751_13.jpg",
+      "U202314751_14.jpg",
+      "U202314751_15.jpg",
+      "U202314751_16.jpg",
+      "U202314751_17.jpg",
+      "U202314751_18.jpg",
+      "U202314751_19.jpg",
+      "U202314751_2.jpg",
+      "U202314751_20.jpg",
+      "U202314751_21.jpg",
+      "U202314751_3.jpg",
+      "U202314751_4.jpg",
+      "U202314751_5.jpg",
+      "U202314751_6.jpg",
+      "U202314751_7.jpg",
+      "U202314751_8.jpg",
+      "U202314751_9.jpg"
+    ],
+    "batch_size": 8,
+    "batch_count": 3,
+    "ocr_concurrency": 4,
+    "llm_provider": "vllm",
+    "llm_model": "deepseek-v4-flash-0731",
+    "llm_available": true
+  },
+  "wall": {
+    "total_seconds": 192.935,
+    "ocr_seconds": 13.922,
+    "review_seconds": 179.004,
+    "llm_call_seconds": 0.0,
+    "ingest_seconds": 1.709
+  },
+  "events_seen": {
+    "ocr_start": 3,
+    "ocr_wait": 26,
+    "ocr_item": 21,
+    "review_start": 3,
+    "batch_done": 3
+  },
+  "ocr_failures": [],
+  "per_image": [
+    {
+      "name": "U202314751_1.jpg",
+      "ok": true,
+      "seconds": 1.308,
+      "error": "",
+      "lines": 28,
+      "text_chars": 860,
+      "avg_conf": null,
+      "min_conf": null,
+      "formula_lines": 17
+    },
+    {
+      "name": "U202314751_10.jpg",
+      "ok": true,
+      "seconds": 1.21,
+      "error": "",
+      "lines": 25,
+      "text_chars": 603,
+      "avg_conf": null,
+      "min_conf": null,
+      "formula_lines": 10
+    },
+    {
+      "name": "U202314751_11.jpg",
+      "ok": true,
+      "seconds": 6.152,
+      "error": "",
+      "lines": 29,
+      "text_chars": 756,
+      "avg_conf": null,
+      "min_conf": null,
+      "formula_lines": 15
+    },
+    {
+      "name": "U202314751_12.jpg",
+      "ok": true,
+      "seconds": 1.278,
+      "error": "",
+      "lines": 30,
+      "text_chars": 806,
+      "avg_conf": null,
+      "min_conf": null,
+      "formula_lines": 9
+    },
+    {
+      "name": "U202314751_13.jpg",
+      "ok": true,
+      "seconds": 4.557,
+      "error": "",
+      "lines": 30,
+      "text_chars": 727,
+      "avg_conf": null,
+      "min_conf": null,
+      "formula_lines": 11
+    },
+    {
+      "name": "U202314751_14.jpg",
+      "ok": true,
+      "seconds": 0.661,
+      "error": "",
+      "lines": 32,
+      "text_chars": 785,
+      "avg_conf": null,
+      "min_conf": null,
+      "formula_lines": 13
+    },
+    {
+      "name": "U202314751_15.jpg",
+      "ok": true,
+      "seconds": 4.635,
+      "error": "",
+      "lines": 28,
+      "text_chars": 814,
+      "avg_conf": null,
+      "min_conf": null,
+      "formula_lines": 12
+    },
+    {
+      "name": "U202314751_16.jpg",
+      "ok": true,
+      "seconds": 0.553,
+      "error": "",
+      "lines": 36,
+      "text_chars": 1058,
+      "avg_conf": null,
+      "min_conf": null,
+      "formula_lines": 22
+    },
+    {
+      "name": "U202314751_17.jpg",
+      "ok": true,
+      "seconds": 0.426,
+      "error": "",
+      "lines": 30,
+      "text_chars": 823,
+      "avg_conf": null,
+      "min_conf": null,
+      "formula_lines": 13
+    },
+    {
+      "name": "U202314751_18.jpg",
+      "ok": true,
+      "seconds": 6.472,
+      "error": "",
+      "lines": 30,
+      "text_chars": 1046,
+      "avg_conf": null,
+      "min_conf": null,
+      "formula_lines": 16
+    },
+    {
+      "name": "U202314751_19.jpg",
+      "ok": true,
+      "seconds": 0.78,
+      "error": "",
+      "lines": 31,
+      "text_chars": 969,
+      "avg_conf": null,
+      "min_conf": null,
+      "formula_lines": 15
+    },
+    {
+      "name": "U202314751_2.jpg",
+      "ok": true,
+      "seconds": 0.754,
+      "error": "",
+      "lines": 28,
+      "text_chars": 954,
+      "avg_conf": null,
+      "min_conf": null,
+      "formula_lines": 21
+    },
+    {
+      "name": "U202314751_20.jpg",
+      "ok": true,
+      "seconds": 0.669,
+      "error": "",
+      "lines": 30,
+      "text_chars": 851,
+      "avg_conf": null,
+      "min_conf": null,
+      "formula_lines": 12
+    },
+    {
+      "name": "U202314751_21.jpg",
+      "ok": true,
+      "seconds": 0.861,
+      "error": "",
+      "lines": 43,
+      "text_chars": 869,
+      "avg_conf": null,
+      "min_conf": null,
+      "formula_lines": 16
+    },
+    {
+      "name": "U202314751_3.jpg",
+      "ok": true,
+      "seconds": 0.674,
+      "error": "",
+      "lines": 24,
+      "text_chars": 862,
+      "avg_conf": null,
+      "min_conf": null,
+      "formula_lines": 21
+    },
+    {
+      "name": "U202314751_4.jpg",
+      "ok": true,
+      "seconds": 0.701,
+      "error": "",
+      "lines": 33,
+      "text_chars": 1014,
+      "avg_conf": null,
+      "min_conf": null,
+      "formula_lines": 20
+    },
+    {
+      "name": "U202314751_5.jpg",
+      "ok": true,
+      "seconds": 0.475,
+      "error": "",
+      "lines": 20,
+      "text_chars": 735,
+      "avg_conf": null,
+      "min_conf": null,
+      "formula_lines": 11
+    },
+    {
+      "name": "U202314751_6.jpg",
+      "ok": true,
+      "seconds": 0.843,
+      "error": "",
+      "lines": 26,
+      "text_chars": 651,
+      "avg_conf": null,
+      "min_conf": null,
+      "formula_lines": 18
+    },
+    {
+      "name": "U202314751_7.jpg",
+      "ok": true,
+      "seconds": 0.961,
+      "error": "",
+      "lines": 37,
+      "text_chars": 922,
+      "avg_conf": null,
+      "min_conf": null,
+      "formula_lines": 15
+    },
+    {
+      "name": "U202314751_8.jpg",
+      "ok": true,
+      "seconds": 1.052,
+      "error": "",
+      "lines": 53,
+      "text_chars": 1152,
+      "avg_conf": null,
+      "min_conf": null,
+      "formula_lines": 23
+    },
+    {
+      "name": "U202314751_9.jpg",
+      "ok": true,
+      "seconds": 0.821,
+      "error": "",
+      "lines": 29,
+      "text_chars": 990,
+      "avg_conf": null,
+      "min_conf": null,
+      "formula_lines": 19
+    }
+  ],
+  "batches": [
+    {
+      "index": 1,
+      "lo": 1,
+      "hi": 8,
+      "pages": 8,
+      "needs_reconstruct_llm": true,
+      "needs_review_llm": false,
+      "reconstruct_est_max_tokens": 5149,
+      "review_fn_seconds": 60.628,
+      "md_chars": 11067,
+      "ref_rows": 193,
+      "ref_chars": 5516,
+      "fidelity": {
+        "text": {
+          "rows": 81,
+          "avg_char_ratio": 0.9069,
+          "kept80_ratio": 0.8519,
+          "contiguous_ratio": 0.2099
+        },
+        "formula": {
+          "rows": 109,
+          "avg_char_ratio": 0.8818,
+          "kept80_ratio": 0.8349,
+          "contiguous_ratio": 0.0092
+        },
+        "recall6_text": 0.4629993451211526,
+        "recall6_all": 0.21485797523670794
+      },
+      "formulas": {
+        "inline_blocks": 185,
+        "display_blocks": 52,
+        "stray_dollar": 0,
+        "triple_dollar_spots": 0,
+        "lr_mismatch_bodies": 0,
+        "lr_mismatch_ops": 0
+      },
+      "structure": {
+        "headings_by_level": {
+          "1": 4,
+          "2": 14,
+          "3": 8
+        },
+        "heading_total": 26,
+        "table_rows": 0,
+        "bold_ops": 22,
+        "lines": 314,
+        "chars": 11067
+      }
+    },
+    {
+      "index": 2,
+      "lo": 9,
+      "hi": 16,
+      "pages": 8,
+      "needs_reconstruct_llm": true,
+      "needs_review_llm": false,
+      "reconstruct_est_max_tokens": 5955,
+      "review_fn_seconds": 65.238,
+      "md_chars": 13249,
+      "ref_rows": 206,
+      "ref_chars": 6537,
+      "fidelity": {
+        "text": {
+          "rows": 68,
+          "avg_char_ratio": 0.8398,
+          "kept80_ratio": 0.7206,
+          "contiguous_ratio": 0.1912
+        },
+        "formula": {
+          "rows": 134,
+          "avg_char_ratio": 0.8072,
+          "kept80_ratio": 0.6045,
+          "contiguous_ratio": 0.0299
+        },
+        "recall6_text": 0.2521079258010118,
+        "recall6_all": 0.09827213822894168
+      },
+      "formulas": {
+        "inline_blocks": 238,
+        "display_blocks": 42,
+        "stray_dollar": 0,
+        "triple_dollar_spots": 0,
+        "lr_mismatch_bodies": 0,
+        "lr_mismatch_ops": 0
+      },
+      "structure": {
+        "headings_by_level": {
+          "1": 6,
+          "2": 7,
+          "3": 4
+        },
+        "heading_total": 17,
+        "table_rows": 0,
+        "bold_ops": 26,
+        "lines": 257,
+        "chars": 13249
+      }
+    },
+    {
+      "index": 3,
+      "lo": 17,
+      "hi": 21,
+      "pages": 5,
+      "needs_reconstruct_llm": true,
+      "needs_review_llm": false,
+      "reconstruct_est_max_tokens": 5000,
+      "review_fn_seconds": 52.327,
+      "md_chars": 12038,
+      "ref_rows": 151,
+      "ref_chars": 3880,
+      "fidelity": {
+        "text": {
+          "rows": 49,
+          "avg_char_ratio": 0.8451,
+          "kept80_ratio": 0.7347,
+          "contiguous_ratio": 0.1633
+        },
+        "formula": {
+          "rows": 86,
+          "avg_char_ratio": 0.8429,
+          "kept80_ratio": 0.7093,
+          "contiguous_ratio": 0.0
+        },
+        "recall6_text": 0.22340425531914893,
+        "recall6_all": 0.10460251046025104
+      },
+      "formulas": {
+        "inline_blocks": 88,
+        "display_blocks": 31,
+        "stray_dollar": 0,
+        "triple_dollar_spots": 0,
+        "lr_mismatch_bodies": 0,
+        "lr_mismatch_ops": 0
+      },
+      "structure": {
+        "headings_by_level": {
+          "1": 1,
+          "2": 5,
+          "3": 5,
+          "4": 1
+        },
+        "heading_total": 12,
+        "table_rows": 0,
+        "bold_ops": 0,
+        "lines": 165,
+        "chars": 12038
+      }
+    }
+  ],
+  "batch_stage": {
+    "1": {
+      "ocr_seconds": 6.153,
+      "llm_seconds": {
+        "ocr/reconstruct": 0.0,
+        "ocr/review": 0.0
+      }
+    },
+    "2": {
+      "ocr_seconds": 6.473,
+      "llm_seconds": {
+        "ocr/reconstruct": 0.0,
+        "ocr/review": 0.0
+      }
+    },
+    "3": {
+      "ocr_seconds": 1.297,
+      "llm_seconds": {
+        "ocr/reconstruct": 0.0,
+        "ocr/review": 0.0
+      }
+    }
+  },
+  "llm_by_label": {
+    "ocr/reconstruct": {
+      "calls": 3,
+      "ok_calls": 3,
+      "fail_calls": 0,
+      "seconds": 0.0,
+      "max_seconds": 0.0,
+      "prompt_tokens": 0,
+      "completion_tokens": 0,
+      "total_tokens": 0,
+      "cache_hit_tokens": 0,
+      "avg_seconds": 0.0
+    }
+  },
+  "llm_calls": [
+    {
+      "batch": 1,
+      "label": "ocr/reconstruct",
+      "ok": true,
+      "seconds": 0.0,
+      "prompt_tokens": 0,
+      "completion_tokens": 0,
+      "total_tokens": 0,
+      "cache_hit_tokens": 0
+    },
+    {
+      "batch": 2,
+      "label": "ocr/reconstruct",
+      "ok": true,
+      "seconds": 0.0,
+      "prompt_tokens": 0,
+      "completion_tokens": 0,
+      "total_tokens": 0,
+      "cache_hit_tokens": 0
+    },
+    {
+      "batch": 3,
+      "label": "ocr/reconstruct",
+      "ok": true,
+      "seconds": 0.0,
+      "prompt_tokens": 0,
+      "completion_tokens": 0,
+      "total_tokens": 0,
+      "cache_hit_tokens": 0
+    }
+  ],
+  "llm_client_snapshot": {
+    "usage_totals": {
+      "prompt_tokens": 30135,
+      "completion_tokens": 16104,
+      "total_tokens": 46239,
+      "calls": 3,
+      "cache_hits": 0,
+      "cache_hit_tokens": 0
+    },
+    "usage_by_label": {
+      "ocr/reconstruct": {
+        "prompt_tokens": 30135,
+        "completion_tokens": 16104,
+        "total_tokens": 46239,
+        "calls": 3,
+        "cache_hits": 0,
+        "cache_hit_tokens": 0
+      }
+    },
+    "latency_by_label": {
+      "ocr/reconstruct": {
+        "calls": 3,
+        "total_seconds": 178.16885321494192,
+        "avg_seconds": 59.38961773831397,
+        "max_seconds": 65.22898810915649
+      }
+    },
+    "retries_total": 0,
+    "failures_total": 0
+  },
+  "whole": {
+    "fidelity": {
+      "text": {
+        "rows": 198,
+        "avg_char_ratio": 0.9296,
+        "kept80_ratio": 0.904,
+        "contiguous_ratio": 0.2071
+      },
+      "formula": {
+        "rows": 329,
+        "avg_char_ratio": 0.8872,
+        "kept80_ratio": 0.8237,
+        "contiguous_ratio": 0.0152
+      },
+      "recall6_text": 0.34102336586808635,
+      "recall6_all": 0.1404352226720648
+    },
+    "formulas": {
+      "inline_blocks": 511,
+      "display_blocks": 125,
+      "stray_dollar": 0,
+      "triple_dollar_spots": 0,
+      "lr_mismatch_bodies": 0,
+      "lr_mismatch_ops": 0
+    },
+    "structure": {
+      "headings_by_level": {
+        "1": 11,
+        "2": 26,
+        "3": 17,
+        "4": 1
+      },
+      "heading_total": 55,
+      "table_rows": 0,
+      "bold_ops": 48,
+      "lines": 738,
+      "chars": 36358
+    },
+    "md_chars": 36358,
+    "raw_chars": 18287
+  },
+  "ingest": {
+    "mode": "fake",
+    "user_id": "ocr_baseline",
+    "subject": "base_serverocr",
+    "ok": true,
+    "message": "",
+    "image_count": "0",
+    "doc_count": "1",
+    "increment": "21",
+    "files": [
+      {
+        "name": "ocr_20260903_192703.md",
+        "added": "101",
+        "removed": "0",
+        "unchanged": "0"
+      }
+    ],
+    "increment_by_file": [
+      {
+        "name": "ocr_20260903_192703.md",
+        "count": "21"
+      }
+    ],
+    "conflicts": [],
+    "items": [
+      {
+        "text": "定理1(势函数不连续时)",
+        "source": "ocr_20260903_192703.md"
+      },
+      {
+        "text": "一维半无限深方势阱",
+        "source": "ocr_20260903_192703.md"
+      },
+      {
+        "text": "分子的平均动能与理想气体系统的内能",
+        "source": "ocr_20260903_192703.md"
+      },
+      {
+        "text": "转子(双原子分子整体刚性转动)",
+        "source": "ocr_20260903_192703.md"
+      },
+      {
+        "text": "$\\mu$ 空间分割(宏观)",
+        "source": "ocr_20260903_192703.md"
+      },
+      {
+        "text": "宏观分布与宏观态(与 $\\mu$ 空间的分布 $\\{a_j\\}$ 对应)",
+        "source": "ocr_20260903_192703.md"
+      },
+      {
+        "text": "宏观分布的组态(配容)(哪些粒子的代表点在 $\\Delta\\omega_j$ 内)",
+        "source": "ocr_20260903_192703.md"
+      },
+      {
+        "text": "一个分布的微观分布数",
+        "source": "ocr_20260903_192703.md"
+      },
+      {
+        "text": "等概率原理和最概然统计",
+        "source": "ocr_20260903_192703.md"
+      },
+      {
+        "text": "MB分布的物理意义",
+        "source": "ocr_20260903_192703.md"
+      },
+      {
+        "text": "量子态中的 $\\mu$ 空间",
+        "source": "ocr_20260903_192703.md"
+      },
+      {
+        "text": "量子态与相空间体积之间的对应关系",
+        "source": "ocr_20260903_192703.md"
+      },
+      {
+        "text": "左、右矢空间的算符运算",
+        "source": "ocr_20260903_192703.md"
+      },
+      {
+        "text": "厄米算符本征值的实数性",
+        "source": "ocr_20260903_192703.md"
+      },
+      {
+        "text": "1 厄米算符属于不同本征值的本征态必然正交",
+        "source": "ocr_20260903_192703.md"
+      },
+      {
+        "text": "2 本征态的完备性",
+        "source": "ocr_20260903_192703.md"
+      },
+      {
+        "text": "力学量平均值的时间依赖特性",
+        "source": "ocr_20260903_192703.md"
+      },
+      {
+        "text": "概率密度角度分布",
+        "source": "ocr_20260903_192703.md"
+      },
+      {
+        "text": "电磁场中电荷粒子的哈密顿量",
+        "source": "ocr_20260903_192703.md"
+      },
+      {
+        "text": "典型空间中的度规",
+        "source": "ocr_20260903_192703.md"
+      },
+      {
+        "text": "梯度在笛卡尔坐标系中的表示",
+        "source": "ocr_20260903_192703.md"
+      }
+    ],
+    "seconds": 1.709
+  },
+  "artifacts": {
+    "merged_md": "ocr_20260903_192703.md",
+    "raw_merged_txt": "raw_merged.txt",
+    "per_batch_md_raw": true
+  }
+}
