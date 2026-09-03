@@ -70,7 +70,7 @@
 > **实现状态（2026-09-03 已落地，shared 管线双引擎自动生效；paddle 先验收）**：
 > - `reconstruct_and_review_pages` 默认走页级整理（`OCR_PAGE_RECONSTRUCT=0` 回退整批一次长文重写做 A/B）：每页独立门控，需 LLM 的页并发短整理（`OCR_RECONSTRUCT_WORKERS`，默认 4），干净页确定性零 token；跨页只传上一页末尾 locked 标题（`reconstruct_markdown(context=…)`）防层级漂移；按页序合并后仍按批做完整性闭环与审校（事件 1:1 不破坏基线观测）；
 > - 版面推断确认已通过 adapter→layout 在批路径生效（早期文档判断有误，已更正），页级化后按页自然参与门控；
-> - 已知观测限制：页级并发下 llm_calls 的逐调用 token 分账可能交错失真，成本以 `llm_client_snapshot`/`llm_by_label` 汇总为准。
+> - 已知观测口径（已修）：页级并发下逐调用 token 差分会交叠失真——基线已改为 token 一律取客户端快照 `usage_by_label`（锁内累计，并发安全），`llm_calls` 只记耗时；`llm_by_label.seconds` 是各调用耗时之和（并发下可大于墙钟，墙钟以 `wall.review_seconds` 为准）；A/B 环境开关用 `--set-env OCR_PAGE_RECONSTRUCT=0`（shell 无关，且记入 run.json config.env_overrides）。
 
 **为什么省/值**：
 - 时间：LLM 201s → 每页生成 3~6s×并发 4~6 路 ≈ 35~60s（vLLM 连续批处理下并发吞吐通常显著高于单路 90 tok/s；若服务端排队导致退化，保守也 ≤90s）。OCR 34.8s 不变。

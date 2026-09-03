@@ -266,15 +266,14 @@ def md_structure_counts(md: str) -> dict:
 
 # ═══════════════════════════ LLM 调用记录（共享 client + label） ═══════════════════════════
 
-def _slot(snapshot: dict, label: str) -> dict:
-    return dict((snapshot.get("usage_by_label") or {}).get(label) or {})
-
-
 class _RecordingLLM:
-    """代理共享 LLMClient：逐调用记录 label / 耗时 / token，并归因到批号。
+    """代理共享 LLMClient：逐调用记录 label / 耗时，并归因到批号。
 
     client.text 是 async 方法，代理必须也是 async 并 await 真实调用，
-    否则计时与 usage 快照会在协程真正执行前完成（asyncio.run 包装的是返回值协程）。"""
+    否则计时会在协程真正执行前完成（asyncio.run 包装的是返回值协程）。
+    注意：页级整理并发时，逐调用 usage 差分会因窗口交叠而失真，
+    所以本代理**不做逐调用 token 差分**——token 一律以客户端快照
+    （usage_by_label，锁内累计）为准，见 main() 的 _llm_label_stats 合并。"""
 
     def __init__(self, real) -> None:
         self.real = real
@@ -287,7 +286,6 @@ class _RecordingLLM:
 
     async def text(self, system_prompt, user_prompt, **kwargs):
         label = str(kwargs.get("label") or "text")
-        before = _slot(self.real.monitor_snapshot(), label)
         batch = self.active_batch
         t0 = time.monotonic()
         try:
@@ -304,21 +302,12 @@ class _RecordingLLM:
                 }
             )
             raise
-        after = _slot(self.real.monitor_snapshot(), label)
         self.calls.append(
             {
                 "batch": batch,
                 "label": label,
                 "ok": True,
                 "seconds": round(time.monotonic() - t0, 3),
-                "prompt_tokens": max(0, int(after.get("prompt_tokens", 0))
-                                     - int(before.get("prompt_tokens", 0))),
-                "completion_tokens": max(0, int(after.get("completion_tokens", 0))
-                                         - int(before.get("completion_tokens", 0))),
-                "total_tokens": max(0, int(after.get("total_tokens", 0))
-                                    - int(before.get("total_tokens", 0))),
-                "cache_hit_tokens": max(0, int(after.get("cache_hit_tokens", 0))
-                                        - int(before.get("cache_hit_tokens", 0))),
             }
         )
         return result
@@ -598,7 +587,11 @@ def _kb_ingest(md_file: Path, *, engine: str, kb_mode: str, out_dir: Path) -> di
     return result
 
 
-def _llm_label_stats(calls: list[dict]) -> dict:
+def _llm_label_stats(calls: list[dict], usage_by_label: dict | None = None) -> dict:
+    """按 label 汇总。次数/耗时来自逐调用记录（并发下 seconds 是各调用耗时之和，
+    可大于墙钟，墙钟以 wall.review_seconds 为准）；token 一律取自客户端快照
+    usage_by_label（锁内累计，并发安全），避免逐调用差分交叠失真。"""
+    usage_by_label = usage_by_label or {}
     out: dict = {}
     for call in calls:
         slot = out.setdefault(
@@ -615,9 +608,12 @@ def _llm_label_stats(calls: list[dict]) -> dict:
         secs = float(call.get("seconds") or 0)
         slot["seconds"] += secs
         slot["max_seconds"] = max(slot["max_seconds"], secs)
-        for key in ("prompt_tokens", "completion_tokens", "total_tokens", "cache_hit_tokens"):
-            slot[key] += int(call.get(key) or 0)
-    for slot in out.values():
+    for label, slot in out.items():
+        usage = usage_by_label.get(label) or {}
+        slot["prompt_tokens"] = int(usage.get("prompt_tokens") or 0)
+        slot["completion_tokens"] = int(usage.get("completion_tokens") or 0)
+        slot["total_tokens"] = int(usage.get("total_tokens") or 0)
+        slot["cache_hit_tokens"] = int(usage.get("cache_hit_tokens") or 0)
         slot["avg_seconds"] = round(slot["seconds"] / slot["calls"], 3) if slot["calls"] else 0.0
         slot["seconds"] = round(slot["seconds"], 3)
     return out
@@ -677,7 +673,19 @@ def main() -> None:
     ap.add_argument("--kb-mode", choices=["fake", "real"], default="fake",
                     help="入库计数库：fake=离线伪向量（默认，可复现）；real=真实 embedding（需硅基流动 key）")
     ap.add_argument("--label", default="", help="运行备注，追加进目录名")
+    ap.add_argument("--set-env", action="append", default=[], metavar="KEY=VALUE",
+                    help="运行前设置环境变量（如 OCR_PAGE_RECONSTRUCT=0），shell 无关，可重复")
     args = ap.parse_args()
+
+    env_overrides: dict[str, str] = {}
+    for item in args.set_env or []:
+        if "=" not in item:
+            raise SystemExit(f"--set-env 需 KEY=VALUE 形式：{item!r}")
+        key, value = item.split("=", 1)
+        env_overrides[key.strip()] = value.strip()
+    os.environ.update(env_overrides)
+    if env_overrides:
+        print(f"[baseline] 环境覆盖：{env_overrides}", flush=True)
 
     settings = _configure_engine(args)
     images = _resolve_images(args)
@@ -729,19 +737,21 @@ def main() -> None:
     batch_stage = {}
     for b, s in zip(pipe["batches"], pipe["ocr_batch_stage"]):
         batch_stage[str(b["index"])] = {"ocr_seconds": s["seconds"]}
-    # 批内 LLM 归因（reconstruct vs review）回填
+    # 批内 LLM 归因回填（只含逐调用耗时之和；并发下可大于该批墙钟，token 见快照口径）
     calls = recorder.calls if recorder is not None else []
     for b in pipe["batches"]:
-        llm = {"ocr/reconstruct": 0.0, "ocr/review": 0.0}
+        llm: dict[str, float] = {}
         for c in calls:
-            if c.get("batch") == b["index"] and c.get("label") in llm:
-                llm[c["label"]] += float(c.get("seconds") or 0)
+            if c.get("batch") == b["index"]:
+                llm[c["label"]] = llm.get(c["label"], 0.0) + float(c.get("seconds") or 0)
         batch_stage[str(b["index"])]["llm_seconds"] = {
             k: round(v, 3) for k, v in llm.items()
         }
 
-    llm_by_label = _llm_label_stats(calls)
     llm_snapshot = recorder.real.monitor_snapshot() if recorder is not None else None
+    llm_by_label = _llm_label_stats(
+        calls, (llm_snapshot or {}).get("usage_by_label") if llm_snapshot else None
+    )
 
     # Step1 完整性自检事件（与批次数按序 1:1 归并；观测触发率与补写开销，跨语料积累证据）
     completeness_events: list[dict] = []
@@ -786,6 +796,7 @@ def main() -> None:
             "batch_size": args.batch_size,
             "batch_count": len(pipe["batches"]),
             "ocr_concurrency": settings["ocr_concurrency"],
+            "env_overrides": env_overrides,
             "llm_provider": (recorder.real.provider if recorder is not None else None),
             "llm_model": (recorder.real.model if recorder is not None else None),
             "llm_available": recorder is not None,
