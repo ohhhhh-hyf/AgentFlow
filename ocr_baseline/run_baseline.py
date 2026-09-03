@@ -271,7 +271,10 @@ def _slot(snapshot: dict, label: str) -> dict:
 
 
 class _RecordingLLM:
-    """代理共享 LLMClient：逐调用记录 label / 耗时 / token，并归因到批号。"""
+    """代理共享 LLMClient：逐调用记录 label / 耗时 / token，并归因到批号。
+
+    client.text 是 async 方法，代理必须也是 async 并 await 真实调用，
+    否则计时与 usage 快照会在协程真正执行前完成（asyncio.run 包装的是返回值协程）。"""
 
     def __init__(self, real) -> None:
         self.real = real
@@ -282,13 +285,13 @@ class _RecordingLLM:
     def __getattr__(self, name):
         return getattr(self.real, name)
 
-    def text(self, system_prompt, user_prompt, **kwargs):
+    async def text(self, system_prompt, user_prompt, **kwargs):
         label = str(kwargs.get("label") or "text")
         before = _slot(self.real.monitor_snapshot(), label)
         batch = self.active_batch
         t0 = time.monotonic()
         try:
-            result = self.real.text(system_prompt, user_prompt, **kwargs)
+            result = await self.real.text(system_prompt, user_prompt, **kwargs)
         except BaseException as exc:  # noqa: BLE001 生产内部有重试与降级，这里只记录
             self.failures_by_label[label] += 1
             self.calls.append(
