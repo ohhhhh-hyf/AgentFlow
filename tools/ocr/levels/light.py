@@ -474,19 +474,21 @@ def _needs_review(lines: list[dict]) -> bool:
 
 
 def _estimate_reconstruct_tokens(lines: list[dict]) -> int:
-    """按本批 OCR 行内容量估算重构输出上限，避免长批被静默截断。
+    """估算重构输出上限——只做护栏，不允许它参与内容截断。
 
-    实测（2026-09 笔记语料基线）：整理稿 md 字符 ≈ 输入的 1.9~3.3 倍、
-    约 2.0~2.4 字符/token。旧公式 输入/1.2 会把 5~8 页批的真实需求
-    （6~8k token）低估到 5k 附近，导致多数批次输出顶满 max_tokens 被截断、
-    每批末页尾部内容丢失。max_tokens 只是保护上限：调大不会让短输出变贵
-    （模型自然 EOS 即停），所以按 输入×1.15 再留安全边际、下限提到 9000。
+    通用考虑（与具体语料无关）：
+    - 整理稿会把 OCR 文本展开成 Markdown/LaTeX（标题、加粗、公式定界、
+      上下标、表格），输出字符量通常不小于输入、可达数倍；
+    - token 数不会超过字符数；
+    - max_tokens 只是保护上限：模型内容写完后自然 EOS 即停，
+      护栏调大不会让短输出变贵。
+    因此按「输入字符数 ×2」取上限并设较大下限（9000），覆盖膨胀余量。
     """
     total = sum(
         len(str(item.get("text") or "")) + len(str(item.get("formula") or ""))
         for item in lines
     )
-    needed = int(total * 1.15)
+    needed = int(total * 2)
     return max(9000, min(50000, needed))
 
 
@@ -773,6 +775,106 @@ def _drain_ocr_futures(
     return [item for item in pages if item]
 
 
+def _overlap_enabled() -> bool:
+    """组间流水线重叠开关（默认开；OCR_PIPELINE_OVERLAP=0 回退串行，A/B 用）。"""
+    return os.getenv("OCR_PIPELINE_OVERLAP", "1").strip().lower() in {"1", "true", "yes", "on"}
+
+
+def _collect_drain_events(ocr_pool, chunk, *, lo, hi, total, timeout, ocr_fn, ocr_workers):
+    """整组 OCR 收集执行：返回 (pages, 事件列表, OCR 墙钟)。事件可延后补发。
+
+    事件列表以 ocr_start 开头、随后是逐张 item/fail/wait（与串行路径同构）。
+    """
+    events: list[dict] = []
+    events.append({
+        "type": "ocr_start",
+        "lo": lo,
+        "hi": hi,
+        "workers": min(ocr_workers, len(chunk)),
+        "total": total,
+    })
+    t0 = time.monotonic()
+    gen = _drain_ocr_futures(
+        _submit_ocr_chunk(ocr_pool, chunk, ocr_fn, first_page=lo),
+        lo=lo,
+        hi=hi,
+        total=total,
+        item_timeout=timeout,
+    )
+    pages = None
+    try:
+        while True:
+            events.append(next(gen))
+    except StopIteration as stop:
+        pages = stop.value
+    return pages, events, round(time.monotonic() - t0, 3)
+
+
+def _timed_review(review_fn: Callable, pages: list[dict]):
+    """执行一组整理（含完整性与审校），返回 (成稿, 墙钟)。"""
+    t0 = time.monotonic()
+    reviewed = review_fn(pages)
+    return reviewed, round(time.monotonic() - t0, 3)
+
+
+def _iter_chunks_overlap(chunks, *, ocr_pool, ocr_fn, review_fn, timeout, total):
+    """组间流水线重叠：第 i+1 组 OCR 与第 i 组整理并行执行。
+
+    事件仍按原顺序输出（…batch_done(i) 后才补发第 i+1 组 OCR 事件），
+    消费方的事件配对/合并顺序不变；真实耗时由 chunk_stats 事件携带。
+    整理轮次本身串行（单 LLM 后端下不互相重叠），OCR 提前预取一组。
+    """
+    review_pool = ThreadPoolExecutor(max_workers=1, thread_name_prefix="ocr-review")
+    next_chunk_data = None  # (pages, events, ocr_seconds)：已提前 OCR 的下一组
+    try:
+        for idx, (lo, hi, chunk) in enumerate(chunks):
+            if next_chunk_data is None:
+                pages, events, ocr_seconds = _collect_drain_events(
+                    ocr_pool, chunk, lo=lo, hi=hi, total=total,
+                    timeout=timeout, ocr_fn=ocr_fn, ocr_workers=ocr_pool._max_workers,
+                )
+                for ev in events:
+                    yield ev
+            else:
+                pages, events, ocr_seconds = next_chunk_data
+                next_chunk_data = None
+                for ev in events:
+                    yield ev
+            future = review_pool.submit(_timed_review, review_fn, pages)
+            if idx + 1 < len(chunks):
+                # 预取下一组 OCR，与当前组整理并行执行
+                nlo, nhi, nchunk = chunks[idx + 1]
+                next_chunk_data = _collect_drain_events(
+                    ocr_pool, nchunk, lo=nlo, hi=nhi, total=total,
+                    timeout=timeout, ocr_fn=ocr_fn, ocr_workers=ocr_pool._max_workers,
+                )
+            reviewed, review_seconds = future.result()
+            yield {
+                "type": "review_start",
+                "lo": lo,
+                "hi": hi,
+                "total": total,
+            }
+            yield {
+                "type": "batch_done",
+                "lo": lo,
+                "hi": hi,
+                "reviewed": reviewed,
+                "raw": combine_ocr_pages(pages, key="raw_text"),
+                "total": total,
+            }
+            yield {
+                "type": "chunk_stats",
+                "lo": lo,
+                "hi": hi,
+                "ocr_seconds": ocr_seconds,
+                "review_seconds": review_seconds,
+                "total": total,
+            }
+    finally:
+        review_pool.shutdown(wait=False, cancel_futures=True)
+
+
 def iter_ocr_review_pipeline(
     image_entries: list[tuple],
     *,
@@ -781,7 +883,14 @@ def iter_ocr_review_pipeline(
     batch_size: int = LIGHT_OCR_BATCH,
     item_timeout: float | None = None,
 ) -> Iterator[dict]:
-    """按 batch_size 分组整理；组内 OCR 并发数由引擎能力决定。"""
+    """按 batch_size 分组整理；组内 OCR 并发数由引擎能力决定。
+
+    组间流水线重叠（默认开，OCR_PIPELINE_OVERLAP=0 回退串行做 A/B）：
+    第 i+1 组 OCR 与第 i 组整理/审校并行，整批墙钟 ≈ 单组 OCR + 各组整理之和，
+    而非「每组 OCR+整理」串行累加。事件顺序与原串行完全一致（下一组 OCR
+    事件延后到上一组 batch_done 后补发）；每组末尾补发 chunk_stats 事件
+    （真实 OCR/整理墙钟），供记账层使用。
+    """
     if not image_entries:
         return
     ocr_fn = ocr_fn or ocr_image_to_lines
@@ -803,6 +912,16 @@ def iter_ocr_review_pipeline(
 
             ocr_log(f"[OCR/paddleocr] 预热 {ocr_workers} 路引擎（线程绑定）")
             warmup_engines()
+        if len(chunks) >= 2 and _overlap_enabled():
+            yield from _iter_chunks_overlap(
+                chunks,
+                ocr_pool=ocr_pool,
+                ocr_fn=ocr_fn,
+                review_fn=review_fn,
+                timeout=timeout,
+                total=total,
+            )
+            return
         for lo, hi, chunk in chunks:
             chunk_workers = min(ocr_workers, len(chunk))
             yield {
@@ -812,6 +931,7 @@ def iter_ocr_review_pipeline(
                 "workers": chunk_workers,
                 "total": total,
             }
+            t0 = time.monotonic()
             pages = yield from _drain_ocr_futures(
                 _submit_ocr_chunk(ocr_pool, chunk, ocr_fn, first_page=lo),
                 lo=lo,
@@ -819,19 +939,29 @@ def iter_ocr_review_pipeline(
                 total=total,
                 item_timeout=timeout,
             )
+            ocr_seconds = round(time.monotonic() - t0, 3)
             yield {
                 "type": "review_start",
                 "lo": lo,
                 "hi": hi,
                 "total": total,
             }
-            reviewed = review_fn(pages)
+            reviewed, review_seconds = _timed_review(review_fn, pages)
             yield {
                 "type": "batch_done",
                 "lo": lo,
                 "hi": hi,
                 "reviewed": reviewed,
                 "raw": combine_ocr_pages(pages, key="raw_text"),
+                "total": total,
+            }
+            yield {
+                "type": "chunk_stats",
+                "lo": lo,
+                "hi": hi,
+                "ocr_seconds": ocr_seconds,
+                "review_seconds": review_seconds,
+                "total": total,
             }
     finally:
         ocr_pool.shutdown(wait=False, cancel_futures=True)

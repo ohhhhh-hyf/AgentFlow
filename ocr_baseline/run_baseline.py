@@ -411,6 +411,7 @@ def run_pipeline(images, *, batch_size: int, item_timeout, holder, out_dir):
     raw_blocks: list[str] = []
     ref_rows_pool: list[dict] = []          # 全稿保真参考行（跨批累计）
     stage = {"ocr_seconds": 0.0, "review_seconds": 0.0}
+    chunk_stats: dict[int, dict] = {}   # lo → {ocr_seconds, review_seconds}（真实墙钟，来自管线 chunk_stats 事件）
     ocr_batch_stage: list[dict] = []        # 每批 OCR 阶段耗时（与 batches 按序 1:1）
     events_seen: Counter = Counter()
 
@@ -527,6 +528,11 @@ def run_pipeline(images, *, batch_size: int, item_timeout, holder, out_dir):
             ocr_failures.append(
                 {"name": ev.get("name"), "page": ev.get("page"), "error": ev.get("error")}
             )
+        elif kind == "chunk_stats":
+            chunk_stats[int(ev.get("lo") or 0)] = {
+                "ocr_seconds": float(ev.get("ocr_seconds") or 0.0),
+                "review_seconds": float(ev.get("review_seconds") or 0.0),
+            }
 
     kwargs = {"batch_size": max(1, min(batch_size, len(images)))}
     if item_timeout:
@@ -539,9 +545,16 @@ def run_pipeline(images, *, batch_size: int, item_timeout, holder, out_dir):
         stage["ocr_seconds"] += time.monotonic() - batch_open["t"]
     elif phase == "review":
         stage["review_seconds"] += time.monotonic() - phase_t
+    # 有 chunk_stats（真实墙钟）时用它覆盖事件窗口估算：
+    # 组间重叠下事件按原顺序补发，事件窗口的相位拆分会失真，chunk_stats 为准。
+    if chunk_stats:
+        stage["ocr_seconds"] = round(sum(v["ocr_seconds"] for v in chunk_stats.values()), 3)
+        stage["review_seconds"] = round(sum(v["review_seconds"] for v in chunk_stats.values()), 3)
+    stage["overlap"] = bool(chunk_stats)
 
     return {
         "stage": stage,
+        "chunk_stats": chunk_stats,
         "ocr_batch_stage": ocr_batch_stage,
         "batches": batches,
         "per_image": sorted(per_image, key=lambda r: natural_key(r["name"])),
@@ -733,10 +746,14 @@ def main() -> None:
         "raw_chars": len(raw_merged),
     }
 
-    # OCR 批耗时回填（batches 与 ocr_batch_stage 按序 1:1）；键统一用字符串
+    # OCR 批耗时回填（batches 与 ocr_batch_stage 按序 1:1）；键统一用字符串。
+    # 组间重叠时以 chunk_stats 的真实 OCR 墙钟为准（事件补发会让事件窗口失真）。
+    cs_by_lo = pipe.get("chunk_stats") or {}
     batch_stage = {}
     for b, s in zip(pipe["batches"], pipe["ocr_batch_stage"]):
-        batch_stage[str(b["index"])] = {"ocr_seconds": s["seconds"]}
+        st = cs_by_lo.get(b["lo"])
+        ocr_s = st["ocr_seconds"] if st else s["seconds"]
+        batch_stage[str(b["index"])] = {"ocr_seconds": ocr_s}
     # 批内 LLM 归因回填（只含逐调用耗时之和；并发下可大于该批墙钟，token 见快照口径）
     calls = recorder.calls if recorder is not None else []
     for b in pipe["batches"]:
@@ -819,6 +836,7 @@ def main() -> None:
             "batch_count": len(pipe["batches"]),
             "ocr_concurrency": settings["ocr_concurrency"],
             "env_overrides": env_overrides,
+            "pipeline_overlap": bool((pipe.get("stage") or {}).get("overlap")),
             "llm_provider": (recorder.real.provider if recorder is not None else None),
             "llm_model": (recorder.real.model if recorder is not None else None),
             "llm_available": recorder is not None,

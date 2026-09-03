@@ -64,8 +64,12 @@ ocr_baseline/records/<时间戳>_<引擎>_b<批大小>[_<label>]/
 
 ## 指标口径（解读前必读）
 
-- **阶段计时**：OCR 阶段 = 各批 `ocr_start → review_start` 之和（含失败/等待）；
-  整理+审校阶段 = 每批 `reconstruct_and_review_pages` 执行期；LLM 分账另按 label 独立计时。
+- **阶段计时**：管线默认组间流水线重叠（`OCR_PIPELINE_OVERLAP=0` 回退串行做 A/B）——
+  下一组 OCR 与当前组整理并行，事件顺序不变，每组末尾补发 `chunk_stats` 真实墙钟；
+  run.json 的 `wall.ocr_seconds` / `wall.review_seconds` 即 chunk_stats 求和
+  （串行下与原事件窗口口径一致），`config.pipeline_overlap` 记录是否重叠；
+  重叠下阶段求和可大于墙钟，**墙钟以 `wall.total_seconds` 为准**；
+  LLM 分账另按 label 独立计时。
 - **LLM 统计**：脚本在进程内把 `tools/ocr/engines.get_llm_client` 换成**共享实例**，
   因此 `usage_by_label` / `latency_by_label` 能跨多次调用累计（生产每次新建实例、统计即失，脚本只改本进程行为）。
   失败自动降级（整理→原文、审校→原稿）与生产一致，失败次数单独记录。

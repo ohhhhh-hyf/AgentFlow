@@ -30,7 +30,7 @@
 **改法（与 paddle Step 1 同构，3 小步）**：
 
 1. **上限重估**：`_estimate_reconstruct_tokens`（tools/ocr/levels/light.py:414-425）改为
-   `est = clamp(round(total_chars * 1.15), 9000, 50000)`。max_tokens 只是保护性上限，放大不会让短输出变贵。
+   `est = clamp(total_chars × 2, 9000, 50000)`（护栏式上限：Markdown/LaTeX 膨胀且 token ≤ 字符数，不影响自然收尾）。
 2. **完整性自检（零 LLM）**：整理稿返回后逐行比对 OCR 行 vs md（字符出现率 <0.8 即缺失/受损），按"缺失集中在稿尾=截断型 / 散布全文=漏写型"分类。
 3. **闭环补写**：缺失字符占比 >1.5% 或缺失行 ≥3 时发一次小续写（输入 = 本批 lines + 稿尾 200 字符 + 缺失行清单，输出上限 2k）；截断型提示"从断点继续"，漏写型提示"按原文补回、禁止臆造"。兜底：无 LLM 时缺失行原样 append。
 
