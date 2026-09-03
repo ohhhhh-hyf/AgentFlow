@@ -1,0 +1,389 @@
+{
+  "user_id": "1",
+  "project_id": "gaoshu",
+  "updated_at": "2026-09-03 20:44:22",
+  "run_count": 2,
+  "display_name": "gaoshu",
+  "project_key": "gaoshu",
+  "name_aliases": [],
+  "entities": [],
+  "key_terms": [],
+  "recent_topics": [],
+  "active_summary": "",
+  "last_meeting_at": "",
+  "events": [],
+  "subject": "gaoshu",
+  "notes": {
+    "subject": "gaoshu",
+    "key_terms": [
+      "函数",
+      "定义域",
+      "单调性",
+      "定义法",
+      "导数",
+      "奇偶性",
+      "奇函数",
+      "偶函数",
+      "瞬时变化率",
+      "切线斜率",
+      "切线方程",
+      "切点",
+      "在某点处",
+      "过某点",
+      "极值",
+      "极大值",
+      "极小值",
+      "闭区间最值",
+      "端点值"
+    ],
+    "sessions": [
+      {
+        "at": "2026-09-03 20:43:44",
+        "purpose": "梳理函数定义域、单调性与奇偶性的基本概念与判断方法",
+        "key_terms": [
+          "函数",
+          "定义域",
+          "单调性",
+          "定义法",
+          "导数",
+          "奇偶性",
+          "奇函数",
+          "偶函数"
+        ]
+      },
+      {
+        "at": "2026-09-03 20:44:22",
+        "purpose": "总结导数及其应用的核心概念与方法，包括切线方程、单调性、极值与最值。",
+        "key_terms": [
+          "导数",
+          "瞬时变化率",
+          "切线斜率",
+          "切线方程",
+          "切点",
+          "在某点处",
+          "过某点",
+          "单调性",
+          "定义法",
+          "极值",
+          "极大值",
+          "极小值",
+          "闭区间最值",
+          "端点值"
+        ]
+      }
+    ]
+  },
+  "graph": {
+    "title": "gaoshu",
+    "nodes": [
+      {
+        "name": "函数",
+        "type": "concept",
+        "definition": "函数是两个数集之间的对应：每个自变量只对应一个函数值。",
+        "section": "函数与定义域"
+      },
+      {
+        "name": "定义域",
+        "type": "concept",
+        "definition": "定义域要同时满足分母不为零、偶次根号下非负、对数真数大于零，取这些条件的交集。",
+        "section": "函数与定义域"
+      },
+      {
+        "name": "分母不为零",
+        "type": "pitfall",
+        "section": "函数与定义域"
+      },
+      {
+        "name": "偶次根号下非负",
+        "type": "pitfall",
+        "section": "函数与定义域"
+      },
+      {
+        "name": "对数真数大于零",
+        "type": "pitfall",
+        "section": "函数与定义域"
+      },
+      {
+        "name": "单调性",
+        "type": "concept",
+        "section": "用导数判断单调性",
+        "definition": "在区间上 f'(x)>0 则函数递增，f'(x)<0 则递减。"
+      },
+      {
+        "name": "定义法",
+        "type": "method",
+        "definition": "按「取值、作差、变形、定号、下结论」五步走。",
+        "section": "用导数判断单调性"
+      },
+      {
+        "name": "因式分解",
+        "type": "method",
+        "definition": "作差后常用因式分解或通分来判断符号。",
+        "section": "单调性"
+      },
+      {
+        "name": "通分",
+        "type": "method",
+        "definition": "作差后常用因式分解或通分来判断符号。",
+        "section": "单调性"
+      },
+      {
+        "name": "导数",
+        "type": "concept",
+        "definition": "导数 f'(x0) 表示函数在 x0 处的瞬时变化率，几何意义是曲线在该点切线的斜率。",
+        "section": "导数定义与几何意义"
+      },
+      {
+        "name": "奇偶性",
+        "type": "concept",
+        "section": "奇偶性"
+      },
+      {
+        "name": "定义域关于原点对称",
+        "type": "pitfall",
+        "definition": "奇偶性判断之前必须先看定义域是否关于原点对称。",
+        "section": "奇偶性"
+      },
+      {
+        "name": "奇函数",
+        "type": "concept",
+        "section": "奇偶性"
+      },
+      {
+        "name": "偶函数",
+        "type": "concept",
+        "section": "奇偶性"
+      },
+      {
+        "name": "瞬时变化率",
+        "type": "concept",
+        "definition": "导数 f'(x0) 表示函数在 x0 处的瞬时变化率。",
+        "section": "导数定义与几何意义"
+      },
+      {
+        "name": "切线斜率",
+        "type": "concept",
+        "definition": "几何意义是曲线在该点切线的斜率。",
+        "section": "导数定义与几何意义"
+      },
+      {
+        "name": "切线方程",
+        "type": "concept",
+        "definition": "求切线方程：先求导，再代入切点求斜率，最后用点斜式写方程。",
+        "section": "求切线方程"
+      },
+      {
+        "name": "切点",
+        "type": "concept",
+        "definition": "注意「在某点处」该点就是切点，「过某点」该点不一定是切点。",
+        "section": "求切线方程"
+      },
+      {
+        "name": "在某点处",
+        "type": "problem",
+        "definition": "注意「在某点处」该点就是切点。",
+        "section": "求切线方程"
+      },
+      {
+        "name": "过某点",
+        "type": "problem",
+        "definition": "「过某点」该点不一定是切点。",
+        "section": "求切线方程"
+      },
+      {
+        "name": "极值",
+        "type": "concept",
+        "definition": "令导数等于零找出候选点，再看左右导数符号，左正右负是极大值，左负右正是极小值。",
+        "section": "求极值"
+      },
+      {
+        "name": "极大值",
+        "type": "concept",
+        "definition": "左正右负是极大值。",
+        "section": "求极值"
+      },
+      {
+        "name": "极小值",
+        "type": "concept",
+        "definition": "左负右正是极小值。",
+        "section": "求极值"
+      },
+      {
+        "name": "闭区间最值",
+        "type": "concept",
+        "definition": "求闭区间最值时，要把极值与端点值一起比较，其中最大的是最大值。",
+        "section": "求闭区间最值"
+      },
+      {
+        "name": "端点值",
+        "type": "concept",
+        "definition": "求闭区间最值时，要把极值与端点值一起比较。",
+        "section": "求闭区间最值"
+      }
+    ],
+    "edges": [
+      {
+        "source": "函数",
+        "relation": "包含",
+        "target": "定义域",
+        "evidence": "函数是两个数集之间的对应：每个自变量只对应一个函数值。定义域要同时满足分母不为零、偶次根号下非负、对数真数大于零，取这些条件的交集。"
+      },
+      {
+        "source": "定义域",
+        "relation": "包含",
+        "target": "分母不为零",
+        "evidence": "定义域要同时满足分母不为零、偶次根号下非负、对数真数大于零，取这些条件的交集。"
+      },
+      {
+        "source": "定义域",
+        "relation": "包含",
+        "target": "偶次根号下非负",
+        "evidence": "定义域要同时满足分母不为零、偶次根号下非负、对数真数大于零，取这些条件的交集。"
+      },
+      {
+        "source": "定义域",
+        "relation": "包含",
+        "target": "对数真数大于零",
+        "evidence": "定义域要同时满足分母不为零、偶次根号下非负、对数真数大于零，取这些条件的交集。"
+      },
+      {
+        "source": "分母不为零",
+        "relation": "前提",
+        "target": "定义域",
+        "evidence": "定义域要同时满足分母不为零、偶次根号下非负、对数真数大于零，取这些条件的交集。"
+      },
+      {
+        "source": "偶次根号下非负",
+        "relation": "前提",
+        "target": "定义域",
+        "evidence": "定义域要同时满足分母不为零、偶次根号下非负、对数真数大于零，取这些条件的交集。"
+      },
+      {
+        "source": "对数真数大于零",
+        "relation": "前提",
+        "target": "定义域",
+        "evidence": "定义域要同时满足分母不为零、偶次根号下非负、对数真数大于零，取这些条件的交集。"
+      },
+      {
+        "source": "定义法",
+        "relation": "用于",
+        "target": "单调性",
+        "evidence": "这和上一份笔记里的定义法是同一件事，只是判断更快。"
+      },
+      {
+        "source": "因式分解",
+        "relation": "用于",
+        "target": "定义法",
+        "evidence": "作差后常用因式分解或通分来判断符号。"
+      },
+      {
+        "source": "通分",
+        "relation": "用于",
+        "target": "定义法",
+        "evidence": "作差后常用因式分解或通分来判断符号。"
+      },
+      {
+        "source": "导数",
+        "relation": "用于",
+        "target": "单调性",
+        "evidence": "用导数判断单调性：在区间上 f'(x)>0 则函数递增，f'(x)<0 则递减。"
+      },
+      {
+        "source": "定义域关于原点对称",
+        "relation": "前提",
+        "target": "奇偶性",
+        "evidence": "奇偶性判断之前必须先看定义域是否关于原点对称。"
+      },
+      {
+        "source": "定义域关于原点对称",
+        "relation": "前提",
+        "target": "奇函数",
+        "evidence": "不对称就既不是奇函数也不是偶函数。"
+      },
+      {
+        "source": "定义域关于原点对称",
+        "relation": "前提",
+        "target": "偶函数",
+        "evidence": "不对称就既不是奇函数也不是偶函数。"
+      },
+      {
+        "source": "奇偶性",
+        "relation": "包含",
+        "target": "奇函数",
+        "evidence": "不对称就既不是奇函数也不是偶函数。"
+      },
+      {
+        "source": "奇偶性",
+        "relation": "包含",
+        "target": "偶函数",
+        "evidence": "不对称就既不是奇函数也不是偶函数。"
+      },
+      {
+        "source": "导数",
+        "relation": "等价于",
+        "target": "瞬时变化率",
+        "evidence": "导数 f'(x0) 表示函数在 x0 处的瞬时变化率。"
+      },
+      {
+        "source": "导数",
+        "relation": "等价于",
+        "target": "切线斜率",
+        "evidence": "几何意义是曲线在该点切线的斜率。"
+      },
+      {
+        "source": "导数",
+        "relation": "用于",
+        "target": "切线方程",
+        "evidence": "求切线方程：先求导，再代入切点求斜率，最后用点斜式写方程。"
+      },
+      {
+        "source": "切点",
+        "relation": "前提",
+        "target": "切线方程",
+        "evidence": "求切线方程：先求导，再代入切点求斜率，最后用点斜式写方程。"
+      },
+      {
+        "source": "在某点处",
+        "relation": "前提",
+        "target": "切点",
+        "evidence": "注意「在某点处」该点就是切点。"
+      },
+      {
+        "source": "过某点",
+        "relation": "区别于",
+        "target": "在某点处",
+        "evidence": "「过某点」该点不一定是切点。"
+      },
+      {
+        "source": "导数",
+        "relation": "用于",
+        "target": "极值",
+        "evidence": "令导数等于零找出候选点，再看左右导数符号。"
+      },
+      {
+        "source": "极值",
+        "relation": "包含",
+        "target": "极大值",
+        "evidence": "左正右负是极大值。"
+      },
+      {
+        "source": "极值",
+        "relation": "包含",
+        "target": "极小值",
+        "evidence": "左负右正是极小值。"
+      },
+      {
+        "source": "极值",
+        "relation": "用于",
+        "target": "闭区间最值",
+        "evidence": "求闭区间最值时，要把极值与端点值一起比较。"
+      },
+      {
+        "source": "端点值",
+        "relation": "用于",
+        "target": "闭区间最值",
+        "evidence": "求闭区间最值时，要把极值与端点值一起比较。"
+      }
+    ]
+  }
+}

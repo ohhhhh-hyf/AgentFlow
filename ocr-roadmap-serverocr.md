@@ -36,10 +36,13 @@
 
 **为什么省/值**：质量收益最大（3 个批尾各 1.5KB+ 内容回到库里）；成本 = 补回内容的 completion（+10~15%，约 +2k）+ 触发时的一次小续写；时间 +15~20s。
 
-> **实现状态（2026-09-03 已落地，与 paddle 共用同一段管线代码，serverocr 自动生效）**：
-> - 上限重估 + `ensure_markdown_complete` 闭环（自检→续尾/补中/原文兜底）已接入 `reconstruct_and_review_pages`；
-> - A/B 开关：`OCR_COMPLETENESS_FIX=0` 关闭；`OCR_CONTINUE_MAX_CALLS` / `OCR_CONTINUE_MAX_TOKENS` 可调；
-> - 补写调用沿用 `ocr/reconstruct` label，run.json 的 llm_calls 会多出批内补写调用。
+> **实现状态（2026-09-03 两轮已落地，与 paddle 共用同一段管线代码，serverocr 自动生效）**：
+> - 上限重估 + `ensure_markdown_complete` 闭环已接入 `reconstruct_and_review_pages`；
+> - 第二轮收敛为显式缺失语义（P0~P4）：行"存在"判定 = 与 md 共享任一 8 连字符；
+>   公式行/编号标题行不参与缺失判定；触发只认近整行丢失与稿尾截断（含结构残片信号）；
+>   补写独立 label `ocr/reconstruct/fix`，定界不平衡/超预算一律原文兜底；
+> - 自检事件进 run.json 的 `completeness`（按批归并），跨语料观察触发率；
+> - A/B 开关：`OCR_COMPLETENESS_FIX=0` 关闭；`OCR_CONTINUE_MAX_CALLS` / `OCR_CONTINUE_MAX_TOKENS` 可调。
 
 **预期**：截断=0；kept80 ≥0.92（现 0.899）；入库增量 ≥22（现 20）。
 

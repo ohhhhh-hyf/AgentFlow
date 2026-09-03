@@ -688,7 +688,7 @@ def main() -> None:
 
     print(f"[baseline] 引擎 {settings['engine']}（env 原值 {settings['engine_before']}），"
           f"{len(images)} 张，批 {args.batch_size}，并发 {settings['ocr_concurrency']}，"
-          f"LLM 按 label 记录 ocr/reconstruct + ocr/review", flush=True)
+          f"LLM 按 label 记录 ocr/reconstruct / ocr/review / ocr/reconstruct/fix", flush=True)
     print(f"[baseline] 记录目录：{out_dir}", flush=True)
 
     _paddle_warmup(settings["engine"], settings["ocr_concurrency"])
@@ -743,6 +743,33 @@ def main() -> None:
     llm_by_label = _llm_label_stats(calls)
     llm_snapshot = recorder.real.monitor_snapshot() if recorder is not None else None
 
+    # Step1 完整性自检事件（与批次数按序 1:1 归并；观测触发率与补写开销，跨语料积累证据）
+    completeness_events: list[dict] = []
+    try:
+        from tools.ocr.reconstruct import take_completeness_events
+
+        completeness_events = take_completeness_events()
+    except Exception:  # noqa: BLE001 旧代码无该接口时跳过
+        pass
+    for idx, b in enumerate(pipe["batches"]):
+        if idx < len(completeness_events):
+            b["completeness"] = completeness_events[idx]
+    if completeness_events:
+        completeness_agg = {
+            "batches": len(completeness_events),
+            "gate_off": sum(1 for e in completeness_events if e.get("gate") == "off"),
+            "triggered": sum(
+                1 for e in completeness_events
+                if (e.get("fired_calls") or 0) or (e.get("fallback_rows") or 0)
+            ),
+            "fired_calls": sum(int(e.get("fired_calls") or 0) for e in completeness_events),
+            "fallback_rows": sum(int(e.get("fallback_rows") or 0) for e in completeness_events),
+            "out_gain_chars": sum(int(e.get("out_gain_chars") or 0) for e in completeness_events),
+            "events": completeness_events,
+        }
+    else:
+        completeness_agg = None
+
     t_ingest0 = time.monotonic()
     ingest = _kb_ingest(out_dir / merged_name, engine=settings["engine"],
                         kb_mode=args.kb_mode, out_dir=out_dir)
@@ -778,6 +805,7 @@ def main() -> None:
         "llm_by_label": llm_by_label,
         "llm_calls": calls,
         "llm_client_snapshot": llm_snapshot,
+        "completeness": completeness_agg,
         "whole": whole,
         "ingest": ingest,
         "artifacts": {
@@ -835,6 +863,14 @@ def _write_summary_md(run: dict, out_dir: Path) -> None:
             f"{'-' if r6 is None else round(r6, 3)} | {fr['stray_dollar']} |"
         )
     wf, wfr, ws = run["whole"]["fidelity"], run["whole"]["formulas"], run["whole"]["structure"]
+    ca = run.get("completeness")
+    if ca:
+        lines += [
+            "", "## 完整性闭环（Step1 自检事件）", "",
+            f"- 批次数 {ca.get('batches')}（gate_off {ca.get('gate_off')}）；触发批 {ca.get('triggered')}；"
+            f"补写调用 {ca.get('fired_calls')} 次；兜底行 {ca.get('fallback_rows')}；补回字符 {ca.get('out_gain_chars')}",
+            "",
+        ]
     lines += [
         "", "## 全稿保真（对最终合并稿）", "",
         f"- 正文 {wf['text'].get('rows', 0)} 行：avg_char_ratio={wf['text'].get('avg_char_ratio')}，"

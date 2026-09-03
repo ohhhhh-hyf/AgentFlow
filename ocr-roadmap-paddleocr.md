@@ -37,11 +37,14 @@
 
 **为什么省/值**：质量收益最大（每批末页尾部 1.5~1.8KB 内容回到库里）；成本 = 补回内容的 token（completion +8~15%，约 +1.5k×2 批）+ 触发时的一次小续写；时间 +15~20s。它不省时间，是把之前省错的上限花对。
 
-> **实现状态（2026-09-03 已落地，shared 管线双引擎生效）**：
+> **实现状态（2026-09-03 两轮已落地，shared 管线双引擎生效）**：
 > - `light._estimate_reconstruct_tokens` → `max(9000, min(50000, 输入字符×1.15))`；
-> - 新增 `reconstruct.ensure_markdown_complete`（行级自检 + 续尾/补中/原文兜底三段闭环）并接入 `reconstruct_and_review_pages`，在 review 之前执行；
-> - A/B 开关：`OCR_COMPLETENESS_FIX=0` 关闭闭环；`OCR_CONTINUE_MAX_CALLS`（默认 2）、`OCR_CONTINUE_MAX_TOKENS`（默认 3000）可调；
-> - 触发时日志打 `OCR 完整性补写…`（warning 级），补写调用沿用 `ocr/reconstruct` label，可直接在 run.json 的 llm_calls 里看到批内多出的调用与 token。
+> - `reconstruct.ensure_markdown_complete`（接入 `reconstruct_and_review_pages`，review 之前执行）。第一轮（A/B s1）确认闭环有效但触发过频（6/6 批全触发），第二轮收敛为**显式缺失语义**（P0~P4）：
+>   - 行"存在"判定 = 与 md 共享任一 8 连字符（对改写/合并/常用字重叠稳健，无语料调参）；公式行、编号短标题行永不参与缺失判定；
+>   - 触发只认两类：正文近整行丢失、稿尾截断（缺失延伸到最后一行，或稿尾结构残片信号）；
+>   - 补写独立 label `ocr/reconstruct/fix`；片段 $ 定界不平衡自动回退原文兜底；超预算余段一律原文兜底；
+>   - 每次自检产出一条事件：run.json 的 `completeness`（按批归并进 `batches[].completeness`），跨语料观察触发率与开销，不做单语料调参；
+> - A/B 开关：`OCR_COMPLETENESS_FIX=0` 关闭闭环；`OCR_CONTINUE_MAX_CALLS`（默认 2）、`OCR_CONTINUE_MAX_TOKENS`（默认 3000）可调。
 
 **预期**：截断=0；kept80 ≥0.965（现 0.9496）；入库增量 ≥26（现 24）；批尾锚点内容残留检测=0。
 
