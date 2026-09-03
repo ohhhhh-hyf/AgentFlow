@@ -9,6 +9,7 @@ from __future__ import annotations
 import json
 import logging
 import re
+from collections import Counter
 
 from .mathmd import normalize_markdown_math
 
@@ -684,10 +685,400 @@ def _as_reviewed_markdown(text: str, draft: str) -> tuple[str, str]:
     return normalize_heading_numbering(reviewed), notes
 
 
+# ════════════════════ 完整性自检 + 截断/漏行闭环补写 ════════════════════
+# 背景：整批（≤8 页）一次重构的输出常顶满 max_tokens 被截断（批尾内容丢失），
+# 或 LLM 漏写少数行。review 只能改稿内已有行，补不回丢失内容，所以这里：
+# 1) 确定性行级比对（零 LLM token）找出"缺失/严重受损"的 OCR 行；
+# 2) 命中阈值后用一次小续写调用按原文补回（稿尾截断→续尾；散布遗漏→补片段）；
+# 3) LLM 不可用时把缺失行原文兜底追加，保证内容不丢。
+# 开关：OCR_COMPLETENESS_FIX=0 关闭（A/B 对照用）。
+_CONTINUE_MAX_CALLS = 2        # 每批最多补写调用次数（OCR_CONTINUE_MAX_CALLS 可覆盖）
+_CONTINUE_MAX_TOKENS = 3000    # 单次补写输出上限（OCR_CONTINUE_MAX_TOKENS 可覆盖）
+
+_ROW_NOISE_RE = re.compile(r"[0-9A-Za-z\u4e00-\u9fff]")
+_NUM_HEAD_ISH_RE = re.compile(
+    r"^(?:第[0-9一二三四五六七八九十百]+[章节篇讲课单元]"
+    r"|[（(]?[0-9一二三四五六七八九十百]+[)）]"
+    r"|[0-9一二三四五六七八九十百]+[、.．])"
+)
+# 行级覆盖阈值：正文 <0.80、公式 <0.50（LaTeX 化属正常改写）、编号短标题 <0.45（编号被剥）。
+_BODY_COVERAGE = 0.80
+_FORMULA_COVERAGE = 0.50
+_NUMHEAD_COVERAGE = 0.45
+_MIN_ROW_LEN = 4
+_FIX_TRIGGER_ROWS = 3
+_FIX_TRIGGER_CHAR_RATIO = 0.015
+_TAIL_MODE_INDEX_RATIO = 0.7   # 缺失段结尾行位 ≥ 总行数该比例 → 按"截断续尾"处理
+_TAIL_MODE_GARBAGE_MAX = 900   # 续尾前最多可裁掉的尾部残片长度（截断被 mathmd 转义成 \\$...）
+
+_CONTINUE_TAIL_INSTRUCT = (
+    "这组 OCR 行属于稿件末尾，上一轮整理被截断了。把它们整理成 Markdown 续在稿尾：\n"
+    "1. 若断点处的句子/公式/表格被切断或残留乱码，先忽略残片、按断点后的原文行重新补完整\n"
+    "2. 不要重复稿尾已有内容，不要重写全文，不要输出 Markdown 围栏\n"
+    "3. 公式用 $/$$ 定界、标题用 #，风格与主稿一致；不确定的 OCR 原样保留，禁止臆造"
+)
+_CONTINUE_MID_INSTRUCT = (
+    "这组 OCR 行在稿件中被遗漏了。把它们整理成 Markdown 片段补回原稿合适位置：\n"
+    "1. 片段可用标题/段落/公式/列表，风格与主稿一致\n"
+    "2. 不要重复已有内容，不要重写全文，不要输出 Markdown 围栏\n"
+    "3. 不确定的 OCR 原样保留，禁止臆造"
+)
+
+
+def _check_compact(text: str) -> str:
+    """行侧紧凑化：只去空白（md 侧另有排版符剥离）。"""
+    return "".join((text or "").split())
+
+
+def _markdown_char_counts(markdown: str) -> Counter:
+    """md 侧的字符袋：剥空白与排版符（#*/`|>~_$）。$ 是公式包裹符、非内容。"""
+    return Counter(re.sub(r"[#*`|>~_$\s]", "", markdown or ""))
+
+
+def _line_coverage(line_text: str, char_counts: Counter) -> float:
+    """一行 OCR 文本在 md 中的字符保留率（宽松口径，容忍换行合并与定界符）。"""
+    line = _check_compact(line_text)
+    if not line:
+        return 1.0
+    hit = 0
+    for ch in line:
+        if char_counts.get(ch, 0) > 0:
+            hit += 1
+    return hit / len(line)
+
+
+def _draft_completeness(lines: list[dict], markdown: str) -> dict:
+    """行级完整性报告（零 LLM）：返回全部候选行 + 缺失行清单。"""
+    md_counts = _markdown_char_counts(markdown)
+    rows_all: list[dict] = []
+    missing: list[dict] = []
+    for item in lines:
+        if str(item.get("role_hint") or "") == "boilerplate":
+            continue
+        text = str(item.get("formula") or item.get("text") or "").strip()
+        line = _check_compact(text)
+        if not line or len(line) < _MIN_ROW_LEN or not _ROW_NOISE_RE.search(line):
+            continue
+        formula = _is_formula_like(item)
+        num_head = len(line) <= 30 and bool(_NUM_HEAD_ISH_RE.match(line))
+        threshold = _FORMULA_COVERAGE if formula else (_NUMHEAD_COVERAGE if num_head else _BODY_COVERAGE)
+        coverage = _line_coverage(line, md_counts)
+        row = {"index": len(rows_all), "text": text, "line": line,
+               "formula": formula, "coverage": coverage}
+        rows_all.append(row)
+        if coverage < threshold:
+            missing.append(row)
+    return {
+        "rows_all": rows_all,
+        "total_chars": sum(len(r["line"]) for r in rows_all),
+        "missing_rows": missing,
+        "missing_chars": sum(len(r["line"]) for r in missing),
+    }
+
+
+def _missing_runs(missing_rows: list[dict]) -> list[dict]:
+    """把缺失行按原顺序聚成连续段。"""
+    runs: list[dict] = []
+    for row in sorted(missing_rows, key=lambda r: r["index"]):
+        if runs and row["index"] == runs[-1]["rows"][-1]["index"] + 1:
+            runs[-1]["rows"].append(row)
+        else:
+            runs.append({"rows": [row]})
+    for run in runs:
+        run["chars"] = sum(len(r["line"]) for r in run["rows"])
+    return runs
+
+
+def _nearest_present_rows(rows_all: list[dict], run: dict, *, before: int = 2, after: int = 2) -> tuple[list[str], list[str]]:
+    """缺失段前/后的"非缺失行"原文（补写用的位置上下文，各最多若干行）。"""
+    missing_idx = {r["index"] for r in run["rows"]}
+    first, last = run["rows"][0]["index"], run["rows"][-1]["index"]
+    prev_rows: list[str] = []
+    for row in reversed(rows_all[:first]):
+        if row["index"] in missing_idx:
+            continue
+        prev_rows.append(row["text"])
+        if len(prev_rows) >= before:
+            break
+    prev_rows.reverse()
+    next_rows: list[str] = []
+    for row in rows_all[last + 1:]:
+        if row["index"] in missing_idx:
+            continue
+        next_rows.append(row["text"])
+        if len(next_rows) >= after:
+            break
+    return prev_rows, next_rows
+
+
+def _find_line_with(draft_lines: list[str], anchor_compact: str) -> int | None:
+    """在稿里定位能容纳 anchor 的行（双向子串，容忍合并/截断），返回行号。"""
+    if len(anchor_compact) < 6:
+        return None
+    for idx, line in enumerate(draft_lines):
+        c = _check_compact(line)
+        if c and (anchor_compact in c or c in anchor_compact):
+            return idx
+    return None
+
+
+def _insert_fragment(draft: str, fragment: str, rows_all: list[dict], run: dict) -> str:
+    """把补写片段插到稿中合适位置：优先"缺失段前最近可定位行"之后，
+    其次"后文行"之前，最后稿尾追加。"""
+    missing_idx = {r["index"] for r in run["rows"]}
+    lines = draft.splitlines()
+    first, last = run["rows"][0]["index"], run["rows"][-1]["index"]
+    # 向前找锚（最多 4 行，取最近命中）
+    for row in reversed(rows_all[:first]):
+        if row["index"] in missing_idx or len(row["line"]) < 6:
+            continue
+        hit = _find_line_with(lines, row["line"])
+        if hit is not None:
+            lines.insert(hit + 1, "")
+            lines.insert(hit + 2, fragment)
+            return "\n".join(lines)
+    # 向后找锚
+    for row in rows_all[last + 1:]:
+        if row["index"] in missing_idx or len(row["line"]) < 6:
+            continue
+        hit = _find_line_with(lines, row["line"])
+        if hit is not None:
+            lines.insert(hit, "")
+            lines.insert(hit, fragment)
+            return "\n".join(lines)
+    return (draft.rstrip() + "\n\n" + fragment) if draft.strip() else fragment
+
+
+def _cut_incomplete_tail(draft: str) -> str:
+    """裁掉稿尾被截断产生的残片（mathmd 归一化会把未闭合 $ 及其后文转义成
+    \\$ 开头的一串垃圾）。从后往前找最后一个"看起来完整"的段落边界。
+
+    只裁最近一段空行之后的内容，且残片长度有上限；找不到安全边界就保持原稿。
+    """
+    tail_zone = draft[-_TAIL_MODE_GARBAGE_MAX:]
+    boundaries = [m.start() for m in re.finditer(r"\n\s*\n", tail_zone)]
+    if not boundaries:
+        return draft
+    # 从最后边界向前试：边界之后整段呈现"被切断"特征 → 从该边界裁掉
+    for b in reversed(boundaries):
+        segment = tail_zone[b:]
+        if _looks_like_cut_fragment(segment):
+            cut_at = len(draft) - len(tail_zone) + b
+            return draft[:cut_at].rstrip()
+    return draft
+
+
+def _looks_like_cut_fragment(segment: str) -> bool:
+    if len(segment) < 6:
+        return False
+    if "\\$" in segment:  # mathmd 对未闭合定界的转义残片
+        return True
+    if segment.count("$") % 2 == 1:
+        return True
+    stripped = segment.rstrip()
+    if not stripped:
+        return False
+    if re.search(r"\\[A-Za-z]+$", stripped):      # 半截 LaTeX 命令收尾，如 \frac{
+        return True
+    if re.search(r"[$\\]$", stripped):            # 孤立的 $ 或反斜杠收尾
+        return True
+    if re.search(r"^[{(\[\\]", stripped):         # 以开括号/反斜杠开头的残片段
+        return True
+    return False
+
+
+def _trim_duplicate_head(fragment: str, draft: str) -> str:
+    """续写片段常把断点前一句也带出：按空白折叠找"稿尾后缀 == 片段前缀"的最长重叠并裁掉。"""
+    dn = _check_compact(draft)
+    fn = _check_compact(fragment)
+    best = 0
+    for k in range(min(len(dn), len(fn), 200), 5, -1):
+        if dn.endswith(fn[:k]):
+            best = k
+            break
+    if not best:
+        return fragment
+    cut = 0
+    seen = 0
+    for idx, ch in enumerate(fragment):
+        if not ch.isspace():
+            seen += 1
+            if seen >= best:
+                cut = idx + 1
+                break
+    return fragment[cut:].lstrip() if cut else fragment
+
+
+def _dedupe_adjacent_heading_lines(markdown: str) -> str:
+    """合并补写后可能出现的相邻重复标题（仅相邻、同文本的标题行）。"""
+    out: list[str] = []
+    last_heading = ""
+    for line in (markdown or "").splitlines():
+        if _HEADING_LINE_RE.match(line):
+            if line == last_heading:
+                continue
+            last_heading = line
+        else:
+            last_heading = ""
+        out.append(line)
+    return "\n".join(out)
+
+
+def _normalize_final(markdown: str) -> str:
+    return _dedupe_adjacent_heading_lines(
+        normalize_heading_numbering(normalize_markdown_math(markdown))
+    )
+
+
+def _continue_call(client, system_prompt: str, user_prompt: str, max_tokens: int) -> str:
+    """一次补写调用（label 沿用 ocr/reconstruct，便于按轮次归账）。"""
+    import asyncio
+
+    text = asyncio.run(
+        client.text(
+            system_prompt,
+            user_prompt,
+            temperature=0.1,
+            max_tokens=max_tokens,
+            label="ocr/reconstruct",
+        )
+    )
+    return str(text or "").strip()
+
+
+def _build_continue_prompt(rows_all: list[dict], run: dict, draft: str, *, tail_mode: bool) -> str:
+    prev_rows, next_rows = _nearest_present_rows(rows_all, run)
+    parts: list[str] = []
+    if tail_mode:
+        tail = draft.strip()[-240:]
+        parts.append(f"【当前稿尾(断点附近, 可能有残片, 忽略残片)】\n…{tail}")
+    context = ["【缺失段前后的 OCR 原文行(按页序)】"]
+    if prev_rows:
+        context.append("缺失段前文：\n" + "\n".join(f"- {t[:200]}" for t in prev_rows))
+    context.append("缺失行：\n" + "\n".join(f"- {r['text'][:300]}" for r in run["rows"]))
+    if next_rows:
+        context.append("缺失段后文：\n" + "\n".join(f"- {t[:200]}" for t in next_rows))
+    parts.append("\n".join(context))
+    parts.append("请直接输出整理后的 Markdown 内容。")
+    return "\n\n".join(parts)
+
+
+def check_markdown_completeness(lines: list[dict], markdown: str) -> dict:
+    """对外自检入口：返回 {'ok', 'rows', 'total_chars', 'missing_rows', 'missing_chars'}。"""
+    check = _draft_completeness(lines, markdown)
+    missing = check["missing_rows"]
+    total = max(check["total_chars"], 1)
+    ratio = check["missing_chars"] / total
+    return {
+        "ok": not (len(missing) >= _FIX_TRIGGER_ROWS or ratio > _FIX_TRIGGER_CHAR_RATIO),
+        "rows": len(check["rows_all"]),
+        "total_chars": check["total_chars"],
+        "missing_rows": [dict(r) for r in missing],
+        "missing_chars": check["missing_chars"],
+        "missing_ratio": round(ratio, 4),
+    }
+
+
+def ensure_markdown_complete(markdown: str, lines: list[dict]) -> str:
+    """整理稿完整性闭环：命中缺失阈值时按段补写；LLM 不可用/失败时原文兜底追加。
+
+    只在确实缺内容时产生一次小 LLM 调用（或零调用兜底），
+    正常完整稿走零成本自检后原样返回。"""
+    import os
+
+    raw = str(markdown or "").strip()
+    if not raw:
+        return raw
+    gate = os.getenv("OCR_COMPLETENESS_FIX", "1").strip().lower()
+    if gate not in {"1", "true", "yes", "on"}:
+        return raw
+
+    check = _draft_completeness(lines, raw)
+    missing = check["missing_rows"]
+    if not missing:
+        return raw
+    total_chars = max(check["total_chars"], 1)
+    if len(missing) < _FIX_TRIGGER_ROWS and check["missing_chars"] / total_chars <= _FIX_TRIGGER_CHAR_RATIO:
+        return raw
+    rows_all = check["rows_all"]
+    runs = sorted(_missing_runs(missing), key=lambda r: -r["chars"])
+    n_rows = len(rows_all)
+
+    try:
+        from .engines import get_llm_client
+
+        client = get_llm_client()
+    except Exception:  # noqa: BLE001
+        client = None
+    if client is None:
+        # 兜底：无 LLM 时把缺失行原文追加到稿尾，保内容不丢（格式由后续 review/后处理收拾）
+        logger.warning("完整性补写不可用(无 LLM 客户端)，缺失 %d 行原文兜底追加", len(missing))
+        appended = "\n".join(r["text"] for r in missing)
+        return _normalize_final(raw + "\n\n" + appended)
+
+    budget_calls = _CONTINUE_MAX_CALLS
+    try:
+        budget_calls = max(1, int(os.getenv("OCR_CONTINUE_MAX_CALLS", str(_CONTINUE_MAX_CALLS))))
+    except ValueError:
+        pass
+    max_tokens_cap = _CONTINUE_MAX_TOKENS
+    try:
+        max_tokens_cap = max(256, int(os.getenv("OCR_CONTINUE_MAX_TOKENS", str(_CONTINUE_MAX_TOKENS))))
+    except ValueError:
+        pass
+
+    draft = raw
+    fired = 0
+    notes: list[str] = []
+    for run in runs:
+        if fired >= budget_calls:
+            break
+        # 缺失段是否"顶到稿尾"：缺失延伸到批次最后一行（n-1）或位置 ≥70% 都算尾部截断；
+        # 浮点比较避免 int 取整把 60%~70% 位置的中间遗漏误判成尾部。
+        last_idx = run["rows"][-1]["index"]
+        tail_mode = last_idx >= n_rows - 1 or last_idx >= n_rows * _TAIL_MODE_INDEX_RATIO
+        # 稿尾截断时先裁掉转义残片，让模型看到干净断点
+        base = _cut_incomplete_tail(draft) if tail_mode else draft
+        if base != draft:
+            draft = base
+        system = _CONTINUE_TAIL_INSTRUCT if tail_mode else _CONTINUE_MID_INSTRUCT
+        user_prompt = _build_continue_prompt(rows_all, run, draft, tail_mode=tail_mode)
+        budget = max(512, min(max_tokens_cap, int(run["chars"] * 1.3)))
+        logger.warning(
+            "OCR 完整性补写：批内缺失 %d 行/%d 字符（%s模式，行位%.2f），触发一次小调用",
+            len(missing), check["missing_chars"], "续尾" if tail_mode else "补中",
+            run["rows"][-1]["index"] / max(n_rows, 1),
+        )
+        try:
+            fragment = _continue_call(client, system, user_prompt, budget)
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("OCR 完整性补写调用失败（%s），缺失行原文兜底", exc)
+            fragment = ""
+        if not fragment:
+            # 兜底追加该段缺失行原文
+            draft = (draft.rstrip() + "\n\n" + "\n".join(r["text"] for r in run["rows"]))
+            notes.append(f"run@{run['rows'][0]['index']}:fallback")
+            fired += 1
+            continue
+        fragment = _strip_md_fences(_trim_duplicate_head(fragment, draft))
+        if tail_mode:
+            draft = (draft.rstrip() + "\n\n" + fragment.lstrip()) if draft.strip() else fragment
+        else:
+            draft = _insert_fragment(draft, fragment, rows_all, run)
+        fired += 1
+        notes.append(f"run@{run['rows'][0]['index']}:{'tail' if tail_mode else 'mid'}")
+    if fired:
+        logger.warning("OCR 完整性补写完成：共 %d 段（%s）", fired, ", ".join(notes))
+        draft = _normalize_final(draft)
+    return draft
+
+
 __all__ = [
     "RECONSTRUCT_SYSTEM_PROMPT",
     "REVIEW_SYSTEM_PROMPT",
     "apply_review_patches",
+    "check_markdown_completeness",
+    "ensure_markdown_complete",
     "normalize_heading_numbering",
     "reconstruct_markdown",
     "review_markdown",

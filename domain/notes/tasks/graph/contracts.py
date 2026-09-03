@@ -33,6 +33,10 @@ class KnowledgeGraphGenerationContract(GenerationContract):
                     "概念/术语名，原样引用原文（≤ 15 字）",
                 ),
                 StrField(
+                    "type",
+                    "节点元类型：concept(核心概念)|formula(公式定理)|method(解法技巧)|problem(题型场景)|pitfall(易错条件)",
+                ),
+                StrField(
                     "definition",
                     "原文中的定义或首次出现表述（原句截取）；原文无定义则空串",
                 ),
@@ -48,8 +52,7 @@ class KnowledgeGraphGenerationContract(GenerationContract):
                 StrField("source", "关系起点概念名（必须是 nodes 中的 name）"),
                 StrField(
                     "relation",
-                    "关系类型：包含/属于/导致/缓解/区别于/取决于/用于/定义/"
-                    "示例/相关/等价于/前提/转化",
+                    "严格关系动词（禁模糊关系）：前提/用于/包含/属于/转化/等价于/区别于/导致",
                 ),
                 StrField("target", "关系终点概念名（必须是 nodes 中的 name）"),
                 StrField("evidence", "原文中支撑该关系的具体语句（可定位）"),
@@ -66,8 +69,8 @@ class KnowledgeGraphSupervisorContract(SupervisorContract):
     checks = [
         Check(
             "graph_check",
-            "仅记录严重问题：节点不在原文明确出现、关系无原文依据、"
-            "edges 的 source/target 不在 nodes 中、evidence 定位不到原文",
+            "仅记录严重问题：关系方向颠倒（如前提/用于倒装）、节点不在原文明确出现、"
+            "关系无原文依据、edges 的 source/target 不在 nodes 中、使用废弃的模糊关系（如相关）",
         ),
     ]
 

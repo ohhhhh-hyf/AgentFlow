@@ -340,7 +340,8 @@ def trace_review_html(markdown: str, title: str = "") -> str:
     """
     text = markdown or ""
     if "###[【" not in text:
-        return ""
+        from tools.meeting_memory.render import render_markdown_page_html
+        return render_markdown_page_html(title or "会议纪要", text)
 
     # 第一遍扫描：收集按首次出现顺序排序的唯一材料条目，去重并分配全局连续序号 [1], [2], [3]...
     source_map: dict[tuple[str, str, str], dict[str, Any]] = {}

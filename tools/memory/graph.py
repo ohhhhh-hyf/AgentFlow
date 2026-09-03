@@ -132,12 +132,30 @@ def _clean(value: object) -> str:
     return " ".join(str(value or "").split()).strip()
 
 
+_VALID_NODE_TYPES = {"concept", "formula", "method", "problem", "pitfall"}
+_RELATION_ALIASES = {
+    "依赖": "前提",
+    "前置": "前提",
+    "基础": "前提",
+    "应用": "用于",
+    "使用": "用于",
+    "包括": "包含",
+    "涵盖": "包含",
+    "归属于": "属于",
+    "归入": "属于",
+    "等价": "等价于",
+    "区别": "区别于",
+    "不同于": "区别于",
+    "引起": "导致",
+}
+
+
 def sanitize_graph(draft: dict[str, Any]) -> dict[str, Any]:
     """清洗图谱草稿（生成侧拦截，不修改入参）。
 
-    - 节点：name 去空白；同名节点合并（后到字段覆盖空值，definition 取更长）
-    - 边：source/relation/target 去空白；同三元组去重；悬空边（两端不在
-      nodes）与无效边剥离并计数告警
+    - 节点：name 去空白；同名节点合并（后到字段覆盖空值，definition 取更长）；type 归一化
+    - 边：source/relation/target 去空白；过滤自环；别名归一；过滤废弃的“相关”；
+      同三元组去重；悬空边（两端不在 nodes）与无效边剥离并计数告警
     - 与导出侧（tools/graph.py 的悬空边过滤）形成
       「生成侧拦截 + 导出侧兜底」双层，避免脏数据进入 memory / 产物
     """
@@ -158,6 +176,23 @@ def sanitize_graph(draft: dict[str, Any]) -> dict[str, Any]:
             if value not in (None, ""):
                 merged[key] = value
         merged["name"] = name  # 规范化后的 name 强制写回
+
+        # 归一化 type
+        ntype = str(merged.get("type") or "").strip().lower()
+        if ntype not in _VALID_NODE_TYPES:
+            full_text = f"{name} {merged.get('definition', '')}"
+            if any(k in full_text for k in ("注意", "误区", "陷阱", "易错", "限制", "条件", "前提", "大于", "小于", "不等于", "≠", "对称", "特殊值")):
+                ntype = "pitfall"
+            elif any(k in full_text for k in ("公式", "定理", "恒等式", "法则")):
+                ntype = "formula"
+            elif any(k in full_text for k in ("法", "技巧", "步骤", "求法")):
+                ntype = "method"
+            elif any(k in full_text for k in ("题", "考法", "求值", "值域", "定义域", "最值", "比较大小", "解方程", "解不等式", "范围")):
+                ntype = "problem"
+            else:
+                ntype = "concept"
+        merged["type"] = ntype
+
         old_def = str(prev.get("definition") or "").strip()
         new_def = str(merged.get("definition") or "").strip()
         if old_def and len(old_def) > len(new_def):
@@ -179,9 +214,22 @@ def sanitize_graph(draft: dict[str, Any]) -> dict[str, Any]:
         if not src or not rel or not tgt:
             dropped += 1
             continue
+        # 过滤自环
+        if src == tgt:
+            dropped += 1
+            continue
         if src not in node_names or tgt not in node_names:
             dropped += 1
             continue
+
+        # 归一化关系动词
+        if rel in _RELATION_ALIASES:
+            rel = _RELATION_ALIASES[rel]
+        # 淘汰模糊的“相关”
+        if rel == "相关":
+            dropped += 1
+            continue
+
         key = (src, rel, tgt)
         prev = edge_map.get(key, {})
         merged = dict(prev)
@@ -197,7 +245,7 @@ def sanitize_graph(draft: dict[str, Any]) -> dict[str, Any]:
     out["edges"] = list(edge_map.values())
     if dropped:
         logger.warning(
-            "知识图谱生成侧校验：剥离 %d 条无效/悬空/重复边（source/target 不在 nodes 或字段缺失）",
+            "知识图谱生成侧校验：剥离 %d 条无效/悬空/自环/重复/弱相关边（source/target 不在 nodes 或字段缺失）",
             dropped,
         )
     return out

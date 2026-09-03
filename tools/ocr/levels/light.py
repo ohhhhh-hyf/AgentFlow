@@ -13,6 +13,7 @@ from typing import Callable, Iterator
 from tools.memory.store import safe_id
 from tools.ocr.reconstruct import (
     deterministic_reconstruct_markdown,
+    ensure_markdown_complete,
     reconstruct_markdown,
     review_markdown,
 )
@@ -412,17 +413,20 @@ def _needs_review(lines: list[dict]) -> bool:
 
 
 def _estimate_reconstruct_tokens(lines: list[dict]) -> int:
-    """按本批 OCR 行内容量估算重构输出上限，避免 max_tokens 下调后长批被静默截断。
+    """按本批 OCR 行内容量估算重构输出上限，避免长批被静默截断。
 
-    手写笔记、公式和表格通常需要接近完整保留，按输入量的 100% 估算；
-    短批落 5000，内容越多上限越高，最高 50000。
+    实测（2026-09 笔记语料基线）：整理稿 md 字符 ≈ 输入的 1.9~3.3 倍、
+    约 2.0~2.4 字符/token。旧公式 输入/1.2 会把 5~8 页批的真实需求
+    （6~8k token）低估到 5k 附近，导致多数批次输出顶满 max_tokens 被截断、
+    每批末页尾部内容丢失。max_tokens 只是保护上限：调大不会让短输出变贵
+    （模型自然 EOS 即停），所以按 输入×1.15 再留安全边际、下限提到 9000。
     """
     total = sum(
         len(str(item.get("text") or "")) + len(str(item.get("formula") or ""))
         for item in lines
     )
-    needed = int(total / 1.2)
-    return max(5000, min(50000, needed))
+    needed = int(total * 1.15)
+    return max(9000, min(50000, needed))
 
 
 def reconstruct_and_review_pages(pages: list[dict]) -> str:
@@ -435,6 +439,9 @@ def reconstruct_and_review_pages(pages: list[dict]) -> str:
     else:
         ocr_log("[OCR] 高置信纯文本批次，跳过 LLM 整理")
         draft = deterministic_reconstruct_markdown(lines)
+    # 完整性闭环：零成本行级自检，检出截断/漏行时用一次小续写补回（review 补不了丢失行）。
+    # 可用环境变量 OCR_COMPLETENESS_FIX=0 关闭做 A/B 对照。
+    draft = ensure_markdown_complete(draft, lines)
     if not _needs_review(lines):
         return draft
     reviewed, _notes = review_markdown(draft, lines)
