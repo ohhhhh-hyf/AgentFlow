@@ -4,8 +4,8 @@
 但各场景在议题侧重、小结侧重上不同；「按问题切 3–6 个议题、不按人分章」是
 所有场景的硬约束（见 structure.py 与生成 prompt）。
 
-骨架正文存放在同目录 ``scenes/*.md``（便于直接编辑模板），
-``_SCENE_FORMATS`` 保留原值作文件缺失时的回退，二者内容一致。
+骨架正文存放在同目录 ``scenes/*.md``（便于直接编辑模板），是场景差异化骨架的
+唯一来源；``_DEFAULT_FORMAT`` 仅作文件缺失时的内置兜底（通用结构，不绑定场景）。
 """
 from __future__ import annotations
 
@@ -38,46 +38,6 @@ SCENE_LABELS = (
     "采访/对话",
 )
 
-# 各场景的骨架格式（结构按场景本质差异化，不是只换侧重措辞）
-_SCENE_FORMATS = {
-    "团队例会": _DEFAULT_FORMAT + "\n侧重：进展与达成、问题与偏差、风险阻塞、协调支持。",
-    "项目决策与评审": """# 内容总结
-4-8条：评审对象、结论、依据、风险。
-# 评审对象与范围
-# 主要议题
-3-6个问题/事项；每个含：问题与事实、讨论观点、建议与方案、议题小结。侧重：结论、依据、条件、整改。
-# 评审结论
-# 行动项与后续安排""",
-    "专项讨论会": """# 内容总结
-4-8条：专项问题、结论、待办。
-# 问题界定
-# 主要议题
-2-4个讨论点；每个含：问题与事实、讨论观点、建议与方案、议题小结。侧重：边界、分析、方案、结论。
-# 关键决策与明确要求
-# 行动项与后续安排
-# 会议结论""",
-    "研讨会": """# 内容总结
-4-8条：研讨主题、主要观点、共识。
-# 研讨主题与背景
-# 主要议题
-3-6个话题；每个含：问题与事实、讨论观点、建议与方案、议题小结。侧重：观点、分歧、共识、结论。
-# 主要分歧与共识
-# 后续安排""",
-    "脑暴/讨论": """# 内容总结
-4-8条：想法/方案、归类、初步取舍。
-# 主要议题
-3-6个想法类别；每个含：问题与事实、讨论观点、建议与方案、议题小结。侧重：想法、评估、取舍、待验证。
-# 想法与方案汇总
-# 初步取舍与待验证
-# 后续安排""",
-    "采访/对话": """# 内容总结
-4-8条：核心观点、关键结论、未来计划。
-# 主要议题
-3-6个话题；每个含：问题与事实、讨论观点、建议与方案、议题小结。侧重：观点判断、经历事实、结论计划。
-# 关键结论
-# 未来计划与承诺""",
-}
-
 _ASSIGN = re.compile(
     r"^([A-Za-z_][A-Za-z0-9_]*)\s*=\s*('{3}|\"{3})",
     re.M,
@@ -91,18 +51,18 @@ def _scene_file(label: str) -> Path:
 
 
 def load_scene_format(label: str) -> str:
-    """按场景读取骨架正文；文件缺失时回退内置 _SCENE_FORMATS 常量。"""
+    """按场景读取骨架正文；差异化骨架只存 scenes/*.md，文件缺失时回退内置通用骨架。"""
     scene = normalize_scene_label(label or "")
+    if not scene:
+        scene = GENERIC_SCENE
     try:
-        path = _scene_file(scene if scene else GENERIC_SCENE)
+        path = _scene_file(scene)
         if path.is_file():
             text = path.read_text(encoding="utf-8").strip()
             if text:
                 return text
     except OSError:
         pass
-    if scene and scene in _SCENE_FORMATS:
-        return _SCENE_FORMATS[scene]
     return _DEFAULT_FORMAT
 
 

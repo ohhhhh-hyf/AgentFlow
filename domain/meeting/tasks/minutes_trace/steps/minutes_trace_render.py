@@ -259,8 +259,6 @@ class MinutesTraceRender:
 
     def __init__(self, client: LLMClient) -> None:
         self.client = client
-        # 最近一次渲染的溯源审计（summary/pins/dropped/llm），供调试 sidecar（阶段 C 落盘）
-        self.last_audit: dict[str, Any] = {}
 
     async def materialize(self, approved_context: str, template: str = "") -> str:
         """deterministic_pipeline 入口：审核通过后生成对齐 → 程序落钉，不调 LLM 改正文。"""
@@ -272,15 +270,12 @@ class MinutesTraceRender:
         body = str(draft.get("minutes_md") or "").strip()
         if not body:
             return "请直接参考会议原文。"
-        alignments, audit = await _align_alignments(
+        alignments, _audit = await _align_alignments(
             self.client, approved_context, body
         )
-        self.last_audit = audit
-        from domain.meeting.tasks.minutes.steps.minutes_render import (
-            compact_untemplated_minutes,
-        )
-
-        return compact_untemplated_minutes(stamp_minutes(body, alignments))
+        # 空行压缩由引擎层统一处理（tools/runtime/render.py 对 minutes_trace
+        # 无模板输出做 compact_untemplated_minutes），此处只落钉，不重复压缩。
+        return stamp_minutes(body, alignments)
 
     async def stream(
         self, approved_context: str, template: str = ""

@@ -371,6 +371,17 @@ def _latex_paper_css() -> str:
       color: #555555;
       font-style: italic;
     }
+    .ck-doc-content h1, .ck-doc-content .ck-doc-h1 {
+      margin: 28px 0 14px;
+      font-size: 1.32rem;
+      font-weight: 700;
+      color: #111111;
+      border-bottom: 1.5px solid #222222;
+      padding-bottom: 5px;
+      text-align: left;
+      font-variant: normal;
+      letter-spacing: 0.3px;
+    }
     .ck-doc h2, .ck-doc-h2 {
       margin: 28px 0 14px;
       font-size: 1.22rem;
@@ -953,18 +964,24 @@ _MEMORY_SCRIPT = """<script>
 </script>"""
 
 
-def memory_review_html(markdown: str) -> str:
+def memory_review_html(markdown: str, title: str = "") -> str:
     """把带记忆链接的纪要渲染为与 checklist 一致的 LaTeX Paper 风格 HTML。
 
     左侧：纪要正文排版，命中记忆的实体高亮并在后面附加蓝色 [1], [2] 序号标签。
     右侧：历史记忆溯源卡片，带有连续序号 [1], [2] 与来源会议/摘录/时间。
     交互：点击左侧实体或蓝色序号可点亮对应右侧记忆卡片并带光晕脉冲动画；右侧超出左侧高度时自适应折叠。
+    
+    若未命中记忆（无记忆链接），自动平滑降级为纯净单栏 LaTeX Paper 风格 HTML（无右侧卡片区）。
     """
     text = markdown or ""
     if "](#" not in text:
-        return ""
-    main, _appendix = re.split(r"\n## " + re.escape(SECTION_TITLE) + r"\b", text, maxsplit=1)
+        return render_markdown_page_html(title or "会议纪要", text)
+
+    splits = re.split(r"\n## " + re.escape(SECTION_TITLE) + r"\b", text, maxsplit=1)
+    main = splits[0]
     sources = _parse_memory_sources(text)
+    if not sources:
+        return render_markdown_page_html(title or "会议纪要", main)
 
     # 提取所有出现的 ref_id，按正文首次出现顺序赋予连续编号 [1], [2], [3]...
     ref_id_to_num: dict[str, int] = {}
@@ -984,19 +1001,20 @@ def memory_review_html(markdown: str) -> str:
             ordered_ref_ids.append(ref_id)
 
     meeting_title, left_html = _format_minutes_html(main, sources, ref_id_to_num)
+    display_title = title or meeting_title or "会议纪要"
 
     cards_html: list[str] = []
     for ref_id in ordered_ref_ids:
         num = ref_id_to_num.get(ref_id, 1)
         info = sources.get(ref_id, {})
-        title = info.get("title") or "历史会议"
+        m_title = info.get("title") or "历史会议"
         quote = info.get("quote") or ""
         mtime = info.get("time") or ""
 
         card = [
             f'<aside class="ck-ev ck-mem-card" id="card-{escape(ref_id, quote=True)}" data-mem="{escape(ref_id, quote=True)}" data-cite="{num}">',
             f'<div class="ck-ev-k"><a class="ck-ev-cite-tag" href="javascript:void(0);">[{num}]</a> <span class="ck-ev-kind-badge">历史会议</span></div>',
-            f'<div class="ck-mem-title"><strong>{escape(title, quote=False)}</strong></div>',
+            f'<div class="ck-mem-title"><strong>{escape(m_title, quote=False)}</strong></div>',
         ]
         if quote:
             card.append(f'<div class="ck-ev-quote">“{escape(quote, quote=False)}”</div>')
@@ -1005,13 +1023,12 @@ def memory_review_html(markdown: str) -> str:
         card.append("</aside>")
         cards_html.append("".join(card))
 
-    doc_title = escape(f"{meeting_title} · 会议纪要", quote=False)
     page_html = f"""<!doctype html>
 <html lang="zh-CN">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>{doc_title}</title>
+  <title>{escape(display_title, quote=False)}</title>
   <style>
 {_latex_paper_css()}
   </style>
@@ -1020,7 +1037,7 @@ def memory_review_html(markdown: str) -> str:
   <main class="page">
     <div class="ck-doc">
       <header class="ck-doc-header">
-        <h1>{escape(meeting_title, quote=False)}</h1>
+        <h1>{escape(display_title, quote=False)}</h1>
       </header>
       <div class="ck-review">
         <div class="ck-review-left">
@@ -1042,7 +1059,7 @@ def memory_review_html(markdown: str) -> str:
     return page_html
 
 
-# ── 风险提取（Risks）与 待办提取（Actions）LaTeX Paper 渲染 ─────────────────
+# ── 风险提取（Risks）、待办提取（Actions）与 无记忆纪要 LaTeX Paper 渲染 ────────
 
 
 def _render_markdown_content(text: str) -> str:
@@ -1087,7 +1104,7 @@ def _render_markdown_content(text: str) -> str:
         if m_head:
             flush_list()
             level = len(m_head.group(1))
-            cls_name = f"ck-doc-h{level}" if level in (2, 3, 4) else ""
+            cls_name = f"ck-doc-h{level}" if level in (1, 2, 3, 4) else ""
             cls_attr = f' class="{cls_name}"' if cls_name else ""
             out.append(f"<h{level}{cls_attr}>{inline(m_head.group(2))}</h{level}>")
             i += 1
@@ -1147,17 +1164,21 @@ def _render_markdown_content(text: str) -> str:
 def render_markdown_page_html(title: str, markdown: str) -> str:
     """按 LaTeX Paper 风格渲染纯 Markdown 文本为独立 HTML 文档。
     
-    保留 Markdown 原始排版、序号与层级，标题采用指定中文名。
+    保留 Markdown 原始排版、序号与层级，呈现为纯净的单栏学术纸张排版（无右侧卡片区）。
     """
     text = (markdown or "").strip()
     lines = text.splitlines()
+    display_title = title or "会议纪要"
     if lines and lines[0].strip().startswith("# "):
         first_head = lines[0].strip()[2:].strip()
-        if first_head == title or not title:
-            title = first_head or title
+        if first_head in ("内容总结", "主要议题", "会议概要", "会议总结"):
+            display_title = title or "会议纪要"
+        elif first_head == title or not title or title in ("会议纪要", "客观会议纪要", "会议分析报告"):
+            display_title = first_head or title or "会议纪要"
             text = "\n".join(lines[1:]).strip()
+        else:
+            display_title = title
 
-    display_title = title or "会议分析报告"
     content_html = _render_markdown_content(text)
     doc_title = escape(display_title, quote=False)
 
@@ -1186,6 +1207,17 @@ def render_markdown_page_html(title: str, markdown: str) -> str:
 </html>
 """
     return page_html
+
+
+def render_minutes_html(title: str, text: str, data: dict | None = None) -> str:
+    """渲染会议纪要 HTML：
+    - 若命中记忆（包含记忆链接及来源），渲染为带右侧溯源卡片区的 LaTeX Paper 双栏审阅样式；
+    - 若未命中或未开启记忆，渲染为与风险分析、待办提取一致的纯净单栏 LaTeX Paper 学术纸张样式（无右侧溯源区域）。
+    """
+    clean_text = str(text or "").strip()
+    if "](#" in clean_text:
+        return memory_review_html(clean_text, title=title)
+    return render_markdown_page_html(title or "会议纪要", clean_text)
 
 
 def _parse_risks_from_text(text: str) -> list[dict[str, Any]]:
@@ -1474,5 +1506,6 @@ __all__ = [
     "parse_memory_items",
     "render_actions_html",
     "render_markdown_page_html",
+    "render_minutes_html",
     "render_risks_html",
 ]

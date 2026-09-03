@@ -72,7 +72,8 @@ def _closing_blocks(minutes_md: str) -> list[str]:
     lines = (minutes_md or "").splitlines()
     i = 0
     while i < len(lines):
-        if "议题小结" in lines[i] and lines[i].lstrip().startswith("#"):
+        # 场景模板里小结标题名不一（议题小结/话题小结/类别小结），统一按「小结」收
+        if "小结" in lines[i] and lines[i].lstrip().startswith("#"):
             chunk: list[str] = []
             i += 1
             while i < len(lines) and not lines[i].lstrip().startswith("#"):

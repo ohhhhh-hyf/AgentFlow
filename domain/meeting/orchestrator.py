@@ -497,8 +497,14 @@ class _Nodes(DomainNodes):
 
         仍保留「会议理解」标签，兼容 minutes 的硬执行对齐。
         """
-        mode = self._mode_label(state)
         pack = self._meeting_pack(state, line_name)
+        if line_name == "minutes_trace":
+            # minutes_trace 是客观溯源线：编排层已跳过视角建模，生成 prompt 也不消费
+            # 视角/画像——上下文只发会议理解 + 原文（省输入 token，去掉误导性裁剪说明）。
+            parts = [f"会议理解：\n{_json(pack)}"]
+            parts.append(f"会议原文：\n{state.get('transcript') or ''}")
+            return "\n\n".join(parts)
+        mode = self._mode_label(state)
         if line_name == "minutes":
             fact_note = (
                 "说明：会议理解是议题/决策/风险索引；写摘要与分工时必须对照会议原文"

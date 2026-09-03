@@ -31,12 +31,12 @@ def _dump(obj: object) -> dict:
     return dict(obj) if isinstance(obj, dict) else {}
 
 
-def _focus_guide(extras: dict[str, object], understanding: dict | None = None) -> str:
+def _focus_guide(extras: dict[str, object]) -> str:
     """生成【关键点覆盖要求】+【用户笔记提示】。
 
     关键点逐条列出并声明为必覆盖验收项(正文必须为每条留承载句,句位即溯源位);
-    笔记只提示、不列清单(批注不入文,笔记所指事实按正常纪要写作自然写入即可)。
-    原文已在共享上下文的【用户关键点】【用户笔记】块中(runner 注入),此处不重复原文。
+    笔记只提示、不列清单(批注不入文,笔记所指事实按正常纪要写作自然写入即可);
+    笔记原文块由 run() 以【用户笔记】标签注入到上下文。
     """
     keypoints = [
         str(x).strip()
@@ -70,15 +70,7 @@ def _focus_guide(extras: dict[str, object], understanding: dict | None = None) -
             "- 批注文字一律不得写入正文；\n"
             "- 笔记指向的会议事实若属实质内容，按正常纪要写作在对应议题中体现即可；不为挂载而注水、不整句照抄口语原文。"
         )
-    if isinstance(understanding, dict):
-        hints: list[str] = []
-        for topic in understanding.get("topics") or []:
-            if isinstance(topic, dict) and str(topic.get("title") or "").strip():
-                title = str(topic["title"]).strip()
-                if title not in hints:
-                    hints.append(title)
-        if hints:
-            parts.append("议题标题提示：" + "、".join(hints[:6]))
+    # 不重复输出议题标题提示：topics 标题已随「会议理解」JSON 完整发给 LLM。
     return "\n\n".join(parts)
 
 
@@ -143,11 +135,18 @@ _TRACE_UNDERSTANDING_KEYS = (
 
 def _trace_understanding(understanding: dict) -> dict:
     """按 trace 消费字段裁剪理解 JSON（只影响发给 LLM 的内容，不动程序用数据）。"""
-    return {
+    data = {
         key: value
         for key, value in (understanding or {}).items()
         if key in _TRACE_UNDERSTANDING_KEYS
     }
+    # meeting 域打包时 meeting_brief 会以 meeting_purpose 兜底，两字段同文时
+    # 只发一份（brief 保留），避免同一段目的文字发给 LLM 两次。
+    brief = " ".join(str(data.get("meeting_brief") or "").split()).strip()
+    purpose = " ".join(str(data.get("meeting_purpose") or "").split()).strip()
+    if brief and purpose == brief:
+        data.pop("meeting_purpose", None)
+    return data
 
 
 class MinutesTraceAgent:
@@ -162,7 +161,7 @@ class MinutesTraceAgent:
         understanding = extract_labeled_json(shared_context, "会议理解") or {}
         if not isinstance(understanding, dict):
             understanding = {}
-        focus = _focus_guide(extras, understanding)
+        focus = _focus_guide(extras)
         transcript = _extract_transcript(shared_context, understanding)
         # 场景判定：理解/原文启发式，判不出回「通用」；按场景取骨架
         scene = detect_scene(understanding, transcript)
@@ -180,13 +179,11 @@ class MinutesTraceAgent:
             parts.append(
                 f"会议理解：\n{json.dumps(llm_understanding, ensure_ascii=False, indent=2)}"
             )
-        trace_blocks = "\n\n".join(
-            str(block).strip()
-            for block in (extras.get("key_raw") or "", extras.get("note_raw") or "")
-            if str(block).strip()
-        )
-        if trace_blocks:
-            parts.append(trace_blocks)
+        # 用户笔记原文（左句 -> 批注）在此保留原文块；用户关键点不再重复裸注入——
+        # 其全量清单已带编号逐条列在 focus 的【关键点覆盖要求】中（内容等价）。
+        note_raw = str(extras.get("note_raw") or "").strip()
+        if note_raw:
+            parts.append(f"【用户笔记】\n{note_raw}")
         parts.append(f"【写作要求】\n{requirement}")
         parts.append(f"【输出格式】\n{fmt}")
         if focus:
