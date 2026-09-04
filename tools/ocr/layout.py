@@ -244,8 +244,10 @@ def _infer_layout_hints(lines: list[dict], image_size: tuple[int, int] | None) -
 # 引擎（尤其 serverocr 类）常把同一逻辑行切成多条短碎片：碎片会无差别抬高
 # 行数、ambiguous 统计与每页 prompt。合并只做**保守的视觉邻接判定**（同页、
 # 垂直间隙小、水平投影重叠大、前行未以句读结束、后行不是编号开头），
-# 零 token、不依赖引擎与语料；合并发生在版面推断之前，让下游对"逻辑行"
-# 只做一次角色/标题判定。数值默认值属保守设定，非标定目标。
+# 零 token、不依赖引擎与语料。
+# 防结构吞并（实测缺陷：标题行被并进下一行正文）：合并必须在**版面推断之后**
+# 执行，且只允许 role 相同的行合并（heading 碎片可并；heading 与 body 永不可并），
+# 合并后对结果行重推一次版面推断。数值默认值属保守设定，非标定目标。
 _MERGE_GAP_RATIO = 0.6    # 垂直间隙 ≤ 行高中位数 × 该比例才允许合并
 _MERGE_OVERLAP_RATIO = 0.5  # 水平投影重叠 ≥ 较短行宽 × 该比例
 _MERGE_STOP_CHARS = set("。！？；;?!")
@@ -254,6 +256,7 @@ _MERGE_NUMERIC_START_RE = re.compile(
     r"|[（(]?[0-9一二三四五六七八九十百]+[)）]"
     r"|[0-9一二三四五六七八九十百]+[、.．]|\d+(?:\.\d+){0,2}\s)"
 )
+_MERGE_ALLOWED_ROLES = {"body", "heading"}
 
 
 def _fragment_merge_enabled() -> bool:
@@ -266,7 +269,12 @@ def _rect_bounds(bbox) -> tuple[float, float, float, float] | None:
 
 
 def _cjk(ch: str) -> bool:
-    return "\u4e00" <= ch <= "\u9fff"
+    # 汉字 + CJK 标点（全角）都视为连续书写，不加空格
+    return (
+        "\u4e00" <= ch <= "\u9fff"
+        or "\u3000" <= ch <= "\u303f"
+        or "\uff00" <= ch <= "\uffef"
+    )
 
 
 def _join_texts(left: str, right: str) -> str:
@@ -298,11 +306,19 @@ def _merge_pair(left: dict, right: dict) -> dict:
     ]
     if confs:
         out["conf"] = min(confs)   # 保守：取碎片中最低置信
+    # 版面角色/标题元数据以左侧行为准（合并后调用方会重推版面推断）
+    for key in ("role_hint", "title_decision", "heading_score", "heading_level_hint", "layout"):
+        if key in left:
+            out[key] = left[key]
     return out
 
 
 def _can_merge_fragments(left: dict, right: dict, median_height: float) -> bool:
-    """保守邻接判定：只有全部条件满足才允许合并。"""
+    """保守邻接判定：全部条件满足才允许合并（含同角色约束）。"""
+    left_role = str(left.get("role_hint") or "")
+    right_role = str(right.get("role_hint") or "")
+    if left_role not in _MERGE_ALLOWED_ROLES or right_role != left_role:
+        return False                      # 结构保护：heading 与 body 永不可并
     if str(left.get("formula") or "").strip() or str(right.get("formula") or "").strip():
         return False
     lr = _rect_bounds(left.get("bbox"))
@@ -334,7 +350,11 @@ def _can_merge_fragments(left: dict, right: dict, median_height: float) -> bool:
 
 
 def merge_fragment_lines(lines: list[dict]) -> list[dict]:
-    """把同页碎片行按保守邻接规则合并成逻辑行（零 LLM）。"""
+    """把同页碎片行按保守邻接+同角色规则合并成逻辑行（零 LLM）。
+
+    入参为已完成版面推断的行（带 role_hint）；返回合并后的行，
+    调用方应再跑一次版面推断以获得一致的版面特征。
+    """
     if not _fragment_merge_enabled() or not lines:
         return lines
     items = [dict(item) for item in lines if isinstance(item, dict)]
@@ -398,9 +418,12 @@ def ocr_image_lines(image_path: str) -> list[dict]:
     if not lines:
         return []
 
-    if _fragment_merge_enabled():
-        lines = merge_fragment_lines(lines)
     lines = _infer_layout_hints(lines, image_size) if lines else []
+    if _fragment_merge_enabled():
+        merged = merge_fragment_lines(lines)
+        if merged is not lines and len(merged) != len(lines):
+            # 合并后重推版面推断，保证每条"逻辑行"的角色/标题特征一致
+            lines = _infer_layout_hints(merged, image_size)
     return lines
 
 

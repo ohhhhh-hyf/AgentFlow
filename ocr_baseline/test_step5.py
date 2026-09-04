@@ -22,8 +22,14 @@ logging.basicConfig(level=logging.CRITICAL)
 from tools.ocr import layout
 
 
-def line(text: str, x0: float, x1: float, y0: float, y1: float, conf: float | None = None, formula: str = ""):
-    item: dict = {"text": text, "bbox": [[x0, y0], [x1, y0], [x1, y1], [x0, y1]]}
+def line(text: str, x0: float, x1: float, y0: float, y1: float, conf: float | None = None,
+         formula: str = "", role: str = "body", decision: str = "locked_body"):
+    item: dict = {
+        "text": text,
+        "bbox": [[x0, y0], [x1, y0], [x1, y1], [x0, y1]],
+        "role_hint": role,
+        "title_decision": decision,
+    }
     if conf is not None:
         item["conf"] = conf
     if formula:
@@ -109,6 +115,25 @@ def main() -> None:
                     line("第二段碎片内容足够长乙", 0, 400, 31, 51)])
     assert len(out) == 1 and "conf" not in out[0]
     print("PASS 无 conf 合并")
+
+    # ── 结构保护：标题行 + 紧邻正文行 视觉满足邻接也不得合并（复现实测缺陷）──
+    out = merge_on([
+        line("厄米算符本征值的实数性", 100, 420, 100, 120, 0.95, role="heading", decision="locked_heading"),
+        line("F|K>=λk|k> 则 λk 为实数需要证明内容很长", 100, 900, 121, 141, 0.9),
+    ])
+    assert len(out) == 2, out          # 标题不被并进正文
+    assert out[0]["role_hint"] == "heading" and out[1]["role_hint"] == "body"
+    print("PASS 结构保护：标题+正文不合并")
+
+    # ── 标题碎片（同角色 heading）允许合并，保留标题元数据 ──
+    out = merge_on([
+        line("两个重要极限", 300, 520, 100, 120, 0.96, role="heading", decision="locked_heading"),
+        line("（续）及其应用", 300, 560, 121, 141, 0.95, role="heading", decision="locked_heading"),
+    ])
+    assert len(out) == 1
+    assert out[0]["role_hint"] == "heading" and out[0]["title_decision"] == "locked_heading"
+    assert out[0]["text"] == "两个重要极限（续）及其应用", out[0]["text"]
+    print("PASS 标题碎片可并且元数据保留")
 
     print("ALL_STEP5_TESTS_OK")
 
