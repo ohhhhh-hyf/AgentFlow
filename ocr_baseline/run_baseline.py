@@ -62,8 +62,12 @@ _TRIPLE_DOLLAR_RE = re.compile(r"\${3,}")
 
 
 def natural_key(name: str):
-    m = _NUM_TAIL_RE.search(name)
-    return (int(m.group(1)), name) if m else (10 ** 9, name)
+    # 文件名数字段排序：先剥离扩展名再取尾部数字。
+    # 旧实现对完整文件名匹配 r"(\d+)\s*$"，而图片名都以 .jpg 结尾，
+    # 永远匹配不到 → 全部退化为字典序（1,10,…,19,2,…），页序错误。
+    stem = re.sub(r"\.[A-Za-z0-9]+$", "", str(name))
+    m = _NUM_TAIL_RE.search(stem)
+    return (int(m.group(1)), str(name)) if m else (10**9, str(name))
 
 
 def compact(text: str, strip_md: bool = False) -> str:
