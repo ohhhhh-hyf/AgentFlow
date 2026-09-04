@@ -8,26 +8,27 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 import re
 
 from .mathmd import normalize_markdown_math
 
 logger = logging.getLogger(__name__)
 
-RECONSTRUCT_SYSTEM_PROMPT = """你是「笔记整理器」。把 OCR 识别出的笔记碎片整理成一份结构化 Markdown，供知识库检索。
+RECONSTRUCT_SYSTEM_PROMPT = """你是「笔记整理器」。把 OCR 识别出的笔记碎片整理成结构化 Markdown，供知识库检索。
 
-要求：
-1. **保留全部内容**：不要漏掉任何识别到的文字、数字、公式；OCR 明显错字可顺手纠正，但不要臆造
-2. **双轨标题规则**：输入中 title_decision=locked_heading 的行是高置信标题，必须输出为 Markdown 标题；只能轻微修 OCR 错字，不要降为正文。title_decision=locked_body 的行默认保持正文/公式，不要升标题。title_decision=ambiguous 的行才结合上下文判断是否为标题
-3. **推断结构**：对 locked_heading 和 ambiguous 标题，结合 heading_level_hint / heading_score / 上下文，推断章节/知识点层级（# 标题、## 小节、### 知识点）
-4. **标题不带编号前缀**：OCR 行里的编号（如「一、」「3、」「（1）」「第X章」「1.2」）只是序号，输出标题时一律去掉，层级用 # 的数量表达，同类编号保持同一层级；正文和列表里的序号原样保留，不要动
-5. **正文不要误升标题**：locked_body、长句、以句号/逗号结尾的解释性内容，即使包含关键词，也不要强行改成标题
-6. **重点标注**：对像"重点/必考/关键/注意/易错"的内容用 **加粗** 标出（不要过度标注）
-7. **公式定界**：行内公式只用一对 ``$...$``；独立成行的公式才用 ``$$...$$``。禁止 ``$...$$`` / ``$$...$`` 混用，公式内部不要再写美元符号。已有 ``$$...$$`` 的公式原样保留位置，但定界必须成对
-8. **表格**：如果内容是成列的数据（行结构明显），整理成 Markdown 表格
-9. 去除 OCR 噪声（孤立标点、乱码），合并被断行的完整句子
-10. **低置信行**：conf < 0.8 的行 OCR 可信度低，结合上下文谨慎纠错；不确定就原样保留，禁止臆造
-11. 直接输出 Markdown 正文，不要前言后语、不要 Markdown 代码围栏"""
+铁律：不漏任何识别到的文字/数字/公式，明显错字可顺手纠正但不臆造；去除噪声（孤立标点/乱码），合并被断行的完整句子。
+
+标题（双轨）：
+- title_decision=locked_heading 的行必须输出为标题，只许轻微修错字，不许降为正文；locked_body 与长句/句读结尾的解释行不许升标题（即使含关键词）；ambiguous 的行才结合上下文判断
+- 结合 heading_level_hint 与上下文推断层级（# 章、## 节、### 知识点）；标题剥掉编号前缀（「一、」「3、」「第X章」「1.2」只是序号，层级用 # 数量表达，同类编号同层级）；正文与列表里的序号原样保留
+
+格式：
+- 「重点/必考/注意/易错」类内容用 **加粗** 标出（克制）；成列的数据整理为 Markdown 表格
+- 公式：行内用一对 $...$，独立成行才用 $$...$$；禁止 $...$$ / $$...$ 混用，公式内不写美元符号，已有 $$...$$ 位置原样保留但定界必须成对
+- conf < 0.8 的行可信度低，结合上下文谨慎纠错，不确定就原样保留
+
+直接输出 Markdown 正文：不要前言后语、不要代码围栏。"""
 
 REVIEW_SYSTEM_PROMPT = """你是「OCR Markdown 保守审校器」。你会拿到少量可疑 OCR 原文窗口，以及与之相关的带行号 Markdown 行。
 
@@ -191,9 +192,20 @@ def _fragments_to_text(lines: list[dict]) -> str:
     return "\n".join(parts)
 
 
+def _payload_compact() -> bool:
+    """payload 字段瘦身开关（默认开；OCR_PAYLOAD_COMPACT=0 回退全字段集，A/B 用）。
+
+    规则只消费 title_decision / heading_level_hint / conf；role_hint 与
+    heading_score 不被引用，layout 几何明细只对标题候选行（role_hint=heading
+    或 title_decision=ambiguous）有判断价值——locked_body 行发全字段是纯浪费。
+    """
+    return os.getenv("OCR_PAYLOAD_COMPACT", "1").strip().lower() in {"1", "true", "yes", "on"}
+
+
 def _lines_to_structured_payload(lines: list[dict]) -> str:
-    """压缩版 OCR 行 JSON。locked_body 正文行只发 text/conf，版面明细只随标题候选行发送，
-    大幅压缩输入 token。页眉页脚/机构信息行（role_hint=boilerplate）直接剔除。"""
+    """压缩版 OCR 行 JSON。locked_body 正文行只发 text/conf；版面明细只随
+    标题候选行发送（compact 模式），页眉页脚/机构信息行（boilerplate）剔除。"""
+    compact = _payload_compact()
     payload = []
     for idx, item in enumerate(lines, start=1):
         formula = str(item.get("formula") or "").strip()
@@ -215,18 +227,33 @@ def _lines_to_structured_payload(lines: list[dict]) -> str:
             row["conf"] = round(float(conf), 3)  # 只标低置信行，供 LLM 谨慎纠错
         if decision != "locked_body":
             layout = item.get("layout") or {}
-            row["role_hint"] = item.get("role_hint") or "body"
-            row["heading_score"] = item.get("heading_score") or 0
-            if item.get("heading_level_hint"):
-                row["heading_level_hint"] = item.get("heading_level_hint")
-            row["layout"] = {
-                "top": layout.get("top"),
-                "height_ratio": layout.get("height_ratio"),
-                "gap_before": layout.get("gap_before"),
-                "gap_after": layout.get("gap_after"),
-                "centered": layout.get("centered"),
-                "near_left": layout.get("near_left"),
-            }
+            level_hint = item.get("heading_level_hint")
+            if compact:
+                # 瘦身：只保留规则消费的字段；几何明细仅在需要判层级的行上发送
+                if item.get("role_hint") == "heading" or decision == "ambiguous":
+                    row["layout"] = {
+                        "top": layout.get("top"),
+                        "height_ratio": layout.get("height_ratio"),
+                        "gap_before": layout.get("gap_before"),
+                        "gap_after": layout.get("gap_after"),
+                        "centered": layout.get("centered"),
+                        "near_left": layout.get("near_left"),
+                    }
+                if level_hint:
+                    row["heading_level_hint"] = level_hint
+            else:
+                row["role_hint"] = item.get("role_hint") or "body"
+                row["heading_score"] = item.get("heading_score") or 0
+                if level_hint:
+                    row["heading_level_hint"] = level_hint
+                row["layout"] = {
+                    "top": layout.get("top"),
+                    "height_ratio": layout.get("height_ratio"),
+                    "gap_before": layout.get("gap_before"),
+                    "gap_after": layout.get("gap_after"),
+                    "centered": layout.get("centered"),
+                    "near_left": layout.get("near_left"),
+                }
         payload.append(row)
     return json.dumps(payload, ensure_ascii=False, separators=(",", ":"))
 
@@ -698,10 +725,15 @@ def _as_reviewed_markdown(text: str, draft: str) -> tuple[str, str]:
 #   · 行的"存在"判定：与 md 共享任一 8 连字符即视为存在（正文被改写/断行合并
 #     仍保留长串；整行丢失则没有任何 8 连字符落进稿子）。该判据对"同章常用字
 #     重叠"不敏感，无语料调参。
-#   · "缺失"只认两类：正文行不存在的近整行丢失，与稿尾截断
+#   · "缺失"只认三类：正文行不存在的近整行丢失；词元级可判且高置信缺失的
+#     公式行（OCR_FORMULA_MISS_CHECK=0 关闭公式判据）；稿尾截断
 #     （缺失延伸到批次最后一行，或稿尾结构残片信号 _tail_looks_cut）。
-#   · 公式行 / 编号短标题行不参与缺失判定（LaTeX 化、剥号是既定转换，
-#     质量由 review/结构后处理负责）——避免把重写噪声当缺失触发补写。
+#   · 公式行不再无条件豁免"缺失"：LaTeX 化/纠错是"内容词元守恒"改写，
+#     正常重写不误报；仅"字形可判（无汉字段/括号配对/≥2 个内容词元）且内容
+#     词元一个都不在稿中"的整行丢失才触发补写。OCR 字形含混/含汉字段的
+#     公式行保持豁免（LLM 有权纠错重写，塞回原文是噪声再注入）。
+#   · 编号短标题行不参与缺失判定（剥号是既定转换，质量由 review/结构后处理
+#     负责）——避免把重写噪声当缺失触发补写。
 # 开销纪律：
 #   · 无缺失 → 零 LLM 调用；补写调用独立 label（ocr/reconstruct/fix）便于成本归因；
 #   · 每批调用数 ≤ OCR_CONTINUE_MAX_CALLS（默认 2）；超预算缺失段一律原文兜底，内容不丢；
@@ -799,6 +831,59 @@ def _row_ngrams_present(line: str, md_compact_blob: str, md_grams: set[str]) -> 
     return False
 
 
+# ── 公式行缺失判据（词元级，OCR_FORMULA_MISS_CHECK 控制，默认开）──
+# LaTeX 化/纠错改写是"内容词元守恒"的：标识符、数字、函数名原样保留，变化的是
+# \frac、^{}、定界这类呈现层。因此"公式行内容词元是否落在稿中"可作整行是否
+# 入库的判据，正常改写不误报。噪声纪律：OCR 字形含混/括号不配对/含汉字段的
+# 行是 LLM 有权纠错重写的类别，保持原豁免——只在高置信整行缺失（可判且词元
+# 一个都不在稿中）时才进入既有补写闭环；检测本身零 token。
+_SUP_SUB_MAP = str.maketrans(
+    "\u2070\u00b9\u00b2\u00b3\u2074\u2075\u2076\u2077\u2078\u2079"  # 上标 ⁰¹²³⁴⁵⁶⁷⁸⁹
+    "\u2080\u2081\u2082\u2083\u2084\u2085\u2086\u2087\u2088\u2089",  # 下标 ₀₁₂₃₄₅₆₇₈₉
+    "01234567890123456789",
+)
+
+
+def _math_content_tokens(text: str) -> list[str]:
+    """内容词元：字母/数字串中长度 ≥2 且含字母的字母段或字母数字段，
+    统一小写。两个归一化保证 OCR 行与 md 可等价比较：
+    - 上下标字符先转 ASCII 数字（OCR 常把 x² 直接输出为上标字符）；
+    - 字母与数字粘连处拆开（OCR "x2" 与 LaTeX "x^{2}" 是同一内容，
+      词元必须对等；拆出的单字符段不具判别力，剔除）。
+    纯数字段不保留：正文常见、无判别力。"""
+    t = str(text or "").translate(_SUP_SUB_MAP)
+    out: list[str] = []
+    for m in re.finditer(r"[0-9A-Za-z]+", t):
+        for seg in re.findall(r"[0-9]+|[A-Za-z]+", m.group(0).lower()):
+            if len(seg) >= 2 and re.search(r"[a-z]", seg):
+                out.append(seg)
+    return out
+
+
+def _formula_high_conf_missing(text: str, md_tokens: set[str]) -> bool | None:
+    """公式行是否"高置信缺失"（None = 不可判，维持原豁免，与旧行为一致）。
+
+    可判条件（任一不满足 → None）：
+    - 纯公式行：不含汉字段（含汉字段的行 LLM 按文本口径改写/合并，不可判）；
+    - 括号配对（不成对说明 OCR 缺符错读，属需纠错类，豁免）；
+    - 有 ≥2 个内容词元（词元判据才有信号；短小公式如 E=mc² 无从判断）。
+    缺失判定：内容词元一个都不在 md 词元集中 → 整行未入库（改写只换呈现层、
+    不换内容词元；一个都不在只可能是整行被丢弃）。"""
+    if not text or re.search(r"[\u4e00-\u9fff]", text):
+        return None
+    for left, right in (("(", ")"), ("[", "]"), ("（", "）")):
+        if text.count(left) != text.count(right):
+            return None
+    toks = _math_content_tokens(text)
+    if len(toks) < 2:
+        return None
+    return not any(tok in md_tokens for tok in toks)
+
+
+def _formula_miss_enabled() -> bool:
+    return os.getenv("OCR_FORMULA_MISS_CHECK", "1").strip().lower() in {"1", "true", "yes", "on"}
+
+
 def _recoverable_row(text: str) -> bool:
     """行是否"有资格被恢复"：按管线自身噪声口径过滤（页码/机构信息/纯数字符号
     残渣/乱码指纹）。公式行由调用方另行放行，不走此过滤。
@@ -859,23 +944,33 @@ def _keep_for_append(rows: list[dict]) -> list[dict]:
 
 
 def _still_missing_rows(rows: list[dict], markdown: str) -> list[dict]:
-    """片段合入后的确定性复检：该段非公式行中仍不在稿里的行（防模型只补了一部分）。
-    公式行不做复检（LaTeX 化后原文串不可比，信任片段）。"""
+    """片段合入后的确定性复检：该段行中仍不在稿里的行（防模型只补了一部分）。
+    正文行按 8 连字符查；公式行只在原判可判时按词元级复检（LaTeX 化后原文串
+    不可比，不可判的公式行信任片段）；编号短标题行不做复检。"""
     md_blob = _md_compact(markdown)
     md_grams = {md_blob[i:i + _NGRAM_WINDOW] for i in range(max(0, len(md_blob) - _NGRAM_WINDOW + 1))}
-    missing = [
-        r for r in rows
-        if not r.get("formula") and not r.get("num_head") and r.get("recoverable")
-        and not _row_ngrams_present(r["line"], md_blob, md_grams)
-    ]
+    md_tokens = set(_math_content_tokens(markdown)) if _formula_miss_enabled() else set()
+    missing: list[dict] = []
+    for r in rows:
+        if r.get("num_head") or not r.get("recoverable"):
+            continue
+        if r.get("formula"):
+            if r.get("formula_miss") is not None and _formula_high_conf_missing(r["text"], md_tokens) is True:
+                missing.append(r)
+            continue
+        if not _row_ngrams_present(r["line"], md_blob, md_grams):
+            missing.append(r)
     return missing
 
 
 def _draft_completeness(lines: list[dict], markdown: str) -> dict:
     """行级完整性报告（零 LLM）。rows_all 每行带类别/"是否存在于稿"/"恢复资格"标记；
-    absent = 有恢复资格的正文行中不存在于稿的近整行丢失（显式缺失，触发候选）。"""
+    absent = 有恢复资格的正文行中不存在于稿的近整行丢失，加上词元级可判且
+    高置信缺失的公式行（显式缺失，触发候选）。"""
     md_blob = _md_compact(markdown)
     md_grams = {md_blob[i:i + _NGRAM_WINDOW] for i in range(max(0, len(md_blob) - _NGRAM_WINDOW + 1))}
+    md_tokens = set(_math_content_tokens(markdown))
+    formula_miss_gate = _formula_miss_enabled()
     rows_all: list[dict] = []
     for item in lines:
         if str(item.get("role_hint") or "") == "boilerplate":
@@ -891,11 +986,17 @@ def _draft_completeness(lines: list[dict], markdown: str) -> dict:
             "formula": formula, "num_head": num_head,
             "recoverable": formula or _recoverable_row(text),
             "present": _row_ngrams_present(line, md_blob, md_grams),
+            "formula_miss": (_formula_high_conf_missing(text, md_tokens)
+                             if formula and formula_miss_gate else None),
         })
     present = {r["index"] for r in rows_all if r["present"]}
     absent = [
         r for r in rows_all
-        if not r["formula"] and not r["num_head"] and r["recoverable"] and not r["present"]
+        if not r["num_head"] and r["recoverable"]
+        and (
+            (not r["formula"] and not r["present"])
+            or (r["formula"] and r["formula_miss"] is True)
+        )
     ]
     return {
         "rows_all": rows_all,
