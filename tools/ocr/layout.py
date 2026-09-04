@@ -8,6 +8,7 @@
 from __future__ import annotations
 
 import logging
+import os
 import re
 
 logger = logging.getLogger(__name__)
@@ -239,6 +240,128 @@ def _infer_layout_hints(lines: list[dict], image_size: tuple[int, int] | None) -
     return rows
 
 
+# ── 碎片行确定性合并（S3 预规整；OCR_MERGE_FRAGMENTS=1 启用，默认关）──
+# 引擎（尤其 serverocr 类）常把同一逻辑行切成多条短碎片：碎片会无差别抬高
+# 行数、ambiguous 统计与每页 prompt。合并只做**保守的视觉邻接判定**（同页、
+# 垂直间隙小、水平投影重叠大、前行未以句读结束、后行不是编号开头），
+# 零 token、不依赖引擎与语料；合并发生在版面推断之前，让下游对"逻辑行"
+# 只做一次角色/标题判定。数值默认值属保守设定，非标定目标。
+_MERGE_GAP_RATIO = 0.6    # 垂直间隙 ≤ 行高中位数 × 该比例才允许合并
+_MERGE_OVERLAP_RATIO = 0.5  # 水平投影重叠 ≥ 较短行宽 × 该比例
+_MERGE_STOP_CHARS = set("。！？；;?!")
+_MERGE_NUMERIC_START_RE = re.compile(
+    r"^(?:第[0-9一二三四五六七八九十百]+[章节篇讲课单元]"
+    r"|[（(]?[0-9一二三四五六七八九十百]+[)）]"
+    r"|[0-9一二三四五六七八九十百]+[、.．]|\d+(?:\.\d+){0,2}\s)"
+)
+
+
+def _fragment_merge_enabled() -> bool:
+    return os.getenv("OCR_MERGE_FRAGMENTS", "0").strip().lower() in {"1", "true", "yes", "on"}
+
+
+def _rect_bounds(bbox) -> tuple[float, float, float, float] | None:
+    rect = _bbox_rect(bbox)
+    return rect if rect else None
+
+
+def _cjk(ch: str) -> bool:
+    return "\u4e00" <= ch <= "\u9fff"
+
+
+def _join_texts(left: str, right: str) -> str:
+    a = (left or "").strip()
+    b = (right or "").strip()
+    if not a or not b:
+        return (a + b).strip()
+    if _cjk(a[-1]) and _cjk(b[0]):
+        return a + b          # 中文相连不加空格
+    if (not _cjk(a[-1])) and (not _cjk(b[0])):
+        return a + b          # ASCII/数字相邻同样不加（引擎碎片通常在词内断开）
+    return a + " " + b        # 中英交界保守加空格
+
+
+def _merge_pair(left: dict, right: dict) -> dict:
+    lr = _rect_bounds(left.get("bbox"))
+    rr = _rect_bounds(right.get("bbox"))
+    out: dict = {"text": _join_texts(str(left.get("text") or ""), str(right.get("text") or ""))}
+    if lr and rr:
+        x0 = min(lr[0], rr[0])
+        y0 = min(lr[1], rr[1])
+        x1 = max(lr[2], rr[2])
+        y1 = max(lr[3], rr[3])
+        out["bbox"] = [[x0, y0], [x1, y0], [x1, y1], [x0, y1]]
+    confs = [
+        float(item["conf"])
+        for item in (left, right)
+        if item.get("conf") is not None
+    ]
+    if confs:
+        out["conf"] = min(confs)   # 保守：取碎片中最低置信
+    return out
+
+
+def _can_merge_fragments(left: dict, right: dict, median_height: float) -> bool:
+    """保守邻接判定：只有全部条件满足才允许合并。"""
+    if str(left.get("formula") or "").strip() or str(right.get("formula") or "").strip():
+        return False
+    lr = _rect_bounds(left.get("bbox"))
+    rr = _rect_bounds(right.get("bbox"))
+    if not lr or not rr:
+        return False
+    lx0, ly0, lx1, ly1 = lr
+    rx0, ry0, rx1, ry1 = rr
+    if ry0 < ly1:            # 纵向重叠（不同行）不合并
+        return False
+    gap = ry0 - ly1
+    if gap < 0 or gap > median_height * _MERGE_GAP_RATIO:
+        return False
+    overlap = min(lx1, rx1) - max(lx0, rx0)
+    if overlap <= 0:
+        return False
+    shorter = min(lx1 - lx0, rx1 - rx0)
+    if shorter <= 0 or overlap / shorter < _MERGE_OVERLAP_RATIO:
+        return False
+    text_left = str(left.get("text") or "").strip()
+    text_right = str(right.get("text") or "").strip()
+    if not text_left or not text_right:
+        return False
+    if text_left[-1] in _MERGE_STOP_CHARS:      # 前行以句读结束 → 逻辑行已完
+        return False
+    if _MERGE_NUMERIC_START_RE.match(text_right):  # 后行是编号开头（新条目）
+        return False
+    return True
+
+
+def merge_fragment_lines(lines: list[dict]) -> list[dict]:
+    """把同页碎片行按保守邻接规则合并成逻辑行（零 LLM）。"""
+    if not _fragment_merge_enabled() or not lines:
+        return lines
+    items = [dict(item) for item in lines if isinstance(item, dict)]
+    heights = []
+    for item in items:
+        rect = _rect_bounds(item.get("bbox"))
+        if rect:
+            heights.append(rect[3] - rect[1])
+    if not heights:
+        return lines
+    heights.sort()
+    median_height = heights[len(heights) // 2] or 1.0
+    merged: list[dict] = []
+    idx = 0
+    n = len(items)
+    while idx < n:
+        acc = items[idx]
+        idx += 1
+        while idx < n and _can_merge_fragments(acc, items[idx], median_height):
+            acc = _merge_pair(acc, items[idx])
+            idx += 1
+        merged.append(acc)
+    if len(merged) != len(items):
+        logger.info("碎片行合并：%d → %d 行", len(items), len(merged))
+    return merged
+
+
 def ocr_image_lines(image_path: str) -> list[dict]:
     """整图识别 → 行列表；引擎返回的 ``formula`` 字段原样透传。
 
@@ -275,6 +398,8 @@ def ocr_image_lines(image_path: str) -> list[dict]:
     if not lines:
         return []
 
+    if _fragment_merge_enabled():
+        lines = merge_fragment_lines(lines)
     lines = _infer_layout_hints(lines, image_size) if lines else []
     return lines
 
