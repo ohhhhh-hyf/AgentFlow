@@ -64,19 +64,26 @@ paddle 已实测；**serverocr 尚未用新代码跑过**，第一优先动作�
 **为什么**：serverocr 与 paddle 同 LLM、同语料时质量差异的主要来源之一是无 conf：
 - `_needs_review` 依赖 conf → 无 conf 则审校永不执行（r2 起 rev=0×N）；
 - reconstruct prompt 的"低置信行谨慎纠错"依赖 conf 标记 → 空转；
-- 页级确定性门控的"高置信页"分支依赖 conf → 几乎不可达。
+- 页级确定性门控的"高置信页"分支依赖 conf → 几乎不可达
+  （注：无 conf 时仍有部分干净页经 ambiguous 分支走确定性，S1 已观测到）。
 
-**动作**：
-1. **取证**：抓 1~2 页 OCR 服务原始响应落盘，确认是否存在 per-line 置信/
-   得分字段、字段名是什么（`server_ocr._optional_conf` 的 `_first_present` 清单
-   按实际字段扩展即可，改动一行级）；
-2. 与服务方确认：能否在响应中带出该字段（这属于服务配置/协议问题，非本仓库能改）；
-3. 确认返回后重跑基线：`per_image[].avg_conf` 应非 None；`batches[].needs_review_llm`
-   可能出现 true；事件里低置信行开始生效。
+**状态（2026-09-04）**：
+- ✅ 代码侧已就绪：`server_ocr._optional_conf` 候选字段清单已在注释标注；
+  取证脚本 `ocr_baseline/server_ocr_probe.py` 已写好（与生产同路径请求、
+  原始响应落盘、自动盘点行节点字段与置信类键，`--dry` 可先本地验证参数）；
+- ⏳ 待执行：在服务器跑取证脚本（命令见下），把输出中的字段列表给服务方，
+  确认能否带出 per-line 置信字段及确切字段名；
+- 拿到字段名后：扩展 `_optional_conf` 的 `_first_present` 清单（一行级）→
+  重跑基线验证 review/确定性页/谨慎纠错是否复活。
+
+```bash
+# 取证（服务器上执行；out 默认落 ocr_baseline/records，随基线一起拉回）
+python ocr_baseline/server_ocr_probe.py --images /path/to/任意两张笔记图片
+```
 
 **拿不到 conf 的兜底（可选，不做预设）**：为无 conf 形态启用启发式审校触发
 （公式行 + 短行乱码窗），用现有 `OCR_REVIEW` 开关做 A/B；判定只做性质检查
-（applied_patches 是否长期≈0），不预设数值。
+（applied_patches 是否长期≈0），不预设数值。是否启用等取证结论出来再定。
 
 ### Step S3｜行碎处理（可选评估项，不预设必做）
 
