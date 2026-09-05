@@ -32,12 +32,20 @@ _DETAIL_POOL_PER_PAGE = 6
 _TITLE_KEYWORDS = ("定义", "性质", "定理", "规则", "方法", "公式", "例题", "易错", "注意", "总结", "步骤")
 _ITEM_ONLY_KEYWORDS = ("例题", "易错", "注意", "总结", "步骤", "题型", "技巧", "提醒", "小结")
 _BODY_LIKE_ENDINGS = ("。", "；", ";", ".", "！", "？", "!", "?")
+# 页框/署名/联系信息形态（全部为跨语料的功能形态，无具体机构名/地名）：
+# - 联系与出版信息：tel、电话、印刷
+# - 网址
+# - 页码/页框：第X页、page N、独立「页」
+# - 机构类别后缀（锚定结尾）：…大学/学院/学校/研究院/研究所、university 等
+#   （机构署名行以类别后缀收尾是结构特征，不是具体机构名单）
 _NOISE_TITLE_RE = re.compile(
-    r"(华中科技大学|科技大学|大学|university|wuhan|hubei|tel[:：]?|"
-    r"印刷厂|附属印刷|第\s*\d+\s*页|^\s*页\s*$)",
+    r"(tel[:：]|电话|印刷|https?://|www\.|\.com\b"
+    r"|第\s*\d+\s*页|page\s*\d+|^\s*页\s*$"
+    r"|.{0,10}(?:大学|学院|学校|研究院|研究所)\s*$"
+    r"|(?:university|college|institute)\b)",
     re.I,
 )
-_NOISE_SHORT_TITLES = {"科技", "大学", "学院", "学校", "页", "目录"}
+_NOISE_SHORT_TITLES = {"页", "目录"}
 _NUMBERED_TITLE_RE = re.compile(
     r"^(?:第[一二三四五六七八九十百零0-9]+[章节]|[一二三四五六七八九十]+、|\d+(?:\.\d+){0,3})"
 )
@@ -90,8 +98,9 @@ def _brief_chunks(
         ROLE_TEACHER: [],
         ROLE_UNKNOWN: [],
     }
+    # briefing 只消费标题/评分/标签等元字段，正文不进内存（with_text=False）
     try:
-        chunks = kb.list_chunks(user_id=user_id, subject=subject) or []
+        chunks = kb.list_chunks(user_id=user_id, subject=subject, with_text=False) or []
     except Exception:
         return grouped
     seen: set[tuple[str, str, str]] = set()
@@ -1165,6 +1174,7 @@ def backfill_catalog_trace(
     user_id = user_id_from_context(shared_context)
     subject = subject_from_context(shared_context)
     kb = open_knowledge(user_id=user_id)
+    # 溯源回填需按老师重点句扫描块正文（body 命中），保留 text
     chunks = (
         list(kb.list_chunks(user_id=user_id, subject=subject) or [])
         if kb is not None
@@ -1232,3 +1242,117 @@ def backfill_catalog_trace(
                         kp["teacher_focus_items"] = hit_sents[:3]
                         kp["teacher_evidence"] = hit_sents[:3]
     return out
+
+
+# ── 目录内关联的存在性校准（策略二，零 LLM）────────────────────
+def _kp_relation_index(draft: dict[str, Any]) -> dict[str, str]:
+    """KP 名索引：``_title_key(名) → 树序第一个正式名``（同名异写归一到同一键）。"""
+    index: dict[str, str] = {}
+    for chapter in draft.get("chapters") or []:
+        if not isinstance(chapter, dict):
+            continue
+        for topic in chapter.get("topics") or []:
+            if not isinstance(topic, dict):
+                continue
+            for point in topic.get("knowledge_points") or []:
+                if not isinstance(point, dict):
+                    continue
+                name = " ".join(str(point.get("name") or "").split()).strip()
+                key = _title_key(name)
+                if name and key and key not in index:
+                    index[key] = name
+    return index
+
+
+def _resolve_relation_target(
+    name: str, own_key: str, index: dict[str, str]
+) -> str | None:
+    """引用名 → 目录内真实 KP 名。
+
+    - 归一键精确命中 → 正式名（消除同义异写）；
+    - 未命中 → _titles_related（包含/共享 4+ 字）唯一最接近的真实 KP；
+    - 零候选或多候选 → None（删除，宁可丢关联也不留空链接）。"""
+    key = _title_key(name)
+    if key and key in index:
+        if key == own_key:
+            return None  # 自指无意义
+        return index[key]
+    hits = [
+        formal
+        for key, formal in index.items()
+        if key != own_key and _titles_related(name, formal)
+    ]
+    return hits[0] if len(hits) == 1 else None
+
+
+def calibrate_catalog_relations(draft: dict[str, Any]) -> dict[str, Any]:
+    """校准目录内关联（related_points / prerequisites）：只允许指向真实存在的 KP。
+
+    LLM 会编造不存在的 KP 名；悬空引用会直通 checklist（prerequisites 直接出卡、
+    related_points 直接渲染"相关复习"）。校准规则（零 LLM、无词表）：
+    - 归一键精确命中 → 统一改写为正式名（消除同义异写）；
+    - 未命中 → 包含/共享 4+ 字的唯一最接近真实 KP → 改写（保留关联意图）；
+    - 零候选 / 多候选并列 / 自指 → 删除。
+    改写与删除计数打日志；不改动 change_type（程序整理不计入"本次变更"）。"""
+    import logging
+
+    logger = logging.getLogger(__name__)
+    index = _kp_relation_index(draft)
+    if not index:
+        return draft
+    rewritten = 0
+    dropped = 0
+    for chapter in draft.get("chapters") or []:
+        if not isinstance(chapter, dict):
+            continue
+        for topic in chapter.get("topics") or []:
+            if not isinstance(topic, dict):
+                continue
+            for point in topic.get("knowledge_points") or []:
+                if not isinstance(point, dict):
+                    continue
+                own_name = " ".join(str(point.get("name") or "").split()).strip()
+                own_key = _title_key(own_name)
+
+                rels = point.get("related_points")
+                if isinstance(rels, list):
+                    new_rels: list[dict[str, str]] = []
+                    for item in rels:
+                        if not isinstance(item, dict):
+                            dropped += 1
+                            continue
+                        name = " ".join(str(item.get("name") or "").split()).strip()
+                        relation = str(item.get("relation") or "used_with")
+                        if not name:
+                            dropped += 1
+                            continue
+                        target = _resolve_relation_target(name, own_key, index)
+                        if target is None:
+                            dropped += 1
+                            continue
+                        if target != name:
+                            rewritten += 1
+                        new_rels.append({"name": target, "relation": relation})
+                    point["related_points"] = new_rels
+
+                prereqs = point.get("prerequisites")
+                if isinstance(prereqs, list):
+                    new_prereqs: list[str] = []
+                    for name in prereqs:
+                        name = " ".join(str(name or "").split()).strip()
+                        if not name:
+                            dropped += 1
+                            continue
+                        target = _resolve_relation_target(name, own_key, index)
+                        if target is None:
+                            dropped += 1
+                            continue
+                        if target != name:
+                            rewritten += 1
+                        new_prereqs.append(target)
+                    point["prerequisites"] = new_prereqs
+    if rewritten or dropped:
+        logger.info(
+            "catalog relations 校准：改写 %d 条、删除 %d 条悬空引用", rewritten, dropped
+        )
+    return draft

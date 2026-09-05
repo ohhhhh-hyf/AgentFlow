@@ -22,5 +22,8 @@ class KnowledgeGraphSupervisor:
             self._system_prompt,
             context,
             KnowledgeGraphSupervisorReview,
-            KNOWLEDGE_GRAPH_SUPERVISOR_OUTPUT_CONTRACT, label='graph/supervisor')
+            KNOWLEDGE_GRAPH_SUPERVISOR_OUTPUT_CONTRACT,
+            temperature=0.0,
+            label='graph/supervisor',
+        )
 

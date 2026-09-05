@@ -354,12 +354,6 @@ def review_markdown(
         return draft, f"LLM 审校失败，已保留重构稿：{exc}"
 
 
-def _number_draft_lines(draft: str) -> str:
-    rows = draft.splitlines()
-    width = max(3, len(str(max(len(rows), 1))))
-    return "\n".join(f"L{idx:0{width}d}: {row}" for idx, row in enumerate(rows, start=1))
-
-
 def _number_selected_draft_lines(draft: str, line_numbers: list[int]) -> str:
     rows = draft.splitlines()
     if not rows:
@@ -743,8 +737,7 @@ def _as_reviewed_markdown(text: str, draft: str) -> tuple[str, str]:
 #   1) 行必须先过"可恢复资格"过滤（与管线噪声口径一致：页码/机构信息/纯数字符号残渣/
 #      乱码指纹）才允许被判"缺失"；2) 恢复两侧（补写片段与原文兜底）同用该过滤；
 #   3) 缺失段先按小间隔合并，减少零散段与兜底。
-# 观测：每次自检产生一条事件（take_completeness_events 供基线采集进 run.json），
-#       跨语料收集触发率证据；开关 OCR_COMPLETENESS_FIX=0 关闭（A/B 用）。
+# 开关 OCR_COMPLETENESS_FIX=0 关闭（A/B 用）。
 _CONTINUE_MAX_CALLS = 2        # 每批最多补写调用次数（OCR_CONTINUE_MAX_CALLS 可覆盖）
 _CONTINUE_MAX_TOKENS = 3000    # 单次补写输出上限（OCR_CONTINUE_MAX_TOKENS 可覆盖）
 _NGRAM_WINDOW = 8              # 行"存在"判定窗口：与 md 共享任一 8 连字符即视为存在
@@ -777,7 +770,6 @@ _NUM_HEAD_ISH_RE = re.compile(
     r"|[（(]?[0-9一二三四五六七八九十百]+[)）]"
     r"|[0-9一二三四五六七八九十百]+[、.．])"
 )
-_COMPLETENESS_EVENTS: list[dict] = []
 
 _CONTINUE_TAIL_INSTRUCT = (
     "这组 OCR 行属于稿件末尾，上一轮整理被截断了。把它们整理成 Markdown 续在稿尾：\n"
@@ -795,17 +787,6 @@ _CONTINUE_MID_INSTRUCT = (
     "4. 输出必须以完整句子或闭合公式结束，禁止以半截句子/公式/列表项收尾\n"
     "5. 缺失行清单里若混有明显 OCR 噪声/乱码/页码页眉残留，不要输出它们"
 )
-
-
-def _emit_completeness_event(event: dict) -> None:
-    _COMPLETENESS_EVENTS.append(event)
-
-
-def take_completeness_events() -> list[dict]:
-    """取走并清空自检事件（与 review_fn 调用次序 1:1，供基线按批归并）。"""
-    events = list(_COMPLETENESS_EVENTS)
-    _COMPLETENESS_EVENTS.clear()
-    return events
 
 
 def _check_compact(text: str) -> str:
@@ -1242,44 +1223,18 @@ def _continue_call(client, system_prompt: str, user_prompt: str, max_tokens: int
     return str(text or "").strip()
 
 
-def check_markdown_completeness(lines: list[dict], markdown: str) -> dict:
-    """对外自检入口（只读、零 LLM）：显式缺失分类 + 稿尾截断信号。"""
-    check = _draft_completeness(lines, markdown)
-    rows_all = check["rows_all"]
-    absent = check["absent_rows"]
-    n = len(rows_all)
-    tail_cut = _tail_looks_cut(markdown)
-    tail_absent = any(r["index"] >= n - 1 for r in absent)
-    needs = bool(absent) and (
-        check["absent_chars"] >= _ABSENT_MIN_CHARS
-        or max((len(r["line"]) for r in absent), default=0) >= _ABSENT_SINGLE_MIN_LEN
-    )
-    return {
-        "ok": not (needs or tail_cut or tail_absent),
-        "rows": n,
-        "present_rows": len(check["present"]),
-        "total_chars": check["total_chars"],
-        "absent_rows": [dict(r) for r in absent],
-        "absent_chars": check["absent_chars"],
-        "tail_cut_signal": tail_cut,
-    }
-
-
 def ensure_markdown_complete(markdown: str, lines: list[dict]) -> str:
     """整理稿完整性闭环（显式缺失才触发；无缺失零调用）。
 
     流程：行级自检 → 缺失分类（近整行丢失 / 稿尾截断）→ 按段小补写
-    （尾段 1 次 + 中段若干，≤ 预算）→ 超预算/失败一律原文兜底；每批产出一条
-    自检事件供观测（take_completeness_events）。"""
+    （尾段 1 次 + 中段若干，≤ 预算）→ 超预算/失败一律原文兜底。"""
     import os
 
     raw = str(markdown or "").strip()
     gate = os.getenv("OCR_COMPLETENESS_FIX", "1").strip().lower()
     if gate not in {"1", "true", "yes", "on"}:
-        _emit_completeness_event({"gate": "off"})
         return raw
     if not raw:
-        _emit_completeness_event({"gate": "on", "empty": True})
         return raw
 
     check = _draft_completeness(lines, raw)
@@ -1307,23 +1262,7 @@ def ensure_markdown_complete(markdown: str, lines: list[dict]) -> str:
             or max(len(r["line"]) for r in run["rows"]) >= _ABSENT_SINGLE_MIN_LEN
         )
     ]
-    event: dict = {
-        "gate": "on",
-        "rows": n,
-        "present_rows": len(present),
-        "absent_rows": len(absent),
-        "absent_chars": check["absent_chars"],
-        "tail_cut_signal": tail_cut_signal,
-        "tail_absent": tail_absent,
-        "tail_rows": len(tail_rows),
-        "mid_runs": len(mid_candidates),
-        "fired_calls": 0,
-        "modes": [],
-        "fallback_rows": 0,
-        "out_gain_chars": 0,
-    }
     if not needs_tail and not mid_candidates:
-        _emit_completeness_event(event)
         return raw
 
     try:
@@ -1339,13 +1278,9 @@ def ensure_markdown_complete(markdown: str, lines: list[dict]) -> str:
             appended_rows.extend(_keep_for_append(tail_rows))
         for run in sorted(mid_candidates, key=lambda r: -r["chars"]):
             appended_rows.extend(_keep_for_append(run["rows"]))
-        event["fallback_rows"] = len(appended_rows)
         logger.warning("完整性补写不可用(无 LLM 客户端)，缺失 %d 行原文兜底追加", len(appended_rows))
         final = raw + "\n\n" + "\n".join(r["text"] for r in appended_rows)
-        final = _normalize_final(final)
-        event["out_gain_chars"] = len(final) - len(raw)
-        _emit_completeness_event(event)
-        return final
+        return _normalize_final(final)
 
     budget_calls = _CONTINUE_MAX_CALLS
     try:
@@ -1361,6 +1296,7 @@ def ensure_markdown_complete(markdown: str, lines: list[dict]) -> str:
     draft = raw
     fired = 0
     modes: list[str] = []
+    fallback_rows = 0
 
     def _sanitize_fragment(fragment: str) -> str:
         frag = _strip_md_fences(_trim_duplicate_head(fragment, draft)).strip()
@@ -1369,12 +1305,12 @@ def ensure_markdown_complete(markdown: str, lines: list[dict]) -> str:
         return frag
 
     def _fallback_append(rows: list[dict]) -> None:
-        nonlocal draft, event
+        nonlocal draft, fallback_rows
         kept = _keep_for_append(rows)
         if not kept:
             return
         draft = (draft.rstrip() + "\n\n" + "\n".join(r["text"] for r in kept))
-        event["fallback_rows"] += len(kept)
+        fallback_rows += len(kept)
 
     # 1) 稿尾截断（优先，最多 1 次）
     if needs_tail and fired < budget_calls:
@@ -1435,7 +1371,7 @@ def ensure_markdown_complete(markdown: str, lines: list[dict]) -> str:
         else:
             _fallback_append(run["rows"])
 
-    if fired or event["fallback_rows"]:
+    if fired or fallback_rows:
         draft = _normalize_final(draft)
         cleaned = _cut_incomplete_tail(draft)
         if cleaned != draft:
@@ -1443,12 +1379,8 @@ def ensure_markdown_complete(markdown: str, lines: list[dict]) -> str:
             draft = cleaned
         logger.warning(
             "OCR 完整性补写完成：%d 次调用（%s），兜底 %d 行",
-            fired, ",".join(modes), event["fallback_rows"],
+            fired, ",".join(modes), fallback_rows,
         )
-    event["fired_calls"] = fired
-    event["modes"] = modes
-    event["out_gain_chars"] = len(draft) - len(raw)
-    _emit_completeness_event(event)
     return draft
 
 
@@ -1456,10 +1388,8 @@ __all__ = [
     "RECONSTRUCT_SYSTEM_PROMPT",
     "REVIEW_SYSTEM_PROMPT",
     "apply_review_patches",
-    "check_markdown_completeness",
     "ensure_markdown_complete",
     "normalize_heading_numbering",
     "reconstruct_markdown",
     "review_markdown",
-    "take_completeness_events",
 ]

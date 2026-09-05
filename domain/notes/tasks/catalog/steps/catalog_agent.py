@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+import re
 
 from client import LLMClient
 
@@ -34,9 +35,10 @@ def _infer_practice_type(point: dict) -> list[str]:
     name = _clean(point.get("name"))
     items = " ".join(str(item) for item in (point.get("knowledge_items") or []))
     blob = f"{name} {items}"
-    if kind == "formula" or any(word in blob for word in ("公式", "方程", "能级", "概率", "分布律")):
+    # 判定词只保留跨学科的功能形态词（文体词），不含任何具体学科词汇
+    if kind == "formula" or any(word in blob for word in ("公式", "方程")):
         return ["recall", "calculate"]
-    if kind == "theorem" or any(word in blob for word in ("定理", "证明", "本征值", "厄米")):
+    if kind == "theorem" or any(word in blob for word in ("定理", "证明")):
         return ["prove", "apply"]
     if kind == "method" or any(word in blob for word in ("求算", "步骤", "方法", "变换")):
         return ["calculate", "choose_method"]
@@ -86,13 +88,14 @@ def _infer_risk_tags(point: dict) -> list[str]:
     items = " ".join(str(item) for item in (point.get("knowledge_items") or []))
     blob = f"{name} {items}"
     risks: list[str] = []
+    # 判定词只保留跨学科的功能形态词（文体词），不含任何具体学科词汇
     if any(word in blob for word in ("条件", "适用", "边界", "限制")):
         risks.append("condition_check")
-    if kind == "formula" or any(word in blob for word in ("公式", "符号", "能级")):
+    if kind == "formula" or any(word in blob for word in ("公式", "符号")):
         risks.append("formula_misuse")
     if kind == "method" or any(word in blob for word in ("步骤", "求算", "方法")):
         risks.append("method_selection")
-    if any(word in blob for word in ("证明", "定理", "本征")):
+    if kind == "theorem" or any(word in blob for word in ("证明", "定理")):
         risks.append("proof_format")
     if any(word in blob for word in ("易错", "混淆", "区别")):
         risks.append("concept_confusion")
@@ -194,6 +197,123 @@ def _catalog_structure_issues(catalog: dict) -> list[str]:
     return issues
 
 
+def _norm_cmp(text: object) -> str:
+    return re.sub(r"[\s:：,，。；;、（）()\[\]【】]+", "", str(text or "").lower())
+
+
+def _repair_fallback_point(name: str, chapter: str, topic: str, kid: str) -> dict:
+    """标题回退的最小 KP（与 merge._fill_empty_topics 同款语义，供修复器复用）。"""
+    return {
+        "id": kid,
+        "name": name,
+        "chapter": chapter,
+        "topic": topic,
+        "knowledge_type": "mixed",
+        "knowledge_items": [name],
+        "importance": "3",
+        "difficulty": "3",
+        "note_coverage": "mentioned",
+        "sources": [],
+        "evidence": [],
+        "aliases": [],
+        "prerequisites": [],
+        "related_points": [],
+    }
+
+
+def _repair_catalog_structure(catalog: dict) -> tuple[dict, list[str]]:
+    """确定性结构修复（零 token）：能修的修，修不了的留给重试。
+
+    可修（与 _catalog_structure_issues 的问题一一对应）：
+    - 主题无知识点 → 标题回退补点（merge._fill_empty_topics 同款语义）；
+    - 主题下唯一同名 KP 无 knowledge_items（空壳）→ 补 items=[主题名]；
+    - 章-主题-KP 三层同名 → KP 具体化改名（取 items[0] / aliases[0] 当更具体的
+      名，原 KP 名下移进 items）——消除纯凑层级；无可用信息时保留给重试；
+    - KP 缺 id → 前序补号。
+    不可修（信息不足，必须重试）：chapters 为空、章无主题。
+    返回 (修复后的 catalog, 仍存在的问题列表)。
+    """
+    repairs: list[str] = []
+    chapters = [c for c in (catalog.get("chapters") or []) if isinstance(c, dict)]
+    # 先扫已有 kp id 集，供回退补点与缺 id 补号取号
+    used_ids: set[str] = set()
+    for ch in chapters:
+        for tp in (ch.get("topics") or []):
+            if not isinstance(tp, dict):
+                continue
+            for point in (tp.get("knowledge_points") or []):
+                if isinstance(point, dict) and _clean(point.get("id")):
+                    used_ids.add(_clean(point["id"]))
+    next_seq = 1
+
+    def _take_kp_id() -> str:
+        nonlocal next_seq
+        while f"kp_{next_seq:03d}" in used_ids:
+            next_seq += 1
+        kid = f"kp_{next_seq:03d}"
+        used_ids.add(kid)
+        next_seq += 1
+        return kid
+
+    for ch in chapters:
+        ch_name = _clean(ch.get("name"))
+        topics = [t for t in (ch.get("topics") or []) if isinstance(t, dict)]
+        ch["topics"] = topics
+        for tp in topics:
+            tp_name = _clean(tp.get("name"))
+            kps = [p for p in (tp.get("knowledge_points") or []) if isinstance(p, dict)]
+            # 主题无知识点 → 标题回退补点（merge._fill_empty_topics 同款语义）
+            if not kps and tp_name:
+                kps = [_repair_fallback_point(tp_name, ch_name, tp_name, _take_kp_id())]
+                tp["knowledge_points"] = kps
+                repairs.append(f"主题「{tp_name}」无知识点 → 标题回退补点")
+            single_same = len(kps) == 1 and tp_name and _clean(kps[0].get("name")) == tp_name
+            # 空壳：唯一同名 KP 无 items → 补 items
+            if single_same and len(topics) >= 1:
+                kp = kps[0]
+                items = [i for i in (kp.get("knowledge_items") or []) if _clean(i)]
+                if not items:
+                    kp["knowledge_items"] = [tp_name]
+                    repairs.append(f"主题「{tp_name}」空壳 KP → 补 knowledge_items")
+            # 三层同名 → KP 具体化改名
+            if (
+                len(topics) == 1
+                and len(kps) == 1
+                and ch_name
+                and tp_name
+                and ch_name == tp_name == _clean(kps[0].get("name"))
+            ):
+                kp = kps[0]
+                items = [i for i in (kp.get("knowledge_items") or []) if _clean(i)]
+                aliases = [_clean(a) for a in (kp.get("aliases") or []) if _clean(a)]
+                new_name = ""
+                if items and _norm_cmp(items[0]) != _norm_cmp(ch_name):
+                    new_name = items[0]
+                elif aliases and _norm_cmp(aliases[0]) != _norm_cmp(ch_name):
+                    new_name = aliases[0]
+                if new_name:
+                    kp["name"] = new_name
+                    kp["knowledge_items"] = [tp_name] + [i for i in items if _norm_cmp(i) != _norm_cmp(new_name)]
+                    kp["aliases"] = [a for a in aliases if _norm_cmp(a) != _norm_cmp(new_name)]
+                    repairs.append(
+                        f"章「{ch_name}」三层同名占位 → KP 具体化为「{new_name}」"
+                    )
+    patched = 0
+    for ch in chapters:
+        for tp in (ch.get("topics") or []):
+            if not isinstance(tp, dict):
+                continue
+            for point in (tp.get("knowledge_points") or []):
+                if isinstance(point, dict) and not _clean(point.get("id")):
+                    point["id"] = _take_kp_id()
+                    patched += 1
+    if patched:
+        repairs.append(f"补 KP id {patched} 个")
+    if repairs:
+        logger.info("catalog repair: %s", "; ".join(repairs))
+    return catalog, _catalog_structure_issues(catalog)
+
+
 def _enforce_catalog_structure(catalog: dict) -> dict:
     """确定性修正（零 token）：importance 与知识单元数对齐（prompt 校准规则的程序化）。
 
@@ -243,7 +363,8 @@ class CatalogAgent:
         data = _strip_llm_extra_fields(draft.model_dump())
         data = _backfill_slim_point_fields(data)
         data = _enforce_catalog_structure(data)
-        issues = _catalog_structure_issues(data)
+        # 检测 → 确定性修复（零 token）→ 复验：能修的修，修不了的硬伤才重试
+        data, issues = _repair_catalog_structure(data)
         if issues:
             # 结构不达标：带问题清单重试一次（仍失败则用本次结果，交由 merge/兜底，
             # 不引入无限循环）
@@ -262,6 +383,8 @@ class CatalogAgent:
                 data = _strip_llm_extra_fields(retry.model_dump())
                 data = _backfill_slim_point_fields(data)
                 data = _enforce_catalog_structure(data)
+                # 重试输出同样过修复器（消除小缺陷，避免带伤进 merge）
+                data, _ = _repair_catalog_structure(data)
             except Exception:  # noqa: BLE001 - 重试失败沿用首次结果
                 pass
         merged = merge_catalog(

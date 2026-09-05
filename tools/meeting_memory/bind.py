@@ -112,11 +112,6 @@ def _pick_project_name(fact: Any) -> str:
     return ""
 
 
-def _longest_common_substr_len(a: str, b: str) -> int:
-    """两个标题的最长公共连续子串长度（标题短，DP 开销可忽略）。"""
-    return len(_longest_common_substr(a, b))
-
-
 def _longest_common_substr(a: str, b: str) -> str:
     """两个标题的最长公共连续子串。"""
     m, n = len(a), len(b)
@@ -304,12 +299,14 @@ def bind_meeting(
         )
     # 全部未命中（registry 空或与任何项目零重叠）：从本场内容提取项目实体，
     # 自动注册项目指纹，供后续同项目会议实体匹配溯源。
+    # mode="auto_create"：runtime 层会在此之后做语义归属兜底——本项目标题
+    # 换了说法时规则零重叠，但向量可命中历史项目（救回变体、防重复建档）。
     name = _pick_project_name(fact)
     if name:
         pid = safe_id(name)
         return BindResult(
             project_id=pid,
-            mode="auto",
+            mode="auto_create",
             confidence="high",
             evidence=[f"auto_create:{name}"],
         )

@@ -615,16 +615,6 @@ def _draft_pagewise(pages: list[dict], all_lines: list[dict]) -> str:
     return "\n\n".join(drafts)
 
 
-_REVIEW_EVENTS: list[dict] = []
-
-
-def take_review_events() -> list[dict]:
-    """取走并清空审校留痕（与 review_fn/批次调用次序 1:1，供基线归并）。"""
-    events = list(_REVIEW_EVENTS)
-    _REVIEW_EVENTS.clear()
-    return events
-
-
 def _review_enabled() -> bool:
     """审校轮开关（默认开；OCR_REVIEW=0 关闭做 A/B，检查审校是否值回 token）。"""
     return os.getenv("OCR_REVIEW", "1").strip().lower() in {"1", "true", "yes", "on"}
@@ -636,12 +626,10 @@ def reconstruct_and_review_pages(pages: list[dict]) -> str:
     页级模式（OCR_PAGE_RECONSTRUCT=1，默认）：每页短整理并发执行，单页远离
     输出上限（截断不再发生），页级门控让干净页零 token；随后按批做完整性
     闭环与审校。OCR_PAGE_RECONSTRUCT=0 回退为整批一次长文重写（A/B 对照）；
-    OCR_REVIEW=0 关闭审校轮（A/B：观察 kept80/公式 avg/入库增量是否受影响）。
-    每次调用产出一条审校留痕（take_review_events），用于跨语料判定审校价值。
+    OCR_REVIEW=0 关闭审校轮（A/B：观察整理稿质量是否受影响）。
     """
     lines = concat_page_lines(pages)
     if not lines:
-        _REVIEW_EVENTS.append({"ran": False, "reason": "no_lines"})
         return "（OCR 未识别到文字）"
     if _page_mode_enabled():
         draft = _draft_pagewise(pages, lines)
@@ -654,22 +642,10 @@ def reconstruct_and_review_pages(pages: list[dict]) -> str:
     # 完整性闭环：零成本行级自检，检出截断/漏行时用一次小续写补回（review 补不了丢失行）。
     # 可用环境变量 OCR_COMPLETENESS_FIX=0 关闭做 A/B 对照。
     draft = ensure_markdown_complete(draft, lines)
-    event: dict = {"review_enabled": _review_enabled(), "needs_review": bool(_needs_review(lines))}
-    if not event["review_enabled"] or not event["needs_review"]:
-        event.update({"ran": False, "draft_changed": False, "applied_patches": 0})
-        _REVIEW_EVENTS.append(event)
+    if not _review_enabled() or not _needs_review(lines):
         return draft
-    t0 = time.monotonic()
-    reviewed, notes = review_markdown(draft, lines)
-    final = reviewed or draft
-    event.update({
-        "ran": True,
-        "seconds": round(time.monotonic() - t0, 3),
-        "draft_changed": final != draft,
-        "applied_patches": (notes or "").count("已替换"),
-    })
-    _REVIEW_EVENTS.append(event)
-    return final
+    reviewed, _notes = review_markdown(draft, lines)
+    return reviewed or draft
 
 
 def _fmt_ocr_exc(exc: BaseException) -> str:

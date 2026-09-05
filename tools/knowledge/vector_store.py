@@ -30,6 +30,21 @@ def _safe_name(name: str) -> str:
 # 每次嵌入请求的最大文本条数(硅基流动 API 单请求输入限制)
 EMBED_BATCH = 64
 
+# ── 短块嵌入带标题上下文（策略三）────────────────────────────
+# 短块（估算 token < 64）在向量空间中被少数词主导，缺章节语义；长块自身语义
+# 已足，加前缀反而稀释。64 ≈ 平均块长（约 100 token）的过半，低于它正文不足
+# 以自释上下文。嵌入输入 = heading_path_text + 正文；存储 document 与 metadata
+# 保持原文本——检索返回、RRF 融合键、cite 重合评分、块 ID 全部零影响。
+# 开关 KNOWLEDGE_EMBED_HEADING_PREFIX=0 关闭（A/B 用；切换后建议重建库保持
+# 全库向量口径一致——unchanged 块不重嵌，见 sync_files）。
+_HEADING_PREFIX_MAX_TOKENS = 64
+
+
+def _heading_prefix_enabled() -> bool:
+    return os.getenv("KNOWLEDGE_EMBED_HEADING_PREFIX", "1").strip().lower() not in {
+        "0", "false", "off", "no",
+    }
+
 # ── 混合检索辅助（#6 向量+关键词）─────────────────────────────
 # 查询关键词提取：只做形态与停用词过滤，不做语义分词。
 _QUERY_STOP = frozenset(
@@ -216,6 +231,24 @@ class EmbeddingClient:
         norm = sum(v * v for v in vec) ** 0.5 or 1.0
         return [v / norm for v in vec]
 
+    @staticmethod
+    def _embedding_input(chunk) -> str:
+        """嵌入输入组装：短块加 heading_path_text 前缀（策略三）。
+
+        只影响向量计算；块的存储 text / metadata / 块 ID 均不受影响。
+        无 heading_path_text 的块（xlsx/pdf 按页块等）自然回退纯文本。"""
+        text = str(getattr(chunk, "text", "") or "")
+        if not _heading_prefix_enabled():
+            return text
+        from .document_processor import _estimated_tokens
+
+        if _estimated_tokens(text) >= _HEADING_PREFIX_MAX_TOKENS:
+            return text
+        path = str((getattr(chunk, "metadata", {}) or {}).get("heading_path_text") or "").strip()
+        if not path:
+            return text
+        return f"{path}\n{text}"
+
 
 # ============================================================
 # VectorStore
@@ -259,68 +292,134 @@ class VectorStore:
         return internal
 
     # ---------------- 入库 ----------------
-    def sync_file(self, collection: str, filename: str, chunks: List) -> dict:
-        """增量同步一个文件的知识库内容(处理"用户更新/替换文件"场景):
-        - 计算新块 id 集合(md5(source+文本))
-        - 与集合中该 source 下已有块对比:
-            removed  = 旧版本独有(已被新版本删除的块)
-            added    = 新版本新增的块
-            unchanged= 新旧都有的块(不重复 embedding, upsert 覆盖即可)
-        - 删除 removed, upsert 新块
+    def sync_files(self, collection: str, items: List) -> List[dict]:
+        """批量增量同步多个文件（处理"用户更新/替换同名文件"场景）：
 
-        新文件: removed=0; 同名替换: 旧内容被清理; 重复上传同内容: 全部 unchanged。
+        - 逐文件按确定性块 ID（md5(scope+source+loc+text)）规划
+          removed/added/unchanged；
+        - 全部文件的 removed 合并一次 delete，全部 added 的文本合并**一次**
+          embedding 调用（API 往返与文件数无关）后合并 upsert；
+        - unchanged 块不写入：同 ID 即同文本，嵌入与内容均无变化（原实现会
+          全量重嵌 + upsert 覆盖，是纯浪费；元数据在同代码版本下也逐字相同）。
+
+        返回按输入顺序的逐文件结果，每项含：
+        - {"added","removed","unchanged"}：增量计数（与原 sync_file 口径一致）
+        - "chunks"：该文件入库后的全部块（added+unchanged，{"text","metadata"}），
+          供入库报告直接使用，免去事后全库扫描按 source 过滤。
         """
         coll = self.client.get_or_create_collection(
             name=self._internal(collection), metadata={"hnsw:space": "cosine"}
         )
-        new_ids = _unique_ids(chunks)
-        new_set = set(new_ids)
+        plans: List[dict] = []
+        for filename, chunks in items:
+            # embed() 会丢弃空文本并导致向量错位，这里在规划期显式排除空文本块
+            chunks = [
+                c for c in chunks
+                if str(getattr(c, "text", "") or "").strip()
+            ]
+            new_ids = _unique_ids(chunks)
+            new_set = set(new_ids)
+            chunk_by_id = dict(zip(new_ids, chunks))
 
-        # 该文件当前已有的块 id（行级模式按 owner/subject 限定，防跨用户同名文件误删）
-        existing_ids: set = set()
-        try:
-            cond: Dict = {"source": filename}
-            if chunks:
-                m0 = getattr(chunks[0], "metadata", {}) or {}
-                if m0.get("owner"):
-                    cond["owner"] = m0["owner"]
-                if m0.get("subject"):
-                    cond["subject"] = m0["subject"]
-            got = coll.get(where=_normalize_where(cond), include=["metadatas"])
-            existing_ids = {i for i in got.get("ids", [])}
-        except Exception:
-            pass   # where 过滤异常时保守处理: 仅 upsert 新块
+            # 该文件当前已有的块 id（行级模式按 owner/subject 限定，防跨用户同名文件误删）
+            existing_ids: set = set()
+            try:
+                cond: Dict = {"source": filename}
+                if chunks:
+                    m0 = getattr(chunks[0], "metadata", {}) or {}
+                    if m0.get("owner"):
+                        cond["owner"] = m0["owner"]
+                    if m0.get("subject"):
+                        cond["subject"] = m0["subject"]
+                got = coll.get(where=_normalize_where(cond), include=["metadatas"])
+                existing_ids = {i for i in got.get("ids", [])}
+            except Exception:
+                pass   # where 过滤异常时保守处理: 仅 upsert 新块
 
-        removed = sorted(existing_ids - new_set)
-        added = sorted(new_set - existing_ids)
-        unchanged = sorted(new_set & existing_ids)
-        if removed:
-            coll.delete(ids=removed)
+            added_ids = [i for i in new_ids if i not in existing_ids]
+            plans.append({
+                "filename": filename,
+                "chunks": chunks,
+                "added_ids": added_ids,
+                "added_chunks": [chunk_by_id[i] for i in added_ids],
+                "removed": sorted(existing_ids - new_set),
+                "unchanged": len(new_set & existing_ids),
+            })
 
-        # upsert 新块(相同 id 覆盖; unchanged 块 id 相同不产生实际写入)
+        all_removed = [i for p in plans for i in p["removed"]]
+        if all_removed:
+            coll.delete(ids=all_removed)
+
+        # 全部文件的 added 合并一次嵌入（嵌入是入库的 API 成本大头）；
+        # 嵌入输入经 _embedding_input 组装（短块带标题上下文），存储文本不变
+        added_chunks = [c for p in plans for c in p["added_chunks"]]
         import time
 
         t0 = time.monotonic()
-        texts = [c.text for c in chunks]
-        embeddings = self.embedding.embed(texts)
-        coll.upsert(ids=new_ids, embeddings=embeddings,
-                    documents=texts, metadatas=[dict(c.metadata) for c in chunks])
-        result = {"added": len(added), "removed": len(removed),
-                "unchanged": len(unchanged)}
+        if added_chunks:
+            embeddings = self.embedding.embed(
+                [EmbeddingClient._embedding_input(c) for c in added_chunks]
+            )
+            coll.upsert(
+                ids=[i for p in plans for i in p["added_ids"]],
+                embeddings=embeddings,
+                documents=[c.text for c in added_chunks],
+                metadatas=[dict(c.metadata) for c in added_chunks],
+            )
+        results: List[dict] = []
+        for p in plans:
+            results.append({
+                "added": len(p["added_ids"]),
+                "removed": len(p["removed"]),
+                "unchanged": p["unchanged"],
+                "chunks": [
+                    {"text": c.text, "metadata": dict(c.metadata)}
+                    for c in p["chunks"]
+                ],
+            })
         try:
             from tools.monitor.side import record_knowledge_ingest
 
             record_knowledge_ingest(
-                files=1,
-                added=result["added"],
-                removed=result["removed"],
-                unchanged=result["unchanged"],
+                files=len(plans),
+                added=sum(r["added"] for r in results),
+                removed=sum(r["removed"] for r in results),
+                unchanged=sum(r["unchanged"] for r in results),
                 seconds=time.monotonic() - t0,
                 collection=collection,
             )
         except Exception:  # noqa: BLE001
             pass
-        return result
+        return results
+
+    def delete_sources(
+        self,
+        collection: str,
+        filenames: List[str],
+        where: Optional[Dict] = None,
+    ) -> int:
+        """删除指定来源文件的全部块（行级 where 限定 owner/subject 防跨用户误删）。
+
+        用于"代际替换"场景：新版文件入库前清掉旧代来源的全部块。
+        返回实际删除的块数；来源不存在返回 0。
+        """
+        if not filenames:
+            return 0
+        try:
+            coll = self.client.get_collection(name=self._internal(collection))
+        except _COLLECTION_MISSING:
+            return 0
+        cond: Dict = {"source": {"$in": list(filenames)}}
+        if where:
+            cond.update(where)
+        try:
+            got = coll.get(where=_normalize_where(cond), include=[])
+        except Exception:
+            return 0
+        ids = list(got.get("ids", []))
+        if ids:
+            coll.delete(ids=ids)
+        return len(ids)
 
     # ---------------- 检索 ----------------
     def query(
@@ -436,8 +535,19 @@ class VectorStore:
         collection: str,
         filename: str = "",
         where: Optional[Dict] = None,
+        *,
+        with_metadata: bool = True,
+        with_text: bool = True,
     ) -> List[Dict]:
-        """列出某库中的块；可按来源文件/行级 where 过滤（多条件 AND）。"""
+        """列出某库中的块；可按来源文件/行级 where 过滤（多条件 AND）。
+
+        - with_metadata=False：只取 text（轻量扫描，供全库对比类消费方省 IO）；
+        - with_text=False：只取 metadata（标题/字段扫描类消费方，全库正文不进
+          内存——如目录 briefing 只消费 heading/score/kind 等元字段）；
+        - 两者不可同时为 False（无字段可返回）。
+        """
+        if not with_metadata and not with_text:
+            raise ValueError("list_chunks: with_metadata 与 with_text 不能同时为 False")
         try:
             coll = self.client.get_collection(name=self._internal(collection))
         except _COLLECTION_MISSING:
@@ -447,11 +557,29 @@ class VectorStore:
             cond["source"] = filename
         if where:
             cond.update(where)
+        include: List[str] = []
+        if with_text:
+            include.append("documents")
+        if with_metadata:
+            include.append("metadatas")
         got = coll.get(where=_normalize_where(cond) if cond else None,
-                       include=["documents", "metadatas"])
+                       include=include)
         docs = got.get("documents") or []
+        if not with_metadata:
+            return [{"text": text or ""} for text in docs]
         metas = got.get("metadatas") or []
         out: List[Dict] = []
+        if not with_text:
+            # 无正文档：返回项不含 text 键（消费方误用会立即暴露，而非静默空串）
+            for meta in metas:
+                out.append({"metadata": meta or {}})
+            try:
+                from tools.monitor.side import record_knowledge_search
+
+                record_knowledge_search(hits=len(out), collection=collection, kind="scan")
+            except Exception:  # noqa: BLE001
+                pass
+            return out
         for text, meta in zip(docs, metas):
             out.append({"text": text or "", "metadata": meta or {}})
         try:

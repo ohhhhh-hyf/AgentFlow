@@ -153,7 +153,76 @@ def _is_section_anchor(node: dict) -> bool:
     return bool(name and section and name == section)
 
 
+def _calculate_node_dimension(
+    name: str,
+    degree: int = 1,
+    max_degree: int = 1,
+    is_anchor: bool = False,
+) -> dict:
+    """计算能完全包裹住所有文字的节点尺寸、换行文本与最大换行宽度。"""
+    import math
+
+    n = len(name)
+    font_size = 15 if is_anchor else 12.5
+    char_w = font_size * 1.06
+    line_h = font_size * 1.36
+
+    # 1. 动态确定每行最适字符数，使长文本尽量呈现规整居中的矩形
+    if n <= 4:
+        chars_per_line = n
+    elif n <= 7:
+        chars_per_line = 3 if n in (5, 6) else 4
+    elif n <= 10:
+        chars_per_line = (n + 1) // 2
+    elif n <= 15:
+        chars_per_line = 5
+    elif n <= 21:
+        chars_per_line = 6
+    else:
+        chars_per_line = 7
+
+    # 2. 格式化 label 为均匀换行的文本
+    if "\n" in name:
+        lines_list = name.split("\n")
+    else:
+        lines_list = []
+        for i in range(0, n, chars_per_line):
+            lines_list.append(name[i : i + chars_per_line])
+
+    formatted_label = "\n".join(lines_list)
+    line_count = len(lines_list)
+    max_line_chars = max(len(l) for l in lines_list) if lines_list else 1
+
+    box_w = max_line_chars * char_w
+    box_h = line_count * line_h
+
+    # 3. 计算能够将该文本框完全容纳的外接圆直径
+    # 圆直径必须大于矩形对角线，并加上充足的呼吸衬距，确保圆弧绝不切割四角文字
+    diagonal = math.hypot(box_w, box_h)
+    margin = 32 if line_count > 1 else 24
+    text_based_size = int(math.ceil(diagonal + margin))
+
+    # 4. 结合度数与 anchor 设定下限
+    if is_anchor:
+        base_size = 112
+    else:
+        deg_ratio = degree / max(max_degree, 1)
+        base_size = int(60 + round(20 * deg_ratio))
+
+    final_size = max(text_based_size, base_size)
+    text_max_width = int(math.ceil(box_w + 6))
+
+    return {
+        "formatted_label": formatted_label,
+        "size": final_size,
+        "text_max_width": text_max_width,
+        "font_size": font_size,
+    }
+
+
 def _cytoscape_elements(nodes: list[dict], edges: list[dict]) -> list[dict]:
+    import math
+
     degrees = _node_degrees(nodes, edges)
     max_degree = max(degrees.values(), default=1)
     node_names = {
@@ -161,8 +230,43 @@ def _cytoscape_elements(nodes: list[dict], edges: list[dict]) -> list[dict]:
         for node in nodes
         if str(node.get("name") or "").strip()
     }
-    elements: list[dict] = []
+
+    # 确定性初始空间排布（按章节确定角度与向外辐射，保证每次同输入布局收敛完全一致）
+    sections_order: list[str] = []
+    section_to_nodes: dict[str, list[str]] = {}
     seen_nodes: set[str] = set()
+    for node in nodes:
+        name = str(node.get("name") or "").strip()
+        if not name or name in seen_nodes:
+            continue
+        seen_nodes.add(name)
+        sec = str(node.get("section") or "").strip() or "未分组"
+        if sec not in section_to_nodes:
+            sections_order.append(sec)
+            section_to_nodes[sec] = []
+        section_to_nodes[sec].append(name)
+
+    positions: dict[str, dict[str, float]] = {}
+    num_sec = max(len(sections_order), 1)
+    sec_radius = 280.0 if num_sec > 1 else 0.0
+    for s_idx, sec in enumerate(sections_order):
+        sec_names = section_to_nodes[sec]
+        s_angle = (2.0 * math.pi * s_idx) / num_sec
+        cx = sec_radius * math.cos(s_angle)
+        cy = sec_radius * math.sin(s_angle)
+        m = len(sec_names)
+        for n_idx, n_name in enumerate(sec_names):
+            if m == 1:
+                positions[n_name] = {"x": round(cx, 1), "y": round(cy, 1)}
+            else:
+                n_angle = s_angle + (2.0 * math.pi * n_idx) / m
+                dist = 85.0 + 35.0 * (n_idx % 3)
+                px = cx + dist * math.cos(n_angle)
+                py = cy + dist * math.sin(n_angle)
+                positions[n_name] = {"x": round(px, 1), "y": round(py, 1)}
+
+    elements: list[dict] = []
+    seen_nodes.clear()
     for node in nodes:
         name = str(node.get("name") or "").strip()
         if not name or name in seen_nodes:
@@ -170,22 +274,28 @@ def _cytoscape_elements(nodes: list[dict], edges: list[dict]) -> list[dict]:
         seen_nodes.add(name)
         degree = degrees.get(name, 0)
         is_anchor = _is_section_anchor(node)
-        size = 112 if is_anchor else 56 + round(30 * degree / max(max_degree, 1))
-        elements.append(
-            {
-                "data": {
-                    "id": name,
-                    "label": name,
-                    "type": str(node.get("type") or "").strip() or "concept",
-                    "definition": str(node.get("definition") or "").strip(),
-                    "section": str(node.get("section") or "").strip() or "未分组",
-                    "degree": degree,
-                    "size": size,
-                    "anchor": is_anchor,
-                    "origin": str(node.get("origin") or "").strip(),
-                }
-            }
+        dim = _calculate_node_dimension(
+            name, degree=degree, max_degree=max_degree, is_anchor=is_anchor
         )
+        item: dict[str, Any] = {
+            "data": {
+                "id": name,
+                "name": name,
+                "label": dim["formatted_label"],
+                "type": str(node.get("type") or "").strip() or "concept",
+                "definition": str(node.get("definition") or "").strip(),
+                "section": str(node.get("section") or "").strip() or "未分组",
+                "degree": degree,
+                "size": dim["size"],
+                "text_max_width": dim["text_max_width"],
+                "font_size": dim["font_size"],
+                "anchor": is_anchor,
+                "origin": str(node.get("origin") or "").strip(),
+            }
+        }
+        if name in positions:
+            item["position"] = positions[name]
+        elements.append(item)
     seen_edges: set[tuple[str, str, str]] = set()
     for index, edge in enumerate(edges):
         source = str(edge.get("source") or "").strip()
@@ -317,26 +427,6 @@ def build_graph_html(
       flex-direction: column;
       gap: 16px;
     }}
-    .aside-header {{
-      border-bottom: 2px solid #111111;
-      padding-bottom: 12px;
-    }}
-    h1 {{
-      margin: 0 0 6px;
-      font-size: 1.5rem;
-      line-height: 1.35;
-      font-weight: 700;
-      font-variant: small-caps;
-      letter-spacing: 0.4px;
-      color: #111111;
-    }}
-    .meta {{
-      color: #666666;
-      font-size: 12px;
-      line-height: 1.6;
-      font-style: italic;
-    }}
-
     /* Search Input */
     .search-wrap {{
       position: relative;
@@ -344,10 +434,10 @@ def build_graph_html(
     .search-input {{
       width: 100%;
       box-sizing: border-box;
-      padding: 8px 12px;
+      padding: 9px 12px;
       background: #faf9f6;
       border: 1px solid #d4d0c7;
-      border-radius: 3px;
+      border-radius: 4px;
       font-family: inherit;
       font-size: 13px;
       color: #111111;
@@ -357,7 +447,7 @@ def build_graph_html(
       outline: none;
       background: #ffffff;
       border-color: #0047ab;
-      box-shadow: 0 0 0 2px rgba(0, 71, 171, 0.15);
+      box-shadow: 0 0 0 2px rgba(0, 71, 171, 0.12);
     }}
 
     /* Filter Panel */
@@ -366,24 +456,14 @@ def build_graph_html(
       flex-direction: column;
       gap: 6px;
     }}
-    .filter-title {{
-      font-size: 11px;
-      font-weight: 700;
-      color: #333333;
-      text-transform: uppercase;
-      letter-spacing: 0.5px;
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-    }}
     .filter-toggles {{
       display: flex;
       flex-wrap: wrap;
       gap: 5px;
     }}
     .filter-tag {{
-      padding: 2px 8px;
-      font-size: 11px;
+      padding: 3px 9px;
+      font-size: 11.5px;
       font-weight: 600;
       border-radius: 3px;
       cursor: pointer;
@@ -403,249 +483,21 @@ def build_graph_html(
       border-color: #003380;
     }}
 
-    /* Detail Card */
-    .panel-head {{
-      font-size: 12px;
-      font-weight: 700;
-      color: #222222;
-      text-transform: uppercase;
-      letter-spacing: 0.5px;
-      border-bottom: 1px solid #e0dcd4;
-      padding-bottom: 5px;
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-    }}
-    .detail {{
-      border: 1px solid #dedad2;
-      border-radius: 4px;
-      padding: 16px;
-      background: #faf9f6;
-      line-height: 1.65;
-      font-size: 13px;
-      word-break: break-word;
-      box-shadow: 0 1px 4px rgba(0, 0, 0, 0.03);
-    }}
-    .name-row {{
-      display: flex;
-      align-items: flex-start;
-      justify-content: space-between;
-      gap: 8px;
-    }}
-    .detail .name {{
-      font-size: 1.25rem;
-      font-weight: 700;
-      color: #111111;
-      font-variant: small-caps;
-      letter-spacing: 0.3px;
-      line-height: 1.35;
-    }}
-
-    /* Badges */
-    .badge-group {{
-      display: flex;
-      flex-wrap: wrap;
-      gap: 5px;
-      margin: 8px 0 12px;
-    }}
-    .badge {{
-      display: inline-flex;
-      align-items: center;
-      gap: 3px;
-      padding: 1px 7px;
-      border-radius: 3px;
-      font-size: 11px;
-      font-weight: 600;
-      line-height: 1.5;
-      border: 1px solid transparent;
-      user-select: none;
-    }}
-    .badge-concept {{ background: #f0f4ff; color: #0047ab; border-color: #c6d7ff; }}
-    .badge-formula {{ background: #f6ffed; color: #237804; border-color: #b7eb8f; }}
-    .badge-method {{ background: #f9f0ff; color: #531dab; border-color: #d3adf7; }}
-    .badge-problem {{ background: #fff7e6; color: #d46b08; border-color: #ffd591; }}
-    .badge-pitfall {{ background: #fff1f0; color: #cf1322; border-color: #ffa39e; }}
-    .badge-hub {{ background: #fffbe6; color: #b78103; border-color: #ffe58f; font-weight: 700; }}
-    .badge-sub {{ background: #f5f5f5; color: #595959; border-color: #d9d9d9; }}
-    .badge-new {{ background: #fff8db; color: #b86a04; border-color: #ffe58f; font-weight: 700; }}
-    .badge-old {{ background: #f5f5f5; color: #595959; border-color: #d9d9d9; }}
-    .badge-section {{ background: #ffffff; color: #333333; border-color: #d4d0c7; font-weight: 500; }}
-
-    /* Definition Callout */
-    .def-box {{
-      background: #ffffff;
-      border: 1px solid #dedad2;
-      border-left: 3.5px solid #0047ab;
-      border-radius: 2px;
-      padding: 10px 14px;
-      font-size: 13px;
-      color: #222222;
-      line-height: 1.7;
-      margin-top: 4px;
-      font-style: italic;
-    }}
-
-    /* Reasoning Path Card */
-    .path-card {{
-      background: #ffffff;
-      border: 1px solid #dedad2;
-      border-radius: 4px;
-      padding: 14px;
-      margin: 14px 0;
-      box-shadow: 0 1px 4px rgba(0, 0, 0, 0.02);
-    }}
-    .path-card-title {{
-      font-size: 11px;
-      font-weight: 700;
-      color: #111111;
-      letter-spacing: 0.5px;
-      text-transform: uppercase;
-      border-bottom: 1px solid #eee9e0;
-      padding-bottom: 5px;
-      margin-bottom: 8px;
-      display: flex;
-      align-items: center;
-      gap: 5px;
-    }}
-    .path-row {{ margin-top: 6px; }}
-    .path-label {{
-      font-size: 11px;
-      font-weight: 600;
-      color: #555555;
-      margin-bottom: 4px;
-      display: flex;
-      align-items: center;
-      gap: 4px;
-    }}
-    .path-arrow {{
-      text-align: center;
-      color: #888888;
-      font-size: 11px;
-      margin: 3px 0;
-      font-weight: bold;
-    }}
-
-    /* Interactive Chips */
-    .detail .block {{ margin: 12px 0 0; }}
-    .detail .label {{
-      color: #444444;
-      font-size: 12px;
-      font-weight: 700;
-      letter-spacing: 0.3px;
-      margin-bottom: 5px;
-    }}
-    .detail .chips {{ display: flex; flex-wrap: wrap; gap: 6px; }}
-    .interactive-chip {{
-      display: inline-flex;
-      align-items: center;
-      gap: 3px;
-      padding: 2px 7px;
-      border-radius: 3px;
-      background: #ffffff;
-      border: 1px solid #d4d0c7;
-      color: #0047ab;
-      font-size: 12px;
-      font-weight: 600;
-      cursor: pointer;
-      user-select: none;
-      transition: all 0.15s ease;
-      text-decoration: none;
-    }}
-    .interactive-chip:hover {{
-      text-decoration: underline;
-      background: #e8f0fe;
-      border-color: #0047ab;
-      box-shadow: 0 1px 4px rgba(0, 71, 171, 0.15);
-    }}
-    .chip-prereq {{ background: #fff7e6; border-color: #ffd591; color: #d46b08; }}
-    .chip-app {{ background: #f0f4ff; border-color: #c6d7ff; color: #0047ab; }}
-    .chip-pitfall {{ background: #fff1f0; border-color: #ffa39e; color: #cf1322; }}
-    .chip-diff {{ background: #f9f0ff; border-color: #d3adf7; color: #531dab; }}
-
-    /* Edge Detail Card */
-    .edge-card {{
-      background: #ffffff;
-      border: 1px solid #dedad2;
-      border-radius: 4px;
-      padding: 14px;
-    }}
-    .edge-triplet {{
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      gap: 8px;
-      flex-wrap: wrap;
-      margin-bottom: 10px;
-      padding-bottom: 10px;
-      border-bottom: 1px dashed #dcd8cf;
-    }}
-    .edge-explanation {{
-      background: #f0f4ff;
-      border-left: 3.5px solid #0047ab;
-      border-radius: 2px;
-      padding: 8px 12px;
-      color: #003380;
-      font-size: 13px;
-      font-weight: 500;
-      line-height: 1.6;
-      margin: 8px 0;
-    }}
-    .edge-evidence-box {{
-      background: #faf9f6;
-      border: 1px solid #dedad2;
-      border-radius: 3px;
-      padding: 8px 12px;
-      color: #333333;
-      font-size: 12px;
-      line-height: 1.65;
-      font-style: italic;
-    }}
-    .edge-evidence-title {{
-      font-weight: 700;
-      color: #111111;
-      margin-bottom: 4px;
-      font-size: 11px;
-      font-style: normal;
-      display: flex;
-      align-items: center;
-      gap: 4px;
-    }}
-
-    /* Outgoing & Incoming Row */
-    .detail .rel {{
-      margin: 6px 0 0;
-      padding: 8px 10px;
-      background: #ffffff;
-      border: 1px solid #dedad2;
-      border-radius: 3px;
-      transition: border-color 0.15s ease;
-    }}
-    .detail .rel:hover {{ border-color: #b5b0a5; }}
-    .detail .rel-line {{
-      font-weight: 600;
-      color: #111111;
-      display: flex;
-      align-items: center;
-      flex-wrap: wrap;
-      gap: 5px;
-      font-size: 12px;
-    }}
-    .detail .ev {{
-      color: #444444;
-      font-size: 12px;
-      margin-top: 5px;
-      background: #faf9f6;
-      padding: 5px 8px;
-      border-radius: 2px;
-      border-left: 2px solid #b5b0a5;
-      line-height: 1.55;
-      font-style: italic;
-    }}
-
     /* Legend */
+    .panel-head {{
+      font-size: 11.5px;
+      font-weight: 700;
+      color: #333333;
+      letter-spacing: 0.5px;
+      border-bottom: 1px solid #e2ded6;
+      padding-bottom: 5px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }}
     .legend {{
       display: grid;
-      gap: 6px;
+      gap: 5px;
     }}
     .legend-item {{
       display: flex;
@@ -668,6 +520,278 @@ def build_graph_html(
       flex: 0 0 auto;
     }}
 
+    /* Detail Inspector (Placed below Legend) */
+    .detail-container {{
+      min-height: 160px;
+    }}
+    .detail-empty {{
+      border: 1px dashed #d6d1c7;
+      background: #faf9f6;
+      border-radius: 4px;
+      padding: 26px 16px;
+      text-align: center;
+      color: #736f66;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      transition: all 0.2s ease;
+    }}
+    .detail-empty .empty-icon {{
+      margin-bottom: 8px;
+      color: #8c857b;
+      opacity: 0.85;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }}
+    .detail-empty .empty-title {{
+      font-size: 13px;
+      font-weight: 700;
+      color: #2b2b2b;
+      margin-bottom: 4px;
+      letter-spacing: 0.2px;
+    }}
+    .detail-empty .empty-desc {{
+      font-size: 11.5px;
+      line-height: 1.55;
+      color: #7a756b;
+      max-width: 250px;
+      margin: 0 auto;
+    }}
+
+    /* Detail Card (When Selected) */
+    .detail-card {{
+      border: 1px solid #dedad2;
+      border-radius: 4px;
+      padding: 15px;
+      background: #faf9f6;
+      line-height: 1.6;
+      font-size: 13px;
+      word-break: break-word;
+      box-shadow: 0 1px 4px rgba(0, 0, 0, 0.03);
+    }}
+    .node-header {{
+      margin-bottom: 10px;
+    }}
+    .node-title {{
+      font-size: 1.2rem;
+      font-weight: 700;
+      color: #111111;
+      letter-spacing: 0.2px;
+      line-height: 1.35;
+      margin-bottom: 6px;
+    }}
+    .node-badges {{
+      display: flex;
+      flex-wrap: wrap;
+      gap: 5px;
+    }}
+
+    /* Badges */
+    .badge {{
+      display: inline-flex;
+      align-items: center;
+      gap: 3px;
+      padding: 1.5px 7px;
+      border-radius: 3px;
+      font-size: 11px;
+      font-weight: 600;
+      line-height: 1.5;
+      border: 1px solid transparent;
+      user-select: none;
+    }}
+    .badge-concept {{ background: #f0f4ff; color: #0047ab; border-color: #c6d7ff; }}
+    .badge-formula {{ background: #f6ffed; color: #237804; border-color: #b7eb8f; }}
+    .badge-method {{ background: #f9f0ff; color: #531dab; border-color: #d3adf7; }}
+    .badge-problem {{ background: #fff7e6; color: #d46b08; border-color: #ffd591; }}
+    .badge-pitfall {{ background: #fff1f0; color: #cf1322; border-color: #ffa39e; }}
+    .badge-muted {{ background: #f3f2ee; color: #595959; border-color: #dcd8cf; }}
+    .badge-new {{ background: #fffbe6; color: #b86a04; border-color: #ffe58f; font-weight: 700; }}
+    .badge-section {{ background: #ffffff; color: #333333; border-color: #d4d0c7; font-weight: 500; }}
+
+    /* Detail Blocks */
+    .detail-block {{
+      margin-top: 12px;
+    }}
+    .block-label {{
+      color: #4f4b44;
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 0.4px;
+      margin-bottom: 5px;
+    }}
+    .def-box {{
+      background: #ffffff;
+      border: 1px solid #dedad2;
+      border-left: 3px solid #0047ab;
+      border-radius: 2px;
+      padding: 9px 12px;
+      font-size: 12.5px;
+      color: #222222;
+      line-height: 1.65;
+    }}
+
+    /* Structural Relations */
+    .relation-grid {{
+      background: #ffffff;
+      border: 1px solid #dedad2;
+      border-radius: 3px;
+      padding: 8px 10px;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }}
+    .relation-row {{
+      display: flex;
+      align-items: flex-start;
+      gap: 8px;
+      font-size: 12px;
+      line-height: 1.5;
+    }}
+    .relation-kind {{
+      flex: 0 0 52px;
+      color: #666666;
+      font-size: 11px;
+      font-weight: 600;
+      padding-top: 2px;
+    }}
+    .relation-kind-warn {{ color: #cf1322; }}
+    .relation-kind-diff {{ color: #531dab; }}
+    .relation-chips {{
+      display: flex;
+      flex-wrap: wrap;
+      gap: 4px;
+      flex: 1;
+    }}
+
+    /* Interactive Chips */
+    .interactive-chip {{
+      display: inline-flex;
+      align-items: center;
+      gap: 2px;
+      padding: 2px 7px;
+      border-radius: 3px;
+      background: #ffffff;
+      border: 1px solid #d4d0c7;
+      color: #0047ab;
+      font-size: 11.5px;
+      font-weight: 600;
+      cursor: pointer;
+      user-select: none;
+      transition: all 0.15s ease;
+      text-decoration: none;
+    }}
+    .interactive-chip:hover {{
+      background: #f0f4ff;
+      border-color: #0047ab;
+      box-shadow: 0 1px 3px rgba(0, 71, 171, 0.15);
+    }}
+    .chip-prereq {{ background: #fffbf0; border-color: #ffe1b3; color: #b86a04; }}
+    .chip-app {{ background: #f0f7ff; border-color: #b9d8ff; color: #0047ab; }}
+    .chip-warn {{ background: #fff1f0; border-color: #ffa39e; color: #cf1322; }}
+    .chip-diff {{ background: #f9f0ff; border-color: #d3adf7; color: #531dab; }}
+
+    /* Edges List */
+    .edge-list {{
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }}
+    .edge-item {{
+      padding: 7px 9px;
+      background: #ffffff;
+      border: 1px solid #dedad2;
+      border-radius: 3px;
+      font-size: 12px;
+    }}
+    .edge-flow {{
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      flex-wrap: wrap;
+      font-weight: 600;
+      color: #111111;
+    }}
+    .edge-arrow {{
+      color: #888888;
+      font-size: 10px;
+    }}
+    .edge-ev {{
+      color: #4b4843;
+      font-size: 11.5px;
+      margin-top: 4px;
+      background: #faf9f6;
+      padding: 4px 8px;
+      border-radius: 2px;
+      border-left: 2px solid #b5b0a5;
+      line-height: 1.5;
+      font-style: italic;
+    }}
+
+    /* Edge Detail Card (When an edge is tapped) */
+    .edge-card {{
+      border: 1px solid #dedad2;
+      border-radius: 4px;
+      padding: 15px;
+      background: #faf9f6;
+      box-shadow: 0 1px 4px rgba(0, 0, 0, 0.03);
+    }}
+    .edge-triplet-flow {{
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      flex-wrap: wrap;
+      padding: 10px 6px;
+      background: #ffffff;
+      border: 1px solid #dedad2;
+      border-radius: 3px;
+    }}
+    .edge-arrow-label {{
+      padding: 2px 8px;
+      font-size: 11.5px;
+      font-weight: 700;
+      border-radius: 3px;
+      border: 1px solid transparent;
+    }}
+    .edge-evidence-box {{
+      background: #ffffff;
+      border: 1px solid #dedad2;
+      border-radius: 3px;
+      padding: 8px 12px;
+      color: #2b2b2b;
+      font-size: 12px;
+      line-height: 1.6;
+      font-style: italic;
+    }}
+    .edge-actions {{
+      display: flex;
+      gap: 8px;
+      margin-top: 12px;
+    }}
+    .nav-chip {{
+      flex: 1;
+      appearance: none;
+      border: 1px solid #d4d0c7;
+      background: #ffffff;
+      color: #0047ab;
+      padding: 6px 8px;
+      font-size: 11.5px;
+      font-weight: 600;
+      border-radius: 3px;
+      cursor: pointer;
+      transition: all 0.15s ease;
+      text-align: center;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }}
+    .nav-chip:hover {{
+      background: #f0f4ff;
+      border-color: #0047ab;
+    }}
+
     @media (max-width: 860px) {{
       .shell {{ grid-template-columns: 1fr; grid-template-rows: minmax(520px, 68vh) auto; }}
       aside {{ border-left: 0; border-top: 1.5px solid #d4d0c7; }}
@@ -679,41 +803,31 @@ def build_graph_html(
     <div class="canvas-container">
       <div class="canvas-toolbar">
         <button class="tool-btn" onclick="fitCanvas()">⟲ 适应画布</button>
-        <button class="tool-btn" id="btn-layout" onclick="toggleLayout(this)">⇄ 布局: 网状力导向 ▾</button>
         <button class="tool-btn" id="btn-backbone" onclick="toggleBackbone(this)">✦ 核心推导骨架</button>
         <button class="tool-btn" id="btn-new" onclick="toggleNewOnly(this)">★ 仅看本场新增</button>
       </div>
       <div id="cy"></div>
     </div>
     <aside>
-      <div class="aside-header">
-        <h1>{escape(title or "知识图谱")}</h1>
-        <div class="meta">滚轮缩放，拖动画布或节点。点击节点查看推导链、定义、出入边，点击边查看白话因果与原文证据。</div>
-      </div>
-
       <div class="search-wrap">
-        <input type="text" id="kg-search" class="search-input" placeholder="实时检索概念、公式、方法、题型... (Enter定位)" />
+        <input type="text" id="kg-search" class="search-input" placeholder="检索知识点、定理或题型..." autocomplete="off" />
       </div>
 
       <div class="filter-section">
-        <div class="filter-title">
-          <span>实体类别过滤 (Filters)</span>
-          <span style="font-size:10px;color:#888;cursor:pointer" onclick="resetTypeFilters()">全部点亮</span>
-        </div>
         <div class="filter-toggles">
-          <span class="filter-tag is-active" data-type="concept" onclick="toggleType('concept', this)">✔ 核心概念</span>
-          <span class="filter-tag is-active" data-type="formula" onclick="toggleType('formula', this)">✔ 公式定理</span>
-          <span class="filter-tag is-active" data-type="method" onclick="toggleType('method', this)">✔ 解法技巧</span>
-          <span class="filter-tag is-active" data-type="problem" onclick="toggleType('problem', this)">✔ 题型场景</span>
-          <span class="filter-tag is-active" data-type="pitfall" onclick="toggleType('pitfall', this)">✔ 易错警示</span>
+          <span class="filter-tag is-active" data-type="concept" onclick="toggleType('concept', this)">核心概念</span>
+          <span class="filter-tag is-active" data-type="formula" onclick="toggleType('formula', this)">公式定理</span>
+          <span class="filter-tag is-active" data-type="method" onclick="toggleType('method', this)">解法技巧</span>
+          <span class="filter-tag is-active" data-type="problem" onclick="toggleType('problem', this)">题型场景</span>
+          <span class="filter-tag is-active" data-type="pitfall" onclick="toggleType('pitfall', this)">易错警示</span>
         </div>
       </div>
 
-      <div class="panel-head">当前选中详情</div>
-      <div id="detail" class="detail">点击画布中的节点或连线，查看详细知识卡片与推导路径。</div>
-
-      <div class="panel-head">章节图例 (点击可高亮孤立章节)</div>
+      <div class="panel-head">章节图例</div>
       <div id="legend" class="legend"></div>
+
+      <div class="panel-head" style="margin-top: 8px;">详细信息</div>
+      <div id="detail" class="detail-container"></div>
     </aside>
   </div>
   <script src="{_CYTOSCAPE_CDN}"></script>
@@ -723,6 +837,23 @@ def build_graph_html(
     const relationColors = {dumps(_RELATION_COLORS, ensure_ascii=False)};
     const detail = document.getElementById('detail');
     const legend = document.getElementById('legend');
+
+    function renderEmptyState() {{
+      return `
+        <div class="detail-empty">
+          <div class="empty-icon">
+            <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#9e978e" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="6" cy="6" r="3"></circle>
+              <circle cx="18" cy="18" r="3"></circle>
+              <line x1="8.5" y1="8.5" x2="15.5" y2="15.5"></line>
+            </svg>
+          </div>
+          <div class="empty-title">未选择任何对象</div>
+          <div class="empty-desc">在左侧画布中点击任意节点或连线，查看完整定义、关联路径与原文依据</div>
+        </div>
+      `;
+    }}
+    detail.innerHTML = renderEmptyState();
 
     Object.entries(sectionColors).forEach(([name, color]) => {{
       const item = document.createElement('div');
@@ -758,9 +889,9 @@ def build_graph_html(
             style: {{
               'label': 'data(label)',
               'text-wrap': 'wrap',
-              'text-max-width': 96,
+              'text-max-width': ele => ele.data('text_max_width') || (ele.data('size') * 0.78),
               'font-family': '"Latin Modern Roman", "Computer Modern Roman", "Times New Roman", Times, "Songti SC", "SimSun", serif',
-              'font-size': ele => ele.data('anchor') ? 16 : 13,
+              'font-size': ele => ele.data('font_size') || (ele.data('anchor') ? 15 : 12.5),
               'font-weight': 700,
               'color': ele => ele.data('anchor') ? '#ffffff' : '#111111',
               'text-valign': 'center',
@@ -828,10 +959,10 @@ def build_graph_html(
         layout: {{
           name: 'cose',
           animate: false,
-          randomize: true,
-          componentSpacing: 100,
-          nodeRepulsion: 7600,
-          idealEdgeLength: edge => edge.data('relation') === '包含' || edge.data('relation') === '属于' ? 74 : 104,
+          randomize: false,
+          componentSpacing: 115,
+          nodeRepulsion: 9500,
+          idealEdgeLength: edge => edge.data('relation') === '包含' || edge.data('relation') === '属于' ? 88 : 120,
           edgeElasticity: 72,
           nestingFactor: 0.9,
           gravity: 0.52,
@@ -843,9 +974,17 @@ def build_graph_html(
         '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
       }})[ch]);
 
+      const cleanName = (val) => String(val || '').split(String.fromCharCode(10)).join('').split(String.fromCharCode(13)).join('').trim();
+
       window.focusNode = (name, ev) => {{
         if (ev) ev.stopPropagation();
-        const target = cy.nodes().filter(n => n.data('label') === name || n.id() === name);
+        const cleanTarget = cleanName(name);
+        const target = cy.nodes().filter(n => {{
+          const nName = cleanName(n.data('name'));
+          const nLabel = cleanName(n.data('label'));
+          const nId = String(n.id() || '').trim();
+          return nName === cleanTarget || nLabel === cleanTarget || nId === cleanTarget;
+        }});
         if (target.length) {{
           cy.animate({{
             center: {{ eles: target }},
@@ -857,20 +996,6 @@ def build_graph_html(
         }}
       }};
 
-      const explainEdge = (src, rel, tgt) => {{
-        const t = {{
-          '前提': `“【${{src}}】是【${{tgt}}】能够成立或使用的必要前置条件。”`,
-          '用于': `“以【${{src}}】为核心解题工具/方法，用于攻克【${{tgt}}】。”`,
-          '包含': `“【${{src}}】涵盖了【${{tgt}}】这一关键要素或子范畴。”`,
-          '属于': `“【${{src}}】归属于【${{tgt}}】这一上位范畴或章节。”`,
-          '转化': `“将复杂的【${{src}}】等价转化为更易处理的【${{tgt}}】。”`,
-          '等价于': `“【${{src}}】与【${{tgt}}】充要等价，二者在逻辑上完全互推。”`,
-          '区别于': `“【${{src}}】与【${{tgt}}】存在本质判定边界，解题时切忌混淆。”`,
-          '导致': `“若发生【${{src}}】，将直接引发【${{tgt}}】的计算或逻辑错误。”`
-        }};
-        return t[rel] || `“【${{src}}】与【${{tgt}}】通过【${{rel}}】紧密关联。”`;
-      }};
-
       // ── Step 3 工具箱交互逻辑 ──────────────────────────────
       window.fitCanvas = () => {{
         cy.animate({{
@@ -878,36 +1003,6 @@ def build_graph_html(
           duration: 400,
           easing: 'ease-in-out-cubic'
         }});
-      }};
-
-      let currentLayoutName = 'cose';
-      window.toggleLayout = (btn) => {{
-        if (currentLayoutName === 'cose') {{
-          currentLayoutName = 'breadthfirst';
-          btn.textContent = '⇄ 布局: 层级推导树 ▾';
-          btn.classList.add('is-active');
-          cy.layout({{
-            name: 'breadthfirst',
-            directed: true,
-            spacingFactor: 1.25,
-            animate: true,
-            animationDuration: 550,
-            roots: cy.nodes().filter(n => n.data('anchor') || n.incomers('edge').length === 0)
-          }}).run();
-        }} else {{
-          currentLayoutName = 'cose';
-          btn.textContent = '⇄ 布局: 网状力导向 ▾';
-          btn.classList.remove('is-active');
-          cy.layout({{
-            name: 'cose',
-            animate: true,
-            animationDuration: 550,
-            componentSpacing: 100,
-            nodeRepulsion: 7600,
-            idealEdgeLength: edge => edge.data('relation') === '包含' || edge.data('relation') === '属于' ? 74 : 104,
-            gravity: 0.52
-          }}).run();
-        }}
       }};
 
       let backboneOnly = false;
@@ -992,11 +1087,11 @@ def build_graph_html(
         }}
         cy.elements().addClass('faded');
         const matches = cy.nodes().filter(n => {{
-          const label = (n.data('label') || '').toLowerCase();
+          const name = String(n.data('name') || n.data('label') || '').toLowerCase();
           const def = (n.data('definition') || '').toLowerCase();
           const sec = (n.data('section') || '').toLowerCase();
           const type = (n.data('type') || '').toLowerCase();
-          return label.includes(q) || def.includes(q) || sec.includes(q) || type.includes(q);
+          return name.includes(q) || def.includes(q) || sec.includes(q) || type.includes(q);
         }});
         matches.removeClass('faded');
         matches.connectedEdges().removeClass('faded');
@@ -1005,9 +1100,12 @@ def build_graph_html(
       searchInput.addEventListener('keydown', (e) => {{
         if (e.key === 'Enter') {{
           const q = e.target.value.trim().toLowerCase();
-          const matches = cy.nodes().filter(n => (n.data('label') || '').toLowerCase().includes(q));
+          const matches = cy.nodes().filter(n => {{
+            const name = String(n.data('name') || n.data('label') || '').toLowerCase();
+            return name.includes(q);
+          }});
           if (matches.length) {{
-            focusNode(matches[0].data('label'));
+            focusNode(matches[0].data('name') || matches[0].data('label'));
           }}
         }}
       }});
@@ -1027,38 +1125,39 @@ def build_graph_html(
         const ntype = node.data('type') || 'concept';
 
         const typeConfig = {{
-          'concept': {{ label: '核心概念', cls: 'badge-concept' }},
-          'formula': {{ label: '公式定理', cls: 'badge-formula' }},
-          'method': {{ label: '解法技巧', cls: 'badge-method' }},
-          'problem': {{ label: '题型场景', cls: 'badge-problem' }},
-          'pitfall': {{ label: '易错警示', cls: 'badge-pitfall' }}
+          'concept': {{ label: '概念', cls: 'badge-concept' }},
+          'formula': {{ label: '公式', cls: 'badge-formula' }},
+          'method': {{ label: '解法', cls: 'badge-method' }},
+          'problem': {{ label: '题型', cls: 'badge-problem' }},
+          'pitfall': {{ label: '警示', cls: 'badge-pitfall' }}
         }};
-        const typeBadge = `<span class="badge ${{typeConfig[ntype]?.cls || 'badge-concept'}}">${{typeConfig[ntype]?.label || '核心概念'}}</span>`;
-        const hubBadge = degree >= 4 
-          ? `<span class="badge badge-hub">★ 核心枢纽 · ${{degree}}条关联</span>` 
-          : `<span class="badge badge-sub">${{degree}}条关联</span>`;
-
+        const typeBadge = `<span class="badge ${{typeConfig[ntype]?.cls || 'badge-concept'}}">${{typeConfig[ntype]?.label || '概念'}}</span>`;
         const origin = node.data('origin');
         const originBadge = origin === 'new'
-          ? '<span class="badge badge-new">新增 (本场)</span>'
+          ? '<span class="badge badge-new">新增</span>'
           : origin === 'history'
-            ? '<span class="badge badge-old">历史 (已有)</span>'
+            ? '<span class="badge badge-muted">历史</span>'
             : '';
 
-        // 1. 推导路径计算 (Reasoning Path)
-        // 先修必备：入边为 前提 或 包含
+        const nodeName = esc(node.data('name') || node.data('label'));
+
+        // 1. 结构关联 (Prerequisites, Applications, Pitfalls, Distinctions)
         const prereqEdges = incoming.filter(e => ['前提', '前置', '包含'].includes(e.data('relation')));
         const prereqHtml = prereqEdges.length
-          ? prereqEdges.map(e => `<span class="interactive-chip chip-prereq" onclick="focusNode('${{esc(e.source().data('label'))}}', event)">◲ ${{esc(e.source().data('label'))}}</span>`).join('')
-          : '<span class="ev" style="margin:0">无特定前置条件</span>';
+          ? prereqEdges.map(e => {{
+              const src = esc(e.source().data('name') || e.source().data('label'));
+              return `<span class="interactive-chip chip-prereq" onclick="focusNode('${{src}}', event)">${{src}}</span>`;
+            }}).join('')
+          : '';
 
-        // 实战应用：出边为 用于 或 转化
         const appEdges = outgoing.filter(e => ['用于', '转化'].includes(e.data('relation')));
         const appHtml = appEdges.length
-          ? appEdges.map(e => `<span class="interactive-chip chip-app" onclick="focusNode('${{esc(e.target().data('label'))}}', event)">◳ ${{esc(e.target().data('label'))}}</span>`).join('')
-          : '<span class="ev" style="margin:0">暂无下游应用</span>';
+          ? appEdges.map(e => {{
+              const tgt = esc(e.target().data('name') || e.target().data('label'));
+              return `<span class="interactive-chip chip-app" onclick="focusNode('${{tgt}}', event)">${{tgt}}</span>`;
+            }}).join('')
+          : '';
 
-        // 易错警示：导致 边或与 pitfall 相连
         const pitfallEdges = node.connectedEdges().filter(e => {{
           if (e.data('relation') === '导致') return true;
           const other = e.source().id() === node.id() ? e.target() : e.source();
@@ -1067,103 +1166,113 @@ def build_graph_html(
         const pitfallHtml = pitfallEdges.length
           ? pitfallEdges.map(e => {{
               const other = e.source().id() === node.id() ? e.target() : e.source();
-              return `<span class="interactive-chip chip-pitfall" onclick="focusNode('${{esc(other.data('label'))}}', event)">⚠ ${{esc(other.data('label'))}}</span>`;
+              const otherName = esc(other.data('name') || other.data('label'));
+              return `<span class="interactive-chip chip-warn" onclick="focusNode('${{otherName}}', event)">${{otherName}}</span>`;
             }}).join('')
           : '';
 
-        // 对照辨析：区别于
         const diffEdges = node.connectedEdges().filter(e => e.data('relation') === '区别于');
         const diffHtml = diffEdges.length
           ? diffEdges.map(e => {{
               const other = e.source().id() === node.id() ? e.target() : e.source();
-              return `<span class="interactive-chip chip-diff" onclick="focusNode('${{esc(other.data('label'))}}', event)">⇄ ${{esc(other.data('label'))}}</span>`;
+              const otherName = esc(other.data('name') || other.data('label'));
+              return `<span class="interactive-chip chip-diff" onclick="focusNode('${{otherName}}', event)">${{otherName}}</span>`;
             }}).join('')
           : '';
 
-        // 2. 出入边列表
-        const relBlock = (edge, isOut) => {{
+        const hasStructural = prereqHtml || appHtml || pitfallHtml || diffHtml;
+
+        // 2. 出入边列表与佐证
+        const edgeItemHtml = (edge, isOut) => {{
           const other = isOut ? edge.target() : edge.source();
-          const otherName = esc(other.data('label'));
+          const otherName = esc(other.data('name') || other.data('label'));
           const relName = esc(edge.data('relation') || '相关');
           const color = relationColors[relName] || '#64748b';
+          const ev = edge.data('evidence');
           return `
-            <div class="rel">
-              <div class="rel-line">
-                ${{isOut ? `本节点 ➔ <span class="badge" style="background:${{color}}15;color:${{color}};border:1px solid ${{color}}40">${{relName}}</span> ➔ <span class="interactive-chip" onclick="focusNode('${{otherName}}', event)">${{otherName}}</span>` : `<span class="interactive-chip" onclick="focusNode('${{otherName}}', event)">${{otherName}}</span> ➔ <span class="badge" style="background:${{color}}15;color:${{color}};border:1px solid ${{color}}40">${{relName}}</span> ➔ 本节点`}}
+            <div class="edge-item">
+              <div class="edge-flow">
+                ${{isOut 
+                  ? `<span>本概念</span> <span class="edge-arrow">─</span> <span class="badge" style="background:${{color}}15;color:${{color}};border-color:${{color}}40">${{relName}}</span> <span class="edge-arrow">─▸</span> <span class="interactive-chip" onclick="focusNode('${{otherName}}', event)">${{otherName}}</span>`
+                  : `<span class="interactive-chip" onclick="focusNode('${{otherName}}', event)">${{otherName}}</span> <span class="edge-arrow">─</span> <span class="badge" style="background:${{color}}15;color:${{color}};border-color:${{color}}40">${{relName}}</span> <span class="edge-arrow">─▸</span> <span>本概念</span>`
+                }}
               </div>
-              <div class="ev">${{esc(edge.data('evidence') || '暂无原文证据')}}</div>
-            </div>`;
+              ${{ev ? `<div class="edge-ev">“${{esc(ev)}}”</div>` : ''}}
+            </div>
+          `;
         }};
 
-        const outHtml = outgoing.length
-          ? outgoing.map(e => relBlock(e, true)).join('')
-          : '<div class="ev">暂无出边</div>';
-        const inHtml = incoming.length
-          ? incoming.map(e => relBlock(e, false)).join('')
-          : '<div class="ev">暂无入边</div>';
+        const allEdgesList = [
+          ...outgoing.map(e => edgeItemHtml(e, true)),
+          ...incoming.map(e => edgeItemHtml(e, false))
+        ].join('');
 
-        // 3. 同章节伙伴
+        // 3. 同章其他知识点
         const currentSection = node.data('section');
         const cohortNodes = cy.nodes().filter(n => n.id() !== node.id() && n.data('section') === currentSection);
         const cohortHtml = cohortNodes.length
-          ? cohortNodes.slice(0, 8).map(n => `<span class="interactive-chip" onclick="focusNode('${{esc(n.data('label'))}}', event)">${{esc(n.data('label'))}}</span>`).join('')
-          : '<span class="ev" style="margin:0">本章暂无其他节点</span>';
+          ? cohortNodes.slice(0, 8).map(n => {{
+              const cName = esc(n.data('name') || n.data('label'));
+              return `<span class="interactive-chip" onclick="focusNode('${{cName}}', event)">${{cName}}</span>`;
+            }}).join('')
+          : '';
 
-        // 渲染完整立体卡片
+        // 渲染完整节点详情
         detail.innerHTML = `
-          <div class="name-row">
-            <div class="name">${{esc(node.data('label'))}}</div>
-          </div>
-          <div class="badge-group">
-            ${{typeBadge}}
-            ${{hubBadge}}
-            ${{originBadge}}
-            <span class="badge badge-section">§ ${{esc(node.data('section') || '未分组')}}</span>
-          </div>
+          <div class="detail-card">
+            <div class="node-header">
+              <div class="node-title">${{nodeName}}</div>
+              <div class="node-badges">
+                ${{typeBadge}}
+                <span class="badge badge-section">§ ${{esc(node.data('section') || '未分组')}}</span>
+                <span class="badge badge-muted">${{degree}} 条关联</span>
+                ${{originBadge}}
+              </div>
+            </div>
 
-          <div class="block">
-            <div class="label">定义 / 原文首次展开</div>
-            <div class="def-box">${{esc(node.data('definition') || '原文未给出独立定义句')}}</div>
-          </div>
+            <div class="detail-block">
+              <div class="block-label">定义与阐述</div>
+              <div class="def-box">${{esc(node.data('definition') || '原文未给出独立定义句')}}</div>
+            </div>
 
-          <div class="path-card">
-            <div class="path-card-title">✦ 知识推导路径 (Reasoning Path)</div>
-            <div class="path-row">
-              <div class="path-label">◲ 先修必备 (Prerequisites):</div>
-              <div class="chips">${{prereqHtml}}</div>
-            </div>
-            <div class="path-arrow">↓ 支撑前置</div>
-            <div class="path-row">
-              <div class="path-label">◉ 当前知识点: <strong>${{esc(node.data('label'))}}</strong></div>
-            </div>
-            <div class="path-arrow">↓ 实战推导</div>
-            <div class="path-row">
-              <div class="path-label">◳ 实战应用 (Applications):</div>
-              <div class="chips">${{appHtml}}</div>
-            </div>
-            ${{pitfallHtml ? `
-            <div class="path-row" style="margin-top:8px;padding-top:6px;border-top:1px dashed #fecaca">
-              <div class="path-label" style="color:#cf1322">⚠ 易错警示 / 边界限制:</div>
-              <div class="chips">${{pitfallHtml}}</div>
+            ${{hasStructural ? `
+            <div class="detail-block">
+              <div class="block-label">结构关联</div>
+              <div class="relation-grid">
+                ${{prereqHtml ? `
+                <div class="relation-row">
+                  <span class="relation-kind">前置前提</span>
+                  <div class="relation-chips">${{prereqHtml}}</div>
+                </div>` : ''}}
+                ${{appHtml ? `
+                <div class="relation-row">
+                  <span class="relation-kind">后续应用</span>
+                  <div class="relation-chips">${{appHtml}}</div>
+                </div>` : ''}}
+                ${{pitfallHtml ? `
+                <div class="relation-row">
+                  <span class="relation-kind relation-kind-warn">易错警示</span>
+                  <div class="relation-chips">${{pitfallHtml}}</div>
+                </div>` : ''}}
+                ${{diffHtml ? `
+                <div class="relation-row">
+                  <span class="relation-kind relation-kind-diff">对照辨析</span>
+                  <div class="relation-chips">${{diffHtml}}</div>
+                </div>` : ''}}
+              </div>
             </div>` : ''}}
-            ${{diffHtml ? `
-            <div class="path-row" style="margin-top:6px">
-              <div class="path-label" style="color:#531dab">⇄ 对照辨析:</div>
-              <div class="chips">${{diffHtml}}</div>
-            </div>` : ''}}
-          </div>
 
-          <div class="block">
-            <div class="label">出边 (该知识点推向)</div>
-            ${{outHtml}}
-          </div>
-          <div class="block">
-            <div class="label">入边 (支撑该知识点)</div>
-            ${{inHtml}}
-          </div>
-          <div class="block">
-            <div class="label">同章知识伙伴 (§ ${{esc(currentSection || '未分组')}})</div>
-            <div class="chips">${{cohortHtml}}</div>
+            ${{allEdgesList ? `
+            <div class="detail-block">
+              <div class="block-label">关系明细与原文佐证</div>
+              <div class="edge-list">${{allEdgesList}}</div>
+            </div>` : ''}}
+
+            ${{cohortHtml ? `
+            <div class="detail-block">
+              <div class="block-label">同章其他知识点</div>
+              <div class="relation-chips">${{cohortHtml}}</div>
+            </div>` : ''}}
           </div>
         `;
       }});
@@ -1175,34 +1284,41 @@ def build_graph_html(
         edge.removeClass('faded').addClass('selected');
         edge.connectedNodes().removeClass('faded').addClass('selected');
 
-        const srcName = esc(edge.source().data('label'));
-        const tgtName = esc(edge.target().data('label'));
+        const srcName = esc(edge.source().data('name') || edge.source().data('label'));
+        const tgtName = esc(edge.target().data('name') || edge.target().data('label'));
         const relName = esc(edge.data('label') || '相关');
         const relColor = relationColors[relName] || '#0047ab';
-        const explanation = explainEdge(srcName, relName, tgtName);
-        const evidence = esc(edge.data('evidence') || '原文暂无直接引句');
+        const evidence = esc(edge.data('evidence') || '');
 
         detail.innerHTML = `
           <div class="edge-card">
-            <div class="edge-triplet">
+            <div class="edge-triplet-flow">
               <span class="interactive-chip" onclick="focusNode('${{srcName}}', event)">${{srcName}}</span>
-              <span class="badge" style="background:${{relColor}}15;color:${{relColor}};border:1px solid ${{relColor}}50;font-size:12px;font-weight:700;padding:2px 10px">${{relName}}</span>
+              <span class="edge-arrow-label" style="background:${{relColor}}15;color:${{relColor}};border-color:${{relColor}}40">
+                ── ${{relName}} ──▸
+              </span>
               <span class="interactive-chip" onclick="focusNode('${{tgtName}}', event)">${{tgtName}}</span>
             </div>
-            <div class="edge-explanation">${{explanation}}</div>
-            <div class="edge-evidence-box">
-              <div class="edge-evidence-title">📖 原文出处与证据支撑</div>
-              <div>${{evidence}}</div>
+
+            <div class="detail-block" style="margin-top: 12px;">
+              <div class="block-label">原文证据支撑</div>
+              <div class="edge-evidence-box">
+                ${{evidence ? `“${{evidence}}”` : '<span style="color:#8c857b;font-style:normal">（由正文上下文逻辑直接关联，未提取独立引句）</span>'}}
+              </div>
+            </div>
+
+            <div class="edge-actions">
+              <button class="nav-chip" onclick="focusNode('${{srcName}}', event)">定位起点：${{srcName}}</button>
+              <button class="nav-chip" onclick="focusNode('${{tgtName}}', event)">定位终点：${{tgtName}}</button>
             </div>
           </div>
-          <div class="meta" style="margin-top:12px;text-align:center;font-size:12px">点击上方概念标签可直接在画布中平滑飞入定位</div>
         `;
       }});
 
       cy.on('tap', event => {{
         if (event.target === cy) {{
           cy.elements().removeClass('faded selected');
-          detail.textContent = '点击画布中的节点或连线，查看详细知识卡片与推导路径。';
+          detail.innerHTML = renderEmptyState();
         }}
       }});
     }}

@@ -5,6 +5,7 @@ import logging
 import os
 import re
 from concurrent.futures import ThreadPoolExecutor
+from fnmatch import fnmatch
 from pathlib import Path
 from typing import Any
 
@@ -16,11 +17,15 @@ logger = logging.getLogger("agentflow")
 _FILE_MARK = "【入库文件】"
 _UNIT_CAP = 12
 IMAGE_EXTS = {".png", ".jpg", ".jpeg"}
+# 图片合并稿的来源命名协议（tools/ocr/levels/light.py::next_batch_version_stem）：
+# 每批图片生成 ocr_<时间戳>.md。新批次入库前按此模式清掉同 owner+subject 的旧代，
+# 防止"同一批图片重传"在库里堆积内容双份（同名替换机制覆盖不到跨文件名的批次）。
+_OCR_SOURCE_GLOB = "ocr_*.md"
 _SENT_SPLIT = re.compile(r"(?<=[。！？；!\?\n])")
 _ITEM_ONLY_TAGS = {"example", "mistake"}
 _ITEM_ONLY_HEAD_RE = re.compile(r"(例题|易错|注意|步骤|题型|技巧|提醒|小结|总结)")
 _CHROME_RE = re.compile(
-    r"(https?://|www\.|\.com\b|模板网|ppt\s*模板|版权所有|请勿转载|内部资料)",
+    r"(https?://|www\.|\.com\b|版权所有|请勿转载|内部资料|转载请注明)",
     re.I,
 )
 _CHROME_EXACT = {
@@ -133,6 +138,35 @@ def _ocr_images_to_library_markdown(
     return saved.reviewed_path
 
 
+def _prune_stale_ocr_sources(
+    kb: KnowledgeTool, user_id: str, subject: str, keep: str
+) -> int:
+    """清掉同 owner+subject 下旧批次的图片合并稿块（保留本次 keep 文件）。
+
+    图片每批合并为新命名的 md，同名替换机制覆盖不到跨批次——旧代块会与
+    新代内容双份共存。在新批次入库前按来源命名协议清理。返回删除块数。"""
+    try:
+        names = kb.list_files(user_id=user_id, subject=subject) or []
+    except Exception:
+        return 0
+    stale = [
+        name
+        for name in names
+        if fnmatch(name, _OCR_SOURCE_GLOB) and name != keep
+    ]
+    if not stale:
+        return 0
+    try:
+        removed = kb.delete_sources(stale, user_id=user_id, subject=subject)
+    except Exception:
+        return 0
+    if removed:
+        logger.info(
+            "[资料入库] 图片代际清理：移除旧批次来源 %s（%d 块）", stale, removed
+        )
+    return removed
+
+
 def _compact(text: str) -> str:
     return re.sub(r"\s+", "", (text or "").lstrip("\ufeff"))
 
@@ -241,10 +275,13 @@ def _is_chrome(text: str) -> bool:
 
 
 def _safe_chunks(
-    kb: KnowledgeTool, user_id: str = "", subject: str = ""
+    kb: KnowledgeTool, user_id: str = "", subject: str = "", *, with_metadata: bool = True
 ) -> list[dict[str, Any]]:
     try:
-        return list(kb.list_chunks(user_id=user_id, subject=subject) or [])
+        return list(
+            kb.list_chunks(user_id=user_id, subject=subject, with_metadata=with_metadata)
+            or []
+        )
     except Exception:
         return []
 
@@ -256,22 +293,24 @@ def ingest_library(
     subject: str = "",
 ) -> dict[str, Any]:
     doc_paths, image_paths = _split_library_inputs(paths)
-    before = _safe_chunks(kb, user_id, subject)
+    # 增量对比基准：全库已入库文本（只取 text，不拉 metadata，省全库 IO）
+    before = _safe_chunks(kb, user_id, subject, with_metadata=False)
     old_texts = [str(item.get("text") or "") for item in before]
     files: list[dict[str, str]] = []
+    # 入库报告的块来源：add_files/add_file 返回的该文件全部块明细
+    # （added+unchanged，等价于旧实现"入库后全库扫描按 source 过滤"的结果，免二次扫描）
+    new_chunks: list[dict[str, Any]] = []
 
-    def add_one(path: Path) -> None:
-        print(f"[资料入库] 非图片/Markdown 入库：{path.name}", flush=True)
-        logger.info("[资料入库] 非图片/Markdown 入库：%s", path.name)
-        stat = kb.add_file(str(path), user_id=user_id, subject=subject)
+    def _record_file(name: str, stat: dict[str, Any]) -> None:
         files.append(
             {
-                "name": path.name,
+                "name": name,
                 "added": str(stat.get("added") or 0),
                 "removed": str(stat.get("removed") or 0),
                 "unchanged": str(stat.get("unchanged") or 0),
             }
         )
+        new_chunks.extend(stat.get("chunks") or [])
 
     ocr_path: Path | None = None
     ocr_error = ""
@@ -302,8 +341,14 @@ def ingest_library(
             if image_paths
             else None
         )
-        for path in doc_paths:
-            add_one(path)
+        if doc_paths:
+            results = kb.add_files(
+                [str(path) for path in doc_paths], user_id=user_id, subject=subject
+            )
+            for path, stat in zip(doc_paths, results):
+                print(f"[资料入库] 非图片/Markdown 入库：{path.name}", flush=True)
+                logger.info("[资料入库] 非图片/Markdown 入库：%s", path.name)
+                _record_file(path.name, stat)
         if ocr_future is not None:
             try:
                 ocr_path = ocr_future.result()
@@ -311,14 +356,10 @@ def ingest_library(
                 ocr_error = str(exc).strip() or repr(exc)
 
     if ocr_path is not None:
-        add_one(ocr_path)
-    incoming_names = {item["name"] for item in files}
-    after = _safe_chunks(kb, user_id, subject)
-    new_chunks = [
-        item
-        for item in after
-        if str((item.get("metadata") or {}).get("source") or "") in incoming_names
-    ]
+        print(f"[资料入库] 非图片/Markdown 入库：{ocr_path.name}", flush=True)
+        logger.info("[资料入库] 非图片/Markdown 入库：%s", ocr_path.name)
+        _prune_stale_ocr_sources(kb, user_id, subject, keep=ocr_path.name)
+        _record_file(ocr_path.name, kb.add_file(str(ocr_path), user_id=user_id, subject=subject))
     increment_items: list[dict[str, str]] = []
     by_file: dict[str, int] = {}
     seen_texts = list(old_texts)

@@ -403,8 +403,7 @@ def _line_text(line: dict) -> str:
 def _optional_conf(line: dict) -> float | None:
     """缺失或全 0 视为 unknown，不写成 conf=0。
 
-    候选字段名按优先级（服务端实际命名见取证：
-    ocr_baseline/server_ocr_probe.py 会列出响应行节点全部字段与置信类键）：
+    候选字段名按优先级（服务端实际命名以响应体为准）：
     confidence / conf / score / prob / probability / accuracy 等（含嵌套）。
     当前观测：服务端响应未带出任何置信字段 → 返回 None。
     """

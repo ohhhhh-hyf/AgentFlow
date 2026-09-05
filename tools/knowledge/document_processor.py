@@ -22,6 +22,76 @@ _OCR_NOISE_RE = re.compile(
     r"^(?:NOTEBOOK|NO\.?|No\.?|DATE|Date|日期|页码|第\s*\d+\s*页|Page\s*\d+)\s*[:：]?\s*\w*\s*$",
     re.I,
 )
+
+# ── 入库侧页框/噪声行清洗（策略二）────────────────────────────
+# 与 tools/ocr/reconstruct.py 的管线噪声口径同源，全部为「功能形态 + 文件内
+# 结构规则」，不含任何机构名/学科词/语料特征：
+#   · 页码/页框行：第X页 / page N / p. N / no N 等页序标记形态；
+#   · 联系方式/版权行：tel/电话/传真/邮箱/网址/©/版权所有/copyright 形态；
+#   · 纯符号残渣行：只由数字与标点符号构成、无任何可读字符的行；
+#   · 乱码形态行：非公式、可读字符（字母/数字/汉字）占非空白字符比 < 0.5 的行
+#     （OCR 错读把版面元素读成符号残渣的形态特征；公式行豁免——LaTeX 本身
+#     符号密度高，由 _FORMULA_RE 判定）；
+#   · 重复页框行：同一文件内出现 ≥2 次的「短、无句读、非标题/列表/表格/公式」
+#     行。页眉页脚的本质就是每页重复的框内元素——这是结构判据，与内容语种
+#     无关（可覆盖任何语言的机构残行，无需认识它）。
+_PAGEBOX_RE = re.compile(
+    r"^(?:第\s*[0-9一二三四五六七八九十百]+\s*页|page\s*\d+|p\.?\s*\d+|no\.?\s*\d*)\s*[:：]?\s*$",
+    re.I,
+)
+_CONTACT_RE = re.compile(
+    r"tel[:：]?\s*[+\d]|电话[:：]|传真[:：]|@[\w-]+\.[\w.]+|https?://|www\.\w"
+    r"|©|版权所有|copyright|all\s+rights\s+reserved",
+    re.I,
+)
+_SYMBOLS_ONLY_RE = re.compile(r"^[\d\s\-–—:：.．,，;；/\\|()（）\[\]{}<>+=*^$%&@#~`'\"_]+$")
+_READABLE_RE = re.compile(r"[0-9A-Za-z\u4e00-\u9fff]")
+_SENT_PUNCT = set("。！？；，、：!?,;:")
+_LIST_LINE_RE = re.compile(r"^\s*(?:[-*+]\s+|\d+[.、）)]\s*|#)")
+_TABLE_LINE_RE = re.compile(r"\|")
+_REPEATED_BOX_MIN, _REPEATED_BOX_MAX = 2, 29   # 规范化后长度窗口（过短=孤立符号）
+_REPEATED_BOX_COUNT = 2                        # 文件内出现 ≥2 次即判页框
+_CHUNK_MIN_CONTENT_CHARS = 6                   # 清洗后不足此数的块不产生
+
+
+def _readable_ratio(line: str) -> float:
+    """可读字符（字母/数字/汉字）占非空白字符的比例。"""
+    chars = [ch for ch in line if not ch.isspace()]
+    if not chars:
+        return 1.0
+    return sum(1 for ch in chars if _READABLE_RE.match(ch)) / len(chars)
+
+
+def _is_boxed_short_line(raw_line: str) -> bool:
+    """「页框候选」形态：短、无句读、非标题/列表/表格/公式行。
+
+    传入 strip 后的原始行——列表/标题前缀依赖行首符号与空格，不能用去空白
+    的规范化串判定。"""
+    norm = "".join(raw_line.split())
+    if not (_REPEATED_BOX_MIN <= len(norm) <= _REPEATED_BOX_MAX):
+        return False
+    if any(ch in _SENT_PUNCT for ch in norm):
+        return False
+    if _LIST_LINE_RE.match(raw_line) or _TABLE_LINE_RE.search(raw_line):
+        return False
+    if _FORMULA_RE.search(raw_line):
+        return False
+    return True
+
+
+def _repeated_boxed_lines(lines: List[str]) -> set[str]:
+    """文件内出现 ≥2 次的页框候选行（规范化键集合）。
+
+    页眉页脚/机构残行的结构性特征是「每页重复」；标题/列表/表格/公式行豁免，
+    含句读的行豁免（正文短句重复不误删）。"""
+    counts: dict[str, int] = {}
+    for line in lines:
+        norm = "".join(line.split())
+        if _is_boxed_short_line(line.strip()):
+            counts[norm] = counts.get(norm, 0) + 1
+    return {key for key, n in counts.items() if n >= _REPEATED_BOX_COUNT}
+
+
 _TITLE_KEYWORDS = ("定义", "性质", "定理", "规则", "方法", "公式", "例题", "易错", "注意", "总结", "步骤")
 _BODY_LIKE_ENDINGS = ("。", "；", ";", ".", "！", "？", "!", "?")
 _FORMULA_RE = re.compile(
@@ -73,8 +143,13 @@ def _base_meta(path: str, text: str = "", role: str = "", **extra: object) -> di
 
 
 def _clean_ocr_markdown(text: str) -> str:
-    """清理 OCR Markdown 常见页眉页脚、重复空行和相邻重复标题。"""
+    """清理 OCR Markdown 的页框噪声、重复空行和相邻重复标题。
+
+    行级过滤全部为功能形态/文件内结构规则（见上方常量注释），无词表：
+    页码/页框、联系方式/版权、纯符号残渣、乱码形态（公式豁免）、文件内
+    重复短行（页眉页脚的"每页重复"结构特征）。"""
     lines = sanitize_text(text, keep_newlines=True).splitlines()
+    repeated = _repeated_boxed_lines(lines)
     out: list[str] = []
     last_heading = ""
     for line in lines:
@@ -82,6 +157,19 @@ def _clean_ocr_markdown(text: str) -> str:
             continue
         if re.fullmatch(r"[-_=]{3,}", line):
             continue
+        if _PAGEBOX_RE.match(line.strip()) or _CONTACT_RE.search(line):
+            continue
+        if _SYMBOLS_ONLY_RE.fullmatch(line.strip()):
+            continue
+        stripped = "".join(line.split())
+        if (
+            len(stripped) >= 6
+            and not _FORMULA_RE.search(line)
+            and _readable_ratio(line) < 0.5
+        ):
+            continue  # 乱码形态行（公式行已豁免）
+        if stripped in repeated:
+            continue  # 文件内重复的页框行（页眉页脚/机构残行）
         hit = heading_level(line)
         if hit:
             level, title = hit
@@ -187,8 +275,8 @@ def _chunks_by_heading(text: str, path: str) -> List[TextChunk]:
     def flush() -> None:
         body = "\n".join(buf).strip()
         buf.clear()
-        if not body:
-            return
+        if len("".join(body.split())) < _CHUNK_MIN_CONTENT_CHARS:
+            return  # 块级门：页框清洗后无实质内容（纯页框/残渣块）不产生
         path_parts = [heading_stack[i] for i in sorted(heading_stack) if heading_stack.get(i)]
         heading = path_parts[-1] if path_parts else name
         level = current_level or len(path_parts) or 1

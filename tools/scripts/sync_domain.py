@@ -845,7 +845,7 @@ def write_report_base_imports(path: Path, lines: list[str]) -> None:
         sys.exit(
             f"{path.name} 中未找到 Report 基类 import 生成区标记。请先手动添加：\n"
             f"{REPORT_BASE_IMPORT_ZONE_START}\n"
-            f"from .models import (ModelMixin, 各线 Validation)\n"
+            "from .models import (ModelMixin, 各线 Validation)\n"
             f"{REPORT_BASE_IMPORT_ZONE_END}"
         )
     m = re.search(_REPORT_BASE_IMPORT_ZONE_PATTERN, raw, re.S)
@@ -983,7 +983,7 @@ def generate_report_validation_code(lines: list[str]) -> str:
             # 类一旦定义（写字段）后 sync_domain 全量会按字段重写为真实校验。
             blocks.append(
                 f"class {report_cls}Validation:\n"
-                f"    pass\n"
+                "    pass\n"
             )
             continue
         allowed = ", ".join(f'"{f["name"]}"' for f in fields_info)
@@ -995,25 +995,25 @@ def generate_report_validation_code(lines: list[str]) -> str:
         blocks.append(
             f"class {report_cls}Validation:\n"
             f'    """{report_cls} 的校验逻辑（由脚本按手写字段自动生成）。"""\n'
-            f"\n"
-            f"    @classmethod\n"
+            "\n"
+            "    @classmethod\n"
             f'    def validate(cls, data: dict) -> "{report_cls}":\n'
             f"        allowed = {{{allowed}}}\n"
-            f"\n"
-            f"        if not isinstance(data, dict):\n"
+            "\n"
+            "        if not isinstance(data, dict):\n"
             f'            raise OutputValidationError("{report_cls} 必须是 JSON 对象")\n'
-            f"\n"
-            f"        extra = set(data) - allowed\n"
-            f"        if extra:\n"
-            f"            raise OutputValidationError(\n"
+            "\n"
+            "        extra = set(data) - allowed\n"
+            "        if extra:\n"
+            "            raise OutputValidationError(\n"
             f'                f"{report_cls} 字段不一致：多余={{sorted(extra)}}"\n'
-            f"            )\n"
-            f"\n"
+            "            )\n"
+            "\n"
             f"{val_lines}\n"
-            f"\n"
-            f"        return cls(\n"
+            "\n"
+            "        return cls(\n"
             + "\n".join(assign_lines)
-            + f"\n        )\n"
+            + "\n        )\n"
         )
     return "\n\n".join(blocks)
 
@@ -1028,7 +1028,7 @@ def write_report_validation(path: Path, lines: list[str]) -> None:
         sys.exit(
             f"{path.name} 中未找到 Report 校验生成区标记。请先手动添加：\n"
             f"{REPORT_VALIDATION_ZONE_START}\n（现有手写 Report 的 validate 删除，"
-            f"类继承 XxxReportValidation 由脚本生成）\n"
+            "类继承 XxxReportValidation 由脚本生成）\n"
             f"{REPORT_VALIDATION_ZONE_END}"
         )
     m = re.search(_REPORT_VALIDATION_ZONE_PATTERN, raw, re.S)
@@ -1064,8 +1064,8 @@ def check_report_validation(path: Path, lines: list[str]) -> int:
     expected = generate_report_validation_code(lines)
     if _normalize_newlines(zone) != _normalize_newlines(expected):
         _log(
-            f"不一致：Report 校验生成区与手写 Report 字段有差异"
-            f"（请运行 --write 更新）",
+            "不一致：Report 校验生成区与手写 Report 字段有差异"
+            "（请运行 --write 更新）",
             file=sys.stderr,
         )
         return 1
@@ -1181,7 +1181,6 @@ def _task_readiness_issues(line: str) -> list[str]:
     prompts_path = task_dir / "prompts.py"
     report_cls = ""
     upper = _contract_base(line) if contracts_path.exists() else line.upper()
-    cls = line_class_name(line, "")
 
     if not contracts_path.exists():
         issues.append(f"缺少 {contracts_path.relative_to(ROOT)}")
@@ -1283,7 +1282,7 @@ def generate_task_agent_code(line: str) -> str:
         "\n"
         "from client import LLMClient\n"
         f"from ....models import {model}\n"
-        f"from ..prompts import (\n"
+        "from ..prompts import (\n"
         f"    {upper}_GENERATION_SYSTEM_PROMPT,\n"
         ")\n"
         f"from ..contracts import {upper}_GENERATION_OUTPUT_CONTRACT\n"
@@ -1320,7 +1319,7 @@ def generate_task_supervisor_code(line: str) -> str:
         "\n"
         "from client import LLMClient\n"
         f"from ....models import {model}SupervisorReview\n"
-        f"from ..prompts import (\n"
+        "from ..prompts import (\n"
         f"    {upper}_SUPERVISOR_DOMAIN_PROMPT,\n"
         ")\n"
         f"from ..contracts import {upper}_SUPERVISOR_OUTPUT_CONTRACT\n"
@@ -1509,7 +1508,7 @@ def generate_task_lines_code(
             f'        "supervisor_attr": "{line}_supervisor",\n'
             f'        "empty_draft": _EMPTY_{base},\n'
             f'        "reject_review": _REJECT_{base}_REVIEW,\n'
-            f"    }},"
+            "    }},"
         )
     return "TASK_LINES: dict[str, dict] = {\n" + "\n".join(blocks) + "\n}"
 
@@ -1594,8 +1593,8 @@ def check_fallback_imports(path: Path, lines: list[str]) -> int:
     expected = generate_fallback_import_code(lines)
     if _normalize_newlines(zone).strip() != _normalize_newlines(expected).strip():
         _log(
-            f"不一致：FallbackRules import 生成区与当前目录生成的代码有差异"
-            f"（请运行 --write 更新）",
+            "不一致：FallbackRules import 生成区与当前目录生成的代码有差异"
+            "（请运行 --write 更新）",
             file=sys.stderr,
         )
         return 1
@@ -1636,7 +1635,7 @@ def generate_report_import_code(lines: list[str]) -> str:
              if _has_report_class(line) for cls in [_report_class(line)]]
     if not names:
         return ""
-    return f"from .reports import (\n    " + ",\n    ".join(names) + ",\n)"
+    return "from .reports import (\n    " + ",\n    ".join(names) + ",\n)"
 
 
 def generate_report_assembler_code(lines: list[str]) -> str:
@@ -1663,7 +1662,7 @@ def generate_line_imports_code(lines: list[str]) -> str:
             f"    {base}Agent,\n"
             f"    {base}Render,\n"
             f"    {base}Supervisor,\n"
-            f")\n"
+            ")\n"
         )
     return "\n".join(blocks)
 
@@ -1710,8 +1709,8 @@ def check_line_imports(path: Path, lines: list[str]) -> int:
     expected = generate_line_imports_code(lines)
     if zone.strip() != expected.strip():
         _log(
-            f"不一致：任务线 import 生成区与当前目录生成的代码有差异"
-            f"（请运行 --write 更新）",
+            "不一致：任务线 import 生成区与当前目录生成的代码有差异"
+            "（请运行 --write 更新）",
             file=sys.stderr,
         )
         return 1
@@ -1761,8 +1760,8 @@ def check_report_imports(path: Path, lines: list[str]) -> int:
     expected = generate_report_import_code(lines)
     if zone.strip() != expected.strip():
         _log(
-            f"不一致：Report import 生成区与当前目录生成的代码有差异"
-            f"（请运行 --write 更新）",
+            "不一致：Report import 生成区与当前目录生成的代码有差异"
+            "（请运行 --write 更新）",
             file=sys.stderr,
         )
         return 1
@@ -1815,8 +1814,8 @@ def check_report_assemblers(path: Path, lines: list[str]) -> int:
     expected = generate_report_assembler_code(lines)
     if _normalize_newlines(zone).strip() != _normalize_newlines(expected).strip():
         _log(
-            f"不一致：Report 组装器生成区与当前目录生成的代码有差异"
-            f"（请运行 --write 更新）",
+            "不一致：Report 组装器生成区与当前目录生成的代码有差异"
+            "（请运行 --write 更新）",
             file=sys.stderr,
         )
         return 1
@@ -1847,7 +1846,7 @@ def write_fallback_rules(path: Path, lines: list[str]) -> None:
         sys.exit(
             f"{path.name} 中未找到 FallbackRules 注册生成区标记。请先手动添加：\n"
             f"        {FALLBACK_RULES_ZONE_START}\n"
-            f"（现有手写 _fallback_rules 移入此处）\n"
+            "（现有手写 _fallback_rules 移入此处）\n"
             f"        {FALLBACK_RULES_ZONE_END}"
         )
     m = re.search(_FALLBACK_RULES_ZONE_PATTERN, raw, re.S)
@@ -1886,8 +1885,8 @@ def check_fallback_rules(path: Path, lines: list[str]) -> int:
     expected = generate_fallback_rules_code(lines)
     if _normalize_newlines(zone).strip() != _normalize_newlines(expected).strip():
         _log(
-            f"不一致：FallbackRules 注册生成区与当前目录生成的代码有差异"
-            f"（请运行 --write 更新）",
+            "不一致：FallbackRules 注册生成区与当前目录生成的代码有差异"
+            "（请运行 --write 更新）",
             file=sys.stderr,
         )
         return 1
@@ -1947,7 +1946,7 @@ def _fac_check_target(path: Path, code: str) -> int:
         _log(f"OK：任务线装配生成区与目录一致（{path.name}）")
         return 0
     _log(
-        f"不一致：任务线装配生成区与当前目录生成的代码有差异（请运行 --write 更新）",
+        "不一致：任务线装配生成区与当前目录生成的代码有差异（请运行 --write 更新）",
         file=sys.stderr,
     )
     return 1
@@ -1993,7 +1992,7 @@ def check_task_lines(path: Path, lines: list[str]) -> int:
         _log(f"OK：任务线注册生成区与目录一致（{path.name}）")
         return 0
     _log(
-        f"不一致：任务线注册生成区与当前目录生成的代码有差异（请运行 --write 更新）",
+        "不一致：任务线注册生成区与当前目录生成的代码有差异（请运行 --write 更新）",
         file=sys.stderr,
     )
     return 1
@@ -2044,7 +2043,7 @@ def check_mount(path: Path, lines: list[str]) -> int:
         _log(f"OK：Agent 挂载生成区与目录一致（{path.name}）")
         return 0
     _log(
-        f"不一致：Agent 挂载生成区与当前目录生成的代码有差异（请运行 --write 更新）",
+        "不一致：Agent 挂载生成区与当前目录生成的代码有差异（请运行 --write 更新）",
         file=sys.stderr,
     )
     return 1
@@ -2211,7 +2210,7 @@ def write_core_understanding() -> None:
     mount_code = (
         f"        self.{attr}: {cls} = agents[\n"
         f'            "{attr}"\n'
-        f"        ]\n"
+        "        ]\n"
     )
     raw = _insert_after_exact_once(
         raw,

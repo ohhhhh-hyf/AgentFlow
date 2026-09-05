@@ -1,33 +1,24 @@
-"""唯一解析入口：显式 id > 短名强命中 > 弱实体重叠 > 首个项目新建 > 不确定则不绑。"""
+"""归属解析入口（notes 域）：学科名单键绑定，不做实体模糊挂钩。
+
+meeting 域的项目归属（规则绑定 + 记忆向量库语义兜底）由 ``tools.meeting_memory``
+独立实现；本模块只服务 notes（graph）的共享能力：解析入口只有 ``resolve()``，
+注入和回写共用同一份 Bind。
+"""
 from __future__ import annotations
 
 import logging
-import re
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
 
-from .entities import (
-    extract_entities,
-    is_generic_entity,
-    is_key_candidate,
-    overlap_score,
-    pick_project_key,
-    speaker_names,
-)
 from .store import (
     empty_record,
     list_records,
-    load_record,
+    load_record_any,
     next_project_id,
-    record_path,
     safe_id,
 )
 
 logger = logging.getLogger(__name__)
-
-MIN_WEAK_HITS = 2
-MIN_HITS = MIN_WEAK_HITS  # 兼容旧引用：弱 n-gram 门槛
 
 
 @dataclass(frozen=True)
@@ -42,77 +33,6 @@ class Bind:
     project_key: str = ""
 
 
-def identity_keys(record: dict[str, Any]) -> list[str]:
-    """档案上可用于强命中的短名：已锁定 key、合格短别名；缺省则从 purpose 回推。"""
-    keys: list[str] = []
-    locked = str(record.get("project_key") or "").strip()
-    if locked:
-        keys.append(locked)
-    for alias in record.get("name_aliases") or []:
-        text = str(alias or "").strip()
-        if text and is_key_candidate(text) and text not in keys:
-            keys.append(text)
-    if keys:
-        return keys
-    meeting = record.get("meeting") if isinstance(record.get("meeting"), dict) else {}
-    inferred = pick_project_key(
-        str((meeting or {}).get("purpose") or record.get("display_name") or ""),
-        str(record.get("display_name") or ""),
-    )
-    return [inferred] if inferred else []
-
-
-_GENERIC_TAIL_RE = re.compile(r"(项目|工程|汇报|总结|会议|验收|评审|检查|沟通|讨论|工作|计划|进展|分析|报告)$")
-
-
-def _strong_key_ok(key: str) -> bool:
-    """强命中资格：短名须有项目区分度。
-
-    - 长度 ≥4、形态合格（is_key_candidate）、非业务泛词
-    - 剥掉尾部泛词后（如「月度汇报」→「月度」）剩余部分不得仍是泛词——
-      「蒙泽厂区项目」剥「项目」剩专名 → 合格；「月度汇报」剩「月度」→ 不合格
-    """
-    if not key or len(key) < 4 or not is_key_candidate(key) or is_generic_entity(key):
-        return False
-    stem = _GENERIC_TAIL_RE.sub("", key).strip()
-    return bool(stem) and not is_generic_entity(stem)
-
-
-def _distinctive_entities(transcript: str, found: list[str]) -> list[str]:
-    """绑定计分只认有区分度的实体：剔除业务泛词与发言人名。
-
-    发言人名同团队跨会议共享（「周宁：」式行首），
-    两个不相关会议靠发言人名就能凑满弱命中阈值——必须剔除。
-    """
-    speakers = speaker_names(transcript)
-    out: list[str] = []
-    for tok in found:
-        tok = tok.strip()
-        if not tok or is_generic_entity(tok) or tok in speakers:
-            continue
-        if any(len(s) >= 2 and (tok.startswith(s) or s.startswith(tok)) for s in speakers):
-            continue
-        out.append(tok)
-    return out
-
-
-def _score_record(transcript: str, found: list[str], rec: dict[str, Any]) -> tuple[int, int]:
-    from .entities import entity_names
-
-    stored = entity_names(rec.get("entities"))
-    stored.extend(str(a).strip() for a in (rec.get("name_aliases") or []) if str(a).strip())
-    name = str(rec.get("display_name") or "").strip()
-    if name:
-        stored.append(name)
-    weak = overlap_score(_distinctive_entities(transcript, found), stored)
-    strong = 0
-    for key in identity_keys(rec):
-        if key and _strong_key_ok(key) and key in (transcript or ""):
-            strong = 1
-            break
-    return strong, weak
-
-
 def resolve_notes(
     project_root: Path,
     user_id: str,
@@ -124,7 +44,7 @@ def resolve_notes(
     if not (user_id or "").strip() or not label:
         return Bind(project_id=None, create=False)
     pid = safe_id(label)
-    rec = load_record(record_path(project_root, "notes", user_id, pid))
+    rec = load_record_any(project_root, "notes", user_id, pid)
     return Bind(
         project_id=pid,
         create=not bool(rec),
@@ -142,14 +62,10 @@ def resolve(
 ) -> Bind:
     """解析本次应归属的项目。
 
-    笔记域：user_id + 学科名（--subject，或 --project 当作学科）。
-    会议域：
-    - 显式 id：直接采用（文件不存在也算绑定，回写时建档）
-    - 用户下还没有任何项目：标记 create，回写时分配新 id
-    - 库存短名（project_key / 合格别名 / 从 purpose 回推的引号专名）出现在原文：1 次即可归入
-    - 否则原文弱实体与某一库存唯一重叠 ≥ 2：归入
-    - 多项目并列或证据不足：不绑（不注入、不新建）
-    """
+    当前唯一可达路径是 notes（graph 线）：user_id + 学科名（--subject，或
+    --project 当作学科）单键绑定。meeting 域的归属（规则绑定 + 记忆向量库
+    语义兜底）见 ``tools.meeting_memory.bind``；transcript 为域签名兼容保留，
+    非 notes 域不注入、不新建。"""
     user_id = (user_id or "").strip()
     if not user_id:
         return Bind(project_id=None, create=False)
@@ -157,97 +73,7 @@ def resolve(
     if (domain or "").strip() == "notes":
         return resolve_notes(project_root, user_id, subject, explicit_id)
 
-    found = extract_entities(transcript)
-    entities = tuple(found)
-    existing = list_records(project_root, domain, user_id)
-
-    explicit = (explicit_id or "").strip()
-    if explicit:
-        return Bind(project_id=safe_id(explicit), create=False, entities=entities)
-
-    if not existing:
-        return Bind(project_id=None, create=True, entities=entities)
-
-    scored: list[tuple[int, int, str, str]] = []
-    for rec in existing:
-        pid = str(rec.get("project_id") or "")
-        if not pid:
-            continue
-        strong, weak = _score_record(transcript, found, rec)
-        keys = identity_keys(rec)
-        scored.append((strong, weak, pid, keys[0] if keys else ""))
-
-    if not scored:
-        return Bind(project_id=None, create=True, entities=entities)
-
-    best_strong = max(row[0] for row in scored)
-    if best_strong >= 1:
-        winners = [row for row in scored if row[0] == best_strong]
-        if len(winners) == 1:
-            strong, weak, pid, key = winners[0]
-            return Bind(
-                project_id=pid,
-                create=False,
-                hits=weak,
-                strong=strong,
-                entities=entities,
-                project_key=key,
-            )
-        return Bind(
-            project_id=None,
-            create=False,
-            hits=max(row[1] for row in winners),
-            strong=best_strong,
-            entities=entities,
-        )
-
-    # ── embedding 语义归属（方案 B：规则未命中时用向量相似度找回同一项目）──
-    # 只在该层可用且候选唯一达标时绑定；多候选并列或不可用 → 继续走弱实体规则。
-    from .embed import MEMORY_EMBED_MIN_SCORE, get_embedder
-
-    embedder = get_embedder(user_id=user_id)
-    if embedder.enabled:
-        try:
-            cands = [
-                c for c in embedder.search_projects(transcript, user_id, top_k=3)
-                if float(c.get("score") or 0.0) >= MEMORY_EMBED_MIN_SCORE
-            ]
-            if cands:
-                top = cands[0]
-                second_ok = len(cands) > 1 and float(cands[1].get("score") or 0.0) >= MEMORY_EMBED_MIN_SCORE
-                if not second_ok:
-                    return Bind(
-                        project_id=str(top["project_id"]),
-                        create=False,
-                        hits=int(float(top.get("score") or 0.0) * 100),
-                        strong=0,
-                        entities=entities,
-                        project_key=str(top.get("project_key") or ""),
-                    )
-        except Exception:  # noqa: BLE001 - 语义层异常降级回规则
-            logger.warning("记忆语义归属失败，降级规则匹配", exc_info=True)
-
-    best_weak = max(row[1] for row in scored)
-    winners = [row for row in scored if row[1] == best_weak and row[1] >= MIN_WEAK_HITS]
-    if best_weak >= MIN_WEAK_HITS and len(winners) == 1:
-        strong, weak, pid, key = winners[0]
-        return Bind(
-            project_id=pid,
-            create=False,
-            hits=weak,
-            strong=strong,
-            entities=entities,
-            project_key=key,
-        )
-    # 都不匹配：视为「新项目首会」→ 新建（支持同一用户多个独立项目）。
-    # 注意：输入被假定为会议纪要；若担心无关/闲聊输入也会建档，
-    # persist 有「新建门槛」——理解无实质内容（无议题/决策/未决）时跳过写回。
-    return Bind(
-        project_id=None,
-        create=True,
-        hits=best_weak,
-        entities=entities,
-    )
+    return Bind(project_id=None, create=False)
 
 
 def materialize(
@@ -256,10 +82,11 @@ def materialize(
     user_id: str,
     bind: Bind,
 ) -> dict | None:
-    """得到可读写的 record。create 时分配新 id；未绑定返回 None。"""
+    """得到可读写的 record。create 时分配新 id；未绑定返回 None。
+
+    读取 memory/{线名}/{project_id}/record.json；写回（persist）同路径。"""
     if bind.project_id:
-        path = record_path(project_root, domain, user_id, bind.project_id)
-        rec = load_record(path)
+        rec = load_record_any(project_root, domain, user_id, bind.project_id)
         return rec or empty_record(user_id, bind.project_id, domain)
     if bind.create:
         pid = next_project_id(list_records(project_root, domain, user_id))
@@ -269,10 +96,6 @@ def materialize(
 
 __all__ = [
     "Bind",
-    "MIN_HITS",
-    "MIN_WEAK_HITS",
-    "extract_entities",
-    "identity_keys",
     "materialize",
     "resolve",
     "resolve_notes",

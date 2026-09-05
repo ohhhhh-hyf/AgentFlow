@@ -1,8 +1,10 @@
-"""记忆落盘：data/memory/records/{domain}/{user_id}/projects/{project_id}/record.json。
+"""记忆落盘（统一布局）：``data/{user_id}/memory/{任务线名}/``。
 
-与向量索引（data/memory/chromadb/）同目录树分工：
-- records/ = 事实本体（状态：决策/未决/sessions 全文，人可读、可备份）
-- chromadb/ = 检索索引（档案级+摘录级向量，可从 records 重建）
+- ``memory/graph/{subject_id}/``：graph 记忆（record.json + history.jsonl）
+- ``memory/chromadb/``：共用检索索引（档案级+摘录级向量，可从 json 本体重建）
+
+json 本体是事实权威、人可读、可备份；chromadb 只是可重建的索引。
+目录按任务线名（minutes / minutes_styles / graph …）划分，各线记忆互不混杂。
 """
 from __future__ import annotations
 
@@ -29,15 +31,21 @@ def safe_id(name: str) -> str:
     return cleaned
 
 
+def _store_dir_name(domain: str) -> str:
+    """存储目录按任务线名：notes 域当前唯一带记忆的线是 graph。"""
+    return {"notes": "graph"}.get(domain, domain)
+
+
 def user_dir(project_root: Path, domain: str, user_id: str) -> Path:
-    """用户顶层隔离：``data/{user_id}/memory/records/{domain}``。"""
-    out = project_root / "data" / safe_id(user_id) / "memory" / "records" / domain
+    """按任务线的回放数据目录：``data/{user_id}/memory/{线名}``。"""
+    out = project_root / "data" / safe_id(user_id) / "memory" / _store_dir_name(domain)
     out.mkdir(parents=True, exist_ok=True)
     return out
 
 
 def record_dir(project_root: Path, domain: str, user_id: str, project_id: str) -> Path:
-    out = user_dir(project_root, domain, user_id) / "projects" / safe_id(project_id)
+    """单档案目录：``data/{user_id}/memory/{线名}/{project_id}/``。"""
+    out = user_dir(project_root, domain, user_id) / safe_id(project_id)
     out.mkdir(parents=True, exist_ok=True)
     return out
 
@@ -140,10 +148,16 @@ def append_history(path: Path, event: dict[str, Any]) -> None:
         fh.write(json.dumps(event, ensure_ascii=False) + "\n")
 
 
+def load_record_any(
+    project_root: Path, domain: str, user_id: str, project_id: str
+) -> dict[str, Any]:
+    """读档案（load_record + record_path 的便捷组合）。"""
+    return load_record(record_path(project_root, domain, user_id, project_id))
+
+
 def list_records(project_root: Path, domain: str, user_id: str) -> list[dict[str, Any]]:
-    root = user_dir(project_root, domain, user_id) / "projects"
-    if not root.exists():
-        return []
+    """列出该线全部档案（memory/{线名}/ 下的档案夹）。"""
+    root = user_dir(project_root, domain, user_id)
     rows: list[dict[str, Any]] = []
     for folder in sorted(root.iterdir()):
         if not folder.is_dir():

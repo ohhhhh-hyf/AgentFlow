@@ -265,10 +265,6 @@ _LINES_FORMATTERS: dict[str, object] = {
     "graph": format_graph_node,
 }
 
-def _empty_purpose(state) -> str:
-    """empty_purpose 兜底时的「目的」文案（领域有核心理解时覆写）。"""
-    return ""
-
 class _Nodes(DomainNodes):
     """notes 图节点实现：共享内核 + 领域专属钩子与笔记理解节点。"""
 

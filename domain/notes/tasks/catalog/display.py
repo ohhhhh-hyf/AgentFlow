@@ -57,12 +57,20 @@ _HEADING_PREFIX_RE = re.compile(
     r"|第[0-9一二三四五六七八九十百]+[章节部分讲课项点步阶段周单元][、.．:：\s]*"
     r")"
 )
+# 页框/署名/联系信息形态（全部为跨语料的功能形态，无具体机构名/地名）：
+# - 联系与出版信息：tel、电话、印刷
+# - 网址
+# - 页码/页框：第X页、page N、独立「页」
+# - 机构类别后缀（锚定结尾）：…大学/学院/学校/研究院/研究所、university 等
+#   （机构署名行以类别后缀收尾是结构特征，不是具体机构名单）
 _NOISE_TITLE_RE = re.compile(
-    r"(华中科技大学|科技大学|大学|university|wuhan|hubei|tel[:：]?|"
-    r"印刷厂|附属印刷|第\s*\d+\s*页|^\s*页\s*$)",
+    r"(tel[:：]|电话|印刷|https?://|www\.|\.com\b"
+    r"|第\s*\d+\s*页|page\s*\d+|^\s*页\s*$"
+    r"|.{0,10}(?:大学|学院|学校|研究院|研究所)\s*$"
+    r"|(?:university|college|institute)\b)",
     re.I,
 )
-_NOISE_SHORT_TITLES = {"科技", "大学", "学院", "学校", "页", "目录"}
+_NOISE_SHORT_TITLES = {"页", "目录"}
 
 
 def strip_heading_prefix(text: object) -> str:
@@ -299,6 +307,7 @@ def attach_catalog_artifacts(state: dict[str, Any]) -> None:
 
     from .gather import (
         backfill_catalog_trace,
+        calibrate_catalog_relations,
         complement_catalog_coverage,
         compute_catalog_signals,
         subject_from_context,
@@ -313,11 +322,13 @@ def attach_catalog_artifacts(state: dict[str, Any]) -> None:
     extra = str((state.get("line_extra") or {}).get("catalog") or "")
     transcript = str(state.get("transcript") or "")
     context = f"{transcript}\n{extra}"
-    # 输出侧流水线(均零 LLM):候选补缺 → 规模合并 → 溯源/老师回填 → 重要性计算
+    # 输出侧流水线(均零 LLM):候选补缺 → 规模合并 → 溯源/老师回填 → 粒度合并
+    # → 关联校准(悬空引用归零) → 重要性/信号计算
     draft = complement_catalog_coverage(draft, context)
     draft = trim_catalog_scale(draft, context)
     draft = backfill_catalog_trace(draft, context)
     draft = compact_catalog_granularity(draft)
+    draft = calibrate_catalog_relations(draft)
     draft = compute_catalog_signals(draft)
     save_catalog(
         user_id=user_id_from_context(context),

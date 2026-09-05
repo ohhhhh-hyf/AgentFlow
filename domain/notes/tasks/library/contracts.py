@@ -63,9 +63,6 @@ class LibrarySupervisorContract(SupervisorContract):
     checks = [Check("library_check", "仅记录入库失败")]
 
 
-LIBRARY_GENERATION_OUTPUT_CONTRACT = LibraryGenerationContract.to_output_contract()
-LIBRARY_SUPERVISOR_OUTPUT_CONTRACT = LibrarySupervisorContract.to_output_contract()
-
 
 class LibraryFallbackRules(FallbackRules):
     sections = [Lines("items")]

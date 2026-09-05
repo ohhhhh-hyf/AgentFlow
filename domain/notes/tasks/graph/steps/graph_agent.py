@@ -19,7 +19,10 @@ class KnowledgeGraphAgent:
             KNOWLEDGE_GRAPH_GENERATION_SYSTEM_PROMPT,
             shared_context,
             KnowledgeGraph,
-            KNOWLEDGE_GRAPH_GENERATION_OUTPUT_CONTRACT, label='graph/agent')
+            KNOWLEDGE_GRAPH_GENERATION_OUTPUT_CONTRACT,
+            temperature=0.0,
+            label='graph/agent',
+        )
         data = raw.model_dump() if hasattr(raw, "model_dump") else dict(raw)
         # 生成侧校验：先剥悬空边/去重/规范化，再合并已积累图谱（拦截而非导出补救）
         data = sanitize_graph(data)

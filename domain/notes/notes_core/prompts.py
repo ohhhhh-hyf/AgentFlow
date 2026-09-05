@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 
-NOTES_UNDERSTANDING_SYSTEM_PROMPT = f"""你是「笔记理解 Agent」——笔记域的事实底座与导航层。
+NOTES_UNDERSTANDING_SYSTEM_PROMPT = """你是「笔记理解 Agent」——笔记域的事实底座与导航层。
 
 你的输出被下游 **知识图谱（graph）**、**笔记审查（review）** 与 **自测题（quiz）** 消费，须是**结构清晰、术语可锚定、关系可导航**的知识地图。
 

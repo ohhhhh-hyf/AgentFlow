@@ -2,7 +2,6 @@
 from __future__ import annotations
 
 import json
-import re
 from html import escape
 from typing import Any
 
@@ -1008,25 +1007,6 @@ def _trace_pack(card: dict[str, Any]) -> dict[str, list[dict[str, Any]]]:
     kb = [e for e in (raw.get("knowledge_evidence") or []) if isinstance(e, dict)]
     notes = [e for e in (raw.get("note_evidence") or []) if isinstance(e, dict)]
     return {"teacher": teachers, "kb": kb, "note": notes}
-
-
-def _split_visible(pack: dict[str, list[dict[str, Any]]]) -> tuple[list[tuple[str, dict[str, Any]]], list[tuple[str, dict[str, Any]]]]:
-    """默认：老师原话优先 + 1～2 条知识库 + 至多 1 条笔记，其余折叠。"""
-    visible: list[tuple[str, dict[str, Any]]] = []
-    hidden: list[tuple[str, dict[str, Any]]] = []
-    teachers = pack["teacher"]
-    if teachers:
-        visible.extend(("teacher", ev) for ev in teachers[:2])
-        hidden.extend(("teacher", ev) for ev in teachers[2:])
-    kb = pack["kb"]
-    kb_show = 2 if not teachers else 1
-    visible.extend(("kb", ev) for ev in kb[:kb_show])
-    hidden.extend(("kb", ev) for ev in kb[kb_show:])
-    notes = pack["note"]
-    if notes:
-        visible.extend(("note", ev) for ev in notes[:2])
-        hidden.extend(("note", ev) for ev in notes[2:])
-    return visible, hidden
 
 
 def _supports_label(ev: dict[str, Any]) -> str:
@@ -2145,24 +2125,6 @@ def _dynamic_row(card: dict[str, Any]) -> str:
         f'<td><span class="ck-chap-tag" title="{escape(chapter, quote=False)}">{escape(chapter, quote=False)}</span></td>'
         f'</tr>'
     )
-
-
-def _clip_preview_text(text: str, limit: int) -> str:
-    """表格预览截断：优先在自然边界收口，避免公式/表达式断成残片。"""
-    raw = _clean(text)
-    if len(raw) <= limit:
-        return raw
-    head = raw[:limit]
-    candidates = [
-        head.rfind(mark)
-        for mark in ("。", "；", ";", "，", ",", "、", " ")
-    ]
-    cut = max(candidates)
-    if cut >= max(24, int(limit * 0.55)):
-        head = head[:cut]
-    else:
-        head = re.sub(r"[\w\\^_{}+\-*/=()（）\\[\\],，、;；:： ]{1,36}$", "", head).rstrip()
-    return head.rstrip("，。；;、:： ") + "…"
 
 
 def _review_dynamic_script() -> str:

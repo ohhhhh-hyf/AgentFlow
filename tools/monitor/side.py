@@ -267,8 +267,6 @@ def split_side(diff: dict[str, Any]) -> tuple[dict[str, Any], dict[str, Any]]:
 
 __all__ = [
     "diff_side",
-    "record_knowledge_ingest",
-    "record_knowledge_search",
     "record_embed",
     "record_knowledge_ingest",
     "record_knowledge_search",

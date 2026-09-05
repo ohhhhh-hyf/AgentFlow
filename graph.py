@@ -12,7 +12,7 @@ from pathlib import Path
 import requests
 
 # ── 笔记文件（须已存在于 data/{USER_ID}/docs/ 下；本样例为「高等数学·极限」语料）──
-DOCS = ["seq_two.txt"]
+DOCS = ["seq_one.txt"]
 URL = "http://127.0.0.1:8000/api/v1/notes/graph"
 USER_ID = "1"
 

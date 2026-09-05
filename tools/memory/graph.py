@@ -129,7 +129,37 @@ def mark_graph_origin(
 
 
 def _clean(value: object) -> str:
-    return " ".join(str(value or "").split()).strip()
+    import re
+
+    s = " ".join(str(value or "").split()).strip()
+    if not s:
+        return ""
+    # 多轮清洗：序号、口语前缀与外层引号互为嵌套时一并剥离
+    for _ in range(3):
+        s = re.sub(r"^[①②③④⑤⑥⑦⑧⑨⑩\d]+[\.、\s\-_]*", "", s).strip()
+        s = re.sub(r"^(口诀|错题记录|常见限制|老师敲黑板|课尾预告)[:：\s]*", "", s).strip()
+        s = re.sub(r"^[\"“”'《]+|[\"“”'》]+$", "", s).strip()
+    return s
+
+
+def _resolve_canonical_node(raw_name: str, valid_names: set[str]) -> str | None:
+    import re
+
+    if raw_name in valid_names:
+        return raw_name
+    stripped = re.sub(r"[^\w\u4e00-\u9fa5]", "", raw_name)
+    for vn in valid_names:
+        if stripped == re.sub(r"[^\w\u4e00-\u9fa5]", "", vn):
+            return vn
+    # 唯一包含匹配（长度 >= 3）
+    candidates = [
+        vn
+        for vn in valid_names
+        if (len(vn) >= 3 and vn in raw_name) or (len(raw_name) >= 3 and raw_name in vn)
+    ]
+    if len(candidates) == 1:
+        return candidates[0]
+    return None
 
 
 _VALID_NODE_TYPES = {"concept", "formula", "method", "problem", "pitfall"}
@@ -153,15 +183,21 @@ _RELATION_ALIASES = {
 def sanitize_graph(draft: dict[str, Any]) -> dict[str, Any]:
     """清洗图谱草稿（生成侧拦截，不修改入参）。
 
-    - 节点：name 去空白；同名节点合并（后到字段覆盖空值，definition 取更长）；type 归一化
-    - 边：source/relation/target 去空白；过滤自环；别名归一；过滤废弃的“相关”；
-      同三元组去重；悬空边（两端不在 nodes）与无效边剥离并计数告警
-    - 与导出侧（tools/graph.py 的悬空边过滤）形成
-      「生成侧拦截 + 导出侧兜底」双层，避免脏数据进入 memory / 产物
+    - 节点：name 清除序号/修饰前缀/空白；同名节点合并；剔除伪概念章节标题；type 归一化
+    - 边：source/relation/target 去空白与规范化对齐；过滤自环；别名归一；过滤“相关”；
+      同三元组去重；悬空边与无效边剥离并计数告警
     """
     out = dict(draft or {})
     nodes_in = out.get("nodes") if isinstance(out.get("nodes"), list) else []
     edges_in = out.get("edges") if isinstance(out.get("edges"), list) else []
+
+    # 统计各 section 出现频次，用于过滤误作节点的章节全名
+    section_counts: dict[str, int] = {}
+    for node in nodes_in:
+        if isinstance(node, dict):
+            sec = str(node.get("section") or "").strip()
+            if sec:
+                section_counts[sec] = section_counts.get(sec, 0) + 1
 
     node_map: dict[str, dict[str, Any]] = {}
     for node in nodes_in:
@@ -170,12 +206,17 @@ def sanitize_graph(draft: dict[str, Any]) -> dict[str, Any]:
         name = _clean(node.get("name"))
         if not name:
             continue
+        sec = str(node.get("section") or "").strip()
+        # 若节点名字完全等于某个章节名且该章节已有多个节点，跳过该伪节点
+        if name in section_counts and section_counts[name] > 1 and sec in ("", "未分组", name):
+            continue
+
         prev = node_map.get(name, {})
         merged = dict(prev)
         for key, value in node.items():
             if value not in (None, ""):
                 merged[key] = value
-        merged["name"] = name  # 规范化后的 name 强制写回
+        merged["name"] = name
 
         # 归一化 type
         ntype = str(merged.get("type") or "").strip().lower()
@@ -208,17 +249,22 @@ def sanitize_graph(draft: dict[str, Any]) -> dict[str, Any]:
         if not isinstance(edge, dict):
             dropped += 1
             continue
-        src = _clean(edge.get("source"))
+        raw_src = _clean(edge.get("source"))
         rel = _clean(edge.get("relation"))
-        tgt = _clean(edge.get("target"))
-        if not src or not rel or not tgt:
+        raw_tgt = _clean(edge.get("target"))
+        if not raw_src or not rel or not raw_tgt:
             dropped += 1
             continue
+
+        # 规范名对齐纠偏（模糊对齐）
+        src = _resolve_canonical_node(raw_src, node_names)
+        tgt = _resolve_canonical_node(raw_tgt, node_names)
+        if not src or not tgt:
+            dropped += 1
+            continue
+
         # 过滤自环
         if src == tgt:
-            dropped += 1
-            continue
-        if src not in node_names or tgt not in node_names:
             dropped += 1
             continue
 
@@ -252,19 +298,19 @@ def sanitize_graph(draft: dict[str, Any]) -> dict[str, Any]:
 
 
 def _node_key(node: dict[str, Any]) -> str:
-    return str(node.get("name") or "").strip()
+    return _clean(node.get("name"))
 
 
 def _edge_key(edge: dict[str, Any]) -> tuple[str, str, str]:
     return (
-        str(edge.get("source") or "").strip(),
+        _clean(edge.get("source")),
         str(edge.get("relation") or "").strip(),
-        str(edge.get("target") or "").strip(),
+        _clean(edge.get("target")),
     )
 
 
 def merge_graph(record: dict[str, Any], report: object) -> dict[str, Any]:
-    """把本次图谱报告并入 record['graph']。"""
+    """把本次图谱报告并入 record['graph']（规范化去重与防冗余雪球）。"""
     rec = dict(record)
     incoming: dict[str, Any] = {}
     if hasattr(report, "model_dump"):
@@ -281,12 +327,17 @@ def merge_graph(record: dict[str, Any], report: object) -> dict[str, Any]:
     for node in list(old.get("nodes") or []) + list(incoming.get("nodes") or []):
         if not isinstance(node, dict):
             continue
-        key = _node_key(node)
-        if not key:
+        name = _clean(node.get("name"))
+        if not name:
             continue
+        # 若能匹配到已收录的标准名称，则合入既有条目，防止同义短语膨胀
+        canon = _resolve_canonical_node(name, set(nodes.keys()))
+        key = canon if canon else name
+
         prev = nodes.get(key, {})
         merged = dict(prev)
         merged.update({k: v for k, v in node.items() if v not in (None, "")})
+        merged["name"] = key
         # 定义取更长的那条（通常信息更多）
         old_def = str(prev.get("definition") or "")
         new_def = str(node.get("definition") or "")
@@ -295,18 +346,25 @@ def merge_graph(record: dict[str, Any], report: object) -> dict[str, Any]:
         merged.pop("origin", None)
         nodes[key] = merged
 
+    node_names = set(nodes)
     edges: dict[tuple[str, str, str], dict[str, Any]] = {}
     for edge in list(old.get("edges") or []) + list(incoming.get("edges") or []):
         if not isinstance(edge, dict):
             continue
-        key = _edge_key(edge)
-        if not all(key):
+        raw_src = _clean(edge.get("source"))
+        rel = str(edge.get("relation") or "").strip()
+        raw_tgt = _clean(edge.get("target"))
+        src = _resolve_canonical_node(raw_src, node_names)
+        tgt = _resolve_canonical_node(raw_tgt, node_names)
+        if not src or not tgt or src == tgt:
             continue
-        if key[0] not in nodes or key[2] not in nodes:
-            continue
+        key = (src, rel, tgt)
         prev = edges.get(key, {})
         merged = dict(prev)
         merged.update({k: v for k, v in edge.items() if v not in (None, "")})
+        merged["source"] = src
+        merged["relation"] = rel
+        merged["target"] = tgt
         merged.pop("origin", None)
         edges[key] = merged
 

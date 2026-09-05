@@ -122,26 +122,62 @@ class KnowledgeTool:
         user_id: str = "",
         subject: str = "",
     ) -> dict:
-        """解析文档 → 增量同步入库(处理"更新/替换同名文件"场景)。
+        """解析文档 → 增量同步入库（add_files 的单文件便捷入口）。"""
+        return self.add_files([path], collection=collection,
+                              user_id=user_id, subject=subject)[0]
 
-        返回 {"added": 新增块数, "removed": 清理的旧块数, "unchanged": 未变化块数}。
-        - 新文件: removed=0
-        - 替换同名文件: 旧版本独有块被删除, 新块入库, 未变块保留
-        - 重复上传同内容: 全部 unchanged
+    def add_files(
+        self,
+        paths: List[str],
+        collection: str = "default",
+        user_id: str = "",
+        subject: str = "",
+    ) -> List[dict]:
+        """多文件入库：逐文件解析 → 全部文件的 added 块合并一次 embedding →
+        按文件增量同步（removed/unchanged 口径与单文件一致）。
+
+        返回与 ``paths`` 顺序一致的逐文件结果：
+        - {"added", "removed", "unchanged"}：增量计数
+        - "name"：文件基名
+        - "chunks"：该文件入库后的全部块（added+unchanged，{"text","metadata"}），
+          供入库报告直接使用，免二次全库扫描。
 
         user_id/subject：行级隔离模式——数据进统一 ``knowledge`` 库，
         metadata 补 owner/subject；检索按 where 过滤。全不传则走旧 collection 行为。
         """
         coll, _ = _scope(collection, user_id, subject)
-        chunks = process_file(path, self.cfg.chunk_size, self.cfg.chunk_overlap)
-        for chunk in chunks:
-            meta = dict(chunk.metadata)
-            if (user_id or "").strip():
-                meta["owner"] = (user_id or "").strip()
-            if (subject or "").strip():
-                meta["subject"] = subject_to_pinyin(subject)
-            chunk.metadata = meta
-        return self.store.sync_file(coll, os.path.basename(path), chunks)
+        items: List[tuple] = []
+        for path in paths:
+            chunks = process_file(path, self.cfg.chunk_size, self.cfg.chunk_overlap)
+            for chunk in chunks:
+                meta = dict(chunk.metadata)
+                if (user_id or "").strip():
+                    meta["owner"] = (user_id or "").strip()
+                if (subject or "").strip():
+                    meta["subject"] = subject_to_pinyin(subject)
+                chunk.metadata = meta
+            items.append((os.path.basename(path), chunks))
+        results = self.store.sync_files(coll, items)
+        for path, result in zip(paths, results):
+            result["name"] = os.path.basename(path)
+        return results
+
+    def delete_sources(
+        self,
+        filenames: List[str],
+        collection: str = "default",
+        user_id: str = "",
+        subject: str = "",
+    ) -> int:
+        """删除指定来源文件的全部知识块（返回删除块数）。
+
+        行级模式按 owner/subject 限定，防跨用户同名文件误删。
+        用于"代际替换"：新版文件入库前清掉旧代来源（如图片合并稿的旧批次）。
+        """
+        if not filenames:
+            return 0
+        coll, where = _scope(collection, user_id, subject)
+        return self.store.delete_sources(coll, filenames, where=where)
 
     # ---------------- 检索与问答 ----------------
     def search(
@@ -186,10 +222,21 @@ class KnowledgeTool:
         filename: str = "",
         user_id: str = "",
         subject: str = "",
+        *,
+        with_metadata: bool = True,
+        with_text: bool = True,
     ) -> List[Dict]:
-        """列出已入库的知识块（可按来源文件 / 行级 owner+subject 过滤）。"""
+        """列出已入库的知识块（可按来源文件 / 行级 owner+subject 过滤）。
+
+        - with_metadata=False：只取 text（轻量扫描，全库对比类场景省 IO）；
+        - with_text=False：只取 metadata（标题/字段扫描类场景，正文不进内存；
+          返回项不含 text 键）；
+        - 两者不可同时为 False。
+        """
         coll, where = _scope(collection, user_id, subject)
-        return self.store.list_chunks(coll, filename, where=where)
+        return self.store.list_chunks(coll, filename, where=where,
+                                      with_metadata=with_metadata,
+                                      with_text=with_text)
 
 
 def get_knowledge(

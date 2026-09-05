@@ -1,6 +1,6 @@
 # OCR 流水线前缀缓存（Prefix Caching）开启指导
 
-> 状态：**待执行**——服务端形态已确认（自部署 vLLM，records `config.llm_provider=vllm`）。
+> 状态：**待执行**——服务端形态已确认（自部署 vLLM，历史基线运行确认 `llm_provider=vllm`）。
 > 现代 vLLM（V1 引擎）的 Automatic Prefix Caching（APC）**默认开启**，大概率不需要服务端改启动参数；
 > 本仓库侧只有一个真实缺口（§2.1 命中字段读取）加一个验证流程。零质量风险（缓存不改变生成），
 > 收益在 prompt/prefill 侧：省 prefill 时间，官方缓存计费时省钱。
@@ -10,7 +10,7 @@
 
 ## 0. 收益量级：先看命中机会在哪（决定做什么、不做什么）
 
-以一次 21 图页级运行实测为例（s4srvOn，仅供数量级示意，不预设目标）：
+以一次 21 图页级历史实测为例（基线记录已清理，仅供数量级示意，不预设目标）：
 
 | 数据 | 值 |
 | --- | --- |
@@ -43,7 +43,7 @@
 ### 1.2 可选：让 usage 回传命中字段
 
 vLLM 默认不在 OpenAI usage 里回传缓存命中数（本仓库观测为 0 的主因）。
-若想让 run.json 直接可见命中，服务端加启动参数（版本间命名可能有差异，以
+若想让每次响应的 usage 里直接可见命中数，服务端加启动参数（版本间命名可能有差异，以
 `vllm serve --help | grep -i prompt-tokens` 为准）：
 
 ```
@@ -73,8 +73,8 @@ DeepSeek 官方 API 与多数网关：自动上下文缓存，无需配置；usa
 
 `client/llmclient.py::_record_usage` 目前只读 usage **顶层**的
 `prompt_cache_hit_tokens` / `cached_tokens`（DeepSeek 官方/网关形态）。vLLM 把命中放在
-**嵌套**的 `usage.prompt_tokens_details.cached_tokens`，因此即使服务端缓存生效，run.json
-的 `cache_hit_tokens` 也是 0。补读嵌套字段即可：
+**嵌套**的 `usage.prompt_tokens_details.cached_tokens`，因此即使服务端缓存生效，客户端累计的
+命中数也是 0。补读嵌套字段即可：
 
 ```python
 # _record_usage 内，现有顶层读取之前补一段兼容读取：
@@ -88,8 +88,9 @@ cache_hit = int(
 )
 ```
 
-改完打上 §2.1 补丁后，开缓存状态直接进 run.json `llm_by_label[*].cache_hit_tokens` 与
-`llm_client_snapshot`，无需再对服务端 metrics。此补丁零行为风险（字段缺失时回退 0）。
+改完打上 §2.1 补丁后，命中状态直接进入 LLM 客户端 usage 快照
+（`usage_totals.cache_hit_tokens` / `usage_by_label[*].cache_hit_tokens`，日志与调用方可读），
+无需再对服务端 metrics。此补丁零行为风险（字段缺失时回退 0）。
 
 ### 2.2 "逐 token 一致"纪律（缓存命中的前提，已审计现状 + 未来红线）
 
@@ -119,31 +120,26 @@ cache_hit = int(
 
 1. 服务端按 §1.1 确认状态、记录版本与启动参数；按需加 §1.2 参数；
 2. 仓库侧打上 §2.1 补丁（若服务端没开 usage 字段，用 `/metrics` + 时间证据替代）；
-3. 页级基线连跑两次（同引擎、同语料、同代码、同参数，LLM 服务保持常驻）：
-
-```bash
-python ocr_baseline/run_baseline.py --engine paddleocr --label cacheOn
-python ocr_baseline/run_baseline.py --engine paddleocr --label cacheOn2   # 原样复跑
-python ocr_baseline/run_baseline.py --engine serverocr --label cacheSrvOn
-python ocr_baseline/run_baseline.py --engine serverocr --label cacheSrvOn2  # 原样复跑
-```
-
+3. 同输入连续跑两次（同一批语料走生产 OCR→md 流水线，同引擎、同代码、同参数，
+   LLM 服务保持常驻）：若缓存生效，第二次各请求的 prefill 处理与首 token 延迟应明显
+   下降；也可在服务端对同一段长 prompt 连续 curl 两次直接对比 TTFT（§1.3）；
 4. 判定缓存生效（任一即可）：
-   - run.json `llm_by_label[*].cache_hit_tokens > 0`（§1.2 已开时）；
-   - `cacheOn2` 相对 `cacheOn`：reconstruct 的 `avg_seconds` / prompt 处理明显下降、
-     `wall.total_seconds` 下降（首跑已把整条 prompt 写入缓存，次跑整段命中）；
+   - 任一响应 usage 的命中字段 > 0（§1.2 已开、§2.1 补丁已打时，从客户端日志可见）；
+   - 第二次运行的每请求耗时 / 总耗时明显低于第一次（首跑已把整条 prompt 写入
+     缓存，次跑整段命中）；
    - 服务端 `/metrics` 出现 prefix cache hits 增量、recompute 接近 0。
-5. 质量回归：`fidelity`（kept80/avg/公式分项）、`formulas`、入库增量与开启前记录持平。
+5. 质量回归：整理稿内容与开启前持平（抽样核查关键段落/既有质量口径）。
    缓存不改变生成，理论上只验证无回归；若某次调用恰好被淘汰重算，内容也与未开缓存一致。
 6. 收益核算口径：自部署 vLLM 省的是 **prefill 时间与机器吞吐**（KV 复用同时省显存占用），
    不是 token 计费；官方 API/网关形态下命中 token 按缓存价计费，用
-   `cache_hit_tokens × 价差` 折算。不要用任何单语料的绝对值当目标。
+   `cache_hit_tokens × 价差` 折算（命中数从客户端 usage 快照读取）。不要用任何单语料的
+   绝对值当目标。
 
 ## 4. 验收（性质化，不预设数值）
 
 - 缓存确认生效：usage 字段 > 0，或同输入二次运行耗时明显下降，或服务端 metrics 有命中；
 - 命中随"同前缀请求数"增长：同语料复跑次数越多、页数越多、重复上传越多，收益越大；
-- 质量无副作用：kept80 / avg_char / 公式 avg / 入库增量与开启前持平；
+- 质量无副作用：整理稿内容与开启前持平（抽样核查）；
 - 代码改动面 ≤ §2.1 一处；不做无谓的 prompt 布局改动（§2.3）。
 
 ## 5. 常见坑
@@ -170,17 +166,17 @@ python ocr_baseline/run_baseline.py --engine serverocr --label cacheSrvOn2  # �
 | `tools/ocr/reconstruct.py`（`RECONSTRUCT_SYSTEM_PROMPT` / `REVIEW_SYSTEM_PROMPT` / `_CONTINUE_*_INSTRUCT`） | 恒定 system，各 label 页间共享前缀主体 |
 | `tools/ocr/reconstruct.py::_lines_to_structured_payload` | user payload 确定性序列化（键序/分隔符固定） |
 | `tools/ocr/reconstruct.py::reconstruct_markdown` | 页级 user prompt 拼接（context 前置段，§2.3 判定不推荐挪动） |
-| `ocr_baseline/run_baseline.py` | `cache_hit_tokens` 打印、`llm_client_snapshot`、`llm_by_label` 聚合 |
+| `client/llmclient.py`（`usage_totals` / `usage_by_label`） | 命中与 token 的按 label 累计快照（日志/调用方读取点） |
 | 服务端 | vLLM：`/metrics` 的 `prefix_cache_hits` / `prefix_cache_queries` / `prompt_tokens_recomputed`；启动参数 `--enable-prompt-tokens-details`（可选）、`--no-enable-prefix-caching`（确认未出现） |
 
 ---
 
 ## 待办清单（状态勾选）
 
-- [x] 确认 LLM 后端形态（records `config.llm_provider = vllm`，自部署）
+- [x] 确认 LLM 后端形态（历史基线运行：自部署 vLLM，`llm_provider = vllm`）
 - [ ] 服务端：记录 vLLM 版本与启动参数；确认无 `--no-enable-prefix-caching`；按需加 `--enable-prompt-tokens-details`
 - [ ] 服务端：`/metrics` 或同 prompt 两次请求取一次命中证据（§1.3）
 - [ ] 仓库侧：打上 §2.1 命中字段补丁（唯一代码改动，零行为风险）
-- [ ] 跑 `cacheOn` / `cacheOn2`（paddleocr）与 `cacheSrvOn` / `cacheSrvOn2`（serverocr），判定命中
-- [ ] 质量回归：fidelity / formulas / 入库增量与开启前持平
+- [ ] 同输入连跑两次（生产流水线）或按 §1.3 的 metrics/curl 法，判定命中
+- [ ] 质量回归：整理稿内容与开启前持平（抽样核查）
 - [ ] 若将来后端换成官方 API / 网关：直接按 §3 复验（客户端顶层字段已就绪，无需再改代码）

@@ -2,7 +2,6 @@
 from __future__ import annotations
 
 import re
-from typing import Any
 
 # 封闭类虚词。只放代词/指示/连词/副词，不放任何业务名词。
 _STOP = frozenset(
@@ -34,7 +33,6 @@ _QUOTED = re.compile(
     r"|\"([^\"]{2,20})\""
 )
 _HAN_CHARS = re.compile(r"[\u4e00-\u9fff]")
-_LATIN_KEY = re.compile(r"[A-Za-z][A-Za-z0-9_\- ]{2,23}$")
 
 
 def extract_quoted(text: str) -> list[str]:
@@ -96,43 +94,6 @@ def speaker_names(transcript: str) -> set[str]:
     return out
 
 
-def is_key_candidate(token: str) -> bool:
-    """短名资格：长度和形态，不看是不是业务词。"""
-    token = (token or "").strip()
-    if len(token) < 2 or token in _STOP or token.isdigit():
-        return False
-    if token[0] in _EDGE or token[-1] in _EDGE:
-        return False
-    han = len(_HAN_CHARS.findall(token))
-    if han:
-        return 2 <= han <= 12 and len(token) <= 16
-    return bool(_LATIN_KEY.fullmatch(token))
-
-
-def pick_project_key(*texts: str) -> str:
-    """从理解文本（及原文）锁定短名。
-
-    只采用引号专名，且必须出现在第一段文本（通常是 purpose）里，
-    避免把原文里顺带出现的其它专名锁成项目身份。
-    """
-    purpose = texts[0] if texts else ""
-    if not (purpose or "").strip():
-        return ""
-    quoted: list[str] = []
-    seen: set[str] = set()
-    for text in texts:
-        for token in extract_quoted(text or ""):
-            if token in seen or not is_key_candidate(token):
-                continue
-            seen.add(token)
-            quoted.append(token)
-    in_purpose = [token for token in quoted if token in purpose]
-    if not in_purpose:
-        return ""
-    in_purpose.sort(key=lambda token: (purpose.find(token), -len(token)))
-    return in_purpose[0]
-
-
 def extract_entities(text: str, *, limit: int = 20) -> list[str]:
     """从原文抽取可用于匹配的实体，按频次与长度排序。
 
@@ -186,23 +147,6 @@ def extract_entities(text: str, *, limit: int = 20) -> list[str]:
     return out
 
 
-def overlap_score(query: list[str], stored: list[str]) -> int:
-    """查询实体与库存实体的命中数（含合理的互相包含）。"""
-    if not query or not stored:
-        return 0
-    hits = 0
-    seen: set[str] = set()
-    for q in query:
-        if q in seen:
-            continue
-        for s in stored:
-            if q == s or (len(q) >= 3 and len(s) >= 3 and (q in s or s in q)):
-                hits += 1
-                seen.add(q)
-                break
-    return hits
-
-
 def entity_names(entities: object) -> list[str]:
     """兼容新旧实体格式：dict{name,...} 或 str → name 列表。"""
     out: list[str] = []
@@ -217,9 +161,7 @@ def entity_names(entities: object) -> list[str]:
 
 
 __all__ = [
+    "entity_names",
     "extract_entities",
     "extract_quoted",
-    "is_key_candidate",
-    "overlap_score",
-    "pick_project_key",
 ]

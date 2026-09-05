@@ -178,7 +178,6 @@ class CatalogSupervisorContract(SupervisorContract):
     ]
 
 
-CATALOG_GENERATION_OUTPUT_CONTRACT = CatalogGenerationContract.to_output_contract()
 CATALOG_SUPERVISOR_OUTPUT_CONTRACT = CatalogSupervisorContract.to_output_contract()
 
 
@@ -310,7 +309,6 @@ CATALOG_FALLBACK_RULES = CatalogFallbackRules()
 
 __all__ = [
     "CATALOG_FALLBACK_RULES",
-    "CATALOG_GENERATION_OUTPUT_CONTRACT",
     "CATALOG_SLIM_GENERATION_OUTPUT_CONTRACT",
     "CATALOG_SUPERVISOR_OUTPUT_CONTRACT",
 ]
