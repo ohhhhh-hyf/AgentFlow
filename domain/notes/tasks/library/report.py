@@ -426,7 +426,7 @@ def build_library_markdown(draft: dict[str, Any], *, subject: str = "") -> str:
 
 def attach_library_artifacts(state: dict[str, Any]) -> None:
     """入库报告进 rendered。"""
-    from tools.domain_engine import line
+    from tools.core.domain_engine_text import line
 
     from domain.notes.tasks.catalog.gather import subject_from_context
 

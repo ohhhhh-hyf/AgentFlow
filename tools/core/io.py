@@ -192,7 +192,7 @@ def load_user(ctx: DomainContext, profile_path: Path):
         resolved = resolve_path(ctx, profile_path)
     if not resolved.exists():
         # 客观画像与职业模板都平铺在公共目录 perspective/profiles/
-        from tools.profiles import SHARED_PROFILE_DIR
+        from tools.core.profiles import SHARED_PROFILE_DIR
 
         shared = next(
             (
@@ -216,7 +216,7 @@ def load_user(ctx: DomainContext, profile_path: Path):
     profile = json.loads(profile_file.read_text(encoding="utf-8"))
     if not isinstance(profile, dict):
         raise ValueError(f"用户画像必须是 JSON 对象：{profile_file}")
-    from tools.profiles import filter_identity_fields, resolve_role_template
+    from tools.core.profiles import filter_identity_fields, resolve_role_template
 
     profile = resolve_role_template(profile, profile_file.parent)
 

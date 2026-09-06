@@ -1,7 +1,7 @@
 """risk 任务组的 prompt 与输出契约。"""
 from __future__ import annotations
 
-from tools.template_prompt import build_template_render_prompt
+from tools.templates.template_prompt import build_template_render_prompt
 
 
 RISK_GENERATION_SYSTEM_PROMPT = """你是「会议风险分析 Agent」。从会议原文、会议理解与视角模型中提取**有原文依据**的风险、阻碍与隐患。

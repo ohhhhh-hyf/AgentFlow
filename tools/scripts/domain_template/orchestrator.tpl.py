@@ -31,8 +31,8 @@ from .models import {{STATE_CLASS}}
 from .{{DOMAIN}}_factory import {{PASCAL}}AgentFactory
 
 # 共享编排内核（领域无关）：纯函数 + DomainNodes 图节点 mixin
-from tools.domain_engine import (
-    DomainNodes,
+from tools.core.domain_engine import DomainNodes
+from tools.core.domain_engine_text import (
     json_dumps as _json,
     line as _line,
     line_cn as _engine_line_cn,

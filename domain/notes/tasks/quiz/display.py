@@ -6,7 +6,7 @@ import re
 from html import escape
 from typing import Any
 
-from tools.domain_engine_text import line
+from tools.core.domain_engine_text import line
 from tools.exercise_search.images import rewrite_images
 from tools.exercise_search.tex import pretty_latex, replace_tex_html
 

@@ -26,7 +26,7 @@ from .io import (
     resolve_sample_path,
 )
 from .logging_config import setup_logging
-from tools.outputs import (
+from tools.exports.outputs import (
     export_graph,
     export_mindmap_html,
     export_mindmap_png,

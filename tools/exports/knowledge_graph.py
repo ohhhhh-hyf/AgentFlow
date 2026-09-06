@@ -13,6 +13,7 @@ from __future__ import annotations
 import logging
 from html import escape
 from json import dumps
+from typing import Any
 from pathlib import Path
 
 logger = logging.getLogger(__name__)

@@ -30,14 +30,14 @@ def attach_card_provenance(
     draft: dict[str, Any],
     context: str = "",
     teacher: str = "",
-    *,
-    collection: str = "",
 ) -> dict[str, Any]:
     """给 S/A/B 卡片挂 claims + provenance。库空或对不上就留空，不编来源。
 
     溯源走分层候选池（锚点 → 章节 → 源文件 → 向量 → 全库兜底），
     每张卡记录命中层与候选池大小；汇总统计挂 draft["trace_stats"]。
-    """
+    元数据索引先行（with_text=False，正文不进内存）；正文在评分首次触达时
+    经 _LazyChunkTexts 按 chroma id 批量回填——前四层大多在元数据层命中，
+    全库兜底层的正文按需一次性补取。"""
     cards = [c for c in (draft.get("cards") or []) if isinstance(c, dict)]
     if not cards:
         return draft
@@ -45,7 +45,8 @@ def attach_card_provenance(
     user_id = user_id_from_context(context)
     subject = subject_from_context(context)
     kb = open_knowledge(user_id=user_id)
-    chunks = _load_chunks(user_id=user_id, subject=subject)
+    chunks = _load_chunks(user_id=user_id, subject=subject, with_text=False)
+    loader = _LazyChunkTexts(kb, user_id=user_id, subject=subject)
     indexed = _chunk_index(chunks) if chunks else None
     stats: dict[str, Any] = {
         "layers": {},
@@ -60,7 +61,8 @@ def attach_card_provenance(
             out.append(card)
             continue
         traced, meta = _trace_card(
-            card, teacher_text, chunks, indexed=indexed, kb=kb, user_id=user_id, subject=subject
+            card, teacher_text, chunks, indexed=indexed, kb=kb, user_id=user_id, subject=subject,
+            loader=loader,
         )
         stats["cards"] += 1
         layer = str(meta.get("layer") or "none")
@@ -85,12 +87,14 @@ def _trace_card(
     kb: Any = None,
     user_id: str = "",
     subject: str = "",
+    loader: Any = None,
 ) -> tuple[dict[str, Any], dict[str, Any]]:
     next_card = dict(card)
     claims = _build_claims(next_card)
     teachers = _teacher_evidence(next_card, teacher, claims) if teacher else []
     kb_hits, note_hits, meta = _library_evidence(
-        next_card, claims, chunks, indexed=indexed, kb=kb, user_id=user_id, subject=subject
+        next_card, claims, chunks, indexed=indexed, kb=kb, user_id=user_id, subject=subject,
+        loader=loader,
     )
     teachers, kb_hits, note_hits = _bind_claims(claims, teachers, kb_hits, note_hits)
     next_card["claims"] = claims
@@ -242,6 +246,7 @@ def _library_evidence(
     kb: Any = None,
     user_id: str = "",
     subject: str = "",
+    loader: Any = None,
 ) -> tuple[list[dict[str, Any]], list[dict[str, Any]], dict[str, Any]]:
     if not chunks:
         return [], [], {"layer": "none", "pool_size": 0}
@@ -250,7 +255,7 @@ def _library_evidence(
     for layer, pool in _candidate_layers(card, indexed, chunks, kb=kb, user_id=user_id, subject=subject):
         if not pool:
             continue
-        kb_hits, note_hits = _rank_library_evidence(card, claims, pool, layer=layer)
+        kb_hits, note_hits = _rank_library_evidence(card, claims, pool, layer=layer, loader=loader)
         if kb_hits or note_hits:
             return kb_hits, note_hits, {"layer": layer, "pool_size": len(pool)}
     return [], [], {"layer": "none", "pool_size": 0}
@@ -259,16 +264,14 @@ def _library_evidence(
 def _chunk_index(chunks: list[dict[str, Any]]) -> dict[str, dict[str, list[dict[str, Any]]]]:
     """一次性建多键索引：source#heading（L1）/ (chapter, topic)（L2）/ source（L3）。
 
-    同时为每个 chunk 预计算 clean/compact 文本（本批次所有卡共用，
-    避免重复正则清洗；向量层召回的 chunk 无预计算字段时按需兜底）。
-    """
+    只依赖元数据字段；正文预计算挪到评分处按需缓存（懒加载下正文可能尚未回填）。"""
     by_cid: dict[str, list[dict[str, Any]]] = {}
     by_topic: dict[tuple[str, str], list[dict[str, Any]]] = {}
     by_source: dict[str, list[dict[str, Any]]] = {}
     for chunk in chunks:
-        raw_text = str(chunk.get("text") or "")
-        chunk["_clean"] = _clean(raw_text)
-        chunk["_compact"] = _compact(chunk["_clean"])
+        if "text" in chunk:
+            chunk["_clean"] = _clean(str(chunk.get("text") or ""))
+            chunk["_compact"] = _compact(chunk["_clean"])
         for key in _as_list(chunk.get("source_chunk_id")):
             cid = _clean(key)
             if cid:
@@ -318,7 +321,7 @@ def _anchored_chunks(
     seen: set[tuple[str, str]] = set()
     for cid in _as_list(card.get("source_chunk_ids")):
         for chunk in by_cid.get(_clean(cid), []):
-            key = (str(chunk.get("source") or ""), _compact(chunk.get("text") or "")[:80])
+            key = (str(chunk.get("source") or ""), str(chunk.get("id") or "") or _compact(chunk.get("text") or "")[:80])
             if key in seen:
                 continue
             seen.add(key)
@@ -374,7 +377,7 @@ def _source_heading_chunks(
                 continue
             if not any(_heading_related(n, heading) for n in names):
                 continue
-            key = (src, _compact(chunk.get("text") or "")[:40])
+            key = (src, str(chunk.get("id") or "") or _compact(chunk.get("text") or "")[:40])
             if key in seen:
                 continue
             seen.add(key)
@@ -434,7 +437,10 @@ def _rank_library_evidence(
     chunks: list[dict[str, Any]],
     *,
     layer: str,
+    loader: Any = None,
 ) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+    if loader is not None:
+        loader.ensure(chunks)  # 正文按需批量懒取并回填（此后与自带正文无差别）
     query = _search_query(card)
     query_c = _compact(query)
     name_c = _compact(_clean(card.get("name")))
@@ -734,7 +740,8 @@ def _status(
     return "insufficient" if strong else "none"
 
 
-def _load_chunks(user_id: str = "", subject: str = "") -> list[dict[str, Any]]:
+def _load_chunks(user_id: str = "", subject: str = "", *, with_text: bool = False) -> list[dict[str, Any]]:
+    """拉溯源候选块。with_text=False 时只拉元数据（正文经 _LazyChunkTexts 按需回填）。"""
     kb = open_knowledge(user_id=user_id)
     if kb is None:
         return []
@@ -745,7 +752,7 @@ def _load_chunks(user_id: str = "", subject: str = "") -> list[dict[str, Any]]:
     if not files:
         return []
     try:
-        raw = kb.list_chunks(user_id=user_id, subject=subject)
+        raw = kb.list_chunks(user_id=user_id, subject=subject, with_text=with_text)
     except Exception:
         return []
     out: list[dict[str, Any]] = []
@@ -759,16 +766,51 @@ def _load_chunks(user_id: str = "", subject: str = "") -> list[dict[str, Any]]:
         page = meta.get("page")
         if page not in (None, ""):
             section = f"{section} · 第{page}页" if section else f"第{page}页"
-        out.append(
-            {
-                "text": str(chunk.get("text") or ""),
-                "source": source,
-                "source_chunk_id": f"{source}#{section_base}" if source and section_base else "",
-                "role": role,
-                "section": section,
-                "heading": section_base,
-                "chapter": _clean(meta.get("chapter") or ""),
-                "topic": _clean(meta.get("topic") or ""),
-            }
-        )
+        item = {
+            "source": source,
+            "source_chunk_id": f"{source}#{section_base}" if source and section_base else "",
+            "role": role,
+            "section": section,
+            "heading": section_base,
+            "chapter": _clean(meta.get("chapter") or ""),
+            "topic": _clean(meta.get("topic") or ""),
+        }
+        if with_text:
+            item["text"] = str(chunk.get("text") or "")
+        else:
+            item["id"] = str(chunk.get("id") or "")  # chroma 块 id，供正文懒取
+        out.append(item)
     return out
+
+
+class _LazyChunkTexts:
+    """块正文按需批量懒取（元数据索引先行，正文首次触达时回填进 chunk）。
+
+    评分/去重首次需要某块正文时，把当批所有缺失 id 一次性
+    ``get_chunk_texts`` 补取并回填 ``chunk["text"]``——此后与自带正文的
+    chunk 无差别。chroma get 是本地调用，一次批量开销远低于全库正文常驻。"""
+
+    def __init__(self, kb: Any, user_id: str = "", subject: str = "") -> None:
+        self._kb = kb
+        self._user_id = user_id
+        self._subject = subject
+
+    def ensure(self, chunks: list[dict[str, Any]]) -> None:
+        missing: dict[str, dict[str, Any]] = {}
+        for chunk in chunks:
+            if "text" in chunk:
+                continue
+            cid = str(chunk.get("id") or "")
+            if not cid:
+                continue  # 无 id 的块（向量层召回自带 text）不处理
+            missing[cid] = chunk
+        if not missing:
+            return
+        try:
+            texts = self._kb.get_chunk_texts(
+                list(missing), user_id=self._user_id, subject=self._subject
+            ) if self._kb is not None and hasattr(self._kb, "get_chunk_texts") else {}
+        except Exception:
+            texts = {}
+        for cid, chunk in missing.items():
+            chunk["text"] = str(texts.get(cid) or "")

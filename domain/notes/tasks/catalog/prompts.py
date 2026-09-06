@@ -53,7 +53,7 @@ Course → Chapter → Topic → Knowledge Point → Knowledge Item
 ## 四、节点规范
 
 1. name 必须是标准纯概念名称，去掉「四、」「（一）」「1.」「第四章」等序号前缀
-   （如「四、导数的应用」→「导数的应用」）。
+   （如「1.2 某章节主题」→「某章节主题」）。
 2. 同义名称合并进 aliases，只保留一个主节点；同层 KP 粒度一致。
 3. 笔记只判断覆盖（note_coverage），不推断掌握。
 4. prerequisites / related_points 只能指向本目录里其他 KP 的 name。
@@ -99,6 +99,13 @@ CATALOG_SUPERVISOR_DOMAIN_PROMPT = """## 领域审核规则：知识目录
 - 大量 KP 缺 id / knowledge_type / knowledge_items
 
 个别 importance 偏差、个别关联漏填 → approve。"""
+
+
+# 任务线完备性协议符号（sync_domain readiness 按名称存在性判定）：
+# catalog_render 为程序化渲染（build_catalog_markdown），不进入 LLM 调用。
+CATALOG_RENDER_PROMPT = """把已批准知识目录草稿渲染为 Markdown 目录树（程序化渲染，无 LLM）。"""
+
+CATALOG_RENDER_TEMPLATE_PROMPT = """按模板输出知识目录，只替换占位。"""
 
 
 __all__ = [

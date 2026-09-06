@@ -10,7 +10,7 @@
 开关：环境变量 ``TEMPLATE_ROUTER=off`` 关闭路由。
 
 用法（任务线 render 内）：
-    from tools.prompt_utils import build_render_prompt
+    from tools.core.prompt_utils import build_render_prompt
 
     def _prompt_and_user(self, context, template):
         return build_render_prompt(
@@ -19,7 +19,7 @@
 """
 from __future__ import annotations
 
-from tools.template_prompt import FALLBACK_TEMPLATE_RULES
+from tools.templates.template_prompt import FALLBACK_TEMPLATE_RULES
 from tools.template_router import route_template
 
 

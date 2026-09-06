@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from client import LLMClient
-from tools.hard_execution import (
+from tools.execution.hard_execution import (
     enforce_minutes_draft,
     extract_labeled_json,
     parse_perspective_mode,

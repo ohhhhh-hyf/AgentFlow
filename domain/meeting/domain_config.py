@@ -21,6 +21,7 @@ LINE_CN_NAMES: dict[str, str] = {
     "mindmap": "思维导图",
     "minutes_styles": "多样式纪要",
     "minutes_trace": "溯源纪要",
+    "consensus_decision": "共识决策",
 }
 
 # 任务线种类（手写，不进 sync_domain 生成区）。
@@ -32,4 +33,5 @@ LINE_KINDS: dict[str, object] = {
     "mindmap": LLM_DOCUMENT,
     "minutes_styles": {"kind": LLM_DOCUMENT, "cli_mode": True},
     "minutes_trace": {"kind": DETERMINISTIC_PIPELINE, "sidecar": True},
+    "consensus_decision": {"kind": LLM_EXTRACT, "llm_render": "if_template"},
 }

@@ -18,7 +18,7 @@ try:
 except ModuleNotFoundError:  # pragma: no cover - depends on selected backend
     websockets = None
 
-from tools.validation import OutputValidationError, validate_payload
+from tools.schema.validation import OutputValidationError, validate_payload
 
 from .config import LLMSettings, resolve_llm_settings
 

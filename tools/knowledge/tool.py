@@ -239,6 +239,18 @@ class KnowledgeTool:
                                       with_text=with_text)
 
 
+    def get_chunk_texts(
+        self,
+        ids: List[str],
+        collection: str = "default",
+        user_id: str = "",
+        subject: str = "",
+    ) -> Dict[str, str]:
+        """按 chroma 块 id 批量取正文 ``{id: text}``（正文懒取场景用）。"""
+        coll, where = _scope(collection, user_id, subject)
+        return self.store.get_documents_by_ids(coll, ids, where=where)
+
+
 def get_knowledge(
     *,
     fake: bool = False,

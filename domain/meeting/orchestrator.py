@@ -22,8 +22,8 @@ from .meeting_core import MeetingUnderstandingAgent
 from .domain_config import LINE_CN_NAMES, LINE_KINDS
 
 # 共享编排内核（领域无关）：纯函数 + DomainNodes 图节点 mixin
-from tools.domain_engine import (
-    DomainNodes,
+from tools.core.domain_engine import DomainNodes
+from tools.core.domain_engine_text import (
     format_risk_item,
     json_dumps as _json,
     line as _line,
@@ -38,10 +38,11 @@ from tools.runtime.supervisor_slice import compact_draft_for_review
 
 from .reports import (
     ActionItemsReport,
+    ConsensusDecisionReport,
     MindmapReport,
     MinutesReport,
-    MinutesTraceReport,
     MultiStylesReport,
+    MinutesTraceReport,
     RiskReport,
 )
 # ── Report import 生成区结束 ──
@@ -53,6 +54,12 @@ from .tasks.actions import (
     ActionItemsAgent,
     ActionItemsRender,
     ActionItemsSupervisor,
+)
+
+from .tasks.consensus_decision import (
+    ConsensusDecisionAgent,
+    ConsensusDecisionRender,
+    ConsensusDecisionSupervisor,
 )
 
 from .tasks.mindmap import (
@@ -67,16 +74,16 @@ from .tasks.minutes import (
     MinutesGenerationSupervisor,
 )
 
-from .tasks.minutes_trace import (
-    MinutesTraceAgent,
-    MinutesTraceRender,
-    MinutesTraceSupervisor,
-)
-
 from .tasks.minutes_styles import (
     MultiStylesAgent,
     MultiStylesRender,
     MultiStylesSupervisor,
+)
+
+from .tasks.minutes_trace import (
+    MinutesTraceAgent,
+    MinutesTraceRender,
+    MinutesTraceSupervisor,
 )
 
 from .tasks.risks import (
@@ -90,10 +97,11 @@ from .tasks.risks import (
 # ── FallbackRules import 生成区：由 tools/scripts/sync_domain.py 生成，勿手改 ──
 
 from .tasks.actions.contracts import ACTION_ITEMS_FALLBACK_RULES
+from .tasks.consensus_decision.contracts import CONSENSUS_DECISION_FALLBACK_RULES
 from .tasks.mindmap.contracts import MINDMAP_FALLBACK_RULES
 from .tasks.minutes.contracts import MINUTES_FALLBACK_RULES
-from .tasks.minutes_trace.contracts import MINUTES_TRACE_FALLBACK_RULES
 from .tasks.minutes_styles.contracts import MULTI_STYLES_FALLBACK_RULES
+from .tasks.minutes_trace.contracts import MINUTES_TRACE_FALLBACK_RULES
 from .tasks.risks.contracts import RISK_FALLBACK_RULES
 
 # ── FallbackRules import 生成区结束 ──
@@ -109,6 +117,11 @@ _EMPTY_ACTION_ITEMS = {
     "my_actions": [],
     "delegated_actions": [],
     "unassigned_actions": [],
+}
+
+_EMPTY_CONSENSUS_DECISION = {
+    "summary": {},
+    "issues": [],
 }
 
 _EMPTY_MEETING_UNDERSTANDING = {
@@ -202,6 +215,13 @@ _REJECT_MINUTES_TRACE_REVIEW = {
     "feedback": ["LLM 调用失败，未完成审核，转降级输出"],
 }
 
+_REJECT_CONSENSUS_DECISION_REVIEW = {
+    "decision": "reject",
+    "concession_check": {"status": "fail", "findings": ["LLM 调用失败，未完成审核"]},
+    "tradeoff_check": {"status": "fail", "findings": ["LLM 调用失败，未完成审核"]},
+    "evidence_check": {"status": "fail", "findings": ["LLM 调用失败，未完成审核"]},
+    "feedback": ["LLM 调用失败，未完成审核，转降级输出"],
+}
 
 # ── 拒绝审核常量生成区结束 ──
 
@@ -213,6 +233,12 @@ TASK_LINES: dict[str, dict] = {
         "supervisor_attr": "actions_supervisor",
         "empty_draft": _EMPTY_ACTION_ITEMS,
         "reject_review": _REJECT_ACTION_ITEMS_REVIEW,
+    },
+    "consensus_decision": {
+        "agent_attr": "consensus_decision_agent",
+        "supervisor_attr": "consensus_decision_supervisor",
+        "empty_draft": _EMPTY_CONSENSUS_DECISION,
+        "reject_review": _REJECT_CONSENSUS_DECISION_REVIEW,
     },
     "mindmap": {
         "agent_attr": "mindmap_agent",
@@ -226,21 +252,21 @@ TASK_LINES: dict[str, dict] = {
         "empty_draft": _EMPTY_MINUTES,
         "reject_review": _REJECT_MINUTES_REVIEW,
     },
-    "minutes_trace": {
-        "agent_attr": "minutes_trace_agent",
-        "supervisor_attr": "minutes_trace_supervisor",
-        "empty_draft": _EMPTY_MINUTES_TRACE,
-        "reject_review": _REJECT_MINUTES_TRACE_REVIEW,
-    },
     "minutes_styles": {
         "agent_attr": "minutes_styles_agent",
         "supervisor_attr": "minutes_styles_supervisor",
         "empty_draft": _EMPTY_MULTI_STYLES,
         "reject_review": _REJECT_MULTI_STYLES_REVIEW,
     },
+    "minutes_trace": {
+        "agent_attr": "minutes_trace_agent",
+        "supervisor_attr": "minutes_trace_supervisor",
+        "empty_draft": _EMPTY_MINUTES_TRACE,
+        "reject_review": _REJECT_MINUTES_TRACE_REVIEW,
+    },
     "risks": {
-        "agent_attr": "risk_agent",
-        "supervisor_attr": "risk_supervisor",
+        "agent_attr": "risks_agent",
+        "supervisor_attr": "risks_supervisor",
         "empty_draft": _EMPTY_RISK,
         "reject_review": _REJECT_RISK_REVIEW,
     },
@@ -264,12 +290,36 @@ def _format_minutes_styles_section(index: int, item: dict) -> str:
         return f"{title}：{content}" if content else title
     return content
 
+def _format_consensus_decision_issue(index: int, item: dict) -> str:
+    """把共识决策议题格式化为结构化文本（确定性降级输出用）。"""
+    topic = str(item.get("topic") or "").strip()
+    grade = str(item.get("consensus_grade") or "").strip()
+    accord = item.get("accord")
+    if isinstance(accord, dict):
+        resolution = str(accord.get("core_resolution") or "").strip()
+    else:
+        resolution = str(accord or "").strip()
+    tradeoff = item.get("trade_off") or {}
+    gain = str(tradeoff.get("gain") or "").strip()
+    sacrifice = str(tradeoff.get("sacrifice") or "").strip()
+    caveat = str(item.get("caveat") or "").strip()
+
+    lines = [f"{index}. 【议题】{topic}（成色定级：{grade}）"]
+    if resolution:
+        lines.append(f"   - 决议公约：{resolution}")
+    if gain or sacrifice:
+        lines.append(f"   - 得失天平：收益【{gain}】/ 代价【{sacrifice}】")
+    if caveat and caveat.lower() not in ("none", "null", "无", "无保留条件", "无附加保留条件"):
+        lines.append(f"   - 保留条件：{caveat}")
+    return "\n".join(lines)
+
 # Lines 段逐条格式化器注册表（线名 → 格式化函数(index, item) -> str）
 # actions / risks / minutes_styles 的降级输出格式与各自 LLM 渲染 prompt 保持一致
 _LINES_FORMATTERS: dict[str, object] = {
     "actions": ActionItemsRender.format_action,
     "risks": format_risk_item,
     "minutes_styles": _format_minutes_styles_section,
+    "consensus_decision": _format_consensus_decision_issue,
 }
 
 # 理解层按线裁剪：单线运行时跳过的字段（输出 []，字段契约与下游读取不变）。
@@ -525,8 +575,8 @@ class _Nodes(DomainNodes):
         perspective = self._compact_perspective(state.get("perspective_profile") or {})
         if perspective:
             parts.append(f"用户视角模型：\n{_json(perspective)}")
-        # 纪要成段需要原文细节；溯源/多样式/导图同样需要原文。其它线优先依赖 evidence。
-        if line_name in {"minutes", "minutes_trace", "minutes_styles", "mindmap"}:
+        # 纪要成段需要原文细节；溯源/多样式/导图/共识决策同样需要原文。其它线优先依赖 evidence。
+        if line_name in {"minutes", "minutes_trace", "minutes_styles", "mindmap", "consensus_decision"}:
             parts.append(f"会议原文：\n{state.get('transcript') or ''}")
         return "\n\n".join(parts)
 
@@ -621,7 +671,7 @@ class _Nodes(DomainNodes):
         perspective = self._compact_perspective(state.get("perspective_profile") or {})
         if perspective:
             blocks.append(("已审核用户视角", perspective, "json"))
-        if line_name in {"minutes", "minutes_trace", "minutes_styles", "mindmap"}:
+        if line_name in {"minutes", "minutes_trace", "minutes_styles", "mindmap", "consensus_decision"}:
             blocks.insert(0, ("会议原文", state.get("transcript") or "", "raw"))
         return build_render_context(
             mode=self._mode_label(state),
@@ -633,6 +683,34 @@ class _Nodes(DomainNodes):
             extra=extra,
             dumps=_json,
         )
+
+    def _make_fallback_node(self, line_name: str):
+        """生成任务线降级节点：共识决策若已产出 issues 草稿，按确定性 Markdown 模板排版，严禁回退为空白占位符。"""
+        if line_name == "consensus_decision":
+            async def node(state: dict) -> dict:
+                draft = _line(state, "consensus_decision").get("draft") or {}
+                issues = draft.get("issues") or []
+                if issues:
+                    from tools.exports.consensus_decision import format_consensus_decision_markdown
+                    title = self._compute_title(state)
+                    text = format_consensus_decision_markdown(draft, title=title)
+                    structure = issues
+                else:
+                    text, structure = self._domain_fallback_text(
+                        state, line_name, self._fallback_rules[line_name]
+                    )
+                return {
+                    "lines": {
+                        "consensus_decision": {
+                            "rendered": text,
+                            "structure": structure,
+                            "degraded": True,
+                        }
+                    },
+                    "quality_degraded": True,
+                }
+            return node
+        return super()._make_fallback_node(line_name)
 
     # ── 领域钩子：core 节点 ───────────────────────────────────
 
@@ -708,6 +786,18 @@ class _Nodes(DomainNodes):
 
         return node
 
+    async def _meeting_understanding_node(self, state: MeetingState) -> dict:
+        """meeting理解：提取主题、结构、术语和待澄清问题。"""
+        try:
+            result = await self.meeting_understanding_agent.run(state["transcript"])
+        except Exception:
+            logger.warning("meeting理解失败，使用空理解继续", exc_info=True)
+            return {
+                "meeting_understanding": _EMPTY_MEETING_UNDERSTANDING,
+                "quality_degraded": True,
+            }
+        return {"meeting_understanding": result.model_dump()}
+
 class MeetingAgentSystem(_Nodes):
     """使用 LangGraph 编排会议分析、多线并行审核返工与最终输出。"""
 
@@ -730,39 +820,43 @@ class MeetingAgentSystem(_Nodes):
         self.actions_agent: ActionItemsAgent = agents["actions_agent"]
         self.actions_supervisor: ActionItemsSupervisor = agents["actions_supervisor"]
         self.actions_render: ActionItemsRender = agents["actions_render"]
+        self.consensus_decision_agent: ConsensusDecisionAgent = agents["consensus_decision_agent"]
+        self.consensus_decision_supervisor: ConsensusDecisionSupervisor = agents["consensus_decision_supervisor"]
+        self.consensus_decision_render: ConsensusDecisionRender = agents["consensus_decision_render"]
         self.mindmap_agent: MindmapAgent = agents["mindmap_agent"]
         self.mindmap_supervisor: MindmapSupervisor = agents["mindmap_supervisor"]
         self.mindmap_render: MindmapRender = agents["mindmap_render"]
         self.minutes_agent: MinutesGenerationAgent = agents["minutes_agent"]
         self.minutes_supervisor: MinutesGenerationSupervisor = agents["minutes_supervisor"]
         self.minutes_render: MinutesGenerationRender = agents["minutes_render"]
-        self.minutes_trace_agent: MinutesTraceAgent = agents["minutes_trace_agent"]
-        self.minutes_trace_supervisor: MinutesTraceSupervisor = agents["minutes_trace_supervisor"]
-        self.minutes_trace_render: MinutesTraceRender = agents["minutes_trace_render"]
         self.minutes_styles_agent: MultiStylesAgent = agents["minutes_styles_agent"]
         self.minutes_styles_supervisor: MultiStylesSupervisor = agents["minutes_styles_supervisor"]
         self.minutes_styles_render: MultiStylesRender = agents["minutes_styles_render"]
-        self.risk_agent: RiskAgent = agents["risk_agent"]
-        self.risk_supervisor: RiskSupervisor = agents["risk_supervisor"]
-        self.risk_render: RiskRender = agents["risk_render"]
+        self.minutes_trace_agent: MinutesTraceAgent = agents["minutes_trace_agent"]
+        self.minutes_trace_supervisor: MinutesTraceSupervisor = agents["minutes_trace_supervisor"]
+        self.minutes_trace_render: MinutesTraceRender = agents["minutes_trace_render"]
+        self.risks_agent: RiskAgent = agents["risks_agent"]
+        self.risks_supervisor: RiskSupervisor = agents["risks_supervisor"]
+        self.risks_render: RiskRender = agents["risks_render"]
 
         # ── Agent 挂载生成区结束 ──
 
         # 兼容别名：线名 risks（复数）与属性 risk_*（单数）的历史映射，
         # 引擎按 f"{line_name}_render" 取值，需与线名对齐
-        self.risks_agent = self.risk_agent
-        self.risks_supervisor = self.risk_supervisor
-        self.risks_render = self.risk_render
+        self.risk_agent = self.risks_agent
+        self.risk_supervisor = self.risks_supervisor
+        self.risk_render = self.risks_render
 
         # 各线 Report 组装器：线名 → Report 类（脚本生成，键 = 线名与 chunk.line 一致）
         # ── Report 组装器生成区：由 tools/scripts/sync_domain.py 生成，勿手改 ──
 
         self._report_assemblers = {
             "actions": ActionItemsReport,
+            "consensus_decision": ConsensusDecisionReport,
             "mindmap": MindmapReport,
             "minutes": MinutesReport,
-            "minutes_trace": MinutesTraceReport,
             "minutes_styles": MultiStylesReport,
+            "minutes_trace": MinutesTraceReport,
             "risks": RiskReport,
         }
 
@@ -773,10 +867,11 @@ class MeetingAgentSystem(_Nodes):
 
         self._fallback_rules = {
             "actions": ACTION_ITEMS_FALLBACK_RULES,
+            "consensus_decision": CONSENSUS_DECISION_FALLBACK_RULES,
             "mindmap": MINDMAP_FALLBACK_RULES,
             "minutes": MINUTES_FALLBACK_RULES,
-            "minutes_trace": MINUTES_TRACE_FALLBACK_RULES,
             "minutes_styles": MULTI_STYLES_FALLBACK_RULES,
+            "minutes_trace": MINUTES_TRACE_FALLBACK_RULES,
             "risks": RISK_FALLBACK_RULES,
         }
 

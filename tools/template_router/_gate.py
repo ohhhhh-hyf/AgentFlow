@@ -155,7 +155,7 @@ def check_compile_fidelity(description: str, compiled: str) -> list[str]:
             )
         # 段落级字数禁止写成「全文合计」
         try:
-            from tools.template_eval import is_section_scoped_char_budget
+            from tools.templates.template_eval import is_section_scoped_char_budget
         except Exception:  # noqa: BLE001
             is_section_scoped_char_budget = None  # type: ignore[assignment]
         if is_section_scoped_char_budget and is_section_scoped_char_budget(
@@ -412,7 +412,7 @@ def _ensure_document_char_budget_line(source: str, compiled: str) -> str:
     不写进固定文字行，避免 assemble 后用户正文出现「全文约××字」。
     """
     try:
-        from tools.template_eval import (
+        from tools.templates.template_eval import (
             is_section_scoped_char_budget,
             parse_char_budget,
             parse_document_char_budget,

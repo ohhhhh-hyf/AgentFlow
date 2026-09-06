@@ -5,10 +5,10 @@ outline 是 markmap 的直接输入（标题层级 + 列表项），零转换。
 """
 from __future__ import annotations
 
-from tools.contracts import (
+from tools.schema.contracts import (
     Check, Decision, Feedback, GenerationContract, StrField, SupervisorContract,
 )
-from tools.fallback_rules import FallbackRules, Raw
+from tools.schema.fallback_rules import FallbackRules, Raw
 
 
 class MindmapGenerationContract(GenerationContract):

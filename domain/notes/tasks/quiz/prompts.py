@@ -1,7 +1,7 @@
 """quiz 任务组的 prompt。"""
 from __future__ import annotations
 
-from tools.template_prompt import build_template_render_prompt
+from tools.templates.template_prompt import build_template_render_prompt
 
 
 QUIZ_GENERATION_SYSTEM_PROMPT = """你是「笔记自测出题 Agent」。用户刚写完笔记。你的任务不是再总结知识点，而是出一套**合上笔记也得想一想**的题。
@@ -29,8 +29,8 @@ QUIZ_GENERATION_SYSTEM_PROMPT = """你是「笔记自测出题 Agent」。用户
 ### Step 2 可提问点（按优先级）
 
 1. **最高优先：A→B 问为什么**  
-   笔记写了「学习率太大会发散」→ 问「为什么学习率太大反而更差？」  
-   不要问「学习率太大会怎样？」（那是抄结论）
+   笔记写了「某条件下结论不成立」→ 问「为什么该条件下结论反而不成立？」  
+   不要问「该条件会怎样？」（那是抄结论）
 2. 对比：两种对象/两种顺序差在哪、为什么差
 3. 适用条件 / 特例：公式什么时候不能用
 4. 迁移：换一个笔记里出现过的情境，仍只用笔记里的原理

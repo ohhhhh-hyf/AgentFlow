@@ -361,7 +361,8 @@ def assemble_checklist(
         "course": _clean(catalog.get("course")) or _clean((llm_draft or {}).get("course")) or "课程复习清单",
         "catalog_version": str(catalog.get("version") or ""),
         "cards": cards,
-        "uncertain_quotes": plan.get("uncertain_quotes") or [],
+        # 程序版优先（确定性匹配）；plan 已透传 unmatched，双保险兜 LLM 版
+        "uncertain_quotes": unmatched or plan.get("uncertain_quotes") or [],
         "strategy": plan.get("strategy") or [],
         "phases": plan.get("phases") or [],
     }

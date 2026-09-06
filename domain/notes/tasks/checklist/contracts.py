@@ -1,7 +1,7 @@
 """checklist 契约：只给已激活的 Catalog KP 写复习卡片，禁止新建知识点。"""
 from __future__ import annotations
 
-from tools.contracts import (
+from tools.schema.contracts import (
     Check,
     Decision,
     Feedback,
@@ -11,7 +11,7 @@ from tools.contracts import (
     StrListField,
     SupervisorContract,
 )
-from tools.fallback_rules import FallbackRules, Lines, Raw
+from tools.schema.fallback_rules import FallbackRules, Lines, Raw
 
 
 class ChecklistGenerationContract(GenerationContract):
@@ -48,7 +48,7 @@ class ChecklistGenerationContract(GenerationContract):
         ),
         StrListField(
             "uncertain_quotes",
-            "老师原话里对不上任何 Catalog KP 的片段，不要为此新建知识点",
+            "程序统计，输出 []（老师原话与目录的匹配由程序判定）",
         ),
         StrListField("strategy", "程序生成，输出 []"),
         ObjListField(

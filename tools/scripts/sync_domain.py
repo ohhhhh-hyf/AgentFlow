@@ -55,7 +55,7 @@ def _compact_blank_lines(text: str) -> str:
     return text
 
 
-from tools.contracts import (  # noqa: E402
+from tools.schema.contracts import (  # noqa: E402
     Check,
     GenerationContract,
     SupervisorContract,
@@ -1102,10 +1102,30 @@ def find_lines(tasks_dir: Path | None = None) -> list[str]:
     )
 
 
+# steps 类名与线名推导不一致的历史手写特例（readiness 的类名检查已放宽，
+# 装配/导入生成必须用同款映射，否则 --write 会把手写类名打回推导名）。
+# 新增任务线请遵循 {Pascal(线名)}Agent 命名，无需登记。
+_LINE_STEPS_PREFIX = {
+    "graph": "KnowledgeGraph",
+    "minutes": "MinutesGeneration",
+    "actions": "ActionItems",
+    "minutes_styles": "MultiStyles",
+    "risks": "Risk",
+}
+
+# Report 类名特例（其余线 {Pascal(线名)}Report 与推导一致）
+_LINE_REPORT_PREFIX = {
+    "graph": "KnowledgeGraph",
+}
+
+
+def _line_class_prefix(line: str) -> str:
+    return _LINE_STEPS_PREFIX.get(line, "".join(part.capitalize() for part in line.split("_")))
+
+
 def line_class_name(line: str, suffix: str) -> str:
-    """线名 + 后缀 → 类名。例：minutes + Agent → MinutesGenerationAgent。"""
-    prefix = "".join(part.capitalize() for part in line.split("_"))
-    return f"{prefix}{suffix}"
+    """线名 + 后缀 → steps 类名。例：minutes + Agent → MinutesGenerationAgent。"""
+    return f"{_line_class_prefix(line)}{suffix}"
 
 
 # ── 代码生成 ─────────────────────────────────────────────────
@@ -1360,7 +1380,7 @@ def generate_task_render_code(line: str) -> str:
         "\n"
         "from collections.abc import AsyncIterator\n"
         "\n"
-        "from tools.prompt_utils import build_render_prompt\n"
+        "from tools.core.prompt_utils import build_render_prompt\n"
         "\n"
         "from client import LLMClient\n"
         f"from ..prompts import {upper}_RENDER_PROMPT, {upper}_RENDER_TEMPLATE_PROMPT\n"
@@ -1446,14 +1466,10 @@ def write_task_skels(lines: list[str]) -> None:
             ("__init__.py", generate_task_init_code),
         ):
             path = (steps if fname != "__init__.py" else d) / fname
-            if fname == "__init__.py":
-                path.write_text(gen(line), encoding="utf-8")
-                _log(f"已更新 {path.relative_to(CURRENT.dir)}")
-            elif path.exists():
+            if path.exists():
                 continue
-            else:
-                path.write_text(gen(line), encoding="utf-8")
-                _log(f"已创建 {path.relative_to(CURRENT.dir)}")
+            path.write_text(gen(line), encoding="utf-8")
+            _log(f"已创建 {path.relative_to(CURRENT.dir)}")
 
 
 def check_task_skels(lines: list[str]) -> int:
@@ -1462,22 +1478,25 @@ def check_task_skels(lines: list[str]) -> int:
     for line in lines:
         d = CURRENT.tasks_dir / line
         steps = d / "steps"
-        cls = line_class_name(line, "")
         required = {
             f"{line}_agent.py": (
-                f"class {cls}Agent",
+                re.compile(r"class \w*Agent\b"),
                 "async def run",
             ),
             f"{line}_supervisor.py": (
-                f"class {cls}Supervisor",
+                re.compile(r"class \w*Supervisor\b"),
                 "async def review",
             ),
             f"{line}_render.py": (
-                f"class {cls}Render",
+                re.compile(r"class \w*Render\b"),
                 "async def run",
                 "async def stream",
             ),
-            "__init__.py": (f"{cls}Agent", f"{cls}Render", f"{cls}Supervisor"),
+            "__init__.py": (
+                re.compile(r"\b\w*Agent\b"),
+                re.compile(r"\b\w*Render\b"),
+                re.compile(r"\b\w*Supervisor\b"),
+            ),
         }
         for fname, needles in required.items():
             path = (steps if fname != "__init__.py" else d) / fname
@@ -1486,7 +1505,10 @@ def check_task_skels(lines: list[str]) -> int:
                 rc = 1
                 continue
             text = path.read_text(encoding="utf-8")
-            missing = [n for n in needles if n not in text]
+            missing = [
+                n for n in needles
+                if not (n.search(text) if hasattr(n, "search") else n in text)
+            ]
             if missing:
                 _log(f"{path.relative_to(CURRENT.dir)} 缺少必要结构：{missing}", file=sys.stderr)
                 rc = 1
@@ -1508,7 +1530,7 @@ def generate_task_lines_code(
             f'        "supervisor_attr": "{line}_supervisor",\n'
             f'        "empty_draft": _EMPTY_{base},\n'
             f'        "reject_review": _REJECT_{base}_REVIEW,\n'
-            "    }},"
+            "    },"
         )
     return "TASK_LINES: dict[str, dict] = {\n" + "\n".join(blocks) + "\n}"
 
@@ -1608,12 +1630,14 @@ def _pascal(base: str) -> str:
 
 
 def _report_class(line: str) -> str:
-    """线名 → Report 类名：{PascalCase(契约基名)}Report。
+    """线名 → Report 类名：{PascalCase(契约基名)}Report（特例见 _LINE_REPORT_PREFIX）。
 
     例：minutes → MINUTES → MinutesReport；
-        actions → ACTION_ITEMS → ActionItemsReport。
+        actions → ACTION_ITEMS → ActionItemsReport；
+        graph → KnowledgeGraphReport（手写特例）。
     """
-    return f"{_pascal(_contract_base(line))}Report"
+    prefix = _LINE_REPORT_PREFIX.get(line) or f"{_pascal(_contract_base(line))}"
+    return f"{prefix}Report"
 
 
 def _has_report_class(line: str) -> bool:
@@ -1653,10 +1677,12 @@ def generate_report_assembler_code(lines: list[str]) -> str:
 
 
 def generate_line_imports_code(lines: list[str]) -> str:
-    """生成 orchestrator.py 顶部的任务线 import（from .tasks.{线} import 三件套）。"""
+    """生成 orchestrator.py 顶部的任务线 import（from .tasks.{线} import 三件套）。
+
+    类名走 _line_class_prefix 映射（graph → KnowledgeGraph 等特例），与装配/挂载一致。"""
     blocks = []
     for line in lines:
-        base = _pascal(line)
+        base = _line_class_prefix(line)
         blocks.append(
             f"from .tasks.{line} import (\n"
             f"    {base}Agent,\n"

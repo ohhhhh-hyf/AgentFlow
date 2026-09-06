@@ -4,10 +4,10 @@
 
     from tools.knowledge import KnowledgeTool, get_knowledge
 
-    kb = get_knowledge()                          # 读项目根 .env
-    kb.add_file("课件.pptx", collection="math")   # PPT/PDF/docx/xlsx/txt
-    hits = kb.locate("学习率太大", collection="math")
-    ans = kb.ask("为什么学习率太大会发散？", collection="math")
+    kb = get_knowledge()                                   # 读项目根 .env
+    kb.add_file("课件.pptx", collection="某学科")           # PPT/PDF/docx/xlsx/txt
+    hits = kb.locate("某个知识点关键词", collection="某学科")
+    ans = kb.ask("某知识点的适用条件是什么？", collection="某学科")
     ans.answer / ans.sources
 """
 

@@ -32,7 +32,7 @@ S/A 必须写厚，学生打开就能复习，不要三五行提纲。B/C 也要
 
 strategy 直接输出空数组 []。复习路线由程序基于 importance / difficulty / exam_signal / prerequisites / note_missing_items 自动生成，避免重复消耗 token。
 
-uncertain_quotes：老师原话对不上任何给定 KP 的短句。
+uncertain_quotes 与 phases 均由程序统计/生成，两者都直接输出空数组 []，不要自行填写。
 """
 
 

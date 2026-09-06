@@ -7,8 +7,15 @@ from .steps.actions_agent import ActionItemsAgent
 from .steps.actions_render import ActionItemsRender
 from .steps.actions_supervisor import ActionItemsSupervisor
 
+ActionsAgent = ActionItemsAgent
+ActionsRender = ActionItemsRender
+ActionsSupervisor = ActionItemsSupervisor
+
 __all__ = [
     "ActionItemsAgent",
     "ActionItemsRender",
     "ActionItemsSupervisor",
+    "ActionsAgent",
+    "ActionsRender",
+    "ActionsSupervisor",
 ]

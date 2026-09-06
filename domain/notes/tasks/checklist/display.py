@@ -1383,8 +1383,8 @@ def _trace_script() -> str:
 
 
 def build_checklist_html(draft: dict[str, Any], *, has_teacher: bool | None = None) -> str:
-    from tools.graph import _CYTOSCAPE_CDN, build_graph_embed
-    from tools.mindmap import _D3_CDN, _MARKMAP_VIEW_CDN, build_editable_mindmap_embed
+    from tools.exports.knowledge_graph import _CYTOSCAPE_CDN, build_graph_embed
+    from tools.exports.mindmap import _D3_CDN, _MARKMAP_VIEW_CDN, build_editable_mindmap_embed
 
     course = _clean(draft.get("course")) or "复习清单"
     cards = [c for c in (draft.get("cards") or []) if isinstance(c, dict)]
@@ -2072,7 +2072,7 @@ def build_checklist_html(draft: dict[str, Any], *, has_teacher: bool | None = No
 
 
 def attach_checklist_artifacts(state: dict[str, Any]) -> None:
-    from tools.domain_engine_text import line
+    from tools.core.domain_engine_text import line
 
     from .gather import teacher_from_context
     from .trace import attach_card_provenance

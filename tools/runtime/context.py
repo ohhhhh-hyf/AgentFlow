@@ -6,7 +6,7 @@ from __future__ import annotations
 
 from collections.abc import Callable, Sequence
 
-from tools.domain_engine_text import json_dumps
+from tools.core.domain_engine_text import json_dumps
 
 
 def understanding_of(state: dict, key: str) -> dict:

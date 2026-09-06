@@ -6,7 +6,7 @@ import re
 from html import escape
 from typing import Any
 
-from tools.domain_engine_text import line
+from tools.core.domain_engine_text import line
 
 ISSUE_KINDS: dict[str, tuple[str, str]] = {
     "incomplete": ("⚠", "知识点记录不完整"),

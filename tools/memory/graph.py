@@ -228,7 +228,7 @@ def sanitize_graph(draft: dict[str, Any]) -> dict[str, Any]:
                 ntype = "formula"
             elif any(k in full_text for k in ("法", "技巧", "步骤", "求法")):
                 ntype = "method"
-            elif any(k in full_text for k in ("题", "考法", "求值", "值域", "定义域", "最值", "比较大小", "解方程", "解不等式", "范围")):
+            elif any(k in full_text for k in ("题", "考法", "求解", "求值", "范围")):
                 ntype = "problem"
             else:
                 ntype = "concept"

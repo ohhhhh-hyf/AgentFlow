@@ -5,7 +5,7 @@ from collections.abc import AsyncIterator
 from typing import Any
 
 from client import LLMClient
-from tools.hard_execution import extract_labeled_json
+from tools.execution.hard_execution import extract_labeled_json
 from tools.runtime.progress import progress
 
 from ..align import (

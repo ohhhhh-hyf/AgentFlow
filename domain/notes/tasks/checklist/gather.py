@@ -102,33 +102,49 @@ def build_checklist_briefing(
         else:
             parts.append("【激活 KP】目录中没有知识点。cards 必须空。")
     else:
-        parts.append("【激活 KP】只能给下面这些 id 写卡片：")
-        for row in activated:
-            bits = [
-                str(row.get("id") or ""),
-                str(row.get("name") or ""),
-                str(row.get("session_priority") or ""),
-                f"type={row.get('knowledge_type') or ''}",
-            ]
-            items = [str(x) for x in (row.get("knowledge_items") or []) if x]
-            if items:
-                bits.append("items=" + ",".join(items[:8]))
-            focus = [str(x) for x in (row.get("session_focus_items") or []) if x]
-            if focus:
-                bits.append("focus=" + ",".join(focus[:6]))
-            missing = [str(x) for x in (row.get("note_missing_items") or []) if x]
-            if missing:
-                bits.append("missing=" + ",".join(missing[:4]))
-            exam = str(row.get("session_exam_signal") or "").strip()
-            if exam and exam not in {"none", "null"}:
-                bits.append(f"exam={exam}")
-            err = str(row.get("session_error_signal") or "").strip()
-            if err:
-                bits.append("error=" + err[:80])
-            quotes = [str(x).strip() for x in (row.get("session_quotes") or []) if str(x).strip()]
-            if quotes:
-                bits.append("quotes=" + " / ".join(quotes[:2]))
-            parts.append("- " + " | ".join(bits))
+        # C 级（末位档）且老师未点到的卡片由程序按 fallback 规格直出，不进 LLM——
+        # 省 brief 行数与输出 token；C 卡定位"能复述定义和一条限制"，程序模板即达标。
+        # 老师点过的 C 级（_mentioned）保留进 LLM：原话溯源需要模型整合。
+        llm_rows = [
+            row
+            for row in activated
+            if str(row.get("session_priority") or "C") != "C" or row.get("_mentioned")
+        ]
+        skipped = len(activated) - len(llm_rows)
+        if not llm_rows:
+            parts.append("【激活 KP】本次全部为 C 级低优先知识点，卡片由程序生成。cards 必须空。")
+        else:
+            parts.append("【激活 KP】只能给下面这些 id 写卡片：")
+            for row in llm_rows:
+                bits = [
+                    str(row.get("id") or ""),
+                    str(row.get("name") or ""),
+                    str(row.get("session_priority") or ""),
+                    f"type={row.get('knowledge_type') or ''}",
+                ]
+                items = [str(x) for x in (row.get("knowledge_items") or []) if x]
+                if items:
+                    bits.append("items=" + ",".join(items[:8]))
+                focus = [str(x) for x in (row.get("session_focus_items") or []) if x]
+                if focus:
+                    bits.append("focus=" + ",".join(focus[:6]))
+                missing = [str(x) for x in (row.get("note_missing_items") or []) if x]
+                if missing:
+                    bits.append("missing=" + ",".join(missing[:4]))
+                exam = str(row.get("session_exam_signal") or "").strip()
+                if exam and exam not in {"none", "null"}:
+                    bits.append(f"exam={exam}")
+                err = str(row.get("session_error_signal") or "").strip()
+                if err:
+                    bits.append("error=" + err[:80])
+                quotes = [str(x).strip() for x in (row.get("session_quotes") or []) if str(x).strip()]
+                if quotes:
+                    bits.append("quotes=" + " / ".join(quotes[:2]))
+                parts.append("- " + " | ".join(bits))
+            if skipped:
+                parts.append(
+                    f"（另有 {skipped} 个 C 级低优先知识点由程序生成简卡，不要为它们输出。）"
+                )
     parts.append("【老师划重点原文】")
     parts.append((teacher or "")[:6000] if has_teacher else "（未提供，跳过老师重点溯源）")
     return "\n".join(parts)

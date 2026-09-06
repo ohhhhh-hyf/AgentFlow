@@ -16,6 +16,7 @@ from typing import Any
 from .models import (
     ModelMixin,
     ActionItemsReportValidation,
+    ConsensusDecisionReportValidation,
     MindmapReportValidation,
     MinutesReportValidation,
     MultiStylesReportValidation,
@@ -109,6 +110,24 @@ class MultiStylesReport(ModelMixin, MultiStylesReportValidation):
     sections: list[dict[str, Any]] = field(
         default_factory=list,
         metadata={"source": "structure"},
+    )
+    quality_warning: str | None = None
+    personalized_text: str | None = field(
+        default=None,
+        metadata={"source": "rendered"},
+    )
+
+@dataclass
+class ConsensusDecisionReport(ModelMixin, ConsensusDecisionReportValidation):
+    """共识成色与因果决策推演最终产出报告。"""
+
+    issues: list[dict[str, Any]] = field(
+        default_factory=list,
+        metadata={"source": "structure"},
+    )
+    summary: dict[str, Any] = field(
+        default_factory=dict,
+        metadata={"source": "draft.summary"},
     )
     quality_warning: str | None = None
     personalized_text: str | None = field(

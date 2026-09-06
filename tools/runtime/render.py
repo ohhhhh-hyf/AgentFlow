@@ -8,7 +8,7 @@ import asyncio
 import logging
 import sys
 
-from tools.domain_engine_text import line, line_cn, line_template
+from tools.core.domain_engine_text import line, line_cn, line_template
 
 logger = logging.getLogger(__name__)
 
@@ -149,7 +149,7 @@ async def produce_line(
             engine._post_render_hook(state, line_name)
             return
 
-        from tools.hard_execution import gate_render_output
+        from tools.execution.hard_execution import gate_render_output
         from tools.template_router import (
             detect_template_kind,
             fill_placeholder_template,
@@ -214,7 +214,7 @@ async def produce_line(
             and hasattr(render, "run")
         ):
             try:
-                from tools.template_eval import parse_document_char_budget
+                from tools.templates.template_eval import parse_document_char_budget
                 from tools.template_router import _body_han_count
             except Exception:  # noqa: BLE001
                 parse_document_char_budget = None  # type: ignore[assignment]
@@ -304,7 +304,7 @@ async def produce_line(
                 )
                 if over_issue:
                     try:
-                        from tools.template_eval import parse_document_char_budget
+                        from tools.templates.template_eval import parse_document_char_budget
                     except Exception:  # pragma: no cover
                         parse_document_char_budget = None  # type: ignore[assignment]
                     budget = (
@@ -360,7 +360,7 @@ async def produce_line(
                     and _han_count(full_text) > int(compress_hi) * 1.05
                 ):
                     try:
-                        from tools.hard_execution import truncate_to_budget
+                        from tools.execution.hard_execution import truncate_to_budget
                     except Exception:  # pragma: no cover
                         truncate_to_budget = None  # type: ignore[assignment]
                     if truncate_to_budget:

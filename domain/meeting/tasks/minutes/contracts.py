@@ -6,11 +6,11 @@
 """
 from __future__ import annotations
 
-from tools.contracts import (
+from tools.schema.contracts import (
     Check, Decision, Feedback, GenerationContract, StrField, StrListField,
     SupervisorContract,
 )
-from tools.fallback_rules import FallbackRules, Join, Raw
+from tools.schema.fallback_rules import FallbackRules, Join, Raw
 
 
 class MinutesGenerationContract(GenerationContract):

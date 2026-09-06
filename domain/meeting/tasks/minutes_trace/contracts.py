@@ -1,7 +1,7 @@
 """minutes_trace 的契约定义。"""
 from __future__ import annotations
 
-from tools.contracts import (
+from tools.schema.contracts import (
     Check,
     Decision,
     EnumField,
@@ -11,7 +11,7 @@ from tools.contracts import (
     StrField,
     SupervisorContract,
 )
-from tools.fallback_rules import FallbackRules, Raw
+from tools.schema.fallback_rules import FallbackRules, Raw
 
 # 会议场景枚举：与 meeting_core/contracts.py 的 SCENE_CHOICES 保持同值
 # （sync_domain 按文件路径加载 contracts.py，不能用包间相对导入）

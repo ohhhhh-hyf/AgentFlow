@@ -19,7 +19,7 @@ def load_env() -> None:
 
 
 def load_domain(name: str):
-    from tools.runtime_context import load_domain as _load_domain
+    from tools.core.runtime_context import load_domain as _load_domain
 
     return _load_domain(name, PROJECT_ROOT)
 

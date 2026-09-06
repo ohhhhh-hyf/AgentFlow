@@ -34,7 +34,7 @@ from collections.abc import AsyncIterator, Iterable
 from langgraph.graph import END, START, StateGraph
 
 from perspective import EMPTY_PERSPECTIVE_MODELING
-from tools.domain_engine_text import (
+from tools.core.domain_engine_text import (
     assemble_report,
     fallback_text,
     field_values,
@@ -53,11 +53,11 @@ from tools.domain_engine_text import (
     sec_attr,
 )
 from tools.runtime.progress import node_label, progress
-from tools.validation import validate_payload
+from tools.schema.validation import validate_payload
 
 logger = logging.getLogger(__name__)
 
-# 纯函数见 domain_engine_text；此处再导出以保持 from tools.domain_engine import ...
+# 以下纯函数定义于 domain_engine_text，本模块在编排逻辑中直接复用；调用方按需直连对应模块。
 
 # ── DomainNodes：图节点 mixin（领域无关内核）──────────────────
 

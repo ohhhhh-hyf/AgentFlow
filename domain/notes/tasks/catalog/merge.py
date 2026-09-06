@@ -5,6 +5,8 @@ import re
 from datetime import datetime, timezone
 from typing import Any
 
+from .gather import strip_heading_prefix
+
 _COVERAGE_RANK = {"none": 0, "mentioned": 1, "partial": 2, "detailed": 3}
 _EXAM_RANK = {"none": 0, "weak": 1, "medium": 2, "strong": 3}
 _EMPHASIS_RANK = {"0": 0, "1": 1, "2": 2, "3": 3}
@@ -47,34 +49,6 @@ _RISKS = {
 
 def _now() -> str:
     return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
-
-
-_HEADING_PREFIX_RE = re.compile(
-    r"^(?:"
-    r"[一二三四五六七八九十百]+[、.．:：\s]\s*"
-    r"|[（(][一二三四五六七八九十百\d]+[）)][、.．:：\s]*"
-    r"|\d+(?:\.\d+)*[、.．:：\s]\s*"
-    r"|[IVXLCDMivxlcdm]+[、.．:：\s]\s*"
-    r"|第[0-9一二三四五六七八九十百]+[章节部分讲课项点步阶段周单元][、.．:：\s]*"
-    r")"
-)
-
-
-def strip_heading_prefix(text: object) -> str:
-    """剔除章节/主题/知识点名称中的序号前缀（如：'四、xxxxx'、'（五）xxxx'、'1. xxxx'、'第3节 xxxx'）。"""
-    raw = " ".join(str(text or "").split()).strip()
-    if not raw:
-        return ""
-    cleaned = raw
-    while True:
-        m = _HEADING_PREFIX_RE.match(cleaned)
-        if m:
-            remainder = cleaned[m.end():].strip()
-            if remainder:
-                cleaned = remainder
-                continue
-        break
-    return cleaned or raw
 
 
 def _clean(text: object) -> str:

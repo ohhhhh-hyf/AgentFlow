@@ -1,7 +1,7 @@
 """library 契约：增量与冲突都是结构化字段。"""
 from __future__ import annotations
 
-from tools.contracts import (
+from tools.schema.contracts import (
     Check,
     Decision,
     Feedback,
@@ -10,7 +10,7 @@ from tools.contracts import (
     StrField,
     SupervisorContract,
 )
-from tools.fallback_rules import FallbackRules, Lines
+from tools.schema.fallback_rules import FallbackRules, Lines
 
 
 class LibraryGenerationContract(GenerationContract):
@@ -62,6 +62,12 @@ class LibrarySupervisorContract(SupervisorContract):
     feedback = Feedback("仅当 decision=revise 时填写")
     checks = [Check("library_check", "仅记录入库失败")]
 
+
+
+# 任务线完备性协议符号（sync_domain readiness 按名称存在性判定；
+# library 为程序化任务线，OUTPUT_CONTRACT 不进入运行时 LLM 调用）
+LIBRARY_GENERATION_OUTPUT_CONTRACT = LibraryGenerationContract.to_output_contract()
+LIBRARY_SUPERVISOR_OUTPUT_CONTRACT = LibrarySupervisorContract.to_output_contract()
 
 
 class LibraryFallbackRules(FallbackRules):

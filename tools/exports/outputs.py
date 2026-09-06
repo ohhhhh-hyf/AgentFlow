@@ -20,7 +20,7 @@ from tools.exports.mindmap import (
     render_mindmap_html,
     render_mindmap_png,
 )
-from tools.runtime_context import DomainContext
+from tools.core.runtime_context import DomainContext
 
 logger = logging.getLogger(__name__)
 
@@ -120,10 +120,10 @@ def save_report_artifacts(
     Args:
         gate_ok: True 通过 / False 失败 / None 未做门禁（无模板）→ 仍写正式 md。
     """
-    from tools.hard_execution import should_write_result_md
+    from tools.execution.hard_execution import should_write_result_md
 
     # md 与 html 同模式按线命名的任务线（无 HTML 产物，file_name 直接指向 md）
-    line_named_md = line_name in {"actions", "risks", "minutes_styles", "minutes_trace"}
+    line_named_md = line_name in {"actions", "risks", "minutes_styles", "minutes_trace", "consensus_decision"}
 
     out_dir = task_output_dir(ctx, line_name)
     data = report_to_dict(report)
@@ -199,6 +199,13 @@ def save_report_artifacts(
                 from domain.meeting.tasks.minutes_trace.html import trace_review_html
 
                 html_doc = trace_review_html(text, title=html_title)
+                html_path = out_dir / f"{line_name}.html"
+                html_path.write_text(html_doc, encoding="utf-8")
+                paths["html"] = html_path
+            elif ctx.name == "meeting" and line_name == "consensus_decision":
+                from tools.exports.consensus_decision import render_consensus_decision_html
+
+                html_doc = render_consensus_decision_html(html_title, text, data)
                 html_path = out_dir / f"{line_name}.html"
                 html_path.write_text(html_doc, encoding="utf-8")
                 paths["html"] = html_path

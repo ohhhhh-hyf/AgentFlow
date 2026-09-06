@@ -16,12 +16,12 @@ Optional fallback:
 """
 from __future__ import annotations
 
-from tools.contracts import (
+from tools.schema.contracts import (
     Check, Decision, EnumField, Feedback, GenerationContract, ObjListField,
     StrField, SupervisorContract,
 )
-from tools.fallback_rules import FallbackRules, Lines, Raw
-from tools.validation import OutputValidationError
+from tools.schema.fallback_rules import FallbackRules, Lines, Raw
+from tools.schema.validation import OutputValidationError
 
 def _as_content_string(content: object) -> str:
     """把 content 收成字符串；数组用换行拼接，其它类型转成文本，不因形态否掉整稿。"""

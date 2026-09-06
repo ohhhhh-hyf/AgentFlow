@@ -19,6 +19,12 @@ from .tasks.actions import (
     ActionItemsSupervisor,
 )
 
+from .tasks.consensus_decision import (
+    ConsensusDecisionAgent,
+    ConsensusDecisionRender,
+    ConsensusDecisionSupervisor,
+)
+
 from .tasks.mindmap import (
     MindmapAgent,
     MindmapRender,
@@ -31,16 +37,16 @@ from .tasks.minutes import (
     MinutesGenerationSupervisor,
 )
 
-from .tasks.minutes_trace import (
-    MinutesTraceAgent,
-    MinutesTraceRender,
-    MinutesTraceSupervisor,
-)
-
 from .tasks.minutes_styles import (
     MultiStylesAgent,
     MultiStylesRender,
     MultiStylesSupervisor,
+)
+
+from .tasks.minutes_trace import (
+    MinutesTraceAgent,
+    MinutesTraceRender,
+    MinutesTraceSupervisor,
 )
 
 from .tasks.risks import (
@@ -72,21 +78,24 @@ class MeetingAgentFactory:
             "actions_agent": ActionItemsAgent(client),
             "actions_supervisor": ActionItemsSupervisor(client),
             "actions_render": ActionItemsRender(client),
+            "consensus_decision_agent": ConsensusDecisionAgent(client),
+            "consensus_decision_supervisor": ConsensusDecisionSupervisor(client),
+            "consensus_decision_render": ConsensusDecisionRender(client),
             "mindmap_agent": MindmapAgent(client),
             "mindmap_supervisor": MindmapSupervisor(client),
             "mindmap_render": MindmapRender(client),
             "minutes_agent": MinutesGenerationAgent(client),
             "minutes_supervisor": MinutesGenerationSupervisor(client),
             "minutes_render": MinutesGenerationRender(client),
-            "minutes_trace_agent": MinutesTraceAgent(client),
-            "minutes_trace_supervisor": MinutesTraceSupervisor(client),
-            "minutes_trace_render": MinutesTraceRender(client),
             "minutes_styles_agent": MultiStylesAgent(client),
             "minutes_styles_supervisor": MultiStylesSupervisor(client),
             "minutes_styles_render": MultiStylesRender(client),
-            "risk_agent": RiskAgent(client),
-            "risk_supervisor": RiskSupervisor(client),
-            "risk_render": RiskRender(client),
+            "minutes_trace_agent": MinutesTraceAgent(client),
+            "minutes_trace_supervisor": MinutesTraceSupervisor(client),
+            "minutes_trace_render": MinutesTraceRender(client),
+            "risks_agent": RiskAgent(client),
+            "risks_supervisor": RiskSupervisor(client),
+            "risks_render": RiskRender(client),
 
             # ── 任务线装配生成区结束 ──
         }

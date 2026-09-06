@@ -1,7 +1,7 @@
 """Shared perspective modeling contract definitions."""
 from __future__ import annotations
 
-from tools.contracts import (
+from tools.schema.contracts import (
     EnumField, GenerationContract, StrField, StrListField,
 )
 

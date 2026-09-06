@@ -35,8 +35,11 @@ client/                       # LLM 客户端（HTTP / WebSocket / vLLM）+ 配�
 perspective/                  # 跨 domain 公共视角建模 + profiles/（客观画像 + 职业模板）
 supervisor/                   # 全局监督标准（prompt 注入，不单独调 LLM）
 tools/
-  core/                       # 共享编排内核：domain_engine（图节点 mixin）/ runner（run）/ io
+  schema/                     # 契约 DSL（contracts）/ fallback 规则 / 结构化输出校验
+  core/                       # 共享编排内核：domain_engine（图节点 mixin）/ runner / io / runtime_context / profiles / prompt_utils
+  execution/                  # 硬执行规则：上游对齐 / 表行截断 / 验收门禁
   runtime/                    # 渲染运行时：render / context / kinds / supervisor_slice
+  templates/                  # 模板渲染 prompt（template_prompt）与约束评测（template_eval）
   template_router/            # 模板路由：判型 / 占位填充 / 门禁 / 可读化
   exports/                    # 产物落盘：outputs / knowledge_graph / mindmap
   memory/                     # 跨会话记忆：记录累积 / 语义检索 / 引用标注 / 图谱增量
@@ -45,7 +48,6 @@ tools/
   monitor/                    # 任务监控：token / 缓存命中 / 按层耗时
   exercise_search/            # 高中题库检索（notes.quiz 用）
   scripts/                    # 开发工具：sync_domain / register_task 代码生成器
-  contracts.py 等             # 契约 DSL / 校验 / fallback 规则 / prompt 构建（兼容入口）
 samples/                      # 样例输入：samples/{domain}/file/、profile/、{task}_template/
 template/                     # 模板注册表（cm_template_v2_changed_0722.yaml 的可读副本）
 ```
@@ -271,11 +273,11 @@ curl -X POST http://127.0.0.1:8000/api/v1/meeting/minutes \
   任何失败回退旧路径；渲染输出附带只读校验（残留占位符/JSON 合法性）
 - **结构化输出加固**：`client/llmclient.py` 的 `structured()` 对截断输出做程序修复
   （括号栈补全保留有效数据），非截断校验错误最多一次针对性重试，不再依赖 repair 兜底
-- **思维导图**：mindmap 线产出 Markdown 大纲，经 `tools/mindmap.py` 固定导出
+- **思维导图**：mindmap 线产出 Markdown 大纲，经 `tools/exports/mindmap.py` 固定导出
   交互式 HTML（markmap，离线单文件）和 PNG 图片（Playwright 截图）；
   npx/playwright 缺失时自动降级不影响主流程
 - **知识图谱**：notes 域 graph 线提取概念节点与关系边（nodes/edges，
-  均锚定原文 + evidence），经 `tools/graph.py` 导出 Cytoscape.js 交互式 HTML 和学习地图 Markdown（默认输出到 `data/{user_id}/output/{request_id}/`）；悬空边自动过滤、HTML 仍尽量生成；
+  均锚定原文 + evidence），经 `tools/exports/knowledge_graph.py` 导出 Cytoscape.js 交互式 HTML 和学习地图 Markdown（默认输出到 `data/{user_id}/output/{request_id}/`）；悬空边自动过滤、HTML 仍尽量生成；
   传 `extra.memory=true` + `X-User-Id` + `extra.subject` 时按学科跨会话增量（新增节点高亮，见 API.md 6.6）
 - **输出稳定性**：各线 prompt 采用确定性规则（数量由内容决定、措辞锚定原文、
   顺序按原文出现、空字段 null/[]），同一输入重复运行保持内容与篇幅稳定

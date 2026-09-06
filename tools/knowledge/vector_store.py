@@ -522,6 +522,34 @@ class VectorStore:
             pass
         return rows
 
+    def get_documents_by_ids(
+        self,
+        collection: str,
+        ids: List[str],
+        where: Optional[Dict] = None,
+    ) -> Dict[str, str]:
+        """按 chroma 块 id 批量取正文：``{id: text}``（懒取正文用，本地一次调用）。
+
+        ids 中不存在/已被清理的项不在返回中；行级 where（owner/subject）可选追加。"""
+        if not ids:
+            return {}
+        try:
+            coll = self.client.get_collection(name=self._internal(collection))
+        except _COLLECTION_MISSING:
+            return {}
+        try:
+            got = coll.get(
+                ids=list(dict.fromkeys(ids)),
+                where=_normalize_where(where) if where else None,
+                include=["documents"],
+            )
+        except Exception:
+            return {}
+        return {
+            i: str(text or "")
+            for i, text in zip(got.get("ids") or [], got.get("documents") or [])
+        }
+
     def list_files(
         self, collection: str, where: Optional[Dict] = None
     ) -> List[str]:
@@ -566,13 +594,14 @@ class VectorStore:
                        include=include)
         docs = got.get("documents") or []
         if not with_metadata:
-            return [{"text": text or ""} for text in docs]
+            return [{"id": i, "text": text or ""} for i, text in zip(got.get("ids") or [], docs)]
         metas = got.get("metadatas") or []
         out: List[Dict] = []
         if not with_text:
-            # 无正文档：返回项不含 text 键（消费方误用会立即暴露，而非静默空串）
-            for meta in metas:
-                out.append({"metadata": meta or {}})
+            # 无正文档：返回项不含 text 键（消费方误用会立即暴露，而非静默空串）；
+            # 带 chroma id，供正文按需懒取（get_documents_by_ids）
+            for i, meta in zip(got.get("ids") or [], metas):
+                out.append({"id": i, "metadata": meta or {}})
             try:
                 from tools.monitor.side import record_knowledge_search
 
@@ -580,8 +609,8 @@ class VectorStore:
             except Exception:  # noqa: BLE001
                 pass
             return out
-        for text, meta in zip(docs, metas):
-            out.append({"text": text or "", "metadata": meta or {}})
+        for i, text, meta in zip(got.get("ids") or [], docs, metas):
+            out.append({"id": i, "text": text or "", "metadata": meta or {}})
         try:
             from tools.monitor.side import record_knowledge_search
 

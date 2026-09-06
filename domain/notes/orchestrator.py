@@ -26,8 +26,8 @@ from .notes_factory import NotesAgentFactory
 from .notes_core import NotesUnderstandingAgent
 
 # 共享编排内核（领域无关）：纯函数 + DomainNodes 图节点 mixin
-from tools.domain_engine import (
-    DomainNodes,
+from tools.core.domain_engine import DomainNodes
+from tools.core.domain_engine_text import (
     format_graph_node,
     json_dumps as _json,
     line as _line,
@@ -122,6 +122,20 @@ _EMPTY_CATALOG = {
     "merged_nodes": [],
 }
 
+_EMPTY_CATALOG_SLIM = {
+    "course": "",
+    "version": "",
+    "mode": "",
+    "chapters": [],
+    "unmatched_content": [],
+    "uncertain_nodes": [],
+    "added_chapters": [],
+    "added_topics": [],
+    "added_knowledge_points": [],
+    "updated_knowledge_points": [],
+    "merged_nodes": [],
+}
+
 _EMPTY_CHECKLIST = {
     "course": "",
     "catalog_version": "",
@@ -140,6 +154,8 @@ _EMPTY_KNOWLEDGE_GRAPH = {
 _EMPTY_LIBRARY = {
     "message": "",
     "increment": "",
+    "image_count": "",
+    "doc_count": "",
     "files": [],
     "increment_by_file": [],
     "conflicts": [],

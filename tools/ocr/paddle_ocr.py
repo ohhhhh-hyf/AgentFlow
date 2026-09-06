@@ -47,11 +47,17 @@ def paddle_concurrency() -> int:
     except ValueError:
         return 4
 
+# 页眉/页脚机构署名行：跨语料的功能形态（机构类别词 + 联系方式 + 邮编 +
+# 国家署名 + 中文行尾类别后缀），不含任何具体校名/地名
 _HEADER_RE = re.compile(
-    r"(UNIVERSITY|Wuhan|Hubei|HUAZHONG|SCIENCEAND|Tel[:：]|华中科技|中国·武汉)",
+    r"(UNIVERSITY|COLLEGE|INSTITUTE"
+    r"|Tel[:：.]|电话|传真"
+    r"|\d{5,6}"
+    r"|P\.?\s?R\.?\s?China|中国·"
+    r"|[一-鿿]{2,10}(?:大学|学院))",
     re.I,
 )
-_FOOTER_RE = re.compile(r"(印刷厂|第\s*页|^页$|附属印刷)")
+_FOOTER_RE = re.compile(r"(印刷|第\s*页|^页$)")
 _CJK_RE = re.compile(r"[\u4e00-\u9fff]")
 _MIN_CONF = 0.25
 _HEADER_Y = 0.08

@@ -3,7 +3,7 @@ from __future__ import annotations
 from collections.abc import AsyncIterator
 
 from client import LLMClient
-from tools.prompt_utils import build_render_prompt
+from tools.core.prompt_utils import build_render_prompt
 
 from ..prompts import RISK_RENDER_PROMPT, RISK_RENDER_TEMPLATE_PROMPT
 
@@ -34,7 +34,7 @@ class RiskRender:
     @staticmethod
     def render_draft(state: dict) -> str:
         """无模板时按草稿字段排清单，与渲染 prompt 格式一致，不调 LLM。"""
-        from tools.domain_engine_text import format_risk_item
+        from tools.core.domain_engine_text import format_risk_item
 
         draft = (state.get("lines") or {}).get("risks", {}).get("draft") or {}
         items = draft.get("risks") or []

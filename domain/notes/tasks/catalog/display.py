@@ -5,6 +5,8 @@ import json
 import re
 from typing import Any
 
+from .gather import _is_noise_title, strip_heading_prefix
+
 _RELATION = {
     "alternative": "替代方法",
     "used_with": "配合使用",
@@ -48,46 +50,6 @@ _RISK = {
 }
 
 
-_HEADING_PREFIX_RE = re.compile(
-    r"^(?:"
-    r"[一二三四五六七八九十百]+[、.．:：\s]\s*"
-    r"|[（(][一二三四五六七八九十百\d]+[）)][、.．:：\s]*"
-    r"|\d+(?:\.\d+)*[、.．:：\s]\s*"
-    r"|[IVXLCDMivxlcdm]+[、.．:：\s]\s*"
-    r"|第[0-9一二三四五六七八九十百]+[章节部分讲课项点步阶段周单元][、.．:：\s]*"
-    r")"
-)
-# 页框/署名/联系信息形态（全部为跨语料的功能形态，无具体机构名/地名）：
-# - 联系与出版信息：tel、电话、印刷
-# - 网址
-# - 页码/页框：第X页、page N、独立「页」
-# - 机构类别后缀（锚定结尾）：…大学/学院/学校/研究院/研究所、university 等
-#   （机构署名行以类别后缀收尾是结构特征，不是具体机构名单）
-_NOISE_TITLE_RE = re.compile(
-    r"(tel[:：]|电话|印刷|https?://|www\.|\.com\b"
-    r"|第\s*\d+\s*页|page\s*\d+|^\s*页\s*$"
-    r"|.{0,10}(?:大学|学院|学校|研究院|研究所)\s*$"
-    r"|(?:university|college|institute)\b)",
-    re.I,
-)
-_NOISE_SHORT_TITLES = {"页", "目录"}
-
-
-def strip_heading_prefix(text: object) -> str:
-    """剔除章节/主题/知识点名称中的序号前缀（如：'四、xxxxx'、'（五）xxxx'、'1. xxxx'、'第3节 xxxx'）。"""
-    raw = " ".join(str(text or "").split()).strip()
-    if not raw:
-        return ""
-    cleaned = raw
-    while True:
-        m = _HEADING_PREFIX_RE.match(cleaned)
-        if m:
-            remainder = cleaned[m.end():].strip()
-            if remainder:
-                cleaned = remainder
-                continue
-        break
-    return cleaned or raw
 
 
 def _clean(text: object) -> str:
@@ -96,15 +58,6 @@ def _clean(text: object) -> str:
 
 def _compact(text: object) -> str:
     return re.sub(r"[\s:：,，。；;、（）()\[\]【】《》“”\"'·\-—_]+", "", str(text or "").lower())
-
-
-def _is_noise_title(text: object) -> bool:
-    raw = _clean(text)
-    if not raw:
-        return True
-    if _compact(raw) in {_compact(item) for item in _NOISE_SHORT_TITLES}:
-        return True
-    return bool(_NOISE_TITLE_RE.search(raw))
 
 
 def _as_list(value: object) -> list[str]:
@@ -303,7 +256,7 @@ def build_catalog_markdown(draft: dict[str, Any]) -> str:
 
 
 def attach_catalog_artifacts(state: dict[str, Any]) -> None:
-    from tools.domain_engine_text import line
+    from tools.core.domain_engine_text import line
 
     from .gather import (
         backfill_catalog_trace,

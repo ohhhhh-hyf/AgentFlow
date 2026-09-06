@@ -4,7 +4,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field, fields
 from typing import Any, Literal
 
-from tools.validation import (
+from tools.schema.validation import (
     OutputValidationError,
     _action,
     _choice,
@@ -37,6 +37,39 @@ class Catalog(ModelMixin):
 
     @classmethod
     def validate(cls, data: dict) -> "Catalog":
+        _exact_fields(data, [f.name for f in fields(cls)], cls.__name__)
+        _string(data["course"], "course")
+        _string(data["version"], "version")
+        _string(data["mode"], "mode")
+        if not isinstance(data["chapters"], list):
+            raise OutputValidationError("chapters 必须是数组")
+        _string_list(data["unmatched_content"], "unmatched_content")
+        _string_list(data["uncertain_nodes"], "uncertain_nodes")
+        _string_list(data["added_chapters"], "added_chapters")
+        _string_list(data["added_topics"], "added_topics")
+        _string_list(data["added_knowledge_points"], "added_knowledge_points")
+        _string_list(data["updated_knowledge_points"], "updated_knowledge_points")
+        _string_list(data["merged_nodes"], "merged_nodes")
+        return cls(**data)
+
+@dataclass
+class CatalogSlim(ModelMixin):
+    """CatalogSlim输出（浅校验：仅校验第一层键与类型，嵌套不校验）。"""
+
+    course: str
+    version: str
+    mode: str
+    chapters: list[dict[str, Any]] = field(default_factory=list)
+    unmatched_content: list[str] = field(default_factory=list)
+    uncertain_nodes: list[str] = field(default_factory=list)
+    added_chapters: list[str] = field(default_factory=list)
+    added_topics: list[str] = field(default_factory=list)
+    added_knowledge_points: list[str] = field(default_factory=list)
+    updated_knowledge_points: list[str] = field(default_factory=list)
+    merged_nodes: list[str] = field(default_factory=list)
+
+    @classmethod
+    def validate(cls, data: dict) -> "CatalogSlim":
         _exact_fields(data, [f.name for f in fields(cls)], cls.__name__)
         _string(data["course"], "course")
         _string(data["version"], "version")
@@ -100,8 +133,8 @@ class Library(ModelMixin):
 
     message: str
     increment: str
-    image_count: str = "0"
-    doc_count: str = "0"
+    image_count: str
+    doc_count: str
     files: list[dict[str, Any]] = field(default_factory=list)
     increment_by_file: list[dict[str, Any]] = field(default_factory=list)
     conflicts: list[dict[str, Any]] = field(default_factory=list)
@@ -418,7 +451,7 @@ class ChecklistReportValidation:
         _string_list(data.get("strategy") or [], "strategy")
         _string_list(data.get("uncertain_quotes") or [], "uncertain_quotes")
         _string(data.get("checklist_html") or "", "checklist_html")
-        if not isinstance(data.get("trace_stats") or {}, dict):
+        if data.get("trace_stats") is not None and not isinstance(data["trace_stats"], dict):
             raise OutputValidationError("trace_stats 必须是对象")
         if data.get("quality_warning") is not None:
             _string(data["quality_warning"], "quality_warning")
@@ -433,7 +466,7 @@ class ChecklistReportValidation:
             strategy=data.get("strategy") or [],
             uncertain_quotes=data.get("uncertain_quotes") or [],
             checklist_html=data.get("checklist_html") or "",
-            trace_stats=data.get("trace_stats") or {},
+            trace_stats=data.get("trace_stats"),
             quality_warning=data.get("quality_warning"),
             personalized_text=data.get("personalized_text"),
         )

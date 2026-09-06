@@ -10,11 +10,11 @@
 """
 from __future__ import annotations
 
-from tools.contracts import (
+from tools.schema.contracts import (
     Check, Decision, Feedback, GenerationContract, ObjListField, StrField,
     SupervisorContract,
 )
-from tools.fallback_rules import FallbackRules, Lines
+from tools.schema.fallback_rules import FallbackRules, Lines
 
 
 class KnowledgeGraphGenerationContract(GenerationContract):

@@ -1,7 +1,7 @@
 """actions 任务组的 prompt 与输出契约。"""
 from __future__ import annotations
 
-from tools.template_prompt import build_template_render_prompt
+from tools.templates.template_prompt import build_template_render_prompt
 
 # ── 待办提取 ──────────────────────────────────────────────────
 
@@ -120,7 +120,7 @@ ACTION_ITEMS_SUPERVISOR_DOMAIN_PROMPT = """## 领域审核规则：待办提取
 
 - **负责人错误归属**或角色推断  
 - **编造待办**  
-- **关键遗漏**：action_hints 或原文中明示的承诺/分配/整改未出现；原文「需/须/必须/应+制度动作」的规范性要求未出现（如病历书写、资料完善、机制建立）  
+- **关键遗漏**：action_hints 或原文中明示的承诺/分配/整改未出现；原文「需/须/必须/应+制度动作」的规范性要求未出现（如资料完善、流程建立、机制健全）  
 - **编造软性待办**：把原文完全没有的培训/学习/素质类要求或倡导/表态写成具体待办；原文有出处的软性要求收编进 unassigned 并标注「软性要求」，不算过度提取  
 - **字段捏造**：deadline/priority 无原文依据  
 - **措辞偏离**：task 明显改写原文动词短语；evidence 无具体原句  

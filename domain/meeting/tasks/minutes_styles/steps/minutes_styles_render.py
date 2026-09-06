@@ -4,7 +4,7 @@ import json
 from collections.abc import AsyncIterator
 
 from client import LLMClient
-from tools.prompt_utils import build_render_prompt
+from tools.core.prompt_utils import build_render_prompt
 
 from ..prompts import MULTI_STYLES_RENDER_PROMPT, MULTI_STYLES_RENDER_TEMPLATE_PROMPT
 

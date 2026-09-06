@@ -631,7 +631,7 @@ def build_action_plan(
     unmatched: list[str] | None = None,
     strategy: list[str] | None = None,
 ) -> dict[str, Any]:
-    del teacher, unmatched
+    del teacher
     foundation = _build_foundation(cards)
     core = _build_core(cards)
     special, leftover = _build_specials(cards)
@@ -647,7 +647,8 @@ def build_action_plan(
         "route": [card["title"] for card in packed],
         "phases": packed,
         "strategy": strategy or [],
-        "uncertain_quotes": [],
+        # 老师原话里对不上目录 KP 的句子（程序确定性匹配），进「待确认」通道
+        "uncertain_quotes": list(unmatched or []),
     }
 
 

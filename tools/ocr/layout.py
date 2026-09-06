@@ -58,7 +58,7 @@ _BOILERPLATE_PATTERNS = (
     r"P\.?\s?R\.?\s?China",
     r"©|版权所有|Copyright|All Rights Reserved",
     r"\b\d{6}\b",  # 邮编（6 位数字）
-    r"(?:Hubei|Wuhan|湖北|武汉|Beijing|上海|北京|深圳|广州)\s*[,，]?\s*\d{3,}",
+    r"(?:[A-Za-z]{2,12}|[一-鿿]{2,8})\s*[,，]?\s*\d{5,6}",  # 任意地名/机构词 + 邮编组合
 )
 
 
@@ -66,7 +66,7 @@ def _looks_like_boilerplate(text: str) -> bool:
     """页眉页脚/机构信息识别：命中强信号（电话/邮箱/网址/版权）即判；
     邮编/地址组合需 ≥2 个信号。
 
-    例：「华中科技大学 Wuhan 430074, Hubei, P.R.China 中国·武汉 Tel:(027)...」
+    例：「某大学 Wuhan 430074, P.R.China Tel:(027)...」式署名行
     命中 P.R.China / 邮编 / Tel 多个信号 → 判为噪音行。
     """
     t = (text or "").strip()

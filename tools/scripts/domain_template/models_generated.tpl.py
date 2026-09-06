@@ -4,7 +4,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field, fields
 from typing import Any, Literal
 
-from tools.validation import (
+from tools.schema.validation import (
     OutputValidationError,
     _action,
     _choice,

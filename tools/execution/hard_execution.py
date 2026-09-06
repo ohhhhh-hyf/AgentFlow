@@ -16,7 +16,7 @@ import logging
 import re
 from typing import Any
 
-from tools.template_eval import (
+from tools.templates.template_eval import (
     evaluate_output_against_template,
     extract_markdown_tables,
     extract_template_table_constraints,
@@ -484,7 +484,7 @@ def _overlong_issue(template: str, text: str) -> str | None:
     if not template:
         return None
     try:
-        from tools.template_eval import (
+        from tools.templates.template_eval import (
             parse_document_char_budget,
             parse_section_char_budgets,
             split_markdown_sections,

@@ -75,11 +75,11 @@ Optional fallback:
 """
 from __future__ import annotations
 
-from tools.contracts import (
+from tools.schema.contracts import (
     Check, Decision, Feedback, GenerationContract, ObjListField, StrField,
     SupervisorContract,
 )
-from tools.fallback_rules import FallbackRules, Lines
+from tools.schema.fallback_rules import FallbackRules, Lines
 
 
 class {pascal}GenerationContract(GenerationContract):
@@ -139,7 +139,7 @@ sync_domain.py checks the full name.
 """
 from __future__ import annotations
 
-from tools.template_prompt import build_template_render_prompt
+from tools.templates.template_prompt import build_template_render_prompt
 
 
 {upper}_GENERATION_SYSTEM_PROMPT = """You are the {name} generation agent.
@@ -230,7 +230,7 @@ class {pascal}Supervisor:
 from collections.abc import AsyncIterator
 
 from client import LLMClient
-from tools.prompt_utils import build_render_prompt
+from tools.core.prompt_utils import build_render_prompt
 
 from ....models import {state_cls}
 from ..prompts import {upper}_RENDER_PROMPT, {upper}_RENDER_TEMPLATE_PROMPT

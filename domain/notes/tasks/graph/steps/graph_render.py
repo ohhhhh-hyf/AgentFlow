@@ -5,8 +5,8 @@ from collections.abc import AsyncIterator
 import json
 
 from client import LLMClient
-from tools.graph import build_learning_map
-from tools.prompt_utils import build_render_prompt
+from tools.exports.knowledge_graph import build_learning_map
+from tools.core.prompt_utils import build_render_prompt
 
 from ..prompts import KNOWLEDGE_GRAPH_RENDER_PROMPT, KNOWLEDGE_GRAPH_RENDER_TEMPLATE_PROMPT
 

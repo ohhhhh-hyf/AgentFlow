@@ -39,11 +39,11 @@ _GENERIC_ANCHORS = frozenset(
     agent memory 会议 会议纪要 会议记忆 历史会议 历史记忆 记忆引用
     复盘 总结 汇报 评审 例会 周会 沟通 讨论 推进 跟进
     项目 项目组 进展 开发进展 阶段 内测 问题 风险 阻塞
-    功能不可用 用户 客户 产品 运营 测试 上线 交付
+    用户 客户 产品 运营 测试 上线 交付
     """.split()
 )
 _PROJECT_TAIL_RE = re.compile(
-    r"(开发进展|阶段复盘|内测前推进会|内测推进会|推进会|收口会|"
+    r"(开发进展|阶段复盘|推进会|收口会|"
     r"周会|例会|月会|评审会|复盘会|沟通会|汇报会|会议|复盘|总结)$"
 )
 
@@ -69,8 +69,7 @@ def _is_generic_anchor(text: str) -> bool:
     return False
 
 
-def _looks_malformed_anchor(text: str, project_name: str) -> bool:
-    del project_name
+def _looks_malformed_anchor(text: str) -> bool:
     raw = _clean(text)
     if not raw or re.search(r"[A-Za-z0-9_\-]", raw):
         return False
@@ -166,14 +165,14 @@ def _project_hits(project: dict[str, Any], fact: Any) -> dict[str, Any]:
     generic: list[str] = []
     malformed: list[str] = []
     for anchor in raw_anchors:
-        if _looks_malformed_anchor(anchor, project_name):
+        if _looks_malformed_anchor(anchor):
             malformed.append(anchor)
         elif _is_generic_anchor(anchor):
             generic.append(anchor)
         else:
             anchors.append(anchor)
     # 标题公共核心：本场标题与项目名的最长公共连续子串 ≥5 字 → 视为同一项目
-    # （项目名可能是第一场标题整体，如「…阶段复盘」，后续「…内测前推进会」靠公共核心命中）
+    # （项目名可能是第一场标题整体，如「…阶段复盘」，后续「…推进会」靠公共核心命中）
     if not names and not aliases:
         pname = _project_core(project.get("name"))
         ftitle = _clean(getattr(fact, "title", ""))

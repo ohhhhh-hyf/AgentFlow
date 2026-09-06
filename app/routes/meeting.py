@@ -67,7 +67,7 @@ def _stream_endpoint(task: str):
     return _handler
 
 
-for _task in ("minutes", "actions", "risks", "minutes_styles", "minutes_trace"):
+for _task in ("minutes", "actions", "risks", "minutes_styles", "minutes_trace", "consensus_decision"):
     router.add_api_route(
         f"/{_task}/stream",
         _stream_endpoint(_task),
@@ -132,3 +132,15 @@ async def minutes_trace_run(
 ) -> TaskResponse:
     request_id, user_id = _headers(x_request_id, x_user_id)
     return await run_task("meeting", "minutes_trace", req, user_id=user_id, request_id=request_id)
+
+
+@router.post("/consensus_decision", response_model=TaskResponse)
+@router.post("/consensus", response_model=TaskResponse)
+@router.post("/decision", response_model=TaskResponse)
+async def consensus_decision_run(
+    req: TaskRequest,
+    x_request_id: Optional[str] = Header(default=None),
+    x_user_id: Optional[str] = Header(default=None),
+) -> TaskResponse:
+    request_id, user_id = _headers(x_request_id, x_user_id)
+    return await run_task("meeting", "consensus_decision", req, user_id=user_id, request_id=request_id)

@@ -1,7 +1,7 @@
 """review 的契约定义（prompt 文本见 prompts.py）。"""
 from __future__ import annotations
 
-from tools.contracts import (
+from tools.schema.contracts import (
     Check,
     Decision,
     EnumField,
@@ -11,7 +11,7 @@ from tools.contracts import (
     StrField,
     SupervisorContract,
 )
-from tools.fallback_rules import FallbackRules, Lines
+from tools.schema.fallback_rules import FallbackRules, Lines
 
 
 class ReviewGenerationContract(GenerationContract):

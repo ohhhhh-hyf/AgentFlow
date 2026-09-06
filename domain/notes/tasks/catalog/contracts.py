@@ -1,7 +1,7 @@
 """catalog 契约：四层知识目录树。"""
 from __future__ import annotations
 
-from tools.contracts import (
+from tools.schema.contracts import (
     Check,
     Decision,
     EnumField,
@@ -12,7 +12,7 @@ from tools.contracts import (
     StrListField,
     SupervisorContract,
 )
-from tools.fallback_rules import FallbackRules, Lines, Raw
+from tools.schema.fallback_rules import FallbackRules, Lines, Raw
 
 
 class CatalogGenerationContract(GenerationContract):
@@ -180,6 +180,10 @@ class CatalogSupervisorContract(SupervisorContract):
 
 CATALOG_SUPERVISOR_OUTPUT_CONTRACT = CatalogSupervisorContract.to_output_contract()
 
+# 任务线完备性协议符号（sync_domain readiness 检查按名称存在性判定；
+# catalog 的 LLM 路径实际使用下方 SLIM 版契约）
+CATALOG_GENERATION_OUTPUT_CONTRACT = CatalogGenerationContract.to_output_contract()
+
 
 class CatalogSlimGenerationContract(GenerationContract):
     """catalog 的 LLM 瘦身契约：只让模型写树结构与不可稳定推导的内容。"""
@@ -309,6 +313,7 @@ CATALOG_FALLBACK_RULES = CatalogFallbackRules()
 
 __all__ = [
     "CATALOG_FALLBACK_RULES",
+    "CATALOG_GENERATION_OUTPUT_CONTRACT",
     "CATALOG_SLIM_GENERATION_OUTPUT_CONTRACT",
     "CATALOG_SUPERVISOR_OUTPUT_CONTRACT",
 ]

@@ -217,7 +217,7 @@ def _describe_field(index: int, seg: dict) -> str:
 def _char_budget_lines(template: str) -> list[str]:
     """字数软提示（仅注入模型）。全文预算约束整篇；本段/本栏预算只约束对应节。"""
     try:
-        from tools.template_eval import (
+        from tools.templates.template_eval import (
             parse_document_char_budget,
             parse_section_char_budgets,
             parse_table_row_hints,
@@ -595,7 +595,7 @@ _OLD_FILL_RE = re.compile(r"【(?:填这里：)?([^】]+)】")
 def _format_budget_banner(template: str) -> str:
     """把全文/本段/表格行数约定写成用户能看懂的一行说明。"""
     try:
-        from tools.template_eval import (
+        from tools.templates.template_eval import (
             parse_document_char_budget,
             parse_section_char_budgets,
             parse_table_row_hints,

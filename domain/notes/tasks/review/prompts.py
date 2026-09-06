@@ -1,7 +1,7 @@
 """review 任务组的 prompt 与输出契约。"""
 from __future__ import annotations
 
-from tools.template_prompt import build_template_render_prompt
+from tools.templates.template_prompt import build_template_render_prompt
 
 
 REVIEW_GENERATION_SYSTEM_PROMPT = """你是「笔记审查 Agent」。阅读笔记原文（及笔记理解，若有），找出**可复习单元**和**记录上的问题**，并给出一份订正后的笔记。

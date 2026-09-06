@@ -475,7 +475,7 @@ def template_to_preview(
     _flush_text()
 
     try:
-        from tools.template_eval import parse_document_char_budget
+        from tools.templates.template_eval import parse_document_char_budget
         budget = parse_document_char_budget(template or "")
     except Exception:  # noqa: BLE001
         budget = {}
@@ -611,7 +611,7 @@ def build_placeholder_fill_user(
         "各栏按主题分别写清；「与/和/及」并列主题勿揉成一句糊涂话。",
         "简洁/粗略≠空洞：每栏写清该栏主要事实与要点，可多句。",
         "「一段话概括」不是一句空话：概况段写成完整段落（4–8句、约150–400字），含整体进展、里程碑/节点、主要风险、下一步，并带原文数字/地点/责任人；禁止单句交差。",
-        "进度追踪：正文写清各模块进展；表格一行一个模块/工点，原文有几处写几行，不要压成一行。",
+        "进度追踪：正文写清各模块进展；表格一行一个分项事项，原文有几处写几行，不要压成一行。",
         "风险预警：原文提到的风险分行填写，等级与责任人必填（无则「未明确」）；后续计划写交付物、时间点与依赖。",
         "没有全文字数上限时不要压缩整篇。",
         *_char_budget_lines(template),
@@ -686,7 +686,7 @@ def _thin_fill_notes(
         if len(nonempty) <= 1:
             notes.append(
                 f"tables[{ti}] 有效数据行 {len(nonempty)}："
-                "按原文把各模块/工点/风险分成多行，不要整场压成一行。"
+                "按原文把各分项事项/风险分成多行，不要整场压成一行。"
             )
     han_all = _body_han_count(assembled)
     if han_all < 280 and not notes:
@@ -741,7 +741,7 @@ async def fill_placeholder_template(
         return None
 
     try:
-        from tools.template_eval import parse_document_char_budget
+        from tools.templates.template_eval import parse_document_char_budget
     except Exception:  # noqa: BLE001
         parse_document_char_budget = None  # type: ignore[assignment]
     budget = (
@@ -827,7 +827,7 @@ async def fill_placeholder_template(
                     )
                     continue
             # 强执行：截断/去粘连/空表占位后再验收
-            from tools.hard_execution import gate_render_output
+            from tools.execution.hard_execution import gate_render_output
 
             gate = gate_render_output(template, assembled)
             assembled = gate["text"]

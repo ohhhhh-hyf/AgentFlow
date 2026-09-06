@@ -8,7 +8,7 @@ from __future__ import annotations
 from dataclasses import asdict, dataclass, field, fields
 from typing import Any, Literal
 
-from tools.validation import (
+from tools.schema.validation import (
     _choice,
     _exact_fields,
     _string,

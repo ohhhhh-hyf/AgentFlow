@@ -1,7 +1,7 @@
 """notes_core 的契约定义（prompt 文本见 prompts.py）。"""
 from __future__ import annotations
 
-from tools.contracts import (
+from tools.schema.contracts import (
     GenerationContract, ObjListField, StrField, StrListField,
 )
 

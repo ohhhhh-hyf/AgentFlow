@@ -6,7 +6,7 @@
 """
 from __future__ import annotations
 
-from tools.template_prompt import build_template_render_prompt
+from tools.templates.template_prompt import build_template_render_prompt
 
 # ── 多样式纪要生成（基础部分，五模式共用）──────────────────────
 

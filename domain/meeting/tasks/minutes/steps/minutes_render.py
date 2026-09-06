@@ -3,7 +3,7 @@ from __future__ import annotations
 import re
 from collections.abc import AsyncIterator
 
-from tools.prompt_utils import build_render_prompt
+from tools.core.prompt_utils import build_render_prompt
 
 from client import LLMClient
 from ..prompts import MINUTES_RENDER_PROMPT, MINUTES_RENDER_TEMPLATE_PROMPT
@@ -41,7 +41,7 @@ class MinutesGenerationRender:
     def _prompt_and_user(context: str, template: str) -> tuple[str, str]:
         """组装渲染 prompt 与用户消息（普通与流式共用）。
 
-        模板分支逻辑由 tools.prompt_utils.build_render_prompt 提供：
+        模板分支逻辑由 tools.core.prompt_utils.build_render_prompt 提供：
         有模板时模板原样拼进用户消息（LLM 只替换占位符，其余逐字符保留）。
         """
         return build_render_prompt(

@@ -4,7 +4,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field, fields
 from typing import Any, Literal
 
-from tools.validation import (
+from tools.schema.validation import (
     OutputValidationError,
     _action,
     _choice,
@@ -36,6 +36,22 @@ class ActionItems(ModelMixin):
             raise OutputValidationError("delegated_actions 必须是数组")
         if not isinstance(data["unassigned_actions"], list):
             raise OutputValidationError("unassigned_actions 必须是数组")
+        return cls(**data)
+
+@dataclass
+class ConsensusDecision(ModelMixin):
+    """ConsensusDecision输出（浅校验：仅校验第一层键与类型，嵌套不校验）。"""
+
+    summary: dict[str, Any] = field(default_factory=dict)
+    issues: list[dict[str, Any]] = field(default_factory=list)
+
+    @classmethod
+    def validate(cls, data: dict) -> "ConsensusDecision":
+        _exact_fields(data, [f.name for f in fields(cls)], cls.__name__)
+        if not isinstance(data["summary"], dict):
+            raise OutputValidationError("summary 必须是对象")
+        if not isinstance(data["issues"], list):
+            raise OutputValidationError("issues 必须是数组")
         return cls(**data)
 
 @dataclass
@@ -318,6 +334,33 @@ class MinutesTraceSupervisorReview(ModelMixin):
         )
         return cls(**data)
 
+@dataclass
+class ConsensusDecisionSupervisorReview(ModelMixin):
+    """共识决策任务线的领域审核结果。"""
+
+    decision: Literal["approve", "revise", "reject"]
+    concession_check: dict[str, Any]
+    tradeoff_check: dict[str, Any]
+    evidence_check: dict[str, Any]
+    feedback: list[str] = field(default_factory=list)
+
+    # 本模型的全部检查项（供结构校验与公共语义校验使用）
+    CHECK_KEYS = ("concession_check", "tradeoff_check", "evidence_check")
+
+    @classmethod
+    def validate(cls, data: dict) -> "ConsensusDecisionSupervisorReview":
+        _exact_fields(data, [f.name for f in fields(cls)], cls.__name__)
+        for key in cls.CHECK_KEYS:
+            _review_check(data[key], key)
+        _string_list(data["feedback"], "feedback")
+        # 公共语义规则：decision 枚举 + 与检查项/feedback 的联动约束
+        validate_supervisor_semantics(
+            data["decision"],
+            data["feedback"],
+            {key: data[key] for key in cls.CHECK_KEYS},
+        )
+        return cls(**data)
+
 # ── 审核模型生成区结束 ──
 
 # ── Report 校验生成区：由 tools/scripts/sync_domain.py 生成，勿手改 ──
@@ -349,6 +392,39 @@ class ActionItemsReportValidation:
 
         return cls(
             actions=data.get("actions") or [],
+            quality_warning=data.get("quality_warning"),
+            personalized_text=data.get("personalized_text"),
+        )
+
+
+class ConsensusDecisionReportValidation:
+    """ConsensusDecisionReport 的校验逻辑（由脚本按手写字段自动生成）。"""
+
+    @classmethod
+    def validate(cls, data: dict) -> "ConsensusDecisionReport":
+        allowed = {"issues", "summary", "quality_warning", "personalized_text"}
+
+        if not isinstance(data, dict):
+            raise OutputValidationError("ConsensusDecisionReport 必须是 JSON 对象")
+
+        extra = set(data) - allowed
+        if extra:
+            raise OutputValidationError(
+                f"ConsensusDecisionReport 字段不一致：多余={sorted(extra)}"
+            )
+
+        if not isinstance(data.get("issues") or [], list):
+            raise OutputValidationError("issues 必须是数组")
+        if data.get("summary") is not None and not isinstance(data["summary"], dict):
+            raise OutputValidationError("summary 必须是对象")
+        if data.get("quality_warning") is not None:
+            _string(data["quality_warning"], "quality_warning")
+        if data.get("personalized_text") is not None:
+            _string(data["personalized_text"], "personalized_text")
+
+        return cls(
+            issues=data.get("issues") or [],
+            summary=data.get("summary"),
             quality_warning=data.get("quality_warning"),
             personalized_text=data.get("personalized_text"),
         )

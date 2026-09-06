@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from tools.mindmap import sanitize_mindmap_outline
+from tools.exports.mindmap import sanitize_mindmap_outline
 
 from .select import _as_list, _clean
 
