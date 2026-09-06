@@ -1,0 +1,639 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>复习清单 · 复习清单</title>
+  <style>
+    body {
+      margin: 0;
+      padding: 32px 16px;
+      background: #f6f5f0;
+      color: #1a1a1a;
+      font-family: "Latin Modern Roman", "Computer Modern Roman", "CMU Serif", "Times New Roman", Times, "Songti SC", "SimSun", "STSong", serif;
+      -webkit-font-smoothing: antialiased;
+    }
+    .page { max-width: 1140px; margin: 0 auto; }
+    .ck-doc {
+      background: #ffffff;
+      border: 1px solid #d4d0c7;
+      border-radius: 4px;
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.05), 0 1px 3px rgba(0,0,0,0.03);
+      padding: 36px 44px;
+      line-height: 1.72;
+      font-size: 0.96rem;
+    }
+    .ck-doc h1 {
+      margin: 0 0 10px;
+      font-size: 1.85rem;
+      font-weight: 700;
+      letter-spacing: 0.4px;
+      text-align: center;
+      font-variant: small-caps;
+      color: #111111;
+    }
+    .ck-doc-header {
+      margin-bottom: 28px;
+      padding-bottom: 16px;
+      border-bottom: 2px solid #111111;
+      text-align: center;
+    }
+    .ck-doc-meta {
+      font-size: 0.85rem;
+      color: #555555;
+      font-style: italic;
+    }
+    .ck-doc h2 {
+      margin: 32px 0 16px;
+      font-size: 1.25rem;
+      font-weight: 700;
+      color: #111111;
+      border-bottom: 1.5px solid #222222;
+      padding-bottom: 5px;
+      letter-spacing: 0.3px;
+    }
+    .ck-doc h3 {
+      margin: 20px 0 10px;
+      font-size: 1.05rem;
+      font-weight: 700;
+      color: #222222;
+    }
+    .ck-note { color: #555555; font-size: 0.86rem; font-style: italic; }
+    
+    /* Booktabs Table Style */
+    .ck-table-panel {
+      border: 1px solid #dcd8cf;
+      border-radius: 4px;
+      background: #ffffff;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.02);
+      padding: 18px 20px;
+      box-sizing: border-box;
+    }
+    .ck-overview-wrap { margin: 14px 0 24px; display: flex; flex-direction: column; gap: 16px; }
+    .ck-overview-title {
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+      gap: 12px;
+      margin: 0 0 14px;
+      padding-bottom: 8px;
+      border-bottom: 1px solid #e7e4dc;
+      font-family: inherit;
+    }
+    .ck-overview-title span:first-child {
+      font-size: 0.96rem;
+      font-weight: 700;
+      color: #111111;
+      letter-spacing: 0.3px;
+    }
+    .ck-overview-hint { font-size: 0.78rem; color: #666666; font-style: italic; }
+    .ck-filter-row { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin: 0 0 14px; }
+    .ck-filter-row select {
+      padding: 4px 10px;
+      border: 1px solid #888888;
+      border-radius: 3px;
+      font-size: 0.82rem;
+      background: #ffffff;
+      font-family: inherit;
+      color: #111111;
+    }
+    .ck-mastery-track { flex: 1; min-width: 140px; height: 8px; border-radius: 4px; background: #e5e2da; overflow: hidden; border: 1px solid #ccc; }
+    #ck-mastery-fill { display: block; height: 100%; width: 0; background: #0047ab; transition: width .2s; }
+    #ck-mastery-text { font-size: 0.82rem; color: #444444; white-space: nowrap; font-weight: 600; font-family: inherit; }
+    .ck-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.88rem;
+      margin: 0;
+      background: #ffffff;
+      border-top: 2px solid #222222;
+      border-bottom: 2px solid #222222;
+    }
+    .ck-table th, .ck-table td {
+      padding: 9px 12px;
+      text-align: left;
+      vertical-align: middle;
+    }
+    .ck-table th {
+      background: #fbfaf7;
+      border-bottom: 1.2px solid #222222;
+      font-weight: 700;
+      color: #111111;
+      white-space: nowrap;
+      user-select: none;
+      font-size: 0.83rem;
+      letter-spacing: 0.3px;
+    }
+    .ck-table th[data-sort] { cursor: pointer; }
+    .ck-table th[data-sort]:hover { background: #f0ede6; }
+    .ck-table td { border-bottom: 1px solid #ede9e1; }
+    .ck-table tbody tr:hover { background: #faf8f5; }
+    .ck-th-check { width: 54px; text-align: center !important; }
+    .ck-th-grade { width: 90px; text-align: center !important; }
+    .ck-th-name { min-width: 260px; }
+    .ck-th-imp { width: 110px; text-align: center !important; }
+    .ck-th-diff { width: 80px; text-align: center !important; }
+    .ck-th-chap { width: 170px; }
+    .ck-cell-center { text-align: center !important; }
+    .ck-mastery { width: 16px; height: 16px; accent-color: #0047ab; cursor: pointer; vertical-align: middle; }
+    
+    /* LaTeX Academic Badges */
+    .ck-pill {
+      display: inline-flex;
+      align-items: center;
+      padding: 1px 7px;
+      border-radius: 2px;
+      font-size: 0.74rem;
+      font-weight: 700;
+      line-height: 1.4;
+      white-space: nowrap;
+      font-family: inherit;
+      border: 1px solid #666;
+    }
+    .ck-pill.ck-grade-s { background: #fff1f0; color: #a8071a; border-color: #cf1322; }
+    .ck-pill.ck-grade-a { background: #fffbe6; color: #ad4e00; border-color: #d46b08; }
+    .ck-pill.ck-grade-b { background: #e6f4ff; color: #0958d9; border-color: #1677ff; }
+    .ck-pill.ck-grade-c { background: #f5f5f5; color: #595959; border-color: #8c8c8c; }
+    
+    .ck-badge {
+      display: inline-block;
+      margin-right: 6px;
+      padding: 1px 8px;
+      border-radius: 2px;
+      font-size: 0.74rem;
+      font-weight: 700;
+      font-family: inherit;
+      border: 1px solid #222;
+    }
+    .ck-s { background: #fff1f0; border-color: #cf1322; color: #a8071a; }
+    .ck-a { background: #fffbe6; border-color: #d46b08; color: #ad4e00; }
+    .ck-b { background: #e6f4ff; border-color: #1677ff; color: #0958d9; }
+    
+    .ck-stars { color: #b86a04; white-space: nowrap; letter-spacing: 1.5px; font-size: 0.88rem; }
+    .ck-diff-badge {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      padding: 1px 6px;
+      border-radius: 2px;
+      background: #fbfaf7;
+      font-size: 0.76rem;
+      font-weight: 700;
+      color: #444;
+      border: 1px solid #ccc;
+      white-space: nowrap;
+    }
+    .ck-chap-tag { display: inline-block; max-width: 160px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: #555555; font-size: 0.82rem; }
+    .ck-kp-name { font-weight: 700; color: #111111; }
+    .ck-row-preview { font-weight: 400; color: #666666; font-size: 0.76rem; margin-top: 3px; line-height: 1.45; }
+    
+    /* Section 2: LaTeX Review & Card Styles */
+    .ck-review {
+      display: grid;
+      grid-template-columns: minmax(0, 1.35fr) 1px minmax(260px, 0.95fr);
+      border: 1px solid #d4d0c7;
+      border-radius: 4px;
+      overflow: hidden;
+      margin: 14px 0 20px;
+      background: #ffffff;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.03);
+    }
+    .ck-review-left { padding: 18px 22px; background: #ffffff; }
+    .ck-review-rule { background: #dcd8cf; }
+    .ck-review-right {
+      padding: 14px 16px;
+      background: #faf9f6;
+      box-sizing: border-box;
+      display: flex;
+      flex-direction: column;
+    }
+    .ck-ev-list {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+    
+    /* Theorem & Definition Boxes as seen in img.png */
+    .ck-card {
+      margin: 0;
+      padding: 0;
+      border: 0;
+      background: transparent;
+    }
+    .ck-card.is-s {
+      border: 1.5px solid #222222;
+      padding: 14px 16px;
+      background: #ffffff;
+      border-radius: 2px;
+    }
+    .ck-card.is-a {
+      border: 1px solid #e0dcd4;
+      border-left: 4px solid #222222;
+      padding: 14px 16px;
+      background: #fdfdfc;
+      border-radius: 2px;
+    }
+    .ck-card.is-b {
+      border: 1px solid #e0dcd4;
+      border-left: 3px solid #666666;
+      padding: 12px 14px;
+      background: #faf9f6;
+      border-radius: 2px;
+    }
+    .ck-card-header {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-wrap: wrap;
+      margin-bottom: 10px;
+      padding-bottom: 6px;
+      border-bottom: 1px solid #ede9e1;
+    }
+    .ck-thm-title {
+      font-size: 1.02rem;
+      font-weight: 700;
+      color: #111111;
+    }
+    .ck-thm-label {
+      font-weight: 700;
+      color: #111111;
+      margin-right: 4px;
+      font-family: inherit;
+    }
+    .ck-thm-list, .ck-thm-enum {
+      margin: 4px 0 8px;
+      padding-left: 1.4em;
+      line-height: 1.68;
+    }
+    .ck-thm-list li, .ck-thm-enum li {
+      margin: 3px 0;
+    }
+    .ck-remark-box {
+      margin: 8px 0;
+      padding: 8px 12px;
+      background: #fbfaf7;
+      border-left: 3px solid #b86a04;
+      border-radius: 2px;
+      font-size: 0.92rem;
+    }
+    
+    /* Blue Hyperref Citations */
+    .ck-cite-ref {
+      color: #0047ab;
+      font-weight: 600;
+      font-family: "Latin Modern Roman", "Computer Modern Roman", "Times New Roman", serif;
+      text-decoration: none;
+      cursor: pointer;
+      padding: 0 2px;
+      margin: 0 1px;
+      border-radius: 2px;
+      transition: all 0.15s ease;
+      font-size: 0.92em;
+      vertical-align: baseline;
+      user-select: none;
+    }
+    .ck-cite-ref:hover {
+      text-decoration: underline;
+      background: #e8f0fe;
+      color: #003380;
+    }
+    .ck-cite-ref.is-active {
+      background: #d2e3fc;
+      color: #002266;
+      font-weight: 700;
+      box-shadow: 0 0 0 1px #0047ab;
+    }
+    
+    .ck-field {
+      border-radius: 3px;
+      padding: 4px 6px;
+      margin: 4px -6px;
+      transition: background 0.18s ease;
+      cursor: pointer;
+    }
+    .ck-field:hover { background: #faf8f0; }
+    .ck-field.is-on { background: #fff8db; border-left: 2px solid #b86a04; }
+    
+    /* Right Provenance Panel */
+    .ck-provenance-head {
+      font-size: 0.82rem;
+      font-weight: 700;
+      color: #222222;
+      margin: 0 0 12px;
+      padding-bottom: 6px;
+      border-bottom: 1px solid #e0dcd4;
+      letter-spacing: 0.3px;
+      text-transform: uppercase;
+    }
+    .ck-ref-icon { color: #0047ab; margin-right: 4px; }
+    .ck-ev {
+      display: block;
+      margin: 0;
+      padding: 9px 11px;
+      border: 1px solid #dedad2;
+      border-left: 3.5px solid #888888;
+      border-radius: 2px;
+      background: #ffffff;
+      font-size: 0.82rem;
+      line-height: 1.55;
+      transition: all 0.2s ease;
+      cursor: pointer;
+    }
+    .ck-ev-more {
+      margin-top: 2px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+    .ck-ev-more[open] {
+      margin-top: 4px;
+    }
+    .ck-ev-more summary {
+      margin-bottom: 6px;
+    }
+    .ck-ev:hover { border-color: #b5b0a5; }
+    .ck-ev-teacher { border-left-color: #b32424; background: #fffcfc; }
+    .ck-ev-kb { border-left-color: #0047ab; background: #fdfdfe; }
+    .ck-ev-note { border-left-color: #1e7e34; background: #fbfdfb; }
+    
+    .ck-ev.is-on, .ck-ev.is-highlighted {
+      border-color: #0047ab;
+      box-shadow: 0 0 0 2px #0047ab, 0 3px 8px rgba(0,71,171,0.15);
+      background: #f0f5ff;
+    }
+    @keyframes citePulse {
+      0% { background: #dbeafe; box-shadow: 0 0 0 3px #0047ab; }
+      50% { background: #bfdbfe; box-shadow: 0 0 0 4px #0047ab; }
+      100% { background: #f0f5ff; box-shadow: 0 0 0 2px #0047ab; }
+    }
+    .ck-ev-k {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 0.75rem;
+      color: #444444;
+      margin-bottom: 4px;
+      font-weight: 700;
+    }
+    .ck-ev-cite-tag {
+      color: #0047ab;
+      font-weight: 700;
+      font-family: "Latin Modern Roman", serif;
+      text-decoration: none;
+    }
+    .ck-ev-kind-badge { color: #333333; }
+    .ck-ev-teacher .ck-ev-kind-badge { color: #b32424; }
+    .ck-ev-kb .ck-ev-kind-badge { color: #0047ab; }
+    .ck-ev-note .ck-ev-kind-badge { color: #1e7e34; }
+    
+    .ck-ev-quote { color: #222222; font-style: italic; font-family: inherit; }
+    .ck-ev-meta, .ck-ev-sup { font-size: 0.74rem; color: #555555; margin-top: 4px; }
+    .ck-ev-empty { font-size: 0.78rem; color: #888888; padding: 6px 2px; font-style: italic; }
+    .ck-ev-more { margin-top: 8px; }
+    .ck-proof-toggle {
+      cursor: pointer;
+      font-size: 0.82rem;
+      color: #0047ab;
+      user-select: none;
+      font-family: inherit;
+      padding: 2px 0;
+    }
+    .ck-proof-toggle:hover { text-decoration: underline; }
+    
+    /* Brief & Extra sections */
+    .ck-brief {
+      margin: 12px 0 20px;
+      padding: 14px 18px;
+      border: 1px solid #d4d0c7;
+      border-left: 4px solid #666666;
+      border-radius: 2px;
+      background: #faf9f6;
+    }
+    .ck-brief h3 { margin: 0 0 8px; font-size: 1.02rem; font-weight: 700; }
+    .ck-brief ul { margin: 0; padding-left: 1.2em; }
+    .ck-subtitle { margin: 16px 0 6px; font-size: 0.92rem; font-weight: 700; color: #444444; }
+    .ck-brief li { margin: 6px 0; line-height: 1.6; }
+    
+    /* Section 3: Review Strategy */
+    .ck-strategy-panel {
+      margin: 12px 0 20px;
+      border: 1px solid #d4d0c7;
+      border-radius: 3px;
+      background: #ffffff;
+      overflow: hidden;
+    }
+    .ck-strategy-head {
+      display: flex;
+      align-items: baseline;
+      gap: 10px;
+      padding: 10px 16px;
+      border-bottom: 1px solid #dcd8cf;
+      background: #faf9f6;
+    }
+    .ck-strategy-head span { font-weight: 700; color: #111111; font-size: 0.95rem; }
+    .ck-strategy-head em { font-style: italic; color: #666666; font-size: 0.78rem; }
+    .ck-strategy-route { border-top: 1.5px solid #222222; }
+    .ck-priority-matrix {
+      width: 100%;
+      border-collapse: collapse;
+      background: #ffffff;
+      font-size: 0.85rem;
+      border-top: 2px solid #222222;
+      border-bottom: 2px solid #222222;
+    }
+    .ck-priority-matrix th, .ck-priority-matrix td {
+      border: 1px solid #ede9e1;
+      padding: 10px 12px;
+      vertical-align: top;
+      text-align: left;
+    }
+    .ck-priority-matrix th { width: 88px; background: #faf9f6; color: #111; font-weight: 700; border-bottom: 1.2px solid #222222; }
+    .ck-priority-matrix td b { display: block; margin-bottom: 5px; color: #111111; }
+    .ck-priority-matrix td div { display: flex; gap: 5px; flex-wrap: wrap; }
+    .ck-priority-matrix td span, .ck-strategy-chips span {
+      display: inline-flex;
+      align-items: center;
+      max-width: 100%;
+      padding: 1px 7px;
+      border: 1px solid #b5b0a5;
+      border-radius: 2px;
+      background: #faf9f6;
+      color: #222222;
+      font-size: 0.75rem;
+      line-height: 1.45;
+    }
+    .ck-priority-matrix td em { font-style: italic; color: #888888; }
+    
+    .ck-strategy { list-style: none; margin: 0; padding: 12px 14px; display: grid; gap: 10px; }
+    .ck-strategy li {
+      display: grid;
+      grid-template-columns: 32px minmax(0, 1fr);
+      gap: 12px;
+      align-items: start;
+      padding: 11px 13px;
+      border: 1px solid #dedad2;
+      border-left: 3.5px solid #0047ab;
+      border-radius: 2px;
+      background: #ffffff;
+    }
+    .ck-strategy-no {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 28px;
+      height: 28px;
+      border-radius: 2px;
+      background: #0047ab;
+      color: #ffffff;
+      font-size: 0.75rem;
+      font-weight: 700;
+      line-height: 1;
+      font-family: inherit;
+    }
+    .ck-strategy-text { font-size: 0.9rem; line-height: 1.65; color: #222222; }
+    .ck-strategy-text h3 { margin: 0 0 5px; font-size: 0.98rem; font-weight: 700; color: #111; }
+    .ck-strategy-text p { margin: 5px 0 0; }
+    .ck-strategy-chips { display: flex; gap: 5px; flex-wrap: wrap; margin: 0 0 7px; }
+    
+    /* Section 4: Action Checklist */
+    .ck-action { margin: 10px 0 8px; }
+    .ck-progress { margin: 0 0 14px; padding: 12px 14px; border: 1px solid #d4d0c7; border-radius: 3px; background: #faf9f6; }
+    .ck-progress-top { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 8px; font-size: 0.88rem; }
+    .ck-progress-top span { color: #555555; font-size: 0.82rem; font-family: inherit; }
+    .ck-progress-track { height: 8px; border-radius: 4px; background: #e0dcd4; overflow: hidden; border: 1px solid #ccc; }
+    .ck-progress-track span { display: block; height: 100%; border-radius: 4px; background: #0047ab; transition: width .18s ease; }
+    .ck-action-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; margin: 0 0 14px; }
+    .ck-stage {
+      display: grid;
+      gap: 6px;
+      text-align: left;
+      padding: 12px 12px 14px;
+      border: 1px solid #d4d0c7;
+      border-radius: 3px;
+      background: #faf9f6;
+      cursor: pointer;
+      min-height: 160px;
+      font-family: inherit;
+      transition: all 0.15s ease;
+    }
+    .ck-stage:hover { background: #f4f1ea; }
+    .ck-stage.is-on {
+      background: #ffffff;
+      border-color: #0047ab;
+      border-width: 1.5px;
+      box-shadow: 0 0 0 1px #0047ab;
+    }
+    .ck-stage-no {
+      width: 22px;
+      height: 22px;
+      border-radius: 2px;
+      background: #e8e4db;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 0.78rem;
+      font-weight: 700;
+    }
+    .ck-stage.is-on .ck-stage-no { background: #0047ab; color: #ffffff; }
+    .ck-stage-title { font-weight: 700; font-size: 0.96rem; color: #111; }
+    .ck-stage-sub, .ck-stage-sum { color: #555555; font-size: 0.78rem; line-height: 1.45; }
+    .ck-stage-count { font-size: 0.76rem; color: #222222; font-weight: 700; }
+    .ck-action-detail { border: 1px solid #dedad2; border-radius: 3px; padding: 16px 18px; background: #ffffff; }
+    .ck-action-detail[hidden] { display: none; }
+    .ck-phase { margin: 12px 0 18px; }
+    .ck-phase h4 { margin: 0 0 8px; }
+    .ck-task { margin: 10px 0; padding: 11px 13px; border: 1px solid #dedad2; border-radius: 2px; background: #faf9f6; }
+    .ck-meta, .ck-k { font-size: 0.86rem; color: #555555; margin: 8px 0 4px; }
+    .ck-k { font-weight: 700; color: #111111; }
+    .ck-task-list { list-style: none; margin: 0 0 8px; padding: 0; display: grid; gap: 6px; }
+    .ck-task-list li { margin: 0; line-height: 1.65; }
+    .ck-task-list label { display: grid; grid-template-columns: 16px minmax(0, 1fr); gap: 8px; align-items: start; cursor: pointer; }
+    .ck-task-list input { width: 15px; height: 15px; margin: 5px 0 0; accent-color: #0047ab; cursor: pointer; }
+    .ck-task-list input:checked + span { color: #777777; text-decoration: line-through; text-decoration-thickness: 1px; }
+    .ck-check { margin: 0 0 8px; padding-left: 1.2em; }
+    .ck-check li { margin: 3px 0; }
+    
+    @media(max-width: 860px) {
+      .ck-doc { padding: 22px 18px; }
+      .ck-review { grid-template-columns: 1fr; }
+      .ck-review-rule { display: none; }
+      .ck-action-grid { grid-template-columns: 1fr 1fr; }
+    }
+    
+.ck-stars{color:#b86a04;letter-spacing:1.5px;font-size:.88rem;white-space:nowrap;}
+.ck-quote{margin:8px 0 12px;padding:8px 12px;background:#faf9f6;border-left:3.5px solid #222222;border-radius:2px;color:#222222;font-size:.88rem;font-style:italic;}
+
+/* Knowledge Graph in LaTeX Paper Style */
+.lc-kg{margin:12px 0 20px;border:1px solid #222222;border-radius:2px;overflow:hidden;background:#ffffff;box-shadow:0 1px 3px rgba(0,0,0,0.03);}
+.lc-kg-shell{display:grid;grid-template-columns:minmax(0,1fr) minmax(260px,32%);min-height:560px;}
+#lc-cy{width:100%;height:560px;background:#ffffff;}
+.lc-kg-aside{border-left:1px solid #222222;background:#faf9f6;padding:16px 14px;overflow:auto;}
+.lc-kg-aside h3{margin:0 0 8px;font-size:1rem;font-weight:700;color:#111;}
+.lc-kg-meta,.lc-kg-ev{color:#555555;font-size:.78rem;line-height:1.6;font-style:italic;}
+.lc-kg-label{font-size:.76rem;color:#222222;margin:14px 0 6px;font-weight:700;text-transform:uppercase;letter-spacing:0.3px;}
+.lc-kg-detail{border:1px solid #d4d0c7;border-radius:2px;padding:12px;background:#ffffff;font-size:.86rem;line-height:1.6;}
+.lc-kg-name{font-weight:700;margin-bottom:8px;font-size:.96rem;color:#111;}
+.lc-kg-block{margin-top:8px;}
+.lc-kg-k{color:#555555;font-size:.74rem;margin-bottom:3px;font-weight:700;}
+.lc-kg-rel{margin-top:6px;padding:6px 8px;border:1px solid #e0dcd4;border-radius:2px;background:#faf9f6;}
+.lc-kg-chips{display:flex;flex-wrap:wrap;gap:6px;}
+.lc-kg-chip{display:inline-block;padding:1px 8px;border-radius:2px;background:#ede9e1;border:1px solid #d4d0c7;font-size:.74rem;color:#222;}
+.lc-kg-legend{display:grid;gap:6px;}
+.lc-kg-legend-item{display:flex;align-items:center;gap:8px;font-size:.8rem;}
+.lc-kg-swatch{width:10px;height:10px;border-radius:2px;}
+
+/* Mindmap in LaTeX Paper Style */
+.lc-mm{position:relative;margin:12px 0 20px;border:1px solid #222222;border-radius:2px;overflow:hidden;background:#ffffff;box-shadow:0 1px 3px rgba(0,0,0,0.03);}
+.lc-mm-bar{display:flex;align-items:center;gap:8px;padding:8px 14px;border-bottom:1px solid #222222;background:#faf9f6;flex-wrap:wrap;}
+.lc-mm-bar strong{font-size:.95rem;font-weight:700;color:#111;}
+.lc-mm-hint{color:#666666;font-size:.78rem;flex:1 1 180px;font-style:italic;}
+.lc-mm-bar button{border:1px solid #333333;background:#ffffff;border-radius:2px;padding:4px 12px;font-size:.8rem;font-family:inherit;font-weight:600;cursor:pointer;transition:all .15s;}
+.lc-mm-bar button:hover{background:#eeebe3;}
+.lc-mm-bar button.lc-mm-save{background:#111111;color:#ffffff;border-color:#111111;}
+.lc-mm-bar button.lc-mm-save:hover{background:#333333;}
+.lc-mm-body{display:grid;grid-template-columns:1fr;height:560px;min-height:560px;}
+.lc-mm-body.editing{grid-template-columns:minmax(200px,34%) 1fr;}
+#lc-mm-editor{display:none;width:100%;height:100%;border:0;border-right:1px solid #222222;padding:12px;resize:none;font:13px/1.6 "Latin Modern Mono",Consolas,monospace;box-sizing:border-box;background:#faf9f6;}
+.lc-mm-body.editing #lc-mm-editor{display:block;}
+.lc-mm-canvas{position:relative;min-height:560px;height:100%;background:#ffffff;}
+#lc-mindmap{position:absolute;inset:0;width:100%;height:100%;display:block;}
+.lc-mm-fallback{padding:14px 20px 16px;overflow:auto;height:100%;font-family:inherit;}
+.lc-mm-tree{margin:0;padding-left:1.2em;line-height:1.7;}
+.lc-mm-tree ul{margin:.2em 0;padding-left:1.1em;}
+@media(max-width:860px){.lc-kg-shell{grid-template-columns:1fr}.lc-mm-body.editing{grid-template-columns:1fr}#lc-cy{height:420px}.lc-mm-body,.lc-mm-canvas{height:420px;min-height:420px}}
+
+  </style>
+  <script src="https://cdn.jsdelivr.net/npm/cytoscape@3.31.2/dist/cytoscape.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/d3@7.9.0/dist/d3.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/markmap-view@0.18.12/dist/browser/index.js"></script>
+</head>
+<body>
+  <main class="page">
+<div class="ck-doc"><header class="ck-doc-header"><h1>复习清单 · 复习清单</h1><div class="ck-doc-meta"><span>知识复习与考点全景分析报告</span> · <span>Generated by AgentFlow</span></div></header><p>没有可复习的知识点。请先运行 catalog / 资料入库；若提供了老师重点，请确认文本能对上目录名称。</p></div>
+  </main>
+  <script>
+(function () {
+  const onReady = () => {
+    if (window.__adjustEvidenceFolding) window.__adjustEvidenceFolding();
+  };
+  if (window.MathJax && window.MathJax.typesetPromise) {
+    window.MathJax.typesetPromise().then(onReady);
+    return;
+  }
+  window.MathJax = {
+    tex: {inlineMath: [['$', '$'], ['\\(', '\\)']], displayMath: [['$$', '$$'], ['\\[', '\\]']]},
+    options: {skipHtmlTags: ['script', 'noscript', 'style', 'textarea', 'pre', 'code']},
+    startup: {
+      pageReady: () => {
+        return MathJax.startup.defaultPageReady().then(onReady);
+      }
+    }
+  };
+  var s = document.createElement('script');
+  s.src = 'https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-chtml.js';
+  s.async = true;
+  document.head.appendChild(s);
+})();
+</script>
+</body>
+</html>
