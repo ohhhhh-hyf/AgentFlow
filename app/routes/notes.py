@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from typing import Optional
 
-from fastapi import APIRouter, Header, HTTPException
+from fastapi import APIRouter, Header, HTTPException, Query
 from fastapi.responses import FileResponse
 
 from ..outputs import resolve_output_file
@@ -35,11 +35,12 @@ def _download_endpoint(task: str):
     async def _handler(
         request_id: str,
         file_name: str,
+        user_id: Optional[str] = Query(default=None),
         x_user_id: Optional[str] = Header(default=None),
     ):
-        user_id = (x_user_id or "").strip()
+        user_id = (user_id or "").strip() or (x_user_id or "").strip()
         if not user_id:
-            raise HTTPException(status_code=400, detail="缺少 X-User-Id（产物按用户隔离）")
+            raise HTTPException(status_code=400, detail="缺少 user_id（URL 参数 ?user_id= 或 X-User-Id 请求头）")
         path = resolve_output_file(user_id, request_id, file_name)
         if path is None:
             raise HTTPException(
