@@ -53,14 +53,18 @@ def _fallback_explain(row: dict[str, Any], brief: bool = False) -> str:
 def _fallback_method(row: dict[str, Any]) -> list[str]:
     kind = str(row.get("knowledge_type") or "concept")
     name = _clean(row.get("name"))
-    focus = _as_list(row.get("session_focus_items")) or _as_list(row.get("knowledge_items"))[:3]
+    # focus 只承载"老师本次点名内容"；无点名时不回退到目录条目，
+    # 程序步骤因此不会生成"老师点到"表述
+    focus = _as_list(row.get("session_focus_items"))
     if kind in {"method", "application"}:
         return [
             f"先判断本题是不是在用{name}",
-            "按老师点到的类型选套路：" + "、".join(focus or ["先辨认再动手"]),
+            ("按老师点到的类型选套路：" + "、".join(focus))
+            if focus
+            else "先辨认题目类型，再选对应套路",
             "写出关键变形或中间步骤，不要跳步",
             "做完回看原题，检查适用条件和限制是否还成立",
-            "用老师点过的易错点复查一遍",
+            "对照易错点复查一遍",
         ]
     if kind == "formula":
         return [
@@ -71,7 +75,9 @@ def _fallback_method(row: dict[str, Any]) -> list[str]:
         ]
     return [
         f"用自己的话复述{name}的定义或结论，并写出一条限制条件",
-        "对照老师点到的判断流程逐步核验：" + "、".join(focus or ["先看条件再下结论"]),
+        ("对照老师点到的判断流程逐步核验：" + "、".join(focus))
+        if focus
+        else "按「先看条件再下结论」的流程逐步核验",
         "用一个正例确认能用，再用一个反例钉住边界",
         "若要写证明，按「构造 → 验证条件 → 下结论」的顺序落笔",
     ]
@@ -111,14 +117,16 @@ def _sanitize_exam(text: str, row: dict[str, Any], teacher: str) -> str:
     raw = _clean(text)
     allowed = any(mark in (teacher or "") for mark in _MUST_WORDS)
     if not allowed:
-        raw = raw.replace("必考", "老师点到要抓")
+        raw = raw.replace("必考", "老师点到要抓" if (teacher or "").strip() else "重点要抓")
     raw = _BANNED.sub("考试信号", raw)
     if not raw:
         signal = row.get("session_exam_signal") or row.get("exam_signal") or "none"
         if signal == "strong" and allowed:
             raw = "老师原话里有明确考试信号，按大题准备。"
         elif signal in {"medium", "strong"}:
-            raw = "材料里有考试相关信号，按老师点到的题型准备，不估计具体占比。"
+            raw = "材料里有考试相关信号，按材料点到的题型准备，不估计具体占比。"
+        elif not (teacher or "").strip():
+            raw = "先把定义和一条限制条件钉死，做一题确认会用。"
         else:
             raw = "老师本次没有给出明确考法，先把定义和限制条件钉死。"
     return raw
@@ -335,8 +343,7 @@ def assemble_checklist(
                 **{k: row.get(k) for k in (
                     "id", "name", "aliases", "chapter", "topic", "knowledge_type",
                     "knowledge_items", "importance", "difficulty", "foundational_level",
-                    "sources", "source_chunk_ids", "evidence", "content_fingerprint",
-                    "note_coverage", "note_missing_items", "prerequisites", "related_points",
+                    "note_missing_items", "prerequisites", "related_points",
                     "practice_type", "completion_criteria", "learning_role", "risk_tags",
                     "session_emphasis", "session_focus_items", "session_exam_signal",
                     "session_error_signal", "session_difficulty_signal",

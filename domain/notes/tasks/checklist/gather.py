@@ -102,17 +102,17 @@ def build_checklist_briefing(
         else:
             parts.append("【激活 KP】目录中没有知识点。cards 必须空。")
     else:
-        # C 级（末位档）且老师未点到的卡片由程序按 fallback 规格直出，不进 LLM——
-        # 省 brief 行数与输出 token；C 卡定位"能复述定义和一条限制"，程序模板即达标。
-        # 老师点过的 C 级（_mentioned）保留进 LLM：原话溯源需要模型整合。
+        # 未点名且非高优先的卡（B 级及以下）由程序按固定规格直出，不进 LLM——
+        # 控制单次模型输出规模、让清单聚焦高价值卡；只有高优先卡需要模型撰写讲解，
+        # 被老师点名的卡需要模型做原话溯源整合，这两类保留进 LLM。
         llm_rows = [
             row
             for row in activated
-            if str(row.get("session_priority") or "C") != "C" or row.get("_mentioned")
+            if str(row.get("session_priority") or "C") in {"S", "A"} or row.get("_mentioned")
         ]
         skipped = len(activated) - len(llm_rows)
         if not llm_rows:
-            parts.append("【激活 KP】本次全部为 C 级低优先知识点，卡片由程序生成。cards 必须空。")
+            parts.append("【激活 KP】本次没有需要模型撰写的卡片（低优先未点名），卡片由程序生成。cards 必须空。")
         else:
             parts.append("【激活 KP】只能给下面这些 id 写卡片：")
             for row in llm_rows:
@@ -143,7 +143,7 @@ def build_checklist_briefing(
                 parts.append("- " + " | ".join(bits))
             if skipped:
                 parts.append(
-                    f"（另有 {skipped} 个 C 级低优先知识点由程序生成简卡，不要为它们输出。）"
+                    f"（另有 {skipped} 个低优先未点名知识点由程序生成简卡，不要为它们输出。）"
                 )
     parts.append("【老师划重点原文】")
     parts.append((teacher or "")[:6000] if has_teacher else "（未提供，跳过老师重点溯源）")

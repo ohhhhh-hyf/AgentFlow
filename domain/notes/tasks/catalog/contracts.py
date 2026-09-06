@@ -28,7 +28,7 @@ class CatalogGenerationContract(GenerationContract):
         ObjListField(
             "chapters",
             [
-                StrField("id", "稳定章节 ID，如 ch_001；增量时复用已有 ID"),
+                StrField("id", "稳定章节 ID（编号风格与历史目录一致）；增量时复用已有 ID"),
                 StrField("name", "章节标准名，沿用资料原有章名"),
                 EnumField(
                     "change_type",
@@ -38,7 +38,7 @@ class CatalogGenerationContract(GenerationContract):
                 ObjListField(
                     "topics",
                     [
-                        StrField("id", "稳定主题 ID，如 tp_001"),
+                        StrField("id", "稳定主题 ID（编号风格与历史目录一致）"),
                         StrField("name", "主题标准名，沿用资料原有节/主题名"),
                         EnumField(
                             "change_type",
@@ -128,10 +128,6 @@ class CatalogGenerationContract(GenerationContract):
                                         ),
                                     ],
                                 ),
-                                StrListField(
-                                    "evidence",
-                                    "短依据：来源类型 + 可核对片段，如「老师重点：……」",
-                                ),
                                 EnumField(
                                     "node_status",
                                     ["active", "merged", "deprecated", "uncertain"],
@@ -160,7 +156,7 @@ class CatalogGenerationContract(GenerationContract):
         StrListField("added_topics", "程序统计，输出空数组 []"),
         StrListField("added_knowledge_points", "程序统计，输出空数组 []"),
         StrListField("updated_knowledge_points", "程序统计，输出空数组 []"),
-        StrListField("merged_nodes", "本次合并记录，如「别名 A → kp_003 标准名」"),
+        StrListField("merged_nodes", "本次合并记录：被合并的旧别名 → 保留的标准名"),
     ]
 
 
@@ -198,7 +194,7 @@ class CatalogSlimGenerationContract(GenerationContract):
         ObjListField(
             "chapters",
             [
-                StrField("id", "稳定章节 ID，如 ch_001；增量时复用已有 ID"),
+                StrField("id", "稳定章节 ID（编号风格与历史目录一致）；增量时复用已有 ID"),
                 StrField("name", "章节标准名，沿用资料原有章名"),
                 EnumField(
                     "change_type",
@@ -208,7 +204,7 @@ class CatalogSlimGenerationContract(GenerationContract):
                 ObjListField(
                     "topics",
                     [
-                        StrField("id", "稳定主题 ID，如 tp_001"),
+                        StrField("id", "稳定主题 ID（编号风格与历史目录一致）"),
                         StrField("name", "主题标准名，沿用资料原有节/主题名"),
                         EnumField(
                             "change_type",
@@ -260,10 +256,6 @@ class CatalogSlimGenerationContract(GenerationContract):
                                             "关联类型",
                                         ),
                                     ],
-                                ),
-                                StrListField(
-                                    "evidence",
-                                    "短依据：来源类型 + 可核对片段，如「学生笔记：……」",
                                 ),
                                 EnumField(
                                     "node_status",

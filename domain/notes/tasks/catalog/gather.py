@@ -235,7 +235,7 @@ def _score_title_candidate(row: dict[str, str]) -> tuple[int, list[str]]:
         tags = str(row.get("content_tags") or "").strip()
         if _item_only_title(title, row):
             score = min(score, 4)
-            reasons.append("细碎标题仅作item/evidence")
+            reasons.append("细碎标题仅作条目材料")
         if kind:
             reasons.append(f"kind={kind}")
         if tags:
@@ -262,7 +262,7 @@ def _score_title_candidate(row: dict[str, str]) -> tuple[int, list[str]]:
         reasons.append("知识点关键词")
     if _item_only_title(title, row):
         score = min(score, 4)
-        reasons.append("细碎标题仅作item/evidence")
+        reasons.append("细碎标题仅作条目材料")
     if 2 <= len(title) <= 28:
         score += 1
         reasons.append("短标题")
@@ -612,7 +612,7 @@ def build_catalog_briefing(shared_context: str) -> str:
                 "【OCR 学生笔记文件】"
                 + "、".join(ocr_notes)
                 + "。这些文件来自 OCR 入库，sources 写「学生笔记」，"
-                "evidence 用「学生笔记：短片段」，覆盖到的 KP 用 detailed/mentioned，不要标 none。"
+                "覆盖到的 KP 用 detailed/mentioned，不要标 none。"
             )
         candidates = _title_candidates(grouped)
         if candidates:
@@ -632,7 +632,7 @@ def build_catalog_briefing(shared_context: str) -> str:
                 "role 只表示来源类型，不决定优先级。请优先使用 score 高、层级连续、路径稳定的标题建树；"
                 "notes 与 material 同等重要，OCR 笔记结构清晰时可以作为主骨架。"
                 "heading_kind=knowledge_point 只表示候选知识点，不等于必须新建 KP；"
-                "例题/易错/注意/步骤/题型/小结类标题只能并入父 KP 的 knowledge_items 或 evidence。"
+                "例题/易错/注意/步骤/题型/小结类标题只能并入父 KP 的 knowledge_items。"
             )
             budget = _candidate_budget(candidates)
             high = [row for row in candidates if int(row.get("score") or 0) >= 6]
@@ -677,7 +677,7 @@ def build_catalog_briefing(shared_context: str) -> str:
                 not in emitted_paths
             ]
             if high and remaining_middle:
-                parts.append("【知识点标题】（仅为候选：定义/公式/方法可考虑作 KP；例题/易错/注意/步骤/题型/小结只能作 item/evidence）")
+                parts.append("【知识点标题】（仅为候选：定义/公式/方法可考虑作 KP；例题/易错/注意/步骤/题型/小结只能并入 knowledge_items 条目）")
                 remaining = max(0, budget - emitted)
                 middle_budget = min(60, remaining)
                 for row in remaining_middle[:middle_budget]:
@@ -688,12 +688,12 @@ def build_catalog_briefing(shared_context: str) -> str:
             if low:
                 parts.append(
                     f"【低可信标题】共 {len(low)} 条，已从主 prompt 省略；"
-                    "只作为知识库 evidence，不要据此新建章/主题/KP。"
+                    "只作参考细节，不要据此新建章/主题/KP。"
                 )
             if detail_pool:
                 parts.append(
                     "【细节池】以下内容只能用于补充已有/新建 KP 的 knowledge_items、"
-                    "prerequisites、risk_tags、completion_criteria、evidence；"
+                    "prerequisites、risk_tags、completion_criteria；"
                     "禁止把这里的条目升成 chapter/topic/KP。"
                 )
                 for row in detail_pool:
@@ -1224,8 +1224,9 @@ def backfill_catalog_trace(
                             sources.append(src)
                         if cid and cid not in cids:
                             cids.append(cid)
-                        ev = " ".join(str(h.get("text") or "").split())[:120]
-                        if ev and ev not in evs:
+                        # 依据片段只留最短可核对锚点（无下游展示消费，控制目录体积）
+                        ev = " ".join(str(h.get("text") or "").split())[:80]
+                        if ev and len(evs) < 1 and ev not in evs:
                             evs.append(ev)
                     kp["sources"] = sources
                     kp["source_chunk_ids"] = cids

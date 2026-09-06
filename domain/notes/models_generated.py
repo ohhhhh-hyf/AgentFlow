@@ -91,22 +91,22 @@ class Checklist(ModelMixin):
 
     course: str
     catalog_version: str
-    cards: list[dict[str, Any]] = field(default_factory=list)
     uncertain_quotes: list[str] = field(default_factory=list)
     strategy: list[str] = field(default_factory=list)
     phases: list[dict[str, Any]] = field(default_factory=list)
+    cards: list[dict[str, Any]] = field(default_factory=list)
 
     @classmethod
     def validate(cls, data: dict) -> "Checklist":
         _exact_fields(data, [f.name for f in fields(cls)], cls.__name__)
         _string(data["course"], "course")
         _string(data["catalog_version"], "catalog_version")
-        if not isinstance(data["cards"], list):
-            raise OutputValidationError("cards 必须是数组")
         _string_list(data["uncertain_quotes"], "uncertain_quotes")
         _string_list(data["strategy"], "strategy")
         if not isinstance(data["phases"], list):
             raise OutputValidationError("phases 必须是数组")
+        if not isinstance(data["cards"], list):
+            raise OutputValidationError("cards 必须是数组")
         return cls(**data)
 
 @dataclass

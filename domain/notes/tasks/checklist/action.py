@@ -60,7 +60,7 @@ _CARD_SPECS = (
         "order": 2,
         "kind": "core",
         "title": "核心冲刺",
-        "subtitle": "集中处理老师本次点名的核心内容与方法",
+        "subtitle": "集中攻克本次复习的核心内容与方法",
         "summary": "把最重要的知识块练到会判断、会做、会变式",
         "unit": "个核心任务",
         "empty_goal": "本次没有单独列出的核心冲刺任务。",
@@ -488,7 +488,7 @@ def _build_core(cards: list[dict[str, Any]]) -> dict[str, Any]:
             }
         )
     return {
-        "goal": "把老师点名的核心块练到会判断、会做、会变式。",
+        "goal": "把本次核心块练到会判断、会做、会变式。",
         "count": len(sections),
         "sections": sections,
     }
@@ -551,6 +551,8 @@ def _confused_pairs(cards: list[dict[str, Any]]) -> list[str]:
 
 def _build_sweep(cards: list[dict[str, Any]], leftover: list[dict[str, Any]]) -> dict[str, Any]:
     targets = [c for c in cards if c.get("session_priority") in {"S", "A"}] + leftover
+    # 老师原话依据只在存在点名内容时成立（无老师场景不出现该来源标签）
+    has_quote = any(_as_list(c.get("session_quotes")) for c in targets)
     concept = _confused_pairs(targets)
     concept_names: list[str] = [_clean(c.get("name")) for c in leftover]
     condition_names: list[str] = []
@@ -587,7 +589,9 @@ def _build_sweep(cards: list[dict[str, Any]], leftover: list[dict[str, Any]]) ->
     for name in _uniq(concept_names, 3):
         task_objects.append(_task("辨析", name, "写出容易混淆对象和判断依据", ["risk_tags"], "遇到相近问法不误判"))
     for name in _uniq(condition_names + method_names, 4):
-        task_objects.append(_task("核查", name, "列出适用条件、边界和方法选择理由", ["teacher_quote", "risk_tags"], "动手前能先说明条件是否满足"))
+        task_objects.append(_task("核查", name, "列出适用条件、边界和方法选择理由",
+                                  ["teacher_quote", "risk_tags"] if has_quote else ["risk_tags"],
+                                  "动手前能先说明条件是否满足"))
     for item in _uniq(missing_items, 3):
         task_objects.append(_task("补齐", item, "回到笔记中补出可复述版本", ["note_missing_items"], "合上资料能写出来"))
     groups = [

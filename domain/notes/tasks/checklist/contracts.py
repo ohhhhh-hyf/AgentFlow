@@ -20,10 +20,29 @@ class ChecklistGenerationContract(GenerationContract):
     fields = [
         StrField("course", "沿用 Catalog 课程名"),
         StrField("catalog_version", "抄输入里的目录版本，不要改"),
+        StrListField(
+            "uncertain_quotes",
+            "程序统计，输出 []（老师原话与目录的匹配由程序判定）",
+        ),
+        StrListField("strategy", "程序生成，输出 []"),
+        ObjListField(
+            "phases",
+            [
+                StrField("title", "阶段名"),
+                StrField("goal", "阶段目标"),
+                StrListField("kp_ids", "本阶段 KP id"),
+                StrListField("names", "本阶段 KP 名"),
+                StrField("check", "完成标准"),
+            ],
+            desc="程序生成，输出 []",
+        ),
+        # cards 放最后：输出超限被截断时，截断点落在 cards 内部——程序修复删掉
+        # 残卡后补全括号即可通过校验（缺的卡由 assemble 按目录补齐）；若 cards 在前，
+        # 截断会丢掉其后置的顶层字段，修复回退到哪都缺字段、必然失败。
         ObjListField(
             "cards",
             [
-                StrField("kp_id", "必须是 Catalog 里已有的 id，如 kp_006"),
+                StrField("kp_id", "必须是 Catalog 里已列出的 kp id"),
                 StrField(
                     "exam_preview",
                     "考法预判：S/A 2-4 句；B/C 1-2 句（说明这次只需了解/当前置）。写清题型、老师点到的变形/流程；无依据不要写必考或具体概率",
@@ -45,22 +64,6 @@ class ChecklistGenerationContract(GenerationContract):
                     "易错：S/A 2-4 条；B/C 0-2 条。优先老师原话限制，并给具体反例或使用边界；无依据不要编",
                 ),
             ],
-        ),
-        StrListField(
-            "uncertain_quotes",
-            "程序统计，输出 []（老师原话与目录的匹配由程序判定）",
-        ),
-        StrListField("strategy", "程序生成，输出 []"),
-        ObjListField(
-            "phases",
-            [
-                StrField("title", "阶段名"),
-                StrField("goal", "阶段目标"),
-                StrListField("kp_ids", "本阶段 KP id"),
-                StrListField("names", "本阶段 KP 名"),
-                StrField("check", "完成标准"),
-            ],
-            desc="程序生成，输出 []",
         ),
     ]
 

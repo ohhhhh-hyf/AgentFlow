@@ -41,19 +41,18 @@ Course → Chapter → Topic → Knowledge Point → Knowledge Item
 
 ## 三、输入来源
 
-- 来源角色（material / notes / unknown）只作 evidence 标签，不决定优先级。
+- 来源角色（material / notes / unknown）只作来源标签，不决定优先级。
   优先级来自 briefing 里的 score、标题层级、编号连续性、原文顺序、多来源印证。
 - 候选 path 是结构蓝图：第一级建章、第二级建主题，三级及以下按「KP 准入」判断。
 - OCR 笔记（role=notes）：标题即学生实际学习过的结构，可作为章/主题/KP 来源、甚至主骨架；
-  evidence 写「学生笔记：短片段」；覆盖到的 KP 用 note_coverage=detailed/mentioned；案例、口语不要升成 KP。
+  覆盖到的 KP 用 note_coverage=detailed/mentioned；案例、口语不要升成 KP。
 - 老师划重点：匹配已有 KP，尽量落到具体 Item；teacher_emphasis / exam_signal 由程序回填；
   老师点到但资料没有、且能独立学习的才新增 KP；例题或提醒不要新建 KP。
 - 未知角色（role=unknown）：score 高或层级清晰就按标题层级建树；OCR 笔记不要标「未知来源」。
 
 ## 四、节点规范
 
-1. name 必须是标准纯概念名称，去掉「四、」「（一）」「1.」「第四章」等序号前缀
-   （如「1.2 某章节主题」→「某章节主题」）。
+1. name 必须是标准纯概念名称，去掉章节/条目序号前缀，只保留名称本身。
 2. 同义名称合并进 aliases，只保留一个主节点；同层 KP 粒度一致。
 3. 笔记只判断覆盖（note_coverage），不推断掌握。
 4. prerequisites / related_points 只能指向本目录里其他 KP 的 name。
@@ -65,11 +64,10 @@ Course → Chapter → Topic → Knowledge Point → Knowledge Item
 - knowledge_type：concept / formula / theorem / method / application / mixed
 - importance 1-5（按第二节校准）、difficulty 1-5
 - related_points.relation：alternative / used_with / easily_confused / derived_from
-- evidence：来源类型 + 可核对短片段，如「老师重点：……」「学生笔记：……」「资料：某页标题」
 
 以下字段不要在 LLM 阶段输出，由程序回填并在最终 catalog 中保留：
 teacher_emphasis / foundational_level / exam_signal / note_coverage / sources / source_documents /
-source_chunk_ids / practice_type / completion_criteria / learning_role / risk_tags /
+source_chunk_ids / evidence / practice_type / completion_criteria / learning_role / risk_tags /
 teacher_focus_items / note_covered_items。
 
 ## 六、边界

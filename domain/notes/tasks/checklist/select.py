@@ -331,7 +331,9 @@ def activate_from_catalog(catalog: dict[str, Any] | None) -> list[dict[str, Any]
             continue
         row = dict(point)
         row["session_emphasis"] = "0"
-        row["session_focus_items"] = _as_list(point.get("knowledge_items"))[:3]
+        # 无老师文本：不存在"本次点名内容"，focus 语义留空（程序模板据此不再
+        # 生成"老师点到"表述；知识点条目本身由 knowledge_items 承载）
+        row["session_focus_items"] = []
         row["session_exam_signal"] = str(point.get("exam_signal") or "none")
         row["session_error_signal"] = ""
         row["session_difficulty_signal"] = ""
@@ -406,7 +408,9 @@ def activate_points(catalog: dict[str, Any] | None, teacher: str) -> list[dict[s
             row["_light"] = _is_light(blob) and not any(mark in blob for mark in _STRONG)
         else:
             row["session_emphasis"] = "0"
-            row["session_focus_items"] = _as_list(point.get("knowledge_items"))[:3]
+            # 老师文本存在但未点到该点：没有点名内容，focus 留空
+            # （程序模板据此不生成"老师点到"表述）
+            row["session_focus_items"] = []
             row["session_exam_signal"] = str(point.get("exam_signal") or "none")
             row["session_error_signal"] = ""
             row["session_difficulty_signal"] = ""

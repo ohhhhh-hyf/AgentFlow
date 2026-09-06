@@ -139,10 +139,10 @@ _EMPTY_CATALOG_SLIM = {
 _EMPTY_CHECKLIST = {
     "course": "",
     "catalog_version": "",
-    "cards": [],
     "uncertain_quotes": [],
     "strategy": [],
     "phases": [],
+    "cards": [],
 }
 
 _EMPTY_KNOWLEDGE_GRAPH = {
