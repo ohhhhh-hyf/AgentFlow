@@ -118,10 +118,12 @@ graph 额外有交互式 `graph.html`；catalog 的 json 在 `data/{user_id}/kno
 
 | 用途 | 端点 | 响应 |
 |---|---|---|
-| 下载（附件） | `/api/v1/meeting/{task}/file?request_id=…&user_id=…`（文件名自动回退 html→md） | `Content-Disposition: attachment` |
+| 下载（附件） | `/api/v1/{domain}/{task}/file?request_id=…&user_id=…`（文件名自动回退 html→md） | `Content-Disposition: attachment` |
 | 下载（指定文件名） | `/api/v1/{domain}/{task}/file/{request_id}/{file_name}` | 同上 |
-| 浏览器预览 | `/api/v1/meeting/{task}/preview?request_id=…&user_id=…` | `text/html` inline，直接渲染 |
+| 浏览器预览 | `/api/v1/{domain}/{task}/preview?request_id=…&user_id=…` | `text/html` inline，直接渲染 |
 | 任意静态文件 | `/data/{user_id}/output/{request_id}/{file_name}` | 按扩展名返回（同源） |
+
+> 支持文件端点的任务线：meeting 域全部六条；notes 域 `graph` 与 `checklist`（两条线均有页面版产物）。
 
 ---
 
@@ -144,24 +146,18 @@ graph 额外有交互式 `graph.html`；catalog 的 json 在 `data/{user_id}/kno
 
 ### 2.2 产物下载 / 预览端点
 
-**meeting 域六条任务线**（`minutes / actions / risks / minutes_styles / minutes_trace / consensus_decision`）均注册：
+**meeting 域六条任务线**（`minutes / actions / risks / minutes_styles / minutes_trace / consensus_decision`）与 **notes 域 `graph`、`checklist`** 均注册了同一套文件端点：
 
 ```
-GET /api/v1/meeting/{task}/file/{request_id}/{file_name}     # 指定文件名下载（file_name 取响应 data.file_name）
-GET /api/v1/meeting/{task}/file?request_id=…&user_id=…       # 便捷下载：文件名免填，自动按 {task}.html → {task}.md → result.md 回退
-GET /api/v1/meeting/{task}/preview?request_id=…&user_id=…    # 受控预览：只允许取产物目录内 {task}.html，text/html inline 渲染
+GET /api/v1/{domain}/{task}/file/{request_id}/{file_name}     # 指定文件名下载（file_name 取响应 data.file_name）
+GET /api/v1/{domain}/{task}/file?request_id=…&user_id=…       # 便捷下载：文件名免填，自动按 {task}.html → {task}.md → result.md 回退
+GET /api/v1/{domain}/{task}/preview?request_id=…&user_id=…    # 受控预览：只允许取产物目录内 {task}.html，text/html inline 渲染
 ```
 
 - `user_id` 也可通过 `X-User-Id` 请求头提供（二者取一，都没有返回 400）。
 - 下载端点返回 `Content-Disposition: attachment`（浏览器弹保存）；预览端点无该头（浏览器直接渲染页面）。
 - 产物不存在返回 404（提示缺哪个文件）。
-
-**notes 域**：仅 `graph`、`checklist` 两条线注册了下载（library 无落盘产物；catalog 的文件名指向知识目录 json，不在 output 目录，不提供下载）：
-
-```
-GET /api/v1/notes/graph/file/{request_id}/{file_name}        # file_name 通常为 graph.html
-GET /api/v1/notes/checklist/file/{request_id}/{file_name}     # file_name 通常为 checklist.html
-```
+- notes 域仅 `graph`、`checklist` 注册（library 无落盘产物；catalog 的文件名指向知识目录 json，不在 output 目录，不提供下载）。
 
 ### 2.3 静态资源 `GET /data/…`
 
@@ -313,8 +309,7 @@ curl -X POST http://127.0.0.1:8000/api/v1/meeting/minutes -H "Content-Type: appl
 | 已拿到 | 位置/URL |
 |---|---|
 | `request_id` + `file_name` | `GET /data/{user_id}/output/{request_id}/{file_name}`（静态） |
-| meeting 域产物 | `/api/v1/meeting/{task}/preview?request_id=…&user_id=…` 预览；`/file?request_id=…&user_id=…` 下载 |
-| notes graph/checklist | `/api/v1/notes/{task}/file/{request_id}/{file_name}` 下载 |
+| 支持文件端点的任务（meeting 六线 + notes graph/checklist） | `/api/v1/{domain}/{task}/preview?request_id=…&user_id=…` 预览；`/file?request_id=…&user_id=…` 下载 |
 | catalog 目录数据 | `data/{user_id}/knowledge/catalogs/{学科拼音}/{file_name}`（`file_name` 为 catalog 响应值） |
 
 > 未传 `X-User-Id` 的历史兼容路径 `data/output/{request_id}/` 仍被 `/data` 静态目录覆盖，但新调用请始终携带用户头。
