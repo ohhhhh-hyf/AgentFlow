@@ -68,7 +68,7 @@ def _query_download_endpoint(task: str):
         user_id = (user_id or "").strip() or (x_user_id or "").strip()
         if not user_id:
             raise HTTPException(status_code=400, detail="缺少 user_id（URL 参数 ?user_id= 或 X-User-Id 请求头）")
-        for file_name in (f"{task}.html", f"{task}.md"):
+        for file_name in (f"{task}.html", f"{task}.md", "result.md"):
             path = resolve_output_file(user_id, request_id, file_name)
             if path is not None:
                 return FileResponse(path, filename=file_name, media_type="application/octet-stream")
