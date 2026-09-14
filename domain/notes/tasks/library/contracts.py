@@ -36,18 +36,6 @@ class LibraryGenerationContract(GenerationContract):
             ],
         ),
         ObjListField(
-            "conflicts",
-            [
-                StrField("topic", "冲突主题"),
-                StrField("new_file", "新上传文件"),
-                StrField("old_file", "库内文件"),
-                StrField("ambiguity", "歧义百分比"),
-                StrField("new_excerpt", "新文件摘录"),
-                StrField("old_excerpt", "库内摘录"),
-                StrField("peer", "是否同批文件"),
-            ],
-        ),
-        ObjListField(
             "items",
             [
                 StrField("text", "新增知识摘录"),

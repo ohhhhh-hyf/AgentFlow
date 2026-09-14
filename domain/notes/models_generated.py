@@ -137,7 +137,6 @@ class Library(ModelMixin):
     doc_count: str
     files: list[dict[str, Any]] = field(default_factory=list)
     increment_by_file: list[dict[str, Any]] = field(default_factory=list)
-    conflicts: list[dict[str, Any]] = field(default_factory=list)
     items: list[dict[str, Any]] = field(default_factory=list)
 
     @classmethod
@@ -151,8 +150,6 @@ class Library(ModelMixin):
             raise OutputValidationError("files 必须是数组")
         if not isinstance(data["increment_by_file"], list):
             raise OutputValidationError("increment_by_file 必须是数组")
-        if not isinstance(data["conflicts"], list):
-            raise OutputValidationError("conflicts 必须是数组")
         if not isinstance(data["items"], list):
             raise OutputValidationError("items 必须是数组")
         return cls(**data)
@@ -511,7 +508,7 @@ class LibraryReportValidation:
 
     @classmethod
     def validate(cls, data: dict) -> "LibraryReport":
-        allowed = {"increment", "message", "files", "increment_by_file", "conflicts", "items", "library_html", "quality_warning", "personalized_text"}
+        allowed = {"increment", "message", "files", "increment_by_file", "items", "library_html", "quality_warning", "personalized_text"}
 
         if not isinstance(data, dict):
             raise OutputValidationError("LibraryReport 必须是 JSON 对象")
@@ -528,8 +525,6 @@ class LibraryReportValidation:
             raise OutputValidationError("files 必须是数组")
         if not isinstance(data.get("increment_by_file") or [], list):
             raise OutputValidationError("increment_by_file 必须是数组")
-        if not isinstance(data.get("conflicts") or [], list):
-            raise OutputValidationError("conflicts 必须是数组")
         if not isinstance(data.get("items") or [], list):
             raise OutputValidationError("items 必须是数组")
         _string(data.get("library_html") or "", "library_html")
@@ -543,7 +538,6 @@ class LibraryReportValidation:
             message=data.get("message") or "",
             files=data.get("files") or [],
             increment_by_file=data.get("increment_by_file") or [],
-            conflicts=data.get("conflicts") or [],
             items=data.get("items") or [],
             library_html=data.get("library_html") or "",
             quality_warning=data.get("quality_warning"),

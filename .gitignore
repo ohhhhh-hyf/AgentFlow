@@ -12,3 +12,8 @@ __pycache__/
 
 .ocrvenv/
 /log
+
+# codegraph index cache
+.codegraph/
+.cac/
+.vscode/

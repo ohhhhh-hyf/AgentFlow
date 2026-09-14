@@ -25,7 +25,6 @@ class LibraryAgent:
                     "doc_count": "0",
                     "files": [],
                     "increment_by_file": [],
-                    "conflicts": [],
                     "items": [],
                 }
             )
@@ -55,7 +54,6 @@ class LibraryAgent:
                     "doc_count": "0",
                     "files": [],
                     "increment_by_file": [],
-                    "conflicts": [],
                     "items": [],
                 }
             )

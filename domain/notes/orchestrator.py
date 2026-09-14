@@ -158,7 +158,6 @@ _EMPTY_LIBRARY = {
     "doc_count": "",
     "files": [],
     "increment_by_file": [],
-    "conflicts": [],
     "items": [],
 }
 
@@ -221,6 +220,7 @@ _REJECT_CHECKLIST_REVIEW = {
     "checklist_check": {"status": "fail", "findings": ["LLM 调用失败，未完成审核"]},
     "feedback": ["LLM 调用失败，未完成审核，转降级输出"],
 }
+
 
 # ── 拒绝审核常量生成区结束 ──
 

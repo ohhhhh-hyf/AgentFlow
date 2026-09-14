@@ -12,7 +12,9 @@
 from __future__ import annotations
 
 import os
+from concurrent.futures import ProcessPoolExecutor
 from dataclasses import dataclass, field
+from functools import partial
 from typing import Dict, List, Optional
 
 from .config import (
@@ -146,9 +148,25 @@ class KnowledgeTool:
         metadata 补 owner/subject；检索按 where 过滤。全不传则走旧 collection 行为。
         """
         coll, _ = _scope(collection, user_id, subject)
+        # 解析阶段：多文件时用 ProcessPoolExecutor 并行（PDF/docx/pptx 解析是 CPU 密集），
+        # 单文件或进程池启动失败时回退串行。pool.map 保证返回顺序与输入一致。
+        parse_fn = partial(process_file,
+                          chunk_size=self.cfg.chunk_size,
+                          chunk_overlap=self.cfg.chunk_overlap)
+        if len(paths) <= 1:
+            chunk_lists = [process_file(path, self.cfg.chunk_size, self.cfg.chunk_overlap)
+                           for path in paths]
+        else:
+            try:
+                workers = min(os.cpu_count() or 4, len(paths), 4)
+                with ProcessPoolExecutor(max_workers=workers) as pool:
+                    chunk_lists = list(pool.map(parse_fn, paths))
+            except Exception:
+                # 进程池启动失败（平台兼容性/pickle 问题等），回退串行
+                chunk_lists = [process_file(path, self.cfg.chunk_size, self.cfg.chunk_overlap)
+                               for path in paths]
         items: List[tuple] = []
-        for path in paths:
-            chunks = process_file(path, self.cfg.chunk_size, self.cfg.chunk_overlap)
+        for path, chunks in zip(paths, chunk_lists):
             for chunk in chunks:
                 meta = dict(chunk.metadata)
                 if (user_id or "").strip():

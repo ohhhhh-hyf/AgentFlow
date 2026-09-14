@@ -209,10 +209,6 @@ class LibraryReport(ModelMixin, LibraryReportValidation):
         default_factory=list,
         metadata={"source": "draft.increment_by_file"},
     )
-    conflicts: list[dict[str, Any]] = field(
-        default_factory=list,
-        metadata={"source": "draft.conflicts"},
-    )
     items: list[dict[str, Any]] = field(
         default_factory=list,
         metadata={"source": "draft.items"},

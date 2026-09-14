@@ -43,6 +43,5 @@ class LibraryRender:
 
     @staticmethod
     def extract_structure(state: NotesState) -> list[dict]:
-        draft = (state.get("lines") or {}).get("library", {}).get("draft") or {}
-        return list(draft.get("conflicts") or [])
+        return []
 

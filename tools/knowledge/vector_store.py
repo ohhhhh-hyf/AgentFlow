@@ -310,6 +310,33 @@ class VectorStore:
         coll = self.client.get_or_create_collection(
             name=self._internal(collection), metadata={"hnsw:space": "cosine"}
         )
+
+        # ── 一次批量查询所有文件的已有块 ID（替代循环内逐文件查 chromadb）──
+        # 一次 sync_files 调用里所有文件的 owner/subject 相同（add_files 统一注入），
+        # 只有 source 不同，用 $in 一次查全部，结果按 metadata.source 分组回填。
+        all_sources = [filename for filename, _ in items]
+        existing_by_source: dict[str, set[str]] = {}
+        owner, subject = "", ""
+        if all_sources:
+            for _, chunks in items:
+                if chunks:
+                    m0 = getattr(chunks[0], "metadata", {}) or {}
+                    owner = m0.get("owner", "")
+                    subject = m0.get("subject", "")
+                    break
+            cond: Dict = {"source": {"$in": all_sources}}
+            if owner:
+                cond["owner"] = owner
+            if subject:
+                cond["subject"] = subject
+            try:
+                got = coll.get(where=_normalize_where(cond), include=["metadatas"])
+                for chunk_id, meta in zip(got.get("ids", []), got.get("metadatas", [])):
+                    src = (meta or {}).get("source", "")
+                    existing_by_source.setdefault(src, set()).add(chunk_id)
+            except Exception:
+                pass   # 批量查询异常时保守处理: 所有文件全当新增
+
         plans: List[dict] = []
         for filename, chunks in items:
             # embed() 会丢弃空文本并导致向量错位，这里在规划期显式排除空文本块
@@ -322,19 +349,7 @@ class VectorStore:
             chunk_by_id = dict(zip(new_ids, chunks))
 
             # 该文件当前已有的块 id（行级模式按 owner/subject 限定，防跨用户同名文件误删）
-            existing_ids: set = set()
-            try:
-                cond: Dict = {"source": filename}
-                if chunks:
-                    m0 = getattr(chunks[0], "metadata", {}) or {}
-                    if m0.get("owner"):
-                        cond["owner"] = m0["owner"]
-                    if m0.get("subject"):
-                        cond["subject"] = m0["subject"]
-                got = coll.get(where=_normalize_where(cond), include=["metadatas"])
-                existing_ids = {i for i in got.get("ids", [])}
-            except Exception:
-                pass   # where 过滤异常时保守处理: 仅 upsert 新块
+            existing_ids = existing_by_source.get(filename, set())
 
             added_ids = [i for i in new_ids if i not in existing_ids]
             plans.append({
@@ -353,6 +368,43 @@ class VectorStore:
         # 全部文件的 added 合并一次嵌入（嵌入是入库的 API 成本大头）；
         # 嵌入输入经 _embedding_input 组装（短块带标题上下文），存储文本不变
         added_chunks = [c for p in plans for c in p["added_chunks"]]
+
+        # ── 跨文件去重：用 content_fingerprint 过滤掉与库内已有块重复的 added ──
+        # 同文件去重靠块 ID（含 source），但改名重传/不同文件包含相同内容时
+        # source 不同 → 块 ID 不同 → 会重复入库。fingerprint（公式+标签+首句）
+        # 已由 process_file 算好存在 metadata 里，这里用它做跨文件去重。
+        # 只在有 added 块时才拉全库 fingerprint，避免 unchanged 场景的无谓 IO。
+        if added_chunks:
+            fp_cond: Dict = {}
+            if owner:
+                fp_cond["owner"] = owner
+            if subject:
+                fp_cond["subject"] = subject
+            existing_fingerprints: set[str] = set()
+            if fp_cond:
+                try:
+                    fp_got = coll.get(where=_normalize_where(fp_cond), include=["metadatas"])
+                    existing_fingerprints = {
+                        str((m or {}).get("content_fingerprint") or "")
+                        for m in (fp_got.get("metadatas") or [])
+                    }
+                    existing_fingerprints.discard("")
+                except Exception:
+                    pass  # 查询失败 → 不做跨文件去重，保守入库
+            if existing_fingerprints:
+                for p in plans:
+                    kept_ids: list[str] = []
+                    kept_chunks: list = []
+                    for cid, chunk in zip(p["added_ids"], p["added_chunks"]):
+                        fp = str((getattr(chunk, "metadata", {}) or {}).get("content_fingerprint") or "")
+                        if fp and fp in existing_fingerprints:
+                            continue  # 跨文件重复，跳过
+                        kept_ids.append(cid)
+                        kept_chunks.append(chunk)
+                    p["added_ids"] = kept_ids
+                    p["added_chunks"] = kept_chunks
+                added_chunks = [c for p in plans for c in p["added_chunks"]]
+
         import time
 
         t0 = time.monotonic()
