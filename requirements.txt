@@ -5,6 +5,7 @@ langgraph>=0.6.0,<2
 fastapi>=0.110
 uvicorn>=0.29
 PyYAML>=6.0
+redis>=5.0
 
 # 学科目录拼音化（catalog 按 subject 分目录：数学 → shuxue）
 pypinyin>=0.5

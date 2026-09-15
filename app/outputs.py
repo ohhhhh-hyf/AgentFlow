@@ -17,7 +17,7 @@ PROJECT_ROOT = Path(__file__).resolve().parents[1]
 
 
 def output_dir(user_id: str, request_id: str) -> Path:
-    """本次调用的产物目录。request_id 缺省可用 uuid4 或模拟值。"""
+    """本次调用的产物目录。request_id 缺省由 app.id_worker 生成。"""
     root = PROJECT_ROOT / "data"
     if (user_id or "").strip():
         root = root / (user_id or "").strip()

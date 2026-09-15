@@ -12,6 +12,15 @@
 
 > 说明：`consensus_decision` 额外注册了 `consensus`、`decision` 两个同义 URL（仅同步接口）；领域内存在但**未开放 HTTP 接口**的任务线（如 quiz / review / mindmap）不在此文档范围内。
 
+此外新增一组生产主路径异步任务接口：
+
+| 接口 | 用途 |
+|---|---|
+| `POST /api/v1/tasks` | 提交任务，立即返回 `job_id` 与 `request_id` |
+| `GET /api/v1/tasks/{job_id}` | 查询任务状态、阶段、耗时、token、错误 |
+| `GET /api/v1/tasks/{job_id}/result` | 获取完成后的最终结果 |
+| `GET /api/v1/tasks/{job_id}/stream` | 订阅任务事件流（NDJSON，可断线重连） |
+
 ---
 
 ## 1. 通用约定
@@ -20,7 +29,7 @@
 
 | 头 | 必填 | 适用 | 说明 |
 |---|---|---|---|
-| `X-Request-Id` | POST 必填 | 同步 / 流式 | 调用方追踪 ID（建议 UUID，任意字符串即可）。产物目录以它为名：`data/{user_id}/output/{request_id}/`；GET 产物、结果核对都靠它定位。缺省返回 400 |
+| `X-Request-Id` | POST 可选 | 同步 / 流式 | 调用方追踪 ID。缺省时服务端自动生成 `request_` + 分布式数字 ID。产物目录以最终 request_id 为名：`data/{user_id}/output/{request_id}/`；GET 产物、结果核对都靠它定位。 |
 | `X-User-Id` | POST 必填 | 同步 / 流式 / GET 下载 | 用户标识。知识库、知识目录、记忆、产物全部按用户隔离在 `data/{user_id}/` 下。GET 下载/预览也可改用 URL 参数 `?user_id=`（浏览器直接访问时无法带请求头） |
 | `Content-Type` | POST 必填 | 同步 / 流式 | `application/json` |
 
@@ -167,7 +176,7 @@ GET /api/v1/{domain}/{task}/preview?request_id=…&user_id=…    # 受控预览
 
 ## 3. POST 同步接口
 
-请求头：`X-Request-Id`、`X-User-Id`（见 1.1）。请求体：TaskRequest（见 1.2）。
+请求头：`X-User-Id` 必填，`X-Request-Id` 可选（见 1.1）。请求体：TaskRequest（见 1.2）。
 响应：TaskResponse（见 1.3）。以下按任务逐一列出差异与产物。
 
 ### meeting 域
@@ -273,7 +282,79 @@ curl -N -X POST http://127.0.0.1:8000/api/v1/meeting/minutes/stream \
 
 ---
 
-## 5. 端到端调用示例（推荐流程）
+## 5. 异步任务接口
+
+异步任务接口不替代现有同步接口；它是生产主路径。同步接口仍可用于小文本测试和兼容旧调用。
+
+### 5.1 提交任务 `POST /api/v1/tasks`
+
+请求头：`X-User-Id` 必填，`X-Request-Id` 可选。缺省时服务端生成 `request_` + 分布式数字 ID；异步任务自身生成 `job_` + 分布式数字 ID。
+
+请求体在原 TaskRequest 基础上增加 `domain` 与 `task`：
+
+```jsonc
+{
+  "domain": "meeting",
+  "task": "minutes",
+  "time": "",
+  "texts": {"transcript": "会议转写文本"},
+  "docs": [],
+  "extra": {"memory": false}
+}
+```
+
+响应：
+
+```jsonc
+{
+  "code": 0,
+  "message": "queued",
+  "job_id": "job_637529814248456194",
+  "request_id": "request_637529814248456193",
+  "status": "queued"
+}
+```
+
+### 5.2 查询状态 `GET /api/v1/tasks/{job_id}`
+
+返回 Redis 中的任务状态：
+
+```jsonc
+{
+  "job_id": "job_...",
+  "request_id": "request_...",
+  "user_id": "1",
+  "domain": "meeting",
+  "task": "minutes",
+  "status": "running",
+  "phase": "meeting_understanding",
+  "message": "running:meeting_understanding",
+  "cost_time": 12.4,
+  "token_usage": 0,
+  "cache_hit": 0,
+  "error": ""
+}
+```
+
+`status` 取值：`queued` / `running` / `succeeded` / `failed`。
+
+### 5.3 获取结果 `GET /api/v1/tasks/{job_id}/result`
+
+任务成功后返回与流式接口 `done` 事件一致的最终结果。任务未完成时返回 `409`。
+
+### 5.4 事件流 `GET /api/v1/tasks/{job_id}/stream`
+
+响应为 NDJSON，事件来自任务运行过程：`queued` / `started` / `phase` / `chunk` / `done` / `error`。
+
+支持 `cursor` 参数从指定事件下标开始读取：
+
+```
+GET /api/v1/tasks/{job_id}/stream?cursor=0
+```
+
+---
+
+## 6. 端到端调用示例（推荐流程）
 
 **步骤 1：入库 → 目录 → 清单（notes 域顺序依赖）**
 

@@ -18,7 +18,7 @@ from fastapi.responses import JSONResponse  # noqa: E402
 from fastapi.staticfiles import StaticFiles  # noqa: E402
 
 from .config import load_env  # noqa: E402
-from .routes import meeting, notes  # noqa: E402
+from .routes import meeting, notes, tasks as async_tasks  # noqa: E402
 from .schemas import TaskResponse  # noqa: E402
 from .tasks import ApiError  # noqa: E402
 
@@ -28,6 +28,7 @@ app = FastAPI(title="AgentFlow API", version="1.0.0")
 
 app.include_router(meeting.router)
 app.include_router(notes.router)
+app.include_router(async_tasks.router)
 
 
 # html 产物预览（可选）：data/{user_id}/output/{request_id}/{task}.html

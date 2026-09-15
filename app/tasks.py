@@ -8,13 +8,13 @@ import asyncio
 import logging
 import tempfile
 import time
-import uuid
 from dataclasses import dataclass
 from pathlib import Path
 
 from fastapi.responses import StreamingResponse
 
 from .config import PROJECT_ROOT, load_domain, load_env, profile_path, resolve_template_format
+from .id_worker import next_request_id
 from .outputs import output_dir, save_task_outputs
 from .schemas import TaskRequest, TaskResponse
 
@@ -432,7 +432,7 @@ async def run_task(
 ) -> TaskResponse:
     """执行一次任务调用，返回通用响应（monitor + data）。"""
     _start_time = time.time()
-    request_id = (request_id or "").strip() or uuid.uuid4().hex
+    request_id = (request_id or "").strip() or next_request_id()
     return await _run_task_impl(domain, task, req, user_id, request_id, _start_time)
 
 
@@ -551,7 +551,7 @@ async def stream_task(
     - {"type": "error", "code": 500, "message": str}  运行失败
     参数校验失败（400/404）仍直接返回 HTTP 错误，不走流。
     """
-    request_id = (request_id or "").strip() or uuid.uuid4().hex
+    request_id = (request_id or "").strip() or next_request_id()
     return await _stream_task_impl(domain, task, req, user_id, request_id)
 
 

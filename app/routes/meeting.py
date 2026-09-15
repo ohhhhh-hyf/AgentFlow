@@ -3,8 +3,9 @@ from __future__ import annotations
 
 from typing import Optional
 
-from fastapi import APIRouter, Header, HTTPException
+from fastapi import APIRouter, Header
 
+from ..id_worker import next_request_id
 from ..schemas import TaskRequest, TaskResponse
 from ..tasks import run_task, stream_task
 from ._file_endpoints import (
@@ -17,14 +18,9 @@ router = APIRouter(prefix="/api/v1/meeting", tags=["meeting"])
 
 
 def _headers(x_request_id: str | None, x_user_id: str | None) -> tuple[str, str]:
-    """X-Request-Id 必填（调用方追踪 ID，建议用 UUID；产物目录以它为名）；X-User-Id 必填。"""
-    request_id = (x_request_id or "").strip()
+    """X-Request-Id 可选；缺省时生成 request_ + 分布式数字 ID。X-User-Id 必填由任务层校验。"""
+    request_id = (x_request_id or "").strip() or next_request_id()
     user_id = (x_user_id or "").strip()
-    if not request_id:
-        raise HTTPException(
-            status_code=400,
-            detail="缺少 X-Request-Id（调用方追踪 ID，建议用 UUID；产物目录 data/{user_id}/output/{request_id}/ 以它为名）",
-        )
     return request_id, user_id
 
 
