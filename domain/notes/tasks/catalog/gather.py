@@ -1268,14 +1268,26 @@ def _knowledge_type_weight(ktype: str) -> int:
 def compute_kp_importance(
     kp: dict[str, Any],
     ref_count: dict[str, int],
+    *,
+    context: dict[str, dict[str, Any]] | None = None,
 ) -> int:
     """程序计算 importance = 0.4×结构 + 0.3×内容 + 0.3×老师，clamp 1-5。
+
+    结构分用**多信号**（关系密度 + 是否在学习路径上 + 同节并列量 + 公式/定理形态）而不是
+    只看引用数：只看引用数时，关系一空结构分就恒为 1，会让整份目录的 importance 塌成常量
+    （实测 96% 都是 3），下游 checklist 分档随之全挤进 S 档。
 
     边界修正：老师明确强调（teacher_emphasis≥2）且与程序分差 ≥2 → 保留 LLM 值。
     """
     name = _clean_title(str(kp.get("name") or ""))
     refs = ref_count.get(name, 0)
-    structure = 1 if refs == 0 else 3 if refs <= 2 else 5
+    meta = (context or {}).get(name) or {}
+    structure = _structure_score(
+        refs,
+        bool(kp.get("prerequisites")),
+        int(meta.get("siblings") or 0),
+        _is_formula_point(kp),
+    )
     ktype = _knowledge_type_weight(str(kp.get("knowledge_type") or ""))
     items = len(kp.get("knowledge_items") or [])
     content = min(ktype + (0 if items == 0 else 1 if items <= 2 else 2), 5)
@@ -1322,12 +1334,293 @@ def compute_review_weight(
 
 
 def compute_catalog_signals(draft: dict[str, Any]) -> dict[str, Any]:
-    """对目录每个 KP 计算 importance / review_weight 并写回（零 LLM）。"""
+    """对目录每个 KP 计算 importance / review_weight 并写回（零 LLM）。
+
+    importance 的"结构分"依赖关系密度，所以本函数必须在关系回填之后调用；
+    算完再做一次**分布护栏**：单值占比过高（结构信号塌陷）时按结构分给上下三等分
+    微调 ±1 —— 实测曾出现 importance 96% 都是 3，直接导致下游分档全挤进 S 档。
+    """
+    import logging
+
+    logger = logging.getLogger(__name__)
     kps, ref_count = _catalog_kp_index(draft)
+    context = _kp_structure_context(draft)
     for kp in kps:
-        kp["importance"] = compute_kp_importance(kp, ref_count)
+        kp["importance"] = compute_kp_importance(kp, ref_count, context=context)
         kp["review_weight"] = compute_review_weight(kp, ref_count)
+    _spread_uniform_importance(kps, ref_count, context, logger)
     return draft
+
+
+def _kp_structure_context(draft: dict[str, Any]) -> dict[str, dict[str, Any]]:
+    """每个 KP 的结构上下文（零 LLM）：同主题兄弟数 / 主题内序号 / 章内主题序号。"""
+    context: dict[str, dict[str, Any]] = {}
+    for chapter in draft.get("chapters") or []:
+        if not isinstance(chapter, dict):
+            continue
+        for topic_index, topic in enumerate(chapter.get("topics") or []):
+            if not isinstance(topic, dict):
+                continue
+            points = [p for p in (topic.get("knowledge_points") or []) if isinstance(p, dict)]
+            for index, kp in enumerate(points):
+                key = _clean_title(str(kp.get("name") or ""))
+                if not key:
+                    continue
+                context[key] = {
+                    "siblings": len(points),
+                    "index_in_topic": index,
+                    "topic_index": topic_index,
+                    "topics_in_chapter": len(chapter.get("topics") or []),
+                }
+    return context
+
+
+def _is_formula_point(kp: dict[str, Any]) -> bool:
+    flag = str(kp.get("contains_formula") or "").strip().lower()
+    if flag in {"1", "true", "yes"}:
+        return True
+    if str(kp.get("knowledge_type") or "").strip() in {"formula", "theorem"}:
+        return True
+    return False
+
+
+def _structure_score(refs: int, prereq: bool, siblings: int, formula: bool) -> int:
+    """结构分 1-5（零 LLM，可解释）：关系密度 + 是否在学习路径上 + 同节并列量 + 公式/定理形态。"""
+    score = 1
+    score += 2 if refs >= 3 else (1 if refs else 0)
+    score += 1 if prereq else 0
+    score += 1 if 2 <= siblings <= 6 else 0
+    score += 1 if formula else 0
+    return max(1, min(5, score))
+
+
+def _spread_uniform_importance(
+    kps: list[dict[str, Any]],
+    ref_count: dict[str, int],
+    context: dict[str, dict[str, Any]],
+    logger: Any,
+    *,
+    threshold: float = 0.6,
+) -> int:
+    """分布护栏：单值占比 > 阈值时按结构分上下三等分微调 ±1。
+
+    只做 ±1，且不越过既有边界规则（items ≥3 不低于 3、items == 0 不高于 2），
+    保证"内容不实的点不被抬高、充实的点不被压低"的既有口径不变。
+    """
+    if len(kps) < 5:
+        return 0
+    counts: dict[str, int] = {}
+    for kp in kps:
+        value = str(kp.get("importance") or "")
+        counts[value] = counts.get(value, 0) + 1
+    top_share = max(counts.values()) / len(kps)
+    if top_share <= threshold:
+        return 0
+
+    def struct_of(kp: dict[str, Any]) -> int:
+        key = _clean_title(str(kp.get("name") or ""))
+        return _structure_score(
+            ref_count.get(key, 0),
+            bool(kp.get("prerequisites")),
+            int((context.get(key) or {}).get("siblings") or 0),
+            _is_formula_point(kp),
+        )
+
+    ranked = sorted(kps, key=lambda kp: (-struct_of(kp), _clean_title(str(kp.get("name") or ""))))
+    third = max(1, len(ranked) // 3)
+    adjusted = 0
+    for position, kp in enumerate(ranked):
+        items_n = len([i for i in (kp.get("knowledge_items") or []) if _clean_title(str(i))])
+        try:
+            current = int(str(kp.get("importance") or "3") or "3")
+        except (TypeError, ValueError):
+            current = 3
+        target = current
+        if position < third:
+            target = min(5, current + 1)
+        elif position >= len(ranked) - third:
+            target = max(1, current - 1)
+        if items_n >= 3:
+            target = max(3, target)
+        if items_n == 0:
+            target = min(2, target)
+        if target != current:
+            kp["importance"] = str(target)
+            adjusted += 1
+    if adjusted:
+        logger.info(
+            "catalog importance spread: adjusted=%d (max single share was %.0f%%)",
+            adjusted,
+            top_share * 100,
+        )
+    return adjusted
+
+
+# ── 目录内关联的程序保底（A：零 LLM，P6）──────────────────────
+#
+# 为什么必须由程序保底：关系是**下游知识图谱的边**，也是 importance"结构分"的来源。
+# 完全依赖模型自愿输出时，强约束下很容易全空（实测 related/prereq 0/48）→
+# 图谱退化成散点、importance 塌成常量 → checklist 分档全挤进 S 档、卡量暴涨。
+# 这里的三条规则都只连"目录里真实存在的 KP"，确定性、可审计、无词表：
+#   ① 同主题内 KP 两两 used_with（同节共现，最强结构信号）
+#   ② 章内相邻主题：上一主题首个 KP → 下一主题首个 KP 的 prerequisites（原文顺序链）
+#   ③ 术语共现：入库时已写好的 term_cooccurrence 元数据，术语跨 ≥2 个标题出现 → 相关 KP 连 used_with
+
+_RELATIONS_PER_KP = 4      # 每个 KP 的 related_points 上限（防噪声与膨胀）
+_PREREQ_PER_KP = 2         # 每个 KP 的 prerequisites 上限
+
+
+def _kp_host_index(draft: dict[str, Any]) -> dict[str, dict[str, Any]]:
+    """目录内 KP 索引：归一键 → KP 引用（找宿主用）。"""
+    index: dict[str, dict[str, Any]] = {}
+    for chapter in draft.get("chapters") or []:
+        if not isinstance(chapter, dict):
+            continue
+        for topic in chapter.get("topics") or []:
+            if not isinstance(topic, dict):
+                continue
+            for kp in topic.get("knowledge_points") or []:
+                if not isinstance(kp, dict):
+                    continue
+                name = " ".join(str(kp.get("name") or "").split()).strip()
+                key = _title_key(name)
+                if name and key and key not in index:
+                    index[key] = {"kp": kp, "name": name, "chapter": chapter, "topic": topic}
+    return index
+
+
+def _link_related(left: dict[str, Any], right_name: str, relation: str) -> bool:
+    """给 left 的 related_points 追加一条（去重、去自指、限上限）。"""
+    own = _clean_title(str(left.get("name") or ""))
+    if not own or _title_key(own) == _title_key(right_name):
+        return False
+    items = [i for i in (left.get("related_points") or []) if isinstance(i, dict)]
+    if any(_title_key(str(i.get("name") or "")) == _title_key(right_name) for i in items):
+        return False
+    if len(items) >= _RELATIONS_PER_KP:
+        return False
+    items.append({"name": right_name, "relation": relation, "origin": "program"})
+    left["related_points"] = items
+    return True
+
+
+def _link_prereq(left: dict[str, Any], right_name: str) -> bool:
+    """给 left 的 prerequisites 追加一条（去重、去自指、限上限）。"""
+    own = _clean_title(str(left.get("name") or ""))
+    if not own or _title_key(own) == _title_key(right_name):
+        return False
+    items = [i for i in (left.get("prerequisites") or []) if _clean_title(str(i))]
+    if any(_title_key(str(i)) == _title_key(right_name) for i in items):
+        return False
+    if len(items) >= _PREREQ_PER_KP:
+        return False
+    items.append(right_name)
+    left["prerequisites"] = items
+    return True
+
+
+def _term_cooccurrence_edges(
+    draft: dict[str, Any], index: dict[str, dict[str, Any]], shared_context: str
+) -> int:
+    """术语共现边（零 LLM）：读入库时写好的 ``term_cooccurrence``，术语跨标题出现即连边。"""
+    user_id = user_id_from_context(shared_context)
+    subject = subject_from_context(shared_context)
+    kb = open_knowledge(user_id=user_id)
+    if kb is None:
+        return 0
+    try:
+        chunks = kb.list_chunks(user_id=user_id, subject=subject, with_text=False) or []
+    except Exception:  # noqa: BLE001 - 共现边拿不到就少一类关系，不影响主流程
+        return 0
+    terms: dict[str, set[str]] = {}
+    for chunk in chunks:
+        meta = chunk.get("metadata") or {}
+        heading = _clean_title(str(meta.get("heading") or ""))
+        if not heading:
+            continue
+        raw = str(meta.get("term_cooccurrence") or "").strip()
+        if not raw:
+            continue
+        try:
+            pairs = json.loads(raw)
+        except (TypeError, ValueError):
+            continue
+        if not isinstance(pairs, dict):
+            continue
+        for term in list(pairs.keys())[:12]:
+            key = _clean_title(str(term))[:40]
+            if len(key) < 2:
+                continue
+            terms.setdefault(key, set()).add(heading)
+    added = 0
+    for _term, headings in terms.items():
+        if len(headings) < 2:
+            continue
+        hosts = [index.get(_title_key(h)) for h in headings]
+        hosts = [h for h in hosts if h]
+        for i, left in enumerate(hosts):
+            for right in hosts[i + 1 :]:
+                if left["chapter"] is not right["chapter"]:
+                    continue  # 只连同章，避免跨章节乱连
+                if _link_related(left["kp"], right["name"], "used_with"):
+                    added += 1
+    return added
+
+
+def backfill_catalog_relations(
+    draft: dict[str, Any], shared_context: str
+) -> tuple[dict[str, Any], dict[str, int]]:
+    """程序侧关系保底（零 LLM）：补齐 related_points / prerequisites，让图谱有边、结构分有区分度。
+
+    三条规则见模块注释；只连真实存在的 KP，related_points 条目带 ``origin=program``
+    便于与模型给的关系区分审计。返回 (draft, stats)。
+    """
+    import logging
+
+    logger = logging.getLogger(__name__)
+    stats = {"same_topic": 0, "topic_chain": 0, "cooccurrence": 0}
+    index = _kp_host_index(draft)
+    if not index:
+        return draft, stats
+
+    # ① 同主题内两两 used_with
+    for chapter in draft.get("chapters") or []:
+        if not isinstance(chapter, dict):
+            continue
+        for topic in chapter.get("topics") or []:
+            if not isinstance(topic, dict):
+                continue
+            points = [p for p in (topic.get("knowledge_points") or []) if isinstance(p, dict)]
+            for i, left in enumerate(points):
+                for right in points[i + 1 :]:
+                    right_name = _clean_title(str(right.get("name") or ""))
+                    left_name = _clean_title(str(left.get("name") or ""))
+                    if _link_related(left, right_name, "used_with"):
+                        stats["same_topic"] += 1
+                    if _link_related(right, left_name, "used_with"):
+                        stats["same_topic"] += 1
+        # ② 章内相邻主题：上一主题首个 KP → 下一主题首个 KP
+        topics = [t for t in (chapter.get("topics") or []) if isinstance(t, dict)]
+        for prev, current in zip(topics, topics[1:]):
+            prev_points = [p for p in (prev.get("knowledge_points") or []) if isinstance(p, dict)]
+            next_points = [p for p in (current.get("knowledge_points") or []) if isinstance(p, dict)]
+            if not prev_points or not next_points:
+                continue
+            if _link_prereq(prev_points[0], _clean_title(str(next_points[0].get("name") or ""))):
+                stats["topic_chain"] += 1
+
+    # ③ 术语共现（同章内）
+    try:
+        stats["cooccurrence"] = _term_cooccurrence_edges(draft, index, shared_context)
+    except Exception:  # noqa: BLE001 - 共现失败不影响前两类关系
+        logger.warning("term cooccurrence edges failed", exc_info=True)
+
+    if any(stats.values()):
+        logger.info(
+            "catalog relations backfilled: same_topic=%d topic_chain=%d cooccurrence=%d",
+            stats["same_topic"], stats["topic_chain"], stats["cooccurrence"],
+        )
+    return draft, stats
 
 
 # ── 溯源 / 老师重点程序回填(零 LLM)────────────────────────────

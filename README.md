@@ -440,6 +440,23 @@ importance、写 knowledge_items、补前置依赖。模型输出后按骨架核
 按标题层级逐节解析）；没有 OCR Md 时回退**知识库 metadata 还原的虚拟骨架**
 （`【来源结构骨架】`，只把 high/medium 信号升成主题/KP，低分标题留作正文 evidence）。
 
+**P6：关系与差异度由程序保底（零 LLM）**
+
+三个下游症状是同一条因果链：**关系全空 → importance 结构分恒定 → 单值占比 96% → checklist
+`_quantile_assign` 同分并档吞档 → 43/43 全挤进 S 档（"全是核心"）→ 模型要写 43 张卡 →
+10k 输出上限截断 → 分批重试，端到端 3 分 14 秒**；知识图谱孤岛也是同一个上游（关系为 0）。
+所以三件事一起收口：
+
+| 步 | 内容 | 效果（同一份线上目录实测） |
+|---|---|---|
+| **A 关系程序保底** | `backfill_catalog_relations`：同主题 KP 两两 `used_with`、章内相邻主题 `prerequisites`、术语共现（复用入库的 `term_cooccurrence`）同章连边；条目带 `origin=program`、有上限、不产自指 | 关系非空 **0/48 → 38/48**（136 条边：同主题 68 / 主题链 22 / 共现 46） |
+| **B importance 多信号 + 分布护栏** | 结构分改为"关系密度 + 是否在学习路径上 + 同节并列量 + 公式/定理形态"；单值占比 > 60% 时按结构分上下三等分微调 ±1（不越"items≥3 不得低于 3、空占位不得高于 2"的边界） | 单值占比 **96% → 67%**，取值 3/4/5 |
+| **C 分档防退化 + 档位指标** | `_quantile_assign` 的同分并档**幅度受限**（最多越过分位点 5%），同分内用 `_tie_break`（难度→items→层级→原文序）定序；`result.md` 与日志输出**档位分布** | 档位 **43 全 S → S11 / A15 / B14（+DROP 3）**；模型撰写卡量 **43 → 26** |
+
+对账口径：`monitor.catalog` 新增 `relations_ratio`（有关系 KP 占比）与
+`importance_single_ratio`（importance 单值占比）；checklist 的 `result.md` 顶部与
+服务端日志新增 `checklist grades: 核心 11 · 重点 15 · 简要 14（40 张）`。
+
 **内容词表与形态规则：单一来源 + 可配置（`catalog/taxonomy.py`）**
 
 catalog 的判定分三层，越往上越通用；**任何"具体见过的名字"都不写进逻辑**：
@@ -513,6 +530,8 @@ python tools/scripts/skeleton_check.py --user 1 --subject wuli           # 离�
     "skeleton_kind": "md",      // 骨架来源：md（原文）或 metadata（知识库还原）
     "fake_heading_chunks": 0,   // 可疑标题块数（长或含标点）：入库标题识别的回归哨兵
     "max_kp_per_topic": 7       // 单主题 KP 数上限（>5 说明层级被压平，需检查骨架映射）
+    "relations_ratio": "38/48", // 有关系（前置/相关）的 KP 占比：图谱有边、结构分有区分度的前提
+    "importance_single_ratio": 0.67 // importance 单值占比（>0.6 说明结构信号塌陷，分档会退化）
   }
 }
 ```

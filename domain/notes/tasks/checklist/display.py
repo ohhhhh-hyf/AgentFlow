@@ -361,6 +361,25 @@ def _nav_groups(cards: list[dict[str, Any]], *, has_teacher: bool) -> dict[str, 
     return {"focus": focus, "brief": brief, "extra": [], "main": list(cards)}
 
 
+def grade_distribution_text(cards: list[dict[str, Any]]) -> str:
+    """档位分布的一行摘要（P6 观测指标）：`核心 11 · 重点 15 · 简要 14 · 补充 3（43 张）`。
+
+    它是"分档是否退化"的可读哨兵：`_quantile_assign` 的同分并档一旦失效（例如
+    importance 塌成常量、全无老师文本），这里会显示成"核心 43"，一眼可见。
+    """
+    labels = _GRADE
+    order = ("S", "A", "B", "C")
+    counts = {grade: 0 for grade in order}
+    for card in cards or []:
+        if not isinstance(card, dict):
+            continue
+        grade = str(card.get("session_priority") or "B")
+        counts[grade if grade in counts else "B"] += 1
+    total = sum(counts.values())
+    parts = [f"{labels[g]} {counts[g]}" for g in order if counts[g]]
+    return " · ".join(parts) + f"（{total} 张）" if parts else "无卡片"
+
+
 def build_checklist_markdown(draft: dict[str, Any], *, has_teacher: bool | None = None) -> str:
     course = _clean(draft.get("course")) or "复习清单"
     cards = [c for c in (draft.get("cards") or []) if isinstance(c, dict)]
@@ -368,6 +387,9 @@ def build_checklist_markdown(draft: dict[str, Any], *, has_teacher: bool | None 
     if not cards:
         lines.append("没有可复习的知识点。请先运行 catalog / 资料入库；若提供了老师重点，请确认文本能对上目录名称。")
         return "\n".join(lines)
+    # 档位分布（P6 观测指标）：分档一旦退化（例如全挤进 S 档），这里一眼能看出来
+    lines.append("**档位分布**：" + grade_distribution_text(cards))
+    lines.append("")
 
     groups = _nav_groups(cards, has_teacher=_draft_has_teacher(draft, has_teacher))
     focus, brief, extra, main_cards = groups["focus"], groups["brief"], groups["extra"], groups["main"]
@@ -2085,6 +2107,9 @@ def attach_checklist_artifacts(state: dict[str, Any]) -> None:
     has_teacher = bool(teacher.strip())
     draft = attach_card_provenance(draft, context, teacher)
     cards = [c for c in (draft.get("cards") or []) if isinstance(c, dict)]
+    # 档位分布进日志：分档退化（如全挤进 S 档）时服务端日志直接可见
+    _logger = __import__("logging").getLogger(__name__)
+    _logger.info("checklist grades: %s", grade_distribution_text(cards))
     draft["mindmap_outline"] = build_checklist_mindmap_outline(draft, cards)
     draft["checklist_html"] = build_checklist_html(draft, has_teacher=has_teacher)
     sub["rendered"] = build_checklist_markdown(draft, has_teacher=has_teacher)

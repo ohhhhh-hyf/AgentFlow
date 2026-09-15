@@ -1402,6 +1402,28 @@ def catalog_quality_report(skeleton: dict[str, Any], draft: dict[str, Any]) -> d
         ]
         if is_placeholder_name(name)
     )
+    # 关系/重要性分布指标（P6）：关系空 → 图谱无边、importance 塌陷 → 分档退化，
+    # 这两个数字就是那条因果链的哨兵
+    kps_all = [
+        kp
+        for chapter in draft.get("chapters") or []
+        if isinstance(chapter, dict)
+        for topic in chapter.get("topics") or []
+        if isinstance(topic, dict)
+        for kp in topic.get("knowledge_points") or []
+        if isinstance(kp, dict)
+    ]
+    relation_ready = sum(
+        1 for kp in kps_all if kp.get("related_points") or kp.get("prerequisites")
+    )
+    importance_counts: dict[str, int] = {}
+    for kp in kps_all:
+        value = str(kp.get("importance") or "")
+        importance_counts[value] = importance_counts.get(value, 0) + 1
+    importance_single = (
+        max(importance_counts.values()) / len(kps_all) if kps_all else 0.0
+    )
+
     ok = not (uncovered_chapters or uncovered_topics or uncovered_points or level_violations)
     return {
         "nodes": nodes,
@@ -1428,6 +1450,8 @@ def catalog_quality_report(skeleton: dict[str, Any], draft: dict[str, Any]) -> d
             "merged": len(merged_topics),
             "llm_added": llm_added,
             "max_kp_per_topic": max(kp_counts, default=0),
+            "relations_ratio": f"{relation_ready}/{len(kps_all)}",   # 有关系（前置或相关）的 KP 占比
+            "importance_single_ratio": round(importance_single, 2),   # importance 单值占比（>0.6 说明结构信号塌陷）
             "verified_items": f"{content['strong'] + content['weak']}/{content['checked']}",
             "label_items": content["labels"],
             "misplaced_nodes": len(content["misplaced_nodes"]),

@@ -954,6 +954,103 @@ def test_catalog_taxonomy() -> None:
           "prompt 词表未同源")
 
 
+def test_catalog_relations_and_grade_spread() -> None:
+    """P6 零 LLM 保底：关系回填让图谱有边、importance 不再塌成常量、分档不再全挤 S。
+
+    这三者是一条因果链（关系空 → 结构分恒定 → importance 单值 → `_quantile_assign`
+    同分并档吞档 → 43/43 全 S → 模型要写 43 张卡 → 截断重试 3 分钟），所以一条护栏一起盯。
+    """
+    import collections
+
+    import domain.notes.tasks.catalog.gather as gather
+    from domain.notes.tasks.checklist.select import _quantile_assign
+
+    draft = {
+        "course": "wuli",
+        "chapters": [
+            {
+                "id": "ch_001",
+                "name": "章一",
+                "topics": [
+                    {
+                        "id": "tp_001",
+                        "name": "主题一",
+                        "knowledge_points": [
+                            {"id": "kp_001", "name": "点一", "importance": "3",
+                             "knowledge_items": ["a", "b", "c"], "knowledge_type": "formula"},
+                            {"id": "kp_002", "name": "点二", "importance": "3",
+                             "knowledge_items": ["a", "b", "c"], "knowledge_type": "concept"},
+                        ],
+                    },
+                    {
+                        "id": "tp_002",
+                        "name": "主题二",
+                        "knowledge_points": [
+                            {"id": "kp_003", "name": "点三", "importance": "3",
+                             "knowledge_items": ["a", "b", "c"], "knowledge_type": "concept"},
+                            {"id": "kp_004", "name": "点四", "importance": "3",
+                             "knowledge_items": ["a", "b", "c"], "knowledge_type": "method"},
+                        ],
+                    },
+                ],
+            }
+        ],
+    }
+    original = gather.open_knowledge
+    gather.open_knowledge = lambda user_id="": None  # 共现边拿不到也应保底前两类
+    ctx = "【用户ID】u" + chr(10) + "【学科/课程】wuli" + chr(10)
+    try:
+        filled, stats = gather.backfill_catalog_relations(draft, ctx)
+    finally:
+        gather.open_knowledge = original
+    kps = [k for ch in filled["chapters"] for tp in ch["topics"] for k in tp["knowledge_points"]]
+    check("A 关系程序保底：同主题互连 + 章内主题链",
+          stats["same_topic"] >= 2 and stats["topic_chain"] == 1
+          and all(k.get("related_points") or k.get("prerequisites") for k in kps),
+          f"stats={stats}")
+    check("A 关系不产自指、条目带 origin=program",
+          all(
+              str(r.get("name")) != str(k.get("name"))
+              for k in kps for r in (k.get("related_points") or [])
+          )
+          and all(
+              r.get("origin") == "program"
+              for k in kps for r in (k.get("related_points") or [])
+          ),
+          f"related={[k.get('related_points') for k in kps][:2]}")
+    check("A 关系有上限（防膨胀）",
+          all(len(k.get("related_points") or []) <= gather._RELATIONS_PER_KP
+              and len(k.get("prerequisites") or []) <= gather._PREREQ_PER_KP for k in kps),
+          f"counts={[len(k.get('related_points') or []) for k in kps]}")
+
+    # B：importance 分布护栏（同分塌陷时按结构分微调，且不越既有边界）
+    uniform = copy.deepcopy(filled)
+    for chapter in uniform["chapters"]:
+        for topic in chapter["topics"]:
+            for kp in topic["knowledge_points"]:
+                kp["importance"] = "3"
+    gather.compute_catalog_signals(uniform)
+    spread = {str(k.get("importance")) for ch in uniform["chapters"] for tp in ch["topics"]
+              for k in tp["knowledge_points"]}
+    check("B importance 不再塌成常量（分布护栏生效）",
+          len(spread) >= 2 and all(int(v) >= 3 for v in spread),
+          f"取值={sorted(spread)}（items≥3 的边界规则同时生效）")
+
+    # C：分档防退化 —— 全员同分时不得全挤进 S 档
+    rows = [{"id": f"kp_{i:03d}", "name": f"点{i}", "_score": 36, "importance": "3"}
+            for i in range(43)]
+    _quantile_assign(rows)
+    dist = collections.Counter(str(r.get("session_priority")) for r in rows)
+    check("C 全员同分也不再全进 S 档（同分并档受限）",
+          dist.get("S", 0) < len(rows) * 0.4 and len(dist) >= 2,
+          f"分布={dict(dist)}")
+    check("C 档位分布指标可读（result.md 里的哨兵）",
+          "核心" in __import__(
+              "domain.notes.tasks.checklist.display", fromlist=["x"]
+          ).grade_distribution_text(rows),
+          "分布文本生成失败")
+
+
 def test_catalog_content_check() -> None:
     """第三道校验：条目是否有依据（逐字/概述型/串门/编造），以及 monitor 摘要形态。"""
     from domain.notes.tasks.catalog.skeleton import (
@@ -1427,6 +1524,7 @@ async def main() -> int:
     test_skeleton_parse_and_contract()
     test_skeleton_restore_and_order()
     test_catalog_content_check()
+    test_catalog_relations_and_grade_spread()
     test_catalog_taxonomy()
     test_heading_number_rules()
     test_complement_respects_skeleton()

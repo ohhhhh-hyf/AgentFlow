@@ -125,7 +125,7 @@
 
 **目录体检指标在响应里**：catalog 的 `monitor.catalog` 会给出 `coverage`（覆盖率）、
 `order_violations`（同级乱序处数）、`restored`（模型漏掉、程序按骨架补回的节点数）、
-`llm_added`（模型新增的骨架外节点）、`generic_nodes`（占位名节点，如“核心知识点”，应为 0）、`skeleton_kind`（骨架来源：`md` 原文 / `metadata` 知识库还原）、`fake_heading_chunks`（可疑标题块的回归哨兵）、`max_kp_per_topic`（单主题 KP 数上限，>5 需检查层级是否被压平）、`misplaced_nodes`（整节串门）、`unverified_items`
+`llm_added`（模型新增的骨架外节点）、`generic_nodes`（占位名节点，如“核心知识点”，应为 0）、`skeleton_kind`（骨架来源：`md` 原文 / `metadata` 知识库还原）、`fake_heading_chunks`（可疑标题块的回归哨兵）、`max_kp_per_topic`（单主题 KP 数上限，>5 需检查层级是否被压平）、`relations_ratio`（有关系 KP 占比：图谱有边/结构分有区分度的前提）、`importance_single_ratio`（importance 单值占比，>0.6 说明结构信号塌陷、分档会退化）、`misplaced_nodes`（整节串门）、`unverified_items`
 （长条目像引用却全篇找不到依据）。`restored` 偏高说明这轮模型不听话（可重跑或换模型）；
 `misplaced/unverified` 偏高说明内容有风险。它们只报告、不删改目录内容。
 

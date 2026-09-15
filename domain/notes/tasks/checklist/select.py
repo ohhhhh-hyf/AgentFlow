@@ -475,19 +475,39 @@ def _rank(value: Any, default: int = 3, lo: int = 1, hi: int = 5) -> int:
     return max(lo, min(hi, n))
 
 
+def _tie_break(row: dict[str, Any]) -> tuple[int, int, int, int]:
+    """同分时的确定性次序：难度 → items 数 → 基础层级 → 原文顺序（越大越靠前）。
+
+    用途见 `_quantile_assign`：**综合分完全相同时**（典型场景：importance 塌成常量、
+    没有老师文本），若只按分值排序，"同分并档"会把所有卡并进 S 档，档位就退化了。
+    """
+    difficulty = _rank(row.get("difficulty"), 3)
+    items = len(_as_list(row.get("knowledge_items")))
+    foundational = _rank(row.get("foundational_level"), 3)
+    try:
+        order = int(str(row.get("order") or 0) or 0)
+    except (TypeError, ValueError):
+        order = 0
+    return difficulty, items, foundational, -order
+
+
 def _quantile_assign(rows: list[dict[str, Any]]) -> None:
     """按综合分 _score 分位定档：前 20%→S、20-50%→A、50-80%→B、后 20%→DROP。
 
-    - 边界同分并档（不拆散同分组，切点向后拉到同分区间末尾）
+    - 边界同分并档（不拆散同分组），但**并档幅度受限**：最多越过分位点 5% 的人数，
+      否则"全体同分"会把所有人并进 S 档（实测发生过 43/43 全 S —— 这正是
+      "checklist 全是核心"的成因）。同分内部用 `_tie_break` 定序，结果确定可回归。
     - 少于 5 个点退化：最高分→S、次高→A、第三名→B、其余→DROP
     就地改 row["session_priority"]。
     """
     n = len(rows)
-    srt = sorted(rows, key=lambda r: -int(r.get("_score") or 0))
+    srt = sorted(rows, key=lambda r: (-int(r.get("_score") or 0), tuple(-v for v in _tie_break(r))))
     if n < 5:
         for i, r in enumerate(srt):
             r["session_priority"] = "S" if i == 0 else "A" if i == 1 else "B" if i == 2 else "DROP"
         return
+
+    slack = max(1, int(n * 0.05))  # 并档允许额外并入的人数（防"同分吞档"）
 
     def cut(frac: float) -> int:
         idx = int(n * frac)
@@ -495,14 +515,15 @@ def _quantile_assign(rows: list[dict[str, Any]]) -> None:
             return 0
         if idx >= n:
             return n
+        limit = min(n, idx + slack)
         score = int(srt[idx - 1].get("_score") or 0)
-        while idx < n and int(srt[idx].get("_score") or 0) == score:
+        while idx < limit and int(srt[idx].get("_score") or 0) == score:
             idx += 1
         return idx
 
     s_end = cut(0.20)
-    a_end = cut(0.50)
-    b_end = cut(0.80)
+    a_end = max(s_end, cut(0.50))
+    b_end = max(a_end, cut(0.80))
     for i, r in enumerate(srt):
         if i < s_end:
             r["session_priority"] = "S"
