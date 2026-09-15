@@ -772,18 +772,16 @@ def _edges(cards: list[dict[str, Any]]) -> list[tuple[str, str, str]]:
 def _graph_payload(
     cards: list[dict[str, Any]],
 ) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
-    """图谱数据（分层 + 分型边 + 度数/层级，零 LLM）。
+    """生成结合 Catalog 字段与学术图谱风格的节点与语义关系边。
 
-    设计要点（与"图的价值在关系、不在罗列"一致）：
-
-    - **层次用复合簇表达**：`章` → `主题` → `KP` 三层，节点带 ``parent``（cytoscape 复合节点），
-      层次不占视觉线；概览视图只显示簇，点开主题才展开 KP。
-    - **边分三型**：`语义边`（catalog 的 prerequisites/related_points/session_related_points）、
-      `结构边`（同主题相邻 KP、章内相邻主题代表 KP —— **由本函数就地推导**，所以老目录
-      （关系为空）也能得到一张有骨架的图，不必等重跑）、`共现边`（P6 术语共现，默认淡显）。
-    - **度数/层级**：`degree` 与 ``tier``（hub / normal / leaf）由程序算，供前端决定默认可见性与折叠，
-      不新增模型字段。
+    - 节点均为平级知识点（无 compound 复合嵌套，彻底消除挤压粘连）；
+    - 尺寸按照文字内容外接圆精确计算，恰好饱满包裹住汉字且留有均匀呼吸边距；
+    - 边精简剪枝：突出「前置依赖」主干，去除冗余重叠边，控制关联密度，适合学生观看；
+    - 全面吸纳 Catalog 字段：chapter, topic, knowledge_type, importance, difficulty,
+      learning_role, prerequisites, related_points, risk_tags, completion_criteria 等。
     """
+    import math
+
     nodes: list[dict[str, Any]] = []
     edges: list[dict[str, Any]] = []
     seen_edges: set[tuple[str, str, str]] = set()
@@ -796,133 +794,192 @@ def _graph_payload(
             return
         seen_edges.add(key)
         edges.append(
-            {"source": src, "target": dst, "type": etype, "label": label, "evidence": evidence}
+            {
+                "source": src,
+                "target": dst,
+                "type": etype,
+                "label": label,
+                "evidence": evidence,
+            }
         )
 
-    def short_label(card: dict[str, Any]) -> str:
-        raw = _clean(card.get("short_label"))
-        name = _clean(card.get("name"))
-        if raw:
-            return raw
-        return name if len(name) <= 14 else name[:13] + "…"
+    def calc_text_dimension(name: str, grade: str) -> dict[str, Any]:
+        """按文字内容几何计算能够完美包裹文字的外接圆尺寸、排版换行与字号。"""
+        n = len(name)
+        font_size = 11.5
+        char_w = font_size * 1.05
+        line_h = font_size * 1.35
 
-    chapter_ids: dict[str, str] = {}
-    topic_ids: dict[str, str] = {}
+        # 动态每行字符数：使文本呈现规整居中的矩形
+        if n <= 4:
+            chars_per_line = n
+        elif n <= 7:
+            chars_per_line = 3 if n in (5, 6) else 4
+        elif n <= 10:
+            chars_per_line = (n + 1) // 2
+        elif n <= 15:
+            chars_per_line = 5
+        elif n <= 21:
+            chars_per_line = 6
+        else:
+            chars_per_line = 7
+
+        lines_list = [name[i : i + chars_per_line] for i in range(0, n, chars_per_line)]
+        line_count = len(lines_list)
+        max_line_chars = max(len(l) for l in lines_list) if lines_list else 1
+
+        box_w = max_line_chars * char_w
+        box_h = line_count * line_h
+
+        # 外接圆直径：圆必须大于矩形对角线并留有呼吸边距
+        diagonal = math.hypot(box_w, box_h)
+        margin = 26 if line_count > 1 else 20
+        text_based_size = int(math.ceil(diagonal + margin))
+
+        # 结合档位下限保证视觉层级
+        min_size = 64 if grade == "S" else (52 if grade == "A" else 44)
+        final_size = max(text_based_size, min_size)
+        text_max_width = int(math.ceil(box_w + 4))
+
+        return {
+            "formatted_label": "\n".join(lines_list),
+            "size": final_size,
+            "text_max_width": text_max_width,
+            "font_size": font_size,
+        }
+
     kp_ids: dict[str, str] = {}
-    topic_members: dict[str, list[str]] = {}
+    valid_cards: list[tuple[str, dict[str, Any]]] = []
     for index, card in enumerate(cards, start=1):
         name = _clean(card.get("name"))
         if not name:
             continue
-        chapter = _clean(card.get("chapter")) or "未分组"
-        topic = _clean(card.get("topic")) or chapter
-        ch_key = f"ch:{chapter}"
-        tp_key = f"tp:{chapter}/{topic}"
-        if ch_key not in chapter_ids:
-            chapter_ids[ch_key] = f"cluster-ch-{len(chapter_ids) + 1}"
-            nodes.append(
-                {
-                    "id": chapter_ids[ch_key],
-                    "name": chapter,
-                    "kind": "chapter",
-                    "parent": "",
-                }
-            )
-        if tp_key not in topic_ids:
-            topic_ids[tp_key] = f"cluster-tp-{len(topic_ids) + 1}"
-            nodes.append(
-                {
-                    "id": topic_ids[tp_key],
-                    "name": topic,
-                    "kind": "topic",
-                    "parent": chapter_ids[ch_key],
-                }
-            )
-            topic_members[tp_key] = []
         node_id = f"kp-{index}"
         kp_ids[name] = node_id
-        topic_members[tp_key].append(node_id)
-        facts = _as_list(card.get("key_facts")) or _as_list(card.get("knowledge_items"))
-        nodes.append(
-            {
-                "id": node_id,
-                "name": name,
-                "label": short_label(card),
-                "kind": "kp",
-                "parent": topic_ids[tp_key],
-                "grade": str(card.get("session_priority") or "B"),
-                "importance": str(card.get("importance") or ""),
-                "kp_id": _clean(card.get("id")),
-                "topic": topic,
-                "chapter": chapter,
-                "definition": (_clean(card.get("explain")) or "；".join(facts[:4]))[:280],
-                "facts": facts[:3],
-                "pitfalls": _as_list(card.get("pitfalls"))[:2],
-            }
-        )
+        raw_id = _clean(card.get("id"))
+        if raw_id:
+            kp_ids[raw_id] = node_id
+        valid_cards.append((node_id, card))
 
-    # ① 语义边（目录给的关系；老目录为空时自然没有）
-    for card in cards:
-        name = _clean(card.get("name"))
-        src = kp_ids.get(name)
-        if not src:
-            continue
+    # ① 优先构筑核心前置主线（Prerequisites DAG）
+    prereq_pairs: set[tuple[str, str]] = set()
+    for node_id, card in valid_cards:
+        src = node_id
         for pre in _as_list(card.get("prerequisites")):
-            add_edge(kp_ids.get(_clean(pre), ""), src, "prerequisite", "前置")
+            pre_clean = _clean(pre)
+            pre_node_id = kp_ids.get(pre_clean)
+            if pre_node_id and pre_node_id != src:
+                add_edge(pre_node_id, src, "prerequisite", "前置")
+                prereq_pairs.add((pre_node_id, src))
+                prereq_pairs.add((src, pre_node_id))
+
+    # ② 精简关联边（去重、去双向互相拉扯、去与前置冲突的边、单节点限量）
+    related_counts: dict[str, int] = {node_id: 0 for node_id, _ in valid_cards}
+    for node_id, card in valid_cards:
+        src = node_id
         for rel in card.get("related_points") or []:
             if not isinstance(rel, dict):
                 continue
-            dst = kp_ids.get(_clean(rel.get("name")))
-            if not dst:
+            dst_name = _clean(rel.get("name"))
+            dst_node_id = kp_ids.get(dst_name)
+            if not dst_node_id or dst_node_id == src:
                 continue
-            relation = str(rel.get("relation") or "")
-            etype = "cooccur" if str(rel.get("via") or "") == "cooccurrence" else "related"
-            add_edge(src, dst, etype, _REL.get(relation, "关联"),
-                     _clean(rel.get("evidence")))
-        for dst_name in _as_list(card.get("session_related_points")):
-            dst = kp_ids.get(_clean(dst_name))
-            if dst:
-                add_edge(src, dst, "related", "组合")
+            # 若已存在前置依赖，不重复画关联边
+            if (src, dst_node_id) in prereq_pairs:
+                continue
+            # 单节点最多保留 2 条精选关联边，杜绝全连通毛线球
+            if related_counts[src] >= 2 or related_counts[dst_node_id] >= 2:
+                continue
 
-    # ② 结构边（就地推导，不依赖重跑）：同主题相邻 KP + 章内相邻主题代表 KP
-    for member_ids in topic_members.values():
-        for left, right in zip(member_ids, member_ids[1:]):
-            add_edge(left, right, "same_topic", "同节")
-    topic_order: list[str] = []
-    for key in topic_ids:
-        if key not in topic_order:
-            topic_order.append(key)
-    by_chapter: dict[str, list[str]] = {}
-    for key in topic_order:
-        chapter = key.split("/", 1)[0]
-        by_chapter.setdefault(chapter, []).append(key)
-    for keys in by_chapter.values():
-        reps = [
-            topic_members[key][0] for key in keys if topic_members.get(key)
-        ]
-        for left, right in zip(reps, reps[1:]):
-            add_edge(left, right, "order", "顺序")
-
-    # ③ 度数 / 层级（前端据此决定默认可见性与折叠）
-    degree: dict[str, int] = {str(node["id"]): 0 for node in nodes}
-    for edge in edges:
-        degree[edge["source"]] = degree.get(edge["source"], 0) + 1
-        degree[edge["target"]] = degree.get(edge["target"], 0) + 1
-    for node in nodes:
-        if node.get("kind") != "kp":
-            continue
-        deg = degree.get(str(node["id"]), 0)
-        try:
-            importance = int(str(node.get("importance") or "0") or "0")
-        except (TypeError, ValueError):
-            importance = 0
-        node["degree"] = deg
-        node["tier"] = "hub" if (deg >= 3 or importance >= 4) else ("leaf" if deg == 0 else "normal")
-    for node in nodes:
-        if node.get("kind") in {"chapter", "topic"}:
-            node["count"] = sum(
-                1 for child in nodes if child.get("parent") == node["id"]
+            raw_relation = str(rel.get("relation") or "").strip()
+            etype = (
+                raw_relation
+                if raw_relation in {
+                    "alternative", "used_with", "easily_confused", "derived_from", "prerequisite"
+                }
+                else "related"
             )
+            label = _REL.get(raw_relation, "关联")
+            evidence = _clean(rel.get("evidence"))
+            add_edge(src, dst_node_id, etype, label, evidence)
+            prereq_pairs.add((src, dst_node_id))
+            prereq_pairs.add((dst_node_id, src))
+            related_counts[src] += 1
+            related_counts[dst_node_id] += 1
+
+    # ③ 老师划重点同句点名组合（最多每节点补充 1 条）
+    for node_id, card in valid_cards:
+        src = node_id
+        if related_counts[src] >= 2:
+            continue
+        for dst_name in _as_list(card.get("session_related_points")):
+            dst_clean = _clean(dst_name)
+            dst_node_id = kp_ids.get(dst_clean)
+            if dst_node_id and dst_node_id != src and (src, dst_node_id) not in prereq_pairs:
+                add_edge(src, dst_node_id, "related", "组合")
+                prereq_pairs.add((src, dst_node_id))
+                prereq_pairs.add((dst_node_id, src))
+                related_counts[src] += 1
+                break
+
+    # 计算出入度
+    degree: dict[str, int] = {node_id: 0 for node_id, _ in valid_cards}
+    in_degree: dict[str, int] = {node_id: 0 for node_id, _ in valid_cards}
+    out_degree: dict[str, int] = {node_id: 0 for node_id, _ in valid_cards}
+    for e in edges:
+        degree[e["source"]] = degree.get(e["source"], 0) + 1
+        degree[e["target"]] = degree.get(e["target"], 0) + 1
+        out_degree[e["source"]] = out_degree.get(e["source"], 0) + 1
+        in_degree[e["target"]] = in_degree.get(e["target"], 0) + 1
+
+    # 组装节点数据（结合完整 Catalog 字段与精确外接圆尺寸）
+    for node_id, card in valid_cards:
+        name = _clean(card.get("name"))
+        chapter = _clean(card.get("chapter")) or "未分章"
+        topic = _clean(card.get("topic")) or chapter
+        ktype = _clean(card.get("knowledge_type")) or "concept"
+        grade = str(card.get("session_priority") or "B").upper()
+        if grade not in {"S", "A", "B", "C"}:
+            grade = "B"
+
+        importance = _as_int(card.get("importance"), 3)
+        difficulty = _as_int(card.get("difficulty"), 3)
+        deg = degree.get(node_id, 0)
+        in_deg = in_degree.get(node_id, 0)
+        out_deg = out_degree.get(node_id, 0)
+
+        dim = calc_text_dimension(name, grade)
+
+        facts = _as_list(card.get("key_facts")) or _as_list(card.get("knowledge_items"))
+        pitfalls = _as_list(card.get("pitfalls"))
+        explain = _clean(card.get("explain")) or (_clean(card.get("exam_preview")) or (facts[0] if facts else ""))
+
+        nodes.append({
+            "id": node_id,
+            "name": name,
+            "label": dim["formatted_label"],
+            "kind": "kp",
+            "chapter": chapter,
+            "topic": topic,
+            "knowledge_type": ktype,
+            "importance": importance,
+            "difficulty": difficulty,
+            "grade": grade,
+            "learning_role": _clean(card.get("learning_role")),
+            "knowledge_items": facts[:6],
+            "pitfalls": pitfalls[:3],
+            "explain": explain[:300],
+            "exam_preview": _clean(card.get("exam_preview")),
+            "kp_id": _clean(card.get("id")),
+            "degree": deg,
+            "in_degree": in_deg,
+            "out_degree": out_deg,
+            "size": dim["size"],
+            "font_size": dim["font_size"],
+            "text_max_width": dim["text_max_width"],
+            "tier": "hub" if (deg >= 3 or grade == "S" or importance >= 4) else ("leaf" if deg == 0 else "normal"),
+        })
+
     return nodes, edges
 
 
@@ -1127,25 +1184,6 @@ def _widget_css() -> str:
 .ck-stars{color:#b86a04;letter-spacing:1.5px;font-size:.88rem;white-space:nowrap;}
 .ck-quote{margin:8px 0 12px;padding:8px 12px;background:#faf9f6;border-left:3.5px solid #222222;border-radius:2px;color:#222222;font-size:.88rem;font-style:italic;}
 
-/* Knowledge Graph in LaTeX Paper Style */
-.lc-kg{margin:12px 0 20px;border:1px solid #222222;border-radius:2px;overflow:hidden;background:#ffffff;box-shadow:0 1px 3px rgba(0,0,0,0.03);}
-.lc-kg-shell{display:grid;grid-template-columns:minmax(0,1fr) minmax(260px,32%);min-height:560px;}
-#lc-cy{width:100%;height:560px;background:#ffffff;}
-.lc-kg-aside{border-left:1px solid #222222;background:#faf9f6;padding:16px 14px;overflow:auto;}
-.lc-kg-aside h3{margin:0 0 8px;font-size:1rem;font-weight:700;color:#111;}
-.lc-kg-meta,.lc-kg-ev{color:#555555;font-size:.78rem;line-height:1.6;font-style:italic;}
-.lc-kg-label{font-size:.76rem;color:#222222;margin:14px 0 6px;font-weight:700;text-transform:uppercase;letter-spacing:0.3px;}
-.lc-kg-detail{border:1px solid #d4d0c7;border-radius:2px;padding:12px;background:#ffffff;font-size:.86rem;line-height:1.6;}
-.lc-kg-name{font-weight:700;margin-bottom:8px;font-size:.96rem;color:#111;}
-.lc-kg-block{margin-top:8px;}
-.lc-kg-k{color:#555555;font-size:.74rem;margin-bottom:3px;font-weight:700;}
-.lc-kg-rel{margin-top:6px;padding:6px 8px;border:1px solid #e0dcd4;border-radius:2px;background:#faf9f6;}
-.lc-kg-chips{display:flex;flex-wrap:wrap;gap:6px;}
-.lc-kg-chip{display:inline-block;padding:1px 8px;border-radius:2px;background:#ede9e1;border:1px solid #d4d0c7;font-size:.74rem;color:#222;}
-.lc-kg-legend{display:grid;gap:6px;}
-.lc-kg-legend-item{display:flex;align-items:center;gap:8px;font-size:.8rem;}
-.lc-kg-swatch{width:10px;height:10px;border-radius:2px;}
-
 /* Mindmap in LaTeX Paper Style */
 .lc-mm{position:relative;margin:12px 0 20px;border:1px solid #222222;border-radius:2px;overflow:hidden;background:#ffffff;box-shadow:0 1px 3px rgba(0,0,0,0.03);}
 .lc-mm-bar{display:flex;align-items:center;gap:8px;padding:8px 14px;border-bottom:1px solid #222222;background:#faf9f6;flex-wrap:wrap;}
@@ -1315,7 +1353,7 @@ def _card_html(card: dict[str, Any], card_idx: int = 1) -> str:
         '<div class="ck-card-header">',
         f'<span class="ck-badge {badge}">{escape(_grade_label(card), quote=False)}</span>',
         f'<span class="ck-stars">{importance_stars(card)}</span> ',
-        f'<span class="ck-thm-title"><strong>{thm_type} {card_idx} ({name})</strong></span>',
+        f'<span class="ck-thm-title"><strong>{name}</strong></span>',
         f'{prio_cites}',
         '</div>',
     ]
