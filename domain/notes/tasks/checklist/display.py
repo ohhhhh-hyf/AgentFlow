@@ -2259,5 +2259,4 @@ def build_checklist_summary(
             chapter = _clean(card.get("chapter")) or _clean(card.get("topic")) or ""
             lines.append(f"- {name}" + (f" —— {chapter}" if chapter else ""))
         lines.append("")
-    lines.append("完整内容见产物 checklist.html（交互页）与 result.md。")
-    return "\n".join(lines)
+    return "\n".join(lines).rstrip()

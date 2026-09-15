@@ -32,6 +32,8 @@ def _ocr_parallel() -> int:
 OCR_PARALLEL = 4  # 默认值；实际 OCR 路数以 ocr_concurrency() 为准
 LIGHT_OCR_BATCH = int(os.getenv("LIGHT_OCR_BATCH", "8") or "8")
 OCR_ITEM_TIMEOUT = float(os.getenv("OCR_ITEM_TIMEOUT", "180"))
+# 页眉/页脚边缘带：占"本页检测到的行范围"的比例（require_edge 时用于收紧跨页去噪）
+_PAGE_EDGE_BAND = 0.12
 
 _WINDOWS_RESERVED = {
     "CON", "PRN", "AUX", "NUL",
@@ -291,10 +293,14 @@ def _prepare_ocr_image(path: Path) -> tuple[Path, bool]:
         return path, False
 
 
-def _mark_cross_page_boilerplate(lines: list[dict]) -> None:
+def _mark_cross_page_boilerplate(lines: list[dict], *, require_edge: bool = False) -> None:
     """跨页重复检测：同一短行文本出现在 ≥2 页 → 页眉页脚特征，标 boilerplate。
 
     页眉页脚/页码行在每页重复；正文内容很少整行逐字重复（引用除外，长度限制降低误伤）。
+
+    ``require_edge=True`` 时额外要求该行落在**页面顶部/底部边缘带**（由 ``concat_page_lines``
+    按各页自身检测到的垂直范围算出的 ``_edge``），用于降低"正文里重复出现的同一句话被误杀"
+    的风险 —— 页眉页脚的特征本来就包含"总在页面上下边缘"。
     """
     from collections import Counter
 
@@ -303,6 +309,8 @@ def _mark_cross_page_boilerplate(lines: list[dict]) -> None:
     for idx, item in enumerate(lines):
         text = str(item.get("text") or "").strip()
         if not text or len(text) > 60:
+            continue
+        if require_edge and not item.get("_edge"):
             continue
         page_of[idx] = str(item.get("_page") or "")
         texts.append((text, idx))
@@ -325,17 +333,57 @@ def item_role(lines: list[dict], text: str) -> str:
     return ""
 
 
-def concat_page_lines(pages: list[dict]) -> list[dict]:
-    """按上传顺序拼接各页 OCR 行，并把 y 错开，避免后页顶坐标看起来像页首。"""
+def _page_edge_flags(page_lines: list[dict]) -> list[bool]:
+    """按"本页自身检测到的行范围"判断每行是否落在页面顶部/底部边缘带。
+
+    不用图片尺寸、也不用绝对像素：扫描件有裁切/倾斜时，行范围才是可靠参照。
+    """
+    def _rect(item: dict) -> tuple[float, float, float, float] | None:
+        bbox = item.get("bbox")
+        if not bbox:
+            return None
+        try:
+            xs = [float(pt[0]) for pt in bbox]
+            ys = [float(pt[1]) for pt in bbox]
+            return min(xs), min(ys), max(xs), max(ys)
+        except Exception:  # noqa: BLE001 - bbox 形态异常按"非边缘"处理
+            return None
+
+    rects = [_rect(item) for item in page_lines]
+    tops = [r[1] for r in rects if r]
+    bottoms = [r[3] for r in rects if r]
+    if not tops:
+        return [False] * len(page_lines)
+    span_top, span_bottom = min(tops), max(bottoms)
+    span = max(1.0, span_bottom - span_top)
+    out: list[bool] = []
+    for rect in rects:
+        if not rect:
+            out.append(False)
+            continue
+        y0 = (rect[1] - span_top) / span
+        y1 = (rect[3] - span_top) / span
+        out.append(y0 <= _PAGE_EDGE_BAND or y1 >= 1.0 - _PAGE_EDGE_BAND)
+    return out
+
+
+def concat_page_lines(pages: list[dict], *, require_edge: bool = False) -> list[dict]:
+    """按上传顺序拼接各页 OCR 行，并把 y 错开，避免后页顶坐标看起来像页首。
+
+    ``require_edge=True`` 时给每行标出 ``_edge``（是否在本页上/下边缘带），
+    并把"必须落在边缘带"的要求传给跨页去噪（页眉页脚判据收紧，减少误杀）。
+    """
     combined: list[dict] = []
     y_offset = 0.0
     for page_index, page in enumerate(pages):
         page_bottom = y_offset
-        for item in page.get("lines") or []:
-            if not isinstance(item, dict):
-                continue
+        page_lines = [item for item in (page.get("lines") or []) if isinstance(item, dict)]
+        edges = _page_edge_flags(page_lines) if require_edge else [False] * len(page_lines)
+        for item, edge in zip(page_lines, edges):
             line = dict(item)
             line["_page"] = str(page_index)
+            if require_edge:
+                line["_edge"] = bool(edge)
             bbox = line.get("bbox")
             if bbox:
                 shifted = []
@@ -354,7 +402,7 @@ def concat_page_lines(pages: list[dict]) -> list[dict]:
                     pass
             combined.append(line)
         y_offset = max(y_offset + 80.0, page_bottom + 80.0)
-    _mark_cross_page_boilerplate(combined)
+    _mark_cross_page_boilerplate(combined, require_edge=require_edge)
     return combined
 
 

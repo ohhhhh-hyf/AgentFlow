@@ -129,21 +129,73 @@ def _brief_chunks(
                 "heading_score": str(meta.get("heading_score") or ""),
                 "heading_kind": str(meta.get("heading_kind") or ""),
                 "page": page,
+                "chunk_index": str(meta.get("chunk_index") or ""),
                 "content_tags": str(meta.get("content_tags") or ""),
                 "contains_formula": str(meta.get("contains_formula") or ""),
             }
         )
-    # 确定性排序：知识块在 briefing 中的顺序必须恒定，
-    # 否则 LLM 每次读到的文本排列不同，目录输出会随库顺序波动
+    # 确定性排序：按"文件 → 原文位置"排，让 briefing 的顺序 = 资料原文顺序。
+    # 之前按 (source, chapter, heading) 字典序，虽然恒定，但顺序轴变成了名称排序，
+    # 目录会出现"原文靠前的章节排到后面"（用户可见的困惑），所以改用位置轴。
     for role in grouped:
         grouped[role].sort(
             key=lambda r: (
                 str(r.get("source") or ""),
-                str(r.get("chapter") or ""),
+                _position_key(r),
                 str(r.get("heading") or r.get("topic") or ""),
             )
         )
     return grouped
+
+
+_PAGE_DIGITS_RE = re.compile(r"\d+")
+
+
+def _position_key(row: dict[str, Any]) -> tuple[int, int, int]:
+    """原文位置键：page → chunk_index（形如 "3-2" 表示第 3 块第 2 段）。
+
+    解析不出的给大值（排到该文件末尾），保证排序恒定、不抛错。
+    """
+    page_nums = [int(x) for x in _PAGE_DIGITS_RE.findall(str(row.get("page") or ""))]
+    ci_nums = [int(x) for x in _PAGE_DIGITS_RE.findall(str(row.get("chunk_index") or ""))]
+    page = page_nums[0] if page_nums else 10**9
+    ci_major = ci_nums[0] if ci_nums else 10**9
+    ci_minor = ci_nums[1] if len(ci_nums) > 1 else 0
+    return page, ci_major, ci_minor
+
+
+def _norm_name(name: object) -> str:
+    """目录节点名归一化：去空白，便于与候选标题的名字对齐。"""
+    return re.sub(r"\s+", "", str(name or ""))
+
+
+def build_catalog_position_map(shared_context: str) -> dict[str, int]:
+    """名字 → 原文位置序号（越小越靠前），供目录生成后的确定性保序使用。
+
+    位置来源是候选标题的顺序（``_title_candidates`` 的 seq：按 role + 文件 + 原文位置），
+    候选路径的每一级（章 / 主题 / 知识点名）都登记"最早出现的位置"。
+    知识库不可用或没有候选时返回空表（调用方应视为"不做保序"）。
+    """
+    user_id = user_id_from_context(shared_context)
+    subject = subject_from_context(shared_context)
+    try:
+        kb = open_knowledge(user_id=user_id)
+        if kb is None:
+            return {}
+        grouped = _brief_chunks(kb, user_id, subject)
+        rows = _title_candidates(grouped)
+    except Exception:  # noqa: BLE001 - 位置映射失败不影响目录生成
+        return {}
+    out: dict[str, int] = {}
+    for row in rows:
+        seq = int(row.get("seq") or 0)
+        names = [row.get(k) for k in ("chapter", "topic", "heading")]
+        names += str(row.get("path") or "").split("/")
+        for name in names:
+            key = _norm_name(name)
+            if key and seq < out.get(key, 10**9):
+                out[key] = seq
+    return out
 
 
 _HEADING_PREFIX_RE = re.compile(
@@ -336,13 +388,10 @@ def _title_candidates(grouped: dict[str, list[dict[str, str]]]) -> list[dict[str
             item["seq"] = seq
             candidates.append(item)
             seq += 1
-    candidates.sort(
-        key=lambda r: (
-            -int(r.get("score") or 0),
-            str(r.get("source") or ""),
-            int(r.get("seq") or 0),
-        )
-    )
+    # 顺序 = 原文出现顺序（seq 由上面的 role + 组内位置序决定）。
+    # score 只用于后续筛选/骨架分层，不再参与排序 —— 否则"证据多/公式密"的章节
+    # 会被提前，目录顺序与资料原文顺序不一致（用户会困惑）。
+    candidates.sort(key=lambda r: int(r.get("seq") or 0))
     return candidates
 
 

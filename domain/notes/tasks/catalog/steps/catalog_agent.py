@@ -9,7 +9,13 @@ logger = logging.getLogger(__name__)
 
 from ....models import Catalog
 from ..contracts import CATALOG_SLIM_GENERATION_OUTPUT_CONTRACT
-from ..gather import build_catalog_briefing, subject_from_context, user_id_from_context
+from ..gather import (
+    _norm_name,
+    build_catalog_briefing,
+    build_catalog_position_map,
+    subject_from_context,
+    user_id_from_context,
+)
 from ..merge import merge_catalog, normalize_catalog_enums
 from ..prompts import CATALOG_GENERATION_SYSTEM_PROMPT
 from ..store import load_catalog
@@ -139,6 +145,66 @@ def _backfill_slim_point_fields(catalog: dict) -> dict:
                 if not point.get("risk_tags"):
                     point["risk_tags"] = _infer_risk_tags(point)
     return catalog
+
+
+def _reorder_by_source_order(catalog: dict, position: dict[str, int]) -> dict:
+    """按资料原文顺序重排 chapters / topics / knowledge_points（确定性，零 token）。
+
+    LLM 不一定按输入顺序输出（提示词里也要求了，但不能只靠它），这一步用
+    ``build_catalog_position_map`` 的名字→位置表做兜底：章按"自身或名下知识点最早出现的
+    位置"排序、主题与知识点同理；位置表里没有的节点排到最后并保持原有相对顺序
+    （Python 的 sort 是稳定排序）。只调整列表顺序，不动 id/字段。
+    """
+    if not position:
+        return catalog
+
+    above = 10 ** 9
+
+    def pos_of(name: object) -> int | None:
+        key = _norm_name(name)
+        return position.get(key) if key else None
+
+    def point_pos(point: dict) -> int:
+        value = pos_of(point.get("name"))
+        return above if value is None else value
+
+    def topic_pos(topic: dict) -> int:
+        own = pos_of(topic.get("name"))
+        if own is not None:
+            return own
+        values = [
+            point_pos(p)
+            for p in (topic.get("knowledge_points") or [])
+            if isinstance(p, dict)
+        ]
+        values = [v for v in values if v < above]
+        return min(values) if values else above
+
+    def chapter_pos(chapter: dict) -> int:
+        own = pos_of(chapter.get("name"))
+        if own is not None:
+            return own
+        values = [
+            topic_pos(t)
+            for t in (chapter.get("topics") or [])
+            if isinstance(t, dict)
+        ]
+        values = [v for v in values if v < above]
+        return min(values) if values else above
+
+    out = dict(catalog)
+    chapters = [c for c in (out.get("chapters") or []) if isinstance(c, dict)]
+    for chapter in chapters:
+        topics = [t for t in (chapter.get("topics") or []) if isinstance(t, dict)]
+        for topic in topics:
+            points = [p for p in (topic.get("knowledge_points") or []) if isinstance(p, dict)]
+            points.sort(key=point_pos)
+            topic["knowledge_points"] = points
+        topics.sort(key=topic_pos)
+        chapter["topics"] = topics
+    chapters.sort(key=chapter_pos)
+    out["chapters"] = chapters
+    return out
 
 
 def _strip_llm_extra_fields(catalog: dict) -> dict:
@@ -398,4 +464,24 @@ class CatalogAgent:
         # importance 最终校准：merge 会给 KP 回填 knowledge_items，
         # 校准须在回填完成后执行（以最终 items 数为准）
         merged = _enforce_catalog_structure(merged)
+        # 确定性保序：目录顺序回到资料原文顺序（放在 merge 之后，因为 merge 的顺序
+        # 是"draft 优先 + 历史遗留章节追加到末尾"，会把顺序再改一次）
+        order_before = [
+            str(c.get("name") or "")
+            for c in (merged.get("chapters") or [])
+            if isinstance(c, dict)
+        ]
+        try:
+            merged = _reorder_by_source_order(
+                merged, build_catalog_position_map(shared_context)
+            )
+        except Exception:  # noqa: BLE001 - 保序失败不影响目录生成
+            logger.warning("catalog reorder failed, keep llm order", exc_info=True)
+        order_after = [
+            str(c.get("name") or "")
+            for c in (merged.get("chapters") or [])
+            if isinstance(c, dict)
+        ]
+        if order_after and order_after != order_before:
+            logger.info("catalog reordered by source order chapters=%s", order_after)
         return Catalog.validate(merged)

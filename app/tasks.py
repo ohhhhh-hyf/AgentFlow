@@ -126,41 +126,78 @@ def _load_teacher_texts(user_id: str, names: list[str]) -> str:
 
 
 def _ocr_docs(user_id: str, docs: list[str]) -> str:
-    """docs 中的图片 → OCR 文本（多路并发，结果按原顺序拼接；单张失败降级跳过）。
+    """docs 中的图片 → OCR 文本（两阶段并发：先识别、跨页去噪，再逐张重构）。
 
-    并发路数取 ``ocr_concurrency()``（Paddle 为引擎池大小，默认 4）：引擎侧本来就是
-    线程绑定的实例池，逐张串行会闲置大部分 worker。LLM 重构在 ``reconstruct_markdown``
-    里是每次 ``asyncio.run`` + 每次新建客户端，所以多线程调用安全
-    （现有页级整理流水线已在多线程里用它）。
+    阶段划分的原因：
+
+    1. **并发识别**（``ocr_image_lines``，多路取 ``ocr_concurrency()``）—— 引擎侧本来就是
+       线程绑定的实例池，逐张串行会闲置大部分 worker；这一步不调模型。
+    2. **跨页去噪**（``concat_page_lines(require_edge=True)``）—— 只有拿到"多页放在一起"的
+       视角才能判页眉页脚（同一短行 ≥2 页且落在页面上下边缘带 → 标 boilerplate）。
+       逐张处理时这条最强、最通用的判据无从生效，校名/页眉就会混进正文，
+       进而污染所有下游任务与知识目录。
+    3. **并发重构**（``reconstruct_markdown``，每张一次 LLM）—— 它会自动跳过
+       ``role_hint="boilerplate"`` 的行（拼接与送模型两处都过滤）。
+
+    结果按传入顺序拼接（``pool.map`` 按入参顺序产出，与完成顺序无关）；单张失败降级跳过。
     """
     names = [name for name in (docs or []) if _is_image_name(name)]
     if not names:
         return ""
     from tools.ocr.engines import ocr_concurrency, ocr_engine_label
-    from tools.ocr.levels.light import ocr_log
+    from tools.ocr.levels.light import concat_page_lines, ocr_log
 
     engine = ocr_engine_label()
     total = len(names)
     workers = max(1, min(ocr_concurrency(), total))
     ocr_log(f"ocr start engine={engine} images={total} workers={workers}")
 
-    def _one(indexed: tuple[int, str]) -> tuple[int, str]:
+    def _lines_one(indexed: tuple[int, str]) -> tuple[int, list | None, str]:
         index, name = indexed
         # 文件不存在时与原实现一致：ApiError 往上抛（任务以 404 结束）
         path = _input_file(user_id, "docs", name)
         try:
-            from tools.ocr import ocr_image_to_markdown
+            from tools.ocr.layout import ocr_image_lines
 
-            body = ocr_image_to_markdown(str(path)).strip()
-            ocr_log(f"ocr item ok {index}/{total} file={name}")
-            return index, body
+            lines = ocr_image_lines(str(path)) or []
+            ocr_log(f"ocr item ok {index}/{total} lines={len(lines)} file={name}")
+            return index, lines, ""
         except Exception as exc:  # noqa: BLE001 - 单张失败不阻断其余图片
+            ocr_log(f"ocr item fail {index}/{total} file={name} err={exc}")
+            return index, None, str(exc)
+
+    with ThreadPoolExecutor(max_workers=workers, thread_name_prefix="ocr-doc") as pool:
+        rows = list(pool.map(_lines_one, enumerate(names, 1)))
+
+    # 跨页去噪：需要多页视图（_page 从 0 开始编号，对应 names 的下标）
+    pages = [{"lines": lines or []} for _index, lines, _err in rows]
+    combined = concat_page_lines(pages, require_edge=True)
+    by_page: dict[str, list] = {}
+    for line in combined:
+        by_page.setdefault(str(line.get("_page") or ""), []).append(line)
+    boiler = sum(
+        1 for line in combined if str(line.get("role_hint") or "") == "boilerplate"
+    )
+    if boiler:
+        ocr_log(f"ocr drop boilerplate lines={boiler}")
+
+    errors = {index: err for index, _lines, err in rows if err}
+
+    def _md_one(indexed: tuple[int, str]) -> tuple[int, str]:
+        index, name = indexed
+        if index in errors:
+            return index, f"（图片 {name} OCR 失败：{errors[index]}）"
+        lines = by_page.get(str(index - 1), [])
+        try:
+            from tools.ocr.reconstruct import reconstruct_markdown
+
+            return index, reconstruct_markdown(lines).strip()
+        except Exception as exc:  # noqa: BLE001 - 单张重构失败不阻断其余图片
             ocr_log(f"ocr item fail {index}/{total} file={name} err={exc}")
             return index, f"（图片 {name} OCR 失败：{exc}）"
 
-    # map 按入参顺序产出 → 拼接顺序与原串行实现一致（与完成顺序无关）
-    with ThreadPoolExecutor(max_workers=workers, thread_name_prefix="ocr-doc") as pool:
-        parts = [body for _index, body in pool.map(_one, enumerate(names, 1))]
+    with ThreadPoolExecutor(max_workers=workers, thread_name_prefix="ocr-llm") as pool:
+        parts = [body for _index, body in pool.map(_md_one, enumerate(names, 1))]
     ocr_log(f"ocr join images={total} order=input first={names[0]} last={names[-1]}")
     return "\n\n".join(part for part in parts if part).strip()
 

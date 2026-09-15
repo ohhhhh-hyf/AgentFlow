@@ -457,39 +457,72 @@ def test_async_response_shape() -> None:
 # ── 图片 OCR：并发但不许乱序（笔记图片本身有先后）──────────────
 
 def test_ocr_order() -> None:
-    """不需要 Redis / OCR / 模型：并发识别后必须按 ``docs`` 顺序拼接。
+    """不需要 Redis / OCR / 模型：并发识别后按 ``docs`` 顺序拼接，且跨页页眉不进重构输入。
 
     用不同延时的桩让"完成顺序"与"传入顺序"相反，验证仍按传入顺序输出
-    （用 ``ThreadPoolExecutor.map`` 而非 ``as_completed`` 的意义所在）。
+    （``ThreadPoolExecutor.map`` 而非 ``as_completed`` 的意义）；三页共用一个顶部页眉，
+    验证跨页去噪把它标成 boilerplate 后不会被送进 LLM 重构。
     """
     from pathlib import Path as _Path
 
-    import tools.ocr as ocr_mod
+    import tools.ocr.layout as layout_mod
+    import tools.ocr.reconstruct as recon_mod
     from app import tasks as tasks_mod
 
     delays = {"p1.jpg": 0.6, "p2.jpg": 0.05, "p3.jpg": 0.2}
-    had_ocr = hasattr(ocr_mod, "ocr_image_to_markdown")
-    original_ocr = getattr(ocr_mod, "ocr_image_to_markdown", None)
-    original_input = tasks_mod._input_file
-    try:
-        def fake_ocr(path):
-            name = _Path(path).name
-            time.sleep(delays.get(name, 0))
-            return f"# {name}"
+    header = {"text": "华中科技大学", "conf": 0.9,
+              "bbox": [[10, 10], [300, 10], [300, 40], [10, 40]]}
 
-        ocr_mod.ocr_image_to_markdown = fake_ocr
+    def body_line(name: str) -> dict:
+        return {"text": f"# {name}", "conf": 0.9,
+                "bbox": [[10, 300], [300, 300], [300, 340], [10, 340]]}
+
+    sent_to_llm: list[list[dict]] = []
+
+    def fake_lines(path):
+        name = _Path(path).name
+        time.sleep(delays.get(name, 0))
+        return [dict(header), body_line(name)]
+
+    def fake_reconstruct(lines):
+        sent_to_llm.append([dict(item) for item in lines])
+        return "\n".join(str(item.get("text") or "") for item in lines)
+
+    original = (layout_mod.ocr_image_lines, recon_mod.reconstruct_markdown, tasks_mod._input_file)
+    try:
+        layout_mod.ocr_image_lines = fake_lines
+        recon_mod.reconstruct_markdown = fake_reconstruct
         tasks_mod._input_file = lambda user_id, kind, name: _Path(name)   # 免落盘
         out = tasks_mod._ocr_docs("u", ["p1.jpg", "p2.jpg", "p3.jpg"])
     finally:
-        tasks_mod._input_file = original_input
-        if had_ocr:
-            ocr_mod.ocr_image_to_markdown = original_ocr
-        else:
-            delattr(ocr_mod, "ocr_image_to_markdown")
+        layout_mod.ocr_image_lines, recon_mod.reconstruct_markdown, tasks_mod._input_file = original
 
     got = [line[2:] for line in out.splitlines() if line.startswith("# ")]
     check("并发 OCR 按 docs 顺序拼接（最慢的第 1 张仍排最前）",
           got == ["p1.jpg", "p2.jpg", "p3.jpg"], f"顺序={got}")
+    marked = [
+        item
+        for lines in sent_to_llm
+        for item in lines
+        if str(item.get("text")) == "华中科技大学"
+    ]
+    check("跨页页眉被标成 boilerplate（每页都出现 + 顶部边缘带）",
+          bool(marked) and all(item.get("role_hint") == "boilerplate" for item in marked),
+          f"标记数={len(marked)} role={[i.get('role_hint') for i in marked][:3]}")
+    check("一次性正文行不被误标",
+          all(
+              str(item.get("text")) != f"# {name}" or item.get("role_hint") != "boilerplate"
+              for lines in sent_to_llm
+              for item in lines
+              for name in ("p1.jpg", "p2.jpg", "p3.jpg")
+          ))
+    # 真实重构器会跳过 boilerplate 行（用自己的实现验证，不依赖桩）
+    from tools.ocr.reconstruct import _fragments_to_text
+
+    check("真实重构器跳过 boilerplate 行",
+          "华中科技大学" not in _fragments_to_text(
+              [{"text": "华中科技大学", "role_hint": "boilerplate"}, {"text": "# 正文"}]
+          ))
 
 
 # ── OCR 文本收尾：删模型自述的报错串，不动正常内容 ─────────────
@@ -525,11 +558,62 @@ def test_ocr_noise_strip() -> None:
     check("strip_program_noise 可单独调用", strip_program_noise(sample).startswith("²θL"))
 
 
+# ── 知识目录：顺序必须跟随原文（用户可见的语义）────────────────
+
+def test_catalog_order() -> None:
+    """不需要 Redis / 模型：目录章节/主题/KP 按原文位置排，未知位置排最后。"""
+    from domain.notes.tasks.catalog.prompts import CATALOG_GENERATION_SYSTEM_PROMPT
+    from domain.notes.tasks.catalog.steps.catalog_agent import _reorder_by_source_order
+
+    position = {
+        "表象变换与矩阵力学": 5,
+        "厄米算符本征值与本征态的特性": 40,
+        "守恒量与能级简并度": 80,
+        "厄米算符本征值的实数性": 41,
+    }
+    draft = {
+        "chapters": [
+            {"name": "厄米算符本征值与本征态的特性", "topics": [
+                {"name": "厄米算符本征值的实数性", "knowledge_points": [
+                    {"name": "定理:厄米算符的平均值为实数"},
+                    {"name": "厄米算符本征值的实数性"}]}]},
+            {"name": "历史遗留章节", "topics": [
+                {"name": "老知识点", "knowledge_points": [{"name": "老知识点"}]}]},
+            {"name": "表象变换与矩阵力学", "topics": [
+                {"name": "表象间的转化", "knowledge_points": [{"name": "表象间的转化"}]}]},
+            {"name": "守恒量与能级简并度", "topics": [
+                {"name": "守恒量", "knowledge_points": [{"name": "守恒量"}]}]},
+        ]
+    }
+    out = _reorder_by_source_order(draft, position)
+    chapters = [c["name"] for c in out["chapters"]]
+    check("目录章节按原文位置排序",
+          chapters == ["表象变换与矩阵力学", "厄米算符本征值与本征态的特性",
+                       "守恒量与能级简并度", "历史遗留章节"],
+          f"chapters={chapters}")
+    points = [p["name"] for p in out["chapters"][1]["topics"][0]["knowledge_points"]]
+    check("同主题内 KP 按原文位置排序",
+          points == ["厄米算符本征值的实数性", "定理:厄米算符的平均值为实数"],
+          f"points={points}")
+    check("位置表为空时不改顺序", _reorder_by_source_order(draft, {}) == draft)
+    check("提示词含顺序跟随原文的硬约束",
+          "顺序跟随原文" in CATALOG_GENERATION_SYSTEM_PROMPT
+          and "不得按重要性" in CATALOG_GENERATION_SYSTEM_PROMPT)
+
+    from domain.notes.tasks.catalog.gather import _position_key
+    keys = [(10, 2), (9, 5), (10, 1)]
+    order = sorted(keys)
+    check("位置键按页码优先比较", order == [(9, 5), (10, 1), (10, 2)], f"{order}")
+    check("位置键解析不出页码时排最后",
+          _position_key({"page": ""}) > _position_key({"page": "9"}))
+
+
 async def main() -> int:
     test_routes()
     test_async_response_shape()
     test_ocr_order()
     test_ocr_noise_strip()
+    test_catalog_order()
     print()
     store = job_store()
     db = store.redis.connection_pool.connection_kwargs.get("db")

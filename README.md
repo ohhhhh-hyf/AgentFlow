@@ -458,7 +458,7 @@ URL 约定（`{domain}` ∈ `meeting` / `notes`，`{task}` 见下表）：
 | meeting | `consensus_decision` | 共识决策 | ✅ | `consensus_decision.html` + `.md` |
 | notes | `graph` | 知识图谱（交互 HTML） | ✅ | `graph.html`（无 md 落盘） |
 | notes | `library` | 资料入库 | ❌ 无落盘产物 | 仅响应 `data.text` |
-| notes | `catalog` | 知识目录 | ❌ 产物不在 output 目录 | `knowledge/catalogs/{学科拼音}/*.json` |
+| notes | `catalog` | 知识目录（**章/主题/知识点顺序跟随资料原文**） | ❌ 产物不在 output 目录 | `knowledge/catalogs/{学科拼音}/*.json` |
 | notes | `checklist` | 复习清单 | ✅ | `checklist.html` + `result.md` |
 
 > **路由的唯一声明处是 [app/tasklines.py](app/tasklines.py)**（域 → 任务线 → 是否注册产物端点）：

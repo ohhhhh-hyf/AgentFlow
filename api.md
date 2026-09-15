@@ -423,6 +423,9 @@ curl -X POST http://127.0.0.1:8000/api/v1/meeting/minutes -H "Content-Type: appl
 
 - 必填：`extra.subject`（学科，中文自动转拼音）。
 - `docs` 中 `.txt` 会作为老师重点读取；无输入文本时按该学科已入库资料生成/增量更新目录。
+- **顺序跟随原文**：章 / 主题 / 知识点按资料原文（文件 → 页码 → 块序）的先后顺序排列，
+  不按重要性或主题聚类重排（生成后还有一道确定性保序兜底）。增量更新时，
+  本次资料里没有的历史遗留章节排在末尾。
 - 产物：目录数据 json 写入 `data/{user_id}/knowledge/catalogs/{学科拼音}/{时间戳}.json`
   （`data.file_name` 返回该文件名）；`data.text` 为目录树 Markdown；同时落盘 `result.md`。
 
