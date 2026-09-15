@@ -4,16 +4,19 @@
 任务未完成或失败同样返回 200 + 该快照（status=queued/running/failed），不再是 409。
 """
 import json
+import os
 
 import requests
 
-JOB_ID = "job_637547664132538372"  # 填写 minutes_async_submit.py 返回的 job_id
+BASE_URL = os.getenv("AGENTFLOW_BASE_URL", "http://127.0.0.1:8000").rstrip("/")   # 服务器用 8003 时：export AGENTFLOW_BASE_URL=http://127.0.0.1:8003
+
+JOB_ID = os.getenv("JOB_ID") or "job_637547664132538372"   # 或 export JOB_ID=submit 返回的 job_id
 USER_ID = "1"
 
 if not JOB_ID:
     raise SystemExit("请先把 minutes_async_submit.py 返回的 job_id 填到 JOB_ID")
 
-URL = f"http://127.0.0.1:8000/api/v1/tasks/{JOB_ID}/result"
+URL = f"{BASE_URL}/api/v1/tasks/{JOB_ID}/result"
 
 resp = requests.get(URL, timeout=60)
 
@@ -36,14 +39,15 @@ print("status     :", data.get("status"))       # succeeded 时下面才有正�
 print("message    :", data.get("message"))
 print("token      :", monitor.get("token_usage"), "| cache:", monitor.get("cache_hit"),
       "| cost:", monitor.get("cost_time"), "s")
-print("file_name  :", data.get("file_name"))
-print("preview    :")
+print("file_name  :", data.get("file_name"), "（页面版 HTML 文件名）")
+print("text(md)   :")
 print((data.get("text") or "")[:2000])
 
 request_id = data.get("request_id") or ""
 file_name = data.get("file_name") or ""
 if request_id and file_name:
-    print("preview_url:")
-    print(f"http://127.0.0.1:8000/api/v1/meeting/minutes/preview?request_id={request_id}&user_id={USER_ID}")
-    print("download_url:")
-    print(f"http://127.0.0.1:8000/api/v1/meeting/minutes/file/{request_id}/{file_name}?user_id={USER_ID}")
+    print()
+    print("preview_url  :", f"{BASE_URL}/api/v1/meeting/minutes/preview?request_id={request_id}&user_id={USER_ID}")
+    print("               （浏览器直接看页面版 HTML）")
+    print("download_url :", f"{BASE_URL}/api/v1/meeting/minutes/file/{request_id}/{file_name}?user_id={USER_ID}")
+    print("               （下载页面版 HTML；想要 Markdown 就把文件名换成 result.md）")

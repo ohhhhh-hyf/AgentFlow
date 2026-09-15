@@ -4,16 +4,19 @@
 其余按事件补充（chunk 带 text、done 与结果接口逐字一致）。
 """
 import json
+import os
 
 import requests
 
-JOB_ID = "job_637547664132538372"  # 填写 minutes_async_submit.py 返回的 job_id
+BASE_URL = os.getenv("AGENTFLOW_BASE_URL", "http://127.0.0.1:8000").rstrip("/")   # 服务器用 8003 时：export AGENTFLOW_BASE_URL=http://127.0.0.1:8003
+
+JOB_ID = os.getenv("JOB_ID") or "job_637547664132538372"   # 或 export JOB_ID=submit 返回的 job_id
 CURSOR = 0
 
 if not JOB_ID:
     raise SystemExit("请先把 minutes_async_submit.py 返回的 job_id 填到 JOB_ID")
 
-URL = f"http://127.0.0.1:8000/api/v1/tasks/{JOB_ID}/stream?cursor={CURSOR}"
+URL = f"{BASE_URL}/api/v1/tasks/{JOB_ID}/stream?cursor={CURSOR}"
 
 print("URL :", URL)
 with requests.get(URL, stream=True, timeout=3600) as resp:

@@ -559,6 +559,11 @@ curl -s http://127.0.0.1:8000/api/v1/tasks/<job_id>
 
 仍是同一份快照，**成功的任务会带上 `text`（正文）与 `file_name`**。
 
+- `text` 是 **Markdown 正文**（与产物目录里 `result.md` / `{task}.md` 的内容一致），来自 Redis 里的完成记录；
+  落盘的 **页面版 HTML 是另一个文件**，用 `file_name`（通常是 `{task}.html`）表示；
+- 想取文件（HTML 页面版 / Markdown）用 2.5.3 的下载、2.5.4 的预览，或静态路径：
+  `/api/v1/{domain}/{task}/file/{request_id}/{file_name}`；要 Markdown 文件就把 `file_name` 换成 `result.md`。
+
 任务还没跑完或已失败时**同样返回 200 + 该快照**（`status` 为 `queued` / `running` / `failed`，
 失败原因在 `message`），不用处理 409 分支；只有 job 不存在才返回 404。
 
