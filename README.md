@@ -208,6 +208,12 @@ pip install "numpy<2" onnxruntime==1.16.3 rapidocr_onnxruntime==1.4.4
 # 按 Paddle 官方安装 GPU/CPU 版 paddleocr
 ```
 
+**图片 OCR 的并发**：`docs` 里的多张图片会**并发识别**（结果按传入顺序拼接，单张失败只降级跳过），
+并发路数复用 OCR 引擎的并发配置 —— Paddle 看 `PADDLE_OCR_POOL_SIZE`（默认 4，GPU 上限 4 / CPU 上限 8），
+其他引擎看 `OCR_PARALLEL`（默认 4，上限 8）。每张图通常还要一次 LLM 重构调用（数秒），
+所以并发度上调时留意**同时打给模型的请求数**；日志首行会打印实际路数
+（`[OCR] 使用引擎 paddleocr，共 N 张，4 路并行`）。
+
 | 项目 | 说明 |
 |---|---|
 | `.env` | HTTP 至少配置 `DEEPSEEK_API_KEY`；WebSocket 配置 `LLM_BACKEND=websocket` + `LLM_WS_*` |

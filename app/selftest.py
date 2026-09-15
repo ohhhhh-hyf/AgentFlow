@@ -454,9 +454,48 @@ def test_async_response_shape() -> None:
           and done_view["monitor"]["cost_time"] == 9.6)
 
 
+# ── 图片 OCR：并发但不许乱序（笔记图片本身有先后）──────────────
+
+def test_ocr_order() -> None:
+    """不需要 Redis / OCR / 模型：并发识别后必须按 ``docs`` 顺序拼接。
+
+    用不同延时的桩让"完成顺序"与"传入顺序"相反，验证仍按传入顺序输出
+    （用 ``ThreadPoolExecutor.map`` 而非 ``as_completed`` 的意义所在）。
+    """
+    from pathlib import Path as _Path
+
+    import tools.ocr as ocr_mod
+    from app import tasks as tasks_mod
+
+    delays = {"p1.jpg": 0.6, "p2.jpg": 0.05, "p3.jpg": 0.2}
+    had_ocr = hasattr(ocr_mod, "ocr_image_to_markdown")
+    original_ocr = getattr(ocr_mod, "ocr_image_to_markdown", None)
+    original_input = tasks_mod._input_file
+    try:
+        def fake_ocr(path):
+            name = _Path(path).name
+            time.sleep(delays.get(name, 0))
+            return f"# {name}"
+
+        ocr_mod.ocr_image_to_markdown = fake_ocr
+        tasks_mod._input_file = lambda user_id, kind, name: _Path(name)   # 免落盘
+        out = tasks_mod._ocr_docs("u", ["p1.jpg", "p2.jpg", "p3.jpg"])
+    finally:
+        tasks_mod._input_file = original_input
+        if had_ocr:
+            ocr_mod.ocr_image_to_markdown = original_ocr
+        else:
+            delattr(ocr_mod, "ocr_image_to_markdown")
+
+    got = [line[2:] for line in out.splitlines() if line.startswith("# ")]
+    check("并发 OCR 按 docs 顺序拼接（最慢的第 1 张仍排最前）",
+          got == ["p1.jpg", "p2.jpg", "p3.jpg"], f"顺序={got}")
+
+
 async def main() -> int:
     test_routes()
     test_async_response_shape()
+    test_ocr_order()
     print()
     store = job_store()
     db = store.redis.connection_pool.connection_kwargs.get("db")

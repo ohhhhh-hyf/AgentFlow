@@ -8,6 +8,7 @@ import asyncio
 import logging
 import tempfile
 import time
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -125,30 +126,42 @@ def _load_teacher_texts(user_id: str, names: list[str]) -> str:
 
 
 def _ocr_docs(user_id: str, docs: list[str]) -> str:
-    """docs 中的图片 → OCR 文本（逐张，失败降级跳过）。"""
+    """docs 中的图片 → OCR 文本（多路并发，结果按原顺序拼接；单张失败降级跳过）。
+
+    并发路数取 ``ocr_concurrency()``（Paddle 为引擎池大小，默认 4）：引擎侧本来就是
+    线程绑定的实例池，逐张串行会闲置大部分 worker。LLM 重构在 ``reconstruct_markdown``
+    里是每次 ``asyncio.run`` + 每次新建客户端，所以多线程调用安全
+    （现有页级整理流水线已在多线程里用它）。
+    """
     names = [name for name in (docs or []) if _is_image_name(name)]
     if not names:
         return ""
-    from tools.ocr.engines import ocr_engine_label
+    from tools.ocr.engines import ocr_concurrency, ocr_engine_label
     from tools.ocr.levels.light import ocr_log
 
     engine = ocr_engine_label()
     total = len(names)
-    ocr_log(f"[OCR] 使用引擎 {engine}，共 {total} 张")
-    parts: list[str] = []
-    for index, name in enumerate(names, 1):
+    workers = max(1, min(ocr_concurrency(), total))
+    ocr_log(f"[OCR] 使用引擎 {engine}，共 {total} 张，{workers} 路并行")
+
+    def _one(indexed: tuple[int, str]) -> tuple[int, str]:
+        index, name = indexed
+        # 文件不存在时与原实现一致：ApiError 往上抛（任务以 404 结束）
         path = _input_file(user_id, "docs", name)
         try:
             from tools.ocr import ocr_image_to_markdown
 
             body = ocr_image_to_markdown(str(path)).strip()
-            if body:
-                parts.append(body)
             ocr_log(f"[OCR/{engine}] {index}/{total} 完成 {name}")
-        except Exception as exc:  # noqa: BLE001 - OCR 失败不阻断主流程
-            parts.append(f"（图片 {name} OCR 失败：{exc}）")
+            return index, body
+        except Exception as exc:  # noqa: BLE001 - 单张失败不阻断其余图片
             ocr_log(f"[OCR/{engine}] {index}/{total} 失败 {name}（{exc}）")
-    return "\n\n".join(parts).strip()
+            return index, f"（图片 {name} OCR 失败：{exc}）"
+
+    # map 按入参顺序产出 → 拼接顺序与原串行实现一致
+    with ThreadPoolExecutor(max_workers=workers, thread_name_prefix="ocr-doc") as pool:
+        parts = [body for _index, body in pool.map(_one, enumerate(names, 1))]
+    return "\n\n".join(part for part in parts if part).strip()
 
 
 def _doc_previews(user_id: str, docs: list[str]) -> str:

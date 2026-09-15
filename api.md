@@ -188,7 +188,10 @@ graph 为交互式 `graph.html`；catalog 的 json 在 `data/{user_id}/knowledge
 
 错误响应一律**不含** `monitor` 与 `data` 字段（避免全 0/空字段噪音）。
 **异步任务接口（第 3 节）的错误体不同**：固定为 `{"code": <HTTP 状态码>, "message": "<原因>"}`（见 3.8），
-且四个接口共用同一份“任务快照”响应体（见 3.2）。
+且四个接口共用同一份"任务快照"响应体（见 3.2）。
+
+> **成败怎么看**：同步 / 流式接口，`code == 0` 就是成功、非 0 就是失败（等于 HTTP 状态码）；
+> 异步接口要区分"这次调用的成败"与"任务本身的成败"，所以看 `status` 而不是只看 `code`（见 3.8 的三态表）。
 
 ### 2.5 四种端点形态
 
@@ -201,6 +204,29 @@ POST /api/v1/{domain}/{task}
 请求头见 2.1，请求体 TaskRequest（2.2），响应 TaskResponse（2.3）。
 阻塞直到任务跑完（十几秒到几分钟），适合小文本调试与不需要实时进度的场景；
 长任务建议用流式（2.5.2）或异步接口（第 3 节）。
+
+完整示例（`minutes`）：
+
+```bash
+curl -s -X POST http://127.0.0.1:8000/api/v1/meeting/minutes \
+  -H "Content-Type: application/json" \
+  -H "X-User-Id: 1" \
+  -H "X-Request-Id: $(uuidgen)" \
+  -d '{"time":"","texts":{"transcript":"<会议转写文本>"},"docs":[],"extra":{}}'
+```
+
+```jsonc
+{
+  "code": 0,
+  "request_id": "3f9a…",                  // 保存它：产物目录名，用于下载/预览
+  "message": "success",
+  "monitor": {"token_usage": 11932, "cache_hit": 7040, "cost_time": 9.6},
+  "data": {
+    "text": "# 会议纪要标题\n…",           // Markdown 正文
+    "file_name": "minutes.html"           // 页面版文件名；配 request_id 可下载/预览
+  }
+}
+```
 
 #### 2.5.2 流式接口（POST NDJSON）
 
@@ -443,12 +469,21 @@ curl -OJ "http://127.0.0.1:8000/api/v1/notes/checklist/file/<rid>/checklist.html
 它不替代第 2 节的接口，而是把"受理"与"执行"解耦 —— 长任务不再占用一个 HTTP 连接，
 并发可控、失败可重试、服务重启不丢任务。
 
-任务线由请求体的 `domain` + `task` 指定（取值与第 2 节完全一致），所以这组只有四个端点、与具体任务线解耦；
+常用的四个接口：
+
+| 接口 | 方法 | 作用 | 一句话 |
+|---|---|---|---|
+| `/api/v1/tasks` | POST | 提交任务 | 拿 `job_id`，立刻返回（3.3） |
+| `/api/v1/tasks/{job_id}` | GET | 查状态 | 轮询进度，不含正文（3.4） |
+| `/api/v1/tasks/{job_id}/result` | GET | 取结果 | 同一份快照，成功时带正文（3.5） |
+| `/api/v1/tasks/{job_id}/stream` | GET | 订阅事件流 | NDJSON，可断线重连（3.6） |
+
 **四个接口返回同一份"任务快照"**（见 3.2），差别只在填充程度。
+任务线由请求体的 `domain` + `task` 指定（取值与第 2 节完全一致），所以这组与具体任务线解耦。
 
 任务状态与事件流存在 **Redis**：`.env` 的 `REDIS_URL`（缺省 `redis://127.0.0.1:6379/0`）、
 `AGENTFLOW_JOB_TTL_SECONDS`（缺省 7 天）。Redis 不可用时本组接口返回 503，第 2 节的接口不受影响。
-执行模式（`inline` / `queue`）见 `GET /api/v1/health` 的 `run_mode` 字段。
+执行模式（`inline` / `queue`）看 `GET /api/v1/health` 的 `run_mode` 字段。
 
 ### 3.1 请求体（AsyncTaskRequest = TaskRequest + `domain` / `task`）
 
@@ -456,14 +491,34 @@ curl -OJ "http://127.0.0.1:8000/api/v1/notes/checklist/file/<rid>/checklist.html
 {
   "domain": "meeting",              // meeting / notes
   "task": "minutes",                // 该域下的任务线（见 0.2 矩阵）
-  "time": "",
-  "texts": {"transcript": "会议转写文本"},
-  "docs": [],
-  "extra": {"memory": false}
+  "time": "",                       // 任务时间（会议开始/转录完成时刻），可空
+  "texts": {                        // 与第 2 节同构：transcript / keypoints / notes
+    "transcript": "会议转写文本",
+    "keypoints": "",
+    "notes": ""
+  },
+  "docs": [],                       // 文件名列表（data/{user_id}/docs/ 或 catalog 目录）
+  "extra": {                        // 与第 2 节同构
+    "template": "", "profile": "", "project": "", "subject": "", "style": "", "memory": false
+  }
 }
 ```
 
-除 `domain` / `task` 外，字段与语义完全等同于 2.2 的 TaskRequest（含各任务线的必填项）。
+除 `domain` / `task` 外，字段语义、`docs` 的取用规则、各任务线的**必填项**与第 2 节完全一致
+（见 2.2 与 0.2）：例如 `minutes` 必填 `texts.transcript`、`library` 必填 `extra.subject` + `docs`、
+`minutes_trace` 必填 `transcript` + `keypoints` + `notes`。
+
+最小可用请求（按任务线）：
+
+| 任务线 | 最小请求体 |
+|---|---|
+| `minutes` / `actions` / `risks` / `consensus_decision` | `{"domain":"meeting","task":"<线>","texts":{"transcript":"<转写文本>"}}` |
+| `minutes_styles` | 同上 + `"extra":{"style":"time"}`（`time`/`logic`/`causal`/`party`/`urgency`） |
+| `minutes_trace` | 同上 + `"texts":{"transcript":"…","keypoints":"<重点>","notes":"<笔记>"}` |
+| `graph` | `{"domain":"notes","task":"graph","docs":["<笔记.txt>"]}` |
+| `library` | `{"domain":"notes","task":"library","docs":["<文件.docx>"],"extra":{"subject":"<学科>"}}` |
+| `catalog` | `{"domain":"notes","task":"catalog","extra":{"subject":"<学科>"}}` |
+| `checklist` | `{"domain":"notes","task":"checklist","docs":["<catalog文件名.json>"],"extra":{"subject":"<学科>"}}` |
 
 ### 3.2 统一响应体（四个接口共用）
 
@@ -482,46 +537,27 @@ curl -OJ "http://127.0.0.1:8000/api/v1/notes/checklist/file/<rid>/checklist.html
 }
 ```
 
-| 字段 | 说明 |
-|---|---|
-| `code` | 0=这次 HTTP 调用成功；非 0=HTTP 状态码（错误体见 3.8）。**任务本身的成败看 `status`** |
-| `job_id` | 任务标识，四个接口恒定回传 |
-| `request_id` | 产物目录名；配 `file_name` 可下载（`GET /api/v1/{domain}/{task}/file/{request_id}/{file_name}`） |
-| `status` | **给代码判断**：`queued`（排队/待执行）、`running`（执行中）、`succeeded`、`failed` |
-| `message` | **给人看**：执行中为阶段（`running:meeting_understanding`）或正在渲染的线名（`会议纪要`）；失败时为错误原因；成功为 `success`；重排为 `requeued(attempt N)` |
-| `text` | Markdown 产物正文，**只有结果接口**返回（状态轮询恒为 `null`，避免每次轮询背大文本） |
-| `file_name` | 产物文件名（如 `minutes.html`），成功后即可用于下载 / 预览 |
-| `monitor` | 本次消耗：`token_usage` / `cache_hit` / `cost_time`（秒） |
-| `quality_warning` | **可选字段**：渲染质量提示，仅结果接口在非空时出现 |
+| 字段 | 类型 | 出现时机 | 说明 |
+|---|---|---|---|
+| `code` | int | 恒有 | 0=这次 HTTP 调用成功；非 0=HTTP 状态码（错误体见 3.8）。**任务本身的成败看 `status`** |
+| `job_id` | str | 恒有 | 任务标识，提交时生成（`job_` + 分布式数字 ID），四个接口恒定回传 |
+| `request_id` | str | 恒有 | 产物目录名（`data/{user_id}/output/{request_id}/`）；配 `file_name` 可下载/预览。提交时若带了 `X-Request-Id` 则用它 |
+| `status` | str | 恒有 | **给代码判断**，只有四个取值：`queued`（排队/待执行）、`running`（执行中）、`succeeded`、`failed` |
+| `message` | str | 恒有 | **给人看**：执行中为阶段（`running:meeting_understanding`）或正在渲染的线名（`会议纪要`）；失败时是错误原因；成功是 `success`；重排是 `requeued(attempt N)` |
+| `text` | str\|null | 仅结果接口 | Markdown 产物正文（来源见 3.5）；状态轮询恒为 `null`，避免每次轮询背大文本 |
+| `file_name` | str | 成功后 | 产物文件名（如 `minutes.html`）；无落盘产物的任务线为空串 |
+| `monitor` | obj | 恒有 | 本次消耗：`token_usage`（总 token）、`cache_hit`（缓存命中 token）、`cost_time`（秒） |
+| `quality_warning` | str | 可选 | 渲染质量提示，仅结果接口在非空时出现（同步/流式接口没有这个字段） |
 
-四个接口只在**填充程度**上有区别：
+**字段随阶段的变化**（同一个 job 从提交到完成）：
 
-| 接口 | `status` | `message` | `text` | `file_name` | `monitor` |
+| 阶段 | `status` | `message` | `text` | `file_name` | `monitor` |
 |---|---|---|---|---|---|
-| 提交（3.3） | `queued` | `queued` | `null` | `""` | 零值 |
-| 状态（3.4） | 实时 | 阶段 / 失败原因 | 恒 `null` | 成功后填 | 实时 |
-| 结果（3.5） | 成功 `succeeded`；未完成或失败则原样返回 | 同上 | 成功时给正文 | 同上 | 实时 |
-| 事件流（3.6） | 每行实时 | 同上 | 仅 `chunk`（增量）与 `done` | `done` 时 | `done` 时 |
-
-一个 job 的完整示例（同一份快照的四种填充）：
-
-```jsonc
-// ① POST /api/v1/tasks —— 提交
-{"code": 0, "job_id": "job_637571127538876418", "request_id": "request_637571127538876417",
- "status": "queued", "message": "queued", "text": null, "file_name": "",
- "monitor": {"token_usage": 0, "cache_hit": 0, "cost_time": 0.0}}
-
-// ② GET /api/v1/tasks/{job_id} —— 3 秒后查状态
-{"code": 0, "job_id": "job_…418", "request_id": "request_…417",
- "status": "running", "message": "running:minutes", "text": null, "file_name": "",
- "monitor": {"token_usage": 8200, "cache_hit": 5120, "cost_time": 3.2}}
-
-// ③ GET /api/v1/tasks/{job_id}/result —— 完成后取结果
-{"code": 0, "job_id": "job_…418", "request_id": "request_…417",
- "status": "succeeded", "message": "success",
- "text": "# 复习清单页面加载速度专项对齐会…", "file_name": "minutes.html",
- "monitor": {"token_usage": 11932, "cache_hit": 7040, "cost_time": 9.6}}
-```
+| 刚提交 | `queued` | `queued` | `null` | `""` | 零值 |
+| 排队中（多人同时提交） | `queued` | `requeued(attempt N)` 表示被重排过 | `null` | `""` | 零值 |
+| 执行中 | `running` | `running:{阶段}` / 渲染中的线名 | `null` | `""` | 实时增长 |
+| 成功 | `succeeded` | `success` | 结果接口给正文 | `{task}.html` 等 | 完整 |
+| 失败 | `failed` | 错误原因 | `null` | `""` | 失败前消耗 |
 
 > `status` 与 `message` 的分工：`status` 是状态机枚举（固定四个取值，给 `if` / `switch` 用），
 > `message` 是这一刻的可读说明（阶段、原因）。只留前者会不知道失败原因，只留后者就得靠字符串匹配判断状态
@@ -529,80 +565,166 @@ curl -OJ "http://127.0.0.1:8000/api/v1/notes/checklist/file/<rid>/checklist.html
 
 ### 3.3 提交任务 `POST /api/v1/tasks`
 
-请求头：`X-User-Id` 必填，`X-Request-Id` 可选（缺省时服务端生成）。
-响应即上面①的快照：`status=queued`、`monitor` 零值、`text` 为 `null`。
+- 请求头：`X-User-Id` 必填、`X-Request-Id` 可选（缺省时服务端生成）、`Content-Type: application/json`；
+- 成功返回 **HTTP 200** + 快照（`status=queued`、`monitor` 零值、`text=null`）；
+- 校验失败见 3.8（`domain`/`task` 非法、缺 `X-User-Id` 等都在提交时就返回错误，不会建 job）。
 
 ```bash
 curl -s -X POST http://127.0.0.1:8000/api/v1/tasks \
-  -H "Content-Type: application/json" -H "X-User-Id: 1" \
+  -H "Content-Type: application/json" \
+  -H "X-User-Id: 1" \
+  -H "X-Request-Id: $(uuidgen)" \
   -d '{"domain":"meeting","task":"minutes","texts":{"transcript":"<会议转写文本>"},"docs":[],"extra":{}}'
 ```
 
-> `.env` 的 `AGENTFLOW_RUN_MODE=queue` 时任务不会立即执行：必须至少有一个
-> `python -m app.worker` 在跑，否则会一直停在 `status=queued`（`LLEN agentflow:queue` 能看到它）。
-> `inline`（缺省）由 API 进程内的 BackgroundTasks 直接执行，起一个 uvicorn 就能用
-> （失败即终态、无重试，行为与旧版一致）。
+响应：
+
+```jsonc
+{
+  "code": 0,
+  "job_id": "job_637571127538876418",
+  "request_id": "request_637571127538876417",
+  "status": "queued",
+  "message": "queued",
+  "text": null,
+  "file_name": "",
+  "monitor": {"token_usage": 0, "cache_hit": 0, "cost_time": 0.0}
+}
+```
+
+两种执行模式下的差别（模式见 `GET /api/v1/health` 的 `run_mode`）：
+
+| 模式 | 提交之后 |
+|---|---|
+| `queue` | 任务入队后由 `python -m app.worker` 执行。若没有 worker 在跑，会一直停在 `queued`（`LLEN agentflow:queue` 能看到它） |
+| `inline`（缺省） | API 进程内的 BackgroundTasks 立刻执行；不建租约、失败即终态（不重试） |
 
 ### 3.4 查询状态 `GET /api/v1/tasks/{job_id}`
 
-轮询接口，返回同一份快照，`text` 恒为 `null`。建议间隔 1~2 秒。
-
-- `status` 为 `queued` / `running` → 继续等；
-- `succeeded` → 用 3.5 取正文，或直接用 `request_id` + `file_name` 下载 / 预览；
-- `failed` → `message` 就是失败原因。
+轮询接口，返回同一份快照，**`text` 恒为 `null`**（正文只在结果接口给）。
+建议轮询间隔 **1~2 秒**；`queued` 阶段可能持续较久（并发满了在排队），不要用固定次数就放弃。
 
 ```bash
-curl -s http://127.0.0.1:8000/api/v1/tasks/<job_id>
+curl -s http://127.0.0.1:8000/api/v1/tasks/job_637571127538876418
 ```
+
+```jsonc
+// 执行中
+{"code": 0, "job_id": "job_…418", "request_id": "request_…417",
+ "status": "running", "message": "running:minutes", "text": null, "file_name": "",
+ "monitor": {"token_usage": 8200, "cache_hit": 5120, "cost_time": 3.2}}
+
+// 已完成（同一个接口，此时 file_name 有值但仍不给正文）
+{"code": 0, "job_id": "job_…418", "request_id": "request_…417",
+ "status": "succeeded", "message": "success", "text": null, "file_name": "minutes.html",
+ "monitor": {"token_usage": 11932, "cache_hit": 7040, "cost_time": 9.6}}
+
+// 失败（message 就是原因）
+{"code": 0, "job_id": "job_…418", "request_id": "request_…417",
+ "status": "failed", "message": "texts / docs 至少提供一个", "text": null, "file_name": "",
+ "monitor": {"token_usage": 0, "cache_hit": 0, "cost_time": 0.2}}
+```
+
+三种情况怎么处理：
+
+- `queued` / `running` → 继续轮询（或改用 3.6 的事件流拿实时进度）；
+- `succeeded` → 用 3.5 取正文，或直接用 `request_id` + `file_name` 下载 / 预览；
+- `failed` → `message` 就是失败原因；`request_id` 目录下通常有中间产物可供排查。
 
 ### 3.5 获取结果 `GET /api/v1/tasks/{job_id}/result`
 
 仍是同一份快照，**成功的任务会带上 `text`（正文）与 `file_name`**。
 
-- `text` 是 **Markdown 正文**（与产物目录里 `result.md` / `{task}.md` 的内容一致），来自 Redis 里的完成记录；
-  落盘的 **页面版 HTML 是另一个文件**，用 `file_name`（通常是 `{task}.html`）表示；
-- 想取文件（HTML 页面版 / Markdown）用 2.5.3 的下载、2.5.4 的预览，或静态路径：
-  `/api/v1/{domain}/{task}/file/{request_id}/{file_name}`；要 Markdown 文件就把 `file_name` 换成 `result.md`。
+```bash
+curl -s http://127.0.0.1:8000/api/v1/tasks/job_637571127538876418/result
+```
+
+```jsonc
+{
+  "code": 0,
+  "job_id": "job_637571127538876418",
+  "request_id": "request_637571127538876417",
+  "status": "succeeded",
+  "message": "success",
+  "text": "# 复习清单页面加载速度专项对齐会\n…（Markdown 正文）…",
+  "file_name": "minutes.html",
+  "monitor": {"token_usage": 11932, "cache_hit": 7040, "cost_time": 9.6}
+}
+```
+
+**`text` 是 Markdown 正文，不是文件内容本身**：接口不读磁盘，也不返回 HTML。三种来源：
+
+| 任务线 | `text` 是什么 |
+|---|---|
+| 多数任务线（minutes / actions / risks / minutes_styles / minutes_trace / consensus_decision / catalog） | 落盘的 `result.md` / `{task}.md` **全文**（与产物目录里那份内容一致） |
+| `checklist` | **精简摘要**（统计 + 卡片列表）。完整版在 `result.md` 与 `checklist.html` 里，想看全量要下载/预览 |
+| `graph` | 图谱报告文本（该线**无 md 落盘**） |
+
+`file_name` 的取值规则（`_output_file_name`）：
+
+| 情况 | `file_name` |
+|---|---|
+| `catalog` | 知识目录 json 文件名（在 `data/{user_id}/knowledge/catalogs/{学科拼音}/`） |
+| 有页面版 HTML 的任务线 | `{task}.html`（如 `minutes.html`） |
+| 只有文本产物 | `result.md` 或 `{task}.md` |
+| 无落盘产物（`library`） | 空串 `""` |
+
+**取文件**（接口只返回数据，URL 需要自己用 `request_id` + `file_name` 拼）：
+
+```bash
+rid="request_637571127538876417"
+# ① 下载页面版 HTML（file_name 就是返回里的那个）
+curl -OJ "http://127.0.0.1:8000/api/v1/meeting/minutes/file/$rid/minutes.html?user_id=1"
+# ② 浏览器直接看页面版
+open "http://127.0.0.1:8000/api/v1/meeting/minutes/preview?request_id=$rid&user_id=1"
+# ③ 要 Markdown 文件（有 md 落盘的任务线；graph 没有 result.md，会 404）
+curl -OJ "http://127.0.0.1:8000/api/v1/meeting/minutes/file/$rid/result.md?user_id=1"
+# ④ 同源静态路径（无鉴权）
+curl -OJ "http://127.0.0.1:8000/data/1/output/$rid/minutes.html"
+```
 
 任务还没跑完或已失败时**同样返回 200 + 该快照**（`status` 为 `queued` / `running` / `failed`，
 失败原因在 `message`），不用处理 409 分支；只有 job 不存在才返回 404。
 
-```bash
-curl -s http://127.0.0.1:8000/api/v1/tasks/<job_id>/result
-```
-
 ### 3.6 事件流 `GET /api/v1/tasks/{job_id}/stream`
 
-响应为 NDJSON，每行一个事件：**恒定带 `type` + `job_id` + `status` + `message`**，其余按事件补充，
-字段名与 3.2 完全一致。支持 `cursor` 从指定下标开始读取（断线重连）：
+订阅执行过程，响应为 **NDJSON**（`Content-Type: application/x-ndjson`），每行一个事件：
+**恒定带 `type` + `job_id` + `status` + `message`**，其余按事件类型补充，字段名与 3.2 完全一致。
 
 ```
-GET /api/v1/tasks/{job_id}/stream?cursor=0
+GET /api/v1/tasks/{job_id}/stream?cursor=0     # cursor = 事件下标，从 0 开始
 ```
 
 | `type` | 补充字段 | 说明 |
 |---|---|---|
 | `queued` | `request_id` | 已受理 |
 | `started` | `attempt` | 第 attempt 次尝试开始执行 |
-| `phase` | —（`message` 即 `running:{阶段}`） | 阶段推进 |
+| `phase` | —（`message` 即 `running:{阶段}`） | 进入编排节点（审校/渲染等） |
 | `chunk` | `text` | 渲染文本**增量**，前端按行追加 |
 | `requeued` | `attempt` | 放回队列等下一次尝试（尚未终态） |
 | `error` | `code` | 失败；`code` 是**任务失败码**（4xx 输入类不重试 / 5xx 可重试） |
 | `done` | `request_id` / `text` / `file_name` / `monitor`（+ 可选 `quality_warning`） | 成功终态，**与 3.5 结果接口逐字一致**（只多一个 `type`） |
+
+```bash
+curl -N "http://127.0.0.1:8000/api/v1/tasks/job_…418/stream?cursor=0"
+```
 
 ```jsonc
 {"type": "queued",  "job_id": "job_…418", "request_id": "request_…417", "status": "queued",  "message": "queued"}
 {"type": "started", "job_id": "job_…418", "status": "running", "message": "running", "attempt": 1}
 {"type": "phase",   "job_id": "job_…418", "status": "running", "message": "running:meeting_understanding"}
 {"type": "chunk",   "job_id": "job_…418", "status": "running", "message": "会议纪要", "text": "# 复习清单页面"}
+{"type": "chunk",   "job_id": "job_…418", "status": "running", "message": "会议纪要", "text": "加载速度专项对齐会于今日…"}
 {"type": "done",    "job_id": "job_…418", "request_id": "request_…417", "status": "succeeded",
-                    "message": "success", "text": "# 复习清单…", "file_name": "minutes.html",
+                    "message": "success", "text": "# …", "file_name": "minutes.html",
                     "monitor": {"token_usage": 11932, "cache_hit": 7040, "cost_time": 9.6}}
 ```
 
-```bash
-curl -N "http://127.0.0.1:8000/api/v1/tasks/<job_id>/stream?cursor=0"
-```
+- **`cursor` 语义**：事件在 Redis 里按下标顺序保存，`cursor=N` 表示"从第 N 条开始给我"，
+  客户端记住已收到的条数就能断线续读（`cursor=0` 是从头回放，适合排查）；
+- **终止**：收到 `done` 或 `error` 后服务端会关闭连接；`requeued` 之后还会继续有新的 `started`；
+- **什么时候用流式、什么时候用轮询**：需要过程可见（进度条、逐字显示、前端做"正在生成"体验）用 `/stream`；
+  只要最终结果、或轮询间隔很长，用 `/status` + `/result` 更省资源（一次真实 minutes 任务实测有 ~150 条 `chunk` 事件）。
 
 ### 3.7 执行模式与队列语义
 
@@ -613,9 +735,13 @@ curl -N "http://127.0.0.1:8000/api/v1/tasks/<job_id>/stream?cursor=0"
 | `inline`（缺省） | API 进程内的 BackgroundTasks | 起一个 uvicorn 就能用；不建租约、失败即终态、无重试 |
 | `queue` | 独立进程 `python -m app.worker` 消费 `agentflow:queue` | 生产主路径：并发上限、失败重试、重启不丢任务 |
 
-queue 模式额外使用两个 key：`agentflow:queue`（List，待执行队列）与 `agentflow:leases`
-（ZSet，member=job_id、score=租约到期时间戳）。两个可直接观测的指标：
-`LLEN agentflow:queue` = 积压任务数，`ZCARD agentflow:leases` = 正在执行的任务数。
+queue 模式额外使用两个 Redis key：`agentflow:queue`（List，待执行队列）与 `agentflow:leases`
+（ZSet，member=job_id、score=租约到期时间戳）。两个能直接看的指标：
+
+```bash
+docker exec -it redis redis-cli -n 0 llen  agentflow:queue    # 积压任务数（排队多长）
+docker exec -it redis redis-cli -n 0 zcard agentflow:leases   # 正在执行的任务数（= 全局并发占用）
+```
 
 - **并发上限**：全局并发 = 所有 worker 的 `--concurrency` 之和，看 `ZCARD agentflow:leases`；
   入口限流按请求数限速，管不住执行侧并发，真正的风控点在这里。
@@ -631,7 +757,7 @@ queue 模式额外使用两个 key：`agentflow:queue`（List，待执行队列�
   `minutes` 的会议记忆按 request_id 派生 meeting_id，重复执行同样覆盖 ——
   但**不要用同一个 request_id 并发执行两次**（例如旧 worker 还活着就手工重投），
   两个进程会同时写同一个产物目录。
-- 机制细节（键结构、租约、重试判定、运维观测）见 [README](README.md) 的「异步任务与 Redis」一节。
+- 机制细节（键结构、租约判定、运维观测）见 [README](README.md) 的「异步任务与 Redis」一节。
 
 ### 3.8 错误体
 
@@ -645,39 +771,137 @@ queue 模式额外使用两个 key：`agentflow:queue`（List，待执行队列�
 |---|---|---|
 | 400 | `domain 仅支持 meeting / notes` / `缺少 X-User-Id` | 域非法 / 缺用户标识 |
 | 404 | `任务线不存在：no_such` / `meeting 不支持任务线：graph` / `任务不存在：job_…` | 任务线非法 / job 不存在 |
-| 422 | （Pydantic 默认校验错误体） | 请求体不合模型 |
-| 503 | `Redis 不可用（<url>）：…` / `任务入队失败：…` | Redis 不可用 |
+| 422 | （Pydantic 默认校验错误体：`{"detail":[{...}]}`） | 请求体不合模型（缺 `domain`/`task`、`texts` 出现未知 key 等） |
+| 503 | `Redis 不可用（<url>）：…` / `任务入队失败：…` | Redis 不可用 / 入队失败 |
 
-> 注意区分：**调用失败** = HTTP 状态码 + `{code, message}`；**任务失败** = 200 + 快照里的
-> `status=failed` + `message=失败原因`。
+**三种"没拿到想要的东西"要分开判断**（这是最常混淆的地方）：
 
-### 3.9 调用顺序示例
+| 现象 | HTTP | 看哪里 | 含义 |
+|---|---|---|---|
+| `code != 0` | 400/404/422/503 | `message` | **这次调用失败**（地址、参数、依赖问题） |
+| `code == 0` 且 `status == "failed"` | 200 | `message` | **任务失败**：服务端收下了，但执行没成功（输入问题或运行错误） |
+| `code == 0` 且 `status` 是 `queued`/`running` | 200 | `message` | **任务还没跑完**：继续轮询或订阅（不是错误） |
 
-```bash
-# 1) 提交 → 记下 job_id（响应 status=queued）
-curl -s -X POST http://127.0.0.1:8000/api/v1/tasks -H "Content-Type: application/json" \
-  -H "X-User-Id: 1" \
-  -d '{"domain":"meeting","task":"minutes","texts":{"transcript":"<会议转写文本>"},"docs":[],"extra":{}}'
-# 2) 轮询状态（queued → running:阶段 → succeeded / failed）
-curl -s http://127.0.0.1:8000/api/v1/tasks/<job_id>
-# 3) 取结果（同一份快照，成功时带 text / file_name）
-curl -s http://127.0.0.1:8000/api/v1/tasks/<job_id>/result
-# 4) 或订阅事件流（NDJSON，支持 ?cursor=N 断线续读）
-curl -N "http://127.0.0.1:8000/api/v1/tasks/<job_id>/stream?cursor=0"
-# 5) 取产物文件（用结果里的 request_id 与 file_name）
-curl -OJ "http://127.0.0.1:8000/api/v1/meeting/minutes/file/<request_id>/minutes.html?user_id=1"
-```
+### 3.9 客户端完整示例
 
-客户端一套取值逻辑即可覆盖四个接口：
+轮询取结果（四个接口通用同一套取值逻辑）：
 
 ```python
-r = requests.get(f"{base}/api/v1/tasks/{job_id}").json()   # 四个接口通用
-if r["code"] != 0:                     # 调用失败
-    raise RuntimeError(r["message"])
-if r["status"] == "failed":            # 任务失败
-    print("失败：", r["message"])
-print(r["status"], r["monitor"]["token_usage"], r.get("text") or r.get("file_name"))
+import time
+import requests
+
+base = "http://127.0.0.1:8000"
+sid = requests.post(
+    f"{base}/api/v1/tasks",
+    json={"domain": "meeting", "task": "minutes",
+          "texts": {"transcript": transcript}, "docs": [], "extra": {}},
+    headers={"X-User-Id": "1"},
+    timeout=30,
+).json()
+if sid["code"] != 0:                      # 这次调用失败
+    raise RuntimeError(sid["message"])
+job_id, request_id = sid["job_id"], sid["request_id"]
+
+while True:                               # 轮询到终态
+    snap = requests.get(f"{base}/api/v1/tasks/{job_id}", timeout=30).json()
+    if snap["status"] != "succeeded" and snap["status"] != "failed":
+        print("进行中：", snap["status"], snap["message"], snap["monitor"]["cost_time"], "s")
+        time.sleep(2)
+        continue
+    break
+
+if snap["status"] == "failed":            # 任务失败（HTTP 仍是 200）
+    raise RuntimeError(f"任务失败：{snap['message']}")
+
+result = requests.get(f"{base}/api/v1/tasks/{job_id}/result", timeout=60).json()
+print(result["text"][:200])               # Markdown 正文
+# 取文件：用 request_id + file_name 拼
+html = requests.get(
+    f"{base}/api/v1/meeting/minutes/file/{request_id}/{result['file_name']}",
+    params={"user_id": "1"}, timeout=60,
+).content
+open("minutes.html", "wb").write(html)
+```
+
+订阅事件流（实时进度）：
+
+```python
+with requests.get(f"{base}/api/v1/tasks/{job_id}/stream?cursor=0", stream=True, timeout=3600) as resp:
+    for line in resp.iter_lines(decode_unicode=True):
+        if not line:
+            continue
+        event = json.loads(line)          # 每行都有 type / job_id / status / message
+        if event["type"] == "chunk":
+            print(event["message"], event["text"], end="")   # 增量正文
+        elif event["type"] == "done":
+            break
 ```
 
 对应的现成脚本：`minutes_async_submit.py` → `minutes_async_status.py` → `minutes_async_result.py`
-→ `minutes_async_stream.py`（脚本里改 `JOB_ID` 与服务地址即可）。
+→ `minutes_async_stream.py`；地址与 `JOB_ID` 可用环境变量覆盖，无需改文件：
+
+```bash
+export AGENTFLOW_BASE_URL=http://127.0.0.1:8003    # 服务器端口与本地不同时
+export JOB_ID=job_xxx
+python minutes_async_result.py
+```
+
+### 3.10 字段演进与版本兼容
+
+本组接口的响应体在 2026-09 统一过一次（四个接口共用 3.2 的快照），之前的结构是：
+
+| 旧结构 | 现在 |
+|---|---|
+| 提交响应：`{code, message, job_id, request_id, status, run_mode}` | 完整快照；`run_mode` 移到 `GET /api/v1/health` |
+| 状态响应：`job_id`/`status`/`phase`/`error`/`token_usage`/`file_name`/时间戳等**平铺**字段 | 统一快照：度量收进 `monitor`，正文相关收进 `text`/`file_name`，其余字段不再返回（运维信息看 Redis / worker 日志） |
+| 结果响应：`{type, code, request_id, message, quality_warning, monitor, data:{text,file_name}}` | 统一快照（去掉 `type`，`text`/`file_name` 提到顶层，`quality_warning` 变可选） |
+| 错误体：`{"detail": "…"}` | `{"code": …, "message": …}` |
+| 结果接口未完成时返回 409 | 返回 200 + 快照（`status` 为 `queued`/`running`/`failed`） |
+
+**客户端自检**：拿到的响应里**没有 `status` 字段**，就说明服务端还是旧版（或客户端按旧结构取值）——
+旧结构的正文在 `data.text`、文件名在 `data.file_name`，且结果未完成会返回 409。
+
+---
+
+## 4. 常见问题（FAQ）
+
+**Q1：`result` 为什么不返回文件（HTML）或 `preview_url`？**
+接口只返回**数据**，不返回拼好的链接 —— 链接由客户端用返回的 `request_id` + `file_name` 拼
+（见 3.5 的四种取文件方式）。HTML 页面版是样式自包含的单文件（实测 `minutes.html` ~10KB，
+而 md 正文只有 ~1KB），放进 JSON 会让每次结果查询大一个数量级，所以 JSON 给 Markdown 正文、
+文件走下载 / 预览端点。
+
+**Q2：为什么 `text` 是 Markdown，不是那个 `file_name` 指向的文件内容？**
+`text` 是**正文文本**，`file_name` 是**页面版文件名**，两者用途不同：JSON 里给文本便于直接展示/复制，
+`file_name` 给你去下载排版好的页面。注意 `checklist` 的 `text` 是精简摘要（完整版在 `result.md`/`checklist.html`），
+`graph` 没有 md 落盘（3.5 的表）。
+
+**Q3：任务明明失败了，为什么 HTTP 是 200？**
+200 表示"服务端收下了/查询成功了"；任务的成败看 `status`（`failed`）+ `message`（原因）。
+只有**这次调用本身**出错（参数非法、job 不存在、Redis 挂了）才是 4xx/5xx（3.8 的三态表）。
+
+**Q4：提交后一直 `queued`，是卡住了吗？**
+`queue` 模式下要有 `python -m app.worker` 在跑才会执行；没有 worker 就一直是 `queued`。
+有 worker 时也可能真在排队（并发满了），看 `LLEN agentflow:queue` 和 `ZCARD agentflow:leases`（3.7）。
+`inline` 模式下如果一直是 `queued`，说明进程还在处理排在前面的请求。
+
+**Q5：`attempts` 变 2 了，是重复扣费吗？**
+说明这条任务被重试过一次（5xx/异常，或 worker 失联被回收）。重试会**全量重跑**且复用同一个
+`request_id`，产物与记忆是覆盖而非新增；次数上限由 `AGENTFLOW_JOB_MAX_ATTEMPTS`（默认 2）控制。
+4xx 输入类错误不会重试。
+
+**Q6：`message` 里出现 `requeued(attempt 1)` 是什么意思？**
+这条任务被重排过（可重试失败或执行它的 worker 失联），现在回到队列等下一次尝试；
+跟着 `/stream` 还会看到新的 `started` 事件。不是错误，是自愈过程。
+
+**Q7：`request_id` 我可以自己指定吗？**
+可以 —— 提交时带 `X-Request-Id` 就用你的，否则服务端生成。它会成为产物目录名，
+所以同一 `request_id` 重复执行会覆盖同一个目录（重试正是靠这个保证幂等）。
+
+**Q8：产物我先拿到了，之后还能再取吗？**
+能。状态、事件流、载荷在 Redis 里保留 7 天（`AGENTFLOW_JOB_TTL_SECONDS`）；
+产物文件在 `data/{user_id}/output/{request_id}/` 下长期保留，凭 `request_id` + `file_name` 随时下载/预览。
+
+**Q9：为什么 `/status` 拿不到正文，非要多调一个 `/result`？**
+轮询通常几秒一次，正文可能几万字符 —— 分开是为了让轮询轻量。只要结果的话，直接在终态后调一次 `/result` 即可
+（或直接用 `/stream` 的 `done` 事件，它和 `/result` 逐字一致）。
