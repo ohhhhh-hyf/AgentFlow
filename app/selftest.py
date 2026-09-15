@@ -512,7 +512,11 @@ def test_catalog_order_and_coverage() -> None:
 
     kb = _FakeKB(_fake_rows())
     original = gather.open_knowledge
+    import tools.knowledge.cite as cite_mod
+
+    original_cite = cite_mod.open_knowledge
     gather.open_knowledge = lambda user_id="": kb
+    cite_mod.open_knowledge = lambda user_id="": kb  # 元数据回退骨架也走这个入口
     try:
         ctx = "【用户ID】__selftest__\n【学科/课程】wuli\n"
         grouped = gather._brief_chunks(kb, "__selftest__", "wuli")
@@ -526,10 +530,28 @@ def test_catalog_order_and_coverage() -> None:
               pos.get("一维束缚态") == 0 and pos.get("一维半无限深方势阱") == 1,
               f"pos={ {k: pos.get(k) for k in ('一维束缚态', '一维半无限深方势阱', '氢原子')} }")
         brief = gather.build_catalog_briefing(ctx)
-        low_seg = next((s for s in brief.split("【") if s.startswith("低可信标题")), "")
-        check("低可信标题列出名字并允许用作小节",
-              "一维束缚态" in low_seg and "一维半无限深方势阱" in low_seg
-              and "照常建主题或 KP" in low_seg,
+        # 骨架段标题：Md 来源为【原文骨架（权威）】，元数据回退骨架为【来源结构骨架】
+        skeleton_seg = next(
+            (s for s in brief.split("【")
+             if s.startswith("原文骨架（权威）") or s.startswith("来源结构骨架")),
+            "",
+        )
+        # 元数据骨架只收 high/medium 信号（低分标题留作正文 evidence）；
+        # 低分小节由 Md 骨架那条路兜（test_skeleton_parse_and_contract 已覆盖）
+        check("有骨架时强信号标题进骨架段（权威输入）",
+              "一维谐振子" in skeleton_seg and "氢原子" in skeleton_seg,
+              f"骨架段首={skeleton_seg[:60]!r}")
+        import domain.notes.tasks.catalog.skeleton as skeleton_mod
+
+        original_build = skeleton_mod.build_source_skeleton
+        skeleton_mod.build_source_skeleton = lambda _ctx: {"topics": []}
+        try:
+            fallback_brief = gather.build_catalog_briefing(ctx)
+        finally:
+            skeleton_mod.build_source_skeleton = original_build
+        low_seg = next((s for s in fallback_brief.split("【") if s.startswith("低可信标题")), "")
+        check("无骨架回退时低可信标题列出名字并允许用作小节",
+              "一维半无限深方势阱" in low_seg and "照常建主题或 KP" in low_seg,
               f"段首={low_seg[:60]!r}")
         check("例题类标题仍不进补缺范围",
               all("例题" not in " / ".join(c["path"]) for c in cands if gather._fillable_title(c)),
@@ -549,28 +571,56 @@ def test_catalog_order_and_coverage() -> None:
                 }
             ]
         }
-        filled = gather.complement_catalog_coverage(draft, ctx)
+        # P4 起：有骨架时输出侧补缺让位（覆盖由骨架侧 restore 负责），所以这里改验
+        # "补缺不动目录" + "骨架还原把缺的整节补回并保序"。
+        same = gather.complement_catalog_coverage(copy.deepcopy(draft), ctx)
+        check("有骨架时输出侧补缺不改目录",
+              json.dumps(same, ensure_ascii=False, sort_keys=True)
+              == json.dumps(draft, ensure_ascii=False, sort_keys=True),
+              f"章={[c.get('name') for c in same.get('chapters') or []]}")
+
+        from domain.notes.tasks.catalog.skeleton import (
+            build_source_skeleton,
+            restore_from_skeleton,
+        )
+
+        skeleton = build_source_skeleton(ctx)
+        filled, restore_report = restore_from_skeleton(copy.deepcopy(draft), skeleton)
         names = [c.get("name") for c in filled.get("chapters") or []]
-        check("缺的整节按自己的章名补回目录",
-              {"一维束缚态", "一维半无限深方势阱"} <= set(names), f"章={names}")
-        check("补缺不产生同名重复节点",
-              all(
-                  sum(1 for n in gather._catalog_node_names(filled) if n == k) == 1
-                  for k in (gather._title_key("一维束缚态"),)
-              ) and "氢原子" in names,
+        # 元数据骨架只认 high/medium 信号（低分标题留作正文），所以补回的是 `一维谐振子`
+        # 这类强信号节点；两个低分小节由 Md 骨架那条路负责（见 test_skeleton_* 系列）
+        check("缺的整节由骨架还原补回目录（program_restore）",
+              "一维谐振子" in restore_report["restored_topics"] and "氢原子" in names,
+              f"章={names} 补齐={restore_report['restored_topics']}")
+        check("还原不产生同名重复节点",
+              len(gather._catalog_node_names(filled)) == len(set(gather._catalog_node_names(filled)))
+              and "氢原子" in names,
               f"章={names}")
         ordered = gather.order_catalog_by_source(filled, ctx)
-        names2 = [c.get("name") for c in ordered.get("chapters") or []]
-        check("补缺后仍按原文保序（前两页在最前）",
-              names2[:2] == ["一维束缚态", "一维半无限深方势阱"] and names2[-1] == "氢原子",
-              f"章序={names2}")
+        restored_topics = [
+            str(t.get("name"))
+            for c in ordered.get("chapters") or []
+            for t in c.get("topics") or []
+        ]
+        quality = _coverage_tools().evaluate(skeleton, ordered)
+        check("还原后同级顺序仍单调（顺序跟骨架）",
+              restored_topics.count("一维谐振子") == 1 and not quality["level_violations"],
+              f"主题={restored_topics} violations={quality['level_violations'][:2]}")
         kp_names = [str(k.get("name")) for c in ordered.get("chapters") or []
                     for t in c.get("topics") or [] for k in t.get("knowledge_points") or []]
-        check("补缺的 KP 挂在补出来的章里，且不重复建",
-              "幂级数解法,构造递推的系数关系" in kp_names or "幂级数解法" in kp_names,
-              f"kp={kp_names}")
+        check("还原的 KP 带 program_restore 标记且不重复建",
+              all(
+                  sum(1 for n in kp_names if n == name) == 1 for name in set(kp_names)
+              ) and any(
+                  str(k.get("node_status")) == "program_restore"
+                  for c in ordered.get("chapters") or []
+                  for t in c.get("topics") or []
+                  for k in t.get("knowledge_points") or []
+              ),
+              f"kp={kp_names[:6]}")
     finally:
         gather.open_knowledge = original
+        cite_mod.open_knowledge = original_cite
 
 
 def test_ingest_position_axis() -> None:
@@ -610,6 +660,56 @@ def test_ingest_position_axis() -> None:
     raws = [c.metadata.get("heading_level_raw") for c in mixed_chunks]
     check("文件已有 # 时保持原层级、只记录 raw",
           lvls == [1, 3] and raws == [None, None], f"lvl={lvls} raw={raws}")
+
+
+def test_metadata_source_skeleton() -> None:
+    """没有 OCR Md 文件时，catalog 可从知识库 metadata 生成虚拟骨架并补缺。"""
+    import copy
+    import domain.notes.tasks.catalog.skeleton as skeleton_mod
+
+    rows = _fake_rows()
+    kb = _FakeKB(rows)
+
+    # build_metadata_skeleton 在函数内 import open_knowledge；这里 patch cite 模块入口。
+    import tools.knowledge.cite as cite
+
+    old_cite = cite.open_knowledge
+    cite.open_knowledge = lambda user_id="": kb
+    try:
+        ctx = "【用户ID】__selftest_no_md__\n【学科/课程】wuli\n"
+        sk = skeleton_mod.build_source_skeleton(ctx)
+        names = [t.get("name") for t in sk.get("topics") or []]
+        check("无 Md 时回退 metadata 虚拟骨架",
+              sk.get("kind") == "metadata" and "一维谐振子" in names and "氢原子" in names,
+              f"kind={sk.get('kind')} topics={names}")
+        pos = skeleton_mod.skeleton_position_map(sk)
+        check("虚拟骨架也提供排序位置",
+              pos.get("一维谐振子") is not None and pos.get("氢原子") is not None
+              and pos["一维谐振子"] < pos["氢原子"],
+              f"pos={ {k: pos.get(k) for k in ('一维谐振子', '氢原子')} }")
+        draft = {
+            "chapters": [{
+                "id": "ch_001",
+                "name": "氢原子",
+                "topics": [{
+                    "id": "tp_001",
+                    "name": "哈密顿量",
+                    "knowledge_points": [{"id": "kp_001", "name": "氢原子哈密顿量"}],
+                }],
+            }]
+        }
+        restored, report = skeleton_mod.restore_from_skeleton(copy.deepcopy(draft), sk)
+        restored_topics = [
+            t.get("name")
+            for c in restored.get("chapters") or []
+            for t in c.get("topics") or []
+            if isinstance(t, dict)
+        ]
+        check("虚拟骨架参与补缺",
+              report["restored_topics"] and "一维谐振子" in restored_topics,
+              f"restored={report} topics={restored_topics}")
+    finally:
+        cite.open_knowledge = old_cite
 
 
 def _coverage_tools():
@@ -834,6 +934,132 @@ def test_catalog_content_check() -> None:
     check("体检不改动目录（只读）",
           draft["chapters"][0]["topics"][0]["knowledge_points"][0]["knowledge_items"][0]
           == "分区求解")
+
+
+# ── P4：编号标题识别 + 补缺不越骨架 + 不再产占位名 ──────────────
+
+def test_heading_number_rules() -> None:
+    """不需要知识库：NFKC 会把 `③ …` 变成 `3 …`，这类"数字+空格"不能再当标题。"""
+    from tools.knowledge.source_role import heading_level
+
+    rejected = [
+        "3 分子在两次碰撞间做匀速直线运动",          # ← 曾经被当成章级标题（正文列表项）
+        "1 可不计分子本身的大小",
+        "2 除碰撞外，气体分子间及气体分子同器壁间的相互作用可忽略",
+    ]
+    check("数字 + 空格不再算标题（NFKC 伪标题被拦）",
+          all(heading_level(line) is None for line in rejected),
+          f"结果={[heading_level(x) for x in rejected]}")
+
+    accepted = {
+        "1. 幂级数解法": (1, "幂级数解法"),
+        "1、幂级数解法": (1, "幂级数解法"),
+        "1) 幂级数解法": (1, "幂级数解法"),
+        "（1）幂级数解法": (1, "幂级数解法"),
+        "1.2 球坐标": (2, "球坐标"),
+        "第3章 氢原子": (1, "氢原子"),
+        "## 概率密度角度分布": (2, "概率密度角度分布"),
+    }
+    got = {k: heading_level(k) for k in accepted}
+    check("带标点/带点编号/章节的标题照常识别",
+          got == accepted, f"结果={got}")
+    check("句末带标点的编号行仍判正文",
+          heading_level("3. 这是正文行。") is None)
+
+    os.environ["HEADING_NUM_LOOSE"] = "1"
+    loose = heading_level("3 分子在两次碰撞间做匀速直线运动")
+    os.environ.pop("HEADING_NUM_LOOSE", None)
+    check("HEADING_NUM_LOOSE=1 可回退旧行为", loose == (1, "分子在两次碰撞间做匀速直线运动"),
+          f"loose={loose}")
+
+
+def test_complement_respects_skeleton() -> None:
+    """有骨架时补缺必须让位；无骨架时补缺也只能用真名，不得生产占位名。"""
+    from pathlib import Path as _Path
+
+    import domain.notes.tasks.catalog.gather as gather
+    import domain.notes.tasks.catalog.skeleton as skeleton_mod
+
+    scratch = _Path(__file__).resolve().parents[1] / "data" / "__selftest__" / "ocr" / "wuli"
+    scratch.mkdir(parents=True, exist_ok=True)
+    md = scratch / "ocr_selftest.md"
+    md.write_text(_SKELETON_MD, encoding="utf-8")
+
+    rows = [
+        {  # 章级候选：旧行为会给它造"章 + 核心知识点 + 同名 KP"的空壳
+            "source": md.name, "chapter": "分子运动模型", "topic": "", "heading": "分子运动模型",
+            "heading_path_text": "分子运动模型", "page": "", "chunk_index": "0-0",
+            "heading_score": "6", "heading_kind": "chapter", "content_tags": "",
+            "contains_formula": "0", "role": "notes",
+        },
+        {  # 主题级候选：应补成"真名章 / 真名主题"，不引入占位名
+            "source": md.name, "chapter": "速度分布", "topic": "麦克斯韦速率分布",
+            "heading": "麦克斯韦速率分布", "heading_path_text": "速度分布 / 麦克斯韦速率分布",
+            "page": "", "chunk_index": "1-0", "heading_score": "6", "heading_kind": "topic",
+            "content_tags": "", "contains_formula": "0", "role": "notes",
+        },
+    ]
+    ctx = "【用户ID】__selftest__\n【学科/课程】wuli\n"
+    draft = {"chapters": [{"id": "ch_001", "name": "已有章",
+                          "topics": [{"id": "tp_001", "name": "已有主题",
+                                      "knowledge_points": [{"id": "kp_001", "name": "已有KP"}]}]}]}
+    original_kb = gather.open_knowledge
+    original_build = skeleton_mod.build_source_skeleton
+    gather.open_knowledge = lambda user_id="": _FakeKB(rows)
+    try:
+        after = gather.complement_catalog_coverage(copy.deepcopy(draft), ctx)
+        check("有骨架时补缺不改目录（骨架权威）",
+              json.dumps(after, ensure_ascii=False, sort_keys=True)
+              == json.dumps(draft, ensure_ascii=False, sort_keys=True),
+              f"chapters={len(after.get('chapters') or [])}")
+        check("骨架存在时不再补出骨架外章",
+              [c.get("name") for c in after.get("chapters") or []] == ["已有章"],
+              f"章={[c.get('name') for c in after.get('chapters') or []]}")
+
+        # 打桩成"无骨架"，让旧的候选池补缺真正跑起来，验证它只用真名
+        skeleton_mod.build_source_skeleton = lambda _ctx: {"topics": []}
+        filled = gather.complement_catalog_coverage(copy.deepcopy(draft), ctx)
+        names = [
+            str(node.get("name"))
+            for chapter in filled.get("chapters") or []
+            for node in [chapter] + list(chapter.get("topics") or [])
+            + [kp for tp in chapter.get("topics") or []
+               for kp in tp.get("knowledge_points") or []]
+        ]
+        check("无骨架时补缺用真名（章级候选跳过，不造占位名）",
+              "麦克斯韦速率分布" in names
+              and "分子运动模型" not in names  # 章级候选要配同名主题 → 直接跳过
+              and not any(n in {"核心知识点", "核心概念", "知识概要", "补充知识点", "其他"}
+                          for n in names),
+              f"names={names}")
+    finally:
+        gather.open_knowledge = original_kb
+        skeleton_mod.build_source_skeleton = original_build
+        md.unlink(missing_ok=True)
+        for folder in (scratch, scratch.parent, scratch.parent.parent, scratch.parent.parent.parent):
+            try:
+                folder.rmdir()
+            except OSError:
+                pass
+
+    # 还原侧同样不产占位名：骨架主题没有子标题时，交给结构修复器用真名回退补点
+    from domain.notes.tasks.catalog.skeleton import parse_md_skeleton, restore_from_skeleton
+
+    bare = parse_md_skeleton(
+        "<!-- ocr-pages: 1 -->\n### 只有正文的一节\n\n这一节只有正文，没有任何子标题。\n",
+        source="ocr_selftest.md",
+    )
+    restored, report = restore_from_skeleton({"chapters": [{"id": "ch_001", "name": "章",
+                                                           "topics": []}]}, bare)
+    names = [
+        str(kp.get("name"))
+        for ch in restored.get("chapters") or []
+        for tp in ch.get("topics") or []
+        for kp in tp.get("knowledge_points") or []
+    ]
+    check("还原不造占位名（留给修复器用真名补点）",
+          report["restored_topics"] and "核心知识点" not in names,
+          f"补齐={report['restored_topics']} names={names}")
 
 
 # ── 图片 OCR：并发但不许乱序（笔记图片本身有先后）──────────────
@@ -1118,9 +1344,12 @@ async def main() -> int:
     test_page_chrome()
     test_ingest_position_axis()
     test_catalog_order_and_coverage()
+    test_metadata_source_skeleton()
     test_skeleton_parse_and_contract()
     test_skeleton_restore_and_order()
     test_catalog_content_check()
+    test_heading_number_rules()
+    test_complement_respects_skeleton()
     test_ocr_noise_strip()
     test_catalog_order()
     print()

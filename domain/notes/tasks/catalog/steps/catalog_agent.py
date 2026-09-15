@@ -32,6 +32,7 @@ _LLM_KP_FIELDS = frozenset({
     "foundational_level", "exam_signal", "note_coverage", "note_missing_items",
     "practice_type", "completion_criteria", "learning_role", "risk_tags",
     "prerequisites", "related_points", "relation", "evidence",
+    "sources", "source_documents", "source_chunk_ids",
     "node_status", "change_type",
 })
 
@@ -421,10 +422,10 @@ def _restore_from_skeleton(catalog: dict, shared_context: str) -> dict:
     只增不减：模型已有的节点不动；骨架里缺失的主题/知识点按原文位置补回
     （``node_status=program_restore``），便于事后一眼看出"哪些是程序补的"。
     """
-    from ..skeleton import build_catalog_skeleton, restore_from_skeleton
+    from ..skeleton import build_source_skeleton, restore_from_skeleton
 
     try:
-        skeleton = build_catalog_skeleton(shared_context)
+        skeleton = build_source_skeleton(shared_context)
         if not skeleton.get("topics"):
             return catalog
         out, report = restore_from_skeleton(catalog, skeleton)
@@ -445,10 +446,10 @@ def _restore_from_skeleton(catalog: dict, shared_context: str) -> dict:
 
 def _source_position_map(shared_context: str) -> dict[str, int]:
     """保序用的位置表：原文骨架优先（精确），回退知识库元数据（P1 的 page/chunk_index）。"""
-    from ..skeleton import build_catalog_skeleton, skeleton_position_map
+    from ..skeleton import build_source_skeleton, skeleton_position_map
 
     try:
-        skeleton = build_catalog_skeleton(shared_context)
+        skeleton = build_source_skeleton(shared_context)
         position = skeleton_position_map(skeleton)
         if position:
             return position

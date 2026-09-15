@@ -664,12 +664,12 @@ def build_catalog_briefing(shared_context: str) -> str:
                 + "。这些文件来自 OCR 入库，sources 写「学生笔记」，"
                 "覆盖到的 KP 用 detailed/mentioned，不要标 none。"
             )
-        # 原文骨架（权威）：名字/顺序/覆盖以它为准；解析不到时保持旧路径（候选池当骨架）
+        # 来源骨架：Md 最强；没有 Md 时回退知识库 metadata 虚拟骨架。
         skeleton_topics = []
         try:
-            from .skeleton import build_catalog_skeleton, skeleton_prompt_block
+            from .skeleton import build_source_skeleton, skeleton_prompt_block
 
-            skeleton = build_catalog_skeleton(shared_context)
+            skeleton = build_source_skeleton(shared_context)
             skeleton_topics = skeleton.get("topics") or []
             block = skeleton_prompt_block(skeleton)
             if block:
@@ -935,9 +935,9 @@ def order_catalog_by_source(draft: dict[str, Any], shared_context: str) -> dict[
     """
     position: dict[str, int] = {}
     try:
-        from .skeleton import build_catalog_skeleton, skeleton_position_map
+        from .skeleton import build_source_skeleton, skeleton_position_map
 
-        position = skeleton_position_map(build_catalog_skeleton(shared_context))
+        position = skeleton_position_map(build_source_skeleton(shared_context))
     except Exception:  # noqa: BLE001 - 骨架不可用则回退
         position = {}
     if not position:
@@ -983,15 +983,29 @@ def complement_catalog_coverage(
 ) -> dict[str, Any]:
     """输出侧覆盖度校验：候选池里未进目录的小节标题 → 程序补缺（零 LLM）。
 
+    **有骨架时直接跳过**：覆盖由 `restore_from_skeleton` 按骨架保证，这一路（用知识库
+    候选池）只服务"没有骨架"的旧数据；否则会把骨架外的名字（例如被误判成章级标题的
+    正文行）补进目录，和"骨架权威"冲突。
+
     补缺节点标记 ``node_status=program_complement``、``change_type=added``；
-    归属规则：候选自带的章/主题名在目录里有同名节点就挂上去，**没有就按候选自己的
-    名字新建**章/主题（以前一律塞进首个 chapter 的末 topic，会把"一维束缚态"这节
-    的内容挂到"氢原子"章下）。补缺后的顺序由显示侧的保序步骤统一还原。
+    归属规则：候选自带章/主题名在目录里有同名节点就挂上去，**没有就按候选自己的名字新建**。
+    **不再使用 `核心知识点` 这类占位名**：名字一律来自候选，取不到就跳过并计数。
     """
     import logging
 
     logger = logging.getLogger(__name__)
     out = dict(draft)
+    try:
+        from .skeleton import build_source_skeleton
+
+        # 统一骨架入口（真 Md 优先，无 Md 时回退 metadata 虚拟骨架）：只要有骨架，
+        # 覆盖就由骨架侧的 restore 负责，这一路（候选池补缺）不再参与——
+        # 否则会把骨架外的名字（例如被误判成章级标题的正文行）补进目录。
+        if build_source_skeleton(shared_context).get("topics"):
+            logger.info("catalog complement skipped (skeleton is authoritative)")
+            return out
+    except Exception:  # noqa: BLE001 - 骨架不可用则走旧的候选池补缺
+        logger.warning("catalog skeleton check failed in complement", exc_info=True)
     user_id = user_id_from_context(shared_context)
     subject = subject_from_context(shared_context)
     kb = open_knowledge(user_id=user_id)
@@ -1007,7 +1021,8 @@ def complement_catalog_coverage(
     next_ch_no = _next_node_no(out, "ch")
     next_tp_no = _next_node_no(out, "tp")
     added = 0
-    empty_chapters: list[dict[str, Any]] = []
+    skipped = 0
+    reverts = 0
     for cand in fillable:
         if added >= _COMPLEMENT_MAX:
             logger.info("catalog complement capped at %d", _COMPLEMENT_MAX)
@@ -1019,12 +1034,16 @@ def complement_catalog_coverage(
         key = _title_key(title)
         if not key or key in covered:
             continue
+        if len(path) == 1:
+            # 章级候选：要建就得给章配一个"与章不同名"的主题，而那只能是占位名 ✗
+            # 结构修复器会用真名回退补点，所以这里**跳过并计数**，不造容器名
+            skipped += 1
+            continue
         # 层级归属（与候选路径长度对齐，避免 KP 名和主题名撞车）：
-        #   1 段「章名」        → 章=自己，主题=核心知识点
-        #   2 段「章 / 主题」    → 章=path[0]，主题=核心知识点（KP 名才是 path[1]）
-        #   3 段「章 / 主题 / 点」→ 章=path[0]，主题=path[1]
-        chapter_name = path[0] if len(path) >= 2 else title
-        topic_name = path[1] if len(path) >= 3 else "核心知识点"
+        #   2 段「章 / 主题」    → 章=path[0]，主题=path[1]，KP 名也用 path[1]
+        #   3 段「章 / 主题 / 点」→ 章=path[0]，主题=path[1]，KP=path[2]
+        chapter_name = path[0]
+        topic_name = path[1]
         target_chapter = next(
             (
                 chapter
@@ -1046,12 +1065,6 @@ def complement_catalog_coverage(
             chapters.append(target_chapter)
             next_ch_no += 1
             covered.add(_title_key(chapter_name))
-        if len(path) == 1:
-            # 章级标题：章本身就覆盖了这个名字，不再补同名 KP（避免"章 X / KP X"重复）。
-            # 若它最终没有任何子节点，循环结束后补最小可行形状（章不能是空的）。
-            if target_chapter.get("node_status") == "program_complement":
-                empty_chapters.append(target_chapter)
-            continue
         topics = [t for t in (target_chapter.get("topics") or []) if isinstance(t, dict)]
         target_topic = next(
             (
@@ -1097,46 +1110,12 @@ def complement_catalog_coverage(
         covered.add(key)
         next_no += 1
         added += 1
-    # 补缺建出来但一条子节点都没有的章：补最小可行形状（章不能是空的）
-    for chapter in empty_chapters:
-        if [t for t in (chapter.get("topics") or []) if isinstance(t, dict)]:
-            continue
-        name = str(chapter.get("name") or "")
-        if not name:
-            continue
-        kp = {
-            "id": f"kp_{next_no:03d}",
-            "name": name,
-            "aliases": [],
-            "knowledge_type": "concept",
-            "knowledge_items": [],
-            "importance": 2,
-            "difficulty": 3,
-            "teacher_emphasis": 0,
-            "change_type": "added",
-            "node_status": "program_complement",
-            "sources": [],
-            "prerequisites": [],
-            "related_points": [],
-            "risk_tags": [],
-            "completion_criteria": [],
-            "exam_signal": "none",
-            "topic": "核心知识点",
-            "chapter": name,
-        }
-        topic = {
-            "id": f"tp_{next_tp_no:03d}",
-            "name": "核心知识点",
-            "change_type": "added",
-            "node_status": "program_complement",
-            "knowledge_points": [kp],
-        }
-        next_tp_no += 1
-        next_no += 1
-        added += 1
-        chapter["topics"] = [topic]
-    if added:
-        logger.info("catalog fill missing kp=%d", added)
+    # 章级候选（path 只有 1 段）一律跳过：要给它配"与章不同名"的主题就只能造占位名，
+    # 而结构修复器会用真名回退补点。跳过数进日志，便于发现"候选池噪声"。
+    if added or skipped:
+        logger.info(
+            "catalog fill missing kp=%d (skipped chapter-level candidates=%d)", added, skipped
+        )
     return out
 
 

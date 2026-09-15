@@ -26,7 +26,20 @@ _SECTION = re.compile(
     r"^(?:#{1,3}\s+)?(?:第[一二三四五六七八九十百零0-9]+节|[一二三四五六七八九十]+、)\s*(.+)$"
 )
 _MD_HEAD = re.compile(r"^(#{1,4})\s+(.+)$")
-_NUM_HEAD = re.compile(r"^(\d+(?:\.\d+){0,3})\s+(.+)$")
+# 数字编号标题：拒绝"纯数字 + 空格"，其余编号形态照收。
+# 关键事实：OCR 清洗的 NFKC 只会把 `③` 变成单个 `3`，**不会产生小数点或标点**，
+# 所以"数字带标点/带点编号"是安全的，而"数字 + 空格"（`3 分子在两次碰撞间做匀速
+# 直线运动`）必须拒绝——否则正文列表项会被误判成章级标题，顺着候选池变成目录假章节。
+# 纯文本笔记若确实用"数字 + 空格"写标题，可设 HEADING_NUM_LOOSE=1 回退。
+_NUM_HEAD = re.compile(
+    r"^(?:"
+    r"(\d+(?:\.\d+){0,3})\s*[、．)）:：]\s*"        # 1、 / 1) / 1） / 1： / 1.2、
+    r"|(\d+(?:\.\d+){0,3})\.(?!\d)\s*(?=\S)"       # 1. （点号后不能是数字，否则是 1.2）
+    r"|(\d+\.\d+(?:\.\d+)*)\s+(?=\S)"              # 1.2 / 1.2.3（多点编号 + 空格）
+    r"|（(\d+(?:\.\d+){0,3})）\s*"                  # （1）
+    r")(.+)$"
+)
+_NUM_HEAD_LOOSE = re.compile(r"^(\d+(?:\.\d+){0,3})\s+(.+)$")
 _SENT_END_RE = re.compile(r"[。！？；;]$")
 # 兜底标题：行首特征词（定义/定理/易错/例题…）。标题行不进正文块，会丢内容，
 # 所以只认「纯短语」或「特征词+冒号+≤6 字短语」——带实质内容的句子不当标题。
@@ -75,6 +88,13 @@ def classify_source_role(filename: str, text: str = "") -> str:
     return ROLE_UNKNOWN
 
 
+def _num_head_loose() -> bool:
+    """回退开关：``HEADING_NUM_LOOSE=1`` 时重新接受"数字 + 空格"形态（纯文本笔记老用法）。"""
+    import os
+
+    return os.getenv("HEADING_NUM_LOOSE", "").strip().lower() in {"1", "true", "yes", "on"}
+
+
 def heading_level(line: str) -> tuple[int, str] | None:
     """返回 (层级, 标题)。1=chapter, 2=topic, 3=knowledge_point。"""
     text = " ".join(str(line or "").split()).strip()
@@ -92,8 +112,15 @@ def heading_level(line: str) -> tuple[int, str] | None:
         return 2, section.group(1).strip()
     numbered = _NUM_HEAD.match(text)
     if numbered:
-        depth = numbered.group(1).count(".") + 1
-        return min(depth, 3), numbered.group(2).strip()
+        raw_no = next((g for g in numbered.groups()[:4] if g), "") or ""
+        title = (numbered.group(5) or "").strip()
+        # 带句末标点的"编号行"是正文（`3. 这是正文里的编号行吗。`），不当标题
+        if title and not _SENT_END_RE.search(title):
+            return min(raw_no.count(".") + 1, 3), title
+    if _num_head_loose():
+        loose = _NUM_HEAD_LOOSE.match(text)
+        if loose:
+            return 1, loose.group(2).strip()
     # 兜底只接收带明确对象的知识标题；例题/注意/步骤等细碎容器留作正文证据。
     if _ITEM_ONLY_HEAD_RE.match(text) or _GENERIC_HEAD_RE.match(text):
         return None

@@ -306,6 +306,190 @@ def build_catalog_skeleton(shared_context: str) -> dict[str, Any]:
     return merged
 
 
+def _position_tuple(meta: dict[str, Any]) -> tuple[str, int, int, int]:
+    """Knowledge chunk 的稳定位置：source -> page -> chunk_index。"""
+    source = str(meta.get("source") or "")
+    nums = [int(x) for x in re.findall(r"\d+", str(meta.get("page") or ""))]
+    page = nums[0] if nums else 10**9
+    ci = [int(x) for x in re.findall(r"\d+", str(meta.get("chunk_index") or ""))]
+    major = ci[0] if ci else 10**9
+    minor = ci[1] if len(ci) > 1 else 0
+    return source, page, major, minor
+
+
+def _virtual_confidence(meta: dict[str, Any], title: str) -> str:
+    """把入库 metadata 的标题质量转成骨架约束强度。"""
+    try:
+        score = int(str(meta.get("heading_score") or "0") or "0")
+    except (TypeError, ValueError):
+        score = 0
+    kind = str(meta.get("heading_kind") or "")
+    if score >= 6 or kind in {"chapter", "topic"}:
+        return "high"
+    if score >= 4 or kind == "knowledge_point":
+        return "medium"
+    if title and not is_item_heading(title):
+        return "low"
+    return "item_only"
+
+
+def _merge_body(target: dict[str, Any], text: str, limit: int = 800) -> None:
+    body = " ".join(str(text or "").split())
+    if not body:
+        return
+    old = str(target.get("body") or "")
+    if body in old:
+        return
+    joined = (old + "\n" + body).strip()
+    target["body"] = joined[:limit]
+
+
+def build_metadata_skeleton(shared_context: str) -> dict[str, Any]:
+    """没有 OCR Md 时，从知识库 chunk metadata 构造一份虚拟骨架。
+
+    这不是 Md 那种强骨架：只把 high / medium 结构信号纳入主题或 KP；
+    低可信、例题、注意、小结等内容留作 evidence/body，不强行升节点。
+    """
+    from .gather import subject_from_context, user_id_from_context
+    from tools.knowledge.cite import open_knowledge
+
+    user_id = user_id_from_context(shared_context)
+    subject = subject_from_context(shared_context)
+    try:
+        kb = open_knowledge(user_id=user_id)
+        rows = list(kb.list_chunks(user_id=user_id, subject=subject) or []) if kb else []
+    except Exception:  # noqa: BLE001 - 元数据骨架失败时回到空骨架
+        logger.warning("metadata skeleton build failed", exc_info=True)
+        rows = []
+    chunks = [
+        row for row in rows
+        if isinstance(row, dict) and isinstance(row.get("metadata") or {}, dict)
+    ]
+    chunks.sort(key=lambda row: _position_tuple(row.get("metadata") or {}))
+    topics: list[dict[str, Any]] = []
+    by_key: dict[tuple[str, str], dict[str, Any]] = {}
+    current_by_source: dict[str, dict[str, Any]] = {}
+    order = 0
+    dropped = 0
+    sources: list[str] = []
+    for row in chunks:
+        meta = row.get("metadata") or {}
+        source = str(meta.get("source") or "")
+        if source and source not in sources:
+            sources.append(source)
+        path_text = str(meta.get("heading_path_text") or "")
+        path = [clean_title(p) for p in path_text.split("/") if clean_title(p)]
+        heading = clean_title(meta.get("heading") or "")
+        chapter = clean_title(meta.get("chapter") or "")
+        topic_name = clean_title(meta.get("topic") or "")
+        if not path:
+            path = [p for p in (chapter, topic_name, heading) if p]
+        title = path[-1] if path else heading
+        if not title or is_item_heading(title):
+            dropped += 1
+            target = current_by_source.get(source)
+            if target is not None:
+                _merge_body(target, row.get("text") or "")
+            continue
+        confidence = _virtual_confidence(meta, title)
+        if confidence == "item_only":
+            dropped += 1
+            continue
+        if confidence == "low":
+            target = current_by_source.get(source)
+            if target is not None:
+                _merge_body(target, f"{title}\n{row.get('text') or ''}")
+            continue
+        kind = str(meta.get("heading_kind") or "")
+        # high/topic/chapter 信号作为主题；medium/knowledge_point 信号作为最近主题下的 KP。
+        as_topic = kind in {"chapter", "topic"} or confidence == "high" or len(path) <= 1
+        if as_topic:
+            key = (source, norm_key(title))
+            topic = by_key.get(key)
+            if topic is None:
+                topic = {
+                    "id": f"sk_t{len(topics) + 1:03d}",
+                    "name": title,
+                    "order": order,
+                    "page": str(meta.get("page") or ""),
+                    "page_span": str(meta.get("page_span") or meta.get("page") or ""),
+                    "points": [],
+                    "body": "",
+                    "file": source,
+                    "virtual": True,
+                    "confidence": confidence,
+                }
+                order += 1
+                topics.append(topic)
+                by_key[key] = topic
+            _merge_body(topic, row.get("text") or "")
+            current_by_source[source] = topic
+            continue
+        parent_title = path[-2] if len(path) >= 2 else topic_name
+        parent = current_by_source.get(source)
+        if parent_title:
+            parent_key = (source, norm_key(parent_title))
+            parent = by_key.get(parent_key) or parent
+        if parent is None:
+            parent = {
+                "id": f"sk_t{len(topics) + 1:03d}",
+                "name": parent_title or source or "资料结构",
+                "order": order,
+                "page": str(meta.get("page") or ""),
+                "page_span": str(meta.get("page_span") or meta.get("page") or ""),
+                "points": [],
+                "body": "",
+                "file": source,
+                "virtual": True,
+                "confidence": "medium",
+            }
+            order += 1
+            topics.append(parent)
+            by_key[(source, norm_key(parent["name"]))] = parent
+            current_by_source[source] = parent
+        pkey = norm_key(title)
+        point = next((p for p in parent["points"] if norm_key(p.get("name")) == pkey), None)
+        if point is None:
+            point = {
+                "id": f"sk_p{len(parent['points']) + 1:03d}",
+                "name": title,
+                "order": order,
+                "page": str(meta.get("page") or ""),
+                "page_span": str(meta.get("page_span") or meta.get("page") or ""),
+                "parent": parent["name"],
+                "body": "",
+                "file": source,
+                "virtual": True,
+                "confidence": confidence,
+            }
+            order += 1
+            parent["points"].append(point)
+        _merge_body(point, row.get("text") or "")
+    return {
+        "source": "、".join(sources),
+        "sources": sources,
+        "topics": topics,
+        "kind": "metadata",
+        "stats": {
+            "topics": len(topics),
+            "points": sum(len(t.get("points") or []) for t in topics),
+            "files": len(sources),
+            "dropped_item_headings": dropped,
+            "merged_continued": 0,
+            "virtual": True,
+        },
+    }
+
+
+def build_source_skeleton(shared_context: str) -> dict[str, Any]:
+    """统一骨架入口：真实 Md 优先；没有 Md 时回退知识库 metadata 虚拟骨架。"""
+    skeleton = build_catalog_skeleton(shared_context)
+    if skeleton.get("topics"):
+        skeleton["kind"] = "md"
+        return skeleton
+    return build_metadata_skeleton(shared_context)
+
+
 def _name_variants(name: object) -> list[str]:
     """名字的多种写法变体：调用方各自的归一化口径不同（有的只去空白），
     位置表把变体都登记上，任何口径都能查到。含"去掉全部标点"一档，
@@ -338,35 +522,49 @@ def skeleton_prompt_block(skeleton: dict[str, Any]) -> str:
     topics = skeleton.get("topics") or []
     if not topics:
         return ""
+    is_virtual = str(skeleton.get("kind") or "") == "metadata" or bool(
+        (skeleton.get("stats") or {}).get("virtual")
+    )
+    title = "【来源结构骨架】" if is_virtual else "【原文骨架（权威）】"
+    intro = (
+        "下面是从 PPT/DOC/TXT/PDF 入库 metadata 还原出的结构骨架，"
+        "**高/中可信标题用于约束覆盖和顺序**；章可由你按语义分组。"
+        if is_virtual
+        else "下面是原文（学生笔记）里**逐节解析**出的骨架，"
+        "**主题与知识点的名字、顺序、覆盖以它为准**；章不来自原文，由你按语义分组。"
+    )
     lines = [
-        "【原文骨架（权威）】下面是原文（学生笔记）里**逐节解析**出的骨架，"
-        "**主题与知识点的名字、顺序、覆盖以它为准**；章不来自原文，由你按语义分组。",
+        title + intro,
         f"来源：{skeleton.get('source') or '（未知）'}"
         f"（{len(topics)} 个主题 / {skeleton.get('stats', {}).get('points', 0)} 个知识点）",
     ]
     for topic in topics:
+        conf = f" confidence={topic.get('confidence')}" if is_virtual and topic.get("confidence") else ""
         head = (
-            f"[T topic order={topic.get('order')} 页{topic.get('page_span') or '-'}] {topic.get('name')}"
+            f"[T topic order={topic.get('order')} 页{topic.get('page_span') or '-'}{conf}] {topic.get('name')}"
             + ("（原文标注续页，已与上文合并）" if topic.get("continued") else "")
         )
         lines.append(head)
         if topic.get("body"):
             lines.append(f"    正文：{_clip(topic['body'])}")
         for point in topic.get("points") or []:
+            pconf = f" confidence={point.get('confidence')}" if is_virtual and point.get("confidence") else ""
             lines.append(
-                f"  · [P kp order={point.get('order')} 页{point.get('page_span') or '-'}] "
+                f"  · [P kp order={point.get('order')} 页{point.get('page_span') or '-'}{pconf}] "
                 f"{point.get('name')}"
             )
             if point.get("body"):
                 lines.append(f"      正文：{_clip(point['body'])}")
-    lines.append(
-        "【骨架契约（硬约束）】\n"
+    rule_lines = [
+        "【骨架契约（中强约束）】" if is_virtual else "【骨架契约（硬约束）】",
         "- 必须覆盖骨架里**每一个** T（主题）与 P（知识点）：名字可规范化改写，但不许丢、"
-        "不许合并掉（要合并只能把 P 降级为父主题的 knowledge_items，名字仍要出现在 items 里）；\n"
-        "- 不许新增骨架里没有的主题/知识点（章可以新增，用来分组主题）；\n"
-        "- 顺序必须跟骨架 order 走：章按「其下最早节点」排序，主题/知识点按 order 升序；\n"
-        "- 细碎内容（例题/易错/小结/注意/步骤）不进层级，收进所属节点的 knowledge_items。"
-    )
+        "不许合并掉（要合并只能把 P 降级为父主题的 knowledge_items，名字仍要出现在 items 里）；",
+        "- 可以新增明显来自资料 metadata 的必要节点，但不要把低可信标题、页眉页脚、正文句子升成节点；"
+        if is_virtual else "- 不许新增骨架里没有的主题/知识点（章可以新增，用来分组主题）；",
+        "- 顺序必须跟骨架 order 走：章按「其下最早节点」排序，主题/知识点按 order 升序；",
+        "- 细碎内容（例题/易错/小结/注意/步骤）不进层级，收进所属节点的 knowledge_items。",
+    ]
+    lines.append("\n".join(rule_lines))
     block = "\n".join(lines)
     if len(block) > _MD_PROMPT_LIMIT:
         block = block[:_MD_PROMPT_LIMIT] + "\n…（骨架过长已截断：**未出现的节点仍必须建**，按上文顺序续排）"
@@ -528,32 +726,9 @@ def restore_from_skeleton(
             host.setdefault("topics", []).append(target_topic)
             name_keys.add(tkey)
             report["restored_topics"].append(topic["name"])
-        if not points and not (target_topic.get("knowledge_points") or []):
-            # 骨架里这一节本来就没有子标题（原文只有正文）：补一个占位 KP，
-            # 保证"每主题至少 1 个 KP"，避免结构校验失败触发一次多余的重试
-            target_topic.setdefault("knowledge_points", []).append(
-                {
-                    "id": f"kp_{next_kp:03d}",
-                    "name": "核心知识点",
-                    "aliases": [],
-                    "knowledge_type": "concept",
-                    "knowledge_items": [],
-                    "importance": "2",
-                    "difficulty": "3",
-                    "teacher_emphasis": 0,
-                    "change_type": "added",
-                    "node_status": "program_restore",
-                    "sources": [],
-                    "prerequisites": [],
-                    "related_points": [],
-                    "risk_tags": [],
-                    "completion_criteria": [],
-                    "exam_signal": "none",
-                    "topic": str(target_topic.get("name") or ""),
-                    "chapter": str(host.get("name") or ""),
-                }
-            )
-            next_kp += 1
+        # 骨架里"只有正文、没有子标题"的主题：**不造占位名**（曾经写 `核心知识点`）。
+        # 结构修复器紧跟其后（catalog_agent 里 restore → _repair_catalog_structure），
+        # 会用主题真名回退补点，名字全部来自原文。
         for point in missing_points:
             target_topic.setdefault("knowledge_points", []).append(
                 {
@@ -614,6 +789,11 @@ def _next_no(draft: dict[str, Any], prefix: str) -> int:
 _WS_RE = re.compile(r"\s+")
 _LATEX_NOISE_RE = re.compile(r"[\\${}\[\]()（）{}^_|,，.。:：;；!！?？'\"“”‘’·、\-+=*/<>~`]+")
 _QUOTE_MIN = 12      # 长条目（引用型）门槛：短标签无法逐字核对，不判对错
+# 占位名：结构合法性不该靠这些无信息名字撑（P4 起不再生产，此处只统计以便发现回归）
+_GENERIC_NAME_KEYS = {
+    norm_key("核心概念"), norm_key("核心知识点"), norm_key("知识概要"),
+    norm_key("补充知识点"), norm_key("其他"),
+}
 _ITEM_RUN = 8        # 逐字命中长度（引用型条目）
 _ITEM_NGRAM = 3      # 概述型条目的片段长度
 _ITEM_NGRAM_HIT = 3  # 至少多少个片段命中才算"有依据"
@@ -974,6 +1154,18 @@ def catalog_quality_report(skeleton: dict[str, Any], draft: dict[str, Any]) -> d
     llm_added = len([k for k in name_keys if k not in skeleton_keys])
     restored = sum(1 for n in nodes if n.get("status") == "program_restore")
     complemented = sum(1 for n in nodes if n.get("status") == "program_complement")
+    # 占位名节点（核心知识点/核心概念/知识概要/补充知识点/其他）：结构合法性不该靠噪声名撑
+    generic_nodes = sum(
+        1
+        for chapter in draft.get("chapters") or []
+        if isinstance(chapter, dict)
+        for topic in chapter.get("topics") or []
+        if isinstance(topic, dict)
+        for name in [topic.get("name")] + [
+            k.get("name") for k in topic.get("knowledge_points") or [] if isinstance(k, dict)
+        ]
+        if norm_key(name) in _GENERIC_NAME_KEYS
+    )
     ok = not (uncovered_topics or uncovered_points or level_violations)
     return {
         "nodes": nodes,
@@ -1002,12 +1194,15 @@ def catalog_quality_report(skeleton: dict[str, Any], draft: dict[str, Any]) -> d
             "label_items": content["labels"],
             "misplaced_nodes": len(content["misplaced_nodes"]),
             "unverified_items": len(content["unverified"]),
+            "generic_nodes": generic_nodes,
         },
     }
 
 
 __all__ = [
     "build_catalog_skeleton",
+    "build_metadata_skeleton",
+    "build_source_skeleton",
     "parse_md_skeleton",
     "skeleton_prompt_block",
     "skeleton_position_map",

@@ -1,4 +1,4 @@
-"""把老师重点映射到已有 Catalog KP，并算出本次 S/A/B/C。"""
+"""把老师重点映射到已有 Catalog KP，并算出本次 S/A/B。"""
 from __future__ import annotations
 
 import re
@@ -320,9 +320,8 @@ def _owned_sentences(sentences: list[str], points: list[dict[str, Any]]) -> dict
 def activate_from_catalog(catalog: dict[str, Any] | None) -> list[dict[str, Any]]:
     """无老师重点时：按目录 importance 激活 KP，不做老师原话匹配。
 
-    只出 S/A/B：importance < 2 的低重要性知识点不进入本次清单
-    （无老师语境下按目录全量复习，importance≥2 的普通知识点也出卡；
-    分位后不再丢弃，全部保留为 B 低优先，避免目录有而清单漏）。
+    只出 S/A/B：importance < 2 的低重要性知识点不进入候选池；
+    候选池按统一分位定档，最后 20% 直接 DROP。
     """
     points = flatten_points(catalog)
     activated: list[dict[str, Any]] = []
@@ -345,24 +344,8 @@ def activate_from_catalog(catalog: dict[str, Any] | None) -> list[dict[str, Any]
         row["_light"] = False
         row["_score"] = _raw_score(row)
         activated.append(row)
-    # 分位定档：前 20%→S、20-60%→A、60-90%→B、后 10%→DROP
-    _quantile_assign(activated, allow_c=False)
-    # DROP 不丢卡：importance≥4 或 rw≥0.6 提到 B（长期重要性不因分层消失），
-    # 其余也保留为 B（低优先），保证目录有而清单不漏
-    for row in activated:
-        if row["session_priority"] == "DROP":
-            if _rank(row.get("importance")) >= 4 or _review_weight(row) >= 0.6:
-                row["session_priority"] = "B"
-            else:
-                row["session_priority"] = "B"
-    _cap_priorities(
-        activated,
-        s_max=10,
-        a_max=10,
-        b_max=10,
-        allow_c=False,
-        drop_b=False,  # 无老师重点：S/A 超限降档，B 超限保留（低优先），不丢卡
-    )
+    _quantile_assign(activated)
+    activated = [row for row in activated if row.get("session_priority") != "DROP"]
     activated.sort(
         key=lambda p: (
             {"S": 0, "A": 1, "B": 2, "C": 3}.get(p.get("session_priority"), 9),
@@ -423,54 +406,8 @@ def activate_points(catalog: dict[str, Any] | None, teacher: str) -> list[dict[s
         row["_score"] = _raw_score(row)
         activated.append(row)
 
-    # 分位定档：前 20%→S、20-60%→A、60-90%→B、后 10%→C（补充表）
-    _quantile_assign(activated, allow_c=True)
-    # 硬约束：
-    # 1) 被点名（_mentioned）→ 不低于 B（轻提也不落补充表，老师点过=本次相关）
-    # 2) importance≥5 且老师原话含强词（必考等）→ 强制 S（明显核心不被分位挤掉）
-    for row in activated:
-        if not row.get("_mentioned"):
-            continue
-        if row["session_priority"] == "C":
-            row["session_priority"] = "B"
-        blob = "".join(row.get("session_quotes") or [])
-        if _rank(row.get("importance")) >= 5 and any(
-            mark in blob for mark in _STRONG
-        ):
-            row["session_priority"] = "S"
-    selected_ids = {_clean(p.get("id")) for p in activated}
-    extra: list[dict[str, Any]] = []
-    for row in list(activated):
-        if row.get("session_priority") not in {"S", "A"}:
-            continue
-        for name in _as_list(row.get("prerequisites")):
-            prereq = _find_by_name(points, name)
-            if not prereq or _clean(prereq.get("id")) in selected_ids:
-                continue
-            add = dict(prereq)
-            add["session_emphasis"] = "0"
-            add["session_focus_items"] = []
-            add["session_exam_signal"] = "none"
-            add["session_error_signal"] = ""
-            add["session_difficulty_signal"] = ""
-            add["session_related_points"] = []
-            add["session_quotes"] = []
-            add["session_practice_count"] = ""
-            add["session_special_requirement"] = ""
-            add["_light"] = False
-            add["_prereq_of"] = _clean(row.get("name"))
-            add["_score"] = _raw_score(add) + 8
-            add["session_priority"] = "B"
-            extra.append(add)
-            selected_ids.add(_clean(add.get("id")))
-    activated.extend(extra)
-    _cap_priorities(
-        activated,
-        s_max=10,
-        a_max=10,
-        b_max=10,
-        allow_c=True,  # 有老师重点：S/A 超限降档，B 超 10 降 C 作为补充
-    )
+    _quantile_assign(activated)
+    activated = [row for row in activated if row.get("session_priority") != "DROP"]
     _attach_session_practice(activated, teacher)
     activated.sort(key=lambda p: ({"S": 0, "A": 1, "B": 2, "C": 3}.get(p.get("session_priority"), 9), -p.get("_score", 0)))
     return activated
@@ -495,16 +432,6 @@ def _related_in_hits(
     return found
 
 
-def _find_by_name(points: list[dict[str, Any]], name: str) -> dict[str, Any] | None:
-    want = _compact(name)
-    for point in points:
-        if _compact(point.get("name")) == want:
-            return point
-        if want in {_compact(a) for a in _as_list(point.get("aliases"))}:
-            return point
-    return None
-
-
 def _review_weight(point: dict[str, Any]) -> float:
     """目录程序计算的复习权重(0-1);缺失取 0。"""
     try:
@@ -523,7 +450,7 @@ def _activation_gate(point: dict[str, Any], *, floor: int = 3) -> bool:
 
 
 def _raw_score(point: dict[str, Any]) -> int:
-    """排序/封顶用分：importance 基础分 + review_weight 综合分 + 老师提到/强调 + 考试信号 + 缺项。"""
+    """排序用分：importance 基础分 + review_weight 综合分 + 老师提到/强调 + 考试信号 + 缺项。"""
     importance = int(str(point.get("importance") or 3) or 3)
     rw = round(_review_weight(point) * 6)
     hist = int(str(point.get("teacher_emphasis") or 0) or 0)
@@ -548,19 +475,18 @@ def _rank(value: Any, default: int = 3, lo: int = 1, hi: int = 5) -> int:
     return max(lo, min(hi, n))
 
 
-def _quantile_assign(rows: list[dict[str, Any]], *, allow_c: bool) -> None:
-    """按综合分 _score 分位定档：前 20%→S、20-60%→A、60-90%→B、后 10%→C/DROP。
+def _quantile_assign(rows: list[dict[str, Any]]) -> None:
+    """按综合分 _score 分位定档：前 20%→S、20-50%→A、50-80%→B、后 20%→DROP。
 
     - 边界同分并档（不拆散同分组，切点向后拉到同分区间末尾）
-    - 少于 5 个点退化：最高分→S、次高→A、其余→B（小目录也分层）
-    - allow_c=True（有老师）：后 10% 记 C（补充表）；否则记 DROP（调用方过滤）
+    - 少于 5 个点退化：最高分→S、次高→A、第三名→B、其余→DROP
     就地改 row["session_priority"]。
     """
     n = len(rows)
     srt = sorted(rows, key=lambda r: -int(r.get("_score") or 0))
     if n < 5:
         for i, r in enumerate(srt):
-            r["session_priority"] = "S" if i == 0 else "A" if i == 1 else "B"
+            r["session_priority"] = "S" if i == 0 else "A" if i == 1 else "B" if i == 2 else "DROP"
         return
 
     def cut(frac: float) -> int:
@@ -575,8 +501,8 @@ def _quantile_assign(rows: list[dict[str, Any]], *, allow_c: bool) -> None:
         return idx
 
     s_end = cut(0.20)
-    a_end = cut(0.60)
-    b_end = cut(0.90)
+    a_end = cut(0.50)
+    b_end = cut(0.80)
     for i, r in enumerate(srt):
         if i < s_end:
             r["session_priority"] = "S"
@@ -585,59 +511,7 @@ def _quantile_assign(rows: list[dict[str, Any]], *, allow_c: bool) -> None:
         elif i < b_end:
             r["session_priority"] = "B"
         else:
-            r["session_priority"] = "C" if allow_c else "DROP"
-
-
-def _cap_priorities(
-    rows: list[dict[str, Any]],
-    *,
-    s_max: int = 5,
-    a_max: int = 5,
-    b_max: int = 4,
-    allow_c: bool = True,
-    drop_b: bool = False,
-) -> None:
-    """档位人数封顶，多出来的按分数往下降，避免目录一碎清单就膨胀。
-
-    - allow_c=True（有老师重点）：B 超限降 C（老师轻点语义）
-    - allow_c=False 且 drop_b=True（无老师重点）：B 超限按分数直接丢弃
-      ——无老师语境下「补充」档没有语义，B 里分数最低的直接不进入清单。
-    """
-
-    def dedupe(grade: str, nxt: str) -> None:
-        pool = [row for row in rows if row.get("session_priority") == grade]
-        groups: dict[str, list[dict[str, Any]]] = {}
-        for row in pool:
-            groups.setdefault(_family_key(row), []).append(row)
-        for short in list(groups):
-            for long in list(groups):
-                if short != long and short in long and short in groups and long in groups:
-                    groups[short].extend(groups.pop(long))
-        for members in groups.values():
-            if len(members) < 2:
-                continue
-            members.sort(key=lambda row: -int(row.get("_score") or 0))
-            for row in members[1:]:
-                row["session_priority"] = nxt
-
-    def demote(grade: str, nxt: str, limit: int) -> None:
-        pool = [row for row in rows if row.get("session_priority") == grade]
-        pool.sort(key=lambda row: -int(row.get("_score") or 0))
-        for row in pool[limit:]:
-            row["session_priority"] = nxt
-
-    dedupe("S", "A")
-    demote("S", "A", s_max)
-    dedupe("A", "B")
-    demote("A", "B", a_max)
-    if allow_c:
-        dedupe("B", "C")
-        demote("B", "C", b_max)
-    elif drop_b:
-        pool = [row for row in rows if row.get("session_priority") == "B"]
-        pool.sort(key=lambda row: -int(row.get("_score") or 0))
-        for row in pool[b_max:]:
-            rows.remove(row)
+            r["session_priority"] = "DROP"
 
 
 def _to_count(raw: str) -> str:
