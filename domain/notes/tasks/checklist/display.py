@@ -409,8 +409,18 @@ def build_checklist_markdown(draft: dict[str, Any], *, has_teacher: bool | None 
             )
     outline = draft.get("mindmap_outline") or build_checklist_mindmap_outline(draft, cards)
     lines.extend(["", "### 1. 思维导图", "", outline, "", "### 2. 考点知识图谱", ""])
-    for src, rel, dst in _edges(cards):
-        lines.append(f"- {src} —{rel}→ {dst}")
+    relations = list(_edges(cards))
+    if relations:
+        for src, rel, dst in relations:
+            lines.append(f"- {src} —{rel}→ {dst}")
+    else:
+        chapters = {_clean(c.get("chapter")) for c in cards if _clean(c.get("chapter"))}
+        topics = {_clean(c.get("topic")) for c in cards if _clean(c.get("topic"))}
+        lines.append(
+            f"- 结构骨架：{len(chapters)} 章 · {len(topics)} 主题 · {len(cards)} 个知识点"
+            "（关系边来自知识目录的 prerequisites / related_points，当前为空；"
+            "分层视图见 checklist.html）"
+        )
 
     lines.extend(["", "## 二、知识点", ""])
     for card in focus:
@@ -759,25 +769,160 @@ def _edges(cards: list[dict[str, Any]]) -> list[tuple[str, str, str]]:
     return edges
 
 
-def _graph_payload(cards: list[dict[str, Any]]) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+def _graph_payload(
+    cards: list[dict[str, Any]],
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+    """图谱数据（分层 + 分型边 + 度数/层级，零 LLM）。
+
+    设计要点（与"图的价值在关系、不在罗列"一致）：
+
+    - **层次用复合簇表达**：`章` → `主题` → `KP` 三层，节点带 ``parent``（cytoscape 复合节点），
+      层次不占视觉线；概览视图只显示簇，点开主题才展开 KP。
+    - **边分三型**：`语义边`（catalog 的 prerequisites/related_points/session_related_points）、
+      `结构边`（同主题相邻 KP、章内相邻主题代表 KP —— **由本函数就地推导**，所以老目录
+      （关系为空）也能得到一张有骨架的图，不必等重跑）、`共现边`（P6 术语共现，默认淡显）。
+    - **度数/层级**：`degree` 与 ``tier``（hub / normal / leaf）由程序算，供前端决定默认可见性与折叠，
+      不新增模型字段。
+    """
     nodes: list[dict[str, Any]] = []
-    for card in cards:
+    edges: list[dict[str, Any]] = []
+    seen_edges: set[tuple[str, str, str]] = set()
+
+    def add_edge(src: str, dst: str, etype: str, label: str, evidence: str = "") -> None:
+        if not src or not dst or src == dst:
+            return
+        key = (src, etype, dst)
+        if key in seen_edges:
+            return
+        seen_edges.add(key)
+        edges.append(
+            {"source": src, "target": dst, "type": etype, "label": label, "evidence": evidence}
+        )
+
+    def short_label(card: dict[str, Any]) -> str:
+        raw = _clean(card.get("short_label"))
+        name = _clean(card.get("name"))
+        if raw:
+            return raw
+        return name if len(name) <= 14 else name[:13] + "…"
+
+    chapter_ids: dict[str, str] = {}
+    topic_ids: dict[str, str] = {}
+    kp_ids: dict[str, str] = {}
+    topic_members: dict[str, list[str]] = {}
+    for index, card in enumerate(cards, start=1):
         name = _clean(card.get("name"))
         if not name:
             continue
+        chapter = _clean(card.get("chapter")) or "未分组"
+        topic = _clean(card.get("topic")) or chapter
+        ch_key = f"ch:{chapter}"
+        tp_key = f"tp:{chapter}/{topic}"
+        if ch_key not in chapter_ids:
+            chapter_ids[ch_key] = f"cluster-ch-{len(chapter_ids) + 1}"
+            nodes.append(
+                {
+                    "id": chapter_ids[ch_key],
+                    "name": chapter,
+                    "kind": "chapter",
+                    "parent": "",
+                }
+            )
+        if tp_key not in topic_ids:
+            topic_ids[tp_key] = f"cluster-tp-{len(topic_ids) + 1}"
+            nodes.append(
+                {
+                    "id": topic_ids[tp_key],
+                    "name": topic,
+                    "kind": "topic",
+                    "parent": chapter_ids[ch_key],
+                }
+            )
+            topic_members[tp_key] = []
+        node_id = f"kp-{index}"
+        kp_ids[name] = node_id
+        topic_members[tp_key].append(node_id)
         facts = _as_list(card.get("key_facts")) or _as_list(card.get("knowledge_items"))
-        definition = _clean(card.get("explain")) or "；".join(facts[:4])
         nodes.append(
             {
+                "id": node_id,
                 "name": name,
-                "section": _clean(card.get("topic")) or _grade_label(card),
-                "definition": definition[:280],
+                "label": short_label(card),
+                "kind": "kp",
+                "parent": topic_ids[tp_key],
+                "grade": str(card.get("session_priority") or "B"),
+                "importance": str(card.get("importance") or ""),
+                "kp_id": _clean(card.get("id")),
+                "topic": topic,
+                "chapter": chapter,
+                "definition": (_clean(card.get("explain")) or "；".join(facts[:4]))[:280],
+                "facts": facts[:3],
+                "pitfalls": _as_list(card.get("pitfalls"))[:2],
             }
         )
-    edges = [
-        {"source": src, "target": dst, "relation": rel}
-        for src, rel, dst in _edges(cards)
-    ]
+
+    # ① 语义边（目录给的关系；老目录为空时自然没有）
+    for card in cards:
+        name = _clean(card.get("name"))
+        src = kp_ids.get(name)
+        if not src:
+            continue
+        for pre in _as_list(card.get("prerequisites")):
+            add_edge(kp_ids.get(_clean(pre), ""), src, "prerequisite", "前置")
+        for rel in card.get("related_points") or []:
+            if not isinstance(rel, dict):
+                continue
+            dst = kp_ids.get(_clean(rel.get("name")))
+            if not dst:
+                continue
+            relation = str(rel.get("relation") or "")
+            etype = "cooccur" if str(rel.get("via") or "") == "cooccurrence" else "related"
+            add_edge(src, dst, etype, _REL.get(relation, "关联"),
+                     _clean(rel.get("evidence")))
+        for dst_name in _as_list(card.get("session_related_points")):
+            dst = kp_ids.get(_clean(dst_name))
+            if dst:
+                add_edge(src, dst, "related", "组合")
+
+    # ② 结构边（就地推导，不依赖重跑）：同主题相邻 KP + 章内相邻主题代表 KP
+    for member_ids in topic_members.values():
+        for left, right in zip(member_ids, member_ids[1:]):
+            add_edge(left, right, "same_topic", "同节")
+    topic_order: list[str] = []
+    for key in topic_ids:
+        if key not in topic_order:
+            topic_order.append(key)
+    by_chapter: dict[str, list[str]] = {}
+    for key in topic_order:
+        chapter = key.split("/", 1)[0]
+        by_chapter.setdefault(chapter, []).append(key)
+    for keys in by_chapter.values():
+        reps = [
+            topic_members[key][0] for key in keys if topic_members.get(key)
+        ]
+        for left, right in zip(reps, reps[1:]):
+            add_edge(left, right, "order", "顺序")
+
+    # ③ 度数 / 层级（前端据此决定默认可见性与折叠）
+    degree: dict[str, int] = {str(node["id"]): 0 for node in nodes}
+    for edge in edges:
+        degree[edge["source"]] = degree.get(edge["source"], 0) + 1
+        degree[edge["target"]] = degree.get(edge["target"], 0) + 1
+    for node in nodes:
+        if node.get("kind") != "kp":
+            continue
+        deg = degree.get(str(node["id"]), 0)
+        try:
+            importance = int(str(node.get("importance") or "0") or "0")
+        except (TypeError, ValueError):
+            importance = 0
+        node["degree"] = deg
+        node["tier"] = "hub" if (deg >= 3 or importance >= 4) else ("leaf" if deg == 0 else "normal")
+    for node in nodes:
+        if node.get("kind") in {"chapter", "topic"}:
+            node["count"] = sum(
+                1 for child in nodes if child.get("parent") == node["id"]
+            )
     return nodes, edges
 
 
@@ -1163,9 +1308,10 @@ def _card_html(card: dict[str, Any], card_idx: int = 1) -> str:
     prio_cites = _cite_tags(field_to_evs.get("priority", []))
 
     name = escape(_clean(card.get("name")), quote=False)
+    card_anchor = escape(_clean(card.get("id")), quote=True)
 
     left = [
-        f'<div class="ck-card {card_theme_class}">',
+        f'<div class="ck-card {card_theme_class}" id="ck-card-{card_anchor}">',
         '<div class="ck-card-header">',
         f'<span class="ck-badge {badge}">{escape(_grade_label(card), quote=False)}</span>',
         f'<span class="ck-stars">{importance_stars(card)}</span> ',
@@ -1399,7 +1545,8 @@ def _trace_script() -> str:
 
 
 def build_checklist_html(draft: dict[str, Any], *, has_teacher: bool | None = None) -> str:
-    from tools.exports.knowledge_graph import _CYTOSCAPE_CDN, build_graph_embed
+    from tools.exports.checklist_graph import build_checklist_graph_embed
+    from tools.exports.knowledge_graph import _CYTOSCAPE_CDN
     from tools.exports.mindmap import _D3_CDN, _MARKMAP_VIEW_CDN, build_editable_mindmap_embed
 
     course = _clean(draft.get("course")) or "复习清单"
@@ -1465,7 +1612,7 @@ def build_checklist_html(draft: dict[str, Any], *, has_teacher: bool | None = No
         body.append(build_editable_mindmap_embed(outline, title=f"{course} · 复习思维导图"))
         body.append("<h3>3. 考点知识图谱</h3>")
         if nodes:
-            body.append(build_graph_embed(nodes, edges, title="考点知识图谱"))
+            body.append(build_checklist_graph_embed(nodes, edges, title="考点知识图谱"))
         else:
             body.append("<p>本次激活点之间没有可画的关系图。</p>")
         body.append("<h2>二、知识点</h2>")
@@ -1475,8 +1622,9 @@ def build_checklist_html(draft: dict[str, Any], *, has_teacher: bool | None = No
             body.append('<div class="ck-brief"><h3>简要过一下</h3><ul>')
             for card in brief:
                 preview = _clean(card.get("exam_preview"))
+                anchor = escape(_clean(card.get("id")), quote=True)
                 body.append(
-                    "<li>"
+                    f'<li id="ck-card-{anchor}">'
                     f'<span class="ck-stars">{importance_stars(card)}</span> '
                     f"<strong>{escape(_clean(card.get('name')), quote=False)}</strong>"
                     f" {_math_escape(preview)}"
@@ -1495,8 +1643,9 @@ def build_checklist_html(draft: dict[str, Any], *, has_teacher: bool | None = No
                             f' <span style="color:#0047ab;font-size:0.8rem;">'
                             f"[溯源：{escape(src, quote=False)}]</span>"
                         )
+                anchor = escape(_clean(card.get("id")), quote=True)
                 body.append(
-                    "<li>"
+                    f'<li id="ck-card-{anchor}">'
                     f'<span class="ck-stars">{importance_stars(card)}</span> '
                     f"<strong>{escape(_clean(card.get('name')), quote=False)}</strong>"
                     f" {_math_escape(preview)}{kb_src}"

@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import asyncio
 import copy
+import re
 import json
 import os
 import sys
@@ -954,6 +955,79 @@ def test_catalog_taxonomy() -> None:
           "prompt 词表未同源")
 
 
+def test_checklist_graph_layers() -> None:
+    """图谱分层与交互（零 LLM）：三层复合簇、边分型、前端标记、**不丢内容**。
+
+    盯的是这次的真实状况：43 节点 / 0 边 / 43 孤立 / 力导向一次性铺满（用户看到的
+    "太杂太乱、全是分离的知识点"）。修法：层次用复合簇表达 + 结构边就地推导（不依赖重跑）
+    + 视图/过滤/搜索/就地展开 + 折叠只是"没画"（计数可见、随时可切全量）。
+    """
+    import collections
+
+    from domain.notes.tasks.checklist.display import _graph_payload
+
+    def card(index: int, name: str, chapter: str, topic: str, grade: str) -> dict:
+        return {
+            "id": f"kp_{index:03d}", "name": name, "chapter": chapter, "topic": topic,
+            "session_priority": grade, "importance": "3",
+            "key_facts": [f"{name}的要点"], "explain": f"{name}的定义与边界。",
+            "prerequisites": [f"点{index - 1}"] if 1 < index < 5 else [],
+            "related_points": [{"name": "点2", "relation": "used_with"}] if index == 1 else [],
+        }
+
+    cards = [
+        card(1, "点1", "章一", "主题甲", "S"),
+        card(2, "点2", "章一", "主题甲", "A"),
+        card(3, "点3", "章一", "主题乙", "B"),
+        card(4, "点4", "章二", "主题丙", "C"),
+        card(5, "点5", "章三", "主题丁", "B"),
+    ]
+    nodes, edges = _graph_payload(cards)
+    kinds = collections.Counter(n["kind"] for n in nodes)
+    check("图谱三层：章 / 主题 / 知识点",
+          kinds["chapter"] == 3 and kinds["topic"] == 4 and kinds["kp"] == len(cards),
+          f"kinds={dict(kinds)}")
+    kps = [n for n in nodes if n["kind"] == "kp"]
+    check("每个知识点都挂在主题簇下（复合簇覆盖 100%）",
+          all(n.get("parent") for n in kps)
+          and all(str(n["parent"]).startswith("cluster-tp-") for n in kps),
+          f"parents={[n.get('parent') for n in kps]}")
+    check("孤立知识点被标 leaf（供折叠/低调显示，不删除）",
+          any(n["tier"] == "leaf" for n in kps)
+          and all(n["kind"] == "kp" for n in nodes if n.get("tier")),
+          f"tiers={[n['tier'] for n in kps]}")
+    check("簇节点带子节点计数（概览视图的标签来源）",
+          all(n.get("count") for n in nodes if n["kind"] == "topic"),
+          f"counts={[n.get('count') for n in nodes if n['kind'] == 'topic']}")
+    types = collections.Counter(e["type"] for e in edges)
+    check("边分型：语义边 + 结构边（结构边就地推导，老目录也有骨架）",
+          types["prerequisite"] >= 1 and types["related"] >= 1
+          and types["same_topic"] >= 1 and types["order"] >= 1,
+          f"types={dict(types)}")
+    check("度数/层级由程序算（供默认可见性与折叠）",
+          all("degree" in n and n["tier"] in {"hub", "normal", "leaf"} for n in kps)
+          and any(n["tier"] == "leaf" for n in kps),
+          f"tiers={[n['tier'] for n in kps]}")
+    check("节点带卡片锚点（侧栏可跳回清单）",
+          all(n.get("kp_id") for n in kps), f"kp_ids={[n.get('kp_id') for n in kps]}")
+
+    from domain.notes.tasks.checklist.display import build_checklist_html
+
+    html = build_checklist_html({"course": "测试", "cards": cards}, has_teacher=False)
+    for marker in ("lc-kg-views", "lc-kg-grades", "lc-kg-search", "lc-kg-count",
+                   "lc-kg-structure", "lc-kg-state-v1", "breadthfirst", "在清单中定位"):
+        check(f"图谱组件含 {marker}", marker in html, "缺少该标记")
+    anchors = set(re.findall(r'id="ck-card-([^"]*)"', html))
+    named = {str(c["id"]) for c in cards if str(c["name"]) in html}
+    check("**不丢内容**：每张卡片都能定位（卡片锚点，或至少在导航表里可见）",
+          {str(c["id"]) for c in cards} <= (anchors | named),
+          f"锚点={sorted(anchors)} 导航表可见={sorted(named - anchors)}")
+    check("渲染成卡片的（核心/重点/简要）全部带锚点",
+          {str(c["id"]) for c in cards if str(c.get("session_priority")) in {"S", "A", "B"}}
+          <= anchors,
+          f"锚点={sorted(anchors)}")
+
+
 async def test_checklist_batching() -> None:
     """D1/D2/D3（零 LLM）：切批并行、动态输出预算、字段预算按档位。
 
@@ -1588,6 +1662,7 @@ async def main() -> int:
     test_catalog_content_check()
     test_catalog_relations_and_grade_spread()
     await test_checklist_batching()
+    test_checklist_graph_layers()
     test_catalog_taxonomy()
     test_heading_number_rules()
     test_complement_respects_skeleton()
