@@ -1,6 +1,18 @@
 """catalog —— 知识目录生成 prompt。"""
 from __future__ import annotations
 
+from .taxonomy import item_marks, title_marks
+
+
+def _marks_text(marks: tuple[str, ...], limit: int = 8) -> str:
+    """把可配置的类别词表渲染成 prompt 里的说明（与程序判定同源，避免两处漂移）。"""
+    picked = list(marks[:limit])
+    return "、".join(picked) if picked else "（未配置）"
+
+
+_ITEM_MARKS_TEXT = _marks_text(item_marks())
+_TITLE_MARKS_TEXT = _marks_text(title_marks(), limit=6)
+
 
 CATALOG_GENERATION_SYSTEM_PROMPT = """你是「知识目录 Agent」。根据原文骨架、候选目录标题、老师划重点、学生笔记，生成统一的课程知识目录。
 
@@ -34,7 +46,7 @@ Course → Chapter → Topic → Knowledge Point → Knowledge Item
   不许按重要性/分数/主题聚类重排。用户在笔记里先看到的内容，必须在目录里先出现。
 - **不许新增**骨架里没有的主题/知识点（章可以新增，用来分组主题，名字自取）。
 - **骨架里某个 T 下没有 P**：必须为该主题补一个 KP（名字从正文提炼），保证每主题 ≥1 个 KP。
-- **细碎内容**（例题/易错/小结/注意/步骤/题型/适用条件/变量说明…）不进层级，
+- **细碎/辅助性内容**（{item} 等类别，见下方【内容类别】）不进层级，
   收进所属节点的 knowledge_items；正文骨架里的这些段落可以整理成 items。
 
 **没有骨架时**（老数据或原文不可读）按候选池建树，规则如下：
@@ -47,8 +59,8 @@ Course → Chapter → Topic → Knowledge Point → Knowledge Item
 - **KP 准入**：该主题下 ≥2 条独立要点才建 KP；仅 1 条 → 并入该主题的 knowledge_items。
 - **importance 校准**：由证据量决定——该 KP 可覆盖 items ≥3 或公式/定理密集 → 4-5；
   items ≥2 → 3；仅 1 条 → 2；纯占位 → 1。difficulty 按内容难度独立判断。
-- **强制降级为 Item**：适用条件、成立条件、边界条件、变量含义、符号说明、常见变形、
-  计算技巧、判断步骤、证明步骤、例题、题型、易错、注意、误区、陷阱、小结、总结。
+- **强制降级为 Item**：该节的辅助性内容（条件与变量说明、推论/证明步骤，
+  以及【内容类别】里列出的那些类别）—— 两侧同一份可配置词表。
 - **禁止占位凑层级**：chapter.name 不得与 topic.name 完全相同，topic.name 不得与其唯一
   knowledge_point.name 完全相同；若真实资料只有一层标题，优先把它作为 KP 或 Topic，
   不要复制成章-节-点。
@@ -90,17 +102,30 @@ teacher_focus_items / note_covered_items。
 ## 六、边界
 
 - **不编造**：章/KP 必须能在候选或原文找到出处；没把握 → unmatched_content / uncertain_nodes。
-- **不升格**：例题 / 提醒 / 使用条件 / 题型变体 / 小节标题 → 挂进父 KP 的 knowledge_items，不新建 KP。
+- **不升格**：辅助性内容（{item} 等类别）/ 小节标题 → 挂进父 KP 的 knowledge_items，不新建 KP。
 - **不写别的**：不输出复习建议 / 讲解 / 考法 / 策略正文 / 整段讲义；knowledge_items 写短名；
   不写入本次做多少题、考试时间、临时复习安排（那些属复习清单 Session，不是目录长期属性）。
 - **增量不动旧**（incremental 时）：复用旧 ID 只补差异；不得因新增章节改写未受影响旧章。
 
-## 七、反模式（出现即不合格）
+## 七、内容类别（程序与 prompt 同源的可配置词表）
+
+- **辅助性内容**（不进层级、只作 items）：{item}
+- **知识标题形态**（可作 KP）：{title}
+  两侧判定由 `catalog/taxonomy.py` 统一提供，可用 `.env` 的 `CATALOG_ITEM_MARKS` /
+  `CATALOG_TITLE_MARKS` 按学科覆盖；词表只影响"降级与计数"，不影响章/主题/知识点的结构与顺序。
+
+## 八、反模式（出现即不合格）
 
 - chapters 全空
 - 大量例题 / 提醒 / 使用条件 / 综合题 / 高频考点写成独立 KP
 - 明显同义知识点未合并
 - 层级乱到无法当目录用 / 大量 KP 缺 id / knowledge_type / knowledge_items"""
+
+
+# 占位符用同源词表填充（prompt 里含 JSON 花括号，故用 replace 而非 f-string）
+CATALOG_GENERATION_SYSTEM_PROMPT = CATALOG_GENERATION_SYSTEM_PROMPT.replace(
+    "{item}", _ITEM_MARKS_TEXT
+).replace("{title}", _TITLE_MARKS_TEXT)
 
 
 CATALOG_SUPERVISOR_DOMAIN_PROMPT = """## 领域审核规则：知识目录

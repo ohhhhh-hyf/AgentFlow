@@ -183,7 +183,7 @@ def _reorder_by_source_order(catalog: dict, position: dict[str, int]) -> dict:
 
     def chapter_pos(chapter: dict) -> int:
         # 章的位置取"其下最早节点"，不看章名：章名常直接取自某个主题
-        # （如"一维谐振子"），用章名查会把整章拉到那个主题的位置，破坏整体单调。
+        # （章名常取自其下某个主题），用章名查会把整章拉到那个主题的位置，破坏整体单调。
         values = [
             topic_pos(t)
             for t in (chapter.get("topics") or [])

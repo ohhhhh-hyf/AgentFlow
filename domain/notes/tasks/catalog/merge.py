@@ -6,6 +6,7 @@ from datetime import datetime, timezone
 from typing import Any
 
 from .gather import strip_heading_prefix
+from .taxonomy import fine_grain_re, fine_suffix_marks, is_placeholder_name
 
 _COVERAGE_RANK = {"none": 0, "mentioned": 1, "partial": 2, "detailed": 3}
 _EXAM_RANK = {"none": 0, "weak": 1, "medium": 2, "strong": 3}
@@ -656,18 +657,16 @@ def normalize_catalog_enums(catalog: dict[str, Any]) -> dict[str, Any]:
     return compact_catalog_granularity(out)
 
 
-_FINE_GRAIN_RE = re.compile(
-    r"(使用条件|适用条件|成立条件|边界条件|限制条件|条件检查|"
-    r"常见变形|变形技巧|计算技巧|替换规则|判断步骤|判断流程|证明步骤|"
-    r"例题|典型例子|题型|选择题|填空题|计算题|证明题|综合题|"
-    r"注意|易错|误区|陷阱|提醒|小结|总结|变量含义|符号说明)"
-)
+_FINE_GRAIN_RE = fine_grain_re()
 _GENERIC_TOPIC_NAMES = {
-    "核心概念",
-    "核心知识点",
-    "知识概要",
-    "补充知识点",
-    "其他",
+    # 占位名的**判定**在 taxonomy（形态正则，可配置）；这里只是"改名时的候选容器名"
+    # 里属于占位形态的那些，保持形状判定与命名一致
+    name
+    for name in (
+        "核心概念", "核心知识点", "知识概要", "补充知识点", "其他",
+        "要点", "知识内容", "主要内容",
+    )
+    if is_placeholder_name(name)
 }
 def _norm_name(text: object) -> str:
     blob = re.sub(r"[\s:：,，。；;、（）()\[\]【】《》“”\"'·\-—_]+", "", str(text or "").lower())
@@ -689,7 +688,7 @@ def _base_of_fine_point(name: str) -> str:
             head, tail = text.split(sep, 1)
             if head and _FINE_GRAIN_RE.search(tail):
                 return head
-    for mark in ("使用条件", "适用条件", "成立条件", "常见变形", "计算技巧", "例题", "易错", "注意"):
+    for mark in fine_suffix_marks():
         if text.endswith(mark) and len(text) > len(mark) + 1:
             return text[: -len(mark)]
     return ""

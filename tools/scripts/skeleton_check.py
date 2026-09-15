@@ -42,43 +42,66 @@ def skeleton_for(user: str, subject: str) -> dict:
 
 
 def _draft_from_skel(skeleton: dict, *, skip_first: int, shuffle_points: bool) -> dict:
-    """按骨架造一份"模型输出"：可选丢掉开头 N 个主题、可选把 KP 顺序打乱。"""
+    """按骨架造一份"模型输出"：可丢掉开头 N 个**主题**（模拟漏建）、可打乱 KP 顺序。
+
+    P5 起骨架自带章（章来自原文），有章就沿用；无章时按每 3 个主题分一组模拟模型分组。
+    空主题按合同补 1 个 KP（名字用主题名，与结构修复器的回退口径一致）。
+    """
     chapters: list[dict] = []
-    chapter: dict | None = None
-    kp_no = 0
-    for idx, topic in enumerate(skeleton["topics"][skip_first:], start=1):
-        if chapter is None or idx % 3 == 1:
-            chapter = {
-                "id": f"ch_{len(chapters) + 1:03d}",
-                "name": f"分组{len(chapters) + 1}",
-                "topics": [],
-            }
-            chapters.append(chapter)
+    dropped = 0
+
+    def topic_node(topic: dict, chapter: dict) -> dict:
         points = list(topic.get("points") or [])
         if shuffle_points and len(points) > 1:
             points = points[::-1]
-        topic_node = {
+        node: dict = {
             "id": f"tp_{len(chapter['topics']) + 1:03d}",
             "name": topic["name"],
             "knowledge_points": [],
         }
         if not points:
-            # 主题没有子标题时模型自造一个 KP（合同要求"每主题 ≥1 个 KP"）
-            kp_no += 1
-            topic_node["knowledge_points"].append(
-                {"id": f"kp_{kp_no:03d}", "name": "核心知识点", "knowledge_points_items": []}
+            node["knowledge_points"].append(
+                {"id": "kp_001", "name": topic["name"], "knowledge_items": []}
             )
-        for point in points:
-            kp_no += 1
-            topic_node["knowledge_points"].append(
+        for idx, point in enumerate(points, start=1):
+            node["knowledge_points"].append(
                 {
-                    "id": f"kp_{kp_no:03d}",
+                    "id": f"kp_{idx:03d}",
                     "name": point["name"],
                     "knowledge_items": [],
                     "importance": "3",
                 }
             )
-        chapter["topics"].append(topic_node)
+        return node
+
+    if skeleton.get("chapters"):
+        for chapter in skeleton["chapters"]:
+            node = {
+                "id": f"ch_{len(chapters) + 1:03d}",
+                "name": chapter["name"],
+                "topics": [],
+            }
+            for topic in chapter.get("topics") or []:
+                if dropped < skip_first:
+                    dropped += 1
+                    continue
+                node["topics"].append(topic_node(topic, node))
+            chapters.append(node)
+        return {"course": "wuli", "chapters": chapters}
+
+    current: dict | None = None
+    for idx, topic in enumerate(skeleton["topics"], start=1):
+        if dropped < skip_first:
+            dropped += 1
+            continue
+        if current is None or (idx - skip_first) % 3 == 1:
+            current = {
+                "id": f"ch_{len(chapters) + 1:03d}",
+                "name": f"分组{len(chapters) + 1}",
+                "topics": [],
+            }
+            chapters.append(current)
+        current["topics"].append(topic_node(topic, current))
     return {"course": "wuli", "chapters": chapters}
 
 

@@ -30,23 +30,23 @@ _MIDDLE_TITLES_PER_PAGE = 5
 _DETAIL_POOL_LIMIT = 80
 _DETAIL_POOL_PER_FILE = 24
 _DETAIL_POOL_PER_PAGE = 6
-_TITLE_KEYWORDS = ("定义", "性质", "定理", "规则", "方法", "公式", "例题", "易错", "注意", "总结", "步骤")
-_ITEM_ONLY_KEYWORDS = ("例题", "易错", "注意", "总结", "步骤", "题型", "技巧", "提醒", "小结")
-_BODY_LIKE_ENDINGS = ("。", "；", ";", ".", "！", "？", "!", "?")
-# 页框/署名/联系信息形态（全部为跨语料的功能形态，无具体机构名/地名）：
-# - 联系与出版信息：tel、电话、印刷
-# - 网址
-# - 页码/页框：第X页、page N、独立「页」
-# - 机构类别后缀（锚定结尾）：…大学/学院/学校/研究院/研究所、university 等
-#   （机构署名行以类别后缀收尾是结构特征，不是具体机构名单）
-_NOISE_TITLE_RE = re.compile(
-    r"(tel[:：]|电话|印刷|https?://|www\.|\.com\b"
-    r"|第\s*\d+\s*页|page\s*\d+|^\s*页\s*$"
-    r"|.{0,10}(?:大学|学院|学校|研究院|研究所)\s*$"
-    r"|(?:university|college|institute)\b)",
-    re.I,
+# 内容词表集中一处（catalog/taxonomy.py，可配置）；此处按旧用法取成模块常量，行为不变
+from .taxonomy import (
+    body_like_endings as _body_like_endings,
+    item_marks as _item_marks,
+    noise_short_titles as _noise_short_titles,
+    noise_title_re as _noise_title_re,
+    title_marks as _title_marks,
 )
-_NOISE_SHORT_TITLES = {"页", "目录"}
+
+_TITLE_KEYWORDS = _title_marks()
+_ITEM_ONLY_KEYWORDS = _item_marks()
+_BODY_LIKE_ENDINGS = _body_like_endings()
+_NOISE_SHORT_TITLES = _noise_short_titles()
+_NOISE_TITLE_RE = _noise_title_re()
+# 页框/署名/联系信息形态、短噪声标题、句末标点等都在 taxonomy.py 里集中定义：
+# - 联系与出版信息：tel、电话、印刷      - 网址
+# - 页码/页框：第X页、page N、独立「页」  - 机构类别后缀（…大学/学院/university 等，锚定结尾）
 _NUMBERED_TITLE_RE = re.compile(
     r"^(?:第[一二三四五六七八九十百零0-9]+[章节]|[一二三四五六七八九十]+、|\d+(?:\.\d+){0,3})"
 )
@@ -866,7 +866,7 @@ def _catalog_node_names(draft: dict[str, Any]) -> set[str]:
     """目录中**所有层级**节点名的归一化键（章/主题/KP）。
 
     覆盖判断用它：某个名字已经以任何层级出现在目录里就算"已覆盖"，
-    不该再补一个同名 KP（否则会出现"章 一维谐振子 / KP 一维谐振子"这类重复）。
+    不该再补一个同名 KP（否则会出现"章 X / KP X"这类同名重复）。
     """
     keys: set[str] = set()
     for chapter in draft.get("chapters") or []:
@@ -963,7 +963,7 @@ def _fillable_title(cand: dict[str, Any]) -> bool:
     """补缺候选：原文里的小节标题都算（含低分），只排除细碎条目/噪声/文件名退化项。
 
     以前这里要求 ``score >= 5 且 kind != evidence``，于是"标题层级浅"的整节
-    （如 OCR 合并稿里用 ### 写的 `一维束缚态`）既进不了 LLM 的骨架、也补不回来。
+    （如 OCR 合并稿里用三级标题写的某个节）既进不了 LLM 的骨架、也补不回来。
     """
     path = list(cand.get("path") or [])
     title = _clean_title(path[-1] if path else "")

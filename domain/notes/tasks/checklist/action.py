@@ -237,6 +237,7 @@ _SOURCE_LABELS = {
     "knowledge_items": "知识目录",
     "kb_excerpt": "知识库原文",
     "note_missing_items": "笔记缺项",
+    "prerequisites": "前置依赖",
     "risk_tags": "风险标签",
     "completion_criteria": "过关标准",
 }
@@ -421,6 +422,25 @@ def _critical_notes(cards: list[dict[str, Any]]) -> list[str]:
     return _uniq(notes, 2)
 
 
+def _floating_prerequisites(cards: list[dict[str, Any]], limit: int = 6) -> list[str]:
+    """S/A 卡依赖但未作为卡片出现的前置项，放进基础快速过关。"""
+    existing = {
+        _clean(card.get("name")).replace(" ", "")
+        for card in cards
+        if _clean(card.get("name"))
+    }
+    prereqs: list[str] = []
+    for card in cards:
+        if card.get("session_priority") not in {"S", "A"}:
+            continue
+        for item in _as_list(card.get("prerequisites")):
+            key = _clean(item).replace(" ", "")
+            if not key or key in existing:
+                continue
+            prereqs.append(item)
+    return _uniq(prereqs, limit)
+
+
 def _group_title(group: list[dict[str, Any]]) -> str:
     if len(group) == 1:
         return _clean(group[0].get("name"))
@@ -437,23 +457,25 @@ def _build_foundation(cards: list[dict[str, Any]]) -> dict[str, Any]:
         confirm.append(
             f"{label}：确认{'、'.join(items[:2])}" if items else f"{label}：能复述定义并说出一条限制"
         )
+    confirm.extend(f"前置确认：{item}" for item in _floating_prerequisites(cards))
+    quick_items = _uniq(confirm, 6)
     return {
         "goal": "后面核心内容会直接用到这些定义和前提，先快速确认，不必重学整章。",
-        "count": len(confirm),
+        "count": len(quick_items),
         "sections": [
             {
                 "type": "quick_check",
                 "title": "快速确认",
-                "items": _uniq(confirm, 6),
+                "items": quick_items,
                 "task_objects": [
                     _task(
                         "确认",
-                        item.split("：", 1)[0],
+                        item.split("：", 1)[1] if item.startswith("前置确认：") else item.split("：", 1)[0],
                         item.split("：", 1)[1] if "：" in item else "写出定义和一条限制条件",
-                        ["knowledge_items"],
+                        ["prerequisites"] if item.startswith("前置确认：") else ["knowledge_items"],
                         "后续核心题里用到时不用回头翻资料",
                     )
-                    for item in _uniq(confirm, 6)
+                    for item in quick_items
                 ],
             },
             {
@@ -462,7 +484,7 @@ def _build_foundation(cards: list[dict[str, Any]]) -> dict[str, Any]:
                 "items": ["能开口复述这些定义", "能指出一条后续会用到的限制条件"],
             },
         ]
-        if confirm
+        if quick_items
         else [],
     }
 

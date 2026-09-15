@@ -111,7 +111,7 @@
 | `catalog` | 其它扩展名按资料处理（图片先 OCR）；**`.txt` 视为「老师重点」文本**（不 OCR，直接作为老师重点注入） |
 | `checklist` | **必须是**：一个 `.json`（catalog 的知识目录文件，取 catalog 响应 `data.file_name`）+ 可选一个老师重点 `.txt`；其它扩展名返回 400 |
 
-**`catalog` 的结构保证（P2）**：目录的**主题/知识点与顺序来自已入库合并稿解析出的"有序骨架"**，
+**`catalog` 的结构保证（P2 / P5）**：目录的**章/主题/知识点与顺序来自已入库合并稿按标题层级解析出的三级骨架**（合并稿是三级结构时：一级标题→章、二级→主题、三级→知识点；只有两级时章由模型按语义分组），
 不是模型自由发明——所以有两条可验收的硬指标：
 
 - **覆盖**：合并稿里每个小节（页块内最浅标题 = 主题，更深 = 知识点）都会出现在目录里；
@@ -125,7 +125,7 @@
 
 **目录体检指标在响应里**：catalog 的 `monitor.catalog` 会给出 `coverage`（覆盖率）、
 `order_violations`（同级乱序处数）、`restored`（模型漏掉、程序按骨架补回的节点数）、
-`llm_added`（模型新增的骨架外节点）、`generic_nodes`（占位名节点，如“核心知识点”，应为 0）、`skeleton_kind`（骨架来源：`md` 原文 / `metadata` 知识库还原）、`fake_heading_chunks`（可疑标题块的回归哨兵）、`misplaced_nodes`（整节串门）、`unverified_items`
+`llm_added`（模型新增的骨架外节点）、`generic_nodes`（占位名节点，如“核心知识点”，应为 0）、`skeleton_kind`（骨架来源：`md` 原文 / `metadata` 知识库还原）、`fake_heading_chunks`（可疑标题块的回归哨兵）、`max_kp_per_topic`（单主题 KP 数上限，>5 需检查层级是否被压平）、`misplaced_nodes`（整节串门）、`unverified_items`
 （长条目像引用却全篇找不到依据）。`restored` 偏高说明这轮模型不听话（可重跑或换模型）；
 `misplaced/unverified` 偏高说明内容有风险。它们只报告、不删改目录内容。
 

@@ -752,12 +752,16 @@ _SKELETON_MD = """<!-- ocr-pages: 1-2 -->
 
 ## 概率密度角度分布与径向分布
 
+### 径向分布函数
+
+只与 r 有关，$P(r)dr = |R_{nl}(r)|^2 r^2 dr$ 表示半径 r 处厚度 dr 球壳内的概率。
+
 概率密度角度分布由球谐函数决定，径向分布由拉盖尔多项式决定。
 """
 
 
 def test_skeleton_parse_and_contract() -> None:
-    """不需要 OCR / 模型 / 知识库：md → 有序骨架（顺序、覆盖、粒度、续页、细碎标题）。"""
+    """不需要 OCR / 模型 / 知识库：md → 三级骨架（层级映射、修补四规则、顺序、契约）。"""
     from domain.notes.tasks.catalog.skeleton import (
         is_item_heading,
         parse_md_skeleton,
@@ -766,40 +770,70 @@ def test_skeleton_parse_and_contract() -> None:
     )
 
     skeleton = parse_md_skeleton(_SKELETON_MD, source="ocr_selftest.md")
-    topics = skeleton["topics"]
-    names = [t["name"] for t in topics]
-    check("骨架主题 = 各区域最浅标题（页块内相对层级）",
-          names == ["一维束缚态", "一维半无限深方势阱", "氢原子"],
-          f"topics={names}")
-    check("续页标题并入同名主题（不产生第二个节点）",
-          names.count("一维束缚态") == 1
-          and "分离变量" in topics[0]["body"],
-          f"names={names} body={topics[0]['body'][:24]!r}")
-    check("区域内的更深标题 = 知识点，按原文顺序",
-          [p["name"] for p in topics[0]["points"]] == ["补充：坐标系变换"],
-          f"points={[p['name'] for p in topics[0]['points']]}")
+    stats = skeleton["stats"]
+    chapters = [c["name"] for c in skeleton["chapters"]]
+    check("按文件层级数归一：三级文件 → 出章（span=3）",
+          stats["span"] == 3 and stats["levels"] == [1, 2, 3],
+          f"span={stats['span']} levels={stats['levels']}")
+    check("章 = 原文一级/最浅级标题（按原文顺序）",
+          chapters == ["一维束缚态", "一维半无限深方势阱", "氢原子"],
+          f"chapters={chapters}")
+    check("续页标题并入同名节点（修补①）",
+          "一维束缚态（续）" not in chapters
+          and any("分离变量" in str(c.get("body") or "") for c in skeleton["chapters"]),
+          f"chapters={chapters}")
+    chapter_topics = {
+        c["name"]: [t["name"] for t in c.get("topics") or []] for c in skeleton["chapters"]
+    }
+    check("二级标题 = 主题、挂在所属章下（层级映射）",
+          chapter_topics.get("一维束缚态") == ["补充：坐标系变换"]
+          and chapter_topics.get("氢原子") == ["概率密度角度分布与径向分布"],
+          f"chapter_topics={chapter_topics}")
+    check("名字去序号/尾部标点（修补④）",
+          all("例题" not in n for n in sum(chapter_topics.values(), [])),
+          f"names={sum(chapter_topics.values(), [])}")
+    spans = [c["page_span"] for c in skeleton["chapters"]]
     check("页块标记写进 page/page_span",
-          topics[0]["page_span"] == "1-2" and topics[2]["page_span"] == "5-8",
-          f"span={[t['page_span'] for t in topics]}")
-    orders = [t["order"] for t in topics]
-    check("order 严格递增（文件序 → 页序 → 节序）", orders == sorted(orders) and len(set(orders)) == len(orders),
-          f"orders={orders}")
-    check("细碎标题（例题）不建节点，其正文并入父节点",
-          is_item_heading("例题 1") and all("例题" not in t["name"] for t in topics)
-          and "梯度算子" in topics[0]["points"][0]["body"],
-          f"points={[p['name'] for p in topics[0]['points']]}")
-    check("骨架里主题正文可读（紧接子标题的主题正文为空，属正常）",
-          bool(topics[0]["body"]) and bool(topics[1]["body"]),
-          f"bodies={[len(t['body']) for t in topics]}")
+          spans[0] == "1-2" and spans[-1] == "5-8", f"span={spans}")
+    orders = [c["order"] for c in skeleton["chapters"]]
+    check("order 严格递增（文件序 → 页序 → 节序）",
+          orders == sorted(orders) and len(set(orders)) == len(orders), f"orders={orders}")
+    probe = next(
+        (t for c in skeleton["chapters"] for t in c.get("topics") or []
+         if t["name"] == "补充：坐标系变换"),
+        None,
+    )
+    points = [p["name"] for p in (probe or {}).get("points") or []]
+    check("细碎标题（例题）不建节点，其正文并入父节点正文",
+          is_item_heading("例题 1") and points == []
+          and "梯度算子" in str((probe or {}).get("body") or ""),
+          f"points={points} body={str((probe or {}).get('body'))[:26]!r}")
+    kp_topic = next(
+        (t for c in skeleton["chapters"] for t in c.get("topics") or []
+         if t["name"] == "概率密度角度分布与径向分布"),
+        None,
+    )
+    check("三级文件里第三层 = 知识点（径向分布函数）",
+          [p["name"] for p in (kp_topic or {}).get("points") or []] == ["径向分布函数"],
+          f"points={[p['name'] for p in (kp_topic or {}).get('points') or []]}")
+    check("章正文可读（紧接子标题的章正文为空，属正常）",
+          sum(1 for c in skeleton["chapters"] if c["body"]) >= 2,
+          f"bodies={[len(c['body']) for c in skeleton['chapters']]}")
     block = skeleton_prompt_block(skeleton)
-    check("prompt 段带 T/P 标记与硬约束",
-          "[T topic order=" in block and "[P kp order=" in block
-          and "覆盖骨架里**每一个** T" in block and "不许新增骨架里没有的主题/知识点" in block,
+    check("prompt 段带 C/T/P 三级标记与硬约束",
+          "[C chapter order=" in block and "[T topic order=" in block and "[P kp order=" in block
+          and "必须覆盖骨架里**每一个** C（章，若有）/ T（主题）/ P（知识点）" in block
+          and "章一律沿用骨架给出的章名与顺序" in block
+          and "请从正文提炼" in block,
           f"len={len(block)}")
     pos = skeleton_position_map(skeleton)
-    check("位置表覆盖骨架所有名字（含去序号写法）",
-          "氢原子" in pos and "补充坐标系变换" in pos and pos["氢原子"] > pos["一维束缚态"],
+    check("位置表覆盖章/主题/知识点（含去序号写法）",
+          "氢原子" in pos and "补充坐标系变换" in pos
+          and pos["氢原子"] > pos["一维束缚态"],
           f"sample={ {k: pos[k] for k in list(pos)[:4]} }")
+    check("体检观测指标：每主题 KP 数上限",
+          stats["chapters"] == 3 and stats["max_kp_per_topic"] == 1,
+          f"chapters={stats['chapters']} max_kp_per_topic={stats['max_kp_per_topic']}")
 
 
 def test_skeleton_restore_and_order() -> None:
@@ -873,6 +907,51 @@ _CONTENT_MD = """<!-- ocr-pages: 1-2 -->
 
 直角坐标与球坐标的度规不同，梯度算子要随之改写，便于后续计算。
 """
+
+
+def test_catalog_taxonomy() -> None:
+    """内容词表：**按形态判定 + 单一来源 + 可配置**（不枚举见过的具体名字）。"""
+    from domain.notes.tasks.catalog import taxonomy
+
+    check("占位名按形态判定（覆盖同类，而非枚举见过的名字）",
+          taxonomy.is_placeholder_name("核心知识点")
+          and taxonomy.is_placeholder_name("知识内容")
+          and taxonomy.is_placeholder_name("要点")
+          and taxonomy.is_placeholder_name("补充说明")
+          and not taxonomy.is_placeholder_name("一维半无限深方势阱")
+          and not taxonomy.is_placeholder_name("角向方程的求解"),
+          "形态正则未按预期工作")
+    check("辅助性内容词表判定",
+          taxonomy.is_item_heading("例题 1")
+          and taxonomy.is_item_heading("易错点")
+          and not taxonomy.is_item_heading("一维谐振子"),
+          "细碎标题判定异常")
+    check("细粒度点词表（用于降级进 items）",
+          bool(taxonomy.fine_grain_re().search("适用条件"))
+          and "适用条件" in taxonomy.fine_suffix_marks(),
+          "细粒度点词表异常")
+
+    os.environ["CATALOG_ITEM_MARKS"] = ""
+    try:
+        from domain.notes.tasks.catalog import taxonomy as fresh
+        import importlib
+
+        importlib.reload(fresh)
+        off = not fresh.is_item_heading("例题 1")
+    finally:
+        os.environ.pop("CATALOG_ITEM_MARKS", None)
+        import importlib
+
+        importlib.reload(taxonomy)
+    check("词表可用 .env 关闭（CATALOG_ITEM_MARKS=）", off, "env 覆盖未生效")
+
+    import domain.notes.tasks.catalog.prompts as prompts_mod
+    importlib.reload(prompts_mod)
+    prompt = prompts_mod.CATALOG_GENERATION_SYSTEM_PROMPT
+    check("prompt 的类别说明与代码同源（无硬编码副本、无残留占位符）",
+          "{item}" not in prompt and "{title}" not in prompt
+          and taxonomy.item_marks()[0] in prompt,
+          "prompt 词表未同源")
 
 
 def test_catalog_content_check() -> None:
@@ -1348,6 +1427,7 @@ async def main() -> int:
     test_skeleton_parse_and_contract()
     test_skeleton_restore_and_order()
     test_catalog_content_check()
+    test_catalog_taxonomy()
     test_heading_number_rules()
     test_complement_respects_skeleton()
     test_ocr_noise_strip()
