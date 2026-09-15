@@ -142,6 +142,22 @@ def _base_meta(path: str, text: str = "", role: str = "", **extra: object) -> di
     return meta
 
 
+# OCR 合并稿的页块标记（写入方：tools/ocr/levels/light.py::_page_mark）。
+# 形如 <!-- ocr-pages: 1-8 -->：入库时据此写块的 page/page_span。md 走标题切块，
+# 原本既不写 page（只有 PDF 分支写）也不写 chunk_index（只有超长块被切分时才写），
+# 于是下游"原文位置"整条轴为空——catalog 只能按标题字符串排序，目录顺序于是乱。
+PAGE_MARK_RE = re.compile(r"<!--\s*ocr-pages?\s*:\s*(\d+)\s*(?:-\s*(\d+))?\s*-->")
+
+
+def _page_mark_of(line: str) -> tuple[int, str] | None:
+    """页块标记行 → (起始页, 页区间文本)；不是标记行返回 None。"""
+    m = PAGE_MARK_RE.match((line or "").strip())
+    if not m:
+        return None
+    lo, hi = m.group(1), m.group(2)
+    return int(lo), f"{lo}-{hi}" if hi and hi != lo else lo
+
+
 def _clean_ocr_markdown(text: str) -> str:
     """清理 OCR Markdown 的页框噪声、重复空行和相邻重复标题。
 
@@ -153,6 +169,9 @@ def _clean_ocr_markdown(text: str) -> str:
     out: list[str] = []
     last_heading = ""
     for line in lines:
+        if PAGE_MARK_RE.match(line.strip()):
+            out.append(line.strip())  # 页块标记必须留着：切块时据此写 page
+            continue
         if _OCR_NOISE_RE.match(line):
             continue
         if re.fullmatch(r"[-_=]{3,}", line):
@@ -262,15 +281,37 @@ def _split_long_body(body: str, limit: int = _LONG_BODY_LIMIT) -> list[str]:
     return pieces or [body]
 
 
+def _min_heading_level(text: str) -> int:
+    """文件内最浅标题层级（无标题 → 1），作层级归一基准。"""
+    levels = [hit[0] for line in text.splitlines() if (hit := heading_level(line))]
+    return min(levels) if levels else 1
+
+
 def _chunks_by_heading(text: str, path: str) -> List[TextChunk]:
-    """按标题切开，块上带完整 heading_path / score / kind / content_tags。"""
+    """按标题切开，块上带完整 heading_path / score / kind / content_tags。
+
+    两条轴的修正（此前都缺失，目录顺序/覆盖因此不可控）：
+
+    - **顺序轴**：``<!-- ocr-pages: lo-hi -->`` 页块标记 → ``page``/``page_span``，
+      再补一个**文件内递增** ``chunk_index``。原文位置可还原，下游才谈得上保序；
+    - **层级轴**：标题层级按文件内最浅标题（``_min_heading_level``）归一为 1 级。
+      OCR 合并稿由逐页 LLM 生成，层级跨页不可比——不归一的话"整页都是 ###"的文件
+      会被整页折算成低分证据（``_heading_score`` 里 3 级只给 2 分 → kind=evidence）。
+    """
     name = Path(path).name
     text = _clean_ocr_markdown(text)
     role = classify_source_role(name, text)
+    base_level = _min_heading_level(text)
     heading_stack: dict[int, str] = {}
     current_level = 0
+    current_raw_level = 0
+    current_page = 0
+    current_span = ""
     buf: list[str] = []
     chunks: List[TextChunk] = []
+
+    def norm_level(level: int) -> int:
+        return max(1, level - base_level + 1)
 
     def flush() -> None:
         body = "\n".join(buf).strip()
@@ -285,11 +326,14 @@ def _chunks_by_heading(text: str, path: str) -> List[TextChunk]:
         meta = _base_meta(
             path,
             role=role,
+            page=current_page or None,
+            page_span=current_span or None,
             chapter=path_parts[0] if path_parts else "",
             topic=path_parts[1] if len(path_parts) > 1 else "",
             heading=heading,
             heading_level=level,
             heading_depth=level,
+            heading_level_raw=current_raw_level if base_level != 1 else None,
             heading_path_text=" / ".join(path_parts),
             heading_score=score,
             heading_kind=kind,
@@ -303,11 +347,18 @@ def _chunks_by_heading(text: str, path: str) -> List[TextChunk]:
             )
 
     for line in text.splitlines():
+        mark = _page_mark_of(line)
+        if mark:
+            flush()  # 页块边界即自然块边界，避免一个块横跨两批页
+            current_page, current_span = mark
+            continue
         hit = heading_level(line)
         if hit:
             flush()
-            level, title = hit
+            raw_level, title = hit
+            level = norm_level(raw_level)
             current_level = level
+            current_raw_level = raw_level
             heading_stack[level] = title
             for old_level in list(heading_stack):
                 if old_level > level:
@@ -315,29 +366,34 @@ def _chunks_by_heading(text: str, path: str) -> List[TextChunk]:
             continue
         buf.append(line)
     flush()
-    if chunks:
-        return chunks
-    body = sanitize_text(text, keep_newlines=True)
-    if not body:
-        return []
-    return [
-        TextChunk(
-            body,
-            _base_meta(
-                path,
-                role=role,
-                heading=name,
-                heading_level=0,
-                heading_depth=0,
-                heading_path_text=name,
-                heading_score=0,
-                heading_kind="evidence",
-                content_tags=_content_tags(body, name),
-                contains_formula=_contains_formula(body),
-                block_type="formula_heavy" if _contains_formula(body) else "content",
-            ),
-        )
-    ]
+    if not chunks:
+        body = sanitize_text(text, keep_newlines=True)
+        if not body:
+            return []
+        chunks = [
+            TextChunk(
+                body,
+                _base_meta(
+                    path,
+                    role=role,
+                    page=current_page or None,
+                    heading=name,
+                    heading_level=0,
+                    heading_depth=0,
+                    heading_path_text=name,
+                    heading_score=0,
+                    heading_kind="evidence",
+                    content_tags=_content_tags(body, name),
+                    contains_formula=_contains_formula(body),
+                    block_type="formula_heavy" if _contains_formula(body) else "content",
+                ),
+            )
+        ]
+    # 文件内递增块序号：顺序轴的兜底（page 是批级粒度，chunk_index 是精确序）
+    for idx, chunk in enumerate(chunks):
+        if not chunk.metadata.get("chunk_index"):
+            chunk.metadata["chunk_index"] = f"{idx}-0"
+    return chunks
 
 
 # ============================================================

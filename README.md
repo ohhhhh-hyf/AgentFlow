@@ -426,11 +426,66 @@ python -m app.selftest    # 116 项：接口清单守卫 + 队列/租约/回收/
 —— 那里是真实任务数据，可用 `AGENTFLOW_SELFTEST_REDIS_URL` 覆盖）。
 端到端 HTTP 链路用 `minutes_async_submit.py → status → result → stream` 四个脚本验证。
 
+**目录骨架来自原文（P2）**：catalog 的**结构与顺序不再由模型发明**——程序先把 OCR 合并稿解析成
+"有序骨架"（`domain/notes/tasks/catalog/skeleton.py`：页块内最浅标题 = 主题、更深 = 知识点，
+细碎标题如例题/易错/小结**不建节点**而把正文并入父节点，`X（续）` 并入同名主题），把它作为
+**权威输入**写进 briefing；旧候选池（入库时的分数/类型/标签）降级为**增强证据**，只用于判
+importance、写 knowledge_items、补前置依赖。模型输出后按骨架核对：漏掉的 T/P 自动补回并标
+`node_status=program_restore`；顺序按骨架 order 还原（章按其下最早节点）。两条硬指标都能用脚本验收：
+
+- **覆盖 100%**：骨架里每个主题/知识点都在目录里（出现在节点名或某个 KP 的 `knowledge_items` 里都算）；
+- **同级顺序单调**：章按其下最早节点的位置、章内主题按 order、主题内 KP 按 order 都非递减。
+
+```bash
+python tools/scripts/check_catalog_coverage.py --user 1 --subject wuli   # 对账：覆盖率 + 同级乱序 + 内容可核
+python tools/scripts/skeleton_check.py --user 1 --subject wuli           # 离线回归：漏节/乱序/降级/全缺 都能拉回硬指标
+```
+
+**目录体检进响应 monitor（P3）**：catalog 跑完时程序读**刚存下的**目录 + 原文骨架算指标（零 LLM），
+写进响应体的 `monitor.catalog`，你一眼验收而不用读整棵树：
+
+```jsonc
+"monitor": {
+  "token_usage": 18234, "cache_hit": 5120, "cost_time": 47.3,
+  "catalog": {
+    "coverage": "65/65",        // 骨架 T+P 全覆盖
+    "order_violations": 0,      // 同级顺序乱序处数（章按最早位置、章内主题、主题内 KP）
+    "restored": 0,              // 模型漏掉、由程序按骨架补回的节点数
+    "complemented": 0,          // 输出侧补缺补出的节点数
+    "demoted": 0, "merged": 0,  // 模型降级为 items / 主题被合并且内容都在（合法操作）
+    "llm_added": 1,             // 模型新增的骨架外节点（合同禁止，保留但记账）
+    "verified_items": "39/150", // items 能在原文里找到依据的条数
+    "label_items": 69,          // 短标签（模型的命名），文本上无法逐字核对，不判对错
+    "misplaced_nodes": 0,       // 整节串门：某 KP 多数条目的最佳匹配落在别节
+    "unverified_items": 0       // 长条目像引用却全篇找不到依据（疑似编造）
+  }
+}
+```
+
+第三道校验（内容可核）的**精度边界**要如实理解：模型写的是**概述型标签**（`守恒量定义`），
+不是原文引用，逐字比对必然误报。所以条目级只判"有没有依据"（逐字命中 / 片段重合 / 短标签不判），
+**只有节点级**才判"整节串门"（某 KP 多数条目更像另一节），"疑似编造"只收长条目——
+这两类才是高精度、可执行的信号。真实数据上的量级：150 条 items → 逐字 36、概述型 3、短标签 69、
+整节串门 9、长条目存疑 2（跑 `check_catalog_coverage.py` 会逐条列出）。
+
+**目录顺序与覆盖的位置轴**（入库侧 `tools/knowledge/document_processor.py`）：OCR 合并稿每块前带
+`<!-- ocr-pages: lo-hi -->` 页块标记，入库解析成块元数据 `page`/`page_span`，并给每个块补一个
+**文件内递增** `chunk_index`——原文位置从此可还原。此前 md 既不写 `page`（只有 PDF 分支写）也不写
+`chunk_index`（只有超长块被切分时才写），catalog 于是只能"按标题字符串排序"，目录顺序乱、保序表也
+拿不到位置（形同虚设）。同一次修正里，标题层级按**文件内最浅标题**归一为 1 级：OCR 合并稿由逐页
+LLM 生成、层级跨页不可比，不归一时"整篇 ###"的文件会整页被折算成低分证据（`_heading_score` 里
+3 级只给 2 分）。另外【低可信标题】不再只报数量——列出名字并说明"正经小节名照常建主题/KP"；
+输出侧补缺（`complement_catalog_coverage`）也不再要求分数 ≥5，缺的整节会**按候选自己的章名新建**，
+并在补缺后重新保序一次。
+
 OCR 相关排查脚本（`tools/scripts/`，都是只读/需显式指定才写）：
 
 | 脚本 | 用途 |
 |---|---|
 | `chrome_check.py [图名...]` | 逐图看页眉页脚判定结果（丢了哪些行、正文前 3 行是谁、有无污染残留）；默认跑 `data/1/docs` 下全部图片，OCR 结果按图缓存到临时目录，**改阈值重跑不必重新识别** |
+| `check_catalog_coverage.py --user U --subject S` | 原文骨架 ↔ 目录节点对账：覆盖率（含"降级为 items / 主题被合并"两种合法情况）、同级乱序、跨层回退。**改动前后对比看这个**，退出码非 0 表示未达标 |
+| `skeleton_check.py --user U --subject S` | P2 离线回归：用真实合并稿造"模型漏节 / 只建后半段 / 打乱顺序 / 把 KP 降级 / 输出全缺"五种坏输出，验证还原后仍满足"覆盖 100% + 同级顺序单调"；不调模型与 OCR |
+| `teacher_trace_check.py` | 老师重点在场时对拍输出侧流水线：`teacher_emphasis / teacher_focus_items / teacher_evidence / sources / source_chunk_ids / evidence / content_fingerprint / importance / exam_signal / review_weight` 逐字段比较"保序开关"两种路径，退出码非 0 表示字段被改动 |
 | `purge_kb_source.py --user U --subject S [--list] [--source 'ocr_*']` | 按来源文件清知识库块。**重新 OCR 后旧合并稿的块不会自动清理**（文件名是新的时间戳，`delete_sources` 目前无人调用），而 catalog 的 briefing 直接取知识库块——旧块不清，目录里的假章节会反复出现 |
 
 生产运维注意：

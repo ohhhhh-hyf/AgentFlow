@@ -193,6 +193,26 @@ def iter_logged_ocr_pipeline(
         yield event
 
 
+def _page_mark(lo: int, hi: int) -> str:
+    """合并稿的页块标记（1 基页号；入库侧 tools/knowledge/document_processor.py
+    的 PAGE_MARK_RE 解析它写 chunk 的 page/page_span，改格式要同步改那边）。
+
+    批次内的页边界无法精确落标（一次整理调用产出的是整块合成稿），所以标的是
+    **页区间**；文件内的精确顺序另由入库时写的递增 chunk_index 保证。
+    """
+    return f"<!-- ocr-pages: {lo}-{hi} -->" if lo and hi else ""
+
+
+def _join_reviewed_blocks(blocks: list[str], spans: list[tuple[int, int]]) -> str:
+    """按批次顺序拼合并稿，每块前加页块标记（位置信息不在这里就会永久丢失）。"""
+    parts: list[str] = []
+    for idx, block in enumerate(blocks):
+        lo, hi = spans[idx] if idx < len(spans) else (0, 0)
+        head = _page_mark(lo, hi)
+        parts.append(f"{head}\n{block}" if head else block)
+    return "\n\n".join(part for part in parts if part.strip())
+
+
 def images_to_reviewed_markdown(
     images: list[Path | str],
     *,
@@ -203,19 +223,22 @@ def images_to_reviewed_markdown(
     供 graph 等直接消费 md 的任务使用；与 library 的批处理同一条
     OCR + 整理 + 审校流水线（每批 4 路并行，批内一次整理 + 一次审校）。
     传 ``persist_dir`` 时额外把合并稿落盘留档（同 ocr 目录命名规则）。
+    每块前带 ``<!-- ocr-pages: lo-hi -->`` 页块标记，入库后目录顺序才跟原文。
     """
     entries = [(Path(p), Path(p).name) for p in images]
     reviewed_blocks: list[str] = []
     raw_blocks: list[str] = []
+    page_spans: list[tuple[int, int]] = []
     for event in iter_logged_ocr_pipeline(entries):
         if event.get("type") == "batch_done":
             reviewed = str(event.get("reviewed") or "").strip()
             raw = str(event.get("raw") or "").strip()
             if reviewed:
                 reviewed_blocks.append(reviewed)
+                page_spans.append((int(event.get("lo") or 0), int(event.get("hi") or 0)))
             if raw:
                 raw_blocks.append(raw)
-    merged = "\n\n".join(reviewed_blocks)
+    merged = _join_reviewed_blocks(reviewed_blocks, page_spans)
     if persist_dir is not None and merged:
         stamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         folder = Path(persist_dir)

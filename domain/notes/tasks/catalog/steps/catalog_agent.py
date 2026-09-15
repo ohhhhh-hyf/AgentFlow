@@ -181,16 +181,18 @@ def _reorder_by_source_order(catalog: dict, position: dict[str, int]) -> dict:
         return min(values) if values else above
 
     def chapter_pos(chapter: dict) -> int:
-        own = pos_of(chapter.get("name"))
-        if own is not None:
-            return own
+        # 章的位置取"其下最早节点"，不看章名：章名常直接取自某个主题
+        # （如"一维谐振子"），用章名查会把整章拉到那个主题的位置，破坏整体单调。
         values = [
             topic_pos(t)
             for t in (chapter.get("topics") or [])
             if isinstance(t, dict)
         ]
         values = [v for v in values if v < above]
-        return min(values) if values else above
+        if values:
+            return min(values)
+        own = pos_of(chapter.get("name"))
+        return own if own is not None else above
 
     out = dict(catalog)
     chapters = [c for c in (out.get("chapters") or []) if isinstance(c, dict)]
@@ -413,6 +415,48 @@ def _enforce_catalog_structure(catalog: dict) -> dict:
     return catalog
 
 
+def _restore_from_skeleton(catalog: dict, shared_context: str) -> dict:
+    """按原文骨架补齐模型漏掉的 T/P（零 LLM）。骨架不可用时原样返回。
+
+    只增不减：模型已有的节点不动；骨架里缺失的主题/知识点按原文位置补回
+    （``node_status=program_restore``），便于事后一眼看出"哪些是程序补的"。
+    """
+    from ..skeleton import build_catalog_skeleton, restore_from_skeleton
+
+    try:
+        skeleton = build_catalog_skeleton(shared_context)
+        if not skeleton.get("topics"):
+            return catalog
+        out, report = restore_from_skeleton(catalog, skeleton)
+    except Exception:  # noqa: BLE001 - 骨架校验失败不阻断目录生成
+        logger.warning("catalog skeleton restore failed", exc_info=True)
+        return catalog
+    if report["restored_topics"] or report["restored_points"]:
+        logger.info(
+            "catalog skeleton restore topics=%d points=%d demoted=%d merged=%d llm_added=%d",
+            len(report["restored_topics"]),
+            len(report["restored_points"]),
+            len(report["demoted_kept"]),
+            len(report["merged_topics"]),
+            report["llm_added"],
+        )
+    return out
+
+
+def _source_position_map(shared_context: str) -> dict[str, int]:
+    """保序用的位置表：原文骨架优先（精确），回退知识库元数据（P1 的 page/chunk_index）。"""
+    from ..skeleton import build_catalog_skeleton, skeleton_position_map
+
+    try:
+        skeleton = build_catalog_skeleton(shared_context)
+        position = skeleton_position_map(skeleton)
+        if position:
+            return position
+    except Exception:  # noqa: BLE001 - 骨架不可用时回退
+        logger.warning("catalog skeleton position failed, fallback to kb", exc_info=True)
+    return build_catalog_position_map(shared_context)
+
+
 class CatalogAgent:
     """首次建目录；已有目录则增量合并，保持节点 ID 稳定。"""
 
@@ -429,6 +473,8 @@ class CatalogAgent:
         data = _strip_llm_extra_fields(draft.model_dump())
         data = _backfill_slim_point_fields(data)
         data = _enforce_catalog_structure(data)
+        # 骨架权威校验（零 LLM）：模型漏掉的 T/P 按原文骨架补回；已知的"降级/合并"通过
+        data = _restore_from_skeleton(data, briefing)
         # 检测 → 确定性修复（零 token）→ 复验：能修的修，修不了的硬伤才重试
         data, issues = _repair_catalog_structure(data)
         if issues:
@@ -449,6 +495,7 @@ class CatalogAgent:
                 data = _strip_llm_extra_fields(retry.model_dump())
                 data = _backfill_slim_point_fields(data)
                 data = _enforce_catalog_structure(data)
+                data = _restore_from_skeleton(data, shared_context)
                 # 重试输出同样过修复器（消除小缺陷，避免带伤进 merge）
                 data, _ = _repair_catalog_structure(data)
             except Exception:  # noqa: BLE001 - 重试失败沿用首次结果
@@ -472,9 +519,7 @@ class CatalogAgent:
             if isinstance(c, dict)
         ]
         try:
-            merged = _reorder_by_source_order(
-                merged, build_catalog_position_map(shared_context)
-            )
+            merged = _reorder_by_source_order(merged, _source_position_map(shared_context))
         except Exception:  # noqa: BLE001 - 保序失败不影响目录生成
             logger.warning("catalog reorder failed, keep llm order", exc_info=True)
         order_after = [

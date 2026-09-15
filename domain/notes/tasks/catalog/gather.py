@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import json
+import os
 import re
 from collections import defaultdict
 from pathlib import Path
@@ -663,6 +664,18 @@ def build_catalog_briefing(shared_context: str) -> str:
                 + "。这些文件来自 OCR 入库，sources 写「学生笔记」，"
                 "覆盖到的 KP 用 detailed/mentioned，不要标 none。"
             )
+        # 原文骨架（权威）：名字/顺序/覆盖以它为准；解析不到时保持旧路径（候选池当骨架）
+        skeleton_topics = []
+        try:
+            from .skeleton import build_catalog_skeleton, skeleton_prompt_block
+
+            skeleton = build_catalog_skeleton(shared_context)
+            skeleton_topics = skeleton.get("topics") or []
+            block = skeleton_prompt_block(skeleton)
+            if block:
+                parts.append(block)
+        except Exception:  # noqa: BLE001 - 骨架失败不阻断目录生成（回退候选池）
+            logger.warning("catalog skeleton build failed, fallback to candidates", exc_info=True)
         candidates = _title_candidates(grouped)
         if candidates:
             topic_count = _topic_count_from_candidates(candidates)
@@ -676,13 +689,22 @@ def build_catalog_briefing(shared_context: str) -> str:
                 "按重要性取舍：次要内容并入父知识点的 knowledge_items，"
                 "不要为凑数建点；不足就少建。"
             )
-            parts.append(
-                "【候选目录标题】以下标题来自 material/notes/unknown 的统一候选池；"
-                "role 只表示来源类型，不决定优先级。请优先使用 score 高、层级连续、路径稳定的标题建树；"
-                "notes 与 material 同等重要，OCR 笔记结构清晰时可以作为主骨架。"
-                "heading_kind=knowledge_point 只表示候选知识点，不等于必须新建 KP；"
-                "例题/易错/注意/步骤/题型/小结类标题只能并入父 KP 的 knowledge_items。"
-            )
+            if skeleton_topics:
+                # 骨架已给"名字 + 顺序 + 覆盖"，候选池降级为**增强证据**：
+                # 分数/类型/标签用来判重要性、归纳 items、补前置依赖，不再决定骨架。
+                parts.append(
+                    "【结构提示（增强用）】下面是入库时算出的标题分数/类型/标签，"
+                    "**只作判 importance、写 knowledge_items、补 prerequisites/risk_tags 的证据**；"
+                    "目录骨架与顺序一律以《原文骨架》为准，不要因为这里的分数高低增删节点。"
+                )
+            else:
+                parts.append(
+                    "【候选目录标题】以下标题来自 material/notes/unknown 的统一候选池；"
+                    "role 只表示来源类型，不决定优先级。请优先使用 score 高、层级连续、路径稳定的标题建树；"
+                    "notes 与 material 同等重要，OCR 笔记结构清晰时可以作为主骨架。"
+                    "heading_kind=knowledge_point 只表示候选知识点，不等于必须新建 KP；"
+                    "例题/易错/注意/步骤/题型/小结类标题只能并入父 KP 的 knowledge_items。"
+                )
             budget = _candidate_budget(candidates)
             high = [row for row in candidates if int(row.get("score") or 0) >= 6]
             middle = [row for row in candidates if 4 <= int(row.get("score") or 0) < 6]
@@ -725,7 +747,7 @@ def build_catalog_briefing(shared_context: str) -> str:
                 if (str(row.get("source") or ""), " / ".join(row.get("path") or []))
                 not in emitted_paths
             ]
-            if high and remaining_middle:
+            if high and remaining_middle and not skeleton_topics:
                 parts.append("【知识点标题】（仅为候选：定义/公式/方法可考虑作 KP；例题/易错/注意/步骤/题型/小结只能并入 knowledge_items 条目）")
                 remaining = max(0, budget - emitted)
                 middle_budget = min(60, remaining)
@@ -734,11 +756,22 @@ def build_catalog_briefing(shared_context: str) -> str:
                         f"- [score={row.get('score')}; role={row.get('role')}; source={row.get('source')}] "
                         + " / ".join(row.get("path") or [])
                     )
-            if low:
+            if low and not skeleton_topics:
+                # 低分只说明"标题层级浅 / 结构信号弱"，不等于"不是小节"。以前只报数量、
+                # 名字全不给，整节内容于是凭空消失（用户看到的"笔记前几页没了"），
+                # 所以列出名字并明确可用性。有骨架时这些名字已在骨架里，不必重复。
                 parts.append(
-                    f"【低可信标题】共 {len(low)} 条，已从主 prompt 省略；"
-                    "只作参考细节，不要据此新建章/主题/KP。"
+                    f"【低可信标题】共 {len(low)} 条：标题层级浅或结构信号弱，但**仍是原文里的标题**。"
+                    "其中若是正经小节名（不是例题/易错/注意/步骤/题型/小结类），照常建主题或 KP；"
+                    "只有明显是正文行、OCR 残片或细碎条目时才并入父节点的 knowledge_items。"
                 )
+                for row in low[:20]:
+                    parts.append(
+                        f"- [score={row.get('score')}; role={row.get('role')}; source={row.get('source')}] "
+                        + " / ".join(row.get("path") or [])
+                    )
+                if len(low) > 20:
+                    parts.append(f"  · …（低可信标题共 {len(low)} 条，此处列出前 20 条）")
             if detail_pool:
                 parts.append(
                     "【细节池】以下内容只能用于补充已有/新建 KP 的 knowledge_items、"
@@ -829,6 +862,35 @@ def _catalog_kp_names(draft: dict[str, Any]) -> list[str]:
     return names
 
 
+def _catalog_node_names(draft: dict[str, Any]) -> set[str]:
+    """目录中**所有层级**节点名的归一化键（章/主题/KP）。
+
+    覆盖判断用它：某个名字已经以任何层级出现在目录里就算"已覆盖"，
+    不该再补一个同名 KP（否则会出现"章 一维谐振子 / KP 一维谐振子"这类重复）。
+    """
+    keys: set[str] = set()
+    for chapter in draft.get("chapters") or []:
+        if not isinstance(chapter, dict):
+            continue
+        for name in (chapter.get("name"),):
+            key = _title_key(str(name or ""))
+            if key:
+                keys.add(key)
+        for topic in chapter.get("topics") or []:
+            if not isinstance(topic, dict):
+                continue
+            key = _title_key(str(topic.get("name") or ""))
+            if key:
+                keys.add(key)
+            for kp in topic.get("knowledge_points") or []:
+                if not isinstance(kp, dict):
+                    continue
+                key = _title_key(str(kp.get("name") or ""))
+                if key:
+                    keys.add(key)
+    return keys
+
+
 def _next_kp_id(draft: dict[str, Any]) -> int:
     max_no = 0
     for chapter in draft.get("chapters") or []:
@@ -846,14 +908,85 @@ def _next_kp_id(draft: dict[str, Any]) -> int:
     return max_no + 1
 
 
+def _next_node_no(draft: dict[str, Any], prefix: str) -> int:
+    """下一个 ``ch_/tp_`` 编号（补缺新建节点时用，避免与既有 ID 撞号）。"""
+    pattern = re.compile(rf"{prefix}_(\d+)")
+    max_no = 0
+    for chapter in draft.get("chapters") or []:
+        if not isinstance(chapter, dict):
+            continue
+        m = pattern.search(str(chapter.get("id") or ""))
+        if m:
+            max_no = max(max_no, int(m.group(1)))
+        for topic in chapter.get("topics") or []:
+            if not isinstance(topic, dict):
+                continue
+            m = pattern.search(str(topic.get("id") or ""))
+            if m:
+                max_no = max(max_no, int(m.group(1)))
+    return max_no + 1
+
+
+def order_catalog_by_source(draft: dict[str, Any], shared_context: str) -> dict[str, Any]:
+    """按资料原文位置给目录保序（补缺/规模合并之后调用；位置表为空则原样返回）。
+
+    位置表**优先取自原文骨架**（P2：md 直接解析，精确），没有骨架时回退入库元数据
+    （P1 的 ``page``/``chunk_index``）。两层都比"按标题字符串排序"正确。
+    """
+    position: dict[str, int] = {}
+    try:
+        from .skeleton import build_catalog_skeleton, skeleton_position_map
+
+        position = skeleton_position_map(build_catalog_skeleton(shared_context))
+    except Exception:  # noqa: BLE001 - 骨架不可用则回退
+        position = {}
+    if not position:
+        position = build_catalog_position_map(shared_context)
+    if not position:
+        return draft
+    from .steps.catalog_agent import _reorder_by_source_order
+
+    try:
+        return _reorder_by_source_order(draft, position)
+    except Exception:  # noqa: BLE001 - 保序失败不影响目录生成
+        import logging
+
+        logging.getLogger(__name__).warning("catalog reorder failed, keep order", exc_info=True)
+        return draft
+
+
+# 补缺上限：一次补缺最多新增多少节点（防低分标题过多时目录被灌爆）
+_COMPLEMENT_MAX = int(os.getenv("CATALOG_COMPLEMENT_MAX", "60") or "60")
+
+
+def _fillable_title(cand: dict[str, Any]) -> bool:
+    """补缺候选：原文里的小节标题都算（含低分），只排除细碎条目/噪声/文件名退化项。
+
+    以前这里要求 ``score >= 5 且 kind != evidence``，于是"标题层级浅"的整节
+    （如 OCR 合并稿里用 ### 写的 `一维束缚态`）既进不了 LLM 的骨架、也补不回来。
+    """
+    path = list(cand.get("path") or [])
+    title = _clean_title(path[-1] if path else "")
+    if not title or len(title) > 40:
+        return False
+    if _item_only_title(title, cand) or _is_noise_title(title, cand):
+        return False
+    source = _norm_name(str(cand.get("source") or ""))
+    if source and _norm_name(title) == source:
+        return False  # 无标题文件会退化成"文件名当标题"，不该当 KP
+    return True
+
+
 def complement_catalog_coverage(
     draft: dict[str, Any],
     shared_context: str,
 ) -> dict[str, Any]:
-    """输出侧覆盖度校验：候选池高可信标题未进目录 → 程序补缺（零 LLM）。
+    """输出侧覆盖度校验：候选池里未进目录的小节标题 → 程序补缺（零 LLM）。
 
-    补缺 KP 标记 ``node_status=program_complement``、``change_type=added``；
-    归属：候选有 chapter/topic 层级则匹配目录对应 topic，否则挂首个 chapter 的末 topic。
+    补缺节点标记 ``node_status=program_complement``、``change_type=added``；
+    归属规则：候选自带的章/主题名在目录里有同名节点就挂上去，**没有就按候选自己的
+    名字新建**章/主题（以前一律塞进首个 chapter 的末 topic，会把"一维束缚态"这节
+    的内容挂到"氢原子"章下）。补缺后的顺序由显示侧的保序步骤统一还原。
     """
     import logging
 
@@ -864,71 +997,80 @@ def complement_catalog_coverage(
     kb = open_knowledge(user_id=user_id)
     grouped = _brief_chunks(kb, user_id, subject) if kb is not None else None
     candidates = _title_candidates(grouped) if grouped else []
-    strong = [
-        c
-        for c in candidates
-        if int(c.get("score") or 0) >= 5
-        and str(c.get("heading_kind") or "") != "evidence"
-        and not _item_only_title(str((c.get("path") or [""])[-1]), c)
-        and not _is_noise_title(str((c.get("path") or [""])[-1]), c)
-    ]
+    fillable = [c for c in candidates if _fillable_title(c)]
     chapters = out.get("chapters") or []
-    if not strong or not chapters:
+    if not fillable or not chapters:
         return out
     existing = _catalog_kp_names(out)
+    covered = _catalog_node_names(out)
     next_no = _next_kp_id(out)
+    next_ch_no = _next_node_no(out, "ch")
+    next_tp_no = _next_node_no(out, "tp")
     added = 0
-    for cand in strong:
-        path = list(cand.get("path") or [])
-        title = path[-1] if path else ""
-        key = _title_key(title)
-        if not key or any(key == _title_key(n) for n in existing):
+    empty_chapters: list[dict[str, Any]] = []
+    for cand in fillable:
+        if added >= _COMPLEMENT_MAX:
+            logger.info("catalog complement capped at %d", _COMPLEMENT_MAX)
+            break
+        path = [_clean_title(p) for p in (cand.get("path") or []) if _clean_title(p)]
+        if not path:
             continue
-        cand_chapter = _clean_title(path[0]) if path else ""
-        cand_topic = _clean_title(path[1]) if len(path) > 1 else ""
-        # 归属：候选层级优先匹配；否则挂第一个 chapter 的末 topic
+        title = path[-1]
+        key = _title_key(title)
+        if not key or key in covered:
+            continue
+        # 层级归属（与候选路径长度对齐，避免 KP 名和主题名撞车）：
+        #   1 段「章名」        → 章=自己，主题=核心知识点
+        #   2 段「章 / 主题」    → 章=path[0]，主题=核心知识点（KP 名才是 path[1]）
+        #   3 段「章 / 主题 / 点」→ 章=path[0]，主题=path[1]
+        chapter_name = path[0] if len(path) >= 2 else title
+        topic_name = path[1] if len(path) >= 3 else "核心知识点"
         target_chapter = next(
             (
                 chapter
                 for chapter in chapters
                 if isinstance(chapter, dict)
-                and cand_chapter
-                and _title_key(cand_chapter) == _title_key(str(chapter.get("name") or ""))
+                and _title_key(chapter_name) == _title_key(str(chapter.get("name") or ""))
             ),
             None,
         )
         if target_chapter is None:
-            target_chapter = chapters[0]
-        topics = [t for t in (target_chapter.get("topics") or []) if isinstance(t, dict)]
-        target_topic = None
-        if cand_topic:
-            target_topic = next(
-                (
-                    t
-                    for t in topics
-                    if _title_key(cand_topic) == _title_key(str(t.get("name") or ""))
-                ),
-                None,
-            )
-        if target_topic is None:
-            target_topic = topics[-1] if topics else None
-        if target_topic is None:
-            tp_no = len(
-                [
-                    t
-                    for ch in chapters
-                    if isinstance(ch, dict)
-                    for t in (ch.get("topics") or [])
-                    if isinstance(t, dict) and re.search(r"tp_\d+", str(t.get("id") or ""))
-                ]
-            ) + 1
-            target_topic = {
-                "id": f"tp_{tp_no:03d}",
-                "name": "补充知识点",
+            # 整节缺失时，按候选自带的章名新建章——挂到 chapters[0] 会把内容放错章
+            target_chapter = {
+                "id": f"ch_{next_ch_no:03d}",
+                "name": chapter_name,
                 "change_type": "added",
+                "node_status": "program_complement",
+                "topics": [],
+            }
+            chapters.append(target_chapter)
+            next_ch_no += 1
+            covered.add(_title_key(chapter_name))
+        if len(path) == 1:
+            # 章级标题：章本身就覆盖了这个名字，不再补同名 KP（避免"章 X / KP X"重复）。
+            # 若它最终没有任何子节点，循环结束后补最小可行形状（章不能是空的）。
+            if target_chapter.get("node_status") == "program_complement":
+                empty_chapters.append(target_chapter)
+            continue
+        topics = [t for t in (target_chapter.get("topics") or []) if isinstance(t, dict)]
+        target_topic = next(
+            (
+                t
+                for t in topics
+                if _title_key(topic_name) == _title_key(str(t.get("name") or ""))
+            ),
+            None,
+        )
+        if target_topic is None:
+            target_topic = {
+                "id": f"tp_{next_tp_no:03d}",
+                "name": topic_name,
+                "change_type": "added",
+                "node_status": "program_complement",
                 "knowledge_points": [],
             }
             target_chapter.setdefault("topics", []).append(target_topic)
+            next_tp_no += 1
         kp_list = target_topic.setdefault("knowledge_points", [])
         kp = {
             "id": f"kp_{next_no:03d}",
@@ -952,8 +1094,47 @@ def complement_catalog_coverage(
         }
         kp_list.append(kp)
         existing.append(title)
+        covered.add(key)
         next_no += 1
         added += 1
+    # 补缺建出来但一条子节点都没有的章：补最小可行形状（章不能是空的）
+    for chapter in empty_chapters:
+        if [t for t in (chapter.get("topics") or []) if isinstance(t, dict)]:
+            continue
+        name = str(chapter.get("name") or "")
+        if not name:
+            continue
+        kp = {
+            "id": f"kp_{next_no:03d}",
+            "name": name,
+            "aliases": [],
+            "knowledge_type": "concept",
+            "knowledge_items": [],
+            "importance": 2,
+            "difficulty": 3,
+            "teacher_emphasis": 0,
+            "change_type": "added",
+            "node_status": "program_complement",
+            "sources": [],
+            "prerequisites": [],
+            "related_points": [],
+            "risk_tags": [],
+            "completion_criteria": [],
+            "exam_signal": "none",
+            "topic": "核心知识点",
+            "chapter": name,
+        }
+        topic = {
+            "id": f"tp_{next_tp_no:03d}",
+            "name": "核心知识点",
+            "change_type": "added",
+            "node_status": "program_complement",
+            "knowledge_points": [kp],
+        }
+        next_tp_no += 1
+        next_no += 1
+        added += 1
+        chapter["topics"] = [topic]
     if added:
         logger.info("catalog fill missing kp=%d", added)
     return out

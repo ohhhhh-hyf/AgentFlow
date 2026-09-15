@@ -1,0 +1,1021 @@
+"""原文 → 有序骨架：catalog 的权威结构输入（零 LLM，纯解析）。
+
+为什么要它：目录的**顺序**与**覆盖**必须是结构保证，而不是若干启发式求和。
+P1 之前这两件事全交给模型（输入只是一份"标题 + 分数"的扁平清单），于是
+"某一节有没有进目录"取决于当初那页 LLM 用了几个 `#`。骨架把两件事收回程序：
+
+- **顺序**：文件序 → 页块序（`<!-- ocr-pages: lo-hi -->`）→ 节序；
+- **覆盖**：原文里每个**非细碎**标题都进骨架（细碎标题见下），程序最后按骨架补缺；
+- **层级**：取**页块内相对层级**——OCR 合并稿逐页由 LLM 生成，`#` 数量跨页不可比，
+  所以基准是"该页块内最浅标题"，只相信块内相对深度。
+
+粒度映射（当前口径）：
+    页块内最浅级 → **主题**；更深级 → **知识点**，按原文顺序挂在所属主题下。
+    章不来自原文（原文层级不足以定章），由模型按语义分组，顺序/覆盖照样受校验。
+
+细碎标题（例题/易错/注意/小结/步骤/题型…）**不建节点**：标题行丢掉，其正文并入
+父节点正文，内容不会消失（仍可被归纳成 items）。
+续页标题（`X（续）`）并入同名节点，不产生第二个节点。
+"""
+
+from __future__ import annotations
+
+import logging
+import re
+from pathlib import Path
+from typing import Any
+
+from tools.knowledge.document_processor import PAGE_MARK_RE
+from tools.knowledge.source_role import heading_level, is_ocr_notes_file
+
+logger = logging.getLogger(__name__)
+
+_SOURCE = Path(__file__).resolve().parents[4]  # 项目根
+
+# 细碎标题：与 gather._ITEM_ONLY_KEYWORDS 同源语义——那边决定"候选标题只能当条目材料"，
+# 这边决定"根本不建节点"。改词表时两处一起看。
+_ITEM_ONLY_KEYWORDS = (
+    "例题", "易错", "注意", "总结", "步骤", "题型", "技巧", "提醒", "小结",
+    "练习", "习题", "示例", "思考", "作业", "考点",
+)
+_ITEM_HEADING_RE = re.compile("|".join(_ITEM_ONLY_KEYWORDS))
+_CONT_SUFFIX_RE = re.compile(r"[（(]\s*续\s*[）)]|续\s*$")
+_HEADING_PREFIX_RE = re.compile(
+    r"^(?:第[0-9一二三四五六七八九十百]+[章节部分讲课项点步阶段周单元][、.．:：\s]*"
+    r"|[一二三四五六七八九十百]+[、.．:：]\s*"
+    r"|\d+(?:\.\d+){0,3}[、.．:：]\s*)"
+)
+_BODY_PROMPT_LIMIT = 120   # 每个节点进 prompt 的正文摘要长度
+_MD_PROMPT_LIMIT = 14000   # 骨架段整体上限（超出则截断提示，覆盖仍由补缺保证）
+
+
+def clean_title(text: object) -> str:
+    """标题归一显示：去序号前缀（`一、`/`1.2`/`第3节`）+ 压缩空白。"""
+    raw = " ".join(str(text or "").split()).strip()
+    if not raw:
+        return ""
+    out = raw
+    while True:
+        m = _HEADING_PREFIX_RE.match(out)
+        if m and out[m.end():].strip():
+            out = out[m.end():].strip()
+            continue
+        break
+    return out
+
+
+_CIRCLED_RE = re.compile(r"^[①-⑳❶-❿⒈-⒛]+\s*")
+_CORE_SPLIT_RE = re.compile(r"[、，,。：:；;（）()【】\[\]/·]")
+
+
+def norm_key(text: object) -> str:
+    """比对键：去空白 + 去圈号与序号前缀（骨架 ↔ 目录节点对齐用）。"""
+    return "".join(_CIRCLED_RE.sub("", clean_title(text)).split())
+
+
+def core_key(text: object) -> str:
+    """核心键：再去首个标点后的尾巴（`① 幂级数解法，构造递推的系数关系` → `幂级数解法`）。
+
+    同一个知识点在原文与目录里的写法常只差序号与后半截并列项（`幂级数解法、母函数法`），
+    严格键会把这种"其实覆盖了"的情况误报成缺口，所以覆盖判定用核心键兜一层。
+    """
+    blob = _CIRCLED_RE.sub("", clean_title(text)).strip()
+    return norm_key(_CORE_SPLIT_RE.split(blob, 1)[0])
+
+
+def is_item_heading(title: str) -> bool:
+    """细碎标题（例题/易错/小结…）：不建节点。"""
+    return bool(_ITEM_HEADING_RE.search(clean_title(title)))
+
+
+def _cont_name(title: str) -> tuple[str, bool]:
+    """`X（续）` → ("X", True)；普通标题 → (原样, False)。"""
+    cleaned = clean_title(title)
+    if _CONT_SUFFIX_RE.search(cleaned):
+        return clean_title(_CONT_SUFFIX_RE.sub("", cleaned)), True
+    return cleaned, False
+
+
+def _level_reset_regions(span: str, lines: list[str]) -> list[tuple[str, list[str]]]:
+    """页块内再按"层级回落"切区域：遇到比本区域最浅层更浅的标题，就开新区域。
+
+    没有页标记的老合并稿（LLM 的 `#` 数量逐页各自决定）靠这条兜住：例如
+    `### 一维束缚态` → `### 一维半无限深方势阱` → `## 一维束缚态（续）`（比 3 浅 → 新区域）
+    → `# 氢原子`（比 2 浅 → 再新区域）。任何标题都不会因此被丢掉，只影响它当主题还是 KP。
+    """
+    regions: list[tuple[str, list[str]]] = []
+    buf: list[str] = []
+    region_min = 0
+    for line in lines:
+        hit = heading_level(line)
+        if hit:
+            level = hit[0]
+            if buf and (not region_min or level < region_min):
+                regions.append((span, buf))
+                buf = []
+                region_min = 0
+            if not region_min or level < region_min:
+                region_min = level
+        buf.append(line)
+    if buf:
+        regions.append((span, buf))
+    return regions
+
+
+def _split_regions(text: str) -> list[tuple[str, list[str]]]:
+    """切成"区域"：页块标记优先（`<!-- ocr-pages: lo-hi -->`），无标记时按层级回落切分。
+
+    区域是层级归一的最小单位——区域内的最浅标题 = 主题，更深 = KP。
+    顺序始终是 文件序 → 页块序 → 区域序 → 节序。
+    """
+    blocks: list[tuple[str, list[str]]] = []
+    span = ""
+    buf: list[str] = []
+    for line in (text or "").splitlines():
+        m = PAGE_MARK_RE.match(line.strip())
+        if m:
+            if buf:
+                blocks.append((span, buf))
+                buf = []
+            lo, hi = m.group(1), m.group(2)
+            span = f"{lo}-{hi}" if hi and hi != lo else lo
+            continue
+        buf.append(line)
+    if buf:
+        blocks.append((span, buf))
+    if not blocks:
+        blocks = [("", (text or "").splitlines())]
+    regions: list[tuple[str, list[str]]] = []
+    for block_span, block_lines in blocks:
+        regions.extend(_level_reset_regions(block_span, block_lines))
+    return regions or [("", (text or "").splitlines())]
+
+
+def parse_md_skeleton(text: str, *, source: str = "") -> dict[str, Any]:
+    """md 文本 → 骨架（纯函数，可单测）。返回 {source, topics:[…], stats:{…}}。"""
+    topics: list[dict[str, Any]] = []
+    by_key: dict[str, dict[str, Any]] = {}
+    order = 0
+    dropped_item_headings = 0
+    merged_continued = 0
+    for span, region_lines in _split_regions(text):
+        lines = region_lines
+        min_level = 0
+        for line in lines:
+            hit = heading_level(line)
+            if hit and (not min_level or hit[0] < min_level):
+                min_level = hit[0]
+        if not min_level:
+            continue
+        # 块内相对层级：最浅级 = 主题，更深级 = KP
+        current: dict[str, Any] | None = None       # 当前主题
+        point: dict[str, Any] | None = None          # 当前 KP
+        for line in lines:
+            hit = heading_level(line)
+            if not hit:
+                target = point if isinstance(point, dict) else current
+                if isinstance(target, dict) and line.strip():
+                    target["_body"].append(line.strip())
+                continue
+            raw_level, raw_title = hit
+            if is_item_heading(raw_title):
+                # 细碎标题不建节点：标题丢掉，正文继续并进当前节点
+                dropped_item_headings += 1
+                continue
+            depth = max(1, raw_level - min_level + 1)
+            name, is_cont = _cont_name(raw_title)
+            if not name:
+                continue
+            key = norm_key(name)
+            if depth <= 1:
+                existing = by_key.get(key)
+                if existing is not None:
+                    # 同名主题再现 / 续页：正文并入已有节点，不新建
+                    current = existing
+                    point = None
+                    if is_cont:
+                        merged_continued += 1
+                    continue
+                current = {
+                    "id": f"sk_t{len(topics) + 1:03d}",
+                    "name": name,
+                    "order": order,
+                    "page": (span or "").split("-")[0],
+                    "page_span": span,
+                    "points": [],
+                    "_body": [],
+                    "continued": is_cont,
+                }
+                order += 1
+                topics.append(current)
+                by_key[key] = current
+                point = None
+                continue
+            # 更深的标题 = KP，挂最近的主题下（同名 KP 只保留一个，正文合并）
+            if current is None:
+                continue
+            existing_point = next(
+                (p for p in current["points"] if norm_key(p["name"]) == key), None
+            )
+            if existing_point is not None:
+                point = existing_point
+                continue
+            point = {
+                "id": f"sk_p{len(current['points']) + 1:03d}",
+                "name": name,
+                "order": order,
+                "page": (span or "").split("-")[0],
+                "page_span": span,
+                "parent": current["name"],
+                "_body": [],
+                "continued": is_cont,
+            }
+            order += 1
+            current["points"].append(point)
+    for topic in topics:
+        topic["body"] = "\n".join(topic.pop("_body", [])).strip()
+        for point in topic["points"]:
+            point["body"] = "\n".join(point.pop("_body", [])).strip()
+    stats = {
+        "topics": len(topics),
+        "points": sum(len(t["points"]) for t in topics),
+        "dropped_item_headings": dropped_item_headings,
+        "merged_continued": merged_continued,
+    }
+    logger.info(
+        "skeleton parsed source=%s topics=%d points=%d",
+        source or "(inline)",
+        stats["topics"],
+        stats["points"],
+    )
+    return {"source": source, "topics": topics, "stats": stats}
+
+
+def _ocr_md_paths(user_id: str, subject: str) -> list[Path]:
+    """该用户/学科下的 OCR 合并稿（按修改时间从旧到新＝文件序）。"""
+    from tools.memory.store import safe_id
+
+    folder = _SOURCE / "data" / safe_id(user_id) / "ocr" / safe_id(subject)
+    if not folder.is_dir():
+        return []
+    files = [p for p in folder.glob("ocr_*.md") if p.is_file()]
+    return sorted(files, key=lambda p: (p.stat().st_mtime, p.name))
+
+
+def build_catalog_skeleton(shared_context: str) -> dict[str, Any]:
+    """按上下文定位并解析原文 → 合并成一份骨架（文件序 → 页序 → 节序）。
+
+    来源优先取 OCR 合并稿（学生笔记）；KB 里另有资料时后续再接（PPT/PDF 各自有序）。
+    解析不到（老数据/无文件）时返回空骨架，调用方回退旧路径（候选池照旧生效）。
+    """
+    from .gather import subject_from_context, user_id_from_context
+
+    user_id = user_id_from_context(shared_context)
+    subject = subject_from_context(shared_context)
+    merged: dict[str, Any] = {"source": "", "sources": [], "topics": [], "stats": {}}
+    dropped_items = 0
+    merged_cont = 0
+    for path in _ocr_md_paths(user_id, subject):
+        try:
+            text = path.read_text(encoding="utf-8")
+        except OSError:
+            continue
+        if not text.strip():
+            continue
+        part = parse_md_skeleton(text, source=path.name)
+        if not part["topics"]:
+            continue
+        dropped_items += int(part["stats"].get("dropped_item_headings") or 0)
+        merged_cont += int(part["stats"].get("merged_continued") or 0)
+        base = len(merged["topics"])
+        for topic in part["topics"]:
+            topic["file"] = path.name
+            topic["id"] = f"sk_t{base + len(merged['topics']) + 1:03d}"
+            for point in topic["points"]:
+                point["file"] = path.name
+            merged["topics"].append(topic)
+        merged["sources"].append(path.name)
+    merged["source"] = "、".join(merged["sources"])
+    merged["stats"] = {
+        "topics": len(merged["topics"]),
+        "points": sum(len(t["points"]) for t in merged["topics"]),
+        "files": len(merged["sources"]),
+        "dropped_item_headings": dropped_items,
+        "merged_continued": merged_cont,
+    }
+    return merged
+
+
+def _name_variants(name: object) -> list[str]:
+    """名字的多种写法变体：调用方各自的归一化口径不同（有的只去空白），
+    位置表把变体都登记上，任何口径都能查到。含"去掉全部标点"一档，
+    因为模型改写时常把 `补充：坐标系变换` 写成 `补充坐标系变换`。"""
+    raw = re.sub(r"\s+", "", str(name or ""))
+    out = {raw, norm_key(raw), core_key(raw), _CORE_SPLIT_RE.sub("", norm_key(raw))}
+    return [v for v in out if v]
+
+
+def skeleton_position_map(skeleton: dict[str, Any]) -> dict[str, int]:
+    """骨架 → 名字键 → 位置序号（供目录保序；比 KB 元数据更准）。"""
+    out: dict[str, int] = {}
+    for topic in skeleton.get("topics") or []:
+        entries = [(topic.get("name"), topic.get("order"))] + [
+            (point.get("name"), point.get("order")) for point in topic.get("points") or []
+        ]
+        for name, order in entries:
+            for variant in _name_variants(name):
+                out[variant] = min(out.get(variant, 10 ** 9), int(order or 0))
+    return out
+
+
+def _clip(text: str, limit: int = _BODY_PROMPT_LIMIT) -> str:
+    blob = " ".join((text or "").split())
+    return blob if len(blob) <= limit else blob[: limit - 1] + "…"
+
+
+def skeleton_prompt_block(skeleton: dict[str, Any]) -> str:
+    """骨架 → prompt 段（含允许/禁止操作契约）。空骨架返回空串。"""
+    topics = skeleton.get("topics") or []
+    if not topics:
+        return ""
+    lines = [
+        "【原文骨架（权威）】下面是原文（学生笔记）里**逐节解析**出的骨架，"
+        "**主题与知识点的名字、顺序、覆盖以它为准**；章不来自原文，由你按语义分组。",
+        f"来源：{skeleton.get('source') or '（未知）'}"
+        f"（{len(topics)} 个主题 / {skeleton.get('stats', {}).get('points', 0)} 个知识点）",
+    ]
+    for topic in topics:
+        head = (
+            f"[T topic order={topic.get('order')} 页{topic.get('page_span') or '-'}] {topic.get('name')}"
+            + ("（原文标注续页，已与上文合并）" if topic.get("continued") else "")
+        )
+        lines.append(head)
+        if topic.get("body"):
+            lines.append(f"    正文：{_clip(topic['body'])}")
+        for point in topic.get("points") or []:
+            lines.append(
+                f"  · [P kp order={point.get('order')} 页{point.get('page_span') or '-'}] "
+                f"{point.get('name')}"
+            )
+            if point.get("body"):
+                lines.append(f"      正文：{_clip(point['body'])}")
+    lines.append(
+        "【骨架契约（硬约束）】\n"
+        "- 必须覆盖骨架里**每一个** T（主题）与 P（知识点）：名字可规范化改写，但不许丢、"
+        "不许合并掉（要合并只能把 P 降级为父主题的 knowledge_items，名字仍要出现在 items 里）；\n"
+        "- 不许新增骨架里没有的主题/知识点（章可以新增，用来分组主题）；\n"
+        "- 顺序必须跟骨架 order 走：章按「其下最早节点」排序，主题/知识点按 order 升序；\n"
+        "- 细碎内容（例题/易错/小结/注意/步骤）不进层级，收进所属节点的 knowledge_items。"
+    )
+    block = "\n".join(lines)
+    if len(block) > _MD_PROMPT_LIMIT:
+        block = block[:_MD_PROMPT_LIMIT] + "\n…（骨架过长已截断：**未出现的节点仍必须建**，按上文顺序续排）"
+    return block
+
+
+# ── 骨架权威校验（LLM 输出之后，零 LLM）──────────────────────
+
+def _draft_name_keys(draft: dict[str, Any]) -> set[str]:
+    keys: set[str] = set()
+    for chapter in draft.get("chapters") or []:
+        if not isinstance(chapter, dict):
+            continue
+        for topic in chapter.get("topics") or []:
+            if not isinstance(topic, dict):
+                continue
+            key = norm_key(topic.get("name"))
+            if key:
+                keys.add(key)
+            for kp in topic.get("knowledge_points") or []:
+                if not isinstance(kp, dict):
+                    continue
+                key = norm_key(kp.get("name"))
+                if key:
+                    keys.add(key)
+    return keys
+
+
+def _draft_item_blobs(draft: dict[str, Any]) -> list[str]:
+    blobs: list[str] = []
+    for chapter in draft.get("chapters") or []:
+        if not isinstance(chapter, dict):
+            continue
+        for topic in chapter.get("topics") or []:
+            if not isinstance(topic, dict):
+                continue
+            for kp in topic.get("knowledge_points") or []:
+                if not isinstance(kp, dict):
+                    continue
+                for item in kp.get("knowledge_items") or []:
+                    if isinstance(item, dict):
+                        blob = " ".join(str(item.get(k) or "") for k in ("name", "text", "title"))
+                    else:
+                        blob = str(item or "")
+                    if blob.strip():
+                        blobs.append("".join(blob.split()))
+    return blobs
+
+
+def _covered(key: str, name_keys: set[str], item_blobs: list[str]) -> bool:
+    """覆盖判定：名字出现在任意层级节点名，或出现在某个知识点的 items 里（= 降级）。
+
+    严格键没命中时再看核心键（去圈号 + 取首个标点前的部分），避免"写法差异"被误判成缺口。
+    """
+    if not key:
+        return True
+    if key in name_keys:
+        return True
+    core = core_key(key)
+    if len(core) >= 2 and core in name_keys:
+        return True
+    for blob in item_blobs:
+        if key in blob or (len(core) >= 2 and core in blob):
+            return True
+    return False
+
+
+def _skeleton_orders(skeleton: dict[str, Any]) -> dict[str, int]:
+    return skeleton_position_map(skeleton)
+
+
+def _host_chapter(draft: dict[str, Any], orders: dict[str, int], limit: int) -> dict[str, Any]:
+    """缺失节点的章归属：取"其下已有节点的骨架位置最靠前且 < limit"的那个章。"""
+    chapters = [c for c in (draft.get("chapters") or []) if isinstance(c, dict)]
+    best: tuple[int, dict[str, Any]] | None = None
+    for chapter in chapters:
+        for topic in chapter.get("topics") or []:
+            if not isinstance(topic, dict):
+                continue
+            names = [topic.get("name")] + [
+                kp.get("name") for kp in topic.get("knowledge_points") or [] if isinstance(kp, dict)
+            ]
+            for name in names:
+                pos = orders.get(norm_key(name))
+                if pos is None or pos >= limit:
+                    continue
+                if best is None or pos > best[0]:
+                    best = (pos, chapter)
+    return best[1] if best else (chapters[0] if chapters else {})
+
+
+def restore_from_skeleton(
+    draft: dict[str, Any],
+    skeleton: dict[str, Any],
+) -> tuple[dict[str, Any], dict[str, Any]]:
+    """按骨架补齐 + 记录报告（零 LLM）。只增不减：不动模型已有节点，只补缺失。
+
+    报告字段：``restored_topics`` / ``restored_points`` / ``merged_topics`` /
+    ``demoted_kept`` / ``llm_added``。
+    """
+    report: dict[str, Any] = {
+        "restored_topics": [],
+        "restored_points": [],
+        "merged_topics": [],
+        "demoted_kept": [],
+        "llm_added": 0,
+    }
+    topics = skeleton.get("topics") or []
+    if not topics or not draft.get("chapters"):
+        return draft, report
+    orders = _skeleton_orders(skeleton)
+    name_keys = _draft_name_keys(draft)
+    item_blobs = _draft_item_blobs(draft)
+    skeleton_keys = set(orders)
+    report["llm_added"] = len([k for k in name_keys if k not in skeleton_keys])
+    next_tp = _next_no(draft, "tp")
+    next_kp = _next_no(draft, "kp")
+    for topic in topics:
+        tkey = norm_key(topic.get("name"))
+        points = list(topic.get("points") or [])
+        missing_points = [
+            p for p in points
+            if not _covered(norm_key(p.get("name")), name_keys, item_blobs)
+        ]
+        report["demoted_kept"].extend(
+            norm_key(p.get("name"))
+            for p in points
+            if norm_key(p.get("name")) not in name_keys
+            and _covered(norm_key(p.get("name")), name_keys, item_blobs)
+        )
+        topic_covered = _covered(tkey, name_keys, item_blobs)
+        if topic_covered and not missing_points:
+            continue
+        if not topic_covered and points and not missing_points:
+            # 模型把这个主题拆散/并入别处（其下知识点都还在）→ 认作"合并"，
+            # 不重建空壳主题（覆盖判定同样把这种情况算覆盖）
+            report["merged_topics"].append(topic["name"])
+            continue
+        host = _host_chapter(draft, orders, int(topic.get("order") or 0))
+        if not host:
+            continue
+        target_topic = next(
+            (
+                t
+                for t in host.get("topics") or []
+                if isinstance(t, dict) and norm_key(t.get("name")) == tkey
+            ),
+            None,
+        )
+        if target_topic is None:
+            target_topic = {
+                "id": f"tp_{next_tp:03d}",
+                "name": topic["name"],
+                "change_type": "added",
+                "node_status": "program_restore",
+                "knowledge_points": [],
+            }
+            next_tp += 1
+            host.setdefault("topics", []).append(target_topic)
+            name_keys.add(tkey)
+            report["restored_topics"].append(topic["name"])
+        if not points and not (target_topic.get("knowledge_points") or []):
+            # 骨架里这一节本来就没有子标题（原文只有正文）：补一个占位 KP，
+            # 保证"每主题至少 1 个 KP"，避免结构校验失败触发一次多余的重试
+            target_topic.setdefault("knowledge_points", []).append(
+                {
+                    "id": f"kp_{next_kp:03d}",
+                    "name": "核心知识点",
+                    "aliases": [],
+                    "knowledge_type": "concept",
+                    "knowledge_items": [],
+                    "importance": "2",
+                    "difficulty": "3",
+                    "teacher_emphasis": 0,
+                    "change_type": "added",
+                    "node_status": "program_restore",
+                    "sources": [],
+                    "prerequisites": [],
+                    "related_points": [],
+                    "risk_tags": [],
+                    "completion_criteria": [],
+                    "exam_signal": "none",
+                    "topic": str(target_topic.get("name") or ""),
+                    "chapter": str(host.get("name") or ""),
+                }
+            )
+            next_kp += 1
+        for point in missing_points:
+            target_topic.setdefault("knowledge_points", []).append(
+                {
+                    "id": f"kp_{next_kp:03d}",
+                    "name": point["name"],
+                    "aliases": [],
+                    "knowledge_type": "concept",
+                    "knowledge_items": [],
+                    "importance": "2",
+                    "difficulty": "3",
+                    "teacher_emphasis": 0,
+                    "change_type": "added",
+                    "node_status": "program_restore",
+                    "sources": [],
+                    "prerequisites": [],
+                    "related_points": [],
+                    "risk_tags": [],
+                    "completion_criteria": [],
+                    "exam_signal": "none",
+                    "topic": str(target_topic.get("name") or ""),
+                    "chapter": str(host.get("name") or ""),
+                }
+            )
+            name_keys.add(norm_key(point.get("name")))
+            next_kp += 1
+            report["restored_points"].append(point["name"])
+    if report["restored_topics"] or report["restored_points"]:
+        logger.info(
+            "catalog restore from skeleton topics=%d points=%d",
+            len(report["restored_topics"]),
+            len(report["restored_points"]),
+        )
+    if report["llm_added"]:
+        logger.info("catalog nodes not in skeleton (kept) n=%d", report["llm_added"])
+    return draft, report
+
+
+def _next_no(draft: dict[str, Any], prefix: str) -> int:
+    pattern = re.compile(rf"{prefix}_(\d+)")
+    max_no = 0
+    for chapter in draft.get("chapters") or []:
+        if not isinstance(chapter, dict):
+            continue
+        for node in [chapter] + [t for t in chapter.get("topics") or [] if isinstance(t, dict)]:
+            m = pattern.search(str(node.get("id") or ""))
+            if m:
+                max_no = max(max_no, int(m.group(1)))
+            for kp in node.get("knowledge_points") or [] if isinstance(node, dict) else []:
+                if isinstance(kp, dict):
+                    m = pattern.search(str(kp.get("id") or ""))
+                    if m:
+                        max_no = max(max_no, int(m.group(1)))
+    return max_no + 1
+
+
+# ── 第三道校验：知识点的内容是否来自它自己那一节（零 LLM）──────────
+
+_WS_RE = re.compile(r"\s+")
+_LATEX_NOISE_RE = re.compile(r"[\\${}\[\]()（）{}^_|,，.。:：;；!！?？'\"“”‘’·、\-+=*/<>~`]+")
+_QUOTE_MIN = 12      # 长条目（引用型）门槛：短标签无法逐字核对，不判对错
+_ITEM_RUN = 8        # 逐字命中长度（引用型条目）
+_ITEM_NGRAM = 3      # 概述型条目的片段长度
+_ITEM_NGRAM_HIT = 3  # 至少多少个片段命中才算"有依据"
+
+
+def _compact_match(text: object) -> str:
+    return _WS_RE.sub("", str(text or ""))
+
+
+def _match_core(text: object) -> str:
+    """公式友好的比对核：去掉 LaTeX 定界符与标点，只留字母数字与汉字。"""
+    return _LATEX_NOISE_RE.sub("", _compact_match(text))
+
+
+def _has_run(item: str, window: str, run: int) -> bool:
+    """item 是否在 window 里有一段 ≥run 的连续命中（短 item 要求整条命中）。"""
+    if not item or not window:
+        return False
+    if len(item) <= run:
+        return item in window
+    return any(item[i:i + run] in window for i in range(len(item) - run + 1))
+
+
+def _ngram_hits(item: str, window: str, n: int = _ITEM_NGRAM) -> int:
+    """片段命中数：概述型条目（"守恒量定义"）逐字比不上，看三字片段重合度。"""
+    if not item or not window:
+        return 0
+    if len(item) <= n:
+        return 1 if item in window else 0
+    return sum(1 for i in range(len(item) - n + 1) if item[i:i + n] in window)
+
+
+def _need_hits(item_len: int, n: int = _ITEM_NGRAM) -> int:
+    """片段命中阈值随条目长度自适应：短条目本来就没几个片段，阈值不能一刀切 3。"""
+    grams = max(1, item_len - n + 1)
+    return max(1, min(_ITEM_NGRAM_HIT, (grams + 1) // 2))
+
+
+def _item_level(item: str, window: str) -> str:
+    """条目依据强度：``strong``（逐字命中正文）/ ``weak``（概述型，片段重合）/ ``miss``。"""
+    if not item or not window:
+        return "miss"
+    if _has_run(item, window, _ITEM_RUN):
+        return "strong"
+    core = _match_core(item)
+    if core and _has_run(core, _match_core(window), _ITEM_RUN // 2):
+        return "strong"
+    if _ngram_hits(item, window) >= _need_hits(len(item)):
+        return "weak"
+    if core and _ngram_hits(core, _match_core(window)) >= _need_hits(len(core)):
+        return "weak"
+    return "miss"
+
+
+_CONT_TAIL_RE = re.compile(r"[（(]?\s*续\s*[）)]?$")
+
+
+def _index_lookup(index: dict[str, str], name: object) -> str:
+    """在正文索引里查节点窗口：兼容"（续）"后缀与序号/标点写法差异。
+
+    目录里可能还挂着 `一维束缚态（续）`，而骨架已把它并入 `一维束缚态`——
+    不做这层兼容会把整节的条目误判成串门。
+    """
+    raw = clean_title(name)
+    for candidate in (
+        raw,
+        _CONT_TAIL_RE.sub("", raw).strip(),
+        _CIRCLED_RE.sub("", raw).strip(),
+    ):
+        for key in (norm_key(candidate), core_key(candidate)):
+            if key and key in index:
+                return index[key]
+    return ""
+
+
+def _compete_index(skeleton: dict[str, Any]) -> dict[str, str]:
+    """竞争用索引：只放**具体小节**的正文（主题只算它自己的正文，不带子树）。
+
+    否则"主题子树"（含其下全部知识点）窗口最大，任何条目都会"更像那个主题"，
+    串门结论既不准也没法读。用具体小节竞争，结论才能落到"更像哪一节"。
+    """
+    index: dict[str, str] = {}
+    for topic in skeleton.get("topics") or []:
+        topic_body = _compact_match(topic.get("body"))
+        topic_key = norm_key(topic.get("name"))
+        if topic_key and topic_body:
+            index[topic_key] = topic_body
+        for point in topic.get("points") or []:
+            key = norm_key(point.get("name"))
+            if not key:
+                continue
+            own = _compact_match(point.get("body"))
+            if own or topic_body:
+                index[key] = own + topic_body
+    return index
+
+
+def _content_index(skeleton: dict[str, Any]) -> dict[str, str]:
+    """名字键 → 可核对正文窗口。
+
+    - 主题：本节正文 + 其下所有知识点正文（主题正文常为空，材料都在子节点里）；
+    - 知识点：自己的正文 + 所属主题正文；自己正文为空时退到主题子树，
+      否则"主题下并列的 KP"会被误判成串门。
+    """
+    index: dict[str, str] = {}
+    for topic in skeleton.get("topics") or []:
+        topic_body = _compact_match(topic.get("body"))
+        points = topic.get("points") or []
+        subtree = topic_body + "".join(_compact_match(p.get("body")) for p in points)
+        topic_key = norm_key(topic.get("name"))
+        if topic_key:
+            index[topic_key] = subtree
+        for point in points:
+            key = norm_key(point.get("name"))
+            if not key:
+                continue
+            own = _compact_match(point.get("body"))
+            index[key] = (own + topic_body) if own else subtree
+    return index
+
+
+def _all_bodies(skeleton: dict[str, Any]) -> str:
+    parts = [str(t.get("body") or "") for t in skeleton.get("topics") or []]
+    for topic in skeleton.get("topics") or []:
+        parts.extend(str(p.get("body") or "") for p in topic.get("points") or [])
+    return _compact_match("\n".join(parts))
+
+
+def _score_item(item: str, window: str) -> int:
+    """条目对某节正文的匹配分：3=逐字命中、2=概述型、0=无。"""
+    return {"strong": 3, "weak": 2, "miss": 0}[_item_level(item, window)]
+
+
+def verify_catalog_content(draft: dict[str, Any], skeleton: dict[str, Any]) -> dict[str, Any]:
+    """核对 items 与原文的关系（第三道校验，零 LLM）。
+
+    粒度选择（中文里 4 字片段遍地都是，逐条判"串门"信噪比极差）：
+
+    - **条目级**只判"有没有依据"：``strong``（逐字命中本节）/ ``weak``（概述型，片段重合）
+      / ``unverified``（全篇找不到痕迹 = 疑似编造）；
+    - **节点级**才判"串门"：某个 KP 的多数条目最佳匹配落在**别节**（≥2 条且 ≥60%）
+      → 记 ``misplaced_nodes``，这才是"整节内容挂错地方"（如角向方程挂进束缚态）。
+
+    只标记不删除：概述型条目逐字比不上是常态，硬删会误伤；计数进 monitor 供你决定是否重跑。
+    """
+    report: dict[str, Any] = {
+        "checked": 0,
+        "strong": 0,
+        "weak": 0,
+        "labels": 0,
+        "unverified": [],
+        "misplaced_nodes": [],
+    }
+    topics = skeleton.get("topics") or []
+    if not topics:
+        return report
+    index = _content_index(skeleton)
+    compete = _compete_index(skeleton)
+    whole = _all_bodies(skeleton)
+    for chapter in draft.get("chapters") or []:
+        if not isinstance(chapter, dict):
+            continue
+        for topic in chapter.get("topics") or []:
+            if not isinstance(topic, dict):
+                continue
+            for kp in topic.get("knowledge_points") or []:
+                if not isinstance(kp, dict):
+                    continue
+                point_key = norm_key(kp.get("name"))
+                topic_key = norm_key(topic.get("name"))
+                own_window = _index_lookup(index, kp.get("name")) or _index_lookup(
+                    index, topic.get("name")
+                )
+                own_name = (
+                    point_key if _index_lookup(index, kp.get("name")) == own_window and own_window
+                    else (topic_key if own_window else "")
+                )
+                best: dict[str, int] = {}
+                for item in kp.get("knowledge_items") or []:
+                    text = item if isinstance(item, str) else " ".join(
+                        str(item.get(k) or "") for k in ("name", "text", "title")
+                    )
+                    text = _compact_match(text)
+                    if not text:
+                        continue
+                    report["checked"] += 1
+                    level = _item_level(text, own_window)
+                    if level != "miss":
+                        report[level] += 1
+                        continue
+                    winner, score = "", 0
+                    for name, body in compete.items():
+                        s = _score_item(text, body)
+                        if s > score:
+                            winner, score = name, s
+                    if score >= 2:
+                        # 本节没有依据，但别节有 → 累计到节点级"串门"判定
+                        best[winner] = best.get(winner, 0) + 1
+                    elif _item_level(text, whole) != "miss":
+                        report["weak"] += 1  # 全篇有痕迹，只是定位不到具体节
+                    elif len(text) >= _QUOTE_MIN:
+                        # 长条目像引用却全篇找不到 → 可执行的存疑信号
+                        report["unverified"].append(
+                            {
+                                "chapter": str(chapter.get("name") or ""),
+                                "topic": str(topic.get("name") or ""),
+                                "point": str(kp.get("name") or ""),
+                                "item": text[:60],
+                            }
+                        )
+                    else:
+                        report["labels"] += 1  # 短标签（模型的命名），文本上无法核对
+                if best:
+                    winner, hits = max(best.items(), key=lambda kv: kv[1])
+                    matched = sum(best.values())
+                    if winner and winner != own_name and hits >= 2 and hits / matched >= 0.6:
+                        report["misplaced_nodes"].append(
+                            {
+                                "point": str(kp.get("name") or ""),
+                                "belongs_to": winner,
+                                "items": hits,
+                                "matched": matched,
+                            }
+                        )
+    return report
+
+
+def catalog_quality_report(skeleton: dict[str, Any], draft: dict[str, Any]) -> dict[str, Any]:
+    """目录体检（覆盖 + 同级顺序 + 内容可核）——CLI 与接口 monitor 共用同一实现。
+
+    参数顺序与工具链一致：``(骨架, 目录)``。
+    返回结构化明细 + ``metrics``（一行式摘要，进响应体的 monitor.catalog）。
+    """
+    topics = skeleton.get("topics") or []
+    nodes: list[dict[str, Any]] = []
+    for chapter in draft.get("chapters") or []:
+        if not isinstance(chapter, dict):
+            continue
+        nodes.append({"level": "章", "name": str(chapter.get("name") or "")})
+        for topic in chapter.get("topics") or []:
+            if not isinstance(topic, dict):
+                continue
+            nodes.append({"level": "主题", "name": str(topic.get("name") or "")})
+            for kp in topic.get("knowledge_points") or []:
+                if not isinstance(kp, dict):
+                    continue
+                items = []
+                for item in kp.get("knowledge_items") or []:
+                    items.append(
+                        " ".join(str(item.get(k) or "") for k in ("name", "text"))
+                        if isinstance(item, dict) else str(item or "")
+                    )
+                nodes.append(
+                    {
+                        "level": "KP",
+                        "name": str(kp.get("name") or ""),
+                        "status": str(kp.get("node_status") or ""),
+                        "items": _compact_match(" ".join(items)),
+                    }
+                )
+    name_keys = {norm_key(n["name"]) for n in nodes if norm_key(n["name"])}
+    core_keys = {core_key(n["name"]) for n in nodes if len(core_key(n["name"])) >= 2}
+    item_blobs = [n.get("items") or "" for n in nodes]
+
+    def covered(name: str) -> bool:
+        key = norm_key(name)
+        if not key:
+            return True
+        if key in name_keys:
+            return True
+        core = core_key(name)
+        if len(core) >= 2 and core in core_keys:
+            return True
+        return any(key in blob or (len(core) >= 2 and core in blob) for blob in item_blobs)
+
+    uncovered_topics: list[str] = []
+    uncovered_points: list[str] = []
+    demoted: list[str] = []
+    merged_topics: list[str] = []
+    for topic in topics:
+        points = topic.get("points") or []
+        missing = [p for p in points if not covered(p["name"])]
+        demoted.extend(
+            p["name"] for p in points
+            if norm_key(p["name"]) not in name_keys and covered(p["name"])
+        )
+        if not covered(topic["name"]):
+            if points and not missing:
+                merged_topics.append(topic["name"])
+            else:
+                uncovered_topics.append(topic["name"])
+        uncovered_points.extend(p["name"] for p in missing)
+
+    order: dict[str, int] = {}
+    dup_names: set[str] = set()
+    for topic in topics:
+        for name, value in [(topic["name"], topic.get("order"))] + [
+            (p["name"], p.get("order")) for p in topic.get("points") or []
+        ]:
+            key = norm_key(name)
+            if not key:
+                continue
+            if key in order:
+                dup_names.add(key)  # 原文里出现两次（如两处「证明：」），位置本身歧义
+                continue
+            order[key] = int(value or 0)
+
+    def pos_of(name: str) -> int | None:
+        key = norm_key(name)
+        if key in dup_names:
+            return None
+        return order.get(key)
+
+    level_violations: list[str] = []
+    chapter_positions: list[tuple[int, str]] = []
+    for chapter in draft.get("chapters") or []:
+        if not isinstance(chapter, dict):
+            continue
+        topic_pos = [
+            p for p in (
+                [pos_of(t.get("name")) for t in chapter.get("topics") or [] if isinstance(t, dict)]
+            )
+            if p is not None
+        ]
+        chapter_positions.append(
+            (min(topic_pos) if topic_pos else 10 ** 9, str(chapter.get("name")))
+        )
+        if topic_pos != sorted(topic_pos):
+            level_violations.append(f"章「{chapter.get('name')}」内主题顺序乱：{topic_pos}")
+        for topic in chapter.get("topics") or []:
+            if not isinstance(topic, dict):
+                continue
+            kp_pos = [
+                p for p in (
+                    [pos_of(kp.get("name")) for kp in topic.get("knowledge_points") or []
+                     if isinstance(kp, dict)]
+                )
+                if p is not None
+            ]
+            if kp_pos != sorted(kp_pos):
+                level_violations.append(f"主题「{topic.get('name')}」内 KP 顺序乱：{kp_pos}")
+    chapter_seq = [p for p, _n in chapter_positions]
+    if chapter_seq != sorted(chapter_seq):
+        level_violations.append(f"章顺序乱：{[n for _p, n in chapter_positions]}")
+
+    aligned = [
+        (norm_key(n["name"]), n["name"]) for n in nodes if pos_of(n["name"]) is not None
+    ]
+    cross_jumps = [
+        (order[aligned[i][0]], order[aligned[i + 1][0]], aligned[i + 1][1])
+        for i in range(len(aligned) - 1)
+        if order[aligned[i + 1][0]] < order[aligned[i][0]]
+    ]
+    content = verify_catalog_content(draft, skeleton)
+    total = len(topics) + sum(len(t.get("points") or []) for t in topics)
+    missed = len(uncovered_topics) + len(uncovered_points)
+    skeleton_keys = set(order)
+    llm_added = len([k for k in name_keys if k not in skeleton_keys])
+    restored = sum(1 for n in nodes if n.get("status") == "program_restore")
+    complemented = sum(1 for n in nodes if n.get("status") == "program_complement")
+    ok = not (uncovered_topics or uncovered_points or level_violations)
+    return {
+        "nodes": nodes,
+        "total": total,
+        "missed": missed,
+        "coverage": (total - missed) / max(1, total),
+        "uncovered_topics": uncovered_topics,
+        "uncovered_points": uncovered_points,
+        "demoted": demoted,
+        "merged_topics": merged_topics,
+        "dup_names": sorted(dup_names),
+        "aligned": len(aligned),
+        "level_violations": level_violations,
+        "cross_jumps": cross_jumps,
+        "content": content,
+        "ok": ok,
+        "metrics": {
+            "coverage": f"{total - missed}/{total}",
+            "order_violations": len(level_violations),
+            "restored": restored,
+            "complemented": complemented,
+            "demoted": len(demoted),
+            "merged": len(merged_topics),
+            "llm_added": llm_added,
+            "verified_items": f"{content['strong'] + content['weak']}/{content['checked']}",
+            "label_items": content["labels"],
+            "misplaced_nodes": len(content["misplaced_nodes"]),
+            "unverified_items": len(content["unverified"]),
+        },
+    }
+
+
+__all__ = [
+    "build_catalog_skeleton",
+    "parse_md_skeleton",
+    "skeleton_prompt_block",
+    "skeleton_position_map",
+    "restore_from_skeleton",
+    "verify_catalog_content",
+    "catalog_quality_report",
+    "clean_title",
+    "norm_key",
+    "core_key",
+    "is_item_heading",
+]

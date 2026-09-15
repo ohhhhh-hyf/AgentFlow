@@ -263,6 +263,7 @@ def attach_catalog_artifacts(state: dict[str, Any]) -> None:
         calibrate_catalog_relations,
         complement_catalog_coverage,
         compute_catalog_signals,
+        order_catalog_by_source,
         subject_from_context,
         trim_catalog_scale,
         user_id_from_context,
@@ -275,10 +276,14 @@ def attach_catalog_artifacts(state: dict[str, Any]) -> None:
     extra = str((state.get("line_extra") or {}).get("catalog") or "")
     transcript = str(state.get("transcript") or "")
     context = f"{transcript}\n{extra}"
-    # 输出侧流水线(均零 LLM):候选补缺 → 规模合并 → 溯源/老师回填 → 粒度合并
+    # 输出侧流水线(均零 LLM):候选补缺 → 保序 → 规模合并 → 溯源/老师回填 → 粒度合并
     # → 关联校准(悬空引用归零) → 重要性/信号计算
     draft = complement_catalog_coverage(draft, context)
+    # 补缺会新建/追加节点（末尾），这里再保序一次，让"目录顺序 = 原文顺序"在补缺后仍成立
+    draft = order_catalog_by_source(draft, context)
     draft = trim_catalog_scale(draft, context)
+    # 规模合并会把节点并进父级，可能改动顺序，再保序一次
+    draft = order_catalog_by_source(draft, context)
     draft = backfill_catalog_trace(draft, context)
     draft = compact_catalog_granularity(draft)
     draft = calibrate_catalog_relations(draft)

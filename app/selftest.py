@@ -12,6 +12,7 @@
 from __future__ import annotations
 
 import asyncio
+import copy
 import json
 import os
 import sys
@@ -454,6 +455,387 @@ def test_async_response_shape() -> None:
           and done_view["monitor"]["cost_time"] == 9.6)
 
 
+# ── 目录顺序轴 / 覆盖：原文位置来自入库元数据，缺节必须补得回来 ──────
+
+class _FakeKB:
+    """只提供 list_chunks 的假知识库（briefing/位置表/补缺都只消费元数据）。"""
+
+    def __init__(self, rows: list[dict]) -> None:
+        self._rows = rows
+
+    def list_chunks(self, **_kwargs) -> list[dict]:
+        return [{"metadata": dict(row)} for row in self._rows]
+
+    def list_files(self, **_kwargs) -> list[str]:
+        return sorted({str(r.get("source") or "") for r in self._rows})
+
+
+def _fake_rows() -> list[dict]:
+    """模仿 OCR 合并稿入库后的元数据：chunk_index 递增、层级/分数取自入库。"""
+    src = "ocr_20990101_000000.md"
+    rows: list[dict] = []
+
+    def add(heading: str, ci: str, score: int, kind: str, path: str, chapter: str,
+            topic: str = "") -> None:
+        rows.append(
+            {
+                "source": src,
+                "chapter": chapter,
+                "topic": topic,
+                "heading": heading,
+                "heading_path_text": path,
+                "page": "",
+                "chunk_index": ci,
+                "heading_score": str(score),
+                "heading_kind": kind,
+                "content_tags": "",
+                "contains_formula": "0",
+                "role": "notes",
+            }
+        )
+
+    # 前两页：层级浅 → score=3 / evidence（正是被隐藏的那两节）
+    add("一维束缚态", "0-0", 3, "evidence", "一维束缚态", "一维束缚态")
+    add("一维半无限深方势阱", "2-0", 3, "evidence", "一维半无限深方势阱", "一维半无限深方势阱")
+    # 后文：层级正常 → 5/6 分
+    add("一维谐振子", "6-0", 5, "topic", "一维谐振子", "一维谐振子")
+    add("幂级数解法", "9-0", 5, "knowledge_point", "一维谐振子 / 幂级数解法",
+        "一维谐振子", "幂级数解法")
+    add("氢原子", "30-0", 6, "chapter", "氢原子", "氢原子")
+    add("例题1", "34-0", 5, "knowledge_point", "氢原子 / 例题1", "氢原子", "例题1")
+    return rows
+
+
+def test_catalog_order_and_coverage() -> None:
+    """不需要 OCR / 模型 / 真实知识库：位置轴来自入库元数据，缺节能被补回并保序。"""
+    import domain.notes.tasks.catalog.gather as gather
+
+    kb = _FakeKB(_fake_rows())
+    original = gather.open_knowledge
+    gather.open_knowledge = lambda user_id="": kb
+    try:
+        ctx = "【用户ID】__selftest__\n【学科/课程】wuli\n"
+        grouped = gather._brief_chunks(kb, "__selftest__", "wuli")
+        cands = gather._title_candidates(grouped)
+        order = [row["path"][0] for row in cands]
+        check("候选顺序 = 原文位置（不再按标题字符串）",
+              order[0] == "一维束缚态" and order[1] == "一维半无限深方势阱",
+              f"前两条={order[:2]}")
+        pos = gather.build_catalog_position_map(ctx)
+        check("位置表能拿到前两页的位置",
+              pos.get("一维束缚态") == 0 and pos.get("一维半无限深方势阱") == 1,
+              f"pos={ {k: pos.get(k) for k in ('一维束缚态', '一维半无限深方势阱', '氢原子')} }")
+        brief = gather.build_catalog_briefing(ctx)
+        low_seg = next((s for s in brief.split("【") if s.startswith("低可信标题")), "")
+        check("低可信标题列出名字并允许用作小节",
+              "一维束缚态" in low_seg and "一维半无限深方势阱" in low_seg
+              and "照常建主题或 KP" in low_seg,
+              f"段首={low_seg[:60]!r}")
+        check("例题类标题仍不进补缺范围",
+              all("例题" not in " / ".join(c["path"]) for c in cands if gather._fillable_title(c)),
+              "fillable 含例题")
+
+        draft = {
+            "chapters": [
+                {
+                    "id": "ch_001",
+                    "name": "氢原子",
+                    "topics": [{
+                        "id": "tp_001",
+                        "name": "哈密顿量",
+                        "knowledge_points": [{"id": "kp_001", "name": "氢原子哈密顿量",
+                                              "importance": "3"}],
+                    }],
+                }
+            ]
+        }
+        filled = gather.complement_catalog_coverage(draft, ctx)
+        names = [c.get("name") for c in filled.get("chapters") or []]
+        check("缺的整节按自己的章名补回目录",
+              {"一维束缚态", "一维半无限深方势阱"} <= set(names), f"章={names}")
+        check("补缺不产生同名重复节点",
+              all(
+                  sum(1 for n in gather._catalog_node_names(filled) if n == k) == 1
+                  for k in (gather._title_key("一维束缚态"),)
+              ) and "氢原子" in names,
+              f"章={names}")
+        ordered = gather.order_catalog_by_source(filled, ctx)
+        names2 = [c.get("name") for c in ordered.get("chapters") or []]
+        check("补缺后仍按原文保序（前两页在最前）",
+              names2[:2] == ["一维束缚态", "一维半无限深方势阱"] and names2[-1] == "氢原子",
+              f"章序={names2}")
+        kp_names = [str(k.get("name")) for c in ordered.get("chapters") or []
+                    for t in c.get("topics") or [] for k in t.get("knowledge_points") or []]
+        check("补缺的 KP 挂在补出来的章里，且不重复建",
+              "幂级数解法,构造递推的系数关系" in kp_names or "幂级数解法" in kp_names,
+              f"kp={kp_names}")
+    finally:
+        gather.open_knowledge = original
+
+
+def test_ingest_position_axis() -> None:
+    """不需要知识库：页块标记 → page/page_span；md 无条件写递增块序；层级按文件归一。"""
+    from tools.knowledge.document_processor import _chunks_by_heading
+
+    sample = (
+        "<!-- ocr-pages: 1-2 -->\n### 一维束缚态\n\n定态薛定谔方程与连续性条件。\n\n"
+        "### 半无限深方势阱\n\n分区求解并匹配边界条件。\n\n"
+        "<!-- ocr-pages: 3-4 -->\n### 谐振子\n\n幂级数解法构造递推关系。\n"
+    )
+    chunks = _chunks_by_heading(sample, "data/__selftest__/ocr/wuli/ocr_x.md")
+    metas = [c.metadata for c in chunks]
+    check("页块标记写进 page/page_span",
+          [m.get("page") for m in metas] == [1, 1, 3]
+          and [m.get("page_span") for m in metas] == ["1-2", "1-2", "3-4"],
+          f"page={[m.get('page') for m in metas]} span={[m.get('page_span') for m in metas]}")
+    check("md 块带文件内递增 chunk_index",
+          [m.get("chunk_index") for m in metas] == ["0-0", "1-0", "2-0"],
+          f"ci={[m.get('chunk_index') for m in metas]}")
+    check("标题层级按文件内最浅层归一（整篇 ### → 1 级）",
+          all(m.get("heading_level") == 1 for m in metas)
+          and all(str(m.get("heading_level_raw")) == "3" for m in metas),
+          f"lvl={[m.get('heading_level') for m in metas]} raw={[m.get('heading_level_raw') for m in metas]}")
+    check("归一后不再被判成低分证据",
+          all(int(m.get("heading_score") or 0) >= 4 for m in metas)
+          and all(m.get("heading_kind") != "evidence" for m in metas),
+          f"score={[m.get('heading_score') for m in metas]} kind={[m.get('heading_kind') for m in metas]}")
+    check("标记行不进块正文",
+          all("ocr-pages" not in c.text for c in chunks), "标记泄进正文")
+
+    # 文件内已有 # 时不做移位（避免整篇被抬级）
+    body = "这是正文段落，长度足够通过块级内容门，避免退化成单块兜底路径。"
+    mixed = f"# 章一\n\n{body}\n\n### 小节\n\n{body}再来一句以凑够长度。\n"
+    mixed_chunks = _chunks_by_heading(mixed, "x.md")
+    lvls = [c.metadata.get("heading_level") for c in mixed_chunks]
+    raws = [c.metadata.get("heading_level_raw") for c in mixed_chunks]
+    check("文件已有 # 时保持原层级、只记录 raw",
+          lvls == [1, 3] and raws == [None, None], f"lvl={lvls} raw={raws}")
+
+
+def _coverage_tools():
+    """加载覆盖校验脚本（与 CLI 同一套判定口径，避免两套实现漂移）。"""
+    import importlib.util
+    from pathlib import Path as _Path
+
+    path = _Path(__file__).resolve().parents[1] / "tools" / "scripts" / "check_catalog_coverage.py"
+    spec = importlib.util.spec_from_file_location("_agentflow_coverage_check", path)
+    module = importlib.util.module_from_spec(spec)
+    assert spec and spec.loader
+    spec.loader.exec_module(module)
+    return module
+
+
+_SKELETON_MD = """<!-- ocr-pages: 1-2 -->
+### 一维束缚态
+
+在一维情况下，定态薛定谔方程简化为二阶常微分方程，边界条件由势函数给出连续性要求。
+
+### 一维半无限深方势阱
+
+势函数在有限高度处截断，分区求解后匹配边界条件，能量本征值离散。
+
+<!-- ocr-pages: 3-4 -->
+## 一维束缚态（续）
+
+分离变量后角向部分与径向部分解耦，角向方程给出球谐函数形式的解。
+
+### 补充：坐标系变换
+
+直角坐标与球坐标的度规不同，梯度算子要随之改写，便于后续计算。
+
+#### 例题 1
+
+把梯度算子写成球坐标分量形式，注意角向分量的 1/r 与 1/(r sinθ) 因子。
+
+<!-- ocr-pages: 5-8 -->
+# 氢原子
+
+## 概率密度角度分布与径向分布
+
+概率密度角度分布由球谐函数决定，径向分布由拉盖尔多项式决定。
+"""
+
+
+def test_skeleton_parse_and_contract() -> None:
+    """不需要 OCR / 模型 / 知识库：md → 有序骨架（顺序、覆盖、粒度、续页、细碎标题）。"""
+    from domain.notes.tasks.catalog.skeleton import (
+        is_item_heading,
+        parse_md_skeleton,
+        skeleton_position_map,
+        skeleton_prompt_block,
+    )
+
+    skeleton = parse_md_skeleton(_SKELETON_MD, source="ocr_selftest.md")
+    topics = skeleton["topics"]
+    names = [t["name"] for t in topics]
+    check("骨架主题 = 各区域最浅标题（页块内相对层级）",
+          names == ["一维束缚态", "一维半无限深方势阱", "氢原子"],
+          f"topics={names}")
+    check("续页标题并入同名主题（不产生第二个节点）",
+          names.count("一维束缚态") == 1
+          and "分离变量" in topics[0]["body"],
+          f"names={names} body={topics[0]['body'][:24]!r}")
+    check("区域内的更深标题 = 知识点，按原文顺序",
+          [p["name"] for p in topics[0]["points"]] == ["补充：坐标系变换"],
+          f"points={[p['name'] for p in topics[0]['points']]}")
+    check("页块标记写进 page/page_span",
+          topics[0]["page_span"] == "1-2" and topics[2]["page_span"] == "5-8",
+          f"span={[t['page_span'] for t in topics]}")
+    orders = [t["order"] for t in topics]
+    check("order 严格递增（文件序 → 页序 → 节序）", orders == sorted(orders) and len(set(orders)) == len(orders),
+          f"orders={orders}")
+    check("细碎标题（例题）不建节点，其正文并入父节点",
+          is_item_heading("例题 1") and all("例题" not in t["name"] for t in topics)
+          and "梯度算子" in topics[0]["points"][0]["body"],
+          f"points={[p['name'] for p in topics[0]['points']]}")
+    check("骨架里主题正文可读（紧接子标题的主题正文为空，属正常）",
+          bool(topics[0]["body"]) and bool(topics[1]["body"]),
+          f"bodies={[len(t['body']) for t in topics]}")
+    block = skeleton_prompt_block(skeleton)
+    check("prompt 段带 T/P 标记与硬约束",
+          "[T topic order=" in block and "[P kp order=" in block
+          and "覆盖骨架里**每一个** T" in block and "不许新增骨架里没有的主题/知识点" in block,
+          f"len={len(block)}")
+    pos = skeleton_position_map(skeleton)
+    check("位置表覆盖骨架所有名字（含去序号写法）",
+          "氢原子" in pos and "补充坐标系变换" in pos and pos["氢原子"] > pos["一维束缚态"],
+          f"sample={ {k: pos[k] for k in list(pos)[:4]} }")
+
+
+def test_skeleton_restore_and_order() -> None:
+    """不需要模型：模型漏节点/乱序/降级后，骨架校验把覆盖与顺序拉回硬指标。"""
+    from domain.notes.tasks.catalog.skeleton import parse_md_skeleton, restore_from_skeleton
+
+    coverage = _coverage_tools()
+    skeleton = parse_md_skeleton(_SKELETON_MD, source="ocr_selftest.md")
+
+    # 模型输出：漏掉第 1、2 个主题，乱序 KP，把一个 KP 降级进 items
+    draft = {
+        "chapters": [
+            {
+                "id": "ch_001",
+                "name": "量子力学基础",
+                "topics": [
+                    {
+                        "id": "tp_001",
+                        "name": "氢原子",
+                        "knowledge_points": [
+                            {"id": "kp_001", "name": "概率密度角度分布与径向分布", "importance": "3"},
+                        ],
+                    },
+                    {
+                        "id": "tp_002",
+                        "name": "一维束缚态",
+                        "knowledge_points": [
+                            {"id": "kp_002", "name": "补充：坐标系变换", "knowledge_items": ["例题 1"]},
+                        ],
+                    },
+                ],
+            }
+        ]
+    }
+    before = coverage.evaluate(skeleton, draft)
+    restored, report = restore_from_skeleton(copy.deepcopy(draft), skeleton)
+    after = coverage.evaluate(skeleton, restored)
+    check("模型漏的主题被补回（program_restore）",
+          len(report["restored_topics"]) >= 1 and after["coverage"] > before["coverage"],
+          f"before={before['coverage']:.2f} after={after['coverage']:.2f} "
+          f"补齐={report['restored_topics'] + report['restored_points']}")
+    check("骨架校验后覆盖 100%（顺序由下一步保序负责）",
+          after["coverage"] == 1.0 and not after["uncovered_topics"] and not after["uncovered_points"],
+          f"缺主题={after['uncovered_topics']} 缺KP={after['uncovered_points']}")
+    check("降级进 items 的不再重复建节点（算覆盖）",
+          not any("补充坐标系变换" == n for n in after["uncovered_points"]),
+          f"demoted={report['demoted_kept']}")
+
+    from domain.notes.tasks.catalog.steps.catalog_agent import _reorder_by_source_order
+    from domain.notes.tasks.catalog.skeleton import skeleton_position_map
+
+    shuffled = copy.deepcopy(restored)
+    for chapter in shuffled["chapters"]:
+        chapter["topics"] = list(reversed(chapter.get("topics") or []))
+        for topic in chapter["topics"]:
+            topic["knowledge_points"] = list(reversed(topic.get("knowledge_points") or []))
+    ordered = _reorder_by_source_order(shuffled, skeleton_position_map(skeleton))
+    final = coverage.evaluate(skeleton, ordered)
+    check("同级保序：章/主题/KP 顺序回到原文顺序",
+          final["ok"] and not final["level_violations"],
+          f"violations={final['level_violations'][:2]}")
+
+
+_CONTENT_MD = """<!-- ocr-pages: 1-2 -->
+### 一维半无限深方势阱
+
+势函数在有限高度处截断，分区求解后匹配边界条件，能量本征值离散。
+
+<!-- ocr-pages: 3-4 -->
+### 补充：坐标系变换
+
+直角坐标与球坐标的度规不同，梯度算子要随之改写，便于后续计算。
+"""
+
+
+def test_catalog_content_check() -> None:
+    """第三道校验：条目是否有依据（逐字/概述型/串门/编造），以及 monitor 摘要形态。"""
+    from domain.notes.tasks.catalog.skeleton import (
+        catalog_quality_report,
+        parse_md_skeleton,
+        verify_catalog_content,
+    )
+
+    skeleton = parse_md_skeleton(_CONTENT_MD, source="ocr_selftest.md")
+    draft = {
+        "chapters": [
+            {
+                "id": "ch_001",
+                "name": "量子力学基础",
+                "topics": [
+                    {
+                        "id": "tp_001",
+                        "name": "一维半无限深方势阱",
+                        "knowledge_points": [
+                            {
+                                "id": "kp_001",
+                                "name": "一维半无限深方势阱",
+                                "knowledge_items": [
+                                    "分区求解",                                  # 本节逐字命中
+                                    "梯度算子要随之改写",                          # 别节逐字命中（串门）
+                                    "球坐标的度规不同",                            # 同上，凑够 2 条判节点级串门
+                                    "由基态波函数可直接推出海森堡不确定关系的下界",     # 长条目全篇无依据
+                                    "能量离散",                                  # 短标签，无法逐字核对
+                                ],
+                            }
+                        ],
+                    }
+                ],
+            }
+        ]
+    }
+    report = verify_catalog_content(draft, skeleton)
+    check("item 数与分类计数一致",
+          report["checked"] == 5
+          and report["strong"] == 1 and report["labels"] == 1,
+          f"checked={report['checked']} strong={report['strong']} labels={report['labels']}")
+    check("整节串门被判出（多数条目更像另一节）",
+          len(report["misplaced_nodes"]) == 1
+          and "补充" in report["misplaced_nodes"][0]["belongs_to"]
+          and report["misplaced_nodes"][0]["items"] == 2,
+          f"misplaced={report['misplaced_nodes']}")
+    check("长条目全篇无依据 → 存疑（短标签不误报）",
+          len(report["unverified"]) == 1
+          and "海森堡" in report["unverified"][0]["item"],
+          f"unverified={report['unverified']}")
+    quality = catalog_quality_report(skeleton, draft)
+    metrics = quality["metrics"]
+    check("monitor 摘要字段齐全（一行式验收）",
+          {"coverage", "order_violations", "restored", "complemented",
+           "misplaced_nodes", "unverified_items"} <= set(metrics),
+          f"metrics={metrics}")
+    check("体检不改动目录（只读）",
+          draft["chapters"][0]["topics"][0]["knowledge_points"][0]["knowledge_items"][0]
+          == "分区求解")
+
+
 # ── 图片 OCR：并发但不许乱序（笔记图片本身有先后）──────────────
 
 def test_ocr_order() -> None:
@@ -734,6 +1116,11 @@ async def main() -> int:
     test_async_response_shape()
     test_ocr_order()
     test_page_chrome()
+    test_ingest_position_axis()
+    test_catalog_order_and_coverage()
+    test_skeleton_parse_and_contract()
+    test_skeleton_restore_and_order()
+    test_catalog_content_check()
     test_ocr_noise_strip()
     test_catalog_order()
     print()

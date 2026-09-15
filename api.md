@@ -536,6 +536,10 @@ curl -OJ "http://127.0.0.1:8000/api/v1/notes/checklist/file/<rid>/checklist.html
 | `catalog` | `{"domain":"notes","task":"catalog","extra":{"subject":"<学科>"}}` |
 | `checklist` | `{"domain":"notes","task":"checklist","docs":["<catalog文件名.json>"],"extra":{"subject":"<学科>"}}` |
 
+> `catalog` 的结构与顺序以**已入库合并稿解析出的有序骨架**为准（覆盖每个小节、按原文先后排序，
+> 程序会把模型漏掉的节点补回并标 `node_status=program_restore`）。详见 `notes_api.md`
+> 「`catalog` 的结构保证」与 `README.md` 的 P2 说明；对账用 `tools/scripts/check_catalog_coverage.py`。
+
 ### 3.2 统一响应体（四个接口共用）
 
 ```jsonc

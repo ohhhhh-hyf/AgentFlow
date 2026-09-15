@@ -65,6 +65,33 @@ def _input_file(user_id: str, kind: str, name: str) -> Path:
     )
 
 
+def _catalog_quality_monitor(line: str, user_id: str, subject: str) -> dict:
+    """catalog 跑完后的"目录体检"（覆盖 / 同级顺序 / 内容可核）→ 响应 monitor.catalog。
+
+    读**刚存下的**目录 json + 原文骨架算指标（零 LLM），让你一眼验收而不是读整棵树；
+    任何异常都只丢指标、不影响目录结果本身。
+    """
+    if line != "catalog":
+        return {}
+    try:
+        from domain.notes.tasks.catalog.skeleton import (
+            build_catalog_skeleton,
+            catalog_quality_report,
+        )
+        from domain.notes.tasks.catalog.store import load_catalog
+
+        draft = load_catalog(user_id=user_id, subject=subject)
+        if not draft:
+            return {}
+        skeleton = build_catalog_skeleton(f"【用户ID】{user_id}\n【学科/课程】{subject}\n")
+        if not skeleton.get("topics"):
+            return {}
+        return {"catalog": catalog_quality_report(skeleton, draft)["metrics"]}
+    except Exception:  # noqa: BLE001 - 体检失败不影响任务结果
+        logger.warning("catalog quality monitor failed", exc_info=True)
+        return {}
+
+
 def _catalog_input_file(user_id: str, subject: str, name: str) -> Path:
     """checklist 的 docs：catalog 文件名 → data/{user_id}/knowledge/catalogs/{subject}/{name}。"""
     from domain.notes.tasks.catalog.store import _subject_filename
@@ -732,6 +759,7 @@ async def _stream_task_impl(
                             "token_usage": int(usage.get("total_tokens", 0) or 0),
                             "cache_hit": int(usage.get("cache_hit_tokens", 0) or 0),
                             "cost_time": round((time.time() - _start_time), 1),
+                            **_catalog_quality_monitor(p.line, user_id, p.subject),
                         },
                         "data": {
                             "text": md_text,
