@@ -19,6 +19,7 @@ from fastapi.staticfiles import StaticFiles  # noqa: E402
 
 from .config import load_env  # noqa: E402
 from .routes import meeting, notes, tasks as async_tasks  # noqa: E402
+from .routes.tasks import AsyncApiError  # noqa: E402
 from .schemas import TaskResponse  # noqa: E402
 from .tasks import ApiError  # noqa: E402
 
@@ -51,6 +52,15 @@ async def _api_error_handler(_request: Request, exc: ApiError) -> JSONResponse:
     )
 
 
+@app.exception_handler(AsyncApiError)
+async def _async_api_error_handler(_request: Request, exc: AsyncApiError) -> JSONResponse:
+    # 异步任务接口的错误体固定为 {code, message}（四个接口的统一响应体见 routes/tasks.py）
+    return JSONResponse(
+        status_code=exc.status,
+        content={"code": exc.status, "message": exc.message},
+    )
+
+
 @app.exception_handler(Exception)
 async def _unexpected_handler(_request: Request, exc: Exception) -> JSONResponse:
     logger.exception("未捕获异常")
@@ -67,8 +77,8 @@ async def _unexpected_handler(_request: Request, exc: Exception) -> JSONResponse
 
 @app.get("/api/v1/health", tags=["health"])
 async def health() -> dict:
-    """健康检查 + 任务线清单（领域加载失败时降级报告）。"""
-    from .config import load_domain
+    """健康检查 + 任务线清单 + 执行模式（领域加载失败时降级报告）。"""
+    from .config import load_domain, run_mode
 
     lines: dict[str, list[str]] = {}
     degraded: list[str] = []
@@ -78,7 +88,11 @@ async def health() -> dict:
             lines[name] = sorted(ctx.task_lines)
         except Exception as exc:  # noqa: BLE001 - 领域装配失败不影响健康检查
             degraded.append(f"{name}: {exc}")
-    payload: dict[str, object] = {"status": "ok", "task_lines": lines}
+    payload: dict[str, object] = {
+        "status": "ok",
+        "run_mode": run_mode(),  # inline / queue：异步任务在哪执行（见 API.md 第 3 节）
+        "task_lines": lines,
+    }
     if degraded:
         payload["status"] = "degraded"
         payload["degraded"] = degraded

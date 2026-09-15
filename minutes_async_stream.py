@@ -1,4 +1,8 @@
-"""查看异步 minutes 任务事件流。用法：python minutes_async_stream.py"""
+"""查看异步 minutes 任务事件流。用法：python minutes_async_stream.py
+
+每行一个 JSON 事件，字段与另外三个接口同源：恒定带 type / job_id / status / message，
+其余按事件补充（chunk 带 text、done 与结果接口逐字一致）。
+"""
 import json
 
 import requests
@@ -26,14 +30,14 @@ with requests.get(URL, stream=True, timeout=3600) as resp:
             print(raw)
             continue
         etype = event.get("type")
+        status = event.get("status")
+        message = event.get("message")
         if etype == "chunk":
-            text = event.get("text") or ""
-            print(f"[chunk] {event.get('line')} {event.get('title')} {text[:120]!r}")
-        elif etype == "phase":
-            print("[phase]", event.get("node"))
+            print(f"[chunk]   {status:<9} {message} {((event.get('text') or ''))[:120]!r}")
         elif etype == "done":
-            print("[done]", json.dumps(event, ensure_ascii=False)[:2000])
-        elif etype == "error":
-            print("[error]", event.get("message"))
+            monitor = event.get("monitor") or {}
+            print(f"[done]    {status:<9} {message} token={monitor.get('token_usage')} "
+                  f"cost={monitor.get('cost_time')}s file={event.get('file_name')}")
+            print(f"          正文长度 {len(event.get('text') or '')}")
         else:
-            print(json.dumps(event, ensure_ascii=False))
+            print(f"[{etype:<8}] {status:<9} {message}")

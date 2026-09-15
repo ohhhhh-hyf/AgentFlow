@@ -17,24 +17,13 @@ from .config import PROJECT_ROOT, load_domain, load_env, profile_path, resolve_t
 from .id_worker import next_request_id
 from .outputs import output_dir, save_task_outputs
 from .schemas import TaskRequest, TaskResponse
+from .tasklines import all_lines
 
 logger = logging.getLogger("agentflow")
 
-# 内部任务名 → 实际代码线名（两者一致；文档内部任务标识为可读长名）
-LINE_NAMES = {
-    "minutes": "minutes",
-    "actions": "actions",
-    "risks": "risks",
-    "minutes_styles": "minutes_styles",
-    "minutes_trace": "minutes_trace",
-    "consensus_decision": "consensus_decision",
-    "consensus": "consensus_decision",
-    "decision": "consensus_decision",
-    "graph": "graph",
-    "library": "library",
-    "catalog": "catalog",
-    "checklist": "checklist",
-}
+# task 取值 → 代码线名。清单声明在 app/tasklines.py，
+# 路由注册与异步接口校验都从同一份声明派生，避免多处清单不同步。
+LINE_NAMES = all_lines()
 
 STYLE_CHOICES = {"time", "logic", "causal", "party", "urgency"}
 IMAGE_EXTS = {".png", ".jpg", ".jpeg"}

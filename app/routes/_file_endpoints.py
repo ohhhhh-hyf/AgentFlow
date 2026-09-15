@@ -1,9 +1,11 @@
-"""产物文件 GET 端点工厂：指定名下载 / 便捷下载 / 受控预览。meeting 与 notes 域共用。
+"""产物文件 GET 端点工厂：指定名下载 + 受控预览。meeting 与 notes 域共用。
 
-工厂与域无关，调用方在各自 router 上注册相对路径（如 /file、/preview）：
-- download_endpoint        GET /{task}/file/{request_id}/{file_name}
-- query_download_endpoint  GET /{task}/file?request_id=…&user_id=…（文件名免填，自动回退 html → {task}.md → result.md）
-- preview_endpoint         GET /{task}/preview?request_id=…&user_id=…（{task}.html，text/html inline 渲染）
+工厂与域无关，调用方（``app/routes/_registry.py``）在各自 router 上注册相对路径：
+- download_endpoint  GET /{task}/file/{request_id}/{file_name}（附件下载，file_name 取响应 data.file_name）
+- preview_endpoint   GET /{task}/preview?request_id=…&user_id=…（{task}.html，text/html inline 渲染）
+
+> 便捷下载（``GET /{task}/file?request_id=&user_id=``，文件名自动回退）已于 2026-09 移除：
+> 能力被 ``download_endpoint`` 覆盖，且后者无回退歧义。详见 ``app/tasklines.py`` 模块注释。
 
 user_id 支持 URL 参数 ?user_id= 或 X-User-Id 请求头（二者取一，都没有返回 400）；
 产物只允许定位 data/{user_id}/output/{request_id}/ 内的文件（resolve_output_file 校验），
@@ -45,30 +47,6 @@ def download_endpoint(task: str):
         return FileResponse(path, filename=file_name, media_type="application/octet-stream")
 
     _handler.__name__ = f"{task}_download"
-    return _handler
-
-
-def query_download_endpoint(task: str):
-    """便捷下载：GET /file?request_id=…&user_id=…，文件名免填，
-    按 {task}.html → {task}.md → result.md 自动回退，附件形式返回。
-    """
-
-    async def _handler(
-        request_id: str,
-        user_id: Optional[str] = Query(default=None),
-        x_user_id: Optional[str] = Header(default=None),
-    ):
-        uid = _user_id(user_id, x_user_id)
-        for file_name in (f"{task}.html", f"{task}.md", "result.md"):
-            path = resolve_output_file(uid, request_id, file_name)
-            if path is not None:
-                return FileResponse(path, filename=file_name, media_type="application/octet-stream")
-        raise HTTPException(
-            status_code=404,
-            detail=f"产物文件不存在：output/{request_id}/（{task}.html 或 {task}.md）",
-        )
-
-    _handler.__name__ = f"{task}_file_download"
     return _handler
 
 

@@ -1,4 +1,8 @@
-"""查询异步 minutes 任务状态。用法：python minutes_async_status.py"""
+"""查询异步 minutes 任务状态。用法：python minutes_async_status.py
+
+状态接口与另外三个接口返回同一份"任务快照"（8 字段），只是不含正文（text 恒为 null）。
+status 给代码判断（queued/running/succeeded/failed），message 给人看进度或失败原因。
+"""
 import json
 
 import requests
@@ -21,3 +25,13 @@ except Exception:
     raise
 
 print(json.dumps(data, ensure_ascii=False, indent=2))
+
+if data.get("code") != 0:                      # 调用失败：只有 code + message
+    raise SystemExit(f"调用失败：{data.get('message')}")
+
+monitor = data.get("monitor") or {}
+print()
+print("status     :", data.get("status"))
+print("message    :", data.get("message"))
+print("token      :", monitor.get("token_usage"), "| cache:", monitor.get("cache_hit"),
+      "| cost:", monitor.get("cost_time"), "s")

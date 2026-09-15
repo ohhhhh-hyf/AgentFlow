@@ -58,3 +58,14 @@ except Exception:
     raise
 
 print(json.dumps(data, ensure_ascii=False, indent=2))
+
+# ── 统一响应体：四个异步接口都返回这 8 个字段（见 API.md 第 3 节）──
+print()
+print("code       :", data.get("code"))          # 0=调用成功；非 0=HTTP 状态码
+print("job_id     :", data.get("job_id"))        # 填到下三个脚本的 JOB_ID
+print("request_id :", data.get("request_id"))
+print("status     :", data.get("status"))        # 提交后必然 queued
+print("message    :", data.get("message"))       # 阶段名或失败原因
+print("text       :", data.get("text"))          # 提交时还没有产物
+print("file_name  :", data.get("file_name"))
+print("monitor    :", data.get("monitor"))

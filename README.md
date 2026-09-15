@@ -15,12 +15,16 @@ LLM 支持 **HTTP（如 DeepSeek）**、**WebSocket OpenAI 兼容接口** 与 **
 ```
 app/                          # FastAPI 后端服务（唯一入口）
   main.py                     # 应用入口：路由挂载 + /api/v1/health
-  routes/{meeting,notes}.py   # 10 个任务线的同步 / 流式 / 产物下载路由
+  tasklines.py                # 任务线声明（域 → 线名 / 中文名 / 产物端点）：接口清单的唯一来源
+  routes/_registry.py         # 按声明注册一个域的全部路由（同步 / 流式 / 下载 / 预览）
+  routes/{meeting,notes}.py   # 两条域的路由入口（薄封装，只调用 register_domain）
   routes/tasks.py             # 异步任务接口：提交 / 状态 / 结果 / 事件流（Redis）
+  routes/_file_endpoints.py   # 产物文件端点工厂（指定文件名下载 / 预览）
   executor.py                 # 异步任务执行体：inline 与 worker 两种模式共用
   worker.py                   # 独立 worker：队列消费 / 并发槽 / 心跳租约 / 超时回收 / 优雅停机
   job_store.py                # Redis 任务状态、事件流、载荷、队列与租约（TTL 默认 7 天）
   id_worker.py                # request_id / job_id 发号器（Redis 日序号，无 Redis 时进程内降级）
+  selftest.py                 # 自测：接口清单守卫 + 队列机制（python -m app.selftest）
   tasks.py                    # 任务执行核心：请求 → 输入组装 → run() → 统一响应
   schemas.py                  # 请求/响应模型（通用 TaskRequest / TaskResponse）
   outputs.py                  # API 产物落盘 data/{user_id}/output/{request_id}/
@@ -124,7 +128,9 @@ uvicorn app.main:app --host 0.0.0.0 --port 8000      # 只负责受理与查询�
 python -m app.worker --concurrency 4 --grace 300     # 执行侧，可多开/多机
 ```
 
-Redis 不可用时异步接口返回 503（`{"detail": "Redis 不可用（<url>）：…"}`），同步接口不受影响。
+Redis 不可用时异步接口返回 503（`{"code": 503, "message": "Redis 不可用（<url>）：…"}`），同步接口不受影响。
+四个接口（提交 / 状态 / 结果 / 事件流）返回**同一份"任务快照"**（`code` / `job_id` / `request_id` /
+`status` / `message` / `text` / `file_name` / `monitor`），字段含义与示例见 [API.md](API.md) 3.2。
 
 > 键结构、队列与租约机制、重试与停机语义、可观测性、调参与运维注意，全部见
 > **[异步任务与 Redis（队列 / 租约 / 重试）](#异步任务与-redis队列--租约--重试)** 一节。
@@ -240,7 +246,7 @@ pip install "numpy<2" onnxruntime==1.16.3 rapidocr_onnxruntime==1.4.4
 | `queue` | 写状态 + 存载荷 + `LPUSH` 入队，**立刻返回**；由独立 worker 进程消费 | 生产主路径：并发可控、失败可重试、重启不丢任务 |
 
 `queue` 模式下必须至少有一个 `python -m app.worker` 在跑，否则任务会一直停在 `queued`（`LLEN agentflow:queue` 能看到）。
-提交响应会回显 `run_mode` 便于确认；`.env` 非法取值一律回落 `inline`。
+当前模式可从 `GET /api/v1/health` 的 `run_mode` 或提交响应里读到；`.env` 非法取值一律回落 `inline`。
 
 > 回滚注意：从 `queue` 切回 `inline` 前先让 worker 把队列排空，否则队列里的任务不会有人处理。
 
@@ -384,11 +390,12 @@ print(run_mode(), job_ttl_seconds(), job_max_attempts(), lease_seconds(), heartb
 ### 10. 自测与运维注意
 
 ```bash
-python worker_selftest.py     # 46 项：队列 / 租约 / 回收 / 重试 / 停机 / 执行体契约；不调模型
+python -m app.selftest    # 50 项：接口清单守卫 + 队列/租约/回收/重试/停机/执行体契约；不调模型
 ```
 
-自测默认跑 **5 号库**并在结束时清空，**拒绝在 0 号库运行**（那里是真实任务数据）；
-可用 `AGENTFLOW_SELFTEST_REDIS_URL` 覆盖。
+自测分两部分：**接口清单守卫**（核对 FastAPI 暴露的路由面与 `app/tasklines.py` 的声明是否同步，
+不需要 Redis）与**队列机制**（默认跑 **5 号库**并在结束时清空，**拒绝在 0 号库运行**
+—— 那里是真实任务数据，可用 `AGENTFLOW_SELFTEST_REDIS_URL` 覆盖）。
 端到端 HTTP 链路用 `minutes_async_submit.py → status → result → stream` 四个脚本验证。
 
 生产运维注意：
@@ -406,31 +413,40 @@ python worker_selftest.py     # 46 项：队列 / 租约 / 回收 / 重试 / 停
 
 ## 接口调用
 
-全部 10 个任务线接口 + 健康检查，请求/响应结构统一；另有一组基于 Redis 的异步任务接口
-（提交 / 状态 / 结果 / 事件流，生产主路径），详见 **[API.md](API.md)**：
+接口分两族：**按任务线组织的同步 / 流式 / 产物端点**（两条域、10 条任务线），
+以及一组**与任务线解耦的异步任务接口**（生产主路径，见上文 Redis 章节，接口契约见 [API.md](API.md)）。
 
-| 域 | 接口 | 用途 |
+URL 约定（`{domain}` ∈ `meeting` / `notes`，`{task}` 见下表）：
+
+| 端点形态 | 路径 | 方法 |
 |---|---|---|
-| meeting | `POST /api/v1/meeting/minutes` | 会议纪要提取 |
-| meeting | `POST /api/v1/meeting/actions` | 待办提取 |
-| meeting | `POST /api/v1/meeting/risks` | 风险识别 |
-| meeting | `POST /api/v1/meeting/minutes_styles` | 多样式纪要 |
-| meeting | `POST /api/v1/meeting/minutes_trace` | 溯源纪要 |
-| meeting | `POST /api/v1/meeting/consensus_decision` | 共识决策（另有 `/consensus`、`/decision` 同义 URL） |
-| notes | `POST /api/v1/notes/graph` | 知识图谱（学习地图 + 交互 HTML） |
-| notes | `POST /api/v1/notes/library` | 资料入库 |
-| notes | `POST /api/v1/notes/catalog` | 知识目录 |
-| notes | `POST /api/v1/notes/checklist` | 复习清单 |
-| - | `GET /api/v1/health` | 健康检查 + 任务线清单 |
-| - | `POST /api/v1/tasks` | 异步提交任务（返回 `job_id`，不限任务线） |
-| - | `GET /api/v1/tasks/{job_id}` | 异步任务状态（阶段 / 耗时 / token） |
-| - | `GET /api/v1/tasks/{job_id}/result` | 异步任务结果（未完成返回 409） |
-| - | `GET /api/v1/tasks/{job_id}/stream` | 异步任务事件流（NDJSON，`?cursor=` 断线续读） |
+| 同步 | `/api/v1/{domain}/{task}` | POST |
+| 流式（NDJSON） | `/api/v1/{domain}/{task}/stream` | POST |
+| 指定文件名下载 | `/api/v1/{domain}/{task}/file/{request_id}/{file_name}` | GET |
+| 浏览器预览 | `/api/v1/{domain}/{task}/preview?request_id=&user_id=` | GET |
+| 异步任务组 | `/api/v1/tasks`、`/tasks/{job_id}`、`/tasks/{job_id}/result`、`/tasks/{job_id}/stream` | POST/GET |
+| 健康检查 | `/api/v1/health` | GET |
+| 静态产物 | `/data/{user_id}/output/{request_id}/{file_name}` | GET |
 
-> **下载端点**：`minutes` / `actions` / `risks` / `minutes_styles` / `minutes_trace` / `graph` / `checklist`
-> 各有配套 `GET /api/v1/{domain}/{task}/file/{request_id}/{file_name}` 下载接口
-> （`request_id` = POST 时的 `X-Request-Id`，`file_name` = 响应 `data.file_name`，产物以附件形式返回），
-> 详见 API.md 6.11。`library`（无落盘）与 `catalog`（file_name 指向知识目录 JSON）不提供下载。
+10 条任务线**都有同步与流式接口**，产物端点按是否有落盘产物注册：
+
+| 域 | task | 用途 | 产物端点 | 产物 |
+|---|---|---|---|---|
+| meeting | `minutes` | 会议纪要提取 | ✅ | `minutes.html` + `result.md` |
+| meeting | `actions` | 待办提取 | ✅ | `actions.html` + `actions.md` |
+| meeting | `risks` | 风险识别 | ✅ | `risks.html` + `risks.md` |
+| meeting | `minutes_styles` | 多样式纪要 | ✅ | `minutes_styles.html` + `.md` |
+| meeting | `minutes_trace` | 溯源纪要 | ✅ | `minutes_trace.html` + `.md` |
+| meeting | `consensus_decision` | 共识决策 | ✅ | `consensus_decision.html` + `.md` |
+| notes | `graph` | 知识图谱（交互 HTML） | ✅ | `graph.html`（无 md 落盘） |
+| notes | `library` | 资料入库 | ❌ 无落盘产物 | 仅响应 `data.text` |
+| notes | `catalog` | 知识目录 | ❌ 产物不在 output 目录 | `knowledge/catalogs/{学科拼音}/*.json` |
+| notes | `checklist` | 复习清单 | ✅ | `checklist.html` + `result.md` |
+
+> **路由的唯一声明处是 [app/tasklines.py](app/tasklines.py)**（域 → 任务线 → 是否注册产物端点）：
+> 路由注册（[app/routes/_registry.py](app/routes/_registry.py)）、同步与异步接口的任务名校验都从它派生，
+> 加一条任务线只需在这里加一行。哪些线有产物端点、各自必填什么，见 [API.md](API.md) 第 0.2 节与第 2.2 节。
+> 接口面变化可用 `python -m app.selftest` 的清单守卫核对（见上文 Redis 章节第 10 节）。
 
 ```bash
 curl -X POST http://127.0.0.1:8000/api/v1/meeting/minutes \
@@ -470,7 +486,7 @@ curl -X POST http://127.0.0.1:8000/api/v1/meeting/minutes \
 
 ## 自定义输出模板
 
-接口 `extra.template` 支持 29 个预设模板（见 API.md 4.5），也可通过 `TEMPLATE_ROUTER` 机制处理自定义模板。模板支持三种形式，系统**自动判型**处理：
+接口 `extra.template` 支持 29 个预设模板，也可通过 `TEMPLATE_ROUTER` 机制处理自定义模板。模板支持三种形式，系统**自动判型**处理：
 
 | 形式 | 示例 | 处理方式 |
 |---|---|---|
@@ -492,8 +508,13 @@ curl -X POST http://127.0.0.1:8000/api/v1/meeting/minutes \
 ④ reports.py 末尾追加 XxxReport 类（继承 ModelMixin, XxxReportValidation）
 ⑤ python tools/scripts/sync_domain.py --domain meeting   # 全量生成 → SUCCESS!
 ⑥ python tools/scripts/sync_domain.py --domain meeting --check   # 校验 → SUCCESS!
-⑦ 在 app/routes/ 注册对应接口路由（参考现有路由）
+⑦ 在 app/tasklines.py 的 DOMAINS 里加一行声明（域、线名、中文名、是否有产物端点）
+   # 同步 / 流式 / 下载 / 预览四类路由自动注册；同步与异步接口的任务名校验同时生效
+⑧ 在 app/requirements.py 的 REQUIRED_FIELDS 里声明必填项（缺必填秒回 400，不触发模型）
 ```
+
+> 路由声明是**唯一来源**：`app/tasklines.py` 之外不要再写任务线清单（`app/tasks.py` 的 `LINE_NAMES`
+> 与 `app/routes/tasks.py` 的域校验都从它派生）。加完可用 `python -m app.selftest` 的清单守卫核对。
 
 ## 架构要点
 
@@ -513,6 +534,6 @@ curl -X POST http://127.0.0.1:8000/api/v1/meeting/minutes \
   npx/playwright 缺失时自动降级不影响主流程
 - **知识图谱**：notes 域 graph 线提取概念节点与关系边（nodes/edges，
   均锚定原文 + evidence），经 `tools/exports/knowledge_graph.py` 导出 Cytoscape.js 交互式 HTML 和学习地图 Markdown（默认输出到 `data/{user_id}/output/{request_id}/`）；悬空边自动过滤、HTML 仍尽量生成；
-  传 `extra.memory=true` + `X-User-Id` + `extra.subject` 时按学科跨会话增量（新增节点高亮，见 API.md 6.6）
+  传 `extra.memory=true` + `X-User-Id` + `extra.subject` 时按学科跨会话增量（新增节点高亮，见 API.md 2.7.1）
 - **输出稳定性**：各线 prompt 采用确定性规则（数量由内容决定、措辞锚定原文、
   顺序按原文出现、空字段 null/[]），同一输入重复运行保持内容与篇幅稳定
