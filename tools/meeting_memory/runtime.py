@@ -58,7 +58,7 @@ def _semantic_bind_fallback(fact: MeetingFact, user_id: str) -> BindResult | Non
             if float(c.get("score") or 0.0) >= MEMORY_EMBED_MIN_SCORE
         ]
     except Exception:  # noqa: BLE001
-        logger.warning("会议记忆语义归属查询失败，降级规则绑定", exc_info=True)
+        logger.warning("meeting memory semantic match failed, fallback to rules", exc_info=True)
         return None
     if not cands:
         return None
@@ -66,7 +66,7 @@ def _semantic_bind_fallback(fact: MeetingFact, user_id: str) -> BindResult | Non
     if len(cands) > 1 and float(cands[1].get("score") or 0.0) >= MEMORY_EMBED_MIN_SCORE:
         return None  # 多候选并列 → 证据不足，维持 auto_create（防错绑）
     logger.info(
-        "会议记忆语义兜底：标题 %r 规则零重叠，按向量相似度 %.2f 绑定历史项目 %s",
+        "meeting memory semantic fallback title=%r score=%.2f project=%s",
         getattr(fact, "title", ""), float(top.get("score") or 0.0),
         str(top.get("project_id") or ""),
     )
@@ -170,11 +170,9 @@ def _sync_meeting_vectors(
             list_meetings(project_root, user_id),
         )
         if embedder.sync_record(user_id, "meeting", record):
-            logger.info(
-                "会议记忆向量已同步：%s（domain=meeting，档案+摘录）", pid
-            )
+            logger.info("meeting memory vectors synced project=%s", pid)
     except Exception:  # noqa: BLE001 - 向量同步异常不阻断写回
-        logger.warning("会议记忆向量同步异常，跳过", exc_info=True)
+        logger.warning("meeting memory vector sync failed, skipped", exc_info=True)
 
 
 
@@ -369,7 +367,7 @@ def persist_after_run(
             )
         return meeting
     except Exception:
-        logger.warning("会议记忆 v2 写回失败", exc_info=True)
+        logger.warning("meeting memory v2 persist failed", exc_info=True)
         return None
 
 

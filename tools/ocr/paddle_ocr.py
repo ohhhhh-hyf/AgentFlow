@@ -365,7 +365,7 @@ def _build_engine():
             use_textline_orientation=True,
         )
     except TypeError:
-        logger.warning("当前 PaddleOCR 不支持 PP-OCRv5 参数，回退 lang=ch")
+        logger.warning("paddleocr: PP-OCRv5 params unsupported, fallback lang=ch")
         return PaddleOCR(lang="ch")
 
 
@@ -396,11 +396,11 @@ def _thread_engine():
                 "请用 PADDLE_OCR_POOL_SIZE 调整实例数；显存紧张时降到 2 或 1。"
             )
         idx = _CREATED + 1
-        logger.info("PaddleOCR 初始化引擎 %s/%s（device=%s，线程绑定）", idx, n, _device())
+        logger.info("paddleocr init engine %s/%s device=%s", idx, n, _device())
         engine = _build_engine()
         _CREATED += 1
         _TLS.engine = engine
-        logger.info("PaddleOCR 引擎 %s/%s 就绪", idx, n)
+        logger.info("paddleocr engine %s/%s ready", idx, n)
         return engine
 
 
@@ -416,7 +416,7 @@ def _ocr_predict(path: str) -> dict:
     engine = _thread_engine()
     t0 = time.monotonic()
     result = engine.predict(path)
-    logger.info("PaddleOCR 完成 %s（%.1fs）", os.path.basename(path), time.monotonic() - t0)
+    logger.info("paddleocr done file=%s dur=%.1fs", os.path.basename(path), time.monotonic() - t0)
     return {"engine": "paddleocr", "lines": extract_paddle_lines(result, image_size=image_size)}
 
 

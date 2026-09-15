@@ -246,9 +246,7 @@ def save_report_artifacts(
         # 避免下载后展示给用户时出现「强执行门禁未通过」等排查信息）
         rej.write_text(text, encoding="utf-8")
         paths["rejected"] = rej
-        logger.warning(
-            "门禁失败，已写入 rejected 文本而非 result.md：%s", rej
-        )
+        logger.warning("gate failed, wrote rejected instead of result.md: %s", rej)
     return paths
 
 
@@ -294,7 +292,7 @@ def export_mindmap_html(reports: dict, out_dir: Path) -> Path | None:
     if not outline or not outline.strip():
         return None
     if not markmap_available():
-        logger.warning("未检测到 npx/node，跳过思维导图 HTML 生成")
+        logger.warning("npx/node not found, skip mindmap html")
         return None
     filename = f"mindmap_{_stamp()}.html"
     return render_mindmap_html(outline, out_dir, filename)
@@ -308,10 +306,7 @@ async def export_mindmap_png(
     if not outline or not outline.strip():
         return None
     if not mindmap_png_available():
-        logger.warning(
-            "未安装 playwright，跳过思维导图 PNG 生成"
-            "（安装：pip install playwright && playwright install chromium）"
-        )
+        logger.warning("playwright missing, skip mindmap png")
         return None
     filename = f"mindmap_{_stamp()}.png"
     return await render_mindmap_png(outline, out_dir, filename, html_path=html_path)

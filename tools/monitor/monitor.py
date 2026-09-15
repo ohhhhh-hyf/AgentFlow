@@ -103,7 +103,7 @@ class TaskMonitor:
         path = self._persist(payload)
         payload["path"] = str(path)
         logger.info(
-            "任务监控完成 task=%s total_tokens=%s calls=%s 耗时=%.1fs 文件=%s",
+            "monitor done task=%s tokens=%s calls=%s dur=%.1fs path=%s",
             self.task_name,
             payload["usage"].get("total_tokens", 0),
             payload["usage"].get("calls", 0),
@@ -123,7 +123,7 @@ class TaskMonitor:
             try:
                 return snap() or {}
             except Exception:  # noqa: BLE001 - 监控失败不阻断
-                logger.warning("client.monitor_snapshot 失败，降级读取 usage_totals", exc_info=True)
+                logger.warning("monitor_snapshot failed, fallback to usage_totals", exc_info=True)
         totals = dict(getattr(self.client, "usage_totals", None) or {})
         return {"usage_totals": totals}
 

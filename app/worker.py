@@ -52,7 +52,7 @@ async def _heartbeat_loop(store, job_id: str, name: str, stop: asyncio.Event) ->
         try:
             await asyncio.to_thread(store.renew_lease, job_id, name)
         except Exception as exc:  # noqa: BLE001 - 续期失败不中断执行，租约到期由回收兜底
-            logger.warning("续期失败 job=%s：%s", job_id, exc)
+            logger.warning("lease renew failed job=%s err=%s", job_id, exc)
         try:
             await asyncio.wait_for(stop.wait(), timeout=interval)
         except asyncio.TimeoutError:
@@ -64,12 +64,12 @@ async def _heartbeat_loop(store, job_id: str, name: str, stop: asyncio.Event) ->
 async def _handle_job(store, job_id: str, name: str, execute: ExecuteFn) -> None:
     job = await asyncio.to_thread(store.get_job, job_id)
     if job is None:
-        logger.warning("任务不存在（已过期？）跳过 job=%s", job_id)
+        logger.warning("skip job=%s (not found)", job_id)
         return
     status = str(job.get("status") or "")
     if status != "queued":
         # 重复入队、已被其它 worker 取走、或已被取消：直接跳过
-        logger.info("任务状态为 %s，跳过 job=%s", status or "-", job_id)
+        logger.info("skip job=%s status=%s", job_id, status or "-")
         return
 
     payload = await asyncio.to_thread(store.get_payload, job_id)
@@ -101,9 +101,7 @@ async def _handle_job(store, job_id: str, name: str, execute: ExecuteFn) -> None
 
     if outcome.ok:
         await asyncio.to_thread(store.release_lease, job_id)
-        logger.info(
-            "完成 job=%s（第 %s 次尝试）耗时 %.1fs", job_id, attempts, outcome.cost_time
-        )
+        logger.info("job done job=%s attempt=%s dur=%.1fs", job_id, attempts, outcome.cost_time)
         return
 
     final = await asyncio.to_thread(
@@ -114,7 +112,7 @@ async def _handle_job(store, job_id: str, name: str, execute: ExecuteFn) -> None
         bool(outcome.retryable),
     )
     logger.warning(
-        "未完成 job=%s（第 %s/%s 次尝试）→ %s：%s",
+        "job unfinished job=%s attempt=%s/%s -> %s err=%s",
         job_id,
         attempts,
         job_max_attempts(),
@@ -129,7 +127,7 @@ async def _slot(store, name: str, stop: asyncio.Event, execute: ExecuteFn) -> No
         try:
             job_id = await asyncio.to_thread(store.reserve, RESERVE_TIMEOUT_SECONDS)
         except Exception as exc:  # noqa: BLE001 - Redis 抖动：等一会再试
-            logger.error("取任务失败：%s", exc)
+            logger.error("reserve failed err=%s", exc)
             await asyncio.sleep(1.0)
             continue
         if not job_id:
@@ -143,7 +141,7 @@ async def _slot(store, name: str, stop: asyncio.Event, execute: ExecuteFn) -> No
         except asyncio.CancelledError:
             raise
         except Exception as exc:  # noqa: BLE001 - 单条任务异常不影响整个槽位
-            logger.exception("处理任务异常 job=%s：%s", job_id, exc)
+            logger.exception("job handler error job=%s err=%s", job_id, exc)
 
 
 async def _reap_once(store) -> int:
@@ -164,7 +162,7 @@ async def _reap_once(store) -> int:
         final = await asyncio.to_thread(
             store.requeue_or_fail, job_id, reason, attempts, True, True
         )
-        logger.warning("回收失联任务 job=%s（已执行 %s 次）→ %s", job_id, attempts, final)
+        logger.warning("reclaim job=%s attempts=%s -> %s", job_id, attempts, final)
 
     await asyncio.gather(*[_one(job_id) for job_id in expired])
     return len(expired)
@@ -175,9 +173,9 @@ async def _reaper_loop(store, stop: asyncio.Event, interval: float = REAP_INTERV
         try:
             reaped = await _reap_once(store)
             if reaped:
-                logger.info("本轮回收 %s 条失联任务", reaped)
+                logger.info("reclaimed %s jobs", reaped)
         except Exception as exc:  # noqa: BLE001 - 回收失败下一轮再试
-            logger.warning("回收扫描失败：%s", exc)
+            logger.warning("reap scan failed err=%s", exc)
         try:
             await asyncio.wait_for(stop.wait(), timeout=max(1.0, interval))
         except asyncio.TimeoutError:
@@ -208,7 +206,7 @@ async def run_worker(
     reaper = asyncio.create_task(_reaper_loop(store, stop, reap_interval), name="reaper")
     stopper = asyncio.create_task(stop.wait(), name="stopper")
     logger.info(
-        "worker 启动 id=%s 并发=%s 租约=%ss 心跳=%ss 最多尝试=%s 次",
+        "worker start id=%s concurrency=%s lease=%ss heartbeat=%ss max_attempts=%s",
         name,
         concurrency,
         lease_seconds(),
@@ -223,10 +221,10 @@ async def run_worker(
         stop.set()
         pending = [task for task in slots if not task.done()]
         if pending:
-            logger.info("停止取新任务，等待 %s 个在跑任务收尾（最多 %ss）", len(pending), grace)
+            logger.info("draining: %s running jobs, grace=%ss", len(pending), grace)
             _done, still = await asyncio.wait(pending, timeout=max(0, int(grace)))
             for task in still:
-                logger.warning("收尾超时，取消该槽位（任务由租约超时兜底重排）")
+                logger.warning("grace timeout, slot cancelled (job will be reclaimed by lease)")
                 task.cancel()
         for task in slots:
             if not task.done():
@@ -236,7 +234,7 @@ async def run_worker(
             if not task.done():
                 task.cancel()
         await asyncio.gather(reaper, stopper, return_exceptions=True)
-        logger.info("worker 退出 id=%s", name)
+        logger.info("worker exit id=%s", name)
 
 
 def _install_signal_handlers(stop: asyncio.Event) -> None:
@@ -283,13 +281,13 @@ def main() -> None:
         help="收到停机信号后等待在跑任务收尾的秒数，默认 300",
     )
     args = parser.parse_args()
-    logging.basicConfig(
-        level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s %(message)s"
-    )
+    from tools.core.logging_config import setup_logging
+
+    setup_logging()   # 与 API 侧共用同一套日志格式（时间戳 + 级别 + 模块）
     if run_mode() != "queue":
         logger.warning(
-            "AGENTFLOW_RUN_MODE=%s：任务不会进队列，worker 只会空转。"
-            "要启用队列执行请把 .env 的 AGENTFLOW_RUN_MODE 设为 queue",
+            "run_mode=%s: tasks are not queued, worker will idle"
+            " (set AGENTFLOW_RUN_MODE=queue in .env to enable)",
             run_mode(),
         )
     try:

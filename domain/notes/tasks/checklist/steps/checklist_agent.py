@@ -70,7 +70,7 @@ class ChecklistAgent:
                 )
             except Exception as exc:  # noqa: BLE001 - 单轮失败降级：余卡交程序兜底
                 logger.warning(
-                    "checklist 模型输出失败（已覆盖 %d/%d 张卡），余卡由程序生成：%s",
+                    "checklist llm output failed (cards %d/%d), rest by program: %s",
                     len(llm_cards),
                     len(llm_rows),
                     exc,
@@ -101,7 +101,7 @@ class ChecklistAgent:
         merged = assemble_checklist(catalog, activated, llm_draft, teacher)
         if llm_draft is not None and len(llm_cards) < len(llm_rows):
             logger.warning(
-                "checklist 覆盖 %d/%d 张模型卡，其余由程序补齐",
+                "checklist cards llm=%d/%d, rest by program",
                 len(llm_cards),
                 len(llm_rows),
             )

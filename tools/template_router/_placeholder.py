@@ -785,7 +785,7 @@ async def fill_placeholder_template(
                 thin = _thin_fill_notes(plan, fields, tables, assembled)
                 if thin:
                     revision = "\n".join(f"- {x}" for x in thin)
-                    logger.info("占位符填充过短（attempt=%s）：%s", attempt + 1, "；".join(thin))
+                    logger.info("placeholder fill too short (attempt=%s): %s", attempt + 1, ";".join(thin))
                     continue
             # 篇幅自检：偏短扩写、偏长压缩（不改结构、不写进用户正文）
             lo = budget.get("lo") if isinstance(budget, dict) else None
@@ -804,7 +804,7 @@ async def fill_placeholder_template(
                         "使合计接近区间中位；勿空话注水、勿截断半句、勿写字数说明。"
                     )
                     logger.info(
-                        "占位符填充偏短（%s<%s），attempt=%s 请求扩写",
+                        "placeholder too short (%s<%s), attempt=%s expand",
                         han,
                         lo_i,
                         attempt + 1,
@@ -820,7 +820,7 @@ async def fill_placeholder_template(
                         "压缩后语句仍须完整通顺；勿改结构、勿虚构。"
                     )
                     logger.info(
-                        "占位符填充偏长（%s>%s），attempt=%s 请求压缩",
+                        "placeholder too long (%s>%s), attempt=%s compress",
                         han,
                         hi_i,
                         attempt + 1,
@@ -836,7 +836,7 @@ async def fill_placeholder_template(
                 return assembled
             revision = "\n".join(f"- {x}" for x in issues)
             logger.info(
-                "占位符填充未过门禁（attempt=%s）：%s",
+                "placeholder gate failed (attempt=%s): %s",
                 attempt + 1,
                 "；".join(issues),
             )
@@ -847,7 +847,7 @@ async def fill_placeholder_template(
                     return assembled
         return None
     except Exception:  # noqa: BLE001
-        logger.warning("占位符 JSON 填充失败，回退自由渲染", exc_info=True)
+        logger.warning("placeholder json fill failed, fallback to free render", exc_info=True)
         return None
 
 

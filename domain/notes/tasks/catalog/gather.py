@@ -906,7 +906,7 @@ def complement_catalog_coverage(
         next_no += 1
         added += 1
     if added:
-        logger.info("目录覆盖度补缺 %d 个候选 KP", added)
+        logger.info("catalog fill missing kp=%d", added)
     return out
 
 
@@ -1353,7 +1353,5 @@ def calibrate_catalog_relations(draft: dict[str, Any]) -> dict[str, Any]:
                         new_prereqs.append(target)
                     point["prerequisites"] = new_prereqs
     if rewritten or dropped:
-        logger.info(
-            "catalog relations 校准：改写 %d 条、删除 %d 条悬空引用", rewritten, dropped
-        )
+        logger.info("catalog relations fixed=%d dropped=%d", rewritten, dropped)
     return draft

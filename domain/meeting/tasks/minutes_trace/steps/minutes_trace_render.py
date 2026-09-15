@@ -105,8 +105,8 @@ async def _align_alignments(client, context: str, minutes_md: str) -> tuple[list
     if not miss_keys and not miss_notes:
         summary = audit.setdefault("summary", {})
         progress(
-            "溯源落钉：程序对齐 %d 条，材料全覆盖"
-            "（keypoint %d/%d 有据挂 %d；note %d/%d 有据挂 %d）",
+            "trace align items=%d all-covered"
+            " (keypoint %d/%d anchored %d; note %d/%d anchored %d)",
             len(candidates),
             summary.get("keypoint_total", 0),
             summary.get("keypoint_supported", 0),
@@ -173,7 +173,7 @@ async def _align_alignments(client, context: str, minutes_md: str) -> tuple[list
             ],
         })
     progress(
-        "溯源落钉：程序对齐 %d 条，%d 条关键点/%d 条笔记未命中，其中 %d 条进入候选包裁判",
+        "trace align items=%d missing_keypoints=%d missing_notes=%d to_judge=%d",
         len(candidates), len(miss_keys), len(miss_notes), len(items),
     )
     audit["llm"] = {"triggered": bool(items), "pack_sources": len(items)}
@@ -215,7 +215,7 @@ async def _align_alignments(client, context: str, minutes_md: str) -> tuple[list
             "source": item["source"],
             "evidence": ev["text"],
         })
-    progress("溯源裁判：%d 条 keep，进入程序门禁", len(restored))
+    progress("trace judge keep=%d", len(restored))
     audit["llm"]["verdict_keep"] = len(restored)
     if restored:
         gated = gate_alignments(

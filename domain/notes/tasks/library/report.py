@@ -129,7 +129,7 @@ def _ocr_images_to_library_markdown(
         subject=subject,
         project_root=project_root,
     )
-    ocr_log(f"[OCR] 全部完成 → {saved.reviewed_path.name}")
+    ocr_log(f"ocr done all -> {saved.reviewed_path.name}")
     return saved.reviewed_path
 
 
@@ -218,7 +218,7 @@ def _dedup_against_history(
 
     if removed:
         new_md_path.write_text("\n\n".join(kept), encoding="utf-8")
-        ocr_log(f"[资料入库] OCR md 去重：{new_md_path.name} 去掉和历史重复的 {removed} 段")
+        ocr_log(f"library dedup file={new_md_path.name} removed={removed}")
     return removed
 
 
@@ -350,7 +350,7 @@ def ingest_library(
                 flush=True,
             )
             logger.info(
-                "[资料入库] 并行处理：%s 份非图片资料直接入库，%s 张图片先 OCR 成 Markdown 后入库。",
+                "library ingest docs=%d images=%d (ocr first)",
                 len(doc_paths),
                 len(image_paths),
             )
@@ -375,7 +375,7 @@ def ingest_library(
             )
             for path, stat in zip(doc_paths, results):
                 print(f"[资料入库] 非图片/Markdown 入库：{path.name}", flush=True)
-                logger.info("[资料入库] 非图片/Markdown 入库：%s", path.name)
+                logger.info("library ingest raw file: %s", path.name)
                 _record_file(path.name, stat)
         if ocr_future is not None:
             try:
@@ -385,7 +385,7 @@ def ingest_library(
 
     if ocr_path is not None:
         print(f"[资料入库] 非图片/Markdown 入库：{ocr_path.name}", flush=True)
-        logger.info("[资料入库] 非图片/Markdown 入库：%s", ocr_path.name)
+        logger.info("library ingest raw file: %s", ocr_path.name)
         project_root = Path(__file__).resolve().parents[4]
         _dedup_against_history(
             ocr_path, user_id=user_id, subject=subject, project_root=project_root

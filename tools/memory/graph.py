@@ -291,7 +291,7 @@ def sanitize_graph(draft: dict[str, Any]) -> dict[str, Any]:
     out["edges"] = list(edge_map.values())
     if dropped:
         logger.warning(
-            "知识图谱生成侧校验：剥离 %d 条无效/悬空/自环/重复/弱相关边（source/target 不在 nodes 或字段缺失）",
+            "graph pruned %d invalid/dangling/self-loop/duplicate/weak edges",
             dropped,
         )
     return out

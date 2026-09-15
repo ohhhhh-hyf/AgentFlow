@@ -616,7 +616,7 @@ async def maybe_compile_natural_template(
             if fidelity:
                 revision = "\n".join(f"- {x}" for x in fidelity)
                 logger.info(
-                    "自然语言模板保真未通过（attempt=%s）：%s",
+                    "nl template fidelity failed (attempt=%s): %s",
                     attempt + 1,
                     "；".join(fidelity),
                 )
@@ -633,18 +633,18 @@ async def maybe_compile_natural_template(
             last_compiled = _ensure_document_char_budget_line(text, last_compiled)
             last_compiled = _ensure_table_row_limits(text, last_compiled)
             logger.warning(
-                "自然语言模板保真未完全通过，仍采用编译结果（issues=%s）",
+                "nl template fidelity warn, keep compiled (issues=%s)",
                 "；".join(soft) if soft else "n/a",
             )
             _COMPILE_CACHE[key] = last_compiled
             return last_compiled
 
         _COMPILE_FAIL_COUNTS[key] = _COMPILE_FAIL_COUNTS.get(key, 0) + 1
-        logger.warning("自然语言模板编译未能理解，已按原样处理（原逻辑）")
+        logger.warning("nl template compile not understood, keep as-is")
         return text
     except Exception:  # noqa: BLE001 - 编译失败不阻塞运行
         _COMPILE_FAIL_COUNTS[key] = _COMPILE_FAIL_COUNTS.get(key, 0) + 1
-        logger.warning("自然语言模板编译失败，已按原样处理（原逻辑）", exc_info=True)
+        logger.warning("nl template compile failed, keep as-is", exc_info=True)
         return text
 
 
@@ -706,12 +706,12 @@ async def modify_template(
                 continue
             return compiled
         if detect_template_kind(last) == "placeholder":
-            logger.warning("模板增量修改保真未完全通过，仍采用（issues=%s）",
+            logger.warning("template incremental edit fidelity warn (issues=%s)",
                            "；".join(check_compile_fidelity(instruction, last)) or "n/a")
             return strip_outer_markdown_fence(last)
         return template
     except Exception:  # noqa: BLE001 - 修改失败不阻塞
-        logger.warning("模板增量修改失败，保留当前模板", exc_info=True)
+        logger.warning("template incremental edit failed, keep current", exc_info=True)
         return template
 
 

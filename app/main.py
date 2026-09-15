@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import logging
 import sys
+from contextlib import asynccontextmanager
 from pathlib import Path
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
@@ -25,7 +26,18 @@ from .tasks import ApiError  # noqa: E402
 
 logger = logging.getLogger(__name__)
 
-app = FastAPI(title="AgentFlow API", version="1.0.0")
+
+@asynccontextmanager
+async def _lifespan(_app: FastAPI):
+    """启动时统一日志：一套格式（时间戳 + 级别 + 模块），uvicorn 自己的日志也并进来。"""
+    from tools.core.logging_config import setup_logging, unify_uvicorn_loggers
+
+    setup_logging()
+    unify_uvicorn_loggers()
+    yield
+
+
+app = FastAPI(title="AgentFlow API", version="1.0.0", lifespan=_lifespan)
 
 app.include_router(meeting.router)
 app.include_router(notes.router)
@@ -63,7 +75,7 @@ async def _async_api_error_handler(_request: Request, exc: AsyncApiError) -> JSO
 
 @app.exception_handler(Exception)
 async def _unexpected_handler(_request: Request, exc: Exception) -> JSONResponse:
-    logger.exception("未捕获异常")
+    logger.exception("unhandled exception")
     request_id = _request.headers.get("X-Request-Id", "")
     return JSONResponse(
         status_code=500,

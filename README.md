@@ -189,6 +189,12 @@ python -m playwright install chromium
 | 交互文档 | `http://127.0.0.1:8000/docs`（Swagger UI）/ `/redoc` |
 | 后台运行 | `nohup uvicorn app.main:app --host 0.0.0.0 --port 8000 > app.log 2>&1 &` |
 
+**日志格式**：统一为 `时间戳 级别 模块 消息`（`tools/core/logging_config.py`），API 与 worker 共用同一套；
+uvicorn 自身的日志（含 access log）也并进这套格式，不再出现两种前缀混排。消息统一是**英文短句**、
+`key=value` 风格（如 `pipeline start lines=minutes`、`llm call label=minutes/agent mode=structured`、
+`job done job=job_… attempt=1 dur=7.4s`），便于 grep 与按字段取值；
+面向调用方的报错文案（`ApiError.message`，见 [API.md](API.md)）仍是中文，属接口契约、不随日志变化。
+
 OCR 引擎（`.env` 的 ``OCR_ENGINE``，三种互不兜底）：
 
 ```env
@@ -214,6 +220,12 @@ pip install "numpy<2" onnxruntime==1.16.3 rapidocr_onnxruntime==1.4.4
 所以并发度上调时留意**同时打给模型的请求数**；日志首行会打印实际路数
 （`[OCR] 使用引擎 paddleocr，共 N 张，4 路并行`）。
 
+**OCR / 整理产出的收尾**（`tools/ocr/mathmd.py`）：每次整理或审校输出都会过一遍
+`normalize_markdown_math()` —— 先删掉**模型偶发抄进正文的渲染器报错串**（如
+`ParseError: KaTeX parse error: Expected '}', got 'EOF' at end of input: …`，模型被要求处理公式定界时偶尔会把报错当说明写出来），
+再修 `$`/`$$` 定界与不成对的 `\left`/`\right`。正常内容不受影响（正文里讨论 KaTeX、
+编程笔记里的「ParseError: 具体内容」示例都会原样保留）。
+
 | 项目 | 说明 |
 |---|---|
 | `.env` | HTTP 至少配置 `DEEPSEEK_API_KEY`；WebSocket 配置 `LLM_BACKEND=websocket` + `LLM_WS_*` |
@@ -234,7 +246,7 @@ pip install "numpy<2" onnxruntime==1.16.3 rapidocr_onnxruntime==1.4.4
 | `data/{user_id}/output/{request_id}/` | API 每次调用产物（`result.md` / `{task}.html`） |
 | `data/{user_id}/memory/` | 跨会话记忆（records + chromadb 索引） |
 | `data/{user_id}/knowledge/` | 知识库向量 + 知识目录 JSON |
-| `data/{user_id}/ocr/` | OCR 合并稿 |
+| `data/{user_id}/ocr/{学科}/` | OCR 合并稿（**仅 `library` 资料入库落盘**，文件名 `ocr_{时间戳}.md`）；其它任务线的图片 OCR 只在内存里参与本次任务，不落盘 |
 | `data/monitor/` | 任务监控 JSON（CLI monitor 开启时） |
 
 ## 异步任务与 Redis（队列 / 租约 / 重试）

@@ -586,7 +586,7 @@ class _Nodes(DomainNodes):
         cn = _line_cn(line_name)
 
         async def node(state: dict) -> dict:
-            progress("正在处理：%s生成 Agent", cn)
+            progress("agent start gen line=%s", line_name)
             agent = getattr(self, cfg["agent_attr"])
             context = self._line_shared_context(state, line_name)
             mode = (state.get("line_modes") or {}).get(line_name)
@@ -602,7 +602,7 @@ class _Nodes(DomainNodes):
                     line_extra=state.get("line_extra") or {},
                 )
             except Exception:
-                logger.warning("会议记忆 v2 注入失败（%s）", line_name, exc_info=True)
+                logger.warning("meeting memory v2 inject failed line=%s", line_name, exc_info=True)
                 memory_extra = ""
             if memory_extra:
                 extra = f"{extra}\n\n{memory_extra}".strip() if extra else memory_extra
@@ -617,7 +617,7 @@ class _Nodes(DomainNodes):
                     )
                 )
             except Exception:  # noqa: BLE001 - 有意的降级设计
-                logger.warning(f"{cn}生成失败，使用空草稿继续", exc_info=True)
+                logger.warning(f"gen failed, empty draft line={cn}", exc_info=True)
                 return {
                     "lines": {
                         line_name: {
@@ -627,7 +627,7 @@ class _Nodes(DomainNodes):
                     },
                     "quality_degraded": True,
                 }
-            progress("完成：%s生成 Agent", cn)
+            progress("agent done gen line=%s", line_name)
             return {
                 "lines": {
                     line_name: {
@@ -746,7 +746,7 @@ class _Nodes(DomainNodes):
         if bool(state.get("objective_perspective")):
             from perspective import EMPTY_PERSPECTIVE_MODELING
 
-            progress("跳过视角建模（客观全员）")
+            progress("skip perspective (objective)")
             return {"perspective_profile": EMPTY_PERSPECTIVE_MODELING}
         return await super()._perspective_modeling_node(state)
 
@@ -768,7 +768,7 @@ class _Nodes(DomainNodes):
         focus = selected[0] if (skip and selected) else ""
 
         async def node(state: dict) -> dict:
-            progress("正在处理：会议理解 Agent")
+            progress("agent start meeting_understanding")
             try:
                 result = await self.meeting_understanding_agent.run(
                     state["transcript"],
@@ -776,12 +776,12 @@ class _Nodes(DomainNodes):
                     skip_fields=skip,
                 )
             except Exception:
-                logger.warning("会议理解失败，使用空理解继续", exc_info=True)
+                logger.warning("meeting understanding failed, continue with empty", exc_info=True)
                 return {
                     "meeting_understanding": _EMPTY_MEETING_UNDERSTANDING,
                     "quality_degraded": True,
                 }
-            progress("完成：会议理解 Agent")
+            progress("agent done meeting_understanding")
             return {"meeting_understanding": result.model_dump()}
 
         return node
@@ -791,7 +791,7 @@ class _Nodes(DomainNodes):
         try:
             result = await self.meeting_understanding_agent.run(state["transcript"])
         except Exception:
-            logger.warning("meeting理解失败，使用空理解继续", exc_info=True)
+            logger.warning("meeting understanding failed, continue with empty", exc_info=True)
             return {
                 "meeting_understanding": _EMPTY_MEETING_UNDERSTANDING,
                 "quality_degraded": True,

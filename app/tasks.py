@@ -142,7 +142,7 @@ def _ocr_docs(user_id: str, docs: list[str]) -> str:
     engine = ocr_engine_label()
     total = len(names)
     workers = max(1, min(ocr_concurrency(), total))
-    ocr_log(f"[OCR] 使用引擎 {engine}，共 {total} 张，{workers} 路并行")
+    ocr_log(f"ocr start engine={engine} images={total} workers={workers}")
 
     def _one(indexed: tuple[int, str]) -> tuple[int, str]:
         index, name = indexed
@@ -152,15 +152,16 @@ def _ocr_docs(user_id: str, docs: list[str]) -> str:
             from tools.ocr import ocr_image_to_markdown
 
             body = ocr_image_to_markdown(str(path)).strip()
-            ocr_log(f"[OCR/{engine}] {index}/{total} 完成 {name}")
+            ocr_log(f"ocr item ok {index}/{total} file={name}")
             return index, body
         except Exception as exc:  # noqa: BLE001 - 单张失败不阻断其余图片
-            ocr_log(f"[OCR/{engine}] {index}/{total} 失败 {name}（{exc}）")
+            ocr_log(f"ocr item fail {index}/{total} file={name} err={exc}")
             return index, f"（图片 {name} OCR 失败：{exc}）"
 
-    # map 按入参顺序产出 → 拼接顺序与原串行实现一致
+    # map 按入参顺序产出 → 拼接顺序与原串行实现一致（与完成顺序无关）
     with ThreadPoolExecutor(max_workers=workers, thread_name_prefix="ocr-doc") as pool:
         parts = [body for _index, body in pool.map(_one, enumerate(names, 1))]
+    ocr_log(f"ocr join images={total} order=input first={names[0]} last={names[-1]}")
     return "\n\n".join(part for part in parts if part).strip()
 
 

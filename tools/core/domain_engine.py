@@ -52,7 +52,7 @@ from tools.core.domain_engine_text import (
     pick_label,
     sec_attr,
 )
-from tools.runtime.progress import node_label, progress
+from tools.runtime.progress import progress
 from tools.schema.validation import validate_payload
 
 logger = logging.getLogger(__name__)
@@ -361,19 +361,19 @@ class DomainNodes:
 
     async def _perspective_modeling_node(self, state: dict) -> dict:
         """把用户画像映射到本次输入（所有领域共用）。"""
-        progress("正在处理：视角建模 Agent")
+        progress("agent start perspective")
         try:
             result = await self.perspective_modeling_agent.run(
                 self._perspective_input_context(state),
                 json_dumps(state["user"]),
             )
         except Exception:  # noqa: BLE001 - 有意的降级设计
-            logger.warning("视角建模失败，使用空视角继续", exc_info=True)
+            logger.warning("perspective failed, continue with empty", exc_info=True)
             return {
                 "perspective_profile": EMPTY_PERSPECTIVE_MODELING,
                 "quality_degraded": True,
             }
-        progress("完成：视角建模 Agent")
+        progress("agent done perspective")
         return {"perspective_profile": result.model_dump()}
 
     def _perspective_input_context(self, state: dict) -> str:
@@ -394,7 +394,7 @@ class DomainNodes:
         cn = line_cn(line_name, self._line_cn_names)
 
         async def node(state: dict) -> dict:
-            progress("正在处理：%s生成 Agent", cn)
+            progress("agent start gen line=%s", line_name)
             agent = getattr(self, cfg["agent_attr"])
             # 每线可选参数：组织模式 / 附加上下文（state["line_modes"] / ["line_extra"]）
             context = self._shared_context(state)
@@ -413,7 +413,7 @@ class DomainNodes:
                     )
                 )
             except Exception:  # noqa: BLE001 - 有意的降级设计
-                logger.warning(f"{cn}生成失败，使用空草稿继续", exc_info=True)
+                logger.warning(f"gen failed, empty draft line={cn}", exc_info=True)
                 return {
                     "lines": {
                         line_name: {
@@ -424,7 +424,7 @@ class DomainNodes:
                     "quality_degraded": True,
                 }
             # 显式写 degraded=False：返工成功后清除此前失败标记
-            progress("完成：%s生成 Agent", cn)
+            progress("agent done gen line=%s", line_name)
             return {
                 "lines": {
                     line_name: {
@@ -446,7 +446,7 @@ class DomainNodes:
         cn = line_cn(line_name, self._line_cn_names)
 
         async def node(state: dict) -> dict:
-            progress("正在处理：%s审核 Agent", cn)
+            progress("agent start review line=%s", line_name)
             supervisor = getattr(self, cfg["supervisor_attr"])
             try:
                 review = await supervisor.review(
@@ -454,7 +454,7 @@ class DomainNodes:
                 )
             except Exception:  # noqa: BLE001 - 有意的降级设计
                 logger.warning(
-                    f"{cn}审核失败，按 reject 转降级", exc_info=True
+                    f"review failed, reject -> fallback line={line_name}", exc_info=True
                 )
                 return {
                     "lines": {
@@ -466,7 +466,7 @@ class DomainNodes:
                     "quality_degraded": True,
                 }
             payload = review.model_dump() if hasattr(review, "model_dump") else dict(review)
-            progress("完成：%s审核 Agent（%s）", cn, payload.get("decision") or "已返回")
+            progress("agent done review line=%s decision=%s", line_name, payload.get("decision") or "returned")
             return {
                 "lines": {
                     line_name: {
@@ -486,7 +486,7 @@ class DomainNodes:
         """
         async def node(state: dict) -> dict:
             cn = line_cn(line_name, self._line_cn_names)
-            progress("正在处理：%s返工", cn)
+            progress("agent start rework line=%s", line_name)
             review = line(state, line_name).get("review") or {}
             feedback = review.get("feedback", []) or []
             sub = line(state, line_name)
@@ -539,7 +539,7 @@ class DomainNodes:
             await produce_line(self, line_name, state, queue)
         except Exception as exc:  # 防御：producer 异常必须可见，否则主循环静默等待永不结束
             logger.error(
-                "任务线 %s 渲染异常：%s", line_name, exc, exc_info=True
+                "render failed line=%s err=%s", line_name, exc, exc_info=True
             )
             queue.put_nowait(exc)
             queue.put_nowait(None)  # 该线终止，避免 run_streaming 永久等待
@@ -706,8 +706,8 @@ class DomainNodes:
         try:
             graph = self._build_graph(line_names)
             progress(
-                "开始编排：%s",
-                "、".join(line_cn(n, self._line_cn_names) for n in line_names),
+                "pipeline start lines=%s",
+                ",".join(line_names),
             )
             # 流式图执行：每完成一个节点即推送 phase 事件（API 流式接口感知进度用），
             # values 模式的最后一个 chunk 即最终 state（与 ainvoke 等价）。
@@ -716,15 +716,12 @@ class DomainNodes:
             ):
                 if mode == "updates":
                     for node_name in chunk:
-                        progress(
-                            "节点完成：%s",
-                            node_label(node_name, self._line_cn_names),
-                        )
+                        progress("node done %s", node_name)
                         yield {"type": "phase", "node": node_name}
                 else:
                     state = chunk
         except Exception:  # noqa: BLE001 - 最后防线：图内异常不崩溃，走确定性兜底
-            logger.warning("图执行失败，使用确定性兜底输出", exc_info=True)
+            logger.warning("graph run failed, fallback to deterministic output", exc_info=True)
             fb = self._fallback_reports(initial_state, line_names)
             for line_name in line_names:
                 if line_name in fb:
@@ -759,7 +756,7 @@ class DomainNodes:
                     remaining -= 1
                     continue
                 if isinstance(event, Exception):  # 防御：producer 异常不应冒泡中断
-                    logger.warning("流式事件异常：%s", event)
+                    logger.warning("stream event error: %s", event)
                     continue
                 yield event
         finally:
@@ -840,7 +837,7 @@ class DomainNodes:
                 )
             except Exception:  # noqa: BLE001 - 单线校验失败，仅该线退回确定性兜底
                 logger.warning(
-                    "输出校验失败（%s），该线退回确定性兜底",
+                    "output validation failed (%s), fallback to deterministic",
                     key,
                     exc_info=True,
                 )

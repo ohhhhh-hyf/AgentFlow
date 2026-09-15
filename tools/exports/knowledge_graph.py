@@ -1339,7 +1339,7 @@ def render_graph_html(
 ) -> Path | None:
     """生成 Cytoscape.js 交互式知识图谱 HTML。"""
     if not nodes:
-        logger.warning("知识图谱无节点，跳过 HTML 生成")
+        logger.warning("graph has no nodes, skip html")
         return None
     out_dir = Path(out_dir)
     try:
@@ -1349,7 +1349,7 @@ def render_graph_html(
         out_path.write_text(html, encoding="utf-8")
         return out_path
     except Exception:  # noqa: BLE001 - HTML 生成失败不影响主流程
-        logger.warning("知识图谱 HTML 生成异常，已跳过", exc_info=True)
+        logger.warning("graph html failed, skipped", exc_info=True)
         return None
 
 

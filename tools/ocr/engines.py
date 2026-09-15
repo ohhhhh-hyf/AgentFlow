@@ -70,7 +70,7 @@ def _log_ocr_failure(image_path: str, detail: str) -> None:
             shutil.copy2(src, folder / src.name)
         (folder / "error.txt").write_text(detail, encoding="utf-8", errors="replace")
     except Exception as exc:  # noqa: BLE001
-        logger.warning("记录 OCR 失败样本失败：%s", exc)
+        logger.warning("save ocr fail sample failed: %s", exc)
 
 
 def run_ocr_subprocess(image_path: str, timeout: int = 180) -> dict:
@@ -97,18 +97,18 @@ def run_ocr_subprocess(image_path: str, timeout: int = 180) -> dict:
             if payload.get("lines"):
                 return payload
             errors.append(f"[attempt {attempt}] {engine} 返回空结果")
-            logger.warning("%s 第 %s 次返回空结果", engine, attempt)
+            logger.warning("%s attempt %s returned empty", engine, attempt)
         except TimeoutError:
             errors.append(f"[attempt {attempt}] 超时，不再重试")
             break
         except Exception as exc:  # noqa: BLE001 - 引擎异常降级为重试
             errors.append(f"[attempt {attempt}] {type(exc).__name__}: {exc}")
-            logger.warning("%s 第 %s 次失败：%s", engine, attempt, exc)
+            logger.warning("%s attempt %s failed: %s", engine, attempt, exc)
         if attempt < 3:
             time.sleep(0.6 * attempt)
     detail = "\n".join(errors)[-4000:]
     _log_ocr_failure(image_path, detail)
-    logger.warning("%s 三次失败，返回空结果", engine)
+    logger.warning("%s failed 3x, return empty", engine)
     return {"engine": engine, "lines": []}
 
 
@@ -121,7 +121,7 @@ def get_llm_client():
         load_env(ROOT / ".env")
         return LLMClient()
     except Exception as exc:  # noqa: BLE001
-        logger.warning("LLM 客户端不可用（%s），OCR 将只输出原始文本", exc)
+        logger.warning("llm client unavailable (%s), ocr returns raw text", exc)
         return None
 
 

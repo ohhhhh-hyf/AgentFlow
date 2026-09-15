@@ -492,10 +492,44 @@ def test_ocr_order() -> None:
           got == ["p1.jpg", "p2.jpg", "p3.jpg"], f"顺序={got}")
 
 
+# ── OCR 文本收尾：删模型自述的报错串，不动正常内容 ─────────────
+
+def test_ocr_noise_strip() -> None:
+    """不需要 OCR / 模型：渲染器报错串要删掉，正常内容与公式规范化不受影响。"""
+    from tools.ocr.mathmd import normalize_markdown_math, strip_program_noise
+
+    sample = (
+        "²θL ParseError: KaTeX parse error: Expected '}', got 'EOF' at end of input: "
+        "∂^{2 角向方程：sinθ(sinθr8) 80 )+5m{$"
+    )
+    out = normalize_markdown_math(sample)
+    check("模型抄进正文的 KaTeX 报错被删除",
+          "ParseError" not in out and "KaTeX" not in out and out.startswith("²θL"),
+          f"结果={out!r}")
+
+    out = normalize_markdown_math("（r）的推导\n\nParseError: KaTeX parse error: Undefined control sequence: frac\n\n见下页")
+    check("整行是报错时整行删除且不留多余空行",
+          "ParseError" not in out and "见下页" in out and "\n\n\n" not in out,
+          f"结果={out!r}")
+
+    out = normalize_markdown_math("Missing or unrecognized delimiter for \\right 后续内容保留")
+    check("delimiter 报错被删且不吞后续正文",
+          "unrecognized delimiter" not in out and "后续内容保留" in out, f"结果={out!r}")
+
+    for text in ("本页公式用 KaTeX 渲染，定界用 $...$ 与 $$...$$。",
+                 "示例：ParseError: unexpected token 表示解析失败。",
+                 "# 标题\n\n正文一行，没有报错。"):
+        check(f"不误删正常内容：{text[:14]}…", normalize_markdown_math(text) == text)
+
+    check("定界符修复逻辑不受影响", normalize_markdown_math("行内 $a+b$ 与误写的 $c$$").startswith("行内 $a+b$"))
+    check("strip_program_noise 可单独调用", strip_program_noise(sample).startswith("²θL"))
+
+
 async def main() -> int:
     test_routes()
     test_async_response_shape()
     test_ocr_order()
+    test_ocr_noise_strip()
     print()
     store = job_store()
     db = store.redis.connection_pool.connection_kwargs.get("db")

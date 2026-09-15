@@ -54,12 +54,12 @@ def prepare(
         if (domain or "").strip() == "notes":
             if bind.project_id:
                 logger.info(
-                    "笔记记忆绑定学科 %s（%s）",
+                    "notes memory bound subject=%s (%s)",
                     bind.project_key or bind.project_id,
-                    "新建" if bind.create else "增量",
+                    "create" if bind.create else "incremental",
                 )
             else:
-                logger.info("笔记记忆未绑定：需要 --user_id 与 --subject")
+                logger.info("notes memory unbound: need --user_id and --subject")
         rec = None
         if bind.project_id:
             rec = materialize(project_root, domain, user_id, bind)
@@ -84,7 +84,7 @@ def prepare(
             pass
         return bind, extra
     except Exception:  # noqa: BLE001
-        logger.warning("记忆准备失败，本次不注入", exc_info=True)
+        logger.warning("memory prepare failed, no injection", exc_info=True)
         try:
             from tools.monitor.side import record_memory_prepare
 
@@ -108,7 +108,7 @@ def persist(
     try:
         record = materialize(project_root, domain, user_id, bind)
         if record is None:
-            logger.info("记忆未绑定项目，本次不写回")
+            logger.info("memory unbound project, no persist")
             try:
                 from tools.monitor.side import record_memory_persist
 
@@ -143,13 +143,13 @@ def persist(
 
             get_embedder(user_id=user_id).sync_record(user_id, domain, record)
         except Exception:  # noqa: BLE001 - 向量同步失败不阻断写回
-            logger.warning("记忆向量同步异常，跳过", exc_info=True)
+            logger.warning("memory vector sync failed, skipped", exc_info=True)
         logger.info(
-            "记忆已更新：%s/%s 第 %s 次（%s）",
+            "memory updated user=%s project=%s run=%s (%s)",
             user_id,
             pid,
             record["run_count"],
-            record.get("subject") or record.get("project_key") or "—",
+            record.get("subject") or record.get("project_key") or "-",
         )
         try:
             from tools.monitor.side import record_memory_persist
@@ -159,7 +159,7 @@ def persist(
             pass
         return record
     except Exception:  # noqa: BLE001
-        logger.warning("记忆写回失败，不影响主流程", exc_info=True)
+        logger.warning("memory persist failed, ignored", exc_info=True)
         try:
             from tools.monitor.side import record_memory_persist
 

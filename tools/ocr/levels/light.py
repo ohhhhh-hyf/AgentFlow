@@ -134,8 +134,7 @@ def save_light_ocr_outputs(
 
 
 def ocr_log(msg: str) -> None:
-    """OCR 进度：终端 + 调试台日志缓冲各写一份。"""
-    print(msg, flush=True)
+    """OCR 进度：统一走 logging（避免 print 与 logger 双份输出）。"""
     logger.info("%s", msg)
 
 
@@ -149,24 +148,24 @@ def log_ocr_pipeline_event(event: dict, *, total: int, engine: str) -> None:
     tag = f"[OCR/{engine}]"
     if kind == "ocr_start":
         workers = event.get("workers") or (int(hi or 0) - int(lo or 0) + 1)
-        ocr_log(f"{tag} 开始第 {lo}-{hi} 张（{workers} 路）")
+        ocr_log(f"{tag} ocr start {lo}-{hi} workers={workers}")
     elif kind == "ocr_item":
         page = event.get("page")
         page_abs = int(page) if page else int(lo or 1) + int(done or 0) - 1
         chunk = event.get("chunk")
-        batch_note = f"（本组 {done}/{chunk}）" if done and chunk else ""
-        ocr_log(f"{tag} 第 {page_abs}/{total} 张完成 {name}{batch_note}")
+        batch_note = f" chunk={done}/{chunk}" if done and chunk else ""
+        ocr_log(f"{tag} ocr ok {page_abs}/{total} file={name}{batch_note}")
     elif kind == "ocr_fail":
         err = str(event.get("error") or "失败").split(":")[0]
         page = event.get("page")
         page_abs = int(page) if page else int(lo or 1) + int(done or 0) - 1
         chunk = event.get("chunk")
-        batch_note = f"（本组 {done}/{chunk}）" if done and chunk else ""
-        ocr_log(f"{tag} 第 {page_abs}/{total} 张失败 {name}（{err}）{batch_note}")
+        batch_note = f" chunk={done}/{chunk}" if done and chunk else ""
+        ocr_log(f"{tag} ocr fail {page_abs}/{total} file={name} err={err}{batch_note}")
     elif kind == "review_start":
-        ocr_log(f"{tag} 第 {lo}-{hi} 张按原顺序整理中")
+        ocr_log(f"{tag} reconstruct start {lo}-{hi}")
     elif kind == "batch_done":
-        ocr_log(f"{tag} 第 {lo}-{hi} 张整理完成")
+        ocr_log(f"{tag} reconstruct done {lo}-{hi}")
 
 
 def iter_logged_ocr_pipeline(
@@ -184,8 +183,8 @@ def iter_logged_ocr_pipeline(
     batch_size = int(kwargs.get("batch_size") or LIGHT_OCR_BATCH)
     batch_size = max(1, min(batch_size, total))
     ocr_log(
-        f"[OCR] 使用引擎 {engine}，共 {total} 张，{workers} 路并行，"
-        f"{batch_size} 张一组整理"
+        f"ocr start engine={engine} images={total} workers={workers} "
+        f"batch={batch_size}"
     )
     for event in iter_ocr_review_pipeline(image_entries, **kwargs):
         log_ocr_pipeline_event(event, total=total, engine=engine)
@@ -244,7 +243,7 @@ def ocr_image_to_lines(image_path: str | Path) -> tuple[str, list[dict]]:
             except OSError:
                 pass
     if applied:
-        ocr_log(f"[OCR] 识别前放大预处理：{src.name}")
+        ocr_log(f"ocr upscale pre file={src.name}")
     raw_text = raw_text_from_lines(lines) or "（OCR 未识别到文字）"
     return raw_text, lines
 
@@ -565,7 +564,7 @@ def _draft_pagewise(pages: list[dict], all_lines: list[dict]) -> str:
         lines = all_lines
         if _needs_reconstruct_llm(lines):
             return reconstruct_markdown(lines, max_tokens=_estimate_reconstruct_tokens(lines))
-        ocr_log("[OCR] 高置信纯文本页，跳过 LLM 整理")
+        ocr_log("ocr skip llm (high-confidence page)")
         return deterministic_reconstruct_markdown(lines)
 
     by_page: dict[str, list[dict]] = {}
@@ -611,7 +610,7 @@ def _draft_pagewise(pages: list[dict], all_lines: list[dict]) -> str:
                 drafts.append(md)
     drafts, deduped_blocks, deduped_chars = _dedupe_page_boundary_blocks(drafts)
     note = f"，页界去重 {deduped_blocks} 段/{deduped_chars} 字符" if deduped_blocks else ""
-    ocr_log(f"[OCR] 页级整理：{n} 页，并发 {workers}，确定性 {deterministic_pages} 页（零 LLM）{note}")
+    ocr_log(f"ocr page reconstruct pages={n} workers={workers} zero_llm={deterministic_pages}{note}")
     return "\n\n".join(drafts)
 
 
@@ -637,7 +636,7 @@ def reconstruct_and_review_pages(pages: list[dict]) -> str:
         if _needs_reconstruct_llm(lines):
             draft = reconstruct_markdown(lines, max_tokens=_estimate_reconstruct_tokens(lines))
         else:
-            ocr_log("[OCR] 高置信纯文本批次，跳过 LLM 整理")
+            ocr_log("ocr skip llm (high-confidence batch)")
             draft = deterministic_reconstruct_markdown(lines)
     # 完整性闭环：零成本行级自检，检出截断/漏行时用一次小续写补回（review 补不了丢失行）。
     # 可用环境变量 OCR_COMPLETENESS_FIX=0 关闭做 A/B 对照。
@@ -886,7 +885,7 @@ def iter_ocr_review_pipeline(
         if _ocr_label() == "paddleocr" and ocr_fn is ocr_image_to_lines:
             from tools.ocr.paddle_ocr import warmup_engines
 
-            ocr_log(f"[OCR/paddleocr] 预热 {ocr_workers} 路引擎（线程绑定）")
+            ocr_log(f"ocr warmup engine=paddleocr workers={ocr_workers}")
             warmup_engines()
         if len(chunks) >= 2 and _overlap_enabled():
             yield from _iter_chunks_overlap(

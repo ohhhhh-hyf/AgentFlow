@@ -482,7 +482,7 @@ def render_mindmap_html(
     """
     outline = sanitize_mindmap_outline(outline or "")
     if not outline:
-        logger.warning("思维导图大纲为空，跳过 HTML 生成")
+        logger.warning("mindmap outline empty, skip html")
         return None
     out_dir = Path(out_dir)
     md_path: Path | None = None
@@ -492,9 +492,7 @@ def render_mindmap_html(
 
         npx = shutil.which("npx")
         if not npx:
-            logger.warning(
-                "未检测到 npx/node，无法生成思维导图 HTML（可安装 Node.js 后重试）"
-            )
+            logger.warning("npx/node not found, cannot build mindmap html")
             return None
 
         # 临时 md 放输出目录（路径对 node 可见；WSL 场景经 _native_path 转换）
@@ -525,20 +523,20 @@ def render_mindmap_html(
         )
         if result.returncode != 0:
             logger.warning(
-                "markmap-cli 生成失败（rc=%s）：%s",
+                "markmap-cli failed rc=%s: %s",
                 result.returncode,
                 (result.stderr or result.stdout or "").strip()[-500:],
             )
             return None
         if not out_path.exists():
-            logger.warning("markmap-cli 未产出文件：%s", out_path)
+            logger.warning("markmap-cli produced no file: %s", out_path)
             return None
         return out_path
     except subprocess.TimeoutExpired:
-        logger.warning("markmap-cli 生成超时（>%ss），已放弃", _RENDER_TIMEOUT_SECONDS)
+        logger.warning("markmap-cli timeout (>%ss), aborted", _RENDER_TIMEOUT_SECONDS)
         return None
     except Exception:  # noqa: BLE001 - 生成失败不影响主流程
-        logger.warning("思维导图 HTML 生成异常，已跳过", exc_info=True)
+        logger.warning("mindmap html failed, skipped", exc_info=True)
         return None
     finally:
         if md_path is not None:
@@ -650,15 +648,12 @@ async def render_mindmap_png(
     """
     outline = sanitize_mindmap_outline(outline or "")
     if not outline:
-        logger.warning("思维导图大纲为空，跳过 PNG 生成")
+        logger.warning("mindmap outline empty, skip png")
         return None
     try:
         from playwright.async_api import async_playwright
     except ImportError:
-        logger.warning(
-            "未安装 playwright，跳过 PNG 导出（安装：pip install playwright "
-            "&& playwright install chromium）"
-        )
+        logger.warning("playwright missing, skip png export")
         return None
 
     out_dir = Path(out_dir)
@@ -677,7 +672,7 @@ async def render_mindmap_png(
             if html is not None:
                 html = html.resolve()
         if html is None or not html.exists():
-            logger.warning("思维导图 HTML 源不存在，无法导出 PNG")
+            logger.warning("mindmap html missing, cannot export png")
             return None
 
         uri = html.as_uri()
@@ -769,8 +764,7 @@ async def render_mindmap_png(
         color_n, content_ratio = _png_pixel_stats(png_path)
         if color_n < 8 or content_ratio < 0.005:
             logger.warning(
-                "思维导图 PNG 截图异常（colors=%s content_ratio=%.4f，"
-                "疑似空白/纯色图），已放弃：%s",
+                "mindmap png looks blank (colors=%s content_ratio=%.4f), skipped: %s",
                 color_n,
                 content_ratio,
                 png_path,
@@ -782,7 +776,7 @@ async def render_mindmap_png(
             return None
         return png_path
     except Exception:  # noqa: BLE001 - 截图失败不影响主流程
-        logger.warning("思维导图 PNG 生成异常，已跳过", exc_info=True)
+        logger.warning("mindmap png failed, skipped", exc_info=True)
         return None
     finally:
         # 清理本次临时生成的 HTML 源

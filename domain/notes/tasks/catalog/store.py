@@ -159,9 +159,9 @@ def save_catalog(user_id: str, subject: str, draft: dict[str, Any]) -> Path:
     chapters = draft.get("chapters") or []
     if not chapters:
         if path.exists():
-            logger.warning("拒绝用空目录覆盖已有文件：%s", path)
+            logger.warning("refuse overwrite catalog with empty: %s", path)
             return path
-        logger.warning("目录草稿没有章节，跳过写入：%s", path)
+        logger.warning("catalog draft has no sections, skip write: %s", path)
         return path
     payload = {
         "course": draft.get("course") or "",

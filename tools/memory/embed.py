@@ -149,7 +149,7 @@ class MemoryEmbedder:
             # 预先探测：get_or_create collection（cosine 空间），失败即降级
             self._coll()
         except Exception as exc:  # noqa: BLE001 - 记忆向量不可用不影响主流程
-            logger.warning("记忆向量索引初始化失败，将降级规则匹配: %s", exc)
+            logger.warning("memory vector index init failed, fallback to rules: %s", exc)
             self._store = None
 
     # ── 内部 ──────────────────────────────────────────────────
@@ -236,12 +236,10 @@ class MemoryEmbedder:
                 pass
             self.upsert_project(user_id, domain, record)
             self._record(ok=True, calls=1)
-            logger.info(
-                "记忆向量已同步：%s/%s（%s）", user_id, pid, domain
-            )
+            logger.info("memory vectors synced user=%s project=%s domain=%s", user_id, pid, domain)
             return True
         except Exception:  # noqa: BLE001 - 向量索引异常不阻断主流程
-            logger.warning("记忆向量同步失败，跳过（不影响主流程）", exc_info=True)
+            logger.warning("memory vector sync failed, skipped", exc_info=True)
             self._record(ok=False)
             return False
 

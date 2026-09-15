@@ -368,7 +368,7 @@ def route_template(
                 context, template, instruction, example
             )
     except Exception:  # noqa: BLE001 - 路由失败一律回退旧路径，绝不影响现有逻辑
-        logger.warning("模板路由处理异常，已回退旧路径", exc_info=True)
+        logger.warning("template routing failed, fallback to legacy", exc_info=True)
     return None
 
 

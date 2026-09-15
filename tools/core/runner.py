@@ -223,13 +223,13 @@ async def prepare_run(
                 out_dir=monitor_dir,
             )
         except Exception:  # noqa: BLE001 - 监控组件异常不应阻断任务
-            logger.warning("任务监控初始化失败，本次不监控", exc_info=True)
+            logger.warning("monitor init failed, skip monitoring", exc_info=True)
             _task_monitor = None
     if _task_monitor is not None:
         try:
             _task_monitor.start(transcript=transcript)
         except Exception:  # noqa: BLE001 - 监控失败不阻断任务
-            logger.warning("任务监控 start 失败，本次不监控", exc_info=True)
+            logger.warning("monitor start failed, skip monitoring", exc_info=True)
             _task_monitor = None
     graph_silent = any(line in {"mindmap", "graph"} for line in line_names)
 
@@ -502,14 +502,14 @@ async def run(
                     },
                 )
             except Exception:  # noqa: BLE001 - 监控落盘失败不影响主流程
-                logger.warning("任务监控落盘失败", exc_info=True)
+                logger.warning("monitor save failed", exc_info=True)
         if run_error is not None and monitor_payload is not None:
             setattr(run_error, "monitor_payload", monitor_payload)
 
     if any_output:
         sys.stdout.write("\n")
     elif not graph_silent:
-        logger.info("（暂无内容）")
+        logger.info("(no content)")
     if collect_reports:
         return {
             "monitor": monitor_payload,
@@ -539,47 +539,44 @@ async def _handle_done(
             memory_on=memory_on,
         )
     except Exception:  # noqa: BLE001 - 落盘失败不中断其余导出
-        logger.error("报告落盘失败", exc_info=True)
+        logger.error("report save failed", exc_info=True)
         saved_reports = {}
     saved.update(saved_reports)
     for line_name, paths in saved_reports.items():
-        cn = ctx.line_cn_names.get(line_name, line_name)
         if paths.get("html"):
-            sys.stdout.write(f"[{cn}] 已保存 HTML：{paths['html']}\n")
+            logger.info("saved html line=%s path=%s", line_name, paths["html"])
         if paths.get("text"):
-            sys.stdout.write(f"[{cn}] 已保存文本：{paths['text']}\n")
+            logger.info("saved text line=%s path=%s", line_name, paths["text"])
         if paths.get("rejected"):
-            sys.stdout.write(
-                f"[{cn}] 门禁未通过，已保存排查文本：{paths['rejected']}\n"
-            )
+            logger.warning("gate rejected line=%s path=%s", line_name, paths["rejected"])
 
     if "mindmap" in reports:
         try:
             mindmap_dir = task_output_dir(ctx, "mindmap")
             html_path = export_mindmap_html(reports, mindmap_dir)
             if html_path:
-                sys.stdout.write(f"\n[思维导图] 已生成 HTML：{html_path}\n")
+                logger.info("mindmap html saved path=%s", html_path)
             png_path = await export_mindmap_png(
                 reports, mindmap_dir, html_path=html_path
             )
             if png_path:
-                sys.stdout.write(f"[思维导图] 已生成 PNG：{png_path}\n")
+                logger.info("mindmap png saved path=%s", png_path)
             saved["mindmap"] = {
                 "html": html_path,
                 "png": png_path,
             }
         except Exception:  # noqa: BLE001 - 单类导出失败不中断主流程
-            logger.error("思维导图导出失败", exc_info=True)
+            logger.error("mindmap export failed", exc_info=True)
 
     if "graph" in reports:
         try:
             kg_dir = task_output_dir(ctx, "graph")
             kg_paths = export_graph(reports, kg_dir)
             if kg_paths.get("html"):
-                sys.stdout.write(f"[知识图谱] 已生成 HTML：{kg_paths['html']}\n")
+                logger.info("graph html saved path=%s", kg_paths["html"])
             saved["graph"] = kg_paths
         except Exception:  # noqa: BLE001 - 单类导出失败不中断主流程
-            logger.error("知识图谱导出失败", exc_info=True)
+            logger.error("knowledge graph export failed", exc_info=True)
 
     return saved
 

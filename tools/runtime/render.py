@@ -83,12 +83,12 @@ async def produce_line(
     try:
         from tools.runtime.progress import progress
 
-        progress("正在处理：%s渲染", cn)
+        progress("render start line=%s", line_name)
         if degraded:
             try:
                 engine._post_render_hook(state, line_name)
             except Exception:
-                logger.exception("%s 降级后挂载失败", line_name)
+                logger.exception("attach after fallback failed line=%s", line_name)
             await queue.put(
                 {
                     "type": "chunk",
@@ -134,7 +134,7 @@ async def produce_line(
                     )
                     full_text = apply_memory_citations(full_text, citation_context)
                 except Exception:  # noqa: BLE001
-                    logger.warning("记忆引用标注失败（%s）", line_name, exc_info=True)
+                    logger.warning("memory citation failed line=%s", line_name, exc_info=True)
             line_state = line(state, line_name)
             line_state["rendered"] = full_text
             line_state["fill_mode"] = "draft"
@@ -174,7 +174,7 @@ async def produce_line(
                     )
                 except Exception:  # noqa: BLE001
                     logger.warning(
-                        "assemble 异常（%s）", line_name, exc_info=True
+                        "assemble failed (%s)", line_name, exc_info=True
                     )
                     filled = None
                 if filled:
@@ -247,7 +247,7 @@ async def produce_line(
                                 full_text = compressed
                                 fill_mode = "repair"
                                 logger.info(
-                                    "freeform 偏长（%s>%s），压缩修订#%s（%s）",
+                                    "freeform too long (%s>%s), compress rev#%s (%s)",
                                     han,
                                     hi_i,
                                     _rev + 1,
@@ -268,7 +268,7 @@ async def produce_line(
                                 full_text = expanded
                                 fill_mode = "repair"
                                 logger.info(
-                                    "freeform 偏短（%s<%s），扩写修订#%s（%s）",
+                                    "freeform too short (%s<%s), expand rev#%s (%s)",
                                     han,
                                     lo_i,
                                     _rev + 1,
@@ -287,7 +287,7 @@ async def produce_line(
 
             if (gate_issues or not gate_ok) and hasattr(render, "run"):
                 logger.warning(
-                    "模板门禁未通过（%s），尝试 repair：%s",
+                    "template gate failed (%s), try repair: %s",
                     line_name,
                     "；".join(gate_issues),
                 )
@@ -327,7 +327,7 @@ async def produce_line(
                         repaired = await render.run(repair_context, template)
                     except Exception:  # noqa: BLE001
                         logger.warning(
-                            "repair 失败（%s）", line_name, exc_info=True
+                            "repair failed (%s)", line_name, exc_info=True
                         )
                         repaired = ""
                     if not (repaired and repaired.strip()):
@@ -406,7 +406,7 @@ async def produce_line(
                 )
                 full_text = apply_memory_citations(full_text, citation_context)
             except Exception:  # noqa: BLE001
-                logger.warning("记忆引用标注失败（%s）", line_name, exc_info=True)
+                logger.warning("memory citation failed line=%s", line_name, exc_info=True)
         if full_text and not template and line_name in {"minutes", "minutes_trace"}:
             from domain.meeting.tasks.minutes.steps.minutes_render import (
                 compact_untemplated_minutes,
@@ -437,38 +437,26 @@ async def produce_line(
             )
             state["quality_degraded"] = True
 
-        cn = line_cn(line_name, engine._line_cn_names)
         gate_s = (
             "n/a"
             if gate_ok is None
             else ("pass" if gate_ok else "fail")
         )
-        sys.stdout.write(
-            f"[模板渲染] {cn} fill_mode={fill_mode} gate={gate_s}\n"
-        )
+        logger.info("render line=%s fill_mode=%s gate=%s", line_name, fill_mode, gate_s)
         if enforce_notes:
-            sys.stdout.write(
-                f"[强执行] {cn} " + "；".join(enforce_notes) + "\n"
-            )
+            logger.info("enforce line=%s notes=%s", line_name, ";".join(enforce_notes))
         if gate_ok is False:
-            sys.stdout.write(
-                f"[门禁失败] {cn} 不写入通过态 result.md："
-                + "；".join(gate_issues[:5])
-                + "\n"
+            logger.warning(
+                "gate failed line=%s not writing result.md: %s",
+                line_name,
+                ";".join(gate_issues[:5]),
             )
-        sys.stdout.flush()
-        logger.info(
-            "模板渲染 %s fill_mode=%s gate=%s",
-            line_name,
-            fill_mode,
-            gate_s,
-        )
-        progress("完成：%s渲染", cn)
+        progress("render done line=%s", line_name)
         engine._post_render_hook(state, line_name)
     except Exception:  # noqa: BLE001 - 单线渲染失败不拖垮整条流水线
         logger.warning(
-            "%s渲染失败，使用确定性兜底文本",
-            line_cn(line_name, engine._line_cn_names),
+            "render failed, fallback to deterministic line=%s",
+            line_name,
             exc_info=True,
         )
         line(state, line_name)["degraded"] = True

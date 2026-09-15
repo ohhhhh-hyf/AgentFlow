@@ -339,7 +339,7 @@ class _Nodes(DomainNodes):
         cn = _line_cn(line_name)
 
         async def node(state: dict) -> dict:
-            progress("正在处理：%s生成 Agent", cn)
+            progress("agent start gen line=%s", line_name)
             agent = getattr(self, cfg["agent_attr"])
             context = self._line_shared_context(state, line_name)
             extra = (state.get("line_extra") or {}).get(line_name)
@@ -354,7 +354,7 @@ class _Nodes(DomainNodes):
                     )
                 )
             except Exception:  # noqa: BLE001 - 有意的降级设计
-                logger.warning(f"{cn}生成失败，使用空草稿继续", exc_info=True)
+                logger.warning(f"gen failed, empty draft line={cn}", exc_info=True)
                 return {
                     "lines": {
                         line_name: {
@@ -364,7 +364,7 @@ class _Nodes(DomainNodes):
                     },
                     "quality_degraded": True,
                 }
-            progress("完成：%s生成 Agent", cn)
+            progress("agent done gen line=%s", line_name)
             return {
                 "lines": {
                     line_name: {
@@ -454,7 +454,7 @@ class _Nodes(DomainNodes):
             try:
                 attach_review_artifacts(state)
             except Exception:
-                logger.exception("笔记审查挂载知识库出处失败")
+                logger.exception("review attach kb sources failed")
             else:
                 render = getattr(self, "review_render", None)
                 extractor = getattr(render, "extract_structure", None)
@@ -466,7 +466,7 @@ class _Nodes(DomainNodes):
             try:
                 attach_quiz_artifacts(state)
             except Exception:
-                logger.exception("自测题挂载知识库出处或题库检索失败")
+                logger.exception("quiz attach kb sources failed")
         elif line_name == "library":
             from .tasks.library.report import attach_library_artifacts
 
@@ -477,29 +477,29 @@ class _Nodes(DomainNodes):
             try:
                 attach_catalog_artifacts(state)
             except Exception:
-                logger.exception("知识目录排版失败")
+                logger.exception("catalog layout failed")
         elif line_name == "checklist":
             from .tasks.checklist.display import attach_checklist_artifacts
 
             try:
                 attach_checklist_artifacts(state)
             except Exception:
-                logger.exception("复习清单排版失败")
+                logger.exception("checklist layout failed")
 
     # ── 核心节点：笔记理解（公共事实底座）──────────────────────
 
     async def _notes_understanding_node(self, state) -> dict:
         """notes理解：提取主题、结构、术语和待澄清问题。"""
-        progress("正在处理：笔记理解 Agent")
+        progress("agent start notes_understanding")
         try:
             result = await self.notes_understanding_agent.run(state["transcript"])
         except Exception:
-            logger.warning("notes理解失败，使用空理解继续", exc_info=True)
+            logger.warning("notes understanding failed, continue with empty", exc_info=True)
             return {
                 "notes_understanding": _EMPTY_NOTES_UNDERSTANDING,
                 "quality_degraded": True,
             }
-        progress("完成：笔记理解 Agent")
+        progress("agent done notes_understanding")
         return {"notes_understanding": result.model_dump()}
 
 class NotesAgentSystem(_Nodes):

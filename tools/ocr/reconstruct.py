@@ -297,7 +297,7 @@ def reconstruct_markdown(lines: list[dict], *, max_tokens: int = 5000, context: 
         )
         return normalize_heading_numbering(normalize_markdown_math(str(text).strip()))
     except Exception as exc:  # noqa: BLE001
-        logger.warning("LLM 重构失败，返回原始文本：%s", exc)
+        logger.warning("llm reconstruct failed, return raw: %s", exc)
         return normalize_heading_numbering(normalize_markdown_math(raw))
 
 
@@ -350,7 +350,7 @@ def review_markdown(
         )
         return _as_reviewed_markdown(str(text), draft)
     except Exception as exc:  # noqa: BLE001
-        logger.warning("LLM 审校失败，返回重构稿：%s", exc)
+        logger.warning("llm review failed, keep draft: %s", exc)
         return draft, f"LLM 审校失败，已保留重构稿：{exc}"
 
 
@@ -611,7 +611,7 @@ def _json_from_review(text: str):
             salvaged = _salvage_patches(blob)
             if salvaged is not None:
                 return salvaged
-    logger.warning("审校 JSON 无法解析，head=%s", raw[:240].replace("\n", "\\n"))
+    logger.warning("review json unparsable head=%s", raw[:240].replace("\n", "\\n"))
     return None
 
 
@@ -707,7 +707,7 @@ def _as_reviewed_markdown(text: str, draft: str) -> tuple[str, str]:
     if payload is None:
         if not str(text or "").strip():
             return draft, "审校结果为空，已保留重构稿。"
-        logger.warning("审校未返回可解析补丁，已保留重构稿")
+        logger.warning("review returned no patches, keep draft")
         return draft, "审校未返回补丁，已保留重构稿。"
     patches = _patch_items(payload)
     reviewed, notes = apply_review_patches(draft, patches)
@@ -1278,7 +1278,7 @@ def ensure_markdown_complete(markdown: str, lines: list[dict]) -> str:
             appended_rows.extend(_keep_for_append(tail_rows))
         for run in sorted(mid_candidates, key=lambda r: -r["chars"]):
             appended_rows.extend(_keep_for_append(run["rows"]))
-        logger.warning("完整性补写不可用(无 LLM 客户端)，缺失 %d 行原文兜底追加", len(appended_rows))
+        logger.warning("completeness fix unavailable (no llm), append %d raw lines", len(appended_rows))
         final = raw + "\n\n" + "\n".join(r["text"] for r in appended_rows)
         return _normalize_final(final)
 
@@ -1322,13 +1322,13 @@ def ensure_markdown_complete(markdown: str, lines: list[dict]) -> str:
         tail_chars = sum(len(r["line"]) for r in tail_rows)
         budget = max(512, min(max_tokens_cap, int(tail_chars * 1.3)))
         logger.warning(
-            "OCR 完整性补写：稿尾疑似截断（信号=%s 尾行=%d），续尾调用",
+            "completeness: tail looks cut (signal=%s lines=%d), continue call",
             tail_cut_signal, len(tail_rows),
         )
         try:
             fragment = _continue_call(client, system, user_prompt, budget)
         except Exception as exc:  # noqa: BLE001
-            logger.warning("OCR 完整性补写调用失败（%s），缺失行原文兜底", exc)
+            logger.warning("completeness fix call failed (%s), append raw lines", exc)
             fragment = ""
         fragment = _sanitize_fragment(fragment) if fragment else ""
         if fragment:
@@ -1351,13 +1351,13 @@ def ensure_markdown_complete(markdown: str, lines: list[dict]) -> str:
         user_prompt = _build_continue_prompt(rows_all, present, run["rows"], draft, tail_mode=False)
         budget = max(512, min(max_tokens_cap, int(run["chars"] * 1.3)))
         logger.warning(
-            "OCR 完整性补写：中段缺失 %d 行/%d 字符，补中调用",
+            "completeness: missing middle %d lines/%d chars, fill call",
             len(run["rows"]), run["chars"],
         )
         try:
             fragment = _continue_call(client, system, user_prompt, budget)
         except Exception as exc:  # noqa: BLE001
-            logger.warning("OCR 完整性补写调用失败（%s），缺失行原文兜底", exc)
+            logger.warning("completeness fix call failed (%s), append raw lines", exc)
             fragment = ""
         fragment = _sanitize_fragment(fragment) if fragment else ""
         if fragment:
@@ -1375,10 +1375,10 @@ def ensure_markdown_complete(markdown: str, lines: list[dict]) -> str:
         draft = _normalize_final(draft)
         cleaned = _cut_incomplete_tail(draft)
         if cleaned != draft:
-            logger.warning("OCR 完整性补写：稿尾仍残留截断残片（%d 字符），已裁除", len(draft) - len(cleaned))
+            logger.warning("completeness fix: trimmed %d trailing chars", len(draft) - len(cleaned))
             draft = cleaned
         logger.warning(
-            "OCR 完整性补写完成：%d 次调用（%s），兜底 %d 行",
+            "completeness done calls=%d modes=%s fallback_lines=%d",
             fired, ",".join(modes), fallback_rows,
         )
     return draft

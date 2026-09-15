@@ -378,7 +378,7 @@ def merge_fragment_lines(lines: list[dict]) -> list[dict]:
             idx += 1
         merged.append(acc)
     if len(merged) != len(items):
-        logger.info("碎片行合并：%d → %d 行", len(items), len(merged))
+        logger.info("merge fragments %d -> %d lines", len(items), len(merged))
     return merged
 
 
@@ -392,7 +392,7 @@ def ocr_image_lines(image_path: str) -> list[dict]:
     try:
         payload = run_ocr_subprocess(image_path)
     except Exception as exc:  # noqa: BLE001
-        logger.warning("OCR 识别失败：%s", exc)
+        logger.warning("ocr failed: %s", exc)
         return []
     lines: list[dict] = []
     for item in payload.get("lines") or []:
@@ -413,7 +413,7 @@ def ocr_image_lines(image_path: str) -> list[dict]:
 
         image_size = Image.open(image_path).size
     except Exception as exc:  # noqa: BLE001
-        logger.warning("读取图片尺寸失败：%s", exc)
+        logger.warning("read image size failed: %s", exc)
         image_size = None
     if not lines:
         return []

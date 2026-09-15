@@ -279,7 +279,7 @@ class LLMClient:
         fitted = min(int(tok), room)
         if fitted < int(tok):
             logger.info(
-                "max_tokens %s → %s（上下文 %s，输入约 %s）",
+                "llm fit max_tokens %s->%s ctx=%s input~%s",
                 tok,
                 fitted,
                 ctx,
@@ -327,7 +327,7 @@ class LLMClient:
                 fitted = self._max_tokens_from_context_error(detail)
                 if fitted is not None and (tok is None or fitted < int(tok)):
                     logger.warning(
-                        "上下文溢出（HTTP 400），max_tokens %s → %s 后重试一次",
+                        "llm overflow(400) retry max_tokens %s->%s",
                         tok,
                         fitted,
                     )
@@ -782,7 +782,7 @@ class LLMClient:
             try:
                 tag = label or response_model.__name__
                 extra = f" 第{attempt + 1}次" if attempt else ""
-                logger.info("LLM 调用中（%s，结构化%s）…", tag, extra)
+                logger.info("llm call label=%s mode=structured%s", tag, extra)
                 last_content = await self._in_thread(
                     self._post,
                     messages,
@@ -901,7 +901,7 @@ class LLMClient:
             try:
                 tag = label or "text"
                 extra = f" 第{attempt + 1}次" if attempt else ""
-                logger.info("LLM 调用中（%s，文本%s）…", tag, extra)
+                logger.info("llm call label=%s mode=text%s", tag, extra)
                 content = await self._in_thread(
                     self._post,
                     messages,

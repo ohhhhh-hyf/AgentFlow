@@ -2218,7 +2218,7 @@ def write_core_understanding() -> None:
         try:
             result = await self.{attr}.run(state["transcript"])
         except Exception:
-            logger.warning("{label}理解失败，使用空理解继续", exc_info=True)
+            logger.warning("{label} understanding failed, continue with empty", exc_info=True)
             return {{
                 "{state_key}": {empty_const},
                 "quality_degraded": True,
