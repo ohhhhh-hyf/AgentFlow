@@ -1,9 +1,10 @@
 """Distributed-style ID generation for API request/job identifiers."""
 from __future__ import annotations
 
-import os
 import threading
 from datetime import datetime, timezone
+
+from .config import redis_url
 
 BEGIN_TIMESTAMP = 1640995200
 COUNT_BITS = 32
@@ -19,9 +20,8 @@ def _redis_client():
         import redis
     except ModuleNotFoundError:
         return None
-    url = os.getenv("REDIS_URL", "redis://localhost:6379/0").strip()
     try:
-        client = redis.Redis.from_url(url, decode_responses=True)
+        client = redis.Redis.from_url(redis_url(), decode_responses=True)
         client.ping()
         return client
     except Exception:
@@ -38,7 +38,15 @@ class RedisIdWorker:
     """
 
     def __init__(self) -> None:
-        self._redis = _redis_client()
+        # 首次发号时才建连：模块导入早于 .env 加载，那时读 REDIS_URL 会拿到缺省值
+        self._conn = None
+        self._connected = False
+
+    def _client(self):
+        if not self._connected:
+            self._connected = True
+            self._conn = _redis_client()
+        return self._conn
 
     def next_id(self, key_prefix: str) -> int:
         now = datetime.now(timezone.utc)
@@ -51,9 +59,10 @@ class RedisIdWorker:
         # request/job share one daily sequence so their numeric suffixes do not
         # collide visually when generated in the same second.
         key = f"{ID_KEY_PREFIX}global:{date}"
-        if self._redis is not None:
-            count = self._redis.incr(key)
-            self._redis.expire(key, 3 * 24 * 60 * 60)
+        client = self._client()
+        if client is not None:
+            count = client.incr(key)
+            client.expire(key, 3 * 24 * 60 * 60)
             return int(count)
         with _local_lock:
             _local_counts[key] = _local_counts.get(key, 0) + 1

@@ -4,6 +4,7 @@
 """
 from __future__ import annotations
 
+import os
 import re
 from pathlib import Path
 
@@ -11,11 +12,47 @@ PROJECT_ROOT = Path(__file__).resolve().parents[1]
 
 _TEMPLATE_YAML = PROJECT_ROOT / "cm_template_v2_changed_0722.yaml"
 
+DEFAULT_REDIS_URL = "redis://127.0.0.1:6379/0"
+DEFAULT_JOB_TTL_SECONDS = 7 * 24 * 60 * 60
+
+_env_loaded = False
+
 
 def load_env() -> None:
+    """.env → os.environ（首次生效；已存在的环境变量优先，不被覆盖）。
+
+    进程内只读一次文件：事件写 Redis 的路径会频繁取配置，重复读盘没必要。
+    环境变量本身不缓存，测试里临时改 env 仍能生效。
+    """
+    global _env_loaded
+    if _env_loaded:
+        return
     from client.config import load_env as _load_env
 
     _load_env(PROJECT_ROOT / ".env")
+    _env_loaded = True
+
+
+# ── Redis（异步任务接口：任务状态 + 事件流 + 全局发号器）────────
+
+def redis_url() -> str:
+    """Redis 地址（.env 的 REDIS_URL），缺省本机 0 号库。
+
+    调用方可能是请求前的建连路径（发号器、任务提交），此时 ``_prepare``
+    还没跑过，所以这里自己先加载 .env，不依赖别的调用点。
+    """
+    load_env()
+    return (os.getenv("REDIS_URL") or "").strip() or DEFAULT_REDIS_URL
+
+
+def job_ttl_seconds() -> int:
+    """任务状态与事件流的过期秒数（.env 的 AGENTFLOW_JOB_TTL_SECONDS，默认 7 天）。"""
+    load_env()
+    try:
+        value = int((os.getenv("AGENTFLOW_JOB_TTL_SECONDS") or "").strip())
+    except ValueError:
+        return DEFAULT_JOB_TTL_SECONDS
+    return value if value > 0 else DEFAULT_JOB_TTL_SECONDS
 
 
 def load_domain(name: str):
@@ -225,11 +262,15 @@ def profile_path(domain: str, profile_value: str) -> Path:
 
 
 __all__ = [
+    "DEFAULT_JOB_TTL_SECONDS",
+    "DEFAULT_REDIS_URL",
     "PROFILE_DIR",
     "PROJECT_ROOT",
+    "job_ttl_seconds",
     "load_domain",
     "load_env",
     "profile_path",
+    "redis_url",
     "resolve_template_format",
     "template_registry",
 ]

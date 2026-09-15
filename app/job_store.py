@@ -2,13 +2,11 @@
 from __future__ import annotations
 
 import json
-import os
 import time
 from typing import Any
 
+from .config import job_ttl_seconds, redis_url
 from .id_worker import next_job_id
-
-JOB_TTL_SECONDS = int(os.getenv("AGENTFLOW_JOB_TTL_SECONDS", str(7 * 24 * 60 * 60)))
 
 
 class JobStoreError(RuntimeError):
@@ -20,12 +18,12 @@ def _redis_client():
         import redis
     except ModuleNotFoundError as exc:
         raise JobStoreError("未安装 redis Python 客户端，请执行 pip install -r requirements.txt") from exc
-    url = os.getenv("REDIS_URL", "redis://localhost:6379/0").strip()
+    url = redis_url()
     client = redis.Redis.from_url(url, decode_responses=True)
     try:
         client.ping()
     except Exception as exc:  # noqa: BLE001
-        raise JobStoreError(f"Redis 不可用：{exc}") from exc
+        raise JobStoreError(f"Redis 不可用（{url}）：{exc}") from exc
     return client
 
 
@@ -78,9 +76,10 @@ class RedisJobStore:
             "result": "",
         }
         key = self._job_key(job_id)
+        ttl = job_ttl_seconds()
         self.redis.hset(key, mapping={k: self._encode(v) for k, v in payload.items()})
-        self.redis.expire(key, JOB_TTL_SECONDS)
-        self.redis.expire(self._events_key(job_id), JOB_TTL_SECONDS)
+        self.redis.expire(key, ttl)
+        self.redis.expire(self._events_key(job_id), ttl)
         self.append_event(job_id, {"type": "queued", "job_id": job_id, "request_id": request_id})
         return payload
 
@@ -96,14 +95,14 @@ class RedisJobStore:
         fields.setdefault("updated_at", time.time())
         key = self._job_key(job_id)
         self.redis.hset(key, mapping={k: self._encode(v) for k, v in fields.items()})
-        self.redis.expire(key, JOB_TTL_SECONDS)
+        self.redis.expire(key, job_ttl_seconds())
 
     def append_event(self, job_id: str, event: dict[str, Any]) -> None:
         payload = dict(event or {})
         payload.setdefault("ts", time.time())
         key = self._events_key(job_id)
         self.redis.rpush(key, json.dumps(payload, ensure_ascii=False))
-        self.redis.expire(key, JOB_TTL_SECONDS)
+        self.redis.expire(key, job_ttl_seconds())
 
     def events_since(self, job_id: str, cursor: int) -> list[dict[str, Any]]:
         rows = self.redis.lrange(self._events_key(job_id), cursor, -1)

@@ -15,7 +15,10 @@ LLM 支持 **HTTP（如 DeepSeek）**、**WebSocket OpenAI 兼容接口** 与 **
 ```
 app/                          # FastAPI 后端服务（唯一入口）
   main.py                     # 应用入口：路由挂载 + /api/v1/health
-  routes/{meeting,notes}.py   # 9 个业务接口路由
+  routes/{meeting,notes}.py   # 10 个任务线的同步 / 流式 / 产物下载路由
+  routes/tasks.py             # 异步任务接口：提交 / 状态 / 结果 / 事件流（Redis）
+  job_store.py                # Redis 任务状态与事件流存取（TTL 默认 7 天）
+  id_worker.py                # request_id / job_id 发号器（Redis 日序号，无 Redis 时进程内降级）
   tasks.py                    # 任务执行核心：请求 → 输入组装 → run() → 统一响应
   schemas.py                  # 请求/响应模型（通用 TaskRequest / TaskResponse）
   outputs.py                  # API 产物落盘 data/{user_id}/output/{request_id}/
@@ -78,6 +81,37 @@ Linux 推荐配置：
 # 思维导图 PNG 导出还需要浏览器内核：
 python -m playwright install chromium
 ```
+
+#### Redis（异步任务接口依赖，同步接口不需要）
+
+`POST/GET /api/v1/tasks` 系列把任务状态与事件流放在 Redis。容器方式启动（AOF 持久化 +
+开机自启；`-p 6379:6379` 对所有网卡开放，只给本机 API 用可改成 `-p 127.0.0.1:6379:6379`）：
+
+```bash
+docker run -d --name redis --restart unless-stopped \
+  -p 6379:6379 \
+  -v /data/redis:/data \
+  redis:7.2 \
+  redis-server --appendonly yes
+
+docker exec -it redis redis-cli ping      # 期望 PONG
+```
+
+> `--name` 的容器名只用于本机 docker 命令（`exec` / `logs` / `stop`），API **不依赖**它：
+> 连接只认 `REDIS_URL` 的 host:port/库号，所以本机叫 `agentflow-redis`、服务器叫 `redis`
+> 都没问题，只要 `docker exec` 里跟着换成自己的名字即可。
+> 只有当 API 也被容器化、和 Redis 处于同一个自定义 Docker 网络时，容器名才会被当作主机名解析
+> （那时才写 `REDIS_URL=redis://<容器名>:6379/0`，且容器内的 `127.0.0.1` 不再指向宿主机）。
+
+`.env` 中对应配置（缺省即本机 0 号库；换机 / 换库 / 加密码时改这里）：
+
+```env
+REDIS_URL=redis://127.0.0.1:6379/0
+# 任务状态与事件流的过期秒数，默认 7 天
+#AGENTFLOW_JOB_TTL_SECONDS=604800
+```
+
+Redis 不可用时异步接口返回 503（`{"detail": "Redis 不可用（<url>）：…"}`），同步接口不受影响。
 
 ### 2. 配置 LLM（`.env`）
 
@@ -177,7 +211,8 @@ pip install "numpy<2" onnxruntime==1.16.3 rapidocr_onnxruntime==1.4.4
 
 ## 接口调用
 
-全部 9 个业务接口 + 健康检查，请求/响应结构统一，详见 **[API.md](API.md)**：
+全部 10 个任务线接口 + 健康检查，请求/响应结构统一；另有一组基于 Redis 的异步任务接口
+（提交 / 状态 / 结果 / 事件流，生产主路径），详见 **[API.md](API.md)**：
 
 | 域 | 接口 | 用途 |
 |---|---|---|
@@ -186,11 +221,16 @@ pip install "numpy<2" onnxruntime==1.16.3 rapidocr_onnxruntime==1.4.4
 | meeting | `POST /api/v1/meeting/risks` | 风险识别 |
 | meeting | `POST /api/v1/meeting/minutes_styles` | 多样式纪要 |
 | meeting | `POST /api/v1/meeting/minutes_trace` | 溯源纪要 |
+| meeting | `POST /api/v1/meeting/consensus_decision` | 共识决策（另有 `/consensus`、`/decision` 同义 URL） |
 | notes | `POST /api/v1/notes/graph` | 知识图谱（学习地图 + 交互 HTML） |
 | notes | `POST /api/v1/notes/library` | 资料入库 |
 | notes | `POST /api/v1/notes/catalog` | 知识目录 |
 | notes | `POST /api/v1/notes/checklist` | 复习清单 |
 | - | `GET /api/v1/health` | 健康检查 + 任务线清单 |
+| - | `POST /api/v1/tasks` | 异步提交任务（返回 `job_id`，不限任务线） |
+| - | `GET /api/v1/tasks/{job_id}` | 异步任务状态（阶段 / 耗时 / token） |
+| - | `GET /api/v1/tasks/{job_id}/result` | 异步任务结果（未完成返回 409） |
+| - | `GET /api/v1/tasks/{job_id}/stream` | 异步任务事件流（NDJSON，`?cursor=` 断线续读） |
 
 > **下载端点**：`minutes` / `actions` / `risks` / `minutes_styles` / `minutes_trace` / `graph` / `checklist`
 > 各有配套 `GET /api/v1/{domain}/{task}/file/{request_id}/{file_name}` 下载接口

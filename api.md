@@ -118,8 +118,13 @@ graph 额外有交互式 `graph.html`；catalog 的 json 在 `data/{user_id}/kno
 | 404 | 任务不存在 / GET 产物文件不存在 | 同上结构 |
 | 422 | 请求体不符合模型（如 texts 未知 key、类型错误） | Pydantic 默认校验错误体 |
 | 500 | 任务运行失败 / 未捕获异常 | `{"code": 500, "request_id": "…", "message": "任务运行失败：…"}` |
+| 503 | 异步任务接口 Redis 不可用 | `{"detail": "Redis 不可用（<REDIS_URL>）：…"}` |
 
 错误响应一律**不含** `monitor` 与 `data` 字段（避免全 0/空字段噪音）。
+
+> 上表适用于同步 / 流式接口。异步任务接口（`/api/v1/tasks*`）由框架 `HTTPException` 抛错，
+> 响应体统一为 `{"detail": "…"}`（如 404 `任务不存在：<job_id>`、409 `任务尚未完成：<status>`、
+> 503 Redis 不可用、400 `缺少 X-User-Id`），不套用 TaskResponse。
 
 ### 1.5 GET 产物获取三形态
 
@@ -285,6 +290,14 @@ curl -N -X POST http://127.0.0.1:8000/api/v1/meeting/minutes/stream \
 ## 5. 异步任务接口
 
 异步任务接口不替代现有同步接口；它是生产主路径。同步接口仍可用于小文本测试和兼容旧调用。
+
+任务状态与事件流存在 **Redis**：`.env` 的 `REDIS_URL`（缺省 `redis://127.0.0.1:6379/0`）、
+`AGENTFLOW_JOB_TTL_SECONDS`（缺省 7 天，状态与事件流共用）。Redis 不可用时本组接口返回 503，
+同步 / 流式接口不受影响。运行期日志可只看 `agentflow:job:{job_id}` 与 `agentflow:job:{job_id}:events` 两个 key。
+
+> 与同步接口的区别：本组接口缺必填字段时**不在提交时**返回 400，而是先返回 `queued`，
+> 随后任务转为 `failed`（`error` 字段给出缺失项），`GET /result` 返回 409。
+> 请求体本身不合模型仍返回 422。
 
 ### 5.1 提交任务 `POST /api/v1/tasks`
 
