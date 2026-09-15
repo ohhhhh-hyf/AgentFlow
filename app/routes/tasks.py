@@ -3,16 +3,17 @@ from __future__ import annotations
 
 import asyncio
 import json
-import time
 from typing import Optional
 
 from fastapi import APIRouter, BackgroundTasks, Header, HTTPException
 from fastapi.responses import StreamingResponse
 
+from ..config import run_mode
+from ..executor import payload_from_request, run_inline
 from ..id_worker import next_request_id
 from ..job_store import JobStoreError, job_store
 from ..schemas import Extra, TaskRequest
-from ..tasks import ApiError, LINE_NAMES, stream_task
+from ..tasks import LINE_NAMES
 
 router = APIRouter(prefix="/api/v1/tasks", tags=["tasks"])
 
@@ -26,7 +27,9 @@ class AsyncTaskRequest(TaskRequest):
 
 def _store():
     try:
-        return job_store()
+        store = job_store()
+        store.ping()  # Redis 挂了要回 503（而不是让命令异常冒成 500）
+        return store
     except JobStoreError as exc:
         raise HTTPException(status_code=503, detail=str(exc)) from exc
 
@@ -64,7 +67,12 @@ async def submit_task(
     x_request_id: Optional[str] = Header(default=None),
     x_user_id: Optional[str] = Header(default=None),
 ) -> dict:
-    """Submit an async task and return immediately with job_id."""
+    """Submit an async task and return immediately with job_id.
+
+    执行位置由 ``AGENTFLOW_RUN_MODE`` 决定：
+    - ``queue``：请求体落 Redis + 任务入队，由 ``python -m app.worker`` 消费（生产主路径）；
+    - ``inline``：交给本进程的 BackgroundTasks 执行（缺省，起个 uvicorn 就能用）。
+    """
     domain, line = _validate_domain_task(req.domain, req.task)
     user_id = (x_user_id or "").strip()
     if not user_id:
@@ -85,21 +93,35 @@ async def submit_task(
         extra=req.extra if isinstance(req.extra, Extra) else Extra.model_validate(req.extra),
         time=req.time,
     )
-    background_tasks.add_task(
-        _run_background_job,
-        job_id,
-        domain,
-        line,
-        task_req,
-        user_id,
-        request_id,
-    )
+    if run_mode() == "queue":
+        try:
+            store.set_payload(
+                job_id,
+                payload_from_request(
+                    domain, line, task_req, user_id=user_id, request_id=request_id
+                ),
+            )
+            store.enqueue(job_id)
+        except Exception as exc:  # noqa: BLE001 - 入队失败要让调用方知道，不能留个永远 queued 的 job
+            store.mark_failed(job_id, f"任务入队失败：{exc}", attempts=0)
+            raise HTTPException(status_code=503, detail=f"任务入队失败：{exc}") from exc
+    else:
+        background_tasks.add_task(
+            run_inline,
+            job_id,
+            domain,
+            line,
+            task_req,
+            user_id,
+            request_id,
+        )
     return {
         "code": 0,
         "message": "queued",
         "job_id": job_id,
         "request_id": request_id,
         "status": "queued",
+        "run_mode": run_mode(),
     }
 
 
@@ -110,7 +132,7 @@ async def get_task(job_id: str) -> dict:
     if job is None:
         raise HTTPException(status_code=404, detail=f"任务不存在：{job_id}")
     result = dict(job)
-    result.pop("result", None)
+    result.pop("result", None)  # 正文可能很大，状态查询不返回
     return result
 
 
@@ -146,110 +168,6 @@ async def stream_task_events(job_id: str, cursor: int = 0) -> StreamingResponse:
             await asyncio.sleep(0.5)
 
     return StreamingResponse(events(), media_type="application/x-ndjson")
-
-
-async def _run_background_job(
-    job_id: str,
-    domain: str,
-    task: str,
-    req: TaskRequest,
-    user_id: str,
-    request_id: str,
-) -> None:
-    store = job_store()
-    start = time.time()
-    store.update_job(
-        job_id,
-        status="running",
-        phase="prepare",
-        message="running",
-        started_at=start,
-        cost_time=0.0,
-    )
-    store.append_event(job_id, {"type": "started", "job_id": job_id, "request_id": request_id})
-    try:
-        response = await stream_task(
-            domain,
-            task,
-            req,
-            user_id=user_id,
-            request_id=request_id,
-        )
-        async for raw in response.body_iterator:
-            text = raw.decode("utf-8") if isinstance(raw, bytes) else str(raw)
-            for line in text.splitlines():
-                if not line.strip():
-                    continue
-                try:
-                    event = json.loads(line)
-                except json.JSONDecodeError:
-                    continue
-                _record_runtime_event(store, job_id, event, start)
-                if event.get("type") != "error":
-                    store.append_event(job_id, event)
-    except ApiError as exc:
-        _fail_job(store, job_id, start, exc.message)
-    except Exception as exc:  # noqa: BLE001
-        _fail_job(store, job_id, start, f"任务运行失败：{exc}")
-
-
-def _record_runtime_event(store, job_id: str, event: dict, start: float) -> None:
-    etype = event.get("type")
-    if etype == "phase":
-        node = str(event.get("node") or "")
-        store.update_job(
-            job_id,
-            status="running",
-            phase=node,
-            message=f"running:{node}",
-            cost_time=round(time.time() - start, 1),
-        )
-    elif etype == "chunk":
-        line = str(event.get("line") or "")
-        title = str(event.get("title") or "")
-        store.update_job(
-            job_id,
-            status="running",
-            phase=f"{line}:render",
-            message=title or "rendering",
-            cost_time=round(time.time() - start, 1),
-        )
-    elif etype == "done":
-        monitor = event.get("monitor") or {}
-        data = event.get("data") or {}
-        store.update_job(
-            job_id,
-            status="succeeded",
-            phase="done",
-            message="success",
-            finished_at=time.time(),
-            cost_time=float((monitor or {}).get("cost_time") or round(time.time() - start, 1)),
-            token_usage=int((monitor or {}).get("token_usage") or 0),
-            cache_hit=int((monitor or {}).get("cache_hit") or 0),
-            file_name=str((data or {}).get("file_name") or ""),
-            result=event,
-        )
-    elif etype == "error":
-        _fail_job(store, job_id, start, str(event.get("message") or "任务运行失败"))
-
-
-def _fail_job(store, job_id: str, start: float, message: str) -> None:
-    event = {
-        "type": "error",
-        "code": 500,
-        "message": message,
-        "ts": time.time(),
-    }
-    store.update_job(
-        job_id,
-        status="failed",
-        phase="error",
-        message="failed",
-        error=message,
-        finished_at=time.time(),
-        cost_time=round(time.time() - start, 1),
-    )
-    store.append_event(job_id, event)
 
 
 __all__ = ["router"]

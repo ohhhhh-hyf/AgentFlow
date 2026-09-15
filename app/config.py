@@ -14,6 +14,11 @@ _TEMPLATE_YAML = PROJECT_ROOT / "cm_template_v2_changed_0722.yaml"
 
 DEFAULT_REDIS_URL = "redis://127.0.0.1:6379/0"
 DEFAULT_JOB_TTL_SECONDS = 7 * 24 * 60 * 60
+# 异步任务执行模式：inline=API 进程内跑（缺省，兼容旧行为）；queue=推 Redis 队列，由 app.worker 消费
+DEFAULT_RUN_MODE = "inline"
+DEFAULT_JOB_MAX_ATTEMPTS = 2
+DEFAULT_LEASE_SECONDS = 60
+DEFAULT_HEARTBEAT_SECONDS = 10
 
 _env_loaded = False
 
@@ -53,6 +58,43 @@ def job_ttl_seconds() -> int:
     except ValueError:
         return DEFAULT_JOB_TTL_SECONDS
     return value if value > 0 else DEFAULT_JOB_TTL_SECONDS
+
+
+# ── 异步任务执行（队列 / worker）──────────────────────────
+
+def _int_env(name: str, default: int) -> int:
+    load_env()
+    try:
+        value = int((os.getenv(name) or "").strip())
+    except ValueError:
+        return default
+    return value if value > 0 else default
+
+
+def run_mode() -> str:
+    """异步任务在哪执行。
+
+    ``inline``（默认）：API 进程内 BackgroundTasks，行为和旧版一致，起个 uvicorn 就能用；
+    ``queue``：提交只落盘 + 入队，由独立进程 ``python -m app.worker`` 消费执行。
+    """
+    load_env()
+    value = (os.getenv("AGENTFLOW_RUN_MODE") or "").strip().lower()
+    return value if value in {"inline", "queue"} else DEFAULT_RUN_MODE
+
+
+def job_max_attempts() -> int:
+    """同一 job 最多执行几次（含首次）。仅对可重试失败生效（输入类错误不重试）。"""
+    return _int_env("AGENTFLOW_JOB_MAX_ATTEMPTS", DEFAULT_JOB_MAX_ATTEMPTS)
+
+
+def lease_seconds() -> int:
+    """执行租约时长：worker 超过这个时间没续期，任务会被判定为失联并回收重排。"""
+    return _int_env("AGENTFLOW_LEASE_SECONDS", DEFAULT_LEASE_SECONDS)
+
+
+def heartbeat_seconds() -> int:
+    """worker 续期间隔，需明显小于租约时长（默认 10s 续一次 / 60s 过期）。"""
+    return _int_env("AGENTFLOW_HEARTBEAT_SECONDS", DEFAULT_HEARTBEAT_SECONDS)
 
 
 def load_domain(name: str):
@@ -262,15 +304,22 @@ def profile_path(domain: str, profile_value: str) -> Path:
 
 
 __all__ = [
+    "DEFAULT_JOB_MAX_ATTEMPTS",
     "DEFAULT_JOB_TTL_SECONDS",
+    "DEFAULT_LEASE_SECONDS",
     "DEFAULT_REDIS_URL",
+    "DEFAULT_RUN_MODE",
     "PROFILE_DIR",
     "PROJECT_ROOT",
+    "heartbeat_seconds",
+    "job_max_attempts",
     "job_ttl_seconds",
+    "lease_seconds",
     "load_domain",
     "load_env",
     "profile_path",
     "redis_url",
     "resolve_template_format",
+    "run_mode",
     "template_registry",
 ]

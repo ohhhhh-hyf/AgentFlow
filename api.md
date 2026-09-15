@@ -295,6 +295,17 @@ curl -N -X POST http://127.0.0.1:8000/api/v1/meeting/minutes/stream \
 `AGENTFLOW_JOB_TTL_SECONDS`（缺省 7 天，状态与事件流共用）。Redis 不可用时本组接口返回 503，
 同步 / 流式接口不受影响。运行期日志可只看 `agentflow:job:{job_id}` 与 `agentflow:job:{job_id}:events` 两个 key。
 
+执行位置由 `.env` 的 `AGENTFLOW_RUN_MODE` 决定：
+
+| 模式 | 执行者 | 说明 |
+|---|---|---|
+| `inline`（缺省） | API 进程内的 BackgroundTasks | 起一个 uvicorn 就能用；失败即终态、无重试 |
+| `queue` | 独立进程 `python -m app.worker` 消费 `agentflow:queue` | 生产主路径：并发上限、失败重试、重启不丢任务 |
+
+queue 模式下额外使用两个 key：`agentflow:queue`（List，待执行队列）与 `agentflow:leases`
+（ZSet，member=job_id、score=租约到期时间戳）。两个可直接观测的指标：
+`LLEN agentflow:queue` = 积压任务数，`ZCARD agentflow:leases` = 正在执行的任务数。
+
 > 与同步接口的区别：本组接口缺必填字段时**不在提交时**返回 400，而是先返回 `queued`，
 > 随后任务转为 `failed`（`error` 字段给出缺失项），`GET /result` 返回 409。
 > 请求体本身不合模型仍返回 422。
@@ -324,9 +335,13 @@ curl -N -X POST http://127.0.0.1:8000/api/v1/meeting/minutes/stream \
   "message": "queued",
   "job_id": "job_637529814248456194",
   "request_id": "request_637529814248456193",
-  "status": "queued"
+  "status": "queued",
+  "run_mode": "queue"            // inline / queue，回显当前执行模式
 }
 ```
+
+> `run_mode=queue` 时任务不会立即执行：必须至少有一个 `python -m app.worker` 在跑，
+> 否则任务会一直停在 `queued`（`LLEN agentflow:queue` 能看到它）。
 
 ### 5.2 查询状态 `GET /api/v1/tasks/{job_id}`
 
@@ -345,11 +360,18 @@ curl -N -X POST http://127.0.0.1:8000/api/v1/meeting/minutes/stream \
   "cost_time": 12.4,
   "token_usage": 0,
   "cache_hit": 0,
-  "error": ""
+  "error": "",
+  "attempts": 1,                 // 已执行的次数（含首次）：>1 说明发生过重试
+  "worker_id": "host-1",         // 执行者：queue 模式为 worker 标识，inline 模式为 "inline"
+  "heartbeat_at": 1789441328.42  // 最近一次心跳（queue 模式）
 }
 ```
 
 `status` 取值：`queued` / `running` / `succeeded` / `failed`。
+
+`message` 取值：`queued` / `running` / `running:{阶段}` / `rendering` / `success` / `failed` /
+`requeued(attempt N)`（重排等待下一次尝试）。正文不在此接口返回（`result` 字段已剔除），
+需要正文用 5.3 或 5.4。
 
 ### 5.3 获取结果 `GET /api/v1/tasks/{job_id}/result`
 
@@ -357,13 +379,42 @@ curl -N -X POST http://127.0.0.1:8000/api/v1/meeting/minutes/stream \
 
 ### 5.4 事件流 `GET /api/v1/tasks/{job_id}/stream`
 
-响应为 NDJSON，事件来自任务运行过程：`queued` / `started` / `phase` / `chunk` / `done` / `error`。
+响应为 NDJSON，事件来自任务运行过程：`queued` / `started` / `phase` / `chunk` / `done` / `error` /
+`requeued`（queue 模式下发生重试或失联回收时）。
 
 支持 `cursor` 参数从指定事件下标开始读取：
 
 ```
 GET /api/v1/tasks/{job_id}/stream?cursor=0
 ```
+
+事件字段：
+
+| 事件 | 字段 | 说明 |
+|---|---|---|
+| `queued` | `job_id` / `request_id` | 已受理 |
+| `started` | `attempt` / `worker_id` | 第 attempt 次尝试开始执行 |
+| `phase` / `chunk` | 同流式接口 | 阶段推进 / 渲染增量 |
+| `done` | 同流式接口的 `done` | 成功终态 |
+| `error` | `code` / `message` | 失败；`code` 为 4xx 表示输入类错误（不重试），5xx 为可重试的运行错误 |
+| `requeued` | `attempt` / `reason` | 放回队列等待下一次尝试（尚未终态） |
+
+### 5.5 队列模式的执行语义（`AGENTFLOW_RUN_MODE=queue`）
+
+- **并发上限**：全局并发的真实值 = 所有 worker 的 `--concurrency` 之和，看 `ZCARD agentflow:leases`；
+  入口限流按请求数限速，管不住执行侧并发，真正的风控点在这里。
+- **重试**：5xx / 异常按 `AGENTFLOW_JOB_MAX_ATTEMPTS`（默认 2，含首次）自动重排重试；
+  4xx 输入类错误直接终态，不浪费一次模型调用。重试复用同一个 `request_id`，
+  所以产物目录与会议记忆（按 request_id 生成 meeting_id）是覆盖而非重复。
+- **超时回收**：worker 执行期间按 `AGENTFLOW_HEARTBEAT_SECONDS`（默认 10s）续租约；
+  worker 崩溃/被杀后租约在 `AGENTFLOW_LEASE_SECONDS`（默认 60s）后过期，
+  任务被收回重排，不会永远卡在 `running`。
+- **优雅停机**：worker 收到 SIGTERM/SIGINT 后停止取新任务，跑完手上任务再退出；
+  超过 `--grace` 秒未完成则退出，任务由租约超时兜底重排。
+- **幂等边界**：`library` 入库用确定性块 ID + upsert，重复执行是覆盖；
+  `minutes` 的会议记忆按 request_id 派生 meeting_id，重复执行同样覆盖 ——
+  但**不要用同一个 request_id 并发执行两次**（例如旧 worker 还活着就手工重投），
+  两个进程会同时写同一个产物目录。
 
 ---
 

@@ -548,7 +548,8 @@ async def stream_task(
     - {"type": "chunk", "line": str, "title": str, "text": str}  渲染文本增量
     - {"type": "done", "code": 0, "request_id": str, "message": "success",
        "quality_warning": str|null, "monitor": {...}, "data": {...}}  最终结果（与同步响应同构）
-    - {"type": "error", "code": 500, "message": str}  运行失败
+    - {"type": "error", "code": int, "message": str}  运行失败；code 为 4xx 表示输入类错误
+      （重试无意义），5xx 表示可重试的运行错误
     参数校验失败（400/404）仍直接返回 HTTP 错误，不走流。
     """
     request_id = (request_id or "").strip() or next_request_id()
@@ -590,6 +591,10 @@ async def _stream_task_impl(
                 memory=p.memory,
                 meeting_time=p.time,
             )
+        except ApiError as exc:
+            # 输入类错误（缺必填/文件不存在）：带上真实状态码，异步端据此不重试
+            yield _ndjson({"type": "error", "code": exc.status, "message": exc.message})
+            return
         except Exception as exc:  # noqa: BLE001 - 准备失败推 error 事件
             yield _ndjson({"type": "error", "code": 500, "message": f"任务准备失败：{exc}"})
             return
@@ -691,6 +696,8 @@ async def _stream_task_impl(
                             "file_name": _output_file_name(p.line, user_id, p.subject, saved_paths),
                         },
                     })
+        except ApiError as exc:
+            yield _ndjson({"type": "error", "code": exc.status, "message": exc.message})
         except Exception as exc:  # noqa: BLE001 - 运行失败推 error 事件
             yield _ndjson({"type": "error", "code": 500, "message": f"任务运行失败：{exc}"})
         finally:

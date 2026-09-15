@@ -110,7 +110,11 @@ class LLMSettings:
 
 
 def load_env(path: Path) -> None:
-    """使用标准库加载简单的 KEY=VALUE 环境配置（不覆盖已存在的环境变量）。"""
+    """使用标准库加载简单的 KEY=VALUE 环境配置（不覆盖已存在的环境变量）。
+
+    ``KEY=value  # 说明`` 这种行内注释会被剥离（只在 ``#`` 前有空白时剥离，
+    所以密码里的 ``#`` 不会被误截）；注释更推荐单独占一行。
+    """
     if not path.exists():
         return
     for raw_line in path.read_text(encoding="utf-8").splitlines():
@@ -118,6 +122,10 @@ def load_env(path: Path) -> None:
         if not line or line.startswith("#") or "=" not in line:
             continue
         key, value = line.split("=", 1)
+        # 行内注释：普通 KEY=VALUE 用 " #" 分隔；被引号包住的值不动（引号本身就是保护）
+        raw_value = value.strip()
+        if raw_value[:1] not in {"'", '"'}:
+            value = raw_value.split(" #", 1)[0]
         os.environ.setdefault(key.strip(), value.strip().strip("'\""))
 
 
