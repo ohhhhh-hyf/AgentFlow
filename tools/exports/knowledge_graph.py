@@ -1390,9 +1390,8 @@ def build_graph_embed(
     <div id="lc-cy"></div>
     <aside class="lc-kg-aside">
       <h3>{escape(heading)}</h3>
-      <p class="lc-kg-meta">滚轮缩放，拖动画布或节点。点击节点查看定义、程度和关系。</p>
       <div class="lc-kg-label">当前选中</div>
-      <div id="lc-kg-detail" class="lc-kg-detail">点击一个节点查看定义、程度、出入边和相关概念。</div>
+      <div id="lc-kg-detail" class="lc-kg-detail"></div>
       <div class="lc-kg-label">分组</div>
       <div id="lc-kg-legend" class="lc-kg-legend"></div>
     </aside>
@@ -1515,7 +1514,7 @@ def build_graph_embed(
   cy.on('tap', event => {{
     if (event.target === cy) {{
       cy.elements().removeClass('faded selected');
-      detail.textContent = '点击一个节点查看定义、程度、出入边和相关概念。';
+      detail.textContent = '';
     }}
   }});
 }})();

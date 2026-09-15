@@ -126,7 +126,10 @@ def _sanitize_exam(text: str, row: dict[str, Any], teacher: str) -> str:
         elif signal in {"medium", "strong"}:
             raw = "材料里有考试相关信号，按材料点到的题型准备，不估计具体占比。"
         elif not (teacher or "").strip():
-            raw = "先把定义和一条限制条件钉死，做一题确认会用。"
+            # 既无老师文本、也无考试信号：**不写模板式"考法"**。
+            # 此前会填"先把定义和一条限制条件钉死，做一题确认会用。"——没有信息量，
+            # 且会把 C 档卡片整段占满；留空则前端不渲染该字段。
+            raw = ""
         else:
             raw = "老师本次没有给出明确考法，先把定义和限制条件钉死。"
     return raw
@@ -323,11 +326,15 @@ def assemble_checklist(
             continue
         grade = row.get("session_priority") or "C"
         brief = grade not in {"S", "A"}
+        # 字段预算按档位（与 contracts/prompts 同一口径）：S 200-260、A 120-180、
+        # B/C 合成版上限 160。写满上限不奖励；超出按完整句裁剪，不截半句。
+        explain_limit = 260 if grade == "S" else 180 if grade == "A" else 160
+        min_explain = 200 if grade == "S" else 120 if grade == "A" else 0
         explain = _clean(blob.get("explain")) or _fallback_explain(row, brief=brief)
-        if not brief and len(explain) < 180:
+        if not brief and len(explain) < min_explain:
             # 不足：保留 LLM 具体内容，拼接程序补充句，不整体替换成模板
             explain += _fallback_explain(row, brief=False)
-        explain = _clip_explain(explain, limit=160 if brief else 320)
+        explain = _clip_explain(explain, limit=explain_limit)
         methods = _as_list(blob.get("method_steps")) or _fallback_method(row)
         if not brief and len(methods) < 5:
             methods = _fallback_method(row)

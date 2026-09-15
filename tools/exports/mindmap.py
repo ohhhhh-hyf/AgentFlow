@@ -844,7 +844,6 @@ def build_editable_mindmap_embed(
     return f"""<div class="lc-mm">
   <div class="lc-mm-bar">
     <strong>{escape(heading)}</strong>
-    <span class="lc-mm-hint">滚轮缩放 · 点圆点展开/折叠 · 可编辑大纲后保存本页</span>
     <button type="button" id="lc-mm-toggle">编辑大纲</button>
     <button type="button" id="lc-mm-apply">应用</button>
     <button type="button" class="lc-mm-save" id="lc-mm-save">保存本页</button>
@@ -912,7 +911,9 @@ def build_editable_mindmap_embed(
     const tree = parseOutline(md);
     const Markmap = window.markmap && window.markmap.Markmap;
     if (!Markmap || typeof window.d3 === 'undefined') {{
-      if (hint) hint.textContent = '图谱脚本未加载，已改用列表显示。可编辑大纲后保存。';
+      const notice = '图谱脚本未加载，已改用列表显示。可编辑大纲后保存。';
+      if (hint) hint.textContent = notice;
+      if (fallback) fallback.textContent = notice;
       renderFallback(tree);
       return;
     }}

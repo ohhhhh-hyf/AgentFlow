@@ -418,7 +418,8 @@ def build_checklist_markdown(draft: dict[str, Any], *, has_teacher: bool | None 
         steps = _as_list(card.get("method_steps"))[:6]
         pits = _as_list(card.get("pitfalls"))[:4]
         lines.append(f"### {_clean(card.get('name'))}  （{_grade_label(card)} · {importance_stars(card)}）")
-        lines.append(f"- 考法预判：{_math_text(card.get('exam_preview'))}")
+        if _clean(card.get("exam_preview")):
+            lines.append(f"- 考法预判：{_math_text(card.get('exam_preview'))}")
         if facts:
             lines.append("- 必须先会：")
             lines.extend(f"  - {_math_text(item)}" for item in facts)
@@ -436,8 +437,12 @@ def build_checklist_markdown(draft: dict[str, Any], *, has_teacher: bool | None 
         lines.append("")
         for card in brief:
             lines.append(
-                f"- {_clean(card.get('name'))}（{importance_stars(card)}）："
-                f"{_clean(card.get('exam_preview')) or '知道定义和一条限制即可'}"
+                f"- {_clean(card.get('name'))}（{importance_stars(card)}）"
+                + (
+                    f"：{_clean(card.get('exam_preview'))}"
+                    if _clean(card.get('exam_preview'))
+                    else ""
+                )
             )
         lines.append("")
     if extra:
@@ -450,8 +455,13 @@ def build_checklist_markdown(draft: dict[str, Any], *, has_teacher: bool | None 
                 if src:
                     kb_src = f"　溯源：{src}"
             lines.append(
-                f"- {_clean(card.get('name'))}（{importance_stars(card)}）："
-                f"{_clean(card.get('exam_preview')) or '结构了解即可'}{kb_src}"
+                f"- {_clean(card.get('name'))}（{importance_stars(card)}）"
+                + (
+                    f"：{_clean(card.get('exam_preview'))}"
+                    if _clean(card.get('exam_preview'))
+                    else ""
+                )
+                + f"{kb_src}"
             )
         lines.append("")
 
@@ -846,7 +856,7 @@ def _strategy_html(draft: dict[str, Any], overview: dict[str, Any] | None = None
     rows = [
         "<h2>三、复习策略</h2>",
         '<section class="ck-strategy-panel" aria-label="复习策略">',
-        '<div class="ck-strategy-head"><span>优先级矩阵</span><em>重要程度 × 难度</em></div>',
+        '<div class="ck-strategy-head"><span>优先级矩阵</span></div>',
         '<table class="ck-priority-matrix">',
         "<thead><tr><th></th><th>难度低/中</th><th>难度高</th></tr></thead>",
         "<tbody>",
@@ -857,7 +867,7 @@ def _strategy_html(draft: dict[str, Any], overview: dict[str, Any] | None = None
     ]
     if stages:
         rows.extend([
-            '<div class="ck-strategy-head ck-strategy-route"><span>今日复习路线</span><em>按学生实际下手顺序</em></div>',
+            '<div class="ck-strategy-head ck-strategy-route"><span>今日复习路线</span></div>',
             '<ol class="ck-strategy">',
         ])
     for i, stage in enumerate(stages, start=1):
@@ -888,7 +898,6 @@ def _action_html(draft: dict[str, Any]) -> list[str]:
         return []
     rows = [
         "<h2>四、行动清单</h2>",
-        '<p class="ck-note" style="margin-bottom:10px">按路线点开卡片看这一阶段要做什么。</p>',
         '<div class="ck-action">',
         '<div class="ck-progress" aria-label="行动清单完成度">',
         '<div class="ck-progress-top"><strong>完成度</strong><span><b data-ck-done>0</b>/<b data-ck-total>0</b> · <b data-ck-percent>0%</b></span></div>',
@@ -1014,26 +1023,12 @@ def _widget_css() -> str:
 """
 
 
-_SUPPORT_CN = {
-    "priority": "优先级",
-    "exam_prediction": "考法预判",
-    "explanation": "知识点讲解",
-    "method_steps": "方法步骤",
-    "error_warning": "易错提醒",
-}
-
-
 def _trace_pack(card: dict[str, Any]) -> dict[str, list[dict[str, Any]]]:
     raw = card.get("provenance") if isinstance(card.get("provenance"), dict) else {}
     teachers = [e for e in (raw.get("teacher_evidence") or []) if isinstance(e, dict)]
     kb = [e for e in (raw.get("knowledge_evidence") or []) if isinstance(e, dict)]
     notes = [e for e in (raw.get("note_evidence") or []) if isinstance(e, dict)]
     return {"teacher": teachers, "kb": kb, "note": notes}
-
-
-def _supports_label(ev: dict[str, Any]) -> str:
-    labels = [_SUPPORT_CN.get(str(x), "") for x in (ev.get("supports") or [])]
-    return " / ".join(x for x in labels if x)
 
 
 def _prepare_card_evidence(
@@ -1129,9 +1124,6 @@ def _evidence_html(kind: str, ev: dict[str, Any]) -> str:
                 "<details><summary class=\"ck-proof-toggle\">完整片段 ▾</summary>"
                 f'<div class="ck-ev-quote">{_math_escape(full)}</div></details>'
             )
-    sup = _supports_label(ev)
-    if sup:
-        rows.append(f'<div class="ck-ev-sup">支撑：{escape(sup, quote=False)}</div>')
     rows.append("</div>")
     return "".join(rows)
 
@@ -1144,7 +1136,6 @@ def _trace_html(card: dict[str, Any], all_evs: list[dict[str, Any]]) -> str:
             status = "这条判断缺少直接依据，未编造出处。"
         return f'<div class="ck-ev-empty">{status or "暂无足够依据"}</div>'
     rows = [
-        '<div class="ck-provenance-head"><span class="ck-ref-icon">§</span> 来源与证据溯源 (References)</div>',
         '<div class="ck-ev-list">',
     ]
     rows.extend(_evidence_html(str(ev.get("kind") or "kb"), ev) for ev in all_evs)
@@ -1181,9 +1172,12 @@ def _card_html(card: dict[str, Any], card_idx: int = 1) -> str:
         f'<span class="ck-thm-title"><strong>{thm_type} {card_idx} ({name})</strong></span>',
         f'{prio_cites}',
         '</div>',
-        '<div class="ck-field" data-field="exam_prediction">',
-        f"<p><b class=\"ck-thm-label\">考法预判.</b> {_math_escape(_clean(card.get('exam_preview')))} {exam_cites}</p></div>",
     ]
+    if _clean(card.get("exam_preview")):
+        left.append(
+            '<div class="ck-field" data-field="exam_prediction">'
+            f"<p><b class=\"ck-thm-label\">考法预判.</b> {_math_escape(_clean(card.get('exam_preview')))} {exam_cites}</p></div>"
+        )
     if facts:
         left.append(
             "<div class=\"ck-field\"><p><b class=\"ck-thm-label\">必须先会.</b></p><ul class=\"ck-thm-list\">"
@@ -1414,7 +1408,6 @@ def build_checklist_html(draft: dict[str, Any], *, has_teacher: bool | None = No
         '<div class="ck-doc">',
         '<header class="ck-doc-header">',
         f"<h1>{escape(course, quote=False)} · 复习清单</h1>",
-        '<div class="ck-doc-meta"><span>知识复习与考点全景分析报告</span> · <span>Generated by AgentFlow</span></div>',
         '</header>',
     ]
     if not cards:
@@ -1428,7 +1421,7 @@ def build_checklist_html(draft: dict[str, Any], *, has_teacher: bool | None = No
         body.append('<div class="ck-overview-wrap" id="ck-review">')
         body.append(
             '<div class="ck-table-panel">'
-            '<div class="ck-overview-title"><span>知识点清单与掌握度</span><span class="ck-overview-hint">Table 1 · 知识点多维检索与掌握状态管理</span></div>'
+            '<div class="ck-overview-title"><span>知识点清单与掌握度</span></div>'
             '<div class="ck-filter-row">'
             '<select id="ck-f-grade"><option value="">全部档位</option>'
             '<option value="S">核心 S</option><option value="A">重点 A</option>'
@@ -1481,7 +1474,7 @@ def build_checklist_html(draft: dict[str, Any], *, has_teacher: bool | None = No
         if brief:
             body.append('<div class="ck-brief"><h3>简要过一下</h3><ul>')
             for card in brief:
-                preview = _clean(card.get("exam_preview")) or "知道定义和一条限制即可"
+                preview = _clean(card.get("exam_preview"))
                 body.append(
                     "<li>"
                     f'<span class="ck-stars">{importance_stars(card)}</span> '
@@ -1493,7 +1486,7 @@ def build_checklist_html(draft: dict[str, Any], *, has_teacher: bool | None = No
         if extra:
             body.append('<div class="ck-brief"><h3>补充</h3><ul>')
             for card in extra:
-                preview = _clean(card.get("exam_preview")) or "结构了解即可"
+                preview = _clean(card.get("exam_preview"))
                 kb_src = ""
                 for ev in (_trace_pack(card).get("kb") or [])[:1]:
                     src = _clean(ev.get("source")) or _clean(ev.get("excerpt"))[:40]

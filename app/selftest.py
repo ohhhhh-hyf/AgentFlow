@@ -954,6 +954,68 @@ def test_catalog_taxonomy() -> None:
           "prompt 词表未同源")
 
 
+async def test_checklist_batching() -> None:
+    """D1/D2/D3（零 LLM）：切批并行、动态输出预算、字段预算按档位。
+
+    盯的是这次的真实故障：43 张 S/A 卡一次请求 → 20k-36k tokens 远超单次上限 →
+    截断 → 减半重试 → 串行两轮 3 分 14 秒。修法是"切批 + 并行 + 动态预算"，
+    **不是**压缩卡片数量（覆盖是产品承诺，卡集合始终等于激活集合）。
+    """
+    import asyncio
+
+    from domain.notes.tasks.checklist.steps import checklist_agent as agent_mod
+
+    rows_s = [{"id": f"kp_{i:03d}", "session_priority": "S"} for i in range(43)]
+    batches = agent_mod._chunk(rows_s, agent_mod.batch_size())
+    check("D1 大目录切成多批（不再一次全量请求）",
+          agent_mod.batch_size() >= 5 and len(batches) == -(-43 // agent_mod.batch_size()) and len(batches) > 1,
+          f"batch_size={agent_mod.batch_size()} batches={len(batches)}")
+    check("D1 每批容量按输出预算可控（S 档 ≤ 10 张）",
+          all(len(b) <= 10 for b in batches), f"批大小={[len(b) for b in batches]}")
+
+    budget_s = agent_mod._batch_token_budget([{"session_priority": "S"}] * 9)
+    budget_a = agent_mod._batch_token_budget([{"session_priority": "A"}] * 9)
+    budget_one = agent_mod._batch_token_budget([{"session_priority": "S"}])
+    check("D2 动态输出预算：随批内档位/卡数变化，且有上下限保护",
+          1200 <= budget_one <= budget_s <= 16000 and budget_a < budget_s,
+          f"S9={budget_s} A9={budget_a} S1={budget_one}")
+
+    # 并发：所有批同时发起（墙钟 ≈ 单批），而不是串行轮次
+    started: list[int] = []
+
+    class FakeClient:
+        async def structured(self, *_a, **_k):
+            started.append(len(started))
+            await asyncio.sleep(0.2)
+            raise RuntimeError("boom")  # 单批失败 → 该批交程序兜底
+
+    class FakeAgent(agent_mod.ChecklistAgent):
+        pass
+
+    agent = FakeAgent(FakeClient())
+    original_load = agent_mod.load_session
+    original_brief = agent_mod.build_checklist_briefing
+    agent_mod.load_session = lambda _ctx: (
+        {"course": "c", "version": "1", "chapters": []},
+        [{"id": f"kp_{i:03d}", "name": f"点{i}", "session_priority": "S"} for i in range(18)],
+        "",
+    )
+    agent_mod.build_checklist_briefing = lambda *_a, **_k: "brief"
+    try:
+        started.clear()
+        import time as _time
+
+        t0 = _time.monotonic()
+        await agent.run("ctx")
+        elapsed = _time.monotonic() - t0
+    finally:
+        agent_mod.load_session = original_load
+        agent_mod.build_checklist_briefing = original_brief
+    check("D1 批次并行发起（墙钟 ≈ 单批，而非批数 × 单批）",
+          len(started) >= 2 and elapsed < 0.2 * len(started),
+          f"批数={len(started)} 用时={elapsed:.2f}s（串行需 {0.2 * max(1, len(started)):.2f}s）")
+
+
 def test_catalog_relations_and_grade_spread() -> None:
     """P6 零 LLM 保底：关系回填让图谱有边、importance 不再塌成常量、分档不再全挤 S。
 
@@ -1525,6 +1587,7 @@ async def main() -> int:
     test_skeleton_restore_and_order()
     test_catalog_content_check()
     test_catalog_relations_and_grade_spread()
+    await test_checklist_batching()
     test_catalog_taxonomy()
     test_heading_number_rules()
     test_complement_respects_skeleton()
