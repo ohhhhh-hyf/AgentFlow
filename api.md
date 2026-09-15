@@ -23,7 +23,7 @@
 | 流式 | `/api/v1/{domain}/{task}/stream` | POST | NDJSON 事件流，请求体与普通接口一致（2.5.2） |
 | 下载 | `/api/v1/{domain}/{task}/file/{request_id}/{file_name}` | GET | 附件下载，`file_name` 取响应 `data.file_name`（2.5.3） |
 | 预览 | `/api/v1/{domain}/{task}/preview?request_id=&user_id=` | GET | 页面版 `{task}.html`，`text/html` 直接渲染（2.5.4） |
-| 健康检查 | `/api/v1/health` | GET | 服务状态 + 两个域当前任务线清单（第 1 节） |
+| 健康检查 | `/api/v1/health` | GET | 服务状态 + 执行模式 `run_mode` + 两个域当前任务线清单（第 1 节） |
 | 异步提交 | `/api/v1/tasks` | POST | 立即返回任务快照 `status=queued`（3.3） |
 | 异步状态 | `/api/v1/tasks/{job_id}` | GET | 状态 / 阶段 / attempts / token（3.4） |
 | 异步结果 | `/api/v1/tasks/{job_id}/result` | GET | 取结果快照，成功时带正文（3.5） |
@@ -66,11 +66,13 @@
 
 ### `GET /api/v1/health`
 
-无需请求头。返回服务状态与两个域**当前可用**的任务线清单（领域装配失败时降级报告，不影响其它接口）：
+无需请求头。返回服务状态、**异步任务执行模式**与两个域**当前可用**的任务线清单
+（领域装配失败时降级报告，不影响其它接口）：
 
 ```jsonc
 {
   "status": "ok",                                // 或 "degraded"
+  "run_mode": "inline",                          // inline / queue：异步任务在哪执行（见 3.7）
   "task_lines": {
     "meeting": ["actions", "consensus_decision", "mindmap", "minutes", "minutes_styles", "minutes_trace", "risks"],
     "notes":   ["catalog", "checklist", "graph", "library", "quiz", "review"]
@@ -78,6 +80,9 @@
   // status=degraded 时追加: "degraded": ["notes: <异常信息>"]
 }
 ```
+
+> `run_mode` 是服务级配置（`.env` 的 `AGENTFLOW_RUN_MODE`），提交响应里不再回显它 ——
+> 想确认当前模式查这里即可；`queue` 模式必须有 `python -m app.worker` 在跑，否则任务会停在 `queued`。
 
 > `task_lines` 列的是**领域内全部已装配的任务线**，比对外接口多：`mindmap`、`quiz`、`review`
 > 等尚未开放 HTTP 接口的任务线只在这里出现（黑名单之外的差异以第 2 节的矩阵为准）。
@@ -89,13 +94,16 @@
 老接口，URL 自带 `domain`（`meeting` / `notes`）与 `task`。每条任务线固定四种形态：
 普通、流式、下载、预览（后两种仅当该任务线有落盘产物）。
 
+> notes 域（`graph` / `library` / `catalog` / `checklist`）另有一份自包含文档：
+> **[notes_api.md](notes_api.md)**（含 notes 专属的 `docs` 规则、产物定位与 FAQ）。
+
 先讲三种形态共用的**请求头 / 请求体 / 响应体 / 错误**，再讲四种形态的协议，最后逐条介绍 10 条任务线。
 
 ### 2.1 请求头
 
 | 头 | 必填 | 适用 | 说明 |
 |---|---|---|---|
-| `X-Request-Id` | POST 可选 | 普通 / 流式 | 调用方追踪 ID。缺省时服务端自动生成 `request_` + 分布式数字 ID。产物目录以最终 request_id 为名：`data/{user_id}/output/{request_id}/`；下载、结果核对都靠它定位。 |
+| `X-Request-Id` | POST 可选 | 普通 / 流式 | 调用方追踪 ID。缺省时服务端自动生成 `request_` + 分布式数字 ID。产物目录以最终 request_id 为名：`data/{user_id}/output/{request_id}/`；下载、结果核对都靠它定位。**自传时请用安全字符**（不含 `/`、`\`、`..`）—— 它会直接成为目录名。 |
 | `X-User-Id` | POST 必填 | 普通 / 流式 / 下载 / 预览 | 用户标识。知识库、知识目录、记忆、产物全部按用户隔离在 `data/{user_id}/` 下。GET 端点也可改用 URL 参数 `?user_id=`（浏览器直接访问时无法带请求头），二者取一，都没有返回 400 |
 | `Content-Type` | POST 必填 | 普通 / 流式 | `application/json` |
 
@@ -131,6 +139,11 @@
   - `catalog` / `checklist`：`.txt` 被读取为**老师重点文本**（位于 `data/{user_id}/docs/`）；
   - `checklist`：`.json` 为该学科**知识目录文件**——文件名取 catalog 响应 `data.file_name`，
     服务端在 `data/{user_id}/knowledge/catalogs/{学科拼音}/` 下定位。
+- `docs` 里的**图片**会自动 OCR 成文本并入正文：多张**并发识别**，结果**按 `docs` 顺序拼接**
+  （顺序可预期，可放心按页码排好再传）；页眉/页脚/页码（校名、地址电话、印刷编号等）会被剔除，
+  不进正文。判据**逐图自适应**：以该图自身的行高中位数为标尺（印刷校名通常达 1.6 倍以上），
+  结合它是否落在该图正文范围的上下 12% 边缘带内来判断，因此**不要求**页眉每页重复、
+  也不要求各页排版一致；跨页重复的行另有一道路后备判据。
 - `template` / `profile` 为空字符串表示"不套模板 / 客观视角"。
 
 各任务线的必填项（缺必填字段时**秒回 400，不触发模型调用**）：
@@ -441,8 +454,8 @@ curl -X POST http://127.0.0.1:8000/api/v1/meeting/minutes -H "Content-Type: appl
 - 必填：`extra.subject`、`docs`——docs 里**必须包含一个 catalog json 文件名**
   （catalog 响应 `data.file_name`），可再追加一个老师重点 `.txt`。
 - 任务基于指定/最新的知识目录生成复习清单：高优先知识点为完整卡片，低优先为简要条目。
-- `data.text` 为**精简摘要**（统计 + 卡片列表，适合接口返回）；完整 Markdown 落盘 `result.md`，
-  页面版 `checklist.html`（推荐用预览/下载查看全量）。
+- `data.text` 为**精简摘要**（统计 + 卡片列表，每条只有名称与所属章节，**不含卡片正文**）；
+  完整 Markdown 落盘 `result.md`，页面版 `checklist.html`（推荐用预览/下载查看全量）。
 
 #### 2.7.5 notes 域顺序依赖示例（入库 → 目录 → 清单）
 

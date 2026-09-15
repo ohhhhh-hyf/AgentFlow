@@ -220,6 +220,16 @@ pip install "numpy<2" onnxruntime==1.16.3 rapidocr_onnxruntime==1.4.4
 所以并发度上调时留意**同时打给模型的请求数**；日志首行会打印实际路数
 （`[OCR] 使用引擎 paddleocr，共 N 张，4 路并行`）。
 
+**页眉/页脚剔除（逐图自适应，`tools/ocr/layout.py`）**：笔记照片上的印刷页眉页脚（校名、
+地址电话、印刷编号、页号）如果漏进正文，会被下游当标题，进而长成目录里的假章节——所以识别后
+按**每张图自己的行高中位数**判定：行高 ≥ 中位行高 1.6 倍（印刷校名实测 1.6–3.5 倍，正文 1.0–1.3 倍）
+或命中机构/联系类文本、纯大写拉丁短行、纯数字编号，且落在该图正文范围的上下 12% 边缘带内，
+就从边缘向内**连续**丢弃，遇到第一条"明显正文行"立刻停手。整簇里至少要有一条命中上述强特征
+才允许丢弃（宁漏不误杀），单侧丢弃还有行数上限。命中行标 `role_hint=boilerplate`，
+`reconstruct` 的正文拼接、LLM 输入、OCR 复核窗口、行完整性报告四处都会跳过它。
+日志会逐图打印丢弃条数与内容：`page chrome: 12/35 lines dropped as header/footer (...)`。
+怀疑误杀可临时设 `OCR_PAGE_CHROME=0` 整体回退（跨页去噪那一道不受影响）。
+
 **OCR / 整理产出的收尾**（`tools/ocr/mathmd.py`）：每次整理或审校输出都会过一遍
 `normalize_markdown_math()` —— 先删掉**模型偶发抄进正文的渲染器报错串**（如
 `ParseError: KaTeX parse error: Expected '}', got 'EOF' at end of input: …`，模型被要求处理公式定界时偶尔会把报错当说明写出来），
@@ -408,13 +418,20 @@ print(run_mode(), job_ttl_seconds(), job_max_attempts(), lease_seconds(), heartb
 ### 10. 自测与运维注意
 
 ```bash
-python -m app.selftest    # 50 项：接口清单守卫 + 队列/租约/回收/重试/停机/执行体契约；不调模型
+python -m app.selftest    # 116 项：接口清单守卫 + 队列/租约/回收/重试/停机/执行体契约；不调模型
 ```
 
 自测分两部分：**接口清单守卫**（核对 FastAPI 暴露的路由面与 `app/tasklines.py` 的声明是否同步，
 不需要 Redis）与**队列机制**（默认跑 **5 号库**并在结束时清空，**拒绝在 0 号库运行**
 —— 那里是真实任务数据，可用 `AGENTFLOW_SELFTEST_REDIS_URL` 覆盖）。
 端到端 HTTP 链路用 `minutes_async_submit.py → status → result → stream` 四个脚本验证。
+
+OCR 相关排查脚本（`tools/scripts/`，都是只读/需显式指定才写）：
+
+| 脚本 | 用途 |
+|---|---|
+| `chrome_check.py [图名...]` | 逐图看页眉页脚判定结果（丢了哪些行、正文前 3 行是谁、有无污染残留）；默认跑 `data/1/docs` 下全部图片，OCR 结果按图缓存到临时目录，**改阈值重跑不必重新识别** |
+| `purge_kb_source.py --user U --subject S [--list] [--source 'ocr_*']` | 按来源文件清知识库块。**重新 OCR 后旧合并稿的块不会自动清理**（文件名是新的时间戳，`delete_sources` 目前无人调用），而 catalog 的 briefing 直接取知识库块——旧块不清，目录里的假章节会反复出现 |
 
 生产运维注意：
 
@@ -463,7 +480,8 @@ URL 约定（`{domain}` ∈ `meeting` / `notes`，`{task}` 见下表）：
 
 > **路由的唯一声明处是 [app/tasklines.py](app/tasklines.py)**（域 → 任务线 → 是否注册产物端点）：
 > 路由注册（[app/routes/_registry.py](app/routes/_registry.py)）、同步与异步接口的任务名校验都从它派生，
-> 加一条任务线只需在这里加一行。哪些线有产物端点、各自必填什么，见 [API.md](API.md) 第 0.2 节与第 2.2 节。
+> 加一条任务线只需在这里加一行。哪些线有产物端点、各自必填什么，见 [API.md](API.md) 第 0.2 节与第 2.2 节；
+> notes 域（graph / library / catalog / checklist）另有自包含文档 [notes_api.md](notes_api.md)。
 > 接口面变化可用 `python -m app.selftest` 的清单守卫核对（见上文 Redis 章节第 10 节）。
 
 ```bash

@@ -525,6 +525,127 @@ def test_ocr_order() -> None:
           ))
 
 
+# ── 页眉/页脚逐图自适应：印刷校名/地址/页号不得进正文 ─────────────
+
+def _chrome_fixture(header: list[tuple[str, int, int]], body: list[tuple[str, int]],
+                    footer: list[tuple[str, int]] | None = None) -> list[dict]:
+    """按实测几何生成一页的行框：页面 2600×4000，正文行高 67 → 中位行高 67。
+
+    header 为 (文本, 行高px, 顶边y)：真实照片里校名大字水印与小字块**纵向重叠**，
+    故顶部各行用显式顶边（整簇压在本图上方 12% 内），不能按顺序累加排布。
+    """
+    rows: list[dict] = []
+    for text, height, top in header:
+        rows.append({"text": text, "bbox": [[250, top], [2350, top], [2350, top + height], [250, top + height]]})
+    y = 450.0
+    for text, height in body:
+        rows.append({"text": text, "bbox": [[300, y], [2400, y], [2400, y + height], [300, y + height]]})
+        y += height + 60
+    foot = list(footer or [])
+    y = 4000.0
+    for text, height in reversed(foot):
+        y -= height
+        rows.append({"text": text, "bbox": [[250, y], [2350, y], [2350, y + height], [250, y + height]]})
+        y -= 12
+    return rows
+
+
+def test_page_chrome() -> None:
+    """不需要 OCR / 模型：页眉页脚按**本图自身中位行高**自适应判定。
+
+    夹具数值取自真实笔记照片实测：某图页眉「科技大」行高 138px = 中位行高 67px 的
+    2.07 倍、「華中」2.26 倍，而正文标题「算符」1.17 倍、正文 1.00 倍；页脚是印刷页号
+    与「华中科技大学附属印刷厂」。固定坐标阈值抓不到这些（每张照片位置/字号都不同），
+    故用本图中位行高当标尺。
+    """
+    from tools.ocr import layout as layout_mod
+    from tools.ocr.layout import _infer_layout_hints, _mark_page_chrome
+    from tools.ocr.reconstruct import _fragments_to_text
+
+    body = [
+        ("算符", 78),
+        ("狄拉克符号", 67),
+        ("[4>：右矢；<y1：左矢，称14>或<y为态矢，Y是一个标签，用于区分不同的量子态", 67),
+    ] + [(f"正文第{i}行，讲厄米算符与对易关系，属于量子力学基础内容。", 67) for i in range(18)] + [
+        ("基矢与本征方程", 67),
+        ("能量本征方程：H14k>=Ek14k7，将14k>简记为1k>(为基矢)，量子数k标记系统所有量子数", 67),
+    ]
+    page15 = _chrome_fixture(
+        header=[
+            ("科技大", 138, 60),
+            ("華中", 151, 70),
+            ("明德早学水是创部", 32, 80),
+            ("AND", 53, 125),
+            ("YOFSCIENCE", 62, 190),
+            ("HUAZHONG UNIVERSITY OF SCIENCE AND TECHNOLOGY", 60, 260),
+            ("Wuhan430074,Hubei,P.R.China 中·武汉 Tel:(027)8754", 54, 330),
+        ],
+        body=body,
+        footer=[("1701572", 40), ("第", 50), ("页", 50), ("华中科技大学附属印刷厂", 60), ("69441921702325", 40)],
+    )
+    rows = _infer_layout_hints([dict(r) for r in page15], (2600, 4000))
+    marked = _mark_page_chrome(rows)
+    by_text = {str(r.get("text")): r for r in rows}
+    dropped = [t for t, r in by_text.items() if r.get("role_hint") == "boilerplate" and r.get("chrome_zone")]
+    check("页眉大字被逐图标定丢弃（校名残识别 科技大 / 華中）",
+          {"科技大", "華中"} <= set(dropped), f"drop={dropped}")
+    check("页眉英文与地址行一并丢弃",
+          any("HUAZHONG" in t for t in dropped) and any("Tel" in t for t in dropped), f"drop={dropped}")
+    check("页脚印刷页号与印刷厂名丢弃",
+          {"第", "页", "华中科技大学附属印刷厂"} <= set(dropped), f"drop={dropped}")
+    check("正文起点及其后内容不被误杀",
+          all(by_text[t].get("role_hint") != "boilerplate" for t in ("算符", "狄拉克符号", "基矢与本征方程")),
+          f"算符={by_text['算符'].get('role_hint')}")
+    check("只丢页眉页脚，不碰正文",
+          marked == 7 + 5 and len(rows) - marked == len(body), f"marked={marked} rows={len(rows)}")
+    text = _fragments_to_text([dict(r) for r in rows])
+    check("重构输入里不再出现页眉页脚残留",
+          not any(token in text for token in ("科技大", "華中", "HUAZHONG", "Tel", "印刷厂", "P.R.China")),
+          f"残留={[t for t in ('科技大', '華中', 'HUAZHONG', 'Tel', '印刷厂') if t in text]}")
+    check("重构输入保留正文内容",
+          all(token in text for token in ("算符", "基矢与本征方程", "能量本征方程")), f"len={len(text)}")
+
+    # 另一张实测图：页眉 4 行，正文首行是「③角动量的对易式」
+    page16 = _chrome_fixture(
+        header=[
+            ("華中科技大学", 151, 60),
+            ("YOFSCIENCE", 62, 150),
+            ("HUAZHONGUNIVERSITYOFSCIENCEANDTECHNOLOGY", 60, 230),
+            ("Wuhan430074,Hubei,P.R.China 中·汉 Tel:（027)", 54, 300),
+        ],
+        body=[("③角动量的对易式", 67)] + [(f"对易关系第{i}式，[A,B]=AB-BA，属厄米算符章节。", 67) for i in range(20)],
+        footer=[("第", 50), ("1701572", 40), ("华中科技大学附属印刷厂", 60), ("页", 50)],
+    )
+    rows16 = _infer_layout_hints([dict(r) for r in page16], (2600, 4000))
+    marked16 = _mark_page_chrome(rows16)
+    first16 = [str(r.get("text")) for r in rows16 if r.get("role_hint") != "boilerplate"][:2]
+    check("页眉 4 行全丢且正文首行形态保留",
+          marked16 == 4 + 4 and first16 and first16[0] == "③角动量的对易式", f"marked={marked16} first={first16}")
+
+    # 反例一：没有页眉的页，第一行就是正文 → 一行都不许丢
+    plain = _chrome_fixture(
+        header=[],
+        body=[("一维束缚态", 78), ("定态薛定谔方程与边界条件，本征能量取分立值。", 67)]
+        + [(f"推导第{i}步，代入波函数并除以ψ（x）。", 67) for i in range(20)],
+    )
+    rows_plain = _infer_layout_hints([dict(r) for r in plain], (2600, 4000))
+    check("无页眉的页：首行是正文 → 零丢弃", _mark_page_chrome(rows_plain) == 0)
+
+    # 反例二：顶部有短行但无任何强特征（单字/极小字号）→ 宁可保留
+    weak = _chrome_fixture(
+        header=[("y", 30, 60), ("e", 30, 100)],
+        body=[(f"正文第{i}行，讨论角动量与自旋的耦合。", 67) for i in range(22)],
+    )
+    rows_weak = _infer_layout_hints([dict(r) for r in weak], (2600, 4000))
+    check("顶部短行无强特征 → 不丢（宁漏不误杀）", _mark_page_chrome(rows_weak) == 0)
+
+    # 反向开关：线上发现误杀可一键回退
+    os.environ["OCR_PAGE_CHROME"] = "0"
+    switch_off = not layout_mod._page_chrome_enabled()
+    os.environ.pop("OCR_PAGE_CHROME", None)
+    check("OCR_PAGE_CHROME=0 可整体回退", switch_off and layout_mod._page_chrome_enabled())
+
+
 # ── OCR 文本收尾：删模型自述的报错串，不动正常内容 ─────────────
 
 def test_ocr_noise_strip() -> None:
@@ -612,6 +733,7 @@ async def main() -> int:
     test_routes()
     test_async_response_shape()
     test_ocr_order()
+    test_page_chrome()
     test_ocr_noise_strip()
     test_catalog_order()
     print()

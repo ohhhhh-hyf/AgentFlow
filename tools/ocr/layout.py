@@ -111,6 +111,143 @@ def _short_text_len(text: str) -> int:
     return len(re.sub(r"\s+", "", text or ""))
 
 
+# ── 页眉/页脚自适应判定（逐图独立标定，零 token）──
+# 实测动机：印刷页眉页脚的字号/位置**每张照片都不一样**，任何固定阈值都会漏。
+# 同一批笔记中实测：某图页眉行高 138px = 本图中位行高（67px）的 2.07 倍，
+# 同图正文标题 1.17 倍、正文 1.00 倍；另一图页眉为本图中位行高的 2.26 倍。
+# 故标尺改用**本图自身的中位行高**，逐图自适应，不依赖引擎与固定坐标。
+# 判定只在"边缘区"内进行（y 落在本图检测行范围的上下 12%，或处于最上/最下 2 行），
+# 从边缘向内**连续**丢弃，遇到第一个"明显正文行"即停；且要求该段内至少一行命中
+# **强特征**（超大字号 / 机构联系类文本 / 纯大写拉丁短行 / 纯数字编号），
+# 否则一行都不丢——宁漏不误杀。
+_CHROME_ZONE_RATIO = 0.12       # 边缘区厚度（相对本图检测到的行范围）
+_CHROME_ZONE_ROWS = 2           # 最上/最下 N 行无论位置都算在边缘区内
+_CHROME_BIG_RATIO = 1.6         # 行高 ≥ 中位行高 × 此倍数 → 印刷大字（校名/logo）
+_CHROME_BODY_MIN = 0.85         # 明显正文行的行高倍率下限
+_CHROME_BODY_MAX = 1.45         # 明显正文行的行高倍率上限（更高者视为印刷大字）
+_CHROME_MAX_DROP = 8            # 单侧丢弃行数硬上限
+_CHROME_MAX_DROP_RATIO = 0.25   # 单侧丢弃行数 ≤ 本图行数 × 此比例（防整页被吃）
+# 机构/联系类文本。分两档避免误杀：本身即机构词的可独立命中（大学/学院/科技/印刷厂…），
+# 而「农业/交通/工业/师范」这类日常词必须与「大学/学院」组成校名才算命中
+# （否则农学、经济类笔记的页首正文标题会被当成页眉）。覆盖实测残缺识别变体：科技大 / 華中。
+_CHROME_KEYWORDS_RE = re.compile(
+    r"UNIVERSITY|COLLEGE|INSTITUTE|ACADEMY|TECHNOLOGY"
+    r"|Tel|电话|传真|Fax|邮编|邮箱|E-?mail|https?://|www\."
+    r"|P\.?\s?R\.?\s?China|中国[·•・]"
+    r"|印刷厂|印刷|出版社"
+    r"|大学|大學|学院|學院|科技"
+    r"|(?:师范|理工|医科|农业|财经|政法|工业|交通|邮电|医科|外国语|民族|海洋|航空|航天)(?:大学|大學|学院|學院)",
+    re.IGNORECASE,
+)
+_CHROME_LATIN_RE = re.compile(r"^[A-Z0-9 .,&'’()\[\]·\-]+$")  # 纯大写拉丁（可含数字/标点）
+_CHROME_DIGITS_RE = re.compile(r"^\d{3,}$")                   # 印刷编号 / 电话 / 邮编
+_CHROME_PAGE_WORDS = {"第", "页", "共", "页次", "页码", "#"}
+
+
+def _page_chrome_enabled() -> bool:
+    """页眉页脚逐图剔除开关（默认开；``OCR_PAGE_CHROME=0`` 可整体回退）。"""
+    return os.getenv("OCR_PAGE_CHROME", "1").strip().lower() in {"1", "true", "yes", "on"}
+
+
+def _line_rect(line: dict) -> tuple[float, float, float, float] | None:
+    """行框，优先用版面推断已算好的 ``layout``（避免重复解析 bbox）。"""
+    rect = _bbox_rect(line.get("bbox"))
+    if rect is not None:
+        return rect
+    layout = line.get("layout") or {}
+    try:
+        left = float(layout["left"])
+        top = float(layout["top"])
+        return left, top, left + float(layout["width"]), top + float(layout["height"])
+    except Exception:  # noqa: BLE001
+        return None
+
+
+def _looks_like_chrome_strong(text: str, ratio: float) -> bool:
+    """强特征：单凭此行即可断定是印刷页眉/页脚。"""
+    length = _short_text_len(text)
+    if not length:
+        return False
+    if ratio >= _CHROME_BIG_RATIO:  # 校名/logo 式大字
+        return True
+    if _looks_like_boilerplate(text) or _CHROME_KEYWORDS_RE.search(text):
+        return True
+    if text in _CHROME_PAGE_WORDS or _CHROME_DIGITS_RE.match(text):
+        return True
+    if length >= 4 and _CHROME_LATIN_RE.match(text) and not _looks_like_formula(text):
+        return True
+    return False
+
+
+def _looks_like_chrome_body(text: str, ratio: float) -> bool:
+    """明显正文行：正常字号 + 非机构文本 + 非纯拉丁/数字/单字页号 → 判定为正文起点。"""
+    length = _short_text_len(text)
+    if length < 2:
+        return False
+    if not (_CHROME_BODY_MIN <= ratio <= _CHROME_BODY_MAX):
+        return False
+    if _looks_like_boilerplate(text) or _CHROME_KEYWORDS_RE.search(text):
+        return False
+    if text in _CHROME_PAGE_WORDS or _CHROME_DIGITS_RE.match(text):
+        return False
+    if _CHROME_LATIN_RE.match(text) and not _looks_like_formula(text):
+        return False
+    return True
+
+
+def _mark_page_chrome(lines: list[dict]) -> int:
+    """逐图判定印刷页眉/页脚，命中行标 ``role_hint="boilerplate"``（下游自动跳过）。
+
+    返回标记条数。入参须为已完成版面推断的行（含 ``layout.height_ratio``）。
+    """
+    rows: list[tuple[dict, tuple[float, float, float, float], float]] = []
+    for line in lines:
+        if not isinstance(line, dict):
+            continue
+        rect = _line_rect(line)
+        if rect is None or rect[3] <= rect[1]:
+            continue
+        ratio = float((line.get("layout") or {}).get("height_ratio") or 0.0)
+        rows.append((line, rect, ratio))
+    if len(rows) < 4:  # 行太少无统计意义
+        return 0
+    rows.sort(key=lambda item: (item[1][1], item[1][0]))
+    top = min(rect[1] for _l, rect, _r in rows)
+    bottom = max(rect[3] for _l, rect, _r in rows)
+    span = max(1.0, bottom - top)
+    zone = span * _CHROME_ZONE_RATIO
+    limit = min(_CHROME_MAX_DROP, max(1, int(len(rows) * _CHROME_MAX_DROP_RATIO)))
+    marked = 0
+    for reverse in (False, True):
+        ordered = list(reversed(rows)) if reverse else rows
+        cluster: list[dict] = []
+        for idx, (line, rect, ratio) in enumerate(ordered):
+            in_zone = idx < _CHROME_ZONE_ROWS or (
+                rect[1] - top <= zone if not reverse else bottom - rect[3] <= zone
+            )
+            if not in_zone:
+                break
+            text = str(line.get("text") or "").strip()
+            if _looks_like_chrome_body(text, ratio):
+                break
+            cluster.append(line)
+            if len(cluster) >= limit:
+                break
+        # 至少一行命中强特征才允许整段丢弃（否则宁可保留）
+        if cluster and any(
+            _looks_like_chrome_strong(
+                str(item.get("text") or "").strip(),
+                float((item.get("layout") or {}).get("height_ratio") or 0.0),
+            )
+            for item in cluster
+        ):
+            for item in cluster:
+                item["role_hint"] = "boilerplate"
+                item["chrome_zone"] = "footer" if reverse else "header"
+                marked += 1
+    return marked
+
+
 def _infer_layout_hints(lines: list[dict], image_size: tuple[int, int] | None) -> list[dict]:
     """给 OCR 行补充版面特征和标题候选提示。"""
     if not lines:
@@ -424,6 +561,19 @@ def ocr_image_lines(image_path: str) -> list[dict]:
         if merged is not lines and len(merged) != len(lines):
             # 合并后重推版面推断，保证每条"逻辑行"的角色/标题特征一致
             lines = _infer_layout_hints(merged, image_size)
+    # 页眉页脚：按本图中位行高自适应判定，标 role_hint=boilerplate（下游跳过）
+    dropped = _mark_page_chrome(lines) if _page_chrome_enabled() else 0
+    if dropped:
+        logger.info(
+            "page chrome: %d/%d lines dropped as header/footer (%s)",
+            dropped,
+            len(lines),
+            "; ".join(
+                str(item.get("text") or "")[:24]
+                for item in lines
+                if item.get("role_hint") == "boilerplate" and item.get("chrome_zone")
+            )[:160],
+        )
     return lines
 
 
