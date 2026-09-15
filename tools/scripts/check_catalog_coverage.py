@@ -76,8 +76,8 @@ def catalog_of(args, sk: dict) -> Path | None:
 
 def main() -> int:
     ap = argparse.ArgumentParser(description="目录覆盖/顺序校验（骨架为参照）")
-    ap.add_argument("--user", default="", help="user_id（与 X-User-Id 一致）")
-    ap.add_argument("--subject", default="", help="学科拼音，如 wuli")
+    ap.add_argument("--user", required=True, help="user_id（与 X-User-Id 一致，目录按用户隔离）")
+    ap.add_argument("--subject", required=True, help="学科拼音，如 wuli")
     ap.add_argument("--md", default="", help="合并稿路径（默认取最新）")
     ap.add_argument("--catalog", default="", help="catalog JSON 路径（默认取最新）")
     ap.add_argument("--limit", type=int, default=40, help="最多打印多少条未覆盖项")

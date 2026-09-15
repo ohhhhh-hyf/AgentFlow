@@ -83,7 +83,14 @@ def _catalog_quality_monitor(line: str, user_id: str, subject: str) -> dict:
         draft = load_catalog(user_id=user_id, subject=subject)
         if not draft:
             return {}
-        skeleton = build_source_skeleton(f"【用户ID】{user_id}\n【学科/课程】{subject}\n")
+        # 作用域标签只在真有值时写：空值写成「【用户ID】」会让下游解析出空串，
+        # 进而落到无主知识库目录（data/knowledge）。
+        scope = ""
+        if str(user_id or "").strip():
+            scope += f"【用户ID】{str(user_id).strip()}\n"
+        if str(subject or "").strip():
+            scope += f"【学科/课程】{str(subject).strip()}\n"
+        skeleton = build_source_skeleton(scope)
         if not skeleton.get("topics"):
             return {}
         metrics = catalog_quality_report(skeleton, draft)["metrics"]
@@ -122,11 +129,14 @@ def _catalog_input_file(user_id: str, subject: str, name: str) -> Path:
     """checklist 的 docs：catalog 文件名 → data/{user_id}/knowledge/catalogs/{subject}/{name}。"""
     from domain.notes.tasks.catalog.store import _subject_filename
 
+    uid = (user_id or "").strip()
+    if not uid:
+        raise ApiError(400, "checklist 需要 X-User-Id（知识目录按用户隔离）")
     raw = (name or "").strip()
     if not raw or "/" in raw or "\\" in raw or raw in {".", ".."}:
         raise ApiError(400, f"catalog 文件名非法：{name!r}")
     folder = (
-        PROJECT_ROOT / "data" / (user_id or "").strip() / "knowledge" / "catalogs"
+        PROJECT_ROOT / "data" / uid / "knowledge" / "catalogs"
         / _subject_filename(subject)
     )
     candidate = (folder / raw).resolve()
@@ -136,7 +146,7 @@ def _catalog_input_file(user_id: str, subject: str, name: str) -> Path:
     raise ApiError(
         404,
         f"catalog 文件不存在：{raw}"
-        f"（请放入 data/{user_id or ''}/knowledge/catalogs/{_subject_filename(subject)}/）",
+        f"（请放入 data/{uid}/knowledge/catalogs/{_subject_filename(subject)}/）",
     )
 
 

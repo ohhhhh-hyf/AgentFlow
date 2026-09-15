@@ -122,10 +122,21 @@ def persist_dir_for_user(user_id: str) -> str:
 
     user 顶层物理隔离：每个用户一个独立 chroma 库；学科仍用
     metadata where 细分（见 ``_scope``）。
+
+    **空 user_id 不再静默回退到 ``data/knowledge/chromadb``**：无主库会让入库与
+    检索分叉（写进去的块按用户检索不到），而且 chromadb 只要构造客户端就会建目录，
+    于是"某处少传一个 user"会表现成 data/ 下凭空多一个空库（catalog 曾因传错上下文
+    触发）。只有显式配置 ``KNOWLEDGE_PERSIST_DIR``（单租户部署）时才允许统一目录。
     """
     uid = (user_id or "").strip()
     if not uid:
-        return DEFAULT_PERSIST_DIR
+        if os.getenv("KNOWLEDGE_PERSIST_DIR", "").strip():
+            return DEFAULT_PERSIST_DIR
+        raise ValueError(
+            "知识库按用户隔离，user_id 不能为空："
+            "目标目录应为 data/{user_id}/knowledge/chromadb。"
+            "单租户部署请显式设置 KNOWLEDGE_PERSIST_DIR。"
+        )
     from tools.memory.store import safe_id
 
     return str(PROJECT_ROOT / "data" / safe_id(uid) / "knowledge" / "chromadb")

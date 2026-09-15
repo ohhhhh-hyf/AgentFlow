@@ -79,10 +79,11 @@ class KnowledgeTool:
         """参数缺省时依次回退: .env → 环境变量 → 代码默认值(config.py)。
         fake=True 时不校验 API Key, 用伪向量+假 LLM 离线验证。
 
-        ``user_id`` 非空且未显式传 ``persist_dir`` 时，按用户顶层物理隔离
-        （``data/{user_id}/knowledge/chromadb``）。
+        未显式传 ``persist_dir`` 时按用户顶层物理隔离
+        （``data/{user_id}/knowledge/chromadb``）；``user_id`` 为空直接报错，
+        不再落到无主的统一库（见 ``config.persist_dir_for_user``）。
         """
-        if persist_dir is None and user_id:
+        if persist_dir is None:
             from tools.knowledge.config import persist_dir_for_user
 
             persist_dir = persist_dir_for_user(user_id)
@@ -97,7 +98,7 @@ class KnowledgeTool:
             chunk_overlap=chunk_overlap if chunk_overlap is not None else DEFAULT_CHUNK_OVERLAP,
             top_k=top_k if top_k is not None else DEFAULT_TOP_K,
             max_tokens=max_tokens if max_tokens is not None else DEFAULT_MAX_TOKENS,
-            persist_dir=persist_dir or DEFAULT_PERSIST_DIR,
+            persist_dir=persist_dir,
         )
         self.cfg = cfg
         self.fake = fake
@@ -277,10 +278,10 @@ def get_knowledge(
 ) -> KnowledgeTool:
     """按项目根 .env 构造知识库（LLM 跟随 LLM_BACKEND：vllm 时复用 LLM_VLLM_*）。
 
-    传 ``user_id`` 时按用户顶层物理隔离（``data/{user_id}/knowledge/chromadb``），
-    不传则用默认统一库路径。
+    按用户顶层物理隔离（``data/{user_id}/knowledge/chromadb``）；``user_id`` 为空
+    直接报错，不再用无主统一库（单租户请显式设 ``KNOWLEDGE_PERSIST_DIR``）。
     """
-    if persist_dir is None and user_id:
+    if persist_dir is None:
         from tools.knowledge.config import persist_dir_for_user
 
         persist_dir = persist_dir_for_user(user_id)

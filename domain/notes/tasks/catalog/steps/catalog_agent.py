@@ -475,7 +475,10 @@ class CatalogAgent:
         data = _backfill_slim_point_fields(data)
         data = _enforce_catalog_structure(data)
         # 骨架权威校验（零 LLM）：模型漏掉的 T/P 按原文骨架补回；已知的"降级/合并"通过
-        data = _restore_from_skeleton(data, briefing)
+        # 必须传 shared_context：骨架要靠【用户ID】定位 data/{user}/ocr/{subject} 的合并稿，
+        # 传 briefing（提示词正文，不含用户标签）会解析出空 user，既丢掉骨架还原、
+        # 又让知识库回退到无主目录 data/knowledge/chromadb。
+        data = _restore_from_skeleton(data, shared_context)
         # 检测 → 确定性修复（零 token）→ 复验：能修的修，修不了的硬伤才重试
         data, issues = _repair_catalog_structure(data)
         if issues:

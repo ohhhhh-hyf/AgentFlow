@@ -1649,6 +1649,69 @@ def test_catalog_order() -> None:
           _position_key({"page": ""}) > _position_key({"page": "9"}))
 
 
+def test_knowledge_user_isolation() -> None:
+    """知识库/目录按用户隔离：空 user 直接报错，不得凭空建出无主目录。
+
+    背景：``persist_dir_for_user("")`` 曾静默回退 ``data/knowledge/chromadb``，
+    catalog 生成时把 briefing 当上下文（解析出空 user）就触发了它——chromadb 只要
+    构造客户端就建目录，于是 data/ 下凭空多出无主空库。这里把"必须按用户"钉成契约。
+    """
+    from pathlib import Path
+
+    from domain.notes.tasks.catalog.store import catalog_dir_for, load_catalog
+    from tools.knowledge.cite import open_knowledge
+    from tools.knowledge.config import (
+        DEFAULT_PERSIST_DIR,
+        PROJECT_ROOT,
+        persist_dir_for_user,
+    )
+
+    repo = Path(PROJECT_ROOT)
+    knowledge_dir = repo / "data" / "knowledge"
+    had_knowledge = knowledge_dir.exists()
+
+    def raises(fn, *args, **kwargs) -> bool:
+        try:
+            fn(*args, **kwargs)
+        except Exception:
+            return True
+        return False
+
+    check("空 user_id 的知识库目录解析被拒绝", raises(persist_dir_for_user, ""))
+    check("空 user_id 的知识目录解析被拒绝", raises(catalog_dir_for, ""))
+    check("空 user_id 读知识目录被拒绝", raises(load_catalog, "", "wuli"))
+    # open_knowledge 自带 try/except：按空 user 开库会抛错并被它兜成 None（降级为"无知识库"），
+    # 关键是**不建无主库**（下面统一校验 data/knowledge 是否新增）
+    check("open_knowledge 空 user 降级为 None", open_knowledge(user_id="") is None)
+
+    want = str(repo / "data" / "__selftest__" / "knowledge" / "chromadb")
+    check("有 user 时知识库落 data/{user}/knowledge/chromadb",
+          persist_dir_for_user("__selftest__") == want,
+          persist_dir_for_user("__selftest__"))
+    check("有 user 时知识目录落 data/{user}/knowledge/catalogs",
+          catalog_dir_for("__selftest__").as_posix().endswith(
+              "data/__selftest__/knowledge/catalogs"),
+          catalog_dir_for("__selftest__").as_posix())
+
+    # 单租户开关：显式配置环境变量时才允许统一库（否则上面已经报错）
+    os.environ["KNOWLEDGE_PERSIST_DIR"] = DEFAULT_PERSIST_DIR
+    try:
+        check("显式配置 KNOWLEDGE_PERSIST_DIR 后允许统一库",
+              persist_dir_for_user("") == DEFAULT_PERSIST_DIR)
+    finally:
+        os.environ.pop("KNOWLEDGE_PERSIST_DIR", None)
+
+    # 回归：把当初的触发路径（briefing 当上下文）放回去，也不该再建无主目录。
+    # 这里直接造一个"没有【用户ID】、只有学科"的 briefing 形态字符串，等价于当初的
+    # build_catalog_briefing 输出；用真实 build_catalog_briefing 会按 __selftest__ 建库目录。
+    from domain.notes.tasks.catalog.steps.catalog_agent import _restore_from_skeleton
+
+    briefing_like = "【任务】生成或增量更新课程知识目录，不要写复习建议。\n【学科/课程】wuli\n"
+    _restore_from_skeleton({"chapters": []}, briefing_like)
+    check("骨架还原传错上下文也不再建 data/knowledge",
+          had_knowledge == knowledge_dir.exists(), str(knowledge_dir))
+
+
 async def main() -> int:
     test_routes()
     test_async_response_shape()
@@ -1668,6 +1731,7 @@ async def main() -> int:
     test_complement_respects_skeleton()
     test_ocr_noise_strip()
     test_catalog_order()
+    test_knowledge_user_isolation()
     print()
     store = job_store()
     db = store.redis.connection_pool.connection_kwargs.get("db")

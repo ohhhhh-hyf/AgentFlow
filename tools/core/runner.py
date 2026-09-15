@@ -294,7 +294,10 @@ async def prepare_run(
             subject,
         )
     if scope_text:
-        for extra_line in ("catalog", "checklist"):
+        # review / quiz 的产物挂载是从本线 line_extra 里 parse_scope 取 user 的
+        # （见 domain/notes/tasks/{review,quiz}/display.py）：漏注入会让它们按空 user
+        # 开库（无主目录）而拿不到本用户的知识库。
+        for extra_line in ("catalog", "checklist", "review", "quiz"):
             if extra_line in line_names:
                 pending_extra[extra_line] = scope_text
     for key, value in pending_extra.items():

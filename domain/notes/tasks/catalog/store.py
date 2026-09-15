@@ -4,7 +4,8 @@
 - 目录按 user 顶层隔离 + 按 subject 分目录：``data/{user_id}/knowledge/catalogs/{学科安全名}/``
 - 文件名 = ``{时间戳}.json``（如 ``20260827_221500_123.json``），历史版本保留
 - 增量更新：同一 user+subject 下次生成时，取该 subject 目录下时间最近的 json 作为基线
-- 无 user 时回退旧统一目录 ``data/knowledge/catalogs/``（兼容）。
+- 无 user 不再回退 ``data/knowledge/catalogs/``：无主目录下次按用户取不到基线，
+  且会在 data/ 下凭空建出无主 knowledge/。user_id 为空直接报错。
 """
 from __future__ import annotations
 
@@ -17,8 +18,6 @@ from typing import Any
 from tools.knowledge.config import PROJECT_ROOT
 
 logger = logging.getLogger(__name__)
-
-CATALOG_DIR = PROJECT_ROOT / "data" / "knowledge" / "catalogs"  # 兼容旧路径（无 user 场景）
 
 
 def _subject_filename(subject: str) -> str:
@@ -33,10 +32,16 @@ def _subject_filename(subject: str) -> str:
 
 
 def catalog_dir_for(user_id: str = "") -> Path:
-    """catalog 目录按 user 顶层隔离：``data/{user_id}/knowledge/catalogs``。"""
+    """catalog 目录按 user 顶层隔离：``data/{user_id}/knowledge/catalogs``。
+
+    ``user_id`` 为空直接报错（无主目录会让下次按用户取不到基线）。
+    """
     uid = (user_id or "").strip()
     if not uid:
-        return CATALOG_DIR
+        raise ValueError(
+            "知识目录按用户隔离，user_id 不能为空："
+            "目标目录应为 data/{user_id}/knowledge/catalogs。"
+        )
     from tools.memory.store import safe_id
 
     return PROJECT_ROOT / "data" / safe_id(uid) / "knowledge" / "catalogs"

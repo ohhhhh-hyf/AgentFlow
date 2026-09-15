@@ -35,8 +35,8 @@ from domain.notes.tasks.library.report import kb_from_env  # noqa: E402
 
 def main() -> int:
     ap = argparse.ArgumentParser(description="按来源清知识库块")
-    ap.add_argument("--user", default="", help="user_id（与接口 X-User-Id 一致）")
-    ap.add_argument("--subject", default="", help="学科（学科拼音，如 wuli/物理）")
+    ap.add_argument("--user", required=True, help="user_id（与接口 X-User-Id 一致，知识库按用户隔离）")
+    ap.add_argument("--subject", required=True, help="学科（学科拼音，如 wuli/物理）")
     ap.add_argument("--collection", default="default")
     ap.add_argument("--source", default="", help="文件名或通配（如 'ocr_*'）；不传则只列清单")
     ap.add_argument("--list", dest="list_only", action="store_true", help="只列出来源与块数，不删除")

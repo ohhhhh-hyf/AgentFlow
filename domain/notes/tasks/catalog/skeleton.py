@@ -480,6 +480,15 @@ def build_metadata_skeleton(shared_context: str) -> dict[str, Any]:
     except Exception:  # noqa: BLE001 - 元数据骨架失败时回到空骨架
         logger.warning("metadata skeleton build failed", exc_info=True)
         rows = []
+    if kb is None:
+        # 库开不出来（缺 key / user 为空）→ 空骨架。这里必须留痕：
+        # 传参少带【用户ID】时曾静默落到无主库，表现成"骨架空 + data/ 多个目录"。
+        logger.warning(
+            "metadata skeleton skipped: knowledge base unavailable "
+            "(user_id=%r subject=%r)",
+            user_id,
+            subject,
+        )
     chunks = [
         row for row in rows
         if isinstance(row, dict) and isinstance(row.get("metadata") or {}, dict)
