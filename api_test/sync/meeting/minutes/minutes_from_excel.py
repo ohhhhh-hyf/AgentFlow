@@ -154,7 +154,7 @@ def main() -> int:
     ap.add_argument("--col-elapsed", type=int, default=4, help="消耗时间列（默认 4 = D，秒）")
     ap.add_argument("--col-len", type=int, default=5, help="文本长度列（默认 5 = E，格式 原文/纪要）")
     ap.add_argument("--out", default="", help="输出工作簿（默认就地写入，先备份 .bak.xlsx）")
-    ap.add_argument("--base-url", default="http://127.0.0.1:8000", help="服务地址")
+    ap.add_argument("--base-url", default="http://127.0.0.1:8003", help="服务地址")
     ap.add_argument("--path", default="/api/v1/meeting/minutes", help="minutes 接口路径")
     ap.add_argument("--user", default="test", help="X-User-Id（默认 test）")
     ap.add_argument("--date", default="", help="请求体 time 字段（默认空串；需要固定会议日期时再传）")
