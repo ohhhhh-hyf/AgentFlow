@@ -6,7 +6,7 @@ from typing import Any
 
 from tools.templates.template_prompt import PLACEHOLDER_RULES, SPEC_RULES
 
-from ._base import _CHAR_META_LINE_RE, _CHAR_META_TAIL_RE, _CN_RE, _CUE_PATTERNS, _EMOJI_RE, _ENUM_SEP_RE, _HINT_WORD_RE, _MISSING_HINT_RE, _PLACEHOLDER_RE, _SPEC_EXAMPLE_MARKERS, _SPEC_KEYWORDS, _SPEC_SPLIT_MARKERS, _char_budget_lines, _describe_field, _parse_count_token, is_router_enabled, split_template_meta
+from ._base import _CHAR_META_LINE_RE, _CHAR_META_TAIL_RE, _CN_RE, _CUE_PATTERNS, _EMOJI_RE, _ENUM_SEP_RE, _HINT_WORD_RE, _MISSING_HINT_RE, _PLACEHOLDER_RE, _SPEC_EXAMPLE_MARKERS, _SPEC_KEYWORDS, _SPEC_SPLIT_MARKERS, _TITLE_HINT_INSTRUCTION_RE, _char_budget_lines, _describe_field, _parse_count_token, is_router_enabled, split_template_meta
 
 logger = logging.getLogger(__name__)
 
@@ -114,18 +114,35 @@ def parse_placeholder_template(template: str) -> list[dict]:
 
 
 _TABLE_SEP_LINE_RE = re.compile(r"^\|[\s:\-|]+\|\s*$")
-# 占位单元格：省略号 / 状态 emoji 示例 / 空格子——出现即为"待填数据行"
-_TABLE_PLACEHOLDER_CELLS = {"…", "...", ".", "—", "-", "", "🟢正常", "🟡低风险", "🔴高风险", "无"}
+# 占位单元格：省略号 / 状态 emoji 示例 / 评级示例 / 空格子——出现即为"待填数据行"
+_TABLE_PLACEHOLDER_CELLS = {
+    "…", "...", ".", "—", "-", "", "🟢正常", "🟡低风险", "🔴高风险", "无",
+    "高", "中", "低",
+}
 
 
 def _is_placeholder_table_row(ln: str) -> bool:
-    """整行都是占位单元格（如 ``| … | 🟢正常 | … |``）→ 待填数据行。"""
+    """待填数据行判定：
+
+    - 整行都是占位单元格（如 ``| … | 🟢正常 | … |``）；或
+    - **首列是固定标签**、其余列全是占位单元格
+      （如 ``| 正方 | … | … |``、``| 第X条 | … | 高 | … |``）。
+
+    表头行（各列都是真实列名、无占位单元格）不算数据行。
+    """
     if not ln.lstrip().startswith("|") or not ln.rstrip().endswith("|"):
         return False
     cells = [c.strip() for c in ln.strip().strip("|").split("|")]
     if len(cells) < 2:
         return False
-    return all(c in _TABLE_PLACEHOLDER_CELLS for c in cells)
+    if all(c in _TABLE_PLACEHOLDER_CELLS for c in cells):
+        return True
+    head, rest = cells[0], cells[1:]
+    return (
+        bool(head)
+        and head not in _TABLE_PLACEHOLDER_CELLS
+        and all(c in _TABLE_PLACEHOLDER_CELLS for c in rest)
+    )
 
 
 def _split_table_placeholder_rows(segments: list[dict]) -> list[dict]:
@@ -145,6 +162,7 @@ def _split_table_placeholder_rows(segments: list[dict]) -> list[dict]:
         buf: list[str] = []
         header = ""
         prev_sep = False
+        prev_row = False
 
         def _flush(buf: list[str], parts: list[dict]) -> None:
             if buf:
@@ -152,10 +170,12 @@ def _split_table_placeholder_rows(segments: list[dict]) -> list[dict]:
                 buf.clear()
 
         for ln in lines:
-            if prev_sep and _is_placeholder_table_row(ln):
+            # 表头分隔行之后的样例行，以及同一张表里**连续**的多行样例，都算待填数据行
+            if _is_placeholder_table_row(ln) and (prev_sep or prev_row):
                 _flush(buf, parts)
                 parts.append({"kind": "table_rows", "row": ln, "header": header})
                 prev_sep = False
+                prev_row = True
                 continue
             buf.append(ln)
             if _TABLE_SEP_LINE_RE.match(ln):
@@ -163,6 +183,7 @@ def _split_table_placeholder_rows(segments: list[dict]) -> list[dict]:
                 prev_sep = True
             else:
                 prev_sep = False
+            prev_row = False
         _flush(buf, parts)
         if len(parts) == 1 and parts[0].get("kind") == "text":
             out.append(seg)  # 没拆出占位行 → 保持原段
@@ -191,6 +212,9 @@ def _mark_title_fields(segments: list[dict]) -> list[dict]:
             continue
         hint = str(seg.get("hint") or "").strip()
         if not hint or len(hint) > 30 or "。" in hint or "，" in hint:
+            continue
+        # 指令式占位（如「自主概括的议程模块名称」）标题由模型起，不当固定栏名
+        if _TITLE_HINT_INSTRUCTION_RE.search(hint):
             continue
         if nxt and nxt.get("kind") == "text" and not nxt["text"].startswith("\n"):
             continue

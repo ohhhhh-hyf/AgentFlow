@@ -371,12 +371,19 @@ def _validate(req: TaskRequest, task: str, user_id: str) -> str:
 
 
 def _template_file(domain: str, line: str, template_value: str) -> Path | None:
-    """extra.template → 临时模板文件；空返回 None，非法抛 400。"""
+    """extra.template → 临时模板文件；空返回 None，非法抛 400。
+
+    取值只两种：模板 md 英文名（``project_progress``）、模板中文名（``项目进度会``）。
+    """
     if not (template_value or "").strip():
         return None
     fmt = resolve_template_format(template_value)
     if not fmt:
-        raise ApiError(400, f"extra.template 非法：{template_value}（格式为 {{场景ID}}_{{模板ID}}）")
+        raise ApiError(
+            400,
+            f"extra.template 非法：{template_value}（可填模板 md 英文名或中文名，"
+            "如 project_progress、项目进度会）",
+        )
     path = Path(tempfile.mkdtemp(prefix="agentflow_tpl_")) / "template.md"
     path.write_text(fmt, encoding="utf-8")
     return path

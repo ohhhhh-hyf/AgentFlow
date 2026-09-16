@@ -149,7 +149,7 @@ http://127.0.0.1:8000/data/1/output/demo-1/checklist.html
 | `docs` | `list[str]` | 文件名（相对 `data/{user_id}/docs/`），语义**按任务线不同**（见 0.2 矩阵与第 3 节） |
 | `extra.subject` | `str` | 学科；`library`/`catalog`/`checklist` 必填，中文自动转拼音 |
 | `extra.profile` | `str` | 视角模板名（如 `product_manager`、`developer`、`object`）；空 = 客观全员视角。非法名 → 400 |
-| `extra.template` | `str` | 模板 `{场景ID}_{模板ID}`；空 = 不套模板。非法 → 400 |
+| `extra.template` | `str` | 模板 **md 英文名**（`project_progress`，可带 `.md`、大小写不敏感）或**中文名**（`项目进度会`）；空 = 不套模板。非法 → 400 |
 | `extra.memory` | `bool` | 是否启用跨会话增量（`graph` 用：命中历史图谱时只并新增节点并高亮） |
 | `extra.project` | `str` | 项目标识（记忆/档案维度，notes 域一般留空） |
 | `extra.style` | `str` | 组织模式，**仅 meeting 域的 `minutes_styles` 使用**；notes 域传了会被忽略 |
@@ -164,7 +164,7 @@ http://127.0.0.1:8000/data/1/output/demo-1/checklist.html
 |---|---|---|---|
 | `subject` | `library` / `catalog` / `checklist` | 400（必填） | 空串=同上；非法字符被转拼音清洗 |
 | `profile` | 四条线（视角建模） | 客观全员视角 | 400 `extra.profile 非法：…` |
-| `template` | 四条线（模板渲染） | 不套模板 | 400 `extra.template 非法：…（格式为 {场景ID}_{模板ID}）`；**29 个可填值见 8.5** |
+| `template` | 四条线（模板渲染） | 不套模板 | 400 `extra.template 非法：…（可填模板 md 英文名或中文名，如 project_progress、项目进度会）`；**29 个可填值见 8.5** |
 | `memory` | `graph`（跨会话增量） | 不启用 | 非 bool → 422 |
 | `project` | 记忆维度 | 空 | — |
 | `style` | meeting 的 `minutes_styles` | — | notes 域忽略 |
@@ -742,7 +742,7 @@ print("预览:", f"{BASE}/api/v1/notes/checklist/preview?request_id={result['req
 422（pydantic 校验失败），响应体是 FastAPI 默认形状 `{"detail":[…]}`，与业务错误体（`code`/`message`）不同。
 
 **Q17：`extra.template` / `extra.profile` 写错了会怎样？**
-400（`extra.template 非法：…（格式为 {场景ID}_{模板ID}）` / `extra.profile 非法：…`），
+400（`extra.template 非法：…（可填模板 md 英文名或中文名…）` / `extra.profile 非法：…`），
 不会静默忽略——避免"以为套了模板其实没套"。
 
 **Q18：产物可以直接用 `/data/...` 打开吗？**
@@ -794,48 +794,54 @@ print("预览:", f"{BASE}/api/v1/notes/checklist/preview?request_id={result['req
 
 ### 8.5 `extra.template` 全部可填值（8 场景 / 29 个模板）
 
-取值格式固定为 **`{场景ID}_{模板ID}`**（不是模板中文名，也不是裸模板 ID）：
+`extra.template` 只接受两种写法（二选一即可）：
 
-| 场景 | 可填值（`extra.template`） | 中文名 |
+- **md 英文名**（= 模板 ID，可带 `.md`、大小写不敏感），如 `project_progress`；
+- **模板中文名**（= YAML 的 `name`），如 `项目进度会`。
+
+内部契约键 `{场景ID}_{模板ID}`（如 `meeting_minutes_project_progress`）**不再接受**，传了会 400。
+
+| 场景 | 可填值①：md 英文名 | 可填值②：中文名 |
 |---|---|---|
-| 会议 | `meeting_minutes_team_meeting` | 团队例会 |
-| 会议 | `meeting_minutes_project_progress` | 项目进度会 |
-| 会议 | `meeting_minutes_decision_review` | 决策评审会 |
-| 会议 | `meeting_minutes_workshop_session` | 工作研讨会 |
-| 会议 | `meeting_minutes_retrospective_session` | 总结复盘会 |
-| 会议 | `meeting_minutes_exchange_forum` | 沟通交流会 |
-| 学习 | `study_notes_class_transcript` | 课堂记录 |
-| 学习 | `study_notes_special_lecture` | 专题讲座 |
-| 学习 | `study_notes_group_seminar` | 小组讨论 |
-| 学习 | `study_notes_knowledge_memo` | 知识笔记 |
-| 学习 | `study_notes_debate_forum` | 辩论会 |
-| 访谈 | `dialogue_interview_research_dialogue` | 调研访谈 |
-| 访谈 | `dialogue_interview_interview_transcript` | 采访记录 |
-| 面试 | `job_interview_hiring_report` | 面试报告 |
-| 面试 | `job_interview_interview_debrief` | 面试复盘 |
-| 医疗问诊 | `medical_consultation_clinical_advisory` | 就医咨询 |
-| 医疗问诊 | `medical_consultation_psychological_session` | 心理咨询 |
-| 法律沟通 | `legal_consultation_legal_advisory` | 法律咨询 |
-| 法律沟通 | `legal_consultation_contract_vetting` | 合同审核 |
-| 法律沟通 | `legal_consultation_court_transcript` | 庭审记录 |
-| 新闻发布 | `press_conference_media_briefing` | 新闻发布 |
-| 新闻发布 | `press_conference_media_qa_session` | 媒体问答 |
-| 新闻发布 | `press_conference_product_launch` | 产品发布 |
-| 新闻发布 | `press_conference_government_bulletin` | 政府报告 |
-| 日常记录 | `daily_journal_general_minutes` | 通用纪要 |
-| 日常记录 | `daily_journal_conversation_transcript` | 对话记录 |
-| 日常记录 | `daily_journal_personal_memo` | 个人备忘 |
-| 日常记录 | `daily_journal_home_school_liaison` | 家校沟通 |
-| 日常记录 | `daily_journal_site_visit_tour` | 参观游览 |
+| 会议 | `team_meeting` | 团队例会 |
+| 会议 | `project_progress` | 项目进度会 |
+| 会议 | `decision_review` | 决策评审会 |
+| 会议 | `workshop_session` | 工作研讨会 |
+| 会议 | `retrospective_session` | 总结复盘会 |
+| 会议 | `exchange_forum` | 沟通交流会 |
+| 学习 | `class_transcript` | 课堂记录 |
+| 学习 | `special_lecture` | 专题讲座 |
+| 学习 | `group_seminar` | 小组讨论 |
+| 学习 | `knowledge_memo` | 知识笔记 |
+| 学习 | `debate_forum` | 辩论会 |
+| 访谈 | `research_dialogue` | 调研访谈 |
+| 访谈 | `interview_transcript` | 采访记录 |
+| 面试 | `hiring_report` | 面试报告 |
+| 面试 | `interview_debrief` | 面试复盘 |
+| 医疗问诊 | `clinical_advisory` | 就医咨询 |
+| 医疗问诊 | `psychological_session` | 心理咨询 |
+| 法律沟通 | `legal_advisory` | 法律咨询 |
+| 法律沟通 | `contract_vetting` | 合同审核 |
+| 法律沟通 | `court_transcript` | 庭审记录 |
+| 新闻发布 | `media_briefing` | 新闻发布 |
+| 新闻发布 | `media_qa_session` | 媒体问答 |
+| 新闻发布 | `product_launch` | 产品发布 |
+| 新闻发布 | `government_bulletin` | 政府报告 |
+| 日常记录 | `general_minutes` | 通用纪要 |
+| 日常记录 | `conversation_transcript` | 对话记录 |
+| 日常记录 | `personal_memo` | 个人备忘 |
+| 日常记录 | `home_school_liaison` | 家校沟通 |
+| 日常记录 | `site_visit_tour` | 参观游览 |
 
 **规则**：
 
-- 空串 = **不套模板**（默认）；**不按域/任务线限制** —— notes 域填 `meeting_minutes_*` 也能通过，反之亦然
-  （只有校验"值是否在注册表里"）。
-- 非法值 → 400 `extra.template 非法：…（格式为 {场景ID}_{模板ID}）`，**不会静默忽略**。
-  常见误填：只写模板名（`team_meeting`）或只写场景名（`meeting_minutes`）→ 都会 400。
-- notes 域最贴的通常是 **`study_notes_*`**（课堂记录 / 专题讲座 / 小组讨论 / 知识笔记 / 辩论会）
-  与 **`daily_journal_*`**（通用纪要 / 对话记录 / 个人备忘）。
+- 空串 = **不套模板**（默认）；**不按域/任务线限制** —— notes 域也能填会议类模板，反之亦然
+  （只校验"写法是否命中注册表"）。
+- 非法值 → 400 `extra.template 非法：…（可填模板 md 英文名或中文名…）`，**不会静默忽略**。
+  常见误填：场景名（`meeting_minutes`）、旧契约键（`meeting_minutes_project_progress`）、
+  中文名多字少字（`项目进度`）→ 都会 400。
+- notes 域最贴的通常是 **学习类**（课堂记录 / 专题讲座 / 小组讨论 / 知识笔记 / 辩论会）
+  与 **日常类**（通用纪要 / 对话记录 / 个人备忘）。
 - 模板源：权威源是项目根 `cm_template_v2_changed_0722.yaml`；**该文件缺失时**自动回退到
-  `template/README.md` + `template/*.md`（文件名 = 模板 ID），两种来源下上表 29 个值都可用。
+  `template/README.md` + `template/*.md`（文件名 = 模板 ID），两种来源下上表 29 个模板都可用。
   新增/修改模板：优先改 yaml 并同步 `template/` 里的 md 副本（见 `template/README.md`）。

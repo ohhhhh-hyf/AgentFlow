@@ -17,6 +17,7 @@ from ._base import (
     _hint_short,
     _parse_row_list,
     _table_row_confidence_score,
+    _TITLE_HINT_INSTRUCTION_RE,
     split_template_meta,
     strip_outer_markdown_fence,
 )
@@ -43,6 +44,9 @@ def _line_placeholders(line: str) -> list[re.Match[str]]:
 
 _SECTION_TITLE_RE = re.compile(r"^(#{1,6})\s*\[([^\[\]]+)\]\s*$")
 
+# 标题行上的占位（值 = 标题文字；正文写在标题下方）
+_HEADING_LINE_RE = re.compile(r"^\s{0,3}#{1,6}\s")
+
 
 def _section_title_match(line: str) -> re.Match[str] | None:
     """`# [项目概况]` 这类标题占位：栏名短、无句读 → 程序用栏名生成标题，不送 LLM。
@@ -56,7 +60,7 @@ def _section_title_match(line: str) -> re.Match[str] | None:
     hint = match.group(2).strip()
     if not hint or len(hint) > 30 or "。" in hint or "，" in hint:
         return None
-    if re.search(r"自主|概括|填写|根据|提取|写出|生成|待填", hint):
+    if _TITLE_HINT_INSTRUCTION_RE.search(hint):
         return None
     return match
 
@@ -102,7 +106,7 @@ def plan_placeholder_fill(template: str) -> dict[str, Any]:
     template, _ = split_template_meta(template)
     scalars: list[dict] = []
     row_templates: list[dict[str, Any]] = []
-    for line in template.splitlines(keepends=True):
+    for idx, line in enumerate(template.splitlines(keepends=True)):
         if _section_title_match(line):
             continue
         phs = _line_placeholders(line)
@@ -112,12 +116,20 @@ def plan_placeholder_fill(template: str) -> dict[str, Any]:
                 if phs
                 else _ellipsis_row_fields(line, template)
             )
-            row_templates.append({"line": line, "fields": fields})
+            # 同一张表的**连续样例行**合并成一个行模板（表只填一组数据行，不重复展开）
+            if row_templates and idx == row_templates[-1]["indices"][-1] + 1:
+                row_templates[-1]["indices"].append(idx)
+                continue
+            row_templates.append({"line": line, "fields": fields, "indices": [idx]})
             continue
         if not phs:
             continue
+        heading_line = bool(_HEADING_LINE_RE.match(line))
         for m in phs:
-            scalars.append(_parse_field(m.group(1)))
+            field = _parse_field(m.group(1))
+            if heading_line:
+                field["heading"] = True
+            scalars.append(field)
     first = row_templates[0] if row_templates else None
     return {
         "scalars": scalars,
@@ -250,10 +262,18 @@ def assemble_placeholder_output(
 
     scalar_i = 0
     out_lines: list[str] = []
-    # 同一行模板只展开一次（模板里每张表只有一行样例）
-    expanded_row_ids: set[int] = set()
+    # 行模板按**行号**定位（同表多行样例会重复出现同样文本，不能按文本匹配）；
+    # 每个模板只在它的首行展开一次，其余样例行跳过
+    head_idx_to_row: dict[int, int] = {
+        int(rt["indices"][0]): i for i, rt in enumerate(row_templates)
+    }
+    skip_lines: set[int] = {
+        int(idx) for rt in row_templates for idx in rt["indices"][1:]
+    }
 
-    for line in template.splitlines(keepends=True):
+    for line_idx, line in enumerate(template.splitlines(keepends=True)):
+        if line_idx in skip_lines:
+            continue
         title_m = _section_title_match(line)
         if title_m:
             hashes, title = title_m.group(1), title_m.group(2).strip()
@@ -261,20 +281,12 @@ def assemble_placeholder_output(
             out_lines.append(rendered + ("\n" if line.endswith("\n") else ""))
             continue
         phs = _line_placeholders(line)
-        row_idx = next(
-            (
-                i
-                for i, rt in enumerate(row_templates)
-                if rt["line"] == line and i not in expanded_row_ids
-            ),
-            None,
-        )
+        row_idx = head_idx_to_row.get(line_idx)
         if row_idx is None and not phs:
             out_lines.append(line)
             continue
 
         if row_idx is not None:
-            expanded_row_ids.add(row_idx)
             rt = row_templates[row_idx]
             n_cols = max(len(rt["fields"]), 1)
             use_rows = list(tables[row_idx]) if tables[row_idx] else []
@@ -422,6 +434,12 @@ def template_to_preview(
             )
             table_idx += 1
             i += 1
+            # 同一张表的连续样例行属于这一张表：整段跳过，避免被当成新表格或漏填字段
+            while (
+                i < len(lines)
+                and _is_placeholder_table_row(lines[i].rstrip("\n"))
+            ):
+                i += 1
             continue
         # 非表格行：检查是否是含字段的行
         phs = _line_placeholders(body)
@@ -610,10 +628,10 @@ def build_placeholder_fill_user(
         "勿照抄「如：」示例；勿张冠李戴；勿改数字；勿用百科补履历；勿虚构原文没有的内容。",
         "各栏按主题分别写清；「与/和/及」并列主题勿揉成一句糊涂话。",
         "简洁/粗略≠空洞：每栏写清该栏主要事实与要点，可多句。",
-        "「一段话概括」不是一句空话：概况段写成完整段落（4–8句、约150–400字），含整体进展、里程碑/节点、主要风险、下一步，并带原文数字/地点/责任人；禁止单句交差。",
+        "「一段话概括」不是一句空话：概况段按原文信息量成段（信息充足时 4–8 句为上限、信息少时一两句即可），含整体进展、里程碑/节点、主要风险、下一步，并带原文数字/地点/责任人。",
         "进度追踪：正文写清各模块进展；表格一行一个分项事项，原文有几处写几行，不要压成一行。",
         "风险预警：原文提到的风险分行填写，等级与责任人必填（无则「未明确」）；后续计划写交付物、时间点与依赖。",
-        "没有全文字数上限时不要压缩整篇。",
+        "未声明全文字数上限时，篇幅上限就是原文：不得超过原文长度，也不为填满栏目扩写。",
         *_char_budget_lines(template),
         "语句完整通顺，无半截句；严禁输出「约N字」等字数元说明。",
     ]
@@ -655,45 +673,6 @@ def build_placeholder_fill_user(
         lines.append("【上次输出未通过校验，请修正】")
         lines.append(revision_notes.strip())
     return "\n".join(lines)
-
-
-def _thin_fill_notes(
-    plan: dict[str, Any],
-    fields: dict[str, str],
-    tables: list[list[list[str]]],
-    assembled: str,
-) -> list[str]:
-    """概况过短、表格压成一行时给出扩写意见（不编造）。"""
-    notes: list[str] = []
-    empty = {"", "未提及", "未明确", "无", "暂无", "—", "-", "…", "..."}
-    for i, seg in enumerate(plan.get("scalars") or [], start=1):
-        hint = str(seg.get("hint") or "")
-        val = str(fields.get(str(i)) or "")
-        han = _body_han_count(val)
-        if re.search(r"概括|概况|综述|摘要", hint) and han < 150:
-            notes.append(
-                f"字段{i}（概况）约 {han} 字过短：写成 4–8 句、约150–400字完整段落，"
-                "写清整体进展、里程碑/节点、主要风险与下一步，带原文数字/地点/责任人，禁止一句空话。"
-            )
-        elif hint and han < 25 and not any(m in val for m in ("未提及", "未明确")):
-            notes.append(f"字段{i}约 {han} 字过短：按占位说明补全原文要点，可多句。")
-    for ti, _rt in enumerate(plan.get("row_templates") or []):
-        rows = tables[ti] if ti < len(tables) else []
-        nonempty = [
-            r for r in rows
-            if any(str(c or "").strip() not in empty for c in r)
-        ]
-        if len(nonempty) <= 1:
-            notes.append(
-                f"tables[{ti}] 有效数据行 {len(nonempty)}："
-                "按原文把各分项事项/风险分成多行，不要整场压成一行。"
-            )
-    han_all = _body_han_count(assembled)
-    if han_all < 280 and not notes:
-        notes.append(
-            f"全文约 {han_all} 字过短：各栏按原文补全事实与表格行，不要压成一两句。"
-        )
-    return notes
 
 
 def parse_fill_response(
@@ -780,14 +759,9 @@ async def fill_placeholder_template(
             )
             assembled = strip_outer_markdown_fence(assembled)
             assembled = strip_char_budget_meta(assembled)
-            # 无预算时也拦截「概况一句带过 / 整表一行」
-            if attempt < 2:
-                thin = _thin_fill_notes(plan, fields, tables, assembled)
-                if thin:
-                    revision = "\n".join(f"- {x}" for x in thin)
-                    logger.info("placeholder fill too short (attempt=%s): %s", attempt + 1, ";".join(thin))
-                    continue
-            # 篇幅自检：偏短扩写、偏长压缩（不改结构、不写进用户正文）
+            # 篇幅自检：只在模板声明了字数约束时才修订（偏短扩写、偏长压缩，不写进用户正文）。
+            # 未声明约束时不因「偏短」打回——篇幅以原文为上限，信息少就写少，避免逼出注水。
+            logger.debug("placeholder fill attempt=%s han=%s", attempt + 1, _body_han_count(assembled))
             lo = budget.get("lo") if isinstance(budget, dict) else None
             hi = budget.get("hi") if isinstance(budget, dict) else None
             if (lo or hi) and attempt < 2:

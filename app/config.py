@@ -165,8 +165,17 @@ def _split_template_key(value: str) -> tuple[str, str] | None:
     return None
 
 
+_TEMPLATE_ID_RE = re.compile(r"^[a-z0-9_]+$")
+
+
 def _read_template_md(template_id: str) -> str:
-    path = TEMPLATE_DIR / f"{template_id}.md"
+    """模板 ID → ``template/{id}.md`` 文本；非纯名字（防目录穿越）、README 或不存在返回空串。"""
+    tid = (template_id or "").strip()
+    if tid.lower().endswith(".md"):
+        tid = tid[:-3]
+    if not _TEMPLATE_ID_RE.match(tid.lower()) or tid.lower() == "readme":
+        return ""
+    path = TEMPLATE_DIR / f"{tid}.md"
     if not path.is_file():
         return ""
     return path.read_text(encoding="utf-8").strip()
@@ -198,6 +207,7 @@ def _template_registry_from_dir() -> dict[str, dict[str, object]]:
                 "format": fmt,
                 "name": name,
                 "scenario": SCENARIO_NAMES.get(scenario_id, scenario_id),
+                "template": template_id,
             }
         if out:
             return out
@@ -218,6 +228,7 @@ def _template_registry_from_dir() -> dict[str, dict[str, object]]:
             "format": fmt,
             "name": template_id,
             "scenario": SCENARIO_NAMES.get(scenario_id, scenario_id),
+            "template": template_id,
         }
     return out
 
@@ -252,6 +263,7 @@ def template_registry() -> dict[str, dict[str, object]]:
                     "scenario": scenarios.get(scenario_id, scenario_id),
                     "requirement": str(tpl.get("requirement") or "").strip(),
                     "description": str(tpl.get("description") or "").strip(),
+                    "template": template_id,
                 }
             if out:
                 return out
@@ -260,18 +272,45 @@ def template_registry() -> dict[str, dict[str, object]]:
     return _template_registry_from_dir()
 
 
+def template_key(template_value: str) -> str:
+    """extra.template 取值 → 内部契约键 ``{场景ID}_{模板ID}``；无法识别返回空串。
+
+    只接受两种写法（英文名大小写不敏感）：
+    - 模板 md 英文名：``project_progress`` / ``project_progress.md``
+    - 模板中文名（YAML ``name``）：``项目进度会``
+
+    旧契约值 ``{场景ID}_{模板ID}`` 与其它串一律不识别（调用方按 400 处理）。
+    29 个模板 ID 与 29 条中文名各自唯一、且互不冲突，别名不会歧义。
+    """
+    raw = (template_value or "").strip()
+    if not raw:
+        return ""
+    stem = raw[:-3] if raw.lower().endswith(".md") else raw
+    folded = stem.strip().lower()
+    registry = template_registry()
+    for key, item in registry.items():
+        if str(item.get("template") or "").lower() == folded:
+            return key
+    for key, item in registry.items():
+        if raw == str(item.get("name") or "").strip():
+            return key
+    return ""
+
+
 def resolve_template_format(template_value: str) -> str:
-    """extra.template 值 → 模板 format 文本（含写作要求注释）；非法值返回空串。"""
+    """extra.template 值 → 模板 format 文本（含写作要求注释）；非法值返回空串。
+
+    取值只两种：模板 md 英文名、模板中文名（见 :func:`template_key`）。
+    """
     value = (template_value or "").strip()
     if not value:
         return ""
-    item = template_registry().get(value) or {}
+    item = template_registry().get(template_key(value)) or {}
     fmt = str(item.get("format") or "").strip()
     req = str(item.get("requirement") or "").strip()
     if not fmt:
-        parts = _split_template_key(value)
-        if parts:
-            fmt = _read_template_md(parts[1])
+        # 注册表里没这条（YAML 缺失等）→ 退回 md 文件名直读
+        fmt = _read_template_md(value)
     if not fmt:
         return ""
     from tools.template_router._base import wrap_template_requirement
@@ -321,5 +360,6 @@ __all__ = [
     "redis_url",
     "resolve_template_format",
     "run_mode",
+    "template_key",
     "template_registry",
 ]
