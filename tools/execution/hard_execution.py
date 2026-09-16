@@ -531,12 +531,13 @@ def _overlong_issue(template: str, text: str) -> str | None:
 
 
 def should_write_result_md(gate_ok: bool | None, has_template: bool) -> bool:
-    """无模板时总是写；有模板时仅 gate_ok 才写通过产物。"""
-    if not has_template:
-        return True
-    if gate_ok is None:
-        return True
-    return bool(gate_ok)
+    """是否写正式 ``result.md`` —— **总是写**（含门禁失败）。
+
+    实测出现过"正文合格但门禁误判"（表格写法变体被判「固定文字丢失」），此时不落盘会让
+    用户拿不到可用内容 ✗。质量信号改由两条承担：API 的 ``quality_warning`` 字段
+    （带上门禁原因）与同目录的 ``result_rejected.md``（备查副本）。
+    """
+    return True
 
 
 __all__ = [

@@ -624,7 +624,7 @@ async def _run_task_impl(
         md_text = report_text(reports[p.line])
     from .schemas import Monitor, ResponseData
 
-    return TaskResponse(
+    response = TaskResponse(
         code=0,
         request_id=request_id,
         message="success",
@@ -638,6 +638,12 @@ async def _run_task_impl(
             file_name=_output_file_name(p.line, user_id, p.subject, saved_paths),
         ),
     )
+    # 仅降级时有值：把质量信号放在**字段**里（正文不再写免责声明），与异步任务接口口径一致。
+    # 未赋值时该字段不出现在响应里（app 配了 response_model_exclude_unset）。
+    warning = str((result or {}).get("quality_warning") or "").strip()
+    if warning:
+        response.quality_warning = warning
+    return response
 
 
 def _ndjson(payload: dict) -> str:

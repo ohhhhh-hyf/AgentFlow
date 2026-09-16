@@ -109,7 +109,6 @@ from .tasks.risks.contracts import RISK_FALLBACK_RULES
 logger = logging.getLogger(__name__)
 
 QUALITY_WARNING = "生成可能有误，请结合会议原文核对。"
-QUALITY_DISCLAIMER = "（生成可能有误）"
 
 # ── 空结构常量生成区：由 tools/scripts/sync_domain.py 生成，勿手改 ──
 
@@ -341,7 +340,8 @@ class _Nodes(DomainNodes):
     """meeting 图节点实现：共享内核 + 领域专属钩子与会议理解节点。"""
 
     _fallback_formatters = _LINES_FORMATTERS
-    _quality_disclaimer = QUALITY_DISCLAIMER
+    # 正文不带免责声明：质量信号走 API 的 quality_warning 字段 + 日志（见 runner 的 ⚠）
+    _quality_disclaimer = ""
     _understanding_key = "meeting_understanding"
     _understanding_label = "已审核会议理解"
     _transcript_label = "会议原文"

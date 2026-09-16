@@ -84,10 +84,9 @@ class MinutesFallbackRules(FallbackRules):
         Join("unresolved_questions", "未决问题"),
         Join("history_comparison", "与历史对比"),
     ]
-    empty_prefix = "系统未能通过质量审核，以下为基于现有材料的粗略整理。"
     empty_text = "请直接参考会议原文。"
     empty_purpose = True
-    disclaimer = True
+    disclaimer = False
 
 
 MINUTES_FALLBACK_RULES = MinutesFallbackRules()

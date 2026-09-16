@@ -74,7 +74,7 @@ class MinutesTraceFallbackRules(FallbackRules):
     empty_text = "请直接参考会议原文。"
     empty_prefix = "系统未能通过质量审核，以下为基于现有材料的粗略整理。"
     empty_purpose = True
-    disclaimer = True
+    disclaimer = False
 
 
 MINUTES_TRACE_FALLBACK_RULES = MinutesTraceFallbackRules()

@@ -141,7 +141,7 @@ class MultiStylesFallbackRules(FallbackRules):
         Raw("summary"),
     ]
     empty_text = "暂无多样式纪要"
-    disclaimer = True
+    disclaimer = False
     structured = {"field": "sections"}
 
 

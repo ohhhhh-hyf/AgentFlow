@@ -13,6 +13,18 @@ from ._preview import _aspect_has_fixed_heading, _aspect_has_own_slot, extract_l
 
 logger = logging.getLogger(__name__)
 
+_SEP_ROW_RE = re.compile(r"^\|[\s:\-|]+\|$")
+
+
+def _row_cells(line: str) -> tuple[str, ...]:
+    """markdown 表格行 → 单元格文本序列（去首尾竖线、逐格 strip，忽略空格差异）。"""
+    return tuple(c.strip() for c in line.strip().strip("|").split("|"))
+
+
+def _is_sep_row(line: str) -> bool:
+    """表格分隔行（`| --- | :--: |` 之类）——不参与结构比对。"""
+    return bool(_SEP_ROW_RE.match(line.strip()))
+
 
 def validate_rendered_output(
     rendered: str,
@@ -64,8 +76,35 @@ def validate_rendered_output(
             fixed.append(raw)
         # 归一化空白后再比对，避免换行差异误报
         rendered_norm = re.sub(r"\s+", " ", rendered)
+        # 渲染文本里的表格行索引（单元格文本序列）：供"表格结构等价"比对用
+        rendered_rows = {
+            _row_cells(ln) for ln in rendered.splitlines() if ln.strip().startswith("|")
+        }
         missing_fixed = 0
         for text in fixed:
+            # 含 markdown 表格的固定段：改为**结构等价**比对 —— 表头列名一致即通过，
+            # 忽略空格、分隔行 `-` 数量与对齐符号（模型常写 `|a|b|` 或 `|:--|--:|` 变体，
+            # 逐字比对会误判「固定文字丢失」，实测导致合格产物被判死并重试 5 次）
+            table_lines = [ln for ln in text.splitlines() if ln.strip().startswith("|")]
+            prose_lines = [
+                ln for ln in text.splitlines()
+                if ln.strip() and not ln.strip().startswith("|")
+            ]
+            if table_lines:
+                expected_rows = [
+                    _row_cells(ln) for ln in table_lines if not _is_sep_row(ln)
+                ]
+                # 段内若还夹着散文，散文仍按逐字规则查（只放宽表格那几行）
+                prose_ok = all(
+                    ln.strip() in rendered or re.sub(r"\s+", " ", ln.strip()) in rendered_norm
+                    for ln in prose_lines
+                )
+                if expected_rows and prose_ok and all(row in rendered_rows for row in expected_rows):
+                    continue
+                missing_fixed += 1
+                if missing_fixed <= 2:
+                    errors.append(f"模板表格结构不符：{text[:30]!r}")
+                continue
             text_norm = re.sub(r"\s+", " ", text)
             if text not in rendered and text_norm not in rendered_norm:
                 missing_fixed += 1

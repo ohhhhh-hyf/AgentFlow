@@ -1252,6 +1252,79 @@ def test_catalog_content_check() -> None:
 
 # ── P4：编号标题识别 + 补缺不越骨架 + 不再产占位名 ──────────────
 
+def test_template_tables_have_placeholder_rows() -> None:
+    """模板里的每张表都必须有**占位数据行**（`| … | … |` 或 `[占位符]`），零 LLM。
+
+    回归背景：产品发布模板的表只有表头 + 分隔行（`| 维度 | 本产品 | … |` / `| --- | --- |`），
+    ``plan_placeholder_fill`` 因此识别不出任何行模板（``row_templates=0``）→ 表格不走程序拼装，
+    改由模型自由发挥：表头被重复输出、表头写法一变又被门禁判「固定文字丢失」，
+    一份合格产物被反复重试到降级。这里把"表数 == 程序识别出的行模板数"钉成契约。
+    """
+    import re as _re
+    from pathlib import Path as _Path
+
+    from app.config import TEMPLATE_DIR
+    from tools.template_router._placeholder import plan_placeholder_fill
+
+    sep_row = _re.compile(r"^\|[\s:\-|]+\|\s*$", _re.M)
+    missing: list[str] = []
+    for path in sorted(_Path(TEMPLATE_DIR).glob("*.md")):
+        if path.stem.lower() in {"readme", "diff"}:
+            continue
+        text = path.read_text(encoding="utf-8")
+        n_tables = len(sep_row.findall(text))
+        if not n_tables:
+            continue
+        n_rows = len(plan_placeholder_fill(text)["row_templates"])
+        if n_rows != n_tables:
+            missing.append(f"{path.stem}(表{n_tables}/行模板{n_rows})")
+    check("模板里每张表都有占位数据行（表数 == 程序识别出的行模板数）", not missing, f"{missing[:5]}")
+
+
+def test_gate_table_structure_equivalence() -> None:
+    """门禁的固定文字比对：**表格按结构等价**（列名一致即通过），散文仍逐字，零 LLM。
+
+    回归背景：模型把表头写成 `|维度|本产品|上代/竞品|提升|`（去空格）或分隔行写成
+    `|:--|:--|--:|--:|`（改对齐）时，逐字子串比对判「固定文字丢失」，合格产物被判死；
+    列名被改写/整表丢失则必须仍然报错。同时钉住"门禁失败也写 result.md"。
+    """
+    from tools.execution.hard_execution import should_write_result_md
+    from tools.template_router._gate import validate_rendered_output
+
+    template = (
+        "<!-- requirement: 依据原文填写 -->\n"
+        "# [概述]\n"
+        "[一段话概述产品与定位，信息需与原文一致]\n"
+        "\n"
+        "| 维度 | 本产品 | 上代/竞品 | 提升 |\n"
+        "| --- | --- | --- | --- |\n"
+        "| … | … | … | … |\n"
+    )
+    table = "| 维度 | 本产品 | 上代/竞品 | 提升 |\n| --- | --- | --- | --- |\n| 芯片 | A19 | A18 | 更快 |\n"
+    compact = "|维度|本产品|上代/竞品|提升|\n|:--|:--|--:|--:|\n|芯片|A19|A18|更快|\n"
+    renamed = "| 类别 | 本产品 | 上代/竞品 | 提升 |\n| --- | --- | --- | --- |\n| 芯片 | A19 | A18 | 更快 |\n"
+    body = "概述：面向专业用户的旗舰产品，主打性能与续航。\n"
+
+    errs_verbatim = validate_rendered_output(body + "\n" + table, template)
+    check("门禁：表头/表格逐字一致 → 通过", not errs_verbatim, str(errs_verbatim))
+    errs_compact = validate_rendered_output(body + "\n" + compact, template)
+    check("门禁：表头去空格 + 分隔行改对齐 → 结构等价，通过", not errs_compact, str(errs_compact))
+    errs_renamed = validate_rendered_output(body + "\n" + renamed, template)
+    check("门禁：表头列名被改写 → 报表格结构不符",
+          any("表格结构不符" in e for e in errs_renamed), str(errs_renamed))
+    errs_missing = validate_rendered_output("概述：面向专业用户的旗舰产品。\n", template)
+    check("门禁：整张表丢失 → 报错", bool(errs_missing), str(errs_missing))
+    errs_placeholder = validate_rendered_output(body + "\n" + table.replace("| 芯片 | A19 | A18 | 更快 |", "| … | … | … | … |"), template)
+    check("门禁：占位数据行原样残留 → 报错", bool(errs_placeholder), str(errs_placeholder))
+
+    check("门禁失败也写正式 result.md（质量信号走 quality_warning + 备查副本）",
+          should_write_result_md(False, has_template=True) is True
+          and should_write_result_md(None, has_template=True) is True
+          and should_write_result_md(True, has_template=True) is True
+          and should_write_result_md(False, has_template=False) is True,
+          "门禁失败时未写 result.md")
+
+
 def test_heading_number_rules() -> None:
     """不需要知识库：NFKC 会把 `③ …` 变成 `3 …`，这类"数字+空格"不能再当标题。"""
     from tools.knowledge.source_role import heading_level
@@ -1945,6 +2018,8 @@ async def main() -> int:
     test_checklist_graph_layers()
     test_catalog_taxonomy()
     test_template_registry_from_md()
+    test_template_tables_have_placeholder_rows()
+    test_gate_table_structure_equivalence()
     test_heading_number_rules()
     test_complement_respects_skeleton()
     test_ocr_noise_strip()

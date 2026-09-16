@@ -37,7 +37,13 @@ async def _lifespan(_app: FastAPI):
     yield
 
 
-app = FastAPI(title="AgentFlow API", version="1.0.0", lifespan=_lifespan)
+app = FastAPI(
+    title="AgentFlow API",
+    version="1.0.0",
+    lifespan=_lifespan,
+    # 未显式赋值的可选字段不出现在响应里（如正常生成时不带 quality_warning）
+    response_model_exclude_unset=True,
+)
 
 app.include_router(meeting.router)
 app.include_router(notes.router)

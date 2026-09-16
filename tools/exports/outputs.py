@@ -240,13 +240,13 @@ def save_report_artifacts(
                 encoding="utf-8",
             )
             paths["review"] = payload_path
-    elif gate_ok is False:
+    if gate_ok is False:
+        # 门禁失败也留一份备查副本（便于复盘"门禁到底看到了什么"）；
+        # 正式 result.md 照写（见 should_write_result_md），质量信号由 API 的 quality_warning 承担。
         rej = out_dir / "result_rejected.md"
-        # 门禁失败：不写正式 result.md；落盘内容保持干净（无内部注释标记，
-        # 避免下载后展示给用户时出现「强执行门禁未通过」等排查信息）
         rej.write_text(text, encoding="utf-8")
         paths["rejected"] = rej
-        logger.warning("gate failed, wrote rejected instead of result.md: %s", rej)
+        logger.warning("gate failed, kept a rejected copy for review: %s", rej)
     return paths
 
 

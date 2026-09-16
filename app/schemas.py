@@ -70,6 +70,8 @@ class TaskResponse(BaseModel):
     code: int = 0
     request_id: str = ""
     message: str = "success"
+    # 仅当本次生成降级（未过内审/审核调用失败）时才带出；正常响应里不出现该字段
+    quality_warning: Optional[str] = None
     monitor: Monitor = Field(default_factory=Monitor)
     data: ResponseData = Field(default_factory=ResponseData)
 
