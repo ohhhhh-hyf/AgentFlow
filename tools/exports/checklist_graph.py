@@ -1,20 +1,12 @@
-"""checklist 内嵌的分层知识图谱组件（学术风格 + 复合簇 + 多视图交互）。
+"""tools/exports/checklist_graph.py —— checklist 内嵌的学术风格考点知识图谱组件。
 
-数据由 ``domain/notes/tasks/checklist/display._graph_payload`` 提供，三层结构：
-
-    chapter（章簇，cluster-ch-*）→ topic（主题簇，cluster-tp-*）→ kp（知识点，kp-*）
-
-KP 用 ``parent`` 挂到主题簇上，层次由**复合簇**表达（不指望力导向自行聚类）；
-边分两类：``prerequisite`` / ``related``（语义，来自 catalog）与 ``same_topic`` /
-``order``（结构，就地推导，关系为空的老目录也有骨架）。
-
-交互（离线，除 cytoscape CDN 无外部依赖）：
-
-- 四视图：概览（章/主题 + hub 点）、主题（聚焦某个簇）、关系（只留有语义边的点）、全量；
-- 等级筛选 S/A/B/C、结构边开关、搜索、实时计数"已显示 X / 共 Y 个知识点"；
-- 点主题簇 → 聚焦该主题；点章簇 → 聚焦该章；点知识点 → 右侧详情
-  （含"在清单中定位"跳卡片锚点 ``#ck-card-{kp_id}``）；
-- 视图状态存 localStorage；"折叠"只是没画，计数仍可见、随时可切全量。
+设计原则（参考 knowledge_graph.py）：
+- 纯平级知识点圆形节点（无复合簇、无嵌套框，杜绝挤压重叠）；
+- 外接圆几何尺寸精准包裹多行居中文字；
+- 确定性初始章节空间排布 + Cytoscape cose 力导向布局，章节聚集有序、舒展透气；
+- 核心前置主线（Prerequisites DAG）优先，大幅剪枝冗余连线，适合学生掌握学习脉络；
+- 移除「考点详情检查器」，精简侧栏为章节图例与关系图例，给画布最大横向空间；
+- 图例与工具栏去除所有括号和数字计数，界面清晰洗练。
 """
 from __future__ import annotations
 
@@ -24,380 +16,683 @@ from json import dumps
 __all__ = ["build_checklist_graph_embed"]
 
 _STYLE = """<style>
-.lc-kg{margin:14px 0 28px;border:1px solid #d4d0c7;border-radius:4px;overflow:hidden;background:#ffffff;
-  box-shadow:0 4px 20px rgba(0,0,0,0.05),0 1px 3px rgba(0,0,0,0.02);
-  font-family:"Latin Modern Roman","Computer Modern Roman","Times New Roman",Times,"Songti SC","SimSun",serif;box-sizing:border-box;}
-.lc-kg-bar{display:flex;align-items:center;gap:10px;padding:9px 14px;border-bottom:1.5px solid #222222;background:#faf9f6;flex-wrap:wrap;}
-.lc-kg-bar strong{font-size:.95rem;font-weight:700;color:#111;margin-right:2px;}
-.lc-kg-group{display:flex;align-items:center;gap:6px;}
-.lc-kg-group>span{font-size:.76rem;color:#555555;letter-spacing:.2px;}
-.lc-kg-bar button{border:1px solid #333333;background:#ffffff;border-radius:2px;padding:4px 10px;font-size:.79rem;
-  font-family:inherit;font-weight:600;cursor:pointer;transition:all .15s;color:#222222;}
-.lc-kg-bar button:hover{background:#eeebe3;}
-.lc-kg-bar button.is-on{background:#111111;color:#ffffff;border-color:#111111;}
-.lc-kg-bar label{font-size:.78rem;color:#333333;display:inline-flex;align-items:center;gap:3px;cursor:pointer;}
-.lc-kg-bar input[type="search"]{border:1px solid #d4d0c7;border-radius:2px;padding:3px 8px;font-size:.79rem;
-  font-family:inherit;min-width:150px;color:#222222;}
-.lc-kg-count{margin-left:auto;font-size:.78rem;color:#555555;font-variant-numeric:tabular-nums;}
-.lc-kg-count b{color:#111111;}
-.lc-kg-shell{display:grid;grid-template-columns:minmax(0,1fr) minmax(250px,28%);min-height:560px;}
-#lc-cy{width:100%;height:560px;background:#ffffff;}
-.lc-kg-aside{border-left:1px solid #d4d0c7;background:#faf9f6;padding:14px 13px;overflow:auto;font-size:.85rem;line-height:1.6;}
-.lc-kg-aside h3{margin:0 0 10px;font-size:1rem;font-weight:700;color:#111111;}
-.lc-kg-label{font-size:.74rem;color:#222222;margin:12px 0 5px;font-weight:700;text-transform:uppercase;letter-spacing:.3px;}
-.lc-kg-detail{border:1px solid #d4d0c7;border-radius:2px;padding:10px 11px;background:#ffffff;min-height:46px;}
-.lc-kg-name{font-weight:700;margin-bottom:6px;font-size:.95rem;color:#111111;}
-.lc-kg-k{color:#555555;font-size:.72rem;margin-bottom:3px;font-weight:700;}
-.lc-kg-block{margin-top:8px;}
-.lc-kg-block ul{margin:3px 0 0 1.05em;padding:0;}
-.lc-kg-block li{margin:2px 0;}
-.lc-kg-chip{display:inline-block;padding:1px 7px;margin:0 4px 4px 0;border-radius:2px;background:#ede9e1;
-  border:1px solid #d4d0c7;font-size:.73rem;color:#333333;}
-.lc-kg-src{display:inline-block;margin-top:9px;font-size:.8rem;color:#0047ab;text-decoration:none;border-bottom:1px dotted #0047ab;}
-.lc-kg-src:hover{color:#111111;border-bottom-color:#111111;}
-.lc-kg-legend{display:grid;gap:5px;}
-.lc-kg-legend-item{display:flex;align-items:center;gap:7px;font-size:.79rem;color:#333333;}
-.lc-kg-swatch{width:10px;height:10px;border-radius:2px;border:1px solid rgba(0,0,0,.15);}
-.lc-kg-ev{color:#555555;font-size:.78rem;font-style:italic;}
-@media(max-width:860px){.lc-kg-shell{grid-template-columns:1fr}#lc-cy{height:420px}}
+.lc-kg {
+  margin: 14px 0 28px;
+  border: 1px solid #d4d0c7;
+  border-radius: 4px;
+  overflow: hidden;
+  background: #ffffff;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.05), 0 1px 3px rgba(0, 0, 0, 0.02);
+  font-family: "Latin Modern Roman", "Computer Modern Roman", "CMU Serif", "Times New Roman", Times, "Songti SC", "SimSun", "STSong", serif;
+  box-sizing: border-box;
+}
+.lc-kg-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 16px;
+  border-bottom: 1.5px solid #222222;
+  background: #faf9f6;
+  flex-wrap: wrap;
+}
+.lc-kg-title-group {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+}
+.lc-kg-title-group strong {
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: #111111;
+  letter-spacing: 0.3px;
+}
+.lc-kg-count {
+  font-size: 0.8rem;
+  color: #555555;
+  font-style: italic;
+  font-variant-numeric: tabular-nums;
+}
+.lc-kg-count b {
+  color: #0047ab;
+  font-style: normal;
+}
+.lc-kg-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.lc-kg-btn-group {
+  display: inline-flex;
+  border: 1px solid #d4d0c7;
+  border-radius: 3px;
+  overflow: hidden;
+  background: #ffffff;
+}
+.lc-kg-tool-btn {
+  appearance: none;
+  border: none;
+  border-right: 1px solid #d4d0c7;
+  background: #faf9f6;
+  color: #222222;
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  padding: 5px 12px;
+  cursor: pointer;
+  user-select: none;
+  transition: all 0.15s ease;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+.lc-kg-tool-btn:last-child {
+  border-right: none;
+}
+.lc-kg-tool-btn:hover {
+  background: #ffffff;
+  color: #0047ab;
+}
+.lc-kg-tool-btn.is-active {
+  background: #0047ab;
+  color: #ffffff;
+}
+.lc-kg-btn-single {
+  appearance: none;
+  border: 1px solid #d4d0c7;
+  border-radius: 3px;
+  background: #faf9f6;
+  color: #222222;
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  padding: 5px 11px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+.lc-kg-btn-single:hover {
+  background: #ffffff;
+  border-color: #0047ab;
+  color: #0047ab;
+  box-shadow: 0 1px 3px rgba(0, 71, 171, 0.12);
+}
+.lc-kg-select {
+  padding: 4.5px 10px;
+  border: 1px solid #d4d0c7;
+  border-radius: 3px;
+  font-size: 12px;
+  background: #ffffff;
+  font-family: inherit;
+  color: #111111;
+  outline: none;
+  cursor: pointer;
+}
+.lc-kg-select:focus {
+  border-color: #0047ab;
+}
+.lc-kg-search {
+  padding: 4.5px 10px;
+  border: 1px solid #d4d0c7;
+  border-radius: 3px;
+  font-size: 12px;
+  background: #ffffff;
+  font-family: inherit;
+  color: #111111;
+  outline: none;
+  min-width: 130px;
+  transition: all 0.18s ease;
+}
+.lc-kg-search:focus {
+  border-color: #0047ab;
+  box-shadow: 0 0 0 2px rgba(0, 71, 171, 0.12);
+  min-width: 170px;
+}
+
+/* 主体分栏：画布 + 右侧图例栏 */
+.lc-kg-shell {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 210px;
+  min-height: 650px;
+  height: 650px;
+  position: relative;
+  background: #ffffff;
+}
+.lc-kg-canvas-container {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  background: #fbfaf7 radial-gradient(#e5dfd5 1.2px, transparent 1.2px);
+  background-size: 26px 26px;
+}
+#lc-cy {
+  width: 100%;
+  height: 100%;
+}
+
+/* 右侧图例栏 */
+.lc-kg-aside {
+  border-left: 1.5px solid #d4d0c7;
+  background: #ffffff;
+  padding: 16px 16px;
+  overflow-y: auto;
+  box-shadow: -3px 0 14px rgba(0, 0, 0, 0.03);
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  box-sizing: border-box;
+}
+.lc-kg-aside::-webkit-scrollbar {
+  width: 5px;
+}
+.lc-kg-aside::-webkit-scrollbar-thumb {
+  background: #d4d0c7;
+  border-radius: 3px;
+}
+
+/* 分区标头 */
+.lc-kg-panel-head {
+  font-size: 11.5px;
+  font-weight: 700;
+  color: #333333;
+  letter-spacing: 0.5px;
+  border-bottom: 1px solid #e7e4dc;
+  padding-bottom: 5px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+/* 图例项列表 */
+.lc-kg-legend {
+  display: grid;
+  gap: 3px;
+}
+.lc-kg-legend-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: #333333;
+  font-size: 11.5px;
+  cursor: pointer;
+  padding: 3px 6px;
+  border-radius: 2px;
+  transition: background 0.15s ease;
+  user-select: none;
+}
+.lc-kg-legend-item:hover {
+  background: #f0ede6;
+}
+.lc-kg-swatch {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  flex: 0 0 auto;
+  border: 1px solid rgba(0, 0, 0, 0.18);
+}
+
+@media (max-width: 860px) {
+  .lc-kg-shell {
+    grid-template-columns: 1fr;
+    height: auto;
+  }
+  #lc-cy {
+    height: 480px;
+  }
+}
 </style>"""
 
-_SCRIPT = """<script>
+_SCRIPT_TEMPLATE = """<script>
 (function () {
-  const NODES = {nodes};
-  const EDGES = {edges};
-  const STATE_KEY = "lc-kg-state-v1";
-  const GRADE_COLOR = {S: "#b45309", A: "#1d4ed8", B: "#047857", C: "#6b7280"};
-  const cyEl = document.getElementById("lc-cy");
-  const detailEl = document.getElementById("lc-kg-detail");
-  const countEl = document.getElementById("lc-kg-count");
-  const legendEl = document.getElementById("lc-kg-legend");
-  const searchEl = document.getElementById("lc-kg-search");
-  const structureEl = document.getElementById("lc-kg-structure-on");
-  const fitEl = document.getElementById("lc-kg-fit");
-  const root = cyEl ? cyEl.closest(".lc-kg") : null;
-  if (!cyEl || !root || typeof cytoscape === "undefined") {
-    if (cyEl) cyEl.innerHTML = '<p style="padding:14px;color:#555;font-style:italic;">图谱脚本未加载，已跳过本图。</p>';
+  const NODES = __NODES__;
+  const EDGES = __EDGES__;
+
+  const SECTION_COLORS = [
+    ['#e0f2fe', '#0284c7'],
+    ['#dcfce7', '#16a34a'],
+    ['#fef3c7', '#d97706'],
+    ['#ede9fe', '#7c3aed'],
+    ['#fee2e2', '#dc2626'],
+    ['#ccfbf1', '#0d9488'],
+    ['#ffedd5', '#ea580c'],
+    ['#f3e8ff', '#9333ea']
+  ];
+
+  const TYPE_CONFIG = {
+    formula: { color: '#237804', label: '公式' },
+    method: { color: '#531dab', label: '方法' },
+    theorem: { color: '#0047ab', label: '定理' },
+    concept: { color: '#1d4ed8', label: '概念' },
+    application: { color: '#d46b08', label: '应用' },
+    problem: { color: '#cf1322', label: '题型' },
+    pitfall: { color: '#cf1322', label: '易错' }
+  };
+
+  const RELATION_CONFIG = {
+    prerequisite: { color: '#2563eb', label: '前置' },
+    used_with: { color: '#0284c7', label: '配合' },
+    related: { color: '#0f766e', label: '关联' },
+    derived_from: { color: '#9333ea', label: '推导' },
+    easily_confused: { color: '#dc2626', label: '易混' },
+    alternative: { color: '#d97706', label: '替代' }
+  };
+
+  const esc = (val) => String(val == null ? '' : val)
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+
+  // 章节颜色映射
+  const chapters = [];
+  NODES.forEach((n) => {
+    const ch = String(n.chapter || '未分章').trim();
+    if (ch && chapters.indexOf(ch) < 0) chapters.push(ch);
+  });
+  const chapterColors = {};
+  chapters.forEach((ch, idx) => {
+    chapterColors[ch] = SECTION_COLORS[idx % SECTION_COLORS.length];
+  });
+
+  // 状态
+  const state = {
+    view: 'all',          // 'all' | 'dag' | 'core'
+    chapter: '',
+    search: '',
+    selectedId: ''
+  };
+
+  // 构建 Cytoscape 元素（平级节点 + 语义边）
+  const elements = [];
+  NODES.forEach((node) => {
+    const chColor = chapterColors[node.chapter] ? chapterColors[node.chapter][0] : '#f1f5f9';
+    const typeColor = TYPE_CONFIG[node.knowledge_type] ? TYPE_CONFIG[node.knowledge_type].color : '#1d4ed8';
+    const ele = {
+      data: {
+        ...node,
+        bgColor: chColor,
+        borderColor: typeColor,
+        label: node.label || node.name
+      }
+    };
+    if (node.position) {
+      ele.position = node.position;
+    }
+    elements.push(ele);
+  });
+
+  EDGES.forEach((edge, idx) => {
+    const relConf = RELATION_CONFIG[edge.type] || RELATION_CONFIG.related;
+    elements.push({
+      data: {
+        id: 'e-' + idx,
+        source: edge.source,
+        target: edge.target,
+        type: edge.type || 'related',
+        label: edge.label || relConf.label || '',
+        evidence: edge.evidence || ''
+      }
+    });
+  });
+
+  const cyEl = document.getElementById('lc-cy');
+  if (!cyEl || typeof cytoscape === 'undefined') {
+    if (cyEl) cyEl.innerHTML = '<p style="padding:20px;color:#666;font-style:italic;">图谱引擎未加载，请确保联网或脚本可用。</p>';
     return;
   }
-
-  const N = {};
-  NODES.forEach((n) => { N[n.id] = n; });
-  const kpNodes = NODES.filter((n) => n.kind === "kp");
-  const clusterOf = (n) => (n && n.parent ? N[n.parent] : null);
-  const isUnder = (n, clusterId) => {
-    let cur = n;
-    while (cur) {
-      if (cur.id === clusterId) return true;
-      cur = clusterOf(cur);
-    }
-    return false;
-  };
-
-  const defaultState = () => ({
-    view: "overview", grades: {S: true, A: true, B: true, C: true},
-    structure: true, focus: "", query: "",
-  });
-  let state = defaultState();
-  try {
-    const saved = JSON.parse(localStorage.getItem(STATE_KEY) || "null");
-    if (saved && typeof saved === "object") state = Object.assign(defaultState(), saved);
-  } catch (e) {}
-  const persist = () => {
-    try { localStorage.setItem(STATE_KEY, JSON.stringify(state)); } catch (e) {}
-  };
-
-  const elements = [];
-  NODES.forEach((n) => { elements.push({ data: Object.assign({}, n) }); });
-  EDGES.forEach((e, i) => {
-    elements.push({ data: {
-      id: "e" + i, source: e.source, target: e.target,
-      type: e.type, label: e.label || "", evidence: e.evidence || "",
-    } });
-  });
-
-  const layoutOptions = () => ({
-    name: "breadthfirst", directed: true, roots: '[kind = "chapter"]',
-    padding: 18, spacingFactor: 1.15, animate: false,
-  });
 
   const cy = cytoscape({
     container: cyEl,
     elements: elements,
     wheelSensitivity: 0.18,
+    minZoom: 0.25,
+    maxZoom: 2.8,
     style: [
-      { selector: "node", style: {
-          "background-color": "#ffffff", "border-width": 1.6, "border-color": "#333333",
-          "label": "data(label)", "font-family": "inherit", "color": "#222222",
-          "text-valign": "center", "text-halign": "center", "text-wrap": "wrap",
-          "text-max-width": "data(text_max_width)", "font-size": "data(font_size)",
-          "width": "data(size)", "height": "data(size)",
-      } },
-      { selector: 'node[kind = "chapter"]', style: {
-          "shape": "round-rectangle", "background-color": "#f1efe9", "background-opacity": .9,
-          "border-color": "#8a8378", "border-width": 1.4, "font-size": 13, "font-weight": "bold",
-          "color": "#111111", "padding": 12, "width": "label", "height": "label",
-          "text-max-width": 150, "text-wrap": "wrap",
-      } },
-      { selector: 'node[kind = "topic"]', style: {
-          "shape": "round-rectangle", "background-color": "#f8f7f3", "background-opacity": .95,
-          "border-color": "#b9b2a6", "border-style": "dashed", "font-size": 12,
-          "color": "#333333", "padding": 9, "width": "label", "height": "label",
-          "text-max-width": 130, "text-wrap": "wrap",
-      } },
-      { selector: 'node[grade = "S"]', style: { "border-color": "#b45309", "border-width": 2.2 } },
-      { selector: 'node[grade = "A"]', style: { "border-color": "#1d4ed8" } },
-      { selector: 'node[grade = "B"]', style: { "border-color": "#047857" } },
-      { selector: 'node[grade = "C"]', style: { "border-color": "#9ca3af", "border-style": "dotted" } },
-      { selector: 'node[tier = "leaf"]', style: { "background-color": "#fbfbfa", "opacity": .85 } },
-      { selector: "edge", style: {
-          "width": 1.2, "line-color": "#9aa0a6", "target-arrow-color": "#9aa0a6",
-          "target-arrow-shape": "triangle", "curve-style": "bezier",
-          "arrow-scale": .8, "label": "data(label)", "font-size": 9.5, "color": "#555555",
-          "text-background-color": "#ffffff", "text-background-opacity": .82, "text-background-padding": 1.5,
-      } },
-      { selector: 'edge[type = "prerequisite"]', style: { "line-color": "#ea580c", "target-arrow-color": "#ea580c", "width": 1.8 } },
-      { selector: 'edge[type = "related"]', style: { "line-color": "#9333ea", "target-arrow-color": "#9333ea", "line-style": "dashed" } },
-      { selector: 'edge[type = "same_topic"]', style: { "line-color": "#c7c2b8", "target-arrow-shape": "none" } },
-      { selector: 'edge[type = "order"]', style: { "line-color": "#b9b2a6", "line-style": "dotted", "target-arrow-shape": "none" } },
-      { selector: ".is-hidden", style: { "display": "none" } },
-      { selector: ".is-faded", style: { "opacity": .18 } },
-      { selector: ".is-hot", style: { "border-color": "#111111", "border-width": 2.6 } },
+      {
+        selector: 'node',
+        style: {
+          'shape': 'ellipse',
+          'width': 'data(size)',
+          'height': 'data(size)',
+          'label': 'data(label)',
+          'text-wrap': 'wrap',
+          'text-max-width': (ele) => ele.data('text_max_width') || (ele.data('size') * 0.8),
+          'font-size': (ele) => ele.data('font_size') || 11.5,
+          'font-family': '"Latin Modern Roman", "Computer Modern Roman", "CMU Serif", "Times New Roman", Times, "Songti SC", "SimSun", serif',
+          'font-weight': 700,
+          'text-valign': 'center',
+          'text-halign': 'center',
+          'background-color': 'data(bgColor)',
+          'background-opacity': 0.95,
+          'border-color': 'data(borderColor)',
+          'border-width': (ele) => {
+            const g = ele.data('grade');
+            return g === 'S' ? 3.2 : (g === 'A' ? 2.4 : 1.8);
+          },
+          'color': '#111111',
+          'shadow-blur': 4,
+          'shadow-color': '#000000',
+          'shadow-opacity': 0.06,
+          'shadow-offset-y': 1,
+          'transition-property': 'border-width, border-color, shadow-blur, shadow-color, opacity',
+          'transition-duration': '0.18s'
+        }
+      },
+      {
+        selector: 'edge',
+        style: {
+          'curve-style': 'bezier',
+          'target-arrow-shape': 'triangle',
+          'arrow-scale': 1.1,
+          'width': (ele) => ele.data('type') === 'prerequisite' ? 2.2 : 1.4,
+          'line-color': (ele) => (RELATION_CONFIG[ele.data('type')] || RELATION_CONFIG.related).color,
+          'target-arrow-color': (ele) => (RELATION_CONFIG[ele.data('type')] || RELATION_CONFIG.related).color,
+          'line-style': (ele) => ele.data('type') === 'related' ? 'dashed' : 'solid',
+          'line-opacity': 0.65,
+          'label': 'data(label)',
+          'font-size': 10,
+          'font-family': '"Latin Modern Roman", "Times New Roman", serif',
+          'font-weight': 600,
+          'color': '#333333',
+          'text-background-color': '#faf9f6',
+          'text-background-opacity': 0.9,
+          'text-background-padding': 2.5,
+          'text-rotation': 'autorotate'
+        }
+      },
+      {
+        selector: '.faded',
+        style: {
+          'opacity': 0.1,
+          'text-opacity': 0.1
+        }
+      },
+      {
+        selector: 'node.selected',
+        style: {
+          'border-color': '#0047ab',
+          'border-width': 4.5,
+          'shadow-blur': 14,
+          'shadow-color': '#0047ab',
+          'shadow-opacity': 0.35,
+          'z-index': 99
+        }
+      },
+      {
+        selector: 'edge.selected',
+        style: {
+          'width': 3.6,
+          'line-color': '#0047ab',
+          'target-arrow-color': '#0047ab',
+          'line-opacity': 1,
+          'z-index': 90
+        }
+      }
     ],
-    layout: layoutOptions(),
+    layout: {
+      name: 'cose',
+      animate: false,
+      randomize: false,
+      componentSpacing: 135,
+      nodeRepulsion: 18000,
+      idealEdgeLength: (edge) => edge.data('type') === 'prerequisite' ? 120 : 155,
+      edgeElasticity: 70,
+      nestingFactor: 0.9,
+      gravity: 0.28,
+      numIter: 2500,
+      padding: 48
+    }
   });
 
-  const key = (s) => String(s || "").replace(/[\\s:：,，。；;、（）()\\[\\]【】《》“”"'·\\-—_]+/g, "").toLowerCase();
-  const text = (n) => (String(n.name || "") + String(n.label || "")).replace(/\\n/g, "");
-
-  function visibleIds() {
-    const q = key(state.query);
-    const keep = new Set();
-    const focusId = state.focus;
-    const inFocus = (n) => (focusId ? isUnder(n, focusId) : true);
-    kpNodes.forEach((n) => {
-      if (!state.grades[n.grade || "B"]) return;
-      if (!inFocus(n)) return;
-      if (state.view === "relations" && !(n.degree > 0)) return;
-      if (state.view === "overview" && !q && n.tier === "leaf") return;
-      if (q) {
-        const blob = key(text(n) + " " + (clusterOf(n) ? clusterOf(n).name : "")
-          + " " + (clusterOf(clusterOf(n)) ? clusterOf(clusterOf(n)).name : ""));
-        if (blob.indexOf(q) < 0) return;
-      }
-      keep.add(n.id);
+  window.lcFitCanvas = function () {
+    cy.animate({
+      fit: { padding: 48 },
+      duration: 380,
+      easing: 'ease-in-out-cubic'
     });
-    NODES.filter((n) => n.kind !== "kp").forEach((c) => {
-      const kids = kpNodes.filter((n) => isUnder(n, c.id));
-      if (kids.some((k) => keep.has(k.id))) keep.add(c.id);
-    });
-    return keep;
-  }
-
-  function apply() {
-    const keep = visibleIds();
-    let shown = 0;
-    cy.nodes().forEach((node) => {
-      const d = node.data();
-      if (d.kind === "kp") {
-        const ok = keep.has(d.id);
-        if (ok) shown += 1;
-        node.toggleClass("is-hidden", !ok);
-      } else {
-        const kids = kpNodes.filter((n) => isUnder(n, d.id));
-        const visibleKids = kids.filter((k) => keep.has(k.id)).length;
-        node.data("label", d.name + " (" + visibleKids + "/" + kids.length + ")");
-        node.toggleClass("is-hidden", !(keep.has(d.id) || visibleKids > 0));
-      }
-    });
-    cy.edges().forEach((edge) => {
-      const d = edge.data();
-      const structural = d.type === "same_topic" || d.type === "order";
-      const ok = (!structural || !!state.structure)
-        && !cy.getElementById(d.source).hasClass("is-hidden")
-        && !cy.getElementById(d.target).hasClass("is-hidden");
-      edge.toggleClass("is-hidden", !ok);
-    });
-    if (countEl) countEl.innerHTML = "已显示 <b>" + shown + "</b> / 共 " + kpNodes.length + " 个知识点";
-    root.querySelectorAll("#lc-kg-views button").forEach((btn) => {
-      btn.classList.toggle("is-on", btn.getAttribute("data-view") === state.view);
-    });
-    if (structureEl) structureEl.checked = !!state.structure;
-    if (searchEl && searchEl.value !== state.query) searchEl.value = state.query;
-    persist();
-  }
-
-  function relayout() {
-    cy.layout(layoutOptions()).run();
-    cy.fit(cy.elements(":visible"), 26);
-  }
-
-  const escapeHtml = (s) => String(s).replace(/[&<>"']/g, (ch) =>
-    ({"&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"})[ch]);
-
-  const stars = (n) => {
-    const v = Math.max(0, Math.min(5, parseInt(n.importance || 3, 10) || 3));
-    return "★".repeat(v) + "☆".repeat(5 - v);
   };
 
-  function block(title, items, limit) {
-    const list = (items || []).slice(0, limit || 4);
-    if (!list.length) return "";
-    return '<div class="lc-kg-block"><div class="lc-kg-k">' + title + "</div><ul>"
-      + list.map((x) => "<li>" + escapeHtml(x) + "</li>").join("") + "</ul></div>";
-  }
+  window.lcRelayout = function () {
+    const layout = cy.layout({
+      name: 'cose',
+      animate: true,
+      animationDuration: 500,
+      componentSpacing: 135,
+      nodeRepulsion: 18000,
+      idealEdgeLength: (edge) => edge.data('type') === 'prerequisite' ? 120 : 155,
+      gravity: 0.28,
+      padding: 48
+    });
+    layout.run();
+  };
 
-  function neighbors(set) {
-    const names = set.filter((x) => x.data("kind") === "kp")
-      .map((x) => '<span class="lc-kg-chip">' + escapeHtml(x.data("name")) + "</span>");
-    return names.length ? names.join("") : '<span class="lc-kg-ev">无</span>';
-  }
-
-  function showDetail(id) {
-    const n = N[id];
-    if (!n || !detailEl) return;
-    if (n.kind !== "kp") {
-      const kids = kpNodes.filter((x) => isUnder(x, n.id));
-      detailEl.innerHTML = '<div class="lc-kg-name">' + escapeHtml(n.name) + "</div>"
-        + '<div class="lc-kg-block"><div class="lc-kg-k">'
-        + (n.kind === "chapter" ? "本章知识点" : "本节知识点") + "（" + kids.length + "）</div><div>"
-        + kids.map((k) => '<span class="lc-kg-chip">' + escapeHtml(k.name) + "</span>").join("")
-        + "</div></div>";
-      return;
+  window.lcFocusNode = function (targetName) {
+    if (!targetName) return;
+    const cleanTarget = String(targetName).trim();
+    const target = cy.nodes().filter((n) => {
+      return String(n.data('name')).trim() === cleanTarget
+        || String(n.data('label')).trim() === cleanTarget
+        || String(n.id()).trim() === cleanTarget
+        || String(n.data('kp_id')).trim() === cleanTarget;
+    });
+    if (target.length) {
+      cy.animate({
+        center: { eles: target },
+        zoom: Math.max(cy.zoom(), 1.2),
+        duration: 400,
+        easing: 'ease-in-out-cubic'
+      });
+      target.emit('tap');
     }
-    const node = cy.getElementById(id);
-    detailEl.innerHTML = '<div class="lc-kg-name">' + escapeHtml(n.name) + "</div>"
-      + '<div class="lc-kg-k">' + escapeHtml(String(n.grade || "B")) + " 档 · " + stars(n)
-      + " · 难度 " + escapeHtml(String(n.difficulty || 3)) + " · 关联度 " + escapeHtml(String(n.degree || 0))
-      + "</div>"
-      + (n.explain ? "<div>" + escapeHtml(n.explain) + "</div>" : "")
-      + block("知识要点", n.knowledge_items, 5)
-      + block("易错提醒", n.pitfalls, 3)
-      + '<div class="lc-kg-block"><div class="lc-kg-k">前置</div><div>' + neighbors(node.incomers("node")) + "</div></div>"
-      + '<div class="lc-kg-block"><div class="lc-kg-k">关联</div><div>' + neighbors(node.outgoers("node")) + "</div></div>"
-      + (n.kp_id
-        ? '<a class="lc-kg-src" href="#ck-card-' + encodeURIComponent(n.kp_id) + '">在清单中定位 ↓</a>'
-        : "");
-  }
+  };
 
-  function highlight(id) {
-    cy.elements().removeClass("is-faded is-hot");
-    if (!id) return;
-    const node = cy.getElementById(id);
-    if (!node || node.empty()) return;
-    const hood = node.closedNeighborhood();
-    cy.elements().not(hood).addClass("is-faded");
-    hood.addClass("is-hot");
-  }
+  // 过滤应用逻辑
+  function applyFilters() {
+    const q = (state.search || '').trim().toLowerCase();
+    let visibleCount = 0;
 
-  function focusCluster(id) {
-    state.focus = state.focus === id ? "" : id;
-    state.view = state.focus ? "topic" : "overview";
-    apply();
-    if (state.focus) {
-      cy.fit(cy.elements(":visible"), 30);
-      showDetail(id);
-    } else {
-      relayout();
+    cy.nodes().forEach((node) => {
+      const g = String(node.data('grade') || '').toUpperCase();
+      const ch = String(node.data('chapter') || '').trim();
+      const inDeg = Number(node.data('in_degree')) || 0;
+      const outDeg = Number(node.data('out_degree')) || 0;
+      const name = String(node.data('name') || '').toLowerCase();
+
+      let visible = true;
+      if (state.view === 'core' && g !== 'S' && g !== 'A') visible = false;
+      if (state.view === 'dag' && inDeg === 0 && outDeg === 0) visible = false;
+      if (state.chapter && ch !== state.chapter) visible = false;
+      if (q && name.indexOf(q) < 0) visible = false;
+
+      node.style('display', visible ? 'element' : 'none');
+      if (visible) visibleCount += 1;
+    });
+
+    let visibleEdgeCount = 0;
+    cy.edges().forEach((edge) => {
+      const srcVisible = edge.source().style('display') !== 'none';
+      const tgtVisible = edge.target().style('display') !== 'none';
+      let edgeVisible = srcVisible && tgtVisible;
+      if (state.view === 'dag' && edge.data('type') !== 'prerequisite') {
+        edgeVisible = false;
+      }
+      edge.style('display', edgeVisible ? 'element' : 'none');
+      if (edgeVisible) visibleEdgeCount += 1;
+    });
+
+    const countBox = document.getElementById('lc-kg-count');
+    if (countBox) {
+      countBox.innerHTML = `已显示 <b>${visibleCount}</b> / 共 ${NODES.length} 个考点 · ${visibleEdgeCount} 条关系`;
     }
   }
 
-  root.querySelectorAll("#lc-kg-views button").forEach((btn) => {
-    btn.addEventListener("click", () => {
-      state.view = btn.getAttribute("data-view") || "overview";
-      if (state.view !== "topic") state.focus = "";
-      apply();
-      relayout();
+  applyFilters();
+
+  // 事件监听：点击节点（高亮一跳邻域，淡化其余）
+  cy.on('tap', 'node', (evt) => {
+    const node = evt.target;
+    cy.elements().removeClass('selected');
+    node.addClass('selected');
+    state.selectedId = node.id();
+
+    cy.elements().addClass('faded');
+    node.removeClass('faded');
+    node.closedNeighborhood().removeClass('faded');
+  });
+
+  // 点击边
+  cy.on('tap', 'edge', (evt) => {
+    const edge = evt.target;
+    cy.elements().removeClass('selected');
+    edge.addClass('selected');
+    edge.connectedNodes().addClass('selected');
+
+    cy.elements().addClass('faded');
+    edge.removeClass('faded');
+    edge.connectedNodes().removeClass('faded');
+  });
+
+  // 点击空白还原
+  cy.on('tap', (evt) => {
+    if (evt.target === cy) {
+      cy.elements().removeClass('faded selected');
+      state.selectedId = '';
+    }
+  });
+
+  // 悬停高亮一跳邻居（未固定选中时生效）
+  cy.on('mouseover', 'node', (evt) => {
+    if (state.selectedId) return;
+    const node = evt.target;
+    cy.elements().addClass('faded');
+    node.closedNeighborhood().removeClass('faded');
+    node.removeClass('faded');
+  });
+
+  cy.on('mouseout', 'node', () => {
+    if (state.selectedId) return;
+    cy.elements().removeClass('faded');
+  });
+
+  // 视图切换按钮绑定
+  document.querySelectorAll('#lc-kg-views button').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('#lc-kg-views button').forEach((b) => b.classList.remove('is-active'));
+      btn.classList.add('is-active');
+      state.view = btn.getAttribute('data-view') || 'all';
+      applyFilters();
+      window.lcFitCanvas();
     });
   });
-  if (structureEl) {
-    structureEl.addEventListener("change", () => { state.structure = !!structureEl.checked; apply(); });
+
+  // 章节下拉选择
+  const chapterSelect = document.getElementById('lc-kg-chapter-select');
+  if (chapterSelect) {
+    chapters.forEach((ch) => {
+      const opt = document.createElement('option');
+      opt.value = ch;
+      opt.textContent = ch;
+      chapterSelect.appendChild(opt);
+    });
+    chapterSelect.addEventListener('change', () => {
+      state.chapter = chapterSelect.value;
+      applyFilters();
+      window.lcFitCanvas();
+    });
   }
-  if (fitEl) {
-    fitEl.addEventListener("click", () => relayout());
+
+  // 搜索框
+  const searchInput = document.getElementById('lc-kg-search');
+  if (searchInput) {
+    searchInput.addEventListener('input', () => {
+      state.search = searchInput.value;
+      applyFilters();
+    });
+    searchInput.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') {
+        const val = (searchInput.value || '').trim();
+        if (val) window.lcFocusNode(val);
+      }
+    });
   }
-  root.querySelectorAll("#lc-kg-grades input").forEach((box) => {
-    box.checked = state.grades[box.value] !== false;
-    box.addEventListener("change", () => { state.grades[box.value] = !!box.checked; apply(); });
+
+  // 图例绑定（去除括号和数字计数，纯净章节名称）
+  const legendBox = document.getElementById('lc-kg-legend');
+  if (legendBox) {
+    legendBox.innerHTML = chapters.map((ch) => {
+      const colorPair = chapterColors[ch] || ['#e0f2fe', '#0284c7'];
+      return `
+        <div class="lc-kg-legend-item" onclick="document.getElementById('lc-kg-chapter-select').value='${esc(ch)}'; document.getElementById('lc-kg-chapter-select').dispatchEvent(new Event('change'));">
+          <span class="lc-kg-swatch" style="background:${colorPair[0]}; border-color:${colorPair[1]};"></span>
+          <span>${esc(ch)}</span>
+        </div>
+      `;
+    }).join('');
+  }
+
+  // 核心关系图例
+  const relLegendBox = document.getElementById('lc-kg-rel-legend');
+  if (relLegendBox) {
+    relLegendBox.innerHTML = Object.entries(RELATION_CONFIG).slice(0, 4).map(([key, conf]) => {
+      return `
+        <div class="lc-kg-legend-item" style="cursor:default;">
+          <span style="display:inline-block;width:15px;height:2.5px;background:${conf.color};margin-right:4px;border-radius:1px;"></span>
+          <span>${esc(conf.label)}关系</span>
+        </div>
+      `;
+    }).join('');
+  }
+
+  // 初始自适应视野
+  cy.ready(() => {
+    cy.fit(undefined, 48);
   });
-  if (searchEl) {
-    searchEl.addEventListener("input", () => { state.query = searchEl.value.trim(); apply(); });
-  }
-
-  cy.on("tap", "node", (evt) => {
-    const d = evt.target.data();
-    if (d.kind === "kp") { highlight(d.id); showDetail(d.id); }
-    else focusCluster(d.id);
-  });
-  cy.on("tap", (evt) => { if (evt.target === cy) highlight(""); });
-  cy.on("mouseover", "node", (evt) => highlight(evt.target.data("id")));
-  cy.on("mouseout", "node", () => highlight(""));
-
-  if (legendEl) {
-    const rows = [["S 档", GRADE_COLOR.S], ["A 档", GRADE_COLOR.A], ["B 档", GRADE_COLOR.B],
-                  ["C 档", GRADE_COLOR.C], ["前置边", "#ea580c"], ["关联边", "#9333ea"],
-                  ["同节边", "#c7c2b8"], ["章内顺序", "#b9b2a6"]];
-    legendEl.innerHTML = rows.map(([name, color]) =>
-      '<div class="lc-kg-legend-item"><span class="lc-kg-swatch" style="background:' + color + '"></span>'
-      + name + "</div>").join("");
-  }
-
-  apply();
-  cy.ready(() => cy.fit(cy.elements(":visible"), 26));
 })();
 </script>"""
 
 
-def build_checklist_graph_embed(
-    nodes: list[dict],
-    edges: list[dict],
-    title: str = "",
-) -> str:
-    """把 ``(nodes, edges)`` 渲染成自包含的图谱区块（工具栏 + 画布 + 详情栏）。
-
-    ``nodes`` 需带 ``kind``（chapter / topic / kp）与 KP 的 ``parent``；``edges``
-    的 ``type`` 为 prerequisite / related / same_topic / order。缺字段按空值渲染，
-    不抛错——图是展示层，不能因为一个字段缺失就打断清单生成。
-    """
+def build_checklist_graph_embed(nodes: list[dict], edges: list[dict], title: str = "") -> str:
+    """checklist 内嵌的高级知识图谱组件（学术风格 + 力导向布局 + 纯净图例）。"""
     heading = (title or "").strip() or "考点知识图谱"
-    payload_nodes = dumps(nodes or [], ensure_ascii=False).replace("<", "\\u003c")
-    payload_edges = dumps(edges or [], ensure_ascii=False).replace("<", "\\u003c")
-    script = _SCRIPT.replace("{nodes}", payload_nodes).replace("{edges}", payload_edges)
-    return (
-        _STYLE
-        + '<div class="lc-kg">\n'
-        + '  <div class="lc-kg-bar">\n'
-        + f'    <strong>{escape(heading)}</strong>\n'
-        + '    <span class="lc-kg-group" id="lc-kg-views">\n'
-        + '      <button type="button" data-view="overview" class="is-on">概览</button>\n'
-        + '      <button type="button" data-view="topic">主题</button>\n'
-        + '      <button type="button" data-view="relations">关系</button>\n'
-        + '      <button type="button" data-view="all">全量</button>\n'
-        + "    </span>\n"
-        + '    <span class="lc-kg-group" id="lc-kg-grades">\n'
-        + "      <span>等级</span>\n"
-        + '      <label><input type="checkbox" value="S" checked>S</label>\n'
-        + '      <label><input type="checkbox" value="A" checked>A</label>\n'
-        + '      <label><input type="checkbox" value="B" checked>B</label>\n'
-        + '      <label><input type="checkbox" value="C" checked>C</label>\n'
-        + "    </span>\n"
-        + '    <span class="lc-kg-group" id="lc-kg-structure">\n'
-        + '      <label><input type="checkbox" id="lc-kg-structure-on" checked>结构边</label>\n'
-        + "    </span>\n"
-        + '    <input type="search" id="lc-kg-search" placeholder="搜索知识点/主题…">\n'
-        + '    <button type="button" id="lc-kg-fit">重新排版</button>\n'
-        + '    <span class="lc-kg-count" id="lc-kg-count"></span>\n'
-        + "  </div>\n"
-        + '  <div class="lc-kg-shell">\n'
-        + '    <div id="lc-cy"></div>\n'
-        + '    <aside class="lc-kg-aside">\n'
-        + f"      <h3>{escape(heading)}</h3>\n"
-        + '      <div class="lc-kg-label">当前选中</div>\n'
-        + '      <div id="lc-kg-detail" class="lc-kg-detail"></div>\n'
-        + '      <div class="lc-kg-label">图例</div>\n'
-        + '      <div id="lc-kg-legend" class="lc-kg-legend"></div>\n'
-        + "    </aside>\n"
-        + "  </div>\n"
-        + "</div>\n"
-        + script
+    script = _SCRIPT_TEMPLATE.replace(
+        "__NODES__", dumps(nodes, ensure_ascii=False)
+    ).replace(
+        "__EDGES__", dumps(edges, ensure_ascii=False)
     )
+
+    return f"""{_STYLE}
+<div class="lc-kg">
+  <div class="lc-kg-bar">
+    <div class="lc-kg-title-group">
+      <strong>{escape(heading)}</strong>
+      <span class="lc-kg-count" id="lc-kg-count"></span>
+    </div>
+    <div class="lc-kg-toolbar">
+      <div class="lc-kg-btn-group" id="lc-kg-views">
+        <button type="button" class="lc-kg-tool-btn is-active" data-view="all">全部考点</button>
+        <button type="button" class="lc-kg-tool-btn" data-view="dag">前置主干</button>
+        <button type="button" class="lc-kg-tool-btn" data-view="core">核心考点</button>
+      </div>
+      <select id="lc-kg-chapter-select" class="lc-kg-select">
+        <option value="">全部章节</option>
+      </select>
+      <button type="button" class="lc-kg-btn-single" onclick="window.lcFitCanvas && window.lcFitCanvas()" title="视口居中自适应">居中自适应</button>
+      <button type="button" class="lc-kg-btn-single" onclick="window.lcRelayout && window.lcRelayout()" title="重新排列图谱">重新排版</button>
+      <input type="search" id="lc-kg-search" class="lc-kg-search" placeholder="搜索考点…">
+    </div>
+  </div>
+  <div class="lc-kg-shell">
+    <div class="lc-kg-canvas-container">
+      <div id="lc-cy"></div>
+    </div>
+    <aside class="lc-kg-aside">
+      <div class="lc-kg-panel-head">
+        <span>章节分类</span>
+      </div>
+      <div id="lc-kg-legend" class="lc-kg-legend"></div>
+      <div class="lc-kg-panel-head" style="margin-top: 10px;">
+        <span>核心关系</span>
+      </div>
+      <div id="lc-kg-rel-legend" class="lc-kg-legend"></div>
+    </aside>
+  </div>
+</div>
+{script}"""

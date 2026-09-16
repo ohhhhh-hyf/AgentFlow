@@ -959,11 +959,13 @@ def test_catalog_taxonomy() -> None:
 
 
 def test_checklist_graph_layers() -> None:
-    """图谱分层与交互（零 LLM）：三层复合簇、边分型、前端标记、**不丢内容**。
+    """图谱学术风格与交互（零 LLM）：平级外接圆节点、前置 DAG 主干、无多余乱线、**不丢内容**。
 
-    盯的是这次的真实状况：43 节点 / 0 边 / 43 孤立 / 力导向一次性铺满（用户看到的
-    "太杂太乱、全是分离的知识点"）。修法：层次用复合簇表达 + 结构边就地推导（不依赖重跑）
-    + 视图/过滤/搜索/就地展开 + 折叠只是"没画"（计数可见、随时可切全量）。
+    - 节点均为平级知识点（无 compound 复合嵌套，彻底消除挤压粘连）；
+    - 尺寸按照文字内容外接圆精确计算，带初始章节空间排布；
+    - 边精简剪枝：突出「前置依赖」主干 DAG，过滤冗余密集连线；
+    - 移除考点详情检查器，图例去除所有括号与数字计数；
+    - 视图/搜索/自适应排版齐全，卡片锚点 100% 覆盖。
     """
     import collections
 
@@ -987,39 +989,36 @@ def test_checklist_graph_layers() -> None:
     ]
     nodes, edges = _graph_payload(cards)
     kinds = collections.Counter(n["kind"] for n in nodes)
-    check("图谱三层：章 / 主题 / 知识点",
-          kinds["chapter"] == 3 and kinds["topic"] == 4 and kinds["kp"] == len(cards),
+    check("图谱平级节点：全覆盖知识点",
+          kinds["kp"] == len(cards) and "chapter" not in kinds and "topic" not in kinds,
           f"kinds={dict(kinds)}")
     kps = [n for n in nodes if n["kind"] == "kp"]
-    check("每个知识点都挂在主题簇下（复合簇覆盖 100%）",
-          all(n.get("parent") for n in kps)
-          and all(str(n["parent"]).startswith("cluster-tp-") for n in kps),
-          f"parents={[n.get('parent') for n in kps]}")
+    check("每个知识点均带外接圆尺寸与初始空间排布",
+          all(n.get("size", 0) > 0 and "position" in n for n in kps),
+          f"sizes={[n.get('size') for n in kps]}")
     check("孤立知识点被标 leaf（供折叠/低调显示，不删除）",
           any(n["tier"] == "leaf" for n in kps)
           and all(n["kind"] == "kp" for n in nodes if n.get("tier")),
           f"tiers={[n['tier'] for n in kps]}")
-    check("簇节点带子节点计数（概览视图的标签来源）",
-          all(n.get("count") for n in nodes if n["kind"] == "topic"),
-          f"counts={[n.get('count') for n in nodes if n['kind'] == 'topic']}")
     types = collections.Counter(e["type"] for e in edges)
-    check("边分型：语义边 + 结构边（结构边就地推导，老目录也有骨架）",
-          types["prerequisite"] >= 1 and types["related"] >= 1
-          and types["same_topic"] >= 1 and types["order"] >= 1,
+    check("核心主干边：前置依赖 DAG 优先",
+          types["prerequisite"] >= 1,
           f"types={dict(types)}")
-    check("度数/层级由程序算（供默认可见性与折叠）",
+    check("度数/层级由程序算（供默认可见性与过滤）",
           all("degree" in n and n["tier"] in {"hub", "normal", "leaf"} for n in kps)
           and any(n["tier"] == "leaf" for n in kps),
           f"tiers={[n['tier'] for n in kps]}")
-    check("节点带卡片锚点（侧栏可跳回清单）",
+    check("节点带卡片锚点（保证可对应清单）",
           all(n.get("kp_id") for n in kps), f"kp_ids={[n.get('kp_id') for n in kps]}")
 
     from domain.notes.tasks.checklist.display import build_checklist_html
 
     html = build_checklist_html({"course": "测试", "cards": cards}, has_teacher=False)
-    for marker in ("lc-kg-views", "lc-kg-grades", "lc-kg-search", "lc-kg-count",
-                   "lc-kg-structure", "lc-kg-state-v1", "breadthfirst", "在清单中定位"):
+    for marker in ("lc-kg-views", "lc-kg-search", "lc-kg-count", "前置主干", "cose"):
         check(f"图谱组件含 {marker}", marker in html, "缺少该标记")
+    check("已删除考点详情检查器", "考点详情检查器" not in html, "仍存在检查器标记")
+    check("图例去除了括号与数字计数", "(${count})" not in html, "仍存在括号计数标记")
+
     anchors = set(re.findall(r'id="ck-card-([^"]*)"', html))
     named = {str(c["id"]) for c in cards if str(c["name"]) in html}
     check("**不丢内容**：每张卡片都能定位（卡片锚点，或至少在导航表里可见）",
