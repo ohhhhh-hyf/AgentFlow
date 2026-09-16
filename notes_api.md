@@ -164,7 +164,7 @@ http://127.0.0.1:8000/data/1/output/demo-1/checklist.html
 |---|---|---|---|
 | `subject` | `library` / `catalog` / `checklist` | 400（必填） | 空串=同上；非法字符被转拼音清洗 |
 | `profile` | 四条线（视角建模） | 客观全员视角 | 400 `extra.profile 非法：…` |
-| `template` | 四条线（模板渲染） | 不套模板 | 400 `extra.template 非法：…（格式为 {场景ID}_{模板ID}）` |
+| `template` | 四条线（模板渲染） | 不套模板 | 400 `extra.template 非法：…（格式为 {场景ID}_{模板ID}）`；**29 个可填值见 8.5** |
 | `memory` | `graph`（跨会话增量） | 不启用 | 非 bool → 422 |
 | `project` | 记忆维度 | 空 | — |
 | `style` | meeting 的 `minutes_styles` | — | notes 域忽略 |
@@ -791,3 +791,51 @@ print("预览:", f"{BASE}/api/v1/notes/checklist/preview?request_id={result['req
 - 本文：notes 域四条线的**完整用法**（含每条线的坑与验收指标），可独立使用。
 - [api.md](api.md)：全局约定（启动方式、meeting 域六条线、异步接口的原始契约）、以及两域共用的字段定义。
 - 自动文档：服务启动后 `http://127.0.0.1:8000/docs`（Swagger UI，可直接试调，注意填 `X-User-Id`）。
+
+### 8.5 `extra.template` 全部可填值（8 场景 / 29 个模板）
+
+取值格式固定为 **`{场景ID}_{模板ID}`**（不是模板中文名，也不是裸模板 ID）：
+
+| 场景 | 可填值（`extra.template`） | 中文名 |
+|---|---|---|
+| 会议 | `meeting_minutes_team_meeting` | 团队例会 |
+| 会议 | `meeting_minutes_project_progress` | 项目进度会 |
+| 会议 | `meeting_minutes_decision_review` | 决策评审会 |
+| 会议 | `meeting_minutes_workshop_session` | 工作研讨会 |
+| 会议 | `meeting_minutes_retrospective_session` | 总结复盘会 |
+| 会议 | `meeting_minutes_exchange_forum` | 沟通交流会 |
+| 学习 | `study_notes_class_transcript` | 课堂记录 |
+| 学习 | `study_notes_special_lecture` | 专题讲座 |
+| 学习 | `study_notes_group_seminar` | 小组讨论 |
+| 学习 | `study_notes_knowledge_memo` | 知识笔记 |
+| 学习 | `study_notes_debate_forum` | 辩论会 |
+| 访谈 | `dialogue_interview_research_dialogue` | 调研访谈 |
+| 访谈 | `dialogue_interview_interview_transcript` | 采访记录 |
+| 面试 | `job_interview_hiring_report` | 面试报告 |
+| 面试 | `job_interview_interview_debrief` | 面试复盘 |
+| 医疗问诊 | `medical_consultation_clinical_advisory` | 就医咨询 |
+| 医疗问诊 | `medical_consultation_psychological_session` | 心理咨询 |
+| 法律沟通 | `legal_consultation_legal_advisory` | 法律咨询 |
+| 法律沟通 | `legal_consultation_contract_vetting` | 合同审核 |
+| 法律沟通 | `legal_consultation_court_transcript` | 庭审记录 |
+| 新闻发布 | `press_conference_media_briefing` | 新闻发布 |
+| 新闻发布 | `press_conference_media_qa_session` | 媒体问答 |
+| 新闻发布 | `press_conference_product_launch` | 产品发布 |
+| 新闻发布 | `press_conference_government_bulletin` | 政府报告 |
+| 日常记录 | `daily_journal_general_minutes` | 通用纪要 |
+| 日常记录 | `daily_journal_conversation_transcript` | 对话记录 |
+| 日常记录 | `daily_journal_personal_memo` | 个人备忘 |
+| 日常记录 | `daily_journal_home_school_liaison` | 家校沟通 |
+| 日常记录 | `daily_journal_site_visit_tour` | 参观游览 |
+
+**规则**：
+
+- 空串 = **不套模板**（默认）；**不按域/任务线限制** —— notes 域填 `meeting_minutes_*` 也能通过，反之亦然
+  （只有校验"值是否在注册表里"）。
+- 非法值 → 400 `extra.template 非法：…（格式为 {场景ID}_{模板ID}）`，**不会静默忽略**。
+  常见误填：只写模板名（`team_meeting`）或只写场景名（`meeting_minutes`）→ 都会 400。
+- notes 域最贴的通常是 **`study_notes_*`**（课堂记录 / 专题讲座 / 小组讨论 / 知识笔记 / 辩论会）
+  与 **`daily_journal_*`**（通用纪要 / 对话记录 / 个人备忘）。
+- 模板源：权威源是项目根 `cm_template_v2_changed_0722.yaml`；**该文件缺失时**自动回退到
+  `template/README.md` + `template/*.md`（文件名 = 模板 ID），两种来源下上表 29 个值都可用。
+  新增/修改模板：优先改 yaml 并同步 `template/` 里的 md 副本（见 `template/README.md`）。
