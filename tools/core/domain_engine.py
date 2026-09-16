@@ -209,9 +209,11 @@ class DomainNodes:
         mode = self._mode_label(state)
         cn = line_cn(line_name, self._line_cn_names)
         allowed = (
-            "本轮可以选择 approve、revise 或 reject。"
+            "本轮可以选择 approve、revise 或 reject"
+            "（选 revise 必须给出具体可执行、有原文依据的返工点；给不出就 approve）。"
             if revision_count < self.MAX_REVISIONS
-            else "返工次数已用完，本轮只能选择 approve 或 reject。"
+            else "返工次数已用完：**本轮默认 approve**；仅当上一轮 feedback 指出的问题仍未修复，"
+            "或命中领域规则里的「reject 可判定条件」时才 reject。"
         )
         return (
             f"视角模式：{mode}\n"
