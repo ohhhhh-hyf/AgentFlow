@@ -78,6 +78,20 @@ class LLMClient:
         self.timeout = cfg.timeout
         self.max_retries = cfg.max_retries
         self.context_length = int(getattr(cfg, "context_length", 0) or 65536)
+        # 生效配置一览：排查"服务器上到底用的什么参数"（不含 api_key）
+        logger.info(
+            "llm client backend=%s model=%s base_url=%s ctx=%s max_tokens=%s timeout=%s retries=%s"
+            " temperature=%s sampling_sent=%s",
+            self.backend or self.provider,
+            self.model,
+            self.base_url or self.ws_url,
+            self.context_length,
+            self.max_tokens,
+            self.timeout,
+            self.max_retries,
+            self.temperature,
+            self.send_sampling,
+        )
         # 调用统计
         self.usage_totals: dict[str, int] = {
             "prompt_tokens": 0,
@@ -325,6 +339,13 @@ class LLMClient:
             return self._http_once(messages, json_mode, temp, tok, to, label)
         except urllib.error.HTTPError as exc:
             detail = exc.read().decode("utf-8", errors="replace")
+            logger.warning(
+                "llm http error label=%s model=%s code=%s body=%s",
+                label,
+                self.model,
+                exc.code,
+                detail[:400].replace("\n", " "),
+            )
             if exc.code == 400:
                 fitted = self._max_tokens_from_context_error(detail)
                 if fitted is not None and (tok is None or fitted < int(tok)):
@@ -378,10 +399,32 @@ class LLMClient:
             try:
                 resp = json.loads(raw)
                 self._record_usage(resp.get("usage"), count_call=True, label=label)
-                return self._sanitize_content(
-                    resp["choices"][0]["message"].get("content") or ""
+                choice = resp["choices"][0]
+                message = choice.get("message") or {}
+                usage = resp.get("usage") or {}
+                content = self._sanitize_content(message.get("content") or "")
+                # 每次响应一行：finish_reason=length 表示被 max_tokens 截断（JSON 常因此坏掉）
+                logger.info(
+                    "llm resp label=%s model=%s finish=%s in=%s out=%s json_mode=%s chars=%s",
+                    label,
+                    self.model,
+                    choice.get("finish_reason"),
+                    usage.get("prompt_tokens"),
+                    usage.get("completion_tokens"),
+                    json_mode,
+                    len(content),
                 )
+                if not content.strip():
+                    logger.warning(
+                        "llm empty content label=%s finish=%s message_keys=%s raw_head=%r",
+                        label,
+                        choice.get("finish_reason"),
+                        sorted(message.keys()),
+                        raw[:200],
+                    )
+                return content
             except (json.JSONDecodeError, KeyError, IndexError, TypeError) as exc:
+                logger.warning("llm nonstandard resp label=%s raw_head=%r", label, raw[:200])
                 raise RuntimeError(
                     f"{label} API 返回非标准响应：{raw[:200]!r}"
                 ) from exc
@@ -805,6 +848,12 @@ class LLMClient:
                 continue
             if not (last_content or "").strip():
                 last_error = "模型返回空正文"
+                logger.warning(
+                    "structured empty content label=%s attempt=%s/%s",
+                    label or response_model.__name__,
+                    attempt + 1,
+                    self.max_retries + 1,
+                )
                 if attempt < self.max_retries:
                     await self._retry_delay(attempt)
                     continue
@@ -813,6 +862,13 @@ class LLMClient:
                 return self._parse_and_validate(last_content, response_model)
             except OutputValidationError as exc:
                 last_error = str(exc)
+                logger.warning(
+                    "structured invalid label=%s attempt=%s err=%s raw_head=%r",
+                    label or response_model.__name__,
+                    attempt + 1,
+                    last_error[:300],
+                    (last_content or "")[:200],
+                )
                 # 截断类失败：程序修复保留最后一个完整条目，零额外调用
                 if str(exc).startswith("不是合法 JSON"):
                     repaired = self._repair_truncated_json(

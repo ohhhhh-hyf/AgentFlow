@@ -88,6 +88,25 @@ Linux 推荐配置：
 python -m playwright install chromium
 ```
 
+#### 日志（落盘 + 诊断专用文件）
+
+服务启动后自动写两份日志（都在仓库根 `logs/` 下，按大小轮转；`.gitignore` 已忽略该目录）：
+
+| 文件 | 内容 | 用途 |
+|---|---|---|
+| `logs/agentflow.log` | 全部 INFO 及以上 | 常规排查 |
+| `logs/diag.log` | **只装诊断行**：LLM 调用/响应（含 `finish_reason`、token 数、输入估算）、审核结论与理由、路由去向、降级汇总、任何 WARNING+ | **排查"生成有误/降级"时直接把这个文件给出去** |
+
+可用环境变量调整（都可省）：
+
+```dotenv
+AGENTFLOW_LOG_FILE=logs/agentflow.log     # 设空字符串可关闭文件输出
+AGENTFLOW_DIAG_LOG_FILE=logs/diag.log
+AGENTFLOW_LOG_LEVEL=INFO                  # DEBUG/INFO/WARNING/ERROR
+AGENTFLOW_LOG_MAX_MB=20                   # 单文件上限（超限轮转）
+AGENTFLOW_LOG_BACKUPS=5                   # 轮转保留份数
+```
+
 #### Redis（异步任务接口依赖，同步接口不需要）
 
 `POST/GET /api/v1/tasks` 系列把任务状态与事件流放在 Redis。容器方式启动（AOF 持久化 +

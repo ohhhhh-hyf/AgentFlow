@@ -468,6 +468,15 @@ class DomainNodes:
                 }
             payload = review.model_dump() if hasattr(review, "model_dump") else dict(review)
             progress("agent done review line=%s decision=%s", line_name, payload.get("decision") or "returned")
+            # 降级排查：非 approve 时把审核给的理由（feedback/findings）一起落日志
+            if str(payload.get("decision") or "").strip().lower() in {"revise", "reject"}:
+                logger.info(
+                    "review reason line=%s decision=%s feedback=%s findings=%s",
+                    line_name,
+                    payload.get("decision"),
+                    json_dumps(payload.get("feedback"))[:800],
+                    json_dumps(payload.get("findings"))[:800],
+                )
             return {
                 "lines": {
                     line_name: {
@@ -514,13 +523,23 @@ class DomainNodes:
 
         def route(state: dict) -> str:
             decision = line(state, line_name)["review"]["decision"]
+            revisions = line(state, line_name).get("revision_count", 0)
             if decision == "approve":
-                return "__end__"
-            if decision == "reject" or line(state, line_name).get(
-                "revision_count", 0
-            ) >= self.MAX_REVISIONS:
-                return f"{line_name}_fallback"
-            return f"{line_name}_revision"
+                dest = "__end__"
+            elif decision == "reject" or revisions >= self.MAX_REVISIONS:
+                dest = f"{line_name}_fallback"
+            else:
+                dest = f"{line_name}_revision"
+            # 一句话看清"为什么走到降级"：reject，或返工次数用完且仍非 approve
+            logger.info(
+                "route line=%s decision=%s revision=%s/%s -> %s",
+                line_name,
+                decision,
+                revisions,
+                self.MAX_REVISIONS,
+                dest,
+            )
+            return dest
 
         return route
 
@@ -809,6 +828,17 @@ class DomainNodes:
                 "degraded": degraded,
                 "fallback": degraded or decision == "reject",
             }
+            if out[name]["fallback"]:
+                # 降级汇总一行：审核调用是否失败（degraded）+ 最终 decision + 返工次数 + 审核意见
+                logger.warning(
+                    "degraded line=%s decision=%s revisions=%s/%s review_call_failed=%s feedback=%s",
+                    name,
+                    decision or "(none)",
+                    revisions,
+                    self.MAX_REVISIONS,
+                    degraded,
+                    json_dumps(review.get("feedback"))[:600],
+                )
         return out
 
     def _final_reports(
