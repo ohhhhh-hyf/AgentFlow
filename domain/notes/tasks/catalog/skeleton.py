@@ -26,7 +26,7 @@ from pathlib import Path
 from typing import Any
 
 from tools.knowledge.document_processor import PAGE_MARK_RE
-from tools.knowledge.source_role import heading_level, is_ocr_notes_file
+from tools.knowledge.source_role import heading_level
 
 logger = logging.getLogger(__name__)
 
@@ -40,6 +40,7 @@ from .taxonomy import (
     is_placeholder_name,
     item_marks,
 )  # noqa: E402
+from tools.ocr.heading_levels import normalize_heading_levels  # noqa: E402
 
 _CONT_SUFFIX_RE = re.compile(r"[（(]\s*续\s*[）)]|续\s*$")
 _HEADING_PREFIX_RE = re.compile(
@@ -315,7 +316,19 @@ def parse_md_skeleton(text: str, *, source: str = "") -> dict[str, Any]:
     栈式标题树 + 确定性修补（续页合并 / 同名同级合并 / 跳级归位 / 名字去序号），
     层级映射按文件层级数归一。返回 ``{source, chapters, topics, stats}``；
     ``topics`` 是扁平视图（兼容既有消费方），带 ``chapter`` 字段。
+
+    解析前先做**跨页标题层级归一**（`tools.ocr.heading_levels`）：OCR 逐页定级号，
+    同一逻辑层跨页会漂移，不归一就会把主题当章（下游再补占位主题 `核心知识点`）。
+    放在这里而不是只放 OCR 侧，是为了让**已经生成好的合并稿**也能直接受益。
     """
+    text, level_stats = normalize_heading_levels(text or "")
+    if level_stats.get("unified") or level_stats.get("spans"):
+        logger.info(
+            "md heading levels normalized unified=%d spans=%d heads=%d",
+            level_stats.get("unified", 0),
+            level_stats.get("spans", 0),
+            level_stats.get("heads", 0),
+        )
     lines = (text or "").splitlines()
     heads, dropped = _collect_headings(text)
     roots, jumps = _build_tree(heads, lines)

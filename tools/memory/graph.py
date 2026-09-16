@@ -297,10 +297,6 @@ def sanitize_graph(draft: dict[str, Any]) -> dict[str, Any]:
     return out
 
 
-def _node_key(node: dict[str, Any]) -> str:
-    return _clean(node.get("name"))
-
-
 def _edge_key(edge: dict[str, Any]) -> tuple[str, str, str]:
     return (
         _clean(edge.get("source")),

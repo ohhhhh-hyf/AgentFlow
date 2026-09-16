@@ -258,7 +258,6 @@ def build_catalog_markdown(draft: dict[str, Any]) -> str:
 def attach_catalog_artifacts(state: dict[str, Any]) -> None:
     from tools.core.domain_engine_text import line
 
-    import json
     import logging
 
     logger = logging.getLogger(__name__)

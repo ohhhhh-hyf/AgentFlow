@@ -13,6 +13,7 @@ from pathlib import Path
 from typing import Callable, Iterator
 
 from tools.memory.store import safe_id
+from tools.ocr.heading_levels import normalize_heading_levels
 from tools.ocr.reconstruct import (
     deterministic_reconstruct_markdown,
     ensure_markdown_complete,
@@ -126,6 +127,16 @@ def save_light_ocr_outputs(
     stem = _safe_stem(path)
     reviewed_path = base_dir / f"{stem}.md"
     reviewed_markdown = normalize_markdown_math(reviewed_markdown)
+    # 落盘前做跨页层级归一（R1 同名同级别 / R2「（续）」容器）：级号本来是逐页按
+    # 版面定的，合并后同一逻辑层会漂移；入库稿是骨架的输入，漂移会把主题当章。
+    reviewed_markdown, level_stats = normalize_heading_levels(reviewed_markdown)
+    if level_stats.get("unified") or level_stats.get("spans"):
+        ocr_log(
+            "heading levels normalized"
+            f" unified={level_stats.get('unified', 0)}"
+            f" spans={level_stats.get('spans', 0)}"
+            f" heads={level_stats.get('heads', 0)}"
+        )
     reviewed_path.write_text(reviewed_markdown, encoding="utf-8")
 
     return LightOcrResult(
@@ -239,6 +250,14 @@ def images_to_reviewed_markdown(
             if raw:
                 raw_blocks.append(raw)
     merged = _join_reviewed_blocks(reviewed_blocks, page_spans)
+    # 与入库路径同款：落盘前跨页层级归一（只重写 `#` 数量，正文不动）
+    merged, level_stats = normalize_heading_levels(merged)
+    if level_stats.get("unified") or level_stats.get("spans"):
+        ocr_log(
+            "heading levels normalized"
+            f" unified={level_stats.get('unified', 0)}"
+            f" spans={level_stats.get('spans', 0)}"
+        )
     if persist_dir is not None and merged:
         stamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         folder = Path(persist_dir)
@@ -577,14 +596,35 @@ def _page_workers() -> int:
 
 
 def _page_heading_hint(lines: list[dict]) -> str:
-    """本页最后一个标题候选（版面 locked/heading），作为下一页的跨页上下文。"""
-    for item in reversed(lines or []):
+    """本页标题结构（含版面推断的相对层级），作为下一页的**跨页层级锚点**。
+
+    以前只给"上一页最后一个标题"，模型无从判断本页标题该用几级，容易按版面
+    （页顶/居中）各自起头 → 同一逻辑层跨页漂移。这里给出本页的标题链与它们的
+    相对层级（`heading_level_hint`，页内相对），下一页据此对齐；提示词侧的规则
+    见 ``RECONSTRUCT_SYSTEM_PROMPT`` 的"标题层级铁律"。
+    """
+    entries: list[tuple[int, str]] = []
+    for item in lines or []:
         role = str(item.get("role_hint") or "")
         decision = str(item.get("title_decision") or "")
         text = str(item.get("text") or "").strip()
-        if text and role != "formula" and (role == "heading" or decision == "locked_heading"):
-            return text[:60]
-    return ""
+        if not text or role == "formula":
+            continue
+        if role == "heading" or decision == "locked_heading":
+            level = int(item.get("heading_level_hint") or 0) or 2
+            entries.append((max(1, min(3, level)), text))
+    if not entries:
+        return ""
+    by_level: dict[int, list[str]] = {}
+    for level, text in entries:
+        by_level.setdefault(level, []).append(text[:40])
+    labels = {1: "一级", 2: "二级", 3: "三级"}
+    parts: list[str] = []
+    for level in sorted(by_level):
+        names = "、".join(dict.fromkeys(by_level[level])[:5])
+        if names:
+            parts.append(f"{labels.get(level, f'{level}级')}：{names}")
+    return "；".join(parts)
 
 
 def _dedupe_page_boundary_blocks(drafts: list[str], min_chars: int = 20) -> tuple[list[str], int, int]:
@@ -681,8 +721,18 @@ def _draft_pagewise(pages: list[dict], all_lines: list[dict]) -> str:
                 drafts.append(md)
     drafts, deduped_blocks, deduped_chars = _dedupe_page_boundary_blocks(drafts)
     note = f"，页界去重 {deduped_blocks} 段/{deduped_chars} 字符" if deduped_blocks else ""
+    merged = "\n\n".join(drafts)
+    # 跨页层级归一（R1 同名同级别 / R2「（续）」容器）：级号是逐页按版面定的，
+    # 合并后同一逻辑层会漂移，骨架按"树深度"分层就会把主题当章
+    # （下游再给空章补同名主题、改名成 `核心知识点`）。只重写 `#` 数量，正文不动。
+    merged, level_stats = normalize_heading_levels(merged)
+    if level_stats.get("unified") or level_stats.get("spans"):
+        note += (
+            f"，层级归一 同名{level_stats.get('unified', 0)}处"
+            f"/续写区间{level_stats.get('spans', 0)}处（标题 {level_stats.get('heads', 0)} 个）"
+        )
     ocr_log(f"ocr page reconstruct pages={n} workers={workers} zero_llm={deterministic_pages}{note}")
-    return "\n\n".join(drafts)
+    return merged
 
 
 def _review_enabled() -> bool:

@@ -6,7 +6,6 @@ from __future__ import annotations
 
 import asyncio
 import logging
-import sys
 
 from tools.core.domain_engine_text import line, line_cn, line_template
 
@@ -79,7 +78,6 @@ async def produce_line(
     title = engine._line_title(state, line_name)
     degraded = bool(line(state, line_name).get("degraded"))
     template = line_template(state, line_name)
-    cn = line_cn(line_name, engine._line_cn_names)
     try:
         from tools.runtime.progress import progress
 

@@ -42,7 +42,6 @@ _RELATION_COLORS = {
     "同考法": "#475569",
     "互相支撑": "#9333ea",
 }
-_DASHED_RELATIONS = {"相关", "示例", "对比/配套", "同考法", "互相支撑"}
 _CYTOSCAPE_CDN = "https://cdn.jsdelivr.net/npm/cytoscape@3.31.2/dist/cytoscape.min.js"
 
 

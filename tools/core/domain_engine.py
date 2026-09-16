@@ -443,7 +443,6 @@ class DomainNodes:
         取 feedback 显式传给 agent，避免两域键名/写入时机漂移。
         """
         cfg = self._task_lines[line_name]
-        cn = line_cn(line_name, self._line_cn_names)
 
         async def node(state: dict) -> dict:
             progress("agent start review line=%s", line_name)
@@ -485,7 +484,6 @@ class DomainNodes:
         并把 feedback / revision_count 持久化回 state。
         """
         async def node(state: dict) -> dict:
-            cn = line_cn(line_name, self._line_cn_names)
             progress("agent start rework line=%s", line_name)
             review = line(state, line_name).get("review") or {}
             feedback = review.get("feedback", []) or []

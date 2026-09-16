@@ -12,7 +12,7 @@ _gate（门禁编译）/_preview（可读化）五个子模块。
 4. validate_rendered_output 默认只读
 """
 from ._base import (
-    _body_han_count,
+    _body_han_count,  # noqa: F401 - 门面再导出：tools/runtime/render.py 从这里取
     clear_compile_caches,
     is_router_enabled,
     split_template_meta,

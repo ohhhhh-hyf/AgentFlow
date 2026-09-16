@@ -1,16 +1,22 @@
 """逐图检查页眉/页脚自适应判定（离线，带 OCR 结果缓存以便反复调参）。
 
 用法：
-    python tools/scripts/chrome_check.py [图片名...]
+    python tools/scripts/chrome_check.py [--dir 目录] [图片名...]
+        [--expect-drop 词1,词2] [--expect-keep 词1,词2]
 
-默认跑 data/1/docs 下全部 U202314751_*.jpg。首次运行会调引擎并把原始行
-缓存到系统临时目录，之后改阈值重跑不再重复 OCR。
+默认跑 ``data/1/docs`` 下全部 .jpg。首次运行会调引擎并把原始行缓存到系统
+临时目录，之后改阈值重跑不再重复 OCR。
+
+``--expect-drop`` / ``--expect-keep`` 是**可选**的期望词表：给了才做
+"污染残留 / 正文被误杀" 的汇总判定（不给就只打印每图的判定明细），
+避免把任何个案词表固化在脚本里。
 """
 
 from __future__ import annotations
 
+import argparse
 import json
-import os
+import re
 import sys
 import tempfile
 from pathlib import Path
@@ -29,10 +35,7 @@ from tools.ocr.engines import run_ocr_subprocess  # noqa: E402
 CACHE = Path(tempfile.gettempdir()) / "agentflow_ocr_cache"
 CACHE.mkdir(parents=True, exist_ok=True)
 
-# 期望被丢弃的页眉/页脚残留（实测来自服务器 merged md 与目录污染）
-BAD = ("科技", "華中", "华中", "HAUZHONG", "HUAZHONG", "印刷厂", "UNIVERSITY", "Tel", "明德", "P.R.China")
-# 期望保留的正文行（实测来自 _15/_16 的正文起点）
-KEEP = ("算符", "角动量")
+DEFAULT_DIR = ROOT / "data" / "1" / "docs"
 
 
 def raw_payload(image: Path) -> dict:
@@ -62,13 +65,33 @@ def to_lines(payload: dict) -> list[dict]:
     return lines
 
 
+def _natural_key(path: Path):
+    """图片按文件名末尾的数字排序（没有数字就按名字）。"""
+    numbers = re.findall(r"\d+", path.stem)
+    return (int(numbers[-1]) if numbers else 0, path.name)
+
+
 def main() -> int:
     from PIL import Image
 
-    names = sys.argv[1:]
-    folder = ROOT / "data" / "1" / "docs"
-    images = [folder / n for n in names] if names else sorted(
-        folder.glob("U202314751_*.jpg"), key=lambda p: int(p.stem.rsplit("_", 1)[1])
+    ap = argparse.ArgumentParser(description="逐图检查页眉/页脚判定")
+    ap.add_argument("images", nargs="*", help="图片名（默认取 --dir 下全部 .jpg）")
+    ap.add_argument("--dir", default=str(DEFAULT_DIR), help=f"图片目录（默认 {DEFAULT_DIR}）")
+    ap.add_argument("--expect-drop", default="", help="期望被丢弃的词，逗号分隔（可空）")
+    ap.add_argument("--expect-keep", default="", help="期望保留的词，逗号分隔（可空）")
+    args = ap.parse_args()
+
+    def _tokens(raw: str) -> tuple[str, ...]:
+        return tuple(t.strip() for t in (raw or "").split(",") if t.strip())
+
+    expect_drop = _tokens(args.expect_drop)
+    expect_keep = _tokens(args.expect_keep)
+
+    folder = Path(args.dir)
+    images = (
+        [folder / n for n in args.images]
+        if args.images
+        else sorted(folder.glob("*.jpg"), key=_natural_key)
     )
     bad_hits: list[str] = []
     keep_missing: list[str] = []
@@ -81,11 +104,12 @@ def main() -> int:
         header = [str(ln.get("text") or "") for ln in lines if ln.get("chrome_zone") == "header"]
         footer = [str(ln.get("text") or "") for ln in lines if ln.get("chrome_zone") == "footer"]
         blob = "\n".join(survivors)
-        for token in BAD:
+        for token in expect_drop:
             if token in blob:
                 bad_hits.append(f"{image.name}: 残留 {token!r}")
-        if any(t in blob for t in KEEP):
-            pass
+        for token in expect_keep:
+            if token not in blob:
+                keep_missing.append(f"{image.name}: 丢失 {token!r}")
         print(f"\n=== {image.name} 行数={len(lines)} 丢弃={dropped}")
         if header:
             print(f"    header: {header}")
@@ -93,10 +117,10 @@ def main() -> int:
             print(f"    footer: {footer}")
         print(f"    first3: {survivors[:3]}")
         print(f"    last3 : {survivors[-3:]}")
-    print("\n--- 汇总 ---")
-    print(f"污染残留: {bad_hits or '无'}")
-    if keep_missing:
-        print(f"正文被误杀: {keep_missing}")
+    if expect_drop or expect_keep:
+        print("\n--- 汇总（按你给的期望词表） ---")
+        print(f"污染残留: {bad_hits or '无'}")
+        print(f"正文被误杀: {keep_missing or '无'}")
     return 0
 
 

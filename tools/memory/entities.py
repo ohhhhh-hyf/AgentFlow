@@ -32,7 +32,6 @@ _QUOTED = re.compile(
     r"|“([^”]{2,20})”"
     r"|\"([^\"]{2,20})\""
 )
-_HAN_CHARS = re.compile(r"[\u4e00-\u9fff]")
 
 
 def extract_quoted(text: str) -> list[str]:

@@ -160,7 +160,6 @@ def _project_hits(project: dict[str, Any], fact: Any) -> dict[str, Any]:
     aliases = _contains_any(blob, [str(x) for x in (project.get("aliases") or [])])
     raw_anchors = _contains_any(blob, [str(x) for x in (project.get("anchors") or [])])
     negative = _contains_any(blob, [str(x) for x in (project.get("negative_anchors") or [])])
-    project_name = _clean(project.get("name"))
     anchors: list[str] = []
     generic: list[str] = []
     malformed: list[str] = []

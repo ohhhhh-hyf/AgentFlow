@@ -122,20 +122,6 @@ _EMPTY_CATALOG = {
     "merged_nodes": [],
 }
 
-_EMPTY_CATALOG_SLIM = {
-    "course": "",
-    "version": "",
-    "mode": "",
-    "chapters": [],
-    "unmatched_content": [],
-    "uncertain_nodes": [],
-    "added_chapters": [],
-    "added_topics": [],
-    "added_knowledge_points": [],
-    "updated_knowledge_points": [],
-    "merged_nodes": [],
-}
-
 _EMPTY_CHECKLIST = {
     "course": "",
     "catalog_version": "",

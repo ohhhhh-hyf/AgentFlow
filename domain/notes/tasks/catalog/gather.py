@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import json
+import logging
 import os
 import re
 from collections import defaultdict
@@ -19,6 +20,8 @@ from tools.knowledge.source_role import (
     is_ocr_notes_file,
 )
 from .store import load_catalog, load_catalog_metas
+
+logger = logging.getLogger(__name__)
 
 # briefing 中标题候选采用动态预算：资料越短越收紧，避免 OCR 短标题诱导过度建 KP。
 _MIN_BRIEF_TITLES = 60
@@ -949,9 +952,7 @@ def order_catalog_by_source(draft: dict[str, Any], shared_context: str) -> dict[
     try:
         return _reorder_by_source_order(draft, position)
     except Exception:  # noqa: BLE001 - 保序失败不影响目录生成
-        import logging
-
-        logging.getLogger(__name__).warning("catalog reorder failed, keep order", exc_info=True)
+        logger.warning("catalog reorder failed, keep order", exc_info=True)
         return draft
 
 
@@ -991,9 +992,6 @@ def complement_catalog_coverage(
     归属规则：候选自带章/主题名在目录里有同名节点就挂上去，**没有就按候选自己的名字新建**。
     **不再使用 `核心知识点` 这类占位名**：名字一律来自候选，取不到就跳过并计数。
     """
-    import logging
-
-    logger = logging.getLogger(__name__)
     out = dict(draft)
     try:
         from .skeleton import build_source_skeleton
@@ -1022,7 +1020,6 @@ def complement_catalog_coverage(
     next_tp_no = _next_node_no(out, "tp")
     added = 0
     skipped = 0
-    reverts = 0
     for cand in fillable:
         if added >= _COMPLEMENT_MAX:
             logger.info("catalog complement capped at %d", _COMPLEMENT_MAX)
@@ -1221,9 +1218,7 @@ def trim_catalog_scale(
         topic["change_type"] = "updated"
         merged += 1
     if merged:
-        import logging
-
-        logging.getLogger(__name__).info(
+        logger.info(
             "目录规模上限校验：合并 %d 个最弱 KP 进父 topic items（上限 %d）",
             merged,
             max_kp,
@@ -1340,9 +1335,6 @@ def compute_catalog_signals(draft: dict[str, Any]) -> dict[str, Any]:
     算完再做一次**分布护栏**：单值占比过高（结构信号塌陷）时按结构分给上下三等分
     微调 ±1 —— 实测曾出现 importance 96% 都是 3，直接导致下游分档全挤进 S 档。
     """
-    import logging
-
-    logger = logging.getLogger(__name__)
     kps, ref_count = _catalog_kp_index(draft)
     context = _kp_structure_context(draft)
     for kp in kps:
@@ -1575,9 +1567,6 @@ def backfill_catalog_relations(
     三条规则见模块注释；只连真实存在的 KP，related_points 条目带 ``origin=program``
     便于与模型给的关系区分审计。返回 (draft, stats)。
     """
-    import logging
-
-    logger = logging.getLogger(__name__)
     stats = {"same_topic": 0, "topic_chain": 0, "cooccurrence": 0}
     index = _kp_host_index(draft)
     if not index:
@@ -1797,9 +1786,6 @@ def calibrate_catalog_relations(draft: dict[str, Any]) -> dict[str, Any]:
     - 未命中 → 包含/共享 4+ 字的唯一最接近真实 KP → 改写（保留关联意图）；
     - 零候选 / 多候选并列 / 自指 → 删除。
     改写与删除计数打日志；不改动 change_type（程序整理不计入"本次变更"）。"""
-    import logging
-
-    logger = logging.getLogger(__name__)
     index = _kp_relation_index(draft)
     if not index:
         return draft

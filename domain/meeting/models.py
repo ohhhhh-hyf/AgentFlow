@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from typing import Annotated, TypedDict
 
-from .models_base import ModelMixin, UserIdentity
+from .models_base import ModelMixin, UserIdentity  # noqa: F401 - 再导出：reports.py / __init__.py 从本模块取
 from .models_generated import *  # noqa: F403
 
 # ── LangGraph 共享状态 ────────────────────────────────────────

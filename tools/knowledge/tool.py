@@ -25,7 +25,6 @@ from .config import (
     DEFAULT_LLM_BASE_URL,
     DEFAULT_LLM_MODEL,
     DEFAULT_MAX_TOKENS,
-    DEFAULT_PERSIST_DIR,
     DEFAULT_TOP_K,
     KnowledgeToolConfig,
     subject_to_pinyin,

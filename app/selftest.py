@@ -777,7 +777,7 @@ def test_skeleton_parse_and_contract() -> None:
           stats["span"] == 3 and stats["levels"] == [1, 2, 3],
           f"span={stats['span']} levels={stats['levels']}")
     check("章 = 原文一级/最浅级标题（按原文顺序）",
-          chapters == ["一维束缚态", "一维半无限深方势阱", "氢原子"],
+          chapters == ["一维束缚态", "氢原子"],
           f"chapters={chapters}")
     check("续页标题并入同名节点（修补①）",
           "一维束缚态（续）" not in chapters
@@ -786,8 +786,10 @@ def test_skeleton_parse_and_contract() -> None:
     chapter_topics = {
         c["name"]: [t["name"] for t in c.get("topics") or []] for c in skeleton["chapters"]
     }
+    # 与章同级的「一维半无限深方势阱」在原文里是章内的小节：层级归一（R1）把它按
+    # 「X / X（续）」的容器关系降为主题，挂在「一维束缚态」下（不再单列成假章）。
     check("二级标题 = 主题、挂在所属章下（层级映射）",
-          chapter_topics.get("一维束缚态") == ["补充：坐标系变换"]
+          chapter_topics.get("一维束缚态") == ["一维半无限深方势阱", "补充：坐标系变换"]
           and chapter_topics.get("氢原子") == ["概率密度角度分布与径向分布"],
           f"chapter_topics={chapter_topics}")
     check("名字去序号/尾部标点（修补④）",
@@ -818,8 +820,9 @@ def test_skeleton_parse_and_contract() -> None:
           [p["name"] for p in (kp_topic or {}).get("points") or []] == ["径向分布函数"],
           f"points={[p['name'] for p in (kp_topic or {}).get('points') or []]}")
     check("章正文可读（紧接子标题的章正文为空，属正常）",
-          sum(1 for c in skeleton["chapters"] if c["body"]) >= 2,
-          f"bodies={[len(c['body']) for c in skeleton['chapters']]}")
+           sum(1 for c in skeleton["chapters"] if c["body"]) >= 1
+           and any(not c["body"] for c in skeleton["chapters"]),
+           f"bodies={[len(c['body']) for c in skeleton['chapters']]}")
     block = skeleton_prompt_block(skeleton)
     check("prompt 段带 C/T/P 三级标记与硬约束",
           "[C chapter order=" in block and "[T topic order=" in block and "[P kp order=" in block
@@ -833,7 +836,7 @@ def test_skeleton_parse_and_contract() -> None:
           and pos["氢原子"] > pos["一维束缚态"],
           f"sample={ {k: pos[k] for k in list(pos)[:4]} }")
     check("体检观测指标：每主题 KP 数上限",
-          stats["chapters"] == 3 and stats["max_kp_per_topic"] == 1,
+          stats["chapters"] == 2 and stats["max_kp_per_topic"] == 1,
           f"chapters={stats['chapters']} max_kp_per_topic={stats['max_kp_per_topic']}")
 
 
@@ -1649,6 +1652,99 @@ def test_catalog_order() -> None:
           _position_key({"page": ""}) > _position_key({"page": "9"}))
 
 
+def test_heading_level_normalize() -> None:
+    """OCR 跨页标题层级归一（R1 同名同级别 / R2「（续）」容器）：只重写 `#`，正文不动。
+
+    背景：级号是逐页按版面定的（页顶/居中/字高），合并后同一逻辑层会漂移
+    （章标题在一页是 `#`、另一页是 `###`），骨架按"树深度"分层就会把主题当章，
+    下游再补占位主题 `核心知识点`。这里把归一的契约钉住。
+    """
+    from tools.ocr.heading_levels import normalize_heading_levels
+
+    # 真实形态（服务器合并稿的形态）：章/主题同级 + 「（续）」跨页 + 章节内的子标题；
+    # 末尾补一个顶层章，保证文件是"三级文件"（span≥3）——与真实合并稿一致。
+    raw = "\n".join([
+        "### 一维束缚态",
+        "正文一",
+        "### 一维半无限深方势阱",
+        "正文二",
+        "## 一维束缚态（续）",
+        "正文三",
+        "## 一维谐振子",
+        "正文四",
+        "### 角向方程",
+        "正文五",
+        "## 一维束缚态（续）",
+        "正文六",
+        "### 分离变量法求解",
+        "正文七",
+        "# 氢原子",
+        "正文八",
+        "## 概率密度角度分布",
+        "正文九",
+        "### 径向分布函数",
+        "正文十",
+    ])
+    fixed, stats = normalize_heading_levels(raw)
+    rows = fixed.splitlines()
+
+    def level_of(name: str) -> int:
+        for row in rows:
+            hit = re.match(r"^(#{1,6})\s+(.*)$", row)
+            if hit and hit.group(2).strip() == name:
+                return len(hit.group(1))
+        return 0
+
+    chapter = level_of("一维束缚态")
+    cont = level_of("一维束缚态（续）")
+    check("R1：同名与「（续）」统一级号", chapter == cont and chapter > 0,
+          f"章={chapter} 续={cont}")
+    check("R2：续写区间内的同级标题降为子级",
+          level_of("一维半无限深方势阱") > chapter
+          and level_of("一维谐振子") > chapter
+          and level_of("分离变量法求解") > chapter,
+          f"势阱={level_of('一维半无限深方势阱')} 谐振子={level_of('一维谐振子')} "
+          f"分离变量={level_of('分离变量法求解')} 章={chapter}")
+    check("R2：容器内部的子标题比容器再深一级",
+          level_of("角向方程") > level_of("一维谐振子"),
+          f"角向方程={level_of('角向方程')} 谐振子={level_of('一维谐振子')}")
+
+    # 不变量：正文一字不动、标题不增不减、幂等
+    body_before = [r for r in raw.splitlines() if not r.startswith("#")]
+    body_after = [r for r in rows if not r.startswith("#")]
+    check("归一不动正文", body_before == body_after)
+    check("归一不增删标题",
+          sum(1 for r in raw.splitlines() if r.startswith("#")) ==
+          sum(1 for r in rows if r.startswith("#")))
+    again, _ = normalize_heading_levels(fixed)
+    check("归一幂等（跑两遍结果一致）", again == fixed)
+    check("级号落在 1..6",
+          all(1 <= len(re.match(r"^(#{1,6})", r).group(1)) <= 6
+              for r in rows if r.startswith("#")))
+    check("统计回报：同名 1 处、续写区间 1 处",
+          stats["unified"] == 1 and stats["spans"] == 1, f"{stats}")
+
+    # 归一之后骨架应把「一维束缚态」认成一章，其余为它的主题
+    from domain.notes.tasks.catalog.skeleton import parse_md_skeleton
+
+    sk = parse_md_skeleton(fixed, source="selftest.md")
+    chapters = {ch.get("name"): [t.get("name") for t in ch.get("topics") or []]
+                for ch in sk.get("chapters") or []}
+    check("归一后：一维束缚态成章、假章消失",
+          set(chapters) == {"一维束缚态", "氢原子"}
+          and "一维半无限深方势阱" not in chapters
+          and "一维谐振子" not in chapters,
+          f"chapters={sorted(chapters)}")
+    check("归一后：主题挂回该章",
+          {"一维半无限深方势阱", "一维谐振子", "分离变量法求解"} <= set(chapters.get("一维束缚态") or []),
+          f"topics={chapters.get('一维束缚态')}")
+
+    # 无标题 / 单标题：原样返回，不做任何改动
+    for text in ("", "只有正文。", "# 唯一标题"):
+        same, _ = normalize_heading_levels(text)
+        check(f"无层可归一时原样返回({text[:6] or '空'})", same == text)
+
+
 def test_knowledge_user_isolation() -> None:
     """知识库/目录按用户隔离：空 user 直接报错，不得凭空建出无主目录。
 
@@ -1731,6 +1827,7 @@ async def main() -> int:
     test_complement_respects_skeleton()
     test_ocr_noise_strip()
     test_catalog_order()
+    test_heading_level_normalize()
     test_knowledge_user_isolation()
     print()
     store = job_store()

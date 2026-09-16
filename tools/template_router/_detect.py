@@ -113,7 +113,6 @@ def parse_placeholder_template(template: str) -> list[dict]:
     return _mark_title_fields(_split_table_placeholder_rows(segments))
 
 
-_TABLE_PLACEHOLDER_ROW_RE = re.compile(r"^\|(?:\s*[…\.]+\s*\|)+\s*$")
 _TABLE_SEP_LINE_RE = re.compile(r"^\|[\s:\-|]+\|\s*$")
 # 占位单元格：省略号 / 状态 emoji 示例 / 空格子——出现即为"待填数据行"
 _TABLE_PLACEHOLDER_CELLS = {"…", "...", ".", "—", "-", "", "🟢正常", "🟡低风险", "🔴高风险", "无"}
