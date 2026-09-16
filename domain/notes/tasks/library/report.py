@@ -382,6 +382,9 @@ def ingest_library(
                 ocr_path = ocr_future.result()
             except Exception as exc:  # noqa: BLE001 - 图片失败不影响非图片入库
                 ocr_error = str(exc).strip() or repr(exc)
+                # 回包只带一行原因；堆栈必须进日志，否则"unhashable type: 'slice'"
+                # 这类被吞真因的错误没法定位（这次就查了半天）
+                logger.warning("library ingest ocr failed: %s", ocr_error, exc_info=True)
 
     if ocr_path is not None:
         print(f"[资料入库] 非图片/Markdown 入库：{ocr_path.name}", flush=True)

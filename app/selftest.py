@@ -1379,6 +1379,65 @@ def test_complement_respects_skeleton() -> None:
 
 # ── 图片 OCR：并发但不许乱序（笔记图片本身有先后）──────────────
 
+def test_ocr_page_level_hint() -> None:
+    """跨页层级锚点（``_page_heading_hint``）与两页整理：只做提示，不许抛错。
+
+    回归背景：锚点里用 ``dict.fromkeys(...)`` 去重后**直接按列表切片**（``[:5]``），
+    而 ``dict.fromkeys`` 返回的是 dict —— 对 dict 切片抛
+    ``TypeError: unhashable type: 'slice'``，把整段「图片 OCR + 整理」打死，
+    调用方只能看到"图片 OCR 失败：unhashable type: 'slice'"（真因被吞掉）。
+    """
+    from tools.ocr.levels.light import _draft_pagewise, _page_heading_hint
+
+    def line(text: str, heading: bool, y: int) -> dict:
+        return {
+            "text": text,
+            "bbox": [[60, y], [520, y], [520, y + 24], [60, y + 24]],
+            "conf": 0.95,
+            "role_hint": "heading" if heading else "body",
+            "title_decision": "locked_heading" if heading else "locked_body",
+            "layout": {
+                "top": y,
+                "height_ratio": 1.3 if heading else 1.0,
+                "gap_before": 10,
+                "gap_after": 8,
+                "centered": False,
+                "near_left": True,
+            },
+        }
+
+    page1 = [
+        line("第一章 绪论", True, 100),
+        line("正文一", False, 130),
+        line("1.1 定义", True, 170),
+        line("1.2 性质", True, 200),
+        line("1.2 性质", True, 230),
+    ]
+    hint = _page_heading_hint(page1)
+    check("页级锚点：返回层级提示且不抛错", "级：" in hint, f"hint={hint[:60]!r}")
+    check("页级锚点：同名标题去重", hint.count("1.2 性质") == 1, f"hint={hint[:80]!r}")
+
+    # 两页走一遍页级整理（高置信行 → 程序重构，不调模型）；跨页锚点预扫就是出错点
+    page2 = [line("1.3 方法", True, 100), line("正文二", False, 130)]
+    pages = [
+        {"name": "p1.jpg", "raw_text": "第一章 绪论", "lines": page1},
+        {"name": "p2.jpg", "raw_text": "1.3 方法", "lines": page2},
+    ]
+    all_lines = [dict(item, _page="0") for item in page1] + [
+        dict(item, _page="1") for item in page2
+    ]
+    try:
+        draft = _draft_pagewise(pages, all_lines)
+        # 编号前缀按既有设计会被剥掉（「1.3 方法」→「方法」），只断言内容在稿里
+        check(
+            "两页整理不抛错（跨页锚点预扫回归）",
+            "方法" in draft and "绪论" in draft,
+            f"len={len(draft)} draft={draft[:60]!r}",
+        )
+    except Exception as exc:  # noqa: BLE001 - 失败当断言，附上异常类型
+        check("两页整理不抛错（跨页锚点预扫回归）", False, f"{type(exc).__name__}: {exc}")
+
+
 def test_ocr_order() -> None:
     """不需要 Redis / OCR / 模型：并发识别后按 ``docs`` 顺序拼接，且跨页页眉不进重构输入。
 
@@ -1812,6 +1871,7 @@ async def main() -> int:
     test_routes()
     test_async_response_shape()
     test_ocr_order()
+    test_ocr_page_level_hint()
     test_page_chrome()
     test_ingest_position_axis()
     test_catalog_order_and_coverage()

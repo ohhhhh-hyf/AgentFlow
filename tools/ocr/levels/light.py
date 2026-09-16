@@ -621,7 +621,7 @@ def _page_heading_hint(lines: list[dict]) -> str:
     labels = {1: "一级", 2: "二级", 3: "三级"}
     parts: list[str] = []
     for level in sorted(by_level):
-        names = "、".join(dict.fromkeys(by_level[level])[:5])
+        names = "、".join(list(dict.fromkeys(by_level[level]))[:5])
         if names:
             parts.append(f"{labels.get(level, f'{level}级')}：{names}")
     return "；".join(parts)
