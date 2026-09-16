@@ -70,6 +70,8 @@ class LLMClient:
         self.ws_user = cfg.ws_user
         self.top_p = cfg.top_p
         self.top_k = cfg.top_k
+        # vLLM 分支默认不发送 top_p/top_k（与官方 API 一致）；显式配了 env 才发送
+        self.send_sampling = bool(getattr(cfg, "send_sampling", False))
         self.max_tokens = cfg.max_tokens
         self.stop = cfg.stop
         self.enable_thinking = cfg.enable_thinking
@@ -356,8 +358,9 @@ class LLMClient:
             body["max_tokens"] = tok
         if json_mode:
             body["response_format"] = {"type": "json_object"}
-        if self.provider == "vllm":
-            # vLLM（OpenAI 兼容）支持 top_p / top_k；DeepSeek 官方不支持 top_k，故仅 vllm 透传
+        if self.provider == "vllm" and self.send_sampling:
+            # 与官方 API 行为一致：默认**不发送** top_p / top_k；
+            # 只有显式配置 LLM_VLLM_TOP_P / LLM_VLLM_TOP_K 时才透传（vLLM 支持这两个参数）
             body["top_p"] = self.top_p
             body["top_k"] = self.top_k
         payload = json.dumps(body, ensure_ascii=False).encode("utf-8")
@@ -430,8 +433,9 @@ class LLMClient:
             body["max_tokens"] = tok
         if json_mode:
             body["response_format"] = {"type": "json_object"}
-        if self.provider == "vllm":
-            # vLLM（OpenAI 兼容）支持 top_p / top_k；DeepSeek 官方不支持 top_k，故仅 vllm 透传
+        if self.provider == "vllm" and self.send_sampling:
+            # 与官方 API 行为一致：默认**不发送** top_p / top_k；
+            # 只有显式配置 LLM_VLLM_TOP_P / LLM_VLLM_TOP_K 时才透传（vLLM 支持这两个参数）
             body["top_p"] = self.top_p
             body["top_k"] = self.top_k
         payload = json.dumps(body, ensure_ascii=False).encode("utf-8")

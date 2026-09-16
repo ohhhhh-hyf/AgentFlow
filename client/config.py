@@ -103,6 +103,10 @@ class LLMSettings:
     max_tokens: int = DEFAULT_MAX_TOKENS
     stop: tuple[str, ...] = ()
     enable_thinking: bool = False
+    # 是否把 top_p / top_k 放进请求体：官方 DeepSeek 分支从不发送；
+    # vLLM 分支默认也**不发送**（与官方行为一致），只在显式配置了
+    # LLM_VLLM_TOP_P / LLM_VLLM_TOP_K 时才发送（可选项）。
+    send_sampling: bool = False
     # 网络参数（HTTP / WebSocket 共用；LLM_TIMEOUT / LLM_MAX_RETRIES 可覆盖）
     timeout: float = DEFAULT_TIMEOUT
     max_retries: int = DEFAULT_MAX_RETRIES
@@ -254,6 +258,8 @@ def resolve_llm_settings(
             top_p=_env_float(ENV_VLLM_TOP_P, DEFAULT_TOP_P),
             top_k=_env_int(ENV_VLLM_TOP_K, DEFAULT_TOP_K),
             max_tokens=_env_int(ENV_VLLM_MAX_TOKENS, DEFAULT_MAX_TOKENS),
+            # 与官方 API 行为一致：默认不发送采样参数；显式配了才发送
+            send_sampling=bool(_env(ENV_VLLM_TOP_P) or _env(ENV_VLLM_TOP_K)),
             timeout=resolved_timeout,
             max_retries=resolved_max_retries,
             context_length=resolved_context,
