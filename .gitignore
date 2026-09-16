@@ -5,16 +5,12 @@ __pycache__/
 .pytest_cache/
 .idea/
 
-# 运行日志（AGENTFLOW_LOG_FILE / AGENTFLOW_DIAG_LOG_FILE 的默认落点）
-/logs/
-
 # 只忽略仓库根目录的记忆落盘，不要误伤 tools/memory 源码包
 /memory/
 .claude/
 .reasonix/
 
 .ocrvenv/
-/log
 
 # codegraph index cache
 .codegraph/
