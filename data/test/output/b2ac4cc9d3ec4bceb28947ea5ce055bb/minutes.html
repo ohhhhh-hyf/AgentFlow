@@ -1,0 +1,372 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>电气工程基础课程导论与电力系统基本概念</title>
+  <style>
+
+    body {
+      margin: 0;
+      padding: 32px 16px;
+      background: #f6f5f0;
+      color: #1a1a1a;
+      font-family: "Latin Modern Roman", "Computer Modern Roman", "CMU Serif", "Times New Roman", Times, "Songti SC", "SimSun", "STSong", serif;
+      -webkit-font-smoothing: antialiased;
+    }
+    .page { max-width: 1140px; margin: 0 auto; }
+    .ck-doc {
+      background: #ffffff;
+      border: 1px solid #d4d0c7;
+      border-radius: 4px;
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.05), 0 1px 3px rgba(0,0,0,0.03);
+      padding: 36px 44px;
+      line-height: 1.75;
+      font-size: 0.96rem;
+    }
+    .ck-doc h1 {
+      margin: 0 0 10px;
+      font-size: 1.85rem;
+      font-weight: 700;
+      letter-spacing: 0.4px;
+      text-align: center;
+      font-variant: small-caps;
+      color: #111111;
+    }
+    .ck-doc-header {
+      margin-bottom: 24px;
+      padding-bottom: 16px;
+      border-bottom: 2px solid #111111;
+      text-align: center;
+    }
+    .ck-doc-meta {
+      font-size: 0.85rem;
+      color: #555555;
+      font-style: italic;
+    }
+    .ck-doc-content h1, .ck-doc-content .ck-doc-h1 {
+      margin: 28px 0 14px;
+      font-size: 1.32rem;
+      font-weight: 700;
+      color: #111111;
+      border-bottom: 1.5px solid #222222;
+      padding-bottom: 5px;
+      text-align: left;
+      font-variant: normal;
+      letter-spacing: 0.3px;
+    }
+    .ck-doc h2, .ck-doc-h2 {
+      margin: 28px 0 14px;
+      font-size: 1.22rem;
+      font-weight: 700;
+      color: #111111;
+      border-bottom: 1.5px solid #222222;
+      padding-bottom: 5px;
+      letter-spacing: 0.3px;
+    }
+    .ck-doc h3, .ck-doc-h3 {
+      margin: 20px 0 10px;
+      font-size: 1.05rem;
+      font-weight: 700;
+      color: #222222;
+    }
+    .ck-doc h4, .ck-doc-h4 {
+      margin: 16px 0 8px;
+      font-size: 0.98rem;
+      font-weight: 700;
+      color: #333333;
+    }
+    .ck-doc p {
+      margin: 10px 0;
+      line-height: 1.75;
+      text-align: justify;
+    }
+    .ck-doc ul, .ck-doc ol {
+      margin: 8px 0 12px;
+      padding-left: 1.5em;
+      line-height: 1.72;
+    }
+    .ck-doc li {
+      margin: 4px 0;
+    }
+    .ck-doc blockquote, .ck-quote {
+      margin: 10px 0 14px;
+      padding: 8px 14px;
+      background: #faf9f6;
+      border-left: 3.5px solid #222222;
+      border-radius: 2px;
+      color: #222222;
+      font-size: 0.92rem;
+      font-style: italic;
+    }
+    .ck-doc code {
+      background: #f3f0e8;
+      border: 1px solid #e2ddd3;
+      border-radius: 3px;
+      padding: 1px 6px;
+      font-family: "Latin Modern Mono", Consolas, monospace;
+      font-size: 0.88em;
+    }
+    .ck-doc table, .ck-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.88rem;
+      margin: 14px 0;
+      background: #ffffff;
+      border-top: 2px solid #222222;
+      border-bottom: 2px solid #222222;
+    }
+    .ck-doc table th, .ck-doc table td, .ck-table th, .ck-table td {
+      padding: 9px 12px;
+      text-align: left;
+      vertical-align: middle;
+      border-bottom: 1px solid #ede9e1;
+    }
+    .ck-doc table th, .ck-table th {
+      background: #fbfaf7;
+      border-bottom: 1.2px solid #222222;
+      font-weight: 700;
+      color: #111111;
+      letter-spacing: 0.3px;
+    }
+
+    /* Roomy & Spacious Academic Risk Table */
+    .ck-risk-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 18px 0 28px;
+      background: #ffffff;
+      border-top: 2.2px solid #111111;
+      border-bottom: 2.2px solid #111111;
+      font-size: 0.93rem;
+      line-height: 1.72;
+    }
+    .ck-risk-table th {
+      background: #faf8f5;
+      border-bottom: 1.5px solid #111111;
+      padding: 15px 16px;
+      font-weight: 700;
+      color: #111111;
+      letter-spacing: 0.3px;
+      text-align: left;
+      vertical-align: middle;
+    }
+    .ck-risk-table td {
+      padding: 16px 16px;
+      border-bottom: 1px solid #ede8e0;
+      vertical-align: top;
+      color: #1a1a1a;
+      word-break: break-word;
+    }
+    .ck-risk-table tr:nth-child(even) td {
+      background: #fdfcfb;
+    }
+    .ck-risk-table tr:hover td {
+      background: #f6f3eb;
+    }
+
+    /* Review Grid */
+    .ck-review {
+      display: grid;
+      grid-template-columns: minmax(0, 1.35fr) 1px minmax(260px, 0.95fr);
+      border: 1px solid #d4d0c7;
+      border-radius: 4px;
+      overflow: hidden;
+      margin: 14px 0 20px;
+      background: #ffffff;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.03);
+    }
+    .ck-review-left {
+      padding: 22px 26px;
+      background: #ffffff;
+      line-height: 1.75;
+    }
+    .ck-review-rule { background: #dcd8cf; }
+    .ck-review-right {
+      padding: 16px 18px;
+      background: #faf9f6;
+      box-sizing: border-box;
+      display: flex;
+      flex-direction: column;
+    }
+    .ck-ev-list {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    /* Entity Highlight in LaTeX Paper Style */
+    .ck-cite-entity {
+      background: #fff8db;
+      border-bottom: 1.5px solid #b86a04;
+      padding: 1px 4px;
+      border-radius: 2px;
+      cursor: pointer;
+      transition: all 0.18s ease;
+      color: #111111;
+      font-weight: 600;
+    }
+    .ck-cite-entity:hover {
+      background: #ffe58f;
+      color: #000000;
+    }
+    .ck-cite-entity.is-on {
+      background: #ffd54a;
+      border-bottom-color: #0047ab;
+      box-shadow: 0 0 0 2px rgba(0,71,171,0.25);
+    }
+
+    /* Blue Hyperref Citations [1], [2] */
+    .ck-cite-ref {
+      color: #0047ab;
+      font-weight: 600;
+      font-family: "Latin Modern Roman", "Computer Modern Roman", "Times New Roman", serif;
+      text-decoration: none;
+      cursor: pointer;
+      padding: 0 2px;
+      margin: 0 2px;
+      border-radius: 2px;
+      transition: all 0.15s ease;
+      font-size: 0.92em;
+      vertical-align: baseline;
+      user-select: none;
+    }
+    .ck-cite-ref:hover {
+      text-decoration: underline;
+      background: #e8f0fe;
+      color: #003380;
+    }
+    .ck-cite-ref.is-active {
+      background: #d2e3fc;
+      color: #002266;
+      font-weight: 700;
+      box-shadow: 0 0 0 1px #0047ab;
+    }
+
+    /* Right Memory Cards in LaTeX Paper Style */
+    .ck-provenance-head {
+      font-size: 0.82rem;
+      font-weight: 700;
+      color: #222222;
+      margin: 0 0 12px;
+      padding-bottom: 6px;
+      border-bottom: 1px solid #e0dcd4;
+      letter-spacing: 0.3px;
+      text-transform: uppercase;
+    }
+    .ck-ref-icon { color: #0047ab; margin-right: 4px; }
+    .ck-ev {
+      display: block;
+      margin: 0;
+      padding: 10px 12px;
+      border: 1px solid #dedad2;
+      border-left: 3.5px solid #0047ab;
+      border-radius: 2px;
+      background: #ffffff;
+      font-size: 0.82rem;
+      line-height: 1.55;
+      transition: all 0.2s ease;
+      cursor: pointer;
+    }
+    .ck-ev:hover { border-color: #b5b0a5; }
+    .ck-ev.is-on, .ck-ev.is-highlighted {
+      border-color: #0047ab;
+      box-shadow: 0 0 0 2px #0047ab, 0 3px 8px rgba(0,71,171,0.15);
+      background: #f0f5ff;
+    }
+    @keyframes citePulse {
+      0% { background: #dbeafe; box-shadow: 0 0 0 3px #0047ab; }
+      50% { background: #bfdbfe; box-shadow: 0 0 0 4px #0047ab; }
+      100% { background: #f0f5ff; box-shadow: 0 0 0 2px #0047ab; }
+    }
+    .ck-ev-k {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 0.75rem;
+      color: #444444;
+      margin-bottom: 5px;
+      font-weight: 700;
+    }
+    .ck-ev-cite-tag {
+      color: #0047ab;
+      font-weight: 700;
+      font-family: "Latin Modern Roman", serif;
+      text-decoration: none;
+    }
+    .ck-ev-kind-badge {
+      display: inline-block;
+      padding: 1px 6px;
+      border-radius: 2px;
+      font-size: 0.72rem;
+      font-weight: 600;
+      letter-spacing: 0.2px;
+    }
+    .ck-badge-keypoint {
+      border: 1px solid #0047ab;
+      color: #0047ab;
+      background: #f0f5ff;
+    }
+    .ck-badge-note {
+      border: 1px solid #b86a04;
+      color: #b86a04;
+      background: #fff8eb;
+    }
+    .ck-mem-title {
+      font-weight: 700;
+      color: #111111;
+      font-size: 0.88rem;
+      margin-bottom: 6px;
+      line-height: 1.45;
+    }
+    .ck-ev-quote {
+      color: #222222;
+      font-style: normal;
+      font-family: inherit;
+      margin: 4px 0 6px;
+      padding: 0;
+      background: transparent;
+      border: none;
+      line-height: 1.6;
+      font-size: 0.84rem;
+    }
+    .ck-ev-meta { font-size: 0.76rem; color: #666666; margin-top: 6px; }
+    .ck-ev-more {
+      margin-top: 2px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+    .ck-ev-more[open] { margin-top: 4px; }
+    .ck-ev-more summary { margin-bottom: 6px; }
+    .ck-proof-toggle {
+      cursor: pointer;
+      font-size: 0.82rem;
+      color: #0047ab;
+      user-select: none;
+      font-family: inherit;
+      padding: 2px 0;
+    }
+    .ck-proof-toggle:hover { text-decoration: underline; }
+
+    @media(max-width: 860px) {
+      .ck-doc { padding: 22px 18px; }
+      .ck-review { grid-template-columns: 1fr; }
+      .ck-review-rule { display: none; }
+    }
+
+  </style>
+</head>
+<body>
+  <main class="page">
+    <div class="ck-doc">
+      <header class="ck-doc-header">
+        <h1>电气工程基础课程导论与电力系统基本概念</h1>
+      </header>
+      <div class="ck-doc-content">
+        <h1 class="ck-doc-h1">课程概况</h1><p>本次课为《电气工程基础》课程导论，该课是进入专业课的第1门课、专业入门课。教学目的有两个：一是掌握电力系统发电、输电、配电、用电4个典型环节的构成、工作原理及与电力系统整体的关系，建立电力系统整体概念；二是掌握电力系统分析、设计、运行管理方面最基础的理论、最基本的技术和基本计算方法。前修课程要求对电路理论和电机学知识有一定了解，特别是变压器和同步电机相关知识要求较高，有欠缺的同学需下去补充；后续最重要的4门课程为电力系统分析、电力系统继电保护、电力系统自动化和高电压技术。课程还讲解了第1章重点难点、电力发展简史、交流三相输电优势及电力系统基本概念与电网分类。</p><h1 class="ck-doc-h1">核心知识点梳理</h1><p><strong>课程定位与目标</strong>：电气工程基础是进入专业课的第1门课、专业入门课。目标一：掌握电力系统发电、输电、配电、用电4个典型环节的构成、工作原理及与电力系统整体的关系，建立电力系统整体概念；目标二：掌握电力系统分析、设计、运行管理方面最基础的理论、最基本的技术和基本计算方法。</p><p><strong>前修与后续课程</strong>：前修要求对电路理论和电机学知识有一定了解，特别是变压器和同步电机相关知识要求较高，有欠缺的同学需下去补充。后续最重要的4门课程为电力系统分析、电力系统继电保护、电力系统自动化和高电压技术。</p><p><strong>第1章学习内容</strong>：第1章是概念最多最重要的章节，要求掌握电力系统、电力网、动力系统、变电站等基本概念；理解电力系统特点及由此引起的最基础理论；理解对电力系统提出的要求；掌握电能质量指标及国家标准规定范围；了解常用接地方式特别是中心点接地方式特点。</p><p>⭐<strong>三个难点</strong>：一是由电力系统特点引出的基本原理，如电能不能大量储存决定有功功率和无功功率的动态平衡；二是额定电压规定繁杂；三是各种中心点接地方式影响后续多个章节且学习困难。</p><p><strong>学习方法</strong>：注意基本概念的内涵和外延；从电力系统特点要求出发，从最基础原理推导，不要记结论；寻找额定电压规定之间的基本规律；比较各种不同中心点接地方式之间的特点。</p><p><strong>电力发展简史</strong>：电力发展从直流开始。福泰勒用2000米导线连接瓦斯发电机拖动直流发电机和电动机，证明直流远距离两公里输电可行；1874年俄国工程师在彼得堡建4.5公里直流输电线路；1882年法国德普勒架设首条57公里直流试验线路，首端343伏、末端850伏，输送功率200瓦，损耗78%；1883年德普勒进行14公里输电试验，输送功率1.1千瓦，损耗55%；1882年10月英国科学家发明直流三线制系统，后扩展为五线制。直流受限于低压损耗大、电压降落快、制造大容量高压直流发电机困难。19世纪末法国方剑串联多台直流发电机提高电压，送75千瓦电力75千米；20世纪初瑞典科学家在串联直流发电机上装短路器，之后20多年建15条直流输电线路，最大为1906年法国慕尼黑水电厂到里昂180公里、57千伏、4700千瓦，1927年改建为260公里、125千伏、19000千瓦。交流方面：1876年俄国科学家发明单相变压器；1883年美国特斯拉制造感应电机；1885年匈牙利科学家设计多台变压器并联运行；威斯汀豪斯与爱迪生交直流电力战争，爱迪生和凯尔文主张直流，威斯汀豪斯和特斯拉主张交流；1886年威斯汀豪斯在麻省进行1000米、30千伏交流输电示范，又在意大利建成17英里高压输电线路；1886年俄国科学家发明三相交流输电和三相异步电动机；法国到德国交流输电线路被认为第1条交流输电线路。交流输电随高电压技术和绝缘技术发展：1898年发明真实绝缘子，美国加利福尼亚输电电压提高到33千伏；1906年发明悬式绝缘子，建成110千伏高压输电；1912年发现电晕临界电压与导线直径成比例增加，铝线和钢芯铝绞线开始应用，美国建成154千伏线路；1923年均压阀技术应用，建成220千伏线路；1936年美国287千伏线路投运；1952年瑞典建成380千伏线路，第1次采用分裂导线；1956年苏联400千伏双回线路投入运行；1965年加拿大建成735千伏输电系统；1969年美国765千伏线路并入电网；1985年苏联特高压1150千伏线路投运后降压到500千伏运行。国内：220千伏1941年投运，330千伏1972年投运，500千伏1981年投运，2009年1000千伏交流特高压投运。交流大电网稳定问题突出后重新关注直流联网：1954年瑞典本土与哥特兰岛建成世界第1个工业采用海底电缆，100千伏、96公里，采用汞弧阀；1970年扩建50千伏、1万千瓦晶闸管换流阀试验工程；1972年世界第1个晶闸管换流阀背靠背直流工程在加拿大投运。中国第1个直流输电工程连接舟山群岛与浙江定海电网；第2个是1989年葛上直流（葛洲坝电厂到上海），±500千伏；今年6月投运云广直流±800千伏特高压直流工程。</p><p><strong>交流三相输电优势</strong>：交流指ABC三相对称系统，具有三个优点：易于产生旋转磁场，三相电动机容易做驱动；瞬时功率恒定不随时间变化；输电线路导线量即金属消耗量最少。除室内配电等小功率供电采用单相交流外，其他场合基本采用三相交流。国内大多数高压、超高压、特高压输电都采用三相交流输电，只有在联网过程中才采用直流联网方式。三相三线制传输效率最高，同等功率和功率因数下金属消耗量最小。</p><p><strong>电力系统形成与基本概念</strong>：最早单台发电机孤立向附近负荷供电，可靠性差；后将多台发电机连接起来提高可靠性，但导线电阻和电抗导致电压损耗和功率损耗，距离不能太长；解决办法是升高电压以减小电流，从而减小有功功率损耗和电压降落，使输电距离变远，通过加变压器升压降压实现。现代电力系统由发电机、变压器、输电线路和用电设备构成整体，完成电能生产、输送、分配、消耗4个职能，有发电、输电、配电、用电4个环节。<em>电力网</em>是变压器和输电线路构成的网络，去除发电机和用电设备；<em>电力系统</em>比电力网多了发电厂和用电设备；<em>动力系统</em>是在电力系统基础上计入发电厂动力部分（如火电厂锅炉、汽机、煤炭输送处理系统，水电厂水轮机、水坝、水库）。</p><p><strong>电网分类</strong>：地方电力网，向固定地方供电，早期定义35千伏及以下，现在常用110千伏及以下，供电半径20~50公里；区域电力网，电压等级110、220千伏和少量500千伏，供电半径超过50公里，联系较多发电厂和负荷中心；超高压远距离输送网络，电压等级500千伏或1000千伏，东北有330千伏，主要任务是把发电厂电能送到负荷中心，构成跨省跨地区大型电力系统，如山西晋东南到湖北荆门特高压工程连接华北电网和华中电网。实例：武汉电网属地方电力网，主要供电电压110千伏和35千伏，少数地方出现220千伏；华中网是典型区域网；葛上直流、三峡到上海输电线路属超高压远距离输电网络。</p><p><strong>变电站分类</strong>：按电压等级分类，如华工变电站10千伏、关山变电站220千伏、凤凰山变电站500千伏；按主要功率流通方向分为升压变电站和降压变电站，大部分功率从高压侧向低压侧传输为降压变电站，发电厂中从低压侧升压到高压侧为升压变电站。</p><h1 class="ck-doc-h1">课堂互动与答疑</h1><p>问 → 答：有同学上课时问到「我们国家为什么采用交流？为什么采用交流三相三线制？」教师解答：交流指ABC三相对称系统，具有三个优点：易于产生旋转磁场，三相电动机容易做驱动；瞬时功率恒定不随时间变化；输电线路导线量即金属消耗量最少。三相三线制传输效率最高，同等功率和功率因数下金属消耗量最小，因此三相三线制输电系统在交流输电领域得到广泛应用，目前国内大多数高压、超高压、特高压输电都采用三相交流输电，只有在联网过程中才采用直流联网方式。</p><div class="ck-quote">对基本概念，我们要注意它的内涵和外延，并且适当的要实际。对于思考的方法，我们要从电力系统的特点要求出发，注意从最基础的原理去进行推导，不要去记一些结论。</div><div class="ck-quote">这一些结论性的东西，往往当它的使用条件变化的时候就将发生（变化）。</div><div class="ck-quote">作为电气专业的学生，我们应该了解我们电力发展的一个基本的发展史。</div><h1 class="ck-doc-h1">课后任务与学习建议</h1><p>教师推荐三本书供课后阅读，希望大家下去做一些进一步的阅读，了解电力发展的基本发展史。复习重点：第1章是重点内容，应以重点内容掌握，包括电力系统、电力网、动力系统、变电站等基本概念，电力系统特点及由此引起的最基础理论，对电力系统提出的要求，电能质量指标及国家标准规定范围，常用接地方式特别是中心点接地方式特点。学习建议：注意基本概念的内涵和外延；从电力系统特点要求出发，从最基础原理推导，不要记结论；注意寻找额定电压规定之间的基本规律；注意比较各种不同中心点接地方式之间的特点。前修课程有欠缺的同学，需下去把电路理论、电机学特别是变压器和同步电机相关内容做一定补充。</p>
+      </div>
+    </div>
+  </main>
+</body>
+</html>

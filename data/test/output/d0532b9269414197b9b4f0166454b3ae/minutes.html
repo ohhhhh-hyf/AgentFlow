@@ -1,0 +1,372 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>ASR模型迭代进度与线上问题例会</title>
+  <style>
+
+    body {
+      margin: 0;
+      padding: 32px 16px;
+      background: #f6f5f0;
+      color: #1a1a1a;
+      font-family: "Latin Modern Roman", "Computer Modern Roman", "CMU Serif", "Times New Roman", Times, "Songti SC", "SimSun", "STSong", serif;
+      -webkit-font-smoothing: antialiased;
+    }
+    .page { max-width: 1140px; margin: 0 auto; }
+    .ck-doc {
+      background: #ffffff;
+      border: 1px solid #d4d0c7;
+      border-radius: 4px;
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.05), 0 1px 3px rgba(0,0,0,0.03);
+      padding: 36px 44px;
+      line-height: 1.75;
+      font-size: 0.96rem;
+    }
+    .ck-doc h1 {
+      margin: 0 0 10px;
+      font-size: 1.85rem;
+      font-weight: 700;
+      letter-spacing: 0.4px;
+      text-align: center;
+      font-variant: small-caps;
+      color: #111111;
+    }
+    .ck-doc-header {
+      margin-bottom: 24px;
+      padding-bottom: 16px;
+      border-bottom: 2px solid #111111;
+      text-align: center;
+    }
+    .ck-doc-meta {
+      font-size: 0.85rem;
+      color: #555555;
+      font-style: italic;
+    }
+    .ck-doc-content h1, .ck-doc-content .ck-doc-h1 {
+      margin: 28px 0 14px;
+      font-size: 1.32rem;
+      font-weight: 700;
+      color: #111111;
+      border-bottom: 1.5px solid #222222;
+      padding-bottom: 5px;
+      text-align: left;
+      font-variant: normal;
+      letter-spacing: 0.3px;
+    }
+    .ck-doc h2, .ck-doc-h2 {
+      margin: 28px 0 14px;
+      font-size: 1.22rem;
+      font-weight: 700;
+      color: #111111;
+      border-bottom: 1.5px solid #222222;
+      padding-bottom: 5px;
+      letter-spacing: 0.3px;
+    }
+    .ck-doc h3, .ck-doc-h3 {
+      margin: 20px 0 10px;
+      font-size: 1.05rem;
+      font-weight: 700;
+      color: #222222;
+    }
+    .ck-doc h4, .ck-doc-h4 {
+      margin: 16px 0 8px;
+      font-size: 0.98rem;
+      font-weight: 700;
+      color: #333333;
+    }
+    .ck-doc p {
+      margin: 10px 0;
+      line-height: 1.75;
+      text-align: justify;
+    }
+    .ck-doc ul, .ck-doc ol {
+      margin: 8px 0 12px;
+      padding-left: 1.5em;
+      line-height: 1.72;
+    }
+    .ck-doc li {
+      margin: 4px 0;
+    }
+    .ck-doc blockquote, .ck-quote {
+      margin: 10px 0 14px;
+      padding: 8px 14px;
+      background: #faf9f6;
+      border-left: 3.5px solid #222222;
+      border-radius: 2px;
+      color: #222222;
+      font-size: 0.92rem;
+      font-style: italic;
+    }
+    .ck-doc code {
+      background: #f3f0e8;
+      border: 1px solid #e2ddd3;
+      border-radius: 3px;
+      padding: 1px 6px;
+      font-family: "Latin Modern Mono", Consolas, monospace;
+      font-size: 0.88em;
+    }
+    .ck-doc table, .ck-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.88rem;
+      margin: 14px 0;
+      background: #ffffff;
+      border-top: 2px solid #222222;
+      border-bottom: 2px solid #222222;
+    }
+    .ck-doc table th, .ck-doc table td, .ck-table th, .ck-table td {
+      padding: 9px 12px;
+      text-align: left;
+      vertical-align: middle;
+      border-bottom: 1px solid #ede9e1;
+    }
+    .ck-doc table th, .ck-table th {
+      background: #fbfaf7;
+      border-bottom: 1.2px solid #222222;
+      font-weight: 700;
+      color: #111111;
+      letter-spacing: 0.3px;
+    }
+
+    /* Roomy & Spacious Academic Risk Table */
+    .ck-risk-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 18px 0 28px;
+      background: #ffffff;
+      border-top: 2.2px solid #111111;
+      border-bottom: 2.2px solid #111111;
+      font-size: 0.93rem;
+      line-height: 1.72;
+    }
+    .ck-risk-table th {
+      background: #faf8f5;
+      border-bottom: 1.5px solid #111111;
+      padding: 15px 16px;
+      font-weight: 700;
+      color: #111111;
+      letter-spacing: 0.3px;
+      text-align: left;
+      vertical-align: middle;
+    }
+    .ck-risk-table td {
+      padding: 16px 16px;
+      border-bottom: 1px solid #ede8e0;
+      vertical-align: top;
+      color: #1a1a1a;
+      word-break: break-word;
+    }
+    .ck-risk-table tr:nth-child(even) td {
+      background: #fdfcfb;
+    }
+    .ck-risk-table tr:hover td {
+      background: #f6f3eb;
+    }
+
+    /* Review Grid */
+    .ck-review {
+      display: grid;
+      grid-template-columns: minmax(0, 1.35fr) 1px minmax(260px, 0.95fr);
+      border: 1px solid #d4d0c7;
+      border-radius: 4px;
+      overflow: hidden;
+      margin: 14px 0 20px;
+      background: #ffffff;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.03);
+    }
+    .ck-review-left {
+      padding: 22px 26px;
+      background: #ffffff;
+      line-height: 1.75;
+    }
+    .ck-review-rule { background: #dcd8cf; }
+    .ck-review-right {
+      padding: 16px 18px;
+      background: #faf9f6;
+      box-sizing: border-box;
+      display: flex;
+      flex-direction: column;
+    }
+    .ck-ev-list {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    /* Entity Highlight in LaTeX Paper Style */
+    .ck-cite-entity {
+      background: #fff8db;
+      border-bottom: 1.5px solid #b86a04;
+      padding: 1px 4px;
+      border-radius: 2px;
+      cursor: pointer;
+      transition: all 0.18s ease;
+      color: #111111;
+      font-weight: 600;
+    }
+    .ck-cite-entity:hover {
+      background: #ffe58f;
+      color: #000000;
+    }
+    .ck-cite-entity.is-on {
+      background: #ffd54a;
+      border-bottom-color: #0047ab;
+      box-shadow: 0 0 0 2px rgba(0,71,171,0.25);
+    }
+
+    /* Blue Hyperref Citations [1], [2] */
+    .ck-cite-ref {
+      color: #0047ab;
+      font-weight: 600;
+      font-family: "Latin Modern Roman", "Computer Modern Roman", "Times New Roman", serif;
+      text-decoration: none;
+      cursor: pointer;
+      padding: 0 2px;
+      margin: 0 2px;
+      border-radius: 2px;
+      transition: all 0.15s ease;
+      font-size: 0.92em;
+      vertical-align: baseline;
+      user-select: none;
+    }
+    .ck-cite-ref:hover {
+      text-decoration: underline;
+      background: #e8f0fe;
+      color: #003380;
+    }
+    .ck-cite-ref.is-active {
+      background: #d2e3fc;
+      color: #002266;
+      font-weight: 700;
+      box-shadow: 0 0 0 1px #0047ab;
+    }
+
+    /* Right Memory Cards in LaTeX Paper Style */
+    .ck-provenance-head {
+      font-size: 0.82rem;
+      font-weight: 700;
+      color: #222222;
+      margin: 0 0 12px;
+      padding-bottom: 6px;
+      border-bottom: 1px solid #e0dcd4;
+      letter-spacing: 0.3px;
+      text-transform: uppercase;
+    }
+    .ck-ref-icon { color: #0047ab; margin-right: 4px; }
+    .ck-ev {
+      display: block;
+      margin: 0;
+      padding: 10px 12px;
+      border: 1px solid #dedad2;
+      border-left: 3.5px solid #0047ab;
+      border-radius: 2px;
+      background: #ffffff;
+      font-size: 0.82rem;
+      line-height: 1.55;
+      transition: all 0.2s ease;
+      cursor: pointer;
+    }
+    .ck-ev:hover { border-color: #b5b0a5; }
+    .ck-ev.is-on, .ck-ev.is-highlighted {
+      border-color: #0047ab;
+      box-shadow: 0 0 0 2px #0047ab, 0 3px 8px rgba(0,71,171,0.15);
+      background: #f0f5ff;
+    }
+    @keyframes citePulse {
+      0% { background: #dbeafe; box-shadow: 0 0 0 3px #0047ab; }
+      50% { background: #bfdbfe; box-shadow: 0 0 0 4px #0047ab; }
+      100% { background: #f0f5ff; box-shadow: 0 0 0 2px #0047ab; }
+    }
+    .ck-ev-k {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 0.75rem;
+      color: #444444;
+      margin-bottom: 5px;
+      font-weight: 700;
+    }
+    .ck-ev-cite-tag {
+      color: #0047ab;
+      font-weight: 700;
+      font-family: "Latin Modern Roman", serif;
+      text-decoration: none;
+    }
+    .ck-ev-kind-badge {
+      display: inline-block;
+      padding: 1px 6px;
+      border-radius: 2px;
+      font-size: 0.72rem;
+      font-weight: 600;
+      letter-spacing: 0.2px;
+    }
+    .ck-badge-keypoint {
+      border: 1px solid #0047ab;
+      color: #0047ab;
+      background: #f0f5ff;
+    }
+    .ck-badge-note {
+      border: 1px solid #b86a04;
+      color: #b86a04;
+      background: #fff8eb;
+    }
+    .ck-mem-title {
+      font-weight: 700;
+      color: #111111;
+      font-size: 0.88rem;
+      margin-bottom: 6px;
+      line-height: 1.45;
+    }
+    .ck-ev-quote {
+      color: #222222;
+      font-style: normal;
+      font-family: inherit;
+      margin: 4px 0 6px;
+      padding: 0;
+      background: transparent;
+      border: none;
+      line-height: 1.6;
+      font-size: 0.84rem;
+    }
+    .ck-ev-meta { font-size: 0.76rem; color: #666666; margin-top: 6px; }
+    .ck-ev-more {
+      margin-top: 2px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+    .ck-ev-more[open] { margin-top: 4px; }
+    .ck-ev-more summary { margin-bottom: 6px; }
+    .ck-proof-toggle {
+      cursor: pointer;
+      font-size: 0.82rem;
+      color: #0047ab;
+      user-select: none;
+      font-family: inherit;
+      padding: 2px 0;
+    }
+    .ck-proof-toggle:hover { text-decoration: underline; }
+
+    @media(max-width: 860px) {
+      .ck-doc { padding: 22px 18px; }
+      .ck-review { grid-template-columns: 1fr; }
+      .ck-review-rule { display: none; }
+    }
+
+  </style>
+</head>
+<body>
+  <main class="page">
+    <div class="ck-doc">
+      <header class="ck-doc-header">
+        <h1>ASR模型迭代进度与线上问题例会</h1>
+      </header>
+      <div class="ck-doc-content">
+        <h1 class="ck-doc-h1">全文摘要</h1><p>本次会议围绕上周ASR模型迭代进度、线上推理延迟与长音频卡死问题展开，A与B分别同步数据训练与推理侧现状。数据侧混合语料库清洗流水线跑完第二轮，长尾噪音、极端口音与背景人声重叠片段单独分流，有效语音时长占比从89%提升到94%左右，验证集WER降约0.8个点，但低资源语言混合边界场景中英文切换时存在吞过渡音或重复解码的毛刺，排查为CTC对齐阶段跨语言边界与轻声尾音处理不够平滑；A计划将全纯Transformer换成流式RNN-T与Transformer混合架构，先在20小时核心数据上训练，数据增强加时间偏移并准备引入MixUp和Cut，同时重新校对CTC blank token分布，本周用新基准跑消融。推理侧现有队列切分导致首字延迟波动在150ms到300ms之间，产品反馈体验不连贯，B计划改为静态分段加流式解码组合方案，音频按2秒切块、前端VAD预过滤、后端RNN-T增量解码，目标首字延迟控制在80ms以内、吞吐量稳在120路并发，VAD预过滤阈值暂卡在-25dB并结合能量与谱熵双模型判断，下周拉线上流量回放做端到端对比。会上确认流式架构切换不能影响现有非流式离线批处理，双线都要保且测试用例覆盖全；VAD阈值由B做消融实验，误切率与漏切率画曲线找最优解，不只看延迟；A的模型训练算力下周一起划拨三块A100做增量训练，需与NLP组项目错峰、看调度面板排队。长音频卡死方面，上周线上超长连续带方言口音音频导致解码器陷入无效循环、服务器节点重启，默认max steps 2048个token、超时5秒，部分序列超阈值且解码器未做优雅降级直接OOM，日志显示RNN-T attention权重持续震荡未收敛；A建议加early stopping机制，连续30步置信度低于0.2强制截断并返回当前序列，可解决90%以上卡死问题，B负责改解码逻辑并做超时熔断和降级返回，组长要求稳定性优先、精度次之，下周先出热修复版本上灰度。后续安排上，A负责写评估脚本和流水线配置，周四前出V1版本，B配合把压测数据输出成标准JSON格式；B出监控指标定义文档，明天下班前发组长并转发运维负责人，告警分P0（服务不可用或延迟超500ms）和P1（显存超85%或WER突增）两级；前端32k采样率升级方面，前端SDK仍为16k、新模型为32k输入，前端对接人排期推到下个月，32k模型在长尾词上比16k好0.5%的WER，B出对比文档和重采样插件实测、CPU开销控制在5%以内再提方案，组长明天拉产品和技术总监推进优先插队。组长总结四点：流式RNN-T混合架构和2秒切分方案A和B分头推进，本周五前出详细设计和压测数据；VAD阈值和长序列解码卡死问题B周四出消融报告和热修复方案，A配合长序列数据配比和评估流水线对接；前端32k采样率升级B出对比文档和重采样插件实测，组长拉会推进；监控面板和CI自动评估流水线本周内定稿并开始对接运维和测试环境。A周三前把CI脚本和测试用例发群里评审，B盯推理优化、VAD消融、热修复和监控文档。</p><h2 class="ck-doc-h2">数据与模型训练进展</h2><ul><li>混合语料库数据清洗流水线跑完第二轮，长尾噪音、极端口音和背景人声重叠片段单独分流，有效语音时长占比从89%提到94%左右；重新校对CTC blank token分布，发现多音字和连读场景切分点偏，本周用新基准跑消融。验证集WER降约0.8个点，但低资源语言混合边界场景识别结果边界切分有毛刺，中英文切换时模型容易吞掉过渡音或重复解码，排查为CTC对齐阶段跨语言边界和轻声尾音处理不够平滑。</li><li>计划把全纯Transformer架构换成流式RNN-T和Transformer混合形态，先在20小时核心数据上训练；数据增强加时间偏移，对背景白噪声和混响鲁棒性仍差，准备引入MixUp和Cut再迭代。B提出RNN-T缓存机制和显存占用问题，A100集群并发量上去KV Cache显存峰值易飙高，可能OOM拖垮线上服务；A计划对prefix LM缓存做INT8量化配合动态缓存释放，压约30%显存占用，具体显存曲线和压测数据未跑完。</li></ul><h2 class="ck-doc-h2">推理优化与线上问题处理</h2><ul><li>现有队列切分导致首字延迟波动在150ms到300ms之间，产品反馈体验不连贯；计划改成静态分段加流式解码组合方案，音频按2秒切块，前端VAD预过滤，后端RNN-T增量解码，首字延迟控制在80ms以内，整体吞吐量稳在120路并发；VAD预过滤阈值卡在-25dB，结合能量和谱熵双模型判断，计划下周拉线上流量回放做端到端对比。上周线上超长连续带方言口音音频导致解码器陷入无效循环、服务器节点重启，默认max steps 2048个token、超时5秒，部分序列超阈值且解码器未做优雅降级直接OOM；A建议加early stopping机制，连续30步置信度低于0.2强制截断并返回当前序列，B负责改解码逻辑并做超时熔断和降级返回，下周先出热修复版本上灰度。</li></ul>
+      </div>
+    </div>
+  </main>
+</body>
+</html>

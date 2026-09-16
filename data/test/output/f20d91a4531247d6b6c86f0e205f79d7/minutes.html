@@ -1,0 +1,372 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>光学复习第一讲：光的直线传播与光的反射</title>
+  <style>
+
+    body {
+      margin: 0;
+      padding: 32px 16px;
+      background: #f6f5f0;
+      color: #1a1a1a;
+      font-family: "Latin Modern Roman", "Computer Modern Roman", "CMU Serif", "Times New Roman", Times, "Songti SC", "SimSun", "STSong", serif;
+      -webkit-font-smoothing: antialiased;
+    }
+    .page { max-width: 1140px; margin: 0 auto; }
+    .ck-doc {
+      background: #ffffff;
+      border: 1px solid #d4d0c7;
+      border-radius: 4px;
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.05), 0 1px 3px rgba(0,0,0,0.03);
+      padding: 36px 44px;
+      line-height: 1.75;
+      font-size: 0.96rem;
+    }
+    .ck-doc h1 {
+      margin: 0 0 10px;
+      font-size: 1.85rem;
+      font-weight: 700;
+      letter-spacing: 0.4px;
+      text-align: center;
+      font-variant: small-caps;
+      color: #111111;
+    }
+    .ck-doc-header {
+      margin-bottom: 24px;
+      padding-bottom: 16px;
+      border-bottom: 2px solid #111111;
+      text-align: center;
+    }
+    .ck-doc-meta {
+      font-size: 0.85rem;
+      color: #555555;
+      font-style: italic;
+    }
+    .ck-doc-content h1, .ck-doc-content .ck-doc-h1 {
+      margin: 28px 0 14px;
+      font-size: 1.32rem;
+      font-weight: 700;
+      color: #111111;
+      border-bottom: 1.5px solid #222222;
+      padding-bottom: 5px;
+      text-align: left;
+      font-variant: normal;
+      letter-spacing: 0.3px;
+    }
+    .ck-doc h2, .ck-doc-h2 {
+      margin: 28px 0 14px;
+      font-size: 1.22rem;
+      font-weight: 700;
+      color: #111111;
+      border-bottom: 1.5px solid #222222;
+      padding-bottom: 5px;
+      letter-spacing: 0.3px;
+    }
+    .ck-doc h3, .ck-doc-h3 {
+      margin: 20px 0 10px;
+      font-size: 1.05rem;
+      font-weight: 700;
+      color: #222222;
+    }
+    .ck-doc h4, .ck-doc-h4 {
+      margin: 16px 0 8px;
+      font-size: 0.98rem;
+      font-weight: 700;
+      color: #333333;
+    }
+    .ck-doc p {
+      margin: 10px 0;
+      line-height: 1.75;
+      text-align: justify;
+    }
+    .ck-doc ul, .ck-doc ol {
+      margin: 8px 0 12px;
+      padding-left: 1.5em;
+      line-height: 1.72;
+    }
+    .ck-doc li {
+      margin: 4px 0;
+    }
+    .ck-doc blockquote, .ck-quote {
+      margin: 10px 0 14px;
+      padding: 8px 14px;
+      background: #faf9f6;
+      border-left: 3.5px solid #222222;
+      border-radius: 2px;
+      color: #222222;
+      font-size: 0.92rem;
+      font-style: italic;
+    }
+    .ck-doc code {
+      background: #f3f0e8;
+      border: 1px solid #e2ddd3;
+      border-radius: 3px;
+      padding: 1px 6px;
+      font-family: "Latin Modern Mono", Consolas, monospace;
+      font-size: 0.88em;
+    }
+    .ck-doc table, .ck-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.88rem;
+      margin: 14px 0;
+      background: #ffffff;
+      border-top: 2px solid #222222;
+      border-bottom: 2px solid #222222;
+    }
+    .ck-doc table th, .ck-doc table td, .ck-table th, .ck-table td {
+      padding: 9px 12px;
+      text-align: left;
+      vertical-align: middle;
+      border-bottom: 1px solid #ede9e1;
+    }
+    .ck-doc table th, .ck-table th {
+      background: #fbfaf7;
+      border-bottom: 1.2px solid #222222;
+      font-weight: 700;
+      color: #111111;
+      letter-spacing: 0.3px;
+    }
+
+    /* Roomy & Spacious Academic Risk Table */
+    .ck-risk-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 18px 0 28px;
+      background: #ffffff;
+      border-top: 2.2px solid #111111;
+      border-bottom: 2.2px solid #111111;
+      font-size: 0.93rem;
+      line-height: 1.72;
+    }
+    .ck-risk-table th {
+      background: #faf8f5;
+      border-bottom: 1.5px solid #111111;
+      padding: 15px 16px;
+      font-weight: 700;
+      color: #111111;
+      letter-spacing: 0.3px;
+      text-align: left;
+      vertical-align: middle;
+    }
+    .ck-risk-table td {
+      padding: 16px 16px;
+      border-bottom: 1px solid #ede8e0;
+      vertical-align: top;
+      color: #1a1a1a;
+      word-break: break-word;
+    }
+    .ck-risk-table tr:nth-child(even) td {
+      background: #fdfcfb;
+    }
+    .ck-risk-table tr:hover td {
+      background: #f6f3eb;
+    }
+
+    /* Review Grid */
+    .ck-review {
+      display: grid;
+      grid-template-columns: minmax(0, 1.35fr) 1px minmax(260px, 0.95fr);
+      border: 1px solid #d4d0c7;
+      border-radius: 4px;
+      overflow: hidden;
+      margin: 14px 0 20px;
+      background: #ffffff;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.03);
+    }
+    .ck-review-left {
+      padding: 22px 26px;
+      background: #ffffff;
+      line-height: 1.75;
+    }
+    .ck-review-rule { background: #dcd8cf; }
+    .ck-review-right {
+      padding: 16px 18px;
+      background: #faf9f6;
+      box-sizing: border-box;
+      display: flex;
+      flex-direction: column;
+    }
+    .ck-ev-list {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    /* Entity Highlight in LaTeX Paper Style */
+    .ck-cite-entity {
+      background: #fff8db;
+      border-bottom: 1.5px solid #b86a04;
+      padding: 1px 4px;
+      border-radius: 2px;
+      cursor: pointer;
+      transition: all 0.18s ease;
+      color: #111111;
+      font-weight: 600;
+    }
+    .ck-cite-entity:hover {
+      background: #ffe58f;
+      color: #000000;
+    }
+    .ck-cite-entity.is-on {
+      background: #ffd54a;
+      border-bottom-color: #0047ab;
+      box-shadow: 0 0 0 2px rgba(0,71,171,0.25);
+    }
+
+    /* Blue Hyperref Citations [1], [2] */
+    .ck-cite-ref {
+      color: #0047ab;
+      font-weight: 600;
+      font-family: "Latin Modern Roman", "Computer Modern Roman", "Times New Roman", serif;
+      text-decoration: none;
+      cursor: pointer;
+      padding: 0 2px;
+      margin: 0 2px;
+      border-radius: 2px;
+      transition: all 0.15s ease;
+      font-size: 0.92em;
+      vertical-align: baseline;
+      user-select: none;
+    }
+    .ck-cite-ref:hover {
+      text-decoration: underline;
+      background: #e8f0fe;
+      color: #003380;
+    }
+    .ck-cite-ref.is-active {
+      background: #d2e3fc;
+      color: #002266;
+      font-weight: 700;
+      box-shadow: 0 0 0 1px #0047ab;
+    }
+
+    /* Right Memory Cards in LaTeX Paper Style */
+    .ck-provenance-head {
+      font-size: 0.82rem;
+      font-weight: 700;
+      color: #222222;
+      margin: 0 0 12px;
+      padding-bottom: 6px;
+      border-bottom: 1px solid #e0dcd4;
+      letter-spacing: 0.3px;
+      text-transform: uppercase;
+    }
+    .ck-ref-icon { color: #0047ab; margin-right: 4px; }
+    .ck-ev {
+      display: block;
+      margin: 0;
+      padding: 10px 12px;
+      border: 1px solid #dedad2;
+      border-left: 3.5px solid #0047ab;
+      border-radius: 2px;
+      background: #ffffff;
+      font-size: 0.82rem;
+      line-height: 1.55;
+      transition: all 0.2s ease;
+      cursor: pointer;
+    }
+    .ck-ev:hover { border-color: #b5b0a5; }
+    .ck-ev.is-on, .ck-ev.is-highlighted {
+      border-color: #0047ab;
+      box-shadow: 0 0 0 2px #0047ab, 0 3px 8px rgba(0,71,171,0.15);
+      background: #f0f5ff;
+    }
+    @keyframes citePulse {
+      0% { background: #dbeafe; box-shadow: 0 0 0 3px #0047ab; }
+      50% { background: #bfdbfe; box-shadow: 0 0 0 4px #0047ab; }
+      100% { background: #f0f5ff; box-shadow: 0 0 0 2px #0047ab; }
+    }
+    .ck-ev-k {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 0.75rem;
+      color: #444444;
+      margin-bottom: 5px;
+      font-weight: 700;
+    }
+    .ck-ev-cite-tag {
+      color: #0047ab;
+      font-weight: 700;
+      font-family: "Latin Modern Roman", serif;
+      text-decoration: none;
+    }
+    .ck-ev-kind-badge {
+      display: inline-block;
+      padding: 1px 6px;
+      border-radius: 2px;
+      font-size: 0.72rem;
+      font-weight: 600;
+      letter-spacing: 0.2px;
+    }
+    .ck-badge-keypoint {
+      border: 1px solid #0047ab;
+      color: #0047ab;
+      background: #f0f5ff;
+    }
+    .ck-badge-note {
+      border: 1px solid #b86a04;
+      color: #b86a04;
+      background: #fff8eb;
+    }
+    .ck-mem-title {
+      font-weight: 700;
+      color: #111111;
+      font-size: 0.88rem;
+      margin-bottom: 6px;
+      line-height: 1.45;
+    }
+    .ck-ev-quote {
+      color: #222222;
+      font-style: normal;
+      font-family: inherit;
+      margin: 4px 0 6px;
+      padding: 0;
+      background: transparent;
+      border: none;
+      line-height: 1.6;
+      font-size: 0.84rem;
+    }
+    .ck-ev-meta { font-size: 0.76rem; color: #666666; margin-top: 6px; }
+    .ck-ev-more {
+      margin-top: 2px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+    .ck-ev-more[open] { margin-top: 4px; }
+    .ck-ev-more summary { margin-bottom: 6px; }
+    .ck-proof-toggle {
+      cursor: pointer;
+      font-size: 0.82rem;
+      color: #0047ab;
+      user-select: none;
+      font-family: inherit;
+      padding: 2px 0;
+    }
+    .ck-proof-toggle:hover { text-decoration: underline; }
+
+    @media(max-width: 860px) {
+      .ck-doc { padding: 22px 18px; }
+      .ck-review { grid-template-columns: 1fr; }
+      .ck-review-rule { display: none; }
+    }
+
+  </style>
+</head>
+<body>
+  <main class="page">
+    <div class="ck-doc">
+      <header class="ck-doc-header">
+        <h1>光学复习第一讲：光的直线传播与光的反射</h1>
+      </header>
+      <div class="ck-doc-content">
+        <h1 class="ck-doc-h1">课程概况</h1><p>本次课为光学三讲中的第一讲，复习初中几何光学中的光的直线传播与光的反射，后续两讲将涉及光的折射（凸透镜、凹透镜及显微镜、望远镜等透镜应用）；高中阶段不再讲几何光学，而讲光的干涉与衍射。光的直线传播部分梳理了光源、光线、光速等概念，并以玻璃罩点香加激光、激光笔对准直吸管与弯折吸管、三点一线、激光准直、小孔成像、日食月食、影子形成等实例证明光在均匀介质中沿直线传播。光的反射部分讲解了反射定律、镜面反射与漫反射、平面镜成像及球面镜，并讲解了配套练习第1至24题。</p><h1 class="ck-doc-h1">核心知识点梳理</h1><p><strong>一、光学整体框架</strong>：共三讲学习光学，初中阶段讲几何光学，包括光的直线传播、反射、折射；高中不再讲几何光学而讲干涉、衍射。本讲复习光的直线传播与光的反射，反射分平面镜（教材要求必会）及凸面镜、凹面镜（统称球面镜），折射主要讲凸透镜、凹透镜及透镜应用（显微镜、望远镜）。</p><p><strong>二、光源与光线</strong>：光源定义为自身能够发光的物体，分自然光源（太阳、萤火虫）和人造光源（火把、蜡烛、煤油灯、电灯）。光线用带箭头的直线表示，是物理模型，并非真实存在；按来源分自然/人造光源，按形状分点光源与平行光源（太阳光画成平行光）。</p><p><strong>三、光在均匀介质中沿直线传播</strong>：证明实验为玻璃罩内点香产生烟雾后用激光照射可见直线光路；用激光笔对准直吸管在墙上成点，弯折吸管后点消失。大气层不均匀会使光偏折，故太阳看似提前跃出地平线、星星眨眼。实例包括三点一线（步枪瞄准、队列看齐、木工看尺）、激光准直、小孔成像、日食月食、影子形成。⭐小孔成像一定成倒立实像，放大缩小不一定，与孔的形状无关；夏天树荫下光斑即太阳的小孔成像，多为缩小的像。日食为太阳-月球-地球成一线、月球在中间，分日全食、日偏食、日环食；月食为太阳-地球-月球成一线，月偏食是月球部分在1号区域、部分在2或3区域。</p><p><strong>四、光速</strong>：光在真空中的传播速度 <code>V=3×10^8米/秒=3×10^5千米/秒</code>，即每秒30万公里，约一秒绕地球赤道7圈半。空气中约 <code>2.99×10^8米/秒</code>，比真空中略慢；水中约为真空中的3/4，玻璃约为2/3。光本质是电磁波，初三讲。</p><p><strong>五、光的反射定律</strong>：通过硬纸壳（可前后转动）加小平面镜、激光笔的探究实验验证反射定律。定义入射光线AO、入射点O、反射光线OB、法线（垂直于镜面，是入射光线与反射光线夹角的角平分线，用虚线画）、入射角（入射光线与法线夹角）、反射角（反射光线与法线夹角）。反射定律：反射光线、入射光线和法线在同一平面内（共面）；反射光线与入射光线分居法线两侧；反射角等于入射角。⭐垂直入射时入射角和反射角均为0度。作图先画法线并保留痕迹，再按对称找点画光线并补箭头。</p><p><strong>六、镜面反射与漫反射</strong>：镜面反射是一束平行光照到光滑镜面，反射光线方向一致，人眼在特定位置才能看到反射光；缺点如商场玻璃隔断易撞上、黑板反光看不清板书。漫反射是表面凹凸不平时把每个小面看作小平面镜，反射光线射向各个方向，生活中大多数反射是漫反射，黑板、电影银幕、投影幕布均利用漫反射。<em>两种反射都遵守光的反射定律</em>。雨后夜晚迎着月光走亮处是水潭、背着月光走暗处是水潭；手电筒垂直照镜面时斜看镜子是黑的、周围白纸是亮的。</p><p><strong>七、平面镜成像</strong>：实验用玻璃板代替平面镜（便于移动后面的蜡烛找像）、刻度尺（比较像与物到镜面的距离）、两段完全相同的蜡烛（比较像与物的大小）。平面镜成像原理遵循光的反射定律，成的是正立、等大的虚像，像与物连线与镜面垂直、到镜面距离相等，光屏接收不到。⭐实验误差原因：玻璃板与水平面不垂直或与预先画好的镜面位置不重合；玻璃板有厚度，两个面发生反射成像会出现两个像。应用：平静水面倒影、查视力（视力表距镜3.5米，人距镜1.5米即可看5米处虚像）。</p><p><strong>八、球面镜（凸面镜与凹面镜）</strong>：凸面镜对光线起发散作用，成的是正立、缩小的虚像，用于汽车后视镜、丁字路口拐弯处。凹面镜对光线起会聚作用，平行光反射后交于焦点F，手电筒电珠、汽车前大灯、探照灯、耳鼻喉科医生头镜均用凹面镜；西藏用太阳灶烧水。作图原则为以直代曲。玻璃幕墙形成凹面会聚光，曾导致校园枣树被烧死、电线自燃，属光污染隐患。</p><h1 class="ck-doc-h1">课堂互动与答疑</h1><p>问：光在均匀介质中沿直线传播，为什么太阳看起来提前跃出地平线、星星会眨眼？→ 答：因为大气层不均匀，越往外越稀薄，会使光线发生偏折；宇航员在月球上看太阳就不会这样。</p><p>问：小孔成像的像一定是放大的吗？→ 答：不一定，放大缩小取决于物距与像距，但一定成倒立的实像，且与孔的形状无关。</p><p>问：光垂直射到镜面上，入射角和反射角是多少度？→ 答：都是0度，因为入射角是入射光线与法线的夹角。</p><p>问：为什么反射定律要引进法线？→ 答：如果只研究反射，用镜面夹角也可以，但后面还要讲折射，所以必须引进法线。</p><p>问：平面镜成像实验为什么用玻璃板代替平面镜？→ 答：用镜子无法移动后面的蜡烛去找像，用玻璃板便于确定像的位置。</p><p>问：为什么在玻璃板同一侧会看到同一个蜡烛的两个像？→ 答：玻璃板有厚度，它的两个面发生反射成像的结果。</p><div class="ck-quote">光在均匀介质中沿直线传播。</div><div class="ck-quote">反射定律三句话：三线共面、两线分居法线两侧、反射角等于入射角。</div><div class="ck-quote">作图先画法线并保留痕迹，再按对称找点画光线并补箭头。</div><h1 class="ck-doc-h1">课后任务与学习建议</h1><p>教师布置完成讲义配套练习第1至24题，并逐题讲解了答案：第1题考查光在均匀介质中沿直线传播；第3题由激光从地球射到月球表面时间1.25秒算得距离为 <code>3.75×10^8米</code>；第4题选C；第5题多选选BCD；第6题选ABC；第9题入射角为50度选A；第10题选C；第11题反射角为60度；第12题反射角为40度；第13题雨后夜晚迎着月光走亮处是水潭；第14题考查光路可逆；第15、16、17题考查漫反射与镜面反射；第18题选D；第19、20题考查平面镜成像实验；第21题填1.5米；第22题选B；第23题人与像距离为2米；第24题选C。复习重点为光的直线传播、光的反射定律、镜面反射与漫反射、平面镜成像特点及球面镜应用。学习建议：可在家用纸杯扎小孔、蜡烛做小孔成像实验，用硬纸壳加小平面镜和激光笔研究反射定律，用玻璃板与两段相同蜡烛做平面镜成像实验；建议购买激光笔辅助观察光路。</p>
+      </div>
+    </div>
+  </main>
+</body>
+</html>

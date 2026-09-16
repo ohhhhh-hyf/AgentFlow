@@ -58,7 +58,7 @@ tools/
   exercise_search/            # 高中题库检索（notes.quiz 用）
   scripts/                    # 开发工具：sync_domain / register_task 代码生成器
 samples/                      # 样例输入：samples/{domain}/file/、profile/、{task}_template/
-template/                     # 模板注册表（cm_template_v2_changed_0722.yaml 的可读副本）
+template_v2/                  # 模板注册表（29 类模板的唯一权威源，运行时直接读 *.md）
 ```
 
 ## 快速开始

@@ -1,0 +1,372 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>公务员结构化面试模拟：四题作答与考官引导</title>
+  <style>
+
+    body {
+      margin: 0;
+      padding: 32px 16px;
+      background: #f6f5f0;
+      color: #1a1a1a;
+      font-family: "Latin Modern Roman", "Computer Modern Roman", "CMU Serif", "Times New Roman", Times, "Songti SC", "SimSun", "STSong", serif;
+      -webkit-font-smoothing: antialiased;
+    }
+    .page { max-width: 1140px; margin: 0 auto; }
+    .ck-doc {
+      background: #ffffff;
+      border: 1px solid #d4d0c7;
+      border-radius: 4px;
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.05), 0 1px 3px rgba(0,0,0,0.03);
+      padding: 36px 44px;
+      line-height: 1.75;
+      font-size: 0.96rem;
+    }
+    .ck-doc h1 {
+      margin: 0 0 10px;
+      font-size: 1.85rem;
+      font-weight: 700;
+      letter-spacing: 0.4px;
+      text-align: center;
+      font-variant: small-caps;
+      color: #111111;
+    }
+    .ck-doc-header {
+      margin-bottom: 24px;
+      padding-bottom: 16px;
+      border-bottom: 2px solid #111111;
+      text-align: center;
+    }
+    .ck-doc-meta {
+      font-size: 0.85rem;
+      color: #555555;
+      font-style: italic;
+    }
+    .ck-doc-content h1, .ck-doc-content .ck-doc-h1 {
+      margin: 28px 0 14px;
+      font-size: 1.32rem;
+      font-weight: 700;
+      color: #111111;
+      border-bottom: 1.5px solid #222222;
+      padding-bottom: 5px;
+      text-align: left;
+      font-variant: normal;
+      letter-spacing: 0.3px;
+    }
+    .ck-doc h2, .ck-doc-h2 {
+      margin: 28px 0 14px;
+      font-size: 1.22rem;
+      font-weight: 700;
+      color: #111111;
+      border-bottom: 1.5px solid #222222;
+      padding-bottom: 5px;
+      letter-spacing: 0.3px;
+    }
+    .ck-doc h3, .ck-doc-h3 {
+      margin: 20px 0 10px;
+      font-size: 1.05rem;
+      font-weight: 700;
+      color: #222222;
+    }
+    .ck-doc h4, .ck-doc-h4 {
+      margin: 16px 0 8px;
+      font-size: 0.98rem;
+      font-weight: 700;
+      color: #333333;
+    }
+    .ck-doc p {
+      margin: 10px 0;
+      line-height: 1.75;
+      text-align: justify;
+    }
+    .ck-doc ul, .ck-doc ol {
+      margin: 8px 0 12px;
+      padding-left: 1.5em;
+      line-height: 1.72;
+    }
+    .ck-doc li {
+      margin: 4px 0;
+    }
+    .ck-doc blockquote, .ck-quote {
+      margin: 10px 0 14px;
+      padding: 8px 14px;
+      background: #faf9f6;
+      border-left: 3.5px solid #222222;
+      border-radius: 2px;
+      color: #222222;
+      font-size: 0.92rem;
+      font-style: italic;
+    }
+    .ck-doc code {
+      background: #f3f0e8;
+      border: 1px solid #e2ddd3;
+      border-radius: 3px;
+      padding: 1px 6px;
+      font-family: "Latin Modern Mono", Consolas, monospace;
+      font-size: 0.88em;
+    }
+    .ck-doc table, .ck-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.88rem;
+      margin: 14px 0;
+      background: #ffffff;
+      border-top: 2px solid #222222;
+      border-bottom: 2px solid #222222;
+    }
+    .ck-doc table th, .ck-doc table td, .ck-table th, .ck-table td {
+      padding: 9px 12px;
+      text-align: left;
+      vertical-align: middle;
+      border-bottom: 1px solid #ede9e1;
+    }
+    .ck-doc table th, .ck-table th {
+      background: #fbfaf7;
+      border-bottom: 1.2px solid #222222;
+      font-weight: 700;
+      color: #111111;
+      letter-spacing: 0.3px;
+    }
+
+    /* Roomy & Spacious Academic Risk Table */
+    .ck-risk-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 18px 0 28px;
+      background: #ffffff;
+      border-top: 2.2px solid #111111;
+      border-bottom: 2.2px solid #111111;
+      font-size: 0.93rem;
+      line-height: 1.72;
+    }
+    .ck-risk-table th {
+      background: #faf8f5;
+      border-bottom: 1.5px solid #111111;
+      padding: 15px 16px;
+      font-weight: 700;
+      color: #111111;
+      letter-spacing: 0.3px;
+      text-align: left;
+      vertical-align: middle;
+    }
+    .ck-risk-table td {
+      padding: 16px 16px;
+      border-bottom: 1px solid #ede8e0;
+      vertical-align: top;
+      color: #1a1a1a;
+      word-break: break-word;
+    }
+    .ck-risk-table tr:nth-child(even) td {
+      background: #fdfcfb;
+    }
+    .ck-risk-table tr:hover td {
+      background: #f6f3eb;
+    }
+
+    /* Review Grid */
+    .ck-review {
+      display: grid;
+      grid-template-columns: minmax(0, 1.35fr) 1px minmax(260px, 0.95fr);
+      border: 1px solid #d4d0c7;
+      border-radius: 4px;
+      overflow: hidden;
+      margin: 14px 0 20px;
+      background: #ffffff;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.03);
+    }
+    .ck-review-left {
+      padding: 22px 26px;
+      background: #ffffff;
+      line-height: 1.75;
+    }
+    .ck-review-rule { background: #dcd8cf; }
+    .ck-review-right {
+      padding: 16px 18px;
+      background: #faf9f6;
+      box-sizing: border-box;
+      display: flex;
+      flex-direction: column;
+    }
+    .ck-ev-list {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    /* Entity Highlight in LaTeX Paper Style */
+    .ck-cite-entity {
+      background: #fff8db;
+      border-bottom: 1.5px solid #b86a04;
+      padding: 1px 4px;
+      border-radius: 2px;
+      cursor: pointer;
+      transition: all 0.18s ease;
+      color: #111111;
+      font-weight: 600;
+    }
+    .ck-cite-entity:hover {
+      background: #ffe58f;
+      color: #000000;
+    }
+    .ck-cite-entity.is-on {
+      background: #ffd54a;
+      border-bottom-color: #0047ab;
+      box-shadow: 0 0 0 2px rgba(0,71,171,0.25);
+    }
+
+    /* Blue Hyperref Citations [1], [2] */
+    .ck-cite-ref {
+      color: #0047ab;
+      font-weight: 600;
+      font-family: "Latin Modern Roman", "Computer Modern Roman", "Times New Roman", serif;
+      text-decoration: none;
+      cursor: pointer;
+      padding: 0 2px;
+      margin: 0 2px;
+      border-radius: 2px;
+      transition: all 0.15s ease;
+      font-size: 0.92em;
+      vertical-align: baseline;
+      user-select: none;
+    }
+    .ck-cite-ref:hover {
+      text-decoration: underline;
+      background: #e8f0fe;
+      color: #003380;
+    }
+    .ck-cite-ref.is-active {
+      background: #d2e3fc;
+      color: #002266;
+      font-weight: 700;
+      box-shadow: 0 0 0 1px #0047ab;
+    }
+
+    /* Right Memory Cards in LaTeX Paper Style */
+    .ck-provenance-head {
+      font-size: 0.82rem;
+      font-weight: 700;
+      color: #222222;
+      margin: 0 0 12px;
+      padding-bottom: 6px;
+      border-bottom: 1px solid #e0dcd4;
+      letter-spacing: 0.3px;
+      text-transform: uppercase;
+    }
+    .ck-ref-icon { color: #0047ab; margin-right: 4px; }
+    .ck-ev {
+      display: block;
+      margin: 0;
+      padding: 10px 12px;
+      border: 1px solid #dedad2;
+      border-left: 3.5px solid #0047ab;
+      border-radius: 2px;
+      background: #ffffff;
+      font-size: 0.82rem;
+      line-height: 1.55;
+      transition: all 0.2s ease;
+      cursor: pointer;
+    }
+    .ck-ev:hover { border-color: #b5b0a5; }
+    .ck-ev.is-on, .ck-ev.is-highlighted {
+      border-color: #0047ab;
+      box-shadow: 0 0 0 2px #0047ab, 0 3px 8px rgba(0,71,171,0.15);
+      background: #f0f5ff;
+    }
+    @keyframes citePulse {
+      0% { background: #dbeafe; box-shadow: 0 0 0 3px #0047ab; }
+      50% { background: #bfdbfe; box-shadow: 0 0 0 4px #0047ab; }
+      100% { background: #f0f5ff; box-shadow: 0 0 0 2px #0047ab; }
+    }
+    .ck-ev-k {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 0.75rem;
+      color: #444444;
+      margin-bottom: 5px;
+      font-weight: 700;
+    }
+    .ck-ev-cite-tag {
+      color: #0047ab;
+      font-weight: 700;
+      font-family: "Latin Modern Roman", serif;
+      text-decoration: none;
+    }
+    .ck-ev-kind-badge {
+      display: inline-block;
+      padding: 1px 6px;
+      border-radius: 2px;
+      font-size: 0.72rem;
+      font-weight: 600;
+      letter-spacing: 0.2px;
+    }
+    .ck-badge-keypoint {
+      border: 1px solid #0047ab;
+      color: #0047ab;
+      background: #f0f5ff;
+    }
+    .ck-badge-note {
+      border: 1px solid #b86a04;
+      color: #b86a04;
+      background: #fff8eb;
+    }
+    .ck-mem-title {
+      font-weight: 700;
+      color: #111111;
+      font-size: 0.88rem;
+      margin-bottom: 6px;
+      line-height: 1.45;
+    }
+    .ck-ev-quote {
+      color: #222222;
+      font-style: normal;
+      font-family: inherit;
+      margin: 4px 0 6px;
+      padding: 0;
+      background: transparent;
+      border: none;
+      line-height: 1.6;
+      font-size: 0.84rem;
+    }
+    .ck-ev-meta { font-size: 0.76rem; color: #666666; margin-top: 6px; }
+    .ck-ev-more {
+      margin-top: 2px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+    .ck-ev-more[open] { margin-top: 4px; }
+    .ck-ev-more summary { margin-bottom: 6px; }
+    .ck-proof-toggle {
+      cursor: pointer;
+      font-size: 0.82rem;
+      color: #0047ab;
+      user-select: none;
+      font-family: inherit;
+      padding: 2px 0;
+    }
+    .ck-proof-toggle:hover { text-decoration: underline; }
+
+    @media(max-width: 860px) {
+      .ck-doc { padding: 22px 18px; }
+      .ck-review { grid-template-columns: 1fr; }
+      .ck-review-rule { display: none; }
+    }
+
+  </style>
+</head>
+<body>
+  <main class="page">
+    <div class="ck-doc">
+      <header class="ck-doc-header">
+        <h1>公务员结构化面试模拟：四题作答与考官引导</h1>
+      </header>
+      <div class="ck-doc-content">
+        <h1 class="ck-doc-h1">候选人概况与面试岗位</h1><p>本次为一场公务员结构化面试模拟，考官在开场说明面试共20分钟、回答4个问题，要求合理把握时间、逐题回答、语言简洁明了，题纸不得做任何记录，并请计时员计时；考生表示已准备好后开始答题。考生依次作答四题：第一题以骏马、风筝、陀螺三句绳子比喻展开，引申到自我反省、单位形成紧张活泼团结有趣的风气、权利与责任如风筝与绳子并建立权利清单和责任清单、陀螺连轴转对应基层与机关加班写材料靠责任感和成就感支撑；第二题假设为小王，提出先补课充实AI知识、学习兄弟城市调研经验、查阅国务院中央办公厅及省厅关于人工智能发展的指导意见和举措，再制定含客观（企业发展现状）与主观（政府服务需求）两方面、市场状况/服务需求/管理措施三部分的工作方案，呈报领导审阅后实施，实施方式包括与企业对接阅读发展报告、制定调查问卷并请单位专家学者修改完善、召开人工智能企业座谈会听取意见，涉及人才引进、政策倾斜、用地审批、人才培养机制等，管理方面参考共享充电宝信任危机通过问卷调查了解不完善之处并规范政策；第三题模拟小王答复记者，说明管道为上世纪90年代社区集中整治时所修建、城区属老城区改造难度大、夏天用水高峰问题集中出现，已联系维修师傅赶赴现场维修，长期硬件问题已汇报上级部门并将通过城市综合保障工程完善基础设施，承认工作有失职之处，希望媒体给予改进机会并请媒体向公众解释政府难处和管道真实问题；第四题从公共服务角度提出主要矛盾（时间上过去、现在、未来的诉求不满足）和次要矛盾（噪音污染、出行问题、舆论问题），认为城市建设应继续推进，次要矛盾可通过道路改造和雨污分流逐步解决，当下措施包括督促施工方加快效率进度、保证质量、减少扰民，加防噪墙、洒水降尘减少噪音灰尘，建议出行便道替代主干道、通过交通广播推荐路线、引导市民乘公交、公交公司增加班次频率，并以公告形式在网络上公开透明说明政府举措以获理解支持。面试结束前考官询问是否还有补充，考生表示没有要补充的，考官宣布面试结束并感谢参与，考生致谢。</p><h1 class="ck-doc-h1">能力评估</h1><p>按专业/技术能力、项目经验、沟通协作三个维度评估，评级与依据见下表。</p><table class="ck-table"><thead><tr><th>评估维度</th><th>推荐评级</th><th>评估依据（具体事例）</th></tr></thead><tbody><tr><td>专业/技术能力</td><td>良</td><td>第一题以骏马、风筝、陀螺三句绳子比喻展开，引申到自我反省（吾日三省吾身）、单位形成紧张活泼团结有趣的风气、权利与责任如风筝与绳子并建立权利清单和责任清单、陀螺连轴转对应基层与机关加班写材料靠责任感和成就感支撑；第二题提出先补课充实AI知识、学习兄弟城市调研经验、查阅国务院中央办公厅及省厅关于人工智能发展的指导意见和举措；第四题从公共服务角度提出主要矛盾（时间上过去、现在、未来的诉求不满足）和次要矛盾（噪音污染、出行问题、舆论问题）。</td></tr><tr><td>项目经验</td><td>良</td><td>第二题假设为小王，提出制定含客观（企业发展现状）与主观（政府服务需求）两方面、市场状况/服务需求/管理措施三部分的工作方案，呈报领导审阅后实施，实施方式包括与企业对接阅读发展报告、制定调查问卷并请单位专家学者修改完善、召开人工智能企业座谈会听取意见，涉及人才引进、政策倾斜、用地审批、人才培养机制等，管理方面参考共享充电宝信任危机通过问卷调查了解不完善之处并规范政策。</td></tr><tr><td>沟通协作</td><td>良</td><td>第三题模拟小王答复记者，说明管道为上世纪90年代社区集中整治时所修建、城区属老城区改造难度大、夏天用水高峰问题集中出现，已联系维修师傅赶赴现场维修，长期硬件问题已汇报上级部门并将通过城市综合保障工程完善基础设施，承认工作有失职之处，希望媒体给予改进机会并请媒体向公众解释政府难处和管道真实问题；第四题提出督促施工方加快效率进度、保证质量、减少扰民，加防噪墙、洒水降尘减少噪音灰尘，建议出行便道替代主干道、通过交通广播推荐路线、引导市民乘公交、公交公司增加班次频率，并以公告形式在网络上公开透明说明政府举措以获理解支持。</td></tr></tbody></table><h1 class="ck-doc-h1">综合素质</h1><p>突出亮点：第一题以骏马、风筝、陀螺三句绳子比喻展开，引申到自我反省（吾日三省吾身）、单位形成紧张活泼团结有趣的风气、权利与责任如风筝与绳子并建立权利清单和责任清单、陀螺连轴转对应基层与机关加班写材料靠责任感和成就感支撑；第二题提出先补课充实AI知识、学习兄弟城市调研经验、查阅国务院中央办公厅及省厅关于人工智能发展的指导意见和举措，再制定含客观与主观两方面、市场状况/服务需求/管理措施三部分的工作方案，呈报领导审阅后实施，实施方式包括与企业对接阅读发展报告、制定调查问卷并请单位专家学者修改完善、召开人工智能企业座谈会听取意见，涉及人才引进、政策倾斜、用地审批、人才培养机制等，管理方面参考共享充电宝信任危机通过问卷调查了解不完善之处并规范政策；第三题模拟答复记者时说明管道为上世纪90年代社区集中整治时所修建、城区属老城区改造难度大、夏天用水高峰问题集中出现，已联系维修师傅赶赴现场维修，长期硬件问题已汇报上级部门并将通过城市综合保障工程完善基础设施，承认工作有失职之处，希望媒体给予改进机会并请媒体向公众解释政府难处和管道真实问题；第四题从公共服务角度提出主要矛盾（时间上过去、现在、未来的诉求不满足）和次要矛盾（噪音污染、出行问题、舆论问题），认为城市建设应继续推进，次要矛盾可通过道路改造和雨污分流逐步解决，当下措施包括督促施工方加快效率进度、保证质量、减少扰民，加防噪墙、洒水降尘减少噪音灰尘，建议出行便道替代主干道、通过交通广播推荐路线、引导市民乘公交、公交公司增加班次频率，并以公告形式在网络上公开透明说明政府举措以获理解支持。潜在风险点：第三题中考生承认工作有失职之处，并请媒体向公众解释政府难处和管道真实问题；第四题中考生提及舆论不满问题。推进建议：原文未提及。</p>
+      </div>
+    </div>
+  </main>
+</body>
+</html>

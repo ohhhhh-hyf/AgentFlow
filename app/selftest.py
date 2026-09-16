@@ -1803,50 +1803,43 @@ def test_heading_level_normalize() -> None:
         check(f"无层可归一时原样返回({text[:6] or '空'})", same == text)
 
 
-def test_template_copies_match_yaml() -> None:
-    """模板三处一致（零 LLM）：权威 YAML ↔ ``template/*.md`` 副本 ↔ 代码注册表。
+def test_template_registry_from_md() -> None:
+    """模板契约（零 LLM）：``template_v2/*.md``（唯一源）↔ 代码注册表 ↔ ``extra.template`` 两种写法。
 
-    回归背景：``template/*.md`` 是 YAML ``format`` 的可读副本，历史上被手工改过措辞
-    （YAML 说「一段话概括…」，副本写成「用一段话描述…」）→ 副本与权威源漂移。
-    现在副本由 ``tools/scripts/sync_templates.py --write`` 从 YAML 生成，
-    这里把"结构（标题）与文本必须逐字来自 YAML、不额外增补说法"钉成契约。
+    回归背景：模板曾有多份来源（YAML + ``template/*.md`` 副本 + 代码注册表），副本被手工改过措辞而漂移。
+    现在**模板文件本身即源**（``template_v2/*.md``，运行时直接读，无 YAML 兜底），这里把
+    "每个模板文件结构合规（中文名 + requirement 注释 + 正文）、29 条齐备、两种写法都解析到同一模板、
+    旧契约值与未知串一律拒绝"钉成契约。
     """
-    import importlib.util
     from pathlib import Path as _Path
 
-    root = _Path(__file__).resolve().parents[1]
-    script = root / "tools" / "scripts" / "sync_templates.py"
-    yaml_path = root / "cm_template_v2_changed_0722.yaml"
-    if not yaml_path.is_file():
-        check("权威 YAML 缺失 → 模板一致性检查跳过（走目录兜底源）", True, "cm_template_v2_changed_0722.yaml 不在仓库")
-        return
-    spec = importlib.util.spec_from_file_location("_agentflow_sync_templates", script)
-    module = importlib.util.module_from_spec(spec)
-    assert spec and spec.loader
-    spec.loader.exec_module(module)
+    from app.config import (
+        TEMPLATE_DIR,
+        TEMPLATE_SCENARIO,
+        resolve_template_format,
+        template_key,
+        template_registry,
+    )
 
-    items = module.load_templates()
-    check("YAML 可见模板 29 条", len(items) == 29, f"n={len(items)}")
-
-    copy_problems = module.check_copies(items)
-    check("template/*.md 与 YAML 逐字一致（不额外增补说法）",
-          not copy_problems, f"{copy_problems[:2]}" if copy_problems else "29 个副本一致")
-    readme_problems = module.check_readme(items)
-    check("template/README.md 的 29 行表与 YAML 一致",
-          not readme_problems, f"{readme_problems[:2]}" if readme_problems else "order/场景/模板/中文名/API 值一致")
-
-    from app.config import template_registry
+    md_files = sorted(p for p in _Path(TEMPLATE_DIR).glob("*.md") if p.stem.lower() not in {"readme", "diff"})
+    check("template_v2 下模板文件 29 个", len(md_files) == 29, f"n={len(md_files)}")
+    check("每个模板文件都在场景表里（否则不会被注册）",
+          all(p.stem in TEMPLATE_SCENARIO for p in md_files),
+          f"未登记={[p.stem for p in md_files if p.stem not in TEMPLATE_SCENARIO]}")
 
     registry = template_registry()
-    keys = {str(item["key"]) for item in items}
-    check("代码注册表键集 = YAML 可见模板键集",
-          keys == set(registry), f"仅注册表:{sorted(set(registry) - keys)} 仅YAML:{sorted(keys - set(registry))}")
-    check("每个副本都带中文名与写作要求（requirement）",
-          all(str(item["name"]).strip() and str(item["requirement"]).strip() for item in items),
-          f"缺项={[i['key'] for i in items if not (str(i['name']).strip() and str(i['requirement']).strip())]}")
+    check("代码注册表 29 条", len(registry) == 29, f"n={len(registry)}")
+    check("每条模板都带中文名与写作要求（requirement）",
+          all(str(v["name"]).strip() and str(v["requirement"]).strip() and str(v["format"]).strip()
+              for v in registry.values()),
+          f"缺项={[k for k, v in registry.items() if not (str(v['name']).strip() and str(v['requirement']).strip() and str(v['format']).strip())]}")
+    check("format 不含文件头的中文名标题行",
+          all(not str(v["format"]).lstrip().startswith("# " + str(v["name"])) for v in registry.values()),
+          "存在 format 仍带 `# 中文名` 的模板")
 
-    # extra.template 的可填值：模板 md 英文名（可带 .md）/ YAML 中文名；旧契约值不再接受
-    from app.config import _read_template_md, resolve_template_format, template_key
+    items = [{"key": key, **{k: v for k, v in item.items()}} for key, item in registry.items()]
+
+    # extra.template 的可填值：md 英文名（可带 .md / 大写）/ YAML 中文名；旧契约值不再接受
 
     wrong: list[str] = []
     for item in items:
@@ -1864,13 +1857,11 @@ def test_template_copies_match_yaml() -> None:
           len({str(i["template"]) for i in items}) == len(items)
           and len({str(i["name"]) for i in items}) == len(items),
           "存在重名")
-    check("非法值被拒（resolve 空串）+ md 读取防目录穿越",
+    check("非法值被拒（resolve 空串）",
           template_key("no_such_template") == ""
           and resolve_template_format("no_such_template") == ""
           and resolve_template_format("项目进度会x") == ""
-          and resolve_template_format("README") == ""
-          and _read_template_md("../secret") == ""
-          and _read_template_md("no_such_template") == "",
+          and resolve_template_format("") == "",
           "非法值未被拒")
 
 
@@ -1953,7 +1944,7 @@ async def main() -> int:
     await test_checklist_batching()
     test_checklist_graph_layers()
     test_catalog_taxonomy()
-    test_template_copies_match_yaml()
+    test_template_registry_from_md()
     test_heading_number_rules()
     test_complement_respects_skeleton()
     test_ocr_noise_strip()

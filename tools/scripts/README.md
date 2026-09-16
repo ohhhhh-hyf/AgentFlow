@@ -99,35 +99,22 @@ python tools/scripts/sync_domain.py --domain notes --check
 If a task line is incomplete, full sync first updates `models.py`, then prints
 the missing items and stops before writing incomplete runtime wiring.
 
-### sync_templates.py
+### draft_template_v2.py
 
-Keeps the `template/*.md` copies (and the README table) in sync with the authoritative
-`cm_template_v2_changed_0722.yaml`. Each copy is a **verbatim render** of the YAML
-(`# name` + `<!-- requirement … -->` + `format`) — never hand-edit them; change the
-YAML and re-run:
-
-```powershell
-python tools/scripts/sync_templates.py --check   # verify copies + README table (exit 1 on drift)
-python tools/scripts/sync_templates.py --write    # rewrite template/*.md from the YAML
-```
-
-The same check runs inside `python -m app.selftest` (`test_template_copies_match_yaml`),
-so a hand-edited copy fails the self-test.
-
-### draft_template_v2.py (temporary — delete after the drafts are accepted)
-
-Generates `template_v2/*.md`, a per-scenario content revision of the template bodies for
-side-by-side review. The edits live in one reviewable table (`EDITS`) and the script
-asserts each replacement hits exactly once and that headings/tables/placeholder lines are
-untouched, so the drafts only differ in the bracketed guidance text:
+Applies reviewable **template text edits** to `template_v2/*.md` — that directory *is* the template
+registry the runtime reads (there is no YAML and no second fallback source). Edits live in one table
+(`EDITS`) and the script asserts each replacement hits exactly once, then re-parses the templates
+through the runtime's own loader:
 
 ```powershell
-python tools/scripts/draft_template_v2.py --write   # refresh template_v2/ (+ DIFF.md, README.md)
-python tools/scripts/draft_template_v2.py --check   # verify template_v2/ matches YAML + EDITS
+python tools/scripts/draft_template_v2.py --apply   # write EDITS into template_v2/*.md (idempotent)
+python tools/scripts/draft_template_v2.py --check   # verify every edit is still in place (exit 1 on drift)
 ```
 
-It never writes to the YAML or to `template/`. Once the revision is accepted, apply `EDITS`
-to `cm_template_v2_changed_0722.yaml` and re-run `sync_templates.py --write`.
+Template writing conventions (enforced by review, not by code) are documented in the module
+docstring: `requirement` carries only bottom lines (never wording about shape), fallback values are
+imperative ("缺项直接写「无」"), and no "若…则…" conditional phrasing (the model tends to narrate it
+into the minutes).
 
 ## Naming Rules
 

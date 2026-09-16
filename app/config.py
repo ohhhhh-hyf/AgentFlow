@@ -1,6 +1,7 @@
 """API 层共享配置：项目根、.env、模板注册表、视角注册表、领域上下文。
 
-模板权威来源 cm_template_v2_changed_0722.yaml；视角来自 perspective/profiles/。
+模板权威来源是 ``template_v2/*.md``（每个模板一个文件，运行时直接读）；
+视角来自 perspective/profiles/。
 """
 from __future__ import annotations
 
@@ -10,7 +11,7 @@ from pathlib import Path
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 
-_TEMPLATE_YAML = PROJECT_ROOT / "cm_template_v2_changed_0722.yaml"
+TEMPLATE_DIR = PROJECT_ROOT / "template_v2"
 
 DEFAULT_REDIS_URL = "redis://127.0.0.1:6379/0"
 DEFAULT_JOB_TTL_SECONDS = 7 * 24 * 60 * 60
@@ -103,9 +104,9 @@ def load_domain(name: str):
     return _load_domain(name, PROJECT_ROOT)
 
 
-# ── 模板注册表（8 场景 29 类）────────────────────────────────
+# ── 模板注册表（8 场景 29 类；源 = template_v2/*.md）────────────
 
-# 场景 ID → 中文名（template/ 目录兜底时用；yaml 存在时以 yaml 为准）
+# 场景 ID → 中文名（只作展示；模板文件里不存场景名）
 SCENARIO_NAMES = {
     "meeting_minutes": "会议",
     "study_notes": "学习",
@@ -117,9 +118,8 @@ SCENARIO_NAMES = {
     "daily_journal": "日常记录",
 }
 
-TEMPLATE_DIR = PROJECT_ROOT / "template"
-
-# 模板ID → 场景ID（yaml / README 都缺失时，仍能从 template/{id}.md 还原 API key）
+# 模板 md 文件名（= 模板 ID）→ 场景 ID。模板文件不携带场景，靠这张表还原内部键
+# {场景ID}_{模板ID}（内部键只用于注册表索引；对外取值是英文名/中文名）。
 TEMPLATE_SCENARIO = {
     "team_meeting": "meeting_minutes",
     "project_progress": "meeting_minutes",
@@ -153,123 +153,71 @@ TEMPLATE_SCENARIO = {
 }
 
 
-def _split_template_key(value: str) -> tuple[str, str] | None:
-    """``meeting_minutes_project_progress`` → (meeting_minutes, project_progress)。"""
-    raw = (value or "").strip()
-    for sid in sorted(SCENARIO_NAMES, key=len, reverse=True):
-        prefix = f"{sid}_"
-        if raw.startswith(prefix):
-            tid = raw[len(prefix) :]
-            if tid:
-                return sid, tid
-    return None
+def _parse_template_md(path: Path) -> dict[str, object] | None:
+    """``template_v2/{id}.md`` → 注册表条目；文件不合规返回 None。
 
+    模板文件结构固定（它就是权威源，手工编辑时保持该结构）::
 
-_TEMPLATE_ID_RE = re.compile(r"^[a-z0-9_]+$")
+        # {中文名}
 
+        <!-- requirement
+        {写作要求}
+        -->
 
-def _read_template_md(template_id: str) -> str:
-    """模板 ID → ``template/{id}.md`` 文本；非纯名字（防目录穿越）、README 或不存在返回空串。"""
-    tid = (template_id or "").strip()
-    if tid.lower().endswith(".md"):
-        tid = tid[:-3]
-    if not _TEMPLATE_ID_RE.match(tid.lower()) or tid.lower() == "readme":
-        return ""
-    path = TEMPLATE_DIR / f"{tid}.md"
-    if not path.is_file():
-        return ""
-    return path.read_text(encoding="utf-8").strip()
+        {format 正文}
 
-
-def _template_registry_from_dir() -> dict[str, dict[str, object]]:
-    """兜底数据源：yaml 缺失时，从 template/ 目录重建注册表。
-
-    优先读 template/README.md；没有 README 时按 TEMPLATE_SCENARIO + ``{id}.md`` 扫描。
+    ``format`` 取出的是**去掉中文名标题行与 requirement 注释之后**的正文 ——
+    与下游 ``wrap_template_requirement`` / ``split_template_meta`` 的分工保持一致。
     """
-    out: dict[str, dict[str, object]] = {}
-    readme = TEMPLATE_DIR / "README.md"
-    if readme.is_file():
-        text = readme.read_text(encoding="utf-8")
-        row_re = re.compile(
-            r"\|\s*\d+\s*\|\s*([a-z_]+)\s*\|\s*([a-z_]+)\s*\|\s*([^|]+?)\s*\|\s*[^|]*?\s*\|\s*`([a-z_]+)`\s*\|"
-        )
-        for m in row_re.finditer(text):
-            scenario_id, template_id, name, key = (
-                m.group(1),
-                m.group(2),
-                m.group(3).strip(),
-                m.group(4),
-            )
-            fmt = _read_template_md(template_id)
-            if not fmt:
-                continue
-            out[key] = {
-                "format": fmt,
-                "name": name,
-                "scenario": SCENARIO_NAMES.get(scenario_id, scenario_id),
-                "template": template_id,
-            }
-        if out:
-            return out
-    if not TEMPLATE_DIR.is_dir():
-        return {}
-    for md_path in sorted(TEMPLATE_DIR.glob("*.md")):
-        if md_path.stem.lower() == "readme":
-            continue
-        template_id = md_path.stem
-        scenario_id = TEMPLATE_SCENARIO.get(template_id)
-        if not scenario_id:
-            continue
-        fmt = md_path.read_text(encoding="utf-8").strip()
-        if not fmt:
-            continue
-        key = f"{scenario_id}_{template_id}"
-        out[key] = {
-            "format": fmt,
-            "name": template_id,
-            "scenario": SCENARIO_NAMES.get(scenario_id, scenario_id),
-            "template": template_id,
-        }
-    return out
+    try:
+        from tools.template_router._base import split_template_meta
+
+        raw = path.read_text(encoding="utf-8")
+    except Exception:  # noqa: BLE001 - 单文件读失败不影响其它模板
+        return None
+
+    body, requirement = split_template_meta(raw)
+    lines = body.splitlines()
+    name = ""
+    for i, line in enumerate(lines):
+        if line.startswith("# "):
+            name = line[2:].strip()
+            lines = lines[i + 1 :]  # 中文名标题行是文件头，不进 format
+            break
+    format_text = "\n".join(lines).strip()
+    if not format_text:
+        return None
+    template_id = path.stem
+    scenario_id = TEMPLATE_SCENARIO.get(template_id)
+    if not scenario_id:
+        return None  # 未知模板：不猜场景，宁可不在注册表里（extra.template 会 400）
+    return {
+        "format": format_text,
+        "name": name or template_id,
+        "scenario": SCENARIO_NAMES.get(scenario_id, scenario_id),
+        "requirement": requirement.strip(),
+        "description": "",
+        "template": template_id,
+    }
 
 
 def template_registry() -> dict[str, dict[str, object]]:
-    """返回 {template_value: {"format": str, "name": str, "scenario": str}}。
+    """返回 {内部契约键: {"format","name","scenario","requirement","template"}}。
 
-    优先权威源 cm_template_v2_changed_0722.yaml；yaml 缺失/解析失败时
-    回退 template/ 目录（md format + README 注册表），保证模板不依赖单个文件。
+    **唯一模板源是 ``template_v2/*.md``**（运行时直接读；没有 YAML、没有第二兜底源）。
+    目录缺失或文件全部不合规时返回空注册表 —— 此时 ``extra.template`` 一律 400，
+    不会静默套错模板。
     """
-    if _TEMPLATE_YAML.is_file():
-        try:
-            import yaml
-
-            raw = yaml.safe_load(_TEMPLATE_YAML.read_text(encoding="utf-8"))
-            root = (raw or {}).get("cm-template-v2") or {}
-            scenarios = {
-                s["id"].rsplit(".", 1)[-1]: s["name"] for s in root.get("scenarios") or []
-            }
-            out: dict[str, dict[str, object]] = {}
-            for tpl in root.get("templates") or []:
-                if not tpl.get("visible", True):
-                    continue
-                # yaml 中 id 用连字符且带 ${...} 包装（如 ${...meeting-minutes.team-meeting}），
-                # 取末段后去尾 }、连字符转下划线，与契约 {场景ID}_{模板ID} 对齐
-                scenario_id = str(tpl.get("scenario-id") or "").rsplit(".", 1)[-1].rstrip("}").replace("-", "_")
-                template_id = str(tpl.get("id") or "").rsplit(".", 1)[-1].rstrip("}").replace("-", "_")
-                key = f"{scenario_id}_{template_id}"
-                out[key] = {
-                    "format": str(tpl.get("format") or "").strip(),
-                    "name": str(tpl.get("name") or ""),
-                    "scenario": scenarios.get(scenario_id, scenario_id),
-                    "requirement": str(tpl.get("requirement") or "").strip(),
-                    "description": str(tpl.get("description") or "").strip(),
-                    "template": template_id,
-                }
-            if out:
-                return out
-        except Exception:  # noqa: BLE001 - yaml 异常回退目录源
-            pass
-    return _template_registry_from_dir()
+    if not TEMPLATE_DIR.is_dir():
+        return {}
+    out: dict[str, dict[str, object]] = {}
+    for md_path in sorted(TEMPLATE_DIR.glob("*.md")):
+        if md_path.stem.lower() in {"readme", "diff"}:
+            continue
+        item = _parse_template_md(md_path)
+        if item:
+            out[f"{TEMPLATE_SCENARIO[md_path.stem]}_{md_path.stem}"] = item
+    return out
 
 
 def template_key(template_value: str) -> str:
@@ -308,9 +256,6 @@ def resolve_template_format(template_value: str) -> str:
     item = template_registry().get(template_key(value)) or {}
     fmt = str(item.get("format") or "").strip()
     req = str(item.get("requirement") or "").strip()
-    if not fmt:
-        # 注册表里没这条（YAML 缺失等）→ 退回 md 文件名直读
-        fmt = _read_template_md(value)
     if not fmt:
         return ""
     from tools.template_router._base import wrap_template_requirement

@@ -1,0 +1,372 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>具身智能模型形态、世界模型与数据路线圆桌研讨</title>
+  <style>
+
+    body {
+      margin: 0;
+      padding: 32px 16px;
+      background: #f6f5f0;
+      color: #1a1a1a;
+      font-family: "Latin Modern Roman", "Computer Modern Roman", "CMU Serif", "Times New Roman", Times, "Songti SC", "SimSun", "STSong", serif;
+      -webkit-font-smoothing: antialiased;
+    }
+    .page { max-width: 1140px; margin: 0 auto; }
+    .ck-doc {
+      background: #ffffff;
+      border: 1px solid #d4d0c7;
+      border-radius: 4px;
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.05), 0 1px 3px rgba(0,0,0,0.03);
+      padding: 36px 44px;
+      line-height: 1.75;
+      font-size: 0.96rem;
+    }
+    .ck-doc h1 {
+      margin: 0 0 10px;
+      font-size: 1.85rem;
+      font-weight: 700;
+      letter-spacing: 0.4px;
+      text-align: center;
+      font-variant: small-caps;
+      color: #111111;
+    }
+    .ck-doc-header {
+      margin-bottom: 24px;
+      padding-bottom: 16px;
+      border-bottom: 2px solid #111111;
+      text-align: center;
+    }
+    .ck-doc-meta {
+      font-size: 0.85rem;
+      color: #555555;
+      font-style: italic;
+    }
+    .ck-doc-content h1, .ck-doc-content .ck-doc-h1 {
+      margin: 28px 0 14px;
+      font-size: 1.32rem;
+      font-weight: 700;
+      color: #111111;
+      border-bottom: 1.5px solid #222222;
+      padding-bottom: 5px;
+      text-align: left;
+      font-variant: normal;
+      letter-spacing: 0.3px;
+    }
+    .ck-doc h2, .ck-doc-h2 {
+      margin: 28px 0 14px;
+      font-size: 1.22rem;
+      font-weight: 700;
+      color: #111111;
+      border-bottom: 1.5px solid #222222;
+      padding-bottom: 5px;
+      letter-spacing: 0.3px;
+    }
+    .ck-doc h3, .ck-doc-h3 {
+      margin: 20px 0 10px;
+      font-size: 1.05rem;
+      font-weight: 700;
+      color: #222222;
+    }
+    .ck-doc h4, .ck-doc-h4 {
+      margin: 16px 0 8px;
+      font-size: 0.98rem;
+      font-weight: 700;
+      color: #333333;
+    }
+    .ck-doc p {
+      margin: 10px 0;
+      line-height: 1.75;
+      text-align: justify;
+    }
+    .ck-doc ul, .ck-doc ol {
+      margin: 8px 0 12px;
+      padding-left: 1.5em;
+      line-height: 1.72;
+    }
+    .ck-doc li {
+      margin: 4px 0;
+    }
+    .ck-doc blockquote, .ck-quote {
+      margin: 10px 0 14px;
+      padding: 8px 14px;
+      background: #faf9f6;
+      border-left: 3.5px solid #222222;
+      border-radius: 2px;
+      color: #222222;
+      font-size: 0.92rem;
+      font-style: italic;
+    }
+    .ck-doc code {
+      background: #f3f0e8;
+      border: 1px solid #e2ddd3;
+      border-radius: 3px;
+      padding: 1px 6px;
+      font-family: "Latin Modern Mono", Consolas, monospace;
+      font-size: 0.88em;
+    }
+    .ck-doc table, .ck-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.88rem;
+      margin: 14px 0;
+      background: #ffffff;
+      border-top: 2px solid #222222;
+      border-bottom: 2px solid #222222;
+    }
+    .ck-doc table th, .ck-doc table td, .ck-table th, .ck-table td {
+      padding: 9px 12px;
+      text-align: left;
+      vertical-align: middle;
+      border-bottom: 1px solid #ede9e1;
+    }
+    .ck-doc table th, .ck-table th {
+      background: #fbfaf7;
+      border-bottom: 1.2px solid #222222;
+      font-weight: 700;
+      color: #111111;
+      letter-spacing: 0.3px;
+    }
+
+    /* Roomy & Spacious Academic Risk Table */
+    .ck-risk-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 18px 0 28px;
+      background: #ffffff;
+      border-top: 2.2px solid #111111;
+      border-bottom: 2.2px solid #111111;
+      font-size: 0.93rem;
+      line-height: 1.72;
+    }
+    .ck-risk-table th {
+      background: #faf8f5;
+      border-bottom: 1.5px solid #111111;
+      padding: 15px 16px;
+      font-weight: 700;
+      color: #111111;
+      letter-spacing: 0.3px;
+      text-align: left;
+      vertical-align: middle;
+    }
+    .ck-risk-table td {
+      padding: 16px 16px;
+      border-bottom: 1px solid #ede8e0;
+      vertical-align: top;
+      color: #1a1a1a;
+      word-break: break-word;
+    }
+    .ck-risk-table tr:nth-child(even) td {
+      background: #fdfcfb;
+    }
+    .ck-risk-table tr:hover td {
+      background: #f6f3eb;
+    }
+
+    /* Review Grid */
+    .ck-review {
+      display: grid;
+      grid-template-columns: minmax(0, 1.35fr) 1px minmax(260px, 0.95fr);
+      border: 1px solid #d4d0c7;
+      border-radius: 4px;
+      overflow: hidden;
+      margin: 14px 0 20px;
+      background: #ffffff;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.03);
+    }
+    .ck-review-left {
+      padding: 22px 26px;
+      background: #ffffff;
+      line-height: 1.75;
+    }
+    .ck-review-rule { background: #dcd8cf; }
+    .ck-review-right {
+      padding: 16px 18px;
+      background: #faf9f6;
+      box-sizing: border-box;
+      display: flex;
+      flex-direction: column;
+    }
+    .ck-ev-list {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    /* Entity Highlight in LaTeX Paper Style */
+    .ck-cite-entity {
+      background: #fff8db;
+      border-bottom: 1.5px solid #b86a04;
+      padding: 1px 4px;
+      border-radius: 2px;
+      cursor: pointer;
+      transition: all 0.18s ease;
+      color: #111111;
+      font-weight: 600;
+    }
+    .ck-cite-entity:hover {
+      background: #ffe58f;
+      color: #000000;
+    }
+    .ck-cite-entity.is-on {
+      background: #ffd54a;
+      border-bottom-color: #0047ab;
+      box-shadow: 0 0 0 2px rgba(0,71,171,0.25);
+    }
+
+    /* Blue Hyperref Citations [1], [2] */
+    .ck-cite-ref {
+      color: #0047ab;
+      font-weight: 600;
+      font-family: "Latin Modern Roman", "Computer Modern Roman", "Times New Roman", serif;
+      text-decoration: none;
+      cursor: pointer;
+      padding: 0 2px;
+      margin: 0 2px;
+      border-radius: 2px;
+      transition: all 0.15s ease;
+      font-size: 0.92em;
+      vertical-align: baseline;
+      user-select: none;
+    }
+    .ck-cite-ref:hover {
+      text-decoration: underline;
+      background: #e8f0fe;
+      color: #003380;
+    }
+    .ck-cite-ref.is-active {
+      background: #d2e3fc;
+      color: #002266;
+      font-weight: 700;
+      box-shadow: 0 0 0 1px #0047ab;
+    }
+
+    /* Right Memory Cards in LaTeX Paper Style */
+    .ck-provenance-head {
+      font-size: 0.82rem;
+      font-weight: 700;
+      color: #222222;
+      margin: 0 0 12px;
+      padding-bottom: 6px;
+      border-bottom: 1px solid #e0dcd4;
+      letter-spacing: 0.3px;
+      text-transform: uppercase;
+    }
+    .ck-ref-icon { color: #0047ab; margin-right: 4px; }
+    .ck-ev {
+      display: block;
+      margin: 0;
+      padding: 10px 12px;
+      border: 1px solid #dedad2;
+      border-left: 3.5px solid #0047ab;
+      border-radius: 2px;
+      background: #ffffff;
+      font-size: 0.82rem;
+      line-height: 1.55;
+      transition: all 0.2s ease;
+      cursor: pointer;
+    }
+    .ck-ev:hover { border-color: #b5b0a5; }
+    .ck-ev.is-on, .ck-ev.is-highlighted {
+      border-color: #0047ab;
+      box-shadow: 0 0 0 2px #0047ab, 0 3px 8px rgba(0,71,171,0.15);
+      background: #f0f5ff;
+    }
+    @keyframes citePulse {
+      0% { background: #dbeafe; box-shadow: 0 0 0 3px #0047ab; }
+      50% { background: #bfdbfe; box-shadow: 0 0 0 4px #0047ab; }
+      100% { background: #f0f5ff; box-shadow: 0 0 0 2px #0047ab; }
+    }
+    .ck-ev-k {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 0.75rem;
+      color: #444444;
+      margin-bottom: 5px;
+      font-weight: 700;
+    }
+    .ck-ev-cite-tag {
+      color: #0047ab;
+      font-weight: 700;
+      font-family: "Latin Modern Roman", serif;
+      text-decoration: none;
+    }
+    .ck-ev-kind-badge {
+      display: inline-block;
+      padding: 1px 6px;
+      border-radius: 2px;
+      font-size: 0.72rem;
+      font-weight: 600;
+      letter-spacing: 0.2px;
+    }
+    .ck-badge-keypoint {
+      border: 1px solid #0047ab;
+      color: #0047ab;
+      background: #f0f5ff;
+    }
+    .ck-badge-note {
+      border: 1px solid #b86a04;
+      color: #b86a04;
+      background: #fff8eb;
+    }
+    .ck-mem-title {
+      font-weight: 700;
+      color: #111111;
+      font-size: 0.88rem;
+      margin-bottom: 6px;
+      line-height: 1.45;
+    }
+    .ck-ev-quote {
+      color: #222222;
+      font-style: normal;
+      font-family: inherit;
+      margin: 4px 0 6px;
+      padding: 0;
+      background: transparent;
+      border: none;
+      line-height: 1.6;
+      font-size: 0.84rem;
+    }
+    .ck-ev-meta { font-size: 0.76rem; color: #666666; margin-top: 6px; }
+    .ck-ev-more {
+      margin-top: 2px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+    .ck-ev-more[open] { margin-top: 4px; }
+    .ck-ev-more summary { margin-bottom: 6px; }
+    .ck-proof-toggle {
+      cursor: pointer;
+      font-size: 0.82rem;
+      color: #0047ab;
+      user-select: none;
+      font-family: inherit;
+      padding: 2px 0;
+    }
+    .ck-proof-toggle:hover { text-decoration: underline; }
+
+    @media(max-width: 860px) {
+      .ck-doc { padding: 22px 18px; }
+      .ck-review { grid-template-columns: 1fr; }
+      .ck-review-rule { display: none; }
+    }
+
+  </style>
+</head>
+<body>
+  <main class="page">
+    <div class="ck-doc">
+      <header class="ck-doc-header">
+        <h1>具身智能模型形态、世界模型与数据路线圆桌研讨</h1>
+      </header>
+      <div class="ck-doc-content">
+        <h1 class="ck-doc-h1">研讨背景与议题</h1><p>本次圆桌由主持人（多模态大模型与具身智能融合方向）主持，参与讨论的包括于洋老师的博士生雄辉（强化学习）、卢策吾老师的博士生薛寒（数据收集与柔性物体操作）、于洋老师的博士生志龙（具身模型与世界模型）以及赵浩、王岳等老师。研讨围绕具身智能的模型形态、硬件期待、世界模型定义、模仿与强化学习路线及数据scaling五个议题展开。核心痛点在于：具身智能究竟收敛为统一端到端模型还是分层形态、硬件如何支撑真机evaluation的scale up、世界模型是否需要3D inductive bias、模仿学习与强化学习如何取舍，以及真机数据与仿真数据如何配比。</p><h1 class="ck-doc-h1">核心观点</h1><p>模型形态议题：主持人提出大脑大模型、小脑大模型、端到端模型等形态，并以派灵收集6000多小时数据训出端到端模型为例，询问是统一模型还是前段固定加Action refiner；王岳认为大模型直通底层会消除硬件迭代可能性，至少应分上下层，大脑不变、小脑适应肢体；发言者6认为当前大模型不是终极形态，世界模型可能更接近人脑水平，但也不是最终形态。硬件形态议题：发言者3从机械与传感器角度反问具身身体会收敛成人形还是非人形，并提到机械智能、软手抓取；薛寒提出硬件需寿命和可靠性高，因真机evaluation中机器人撞几次就坏、难以scale up，现有工业机械臂并非为此设计，需要柔顺硬件结构；主持人认为具身是软硬件协同优化范式，以松龄二代和凝胶夹爪为例，认为协同进化；发言者6认为人形机器人和特种机器人将来都会存在，特斯拉花一半精力做22自由度灵巧手。世界模型议题：主持人介绍赵浩从computer vision角度评价世界模型，涉及是否需重构所有pixel和3D，并提到4D world model投稿；志龙从强化学习角度认为世界模型第一要素是可交互，回溯到Dyna Q和杨乐坤的表征与转移，当前世界模型物理规律欠缺明显；赵浩认为CV界追求重建物理世界动态，可作为RL世界模型的工具，但三维计算机视觉技术栈长，RL博士生难完全学习，并讨论inductive bias随数据规模变化；王岳以游戏跳楼例子认为世界模型可能做不到统一，policy可能是一个；发言者9提出不同物理结构可能有统一表征，讨论condition与M个模型复杂度。策略学习路线议题：主持人提出强化学习与模仿学习两大流派，派零团队收集上千小时近万小时数据后仍看到模仿学习瓶颈，语言模型有RLHF和o1思维链、MCTS；发言者10介绍公司采用模型强化加机理融合，监督学习动作空间大、数据分布不足，强化学习强依赖仿真环境、sim-to-real迁移难，需限定决策空间和任务分层；发言者9认为复杂任务应先模仿后强化，单独模仿或单独强化都不行；王岳认为pid有反馈就可作为reward，强化必然走得成；发言者11认为IL和RL没有本质冲突，只是想要一个latent状态。数据采集与scaling议题：主持人请杨立新和薛寒分享真机数据收集经验，赵浩和主持人代表仿真生成数据流派；杨立新强调视角控制和标定重要，open X等数据集相机视角不固定，且缺少物体运动信息，其团队采集刚体和关节体；薛寒all in真机采集，认为柔性体仿真需先进图形学技术如IPC、算力要求高、人才少，真机数据是更低成本方案，终极形态可能是脑机接口或可穿戴设备无感采集，互联网视频与机器人所需数据差异大；主持人提到ego4d数据清洗三个月，仿真数据加少量真机数据可显著提升成功率；赵浩认为真实还是仿真看成本，提出2025年应推广大规模利用无标注真实数据，国产仿真系统是产业问题。</p><h1 class="ck-doc-h1">达成共识与解决方案</h1><p>研讨未形成正式决议，但各方在以下认知上趋于一致：<strong>具身智能是软硬件协同优化的范式</strong>，硬件需具备高寿命、高可靠性与柔顺结构以支撑真机evaluation的scale up；<strong>模型形态至少应分上下层</strong>，大脑保持稳定、小脑适应肢体与硬件变化，而非单一端到端直通底层；<strong>世界模型与强化学习的关系上</strong>，CV界重建物理世界动态的成果可作为RL世界模型的工具，但RL更关注可交互性与策略学习；<strong>策略学习路线上</strong>，复杂任务宜先模仿后强化，单独模仿或单独强化均难以覆盖，混合多种方式是目前较实际的解；<strong>数据路线上</strong>，真机数据与仿真数据并非相斥，仿真数据加少量真机数据可显著提升成功率，真实还是仿真应case by case看成本。</p><h1 class="ck-doc-h1">未决分歧与后续探索</h1><p>未决分歧包括：具身智能最终会收敛成统一端到端模型，还是前段固定加Action refiner的分层形态；具身的身体会收敛成人形机器人还是非人形形态；世界模型是否需要3D inductive bias，还是由数据规模决定；世界模型最终是一个还是多个，policy是否可能统一；模仿学习和强化学习最终路线是单独一种还是混合；未来是否强依赖英伟达生态，还是会有国产仿真产品支持。后续探索方向包括：赵浩提出2025年应推广大规模利用无标注真实数据；薛寒提出可穿戴式设备或脑机接口作为无感采集的终极形态；主持人提出仿真数据与少量真机数据结合的训练方法；国产仿真系统作为产业问题需business by business讨论。</p>
+      </div>
+    </div>
+  </main>
+</body>
+</html>

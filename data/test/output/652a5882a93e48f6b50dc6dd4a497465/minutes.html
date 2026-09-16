@@ -1,0 +1,372 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>新思想引领改革开放与国内外时事综合报道</title>
+  <style>
+
+    body {
+      margin: 0;
+      padding: 32px 16px;
+      background: #f6f5f0;
+      color: #1a1a1a;
+      font-family: "Latin Modern Roman", "Computer Modern Roman", "CMU Serif", "Times New Roman", Times, "Songti SC", "SimSun", "STSong", serif;
+      -webkit-font-smoothing: antialiased;
+    }
+    .page { max-width: 1140px; margin: 0 auto; }
+    .ck-doc {
+      background: #ffffff;
+      border: 1px solid #d4d0c7;
+      border-radius: 4px;
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.05), 0 1px 3px rgba(0,0,0,0.03);
+      padding: 36px 44px;
+      line-height: 1.75;
+      font-size: 0.96rem;
+    }
+    .ck-doc h1 {
+      margin: 0 0 10px;
+      font-size: 1.85rem;
+      font-weight: 700;
+      letter-spacing: 0.4px;
+      text-align: center;
+      font-variant: small-caps;
+      color: #111111;
+    }
+    .ck-doc-header {
+      margin-bottom: 24px;
+      padding-bottom: 16px;
+      border-bottom: 2px solid #111111;
+      text-align: center;
+    }
+    .ck-doc-meta {
+      font-size: 0.85rem;
+      color: #555555;
+      font-style: italic;
+    }
+    .ck-doc-content h1, .ck-doc-content .ck-doc-h1 {
+      margin: 28px 0 14px;
+      font-size: 1.32rem;
+      font-weight: 700;
+      color: #111111;
+      border-bottom: 1.5px solid #222222;
+      padding-bottom: 5px;
+      text-align: left;
+      font-variant: normal;
+      letter-spacing: 0.3px;
+    }
+    .ck-doc h2, .ck-doc-h2 {
+      margin: 28px 0 14px;
+      font-size: 1.22rem;
+      font-weight: 700;
+      color: #111111;
+      border-bottom: 1.5px solid #222222;
+      padding-bottom: 5px;
+      letter-spacing: 0.3px;
+    }
+    .ck-doc h3, .ck-doc-h3 {
+      margin: 20px 0 10px;
+      font-size: 1.05rem;
+      font-weight: 700;
+      color: #222222;
+    }
+    .ck-doc h4, .ck-doc-h4 {
+      margin: 16px 0 8px;
+      font-size: 0.98rem;
+      font-weight: 700;
+      color: #333333;
+    }
+    .ck-doc p {
+      margin: 10px 0;
+      line-height: 1.75;
+      text-align: justify;
+    }
+    .ck-doc ul, .ck-doc ol {
+      margin: 8px 0 12px;
+      padding-left: 1.5em;
+      line-height: 1.72;
+    }
+    .ck-doc li {
+      margin: 4px 0;
+    }
+    .ck-doc blockquote, .ck-quote {
+      margin: 10px 0 14px;
+      padding: 8px 14px;
+      background: #faf9f6;
+      border-left: 3.5px solid #222222;
+      border-radius: 2px;
+      color: #222222;
+      font-size: 0.92rem;
+      font-style: italic;
+    }
+    .ck-doc code {
+      background: #f3f0e8;
+      border: 1px solid #e2ddd3;
+      border-radius: 3px;
+      padding: 1px 6px;
+      font-family: "Latin Modern Mono", Consolas, monospace;
+      font-size: 0.88em;
+    }
+    .ck-doc table, .ck-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.88rem;
+      margin: 14px 0;
+      background: #ffffff;
+      border-top: 2px solid #222222;
+      border-bottom: 2px solid #222222;
+    }
+    .ck-doc table th, .ck-doc table td, .ck-table th, .ck-table td {
+      padding: 9px 12px;
+      text-align: left;
+      vertical-align: middle;
+      border-bottom: 1px solid #ede9e1;
+    }
+    .ck-doc table th, .ck-table th {
+      background: #fbfaf7;
+      border-bottom: 1.2px solid #222222;
+      font-weight: 700;
+      color: #111111;
+      letter-spacing: 0.3px;
+    }
+
+    /* Roomy & Spacious Academic Risk Table */
+    .ck-risk-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 18px 0 28px;
+      background: #ffffff;
+      border-top: 2.2px solid #111111;
+      border-bottom: 2.2px solid #111111;
+      font-size: 0.93rem;
+      line-height: 1.72;
+    }
+    .ck-risk-table th {
+      background: #faf8f5;
+      border-bottom: 1.5px solid #111111;
+      padding: 15px 16px;
+      font-weight: 700;
+      color: #111111;
+      letter-spacing: 0.3px;
+      text-align: left;
+      vertical-align: middle;
+    }
+    .ck-risk-table td {
+      padding: 16px 16px;
+      border-bottom: 1px solid #ede8e0;
+      vertical-align: top;
+      color: #1a1a1a;
+      word-break: break-word;
+    }
+    .ck-risk-table tr:nth-child(even) td {
+      background: #fdfcfb;
+    }
+    .ck-risk-table tr:hover td {
+      background: #f6f3eb;
+    }
+
+    /* Review Grid */
+    .ck-review {
+      display: grid;
+      grid-template-columns: minmax(0, 1.35fr) 1px minmax(260px, 0.95fr);
+      border: 1px solid #d4d0c7;
+      border-radius: 4px;
+      overflow: hidden;
+      margin: 14px 0 20px;
+      background: #ffffff;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.03);
+    }
+    .ck-review-left {
+      padding: 22px 26px;
+      background: #ffffff;
+      line-height: 1.75;
+    }
+    .ck-review-rule { background: #dcd8cf; }
+    .ck-review-right {
+      padding: 16px 18px;
+      background: #faf9f6;
+      box-sizing: border-box;
+      display: flex;
+      flex-direction: column;
+    }
+    .ck-ev-list {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    /* Entity Highlight in LaTeX Paper Style */
+    .ck-cite-entity {
+      background: #fff8db;
+      border-bottom: 1.5px solid #b86a04;
+      padding: 1px 4px;
+      border-radius: 2px;
+      cursor: pointer;
+      transition: all 0.18s ease;
+      color: #111111;
+      font-weight: 600;
+    }
+    .ck-cite-entity:hover {
+      background: #ffe58f;
+      color: #000000;
+    }
+    .ck-cite-entity.is-on {
+      background: #ffd54a;
+      border-bottom-color: #0047ab;
+      box-shadow: 0 0 0 2px rgba(0,71,171,0.25);
+    }
+
+    /* Blue Hyperref Citations [1], [2] */
+    .ck-cite-ref {
+      color: #0047ab;
+      font-weight: 600;
+      font-family: "Latin Modern Roman", "Computer Modern Roman", "Times New Roman", serif;
+      text-decoration: none;
+      cursor: pointer;
+      padding: 0 2px;
+      margin: 0 2px;
+      border-radius: 2px;
+      transition: all 0.15s ease;
+      font-size: 0.92em;
+      vertical-align: baseline;
+      user-select: none;
+    }
+    .ck-cite-ref:hover {
+      text-decoration: underline;
+      background: #e8f0fe;
+      color: #003380;
+    }
+    .ck-cite-ref.is-active {
+      background: #d2e3fc;
+      color: #002266;
+      font-weight: 700;
+      box-shadow: 0 0 0 1px #0047ab;
+    }
+
+    /* Right Memory Cards in LaTeX Paper Style */
+    .ck-provenance-head {
+      font-size: 0.82rem;
+      font-weight: 700;
+      color: #222222;
+      margin: 0 0 12px;
+      padding-bottom: 6px;
+      border-bottom: 1px solid #e0dcd4;
+      letter-spacing: 0.3px;
+      text-transform: uppercase;
+    }
+    .ck-ref-icon { color: #0047ab; margin-right: 4px; }
+    .ck-ev {
+      display: block;
+      margin: 0;
+      padding: 10px 12px;
+      border: 1px solid #dedad2;
+      border-left: 3.5px solid #0047ab;
+      border-radius: 2px;
+      background: #ffffff;
+      font-size: 0.82rem;
+      line-height: 1.55;
+      transition: all 0.2s ease;
+      cursor: pointer;
+    }
+    .ck-ev:hover { border-color: #b5b0a5; }
+    .ck-ev.is-on, .ck-ev.is-highlighted {
+      border-color: #0047ab;
+      box-shadow: 0 0 0 2px #0047ab, 0 3px 8px rgba(0,71,171,0.15);
+      background: #f0f5ff;
+    }
+    @keyframes citePulse {
+      0% { background: #dbeafe; box-shadow: 0 0 0 3px #0047ab; }
+      50% { background: #bfdbfe; box-shadow: 0 0 0 4px #0047ab; }
+      100% { background: #f0f5ff; box-shadow: 0 0 0 2px #0047ab; }
+    }
+    .ck-ev-k {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 0.75rem;
+      color: #444444;
+      margin-bottom: 5px;
+      font-weight: 700;
+    }
+    .ck-ev-cite-tag {
+      color: #0047ab;
+      font-weight: 700;
+      font-family: "Latin Modern Roman", serif;
+      text-decoration: none;
+    }
+    .ck-ev-kind-badge {
+      display: inline-block;
+      padding: 1px 6px;
+      border-radius: 2px;
+      font-size: 0.72rem;
+      font-weight: 600;
+      letter-spacing: 0.2px;
+    }
+    .ck-badge-keypoint {
+      border: 1px solid #0047ab;
+      color: #0047ab;
+      background: #f0f5ff;
+    }
+    .ck-badge-note {
+      border: 1px solid #b86a04;
+      color: #b86a04;
+      background: #fff8eb;
+    }
+    .ck-mem-title {
+      font-weight: 700;
+      color: #111111;
+      font-size: 0.88rem;
+      margin-bottom: 6px;
+      line-height: 1.45;
+    }
+    .ck-ev-quote {
+      color: #222222;
+      font-style: normal;
+      font-family: inherit;
+      margin: 4px 0 6px;
+      padding: 0;
+      background: transparent;
+      border: none;
+      line-height: 1.6;
+      font-size: 0.84rem;
+    }
+    .ck-ev-meta { font-size: 0.76rem; color: #666666; margin-top: 6px; }
+    .ck-ev-more {
+      margin-top: 2px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+    .ck-ev-more[open] { margin-top: 4px; }
+    .ck-ev-more summary { margin-bottom: 6px; }
+    .ck-proof-toggle {
+      cursor: pointer;
+      font-size: 0.82rem;
+      color: #0047ab;
+      user-select: none;
+      font-family: inherit;
+      padding: 2px 0;
+    }
+    .ck-proof-toggle:hover { text-decoration: underline; }
+
+    @media(max-width: 860px) {
+      .ck-doc { padding: 22px 18px; }
+      .ck-review { grid-template-columns: 1fr; }
+      .ck-review-rule { display: none; }
+    }
+
+  </style>
+</head>
+<body>
+  <main class="page">
+    <div class="ck-doc">
+      <header class="ck-doc-header">
+        <h1>新思想引领改革开放与国内外时事综合报道</h1>
+      </header>
+      <div class="ck-doc-content">
+        <h1 class="ck-doc-h1">全文摘要</h1><p>本次内容为新闻联播式综合报道，涵盖新思想引领新时代改革开放的文化建设、赵乐际对俄罗斯正式友好访问并出席中俄议会合作委员会第九次会议、夏粮产量创历史新高、6月国家铁路货运指标增长、上半年快递业发展提速、油气管网建设提速、渝川皖等地应对降雨天气，以及国内国际联播快讯等议题。文化建设方面，报道围绕文化兴国运兴、文化强民族强展开，强调党的十八大以来在“五位一体”总体布局中对文化建设作战略部署，纵深推进文化体制改革；2023年6月文化传承发展座谈会系统论述中华文明五个突出特性与“两个结合”，2023年10月全国宣传思想文化工作会议首次提出习近平文化思想；《深化文化体制改革实施方案》为中央深改小组审议通过的第一个专项小组改革方案，《关于实施中华优秀传统文化传承发展工程的意见》首次以中央文件形式部署文化传承发展，坚持社会效益首位、社会效益和经济效益相统一，推进文化领域供给侧结构性改革。赵乐际应俄国家杜马主席沃洛金和联邦委员会主席马特维延科邀请，于7月9日至13日对俄正式友好访问，在圣彼得堡会见普京，在莫斯科与马特维延科、沃洛金分别会谈，并出席中俄议会合作委员会第九次会议；今年是中俄建交75周年，双方表示从立法机构层面落实两国元首重要共识，深化多层级、多领域、多渠道交流合作，互学互鉴立法经验，为务实合作提供法治保障，沃洛金表示俄坚定恪守一个中国原则，反对任何外部势力干涉中国内政，访问期间赵乐际向俄无名烈士墓敬献花圈。经济民生方面，今年夏粮产量达2996亿斤，比2023年增加72.5亿斤，再创历史新高，夏粮单产每亩375.2公斤，其中小麦单产399.1公斤，比2023年增加10公斤，单产恢复性增长是产量增加主因，全国已建成高标准农田10亿多亩，农业农村部启动小麦单产提升三年行动，中央财政首次提前下拨16亿元小麦“一喷三防”资金，小麦质量为近年来最好水平；6月份国家铁路发送货物3.32亿吨，完成货运周转量2665亿吨公里，同比分别增长6.1%、5.3%，创历史同期新高，化肥农药运量增幅最大，同比增长26.2%，中欧班列累计开行1719列，发送货物18万标箱，同比分别增长15%、11%；上半年我国快递业务量超800亿件，快递企业已运行国际航线40余条，面向东南亚开通陆运专线，运行美西海运航线，每天超1亿多件快递包裹在农村地区流动，5—6月快递日均业务量近5亿件；油气管网建设提速，预计全年新增管道里程超4000公里，西气东输四线已完成吐鲁番至中卫段主体管道工程建设，今年投产后西气东输年输气能力将提升150亿立方米，目前主干油气管网约10万公里，输气能力从2020年2230亿立方米增加到3290亿立方米，增幅达48%，天然气“全国一张网”日供气能力超10亿立方米，按照规划到2025年初步形成东北、西北、西南以及海上四大油气战略通道，建成“五纵五横”天然气干线管网。防汛方面，7月13日8时至14日8时，重庆九龙坡、江北等28个区县出现暴雨，沙坪坝、江津等13个区县大暴雨，当地组织工作人员连夜抢险排涝；四川暴雨造成内江部分地区内涝、滑坡，消防救援人员紧急出动转移被困群众；安徽多条河流水位上涨，滁州市全椒县工作人员加强巡堤，处置堤防渗漏和管涌；水利部针对“七下八上”防汛关键期逐流域安排防御，长江1号、2号洪水正在演进，三峡水库15日将再迎来洪峰流量45000立方米每秒量级洪水过程，水利部联合调度嘉陵江亭子口水库等上游干支流水库群减小三峡水库入库洪峰流量。国内联播快讯方面，北京上半年计划新开工的320个市区重大项目全部实现开工，总投资超过4000亿元；燕矶长江大桥北岸主塔封顶，下一步转入主缆施工阶段，大桥连接湖北鄂州和黄冈，主跨1860米；第二十三届环青海湖国际公路自行车赛在海北州门源县收官，22支车队154名运动员决出5个奖项冠军；内蒙古第34届草原那达慕在锡林浩特市开幕，持续到8月底；“中非儿童手拉手”活动在中国儿童中心启动，来自纳米比亚、南非、中非、索马里、乌干达五国儿童代表将在北京、河南参观访问。国际联播快讯方面，美联邦调查局称前总统特朗普在竞选集会遭未遂刺杀，枪击造成一名观众死亡、两名观众重伤，枪手被特勤局狙击手打死，动机有待查明；以军空袭加沙地带马瓦西地区致90人死亡、约300人受伤，巴勒斯坦总统阿巴斯谴责以军违反国际法，约旦、卡塔尔、埃及等也发表声明谴责；以军袭击黎巴嫩多个边境村镇，黎真主党武装称打击以军集结地；叙利亚大马士革卡夫苏萨地区等遭空袭，造成1名政府军士兵死亡、3人受伤；俄称打击乌军列车点，乌称击退俄军进攻；加拿大东北部林火蔓延，拉布拉多城9600人被疏散，加拿大正在应对500多起活跃林火，其中超400起处于失控状态。</p><h2 class="ck-doc-h2">新思想引领新时代改革开放：以文化自信筑牢强国复兴精神之基</h2><ul><li>报道围绕文化兴国运兴、文化强民族强展开，强调没有高度文化自信就没有中华民族伟大复兴；党的十八大以来在“五位一体”总体布局中对文化建设作战略部署，纵深推进文化体制改革。2023年6月文化传承发展座谈会系统论述中华文明五个突出特性与“两个结合”，2023年10月全国宣传思想文化工作会议首次提出习近平文化思想。《深化文化体制改革实施方案》为中央深改小组审议通过的第一个专项小组改革方案，《关于实施中华优秀传统文化传承发展工程的意见》首次以中央文件形式部署文化传承发展。坚持社会效益首位、社会效益和经济效益相统一，推进文化领域供给侧结构性改革。</li><li>习近平总书记就弘扬和发展中华文化提出一系列重要论述，在孔子故里翻看《孔子家语通解》《论语诠解》，在岳麓书院凝望“实事求是”匾额，在三苏祠强调从中华优秀传统文化中汲取治国理政的理念和思维，在武夷山朱熹园提出以时代精神激活中华优秀传统文化的生命力。从深入实施中华文明探源工程到高标准推进国家文化公园建设，从中国共产党历史展览馆、国家版本馆等文化地标落成到《复兴文库》、“中国历代绘画大系”出版，中华优秀传统文化与革命文化、社会主义先进文化融会贯通。深化国有文艺院团改革、树立以人民为中心的创作导向，我国成为图书、电视剧、动漫等领域生产大国，数字文化产业成为激发消费潜力“新引擎”，电影市场规模屡创新高。</li></ul><h2 class="ck-doc-h2">赵乐际对俄罗斯进行正式友好访问并出席中俄议会合作委员会第九次会议</h2><ul><li>应俄罗斯联邦会议国家杜马主席沃洛金和联邦委员会主席马特维延科的邀请，全国人大常委会委员长赵乐际于7月9日至13日对俄罗斯进行正式友好访问，在圣彼得堡会见总统普京，在莫斯科与马特维延科、沃洛金分别举行会谈，并出席中俄议会合作委员会第九次会议。赵乐际向普京转达了习近平主席的亲切问候和良好祝愿，指出今年是中俄建交75周年，中国全国人大愿同俄罗斯联邦会议一道，从立法机构层面落实两国元首重要共识，为巩固政治互信、深化务实合作、增进人民友谊作贡献。普京请赵乐际转达对习近平主席的亲切问候，表示俄中立法机构始终保持高水平合作。与马特维延科、沃洛金分别会谈时，赵乐际表示要以两国元首重要共识为指引，保持战略定力，坚定道路自信，在涉及彼此核心利益问题上坚定相互支持，两国立法机构要立足职能职责，用好中俄议会合作委员会、双边友好小组等机制和平台，深化多层级、多领域、多渠道交流合作，互学互鉴立法经验，为务实合作提供法治保障。马特维延科表示发展对华关系得到俄社会的广泛认同和支持，两国立法机构要加强立法合作，推进地方立法机构、青年议员和人大代表之间的交流；沃洛金表示俄国家杜马不同党派在发展对华关系上高度一致，俄坚定恪守一个中国原则，反对任何外部势力干涉中国内政。10日，赵乐际出席中俄议会合作委员会第九次会议并致辞，指出两国立法机构要密切战略协作，服务中俄关系发展大局；交流治国理政经验，助力各自国家发展振兴；发挥立法机构职能作用，以法治方式促进务实合作；传承弘扬传统友谊，不断夯实国家关系的社会和民意基础；加强多边协作，从立法机构层面团结壮大“全球南方”力量。访问期间，赵乐际在莫斯科向俄无名烈士墓敬献了花圈。</li></ul>
+      </div>
+    </div>
+  </main>
+</body>
+</html>

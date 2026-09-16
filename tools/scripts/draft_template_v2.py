@@ -1,47 +1,42 @@
-"""模板 v2 草稿：按场景对模板正文做轻度内容优化，输出到 ``template_v2/`` 供对比。
+"""模板优化工具：把「逐条可复核的文本优化」应用到模板文件。
 
-``template/*.md`` 是权威 YAML 的逐字副本（由 ``sync_templates.py`` 生成，不得手工改）。
-本脚本不碰 ``template/``，而是把优化写成可逐条复核的替换表 ``EDITS``（字段 + 原文片段 →
-新片段 + 理由），在内存里应用到 YAML 模板后，按同一渲染格式写同名文件到 ``template_v2/``：
+**权威模板源就是 ``template_v2/*.md``**（运行时直接读这一份，没有 YAML、没有第二兜底源）。
+每个模板文件结构固定：
 
-    python tools/scripts/draft_template_v2.py --write   # 生成/刷新 template_v2/（含 DIFF.md、README.md）
-    python tools/scripts/draft_template_v2.py --check   # 校验 template_v2/ 与 YAML+EDITS 一致
-    python tools/scripts/draft_template_v2.py --apply   # 落地：把 EDITS 写进权威 YAML + 刷新 template/*.md
+    # {中文名}
 
-优化目标：提升各场景生成内容的正确率与完整度（修正措辞与串场景表述、补必要的防错口径），
-仅动方括号内的内容提示文字，不改动整体结构、不给现有章节新增字段。以下为硬约束
-（脚本断言，不符即报错）：
+    <!-- requirement
+    {写作要求}
+    -->
 
-1. 每条替换在目标字段中恰好命中 1 次（防手滑改错位置）；
-2. 结构不变：优化前后 ``format`` 的标题行（``# …``）与表格行（``| … |``）必须完全一致；
-3. 占位符示例行（如 ``- [ ] 任务内容``、``> 原话引语……``）保持原样。
+    {format 正文}
 
-落地用 ``--apply``：按字节替换 YAML（保留原换行与缩进），随后读回 YAML 校验每个模板的
-``format`` / ``requirement`` 与草稿逐字一致，最后调 ``sync_templates`` 刷新 ``template/*.md``。
+优化以替换表 ``EDITS``（原文片段 → 新片段 + 理由）表达，逐条应用到对应模板文件：
+
+    python tools/scripts/draft_template_v2.py --apply   # 落地（幂等、可增量）
+    python tools/scripts/draft_template_v2.py --check   # 只校验：每条是否都已生效（漂移则退出码 1）
+
+**模板写法公约**（新增/修改模板时遵守；与运行时规则互相印证）：
+
+1. ``requirement`` 只写底线（不得丢失/篡改/臆断/失真），**不写形态词**（逐条 / 分项 /
+   不得合并 / 保留原始语义）——形态由 ``format`` 与尺寸规则决定；
+2. 兜底写成祈使式（"缺项直接写「无」"），**禁用"若…则…"条件句**（会被模型复述进正文）；
+3. 同类/对立信息用"可归并、不可抹平"的措辞。
+
+硬约束（脚本断言，不符即报错）：每条替换在目标文件里**恰好命中 1 次**；
+模板的标题行与表格行必须齐备（``check_structure``）。
 """
 from __future__ import annotations
 
 import argparse
-import difflib
 import re
 import sys
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).resolve().parent))
+ROOT = Path(__file__).resolve().parents[2]
+TEMPLATE_DIR = ROOT / "template_v2"
+sys.path.insert(0, str(ROOT))
 
-from sync_templates import (  # noqa: E402
-    ROOT,
-    TEMPLATE_YAML,
-    check_copies,
-    check_readme,
-    load_templates,
-    render_copy,
-    write_copies,
-)
-
-V2_DIR = ROOT / "template_v2"
-
-# 每条 = 一个模板的一处优化：field ∈ {format, requirement}，old 必须唯一命中。
 EDITS: tuple[dict[str, str], ...] = (
     # ── 会议纪要 ──────────────────────────────────────────────────────────────
     {
@@ -289,6 +284,65 @@ EDITS: tuple[dict[str, str], ...] = (
         "why": "领域改为随原文而定，避免预设报告不涉及的领域",
     },
     # ── 日常记录 ──────────────────────────────────────────────────────────────
+    # ── 修复：requirement 用「形态词」表达「保真目标」，与 format 的收敛形态互斥 ──
+    #   写法公约：requirement 只写底线（不得丢/不得改/不得失真），形态（逐条/合并/篇幅）只由 format 定。
+    {
+        "key": "meeting_minutes_team_meeting",
+        "field": "requirement",
+        "old": "不遗漏任何成员的发言",
+        "new": "不得遗漏任何成员的关键结论、诉求与承诺（同类可归并，信息点不得丢）",
+        "why": "「不遗漏发言」是形态词，与 format「禁止逐分项开条」互斥；改为底线词",
+    },
+    {
+        "key": "meeting_minutes_workshop_session",
+        "field": "requirement",
+        "old": "完整保留有价值的创新思路；避免流水账式记录，不遗漏关键分歧",
+        "new": "避免流水账式记录，关键创新思路与分歧不得丢（同类可归并，不逐项铺开）",
+        "why": "同上：把「完整保留/不遗漏」收成「不得丢」底线，形态交给 format",
+    },
+    {
+        "key": "meeting_minutes_decision_review",
+        "field": "requirement",
+        "old": "不得篡改、合并或主观臆断评审意见",
+        "new": "不得篡改、臆断或混淆归属（同类可归并，对立立场不得抹平）",
+        "why": "「不得合并」与 format「先合并同类」冲突；改为「可归并、不可抹平」",
+    },
+    {
+        "key": "meeting_minutes_exchange_forum",
+        "field": "requirement",
+        "old": "对关键表述、特殊语气或语境依赖较强的语句，应通过引用或转述方式保留其原始语义，以确保上下文理解的准确性与完整性",
+        "new": "关键表态可用 `> 引用` 原文原话，但引用仅限关键表态、不宜多；压缩不得改变原意与因果关系",
+        "why": "「保留原始语义」近乎禁止压缩，与篇幅上限冲突；限定为「关键表态才引用」",
+    },
+    # ── 修复：条件式说明会被模型复述进正文（如「以上改进计划均未明确责任人和时间，填写“无”。」）──
+    {
+        "key": "meeting_minutes_project_progress",
+        "field": "format",
+        "old": "若某项在原文未提及则标注无。",
+        "new": "缺项直接写「无」，不写说明句。",
+        "why": "把「若…则标注无」改成不可复述的写法，避免模型把规则当正文写出来",
+    },
+    {
+        "key": "meeting_minutes_retrospective_session",
+        "field": "format",
+        "old": "若原文不存在明确责任人或时间，则填写“无”即可，禁止编造",
+        "new": "缺责任人或时间时直接写「无」（不写说明句），不编造",
+        "why": "同上：该写法曾导致「…均未明确责任人和时间，填写“无”。」整句进入正文",
+    },
+    {
+        "key": "meeting_minutes_exchange_forum",
+        "field": "format",
+        "old": "若某项不存在则填写“无”；",
+        "new": "缺项直接写「无」（不写说明句）；",
+        "why": "同上：条件式说明有被复述的风险",
+    },
+    {
+        "key": "daily_journal_conversation_transcript",
+        "field": "format",
+        "old": "若对话中提及承诺及后续行动可在此章节呈现，若不存在则无需此章节",
+        "new": "有承诺或后续行动才写本节，无内容则整节省略（不要写「本节无内容」之类说明）",
+        "why": "同上：把「若不存在则无需此章节」改成不可复述的写法",
+    },
     {
         "key": "daily_journal_general_minutes",
         "field": "requirement",
@@ -302,232 +356,109 @@ _HEADING_RE = re.compile(r"^\s*#")
 
 
 def _structure(text: str) -> list[str]:
-    """结构行 = 标题行 + 表格行（优化前后必须一致）。"""
+    """结构行 = 标题行 + 表格行（模板文件必须始终具备）。"""
     return [ln.strip() for ln in text.splitlines() if _HEADING_RE.match(ln) or ln.strip().startswith("|")]
 
 
-def build_drafts() -> tuple[list[dict[str, object]], str]:
-    """把 EDITS 应用到 YAML 模板 → (v2 草稿列表, 状态)。
+def _template_id(edit: dict[str, str]) -> str:
+    """EDITS.key（内部键 ``{场景ID}_{模板ID}``）→ 模板 ID（= 模板文件名）。
 
-    状态：``pending`` = YAML 还是原文，需应用 EDITS；``applied`` = EDITS 已在 YAML 中生效
-    （此时草稿即 YAML 现状，--check/--write 仍可用；--apply 幂等返回成功）。
+    场景 ID 自身含下划线（meeting_minutes 等），按已知场景前缀去掉即可。
     """
-    drafts: dict[str, dict[str, object]] = {str(item["key"]): dict(item) for item in load_templates()}
-    hits = 0
+    from app.config import SCENARIO_NAMES
 
-    for edit in EDITS:
-        key, field, old, new = edit["key"], edit["field"], edit["old"], edit["new"]
-        if key not in drafts:
-            raise SystemExit(f"EDITS 指向未知模板：{key}")
-        text = str(drafts[key][field])
-        has_old, has_new = old in text, new in text
-        if has_new:
-            hits += 1
+    key = edit["key"]
+    tid = key
+    for sid in sorted(SCENARIO_NAMES, key=len, reverse=True):
+        if key.startswith(sid + "_"):
+            tid = key[len(sid) + 1 :]
+            break
+    if not (TEMPLATE_DIR / (tid + ".md")).is_file():
+        raise SystemExit("模板文件不存在：" + tid + ".md（EDITS.key=" + edit["key"] + "）")
+    return tid
+
+
+def check_structure() -> None:
+    """模板文件必须保留标题/表格结构行（防止误删章节）。"""
+    for path in sorted(TEMPLATE_DIR.glob("*.md")):
+        if path.stem.lower() in {"readme", "diff"}:
             continue
-        if not has_old:
-            raise SystemExit(f"{key}.{field} 既无原文也无新文（YAML 已被改过？）：{old[:40]}…")
+        if not _structure(path.read_text(encoding="utf-8")):
+            raise SystemExit(f"{path.name}：读不到任何标题/表格结构行")
+
+
+def apply_all(*, dry: bool = False) -> tuple[int, int]:
+    """把 EDITS 逐条应用到模板文件；返回 (本次应用数, 已生效数)。"""
+    applied = already = 0
+    for edit in EDITS:
+        path = TEMPLATE_DIR / (_template_id(edit) + ".md")
+        text = path.read_text(encoding="utf-8")
+        old, new = edit["old"], edit["new"]
+        if new in text:
+            already += 1
+            continue
+        if old not in text:
+            raise SystemExit(path.name + "：既无原文也无新文（文件被手工改过？）：" + old[:40] + "…")
         if text.count(old) != 1:
-            raise SystemExit(f"{key}.{field} 命中 {text.count(old)} 次（应为 1）：{old[:40]}…")
-        drafts[key][field] = text.replace(old, new, 1)
-
-    out: list[dict[str, object]] = []
-    for item in load_templates():
-        key = str(item["key"])
-        draft = drafts[key]
-        if _structure(str(item["format"])) != _structure(str(draft["format"])):
-            raise SystemExit(f"{key}：优化改动了标题/表格结构，违反结构不变约束")
-        out.append(draft)
-    return out, ("applied" if hits == len(EDITS) else "pending" if hits == 0 else "partial")
+            raise SystemExit(path.name + "：原文命中 " + str(text.count(old)) + " 次（应为 1）：" + old[:40] + "…")
+        if not dry:
+            path.write_text(text.replace(old, new, 1), encoding="utf-8")
+        applied += 1
+    return applied, already
 
 
-def render_all(drafts: list[dict[str, object]]) -> dict[str, str]:
-    """组合 key（``场景_模板``）→ 渲染后的文件内容。"""
-    return {str(d["key"]): render_copy(d) for d in drafts}
+def verify_registry() -> list[str]:
+    """用运行时同一套解析读回模板：29 条、名称/要求/正文齐备、EDITS 新文已生效。"""
+    import app.config as cfg
 
-
-def write_all(drafts: list[dict[str, object]]) -> int:
-    want = render_all(drafts)
-    items = {str(item["key"]): item for item in load_templates()}
-    changed = 0
-    V2_DIR.mkdir(parents=True, exist_ok=True)
-    for key, text in want.items():
-        path = V2_DIR / f"{items[key]['template']}.md"
-        if path.is_file() and path.read_text(encoding="utf-8") == text:
-            continue
-        path.write_text(text, encoding="utf-8")
-        changed += 1
-    print(f"template_v2：{len(want)} 个文件，改动 {changed} 个")
-    (V2_DIR / "DIFF.md").write_text(_diff_md(want, items), encoding="utf-8")
-    (V2_DIR / "README.md").write_text(_readme_md(drafts), encoding="utf-8")
-    print("已写出 template_v2/DIFF.md、template_v2/README.md")
-    return changed
-
-
-def _diff_md(want: dict[str, str], items: dict[str, dict[str, object]]) -> str:
-    """全部逐字差异（unified diff，n=1）汇总成一份可读文件。"""
-    lines = [
-        "# 模板优化差异（template → template_v2）",
-        "",
-        "由 `python tools/scripts/draft_template_v2.py --write` 生成；`-` 原模板，`+` 优化稿。",
-        "结构（标题、表格、占位符示例行）未改动，差异全部落在方括号内容提示或 requirement 上。",
-        "",
-        "本文件是生成时刻的对比快照。执行 `--apply` 落地后 `template/` 已与 `template_v2/` 一致，",
-        "此后要看运行时生效的改动请用 `git diff template/`（副本）与 `git diff cm_template_v2_changed_0722.yaml`（权威源）。",
-        "",
-    ]
-    left = ROOT / "template"
-    for key, text in want.items():
-        name = str(items[key]["template"])
-        base = (left / f"{name}.md").read_text(encoding="utf-8")
-        if base == text:
-            continue
-        lines.append(f"## {items[key]['order']}. {items[key]['name']}（`{key}`）")
-        lines.append("")
-        lines.append("```diff")
-        lines.extend(
-            ln
-            for ln in difflib.unified_diff(
-                base.splitlines(),
-                text.splitlines(),
-                f"template/{name}.md",
-                f"template_v2/{name}.md",
-                lineterm="",
-                n=1,
-            )
-            if ln.startswith(("+", "-", "@"))
-        )
-        lines.append("```")
-        lines.append("")
-    return "\n".join(lines)
-
-
-def _readme_md(drafts: list[dict[str, object]]) -> str:
-    """说明 + 每个模板的修改点与理由（便于逐条复核）。"""
-    by_key: dict[str, list[dict[str, str]]] = {}
-    for edit in EDITS:
-        by_key.setdefault(edit["key"], []).append(edit)
-    lines = [
-        "# template_v2（优化稿，供对比）",
-        "",
-        "本目录是 `template/*.md` 的优化稿：逐字差异见 [DIFF.md](DIFF.md)，"
-        "逐文件对比可 `diff -u template/xx.md template_v2/xx.md`。",
-        "",
-        "- 优化范围：仅方括号内的内容提示与 1 处 requirement 措辞；",
-        "- 整体结构不动：标题、章节顺序、表格、占位符示例行全部保持原样；",
-        "- 生效方式：本目录**不被运行时读取**——`python tools/scripts/draft_template_v2.py --apply` "
-        "把 EDITS 写进权威 `cm_template_v2_changed_0722.yaml`（`templates[].format` / `requirement`），"
-        "并刷新 `template/` 副本；",
-        "- 落地后的改动明细看 `git diff template/` 与 `git diff cm_template_v2_changed_0722.yaml`；",
-        "- 重新生成/校验：`python tools/scripts/draft_template_v2.py --write|--check`。",
-        "",
-        "## 修改点与理由",
-        "",
-    ]
-    for draft in drafts:
-        key = str(draft["key"])
-        edits = by_key.get(key)
-        if not edits:
-            continue
-        lines.append(f"### {draft['order']}. {draft['name']}（`{key}`）")
-        lines.append("")
-        for edit in edits:
-            lines.append(f"- **[{edit['field']}]** {edit['why']}")
-        lines.append("")
-    unchanged = [f"{d['name']}（`{d['key']}`）" for d in drafts if str(d["key"]) not in by_key]
-    if unchanged:
-        lines.append("## 未改动（现有措辞已准确、完整）")
-        lines.append("")
-        lines.append("- " + "、".join(unchanged))
-        lines.append("")
-    return "\n".join(lines)
-
-
-def check_all(drafts: list[dict[str, object]], want: dict[str, str]) -> list[str]:
+    registry = cfg.template_registry()
     problems: list[str] = []
-    if not V2_DIR.is_dir():
-        return ["template_v2/ 不存在（先跑 --write）"]
-    items = {str(i["key"]): i for i in load_templates()}
-    for key, text in want.items():
-        name = str(items[key]["template"])
-        path = V2_DIR / f"{name}.md"
-        if not path.is_file():
-            problems.append(f"{path.name}：缺失")
-        elif path.read_text(encoding="utf-8") != text:
-            problems.append(f"{path.name}：与 YAML+EDITS 不一致")
-    # DIFF.md 是 --write 时刻的对比快照（落地后 template/ 与之相等而失去对比意义），故不参与校验；
-    # README.md 完全由 EDITS 生成，参与校验以防手改。
-    path = V2_DIR / "README.md"
-    if not path.is_file() or path.read_text(encoding="utf-8") != _readme_md(drafts):
-        problems.append("README.md：未随 EDITS 更新（跑 --write）")
+    if len(registry) != 29:
+        problems.append("注册表 " + str(len(registry)) + " 条（应为 29）")
+    by_id = {str(v.get("template")): v for v in registry.values()}
+    for edit in EDITS:
+        tid = _template_id(edit)
+        item = by_id.get(tid)
+        if item is None:
+            problems.append(tid + "：注册表里找不到")
+            continue
+        blob = str(item["name"]) + str(item["requirement"]) + str(item["format"])
+        if edit["new"] not in blob:
+            problems.append(tid + "：新文未生效")
     return problems
 
 
-def apply_to_yaml(drafts: list[dict[str, object]], state: str) -> list[str]:
-    """把 EDITS 按字节写进权威 YAML，读回校验后再刷新 template/*.md。返回问题列表。"""
-    if state == "applied":
-        print("EDITS 已全部生效，跳过写入（幂等）")
-        changed = write_copies(load_templates())
-        print(f"template/*.md 已刷新（改动 {changed} 个文件）")
-        return check_copies(load_templates()) + check_readme(load_templates())
-    if state != "pending":
-        return ["EDITS 与 YAML 只部分匹配（原文/新文混杂），请先人工核对再落地"]
-    raw = TEMPLATE_YAML.read_bytes().decode("utf-8")
-    problems = [
-        f"{edit['key']}.{edit['field']} 在 YAML 中命中 {raw.count(edit['old'])} 次（应为 1）：{edit['old'][:30]}…"
-        for edit in EDITS
-        if raw.count(edit["old"]) != 1
-    ]
-    if problems:
-        return ["落地前校验失败（YAML 可能已被改过或已应用过本表）：", *problems]
-
-    text = raw
-    for edit in EDITS:
-        text = text.replace(edit["old"], edit["new"], 1)
-    TEMPLATE_YAML.write_bytes(text.encode("utf-8"))
-    print(f"已写入 {TEMPLATE_YAML.name}（{len(EDITS)} 处替换）")
-
-    # 读回 YAML：每个模板的 format/requirement 必须与草稿逐字一致
-    now = {str(item["key"]): item for item in load_templates()}
-    for draft in drafts:
-        key = str(draft["key"])
-        for field in ("format", "requirement"):
-            if str(now[key][field]) != str(draft[field]):
-                problems.append(f"{key}.{field} 读回后与草稿不一致")
-    if problems:
-        return problems
-
-    changed = write_copies(load_templates())
-    print(f"template/*.md 已刷新（改动 {changed} 个文件）")
-    return check_copies(load_templates()) + check_readme(load_templates())
-
-
 def main() -> int:
-    ap = argparse.ArgumentParser(description="生成/校验/落地 template_v2 优化稿")
+    ap = argparse.ArgumentParser(description="把 EDITS 应用到 template_v2/*.md（运行时模板源）")
     group = ap.add_mutually_exclusive_group(required=True)
-    group.add_argument("--write", action="store_true", help="按 YAML+EDITS 生成 template_v2/")
-    group.add_argument("--check", action="store_true", help="校验 template_v2/ 是否为当前 EDITS 的结果")
-    group.add_argument("--apply", action="store_true", help="把 EDITS 写进权威 YAML，并刷新 template/*.md（幂等）")
+    group.add_argument("--apply", action="store_true", help="落地：把 EDITS 写进模板文件（幂等、可增量）")
+    group.add_argument("--check", action="store_true", help="只校验每条是否已生效（漂移退出码 1）")
     args = ap.parse_args()
 
-    drafts, state = build_drafts()
-    want = render_all(drafts)
-    edited = len({e["key"] for e in EDITS})
-    print(f"EDITS：{len(EDITS)} 处替换，覆盖 {edited} 个模板（共 {len(drafts)} 个可见模板）；状态：{state}")
-
-    problems: list[str] = []
+    check_structure()
+    print("EDITS：" + str(len(EDITS)) + " 处替换，覆盖 " + str(len({e['key'] for e in EDITS})) + " 个模板")
     if args.apply:
-        problems = apply_to_yaml(drafts, state)
-        if not problems:
-            print("OK：EDITS 已生效（YAML + template/ 副本一致）")
+        applied, already = apply_all()
+        print("本次应用 " + str(applied) + " 处，已生效 " + str(already) + " 处")
     else:
-        if args.write:
-            write_all(drafts)
-        problems = check_all(drafts, want)
-        if not problems:
-            print("OK：template_v2/ 与 YAML+EDITS 一致")
-    for problem in problems:
-        print(f"  {problem}", file=sys.stderr)
-    return 1 if problems else 0
+        applied, already = apply_all(dry=True)
+        if applied:
+            print("发现 " + str(applied) + " 处未生效（跑 --apply 落地）：", file=sys.stderr)
+            for edit in EDITS:
+                path = TEMPLATE_DIR / (_template_id(edit) + ".md")
+                if edit["new"] not in path.read_text(encoding="utf-8"):
+                    print("  - " + edit["key"] + "：" + edit["why"], file=sys.stderr)
+            return 1
+        print("OK：EDITS 全部已生效（" + str(already) + " 处）")
+
+    problems = verify_registry()
+    if problems:
+        print("注册表校验失败：", file=sys.stderr)
+        for problem in problems:
+            print("  - " + problem, file=sys.stderr)
+        return 1
+    print("OK：template_v2/*.md 即运行时模板源，29 条齐备、EDITS 生效")
+    return 0
 
 
 if __name__ == "__main__":

@@ -624,7 +624,8 @@ def build_placeholder_fill_user(
         "形如 `# [栏名]` 的标题行由程序生成，不要填进 fields；你只填标题下方正文占位。",
         "固定表头由模板保留；`| … |` 样例行必须换成原文事实，禁止整行照抄省略号。",
         "字段值里不要写 #/## 标题，不要重复栏目标题作前缀。",
-        "有据才写；某栏主题在来源中完全无信息时才「未提及」。",
+        "有据才写；缺内容就写「未提及」（不要解释原因）。",
+        "字段值与表格里不得复述、解释或引用模板要求（如「以上均未明确…填写『无』」）；缺内容只写约定的缺省词。",
         "勿照抄「如：」示例；勿张冠李戴；勿改数字；勿用百科补履历；勿虚构原文没有的内容。",
         "各栏按主题分别写清；「与/和/及」并列主题勿揉成一句糊涂话。",
         "简洁/粗略≠空洞：每栏写清该栏主要事实与要点，可多句。",
@@ -759,6 +760,24 @@ async def fill_placeholder_template(
             )
             assembled = strip_outer_markdown_fence(assembled)
             assembled = strip_char_budget_meta(assembled)
+            # 空填充兜底（只拦「空 / 解析失败」，不拦「偏短」）：
+            # 返回不可解析 JSON 或全空字段时，拼出来就是「只有栏目标题、正文全空」的骨架。
+            no_rows = not any(tables[i] for i in range(len(plan["row_templates"])))
+            all_empty = no_rows and not any(str(v).strip() for v in fields.values())
+            if all_empty:
+                logger.warning(
+                    "placeholder fill empty (attempt=%s)：raw[:160]=%r",
+                    attempt + 1,
+                    (raw or "")[:160].replace("\n", " "),
+                )
+                if attempt < 2:
+                    revision = (
+                        "上次输出没有可用的字段值（JSON 不可解析或全为空）。"
+                        "请只输出 JSON：{\"fields\": {\"1\": \"…\"}, \"tables\": []}，"
+                        "每个字段按占位说明写原文要点；原文确实没有的内容写「未提及」。"
+                    )
+                    continue
+                return None  # 三轮都空 → 交给上层 freeform 渲染，绝不输出空骨架
             # 篇幅自检：只在模板声明了字数约束时才修订（偏短扩写、偏长压缩，不写进用户正文）。
             # 未声明约束时不因「偏短」打回——篇幅以原文为上限，信息少就写少，避免逼出注水。
             logger.debug("placeholder fill attempt=%s han=%s", attempt + 1, _body_han_count(assembled))
