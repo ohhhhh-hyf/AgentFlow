@@ -53,6 +53,7 @@ SCALAR_BASELINE_BY_DIR: dict[str, dict[str, int]] = {
         "home_school_liaison": 4, "interview_debrief": 4, "interview_transcript": 3,
         "knowledge_memo": 3, "legal_advisory": 4, "media_briefing": 4,
         "media_qa_session": 4, "personal_memo": 4, "product_launch": 4,
+        "admission_briefing": 5,
         "project_progress": 2, "psychological_session": 3, "research_dialogue": 3,
         "retrospective_session": 4, "site_visit_tour": 4, "special_lecture": 4,
         "team_meeting": 3, "workshop_session": 4,
@@ -428,6 +429,7 @@ TEMPLATE_SHAPE_SNIPPETS = {
     "court_transcript": "本栏明细由下表承载",
     "team_meeting": "四要素",
     # 低结构化/闲聊型场景的稳定性口径：没有结论也要写明，不留空洞栏目
+    "admission_briefing": "原文点到的事实一律不得丢",
     "conversation_transcript": "未形成明确结论",
     "group_seminar": "没有统一意见时写本场达成的倾向性认识与主要分歧点",
     # 场景适配（2026-09 第二批）：知识点必须 `- `、建议必须汇总、摘要单段上限、空栏目正当写法

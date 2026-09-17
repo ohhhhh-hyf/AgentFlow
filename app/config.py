@@ -164,7 +164,7 @@ def load_domain(name: str):
     return _load_domain(name, PROJECT_ROOT)
 
 
-# ── 模板注册表（8 场景 29 类；源 = template_dir()/*.md）────────────
+# ── 模板注册表（8 场景 30 类；源 = template_dir()/*.md）────────────
 
 # 场景 ID → 中文名（只作展示；模板文件里不存场景名）
 SCENARIO_NAMES = {
@@ -205,6 +205,7 @@ TEMPLATE_SCENARIO = {
     "product_launch": "press_conference",
     "government_bulletin": "press_conference",
     "media_qa_session": "press_conference",
+    "admission_briefing": "meeting_minutes",
     "general_minutes": "daily_journal",
     "personal_memo": "daily_journal",
     "conversation_transcript": "daily_journal",
