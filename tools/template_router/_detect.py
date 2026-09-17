@@ -6,7 +6,7 @@ from typing import Any
 
 from tools.templates.template_prompt import PLACEHOLDER_RULES, SPEC_RULES
 
-from ._base import _CHAR_META_LINE_RE, _CHAR_META_TAIL_RE, _CN_RE, _CUE_PATTERNS, _EMOJI_RE, _ENUM_SEP_RE, _HINT_WORD_RE, _MISSING_HINT_RE, _PLACEHOLDER_RE, _SPEC_EXAMPLE_MARKERS, _SPEC_KEYWORDS, _SPEC_SPLIT_MARKERS, _TITLE_HINT_INSTRUCTION_RE, _char_budget_lines, _describe_field, _parse_count_token, is_router_enabled, split_template_meta
+from ._base import _CHAR_META_LINE_RE, _CHAR_META_TAIL_RE, _CN_RE, _CUE_PATTERNS, _EMOJI_RE, _ENUM_SEP_RE, _HINT_WORD_RE, _MISSING_HINT_RE, _SPEC_EXAMPLE_MARKERS, _SPEC_KEYWORDS, _SPEC_SPLIT_MARKERS, _TITLE_HINT_INSTRUCTION_RE, _char_budget_lines, _describe_field, _parse_count_token, is_router_enabled, iter_placeholders, split_template_meta
 
 logger = logging.getLogger(__name__)
 
@@ -53,7 +53,7 @@ def detect_template_kind(text: str) -> str:
         _looks_like_placeholder(
             m.group(1), next_char=text[m.end() : m.end() + 1]
         )
-        for m in _PLACEHOLDER_RE.finditer(text)
+        for m in iter_placeholders(text)
     ):
         return "placeholder"
     # 整段偏散文、仅有 0-1 个疑似括号时，优先 natural，避免口语里的「例如」误判 spec
@@ -99,7 +99,7 @@ def parse_placeholder_template(template: str) -> list[dict]:
     template, _ = split_template_meta(template)
     segments: list[dict] = []
     pos = 0
-    for m in _PLACEHOLDER_RE.finditer(template):
+    for m in iter_placeholders(template):
         content = m.group(1)
         is_link = template[m.end() : m.end() + 1] == "("
         if not _looks_like_placeholder(content) or is_link:

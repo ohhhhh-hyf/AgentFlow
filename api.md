@@ -94,8 +94,7 @@
 老接口，URL 自带 `domain`（`meeting` / `notes`）与 `task`。每条任务线固定四种形态：
 普通、流式、下载、预览（后两种仅当该任务线有落盘产物）。
 
-> notes 域（`graph` / `library` / `catalog` / `checklist`）另有一份自包含文档：
-> **[notes_api.md](notes_api.md)**（含 notes 专属的 `docs` 规则、产物定位与 FAQ）。
+> notes 域当前对外任务线为 `graph` / `library` / `catalog` / `checklist`，规则均以本文为准。
 
 先讲三种形态共用的**请求头 / 请求体 / 响应体 / 错误**，再讲四种形态的协议，最后逐条介绍 10 条任务线。
 
@@ -537,8 +536,8 @@ curl -OJ "http://127.0.0.1:8000/api/v1/notes/checklist/file/<rid>/checklist.html
 | `checklist` | `{"domain":"notes","task":"checklist","docs":["<catalog文件名.json>"],"extra":{"subject":"<学科>"}}` |
 
 > `catalog` 的结构与顺序以**已入库合并稿解析出的有序骨架**为准（覆盖每个小节、按原文先后排序，
-> 程序会把模型漏掉的节点补回并标 `node_status=program_restore`）。详见 `notes_api.md`
-> 「`catalog` 的结构保证」与 `README.md` 的 P2 说明；对账用 `tools/scripts/check_catalog_coverage.py`。
+> 程序会把模型漏掉的节点补回并标 `node_status=program_restore`）。
+> `catalog` 的结构保证与监控指标见 `README.md` 的知识目录说明。
 
 ### 3.2 统一响应体（四个接口共用）
 

@@ -15,6 +15,74 @@ logger = logging.getLogger(__name__)
 
 _PLACEHOLDER_RE = re.compile(r"\[([^\[\]]+)\]")
 
+# 整行就是一个 [...]：内容里允许出现方括号字面（markdown 复选框 `- [ ]` 等）。
+_LINE_BRACKET_RE = re.compile(r"^\s*(\[.*\])\s*$", re.S)
+
+
+def _is_single_pair(text: str) -> bool:
+    """``text`` 首尾是**同一对**方括号（括号深度只在最后一个字符回到 0）。"""
+    if not (text.startswith("[") and text.endswith("]")):
+        return False
+    depth = 0
+    for idx, ch in enumerate(text):
+        if ch == "[":
+            depth += 1
+        elif ch == "]":
+            depth -= 1
+            if depth == 0 and idx != len(text) - 1:
+                return False
+    return depth == 0
+
+
+class _PlaceholderMatch:
+    """``re.Match`` 的轻量替身：只暴露占位扫描调用方用到的 ``group``/``start``/``end``/``span``。"""
+
+    __slots__ = ("_raw", "_inner", "_start", "_end")
+
+    def __init__(self, raw: str, start: int, end: int) -> None:
+        self._raw, self._inner, self._start, self._end = raw, raw[1:-1], start, end
+
+    def group(self, n: int = 0) -> str:
+        return self._raw if n == 0 else self._inner
+
+    def start(self) -> int:
+        return self._start
+
+    def end(self) -> int:
+        return self._end
+
+    def span(self) -> tuple[int, int]:
+        return (self._start, self._end)
+
+
+def iter_placeholders(text: str) -> list[_PlaceholderMatch]:
+    """占位符扫描（接口同 ``_PLACEHOLDER_RE.finditer``，位置相对 ``text``）。
+
+    **行级优先**：整行形如 ``[说明…]`` 时按一个占位符处理，内容可含方括号字面
+    （如 ``用 `- [ ]` 待办格式列出分工``）。否则 ``_PLACEHOLDER_RE`` 只匹配到内层
+    ``[ ]``，该行会退化成"固定文案"——拼装时把说明原文当正文写出，门禁反过来要求
+    它逐字出现（2026-09 家校沟通/法律咨询两条模板即此形态）。
+
+    其余情况仍逐对匹配：``[a] 与 [b]`` 这类一行两对括号按两个占位处理。
+    """
+    out: list[_PlaceholderMatch] = []
+    offset = 0
+    for line in text.splitlines(keepends=True):
+        body = line.rstrip("\r\n")
+        match = _LINE_BRACKET_RE.match(body)
+        if match and _is_single_pair(match.group(1)):
+            raw = match.group(1)
+            start = offset + body.index(raw)
+            out.append(_PlaceholderMatch(raw, start, start + len(raw)))
+        else:
+            out.extend(
+                _PlaceholderMatch(m.group(0), offset + m.start(), offset + m.end())
+                for m in _PLACEHOLDER_RE.finditer(body)
+            )
+        offset += len(line)
+    return out
+
+
 _REQ_COMMENT_RE = re.compile(
     r"<!--\s*requirement\s*:?\s*(.*?)\s*-->",
     re.IGNORECASE | re.DOTALL,
@@ -368,12 +436,14 @@ _PLACEHOLDER_FILL_SYSTEM = """你是占位符填充器。根据「内容来源�
 2. tables[i] 对应第 i 个表格行模板；只输出数据行单元格，不要表头
 3. 多选一只能取枚举中的一项；值中不要残留 [占位符]
 4. 仅一张表时也可用 rows（= tables[0]）
-5. **字段值只写该栏正文内容**，不要写 Markdown 标题（# / ##），不要重复栏目标题作前缀
+5. **字段值只写该栏正文内容**；不要重复栏目标题作前缀，也不要写与栏目标题**同级**的标题（会和栏目撞级）。
+   栏内自行分组**允许**用更深的 Markdown 标题：栏目标题是 `#` 就用 `##`，是 `##` 就用 `###`（如按成员、议题、板块分组时）
 6. **严禁**在任何字段值中写「约N字」「全文合计…字」「字数」等元说明
 7. **严禁**用 ``` / ```text 等代码围栏包裹字段值或整段输出
 
 ## 结构（标题由模板固定文字负责）
 - 形如 `# [栏目标题]` / `## [栏目标题]` 的标题行由程序用栏名原样生成（几个 # 就几个 #），不会出现在 fields 清单里；你只填标题下方的正文占位
+- 栏内你自己的分组小标题不属于"栏目标题"，写在字段值里即可（层级要求见「输出约定」第 5 条），程序不会替你生成
 - 不要把某一栏的正文填进标题；有独立栏目就填到对应编号字段
 - 表格里整行 `…` 的样例数据行对应 tables[i]：必须输出原文事实行，禁止整行照抄省略号样例
 - 若用户消息含【模板写作要求】，字段值与表格行必须遵守（不要把要求原文写进 JSON）

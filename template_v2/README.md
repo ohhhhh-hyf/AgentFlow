@@ -45,12 +45,8 @@
 
 ## 4. 怎么改模板
 
-```bash
-python tools/scripts/draft_template_v2.py --apply   # 应用 EDITS（幂等、可增量）
-python tools/scripts/draft_template_v2.py --check   # 校验每条是否已生效（漂移退出码 1）
-
-python -m app.selftest                              # 模板契约护栏（29 条齐备 / 两种写法 / 非法值拒绝）
-```
+直接编辑对应的 Markdown 文件，并保持第 2 节的固定结构。修改后启动服务，
+通过 `/docs` 提交一条使用该模板的请求，检查生成结果和模板门禁提示。
 
 新增模板：在本目录放一个 `{id}.md`（结构见第 2 节），并在 `app/config.py` 的
 `TEMPLATE_SCENARIO` 里登记 `{id} → 场景ID`（否则不会被注册，`extra.template` 会 400）。

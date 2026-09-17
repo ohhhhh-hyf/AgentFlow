@@ -883,9 +883,7 @@ def restore_from_skeleton(
             (c for c in chapters if key and norm_key(c.get("name")) == key), None
         )
 
-    def ensure_chapter(
-        name: str, topic_for_host: dict[str, Any] | None = None
-    ) -> dict[str, Any] | None:
+    def ensure_chapter(name: str) -> dict[str, Any] | None:
         """骨架给了章名 → 缺则建章；返回该章（没有可用宿主时返回 None）。"""
         nonlocal next_ch
         existing = chapter_by_name(name) if name else None

@@ -6,7 +6,7 @@ import logging
 import re
 from typing import Any
 
-from ._base import _COMPILE_CACHE, _COMPILE_CACHE_VERSION, _COMPILE_FAIL_COUNTS, _COMPILE_FAIL_SKIP_THRESHOLD, _EXPANSION_GUARDS, _MODIFY_SYSTEM, _PLACEHOLDER_RE, _client_text, _hint_clean, _strip_heading_number, _table_topic_from_context, is_router_enabled, split_template_meta, strip_outer_markdown_fence
+from ._base import _COMPILE_CACHE, _COMPILE_CACHE_VERSION, _COMPILE_FAIL_COUNTS, _COMPILE_FAIL_SKIP_THRESHOLD, _EXPANSION_GUARDS, _MODIFY_SYSTEM, _PLACEHOLDER_RE, _client_text, _hint_clean, _strip_heading_number, _table_topic_from_context, is_router_enabled, iter_placeholders, split_template_meta, strip_outer_markdown_fence
 from ._detect import _looks_like_placeholder, _table_row_limit_from_text, detect_template_kind, extract_description_cues, parse_placeholder_template
 from ._placeholder import _is_table_data_row, template_to_preview
 from ._preview import _aspect_has_fixed_heading, _aspect_has_own_slot, extract_listed_aspects
@@ -24,6 +24,27 @@ def _row_cells(line: str) -> tuple[str, ...]:
 def _is_sep_row(line: str) -> bool:
     """表格分隔行（`| --- | :--: |` 之类）——不参与结构比对。"""
     return bool(_SEP_ROW_RE.match(line.strip()))
+
+
+def scan_fixed_bracket_literals(template: str) -> list[str]:
+    """找出"被当成固定文案、却含方括号字面"的段（正常应为空）。
+
+    这类段会被门禁要求**逐字出现**在输出里，实测会把模型逼成"复述模板说明"
+    （2026-09 家校沟通/法律咨询两模板的 ``用 `- [ ]` 待办格式…`` 即此形态：说明行
+    因括号嵌套没被识别成占位符，退化成固定文案）。模板层已按"行级优先"修掉，
+    这里留一条告警，避免以后新模板再写字面 ``[ ]`` 而无人察觉。
+    """
+    template, _ = split_template_meta(template)
+    hits: list[str] = []
+    for seg in parse_placeholder_template(template):
+        if seg.get("kind") != "text":
+            continue
+        raw = str(seg.get("text") or "").strip()
+        if len(raw) < 4 or not re.sub(r"[\s|:\-]+", "", raw):
+            continue
+        if "[" in raw or "]" in raw:
+            hits.append(raw)
+    return hits
 
 
 def validate_rendered_output(
@@ -44,7 +65,7 @@ def validate_rendered_output(
     if kind == "placeholder":
         leftovers = [
             f"[{m.group(1)[:20]}]".replace("\n", " ")
-            for m in _PLACEHOLDER_RE.finditer(rendered)
+            for m in iter_placeholders(rendered)
             if _looks_like_placeholder(
                 m.group(1), next_char=rendered[m.end() : m.end() + 1]
             )
@@ -73,6 +94,13 @@ def validate_rendered_output(
             if all(cell.strip() in {"…", "...", ""} for cell in raw.strip().strip("|").split("|")) \
                     and "|" in raw:
                 continue
+            if "[" in raw or "]" in raw:
+                # 含方括号字面的固定段 = 本该是占位说明却没被识别（见 scan_fixed_bracket_literals）：
+                # 门禁会要求它逐字出现，实测会逼出"复述模板说明"，先告警别静默
+                logger.warning(
+                    "模板固定段含方括号字面（可能逼出复述，建议改模板或检查占位识别）：%r",
+                    raw[:60],
+                )
             fixed.append(raw)
         # 归一化空白后再比对，避免换行差异误报
         rendered_norm = re.sub(r"\s+", " ", rendered)

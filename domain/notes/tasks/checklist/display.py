@@ -1366,7 +1366,7 @@ def _trace_html(card: dict[str, Any], all_evs: list[dict[str, Any]]) -> str:
     return "".join(rows)
 
 
-def _card_html(card: dict[str, Any], card_idx: int = 1) -> str:
+def _card_html(card: dict[str, Any]) -> str:
     grade = str(card.get("session_priority") or "B")
     brief = grade not in {"S", "A"}
     badge = "ck-s" if grade == "S" else "ck-a" if grade == "A" else "ck-b"
@@ -1694,7 +1694,7 @@ def build_checklist_html(draft: dict[str, Any], *, has_teacher: bool | None = No
             body.append("<p>本次激活点之间没有可画的关系图。</p>")
         body.append("<h2>二、知识点</h2>")
         for i, card in enumerate(focus, start=1):
-            body.append(_card_html(card, card_idx=i))
+            body.append(_card_html(card))
         if brief:
             body.append('<div class="ck-brief"><h3>简要过一下</h3><ul>')
             for card in brief:

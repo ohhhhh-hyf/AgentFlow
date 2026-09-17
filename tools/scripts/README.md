@@ -99,23 +99,6 @@ python tools/scripts/sync_domain.py --domain notes --check
 If a task line is incomplete, full sync first updates `models.py`, then prints
 the missing items and stops before writing incomplete runtime wiring.
 
-### draft_template_v2.py
-
-Applies reviewable **template text edits** to `template_v2/*.md` — that directory *is* the template
-registry the runtime reads (there is no YAML and no second fallback source). Edits live in one table
-(`EDITS`) and the script asserts each replacement hits exactly once, then re-parses the templates
-through the runtime's own loader:
-
-```powershell
-python tools/scripts/draft_template_v2.py --apply   # write EDITS into template_v2/*.md (idempotent)
-python tools/scripts/draft_template_v2.py --check   # verify every edit is still in place (exit 1 on drift)
-```
-
-Template writing conventions (enforced by review, not by code) are documented in the module
-docstring: `requirement` carries only bottom lines (never wording about shape), fallback values are
-imperative ("缺项直接写「无」"), and no "若…则…" conditional phrasing (the model tends to narrate it
-into the minutes).
-
 ## Naming Rules
 
 See `SCAFFOLDING_CONVENTIONS.md` for the complete rules. The key point is that

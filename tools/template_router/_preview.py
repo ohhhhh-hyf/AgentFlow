@@ -4,7 +4,7 @@ import logging
 import re
 from typing import Any
 
-from ._base import _BANNER_RE, _OLD_FILL_RE, _PLACEHOLDER_RE, _field_slot_line, _format_budget_banner, _is_slot_body, _split_aspect_connectors, _split_by_heading, _strip_heading_number
+from ._base import _BANNER_RE, _OLD_FILL_RE, _field_slot_line, _format_budget_banner, _is_slot_body, _split_aspect_connectors, _split_by_heading, _strip_heading_number, iter_placeholders
 from ._detect import detect_template_kind
 from ._placeholder import preview_to_template, template_to_preview
 
@@ -167,7 +167,7 @@ def _aspect_has_own_slot(
     if _aspect_has_fixed_heading(aspect, compiled, all_aspects):
         return True
     # 占位说明单独点名该要点，且同占位未同时塞进另一并列要点
-    for m in _PLACEHOLDER_RE.finditer(compiled or ""):
+    for m in iter_placeholders(compiled or ""):
         hint = m.group(1)
         if aspect not in hint:
             continue

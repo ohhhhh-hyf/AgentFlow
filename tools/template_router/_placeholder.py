@@ -6,7 +6,6 @@ from typing import Any
 
 from ._base import (
     _PLACEHOLDER_FILL_SYSTEM,
-    _PLACEHOLDER_RE,
     _TABLE_SEP_RE,
     _body_han_count,
     _char_budget_lines,
@@ -18,6 +17,7 @@ from ._base import (
     _parse_row_list,
     _table_row_confidence_score,
     _TITLE_HINT_INSTRUCTION_RE,
+    iter_placeholders,
     split_template_meta,
     strip_outer_markdown_fence,
 )
@@ -33,9 +33,10 @@ from ._detect import (
 logger = logging.getLogger(__name__)
 
 
-def _line_placeholders(line: str) -> list[re.Match[str]]:
-    out: list[re.Match[str]] = []
-    for m in _PLACEHOLDER_RE.finditer(line):
+def _line_placeholders(line: str) -> list[Any]:
+    """行内占位符（含"整行一个占位、内容带方括号字面"的情形，见 ``iter_placeholders``）。"""
+    out: list[Any] = []
+    for m in iter_placeholders(line):
         nxt = line[m.end() : m.end() + 1]
         if _looks_like_placeholder(m.group(1), next_char=nxt):
             out.append(m)
@@ -458,8 +459,19 @@ def template_to_preview(
                         "raw_field": _parse_field(phs[0].group(1)),
                     }
                 )
-            elif len(phs) == 1 and re.search(r"\[[^\[\]]+\]\s*$", body) and not re.search(r"[:：]\s*\[", body):
-                # 单占位在行尾且无冒号 → 段落输入区（如「## 纪要\n[内容]」展开成 field）
+            elif len(phs) == 1 and (
+                # 整行就是一个占位（含说明里带 `- [ ]` 字面、被行级识别合并成整行的那种）
+                (
+                    not body[: phs[0].start()].strip()
+                    and not body[phs[0].end() :].strip()
+                )
+                # 或单占位在行尾且无冒号（如「## 纪要\n[内容]」展开成 field）
+                or (
+                    re.search(r"\[[^\[\]]+\]\s*$", body)
+                    and not re.search(r"[:：]\s*\[", body)
+                )
+            ):
+                # → 段落输入区（不再产生空 label 段）
                 sections.append(
                     {
                         "type": "field",

@@ -24,7 +24,6 @@ app/                          # FastAPI 后端服务（唯一入口）
   worker.py                   # 独立 worker：队列消费 / 并发槽 / 心跳租约 / 超时回收 / 优雅停机
   job_store.py                # Redis 任务状态、事件流、载荷、队列与租约（TTL 默认 7 天）
   id_worker.py                # request_id / job_id 发号器（Redis 日序号，无 Redis 时进程内降级）
-  selftest.py                 # 自测：接口清单守卫 + 队列机制（python -m app.selftest）
   tasks.py                    # 任务执行核心：请求 → 输入组装 → run() → 统一响应
   schemas.py                  # 请求/响应模型（通用 TaskRequest / TaskResponse）
   outputs.py                  # API 产物落盘 data/{user_id}/output/{request_id}/
@@ -57,7 +56,6 @@ tools/
   monitor/                    # 任务监控：token / 缓存命中 / 按层耗时
   exercise_search/            # 高中题库检索（notes.quiz 用）
   scripts/                    # 开发工具：sync_domain / register_task 代码生成器
-samples/                      # 样例输入：samples/{domain}/file/、profile/、{task}_template/
 template_v2/                  # 模板注册表（29 类模板的唯一权威源，运行时直接读 *.md）
 ```
 
@@ -264,14 +262,12 @@ pip install "numpy<2" onnxruntime==1.16.3 rapidocr_onnxruntime==1.4.4
 | 知识图谱 | HTML 可交互演示 |
 | 思维导图 | HTML 需 Node.js/npx；PNG 需 Playwright Chromium |
 
-样例与数据目录：
+数据目录：
 
 | 目录 | 用途 |
 |---|---|
 | `data/{user_id}/docs/` | 接口 `docs[]` 的输入文件（图片/文档/笔记） |
-| `samples/{domain}/file/` | 样例输入文本 `.txt` |
 | `perspective/profiles/` | 跨域公共画像（客观 + 职业模板）`.json` |
-| `samples/{domain}/{task}_template/` | 任务模板样例 `.md` |
 | `data/{user_id}/output/{request_id}/` | API 每次调用产物（`result.md` / `{task}.html`） |
 | `data/{user_id}/memory/` | 跨会话记忆（records + chromadb 索引） |
 | `data/{user_id}/knowledge/` | 知识库向量 + 知识目录 JSON |
@@ -434,18 +430,9 @@ python -c "from app.config import run_mode,job_ttl_seconds,job_max_attempts,leas
 print(run_mode(), job_ttl_seconds(), job_max_attempts(), lease_seconds(), heartbeat_seconds())"
 ```
 
-### 10. 自测与运维注意
+### 10. 运维注意
 
-```bash
-python -m app.selftest    # 116 项：接口清单守卫 + 队列/租约/回收/重试/停机/执行体契约；不调模型
-```
-
-自测分两部分：**接口清单守卫**（核对 FastAPI 暴露的路由面与 `app/tasklines.py` 的声明是否同步，
-不需要 Redis）与**队列机制**（默认跑 **5 号库**并在结束时清空，**拒绝在 0 号库运行**
-—— 那里是真实任务数据，可用 `AGENTFLOW_SELFTEST_REDIS_URL` 覆盖）。
-端到端 HTTP 链路用 `minutes_async_submit.py → status → result → stream` 四个脚本验证。
-
-**目录骨架来自原文（P2）**：catalog 的**结构与顺序不再由模型发明**——程序先把 OCR 合并稿解析成
+**目录骨架来自原文**：catalog 的**结构与顺序不再由模型发明**——程序先把 OCR 合并稿解析成
 "有序骨架"（`domain/notes/tasks/catalog/skeleton.py`：页块内最浅标题 = 主题、更深 = 知识点，
 细碎标题如例题/易错/小结**不建节点**而把正文并入父节点，`X（续）` 并入同名主题），把它作为
 **权威输入**写进 briefing；旧候选池（入库时的分数/类型/标签）降级为**增强证据**，只用于判
@@ -476,14 +463,14 @@ checklist 慢的根因不是"卡多"，而是**调用结构**：契约要求每�
 `_fallback_*` 按目录 `knowledge_items` 合成（实测：模型一张不写时 40 激活 → 40 张卡，
 空壳 0 张，explain 中位 158 字）。所以"精写范围"只影响文字厚度，不影响知识点覆盖。
 
-**P6：关系与差异度由程序保底（零 LLM）**
+**关系与差异度由程序保底（零 LLM）**
 
 三个下游症状是同一条因果链：**关系全空 → importance 结构分恒定 → 单值占比 96% → checklist
 `_quantile_assign` 同分并档吞档 → 43/43 全挤进 S 档（"全是核心"）→ 模型要写 43 张卡 →
 10k 输出上限截断 → 分批重试，端到端 3 分 14 秒**；知识图谱孤岛也是同一个上游（关系为 0）。
 所以三件事一起收口：
 
-| 步 | 内容 | 效果（同一份线上目录实测） |
+| 步 | 内容 | 效果 |
 |---|---|---|
 | **A 关系程序保底** | `backfill_catalog_relations`：同主题 KP 两两 `used_with`、章内相邻主题 `prerequisites`、术语共现（复用入库的 `term_cooccurrence`）同章连边；条目带 `origin=program`、有上限、不产自指 | 关系非空 **0/48 → 38/48**（136 条边：同主题 68 / 主题链 22 / 共现 46） |
 | **B importance 多信号 + 分布护栏** | 结构分改为"关系密度 + 是否在学习路径上 + 同节并列量 + 公式/定理形态"；单值占比 > 60% 时按结构分上下三等分微调 ±1（不越"items≥3 不得低于 3、空占位不得高于 2"的边界） | 单值占比 **96% → 67%**，取值 3/4/5 |
@@ -513,7 +500,7 @@ CATALOG_PLACEHOLDER_RE=^(核心|其他)$     # 占位名形态正则（整体替
 CATALOG_FINE_GRAIN_MARKS=适用条件,常见变形  # "细粒度点"词表（降级进父 KP 的 items）
 ```
 
-**P5：直接用 md 的标题树（不再用"区域 + 相对层级"启发式）**
+**直接使用 Markdown 标题树**
 
 原文的 Markdown 层级本身就是结构——实测这份合并稿的层级分布（`#`×8 / `##`×26 / `###`×28）
 相当规整，真正需要修补的只有零头。于是：
@@ -531,21 +518,7 @@ CATALOG_FINE_GRAIN_MARKS=适用条件,常见变形  # "细粒度点"词表（降
 - **LLM 职责不变**（命名规范化 / 合并 / 降级 / 字段填充），不新增固定轮次；
   `monitor.catalog.max_kp_per_topic` 用来盯"一个主题塞太多 KP"的回归。
 
-改造前后对照（同一份 18:41 合并稿 + 同一份线上目录）：
-
-| 指标 | 线上目录（P2 老骨架） | P5 新骨架 |
-|---|---|---|
-| 章 / 主题 / 知识点 | 6 / 7 / 49 | **8 / 26 / 26** |
-| 每主题 KP > 5 的主题 | **3 个**（21、10、10） | **1 个**（最大 7，来自原文真实三级密度） |
-| 占位名节点 | 3（`merge.py` 的 retitle 路径，P4-3 待收口） | 新骨架不产 |
-| 修补命中 | — | 续页合并 1 / 同名合并 1 / 跳级归位 2（与分析预测一致） |
-
-```bash
-python tools/scripts/check_catalog_coverage.py --user 1 --subject wuli   # 对账：覆盖率 + 同级乱序 + 内容可核
-python tools/scripts/skeleton_check.py --user 1 --subject wuli           # 离线回归：漏节/乱序/降级/全缺 都能拉回硬指标
-```
-
-**目录体检进响应 monitor（P3）**：catalog 跑完时程序读**刚存下的**目录 + 原文骨架算指标（零 LLM），
+**目录体检进入响应 monitor**：catalog 跑完时程序读**刚存下的**目录 + 原文骨架算指标（零 LLM），
 写进响应体的 `monitor.catalog`，你一眼验收而不用读整棵树：
 
 ```jsonc
@@ -574,13 +547,12 @@ python tools/scripts/skeleton_check.py --user 1 --subject wuli           # 离�
 
 > `fake_heading_chunks` 是哨兵而非硬指标：md 里**真实的长标题**也会计入（例如
 > `宏观分布与宏观态(与 $\mu$ 空间的分布…对应)`）；它要抓的是"正文被误判成标题"
-> （`③ …` 经 NFKC 变 `3 …` 那类），P4-2 之后这类块应为 0。
+> （例如 `③ …` 经 NFKC 变 `3 …` 那类），正常情况下这类块应为 0。
 
 第三道校验（内容可核）的**精度边界**要如实理解：模型写的是**概述型标签**（`守恒量定义`），
 不是原文引用，逐字比对必然误报。所以条目级只判"有没有依据"（逐字命中 / 片段重合 / 短标签不判），
 **只有节点级**才判"整节串门"（某 KP 多数条目更像另一节），"疑似编造"只收长条目——
-这两类才是高精度、可执行的信号。真实数据上的量级：150 条 items → 逐字 36、概述型 3、短标签 69、
-整节串门 9、长条目存疑 2（跑 `check_catalog_coverage.py` 会逐条列出）。
+这两类才是高精度、可执行的信号。
 
 **目录顺序与覆盖的位置轴**（入库侧 `tools/knowledge/document_processor.py`）：OCR 合并稿每块前带
 `<!-- ocr-pages: lo-hi -->` 页块标记，入库解析成块元数据 `page`/`page_span`，并给每个块补一个
@@ -592,7 +564,7 @@ LLM 生成、层级跨页不可比，不归一时"整篇 ###"的文件会整页�
 输出侧补缺（`complement_catalog_coverage`）也不再要求分数 ≥5，缺的整节会**按候选自己的章名新建**，
 并在补缺后重新保序一次。
 
-**P4：不再产脏节点（三点收口）**
+**目录节点清理规则**
 
 1. **入库不再认错标题**（治本）：数字编号形态必须带标点（`1.` / `1、` / `1)` / `1.2` / `（1）`）
    才算标题。此前 OCR 清洗的 NFKC 会把 `③ 分子在两次碰撞间…` 变成 `3 分子…`，被"数字 + 空格"
@@ -602,17 +574,10 @@ LLM 生成、层级跨页不可比，不归一时"整篇 ###"的文件会整页�
    覆盖由骨架侧的 `restore_from_skeleton` 负责，杜绝"补出骨架外的节点"。
 3. **不再生产占位名**：`核心知识点 / 核心概念 / 知识概要 / 补充知识点 / 其他` 一律不再由程序写入
    （章级候选宁可跳过并计数，交给结构修复器用真名回退补点）。`monitor.catalog.generic_nodes`
-   统计最终目录里的占位名节点，非 0 说明还有生产者（`merge.py` 的"主题重命名"路径待 P4-3 收口）。
+   统计最终目录里的占位名节点，非 0 时应检查目录合并与重命名路径。
 
-OCR 相关排查脚本（`tools/scripts/`，都是只读/需显式指定才写）：
-
-| 脚本 | 用途 |
-|---|---|
-| `chrome_check.py [图名...]` | 逐图看页眉页脚判定结果（丢了哪些行、正文前 3 行是谁、有无污染残留）；默认跑 `data/1/docs` 下全部图片，OCR 结果按图缓存到临时目录，**改阈值重跑不必重新识别** |
-| `check_catalog_coverage.py --user U --subject S` | 原文骨架 ↔ 目录节点对账：覆盖率（含"降级为 items / 主题被合并"两种合法情况）、同级乱序、跨层回退。**改动前后对比看这个**，退出码非 0 表示未达标 |
-| `skeleton_check.py --user U --subject S` | P2 离线回归：用真实合并稿造"模型漏节 / 只建后半段 / 打乱顺序 / 把 KP 降级 / 输出全缺"五种坏输出，验证还原后仍满足"覆盖 100% + 同级顺序单调"；不调模型与 OCR |
-| `teacher_trace_check.py` | 老师重点在场时对拍输出侧流水线：`teacher_emphasis / teacher_focus_items / teacher_evidence / sources / source_chunk_ids / evidence / content_fingerprint / importance / exam_signal / review_weight` 逐字段比较"保序开关"两种路径，退出码非 0 表示字段被改动 |
-| `purge_kb_source.py --user U --subject S [--list] [--source 'ocr_*']` | 按来源文件清知识库块。**重新 OCR 后旧合并稿的块不会自动清理**（文件名是新的时间戳，`delete_sources` 目前无人调用），而 catalog 的 briefing 直接取知识库块——旧块不清，目录里的假章节会反复出现 |
+知识库维护工具 `tools/scripts/purge_kb_source.py` 可按来源列出或清除旧知识块。
+不传 `--source` 时只展示；删除前应先用 `--list` 核对用户、学科和来源文件。
 
 生产运维注意：
 
@@ -662,8 +627,7 @@ URL 约定（`{domain}` ∈ `meeting` / `notes`，`{task}` 见下表）：
 > **路由的唯一声明处是 [app/tasklines.py](app/tasklines.py)**（域 → 任务线 → 是否注册产物端点）：
 > 路由注册（[app/routes/_registry.py](app/routes/_registry.py)）、同步与异步接口的任务名校验都从它派生，
 > 加一条任务线只需在这里加一行。哪些线有产物端点、各自必填什么，见 [API.md](API.md) 第 0.2 节与第 2.2 节；
-> notes 域（graph / library / catalog / checklist）另有自包含文档 [notes_api.md](notes_api.md)。
-> 接口面变化可用 `python -m app.selftest` 的清单守卫核对（见上文 Redis 章节第 10 节）。
+> notes 域当前对外任务线为 graph / library / catalog / checklist。
 
 ```bash
 curl -X POST http://127.0.0.1:8000/api/v1/meeting/minutes \
@@ -731,7 +695,7 @@ curl -X POST http://127.0.0.1:8000/api/v1/meeting/minutes \
 ```
 
 > 路由声明是**唯一来源**：`app/tasklines.py` 之外不要再写任务线清单（`app/tasks.py` 的 `LINE_NAMES`
-> 与 `app/routes/tasks.py` 的域校验都从它派生）。加完可用 `python -m app.selftest` 的清单守卫核对。
+> 与 `app/routes/tasks.py` 的域校验都从它派生）。
 
 ## 架构要点
 

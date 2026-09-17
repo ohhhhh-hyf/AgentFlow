@@ -36,14 +36,14 @@ TEMPLATE_DIR = Path(__file__).resolve().parent / "domain_template"
 
 # 模板文件名 → 目标文件名（orchestrator 的导出名随领域名）
 TPL_FILES = [
-    ("orchestrator.tpl.py", "orchestrator.py"),
-    ("models.tpl.py", "models.py"),
-    ("models_base.tpl.py", "models_base.py"),
-    ("models_generated.tpl.py", "models_generated.py"),
-    ("reports.tpl.py", "reports.py"),
-    ("factory.tpl.py", None),  # -> {domain}_factory.py
-    ("domain_config.tpl.py", "domain_config.py"),
-    ("__init__.tpl.py", "__init__.py"),
+    ("orchestrator.py.tpl", "orchestrator.py"),
+    ("models.py.tpl", "models.py"),
+    ("models_base.py.tpl", "models_base.py"),
+    ("models_generated.py.tpl", "models_generated.py"),
+    ("reports.py.tpl", "reports.py"),
+    ("factory.py.tpl", None),  # -> {domain}_factory.py
+    ("domain_config.py.tpl", "domain_config.py"),
+    ("__init__.py.tpl", "__init__.py"),
 ]
 
 
