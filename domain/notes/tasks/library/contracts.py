@@ -47,7 +47,7 @@ class LibraryGenerationContract(GenerationContract):
 
 class LibrarySupervisorContract(SupervisorContract):
     decision = Decision()
-    feedback = Feedback("仅当 decision=revise 时填写")
+    feedback = Feedback("decision=revise 时必填；approve/reject 时给空数组 []——字段必须出现，不可省略")
     checks = [Check("library_check", "仅记录入库失败")]
 
 

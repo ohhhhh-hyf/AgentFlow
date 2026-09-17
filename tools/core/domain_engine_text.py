@@ -191,6 +191,21 @@ def format_graph_node(index: int, item: dict) -> str:
     return f"{index}. {name}"
 
 
+def _norm_for_dup(text: str) -> str:
+    """去空白与首尾标点，用于判断"降级文本首行是否与文档标题重复"。"""
+    return re.sub(r"[\s。；;：:]+", "", str(text or "")).strip()
+
+
+def _join_items(values: list) -> str:
+    """把若干项用「；」连成一段：先去掉每项末尾的句号/分号，避免「。；」连写。"""
+    items = [str(v).strip() for v in values if str(v).strip()]
+    cleaned = [re.sub(r"[。；;.\s]+$", "", item) for item in items]
+    body = "；".join(x for x in cleaned if x)
+    if body and not body.endswith(("。", "！", "？")):
+        body += "。"
+    return body
+
+
 def fallback_text(
     state: dict,
     line_name: str,
@@ -198,19 +213,28 @@ def fallback_text(
     formatters: dict[str, object],
     empty_purpose,
     disclaimer: str,
+    title: str = "",
 ) -> tuple[str, list | None]:
-    """按声明式规则把草稿拼成确定性文本（+ 可选结构化列表）。"""
+    """按声明式规则把草稿拼成确定性文本（+ 可选结构化列表）。
+
+    ``title``：文档层会另加 ``# {title}``（见 tools/exports/outputs.py），
+    与降级文本首行同名时跳过该行，避免标题重复两遍（2026-09 实测降级文本
+    的 headline 会与文档标题重复）。
+    """
     draft = line(state, line_name).get("draft") or {}
     objective = bool(state.get("objective_perspective"))
+    title_key = _norm_for_dup(title)
     sections: list[str] = []
     for sec in sec_attr(rules, "sections", []) or []:
         values = field_values(draft, sec, objective)
         kind = sec_attr(sec, "kind", "raw")
         if kind == "raw":
+            if values and (title_key and _norm_for_dup(str(values)) == title_key):
+                continue  # 与文档标题重复的 headline：不再重复输出
             if values:
                 sections.append(str(values))
         elif kind == "join":
-            body = "；".join(str(v) for v in values if v)
+            body = _join_items(list(values))
             if body:
                 sections.append(f"{pick_label(sec, objective)}：{body}")
         elif kind == "lines":

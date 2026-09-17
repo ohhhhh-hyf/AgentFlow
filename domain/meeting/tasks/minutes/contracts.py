@@ -20,11 +20,12 @@ class MinutesGenerationContract(GenerationContract):
         StrField("headline", "会议纪要标题"),
         StrListField(
             "executive_summary",
-            "概述（数组每项=一整段多句正文，不是标题、不是一句话。"
-            "按槽位排序：进展/评价/下一步；进展先合并同类，仅当结论口径或主体/地点不同才拆第 2 条，禁止逐分项开条；"
-            "全篇 ≤4 条；每段最多 3 句（信息少时 1 句即可），写清数字/地点/责任人/时限；"
-            "客观须含范围边界与成组对照取值；商务关注域须含金额与收付款节点——"
-            "均须写在本字段，不得只放决策段）",
+            "概述（数组每项 = 一整段正文 2–5 句，不是标题、不是一句话。"
+            "按槽位排序：进展/评价·结论/下一步；同性质事实合并在同一段，"
+            "仅当结论口径或主体/地点不同才另起一段；全篇 ≤4 段；"
+            "**条数/句数是表达预算，不构成删事实的理由**——"
+            "范围纳入/排除、同一指标的多组对照取值、金额与收付款节点、时限与责任人必须全在，"
+            "不得只放决策段或风险段）",
         ),
         StrListField(
             "key_decisions",
@@ -57,7 +58,7 @@ class MinutesSupervisorContract(SupervisorContract):
     """纪要审核契约。"""
 
     decision = Decision()
-    feedback = Feedback("仅当 decision=revise 时填写，必须具体可执行、有原文依据")
+    feedback = Feedback("decision=revise 时必填（具体、可执行、有原文依据）；approve/reject 时给空数组 []——字段必须出现，不可省略")
     checks = [
         Check("facts_check", "仅记录严重问题，轻微问题不记录"),
         Check("perspective_check", "仅记录严重问题"),

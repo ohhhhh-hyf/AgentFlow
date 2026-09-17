@@ -96,8 +96,22 @@ class SupervisorContract:
 
         模板值保持中性占位，说明文字单独成段，保证 LLM 知道每个字段的语义
         又不会把说明照抄成输出值。
+
+        「必填 + 联动」两条硬规则写进说明（2026-09 实测教训）：校验侧是
+        ``_exact_fields``（字段集合必须完全一致）+ ``validate_supervisor_semantics``
+        （approve⇒全 pass 且 feedback 空；revise⇒feedback 非空；reject⇒至少一项 fail）。
+        原先只写"仅当 decision=revise 时填写 feedback"，模型照做就**省略该字段**
+        → 判不合格 → 重试一次仍缺 → 整次审核调用抛错 → 该线降级成确定性拼装文本
+        （低结构化闲聊型输入最容易踩中）。
         """
-        notes: list[str] = []
+        notes: list[str] = [
+            "**所有字段与检查项都必须出现，不得省略、不得增加**：无内容的数组写 []，"
+            "无问题的检查项写 {\"status\": \"pass\", \"findings\": []}"
+            "（feedback 字段同样必须出现：approve/reject 时给空数组 []）",
+            "轻微问题写成 status=\"pass\" 并在 findings 里说明；**只有严重问题**才 status=\"fail\"。"
+            "decision=approve 时检查项必须全 pass 且 feedback 为空；"
+            "revise 必须给出 feedback；reject 必须至少一个检查项 fail",
+        ]
         for ck in cls.checks:
             notes.append(f"- {ck.name}：{ck.desc}" if ck.desc else f"- {ck.name}")
         fb_desc = cls.feedback.desc

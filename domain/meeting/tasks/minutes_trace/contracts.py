@@ -49,7 +49,7 @@ class MinutesTraceSupervisorContract(SupervisorContract):
     """审核纪要正文；对齐只拦明显乱挂。"""
 
     decision = Decision()
-    feedback = Feedback("仅当 decision=revise 时填写，必须具体可执行、有原文依据")
+    feedback = Feedback("decision=revise 时必填（具体、可执行、有原文依据）；approve/reject 时给空数组 []——字段必须出现，不可省略")
     checks = [
         Check("facts_check", "仅记录严重问题：正文编造会议没有的事实"),
         Check("template_check", "仅记录严重问题：缺内容总结或主要议题，或按发言人流水账"),

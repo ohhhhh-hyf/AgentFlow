@@ -282,6 +282,11 @@ async def produce_line(
             gate_issues = list(gate.get("issues") or [])
             gate_ok = bool(gate.get("gate_ok"))
             hard0 = list(gate.get("hard_issues") or [])
+            advisory = list(gate.get("advisory_issues") or [])
+            if advisory:
+                # 咨询级：只记录（不触发返工）——超长条/段、缺失说明句，观察一批再收紧
+                line(state, line_name)["render_advisory_issues"] = advisory
+                logger.info("advisory line=%s：%s", line_name, "；".join(advisory))
 
             if (gate_issues or not gate_ok) and hasattr(render, "run"):
                 logger.warning(
@@ -434,6 +439,15 @@ async def produce_line(
                 "模板强执行门禁未通过：" + "；".join(gate_issues[:5])
             )
             state["quality_degraded"] = True
+        # 审核调用失败（保守放行）：正文照常交付，但把"未做质量把关"记进本线质量信号
+        unavailable = str(line_state.get("review_unavailable") or "").strip()
+        if unavailable:
+            note = f"审核服务调用失败（未做质量把关）：{unavailable}"
+            line_state["quality_warning"] = (
+                f"{line_state['quality_warning']}；{note}"
+                if line_state.get("quality_warning")
+                else note
+            )
 
         gate_s = (
             "n/a"

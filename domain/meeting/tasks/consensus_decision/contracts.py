@@ -92,7 +92,7 @@ class ConsensusDecisionSupervisorContract(SupervisorContract):
     """共识决策任务的领域审核契约。"""
 
     decision = Decision()
-    feedback = Feedback("仅当 decision=revise 时填写，必须具体可执行、有原文依据")
+    feedback = Feedback("decision=revise 时必填（具体、可执行、有原文依据）；approve/reject 时给空数组 []——字段必须出现，不可省略")
     checks = [
         Check("concession_check", "审查是否存在被掩盖的保留条件或假共识，成色定级是否准确（如带有免责/保留前提必须定级为 conditional_concession 并提炼 caveat）"),
         Check("tradeoff_check", "审查得失天平（gain 与 sacrifice）是否具备真实对抗张力，严禁空泛套话或同义反复"),

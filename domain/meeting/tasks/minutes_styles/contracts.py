@@ -109,7 +109,7 @@ class MultiStylesSupervisorContract(SupervisorContract):
     """多样式纪要审核契约：组织逻辑正确 + 事实忠诚。"""
 
     decision = Decision()
-    feedback = Feedback("Only fill when decision=revise; be specific and evidence-based")
+    feedback = Feedback("Required when decision=revise; use [] for approve/reject — the field must always appear")
     checks = [
         Check(
             "mode_check",

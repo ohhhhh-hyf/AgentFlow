@@ -393,12 +393,25 @@ SHAPE_RULE_KEYS = (
     "大类分组",
     "禁止同名重复",
     "段落上限",
-    "加粗配额",
+    "加粗两头都要管",
     "未决/待澄清栏口径",
     "猜测补全",
 )
 # 写足与表格栏口径（A–E 批）：每条 30–100 字 + 两项要素 / 不拆多条 / 状态标记边界 / 表格栏总述
-FILL_RULE_KEYS = ("30–100 字", "至少两项要素", "同一句话不拆多条", "状态标记", "表格栏")
+# + 2026-09 第二批五条：超 100 字必须拆 / 同标签最多 1 次 / 有素材不得未提及+不写说明句 /
+#   加粗两头管住（每栏至少 1–2 处）/ `## 名称` 之下必须 `- `
+FILL_RULE_KEYS = (
+    "30–100 字",
+    "至少两项要素",
+    "同一句话不拆多条",
+    "状态标记",
+    "表格栏",
+    "超过 100 字必须拆",
+    "最多出现 1 次",
+    "禁止写「原文未提及…」这类缺失说明句",
+    "每栏至少 1–2 处加粗",
+    "`## 名称` 小节之下**必须** `- ` 一条一行",
+)
 
 
 TEMPLATE_SHAPE_SNIPPETS = {
@@ -406,7 +419,7 @@ TEMPLATE_SHAPE_SNIPPETS = {
     "hiring_report": "本栏明细由下表承载",
     "hiring_report#维度": "岗位匹配度、问题解决能力、思维逻辑性、应变能力",
     "media_briefing": "一条一行 `- `",
-    "site_visit_tour": "一个景点一行",
+    "site_visit_tour": "都要汇总到这里",
     "knowledge_memo": "不要再以同名",
     "clinical_advisory": "每条都是 `- ` 分点行",
     "home_school_liaison": "每一件事都要落进清单",
@@ -414,6 +427,14 @@ TEMPLATE_SHAPE_SNIPPETS = {
     "project_progress#后续": "从概况与原文提取下一步",
     "court_transcript": "本栏明细由下表承载",
     "team_meeting": "四要素",
+    # 低结构化/闲聊型场景的稳定性口径：没有结论也要写明，不留空洞栏目
+    "conversation_transcript": "未形成明确结论",
+    "group_seminar": "没有统一意见时写本场达成的倾向性认识与主要分歧点",
+    # 场景适配（2026-09 第二批）：知识点必须 `- `、建议必须汇总、摘要单段上限、空栏目正当写法
+    "class_transcript": "不得写成连续段落",
+    "general_minutes": "单段不超过约 200 字",
+    "personal_memo": "不要写「未提及」",
+    "psychological_session": "不强行总结结论",
 }
 
 
@@ -430,6 +451,176 @@ def test_template_shape_instructions() -> None:
         if snippet not in p.read_text(encoding="utf-8"):
             missing.append(f"{tid}:缺「{snippet}」")
     check(f"{tdir.name} 的形态/表格栏/覆盖口径到位", not missing, f"{missing}")
+
+
+def test_advisory_checks() -> None:
+    """咨询级检查：超长条/超长段/缺失说明句被抓出来，且不影响 gate_ok（不触发返工）。"""
+    from tools.execution.hard_execution import advisory_issues, gate_render_output
+
+    long_item = "- **学科领军人物**：" + "吕建新教授" * 45 + "。"
+    long_para = "# 课程概况\n" + "本节课讲解光学复习要点。" * 35 + "\n"
+    meta = "# 讲座概况\n本次讲座由肖楠总主讲，机构信息原文未提及。\n"
+    tpl = "# [课程概况]\n[一段话概括]\n\n# [核心观点]\n[写要点]\n"
+    hits_item = advisory_issues(long_item)
+    hits_para = advisory_issues(long_para)
+    hits_meta = advisory_issues(meta)
+    check("超长条（>200 字的一条）被抓出", any("一条" in h for h in hits_item), f"{hits_item}")
+    check("超长段（>320 字的段落）被抓出", any("一段" in h for h in hits_para), f"{hits_para}")
+    check("正常概况段（231–275 字，模板允许 4–10 句）不误报",
+          advisory_issues("# 概况\n" + "本节课讲解光学复习要点。" * 20 + "\n") == [], "")
+    check("缺失说明句「原文未提及…」被抓出",
+          any("缺失说明句" in h for h in hits_meta), f"{hits_meta}")
+    gate = gate_render_output(tpl, long_para)
+    check("咨询级问题不影响 gate_ok（只记录、不触发返工）",
+          bool(gate.get("gate_ok")) and list(gate.get("advisory_issues") or []),
+          f"ok={gate.get('gate_ok')} advisory={gate.get('advisory_issues')}")
+    check("正常文本不产生咨询级告警", advisory_issues("# 甲\n- **乙**：正常一条。\n") == [], "")
+
+
+def test_supervisor_unavailable_flow() -> None:
+    """"审核不可用"整链路：节点返回保守 approve + 不 degraded；路由走 __end__（不再降级）。
+
+    旧行为：审核调用失败 → reject_review + degraded → route 走 fallback → 用户拿到
+    确定性拼装文本（低结构化闲聊型输入实测踩中）。新行为：保守放行 + 质量警告。
+    """
+    import asyncio
+
+    from tools.core.domain_engine import DomainNodes
+
+    class _Boom:
+        async def review(self, context: str):  # noqa: ANN001
+            raise RuntimeError("supervisor 输出无法满足结构契约：字段不一致：缺失=['feedback']")
+
+    class _Stub(DomainNodes):
+        MAX_REVISIONS = 1
+        _task_lines = {"minutes": {
+            "supervisor_attr": "sup",
+            "reject_review": {
+                "decision": "reject",
+                "feedback": [],
+                "facts_check": {"status": "fail", "findings": ["内容空洞"]},
+                "perspective_check": {"status": "pass", "findings": []},
+                "consistency_check": {"status": "fail", "findings": ["口径不一致"]},
+            },
+        }}
+        _line_cn_names = {"minutes": "纪要"}
+
+        def __init__(self) -> None:
+            self.sup = _Boom()
+
+        def _supervisor_context(self, state: dict, line_name: str) -> str:  # noqa: D102
+            return "审核上下文"
+
+    stub = _Stub()
+    node = stub._make_supervisor_node("minutes")
+    out = asyncio.run(node({"lines": {"minutes": {"draft": {"headline": "闲聊"}}}}))
+    line_state = out["lines"]["minutes"]
+    check("审核调用失败 → 本线不降级（照常渲染）", line_state.get("degraded") is False, f"{line_state.get('degraded')}")
+    check("审核调用失败 → 保守 approve", (line_state.get("review") or {}).get("decision") == "approve", "")
+    check("审核调用失败 → 记录原因（供 quality_warning/monitor）",
+          "结构契约" in str(line_state.get("review_unavailable") or ""), f"{line_state.get('review_unavailable')}")
+    check("仍标记 quality_degraded（如实提示未做质量把关）", bool(out.get("quality_degraded")), "")
+    route = stub._make_route("minutes")
+    state_after = {"lines": {"minutes": {"review": line_state["review"], "revision_count": 0}}}
+    check("路由不再走 fallback（approve → __end__）", route(state_after) == "__end__", f"{route(state_after)}")
+
+
+def test_minutes_chain_consistency() -> None:
+    """纪要链路口径一致（2026-09 审计 ① ② ③）：形态单点化 + 摘要预算合一 + 审核两句。
+
+    审计发现的矛盾：①摘要条数/句数在草稿 prompt（2–8 条、1–5 句）、契约（≤4 条、
+    ≤3 句）、渲染 prompt 三处互斥；②形态在草稿/渲染 prompt 里是旧口径
+    （每条以分类标签开头、每栏至少 2 个分类标签、20–80 字、加粗每条 2–3 处），
+    与装配侧冲突——"每栏至少 2 个分类标签"正是标签复用（行20「盖章互动」×4）的成因；
+    ③审核"无锚点空条/关键遗漏"会把合规的合并段判成空条，是剩余降级路径。
+    """
+    from domain.meeting.tasks.minutes.contracts import MINUTES_GENERATION_OUTPUT_CONTRACT as gen_contract
+    from domain.meeting.tasks.minutes.prompts import (
+        MINUTES_GENERATION_SYSTEM_PROMPT as draft,
+        MINUTES_RENDER_PROMPT as render,
+        MINUTES_SUPERVISOR_DOMAIN_PROMPT as supervisor,
+    )
+    from tools.templates.body_rules import BODY_FORMAT_RULES
+    from tools.templates.template_prompt import PLACEHOLDER_RULES
+
+    from ._base import _PLACEHOLDER_FILL_SYSTEM as fill_system
+    from ._placeholder import build_placeholder_fill_user
+
+    user = build_placeholder_fill_user("内容来源：略。", FILL_TPL)
+    # ③ 形态单点化：五处逐字包含同一份规则
+    for label, text in (
+        ("装配 system prompt", fill_system),
+        ("装配 user 消息", user),
+        ("自由渲染 PLACEHOLDER_RULES", PLACEHOLDER_RULES),
+        ("纪要草稿 prompt", draft),
+        ("纪要渲染 prompt", render),
+    ):
+        check(f"{label} 逐字包含 BODY_FORMAT_RULES（单点维护）", BODY_FORMAT_RULES in text, "")
+    stale = ["每栏至少 2 个分类标签", "每条 20–80 字", "每条 2–3 处（分类标签"]
+    hit = [k for k in stale if any(k in t for t in (fill_system, user, PLACEHOLDER_RULES, draft, render))]
+    check("旧形态口径已从全部路径清除", not hit, f"残留={hit}")
+
+    # ② 摘要预算：三处同一套（≤4 段 × 2–5 句），且旧数字已清除
+    check("草稿 prompt / 契约都写 ≤4 段", "≤4 段" in draft and "≤4 段" in gen_contract, "")
+    check("草稿 prompt 写「每段 2–5 句」", "每段 2–5 句" in draft, "")
+    check("契约写「2–5 句」", "2–5 句" in gen_contract, "")
+    check("契约声明「条数/句数是表达预算，不构成删事实的理由」",
+          "不构成删事实的理由" in gen_contract, "")
+    old_summary = [k for k in ("全篇 2–8 条", "每段最多 3 句", "2–8 条") if k in draft or k in gen_contract]
+    check("旧的互斥摘要口径已清除", not old_summary, f"残留={old_summary}")
+
+    # ① 审核两句：合并段不算空条 + 关键遗漏按事实判
+    check("审核 prompt：合并型摘要段不算空条", "合并型摘要段不算空条" in supervisor, "")
+    check("审核 prompt：关键遗漏按事实判、不按条数判",
+          "按事实判，不按条数判" in supervisor, "")
+
+
+def test_fallback_text_dedupe() -> None:
+    """降级拼装：headline 与文档标题重复时不再重复输出；「；」连接不再出现「。；」。"""
+    from domain.meeting.tasks.minutes.contracts import MinutesFallbackRules
+    from tools.core.domain_engine_text import fallback_text
+
+    headline = "闲聊出门必带物品与个人习惯"
+    state = {
+        "objective_perspective": True,
+        "lines": {"minutes": {"draft": {
+            "headline": headline,
+            "executive_summary": ["第一件事结束了。", "第二件事也完成了。"],
+            "unresolved_questions": ["还有疑问吗？"],
+        }}},
+    }
+    text, _ = fallback_text(state, "minutes", MinutesFallbackRules, {}, lambda s: "", "", title=headline)
+    check("降级文本不再重复文档标题（headline 去重）", text.count(headline) == 0, f"{text[:40]!r}")
+    check("多项用「；」连接、不出现「。；」", "。；" not in text and "；" in text, f"{text!r}")
+    text2, _ = fallback_text(state, "minutes", MinutesFallbackRules, {}, lambda s: "", "", title="别的标题")
+    check("标题不同时仍保留 headline", text2.startswith(headline), f"{text2[:24]!r}")
+
+
+def test_supervisor_contract_and_unavailable() -> None:
+    """审核契约必填/联动说明 + 审核调用失败时的保守放行取值。"""
+    from domain.meeting.tasks.minutes.contracts import MINUTES_SUPERVISOR_OUTPUT_CONTRACT as contract
+    from domain.meeting.tasks.minutes.contracts import MinutesSupervisorContract
+    from tools.core.domain_engine import DomainNodes
+
+    check("契约说明含「所有字段与检查项都必须出现」", "所有字段与检查项都必须出现" in contract, "")
+    check("契约说明含 decision 联动规则",
+          "decision=approve 时检查项必须全 pass" in contract and "reject 必须至少一个检查项 fail" in contract, "")
+    check("feedback 说明不再只说「仅当 revise 时填写」",
+          "仅当 decision=revise 时填写" not in contract and "字段必须出现" in contract, "")
+    cfg = {"reject_review": {
+        "decision": "reject",
+        "feedback": [],
+        "facts_check": {"status": "fail", "findings": ["x"]},
+        "perspective_check": {"status": "pass", "findings": []},
+        "consistency_check": {"status": "fail", "findings": ["y"]},
+    }}
+    payload = DomainNodes._conservative_review(cfg)
+    check("审核不可用 → 保守 approve（检查项全 pass、feedback 空）",
+          payload["decision"] == "approve" and payload["feedback"] == []
+          and all(payload[k] == {"status": "pass", "findings": []}
+                  for k in ("facts_check", "perspective_check", "consistency_check")),
+          f"{payload}")
+    check("契约仍声明 checks 非空（契约类不变量）", bool(MinutesSupervisorContract.checks), "")
 
 
 def main() -> int:
@@ -469,6 +660,11 @@ def main() -> int:
         test_table_caption_not_a_field()
         test_shape_rules_in_prompts()
         test_template_shape_instructions()
+        test_minutes_chain_consistency()
+        test_supervisor_unavailable_flow()
+        test_advisory_checks()
+        test_fallback_text_dedupe()
+        test_supervisor_contract_and_unavailable()
     finally:
         logging.getLogger("tools.template_router._gate").removeHandler(handler)
 

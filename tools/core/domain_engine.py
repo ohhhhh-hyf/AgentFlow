@@ -290,7 +290,15 @@ class DomainNodes:
         return node
 
     def _domain_fallback_text(self, state: dict, line_name: str, rules):
-        """领域降级文本拼装：绑定领域 formatters / empty_purpose / disclaimer。"""
+        """领域降级文本拼装：绑定领域 formatters / empty_purpose / disclaimer。
+
+        传入 ``title``（= 文档标题，outputs 层会另加 ``# {title}``）：降级文本里与
+        标题重名的 headline 行会被跳过，避免"标题 + 同名首行"重复两遍。
+        """
+        try:
+            title = self._compute_title(state)
+        except Exception:  # noqa: BLE001 - 取标题失败不影响拼装
+            title = ""
         return fallback_text(
             state,
             line_name,
@@ -298,6 +306,7 @@ class DomainNodes:
             self._fallback_formatters,
             self._empty_purpose,
             self._quality_disclaimer,
+            title=title,
         )
 
     def _build_core(self, builder, line_names: list[str] | None = None) -> list[str]:
@@ -438,6 +447,19 @@ class DomainNodes:
 
         return node
 
+    @staticmethod
+    def _conservative_review(cfg: dict) -> dict:
+        """审核调用失败时的保守结论：等价 approve（检查项全 pass、feedback 空）。
+
+        只用于"审核不可用"：让本线照常渲染，质量信号由 ``review_unavailable``
+        （per-line quality_warning / monitor）承担，避免把审核故障放大成降级文本。
+        """
+        out: dict = {"decision": "approve", "feedback": []}
+        for key, value in dict(cfg.get("reject_review") or {}).items():
+            if isinstance(value, dict) and "status" in value:
+                out[key] = {"status": "pass", "findings": []}
+        return out
+
     def _make_supervisor_node(self, line_name: str):
         """生成某任务线的「审核」节点（supervisor → review，键统一为 ``review``）。
 
@@ -453,15 +475,26 @@ class DomainNodes:
                 review = await supervisor.review(
                     self._supervisor_context(state, line_name)
                 )
-            except Exception:  # noqa: BLE001 - 有意的降级设计
+            except Exception as exc:  # noqa: BLE001 - 有意的降级设计
+                # 审核**调用失败** ≠ 内容不合格：不再当成 reject 直接降级成确定性拼装文本，
+                # 而是保守放行（等价 approve）并打质量警告 —— 交付正常渲染的正文，
+                # 同时把"未做质量把关"如实告知用户（quality_warning / monitor）。
+                # 背景（2026-09 实测）：低结构化闲聊型输入上，审核的严格 JSON 契约
+                # （字段必须齐全 + 语义联动）容易连败，旧行为把"审核器故障"放大成
+                # "用户拿到一段拼装文本"。
+                summary = f"{type(exc).__name__}: {str(exc)[:160]}"
                 logger.warning(
-                    f"review failed, reject -> fallback line={line_name}", exc_info=True
+                    "review unavailable, conservative approve line=%s err=%s",
+                    line_name,
+                    summary,
+                    exc_info=True,
                 )
                 return {
                     "lines": {
                         line_name: {
-                            "review": cfg["reject_review"],
-                            "degraded": True,
+                            "review": self._conservative_review(cfg),
+                            "degraded": False,
+                            "review_unavailable": summary,
                         }
                     },
                     "quality_degraded": True,
@@ -784,15 +817,23 @@ class DomainNodes:
                 task.cancel()
             await asyncio.gather(*producers, return_exceptions=True)
 
-        # 任意线降级（含渲染失败降级）→ 全局质量警告
+        # 任意线降级（含渲染失败降级）→ 全局质量警告；审核调用失败时把原因一并告知
         any_line_degraded = any(
             bool(line(state, name).get("degraded")) for name in self._task_lines
         )
-        quality_warning = (
-            self._quality_warning
-            if (any_line_degraded or bool(state.get("quality_degraded")))
-            else None
-        )
+        unavailable = [
+            f"{line_cn(name, self._line_cn_names)}：{line(state, name).get('review_unavailable')}"
+            for name in line_names
+            if str(line(state, name).get("review_unavailable") or "").strip()
+        ]
+        quality_warning = None
+        if any_line_degraded or bool(state.get("quality_degraded")) or unavailable:
+            quality_warning = self._quality_warning
+            if unavailable:
+                quality_warning = (
+                    f"{quality_warning} 审核服务调用失败（未做质量把关）："
+                    + "；".join(unavailable)
+                )
         gate_by_line = {
             name: line(state, name).get("render_gate_ok")
             for name in line_names
@@ -822,21 +863,25 @@ class DomainNodes:
                 revisions = int(sub.get("revision_count") or 0)
             except (TypeError, ValueError):
                 revisions = 0
+            review_unavailable = str(sub.get("review_unavailable") or "").strip()
             out[name] = {
                 "decision": decision,
                 "revision_count": revisions,
                 "degraded": degraded,
+                "review_unavailable": review_unavailable,
                 "fallback": degraded or decision == "reject",
             }
-            if out[name]["fallback"]:
+            if out[name]["fallback"] or review_unavailable:
                 # 降级汇总一行：审核调用是否失败（degraded）+ 最终 decision + 返工次数 + 审核意见
                 logger.warning(
-                    "degraded line=%s decision=%s revisions=%s/%s review_call_failed=%s feedback=%s",
+                    "degraded line=%s decision=%s revisions=%s/%s review_call_failed=%s "
+                    "review_unavailable=%s feedback=%s",
                     name,
                     decision or "(none)",
                     revisions,
                     self.MAX_REVISIONS,
                     degraded,
+                    review_unavailable or "-",
                     json_dumps(review.get("feedback"))[:600],
                 )
         return out

@@ -462,6 +462,8 @@ def gate_render_output(
     if over:
         issues.append(over)
     hard, soft = classify_issues(issues)
+    # 咨询级检查（超长条/段、缺失说明句）：单独一栏，不进 issues/hard，不触发返工
+    advisory = advisory_issues(text)
     # 再跑一轮：若仅有「超出」且已截断，gate 可通过
     gate_ok = len(hard) == 0
     return {
@@ -470,12 +472,81 @@ def gate_render_output(
         "issues": issues,
         "hard_issues": hard,
         "soft_issues": soft,
+        "advisory_issues": advisory,
         "gate_ok": gate_ok,
     }
 
 
 def _han_count(text: str) -> int:
     return sum(1 for ch in (text or "") if "\u4e00" <= ch <= "\u9fff")
+
+
+_LONG_ITEM_HAN = 200
+_META_SENTENCE_RE = re.compile(
+    r"原文(?:中|里)?\s*(?:未|没有|无)\s*(?:明确|提及|说明|给出|写)"
+)
+
+
+def advisory_issues(
+    text: str,
+    *,
+    long_han: int = _LONG_ITEM_HAN,
+    para_han: int = 320,
+    limit: int = 4,
+) -> list[str]:
+    """咨询级形态检查（超长条/段 + 缺失说明句）：**记录用，不触发返工**。
+
+    背景（2026-09，55 行实测）：>200 字的长条/长段是 now 最突出的形态问题
+    （占比 before 的 13 倍，如「一条 736 字」「课程概况 631 字一段」）；
+    另有「机构信息原文未提及」这类**缺失说明句**（应只写约定缺省词）。
+
+    阈值分层：`- ` 条目用 ``long_han``（200 字，超过即为异常）；叙述段用
+    ``para_han``（默认 320 字）——概况类模板允许"4–10 句"，231–275 字的概况段
+    属正常，用 200 字会把 30+ 行误报（实测 36/55），失去观察价值。
+
+    这两类先以 advisory 记录（日志 + monitor），观察一批再决定是否升级成
+    issue（触发返工）或硬伤：软问题若直接进 ``issues`` 会让几乎每行都触发
+    一次整篇返工（装配稿会被自由渲染稿替换），成本与内容风险都不小。
+    """
+    lines = (text or "").splitlines()
+    out: list[str] = []
+
+    def _add(msg: str) -> bool:
+        out.append(msg)
+        return len(out) < limit
+
+    # ① 单条超长（`- ` / `  - ` 条目行）
+    for raw in lines:
+        s = raw.strip()
+        if not re.match(r"^-\s+\S", s):
+            continue
+        n = _han_count(s)
+        if n <= long_han:
+            continue
+        label = re.sub(r"^-\s+", "", s)[:14]
+        if not _add(f"「{label}…」一条 {n} 字，超过 {long_han} 字：拆成多条或缩进子条 `  - `"):
+            return out
+    # ② 单段超长（连续正文行组成的段落；含单行成段，`- ` 条目已在 ① 覆盖）
+    para: list[str] = []
+    for raw in lines + [""]:
+        s = raw.strip()
+        is_body = bool(s) and not s.startswith(("#", "|", ">", "-"))
+        if is_body:
+            para.append(s)
+            continue
+        if para:
+            n = _han_count("".join(para))
+            if n > para_han:
+                if not _add(f"「{para[0][:14]}…」一段 {n} 字，超过 {para_han} 字：拆段或改用 `- ` 分点"):
+                    return out
+        para = []
+    # ③ 缺失说明句（"原文未提及…"这类应只写约定缺省词）
+    for raw in lines:
+        m = _META_SENTENCE_RE.search(raw)
+        if m:
+            if not _add(f"正文出现缺失说明句「{m.group(0)}」：缺内容只写约定缺省词，不写说明句"):
+                return out
+    return out
 
 
 def _norm_heading(text: str) -> str:
@@ -592,6 +663,7 @@ def should_write_result_md(gate_ok: bool | None, has_template: bool) -> bool:
 __all__ = [
     "HARD_ISSUE_MARKERS",
     "MINUTES_CARRY_MAP",
+    "advisory_issues",
     "apply_table_row_limits",
     "classify_issues",
     "empty_section_issues",

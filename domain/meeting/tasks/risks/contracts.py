@@ -27,7 +27,7 @@ class RiskSupervisorContract(SupervisorContract):
     """风险分析审核契约。"""
 
     decision = Decision()
-    feedback = Feedback("仅当 decision=revise 时填写，必须具体可执行、有原文依据")
+    feedback = Feedback("decision=revise 时必填（具体、可执行、有原文依据）；approve/reject 时给空数组 []——字段必须出现，不可省略")
     checks = [
         Check("risk_check", "仅记录严重问题"),
     ]
