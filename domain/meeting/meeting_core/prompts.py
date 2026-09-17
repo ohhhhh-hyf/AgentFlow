@@ -24,7 +24,7 @@ meeting_purpose：一句话会议目的；优先沿用原文明确表述，没�
 
 scene：拿不准填「通用」。
 
-topics：一个独立议题一个 topic；同一议题多次出现要合并；title 可作分支名；discussion 只写短事实摘要，保留关键数字、人名、日期、范围边界、分歧和结论线索；conclusion 有明确结论才填，否则 null；participants 只写真实名。
+topics：一个独立议题一个 topic；同一议题多次出现要合并；title 可作分支名；discussion 写该议题的事实要点（关键数字与指标、对照取值、金额、日期与时限、人名、范围边界、分歧和结论线索必须保留，该议题有多组事实就分条写开）——控制长度但不丢事实；conclusion 有明确结论才填，否则 null；participants 只写真实名。
 
 decisions：每条保留原文中的负责人、时间、条件和关键数字；不要合并多项整改；无则 []。
 

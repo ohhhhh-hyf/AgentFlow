@@ -26,23 +26,39 @@ from ._placeholder import plan_placeholder_fill
 PASS: list[str] = []
 FAIL: list[str] = []
 
-# 各模板"标量字段数"基线（2026-09 修复后实测）：只允许变多，不允许变少——
-# 少了就意味着某条说明又被误判成固定文案（占位识别回退）。
-SCALAR_BASELINE: dict[str, int] = {
-    "class_transcript": 4, "clinical_advisory": 4, "contract_vetting": 4,
-    "conversation_transcript": 4, "court_transcript": 4, "debate_forum": 4,
-    "decision_review": 4, "exchange_forum": 4, "general_minutes": 6,
-    "government_bulletin": 3, "group_seminar": 4, "hiring_report": 3,
-    "home_school_liaison": 4, "interview_debrief": 4, "interview_transcript": 3,
-    "knowledge_memo": 3, "legal_advisory": 4, "media_briefing": 4,
-    "media_qa_session": 4, "personal_memo": 4, "product_launch": 4,
-    "project_progress": 4, "psychological_session": 3, "research_dialogue": 3,
-    "retrospective_session": 4, "site_visit_tour": 4, "special_lecture": 4,
-    "team_meeting": 3, "workshop_session": 4,
+# 各模板"标量字段数"基线快照（按模板目录分别记；只允许变多，不允许变少）：
+# 少了就意味着某条说明又被误判成固定文案（占位识别回退）。切到别的代次时按对应快照比；
+# 没有快照的目录（如以后的 v4）退化为"每个模板至少 1 个字段"。
+SCALAR_BASELINE_BY_DIR: dict[str, dict[str, int]] = {
+    "template_v2": {
+        "class_transcript": 4, "clinical_advisory": 4, "contract_vetting": 4,
+        "conversation_transcript": 4, "court_transcript": 4, "debate_forum": 4,
+        "decision_review": 4, "exchange_forum": 4, "general_minutes": 6,
+        "government_bulletin": 3, "group_seminar": 4, "hiring_report": 3,
+        "home_school_liaison": 4, "interview_debrief": 4, "interview_transcript": 3,
+        "knowledge_memo": 3, "legal_advisory": 4, "media_briefing": 4,
+        "media_qa_session": 4, "personal_memo": 4, "product_launch": 4,
+        "project_progress": 4, "psychological_session": 3, "research_dialogue": 3,
+        "retrospective_session": 4, "site_visit_tour": 4, "special_lecture": 4,
+        "team_meeting": 3, "workshop_session": 4,
+    },
+    # v3 的结构优化改了几处栏位形态（general_minutes 由 6 个槽位改成 2 栏），故单独记一份
+    "template_v3": {
+        "class_transcript": 4, "clinical_advisory": 4, "contract_vetting": 4,
+        "conversation_transcript": 4, "court_transcript": 4, "debate_forum": 4,
+        "decision_review": 4, "exchange_forum": 4, "general_minutes": 2,
+        "government_bulletin": 3, "group_seminar": 4, "hiring_report": 3,
+        "home_school_liaison": 4, "interview_debrief": 4, "interview_transcript": 3,
+        "knowledge_memo": 3, "legal_advisory": 4, "media_briefing": 4,
+        "media_qa_session": 4, "personal_memo": 4, "product_launch": 4,
+        "project_progress": 4, "psychological_session": 3, "research_dialogue": 3,
+        "retrospective_session": 4, "site_visit_tour": 4, "special_lecture": 4,
+        "team_meeting": 3, "workshop_session": 4,
+    },
 }
 
-# live 模板里已知的"固定段含方括号字面"（等 template_v3 应用后自然消失）：
-# personal_memo 的两行示例待办 `- [ ] …` 含字面 `[ ]`，被门禁当固定文案。
+# template_v2 里已知的"固定段含方括号字面"：personal_memo 的两行示例待办 `- [ ] …`
+# 含字面 `[ ]`，被门禁当固定文案（template_v3 已修）。切到别的模板目录时这份白名单为空。
 KNOWN_PENDING_BRACKET_LITERALS: set[str] = {"personal_memo"}
 
 
@@ -51,11 +67,11 @@ def check(name: str, ok: bool, detail: str = "") -> None:
     print(("PASS  " if ok else "FAIL  ") + name + (f" | {detail}" if detail else ""))
 
 
-def _template_v2() -> Path:
-    """当前生效模板目录（`app.config.TEMPLATE_DIR`，别写死 template_v2/template_v3）。"""
-    from app.config import TEMPLATE_DIR
+def _active_dir() -> Path:
+    """当前生效模板目录（由 ``AGENTFLOW_TEMPLATE_DIR`` 决定，别写死 template_v2/v3）。"""
+    from app.config import template_dir
 
-    return Path(TEMPLATE_DIR)
+    return Path(template_dir())
 
 
 def test_iter_placeholders() -> None:
@@ -156,9 +172,10 @@ def test_gate_direction_and_warning(caplog) -> None:  # type: ignore[no-untyped-
 
 def test_templates_regression() -> None:
     """全量模板回归：字段数不低于基线（识别不许回退），且无"固定段含方括号"残留。"""
-    tdir = _template_v2()
+    tdir = _active_dir()
     md_files = sorted(p for p in tdir.glob("*.md") if p.stem.lower() not in {"readme", "diff"})
     check(f"模板目录 {tdir.name} 下有模板文件", bool(md_files), f"n={len(md_files)}")
+    baseline = SCALAR_BASELINE_BY_DIR.get(tdir.name, {})
     lost: list[str] = []
     bracketed: list[str] = []
     tables_bad: list[str] = []
@@ -166,33 +183,38 @@ def test_templates_regression() -> None:
         text = p.read_text(encoding="utf-8")
         fmt, _ = split_template_meta(text)
         plan = plan_placeholder_fill(fmt)
-        base = SCALAR_BASELINE.get(p.stem)
-        if base is not None and len(plan["scalars"]) < base:
+        base = baseline.get(p.stem, 1)  # 无快照的目录：只要求每个模板至少 1 个字段
+        if len(plan["scalars"]) < base:
             lost.append(f"{p.stem}:{len(plan['scalars'])}<{base}")
         if scan_fixed_bracket_literals(fmt):
             bracketed.append(p.stem)
         n_tables = len(re.findall(r"^\|[\s:\-|]+\|\s*$", fmt, re.M))
         if n_tables != len(plan["row_templates"]):
             tables_bad.append(f"{p.stem}:表{n_tables}≠行模板{len(plan['row_templates'])}")
-    check("没有模板的占位识别回退（字段数 ≥ 基线）", not lost, f"{lost[:4]}")
+    check(f"{tdir.name} 里没有模板的占位识别回退（字段数 ≥ 基线）", not lost, f"{lost[:4]}")
     check("每张表都有占位数据行（表数 == 行模板数）", not tables_bad, f"{tables_bad[:4]}")
 
-    # 「固定段含方括号字面」的模板：template_v2 里 personal_memo 的两行示例待办还没
-    # 应用修复（见 template_v3/personal_memo.md），属已知待应用；出现**别的**模板才判失败。
-    unknown = sorted(set(bracketed) - KNOWN_PENDING_BRACKET_LITERALS)
-    check("live 模板里没有新增的「固定段含方括号字面」",
+    # 「固定段含方括号字面」：白名单只对 template_v2 生效（personal_memo 那两行示例待办
+    # 在 v3 已修）；切到别的模板目录时这份白名单按空处理，出现任何一条都判失败。
+    pending = KNOWN_PENDING_BRACKET_LITERALS if tdir.name == "template_v2" else set()
+    unknown = sorted(set(bracketed) - pending)
+    check("当前模板目录里没有新增的「固定段含方括号字面」",
           not unknown,
-          f"新增={unknown}；已知待应用={sorted(set(bracketed) & KNOWN_PENDING_BRACKET_LITERALS)}")
+          f"新增={unknown}；已知待应用={sorted(set(bracketed) & pending)}")
 
-    v3 = tdir.parent / "template_v3"
-    if v3.is_dir():
-        dirty = [p.stem for p in sorted(v3.glob("*.md")) if scan_fixed_bracket_literals(p.read_text(encoding="utf-8"))]
-        check("template_v3（待应用）里没有「固定段含方括号字面」", not dirty, f"{dirty[:4]}")
+    # 未生效的另一代模板（缺省是 template_v3）也顺手体检一下：它在的话应当干净
+    other = tdir.parent / ("template_v3" if tdir.name != "template_v3" else "template_v2")
+    if other.is_dir() and other != tdir:
+        dirty = [p.stem for p in sorted(other.glob("*.md")) if scan_fixed_bracket_literals(p.read_text(encoding="utf-8"))]
+        other_pending = KNOWN_PENDING_BRACKET_LITERALS if other.name == "template_v2" else set()
+        check(f"{other.name}（另一代模板）里没有新增的「固定段含方括号字面」",
+              not (set(dirty) - other_pending),
+              f"={dirty[:4]}；已知待应用={sorted(set(dirty) & other_pending)}")
 
 
 def test_buggy_template_now_works() -> None:
     """两条历史坏损模板（模板文件未改也应被代码修复救回）：末栏恢复为字段。"""
-    tdir = _template_v2()
+    tdir = _active_dir()
     for tid, head in (("home_school_liaison", "明确家校达成成的共识"), ("legal_advisory", "明确律师给出的解决方案")):
         p = tdir / f"{tid}.md"
         if not p.is_file():

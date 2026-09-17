@@ -1,16 +1,25 @@
 """API 层共享配置：项目根、.env、模板注册表、视角注册表、领域上下文。
 
-模板权威来源是 ``template_v2/*.md``（每个模板一个文件，运行时直接读）；
+模板权威来源是**一个目录下的 md 文件**（每个模板一个文件，运行时直接读）：
+缺省 ``template_v2``，用 ``.env`` 的 ``AGENTFLOW_TEMPLATE_DIR`` 可切到 ``template_v3`` /
+以后的 ``template_v4``（改一行配置即可，不动代码，见 :func:`template_dir`）。
 视角来自 perspective/profiles/。
 """
 from __future__ import annotations
 
+import logging
 import os
 from pathlib import Path
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 
-TEMPLATE_DIR = PROJECT_ROOT / "template_v2"
+logger = logging.getLogger(__name__)
+
+# 模板源目录缺省值；实际生效目录由 AGENTFLOW_TEMPLATE_DIR 决定（见 template_dir()）
+DEFAULT_TEMPLATE_DIR = "template_v2"
+
+# 每个取值只打一次日志（template_dir() 会被频繁调用），避免配置写错时逐请求刷屏
+_template_dir_logged: set[str] = set()
 
 DEFAULT_REDIS_URL = "redis://127.0.0.1:6379/0"
 DEFAULT_JOB_TTL_SECONDS = 7 * 24 * 60 * 60
@@ -36,6 +45,58 @@ def load_env() -> None:
 
     _load_env(PROJECT_ROOT / ".env")
     _env_loaded = True
+
+
+# ── 模板源目录（template_v2 / v3 / 以后的 v4 靠一行配置切换）─────
+
+def template_dir() -> Path:
+    """当前生效的模板源目录。
+
+    取值来自 ``.env`` 的 ``AGENTFLOW_TEMPLATE_DIR``（相对项目根或绝对路径）：
+    ``template_v2``（缺省）/ ``template_v3`` / 以后的 ``template_v4`` —— 换模板代次只改这一行。
+
+    容错：目录不存在时告警并回退缺省目录（避免"一个模板都读不到"导致
+    ``extra.template`` 全部 400）；目录存在但模板不全时告警并列出缺哪些模板 id
+    （不阻断：按实际存在的注册）。每次进程只在首次调用时打一条 INFO 说明用的是哪个目录。
+    """
+    load_env()
+    raw = (os.getenv("AGENTFLOW_TEMPLATE_DIR") or "").strip()
+    fallback = PROJECT_ROOT / DEFAULT_TEMPLATE_DIR
+    path = fallback
+    if raw:
+        candidate = Path(raw).expanduser()
+        path = candidate if candidate.is_absolute() else PROJECT_ROOT / candidate
+    if not path.is_dir():
+        if raw not in _template_dir_logged:  # 每个取值只报一次，别逐请求刷屏
+            _template_dir_logged.add(raw)
+            logger.warning(
+                "模板目录不可用（AGENTFLOW_TEMPLATE_DIR=%r）→ 回退 %s", raw, fallback.name
+            )
+        path = fallback
+    if path.name not in _template_dir_logged:
+        _template_dir_logged.add(path.name)
+        logger.info(
+            "模板源目录：%s（AGENTFLOW_TEMPLATE_DIR 控制，缺省 %s）", path, DEFAULT_TEMPLATE_DIR
+        )
+    missing = sorted(tid for tid in TEMPLATE_SCENARIO if not (path / f"{tid}.md").is_file())
+    if missing and f"missing:{path.name}" not in _template_dir_logged:
+        _template_dir_logged.add(f"missing:{path.name}")
+        logger.warning(
+            "模板目录 %s 缺少 %d/%d 个模板：%s%s（对应的 extra.template 会 400）",
+            path.name, len(missing), len(TEMPLATE_SCENARIO), "、".join(missing[:8]),
+            "…" if len(missing) > 8 else "",
+        )
+    return path
+
+
+def __getattr__(name: str) -> Path:
+    """兼容旧的 ``from app.config import TEMPLATE_DIR``：动态返回当前模板目录。
+
+    （模块级 ``__getattr__`` 在找不到属性时才调用，所以这里不会和别的常量打架。）
+    """
+    if name == "TEMPLATE_DIR":
+        return template_dir()
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
 
 
 # ── Redis（异步任务接口：任务状态 + 事件流 + 全局发号器）────────
@@ -103,7 +164,7 @@ def load_domain(name: str):
     return _load_domain(name, PROJECT_ROOT)
 
 
-# ── 模板注册表（8 场景 29 类；源 = template_v2/*.md）────────────
+# ── 模板注册表（8 场景 29 类；源 = template_dir()/*.md）────────────
 
 # 场景 ID → 中文名（只作展示；模板文件里不存场景名）
 SCENARIO_NAMES = {
@@ -153,7 +214,7 @@ TEMPLATE_SCENARIO = {
 
 
 def _parse_template_md(path: Path) -> dict[str, object] | None:
-    """``template_v2/{id}.md`` → 注册表条目；文件不合规返回 None。
+    """``template_dir()/{id}.md`` → 注册表条目；文件不合规返回 None。
 
     模板文件结构固定（它就是权威源，手工编辑时保持该结构）::
 
@@ -203,14 +264,16 @@ def _parse_template_md(path: Path) -> dict[str, object] | None:
 def template_registry() -> dict[str, dict[str, object]]:
     """返回 {内部契约键: {"format","name","scenario","requirement","template"}}。
 
-    **唯一模板源是 ``template_v2/*.md``**（运行时直接读；没有 YAML、没有第二兜底源）。
-    目录缺失或文件全部不合规时返回空注册表 —— 此时 ``extra.template`` 一律 400，
-    不会静默套错模板。
+    **唯一模板源是 ``template_dir()/*.md``**（缺省 ``template_v2``，可由
+    ``AGENTFLOW_TEMPLATE_DIR`` 切到 ``template_v3`` 等；运行时直接读，没有 YAML、
+    没有第二兜底源）。目录缺失或文件全部不合规时返回空注册表 —— 此时
+    ``extra.template`` 一律 400，不会静默套错模板。
     """
-    if not TEMPLATE_DIR.is_dir():
+    tpl_dir = template_dir()
+    if not tpl_dir.is_dir():
         return {}
     out: dict[str, dict[str, object]] = {}
-    for md_path in sorted(TEMPLATE_DIR.glob("*.md")):
+    for md_path in sorted(tpl_dir.glob("*.md")):
         if md_path.stem.lower() in {"readme", "diff"}:
             continue
         item = _parse_template_md(md_path)

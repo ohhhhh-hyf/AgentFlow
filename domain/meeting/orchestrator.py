@@ -448,10 +448,10 @@ class _Nodes(DomainNodes):
         if not isinstance(key_points, list):
             key_points = []
         if discussion and not key_points:
-            key_points = [discussion[:500]]
+            key_points = [discussion[:2000]]
         return {
             "title": title,
-            "key_points": key_points[:6],
+            "key_points": key_points[:12],
             "conclusion": conclusion,
             "participants": topic.get("participants") or [],
         }
