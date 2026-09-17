@@ -61,13 +61,13 @@ class MeetingUnderstandingGenerationContract(GenerationContract):
         EnumField("scene", SCENE_CHOICES),
         ObjListField("topics", [
             StrField("title", "议题名称"),
-            StrField("discussion", "讨论内容要点：数字与指标、对照取值、金额、时限、人名、范围边界、分歧、结论线索都要写进来；控制长度但不丢事实"),
+            StrField("discussion", "讨论内容要点：按信息点分行写（一条一行）——数字与指标、对照取值、金额、时限、人名、范围边界、分歧、结论线索、推进状态都要写进来；同类事项分别列出，不要压成一句"),
             StrField("conclusion", "该议题的结论，无结论时为null"),
             StrListField("participants", "原文中明确出现的发言人姓名"),
         ]),
-        StrListField("decisions", "已明确拍板/达成共识的结论"),
-        StrListField("open_questions", "尚未达成一致或需后续确认的事项"),
-        StrListField("risks", "原文明确提到的风险/隐患/阻碍"),
+        StrListField("decisions", "已明确拍板/达成共识的结论（逐条列出、不遗漏；同类多项分别列出）"),
+        StrListField("open_questions", "尚未达成一致或需后续确认的事项（逐条列出、不遗漏）"),
+        StrListField("risks", "原文明确提到的风险/隐患/阻碍（逐条列出、不遗漏；同一句含多个风险对象时拆成多条）"),
         # ── 下游线索字段（供待办/风险线直接消费，只做定位与锚定，不做业务判断）──
         ObjListField("action_hints", [
             StrField("action", "原文动作短语（谁+做什么，逐字可截取，可清语气词）"),

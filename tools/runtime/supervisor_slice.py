@@ -397,10 +397,10 @@ def compact_perspective(profile: object) -> str:
     return json.dumps(slim, ensure_ascii=False, separators=(",", ":"))
 
 
-_REVIEW_LONG_TEXT = 60   # 超过此长度的字符串值截断（只留前 30 字 + 总长标记）
-_REVIEW_LARGE_LIST = 8
-_REVIEW_HEAD_ITEMS = 6
-_REVIEW_TAIL_ITEMS = 2
+_REVIEW_LONG_TEXT = 200  # 超过此长度的字符串值截断（只留前 30 字 + 总长标记）
+_REVIEW_LARGE_LIST = 20
+_REVIEW_HEAD_ITEMS = 12
+_REVIEW_TAIL_ITEMS = 4
 # 程序内部字段，审核对质量判断没有增量
 _REVIEW_DROP_KEYS = frozenset({
     "content_fingerprint",
