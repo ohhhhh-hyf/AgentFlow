@@ -225,6 +225,160 @@ def test_buggy_template_now_works() -> None:
         check(f"{tid}：末栏恢复为可填字段（不再退化成固定文案）", ok, f"字段数={len(hints)}")
 
 
+FILL_TPL = (
+    "# [甲栏]\n[一段话概括甲栏内容]\n\n"
+    "# [乙栏]\n[一段话概括乙栏内容]\n\n"
+    "# [丙栏]\n[一段话概括丙栏内容]\n"
+)
+
+
+def test_gate_flags_bare_heading() -> None:
+    """空栏（光杆标题）必须被门禁判为硬伤。
+
+    背景（2026-09，now.xlsx 实测 22 条里 2 条中招）：占位符拼装的栏目标题由程序按模板
+    打印，模型漏给字段/留空时就产出「只有栏目标题、正文空着」的半截文档（观感像被截断）；
+    自由渲染路径模型自己也会写光杆标题。父标题只带子标题不算空栏，「未提及」算有正文。
+    """
+    from tools.execution.hard_execution import empty_section_issues, gate_render_output
+
+    tpl = (
+        "# [沟通概况]\n[一段话概括沟通双方与主题]\n\n"
+        "# [共识与配合事项]\n[明确家校共识与分工]\n"
+    )
+    bare = "# 沟通概况\n家长会沟通。\n\n# 共识与配合事项\n"
+    ok_text = "# 沟通概况\n家长会沟通。\n\n# 共识与配合事项\n未提及\n"
+    nested = "# 核心知识点\n## 光的直线传播\n- 光沿直线传播。\n"
+    titled = "# 课堂记录\n# 课程概况\n本节课讲光学。\n# 课后任务\n写作业。\n"
+    check("光杆标题被判空栏",
+          empty_section_issues(bare, tpl) == ["「共识与配合事项」只有标题没有正文（空栏）"],
+          f"{empty_section_issues(bare, tpl)}")
+    check("父标题只带子标题不算空栏（正文在子节里）", empty_section_issues(nested) == [], "")
+    check("缺省词「未提及」算有正文", empty_section_issues(ok_text, tpl) == [], "")
+    check("文档标题（模板首行 `# 中文名`）没有正文不算空栏",
+          empty_section_issues(titled, "# 课堂记录\n\n# [课程概况]\n[概括]\n") == [], "")
+    gate = gate_render_output(tpl, bare)
+    check("空栏进硬伤清单（gate_ok=False，触发 repair）",
+          not gate["gate_ok"] and any("只有标题没有正文" in x for x in gate["hard_issues"]),
+          f"hard={gate['hard_issues']}")
+    check("填了缺省词的正文照常放行", gate_render_output(tpl, ok_text)["gate_ok"], "")
+
+
+def test_missing_field_guard() -> None:
+    """漏填兜底：字段缺失 → 点名缺栏重试；三轮仍缺 → None（不回半截文档，交 freeform）。"""
+    import asyncio
+
+    from ._placeholder import fill_placeholder_template
+
+    class _FakeFillClient:
+        def __init__(self, payloads: list[str]) -> None:
+            self.payloads = list(payloads)
+            self.calls = 0
+            self.users: list[str] = []
+
+        async def text(self, system: str, user: str, **_kw) -> str:
+            self.calls += 1
+            self.users.append(user)
+            return self.payloads[min(self.calls - 1, len(self.payloads) - 1)]
+
+    partial = '{"fields": {"1": "甲栏内容。", "2": "乙栏内容。"}, "tables": []}'
+    full = '{"fields": {"1": "甲栏内容。", "2": "乙栏内容。", "3": "丙栏内容。"}, "tables": []}'
+
+    c1 = _FakeFillClient([partial])
+    out1 = asyncio.run(fill_placeholder_template(c1, "内容来源：甲乙丙。", FILL_TPL))
+    check("字段缺失不放行半截文档（返回 None → 交自由渲染）", out1 is None, f"out={out1!r}")
+    check("缺栏按上限重试 3 轮", c1.calls == 3, f"calls={c1.calls}")
+    check("重试指令点名缺哪一栏",
+          len(c1.users) > 1 and "字段3" in c1.users[1],
+          f"{c1.users[1][:100] if len(c1.users) > 1 else ''!r}")
+
+    c2 = _FakeFillClient([partial, full])
+    out2 = asyncio.run(fill_placeholder_template(c2, "内容来源：甲乙丙。", FILL_TPL))
+    check("重试补齐后按完整字段拼装",
+          bool(out2) and "丙栏内容" in (out2 or ""), f"out={(out2 or '')[:60]!r}")
+    check("补齐即停（不无谓多调一次）", c2.calls == 2, f"calls={c2.calls}")
+
+
+def test_fill_prompt_requires_all_keys() -> None:
+    """提示层：输出约定与字段清单都点明「键必须齐全」（缺键＝漏填）。"""
+    from ._base import _PLACEHOLDER_FILL_SYSTEM as system
+    from ._placeholder import build_placeholder_fill_user
+
+    user = build_placeholder_fill_user("内容来源：略。", FILL_TPL)
+    check("系统提示要求 fields 覆盖全部编号", "必须给出清单里的全部编号" in system, "")
+    check("系统提示禁止省略键", "不要省略该键" in system, "")
+    check("用户提示的字段清单标明必须给全编号",
+          "fields 必须给出下列**全部**编号" in user, "")
+    check("用户提示点明缺键＝漏填", "缺键＝漏填" in user, "")
+
+
+# 形态六条：分点优先 / 大类分组 / 禁止同名 / 段落上限 / 加粗封顶 / 未决口径（+ 语音识别纠错口径）
+SHAPE_RULE_KEYS = (
+    "分点优先",
+    "算形态缺陷",
+    "大类分组",
+    "禁止同名重复",
+    "段落上限",
+    "加粗配额",
+    "未决/待澄清栏口径",
+    "猜测补全",
+)
+
+
+def test_shape_rules_in_prompts() -> None:
+    """形态六条必须同时落在装配 prompt 与自由渲染 prompt——两条路径口径一致。
+
+    背景（2026-09，now/before 22 对实测）：装配路径的「每条以 `**分类标签**：` 开头」
+    压过了「并列事实用 `- ` 一条一行」，产出 91 处裸标签段（行20 连续 13 行清单写成段落）、
+    12 处标题/栏目名与标签同名、33 行单行加粗 >3 处、缩进子条用量掉到 before 的 2%。
+    两条路径共用同一套形态规则后，同一模板不再因走哪条路径而漂移。
+    """
+    from tools.templates.template_prompt import PLACEHOLDER_RULES
+
+    from ._base import _PLACEHOLDER_FILL_SYSTEM as fill_system
+    from ._placeholder import build_placeholder_fill_user
+
+    user = build_placeholder_fill_user("内容来源：略。", FILL_TPL)
+    for label, text in (
+        ("装配 system prompt", fill_system),
+        ("装配 user 消息", user),
+        ("自由渲染 PLACEHOLDER_RULES", PLACEHOLDER_RULES),
+    ):
+        missing = [k for k in SHAPE_RULE_KEYS if k not in text]
+        check(f"{label} 含形态六条", not missing, f"缺={missing}")
+    stale = [k for k in ("两级结构", "每条以 `**分类标签**：` 开头") if k in fill_system]
+    check("旧的「每条都套分类标签」口径已移除（它是裸标签段的成因）", not stale, f"仍含={stale}")
+
+
+TEMPLATE_SHAPE_SNIPPETS = {
+    "retrospective_session": "不要每条都补「责任人无，时间无」",
+    "hiring_report": "只用下表，不要再用段落复述表格内容",
+    "media_briefing": "一条一行 `- `",
+    "site_visit_tour": "一个景点一行",
+    "knowledge_memo": "不要再以同名",
+    "clinical_advisory": "每条都是 `- ` 分点行",
+    "home_school_liaison": "每一件事都要落进清单",
+    "project_progress": "单段不超过约 200 字",
+    "court_transcript": "每部分都要有内容",
+}
+
+
+def test_template_shape_instructions() -> None:
+    """模板层的形态/覆盖口径不许被回退（防「责任人无，时间无」这类噪音复发）。"""
+    tdir = _active_dir()
+    missing: list[str] = []
+    for tid, snippet in TEMPLATE_SHAPE_SNIPPETS.items():
+        p = tdir / f"{tid}.md"
+        if not p.is_file():
+            missing.append(f"{tid}:缺文件")
+            continue
+        if snippet not in p.read_text(encoding="utf-8"):
+            missing.append(f"{tid}:缺「{snippet}」")
+    hiring = tdir / "hiring_report.md"
+    if hiring.is_file() and "岗位匹配度、问题解决能力、思维逻辑性、应变能力" not in hiring.read_text(encoding="utf-8"):
+        missing.append("hiring_report:缺维度清单")
+    check(f"{tdir.name} 的形态/覆盖口径到位（9 处逐句小修不回退）", not missing, f"{missing}")
+
+
 def main() -> int:
     caplog_records: list[logging.LogRecord] = []
 
@@ -256,6 +410,11 @@ def main() -> int:
         test_gate_direction_and_warning(_Cap())
         test_templates_regression()
         test_buggy_template_now_works()
+        test_gate_flags_bare_heading()
+        test_missing_field_guard()
+        test_fill_prompt_requires_all_keys()
+        test_shape_rules_in_prompts()
+        test_template_shape_instructions()
     finally:
         logging.getLogger("tools.template_router._gate").removeHandler(handler)
 

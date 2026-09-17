@@ -1,4 +1,4 @@
-"""批量跑 minutes 接口：读 test_sample.xlsx 的会议文本 + 模板名，纪要写回第三列。
+"""批量跑 minutes 接口：读 now.xlsx 的会议文本 + 模板名，纪要写回第三列。
 
 表格约定（默认读第一个 sheet）：
 
@@ -143,8 +143,8 @@ def call_minutes(url: str, transcript: str, template: str, date: str, user: str,
 
 
 def main() -> int:
-    ap = argparse.ArgumentParser(description="test_sample.xlsx → minutes 接口 → 纪要写回 C 列")
-    ap.add_argument("--file", default=str(ROOT / "test_sample.xlsx"), help="输入工作簿（默认仓库根 test_sample.xlsx）")
+    ap = argparse.ArgumentParser(description="now.xlsx → minutes 接口 → 纪要写回 C 列")
+    ap.add_argument("--file", default=str(ROOT / "now.xlsx"), help="输入工作簿（默认仓库根 now.xlsx）")
     ap.add_argument("--sheet", default=DEFAULT_SHEET, help="sheet 名（默认第一个）")
     ap.add_argument("--start", type=int, default=2, help="起始行（默认 2）")
     ap.add_argument("--end", type=int, default=56, help="结束行（默认 56，含）")

@@ -34,7 +34,10 @@ HARD_ISSUE_MARKERS = (
     "缺少对应表",
     "无有效数据行",
     "同行粘连",
+    "只有标题没有正文",
 )
+
+_HEADING_RE = re.compile(r"^(#{1,6})\s+(\S.*?)\s*$")
 
 
 def extract_labeled_json(text: str, label: str) -> dict[str, Any] | None:
@@ -454,6 +457,7 @@ def gate_render_output(
         text, notes, issues, hard_issues, soft_issues, gate_ok
     """
     text, notes, issues = enforce_render_output(template, output)
+    issues.extend(empty_section_issues(text, template))
     over = _overlong_issue(template, text)
     if over:
         issues.append(over)
@@ -472,6 +476,51 @@ def gate_render_output(
 
 def _han_count(text: str) -> int:
     return sum(1 for ch in (text or "") if "\u4e00" <= ch <= "\u9fff")
+
+
+def _norm_heading(text: str) -> str:
+    return re.sub(r"\s+", "", (text or "").strip().strip("[]"))
+
+
+def empty_section_issues(text: str, template: str = "", *, limit: int = 5) -> list[str]:
+    """光杆标题检查：某小节整棵子树里没有任何正文 → 报「只有标题没有正文」。
+
+    两条渲染路径都会留空栏：占位符拼装路径的栏目标题由程序按模板打印，字段缺失时
+    就是「只有标题」；自由渲染路径模型自己也会写光杆标题。父标题只带子标题
+    （正文在子节里）不算空栏；「未提及」这类约定缺省词算有正文。
+    文档标题（模板首行的 ``# 中文名``，不是 ``# [栏名]`` 占位）不带正文属正常，跳过。
+    """
+    lines = (text or "").splitlines()
+    title = ""
+    for line in (template or "").splitlines():
+        m = _HEADING_RE.match(line.strip())
+        if m:
+            if "[" not in m.group(2):  # 首行 `# 中文名`＝文档标题，不是栏目
+                title = _norm_heading(m.group(2))
+            break
+    heads: list[tuple[int, int, str]] = []
+    for i, line in enumerate(lines):
+        m = _HEADING_RE.match(line.strip())
+        if m:
+            heads.append((i, len(m.group(1)), m.group(2).strip()))
+    issues: list[str] = []
+    for k, (idx, level, head) in enumerate(heads):
+        if title and _norm_heading(head) == title:
+            continue
+        end = len(lines)
+        for j, lv, _t in heads[k + 1 :]:
+            if lv <= level:
+                end = j
+                break
+        body = "\n".join(
+            ln for ln in lines[idx + 1 : end] if not _HEADING_RE.match(ln.strip())
+        )
+        if body.strip():
+            continue
+        issues.append(f"「{head[:24]}」只有标题没有正文（空栏）")
+        if len(issues) >= limit:
+            break
+    return issues
 
 
 def _overlong_issue(template: str, text: str) -> str | None:
@@ -545,6 +594,7 @@ __all__ = [
     "MINUTES_CARRY_MAP",
     "apply_table_row_limits",
     "classify_issues",
+    "empty_section_issues",
     "enforce_minutes_draft",
     "enforce_render_output",
     "enforce_upstream_carry",
