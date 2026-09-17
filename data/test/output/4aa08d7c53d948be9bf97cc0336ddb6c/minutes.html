@@ -1,0 +1,372 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>故宫保姆级游览攻略讲解</title>
+  <style>
+
+    body {
+      margin: 0;
+      padding: 32px 16px;
+      background: #f6f5f0;
+      color: #1a1a1a;
+      font-family: "Latin Modern Roman", "Computer Modern Roman", "CMU Serif", "Times New Roman", Times, "Songti SC", "SimSun", "STSong", serif;
+      -webkit-font-smoothing: antialiased;
+    }
+    .page { max-width: 1140px; margin: 0 auto; }
+    .ck-doc {
+      background: #ffffff;
+      border: 1px solid #d4d0c7;
+      border-radius: 4px;
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.05), 0 1px 3px rgba(0,0,0,0.03);
+      padding: 36px 44px;
+      line-height: 1.75;
+      font-size: 0.96rem;
+    }
+    .ck-doc h1 {
+      margin: 0 0 10px;
+      font-size: 1.85rem;
+      font-weight: 700;
+      letter-spacing: 0.4px;
+      text-align: center;
+      font-variant: small-caps;
+      color: #111111;
+    }
+    .ck-doc-header {
+      margin-bottom: 24px;
+      padding-bottom: 16px;
+      border-bottom: 2px solid #111111;
+      text-align: center;
+    }
+    .ck-doc-meta {
+      font-size: 0.85rem;
+      color: #555555;
+      font-style: italic;
+    }
+    .ck-doc-content h1, .ck-doc-content .ck-doc-h1 {
+      margin: 28px 0 14px;
+      font-size: 1.32rem;
+      font-weight: 700;
+      color: #111111;
+      border-bottom: 1.5px solid #222222;
+      padding-bottom: 5px;
+      text-align: left;
+      font-variant: normal;
+      letter-spacing: 0.3px;
+    }
+    .ck-doc h2, .ck-doc-h2 {
+      margin: 28px 0 14px;
+      font-size: 1.22rem;
+      font-weight: 700;
+      color: #111111;
+      border-bottom: 1.5px solid #222222;
+      padding-bottom: 5px;
+      letter-spacing: 0.3px;
+    }
+    .ck-doc h3, .ck-doc-h3 {
+      margin: 20px 0 10px;
+      font-size: 1.05rem;
+      font-weight: 700;
+      color: #222222;
+    }
+    .ck-doc h4, .ck-doc-h4 {
+      margin: 16px 0 8px;
+      font-size: 0.98rem;
+      font-weight: 700;
+      color: #333333;
+    }
+    .ck-doc p {
+      margin: 10px 0;
+      line-height: 1.75;
+      text-align: justify;
+    }
+    .ck-doc ul, .ck-doc ol {
+      margin: 8px 0 12px;
+      padding-left: 1.5em;
+      line-height: 1.72;
+    }
+    .ck-doc li {
+      margin: 4px 0;
+    }
+    .ck-doc blockquote, .ck-quote {
+      margin: 10px 0 14px;
+      padding: 8px 14px;
+      background: #faf9f6;
+      border-left: 3.5px solid #222222;
+      border-radius: 2px;
+      color: #222222;
+      font-size: 0.92rem;
+      font-style: italic;
+    }
+    .ck-doc code {
+      background: #f3f0e8;
+      border: 1px solid #e2ddd3;
+      border-radius: 3px;
+      padding: 1px 6px;
+      font-family: "Latin Modern Mono", Consolas, monospace;
+      font-size: 0.88em;
+    }
+    .ck-doc table, .ck-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.88rem;
+      margin: 14px 0;
+      background: #ffffff;
+      border-top: 2px solid #222222;
+      border-bottom: 2px solid #222222;
+    }
+    .ck-doc table th, .ck-doc table td, .ck-table th, .ck-table td {
+      padding: 9px 12px;
+      text-align: left;
+      vertical-align: middle;
+      border-bottom: 1px solid #ede9e1;
+    }
+    .ck-doc table th, .ck-table th {
+      background: #fbfaf7;
+      border-bottom: 1.2px solid #222222;
+      font-weight: 700;
+      color: #111111;
+      letter-spacing: 0.3px;
+    }
+
+    /* Roomy & Spacious Academic Risk Table */
+    .ck-risk-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 18px 0 28px;
+      background: #ffffff;
+      border-top: 2.2px solid #111111;
+      border-bottom: 2.2px solid #111111;
+      font-size: 0.93rem;
+      line-height: 1.72;
+    }
+    .ck-risk-table th {
+      background: #faf8f5;
+      border-bottom: 1.5px solid #111111;
+      padding: 15px 16px;
+      font-weight: 700;
+      color: #111111;
+      letter-spacing: 0.3px;
+      text-align: left;
+      vertical-align: middle;
+    }
+    .ck-risk-table td {
+      padding: 16px 16px;
+      border-bottom: 1px solid #ede8e0;
+      vertical-align: top;
+      color: #1a1a1a;
+      word-break: break-word;
+    }
+    .ck-risk-table tr:nth-child(even) td {
+      background: #fdfcfb;
+    }
+    .ck-risk-table tr:hover td {
+      background: #f6f3eb;
+    }
+
+    /* Review Grid */
+    .ck-review {
+      display: grid;
+      grid-template-columns: minmax(0, 1.35fr) 1px minmax(260px, 0.95fr);
+      border: 1px solid #d4d0c7;
+      border-radius: 4px;
+      overflow: hidden;
+      margin: 14px 0 20px;
+      background: #ffffff;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.03);
+    }
+    .ck-review-left {
+      padding: 22px 26px;
+      background: #ffffff;
+      line-height: 1.75;
+    }
+    .ck-review-rule { background: #dcd8cf; }
+    .ck-review-right {
+      padding: 16px 18px;
+      background: #faf9f6;
+      box-sizing: border-box;
+      display: flex;
+      flex-direction: column;
+    }
+    .ck-ev-list {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    /* Entity Highlight in LaTeX Paper Style */
+    .ck-cite-entity {
+      background: #fff8db;
+      border-bottom: 1.5px solid #b86a04;
+      padding: 1px 4px;
+      border-radius: 2px;
+      cursor: pointer;
+      transition: all 0.18s ease;
+      color: #111111;
+      font-weight: 600;
+    }
+    .ck-cite-entity:hover {
+      background: #ffe58f;
+      color: #000000;
+    }
+    .ck-cite-entity.is-on {
+      background: #ffd54a;
+      border-bottom-color: #0047ab;
+      box-shadow: 0 0 0 2px rgba(0,71,171,0.25);
+    }
+
+    /* Blue Hyperref Citations [1], [2] */
+    .ck-cite-ref {
+      color: #0047ab;
+      font-weight: 600;
+      font-family: "Latin Modern Roman", "Computer Modern Roman", "Times New Roman", serif;
+      text-decoration: none;
+      cursor: pointer;
+      padding: 0 2px;
+      margin: 0 2px;
+      border-radius: 2px;
+      transition: all 0.15s ease;
+      font-size: 0.92em;
+      vertical-align: baseline;
+      user-select: none;
+    }
+    .ck-cite-ref:hover {
+      text-decoration: underline;
+      background: #e8f0fe;
+      color: #003380;
+    }
+    .ck-cite-ref.is-active {
+      background: #d2e3fc;
+      color: #002266;
+      font-weight: 700;
+      box-shadow: 0 0 0 1px #0047ab;
+    }
+
+    /* Right Memory Cards in LaTeX Paper Style */
+    .ck-provenance-head {
+      font-size: 0.82rem;
+      font-weight: 700;
+      color: #222222;
+      margin: 0 0 12px;
+      padding-bottom: 6px;
+      border-bottom: 1px solid #e0dcd4;
+      letter-spacing: 0.3px;
+      text-transform: uppercase;
+    }
+    .ck-ref-icon { color: #0047ab; margin-right: 4px; }
+    .ck-ev {
+      display: block;
+      margin: 0;
+      padding: 10px 12px;
+      border: 1px solid #dedad2;
+      border-left: 3.5px solid #0047ab;
+      border-radius: 2px;
+      background: #ffffff;
+      font-size: 0.82rem;
+      line-height: 1.55;
+      transition: all 0.2s ease;
+      cursor: pointer;
+    }
+    .ck-ev:hover { border-color: #b5b0a5; }
+    .ck-ev.is-on, .ck-ev.is-highlighted {
+      border-color: #0047ab;
+      box-shadow: 0 0 0 2px #0047ab, 0 3px 8px rgba(0,71,171,0.15);
+      background: #f0f5ff;
+    }
+    @keyframes citePulse {
+      0% { background: #dbeafe; box-shadow: 0 0 0 3px #0047ab; }
+      50% { background: #bfdbfe; box-shadow: 0 0 0 4px #0047ab; }
+      100% { background: #f0f5ff; box-shadow: 0 0 0 2px #0047ab; }
+    }
+    .ck-ev-k {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 0.75rem;
+      color: #444444;
+      margin-bottom: 5px;
+      font-weight: 700;
+    }
+    .ck-ev-cite-tag {
+      color: #0047ab;
+      font-weight: 700;
+      font-family: "Latin Modern Roman", serif;
+      text-decoration: none;
+    }
+    .ck-ev-kind-badge {
+      display: inline-block;
+      padding: 1px 6px;
+      border-radius: 2px;
+      font-size: 0.72rem;
+      font-weight: 600;
+      letter-spacing: 0.2px;
+    }
+    .ck-badge-keypoint {
+      border: 1px solid #0047ab;
+      color: #0047ab;
+      background: #f0f5ff;
+    }
+    .ck-badge-note {
+      border: 1px solid #b86a04;
+      color: #b86a04;
+      background: #fff8eb;
+    }
+    .ck-mem-title {
+      font-weight: 700;
+      color: #111111;
+      font-size: 0.88rem;
+      margin-bottom: 6px;
+      line-height: 1.45;
+    }
+    .ck-ev-quote {
+      color: #222222;
+      font-style: normal;
+      font-family: inherit;
+      margin: 4px 0 6px;
+      padding: 0;
+      background: transparent;
+      border: none;
+      line-height: 1.6;
+      font-size: 0.84rem;
+    }
+    .ck-ev-meta { font-size: 0.76rem; color: #666666; margin-top: 6px; }
+    .ck-ev-more {
+      margin-top: 2px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+    .ck-ev-more[open] { margin-top: 4px; }
+    .ck-ev-more summary { margin-bottom: 6px; }
+    .ck-proof-toggle {
+      cursor: pointer;
+      font-size: 0.82rem;
+      color: #0047ab;
+      user-select: none;
+      font-family: inherit;
+      padding: 2px 0;
+    }
+    .ck-proof-toggle:hover { text-decoration: underline; }
+
+    @media(max-width: 860px) {
+      .ck-doc { padding: 22px 18px; }
+      .ck-review { grid-template-columns: 1fr; }
+      .ck-review-rule { display: none; }
+    }
+
+  </style>
+</head>
+<body>
+  <main class="page">
+    <div class="ck-doc">
+      <header class="ck-doc-header">
+        <h1>故宫保姆级游览攻略讲解</h1>
+      </header>
+      <div class="ck-doc-content">
+        <h1 class="ck-doc-h1">参观概况</h1><p>本次参观为故宫博物院游览，讲解围绕故宫主要景点展开，系统介绍了午门、太和殿、乾清宫、珍宝馆等处的历史背景与参观要点，并梳理了七个免费盖章点及三条游览路线。整体过程从午门检票进入，沿中轴线依次参观太和门、太和殿、中和殿、保和殿、乾清门、乾清宫、交泰殿、坤宁宫，再向西至储秀宫、翊坤宫、永寿宫、太极殿、慈宁宫、寿康宫，经断虹桥、武英殿、文华殿、箭亭，后至钟表馆、珍宝馆，最后经东筒子夹道、延禧宫、景仁宫到达御花园，从神武门结束。</p><h1 class="ck-doc-h1">核心看点与讲解</h1><p>午门：三个门洞，进门后变五个，即明三暗五；中间正门仅供皇帝通行，皇帝大婚时皇后可进一次，殿试前三名（状元、榜眼、探花）可出一次，旁边两门走皇亲国戚和文武百官。太和门广场：有五座金水桥，皇帝走中间，皇亲国戚走挨着中间的两座桥，文武百官走最边上；太和门为明朝皇帝御门听政（上朝）之处，门口铜狮子为故宫六对铜狮中最大的一对，脚踩寰宇象征权力。太和殿：举行盛大典礼之处（如皇帝登基、皇后册封），非上朝处；文武百官在太和殿广场向皇帝喊“吾皇万岁万岁万万岁”，站位为文东武西；西边红衣阁是皇帝银库，东边体仁阁是缎库。中和殿：举行盛大典礼时皇帝的休息室。保和殿：自乾隆五十四年起为殿试考场；东北角汉字馆有4枚免费印章，可购买《紫禁城100》现场盖章，各店印章不同，购买后不能去其他店盖章，汉字馆印章数量最多。乾清门：过此门即后宫（皇帝和妃嫔生活区域）；东边九卿直房为等级高的大臣等待召见处，西边为军机处；门口铜狮耳朵耷拉、眉毛遮眼，警示后宫之人不该看的别看、不该听的别听。乾清宫：皇帝平时睡觉处，有27张龙床，据说是为防止刺客找到皇帝位置；牌匾“正大光明”后藏立储诏书，皇帝写两份诏书，驾崩后对比，若名字不同则说明被动手脚；门口有铜鹤与铜龟，旁边有社稷江山金殿，为紫禁城最小宫殿，提醒皇帝把江山社稷放在第一位。交泰殿：存放25块传国玉玺。坤宁宫：皇后居所，明朝所有皇后都住此；东北角文创店有5枚免费印章。储秀宫：慈禧住了20多年，现为慈禧五十大寿时期原状陈列，其子在此出生；旁边文创店有3枚免费印章。翊坤宫、永寿宫：位于储秀宫以南；永寿宫西边为太极殿，是东西六宫中唯一被称为殿的。慈宁宫：康熙为奶奶孝庄皇太后修建的养老院；旁边寿康宫为甄嬛居住处。冰窖书吧：有3枚免费印章，印章造型好，盖章有批折子的感觉。断虹桥：网红打卡地，桥上有形态各异的石狮子，最有名的为“武当狮”。武英殿：后改为陶瓷馆，目前关闭，只能在门口看；位于西边，对应文东武西。文华殿：位于东边，参观时未开，据说现有一个展览。箭亭：清朝皇帝及子孙练习骑马射箭处；旁边商店可买文创雪糕。钟表馆：展示那个年代的钟表造型。珍宝馆：门口有我国现存三座古代九龙壁之一，左边数第三条白色龙下边有一块木头，据说是当年烧制琉璃砖瓦时弄坏一块，工匠为保命找木头刷白漆以假乱真；珍宝馆并非单独展厅，院子周围屋子都可参观，游客很多，尤其看凤冠的；此处为宁寿全宫，是乾隆给自己修建的养老院，乾隆退休后未放权，每天照常上朝办公；皇极殿据说是1:1复刻乾清宫，宁寿宫对标坤宁宫，养性殿后为乐寿堂，是故宫里唯一能进去参观的皇家寝室，内有二龙戏珠（原文为“二龙仙楼”）设计，让人想到恭王府和珅的卧室；珍妃井为当年慈禧把珍妃丢进去之处，井口石非珍妃进入处；出口右手边商店有3枚免费印章。东筒子夹道：拍照非常出片。延禧宫：网红打卡地；旁边景仁宫为甄嬛被封熹妃时所住，珍妃也住过。御花园：有钦安殿，供奉真武大帝；紫禁城靠山景山从天上看酷似闭目盘坐人像，有人说造型就是真武大帝。神武门：故宫北门，出门左手边角楼咖啡有2枚免费印章，故宫文创有2枚免费印章。</p><h1 class="ck-doc-h1">互动与体验</h1><p>参观中有多处盖章互动：保和殿东北角汉字馆有4枚免费印章，可购买《紫禁城100》现场盖章，各店印章不同，购买后不能去其他店盖章，汉字馆印章数量最多；坤宁宫东北角文创店有5枚免费印章；储秀宫文创店有3枚免费印章；冰窖书吧有3枚免费印章，盖章时有批折子的感觉；珍宝馆出口商店有3枚免费印章；神武门出门左手边角楼咖啡有2枚免费印章，故宫文创有2枚免费印章。共七个免费盖章点。个人感受：珍宝馆里宝贝很惊艳，但游客太多，尤其看凤冠的挤不进去；东筒子夹道拍照非常出片；文创雪糕可在箭亭旁商店购买。</p><h1 class="ck-doc-h1">收获与建议</h1><p>参观收获包括：午门为明三暗五结构，中间正门仅供皇帝、皇后大婚及殿试前三名通行；太和殿为举行盛大典礼之处，非上朝场所，文武百官按文东武西站位；乾清宫有27张龙床，牌匾后藏立储诏书；交泰殿存25块传国玉玺；坤宁宫为皇后居所，储秀宫为慈禧居所，慈宁宫为孝庄太后养老院，寿康宫为甄嬛居所；珍宝馆为宁寿全宫，皇极殿1:1复刻乾清宫，乐寿堂为唯一可进入的皇家寝室；珍妃井井口石非珍妃进入处。建议：游览路线共三条，第一条走完所有景点，适合全天，建议早起排队，进门后沿中轴线往后走，可错开旅游团，一天走3万步；第二条中轴线至坤宁宫，看景仁宫、延禧宫，逛钟表馆、珍宝馆，御花园，神武门出，约半天；第三条中轴线至坤宁宫，去储秀宫，御花园，神武门出，约2小时，最省力。</p>
+      </div>
+    </div>
+  </main>
+</body>
+</html>

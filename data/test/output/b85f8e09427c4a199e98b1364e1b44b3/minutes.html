@@ -1,0 +1,372 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>中金宏观策略争论：热点解读与行业配置建议</title>
+  <style>
+
+    body {
+      margin: 0;
+      padding: 32px 16px;
+      background: #f6f5f0;
+      color: #1a1a1a;
+      font-family: "Latin Modern Roman", "Computer Modern Roman", "CMU Serif", "Times New Roman", Times, "Songti SC", "SimSun", "STSong", serif;
+      -webkit-font-smoothing: antialiased;
+    }
+    .page { max-width: 1140px; margin: 0 auto; }
+    .ck-doc {
+      background: #ffffff;
+      border: 1px solid #d4d0c7;
+      border-radius: 4px;
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.05), 0 1px 3px rgba(0,0,0,0.03);
+      padding: 36px 44px;
+      line-height: 1.75;
+      font-size: 0.96rem;
+    }
+    .ck-doc h1 {
+      margin: 0 0 10px;
+      font-size: 1.85rem;
+      font-weight: 700;
+      letter-spacing: 0.4px;
+      text-align: center;
+      font-variant: small-caps;
+      color: #111111;
+    }
+    .ck-doc-header {
+      margin-bottom: 24px;
+      padding-bottom: 16px;
+      border-bottom: 2px solid #111111;
+      text-align: center;
+    }
+    .ck-doc-meta {
+      font-size: 0.85rem;
+      color: #555555;
+      font-style: italic;
+    }
+    .ck-doc-content h1, .ck-doc-content .ck-doc-h1 {
+      margin: 28px 0 14px;
+      font-size: 1.32rem;
+      font-weight: 700;
+      color: #111111;
+      border-bottom: 1.5px solid #222222;
+      padding-bottom: 5px;
+      text-align: left;
+      font-variant: normal;
+      letter-spacing: 0.3px;
+    }
+    .ck-doc h2, .ck-doc-h2 {
+      margin: 28px 0 14px;
+      font-size: 1.22rem;
+      font-weight: 700;
+      color: #111111;
+      border-bottom: 1.5px solid #222222;
+      padding-bottom: 5px;
+      letter-spacing: 0.3px;
+    }
+    .ck-doc h3, .ck-doc-h3 {
+      margin: 20px 0 10px;
+      font-size: 1.05rem;
+      font-weight: 700;
+      color: #222222;
+    }
+    .ck-doc h4, .ck-doc-h4 {
+      margin: 16px 0 8px;
+      font-size: 0.98rem;
+      font-weight: 700;
+      color: #333333;
+    }
+    .ck-doc p {
+      margin: 10px 0;
+      line-height: 1.75;
+      text-align: justify;
+    }
+    .ck-doc ul, .ck-doc ol {
+      margin: 8px 0 12px;
+      padding-left: 1.5em;
+      line-height: 1.72;
+    }
+    .ck-doc li {
+      margin: 4px 0;
+    }
+    .ck-doc blockquote, .ck-quote {
+      margin: 10px 0 14px;
+      padding: 8px 14px;
+      background: #faf9f6;
+      border-left: 3.5px solid #222222;
+      border-radius: 2px;
+      color: #222222;
+      font-size: 0.92rem;
+      font-style: italic;
+    }
+    .ck-doc code {
+      background: #f3f0e8;
+      border: 1px solid #e2ddd3;
+      border-radius: 3px;
+      padding: 1px 6px;
+      font-family: "Latin Modern Mono", Consolas, monospace;
+      font-size: 0.88em;
+    }
+    .ck-doc table, .ck-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.88rem;
+      margin: 14px 0;
+      background: #ffffff;
+      border-top: 2px solid #222222;
+      border-bottom: 2px solid #222222;
+    }
+    .ck-doc table th, .ck-doc table td, .ck-table th, .ck-table td {
+      padding: 9px 12px;
+      text-align: left;
+      vertical-align: middle;
+      border-bottom: 1px solid #ede9e1;
+    }
+    .ck-doc table th, .ck-table th {
+      background: #fbfaf7;
+      border-bottom: 1.2px solid #222222;
+      font-weight: 700;
+      color: #111111;
+      letter-spacing: 0.3px;
+    }
+
+    /* Roomy & Spacious Academic Risk Table */
+    .ck-risk-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 18px 0 28px;
+      background: #ffffff;
+      border-top: 2.2px solid #111111;
+      border-bottom: 2.2px solid #111111;
+      font-size: 0.93rem;
+      line-height: 1.72;
+    }
+    .ck-risk-table th {
+      background: #faf8f5;
+      border-bottom: 1.5px solid #111111;
+      padding: 15px 16px;
+      font-weight: 700;
+      color: #111111;
+      letter-spacing: 0.3px;
+      text-align: left;
+      vertical-align: middle;
+    }
+    .ck-risk-table td {
+      padding: 16px 16px;
+      border-bottom: 1px solid #ede8e0;
+      vertical-align: top;
+      color: #1a1a1a;
+      word-break: break-word;
+    }
+    .ck-risk-table tr:nth-child(even) td {
+      background: #fdfcfb;
+    }
+    .ck-risk-table tr:hover td {
+      background: #f6f3eb;
+    }
+
+    /* Review Grid */
+    .ck-review {
+      display: grid;
+      grid-template-columns: minmax(0, 1.35fr) 1px minmax(260px, 0.95fr);
+      border: 1px solid #d4d0c7;
+      border-radius: 4px;
+      overflow: hidden;
+      margin: 14px 0 20px;
+      background: #ffffff;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.03);
+    }
+    .ck-review-left {
+      padding: 22px 26px;
+      background: #ffffff;
+      line-height: 1.75;
+    }
+    .ck-review-rule { background: #dcd8cf; }
+    .ck-review-right {
+      padding: 16px 18px;
+      background: #faf9f6;
+      box-sizing: border-box;
+      display: flex;
+      flex-direction: column;
+    }
+    .ck-ev-list {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    /* Entity Highlight in LaTeX Paper Style */
+    .ck-cite-entity {
+      background: #fff8db;
+      border-bottom: 1.5px solid #b86a04;
+      padding: 1px 4px;
+      border-radius: 2px;
+      cursor: pointer;
+      transition: all 0.18s ease;
+      color: #111111;
+      font-weight: 600;
+    }
+    .ck-cite-entity:hover {
+      background: #ffe58f;
+      color: #000000;
+    }
+    .ck-cite-entity.is-on {
+      background: #ffd54a;
+      border-bottom-color: #0047ab;
+      box-shadow: 0 0 0 2px rgba(0,71,171,0.25);
+    }
+
+    /* Blue Hyperref Citations [1], [2] */
+    .ck-cite-ref {
+      color: #0047ab;
+      font-weight: 600;
+      font-family: "Latin Modern Roman", "Computer Modern Roman", "Times New Roman", serif;
+      text-decoration: none;
+      cursor: pointer;
+      padding: 0 2px;
+      margin: 0 2px;
+      border-radius: 2px;
+      transition: all 0.15s ease;
+      font-size: 0.92em;
+      vertical-align: baseline;
+      user-select: none;
+    }
+    .ck-cite-ref:hover {
+      text-decoration: underline;
+      background: #e8f0fe;
+      color: #003380;
+    }
+    .ck-cite-ref.is-active {
+      background: #d2e3fc;
+      color: #002266;
+      font-weight: 700;
+      box-shadow: 0 0 0 1px #0047ab;
+    }
+
+    /* Right Memory Cards in LaTeX Paper Style */
+    .ck-provenance-head {
+      font-size: 0.82rem;
+      font-weight: 700;
+      color: #222222;
+      margin: 0 0 12px;
+      padding-bottom: 6px;
+      border-bottom: 1px solid #e0dcd4;
+      letter-spacing: 0.3px;
+      text-transform: uppercase;
+    }
+    .ck-ref-icon { color: #0047ab; margin-right: 4px; }
+    .ck-ev {
+      display: block;
+      margin: 0;
+      padding: 10px 12px;
+      border: 1px solid #dedad2;
+      border-left: 3.5px solid #0047ab;
+      border-radius: 2px;
+      background: #ffffff;
+      font-size: 0.82rem;
+      line-height: 1.55;
+      transition: all 0.2s ease;
+      cursor: pointer;
+    }
+    .ck-ev:hover { border-color: #b5b0a5; }
+    .ck-ev.is-on, .ck-ev.is-highlighted {
+      border-color: #0047ab;
+      box-shadow: 0 0 0 2px #0047ab, 0 3px 8px rgba(0,71,171,0.15);
+      background: #f0f5ff;
+    }
+    @keyframes citePulse {
+      0% { background: #dbeafe; box-shadow: 0 0 0 3px #0047ab; }
+      50% { background: #bfdbfe; box-shadow: 0 0 0 4px #0047ab; }
+      100% { background: #f0f5ff; box-shadow: 0 0 0 2px #0047ab; }
+    }
+    .ck-ev-k {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 0.75rem;
+      color: #444444;
+      margin-bottom: 5px;
+      font-weight: 700;
+    }
+    .ck-ev-cite-tag {
+      color: #0047ab;
+      font-weight: 700;
+      font-family: "Latin Modern Roman", serif;
+      text-decoration: none;
+    }
+    .ck-ev-kind-badge {
+      display: inline-block;
+      padding: 1px 6px;
+      border-radius: 2px;
+      font-size: 0.72rem;
+      font-weight: 600;
+      letter-spacing: 0.2px;
+    }
+    .ck-badge-keypoint {
+      border: 1px solid #0047ab;
+      color: #0047ab;
+      background: #f0f5ff;
+    }
+    .ck-badge-note {
+      border: 1px solid #b86a04;
+      color: #b86a04;
+      background: #fff8eb;
+    }
+    .ck-mem-title {
+      font-weight: 700;
+      color: #111111;
+      font-size: 0.88rem;
+      margin-bottom: 6px;
+      line-height: 1.45;
+    }
+    .ck-ev-quote {
+      color: #222222;
+      font-style: normal;
+      font-family: inherit;
+      margin: 4px 0 6px;
+      padding: 0;
+      background: transparent;
+      border: none;
+      line-height: 1.6;
+      font-size: 0.84rem;
+    }
+    .ck-ev-meta { font-size: 0.76rem; color: #666666; margin-top: 6px; }
+    .ck-ev-more {
+      margin-top: 2px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+    .ck-ev-more[open] { margin-top: 4px; }
+    .ck-ev-more summary { margin-bottom: 6px; }
+    .ck-proof-toggle {
+      cursor: pointer;
+      font-size: 0.82rem;
+      color: #0047ab;
+      user-select: none;
+      font-family: inherit;
+      padding: 2px 0;
+    }
+    .ck-proof-toggle:hover { text-decoration: underline; }
+
+    @media(max-width: 860px) {
+      .ck-doc { padding: 22px 18px; }
+      .ck-review { grid-template-columns: 1fr; }
+      .ck-review-rule { display: none; }
+    }
+
+  </style>
+</head>
+<body>
+  <main class="page">
+    <div class="ck-doc">
+      <header class="ck-doc-header">
+        <h1>中金宏观策略争论：热点解读与行业配置建议</h1>
+      </header>
+      <div class="ck-doc-content">
+        <h1 class="ck-doc-h1">发布会概况</h1><p>本次中金宏观策略争论会议于周一上午举行，由策略组刘刚凯文主持，围绕大美丽法案、关税更新、港股流动性三大宏观热点及光伏、人形机器人、游戏三大行业机会展开分析。会议邀请公用事业首席分析师刘佳妮、机械军工分析师郭文秀、传媒首席分析师张雪琴分别就光伏反内卷、人形机器人、游戏板块进行解读。整体基调为：宏观上以信用周期框架判断美股美债波动提供再配置机会，对市场不悲观；行业上建议在合适位置布局长期正确板块，关注结构性行情。</p><h1 class="ck-doc-h1">核心信息</h1><ul><li><strong>大美丽法案三大块</strong>：提高债务上限约<strong>5万亿美元</strong>；延长2017年减税法案（新增支出<strong>3.4万亿</strong>，每年<strong>3400亿</strong>，减新能源补贴<strong>1.4万亿</strong>）；取消<code>899条款</code>。</li><li><strong>信用周期框架</strong>：政府、AI产业投资、传统私人部门需求三部分；美国如篝火自然修复，中国如煮水需持续添柴；上半年美国遭遇<code>DeepSeek</code>、财政收缩、<code>4月2日对等关税</code>三盆冷水，下半年环比改善。</li><li><strong>财政赤字率</strong>：预计维持<strong>5-6%</strong>，关税收入<strong>3000-4000亿</strong>可覆盖<strong>3400亿</strong>支出。</li><li><strong>美债供给</strong>：7-9月约<strong>1万亿</strong>，参考2023年三季度推高利率从<strong>3.8%到5%</strong>，美股跌<strong>4-5%</strong>；本次期限溢价已处<strong>2013年以来高位</strong>，利率抬升幅度或不及2023年。</li><li><strong>关税四点信息</strong>：一定要做以支撑收入；需维持一定税率（当前豁免<strong>10%</strong>水平）收<strong>3000-4000亿</strong>；不能太高以免通胀；市场逐渐脱敏。</li><li><strong>关税新变化</strong>：时间拖后（原<code>7月9日</code>），大部分税率较<code>4月2日</code>回落，除巴西；加拿大、墨西哥、欧盟单拎出因贸易占比高；有效税率当前<strong>10-12%</strong>，<code>8月1日</code>全回去则<strong>10-15%</strong>，极端<strong>18%</strong>。</li><li><strong>通胀与降息</strong>：通胀年底缓慢抬升至<strong>3.3-3.4%</strong>，美联储<code>7月</code>勉强，<code>9月</code>后或可降息。</li><li><strong>对中国关税</strong>：约<strong>40-50%</strong>，越南转口限制<strong>40%</strong>，需关注<code>8月12日</code>中美谈判及转口限制。</li><li><strong>港股流动性</strong>：<code>5月</code>后微观流动性释放，<code>HIBOR</code>大幅下降，金管局投放大量资金，港币触及<strong>7.85</strong>；金管局会收流动性但可小幅收（如收<strong>90亿</strong>放<strong>1000亿</strong>），流动性边际变紧；<code>IPO</code>融资较多形成约束；指数在<strong>23000-24000</strong>区间震荡。</li><li><strong>光伏需求</strong>：全球新增装机从2020年<strong>130GW</strong>增至2024年<strong>530GW</strong>，CAGR <strong>42%</strong>；2025-26年增速回落至<strong>10%</strong>左右。</li><li><strong>光伏供给</strong>：2023年产能从<strong>600GW</strong>增至<strong>1000GW</strong>；电池产能为需求<strong>1.5倍</strong>，硅片组件<strong>2倍</strong>，硅料<strong>2.5倍</strong>；价格2022年以来下跌<strong>70-90%</strong>，硅片电池<code>2023Q4</code>亏损，硅料组件<code>2024Q2</code>亏损。</li><li><strong>光伏反内卷政策</strong>：<code>2024年5月17日</code>光伏行业高质量发展座谈会、<code>2025年2月</code>国常会、<code>6月29日</code>人民日报发声、<code>7月1日</code>中财委第6次会议、<code>7月3日</code>工信部座谈会。</li><li><strong>硅料环节</strong>：最易整合，集中度高（在产企业不到<strong>20家</strong>），成本曲线陡峭（颗粒硅<strong>28元/公斤</strong>，尾部<strong>45元/公斤</strong>），供需比超<strong>200%</strong>。</li><li><strong>电池环节</strong>：供需最好，<code>PERC</code>退出，<code>TOPCon</code>占<strong>90%</strong>，<code>BC</code>渗透率<strong>5-6%</strong>。</li><li><strong>光伏玻璃</strong>：<code>2024年9月</code>第一轮出清降<strong>6%</strong>，<code>7月</code>计划降产<strong>30%</strong>，需出清约<strong>2万吨</strong>，价格创历史新低，龙头成本<strong>1元/平米</strong>。</li><li><strong>光伏市场反馈</strong>：多晶硅期货触及<strong>40元/公斤</strong>，现货从<strong>35元</strong>上涨，硅片涨<strong>10%</strong>，电池涨<strong>2分</strong>，硅料玻璃股价涨<strong>20-30%</strong>，组件涨<strong>10%</strong>。</li><li><strong>人形机器人二季度</strong>：A股机器人板块跌约<strong>9%</strong>，跑输机械板块<strong>12个百分点</strong>，特斯拉供应链标签股回调<strong>30-40%</strong>，回调原因为特斯拉量产时间线延后及中美关税降低风险偏好。</li><li><strong>人形机器人三季度三条主线</strong>：华为云生态开放（<code>6月底</code>开发者大会发布<code>盘古世界模型</code>，支持点云和视频双模态生成；<code>Cloud Robot</code>平台三大能力，操作精度毫米级；华为不造机器人，以<code>RTC</code>方式开放，探索<code>AI agent</code>或<code>license</code>收费）、本土企业技术闭环（智元机器人拟收购材料厂商在A股上市，宇树科技年收入突破<strong>10亿</strong>，两家中标中国移动近<strong>1.2亿</strong>采购订单）、特斯拉延期带来硬件替代窗口（<code>Optimus</code>硬件问题：电机过热、灵巧手负载不足、续航，正在变更方案筛选供应商；轻量化方向以塑代钢、替代铝合金）。</li><li><strong>人形机器人信号</strong>：建议关注三类信号——华为云生态接入厂商新增、头部企业出货量跨越年化<strong>500台</strong>或<strong>1000台</strong>、电机硬件优化窗口。</li><li><strong>游戏政策</strong>：今年<code>1月</code>和<code>3月</code>国务院层面支持政策，广东浙江北京上海等地政策支持包；版号发放常态化，<code>6月</code>单月国产<strong>147个</strong>、进口<strong>11个</strong>，共<strong>158个</strong>，<code>2018年</code>以来单月最高。</li><li><strong>游戏市场数据</strong>：<code>2024年8月</code>以来单月持续正增长；今年<code>1-5月</code>游戏市场规模同比增长<strong>17%</strong>（<strong>1400多亿</strong>），手游同比增长<strong>20%</strong>。</li><li><strong>游戏新品周期</strong>：中型厂商新品亮眼，如吉比特<code>《仗剑传说》</code>首月流水<strong>2亿多</strong>，巨人网络<code>《超自然行动组》</code>6月流水过亿，年化乐观<strong>20亿</strong>，利润提升<strong>50%以上</strong>。</li><li><strong>游戏估值</strong>：<code>TTM PE</code>约<strong>30倍</strong>（2023年AI行情<strong>45倍</strong>），2025年静态<code>PE</code>约<strong>20倍</strong>；游戏板块逆周期性，政策友好，新品周期延续，但利润有滞后性，今年新品利润明年兑现。</li></ul><h1 class="ck-doc-h1">官方表态</h1><ul><li><strong>对去美元化共识的态度</strong>：刘刚凯文表示并不完全认同去美元化观点，认为其已成为高度趋同的共识且基于宏大叙事，无法确定兑现时间。</li></ul><div class="ck-quote">"我们并不是完全的认同，去美元化这个观点的。这个现在成了一个高度趋同的共识。"</div><ul><li><strong>对市场误区的纠正</strong>：指出市场两大误区——把美元弱当成去美元化、把美元弱和美股弱直接划等号；美元弱在大部分时间对美股有利。</li></ul><div class="ck-quote">"把美元弱当成去美元化。那美元弱可以有各种各样的原因……第2个呢就是把美元弱和美股弱直接划等号。"</div><ul><li><strong>对美股美债的态度</strong>：重申对美股美债不悲观，波动提供再配置机会。</li></ul><div class="ck-quote">"波动提供再配置的机会，我们重申我们这个观点并不悲观。"</div><ul><li><strong>对关税的判断</strong>：认为关税大概率要做，威胁高税率可能是谈判技巧。</li></ul><div class="ck-quote">"他现在威胁的那么高，有可能是一个谈判技巧。"</div><ul><li><strong>对港股流动性的判断</strong>：认为美元美债利率并非绝对主导港股市场的唯一变量，自身基本面强可盖过影响。</li></ul><div class="ck-quote">"美元美债利率它并不是绝对主导港股市场的唯一的变量，很多时候你自己的基本面强，完全可以盖过它的影响。"</div><ul><li><strong>对光伏反内卷的态度</strong>：刘佳妮表示期待政府干预，认为有一定必要性。</li></ul><div class="ck-quote">"我们也比较期待政府的干预，也认为是有一定的这个必要性的。"</div><ul><li><strong>对游戏板块的态度</strong>：张雪琴旗帜鲜明看好，认为调整后有望实现戴维斯双击。</li></ul><div class="ck-quote">"我们的态度旗帜鲜明是后者……游戏行业有望在调整后再次实现戴维斯双击。"</div><h1 class="ck-doc-h1">Q&amp;A环节</h1><p>未提及</p>
+      </div>
+    </div>
+  </main>
+</body>
+</html>

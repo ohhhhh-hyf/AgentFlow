@@ -1,0 +1,372 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>新闻联播播报国内外要闻与政策进展</title>
+  <style>
+
+    body {
+      margin: 0;
+      padding: 32px 16px;
+      background: #f6f5f0;
+      color: #1a1a1a;
+      font-family: "Latin Modern Roman", "Computer Modern Roman", "CMU Serif", "Times New Roman", Times, "Songti SC", "SimSun", "STSong", serif;
+      -webkit-font-smoothing: antialiased;
+    }
+    .page { max-width: 1140px; margin: 0 auto; }
+    .ck-doc {
+      background: #ffffff;
+      border: 1px solid #d4d0c7;
+      border-radius: 4px;
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.05), 0 1px 3px rgba(0,0,0,0.03);
+      padding: 36px 44px;
+      line-height: 1.75;
+      font-size: 0.96rem;
+    }
+    .ck-doc h1 {
+      margin: 0 0 10px;
+      font-size: 1.85rem;
+      font-weight: 700;
+      letter-spacing: 0.4px;
+      text-align: center;
+      font-variant: small-caps;
+      color: #111111;
+    }
+    .ck-doc-header {
+      margin-bottom: 24px;
+      padding-bottom: 16px;
+      border-bottom: 2px solid #111111;
+      text-align: center;
+    }
+    .ck-doc-meta {
+      font-size: 0.85rem;
+      color: #555555;
+      font-style: italic;
+    }
+    .ck-doc-content h1, .ck-doc-content .ck-doc-h1 {
+      margin: 28px 0 14px;
+      font-size: 1.32rem;
+      font-weight: 700;
+      color: #111111;
+      border-bottom: 1.5px solid #222222;
+      padding-bottom: 5px;
+      text-align: left;
+      font-variant: normal;
+      letter-spacing: 0.3px;
+    }
+    .ck-doc h2, .ck-doc-h2 {
+      margin: 28px 0 14px;
+      font-size: 1.22rem;
+      font-weight: 700;
+      color: #111111;
+      border-bottom: 1.5px solid #222222;
+      padding-bottom: 5px;
+      letter-spacing: 0.3px;
+    }
+    .ck-doc h3, .ck-doc-h3 {
+      margin: 20px 0 10px;
+      font-size: 1.05rem;
+      font-weight: 700;
+      color: #222222;
+    }
+    .ck-doc h4, .ck-doc-h4 {
+      margin: 16px 0 8px;
+      font-size: 0.98rem;
+      font-weight: 700;
+      color: #333333;
+    }
+    .ck-doc p {
+      margin: 10px 0;
+      line-height: 1.75;
+      text-align: justify;
+    }
+    .ck-doc ul, .ck-doc ol {
+      margin: 8px 0 12px;
+      padding-left: 1.5em;
+      line-height: 1.72;
+    }
+    .ck-doc li {
+      margin: 4px 0;
+    }
+    .ck-doc blockquote, .ck-quote {
+      margin: 10px 0 14px;
+      padding: 8px 14px;
+      background: #faf9f6;
+      border-left: 3.5px solid #222222;
+      border-radius: 2px;
+      color: #222222;
+      font-size: 0.92rem;
+      font-style: italic;
+    }
+    .ck-doc code {
+      background: #f3f0e8;
+      border: 1px solid #e2ddd3;
+      border-radius: 3px;
+      padding: 1px 6px;
+      font-family: "Latin Modern Mono", Consolas, monospace;
+      font-size: 0.88em;
+    }
+    .ck-doc table, .ck-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.88rem;
+      margin: 14px 0;
+      background: #ffffff;
+      border-top: 2px solid #222222;
+      border-bottom: 2px solid #222222;
+    }
+    .ck-doc table th, .ck-doc table td, .ck-table th, .ck-table td {
+      padding: 9px 12px;
+      text-align: left;
+      vertical-align: middle;
+      border-bottom: 1px solid #ede9e1;
+    }
+    .ck-doc table th, .ck-table th {
+      background: #fbfaf7;
+      border-bottom: 1.2px solid #222222;
+      font-weight: 700;
+      color: #111111;
+      letter-spacing: 0.3px;
+    }
+
+    /* Roomy & Spacious Academic Risk Table */
+    .ck-risk-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 18px 0 28px;
+      background: #ffffff;
+      border-top: 2.2px solid #111111;
+      border-bottom: 2.2px solid #111111;
+      font-size: 0.93rem;
+      line-height: 1.72;
+    }
+    .ck-risk-table th {
+      background: #faf8f5;
+      border-bottom: 1.5px solid #111111;
+      padding: 15px 16px;
+      font-weight: 700;
+      color: #111111;
+      letter-spacing: 0.3px;
+      text-align: left;
+      vertical-align: middle;
+    }
+    .ck-risk-table td {
+      padding: 16px 16px;
+      border-bottom: 1px solid #ede8e0;
+      vertical-align: top;
+      color: #1a1a1a;
+      word-break: break-word;
+    }
+    .ck-risk-table tr:nth-child(even) td {
+      background: #fdfcfb;
+    }
+    .ck-risk-table tr:hover td {
+      background: #f6f3eb;
+    }
+
+    /* Review Grid */
+    .ck-review {
+      display: grid;
+      grid-template-columns: minmax(0, 1.35fr) 1px minmax(260px, 0.95fr);
+      border: 1px solid #d4d0c7;
+      border-radius: 4px;
+      overflow: hidden;
+      margin: 14px 0 20px;
+      background: #ffffff;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.03);
+    }
+    .ck-review-left {
+      padding: 22px 26px;
+      background: #ffffff;
+      line-height: 1.75;
+    }
+    .ck-review-rule { background: #dcd8cf; }
+    .ck-review-right {
+      padding: 16px 18px;
+      background: #faf9f6;
+      box-sizing: border-box;
+      display: flex;
+      flex-direction: column;
+    }
+    .ck-ev-list {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    /* Entity Highlight in LaTeX Paper Style */
+    .ck-cite-entity {
+      background: #fff8db;
+      border-bottom: 1.5px solid #b86a04;
+      padding: 1px 4px;
+      border-radius: 2px;
+      cursor: pointer;
+      transition: all 0.18s ease;
+      color: #111111;
+      font-weight: 600;
+    }
+    .ck-cite-entity:hover {
+      background: #ffe58f;
+      color: #000000;
+    }
+    .ck-cite-entity.is-on {
+      background: #ffd54a;
+      border-bottom-color: #0047ab;
+      box-shadow: 0 0 0 2px rgba(0,71,171,0.25);
+    }
+
+    /* Blue Hyperref Citations [1], [2] */
+    .ck-cite-ref {
+      color: #0047ab;
+      font-weight: 600;
+      font-family: "Latin Modern Roman", "Computer Modern Roman", "Times New Roman", serif;
+      text-decoration: none;
+      cursor: pointer;
+      padding: 0 2px;
+      margin: 0 2px;
+      border-radius: 2px;
+      transition: all 0.15s ease;
+      font-size: 0.92em;
+      vertical-align: baseline;
+      user-select: none;
+    }
+    .ck-cite-ref:hover {
+      text-decoration: underline;
+      background: #e8f0fe;
+      color: #003380;
+    }
+    .ck-cite-ref.is-active {
+      background: #d2e3fc;
+      color: #002266;
+      font-weight: 700;
+      box-shadow: 0 0 0 1px #0047ab;
+    }
+
+    /* Right Memory Cards in LaTeX Paper Style */
+    .ck-provenance-head {
+      font-size: 0.82rem;
+      font-weight: 700;
+      color: #222222;
+      margin: 0 0 12px;
+      padding-bottom: 6px;
+      border-bottom: 1px solid #e0dcd4;
+      letter-spacing: 0.3px;
+      text-transform: uppercase;
+    }
+    .ck-ref-icon { color: #0047ab; margin-right: 4px; }
+    .ck-ev {
+      display: block;
+      margin: 0;
+      padding: 10px 12px;
+      border: 1px solid #dedad2;
+      border-left: 3.5px solid #0047ab;
+      border-radius: 2px;
+      background: #ffffff;
+      font-size: 0.82rem;
+      line-height: 1.55;
+      transition: all 0.2s ease;
+      cursor: pointer;
+    }
+    .ck-ev:hover { border-color: #b5b0a5; }
+    .ck-ev.is-on, .ck-ev.is-highlighted {
+      border-color: #0047ab;
+      box-shadow: 0 0 0 2px #0047ab, 0 3px 8px rgba(0,71,171,0.15);
+      background: #f0f5ff;
+    }
+    @keyframes citePulse {
+      0% { background: #dbeafe; box-shadow: 0 0 0 3px #0047ab; }
+      50% { background: #bfdbfe; box-shadow: 0 0 0 4px #0047ab; }
+      100% { background: #f0f5ff; box-shadow: 0 0 0 2px #0047ab; }
+    }
+    .ck-ev-k {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 0.75rem;
+      color: #444444;
+      margin-bottom: 5px;
+      font-weight: 700;
+    }
+    .ck-ev-cite-tag {
+      color: #0047ab;
+      font-weight: 700;
+      font-family: "Latin Modern Roman", serif;
+      text-decoration: none;
+    }
+    .ck-ev-kind-badge {
+      display: inline-block;
+      padding: 1px 6px;
+      border-radius: 2px;
+      font-size: 0.72rem;
+      font-weight: 600;
+      letter-spacing: 0.2px;
+    }
+    .ck-badge-keypoint {
+      border: 1px solid #0047ab;
+      color: #0047ab;
+      background: #f0f5ff;
+    }
+    .ck-badge-note {
+      border: 1px solid #b86a04;
+      color: #b86a04;
+      background: #fff8eb;
+    }
+    .ck-mem-title {
+      font-weight: 700;
+      color: #111111;
+      font-size: 0.88rem;
+      margin-bottom: 6px;
+      line-height: 1.45;
+    }
+    .ck-ev-quote {
+      color: #222222;
+      font-style: normal;
+      font-family: inherit;
+      margin: 4px 0 6px;
+      padding: 0;
+      background: transparent;
+      border: none;
+      line-height: 1.6;
+      font-size: 0.84rem;
+    }
+    .ck-ev-meta { font-size: 0.76rem; color: #666666; margin-top: 6px; }
+    .ck-ev-more {
+      margin-top: 2px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+    .ck-ev-more[open] { margin-top: 4px; }
+    .ck-ev-more summary { margin-bottom: 6px; }
+    .ck-proof-toggle {
+      cursor: pointer;
+      font-size: 0.82rem;
+      color: #0047ab;
+      user-select: none;
+      font-family: inherit;
+      padding: 2px 0;
+    }
+    .ck-proof-toggle:hover { text-decoration: underline; }
+
+    @media(max-width: 860px) {
+      .ck-doc { padding: 22px 18px; }
+      .ck-review { grid-template-columns: 1fr; }
+      .ck-review-rule { display: none; }
+    }
+
+  </style>
+</head>
+<body>
+  <main class="page">
+    <div class="ck-doc">
+      <header class="ck-doc-header">
+        <h1>新闻联播播报国内外要闻与政策进展</h1>
+      </header>
+      <div class="ck-doc-content">
+        <h1 class="ck-doc-h1">全文摘要</h1><p>本段文本为新闻联播播报，围绕文化自信与文化建设、中俄议会合作、夏粮丰收、铁路货运、快递业、油气管网建设、防汛应对、国内联播快讯及国际新闻等多项内容展开。核心结论包括：习近平总书记强调将中华优秀传统文化与马克思主义相结合，2023年10月首次提出习近平文化思想；赵乐际访俄期间双方同意从立法机构层面落实两国元首共识；今年夏粮产量达2996亿斤创历史新高；6月国家铁路货运多项指标创历史同期新高；上半年快递业务量超800亿件；油气管网预计全年新增里程超4000公里；水利部联合调度水库群应对长江洪水。国际方面，特朗普竞选集会遭未遂刺杀，以军空袭加沙致90人死亡。</p><h1 class="ck-doc-h1">要点梳理</h1><h2 class="ck-doc-h2">文化自信与文化建设</h2><ul><li>习近平总书记强调文化自信，提出将中华优秀传统文化与马克思主义相结合，指出“我们五千年的文明，我们要尊重，也要弘扬，把它里边精华的东西和我们现在所坚持的马克思主义立场、观点、方法结合起来，这就是中国特色社会主义。”</li><li>2023年6月召开文化传承发展座谈会，系统论述中华文明五个突出特性，阐述“两个结合”尤其是“第二个结合”的重大意义。</li><li>2023年10月全国宣传思想文化工作会议首次提出习近平文化思想。</li><li>实施《深化文化体制改革实施方案》和《关于实施中华优秀传统文化传承发展工程的意见》，推动文化传承发展。</li><li>坚持把社会效益放在首位，社会效益和经济效益相统一，推进文化领域供给侧结构性改革，文旅融合、非遗保护、公共文化服务体系建设。</li><li>数字文化产业成为激发消费潜力“新引擎”，电影市场规模屡创新高。</li></ul><h2 class="ck-doc-h2">中俄议会合作</h2><ul><li>赵乐际于7月9日至13日对俄罗斯进行正式友好访问，出席中俄议会合作委员会第九次会议，在圣彼得堡会见普京，在莫斯科与马特维延科、沃洛金会谈。</li><li>双方同意从立法机构层面落实两国元首重要共识，深化多层级、多领域、多渠道交流合作，互学互鉴立法经验，为务实合作提供法治保障。</li><li>普京表示俄中立法机构合作有助于推进双边合作；马特维延科表示发展对华关系得到俄社会广泛认同；沃洛金强调俄坚定恪守一个中国原则。</li></ul><h2 class="ck-doc-h2">夏粮产量</h2><ul><li>今年夏粮产量达2996亿斤，比2023年增加72.5亿斤，创历史新高。</li><li>夏粮单产每亩375.2公斤，小麦单产399.1公斤，比2023年增加10公斤。</li><li>中央推进“藏粮于地、藏粮于技”战略，已建成高标准农田10亿多亩，启动小麦单产提升三年行动，中央财政首次提前下拨16亿元小麦“一喷三防”资金。</li><li>小麦质量为近年来最好水平，夏粮首战告捷为全年粮食丰收奠定基础。</li></ul><h2 class="ck-doc-h2">铁路货运</h2><ul><li>6月份国家铁路发送货物3.32亿吨，完成货运周转量2665亿吨公里，同比分别增长6.1%、5.3%，创历史同期新高。</li><li>化肥农药运量增幅最大，同比增长26.2%；煤炭日均装车量、集装箱、商品汽车、冷链货物发送量均创历史同期新高。</li><li>中欧班列6月累计开行1719列，发送货物18万标箱，同比分别增长15%、11%。</li></ul><h2 class="ck-doc-h2">快递业发展</h2><ul><li>上半年快递业务量超800亿件，截至6月30日已达800亿件。</li><li>快递企业运行国际航线40余条，面向东南亚开通陆运专线，运行美西海运航线。</li><li>每天超1亿多件快递包裹在农村地区流动，5-6月快递日均业务量近5亿件。</li></ul><h2 class="ck-doc-h2">油气管网建设</h2><ul><li>预计全年新增管道里程超4000公里。</li><li>西气东输四线已完成吐鲁番至中卫段主体管道工程建设，投产后年输气能力将提升150亿立方米。</li><li>主干油气管网约10万公里，输气能力从2020年2230亿立方米增加到3290亿立方米，增幅达48%。</li><li>到2025年将形成四大油气战略通道和“五纵五横”天然气干线管网。</li></ul><h2 class="ck-doc-h2">防汛与降雨应对</h2><ul><li>重庆28个区县出现暴雨，13个区县大暴雨；四川内江出现内涝、滑坡；安徽多条河流水位上涨，滁州市全椒县处置堤防渗漏和管涌。</li><li>水利部针对“七下八上”防汛关键期逐流域安排防御，长江1号、2号洪水正在演进，三峡水库15日将迎来洪峰流量45000立方米每秒量级的洪水过程。</li><li>水利部联合调度嘉陵江亭子口水库等上游干支流水库群，减小三峡水库入库洪峰流量。</li></ul><h2 class="ck-doc-h2">国内联播快讯</h2><ul><li>北京上半年320个市区重大项目全部开工，总投资超4000亿元。</li><li>燕矶长江大桥北岸主塔封顶，主跨1860米，连接湖北鄂州和黄冈。</li><li>第二十三届环青海湖国际公路自行车赛收官，22支车队154名运动员参赛。</li><li>内蒙古第34届草原那达慕开幕，持续到8月底。</li><li>“中非儿童手拉手”活动在京启动，五国儿童代表参观访问。</li></ul><h2 class="ck-doc-h2">国际新闻</h2><ul><li>美国前总统特朗普在竞选集会遭未遂刺杀，右耳中枪受伤，一名观众死亡，两名观众重伤，枪手被击毙，动机待查。</li><li>以军空袭加沙地带马瓦西地区致90人死亡，约300人受伤，巴勒斯坦谴责违反国际法。</li><li>以军袭击黎巴嫩多个边境村镇，黎真主党打击以军集结地。</li><li>叙利亚大马士革遭空袭，1名政府军士兵死亡、3人受伤。</li><li>俄军打击乌军列车点，乌军击退俄军进攻。</li><li>加拿大林火蔓延，9600人被疏散。</li></ul>
+      </div>
+    </div>
+  </main>
+</body>
+</html>
