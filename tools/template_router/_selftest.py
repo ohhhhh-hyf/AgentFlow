@@ -42,16 +42,18 @@ SCALAR_BASELINE_BY_DIR: dict[str, dict[str, int]] = {
         "retrospective_session": 4, "site_visit_tour": 4, "special_lecture": 4,
         "team_meeting": 3, "workshop_session": 4,
     },
-    # v3 的结构优化改了几处栏位形态（general_minutes 由 6 个槽位改成 2 栏），故单独记一份
+    # v3 的结构优化改了几处栏位形态（general_minutes 由 6 个槽位改成 2 栏），故单独记一份。
+    # court_transcript / hiring_report / project_progress 另有"表格栏说明"行（紧跟表格的
+    # `[按下表逐行填写…]`）不计入字段——它们没有正文位，明细由表格承载（见 test_table_caption_*）。
     "template_v3": {
         "class_transcript": 4, "clinical_advisory": 4, "contract_vetting": 4,
-        "conversation_transcript": 4, "court_transcript": 4, "debate_forum": 4,
+        "conversation_transcript": 4, "court_transcript": 3, "debate_forum": 4,
         "decision_review": 4, "exchange_forum": 4, "general_minutes": 2,
-        "government_bulletin": 3, "group_seminar": 4, "hiring_report": 3,
+        "government_bulletin": 3, "group_seminar": 4, "hiring_report": 2,
         "home_school_liaison": 4, "interview_debrief": 4, "interview_transcript": 3,
         "knowledge_memo": 3, "legal_advisory": 4, "media_briefing": 4,
         "media_qa_session": 4, "personal_memo": 4, "product_launch": 4,
-        "project_progress": 4, "psychological_session": 3, "research_dialogue": 3,
+        "project_progress": 2, "psychological_session": 3, "research_dialogue": 3,
         "retrospective_session": 4, "site_visit_tour": 4, "special_lecture": 4,
         "team_meeting": 3, "workshop_session": 4,
     },
@@ -311,26 +313,59 @@ def test_fill_prompt_requires_all_keys() -> None:
     check("用户提示点明缺键＝漏填", "缺键＝漏填" in user, "")
 
 
-# 形态六条：分点优先 / 大类分组 / 禁止同名 / 段落上限 / 加粗封顶 / 未决口径（+ 语音识别纠错口径）
-SHAPE_RULE_KEYS = (
-    "分点优先",
-    "算形态缺陷",
-    "大类分组",
-    "禁止同名重复",
-    "段落上限",
-    "加粗配额",
-    "未决/待澄清栏口径",
-    "猜测补全",
+CAPTION_TPL = (
+    "# [甲栏]\n[一段话概括甲]\n\n"
+    "# [进度追踪]\n"
+    "[按下表逐行填写各模块的进展与当前状态（一行一个模块）；不要另建表格，表内已写的明细不在别处重复]\n\n"
+    "| 模块 | 进展 |\n| --- | --- |\n| … | … |\n\n"
+    "# [乙栏]\n[一段话概括乙]\n"
+)
+BODY_CAPTION_TPL = (
+    "# [治疗方案与医嘱]\n"
+    "[医嘱清单：检查安排、用药、生活方式、复诊与陪同要求各占一条，每条都是 `- ` 分点行；药品明细只写进下表]\n\n"
+    "| 药名 | 剂量 |\n| --- | --- |\n| … | … |\n"
 )
 
 
-def test_shape_rules_in_prompts() -> None:
-    """形态六条必须同时落在装配 prompt 与自由渲染 prompt——两条路径口径一致。
+def test_table_caption_not_a_field() -> None:
+    """表格栏说明：不进字段清单、不打印正文位、不吃掉其它字段的值。
 
-    背景（2026-09，now/before 22 对实测）：装配路径的「每条以 `**分类标签**：` 开头」
-    压过了「并列事实用 `- ` 一条一行」，产出 91 处裸标签段（行20 连续 13 行清单写成段落）、
-    12 处标题/栏目名与标签同名、33 行单行加粗 >3 处、缩进子条用量掉到 before 的 2%。
-    两条路径共用同一套形态规则后，同一模板不再因走哪条路径而漂移。
+    背景（2026-09，sample.xlsx 实测）：`[按下表逐行填写…]` 紧跟表格时被当成必填正文字段，
+    模型把明细全写进表格后只能填「未提及」→ 产出「标题 + 未提及 + 九行表格」的自相矛盾形态
+    （项目进度会的进度追踪/风险预警、面试报告的能力评估）；庭审记录则把诉辩表改写成散文。
+    """
+    from ._base import is_table_caption, table_caption_lines
+    from ._placeholder import assemble_placeholder_output, plan_placeholder_fill
+
+    plan = plan_placeholder_fill(CAPTION_TPL)
+    hints = [str(s.get("hint") or "") for s in plan["scalars"]]
+    check("表格栏说明不进字段清单（甲/乙两栏 + 1 张表）",
+          len(plan["scalars"]) == 2 and len(plan["row_templates"]) == 1, f"{hints}")
+    check("紧跟表格的说明行被判为表格栏说明", table_caption_lines(CAPTION_TPL) == {4},
+          f"{table_caption_lines(CAPTION_TPL)}")
+    check("要求正文的医嘱清单不被误判（要 `- ` 分点）",
+          not is_table_caption("医嘱清单：检查安排、用药各占一条，每条都是 `- ` 分点行")
+          and table_caption_lines(BODY_CAPTION_TPL) == set(),
+          f"{table_caption_lines(BODY_CAPTION_TPL)}")
+
+    out = assemble_placeholder_output(
+        CAPTION_TPL, {"1": "甲内容。", "2": "乙内容。"}, tables=[[["模块A", "进行中"]]]
+    )
+    check("拼装：说明行不打印、表格照常输出", "按下表逐行填写" not in out and "模块A" in out, "")
+    check("拼装：不产生「未提及」正文", "未提及" not in out, f"{out!r}")
+    check("拼装：后面的字段不错位（乙栏拿到自己的值）",
+          "# 乙栏\n乙内容。" in out.replace("\r\n", "\n"), f"{out!r}")
+
+
+def test_shape_rules_in_prompts() -> None:
+    """形态与写足口径必须同时落在装配 prompt 与自由渲染 prompt（两条路径一致）。
+
+    背景（2026-09，now/before 22 对 + sample 24 条实测）：装配路径的
+    「每条以 `**分类标签**：` 开头」压过了「并列事实用 `- ` 一条一行」，产出 91 处裸标签段
+    （行20 连续 13 行清单写成段落）、12 处标题/栏目名与标签同名、33 行单行加粗 >3 处；
+    「每条 20–80 字」的下限又成了目标值 → 40 个点平均 20 字、半句碎片单独成条
+    （团队例会 `**参数修改**：✅ 已完成，修改了参数。`）。两条路径共用同一套规则后，
+    同一模板不再因走哪条路径而漂移。
     """
     from tools.templates.template_prompt import PLACEHOLDER_RULES
 
@@ -343,40 +378,58 @@ def test_shape_rules_in_prompts() -> None:
         ("装配 user 消息", user),
         ("自由渲染 PLACEHOLDER_RULES", PLACEHOLDER_RULES),
     ):
-        missing = [k for k in SHAPE_RULE_KEYS if k not in text]
-        check(f"{label} 含形态六条", not missing, f"缺={missing}")
+        for keys, tag in ((SHAPE_RULE_KEYS, "形态六条"), (FILL_RULE_KEYS, "写足/表格栏口径")):
+            missing = [k for k in keys if k not in text]
+            check(f"{label} 含{tag}", not missing, f"缺={missing}")
     stale = [k for k in ("两级结构", "每条以 `**分类标签**：` 开头") if k in fill_system]
     check("旧的「每条都套分类标签」口径已移除（它是裸标签段的成因）", not stale, f"仍含={stale}")
+    check("旧的「每条 20–80 字」下限已上调", "每条 20–80 字" not in fill_system, "")
+
+
+# 形态六条：分点优先 / 大类分组 / 禁止同名 / 段落上限 / 加粗封顶 / 未决口径（+ 语音识别纠错口径）
+SHAPE_RULE_KEYS = (
+    "分点优先",
+    "算形态缺陷",
+    "大类分组",
+    "禁止同名重复",
+    "段落上限",
+    "加粗配额",
+    "未决/待澄清栏口径",
+    "猜测补全",
+)
+# 写足与表格栏口径（A–E 批）：每条 30–100 字 + 两项要素 / 不拆多条 / 状态标记边界 / 表格栏总述
+FILL_RULE_KEYS = ("30–100 字", "至少两项要素", "同一句话不拆多条", "状态标记", "表格栏")
 
 
 TEMPLATE_SHAPE_SNIPPETS = {
     "retrospective_session": "不要每条都补「责任人无，时间无」",
-    "hiring_report": "只用下表，不要再用段落复述表格内容",
+    "hiring_report": "本栏明细由下表承载",
+    "hiring_report#维度": "岗位匹配度、问题解决能力、思维逻辑性、应变能力",
     "media_briefing": "一条一行 `- `",
     "site_visit_tour": "一个景点一行",
     "knowledge_memo": "不要再以同名",
     "clinical_advisory": "每条都是 `- ` 分点行",
     "home_school_liaison": "每一件事都要落进清单",
-    "project_progress": "单段不超过约 200 字",
-    "court_transcript": "每部分都要有内容",
+    "project_progress": "本栏明细由下表承载",
+    "project_progress#后续": "从概况与原文提取下一步",
+    "court_transcript": "本栏明细由下表承载",
+    "team_meeting": "四要素",
 }
 
 
 def test_template_shape_instructions() -> None:
-    """模板层的形态/覆盖口径不许被回退（防「责任人无，时间无」这类噪音复发）。"""
+    """模板层的形态/表格栏/覆盖口径不许被回退（防「责任人无，时间无」「未提及 + 表格」复发）。"""
     tdir = _active_dir()
     missing: list[str] = []
-    for tid, snippet in TEMPLATE_SHAPE_SNIPPETS.items():
+    for key, snippet in TEMPLATE_SHAPE_SNIPPETS.items():
+        tid = key.split("#", 1)[0]
         p = tdir / f"{tid}.md"
         if not p.is_file():
             missing.append(f"{tid}:缺文件")
             continue
         if snippet not in p.read_text(encoding="utf-8"):
             missing.append(f"{tid}:缺「{snippet}」")
-    hiring = tdir / "hiring_report.md"
-    if hiring.is_file() and "岗位匹配度、问题解决能力、思维逻辑性、应变能力" not in hiring.read_text(encoding="utf-8"):
-        missing.append("hiring_report:缺维度清单")
-    check(f"{tdir.name} 的形态/覆盖口径到位（9 处逐句小修不回退）", not missing, f"{missing}")
+    check(f"{tdir.name} 的形态/表格栏/覆盖口径到位", not missing, f"{missing}")
 
 
 def main() -> int:
@@ -413,6 +466,7 @@ def main() -> int:
         test_gate_flags_bare_heading()
         test_missing_field_guard()
         test_fill_prompt_requires_all_keys()
+        test_table_caption_not_a_field()
         test_shape_rules_in_prompts()
         test_template_shape_instructions()
     finally:

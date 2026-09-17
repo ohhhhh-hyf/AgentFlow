@@ -20,6 +20,7 @@ from ._base import (
     iter_placeholders,
     split_template_meta,
     strip_outer_markdown_fence,
+    table_caption_lines,
 )
 from ._detect import (
     _is_placeholder_table_row,
@@ -107,9 +108,12 @@ def plan_placeholder_fill(template: str) -> dict[str, Any]:
     template, _ = split_template_meta(template)
     scalars: list[dict] = []
     row_templates: list[dict[str, Any]] = []
+    caption_lines = table_caption_lines(template)
     for idx, line in enumerate(template.splitlines(keepends=True)):
         if _section_title_match(line):
             continue
+        if idx in caption_lines:
+            continue  # 表格栏说明：不进字段清单（明细由下表承载，正文不另写）
         phs = _line_placeholders(line)
         if _is_table_data_row(line):
             fields = (
@@ -252,6 +256,7 @@ def assemble_placeholder_output(
 
     plan = plan_placeholder_fill(template)
     row_templates: list[dict[str, Any]] = plan["row_templates"]
+    caption_lines = table_caption_lines(template)
     if tables is None:
         if table_rows is not None:
             tables = [table_rows]
@@ -273,7 +278,8 @@ def assemble_placeholder_output(
     }
 
     for line_idx, line in enumerate(template.splitlines(keepends=True)):
-        if line_idx in skip_lines:
+        if line_idx in skip_lines or line_idx in caption_lines:
+            # 表格栏说明行：不打印正文位、不消耗标量值（否则后续字段全部错位）
             continue
         title_m = _section_title_match(line)
         if title_m:
@@ -648,8 +654,11 @@ def build_placeholder_fill_user(
         "**一条下有 ≥2 个并列子事项时必须用缩进子条 `  - ` 拆开，不得塞进同一句**；**每栏至少 2 个分类标签**。",
         "**禁止同名重复**：`## X` 小标题之下第一条**不得**再写 `**X**：`；`# 栏名` 之下不得把栏名当标签再复述一遍。",
         "**段落上限**：连续叙述单段不超过 **3 句或约 200 字**，超过就拆段或改成 `- ` 分点；概况/一段话概括类最多 2 段。",
-        "**每条写实**：一条一个事项或一个判断，把原文给的要素写足（主体 + 数字/时间/范围 + 结果或状态/影响）；**每条 20–80 字**——不得压成一句空话，也不要把多条事实合并成一条长句（信息多就拆成多条或加缩进子条）。",
+        "**每条写实**：一条一个事项或一个判断，**每条 30–100 字**，且必须带至少两项要素（对象/主体、数字或时间、结果或状态、影响或下一步）——只写「状态 + 名词」或半句碎片不算合格；也不要把多条事实合并成一条长句（信息多就拆成多条或加缩进子条）。",
         "**条数宁多不漏**：原文有几项就写几条（不要合并同类项）；一条只放一件事或一个判断，需要细分时用缩进子条 `  - `（要点、风险、待决、证据、问答类栏目尤其如此）。",
+        "**同一句话不拆多条**：同一议题的碎片（如同一次修改的几个小动作、同一事项的并列子项）合并成一条写清，不要一句一条。",
+        "**状态标记（✅已完成 / 🔄进行中 / ⛔阻塞）**只在模板要求时使用，且只出现在表格的状态列或任务名后一次；条目正文不要逐条重复「进行中」，状态之外必须写清进展内容。",
+        "**表格栏**：某栏明细由下表承载（说明里写「按下表…」「只用下表」）时，正文写一句总述（共 N 项 / 完成 X 项 / 总体判断）；有表就不许写「未提及」「未明确」，也不要复述表格内容。",
         "**引话与专名逐字**：模板允许时用 `> ` 引 2–5 条原文关键表态（逐字，不改写）；专名、仪式名、条款名、机构名照原文写全，不要概括成「多个」「若干」「相关」。",
         "**加粗配额**：加粗只给分类标签、关键数字、结论或专名；**同一行最多 2 处、同一段最多 4 处、同一术语只加粗首次出现**——不要整句加粗、不要每个数字/名词都加粗。",
         "**未决/待澄清栏口径**：只写内容来源里出现过的分歧、质疑、待验证点；「原文没有写 X」这类缺失说明不算未决问题。",

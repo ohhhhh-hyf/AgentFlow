@@ -6,7 +6,7 @@ from typing import Any
 
 from tools.templates.template_prompt import PLACEHOLDER_RULES, SPEC_RULES
 
-from ._base import _CHAR_META_LINE_RE, _CHAR_META_TAIL_RE, _CN_RE, _CUE_PATTERNS, _EMOJI_RE, _ENUM_SEP_RE, _HINT_WORD_RE, _MISSING_HINT_RE, _SPEC_EXAMPLE_MARKERS, _SPEC_KEYWORDS, _SPEC_SPLIT_MARKERS, _TITLE_HINT_INSTRUCTION_RE, _char_budget_lines, _describe_field, _parse_count_token, is_router_enabled, iter_placeholders, split_template_meta
+from ._base import _CHAR_META_LINE_RE, _CHAR_META_TAIL_RE, _CN_RE, _CUE_PATTERNS, _EMOJI_RE, _ENUM_SEP_RE, _HINT_WORD_RE, _MISSING_HINT_RE, _SPEC_EXAMPLE_MARKERS, _SPEC_KEYWORDS, _SPEC_SPLIT_MARKERS, _TITLE_HINT_INSTRUCTION_RE, _char_budget_lines, _describe_field, _next_is_table, _parse_count_token, is_router_enabled, is_table_caption, iter_placeholders, split_template_meta
 
 logger = logging.getLogger(__name__)
 
@@ -106,7 +106,12 @@ def parse_placeholder_template(template: str) -> list[dict]:
             continue  # 非占位符括号（JSON/链接等）→ 保留在后续固定文字段中
         if m.start() > pos:
             segments.append({"kind": "text", "text": template[pos : m.start()]})
-        segments.append(_parse_field(content))
+        field = _parse_field(content)
+        # 表格栏说明（`[按下表逐行填写…]` 紧跟一张表）：只讲怎么填表、不含正文要求 →
+        # 标注后不列入字段清单，避免模型把明细写进表格后被迫用「未提及」填正文字段
+        if is_table_caption(content) and _next_is_table(template, m.end()):
+            field["table_caption"] = True
+        segments.append(field)
         pos = m.end()
     if pos < len(template):
         segments.append({"kind": "text", "text": template[pos:]})
@@ -312,6 +317,13 @@ def _build_placeholder_user(context: str, template: str, segments: list[dict]) -
                 f"- 表格占位数据行（原样照抄将判不合格）：{seg['row']!r}"
                 f" —— 表头 {seg['header']!r}；输出时删除该占位行，"
                 "按表头列序与本栏占位说明生成真实数据行（1..N 行，各占一行）"
+            )
+        elif seg.get("table_caption"):
+            # 表格栏说明：明细由下表承载，本栏没有独立正文位 → 不要为它写「未提及」
+            lines.append(
+                f"- 表格栏说明（不写正文、不占正文位）：{seg.get('raw') or seg.get('hint')!r}"
+                " —— 该栏明细全部写进它的表格数据行；正文不要输出「未提及」等缺省词，"
+                "也不要复述表内内容"
             )
         else:
             field_no += 1

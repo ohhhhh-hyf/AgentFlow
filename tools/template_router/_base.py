@@ -157,6 +157,76 @@ _SPEC_SPLIT_MARKERS = (
 
 _TABLE_SEP_RE = re.compile(r"^\s*\|?\s*:?-{3,}:?\s*(\|\s*:?-{3,}:?\s*)+\|?\s*$")
 
+# ── 表格栏说明 ────────────────────────────────────────────────────────────
+# 背景（2026-09，sample.xlsx 实测）：模板里"按下表逐行填写…"这类说明行紧跟着表格，
+# 各路径原先把它们当**必填正文字段**。模型把明细全写进表格后，正文字段无话可写，
+# 按缺省规则输出「未提及」→ 产出"标题 + 未提及 + 九行表格"的自相矛盾形态
+# （项目进度会的进度追踪/风险预警、面试报告的能力评估），或被改写成散文
+# （庭审记录把诉辩表写成段落）。这类行只是**表格栏说明**：不进字段清单、不打印正文位，
+# 标题与表格照常输出；表内已承载明细，正文自然不需要缺省词。
+_TABLE_CAPTION_CARRIER_RE = re.compile(
+    r"按下表|见下表|只写进下表|只用下表|表内已写|逐行填写|不要另建表格"
+    r"|不要再用段落复述|第一列|第二列|第三列|以下表|由下表承载"
+)
+# 出现这些字样 = 该栏除表格外还要求正文（清单/分点/总述/维度文字…）→ 不算纯表格说明
+_TABLE_CAPTION_BODY_RE = re.compile(
+    r"各占一条|一条一行|分点|`- `|\*\*[^*\n]+\*\*[：:]|总述|一两句|一句|表外|`## |正文"
+)
+
+
+def is_table_caption(text: str) -> bool:
+    """纯表格栏说明：只讲"怎么填表"，不要求另写正文。"""
+    t = (text or "").strip()
+    return bool(_TABLE_CAPTION_CARRIER_RE.search(t)) and not _TABLE_CAPTION_BODY_RE.search(t)
+
+
+def _next_is_table(text: str, pos: int) -> bool:
+    """``text[pos:]`` 跳过空行后是否紧跟一张表（表头行 + 分隔行）。"""
+    lines = [ln.strip() for ln in (text[pos:] or "").splitlines()]
+    j = 0
+    while j < len(lines) and not lines[j]:
+        j += 1
+    if j >= len(lines):
+        return False
+    head = lines[j]
+    if not (head.startswith("|") and head.endswith("|")) or _TABLE_SEP_RE.match(head):
+        return False
+    k = j + 1
+    while k < len(lines) and not lines[k]:
+        k += 1
+    return k < len(lines) and bool(_TABLE_SEP_RE.match(lines[k]))
+
+
+def table_caption_lines(template: str) -> set[int]:
+    """返回"表格栏说明"所在行号（对 ``split_template_meta`` 后的正文行计数）。
+
+    判据：整行一个 ``[说明]`` + 紧跟一张表（表头行 + 分隔行）+ 纯表格语义（见
+    ``is_table_caption``）。clinical_advisory 的医嘱清单（要 ``- `` 分点）、
+    decision_review 的"核心价值与总述"、debate_forum 的"正文交代辩题"等
+    仍要求正文，不会被判为表格栏说明。
+    """
+    body, _ = split_template_meta(template)
+    lines = body.splitlines()
+    out: set[int] = set()
+    for i, line in enumerate(lines):
+        m = _LINE_BRACKET_RE.match(line)
+        if not m or not is_table_caption(m.group(1)):
+            continue
+        j = i + 1
+        while j < len(lines) and not lines[j].strip():
+            j += 1
+        if j >= len(lines):
+            continue
+        head = lines[j].strip()
+        if not (head.startswith("|") and head.endswith("|")) or _TABLE_SEP_RE.match(head):
+            continue
+        k = j + 1
+        while k < len(lines) and not lines[k].strip():
+            k += 1
+        if k < len(lines) and _TABLE_SEP_RE.match(lines[k].strip()):
+            out.add(i)
+    return out
+
 
 _CUE_PATTERNS: list[tuple[str, re.Pattern[str]]] = [
     ("title", re.compile(r"标题|题目|主题|第一行")),
@@ -449,8 +519,11 @@ _PLACEHOLDER_FILL_SYSTEM = """你是占位符填充器。根据「内容来源�
 - **大类分组**：独占一行的 `**大类**：` 只用来把该栏分成 **2–5 个大类**（如「需关注之处」），大类之下必须跟 `- ` 子条，不要用连续多行 `**标签**：长句 充当清单；**一条下有 ≥2 个并列子事项时必须用缩进子条 `  - ` 拆开，不得塞进同一句**；每栏至少 2 个分类标签
 - **禁止同名重复**：`## X` 小标题之下第一条**不得**再写 `**X**：`（标题已经说了）；`# 栏名` 之下不得把栏名当标签再复述一遍
 - **段落上限**：连续叙述单段不超过 **3 句或约 200 字**，超过就拆段或改成 `- ` 分点；概况/一段话概括类最多 2 段
-- **每条写实**：一条一个事项或一个判断，把原文给的要素写足（主体 + 数字/时间/范围 + 结果或状态/影响）；**每条 20–80 字**——不得压成一句空话，也不要把多条事实合并成一条长句（信息多就拆成多条或加缩进子条）
+- **每条写实**：一条一个事项或一个判断，**每条 30–100 字**，且必须带**至少两项要素**（对象/主体、数字或时间、结果或状态、影响或下一步）——只写「状态 + 名词」或半句碎片不算合格；也不要把多条事实合并成一条长句（信息多就拆成多条或加缩进子条）
 - **条数宁多不漏**：原文有几项就写几条（不要合并同类项）；一条只放一件事或一个判断，需要细分时用缩进子条 `  - `（要点、风险、待决、证据、问答类栏目尤其如此）
+- **同一句话不拆多条**：同一议题的碎片（如同一次修改的几个小动作、同一事项的并列子项）**合并成一条写清**，不要一句一条——「修改了参数」「任务已调整」这类同义半句不单独成条
+- **状态标记（✅已完成 / 🔄进行中 / ⛔阻塞）**只在模板要求时使用，且只出现在**表格的状态列或任务名后一次**；条目正文不要逐条重复「进行中」，状态之外必须写清进展内容
+- **表格栏**：某栏明细由下表承载（说明里写「按下表…」「只用下表」）时，正文写**一句总述**（共 N 项 / 完成 X 项 / 总体判断）；**有表就不许写「未提及」「未明确」**（有表即有内容），也不要复述表格内容
 - **引话与专名逐字**：模板允许时用 `> ` 引 2–5 条原文关键表态（逐字，不改写）；专名、仪式名、条款名、机构名照原文写全，不要概括成「多个」「若干」「相关」
 - **加粗配额**：加粗只给分类标签、关键数字、结论或专名；**同一行最多 2 处、同一段最多 4 处、同一术语只加粗首次出现**——不要整句加粗、不要每个数字/名词都加粗
 - **未决/待澄清栏口径**：只写内容来源里出现过的分歧、质疑、待验证点；「原文没有写 X」这类缺失说明**不算未决问题**（不要写「原文未明确…」）
