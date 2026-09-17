@@ -420,9 +420,13 @@ SHAPE_RULE_KEYS = (
 # 写足与表格栏口径（A–E 批）：每条 30–100 字 + 两项要素 / 不拆多条 / 状态标记边界 / 表格栏总述
 # + 2026-09 第二批五条：超 100 字必须拆 / 同标签最多 1 次 / 有素材不得未提及+不写说明句 /
 #   加粗两头管住（每栏至少 1–2 处）/ `## 名称` 之下必须 `- `
+# + 2026-09 第三批两条（now.xlsx 总结复盘会：条目 21–36 字且只剩结论）：
+#   条目 = 一个事项的完整交代 / 禁止结论式孤条
 FILL_RULE_KEYS = (
     "30–100 字",
     "至少两项要素",
+    "完整交代",
+    "结论式孤条",
     "同一句话不拆多条",
     "状态标记",
     "表格栏",
@@ -487,7 +491,7 @@ def test_advisory_checks() -> None:
     hits_meta = advisory_issues(meta)
     check("超长条（>200 字的一条）被抓出", any("一条" in h for h in hits_item), f"{hits_item}")
     check("超长段（>320 字的段落）被抓出", any("一段" in h for h in hits_para), f"{hits_para}")
-    check("正常概况段（231–275 字，模板允许 4–10 句）不误报",
+    check("正常概况段（231–275 字，规格允许每段 400 字以内）不误报",
           advisory_issues("# 概况\n" + "本节课讲解光学复习要点。" * 20 + "\n") == [], "")
     check("缺失说明句「原文未提及…」被抓出",
           any("缺失说明句" in h for h in hits_meta), f"{hits_meta}")
@@ -643,6 +647,60 @@ def test_understanding_trim_lists() -> None:
     check("无可裁剪字段时不拼裁剪指令", _trim_instruction("", set()) == "", "")
 
 
+def test_overview_cap_and_column_scope() -> None:
+    """概括/背景栏：逐栏给出上限与边界，且不许跨栏复述。
+
+    回归背景（now.xlsx 实测）：`exchange_forum` 的 [沟通背景与目的] 无上限 →
+    模型写出 2764 字、45 句的单段，并把 [信息同步] 的明细又复述一遍。
+    对策：字段清单里逐栏给"最多 3 段、每段不超过 400 字"+「本栏不复述」，
+    栏位自己声明了尺寸的以模板为准；规则层加「一栏只写自己的事」。
+    """
+    from tools.template_router._base import _describe_field
+    from tools.templates.body_rules import BODY_FORMAT_RULES
+    from tools.templates.template_prompt import PLACEHOLDER_RULES
+
+    from ._base import _PLACEHOLDER_FILL_SYSTEM as fill_system
+    from ._detect import _parse_field
+    from ._placeholder import build_placeholder_fill_user
+
+    # ① 未声明尺寸的概括栏：拿到默认上限 + 边界
+    plain = _describe_field(1, _parse_field("一段话概括参与方、沟通主题与目的、达成的结果"))
+    check("概括栏（无尺寸声明）拿到默认上限",
+          "最多 3 段、每段不超过 400 字" in plain, f"{plain[:80]}")
+    check("概括栏（无尺寸声明）带「本栏不复述」边界",
+          "本栏不复述" in plain and "归各自栏目" in plain, f"{plain[:80]}")
+
+    # ② 自己声明了尺寸的概括栏：以模板为准，不叠加默认上限
+    sized = _describe_field(1, _parse_field("一段话概括：先写这段文本是什么；**单段不超过约 200 字**，信息多就拆段"))
+    check("已声明尺寸的概括栏不被叠加默认上限",
+          "最多 3 段、每段不超过 400 字" not in sized and "本栏不复述" in sized,
+          f"{sized[:90]}")
+
+    # ③ 取材来源句（「从概况与原文提取下一步」）不算概括栏，不给概况规格
+    ref = _describe_field(
+        2, _parse_field("**从概况与原文提取下一步**（不要因为已写进风险表就不写）：核心交付物、验收标准")
+    )
+    check("取材来源句不被误判为概括栏",
+          "最多 3 段、每段不超过 400 字" not in ref, f"{ref[:80]}")
+
+    # ④ 规则层：装配 system/user、自由渲染、共用形态规则都写了这份口径
+    user = build_placeholder_fill_user("内容来源：略。", FILL_TPL)
+    for label, text in (
+        ("装配 system prompt", fill_system),
+        ("装配 user 消息", user),
+        ("自由渲染 PLACEHOLDER_RULES", PLACEHOLDER_RULES),
+        ("共用形态规则", BODY_FORMAT_RULES),
+    ):
+        check(f"{label}：概括栏上限口径到位",
+              "最多 3 段、每段不超过 400 字" in text or "单段不超过 400 字" in text, "")
+    check("装配 system prompt：一栏只写自己的事",
+          "一栏只写自己的事" in fill_system and "同一事实在整篇里原则上只出现一次" in fill_system, "")
+    check("装配 user 消息：一栏只写自己的事",
+          "一栏只写自己的事" in user and "不得在概括栏复述" in user, "")
+    check("篇幅口径只管整篇总量（不再压过单栏上限）",
+          "这一条只管整篇总量" in fill_system, "")
+
+
 def test_section_char_budget_scope() -> None:
     """段落字数上限：栏名要取到（`# [概况]` → 概况）；单条预算不许当整节上限。
 
@@ -790,6 +848,7 @@ def main() -> int:
         test_template_shape_instructions()
         test_minutes_chain_consistency()
         test_understanding_trim_lists()
+        test_overview_cap_and_column_scope()
         test_section_char_budget_scope()
         test_default_word_precedence()
         test_supervisor_unavailable_flow()
