@@ -443,7 +443,7 @@ class _Nodes(DomainNodes):
         title = str(topic.get("title") or "").strip()
         conclusion = topic.get("conclusion")
         discussion = str(topic.get("discussion") or "").strip()
-        # 兼容未来 key_points 字段；当前模型仍可能只有 discussion。
+        # 契约已含 key_points；模型漏填时回退用 discussion 兜底。
         key_points = topic.get("key_points")
         if not isinstance(key_points, list):
             key_points = []
@@ -641,7 +641,11 @@ class _Nodes(DomainNodes):
         return node
 
     def _supervisor_context(self, state, line_name: str) -> str:
-        """审核上下文：原文按草稿事实点摘录，理解只给摘要。"""
+        """审核上下文：原文按草稿事实点摘录，理解只给摘要。
+
+        生成侧注入的【会议记忆】要一并给审核者：否则「对照缺失/误标」「记忆摘录被写成
+        新决策」无从判定，历史对照段还会因缺锚点被判成捏造。
+        """
         sub = _line(state, line_name)
         revision_count = sub.get("revision_count", 0)
         mode = self._mode_label(state)
@@ -650,12 +654,18 @@ class _Nodes(DomainNodes):
             if revision_count < self.MAX_REVISIONS
             else "返工次数已用完，本轮只能选择 approve 或 reject。"
         )
+        blocks = [self._supervisor_source_pack(state, line_name)]
+        memory = str(sub.get("memory_context") or "").strip()
+        if memory:
+            blocks.append(memory)
+        blocks.append(
+            f"{_line_draft_title(line_name)}：\n"
+            f"{_json(compact_draft_for_review(sub['draft']))}"
+        )
         return (
             f"视角模式：{mode}\n"
             f"{_line_cn(line_name)}返工次数：{revision_count}/{self.MAX_REVISIONS}\n"
-            f"{allowed}\n\n"
-            f"{self._supervisor_source_pack(state, line_name)}\n\n"
-            f"{_line_draft_title(line_name)}：\n{_json(compact_draft_for_review(sub['draft']))}"
+            f"{allowed}\n\n" + "\n\n".join(blocks)
         )
 
     def _render_context(self, state: dict, line_name: str) -> str:

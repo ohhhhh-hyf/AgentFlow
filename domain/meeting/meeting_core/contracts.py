@@ -61,7 +61,8 @@ class MeetingUnderstandingGenerationContract(GenerationContract):
         EnumField("scene", SCENE_CHOICES),
         ObjListField("topics", [
             StrField("title", "议题名称"),
-            StrField("discussion", "讨论内容要点：按信息点分行写（一条一行）——数字与指标、对照取值、金额、时限、人名、范围边界、分歧、结论线索、推进状态都要写进来；同类事项分别列出，不要压成一句"),
+            StrField("discussion", "该议题的讨论经过：谁提出、怎么讨论、分歧与结论线索，连贯写清（不复述 key_points 的事实）"),
+            StrListField("key_points", "该议题的事实要点，按信息点逐条列出（一条一个事实）——数字与指标、对照取值、金额、日期与时限、人名、范围边界、分歧、结论线索、推进状态都要写进来；同类事项分别列出，不要压成一句"),
             StrField("conclusion", "该议题的结论，无结论时为null"),
             StrListField("participants", "原文中明确出现的发言人姓名"),
         ]),

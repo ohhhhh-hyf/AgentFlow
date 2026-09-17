@@ -386,6 +386,25 @@ def test_shape_rules_in_prompts() -> None:
     check("旧的「每条都套分类标签」口径已移除（它是裸标签段的成因）", not stale, f"仍含={stale}")
     check("旧的「每条 20–80 字」下限已上调", "每条 20–80 字" not in fill_system, "")
 
+    # 通用层不绑定具体模板的栏目：栏目说明只来自【模板原文】与字段清单。
+    # 回归背景：曾把项目进度会的「进度追踪/风险预警」写死在共用填充消息里，
+    # 于是 30 个模板（含决策评审会、团队例会）都被要求写这两个不存在的栏目。
+    head = re.split(r"【模板写作要求】|【内容来源】", user)[0]
+    titles: set[str] = set()
+    for md in sorted(_active_dir().glob("*.md")):
+        if md.stem.lower() in {"readme", "diff"}:
+            continue
+        text = md.read_text(encoding="utf-8")
+        titles.update(
+            m.group(1).strip()
+            for m in re.finditer(
+                r"^#{1,6}\s*\[([^\[\]]+)\]\s*$", text, re.MULTILINE
+            )
+            if m.group(1).strip()
+        )
+    leaked = sorted(t for t in titles if t in head)
+    check("装配 user 消息不写死具体模板的栏目名", not leaked, f"泄漏={leaked[:5]}")
+
 
 # 形态六条：分点优先 / 大类分组 / 禁止同名 / 段落上限 / 加粗封顶 / 未决口径（+ 语音识别纠错口径）
 SHAPE_RULE_KEYS = (
@@ -562,19 +581,126 @@ def test_minutes_chain_consistency() -> None:
     hit = [k for k in stale if any(k in t for t in (fill_system, user, PLACEHOLDER_RULES, draft, render))]
     check("旧形态口径已从全部路径清除", not hit, f"残留={hit}")
 
-    # ② 摘要预算：三处同一套（≤4 段 × 2–5 句），且旧数字已清除
-    check("草稿 prompt / 契约都写 ≤4 段", "≤4 段" in draft and "≤4 段" in gen_contract, "")
-    check("草稿 prompt 写「每段 2–5 句」", "每段 2–5 句" in draft, "")
-    check("契约写「2–5 句」", "2–5 句" in gen_contract, "")
-    check("契约声明「条数/句数是表达预算，不构成删事实的理由」",
+    # ② 摘要分段：三处同一套（段数按内容、单段 ≤3 句/约 200 字），且旧数字已清除
+    check("草稿 prompt / 契约都不再设固定段数上限",
+          "≤4 段" not in draft and "≤4 段" not in gen_contract, "")
+    check("草稿 prompt / 契约同写「不超过 3 句或约 200 字」",
+          "不超过 3 句或约 200 字" in draft and "不超过 3 句或约 200 字" in gen_contract, "")
+    check("契约声明「段数/句数是表达预算，不构成删事实的理由」",
           "不构成删事实的理由" in gen_contract, "")
-    old_summary = [k for k in ("全篇 2–8 条", "每段最多 3 句", "2–8 条") if k in draft or k in gen_contract]
+    old_summary = [
+        k
+        for k in ("全篇 2–8 条", "每段最多 3 句", "2–8 条", "≤4 段", "每段 2–5 句", "2–5 句")
+        if k in draft or k in gen_contract or k in render
+    ]
     check("旧的互斥摘要口径已清除", not old_summary, f"残留={old_summary}")
 
-    # ① 审核两句：合并段不算空条 + 关键遗漏按事实判
+    # ① 审核两句：合并段不算空条 + 关键遗漏按事实判（各只保留一份，不许重复）
     check("审核 prompt：合并型摘要段不算空条", "合并型摘要段不算空条" in supervisor, "")
     check("审核 prompt：关键遗漏按事实判、不按条数判",
           "按事实判，不按条数判" in supervisor, "")
+    check("审核 prompt：不拦截/要拦截各只一份（旧的重复块已合并）",
+          supervisor.count("不拦截：") == 1 and supervisor.count("要拦截：") == 1,
+          f"不拦截={supervisor.count('不拦截：')} 要拦截={supervisor.count('要拦截：')}")
+
+
+def test_understanding_trim_lists() -> None:
+    """理解裁剪：可空名单与必须写全名单不许重叠，两名单并集 = 契约全部字段。
+
+    回归背景：两张名单各写一份（后者写死在 agent 里），曾出现 risk_hints
+    同时被列为「可空」和「必须写全」，且必须写全名单漏掉 topics/risks/open_questions。
+    """
+    from dataclasses import fields as dc_fields
+
+    from domain.meeting.meeting_core.meeting_understanding_agent import (
+        _trim_instruction,
+    )
+    from domain.meeting.models import MeetingUnderstanding
+
+    order = [f.name for f in dc_fields(MeetingUnderstanding)]
+    cases = (
+        ("minutes", {"risk_hints"}),
+        ("risks", {"topics", "action_hints"}),
+        ("actions", {"topics", "risks", "open_questions", "risk_hints"}),
+    )
+    for line, skip in cases:
+        text = _trim_instruction(line, skip)
+        blank_line = next(l for l in text.splitlines() if "只允许以下字段输出空数组" in l)
+        keep_line = next(l for l in text.splitlines() if "必须照常" in l)
+        # 只取名单本体：「仅供 X 线使用」里的线名可能恰好等于字段名（risks）
+        blank_part = blank_line.split("空数组 []：", 1)[-1]
+        keep_part = keep_line.split("（", 1)[-1].split("）", 1)[0]
+        blank_fields = {f for f in order if f in blank_part}
+        keep_fields = {f for f in order if f in keep_part}
+        check(f"裁剪名单-{line}：可空与必须写全不重叠",
+              not (blank_fields & keep_fields),
+              f"重叠={sorted(blank_fields & keep_fields)}")
+        check(f"裁剪名单-{line}：两名单并集 = 契约全部字段",
+              blank_fields | keep_fields == set(order),
+              f"缺={sorted(set(order) - (blank_fields | keep_fields))}")
+        check(f"裁剪名单-{line}：可空名单与本线裁剪一致",
+              blank_fields == skip, f"实际={sorted(blank_fields)}")
+    check("无可裁剪字段时不拼裁剪指令", _trim_instruction("", set()) == "", "")
+
+
+def test_section_char_budget_scope() -> None:
+    """段落字数上限：栏名要取到（`# [概况]` → 概况）；单条预算不许当整节上限。
+
+    回归背景：栏名用 `re.sub(r"\\[[^\\[\\]]*\\]", "", ...)` 连括号内容一起删掉 →
+    拿到「本节」，_overlong_issue 的标题匹配永不命中（模板声明的上限静默失效）；
+    而只修标题又会让「每条 30–100 字」被当成整节 100 字上限（合规的 5 条会被判超限返工）。
+    """
+    from tools.templates.template_eval import parse_section_char_budgets
+
+    para_tpl = "# [概况]\n[只写 3–6 句概览；**单段不超过约 200 字**，信息多就拆段]\n"
+    item_tpl = "# [要点]\n[每个维度一行；每条 30–100 字，信息多就拆条]\n"
+    both_tpl = "# [要点]\n[每条 30–100 字；本栏约 400 字]\n"
+
+    para = parse_section_char_budgets(para_tpl)
+    check("段落上限：栏名取到（不再退化成「本节」）",
+          bool(para) and para[0]["title"] == "概况", f"{para}")
+    check("段落上限：单段预算标为 paragraph",
+          bool(para) and para[0].get("scope") == "paragraph", f"{para}")
+    check("段落上限：上限值取 200",
+          bool(para) and para[0]["hi"] == 200, f"{para}")
+
+    item = parse_section_char_budgets(item_tpl)
+    check("单条预算（每条 30–100 字）不产生整节上限", not item, f"{item}")
+
+    both = parse_section_char_budgets(both_tpl)
+    check("单条 + 整节并存时只留整节预算（400）",
+          bool(both) and both[0]["hi"] == 400 and both[0].get("scope") == "section",
+          f"{both}")
+
+
+def test_default_word_precedence() -> None:
+    """缺省词口径：模板约定优先，通用层只兜底「未提及」（模板文件不改）。
+
+    回归背景：通用层曾写死「责任人列无则「未明确」」，与项目进度会模板要求的
+    「缺项直接写「无」」冲突——同一行里同时出现「未明确」和「无」两种缺省词。
+    """
+    from domain.meeting.tasks.minutes.prompts import MINUTES_RENDER_TEMPLATE_PROMPT
+    from tools.templates.body_rules import BODY_FORMAT_RULES
+    from tools.templates.template_prompt import PLACEHOLDER_RULES
+
+    from ._base import _PLACEHOLDER_FILL_SYSTEM as fill_system
+    from ._placeholder import build_placeholder_fill_user
+
+    user = build_placeholder_fill_user("内容来源：略。", FILL_TPL)
+    for label, text in (
+        ("装配 system prompt", fill_system),
+        ("装配 user 消息", user),
+        ("自由渲染 PLACEHOLDER_RULES", PLACEHOLDER_RULES),
+        ("共用形态规则", BODY_FORMAT_RULES),
+        ("纪要模板渲染 prompt", MINUTES_RENDER_TEMPLATE_PROMPT),
+    ):
+        check(
+            f"{label}：缺省词按模板约定、通用层只兜底「未提及」",
+            "模板没约定" in text or "未约定时写「未提及」" in text,
+            "",
+        )
+    stale = [k for k in ("无则「未明确」", "缺内容直接写「未提及」") if k in fill_system or k in user]
+    check("通用层不再强推单一缺省词（旧写法已清除）", not stale, f"残留={stale}")
 
 
 def test_fallback_text_dedupe() -> None:
@@ -663,6 +789,9 @@ def main() -> int:
         test_shape_rules_in_prompts()
         test_template_shape_instructions()
         test_minutes_chain_consistency()
+        test_understanding_trim_lists()
+        test_section_char_budget_scope()
+        test_default_word_precedence()
         test_supervisor_unavailable_flow()
         test_advisory_checks()
         test_fallback_text_dedupe()

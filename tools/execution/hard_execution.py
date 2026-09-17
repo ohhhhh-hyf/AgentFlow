@@ -286,7 +286,7 @@ def apply_table_row_limits(text: str, template: str) -> tuple[str, list[str]]:
             keep_idx = sorted(idx for idx, _ in ranked[:limit])
             nonempty = [nonempty[idx] for idx in keep_idx]
         if not nonempty:
-            # 按表头列数生成占位行
+            # 按表头列数生成占位行；缺省词固定「未提及」（模板声明的缺省词由模型侧优先保证）
             cols = [c.strip() for c in t["header"].strip().strip("|").split("|")]
             cols = [c for c in cols if c != ""]
             n = max(len(cols), 1)
@@ -630,12 +630,28 @@ def _overlong_issue(template: str, text: str) -> str | None:
     for item in sections:
         title = str(item.get("title") or "")
         cap = int(item["hi"])
+        scope = str(item.get("scope") or "section")
         body = ""
         for sec_title, sec_body in rendered:
             if title and (title in sec_title or sec_title in title):
                 body = sec_body
                 break
         if not body:
+            continue
+        if scope == "paragraph":
+            # 「单段不超过约 N 字」：按行核（一段通常就是一行），条目行交给其它规则
+            long_lines = [
+                ln.strip()
+                for ln in body.splitlines()
+                if _han_count(ln) > cap * 1.2
+                and not ln.strip().startswith(("#", "|", ">", "-"))
+            ]
+            if long_lines:
+                longest = max(_han_count(ln) for ln in long_lines)
+                issues.append(
+                    f"「{title}」有 {len(long_lines)} 段超过 {cap} 字（最长约 {longest} 字），"
+                    "拆段或改用 `- ` 分点"
+                )
             continue
         han = _han_count(body)
         if han > cap * 1.2:

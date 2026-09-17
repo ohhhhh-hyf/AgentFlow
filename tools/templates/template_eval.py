@@ -37,6 +37,15 @@ _CHAR_RANGE_RE = re.compile(
 )
 _TABLE_SEP_RE = re.compile(r"^\s*\|?\s*:?-{3,}")
 
+# 「每条 30–100 字」这类**单条**预算不是整节上限（条数由内容决定）：
+# 先剥掉再解析，否则一条合规的栏目会被误判「超出段落字数上限」并触发整篇返工。
+_PER_ITEM_CHAR_RE = re.compile(
+    r"(?:每条|每项|每行|每一条|每个|一条)[^。；;\n]{0,12}?\d+\s*"
+    r"(?:[-–—~～至到]\s*\d+\s*)?字"
+)
+# 「单段不超过约 200 字」「超过约 200 字必须分点」这类**每段**预算：按行核，不按整节核
+_PARAGRAPH_SCOPE_RE = re.compile(r"单段|每段|超过[^。；;\n]{0,10}字[^。；;\n]{0,8}分点")
+
 
 def _to_int(token: str) -> int | None:
     token = (token or "").strip()
@@ -227,7 +236,11 @@ def parse_document_char_budget(template: str) -> dict[str, Any]:
 
 
 def parse_section_char_budgets(template: str) -> list[dict[str, Any]]:
-    """按小节解析「本段/本栏约 N 字」，不含全文合计、不含表格行。"""
+    """按小节解析「本段/本栏约 N 字」，不含全文合计、不含表格行。
+
+    每条结果带 ``scope``：``section``（整节上限）或 ``paragraph``（单段上限）。
+    「每条 30–100 字」这类单条预算不产生条目——它是条目规格，不是整节上限。
+    """
     raw = template or ""
     if not raw.strip():
         return []
@@ -239,7 +252,8 @@ def parse_section_char_budgets(template: str) -> list[dict[str, Any]]:
         if not head:
             i += 1
             continue
-        title = re.sub(r"\[[^\[\]]*\]", "", head.group(2)).strip()
+        # 栏名：`# [项目概况]` 取括号内文字（不是把整段括号内容删掉，否则拿到空名）
+        title = re.sub(r"[\[\]]", "", head.group(2)).strip()
         chunk: list[str] = []
         j = i + 1
         while j < len(lines) and not re.match(r"^#{1,6}\s+", lines[j].strip()):
@@ -253,9 +267,10 @@ def parse_section_char_budgets(template: str) -> list[dict[str, Any]]:
             r"本段约|本栏约", blob
         ):
             continue
-        if not re.search(r"本段约|本栏约|约\s*\d+\s*字|\d+\s*字", blob):
+        section_blob = _PER_ITEM_CHAR_RE.sub(" ", blob)
+        if not re.search(r"本段约|本栏约|约\s*\d+\s*字|\d+\s*字", section_blob):
             continue
-        budget = parse_char_budget(blob)
+        budget = parse_char_budget(section_blob)
         if not budget.get("hi"):
             continue
         out.append(
@@ -263,6 +278,9 @@ def parse_section_char_budgets(template: str) -> list[dict[str, Any]]:
                 "title": title or "本节",
                 "lo": budget.get("lo"),
                 "hi": int(budget["hi"]),
+                "scope": (
+                    "paragraph" if _PARAGRAPH_SCOPE_RE.search(section_blob) else "section"
+                ),
             }
         )
     return out
@@ -309,7 +327,7 @@ def split_markdown_sections(text: str) -> list[tuple[str, str]]:
                 preamble = current
             else:
                 sections.append((current_title, current))
-            current_title = re.sub(r"\[[^\[\]]*\]", "", head.group(2)).strip()
+            current_title = re.sub(r"[\[\]]", "", head.group(2)).strip()
             current = [line]
         else:
             current.append(line)
