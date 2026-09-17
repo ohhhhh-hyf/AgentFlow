@@ -23,10 +23,16 @@ def build_template_render_prompt(
     source: str,
     empty_rule: str,
     extra_rules: list[str] | None = None,
+    source_rule: str | None = None,
 ) -> str:
-    """按差异项生成模板渲染的基础规则（类型判断由 template_router 完成）。"""
+    """按差异项生成模板渲染的基础规则（类型判断由 template_router 完成）。
+
+    ``source_rule`` 可选覆盖第一条"事实来源"规则：默认口径把「{source}」当唯一事实来源、
+    只做结构填充；需要"以原文为第一来源、把细节写足"的任务（如会议纪要）自行传入口径。
+    """
     rules = [
-        f"唯一事实来源是「{source}」与用户消息中的原文：只做结构填充与措辞整理，不新增事实",
+        source_rule
+        or f"唯一事实来源是「{source}」与用户消息中的原文：只做结构填充与措辞整理，不新增事实",
         empty_rule,
         "只输出最终稿正文；不要解释、不要 JSON；"
         "禁止用 Markdown 代码围栏（``` 或 ```text / ```markdown）包裹整段输出",
