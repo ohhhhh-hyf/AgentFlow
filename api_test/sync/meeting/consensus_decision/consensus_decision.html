@@ -1,0 +1,1386 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>共识决策</title>
+  <style>
+
+    body {
+      margin: 0;
+      padding: 32px 16px;
+      background: #f6f5f0;
+      color: #1a1a1a;
+      font-family: "Latin Modern Roman", "Computer Modern Roman", "CMU Serif", "Times New Roman", Times, "Songti SC", "SimSun", "STSong", serif;
+      -webkit-font-smoothing: antialiased;
+    }
+    .page { max-width: 1140px; margin: 0 auto; }
+    .ck-doc {
+      background: #ffffff;
+      border: 1px solid #d4d0c7;
+      border-radius: 4px;
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.05), 0 1px 3px rgba(0,0,0,0.03);
+      padding: 36px 44px;
+      line-height: 1.75;
+      font-size: 0.96rem;
+    }
+    .ck-doc h1 {
+      margin: 0 0 10px;
+      font-size: 1.85rem;
+      font-weight: 700;
+      letter-spacing: 0.4px;
+      text-align: center;
+      font-variant: small-caps;
+      color: #111111;
+    }
+    .ck-doc-header {
+      margin-bottom: 24px;
+      padding-bottom: 16px;
+      border-bottom: 2px solid #111111;
+      text-align: center;
+    }
+    .ck-doc-meta {
+      font-size: 0.85rem;
+      color: #555555;
+      font-style: italic;
+    }
+    .ck-doc-content h1, .ck-doc-content .ck-doc-h1 {
+      margin: 28px 0 14px;
+      font-size: 1.32rem;
+      font-weight: 700;
+      color: #111111;
+      border-bottom: 1.5px solid #222222;
+      padding-bottom: 5px;
+      text-align: left;
+      font-variant: normal;
+      letter-spacing: 0.3px;
+    }
+    .ck-doc h2, .ck-doc-h2 {
+      margin: 28px 0 14px;
+      font-size: 1.22rem;
+      font-weight: 700;
+      color: #111111;
+      border-bottom: 1.5px solid #222222;
+      padding-bottom: 5px;
+      letter-spacing: 0.3px;
+    }
+    .ck-doc h3, .ck-doc-h3 {
+      margin: 20px 0 10px;
+      font-size: 1.05rem;
+      font-weight: 700;
+      color: #222222;
+    }
+    .ck-doc h4, .ck-doc-h4 {
+      margin: 16px 0 8px;
+      font-size: 0.98rem;
+      font-weight: 700;
+      color: #333333;
+    }
+    .ck-doc p {
+      margin: 10px 0;
+      line-height: 1.75;
+      text-align: justify;
+    }
+    .ck-doc ul, .ck-doc ol {
+      margin: 8px 0 12px;
+      padding-left: 1.5em;
+      line-height: 1.72;
+    }
+    .ck-doc li {
+      margin: 4px 0;
+    }
+    .ck-doc blockquote, .ck-quote {
+      margin: 10px 0 14px;
+      padding: 8px 14px;
+      background: #faf9f6;
+      border-left: 3.5px solid #222222;
+      border-radius: 2px;
+      color: #222222;
+      font-size: 0.92rem;
+      font-style: italic;
+    }
+    .ck-doc code {
+      background: #f3f0e8;
+      border: 1px solid #e2ddd3;
+      border-radius: 3px;
+      padding: 1px 6px;
+      font-family: "Latin Modern Mono", Consolas, monospace;
+      font-size: 0.88em;
+    }
+    .ck-doc table, .ck-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.88rem;
+      margin: 14px 0;
+      background: #ffffff;
+      border-top: 2px solid #222222;
+      border-bottom: 2px solid #222222;
+    }
+    .ck-doc table th, .ck-doc table td, .ck-table th, .ck-table td {
+      padding: 9px 12px;
+      text-align: left;
+      vertical-align: middle;
+      border-bottom: 1px solid #ede9e1;
+    }
+    .ck-doc table th, .ck-table th {
+      background: #fbfaf7;
+      border-bottom: 1.2px solid #222222;
+      font-weight: 700;
+      color: #111111;
+      letter-spacing: 0.3px;
+    }
+
+    /* Roomy & Spacious Academic Risk Table */
+    .ck-risk-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 18px 0 28px;
+      background: #ffffff;
+      border-top: 2.2px solid #111111;
+      border-bottom: 2.2px solid #111111;
+      font-size: 0.93rem;
+      line-height: 1.72;
+    }
+    .ck-risk-table th {
+      background: #faf8f5;
+      border-bottom: 1.5px solid #111111;
+      padding: 15px 16px;
+      font-weight: 700;
+      color: #111111;
+      letter-spacing: 0.3px;
+      text-align: left;
+      vertical-align: middle;
+    }
+    .ck-risk-table td {
+      padding: 16px 16px;
+      border-bottom: 1px solid #ede8e0;
+      vertical-align: top;
+      color: #1a1a1a;
+      word-break: break-word;
+    }
+    .ck-risk-table tr:nth-child(even) td {
+      background: #fdfcfb;
+    }
+    .ck-risk-table tr:hover td {
+      background: #f6f3eb;
+    }
+
+    /* Review Grid */
+    .ck-review {
+      display: grid;
+      grid-template-columns: minmax(0, 1.35fr) 1px minmax(260px, 0.95fr);
+      border: 1px solid #d4d0c7;
+      border-radius: 4px;
+      overflow: hidden;
+      margin: 14px 0 20px;
+      background: #ffffff;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.03);
+    }
+    .ck-review-left {
+      padding: 22px 26px;
+      background: #ffffff;
+      line-height: 1.75;
+    }
+    .ck-review-rule { background: #dcd8cf; }
+    .ck-review-right {
+      padding: 16px 18px;
+      background: #faf9f6;
+      box-sizing: border-box;
+      display: flex;
+      flex-direction: column;
+    }
+    .ck-ev-list {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    /* Entity Highlight in LaTeX Paper Style */
+    .ck-cite-entity {
+      background: #fff8db;
+      border-bottom: 1.5px solid #b86a04;
+      padding: 1px 4px;
+      border-radius: 2px;
+      cursor: pointer;
+      transition: all 0.18s ease;
+      color: #111111;
+      font-weight: 600;
+    }
+    .ck-cite-entity:hover {
+      background: #ffe58f;
+      color: #000000;
+    }
+    .ck-cite-entity.is-on {
+      background: #ffd54a;
+      border-bottom-color: #0047ab;
+      box-shadow: 0 0 0 2px rgba(0,71,171,0.25);
+    }
+
+    /* Blue Hyperref Citations [1], [2] */
+    .ck-cite-ref {
+      color: #0047ab;
+      font-weight: 600;
+      font-family: "Latin Modern Roman", "Computer Modern Roman", "Times New Roman", serif;
+      text-decoration: none;
+      cursor: pointer;
+      padding: 0 2px;
+      margin: 0 2px;
+      border-radius: 2px;
+      transition: all 0.15s ease;
+      font-size: 0.92em;
+      vertical-align: baseline;
+      user-select: none;
+    }
+    .ck-cite-ref:hover {
+      text-decoration: underline;
+      background: #e8f0fe;
+      color: #003380;
+    }
+    .ck-cite-ref.is-active {
+      background: #d2e3fc;
+      color: #002266;
+      font-weight: 700;
+      box-shadow: 0 0 0 1px #0047ab;
+    }
+
+    /* Right Memory Cards in LaTeX Paper Style */
+    .ck-provenance-head {
+      font-size: 0.82rem;
+      font-weight: 700;
+      color: #222222;
+      margin: 0 0 12px;
+      padding-bottom: 6px;
+      border-bottom: 1px solid #e0dcd4;
+      letter-spacing: 0.3px;
+      text-transform: uppercase;
+    }
+    .ck-ref-icon { color: #0047ab; margin-right: 4px; }
+    .ck-ev {
+      display: block;
+      margin: 0;
+      padding: 10px 12px;
+      border: 1px solid #dedad2;
+      border-left: 3.5px solid #0047ab;
+      border-radius: 2px;
+      background: #ffffff;
+      font-size: 0.82rem;
+      line-height: 1.55;
+      transition: all 0.2s ease;
+      cursor: pointer;
+    }
+    .ck-ev:hover { border-color: #b5b0a5; }
+    .ck-ev.is-on, .ck-ev.is-highlighted {
+      border-color: #0047ab;
+      box-shadow: 0 0 0 2px #0047ab, 0 3px 8px rgba(0,71,171,0.15);
+      background: #f0f5ff;
+    }
+    @keyframes citePulse {
+      0% { background: #dbeafe; box-shadow: 0 0 0 3px #0047ab; }
+      50% { background: #bfdbfe; box-shadow: 0 0 0 4px #0047ab; }
+      100% { background: #f0f5ff; box-shadow: 0 0 0 2px #0047ab; }
+    }
+    .ck-ev-k {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 0.75rem;
+      color: #444444;
+      margin-bottom: 5px;
+      font-weight: 700;
+    }
+    .ck-ev-cite-tag {
+      color: #0047ab;
+      font-weight: 700;
+      font-family: "Latin Modern Roman", serif;
+      text-decoration: none;
+    }
+    .ck-ev-kind-badge {
+      display: inline-block;
+      padding: 1px 6px;
+      border-radius: 2px;
+      font-size: 0.72rem;
+      font-weight: 600;
+      letter-spacing: 0.2px;
+    }
+    .ck-badge-keypoint {
+      border: 1px solid #0047ab;
+      color: #0047ab;
+      background: #f0f5ff;
+    }
+    .ck-badge-note {
+      border: 1px solid #b86a04;
+      color: #b86a04;
+      background: #fff8eb;
+    }
+    .ck-mem-title {
+      font-weight: 700;
+      color: #111111;
+      font-size: 0.88rem;
+      margin-bottom: 6px;
+      line-height: 1.45;
+    }
+    .ck-ev-quote {
+      color: #222222;
+      font-style: normal;
+      font-family: inherit;
+      margin: 4px 0 6px;
+      padding: 0;
+      background: transparent;
+      border: none;
+      line-height: 1.6;
+      font-size: 0.84rem;
+    }
+    .ck-ev-meta { font-size: 0.76rem; color: #666666; margin-top: 6px; }
+    .ck-ev-more {
+      margin-top: 2px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+    .ck-ev-more[open] { margin-top: 4px; }
+    .ck-ev-more summary { margin-bottom: 6px; }
+    .ck-proof-toggle {
+      cursor: pointer;
+      font-size: 0.82rem;
+      color: #0047ab;
+      user-select: none;
+      font-family: inherit;
+      padding: 2px 0;
+    }
+    .ck-proof-toggle:hover { text-decoration: underline; }
+
+    @media(max-width: 860px) {
+      .ck-doc { padding: 22px 18px; }
+      .ck-review { grid-template-columns: 1fr; }
+      .ck-review-rule { display: none; }
+    }
+
+
+    html {
+      scroll-behavior: smooth;
+    }
+
+    /* ── 全局共识罗盘与健康度 ── */
+    .executive-compass {
+      background: #ffffff;
+      border: 1px solid #e4e4e7;
+      border-radius: 4px;
+      padding: 24px 28px;
+      margin: 20px 0 32px;
+      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.02);
+    }
+    .compass-score-deck {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 20px;
+      padding-bottom: 20px;
+      border-bottom: 1px solid #f4f4f5;
+    }
+    @media (max-width: 700px) {
+      .compass-score-deck {
+        grid-template-columns: repeat(2, 1fr);
+      }
+    }
+    .score-card {
+      display: flex;
+      flex-direction: column;
+    }
+    .score-num {
+      font-size: 2rem;
+      font-weight: 700;
+      font-family: "Latin Modern Roman", Georgia, serif;
+      line-height: 1;
+      color: #18181b;
+    }
+    .score-card.score-hard .score-num { color: #18181b; }
+    .score-card.score-conditional .score-num { color: #27272a; }
+    .score-card.score-unresolved .score-num { color: #3f3f46; }
+    .score-label {
+      font-size: 0.72rem;
+      color: #71717a;
+      margin-top: 6px;
+      letter-spacing: 0.5px;
+      text-transform: uppercase;
+    }
+    .compass-nav-rail {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 8px;
+      padding: 14px 0;
+      border-bottom: 1px solid #f4f4f5;
+    }
+    .nav-rail-title {
+      font-size: 0.75rem;
+      font-weight: 700;
+      color: #71717a;
+      letter-spacing: 0.4px;
+      margin-right: 4px;
+    }
+    .nav-rail-item {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 4px 10px;
+      background: #fafafa;
+      border: 1px solid #e4e4e7;
+      border-radius: 3px;
+      font-size: 0.76rem;
+      color: #27272a;
+      text-decoration: none;
+      transition: all 0.15s ease;
+    }
+    .nav-rail-item:hover {
+      background: #f4f4f5;
+      border-color: #18181b;
+      color: #18181b;
+    }
+    .compass-diagnosis {
+      margin-top: 14px;
+      font-size: 0.88rem;
+      color: #3f3f46;
+      line-height: 1.65;
+    }
+    .compass-diagnosis strong {
+      color: #18181b;
+    }
+
+    /* ── 辩证因果脊柱流 (The Dialectic Decision Stream) ── */
+    .stream-section {
+      position: relative;
+      margin: 40px 0 54px;
+      padding-bottom: 24px;
+      border-bottom: 1px solid #e4e4e7;
+    }
+    .stream-section:last-child {
+      border-bottom: none;
+    }
+    .stream-header {
+      display: flex;
+      align-items: flex-start;
+      gap: 16px;
+      margin-bottom: 24px;
+      padding-bottom: 12px;
+      border-bottom: 1.5px solid #18181b;
+    }
+    .stream-seq {
+      font-family: "Latin Modern Roman", Georgia, serif;
+      font-size: 2rem;
+      font-weight: 700;
+      line-height: 1;
+      color: #18181b;
+      opacity: 0.85;
+      min-width: 36px;
+    }
+    .stream-header-info {
+      flex: 1;
+    }
+    .stream-meta-line {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 6px;
+    }
+    .stream-id {
+      font-size: 0.72rem;
+      font-weight: 700;
+      letter-spacing: 0.5px;
+      color: #71717a;
+      font-family: "Latin Modern Mono", Consolas, monospace;
+    }
+    .stream-topic {
+      margin: 0;
+      font-size: 1.28rem;
+      font-weight: 700;
+      color: #18181b;
+      line-height: 1.35;
+      letter-spacing: 0.2px;
+    }
+
+    /* 状态徽章 */
+    .badge-capsule {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      font-size: 0.72rem;
+      font-weight: 600;
+      padding: 2px 8px;
+      border-radius: 3px;
+      border: 1px solid transparent;
+      letter-spacing: 0.2px;
+    }
+    .badge-dot {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      display: inline-block;
+    }
+    .grade-hard { background: #f4f4f5; color: #18181b; border-color: #e4e4e7; }
+    .dot-hard { background: #18181b; }
+    .grade-conditional { background: #fafaf9; color: #44403c; border-color: #e7e5e4; }
+    .dot-conditional { background: #78716c; }
+    .grade-unresolved { background: #f8fafc; color: #334155; border-color: #cbd5e1; }
+    .dot-unresolved { background: #64748b; }
+    .grade-disagreement { background: #f4f4f5; color: #09090b; border-color: #a1a1aa; }
+    .dot-disagreement { background: #09090b; }
+    .badge-archetype { background: #fafafa; color: #52525b; border-color: #e4e4e7; }
+
+    /* ── 中轴脊柱线与节点 ── */
+    .stream-spine {
+      position: relative;
+      padding-left: 52px;
+      margin-top: 18px;
+    }
+    /* 纵贯中轴线 */
+    .stream-spine::before {
+      content: "";
+      position: absolute;
+      top: 14px;
+      bottom: 24px;
+      left: 18px;
+      width: 2px;
+      background: #e4e4e7;
+    }
+
+    .spine-node {
+      position: relative;
+      margin-bottom: 24px;
+    }
+    .spine-node:last-child {
+      margin-bottom: 0;
+    }
+
+    /* 竖线上的锚点圆圈 / 徽章 */
+    .spine-marker {
+      position: absolute;
+      left: -52px;
+      top: 2px;
+      width: 38px;
+      height: 38px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 2;
+    }
+
+    /* 节点 1：议题源起圆点 */
+    .marker-origin-dot {
+      width: 12px;
+      height: 12px;
+      border-radius: 50%;
+      background: #ffffff;
+      border: 2.5px solid #18181b;
+      box-shadow: 0 0 0 3px #ffffff;
+    }
+    .origin-card {
+      background: #fafaf9;
+      border-left: 3px solid #18181b;
+      padding: 10px 16px;
+      border-radius: 2px;
+    }
+    .origin-eyebrow {
+      font-size: 0.72rem;
+      font-weight: 700;
+      color: #18181b;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      margin-bottom: 3px;
+    }
+    .origin-narrative {
+      font-size: 0.86rem;
+      color: #3f3f46;
+      line-height: 1.6;
+    }
+
+    /* 节点 2 & 3：发言人观点圆点与卡片 */
+    .speaker-avatar-circle {
+      width: 30px;
+      height: 30px;
+      border-radius: 50%;
+      background: #ffffff;
+      border: 1.5px solid #18181b;
+      color: #18181b;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 0.8rem;
+      font-weight: 700;
+      font-family: "Songti SC", "SimSun", serif;
+      box-shadow: 0 0 0 3px #ffffff;
+    }
+    .speaker-avatar-circle.avatar-con {
+      border-color: #71717a;
+      color: #52525b;
+    }
+    .stance-card {
+      background: #ffffff;
+      border: 1px solid #e4e4e7;
+      border-radius: 3px;
+      padding: 14px 18px;
+    }
+    .node-pro .stance-card {
+      border-left: 3px solid #18181b;
+    }
+    .node-con .stance-card {
+      border-left: 3px solid #71717a;
+    }
+    .stance-card-header {
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-bottom: 8px;
+    }
+    .speaker-title-wrap {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .speaker-name-strong {
+      font-size: 0.95rem;
+      font-weight: 700;
+      color: #18181b;
+    }
+    .stance-role-tag {
+      font-size: 0.70rem;
+      padding: 1px 6px;
+      border-radius: 2px;
+      font-weight: 600;
+    }
+    .role-pro { background: #f4f4f5; color: #18181b; border: 1px solid #e4e4e7; }
+    .role-con { background: #fafafa; color: #52525b; border: 1px solid #e4e4e7; }
+    .stance-thesis {
+      font-size: 0.88rem;
+      font-weight: 600;
+      color: #18181b;
+      line-height: 1.55;
+      margin-bottom: 6px;
+    }
+    .argument-trail {
+      margin: 6px 0 8px;
+      padding-left: 18px;
+      font-size: 0.84rem;
+      color: #3f3f46;
+      line-height: 1.6;
+    }
+    .argument-trail li {
+      margin-bottom: 4px;
+    }
+    .verbatim-pullquote {
+      position: relative;
+      background: #fafaf9;
+      border-left: 2px solid #a1a1aa;
+      padding: 8px 12px;
+      margin-top: 8px;
+      font-size: 0.81rem;
+      color: #52525b;
+      font-style: italic;
+      line-height: 1.55;
+      border-radius: 0 2px 2px 0;
+    }
+
+    /* 节点 4：最终解决破局公约 (Convergence Hub) */
+    .marker-seal-circle {
+      width: 30px;
+      height: 30px;
+      border-radius: 50%;
+      background: #18181b;
+      border: 1.5px solid #18181b;
+      color: #ffffff;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 0.78rem;
+      font-weight: 700;
+      letter-spacing: 0.5px;
+      box-shadow: 0 0 0 3px #ffffff;
+    }
+    .accord-resolution-dossier {
+      background: #fafaf9;
+      border: 1px solid #e4e4e7;
+      border-left: 3.5px solid #18181b;
+      border-radius: 3px;
+      padding: 16px 20px;
+    }
+    .accord-top-eyebrow {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-bottom: 8px;
+      padding-bottom: 6px;
+      border-bottom: 1px solid #e4e4e7;
+    }
+    .accord-label-headline {
+      font-size: 0.76rem;
+      font-weight: 700;
+      color: #18181b;
+      letter-spacing: 0.5px;
+      text-transform: uppercase;
+    }
+    .accord-archetype-tag {
+      font-size: 0.72rem;
+      color: #71717a;
+      font-style: italic;
+    }
+    .accord-core-text {
+      font-size: 0.90rem;
+      color: #18181b;
+      line-height: 1.68;
+      font-weight: 500;
+    }
+    .ruling-quote-ribbon {
+      margin-top: 10px;
+      padding: 8px 12px;
+      background: #ffffff;
+      border: 1px solid #e4e4e7;
+      border-left: 2.5px solid #18181b;
+      font-size: 0.81rem;
+      color: #3f3f46;
+      line-height: 1.5;
+    }
+    .ruling-tag {
+      font-weight: 700;
+      color: #18181b;
+      margin-right: 6px;
+    }
+
+    /* 节点 5：防线、天平与红线 */
+    .marker-terminal-anchor {
+      width: 10px;
+      height: 10px;
+      background: #71717a;
+      border-radius: 2px;
+      box-shadow: 0 0 0 3px #ffffff, 0 0 0 4px #e4e4e7;
+    }
+    .safeguards-container {
+      background: #ffffff;
+      border: 1px solid #e4e4e7;
+      border-radius: 3px;
+      padding: 14px 18px;
+    }
+
+    /* 保留条件 */
+    .caveat-warning-strip {
+      background: #fafaf9;
+      border: 1px solid #e7e5e4;
+      border-left: 3px solid #78716c;
+      border-radius: 2px;
+      padding: 8px 12px;
+      margin-bottom: 12px;
+      font-size: 0.83rem;
+      color: #292524;
+      line-height: 1.55;
+    }
+    .caveat-warning-strip strong {
+      color: #1c1917;
+    }
+    .caveat-clean-strip {
+      background: #fafaf9;
+      border: 1px solid #e7e5e4;
+      border-radius: 2px;
+      padding: 6px 12px;
+      margin-bottom: 12px;
+      font-size: 0.81rem;
+      color: #52525b;
+    }
+
+    /* 得失天平双拼卡 */
+    .balance-scale-grid {
+      display: grid;
+      grid-template-columns: 1fr auto 1fr;
+      gap: 12px;
+      align-items: stretch;
+      margin: 10px 0;
+    }
+    @media (max-width: 650px) {
+      .balance-scale-grid {
+        grid-template-columns: 1fr;
+      }
+      .scale-pivot-cell {
+        display: none;
+      }
+    }
+    .scale-card-gain {
+      background: #fafaf9;
+      border: 1px solid #e4e4e7;
+      border-top: 2px solid #18181b;
+      border-radius: 2px;
+      padding: 10px 14px;
+    }
+    .scale-card-sacrifice {
+      background: #fafaf9;
+      border: 1px solid #e4e4e7;
+      border-top: 2px solid #71717a;
+      border-radius: 2px;
+      padding: 10px 14px;
+    }
+    .scale-pivot-cell {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 0.78rem;
+      font-family: "Latin Modern Roman", Georgia, serif;
+      font-style: italic;
+      color: #a1a1aa;
+      padding: 0 4px;
+    }
+    .scale-head-label {
+      font-size: 0.72rem;
+      font-weight: 700;
+      letter-spacing: 0.4px;
+      margin-bottom: 4px;
+      text-transform: uppercase;
+    }
+    .scale-card-gain .scale-head-label { color: #18181b; }
+    .scale-card-sacrifice .scale-head-label { color: #52525b; }
+    .scale-body-text {
+      font-size: 0.83rem;
+      color: #3f3f46;
+      line-height: 1.55;
+    }
+
+    /* 翻盘红线 */
+    .rollback-tripwire-bar {
+      margin-top: 10px;
+      padding: 8px 12px;
+      background: #fafaf9;
+      border: 1px solid #e4e4e7;
+      border-left: 2.5px solid #52525b;
+      border-radius: 2px;
+      font-size: 0.81rem;
+      color: #3f3f46;
+      line-height: 1.5;
+    }
+    .tripwire-label {
+      font-weight: 700;
+      color: #18181b;
+      margin-right: 6px;
+    }
+    
+  </style>
+</head>
+<body>
+  <main class="page">
+    <div class="ck-doc">
+      <header class="ck-doc-header">
+        <h1>共识决策</h1>
+        <div class="ck-doc-meta">麦肯锡决策备忘录规范 · 共识成色光谱 × 辩证因果脉络脊柱流</div>
+      </header>
+      <div class="ck-doc-content">
+        
+    <div class="executive-compass compass-container">
+      <div class="compass-score-deck">
+        <div class="score-card">
+          <div class="score-num">4</div>
+          <div class="score-label">深度研讨议题</div>
+        </div>
+        <div class="score-card score-hard">
+          <div class="score-num">2</div>
+          <div class="score-label">坚实硬共识 (Zero Caveat)</div>
+        </div>
+        <div class="score-card score-conditional">
+          <div class="score-num">1</div>
+          <div class="score-label">带保留妥协 (高危监控)</div>
+        </div>
+        <div class="score-card score-unresolved">
+          <div class="score-num">1</div>
+          <div class="score-label">未决暗礁 / 关切残留</div>
+        </div>
+      </div>
+      <div class="compass-nav-rail">
+        <span class="nav-rail-title">议题脉络导轨：</span>
+        <a class="nav-rail-item" href="#stream-ISS-01"><span class="badge-dot dot-conditional"></span><span>ISS-01 · 混凝土路面开裂成因分析与…</span></a><a class="nav-rail-item" href="#stream-ISS-02"><span class="badge-dot dot-hard"></span><span>ISS-02 · 人员履约与合同履约资料完…</span></a><a class="nav-rail-item" href="#stream-ISS-03"><span class="badge-dot dot-hard"></span><span>ISS-03 · 内业资料汇总与组卷规范</span></a><a class="nav-rail-item" href="#stream-ISS-04"><span class="badge-dot dot-unresolved"></span><span>ISS-04 · 不可预见费使用依据完善</span></a>
+      </div>
+      <div class="compass-diagnosis">
+        <strong>战略健康度总评：</strong>会议整体共识健康度较高，多数议题在验收组提出后由管理组和技术组当场承诺整改，形成闭合。但混凝土路面开裂成因未定，整改方案与复核闭环存在时间压力，且不可预见费使用依据待完善，构成后续执行的主要风险点。
+      </div>
+    </div>
+    
+        <h2 style="margin: 32px 0 20px; border-bottom: 2px solid #111111; padding-bottom: 6px;">
+          议题辩证推演与收敛脉络 (The Dialectic Decision Streams)
+        </h2>
+        
+        <section class="stream-section" id="stream-ISS-01">
+          <div class="stream-header">
+            <div class="stream-seq">01</div>
+            <div class="stream-header-info">
+              <div class="stream-meta-line">
+                <span class="stream-id">ISS-01</span>
+                <span class="badge-capsule grade-conditional">
+                  <span class="badge-dot dot-conditional"></span>
+                  带保留条件的妥协
+                </span>
+                <span class="badge-capsule badge-archetype">权威定夺型 · Authority Fiat</span>
+              </div>
+              <h3 class="stream-topic">混凝土路面开裂成因分析与整改闭环</h3>
+            </div>
+          </div>
+
+          <!-- 纵贯因果脊柱线 (The Dialectic Spine) -->
+          <div class="stream-spine duel-grid">
+
+            <!-- Node 1: 议题源起 -->
+            <div class="spine-node node-trigger">
+              <div class="spine-marker">
+                <div class="marker-origin-dot" title="议题起因"></div>
+              </div>
+              <div class="origin-card">
+                <div class="origin-eyebrow">议题源起与冲突动因 · Inception & Trigger</div>
+                <div class="origin-narrative">验收组在蒙泽厂区发现非主要通道混凝土路面有少量开裂现象，因项目完工不久即出现开裂，合作局领导担心移交外方后出现大面积开裂，影响对外形象。</div>
+              </div>
+            </div>
+
+            <!-- Node 2: 主张方博弈观点 -->
+            <div class="spine-node node-pro">
+              <div class="spine-marker">
+                <div class="speaker-avatar-circle" title="主张方: 发言者 6">发</div>
+              </div>
+              <div class="stance-card">
+                <div class="stance-card-header">
+                  <div class="speaker-title-wrap">
+                    <span class="speaker-name-strong">发言者 6</span>
+                    <span class="stance-role-tag role-pro">主张推进 · Proponent</span>
+                  </div>
+                </div>
+                <div class="stance-thesis">必须分析成因并制定科学整改方案</div>
+                <ul class="argument-trail">
+                  <li>施工完成没多长时间就出现开裂，需分析具体原因，结合赞比亚当地气候特点制定切实可行的整改方案。</li><li>若移交外方后很快再出现路面开裂，对外影响不好。</li><li>现在开裂可能只是很小一部分，其他部位可能存在隐患，需防止大面积开裂。</li>
+                </ul>
+                <div class="verbatim-pullquote">“对现场的这个管理组和总包单位还是要重视一下。因为这个这个施工完完成没多长时间，然后就出现了这个开裂。具体还是要分析一下它的这个原因。特别是结合赞比亚当地的这个气候特点，要制定一个就是切实可行的这个整改方案。”</div>
+              </div>
+            </div>
+
+            <!-- Node 3: 质询方/关切观点 -->
+            <div class="spine-node node-con">
+              <div class="spine-marker">
+                <div class="speaker-avatar-circle avatar-con" title="质询方: 发言者 1">发</div>
+              </div>
+              <div class="stance-card">
+                <div class="stance-card-header">
+                  <div class="speaker-title-wrap">
+                    <span class="speaker-name-strong">发言者 1</span>
+                    <span class="stance-role-tag role-con">审慎质询 · Interrogator</span>
+                  </div>
+                </div>
+                <div class="stance-thesis">开裂位置偏面积小，不影响整体评价</div>
+                <ul class="argument-trail">
+                  <li>开裂位置比较偏在角落里面，面积也不是很大。</li><li>最不利情况可以处理掉，绝不影响整个项目的最终评价。</li><li>将专题研究并追溯此事。</li>
+                </ul>
+                <div class="verbatim-pullquote">“这个下来我们这边会会同几个单位，再把我们过程中收集到的情况做一个专题的技术研究，因为位置呢也是比较偏的在角落里面。另外一个呢面积也不是很大，如果嗯嗯最不利的情况，我们就是把它弄了来个这个绝不影响整个项目的这个按照验收组的要求，我们也希望不能因为这个来影响整个项目的最终评价。”</div>
+              </div>
+            </div>
+
+            <!-- Node 4: 破局决议与终局公约 (Convergence Hub · 最终如何解决) -->
+            <div class="spine-node node-accord">
+              <div class="spine-marker">
+                <div class="marker-seal-circle" title="破局决议公约">决</div>
+              </div>
+              <div class="accord-resolution-dossier">
+                <div class="accord-top-eyebrow">
+                  <div class="accord-label-headline">
+                    破局决议与终局公约 · The Accord & Resolution
+                  </div>
+                  <div class="accord-archetype-tag">权威定夺型 · Authority Fiat</div>
+                </div>
+                <div class="accord-core-text">管理组和总包单位共同研究制定科学合理的整改方案，分析开裂成因，在出报告前完成整改，验收组进行复核，形成闭环。</div>
+                <div class="ruling-quote-ribbon"><span class="ruling-tag">现场定调决议：</span>“争取在咱们这个默思会之前，最迟要在咱们出报告之前要完成整改，咱们在报告里面要形成一个闭环，要给他闭口是的好吧？这个出报告之前完成整改之之后，咱们验收组还要进行一个复核。”</div>
+              </div>
+            </div>
+
+            <!-- Node 5: 履约防线、得失天平与翻盘红线 -->
+            <div class="spine-node node-safeguards">
+              <div class="spine-marker">
+                <div class="marker-terminal-anchor" title="执行保障与红线"></div>
+              </div>
+              <div class="safeguards-container">
+                
+            <div class="caveat-warning-strip">
+              <strong>附加保留条件与履约预警：</strong>开裂成因尚未确定，需结合当地气候、施工工艺、材料等因素分析；整改须在出报告前完成并经验收组复核，否则影响报告闭环。
+            </div>
+            
+                <div class="balance-scale-grid tradeoff-deck">
+                  <div class="scale-card-gain">
+                    <div class="scale-head-label">换取的核心价值 · Gain</div>
+                    <div class="scale-body-text">确保项目移交外方后路面质量可靠，避免大面积开裂带来的对外负面影响，保障项目最终评价不受影响。</div>
+                  </div>
+                  <div class="scale-pivot-cell">VS</div>
+                  <div class="scale-card-sacrifice">
+                    <div class="scale-head-label">承受的主动代价 · Sacrifice</div>
+                    <div class="scale-body-text">需投入额外时间和资源进行成因分析、方案制定与整改，可能压缩后续验收工作的时间窗口。</div>
+                  </div>
+                </div>
+                <div class="rollback-tripwire-bar">
+                  <span class="tripwire-label">翻盘回滚红线：</span>若出报告前未能完成整改并通过验收组复核，或整改后仍出现大面积开裂，则需重新评估整改方案并可能影响验收结论。
+                </div>
+              </div>
+            </div>
+
+          </div>
+        </section>
+        
+
+        <section class="stream-section" id="stream-ISS-02">
+          <div class="stream-header">
+            <div class="stream-seq">02</div>
+            <div class="stream-header-info">
+              <div class="stream-meta-line">
+                <span class="stream-id">ISS-02</span>
+                <span class="badge-capsule grade-hard">
+                  <span class="badge-dot dot-hard"></span>
+                  坚实质朴共识
+                </span>
+                <span class="badge-capsule badge-archetype">自然充分共识型 · Consensus</span>
+              </div>
+              <h3 class="stream-topic">人员履约与合同履约资料完善</h3>
+            </div>
+          </div>
+
+          <!-- 纵贯因果脊柱线 (The Dialectic Spine) -->
+          <div class="stream-spine duel-grid">
+
+            <!-- Node 1: 议题源起 -->
+            <div class="spine-node node-trigger">
+              <div class="spine-marker">
+                <div class="marker-origin-dot" title="议题起因"></div>
+              </div>
+              <div class="origin-card">
+                <div class="origin-eyebrow">议题源起与冲突动因 · Inception & Trigger</div>
+                <div class="origin-narrative">验收组检查发现，受疫情和EPC项目特点影响，个别人员进出场时间、护照、特种人员证件有效期等资料不完善，人员统计未包含厂家服务人员。</div>
+              </div>
+            </div>
+
+            <!-- Node 2: 主张方博弈观点 -->
+            <div class="spine-node node-pro">
+              <div class="spine-marker">
+                <div class="speaker-avatar-circle" title="主张方: 发言者 1">发</div>
+              </div>
+              <div class="stance-card">
+                <div class="stance-card-header">
+                  <div class="speaker-title-wrap">
+                    <span class="speaker-name-strong">发言者 1</span>
+                    <span class="stance-role-tag role-pro">主张推进 · Proponent</span>
+                  </div>
+                </div>
+                <div class="stance-thesis">需完善人员履约资料并闭合</div>
+                <ul class="argument-trail">
+                  <li>受疫情和EPC项目特点影响，个别人员进出场时间、护照等需完善。</li><li>人员统计数量未包含厂家服务人员，应计入团队人员。</li><li>个别特种人员证件有效期需与国内人力资源对接完善。</li>
+                </ul>
+                <div class="verbatim-pullquote">“可能对个别同志的进出场时间以及护照和这个呢还需要施工部和管理组进一步的来完善和提高，以期让我们在整个验收报告的时候呢能够达到一个闭合条件。”</div>
+              </div>
+            </div>
+
+            <!-- Node 3: 质询方/关切观点 -->
+            <div class="spine-node node-con">
+              <div class="spine-marker">
+                <div class="speaker-avatar-circle avatar-con" title="质询方: 发言者 4">发</div>
+              </div>
+              <div class="stance-card">
+                <div class="stance-card-header">
+                  <div class="speaker-title-wrap">
+                    <span class="speaker-name-strong">发言者 4</span>
+                    <span class="stance-role-tag role-con">审慎质询 · Interrogator</span>
+                  </div>
+                </div>
+                <div class="stance-thesis">已开展人员资料收集工作</div>
+                <ul class="argument-trail">
+                  <li>人员统计和护照统计工作已在开展。</li><li>正在加紧收集所有参与项目现场人员（包括后台国内同志）的护照证书。</li>
+                </ul>
+                <div class="verbatim-pullquote">“涉及到人员的统计和护照的统列的统计。呢我们现在已经在开展这项工作，因为随着这个验收过程嘛，我们有些后台的同志国内同志我们也在加紧的把这收集所有参与我们项目到我们现场的人员的这个护照证书1、1收集。”</div>
+              </div>
+            </div>
+
+            <!-- Node 4: 破局决议与终局公约 (Convergence Hub · 最终如何解决) -->
+            <div class="spine-node node-accord">
+              <div class="spine-marker">
+                <div class="marker-seal-circle" title="破局决议公约">决</div>
+              </div>
+              <div class="accord-resolution-dossier">
+                <div class="accord-top-eyebrow">
+                  <div class="accord-label-headline">
+                    破局决议与终局公约 · The Accord & Resolution
+                  </div>
+                  <div class="accord-archetype-tag">自然充分共识型 · Consensus</div>
+                </div>
+                <div class="accord-core-text">执行单位与国内人力资源对接，完善人员履约资料，统计所有参与人员（含厂家服务人员），确保验收报告闭合。</div>
+                <div class="ruling-quote-ribbon"><span class="ruling-tag">现场定调决议：</span>“可能对个别同志的进出场时间以及护照和这个呢还需要施工部和管理组进一步的来完善和提高，以期让我们在整个验收报告的时候呢能够达到一个闭合条件。”</div>
+              </div>
+            </div>
+
+            <!-- Node 5: 履约防线、得失天平与翻盘红线 -->
+            <div class="spine-node node-safeguards">
+              <div class="spine-marker">
+                <div class="marker-terminal-anchor" title="执行保障与红线"></div>
+              </div>
+              <div class="safeguards-container">
+                
+            <div class="caveat-clean-strip">
+              全员无附加保留条件，逻辑闭环对齐
+            </div>
+            
+                <div class="balance-scale-grid tradeoff-deck">
+                  <div class="scale-card-gain">
+                    <div class="scale-head-label">换取的核心价值 · Gain</div>
+                    <div class="scale-body-text">确保人员履约资料完整闭合，满足验收报告要求，避免因资料不全影响项目验收结论。</div>
+                  </div>
+                  <div class="scale-pivot-cell">VS</div>
+                  <div class="scale-card-sacrifice">
+                    <div class="scale-head-label">承受的主动代价 · Sacrifice</div>
+                    <div class="scale-body-text">需投入人力与时间收集、核对人员信息，可能涉及与国内人力资源部门的跨时区协调。</div>
+                  </div>
+                </div>
+                <div class="rollback-tripwire-bar">
+                  <span class="tripwire-label">翻盘回滚红线：</span>无明确翻盘红线。
+                </div>
+              </div>
+            </div>
+
+          </div>
+        </section>
+        
+
+        <section class="stream-section" id="stream-ISS-03">
+          <div class="stream-header">
+            <div class="stream-seq">03</div>
+            <div class="stream-header-info">
+              <div class="stream-meta-line">
+                <span class="stream-id">ISS-03</span>
+                <span class="badge-capsule grade-hard">
+                  <span class="badge-dot dot-hard"></span>
+                  坚实质朴共识
+                </span>
+                <span class="badge-capsule badge-archetype">自然充分共识型 · Consensus</span>
+              </div>
+              <h3 class="stream-topic">内业资料汇总与组卷规范</h3>
+            </div>
+          </div>
+
+          <!-- 纵贯因果脊柱线 (The Dialectic Spine) -->
+          <div class="stream-spine duel-grid">
+
+            <!-- Node 1: 议题源起 -->
+            <div class="spine-node node-trigger">
+              <div class="spine-marker">
+                <div class="marker-origin-dot" title="议题起因"></div>
+              </div>
+              <div class="origin-card">
+                <div class="origin-eyebrow">议题源起与冲突动因 · Inception & Trigger</div>
+                <div class="origin-narrative">验收组检查发现内业资料基本满足标准，但分类整理和签字规范性需完善，且三个厂区资料分散，需汇总至卢萨卡组卷。</div>
+              </div>
+            </div>
+
+            <!-- Node 2: 主张方博弈观点 -->
+            <div class="spine-node node-pro">
+              <div class="spine-marker">
+                <div class="speaker-avatar-circle" title="主张方: 发言者 1">发</div>
+              </div>
+              <div class="stance-card">
+                <div class="stance-card-header">
+                  <div class="speaker-title-wrap">
+                    <span class="speaker-name-strong">发言者 1</span>
+                    <span class="stance-role-tag role-pro">主张推进 · Proponent</span>
+                  </div>
+                </div>
+                <div class="stance-thesis">需按规范汇总组卷并完善签字</div>
+                <ul class="argument-trail">
+                  <li>内业资料基本满足要求，但分类整理和签字规范性需完善。</li><li>竣工文件需汇总至卢萨卡组卷，按归档要求分类成册。</li><li>验收组可协助补充完善。</li>
+                </ul>
+                <div class="verbatim-pullquote">“请我们执行单位抓紧按照这个项目执行的有关标准和规范，包括国家的有关规范，来及及时把这个资料汇总到卢萨卡，分类成册，按照竣工文件的这个这归档要求来及时组卷。”</div>
+              </div>
+            </div>
+
+            <!-- Node 3: 质询方/关切观点 -->
+            <div class="spine-node node-con">
+              <div class="spine-marker">
+                <div class="speaker-avatar-circle avatar-con" title="质询方: 发言者 4">发</div>
+              </div>
+              <div class="stance-card">
+                <div class="stance-card-header">
+                  <div class="speaker-title-wrap">
+                    <span class="speaker-name-strong">发言者 4</span>
+                    <span class="stance-role-tag role-con">审慎质询 · Interrogator</span>
+                  </div>
+                </div>
+                <div class="stance-thesis">承诺验收后第一时间汇总资料</div>
+                <ul class="argument-trail">
+                  <li>将严格按照验收组专家要求及援外项目执行手册管理办法规定。</li><li>在验收完成第一时间将三个厂区资料全部汇总至卢萨卡，包括竣工图，分类组卷及编码。</li>
+                </ul>
+                <div class="verbatim-pullquote">“我们一定严格按照验收组专家的要求及这个援外援外项目执行手册管理办法的规定，在验收完成第一时间第一时间将三个厂区的资料全部汇汇总于卢萨卡，包括竣工图进行分类汇总，分类组卷及编码。”</div>
+              </div>
+            </div>
+
+            <!-- Node 4: 破局决议与终局公约 (Convergence Hub · 最终如何解决) -->
+            <div class="spine-node node-accord">
+              <div class="spine-marker">
+                <div class="marker-seal-circle" title="破局决议公约">决</div>
+              </div>
+              <div class="accord-resolution-dossier">
+                <div class="accord-top-eyebrow">
+                  <div class="accord-label-headline">
+                    破局决议与终局公约 · The Accord & Resolution
+                  </div>
+                  <div class="accord-archetype-tag">自然充分共识型 · Consensus</div>
+                </div>
+                <div class="accord-core-text">执行单位在验收完成后第一时间将三个厂区资料（含竣工图）汇总至卢萨卡，分类组卷及编码，按国家规范归档。</div>
+                <div class="ruling-quote-ribbon"><span class="ruling-tag">现场定调决议：</span>“请我们执行单位抓紧按照这个项目执行的有关标准和规范，包括国家的有关规范，来及及时把这个资料汇总到卢萨卡，分类成册，按照竣工文件的这个这归档要求来及时组卷。”</div>
+              </div>
+            </div>
+
+            <!-- Node 5: 履约防线、得失天平与翻盘红线 -->
+            <div class="spine-node node-safeguards">
+              <div class="spine-marker">
+                <div class="marker-terminal-anchor" title="执行保障与红线"></div>
+              </div>
+              <div class="safeguards-container">
+                
+            <div class="caveat-clean-strip">
+              全员无附加保留条件，逻辑闭环对齐
+            </div>
+            
+                <div class="balance-scale-grid tradeoff-deck">
+                  <div class="scale-card-gain">
+                    <div class="scale-head-label">换取的核心价值 · Gain</div>
+                    <div class="scale-body-text">确保竣工资料完整规范，满足验收报告和后续归档要求，避免因资料问题影响项目移交。</div>
+                  </div>
+                  <div class="scale-pivot-cell">VS</div>
+                  <div class="scale-card-sacrifice">
+                    <div class="scale-head-label">承受的主动代价 · Sacrifice</div>
+                    <div class="scale-body-text">需投入人力进行资料整理、汇总和编码，可能占用其他整改工作的时间。</div>
+                  </div>
+                </div>
+                <div class="rollback-tripwire-bar">
+                  <span class="tripwire-label">翻盘回滚红线：</span>无明确翻盘红线。
+                </div>
+              </div>
+            </div>
+
+          </div>
+        </section>
+        
+
+        <section class="stream-section" id="stream-ISS-04">
+          <div class="stream-header">
+            <div class="stream-seq">04</div>
+            <div class="stream-header-info">
+              <div class="stream-meta-line">
+                <span class="stream-id">ISS-04</span>
+                <span class="badge-capsule grade-unresolved">
+                  <span class="badge-dot dot-unresolved"></span>
+                  未被采纳的关切
+                </span>
+                <span class="badge-capsule badge-archetype">自然充分共识型 · Consensus</span>
+              </div>
+              <h3 class="stream-topic">不可预见费使用依据完善</h3>
+            </div>
+          </div>
+
+          <!-- 纵贯因果脊柱线 (The Dialectic Spine) -->
+          <div class="stream-spine duel-grid">
+
+            <!-- Node 1: 议题源起 -->
+            <div class="spine-node node-trigger">
+              <div class="spine-marker">
+                <div class="marker-origin-dot" title="议题起因"></div>
+              </div>
+              <div class="origin-card">
+                <div class="origin-eyebrow">议题源起与冲突动因 · Inception & Trigger</div>
+                <div class="origin-narrative">验收组在检查中发现项目有动用不可预见费的情况，但相关依据证据和数据需进一步完善，首次会议已提及此问题。</div>
+              </div>
+            </div>
+
+            <!-- Node 2: 主张方博弈观点 -->
+            <div class="spine-node node-pro">
+              <div class="spine-marker">
+                <div class="speaker-avatar-circle" title="主张方: 发言者 1">发</div>
+              </div>
+              <div class="stance-card">
+                <div class="stance-card-header">
+                  <div class="speaker-title-wrap">
+                    <span class="speaker-name-strong">发言者 1</span>
+                    <span class="stance-role-tag role-pro">主张推进 · Proponent</span>
+                  </div>
+                </div>
+                <div class="stance-thesis">需完善不可预见费使用依据</div>
+                <ul class="argument-trail">
+                  <li>不可预见费原则上是在原合同、原设计、原投资控制基础上增加动用，依据证据和数据必须充分无误。</li><li>验收组已开展相关工作，后续将继续跟踪完善。</li><li>将与施工单位专门对接。</li>
+                </ul>
+                <div class="verbatim-pullquote">“因为不可预见费的原则上是在原合同原设计这个原投资控制的基础上，要增加动用这个费用，所以呢有关的依据证据和数据呢都要必须做到充分无误。”</div>
+              </div>
+            </div>
+
+            <!-- Node 3: 质询方/关切观点 -->
+            <div class="spine-node node-con">
+              <div class="spine-marker">
+                <div class="speaker-avatar-circle avatar-con" title="质询方: 发言者 6">发</div>
+              </div>
+              <div class="stance-card">
+                <div class="stance-card-header">
+                  <div class="speaker-title-wrap">
+                    <span class="speaker-name-strong">发言者 6</span>
+                    <span class="stance-role-tag role-con">审慎质询 · Interrogator</span>
+                  </div>
+                </div>
+                <div class="stance-thesis">可在末次汇报再沟通</div>
+                <ul class="argument-trail">
+                  <li>更多情况可放在末次汇报进行沟通。</li><li>未对不可预见费使用提出具体异议。</li>
+                </ul>
+                <div class="verbatim-pullquote">“好的，更多的情况咱们可以放在末次汇报，包括不可预见费什么的，放在末次汇咱们可以再进行一个沟通。”</div>
+              </div>
+            </div>
+
+            <!-- Node 4: 破局决议与终局公约 (Convergence Hub · 最终如何解决) -->
+            <div class="spine-node node-accord">
+              <div class="spine-marker">
+                <div class="marker-seal-circle" title="破局决议公约">决</div>
+              </div>
+              <div class="accord-resolution-dossier">
+                <div class="accord-top-eyebrow">
+                  <div class="accord-label-headline">
+                    破局决议与终局公约 · The Accord & Resolution
+                  </div>
+                  <div class="accord-archetype-tag">自然充分共识型 · Consensus</div>
+                </div>
+                <div class="accord-core-text">验收组后续将专门对接不可预见费使用事宜，完善依据证据和数据，并在末次汇报中进一步沟通。</div>
+                <div class="ruling-quote-ribbon"><span class="ruling-tag">现场定调决议：</span>“因为不可预见费的原则上是在原合同原设计这个原投资控制的基础上，要增加动用这个费用，所以呢有关的依据证据和数据呢都要必须做到充分无误。”</div>
+              </div>
+            </div>
+
+            <!-- Node 5: 履约防线、得失天平与翻盘红线 -->
+            <div class="spine-node node-safeguards">
+              <div class="spine-marker">
+                <div class="marker-terminal-anchor" title="执行保障与红线"></div>
+              </div>
+              <div class="safeguards-container">
+                
+            <div class="caveat-warning-strip">
+              <strong>附加保留条件与履约预警：</strong>不可预见费使用的依据证据和数据尚未完善，存在合规性风险，需在后续对接中闭环。
+            </div>
+            
+                <div class="balance-scale-grid tradeoff-deck">
+                  <div class="scale-card-gain">
+                    <div class="scale-head-label">换取的核心价值 · Gain</div>
+                    <div class="scale-body-text">确保不可预见费使用合规，依据充分，避免后续审计或验收问题。</div>
+                  </div>
+                  <div class="scale-pivot-cell">VS</div>
+                  <div class="scale-card-sacrifice">
+                    <div class="scale-head-label">承受的主动代价 · Sacrifice</div>
+                    <div class="scale-body-text">需投入额外时间收集整理依据，可能影响验收报告出具进度。</div>
+                  </div>
+                </div>
+                <div class="rollback-tripwire-bar">
+                  <span class="tripwire-label">翻盘回滚红线：</span>无明确翻盘红线。
+                </div>
+              </div>
+            </div>
+
+          </div>
+        </section>
+        
+      </div>
+    </div>
+  </main>
+</body>
+</html>
