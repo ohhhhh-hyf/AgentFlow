@@ -42,13 +42,13 @@ SCALAR_BASELINE_BY_DIR: dict[str, dict[str, int]] = {
         "retrospective_session": 4, "site_visit_tour": 4, "special_lecture": 4,
         "team_meeting": 3, "workshop_session": 4,
     },
-    # v3 的结构优化改了几处栏位形态（general_minutes 由 6 个槽位改成 2 栏），故单独记一份。
+    # v3 的结构优化改了几处栏位形态（general_minutes 由 6 个槽位改成 2 栏，2026-09 又补「分段速览」成 3 栏），故单独记一份。
     # court_transcript / hiring_report / project_progress 另有"表格栏说明"行（紧跟表格的
     # `[按下表逐行填写…]`）不计入字段——它们没有正文位，明细由表格承载（见 test_table_caption_*）。
     "template_v3": {
         "class_transcript": 4, "clinical_advisory": 4, "contract_vetting": 4,
         "conversation_transcript": 4, "court_transcript": 3, "debate_forum": 4,
-        "decision_review": 4, "exchange_forum": 4, "general_minutes": 2,
+        "decision_review": 4, "exchange_forum": 4, "general_minutes": 3,
         "government_bulletin": 3, "group_seminar": 4, "hiring_report": 2,
         "home_school_liaison": 4, "interview_debrief": 4, "interview_transcript": 3,
         "knowledge_memo": 3, "legal_advisory": 4, "media_briefing": 4,
@@ -331,7 +331,7 @@ BODY_CAPTION_TPL = (
 def test_table_caption_not_a_field() -> None:
     """表格栏说明：不进字段清单、不打印正文位、不吃掉其它字段的值。
 
-    背景（2026-09，sample.xlsx 实测）：`[按下表逐行填写…]` 紧跟表格时被当成必填正文字段，
+    背景（2026-09，now.xlsx 实测）：`[按下表逐行填写…]` 紧跟表格时被当成必填正文字段，
     模型把明细全写进表格后只能填「未提及」→ 产出「标题 + 未提及 + 九行表格」的自相矛盾形态
     （项目进度会的进度追踪/风险预警、面试报告的能力评估）；庭审记录则把诉辩表改写成散文。
     """
@@ -457,7 +457,7 @@ TEMPLATE_SHAPE_SNIPPETS = {
     "group_seminar": "没有统一意见时写本场达成的倾向性认识与主要分歧点",
     # 场景适配（2026-09 第二批）：知识点必须 `- `、建议必须汇总、摘要单段上限、空栏目正当写法
     "class_transcript": "不得写成连续段落",
-    "general_minutes": "单段不超过约 200 字",
+    "general_minutes": "每段不超过 400 字",
     "personal_memo": "不要写「未提及」",
     "psychological_session": "不强行总结结论",
 }
@@ -693,10 +693,12 @@ def test_overview_cap_and_column_scope() -> None:
     ):
         check(f"{label}：概括栏上限口径到位",
               "最多 3 段、每段不超过 400 字" in text or "单段不超过 400 字" in text, "")
-    check("装配 system prompt：一栏只写自己的事",
-          "一栏只写自己的事" in fill_system and "同一事实在整篇里原则上只出现一次" in fill_system, "")
-    check("装配 user 消息：一栏只写自己的事",
-          "一栏只写自己的事" in user and "不得在概括栏复述" in user, "")
+    check("装配 system prompt：一栏只写自己的事（结论/速览栏可再现）",
+          "一栏只写自己的事" in fill_system
+          and "速览栏按各自用途可再次呈现同一事实" in fill_system, "")
+    check("装配 user 消息：一栏只写自己的事（结论/速览栏可再现）",
+          "一栏只写自己的事" in user
+          and "速览栏按各自用途可再次呈现同一事实" in user, "")
     check("篇幅口径只管整篇总量（不再压过单栏上限）",
           "这一条只管整篇总量" in fill_system, "")
 
@@ -759,6 +761,44 @@ def test_default_word_precedence() -> None:
         )
     stale = [k for k in ("无则「未明确」", "缺内容直接写「未提及」") if k in fill_system or k in user]
     check("通用层不再强推单一缺省词（旧写法已清除）", not stale, f"残留={stale}")
+
+
+def test_general_minutes_speedread() -> None:
+    """通用纪要：补「分段速览」承载位（按时间/板块维度再现，不算重复），200 字上限统一到 400。
+
+    回归背景（now.xlsx 对比）：同一场 ASR 周会，基线 1628 字里有「段落速览」——按时间段把要点
+    再讲一遍（时间维度，不是主题重复）；我们只有 [全文摘要]+[要点梳理] 两栏 → 1061 字且缺时间维度。
+    """
+    from tools.template_router._base import (
+        split_template_meta,
+        wrap_template_requirement,
+    )
+    from tools.template_router._placeholder import plan_placeholder_fill
+    from tools.templates.template_eval import parse_section_char_budgets
+
+    raw = (_active_dir() / "general_minutes.md").read_text(encoding="utf-8")
+    body, req = split_template_meta(raw)
+    lines = body.splitlines()
+    for i, line in enumerate(lines):
+        if line.startswith("# "):
+            lines = lines[i + 1 :]
+            break
+    tpl = wrap_template_requirement("\n".join(lines).strip(), req)
+
+    plan = plan_placeholder_fill(tpl)
+    hints = [str(s.get("hint") or "") for s in plan["scalars"]]
+    check("通用纪要：摘要/要点/速览三栏都在", len(plan["scalars"]) >= 3, f"字段数={len(plan['scalars'])}")
+    check("通用纪要：新增「分段速览」栏（按推进顺序）",
+          any("推进顺序" in h and "时间段" in h for h in hints), f"{hints}")
+    budgets = parse_section_char_budgets(tpl)
+    check("通用纪要：摘要上限统一到 400 字/段",
+          any(b["hi"] == 400 and b.get("scope") == "paragraph" for b in budgets), f"{budgets}")
+    leftover = [
+        p.stem
+        for p in _active_dir().glob("*.md")
+        if "单段不超过约 200 字" in p.read_text(encoding="utf-8")
+    ]
+    check("模板目录不再有「单段不超过约 200 字」", not leftover, f"残留={leftover}")
 
 
 def test_fallback_text_dedupe() -> None:
@@ -849,6 +889,7 @@ def main() -> int:
         test_minutes_chain_consistency()
         test_understanding_trim_lists()
         test_overview_cap_and_column_scope()
+        test_general_minutes_speedread()
         test_section_char_budget_scope()
         test_default_word_precedence()
         test_supervisor_unavailable_flow()
