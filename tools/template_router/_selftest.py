@@ -1167,8 +1167,12 @@ def test_interview_and_lecture_overview() -> None:
         check(f"{name}：概况栏尺寸写进模板（约 250–400 字）", "约 250–400 字" in text, "")
     check("采访记录：概况栏边界（不展开论据细节，归 [访谈详细记录]）",
           "不展开受访者的论据与细节（那是 [访谈详细记录] 的事）" in interview, "")
-    check("专题讲座：概况栏边界（只写主张与结论，归 [核心观点与论证]）",
-          "只写主张与结论" in lecture and "本栏不复述" in lecture, "")
+    check("专题讲座：概况栏边界（论证与论据清单归 [核心观点与论证]）",
+          "论证过程与论据清单归 [核心观点与论证]" in lecture and "不逐条复述论点" in lecture, "")
+    check("专题讲座：概况栏补落点要素（问题意识/由头 + 对听众的意义）",
+          "为什么讲这个、面向谁" in lecture and "对听众的意义或适用对象" in lecture, "")
+    check("专题讲座：锚点要求解开（案例可作锚点，但不展开细节）",
+          "案例或专名作锚点" in lecture and "不展开细节" in lecture, "")
     # 承载栏「细节落地」：源里的数字/年份/案例/过程此前被压成一条条 60–90 字的主张
     check("专题讲座：[核心观点与论证] 要求多条论据各占一条（不压成一条）",
           "就各占一条，不要压成一条" in lecture, "")
@@ -1255,14 +1259,14 @@ def test_conversation_and_seminar_enrichment() -> None:
     conv = (_active_dir() / "conversation_transcript.md").read_text(encoding="utf-8")
     semi = (_active_dir() / "group_seminar.md").read_text(encoding="utf-8")
 
-    for name, text, lead in (
-        ("对话记录", conv, "本场的核心观点或结论 1–3 条"),
-        ("小组讨论", semi, "本场达成的倾向性认识或主要分歧 1–2 条"),
+    for name, text, lead, anchor, bound in (
+        ("对话记录", conv, "倾向与差异对照", "值得记的数字或具体事例", "不逐条复述各方发言"),
+        ("小组讨论", semi, "讨论的整体倾向或是否有结论", "作锚点", "不展开各方发言明细"),
     ):
         check(f"{name}：首栏补结论型要素", lead in text, "")
         check(f"{name}：首栏声明尺寸（约 250–400 字）", "约 250–400 字" in text, "")
-        check(f"{name}：首栏要素含锚点要求", "作锚点" in text, "")
-        check(f"{name}：首栏带防越栏边界", "不展开" in text, "")
+        check(f"{name}：首栏要素含锚点要求", anchor in text, "")
+        check(f"{name}：首栏带防越栏边界", bound in text, "")
 
     check("对话记录：新增 [关键原话] 栏（3–8 句、逐字）",
           "# [关键原话]" in conv and "3–8 句" in conv and "不改字、不合并" in conv, "")
@@ -1272,8 +1276,25 @@ def test_conversation_and_seminar_enrichment() -> None:
           "本栏不夹引用" in conv and "原话统一放 [关键原话]" in conv, "")
     check("对话记录：[交流内容] 要求细节落地（不只写主张）",
           "都要落进对应条目，不要只写主张" in conv, "")
+    check("对话记录：[交流内容] 每位发言人各占一条缩进子条（合并只限同一次发言）",
+          "每位发言人的说法各占一条缩进子条" in conv and "同一次发言的碎片合并成一条" in conv
+          and "不要把多位发言人塞进同一条" in conv, "")
     check("对话记录：[共识与分歧] 补尺寸（约 150–300 字）与理由",
           "约 150–300 字" in conv and "各方立场与理由" in conv, "")
+    check("对话记录：[共识与分歧] 改为判断层（一致性/分歧性质/倾向与依据）",
+          "由事实得出的判断" in conv and "分歧的性质" in conv and "本场的倾向与依据" in conv, "")
+    check("对话记录：[共识与分歧] 禁止复述各人事实（明细归 [交流内容]）",
+          "不要复述各人分别带什么、认为什么（事实明细归 [交流内容]）" in conv, "")
+    check("对话记录：[对话概况] 场合关系与来龙去脉（不写「无明确身份信息」）",
+          "可推断的场合或关系" in conv and "不要写「无明确身份信息」" in conv
+          and "为什么聊起这个话题、话题走向" in conv, "")
+    check("对话记录：[对话概况] 差异对照 + 数字/事例 + 不逐条复述",
+          "倾向与差异对照" in conv and "值得记的数字或具体事例" in conv
+          and "不逐条复述各方发言（明细归 [交流内容]，原话归 [关键原话]）" in conv, "")
+    check("小组讨论：[讨论议题与背景] ④ 降级为点题、明细归 [共识形成]（治六成以上重复）",
+          "一致与分歧的明细归 [共识形成]，本栏不复述" in semi, "")
+    check("小组讨论：[讨论议题与背景] 新增「为什么现在讨论这个」与「讨论怎么推进的」",
+          "为什么现在讨论这个" in semi and "讨论怎么推进的" in semi, "")
     check("小组讨论：[共识形成] 扩为双侧（一致意见 + 倾向性认识/主要分歧）",
           "一致意见或产出" in semi and "谁与谁不一致、分歧在哪" in semi
           and "没有统一意见时写本场达成的倾向性认识与主要分歧点" in semi, "")
@@ -1349,6 +1370,30 @@ def test_qa_precision_rules() -> None:
     bullet = "# 媒体问答\n\n# 核心提问与回应\n- **要点**：" + long_ans + "\n"
     check("`- ` 条目行仍不受段落上限管辖（交给条目规则）",
           not split_overlong_paragraphs(bullet, tpl)[1], "")
+
+
+def test_project_progress_overview() -> None:
+    """项目进度会 [项目概况]：删掉不可校验的句数口径，换成可解析的字数区间 + 可执行边界。
+
+    回归背景（2026-09 now.xlsx）：该栏同时挂着"只写 3–6 句"（无程序检查、且句数不是篇幅指标）
+    与"每段不超过 400 字"（可解析、超 480 会拆行）——模型只认后者，写成了 6 段 1317 汉字
+    （27 句），且与 [进度追踪] 表格的 4-gram 重合 26%（复述明细）。
+    """
+    text = (_active_dir() / "project_progress.md").read_text(encoding="utf-8")
+    specs = [l.strip() for l in text.splitlines() if l.strip().startswith("[") and l.strip().endswith("]")]
+    overview = next((s for s in specs if "一段话概览" in s), "")
+    check("项目进度会：概况栏改为可解析的字数区间（约 400–600 字）", "约 400–600 字" in overview, f"{overview[:60]}")
+    check("项目进度会：概况栏限段数与段长（最多 3 段、每段不超过 300 字）",
+          "最多 3 段" in overview and "每段不超过 300 字" in overview, "")
+    check("项目进度会：旧的句数口径已删除（3–6 句不再出现）",
+          "3–6 句" not in text and "句概览" not in text, "")
+    check("项目进度会：边界写成可执行的「只写进某两栏 + 本栏不复述」",
+          "只写进 [进度追踪] / [风险预警] 两栏" in overview and "本栏不复述" in overview, "")
+    from tools.templates.template_eval import parse_section_char_budgets
+
+    caps = [b for b in parse_section_char_budgets(text) if b["title"] == "项目概况"]
+    check("项目进度会：概况栏预算可解析（400–600）",
+          bool(caps) and caps[0]["lo"] == 400 and caps[0]["hi"] == 600, f"{caps}")
 
 
 def test_product_launch_overview() -> None:
@@ -1520,6 +1565,7 @@ def main() -> int:
         test_reject_hardening()
         test_conversation_and_seminar_enrichment()
         test_qa_precision_rules()
+        test_project_progress_overview()
         test_product_launch_overview()
         test_retro_annual_groups()
         test_fallback_text_dedupe()
