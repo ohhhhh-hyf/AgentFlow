@@ -578,6 +578,10 @@ class _Nodes(DomainNodes):
         # 纪要成段需要原文细节；溯源/多样式/导图/共识决策同样需要原文。其它线优先依赖 evidence。
         if line_name in {"minutes", "minutes_trace", "minutes_styles", "mindmap", "consensus_decision"}:
             parts.append(f"会议原文：\n{state.get('transcript') or ''}")
+        if line_name in {"minutes", "minutes_styles"}:
+            budget = self._length_budget_line(state, line_name)
+            if budget:
+                parts.append(budget)
         return "\n\n".join(parts)
 
     def _make_agent_node(self, line_name: str):
@@ -658,6 +662,9 @@ class _Nodes(DomainNodes):
         memory = str(sub.get("memory_context") or "").strip()
         if memory:
             blocks.append(memory)
+        budget = self._length_budget_line(state, line_name)
+        if budget:
+            blocks.append(budget)
         blocks.append(
             f"{_line_draft_title(line_name)}：\n"
             f"{_json(compact_draft_for_review(sub['draft']))}"
@@ -667,6 +674,27 @@ class _Nodes(DomainNodes):
             f"{_line_cn(line_name)}返工次数：{revision_count}/{self.MAX_REVISIONS}\n"
             f"{allowed}\n\n" + "\n\n".join(blocks)
         )
+
+    @staticmethod
+    def _length_budget_line(state: dict, line_name: str) -> str:
+        """篇幅预算块：按原文规模算好具体数字，注入生成/渲染上下文（纪要正文/多样式）。
+
+        旧口径「篇幅以原文为参照（同量级）」对纪要既不成立（纪要必然短于原文）也无法自算，
+        实测输出/输入比在 4.3%–35% 之间游走；这里把"该写多长"变成可执行的区间。
+        """
+        from tools.templates.length_budget import budget_line, han_count
+
+        transcript = str(state.get("transcript") or "")
+        columns = 0
+        template = (state.get("templates") or {}).get(line_name) or ""
+        if template:
+            try:
+                from tools.template_router import plan_placeholder_fill
+
+                columns = len(plan_placeholder_fill(template).get("scalars") or [])
+            except Exception:  # noqa: BLE001 - 预算只是软提示，算不出栏数就不带
+                columns = 0
+        return budget_line(han_count(transcript), columns=columns)
 
     def _render_context(self, state: dict, line_name: str) -> str:
         """会议域渲染上下文。纪要/溯源/多样式/导图带会议原文以便成段写开；其它线不带全文。"""
@@ -683,6 +711,9 @@ class _Nodes(DomainNodes):
             blocks.append(("已审核用户视角", perspective, "json"))
         if line_name in {"minutes", "minutes_trace", "minutes_styles", "mindmap", "consensus_decision"}:
             blocks.insert(0, ("会议原文", state.get("transcript") or "", "raw"))
+        budget = self._length_budget_line(state, line_name)
+        if budget:
+            blocks.append(("篇幅预算", budget, "raw"))
         return build_render_context(
             mode=self._mode_label(state),
             objective=bool(state.get("objective_perspective")),

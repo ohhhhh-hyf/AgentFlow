@@ -34,7 +34,7 @@ class MinutesGenerationContract(GenerationContract):
         ),
         StrListField(
             "personally_relevant_points",
-            "执行要点（有明确分工则写，无则[]；每条一小段最多 3 句，信息少时 1 句即可："
+            "执行要点（有明确分工则写，无则[]；每条 2–3 句完整句、信息少时 1 句但要带数字/对象："
             "谁、具体做什么、相关要求/协同对象、时间；禁止半截句）",
         ),
         StrListField(

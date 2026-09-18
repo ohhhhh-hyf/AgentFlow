@@ -49,13 +49,13 @@ SCALAR_BASELINE_BY_DIR: dict[str, dict[str, int]] = {
         "class_transcript": 4, "clinical_advisory": 4, "contract_vetting": 4,
         "conversation_transcript": 4, "court_transcript": 3, "debate_forum": 4,
         "decision_review": 4, "exchange_forum": 4, "general_minutes": 3,
-        "government_bulletin": 3, "group_seminar": 4, "hiring_report": 2,
+        "government_bulletin": 3, "group_seminar": 4, "hiring_report": 3,
         "home_school_liaison": 4, "interview_debrief": 4, "interview_transcript": 3,
         "knowledge_memo": 3, "legal_advisory": 4, "media_briefing": 4,
         "media_qa_session": 4, "personal_memo": 4, "product_launch": 4,
         "admission_briefing": 5,
         "project_progress": 2, "psychological_session": 3, "research_dialogue": 3,
-        "retrospective_session": 4, "site_visit_tour": 4, "special_lecture": 4,
+        "retrospective_session": 5, "site_visit_tour": 4, "special_lecture": 4,
         "team_meeting": 3, "workshop_session": 4,
     },
 }
@@ -423,17 +423,18 @@ SHAPE_RULE_KEYS = (
 # + 2026-09 第三批两条（now.xlsx 总结复盘会：条目 21–36 字且只剩结论）：
 #   条目 = 一个事项的完整交代 / 禁止结论式孤条
 FILL_RULE_KEYS = (
-    "30–100 字",
+    "30–120 字",
     "至少两项要素",
     "完整交代",
     "结论式孤条",
     "同一句话不拆多条",
     "状态标记",
     "表格栏",
-    "超过 100 字必须拆",
+    "超过 120 字必须拆",
     "最多出现 1 次",
     "禁止写「原文未提及…」这类缺失说明句",
     "每栏至少 1–2 处加粗",
+    "成员称呼",
     "`## 名称` 小节之下**必须** `- ` 一条一行",
 )
 
