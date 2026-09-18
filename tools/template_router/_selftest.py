@@ -1351,12 +1351,15 @@ def test_qa_precision_rules() -> None:
         "自问自答与讲解式设问",
         "不得写成「XX提问，…？」式引导转述",
         "答话只写回应要点",
-        "答话写在同一段里——再长也不拆段、不分点",
+        "答话可压缩、不必照抄全文（超约 300 字压到 300 以内）",
+        "写在同一段里，不拆段、不分点",
+        "压缩只删例子与铺垫",
         "原文没有正式问答就写「未提及」",
     ):
         check(f"共用形态规则含问答精度口径：{need}", need in BODY_FORMAT_RULES, "")
-    check("段落上限规则为问答轮次开了例外（再长也不拆段）",
-          "问答/对话的一轮" in BODY_FORMAT_RULES and "再长也不拆段" in BODY_FORMAT_RULES, "")
+    check("段落上限规则为问答轮次开了例外（再长也不拆段、长答话按要点压缩）",
+          "问答/对话的一轮" in BODY_FORMAT_RULES and "再长也不拆段" in BODY_FORMAT_RULES
+          and "长答话按要点压缩" in BODY_FORMAT_RULES, "")
 
     qa_templates = ("media_briefing", "media_qa_session", "admission_briefing", "special_lecture", "class_transcript")
     retired = ("覆盖所有重要提问", "答话可归并但不得改口径", "内容相似的合并成一条")
@@ -1373,12 +1376,32 @@ def test_qa_precision_rules() -> None:
         check(f"{stem}：问答栏 missing=True（留空自动补「未提及」）",
               bool(qa) and qa[0].get("missing") is True,
               f"{[s.get('missing') for s in qa]}")
-        # 问答长度口径仍要留在模板里可解析（长度提示；2026-09-18 起超长不再自动拆行）
+        # 问答长度口径：4 个模板保留可解析的 400/段提示；
+        # 课堂答疑（2026-09-18 用户口径）改为**按重要程度收**，全栏不带任何字数门禁
         para = [b for b in parse_section_char_budgets(text) if b.get("scope") == "paragraph"]
-        check(f"{stem}：问答栏保留可解析的长度口径（400/段，作提示）",
-              any(int(b["hi"]) == 400 for b in para), f"{para}")
-        check(f"{stem}：问答栏写明「单段连着写」（不再要求分点；口径仍可解析为段落级）",
-              "也**单段**连着写" in text and "答话超过约 400 字必须分点" not in text, "")
+        if stem == "class_transcript":
+            check("class_transcript：问答栏不带字数门禁（不会触发压缩/返工）",
+                  not para, f"{para}")
+            check("class_transcript：按重要程度收（读完知识点仍会问 / 澄清纠正限定 / 无损失不收）",
+                  all(k in text for k in (
+                      "只收「看完知识点栏之后仍会问」的问答",
+                      "复述已讲内容的不收",
+                      "发生了澄清、纠正或限定的才收",
+                      "去掉它对理解有没有损失",
+                  )), "")
+            check("class_transcript：按知识点配平 + 同题只留一组（数量由内容决定）",
+                  "按知识点配平" in text and "同一问题只留信息最全的一组" in text
+                  and "最多 8 组" not in text, "")
+            check("class_transcript：保留条级字数（问 20–50 / 答 40–150）",
+                  "每条 20–50 字" in text and "每条 40–150 字" in text, "")
+            check("class_transcript：答话写在同一段里（不分段、不分点）",
+                  "写在同一段里" in text and "不分段、不分点" in text, "")
+        else:
+            check(f"{stem}：问答栏保留可解析的长度口径（400/段，作提示）",
+                  any(int(b["hi"]) == 400 for b in para), f"{para}")
+            check(f"{stem}：问答栏写明答话可压缩、仍按单段连着写（不拆段）",
+                  "答话可压缩、不必逐句照抄" in text and "仍**单段**连着写" in text
+                  and "答话超过约 400 字必须分点" not in text, "")
 
     # 一问一答各占一段：称呼行（对话轮次）不参与段落拆分，普通散文段照旧会被拆
     from tools.execution.hard_execution import split_overlong_paragraphs
@@ -2125,22 +2148,25 @@ def test_media_overview_scope() -> None:
 
     text = (_active_dir() / "media_briefing.md").read_text(encoding="utf-8")
     spec = next(l.strip() for l in text.splitlines() if l.strip().startswith("[一段话概括发布会"))
-    check("发布会概况：写明段数/段长上限（最多 3 段、每段不超过 300 字）",
-          "最多 3 段" in spec and "每段不超过 300 字" in spec, spec[:80])
+    check("发布会概况：写明段数与段长上限（最多 3 段、每段不超过 300 字）",
+          "最多 3 段" in spec and "每段不超过 300 字" in spec
+          and "本栏约 250–400 字" not in spec, spec[:80])
     elements = spec.split("；", 1)[0]   # 要素部分（不含尾部的"归哪栏"边界句）
     check("发布会概况：要素不再出现与 [核心信息] 同名的词（边界句里保留指引）",
           "核心信息" not in elements and "发布单位与整体基调" in spec, spec[:80])
-    check("发布会概况：写明归位边界（数据归 [核心信息]、立场归 [官方表态]）",
-          "[核心信息]" in spec and "[官方表态]" in spec and "本栏不复述" in spec, "")
+    check("发布会概况：写明归位边界（数据归 [核心信息]、立场归 [官方表态]、问答归 [Q&A环节]）",
+          "[核心信息]" in spec and "[官方表态]" in spec and "[Q&A环节]" in spec
+          and "本栏不复述" in spec, "")
     check("发布会概况：① 含时间地点/主办与参与（日期、地点、发言人身份、到会媒体）",
           "时间地点与主办/参与" in spec and "发布时间、地点、主办与发布单位、发言人身份、到会媒体" in spec
           and "没有的不编" in spec, "")
     caps = [b for b in parse_section_char_budgets(text) if b["title"] == "发布会概况"]
     check("发布会概况：解析出段落级预算 240–300（超 360 自动拆段）",
-          bool(caps) and caps[0]["scope"] == "paragraph" and caps[0]["hi"] == 300, f"{caps}")
+          bool(caps) and caps[0]["scope"] == "paragraph" and caps[0]["lo"] == 240
+          and caps[0]["hi"] == 300, f"{caps}")
 
     han = lambda s: len(re.findall(r"[\u4e00-\u9fff]", s))
-    para = "宏观方面，主讲人解读法案要点，测算关税收入可覆盖新增支出，赤字率维持合理区间。" * 11
+    para = "宏观方面，主讲人解读法案要点，测算关税收入可覆盖新增支出，赤字率维持合理区间。" * 18
     doc = "# 新闻发布\n\n# 发布会概况\n" + para + "\n\n# 核心信息\n- **要点**：略。\n"
     fixed, notes = split_overlong_paragraphs(doc, (_active_dir() / "media_briefing.md").read_text(encoding="utf-8"))
     seg = fixed.split("# 发布会概况", 1)[1].split("# 核心信息", 1)[0]
@@ -2148,6 +2174,39 @@ def test_media_overview_scope() -> None:
     check("发布会概况：超长单段按句界拆开（每段 ≤300）",
           len(parts) >= 2 and max(han(q) for q in parts) <= 300,
           f"段长={[han(q) for q in parts]} {notes}")
+
+
+def test_class_transcript_task_groups() -> None:
+    """课堂记录 [课后任务与学习建议]：类目做小标题、其下分点（条内不再重复类目名）。
+
+    回归背景（2026-09-18 实测）：该栏把类目写进每一条的前缀——「- **课堂练习**：完成讲义第20题…」
+    连着 5 条、「- **复习重点**：…」「- **学习建议**：…」各若干条，还混着「**建议**：」单独一行
+    再挂二级标签的第二种结构；类目名重复 10+ 次、两套结构并存，读起来是标签堆而不是清单。
+    改成 `## 类目` + `- ` 条目后，类目只说一次、条目只写内容。
+    """
+    from tools.templates.template_eval import parse_section_char_budgets
+
+    text = (_active_dir() / "class_transcript.md").read_text(encoding="utf-8")
+    spec = next(l for l in text.splitlines() if "按类目分组" in l)
+
+    check("三个类目小标题齐全（课堂练习/复习重点/学习建议）",
+          all(k in spec for k in ("`## 课堂练习`", "`## 复习重点`", "`## 学习建议`")), spec[:80])
+    check("类目有内容才出现、其下 `- ` 一条一行、条内不重复类目名",
+          "有内容才出现" in spec and "`- ` 一条一行" in spec
+          and "条内不再以类目名开头" in spec, "")
+    check("每类写什么有口径（题号/考点、概念/定律、做法/器材）",
+          "题号＋考点/方法＋结论要点" in spec and "概念/定律/结论＋适用条件" in spec
+          and "可操作做法（器材、步骤）" in spec, "")
+    check("保留条级尺寸与并列不合并（每条 30–120 字）",
+          "每条 30–120 字" in spec and "各占一条" in spec, "")
+    check("旧的行内标签形态已清除（不再每条挂「**任务**：」）",
+          "**任务**：" not in text and "分别成条" not in text, "")
+
+    seg = next(s for s in plan_placeholder_fill(text)["scalars"] if "按类目分组" in (s.get("hint") or ""))
+    check("该栏保留缺省词语义（原文没布置作业 → 「未提及」）", seg.get("missing") is True, "")
+    budgets = [(b["title"], b["hi"], b["scope"]) for b in parse_section_char_budgets(text)]
+    check("课堂记录：全模板不带字数门禁（问答栏按重要程度收，说明里的数字未被误解析）",
+          budgets == [], f"{budgets}")
 
 
 def test_media_briefing_evidence_and_depth() -> None:
@@ -2506,6 +2565,7 @@ def main() -> int:
         test_long_generation_output_cap()
         test_column_fill_concurrency_and_early_stop()
         test_media_overview_scope()
+        test_class_transcript_task_groups()
         test_media_briefing_evidence_and_depth()
         test_qa_name_priority()
         test_understanding_speakers_field()
