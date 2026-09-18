@@ -230,18 +230,124 @@ def enforce_minutes_draft(
     return out
 
 
+_EMPTY_CELLS = frozenset(
+    {"", "未提及", "未明确", "未提供", "未给出", "暂无", "待定", "无", "—", "-", "N/A", "n/a"}
+)
+# 「原文未提及」「暂未明确」这类框架式缺省说明（整条/整句都是它才算空）
+_DEFAULT_ONLY_RE = re.compile(
+    r"^(?:原文|本次|本栏|文中|此处)?(?:也|均|尚|暂|都)?(?:未提及|未明确|未提供|未给出|没有提及|无提及|暂无|待定|不明确|未涉及|未写|无)[。.；;]?$"
+)
+
+
+def _is_default_only(s: str) -> bool:
+    """文本是否只是缺省词/框架式缺省说明（没有任何实际信息）。"""
+    t = re.sub(r"[\s*`>#|()（）\[\]【】]+", "", s or "")
+    if not t:
+        return True
+    return bool(_DEFAULT_ONLY_RE.match(t))
+
+
+def _item_default_only(line: str) -> bool:
+    """`- **过敏史**：未提及。` 这类整条只有缺省词的条目（只去行首列表符号，保留加粗标记）。"""
+    s = re.sub(r"^\s*[-*>+•]\s+", "", line or "").strip()
+    if not s:
+        return True
+    s = re.sub(r"^\*\*[^*]{1,16}\*\*\s*[:：]?", "", s)  # 去掉行首标签
+    return _is_default_only(s)
+
+
+def strip_default_only_content(text: str) -> tuple[str, list[str]]:
+    """省略"只有缺省词"的内容：表格整行、正文整条、独立缺省句（**只删不改字**）。
+
+    决策口径（2026-09-18 用户确认）：
+    - 整节/整栏都没有内容时**保留**（标题 + 一行缺省词）——"没有"本身是信息；
+    - 表格单元格保留（表格要对齐），只删"整行全缺省"；
+    - 句子级只删"整句 ≤ 20 字且只是缺省说明"，并列/从句里的缺省词不动（避免语病）。
+    """
+    if not text:
+        return text, []
+    removed = 0
+
+    def strip_body(body_lines: list[str]) -> tuple[list[str], int]:
+        """行级 + 句子级删除，返回 (剩余行, 删除数)。"""
+        n = 0
+        kept_lines: list[str] = []
+        for line in body_lines:
+            s = line.strip()
+            if s.startswith("|") and not re.match(r"^\|[\s:\-|]+\|$", s):
+                cells = [c.strip() for c in s.strip("|").split("|")]
+                if cells and all(c in _EMPTY_CELLS for c in cells):
+                    n += 1
+                    continue
+            elif re.match(r"^[-*+>]\s", s) and _item_default_only(s):
+                n += 1
+                continue
+            kept_lines.append(line)
+        sent_lines: list[str] = []
+        for line in kept_lines:
+            s = line.strip()
+            if not s or re.match(r"^[#|>*+-]", s):
+                sent_lines.append(line)
+                continue
+            kept: list[str] = []
+            dropped = False
+            for sent in re.split(r"(?<=[。；;])", line):
+                if sent.strip() and len(sent.strip()) <= 20 and _is_default_only(sent):
+                    n += 1
+                    dropped = True
+                    continue
+                kept.append(sent)
+            joined = "".join(kept)
+            if joined.strip() or not dropped:
+                sent_lines.append(joined)
+            # 整行被清空：不额外计数（已按句计过），也不保留空行
+        return sent_lines, n
+
+    out: list[str] = []
+    body: list[str] = []
+
+    def close_section() -> None:
+        nonlocal body, removed
+        if not body:
+            return
+        stripped, n = strip_body(body)
+        removed += n
+        if n == 0:
+            out.extend(body)
+        elif any(b.strip() and not _is_default_only(b) for b in stripped):
+            out.extend(stripped)          # 还有实际内容 → 用删完的版本
+        elif any(b.strip() for b in stripped):
+            out.extend(stripped)          # 只剩缺省词（整栏缺省）→ 保留
+        else:
+            out.append("未提及")           # 整节被清空 → 保留标题 + 一行缺省词
+            if any(not b.strip() for b in body):  # 原体含空行 → 保留节间分隔
+                out.append("")
+        body = []
+
+    for line in text.splitlines():
+        if _HEADING_RE.match(line.strip()):
+            close_section()
+            out.append(line)
+            continue
+        body.append(line)
+    close_section()
+
+    result = "\n".join(out).rstrip()
+    if text.endswith("\n"):
+        result += "\n"
+    line_delta = max(0, len(text.splitlines()) - len(result.splitlines()))
+    total = removed + line_delta
+    notes = [f"已省略 {total} 处只有缺省词的内容"] if total else []
+    return result, notes
+
+
 def _row_nonempty(row_line: str) -> bool:
     cells = [c.strip() for c in row_line.strip().strip("|").split("|")]
-    cells = [c for c in cells if c != ""]
-    if not cells:
+    if not any(cells):
         return False
-    # 全是未提及/—/空 视为无效
-    meaningful = [
-        c
-        for c in cells
-        if c not in {"未提及", "—", "-", "无", "N/A", "n/a", "暂无"}
-    ]
-    return bool(meaningful)
+    # 全是缺省词/空 视为无效（口径与 _row_confidence_score 共用；原先漏了「未明确」，
+    # 导致就医咨询那种整行「未明确」被当数据行保留）
+    return any(c not in _EMPTY_CELLS for c in cells)
 
 
 def _row_confidence_score(row_line: str) -> tuple[int, int]:
@@ -399,23 +505,29 @@ def _split_one_paragraph(line: str, cap: int) -> list[str]:
 
 
 def split_overlong_paragraphs(text: str, template: str) -> tuple[str, list[str]]:
-    """按模板声明的「每段 ≤N 字」把超长散文段按句界拆开（**只加换行，不改文字**）。
+    """按模板声明的字数上限把超长散文段按句界拆开（**只加换行，不改文字**）。
 
     为什么需要（2026-09 性能复盘）：段落字数上限真生效后，`_overlong_issue` 会报
     「超出段落字数上限」，而渲染层原先对**任何** gate issue 都触发一次整篇重渲染
     （实测一条多花 30–60s）。形态问题用确定性拆分解决更划算：拆完重新过门禁即可，
     零额外 LLM 调用；拆不动（整段一句话）才留给上层兜底。
 
-    只处理：散文行（非标题/表格/引用/列表），且所在小节的预算 scope 为 paragraph。
+    只处理散文行（非标题/表格/引用/列表）。阈值分两种：
+    - 段落级预算（「每段 ≤N 字」）：单段 > N×1.2 才拆（保留"约"的容差）；
+    - 节级预算（「本栏约 N 字」，2026-09-18 补）：单段 > N 即拆——节上限本就是
+      任何单段定义上的上界，实测「访谈概述」曾写出 418–517 字单段且静默不拆。
     """
     if not text or not template:
         return text, []
-    caps = {
-        _norm_heading(str(item.get("title") or "")): int(item["hi"])
-        for item in parse_section_char_budgets(template)
-        if item.get("scope") == "paragraph" and item.get("hi")
-    }
-    if not caps:
+    limits: dict[str, tuple[int, float]] = {}
+    for item in parse_section_char_budgets(template):
+        hi = item.get("hi")
+        if not hi:
+            continue
+        key = _norm_heading(str(item.get("title") or ""))
+        para = str(item.get("scope") or "section") == "paragraph"
+        limits[key] = (int(hi), 1.2 if para else 1.0)
+    if not limits:
         return text, []
 
     notes: list[str] = []
@@ -428,14 +540,15 @@ def split_overlong_paragraphs(text: str, template: str) -> tuple[str, list[str]]
             out.append(line)
             continue
         body = line.strip()
-        cap = caps.get(cur)
-        if cap is None and cur:
-            cap = next((v for k, v in caps.items() if k and (k in cur or cur in k)), None)
+        rule = limits.get(cur)
+        if rule is None and cur:
+            rule = next((v for k, v in limits.items() if k and (k in cur or cur in k)), None)
+        cap, ratio = rule if rule else (None, 1.0)
         if (
             cap
             and body
             and not _is_non_prose_line(body)
-            and _han_count(body) > cap * 1.2
+            and _han_count(body) > cap * ratio
         ):
             parts = _split_one_paragraph(body, cap)
             if len(parts) > 1:
@@ -495,6 +608,12 @@ def enforce_render_output(
         text2, tnotes = apply_table_row_limits(text, template)
         text = text2
         notes.extend(tnotes)
+
+    # 只有缺省词的内容不展示（表格整行/正文整条/独立缺省句）；整节都没内容时保留一行缺省词
+    text2, dnotes = strip_default_only_content(text)
+    if dnotes:
+        text = text2
+        notes.extend(dnotes)
 
     # 段落字数超限：确定性按句界拆段（只加换行），避免上层为篇幅问题整篇返工
     text2, snote_list = split_overlong_paragraphs(text, template)
@@ -747,6 +866,19 @@ def _overlong_issue(template: str, text: str) -> str | None:
         han = _han_count(body)
         if han > cap * 1.2:
             issues.append(f"「{title}」约 {han} 字，本段上限 {cap} 字")
+        # 节级预算的栏也要兜单段：单段超过整节上限即超（×1.0，节上限本就是单段定义上的上界），
+        # 与 split_overlong_paragraphs 的节级阈值一致——实测「访谈概述」曾静默写出 418 字单段。
+        long_lines = [
+            ln.strip()
+            for ln in body.splitlines()
+            if _han_count(ln) > cap and not _is_non_prose_line(ln.strip())
+        ]
+        if long_lines:
+            longest = max(_han_count(ln) for ln in long_lines)
+            issues.append(
+                f"「{title}」有 {len(long_lines)} 段超过 {cap} 字（最长约 {longest} 字），"
+                "拆段或改用 `- ` 分点"
+            )
     if not issues:
         return None
     return (

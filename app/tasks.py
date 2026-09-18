@@ -14,7 +14,14 @@ from pathlib import Path
 
 from fastapi.responses import StreamingResponse
 
-from .config import PROJECT_ROOT, load_domain, load_env, profile_path, resolve_template_format
+from .config import (
+    DEFAULT_MINUTES_TEMPLATE,
+    PROJECT_ROOT,
+    load_domain,
+    load_env,
+    profile_path,
+    resolve_template_format,
+)
 from .id_worker import next_request_id
 from .outputs import output_dir, save_task_outputs
 from .schemas import TaskRequest, TaskResponse
@@ -371,14 +378,32 @@ def _validate(req: TaskRequest, task: str, user_id: str) -> str:
 
 
 def _template_file(domain: str, line: str, template_value: str) -> Path | None:
-    """extra.template → 临时模板文件；空返回 None，非法抛 400。
+    """extra.template → 临时模板文件；非法抛 400。
 
     取值只两种：模板 md 英文名（``project_progress``）、模板中文名（``项目进度会``）。
+
+    **纪要线留空 → 自动套用「通用纪要」**（``DEFAULT_MINUTES_TEMPLATE``）。为什么
+    （2026-09-18 实测）：不传模板时走自由渲染，完全听模型的——栏目自定、无缺省词、
+    无段落上限、不跑模板门禁（同一份原文 6410 汉字、最长单行 515 字、超出篇幅上限 16%
+    无人管）。其它线留空仍表示"不套模板"；默认模板在注册表缺失时退回无模板并记 warning，
+    不让调用方因默认值缺失而 400。
     """
-    if not (template_value or "").strip():
-        return None
-    fmt = resolve_template_format(template_value)
+    value = (template_value or "").strip()
+    auto_default = False
+    if not value:
+        if domain == "meeting" and line == "minutes":
+            value, auto_default = DEFAULT_MINUTES_TEMPLATE, True
+        else:
+            return None
+    fmt = resolve_template_format(value)
     if not fmt:
+        if auto_default:
+            logger.warning(
+                "默认纪要模板 %s 不在模板注册表，本次退回无模板：domain=%s",
+                value,
+                domain,
+            )
+            return None
         raise ApiError(
             400,
             f"extra.template 非法：{template_value}（可填模板 md 英文名或中文名，"

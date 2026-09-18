@@ -8,6 +8,7 @@ from tools.schema.validation import (
     OutputValidationError,
     _action,
     _choice,
+    _choice_or_default,
     _exact_fields,
     _review_check,
     _string,
@@ -74,7 +75,7 @@ class MeetingUnderstanding(ModelMixin):
         _exact_fields(data, [f.name for f in fields(cls)], cls.__name__)
         _string(data["meeting_brief"], "meeting_brief")
         _string(data["meeting_purpose"], "meeting_purpose")
-        _choice(data["scene"], {"通用", "团队例会", "脑暴/讨论", "项目决策与评审", "专项讨论会", "研讨会", "采访/对话"}, "scene")
+        data["scene"] = _choice_or_default(data["scene"], {"通用", "团队例会", "脑暴/讨论", "项目决策与评审", "专项讨论会", "研讨会", "采访/对话"}, "scene", "通用")
         if not isinstance(data["topics"], list):
             raise OutputValidationError("topics 必须是数组")
         _string_list(data["decisions"], "decisions")
@@ -136,7 +137,7 @@ class MinutesTrace(ModelMixin):
     @classmethod
     def validate(cls, data: dict) -> "MinutesTrace":
         _exact_fields(data, [f.name for f in fields(cls)], cls.__name__)
-        _choice(data["scene"], {"通用", "团队例会", "脑暴/讨论", "项目决策与评审", "专项讨论会", "研讨会", "采访/对话"}, "scene")
+        data["scene"] = _choice_or_default(data["scene"], {"通用", "团队例会", "脑暴/讨论", "项目决策与评审", "专项讨论会", "研讨会", "采访/对话"}, "scene", "通用")
         _string(data["minutes_md"], "minutes_md")
         if not isinstance(data["alignments"], list):
             raise OutputValidationError("alignments 必须是数组")

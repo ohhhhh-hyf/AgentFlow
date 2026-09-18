@@ -277,14 +277,24 @@ def parse_section_char_budgets(template: str) -> list[dict[str, Any]]:
         budget = parse_char_budget(section_blob)
         if not budget.get("hi"):
             continue
+        scope = "paragraph" if _PARAGRAPH_SCOPE_RE.search(section_blob) else "section"
+        hi = int(budget["hi"])
+        if scope == "paragraph":
+            # 「单段/每段不超过 300 字」旁边的数字才是段落上限：栏说明里常同时写总量区间
+            # （如「约 250–400 字，单段不超过 300 字」），区间会盖过它，导致 300–480 字的
+            # 单段既不分段也无提示（实测「访谈概述」418 字静默）。
+            per_para = re.search(r"(?:单段|每段)[^。；;\n]{0,10}?(\d+)\s*字", section_blob)
+            if per_para and int(per_para.group(1)) < hi:
+                hi = int(per_para.group(1))
+        lo = budget.get("lo")
+        if lo and int(lo) > hi:  # 总量区间下界高于单段上限时（如「400–600 字，每段 ≤300」）
+            lo = hi
         out.append(
             {
                 "title": title or "本节",
-                "lo": budget.get("lo"),
-                "hi": int(budget["hi"]),
-                "scope": (
-                    "paragraph" if _PARAGRAPH_SCOPE_RE.search(section_blob) else "section"
-                ),
+                "lo": lo,
+                "hi": hi,
+                "scope": scope,
             }
         )
     return out

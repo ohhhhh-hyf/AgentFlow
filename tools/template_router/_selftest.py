@@ -267,7 +267,7 @@ def test_gate_flags_bare_heading() -> None:
 
 
 def test_missing_field_guard() -> None:
-    """漏填兜底：字段缺失 → 点名缺栏重试；三轮仍缺 → None（不回半截文档，交 freeform）。"""
+    """漏填兜底：字段缺失 → 点名缺栏重试；三轮仍缺 → 补缺省词保结构（不再退回 freeform）。"""
     import asyncio
 
     from ._placeholder import fill_placeholder_template
@@ -288,7 +288,11 @@ def test_missing_field_guard() -> None:
 
     c1 = _FakeFillClient([partial])
     out1 = asyncio.run(fill_placeholder_template(c1, "内容来源：甲乙丙。", FILL_TPL))
-    check("字段缺失不放行半截文档（返回 None → 交自由渲染）", out1 is None, f"out={out1!r}")
+    # 不再 return None：三轮重试后给仍空的字段补「未提及」，保住模板结构（原先整篇退回 freeform）
+    check("三轮仍缺栏 → 补缺省词保结构（不放半截文档、也不退回 freeform）",
+          bool(out1) and "未提及" in (out1 or "") and "# 丙栏" in (out1 or ""), f"out={(out1 or '')[:80]!r}")
+    check("仍空字段未被静默丢弃（甲/乙栏内容在）",
+          "甲栏内容" in (out1 or "") and "乙栏内容" in (out1 or ""), "")
     check("缺栏按上限重试 3 轮", c1.calls == 3, f"calls={c1.calls}")
     check("重试指令点名缺哪一栏",
           len(c1.users) > 1 and "字段3" in c1.users[1],
@@ -630,10 +634,10 @@ def test_understanding_trim_lists() -> None:
     )
     for line, skip in cases:
         text = _trim_instruction(line, skip)
-        blank_line = next(l for l in text.splitlines() if "只允许以下字段输出空数组" in l)
+        blank_line = next(l for l in text.splitlines() if "键名必须保留、值给空数组" in l)
         keep_line = next(l for l in text.splitlines() if "必须照常" in l)
         # 只取名单本体：「仅供 X 线使用」里的线名可能恰好等于字段名（risks）
-        blank_part = blank_line.split("空数组 []：", 1)[-1]
+        blank_part = blank_line.split("空数组 []**：", 1)[-1]
         keep_part = keep_line.split("（", 1)[-1].split("）", 1)[0]
         blank_fields = {f for f in order if f in blank_part}
         keep_fields = {f for f in order if f in keep_part}
@@ -1134,8 +1138,8 @@ def test_exchange_forum_structure() -> None:
           "待定、计划、尚未确定的事项一律归 [待协调事项与后续]" in text, "")
     check("沟通交流会：待协调栏分两组（待协调事项 / 后续安排与参与方式）",
           "## 待协调事项" in text and "## 后续安排与参与方式" in text, "")
-    check("沟通交流会：待协调栏缺项写「待定」（与旧「无」口径统一）",
-          "缺项写「待定」" in text, "")
+    check("沟通交流会：待协调栏缺项不写（不逐项标「待定」）",
+          "缺的项不写，不要逐项标「待定」" in text, "")
     check("沟通交流会：首栏加边界（不展开明细）+ 尺寸 250–400",
           "不展开发言明细与数字清单" in text and "约 250–400 字" in text, "")
     check("沟通交流会：旧悬空引用已清除（「各方确认的信息」不存在）",
@@ -1165,6 +1169,10 @@ def test_interview_and_lecture_overview() -> None:
         check(f"{name}：概况栏要求 1–3 个数字/专名锚点",
               "作锚点" in text, "")
         check(f"{name}：概况栏尺寸写进模板（约 250–400 字）", "约 250–400 字" in text, "")
+    check("采访记录：概况栏补了落点要素（这场访谈的看点）",
+          "这场访谈的看点" in interview and "讲了什么别人讲不出的" in interview, "")
+    check("采访记录：结论要素写明粒度（一句话点题 + 可带数字/事例依据）",
+          "每条一句话点题，可带原文的关键数字或事例作依据" in interview, "")
     check("采访记录：概况栏边界（不展开论据细节，归 [访谈详细记录]）",
           "不展开受访者的论据与细节（那是 [访谈详细记录] 的事）" in interview, "")
     check("专题讲座：概况栏边界（论证与论据清单归 [核心观点与论证]）",
@@ -1392,8 +1400,364 @@ def test_project_progress_overview() -> None:
     from tools.templates.template_eval import parse_section_char_budgets
 
     caps = [b for b in parse_section_char_budgets(text) if b["title"] == "项目概况"]
-    check("项目进度会：概况栏预算可解析（400–600）",
-          bool(caps) and caps[0]["lo"] == 400 and caps[0]["hi"] == 600, f"{caps}")
+    # 解析取「每段不超过 300 字」作为段落上限（总量 400–600 仍是模型侧口径，
+    # 且被「最多 3 段」隐含约束）——机器在 >300×1.2 时按句界拆
+    check("项目进度会：概况栏预算以单段上限为准（300/paragraph）",
+          bool(caps) and caps[0]["hi"] == 300 and caps[0]["scope"] == "paragraph", f"{caps}")
+
+
+def test_paragraph_cap_from_explicit_per_para() -> None:
+    """单段字数上限以「单段/每段」旁边的数字为准；节级预算的栏也要兜单段。
+
+    回归背景（2026-09-18）：[访谈概述] 只写「约 250–400 字」，解析成**节级**预算 →
+    拆段函数（只吃段落级）跳过它，实测 418 字单段静默不拆、517 字只有一条软提示。
+    修法：① 栏说明补「单段不超过 300 字」；② 「单段/每段」旁的数成为段落上限
+    （区间会盖过它）；③ 节级预算的栏，单段超过整节上限也拆。
+    """
+    from tools.execution.hard_execution import split_overlong_paragraphs
+    from tools.templates.template_eval import parse_section_char_budgets
+
+    han = lambda t: len([c for c in t if "\u4e00" <= c <= "\u9fff"])
+    interview = (_active_dir() / "interview_transcript.md").read_text(encoding="utf-8")
+    check("采访记录：概况栏写明单段上限（单段不超过 300 字）", "单段不超过 300 字" in interview, "")
+    caps = [b for b in parse_section_char_budgets(interview) if b["title"] == "访谈概述"]
+    check("采访记录：概况栏解析出段落级预算且取到单段数（300）",
+          bool(caps) and caps[0]["scope"] == "paragraph" and caps[0]["hi"] == 300, f"{caps}")
+    prog = (_active_dir() / "project_progress.md").read_text(encoding="utf-8")
+    pcaps = [b for b in parse_section_char_budgets(prog) if b["title"] == "项目概况"]
+    check("项目进度会：总量区间不再盖过单段上限（lo ≤ hi）",
+          bool(pcaps) and pcaps[0]["hi"] == 300 and int(pcaps[0]["lo"] or 0) <= 300, f"{pcaps}")
+
+    long_para = "这是受访者的观点与结论。" * 38  # ≈418 汉字
+    doc = "# 采访记录\n\n# 访谈概述\n" + long_para + "\n"
+    fixed, notes = split_overlong_paragraphs(doc, interview)
+    parts = [p.strip() for p in fixed.split("# 访谈概述", 1)[1].split("\n\n") if p.strip()]
+    check("采访记录：418 字单段被拆（阈值 = 单段 300×1.2）",
+          bool(notes) and len(parts) >= 2 and max(han(p) for p in parts) <= 300,
+          f"段长={[han(p) for p in parts]} {notes}")
+
+    # 节级预算的栏（无「单段/每段」字样）也要兜单段：超过整节上限即拆
+    lecture = (_active_dir() / "special_lecture.md").read_text(encoding="utf-8")
+    lcaps = [b for b in parse_section_char_budgets(lecture) if b["title"] == "讲座概况"]
+    check("专题讲座：概况栏仍是节级预算（用于验证节级兜底）",
+          bool(lcaps) and lcaps[0]["scope"] == "section", f"{lcaps}")
+    long2 = "这是讲座的主旨与结论。" * 45  # 450 汉字 > 400（节级上限）
+    doc2 = "# 专题讲座\n\n# 讲座概况\n" + long2 + "\n"
+    fixed2, notes2 = split_overlong_paragraphs(doc2, lecture)
+    parts2 = [p.strip() for p in fixed2.split("# 讲座概况", 1)[1].split("\n\n") if p.strip()]
+    check("专题讲座：节级预算下 440 字单段也会被拆（节上限即单段上界）",
+          bool(notes2) and len(parts2) >= 2, f"段长={[han(p) for p in parts2]} {notes2}")
+
+
+def test_strip_default_only_content() -> None:
+    """只有缺省词的内容不展示：表格整行 / 正文整条 / 独立缺省句；整栏缺省则保留一行。
+
+    回归背景（2026-09-18 用户实测）：就医咨询的药表出现整行「未明确」（模板声明的缺省词是
+    「未明确」而 `_row_nonempty` 的空集里没有它）→ 被当数据行原样展示；同期还有 3 条
+    `- **过敏史**：未提及。` 与 4 处"整栏只有未提及"。用户口径：这类内容不展示，
+    但"整栏都没有"要保留一行缺省词（"没有"本身是信息）。
+    """
+    from tools.execution.hard_execution import (
+        _item_default_only,
+        _row_nonempty,
+        gate_render_output,
+        strip_default_only_content,
+    )
+
+    check("全缺省表行判为空（含模板缺省词「未明确」）",
+          not _row_nonempty("| 未明确 | 未明确 | 未明确 | 未明确 | 未明确 |"), "")
+    check("全未提及表行判为空", not _row_nonempty("| 未提及 | — | — | — | — |"), "")
+    check("有内容的表行不算空", _row_nonempty("| 奥美拉唑 | 未明确 | 口服 | 未明确 | 效果不佳 |"), "")
+    check("整条只有缺省词（`- **X**：未提及。`）被识别",
+          _item_default_only("- **过敏史**：未提及。") and _item_default_only("- **个人史**：未提及"), "")
+    check("有内容的条目不算缺省", not _item_default_only("- **现病史**：2023年9月确诊。"), "")
+
+    doc = (
+        "# 就医咨询\n\n# 病史与背景\n- **现病史**：2023年9月确诊。\n"
+        "- **过敏史**：未提及。\n- **家族史**：未提及。\n\n"
+        "# 治疗方案与医嘱\n- **检查安排**：建议做第二次基因检测。\n"
+        "- **用药**：系统治疗包括化疗、靶向、免疫。\n\n"
+        "| 药品名称 | 剂量 | 频次 | 用法 | 注意事项 |\n| --- | --- | --- | --- | --- |\n"
+        "| 未明确 | 未明确 | 未明确 | 未明确 | 未明确 |\n\n"
+        "# 复诊与预警信号\n未提及。\n"
+    )
+    out, notes = strip_default_only_content(doc)
+    check("整条缺省被删、有内容的条目保留",
+          "- **过敏史**" not in out and "- **现病史**" in out and "- **检查安排**" in out, "")
+    check("全缺省表行被删（表头保留、无数据行）",
+          "未明确 | 未明确" not in out and "| 药品名称 |" in out, "")
+    check("整节只有缺省词 → 保留标题 + 一行缺省词",
+          "# 复诊与预警信号\n未提及" in out, "")
+    check("删除有记录（notes 记数）", bool(notes) and "已省略" in notes[0], f"{notes}")
+
+    raw = (_active_dir() / "clinical_advisory.md").read_text(encoding="utf-8")
+    gate = gate_render_output(raw, out)
+    check("省略缺省内容后门禁无任何 issue（不触发返工）",
+          not gate["issues"] and not gate["hard_issues"], f"{gate['issues']}")
+
+    for stem, bad in (
+        ("clinical_advisory", "一律写「未明确」"),
+        ("decision_review", "缺项直接写「未明确」"),
+        ("project_progress", "缺项直接写「无」"),
+        ("contract_vetting", "缺则写「无」"),
+    ):
+        txt = (_active_dir() / f"{stem}.md").read_text(encoding="utf-8")
+        check(f"{stem}：不再要求逐项标缺省词", bad not in txt, "")
+    pl = (_active_dir() / "product_launch.md").read_text(encoding="utf-8")
+    check("产品发布：缺项不写、整栏才合并成一句",
+          "整栏都没有内容时才把缺项**合并成一句**" in pl, "")
+
+
+def test_enum_normalize_fallback() -> None:
+    """形态标签枚举容错：非法值归一到「通用」，不抛错、不触发重试。
+
+    回归背景（2026-09-18 15:24 实测）：理解层 scene 只有 7 个粗粒度形态标签，而真实场景有
+    二十多种（产品发布/新闻发布/课堂/讲座/就医…）→ 模型对"海尔洗衣机发布会"填了「产品发布」
+    → `_choice` 抛错 → 客户端重试一轮（in 6335→7451、+12s，两次返回内容一字不变）。
+    """
+    from dataclasses import fields as dc_fields
+
+    from tools.schema.validation import _choice_or_default
+
+    check("_choice_or_default：合法值原样返回",
+          _choice_or_default("专项讨论会", {"通用", "专项讨论会"}, "scene", "通用") == "专项讨论会", "")
+    check("_choice_or_default：非法值归一到 default",
+          _choice_or_default("产品发布", {"通用", "专项讨论会"}, "scene", "通用") == "通用", "")
+
+    # 生成契约确实用了归一路径（而不是 _choice）
+    gen = Path("domain/meeting/models_generated.py").read_text(encoding="utf-8")
+    check("生成契约：scene 走 _choice_or_default（不再抛错重试）",
+          'data["scene"] = _choice_or_default(' in gen and "_choice_or_default," in gen, "")
+
+    # 运行期：非法 scene 被归一，不再异常
+    from domain.meeting.models_generated import MeetingUnderstanding
+
+    payload: dict = {}
+    for f in dc_fields(MeetingUnderstanding):
+        payload[f.name] = "x"
+    payload["scene"] = "产品发布"
+    for f in dc_fields(MeetingUnderstanding):
+        if f.name == "scene":
+            continue
+        ann = str(f.type)
+        if "list" in ann:
+            payload[f.name] = []
+    inst = MeetingUnderstanding.validate(dict(payload))
+    check("理解层：非法场景「产品发布」→ 归一为「通用」（不抛错）", inst.scene == "通用", f"{inst.scene}")
+
+    # 理解 prompt 把话说死
+    from domain.meeting.meeting_core import prompts as core_prompts
+
+    text = "\n".join(
+        str(getattr(core_prompts, name))
+        for name in dir(core_prompts)
+        if name.isupper() and isinstance(getattr(core_prompts, name), str)
+    )
+    check("理解 prompt：写明 scene 只能取这 7 个值", "只能填这 7 个值之一" in text, "")
+    check("理解 prompt：给出发布会类映射与禁止自造类别名",
+          "对外发布会、宣讲、路演类填「专项讨论会」" in text and "不要自造类别名" in text, "")
+
+
+def test_scene_hint_from_template() -> None:
+    """打通"调用方模板"与"理解层形态标签"：程序按模板映射 7 类形态，模型自选只作兜底。
+
+    回归背景（2026-09-18 15:24 实测）：理解层 scene 只有 7 类，模型对产品发布会填「产品发布」
+    → 校验失败白跑一轮；归一后只能落到「通用」骨架（启发式词表里没有"发布/宣讲/路演"）。
+    """
+    from domain.meeting.scene_hint import (
+        TEMPLATE_SCENE_HINTS,
+        scene_hint_for_template,
+        scene_hint_for_templates,
+    )
+    from domain.meeting.tasks.minutes_trace.scene import GENERIC_SCENE, SCENE_LABELS
+
+    allowed = set(SCENE_LABELS) | {GENERIC_SCENE}
+    check("映射表的标签都在 7 类形态内",
+          all(v in allowed for v in TEMPLATE_SCENE_HINTS.values()),
+          f"{[v for v in TEMPLATE_SCENE_HINTS.values() if v not in allowed]}")
+
+    # 覆盖率：模板目录里每个模板的中文名都必须登记（新增模板忘登记会静默回退「通用」）
+    missing = []
+    for md in sorted(_active_dir().glob("*.md")):
+        if md.stem.lower() == "readme":
+            continue
+        name = ""
+        for line in md.read_text(encoding="utf-8").splitlines():
+            s = line.strip()
+            if s.startswith("# ") and not s[2:].strip().startswith("["):
+                name = s[2:].strip()
+                break
+        if name not in TEMPLATE_SCENE_HINTS:
+            missing.append(md.stem)
+    check("映射表覆盖全部模板（新增模板必须登记）", not missing, f"未登记={missing}")
+
+    pl = (_active_dir() / "product_launch.md").read_text(encoding="utf-8")
+    tm = (_active_dir() / "team_meeting.md").read_text(encoding="utf-8")
+    check("产品发布模板 → 「专项讨论会」（不再落到通用骨架）",
+          scene_hint_for_template(pl) == "专项讨论会", scene_hint_for_template(pl))
+    check("团队例会模板 → 「团队例会」", scene_hint_for_template(tm) == "团队例会", "")
+    check("未知模板 → 空串（调用方回退到模型自选）",
+          scene_hint_for_template("# 某新模板\n[说明]") == "", "")
+    check("空模板 → 空串（不写死通用）", scene_hint_for_template("") == "", "")
+    check("多线请求：优先 minutes 线模板",
+          scene_hint_for_templates({"minutes": pl, "trace": tm}) == "专项讨论会", "")
+    check("多线请求：无 minutes 时取第一条非空模板",
+          scene_hint_for_templates({"trace": "", "actions": tm}) == "团队例会", "")
+
+    # 理解节点确实用程序映射覆盖模型自选值
+    src = Path("domain/meeting/orchestrator.py").read_text(encoding="utf-8")
+    check("理解节点：用模板映射覆盖 scene（程序优先、模型兜底）",
+          "scene_hint_for_templates(state.get(\"templates\"))" in src
+          and 'data["scene"] = hint' in src, "")
+
+
+def test_allow_missing_on_trimmed_fields() -> None:
+    """单线裁剪字段允许缺键：模型把"输出 []"理解成"键不用写"时不再白跑一轮重试。
+
+    回归背景（2026-09-18 15:51 实测）：单线 minutes 会裁剪 risk_hints，裁剪指令写的是
+    "输出空数组 []"，但模型常把整个键省掉 → 契约要求字段集合完全一致 →
+    `结构化校验失败` → 针对性重试一次（+20s，第二次才把键补上）。
+    """
+    import json
+    from dataclasses import fields as dc_fields
+
+    from client.llmclient import LLMClient
+    from domain.meeting.meeting_core.meeting_understanding_agent import (
+        _trim_instruction,
+    )
+    from domain.meeting.models_generated import MeetingUnderstanding
+
+    base = {
+        f.name: ("一段话" if "list" not in str(f.type) else [])
+        for f in dc_fields(MeetingUnderstanding)
+    }
+    base["scene"] = "通用"
+    trimmed = {k: v for k, v in base.items() if k != "risk_hints"}
+
+    out = LLMClient._parse_and_validate(
+        json.dumps(trimmed), MeetingUnderstanding, frozenset({"risk_hints"})
+    )
+    check("裁剪字段缺键时补默认 []（不再抛错重试）", out.risk_hints == [], f"{out.risk_hints}")
+    try:
+        LLMClient._parse_and_validate(json.dumps(trimmed), MeetingUnderstanding)
+        failed = False
+    except Exception:  # noqa: BLE001
+        failed = True
+    check("未声明 allow_missing 时缺键仍严格报错（不放松其它字段）", failed, "")
+    unkept = {k: v for k, v in base.items() if k != "topics"}
+    try:
+        LLMClient._parse_and_validate(
+            json.dumps(unkept), MeetingUnderstanding, frozenset({"risk_hints"})
+        )
+        failed2 = False
+    except Exception:  # noqa: BLE001
+        failed2 = True
+    check("非裁剪字段缺键仍报错（只在裁剪集合内放宽）", failed2, "")
+
+    trim = _trim_instruction("minutes", ("risk_hints",))
+    check("裁剪指令写明「键名必须保留、值给空数组 []」",
+          "键名必须保留" in trim and "不要省略键名" in trim, trim[:80])
+
+    src = Path("domain/meeting/meeting_core/meeting_understanding_agent.py").read_text(encoding="utf-8")
+    check("理解 agent：把裁剪集合传给 allow_missing",
+          "allow_missing=skipped" in src and "skipped = {" in src, "")
+
+
+def test_default_minutes_template() -> None:
+    """纪要线不传模板 → 自动路由到「通用纪要」（不再走无模板自由渲染）。
+
+    回归背景（2026-09-18 实测无模板纪要）：完全听模型的——栏目自定、无缺省词、
+    无段落上限、不跑模板门禁（同一份原文 6410 汉字 / 最长单行 515 字 / 超篇幅上限 16% 无人管）。
+    """
+    from app.config import DEFAULT_MINUTES_TEMPLATE
+    from app.tasks import _template_file
+
+    check("默认纪要模板常量为 general_minutes",
+          DEFAULT_MINUTES_TEMPLATE == "general_minutes", DEFAULT_MINUTES_TEMPLATE)
+
+    auto = _template_file("meeting", "minutes", "")
+    check("纪要线留空 → 自动套用模板（返回模板文件）", auto is not None, f"{auto}")
+    if auto is not None:
+        text = auto.read_text(encoding="utf-8")
+        check("自动套用的就是「通用纪要」（含全文摘要/要点梳理栏）",
+              "# [全文摘要]" in text and "# [要点梳理]" in text, text[:60])
+    check("其它线留空仍不套模板（minutes_trace）",
+          _template_file("meeting", "minutes_trace", "") is None, "")
+    check("其它域留空仍不套模板（notes/catalog）",
+          _template_file("notes", "catalog", "") is None, "")
+
+    from app.tasks import ApiError
+
+    try:
+        _template_file("meeting", "minutes", "不存在的模板")
+        raised = False
+    except ApiError:
+        raised = True
+    check("显式传入非法模板仍 400（不静默套默认）", raised, "")
+    check("显式传入合法模板照旧生效",
+          _template_file("meeting", "minutes", "项目进度会") is not None, "")
+
+
+def test_understanding_skip_never_retries() -> None:
+    """每条线的理解裁剪字段都允许缺键：模型省略被裁剪字段时不再白跑重试。
+
+    回归背景（2026-09-18）：单线跑 minutes 会裁剪 risk_hints，模型把"输出空数组 []"理解成
+    "整个键不用写" → 契约要求字段集合完全一致 → 校验失败 → 针对性重试一次（+20s）。
+    用户实测在 讲座概况、对话概况 等场景都出现——**同一处路径**（理解阶段按线裁剪，
+    与模板无关），所以修的是线级机制，30 个模板一起覆盖。
+    """
+    import asyncio
+    import json
+    from dataclasses import fields as dc_fields
+
+    from client.llmclient import LLMClient
+    from domain.meeting.meeting_core.meeting_understanding_agent import (
+        MeetingUnderstandingAgent,
+    )
+    from domain.meeting.models_generated import MeetingUnderstanding
+    from domain.meeting.orchestrator import UNDERSTANDING_SKIP_FIELDS
+
+    class _FakeUnderstandingClient:
+        """只回一份"省略了裁剪字段"的 JSON；按 structured 的 allow_missing 语义校验。"""
+
+        def __init__(self, skip: set[str]) -> None:
+            self.skip = set(skip)
+            self.calls = 0
+
+        async def structured(self, system, user, model, contract, *, label="", allow_missing=(), **kw):
+            self.calls += 1
+            payload = {
+                f.name: ("一段话" if "list" not in str(f.type) else [])
+                for f in dc_fields(model)
+            }
+            payload["scene"] = "通用"
+            for key in self.skip:  # 模拟模型把被裁剪字段的键整个省掉
+                payload.pop(key, None)
+            return LLMClient._parse_and_validate(
+                json.dumps(payload), model, frozenset(allow_missing)
+            )
+
+    list_fields = {
+        f.name for f in dc_fields(MeetingUnderstanding) if "list" in str(f.type)
+    }
+    for line, skip in UNDERSTANDING_SKIP_FIELDS.items():
+        fake = _FakeUnderstandingClient(set(skip))
+        agent = MeetingUnderstandingAgent(fake)  # type: ignore[arg-type]
+        out = asyncio.run(agent.run("会议原文：略。", focus_line=line, skip_fields=skip))
+        blanks = [k for k in skip if k in list_fields]
+        check(f"裁剪字段缺键不报错、一次调用成功（{line} 线：{sorted(skip)}）",
+              all(getattr(out, k) == [] for k in blanks) and fake.calls == 1,
+              f"calls={fake.calls}")
+    check("裁剪集合覆盖 minutes/actions/risks 三条线",
+          set(UNDERSTANDING_SKIP_FIELDS) == {"minutes", "actions", "risks"}, "")
+
+    src = Path("domain/meeting/meeting_core/meeting_understanding_agent.py").read_text(encoding="utf-8")
+    check("理解 agent：同一裁剪集合既写进指令也传给 allow_missing",
+          "allow_missing=skipped" in src and "键名必须保留" in src, "")
+    node_src = Path("domain/meeting/orchestrator.py").read_text(encoding="utf-8")
+    check("理解裁剪只按选线（不按模板）——所有模板共用同一路径",
+          "skip = self._understanding_skip(line_names)" in node_src
+          and "skip_fields=skip" in node_src, "")
 
 
 def test_product_launch_overview() -> None:
@@ -1566,6 +1930,13 @@ def main() -> int:
         test_conversation_and_seminar_enrichment()
         test_qa_precision_rules()
         test_project_progress_overview()
+        test_paragraph_cap_from_explicit_per_para()
+        test_strip_default_only_content()
+        test_enum_normalize_fallback()
+        test_scene_hint_from_template()
+        test_allow_missing_on_trimmed_fields()
+        test_default_minutes_template()
+        test_understanding_skip_never_retries()
         test_product_launch_overview()
         test_retro_annual_groups()
         test_fallback_text_dedupe()

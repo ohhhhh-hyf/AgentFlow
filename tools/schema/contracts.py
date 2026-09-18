@@ -174,13 +174,23 @@ class StrField(Field):
 
 
 class EnumField(Field):
-    """枚举字段（JSON 值形如 ``"high|medium|low"``）。"""
+    """枚举字段（JSON 值形如 ``"high|medium|low"``）。
 
-    def __init__(self, name: str, values: list[str], desc: str = "") -> None:
+    ``normalize``：非法值归一到该项（不抛错、不触发重试）。只用于**形态标签类**字段
+    （如会议场景 scene：粗粒度 7 类覆盖不到二十多种真实场景）；硬语义枚举（审核 status 等）
+    保持严格校验。
+    """
+
+    def __init__(
+        self, name: str, values: list[str], desc: str = "", normalize: str | None = None
+    ) -> None:
         super().__init__(name, desc)
         if not values:
             raise ValueError(f"枚举字段 {name} 的 values 不能为空")
         self.values = list(values)
+        if normalize is not None and normalize not in self.values:
+            raise ValueError(f"枚举字段 {name} 的 normalize={normalize!r} 不在 values 里")
+        self.normalize = normalize
 
     @property
     def kind(self) -> str:

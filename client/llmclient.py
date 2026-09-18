@@ -711,12 +711,43 @@ class LLMClient:
         return text
 
     @staticmethod
-    def _parse_and_validate(content: str, response_model: type[T]) -> T:
+    def _fill_missing_defaults(
+        data: dict, response_model: type, allow_missing: frozenset[str]
+    ) -> dict:
+        """裁剪字段缺键时按字段默认值补齐（列表 → []，可空字符串 → ""，其余 → None）。
+
+        为什么（2026-09-18 实测）：单线 minutes 会把 risk_hints 裁掉，指令写的是
+        "输出空数组 []"，但模型常把整个键省掉——契约要求字段集合完全一致 →
+        OutputValidationError → 白跑一次针对性重试（+20s）。裁剪字段本就允许为空，
+        缺键等价于空值，这里补默认值；**其余字段缺键仍照旧报错**。
+        """
+        if not allow_missing:
+            return data
+        filled = dict(data)
+        type_hints = getattr(response_model, "__annotations__", {}) or {}
+        for key in allow_missing:
+            if key in filled:
+                continue
+            hint = str(type_hints.get(key, ""))
+            if "list" in hint:
+                filled[key] = []
+            elif "str" in hint and "None" in hint:
+                filled[key] = None
+            else:
+                filled[key] = None
+        return filled
+
+    @staticmethod
+    def _parse_and_validate(
+        content: str, response_model: type[T], allow_missing: frozenset[str] = frozenset()
+    ) -> T:
         payload = LLMClient._extract_json_payload(content)
         try:
             data = json.loads(payload)
         except json.JSONDecodeError as exc:
             raise OutputValidationError(f"不是合法 JSON：{exc}") from exc
+        if isinstance(data, dict):
+            data = LLMClient._fill_missing_defaults(data, response_model, allow_missing)
         return validate_payload(response_model, data)
 
     @staticmethod
@@ -797,6 +828,7 @@ class LLMClient:
         max_tokens: int | None = None,
         timeout: float | None = None,
         label: str = "",
+        allow_missing: Iterable[str] = (),
     ) -> T:
         contract = output_contract.strip()
         messages = [
@@ -859,7 +891,11 @@ class LLMClient:
                     continue
                 break
             try:
-                return self._parse_and_validate(last_content, response_model)
+                return self._parse_and_validate(
+                    last_content,
+                    response_model,
+                    frozenset(str(x).strip() for x in allow_missing if str(x).strip()),
+                )
             except OutputValidationError as exc:
                 last_error = str(exc)
                 logger.warning(

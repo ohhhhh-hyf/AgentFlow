@@ -220,6 +220,9 @@ def parse_generation_contract(cls: type) -> list[dict]:
         entry: dict = {"key": f.name, "kind": f.kind}
         if f.kind == "enum":
             entry["values"] = list(f.values)
+            if getattr(f, "normalize", None):
+                # 形态标签类枚举：非法值归一，不抛错重试（见 tools/schema/validation._choice_or_default）
+                entry["normalize"] = f.normalize
         fields.append(entry)
     return fields
 
@@ -272,6 +275,11 @@ def _validation_line(field: dict) -> str:
         return f'        _string(data["{key}"], "{key}")'
     if kind == "enum":
         values = ", ".join(f'"{v}"' for v in field["values"])
+        if field.get("normalize"):
+            return (
+                f'        data["{key}"] = _choice_or_default('
+                f'data["{key}"], {{{values}}}, "{key}", "{field["normalize"]}")'
+            )
         return f'        _choice(data["{key}"], {{{values}}}, "{key}")'
     if kind == "str_list":
         return f'        _string_list(data["{key}"], "{key}")'

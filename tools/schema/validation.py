@@ -43,6 +43,18 @@ def _choice(value: object, choices: set, path: str) -> None:
         raise OutputValidationError(f"{path} 必须是 {sorted(choices)} 之一")
 
 
+def _choice_or_default(value: object, choices: set, path: str, default: str) -> object:
+    """枚举容错：不在 choices 内时归一到 default（不抛错），合法值原样返回。
+
+    为什么（2026-09-18 实测）：理解层 scene 是 7 个**粗粒度形态标签**，而真实场景有二十多种
+    （产品发布、新闻发布、课堂、讲座、就医…）→ 模型自然填「产品发布」→ `_choice` 抛错 →
+    客户端重试一轮（多一次调用 + 12s，两次返回内容一字不变）。枚举类字段的失败几乎都源于
+    "选项覆盖不到内容"，对这类**形态标签**字段（不影响事实正确性）用归一兜底更划算；
+    枚举承载硬语义时（如审核 status）仍用 `_choice` 严格校验。
+    """
+    return value if value in choices else default
+
+
 def _review_check(value: dict, path: str) -> None:
     _exact_fields(value, {"status", "findings"}, path)
     _choice(value["status"], {"pass", "fail"}, f"{path}.status")

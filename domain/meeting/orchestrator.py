@@ -20,6 +20,7 @@ from perspective import PerspectiveModelingAgent
 from .meeting_factory import MeetingAgentFactory
 from .meeting_core import MeetingUnderstandingAgent
 from .domain_config import LINE_CN_NAMES, LINE_KINDS
+from .scene_hint import scene_hint_for_templates
 
 # 共享编排内核（领域无关）：纯函数 + DomainNodes 图节点 mixin
 from tools.core.domain_engine import DomainNodes
@@ -823,7 +824,15 @@ class _Nodes(DomainNodes):
                     "quality_degraded": True,
                 }
             progress("agent done meeting_understanding")
-            return {"meeting_understanding": result.model_dump()}
+            data = result.model_dump()
+            # 形态标签程序优先：调用方已选模板 → 单点映射到 7 类形态（见 scene_hint.py）。
+            # 模型自选的 scene 只作没有模板时的兜底——它只有 7 类可填，遇到发布会/课堂/就医
+            # 这类细粒度场景会自造类别（曾致校验失败白跑一轮），归一后也只能落到「通用」骨架。
+            hint = scene_hint_for_templates(state.get("templates"))
+            if hint and data.get("scene") != hint:
+                logger.info("scene hint from template: %s -> %s", data.get("scene"), hint)
+                data["scene"] = hint
+            return {"meeting_understanding": data}
 
         return node
 

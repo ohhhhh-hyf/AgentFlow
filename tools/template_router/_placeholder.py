@@ -811,7 +811,17 @@ async def fill_placeholder_template(
                         "每个字段按占位说明写原文要点，不得留空、不得只留标题。"
                     )
                     continue
-                return None  # 三轮仍缺栏 → 交给上层 freeform 渲染，绝不输出半截文档
+                # 三轮仍缺栏：不再 return None（整篇退回 freeform 会丢模板结构），
+                # 改为给仍空的字段补缺省词继续走完校验——漏填已有三轮机会，
+                # 最终宁可让该栏显式写「未提及」，也不放半截文档或丢结构。
+                for i in blank:
+                    fields[str(i)] = "未提及"
+                assembled = assemble_placeholder_output(template, fields, tables=tables)
+                logger.warning(
+                    "placeholder blanks filled with default word (attempt=%s)：%s",
+                    attempt + 1,
+                    blank,
+                )
             # 篇幅自检：只在模板声明了字数约束时才修订（偏短扩写、偏长压缩，不写进用户正文）。
             # 未声明约束时不因「偏短」打回——篇幅以原文为上限，信息少就写少，避免逼出注水。
             logger.debug("placeholder fill attempt=%s han=%s", attempt + 1, _body_han_count(assembled))

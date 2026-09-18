@@ -28,7 +28,7 @@ def _trim_instruction(focus_line: str, skip_fields: Iterable[str]) -> str:
     return (
         "【本次输出裁剪】\n"
         f"本次会议理解仅供 {focus_line or '本任务'} 线使用。"
-        f"只允许以下字段输出空数组 []：{'、'.join(blank)}。\n"
+        f"以下字段**键名必须保留、值给空数组 []**：{'、'.join(blank)}（不要省略键名）。\n"
         f"除上述字段外，其余字段（{'、'.join(keep)}）必须照常按会议原文完整、准确输出，"
         "不得省略、不得清空。\n"
         "裁剪字段输出 [] 是预期行为，不要为了完整性自检把它们填回内容。"
@@ -52,11 +52,17 @@ class MeetingUnderstandingAgent:
         instruction = _trim_instruction(focus_line, skip_fields)
         if instruction:
             user = f"{instruction}\n\n{user}"
+        skipped = {
+            str(field).strip() for field in skip_fields if str(field).strip()
+        }
         return await self.client.structured(
             MEETING_UNDERSTANDING_SYSTEM_PROMPT,
             user,
             MeetingUnderstanding,
             MEETING_UNDERSTANDING_GENERATION_OUTPUT_CONTRACT,
             label="core/meeting_understanding",
+            # 裁剪字段允许缺键：模型常把"输出 []"理解成"整个键不用写"，缺键会让严格校验
+            # 失败并白跑一次针对性重试（2026-09-18 实测 risk_hints，+20s）
+            allow_missing=skipped,
         )
 

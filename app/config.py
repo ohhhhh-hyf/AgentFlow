@@ -18,6 +18,12 @@ logger = logging.getLogger(__name__)
 # 模板源目录缺省值；实际生效目录由 AGENTFLOW_TEMPLATE_DIR 决定（见 template_dir()）
 DEFAULT_TEMPLATE_DIR = "template_v2"
 
+# 会议纪要线的默认模板：extra.template 留空时**自动套用「通用纪要」**（不再走无模板自由渲染）。
+# 只对纪要线（meeting/minutes）生效；其它线留空仍表示"不套模板"。
+# 为什么（2026-09-18 实测）：无模板纪要完全听模型的——栏目自定、无缺省词、无段落上限、
+# 不跑模板门禁（同一份原文 6410 汉字、最长单行 515 字、超出篇幅上限 16% 无人管）。
+DEFAULT_MINUTES_TEMPLATE = "general_minutes"
+
 # 每个取值只打一次日志（template_dir() 会被频繁调用），避免配置写错时逐请求刷屏
 _template_dir_logged: set[str] = set()
 
@@ -354,6 +360,7 @@ __all__ = [
     "DEFAULT_JOB_MAX_ATTEMPTS",
     "DEFAULT_JOB_TTL_SECONDS",
     "DEFAULT_LEASE_SECONDS",
+    "DEFAULT_MINUTES_TEMPLATE",
     "DEFAULT_REDIS_URL",
     "DEFAULT_RUN_MODE",
     "PROFILE_DIR",

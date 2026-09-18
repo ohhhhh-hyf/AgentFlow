@@ -58,7 +58,8 @@ class MeetingUnderstandingGenerationContract(GenerationContract):
     fields = [
         StrField("meeting_brief", "80字以内概括整场会议主线"),
         StrField("meeting_purpose", "一句话概括会议目的"),
-        EnumField("scene", SCENE_CHOICES),
+        # 形态标签类枚举：真实场景有二十多种，7 类覆盖不到 → 非法值归一「通用」，不抛错重试
+        EnumField("scene", SCENE_CHOICES, normalize="通用"),
         ObjListField("topics", [
             StrField("title", "议题名称"),
             StrField("discussion", "该议题的讨论经过：谁提出、怎么讨论、分歧与结论线索，连贯写清（不复述 key_points 的事实）"),
