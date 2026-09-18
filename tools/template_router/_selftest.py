@@ -47,8 +47,8 @@ SCALAR_BASELINE_BY_DIR: dict[str, dict[str, int]] = {
     # `[按下表逐行填写…]`）不计入字段——它们没有正文位，明细由表格承载（见 test_table_caption_*）。
     "template_v3": {
         "class_transcript": 4, "clinical_advisory": 5, "contract_vetting": 4,
-        "conversation_transcript": 4, "court_transcript": 3, "debate_forum": 4,
-        "decision_review": 4, "exchange_forum": 4, "general_minutes": 3,
+        "conversation_transcript": 5, "court_transcript": 3, "debate_forum": 4,
+        "decision_review": 4, "exchange_forum": 5, "general_minutes": 3,
         "government_bulletin": 3, "group_seminar": 4, "hiring_report": 3,
         "home_school_liaison": 4, "interview_debrief": 4, "interview_transcript": 3,
         "knowledge_memo": 3, "legal_advisory": 4, "media_briefing": 4,
@@ -666,10 +666,26 @@ def test_overview_cap_and_column_scope() -> None:
 
     # ① 未声明尺寸的概括栏：拿到默认上限 + 边界
     plain = _describe_field(1, _parse_field("一段话概括参与方、沟通主题与目的、达成的结果"))
-    check("概括栏（无尺寸声明）拿到默认上限",
-          "最多 3 段、每段不超过 400 字" in plain, f"{plain[:80]}")
-    check("概括栏（无尺寸声明）带「本栏不复述」边界",
+    check("首栏（概括·无尺寸）拿到「完整概括」口径与段上限",
+          "1–2 段完整概括" in plain and "每段不超过 400 字" in plain, f"{plain[:80]}")
+    check("首栏（概括·无尺寸）带要素清单（场合/覆盖/结论/关键数字）",
+          all(k in plain for k in ("谁/什么场合", "覆盖哪几块", "结论或基调", "1–3 个关键数字")),
+          f"{plain[:120]}")
+    check("首栏（概括·无尺寸）带「本栏不复述」边界",
           "本栏不复述" in plain and "归各自栏目" in plain, f"{plain[:80]}")
+    non_first = _describe_field(2, _parse_field("一段话概括参与方、沟通主题与目的、达成的结果"))
+    check("非首栏的概括栏仍按上限口径（不要求下限）",
+          "最多 3 段、每段不超过 400 字" in non_first and "1–2 段完整概括" not in non_first,
+          f"{non_first[:80]}")
+    # 首栏自称"交代…"并已自列要素（就医/宣讲/研讨）：补下限口径，但不套会议专用四要素
+    authored = _describe_field(
+        1, _parse_field("一段话交代患者基本信息、就诊科室与时间、本次就诊的核心主诉与初步判断")
+    )
+    check("自述要素的首栏拿到下限口径",
+          "1–2 段完整概括" in authored and "按本栏说明把要素交代完整" in authored,
+          f"{authored[:100]}")
+    check("自述要素的首栏不套会议专用四要素（避免语义打架）",
+          "以分享为主" not in authored and "谁/什么场合" not in authored, f"{authored[:100]}")
 
     # ② 自己声明了尺寸的概括栏：以模板为准，不叠加默认上限
     sized = _describe_field(1, _parse_field("一段话概括：先写这段文本是什么；**单段不超过约 200 字**，信息多就拆段"))
@@ -702,6 +718,29 @@ def test_overview_cap_and_column_scope() -> None:
           and "速览栏按各自用途可再次呈现同一事实" in user, "")
     check("篇幅口径只管整篇总量（不再压过单栏上限）",
           "这一条只管整篇总量" in fill_system, "")
+
+
+def test_first_column_min() -> None:
+    """总述栏（第 1 栏）下限：按原文规模算（tier 下限的 22%，夹 180–480），写进【篇幅预算】。
+
+    回归背景（2026-09 now.xlsx 实测 56 条）：首栏汉字中位数约 150（最薄 88），
+    而通用兜底只给了上限（≤3 段/≤400 字）——上限治不了薄；下限只给第 1 栏，明细栏不逼。
+    """
+    from tools.templates.length_budget import budget_line, first_column_min
+
+    check("首栏下限：<3k 档取地板 180", first_column_min(2999) == 180, f"{first_column_min(2999)}")
+    check("首栏下限：3k–8k 档＝tier 下限 ×22%", first_column_min(5000) == 238, f"{first_column_min(5000)}")
+    check("首栏下限：8k–20k 档", first_column_min(12000) == 370, f"{first_column_min(12000)}")
+    check("首栏下限：≥20k 档封顶 480", first_column_min(30000) == 480, f"{first_column_min(30000)}")
+    check("首栏下限：原文过短（<300 汉字）不约束", first_column_min(200) is None, f"{first_column_min(200)}")
+
+    line = budget_line(5000)
+    check("【篇幅预算】写明第 1 栏口径与具体下限",
+          "第 1 栏（概况/总述）" in line and "不少于 238 汉字" in line, f"{line[-130:]}")
+    check("过短原文不注入第 1 栏口径", "第 1 栏" not in budget_line(200), f"{budget_line(200)!r}")
+    check("首栏口径不含「全文/合计」类整篇标记（避免被解析成全文上限）",
+          not any(k in line.split("第 1 栏")[1] for k in ("全文", "整篇", "通篇", "合计", "总共")),
+          f"{line[-130:]}")
 
 
 def test_section_char_budget_scope() -> None:
@@ -1024,13 +1063,280 @@ def test_overview_specs_have_scope() -> None:
     """
     team = (_active_dir() / "team_meeting.md").read_text(encoding="utf-8")
     debate = (_active_dir() / "debate_forum.md").read_text(encoding="utf-8")
-    for text, name in ((team, "团队例会"), (debate, "辩论会")):
-        check(f"{name}：概况栏声明尺寸（约 120–250 字）", "约 120–250 字" in text, "")
-        check(f"{name}：概况栏写明边界（不展开什么、归哪栏）",
-              "不展开" in text, "")
+    for text, name, size in (
+        (team, "团队例会", "约 250–400 字"),
+        (debate, "辩论会", "约 250–400 字"),
+    ):
+        check(f"{name}：概况栏声明尺寸（{size}）", size in text, "")
+    check("团队例会：概况栏正向写明本栏只写什么（构成/主线/结论）+ 明细归位",
+          all(k in team for k in ("参会成员/部门", "主线议题", "总体结论或下一步方向"))
+          and "本栏不展开、不复述" in team, "")
+    check("辩论会：概况栏写明边界（不展开什么、归哪栏）", "不展开" in debate, "")
+    check("团队例会：[工作进展] 声明容量引导（并列任务各占一条 + 缩进子条）",
+          "并列的多个任务各占一条" in team and "缩进子条" in team, "")
+    check("团队例会：[协作需求] 声明去重口径（不复述进展 + 跨人依赖一条不落）",
+          "已在 [工作进展] 写过的进展不复述" in team and "跨人依赖一条不落" in team, "")
     check("辩论会：结辩栏分三条写",
           "**正方结辩**" in debate and "**反方结辩**" in debate and "**评委点评**" in debate, "")
     check("辩论会：结辩栏给每条尺寸", "每条 60–150 字" in debate, "")
+
+
+def test_debate_rounds_and_rows() -> None:
+    """辩论会：栏目跟原文环节对齐（质询/总结有承载位）+ 论点各自成行 + 归因与引用口径。
+
+    回归背景（2026-09 now.xlsx 行26）：一场 53 分钟、10284 汉字的辩论只出 1249 汉字
+    （低于 tier 下限 26%），门禁却全绿——原因是模板按"立论/自由辩论/结辩"设栏，而原文
+    里"自由辩论""结辩"**各出现 0 次**（原文说的是"第二个环节（质询）""第三个环节""小节"），
+    质询与总结的内容无家可归；表格要求"一行一方" → 论点与论据被压成两行标签串。
+    """
+    debate = (_active_dir() / "debate_forum.md").read_text(encoding="utf-8")
+    check("辩论会：交锋栏改为按原文环节分组（[环节交锋]）",
+          "# [环节交锋]" in debate and "# [自由辩论环节]" not in debate, "")
+    check("辩论会：交锋栏要求分组并写清攻守",
+          "原文实际出现的环节" in debate and "谁攻谁守" in debate, "")
+    check("辩论会：无环节线索时不硬分组",
+          "不要硬分组" in debate, "")
+    check("辩论会：归因兜底（判不准写「一方」）",
+          "判不准就写「一方」" in debate, "")
+    check("辩论会：每个交锋点尽量带原话引用（可只引不署名）",
+          "每个交锋点尽量带 1 句原文引用" in debate and "只引原话、不署名" in debate, "")
+    check("辩论会：论点表改为「同一方多个论点各自成行」",
+          "各自成行" in debate and "不要压成一行" in debate and "（一行一方）" not in debate, "")
+    check("辩论会：概述栏的反向引用已改名",
+          "[核心论点] / [环节交锋]" in debate, "")
+
+
+def test_exchange_forum_structure() -> None:
+    """沟通交流会：宣贯型素材有承载位 + 共识/待协调互斥 + 首栏边界（治信息墙与重复）。
+
+    回归背景（2026-09 now.xlsx 行3/行31）：两条数据都是单向宣贯型（源里"诉求/协调/承诺"
+    全是 0 次），结构化介绍内容全倒进 [信息同步] → 3174 汉字、5 个长段（最长 902 字）；
+    "夏令营时间待定"被写进 [达成共识] 又在 [待协调事项] 写一遍；首栏与信息同步数字重复。
+    """
+    text = (_active_dir() / "exchange_forum.md").read_text(encoding="utf-8")
+    for col in (
+        "# [沟通背景与目的]",
+        "# [核心信息与数据]",
+        "# [各方立场与诉求]",
+        "# [达成共识]",
+        "# [待协调事项与后续]",
+    ):
+        check(f"沟通交流会：栏位存在 {col}", col in text, "")
+    check("沟通交流会：旧栏名已退场（[信息同步]/[待协调事项]）",
+          "# [信息同步]" not in text and "# [待协调事项]\n" not in text, "")
+    check("沟通交流会：新增栏要求分条与数字落地（不压成长段）",
+          "每条 30–120 字" in text and "不要压成长段" in text and "数字、年份、比例" in text, "")
+    check("沟通交流会：新增栏声明「条数由原文决定」",
+          "条数由原文决定" in text, "")
+    check("沟通交流会：立场栏收窄（事实清单归上一栏、不复述）",
+          "事实与数字清单归 [核心信息与数据]" in text and "本栏不复述" in text, "")
+    check("沟通交流会：共识栏与待协调互斥（待定不进共识）",
+          "待定、计划、尚未确定的事项一律归 [待协调事项与后续]" in text, "")
+    check("沟通交流会：待协调栏分两组（待协调事项 / 后续安排与参与方式）",
+          "## 待协调事项" in text and "## 后续安排与参与方式" in text, "")
+    check("沟通交流会：待协调栏缺项写「待定」（与旧「无」口径统一）",
+          "缺项写「待定」" in text, "")
+    check("沟通交流会：首栏加边界（不展开明细）+ 尺寸 250–400",
+          "不展开发言明细与数字清单" in text and "约 250–400 字" in text, "")
+    check("沟通交流会：旧悬空引用已清除（「各方确认的信息」不存在）",
+          "各方确认的信息" not in text, "")
+    check("沟通交流会：每栏都有缺省词（空栏不成硬伤）",
+          text.count("未提及") >= 5, f"未提及×{text.count('未提及')}")
+    check("沟通交流会：引用有上限（3–5 句）",
+          "整栏最多引 3–5 句" in text, "")
+
+
+def test_interview_and_lecture_overview() -> None:
+    """采访记录 [访谈概述] / 专题讲座 [讲座概况]：补"结论型"要素 + 锚点 + 尺寸 + 防越栏。
+
+    回归背景（2026-09 now.xlsx）：两栏覆盖度好但只有 78–135 汉字（动态下限 238–370 的
+    40% 左右），且要素全是"是什么"型（主题/身份/板块/形式），没有落点——行36 的概述把
+    话题列全了却一句结论都没有；行48 的 78 字反而越栏写了 [核心观点与论证] 的内容。
+    另：采访记录 [访谈详细记录] 缺容量引导，行36 整篇只有 tier 下限的 67% 即此栏偏小。
+    """
+    interview = (_active_dir() / "interview_transcript.md").read_text(encoding="utf-8")
+    lecture = (_active_dir() / "special_lecture.md").read_text(encoding="utf-8")
+
+    for name, text, anchor in (
+        ("采访记录", interview, "受访者最核心的观点与结论 1–3 条"),
+        ("专题讲座", lecture, "讲座的核心主张或最有分量的 2–3 个判断"),
+    ):
+        check(f"{name}：概况栏补了结论型要素", anchor in text, "")
+        check(f"{name}：概况栏要求 1–3 个数字/专名锚点",
+              "作锚点" in text, "")
+        check(f"{name}：概况栏尺寸写进模板（约 250–400 字）", "约 250–400 字" in text, "")
+    check("采访记录：概况栏边界（不展开论据细节，归 [访谈详细记录]）",
+          "不展开受访者的论据与细节（那是 [访谈详细记录] 的事）" in interview, "")
+    check("专题讲座：概况栏边界（只写主张与结论，归 [核心观点与论证]）",
+          "只写主张与结论" in lecture and "本栏不复述" in lecture, "")
+    check("采访记录：[访谈详细记录] 补了容量引导（多条各占一条、不要压成一条）",
+          "各自成条，不要压成一条" in interview and "每条 30–120 字" in interview, "")
+    check("采访记录：旧表述「只写这是一场什么讲座」已清除（避免只写节目单）",
+          "只写\"这是一场什么讲座\"" not in lecture, "")
+
+
+def test_reject_hardening() -> None:
+    """无理由的 reject 不当否决 + 摘录未覆盖 ≠ 捏造（治"误判→返工→无理由 reject→降级"）。
+
+    回归背景（2026-09-18 11:39 实测）：草稿里的《种地吧》细节（十个男孩/农业公司/小月季）
+    都在原文里，但审核者拿到的"按草稿事实点摘录"没覆盖那段 → 判"无原文依据" → revise →
+    返工没改（草稿 579→584 字）→ 二轮 reject（feedback 按契约为空，日志 findings=null）→
+    整线降级成拼接文本，而那段降级文本里恰好又包含这些"无依据"的细节。
+    """
+    from tools.schema.validation import soften_unreasoned_reject
+
+    # ① 有理由的 reject 原样保留
+    reasoned = {
+        "decision": "reject",
+        "feedback": [],
+        "facts_check": {"status": "fail", "findings": ["把「建议下月再议」写成了已决策"]},
+        "consistency_check": {"status": "pass", "findings": []},
+    }
+    kept, note = soften_unreasoned_reject(dict(reasoned))
+    check("reject 带具体理由 → 原样生效", kept["decision"] == "reject" and note is None, f"{note}")
+
+    # ② 无理由的 reject → 降为 approve 并留痕
+    bare = {
+        "decision": "reject",
+        "feedback": [],
+        "facts_check": {"status": "fail", "findings": []},
+        "consistency_check": {"status": "pass", "findings": []},
+    }
+    soft, note = soften_unreasoned_reject(dict(bare))
+    check("无理由 reject → 降为 approve", soft["decision"] == "approve" and soft.get("reject_downgraded"), f"{soft}")
+    check("降级后 feedback 置空（approve 语义要求）", soft["feedback"] == [], f"{soft['feedback']}")
+    check("降级留痕有说明", bool(note) and "按 approve" in str(note), f"{note}")
+
+    # ③ approve / revise 不受影响
+    for decision in ("approve", "revise"):
+        payload = {"decision": decision, "feedback": ["x"] if decision == "revise" else []}
+        out, note = soften_unreasoned_reject(dict(payload))
+        check(f"{decision} 不被本兜底改动", out["decision"] == decision and note is None, f"{out}")
+
+    # ④ 文案：审核侧必须被明确告知"未覆盖 ≠ 捏造"与"reject 要写理由"
+    from domain.meeting.tasks.minutes import prompts as minutes_prompts
+
+    domain_prompt = minutes_prompts.MINUTES_SUPERVISOR_DOMAIN_PROMPT
+    check("审核领域提示词：无理由 reject 会被按 approve 处理",
+          "没写理由的 reject 会被程序按 approve 处理" in domain_prompt, "")
+    check("审核领域提示词：核对不了按未覆盖处理（不是捏造）",
+          "写「未能核对：X」并 approve" in domain_prompt, "")
+    engine_src = (
+        __import__("pathlib").Path("tools/core/domain_engine.py").read_text(encoding="utf-8")
+    )
+    check("审核证据包：明文写「摘录未覆盖 ≠ 无依据」",
+          "摘录未覆盖 ≠ 无依据" in engine_src and "不得据此 revise 或 reject" in engine_src, "")
+    check("审核节点：软化的 reject 已接入（approve 后不再走 fallback）",
+          "soften_unreasoned_reject(payload)" in engine_src
+          and "reject_downgraded" in engine_src, "")
+    schema_src = (
+        __import__("pathlib").Path("tools/schema/contracts.py").read_text(encoding="utf-8")
+    )
+    check("审核契约说明：reject 需写明具体理由",
+          "该检查项的 findings 要写明具体理由" in schema_src, "")
+
+
+def test_conversation_and_seminar_enrichment() -> None:
+    """对话记录 / 小组讨论：首栏补结论要素+尺寸、新增关键原话、共识栏双侧、细节落地。
+
+    回归背景（2026-09 now.xlsx）：两栏覆盖度好但首栏只有 103–168 汉字（动态下限 238–370）；
+    对话记录 2388 字原文只出 722 汉字、[交流内容] 仅 3 条且把原话塞在里面被压成转述；
+    小组讨论 [共识形成] 124–197 字、[发言要点] 里源文的"三次/四个/十分钟"未落地。
+    末栏（待探讨/延伸话题）的空是源文所致（那些场"下次/待/分工/负责"全为 0 次），
+    所以只把口径写清楚（搁置、没聊透也算），不加下限、不逼内容。
+    """
+    conv = (_active_dir() / "conversation_transcript.md").read_text(encoding="utf-8")
+    semi = (_active_dir() / "group_seminar.md").read_text(encoding="utf-8")
+
+    for name, text, lead in (
+        ("对话记录", conv, "本场的核心观点或结论 1–3 条"),
+        ("小组讨论", semi, "本场达成的倾向性认识或主要分歧 1–2 条"),
+    ):
+        check(f"{name}：首栏补结论型要素", lead in text, "")
+        check(f"{name}：首栏声明尺寸（约 250–400 字）", "约 250–400 字" in text, "")
+        check(f"{name}：首栏要素含锚点要求", "作锚点" in text, "")
+        check(f"{name}：首栏带防越栏边界", "不展开" in text, "")
+
+    check("对话记录：新增 [关键原话] 栏（3–8 句、逐字）",
+          "# [关键原话]" in conv and "3–8 句" in conv and "不改字、不合并" in conv, "")
+    check("对话记录：新栏声明缺省词（空栏不成硬伤）",
+          "原文确实没有可摘的原话就写「未提及」" in conv, "")
+    check("对话记录：[交流内容] 不再夹引用（原话归 [关键原话]）",
+          "本栏不夹引用" in conv and "原话统一放 [关键原话]" in conv, "")
+    check("对话记录：[交流内容] 要求细节落地（不只写主张）",
+          "都要落进对应条目，不要只写主张" in conv, "")
+    check("对话记录：[共识与分歧] 补尺寸（约 150–300 字）与理由",
+          "约 150–300 字" in conv and "各方立场与理由" in conv, "")
+    check("小组讨论：[共识形成] 扩为双侧（一致意见 + 倾向性认识/主要分歧）",
+          "一致意见或产出" in semi and "谁与谁不一致、分歧在哪" in semi
+          and "没有统一意见时写本场达成的倾向性认识与主要分歧点" in semi, "")
+    check("小组讨论：[共识形成] 补尺寸（约 150–300 字）", "约 150–300 字" in semi, "")
+    check("小组讨论：[发言要点] 要求数字/案例落地",
+          "具体数字、次数、案例、时间要落进对应条目" in semi, "")
+    check("小组讨论：末栏口径写清（搁置/没聊透也算）但不编造分工",
+          "没聊透或明确说下次继续的话题都算" in semi and "不要编造分工" in semi, "")
+    for name, text in (("对话记录", conv), ("小组讨论", semi)):
+        check(f"{name}：旧体例（裸概括首栏）已替换",
+              "场景及整体脉络（谈了哪几个话题、以什么为主）" not in text
+              and "核心探讨问题（列出谈到的议题范围）" not in text, "")
+
+
+def test_qa_precision_rules() -> None:
+    """问答栏只收真问答（治"陈述句当提问"）：判据写在共用形态规则里，模板侧只留专用口径。
+
+    回归背景（2026-09 now.xlsx）：新闻发布两场对比——提问形式清晰的那场 7 条问句全部合格；
+    提问是间接表述的那场 3 条全部写成「主持人周琦提问，…？」这种引导式转述（既不是原文问句、
+    也不是纯疑问句），答话还有 230 字的讲稿式搬运。五个问答模板此前都没有"什么算问答"的判据。
+    """
+    from tools.template_router._placeholder import plan_placeholder_fill
+    from tools.templates.body_rules import BODY_FORMAT_RULES
+
+    for need in (
+        "问答栏只收真问答",
+        "自问自答与讲解式设问",
+        "不得写成「XX提问，…？」式引导转述",
+        "答话只写回应要点",
+        "每个问答 ≤200 字",
+        "原文没有正式问答就写「未提及」",
+    ):
+        check(f"共用形态规则含问答精度口径：{need}", need in BODY_FORMAT_RULES, "")
+
+    qa_templates = ("media_briefing", "media_qa_session", "admission_briefing", "special_lecture", "class_transcript")
+    retired = ("覆盖所有重要提问", "答话可归并但不得改口径", "内容相似的合并成一条")
+    from tools.templates.template_eval import parse_section_char_budgets
+
+    for stem in qa_templates:
+        text = (_active_dir() / f"{stem}.md").read_text(encoding="utf-8")
+        check(f"{stem}：问答栏声明缺省词（空栏不成硬伤）", "未提及" in text, "")
+        check(f"{stem}：已删掉与共用层重复的旧口径",
+              not any(r in text for r in retired),
+              f"残留={[r for r in retired if r in text]}")
+        plan = plan_placeholder_fill(text)
+        qa = [s for s in plan["scalars"] if "独立成段" in (s.get("hint") or "")]
+        check(f"{stem}：问答栏 missing=True（留空自动补「未提及」）",
+              bool(qa) and qa[0].get("missing") is True,
+              f"{[s.get('missing') for s in qa]}")
+        # 自动拆行网：可解析的段落级预算必须留在模板里（共用规则进的是 prompt，解析器只读模板）
+        para = [b for b in parse_section_char_budgets(text) if b.get("scope") == "paragraph"]
+        check(f"{stem}：问答栏保留可解析的段落预算（400/段，超限自动拆行）",
+              any(int(b["hi"]) == 400 for b in para), f"{para}")
+
+    # 拆行网必须真的咬住问答栏：`**称呼**：` 是散文段，不能被当成条目行跳过
+    from tools.execution.hard_execution import split_overlong_paragraphs
+
+    tpl = (_active_dir() / "media_qa_session.md").read_text(encoding="utf-8")
+    long_ans = "这是一段很长的答话。" * 80
+    han = lambda p: len([c for c in p if "\u4e00" <= c <= "\u9fff"])
+    doc = "# 媒体问答\n\n# 核心提问与回应\n**记者**：这次政策的核心是什么？\n**发言人**：" + long_ans + "\n"
+    fixed, notes = split_overlong_paragraphs(doc, tpl)
+    longest = max((han(ln) for ln in fixed.splitlines() if ln.strip()), default=0)
+    check("问答栏超长答话（>400×1.2 字）被确定性拆段",
+          bool(notes) and longest <= 400, f"最长行={longest} {notes}")
+    check("拆段只加换行、不改文字",
+          fixed.replace("\n", "") == doc.replace("\n", ""), "")
+    bullet = "# 媒体问答\n\n# 核心提问与回应\n- **要点**：" + long_ans + "\n"
+    check("`- ` 条目行仍不受段落上限管辖（交给条目规则）",
+          not split_overlong_paragraphs(bullet, tpl)[1], "")
 
 
 def test_product_launch_overview() -> None:
@@ -1045,12 +1351,23 @@ def test_product_launch_overview() -> None:
     for need in (
         "核心 Slogan（原文有则逐字写）",
         "不展开痛点清单与卖点细节",
-        "约 120–250 字",
+        "约 250–400 字",
         "原文给出的地域或人群差异背景",
         "原文给出的定价策略或价值口径按其原话一并写",
         "合并成一句",
     ):
         check(f"产品发布：含「{need}」", need in text, "")
+
+    # 首栏尺寸抬到 ≥动态下限（238）：这两栏首句是"一段话交代…"，进不了首栏四要素分支，
+    # 只能靠模板自述的尺寸；写 120 会让它们成为唯一低于下限的一档。
+    lecture = (_active_dir() / "special_lecture.md").read_text(encoding="utf-8")
+    check("专题讲座：概况栏尺寸已抬到 250–400 字", "约 250–400 字" in lecture, "")
+    leftovers = [
+        p.stem
+        for p in _active_dir().glob("*.md")
+        if "约 120–250 字" in p.read_text(encoding="utf-8")
+    ]
+    check("首栏尺寸统一到 250–400（旧的 120–250 已清除）", not leftovers, f"残留={leftovers}")
 
 
 def test_retro_annual_groups() -> None:
@@ -1162,6 +1479,7 @@ def main() -> int:
         test_minutes_chain_consistency()
         test_understanding_trim_lists()
         test_overview_cap_and_column_scope()
+        test_first_column_min()
         test_general_minutes_speedread()
         test_document_budget_not_misread()
         test_paragraph_split()
@@ -1175,6 +1493,12 @@ def main() -> int:
         test_knowledge_memo_groups()
         test_clinical_history_column()
         test_overview_specs_have_scope()
+        test_debate_rounds_and_rows()
+        test_exchange_forum_structure()
+        test_interview_and_lecture_overview()
+        test_reject_hardening()
+        test_conversation_and_seminar_enrichment()
+        test_qa_precision_rules()
         test_product_launch_overview()
         test_retro_annual_groups()
         test_fallback_text_dedupe()

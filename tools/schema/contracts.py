@@ -110,7 +110,9 @@ class SupervisorContract:
             "（feedback 字段同样必须出现：approve/reject 时给空数组 []）",
             "轻微问题写成 status=\"pass\" 并在 findings 里说明；**只有严重问题**才 status=\"fail\"。"
             "decision=approve 时检查项必须全 pass 且 feedback 为空；"
-            "revise 必须给出 feedback；reject 必须至少一个检查项 fail",
+            "revise 必须给出 feedback；reject 必须至少一个检查项 fail，"
+            "**且该检查项的 findings 要写明具体理由（哪条事实与原文相反／凭空捏造／"
+            "把讨论写成已决策）——没写理由的 reject 会被程序按 approve 处理**",
         ]
         for ck in cls.checks:
             notes.append(f"- {ck.name}：{ck.desc}" if ck.desc else f"- {ck.name}")

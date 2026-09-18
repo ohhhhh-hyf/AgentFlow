@@ -101,8 +101,38 @@ def validate_supervisor_semantics(
         raise OutputValidationError("decision=reject 时至少一个检查项必须失败")
 
 
-# ── 统一入口 ──────────────────────────────────────────────────
+def soften_unreasoned_reject(payload: dict) -> tuple[dict, str | None]:
+    """无理由的 reject 不当否决：降为 approve，返回 (改后的 payload, 说明)。
 
+    为什么（2026-09-18 实测）：审核把"摘录未覆盖"误读成捏造 → revise → 返工没改 →
+    二轮 reject → 整线降级成拼接文本（内容反而更差）。reject 的替代品是**整篇降级**，
+    代价远大于保留一版有问题的草稿；所以只有**写明具体理由**（某个失败检查项的
+    findings 非空）的 reject 才生效，其余按 approve 处理并记 `reject_downgraded`。
+
+    说明为 None 表示 payload 未改动（非 reject，或有理由的 reject）。
+    """
+    if str(payload.get("decision") or "").strip().lower() != "reject":
+        return payload, None
+    reasons: list[str] = []
+    for key, value in payload.items():
+        if not isinstance(value, dict) or "status" not in value:
+            continue
+        if str(value.get("status")).strip().lower() != "fail":
+            continue
+        findings = value.get("findings") or []
+        if isinstance(findings, list) and any(str(f).strip() for f in findings):
+            reasons.append(f"{key}: {str(findings[0]).strip()[:80]}")
+    if reasons:
+        return payload, None
+    softened = dict(payload)
+    softened["decision"] = "approve"
+    softened["reject_downgraded"] = True
+    # approve 的语义要求 feedback 为空（validate_supervisor_semantics）
+    softened["feedback"] = []
+    return softened, "reject 未写具体理由（失败检查项的 findings 为空）→ 按 approve 处理"
+
+
+# ── 统一入口 ──────────────────────────────────────────────────
 def validate_payload(response_model: type[T], data: dict) -> T:
     """严格校验模型输出并返回实例。
 

@@ -185,7 +185,9 @@ class DomainNodes:
             source_note = (
                 "以下原文按草稿事实点摘录，仍是最高事实来源。"
                 f"已覆盖草稿中 {hits} 处可定位表述。"
-                "摘录未覆盖处不得凭空补全；不足以核对某条时 revise 并指出缺哪句。"
+                "**摘录未覆盖 ≠ 无依据**：只有摘录中出现与之相反的内容、或上方理解摘要里"
+                "也没有该事实，才能判捏造或矛盾；未覆盖时**不得据此 revise 或 reject**——"
+                "可在 feedback 里写「未能核对：X」并照常 approve（程序会记录待核对项）。"
                 "草稿中从理解层逐字搬运/引用的字段（如决策、风险、未决问题），"
                 "请对照下方理解摘要核对「没改没漏」；原文摘录重点核对提炼字段与理解层本身。"
             )
@@ -500,15 +502,28 @@ class DomainNodes:
                     "quality_degraded": True,
                 }
             payload = review.model_dump() if hasattr(review, "model_dump") else dict(review)
+            # 无理由的 reject 会直接把整线打成降级（替代品是拼接文本，代价更大）：
+            # 只有写明具体理由的 reject 才生效，其余按 approve 处理并记 reject_downgraded。
+            from tools.schema.validation import soften_unreasoned_reject
+
+            payload, softened = soften_unreasoned_reject(payload)
+            if softened:
+                logger.warning("review reject softened line=%s: %s", line_name, softened)
             progress("agent done review line=%s decision=%s", line_name, payload.get("decision") or "returned")
-            # 降级排查：非 approve 时把审核给的理由（feedback/findings）一起落日志
+            # 降级排查：非 approve 时把审核给的理由（feedback/失败检查项的 findings）一起落日志
             if str(payload.get("decision") or "").strip().lower() in {"revise", "reject"}:
+                failed = {
+                    str(key): value.get("findings")
+                    for key, value in payload.items()
+                    if isinstance(value, dict)
+                    and str(value.get("status") or "").strip().lower() == "fail"
+                }
                 logger.info(
-                    "review reason line=%s decision=%s feedback=%s findings=%s",
+                    "review reason line=%s decision=%s feedback=%s failed_checks=%s",
                     line_name,
                     payload.get("decision"),
                     json_dumps(payload.get("feedback"))[:800],
-                    json_dumps(payload.get("findings"))[:800],
+                    json_dumps(failed)[:800],
                 )
             return {
                 "lines": {
@@ -868,6 +883,7 @@ class DomainNodes:
                 "decision": decision,
                 "revision_count": revisions,
                 "degraded": degraded,
+                "reject_downgraded": bool(review.get("reject_downgraded")),
                 "review_unavailable": review_unavailable,
                 "fallback": degraded or decision == "reject",
             }

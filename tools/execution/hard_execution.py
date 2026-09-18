@@ -39,6 +39,21 @@ HARD_ISSUE_MARKERS = (
 )
 
 _HEADING_RE = re.compile(r"^(#{1,6})\s+(\S.*?)\s*$")
+# 单星号开头的 md 列表项 `* x`（会把 `**称呼**：…` 这类散文段误判成条目行，故用 (?!\*) 排除）
+_STAR_BULLET_RE = re.compile(r"^\*(?!\*)")
+
+
+def _is_non_prose_line(body: str) -> bool:
+    """该行不是散文段（标题/表格/引用/列表项）→ 不参与段落字数上限。
+
+    为什么单列 `*` 的判定（2026-09）：`**发言人**：…` 是问答栏的散文段，
+    旧判定 `startswith("*")` 把它当条目行跳过，导致「每段 ≤400 字」对问答栏
+    完全不生效（实测 742 字答话既不报超限也不拆段）。
+    """
+    if body.startswith(("#", "|", ">", "-", "+")):
+        return True
+    return bool(_STAR_BULLET_RE.match(body))
+
 
 
 def extract_labeled_json(text: str, label: str) -> dict[str, Any] | None:
@@ -419,7 +434,7 @@ def split_overlong_paragraphs(text: str, template: str) -> tuple[str, list[str]]
         if (
             cap
             and body
-            and not body.startswith(("#", "|", ">", "-", "*", "+"))
+            and not _is_non_prose_line(body)
             and _han_count(body) > cap * 1.2
         ):
             parts = _split_one_paragraph(body, cap)
@@ -720,7 +735,7 @@ def _overlong_issue(template: str, text: str) -> str | None:
                 ln.strip()
                 for ln in body.splitlines()
                 if _han_count(ln) > cap * 1.2
-                and not ln.strip().startswith(("#", "|", ">", "-"))
+                and not _is_non_prose_line(ln.strip())
             ]
             if long_lines:
                 longest = max(_han_count(ln) for ln in long_lines)

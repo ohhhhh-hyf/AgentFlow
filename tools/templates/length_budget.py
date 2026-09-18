@@ -15,6 +15,19 @@
 | 3k–8k  | 1080–3200 |
 | 8k–20k | 1680–5500 |
 | ≥20k   | 2400–8000 |
+
+总述栏（模板第 1 栏）另有下限（2026-09 now.xlsx 实测 56 条）：29 个模板里 22 个的首栏说明
+只有一句"一段话概括…"，实测首栏汉字中位数约 150（最薄 88），而通用兜底只给了上限——**上限治不了薄**。
+`first_column_min()` 把"总述栏该多厚"按原文规模算成具体数字，与整篇预算同源：
+
+| 原文汉字 | tier 下限 | 首栏下限（22%，夹 180–480） |
+|---|---|---|
+| <3k    | 720  | 180 |
+| 3k–8k  | 1080 | 238 |
+| 8k–20k | 1680 | 370 |
+| ≥20k   | 2400 | 480 |
+
+480 仍能装进"1–2 段、每段 ≤400 字"，不与段落上限冲突。
 """
 from __future__ import annotations
 
@@ -29,6 +42,11 @@ TIERS: tuple[tuple[int | None, int, int], ...] = (
     (20000, 1680, 5500),
     (None, 2400, 8000),
 )
+
+
+# 总述栏（第 1 栏）下限：整篇下限的 22%，夹在 180–480 汉字（480 仍在"1–2 段、每段 ≤400"内）
+FIRST_COL_SHARE = 0.22
+FIRST_COL_MIN, FIRST_COL_MAX = 180, 480
 
 
 def han_count(text: str) -> int:
@@ -51,6 +69,18 @@ def length_budget(source_han: int, *, kind: str = "record") -> tuple[int, int] |
     return None
 
 
+def first_column_min(source_han: int) -> int | None:
+    """总述栏（模板第 1 栏）的篇幅下限；原文过短（<300 汉字）时返回 None。
+
+    只对第 1 栏要下限：明细栏写多长由原文事实量决定（逼下限会注水），
+    总述栏是"只读一段"的入口，太薄＝没有交代清这场会是什么、围绕什么、结论与关键数字。
+    """
+    span = length_budget(source_han)
+    if not span:
+        return None
+    return max(FIRST_COL_MIN, min(FIRST_COL_MAX, round(span[0] * FIRST_COL_SHARE)))
+
+
 def budget_line(source_han: int, *, columns: int = 0) -> str:
     """生成注入 prompt 的【篇幅预算】块；原文过短时返回空串。"""
     span = length_budget(source_han)
@@ -60,6 +90,12 @@ def budget_line(source_han: int, *, columns: int = 0) -> str:
     cols = f"，本模板 {columns} 栏" if columns else ""
     pct_lo = lo * 100 // max(source_han, 1)
     pct_hi = hi * 100 // max(source_han, 1)
+    floor = first_column_min(source_han)
+    first_col = (
+        f"**第 1 栏（概况/总述）**写 1–2 段完整概括，不少于 {floor} 汉字（每段 ≤400）："
+        "交代清谁/什么场合、围绕什么与覆盖哪几块、结论或基调，"
+        "并带 1–3 个关键数字（原文没有的不编）。"
+    ) if floor else ""
     return (
         f"【篇幅预算】原文约 {source_han} 汉字{cols} → 正文总量参考 {lo}–{hi} 汉字"
         f"（原文的 {pct_lo}%–{pct_hi}%）。"
@@ -68,7 +104,17 @@ def budget_line(source_han: int, *, columns: int = 0) -> str:
         "栏目少、以结论为主的模板（复盘/评审/面试/笔记/通用纪要）往下限一侧走，"
         "事实密集的记录型模板（课堂/庭审/讲座/发布）可往上限一侧走——以原文事实量为准，不硬凑也不硬压。"
         "单段 ≤400 字（概况/背景类 ≤3 段）、条目 30–120 字/条。"
+        + first_col
     )
 
 
-__all__ = ["TIERS", "budget_line", "han_count", "length_budget"]
+__all__ = [
+    "FIRST_COL_MAX",
+    "FIRST_COL_MIN",
+    "FIRST_COL_SHARE",
+    "TIERS",
+    "budget_line",
+    "first_column_min",
+    "han_count",
+    "length_budget",
+]
