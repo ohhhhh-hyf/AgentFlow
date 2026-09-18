@@ -21,6 +21,7 @@ from tools.templates.template_eval import (
     extract_markdown_tables,
     extract_template_table_constraints,
     fix_glued_table_rows,
+    parse_section_char_budgets,
 )
 
 logger = logging.getLogger(__name__)
@@ -363,6 +364,75 @@ def classify_issues(issues: list[str]) -> tuple[list[str], list[str]]:
     return hard, soft
 
 
+def _split_one_paragraph(line: str, cap: int) -> list[str]:
+    """按句界把一行拆成多段（每段 ≤ cap 汉字）；拆不动（单句超长）时原样返回。"""
+    sentences = [s for s in re.split(r"(?<=[。！？；!?;])", line) if s.strip()]
+    if len(sentences) < 2:
+        return [line]
+    out: list[str] = []
+    buf = ""
+    for sentence in sentences:
+        candidate = f"{buf}{sentence}" if buf else sentence
+        if buf and _han_count(candidate) > cap:
+            out.append(buf)
+            buf = sentence
+        else:
+            buf = candidate
+    if buf:
+        out.append(buf)
+    return out if len(out) > 1 else [line]
+
+
+def split_overlong_paragraphs(text: str, template: str) -> tuple[str, list[str]]:
+    """按模板声明的「每段 ≤N 字」把超长散文段按句界拆开（**只加换行，不改文字**）。
+
+    为什么需要（2026-09 性能复盘）：段落字数上限真生效后，`_overlong_issue` 会报
+    「超出段落字数上限」，而渲染层原先对**任何** gate issue 都触发一次整篇重渲染
+    （实测一条多花 30–60s）。形态问题用确定性拆分解决更划算：拆完重新过门禁即可，
+    零额外 LLM 调用；拆不动（整段一句话）才留给上层兜底。
+
+    只处理：散文行（非标题/表格/引用/列表），且所在小节的预算 scope 为 paragraph。
+    """
+    if not text or not template:
+        return text, []
+    caps = {
+        _norm_heading(str(item.get("title") or "")): int(item["hi"])
+        for item in parse_section_char_budgets(template)
+        if item.get("scope") == "paragraph" and item.get("hi")
+    }
+    if not caps:
+        return text, []
+
+    notes: list[str] = []
+    out: list[str] = []
+    cur = ""
+    for line in text.splitlines():
+        head = _HEADING_RE.match(line.strip()) if line.strip() else None
+        if head:
+            cur = _norm_heading(head.group(2))
+            out.append(line)
+            continue
+        body = line.strip()
+        cap = caps.get(cur)
+        if cap is None and cur:
+            cap = next((v for k, v in caps.items() if k and (k in cur or cur in k)), None)
+        if (
+            cap
+            and body
+            and not body.startswith(("#", "|", ">", "-", "*", "+"))
+            and _han_count(body) > cap * 1.2
+        ):
+            parts = _split_one_paragraph(body, cap)
+            if len(parts) > 1:
+                notes.append(
+                    f"「{cur}」超长段（{_han_count(body)} 字）已按句界拆成 {len(parts)} 段"
+                )
+                out.append("\n\n".join(parts))
+                continue
+        out.append(line)
+    return "\n".join(out), notes
+
+
 def enforce_render_output(
     template: str,
     output: str,
@@ -410,6 +480,11 @@ def enforce_render_output(
         text2, tnotes = apply_table_row_limits(text, template)
         text = text2
         notes.extend(tnotes)
+
+    # 段落字数超限：确定性按句界拆段（只加换行），避免上层为篇幅问题整篇返工
+    text2, snote_list = split_overlong_paragraphs(text, template)
+    text = text2
+    notes.extend(snote_list)
 
     struct = validate_rendered_output(text, template)
     eval_issues = evaluate_output_against_template(template, text)
@@ -689,6 +764,7 @@ __all__ = [
     "enforce_upstream_carry",
     "extract_labeled_json",
     "parse_perspective_mode",
+    "split_overlong_paragraphs",
     "subset_upstream_items",
     "gate_render_output",
     "should_write_result_md",

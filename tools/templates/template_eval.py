@@ -178,8 +178,12 @@ def parse_document_char_budget(template: str) -> dict[str, Any]:
         if outer and not is_section_scoped_char_budget(outer):
             budget = parse_char_budget(outer)
             if budget.get("hi"):
-                # 开头全局约束，或含全文标记
-                if re.search(r"全文|整篇|通篇|合计|总共", outer) or re.match(
+                # 全文标记必须**贴着数字**（如「全文合计约 200 字」）才算全文预算；
+                # 段落说明里顺带出现的「通篇/全文」不算——实测：「每段不超过 400 字」旁边写了
+                # 「摘要通篇无数字」会被误判成全文 400 字，从而触发压缩返工（freeform 路径还会截断正文）。
+                if re.search(
+                    r"(?:全文|整篇|通篇|合计|总共)[^。；;\n]{0,12}?\d+\s*字", outer
+                ) or re.match(
                     r"^(?:请)?(?:约|大约)?\s*\d+",
                     outer.strip(),
                 ):

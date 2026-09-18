@@ -46,7 +46,7 @@ SCALAR_BASELINE_BY_DIR: dict[str, dict[str, int]] = {
     # court_transcript / hiring_report / project_progress 另有"表格栏说明"行（紧跟表格的
     # `[按下表逐行填写…]`）不计入字段——它们没有正文位，明细由表格承载（见 test_table_caption_*）。
     "template_v3": {
-        "class_transcript": 4, "clinical_advisory": 4, "contract_vetting": 4,
+        "class_transcript": 4, "clinical_advisory": 5, "contract_vetting": 4,
         "conversation_transcript": 4, "court_transcript": 3, "debate_forum": 4,
         "decision_review": 4, "exchange_forum": 4, "general_minutes": 3,
         "government_bulletin": 3, "group_seminar": 4, "hiring_report": 3,
@@ -802,6 +802,246 @@ def test_general_minutes_speedread() -> None:
     check("模板目录不再有「单段不超过约 200 字」", not leftover, f"残留={leftover}")
 
 
+def test_document_budget_not_misread() -> None:
+    """全文预算不许从"段落说明里顺带出现的全文标记"误判出来。
+
+    回归背景（2026-09 性能复盘）：general_minutes 的摘要说明同时写了「（摘要通篇无数字＝不合格）」与
+    「每段不超过 400 字」——"通篇"命中全文标记，于是整份纪要（600–2600 字）被判
+    「超出全文上限 400 字」：触发压缩返工（多一次整篇 LLM 调用），freeform 路径还会按句界
+    截断到 ~420 字（既慢又丢内容）。
+    """
+    from tools.templates.template_eval import (
+        parse_document_char_budget,
+        parse_section_char_budgets,
+    )
+
+    from ._base import split_template_meta, wrap_template_requirement
+
+    def runtime_tpl(text: str) -> str:
+        body, req = split_template_meta(text)
+        lines = body.splitlines()
+        for i, line in enumerate(lines):
+            if line.startswith("# "):
+                lines = lines[i + 1 :]
+                break
+        return wrap_template_requirement("\n".join(lines).strip(), req)
+
+    trap = (
+        "# 甲\n\n<!-- requirement\n客观记录\n-->\n\n"
+        "# [摘要]\n[一段话（最多 3 段、每段不超过 400 字）交代要点（通篇无数字＝不合格）]\n"
+    )
+    tpl = runtime_tpl(trap)
+    check("段落说明里的全文标记不产生全文预算",
+          not parse_document_char_budget(tpl).get("hi"),
+          f"{parse_document_char_budget(tpl)}")
+    check("同一栏的段落预算仍能识别",
+          any(
+              b["hi"] == 400 and b.get("scope") == "paragraph"
+              for b in parse_section_char_budgets(tpl)
+          ),
+          f"{parse_section_char_budgets(tpl)}")
+    real = runtime_tpl(
+        "# 乙\n\n<!-- requirement\n全文合计约200-300字，覆盖背景与结论\n-->\n\n# [摘要]\n[写点东西]\n"
+    )
+    check("真·全文预算（标记贴着数字）仍被识别",
+          parse_document_char_budget(real).get("hi") == 300, f"{parse_document_char_budget(real)}")
+    misread = [
+        md.stem
+        for md in sorted(_active_dir().glob("*.md"))
+        if md.stem.lower() not in {"readme", "diff"}
+        and parse_document_char_budget(runtime_tpl(md.read_text(encoding="utf-8"))).get("hi")
+    ]
+    check("模板目录里没有被误判的全文预算", not misread, f"误判={misread}")
+
+
+def test_paragraph_split() -> None:
+    """段落字数超限：按句界确定性拆段（零 LLM 调用），拆完不再报「超出段落字数上限」。"""
+    from tools.execution.hard_execution import (
+        gate_render_output,
+        split_overlong_paragraphs,
+    )
+    from tools.templates.template_eval import parse_section_char_budgets
+
+    from ._base import split_template_meta, wrap_template_requirement
+
+    body, req = split_template_meta(
+        "# 甲\n\n<!-- requirement\n客观记录\n-->\n\n"
+        "# [摘要]\n[一段话（最多 3 段、每段不超过 400 字）交代要点]\n"
+    )
+    lines = body.splitlines()
+    for i, line in enumerate(lines):
+        if line.startswith("# "):
+            lines = lines[i + 1 :]
+            break
+    tpl = wrap_template_requirement("\n".join(lines).strip(), req)
+    check("拆分用模板：段落上限已识别",
+          any(b["hi"] == 400 and b.get("scope") == "paragraph"
+              for b in parse_section_char_budgets(tpl)),
+          f"{parse_section_char_budgets(tpl)}")
+
+    long_para = "本次会议围绕小区物业服务与业主权益展开专项讨论。" * 30  # ≈690 汉字
+    doc = f"# 摘要\n{long_para}\n"
+    fixed, _ = split_overlong_paragraphs(doc, tpl)
+    body_only = fixed.split("\n", 1)[1] if "\n" in fixed else fixed
+    parts = [p for p in body_only.split("\n\n") if p.strip()]
+    han_of = lambda s: len(re.findall(r"[\u4e00-\u9fff]", s))
+    check("超长段被按句界拆开（≥2 段且每段汉字 ≤ 上限）",
+          len(parts) >= 2 and all(han_of(p) <= 400 for p in parts),
+          f"段数={len(parts)} 各段汉字={[han_of(p) for p in parts]}")
+    check("拆分只加换行、不改文字",
+          re.sub(r"\s", "", fixed) == re.sub(r"\s", "", doc), "")
+    gate = gate_render_output(tpl, fixed)
+    check("拆完不再报「超出段落字数上限」",
+          not any("超出段落字数上限" in x for x in gate["issues"]), f"{gate['issues']}")
+
+
+def test_qa_speaker_labels() -> None:
+    """问答栏：能对上人就用「称呼：」（姓名→角色），对不上才退回「问/答」，且不许双重标注。
+
+    回归背景（2026-09，新闻发布实测）：模板强制写成「**问**：…」，标签不带身份 → 模型把身份塞进内容，
+    出现「**问**：主持人提问，中国是否继续相信联合国…」这类双重标注（全批 3 处）。
+    """
+    import re as _re
+
+    qa_templates = {
+        "media_briefing": "Q&A环节",
+        "media_qa_session": "核心提问与回应",
+        "admission_briefing": "Q&A 环节",
+        "special_lecture": "Q&A 环节",
+        "class_transcript": "课堂互动与答疑",
+    }
+    missing: list[str] = []
+    old_mandate: list[str] = []
+    for stem in qa_templates:
+        text = (_active_dir() / f"{stem}.md").read_text(encoding="utf-8")
+        if "两方都对应不上人时才写成" not in text:
+            missing.append(stem)
+        if _re.search(r"[，：]写成「\*\*问\*\*：…」换行", text):  # 旧强制句式；新文是「才写成…」
+            old_mandate.append(stem)
+    check("5 个问答模板都写清「称呼优先、问/答兜底」", not missing, f"缺={missing}")
+    check("旧的「一律写成 问/答」口径已清除", not old_mandate, f"残留={old_mandate}")
+    check("问答模板都禁止双重标注（「xx提问」式说明）",
+          all("这类重复说明" in (_active_dir() / f"{s}.md").read_text(encoding="utf-8")
+              for s in qa_templates), "")
+
+
+def test_progress_table_rows() -> None:
+    """项目进度会：两张表要"分项成行"、风险含待办型、状态补齐四态——且不许写示例式软引导。
+
+    回归背景（2026-09，now.xlsx 行8）：进度追踪 7 行装了约 31 个分项（一个模块一行），
+    风险预警只收"实体缺陷型"，把"尚未开展 / 资料依据不完善"这类待办型漏到别的栏 → 条目偏少。
+    """
+    text = (_active_dir() / "project_progress.md").read_text(encoding="utf-8")
+    for need in (
+        "一个分项一行",
+        "原文有几个分项就写几行，宁多不漏",
+        "⏸未开始",
+        "尚未开展或尚未闭合的事项",
+        "资料、依据、签字等程序性不完善",
+    ):
+        check(f"项目进度会：含「{need}」", need in text, "")
+    check("项目进度会：不夹带示例式软引导（如「应拆成 … 五行」）",
+          "应拆成" not in text and "五行" not in text, "")
+    from tools.templates.body_rules import BODY_FORMAT_RULES
+
+    check("共用形态规则的状态集同步四态",
+          "⏸未开始" in BODY_FORMAT_RULES, "")
+
+
+def test_no_test_corpus_leak() -> None:
+    """模板 md 不许夹带测试语料的实体/内容作示例（软引导会让模型照着写）。
+
+    回归背景（2026-09）：为修"栏目薄"临时写进模板的例子把测试数据带了进去——
+    「延伸：民谣吉他与留胡子的设想」「`主持人：…` 换行 `王毅：…`」「抽奖与红包」「如 `00:14-00:50 会议概述`」。
+    这与设计原则相悖（不夹带针对特定测试数据的示例或软引导），且会让输出照着例子长。
+    """
+    blocked = [
+        "卢萨卡", "蒙泽", "某皮卡", "玉米面", "业委会", "物业费", "哥斯拉", "红楼梦", "三国演义",
+        "阿富汗", "王毅", "慕安会", "慕尼黑", "手机图库", "夏令营", "民谣吉他", "留胡子",
+        "南京照相馆", "电子科技大学", "抽奖", "红包", "00:14", "会议概述", "纯净永无止境", "诚意满满",
+    ]
+    leaked = []
+    for md in sorted(_active_dir().glob("*.md")):
+        if md.stem.lower() in {"readme", "diff"}:
+            continue
+        text = md.read_text(encoding="utf-8")
+        hit = [w for w in blocked if w in text]
+        if hit:
+            leaked.append((md.stem, hit))
+    check("模板 md 不夹带测试语料实体/内容", not leaked, f"命中={leaked}")
+
+
+def test_knowledge_memo_groups() -> None:
+    """知识笔记 [核心结论]：固定三子组 + 缺省写法（治"待澄清"空条与说明句）。
+
+    回归背景（2026-09，now.xlsx 行15）：原文没有"待澄清"信号时模型写了
+    「- 原文未提及待澄清问题。」——既是空条，又踩了"禁止缺失说明句"；
+    同时"适用条件/前提/边界"这类普遍存在的内容此前被埋进"易混淆点"。
+    """
+    text = (_active_dir() / "knowledge_memo.md").read_text(encoding="utf-8")
+    for need in ("## 核心结论", "## 易混点与适用边界", "## 待澄清问题",
+                 "整组没内容就不出现该组", "不要写「原文未提及…」这类说明句"):
+        check(f"知识笔记：含「{need}」", need in text, "")
+    check("知识笔记：仍保留输出契约的栏名 [核心结论]",
+          "# [核心结论]" in text, "")
+
+
+def test_clinical_history_column() -> None:
+    """就医咨询：新增 [病史与背景] 承载位 + 过敏史硬要求（治病史类信息丢失）。
+
+    回归背景（2026-09，now.xlsx 行24）：原文 5 次提到"过敏"，产出一次都没写（基线写了）；
+    职业（研究所）、体重/血压变化同样丢失——原栏说明把"病史"指向"下面各栏"，而下面并没有病史栏。
+    """
+    text = (_active_dir() / "clinical_advisory.md").read_text(encoding="utf-8")
+    for need in (
+        "# [病史与背景]",
+        "过敏史（药物/食物）",
+        "过敏史、禁忌类信息原文出现就必须逐项写入，不得省略",
+        "职业照原文",
+    ):
+        check(f"就医咨询：含「{need}」", need in text, "")
+    check("就医咨询：旧口径（病史留给「下面各栏」）已清除",
+          "病史与用药细节留给下面各栏" not in text, "")
+
+
+def test_overview_specs_have_scope() -> None:
+    """概况栏要有“要素 + 尺寸 + 边界”：团队例会/辩论会两处已补，防止回退成裸概括。
+
+    回归背景（2026-09，now.xlsx 行23/26）：[例会概况] 说明只有“一段话概括主要内容”，
+    结果 308 字吞掉了 [工作进展] 的明细；[辩论内容概述] 把论据写进了概述，
+    而 [结辩与评委点评] 只写了 145 字（真的薄）。
+    """
+    team = (_active_dir() / "team_meeting.md").read_text(encoding="utf-8")
+    debate = (_active_dir() / "debate_forum.md").read_text(encoding="utf-8")
+    for text, name in ((team, "团队例会"), (debate, "辩论会")):
+        check(f"{name}：概况栏声明尺寸（约 120–250 字）", "约 120–250 字" in text, "")
+        check(f"{name}：概况栏写明边界（不展开什么、归哪栏）",
+              "不展开" in text, "")
+    check("辩论会：结辩栏分三条写",
+          "**正方结辩**" in debate and "**反方结辩**" in debate and "**评委点评**" in debate, "")
+    check("辩论会：结辩栏给每条尺寸", "每条 60–150 字" in debate, "")
+
+
+def test_product_launch_overview() -> None:
+    """产品发布：概况要素归位（Slogan/主体/背景）+ 卖点不越栏 + 缺项合并成一句。
+
+    回归背景（2026-09，now.xlsx 行28）：原文 5 次出现核心 Slogan 与研发主体、5 次出现
+    地域对比背景，产出全丢；概况 137 字写成了"痛点+卖点清单"（167 厘米/60 厘米嵌入/无水盒），
+    与 [市场定位]/[核心卖点] 重复；[定价与发售信息] 有 3 行"未提及"各占一行。
+    另注：基线表里的"减少 39% 残留泡沫""拦截 99% 毛絮"原文并无，属于编造——不学。
+    """
+    text = (_active_dir() / "product_launch.md").read_text(encoding="utf-8")
+    for need in (
+        "核心 Slogan（原文有则逐字写）",
+        "不展开痛点清单与卖点细节",
+        "约 120–250 字",
+        "原文给出的地域或人群差异背景",
+        "原文给出的定价策略或价值口径按其原话一并写",
+        "合并成一句",
+    ):
+        check(f"产品发布：含「{need}」", need in text, "")
+
+
 def test_fallback_text_dedupe() -> None:
     """降级拼装：headline 与文档标题重复时不再重复输出；「；」连接不再出现「。；」。"""
     from domain.meeting.tasks.minutes.contracts import MinutesFallbackRules
@@ -891,10 +1131,19 @@ def main() -> int:
         test_understanding_trim_lists()
         test_overview_cap_and_column_scope()
         test_general_minutes_speedread()
+        test_document_budget_not_misread()
+        test_paragraph_split()
+        test_qa_speaker_labels()
+        test_progress_table_rows()
         test_section_char_budget_scope()
         test_default_word_precedence()
         test_supervisor_unavailable_flow()
         test_advisory_checks()
+        test_no_test_corpus_leak()
+        test_knowledge_memo_groups()
+        test_clinical_history_column()
+        test_overview_specs_have_scope()
+        test_product_launch_overview()
         test_fallback_text_dedupe()
         test_supervisor_contract_and_unavailable()
     finally:

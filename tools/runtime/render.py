@@ -288,13 +288,17 @@ async def produce_line(
                 line(state, line_name)["render_advisory_issues"] = advisory
                 logger.info("advisory line=%s：%s", line_name, "；".join(advisory))
 
-            if (gate_issues or not gate_ok) and hasattr(render, "run"):
+            # 段落级字数超出已由 enforce_render_output 按句界确定性拆分（零额外调用）；
+            # 只剩这类问题时不再触发整篇返工——篇幅属形态问题，整篇重渲染代价与收益不成比例
+            # （2026-09 实测：为字数返工要多花 30–60s）。
+            repair_issues = [x for x in gate_issues if "超出段落字数上限" not in x]
+            if (repair_issues or not gate_ok) and hasattr(render, "run"):
                 logger.warning(
                     "template gate failed (%s), try repair: %s",
                     line_name,
-                    "；".join(gate_issues),
+                    "；".join(repair_issues),
                 )
-                issues_text = "\n".join(f"- {x}" for x in gate_issues)
+                issues_text = "\n".join(f"- {x}" for x in repair_issues)
                 repair_context = (
                     f"{context}\n\n"
                     f"{_GATE_REPAIR.format(issues=issues_text)}"
