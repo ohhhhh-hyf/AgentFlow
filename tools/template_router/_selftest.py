@@ -923,6 +923,17 @@ def test_qa_speaker_labels() -> None:
     check("问答模板都禁止双重标注（「xx提问」式说明）",
           all("这类重复说明" in (_active_dir() / f"{s}.md").read_text(encoding="utf-8")
               for s in qa_templates), "")
+    no_bold = [
+        s for s in qa_templates
+        if "每轮称呼都加粗" not in (_active_dir() / f"{s}.md").read_text(encoding="utf-8")
+    ]
+    check("问答模板都要求称呼行加粗（与旧 **问**/**答** 形式一致）",
+          not no_bold, f"缺={no_bold}")
+
+    from tools.templates.body_rules import BODY_FORMAT_RULES
+
+    check("共用形态规则为对话称呼开了加粗例外",
+          "问答/对话的称呼行每轮都加粗" in BODY_FORMAT_RULES, "")
 
 
 def test_progress_table_rows() -> None:
@@ -1042,6 +1053,27 @@ def test_product_launch_overview() -> None:
         check(f"产品发布：含「{need}」", need in text, "")
 
 
+def test_retro_annual_groups() -> None:
+    """复盘会 [全年结果与表彰]：固定五分组 + 人员评价按人分节。
+
+    回归背景（2026-09 实测）：该栏约 1500 字／31 条里 13 条是逐人评价（占半壁），
+    组织数据与个人评价混排成流水账；逐人评价又与 [亮点事项]/[不足事项] 分工不清。
+    """
+    text = (_active_dir() / "retrospective_session.md").read_text(encoding="utf-8")
+    for need in (
+        "## 经营数据与口径",
+        "## 制度与标准",
+        "## 奖项与表彰",
+        "## 环节与福利",
+        "## 人员评价",
+        "按人分节",
+        "### 姓名",
+        "只有结论没有依据的条目不合格",
+        "有内容才写该组，没有就不出现该组",
+    ):
+        check(f"复盘会：含「{need}」", need in text, "")
+
+
 def test_fallback_text_dedupe() -> None:
     """降级拼装：headline 与文档标题重复时不再重复输出；「；」连接不再出现「。；」。"""
     from domain.meeting.tasks.minutes.contracts import MinutesFallbackRules
@@ -1144,6 +1176,7 @@ def main() -> int:
         test_clinical_history_column()
         test_overview_specs_have_scope()
         test_product_launch_overview()
+        test_retro_annual_groups()
         test_fallback_text_dedupe()
         test_supervisor_contract_and_unavailable()
     finally:
