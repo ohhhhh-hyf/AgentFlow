@@ -1,0 +1,372 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>手机图库项目进展对齐与排期评审会</title>
+  <style>
+
+    body {
+      margin: 0;
+      padding: 32px 16px;
+      background: #f6f5f0;
+      color: #1a1a1a;
+      font-family: "Latin Modern Roman", "Computer Modern Roman", "CMU Serif", "Times New Roman", Times, "Songti SC", "SimSun", "STSong", serif;
+      -webkit-font-smoothing: antialiased;
+    }
+    .page { max-width: 1140px; margin: 0 auto; }
+    .ck-doc {
+      background: #ffffff;
+      border: 1px solid #d4d0c7;
+      border-radius: 4px;
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.05), 0 1px 3px rgba(0,0,0,0.03);
+      padding: 36px 44px;
+      line-height: 1.75;
+      font-size: 0.96rem;
+    }
+    .ck-doc h1 {
+      margin: 0 0 10px;
+      font-size: 1.85rem;
+      font-weight: 700;
+      letter-spacing: 0.4px;
+      text-align: center;
+      font-variant: small-caps;
+      color: #111111;
+    }
+    .ck-doc-header {
+      margin-bottom: 24px;
+      padding-bottom: 16px;
+      border-bottom: 2px solid #111111;
+      text-align: center;
+    }
+    .ck-doc-meta {
+      font-size: 0.85rem;
+      color: #555555;
+      font-style: italic;
+    }
+    .ck-doc-content h1, .ck-doc-content .ck-doc-h1 {
+      margin: 28px 0 14px;
+      font-size: 1.32rem;
+      font-weight: 700;
+      color: #111111;
+      border-bottom: 1.5px solid #222222;
+      padding-bottom: 5px;
+      text-align: left;
+      font-variant: normal;
+      letter-spacing: 0.3px;
+    }
+    .ck-doc h2, .ck-doc-h2 {
+      margin: 28px 0 14px;
+      font-size: 1.22rem;
+      font-weight: 700;
+      color: #111111;
+      border-bottom: 1.5px solid #222222;
+      padding-bottom: 5px;
+      letter-spacing: 0.3px;
+    }
+    .ck-doc h3, .ck-doc-h3 {
+      margin: 20px 0 10px;
+      font-size: 1.05rem;
+      font-weight: 700;
+      color: #222222;
+    }
+    .ck-doc h4, .ck-doc-h4 {
+      margin: 16px 0 8px;
+      font-size: 0.98rem;
+      font-weight: 700;
+      color: #333333;
+    }
+    .ck-doc p {
+      margin: 10px 0;
+      line-height: 1.75;
+      text-align: justify;
+    }
+    .ck-doc ul, .ck-doc ol {
+      margin: 8px 0 12px;
+      padding-left: 1.5em;
+      line-height: 1.72;
+    }
+    .ck-doc li {
+      margin: 4px 0;
+    }
+    .ck-doc blockquote, .ck-quote {
+      margin: 10px 0 14px;
+      padding: 8px 14px;
+      background: #faf9f6;
+      border-left: 3.5px solid #222222;
+      border-radius: 2px;
+      color: #222222;
+      font-size: 0.92rem;
+      font-style: italic;
+    }
+    .ck-doc code {
+      background: #f3f0e8;
+      border: 1px solid #e2ddd3;
+      border-radius: 3px;
+      padding: 1px 6px;
+      font-family: "Latin Modern Mono", Consolas, monospace;
+      font-size: 0.88em;
+    }
+    .ck-doc table, .ck-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.88rem;
+      margin: 14px 0;
+      background: #ffffff;
+      border-top: 2px solid #222222;
+      border-bottom: 2px solid #222222;
+    }
+    .ck-doc table th, .ck-doc table td, .ck-table th, .ck-table td {
+      padding: 9px 12px;
+      text-align: left;
+      vertical-align: middle;
+      border-bottom: 1px solid #ede9e1;
+    }
+    .ck-doc table th, .ck-table th {
+      background: #fbfaf7;
+      border-bottom: 1.2px solid #222222;
+      font-weight: 700;
+      color: #111111;
+      letter-spacing: 0.3px;
+    }
+
+    /* Roomy & Spacious Academic Risk Table */
+    .ck-risk-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 18px 0 28px;
+      background: #ffffff;
+      border-top: 2.2px solid #111111;
+      border-bottom: 2.2px solid #111111;
+      font-size: 0.93rem;
+      line-height: 1.72;
+    }
+    .ck-risk-table th {
+      background: #faf8f5;
+      border-bottom: 1.5px solid #111111;
+      padding: 15px 16px;
+      font-weight: 700;
+      color: #111111;
+      letter-spacing: 0.3px;
+      text-align: left;
+      vertical-align: middle;
+    }
+    .ck-risk-table td {
+      padding: 16px 16px;
+      border-bottom: 1px solid #ede8e0;
+      vertical-align: top;
+      color: #1a1a1a;
+      word-break: break-word;
+    }
+    .ck-risk-table tr:nth-child(even) td {
+      background: #fdfcfb;
+    }
+    .ck-risk-table tr:hover td {
+      background: #f6f3eb;
+    }
+
+    /* Review Grid */
+    .ck-review {
+      display: grid;
+      grid-template-columns: minmax(0, 1.35fr) 1px minmax(260px, 0.95fr);
+      border: 1px solid #d4d0c7;
+      border-radius: 4px;
+      overflow: hidden;
+      margin: 14px 0 20px;
+      background: #ffffff;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.03);
+    }
+    .ck-review-left {
+      padding: 22px 26px;
+      background: #ffffff;
+      line-height: 1.75;
+    }
+    .ck-review-rule { background: #dcd8cf; }
+    .ck-review-right {
+      padding: 16px 18px;
+      background: #faf9f6;
+      box-sizing: border-box;
+      display: flex;
+      flex-direction: column;
+    }
+    .ck-ev-list {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    /* Entity Highlight in LaTeX Paper Style */
+    .ck-cite-entity {
+      background: #fff8db;
+      border-bottom: 1.5px solid #b86a04;
+      padding: 1px 4px;
+      border-radius: 2px;
+      cursor: pointer;
+      transition: all 0.18s ease;
+      color: #111111;
+      font-weight: 600;
+    }
+    .ck-cite-entity:hover {
+      background: #ffe58f;
+      color: #000000;
+    }
+    .ck-cite-entity.is-on {
+      background: #ffd54a;
+      border-bottom-color: #0047ab;
+      box-shadow: 0 0 0 2px rgba(0,71,171,0.25);
+    }
+
+    /* Blue Hyperref Citations [1], [2] */
+    .ck-cite-ref {
+      color: #0047ab;
+      font-weight: 600;
+      font-family: "Latin Modern Roman", "Computer Modern Roman", "Times New Roman", serif;
+      text-decoration: none;
+      cursor: pointer;
+      padding: 0 2px;
+      margin: 0 2px;
+      border-radius: 2px;
+      transition: all 0.15s ease;
+      font-size: 0.92em;
+      vertical-align: baseline;
+      user-select: none;
+    }
+    .ck-cite-ref:hover {
+      text-decoration: underline;
+      background: #e8f0fe;
+      color: #003380;
+    }
+    .ck-cite-ref.is-active {
+      background: #d2e3fc;
+      color: #002266;
+      font-weight: 700;
+      box-shadow: 0 0 0 1px #0047ab;
+    }
+
+    /* Right Memory Cards in LaTeX Paper Style */
+    .ck-provenance-head {
+      font-size: 0.82rem;
+      font-weight: 700;
+      color: #222222;
+      margin: 0 0 12px;
+      padding-bottom: 6px;
+      border-bottom: 1px solid #e0dcd4;
+      letter-spacing: 0.3px;
+      text-transform: uppercase;
+    }
+    .ck-ref-icon { color: #0047ab; margin-right: 4px; }
+    .ck-ev {
+      display: block;
+      margin: 0;
+      padding: 10px 12px;
+      border: 1px solid #dedad2;
+      border-left: 3.5px solid #0047ab;
+      border-radius: 2px;
+      background: #ffffff;
+      font-size: 0.82rem;
+      line-height: 1.55;
+      transition: all 0.2s ease;
+      cursor: pointer;
+    }
+    .ck-ev:hover { border-color: #b5b0a5; }
+    .ck-ev.is-on, .ck-ev.is-highlighted {
+      border-color: #0047ab;
+      box-shadow: 0 0 0 2px #0047ab, 0 3px 8px rgba(0,71,171,0.15);
+      background: #f0f5ff;
+    }
+    @keyframes citePulse {
+      0% { background: #dbeafe; box-shadow: 0 0 0 3px #0047ab; }
+      50% { background: #bfdbfe; box-shadow: 0 0 0 4px #0047ab; }
+      100% { background: #f0f5ff; box-shadow: 0 0 0 2px #0047ab; }
+    }
+    .ck-ev-k {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 0.75rem;
+      color: #444444;
+      margin-bottom: 5px;
+      font-weight: 700;
+    }
+    .ck-ev-cite-tag {
+      color: #0047ab;
+      font-weight: 700;
+      font-family: "Latin Modern Roman", serif;
+      text-decoration: none;
+    }
+    .ck-ev-kind-badge {
+      display: inline-block;
+      padding: 1px 6px;
+      border-radius: 2px;
+      font-size: 0.72rem;
+      font-weight: 600;
+      letter-spacing: 0.2px;
+    }
+    .ck-badge-keypoint {
+      border: 1px solid #0047ab;
+      color: #0047ab;
+      background: #f0f5ff;
+    }
+    .ck-badge-note {
+      border: 1px solid #b86a04;
+      color: #b86a04;
+      background: #fff8eb;
+    }
+    .ck-mem-title {
+      font-weight: 700;
+      color: #111111;
+      font-size: 0.88rem;
+      margin-bottom: 6px;
+      line-height: 1.45;
+    }
+    .ck-ev-quote {
+      color: #222222;
+      font-style: normal;
+      font-family: inherit;
+      margin: 4px 0 6px;
+      padding: 0;
+      background: transparent;
+      border: none;
+      line-height: 1.6;
+      font-size: 0.84rem;
+    }
+    .ck-ev-meta { font-size: 0.76rem; color: #666666; margin-top: 6px; }
+    .ck-ev-more {
+      margin-top: 2px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+    .ck-ev-more[open] { margin-top: 4px; }
+    .ck-ev-more summary { margin-bottom: 6px; }
+    .ck-proof-toggle {
+      cursor: pointer;
+      font-size: 0.82rem;
+      color: #0047ab;
+      user-select: none;
+      font-family: inherit;
+      padding: 2px 0;
+    }
+    .ck-proof-toggle:hover { text-decoration: underline; }
+
+    @media(max-width: 860px) {
+      .ck-doc { padding: 22px 18px; }
+      .ck-review { grid-template-columns: 1fr; }
+      .ck-review-rule { display: none; }
+    }
+
+  </style>
+</head>
+<body>
+  <main class="page">
+    <div class="ck-doc">
+      <header class="ck-doc-header">
+        <h1>手机图库项目进展对齐与排期评审会</h1>
+      </header>
+      <div class="ck-doc-content">
+        <h1 class="ck-doc-h1">全文摘要</h1><p>本次会议为手机图库项目进展对齐与排期评审会，由产品经理（发言人1）主持，产品经理（发言人2）、开发1（发言人3）、开发2（发言人4）参与，时长约二十分钟。会议围绕智能分类与相册推荐改版、AI智能标签接口、云同步模块、缩略图渲染优化、时间轴加载、AI修图入口预留及里程碑排期等板块展开。关键结论包括：AI标签接口采用本地缓存策略，端侧预过滤按需加载；云同步采用分片加载，不申请后台同步权限；缩略图渲染优化方案可行，正式修复排进V1.2迭代；AI修图入口预留，管线重构与AI标签优化优先；里程碑月底封版，内测包下周三发。关键数字：AI识别模型准确率提升约88%，单次请求耗时从800毫秒增至约1.5秒，内存占用降约30%，帧率稳定60帧、低端机约50帧，端侧预过滤需申请200兆本地缓存空间。</p><h1 class="ck-doc-h1">分段速览</h1><h2 class="ck-doc-h2">00:00-00:36 会议开场与产品侧汇报</h2><p>会议开始，产品经理（发言人1）说明会议目的为对齐手机图库项目整体进展、排期与潜在风险，议程包括产品交互迭代、开发技术实现与性能优化。产品经理（发言人2）汇报智能分类和相册推荐改版进展，高保真原型已出V1.5版，调整网格视图交互逻辑，长按手势加微动效反馈；测试反馈部分低端机上滑列表偶发掉帧，已与开发2沟通，考虑降低预览图缩放级别换帧；用户调研反馈隐私相册入口太深，建议提到首部顶部二级菜单。产品经理（发言人1）认为改动不大，要求出交互方案评审，并强调掉帧问题需抓紧，下周将进性能压测。</p><h2 class="ck-doc-h2">00:01:51-00:03:19 AI标签接口与云同步问题</h2><p>开发1（发言人3）汇报后端V2识别模型已跑通，准确率较上一代提升约88%，但视频帧提取功能使单次请求耗时从800毫秒增至约1.5秒，提出异步推送方案。产品经理（发言人2）否决异步推送，建议本地缓存策略，开发1确认可行，计划下午拉分支改逻辑，预计三天联调完，但缓存命中率低时需回溯。开发1同时提出云里相册同步模块断点续传在弱网下状态机紊乱，询问开发2是否遇到类似问题。开发2（发言人4）反馈同步队列积压超一千张时部分机型（尤其iOS）出现OOM崩溃，已采用分片加载机制每次拉五十张，但拖慢同步进度，建议加后台静默同步权限或允许用户手动设置同步频率。产品经理（发言人1）认为后台同步权限审核严，大概率下不了，决定先按分片加载方案走，进度不能拖。</p><h2 class="ck-doc-h2">00:04:17-00:06:13 缩略图渲染优化与端侧预过滤</h2><p>开发2（发言人4）汇报缩略图渲染优化进展，使用新图片解码库将JPEG硬解换软解，内存占用降约30%，CPU占用上升，已在主流三款车型上灰度，帧率稳定60帧、低端机约50帧，周四性能报告今晚出初稿；另提出批量删除照片时触发回收站重建索引导致数据库锁死的Bug，已写临时规避方案用消息队列排队处理，正式修复排到下下周版本。产品经理（发言人1）要求临时规避先稳住，正式修复排进V1.2迭代。开发1（发言人3）提出模型耗时问题，产品经理（发言人1）建议端侧轻量级预过滤，先过滤非图片内容再走云端识别，开发1评估后认为可行，但需申请200兆本地缓存空间；产品经理（发言人2）建议按需加载，开发1确认两天可完成。</p><h2 class="ck-doc-h2">00:07:01-00:09:42 时间轴优化与AI修图预留</h2><p>开发1（发言人3）汇报时间轴视图加载速度问题，测试提了三个优高优Bug，滑动到二十年前老照片时页面卡死三秒以上，根因是历史图片EXIF解析耗时太长和磁盘IO瓶颈，准备加本地索引预加载，把最近三个月照片建树状结构，滑到底部再动态加载旧数据。产品经理（发言人1）同意改动，但提醒别跟云同步模块抢资源。开发2（发言人4）确认不会冲突，预加载放主线程IO池、同步放子线程后台服务，但需用户授权媒体和存储权限，若拒绝需引导弹窗，产品经理（发言人2）表示明天出稿。产品经理（发言人2）同步运营反馈希望下个版本加AI修图快捷入口，产品经理（发言人1）认为本次主线是性能和分类，硬塞风险大，决定在PRD里写好接口逻辑和UI占位，开发侧做成插件化架构；开发2提出端侧需重构图片处理管线，工作量多一周，产品经理（发言人1）同意调整优先级，非核心UI微调后移，资源给到管线重构和AI标签优化，要求开发2今天下班前发精确工作量。</p><h2 class="ck-doc-h2">00:10:19-00:12:18 里程碑排期与收尾</h2><p>产品经理（发言人2）询问项目里程碑是否定在月底、内测包何时推。产品经理（发言人1）确认里程碑按原定计划月底封版，内测包暂定下周三发，拉体验官群重点跑AI分类和同步模块，要求产品做好反馈收集表，开发准备好日志抓取。开发1（发言人3）提出低代码预加载逻辑需与数据库组对齐索引策略，产品经理（发言人1）同意拉群让DBA配合优化建表。开发2（发言人4）询问性能报告是否分开列iOS和安卓对比数据，产品经理（发言人1）同意分开列，让测试组合并成一份总览。最后产品经理（发言人1）宣布散会，要求有问题在飞书上同步。</p><h1 class="ck-doc-h1">要点梳理</h1><h2 class="ck-doc-h2">产品交互迭代与用户反馈</h2><ul><li>高保真原型已出V1.5版，调整网格视图交互逻辑，长按手势加微动效反馈。</li><li>测试反馈部分低端机上滑列表偶发掉帧，已与开发2沟通，考虑降低预览图缩放级别换帧。</li><li>用户调研反馈隐私相册入口太深，建议提到首部顶部二级菜单，产品经理（发言人1）确认改动不大，要求出交互方案评审。</li></ul><h2 class="ck-doc-h2">AI智能标签接口与模型部署</h2><ul><li>后端V2识别模型已跑通，准确率较上一代提升约88%。</li><li>视频帧提取功能使单次请求耗时从800毫秒增至约1.5秒，产品侧否决异步推送，确定采用本地缓存策略。</li><li>开发1下午拉分支改本地缓存逻辑，预计三天联调完，缓存命中率低时需回溯。</li><li>端侧轻量级预过滤方案可行，采用按需加载，需申请200兆本地缓存空间，开发1确认两天完成。</li></ul><h2 class="ck-doc-h2">云同步模块与内存管理</h2><ul><li>云里相册同步模块断点续传在弱网下状态机紊乱。</li><li>同步队列积压超一千张时部分机型（尤其iOS）出现OOM崩溃，已采用分片加载机制每次拉五十张。</li><li>分片加载拖慢同步进度，后台同步权限审核严大概率下不了，决定先按分片加载方案走，进度不能拖。</li></ul><h2 class="ck-doc-h2">缩略图渲染优化与性能压测</h2><ul><li>使用新图片解码库，JPEG硬解换软解，内存占用降约30%，CPU占用上升。</li><li>已在主流三款车型上灰度，帧率稳定60帧、低端机约50帧，周四性能报告今晚出初稿。</li><li>批量删除照片时触发回收站重建索引导致数据库锁死，临时规避方案用消息队列排队，正式修复排进V1.2迭代。</li></ul><h2 class="ck-doc-h2">时间轴视图加载速度优化</h2><ul><li>测试提了三个优高优Bug，滑动到二十年前老照片时页面卡死三秒以上，根因是EXIF解析耗时太长和磁盘IO瓶颈。</li><li>拟加本地索引预加载，把最近三个月照片建树状结构，滑到底部再动态加载旧数据。</li><li>预加载放主线程IO池、同步放子线程后台服务，不冲突；预加载需用户授权媒体和存储权限，引导弹窗明天出稿。</li></ul><h2 class="ck-doc-h2">AI修图快捷入口预留</h2><ul><li>运营反馈希望下个版本加AI修图快捷入口，本次主线是性能和分类，硬塞风险大，决定在PRD里写接口逻辑和UI占位。</li><li>开发侧做插件化架构，后端接口做成标准RESTful加Swagger文档。</li><li>端侧图片处理管线重构工作量多一周，非核心UI微调后移，资源给到管线重构和AI标签优化。</li></ul><h2 class="ck-doc-h2">结论与决定</h2><ul><li>隐私相册入口提到首部顶部二级菜单，产品经理出交互方案评审。</li><li>AI标签接口采用本地缓存策略，开发1下午拉分支改逻辑，预计三天联调完。</li><li>端侧预过滤方案可行，采用按需加载，开发1两天内完成。</li><li>云同步采用分片加载方案，不申请后台同步权限，进度不能拖。</li><li>缩略图渲染优化方案可行，临时规避方案先稳住，正式修复排进V1.2迭代。</li><li>时间轴加载优化方案可行，预加载与同步不冲突，引导弹窗明天出稿。</li><li>AI修图入口预留，PRD写接口逻辑和UI占位，开发侧做插件化架构，管线重构与AI标签优化优先。</li><li>非核心UI微调往后排，资源给到管线重构和AI标签优化。</li><li>里程碑按原定计划，月底封版。</li><li>内测包暂定下周三发，拉体验官群重点跑AI分类和同步模块。</li><li>性能报告分开列iOS和安卓对比数据，测试组合并成一份总览。</li></ul><h2 class="ck-doc-h2">行动项与分工</h2><ul><li>产品经理（发言人2）：下午定稿隐私相册入口和引导弹窗稿子，明天上午拉UI走查；制作AI修图占位图；明天出引导弹窗稿（柔和提示路线，不用强制遮罩）；十一点半前将UI走查稿发给产品经理。</li><li>开发1（发言人3）：下午拉分支改本地缓存逻辑，预计三天联调完；评估端侧预过滤模型体积和推理开销，按需加载两天完成；排联调时间，尽量周五前跑通主干流程；今晚搭好接口联调环境，明天与测试过一遍；拉群与数据库组对齐索引策略。</li><li>开发2（发言人4）：继续跑分片加载和渲染优化压测数据，明天同步；评估管线重构精确工作量，今天下班前发给产品经理；让测试组将iOS和安卓性能报告合并成一份总览。</li></ul><h2 class="ck-doc-h2">待确认与风险</h2><ul><li>掉帧问题是否通过降低预览图缩放级别解决，待开发2确认。</li><li>本地缓存命中率低时是否回溯，待产品侧确认。</li><li>端侧预过滤的模型体积和端侧推理开销待评估。</li><li>AI修图管线重构工作量多一周，是否将非核心Bug修复往后挪，待产品经理确认。</li><li>低代码预加载逻辑与数据库组对齐索引策略，待拉群确认。</li></ul>
+      </div>
+    </div>
+  </main>
+</body>
+</html>
