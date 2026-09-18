@@ -58,8 +58,16 @@ def _to_int(token: str) -> int | None:
 
 
 def parse_row_hint(text: str) -> int | None:
-    """从任意文本解析行数提示；解析不到返回 None（不硬编码业务）。"""
+    """从任意文本解析行数提示；解析不到返回 None（不硬编码业务）。
+
+    两类"行"字不是行数约束（实测会把「不要用连续多行独占一行的 **类别**：段落」
+    误判成"1 行"，把写 8 行数据的表硬截成 1 行）：
+    - 「每行一个…」类——是**形态要求**（一行放一件事），不是数量上限；
+    - 「多行/几行/X 行以上」——是**下限或泛指**，不是上限。
+    """
     if re.search(r"(?:每|一)\s*行\s*(?:一个|一条|一项|一件)", text or ""):
+        return None
+    if re.search(r"[多好几二三四五六七八九十\d]\s*行\s*独占|多行|几行", text or ""):
         return None
     m = _ROW_HINT_RE.search(text or "")
     if not m:
@@ -442,12 +450,15 @@ def extract_template_table_constraints(template: str) -> list[dict[str, Any]]:
             and _is_table_row(lines[i])
             and _TABLE_SEP_RE.match(lines[i + 1].strip())
         ):
-            # 找带占位符的数据行模板
+            # 找带占位符的数据行模板：`[...]` 与 `…`（省略号样例）都算——两者是同一件事的
+            # 两种写法，_gate.py 的占位行检查早已统一认这两种；此处漏认 `…` 会让
+            # extract_template_table_constraints 返回空 →「表格无有效数据行/缺少对应表/行数超限」
+            # 三条检查对省略号样例模板（如就医咨询的药品表）全部失效（2026-09-18 实测）。
             j = i + 2
             has_ph = False
             row_hint_text = ""
             while j < len(lines) and _is_table_row(lines[j]):
-                if "[" in lines[j] and "]" in lines[j]:
+                if ("[" in lines[j] and "]" in lines[j]) or "…" in lines[j]:
                     has_ph = True
                     row_hint_text += "\n" + lines[j]
                 j += 1

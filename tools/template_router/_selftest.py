@@ -462,7 +462,7 @@ TEMPLATE_SHAPE_SNIPPETS = {
     "group_seminar": "没有统一意见时写本场达成的倾向性认识与主要分歧点",
     # 场景适配（2026-09 第二批）：知识点必须 `- `、建议必须汇总、摘要单段上限、空栏目正当写法
     "class_transcript": "不得写成连续段落",
-    "general_minutes": "每段不超过 400 字",
+    "general_minutes": "一段写完，约 250–400 字",
     "personal_memo": "不要写「未提及」",
     "psychological_session": "不强行总结结论",
 }
@@ -670,8 +670,8 @@ def test_overview_cap_and_column_scope() -> None:
 
     # ① 未声明尺寸的概括栏：拿到默认上限 + 边界
     plain = _describe_field(1, _parse_field("一段话概括参与方、沟通主题与目的、达成的结果"))
-    check("首栏（概括·无尺寸）拿到「完整概括」口径与段上限",
-          "1–2 段完整概括" in plain and "每段不超过 400 字" in plain, f"{plain[:80]}")
+    check("首栏（概括·无尺寸）拿到「只写一段」口径与 400 上限",
+          "只写一段完整概括" in plain and "不超过 400 字" in plain, f"{plain[:80]}")
     check("首栏（概括·无尺寸）带要素清单（场合/覆盖/结论/关键数字）",
           all(k in plain for k in ("谁/什么场合", "覆盖哪几块", "结论或基调", "1–3 个关键数字")),
           f"{plain[:120]}")
@@ -685,8 +685,8 @@ def test_overview_cap_and_column_scope() -> None:
     authored = _describe_field(
         1, _parse_field("一段话交代患者基本信息、就诊科室与时间、本次就诊的核心主诉与初步判断")
     )
-    check("自述要素的首栏拿到下限口径",
-          "1–2 段完整概括" in authored and "按本栏说明把要素交代完整" in authored,
+    check("自述要素的首栏拿到下限口径（只写一段）",
+          "只写一段完整概括" in authored and "按本栏说明把要素交代完整" in authored,
           f"{authored[:100]}")
     check("自述要素的首栏不套会议专用四要素（避免语义打架）",
           "以分享为主" not in authored and "谁/什么场合" not in authored, f"{authored[:100]}")
@@ -834,9 +834,22 @@ def test_general_minutes_speedread() -> None:
     check("通用纪要：摘要/要点/速览三栏都在", len(plan["scalars"]) >= 3, f"字段数={len(plan['scalars'])}")
     check("通用纪要：新增「分段速览」栏（按推进顺序）",
           any("推进顺序" in h and "时间段" in h for h in hints), f"{hints}")
+    # 摘要数字口径：总量上限（3–5 个），不是逐板块配额（2026-09-19 实测联播场：摘要 655 字
+    # 带 48 个数字、与要点梳理 4-gram 重合 65%——"至少带 1–3 个"被执行成每板块 1–3 个）
+    abstract = hints[0]
+    check("通用纪要：摘要数字是全段总量上限（3–5 个），不是逐板块配额",
+          "全段关键数字 3–5 个" in abstract and "不是每个板块都配数字" in abstract
+          and "其余数字归 [要点梳理]" in abstract, abstract[:90])
+    check("通用纪要：旧配额口径已清除（至少带 1–3 个 / 一条数字都没有＝不合格）",
+          "至少带 1–3 个" not in abstract and "一条数字都没有＝不合格" not in abstract, "")
+    check("通用纪要：板块多时按主题打包 + 每板块一句话 ≤40 字",
+          "按主题打包概括" in abstract and "每个板块最多一句话" in abstract
+          and "单句不超 40 字" in abstract and "禁止逐板块展开数字" in abstract, abstract[:90])
     budgets = parse_section_char_budgets(tpl)
-    check("通用纪要：摘要上限统一到 400 字/段",
-          any(b["hi"] == 400 and b.get("scope") == "paragraph" for b in budgets), f"{budgets}")
+    check("通用纪要：摘要为一段 250–400（节级），速览每段 ≤200",
+          any(b["title"] == "全文摘要" and b["lo"] == 250 and b["hi"] == 400 and b["scope"] == "section" for b in budgets)
+          and any(b["title"] == "分段速览" and b["hi"] == 200 and b["scope"] == "paragraph" for b in budgets),
+          f"{budgets}")
     leftover = [
         p.stem
         for p in _active_dir().glob("*.md")
@@ -1434,9 +1447,8 @@ def test_project_progress_overview() -> None:
     text = (_active_dir() / "project_progress.md").read_text(encoding="utf-8")
     specs = [l.strip() for l in text.splitlines() if l.strip().startswith("[") and l.strip().endswith("]")]
     overview = next((s for s in specs if "一段话概览" in s), "")
-    check("项目进度会：概况栏改为可解析的字数区间（约 400–600 字）", "约 400–600 字" in overview, f"{overview[:60]}")
-    check("项目进度会：概况栏限段数与段长（最多 3 段、每段不超过 300 字）",
-          "最多 3 段" in overview and "每段不超过 300 字" in overview, "")
+    check("项目进度会：概况栏改为可解析的字数区间（一段写完，约 250–400 字）",
+          "一段写完，约 250–400 字" in overview, f"{overview[:60]}")
     check("项目进度会：旧的句数口径已删除（3–6 句不再出现）",
           "3–6 句" not in text and "句概览" not in text, "")
     check("项目进度会：边界写成可执行的「只写进某两栏 + 本栏不复述」",
@@ -1444,10 +1456,8 @@ def test_project_progress_overview() -> None:
     from tools.templates.template_eval import parse_section_char_budgets
 
     caps = [b for b in parse_section_char_budgets(text) if b["title"] == "项目概况"]
-    # 解析取「每段不超过 300 字」作为段落上限（总量 400–600 仍是模型侧口径，
-    # 且被「最多 3 段」隐含约束）——机器在 >300×1.2 时按句界拆
-    check("项目进度会：概况栏预算以单段上限为准（300/paragraph）",
-          bool(caps) and caps[0]["hi"] == 300 and caps[0]["scope"] == "paragraph", f"{caps}")
+    check("项目进度会：概况栏预算为节级 250–400（首栏只写一段）",
+          bool(caps) and caps[0]["hi"] == 400 and caps[0]["scope"] == "section", f"{caps}")
 
 
 def test_paragraph_cap_from_explicit_per_para() -> None:
@@ -1463,21 +1473,22 @@ def test_paragraph_cap_from_explicit_per_para() -> None:
 
     han = lambda t: len([c for c in t if "\u4e00" <= c <= "\u9fff"])
     interview = (_active_dir() / "interview_transcript.md").read_text(encoding="utf-8")
-    check("采访记录：概况栏写明单段上限（单段不超过 300 字）", "单段不超过 300 字" in interview, "")
+    check("采访记录：概况栏为一段 250–400（不再写单段 300 + 分 2 段）",
+          "一段写完，约 250–400 字" in interview and "单段不超过 300 字" not in interview, "")
     caps = [b for b in parse_section_char_budgets(interview) if b["title"] == "访谈概述"]
-    check("采访记录：概况栏解析出段落级预算且取到单段数（300）",
-          bool(caps) and caps[0]["scope"] == "paragraph" and caps[0]["hi"] == 300, f"{caps}")
+    check("采访记录：概况栏解析出节级预算 250–400",
+          bool(caps) and caps[0]["scope"] == "section" and caps[0]["hi"] == 400, f"{caps}")
     prog = (_active_dir() / "project_progress.md").read_text(encoding="utf-8")
     pcaps = [b for b in parse_section_char_budgets(prog) if b["title"] == "项目概况"]
-    check("项目进度会：总量区间不再盖过单段上限（lo ≤ hi）",
-          bool(pcaps) and pcaps[0]["hi"] == 300 and int(pcaps[0]["lo"] or 0) <= 300, f"{pcaps}")
+    check("项目进度会：概况栏节级预算 lo ≤ hi",
+          bool(pcaps) and int(pcaps[0]["lo"] or 0) <= int(pcaps[0]["hi"]), f"{pcaps}")
 
     long_para = "这是受访者的观点与结论。" * 38  # ≈418 汉字
     doc = "# 采访记录\n\n# 访谈概述\n" + long_para + "\n"
     fixed, notes = split_overlong_paragraphs(doc, interview)
     parts = [p.strip() for p in fixed.split("# 访谈概述", 1)[1].split("\n\n") if p.strip()]
-    check("采访记录：418 字单段被拆（阈值 = 单段 300×1.2）",
-          bool(notes) and len(parts) >= 2 and max(han(p) for p in parts) <= 300,
+    check("采访记录：418 字单段被拆（节级 400 兜单段）",
+          bool(notes) and len(parts) >= 2 and max(han(p) for p in parts) <= 400,
           f"段长={[han(p) for p in parts]} {notes}")
 
     # 节级预算的栏（无「单段/每段」字样）也要兜单段：超过整节上限即拆
@@ -1568,8 +1579,13 @@ def test_strip_default_only_content() -> None:
 
     raw = (_active_dir() / "clinical_advisory.md").read_text(encoding="utf-8")
     gate = gate_render_output(raw, out)
-    check("省略缺省内容后门禁无任何 issue（不触发返工）",
-          not gate["issues"] and not gate["hard_issues"], f"{gate['issues']}")
+    # 2026-09-18 起：`| … |` 样例表被认成约束 → 剩一张只有表头没有数据行的表
+    # 会报「表格无有效数据行」且列为硬伤——这正是要的信号（repair 会重填药品表），
+    # 不再期望"零 issue"。
+    check("省略缺省内容后只剩「表格无有效数据行」硬伤（repair 据此重填）",
+          gate["hard_issues"] == ["「[治疗方案与医嘱]」表格无有效数据行"]
+          and gate["issues"] == gate["hard_issues"],
+          f"hard={gate['hard_issues']} issues={gate['issues']}")
 
     for stem, bad in (
         ("clinical_advisory", "一律写「未明确」"),
@@ -2148,9 +2164,8 @@ def test_media_overview_scope() -> None:
 
     text = (_active_dir() / "media_briefing.md").read_text(encoding="utf-8")
     spec = next(l.strip() for l in text.splitlines() if l.strip().startswith("[一段话概括发布会"))
-    check("发布会概况：写明段数与段长上限（最多 3 段、每段不超过 300 字）",
-          "最多 3 段" in spec and "每段不超过 300 字" in spec
-          and "本栏约 250–400 字" not in spec, spec[:80])
+    check("发布会概况：一段写完（约 250–400 字，不再写 3 段×300）",
+          "一段写完，约 250–400 字" in spec and "最多 3 段" not in spec, spec[:80])
     elements = spec.split("；", 1)[0]   # 要素部分（不含尾部的"归哪栏"边界句）
     check("发布会概况：要素不再出现与 [核心信息] 同名的词（边界句里保留指引）",
           "核心信息" not in elements and "发布单位与整体基调" in spec, spec[:80])
@@ -2161,9 +2176,9 @@ def test_media_overview_scope() -> None:
           "时间地点与主办/参与" in spec and "发布时间、地点、主办与发布单位、发言人身份、到会媒体" in spec
           and "没有的不编" in spec, "")
     caps = [b for b in parse_section_char_budgets(text) if b["title"] == "发布会概况"]
-    check("发布会概况：解析出段落级预算 240–300（超 360 自动拆段）",
-          bool(caps) and caps[0]["scope"] == "paragraph" and caps[0]["lo"] == 240
-          and caps[0]["hi"] == 300, f"{caps}")
+    check("发布会概况：解析出节级预算 250–400（首栏只写一段）",
+          bool(caps) and caps[0]["scope"] == "section" and caps[0]["lo"] == 250
+          and caps[0]["hi"] == 400, f"{caps}")
 
     han = lambda s: len(re.findall(r"[\u4e00-\u9fff]", s))
     para = "宏观方面，主讲人解读法案要点，测算关税收入可覆盖新增支出，赤字率维持合理区间。" * 18
@@ -2171,8 +2186,8 @@ def test_media_overview_scope() -> None:
     fixed, notes = split_overlong_paragraphs(doc, (_active_dir() / "media_briefing.md").read_text(encoding="utf-8"))
     seg = fixed.split("# 发布会概况", 1)[1].split("# 核心信息", 1)[0]
     parts = [q.strip() for q in seg.split("\n\n") if q.strip()]
-    check("发布会概况：超长单段按句界拆开（每段 ≤300）",
-          len(parts) >= 2 and max(han(q) for q in parts) <= 300,
+    check("发布会概况：超长单段按句界拆开（节级 ≤400/段）",
+          len(parts) >= 2 and max(han(q) for q in parts) <= 400,
           f"段长={[han(q) for q in parts]} {notes}")
 
 
@@ -2199,6 +2214,10 @@ def test_class_transcript_task_groups() -> None:
           and "可操作做法（器材、步骤）" in spec, "")
     check("保留条级尺寸与并列不合并（每条 30–120 字）",
           "每条 30–120 字" in spec and "各占一条" in spec, "")
+    # 2026-09-19 实测：[核心知识点梳理] 1413 字（5 知识点 × 26 条）——每知识点加条数上限
+    kn = next(l for l in text.splitlines() if "按教学逻辑分层" in l)
+    check("知识点梳理：每个知识点下最多 3–4 条（代表性一条）",
+          "每个知识点下最多 3–4 条" in kn and "各留最有代表性的一条" in kn, kn[:90])
     check("旧的行内标签形态已清除（不再每条挂「**任务**：」）",
           "**任务**：" not in text and "分别成条" not in text, "")
 
@@ -2207,6 +2226,110 @@ def test_class_transcript_task_groups() -> None:
     budgets = [(b["title"], b["hi"], b["scope"]) for b in parse_section_char_budgets(text)]
     check("课堂记录：全模板不带字数门禁（问答栏按重要程度收，说明里的数字未被误解析）",
           budgets == [], f"{budgets}")
+
+
+def test_quote_columns_have_background() -> None:
+    """金句/引语类栏：每条引用下带一句背景说明（治"脱离上下文的孤立金句"）。
+
+    用户口径（2026-09-18）：金句下面要加一句"当前金句的出现背景"，一句话即可——
+    引语没有背景就读不出分量，也无法核对它是否被断章取义。
+    """
+    from tools.template_router._placeholder import plan_placeholder_fill
+
+    expectations = {
+        "special_lecture": ("金句总结", ("讲到哪个话题/论证到哪一步", "背景未提及")),
+        "interview_transcript": ("关键引语与金句", ("回应什么问题/谈到什么话题", "背景未提及")),
+        "conversation_transcript": ("关键原话", ("谁对谁说的", "背景未提及")),
+    }
+    for stem, (col, needles) in expectations.items():
+        text = (_active_dir() / f"{stem}.md").read_text(encoding="utf-8")
+        lines = text.splitlines()
+        head_idx = next(i for i, l in enumerate(lines) if f"# [{col}]" in l)
+        spec = lines[head_idx + 1]  # 栏名下的说明行
+        for k in needles:
+            check(f"{stem} [{col}]：背景说明口径（{k[:14]}…）", k in spec, spec[:80])
+        check(f"{stem} [{col}]：背景限定一句话（不展开复述）",
+              "一句话即可" in spec, "")
+        quote_fields = [s for s in plan_placeholder_fill(text)["scalars"] if "逐字" in (s.get("hint") or "")]
+        check(f"{stem} [{col}]：保留缺省词语义",
+              bool(quote_fields) and quote_fields[0].get("missing") is True,
+              f"{[s.get('missing') for s in quote_fields]}")
+
+
+def test_ellipsis_table_row_template_recognized() -> None:
+    """省略号样例行（`| … |`）也要被认成表格行模板——否则空表/缺表/行数检查整体失效。
+
+    回归背景（2026-09-18 第27条实测）：就医咨询药品表只有表头没有数据行，但
+    extract_template_table_constraints 只认 `[...]` 占位 → constraints=[] →
+    「表格无有效数据行」对这类模板永不触发，空表静默落盘。
+    """
+    from tools.templates.template_eval import (
+        evaluate_output_against_template,
+        extract_template_table_constraints,
+    )
+
+    advisory = (_active_dir() / "clinical_advisory.md").read_text(encoding="utf-8")
+    cons = extract_template_table_constraints(advisory)
+    check("就医咨询：`| … |` 样例表被认成约束（section=治疗方案与医嘱）",
+          bool(cons) and "[治疗方案与医嘱]" in cons[0]["section_title"], f"{cons}")
+
+    art = (
+        "# 就医咨询\n\n"
+        "# [治疗方案与医嘱]\n"
+        "- **用药**：医生开了药。\n\n"
+        "| 药品名称 | 剂量 | 频次 | 用法 | 注意事项 |\n"
+        "| --- | --- | --- | --- | --- |\n"
+    )
+    check("表头在、数据行缺失 → 报「表格无有效数据行」（硬伤，走 repair）",
+          "表格无有效数据行" in evaluate_output_against_template(advisory, art)[0]
+          if evaluate_output_against_template(advisory, art) else False,
+          f"{evaluate_output_against_template(advisory, art)}")
+
+    # 顺带钉住 row-hint 的两个误判源（会把"形态/泛指"读成行数上限）
+    from tools.templates.template_eval import parse_row_hint
+
+    check("「不要用连续多行独占一行的…」不是 1 行上限",
+          parse_row_hint("不要用连续多行独占一行的 `**类别**：` 段落代替分点") is None, "")
+    check("「每行一个X」是形态要求不是数量", parse_row_hint("每行一个事项") is None, "")
+    check("「最多 3 行」仍是真上限", parse_row_hint("最多 3 行") == 3, "")
+
+    # 真实产物回归：正常带数据的表不再被"约需 1 行"误伤
+    for stem, artifact in (
+        ("clinical_advisory", "5b17e044d210441a87bce540540b7163"),
+        ("debate_forum", "67648012"),
+        ("project_progress", "dff4ac29"),
+    ):
+        tpl = (_active_dir() / f"{stem}.md").read_text(encoding="utf-8")
+        matches = sorted(Path("data/test/output").glob(f"{artifact}*/result.md"))
+        if not matches:
+            continue
+        issues = [
+            x
+            for x in evaluate_output_against_template(tpl, matches[0].read_text(encoding="utf-8", errors="ignore"))
+            if "行（超出）" in x
+        ]
+        check(f"{stem}：带数据行不被「约需 1 行」误判", not issues, f"{issues[:1]}")
+
+
+def test_lecture_evidence_cap() -> None:
+    """讲座 [核心观点与论证]：同一论点下论据最多 3–4 条，按支撑力取舍（治论据堆积）。
+
+    回归背景（2026-09-19 实测）：陈廷敬讲座场该栏 2277 字（5 论点 × 29 条论据），
+    每个论点下 6–8 条论据角度重复——"都要落进对应条目"只有下量没有取舍。
+    """
+    from tools.templates.template_eval import parse_section_char_budgets
+
+    text = (_active_dir() / "special_lecture.md").read_text(encoding="utf-8")
+    spec = next(l for l in text.splitlines() if "按讲座的逻辑层次" in l)
+    check("讲座：同一论点下论据最多 3–4 条",
+          "同一论点下论据最多 3–4 条" in spec, spec[:80])
+    check("讲座：按支撑力取舍（直接数据/典型事例优先）、重复角度合并",
+          "直接数据/典型事例优先" in spec and "重复角度的合并" in spec, "")
+    check("讲座：条级尺寸与下量口径保留（每条 30–120 字、细节落进条目）",
+          "每条 30–120 字" in spec and "都要落进对应条目" in spec, "")
+    got = [(b["title"], b["hi"], b["scope"]) for b in parse_section_char_budgets(text)]
+    check("讲座：预算未漂（概况/问答照旧）",
+          ("讲座概况", 400, "section") in got and ("Q&A 环节", 400, "paragraph") in got, f"{got}")
 
 
 def test_media_briefing_evidence_and_depth() -> None:
@@ -2266,7 +2389,7 @@ def test_media_briefing_evidence_and_depth() -> None:
     # 这两栏故意不声明字数——一旦写进去就变成"40 字上限"式误判并触发整篇返工。
     got = [(s["title"], s["hi"], s["scope"]) for s in parse_section_char_budgets(text)]
     check("新闻发布：仍只有 概况/Q&A 两条预算（说明里的数字未被误解析）",
-          got == [("发布会概况", 300, "paragraph"), ("Q&A环节", 400, "paragraph")], f"{got}")
+          got == [("发布会概况", 400, "section"), ("Q&A环节", 400, "paragraph")], f"{got}")
 
 
 def test_understanding_speakers_field() -> None:
@@ -2377,6 +2500,20 @@ def test_qa_name_priority() -> None:
     check("全局称呼规则：角色与编号仍是后手，并禁止张冠李戴",
           "确实没有该人姓名才用角色" in rule and "沿用原文的编号称呼" in rule
           and "张冠李戴" in rule, "")
+    # 2026-09-19 实测（肖楠场）：提问方被写成"张楠"——问答段之外出现 0 次，属无支撑造名。
+    check("全局称呼规则：问答用名必须有问答段之外的支撑（无支撑退角色）",
+          "问答/对话中使用的姓名必须有支撑" in rule
+          and "在问答段之外的原文里出现过" in rule
+          and "没有支撑的一律退回角色称呼" in rule, rule[-140:])
+    check("全局称呼规则：同音/近音变体取主流写法、全篇统一",
+          "同音/近音变体" in rule and "取全场主流写法" in rule and "全篇统一" in rule, "")
+
+    asr = next(l for l in BODY_FORMAT_RULES.splitlines() if "语音识别错" in l)
+    check("语音识别规则补人名三条：变体统一 / 外文名用职务 / 禁止造名",
+          "人名另加三条" in asr
+          and "取全场主流写法、全篇统一" in asr
+          and "外文/音译人名没把握写全就用职务或角色称呼" in asr
+          and "禁止造名" in asr and "对称联想" in asr, asr[-160:])
 
     understanding = Path("domain/meeting/meeting_core/prompts.py").read_text(encoding="utf-8")
     check("理解层：原文出现过姓名的必须写姓名、不推断不编造",
@@ -2566,6 +2703,9 @@ def main() -> int:
         test_column_fill_concurrency_and_early_stop()
         test_media_overview_scope()
         test_class_transcript_task_groups()
+        test_quote_columns_have_background()
+        test_ellipsis_table_row_template_recognized()
+        test_lecture_evidence_cap()
         test_media_briefing_evidence_and_depth()
         test_qa_name_priority()
         test_understanding_speakers_field()
