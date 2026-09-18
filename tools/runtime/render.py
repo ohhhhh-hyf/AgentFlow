@@ -11,6 +11,36 @@ from tools.core.domain_engine_text import line, line_cn, line_template
 
 logger = logging.getLogger(__name__)
 
+
+def _doc_han(state: dict) -> int:
+    """本次原文汉字数（用来算篇幅档位与输出上限）；取不到返回 0。"""
+    try:
+        from tools.templates.length_budget import han_count
+
+        return han_count(str(state.get("transcript") or ""))
+    except Exception:  # noqa: BLE001 - 只影响上限估算，不影响渲染
+        return 0
+
+
+def _render_cap(state: dict, template: str) -> int | None:
+    """长生成调用的 max_tokens 上限（按目标字数换算）。"""
+    try:
+        from tools.templates.length_budget import output_token_cap
+
+        return output_token_cap(_doc_han(state), template)
+    except Exception:  # noqa: BLE001
+        return None
+
+
+async def _render_run(render, context: str, template: str, cap: int | None):
+    """调用渲染步；支持 max_tokens 就带上，老步进对象不支持则退回旧签名。"""
+    if cap:
+        try:
+            return await render.run(context, template, max_tokens=cap)
+        except TypeError:
+            pass
+    return await render.run(context, template)
+
 # ── 渲染修订指令（从 produce_line 抽出，独立便于调整；函数内 format 插值）──
 
 _COMPRESS_REVISION = (
@@ -162,13 +192,14 @@ async def produce_line(
         enforce_notes: list[str] = []
         streamed = False
         kind = detect_template_kind(template) if template else ""
+        cap = _render_cap(state, template) if template else None
 
         if template and is_router_enabled() and kind == "placeholder":
             client = getattr(render, "client", None)
             if client is not None:
                 try:
                     filled = await fill_placeholder_template(
-                        client, context, template
+                        client, context, template, source_han=_doc_han(state)
                     )
                 except Exception:  # noqa: BLE001
                     logger.warning(
@@ -186,7 +217,7 @@ async def produce_line(
                 and kind in {"placeholder", "spec"}
             )
             if use_block:
-                full_text = await render.run(context, template)
+                full_text = await _render_run(render, context, template, cap)
                 fill_mode = "freeform"
             else:
                 parts: list[str] = []
@@ -212,18 +243,19 @@ async def produce_line(
             and hasattr(render, "run")
         ):
             try:
-                from tools.templates.template_eval import parse_document_char_budget
                 from tools.template_router import _body_han_count
+                from tools.templates.length_budget import effective_doc_budget
             except Exception:  # noqa: BLE001
-                parse_document_char_budget = None  # type: ignore[assignment]
+                effective_doc_budget = None  # type: ignore[assignment]
                 _body_han_count = None  # type: ignore[assignment]
-            if parse_document_char_budget and _body_han_count:
-                bud = parse_document_char_budget(template)
-                hi = bud.get("hi")
-                lo = bud.get("lo")
-                if hi:
-                    hi_i = int(hi)
-                    lo_i = int(lo or 0)
+            span = (
+                effective_doc_budget(_doc_han(state), template)
+                if effective_doc_budget
+                else None
+            )
+            if span and _body_han_count:
+                lo_i, hi_i = int(span[0]), int(span[1])
+                if hi_i:
                     for _rev in range(2):
                         han = _body_han_count(full_text)
                         if han > hi_i:
@@ -233,11 +265,13 @@ async def produce_line(
                                 else max(hi_i - 40, hi_i * 4 // 5)
                             )
                             try:
-                                compressed = await render.run(
+                                compressed = await _render_run(
+                                    render,
                                     f"{context}\n\n"
                                     f"{_COMPRESS_REVISION.format(han=han, bound=lo_i or hi_i, hi=hi_i, target=target)}\n\n"
                                     f"【当前正文】\n{full_text}",
                                     template,
+                                    cap,
                                 )
                             except Exception:  # noqa: BLE001
                                 compressed = ""
@@ -254,11 +288,13 @@ async def produce_line(
                                 continue
                         elif lo_i and han < int(lo_i * 0.85):
                             try:
-                                expanded = await render.run(
+                                expanded = await _render_run(
+                                    render,
                                     f"{context}\n\n"
                                     f"{_EXPAND_REVISION.format(han=han, lo=lo_i, hi=hi_i)}\n\n"
                                     f"【当前正文】\n{full_text}",
                                     template,
+                                    cap,
                                 )
                             except Exception:  # noqa: BLE001
                                 expanded = ""
@@ -283,6 +319,25 @@ async def produce_line(
             gate_ok = bool(gate.get("gate_ok"))
             hard0 = list(gate.get("hard_issues") or [])
             advisory = list(gate.get("advisory_issues") or [])
+            # 篇幅咨询：模板没声明全文预算时用档位（原文规模）比一次，只记录不返工——
+            # 治"太薄/太炸"的第一道是 prompt 里的【篇幅预算】与 max_tokens 上限，不是整篇重渲染。
+            try:
+                from tools.templates.length_budget import effective_doc_budget
+
+                span2 = effective_doc_budget(_doc_han(state), template)
+            except Exception:  # noqa: BLE001
+                span2 = None
+            if span2:
+                han_now = sum(1 for c in full_text if "\u4e00" <= c <= "\u9fff")
+                lo2, hi2 = int(span2[0]), int(span2[1])
+                if hi2 and han_now > int(hi2 * 1.2):
+                    advisory.append(
+                        f"正文约 {han_now} 字，超过本篇参考上限 {hi2} 字（档位）"
+                    )
+                elif lo2 and han_now < int(lo2 * 0.85):
+                    advisory.append(
+                        f"正文约 {han_now} 字，低于本篇参考下限 {lo2} 字（档位）"
+                    )
             if advisory:
                 # 咨询级：只记录（不触发返工）——超长条/段、缺失说明句，观察一批再收紧
                 line(state, line_name)["render_advisory_issues"] = advisory
@@ -331,7 +386,9 @@ async def produce_line(
 
                 for _round in range(2 if compress_hi else 1):
                     try:
-                        repaired = await render.run(repair_context, template)
+                        repaired = await _render_run(
+                            render, repair_context, template, cap
+                        )
                     except Exception:  # noqa: BLE001
                         logger.warning(
                             "repair failed (%s)", line_name, exc_info=True
@@ -390,7 +447,7 @@ async def produce_line(
             ):
                 try:
                     filled2 = await fill_placeholder_template(
-                        render.client, context, template
+                        render.client, context, template, source_han=_doc_han(state)
                     )
                 except Exception:  # noqa: BLE001
                     filled2 = None

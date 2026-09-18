@@ -51,13 +51,25 @@ class MinutesGenerationRender:
             MINUTES_RENDER_TEMPLATE_PROMPT,
         )
 
-    async def run(self, approved_context: str, template: str = "") -> str:
-        """整段渲染纪要正文（纯文本）。有模板时用低温度稳住结构。"""
+    async def run(
+        self,
+        approved_context: str,
+        template: str = "",
+        *,
+        max_tokens: int | None = None,
+    ) -> str:
+        """整段渲染纪要正文（纯文本）。有模板时用低温度稳住结构。
+
+        ``max_tokens`` 由编排层按目标字数给出：本地端点没有隐含输出上限（托管 API 自带
+        ~8k），退化时会一路写满上下文（实测 49k token / 9 分钟），必须由调用方设硬上限。
+        """
         prompt, user = self._prompt_and_user(approved_context, template)
         has_template = bool((template or "").strip())
         temp = 0.0 if has_template else None
         try:
-            text = await self.client.text(prompt, user, temperature=temp, label="minutes/render")
+            text = await self.client.text(
+                prompt, user, temperature=temp, max_tokens=max_tokens, label="minutes/render"
+            )
         except TypeError:
             text = await self.client.text(prompt, user, label="minutes/render")
         if not has_template:

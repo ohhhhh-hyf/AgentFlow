@@ -533,16 +533,29 @@ def split_overlong_paragraphs(text: str, template: str) -> tuple[str, list[str]]
     notes: list[str] = []
     out: list[str] = []
     cur = ""
+    top = ""  # 最近的一级标题（`# 栏名`）：子标题查不到预算时沿用它
     for line in text.splitlines():
         head = _HEADING_RE.match(line.strip()) if line.strip() else None
         if head:
-            cur = _norm_heading(head.group(2))
+            level = len(head.group(1))
+            name = _norm_heading(head.group(2))
+            if level == 1:
+                top = name
+            cur = name
             out.append(line)
             continue
         body = line.strip()
         rule = limits.get(cur)
         if rule is None and cur:
             rule = next((v for k, v in limits.items() if k and (k in cur or cur in k)), None)
+        if rule is None and top and top != cur:
+            # 子标题（如 `## 08:00-12:30 现场检查`）继承父节预算：否则带子标题的栏目
+            # 段落上限整体失效（实测 823 字单段不拆、也不报超限）
+            rule = limits.get(top)
+            if rule is None:
+                rule = next(
+                    (v for k, v in limits.items() if k and (k in top or top in k)), None
+                )
         cap, ratio = rule if rule else (None, 1.0)
         if (
             cap
@@ -553,12 +566,33 @@ def split_overlong_paragraphs(text: str, template: str) -> tuple[str, list[str]]
             parts = _split_one_paragraph(body, cap)
             if len(parts) > 1:
                 notes.append(
-                    f"「{cur}」超长段（{_han_count(body)} 字）已按句界拆成 {len(parts)} 段"
+                    f"「{top or cur}」超长段（{_han_count(body)} 字）已按句界拆成 {len(parts)} 段",
                 )
                 out.append("\n\n".join(parts))
                 continue
         out.append(line)
     return "\n".join(out), notes
+
+
+def _top_level_sections(text: str) -> list[tuple[str, str]]:
+    """按**一级标题**归并节：子标题（`##`/`###`）并入其父节正文。
+
+    为什么（2026-09-18 实测）：`split_markdown_sections` 按任意级标题切分，
+    `## 时间段 板块名` 会把 [分段速览] 的内容切成一个个无名小节 → 父节的字数预算
+    查不到任何正文 → 该栏的段落上限检查整体失效（823 字单段原样通过）。
+    """
+    try:
+        from tools.templates.template_eval import split_markdown_sections
+    except Exception:  # noqa: BLE001
+        return []
+    merged: list[tuple[str, list[str]]] = []
+    for title, body in split_markdown_sections(text or ""):
+        first = next((ln for ln in body.splitlines() if ln.strip()), "")
+        if first.strip().startswith("# ") or not merged:
+            merged.append((title, [body]))
+        else:
+            merged[-1][1].append(body)
+    return [(title, "\n".join(parts)) for title, parts in merged]
 
 
 def enforce_render_output(
@@ -817,7 +851,6 @@ def _overlong_issue(template: str, text: str) -> str | None:
         from tools.templates.template_eval import (
             parse_document_char_budget,
             parse_section_char_budgets,
-            split_markdown_sections,
         )
     except Exception:  # pragma: no cover
         return None
@@ -835,7 +868,9 @@ def _overlong_issue(template: str, text: str) -> str | None:
     sections = parse_section_char_budgets(template or "")
     if not sections:
         return None
-    rendered = split_markdown_sections(text or "")
+    # 用"顶层节"（一级标题）归并：`## 时间段 板块名` 这类子标题不再把自己的小节
+    # 从这里切走（否则父节预算查不到内容 → 段落检查整栏失效，2026-09-18 实测）
+    rendered = _top_level_sections(text or "")
     issues: list[str] = []
     for item in sections:
         title = str(item.get("title") or "")

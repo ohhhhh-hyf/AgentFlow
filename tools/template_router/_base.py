@@ -651,8 +651,13 @@ async def _client_text(
     temperature: float = 0.0,
     use_cache: bool = False,
     label: str = "",
+    max_tokens: int | None = None,
 ) -> str:
-    """统一走 client.text 的 per-call 参数（温度/JSON/缓存）。"""
+    """统一走 client.text 的 per-call 参数（温度/JSON/缓存/输出上限）。
+
+    ``max_tokens`` 是长生成调用的硬上限：本地端点没有隐含输出上限，退化时会一路写满
+    上下文（实测 49k token / 9 分钟），必须由调用方按目标字数给出上限。
+    """
     try:
         return (
             await client.text(
@@ -662,6 +667,7 @@ async def _client_text(
                 json_mode=json_mode,
                 use_cache=use_cache,
                 label=label,
+                max_tokens=max_tokens,
             )
         ).strip()
     except TypeError:

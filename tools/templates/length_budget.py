@@ -81,6 +81,54 @@ def first_column_min(source_han: int) -> int | None:
     return max(FIRST_COL_MIN, min(FIRST_COL_MAX, round(span[0] * FIRST_COL_SHARE)))
 
 
+# ── 输出上限（治"失控生成"）────────────────────────────────────
+# 2026-09-18 实测一跑：本地 vLLM 端点**没有隐含输出上限**（托管 API 自带 ~8k），装配调用
+# 退化时一路写到上下文允许的上限——49,074 token / 86,447 字符 / 551 秒，被截断的 JSON 无法
+# 解析 → 整篇重填，一条纪要跑了 10 分钟。按目标字数换算 max_tokens 后，失控会在约 1 分钟内
+# 被截断；逐栏生成 + 流式早停（见 template_router/_placeholder.py）会更快。
+TOKENS_PER_HAN = 1.2  # 每汉字按 1.2 token 计（实测 JSON 载荷 0.6–0.8 token/字），已含余量
+OUTPUT_CAP_MIN, OUTPUT_CAP_MAX = 1200, 12000
+DEFAULT_TARGET_HAN = 4000  # 无预算 / 原文过短时的中性目标
+
+
+def effective_doc_budget(
+    source_han: int | None, template: str = ""
+) -> tuple[int, int] | None:
+    """有效全文预算：模板声明优先，否则用按原文规模算出的档位（tier）。
+
+    30 个模板目前都没有声明全文预算，长度指引全靠 tier——这里把它收成同一个入口，
+    供输出上限、篇幅自检与日志共用，避免各写一份。
+    """
+    if template:
+        try:
+            from tools.templates.template_eval import parse_document_char_budget
+        except Exception:  # noqa: BLE001  # pragma: no cover
+            parse_document_char_budget = None  # type: ignore[assignment]
+        if parse_document_char_budget:
+            bud = parse_document_char_budget(template) or {}
+            if bud.get("hi"):
+                return int(bud.get("lo") or 0), int(bud["hi"])
+    if source_han:
+        span = length_budget(int(source_han))
+        if span:
+            return span
+    return None
+
+
+def target_han(source_han: int | None = None, template: str = "") -> int:
+    """本篇目标字数：有效预算的上限，缺则默认 4000。"""
+    span = effective_doc_budget(source_han, template)
+    return int(span[1]) if span else DEFAULT_TARGET_HAN
+
+
+def output_token_cap(
+    source_han: int | None = None, template: str = "", *, target: int | None = None
+) -> int:
+    """长生成调用的 ``max_tokens`` 上限：目标字数换算 token，夹在 1200–12000。"""
+    han = int(target) if target else target_han(source_han, template)
+    return max(OUTPUT_CAP_MIN, min(OUTPUT_CAP_MAX, round(han * TOKENS_PER_HAN)))
+
+
 def budget_line(source_han: int, *, columns: int = 0) -> str:
     """生成注入 prompt 的【篇幅预算】块；原文过短时返回空串。"""
     span = length_budget(source_han)
@@ -104,17 +152,25 @@ def budget_line(source_han: int, *, columns: int = 0) -> str:
         "栏目少、以结论为主的模板（复盘/评审/面试/笔记/通用纪要）往下限一侧走，"
         "事实密集的记录型模板（课堂/庭审/讲座/发布）可往上限一侧走——以原文事实量为准，不硬凑也不硬压。"
         "单段 ≤400 字（概况/背景类 ≤3 段）、条目 30–120 字/条。"
+        "**超过上限的输出会被截断**（宁可写足要点后收尾，不要铺陈重复）。"
         + first_col
     )
 
 
 __all__ = [
+    "DEFAULT_TARGET_HAN",
     "FIRST_COL_MAX",
     "FIRST_COL_MIN",
     "FIRST_COL_SHARE",
+    "OUTPUT_CAP_MAX",
+    "OUTPUT_CAP_MIN",
     "TIERS",
+    "TOKENS_PER_HAN",
     "budget_line",
+    "effective_doc_budget",
     "first_column_min",
     "han_count",
     "length_budget",
+    "output_token_cap",
+    "target_han",
 ]

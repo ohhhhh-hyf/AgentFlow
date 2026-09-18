@@ -21,6 +21,7 @@ from .meeting_factory import MeetingAgentFactory
 from .meeting_core import MeetingUnderstandingAgent
 from .domain_config import LINE_CN_NAMES, LINE_KINDS
 from .scene_hint import scene_hint_for_templates
+from .understanding_skip import skip_fields_for_template
 
 # 共享编排内核（领域无关）：纯函数 + DomainNodes 图节点 mixin
 from tools.core.domain_engine import DomainNodes
@@ -327,7 +328,11 @@ _LINES_FORMATTERS: dict[str, object] = {
 UNDERSTANDING_SKIP_FIELDS: dict[str, frozenset[str]] = {
     "actions": frozenset({"topics", "risks", "open_questions", "risk_hints"}),
     "risks": frozenset({"topics", "action_hints"}),
-    "minutes": frozenset({"risk_hints"}),
+    # minutes 线只消费 pack 里的 brief/purpose/scene/topics/decisions/risks/open_questions：
+    # action_hints / risk_hints / dependencies（待办线与风险线的线索）它从不使用；
+    # risks / open_questions 是否再跳由模板栏位决定——模板没有风险/未决栏就没有落点，
+    # 见 understanding_skip.py（发布会/课堂/讲座/访谈类都不带这两栏）。
+    "minutes": frozenset({"risk_hints", "action_hints", "dependencies"}),
 }
 
 def _empty_purpose(state) -> str:
@@ -792,12 +797,19 @@ class _Nodes(DomainNodes):
             return {"perspective_profile": EMPTY_PERSPECTIVE_MODELING}
         return await super()._perspective_modeling_node(state)
 
-    def _understanding_skip(self, line_names) -> frozenset[str]:
-        """单线运行时的理解输出裁剪集合；多线 / 未注册线保持全量。"""
+    def _understanding_skip(self, line_names, template: str = "") -> frozenset[str]:
+        """单线运行时的理解输出裁剪集合；多线 / 未注册线保持全量。
+
+        minutes 线在基础集合之外再按**模板栏位**裁一次：模板没有风险/未决栏时，
+        risks / open_questions 也不进理解输出（省下的输出 token 会随 pack 影响后续每一次调用）。
+        """
         selected = [name for name in (line_names or []) if name]
-        if len(selected) == 1 and selected[0] in UNDERSTANDING_SKIP_FIELDS:
-            return UNDERSTANDING_SKIP_FIELDS[selected[0]]
-        return frozenset()
+        if len(selected) != 1 or selected[0] not in UNDERSTANDING_SKIP_FIELDS:
+            return frozenset()
+        skip = set(UNDERSTANDING_SKIP_FIELDS[selected[0]])
+        if selected[0] == "minutes":
+            skip |= skip_fields_for_template(template)
+        return frozenset(skip)
 
     def _make_meeting_understanding_node(self, line_names):
         """会议理解节点：按本次选线裁剪输出（单线 API 场景省输出 token）。
@@ -805,11 +817,15 @@ class _Nodes(DomainNodes):
         裁剪只影响理解层输出（跳过字段为 []），不改变字段契约，
         下游 pack / 审核 / 记忆读取逻辑零改动。
         """
-        skip = self._understanding_skip(line_names)
         selected = [name for name in (line_names or []) if name]
-        focus = selected[0] if (skip and selected) else ""
 
         async def node(state: dict) -> dict:
+            # 裁剪集合随模板变化（模板栏位决定 risks/open_questions 是否要抽），
+            # 所以在节点内、拿到 state 之后再算。
+            skip = self._understanding_skip(
+                line_names, str((state.get("templates") or {}).get("minutes") or "")
+            )
+            focus = selected[0] if (skip and selected) else ""
             progress("agent start meeting_understanding")
             try:
                 result = await self.meeting_understanding_agent.run(

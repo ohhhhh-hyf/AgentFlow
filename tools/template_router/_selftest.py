@@ -447,7 +447,7 @@ TEMPLATE_SHAPE_SNIPPETS = {
     "retrospective_session": "不要每条都补「责任人无，时间无」",
     "hiring_report": "本栏明细由下表承载",
     "hiring_report#维度": "岗位匹配度、问题解决能力、思维逻辑性、应变能力",
-    "media_briefing": "一条一行 `- `",
+    "media_briefing": "一条一件事、一条一行 `- **要点**：内容`",
     "site_visit_tour": "都要汇总到这里",
     "knowledge_memo": "不要再以同名",
     "clinical_advisory": "每条都是 `- ` 分点行",
@@ -1072,9 +1072,23 @@ def test_overview_specs_have_scope() -> None:
         (debate, "辩论会", "约 250–400 字"),
     ):
         check(f"{name}：概况栏声明尺寸（{size}）", size in text, "")
-    check("团队例会：概况栏正向写明本栏只写什么（构成/主线/结论）+ 明细归位",
-          all(k in team for k in ("参会成员/部门", "主线议题", "总体结论或下一步方向"))
-          and "本栏不展开、不复述" in team, "")
+    check("团队例会：概况栏写明六要素（谁/为什么开/议题及程度/态势/结论/数字锚点）",
+          all(k in team for k in (
+              "参会成员或部门", "为什么开这次会", "主线议题",
+              "已定 / 待定 / 仅同步", "整体态势", "结论与下一步方向",
+              "关键数字或时间节点", "一条都没有＝不合格",
+          )), "")
+    check("团队例会：概况栏用归位式边界（只到议题级主线 + 态势，不写任务级明细）",
+          "本栏只到「议题级主线 + 态势」" in team and "不写任务级明细" in team
+          and "[工作进展]" in team and "[协作需求]" in team, "")
+    check("团队例会：概况栏声明下限口径（低于 250 字＝没交代清）",
+          "低于 250 字说明没交代清" in team, "")
+    from tools.templates.template_eval import parse_section_char_budgets
+
+    ov = [b for b in parse_section_char_budgets(team) if b["title"] == "例会概况"]
+    check("团队例会：概况栏仍解析为节级 250–400（尺寸口径未漂）",
+          bool(ov) and ov[0]["scope"] == "section" and ov[0]["lo"] == 250 and ov[0]["hi"] == 400,
+          f"{ov}")
     check("辩论会：概况栏写明边界（不展开什么、归哪栏）", "不展开" in debate, "")
     check("团队例会：[工作进展] 声明容量引导（并列任务各占一条 + 缩进子条）",
           "并列的多个任务各占一条" in team and "缩进子条" in team, "")
@@ -1448,6 +1462,38 @@ def test_paragraph_cap_from_explicit_per_para() -> None:
     check("专题讲座：节级预算下 440 字单段也会被拆（节上限即单段上界）",
           bool(notes2) and len(parts2) >= 2, f"段长={[han(p) for p in parts2]} {notes2}")
 
+    # ② 父节预算继承：带 `## 子标题` 的栏目不能再让段落上限失效
+    gm = (_active_dir() / "general_minutes.md").read_text(encoding="utf-8")
+    gcaps = [b for b in parse_section_char_budgets(gm) if b["title"] == "分段速览"]
+    check("通用纪要：速览改为每段 ≤200 字（段落级）",
+          bool(gcaps) and gcaps[0]["hi"] == 200 and gcaps[0]["scope"] == "paragraph", f"{gcaps}")
+    spec_seg = next(l.strip() for l in gm.splitlines() if "推进顺序" in l)
+    check("通用纪要：速览只写主线、明细归 [要点梳理]（治炸主判据）",
+          "只写该段主线" in spec_seg and "具体条目、数字与分工归 [要点梳理]" in spec_seg,
+          spec_seg[:80])
+    para_sub = "这是一段概览文字。" * 55  # ≈440 汉字，单段
+    for label, doc in (
+        ("无子标题", "# 通用纪要\n\n# 分段速览\n" + para_sub + "\n"),
+        ("带 ## 时间段", "# 通用纪要\n\n# 分段速览\n## 08:00-12:30 现场检查\n" + para_sub + "\n"),
+    ):
+        fixed, notes = split_overlong_paragraphs(doc, gm)
+        segs = [
+            q for q in fixed.split("\n\n")
+            if q.strip() and not q.strip().startswith("#")
+        ]
+        check(f"通用纪要：速览超长段被拆（{label}）",
+              bool(notes) and max(han(q) for q in segs) <= 200,
+              f"段长={[han(q) for q in segs]} {notes}")
+
+    # ③ 单句超长（句界拆不动）→ 必须报「超出段落字数上限」，不能静默
+    from tools.execution.hard_execution import _overlong_issue
+
+    one = "这是一句没有任何句号的超长段落" + "持续延伸内容" * 80 + "。"
+    doc3 = "# 通用纪要\n\n# 分段速览\n## 08:00-12:30 现场检查\n" + one + "\n"
+    over = _overlong_issue(gm, doc3) or ""
+    check("通用纪要：带子标题时单句超长也会报超限（不再静默）",
+          "超出段落字数上限" in over and "分段速览" in over, over[:80])
+
 
 def test_strip_default_only_content() -> None:
     """只有缺省词的内容不展示：表格整行 / 正文整条 / 独立缺省句；整栏缺省则保留一行。
@@ -1755,9 +1801,430 @@ def test_understanding_skip_never_retries() -> None:
     check("理解 agent：同一裁剪集合既写进指令也传给 allow_missing",
           "allow_missing=skipped" in src and "键名必须保留" in src, "")
     node_src = Path("domain/meeting/orchestrator.py").read_text(encoding="utf-8")
-    check("理解裁剪只按选线（不按模板）——所有模板共用同一路径",
-          "skip = self._understanding_skip(line_names)" in node_src
+    check("理解裁剪按选线 + 模板栏位（发布会类不抽用不到的字段）",
+          "skip_fields_for_template(template)" in node_src
           and "skip_fields=skip" in node_src, "")
+
+
+def test_template_aware_understanding_skip() -> None:
+    """minutes 单线：理解层再按**模板栏位**裁一次（模板没有风险/未决栏就不抽）。
+
+    回归背景（2026-09-18 耗时复盘）：minutes 的 pack 只取
+    brief/purpose/scene/topics/decisions/risks/open_questions——
+    action_hints / risk_hints / dependencies 这条线从不消费；risks / open_questions 也只
+    在模板真有风险/未决栏时才进正文。而理解层输出是整条链最贵的中间件：它要进草稿、审核、
+    装配每一次调用的上下文（实测一篇 6000 字发布会实录抽了 6.2k token / 1.3 万字符）。
+    发布会四栏、讲座四栏、课堂四栏、访谈三栏都用不到这两栏，属于纯浪费。
+    """
+    from domain.meeting.orchestrator import UNDERSTANDING_SKIP_FIELDS, _Nodes
+    from domain.meeting.understanding_skip import skip_fields_for_template
+
+    base = set(UNDERSTANDING_SKIP_FIELDS["minutes"])
+    check("minutes 基础裁剪带走 action_hints/risk_hints/dependencies",
+          {"action_hints", "risk_hints", "dependencies"} <= base, f"{sorted(base)}")
+
+    d = _active_dir()
+
+    def load(name: str) -> str:
+        return (d / f"{name}.md").read_text(encoding="utf-8")
+
+    both = frozenset({"risks", "open_questions"})
+    mb = load("media_briefing")
+    check("新闻发布：无风险/未决栏 → 再跳 risks/open_questions",
+          skip_fields_for_template(mb) == both, f"{sorted(skip_fields_for_template(mb))}")
+    check("通用纪要：[要点梳理] 含「待确认与风险」→ 一个都不跳",
+          skip_fields_for_template(load("general_minutes")) == frozenset(),
+          f"{sorted(skip_fields_for_template(load('general_minutes')))}")
+    check("团队例会：协作需求提到阻塞 → risks 保留",
+          "risks" not in skip_fields_for_template(load("team_meeting")), "")
+    check("项目进度：有「风险预警」栏 → risks 保留（open_questions 无落点仍可跳）",
+          "risks" not in skip_fields_for_template(load("project_progress")),
+          f"{sorted(skip_fields_for_template(load('project_progress')))}")
+    check("讲座/访谈/课堂/产品发布：四类都用不到风险与未决 → 全跳",
+          all(
+              skip_fields_for_template(load(n)) == both
+              for n in (
+                  "special_lecture",
+                  "interview_transcript",
+                  "class_transcript",
+                  "product_launch",
+                  "media_qa_session",
+                  "admission_briefing",
+              )
+          ),
+          "",
+      )
+    check("空模板 → 不裁（宁多不漏）", skip_fields_for_template("") == frozenset(), "")
+
+    # 覆盖率守卫：29 个模板都要得出结论，且只可能跳这两个字段
+    allowed = {"risks", "open_questions"}
+    out_of_range: list[tuple[str, list[str]]] = []
+    trimmed: list[str] = []
+    for md in sorted(d.glob("*.md")):
+        if md.stem.lower() == "readme":
+            continue
+        got = skip_fields_for_template(md.read_text(encoding="utf-8"))
+        if not got <= allowed:
+            out_of_range.append((md.stem, sorted(got)))
+        if got == both:
+            trimmed.append(md.stem)
+    check("每个模板的裁剪结论都落在允许集合内", not out_of_range, f"{out_of_range}")
+    check("至少 10 个模板（发布会/讲座/课堂/访谈类）拿到两栏裁剪",
+          len(trimmed) >= 10, f"仅 {len(trimmed)} 个：{trimmed}")
+
+    # 节点侧合并：单线 minutes + 模板 → 五项；多线/无模板不裁
+    merged = frozenset(base | both)
+
+    def skip_of(names: list[str], tpl: str = "") -> frozenset[str]:
+        return _Nodes._understanding_skip(object(), names, tpl)
+
+    check("单线 minutes + 新闻发布模板 → 五项一起跳",
+          skip_of(["minutes"], mb) == merged, f"{sorted(skip_of(['minutes'], mb))}")
+    check("多线请求不裁（理解还要服务待办/风险线）",
+          skip_of(["minutes", "actions"], mb) == frozenset(), "")
+    check("未给模板的单线 minutes → 只跳基础三项",
+          skip_of(["minutes"]) == frozenset(base), f"{sorted(skip_of(['minutes']))}")
+    check("其它线不受模板影响（actions 线模板不给也不改集合）",
+          skip_of(["actions"], mb) == UNDERSTANDING_SKIP_FIELDS["actions"], "")
+
+    from domain.meeting.meeting_core.meeting_understanding_agent import (
+        _trim_instruction,
+    )
+
+    trim = _trim_instruction("minutes", sorted(merged))
+    check("裁剪指令把五项都列进「值给空数组 []」",
+          "键名必须保留" in trim and all(k in trim for k in merged), trim[:120])
+    check("裁剪指令的「必须照常输出」名单里不含被裁字段",
+          all(k not in trim.split("其余字段")[1].split("必须照常")[0] for k in merged), "")
+
+    # 节点侧：裁剪集合确实随 state 里的模板变化（不是建节点时定死）
+    import asyncio
+
+    class _FakeAgent:
+        def __init__(self) -> None:
+            self.seen: list[tuple[str, frozenset[str]]] = []
+
+        async def run(self, transcript, *, focus_line="", skip_fields=()):
+            self.seen.append((focus_line, frozenset(skip_fields)))
+
+            class _Out:
+                @staticmethod
+                def model_dump() -> dict:
+                    return {"scene": "通用"}
+
+            return _Out()
+
+    fake = _FakeAgent()
+
+    class _Host(_Nodes):
+        """只借 _Nodes 的方法与状态读取；不跑父类 __init__（不建 LLM 客户端）。"""
+
+        def __init__(self, agent) -> None:
+            self.meeting_understanding_agent = agent
+
+    host = _Host(fake)
+    node = _Nodes._make_meeting_understanding_node(host, ["minutes"])
+    asyncio.run(node({"transcript": "原文略。", "templates": {"minutes": mb}}))
+    asyncio.run(
+        node(
+            {
+                "transcript": "原文略。",
+                "templates": {"minutes": load("general_minutes")},
+            }
+        )
+    )
+    asyncio.run(node({"transcript": "原文略。"}))
+    check("节点按 state 模板定裁剪：新闻发布五项 / 通用纪要三项 / 无模板三项",
+          [frozenset(s) for _, s in fake.seen] == [merged, frozenset(base), frozenset(base)],
+          f"{[(f, sorted(s)) for f, s in fake.seen]}")
+    check("节点只在裁剪非空时报线名（无裁剪则不给 focus）",
+          [f for f, _ in fake.seen] == ["minutes", "minutes", "minutes"], "")
+
+
+def test_long_generation_output_cap() -> None:
+    """长生成调用必须有输出上限：本地端点没有隐含上限，一次退化 = 49k token / 9 分钟。
+
+    回归背景（2026-09-18 实测）：装配退化成"写不完"——49,074 token / 86,447 字符 / 551 秒，
+    被 max_tokens 截断后 JSON 不可解析 → 四栏全空 → 整篇重填，一条纪要跑满 10 分钟。
+    """
+    from tools.templates.length_budget import (
+        OUTPUT_CAP_MAX,
+        OUTPUT_CAP_MIN,
+        effective_doc_budget,
+        output_token_cap,
+        target_han,
+    )
+
+    check("原文过短（<300 汉字）不给档位预算", effective_doc_budget(200) is None, "")
+    check("8k–20k 档：预算 1680–5500",
+          effective_doc_budget(12000) == (1680, 5500), f"{effective_doc_budget(12000)}")
+    check("模板声明优先于档位（当前 30 个模板都没声明 → 全走档位）",
+          effective_doc_budget(12000, "# [栏]\n[说明]") == (1680, 5500), "")
+    caps = [output_token_cap(h) for h in (200, 12000, 60000)]
+    check("输出上限随原文规模递增且夹在 1200–12000",
+          OUTPUT_CAP_MIN <= caps[0] <= caps[1] <= caps[2] <= OUTPUT_CAP_MAX, f"{caps}")
+    check("失控量级：8k–20k 原文 → 6600 token（本地约 1 分钟，原来 49k/9 分钟）",
+          output_token_cap(12000) == 6600, f"{output_token_cap(12000)}")
+    check("无预算的短原文给中性目标 4000", target_han(None, "") == 4000, "")
+
+    placeholder_src = Path("tools/template_router/_placeholder.py").read_text(encoding="utf-8")
+    check("装配：max_tokens 来自目标字数换算并写进两个路径",
+          "max_tokens=cap" in placeholder_src
+          and "output_token_cap(source_han, template)" in placeholder_src, "")
+    render_src = Path("tools/runtime/render.py").read_text(encoding="utf-8")
+    check("渲染/压缩/展开/返工四处都经 _render_run 带上限",
+          render_src.count("_render_run(") >= 4
+          and "source_han=_doc_han(state)" in render_src, "")
+    minutes_src = Path(
+        "domain/meeting/tasks/minutes/steps/minutes_render.py"
+    ).read_text(encoding="utf-8")
+    check("纪要渲染步接受并透传 max_tokens",
+          "max_tokens=max_tokens" in minutes_src and "max_tokens: int | None = None" in minutes_src, "")
+    budget_src = Path("tools/templates/length_budget.py").read_text(encoding="utf-8")
+    check("【篇幅预算】写明超上限会被截断", "超过上限的输出会被截断" in budget_src, "")
+
+
+def test_column_fill_concurrency_and_early_stop() -> None:
+    """逐栏填充：一栏一次调用、栏间并发、失败只重试该栏；退化（重复/超长）流式早停。
+
+    回归背景（2026-09-18 实测）：整篇 JSON 装配退化时写出 49,074 token / 86,447 字符，
+    551 秒后才被 max_tokens 截断，JSON 不可解析 → 四栏全空 → 整篇重填。逐栏后爆炸半径
+    只有一栏，流式下发现重复/超长立刻放弃，只重试那一栏。
+    """
+    import asyncio
+    import re as _re
+
+    from tools.template_router._placeholder import (
+        _degenerate_reason,
+        fill_placeholder_by_columns,
+        plan_placeholder_fill,
+    )
+
+    mb = (_active_dir() / "media_briefing.md").read_text(encoding="utf-8")
+    plan = plan_placeholder_fill(mb)
+    check("新闻发布：4 个标量栏、无表格（走逐栏路径）",
+          len(plan["scalars"]) == 4 and not plan["row_templates"],
+          f"{len(plan['scalars'])}/{len(plan['row_templates'])}")
+
+    class _FakeStream:
+        """脚本化流式客户端：按「第 N/M 栏」分派分块，并统计并发与每栏调用次数。"""
+
+        def __init__(self, scripts: dict) -> None:
+            self.scripts = scripts
+            self.users: list[str] = []
+            self.counts: dict[int, int] = {}
+            self.caps: list[int] = []
+            self.in_flight = 0
+            self.max_in_flight = 0
+
+        async def stream_text(self, system, user, *, max_tokens=None, label="", **kw):
+            idx = int(_re.search(r"第 (\d+)/", user).group(1))
+            self.users.append(user)
+            self.counts[idx] = self.counts.get(idx, 0) + 1
+            self.caps.append(max_tokens)
+            self.in_flight += 1
+            self.max_in_flight = max(self.max_in_flight, self.in_flight)
+            try:
+                chunks = self.scripts[idx]
+                if callable(chunks):
+                    chunks = chunks(self.counts[idx])
+                for chunk in chunks:
+                    await asyncio.sleep(0)
+                    yield chunk
+            finally:
+                self.in_flight -= 1
+
+    good = {
+        1: ["发布会概况：主办方、三块板块与整体基调。"],
+        2: ["- **要点**：核心信息一条。"],
+        3: ["**表态**：官方口径。"],
+        4: ["**主持人**：问题？\n**发言人**：回应。"],
+    }
+    client = _FakeStream(dict(good))
+    text = asyncio.run(
+        fill_placeholder_by_columns(client, "内容来源略。", mb, plan, source_han=12000)
+    )
+    check("逐栏填充：四栏各一次调用", client.counts == {1: 1, 2: 1, 3: 1, 4: 1}, f"{client.counts}")
+    check("逐栏填充：栏间并发（同时在飞 ≥2）", client.max_in_flight >= 2, f"{client.max_in_flight}")
+    check("逐栏填充：输出上限透传到每次调用（6600）",
+          bool(client.caps) and all(c == 6600 for c in client.caps), f"{client.caps}")
+    check("逐栏填充：拼装出四栏正文、标题由程序生成、无残留占位符",
+          bool(text)
+          and "# 发布会概况" in text
+          and "[发布会概况]" not in text
+          and all(chunks[0] in text for chunks in good.values()),
+          (text or "")[:80])
+    check("逐栏填充：每栏只拿自己的说明 + 其它栏名（防越栏）",
+          all("【本栏说明】" in u for u in client.users)
+          and "只写第 1/4 栏（发布会概况）" in client.users[0]
+          and "[核心信息]" in client.users[0], "")
+    check("逐栏填充：带上【本篇目标】（目标长度写进指令区）",
+          all("【本篇目标】" in u for u in client.users), "")
+
+    para = "同一段话反复出现，这段特意写长一点以触发退化判据，并确保累计长度越过检查阈值。" * 3
+    scripts = dict(good)
+    scripts[2] = lambda attempt: (
+        [para + "\n\n"] * 3 if attempt == 1 else ["- **要点**：重试后的内容。"]
+    )
+    client2 = _FakeStream(scripts)
+    text2 = asyncio.run(
+        fill_placeholder_by_columns(client2, "内容来源略。", mb, plan, source_han=12000)
+    )
+    check("退化早停：重复段落被中止，且只重试该栏（其它栏一次）",
+          client2.counts == {1: 1, 2: 2, 3: 1, 4: 1}, f"{client2.counts}")
+    check("退化早停：最终用重试后的内容", bool(text2) and "重试后的内容" in text2, (text2 or "")[:60])
+
+    scripts3 = dict(good)
+    scripts3[3] = lambda attempt: (
+        ["这是一段用来把输出撑到上限之外的填充文字。" * 600]
+        if attempt == 1
+        else ["**表态**：重试内容。"]
+    )
+    client3 = _FakeStream(scripts3)
+    text3 = asyncio.run(
+        fill_placeholder_by_columns(client3, "内容来源略。", mb, plan, source_han=12000)
+    )
+    check("超长早停：输出超上限即中止并只重试该栏",
+          client3.counts == {1: 1, 2: 1, 3: 2, 4: 1} and bool(text3) and "重试内容" in text3,
+          f"{client3.counts}")
+
+    long_para = "这是一段足够长的重复段落文本内容，长度要超过判据下限。"  # ≥24 字才参与判据
+    check("退化判据：同段重复 3 次命中、2 次不命中",
+          "重复" in _degenerate_reason("\n\n".join([long_para] * 3))
+          and _degenerate_reason("\n\n".join([long_para] * 2)) == ""
+          and _degenerate_reason("短句。\n\n短句。\n\n短句。") == "", "")
+
+    pp = (_active_dir() / "project_progress.md").read_text(encoding="utf-8")
+    check("有表格的模板不走逐栏路径（返回 None，交给整篇 JSON）",
+          asyncio.run(
+              fill_placeholder_by_columns(
+                  _FakeStream({}), "略", pp, plan_placeholder_fill(pp)
+              )
+          )
+          is None,
+          "")
+
+
+def test_media_overview_scope() -> None:
+    """新闻发布 [发布会概况]：要素去掉与 [核心信息] 同名的词 + 可解析段上限 + 归位边界。
+
+    回归背景（2026-09-18 实测周会）：概况写了 1264 汉字、212 个数字、单段，
+    与 [核心信息] 栏 4-gram 重合 82%——因为它 ① 没有可解析尺寸（程序不拆段不报超限）
+    ② 要素里写着"核心信息"，与下面那栏同名（引导复述）。
+    """
+    from tools.execution.hard_execution import split_overlong_paragraphs
+    from tools.templates.template_eval import parse_section_char_budgets
+
+    text = (_active_dir() / "media_briefing.md").read_text(encoding="utf-8")
+    spec = next(l.strip() for l in text.splitlines() if l.strip().startswith("[一段话概括发布会"))
+    check("发布会概况：写明段数/段长上限（最多 3 段、每段不超过 300 字）",
+          "最多 3 段" in spec and "每段不超过 300 字" in spec, spec[:80])
+    elements = spec.split("；", 1)[0]   # 要素部分（不含尾部的"归哪栏"边界句）
+    check("发布会概况：要素不再出现与 [核心信息] 同名的词（边界句里保留指引）",
+          "核心信息" not in elements and "发布单位与整体基调" in spec, spec[:80])
+    check("发布会概况：写明归位边界（数据归 [核心信息]、立场归 [官方表态]）",
+          "[核心信息]" in spec and "[官方表态]" in spec and "本栏不复述" in spec, "")
+    caps = [b for b in parse_section_char_budgets(text) if b["title"] == "发布会概况"]
+    check("发布会概况：解析出段落级预算 240–300（超 360 自动拆段）",
+          bool(caps) and caps[0]["scope"] == "paragraph" and caps[0]["hi"] == 300, f"{caps}")
+
+    han = lambda s: len(re.findall(r"[\u4e00-\u9fff]", s))
+    para = "宏观方面，主讲人解读法案要点，测算关税收入可覆盖新增支出，赤字率维持合理区间。" * 11
+    doc = "# 新闻发布\n\n# 发布会概况\n" + para + "\n\n# 核心信息\n- **要点**：略。\n"
+    fixed, notes = split_overlong_paragraphs(doc, (_active_dir() / "media_briefing.md").read_text(encoding="utf-8"))
+    seg = fixed.split("# 发布会概况", 1)[1].split("# 核心信息", 1)[0]
+    parts = [q.strip() for q in seg.split("\n\n") if q.strip()]
+    check("发布会概况：超长单段按句界拆开（每段 ≤300）",
+          len(parts) >= 2 and max(han(q) for q in parts) <= 300,
+          f"段长={[han(q) for q in parts]} {notes}")
+
+
+def test_media_briefing_evidence_and_depth() -> None:
+    """新闻发布会：核心信息要有依据、官方表态要能归属（主体/引语/第三方落点）。
+
+    回归背景（2026-09-18 实测两篇）：[核心信息] 那句"数据注明来源或背景"没有落点——
+    慕安会篇 9 条里带依据 0 条、带数字口径 0 条；[官方表态] 8 条 0 主体（同一篇 Q&A 每轮
+    反而都有 `**王毅**：`，差别只在模板有没有称呼规则），引语 3 条平均 13 字且无归属，
+    现场还出现"同一句两种措辞、其中一条被标成引语"。深挖与保真都以"谁说的、依什么"为前提。
+    """
+    from tools.templates.template_eval import parse_section_char_budgets
+
+    text = (_active_dir() / "media_briefing.md").read_text(encoding="utf-8")
+    core = next(l for l in text.splitlines() if l.strip().startswith("[提炼官方发布"))
+    stance = next(l for l in text.splitlines() if l.strip().startswith("[只写发言人"))
+
+    check("核心信息：四样要素（发布主体/依据/口径与范围/时间表）",
+          all(k in core for k in ("发布主体", "依据", "口径与范围", "时间表")), core[:60])
+    check("核心信息：一条一件事 + 一条一行格式",
+          "一条一件事" in core and "`- **要点**：内容`" in core, "")
+    check("核心信息：数字/结论要与原文对得上、禁模糊来源、没有的不编",
+          "与原文对得上" in core and "据悉/有关方面" in core and "原文没有的不编" in core, "")
+    check("核心信息：保留加粗与 `具体内容` 标注口径",
+          "关键数据加粗" in core and "`具体内容`" in core, "")
+
+    check("官方表态：每条写清是谁说的（机构+职务+姓名、其后统一简称）",
+          "每条写清是谁说的" in stance and "机构+职务+姓名" in stance
+          and "统一简称" in stance, "")
+    check("官方表态：四层深挖（主张/针对什么/条件与前提/承诺或边界）",
+          all(k in stance for k in ("主张", "针对什么", "条件与前提", "承诺或边界")),
+          stance[:60])
+    check("官方表态：引语必须是连续原话、逐字照抄（概括/拼接句不算引语）",
+          "连续原话" in stance and "逐字照抄" in stance and "不算引语" in stance, "")
+    check("官方表态：第三方表态另起条目标来源，不与官方口径混写",
+          "第三方表态另起条目标来源" in stance and "不与官方口径混写" in stance, "")
+    check("官方表态：与提问对应的回应归 Q&A，同一内容不两栏都写",
+          "Q&A环节" in stance and "同一内容不要两栏都写" in stance, "")
+
+    # 预算守卫：说明里的裸「数字+字」会被解析成节级上限（parser 接受 `\d+\s*字`），
+    # 这两栏故意不声明字数——一旦写进去就变成"40 字上限"式误判并触发整篇返工。
+    got = [(s["title"], s["hi"], s["scope"]) for s in parse_section_char_budgets(text)]
+    check("新闻发布：仍只有 概况/Q&A 两条预算（说明里的数字未被误解析）",
+          got == [("发布会概况", 300, "paragraph"), ("Q&A环节", 400, "paragraph")], f"{got}")
+
+
+def test_qa_name_priority() -> None:
+    """新闻发布会/媒体问答：能确定是谁就用姓名，不得用「主持人」「发言人」顶替已知姓名。
+
+    回归背景（2026-09-18 实测）：两栏原口径是"能对应到人就用称呼（姓名优先，其次角色）"，
+    示例又写成 ``**主持人**：…`` 换行 ``**发言人**：…`` → 提问方清一色落到角色上
+    （同一篇里答方能用上姓名、提问方仍是「主持人」）。发布会的专业写法是"媒体名＋记者/姓名"，
+    所以这里把"姓名优先"改成硬口径，并去掉纯角色示例的锚定。
+    """
+    d = _active_dir()
+    brief = (d / "media_briefing.md").read_text(encoding="utf-8")
+    qa = (d / "media_qa_session.md").read_text(encoding="utf-8")
+    for text, name, role in (
+        (brief, "新闻发布", "「主持人」「发言人」"),
+        (qa, "媒体问答", "「记者」「发言人」"),
+    ):
+        spec = next(l for l in text.splitlines() if "一条问答独立成段" in l)
+        check(f"{name}：姓名优先写成硬口径（原文出现过就必须用）",
+              "能确定是谁就用姓名" in spec and "原文任何位置出现过该人姓名就必须用" in spec,
+              spec[:70])
+        check(f"{name}：禁止用角色顶替已知姓名（{role}）",
+              f"不得用{role}顶替已知姓名" in spec, "")
+        check(f"{name}：保留问/答兜底与加粗、未提及兜底",
+              "两方都对应不上人时才写成" in spec and "每轮称呼都加粗" in spec
+              and "未提及" in spec, "")
+        check(f"{name}：旧的软口径与纯角色示例已清除",
+              "姓名优先，其次角色" not in spec
+              and "`**主持人**：…` 换行" not in spec
+              and "`**记者**：…` 换行" not in spec, "")
+
+    from tools.templates.body_rules import BODY_FORMAT_RULES
+
+    rule = next(l for l in BODY_FORMAT_RULES.splitlines() if "成员称呼" in l)
+    check("全局称呼规则：文中出现过姓名就用姓名（已知姓名不得退回角色）",
+          "原文任何位置出现过该人的姓名，就用姓名" in rule
+          and "已知姓名时不得退回角色" in rule, rule[:80])
+    check("全局称呼规则：角色与编号仍是后手，并禁止张冠李戴",
+          "确实没有该人姓名才用角色" in rule and "沿用原文的编号称呼" in rule
+          and "张冠李戴" in rule, "")
+
+    understanding = Path("domain/meeting/meeting_core/prompts.py").read_text(encoding="utf-8")
+    check("理解层：原文出现过姓名的必须写姓名、不推断不编造",
+          "原文出现过该人姓名的必须写姓名" in understanding
+          and "不推断、不编造" in understanding, "")
 
 
 def test_product_launch_overview() -> None:
@@ -1937,6 +2404,12 @@ def main() -> int:
         test_allow_missing_on_trimmed_fields()
         test_default_minutes_template()
         test_understanding_skip_never_retries()
+        test_template_aware_understanding_skip()
+        test_long_generation_output_cap()
+        test_column_fill_concurrency_and_early_stop()
+        test_media_overview_scope()
+        test_media_briefing_evidence_and_depth()
+        test_qa_name_priority()
         test_product_launch_overview()
         test_retro_annual_groups()
         test_fallback_text_dedupe()

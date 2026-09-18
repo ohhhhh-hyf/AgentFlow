@@ -1,5 +1,7 @@
 """tools.template_router.placeholder —— 模板路由·占位符层：占位符模板解析、填充计划与组装。"""
 from __future__ import annotations
+import asyncio
+import contextlib
 import logging
 import re
 from typing import Any
@@ -636,6 +638,7 @@ def build_placeholder_fill_user(
     template: str,
     *,
     revision_notes: str = "",
+    target_line: str = "",
 ) -> str:
     """构造字段 JSON 填充的用户消息。"""
     template, requirement = split_template_meta(template)
@@ -643,6 +646,10 @@ def build_placeholder_fill_user(
     lines = [
         "根据内容来源填充模板，只输出 JSON。",
         "形如 `# [栏名]` 的标题行由程序生成，不要填进 fields；你只填标题下方正文占位。",
+    ]
+    if target_line.strip():
+        lines.append(target_line.strip())
+    lines.extend([
         "固定表头由模板保留；`| … |` 样例行必须换成原文事实，禁止整行照抄省略号。",
         "字段值里不要写 #/## 标题，不要重复栏目标题作前缀。",
         "有据才写；缺内容写该栏约定的缺省词（模板没约定时写「未提及」）；**键必须齐全**：fields 要给出清单里全部编号，缺键＝漏填。",
@@ -657,7 +664,7 @@ def build_placeholder_fill_user(
         "未声明全文字数上限时，篇幅以原文为参照：与原文同量级（90%–110%）即可，不必强压；宁可接近原文长度，也不丢原文已有的事实。",
         *_char_budget_lines(template),
         "语句完整通顺，无半截句；严禁输出「约N字」等字数元说明。",
-    ]
+    ])
     if requirement.strip():
         lines.extend(["", "【模板写作要求】（必须遵守，不要写进 JSON）", requirement.strip()])
     lines.extend([
@@ -723,16 +730,271 @@ def parse_fill_response(
     return fields, rows, tables
 
 
+# ── 逐栏填充（可并发 + 流式早停）─────────────────────────────
+# 2026-09-18 实测：整篇文档塞进一个 JSON 时，一次退化就是整篇重来——本地端点没有隐含输出
+# 上限（托管 API 自带 ~8k），模型写到 49,074 token / 86,447 字符（约 40 倍目标），551 秒后
+# 被 max_tokens 截断，JSON 不可解析 → 四栏全空 → 再整篇填一遍。逐栏填充把爆炸半径压到
+# "一栏几百字"：每栏一次调用、输出纯文本（没有 JSON 转义风险）、失败只重试该栏、栏间可并发。
+_COLUMN_FILL_SYSTEM = (
+    "你只写「本栏」的正文。用户消息给出【内容来源】【模板原文】与【本栏说明】。\n"
+    "只输出这一栏的 Markdown 正文：不要写栏目标题、不要写 JSON、不要解释、不要重复。\n"
+    "有据才写；来源里没有依据时只写该栏约定的缺省词（模板没约定时写「未提及」）。写完即停。"
+)
+_COLUMN_CONCURRENCY = 3  # 同时最多起几栏；本地端点会排队，别把服务打满
+_DEGEN_REPEAT_MIN_LEN = 24  # 退化判据：同一段（≥24 字）…
+_DEGEN_REPEAT_TIMES = 3  # …重复到第 3 次即中止
+_DEGEN_CHECK_EVERY = 50  # 每收满这么多字符做一次重复检查（够密，且不每个 chunk 都扫）
+_CHARS_PER_TOKEN = 1.6  # 早停字数阈值：实测 86,447 字符 / 49,074 token ≈ 1.76
+
+
+def _scalar_titles(template: str) -> list[str]:
+    """标量字段所属栏名（与 ``plan_placeholder_fill`` 同序）：`# [栏名]` 之下的取栏名。
+
+    用于逐栏填充时告诉模型"其它栏目在哪"、以及把门禁问题定位回具体栏。
+    """
+    body, _ = split_template_meta(template)
+    captions = table_caption_lines(body)
+    titles: list[str] = []
+    current = ""
+    for idx, line in enumerate(body.splitlines(keepends=True)):
+        match = _section_title_match(line)
+        if match:
+            current = match.group(2).strip()
+            continue
+        if idx in captions or _is_table_data_row(line):
+            continue
+        titles.extend([current] * len(_line_placeholders(line)))
+    return titles
+
+
+def _target_line(source_han: int | None, template: str) -> str:
+    """【本篇目标】一句话：有效预算（模板声明优先，否则按原文规模的档位）。
+
+    prompt 里已有上下文里的【篇幅预算】，但它是"素材"的一部分；这里把它挪进写作指令区，
+    让"该写多长"和"怎么写字数上限"贴在一起——上限之外还有 max_tokens 硬截断兜底。
+    """
+    try:
+        from tools.templates.length_budget import effective_doc_budget
+    except Exception:  # noqa: BLE001
+        return ""
+    span = effective_doc_budget(source_han, template)
+    if not span:
+        return ""
+    return (
+        f"【本篇目标】正文总量约 {int(span[0])}–{int(span[1])} 汉字（含条目与表格）；"
+        "超过上限会被截断，低于下限＝漏了原文事实。"
+    )
+
+
+def _column_fill_user(
+    context: str,
+    template: str,
+    *,
+    index: int,
+    total: int,
+    hint: str,
+    title: str,
+    others: list[str],
+    revision: str = "",
+    target_line: str = "",
+) -> str:
+    """单栏填充的用户消息：只给这一栏的说明，其余栏目只列栏名（防止越栏）。"""
+    body, requirement = split_template_meta(template)
+    lines = [
+        f"本次只写第 {index}/{total} 栏" + (f"（{title}）" if title else "") + "。",
+        f"【本栏说明】{hint}",
+    ]
+    if others:
+        lines.append(
+            "其它栏目（" + "、".join(f"[{t}]" for t in others if t) + "）的内容归它们，本栏不复述。"
+        )
+    if target_line.strip():
+        lines.append(target_line.strip())
+    lines.extend([
+        "只输出这一栏的正文：不要写栏目标题、不要写 JSON、不要解释、不要重复。",
+        "有据才写；来源里没有依据时只写该栏约定的缺省词（模板没约定时写「未提及」）。",
+        BODY_FORMAT_RULES,
+        *_char_budget_lines(template),
+    ])
+    if requirement.strip():
+        lines.extend(["", "【模板写作要求】（必须遵守，不要写进正文）", requirement.strip()])
+    if revision.strip():
+        lines.extend(["", f"【上一版问题，必须修正】\n{revision.strip()}"])
+    lines.extend(["", "【内容来源】", context, "", "【模板原文】", body])
+    return "\n".join(lines)
+
+
+def _degenerate_reason(text: str) -> str:
+    """退化判据：同一段（≥24 字）在最近 3000 字里重复 ≥3 次 → 返回原因。"""
+    paras = [
+        p.strip()
+        for p in re.split(r"\n+", (text or "")[-3000:])
+        if len(p.strip()) >= _DEGEN_REPEAT_MIN_LEN
+    ]
+    seen: dict[str, int] = {}
+    for para in paras:
+        seen[para] = seen.get(para, 0) + 1
+        if seen[para] >= _DEGEN_REPEAT_TIMES:
+            return f"同一段重复 {seen[para]} 次"
+    return ""
+
+
+async def _stream_column(
+    client: Any, user: str, *, cap: int, ceiling: int, label: str
+) -> str | None:
+    """流式写一栏：边收边查（重复/超长），命中即中止并返回 None。
+
+    非流式下"退化"只能等它自己结束（实测 551 秒）；流式下发现重复或超长可以立刻放弃，
+    把这一栏交给重试或整篇回退。客户端不支持流式时返回 None（调用方回退整篇路径）。
+    """
+    stream_text = getattr(client, "stream_text", None)
+    if stream_text is None:
+        return None
+    parts: list[str] = []
+    size = 0
+    checked = 0
+    stream = stream_text(_COLUMN_FILL_SYSTEM, user, max_tokens=cap, label=label)
+    try:
+        async for chunk in stream:
+            if chunk:
+                parts.append(chunk)
+                size += len(chunk)
+            if size > ceiling:
+                logger.warning(
+                    "column fill degenerate label=%s：输出超 %s 字符（上限 %s）已中止",
+                    label,
+                    size,
+                    ceiling,
+                )
+                return None
+            if size - checked >= _DEGEN_CHECK_EVERY:
+                checked = size
+                why = _degenerate_reason("".join(parts))
+                if why:
+                    logger.warning("column fill degenerate label=%s：%s 已中止", label, why)
+                    return None
+    except Exception:  # 流式失败按"这一栏没写出来"处理，交给重试/回退
+        logger.warning("column fill stream failed label=%s", label, exc_info=True)
+        return None
+    finally:
+        aclose = getattr(stream, "aclose", None)
+        if aclose is not None:
+            with contextlib.suppress(Exception):  # 关流失败不影响已收到内容
+                await aclose()
+    text = "".join(parts).strip()
+    why = _degenerate_reason(text)
+    if why:  # 收尾再判一次：节流可能刚好跳过最后一次检查
+        logger.warning("column fill degenerate label=%s：%s 已丢弃", label, why)
+        return None
+    return text or None
+
+
+async def fill_placeholder_by_columns(
+    client: Any,
+    context: str,
+    template: str,
+    plan: dict[str, Any],
+    *,
+    source_han: int | None = None,
+) -> str | None:
+    """逐栏填充（无表格模板）：每栏一次调用、并发、失败只重试该栏。
+
+    返回 None 表示"逐栏不可用 / 一栏都没写出来"，调用方回退整篇 JSON 路径。
+    门禁不过时只重写被点名的栏（最多两栏）——整篇重渲染的代价是它的十倍。
+    """
+    scalars = list(plan.get("scalars") or [])
+    if not scalars or plan.get("row_templates"):
+        return None
+    if getattr(client, "stream_text", None) is None:
+        return None
+    from tools.execution.hard_execution import gate_render_output
+    from tools.templates.length_budget import output_token_cap
+
+    cap = output_token_cap(source_han, template)
+    ceiling = int(cap * _CHARS_PER_TOKEN)
+    target = _target_line(source_han, template)
+    titles = _scalar_titles(template)
+    if len(titles) != len(scalars):  # 结构对不上就不冒进，回退整篇
+        return None
+
+    async def write(index: int) -> str:
+        """写第 index 栏（0 基）：一次正常 + 一次整改重试。"""
+        hint = str(scalars[index].get("hint") or "")
+        title = titles[index]
+        others = [t for i, t in enumerate(titles) if i != index and t]
+        revision = ""
+        for attempt in range(2):
+            user = _column_fill_user(
+                context,
+                template,
+                index=index + 1,
+                total=len(scalars),
+                hint=hint,
+                title=title,
+                others=others,
+                revision=revision,
+                target_line=target,
+            )
+            text = await _stream_column(
+                client,
+                user,
+                cap=cap,
+                ceiling=ceiling,
+                label=f"template/fill:{title or index + 1}",
+            )
+            if text:
+                return text
+            revision = (
+                "上一版没有产出可用正文（输出为空、超长或出现重复段落）。"
+                "只写这一栏最关键的要点，写完立刻停，不要重复任何句子。"
+            )
+        return ""
+
+    values = list(await asyncio.gather(*(write(i) for i in range(len(scalars)))))
+    assembled = assemble_placeholder_output(
+        template, {str(i + 1): v for i, v in enumerate(values)}, tables=[]
+    )
+    assembled = strip_char_budget_meta(strip_outer_markdown_fence(assembled))
+    gate = gate_render_output(template, assembled)
+    if gate.get("gate_ok"):
+        return gate["text"]
+    hard = list(gate.get("hard_issues") or [])
+    if not hard:
+        logger.info(
+            "column fill advisory-only：%s", "；".join(gate.get("issues") or [])[:160]
+        )
+        return gate["text"]
+    blamed = [i for i, t in enumerate(titles) if t and t in "；".join(hard)][:2]
+    if not blamed:
+        logger.info("column fill hard issues（无栏名可定位）：%s", "；".join(hard)[:160])
+        return None
+    logger.info("column fill hard issues，只重写：%s", [titles[i] for i in blamed])
+    for i in blamed:
+        values[i] = await write(i)
+    assembled = assemble_placeholder_output(
+        template, {str(i + 1): v for i, v in enumerate(values)}, tables=[]
+    )
+    gate = gate_render_output(template, assembled)
+    if gate.get("gate_ok") or not gate.get("hard_issues"):
+        return gate["text"]
+    return None
+
+
 async def fill_placeholder_template(
     client: Any,
     context: str,
     template: str,
+    *,
+    source_han: int | None = None,
 ) -> str | None:
-    """类型一稳定填充：LLM 只出字段 JSON，程序拼装正文。
+    """类型一稳定填充：LLM 出字段值，程序拼装正文。
 
     约束（行数/字数/栏目分工等）全部由 prompt + 模板正文表达；
     代码只做通用结构拼装与校验（残留占位符、固定文字、去空行）。
     若模板有字数提示且明显偏短，会再给一轮「扩写」修订（不写进用户正文）。
+
+    两条路径：**无表格模板先走逐栏填充**（每栏一次调用、可并发、流式早停，爆炸半径一栏）；
+    有表格或逐栏失败才走"整篇一个 JSON"。两者都带 ``max_tokens`` 硬上限（见 length_budget）。
     """
     if not template or not template.strip():
         return None
@@ -743,12 +1005,22 @@ async def fill_placeholder_template(
         return None
 
     try:
+        from tools.templates.length_budget import output_token_cap
         from tools.templates.template_eval import parse_document_char_budget
     except Exception:  # noqa: BLE001
         parse_document_char_budget = None  # type: ignore[assignment]
+        output_token_cap = None  # type: ignore[assignment]
     budget = (
         parse_document_char_budget(template) if parse_document_char_budget else {}
     )
+    cap = output_token_cap(source_han, template) if output_token_cap else None
+
+    if not plan["row_templates"]:
+        by_column = await fill_placeholder_by_columns(
+            client, context, template, plan, source_han=source_han
+        )
+        if by_column:
+            return by_column
 
     revision = ""
     try:
@@ -757,10 +1029,15 @@ async def fill_placeholder_template(
                 client,
                 _PLACEHOLDER_FILL_SYSTEM,
                 build_placeholder_fill_user(
-                    context, template, revision_notes=revision
+                    context,
+                    template,
+                    revision_notes=revision,
+                    target_line=_target_line(source_han, template),
                 ),
                 json_mode=True,
                 temperature=0.0 if attempt == 0 else 0.2,
+                max_tokens=cap,
+                label="template/fill",
             )
             fields, rows, tables = parse_fill_response(raw)
             if not tables and rows:
