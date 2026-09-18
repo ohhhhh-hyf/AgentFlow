@@ -62,6 +62,7 @@ class MeetingUnderstanding(ModelMixin):
     meeting_brief: str
     meeting_purpose: str
     scene: Literal["通用", "团队例会", "脑暴/讨论", "项目决策与评审", "专项讨论会", "研讨会", "采访/对话"]
+    speakers: list[dict[str, Any]] = field(default_factory=list)
     topics: list[dict[str, Any]] = field(default_factory=list)
     decisions: list[str] = field(default_factory=list)
     open_questions: list[str] = field(default_factory=list)
@@ -76,6 +77,8 @@ class MeetingUnderstanding(ModelMixin):
         _string(data["meeting_brief"], "meeting_brief")
         _string(data["meeting_purpose"], "meeting_purpose")
         data["scene"] = _choice_or_default(data["scene"], {"通用", "团队例会", "脑暴/讨论", "项目决策与评审", "专项讨论会", "研讨会", "采访/对话"}, "scene", "通用")
+        if not isinstance(data["speakers"], list):
+            raise OutputValidationError("speakers 必须是数组")
         if not isinstance(data["topics"], list):
             raise OutputValidationError("topics 必须是数组")
         _string_list(data["decisions"], "decisions")

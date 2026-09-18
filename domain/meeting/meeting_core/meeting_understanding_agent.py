@@ -55,6 +55,9 @@ class MeetingUnderstandingAgent:
         skipped = {
             str(field).strip() for field in skip_fields if str(field).strip()
         }
+        # speakers 常年为空（原文本来就没有姓名）→ 缺键不该触发重试：提示词仍要求它照常输出，
+        # 但校验侧允许缺键补 []（与裁剪字段同一条经验：2026-09-18 实测 risk_hints，缺键 +20s）。
+        missable = skipped | {"speakers"}
         return await self.client.structured(
             MEETING_UNDERSTANDING_SYSTEM_PROMPT,
             user,
@@ -63,6 +66,6 @@ class MeetingUnderstandingAgent:
             label="core/meeting_understanding",
             # 裁剪字段允许缺键：模型常把"输出 []"理解成"整个键不用写"，缺键会让严格校验
             # 失败并白跑一次针对性重试（2026-09-18 实测 risk_hints，+20s）
-            allow_missing=skipped,
+            allow_missing=missable,
         )
 

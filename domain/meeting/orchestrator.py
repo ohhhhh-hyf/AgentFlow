@@ -129,6 +129,7 @@ _EMPTY_MEETING_UNDERSTANDING = {
     "meeting_brief": "",
     "meeting_purpose": "",
     "scene": "通用",
+    "speakers": [],
     "topics": [],
     "decisions": [],
     "open_questions": [],
@@ -367,12 +368,12 @@ class _Nodes(DomainNodes):
             "open_questions", "risk_hints", "dependencies",
         }),
         "minutes": frozenset({
-            "meeting_brief", "meeting_purpose", "scene", "topics",
-            "decisions", "risks", "open_questions", "dependencies",
+            "meeting_brief", "meeting_purpose", "scene", "speakers",
+            "topics", "decisions", "risks", "open_questions", "dependencies",
         }),
         "minutes_trace": frozenset({
-            "meeting_brief", "meeting_purpose", "scene", "topics",
-            "decisions", "risks", "open_questions", "dependencies",
+            "meeting_brief", "meeting_purpose", "scene", "speakers",
+            "topics", "decisions", "risks", "open_questions", "dependencies",
         }),
     }
 
@@ -474,6 +475,9 @@ class _Nodes(DomainNodes):
             "meeting_brief": u.get("meeting_brief") or u.get("meeting_purpose") or "",
             "meeting_purpose": u.get("meeting_purpose") or "",
             "scene": u.get("scene") or "通用",
+            # 姓名↔角色对照：所有线都带上（体积小、收益大）——渲染时第一眼能绑人，
+            # 不必每栏从长原文重推（实测会退化成「答」「主持人（机构名）」）
+            "speakers": u.get("speakers") or [],
         }
         if line_name == "actions":
             directive_decisions = [

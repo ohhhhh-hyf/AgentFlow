@@ -1712,8 +1712,8 @@ def test_allow_missing_on_trimmed_fields() -> None:
           "键名必须保留" in trim and "不要省略键名" in trim, trim[:80])
 
     src = Path("domain/meeting/meeting_core/meeting_understanding_agent.py").read_text(encoding="utf-8")
-    check("理解 agent：把裁剪集合传给 allow_missing",
-          "allow_missing=skipped" in src and "skipped = {" in src, "")
+    check("理解 agent：把裁剪集合 + speakers 传给 allow_missing",
+          "allow_missing=missable" in src and 'missable = skipped | {"speakers"}' in src, "")
 
 
 def test_default_minutes_template() -> None:
@@ -1805,8 +1805,9 @@ def test_understanding_skip_never_retries() -> None:
           set(UNDERSTANDING_SKIP_FIELDS) == {"minutes", "actions", "risks"}, "")
 
     src = Path("domain/meeting/meeting_core/meeting_understanding_agent.py").read_text(encoding="utf-8")
-    check("理解 agent：同一裁剪集合既写进指令也传给 allow_missing",
-          "allow_missing=skipped" in src and "键名必须保留" in src, "")
+    check("理解 agent：同一裁剪集合既写进指令也传给 allow_missing（speakers 常空、缺键不算错）",
+          "allow_missing=missable" in src and "键名必须保留" in src
+          and 'missable = skipped | {"speakers"}' in src, "")
     node_src = Path("domain/meeting/orchestrator.py").read_text(encoding="utf-8")
     check("理解裁剪按选线 + 模板栏位（发布会类不抽用不到的字段）",
           "skip_fields_for_template(template)" in node_src
@@ -2209,6 +2210,67 @@ def test_media_briefing_evidence_and_depth() -> None:
           got == [("发布会概况", 300, "paragraph"), ("Q&A环节", 400, "paragraph")], f"{got}")
 
 
+def test_understanding_speakers_field() -> None:
+    """理解层 speakers：姓名↔角色的结构化落点（Q&A/表态/概况的人名绑定不再靠每栏重推）。
+
+    回归背景（2026-09-18 实测）：发布会 Q&A 的回应方写不出姓名，退化成 `**答**：`（甚至空白），
+    提问方也出现「主持人（慕尼黑安全会议）」这种"机构凑身份位"的写法。根因不是规则，而是
+    **姓名与角色的绑定没有落点**——理解层只有 topics[].participants（语义是"谁参与该议题"），
+    渲染时每栏都得从几万字原文里重新推一次"这段是谁在说"，原文标签是角色时就直接放弃。
+    """
+    from dataclasses import fields as dc_fields
+
+    from domain.meeting.meeting_core.contracts import (
+        MeetingUnderstandingGenerationContract,
+    )
+    from domain.meeting.meeting_core.prompts import MEETING_UNDERSTANDING_SYSTEM_PROMPT
+    from domain.meeting.models_generated import MeetingUnderstanding
+    from domain.meeting.orchestrator import (
+        _EMPTY_MEETING_UNDERSTANDING,
+        UNDERSTANDING_SKIP_FIELDS,
+        _Nodes,
+    )
+
+    spec = MeetingUnderstandingGenerationContract.to_json_template()
+    check("契约含 speakers 字段（name/role/org）",
+          "speakers" in spec and all(k in spec for k in ("name", "role", "org")), spec[:60])
+    check("生成模型有 speakers 且按数组校验",
+          "speakers" in {f.name for f in dc_fields(MeetingUnderstanding)}
+          and "speakers 必须是数组" in Path("domain/meeting/models_generated.py").read_text(encoding="utf-8"),
+          "")
+    check("空结构常量带 speakers（降级路径不炸）", _EMPTY_MEETING_UNDERSTANDING.get("speakers") == [], "")
+
+    prompt = MEETING_UNDERSTANDING_SYSTEM_PROMPT
+    check("理解 prompt：出现过姓名的发言人都要填、只给编号宁可空着",
+          "发言人与角色对照" in prompt and "原文只给了「发言人1」这类编号" in prompt
+          and "不要推断或编造" in prompt, "")
+    check("理解 prompt：姓名不再从 participants 语义里挤（单列字段）",
+          "speakers：" in prompt, "")
+
+    check("speakers 不在任何线的裁剪集合里（人名所有线都要）",
+          all("speakers" not in skip for skip in UNDERSTANDING_SKIP_FIELDS.values()), "")
+    for line in ("minutes", "minutes_trace"):
+        keep = _Nodes._understanding_needle_keep.get(line)  # 类属性，不用实例
+        check(f"{line}：审核摘录白名单含 speakers", bool(keep) and "speakers" in keep, f"{sorted(keep or [])}")
+
+    # pack 侧：所有线都能拿到对照表（实测渲染退化的直接原因就是它不在包里）
+    state = {
+        "meeting_understanding": {
+            "meeting_brief": "略", "meeting_purpose": "略", "scene": "专项讨论会",
+            "speakers": [{"name": "王毅", "role": "发言人", "org": "外交部"}],
+            "topics": [], "decisions": [], "risks": [], "open_questions": [],
+        }
+    }
+    for line in ("minutes", "minutes_trace", "actions", "risks", "mindmap"):
+        pack = _Nodes._meeting_pack(object(), state, line)
+        names = [s.get("name") for s in pack.get("speakers") or []]
+        check(f"{line} 的 pack 带 speakers（{names}）", names == ["王毅"], f"{pack.get('speakers')}")
+
+    draft_prompt = Path("domain/meeting/tasks/minutes/prompts.py").read_text(encoding="utf-8")
+    check("草稿 prompt 指明人名绑定看 speakers、不猜姓名",
+          "`speakers` 字段" in draft_prompt and "不要凭称号猜姓名" in draft_prompt, "")
+
+
 def test_qa_name_priority() -> None:
     """新闻发布会/媒体问答：能确定是谁就用姓名，不得用「主持人」「发言人」顶替已知姓名。
 
@@ -2225,11 +2287,16 @@ def test_qa_name_priority() -> None:
         (qa, "媒体问答", "「记者」「发言人」"),
     ):
         spec = next(l for l in text.splitlines() if "一条问答独立成段" in l)
-        check(f"{name}：一问一答＝一条记录 + 逐条编号",
+        check(f"{name}：一问一答＝一条记录 + 逐条编号（示例答方写姓名）",
               "一问一答＝一条记录" in spec and "逐条编号" in spec
-              and "`**1. 记者（人民日报 张宇）**：…`" in spec, spec[:70])
-        check(f"{name}：单发布人时回应方统一写「答」（不再逐条写人名）",
-              "同一场只有一位发布人时回应方统一写「答」" in spec, "")
+              and "`**1. 记者（人民日报 张宇）**：…`" in spec
+              and "`**陈立**：…`（答方写姓名" in spec, spec[:70])
+        check(f"{name}：回应方能确定姓名就写姓名（「答」只作无姓名兜底）",
+              "回应方能确定姓名就写姓名" in spec and "只有确实没有姓名时才写" in spec
+              and "全篇统一用同一个称呼" in spec
+              and "首次写全" not in spec, "")
+        check(f"{name}：称呼只写姓名/媒体名，机构不得单独充当身份",
+              "机构只能跟在人名/媒体名后" in spec and "不得单独充当身份" in spec, "")
         check(f"{name}：提问方姓名优先写成硬口径（原文出现过就必须用）",
               "原文任何位置出现过姓名就必须用" in spec, "")
         check(f"{name}：禁止用角色顶替已知姓名（{role}）",
@@ -2441,6 +2508,7 @@ def main() -> int:
         test_media_overview_scope()
         test_media_briefing_evidence_and_depth()
         test_qa_name_priority()
+        test_understanding_speakers_field()
         test_product_launch_overview()
         test_retro_annual_groups()
         test_fallback_text_dedupe()
