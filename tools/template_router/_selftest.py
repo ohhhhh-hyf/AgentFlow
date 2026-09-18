@@ -1351,10 +1351,12 @@ def test_qa_precision_rules() -> None:
         "自问自答与讲解式设问",
         "不得写成「XX提问，…？」式引导转述",
         "答话只写回应要点",
-        "每个问答 ≤200 字",
+        "答话写在同一段里——再长也不拆段、不分点",
         "原文没有正式问答就写「未提及」",
     ):
         check(f"共用形态规则含问答精度口径：{need}", need in BODY_FORMAT_RULES, "")
+    check("段落上限规则为问答轮次开了例外（再长也不拆段）",
+          "问答/对话的一轮" in BODY_FORMAT_RULES and "再长也不拆段" in BODY_FORMAT_RULES, "")
 
     qa_templates = ("media_briefing", "media_qa_session", "admission_briefing", "special_lecture", "class_transcript")
     retired = ("覆盖所有重要提问", "答话可归并但不得改口径", "内容相似的合并成一条")
@@ -1371,24 +1373,29 @@ def test_qa_precision_rules() -> None:
         check(f"{stem}：问答栏 missing=True（留空自动补「未提及」）",
               bool(qa) and qa[0].get("missing") is True,
               f"{[s.get('missing') for s in qa]}")
-        # 自动拆行网：可解析的段落级预算必须留在模板里（共用规则进的是 prompt，解析器只读模板）
+        # 问答长度口径仍要留在模板里可解析（长度提示；2026-09-18 起超长不再自动拆行）
         para = [b for b in parse_section_char_budgets(text) if b.get("scope") == "paragraph"]
-        check(f"{stem}：问答栏保留可解析的段落预算（400/段，超限自动拆行）",
+        check(f"{stem}：问答栏保留可解析的长度口径（400/段，作提示）",
               any(int(b["hi"]) == 400 for b in para), f"{para}")
+        check(f"{stem}：问答栏写明「单段连着写」（不再要求分点；口径仍可解析为段落级）",
+              "也**单段**连着写" in text and "答话超过约 400 字必须分点" not in text, "")
 
-    # 拆行网必须真的咬住问答栏：`**称呼**：` 是散文段，不能被当成条目行跳过
+    # 一问一答各占一段：称呼行（对话轮次）不参与段落拆分，普通散文段照旧会被拆
     from tools.execution.hard_execution import split_overlong_paragraphs
 
     tpl = (_active_dir() / "media_qa_session.md").read_text(encoding="utf-8")
     long_ans = "这是一段很长的答话。" * 80
     han = lambda p: len([c for c in p if "\u4e00" <= c <= "\u9fff"])
-    doc = "# 媒体问答\n\n# 核心提问与回应\n**记者**：这次政策的核心是什么？\n**发言人**：" + long_ans + "\n"
+    doc = "# 媒体问答\n\n# 核心提问与回应\n**1. 记者**：这次政策的核心是什么？\n**答**：" + long_ans + "\n"
     fixed, notes = split_overlong_paragraphs(doc, tpl)
-    longest = max((han(ln) for ln in fixed.splitlines() if ln.strip()), default=0)
-    check("问答栏超长答话（>400×1.2 字）被确定性拆段",
-          bool(notes) and longest <= 400, f"最长行={longest} {notes}")
-    check("拆段只加换行、不改文字",
-          fixed.replace("\n", "") == doc.replace("\n", ""), "")
+    check("问答栏超长答话保持一整段（不再被拆段/换段、文字未改）",
+          not notes and fixed.replace("\n", "") == doc.replace("\n", "")
+          and max((han(ln) for ln in fixed.splitlines() if ln.strip()), default=0) > 400,
+          f"{notes} 最长行={max((han(ln) for ln in fixed.splitlines() if ln.strip()), default=0)}")
+    brief_tpl = (_active_dir() / "media_briefing.md").read_text(encoding="utf-8")
+    plain = "# 新闻发布\n\n# 发布会概况\n" + ("这是一段很长的概况散文。" * 40) + "\n"
+    check("普通散文段仍按句界拆分（网没坏）",
+          bool(split_overlong_paragraphs(plain, brief_tpl)[1]), "")
     bullet = "# 媒体问答\n\n# 核心提问与回应\n- **要点**：" + long_ans + "\n"
     check("`- ` 条目行仍不受段落上限管辖（交给条目规则）",
           not split_overlong_paragraphs(bullet, tpl)[1], "")
@@ -2124,6 +2131,9 @@ def test_media_overview_scope() -> None:
           "核心信息" not in elements and "发布单位与整体基调" in spec, spec[:80])
     check("发布会概况：写明归位边界（数据归 [核心信息]、立场归 [官方表态]）",
           "[核心信息]" in spec and "[官方表态]" in spec and "本栏不复述" in spec, "")
+    check("发布会概况：① 含时间地点/主办与参与（日期、地点、发言人身份、到会媒体）",
+          "时间地点与主办/参与" in spec and "发布时间、地点、主办与发布单位、发言人身份、到会媒体" in spec
+          and "没有的不编" in spec, "")
     caps = [b for b in parse_section_char_budgets(text) if b["title"] == "发布会概况"]
     check("发布会概况：解析出段落级预算 240–300（超 360 自动拆段）",
           bool(caps) and caps[0]["scope"] == "paragraph" and caps[0]["hi"] == 300, f"{caps}")
@@ -2153,8 +2163,17 @@ def test_media_briefing_evidence_and_depth() -> None:
     core = next(l for l in text.splitlines() if l.strip().startswith("[提炼官方发布"))
     stance = next(l for l in text.splitlines() if l.strip().startswith("[只写发言人"))
 
-    check("核心信息：四样要素（发布主体/依据/口径与范围/时间表）",
-          all(k in core for k in ("发布主体", "依据", "口径与范围", "时间表")), core[:60])
+    check("核心信息：依据三样（依据/口径与范围/时间表）",
+          all(k in core for k in ("依据", "口径与范围", "时间表")), core[:60])
+    check("核心信息：深挖口径（原文有的都要列一条不落 + 多组取值写成对照）",
+          "原文有的都要列、一条不落" in core and "多组取值" in core
+          and "不要只留一侧" in core, "")
+    check("核心信息：准确性（不换算不估算 + 时间分写 + 两栏分工）",
+          "不换算、不估算、不自行加总" in core
+          and "发布时间与生效/执行时间分开写" in core
+          and "立场与主张归 [官方表态]" in core, "")
+    check("核心信息：不逐条写人名（不写「某某表示/强调」前缀）",
+          "本栏不逐条写人名" in core and "这类前缀" in core, "")
     check("核心信息：一条一件事 + 一条一行格式",
           "一条一件事" in core and "`- **要点**：内容`" in core, "")
     check("核心信息：数字/结论要与原文对得上、禁模糊来源、没有的不编",
@@ -2162,9 +2181,17 @@ def test_media_briefing_evidence_and_depth() -> None:
     check("核心信息：保留加粗与 `具体内容` 标注口径",
           "关键数据加粗" in core and "`具体内容`" in core, "")
 
-    check("官方表态：每条写清是谁说的（机构+职务+姓名、其后统一简称）",
-          "每条写清是谁说的" in stance and "机构+职务+姓名" in stance
-          and "统一简称" in stance, "")
+    check("官方表态：身份在栏首交代一次、条目不带人名前缀",
+          "发言人身份在栏首交代一次" in stance and "不逐条写人名" in stance
+          and "这类前缀" in stance, "")
+    check("官方表态：深挖粒度（一次表态多个承诺/条件分别列条）",
+          "一次表态含多个承诺或条件时分别列条" in stance, "")
+    check("官方表态：准确性（照原文保留限定语与程度 + 引用名称写全）",
+          "照原文保留限定语与程度" in stance
+          and "力争/有望/原则上/除" in stance
+          and "会议名称照原文写全" in stance, "")
+    check("官方表态：多发言人时每组开头写明身份",
+          "多位发言人时每组开头写明" in stance, "")
     check("官方表态：四层深挖（主张/针对什么/条件与前提/承诺或边界）",
           all(k in stance for k in ("主张", "针对什么", "条件与前提", "承诺或边界")),
           stance[:60])
@@ -2198,9 +2225,13 @@ def test_qa_name_priority() -> None:
         (qa, "媒体问答", "「记者」「发言人」"),
     ):
         spec = next(l for l in text.splitlines() if "一条问答独立成段" in l)
-        check(f"{name}：姓名优先写成硬口径（原文出现过就必须用）",
-              "能确定是谁就用姓名" in spec and "原文任何位置出现过该人姓名就必须用" in spec,
-              spec[:70])
+        check(f"{name}：一问一答＝一条记录 + 逐条编号",
+              "一问一答＝一条记录" in spec and "逐条编号" in spec
+              and "`**1. 记者（人民日报 张宇）**：…`" in spec, spec[:70])
+        check(f"{name}：单发布人时回应方统一写「答」（不再逐条写人名）",
+              "同一场只有一位发布人时回应方统一写「答」" in spec, "")
+        check(f"{name}：提问方姓名优先写成硬口径（原文出现过就必须用）",
+              "原文任何位置出现过姓名就必须用" in spec, "")
         check(f"{name}：禁止用角色顶替已知姓名（{role}）",
               f"不得用{role}顶替已知姓名" in spec, "")
         check(f"{name}：保留问/答兜底与加粗、未提及兜底",
