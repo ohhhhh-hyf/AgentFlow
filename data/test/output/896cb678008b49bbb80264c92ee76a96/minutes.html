@@ -1,0 +1,372 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>历史小论文写作方法与解题技巧指导课</title>
+  <style>
+
+    body {
+      margin: 0;
+      padding: 32px 16px;
+      background: #f6f5f0;
+      color: #1a1a1a;
+      font-family: "Latin Modern Roman", "Computer Modern Roman", "CMU Serif", "Times New Roman", Times, "Songti SC", "SimSun", "STSong", serif;
+      -webkit-font-smoothing: antialiased;
+    }
+    .page { max-width: 1140px; margin: 0 auto; }
+    .ck-doc {
+      background: #ffffff;
+      border: 1px solid #d4d0c7;
+      border-radius: 4px;
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.05), 0 1px 3px rgba(0,0,0,0.03);
+      padding: 36px 44px;
+      line-height: 1.75;
+      font-size: 0.96rem;
+    }
+    .ck-doc h1 {
+      margin: 0 0 10px;
+      font-size: 1.85rem;
+      font-weight: 700;
+      letter-spacing: 0.4px;
+      text-align: center;
+      font-variant: small-caps;
+      color: #111111;
+    }
+    .ck-doc-header {
+      margin-bottom: 24px;
+      padding-bottom: 16px;
+      border-bottom: 2px solid #111111;
+      text-align: center;
+    }
+    .ck-doc-meta {
+      font-size: 0.85rem;
+      color: #555555;
+      font-style: italic;
+    }
+    .ck-doc-content h1, .ck-doc-content .ck-doc-h1 {
+      margin: 28px 0 14px;
+      font-size: 1.32rem;
+      font-weight: 700;
+      color: #111111;
+      border-bottom: 1.5px solid #222222;
+      padding-bottom: 5px;
+      text-align: left;
+      font-variant: normal;
+      letter-spacing: 0.3px;
+    }
+    .ck-doc h2, .ck-doc-h2 {
+      margin: 28px 0 14px;
+      font-size: 1.22rem;
+      font-weight: 700;
+      color: #111111;
+      border-bottom: 1.5px solid #222222;
+      padding-bottom: 5px;
+      letter-spacing: 0.3px;
+    }
+    .ck-doc h3, .ck-doc-h3 {
+      margin: 20px 0 10px;
+      font-size: 1.05rem;
+      font-weight: 700;
+      color: #222222;
+    }
+    .ck-doc h4, .ck-doc-h4 {
+      margin: 16px 0 8px;
+      font-size: 0.98rem;
+      font-weight: 700;
+      color: #333333;
+    }
+    .ck-doc p {
+      margin: 10px 0;
+      line-height: 1.75;
+      text-align: justify;
+    }
+    .ck-doc ul, .ck-doc ol {
+      margin: 8px 0 12px;
+      padding-left: 1.5em;
+      line-height: 1.72;
+    }
+    .ck-doc li {
+      margin: 4px 0;
+    }
+    .ck-doc blockquote, .ck-quote {
+      margin: 10px 0 14px;
+      padding: 8px 14px;
+      background: #faf9f6;
+      border-left: 3.5px solid #222222;
+      border-radius: 2px;
+      color: #222222;
+      font-size: 0.92rem;
+      font-style: italic;
+    }
+    .ck-doc code {
+      background: #f3f0e8;
+      border: 1px solid #e2ddd3;
+      border-radius: 3px;
+      padding: 1px 6px;
+      font-family: "Latin Modern Mono", Consolas, monospace;
+      font-size: 0.88em;
+    }
+    .ck-doc table, .ck-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.88rem;
+      margin: 14px 0;
+      background: #ffffff;
+      border-top: 2px solid #222222;
+      border-bottom: 2px solid #222222;
+    }
+    .ck-doc table th, .ck-doc table td, .ck-table th, .ck-table td {
+      padding: 9px 12px;
+      text-align: left;
+      vertical-align: middle;
+      border-bottom: 1px solid #ede9e1;
+    }
+    .ck-doc table th, .ck-table th {
+      background: #fbfaf7;
+      border-bottom: 1.2px solid #222222;
+      font-weight: 700;
+      color: #111111;
+      letter-spacing: 0.3px;
+    }
+
+    /* Roomy & Spacious Academic Risk Table */
+    .ck-risk-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 18px 0 28px;
+      background: #ffffff;
+      border-top: 2.2px solid #111111;
+      border-bottom: 2.2px solid #111111;
+      font-size: 0.93rem;
+      line-height: 1.72;
+    }
+    .ck-risk-table th {
+      background: #faf8f5;
+      border-bottom: 1.5px solid #111111;
+      padding: 15px 16px;
+      font-weight: 700;
+      color: #111111;
+      letter-spacing: 0.3px;
+      text-align: left;
+      vertical-align: middle;
+    }
+    .ck-risk-table td {
+      padding: 16px 16px;
+      border-bottom: 1px solid #ede8e0;
+      vertical-align: top;
+      color: #1a1a1a;
+      word-break: break-word;
+    }
+    .ck-risk-table tr:nth-child(even) td {
+      background: #fdfcfb;
+    }
+    .ck-risk-table tr:hover td {
+      background: #f6f3eb;
+    }
+
+    /* Review Grid */
+    .ck-review {
+      display: grid;
+      grid-template-columns: minmax(0, 1.35fr) 1px minmax(260px, 0.95fr);
+      border: 1px solid #d4d0c7;
+      border-radius: 4px;
+      overflow: hidden;
+      margin: 14px 0 20px;
+      background: #ffffff;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.03);
+    }
+    .ck-review-left {
+      padding: 22px 26px;
+      background: #ffffff;
+      line-height: 1.75;
+    }
+    .ck-review-rule { background: #dcd8cf; }
+    .ck-review-right {
+      padding: 16px 18px;
+      background: #faf9f6;
+      box-sizing: border-box;
+      display: flex;
+      flex-direction: column;
+    }
+    .ck-ev-list {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    /* Entity Highlight in LaTeX Paper Style */
+    .ck-cite-entity {
+      background: #fff8db;
+      border-bottom: 1.5px solid #b86a04;
+      padding: 1px 4px;
+      border-radius: 2px;
+      cursor: pointer;
+      transition: all 0.18s ease;
+      color: #111111;
+      font-weight: 600;
+    }
+    .ck-cite-entity:hover {
+      background: #ffe58f;
+      color: #000000;
+    }
+    .ck-cite-entity.is-on {
+      background: #ffd54a;
+      border-bottom-color: #0047ab;
+      box-shadow: 0 0 0 2px rgba(0,71,171,0.25);
+    }
+
+    /* Blue Hyperref Citations [1], [2] */
+    .ck-cite-ref {
+      color: #0047ab;
+      font-weight: 600;
+      font-family: "Latin Modern Roman", "Computer Modern Roman", "Times New Roman", serif;
+      text-decoration: none;
+      cursor: pointer;
+      padding: 0 2px;
+      margin: 0 2px;
+      border-radius: 2px;
+      transition: all 0.15s ease;
+      font-size: 0.92em;
+      vertical-align: baseline;
+      user-select: none;
+    }
+    .ck-cite-ref:hover {
+      text-decoration: underline;
+      background: #e8f0fe;
+      color: #003380;
+    }
+    .ck-cite-ref.is-active {
+      background: #d2e3fc;
+      color: #002266;
+      font-weight: 700;
+      box-shadow: 0 0 0 1px #0047ab;
+    }
+
+    /* Right Memory Cards in LaTeX Paper Style */
+    .ck-provenance-head {
+      font-size: 0.82rem;
+      font-weight: 700;
+      color: #222222;
+      margin: 0 0 12px;
+      padding-bottom: 6px;
+      border-bottom: 1px solid #e0dcd4;
+      letter-spacing: 0.3px;
+      text-transform: uppercase;
+    }
+    .ck-ref-icon { color: #0047ab; margin-right: 4px; }
+    .ck-ev {
+      display: block;
+      margin: 0;
+      padding: 10px 12px;
+      border: 1px solid #dedad2;
+      border-left: 3.5px solid #0047ab;
+      border-radius: 2px;
+      background: #ffffff;
+      font-size: 0.82rem;
+      line-height: 1.55;
+      transition: all 0.2s ease;
+      cursor: pointer;
+    }
+    .ck-ev:hover { border-color: #b5b0a5; }
+    .ck-ev.is-on, .ck-ev.is-highlighted {
+      border-color: #0047ab;
+      box-shadow: 0 0 0 2px #0047ab, 0 3px 8px rgba(0,71,171,0.15);
+      background: #f0f5ff;
+    }
+    @keyframes citePulse {
+      0% { background: #dbeafe; box-shadow: 0 0 0 3px #0047ab; }
+      50% { background: #bfdbfe; box-shadow: 0 0 0 4px #0047ab; }
+      100% { background: #f0f5ff; box-shadow: 0 0 0 2px #0047ab; }
+    }
+    .ck-ev-k {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 0.75rem;
+      color: #444444;
+      margin-bottom: 5px;
+      font-weight: 700;
+    }
+    .ck-ev-cite-tag {
+      color: #0047ab;
+      font-weight: 700;
+      font-family: "Latin Modern Roman", serif;
+      text-decoration: none;
+    }
+    .ck-ev-kind-badge {
+      display: inline-block;
+      padding: 1px 6px;
+      border-radius: 2px;
+      font-size: 0.72rem;
+      font-weight: 600;
+      letter-spacing: 0.2px;
+    }
+    .ck-badge-keypoint {
+      border: 1px solid #0047ab;
+      color: #0047ab;
+      background: #f0f5ff;
+    }
+    .ck-badge-note {
+      border: 1px solid #b86a04;
+      color: #b86a04;
+      background: #fff8eb;
+    }
+    .ck-mem-title {
+      font-weight: 700;
+      color: #111111;
+      font-size: 0.88rem;
+      margin-bottom: 6px;
+      line-height: 1.45;
+    }
+    .ck-ev-quote {
+      color: #222222;
+      font-style: normal;
+      font-family: inherit;
+      margin: 4px 0 6px;
+      padding: 0;
+      background: transparent;
+      border: none;
+      line-height: 1.6;
+      font-size: 0.84rem;
+    }
+    .ck-ev-meta { font-size: 0.76rem; color: #666666; margin-top: 6px; }
+    .ck-ev-more {
+      margin-top: 2px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+    .ck-ev-more[open] { margin-top: 4px; }
+    .ck-ev-more summary { margin-bottom: 6px; }
+    .ck-proof-toggle {
+      cursor: pointer;
+      font-size: 0.82rem;
+      color: #0047ab;
+      user-select: none;
+      font-family: inherit;
+      padding: 2px 0;
+    }
+    .ck-proof-toggle:hover { text-decoration: underline; }
+
+    @media(max-width: 860px) {
+      .ck-doc { padding: 22px 18px; }
+      .ck-review { grid-template-columns: 1fr; }
+      .ck-review-rule { display: none; }
+    }
+
+  </style>
+</head>
+<body>
+  <main class="page">
+    <div class="ck-doc">
+      <header class="ck-doc-header">
+        <h1>历史小论文写作方法与解题技巧指导课</h1>
+      </header>
+      <div class="ck-doc-content">
+        <h1 class="ck-doc-h1">课程概况</h1><p>本次课程为历史小论文写作方法指导课，由主讲人面向学生讲解小论文写作要求与解题技巧。课程围绕三大核心内容展开：<strong>小论文写作的基本要求</strong>（观点明确、论证条理、结论升华）、<strong>按题型分类的解题方法</strong>（自命题类、观点提示类、图表信息类），以及<strong>典型例题的实操分析</strong>（武汉长江大桥、梁启超观点、历代民德等级变化等）。课程通过学生现场呈现思路、主讲人逐一点评的方式，结合官方答案示例，帮助学生掌握审题、读材料、列事实、控制篇幅等关键步骤。</p><h1 class="ck-doc-h1">核心知识点梳理</h1><h2 class="ck-doc-h2">小论文写作总体要求</h2><ul><li><strong>观点明确</strong>：必须亮出自己的观点，不能只是简单陈述形式或写几个方面加名词；观点要有凝聚力，如「辉煌的中华文化」这类表述需进一步明确立场。</li><li><strong>论证条数</strong>：论证一般写<strong>两到三条</strong>，不宜过多；写一条难以支撑论点，写太多则显得冗长。</li><li><strong>逻辑清晰</strong>：可通过序号或直接列条呈现，但必须让老师看清写了哪几条；可按<strong>时间脉络</strong>（如先秦、明清时期）、<strong>国内外</strong>、<strong>内因外因</strong>等维度组织。</li><li><strong>结论升华</strong>：最后论述要<strong>简便</strong>，目的是升华观点，不能简单把观点抄一遍；结论需体现对观点的深化而非重复。</li></ul><h2 class="ck-doc-h2">自命题类解题方法</h2><ul><li><strong>审题</strong>：先慢审题，看要求，注意「小红帽」要求及评分标准；如题目要求用世界史知识，不能写成中国史模式。</li><li><strong>读材料</strong>：先大概看材料抓主要信息，再细看信息之间的关系；提取有效信息后再进行分析。</li><li><strong>列事实</strong>：先写好题目，再罗列与材料相关的事实，不能乱罗列；事实需与材料有关系。</li><li><strong>控制篇幅</strong>：最好先打草稿，不要直接写在答题卡上，避免写错后涂改混乱。</li><li><strong>案例：武汉长江大桥</strong>：可写新中国成立或改革开放以来的背景；按时间顺序应<strong>先写对内改革，再写对外开放</strong>；需明确具体时间节点，不能笼统说「新中国成立后」。</li></ul><h2 class="ck-doc-h2">观点提示类解题方法</h2><ul><li><strong>选择核心观点</strong>：需判断并选择一个核心观点，明确表述「我认为什么观点是正确的或错误的」；不同观点要在论点中详细表述。</li><li><strong>不能照抄材料</strong>：写小论文时不能照抄材料观点，需用自己的语言表述。</li><li><strong>总结升华</strong>：最后需简单总结观点并进行升华。</li><li><strong>案例：梁启超观点</strong>：材料含四个观点，如「国民对其本国历史应略有所知」「了解本国历史会对我国利益有威胁」「对本国历史有敬畏不会偏激理解」「国家才能继续发展」；需选一个观点展开论证，不能重复材料观点。</li><li><strong>案例：历代民德等级变化</strong>：可写春秋、东汉、宋明等时期；需结合时代背景分析，如唐朝国力强盛但民德较高，与制度改善有关；可联系儒家思想等文化因素。</li></ul><h2 class="ck-doc-h2">图表信息类解题方法</h2><ul><li><strong>快速提取信息</strong>：先看图表题头、横向纵向信息，注意信息之间的关系变化；提取有效信息后再进行分析。</li><li><strong>案例：建筑与政治关系</strong>：材料展现两三个图线，涉及建筑与政治的关系；需从建筑角度分析其与政治的联系。</li><li><strong>案例：历史地图题</strong>：需在地图上画位置，结合地图信息作答；如涉及707年、1900年等时间点。</li><li><strong>案例：欧盟框架图</strong>：涉及共同体、共同外交安全政策、司法和内部合作等大框架；需提取三个信息并分析其关系，再下结论。</li><li><strong>难点标注</strong> ⭐：图表信息类题目较难，需注意信息间的关系变化，不能只看表面数据。</li></ul><h1 class="ck-doc-h1">课堂互动与答疑</h1><p><strong>学生</strong>：小论文论证部分写几条比较合适？写一条或太多条会有什么问题？</p><p><strong>教师</strong>：论证一般写两到三条，不宜过多。写一条难以支撑论点，写太多则显得冗长且逻辑易散。关键是每条论证都要能有效支撑你的观点，逻辑清晰，让老师能清楚看到你论述的层次。</p><p><strong>学生</strong>：自命题类题目，审题时除了看要求，还有什么特别要注意的？</p><p><strong>教师</strong>：审题时要注意题目要求里的"小红帽"——即那些关键限定条件，比如要求用世界史知识还是中国史知识，或限定在某个范围。这些限定直接影响你选材和论述方向，漏看会导致整篇跑题。</p><p><strong>学生</strong>：写小论文时，事实罗列有什么讲究？可以直接写在答题卡上吗？</p><p><strong>教师</strong>：不要直接写在答题卡上。先在草稿上写好题目，再罗列要用的史实，确保这些事实与材料相关、能支撑论点，避免乱罗列。理清顺序后再誊写，防止写错或逻辑混乱。</p><p><strong>学生</strong>：观点提示类题目，能不能直接照抄材料中的观点？</p><p><strong>教师</strong>：不能照抄。你需要从材料给出的多个观点中选择一个核心观点，用自己的语言明确表述，并表明你赞同或反对的态度。照抄材料观点无法体现你的独立判断，也难形成自己的论述立场。</p><p><strong>学生</strong>：图表信息类题目，如何快速从图表中提取有效信息？</p><p><strong>教师</strong>：先看题头和横向、纵向栏目，把握图表的基本框架；再观察各项信息之间的变化趋势和相互关系，比如时间序列上的升降、不同类别的对比。提取有效信息后再结合所学知识进行分析，不要只停留在描述图表表面数据。</p><p><strong>学生</strong>：写结论时，直接重复开头观点可以吗？</p><p><strong>教师</strong>：不可以。结论的作用是升华观点，不能简单把开头观点抄一遍。要在论证基础上提炼出更深层的认识或启示，使文章立意提升，这才是有价值的收尾。</p><h1 class="ck-doc-h1">课后任务与学习建议</h1><h2 class="ck-doc-h2">课堂练习</h2><ul><li><strong>自命题类（武汉长江大桥）</strong>：先审题看要求（注意小红帽要求与形成标准），再读材料抓主要信息、细看关系；先写题目再罗列与材料相关的事实，控制篇幅。可写新中国成立或改革开放以来，按时间顺序先对内改革后对外开放。</li><li><strong>观点提示类（梁启超观点）</strong>：材料给出四个观点，需选择其中一个核心观点明确表述，不能照抄材料观点；论证时结合史实支撑（如中华文化优越性、四大发明对欧洲贡献），最后总结升华。学生选第二条（对本国历史应有敬畏）获主讲人认可。</li><li><strong>观点提示类（历代民德等级变化）</strong>：结合图表中历代民德等级变化，可写春秋、东汉、宋明等时期；联系儒家思想、社会状态分析原因，如唐朝国力强盛但民德较高，需推论国家强盛、民德高尚与制度改善的关系。</li><li><strong>图表信息类（建筑与政治关系）</strong>：快速查看图表题头、横向纵向信息，注意信息间关系变化；提取有效信息（如建筑风格与政治制度对应）进行分析，再结合材料与实践关系进行论述。</li></ul><h2 class="ck-doc-h2">复习重点</h2><ul><li><strong>小论文写作要求</strong>：观点必须明确亮出，不能只是简单陈述形式或几个方面加个名词；论证一般写两到三条，不宜过多也不宜太少，需支撑论点、逻辑清晰。</li><li><strong>论证组织方式</strong>：可用序号或直接列出，但逻辑要非常清晰，让老师看清写了几条；可按时间脉络（如先秦、明清时期）、国内外、内政外交等角度罗列，但必须清楚呈现。</li><li><strong>结论升华要求</strong>：最后论述要简便并升华观点，不能简单把观点抄一遍；写结论是为了升华观点，需注意与前面论证的呼应。</li><li><strong>自命题类解题步骤</strong>：先审题看要求（注意小红帽要求与形成标准），再读材料抓主要信息、细看关系，先写题目再罗列与材料相关的事实，最后进行论述。</li><li><strong>观点提示类解题要点</strong>：需选择核心观点并明确表述，判断观点正确或错误；不能照抄材料观点，需用自己的理解表述，最后总结升华。</li><li><strong>图表信息类解题方法</strong>：快速查看图表关键信息（题头、横向纵向信息），注意信息间关系变化，提取有效信息进行分析。</li></ul><h2 class="ck-doc-h2">学习建议</h2><ul><li><strong>审题要慢</strong>：主讲人强调"你要慢点审题"，看要求里是否有小红帽要求及形成标准，注意题目限定范围（如用世界史知识、限定在某人某事范围内）。</li><li><strong>先写题目再列事实</strong>：不要直接写在答题卡上，先写好题目，再罗列要写的事实，确保事实与材料相关，避免写错又乱。</li><li><strong>论证条数控制</strong>：论证部分写两到三条即可，写一条难以支撑论点，写太多则显得冗长；每条论证需与材料相关，不能乱罗列。</li><li><strong>结合时代背景分析</strong>：写观点提示类题目时，需思考作者为何在特定时期写此内容（如1940年抗战时期钱穆写《国史大纲》），结合时代背景分析写作目的。</li><li><strong>注意时间顺序</strong>：写背景时按时间顺序排列，如先写对内改革再写对外开放，不要颠倒顺序。</li></ul>
+      </div>
+    </div>
+  </main>
+</body>
+</html>

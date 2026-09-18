@@ -1,0 +1,372 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>《大奥》与明史：中日文化差异三人谈</title>
+  <style>
+
+    body {
+      margin: 0;
+      padding: 32px 16px;
+      background: #f6f5f0;
+      color: #1a1a1a;
+      font-family: "Latin Modern Roman", "Computer Modern Roman", "CMU Serif", "Times New Roman", Times, "Songti SC", "SimSun", "STSong", serif;
+      -webkit-font-smoothing: antialiased;
+    }
+    .page { max-width: 1140px; margin: 0 auto; }
+    .ck-doc {
+      background: #ffffff;
+      border: 1px solid #d4d0c7;
+      border-radius: 4px;
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.05), 0 1px 3px rgba(0,0,0,0.03);
+      padding: 36px 44px;
+      line-height: 1.75;
+      font-size: 0.96rem;
+    }
+    .ck-doc h1 {
+      margin: 0 0 10px;
+      font-size: 1.85rem;
+      font-weight: 700;
+      letter-spacing: 0.4px;
+      text-align: center;
+      font-variant: small-caps;
+      color: #111111;
+    }
+    .ck-doc-header {
+      margin-bottom: 24px;
+      padding-bottom: 16px;
+      border-bottom: 2px solid #111111;
+      text-align: center;
+    }
+    .ck-doc-meta {
+      font-size: 0.85rem;
+      color: #555555;
+      font-style: italic;
+    }
+    .ck-doc-content h1, .ck-doc-content .ck-doc-h1 {
+      margin: 28px 0 14px;
+      font-size: 1.32rem;
+      font-weight: 700;
+      color: #111111;
+      border-bottom: 1.5px solid #222222;
+      padding-bottom: 5px;
+      text-align: left;
+      font-variant: normal;
+      letter-spacing: 0.3px;
+    }
+    .ck-doc h2, .ck-doc-h2 {
+      margin: 28px 0 14px;
+      font-size: 1.22rem;
+      font-weight: 700;
+      color: #111111;
+      border-bottom: 1.5px solid #222222;
+      padding-bottom: 5px;
+      letter-spacing: 0.3px;
+    }
+    .ck-doc h3, .ck-doc-h3 {
+      margin: 20px 0 10px;
+      font-size: 1.05rem;
+      font-weight: 700;
+      color: #222222;
+    }
+    .ck-doc h4, .ck-doc-h4 {
+      margin: 16px 0 8px;
+      font-size: 0.98rem;
+      font-weight: 700;
+      color: #333333;
+    }
+    .ck-doc p {
+      margin: 10px 0;
+      line-height: 1.75;
+      text-align: justify;
+    }
+    .ck-doc ul, .ck-doc ol {
+      margin: 8px 0 12px;
+      padding-left: 1.5em;
+      line-height: 1.72;
+    }
+    .ck-doc li {
+      margin: 4px 0;
+    }
+    .ck-doc blockquote, .ck-quote {
+      margin: 10px 0 14px;
+      padding: 8px 14px;
+      background: #faf9f6;
+      border-left: 3.5px solid #222222;
+      border-radius: 2px;
+      color: #222222;
+      font-size: 0.92rem;
+      font-style: italic;
+    }
+    .ck-doc code {
+      background: #f3f0e8;
+      border: 1px solid #e2ddd3;
+      border-radius: 3px;
+      padding: 1px 6px;
+      font-family: "Latin Modern Mono", Consolas, monospace;
+      font-size: 0.88em;
+    }
+    .ck-doc table, .ck-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.88rem;
+      margin: 14px 0;
+      background: #ffffff;
+      border-top: 2px solid #222222;
+      border-bottom: 2px solid #222222;
+    }
+    .ck-doc table th, .ck-doc table td, .ck-table th, .ck-table td {
+      padding: 9px 12px;
+      text-align: left;
+      vertical-align: middle;
+      border-bottom: 1px solid #ede9e1;
+    }
+    .ck-doc table th, .ck-table th {
+      background: #fbfaf7;
+      border-bottom: 1.2px solid #222222;
+      font-weight: 700;
+      color: #111111;
+      letter-spacing: 0.3px;
+    }
+
+    /* Roomy & Spacious Academic Risk Table */
+    .ck-risk-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 18px 0 28px;
+      background: #ffffff;
+      border-top: 2.2px solid #111111;
+      border-bottom: 2.2px solid #111111;
+      font-size: 0.93rem;
+      line-height: 1.72;
+    }
+    .ck-risk-table th {
+      background: #faf8f5;
+      border-bottom: 1.5px solid #111111;
+      padding: 15px 16px;
+      font-weight: 700;
+      color: #111111;
+      letter-spacing: 0.3px;
+      text-align: left;
+      vertical-align: middle;
+    }
+    .ck-risk-table td {
+      padding: 16px 16px;
+      border-bottom: 1px solid #ede8e0;
+      vertical-align: top;
+      color: #1a1a1a;
+      word-break: break-word;
+    }
+    .ck-risk-table tr:nth-child(even) td {
+      background: #fdfcfb;
+    }
+    .ck-risk-table tr:hover td {
+      background: #f6f3eb;
+    }
+
+    /* Review Grid */
+    .ck-review {
+      display: grid;
+      grid-template-columns: minmax(0, 1.35fr) 1px minmax(260px, 0.95fr);
+      border: 1px solid #d4d0c7;
+      border-radius: 4px;
+      overflow: hidden;
+      margin: 14px 0 20px;
+      background: #ffffff;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.03);
+    }
+    .ck-review-left {
+      padding: 22px 26px;
+      background: #ffffff;
+      line-height: 1.75;
+    }
+    .ck-review-rule { background: #dcd8cf; }
+    .ck-review-right {
+      padding: 16px 18px;
+      background: #faf9f6;
+      box-sizing: border-box;
+      display: flex;
+      flex-direction: column;
+    }
+    .ck-ev-list {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    /* Entity Highlight in LaTeX Paper Style */
+    .ck-cite-entity {
+      background: #fff8db;
+      border-bottom: 1.5px solid #b86a04;
+      padding: 1px 4px;
+      border-radius: 2px;
+      cursor: pointer;
+      transition: all 0.18s ease;
+      color: #111111;
+      font-weight: 600;
+    }
+    .ck-cite-entity:hover {
+      background: #ffe58f;
+      color: #000000;
+    }
+    .ck-cite-entity.is-on {
+      background: #ffd54a;
+      border-bottom-color: #0047ab;
+      box-shadow: 0 0 0 2px rgba(0,71,171,0.25);
+    }
+
+    /* Blue Hyperref Citations [1], [2] */
+    .ck-cite-ref {
+      color: #0047ab;
+      font-weight: 600;
+      font-family: "Latin Modern Roman", "Computer Modern Roman", "Times New Roman", serif;
+      text-decoration: none;
+      cursor: pointer;
+      padding: 0 2px;
+      margin: 0 2px;
+      border-radius: 2px;
+      transition: all 0.15s ease;
+      font-size: 0.92em;
+      vertical-align: baseline;
+      user-select: none;
+    }
+    .ck-cite-ref:hover {
+      text-decoration: underline;
+      background: #e8f0fe;
+      color: #003380;
+    }
+    .ck-cite-ref.is-active {
+      background: #d2e3fc;
+      color: #002266;
+      font-weight: 700;
+      box-shadow: 0 0 0 1px #0047ab;
+    }
+
+    /* Right Memory Cards in LaTeX Paper Style */
+    .ck-provenance-head {
+      font-size: 0.82rem;
+      font-weight: 700;
+      color: #222222;
+      margin: 0 0 12px;
+      padding-bottom: 6px;
+      border-bottom: 1px solid #e0dcd4;
+      letter-spacing: 0.3px;
+      text-transform: uppercase;
+    }
+    .ck-ref-icon { color: #0047ab; margin-right: 4px; }
+    .ck-ev {
+      display: block;
+      margin: 0;
+      padding: 10px 12px;
+      border: 1px solid #dedad2;
+      border-left: 3.5px solid #0047ab;
+      border-radius: 2px;
+      background: #ffffff;
+      font-size: 0.82rem;
+      line-height: 1.55;
+      transition: all 0.2s ease;
+      cursor: pointer;
+    }
+    .ck-ev:hover { border-color: #b5b0a5; }
+    .ck-ev.is-on, .ck-ev.is-highlighted {
+      border-color: #0047ab;
+      box-shadow: 0 0 0 2px #0047ab, 0 3px 8px rgba(0,71,171,0.15);
+      background: #f0f5ff;
+    }
+    @keyframes citePulse {
+      0% { background: #dbeafe; box-shadow: 0 0 0 3px #0047ab; }
+      50% { background: #bfdbfe; box-shadow: 0 0 0 4px #0047ab; }
+      100% { background: #f0f5ff; box-shadow: 0 0 0 2px #0047ab; }
+    }
+    .ck-ev-k {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 0.75rem;
+      color: #444444;
+      margin-bottom: 5px;
+      font-weight: 700;
+    }
+    .ck-ev-cite-tag {
+      color: #0047ab;
+      font-weight: 700;
+      font-family: "Latin Modern Roman", serif;
+      text-decoration: none;
+    }
+    .ck-ev-kind-badge {
+      display: inline-block;
+      padding: 1px 6px;
+      border-radius: 2px;
+      font-size: 0.72rem;
+      font-weight: 600;
+      letter-spacing: 0.2px;
+    }
+    .ck-badge-keypoint {
+      border: 1px solid #0047ab;
+      color: #0047ab;
+      background: #f0f5ff;
+    }
+    .ck-badge-note {
+      border: 1px solid #b86a04;
+      color: #b86a04;
+      background: #fff8eb;
+    }
+    .ck-mem-title {
+      font-weight: 700;
+      color: #111111;
+      font-size: 0.88rem;
+      margin-bottom: 6px;
+      line-height: 1.45;
+    }
+    .ck-ev-quote {
+      color: #222222;
+      font-style: normal;
+      font-family: inherit;
+      margin: 4px 0 6px;
+      padding: 0;
+      background: transparent;
+      border: none;
+      line-height: 1.6;
+      font-size: 0.84rem;
+    }
+    .ck-ev-meta { font-size: 0.76rem; color: #666666; margin-top: 6px; }
+    .ck-ev-more {
+      margin-top: 2px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+    .ck-ev-more[open] { margin-top: 4px; }
+    .ck-ev-more summary { margin-bottom: 6px; }
+    .ck-proof-toggle {
+      cursor: pointer;
+      font-size: 0.82rem;
+      color: #0047ab;
+      user-select: none;
+      font-family: inherit;
+      padding: 2px 0;
+    }
+    .ck-proof-toggle:hover { text-decoration: underline; }
+
+    @media(max-width: 860px) {
+      .ck-doc { padding: 22px 18px; }
+      .ck-review { grid-template-columns: 1fr; }
+      .ck-review-rule { display: none; }
+    }
+
+  </style>
+</head>
+<body>
+  <main class="page">
+    <div class="ck-doc">
+      <header class="ck-doc-header">
+        <h1>《大奥》与明史：中日文化差异三人谈</h1>
+      </header>
+      <div class="ck-doc-content">
+        <h1 class="ck-doc-h1">访谈概述</h1><p>本期《锵锵三人行》由窦文涛主持，邀请《明朝那些事儿》作者当年明月与嘉宾马先生，围绕日本历史剧《大奥》与明朝历史展开对谈。节目先讨论《大奥》所反映的日本文化，再转入明史研究难点、朱元璋评价、明朝兴亡经验及明式家具审美等话题，全程以中日文化差异为主线。</p><p>关于日本文化，当年明月认为《大奥》是《大长今》之后更有影响的国外电视剧，其三部曲分别对应中国晚清到清初及明治维新前的时段。马先生指出大奥即后宫，日本话中“奥”指很深的地方；日本天皇是摆设，实际权力在幕府将军，德川家康开创德川幕府后权力集中。马先生强调日本人的极端精神——所有事情做到尽头，战后仅用30年成为世界第二经济强国（以绝对量计算），且是强国中唯一没有资源的国家。当年明月以豆腐厂为例说明日本人的一丝不苟：豆腐规定当天做当天卖，夜里11:45所有人待命，12点整开始干活，到4点多干完上市。日本实行终身雇佣制，但工作效率极高；日本文化强调忠诚，如阿福25岁进大奥当奶妈，65岁去世，40年不处于私心。</p><p>关于明朝历史，当年明月解释自己写明史是因为明史资料最多；历史研究有两个难点，即先秦和明清，明史资料堆得比山高，但一个事件可能有七个不同说法。明朝260多年过程跌宕起伏，如土木堡之变、夺门之变。当年明月推崇朱元璋，因其从乞丐到皇帝，定下明朝规章制度且基本没有太大改动；朱元璋的好友汤和让他参加起义军，他因被告发被迫起义。马先生提到明朝仁宣盛世时间太短不怎么提，晚明时期市民生活特别轻松，想去哪去哪，皇册都不用了；江浙一带工商业兴起，给人当雇工活得很滋润；明末陕西发生大规模灾荒，李自成起义。当年明月引用“我们从历史中得到的唯一教训就是我们从来没有从历史中得到过教训”，强调历史研究需设身处地。</p><p>关于明式家具与审美，马先生解释宋明是典型的汉人政权，文人政权审美较高，满族是异族，对美的判断是表象的；今天凡是外在直观能看到的都卖得非常贵，而100年前晚清到民国初年，值钱的一定是素雅的。马先生提到天启皇帝爱当木匠，干完活拆大盆去卖，卖完还打听卖得怎么样，反映当时社会对家具的重视；明式家具在国际上地位高，不是偶然的。</p><h1 class="ck-doc-h1">访谈详细记录</h1><h2 class="ck-doc-h2">日本历史剧《大奥》与日本文化</h2><ul><li><strong>《大奥》反响</strong>：当年明月认为《大奥》是《大长今》以后更有影响的国外电视剧，马先生与窦文涛均表示认同，认为该剧拍得非常好。</li><li><strong>《大奥》时代背景</strong>：当年明月指出该剧三部曲中，前两部相当于中国晚清到清初时段，第三部在明治维新之前，是一部有跨越性的历史剧。</li><li><strong>大奥释义</strong>：马先生解释大奥即后宫，日本话中“奥”指很深的地方，即屋子最里处，如“深奥”一词仍保留此痕迹。</li><li><strong>日本权力结构</strong>：当年明月指出日本天皇一直是摆设，实际权力掌握在幕府将军手中；德川家康开创德川幕府后，日本所有权力集中在一人手上。</li><li><strong>天皇无实权史实</strong>：当年明月提到曾研究日本战国历史，德川家掌权后天皇想举办活动但没钱，找将军要钱被拒，活动未办成；后来天皇为抗议幕府甚至退位。</li><li><strong>日本极端精神</strong>：马先生认为从《大奥》可看出日本文化从头到尾没变，即一种“极端精神”——所有事情要做到尽头，每个人发自内心地认真。</li><li><strong>战后经济成就</strong>：马先生强调日本战后1945年起用30年成为世界第二经济强国，以绝对量而非人均量计算，且是强国中唯一没有资源的国家，这不是偶然而是必然。</li><li><strong>中日文化差异</strong>：当年明月认为中国文化精神是中庸，讲究融合之道；日本精神恰恰相反，坚持一个原则做到极致，如炮手忘记一切只记得开炮即达最高境界。</li><li><strong>忠诚文化</strong>：马先生认为日本是忠诚文化的典型国家，多次赴日未感受到难过或非礼；窦文涛提到有批评称日本人的忠诚是“家奴”，马先生回应不能用另一标准评判。</li><li><strong>终身雇佣制</strong>：马先生指出日本跳槽率最高，每次跳槽都是社会资源浪费；日本实行终身雇佣制，按经济学原理应导致低效，但日本终身雇佣下工作效率仍极高，是经济学上的奇迹。</li><li><strong>豆腐厂例子</strong>：马先生讲述参观日本最底层豆腐厂经历：豆腐规定当天做当天卖，夜里11:45所有人做好不动手坐着看表，12点整开始干活，到4点多干完上市，期间无人闲聊。</li><li><strong>生存环境与团体规则</strong>：当年明月认为日本没有资源、常火山地震，人对世界有极强求生欲望且悲观，必须融入团体按固定规则做事才能生存。</li><li><strong>聪明人无生存环境</strong>：马先生认为日本社会文化抵制聪明人，耍滑者没有生存环境；举例日本做绳子做到全国第一的人，几年内不赚钱铺市场，最后靠各环节加2%利润赚大钱。</li><li><strong>阿福事例</strong>：马先生以《大奥》中阿福为例说明日本忠诚文化：阿福25岁进大奥当奶妈，65岁去世，40年无论做什么事不处于私心、完全是公心，甚至被伤害的对方都认为她出于公心。</li><li><strong>慢慢来才是最快</strong>：当年明月引用他人观点“慢慢来才是最快的方法”，认为每个人按自己角度做事最节省成本，不会互相抵消，形成合力非常可怕。</li><li><strong>日本人对死亡的态度</strong>：当年明月认为日本人看樱花只看落的那天，因岛国生态环境恶劣，对死亡不是藐视而是有点向往或不惧怕；马先生反驳称日本民族不是藐视生命而是重视，经济危机时很多身家万贯者选择自杀。</li><li><strong>是否愿做日本人</strong>：窦文涛问了解差异后是否愿做日本人，马先生认为每个人在自己文化环境里愿意做，但做不成，文化不允许这种现象生存；当年明月表示很不愿意，因为很多时候像盲从。</li></ul><h2 class="ck-doc-h2">明朝历史与《明朝那些事》</h2><ul><li><strong>写明史原因</strong>：当年明月回应为何写明朝历史：明史资料最多，所以最熟；历史界研究有两个难点，一是先秦（如孙武事迹在《史记》仅一两篇，多为编造），二是明清。</li><li><strong>明史资料矛盾</strong>：当年明月指出明史资料堆得比山高（明实录几千万字、明通鉴、明史记事本末、明会典等），但一个事件可能有七个不同说法，如同罗生门。</li><li><strong>明朝跌宕起伏</strong>：马先生认为明朝260多年过程本身跌宕起伏，几次要死没死，如土木堡之变、夺门之变，皇上被瓦剌军抓走又回来，完全构成现代版电视剧情节。</li><li><strong>推崇朱元璋</strong>：当年明月承认推崇朱元璋，因其从乞丐到皇帝，历史上由最底层人坐上皇位仅此一个；刘邦好歹是村长或乡长，朱元璋是要过饭的人。</li><li><strong>朱元璋定制度</strong>：当年明月指出明朝规章制度由朱元璋定下来，基本上没有太大改动，认为此人了不起。</li><li><strong>英雄史观</strong>：马先生认为人的因素最大，改变时势一定是出现一个人，自认是英雄史观；当年明月以《亮剑》李云龙为例，说明会打仗的人不用看兵书，靠战场积累经验。</li><li><strong>朱元璋被迫起义</strong>：当年明月讲述朱元璋好友汤和让他参加起义军，他在庙里犹豫怕被杀头，后因送信被听到、被人告发，没办法只能去起义。</li><li><strong>历史是发生过的</strong>：当年明月强调历史最重要的是明白它是发生过的、是真的；旁观者觉得一跺脚就去起义好玩，但当时是掉脑袋的风险，站在历史原点前后都看不见。</li><li><strong>明朝经验体现</strong>：马先生认为明朝经验有体现，如仁宣盛世，但时间太短不怎么提；晚明尽管史书说政治黑暗、皇帝不上朝，但老百姓生活很好。</li><li><strong>晚明市民生活</strong>：当年明月指出明末很多真相被掩盖，市民生活特别轻松，想去哪去哪，皇册都不用了；江浙一带工商业兴起，给人当雇工活得很滋润，三言二拍等市民小说出现是温饱思淫欲的娱乐产品。</li><li><strong>明末起义原因</strong>：当年明月指出李自成起义是因为陕西一带发生大规模灾荒，与江南富裕形成对比。</li><li><strong>明末工艺与艺术</strong>：马先生指出明末工艺品变得非常精细，日本派大量工匠来交流学习；吴门画派文征明、唐寅等能画出小桥流水，因生活好心态轻松；到八大山人朱耷时画翻白眼，因对社会愤愤不平。</li><li><strong>历史教训</strong>：当年明月引用“我们从历史中得到的唯一教训就是我们从来没有从历史中得到过教训”，认为历史事件发生时有背景，你不比前人聪明甚至可能更笨，当时情况出现你也得这么办。</li><li><strong>史书是照片</strong>：当年明月比喻史书记载下来的是照片，而古人的生活是录像；你不知道那一幕之前和之后是什么，所以不能套用经验教训，一定要代入。</li><li><strong>明朝有趣之处</strong>：当年明月认为明朝什么都有——宦官专政（魏忠贤）、文官专政（张居正）、皇帝专政（朱元璋），皇帝出去了还能回来、回来了还能做皇帝。</li><li><strong>吴三桂入关</strong>：当年明月指出吴三桂与满清合作入关，除陈圆圆外还有个原因：他认为崇祯死了，入关是为崇祯皇帝复仇；崇祯本可早点跑但不跑。</li><li><strong>北京瘟疫</strong>：当年明月提到1644年明朝灭亡那年，李自成打到京城无人抵抗，因有史料记载北京发生瘟疫“疙瘩瘟”（很可能就是天花）；他曾与老师交流认为明朝亡得蹊跷。</li><li><strong>王朝三百年大限</strong>：马先生认为中国历史王朝300年是大限，逼近300年自己就没了，和人到八九十岁大限将至一样；严格讲超过300年的只有宋朝，因退让大半个国土保证延续，汉朝中间隔断14年，唐朝、明朝、清朝都没超过。</li><li><strong>公司寿命对比</strong>：当年明月以公司作比，世界上公司超过279年的没有几家，而明朝管理几千万人的大摊子。</li></ul><h2 class="ck-doc-h2">明式家具与审美</h2><ul><li><strong>审美差异</strong>：马先生解释宋明是典型汉人政权、文人政权，文人审美较高，对美的判断不是表象的；满族是异族，进来后对美的判断都是表象的。</li><li><strong>审美变迁</strong>：马先生指出今天凡是外在直观能看到的都卖得非常贵，但100年前晚清到民国初年，值钱的一定是素雅的。</li><li><strong>天启皇帝做木匠</strong>：马先生讲述天启皇帝爱当木匠，干完活拆大盆去卖，卖完还打听卖得怎么样，听说卖得很好成就感特大；这从侧面反映当时社会时尚，家具在每个人心里地位高。</li><li><strong>明式家具地位</strong>：马先生认为明式家具在国际上地位高绝非偶然，皇帝能下那么大力气去做，可见影响之深；所有偶然中一定有个必然因素。</li><li><strong>正德皇帝翻案</strong>：当年明月认为正德皇帝被写坏，因接班的嘉靖是其堂兄弟而非儿子，明武宗实录由嘉靖指派杨廷和等人编修，有偏颇；正德从江南回来在通州先停半年，派人打探京城有无埋伏，说明其有城府。</li><li><strong>正德皇帝无后</strong>：马先生指出正德是明朝最荒淫的皇帝（清朝最荒淫的是咸丰），但咸丰留了种，正德没少找女人却不留种，没有正宗传下来，到嘉靖拐了弯。</li><li><strong>正德出宫</strong>：马先生认为正德对宫内女人没兴趣，因女人被训练过、禁忌多太保守；出宫找民女，民女不知他是皇帝，家花不如野花香。</li><li><strong>正德下江南受阻</strong>：当年明月讲述明武宗要去江南，大臣跪金水桥前抗议，皇帝气坏到锦衣卫打死了十几个人；到扬州要东西没有，有也不给，皇帝只好回去，还让人准备酒席折合银两带回去。</li></ul><h1 class="ck-doc-h1">关键引语与金句</h1><div class="ck-quote">日本战后以后呢，他用30年的时间成为世界第二经济强国，他不是一个偶然，他是一个必然，不是偶然的，就是他全民族的这种极端精神，是一个国家在战后这样一个不利的局面下，只需要30年的时间，他进入世界第二经济强国，是以绝对量，不是人均量，绝对量，他是一个世界上这个强国里唯一没有资源的国家。</div><div class="ck-quote">中国的文化精神是中庸……讲究这个世界上有一种道啊，不是对也不是错，不是黑也不是白啊，不是真理。也不是谬误，就是太极。但是这条路可以走得通，叫融合。</div><div class="ck-quote">日本的精神就恰恰相反，他坚持一个原则……当他忘记所有的事情，只记得把这一炮开出去，他就达到了他的最高境界。</div><div class="ck-quote">我们从历史中得到的唯一教训就是我们从来没有从历史中得到过教训。</div><div class="ck-quote">历史。他那个事儿发生的时候是有背景的……当你要明白你不比前人聪明，你甚对你甚至可能比前人笨，就是当那种情况出现的时候，你也得这么办，甚至还不如前人。</div><div class="ck-quote">我们史书上记载下来是什么？照片……而我们实际上我们的生活古人的生活都是录像，就咱们都是活了这么多年，一直往这往下面走，但是在史书上下来的只是一个照片咔嚓，但你不知道为那一幕之前和之后是什么。</div><div class="ck-quote">慢慢来才是最快的方法。</div><div class="ck-quote">一个人到战场上死死生生多少年啊，没写没没死，最后积累下来经验啊。然后我一上战场我就知道，唉敌人会往哪走，我该怎么打。</div>
+      </div>
+    </div>
+  </main>
+</body>
+</html>
