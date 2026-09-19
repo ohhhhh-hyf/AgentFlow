@@ -46,8 +46,8 @@ SCALAR_BASELINE_BY_DIR: dict[str, dict[str, int]] = {
     # court_transcript / hiring_report / project_progress 另有"表格栏说明"行（紧跟表格的
     # `[按下表逐行填写…]`）不计入字段——它们没有正文位，明细由表格承载（见 test_table_caption_*）。
     "template_v3": {
-        "class_transcript": 4, "clinical_advisory": 5, "contract_vetting": 4,
-        "conversation_transcript": 5, "court_transcript": 3, "debate_forum": 4,
+        "class_transcript": 4, "clinical_advisory": 6, "contract_vetting": 4,
+        "conversation_transcript": 5, "court_transcript": 3, "debate_forum": 5,
         "decision_review": 4, "exchange_forum": 5, "general_minutes": 3,
         "government_bulletin": 3, "group_seminar": 4, "hiring_report": 3,
         "home_school_liaison": 4, "interview_debrief": 4, "interview_transcript": 3,
@@ -56,7 +56,7 @@ SCALAR_BASELINE_BY_DIR: dict[str, dict[str, int]] = {
         "admission_briefing": 5,
         "project_progress": 2, "psychological_session": 3, "research_dialogue": 3,
         "retrospective_session": 5, "site_visit_tour": 4, "special_lecture": 4,
-        "team_meeting": 3, "workshop_session": 4,
+        "team_meeting": 5, "workshop_session": 4,
     },
 }
 
@@ -445,8 +445,8 @@ FILL_RULE_KEYS = (
 
 TEMPLATE_SHAPE_SNIPPETS = {
     "retrospective_session": "不要每条都补「责任人无，时间无」",
-    "hiring_report": "本栏明细由下表承载",
-    "hiring_report#维度": "岗位匹配度、问题解决能力、思维逻辑性、应变能力",
+    "hiring_report": "不自行给候选人评分、评级或下结论",
+    "hiring_report#首栏": "低于 200 字说明三项没交代清",
     "media_briefing": "**一条一个主题**——同一文件、同一板块、同一口径的多项指标或举措**合并成一条**",
     "site_visit_tour": "都要汇总到这里",
     "knowledge_memo": "不要再以同名",
@@ -1070,6 +1070,13 @@ def test_knowledge_memo_groups() -> None:
         check(f"知识笔记：含「{need}」", need in text, "")
     check("知识笔记：仍保留输出契约的栏名 [核心结论]",
           "# [核心结论]" in text, "")
+    # 2026-09-19 now.xlsx 行13 实测：全篇 900 汉字（低于下限 1080），概念栏里出现
+    # 「笔记中内容较多，未详细展开」这类模型自我省略。
+    check("知识笔记：概述栏给尺寸 250–350（含下限口径）",
+          "约 250–350 字" in text and "低于 250 字说明三项没交代清" in text, "")
+    check("知识笔记：每个概念 2–4 条（定义/步骤/评点）+ 禁止自我省略说明",
+          "每个概念 2–4 条" in text and "不得写「未详细展开」" in text
+          and "篇幅所限" in text, "")
 
 
 def test_clinical_history_column() -> None:
@@ -1105,6 +1112,38 @@ def test_clinical_history_column() -> None:
           and "原文没有任何药品信息时整表只写一行「未提及」" in text, "")
     check("就医咨询：缺省禁令已收窄到单元格级（旧「原文没写的项不写」已清除）",
           "原文没写的项**不写**" not in text and "不逐格标「未明确」" in text, "")
+    # 新增承载位（2026-09-19 now.xlsx 行16/23/26）：三单全篇 575–776 汉字（下限 1080），
+    # 医生"怎么解释、为什么不那样治、患者怎么决定"这类内容散落在各栏或直接丢。
+    check("就医咨询：新增 [病情说明与沟通]（医生解释 + 方案理由 + 患者决定）",
+          "# [病情说明与沟通]" in text and "医生对病情与检查结果的解释" in text
+          and "为什么这样治、为什么不那样治" in text
+          and "同意 / 暂缓 / 由患者自行决定" in text, "")
+    check("就医咨询：病情说明栏写明与其它栏的分工（不重复病史/检查/用药）",
+          "医生问诊时采集的病史归 [病史与背景]" in text
+          and "本栏只写\"说明与沟通本身\"、不重复" in text, "")
+    check("就医咨询：requirement 覆盖医生说明与沟通",
+          "医生说明与沟通" in text, "")
+    # 2026-09-19 now.xlsx 行16/23/26 实测：三单 575–776 汉字（下限 1080）、概况仅 62–140 字。
+    # 每栏补尺寸；并明确"症状与病史的描述本身就是核心事实，不得当过程铺陈压缩"。
+    from tools.templates.template_eval import parse_section_char_budgets
+
+    got = [(b["title"], b["lo"], b["hi"]) for b in parse_section_char_budgets(text)]
+    check("就医咨询：五栏都有尺寸口径（概况 200–350 / 病史 250–450 / …）",
+          ("就诊概况", 200, 350) in got and ("病史与背景", 250, 450) in got
+          and ("诊断与检查结果", 150, 300) in got
+          and ("病情说明与沟通", 150, 300) in got
+          and ("复诊与预警信号", 80, 200) in got, f"{got}")
+    check("就医咨询：概况栏要素密度（主诉照原文写全 + 初步判断写法）",
+          "核心主诉照原文写全" in text and "一段写完，约 200–350 字" in text, "")
+    check("就医咨询：症状叙述不算过程铺陈、不得压缩",
+          "症状与病史的描述本身就是核心事实" in text
+          and "不得当成「过程铺陈」压缩成一句" in text, "")
+    check("就医咨询：各栏不再硬要原文没有的项（按实际出现立条 / 有哪几类写哪几类）",
+          "按原文实际出现的内容立条" in text
+          and "有哪几类写哪几类，没有的类别不立条" in text, "")
+    check("就医咨询：复诊栏条件化（原文给了安排才写）+ 观察项落点",
+          "原文给了复诊/随访安排才写复诊时间" in text
+          and "需要观察的变化" in text, "")
 
 
 def test_overview_specs_have_scope() -> None:
@@ -1143,6 +1182,30 @@ def test_overview_specs_have_scope() -> None:
           "并列的多个任务各占一条" in team and "缩进子条" in team, "")
     check("团队例会：[协作需求] 声明去重口径（不复述进展 + 跨人依赖一条不落）",
           "已在 [工作进展] 写过的进展不复述" in team and "跨人依赖一条不落" in team, "")
+    # 新增承载位（2026-09-19 now.xlsx 行22）：例会只有 进展/协作 两栏，决定、待办与未决
+    # 全挤进 [工作进展]（15 条里混着"下周去洛阳"“招聘20位师傅”“方向可能偏了”）→ 一栏流水账。
+    check("团队例会：新增 [决定与待办]（决议 + 行动项：谁/何时前/做什么）",
+          "# [决定与待办]" in team and "谁、何时前、做什么" in team
+          and "已在 [工作进展] 条目里写过的" in team, "")
+    check("团队例会：新增 [待确认与风险]（未决/分歧/阻塞延期 + 不替团队预判）",
+          "# [待确认与风险]" in team and "尚未议定或需要再确认的事项" in team
+          and "不替团队预判" in team, "")
+    check("团队例会：[工作进展] 声明栏间分工（进展 vs 决定与待办不重复）",
+          "本栏只写\"已经做了什么、到什么程度\"" in team and "归 [决定与待办]，两栏不重复" in team, "")
+    check("团队例会：requirement 覆盖新栏（决议与待办 / 待确认事项）",
+          "决议与待办事项" in team and "待确认事项" in team, "")
+    # 尺寸口径（2026-09-19 now.xlsx 行22：全篇 1090，工作进展只有 530 且 15 条平铺）
+    check("团队例会：工作进展给尺寸与分组（500–900 字 / 每组 2–5 条 / 不写同名标题）",
+          "约 500–900 字" in team and "每组 2–5 条" in team
+          and "不要在栏内再写一个与栏名同名的" in team, "")
+    check("团队例会：协作需求与两个新栏都有尺寸",
+          "约 150–300 字" in team and "约 150–350 字" in team and "约 100–250 字" in team, "")
+    from tools.templates.template_eval import parse_section_char_budgets as _pscb
+
+    tm_budgets = [(b["title"], b["hi"]) for b in _pscb(team)]
+    check("团队例会：五栏尺寸都被解析（概况 400 / 进展 900 / 决定 350 / 协作 300 / 未决 250）",
+          tm_budgets == [("例会概况", 400), ("工作进展", 900), ("决定与待办", 350),
+                         ("协作需求", 300), ("待确认与风险", 250)], f"{tm_budgets}")
     check("辩论会：结辩栏分三条写",
           "**正方结辩**" in debate and "**反方结辩**" in debate and "**评委点评**" in debate, "")
     check("辩论会：结辩栏给每条尺寸", "每条 60–150 字" in debate, "")
@@ -1167,8 +1230,19 @@ def test_debate_rounds_and_rows() -> None:
           "判不准就写「一方」" in debate, "")
     check("辩论会：每个交锋点尽量带原话引用（可只引不署名）",
           "每个交锋点尽量带 1 句原文引用" in debate and "只引原话、不署名" in debate, "")
-    check("辩论会：论点表改为「同一方多个论点各自成行」",
-          "各自成行" in debate and "不要压成一行" in debate and "（一行一方）" not in debate, "")
+    check("辩论会：论点表行数＝论点数（样例行示范一方多行）",
+          "行数＝论点数" in debate and "每方通常 2–4 行" in debate
+          and "不要一方一行" in debate and "（一行一方）" not in debate
+          and debate.count("| 正方 |") >= 2, "")
+    # 新增承载位（2026-09-19 now.xlsx 行25）：一场 10284 汉字的辩论只出 956 汉字（低于下限
+    # 1680）——现有四栏全是"按论点/按环节"维度，缺"按议题"的分歧归纳，质询与总结也无落点。
+    check("辩论会：新增 [争议焦点]（按议题归纳双方分歧）",
+          "# [争议焦点]" in debate and "按**议题**归纳双方真正的分歧" in debate
+          and "3–5 条，原文出现过的焦点都要有" in debate, "")
+    check("辩论会：争议焦点只归纳立场不做输赢判断、且不与论点表逐字重复",
+          "不做输赢、高下" in debate and "不要与 [核心论点] 的表述逐字重复" in debate, "")
+    check("辩论会：requirement 覆盖争议焦点",
+          "核心争议焦点" in debate, "")
     check("辩论会：概述栏的反向引用已改名",
           "[核心论点] / [环节交锋]" in debate, "")
 
@@ -1205,6 +1279,14 @@ def test_exchange_forum_structure() -> None:
           "缺的项不写，不要逐项标「待定」" in text, "")
     check("沟通交流会：首栏加边界（不展开明细）+ 尺寸 250–400",
           "不展开发言明细与数字清单" in text and "约 250–400 字" in text, "")
+    # 2026-09-19 now.xlsx 行2 实测：首栏 1258 汉字（3 倍超限）——把宣讲的沿革/人数/经费
+    # 全搬进概况，与 [核心信息与数据] 串栏。加的是"禁止清单 + 自删"而不是新栏。
+    check("沟通交流会：首栏禁止统计数字与专名清单（含反例与自检）",
+          "本栏不出现成串的统计数字与专名清单" in text
+          and "本科生 1545 人" in text
+          and "出现 3 个以上数字就说明串栏了" in text, "")
+    check("沟通交流会：首栏超 400 字要求自删（只删数字/专名/介绍性事实）",
+          "超过 400 字不合格" in text and "只能删数字、专名与介绍性事实" in text, "")
     check("沟通交流会：旧悬空引用已清除（「各方确认的信息」不存在）",
           "各方确认的信息" not in text, "")
     check("沟通交流会：每栏都有缺省词（空栏不成硬伤）",
@@ -2073,14 +2155,33 @@ def test_long_generation_output_cap() -> None:
           output_token_cap(12000) == 6600, f"{output_token_cap(12000)}")
     check("无预算的短原文给中性目标 4000", target_han(None, "") == 4000, "")
 
+    # 模板说明里的「短语 20 字内」曾被解析成 hi=20 的小节上限（讲座 [核心观点与论证]，
+    # 2026-09-19 实测）：每跑一次都报软提示，且该栏一旦出现散文段会被切成 20 字碎块。
+    # 这里钉住"不存在可疑的小节预算"（正常栏级尺寸都在 80 字以上），防止同类写法再犯。
+    from tools.templates.template_eval import parse_section_char_budgets as _psb
+
+    suspicious = []
+    for md in sorted(_active_dir().glob("*.md")):
+        for b in _psb(md.read_text(encoding="utf-8")):
+            if (b.get("hi") or 10**9) < 80:
+                suspicious.append((md.stem, b["title"], b["hi"]))
+    check("没有 <80 字的「可疑小节预算」（数字+字 的说明性写法已清除）",
+          not suspicious, f"{suspicious}")
+
     placeholder_src = Path("tools/template_router/_placeholder.py").read_text(encoding="utf-8")
     check("装配：max_tokens 来自目标字数换算并写进两个路径",
           "max_tokens=cap" in placeholder_src
           and "output_token_cap(source_han, template)" in placeholder_src, "")
     render_src = Path("tools/runtime/render.py").read_text(encoding="utf-8")
     check("渲染/压缩/展开/返工四处都经 _render_run 带上限",
-          render_src.count("_render_run(") >= 4
+          render_src.count("_render_run(") >= 5
           and "source_han=_doc_han(state)" in render_src, "")
+    # 装配路径的下限兑现（2026-09-19 实测：55 次运行全走 assemble，"低于下限" 6 次静默通过）
+    check("装配路径补一轮「低于下限 15% → 扩写」（无硬伤且更长才采用）",
+          'fill_mode == "assemble"' in render_src
+          and "assemble too short" in render_src
+          and "han < int(lo_i * 0.85)" in render_src
+          and "_EXPAND_REVISION.format(han=han, lo=lo_i, hi=hi_i)" in render_src, "")
     minutes_src = Path(
         "domain/meeting/tasks/minutes/steps/minutes_render.py"
     ).read_text(encoding="utf-8")
@@ -2386,8 +2487,8 @@ def test_lecture_evidence_cap() -> None:
 
     text = (_active_dir() / "special_lecture.md").read_text(encoding="utf-8")
     spec = next(l for l in text.splitlines() if "两级结构" in l and "## 论点" in l)
-    check("讲座：两级结构 + 论点标题短语化（20 字内）",
-          "两级结构" in spec and "20 字内" in spec, spec[:80])
+    check("讲座：两级结构 + 论点标题短语化（20 个汉字内，不写成会解析成预算的「20 字」）",
+          "两级结构" in spec and "20 个汉字内" in spec and "20 字内" not in spec, spec[:80])
     check("讲座：同一论点优先 3–4 条，关键论据超出时继续保留",
           "同一论点优先用 3–4 条" in spec and "关键论据超过 4 项时继续逐条保留" in spec, spec[:80])
     check("讲座：直接数据/典型事例优先、重复表达可合并",
@@ -2499,10 +2600,13 @@ def test_subjective_judgment_guardrails() -> None:
           "原文明示获胜方时才标注" in deb and "未明示不写" in deb, "")
 
     hir = (d / "hiring_report.md").read_text(encoding="utf-8")
-    check("面试：面试官未给评价时写「未评」，不自行打分",
-          "面试官原文明示的评价照录" in hir and "不自行打分" in hir, "")
-    check("面试：风险点只写原文表达过的顾虑（不代面试官预判）",
-          "只写**面试官或候选人原文表达过的**顾虑与改进点" in hir
+    check("面试：[能力评估] 栏与评级表整体移除（不自行评价/打分/评级）",
+          "# [能力评估]" not in hir and "推荐评级" not in hir
+          and "| 评估维度 |" not in hir
+          and "不自行评价、打分或评级" in hir
+          and "不自行给候选人评分、评级或下结论" in hir, "")
+    check("面试：亮点/风险/建议三条都只写原文表达过的（不代面试官预判）",
+          "三条都只写面试官或候选人原文表达过的内容" in hir
           and "不代面试官预判风险" in hir, "")
 
     # 完整性总原则：课堂/讲座 requirement 明确取舍边界
@@ -2579,11 +2683,14 @@ def test_media_briefing_evidence_and_depth() -> None:
     check("官方表态：与提问对应的回应归 Q&A，同一内容不两栏都写",
           "Q&A环节" in stance and "同一内容不要两栏都写" in stance, "")
 
-    # 预算守卫：说明里的裸「数字+字」会被解析成节级上限（parser 接受 `\d+\s*字`），
-    # 这两栏故意不声明字数——一旦写进去就变成"40 字上限"式误判并触发整篇返工。
+    # 预算守卫：说明里的裸「数字+字」会被解析成节级上限（parser 接受 `\d+\s*字`）。
+    # Q&A 栏故意不声明字数（一旦写进去就变成"40 字上限"式误判并触发整篇返工）；
+    # [官方表态] 的 800 是 2026-09-19 有意加的**栏级天花板**（now.xlsx 行8 实测 1174 汉字），
+    # 该栏是 `- ` 分点行、不是散文段，超限只记 advisory、不会被拆段。
     got = [(s["title"], s["hi"], s["scope"]) for s in parse_section_char_budgets(text)]
-    check("新闻发布：仍只有 概况/Q&A 两条预算（说明里的数字未被误解析）",
-          got == [("发布会概况", 400, "section"), ("Q&A环节", 400, "paragraph")], f"{got}")
+    check("新闻发布：预算仍是 概况 400 / 官方表态 800 / Q&A 400 三条（无杂散解析）",
+          got == [("发布会概况", 400, "section"), ("官方表态", 800, "section"),
+                  ("Q&A环节", 400, "paragraph")], f"{got}")
 
 
 def test_understanding_speakers_field() -> None:
@@ -2800,13 +2907,21 @@ def test_domain_specific_accuracy_rules() -> None:
 
     court = (d / "court_transcript.md").read_text(encoding="utf-8")
     for need in (
-        "当事人主张、代理人意见、证人陈述、鉴定意见与法院查明/认定必须分别标明来源",
+        "当事人主张、代理人意见、证人陈述、鉴定意见、其他来源陈述与法院查明/认定必须分别标明来源",
         "不得把任何一方陈述改写成客观事实或法院结论",
         "证据内容不等于法院已采信事实",
         "只有原文明示的法院查明、认定、裁定、判决",
         "尚未裁判",
     ):
         check(f"庭审记录：含事实归属规则「{need}」", need in court, "")
+    # 2026-09-19 now.xlsx 行6 实测：该场没有证人/鉴定，[举证与法庭调查] 里出现
+    # `## 证人/鉴定陈述` → 「未提及」的空标题；部分名也太窄，第三方材料无处安放。
+    check("庭审记录：第三方陈述部分改为通用口径（证人、鉴定与其他来源陈述）",
+          "## 证人、鉴定与其他来源陈述" in court
+          and "凡不是当事人/代理人自己作出的陈述都归这里" in court
+          and "## 证人/鉴定陈述" not in court, "")
+    check("庭审记录：没有记载的部分整段不出现（不再逐部分写「未提及」）",
+          "没有记载的部分整段不出现" in court and "四个部分都没有才写「未提及」" in court, "")
     understanding = Path("domain/meeting/meeting_core/prompts.py").read_text(encoding="utf-8")
     check("会议理解：有立场的陈述必须保留归属，不升级成事实",
           "陈述归属不得丢" in understanding and "不得把一方说法改写成客观事实" in understanding
