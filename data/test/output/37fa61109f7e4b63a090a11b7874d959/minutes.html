@@ -1,0 +1,372 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>约定俗成规则与机器人发展讨论</title>
+  <style>
+
+    body {
+      margin: 0;
+      padding: 32px 16px;
+      background: #f6f5f0;
+      color: #1a1a1a;
+      font-family: "Latin Modern Roman", "Computer Modern Roman", "CMU Serif", "Times New Roman", Times, "Songti SC", "SimSun", "STSong", serif;
+      -webkit-font-smoothing: antialiased;
+    }
+    .page { max-width: 1140px; margin: 0 auto; }
+    .ck-doc {
+      background: #ffffff;
+      border: 1px solid #d4d0c7;
+      border-radius: 4px;
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.05), 0 1px 3px rgba(0,0,0,0.03);
+      padding: 36px 44px;
+      line-height: 1.75;
+      font-size: 0.96rem;
+    }
+    .ck-doc h1 {
+      margin: 0 0 10px;
+      font-size: 1.85rem;
+      font-weight: 700;
+      letter-spacing: 0.4px;
+      text-align: center;
+      font-variant: small-caps;
+      color: #111111;
+    }
+    .ck-doc-header {
+      margin-bottom: 24px;
+      padding-bottom: 16px;
+      border-bottom: 2px solid #111111;
+      text-align: center;
+    }
+    .ck-doc-meta {
+      font-size: 0.85rem;
+      color: #555555;
+      font-style: italic;
+    }
+    .ck-doc-content h1, .ck-doc-content .ck-doc-h1 {
+      margin: 28px 0 14px;
+      font-size: 1.32rem;
+      font-weight: 700;
+      color: #111111;
+      border-bottom: 1.5px solid #222222;
+      padding-bottom: 5px;
+      text-align: left;
+      font-variant: normal;
+      letter-spacing: 0.3px;
+    }
+    .ck-doc h2, .ck-doc-h2 {
+      margin: 28px 0 14px;
+      font-size: 1.22rem;
+      font-weight: 700;
+      color: #111111;
+      border-bottom: 1.5px solid #222222;
+      padding-bottom: 5px;
+      letter-spacing: 0.3px;
+    }
+    .ck-doc h3, .ck-doc-h3 {
+      margin: 20px 0 10px;
+      font-size: 1.05rem;
+      font-weight: 700;
+      color: #222222;
+    }
+    .ck-doc h4, .ck-doc-h4 {
+      margin: 16px 0 8px;
+      font-size: 0.98rem;
+      font-weight: 700;
+      color: #333333;
+    }
+    .ck-doc p {
+      margin: 10px 0;
+      line-height: 1.75;
+      text-align: justify;
+    }
+    .ck-doc ul, .ck-doc ol {
+      margin: 8px 0 12px;
+      padding-left: 1.5em;
+      line-height: 1.72;
+    }
+    .ck-doc li {
+      margin: 4px 0;
+    }
+    .ck-doc blockquote, .ck-quote {
+      margin: 10px 0 14px;
+      padding: 8px 14px;
+      background: #faf9f6;
+      border-left: 3.5px solid #222222;
+      border-radius: 2px;
+      color: #222222;
+      font-size: 0.92rem;
+      font-style: italic;
+    }
+    .ck-doc code {
+      background: #f3f0e8;
+      border: 1px solid #e2ddd3;
+      border-radius: 3px;
+      padding: 1px 6px;
+      font-family: "Latin Modern Mono", Consolas, monospace;
+      font-size: 0.88em;
+    }
+    .ck-doc table, .ck-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.88rem;
+      margin: 14px 0;
+      background: #ffffff;
+      border-top: 2px solid #222222;
+      border-bottom: 2px solid #222222;
+    }
+    .ck-doc table th, .ck-doc table td, .ck-table th, .ck-table td {
+      padding: 9px 12px;
+      text-align: left;
+      vertical-align: middle;
+      border-bottom: 1px solid #ede9e1;
+    }
+    .ck-doc table th, .ck-table th {
+      background: #fbfaf7;
+      border-bottom: 1.2px solid #222222;
+      font-weight: 700;
+      color: #111111;
+      letter-spacing: 0.3px;
+    }
+
+    /* Roomy & Spacious Academic Risk Table */
+    .ck-risk-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 18px 0 28px;
+      background: #ffffff;
+      border-top: 2.2px solid #111111;
+      border-bottom: 2.2px solid #111111;
+      font-size: 0.93rem;
+      line-height: 1.72;
+    }
+    .ck-risk-table th {
+      background: #faf8f5;
+      border-bottom: 1.5px solid #111111;
+      padding: 15px 16px;
+      font-weight: 700;
+      color: #111111;
+      letter-spacing: 0.3px;
+      text-align: left;
+      vertical-align: middle;
+    }
+    .ck-risk-table td {
+      padding: 16px 16px;
+      border-bottom: 1px solid #ede8e0;
+      vertical-align: top;
+      color: #1a1a1a;
+      word-break: break-word;
+    }
+    .ck-risk-table tr:nth-child(even) td {
+      background: #fdfcfb;
+    }
+    .ck-risk-table tr:hover td {
+      background: #f6f3eb;
+    }
+
+    /* Review Grid */
+    .ck-review {
+      display: grid;
+      grid-template-columns: minmax(0, 1.35fr) 1px minmax(260px, 0.95fr);
+      border: 1px solid #d4d0c7;
+      border-radius: 4px;
+      overflow: hidden;
+      margin: 14px 0 20px;
+      background: #ffffff;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.03);
+    }
+    .ck-review-left {
+      padding: 22px 26px;
+      background: #ffffff;
+      line-height: 1.75;
+    }
+    .ck-review-rule { background: #dcd8cf; }
+    .ck-review-right {
+      padding: 16px 18px;
+      background: #faf9f6;
+      box-sizing: border-box;
+      display: flex;
+      flex-direction: column;
+    }
+    .ck-ev-list {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    /* Entity Highlight in LaTeX Paper Style */
+    .ck-cite-entity {
+      background: #fff8db;
+      border-bottom: 1.5px solid #b86a04;
+      padding: 1px 4px;
+      border-radius: 2px;
+      cursor: pointer;
+      transition: all 0.18s ease;
+      color: #111111;
+      font-weight: 600;
+    }
+    .ck-cite-entity:hover {
+      background: #ffe58f;
+      color: #000000;
+    }
+    .ck-cite-entity.is-on {
+      background: #ffd54a;
+      border-bottom-color: #0047ab;
+      box-shadow: 0 0 0 2px rgba(0,71,171,0.25);
+    }
+
+    /* Blue Hyperref Citations [1], [2] */
+    .ck-cite-ref {
+      color: #0047ab;
+      font-weight: 600;
+      font-family: "Latin Modern Roman", "Computer Modern Roman", "Times New Roman", serif;
+      text-decoration: none;
+      cursor: pointer;
+      padding: 0 2px;
+      margin: 0 2px;
+      border-radius: 2px;
+      transition: all 0.15s ease;
+      font-size: 0.92em;
+      vertical-align: baseline;
+      user-select: none;
+    }
+    .ck-cite-ref:hover {
+      text-decoration: underline;
+      background: #e8f0fe;
+      color: #003380;
+    }
+    .ck-cite-ref.is-active {
+      background: #d2e3fc;
+      color: #002266;
+      font-weight: 700;
+      box-shadow: 0 0 0 1px #0047ab;
+    }
+
+    /* Right Memory Cards in LaTeX Paper Style */
+    .ck-provenance-head {
+      font-size: 0.82rem;
+      font-weight: 700;
+      color: #222222;
+      margin: 0 0 12px;
+      padding-bottom: 6px;
+      border-bottom: 1px solid #e0dcd4;
+      letter-spacing: 0.3px;
+      text-transform: uppercase;
+    }
+    .ck-ref-icon { color: #0047ab; margin-right: 4px; }
+    .ck-ev {
+      display: block;
+      margin: 0;
+      padding: 10px 12px;
+      border: 1px solid #dedad2;
+      border-left: 3.5px solid #0047ab;
+      border-radius: 2px;
+      background: #ffffff;
+      font-size: 0.82rem;
+      line-height: 1.55;
+      transition: all 0.2s ease;
+      cursor: pointer;
+    }
+    .ck-ev:hover { border-color: #b5b0a5; }
+    .ck-ev.is-on, .ck-ev.is-highlighted {
+      border-color: #0047ab;
+      box-shadow: 0 0 0 2px #0047ab, 0 3px 8px rgba(0,71,171,0.15);
+      background: #f0f5ff;
+    }
+    @keyframes citePulse {
+      0% { background: #dbeafe; box-shadow: 0 0 0 3px #0047ab; }
+      50% { background: #bfdbfe; box-shadow: 0 0 0 4px #0047ab; }
+      100% { background: #f0f5ff; box-shadow: 0 0 0 2px #0047ab; }
+    }
+    .ck-ev-k {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 0.75rem;
+      color: #444444;
+      margin-bottom: 5px;
+      font-weight: 700;
+    }
+    .ck-ev-cite-tag {
+      color: #0047ab;
+      font-weight: 700;
+      font-family: "Latin Modern Roman", serif;
+      text-decoration: none;
+    }
+    .ck-ev-kind-badge {
+      display: inline-block;
+      padding: 1px 6px;
+      border-radius: 2px;
+      font-size: 0.72rem;
+      font-weight: 600;
+      letter-spacing: 0.2px;
+    }
+    .ck-badge-keypoint {
+      border: 1px solid #0047ab;
+      color: #0047ab;
+      background: #f0f5ff;
+    }
+    .ck-badge-note {
+      border: 1px solid #b86a04;
+      color: #b86a04;
+      background: #fff8eb;
+    }
+    .ck-mem-title {
+      font-weight: 700;
+      color: #111111;
+      font-size: 0.88rem;
+      margin-bottom: 6px;
+      line-height: 1.45;
+    }
+    .ck-ev-quote {
+      color: #222222;
+      font-style: normal;
+      font-family: inherit;
+      margin: 4px 0 6px;
+      padding: 0;
+      background: transparent;
+      border: none;
+      line-height: 1.6;
+      font-size: 0.84rem;
+    }
+    .ck-ev-meta { font-size: 0.76rem; color: #666666; margin-top: 6px; }
+    .ck-ev-more {
+      margin-top: 2px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+    .ck-ev-more[open] { margin-top: 4px; }
+    .ck-ev-more summary { margin-bottom: 6px; }
+    .ck-proof-toggle {
+      cursor: pointer;
+      font-size: 0.82rem;
+      color: #0047ab;
+      user-select: none;
+      font-family: inherit;
+      padding: 2px 0;
+    }
+    .ck-proof-toggle:hover { text-decoration: underline; }
+
+    @media(max-width: 860px) {
+      .ck-doc { padding: 22px 18px; }
+      .ck-review { grid-template-columns: 1fr; }
+      .ck-review-rule { display: none; }
+    }
+
+  </style>
+</head>
+<body>
+  <main class="page">
+    <div class="ck-doc">
+      <header class="ck-doc-header">
+        <h1>约定俗成规则与机器人发展讨论</h1>
+      </header>
+      <div class="ck-doc-content">
+        <h1 class="ck-doc-h1">全文摘要</h1><p>这是一场由5位发言人参与的开放式脑暴讨论，围绕生活中约定俗成规则的合理性展开，延伸至理想工作、机器人替代与AI风险等话题。讨论覆盖四个板块：约定俗成规则的合理性（结婚、买房、工作）、理想工作与机器人替代、机器人思想意识与风险、语音分离标注测试。讨论以分享为主，未形成明确结论。关键要点包括：发言人1认为买房、结婚等规则在经济不好时不合理，发言人3认为人必须工作是合理的；发言人3提出应让AI做苦活累活而非创作；发言人2担忧机器人有思想后可能反抗人类，后果灾难性；发言人5认为机器人只需执行命令，不必有思想。最后发言人3提议结束，发言人4、发言人2同意，会议结束。</p><h1 class="ck-doc-h1">分段速览</h1><h2 class="ck-doc-h2">00:00:02-00:01:40 约定俗成规则讨论</h2><p>发言人1提出买房、结婚等生活中约定俗成的规则其实不合理，发言人2补充必须买房、必须结婚生子，发言人3认为不需要这些规则。发言人1指出经济好时可以，经济不好时不可以；发言人2认为主要取决于遇到什么样的人和自身能力，不能说得太绝对。发言人3提出人必须工作是合理的，发言人2认为工作后还要进修、学无止境，工作之后重新回去学习的情况也说不准。发言人1认为工作可能是合理的，但应该做自己想做的，不要跟钱太保密。</p><h2 class="ck-doc-h2">00:01:40-00:04:13 理想工作与机器人替代</h2><p>发言人2询问大家理想状态中的工作是什么样的，发言人1表示每天起来想干啥就干啥、按自己兴趣干活很好，发言人4提出有没有可能不干活更好。发言人3举例宠物博主工作特别好，每天发宠物视频剪剪视频就能赚钱，发言人2补充还有游戏高手。发言人1指出总有些脏活累活大家都不想干、没人承担，发言人2提出以后机器人问世，发言人3认为应该让AI去做苦活累活，而不是让它搞创作、艺术。</p><p>发言人2提到蔡明演的小品中机器人被敲了脑袋后开始反叛，把牛皮制品手表皮鞋煮汤的情节，并询问那样人类幸福感是否会更高。发言人1认为机器人负责生产、人负责享受挺好，但这种规则能否实现存疑；发言人2提出AI普及并普惠到实体后，机器人有了自己的思维，只要人类控制得当，以后人类就不用干苦活累活；发言人1提到上层的人不想让平民过得太好，要保持对普通民众的优势，存在阶级问题。</p><h2 class="ck-doc-h2">00:04:13-00:08:05 机器人思想意识与风险</h2><p>发言人5提到扫地机器人是扫地的，以后发展更好会有能打扫家、做饭的机器人，发言人1说以后养老靠自己。发言人2提出未来机器人有了独立思想意识后开始不受人类控制、搞罢工、反向控制人类，就像终结者里描述的情况，人类成为机器人的奴隶。发言人3提到斯皮尔伯格的人工智能电影也是这个结局，归结到探讨；发言人5认为机器人只要能接受到命令、执行命令就行了，为什么要让它有思想，发言人3认为得有智能但智能和思想可能没法分开，发言人5指出思想可能会带来不好影响。</p><p>发言人2提到机器人成为犯罪代理人、职业杀手、超级战士，独立意识群体罢工后对人类反抗的后果是灾难性的；发言人1提到人把自己改造、给自己安机器，发言人2提到军队用的单兵装甲外骨骼、智能枪械、智能火箭发射器等半机械人状态，发言人3说排雷的机械狗和机械车已经在用。</p><h2 class="ck-doc-h2">00:08:05-00:10:56 数码宝贝讨论与语音分离测试</h2><p>发言人2提到游戏重返德军总部里的超级战士，以及数码宝贝中守卫兽和机械装甲兽进化成安多路兽、有了独立思想意识的情节。发言人4询问守卫兽和安多路兽是哪一部，发言人2说明第一部和第二部都有，并详细讲述第二部最终boss黑暗四天王之一机械邪龙兽是一台精密机械式超级计算机形成生命体，专门为破坏而存在；安多路兽在九几年时通过人脸识别判断出人是谁，第二部第七集主角嘉儿通过记忆和回忆唤醒安多路兽最终记忆。</p><p>发言人3提到语音分离，同时两个人以上说话会有问题，可以测一下；发言人1提到两人一起说话标注怎么样，标注的人得认识声音，发言人5提到身高比较，发言人1说单人麦很强。发言人3提议结束，发言人4、发言人2同意，会议结束。</p><h1 class="ck-doc-h1">要点梳理</h1><h2 class="ck-doc-h2">生活中约定俗成规则的合理性</h2><ul><li><strong>发言人1</strong>：买房、结婚等规则不合理，经济好时可以，经济不好时不可以。</li><li><strong>发言人2</strong>：补充必须买房、必须结婚生子；认为取决于遇到的人和自身能力，不能太绝对。</li><li><strong>发言人3</strong>：认为不需要这些规则；但提出人必须工作是合理的。</li><li><strong>发言人2</strong>：工作后还需重新学习、进修，学无止境，活到老学到老。</li><li><strong>发言人1</strong>：工作合理，但应做自己想做的，不要与钱太保密。</li></ul><h2 class="ck-doc-h2">理想工作与机器人替代</h2><ul><li><strong>发言人1</strong>：理想工作是每天起来想干啥就干啥，按自己兴趣干活。</li><li><strong>发言人4</strong>：提出有没有可能不干活更好。</li><li><strong>发言人3</strong>：举例宠物博主工作好，每天发宠物视频、剪视频就能赚钱。</li><li><strong>发言人2</strong>：补充游戏高手也是理想工作类型。</li><li><strong>发言人1</strong>：指出总有些脏活累活没人想干，无人承担。</li><li><strong>发言人2</strong>：提出以后机器人问世可承担苦活累活。</li><li><strong>发言人3</strong>：认为应让AI做苦活累活，而不是搞创作、艺术。</li><li><strong>发言人2</strong>：提到蔡明小品中机器人被敲脑袋后反叛，把牛皮制品煮汤的情节。</li><li><strong>发言人1</strong>：认为机器人负责生产、人负责享受挺好，但该规则能否实现存疑。</li><li><strong>发言人2</strong>：认为AI普及并普惠到实体后，机器人有自己思维，人类控制得当则可能实现。</li><li><strong>发言人1</strong>：指出上层人不想让平民过得太好，要保持对普通民众的优势，存在阶级问题。</li></ul><h2 class="ck-doc-h2">机器人思想意识与风险</h2><ul><li><strong>发言人5</strong>：提到扫地机器人用于扫地，未来可发展出在家打扫、做饭的机器人。</li><li><strong>发言人1</strong>：认为以后养老靠自己。</li><li><strong>发言人2</strong>：提出机器人有独立思想后可能不受控制、搞罢工、反向控制人类，如《终结者》剧情。</li><li><strong>发言人3</strong>：提到斯皮尔伯格《人工智能》电影结局也是机器人归结于探讨。</li><li><strong>发言人5</strong>：认为机器人只要能接受到命令、执行命令即可，不必有思想。</li><li><strong>发言人3</strong>：认为机器人得有智能，但智能和思想可能没法分开。</li><li><strong>发言人5</strong>：指出思想可能带来不良影响，如让机器人往前走它却去打人。</li><li><strong>发言人2</strong>：提到机器人可能成为犯罪代理人、职业杀手、超级战士，罢工反抗后果灾难性。</li><li><strong>发言人1</strong>：提到人改造自己、给自己安机器的情形。</li><li><strong>发言人2</strong>：提到军队单兵装甲外骨骼、智能枪械、智能火箭发射器等半机械人状态，列装普及后或不需要单兵轻武器。</li><li><strong>发言人3</strong>：确认排雷机械狗和机械车已在用。</li><li><strong>发言人2</strong>：提到《重返德军总部》超级战士、《数码宝贝》守卫兽和机械装甲兽进化成安多路兽、机械邪龙兽等机器人有思想意识的角色。</li><li><strong>发言人2</strong>：提到《数码宝贝》第二部第七集安多路兽被黑色魔轮控制后仍能通过人脸识别判断人，主角嘉儿用记忆唤醒它。</li></ul><h2 class="ck-doc-h2">语音分离标注测试</h2><ul><li><strong>发言人3</strong>：提到语音分离，同时两人以上说话需要测试。</li><li><strong>发言人1</strong>：提到两人一起说话时标注，标注人需认识声音。</li><li><strong>发言人1</strong>：认为单人的麦很强，应该是单的。</li><li><strong>发言人3</strong>：提议结束，发言人4、发言人2同意，会议结束。</li></ul><h2 class="ck-doc-h2">待确认与风险</h2><ul><li><strong>机器人有思想后是否会反抗人类</strong>：发言人2提出如《终结者》剧情，机器人有独立思想后不甘被压迫、奋而反抗并奴役人类；发言人3认为机器人会不会把自己当成被压迫对象是哲学问题。</li><li><strong>机器人是否需要有思想</strong>：发言人5认为只需执行命令即可，发言人3认为智能和思想无法分开，发言人5指出思想可能带来不良影响。</li><li><strong>机器人负责生产、人享受的规则能否实现</strong>：发言人1认为挺好但存疑，发言人2认为人类控制得当则可能实现。</li><li><strong>上层人是否会保持对普通民众的优势</strong>：发言人1指出上层人不想让平民过得太好，存在阶级问题。</li><li><strong>机器人风险</strong>：可能成为犯罪代理人、职业杀手、超级战士，罢工反抗后果灾难性。</li></ul>
+      </div>
+    </div>
+  </main>
+</body>
+</html>

@@ -1,0 +1,372 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>哥斯拉系列电影剧情与核废水主题讨论</title>
+  <style>
+
+    body {
+      margin: 0;
+      padding: 32px 16px;
+      background: #f6f5f0;
+      color: #1a1a1a;
+      font-family: "Latin Modern Roman", "Computer Modern Roman", "CMU Serif", "Times New Roman", Times, "Songti SC", "SimSun", "STSong", serif;
+      -webkit-font-smoothing: antialiased;
+    }
+    .page { max-width: 1140px; margin: 0 auto; }
+    .ck-doc {
+      background: #ffffff;
+      border: 1px solid #d4d0c7;
+      border-radius: 4px;
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.05), 0 1px 3px rgba(0,0,0,0.03);
+      padding: 36px 44px;
+      line-height: 1.75;
+      font-size: 0.96rem;
+    }
+    .ck-doc h1 {
+      margin: 0 0 10px;
+      font-size: 1.85rem;
+      font-weight: 700;
+      letter-spacing: 0.4px;
+      text-align: center;
+      font-variant: small-caps;
+      color: #111111;
+    }
+    .ck-doc-header {
+      margin-bottom: 24px;
+      padding-bottom: 16px;
+      border-bottom: 2px solid #111111;
+      text-align: center;
+    }
+    .ck-doc-meta {
+      font-size: 0.85rem;
+      color: #555555;
+      font-style: italic;
+    }
+    .ck-doc-content h1, .ck-doc-content .ck-doc-h1 {
+      margin: 28px 0 14px;
+      font-size: 1.32rem;
+      font-weight: 700;
+      color: #111111;
+      border-bottom: 1.5px solid #222222;
+      padding-bottom: 5px;
+      text-align: left;
+      font-variant: normal;
+      letter-spacing: 0.3px;
+    }
+    .ck-doc h2, .ck-doc-h2 {
+      margin: 28px 0 14px;
+      font-size: 1.22rem;
+      font-weight: 700;
+      color: #111111;
+      border-bottom: 1.5px solid #222222;
+      padding-bottom: 5px;
+      letter-spacing: 0.3px;
+    }
+    .ck-doc h3, .ck-doc-h3 {
+      margin: 20px 0 10px;
+      font-size: 1.05rem;
+      font-weight: 700;
+      color: #222222;
+    }
+    .ck-doc h4, .ck-doc-h4 {
+      margin: 16px 0 8px;
+      font-size: 0.98rem;
+      font-weight: 700;
+      color: #333333;
+    }
+    .ck-doc p {
+      margin: 10px 0;
+      line-height: 1.75;
+      text-align: justify;
+    }
+    .ck-doc ul, .ck-doc ol {
+      margin: 8px 0 12px;
+      padding-left: 1.5em;
+      line-height: 1.72;
+    }
+    .ck-doc li {
+      margin: 4px 0;
+    }
+    .ck-doc blockquote, .ck-quote {
+      margin: 10px 0 14px;
+      padding: 8px 14px;
+      background: #faf9f6;
+      border-left: 3.5px solid #222222;
+      border-radius: 2px;
+      color: #222222;
+      font-size: 0.92rem;
+      font-style: italic;
+    }
+    .ck-doc code {
+      background: #f3f0e8;
+      border: 1px solid #e2ddd3;
+      border-radius: 3px;
+      padding: 1px 6px;
+      font-family: "Latin Modern Mono", Consolas, monospace;
+      font-size: 0.88em;
+    }
+    .ck-doc table, .ck-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.88rem;
+      margin: 14px 0;
+      background: #ffffff;
+      border-top: 2px solid #222222;
+      border-bottom: 2px solid #222222;
+    }
+    .ck-doc table th, .ck-doc table td, .ck-table th, .ck-table td {
+      padding: 9px 12px;
+      text-align: left;
+      vertical-align: middle;
+      border-bottom: 1px solid #ede9e1;
+    }
+    .ck-doc table th, .ck-table th {
+      background: #fbfaf7;
+      border-bottom: 1.2px solid #222222;
+      font-weight: 700;
+      color: #111111;
+      letter-spacing: 0.3px;
+    }
+
+    /* Roomy & Spacious Academic Risk Table */
+    .ck-risk-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 18px 0 28px;
+      background: #ffffff;
+      border-top: 2.2px solid #111111;
+      border-bottom: 2.2px solid #111111;
+      font-size: 0.93rem;
+      line-height: 1.72;
+    }
+    .ck-risk-table th {
+      background: #faf8f5;
+      border-bottom: 1.5px solid #111111;
+      padding: 15px 16px;
+      font-weight: 700;
+      color: #111111;
+      letter-spacing: 0.3px;
+      text-align: left;
+      vertical-align: middle;
+    }
+    .ck-risk-table td {
+      padding: 16px 16px;
+      border-bottom: 1px solid #ede8e0;
+      vertical-align: top;
+      color: #1a1a1a;
+      word-break: break-word;
+    }
+    .ck-risk-table tr:nth-child(even) td {
+      background: #fdfcfb;
+    }
+    .ck-risk-table tr:hover td {
+      background: #f6f3eb;
+    }
+
+    /* Review Grid */
+    .ck-review {
+      display: grid;
+      grid-template-columns: minmax(0, 1.35fr) 1px minmax(260px, 0.95fr);
+      border: 1px solid #d4d0c7;
+      border-radius: 4px;
+      overflow: hidden;
+      margin: 14px 0 20px;
+      background: #ffffff;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.03);
+    }
+    .ck-review-left {
+      padding: 22px 26px;
+      background: #ffffff;
+      line-height: 1.75;
+    }
+    .ck-review-rule { background: #dcd8cf; }
+    .ck-review-right {
+      padding: 16px 18px;
+      background: #faf9f6;
+      box-sizing: border-box;
+      display: flex;
+      flex-direction: column;
+    }
+    .ck-ev-list {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    /* Entity Highlight in LaTeX Paper Style */
+    .ck-cite-entity {
+      background: #fff8db;
+      border-bottom: 1.5px solid #b86a04;
+      padding: 1px 4px;
+      border-radius: 2px;
+      cursor: pointer;
+      transition: all 0.18s ease;
+      color: #111111;
+      font-weight: 600;
+    }
+    .ck-cite-entity:hover {
+      background: #ffe58f;
+      color: #000000;
+    }
+    .ck-cite-entity.is-on {
+      background: #ffd54a;
+      border-bottom-color: #0047ab;
+      box-shadow: 0 0 0 2px rgba(0,71,171,0.25);
+    }
+
+    /* Blue Hyperref Citations [1], [2] */
+    .ck-cite-ref {
+      color: #0047ab;
+      font-weight: 600;
+      font-family: "Latin Modern Roman", "Computer Modern Roman", "Times New Roman", serif;
+      text-decoration: none;
+      cursor: pointer;
+      padding: 0 2px;
+      margin: 0 2px;
+      border-radius: 2px;
+      transition: all 0.15s ease;
+      font-size: 0.92em;
+      vertical-align: baseline;
+      user-select: none;
+    }
+    .ck-cite-ref:hover {
+      text-decoration: underline;
+      background: #e8f0fe;
+      color: #003380;
+    }
+    .ck-cite-ref.is-active {
+      background: #d2e3fc;
+      color: #002266;
+      font-weight: 700;
+      box-shadow: 0 0 0 1px #0047ab;
+    }
+
+    /* Right Memory Cards in LaTeX Paper Style */
+    .ck-provenance-head {
+      font-size: 0.82rem;
+      font-weight: 700;
+      color: #222222;
+      margin: 0 0 12px;
+      padding-bottom: 6px;
+      border-bottom: 1px solid #e0dcd4;
+      letter-spacing: 0.3px;
+      text-transform: uppercase;
+    }
+    .ck-ref-icon { color: #0047ab; margin-right: 4px; }
+    .ck-ev {
+      display: block;
+      margin: 0;
+      padding: 10px 12px;
+      border: 1px solid #dedad2;
+      border-left: 3.5px solid #0047ab;
+      border-radius: 2px;
+      background: #ffffff;
+      font-size: 0.82rem;
+      line-height: 1.55;
+      transition: all 0.2s ease;
+      cursor: pointer;
+    }
+    .ck-ev:hover { border-color: #b5b0a5; }
+    .ck-ev.is-on, .ck-ev.is-highlighted {
+      border-color: #0047ab;
+      box-shadow: 0 0 0 2px #0047ab, 0 3px 8px rgba(0,71,171,0.15);
+      background: #f0f5ff;
+    }
+    @keyframes citePulse {
+      0% { background: #dbeafe; box-shadow: 0 0 0 3px #0047ab; }
+      50% { background: #bfdbfe; box-shadow: 0 0 0 4px #0047ab; }
+      100% { background: #f0f5ff; box-shadow: 0 0 0 2px #0047ab; }
+    }
+    .ck-ev-k {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 0.75rem;
+      color: #444444;
+      margin-bottom: 5px;
+      font-weight: 700;
+    }
+    .ck-ev-cite-tag {
+      color: #0047ab;
+      font-weight: 700;
+      font-family: "Latin Modern Roman", serif;
+      text-decoration: none;
+    }
+    .ck-ev-kind-badge {
+      display: inline-block;
+      padding: 1px 6px;
+      border-radius: 2px;
+      font-size: 0.72rem;
+      font-weight: 600;
+      letter-spacing: 0.2px;
+    }
+    .ck-badge-keypoint {
+      border: 1px solid #0047ab;
+      color: #0047ab;
+      background: #f0f5ff;
+    }
+    .ck-badge-note {
+      border: 1px solid #b86a04;
+      color: #b86a04;
+      background: #fff8eb;
+    }
+    .ck-mem-title {
+      font-weight: 700;
+      color: #111111;
+      font-size: 0.88rem;
+      margin-bottom: 6px;
+      line-height: 1.45;
+    }
+    .ck-ev-quote {
+      color: #222222;
+      font-style: normal;
+      font-family: inherit;
+      margin: 4px 0 6px;
+      padding: 0;
+      background: transparent;
+      border: none;
+      line-height: 1.6;
+      font-size: 0.84rem;
+    }
+    .ck-ev-meta { font-size: 0.76rem; color: #666666; margin-top: 6px; }
+    .ck-ev-more {
+      margin-top: 2px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+    .ck-ev-more[open] { margin-top: 4px; }
+    .ck-ev-more summary { margin-bottom: 6px; }
+    .ck-proof-toggle {
+      cursor: pointer;
+      font-size: 0.82rem;
+      color: #0047ab;
+      user-select: none;
+      font-family: inherit;
+      padding: 2px 0;
+    }
+    .ck-proof-toggle:hover { text-decoration: underline; }
+
+    @media(max-width: 860px) {
+      .ck-doc { padding: 22px 18px; }
+      .ck-review { grid-template-columns: 1fr; }
+      .ck-review-rule { display: none; }
+    }
+
+  </style>
+</head>
+<body>
+  <main class="page">
+    <div class="ck-doc">
+      <header class="ck-doc-header">
+        <h1>哥斯拉系列电影剧情与核废水主题讨论</h1>
+      </header>
+      <div class="ck-doc-content">
+        <h1 class="ck-doc-h1">全文摘要</h1><p>本次讨论由发言人1主导、发言人2参与，围绕哥斯拉系列电影剧情展开梳理，并延伸至核废水排放的现实影响。哥斯拉首部电影诞生于1954年，距今约70多年，日美两国翻拍多个版本；其起源为海底生物吸食核废料后变异，在日本神话中是大自然守护神，因人类破坏生态而攻击人类。讨论覆盖哥斯拉系列剧情梳理、核废水排放现实影响两大板块，前者涉及《哥斯拉怪兽之王》《哥斯拉大战金刚》等作品及基多拉、摩斯拉等角色设定，后者延伸至日本核废水排放、切尔诺贝利事件等话题。以分享为主，未形成明确结论。关键数字包括：哥斯拉系列首部电影诞生于1954年、距今约70多年、2004年日本电影《哥斯拉最后的战斗》有中国演员章子怡出演、切尔诺贝利核事故区域方圆百里成为无人区。</p><h1 class="ck-doc-h1">分段速览</h1><h2 class="ck-doc-h2">00:00:00-00:09:48 哥斯拉系列电影剧情梳理</h2><p>发言人1开场即切入哥斯拉系列电影讨论，从1954年首部哥斯拉电影讲起，梳理其起源为海底生物吸食核废料后变异，以及在日本神话中作为大自然守护神的设定。随后按时间线展开美国版三部曲剧情：2014年《哥斯拉》中哥斯拉与人类联手消灭以核废料为能源的雾托物种；《哥斯拉怪兽之王》中人类核试验唤醒沉睡怪兽、外星三头龙基多拉降临，哥斯拉被人类误伤后靠核废料复活并击败基多拉；</p><p>《哥斯拉大战金刚》中人类反派将基多拉残骸制成机械基多拉，金刚与哥斯拉联手将其击败，战斗地点包括香港九龙。发言人1还提及摩斯拉为哥斯拉疗伤、2004年日本版《哥斯拉最后的战斗》有章子怡出演，以及哥斯拉系列因主角未被真正消灭而不断推出续集。</p><h2 class="ck-doc-h2">00:09:48-00:10:51 哥斯拉与奥特曼关系讨论</h2><p>发言人1回应奥特曼与哥斯拉能否同框的问题，指出两者虽同出导演圆谷英二，但分属不同时间线——哥斯拉是地球本土物种，奥特曼来自奥特之星，且均为正面形象，难以直接对战。同时提到翼龙拉顿作为反派形象，在哥斯拉和奥特曼作品中均与正派角色战斗过。发言人2插话提及哪吒大战变形金刚的中美合拍传闻。</p><h2 class="ck-doc-h2">00:10:51-00:15:17 核废水排放的现实影响讨论</h2><p>发言人1总结哥斯拉系列IP长盛不衰的原因，认为只要日本不停止排放核废水，此类题材就不会终结，并指出日本排放核废水受美国影响、决定权不在日本。发言人2回忆在日本留学期间因核废水排放而购买中国进口鱼类，并提到日本国产产品因民族自信而价格昂贵。发言人1担心核废水影响饮用水安全、过滤成本高，认为核废水可能导致白血病等病变但不会像哥斯拉那样变异成庞然大物。讨论延伸至切尔诺贝利核事故，发言人1指出普里皮亚季和切尔诺贝利已成鬼城、方圆百里无人区，反应堆被水泥封存，并提及使命召唤4游戏中英国SAS特种部队在切尔诺贝利狙杀车臣派军的关卡。</p><h1 class="ck-doc-h1">要点梳理</h1><h2 class="ck-doc-h2">哥斯拉系列电影剧情梳理</h2><ul><li><strong>首部电影</strong>：1954年诞生，距今约70多年，日美两国翻拍多个版本。</li><li><strong>哥斯拉起源</strong>：海底生物吸食核废料、核废水后变异成庞然大物，对人类世界展开报复和攻击。</li><li><strong>角色定位</strong>：哥斯拉在日本神话中是大自然的守护神，攻击人类因人类无限制搞核试验、破坏大自然生态。</li><li><strong>《哥斯拉怪兽之王》</strong>：反派基多拉为外星生物，三头龙形象，是外星生物中的龙头老大角色。</li><li><strong>《哥斯拉大战金刚》</strong>：基多拉被哥斯拉打败后，人类反派势力将基多拉仅存的一个脑袋残骸加装机械装甲复合升级，制成机械基多拉。</li><li><strong>机械基多拉对决</strong>：机械基多拉差点打败哥斯拉，金刚挺身而出，与哥斯拉不计前嫌联手击败机械基多拉。</li><li><strong>战斗地点</strong>：香港九龙是《哥斯拉大战金刚》中的战斗地点。</li><li><strong>摩斯拉</strong>：日本神话中的蝴蝶，负责给哥斯拉疗伤。</li><li><strong>哥斯拉形象</strong>：有作为反派出现的印象，也有作为正面形象出现——当基多拉降临地球时，哥斯拉与人类携手对抗。</li><li><strong>《哥斯拉最后的战斗》</strong>：2004年日本拍摄，有中国演员章子怡出演。</li><li><strong>续集机制</strong>：哥斯拉每次都没被真正打败和消灭，重新沉睡后推出续集，不同版本续集持续产出。</li><li><strong>金刚与哥斯拉冲突</strong>：金刚领地为热带雨林，哥斯拉领地为海洋，海洋淹没雨林后双方因地盘起冲突。</li><li><strong>美国版2014年第一部</strong>：两个吸食核废料的蝙蝠变异物种「雾托」以核弹、核废料为能源食物，哥斯拉为维护地球安全与人类携手将其团灭。</li><li><strong>美国版第二部</strong>：人类频繁核武器实验唤醒全球沉睡怪兽，基多拉降临地球；人类试图用水下子母弹和核试验方式让哥斯拉窒息，基多拉因是外星物种武器对其无效，差点把哥斯拉溺死在海里。</li><li><strong>哥斯拉复活</strong>：人类重新给哥斯拉喂核废料、核武器实爆将其唤醒，让其打败基多拉。</li><li><strong>美国版第三部</strong>：反派残余势力将基多拉唯一有意识的头加装机械，金刚挺身而出与哥斯拉联手解决。</li><li><strong>日本版剧情</strong>：人类反派做成外星人形象，外星人控制基多拉和其他怪兽，哥斯拉因基因与其他怪兽不同，反杀外星人控制的怪兽并解放地球。</li><li><strong>《新哥斯拉》（2016年日本版）</strong>：海里蜥蜴类生物喝核废水后不断壮大升级，人类各种武器攻击不仅无效反而增强其战斗力，最终以无人机投放炸弹耗尽能量，再用冷冻剂封印。</li><li><strong>主题核心</strong>：哥斯拉与人类战斗主要围绕「人类频繁核试验破坏自然、哥斯拉作为大自然守护神进行报复」这一题材。</li><li><strong>哥斯拉与奥特曼关系</strong>：最早都是导演圆谷英二的作品，但属不同时间线——哥斯拉是地球本土物种，奥特曼来自奥特之星，两者均为正面形象，未直接战斗过。</li><li><strong>拉顿</strong>：会飞的翼龙/鸟，在哥斯拉和奥特曼不同作品中分别与正派形象战斗过。</li></ul><h2 class="ck-doc-h2">核废水排放的现实影响</h2><ul><li><strong>题材延续判断</strong>：发言人1认为只要日本不停止排放核废水，哥斯拉题材永远不会停。</li><li><strong>排放责任归属</strong>：发言人1指出日本排放核废水决定权不在自身，受美国影响，「美国人叫他排，他敢不排嘛」。</li><li><strong>日本进口政策</strong>：发言人1提到前段时间不让进口日本海产品，现已放开。</li><li><strong>在日留学经历</strong>：发言人2提到在日本留学期间，因日本开始排放核废水，所吃鱼类均购买中国进口到日本的鱼，且国内进口的鱼价格便宜。</li><li><strong>饮用水担忧</strong>：发言人1担心即使不吃日本海产品，日常饮用水也会受影响，过滤成本高。</li><li><strong>日本国产溢价</strong>：发言人2提到日本有「迷之民族自信」，产品打上国产标签就非常贵，但质量不一定好。</li><li><strong>健康影响</strong>：发言人1提到核废水可能导致白血病等病变，但不会像哥斯拉那样喝了核废料马上变异成庞然大物。</li><li><strong>切尔诺贝利对比</strong>：发言人1指出切尔诺贝利核事故后，普里皮亚季和切尔诺贝利被称为鬼城，方圆百里无人区，反应堆被水泥封住，相比日本「至少拦截了一下，给封存了」。</li><li><strong>游戏关联</strong>：发言人1提到使命召唤4中「双狙人」关卡，车臣派军去切尔诺贝利挖核废料，被英国SAS特种部队主角狙杀，打断一条胳膊。</li></ul><h2 class="ck-doc-h2">待确认与风险</h2><ul><li><strong>核废水健康影响</strong>：发言人1提问「喝了核废水对身体的损耗会有什么样的伤害」，发言人2回应「我不知道，别问我」，未获明确答案。</li><li><strong>变异可能性</strong>：发言人1提问「会不会真的变异」，讨论中确认目前未见变异案例，但存在白血病等病变风险。</li><li><strong>核废水长期风险</strong>：发言人1指出核废水排放可能导致生物病变和健康风险，切尔诺贝利核事故区域成为无人区，存在长期辐射风险。</li></ul>
+      </div>
+    </div>
+  </main>
+</body>
+</html>
