@@ -511,6 +511,37 @@ def _split_one_paragraph(line: str, cap: int) -> list[str]:
     return out if len(out) > 1 else [line]
 
 
+def split_overlong_paragraphs_except_first(
+    text: str, template: str
+) -> tuple[str, list[str]]:
+    """同 :func:`split_overlong_paragraphs`，但**跳过总述栏（首个 `# 栏名`）**。
+
+    模板声明「一段写完」的首栏刚被合并成一段（用户口径：一段不拆），
+    若不跳过，拆段函数会立刻把它拆回多段——两条规则打架（实测 89d781 项目概况）。
+    其余栏照常拆。
+    """
+    lines = (text or "").splitlines(keepends=True)
+    first_end = None
+    seen_first = False
+    for i, line in enumerate(lines):
+        s = line.strip()
+        if s.startswith("# ") and not s.startswith("## "):
+            if not seen_first:
+                seen_first = True
+                continue
+            first_end = i
+            break
+    if not seen_first or first_end is None:
+        # 只有一栏或没有标题：整个就是首栏 → 完全不拆
+        return text, []
+    # 头段（首个栏名 + 其正文）原样保留——它就是"一段写完"的总述栏
+    head_text = "".join(lines[:first_end])
+    tail_text, tail_notes = split_overlong_paragraphs(
+        "".join(lines[first_end:]), template
+    )
+    return head_text + tail_text, tail_notes
+
+
 def split_overlong_paragraphs(text: str, template: str) -> tuple[str, list[str]]:
     """按模板声明的字数上限把超长散文段按句界拆开（**只加换行，不改文字**）。
 
@@ -602,6 +633,82 @@ def _top_level_sections(text: str) -> list[tuple[str, str]]:
     return [(title, "\n".join(parts)) for title, parts in merged]
 
 
+# 「一段写完，约 N–M 字」：总述栏（首栏）单段口径——模型写成多段时由程序合并成一段
+_FIRST_COL_PARA_RE = re.compile(
+    r"[（(]一段写完[，,]?\s*约?\s*\d+\s*[–—-]\s*\d+\s*字[)）]"
+)
+
+
+def _merge_first_column_paragraphs(text: str, template: str) -> tuple[str, str | None]:
+    """总述栏（首栏）声明了「一段写完」时，把栏内多个段块合并成一段（确定性拼装）。
+
+    为什么在 enforce 里做：拆段函数只看"单段超上限"，模型把首栏拆成 3 段每段 ≤400
+    （合计 981 字）时既不拆也不报——"段数"从来没有程序约束。合并是零 LLM 调用的
+    确定性手段，配合 prompt 里的字数口径把首栏压回一段。
+
+    首栏定位：取**第一个其正文含散文段块的一级栏**——先收集所有一级标题（`# `，
+    不含 `## `）的行号，逐栏看正文；文档主标题（`# 项目进度会`，正文为空）自然跳过。
+    栏内表格行/列表/引用不动，只合并散文段块。
+    """
+    m = _FIRST_COL_PARA_RE.search(template or "")
+    if not m:
+        return text, None
+    lines = (text or "").splitlines(keepends=True)
+
+    def _is_h1(line: str) -> bool:
+        s = line.strip()
+        return s.startswith("# ") and not s.startswith("## ")
+
+    h1s = [i for i, ln in enumerate(lines) if _is_h1(ln)]
+    if not h1s:
+        return text, None
+
+    def _prose_blocks(seg: list[str]) -> list[list[str]]:
+        blocks: list[list[str]] = []
+        cur: list[str] = []
+        for line in seg:
+            if not line.strip():
+                if cur:
+                    blocks.append(cur)
+                    cur = []
+                continue
+            blocks.append(cur) if False else None
+            cur.append(line)
+        if cur:
+            blocks.append(cur)
+        return [
+            b
+            for b in blocks
+            if not any(
+                ln.strip().startswith(("#", "|", ">", "-", "+", "*")) for ln in b
+            )
+        ]
+
+    chosen = None
+    for k, h in enumerate(h1s):
+        seg_end = h1s[k + 1] if k + 1 < len(h1s) else len(lines)
+        blocks = _prose_blocks(lines[h + 1 : seg_end])
+        if len(blocks) >= 2:
+            chosen = (h, h + 1, seg_end, blocks)
+            break
+    if chosen is None:
+        return text, None
+    _h_idx, start, end, blocks = chosen
+
+    merged_text = ""
+    for j, b in enumerate(blocks):
+        chunk = "".join(b).strip()
+        merged_text += chunk if j == 0 else " " + chunk
+    tail_newline = "\n" if lines[end - 1].endswith("\n") else ""
+    new_block = merged_text + ("\n\n" if tail_newline else "\n")
+    out = lines[:start] + [new_block] + lines[end:]
+    first_title = lines[_h_idx].strip().lstrip("# ").strip() or "首栏"
+    return (
+        "".join(out),
+        f"「{first_title}」为总述栏（一段写完）：已把 {len(blocks)} 段合并成一段",
+    )
+
+
 def enforce_render_output(
     template: str,
     output: str,
@@ -626,6 +733,12 @@ def enforce_render_output(
     text2, cnotes = clean_template_render_text(text)
     text = text2
     notes.extend(cnotes)
+
+    # 总述栏一段化：模型把「一段写完」的首栏写成多段时，确定性合并（零 LLM 调用）
+    text2, mnote = _merge_first_column_paragraphs(text, template)
+    if mnote:
+        text = text2
+        notes.append(mnote)
 
     # 剔除误包的外层代码围栏 + 字数元说明
     try:
@@ -656,8 +769,13 @@ def enforce_render_output(
         text = text2
         notes.extend(dnotes)
 
-    # 段落字数超限：确定性按句界拆段（只加换行），避免上层为篇幅问题整篇返工
-    text2, snote_list = split_overlong_paragraphs(text, template)
+    # 段落字数超限：确定性按句界拆段（只加换行），避免上层为篇幅问题整篇返工。
+    # 总述栏例外：模板声明「一段写完」的栏刚被合并成一段，用户口径是一段不拆——
+    # 拆段跳过该栏（否则合并完又被拆回 3 段，两条规则打架；实测 89d781 项目概况）。
+    if _FIRST_COL_PARA_RE.search(template or ""):
+        text2, snote_list = split_overlong_paragraphs_except_first(text, template)
+    else:
+        text2, snote_list = split_overlong_paragraphs(text, template)
     text = text2
     notes.extend(snote_list)
 

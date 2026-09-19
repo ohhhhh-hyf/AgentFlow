@@ -60,20 +60,29 @@ def _to_int(token: str) -> int | None:
 def parse_row_hint(text: str) -> int | None:
     """从任意文本解析行数提示；解析不到返回 None（不硬编码业务）。
 
-    两类"行"字不是行数约束（实测会把「不要用连续多行独占一行的 **类别**：段落」
-    误判成"1 行"，把写 8 行数据的表硬截成 1 行）：
-    - 「每行一个…」类——是**形态要求**（一行放一件事），不是数量上限；
-    - 「多行/几行/X 行以上」——是**下限或泛指**，不是上限。
+    三类"行"字不是行数约束（实测：「不要用连续多行独占一行的 **类别**：段落」被误判成
+    "1 行"把 8 行数据硬截成 1 行；「原告、被告各占一行」被误判成"1 行"把诉辩表
+    截得只剩上诉人一行，被告整行消失）：
+    - 「每行一个…」「各占一行/各一行」类——是**形态要求**（一行放一件事/每方一行），
+      不是数量上限；
+    - 「多行/几行/X 行以上」——是**下限或泛指**，不是上限；
+    - 「N 行（左右/上下）」仅当 N 为纯数字时才算上限——"一行"这类中文小写数在
+      形态语里更常见，宁可不判（上限判少会截数据行，宁多勿少）。
     """
-    if re.search(r"(?:每|一)\s*行\s*(?:一个|一条|一项|一件)", text or ""):
+    text = text or ""
+    if re.search(r"(?:每|一)\s*行\s*(?:一个|一条|一项|一件)", text):
         return None
-    if re.search(r"[多好几二三四五六七八九十\d]\s*行\s*独占|多行|几行", text or ""):
+    if re.search(r"各(?:占|一)\s*行|各方\s*各?\s*一行", text):
         return None
-    m = _ROW_HINT_RE.search(text or "")
+    if re.search(r"[多好几二三四五六七八九十\d]\s*行\s*独占|多行|几行", text):
+        return None
+    m = _ROW_HINT_RE.search(text)
     if not m:
         return None
     tok = next((g for g in m.groups() if g), None)
-    return _to_int(tok) if tok else None
+    if tok is None or not str(tok).isdigit():
+        return None  # 中文数字"一行"等在形态语里更常见，不当上限
+    return _to_int(tok)
 
 
 

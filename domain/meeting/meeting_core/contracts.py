@@ -60,10 +60,10 @@ class MeetingUnderstandingGenerationContract(GenerationContract):
         StrField("meeting_purpose", "一句话概括会议目的"),
         # 形态标签类枚举：真实场景有二十多种，7 类覆盖不到 → 非法值归一「通用」，不抛错重试
         EnumField("scene", SCENE_CHOICES, normalize="通用"),
-        # 发言人与角色对照（姓名↔角色的单点落点）：下游 Q&A/表态/概况栏直接消费，不必每栏
+        # 发言人与角色对照（统一显示称呼↔角色的单点落点）：下游 Q&A/表态/概况栏直接消费，不必每栏
         # 从长原文里重新推"这段是谁在说"（实测会退化成「答」「主持人（机构名）」）。
         ObjListField("speakers", [
-            StrField("name", "原文出现的姓名（照原文写，不推断、不编造）"),
+            StrField("name", "统一显示称呼：姓名优先，其次原文角色，再次原始编号；不推断、不编造"),
             StrField("role", "角色（发言人/主持人/记者/听众/嘉宾/主讲人…，照原文；判断不出为null）"),
             StrField("org", "机构/单位/媒体名（照原文；没有为null）"),
         ]),
