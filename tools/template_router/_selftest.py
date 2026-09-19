@@ -2348,8 +2348,8 @@ def test_media_overview_scope() -> None:
 
     text = (_active_dir() / "media_briefing.md").read_text(encoding="utf-8")
     spec = next(l.strip() for l in text.splitlines() if l.strip().startswith("[一段话概括发布会"))
-    check("发布会概况：一段写完（约 250–400 字，不再写 3 段×300）",
-          "一段写完，约 250–400 字" in spec and "最多 3 段" not in spec, spec[:80])
+    check("发布会概况：一段写完（约 300–400 字，不再写 3 段×300）",
+          "一段写完，约 300–400 字" in spec and "最多 3 段" not in spec, spec[:80])
     elements = spec.split("；", 1)[0]   # 要素部分（不含尾部的"归哪栏"边界句）
     check("发布会概况：要素不再出现与 [核心信息] 同名的词（边界句里保留指引）",
           "核心信息" not in elements and "发布单位与整体基调" in spec, spec[:80])
@@ -2359,9 +2359,17 @@ def test_media_overview_scope() -> None:
     check("发布会概况：① 含时间地点/主办与参与（日期、地点、发言人身份、到会媒体）",
           "时间地点与主办/参与" in spec and "发布时间、地点、主办与发布单位、发言人身份、到会媒体" in spec
           and "没有的不编" in spec, "")
+    # 2026-09-19 用户口径：概况偏薄（实测 148 汉字）——放宽可写内容而不是允许注水：
+    # ② 单一讲话没有板块时列分点主张名；④ 允许 1–3 个数字锚点；⑤ 问答议题与后续安排。
+    check("发布会概况：② 单一讲话没有板块时列出分点主张名",
+          "有发布板块就列板块名；单一讲话没有板块时列讲话的分点主张名" in spec, "")
+    check("发布会概况：④ 允许 1–3 个关键数字锚点（只报数字、不铺开数据）",
+          "关键数字锚点 1–3 个" in spec and "只报数字、不铺开数据" in spec, "")
+    check("发布会概况：⑤ 问答涉及的议题与后续安排（原文有才写）",
+          "问答环节涉及的议题与会议后续安排" in spec and "原文有才写" in spec, "")
     caps = [b for b in parse_section_char_budgets(text) if b["title"] == "发布会概况"]
-    check("发布会概况：解析出节级预算 250–400（首栏只写一段）",
-          bool(caps) and caps[0]["scope"] == "section" and caps[0]["lo"] == 250
+    check("发布会概况：解析出节级预算 300–400（首栏只写一段）",
+          bool(caps) and caps[0]["scope"] == "section" and caps[0]["lo"] == 300
           and caps[0]["hi"] == 400, f"{caps}")
 
     han = lambda s: len(re.findall(r"[\u4e00-\u9fff]", s))
@@ -2699,15 +2707,16 @@ def test_media_briefing_evidence_and_depth() -> None:
     check("核心信息：保留加粗与 `具体内容` 标注口径",
           "关键数据加粗" in core and "`具体内容`" in core, "")
 
-    check("官方表态：身份在栏首交代一次、条目不带人名前缀",
-          "发言人身份在栏首交代一次" in stance and "不逐条写人名" in stance
-          and "这类前缀" in stance, "")
-    # 2026-09-19 用户口径：身份行**只写机构或职务、不写姓名**（姓名在概况与 Q&A 已有；
-    # ASR 里人名最易错，既有口径也是"没把握就写职务"）。同时治两种实测毛病：
-    # 栏首写成「**官方表态**（机构＋姓名，会议名）」（重复栏名）与 180 字会议背景导语。
-    check("官方表态：栏首身份只写机构或职务、不写姓名",
-          "只写机构或职务、不写姓名" in stance and "机构＋姓名" not in stance
-          and "（外交部发言人）" in stance, "")
+    check("官方表态：不写身份行（身份见概况、多人由组标题承担）",
+          "不写身份行" in stance and "发言人身份见 [发布会概况]" in stance
+          and "多位发言人由每组标题的机构或职务承担" in stance
+          and "单一发言人不另标" in stance, "")
+    check("官方表态：旧的身份行写法已清除（括号行/「交代一次」都不再出现）",
+          "发言人身份在栏首交代一次" not in stance
+          and "只写机构或职务、不写姓名" not in stance
+          and "（外交部发言人）" not in stance, "")
+    check("官方表态：条目不逐条写人名、不带「某某强调/指出」前缀",
+          "不逐条写人名" in stance and "这类前缀" in stance, "")
     check("官方表态：不重复栏名、不把会议背景写成导语（背景归概况）",
           "不重复栏名、不把会议背景或议程写成导语" in stance
           and "背景归 [发布会概况]" in stance, "")
@@ -2720,8 +2729,8 @@ def test_media_briefing_evidence_and_depth() -> None:
           "照原文保留限定语与程度" in stance
           and "力争/有望/原则上/除" in stance
           and "会议名称照原文写全" in stance, "")
-    check("官方表态：多发言人时每组标题写明机构或职务（不写姓名）",
-          "多位发言人时每组标题写明机构或职务" in stance, "")
+    check("官方表态：多发言人的身份由每组标题承担（不写姓名）",
+          "多位发言人由每组标题的机构或职务承担" in stance, "")
     check("官方表态：四层深挖（主张/针对什么/条件与前提/承诺或边界）",
           all(k in stance for k in ("主张", "针对什么", "条件与前提", "承诺或边界")),
           stance[:60])
