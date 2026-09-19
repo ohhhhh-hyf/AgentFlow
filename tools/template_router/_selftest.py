@@ -445,15 +445,15 @@ FILL_RULE_KEYS = (
 
 TEMPLATE_SHAPE_SNIPPETS = {
     "retrospective_session": "不要每条都补「责任人无，时间无」",
-    "hiring_report": "不自行给候选人评分、评级或下结论",
-    "hiring_report#首栏": "低于 200 字说明三项没交代清",
+    "hiring_report": "本栏明细由下表承载",
+    "hiring_report#维度": "不自行发明能力模型",
     "media_briefing": "**一条一个主题**——同一文件、同一板块、同一口径的多项指标或举措**合并成一条**",
     "site_visit_tour": "都要汇总到这里",
     "knowledge_memo": "不要再以同名",
     "clinical_advisory": "每条都是 `- ` 分点行",
     "home_school_liaison": "每一件事都要落进清单",
     "project_progress": "本栏明细由下表承载",
-    "project_progress#后续": "从概况与原文提取下一步",
+    "project_progress#后续": "按事项分点写",
     "court_transcript": "本栏明细由下表承载",
     "team_meeting": "四要素",
     # 低结构化/闲聊型场景的稳定性口径：没有结论也要写明，不留空洞栏目
@@ -1230,10 +1230,18 @@ def test_debate_rounds_and_rows() -> None:
           "判不准就写「一方」" in debate, "")
     check("辩论会：每个交锋点尽量带原话引用（可只引不署名）",
           "每个交锋点尽量带 1 句原文引用" in debate and "只引原话、不署名" in debate, "")
-    check("辩论会：论点表行数＝论点数（样例行示范一方多行）",
+    check("辩论会：论点表按原文出现顺序排列、正反交错（不归堆）",
+          "按原文出现顺序排列（同一环节内正反交替）" in debate
+          and "不要把一方的论点归堆写完再写另一方" in debate, "")
+    check("辩论会：论点表行数＝论点数、不要求两方对称",
           "行数＝论点数" in debate and "每方通常 2–4 行" in debate
-          and "不要一方一行" in debate and "（一行一方）" not in debate
-          and debate.count("| 正方 |") >= 2, "")
+          and "不要一方一行" in debate and "也不要求两方行数对称" in debate
+          and "（一行一方）" not in debate, "")
+    check("辩论会：论点表样例行交错示范（正方→反方→正方，4 列无时间列）",
+          "| 正方 | … | … | … |" in debate
+          and debate.index("| 正方 | …") < debate.index("| 反方 | …")
+          and debate.count("| 正方 | … | … | … |") == 2
+          and "时间" not in debate.split("# [核心论点]", 1)[1].split("# [环节交锋]", 1)[0], "")
     # 新增承载位（2026-09-19 now.xlsx 行25）：一场 10284 汉字的辩论只出 956 汉字（低于下限
     # 1680）——现有四栏全是"按论点/按环节"维度，缺"按议题"的分歧归纳，质询与总结也无落点。
     check("辩论会：新增 [争议焦点]（按议题归纳双方分歧）",
@@ -1422,9 +1430,9 @@ def test_conversation_and_seminar_enrichment() -> None:
         check(f"{name}：首栏要素含锚点要求", anchor in text, "")
         check(f"{name}：首栏带防越栏边界", bound in text, "")
 
-    check("对话记录：新增 [关键原话] 栏（最多 8 句、逐字、> 金句/- 背景）",
+    check("对话记录：新增 [关键原话] 栏（最多 8 句、逐字、`> “……”` 金句 / `- 背景：`）",
           "# [关键原话]" in conv and "最多 8 句" in conv and "不改字、不合并" in conv
-          and "背景行用 `-`" in conv, "")
+          and "背景行 `- 背景：……`" in conv, "")
     check("对话记录：新栏声明缺省词（空栏不成硬伤）",
           "原文确实没有可摘的原话就写「未提及」" in conv, "")
     check("对话记录：[交流内容] 不再夹引用（原话归 [关键原话]）",
@@ -1572,7 +1580,23 @@ def test_project_progress_overview() -> None:
     check("项目进度会：旧的句数口径已删除（3–6 句不再出现）",
           "3–6 句" not in text and "句概览" not in text, "")
     check("项目进度会：边界写成可执行的「只写进某两栏 + 本栏不复述」",
-          "只写进 [进度追踪] / [风险预警] 两栏" in overview and "本栏不复述" in overview, "")
+          "只写进 [进度追踪] / [风险预警] / [后续计划] 三栏" in overview
+          and "本栏不复述" in overview, "")
+    # [后续计划] 原来是全模板唯一没有格式要求的栏（其余两栏走表、概况走一段话）→ 实测 4 份
+    # 产物里 3 份写成 221–242 汉字的单段、零分点，而源里明明有 6–8 件后续事项。
+    plan = next((s for s in specs if "按事项分点写" in s), "")
+    check("项目进度会：[后续计划] 要求按事项分点（一条一件事、一条一行）",
+          "按事项分点写" in plan and "一条一件事、一条一行" in plan
+          and "`- **事项**：做什么 + 责任方 + 时间节点`" in plan, f"{plan[:80]}")
+    check("项目进度会：[后续计划] 给分组与条级尺寸（每组 2–5 条 / 每条 40–120 字）",
+          "每组 2–5 条" in plan and "每条 40–120 字" in plan
+          and "不写与栏名同名的标题" in plan, "")
+    check("项目进度会：[后续计划] 保留交付物/依赖提示与套话禁令",
+          "核心交付物用 **具体内容** 强调" in plan
+          and "依赖前提用 *具体内容* 提示" in plan
+          and "无对象的套话" in plan, "")
+    check("项目进度会：[后续计划] 旧口径（要素清单式叙述）已清除",
+          "从概况与原文提取下一步" not in plan and "验收标准、关键时间节点" not in text, "")
     from tools.templates.template_eval import parse_section_char_budgets
 
     caps = [b for b in parse_section_char_budgets(text) if b["title"] == "项目概况"]
@@ -2399,9 +2423,9 @@ def test_quote_columns_have_background() -> None:
     from tools.template_router._placeholder import plan_placeholder_fill
 
     expectations = {
-        "special_lecture": ("金句总结", ("讲到哪个话题/论证到哪一步", "「- 背景未提及」")),
-        "interview_transcript": ("关键引语与金句", ("回应什么问题/谈到什么话题", "「- 背景未提及」")),
-        "conversation_transcript": ("关键原话", ("谁对谁说的", "「- 背景未提及」")),
+        "special_lecture": ("金句总结", ("讲到哪个话题/论证到哪一步", "`- 背景：未提及`")),
+        "interview_transcript": ("关键引语与金句", ("回应什么问题/谈到什么话题", "`- 背景：未提及`")),
+        "conversation_transcript": ("关键原话", ("谁对谁说的", "`- 背景：未提及`")),
     }
     for stem, (col, needles) in expectations.items():
         text = (_active_dir() / f"{stem}.md").read_text(encoding="utf-8")
@@ -2410,8 +2434,12 @@ def test_quote_columns_have_background() -> None:
         spec = lines[head_idx + 1]  # 栏名下的说明行
         for k in needles:
             check(f"{stem} [{col}]：背景说明口径（{k[:14]}…）", k in spec, spec[:80])
-        check(f"{stem} [{col}]：格式固定（金句行 >、背景行 -）",
-              "金句行用 `>`" in spec and "背景行用 `-`" in spec, spec[:80])
+        # 2026-09-19 用户口径：金句行要加引号（`> “……”`）、背景行加 `背景：` 前缀
+        check(f"{stem} [{col}]：格式固定（金句行 `> “……”`、背景行 `- 背景：……`）",
+              "金句行用 `>` 引用并加引号" in spec and '`> “……”`' in spec
+              and "背景行 `- 背景：……`" in spec, spec[:90])
+        check(f"{stem} [{col}]：旧写法（无引号 / 背景行只写 `-`）已清除",
+              "背景行用 `-`" not in spec and "「- 背景未提及」" not in spec, "")
         check(f"{stem} [{col}]：无 3 句下限（最多 8 句、有几句写几句，不硬凑）",
               "最多 8 句" in spec and "有几句写几句" in spec and "3–8 句" not in spec, "")
         check(f"{stem} [{col}]：背景限定一句话（不展开复述）",
@@ -2600,10 +2628,19 @@ def test_subjective_judgment_guardrails() -> None:
           "原文明示获胜方时才标注" in deb and "未明示不写" in deb, "")
 
     hir = (d / "hiring_report.md").read_text(encoding="utf-8")
-    check("面试：[能力评估] 栏与评级表整体移除（不自行评价/打分/评级）",
-          "# [能力评估]" not in hir and "推荐评级" not in hir
-          and "| 评估维度 |" not in hir
-          and "不自行评价、打分或评级" in hir
+    # 2026-09-19 用户口径：栏与表都**保留**，只去掉表里的「推荐评级」列（评级是模型主观判断，
+    # 实测 7/7 全是「未评」零信息量）；维度名锚回原文的考察要素，行数随原文。
+    check("面试：[能力评估] 栏与表保留，表头两列（无「推荐评级」）",
+          "# [能力评估]" in hir and "| 评估维度 | 评估依据（具体事例） |" in hir
+          and "推荐评级" not in hir and "评估维度 | 推荐评级" not in hir, "")
+    check("面试：维度名取原文考察要素/评价口径、不自行发明能力模型",
+          "取原文的考察要素或评价口径" in hir and "不自行发明能力模型" in hir
+          and "岗位匹配度、问题解决能力、思维逻辑性、应变能力" not in hir, "")
+    check("面试：行数随原文 + 依据必须有事例支撑",
+          "行数随原文，原文提到几个维度就写几行" in hir
+          and "每条都要有事例支撑，不做原文以外的推断" in hir, "")
+    check("面试：评级/评分口径整体清除（不自行评价、打分或评级）",
+          "不自行评价、打分或评级" in hir
           and "不自行给候选人评分、评级或下结论" in hir, "")
     check("面试：亮点/风险/建议三条都只写原文表达过的（不代面试官预判）",
           "三条都只写面试官或候选人原文表达过的内容" in hir
@@ -2665,14 +2702,26 @@ def test_media_briefing_evidence_and_depth() -> None:
     check("官方表态：身份在栏首交代一次、条目不带人名前缀",
           "发言人身份在栏首交代一次" in stance and "不逐条写人名" in stance
           and "这类前缀" in stance, "")
+    # 2026-09-19 用户口径：身份行**只写机构或职务、不写姓名**（姓名在概况与 Q&A 已有；
+    # ASR 里人名最易错，既有口径也是"没把握就写职务"）。同时治两种实测毛病：
+    # 栏首写成「**官方表态**（机构＋姓名，会议名）」（重复栏名）与 180 字会议背景导语。
+    check("官方表态：栏首身份只写机构或职务、不写姓名",
+          "只写机构或职务、不写姓名" in stance and "机构＋姓名" not in stance
+          and "（外交部发言人）" in stance, "")
+    check("官方表态：不重复栏名、不把会议背景写成导语（背景归概况）",
+          "不重复栏名、不把会议背景或议程写成导语" in stance
+          and "背景归 [发布会概况]" in stance, "")
+    check("官方表态：分组标题按 机构/职务＋议题；单一发言人只写议题",
+          "`## 机构或职务｜议题`" in stance and "单一发言人时组名只写议题" in stance
+          and "姓名｜议题" not in stance, "")
     check("官方表态：深挖粒度（一次表态多个承诺/条件分别列条）",
           "一次表态含多个承诺或条件时分别列条" in stance, "")
     check("官方表态：准确性（照原文保留限定语与程度 + 引用名称写全）",
           "照原文保留限定语与程度" in stance
           and "力争/有望/原则上/除" in stance
           and "会议名称照原文写全" in stance, "")
-    check("官方表态：多发言人时每组开头写明身份",
-          "多位发言人时每组开头写明" in stance, "")
+    check("官方表态：多发言人时每组标题写明机构或职务（不写姓名）",
+          "多位发言人时每组标题写明机构或职务" in stance, "")
     check("官方表态：四层深挖（主张/针对什么/条件与前提/承诺或边界）",
           all(k in stance for k in ("主张", "针对什么", "条件与前提", "承诺或边界")),
           stance[:60])
