@@ -4,8 +4,6 @@ __pycache__/
 *.py[cod]
 .pytest_cache/
 .idea/
-/logs/
-/api_test/
 
 # 只忽略仓库根目录的记忆落盘，不要误伤 tools/memory 源码包
 /memory/

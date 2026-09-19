@@ -1,0 +1,372 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>GitHub实用项目与访问技巧分享</title>
+  <style>
+
+    body {
+      margin: 0;
+      padding: 32px 16px;
+      background: #f6f5f0;
+      color: #1a1a1a;
+      font-family: "Latin Modern Roman", "Computer Modern Roman", "CMU Serif", "Times New Roman", Times, "Songti SC", "SimSun", "STSong", serif;
+      -webkit-font-smoothing: antialiased;
+    }
+    .page { max-width: 1140px; margin: 0 auto; }
+    .ck-doc {
+      background: #ffffff;
+      border: 1px solid #d4d0c7;
+      border-radius: 4px;
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.05), 0 1px 3px rgba(0,0,0,0.03);
+      padding: 36px 44px;
+      line-height: 1.75;
+      font-size: 0.96rem;
+    }
+    .ck-doc h1 {
+      margin: 0 0 10px;
+      font-size: 1.85rem;
+      font-weight: 700;
+      letter-spacing: 0.4px;
+      text-align: center;
+      font-variant: small-caps;
+      color: #111111;
+    }
+    .ck-doc-header {
+      margin-bottom: 24px;
+      padding-bottom: 16px;
+      border-bottom: 2px solid #111111;
+      text-align: center;
+    }
+    .ck-doc-meta {
+      font-size: 0.85rem;
+      color: #555555;
+      font-style: italic;
+    }
+    .ck-doc-content h1, .ck-doc-content .ck-doc-h1 {
+      margin: 28px 0 14px;
+      font-size: 1.32rem;
+      font-weight: 700;
+      color: #111111;
+      border-bottom: 1.5px solid #222222;
+      padding-bottom: 5px;
+      text-align: left;
+      font-variant: normal;
+      letter-spacing: 0.3px;
+    }
+    .ck-doc h2, .ck-doc-h2 {
+      margin: 28px 0 14px;
+      font-size: 1.22rem;
+      font-weight: 700;
+      color: #111111;
+      border-bottom: 1.5px solid #222222;
+      padding-bottom: 5px;
+      letter-spacing: 0.3px;
+    }
+    .ck-doc h3, .ck-doc-h3 {
+      margin: 20px 0 10px;
+      font-size: 1.05rem;
+      font-weight: 700;
+      color: #222222;
+    }
+    .ck-doc h4, .ck-doc-h4 {
+      margin: 16px 0 8px;
+      font-size: 0.98rem;
+      font-weight: 700;
+      color: #333333;
+    }
+    .ck-doc p {
+      margin: 10px 0;
+      line-height: 1.75;
+      text-align: justify;
+    }
+    .ck-doc ul, .ck-doc ol {
+      margin: 8px 0 12px;
+      padding-left: 1.5em;
+      line-height: 1.72;
+    }
+    .ck-doc li {
+      margin: 4px 0;
+    }
+    .ck-doc blockquote, .ck-quote {
+      margin: 10px 0 14px;
+      padding: 8px 14px;
+      background: #faf9f6;
+      border-left: 3.5px solid #222222;
+      border-radius: 2px;
+      color: #222222;
+      font-size: 0.92rem;
+      font-style: italic;
+    }
+    .ck-doc code {
+      background: #f3f0e8;
+      border: 1px solid #e2ddd3;
+      border-radius: 3px;
+      padding: 1px 6px;
+      font-family: "Latin Modern Mono", Consolas, monospace;
+      font-size: 0.88em;
+    }
+    .ck-doc table, .ck-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.88rem;
+      margin: 14px 0;
+      background: #ffffff;
+      border-top: 2px solid #222222;
+      border-bottom: 2px solid #222222;
+    }
+    .ck-doc table th, .ck-doc table td, .ck-table th, .ck-table td {
+      padding: 9px 12px;
+      text-align: left;
+      vertical-align: middle;
+      border-bottom: 1px solid #ede9e1;
+    }
+    .ck-doc table th, .ck-table th {
+      background: #fbfaf7;
+      border-bottom: 1.2px solid #222222;
+      font-weight: 700;
+      color: #111111;
+      letter-spacing: 0.3px;
+    }
+
+    /* Roomy & Spacious Academic Risk Table */
+    .ck-risk-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 18px 0 28px;
+      background: #ffffff;
+      border-top: 2.2px solid #111111;
+      border-bottom: 2.2px solid #111111;
+      font-size: 0.93rem;
+      line-height: 1.72;
+    }
+    .ck-risk-table th {
+      background: #faf8f5;
+      border-bottom: 1.5px solid #111111;
+      padding: 15px 16px;
+      font-weight: 700;
+      color: #111111;
+      letter-spacing: 0.3px;
+      text-align: left;
+      vertical-align: middle;
+    }
+    .ck-risk-table td {
+      padding: 16px 16px;
+      border-bottom: 1px solid #ede8e0;
+      vertical-align: top;
+      color: #1a1a1a;
+      word-break: break-word;
+    }
+    .ck-risk-table tr:nth-child(even) td {
+      background: #fdfcfb;
+    }
+    .ck-risk-table tr:hover td {
+      background: #f6f3eb;
+    }
+
+    /* Review Grid */
+    .ck-review {
+      display: grid;
+      grid-template-columns: minmax(0, 1.35fr) 1px minmax(260px, 0.95fr);
+      border: 1px solid #d4d0c7;
+      border-radius: 4px;
+      overflow: hidden;
+      margin: 14px 0 20px;
+      background: #ffffff;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.03);
+    }
+    .ck-review-left {
+      padding: 22px 26px;
+      background: #ffffff;
+      line-height: 1.75;
+    }
+    .ck-review-rule { background: #dcd8cf; }
+    .ck-review-right {
+      padding: 16px 18px;
+      background: #faf9f6;
+      box-sizing: border-box;
+      display: flex;
+      flex-direction: column;
+    }
+    .ck-ev-list {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    /* Entity Highlight in LaTeX Paper Style */
+    .ck-cite-entity {
+      background: #fff8db;
+      border-bottom: 1.5px solid #b86a04;
+      padding: 1px 4px;
+      border-radius: 2px;
+      cursor: pointer;
+      transition: all 0.18s ease;
+      color: #111111;
+      font-weight: 600;
+    }
+    .ck-cite-entity:hover {
+      background: #ffe58f;
+      color: #000000;
+    }
+    .ck-cite-entity.is-on {
+      background: #ffd54a;
+      border-bottom-color: #0047ab;
+      box-shadow: 0 0 0 2px rgba(0,71,171,0.25);
+    }
+
+    /* Blue Hyperref Citations [1], [2] */
+    .ck-cite-ref {
+      color: #0047ab;
+      font-weight: 600;
+      font-family: "Latin Modern Roman", "Computer Modern Roman", "Times New Roman", serif;
+      text-decoration: none;
+      cursor: pointer;
+      padding: 0 2px;
+      margin: 0 2px;
+      border-radius: 2px;
+      transition: all 0.15s ease;
+      font-size: 0.92em;
+      vertical-align: baseline;
+      user-select: none;
+    }
+    .ck-cite-ref:hover {
+      text-decoration: underline;
+      background: #e8f0fe;
+      color: #003380;
+    }
+    .ck-cite-ref.is-active {
+      background: #d2e3fc;
+      color: #002266;
+      font-weight: 700;
+      box-shadow: 0 0 0 1px #0047ab;
+    }
+
+    /* Right Memory Cards in LaTeX Paper Style */
+    .ck-provenance-head {
+      font-size: 0.82rem;
+      font-weight: 700;
+      color: #222222;
+      margin: 0 0 12px;
+      padding-bottom: 6px;
+      border-bottom: 1px solid #e0dcd4;
+      letter-spacing: 0.3px;
+      text-transform: uppercase;
+    }
+    .ck-ref-icon { color: #0047ab; margin-right: 4px; }
+    .ck-ev {
+      display: block;
+      margin: 0;
+      padding: 10px 12px;
+      border: 1px solid #dedad2;
+      border-left: 3.5px solid #0047ab;
+      border-radius: 2px;
+      background: #ffffff;
+      font-size: 0.82rem;
+      line-height: 1.55;
+      transition: all 0.2s ease;
+      cursor: pointer;
+    }
+    .ck-ev:hover { border-color: #b5b0a5; }
+    .ck-ev.is-on, .ck-ev.is-highlighted {
+      border-color: #0047ab;
+      box-shadow: 0 0 0 2px #0047ab, 0 3px 8px rgba(0,71,171,0.15);
+      background: #f0f5ff;
+    }
+    @keyframes citePulse {
+      0% { background: #dbeafe; box-shadow: 0 0 0 3px #0047ab; }
+      50% { background: #bfdbfe; box-shadow: 0 0 0 4px #0047ab; }
+      100% { background: #f0f5ff; box-shadow: 0 0 0 2px #0047ab; }
+    }
+    .ck-ev-k {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 0.75rem;
+      color: #444444;
+      margin-bottom: 5px;
+      font-weight: 700;
+    }
+    .ck-ev-cite-tag {
+      color: #0047ab;
+      font-weight: 700;
+      font-family: "Latin Modern Roman", serif;
+      text-decoration: none;
+    }
+    .ck-ev-kind-badge {
+      display: inline-block;
+      padding: 1px 6px;
+      border-radius: 2px;
+      font-size: 0.72rem;
+      font-weight: 600;
+      letter-spacing: 0.2px;
+    }
+    .ck-badge-keypoint {
+      border: 1px solid #0047ab;
+      color: #0047ab;
+      background: #f0f5ff;
+    }
+    .ck-badge-note {
+      border: 1px solid #b86a04;
+      color: #b86a04;
+      background: #fff8eb;
+    }
+    .ck-mem-title {
+      font-weight: 700;
+      color: #111111;
+      font-size: 0.88rem;
+      margin-bottom: 6px;
+      line-height: 1.45;
+    }
+    .ck-ev-quote {
+      color: #222222;
+      font-style: normal;
+      font-family: inherit;
+      margin: 4px 0 6px;
+      padding: 0;
+      background: transparent;
+      border: none;
+      line-height: 1.6;
+      font-size: 0.84rem;
+    }
+    .ck-ev-meta { font-size: 0.76rem; color: #666666; margin-top: 6px; }
+    .ck-ev-more {
+      margin-top: 2px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+    .ck-ev-more[open] { margin-top: 4px; }
+    .ck-ev-more summary { margin-bottom: 6px; }
+    .ck-proof-toggle {
+      cursor: pointer;
+      font-size: 0.82rem;
+      color: #0047ab;
+      user-select: none;
+      font-family: inherit;
+      padding: 2px 0;
+    }
+    .ck-proof-toggle:hover { text-decoration: underline; }
+
+    @media(max-width: 860px) {
+      .ck-doc { padding: 22px 18px; }
+      .ck-review { grid-template-columns: 1fr; }
+      .ck-review-rule { display: none; }
+    }
+
+  </style>
+</head>
+<body>
+  <main class="page">
+    <div class="ck-doc">
+      <header class="ck-doc-header">
+        <h1>GitHub实用项目与访问技巧分享</h1>
+      </header>
+      <div class="ck-doc-content">
+        <h1 class="ck-doc-h1">知识主题与概述</h1><p>GitHub 是一个面向所有人的大型开源资源库，既包含名校公开课、大厂面试题、开源大模型、AI 学习资料等实用内容，也收录表情包合集、职场黑名单等趣味资源。本期视频由工作室老李主讲，围绕 GitHub 的实用项目发现与使用技巧展开，内容覆盖三块：一是介绍工作性价比评估、表情包博物馆、健康指南、一键证件照、健身教练、教材资源、AI 视频生成、声音克隆、AI 学习资源库等热门项目；二是针对国内访问困难，讲解 Watt Toolkit 加速、镜像站、VPN 三种解决方案并比较优劣；三是讲解注册、页面汉化、搜索优化及项目主页各功能模块（star、watch、fork、About、release、readme 等）的使用方法。整体逻辑从「找什么」到「怎么访问」再到「怎么用」，层层递进，并穿插老李的个人使用体验与评价。</p><h1 class="ck-doc-h1">核心概念</h1><h2 class="ck-doc-h2">GitHub资源库定位</h2><ul><li><strong>GitHub</strong>不只是代码托管平台，而是每个人都可以用的<strong>巨大宝藏资源库</strong>，几乎想找的资源、教程、工具都能在上面找到</li><li>正经资源包括：麻省理工、斯坦福等名校公开课，字节、阿里、腾讯等大厂面试题和面试经验，Google、阿里等大公司最新的开源大模型，用AI搞副业赚钱的教程，AI学习资料等</li><li>不正经资源包括：国内这些年缺网火爆的表情包大合集、火到150岁养生指南、国内996最严重的大厂黑名单等</li></ul><h2 class="ck-doc-h2">工作性价比评估项目</h2><ul><li>项目功能：输入年薪、工作地区、年假、通勤时长、学历、工作年限、领导同事情况等因素，综合评估后给出<strong>工作性价比分数和评级</strong></li><li>老李测试之前程序员工作，评估结果为「性价比还不错，优质牛马」</li></ul><h2 class="ck-doc-h2">表情包博物馆</h2><ul><li>收集国内过去这些年全网爆火的表情包大合集，包括甄嬛传、罗翔、特朗普、马保国等主题</li><li>用途：斗图时可把对方「按在地上摩擦」</li></ul><h2 class="ck-doc-h2">健康活到150岁指南</h2><ul><li>分享经过科学论证的健康知识，如<strong>间歇性进食</strong>对身体有好处，会促进胆汁代谢、炎症自愈</li><li>吃天然发酵类食品可以改善肠道菌群生态</li></ul><h2 class="ck-doc-h2">一键做证件照项目</h2><ul><li>上传一张大头照，即可一键抠图换背景，生成不同标准的证件照和各种规格的打印模板</li></ul><h2 class="ck-doc-h2">丐版健身教练项目</h2><ul><li>选择要练习的肌肉群（如腹肌），项目提供用身体自重练习的参考动画，跟着做即可</li><li>适合请不起真人教练的用户</li></ul><h2 class="ck-doc-h2">教材资源项目</h2><ul><li>收集国内所有小学、初中、高中及一部分大学的PDF教材，全部免费使用</li></ul><h2 class="ck-doc-h2">全自动视频生成项目</h2><ul><li>项目名称为<code>Morning Printer Turbo</code>，近期超火</li></ul><h2 class="ck-doc-h2">声音克隆模型ChatBox TTS</h2><ul><li>属于<strong>零样本语音克隆</strong>，特点是情感控制非常到位，克隆的声音像真人说话一样</li><li>使用方法：打开项目网页，上传一段自己的音频，合成一段英文台词即可试听效果</li></ul><h2 class="ck-doc-h2">AI学习资源库</h2><ul><li>涵盖大语言模型、<code>RAG</code>、<code>AI Agents</code>、<code>MSI</code>等最新AI技术</li><li>作者把所有教程内容整理成一份<strong>500多页的PDF文档</strong>，内含大量示意图帮助理解</li></ul><h2 class="ck-doc-h2">Awesome AI Apps项目</h2><ul><li>收录大模型最新的Agent应用，如医学影像数据分析Agent、AI投资Agent、竞争对手情报分析Agent等</li><li>适合跟进AI应用落地最新案例或寻找创业点子</li></ul><h2 class="ck-doc-h2">解决GitHub访问问题</h2><ul><li><strong>方法一</strong>：使用<code>Watt Toolkit</code>加速软件——进入网站选择适合电脑的版本下载安装，打开后找到网络加速，勾选GitHub加速即可流畅访问</li><li><strong>方法二</strong>：使用GitHub镜像站，如<code>gh-proxy</code>——浏览器直接打开即可访问，默认是镜像的项目地址，搜索GitHub其他项目也没问题；但镜像站速度和稳定性较差</li><li><strong>方法三</strong>：使用魔法（VPN）——老李个人最推荐的方法</li><li>镜像站地址整理在文档中，需三连关注免费领取</li></ul><h2 class="ck-doc-h2">GitHub注册与汉化</h2><ul><li>注册GitHub很简单，用国内QQ邮箱就可以</li><li>解决全英文页面：给浏览器安装翻译插件，谷歌浏览器推荐<code>Google Translate</code>或<code>沉浸式翻译</code>，安装后可直接把网页翻译成中文</li><li>安装插件方法：点开浏览器三个点→拓展程序→管理拓展程序→搜索插件名安装</li><li>动手能力强的还可以安装汉化插件</li></ul><h2 class="ck-doc-h2">GitHub搜索方法</h2><ul><li>GitHub原生搜索按关键词<strong>精准匹配</strong>，对国人不太好用——如搜<code>screen record</code>和<code>screen recording</code>按星标排序，结果不一样</li><li>推荐用AI搜索：在ChatGPT里用中文说「在GitHub上帮我找好用的录屏软件」，它会搜齐热门工具并总结成表格</li><li>找热门项目还可通过左侧<code>Explore</code>中的<code>Trending</code>，查看全站当天、本周、本月最热门项目</li><li>也可让ChatGPT帮忙找<code>GitHub daily</code>，及时分享最新最热门的项目</li></ul><h2 class="ck-doc-h2">GitHub项目页面构成</h2><ul><li>一个项目本质上就是一个文件夹，项目名字下面是子文件夹或文件</li><li><code>star</code>相当于对项目进行收藏和点赞，star越多说明项目越受欢迎，代表项目的「江湖地位」</li><li><code>watch</code>是关注项目，<code>fork</code>是复制项目到自己的账号</li><li>右边<code>About</code>是项目简介，一句话介绍项目是干啥的</li><li><code>release</code>是软件的安装包，点开可看到最新版本并下载安装</li><li><code>readme</code>文件是项目的说明书，默认在项目最下面展开显示，可了解项目用途、安装使用方法，是了解一个项目必看的内容</li><li>每个文件最近的<code>commit</code>日期可理解为最近更新时间，若更新日期是好几年前，大概率是没人维护的僵尸项目</li></ul><h1 class="ck-doc-h1">核心结论</h1><h2 class="ck-doc-h2">核心结论</h2><ul><li><strong>GitHub定位</strong>：不只是代码托管平台，而是几乎能找到资源、教程、工具的巨大宝藏资源库，包含名校公开课、大厂面试题与经验、开源大模型、AI学习资料等。</li><li><strong>工作性价比评估项目</strong>：输入年薪、工作地区、年假、通勤时长、学历、工作年限、领导同事情况等，综合给出工作性价比分数和评级；老李测试程序员工作，评估结果为「性价比还不错，优质牛马」。</li><li><strong>表情包博物馆项目</strong>：收集国内过去几年全网爆火的表情包大合集，涵盖甄嬛传、罗翔、特朗普、马保国等主题。</li><li><strong>健康活到150岁指南</strong>：分享经科学研究证实的健康知识，如间歇性进食促进胆汁代谢、炎症自愈，吃天然发酵类食品改善肠道菌群生态。</li><li><strong>一键做证件照项目</strong>：上传大头照即可一键抠图换背景，生成不同标准的证件照和各种规格的打印模板。</li><li><strong>健身教练项目</strong>：选择要练习的肌肉群（如腹肌），提供用身体自重练习的参考动画，适合请不起真人教练的用户。</li><li><strong>教材资源项目</strong>：收集国内所有小学、初中、高中及部分大学的PDF教材，全部免费。</li><li><strong>全自动视频生成项目</strong>：Morning Printer Turbo，近期超火。</li><li><strong>声音克隆模型ChatBox TTS</strong>：零样本语音克隆，情感控制到位，克隆声音像真人说话；上传音频即可合成指定英文台词。</li><li><strong>AI学习资源库</strong>：涵盖大语言模型、RAG、AI Agents、MSI等最新AI技术，作者整理成500多页PDF文档，含大量示意图。</li><li><strong>Awesome AI Apps项目</strong>：收录大模型最新Agent应用，如医学影像数据分析Agent、AI投资Agent、竞争对手情报分析Agent等，可用于跟进AI应用落地案例或找创业点子。</li><li><strong>解决GitHub访问问题</strong>：三种方法——Watt Toolkit加速软件（进入网站选版本下载安装，打开后勾选GitHub加速）、GitHub镜像站（如gh-proxy，浏览器直接访问，可搜索其他项目）、VPN（魔法）；老李个人最推荐VPN，Watt Toolkit比镜像站更流畅，镜像站速度和稳定性较差。</li><li><strong>GitHub注册</strong>：注册简单，用国内QQ邮箱即可。</li><li><strong>解决全英文页面</strong>：给浏览器装翻译插件，谷歌浏览器推荐Google Translate或沉浸式翻译；动手能力强的可安装汉化插件。</li><li><strong>GitHub原生搜索局限</strong>：按关键词精准匹配，如搜「screen record」和「screen recording」按星标排序结果不同；推荐用AI搜索（如ChatGPT输入中文需求），可搜齐热门项目并总结成表格。</li><li><strong>项目页面功能</strong>：star相当于收藏点赞，watch是关注项目，fork是复制项目到自己的账号；About是项目简介，release是软件安装包，readme是项目说明书，默认在项目最下面展开显示。</li><li><strong>判断项目是否维护</strong>：通过文件最近的commit日期判断，更新日期是好几年前的大概率是没人维护的僵尸项目。</li><li><strong>查看热门项目</strong>：点开左侧Explore，在Trending里可看全站当天、本周、本月最热门项目；也可用ChatGPT找GitHub daily，及时分享最新热门项目。</li></ul><h2 class="ck-doc-h2">易混点与适用边界</h2><ul><li><strong>Watt Toolkit vs 镜像站</strong>：Watt Toolkit更流畅，镜像站速度和稳定性更差；Watt Toolkit需下载安装并勾选GitHub加速，镜像站浏览器直接打开即可用。</li><li><strong>GitHub原生搜索 vs AI搜索</strong>：原生搜索按关键词精准匹配，搜「screen record」和「screen recording」结果不同；AI搜索（如ChatGPT）输入中文即可搜齐热门项目并总结成表格，解决英文不好、搜得不够准确全面的问题。</li><li><strong>star、watch、fork的区别</strong>：star是收藏点赞，watch是关注项目，fork是复制项目到自己的账号。</li><li><strong>readme的定位</strong>：是项目说明书，内容默认在项目最下面展开显示，用于了解项目干什么、怎么安装使用，是了解一个项目必看的东西。</li><li><strong>commit日期判断项目状态</strong>：更新日期是好几年前的大概率是没人维护的僵尸项目；最新热门项目看Explore的Trending（当天、本周、本月）。</li></ul><h2 class="ck-doc-h2">待澄清问题</h2><p>未提及</p>
+      </div>
+    </div>
+  </main>
+</body>
+</html>

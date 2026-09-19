@@ -1,0 +1,372 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>电力系统基础概念与交直流输电发展史</title>
+  <style>
+
+    body {
+      margin: 0;
+      padding: 32px 16px;
+      background: #f6f5f0;
+      color: #1a1a1a;
+      font-family: "Latin Modern Roman", "Computer Modern Roman", "CMU Serif", "Times New Roman", Times, "Songti SC", "SimSun", "STSong", serif;
+      -webkit-font-smoothing: antialiased;
+    }
+    .page { max-width: 1140px; margin: 0 auto; }
+    .ck-doc {
+      background: #ffffff;
+      border: 1px solid #d4d0c7;
+      border-radius: 4px;
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.05), 0 1px 3px rgba(0,0,0,0.03);
+      padding: 36px 44px;
+      line-height: 1.75;
+      font-size: 0.96rem;
+    }
+    .ck-doc h1 {
+      margin: 0 0 10px;
+      font-size: 1.85rem;
+      font-weight: 700;
+      letter-spacing: 0.4px;
+      text-align: center;
+      font-variant: small-caps;
+      color: #111111;
+    }
+    .ck-doc-header {
+      margin-bottom: 24px;
+      padding-bottom: 16px;
+      border-bottom: 2px solid #111111;
+      text-align: center;
+    }
+    .ck-doc-meta {
+      font-size: 0.85rem;
+      color: #555555;
+      font-style: italic;
+    }
+    .ck-doc-content h1, .ck-doc-content .ck-doc-h1 {
+      margin: 28px 0 14px;
+      font-size: 1.32rem;
+      font-weight: 700;
+      color: #111111;
+      border-bottom: 1.5px solid #222222;
+      padding-bottom: 5px;
+      text-align: left;
+      font-variant: normal;
+      letter-spacing: 0.3px;
+    }
+    .ck-doc h2, .ck-doc-h2 {
+      margin: 28px 0 14px;
+      font-size: 1.22rem;
+      font-weight: 700;
+      color: #111111;
+      border-bottom: 1.5px solid #222222;
+      padding-bottom: 5px;
+      letter-spacing: 0.3px;
+    }
+    .ck-doc h3, .ck-doc-h3 {
+      margin: 20px 0 10px;
+      font-size: 1.05rem;
+      font-weight: 700;
+      color: #222222;
+    }
+    .ck-doc h4, .ck-doc-h4 {
+      margin: 16px 0 8px;
+      font-size: 0.98rem;
+      font-weight: 700;
+      color: #333333;
+    }
+    .ck-doc p {
+      margin: 10px 0;
+      line-height: 1.75;
+      text-align: justify;
+    }
+    .ck-doc ul, .ck-doc ol {
+      margin: 8px 0 12px;
+      padding-left: 1.5em;
+      line-height: 1.72;
+    }
+    .ck-doc li {
+      margin: 4px 0;
+    }
+    .ck-doc blockquote, .ck-quote {
+      margin: 10px 0 14px;
+      padding: 8px 14px;
+      background: #faf9f6;
+      border-left: 3.5px solid #222222;
+      border-radius: 2px;
+      color: #222222;
+      font-size: 0.92rem;
+      font-style: italic;
+    }
+    .ck-doc code {
+      background: #f3f0e8;
+      border: 1px solid #e2ddd3;
+      border-radius: 3px;
+      padding: 1px 6px;
+      font-family: "Latin Modern Mono", Consolas, monospace;
+      font-size: 0.88em;
+    }
+    .ck-doc table, .ck-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.88rem;
+      margin: 14px 0;
+      background: #ffffff;
+      border-top: 2px solid #222222;
+      border-bottom: 2px solid #222222;
+    }
+    .ck-doc table th, .ck-doc table td, .ck-table th, .ck-table td {
+      padding: 9px 12px;
+      text-align: left;
+      vertical-align: middle;
+      border-bottom: 1px solid #ede9e1;
+    }
+    .ck-doc table th, .ck-table th {
+      background: #fbfaf7;
+      border-bottom: 1.2px solid #222222;
+      font-weight: 700;
+      color: #111111;
+      letter-spacing: 0.3px;
+    }
+
+    /* Roomy & Spacious Academic Risk Table */
+    .ck-risk-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 18px 0 28px;
+      background: #ffffff;
+      border-top: 2.2px solid #111111;
+      border-bottom: 2.2px solid #111111;
+      font-size: 0.93rem;
+      line-height: 1.72;
+    }
+    .ck-risk-table th {
+      background: #faf8f5;
+      border-bottom: 1.5px solid #111111;
+      padding: 15px 16px;
+      font-weight: 700;
+      color: #111111;
+      letter-spacing: 0.3px;
+      text-align: left;
+      vertical-align: middle;
+    }
+    .ck-risk-table td {
+      padding: 16px 16px;
+      border-bottom: 1px solid #ede8e0;
+      vertical-align: top;
+      color: #1a1a1a;
+      word-break: break-word;
+    }
+    .ck-risk-table tr:nth-child(even) td {
+      background: #fdfcfb;
+    }
+    .ck-risk-table tr:hover td {
+      background: #f6f3eb;
+    }
+
+    /* Review Grid */
+    .ck-review {
+      display: grid;
+      grid-template-columns: minmax(0, 1.35fr) 1px minmax(260px, 0.95fr);
+      border: 1px solid #d4d0c7;
+      border-radius: 4px;
+      overflow: hidden;
+      margin: 14px 0 20px;
+      background: #ffffff;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.03);
+    }
+    .ck-review-left {
+      padding: 22px 26px;
+      background: #ffffff;
+      line-height: 1.75;
+    }
+    .ck-review-rule { background: #dcd8cf; }
+    .ck-review-right {
+      padding: 16px 18px;
+      background: #faf9f6;
+      box-sizing: border-box;
+      display: flex;
+      flex-direction: column;
+    }
+    .ck-ev-list {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    /* Entity Highlight in LaTeX Paper Style */
+    .ck-cite-entity {
+      background: #fff8db;
+      border-bottom: 1.5px solid #b86a04;
+      padding: 1px 4px;
+      border-radius: 2px;
+      cursor: pointer;
+      transition: all 0.18s ease;
+      color: #111111;
+      font-weight: 600;
+    }
+    .ck-cite-entity:hover {
+      background: #ffe58f;
+      color: #000000;
+    }
+    .ck-cite-entity.is-on {
+      background: #ffd54a;
+      border-bottom-color: #0047ab;
+      box-shadow: 0 0 0 2px rgba(0,71,171,0.25);
+    }
+
+    /* Blue Hyperref Citations [1], [2] */
+    .ck-cite-ref {
+      color: #0047ab;
+      font-weight: 600;
+      font-family: "Latin Modern Roman", "Computer Modern Roman", "Times New Roman", serif;
+      text-decoration: none;
+      cursor: pointer;
+      padding: 0 2px;
+      margin: 0 2px;
+      border-radius: 2px;
+      transition: all 0.15s ease;
+      font-size: 0.92em;
+      vertical-align: baseline;
+      user-select: none;
+    }
+    .ck-cite-ref:hover {
+      text-decoration: underline;
+      background: #e8f0fe;
+      color: #003380;
+    }
+    .ck-cite-ref.is-active {
+      background: #d2e3fc;
+      color: #002266;
+      font-weight: 700;
+      box-shadow: 0 0 0 1px #0047ab;
+    }
+
+    /* Right Memory Cards in LaTeX Paper Style */
+    .ck-provenance-head {
+      font-size: 0.82rem;
+      font-weight: 700;
+      color: #222222;
+      margin: 0 0 12px;
+      padding-bottom: 6px;
+      border-bottom: 1px solid #e0dcd4;
+      letter-spacing: 0.3px;
+      text-transform: uppercase;
+    }
+    .ck-ref-icon { color: #0047ab; margin-right: 4px; }
+    .ck-ev {
+      display: block;
+      margin: 0;
+      padding: 10px 12px;
+      border: 1px solid #dedad2;
+      border-left: 3.5px solid #0047ab;
+      border-radius: 2px;
+      background: #ffffff;
+      font-size: 0.82rem;
+      line-height: 1.55;
+      transition: all 0.2s ease;
+      cursor: pointer;
+    }
+    .ck-ev:hover { border-color: #b5b0a5; }
+    .ck-ev.is-on, .ck-ev.is-highlighted {
+      border-color: #0047ab;
+      box-shadow: 0 0 0 2px #0047ab, 0 3px 8px rgba(0,71,171,0.15);
+      background: #f0f5ff;
+    }
+    @keyframes citePulse {
+      0% { background: #dbeafe; box-shadow: 0 0 0 3px #0047ab; }
+      50% { background: #bfdbfe; box-shadow: 0 0 0 4px #0047ab; }
+      100% { background: #f0f5ff; box-shadow: 0 0 0 2px #0047ab; }
+    }
+    .ck-ev-k {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 0.75rem;
+      color: #444444;
+      margin-bottom: 5px;
+      font-weight: 700;
+    }
+    .ck-ev-cite-tag {
+      color: #0047ab;
+      font-weight: 700;
+      font-family: "Latin Modern Roman", serif;
+      text-decoration: none;
+    }
+    .ck-ev-kind-badge {
+      display: inline-block;
+      padding: 1px 6px;
+      border-radius: 2px;
+      font-size: 0.72rem;
+      font-weight: 600;
+      letter-spacing: 0.2px;
+    }
+    .ck-badge-keypoint {
+      border: 1px solid #0047ab;
+      color: #0047ab;
+      background: #f0f5ff;
+    }
+    .ck-badge-note {
+      border: 1px solid #b86a04;
+      color: #b86a04;
+      background: #fff8eb;
+    }
+    .ck-mem-title {
+      font-weight: 700;
+      color: #111111;
+      font-size: 0.88rem;
+      margin-bottom: 6px;
+      line-height: 1.45;
+    }
+    .ck-ev-quote {
+      color: #222222;
+      font-style: normal;
+      font-family: inherit;
+      margin: 4px 0 6px;
+      padding: 0;
+      background: transparent;
+      border: none;
+      line-height: 1.6;
+      font-size: 0.84rem;
+    }
+    .ck-ev-meta { font-size: 0.76rem; color: #666666; margin-top: 6px; }
+    .ck-ev-more {
+      margin-top: 2px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+    .ck-ev-more[open] { margin-top: 4px; }
+    .ck-ev-more summary { margin-bottom: 6px; }
+    .ck-proof-toggle {
+      cursor: pointer;
+      font-size: 0.82rem;
+      color: #0047ab;
+      user-select: none;
+      font-family: inherit;
+      padding: 2px 0;
+    }
+    .ck-proof-toggle:hover { text-decoration: underline; }
+
+    @media(max-width: 860px) {
+      .ck-doc { padding: 22px 18px; }
+      .ck-review { grid-template-columns: 1fr; }
+      .ck-review-rule { display: none; }
+    }
+
+  </style>
+</head>
+<body>
+  <main class="page">
+    <div class="ck-doc">
+      <header class="ck-doc-header">
+        <h1>电力系统基础概念与交直流输电发展史</h1>
+      </header>
+      <div class="ck-doc-content">
+        <h1 class="ck-doc-h1">课程概况</h1><p>本课程为电气工程基础，是电气类专业进入专业课后的第一门入门课。课程教学目的有二：一是掌握电力系统发电、输电、配电、用电四个典型环节的构成、工作原理及其与整体的关系，建立电力系统整体概念；二是掌握电力系统在分析、设计、运行、管理方面的基础理论、基本技术与计算方法。前修课程要求电路理论与电机学知识，特别是变压器和同步电机；后续重要课程包括电力系统分析、电力系统继电保护、电力系统自动化、高电压技术。第一章为本课程重点内容，要求掌握电力系统、电力网、动力系统、变电站等基本概念，理解电力系统特点及要求，掌握电能质量指标（含国家标准），了解常用接地方式（重点为中心点接地方式），并指出三个学习难点：电能不能大量储存决定的有功/无功功率动态平衡、额定电压规定繁杂、各种中心点接地方式影响后续章节。课程还梳理了交直流输电发展简史，从早期直流输电的局限到三相交流输电因效率高、金属消耗量少而占主导，并介绍了电力系统的形成过程及电力系统、电力网、动力系统的定义与电网分类。</p><h1 class="ck-doc-h1">核心知识点梳理</h1><h2 class="ck-doc-h2">课程教学目标与学习要求</h2><ul><li><strong>课程定位</strong>：电气工程基础是进入专业课后的<strong>第一门课</strong>，属专业入门课，对今后工作非常重要。</li><li><strong>教学目标一</strong>：掌握电力系统<strong>发电、输电、配电、用电</strong>四个典型环节的构成、工作原理及与电力系统整体之间的关系，建立电力系统整体概念。</li><li><strong>教学目标二</strong>：掌握电力系统在分析、设计、运行、管理方面的<strong>基础理论、基本技术及基本计算方法</strong>。</li><li><strong>前修课程</strong>：要求对电路理论和电机学有一定了解，特别是<strong>变压器和同步电机</strong>知识要求较高；有欠缺的同学应下去补充相关内容。</li><li><strong>后续课程</strong>：最重要的四门为电力系统分析、电力系统继电保护、电力系统自动化、高电压技术。</li><li><strong>第一章学习内容</strong>：① 掌握电力系统、电力网、动力系统和变电站等基本概念；② 理解电力系统的特点及由其引起的设计运行基础理论；③ 理解对电力系统提出的要求；④ 掌握电能质量指标（含国家标准规定范围）；⑤ 了解常用接地方式，重点是工作接地即<strong>中心点接地方式</strong>。</li><li><strong>难点一 ⭐</strong>：由电力系统特点引出的基本原理，如<strong>电能不能大量储存</strong>决定了电力系统有功功率和无功功率的动态平衡问题，是运行调整和设计的基础。</li><li><strong>难点二 ⭐</strong>：电力系统额定电压的规定非常繁杂，需注意把规定搞清楚。</li><li><strong>难点三 ⭐</strong>：各种中心点接地方式直接影响后续多个章节内容，学习较困难。</li><li><strong>学习方法建议</strong>：对基本概念注意内涵和外延并适当记忆；从电力系统特点要求出发、从最基础原理推导，<strong>不要记结论</strong>（结论在使用条件变化时会失效）；寻找额定电压规定之间的基本规律；比较不同中心点接地方式的特点。</li></ul><h2 class="ck-doc-h2">电力发展简史（交直流输电发展）</h2><ul><li><strong>直流输电起源</strong>：电力发展从直流开始而非交流；福泰勒用2000米导线连接瓦斯发电机，拖动直流电动机和水泵，证明直流输电可行。</li><li><strong>早期直流线路</strong>：1874年俄国工程师在彼得堡建成4.5公里直流输电线路，传输功率4.5千瓦，后用于有轨电车的原始工业试验。</li><li><strong>德普勒试验</strong>：1882年法国德普勒架设首条57公里直流试验线路（用电报线传输），首端电压1343伏、末端850伏，输送功率200瓦，<strong>损耗78%</strong>；1883年进行14公里输电试验，输送功率1.1千瓦，损耗55%。</li><li><strong>直流三线制</strong>：1882年10月英国科学家发明直流输电三线制系统，外线与中线间电压110伏、两外线间电压220伏，后扩展到5根线形成直流无限制系统。</li><li><strong>直流输电限制</strong>：电压等级低时损耗大、电压降落快；制造大容量高压直流发电机困难，限制了远距离大容量输电。</li><li><strong>串联发电机尝试</strong>：19世纪末法国方剑在送端串联多台直流发电机以提高电压，将75千瓦电力输送75千米；20世纪初瑞典科学家在串联直流发电机上装短路器，使任意发电机投切不停电，此后20多年建成15条直流输电线路。</li><li><strong>最大直流线路</strong>：1906年投运的法国慕尼黑水电厂到里昂线路，180公里、57千伏、4700千瓦；1927年改建为260公里、125千伏、19000千瓦，接入两座水电站。</li><li><strong>直流输电制约</strong>：设备复杂、运行方式复杂、造价高、可靠性差。</li><li><strong>交流输电早期发展</strong>：1876年俄国科学家发明单相变压器（主要用于照明）；1883年美国特斯拉制造感应电机；1885年匈牙利科学家设计多台变压器并联运行方式。</li><li><strong>交直流之争</strong>：爱迪生与凯尔文主张直流电，理由是直流效率高、交流有危险性（曾购买威斯汀豪斯交流发电机卖给监狱给死刑犯执行死刑以证明危险性）；威斯汀豪斯和特斯拉主张交流电，理由是交流电易用变压器升压降压、可在高电压下减少电能损失。</li><li><strong>交流输电示范</strong>：1886年威斯汀豪斯在美国麻省进行1.2千米30千伏交流输电示范，同年又在意大利建成17英里高压输电线路；1886年俄国科学家发明三相交流电、三相交流输电和三相异步电动机。</li><li><strong>交直流之争标志性事件</strong>：法国到德国的交流输电线路（从水电厂装三相发电机和升压变压器升压后送到德国，在法兰克福建两座降压变电站，一座供展览会照明、一座供100马力三相异步电动机带动离心泵做人工瀑布），此后很长一段时间发展交流输电。</li><li><strong>交流输电电压等级提升</strong>：1898年发明实心绝缘子后美国加利福尼亚电压等级提高到33千伏；1906年发明悬式绝缘子建成110千伏高压输电；1912年发现电晕临界电压与导线直径成比例增加，铝线和钢芯铝绞线开始应用，美国建成154千伏线路；1923年均压阀技术应用建成220千伏线路；1936年美国287千伏线路投运；1952年瑞典建成380千伏线路（<strong>首次采用分裂导线</strong>）；1956年苏联400千伏双回线路投运；1965年加拿大建成735千伏输电系统；1969年美国765千伏线路并入电网；1985年苏联1150千伏特高压线路投运（后降压到500千伏运行）。</li><li><strong>国内交流输电发展</strong>：224千伏线路1941年投运；330千伏1972年投运；500千伏1981年投运；<strong>2009年1000千伏交流特高压投运</strong>，为国家标志性首次投运成果。</li><li><strong>直流输电复兴</strong>：交流大电网稳定问题突出后，直流在联网中的优势显现，用于电网与电网之间连接；1954年瑞典本土与哥特兰岛间建成世界第一个工业用海底电缆直流工程（100千伏、96公里，采用汞弧阀）；1970年扩建50千伏、1万千瓦晶闸管换流阀试验工程；1972年世界上第一个晶闸管换流阀背靠背直流工程在加拿大投运。</li><li><strong>中国直流输电工程</strong>：第一个直流输电工程连接舟山群岛与浙江定海电网；第二个为1989年葛上直流（葛洲坝电厂到上海，±500千伏）；今年6月投运云广直流±800千伏特高压直流工程。</li><li><strong>推荐阅读</strong>：主讲人推荐三本关于电力发展史的书，作为电气专业学生应了解电力发展基本史。</li></ul><h2 class="ck-doc-h2">三相交流输电的优势</h2><ul><li><strong>三相系统优点一</strong>：易于产生旋转磁场，三相电动机容易做驱动。</li><li><strong>三相系统优点二</strong>：瞬时功率恒定，不随时间变化。</li><li><strong>三相系统优点三</strong>：输电线路导线量（金属消耗量）最少。</li><li><strong>应用现状</strong>：除室内配电等小功率供电采用单相交流外，其它场合基本采用三相交流；国内电力系统大多数高压、超高压、特高压输电采用三相交流方式，<strong>直流仅在联网过程中采用</strong>。</li><li><strong>效率比较</strong>：三相三线制传输效率最高；与单相三线制和对称n相n线制比较，在同等功率和功率因数下，三相三线制金属消耗量最小（全截面为一根导线截面乘以3）。</li><li><strong>教学回应</strong>：主讲人说明多年学生常问「国家为什么采用交流三相三线制」，本节给出原理性回答。</li></ul><h2 class="ck-doc-h2">电力系统的形成过程</h2><ul><li><strong>早期供电方式</strong>：一台发电机向附近负荷供电（如展览会照明、大楼照明），各发电机孤立运行；类似前几年街边停电后用小型柴油发电机向商铺供电。</li><li><strong>单机供电缺点</strong>：发电机出问题负荷即停电，供电可靠性非常差。</li><li><strong>提高可靠性方法</strong>：把两台发电机并联连接，一台出问题时另一台可带重要负荷，不重要的地方可停掉；发电机相互连接越来越多。</li><li><strong>输电线路参数问题</strong>：导线有<strong>电阻和电抗</strong>两个重要参数，传输功率（电流流通）时产生电压损耗和功率损耗；阻抗越大、电流越大，损耗越大，因此输电线路不能太长。</li><li><strong>升压解决远距离输电</strong>：电压升高后传输相同功率时电流减小，有功功率损耗（I²R）和电压降落（IZ）均减小，输电距离可变长；交流系统升压唯一办法是<strong>加变压器</strong>，一侧升压、另一侧降压。</li><li><strong>电力系统雏形</strong>：近距离（几十到几百米）两台发电机可直接相连；远距离采用升压后传输，多台发电机共同供电，形成电力系统雏形。</li><li><strong>多机供电好处</strong>：① 一台发电机停运影响不大，只需发电机数目足够多于负荷即可保证供电；② 能装大机组，向大片区域供电，供电范围越来越大，<strong>直接带来经济效益</strong>。</li><li><strong>远距离输电问题</strong>：距离很长时（如湖北送电到华东、云贵送电到两广），中间负荷可在输电线路中间装设变电站、装降压变压器供电；输电距离长后出现稳定问题（自控理论中的稳定问题），可装设变电站采取设备调整。</li><li><strong>现代电力系统特征</strong>：发电机发电→升压变压器升压→输电线路传输到负荷中心→降低电压供给用电设备；负荷中心可能经几次降压，最后降到用户能用的电压。</li></ul><h2 class="ck-doc-h2">电力系统、电力网与动力系统</h2><ul><li><strong>电力系统定义</strong>：由发电机、变压器、输电线路和用电设备构成的整体，完成电能<strong>生产、输送、分配、消耗</strong>四方面职能；由发电、输电、配电、用电四个环节组成。</li><li><strong>电力网定义</strong>：电力系统中去除发电机和用电设备的部分，即<strong>变压器和输电线路构成的网络</strong>；电力系统比电力网多了发电厂和用电设备。</li><li><strong>动力系统定义</strong>：电力系统加上发电厂动力部分——火电厂的锅炉、汽机及煤炭输送处理系统，水电厂的水轮机、水坝、水库等。</li><li><strong>概念使用现状</strong>：行业中最常说的是电力网和电力系统两个概念，动力系统概念现在很少说；「电网」即指电力网。</li></ul><h2 class="ck-doc-h2">电网分类</h2><ul><li><strong>地方电力网</strong>：向固定地方供给电能的网络；电压等级在110千伏及以下（早期定义为35千伏及以下，现常为110千伏及以下），供电半径20~50公里。</li><li><strong>区域电力网</strong>：电压等级为110、220千伏及少量500千伏，供电半径超过50公里，联系较多发电厂和负荷中心的网络。</li><li><strong>超高压远距离输送网络</strong>：电压等级为500千伏或1000千伏（东北有330千伏网络），主要任务是把发电厂电能送到负荷中心，距离很远，构成跨省跨地区大型电力系统。</li><li><strong>实例一</strong>：武汉电网属地方电力网——向固定武汉地区供电，主要供电电压110千伏和35千伏，少数地方出现220千伏，供电半径一般在50公里以内。</li><li><strong>实例二</strong>：华中电网属典型区域电网——华中几省紧密联系，电压供电半径较大。</li><li><strong>实例三</strong>：葛上直流、三峡到上海输电线路属超高压远距离输电网络——连接华中与华东；特高压系统从山西晋东南到湖北荆门，跨三个省，连接华北电网和华中电网，属超高压远距离输送网络。</li><li><strong>动态变化</strong>：随着电网发展和电压等级提高，各级电网所用电压等级会发生变化（一般提高），变电站地位也随之变化。</li></ul><h2 class="ck-doc-h2">变电站分类</h2><ul><li><strong>按最高电压等级分类</strong>：以站内最高电压命名——华工变电站为10千伏变电站（10千伏变到380伏）；关山变电站最高电压220千伏，称220千伏变电站；凤凰山变电站最高电压500千伏，称500千伏变电站。</li><li><strong>按主要功率流向分类</strong>：分升压变电站和降压变电站——大部分功率从高压侧流向低压侧称<strong>降压变电站</strong>；发电厂内大部分功率从发电机低压侧升到高压侧称<strong>升压变电站</strong>。</li></ul><h1 class="ck-doc-h1">课堂互动与答疑</h1><p><strong>学生</strong>：为什么电力系统最终选择三相三线制交流输电，而不是直流或其他方式？</p><p><strong>教师</strong>：三相三线制在传输效率上最高，同等功率和功率因数下导线金属消耗量最少；三相系统易于产生旋转磁场、瞬时功率恒定，便于电动机驱动。直流输电因电压等级低时损耗大、电压降落快，且制造大容量高压直流发电机困难，早期难以远距离大容量输电，故交流占主导，直流主要用于电网间联网。</p><p><strong>学生</strong>：电力系统、电力网和动力系统这三个概念有什么区别？</p><p><strong>教师</strong>：电力系统由发电机、变压器、输电线路和用电设备构成，完成电能生产、输送、分配和消耗；电力网是去除发电机和用电设备后，由变压器和输电线路构成的网络；动力系统则在电力系统基础上再加入发电厂动力部分，如火电锅炉汽机、水电水轮机水坝等。行业中最常用的是电力网和电力系统两个概念。</p><p><strong>学生</strong>：地方电网、区域电网和超高压远距离输送网络如何区分？</p><p><strong>教师</strong>：地方电力网电压等级在110千伏及以下，供电半径20–50公里，如武汉电网；区域电力网电压等级为110、220千伏及少量500千伏，供电半径超过50公里，联系较多发电厂和负荷中心，如华中电网；超高压远距离输送网络电压等级为500千伏或1000千伏（东北有330千伏），跨省跨地区输送电能，如葛上直流、三峡到上海输电线路。</p><p><strong>学生</strong>：变电站按什么标准分类？</p><p><strong>教师</strong>：主要有两种分类方法：按最高电压等级分类，如10千伏、220千伏、500千伏变电站；按主要功率流向分类，大部分功率从高压侧流向低压侧的为降压变电站，发电厂中大部分功率从低压侧升压到高压侧的为升压变电站。</p><h1 class="ck-doc-h1">课后任务与学习建议</h1><h2 class="ck-doc-h2">复习重点</h2><ul><li><strong>电力系统四个环节</strong>：发电、输电、配电、用电的构成与工作原理，以及与电力系统整体的关系，建立电力系统整体概念。</li><li><strong>电力系统、电力网、动力系统定义</strong>：电力系统由发电机、变压器、输电线路和用电设备构成，完成电能生产、输送、分配和消耗；电力网为去除发电机和用电设备的部分；动力系统为电力系统加上发电厂动力部分（火电锅炉汽机、水电水轮机水坝等）。</li><li><strong>电网分类</strong>：地方电力网（110千伏及以下，供电半径20–50公里）、区域电力网（110、220千伏及少量500千伏，供电半径超过50公里）、超高压远距离输送网络（500千伏或1000千伏，东北有330千伏，跨省跨地区）。</li><li><strong>电能质量指标</strong>：掌握国家标准对电能质量指标规定的范围。</li><li><strong>常用接地方式</strong>：了解电力系统常用接地方式，重点是工作接地（中心点接地方式）的不同特点。</li><li><strong>电力系统特点及要求</strong>：理解由电力系统特点（如电能不能大量储存）所引起的最基础理论，以及对其设计、运行、维护提出的要求。</li><li><strong>额定电压规定</strong>：电力系统额定电压的规定繁杂，需注意寻找规定之间的基本规律。</li><li><strong>三相交流输电优势</strong>：ABC三相对称系统易于产生旋转磁场、瞬时功率恒定、导线金属消耗量最少；三项三线制传输效率最高、同等功率和功率因数下金属消耗量最小，故在交流输电领域占主导，直流主要用于联网。</li></ul><h2 class="ck-doc-h2">学习建议</h2><ul><li><strong>补充前修知识</strong>：对电路理论和电机学有欠缺的同学，应补充相关内容，特别是变压器和同步电机的知识，本课程要求较高。</li><li><strong>掌握基本概念方法</strong>：注意概念的内涵和外延，并适当结合实际；从电力系统的特点和要求出发，从最基础原理推导，不要只记结论——使用条件变化时结论可能失效。</li><li><strong>梳理额定电压规律</strong>：注意寻找额定电压规定之间的基本规律，便于记忆繁杂规定。</li><li><strong>比较接地方式特点</strong>：注意比较各种不同中心点接地方式之间的特点，该内容影响后续多个章节。</li><li><strong>阅读电力发展史</strong>：作为电气专业学生应了解电力发展基本史，推荐阅读三本相关书籍，了解交直流输电发展历程。</li></ul>
+      </div>
+    </div>
+  </main>
+</body>
+</html>

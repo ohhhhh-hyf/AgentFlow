@@ -1,0 +1,372 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>故宫保姆级游览攻略讲解</title>
+  <style>
+
+    body {
+      margin: 0;
+      padding: 32px 16px;
+      background: #f6f5f0;
+      color: #1a1a1a;
+      font-family: "Latin Modern Roman", "Computer Modern Roman", "CMU Serif", "Times New Roman", Times, "Songti SC", "SimSun", "STSong", serif;
+      -webkit-font-smoothing: antialiased;
+    }
+    .page { max-width: 1140px; margin: 0 auto; }
+    .ck-doc {
+      background: #ffffff;
+      border: 1px solid #d4d0c7;
+      border-radius: 4px;
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.05), 0 1px 3px rgba(0,0,0,0.03);
+      padding: 36px 44px;
+      line-height: 1.75;
+      font-size: 0.96rem;
+    }
+    .ck-doc h1 {
+      margin: 0 0 10px;
+      font-size: 1.85rem;
+      font-weight: 700;
+      letter-spacing: 0.4px;
+      text-align: center;
+      font-variant: small-caps;
+      color: #111111;
+    }
+    .ck-doc-header {
+      margin-bottom: 24px;
+      padding-bottom: 16px;
+      border-bottom: 2px solid #111111;
+      text-align: center;
+    }
+    .ck-doc-meta {
+      font-size: 0.85rem;
+      color: #555555;
+      font-style: italic;
+    }
+    .ck-doc-content h1, .ck-doc-content .ck-doc-h1 {
+      margin: 28px 0 14px;
+      font-size: 1.32rem;
+      font-weight: 700;
+      color: #111111;
+      border-bottom: 1.5px solid #222222;
+      padding-bottom: 5px;
+      text-align: left;
+      font-variant: normal;
+      letter-spacing: 0.3px;
+    }
+    .ck-doc h2, .ck-doc-h2 {
+      margin: 28px 0 14px;
+      font-size: 1.22rem;
+      font-weight: 700;
+      color: #111111;
+      border-bottom: 1.5px solid #222222;
+      padding-bottom: 5px;
+      letter-spacing: 0.3px;
+    }
+    .ck-doc h3, .ck-doc-h3 {
+      margin: 20px 0 10px;
+      font-size: 1.05rem;
+      font-weight: 700;
+      color: #222222;
+    }
+    .ck-doc h4, .ck-doc-h4 {
+      margin: 16px 0 8px;
+      font-size: 0.98rem;
+      font-weight: 700;
+      color: #333333;
+    }
+    .ck-doc p {
+      margin: 10px 0;
+      line-height: 1.75;
+      text-align: justify;
+    }
+    .ck-doc ul, .ck-doc ol {
+      margin: 8px 0 12px;
+      padding-left: 1.5em;
+      line-height: 1.72;
+    }
+    .ck-doc li {
+      margin: 4px 0;
+    }
+    .ck-doc blockquote, .ck-quote {
+      margin: 10px 0 14px;
+      padding: 8px 14px;
+      background: #faf9f6;
+      border-left: 3.5px solid #222222;
+      border-radius: 2px;
+      color: #222222;
+      font-size: 0.92rem;
+      font-style: italic;
+    }
+    .ck-doc code {
+      background: #f3f0e8;
+      border: 1px solid #e2ddd3;
+      border-radius: 3px;
+      padding: 1px 6px;
+      font-family: "Latin Modern Mono", Consolas, monospace;
+      font-size: 0.88em;
+    }
+    .ck-doc table, .ck-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.88rem;
+      margin: 14px 0;
+      background: #ffffff;
+      border-top: 2px solid #222222;
+      border-bottom: 2px solid #222222;
+    }
+    .ck-doc table th, .ck-doc table td, .ck-table th, .ck-table td {
+      padding: 9px 12px;
+      text-align: left;
+      vertical-align: middle;
+      border-bottom: 1px solid #ede9e1;
+    }
+    .ck-doc table th, .ck-table th {
+      background: #fbfaf7;
+      border-bottom: 1.2px solid #222222;
+      font-weight: 700;
+      color: #111111;
+      letter-spacing: 0.3px;
+    }
+
+    /* Roomy & Spacious Academic Risk Table */
+    .ck-risk-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 18px 0 28px;
+      background: #ffffff;
+      border-top: 2.2px solid #111111;
+      border-bottom: 2.2px solid #111111;
+      font-size: 0.93rem;
+      line-height: 1.72;
+    }
+    .ck-risk-table th {
+      background: #faf8f5;
+      border-bottom: 1.5px solid #111111;
+      padding: 15px 16px;
+      font-weight: 700;
+      color: #111111;
+      letter-spacing: 0.3px;
+      text-align: left;
+      vertical-align: middle;
+    }
+    .ck-risk-table td {
+      padding: 16px 16px;
+      border-bottom: 1px solid #ede8e0;
+      vertical-align: top;
+      color: #1a1a1a;
+      word-break: break-word;
+    }
+    .ck-risk-table tr:nth-child(even) td {
+      background: #fdfcfb;
+    }
+    .ck-risk-table tr:hover td {
+      background: #f6f3eb;
+    }
+
+    /* Review Grid */
+    .ck-review {
+      display: grid;
+      grid-template-columns: minmax(0, 1.35fr) 1px minmax(260px, 0.95fr);
+      border: 1px solid #d4d0c7;
+      border-radius: 4px;
+      overflow: hidden;
+      margin: 14px 0 20px;
+      background: #ffffff;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.03);
+    }
+    .ck-review-left {
+      padding: 22px 26px;
+      background: #ffffff;
+      line-height: 1.75;
+    }
+    .ck-review-rule { background: #dcd8cf; }
+    .ck-review-right {
+      padding: 16px 18px;
+      background: #faf9f6;
+      box-sizing: border-box;
+      display: flex;
+      flex-direction: column;
+    }
+    .ck-ev-list {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    /* Entity Highlight in LaTeX Paper Style */
+    .ck-cite-entity {
+      background: #fff8db;
+      border-bottom: 1.5px solid #b86a04;
+      padding: 1px 4px;
+      border-radius: 2px;
+      cursor: pointer;
+      transition: all 0.18s ease;
+      color: #111111;
+      font-weight: 600;
+    }
+    .ck-cite-entity:hover {
+      background: #ffe58f;
+      color: #000000;
+    }
+    .ck-cite-entity.is-on {
+      background: #ffd54a;
+      border-bottom-color: #0047ab;
+      box-shadow: 0 0 0 2px rgba(0,71,171,0.25);
+    }
+
+    /* Blue Hyperref Citations [1], [2] */
+    .ck-cite-ref {
+      color: #0047ab;
+      font-weight: 600;
+      font-family: "Latin Modern Roman", "Computer Modern Roman", "Times New Roman", serif;
+      text-decoration: none;
+      cursor: pointer;
+      padding: 0 2px;
+      margin: 0 2px;
+      border-radius: 2px;
+      transition: all 0.15s ease;
+      font-size: 0.92em;
+      vertical-align: baseline;
+      user-select: none;
+    }
+    .ck-cite-ref:hover {
+      text-decoration: underline;
+      background: #e8f0fe;
+      color: #003380;
+    }
+    .ck-cite-ref.is-active {
+      background: #d2e3fc;
+      color: #002266;
+      font-weight: 700;
+      box-shadow: 0 0 0 1px #0047ab;
+    }
+
+    /* Right Memory Cards in LaTeX Paper Style */
+    .ck-provenance-head {
+      font-size: 0.82rem;
+      font-weight: 700;
+      color: #222222;
+      margin: 0 0 12px;
+      padding-bottom: 6px;
+      border-bottom: 1px solid #e0dcd4;
+      letter-spacing: 0.3px;
+      text-transform: uppercase;
+    }
+    .ck-ref-icon { color: #0047ab; margin-right: 4px; }
+    .ck-ev {
+      display: block;
+      margin: 0;
+      padding: 10px 12px;
+      border: 1px solid #dedad2;
+      border-left: 3.5px solid #0047ab;
+      border-radius: 2px;
+      background: #ffffff;
+      font-size: 0.82rem;
+      line-height: 1.55;
+      transition: all 0.2s ease;
+      cursor: pointer;
+    }
+    .ck-ev:hover { border-color: #b5b0a5; }
+    .ck-ev.is-on, .ck-ev.is-highlighted {
+      border-color: #0047ab;
+      box-shadow: 0 0 0 2px #0047ab, 0 3px 8px rgba(0,71,171,0.15);
+      background: #f0f5ff;
+    }
+    @keyframes citePulse {
+      0% { background: #dbeafe; box-shadow: 0 0 0 3px #0047ab; }
+      50% { background: #bfdbfe; box-shadow: 0 0 0 4px #0047ab; }
+      100% { background: #f0f5ff; box-shadow: 0 0 0 2px #0047ab; }
+    }
+    .ck-ev-k {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 0.75rem;
+      color: #444444;
+      margin-bottom: 5px;
+      font-weight: 700;
+    }
+    .ck-ev-cite-tag {
+      color: #0047ab;
+      font-weight: 700;
+      font-family: "Latin Modern Roman", serif;
+      text-decoration: none;
+    }
+    .ck-ev-kind-badge {
+      display: inline-block;
+      padding: 1px 6px;
+      border-radius: 2px;
+      font-size: 0.72rem;
+      font-weight: 600;
+      letter-spacing: 0.2px;
+    }
+    .ck-badge-keypoint {
+      border: 1px solid #0047ab;
+      color: #0047ab;
+      background: #f0f5ff;
+    }
+    .ck-badge-note {
+      border: 1px solid #b86a04;
+      color: #b86a04;
+      background: #fff8eb;
+    }
+    .ck-mem-title {
+      font-weight: 700;
+      color: #111111;
+      font-size: 0.88rem;
+      margin-bottom: 6px;
+      line-height: 1.45;
+    }
+    .ck-ev-quote {
+      color: #222222;
+      font-style: normal;
+      font-family: inherit;
+      margin: 4px 0 6px;
+      padding: 0;
+      background: transparent;
+      border: none;
+      line-height: 1.6;
+      font-size: 0.84rem;
+    }
+    .ck-ev-meta { font-size: 0.76rem; color: #666666; margin-top: 6px; }
+    .ck-ev-more {
+      margin-top: 2px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+    .ck-ev-more[open] { margin-top: 4px; }
+    .ck-ev-more summary { margin-bottom: 6px; }
+    .ck-proof-toggle {
+      cursor: pointer;
+      font-size: 0.82rem;
+      color: #0047ab;
+      user-select: none;
+      font-family: inherit;
+      padding: 2px 0;
+    }
+    .ck-proof-toggle:hover { text-decoration: underline; }
+
+    @media(max-width: 860px) {
+      .ck-doc { padding: 22px 18px; }
+      .ck-review { grid-template-columns: 1fr; }
+      .ck-review-rule { display: none; }
+    }
+
+  </style>
+</head>
+<body>
+  <main class="page">
+    <div class="ck-doc">
+      <header class="ck-doc-header">
+        <h1>故宫保姆级游览攻略讲解</h1>
+      </header>
+      <div class="ck-doc-content">
+        <h1 class="ck-doc-h1">参观概况</h1><p>本次参观为故宫博物院游览讲解，由讲解员以视频形式带领观众沿中轴线及东西两路依次参观午门、太和门、太和殿、中和殿、保和殿、乾清门、乾清宫、交泰殿、坤宁宫、储秀宫、慈宁宫、断虹桥、武英殿、文华殿、箭亭、钟表馆、珍宝馆、御花园等主要景点，全程围绕各建筑的历史功能、皇帝与后妃生活场景及科举、立储等宫廷制度展开讲解。讲解员详细介绍了午门“明三暗五”的门洞结构及通行规则、太和殿举行登基与册封大典的用途、保和殿自乾隆五十四年起作为殿试考场、乾清宫藏于“正大光明”匾后的立储诏书等核心内容，并穿插铜狮、石狮造型寓意及九龙壁木块替换等细节典故。参观过程中，讲解员还梳理了故宫内七个免费盖章点的位置与印章数量，并依据时间与体力需求总结出三条游览路线，建议早到排队以错开旅游团人群。</p><h1 class="ck-doc-h1">核心看点与讲解</h1><ul><li><strong>午门</strong>：排队检票处即午门，明朝皇帝在此杖打犯错大臣，清朝皇帝在此颁发次年历书（颁朔之礼）。门洞结构为“明三暗五”——外面看三个门洞，进门后变五个；中间正门仅供皇帝行走，皇后大婚时可进一次，殿试前三名（状元、榜眼、探花）可出一次，两侧门走皇亲国戚和文武百官。</li><li><strong>太和门广场</strong>：进入午门后即太和门广场，眼前有五座金水桥——中间桥供皇帝走，挨着中间的两座桥供皇亲国戚走，最边上的桥供文武百官走。</li><li><strong>太和门</strong>：明朝皇帝在此御门听政（上朝）。门口两尊铜狮子是故宫六对铜狮中最大的一对，造型威武霸气、脚踩寰宇，象征权力；站在狮子底下时爪子正好盖在头顶，建议单独拍照即可，不宜站在其下合影。</li><li><strong>太和殿（金銮殿）</strong>：并非上朝之处，而是举行盛大典礼的地方，如皇帝登基、皇后册封；当时文武百官在太和殿广场向皇帝高呼“吾皇万岁万岁万万岁”。百官站位遵循“文东武西”——文官站东边，武官站西边。</li><li><strong>红衣阁与体仁阁</strong>：太和殿广场西边红衣阁是皇帝的银库（讲解员强调是“内库”而非“裤衩子”），皇帝日常支取钱财都从这里拿；东边体仁阁是缎库。</li><li><strong>中和殿</strong>：太和殿后方的建筑，是举行盛大典礼时皇帝的休息室——文武百官未到齐时皇帝在此等候，百官站好后皇帝再前往太和殿。</li><li><strong>保和殿</strong>：自乾隆五十四年起成为科举考试殿试的考场。保和殿东北角有汉字馆，内有4枚免费印章，可现场购买《紫禁城100》并由工作人员盖章；故宫不止一处可买到《紫禁城100》，每家店印章不同，购买后不能去其他店铺盖章，汉字馆印章数量最多，盖完后可选择邮寄到家或自行带走。</li><li><strong>乾清门</strong>：过此门即进入后宫（皇帝和妃嫔生活区域）。皇帝在此上早朝；东边九卿直房是等级高的大臣等待皇帝召见之处，西边是军机处。门口两尊狮子耳朵耷拉、眉毛快遮住眼睛，意在警示后宫之人“不该看的别看，不该听的别听”。</li><li><strong>乾清宫</strong>：皇帝平时睡觉的地方，据说内有27张龙床，是为防止刺客找到皇帝位置。殿内牌匾“正大光明”后藏着皇帝立储的秘密——皇帝写两份立储诏书，一份藏于牌匾后，驾崩后取出两份对比，若名字不一致则说明诏书被人动过手脚。门口摆放铜鹤与铜龟，旁边还有两个精致小房子——社稷江山金殿，是紫禁城里最小的宫殿，设于此地意在提醒皇帝把江山社稷、百姓民生放在第一位。</li><li><strong>交泰殿</strong>：殿内放有25块传国玉玺。</li><li><strong>坤宁宫</strong>：皇后住所，“乾坤”对应——乾清宫住皇帝，坤宁宫住皇后，明朝所有皇后都住于此。坤宁宫东北角有文创店，内有5枚免费印章。</li><li><strong>储秀宫</strong>：慈禧住了20多年的地方，现为慈禧五十大寿时期原状陈列；慈禧喜欢此处因其子（同治帝）在此出生。储秀宫边上有文创店，可免费盖章3枚。</li><li><strong>翊坤宫、永寿宫与太极殿</strong>：储秀宫往南即翊坤宫和永寿宫，永寿宫西边是东西六宫中唯一被称为“殿”的太极殿。</li><li><strong>慈宁宫与寿康宫</strong>：慈宁宫是康熙为祖母孝庄皇太后修建的养老院；旁边寿康宫是甄嬛（剧中人物）居住之处，喜欢《甄嬛传》的游客可打卡。</li><li><strong>冰窖书吧</strong>：慈宁宫、寿康宫往南，内有3枚免费印章，印章造型好，盖章时有批折子的感觉；讲解员在此购买了冰溪图。</li><li><strong>断虹桥</strong>：网红打卡地，桥上有形态各异的石狮子，最有名的是“武当狮”，游客可寻找其位置。</li><li><strong>武英殿</strong>：断虹桥往西，后改为陶瓷馆，目前关闭状态，只能在门口看看。</li><li><strong>文华殿</strong>：穿过太和门广场往东即到，与武英殿对应“文东武西”；讲解员到访时未开放，据说现有一个展览。</li><li><strong>箭亭</strong>：清朝皇帝及其子孙练习骑马射箭之处，旁边商店可买到文创雪糕。</li><li><strong>钟表馆</strong>：展示那个年代的各式钟表，造型多样。</li><li><strong>珍宝馆（宁寿全宫）</strong>：强烈推荐参观。馆前有我国现存三座古代九龙壁之一，左边数第三条白龙下方有一块明显不同的琉璃——实为木头，据说是当年烧制琉璃砖瓦时弄坏一块，工匠为保命找木头刷白漆以假乱真。珍宝馆并非单独展厅，院子周围屋子都值得进去看，每件宝贝都很惊艳，但游客极多，尤其看凤冠需挤进去。此处实为宁寿全宫，是乾隆给自己修建的养老院，但乾隆退休后并未放权，仍每天上朝办公。皇极殿据说是1:1复刻乾清宫，其后宁寿宫对标坤宁宫；穿过养性门为养性殿，再后是乐寿堂——故宫里唯一能进去参观的皇家寝室，内有二龙仙楼设计（让人联想到恭王府和珅的卧室）。再往后是当年慈禧把珍妃丢进去的珍妃井，井口现放的是井口石，珍妃并非从那个小眼进去的。珍宝馆出口右手边商店有3枚免费印章。</li><li><strong>东筒子夹道</strong>：从珍宝馆出口出来可见，拍照非常出片，很多游客喜欢来此。</li><li><strong>延禧宫与景仁宫</strong>：沿东筒子夹道往南拐弯即到网红打卡地延禧宫；旁边景仁宫是当年甄嬛被封熹妃时所住之处，珍妃也住过。</li><li><strong>御花园</strong>：内有钦安殿，供奉真武大帝；紫禁城靠山景山从天上看酷似闭目盘坐的人像，有人说该造型就是钦安殿供奉的真武大帝。</li><li><strong>神武门</strong>：故宫北门，游览至此结束。出门左手边有两个盖章点——角楼咖啡有2枚免费印章，故宫文创也有2枚免费印章。</li></ul><h1 class="ck-doc-h1">互动与体验</h1><ul><li><strong>盖章互动</strong>：保和殿东北角汉字馆有4枚免费印章，可购买《紫禁城100》现场盖章，工作人员现场操作；故宫内不止一处可买到该书，每家店印章不同，购买后不能去其他店铺盖章，汉字馆印章数量最多，盖完后可选择邮寄到家或自行携带。</li><li><strong>盖章互动</strong>：坤宁宫东北角文创店有5枚免费印章；储秀宫文创店有3枚免费印章；冰窖书吧有3枚免费印章，讲解员称盖章时有批折子的感觉；珍宝馆出口商店有3枚免费印章；神武门出门左手边角楼咖啡有2枚免费印章，故宫文创有2枚免费印章，共标注七个免费盖章位置。</li><li><strong>拍照打卡</strong>：太和门门口铜狮子为故宫六对铜狮中最大的一对，讲解员建议单独拍照即可，不建议站在狮子底下合影；断虹桥上有形态各异的石狮子，其中最有名的是武当狮，可自行寻找位置；东筒子夹道拍照非常出片，是很多游客喜欢来的地方。</li><li><strong>文创消费</strong>：讲解员在冰窖书吧购买了冰溪图；箭亭旁边商店可购买文创雪糕，讲解员以提问方式引导观众识别雪糕造型人物。</li><li><strong>参观体验</strong>：珍宝馆虽名为馆但并非单独展厅，院子周围各屋均需进入参观；馆内游客众多，尤其看凤冠的区域拥挤，需要一定技术才能挤进去；乐寿堂是故宫内唯一能进去参观的皇家寝室，可见二龙戏珠设计。</li><li><strong>个人感受</strong>：讲解员参观钟表馆后感叹钟表造型出乎意料；珍宝馆内宝贝令人惊艳，每样都能让人说出常用感叹词；一天走完所有景点共3万步，提醒游览过程中注意适当休息和补充水分。</li></ul><h1 class="ck-doc-h1">收获与建议</h1><ul><li><strong>择时与排队</strong>：建议早来排队，一进门就沿中轴线往里冲，可错开大批旅游团人群，趁人少时先逛完最重要的几个景点。</li><li><strong>路线一（全天深度）</strong>：走完视频内提到的所有景点，适合打算在故宫待上一整天的朋友；讲解员实测一天走了3万步，游览过程中需适当休息和补充水分。</li><li><strong>路线二（半天）</strong>：进门沿中轴线往后走，看完坤宁宫后去景仁宫和延禧宫，接着逛钟表馆和珍宝馆，出来直奔御花园，从神武门出，约半天时间逛完。</li><li><strong>路线三（省力速览）</strong>：进门沿中轴线往后走，看完坤宁宫后去储秀宫，出来去御花园，从神武门出，预计2小时左右，最省力，适合时间有限、不想走太多路的朋友。</li><li><strong>盖章点一（汉字馆）</strong>：位于保和殿东北角，有4枚免费印章；可在此购买《紫禁城100》由工作人员现场盖章，据称此处印章数量最多。</li><li><strong>盖章点二（坤宁宫文创店）</strong>：位于坤宁宫东北角，有5枚免费印章。</li><li><strong>盖章点三（储秀宫文创店）</strong>：位于储秀宫旁边，有3枚免费印章。</li><li><strong>盖章点四（冰窖书吧）</strong>：有3枚免费印章，印章造型好，盖章时有批折子的感觉。</li><li><strong>盖章点五（珍宝馆出口商店）</strong>：从珍宝馆出口出来右手边往里走，有3枚免费印章。</li><li><strong>盖章点六（角楼咖啡）</strong>：神武门出门左手边，有2枚免费印章。</li><li><strong>盖章点七（故宫文创）</strong>：神武门出门左手边，有2枚免费印章。</li><li><strong>盖章注意事项</strong>：故宫不止一处可买到《紫禁城100》，每家店印章不同，购买后不能去其他店铺盖章，需有所取舍；盖完可选择邮寄到家或自己带走。</li><li><strong>拍照建议</strong>：太和门门口铜狮子造型威武霸气，脚踩寰宇象征权力，不建议站其底下合影（大爪子正好盖脑袋上），单独拍张照即可。</li><li><strong>珍宝馆参观提醒</strong>：珍宝馆并非单独展厅，院子周围屋子都值得进去看；游客非常多，尤其看凤冠需挤进去，建议做好心理准备。</li><li><strong>东筒子夹道</strong>：拍照非常出片，很多游客喜欢来此打卡。</li><li><strong>断虹桥</strong>：桥上有形态各异的石狮子，最有名的是武当狮，可找一找它在哪。</li><li><strong>武英殿（陶瓷馆）</strong>：目前关闭状态，只能在门口看看。</li><li><strong>文华殿</strong>：讲解员去时未开，据说现有一个展览，感兴趣可前往观看。</li><li><strong>箭亭文创雪糕</strong>：旁边商店可买到文创雪糕，可顺带品尝。</li><li><strong>钟表馆</strong>：可观看那个年代造型各异的钟表，值得一看。</li><li><strong>珍宝馆（宁寿全宫）</strong>：强烈建议前往，是乾隆给自己修建的养老院，退休后未放权仍照常上朝办公；皇极殿据说是1:1复刻乾清宫，乐寿堂是故宫唯一能进去参观的皇家寝室，内有二龙戏珠设计。</li><li><strong>珍妃井</strong>：位于珍宝馆内，现上方为井口石，珍妃并非从那个小眼进去的。</li><li><strong>慈宁宫与寿康宫</strong>：慈宁宫是康熙给奶奶孝庄皇太后修建的养老院，旁边寿康宫为甄嬛居住地，喜欢《甄嬛传》可到此打卡。</li><li><strong>储秀宫</strong>：慈禧住了20多年，现为慈禧五十大寿时期原状陈列，因她儿子在此出生而受喜爱。</li><li><strong>御花园</strong>：有游客认为比不过和珅家的后花园；园内钦安殿供奉真武大帝，紫禁城靠山景山从天上看酷似闭目盘坐人像，有人说该造型就是真武大帝。</li><li><strong>乾清宫</strong>：皇帝平时睡觉的地方，据说有27张龙床以防刺客找到皇帝位置；牌匾「正大光明」后藏皇帝立储诏书，皇帝驾崩后取出两份诏书对比，名字不一致则说明被动过手脚。</li><li><strong>交泰殿</strong>：放有25块传国玉玺。</li><li><strong>坤宁宫</strong>：皇后住所，明朝所有皇后均居于此。</li><li><strong>午门</strong>：有三个门洞，进门后变为五个门洞，即「明三暗五」；中间正门仅供皇帝行走，皇后大婚时可进一次，殿试前三名（状元、榜眼、探花）可出一次，旁边两门走皇亲国戚和文武百官。</li><li><strong>太和门广场</strong>：眼前有五座金水桥，皇帝走中间，皇亲国戚走挨着中间两座桥，文武百官走最边上。</li><li><strong>太和殿</strong>：举行盛大典礼的地方（皇帝登基、皇后册封），并非上朝之处；文武百官在太和殿广场站位为文东武西。</li><li><strong>中和殿</strong>：举行盛大典礼时皇帝的休息室，文武百官站好后皇帝再过去。</li><li><strong>保和殿</strong>：自乾隆五十四年起为殿试考场。</li><li><strong>乾清门</strong>：皇帝上早朝之处，东边九卿直房为等级高的大臣等待召见之地，西边为军机处；门口狮子耳朵耷拉、眉毛遮眼，警示后宫之人不该看的别看、不该听的别听。</li><li><strong>体仁阁与红衣阁</strong>：东边体仁阁为缎库，西边红衣阁为皇帝银库（讲解员强调是银库而非裤衩子）。</li><li><strong>箭亭</strong>：清朝皇帝及其子孙练习骑马射箭的地方。</li><li><strong>九龙壁</strong>：位于珍宝馆门口，为我国现存三座古代九龙壁之一；左边数第三条白色龙下方有一块木头，据说是当年烧制琉璃砖瓦时弄坏一块，工匠为保命找木头刷白漆以假乱真。</li></ul>
+      </div>
+    </div>
+  </main>
+</body>
+</html>

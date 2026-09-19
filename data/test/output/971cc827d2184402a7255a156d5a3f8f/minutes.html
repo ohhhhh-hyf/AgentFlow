@@ -1,0 +1,372 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>初中几何光学复习课</title>
+  <style>
+
+    body {
+      margin: 0;
+      padding: 32px 16px;
+      background: #f6f5f0;
+      color: #1a1a1a;
+      font-family: "Latin Modern Roman", "Computer Modern Roman", "CMU Serif", "Times New Roman", Times, "Songti SC", "SimSun", "STSong", serif;
+      -webkit-font-smoothing: antialiased;
+    }
+    .page { max-width: 1140px; margin: 0 auto; }
+    .ck-doc {
+      background: #ffffff;
+      border: 1px solid #d4d0c7;
+      border-radius: 4px;
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.05), 0 1px 3px rgba(0,0,0,0.03);
+      padding: 36px 44px;
+      line-height: 1.75;
+      font-size: 0.96rem;
+    }
+    .ck-doc h1 {
+      margin: 0 0 10px;
+      font-size: 1.85rem;
+      font-weight: 700;
+      letter-spacing: 0.4px;
+      text-align: center;
+      font-variant: small-caps;
+      color: #111111;
+    }
+    .ck-doc-header {
+      margin-bottom: 24px;
+      padding-bottom: 16px;
+      border-bottom: 2px solid #111111;
+      text-align: center;
+    }
+    .ck-doc-meta {
+      font-size: 0.85rem;
+      color: #555555;
+      font-style: italic;
+    }
+    .ck-doc-content h1, .ck-doc-content .ck-doc-h1 {
+      margin: 28px 0 14px;
+      font-size: 1.32rem;
+      font-weight: 700;
+      color: #111111;
+      border-bottom: 1.5px solid #222222;
+      padding-bottom: 5px;
+      text-align: left;
+      font-variant: normal;
+      letter-spacing: 0.3px;
+    }
+    .ck-doc h2, .ck-doc-h2 {
+      margin: 28px 0 14px;
+      font-size: 1.22rem;
+      font-weight: 700;
+      color: #111111;
+      border-bottom: 1.5px solid #222222;
+      padding-bottom: 5px;
+      letter-spacing: 0.3px;
+    }
+    .ck-doc h3, .ck-doc-h3 {
+      margin: 20px 0 10px;
+      font-size: 1.05rem;
+      font-weight: 700;
+      color: #222222;
+    }
+    .ck-doc h4, .ck-doc-h4 {
+      margin: 16px 0 8px;
+      font-size: 0.98rem;
+      font-weight: 700;
+      color: #333333;
+    }
+    .ck-doc p {
+      margin: 10px 0;
+      line-height: 1.75;
+      text-align: justify;
+    }
+    .ck-doc ul, .ck-doc ol {
+      margin: 8px 0 12px;
+      padding-left: 1.5em;
+      line-height: 1.72;
+    }
+    .ck-doc li {
+      margin: 4px 0;
+    }
+    .ck-doc blockquote, .ck-quote {
+      margin: 10px 0 14px;
+      padding: 8px 14px;
+      background: #faf9f6;
+      border-left: 3.5px solid #222222;
+      border-radius: 2px;
+      color: #222222;
+      font-size: 0.92rem;
+      font-style: italic;
+    }
+    .ck-doc code {
+      background: #f3f0e8;
+      border: 1px solid #e2ddd3;
+      border-radius: 3px;
+      padding: 1px 6px;
+      font-family: "Latin Modern Mono", Consolas, monospace;
+      font-size: 0.88em;
+    }
+    .ck-doc table, .ck-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.88rem;
+      margin: 14px 0;
+      background: #ffffff;
+      border-top: 2px solid #222222;
+      border-bottom: 2px solid #222222;
+    }
+    .ck-doc table th, .ck-doc table td, .ck-table th, .ck-table td {
+      padding: 9px 12px;
+      text-align: left;
+      vertical-align: middle;
+      border-bottom: 1px solid #ede9e1;
+    }
+    .ck-doc table th, .ck-table th {
+      background: #fbfaf7;
+      border-bottom: 1.2px solid #222222;
+      font-weight: 700;
+      color: #111111;
+      letter-spacing: 0.3px;
+    }
+
+    /* Roomy & Spacious Academic Risk Table */
+    .ck-risk-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 18px 0 28px;
+      background: #ffffff;
+      border-top: 2.2px solid #111111;
+      border-bottom: 2.2px solid #111111;
+      font-size: 0.93rem;
+      line-height: 1.72;
+    }
+    .ck-risk-table th {
+      background: #faf8f5;
+      border-bottom: 1.5px solid #111111;
+      padding: 15px 16px;
+      font-weight: 700;
+      color: #111111;
+      letter-spacing: 0.3px;
+      text-align: left;
+      vertical-align: middle;
+    }
+    .ck-risk-table td {
+      padding: 16px 16px;
+      border-bottom: 1px solid #ede8e0;
+      vertical-align: top;
+      color: #1a1a1a;
+      word-break: break-word;
+    }
+    .ck-risk-table tr:nth-child(even) td {
+      background: #fdfcfb;
+    }
+    .ck-risk-table tr:hover td {
+      background: #f6f3eb;
+    }
+
+    /* Review Grid */
+    .ck-review {
+      display: grid;
+      grid-template-columns: minmax(0, 1.35fr) 1px minmax(260px, 0.95fr);
+      border: 1px solid #d4d0c7;
+      border-radius: 4px;
+      overflow: hidden;
+      margin: 14px 0 20px;
+      background: #ffffff;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.03);
+    }
+    .ck-review-left {
+      padding: 22px 26px;
+      background: #ffffff;
+      line-height: 1.75;
+    }
+    .ck-review-rule { background: #dcd8cf; }
+    .ck-review-right {
+      padding: 16px 18px;
+      background: #faf9f6;
+      box-sizing: border-box;
+      display: flex;
+      flex-direction: column;
+    }
+    .ck-ev-list {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    /* Entity Highlight in LaTeX Paper Style */
+    .ck-cite-entity {
+      background: #fff8db;
+      border-bottom: 1.5px solid #b86a04;
+      padding: 1px 4px;
+      border-radius: 2px;
+      cursor: pointer;
+      transition: all 0.18s ease;
+      color: #111111;
+      font-weight: 600;
+    }
+    .ck-cite-entity:hover {
+      background: #ffe58f;
+      color: #000000;
+    }
+    .ck-cite-entity.is-on {
+      background: #ffd54a;
+      border-bottom-color: #0047ab;
+      box-shadow: 0 0 0 2px rgba(0,71,171,0.25);
+    }
+
+    /* Blue Hyperref Citations [1], [2] */
+    .ck-cite-ref {
+      color: #0047ab;
+      font-weight: 600;
+      font-family: "Latin Modern Roman", "Computer Modern Roman", "Times New Roman", serif;
+      text-decoration: none;
+      cursor: pointer;
+      padding: 0 2px;
+      margin: 0 2px;
+      border-radius: 2px;
+      transition: all 0.15s ease;
+      font-size: 0.92em;
+      vertical-align: baseline;
+      user-select: none;
+    }
+    .ck-cite-ref:hover {
+      text-decoration: underline;
+      background: #e8f0fe;
+      color: #003380;
+    }
+    .ck-cite-ref.is-active {
+      background: #d2e3fc;
+      color: #002266;
+      font-weight: 700;
+      box-shadow: 0 0 0 1px #0047ab;
+    }
+
+    /* Right Memory Cards in LaTeX Paper Style */
+    .ck-provenance-head {
+      font-size: 0.82rem;
+      font-weight: 700;
+      color: #222222;
+      margin: 0 0 12px;
+      padding-bottom: 6px;
+      border-bottom: 1px solid #e0dcd4;
+      letter-spacing: 0.3px;
+      text-transform: uppercase;
+    }
+    .ck-ref-icon { color: #0047ab; margin-right: 4px; }
+    .ck-ev {
+      display: block;
+      margin: 0;
+      padding: 10px 12px;
+      border: 1px solid #dedad2;
+      border-left: 3.5px solid #0047ab;
+      border-radius: 2px;
+      background: #ffffff;
+      font-size: 0.82rem;
+      line-height: 1.55;
+      transition: all 0.2s ease;
+      cursor: pointer;
+    }
+    .ck-ev:hover { border-color: #b5b0a5; }
+    .ck-ev.is-on, .ck-ev.is-highlighted {
+      border-color: #0047ab;
+      box-shadow: 0 0 0 2px #0047ab, 0 3px 8px rgba(0,71,171,0.15);
+      background: #f0f5ff;
+    }
+    @keyframes citePulse {
+      0% { background: #dbeafe; box-shadow: 0 0 0 3px #0047ab; }
+      50% { background: #bfdbfe; box-shadow: 0 0 0 4px #0047ab; }
+      100% { background: #f0f5ff; box-shadow: 0 0 0 2px #0047ab; }
+    }
+    .ck-ev-k {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 0.75rem;
+      color: #444444;
+      margin-bottom: 5px;
+      font-weight: 700;
+    }
+    .ck-ev-cite-tag {
+      color: #0047ab;
+      font-weight: 700;
+      font-family: "Latin Modern Roman", serif;
+      text-decoration: none;
+    }
+    .ck-ev-kind-badge {
+      display: inline-block;
+      padding: 1px 6px;
+      border-radius: 2px;
+      font-size: 0.72rem;
+      font-weight: 600;
+      letter-spacing: 0.2px;
+    }
+    .ck-badge-keypoint {
+      border: 1px solid #0047ab;
+      color: #0047ab;
+      background: #f0f5ff;
+    }
+    .ck-badge-note {
+      border: 1px solid #b86a04;
+      color: #b86a04;
+      background: #fff8eb;
+    }
+    .ck-mem-title {
+      font-weight: 700;
+      color: #111111;
+      font-size: 0.88rem;
+      margin-bottom: 6px;
+      line-height: 1.45;
+    }
+    .ck-ev-quote {
+      color: #222222;
+      font-style: normal;
+      font-family: inherit;
+      margin: 4px 0 6px;
+      padding: 0;
+      background: transparent;
+      border: none;
+      line-height: 1.6;
+      font-size: 0.84rem;
+    }
+    .ck-ev-meta { font-size: 0.76rem; color: #666666; margin-top: 6px; }
+    .ck-ev-more {
+      margin-top: 2px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+    .ck-ev-more[open] { margin-top: 4px; }
+    .ck-ev-more summary { margin-bottom: 6px; }
+    .ck-proof-toggle {
+      cursor: pointer;
+      font-size: 0.82rem;
+      color: #0047ab;
+      user-select: none;
+      font-family: inherit;
+      padding: 2px 0;
+    }
+    .ck-proof-toggle:hover { text-decoration: underline; }
+
+    @media(max-width: 860px) {
+      .ck-doc { padding: 22px 18px; }
+      .ck-review { grid-template-columns: 1fr; }
+      .ck-review-rule { display: none; }
+    }
+
+  </style>
+</head>
+<body>
+  <main class="page">
+    <div class="ck-doc">
+      <header class="ck-doc-header">
+        <h1>初中几何光学复习课</h1>
+      </header>
+      <div class="ck-doc-content">
+        <h1 class="ck-doc-h1">课程概况</h1><p>本节课为初中几何光学复习课，围绕光的直线传播、光的反射、平面镜成像及球面镜应用四大板块展开。主讲人首先介绍光源（自然光源如太阳，人造光源如火把、电灯）与光线（带箭头的直线，属物理模型），并讲解光在均匀介质中沿直线传播，实例包括三点一线、激光准直、小孔成像、日食月食及影子形成；光在真空中速度为3×10⁸米/秒，空气中略慢，水中约为真空中的3/4，玻璃中约为2/3。随后讲解光的反射定律（三线共面、分居两侧、反射角等于入射角），区分镜面反射与漫反射，并强调两者均遵守反射定律。平面镜成像部分，通过实验归纳出正立、等大、虚像的特点，像距等于物距，并分析实验误差来源（玻璃板不垂直或有厚度）。最后介绍凸面镜（发散作用，用于后视镜）与凹面镜（会聚作用，用于手电筒、太阳灶等），并提及凹面镜会聚可能引发光污染。课程以例题讲解巩固各知识点，并布置练习1–5、10–11等题。</p><h1 class="ck-doc-h1">核心知识点梳理</h1><h2 class="ck-doc-h2">光的直线传播</h2><ul><li><strong>光源定义</strong>：自身能够发光的物体；按来源分为<strong>自然光源</strong>（如太阳、萤火虫）和<strong>人造光源</strong>（如火把、蜡烛、煤油灯、电灯）。</li><li><strong>光线概念</strong>：用一条带箭头的直线代表光线，是<strong>物理模型</strong>，并非真实存在；按形状可分为点光源（如蜡烛）和平行光源（如太阳光）。</li><li><strong>光沿直线传播条件</strong>：在<strong>均匀介质</strong>中沿直线传播；大气层不均匀会使光线发生偏折，如太阳越出地平线、星星眨眼睛等现象。</li><li><strong>三点一线实例</strong>：步枪瞄准时眼睛、准心尖、标尺缺口三者重合，依据是光在均匀介质中沿直线传播；队列排齐、木工看尺子是否平直同理。</li><li><strong>激光准直</strong>：利用激光沿直线传播的特性进行准直。</li><li><strong>小孔成像</strong>：光沿直线传播，成<strong>倒立实像</strong>，放大缩小不一定，与孔的形状无关；《墨经》中有记载，是常考内容。</li><li><strong>小孔成像生活实例</strong>：夏天大杨树底下树叶缝隙形成的光斑，是太阳透过缝隙在地面成的<strong>缩小实像</strong>，因角度不同常呈椭圆形。</li><li><strong>小孔成像自制实验</strong>：纸杯底部用针扎小孔，杯口蒙塑料布，点燃蜡烛放在孔前，可在塑料布上看到倒立的火苗像。</li><li><strong>日食形成</strong>：太阳、月球、地球在同一直线上，<strong>月球在中间</strong>；1号区域为<strong>日全食</strong>，2、3号区域为<strong>日偏食</strong>，4号区域为<strong>日环食</strong>。</li><li><strong>月食形成</strong>：太阳、地球、月球在同一直线上，<strong>地球在中间</strong>；月球完全在地球阴影内为<strong>月全食</strong>，部分在阴影内为<strong>月偏食</strong>；月球在2、3号区域只是略暗，不叫月偏食。</li><li><strong>影子形成</strong>：光在均匀介质中沿直线传播，如唐朝皮影戏利用此原理。</li><li><strong>光在真空中的速度</strong>：<code>3×10^8</code> 米/秒，即 <code>3×10^5</code> 千米/秒，约每秒30万公里，<strong>一秒钟绕地球赤道7圈半</strong>。</li><li><strong>光在其他介质中的速度</strong>：空气中约 <code>2.99×10^8</code> 米/秒（比真空略慢，常近似处理）；水中约为真空中的 <strong>3/4</strong>；玻璃中约为真空中的 <strong>2/3</strong>。</li><li><strong>光速测量</strong>：前人测量光速均失败；初三将学到光本质是电磁波，电磁波速度为 <code>3×10^8</code> 米/秒。</li><li><strong>练习第1题</strong>：光在均匀介质中沿直线传播。</li><li><strong>练习第2题</strong>：影子和月全食都是光沿直线传播的实例。</li><li><strong>练习第3题</strong>：激光从地球射到月球表面用时1.25秒，按 <code>s=V×T</code> 计算，地月间视为真空，距离为 <code>3.75×10^8</code> 米。</li><li><strong>练习第4题</strong>：选C；A未强调均匀介质，B未说真空，D不同介质中速度不相同。</li><li><strong>练习第5题</strong>：多选，选BCD；平面镜是反射现象。</li><li><strong>练习第6题</strong>：选ABC；D错在未强调均匀介质。</li></ul><h2 class="ck-doc-h2">光的反射定律</h2><ul><li><strong>反射定律三句话</strong>：①反射光线、入射光线和法线在<strong>同一平面内</strong>（共面）；②反射光线和入射光线<strong>分居法线两侧</strong>；③<strong>反射角等于入射角</strong>。</li><li><strong>基本概念</strong>：入射光线AO、反射光线OB、入射点O；法线是垂直于镜面的辅助线，实际不存在，画<strong>虚线</strong>，是入射光线与反射光线夹角的角平分线。</li><li><strong>法线引入原因</strong>：为后续学习光的折射做准备，不能直接用入射光线与镜面的夹角代替。</li><li><strong>垂直入射易错点</strong> ⭐：光垂直射到镜面上时，入射角和反射角均为 <strong>0度</strong>，不是90度。</li><li><strong>练习第9题</strong>：反射光线与平面镜夹角40度，则与法线夹角50度，入射角为 <strong>50度</strong>，选A。</li><li><strong>作图步骤</strong>：①先画法线（虚线，保留作图痕迹）；②根据反射角等于入射角确定光线位置；③补全箭头；可用刻度尺在法线两侧找对称点的方法确定角度，不必用量角器精确测量。</li><li><strong>作图易错点</strong> ⭐：箭头方向画反（两条光线各往各的方向飞或相对画），此类题定位为送分题。</li><li><strong>练习第10题</strong>：入射光线与镜面夹角增大，入射角减小，反射角也减小，<strong>传播速度不变</strong>，选C。</li><li><strong>练习第11题</strong>：入射光线与法线夹角60度，反射角 <strong>60度</strong>。</li><li><strong>练习第12题</strong>：反射光线与入射光线夹角80度，反射角 <strong>40度</strong>（角平分线）。</li></ul><h2 class="ck-doc-h2">镜面反射与漫反射</h2><ul><li><strong>镜面反射</strong>：平行光射到光滑表面，反射光平行；人眼只在特定方向能看到反射光，如商场玻璃隔断易使人撞上。</li><li><strong>漫反射</strong>：平行光射到凹凸不平的表面，反射光射向<strong>各个方向</strong>；把每个小面看作小平面镜画法线可得此结论；生活中大多数反射是漫反射，如黑板、电影银幕、投影幕布。</li><li><strong>黑板反光</strong>：教室某些位置看黑板只见一片光亮而看不清粉笔字，是黑板发生<strong>镜面反射</strong>。</li><li><strong>电影银幕</strong>：白色荧幕粗糙，使射到屏幕上的光发生<strong>漫反射</strong>，保证各方向观众都能看到。</li><li><strong>练习第13题</strong> ⭐：雨后夜晚，<strong>迎着月光走</strong>，发亮处是水潭（镜面反射）；<strong>背着月光走</strong>，发暗处是水潭；选B。</li><li><strong>练习第14题</strong>：选B；<strong>光路可逆</strong>——小明能看到小刚在平面镜中的像，则小刚也一定能看到小明的像；A错在垂直入射反射角应为0度；C错在漫反射同样遵守反射定律；D错在不同介质中光速不同。</li><li><strong>练习第15题</strong>：电影院白色荧幕产生<strong>漫反射</strong>，选B。</li><li><strong>练习第16题</strong>：黑板反光是<strong>镜面反射</strong>；电影银幕反射是<strong>漫反射</strong>；无论哪种反射都遵守光的反射定律。</li><li><strong>练习第17题</strong>：白色屏幕粗糙是为了使射到屏幕上的光发生<strong>漫反射</strong>。</li><li><strong>自制实验</strong>：白纸上放小镜子，手电筒垂直照射，斜着看时镜子是黑的、周围白纸是亮的——镜子发生镜面反射光返回，白纸发生漫反射。</li></ul><h2 class="ck-doc-h2">平面镜成像</h2><ul><li><strong>成像原理</strong>：根据光的反射定律，反射光线反向延长线的交点即为像的位置；像在镜后，实际光线未到达。</li><li><strong>成像特点</strong>：成<strong>正立、等大、虚像</strong>；像与物连线<strong>垂直于镜面</strong>；像距等于物距。</li><li><strong>与球面镜区分</strong>：服装店显苗条的镜子是球面镜而非平面镜；平面镜成像与小孔成像不同，小孔成倒立实像。</li><li><strong>实验器材作用</strong>：用<strong>玻璃板</strong>代替平面镜，便于确定像的位置；用<strong>刻度尺</strong>比较像与物到镜面的距离；用<strong>两段完全相同蜡烛</strong>比较像与物的大小。</li><li><strong>光屏验证</strong>：光屏（毛玻璃、白塑料片、白墙等）<strong>不能</strong>接收到烛焰的像，因为实际光线没有到达镜后，证明成虚像。</li><li><strong>像的大小变化</strong>：物体靠近玻璃板，平面镜所成像的大小<strong>不变</strong>。</li><li><strong>练习第19题误差原因</strong> ⭐：①玻璃板与水平面<strong>不垂直</strong>（或与事先画好的镜面位置不重合）；②玻璃板<strong>有厚度</strong>，两个面发生反射成像，看到同一个蜡烛的两个像。</li><li><strong>练习第20题</strong>：玻璃板代替镜子便于确定像的位置；刻度尺用于比较像与物相对镜面的距离；相同蜡烛用于比较像与物大小；光屏不能接收虚像；物体靠近玻璃板像大小不变。</li><li><strong>练习第21题</strong>：视力表距镜子3.5米，像距镜子也是3.5米，人距镜子 <strong>1.5米</strong> 时看到虚像距离为5米。</li><li><strong>练习第22题</strong>：视力表距镜子3米，人距镜子 <strong>2米</strong> 即可，选B。</li><li><strong>练习第23题</strong>：人站在平面镜前1米处，人与像之间的距离为 <strong>2米</strong>。</li><li><strong>练习第24题</strong>：人向远离平面镜方向移动，镜中像的大小<strong>不变</strong>，选C。</li><li><strong>练习第18题</strong>：选D；人在河边看到岸边的树在水中的倒影是光的反射（平静水面充当平面镜）；A、B是直线传播，C是光的折射。</li></ul><h2 class="ck-doc-h2">球面镜及其应用</h2><ul><li><strong>凸面镜</strong>：对光线起<strong>发散作用</strong>，成正立、缩小的虚像；应用于汽车后视镜、丁字路口反光镜；司机看后视镜感觉车距比实际远，是视觉差异。</li><li><strong>凹面镜</strong>：对光线起<strong>会聚作用</strong>，平行光反射后汇聚于焦点F；应用于手电筒电珠（小灯泡在焦点处）、汽车前大灯、探照灯、医生额镜、太阳灶。</li><li><strong>太阳灶</strong>：藏族同胞用凹面镜（椭圆形铝合金金属板）烧水，环保节能；人教版教材有插图。</li><li><strong>阿基米德烧船</strong>：利用平面镜组成凹面镜，汇聚光线烧毁敌人帆船。</li><li><strong>光污染风险</strong> ⭐：玻璃幕墙做成凹面会汇聚光线，可能烧死树木（学校枣树三年被烧死）、引燃电线（焦点落在电线上导致自燃）、反射声音造成噪音。</li><li><strong>以直代曲原则</strong>：讨论球面镜作图时，将曲面看作许多小平面镜的组合。</li></ul><h1 class="ck-doc-h1">课堂互动与答疑</h1><p><strong>学生</strong>：光线是真实存在的吗？为什么画图时要用带箭头的直线表示？</p><p><strong>教师</strong>：光线不是真实存在的，它是为了研究方便建立的物理模型。用带箭头的直线表示光的传播路径和方向，箭头代表传播方向。实际开灯时并不会看到无数条光线飞过来，这只是描述光传播的一种抽象方法。</p><p><strong>学生</strong>：光在均匀介质中沿直线传播，那穿过大气层时还成立吗？</p><p><strong>教师</strong>：不成立。大气层密度不均匀，越靠近地面空气越密集，越往上越稀薄，光线穿过时会发生偏折。所以在地球上看到太阳刚露出地平线时，实际太阳还在地平线以下；宇航员在月球上看太阳才是沿直线看到的。星星"眨眼睛"也是大气层不均匀造成的。</p><p><strong>学生</strong>：小孔成像成的像一定是倒立的吗？放大缩小怎么判断？</p><p><strong>教师</strong>：小孔成像一定是倒立的实像，因为光线实际到达光屏。但放大缩小不一定，取决于物距和像距的关系：物体距小孔远、光屏距小孔近时成缩小的像，反之成放大的像。像的形状与孔的形状无关，只与物体形状有关。夏天树荫下的圆形光斑就是太阳通过树叶缝隙形成的小孔成像，因太阳距地球极远，得到的是缩小的像。</p><p><strong>学生</strong>：日食和月食的偏食区域怎么区分？为什么月偏食不是月球在2、3号区域？</p><p><strong>教师</strong>：日食时月球在中间，1号区域是日全食，2、3号区域是日偏食，4号区域是日环食。月食时地球在中间，月球完全进入1号区域才是月全食；月球在2、3号区域只是变暗，不叫月偏食。月偏食是月球一部分在1号区域、一部分在2或3号区域时，部分被地球阴影挡住、部分仍被阳光照到的状态。</p><p><strong>学生</strong>：光垂直射到镜面上，入射角和反射角是多少？为什么不是90度？</p><p><strong>教师</strong>：都是0度。入射角是入射光线与法线的夹角，垂直入射时光线与法线重合，夹角为0度，反射角也等于0度。容易错答成90度是因为误把入射角当成光线与镜面的夹角。</p><p><strong>学生</strong>：画反射光线时，怎么快速确定入射光线的位置？一定要用量角器吗？</p><p><strong>教师</strong>：不用量角器。先画法线（虚线，垂直于镜面），然后在反射光线上找一个点，量出它到法线的距离，在法线另一侧对称位置取等距点，连接该点与入射点就是入射光线。利用等腰三角形原理，法线相当于中垂线，两边角自然相等。作图痕迹保留法线即可。</p><p><strong>学生</strong>：镜面反射和漫反射都遵守反射定律吗？为什么生活中大多数反射是漫反射？</p><p><strong>教师</strong>：都遵守反射定律。镜面反射是平行光射到光滑表面，各点法线平行，反射光仍平行，只有特定方向能看到；漫反射是平行光射到凹凸不平的表面，每个小面看作小平面镜，法线方向不同，反射光射向各个方向，任何方向都能看到。实际物体表面用放大镜看都是凹凸不平的，所以大多数反射是漫反射。</p><p><strong>学生</strong>：雨后夜晚走路，怎么判断哪里是水潭？</p><p><strong>教师</strong>：迎着月光走，发亮处是水潭——水面发生镜面反射，反射光进入人眼；背着月光走，发暗处是水潭——反射光射向另一侧，进入人眼的反射光少。地面干燥部分发生漫反射，亮度变化不大。可用手电筒照白纸上的小镜子验证：垂直照射时斜看，镜子是黑的，白纸是亮的。</p><p><strong>学生</strong>：平面镜成像实验中，为什么用玻璃板代替平面镜？</p><p><strong>教师</strong>：平面镜不透明，无法看到镜后位置去移动蜡烛找像的位置。玻璃板既能反射成像，又能透过它看到后面的蜡烛，便于移动未点燃的蜡烛与像重合，从而确定像的位置。实验还需用刻度尺比较像与物到镜面的距离，用两段完全相同的蜡烛比较像与物的大小。</p><p><strong>学生</strong>：实验中看到同一个蜡烛的两个像，是什么原因？</p><p><strong>教师</strong>：玻璃板有厚度，前后两个表面都能反射成像。薄玻璃板（约3毫米）两个像几乎重合，肉眼分辨不出；若用厚玻璃板（如8毫米），两个像明显分开。所以实验应选薄玻璃板。</p><p><strong>学生</strong>：平面镜成的像为什么是虚像？光屏为什么接收不到？</p><p><strong>教师</strong>：平面镜成像的原理是光的反射，人眼看到的是反射光线的反向延长线会聚的点，实际光线并没有到达镜后，所以是虚像。光屏放在像的位置接收不到光线，不会被照亮。判断实像虚像的标准就是实际光线是否到达。</p><p><strong>学生</strong>：凸面镜和凹面镜对光线各起什么作用？分别用在哪些地方？</p><p><strong>教师</strong>：凸面镜对光线起发散作用，成正立缩小的虚像，用于汽车后视镜、丁字路口反光镜，能看到更大范围；凹面镜对光线起会聚作用，平行光反射后会聚于焦点，用于手电筒、汽车前大灯、探照灯、太阳灶、医生额镜。凹面镜会聚光线可能引发光污染，如玻璃幕墙形成凹面会聚阳光烧死树木甚至引燃电线。</p><h1 class="ck-doc-h1">课后任务与学习建议</h1><h2 class="ck-doc-h2">课堂练习</h2><ul><li><strong>第1题</strong>：考点为光在均匀介质中沿直线传播，结论为三点一线原理即光沿直线传播。</li><li><strong>第2题</strong>：影子和月全食的形成均依据光在均匀介质中沿直线传播。</li><li><strong>第3题</strong>：激光从地球射到月球表面用时1.25秒，按s=vt计算，地月距离为3.75×10⁸米（按真空光速3×10⁸米/秒）。</li><li><strong>第4题</strong>：选C。光在真空中传播速度最快，均匀介质中沿直线传播，不同介质中速度不同。</li><li><strong>第5题</strong>：多选，选BCD。影子的形成、日食月食、小孔成像均属光沿直线传播；平面镜成像是反射现象。</li><li><strong>第6题</strong>：选ABC。D项错误，光沿直线传播需强调在均匀介质中。</li><li><strong>第7题</strong>：验证光的反射定律探究实验，用带刻度的硬纸板（中间用透明胶带粘合可前后转动）和小平面镜，用激光笔照射，观察反射光线与入射光线关系。</li><li><strong>第8题</strong>：作图题。步骤：先画法线（虚线，垂直于镜面，画两三段断开即可），再根据反射角等于入射角确定入射或反射光线，最后补全箭头，保留作图痕迹。</li><li><strong>第9题</strong>：选A。反射光线与平面镜夹角40°，则与法线夹角（入射角）为50°，反射角也为50°。</li><li><strong>第10题</strong>：选C。入射光线与镜面夹角增大，入射角减小，反射角随之减小，传播速度不变。</li><li><strong>第11题</strong>：入射光线与法线夹角60°，反射角为60°。</li><li><strong>第12题</strong>：反射光线与入射光线夹角80°，反射角为40°（角平分线）。</li><li><strong>第13题</strong>：选B。雨后夜晚，迎着月光走，发亮处是水潭（镜面反射）；背着月光走，发暗处是水潭。</li><li><strong>第14题</strong>：选B。光路可逆——小明能看到小刚在平面镜中的像，则小刚也一定能看到小明的像；A项垂直入射反射角应为0°；C项漫反射也遵守反射定律；D项光在不同介质中速度不同。</li><li><strong>第15题</strong>：选B。电影院白色荧幕对光产生漫反射。</li><li><strong>第16题</strong>：教室某些位置看黑板只见光亮看不清粉笔字，是黑板发生镜面反射；电影放映机射到银幕的光经幕布反射进入人眼，是漫反射；两种反射都遵守光的反射定律。</li><li><strong>第17题</strong>：电影院白色屏幕粗糙，为使射到屏幕上的光发生漫反射。</li><li><strong>第18题</strong>：选D。人在河边看到岸边树在水中的倒影是光的反射（平静水面充当平面镜）；A、B为直线传播，C为光的折射。</li><li><strong>第19题</strong>：平面镜成像实验误差原因：①玻璃板与水平面不垂直（或与事先画好的镜面位置不重合）；②玻璃板有厚度，两个面发生反射成像，看到同一个蜡烛的两个像。</li><li><strong>第20题</strong>：①用玻璃板代替平面镜，便于确定像的位置；②刻度尺用于比较像与物到镜面的距离；③两段完全相同蜡烛用于比较像与物的大小；④光屏不能接收到烛焰的像，因为平面镜成虚像，实际光线未到达；⑤物体靠近玻璃板，像的大小不变。</li><li><strong>第21题</strong>：视力表距镜子3.5米，像距镜子也是3.5米，人距镜子1.5米时，看到虚像距离为5米。</li><li><strong>第22题</strong>：选B。视力表距镜子3米，像距镜子3米，人距镜子2米即可满足5米视距。</li><li><strong>第23题</strong>：人站在平面镜前1米处，人与像之间距离为2米。</li><li><strong>第24题</strong>：选C。人向远离平面镜方向移动，像的大小不变。</li></ul><h2 class="ck-doc-h2">复习重点</h2><ul><li><strong>光源</strong>：自身能够发光的物体。按来源分为自然光源（太阳、萤火虫）和人造光源（火把、蜡烛、煤油灯、电灯）。</li><li><strong>光线</strong>：用带箭头的直线表示，是物理模型，并非真实存在。</li><li><strong>光沿直线传播</strong>：光在均匀介质中沿直线传播。实例：三点一线、激光准直、小孔成像、日食月食、影子形成（皮影戏）。</li><li><strong>小孔成像</strong>：成倒立实像（光线实际到达），放大缩小不一定，与孔形状无关；光斑是太阳透过树叶缝隙在地面形成的小孔成像，为缩小的实像。</li><li><strong>日食与月食</strong>：日食时太阳、月球、地球在同一直线上，月球在中间，分日全食（1号区域）、日偏食（2、3号区域）、日环食（4号区域）；月食时地球在中间，月球完全进入地球阴影为月全食，部分在阴影区为月偏食。</li><li><strong>光速</strong>：真空中为3×10⁸米/秒（约30万公里/秒），一秒钟绕地球赤道7圈半；空气中略慢（约2.99×10⁸米/秒）；水中约为真空中的3/4；玻璃中约为2/3。</li><li><strong>光的反射定律</strong>：反射光线、入射光线和法线在同一平面内（共面）；反射光线和入射光线分居法线两侧；反射角等于入射角。法线是垂直于镜面的辅助线，实际不存在，画虚线。</li><li><strong>垂直入射</strong>：光垂直射到镜面上，入射角和反射角均为0度（易错答成90度）。</li><li><strong>镜面反射</strong>：平行光射到光滑表面，反射光平行，人眼在特定方向才能看到；如玻璃幕墙、黑板反光。</li><li><strong>漫反射</strong>：平行光射到凹凸不平表面，反射光射向各个方向，人眼在任何方向都能看到；如黑板、电影银幕、投影幕布、人眼看到物体。两种反射都遵守光的反射定律。</li><li><strong>光路可逆</strong>：在反射现象中，光路是可逆的。</li><li><strong>平面镜成像特点</strong>：正立、等大、虚像；像与物连线垂直于镜面；像距等于物距。成像原理是光的反射定律，像是反射光线反向延长线的交点。</li><li><strong>凸面镜</strong>：对光线起发散作用，成正立缩小的虚像；应用于汽车后视镜、丁字路口反光镜。</li><li><strong>凹面镜</strong>：对光线起会聚作用，有焦点；应用于手电筒、汽车前大灯、探照灯、太阳灶、医生额镜；阿基米德曾用平面镜组成凹面镜烧毁敌船。</li></ul><h2 class="ck-doc-h2">学习建议</h2><ul><li><strong>自制小孔成像实验</strong>：用纸杯（或易拉罐）底部用针扎一个小孔（不要用钉子杵大孔），前面用塑料布蒙上，点燃蜡烛放在小孔前方，可在塑料布上看到倒立的火苗像，体会像与孔形状无关。</li><li><strong>自制反射定律实验</strong>：用硬纸壳（中间用透明胶带粘合可前后转动）画上均匀刻度格，搁一小平面镜，用激光笔照射，在家即可研究反射定律。</li><li><strong>自制平面镜成像实验</strong>：白纸上立一块透明玻璃板，用两支蜡烛（或两枚跳棋子），一支点燃放玻璃板前，移动另一支到像的位置，记录位置可验证像与物连线垂直镜面、像距等于物距。</li><li><strong>观察光沿直线传播</strong>：用激光笔对准直吸管照射，直吸管时墙上能看到光点，弯折吸管后光点消失，证明光不会自行拐弯；也可在玻璃罩内点烟雾（或熏香）用激光照射观察直线光路。</li><li><strong>观察镜面反射与漫反射</strong>：白纸上放一面小镜子，用手电筒垂直照射，斜着看时镜子是黑的、周围白纸是亮的——镜子发生镜面反射光返回，白纸发生漫反射。</li><li><strong>观察光斑</strong>：夏天到大杨树下观察地面光斑，是太阳透过树叶缝隙形成的小孔成像，为缩小的实像，与孔形状无关。</li><li><strong>购买激光笔</strong>：两元店或十元店即可买到，激光笔光线强度大、线直，适合在家完成直线传播和反射实验。</li><li><strong>作图规范</strong>：画反射光路图时先画法线（虚线，两三段断开即可），再根据反射角等于入射角确定光线，保留作图痕迹，最后补全箭头。</li><li><strong>保护眼睛</strong>：主讲人提醒，长时间盯屏幕、写字姿势歪、教室长期拉窗帘不晒太阳都会导致视力下降，应多到户外活动。</li></ul>
+      </div>
+    </div>
+  </main>
+</body>
+</html>
