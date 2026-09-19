@@ -43,6 +43,27 @@ _HEADING_RE = re.compile(r"^(#{1,6})\s+(\S.*?)\s*$")
 _STAR_BULLET_RE = re.compile(r"^\*(?!\*)")
 # 问答/对话的一轮：`**称呼**：…`（`**问**：`/`**答**：` 同形）——一问一答各占一段，不拆段
 _DIALOGUE_LINE_RE = re.compile(r"^\*\*[^*\n]{1,24}\*\*\s*[：:]")
+# 模板里显式声明「不再分段」的栏，语义分两类、结果一致——都跳过确定性拆段：
+# ① 一段一段型（通用纪要 [分段速览]「一个时间段就是一段、不再分段」）：拆了就把一个时间段切成两段；
+# ② 问答型（各 Q&A 栏「仍单段连着写（不分段、不分点）」）：拆了就把一轮答话切成两段。
+# 两类都是"声明即口径"（用户口径 2026-09-19）；超长仍由 _overlong_issue 记录，只是不再机械拆分。
+_NO_SPLIT_SECTION_RE = re.compile(r"不再分段|不拆段|不分段")
+
+
+def _no_split_sections(template: str) -> set[str]:
+    """模板中声明「不再分段」的栏名（归一化）——这些栏跳过确定性拆段。"""
+    out: set[str] = set()
+    title = ""
+    for line in (template or "").splitlines():
+        s = line.strip()
+        head = _HEADING_RE.match(s) if s else None
+        if head:
+            if len(head.group(1)) == 1:
+                title = _norm_heading(head.group(2))
+            continue
+        if title and _NO_SPLIT_SECTION_RE.search(line):
+            out.add(title)
+    return out
 
 
 def _is_non_prose_line(body: str) -> bool:
@@ -263,12 +284,53 @@ def _item_default_only(line: str) -> bool:
     return _is_default_only(s)
 
 
+# 表格对齐分隔行（`| --- | --- |`）；数据行判定一律用它排除
+_TABLE_SEP_ROW_RE = re.compile(r"^\|[\s:\-|]+\|$")
+
+
+def _row_all_empty_cells(row_line: str) -> bool:
+    """整行单元格都是缺省词/空（`| 未提及 | — | … |`）——表格里的"没有"。"""
+    cells = [c.strip() for c in (row_line or "").strip().strip("|").split("|")]
+    return bool(cells) and all(c in _EMPTY_CELLS for c in cells)
+
+
+def _table_default_keep_idx(body_lines: list[str]) -> set[int]:
+    """表格「删到只剩表头」时保留首行缺省数据行，返回要保留的行下标。
+
+    口径与栏级一致：整节/整栏都没有内容时保留一行缺省词——"没有"本身是信息。
+    为什么（2026-09-19 就医咨询实测）：原文没有用药明细 → 模型留空表 → 程序自己写入缺省
+    占位行（`| 未提及 | — | … |`）→ 本删除步把占位行删掉 → 门禁判「表格无有效数据行」
+    （硬伤，模型无法修复：源里本就没有药名/剂量）→ 填充内部门禁重试 3 次 → 转自由渲染 →
+    扩写两轮 + 修补一轮 + 再 3 次填充 → 单次渲染 10 次 LLM 调用、整单 115.8s 仍降级。
+    """
+    keep: set[int] = set()
+    block: list[int] = []
+    for idx, line in enumerate([*body_lines, ""]):  # 末尾补一行冲掉最后一块
+        s = (line or "").strip()
+        if s.startswith("|"):
+            block.append(idx)  # 分隔行也留在块内：它会把表头与数据行切开
+            continue
+        if block:
+            rows = [
+                i
+                for i in block
+                if not _TABLE_SEP_ROW_RE.match(body_lines[i].strip())
+            ]
+            if len(rows) >= 2:  # 表头 + 至少一行数据
+                data = rows[1:]
+                if all(_row_all_empty_cells(body_lines[i]) for i in data):
+                    keep.add(data[0])
+        block = []
+    return keep
+
+
 def strip_default_only_content(text: str) -> tuple[str, list[str]]:
     """省略"只有缺省词"的内容：表格整行、正文整条、独立缺省句（**只删不改字**）。
 
     决策口径（2026-09-18 用户确认）：
     - 整节/整栏都没有内容时**保留**（标题 + 一行缺省词）——"没有"本身是信息；
-    - 表格单元格保留（表格要对齐），只删"整行全缺省"；
+    - 表格单元格保留（表格要对齐），只删"整行全缺省"；**整表都是缺省行时保留首行**
+      （2026-09-19 补：否则门禁会判「表格无有效数据行」硬伤，而源里本就没有数据）；
     - 句子级只删"整句 ≤ 20 字且只是缺省说明"，并列/从句里的缺省词不动（避免语病）。
     """
     if not text:
@@ -278,10 +340,14 @@ def strip_default_only_content(text: str) -> tuple[str, list[str]]:
     def strip_body(body_lines: list[str]) -> tuple[list[str], int]:
         """行级 + 句子级删除，返回 (剩余行, 删除数)。"""
         n = 0
+        keep_rows = _table_default_keep_idx(body_lines)
         kept_lines: list[str] = []
-        for line in body_lines:
+        for idx, line in enumerate(body_lines):
             s = line.strip()
-            if s.startswith("|") and not re.match(r"^\|[\s:\-|]+\|$", s):
+            if idx in keep_rows:
+                kept_lines.append(line)
+                continue
+            if s.startswith("|") and not _TABLE_SEP_ROW_RE.match(s):
                 cells = [c.strip() for c in s.strip("|").split("|")]
                 if cells and all(c in _EMPTY_CELLS for c in cells):
                     n += 1
@@ -423,14 +489,12 @@ def apply_table_row_limits(text: str, template: str) -> tuple[str, list[str]]:
             nonempty = ["| " + " | ".join(placeholder_cells) + " |"]
             notes.append(f"「{title}」空表已写入占位行")
 
-        # 替换数据行块
-        new_data = []
-        for r in nonempty:
-            row = r.rstrip("\r\n")
-            if not row.endswith("\n"):
-                # lines 用 keepends，统一补 \n
-                pass
-            new_data.append(row + "\n")
+        # 替换数据行块。插入前先保证**上一行以换行结尾**：上游步骤会 strip 掉文末换行，
+        # 否则占位行会粘在分隔行后面（`| --- |…|| 未提及 |…|` → 整块被当分隔行丢掉，
+        # 表格仍被判「无有效数据行」；2026-09-19 就医咨询复现）。
+        if data_start > 0 and not lines[data_start - 1].endswith("\n"):
+            lines[data_start - 1] = lines[data_start - 1] + "\n"
+        new_data = [r.rstrip("\r\n") + "\n" for r in nonempty]
         lines[data_start:data_end] = new_data
 
     return "".join(lines), notes
@@ -567,6 +631,7 @@ def split_overlong_paragraphs(text: str, template: str) -> tuple[str, list[str]]
         limits[key] = (int(hi), 1.2 if para else 1.0)
     if not limits:
         return text, []
+    no_split = _no_split_sections(template)
 
     notes: list[str] = []
     out: list[str] = []
@@ -583,6 +648,10 @@ def split_overlong_paragraphs(text: str, template: str) -> tuple[str, list[str]]
             out.append(line)
             continue
         body = line.strip()
+        if no_split and (top in no_split or cur in no_split):
+            # 该栏声明「不再分段」（子标题继承父栏声明）：整栏不拆
+            out.append(line)
+            continue
         rule = limits.get(cur)
         if rule is None and cur:
             rule = next((v for k, v in limits.items() if k and (k in cur or cur in k)), None)
