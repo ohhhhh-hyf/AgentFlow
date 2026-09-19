@@ -109,7 +109,7 @@ def effective_doc_budget(
             if bud.get("hi"):
                 return int(bud.get("lo") or 0), int(bud["hi"])
     if source_han:
-        span = length_budget(int(source_han))
+        span = capped_budget(int(source_han))
         if span:
             return span
     return None
@@ -129,9 +129,23 @@ def output_token_cap(
     return max(OUTPUT_CAP_MIN, min(OUTPUT_CAP_MAX, round(han * TOKENS_PER_HAN)))
 
 
+# 纪要相对原文的硬天花板：口语转写里寒暄/程序性发言占比高，纪要超过原文
+# 只可能是复述或注水（2026-09-19 用户实测：有的纪要比原文还长）
+SOURCE_CAP_RATIO = 0.7
+
+
+def capped_budget(source_han: int, *, kind: str = "record") -> tuple[int, int] | None:
+    """档位预算与原文天花板（原文 × 70%）取小者；过短原文返回 None。"""
+    span = length_budget(source_han, kind=kind)
+    if not span:
+        return None
+    cap = max(300, int(source_han * SOURCE_CAP_RATIO))
+    return span[0], min(span[1], cap)
+
+
 def budget_line(source_han: int, *, columns: int = 0) -> str:
     """生成注入 prompt 的【篇幅预算】块；原文过短时返回空串。"""
-    span = length_budget(source_han)
+    span = capped_budget(source_han)
     if not span:
         return ""
     lo, hi = span
@@ -146,8 +160,8 @@ def budget_line(source_han: int, *, columns: int = 0) -> str:
     ) if floor else ""
     return (
         f"【篇幅预算】原文约 {source_han} 汉字{cols} → 正文总量参考 {lo}–{hi} 汉字"
-        f"（原文的 {pct_lo}%–{pct_hi}%）。"
-        "**低于下限＝漏了原文事实**（回原文把细节写足，不是补套话）；高于上限＝有重复或注水。"
+        f"（原文的 {pct_lo}%–{pct_hi}%；**任何情况下不超过原文的 70%**）。"
+        "**低于下限＝漏了关键事实**（回原文补结论/数字/责任人，不扩写寒暄与过程铺陈）；高于上限＝有重复或注水。"
         "这是分布指引：内容多靠**多分条、多分段、多分栏**承载，不靠把一段写长；"
         "栏目少、以结论为主的模板（复盘/评审/面试/笔记/通用纪要）往下限一侧走，"
         "事实密集的记录型模板（课堂/庭审/讲座/发布）可往上限一侧走——以原文事实量为准，不硬凑也不硬压。"
@@ -165,9 +179,11 @@ __all__ = [
     "FIRST_COL_SHARE",
     "OUTPUT_CAP_MAX",
     "OUTPUT_CAP_MIN",
+    "SOURCE_CAP_RATIO",
     "TIERS",
     "TOKENS_PER_HAN",
     "budget_line",
+    "capped_budget",
     "effective_doc_budget",
     "first_column_min",
     "han_count",

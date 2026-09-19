@@ -2330,7 +2330,9 @@ def test_lecture_evidence_cap() -> None:
     from tools.templates.template_eval import parse_section_char_budgets
 
     text = (_active_dir() / "special_lecture.md").read_text(encoding="utf-8")
-    spec = next(l for l in text.splitlines() if "按讲座的逻辑层次" in l)
+    spec = next(l for l in text.splitlines() if "两级结构" in l and "## 论点" in l)
+    check("讲座：两级结构 + 论点标题短语化（20 字内）",
+          "两级结构" in spec and "20 字内" in spec, spec[:80])
     check("讲座：同一论点优先 3–4 条，关键论据超出时继续保留",
           "同一论点优先用 3–4 条" in spec and "关键论据超过 4 项时继续逐条保留" in spec, spec[:80])
     check("讲座：直接数据/典型事例优先、重复表达可合并",
@@ -2380,6 +2382,47 @@ def test_court_claims_table_both_sides() -> None:
     )
     fixed, notes = apply_table_row_limits(doc, text)
     check("两行诉辩数据不再被截断", not notes and "被上诉人（东源）" in fixed, f"{notes}")
+
+
+def test_output_volume_and_hierarchy() -> None:
+    """总量天花板 + 理解层限流 + 两级层级标准（治"太平、太碎、超原文"）。
+
+    用户指出（2026-09-19）：① 纪要超原文；② 挖得太细太碎、耗时长；③ 层级太平难浏览。
+    根因：理解层"宁多不漏"全量抽取 → 草稿"把细节写开" → 渲染"每一项写足"，
+    装配规则还允许"与原文同量级 90%–110%"。
+    """
+    import pathlib
+
+    from tools.templates.length_budget import capped_budget
+
+    check("天花板：原文 ×70% 与档位取小（3500 字原文 → 上限 2450）",
+          capped_budget(3500) == (1080, 2450), f"{capped_budget(3500)}")
+    check("天花板：30000 字原文仍受档位上限约束（8000）",
+          capped_budget(30000) == (2400, 8000), f"{capped_budget(30000)}")
+    bl = __import__("tools.templates.length_budget", fromlist=["budget_line"]).budget_line(3500)
+    check("【篇幅预算】写明不超过原文 70%",
+          "任何情况下不超过原文的 70%" in bl, bl[:120])
+    check("【篇幅预算】下限口径收窄（补关键事实，不扩写寒暄与过程）",
+          "不扩写寒暄与过程铺陈" in bl, "")
+
+    u = pathlib.Path("domain/meeting/meeting_core/prompts.py").read_text(encoding="utf-8")
+    check("理解层：key_points 每议题 ≤8 条、全篇 ≤30 条（按支撑力取舍）",
+          "每议题最多 8 条、全篇最多 30 条" in u, "")
+    check("理解层：寒暄/程序性发言不进索引",
+          "过程性重复、寒暄、程序性发言不进索引" in u, "")
+    check("理解层：同一事实重复表述只留信息最全的一条",
+          "同一事实的多次重复表述只留信息最全的一条" in u, "")
+
+    br = pathlib.Path("tools/templates/body_rules.py").read_text(encoding="utf-8")
+    check("层级标准：栏内条目超 6 条必须归组（每组 2–5 条）",
+          "超过 6 条时必须归组" in br and "每组 2–5 条" in br, "")
+    mp = pathlib.Path("domain/meeting/tasks/minutes/prompts.py").read_text(encoding="utf-8")
+    check("渲染：两级结构是默认形态（旧的分组禁令已反转）",
+          "两级结构是默认形态" in mp and "纪要正文一律不用" not in mp, "")
+    check("渲染：写清结论/关键数字/责任人/时限（过程铺陈压缩）",
+          "结论、关键数字、责任人、时限" in mp and "过程铺陈压缩" in mp, "")
+    check("草稿：写开对象收窄（过程铺陈与背景默认压缩）",
+          "过程铺陈与背景默认压缩成半句" in mp, "")
 
 
 def test_subjective_judgment_guardrails() -> None:
@@ -2892,6 +2935,8 @@ def main() -> int:
         test_lecture_evidence_cap()
         test_first_column_single_paragraph_merge()
         test_court_claims_table_both_sides()
+        test_output_volume_and_hierarchy()
+        test_subjective_judgment_guardrails()
         test_media_briefing_evidence_and_depth()
         test_qa_name_priority()
         test_understanding_speakers_field()
