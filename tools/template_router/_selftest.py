@@ -46,7 +46,7 @@ SCALAR_BASELINE_BY_DIR: dict[str, dict[str, int]] = {
     # court_transcript / hiring_report / project_progress 另有"表格栏说明"行（紧跟表格的
     # `[按下表逐行填写…]`）不计入字段——它们没有正文位，明细由表格承载（见 test_table_caption_*）。
     "template_v3": {
-        "class_transcript": 4, "clinical_advisory": 6, "contract_vetting": 4,
+        "class_transcript": 4, "clinical_advisory": 4, "contract_vetting": 4,
         "conversation_transcript": 5, "court_transcript": 3, "debate_forum": 5,
         "decision_review": 4, "exchange_forum": 5, "general_minutes": 3,
         "government_bulletin": 3, "group_seminar": 4, "hiring_report": 3,
@@ -808,7 +808,7 @@ def test_default_word_precedence() -> None:
 
 
 def test_general_minutes_speedread() -> None:
-    """通用纪要：补「分段速览」承载位（按时间/板块维度再现，不算重复），200 字上限统一到 400。
+    """通用纪要：「分段速览」承载位（按时间/板块维度再现，不算重复）；2026-09-20 改时间轴口径。
 
     回归背景（now.xlsx 对比）：同一场 ASR 周会，基线 1628 字里有「段落速览」——按时间段把要点
     再讲一遍（时间维度，不是主题重复）；我们只有 [全文摘要]+[要点梳理] 两栏 → 1061 字且缺时间维度。
@@ -846,27 +846,30 @@ def test_general_minutes_speedread() -> None:
           "按主题打包概括" in abstract and "每个板块最多一句话" in abstract
           and "单句不超 40 字" in abstract and "禁止逐板块展开数字" in abstract, abstract[:90])
     budgets = parse_section_char_budgets(tpl)
-    check("通用纪要：摘要为一段 250–400（节级），速览单段 ≤300（段落级）",
+    # 2026-09-20 用户口径：速览从「每段最多 300 字的一段话」改成「时间轴：标题 + 一句主线」，
+    # 段落上限随之取消——有上限就会被当成目标（13 段 × 272 字曾占全篇一半）。
+    check("通用纪要：摘要为一段 250–400（节级），速览不再声明字数",
           any(b["title"] == "全文摘要" and b["lo"] == 250 and b["hi"] == 400 and b["scope"] == "section" for b in budgets)
-          and any(b["title"] == "分段速览" and b["hi"] == 300 and b["scope"] == "paragraph" for b in budgets),
+          and not any(b["title"] == "分段速览" for b in budgets),
           f"{budgets}")
     seg_spec = next(l.strip() for l in raw.splitlines() if "推进顺序" in l)
-    check("通用纪要：速览「一个时间段就是一段、不再分段」（≤300 字，段落级口径保留）",
-          "每个时间段一行" in seg_spec and "一个时间段就是一段、不再分段" in seg_spec
-          and "单段不超过约 300 字" in seg_spec and "每段不超过" not in seg_spec,
+    check("通用纪要：速览改为一句话主线（每段至少一句、不铺陈）",
+          "每个时间段一行" in seg_spec and "只写一句主线" in seg_spec
+          and "每段至少一句" in seg_spec and "单段不超过约 300 字" not in seg_spec
+          and "不重复 [要点梳理] 已列的条目与数字" in seg_spec,
           seg_spec[:80])
     from tools.execution.hard_execution import (
         _no_split_sections,
         split_overlong_paragraphs,
     )
 
-    check("通用纪要：速览栏被程序识别为「不拆段」栏",
-          "分段速览" in _no_split_sections(tpl), f"{_no_split_sections(tpl)}")
-    long_seg = "这是一段概览文字。" * 55  # ≈440 汉字，超过 300 的单段上限
+    check("通用纪要：速览不再声明「不拆段」（形态由模板的一句话口径约束）",
+          "分段速览" not in _no_split_sections(tpl), f"{_no_split_sections(tpl)}")
+    long_seg = "这是一段概览文字。" * 55  # ≈440 汉字
     fixed_seg, seg_notes = split_overlong_paragraphs(
         "# 通用纪要\n\n# [分段速览]\n## 08:00-12:30 现场检查\n" + long_seg + "\n", tpl
     )
-    check("通用纪要：速览超长段不再被拆成两段（一个时间段＝一段）",
+    check("通用纪要：速览栏已无字数上限 → 程序不再拆行（改由模板约束形态）",
           not seg_notes and len([q for q in fixed_seg.split("\n\n") if "概览文字" in q]) == 1,
           f"notes={seg_notes}")
     leftover = [
@@ -1080,15 +1083,15 @@ def test_knowledge_memo_groups() -> None:
 
 
 def test_clinical_history_column() -> None:
-    """就医咨询：新增 [病史与背景] 承载位 + 过敏史硬要求（治病史类信息丢失）。
+    """就医咨询：4 栏 + 5 列药品表（2026-09-20 按 v2 参考收敛），病史并入 [就诊概况]。
 
     回归背景（2026-09，now.xlsx 行24）：原文 5 次提到"过敏"，产出一次都没写（基线写了）；
-    职业（研究所）、体重/血压变化同样丢失——原栏说明把"病史"指向"下面各栏"，而下面并没有病史栏。
+    职业（研究所）等个人史同样丢失——4 栏后这些硬要求挂在 [就诊概况] 上。
     """
     text = (_active_dir() / "clinical_advisory.md").read_text(encoding="utf-8")
     for need in (
-        "# [病史与背景]",
-        "过敏史、禁忌类信息原文出现就必须逐项写入，不得省略",
+        "过敏史、禁忌类信息原文出现就必须写入",
+        "原文提到就逐项落条",
         "职业照原文",
         "只有医生或原文明确认定为异常、偏高、偏低或需关注的指标才加粗",
         "不得依据医学常识、参考范围或模型判断自行认定异常",
@@ -1096,52 +1099,48 @@ def test_clinical_history_column() -> None:
         check(f"就医咨询：含「{need}」", need in text, "")
     check("就医咨询：旧口径（病史留给「下面各栏」）已清除",
           "病史与用药细节留给下面各栏" not in text, "")
-    # 药品明细表的口径（2026-09-19）：原文有的药名不得漏记（否则只落进正文、表留空），
-    # 原文一条药品信息都没有时整表只写一行缺省——与程序侧"整表缺省保留首行"配套。
+    check("就医咨询：已收敛为 4 栏（[病史与背景]/[病情说明与沟通] 退场）",
+          "# [病史与背景]" not in text and "# [病情说明与沟通]" not in text
+          and text.count("\n# [") == 4, "")
+    # 药品明细表：5 列（药品名称/剂量/频次/用法/注意事项）；药名不漏记；整表无药只写一行缺省
+    # —— 与程序侧「整表缺省保留首行」「占位行按表头列数生成」配套。
     check("就医咨询：有药名就一行一药、缺格写 `—`",
-          "原文出现过的药名不得漏记" in text and "原文出现过的药名一行一药" in text
-          and "用法用量、注意事项原文没写的单元格写 `—`" in text, "")
-    check("就医咨询：药表三列 = 药品名称 / 用法用量 / 注意事项（剂量·频次·用法已合并）",
-          "| 药品名称 | 用法用量 | 注意事项 |" in text
-          and "| … | … | … |" in text
-          and "剂量 | 频次" not in text and "（药名、剂量、频次、用法）" not in text
-          and "（药名、用法用量、注意事项）" in text, "")
+          "原文出现过的药名不得漏记" in text and "有药名而某格缺失的写 `—`" in text, "")
+    check("就医咨询：药表五列 = 药品名称 / 剂量 / 频次 / 用法 / 注意事项",
+          "| 药品名称 | 剂量 | 频次 | 用法 | 注意事项 |" in text
+          and "| … | … | … | … | … |" in text
+          and "（药名、剂量、频次、用法）" in text
+          and "用法用量 | 注意事项" not in text, "")
     check("就医咨询：一条药品信息都没有时整表只写一行缺省（不留空表）",
-          "原文一条药品信息都没有时，药品明细表只写一行「未提及」并保留该行，不留空表" in text
-          and "原文没有任何药品信息时整表只写一行「未提及」" in text, "")
+          "原文一条药品信息都没有时整表只写一行「未提及」并保留该行，不留空表" in text, "")
     check("就医咨询：缺省禁令已收窄到单元格级（旧「原文没写的项不写」已清除）",
           "原文没写的项**不写**" not in text and "不逐格标「未明确」" in text, "")
-    # 新增承载位（2026-09-19 now.xlsx 行16/23/26）：三单全篇 575–776 汉字（下限 1080），
-    # 医生"怎么解释、为什么不那样治、患者怎么决定"这类内容散落在各栏或直接丢。
-    check("就医咨询：新增 [病情说明与沟通]（医生解释 + 方案理由 + 患者决定）",
-          "# [病情说明与沟通]" in text and "医生对病情与检查结果的解释" in text
-          and "为什么这样治、为什么不那样治" in text
-          and "同意 / 暂缓 / 由患者自行决定" in text, "")
-    check("就医咨询：病情说明栏写明与其它栏的分工（不重复病史/检查/用药）",
-          "医生问诊时采集的病史归 [病史与背景]" in text
-          and "本栏只写\"说明与沟通本身\"、不重复" in text, "")
-    check("就医咨询：requirement 覆盖医生说明与沟通",
-          "医生说明与沟通" in text, "")
-    # 2026-09-19 now.xlsx 行16/23/26 实测：三单 575–776 汉字（下限 1080）、概况仅 62–140 字。
-    # 每栏补尺寸；并明确"症状与病史的描述本身就是核心事实，不得当过程铺陈压缩"。
+    # 5 列的格位纪律（2026-09-20 评测：剂量被挂到另一味药名下、非药品项混进表）
+    check("就医咨询：格位纪律（每格只写该格内容、同行几格同源）",
+          "表格每一格只写该格该写的内容" in text
+          and "同一行的几格必须来自同一味药的同一处表述" in text, "")
+    check("就医咨询：药名与用法同源 + 非药品项不进表",
+          "用法用量必须与药名同源" in text
+          and "只在原文明示为药品或处方的项目进表" in text, "")
+    # 尺寸：带表格的栏（[治疗方案与医嘱]）解析不出节级预算（parser 行为），写进文本即可。
     from tools.templates.template_eval import parse_section_char_budgets
 
     got = [(b["title"], b["lo"], b["hi"]) for b in parse_section_char_budgets(text)]
-    check("就医咨询：五栏都有尺寸口径（概况 200–350 / 病史 250–450 / …）",
-          ("就诊概况", 200, 350) in got and ("病史与背景", 250, 450) in got
-          and ("诊断与检查结果", 150, 300) in got
-          and ("病情说明与沟通", 150, 300) in got
+    check("就医咨询：概况/诊断/复诊三栏尺寸口径（250–450 / 200–400 / 80–200）",
+          ("就诊概况", 250, 450) in got and ("诊断与检查结果", 200, 400) in got
           and ("复诊与预警信号", 80, 200) in got, f"{got}")
-    check("就医咨询：概况栏要素密度（主诉照原文写全 + 初步判断写法）",
-          "核心主诉照原文写全" in text and "一段写完，约 200–350 字" in text, "")
+    check("就医咨询：概况栏要素密度（主诉照原文写全 + 病史并入 + 未确诊写法）",
+          "核心主诉照原文写全" in text
+          and "未确诊照原文写「考虑…，需…进一步明确」，不把推测写成确诊" in text, "")
     check("就医咨询：症状叙述不算过程铺陈、不得压缩",
-          "症状与病史的描述本身就是核心事实" in text
+          "症状与病史描述照原文写全" in text
           and "不得当成「过程铺陈」压缩成一句" in text, "")
     check("就医咨询：各栏不再硬要原文没有的项（按实际出现立条 / 有哪几类写哪几类）",
-          "按原文实际出现的内容立条" in text
+          "按原文实际给出的类别立条" in text
           and "有哪几类写哪几类，没有的类别不立条" in text, "")
-    check("就医咨询：复诊栏条件化（原文给了安排才写）+ 观察项落点",
+    check("就医咨询：复诊栏条件化（原文给了安排才写）+ 预警逐项 + 观察项落点",
           "原文给了复诊/随访安排才写复诊时间" in text
+          and "原文提到的预警症状必须逐项写入" in text
           and "需要观察的变化" in text, "")
 
 
@@ -1649,11 +1648,14 @@ def test_paragraph_cap_from_explicit_per_para() -> None:
     # ② 父节预算继承：带 `## 子标题` 的栏目不能再让段落上限失效
     gm = (_active_dir() / "general_minutes.md").read_text(encoding="utf-8")
     gcaps = [b for b in parse_section_char_budgets(gm) if b["title"] == "分段速览"]
-    check("通用纪要：速览改为单段 ≤300 字（段落级）",
-          bool(gcaps) and gcaps[0]["hi"] == 300 and gcaps[0]["scope"] == "paragraph", f"{gcaps}")
+    # 2026-09-20：速览改成「标题 + 一句主线」后不再声明字数 → 该栏不产生段落上限
+    check("通用纪要：速览不再有字数预算（改为一句话口径）",
+          not gcaps, f"{gcaps}")
     spec_seg = next(l.strip() for l in gm.splitlines() if "推进顺序" in l)
-    check("通用纪要：速览只写主线、明细归 [要点梳理]（治炸主判据）",
-          "只写该段主线" in spec_seg and "具体条目、数字与分工归 [要点梳理]" in spec_seg,
+    check("通用纪要：速览改为一句话主线、明细归 [要点梳理]（治炸主判据）",
+          "只写一句主线" in spec_seg and "每段至少一句" in spec_seg
+          and "具体条目、数字与分工归 [要点梳理]" in spec_seg
+          and "不重复 [要点梳理] 已列的条目与数字" in spec_seg,
           spec_seg[:80])
     para_sub = "这是一段概览文字。" * 55  # ≈440 汉字，单段
     for label, doc in (
@@ -1662,7 +1664,7 @@ def test_paragraph_cap_from_explicit_per_para() -> None:
     ):
         fixed, notes = split_overlong_paragraphs(doc, gm)
         seg_count = len([q for q in fixed.split("\n\n") if "概览文字" in q])
-        check(f"通用纪要：速览声明「不再分段」→ 440 字单段也不拆（{label}）",
+        check(f"通用纪要：速览无上限 → 440 字单段不被程序拆（{label}）",
               not notes and seg_count == 1,
               f"段数={seg_count} {notes}")
 
@@ -1673,19 +1675,19 @@ def test_paragraph_cap_from_explicit_per_para() -> None:
     )
     fixed4, notes4 = split_overlong_paragraphs(doc4, gm)
     abs_part = fixed4.split("# 全文摘要", 1)[1].split("# 分段速览", 1)[0]
-    check("通用纪要：不拆段只作用于声明栏（摘要仍折叠拆段）",
+    check("通用纪要：取消上限只作用于速览栏（摘要仍折叠拆段）",
           any("全文摘要" in n for n in notes4)
           and len([q for q in abs_part.split("\n\n") if "概览文字" in q]) >= 2,
           f"{notes4}")
 
-    # ③ 单句超长（句界拆不动）→ 必须报「超出段落字数上限」，不能静默
+    # ③ 单句超长（句界拆不动）→ 仍必须报「超出段落字数上限」，不能静默
     from tools.execution.hard_execution import _overlong_issue
 
     one = "这是一句没有任何句号的超长段落" + "持续延伸内容" * 80 + "。"
-    doc3 = "# 通用纪要\n\n# 分段速览\n## 08:00-12:30 现场检查\n" + one + "\n"
+    doc3 = "# 通用纪要\n\n# 全文摘要\n" + one + "\n"
     over = _overlong_issue(gm, doc3) or ""
-    check("通用纪要：带子标题时单句超长也会报超限（不再静默）",
-          "超出段落字数上限" in over and "分段速览" in over, over[:80])
+    check("通用纪要：摘要栏单句超长仍报超限（不再静默）",
+          "超出段落字数上限" in over and "全文摘要" in over, over[:80])
 
 
 def test_strip_default_only_content() -> None:
@@ -1714,19 +1716,19 @@ def test_strip_default_only_content() -> None:
     check("有内容的条目不算缺省", not _item_default_only("- **现病史**：2023年9月确诊。"), "")
 
     doc = (
-        "# 就医咨询\n\n# 病史与背景\n- **现病史**：2023年9月确诊。\n"
+        "# 就医咨询\n\n# 就诊概况\n- **现病史**：2023年9月确诊。\n"
         "- **过敏史**：未提及。\n- **家族史**：未提及。\n\n"
         "# 治疗方案与医嘱\n- **检查安排**：建议做第二次基因检测。\n"
         "- **用药**：系统治疗包括化疗、靶向、免疫。\n\n"
-        "| 药品名称 | 用法用量 | 注意事项 |\n| --- | --- | --- |\n"
-        "| 未明确 | 未明确 | 未明确 |\n\n"
+        "| 药品名称 | 剂量 | 频次 | 用法 | 注意事项 |\n| --- | --- | --- | --- | --- |\n"
+        "| 未明确 | 未明确 | 未明确 | 未明确 | 未明确 |\n\n"
         "# 复诊与预警信号\n未提及。\n"
     )
     out, notes = strip_default_only_content(doc)
     check("整条缺省被删、有内容的条目保留",
           "- **过敏史**" not in out and "- **现病史**" in out and "- **检查安排**" in out, "")
     check("整表全缺省 → 保留首行缺省数据行（不再把表删空）",
-          "| 未明确 | 未明确 | 未明确 |" in out and "| 药品名称 |" in out, "")
+          "| 未明确 | 未明确 | 未明确 | 未明确 | 未明确 |" in out and "| 药品名称 |" in out, "")
     check("整节只有缺省词 → 保留标题 + 一行缺省词",
           "# 复诊与预警信号\n未提及" in out, "")
     check("删除有记录（notes 记数）", bool(notes) and "已省略" in notes[0], f"{notes}")
@@ -1742,14 +1744,14 @@ def test_strip_default_only_content() -> None:
 
     blank = (
         "# 就医咨询\n\n# 治疗方案与医嘱\n- **全身系统治疗**：核心是全身系统治疗。\n"
-        "| 药品名称 | 用法用量 | 注意事项 |\n| --- | --- | --- |\n"
+        "| 药品名称 | 剂量 | 频次 | 用法 | 注意事项 |\n| --- | --- | --- | --- | --- |\n"
     )
     fixed_t, notes_t, issues_t = enforce_render_output(raw, blank)
     check("空表全流程：写入缺省占位行且零硬伤（原文本就没有药品明细时的出口）",
-          not issues_t and "| 未提及 | — | — |" in fixed_t, f"{issues_t} {notes_t}")
+          not issues_t and "| 未提及 | — | — | — | — |" in fixed_t, f"{issues_t} {notes_t}")
     glued, n_glued = apply_table_row_limits(blank.rstrip("\n"), raw)
     check("表格在文末且无末尾换行时，占位行也独立成行（不粘连分隔行）",
-          "| 未提及 | — | — |" in glued.splitlines(), f"{n_glued} {glued.splitlines()[-1]!r}")
+          "| 未提及 | — | — | — | — |" in glued.splitlines(), f"{n_glued} {glued.splitlines()[-1]!r}")
 
     for stem, bad in (
         ("clinical_advisory", "一律写「未明确」"),
@@ -2478,8 +2480,8 @@ def test_ellipsis_table_row_template_recognized() -> None:
         "# 就医咨询\n\n"
         "# [治疗方案与医嘱]\n"
         "- **用药**：医生开了药。\n\n"
-        "| 药品名称 | 用法用量 | 注意事项 |\n"
-        "| --- | --- | --- |\n"
+        "| 药品名称 | 剂量 | 频次 | 用法 | 注意事项 |\n"
+        "| --- | --- | --- | --- | --- |\n"
     )
     check("表头在、数据行缺失 → 报「表格无有效数据行」（硬伤，走 repair）",
           "表格无有效数据行" in evaluate_output_against_template(advisory, art)[0]
