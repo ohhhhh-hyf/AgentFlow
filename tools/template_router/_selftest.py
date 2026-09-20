@@ -1121,14 +1121,15 @@ def test_clinical_history_column() -> None:
           and "同一行的几格必须来自同一味药的同一处表述" in text, "")
     check("就医咨询：药名与用法同源 + 非药品项不进表",
           "用法用量必须与药名同源" in text
-          and "只在原文明示为药品或处方的项目进表" in text, "")
+          and "原文提到的药品、中成药与补充剂可进表" in text
+          and "仅作为对比或举例提到、并非该患者用药的不进表" in text, "")
     # 尺寸：带表格的栏（[治疗方案与医嘱]）解析不出节级预算（parser 行为），写进文本即可。
     from tools.templates.template_eval import parse_section_char_budgets
 
     got = [(b["title"], b["lo"], b["hi"]) for b in parse_section_char_budgets(text)]
-    check("就医咨询：概况/诊断/复诊三栏尺寸口径（250–450 / 200–400 / 80–200）",
-          ("就诊概况", 250, 450) in got and ("诊断与检查结果", 200, 400) in got
-          and ("复诊与预警信号", 80, 200) in got, f"{got}")
+    check("就医咨询：概况/诊断/复诊三栏尺寸口径（300–500 / 250–500 / 100–250）",
+          ("就诊概况", 300, 500) in got and ("诊断与检查结果", 250, 500) in got
+          and ("复诊与预警信号", 100, 250) in got, f"{got}")
     check("就医咨询：概况栏要素密度（主诉照原文写全 + 病史并入 + 未确诊写法）",
           "核心主诉照原文写全" in text
           and "未确诊照原文写「考虑…，需…进一步明确」，不把推测写成确诊" in text, "")
