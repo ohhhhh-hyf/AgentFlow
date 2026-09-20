@@ -853,8 +853,26 @@ def test_general_minutes_speedread() -> None:
     seg_spec = next(l.strip() for l in raw.splitlines() if "推进顺序" in l)
     check("通用纪要：速览「一个时间段就是一段、不再分段」（≤300 字，段落级口径保留）",
           "每个时间段一行" in seg_spec and "一个时间段就是一段、不再分段" in seg_spec
-          and "单段不超过约 300 字" in seg_spec and "每段不超过" not in seg_spec,
+          and "单段上限约 300 字" in seg_spec and "每段不超过" not in seg_spec,
           seg_spec[:80])
+    # 2026-09-20 本批实测：13 段 × 272 字（贴着 300 顶格）→ 3540 汉字，占全篇一半。
+    # 三条新口径：段数跟随原文、上限不是目标、两栏分工（叙述 vs 结构化事实）。
+    check("通用纪要：速览段数跟随原文（不自行合并或拆分）",
+          "段数跟随原文的时间段数（或章节数），不自行合并、也不拆分" in seg_spec, "")
+    check("通用纪要：速览声明「300 字是上限不是目标」（内容少就写短）",
+          "这是上限不是目标" in seg_spec and "不要为凑篇幅铺陈细节" in seg_spec
+          and "两三句即可" in seg_spec, "")
+    check("通用纪要：速览与要点栏分工（叙述 vs 结构化事实，不两栏各写一遍）",
+          "本栏给时间维度的主线叙述，结构化事实（数字/时限/责任人/口径）归要点栏" in seg_spec
+          and "同一句话不要在两栏各写一遍" in seg_spec, "")
+    gm_text = (_active_dir() / "general_minutes.md").read_text(encoding="utf-8")
+    pts_spec = next(l.strip() for l in gm_text.splitlines() if "分两层写" in l)
+    check("通用纪要：要点栏不设条数上限、同主题合并而非删除",
+          "不设条数上限" in pts_spec and "合并成一条写清" in pts_spec
+          and "不得为压条数删除事实" in pts_spec, "")
+    check("通用纪要：要点栏不复述速览叙述（只补结构化事实）",
+          "速览里已写过的叙述不在本栏复述" in pts_spec
+          and "本栏只补结构化事实（数字、时限、责任人、口径、结论）" in pts_spec, "")
     from tools.execution.hard_execution import (
         _no_split_sections,
         split_overlong_paragraphs,
