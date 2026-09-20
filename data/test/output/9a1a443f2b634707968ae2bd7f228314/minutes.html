@@ -1,0 +1,372 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>手机应用与音乐视频使用习惯交流</title>
+  <style>
+
+    body {
+      margin: 0;
+      padding: 32px 16px;
+      background: #f6f5f0;
+      color: #1a1a1a;
+      font-family: "Latin Modern Roman", "Computer Modern Roman", "CMU Serif", "Times New Roman", Times, "Songti SC", "SimSun", "STSong", serif;
+      -webkit-font-smoothing: antialiased;
+    }
+    .page { max-width: 1140px; margin: 0 auto; }
+    .ck-doc {
+      background: #ffffff;
+      border: 1px solid #d4d0c7;
+      border-radius: 4px;
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.05), 0 1px 3px rgba(0,0,0,0.03);
+      padding: 36px 44px;
+      line-height: 1.75;
+      font-size: 0.96rem;
+    }
+    .ck-doc h1 {
+      margin: 0 0 10px;
+      font-size: 1.85rem;
+      font-weight: 700;
+      letter-spacing: 0.4px;
+      text-align: center;
+      font-variant: small-caps;
+      color: #111111;
+    }
+    .ck-doc-header {
+      margin-bottom: 24px;
+      padding-bottom: 16px;
+      border-bottom: 2px solid #111111;
+      text-align: center;
+    }
+    .ck-doc-meta {
+      font-size: 0.85rem;
+      color: #555555;
+      font-style: italic;
+    }
+    .ck-doc-content h1, .ck-doc-content .ck-doc-h1 {
+      margin: 28px 0 14px;
+      font-size: 1.32rem;
+      font-weight: 700;
+      color: #111111;
+      border-bottom: 1.5px solid #222222;
+      padding-bottom: 5px;
+      text-align: left;
+      font-variant: normal;
+      letter-spacing: 0.3px;
+    }
+    .ck-doc h2, .ck-doc-h2 {
+      margin: 28px 0 14px;
+      font-size: 1.22rem;
+      font-weight: 700;
+      color: #111111;
+      border-bottom: 1.5px solid #222222;
+      padding-bottom: 5px;
+      letter-spacing: 0.3px;
+    }
+    .ck-doc h3, .ck-doc-h3 {
+      margin: 20px 0 10px;
+      font-size: 1.05rem;
+      font-weight: 700;
+      color: #222222;
+    }
+    .ck-doc h4, .ck-doc-h4 {
+      margin: 16px 0 8px;
+      font-size: 0.98rem;
+      font-weight: 700;
+      color: #333333;
+    }
+    .ck-doc p {
+      margin: 10px 0;
+      line-height: 1.75;
+      text-align: justify;
+    }
+    .ck-doc ul, .ck-doc ol {
+      margin: 8px 0 12px;
+      padding-left: 1.5em;
+      line-height: 1.72;
+    }
+    .ck-doc li {
+      margin: 4px 0;
+    }
+    .ck-doc blockquote, .ck-quote {
+      margin: 10px 0 14px;
+      padding: 8px 14px;
+      background: #faf9f6;
+      border-left: 3.5px solid #222222;
+      border-radius: 2px;
+      color: #222222;
+      font-size: 0.92rem;
+      font-style: italic;
+    }
+    .ck-doc code {
+      background: #f3f0e8;
+      border: 1px solid #e2ddd3;
+      border-radius: 3px;
+      padding: 1px 6px;
+      font-family: "Latin Modern Mono", Consolas, monospace;
+      font-size: 0.88em;
+    }
+    .ck-doc table, .ck-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.88rem;
+      margin: 14px 0;
+      background: #ffffff;
+      border-top: 2px solid #222222;
+      border-bottom: 2px solid #222222;
+    }
+    .ck-doc table th, .ck-doc table td, .ck-table th, .ck-table td {
+      padding: 9px 12px;
+      text-align: left;
+      vertical-align: middle;
+      border-bottom: 1px solid #ede9e1;
+    }
+    .ck-doc table th, .ck-table th {
+      background: #fbfaf7;
+      border-bottom: 1.2px solid #222222;
+      font-weight: 700;
+      color: #111111;
+      letter-spacing: 0.3px;
+    }
+
+    /* Roomy & Spacious Academic Risk Table */
+    .ck-risk-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 18px 0 28px;
+      background: #ffffff;
+      border-top: 2.2px solid #111111;
+      border-bottom: 2.2px solid #111111;
+      font-size: 0.93rem;
+      line-height: 1.72;
+    }
+    .ck-risk-table th {
+      background: #faf8f5;
+      border-bottom: 1.5px solid #111111;
+      padding: 15px 16px;
+      font-weight: 700;
+      color: #111111;
+      letter-spacing: 0.3px;
+      text-align: left;
+      vertical-align: middle;
+    }
+    .ck-risk-table td {
+      padding: 16px 16px;
+      border-bottom: 1px solid #ede8e0;
+      vertical-align: top;
+      color: #1a1a1a;
+      word-break: break-word;
+    }
+    .ck-risk-table tr:nth-child(even) td {
+      background: #fdfcfb;
+    }
+    .ck-risk-table tr:hover td {
+      background: #f6f3eb;
+    }
+
+    /* Review Grid */
+    .ck-review {
+      display: grid;
+      grid-template-columns: minmax(0, 1.35fr) 1px minmax(260px, 0.95fr);
+      border: 1px solid #d4d0c7;
+      border-radius: 4px;
+      overflow: hidden;
+      margin: 14px 0 20px;
+      background: #ffffff;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.03);
+    }
+    .ck-review-left {
+      padding: 22px 26px;
+      background: #ffffff;
+      line-height: 1.75;
+    }
+    .ck-review-rule { background: #dcd8cf; }
+    .ck-review-right {
+      padding: 16px 18px;
+      background: #faf9f6;
+      box-sizing: border-box;
+      display: flex;
+      flex-direction: column;
+    }
+    .ck-ev-list {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    /* Entity Highlight in LaTeX Paper Style */
+    .ck-cite-entity {
+      background: #fff8db;
+      border-bottom: 1.5px solid #b86a04;
+      padding: 1px 4px;
+      border-radius: 2px;
+      cursor: pointer;
+      transition: all 0.18s ease;
+      color: #111111;
+      font-weight: 600;
+    }
+    .ck-cite-entity:hover {
+      background: #ffe58f;
+      color: #000000;
+    }
+    .ck-cite-entity.is-on {
+      background: #ffd54a;
+      border-bottom-color: #0047ab;
+      box-shadow: 0 0 0 2px rgba(0,71,171,0.25);
+    }
+
+    /* Blue Hyperref Citations [1], [2] */
+    .ck-cite-ref {
+      color: #0047ab;
+      font-weight: 600;
+      font-family: "Latin Modern Roman", "Computer Modern Roman", "Times New Roman", serif;
+      text-decoration: none;
+      cursor: pointer;
+      padding: 0 2px;
+      margin: 0 2px;
+      border-radius: 2px;
+      transition: all 0.15s ease;
+      font-size: 0.92em;
+      vertical-align: baseline;
+      user-select: none;
+    }
+    .ck-cite-ref:hover {
+      text-decoration: underline;
+      background: #e8f0fe;
+      color: #003380;
+    }
+    .ck-cite-ref.is-active {
+      background: #d2e3fc;
+      color: #002266;
+      font-weight: 700;
+      box-shadow: 0 0 0 1px #0047ab;
+    }
+
+    /* Right Memory Cards in LaTeX Paper Style */
+    .ck-provenance-head {
+      font-size: 0.82rem;
+      font-weight: 700;
+      color: #222222;
+      margin: 0 0 12px;
+      padding-bottom: 6px;
+      border-bottom: 1px solid #e0dcd4;
+      letter-spacing: 0.3px;
+      text-transform: uppercase;
+    }
+    .ck-ref-icon { color: #0047ab; margin-right: 4px; }
+    .ck-ev {
+      display: block;
+      margin: 0;
+      padding: 10px 12px;
+      border: 1px solid #dedad2;
+      border-left: 3.5px solid #0047ab;
+      border-radius: 2px;
+      background: #ffffff;
+      font-size: 0.82rem;
+      line-height: 1.55;
+      transition: all 0.2s ease;
+      cursor: pointer;
+    }
+    .ck-ev:hover { border-color: #b5b0a5; }
+    .ck-ev.is-on, .ck-ev.is-highlighted {
+      border-color: #0047ab;
+      box-shadow: 0 0 0 2px #0047ab, 0 3px 8px rgba(0,71,171,0.15);
+      background: #f0f5ff;
+    }
+    @keyframes citePulse {
+      0% { background: #dbeafe; box-shadow: 0 0 0 3px #0047ab; }
+      50% { background: #bfdbfe; box-shadow: 0 0 0 4px #0047ab; }
+      100% { background: #f0f5ff; box-shadow: 0 0 0 2px #0047ab; }
+    }
+    .ck-ev-k {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 0.75rem;
+      color: #444444;
+      margin-bottom: 5px;
+      font-weight: 700;
+    }
+    .ck-ev-cite-tag {
+      color: #0047ab;
+      font-weight: 700;
+      font-family: "Latin Modern Roman", serif;
+      text-decoration: none;
+    }
+    .ck-ev-kind-badge {
+      display: inline-block;
+      padding: 1px 6px;
+      border-radius: 2px;
+      font-size: 0.72rem;
+      font-weight: 600;
+      letter-spacing: 0.2px;
+    }
+    .ck-badge-keypoint {
+      border: 1px solid #0047ab;
+      color: #0047ab;
+      background: #f0f5ff;
+    }
+    .ck-badge-note {
+      border: 1px solid #b86a04;
+      color: #b86a04;
+      background: #fff8eb;
+    }
+    .ck-mem-title {
+      font-weight: 700;
+      color: #111111;
+      font-size: 0.88rem;
+      margin-bottom: 6px;
+      line-height: 1.45;
+    }
+    .ck-ev-quote {
+      color: #222222;
+      font-style: normal;
+      font-family: inherit;
+      margin: 4px 0 6px;
+      padding: 0;
+      background: transparent;
+      border: none;
+      line-height: 1.6;
+      font-size: 0.84rem;
+    }
+    .ck-ev-meta { font-size: 0.76rem; color: #666666; margin-top: 6px; }
+    .ck-ev-more {
+      margin-top: 2px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+    .ck-ev-more[open] { margin-top: 4px; }
+    .ck-ev-more summary { margin-bottom: 6px; }
+    .ck-proof-toggle {
+      cursor: pointer;
+      font-size: 0.82rem;
+      color: #0047ab;
+      user-select: none;
+      font-family: inherit;
+      padding: 2px 0;
+    }
+    .ck-proof-toggle:hover { text-decoration: underline; }
+
+    @media(max-width: 860px) {
+      .ck-doc { padding: 22px 18px; }
+      .ck-review { grid-template-columns: 1fr; }
+      .ck-review-rule { display: none; }
+    }
+
+  </style>
+</head>
+<body>
+  <main class="page">
+    <div class="ck-doc">
+      <header class="ck-doc-header">
+        <h1>手机应用与音乐视频使用习惯交流</h1>
+      </header>
+      <div class="ck-doc-content">
+        <h1 class="ck-doc-h1">讨论议题与背景</h1><p>本次会议为多人参与的日常交流，由发言人1发起，围绕手机常用APP、AI助手、视频平台、音乐APP及歌手喜好等话题展开，与会者分别分享个人使用习惯与偏好。讨论由发言人1以「手机里最常用的三个APP」提问开场，随后依次谈及AI助手使用与信任度、视频平台与播放器偏好、音乐APP与听歌场景、歌手与乐队喜好，整体按话题逐块推进，属漫谈分享型交流，以分享观点为主，未形成统一结论。与会者共5人，按原文编号为发言人1至发言人5。讨论中涉及的具体专名包括知乎、小红书、谷歌、微信、抖音、淘宝、京东、小布小布、豆包、B站、YouTube、腾讯视频、爱奇艺、优酷、芒果TV、网易云、酷狗、酷我、虾扎、Taylor Swift、五月天、谢霆锋等。</p><h1 class="ck-doc-h1">发言要点</h1><h2 class="ck-doc-h2">手机常用APP与AI助手使用习惯</h2><ul><li><strong>发言人2</strong>：最常用APP为知乎、小红书、谷歌；表示不确定AI回答是否正确，仍停留在浏览器、纸质地图、尺子圆规铅笔标注的思维模式，自比「大家在用GPS，我还在用纸质地图」。</li><li><strong>发言人3</strong>：最常用微信、抖音、淘宝、京东；认为AI小助手比浏览器更全面、回答更精准、总结性更强，自己也下载了豆包。</li><li><strong>发言人4</strong>：最常用微信、小红书，另用手机自带的小布小布，称「现在都不用浏览器了，直接搜小布小布」。</li><li><strong>发言人5</strong>：最常用微信；指出小布小布即豆包。</li><li><strong>发言人1</strong>：手机装有百度千问、吉米等多个AI应用，未装元宝；反问「你能判断他说的是对的吗」，对AI回答准确性提出质疑。</li></ul><h2 class="ck-doc-h2">视频平台与播放器偏好</h2><ul><li><strong>发言人5</strong>：B站用得较多，也看YouTube，希望中英混杂内容能被识别；指出单框架手机现在连YouTube都下不了了。</li><li><strong>发言人4</strong>：指出YouTube手机一般翻不了墙。</li><li><strong>发言人1</strong>：发现国内付费电视剧在YouTube上不要钱。</li><li><strong>发言人2</strong>：认为大平台因版权纠纷需付费，小网站没有版权纠纷所以免费；自己反而找到一些小网站不用花钱。</li><li><strong>发言人3</strong>：常用腾讯视频、爱奇艺、优酷、芒果TV等播放器，会点进去看有没有想看的。</li><li><strong>发言人2</strong>：抱怨广告时间太长「耗不起了」，选择用B站直接看，不愿等广告；对开VIP表示犹豫。</li><li><strong>发言人5</strong>：认为APP太多，不知道开哪个VIP。</li></ul><h2 class="ck-doc-h2">音乐APP与听歌习惯</h2><ul><li><strong>发言人5</strong>：网易云用得较多；指出单框架手机网易云一直不适配，现在全靠卓翼通，其他APP基本都适配了。</li><li><strong>发言人2</strong>：以前常用酷狗、酷我；提及美国音乐平台虾扎，认为其欧美演唱会版本比国内网易云更多，但小众翻唱多，大版权歌曲因纠纷播不出来。</li><li><strong>发言人1</strong>：上班时候听音乐；认为虾扎唱的多是小众歌手。</li><li><strong>发言人4</strong>：通勤路上听音乐，需配降噪耳机。</li><li><strong>发言人2</strong>：认为在柏林坐地铁时听音乐代入感强，因地铁比较安静，可以听音乐看景。</li></ul><h2 class="ck-doc-h2">歌手与乐队喜好</h2><ul><li><strong>发言人3</strong>：最近刷到谢霆锋演Taylor Swift，开始喜欢谢霆锋，提及《玉蝴蝶》等老歌，记不清年份。</li><li><strong>发言人2</strong>：疑惑Taylor Swift为何重新火起来——中学时（2010年代开头）她已很火，后因绯闻消沉很长一段时间，现在对九零后和零零后影响都很深；提及《Speak Now》《Back To December》《Love Story》等歌，并回忆她与猫头鹰之城主唱亚当杨的绯闻，称是当年从东南卫视台湾节目看到的。</li><li><strong>发言人1</strong>：认为五月天以前挺好，但新发的作品「唱不上去了」。</li><li><strong>发言人4</strong>：对Taylor Swift绯闻「没有很关注」，但承认她确有全球影响力。</li></ul><h1 class="ck-doc-h1">共识形成</h1><ul><li><strong>一致意见</strong>：与会者普遍认可AI助手在回答全面性、精准度与总结性上优于传统浏览器搜索，发言人3明确表示「AI这个小助手更全面一点，回答的更精准一点，然后总结性比较强」；发言人2虽持保留态度，但承认自己「比大家落后了一代」，仍停留在浏览器、纸质地图、尺子铅笔标注的思维模式。</li><li><strong>主要分歧</strong>：围绕AI回答可信度，发言人1提出「你能判断他说的是对的吗」的质疑，发言人2回应称不确定AI回答是否正确，因此不愿使用AI软件；发言人3则以自身使用体验表示认可，双方未就此达成一致。</li><li><strong>倾向性认识</strong>：在视频平台方面，发言人2提出大平台因版权纠纷需付费、小网站无版权纠纷可免费观看的解释，发言人5补充小网站「一般会有那种广告感觉」，与会者未再提出异议；在音乐平台方面，发言人2认为美国平台虾扎的欧美演唱会版本更多，但小众翻唱多、大版权歌曲因纠纷播不出来，发言人1补充其「唱的都是一些小众歌手」，双方观点相互印证。</li></ul><h1 class="ck-doc-h1">待探讨问题与后续</h1><ul><li><strong>未确认</strong>：发言人2对Taylor Swift（梅梅）在2010年代初期走红、后因绯闻消沉、近期重新火起来的原因表示疑惑，询问在场者看法，发言人4回应「没有很关注」，未获进一步解答。</li><li><strong>未确认</strong>：发言人2提及美国音乐平台「虾扎」时，发言人4未听懂并追问「你说英文吧」，发言人2解释其为美国音乐平台后，未再深入讨论该平台的具体情况。</li><li><strong>未确认</strong>：发言人2询问大家对五月天、周杰伦作品的看法，发言人1回应「五月天以前还挺好的，但新发的作品唱不上去了」，未展开具体评价。</li><li><strong>未确认</strong>：发言人2提到Taylor Swift与猫头鹰之城（Owl City）主唱亚当·杨的绯闻及表白传闻，询问在场者是否了解，发言人4回应「没有很关注」，话题未继续。</li></ul>
+      </div>
+    </div>
+  </main>
+</body>
+</html>

@@ -1,0 +1,372 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>2023年度总结与年终奖颁发年会</title>
+  <style>
+
+    body {
+      margin: 0;
+      padding: 32px 16px;
+      background: #f6f5f0;
+      color: #1a1a1a;
+      font-family: "Latin Modern Roman", "Computer Modern Roman", "CMU Serif", "Times New Roman", Times, "Songti SC", "SimSun", "STSong", serif;
+      -webkit-font-smoothing: antialiased;
+    }
+    .page { max-width: 1140px; margin: 0 auto; }
+    .ck-doc {
+      background: #ffffff;
+      border: 1px solid #d4d0c7;
+      border-radius: 4px;
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.05), 0 1px 3px rgba(0,0,0,0.03);
+      padding: 36px 44px;
+      line-height: 1.75;
+      font-size: 0.96rem;
+    }
+    .ck-doc h1 {
+      margin: 0 0 10px;
+      font-size: 1.85rem;
+      font-weight: 700;
+      letter-spacing: 0.4px;
+      text-align: center;
+      font-variant: small-caps;
+      color: #111111;
+    }
+    .ck-doc-header {
+      margin-bottom: 24px;
+      padding-bottom: 16px;
+      border-bottom: 2px solid #111111;
+      text-align: center;
+    }
+    .ck-doc-meta {
+      font-size: 0.85rem;
+      color: #555555;
+      font-style: italic;
+    }
+    .ck-doc-content h1, .ck-doc-content .ck-doc-h1 {
+      margin: 28px 0 14px;
+      font-size: 1.32rem;
+      font-weight: 700;
+      color: #111111;
+      border-bottom: 1.5px solid #222222;
+      padding-bottom: 5px;
+      text-align: left;
+      font-variant: normal;
+      letter-spacing: 0.3px;
+    }
+    .ck-doc h2, .ck-doc-h2 {
+      margin: 28px 0 14px;
+      font-size: 1.22rem;
+      font-weight: 700;
+      color: #111111;
+      border-bottom: 1.5px solid #222222;
+      padding-bottom: 5px;
+      letter-spacing: 0.3px;
+    }
+    .ck-doc h3, .ck-doc-h3 {
+      margin: 20px 0 10px;
+      font-size: 1.05rem;
+      font-weight: 700;
+      color: #222222;
+    }
+    .ck-doc h4, .ck-doc-h4 {
+      margin: 16px 0 8px;
+      font-size: 0.98rem;
+      font-weight: 700;
+      color: #333333;
+    }
+    .ck-doc p {
+      margin: 10px 0;
+      line-height: 1.75;
+      text-align: justify;
+    }
+    .ck-doc ul, .ck-doc ol {
+      margin: 8px 0 12px;
+      padding-left: 1.5em;
+      line-height: 1.72;
+    }
+    .ck-doc li {
+      margin: 4px 0;
+    }
+    .ck-doc blockquote, .ck-quote {
+      margin: 10px 0 14px;
+      padding: 8px 14px;
+      background: #faf9f6;
+      border-left: 3.5px solid #222222;
+      border-radius: 2px;
+      color: #222222;
+      font-size: 0.92rem;
+      font-style: italic;
+    }
+    .ck-doc code {
+      background: #f3f0e8;
+      border: 1px solid #e2ddd3;
+      border-radius: 3px;
+      padding: 1px 6px;
+      font-family: "Latin Modern Mono", Consolas, monospace;
+      font-size: 0.88em;
+    }
+    .ck-doc table, .ck-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.88rem;
+      margin: 14px 0;
+      background: #ffffff;
+      border-top: 2px solid #222222;
+      border-bottom: 2px solid #222222;
+    }
+    .ck-doc table th, .ck-doc table td, .ck-table th, .ck-table td {
+      padding: 9px 12px;
+      text-align: left;
+      vertical-align: middle;
+      border-bottom: 1px solid #ede9e1;
+    }
+    .ck-doc table th, .ck-table th {
+      background: #fbfaf7;
+      border-bottom: 1.2px solid #222222;
+      font-weight: 700;
+      color: #111111;
+      letter-spacing: 0.3px;
+    }
+
+    /* Roomy & Spacious Academic Risk Table */
+    .ck-risk-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 18px 0 28px;
+      background: #ffffff;
+      border-top: 2.2px solid #111111;
+      border-bottom: 2.2px solid #111111;
+      font-size: 0.93rem;
+      line-height: 1.72;
+    }
+    .ck-risk-table th {
+      background: #faf8f5;
+      border-bottom: 1.5px solid #111111;
+      padding: 15px 16px;
+      font-weight: 700;
+      color: #111111;
+      letter-spacing: 0.3px;
+      text-align: left;
+      vertical-align: middle;
+    }
+    .ck-risk-table td {
+      padding: 16px 16px;
+      border-bottom: 1px solid #ede8e0;
+      vertical-align: top;
+      color: #1a1a1a;
+      word-break: break-word;
+    }
+    .ck-risk-table tr:nth-child(even) td {
+      background: #fdfcfb;
+    }
+    .ck-risk-table tr:hover td {
+      background: #f6f3eb;
+    }
+
+    /* Review Grid */
+    .ck-review {
+      display: grid;
+      grid-template-columns: minmax(0, 1.35fr) 1px minmax(260px, 0.95fr);
+      border: 1px solid #d4d0c7;
+      border-radius: 4px;
+      overflow: hidden;
+      margin: 14px 0 20px;
+      background: #ffffff;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.03);
+    }
+    .ck-review-left {
+      padding: 22px 26px;
+      background: #ffffff;
+      line-height: 1.75;
+    }
+    .ck-review-rule { background: #dcd8cf; }
+    .ck-review-right {
+      padding: 16px 18px;
+      background: #faf9f6;
+      box-sizing: border-box;
+      display: flex;
+      flex-direction: column;
+    }
+    .ck-ev-list {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    /* Entity Highlight in LaTeX Paper Style */
+    .ck-cite-entity {
+      background: #fff8db;
+      border-bottom: 1.5px solid #b86a04;
+      padding: 1px 4px;
+      border-radius: 2px;
+      cursor: pointer;
+      transition: all 0.18s ease;
+      color: #111111;
+      font-weight: 600;
+    }
+    .ck-cite-entity:hover {
+      background: #ffe58f;
+      color: #000000;
+    }
+    .ck-cite-entity.is-on {
+      background: #ffd54a;
+      border-bottom-color: #0047ab;
+      box-shadow: 0 0 0 2px rgba(0,71,171,0.25);
+    }
+
+    /* Blue Hyperref Citations [1], [2] */
+    .ck-cite-ref {
+      color: #0047ab;
+      font-weight: 600;
+      font-family: "Latin Modern Roman", "Computer Modern Roman", "Times New Roman", serif;
+      text-decoration: none;
+      cursor: pointer;
+      padding: 0 2px;
+      margin: 0 2px;
+      border-radius: 2px;
+      transition: all 0.15s ease;
+      font-size: 0.92em;
+      vertical-align: baseline;
+      user-select: none;
+    }
+    .ck-cite-ref:hover {
+      text-decoration: underline;
+      background: #e8f0fe;
+      color: #003380;
+    }
+    .ck-cite-ref.is-active {
+      background: #d2e3fc;
+      color: #002266;
+      font-weight: 700;
+      box-shadow: 0 0 0 1px #0047ab;
+    }
+
+    /* Right Memory Cards in LaTeX Paper Style */
+    .ck-provenance-head {
+      font-size: 0.82rem;
+      font-weight: 700;
+      color: #222222;
+      margin: 0 0 12px;
+      padding-bottom: 6px;
+      border-bottom: 1px solid #e0dcd4;
+      letter-spacing: 0.3px;
+      text-transform: uppercase;
+    }
+    .ck-ref-icon { color: #0047ab; margin-right: 4px; }
+    .ck-ev {
+      display: block;
+      margin: 0;
+      padding: 10px 12px;
+      border: 1px solid #dedad2;
+      border-left: 3.5px solid #0047ab;
+      border-radius: 2px;
+      background: #ffffff;
+      font-size: 0.82rem;
+      line-height: 1.55;
+      transition: all 0.2s ease;
+      cursor: pointer;
+    }
+    .ck-ev:hover { border-color: #b5b0a5; }
+    .ck-ev.is-on, .ck-ev.is-highlighted {
+      border-color: #0047ab;
+      box-shadow: 0 0 0 2px #0047ab, 0 3px 8px rgba(0,71,171,0.15);
+      background: #f0f5ff;
+    }
+    @keyframes citePulse {
+      0% { background: #dbeafe; box-shadow: 0 0 0 3px #0047ab; }
+      50% { background: #bfdbfe; box-shadow: 0 0 0 4px #0047ab; }
+      100% { background: #f0f5ff; box-shadow: 0 0 0 2px #0047ab; }
+    }
+    .ck-ev-k {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 0.75rem;
+      color: #444444;
+      margin-bottom: 5px;
+      font-weight: 700;
+    }
+    .ck-ev-cite-tag {
+      color: #0047ab;
+      font-weight: 700;
+      font-family: "Latin Modern Roman", serif;
+      text-decoration: none;
+    }
+    .ck-ev-kind-badge {
+      display: inline-block;
+      padding: 1px 6px;
+      border-radius: 2px;
+      font-size: 0.72rem;
+      font-weight: 600;
+      letter-spacing: 0.2px;
+    }
+    .ck-badge-keypoint {
+      border: 1px solid #0047ab;
+      color: #0047ab;
+      background: #f0f5ff;
+    }
+    .ck-badge-note {
+      border: 1px solid #b86a04;
+      color: #b86a04;
+      background: #fff8eb;
+    }
+    .ck-mem-title {
+      font-weight: 700;
+      color: #111111;
+      font-size: 0.88rem;
+      margin-bottom: 6px;
+      line-height: 1.45;
+    }
+    .ck-ev-quote {
+      color: #222222;
+      font-style: normal;
+      font-family: inherit;
+      margin: 4px 0 6px;
+      padding: 0;
+      background: transparent;
+      border: none;
+      line-height: 1.6;
+      font-size: 0.84rem;
+    }
+    .ck-ev-meta { font-size: 0.76rem; color: #666666; margin-top: 6px; }
+    .ck-ev-more {
+      margin-top: 2px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+    .ck-ev-more[open] { margin-top: 4px; }
+    .ck-ev-more summary { margin-bottom: 6px; }
+    .ck-proof-toggle {
+      cursor: pointer;
+      font-size: 0.82rem;
+      color: #0047ab;
+      user-select: none;
+      font-family: inherit;
+      padding: 2px 0;
+    }
+    .ck-proof-toggle:hover { text-decoration: underline; }
+
+    @media(max-width: 860px) {
+      .ck-doc { padding: 22px 18px; }
+      .ck-review { grid-template-columns: 1fr; }
+      .ck-review-rule { display: none; }
+    }
+
+  </style>
+</head>
+<body>
+  <main class="page">
+    <div class="ck-doc">
+      <header class="ck-doc-header">
+        <h1>2023年度总结与年终奖颁发年会</h1>
+      </header>
+      <div class="ck-doc-content">
+        <h1 class="ck-doc-h1">复盘目标与结果概况</h1><p>本次复盘会为公司2023年度总结与年终奖颁发年会，由老板主持，围绕年度经营数据、年终奖发放标准、员工评价与部门总结、颁奖及抽奖等环节展开。预期目标是总结2023年公司发展状况、公布年终奖并展望2024年。实际结果方面，公司年终奖总额为226,000元，成本支出（人员工资、外援配音、字幕、租机器等）390万元，利润率约24%或27%；最高工资（含年终奖）有2-3人达到20万元以上，平均工资到手约1万元。老板指出成本控制是最大问题，根源在于老板管理不足，公司结余缩水，有百来万没收回来，老板承担风险亏了100万。各部门总结显示短视频账号粉丝大幅增长（视频号从700涨到8万，小红书从2000+涨到6.4万，抖音从2000+涨到5.7万，B站从3.1万涨到7.6万），但账号变现课程评分7.5分（满分10分），重点项目未完成；商务部门实打实项目约300万元；后期部门整体技术提升，后半年基本都在加班。老板逐一评价员工并颁发最佳新人奖（红叶子、张扬）、最佳进步奖（欧阳小元）、后期独挡一面奖（李不续）、最佳员工奖（游腾宇）、特别贡献奖（李海涛）等奖项，最后组织抽奖并宣布当日报销福利。</p><h1 class="ck-doc-h1">结果与关键成果</h1><h2 class="ck-doc-h2">交付与里程碑</h2><ul><li><strong>短视频账号运营</strong>：2023年视频号粉丝从3月1日的719人增长至8万，小红书从2000+增长至6.4万，抖音从2000+增长至5.7万，B站从3.1万增长至7.6万；涨粉转折点为6月20日第一条外出拍摄的对话视频。</li><li><strong>账号变现</strong>：课程变现评分7.5分（满分10分），其中1分期待空间、0.5分期待值；重点项目变现未完成。</li><li><strong>直播</strong>：视频号直播4-5场（含新年场），平均在线人数5000+，前100人平均在线时长50分钟以上；因暂无课程，尚未实现直播变现。</li><li><strong>商务部门业绩</strong>：实打实项目约300万元，若计入入围等项目则更多。</li><li><strong>后期部门交付</strong>：2023年项目整体劳累程度比去年差、种类比去年多，后半年基本都在加班，但项目未做砸过，甲方满意度整体尚可。</li></ul><h2 class="ck-doc-h2">数据与指标</h2><ul><li><strong>年终奖总额</strong>：226,000元。</li><li><strong>成本支出</strong>：人员工资、外援配音、字幕、租机器等实打实支出390万元。</li><li><strong>利润率</strong>：约24%或27%，老板认为非常不可观。</li><li><strong>员工收入</strong>：最高工资（含年终奖）2-3人达到20万元以上；平均工资到手1万多元。</li><li><strong>人工支出变化</strong>：平时工资总额比去年提高约25万元；年终奖比去年多13.12万元。</li><li><strong>人员留存</strong>：干满一年的员工从去年的4-5人增加到今年的12人。</li><li><strong>公司结余</strong>：总量提升但成本上升，结余到账缩水，另有百来万未收回；老板承担风险亏了100万。</li></ul><h2 class="ck-doc-h2">制度与流程</h2><ul><li><strong>年终奖发放标准</strong>：入职两三个月或半年以内发红包，去年600-800元，今年约1000元；干满一年以一个月基本工资为基准；干得久且满意可给大几万预算，实际拿到2-3万左右。</li><li><strong>个人年终奖不一一公布</strong>：老板决定不公布个人数额，以发到手为准。</li><li><strong>奖项评选机制</strong>：共6人5项奖，评选有竞争性，同级别框出2-3人后2选1或3选1；最佳新人奖含鼓励成分，后期三项奖完全出于肯定。</li><li><strong>颁奖侧重说明</strong>：年终奖与奖项对后期部门有所侧重，是老板唯一愿意解释的发放原因；拍摄人员收入不会比后期少，已掌握平衡。</li></ul><h2 class="ck-doc-h2">团队与人员</h2><h3 class="ck-doc-h3">红叶子（入职两三个月，10月入职、11月转正）</h3><ul><li><strong>综合评价</strong>：政委给予非常高的评价，认为很难招到既懂技术又懂英语、有把事情做好的精神头的人才；在工资表意见栏会写如何把项目做得更好的建议。</li><li><strong>奖项</strong>：获最佳新人奖。</li></ul><h3 class="ck-doc-h3">郭东辉（运营，干满一年）</h3><ul><li><strong>综合评价</strong>：非常有经验的运营，克服了本不应面对的困难；老板表示公司可能限制了他的发挥，应表示歉意。</li></ul><h3 class="ck-doc-h3">游腾宇（后期，刚满一年）</h3><ul><li><strong>职业性</strong>：对老板和客户回复都非常专业，沟通能力强。</li><li><strong>纪律性</strong>：几乎没有迟到，请假严格按规定提前告知并安排好工作。</li><li><strong>技术反馈</strong>：宁波城市项目客户罗峰反馈「如果不是你这个小姑娘做的好，你们做的这么慢，早投诉你们了」；重要活安排给游腾宇后老板可完全放心。</li><li><strong>效率与质量</strong>：效率最高且不会出问题，做得好。</li><li><strong>奖项</strong>：获最佳员工奖，奖金稍多；年终奖在既定标准上因林海腾肯定再拉一档，老板称会让人惊喜、可能翻倍。</li></ul><h3 class="ck-doc-h3">欧阳小元（刚满一年）</h3><ul><li><strong>工作态度</strong>：认真，技术水平能力过关，学习能力强，有进步。</li><li><strong>提升空间</strong>：沟通能力需再爬坡。</li><li><strong>奖项</strong>：获最佳进步奖，技术进步明显跑了一截。</li></ul><h3 class="ck-doc-h3">徐艺玲（干得稍久的员工）</h3><ul><li><strong>工作质量</strong>：一遍过的非常多，仔细认真，挑不出毛病；技术层面有进步，原先只能剪课程，今年剪宣传片类也像模像样。</li><li><strong>客户反馈</strong>：杨晶项目其他人做不了，她做完后客户说「还是让那个小姑娘来做」。</li></ul><h3 class="ck-doc-h3">张文倩（编导）</h3><ul><li><strong>综合评价</strong>：灵光，综合能力强（沟通+专业），表现高出老板期待；宁波等老板以为干不了的活也完成了。</li><li><strong>提升空间</strong>：因年龄和工作年限，经验与职场感觉有所欠缺。</li></ul><h3 class="ck-doc-h3">市井（后期技术标杆）</h3><ul><li><strong>技术评价</strong>：依然是公司最好的后期，没有之一；能胜任更高品质的工作。</li><li><strong>参与项目</strong>：尊重个人意见，必要的后期会议有参加。</li></ul><h3 class="ck-doc-h3">钱德峰（元老级，拍摄）</h3><ul><li><strong>工作强度</strong>：后半年拍摄密集，两个月连轴转没有一天休息；回到公司很晚又要开车去很远的地方。</li><li><strong>额外贡献</strong>：安排拍摄人员、建议办停车券、关注设备更新，非本职工作但关心公司发展。</li><li><strong>提升空间</strong>：期待更强的执行能力（项目、沟通谈判）。</li></ul><h3 class="ck-doc-h3">徐武安</h3><ul><li><strong>综合评价</strong>：灵光、眼里有活；去警察学院驻场一人孤苦伶仃，客户从起初认为经验欠缺转为觉得挺灵；拍摄技术水平好于后期技术水平。</li></ul><h3 class="ck-doc-h3">宋俊逸（编导，入职两三个月）</h3><ul><li><strong>综合评价</strong>：第一个活是宁波两分钟宣传片，发来文稿后老板觉得「行家一出手便知有没有」，效率不错；后续监狱、财经等项目未出现任何问题，交给完全放心。</li></ul><h3 class="ck-doc-h3">张扬（入职半年）</h3><ul><li><strong>综合评价</strong>：公司邀请来的人才，职业态度和工作能力有目共睹，基本达到期待；老板称2023年干到最有价值的事就是把他招进来。</li><li><strong>奖项</strong>：获最佳新人奖。</li></ul><h3 class="ck-doc-h3">林海腾（运营层面）</h3><ul><li><strong>综合评价</strong>：对运营层面有重要作用，上传下达，传达员工声音；后期安排工作繁重。</li><li><strong>奖项</strong>：获特别贡献奖，奖金为单项奖中最多；因辛苦程度最大（半夜、周六周日被侵占最多、最操心、执行层面救火、上传下达）。</li></ul><h3 class="ck-doc-h3">李国宇（拍摄，干满一年）</h3><ul><li><strong>拍摄水平</strong>：公司内算比较高，能胜任稍高难度的活。</li><li><strong>后期能力</strong>：有灵性、能进步能听懂；剪理工项目第一遍乱七八糟，被逼一顿后完美交差。</li><li><strong>提升空间</strong>：沟通能力需提升。</li></ul><h3 class="ck-doc-h3">张启（商务，干满一年）</h3><ul><li><strong>综合评价</strong>：表现高于老板预期，外向、有主观能动性，会主动联系客户打电话；老板支持较少，几乎没什么项目，后面会考虑给更多支持。</li></ul><h2 class="ck-doc-h2">年度总结、奖项与福利</h2><ul><li><strong>年度总结</strong>：2023年公司总量提升，员工拿到钱提升，成本也往上跑（负值）；公司结余到账往下跑，有百来万没收回来，稍微缩水。</li><li><strong>颁奖仪式</strong>：今年认真对待仪式感（去年李海腾建议公司欠缺仪式感），证书为皮质、40元一本含设计费，字体认真对过；另有两个洗手包未寄到（值七八十元）。</li><li><strong>奖项设置</strong>：共6人5项——最佳新人奖（红叶子、张扬）、最佳进步奖（欧阳小元）、后期独挡一面奖（李不续）、最佳员工奖（游腾宇）、特别贡献奖（林海腾）。</li><li><strong>抽奖福利</strong>：15个奖品，含充电宝（价值79元）、观影券（价值30元）、洗头膏（价值七八十元）、老板自写100元红包奖。</li><li><strong>报销福利</strong>：当天看电影或吃饭在一定额度内可报销，仅限当天有效；不报销则来年补饭。</li><li><strong>加班补贴</strong>：年终奖中考虑加班因素，补贴约一两千元。</li></ul><h1 class="ck-doc-h1">亮点事项</h1><h2 class="ck-doc-h2">短视频账号突破性增长</h2><ul><li><strong>粉丝数大幅跃升</strong>：视频号从3月1日的700粉丝增长至8万，小红书从2000+增至6.4万，抖音从2000+增至5.7万，B站从3.1万增至7.6万，各平台均实现数倍至百倍级增长。</li><li><strong>关键转折点</strong>：6月20日第一条外出拍摄的对话类视频成为涨粉起点，此前潘老师已10次提醒运营人员考虑放弃该项目。</li><li><strong>成功原因</strong>：运营人员以破釜沉舟的心态极力说服潘老师尝试外出拍摄，恰逢新同事加入，项目得以坚持并突破；运营人员坚持"如果要放弃应由老板决定而非自己放弃"的信念。</li><li><strong>数据驱动决策</strong>：运营人员每晚8-9点抽一小时刷竞品英语老师直播间（侃哥、巧克力、克瑞斯金等），研究内容与互动方式，所有内容决策均有数据支撑而非凭空设想。</li><li><strong>外部认可</strong>：同行运营者（卖虾、卖螃蟹的商家）对团队能坚持这么久表示惊讶，认为这种状况下多数人会放弃。</li></ul><h2 class="ck-doc-h2">员工表现超出预期</h2><ul><li><strong>游腾宇获最高评价</strong>：老板称其为"评价最高的，没有之一"，职业性、专业性、纪律性均最佳——迟到几乎没有，请假严格按规定提前告知并安排好工作；客户反馈良好，宁波城市项目客户表示"如果不是你这个小姑娘做得好，你们做得这么慢，早投诉你们了"；重要活安排给游腾宇后老板便不再操心。因林海腾大力肯定，年终奖在既定标准上<strong>额外拉高一档</strong>，老板称"刚满一年的员工却给人干了5、6年老员工的错觉"。</li><li><strong>张扬获高度认可</strong>：老板称"2023年干到最有价值的一件事就是把他招进来"，其职业态度与工作能力基本达到期待，公司给予了有诚意的待遇；老板明确表示"有这样的态度或能力的员工如果还出现问题，那就是老板或制度管理沟通的问题"。</li><li><strong>红叶子获政委极高评价</strong>：政委（以严苛著称）评价"很难招到这样的一个人才，既懂技术又懂英语，而且有把事情做好的精神头"，在工资表意见栏会认真写如何把项目做得更好的建议。</li><li><strong>宋俊逸首秀即证明能力</strong>：入职两三个月，老板安排第一个宁波两分钟宣传片任务，很快交回文稿，老板评价"行家一出手便知有没有"，后续监狱、财经等项目均未出问题，"交给他是完全放心的"。</li><li><strong>张文倩超出老板预期</strong>：老板原以为宁波等较难项目可能做不成，已做好心理准备，但张文倩均能完成，"出乎我的意料"。</li><li><strong>新员工带来技术惊喜</strong>：张扬（音）能完成三维制作，而往年二维三维均外包，有望内部解决此类需求。</li></ul><h2 class="ck-doc-h2">后期团队整体能力跃升</h2><ul><li><strong>技术分级模糊化</strong>：后期人员之间原本明确的分级今年模糊了，效率整体接近，制作能力整体提升，林海腾表示"不怎么需要我额外操心"。</li><li><strong>高强度下保质保量</strong>：后半年基本都在加班，晚上、周末均如此，但质量未下降；林海腾评价"有怨言但还会接着干，这是一种职业操守"。</li><li><strong>年终奖体现认可</strong>：老板与政委商量年终奖时，考虑到加班情况，在既定标准外<strong>额外补贴一两千元</strong>。</li></ul><h2 class="ck-doc-h2">仪式感建设成效显著</h2><ul><li><strong>首次正式颁奖</strong>：增设最佳新人奖（红叶子、张扬）、最佳进步奖（欧阳小元）、后期独挡一面奖（李不续）、最佳员工奖（游腾宇）、特别贡献奖（李海涛）共5项6人，奖项评选经认真讨论，2选1或3选1竞争产生。</li><li><strong>证书用心制作</strong>：皮质证书每本40元含设计费，老板亲自核对字体（选用苍耳青和），明确要求不掉色掉粉。</li><li><strong>回应员工建议</strong>：仪式感缺失是去年李海腾（音）及员工提出的建议，今年认真对待并落实。</li></ul><h1 class="ck-doc-h1">不足事项</h1><h2 class="ck-doc-h2">成本控制与经营风险</h2><ul><li><strong>成本控制非常差</strong>：2023年实打实花出去的钱（人员工资、外援配音、字幕、租机器等）达390万元，利润率仅约24%或27%，老板明确表示这是公司最大的问题；若没有增量支撑，今年这个状况下年会都不会开。</li><li><strong>公司结余缩水</strong>：总量在提升、员工拿到钱在提升，但成本也在往上跑，公司结余到账是往下跑的；还有百来万没收回来，实际结余稍微缩水。</li><li><strong>老板承担亏损风险</strong>：老板个人亏了100万，并明确表示即使拿得少也比员工拿得多，风险由老板顶着。</li><li><strong>根因——老板管理不足</strong>：老板自认这是最大的癌症问题，根源在于<strong>老板对业务关心或关注不够，或不够雷厉风行，出现问题没有及时解决</strong>；明年开会时再讨论成本控制问题。</li></ul><h2 class="ck-doc-h2">短视频账号运营</h2><ul><li><strong>账号尚未变现</strong>：短视频账号虽粉丝大幅增长（视频号从700涨到8万、小红书从2000+涨到6.4万、抖音从2000+涨到5.7万、B站从3.1万涨到7.6万），但账号变现重点项目<strong>没有完成</strong>，课程变现评分7.5分（满分10分），其中0.5分是期待空间。</li><li><strong>直播尚未形成变现闭环</strong>：视频号直播4-5场，平均在线人数5000+，但<strong>现在没有课程，所以尚不能进行变现</strong>。</li><li><strong>6月20日前项目濒临放弃</strong>：在6月20日外出拍摄视频起色之前，潘老师已多次（约10次）提醒运营人员出去找工作、项目不想干了；运营人员认为不应由自己放弃，坚持到说服潘老师外出拍摄后项目才出现转变。</li><li><strong>公司限制部门发展</strong>：老板承认合作对象和公司可能限制了短视频部门的发展，对部门员工表示歉意，并给予一定补偿。</li></ul><h2 class="ck-doc-h2">人员与加班</h2><ul><li><strong>加班严重、人员不足</strong>：后期部门后半年基本都在加班，很少正常休息，晚上、周末都被占用；老板承认这是<strong>判断失误——没有及时招合适或足够数量的人员</strong>，商务业务断断续续给人不需要多招人的错觉，但平时积累的人脉资源又不确定，导致人不够成为加班最直观的因素。</li><li><strong>外援成本高、内部参与不足</strong>：拍摄外援费用与内部人员拍摄价格相差很多，但公司内部凑不出人去按个机位、保证机器不关机；员工反映喊人拍摄时很多人以没空、很忙、不想去为由推脱。</li><li><strong>年终奖侧重后期</strong>：老板明确年终奖和奖项发放侧重后期部门，后期比前期少一截是事实，但即使侧重后期，拍摄人员也不会比后期少，老板表示这是唯一愿意解释的发放原因。</li></ul><h2 class="ck-doc-h2">员工个人表现未达预期</h2><ul><li><strong>李国宇沟通能力待提升</strong>：老板评价其拍摄水平较高、后期有灵性，但更高期待是沟通能力，并直言「你也有问题，而且很严重」。</li><li><strong>欧阳小元沟通能力需爬坡</strong>：老板肯定其工作态度、技术水平与学习能力，但认为沟通能力可能要再爬坡会好一点。</li><li><strong>张文倩经验欠缺</strong>：老板肯定其综合能力与灵光性，但因年龄和工作年限问题，从经验或感觉上相比职场老人有所欠缺。</li><li><strong>张文倩法院项目沟通吃力</strong>：张文倩自述法院项目虽做完，但同学沟通上比较吃力，对方总在踢皮球，不清楚标准该怎么做。</li><li><strong>徐艺玲状态不佳</strong>：老板多次表示感觉其不开心、板着脸，但本人未明确回应原因；老板对其更高期待「明年再说」。</li><li><strong>张扬问题明年再说</strong>：老板表示张扬基本达到期待、是2023年最有价值的一次招聘，但也直言「你问题也很严重，具体问题明年再说」。</li><li><strong>张启项目支持不足</strong>：老板承认商务方面给张启的支持比较少，他几乎没有什么项目，老板只是帮着聊了聊或打理，后面会考虑给更多支持和帮助。</li><li><strong>李国宇自评未达预期</strong>：李国宇自述2023年对自己预期未达到，包括效率、时间方面，以及项目上对同事和甲方的沟通做得不太好。</li></ul><h1 class="ck-doc-h1">改进计划</h1><h2 class="ck-doc-h2">成本控制与经营改善</h2><ul><li><strong>针对成本控制差、利润率仅24%或27%的问题</strong>：老板表示明年开会时再讨论成本控制的具体方案，未给出具体措施。</li><li><strong>针对公司结余缩水、有百来万没收回来的问题</strong>：老板承认承担风险亏了100万，但未给出追收或止损的具体计划。</li><li><strong>针对老板管理不足这一成本问题的根源</strong>：老板自述对工作关心或关注不够、不够雷厉风行、出现问题未及时解决，明年会反思这个问题。</li></ul><h2 class="ck-doc-h2">短视频账号变现与运营</h2><ul><li><strong>针对短视频账号尚未变现的问题</strong>：老板期待明年账号能开始变现，并承诺投入更大精力、给予足够重视。</li><li><strong>针对账号运营中说服与坚持困难的问题</strong>：运营郭东辉总结认知收获为“最大的敌人是自己”，坚持把事情做下去，未给出具体改进动作。</li></ul><h2 class="ck-doc-h2">人员配置与加班问题</h2><ul><li><strong>针对后半年加班严重、人员不足的问题</strong>：老板承认是判断失误——商务来活断断续续，误以为不需要招更多人，但平时积累的人脉资源又不确定，导致未及时招合适人数；未给出明年补员的具体计划。</li><li><strong>针对外援成本高的问题</strong>：员工钱德峰提出公司内部人员可承担部分简单拍摄（如按个机位、保证机器不关机），与请外援价格差很多，建议尝试内部拍摄；老板回应期待大家都能参与拍摄，明年会往这个方向靠，希望大家至少能应付。</li><li><strong>针对员工直接说“没空”不参与拍摄的不职业现象</strong>：老板指出被领导问到时应解释手头工作或勉为其难安排，不能直接拒绝。</li></ul><h2 class="ck-doc-h2">部门协作与支持</h2><ul><li><strong>针对商务部门项目支持少的问题</strong>：老板表示张启做项目时老板支持较少，几乎没给项目，后面会考虑给予更多支持和帮助。</li><li><strong>针对后期部门工作繁重、休息时间被侵占的问题</strong>：老板期待明年能更多进行组织协调，提高效率、提升工作开心程度，尽可能少侵占大家休息时间。</li><li><strong>针对员工沟通能力提升空间</strong>：老板对欧阳小元、李国宇提出沟通能力需再爬坡的期待，未给出具体培养措施。</li></ul>
+      </div>
+    </div>
+  </main>
+</body>
+</html>

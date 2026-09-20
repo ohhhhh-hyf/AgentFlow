@@ -1,0 +1,372 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>手机图库项目进展对齐与排期风险评审会</title>
+  <style>
+
+    body {
+      margin: 0;
+      padding: 32px 16px;
+      background: #f6f5f0;
+      color: #1a1a1a;
+      font-family: "Latin Modern Roman", "Computer Modern Roman", "CMU Serif", "Times New Roman", Times, "Songti SC", "SimSun", "STSong", serif;
+      -webkit-font-smoothing: antialiased;
+    }
+    .page { max-width: 1140px; margin: 0 auto; }
+    .ck-doc {
+      background: #ffffff;
+      border: 1px solid #d4d0c7;
+      border-radius: 4px;
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.05), 0 1px 3px rgba(0,0,0,0.03);
+      padding: 36px 44px;
+      line-height: 1.75;
+      font-size: 0.96rem;
+    }
+    .ck-doc h1 {
+      margin: 0 0 10px;
+      font-size: 1.85rem;
+      font-weight: 700;
+      letter-spacing: 0.4px;
+      text-align: center;
+      font-variant: small-caps;
+      color: #111111;
+    }
+    .ck-doc-header {
+      margin-bottom: 24px;
+      padding-bottom: 16px;
+      border-bottom: 2px solid #111111;
+      text-align: center;
+    }
+    .ck-doc-meta {
+      font-size: 0.85rem;
+      color: #555555;
+      font-style: italic;
+    }
+    .ck-doc-content h1, .ck-doc-content .ck-doc-h1 {
+      margin: 28px 0 14px;
+      font-size: 1.32rem;
+      font-weight: 700;
+      color: #111111;
+      border-bottom: 1.5px solid #222222;
+      padding-bottom: 5px;
+      text-align: left;
+      font-variant: normal;
+      letter-spacing: 0.3px;
+    }
+    .ck-doc h2, .ck-doc-h2 {
+      margin: 28px 0 14px;
+      font-size: 1.22rem;
+      font-weight: 700;
+      color: #111111;
+      border-bottom: 1.5px solid #222222;
+      padding-bottom: 5px;
+      letter-spacing: 0.3px;
+    }
+    .ck-doc h3, .ck-doc-h3 {
+      margin: 20px 0 10px;
+      font-size: 1.05rem;
+      font-weight: 700;
+      color: #222222;
+    }
+    .ck-doc h4, .ck-doc-h4 {
+      margin: 16px 0 8px;
+      font-size: 0.98rem;
+      font-weight: 700;
+      color: #333333;
+    }
+    .ck-doc p {
+      margin: 10px 0;
+      line-height: 1.75;
+      text-align: justify;
+    }
+    .ck-doc ul, .ck-doc ol {
+      margin: 8px 0 12px;
+      padding-left: 1.5em;
+      line-height: 1.72;
+    }
+    .ck-doc li {
+      margin: 4px 0;
+    }
+    .ck-doc blockquote, .ck-quote {
+      margin: 10px 0 14px;
+      padding: 8px 14px;
+      background: #faf9f6;
+      border-left: 3.5px solid #222222;
+      border-radius: 2px;
+      color: #222222;
+      font-size: 0.92rem;
+      font-style: italic;
+    }
+    .ck-doc code {
+      background: #f3f0e8;
+      border: 1px solid #e2ddd3;
+      border-radius: 3px;
+      padding: 1px 6px;
+      font-family: "Latin Modern Mono", Consolas, monospace;
+      font-size: 0.88em;
+    }
+    .ck-doc table, .ck-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.88rem;
+      margin: 14px 0;
+      background: #ffffff;
+      border-top: 2px solid #222222;
+      border-bottom: 2px solid #222222;
+    }
+    .ck-doc table th, .ck-doc table td, .ck-table th, .ck-table td {
+      padding: 9px 12px;
+      text-align: left;
+      vertical-align: middle;
+      border-bottom: 1px solid #ede9e1;
+    }
+    .ck-doc table th, .ck-table th {
+      background: #fbfaf7;
+      border-bottom: 1.2px solid #222222;
+      font-weight: 700;
+      color: #111111;
+      letter-spacing: 0.3px;
+    }
+
+    /* Roomy & Spacious Academic Risk Table */
+    .ck-risk-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 18px 0 28px;
+      background: #ffffff;
+      border-top: 2.2px solid #111111;
+      border-bottom: 2.2px solid #111111;
+      font-size: 0.93rem;
+      line-height: 1.72;
+    }
+    .ck-risk-table th {
+      background: #faf8f5;
+      border-bottom: 1.5px solid #111111;
+      padding: 15px 16px;
+      font-weight: 700;
+      color: #111111;
+      letter-spacing: 0.3px;
+      text-align: left;
+      vertical-align: middle;
+    }
+    .ck-risk-table td {
+      padding: 16px 16px;
+      border-bottom: 1px solid #ede8e0;
+      vertical-align: top;
+      color: #1a1a1a;
+      word-break: break-word;
+    }
+    .ck-risk-table tr:nth-child(even) td {
+      background: #fdfcfb;
+    }
+    .ck-risk-table tr:hover td {
+      background: #f6f3eb;
+    }
+
+    /* Review Grid */
+    .ck-review {
+      display: grid;
+      grid-template-columns: minmax(0, 1.35fr) 1px minmax(260px, 0.95fr);
+      border: 1px solid #d4d0c7;
+      border-radius: 4px;
+      overflow: hidden;
+      margin: 14px 0 20px;
+      background: #ffffff;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.03);
+    }
+    .ck-review-left {
+      padding: 22px 26px;
+      background: #ffffff;
+      line-height: 1.75;
+    }
+    .ck-review-rule { background: #dcd8cf; }
+    .ck-review-right {
+      padding: 16px 18px;
+      background: #faf9f6;
+      box-sizing: border-box;
+      display: flex;
+      flex-direction: column;
+    }
+    .ck-ev-list {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    /* Entity Highlight in LaTeX Paper Style */
+    .ck-cite-entity {
+      background: #fff8db;
+      border-bottom: 1.5px solid #b86a04;
+      padding: 1px 4px;
+      border-radius: 2px;
+      cursor: pointer;
+      transition: all 0.18s ease;
+      color: #111111;
+      font-weight: 600;
+    }
+    .ck-cite-entity:hover {
+      background: #ffe58f;
+      color: #000000;
+    }
+    .ck-cite-entity.is-on {
+      background: #ffd54a;
+      border-bottom-color: #0047ab;
+      box-shadow: 0 0 0 2px rgba(0,71,171,0.25);
+    }
+
+    /* Blue Hyperref Citations [1], [2] */
+    .ck-cite-ref {
+      color: #0047ab;
+      font-weight: 600;
+      font-family: "Latin Modern Roman", "Computer Modern Roman", "Times New Roman", serif;
+      text-decoration: none;
+      cursor: pointer;
+      padding: 0 2px;
+      margin: 0 2px;
+      border-radius: 2px;
+      transition: all 0.15s ease;
+      font-size: 0.92em;
+      vertical-align: baseline;
+      user-select: none;
+    }
+    .ck-cite-ref:hover {
+      text-decoration: underline;
+      background: #e8f0fe;
+      color: #003380;
+    }
+    .ck-cite-ref.is-active {
+      background: #d2e3fc;
+      color: #002266;
+      font-weight: 700;
+      box-shadow: 0 0 0 1px #0047ab;
+    }
+
+    /* Right Memory Cards in LaTeX Paper Style */
+    .ck-provenance-head {
+      font-size: 0.82rem;
+      font-weight: 700;
+      color: #222222;
+      margin: 0 0 12px;
+      padding-bottom: 6px;
+      border-bottom: 1px solid #e0dcd4;
+      letter-spacing: 0.3px;
+      text-transform: uppercase;
+    }
+    .ck-ref-icon { color: #0047ab; margin-right: 4px; }
+    .ck-ev {
+      display: block;
+      margin: 0;
+      padding: 10px 12px;
+      border: 1px solid #dedad2;
+      border-left: 3.5px solid #0047ab;
+      border-radius: 2px;
+      background: #ffffff;
+      font-size: 0.82rem;
+      line-height: 1.55;
+      transition: all 0.2s ease;
+      cursor: pointer;
+    }
+    .ck-ev:hover { border-color: #b5b0a5; }
+    .ck-ev.is-on, .ck-ev.is-highlighted {
+      border-color: #0047ab;
+      box-shadow: 0 0 0 2px #0047ab, 0 3px 8px rgba(0,71,171,0.15);
+      background: #f0f5ff;
+    }
+    @keyframes citePulse {
+      0% { background: #dbeafe; box-shadow: 0 0 0 3px #0047ab; }
+      50% { background: #bfdbfe; box-shadow: 0 0 0 4px #0047ab; }
+      100% { background: #f0f5ff; box-shadow: 0 0 0 2px #0047ab; }
+    }
+    .ck-ev-k {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 0.75rem;
+      color: #444444;
+      margin-bottom: 5px;
+      font-weight: 700;
+    }
+    .ck-ev-cite-tag {
+      color: #0047ab;
+      font-weight: 700;
+      font-family: "Latin Modern Roman", serif;
+      text-decoration: none;
+    }
+    .ck-ev-kind-badge {
+      display: inline-block;
+      padding: 1px 6px;
+      border-radius: 2px;
+      font-size: 0.72rem;
+      font-weight: 600;
+      letter-spacing: 0.2px;
+    }
+    .ck-badge-keypoint {
+      border: 1px solid #0047ab;
+      color: #0047ab;
+      background: #f0f5ff;
+    }
+    .ck-badge-note {
+      border: 1px solid #b86a04;
+      color: #b86a04;
+      background: #fff8eb;
+    }
+    .ck-mem-title {
+      font-weight: 700;
+      color: #111111;
+      font-size: 0.88rem;
+      margin-bottom: 6px;
+      line-height: 1.45;
+    }
+    .ck-ev-quote {
+      color: #222222;
+      font-style: normal;
+      font-family: inherit;
+      margin: 4px 0 6px;
+      padding: 0;
+      background: transparent;
+      border: none;
+      line-height: 1.6;
+      font-size: 0.84rem;
+    }
+    .ck-ev-meta { font-size: 0.76rem; color: #666666; margin-top: 6px; }
+    .ck-ev-more {
+      margin-top: 2px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+    .ck-ev-more[open] { margin-top: 4px; }
+    .ck-ev-more summary { margin-bottom: 6px; }
+    .ck-proof-toggle {
+      cursor: pointer;
+      font-size: 0.82rem;
+      color: #0047ab;
+      user-select: none;
+      font-family: inherit;
+      padding: 2px 0;
+    }
+    .ck-proof-toggle:hover { text-decoration: underline; }
+
+    @media(max-width: 860px) {
+      .ck-doc { padding: 22px 18px; }
+      .ck-review { grid-template-columns: 1fr; }
+      .ck-review-rule { display: none; }
+    }
+
+  </style>
+</head>
+<body>
+  <main class="page">
+    <div class="ck-doc">
+      <header class="ck-doc-header">
+        <h1>手机图库项目进展对齐与排期风险评审会</h1>
+      </header>
+      <div class="ck-doc-content">
+        <h1 class="ck-doc-h1">全文摘要</h1><p>本次例会由产品经理主持，产品、开发1、开发2三方参与，围绕手机图库项目进展对齐排期与风险。会议覆盖智能分类与相册推荐改版、AI智能标签接口、同步模块与内存管理、缩略图渲染、时间轴加载优化、AI修图功能预留及项目里程碑等议题。关键结论包括：隐私相册入口提升至首部顶部二级菜单；AI标签接口采用本地缓存加端侧预过滤方案；同步模块按分片加载推进；批量删除锁死Bug临时规避、正式修复排进V1.2；时间轴加本地索引预加载；AI修图预留接口并做插件化架构。关键数字锚点：AI识别模型准确率提升约88%、单次请求耗时从800毫秒涨至约1.5秒、内存占用降约30%、月底封版、下周三发内测包。</p><h1 class="ck-doc-h1">分段速览</h1><h2 class="ck-doc-h2">00:00:00-00:01:23 会议开场与产品侧进展</h2><p>产品经理（发言人1）开场说明会议目的：过手机图库项目整体进展，对齐排期与潜在风险，按产品侧、开发侧、总结的顺序进行。产品（发言人2）同步智能分类和相册推荐改版进展：高保真原型已出V1.5版，调整网格视图交互逻辑，长按手势增加微动效反馈；低端机上滑列表偶发掉帧，已与开发2沟通考虑降低预览图缩放级别；用户调研反馈隐私相册入口太深，建议下一版提升至首部顶部二级菜单。产品经理回应：隐私相册入口调整不算大改动，要求产品出交互方案供评审；掉帧问题需抓紧，下周将进入性能压测。</p><h2 class="ck-doc-h2">00:01:51-00:03:19 AI标签接口与同步模块问题</h2><p>开发1（发言人3）汇报AI智能标签接口：V2识别模型已跑通，准确率提升约88%，但新增视频帧提取功能导致单次请求耗时从800毫秒涨至约1.5秒，提出是否改异步推送。产品（发言人2）否决异步推送，建议先做本地缓存策略——首次识别慢、之后本地读库秒出，开发1确认可行，预计三天联调完，但提示缓存命中率低时需回溯。开发1同时反馈云相册同步模块断点续传在弱网环境下出现状态机紊乱。开发2（发言人4）确认同步队列积压超1000张时部分机型出现OOM崩溃，尤其iOS内存回收激进，已采用分片加载机制每次拉50张，但拖慢同步进度，提出加后台静默同步权限或允许用户手动设置同步频率。</p><h2 class="ck-doc-h2">00:03:57-00:05:03 同步方案与缩略图渲染优化</h2><p>产品经理（发言人1）判断后台同步权限审核严、大概率下不了，决定按分片加载方案走但进度不能拖，并询问缩略图渲染卡顿优化进展。开发2（发言人4）汇报：采用新图片解码库，将JPEG硬解换软解，内存占用降约30%但CPU占用上升；已在主流三款机型灰度，帧率稳定60帧、低端机约50帧；周四性能报告今晚出初稿。另提出批量删除照片时若同时触发回收站重建索引，数据库偶发锁死，已用消息队列临时规避，正式修复排到下下周版本。产品经理决定临时规避先稳住，正式修复排进V1.2迭代。</p><h2 class="ck-doc-h2">00:05:03-00:07:01 端侧预过滤与时间轴加载优化</h2><p>产品经理（发言人1）建议开发1在端侧做初步筛选：先用轻量级模型过滤gif或截图，剩余走全量云端识别，平均耗时压下一半。开发1（发言人3）认可该思路，需评估模型体积和端侧推理开销，若端侧跑需再申请两百兆本地缓存空间。产品（发言人2）表示安装包加两三百兆问题不大，建议做成按需加载——用户首次进智能标签时才触发下载，开发1确认用现有资源下发模块约两天搞定。开发1另反馈时间轴视图滑动到二十年前老照片时页面卡死三秒以上，测试提了三个优高优Bug，原因是历史图片EXIF解析耗时加磁盘IO瓶颈，计划加本地索引预加载，最近三个月照片建树状结构、滑到底部动态加载旧数据。</p><h2 class="ck-doc-h2">00:07:01-00:09:15 预加载资源隔离与AI修图预留</h2><p>产品经理（发言人1）同意时间轴预加载方案，但提醒注意别与云同步模块抢资源。开发2（发言人4）确认不会冲突——预加载放主线程IO池、同步放子线程后台服务，但预加载需用户授权媒体和存储权限，若首次拒绝需引导弹窗，交互设计由产品负责。产品（发言人2）表示引导弹窗明天出稿，走柔和提示路线；另同步运营反馈希望下版本加AI修图快捷入口（一键去背景、智能调色），虽本次排不进但想提前占坑。产品经理决定本次主线是性能和分类，不硬塞AI修图，在PRD预留接口逻辑和UI占位，开发侧做成插件化架构。开发1提出后端接口按标准RESTful加Swogger文档输出；开发2建议趁此将图片处理管线重构，渲染层抽成插件化、用GLSL写统一接口，工作量多一周左右。</p><h2 class="ck-doc-h2">00:09:42-00:12:18 优先级调整与收尾安排</h2><p>产品经理（发言人1）决定调整优先级：非核心UI微调往后排，资源给到管线重构和AI标签优化；要求开发2今天下班前评估精确工作量，开发1排联调时间、周五前跑通主干流程；周四性能压测由测试部配合，需拿达标数据。产品（发言人2）确认下午定稿隐私相册入口和引导弹窗稿子，明天上午拉UI走查，并制作AI修图占位图。项目里程碑按原定计划月底封版，内测包暂定下周三发，拉体验官群重点跑AI分类和同步模块。开发1提出需与数据库组对齐索引策略，产品经理安排拉群由DBA配合优化建表；开发2确认今晚继续跑压测数据，并询问性能报告是否将iOS和安卓对比数据单独列版，产品经理同意分开列、由测试组合并成一份总览。</p><h1 class="ck-doc-h1">要点梳理</h1><h2 class="ck-doc-h2">智能分类与相册推荐改版</h2><ul><li><strong>高保真原型</strong>：已出V1.5版，调整网格视图交互逻辑，长按手势增加微动效反馈。</li><li><strong>低端机掉帧</strong>：上滑列表偶尔掉帧，已与开发2沟通，考虑通过降低预览图缩放级别换帧。</li><li><strong>隐私相册入口</strong>：用户调研反馈入口太深，建议下一版提升至首部顶部二级菜单；产品经理确认不算大改动，由产品出交互方案供评审。</li></ul><h2 class="ck-doc-h2">AI智能标签接口与性能优化</h2><ul><li><strong>识别模型</strong>：后端V2版已跑通，准确率较上一代提升约88%。</li><li><strong>请求耗时</strong>：因新增视频帧提取功能，单次请求耗时从800毫秒涨至约1.5秒。</li><li><strong>异步推送方案</strong>：产品否决，认为用户点开相册无实时结果会感觉功能卡死。</li><li><strong>本地缓存策略</strong>：开发1确认可行，加CQLite缓存层，首次识别慢、之后本地读库秒出，预计三天联调完；缓存命中率低时仍会回溯。</li><li><strong>端侧预过滤</strong>：产品经理建议先用轻量级模型过滤gif/截图，再走全量云端识别，平均耗时压下一半；开发1评估模型体积和端侧推理开销，需申请约200兆本地缓存空间。</li><li><strong>按需下载</strong>：模型按需加载，用户首次进图库智能标签时触发下载，平时不占空间；用现有资源下发模块，约两天搞定。</li></ul><h2 class="ck-doc-h2">同步模块与内存管理</h2><ul><li><strong>OOM崩溃</strong>：同步队列积压超1000张时部分机型崩溃，iOS内存回收机制较激进。</li><li><strong>分片加载</strong>：开发2已加机制，每次拉50张处理完再拉下一批；后台静默同步权限审核严、大概率下不了，按分片方案走但进度不能拖。</li></ul><h2 class="ck-doc-h2">缩略图渲染与性能评审</h2><ul><li><strong>解码优化</strong>：JPEG硬解换软解，内存占用降约30%，CPU占用上升。</li><li><strong>灰度数据</strong>：主流三款机型帧率稳定60帧，低端机约50帧；周四性能报告初稿今晚出。</li><li><strong>数据库锁死Bug</strong>：批量删除照片同时触发回收站重建索引时偶发锁死，已用消息队列临时规避，正式修复排进V1.2迭代。</li></ul><h2 class="ck-doc-h2">时间轴视图加载优化</h2><ul><li><strong>卡死问题</strong>：滑动到二十年前老照片时页面卡死三秒以上，测试提了三个优高优Bug；原因为历史图片EXIF解析耗时加磁盘IO瓶颈。</li><li><strong>预加载方案</strong>：加本地索引预加载，最近三个月照片建树状结构，滑到底部动态加载旧数据；开发2确认预加载放主线程IO池、同步放子线程后台服务，互不冲突。</li><li><strong>权限引导</strong>：预加载需用户授权媒体和存储权限，若首次拒绝需引导弹窗，产品明天出稿、走柔和提示路线。</li></ul><h2 class="ck-doc-h2">AI修图功能预留</h2><ul><li><strong>需求来源</strong>：运营反馈希望下版本加AI修图快捷入口（一键去背景、智能调色）。</li><li><strong>本次不硬塞</strong>：主线是性能和分类，硬塞风险大；在PRD预留接口逻辑和UI占位，开发侧做插件化架构。</li><li><strong>渲染管线重构</strong>：开发2提出渲染层抽成插件化、用GLSL写统一接口，工作量多一周左右，需将非核心Bug修复后移腾资源。</li></ul><h2 class="ck-doc-h2">项目里程碑与内测计划</h2><ul><li><strong>里程碑</strong>：按原定计划月底封版。</li><li><strong>内测包</strong>：暂定下周三发，拉体验官群，重点跑AI分类和同步模块；产品做好反馈收集表，开发准备日志抓取。</li></ul><h2 class="ck-doc-h2">结论与决定</h2><ul><li><strong>隐私相册入口</strong>：提升至首部顶部二级菜单，产品出交互方案供评审。</li><li><strong>AI标签接口</strong>：采用本地缓存策略加端侧预过滤、按需下载方案。</li><li><strong>同步模块</strong>：按分片加载方案走，每次拉50张，进度不能拖。</li><li><strong>数据库锁死Bug</strong>：用消息队列临时规避，正式修复排进V1.2迭代。</li><li><strong>时间轴优化</strong>：加本地索引预加载，注意与云同步模块资源隔离。</li><li><strong>AI修图</strong>：预留接口和UI占位，开发侧做插件化架构，非核心Bug修复后移。</li><li><strong>里程碑与内测</strong>：月底封版，下周三发内测包。</li></ul><h2 class="ck-doc-h2">行动项与分工</h2><ul><li><strong>产品（发言人2）</strong>：下午定稿隐私相册入口和引导弹窗稿子，明天上午拉UI走查；制作AI修图占位图；十一点半前将UI走查稿发给产品经理。</li><li><strong>开发1（发言人3）</strong>：下午拉分支改本地缓存逻辑，预计三天联调完；评估端侧预过滤模型体积和端侧推理开销；按需下载约两天搞定；今晚搭好接口联调环境，明天与测试过一遍；拉群与DBA对齐索引策略。</li><li><strong>开发2（发言人4）</strong>：今晚出性能报告初稿；继续跑分片加载和渲染优化压测数据，明天同步；评估管线重构精确工作量，今天下班前发给产品经理；让测试组将iOS和安卓对比数据合并成一份总览。</li><li><strong>产品经理（发言人1）</strong>：下午两点参加UI走查；周四参加性能评审；要求开发1排联调时间，尽量周五前跑通主干流程。</li></ul><h2 class="ck-doc-h2">待确认与风险</h2><ul><li><strong>本地缓存命中率低</strong>时识别速度可能回溯，未明确应对方案。</li><li><strong>后台静默同步权限</strong>申请被否，用户手动设置同步频率是否可行未确认。</li><li><strong>端侧预过滤</strong>模型体积和端侧推理开销待评估；按需下载对安装包体积的影响待产品评估。</li><li><strong>预加载权限</strong>引导弹窗交互设计待产品出稿。</li><li><strong>管线重构</strong>工作量多一周，非核心Bug修复后移的具体范围待确认。</li><li><strong>风险</strong>：低端机掉帧、AI接口耗时1.5秒、同步队列OOM崩溃、批量删除数据库锁死、时间轴卡死三秒以上、后台同步权限审核严。</li></ul>
+      </div>
+    </div>
+  </main>
+</body>
+</html>
