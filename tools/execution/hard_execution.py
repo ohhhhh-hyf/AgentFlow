@@ -576,9 +576,12 @@ def normalize_blank_lines(text: str) -> str:
         if not interior and prv and (_is_heading(cur) or _is_row(cur)):
             out.append("")  # 标题 / 表格块首行之前
         out.append(line)
-        if nxt and (_is_heading(cur) or _is_row(cur)):
-            if not (_is_row(cur) and _is_row(nxt)):
-                out.append("")  # 标题 / 表格块末行之后
+        if (
+            nxt
+            and (_is_heading(cur) or _is_row(cur))
+            and not (_is_row(cur) and _is_row(nxt))
+        ):
+            out.append("")  # 标题 / 表格块末行之后
     result = "\n".join(out)
     if text.endswith("\n"):
         result += "\n"

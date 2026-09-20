@@ -2459,35 +2459,34 @@ def test_class_transcript_task_groups() -> None:
     )
     check("课堂互动：栏说明改为「按互动环节分组总结」", inter is not None, "")
     spec = (inter or {}).get("hint") or ""
-    # 2026-09-20 第二轮（用户实测反馈）：分组分点已生效，但条目按"教师的每个动作"切
-    # （8 条里 6 条以"教师…"开头）、17 条、0 个 `> ` 引用（点评全写成行内引号）。
-    # 收紧四处：一条一个互动主题、点评独立成行、先学生内容后教师点评、每组 3–6 条。
-    check("课堂互动：一条一个互动主题（不写成对话记录、不拆教师连续动作）",
-          "一条一个互动主题" in spec and "不写成对话记录" in spec
-          and "不要把教师的连续动作拆成多条" in spec and "同一句" not in spec, "")
-    check("课堂互动：先给学生的发言/活动，再单独一行引教师点评",
-          "先给学生的发言或活动内容" in spec
-          and "再单独一行引教师的关键点评" in spec, "")
-    check("课堂互动：点评性质的句子一律独立成行（`> ` 起行、行首写出处、逐字）",
-          "点评性质的句子一律独立成行，不写在条目里" in spec
-          and "`> ` 起行、行首写出处、原句逐字" in spec
-          and "短句可写在条目内用引号" not in spec, "")
-    check("课堂互动：条目组内数量 3–6 条 + 每组一句话交代环节（可选）",
+    # 2026-09-20 第三轮（用户口径）：内容奇怪 = 教师个人叙事被当互动。给"互动"下定义
+    # （师生之间的当场往来）+ 学生内容为主体 + 教师只留当场回应与点评；判据从
+    # "对理解有增量"（问答形态的准绳）换成"是不是师生往来"。
+    check("课堂互动：给「互动」下定义（师生之间的当场往来）",
+          "互动＝师生之间的当场往来" in spec
+          and "学生做了什么、说了什么（含典型例子）" in spec
+          and "教师如何当场回应" in spec
+          and "教师提问、组织活动" in spec and "学生的反应" in spec, "")
+    check("课堂互动：学生内容为主体、教师只保留当场回应与点评",
+          "学生内容为主体" in spec and "同类合并，典型例子可列举" in spec
+          and "教师只保留当场回应与点评" in spec, "")
+    check("课堂互动：点评性质的句子一律 `> ` 独立成行（行首写出处、逐字）",
+          "点评性质的句子一律 `> ` 独立成行（行首写出处、原句逐字）" in spec
+          and "不要把教师的每段话都引成点评" in spec
+          and "一般性话语可写进条内" in spec, "")
+    check("课堂互动：组内数量 3–6 条 + 每组一句话交代环节（可选）",
           "每组 3–6 条" in spec and "必要时先一句话交代这个环节在做什么" in spec, "")
-    check("课堂互动：一般性话语可写进条内（只有点评必须独立成行）",
-          "一般性话语可写进条内" in spec, "")
-    check("课堂互动：保留增量判据（提问追问/澄清纠正限定/举例讨论/教师点评与引导）",
-          all(k in spec for k in ("提问与追问", "澄清/纠正/限定", "举例与讨论", "教师的点评与引导")), "")
     check("课堂互动：复述已讲、管理性对话、寒暄不收 + 引用不超 5 句",
           "复述已讲内容、管理性对话、寒暄不收" in spec
           and "整栏引用不超过 5 句" in spec, "")
     check("课堂互动：保留缺省词语义（没有互动 → 「未提及」）",
           "原文没有互动就写「未提及」" in spec and inter.get("missing") is True, "")
-    check("课堂互动：旧的一问一答口径已清除",
+    check("课堂互动：旧口径已清除（问答形态与上一版的中间措辞）",
           all(k not in text for k in (
               "一问一答＝一组", "每轮称呼都加粗", "不抄原话", "整栏最多引 2–3 句",
               "按知识点配平", "每条 20–50 字", "每条 40–150 字", "写在同一段里",
               "一条一个互动点", "典型回答可举 1–2 例", "学生发言按点概括",
+              "一条一个互动主题", "只收对理解有增量的互动", "先把学生的发言",
           )), "")
 
 
@@ -2514,9 +2513,14 @@ def test_blank_lines_normalized() -> None:
                 prev = lines[i - 1].strip()
                 if prev and not prev.startswith("|"):
                     before_missing += 1
-            if not s and i > 0 and i + 1 < len(lines):
-                if lines[i - 1].strip().startswith("|") and lines[i + 1].strip().startswith("|"):
-                    inside_blank += 1
+            if (
+                not s
+                and i > 0
+                and i + 1 < len(lines)
+                and lines[i - 1].strip().startswith("|")
+                and lines[i + 1].strip().startswith("|")
+            ):
+                inside_blank += 1
         return heads, after_missing, before_missing, inside_blank
 
     raw = (
