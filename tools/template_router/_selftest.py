@@ -46,7 +46,7 @@ SCALAR_BASELINE_BY_DIR: dict[str, dict[str, int]] = {
     # court_transcript / hiring_report / project_progress 另有"表格栏说明"行（紧跟表格的
     # `[按下表逐行填写…]`）不计入字段——它们没有正文位，明细由表格承载（见 test_table_caption_*）。
     "template_v3": {
-        "class_transcript": 4, "clinical_advisory": 4, "contract_vetting": 4,
+        "class_transcript": 4, "clinical_advisory": 5, "contract_vetting": 4,
         "conversation_transcript": 5, "court_transcript": 3, "debate_forum": 5,
         "decision_review": 4, "exchange_forum": 5, "general_minutes": 3,
         "government_bulletin": 3, "group_seminar": 4, "hiring_report": 3,
@@ -846,16 +846,18 @@ def test_general_minutes_speedread() -> None:
           "按主题打包概括" in abstract and "每个板块最多一句话" in abstract
           and "单句不超 40 字" in abstract and "禁止逐板块展开数字" in abstract, abstract[:90])
     budgets = parse_section_char_budgets(tpl)
-    # 2026-09-20 用户口径：速览从「每段最多 300 字的一段话」改成「时间轴：标题 + 一句主线」，
-    # 段落上限随之取消——有上限就会被当成目标（13 段 × 272 字曾占全篇一半）。
-    check("通用纪要：摘要为一段 250–400（节级），速览不再声明字数",
+    # 2026-09-20 用户口径（方案1）：段数最多 8 段（按议题/阶段分段）+ 每段一段话最多 150 字。
+    # 上限与段数上限成对写，避免只压单段上限时"上限被当目标"（曾 13 段 ×272 字占全篇一半）。
+    check("通用纪要：摘要为一段 250–400（节级），速览为一段 120–150（段落级）",
           any(b["title"] == "全文摘要" and b["lo"] == 250 and b["hi"] == 400 and b["scope"] == "section" for b in budgets)
-          and not any(b["title"] == "分段速览" for b in budgets),
+          and any(b["title"] == "分段速览" and b["hi"] == 150 and b["scope"] == "paragraph" for b in budgets),
           f"{budgets}")
     seg_spec = next(l.strip() for l in raw.splitlines() if "推进顺序" in l)
-    check("通用纪要：速览改为一句话主线（每段至少一句、不铺陈）",
-          "每个时间段一行" in seg_spec and "只写一句主线" in seg_spec
-          and "每段至少一句" in seg_spec and "单段不超过约 300 字" not in seg_spec
+    check("通用纪要：速览按议题分段 + 段数最多 8 段 + 每段一段话 ≤150 字",
+          "每个时间段一行" in seg_spec and "按议题或阶段分段，不按每一个时间戳切" in seg_spec
+          and "段数最多 8 段" in seg_spec and "一段话描述该段" in seg_spec
+          and "每段最多 150 字" in seg_spec and "每段至少一句" in seg_spec
+          and "单段不超过约 300 字" not in seg_spec
           and "不重复 [要点梳理] 已列的条目与数字" in seg_spec,
           seg_spec[:80])
     from tools.execution.hard_execution import (
@@ -863,15 +865,16 @@ def test_general_minutes_speedread() -> None:
         split_overlong_paragraphs,
     )
 
-    check("通用纪要：速览不再声明「不拆段」（形态由模板的一句话口径约束）",
+    check("通用纪要：速览不声明「不拆段」（超长段由 150 字上限按句界拆分）",
           "分段速览" not in _no_split_sections(tpl), f"{_no_split_sections(tpl)}")
-    long_seg = "这是一段概览文字。" * 55  # ≈440 汉字
+    long_seg = "这是一段概览文字。" * 55  # ≈440 汉字，远超 150×1.2
     fixed_seg, seg_notes = split_overlong_paragraphs(
         "# 通用纪要\n\n# [分段速览]\n## 08:00-12:30 现场检查\n" + long_seg + "\n", tpl
     )
-    check("通用纪要：速览栏已无字数上限 → 程序不再拆行（改由模板约束形态）",
-          not seg_notes and len([q for q in fixed_seg.split("\n\n") if "概览文字" in q]) == 1,
-          f"notes={seg_notes}")
+    seg_parts = [q for q in fixed_seg.split("\n\n") if "概览文字" in q]
+    check("通用纪要：速览超 180 字的段被程序按句界拆分（150 字上限生效）",
+          bool(seg_notes) and len(seg_parts) >= 2 and max(sum(1 for c in q if "一" <= c <= "鿿") for q in seg_parts) <= 160,
+          f"段数={len(seg_parts)} {seg_notes}")
     leftover = [
         p.stem
         for p in _active_dir().glob("*.md")
@@ -1082,6 +1085,30 @@ def test_knowledge_memo_groups() -> None:
           and "篇幅所限" in text, "")
 
 
+def test_home_school_feedback_groups() -> None:
+    """家校沟通 [家长反馈]：按组按点（两组固定名）+ 原话组带背景行（2026-09-20 用户口径）。
+
+    回归背景：原说明把「原话用 `> ` 引用」与「问题与关注点用 `- ` 列表」并列，没写从属关系 →
+    实测产物出现「2 条条目 + 3 条裸引用 + 4 条缩进子条」，子条挂到最后一条引用下面（层级错位）。
+    """
+    text = (_active_dir() / "home_school_liaison.md").read_text(encoding="utf-8")
+    check("家校沟通：[家长反馈] 按组、按点写（两组固定名，有内容才出现）",
+          "**按组、按点写**" in text and "`## 家长关注的问题与诉求`" in text
+          and "`## 家长原话`" in text and "有内容才写该组，原文没有的组不出现" in text, "")
+    check("家校沟通：[家长反馈] 原话组带背景行（与全库引语栏一致，最多 2–3 条）",
+          "**最多 2–3 条**" in text and "逐字引用、不省字、不改写" in text
+          and "金句行 `> “……”`、背景行 `- 背景：……`" in text
+          and "原文没线索就写 `- 背景：未提及`，不编" in text, "")
+    check("家校沟通：[家长反馈] 两组都没有才写缺省 + 与 [沟通内容] 不重复",
+          "两组都没有就写「未提及」" in text
+          and "**本栏与 [沟通内容] 不重复（同一件事只在一栏写）**" in text, "")
+    # 只在本栏范围内查示例（避免误伤其它栏的正当措辞）
+    spec = next(l for l in text.splitlines() if l.startswith("[") and "家长原话" in l)
+    check("家校沟通：[家长反馈] 不再出现示例式软引导（项别名与示范清单已清除）",
+          "如费用" not in spec and "如手机" not in spec and "例如" not in spec
+          and "（照原文）" not in spec, spec[:60])
+
+
 def test_clinical_history_column() -> None:
     """就医咨询：4 栏 + 5 列药品表（2026-09-20 按 v2 参考收敛），病史并入 [就诊概况]。
 
@@ -1090,7 +1117,7 @@ def test_clinical_history_column() -> None:
     """
     text = (_active_dir() / "clinical_advisory.md").read_text(encoding="utf-8")
     for need in (
-        "过敏史、禁忌类信息原文出现就必须写入",
+        "过敏史、禁忌类信息原文出现就必须逐项写入，不得省略",
         "原文提到就逐项落条",
         "职业照原文",
         "只有医生或原文明确认定为异常、偏高、偏低或需关注的指标才加粗",
@@ -1099,9 +1126,15 @@ def test_clinical_history_column() -> None:
         check(f"就医咨询：含「{need}」", need in text, "")
     check("就医咨询：旧口径（病史留给「下面各栏」）已清除",
           "病史与用药细节留给下面各栏" not in text, "")
-    check("就医咨询：已收敛为 4 栏（[病史与背景]/[病情说明与沟通] 退场）",
-          "# [病史与背景]" not in text and "# [病情说明与沟通]" not in text
-          and text.count("\n# [") == 4, "")
+    # 2026-09-20 用户口径：病史背景从 [就诊概况] 拆出，单开一栏按点总结（5 栏）。
+    check("就医咨询：5 栏（病史背景单开 [病史与背景]；[病情说明与沟通] 仍不退场）",
+          "# [病史与背景]" in text and "# [病情说明与沟通]" not in text
+          and text.count("\n# [") == 5, "")
+    check("就医咨询：[病史与背景] 按点总结（一条一个事实 + 原文明说才写缺省）",
+          "**一条一个事实**（`- **项别**：内容`）" in text
+          and "原文说到哪几项就写哪几项，不要为凑清单把没有的项写成「未提及」" in text
+          and "过敏史、禁忌类信息原文出现就必须逐项写入" in text
+          and "个人史与生活史原文提到就逐项落条" in text, "")
     # 药品明细表：5 列（药品名称/剂量/频次/用法/注意事项）；药名不漏记；整表无药只写一行缺省
     # —— 与程序侧「整表缺省保留首行」「占位行按表头列数生成」配套。
     check("就医咨询：有药名就一行一药、缺格写 `—`",
@@ -1127,14 +1160,16 @@ def test_clinical_history_column() -> None:
     from tools.templates.template_eval import parse_section_char_budgets
 
     got = [(b["title"], b["lo"], b["hi"]) for b in parse_section_char_budgets(text)]
-    check("就医咨询：概况/诊断/复诊三栏尺寸口径（300–500 / 250–500 / 100–250）",
-          ("就诊概况", 300, 500) in got and ("诊断与检查结果", 250, 500) in got
+    check("就医咨询：四栏尺寸口径（概况 250–400 / 病史 250–450 / 诊断 250–500 / 复诊 100–250）",
+          ("就诊概况", 250, 400) in got and ("病史与背景", 250, 450) in got
+          and ("诊断与检查结果", 250, 500) in got
           and ("复诊与预警信号", 100, 250) in got, f"{got}")
-    check("就医咨询：概况栏要素密度（主诉照原文写全 + 病史并入 + 未确诊写法）",
+    check("就医咨询：概况栏要素密度（主诉照原文写全 + 归位句 + 未确诊写法）",
           "核心主诉照原文写全" in text
+          and "**病史与个人史明细归 [病史与背景]**" in text
           and "未确诊照原文写「考虑…，需…进一步明确」，不把推测写成确诊" in text, "")
-    check("就医咨询：症状叙述不算过程铺陈、不得压缩",
-          "症状与病史描述照原文写全" in text
+    check("就医咨询：症状叙述不算过程铺陈、不得压缩（[病史与背景]）",
+          "症状与病史的描述本身就是核心事实" in text
           and "不得当成「过程铺陈」压缩成一句" in text, "")
     check("就医咨询：各栏不再硬要原文没有的项（按实际出现立条 / 有哪几类写哪几类）",
           "按原文实际给出的类别立条" in text
@@ -1143,6 +1178,10 @@ def test_clinical_history_column() -> None:
           "原文给了复诊/随访安排才写复诊时间" in text
           and "原文提到的预警症状必须逐项写入" in text
           and "需要观察的变化" in text, "")
+    check("就医咨询：[复诊与预警信号] 按组、按点总结（三组固定 + 组内分点）",
+          "**按组、按点写**" in text and "`## 复诊与随访安排`" in text
+          and "`## 预警信号`" in text and "`## 需要观察的变化`" in text
+          and "有内容才写该组，原文没有的组不出现" in text, "")
 
 
 def test_overview_specs_have_scope() -> None:
@@ -1649,12 +1688,13 @@ def test_paragraph_cap_from_explicit_per_para() -> None:
     # ② 父节预算继承：带 `## 子标题` 的栏目不能再让段落上限失效
     gm = (_active_dir() / "general_minutes.md").read_text(encoding="utf-8")
     gcaps = [b for b in parse_section_char_budgets(gm) if b["title"] == "分段速览"]
-    # 2026-09-20：速览改成「标题 + 一句主线」后不再声明字数 → 该栏不产生段落上限
-    check("通用纪要：速览不再有字数预算（改为一句话口径）",
-          not gcaps, f"{gcaps}")
+    # 2026-09-20 方案1：速览改为「一段话 ≤150 字」，段落级预算重新生效（超 180 字按句界拆）
+    check("通用纪要：速览段落级预算 (120,150) 生效",
+          bool(gcaps) and gcaps[0]["hi"] == 150 and gcaps[0]["scope"] == "paragraph", f"{gcaps}")
     spec_seg = next(l.strip() for l in gm.splitlines() if "推进顺序" in l)
-    check("通用纪要：速览改为一句话主线、明细归 [要点梳理]（治炸主判据）",
-          "只写一句主线" in spec_seg and "每段至少一句" in spec_seg
+    check("通用纪要：速览一段话 ≤150 字、段数最多 8 段、明细归 [要点梳理]",
+          "一段话描述该段" in spec_seg and "每段最多 150 字" in spec_seg
+          and "段数最多 8 段" in spec_seg and "每段至少一句" in spec_seg
           and "具体条目、数字与分工归 [要点梳理]" in spec_seg
           and "不重复 [要点梳理] 已列的条目与数字" in spec_seg,
           spec_seg[:80])
@@ -1664,10 +1704,11 @@ def test_paragraph_cap_from_explicit_per_para() -> None:
         ("带 ## 时间段", "# 通用纪要\n\n# 分段速览\n## 08:00-12:30 现场检查\n" + para_sub + "\n"),
     ):
         fixed, notes = split_overlong_paragraphs(doc, gm)
-        seg_count = len([q for q in fixed.split("\n\n") if "概览文字" in q])
-        check(f"通用纪要：速览无上限 → 440 字单段不被程序拆（{label}）",
-              not notes and seg_count == 1,
-              f"段数={seg_count} {notes}")
+        seg_parts = [q for q in fixed.split("\n\n") if "概览文字" in q]
+        check(f"通用纪要：速览 440 字段按 150 字上限拆分（{label}）",
+              bool(notes) and len(seg_parts) >= 2
+              and max(sum(1 for c in q if "一" <= c <= "鿿") for q in seg_parts) <= 160,
+              f"段数={len(seg_parts)} {notes}")
 
     # ③ 声明只作用于本栏：同一文档里其它栏（全文摘要）仍按节级上限拆
     doc4 = (
@@ -1676,7 +1717,7 @@ def test_paragraph_cap_from_explicit_per_para() -> None:
     )
     fixed4, notes4 = split_overlong_paragraphs(doc4, gm)
     abs_part = fixed4.split("# 全文摘要", 1)[1].split("# 分段速览", 1)[0]
-    check("通用纪要：取消上限只作用于速览栏（摘要仍折叠拆段）",
+    check("通用纪要：两栏各自按自己的上限拆（摘要节级 400 / 速览段落级 150）",
           any("全文摘要" in n for n in notes4)
           and len([q for q in abs_part.split("\n\n") if "概览文字" in q]) >= 2,
           f"{notes4}")
@@ -2638,22 +2679,28 @@ def test_subjective_judgment_guardrails() -> None:
           "原文明示获胜方时才标注" in deb and "未明示不写" in deb, "")
 
     hir = (d / "hiring_report.md").read_text(encoding="utf-8")
-    # 2026-09-19 用户口径：栏与表都**保留**，只去掉表里的「推荐评级」列（评级是模型主观判断，
-    # 实测 7/7 全是「未评」零信息量）；维度名锚回原文的考察要素，行数随原文。
-    check("面试：[能力评估] 栏与表保留，表头两列（无「推荐评级」）",
-          "# [能力评估]" in hir and "| 评估维度 | 评估依据（具体事例） |" in hir
-          and "推荐评级" not in hir and "评估维度 | 推荐评级" not in hir, "")
+    # 2026-09-19 曾按用户口径删掉「推荐评级」列（模型自行打分、7/7 全是「未评」）；
+    # 2026-09-20 用户要求恢复：表头三列，并配「评级只依据原文 + 与同行依据同源、无依据写 —」。
+    check("面试：[能力评估] 表头三列（评估维度 / 推荐评级 / 评估依据）",
+          "# [能力评估]" in hir
+          and "| 评估维度 | 推荐评级 | 评估依据（具体事例） |" in hir
+          and "| … | … | … |" in hir, "")
     check("面试：维度名取原文考察要素/评价口径、不自行发明能力模型",
           "取原文的考察要素或评价口径" in hir and "不自行发明能力模型" in hir
           and "岗位匹配度、问题解决能力、思维逻辑性、应变能力" not in hir, "")
     check("面试：行数随原文 + 依据必须有事例支撑",
           "行数随原文，原文提到几个维度就写几行" in hir
           and "每条都要有事例支撑，不做原文以外的推断" in hir, "")
-    check("面试：评级/评分口径整体清除（不自行评价、打分或评级）",
-          "不自行评价、打分或评级" in hir
+    check("面试：评级纪律（只依据原文、与同行依据同源、无依据写 `—`）",
+          "**评级只依据原文**" in hir and "**评级必须与同一行的依据同源**" in hir
+          and "依据栏空的维度不评级、写 `—`，不凭空打分" in hir
           and "不自行给候选人评分、评级或下结论" in hir, "")
-    check("面试：亮点/风险/建议三条都只写原文表达过的（不代面试官预判）",
-          "三条都只写面试官或候选人原文表达过的内容" in hir
+    check("面试：[综合素质] 分组分点（三组固定名 + 组内一条一个观察）",
+          "**按组、按点写**" in hir and "`## 突出亮点`" in hir
+          and "`## 潜在风险点`" in hir and "`## 推进建议`" in hir
+          and "有内容才写该组，原文没有的组不出现" in hir, "")
+    check("面试：突出亮点/风险点/推进建议三组都只写原文表达过的（不代面试官预判）",
+          "只写面试官或候选人原文表达过的内容" in hir
           and "不代面试官预判风险" in hir, "")
 
     # 完整性总原则：课堂/讲座 requirement 明确取舍边界
@@ -3172,6 +3219,7 @@ def main() -> int:
         test_no_test_corpus_leak()
         test_knowledge_memo_groups()
         test_clinical_history_column()
+        test_home_school_feedback_groups()
         test_overview_specs_have_scope()
         test_debate_rounds_and_rows()
         test_exchange_forum_structure()
