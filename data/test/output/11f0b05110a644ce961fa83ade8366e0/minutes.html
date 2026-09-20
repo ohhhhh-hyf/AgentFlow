@@ -1,0 +1,372 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>业主与物业矛盾激化协调会</title>
+  <style>
+
+    body {
+      margin: 0;
+      padding: 32px 16px;
+      background: #f6f5f0;
+      color: #1a1a1a;
+      font-family: "Latin Modern Roman", "Computer Modern Roman", "CMU Serif", "Times New Roman", Times, "Songti SC", "SimSun", "STSong", serif;
+      -webkit-font-smoothing: antialiased;
+    }
+    .page { max-width: 1140px; margin: 0 auto; }
+    .ck-doc {
+      background: #ffffff;
+      border: 1px solid #d4d0c7;
+      border-radius: 4px;
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.05), 0 1px 3px rgba(0,0,0,0.03);
+      padding: 36px 44px;
+      line-height: 1.75;
+      font-size: 0.96rem;
+    }
+    .ck-doc h1 {
+      margin: 0 0 10px;
+      font-size: 1.85rem;
+      font-weight: 700;
+      letter-spacing: 0.4px;
+      text-align: center;
+      font-variant: small-caps;
+      color: #111111;
+    }
+    .ck-doc-header {
+      margin-bottom: 24px;
+      padding-bottom: 16px;
+      border-bottom: 2px solid #111111;
+      text-align: center;
+    }
+    .ck-doc-meta {
+      font-size: 0.85rem;
+      color: #555555;
+      font-style: italic;
+    }
+    .ck-doc-content h1, .ck-doc-content .ck-doc-h1 {
+      margin: 28px 0 14px;
+      font-size: 1.32rem;
+      font-weight: 700;
+      color: #111111;
+      border-bottom: 1.5px solid #222222;
+      padding-bottom: 5px;
+      text-align: left;
+      font-variant: normal;
+      letter-spacing: 0.3px;
+    }
+    .ck-doc h2, .ck-doc-h2 {
+      margin: 28px 0 14px;
+      font-size: 1.22rem;
+      font-weight: 700;
+      color: #111111;
+      border-bottom: 1.5px solid #222222;
+      padding-bottom: 5px;
+      letter-spacing: 0.3px;
+    }
+    .ck-doc h3, .ck-doc-h3 {
+      margin: 20px 0 10px;
+      font-size: 1.05rem;
+      font-weight: 700;
+      color: #222222;
+    }
+    .ck-doc h4, .ck-doc-h4 {
+      margin: 16px 0 8px;
+      font-size: 0.98rem;
+      font-weight: 700;
+      color: #333333;
+    }
+    .ck-doc p {
+      margin: 10px 0;
+      line-height: 1.75;
+      text-align: justify;
+    }
+    .ck-doc ul, .ck-doc ol {
+      margin: 8px 0 12px;
+      padding-left: 1.5em;
+      line-height: 1.72;
+    }
+    .ck-doc li {
+      margin: 4px 0;
+    }
+    .ck-doc blockquote, .ck-quote {
+      margin: 10px 0 14px;
+      padding: 8px 14px;
+      background: #faf9f6;
+      border-left: 3.5px solid #222222;
+      border-radius: 2px;
+      color: #222222;
+      font-size: 0.92rem;
+      font-style: italic;
+    }
+    .ck-doc code {
+      background: #f3f0e8;
+      border: 1px solid #e2ddd3;
+      border-radius: 3px;
+      padding: 1px 6px;
+      font-family: "Latin Modern Mono", Consolas, monospace;
+      font-size: 0.88em;
+    }
+    .ck-doc table, .ck-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.88rem;
+      margin: 14px 0;
+      background: #ffffff;
+      border-top: 2px solid #222222;
+      border-bottom: 2px solid #222222;
+    }
+    .ck-doc table th, .ck-doc table td, .ck-table th, .ck-table td {
+      padding: 9px 12px;
+      text-align: left;
+      vertical-align: middle;
+      border-bottom: 1px solid #ede9e1;
+    }
+    .ck-doc table th, .ck-table th {
+      background: #fbfaf7;
+      border-bottom: 1.2px solid #222222;
+      font-weight: 700;
+      color: #111111;
+      letter-spacing: 0.3px;
+    }
+
+    /* Roomy & Spacious Academic Risk Table */
+    .ck-risk-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 18px 0 28px;
+      background: #ffffff;
+      border-top: 2.2px solid #111111;
+      border-bottom: 2.2px solid #111111;
+      font-size: 0.93rem;
+      line-height: 1.72;
+    }
+    .ck-risk-table th {
+      background: #faf8f5;
+      border-bottom: 1.5px solid #111111;
+      padding: 15px 16px;
+      font-weight: 700;
+      color: #111111;
+      letter-spacing: 0.3px;
+      text-align: left;
+      vertical-align: middle;
+    }
+    .ck-risk-table td {
+      padding: 16px 16px;
+      border-bottom: 1px solid #ede8e0;
+      vertical-align: top;
+      color: #1a1a1a;
+      word-break: break-word;
+    }
+    .ck-risk-table tr:nth-child(even) td {
+      background: #fdfcfb;
+    }
+    .ck-risk-table tr:hover td {
+      background: #f6f3eb;
+    }
+
+    /* Review Grid */
+    .ck-review {
+      display: grid;
+      grid-template-columns: minmax(0, 1.35fr) 1px minmax(260px, 0.95fr);
+      border: 1px solid #d4d0c7;
+      border-radius: 4px;
+      overflow: hidden;
+      margin: 14px 0 20px;
+      background: #ffffff;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.03);
+    }
+    .ck-review-left {
+      padding: 22px 26px;
+      background: #ffffff;
+      line-height: 1.75;
+    }
+    .ck-review-rule { background: #dcd8cf; }
+    .ck-review-right {
+      padding: 16px 18px;
+      background: #faf9f6;
+      box-sizing: border-box;
+      display: flex;
+      flex-direction: column;
+    }
+    .ck-ev-list {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    /* Entity Highlight in LaTeX Paper Style */
+    .ck-cite-entity {
+      background: #fff8db;
+      border-bottom: 1.5px solid #b86a04;
+      padding: 1px 4px;
+      border-radius: 2px;
+      cursor: pointer;
+      transition: all 0.18s ease;
+      color: #111111;
+      font-weight: 600;
+    }
+    .ck-cite-entity:hover {
+      background: #ffe58f;
+      color: #000000;
+    }
+    .ck-cite-entity.is-on {
+      background: #ffd54a;
+      border-bottom-color: #0047ab;
+      box-shadow: 0 0 0 2px rgba(0,71,171,0.25);
+    }
+
+    /* Blue Hyperref Citations [1], [2] */
+    .ck-cite-ref {
+      color: #0047ab;
+      font-weight: 600;
+      font-family: "Latin Modern Roman", "Computer Modern Roman", "Times New Roman", serif;
+      text-decoration: none;
+      cursor: pointer;
+      padding: 0 2px;
+      margin: 0 2px;
+      border-radius: 2px;
+      transition: all 0.15s ease;
+      font-size: 0.92em;
+      vertical-align: baseline;
+      user-select: none;
+    }
+    .ck-cite-ref:hover {
+      text-decoration: underline;
+      background: #e8f0fe;
+      color: #003380;
+    }
+    .ck-cite-ref.is-active {
+      background: #d2e3fc;
+      color: #002266;
+      font-weight: 700;
+      box-shadow: 0 0 0 1px #0047ab;
+    }
+
+    /* Right Memory Cards in LaTeX Paper Style */
+    .ck-provenance-head {
+      font-size: 0.82rem;
+      font-weight: 700;
+      color: #222222;
+      margin: 0 0 12px;
+      padding-bottom: 6px;
+      border-bottom: 1px solid #e0dcd4;
+      letter-spacing: 0.3px;
+      text-transform: uppercase;
+    }
+    .ck-ref-icon { color: #0047ab; margin-right: 4px; }
+    .ck-ev {
+      display: block;
+      margin: 0;
+      padding: 10px 12px;
+      border: 1px solid #dedad2;
+      border-left: 3.5px solid #0047ab;
+      border-radius: 2px;
+      background: #ffffff;
+      font-size: 0.82rem;
+      line-height: 1.55;
+      transition: all 0.2s ease;
+      cursor: pointer;
+    }
+    .ck-ev:hover { border-color: #b5b0a5; }
+    .ck-ev.is-on, .ck-ev.is-highlighted {
+      border-color: #0047ab;
+      box-shadow: 0 0 0 2px #0047ab, 0 3px 8px rgba(0,71,171,0.15);
+      background: #f0f5ff;
+    }
+    @keyframes citePulse {
+      0% { background: #dbeafe; box-shadow: 0 0 0 3px #0047ab; }
+      50% { background: #bfdbfe; box-shadow: 0 0 0 4px #0047ab; }
+      100% { background: #f0f5ff; box-shadow: 0 0 0 2px #0047ab; }
+    }
+    .ck-ev-k {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 0.75rem;
+      color: #444444;
+      margin-bottom: 5px;
+      font-weight: 700;
+    }
+    .ck-ev-cite-tag {
+      color: #0047ab;
+      font-weight: 700;
+      font-family: "Latin Modern Roman", serif;
+      text-decoration: none;
+    }
+    .ck-ev-kind-badge {
+      display: inline-block;
+      padding: 1px 6px;
+      border-radius: 2px;
+      font-size: 0.72rem;
+      font-weight: 600;
+      letter-spacing: 0.2px;
+    }
+    .ck-badge-keypoint {
+      border: 1px solid #0047ab;
+      color: #0047ab;
+      background: #f0f5ff;
+    }
+    .ck-badge-note {
+      border: 1px solid #b86a04;
+      color: #b86a04;
+      background: #fff8eb;
+    }
+    .ck-mem-title {
+      font-weight: 700;
+      color: #111111;
+      font-size: 0.88rem;
+      margin-bottom: 6px;
+      line-height: 1.45;
+    }
+    .ck-ev-quote {
+      color: #222222;
+      font-style: normal;
+      font-family: inherit;
+      margin: 4px 0 6px;
+      padding: 0;
+      background: transparent;
+      border: none;
+      line-height: 1.6;
+      font-size: 0.84rem;
+    }
+    .ck-ev-meta { font-size: 0.76rem; color: #666666; margin-top: 6px; }
+    .ck-ev-more {
+      margin-top: 2px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+    .ck-ev-more[open] { margin-top: 4px; }
+    .ck-ev-more summary { margin-bottom: 6px; }
+    .ck-proof-toggle {
+      cursor: pointer;
+      font-size: 0.82rem;
+      color: #0047ab;
+      user-select: none;
+      font-family: inherit;
+      padding: 2px 0;
+    }
+    .ck-proof-toggle:hover { text-decoration: underline; }
+
+    @media(max-width: 860px) {
+      .ck-doc { padding: 22px 18px; }
+      .ck-review { grid-template-columns: 1fr; }
+      .ck-review-rule { display: none; }
+    }
+
+  </style>
+</head>
+<body>
+  <main class="page">
+    <div class="ck-doc">
+      <header class="ck-doc-header">
+        <h1>业主与物业矛盾激化协调会</h1>
+      </header>
+      <div class="ck-doc-content">
+        <h1 class="ck-doc-h1">全文摘要</h1><p>本次专项讨论会由办事处组织，小区业委会代表与物业方就服务质量、欠费、业主大会召开及法律诉讼等问题进行协调。业主代表提出，小区业主自发接龙已有200来位业主，主要诉求是召开业主大会表决物业去留；物业方则称事先未接到沟通，且已决定本月起诉业委会，认为诉讼期间无法召开业主大会。双方就程序合法性激烈争论，未达成一致。业主代表列举小区10条问题，涵盖门柱灯、水系、监控、绿化、围墙、民生配套、雨水倒灌及人员配备等；物业方逐条回应，称部分问题属地产责任、费用不足或超出服务范围，双方对责任归属分歧严重。物业方强调业主欠费导致无力整改，业主方认为服务不达标是欠费原因，陷入循环争论。物业方宣布已与集团法务沟通，本月将起诉业委会，并称已掌握业主群内证据；业主代表表示若物业起诉将反诉。会议最终未达成一致，业主方表示将正常推进业主大会，物业方坚持走法律程序。关键数字：业主自发接龙200来位业主、物业称业主欠费170多万、园区年收入100来万、人工成本100多万、物业办公室人员从近10人减至4人。</p><h1 class="ck-doc-h1">分段速览</h1><h2 class="ck-doc-h2">00:10-05:04 开场与背景铺垫</h2><p>会议开场后，发言者2首先谈及小区供暖开户费问题，指出园区从建设到后期从未验收，开户费应由地产出资并将管道交接给供暖公司，但至今未完工未验收，导致多数人误认为是物业责任。发言者2强调开发商已缴纳配套费，但资金流向不明。发言者3确认费用已交清。发言者2随后提到维修事项需扩大范围，并提及业主不愿退房、对小区抱有希望，二期补助比例约29%，以及业主自发组织、热心业主参与等情况。</p><h2 class="ck-doc-h2">05:36-10:14 业主诉求与组织情况</h2><p>发言者4介绍业主自发组织了接龙活动，约200来位业主参与，主要议题是召开业主大会，认为业委会或业主个人无权决定撤换物业，应由全体业主表决。发言者2询问工作群数量，发言者4回应业委会工作组仅1个群，准业主分5个群，共6个群，由筹备组6人分别联系。发言者4补充接龙群是交房时老邱哥建立的业主群，已有5、6年历史。发言者2强调讨论需有明确目的和程序，不能失控。</p><h2 class="ck-doc-h2">10:14-18:01 会议目的与程序之争</h2><p>发言者2强调成立业委会和召开业主大会应以讨论为主、表决为辅，最终结论以表决为主。发言者5总结接龙业主心声：一是要求解决小区存在问题，二是若整改达不到效果，可考虑招标更换物业，原物业也可参与投标。发言者5提及业主提出11个问题。发言者2指出按正常流程，召开业主大会前应与物业公司沟通，但物业事先未接到任何通知，并质疑接龙是有组织的，物业未参与议题制定。</p><h2 class="ck-doc-h2">18:01-22:08 物业宣布起诉</h2><p>发言者2郑重声明，鉴于双方存在违法情况，已与集团法务沟通，本月将正式起诉业委会，并称起诉期间业主没有行使表决权的义务和责任。发言者2表示已掌握业主群内证据，欠费周期超过一年的业主不能成为业主代表，上午9:52已与高级人民法院通话，也与滨城区人民法院沟通，有沟通记录。发言者2指出业委会从选举到后期决策存在违法行为，包括在业主群煽动、撬门等，将起诉业委会及保洁业主代表。</p><h2 class="ck-doc-h2">22:08-31:22 业主列举十项问题</h2><p>发言者4逐条列举小区问题：①入户门柱灯从未开启；②内部水系从未运行；③售楼处迎宾水系从未开启；④监控几乎全部损坏，上月进贼时110和刑警大队未能获取数据；⑤监控室从王艳芳上任后无人值班，一键直达功能荒废；⑥绿化维护差，去年多棵树死亡，物业管家称要等明年看能否发芽；⑦北边围墙用烂铁皮遮挡且有缺口，社会人员可随意进出，物业承诺定制围挡但未兑现；⑧快递柜、直饮水、宽带、暖气开户等民生配套多年无进展；⑨雨水倒灌自2019年多次造成财产损失；⑩物业人员从办公室近10人减至4人，维修从5人减至2人。</p><h2 class="ck-doc-h2">31:22-38:01 物业逐条回应</h2><p>发言者2逐条回应：①门柱灯因能耗成本高未开启，业委会曾承诺协助收费后修复；②水系从交付起存在质量问题，属地产维修责任；③监控损坏因费用超运营承担，园区年收入100来万、人工成本100多万，每年亏损；④进贼时物业已将监控画面截取给派出所和刑警；⑤绿化问题因业委会10月才成立，冬季无法更换；⑥北边围墙在红线外属违建，物业无处理义务，曾协调定制但因费用高未成；⑦民生配套属地产前期配套；⑧雨水倒灌是地产设计问题；⑨人员配备不足因地产补亏款未结。发言者2称业主欠费170多万，回款40万可解决部分问题。</p><h2 class="ck-doc-h2">38:01-48:00 矛盾激化与对峙</h2><p>发言者4反驳物业服务不应有滞后性，问题从交房起就存在，非物业入驻后才出现。发言者2坚持走法律程序，称起诉期间无法更换物业公司。发言者4称业委会成立之日自动解除物业合同关系，双方就程序合法性激烈争论。发言者3指出无钱无法整改、业主不愿缴费形成恶性循环。发言者4提出可能集体起诉物业要求返还部分物业费。发言者8质疑物业窥探业主隐私，表示将反诉。</p><h2 class="ck-doc-h2">48:00-01:03:16 调解失败与收场</h2><p>发言者7确认已与集团法务沟通，今日操作起诉手续，已截屏保存业主群动态。发言者4举例物业经理在进贼时回应「你交物业费了吗」，并称「不交物业费就上你家吃饭」，发言者7否认并要求拿出录音。发言者3建议物业拿出真实行动赢得业主信任，发言者7称业主欠费170多万、公司持续亏损，地产公司已申请破产。双方未能达成一致，发言者4表示将正常推进业主大会，发言者2称会议未解决实质性问题，会议结束。</p><h1 class="ck-doc-h1">要点梳理</h1><h2 class="ck-doc-h2">业主大会召开与物业去留</h2><ul><li><strong>业主接龙</strong>：小区业主自发组织接龙，约200来位业主参与，主要议题是召开业主大会。</li><li><strong>群组构成</strong>：业委会工作组群1个，准业主群5个，共6个群；接龙群为交房时业主自发建立的业主群，已存在5、6年。</li><li><strong>业委会立场</strong>：业委会成员表示，业委会或业主个人无权决定撤换物业，需通过业主大会由全体业主表决。</li><li><strong>物业方程序质疑</strong>：物业方称事先未接到任何关于召开业主大会的沟通，认为接龙有组织、议题不明，且未参与。</li><li><strong>物业方起诉声明</strong>：物业方称已与集团法务沟通，本月将正式起诉业委会，并称已掌握业主群内证据、已截屏保存。</li><li><strong>欠费人员资格</strong>：物业方称欠费人员不能成为业主代表，顶名者也不能，将依法追究责任。</li><li><strong>合同关系争议</strong>：业主代表称业委会成立之日即自动解除与物业的合同关系；物业方称起诉期间无法更换物业公司。</li><li><strong>会议基调</strong>：办事处代表建议双方坦诚沟通、不暴露敌对情绪，物业方称「不希望把矛盾往深一步拉」。</li></ul><h2 class="ck-doc-h2">小区问题清单与物业回应</h2><ul><li><strong>门柱灯未开启</strong>：业主称入户庭院门柱灯从未开启；物业称因园区能耗成本过高、物业公司无法运营，业委会曾承诺协助收费后修复。</li><li><strong>水系未运行</strong>：业主称内部水系及售楼处迎宾水系从未开启；物业称水系从交付起存在严重质量问题、泵无法运转，属地产配套未完成，维修责任在地产。</li><li><strong>监控损坏</strong>：业主称监控几乎全部损坏，上月小区进贼时110派出所及刑警大队未能从监控获取数据；物业称监控损坏因费用超运营承担，园区年收入100来万、人工成本100多万，每年亏损，可公开查账。</li><li><strong>监控室服务荒废</strong>：业主称监控室原应24小时值班、门铃有一键直达功能，自王艳芳上任后服务荒废、无人值班；物业称警察进入园区时已第一时间将拍摄画面截取给派出所和刑警，并出示刑警调取监控的照片和记录。</li><li><strong>绿化维护差</strong>：业主称去年多棵树死亡，小区门口两侧已知死3棵，曾致电物业管家反映树生病，管家称「经理说了，明年看看能不能发芽」；物业称业委会今年10月成立备案，此后已入冬季，换树责任归属存疑。</li><li><strong>北边围墙缺失</strong>：业主称北边用烂铁皮遮挡、最西边有缺口可随意进出，业委会责令整改后物业拆除铁皮再无动作，并称「已定制围挡」但未安装，业主证实并无定制；物业称北边围墙在红线以外、属违建，不在物业服务范围内，曾协调施工单位定做但因费用过高未成，费用本应由物业承担，已与业委会沟通不下5次。</li><li><strong>民生配套未解决</strong>：业主称快递柜、直饮水机、宽带覆盖、暖气开户等多年无进展，最终由业委会全程办理；物业称根据建设条例和前期配套要求，属地产前期配套问题，后期开通费用由业主承担。</li><li><strong>雨水倒灌</strong>：业主称自2019年起多次造成财产损失，多次反映无进展，明年再有大雨可能再淹；物业称园区地势四周高中间矮、车库设计为斜坡向下，属地产前期设计建设问题，超出物业解决能力。</li><li><strong>人员配备不足</strong>：业主称物业办公室从近10人减至4人（含经理），维修人员从5人减至2人；物业称因地产补亏款未结，现项目20来人、一年人工成本100多万，光维修费今年花了几十万。</li></ul><h2 class="ck-doc-h2">物业费欠费与资金困境</h2><ul><li><strong>欠费规模</strong>：物业称业主欠物业费170多万，回款40万可解决部分问题，账上一分钱没有。</li><li><strong>经营亏损</strong>：物业称园区年收入100来万，人工成本100多万，不含垃圾清运费、能耗、维修、税费及办公成本，每年亏损。</li><li><strong>欠费与服务循环</strong>：业主称服务不达标是欠费原因；物业称欠费导致无力整改，双方陷入循环争论。</li><li><strong>集体起诉意向</strong>：业主代表称在最终解决前，可能就交房以来未达成的服务集体起诉物业、要求返还部分费用。</li><li><strong>地产破产</strong>：物业称地产公司已申请破产，无法追讨配套费用；办事处代表质疑「申请破产就没有办法了吗」，物业称业委会集体提出是最好办法。</li></ul><h2 class="ck-doc-h2">法律诉讼与反诉</h2><ul><li><strong>起诉决定</strong>：物业方宣布本月正式起诉业委会，包括保洁业主代表，理由为阻碍正常经营、造成物业经济损失。</li><li><strong>沟通记录</strong>：物业称上午9:52与高级人民法院通话，有沟通记录；已与滨城区人民法院沟通，均致电。</li><li><strong>证据收集</strong>：物业称已在业主群掌握很多证据和依据，业主动态已截屏保存。</li><li><strong>反诉表态</strong>：业主代表称只要物业起诉就反诉、拿出证据来。</li><li><strong>隐私争议</strong>：业主代表质疑物业截屏业主群动态属窥探隐私；物业称不影响业主正常生活。</li></ul><h2 class="ck-doc-h2">结论与决定</h2><ul><li><strong>物业方决定</strong>：本月正式起诉业委会，理由为阻碍正常经营、造成物业经济损失，已与集团法务沟通。</li><li><strong>业主方决定</strong>：正常推进业主大会，由全体业主表决物业去留。</li><li><strong>会议未达成一致</strong>：业主大会是否能在诉讼期间召开、物业去留、小区问题整改责任归属均未达成一致。</li></ul><h2 class="ck-doc-h2">行动项与分工</h2><ul><li><strong>物业方</strong>：本月内完成起诉手续，集团法务今日操作。</li><li><strong>业主方</strong>：正常推进业主大会召开流程。</li></ul><h2 class="ck-doc-h2">待确认与风险</h2><ul><li><strong>业主大会程序</strong>：物业方称起诉期间无法更换物业公司，业主方认为无法律依据阻止召开，未达成一致。</li><li><strong>欠费与整改死循环</strong>：物业称欠费170多万导致无力整改，业主称整改不到位不愿缴费，矛盾持续。</li><li><strong>监控数据缺失</strong>：业主称上月进贼时警方未能从监控获取数据，存在安全隐患。</li><li><strong>围墙缺口</strong>：业主称北边围墙缺口可随意进出，物业称属红线外违建、无处理义务。</li><li><strong>雨水倒灌</strong>：业主称明年再有大雨可能再次造成财产损失。</li><li><strong>地产破产</strong>：物业称地产公司已申请破产，配套维修与补亏款无法追讨。</li></ul>
+      </div>
+    </div>
+  </main>
+</body>
+</html>

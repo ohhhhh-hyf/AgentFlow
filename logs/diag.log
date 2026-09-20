@@ -1,0 +1,749 @@
+2026-09-20 23:02:39,353 INFO client.llmclient llm client backend=vllm model=deepseek-v4-flash-0731 base_url=http://127.0.0.1:8000/v1 ctx=65536 max_tokens=50000 timeout=600.0 retries=2 temperature=0.2 sampling_sent=False
+2026-09-20 23:02:39,364 INFO agentflow pipeline start lines=minutes
+2026-09-20 23:02:39,367 INFO agentflow agent start meeting_understanding
+2026-09-20 23:02:39,367 INFO client.llmclient llm call label=core/meeting_understanding mode=structured
+2026-09-20 23:02:54,863 INFO client.llmclient llm resp label=core/meeting_understanding model=deepseek-v4-flash-0731 finish=stop in=5483 out=1030 json_mode=True chars=2307
+2026-09-20 23:02:54,863 INFO agentflow agent done meeting_understanding
+2026-09-20 23:02:54,865 INFO agentflow node done meeting_understanding
+2026-09-20 23:02:54,865 INFO agentflow skip perspective (objective)
+2026-09-20 23:02:54,866 INFO agentflow node done perspective_modeling
+2026-09-20 23:02:54,866 INFO agentflow agent start gen line=minutes
+2026-09-20 23:02:54,868 INFO client.llmclient llm call label=minutes/agent mode=structured
+2026-09-20 23:02:54,869 INFO client.llmclient llm fit max_tokens 50000->49590 ctx=65536 input~15690
+2026-09-20 23:03:00,918 INFO client.llmclient llm resp label=minutes/agent model=deepseek-v4-flash-0731 finish=stop in=10464 out=403 json_mode=True chars=778
+2026-09-20 23:03:00,918 INFO agentflow agent done gen line=minutes
+2026-09-20 23:03:00,919 INFO agentflow node done minutes_agent
+2026-09-20 23:03:00,919 INFO agentflow agent start review line=minutes
+2026-09-20 23:03:00,923 INFO client.llmclient llm call label=minutes/supervisor mode=structured
+2026-09-20 23:03:02,429 INFO client.llmclient llm resp label=minutes/supervisor model=deepseek-v4-flash-0731 finish=stop in=5639 out=81 json_mode=True chars=252
+2026-09-20 23:03:02,429 INFO agentflow agent done review line=minutes decision=approve
+2026-09-20 23:03:02,430 INFO tools.core.domain_engine route line=minutes decision=approve revision=0/1 -> __end__
+2026-09-20 23:03:02,431 INFO agentflow node done minutes_supervisor
+2026-09-20 23:03:02,431 INFO agentflow render start line=minutes
+2026-09-20 23:03:20,858 INFO agentflow render done line=minutes
+2026-09-20 23:03:20,861 INFO tools.core.runner saved html line=minutes path=/root/h00984725/demo_v2/data/test/output/8587565d1ec442a4a2c267274e923a7a/minutes.html
+2026-09-20 23:03:20,861 INFO tools.core.runner saved text line=minutes path=/root/h00984725/demo_v2/data/test/output/8587565d1ec442a4a2c267274e923a7a/result.md
+2026-09-20 23:03:21,101 INFO client.llmclient llm client backend=vllm model=deepseek-v4-flash-0731 base_url=http://127.0.0.1:8000/v1 ctx=65536 max_tokens=50000 timeout=600.0 retries=2 temperature=0.2 sampling_sent=False
+2026-09-20 23:03:21,111 INFO agentflow pipeline start lines=minutes
+2026-09-20 23:03:21,112 INFO agentflow agent start meeting_understanding
+2026-09-20 23:03:21,113 INFO client.llmclient llm call label=core/meeting_understanding mode=structured
+2026-09-20 23:03:21,115 INFO client.llmclient llm fit max_tokens 50000->48820 ctx=65536 input~16460
+2026-09-20 23:03:49,303 INFO client.llmclient llm resp label=core/meeting_understanding model=deepseek-v4-flash-0731 finish=stop in=10111 out=2162 json_mode=True chars=4673
+2026-09-20 23:03:49,304 INFO agentflow agent done meeting_understanding
+2026-09-20 23:03:49,305 INFO agentflow node done meeting_understanding
+2026-09-20 23:03:49,305 INFO agentflow skip perspective (objective)
+2026-09-20 23:03:49,306 INFO agentflow node done perspective_modeling
+2026-09-20 23:03:49,306 INFO agentflow agent start gen line=minutes
+2026-09-20 23:03:49,309 INFO client.llmclient llm call label=minutes/agent mode=structured
+2026-09-20 23:03:49,312 INFO client.llmclient llm fit max_tokens 50000->40486 ctx=65536 input~24794
+2026-09-20 23:04:01,926 INFO client.llmclient llm resp label=minutes/agent model=deepseek-v4-flash-0731 finish=stop in=16097 out=968 json_mode=True chars=1760
+2026-09-20 23:04:01,927 INFO agentflow agent done gen line=minutes
+2026-09-20 23:04:01,927 INFO agentflow node done minutes_agent
+2026-09-20 23:04:01,928 INFO agentflow agent start review line=minutes
+2026-09-20 23:04:01,934 INFO client.llmclient llm call label=minutes/supervisor mode=structured
+2026-09-20 23:04:03,367 INFO client.llmclient llm resp label=minutes/supervisor model=deepseek-v4-flash-0731 finish=stop in=6762 out=81 json_mode=True chars=252
+2026-09-20 23:04:03,367 INFO agentflow agent done review line=minutes decision=approve
+2026-09-20 23:04:03,368 INFO tools.core.domain_engine route line=minutes decision=approve revision=0/1 -> __end__
+2026-09-20 23:04:03,368 INFO agentflow node done minutes_supervisor
+2026-09-20 23:04:03,369 INFO agentflow render start line=minutes
+2026-09-20 23:04:51,077 INFO agentflow render done line=minutes
+2026-09-20 23:04:51,079 INFO tools.core.runner saved html line=minutes path=/root/h00984725/demo_v2/data/test/output/222a25388cdf4d53a94bc4b188e26ba1/minutes.html
+2026-09-20 23:04:51,079 INFO tools.core.runner saved text line=minutes path=/root/h00984725/demo_v2/data/test/output/222a25388cdf4d53a94bc4b188e26ba1/result.md
+2026-09-20 23:04:51,322 INFO client.llmclient llm client backend=vllm model=deepseek-v4-flash-0731 base_url=http://127.0.0.1:8000/v1 ctx=65536 max_tokens=50000 timeout=600.0 retries=2 temperature=0.2 sampling_sent=False
+2026-09-20 23:04:51,333 INFO agentflow pipeline start lines=minutes
+2026-09-20 23:04:51,334 INFO agentflow agent start meeting_understanding
+2026-09-20 23:04:51,334 INFO client.llmclient llm call label=core/meeting_understanding mode=structured
+2026-09-20 23:04:51,337 INFO client.llmclient llm fit max_tokens 50000->39823 ctx=65536 input~25457
+2026-09-20 23:05:16,992 INFO client.llmclient llm resp label=core/meeting_understanding model=deepseek-v4-flash-0731 finish=stop in=16787 out=1686 json_mode=True chars=3801
+2026-09-20 23:05:16,993 INFO agentflow agent done meeting_understanding
+2026-09-20 23:05:16,994 INFO agentflow node done meeting_understanding
+2026-09-20 23:05:16,994 INFO agentflow skip perspective (objective)
+2026-09-20 23:05:16,995 INFO agentflow node done perspective_modeling
+2026-09-20 23:05:16,995 INFO agentflow agent start gen line=minutes
+2026-09-20 23:05:17,000 INFO client.llmclient llm call label=minutes/agent mode=structured
+2026-09-20 23:05:17,003 INFO client.llmclient llm fit max_tokens 50000->32472 ctx=65536 input~32808
+2026-09-20 23:05:30,711 INFO client.llmclient llm resp label=minutes/agent model=deepseek-v4-flash-0731 finish=stop in=22248 out=863 json_mode=True chars=1502
+2026-09-20 23:05:30,712 INFO agentflow agent done gen line=minutes
+2026-09-20 23:05:30,712 INFO agentflow node done minutes_agent
+2026-09-20 23:05:30,713 INFO agentflow agent start review line=minutes
+2026-09-20 23:05:30,721 INFO client.llmclient llm call label=minutes/supervisor mode=structured
+2026-09-20 23:05:32,379 INFO client.llmclient llm resp label=minutes/supervisor model=deepseek-v4-flash-0731 finish=stop in=7091 out=81 json_mode=True chars=252
+2026-09-20 23:05:32,379 INFO agentflow agent done review line=minutes decision=approve
+2026-09-20 23:05:32,380 INFO tools.core.domain_engine route line=minutes decision=approve revision=0/1 -> __end__
+2026-09-20 23:05:32,381 INFO agentflow node done minutes_supervisor
+2026-09-20 23:05:32,381 INFO agentflow render start line=minutes
+2026-09-20 23:06:20,400 INFO agentflow render done line=minutes
+2026-09-20 23:06:20,403 INFO tools.core.runner saved html line=minutes path=/root/h00984725/demo_v2/data/test/output/3fec901b771f42e7966d42f4603bd519/minutes.html
+2026-09-20 23:06:20,403 INFO tools.core.runner saved text line=minutes path=/root/h00984725/demo_v2/data/test/output/3fec901b771f42e7966d42f4603bd519/result.md
+2026-09-20 23:06:20,648 INFO client.llmclient llm client backend=vllm model=deepseek-v4-flash-0731 base_url=http://127.0.0.1:8000/v1 ctx=65536 max_tokens=50000 timeout=600.0 retries=2 temperature=0.2 sampling_sent=False
+2026-09-20 23:06:20,659 INFO agentflow pipeline start lines=minutes
+2026-09-20 23:06:20,660 INFO agentflow agent start meeting_understanding
+2026-09-20 23:06:20,660 INFO client.llmclient llm call label=core/meeting_understanding mode=structured
+2026-09-20 23:06:20,663 INFO client.llmclient llm fit max_tokens 50000->42627 ctx=65536 input~22653
+2026-09-20 23:06:42,737 INFO client.llmclient llm resp label=core/meeting_understanding model=deepseek-v4-flash-0731 finish=stop in=15475 out=1327 json_mode=True chars=2948
+2026-09-20 23:06:42,737 INFO agentflow agent done meeting_understanding
+2026-09-20 23:06:42,738 INFO agentflow node done meeting_understanding
+2026-09-20 23:06:42,739 INFO agentflow skip perspective (objective)
+2026-09-20 23:06:42,739 INFO agentflow node done perspective_modeling
+2026-09-20 23:06:42,740 INFO agentflow agent start gen line=minutes
+2026-09-20 23:06:42,743 INFO client.llmclient llm call label=minutes/agent mode=structured
+2026-09-20 23:06:42,747 INFO client.llmclient llm fit max_tokens 50000->35650 ctx=65536 input~29630
+2026-09-20 23:06:56,473 INFO client.llmclient llm resp label=minutes/agent model=deepseek-v4-flash-0731 finish=stop in=20651 out=735 json_mode=True chars=1308
+2026-09-20 23:06:56,474 INFO agentflow agent done gen line=minutes
+2026-09-20 23:06:56,474 INFO agentflow node done minutes_agent
+2026-09-20 23:06:56,475 INFO agentflow agent start review line=minutes
+2026-09-20 23:06:56,481 INFO client.llmclient llm call label=minutes/supervisor mode=structured
+2026-09-20 23:06:58,117 INFO client.llmclient llm resp label=minutes/supervisor model=deepseek-v4-flash-0731 finish=stop in=6808 out=81 json_mode=True chars=252
+2026-09-20 23:06:58,117 INFO agentflow agent done review line=minutes decision=approve
+2026-09-20 23:06:58,118 INFO tools.core.domain_engine route line=minutes decision=approve revision=0/1 -> __end__
+2026-09-20 23:06:58,118 INFO agentflow node done minutes_supervisor
+2026-09-20 23:06:58,119 INFO agentflow render start line=minutes
+2026-09-20 23:07:28,953 INFO agentflow render done line=minutes
+2026-09-20 23:07:28,955 INFO tools.core.runner saved html line=minutes path=/root/h00984725/demo_v2/data/test/output/11f0b05110a644ce961fa83ade8366e0/minutes.html
+2026-09-20 23:07:28,955 INFO tools.core.runner saved text line=minutes path=/root/h00984725/demo_v2/data/test/output/11f0b05110a644ce961fa83ade8366e0/result.md
+2026-09-20 23:07:29,201 INFO client.llmclient llm client backend=vllm model=deepseek-v4-flash-0731 base_url=http://127.0.0.1:8000/v1 ctx=65536 max_tokens=50000 timeout=600.0 retries=2 temperature=0.2 sampling_sent=False
+2026-09-20 23:07:29,211 INFO agentflow pipeline start lines=minutes
+2026-09-20 23:07:29,213 INFO agentflow agent start meeting_understanding
+2026-09-20 23:07:29,213 INFO client.llmclient llm call label=core/meeting_understanding mode=structured
+2026-09-20 23:07:29,215 INFO client.llmclient llm fit max_tokens 50000->42864 ctx=65536 input~22416
+2026-09-20 23:08:01,650 INFO client.llmclient llm resp label=core/meeting_understanding model=deepseek-v4-flash-0731 finish=stop in=13504 out=2060 json_mode=True chars=4471
+2026-09-20 23:08:01,651 INFO agentflow agent done meeting_understanding
+2026-09-20 23:08:01,652 INFO agentflow node done meeting_understanding
+2026-09-20 23:08:01,652 INFO agentflow skip perspective (objective)
+2026-09-20 23:08:01,653 INFO agentflow node done perspective_modeling
+2026-09-20 23:08:01,653 INFO agentflow agent start gen line=minutes
+2026-09-20 23:08:01,656 INFO client.llmclient llm call label=minutes/agent mode=structured
+2026-09-20 23:08:01,660 INFO client.llmclient llm fit max_tokens 50000->34787 ctx=65536 input~30493
+2026-09-20 23:08:15,064 INFO client.llmclient llm resp label=minutes/agent model=deepseek-v4-flash-0731 finish=stop in=19364 out=955 json_mode=True chars=1788
+2026-09-20 23:08:15,064 INFO agentflow agent done gen line=minutes
+2026-09-20 23:08:15,065 INFO agentflow node done minutes_agent
+2026-09-20 23:08:15,065 INFO agentflow agent start review line=minutes
+2026-09-20 23:08:15,076 INFO client.llmclient llm call label=minutes/supervisor mode=structured
+2026-09-20 23:08:16,727 INFO client.llmclient llm resp label=minutes/supervisor model=deepseek-v4-flash-0731 finish=stop in=6822 out=81 json_mode=True chars=252
+2026-09-20 23:08:16,728 INFO agentflow agent done review line=minutes decision=approve
+2026-09-20 23:08:16,728 INFO tools.core.domain_engine route line=minutes decision=approve revision=0/1 -> __end__
+2026-09-20 23:08:16,729 INFO agentflow node done minutes_supervisor
+2026-09-20 23:08:16,729 INFO agentflow render start line=minutes
+2026-09-20 23:09:00,077 INFO agentflow render done line=minutes
+2026-09-20 23:09:00,080 INFO tools.core.runner saved html line=minutes path=/root/h00984725/demo_v2/data/test/output/daf079123d574ceebb2b698e2e25e42c/minutes.html
+2026-09-20 23:09:00,080 INFO tools.core.runner saved text line=minutes path=/root/h00984725/demo_v2/data/test/output/daf079123d574ceebb2b698e2e25e42c/result.md
+2026-09-20 23:09:00,330 INFO client.llmclient llm client backend=vllm model=deepseek-v4-flash-0731 base_url=http://127.0.0.1:8000/v1 ctx=65536 max_tokens=50000 timeout=600.0 retries=2 temperature=0.2 sampling_sent=False
+2026-09-20 23:09:00,341 INFO agentflow pipeline start lines=minutes
+2026-09-20 23:09:00,342 INFO agentflow agent start meeting_understanding
+2026-09-20 23:09:00,343 INFO client.llmclient llm call label=core/meeting_understanding mode=structured
+2026-09-20 23:09:00,346 INFO client.llmclient llm fit max_tokens 50000->35872 ctx=65536 input~29408
+2026-09-20 23:09:25,052 INFO client.llmclient llm resp label=core/meeting_understanding model=deepseek-v4-flash-0731 finish=stop in=18769 out=1640 json_mode=True chars=3311
+2026-09-20 23:09:25,052 INFO agentflow agent done meeting_understanding
+2026-09-20 23:09:25,053 INFO agentflow node done meeting_understanding
+2026-09-20 23:09:25,054 INFO agentflow skip perspective (objective)
+2026-09-20 23:09:25,054 INFO agentflow node done perspective_modeling
+2026-09-20 23:09:25,054 INFO agentflow agent start gen line=minutes
+2026-09-20 23:09:25,059 INFO client.llmclient llm call label=minutes/agent mode=structured
+2026-09-20 23:09:25,063 INFO client.llmclient llm fit max_tokens 50000->28457 ctx=65536 input~36823
+2026-09-20 23:09:38,834 INFO client.llmclient llm resp label=minutes/agent model=deepseek-v4-flash-0731 finish=stop in=24293 out=906 json_mode=True chars=1547
+2026-09-20 23:09:38,835 INFO agentflow agent done gen line=minutes
+2026-09-20 23:09:38,836 INFO agentflow node done minutes_agent
+2026-09-20 23:09:38,836 INFO agentflow agent start review line=minutes
+2026-09-20 23:09:38,845 INFO client.llmclient llm call label=minutes/supervisor mode=structured
+2026-09-20 23:09:40,455 INFO client.llmclient llm resp label=minutes/supervisor model=deepseek-v4-flash-0731 finish=stop in=7119 out=81 json_mode=True chars=252
+2026-09-20 23:09:40,456 INFO agentflow agent done review line=minutes decision=approve
+2026-09-20 23:09:40,456 INFO tools.core.domain_engine route line=minutes decision=approve revision=0/1 -> __end__
+2026-09-20 23:09:40,457 INFO agentflow node done minutes_supervisor
+2026-09-20 23:09:40,457 INFO agentflow render start line=minutes
+2026-09-20 23:09:40,474 INFO client.llmclient llm call label=template/fill mode=text
+2026-09-20 23:10:24,966 INFO client.llmclient llm resp label=template/fill model=deepseek-v4-flash-0731 finish=stop in=27366 out=2949 json_mode=True chars=4549
+2026-09-20 23:10:24,988 INFO agentflow render done line=minutes
+2026-09-20 23:10:24,990 INFO tools.core.runner saved html line=minutes path=/root/h00984725/demo_v2/data/test/output/df9c8df1ed1841f59af577799d0a023e/minutes.html
+2026-09-20 23:10:24,990 INFO tools.core.runner saved text line=minutes path=/root/h00984725/demo_v2/data/test/output/df9c8df1ed1841f59af577799d0a023e/result.md
+2026-09-20 23:10:25,240 INFO client.llmclient llm client backend=vllm model=deepseek-v4-flash-0731 base_url=http://127.0.0.1:8000/v1 ctx=65536 max_tokens=50000 timeout=600.0 retries=2 temperature=0.2 sampling_sent=False
+2026-09-20 23:10:25,250 INFO agentflow pipeline start lines=minutes
+2026-09-20 23:10:25,252 INFO agentflow agent start meeting_understanding
+2026-09-20 23:10:25,252 INFO client.llmclient llm call label=core/meeting_understanding mode=structured
+2026-09-20 23:10:51,019 INFO client.llmclient llm resp label=core/meeting_understanding model=deepseek-v4-flash-0731 finish=stop in=8635 out=1659 json_mode=True chars=3674
+2026-09-20 23:10:51,020 INFO agentflow agent done meeting_understanding
+2026-09-20 23:10:51,021 INFO agentflow node done meeting_understanding
+2026-09-20 23:10:51,021 INFO agentflow skip perspective (objective)
+2026-09-20 23:10:51,022 INFO agentflow node done perspective_modeling
+2026-09-20 23:10:51,022 INFO agentflow agent start gen line=minutes
+2026-09-20 23:10:51,025 INFO client.llmclient llm call label=minutes/agent mode=structured
+2026-09-20 23:10:51,027 INFO client.llmclient llm fit max_tokens 50000->43789 ctx=65536 input~21491
+2026-09-20 23:11:04,441 INFO client.llmclient llm resp label=minutes/agent model=deepseek-v4-flash-0731 finish=stop in=14123 out=996 json_mode=True chars=1775
+2026-09-20 23:11:04,442 INFO agentflow agent done gen line=minutes
+2026-09-20 23:11:04,442 INFO agentflow node done minutes_agent
+2026-09-20 23:11:04,443 INFO agentflow agent start review line=minutes
+2026-09-20 23:11:04,449 INFO client.llmclient llm call label=minutes/supervisor mode=structured
+2026-09-20 23:11:05,894 INFO client.llmclient llm resp label=minutes/supervisor model=deepseek-v4-flash-0731 finish=stop in=6831 out=81 json_mode=True chars=252
+2026-09-20 23:11:05,894 INFO agentflow agent done review line=minutes decision=approve
+2026-09-20 23:11:05,895 INFO tools.core.domain_engine route line=minutes decision=approve revision=0/1 -> __end__
+2026-09-20 23:11:05,896 INFO agentflow node done minutes_supervisor
+2026-09-20 23:11:05,896 INFO agentflow render start line=minutes
+2026-09-20 23:11:05,903 INFO client.llmclient llm call label=template/fill mode=text
+2026-09-20 23:11:27,872 INFO client.llmclient llm resp label=template/fill model=deepseek-v4-flash-0731 finish=stop in=16869 out=1372 json_mode=True chars=2428
+2026-09-20 23:11:27,884 INFO agentflow render done line=minutes
+2026-09-20 23:11:27,886 INFO tools.core.runner saved html line=minutes path=/root/h00984725/demo_v2/data/test/output/0999698573f745858e43312f30c674bb/minutes.html
+2026-09-20 23:11:27,886 INFO tools.core.runner saved text line=minutes path=/root/h00984725/demo_v2/data/test/output/0999698573f745858e43312f30c674bb/result.md
+2026-09-20 23:11:28,137 INFO client.llmclient llm client backend=vllm model=deepseek-v4-flash-0731 base_url=http://127.0.0.1:8000/v1 ctx=65536 max_tokens=50000 timeout=600.0 retries=2 temperature=0.2 sampling_sent=False
+2026-09-20 23:11:28,148 INFO agentflow pipeline start lines=minutes
+2026-09-20 23:11:28,149 INFO agentflow agent start meeting_understanding
+2026-09-20 23:11:28,149 INFO client.llmclient llm call label=core/meeting_understanding mode=structured
+2026-09-20 23:11:28,152 INFO client.llmclient llm fit max_tokens 50000->40561 ctx=65536 input~24719
+2026-09-20 23:11:57,343 INFO client.llmclient llm resp label=core/meeting_understanding model=deepseek-v4-flash-0731 finish=stop in=15340 out=1851 json_mode=True chars=3852
+2026-09-20 23:11:57,344 INFO agentflow agent done meeting_understanding
+2026-09-20 23:11:57,345 INFO agentflow node done meeting_understanding
+2026-09-20 23:11:57,345 INFO agentflow skip perspective (objective)
+2026-09-20 23:11:57,346 INFO agentflow node done perspective_modeling
+2026-09-20 23:11:57,346 INFO agentflow agent start gen line=minutes
+2026-09-20 23:11:57,351 INFO client.llmclient llm call label=minutes/agent mode=structured
+2026-09-20 23:11:57,355 INFO client.llmclient llm fit max_tokens 50000->32848 ctx=65536 input~32432
+2026-09-20 23:12:12,329 INFO client.llmclient llm resp label=minutes/agent model=deepseek-v4-flash-0731 finish=stop in=21058 out=1075 json_mode=True chars=1860
+2026-09-20 23:12:12,330 INFO agentflow agent done gen line=minutes
+2026-09-20 23:12:12,331 INFO agentflow node done minutes_agent
+2026-09-20 23:12:12,331 INFO agentflow agent start review line=minutes
+2026-09-20 23:12:12,340 INFO client.llmclient llm call label=minutes/supervisor mode=structured
+2026-09-20 23:12:13,770 INFO client.llmclient llm resp label=minutes/supervisor model=deepseek-v4-flash-0731 finish=stop in=6785 out=81 json_mode=True chars=252
+2026-09-20 23:12:13,771 INFO agentflow agent done review line=minutes decision=approve
+2026-09-20 23:12:13,771 INFO tools.core.domain_engine route line=minutes decision=approve revision=0/1 -> __end__
+2026-09-20 23:12:13,772 INFO agentflow node done minutes_supervisor
+2026-09-20 23:12:13,772 INFO agentflow render start line=minutes
+2026-09-20 23:13:08,506 INFO agentflow render done line=minutes
+2026-09-20 23:13:08,509 INFO tools.core.runner saved html line=minutes path=/root/h00984725/demo_v2/data/test/output/4d3e01ed7b6448a3a39893da527aa28d/minutes.html
+2026-09-20 23:13:08,509 INFO tools.core.runner saved text line=minutes path=/root/h00984725/demo_v2/data/test/output/4d3e01ed7b6448a3a39893da527aa28d/result.md
+2026-09-20 23:13:08,764 INFO client.llmclient llm client backend=vllm model=deepseek-v4-flash-0731 base_url=http://127.0.0.1:8000/v1 ctx=65536 max_tokens=50000 timeout=600.0 retries=2 temperature=0.2 sampling_sent=False
+2026-09-20 23:13:08,774 INFO agentflow pipeline start lines=minutes
+2026-09-20 23:13:08,775 INFO agentflow agent start meeting_understanding
+2026-09-20 23:13:08,775 INFO client.llmclient llm call label=core/meeting_understanding mode=structured
+2026-09-20 23:13:28,030 INFO client.llmclient llm resp label=core/meeting_understanding model=deepseek-v4-flash-0731 finish=stop in=8093 out=1212 json_mode=True chars=2762
+2026-09-20 23:13:28,031 INFO agentflow agent done meeting_understanding
+2026-09-20 23:13:28,032 INFO agentflow node done meeting_understanding
+2026-09-20 23:13:28,032 INFO agentflow skip perspective (objective)
+2026-09-20 23:13:28,033 INFO agentflow node done perspective_modeling
+2026-09-20 23:13:28,033 INFO agentflow agent start gen line=minutes
+2026-09-20 23:13:28,035 INFO client.llmclient llm call label=minutes/agent mode=structured
+2026-09-20 23:13:28,037 INFO client.llmclient llm fit max_tokens 50000->46700 ctx=65536 input~18580
+2026-09-20 23:13:36,674 INFO client.llmclient llm resp label=minutes/agent model=deepseek-v4-flash-0731 finish=stop in=13168 out=506 json_mode=True chars=937
+2026-09-20 23:13:36,674 INFO agentflow agent done gen line=minutes
+2026-09-20 23:13:36,675 INFO agentflow node done minutes_agent
+2026-09-20 23:13:36,676 INFO agentflow agent start review line=minutes
+2026-09-20 23:13:36,679 INFO client.llmclient llm call label=minutes/supervisor mode=structured
+2026-09-20 23:13:38,270 INFO client.llmclient llm resp label=minutes/supervisor model=deepseek-v4-flash-0731 finish=stop in=6553 out=81 json_mode=True chars=252
+2026-09-20 23:13:38,270 INFO agentflow agent done review line=minutes decision=approve
+2026-09-20 23:13:38,271 INFO tools.core.domain_engine route line=minutes decision=approve revision=0/1 -> __end__
+2026-09-20 23:13:38,272 INFO agentflow node done minutes_supervisor
+2026-09-20 23:13:38,272 INFO agentflow render start line=minutes
+2026-09-20 23:13:59,648 INFO agentflow render done line=minutes
+2026-09-20 23:13:59,650 INFO tools.core.runner saved html line=minutes path=/root/h00984725/demo_v2/data/test/output/324b8977f9cd4ab5857203aac8cdf411/minutes.html
+2026-09-20 23:13:59,650 INFO tools.core.runner saved text line=minutes path=/root/h00984725/demo_v2/data/test/output/324b8977f9cd4ab5857203aac8cdf411/result.md
+2026-09-20 23:13:59,907 INFO client.llmclient llm client backend=vllm model=deepseek-v4-flash-0731 base_url=http://127.0.0.1:8000/v1 ctx=65536 max_tokens=50000 timeout=600.0 retries=2 temperature=0.2 sampling_sent=False
+2026-09-20 23:13:59,918 INFO agentflow pipeline start lines=minutes
+2026-09-20 23:13:59,919 INFO agentflow agent start meeting_understanding
+2026-09-20 23:13:59,919 INFO client.llmclient llm call label=core/meeting_understanding mode=structured
+2026-09-20 23:14:22,178 INFO client.llmclient llm resp label=core/meeting_understanding model=deepseek-v4-flash-0731 finish=stop in=7242 out=1707 json_mode=True chars=3850
+2026-09-20 23:14:22,179 INFO agentflow agent done meeting_understanding
+2026-09-20 23:14:22,180 INFO agentflow node done meeting_understanding
+2026-09-20 23:14:22,180 INFO agentflow skip perspective (objective)
+2026-09-20 23:14:22,181 INFO agentflow node done perspective_modeling
+2026-09-20 23:14:22,181 INFO agentflow agent start gen line=minutes
+2026-09-20 23:14:22,183 INFO client.llmclient llm call label=minutes/agent mode=structured
+2026-09-20 23:14:22,185 INFO client.llmclient llm fit max_tokens 50000->47287 ctx=65536 input~17993
+2026-09-20 23:14:33,662 INFO client.llmclient llm resp label=minutes/agent model=deepseek-v4-flash-0731 finish=stop in=12788 out=886 json_mode=True chars=1546
+2026-09-20 23:14:33,663 INFO agentflow agent done gen line=minutes
+2026-09-20 23:14:33,664 INFO agentflow node done minutes_agent
+2026-09-20 23:14:33,664 INFO agentflow agent start review line=minutes
+2026-09-20 23:14:33,668 INFO client.llmclient llm call label=minutes/supervisor mode=structured
+2026-09-20 23:14:35,175 INFO client.llmclient llm resp label=minutes/supervisor model=deepseek-v4-flash-0731 finish=stop in=7299 out=81 json_mode=True chars=252
+2026-09-20 23:14:35,176 INFO agentflow agent done review line=minutes decision=approve
+2026-09-20 23:14:35,176 INFO tools.core.domain_engine route line=minutes decision=approve revision=0/1 -> __end__
+2026-09-20 23:14:35,177 INFO agentflow node done minutes_supervisor
+2026-09-20 23:14:35,177 INFO agentflow render start line=minutes
+2026-09-20 23:15:10,496 INFO agentflow render done line=minutes
+2026-09-20 23:15:10,498 INFO tools.core.runner saved html line=minutes path=/root/h00984725/demo_v2/data/test/output/bebf2230c73a4d9aae2fa5a1121b69ad/minutes.html
+2026-09-20 23:15:10,498 INFO tools.core.runner saved text line=minutes path=/root/h00984725/demo_v2/data/test/output/bebf2230c73a4d9aae2fa5a1121b69ad/result.md
+2026-09-20 23:15:10,757 INFO client.llmclient llm client backend=vllm model=deepseek-v4-flash-0731 base_url=http://127.0.0.1:8000/v1 ctx=65536 max_tokens=50000 timeout=600.0 retries=2 temperature=0.2 sampling_sent=False
+2026-09-20 23:15:10,767 INFO agentflow pipeline start lines=minutes
+2026-09-20 23:15:10,768 INFO agentflow agent start meeting_understanding
+2026-09-20 23:15:10,768 INFO client.llmclient llm call label=core/meeting_understanding mode=structured
+2026-09-20 23:15:10,771 INFO client.llmclient llm fit max_tokens 50000->37928 ctx=65536 input~27352
+2026-09-20 23:15:33,405 INFO client.llmclient llm resp label=core/meeting_understanding model=deepseek-v4-flash-0731 finish=stop in=18393 out=1502 json_mode=True chars=3005
+2026-09-20 23:15:33,406 INFO agentflow agent done meeting_understanding
+2026-09-20 23:15:33,407 INFO agentflow node done meeting_understanding
+2026-09-20 23:15:33,407 INFO agentflow skip perspective (objective)
+2026-09-20 23:15:33,408 INFO agentflow node done perspective_modeling
+2026-09-20 23:15:33,408 INFO agentflow agent start gen line=minutes
+2026-09-20 23:15:33,412 INFO client.llmclient llm call label=minutes/agent mode=structured
+2026-09-20 23:15:33,416 INFO client.llmclient llm fit max_tokens 50000->30725 ctx=65536 input~34555
+2026-09-20 23:15:42,884 INFO client.llmclient llm resp label=minutes/agent model=deepseek-v4-flash-0731 finish=stop in=23806 out=513 json_mode=True chars=879
+2026-09-20 23:15:42,884 INFO agentflow agent done gen line=minutes
+2026-09-20 23:15:42,885 INFO agentflow node done minutes_agent
+2026-09-20 23:15:42,885 INFO agentflow agent start review line=minutes
+2026-09-20 23:15:42,894 INFO client.llmclient llm call label=minutes/supervisor mode=structured
+2026-09-20 23:15:44,487 INFO client.llmclient llm resp label=minutes/supervisor model=deepseek-v4-flash-0731 finish=stop in=7031 out=81 json_mode=True chars=252
+2026-09-20 23:15:44,487 INFO agentflow agent done review line=minutes decision=approve
+2026-09-20 23:15:44,488 INFO tools.core.domain_engine route line=minutes decision=approve revision=0/1 -> __end__
+2026-09-20 23:15:44,488 INFO agentflow node done minutes_supervisor
+2026-09-20 23:15:44,489 INFO agentflow render start line=minutes
+2026-09-20 23:16:31,341 INFO agentflow render done line=minutes
+2026-09-20 23:16:31,344 INFO tools.core.runner saved html line=minutes path=/root/h00984725/demo_v2/data/test/output/e236812fda2a4428bb646c9443233a9b/minutes.html
+2026-09-20 23:16:31,344 INFO tools.core.runner saved text line=minutes path=/root/h00984725/demo_v2/data/test/output/e236812fda2a4428bb646c9443233a9b/result.md
+2026-09-20 23:16:31,604 INFO client.llmclient llm client backend=vllm model=deepseek-v4-flash-0731 base_url=http://127.0.0.1:8000/v1 ctx=65536 max_tokens=50000 timeout=600.0 retries=2 temperature=0.2 sampling_sent=False
+2026-09-20 23:16:31,614 INFO agentflow pipeline start lines=minutes
+2026-09-20 23:16:31,616 INFO agentflow agent start meeting_understanding
+2026-09-20 23:16:31,616 INFO client.llmclient llm call label=core/meeting_understanding mode=structured
+2026-09-20 23:16:57,858 INFO client.llmclient llm resp label=core/meeting_understanding model=deepseek-v4-flash-0731 finish=stop in=8571 out=1713 json_mode=True chars=3648
+2026-09-20 23:16:57,859 INFO agentflow agent done meeting_understanding
+2026-09-20 23:16:57,860 INFO agentflow node done meeting_understanding
+2026-09-20 23:16:57,860 INFO agentflow skip perspective (objective)
+2026-09-20 23:16:57,861 INFO agentflow node done perspective_modeling
+2026-09-20 23:16:57,861 INFO agentflow agent start gen line=minutes
+2026-09-20 23:16:57,863 INFO client.llmclient llm call label=minutes/agent mode=structured
+2026-09-20 23:16:57,866 INFO client.llmclient llm fit max_tokens 50000->43841 ctx=65536 input~21439
+2026-09-20 23:17:13,591 INFO client.llmclient llm resp label=minutes/agent model=deepseek-v4-flash-0731 finish=stop in=14071 out=1064 json_mode=True chars=1896
+2026-09-20 23:17:13,592 INFO agentflow agent done gen line=minutes
+2026-09-20 23:17:13,592 INFO agentflow node done minutes_agent
+2026-09-20 23:17:13,593 INFO agentflow agent start review line=minutes
+2026-09-20 23:17:13,598 INFO client.llmclient llm call label=minutes/supervisor mode=structured
+2026-09-20 23:17:15,174 INFO client.llmclient llm resp label=minutes/supervisor model=deepseek-v4-flash-0731 finish=stop in=6363 out=81 json_mode=True chars=252
+2026-09-20 23:17:15,174 INFO agentflow agent done review line=minutes decision=approve
+2026-09-20 23:17:15,175 INFO tools.core.domain_engine route line=minutes decision=approve revision=0/1 -> __end__
+2026-09-20 23:17:15,175 INFO agentflow node done minutes_supervisor
+2026-09-20 23:17:15,176 INFO agentflow render start line=minutes
+2026-09-20 23:17:54,390 INFO agentflow render done line=minutes
+2026-09-20 23:17:54,393 INFO tools.core.runner saved html line=minutes path=/root/h00984725/demo_v2/data/test/output/cfe2b96bcb574b73ad7ca230b4c4491b/minutes.html
+2026-09-20 23:17:54,393 INFO tools.core.runner saved text line=minutes path=/root/h00984725/demo_v2/data/test/output/cfe2b96bcb574b73ad7ca230b4c4491b/result.md
+2026-09-20 23:17:54,655 INFO client.llmclient llm client backend=vllm model=deepseek-v4-flash-0731 base_url=http://127.0.0.1:8000/v1 ctx=65536 max_tokens=50000 timeout=600.0 retries=2 temperature=0.2 sampling_sent=False
+2026-09-20 23:17:54,742 INFO agentflow pipeline start lines=minutes
+2026-09-20 23:17:54,743 INFO agentflow agent start meeting_understanding
+2026-09-20 23:17:54,744 INFO client.llmclient llm call label=core/meeting_understanding mode=structured
+2026-09-20 23:18:01,955 INFO client.llmclient llm resp label=core/meeting_understanding model=deepseek-v4-flash-0731 finish=stop in=6722 out=429 json_mode=True chars=945
+2026-09-20 23:18:01,955 INFO agentflow agent done meeting_understanding
+2026-09-20 23:18:01,956 INFO agentflow node done meeting_understanding
+2026-09-20 23:18:01,957 INFO agentflow skip perspective (objective)
+2026-09-20 23:18:01,957 INFO agentflow node done perspective_modeling
+2026-09-20 23:18:01,958 INFO agentflow agent start gen line=minutes
+2026-09-20 23:18:01,959 INFO client.llmclient llm call label=minutes/agent mode=structured
+2026-09-20 23:18:01,961 INFO client.llmclient llm fit max_tokens 50000->49085 ctx=65536 input~16195
+2026-09-20 23:18:06,602 INFO client.llmclient llm resp label=minutes/agent model=deepseek-v4-flash-0731 finish=stop in=11204 out=266 json_mode=True chars=533
+2026-09-20 23:18:06,602 INFO agentflow agent done gen line=minutes
+2026-09-20 23:18:06,603 INFO agentflow node done minutes_agent
+2026-09-20 23:18:06,603 INFO agentflow agent start review line=minutes
+2026-09-20 23:18:06,606 INFO client.llmclient llm call label=minutes/supervisor mode=structured
+2026-09-20 23:18:07,872 INFO client.llmclient llm resp label=minutes/supervisor model=deepseek-v4-flash-0731 finish=stop in=5262 out=81 json_mode=True chars=252
+2026-09-20 23:18:07,873 INFO agentflow agent done review line=minutes decision=approve
+2026-09-20 23:18:07,873 INFO tools.core.domain_engine route line=minutes decision=approve revision=0/1 -> __end__
+2026-09-20 23:18:07,874 INFO agentflow node done minutes_supervisor
+2026-09-20 23:18:07,874 INFO agentflow render start line=minutes
+2026-09-20 23:18:28,545 INFO agentflow render done line=minutes
+2026-09-20 23:18:28,546 INFO tools.core.runner saved html line=minutes path=/root/h00984725/demo_v2/data/test/output/79e513966f134c818090b8e140c4bead/minutes.html
+2026-09-20 23:18:28,546 INFO tools.core.runner saved text line=minutes path=/root/h00984725/demo_v2/data/test/output/79e513966f134c818090b8e140c4bead/result.md
+2026-09-20 23:18:28,810 INFO client.llmclient llm client backend=vllm model=deepseek-v4-flash-0731 base_url=http://127.0.0.1:8000/v1 ctx=65536 max_tokens=50000 timeout=600.0 retries=2 temperature=0.2 sampling_sent=False
+2026-09-20 23:18:28,820 INFO agentflow pipeline start lines=minutes
+2026-09-20 23:18:28,822 INFO agentflow agent start meeting_understanding
+2026-09-20 23:18:28,822 INFO client.llmclient llm call label=core/meeting_understanding mode=structured
+2026-09-20 23:18:43,897 INFO client.llmclient llm resp label=core/meeting_understanding model=deepseek-v4-flash-0731 finish=stop in=4536 out=1013 json_mode=True chars=2433
+2026-09-20 23:18:43,897 INFO agentflow agent done meeting_understanding
+2026-09-20 23:18:43,898 INFO agentflow node done meeting_understanding
+2026-09-20 23:18:43,899 INFO agentflow skip perspective (objective)
+2026-09-20 23:18:43,899 INFO agentflow node done perspective_modeling
+2026-09-20 23:18:43,899 INFO agentflow agent start gen line=minutes
+2026-09-20 23:18:43,901 INFO client.llmclient llm call label=minutes/agent mode=structured
+2026-09-20 23:18:49,113 INFO client.llmclient llm resp label=minutes/agent model=deepseek-v4-flash-0731 finish=stop in=9491 out=318 json_mode=True chars=729
+2026-09-20 23:18:49,114 INFO agentflow agent done gen line=minutes
+2026-09-20 23:18:49,114 INFO agentflow node done minutes_agent
+2026-09-20 23:18:49,115 INFO agentflow agent start review line=minutes
+2026-09-20 23:18:49,117 INFO client.llmclient llm call label=minutes/supervisor mode=structured
+2026-09-20 23:18:50,263 INFO client.llmclient llm resp label=minutes/supervisor model=deepseek-v4-flash-0731 finish=stop in=4172 out=81 json_mode=True chars=252
+2026-09-20 23:18:50,263 INFO agentflow agent done review line=minutes decision=approve
+2026-09-20 23:18:50,264 INFO tools.core.domain_engine route line=minutes decision=approve revision=0/1 -> __end__
+2026-09-20 23:18:50,264 INFO agentflow node done minutes_supervisor
+2026-09-20 23:18:50,265 INFO agentflow render start line=minutes
+2026-09-20 23:19:12,714 INFO agentflow render done line=minutes
+2026-09-20 23:19:12,716 INFO tools.core.runner saved html line=minutes path=/root/h00984725/demo_v2/data/test/output/10cb483ae2f24942b2ae00cfdaf8ff0a/minutes.html
+2026-09-20 23:19:12,716 INFO tools.core.runner saved text line=minutes path=/root/h00984725/demo_v2/data/test/output/10cb483ae2f24942b2ae00cfdaf8ff0a/result.md
+2026-09-20 23:19:12,980 INFO client.llmclient llm client backend=vllm model=deepseek-v4-flash-0731 base_url=http://127.0.0.1:8000/v1 ctx=65536 max_tokens=50000 timeout=600.0 retries=2 temperature=0.2 sampling_sent=False
+2026-09-20 23:19:12,991 INFO agentflow pipeline start lines=minutes
+2026-09-20 23:19:12,992 INFO agentflow agent start meeting_understanding
+2026-09-20 23:19:12,992 INFO client.llmclient llm call label=core/meeting_understanding mode=structured
+2026-09-20 23:19:12,994 INFO client.llmclient llm fit max_tokens 50000->48576 ctx=65536 input~16704
+2026-09-20 23:19:34,102 INFO client.llmclient llm resp label=core/meeting_understanding model=deepseek-v4-flash-0731 finish=stop in=11536 out=1229 json_mode=True chars=2517
+2026-09-20 23:19:34,102 INFO agentflow agent done meeting_understanding
+2026-09-20 23:19:34,103 INFO agentflow node done meeting_understanding
+2026-09-20 23:19:34,104 INFO agentflow skip perspective (objective)
+2026-09-20 23:19:34,104 INFO agentflow node done perspective_modeling
+2026-09-20 23:19:34,104 INFO agentflow agent start gen line=minutes
+2026-09-20 23:19:34,107 INFO client.llmclient llm call label=minutes/agent mode=structured
+2026-09-20 23:19:34,110 INFO client.llmclient llm fit max_tokens 50000->41669 ctx=65536 input~23611
+2026-09-20 23:19:43,549 INFO client.llmclient llm resp label=minutes/agent model=deepseek-v4-flash-0731 finish=stop in=16705 out=574 json_mode=True chars=960
+2026-09-20 23:19:43,550 INFO agentflow agent done gen line=minutes
+2026-09-20 23:19:43,551 INFO agentflow node done minutes_agent
+2026-09-20 23:19:43,551 INFO agentflow agent start review line=minutes
+2026-09-20 23:19:43,556 INFO client.llmclient llm call label=minutes/supervisor mode=structured
+2026-09-20 23:19:44,796 INFO client.llmclient llm resp label=minutes/supervisor model=deepseek-v4-flash-0731 finish=stop in=4958 out=81 json_mode=True chars=252
+2026-09-20 23:19:44,796 INFO agentflow agent done review line=minutes decision=approve
+2026-09-20 23:19:44,797 INFO tools.core.domain_engine route line=minutes decision=approve revision=0/1 -> __end__
+2026-09-20 23:19:44,798 INFO agentflow node done minutes_supervisor
+2026-09-20 23:19:44,798 INFO agentflow render start line=minutes
+2026-09-20 23:20:24,286 INFO agentflow render done line=minutes
+2026-09-20 23:20:24,288 INFO tools.core.runner saved html line=minutes path=/root/h00984725/demo_v2/data/test/output/b4ba64cbeab249e08035ef876d257104/minutes.html
+2026-09-20 23:20:24,288 INFO tools.core.runner saved text line=minutes path=/root/h00984725/demo_v2/data/test/output/b4ba64cbeab249e08035ef876d257104/result.md
+2026-09-20 23:20:24,555 INFO client.llmclient llm client backend=vllm model=deepseek-v4-flash-0731 base_url=http://127.0.0.1:8000/v1 ctx=65536 max_tokens=50000 timeout=600.0 retries=2 temperature=0.2 sampling_sent=False
+2026-09-20 23:20:24,565 INFO agentflow pipeline start lines=minutes
+2026-09-20 23:20:24,566 INFO agentflow agent start meeting_understanding
+2026-09-20 23:20:24,567 INFO client.llmclient llm call label=core/meeting_understanding mode=structured
+2026-09-20 23:20:45,793 INFO client.llmclient llm resp label=core/meeting_understanding model=deepseek-v4-flash-0731 finish=stop in=7641 out=1258 json_mode=True chars=2730
+2026-09-20 23:20:45,794 INFO agentflow agent done meeting_understanding
+2026-09-20 23:20:45,795 INFO agentflow node done meeting_understanding
+2026-09-20 23:20:45,795 INFO agentflow skip perspective (objective)
+2026-09-20 23:20:45,796 INFO agentflow node done perspective_modeling
+2026-09-20 23:20:45,796 INFO agentflow agent start gen line=minutes
+2026-09-20 23:20:45,798 INFO client.llmclient llm call label=minutes/agent mode=structured
+2026-09-20 23:20:45,800 INFO client.llmclient llm fit max_tokens 50000->47486 ctx=65536 input~17794
+2026-09-20 23:20:56,202 INFO client.llmclient llm resp label=minutes/agent model=deepseek-v4-flash-0731 finish=stop in=12802 out=699 json_mode=True chars=1217
+2026-09-20 23:20:56,203 INFO agentflow agent done gen line=minutes
+2026-09-20 23:20:56,204 INFO agentflow node done minutes_agent
+2026-09-20 23:20:56,204 INFO agentflow agent start review line=minutes
+2026-09-20 23:20:56,208 INFO client.llmclient llm call label=minutes/supervisor mode=structured
+2026-09-20 23:20:57,511 INFO client.llmclient llm resp label=minutes/supervisor model=deepseek-v4-flash-0731 finish=stop in=6007 out=81 json_mode=True chars=252
+2026-09-20 23:20:57,511 INFO agentflow agent done review line=minutes decision=approve
+2026-09-20 23:20:57,512 INFO tools.core.domain_engine route line=minutes decision=approve revision=0/1 -> __end__
+2026-09-20 23:20:57,512 INFO agentflow node done minutes_supervisor
+2026-09-20 23:20:57,513 INFO agentflow render start line=minutes
+2026-09-20 23:20:57,520 INFO client.llmclient llm call label=template/fill mode=text
+2026-09-20 23:21:16,426 INFO client.llmclient llm resp label=template/fill model=deepseek-v4-flash-0731 finish=stop in=16721 out=1141 json_mode=True chars=1803
+2026-09-20 23:21:16,439 INFO agentflow render done line=minutes
+2026-09-20 23:21:16,440 INFO tools.core.runner saved html line=minutes path=/root/h00984725/demo_v2/data/test/output/7bf04edab16143a2a398efd2b38267d1/minutes.html
+2026-09-20 23:21:16,441 INFO tools.core.runner saved text line=minutes path=/root/h00984725/demo_v2/data/test/output/7bf04edab16143a2a398efd2b38267d1/result.md
+2026-09-20 23:21:16,709 INFO client.llmclient llm client backend=vllm model=deepseek-v4-flash-0731 base_url=http://127.0.0.1:8000/v1 ctx=65536 max_tokens=50000 timeout=600.0 retries=2 temperature=0.2 sampling_sent=False
+2026-09-20 23:21:16,719 INFO agentflow pipeline start lines=minutes
+2026-09-20 23:21:16,721 INFO agentflow agent start meeting_understanding
+2026-09-20 23:21:16,721 INFO client.llmclient llm call label=core/meeting_understanding mode=structured
+2026-09-20 23:21:16,724 INFO client.llmclient llm fit max_tokens 50000->35670 ctx=65536 input~29610
+2026-09-20 23:21:39,935 INFO client.llmclient llm resp label=core/meeting_understanding model=deepseek-v4-flash-0731 finish=stop in=19757 out=1590 json_mode=True chars=3460
+2026-09-20 23:21:39,936 INFO agentflow agent done meeting_understanding
+2026-09-20 23:21:39,937 INFO agentflow node done meeting_understanding
+2026-09-20 23:21:39,937 INFO agentflow skip perspective (objective)
+2026-09-20 23:21:39,938 INFO agentflow node done perspective_modeling
+2026-09-20 23:21:39,938 INFO agentflow agent start gen line=minutes
+2026-09-20 23:21:39,943 INFO client.llmclient llm call label=minutes/agent mode=structured
+2026-09-20 23:21:39,947 INFO client.llmclient llm fit max_tokens 50000->28357 ctx=65536 input~36923
+2026-09-20 23:21:52,383 INFO client.llmclient llm resp label=minutes/agent model=deepseek-v4-flash-0731 finish=stop in=25170 out=802 json_mode=True chars=1386
+2026-09-20 23:21:52,384 INFO agentflow agent done gen line=minutes
+2026-09-20 23:21:52,385 INFO agentflow node done minutes_agent
+2026-09-20 23:21:52,385 INFO agentflow agent start review line=minutes
+2026-09-20 23:21:52,395 INFO client.llmclient llm call label=minutes/supervisor mode=structured
+2026-09-20 23:21:53,707 INFO client.llmclient llm resp label=minutes/supervisor model=deepseek-v4-flash-0731 finish=stop in=5987 out=81 json_mode=True chars=252
+2026-09-20 23:21:53,708 INFO agentflow agent done review line=minutes decision=approve
+2026-09-20 23:21:53,708 INFO tools.core.domain_engine route line=minutes decision=approve revision=0/1 -> __end__
+2026-09-20 23:21:53,709 INFO agentflow node done minutes_supervisor
+2026-09-20 23:21:53,709 INFO agentflow render start line=minutes
+2026-09-20 23:21:53,724 INFO client.llmclient llm call label=template/fill mode=text
+2026-09-20 23:22:30,098 INFO client.llmclient llm resp label=template/fill model=deepseek-v4-flash-0731 finish=stop in=28144 out=2261 json_mode=True chars=3649
+2026-09-20 23:22:30,117 INFO agentflow render done line=minutes
+2026-09-20 23:22:30,119 INFO tools.core.runner saved html line=minutes path=/root/h00984725/demo_v2/data/test/output/32ec3fa8147a4035be92b824ae3ebf1f/minutes.html
+2026-09-20 23:22:30,119 INFO tools.core.runner saved text line=minutes path=/root/h00984725/demo_v2/data/test/output/32ec3fa8147a4035be92b824ae3ebf1f/result.md
+2026-09-20 23:22:30,387 INFO client.llmclient llm client backend=vllm model=deepseek-v4-flash-0731 base_url=http://127.0.0.1:8000/v1 ctx=65536 max_tokens=50000 timeout=600.0 retries=2 temperature=0.2 sampling_sent=False
+2026-09-20 23:22:30,397 INFO agentflow pipeline start lines=minutes
+2026-09-20 23:22:30,398 INFO agentflow agent start meeting_understanding
+2026-09-20 23:22:30,399 INFO client.llmclient llm call label=core/meeting_understanding mode=structured
+2026-09-20 23:22:45,250 INFO client.llmclient llm resp label=core/meeting_understanding model=deepseek-v4-flash-0731 finish=stop in=5576 out=940 json_mode=True chars=2177
+2026-09-20 23:22:45,250 INFO agentflow agent done meeting_understanding
+2026-09-20 23:22:45,251 INFO agentflow node done meeting_understanding
+2026-09-20 23:22:45,252 INFO agentflow skip perspective (objective)
+2026-09-20 23:22:45,252 INFO agentflow node done perspective_modeling
+2026-09-20 23:22:45,253 INFO agentflow agent start gen line=minutes
+2026-09-20 23:22:45,254 INFO client.llmclient llm call label=minutes/agent mode=structured
+2026-09-20 23:22:45,256 INFO client.llmclient llm fit max_tokens 50000->49825 ctx=65536 input~15455
+2026-09-20 23:22:52,317 INFO client.llmclient llm resp label=minutes/agent model=deepseek-v4-flash-0731 finish=stop in=10469 out=370 json_mode=True chars=715
+2026-09-20 23:22:52,318 INFO agentflow agent done gen line=minutes
+2026-09-20 23:22:52,319 INFO agentflow node done minutes_agent
+2026-09-20 23:22:52,320 INFO agentflow agent start review line=minutes
+2026-09-20 23:22:52,323 INFO client.llmclient llm call label=minutes/supervisor mode=structured
+2026-09-20 23:22:53,566 INFO client.llmclient llm resp label=minutes/supervisor model=deepseek-v4-flash-0731 finish=stop in=4870 out=81 json_mode=True chars=252
+2026-09-20 23:22:53,566 INFO agentflow agent done review line=minutes decision=approve
+2026-09-20 23:22:53,567 INFO tools.core.domain_engine route line=minutes decision=approve revision=0/1 -> __end__
+2026-09-20 23:22:53,567 INFO agentflow node done minutes_supervisor
+2026-09-20 23:22:53,568 INFO agentflow render start line=minutes
+2026-09-20 23:22:53,573 INFO client.llmclient llm call label=template/fill mode=text
+2026-09-20 23:23:11,971 INFO client.llmclient llm resp label=template/fill model=deepseek-v4-flash-0731 finish=stop in=13173 out=1203 json_mode=True chars=2021
+2026-09-20 23:23:11,973 WARNING tools.template_router._placeholder placeholder fill incomplete (attempt=1)：blank=[3] all_empty=False raw[:160]='{   "fields": {     "1": "考生为一名文科生，在面试中自述对人工智能领域存在知识盲区，计划通过课余时间补课充实知识储备。本次面试为公务员结构化面试，共四道题，时长20分钟，由面试官主持并计时，考生逐题作答。考生作答内容完整，覆盖各题要点：第一题以绳子对骏马、风筝、陀螺的不同作用为引，阐述对公务员'
+2026-09-20 23:23:11,974 INFO client.llmclient llm call label=template/fill mode=text
+2026-09-20 23:23:30,764 INFO client.llmclient llm resp label=template/fill model=deepseek-v4-flash-0731 finish=stop in=13283 out=1252 json_mode=True chars=2106
+2026-09-20 23:23:30,775 INFO agentflow render done line=minutes
+2026-09-20 23:23:30,777 INFO tools.core.runner saved html line=minutes path=/root/h00984725/demo_v2/data/test/output/8462dae94e7d4601b73bafabac76213a/minutes.html
+2026-09-20 23:23:30,777 INFO tools.core.runner saved text line=minutes path=/root/h00984725/demo_v2/data/test/output/8462dae94e7d4601b73bafabac76213a/result.md
+2026-09-20 23:23:31,049 INFO client.llmclient llm client backend=vllm model=deepseek-v4-flash-0731 base_url=http://127.0.0.1:8000/v1 ctx=65536 max_tokens=50000 timeout=600.0 retries=2 temperature=0.2 sampling_sent=False
+2026-09-20 23:23:31,059 INFO agentflow pipeline start lines=minutes
+2026-09-20 23:23:31,060 INFO agentflow agent start meeting_understanding
+2026-09-20 23:23:31,060 INFO client.llmclient llm call label=core/meeting_understanding mode=structured
+2026-09-20 23:23:43,178 INFO client.llmclient llm resp label=core/meeting_understanding model=deepseek-v4-flash-0731 finish=stop in=5305 out=857 json_mode=True chars=1742
+2026-09-20 23:23:43,179 INFO agentflow agent done meeting_understanding
+2026-09-20 23:23:43,180 INFO agentflow node done meeting_understanding
+2026-09-20 23:23:43,180 INFO agentflow skip perspective (objective)
+2026-09-20 23:23:43,181 INFO agentflow node done perspective_modeling
+2026-09-20 23:23:43,181 INFO agentflow agent start gen line=minutes
+2026-09-20 23:23:43,182 INFO client.llmclient llm call label=minutes/agent mode=structured
+2026-09-20 23:23:47,927 INFO client.llmclient llm resp label=minutes/agent model=deepseek-v4-flash-0731 finish=stop in=10156 out=314 json_mode=True chars=553
+2026-09-20 23:23:47,927 INFO agentflow agent done gen line=minutes
+2026-09-20 23:23:47,928 INFO agentflow node done minutes_agent
+2026-09-20 23:23:47,928 INFO agentflow agent start review line=minutes
+2026-09-20 23:23:47,931 INFO client.llmclient llm call label=minutes/supervisor mode=structured
+2026-09-20 23:23:49,036 INFO client.llmclient llm resp label=minutes/supervisor model=deepseek-v4-flash-0731 finish=stop in=4598 out=81 json_mode=True chars=252
+2026-09-20 23:23:49,037 INFO agentflow agent done review line=minutes decision=approve
+2026-09-20 23:23:49,038 INFO tools.core.domain_engine route line=minutes decision=approve revision=0/1 -> __end__
+2026-09-20 23:23:49,038 INFO agentflow node done minutes_supervisor
+2026-09-20 23:23:49,038 INFO agentflow render start line=minutes
+2026-09-20 23:24:10,345 INFO agentflow render done line=minutes
+2026-09-20 23:24:10,347 INFO tools.core.runner saved html line=minutes path=/root/h00984725/demo_v2/data/test/output/b74eac9c9b0141d3a9c5b297cb81c553/minutes.html
+2026-09-20 23:24:10,347 INFO tools.core.runner saved text line=minutes path=/root/h00984725/demo_v2/data/test/output/b74eac9c9b0141d3a9c5b297cb81c553/result.md
+2026-09-20 23:24:10,618 INFO client.llmclient llm client backend=vllm model=deepseek-v4-flash-0731 base_url=http://127.0.0.1:8000/v1 ctx=65536 max_tokens=50000 timeout=600.0 retries=2 temperature=0.2 sampling_sent=False
+2026-09-20 23:24:10,628 INFO agentflow pipeline start lines=minutes
+2026-09-20 23:24:10,629 INFO agentflow agent start meeting_understanding
+2026-09-20 23:24:10,629 INFO client.llmclient llm call label=core/meeting_understanding mode=structured
+2026-09-20 23:24:28,287 INFO client.llmclient llm resp label=core/meeting_understanding model=deepseek-v4-flash-0731 finish=stop in=5452 out=1240 json_mode=True chars=2994
+2026-09-20 23:24:28,288 INFO agentflow agent done meeting_understanding
+2026-09-20 23:24:28,289 INFO agentflow node done meeting_understanding
+2026-09-20 23:24:28,289 INFO agentflow skip perspective (objective)
+2026-09-20 23:24:28,290 INFO agentflow node done perspective_modeling
+2026-09-20 23:24:28,290 INFO agentflow agent start gen line=minutes
+2026-09-20 23:24:28,291 INFO client.llmclient llm call label=minutes/agent mode=structured
+2026-09-20 23:24:35,600 INFO client.llmclient llm resp label=minutes/agent model=deepseek-v4-flash-0731 finish=stop in=10548 out=466 json_mode=True chars=901
+2026-09-20 23:24:35,601 INFO agentflow agent done gen line=minutes
+2026-09-20 23:24:35,601 INFO agentflow node done minutes_agent
+2026-09-20 23:24:35,602 INFO agentflow agent start review line=minutes
+2026-09-20 23:24:35,605 INFO client.llmclient llm call label=minutes/supervisor mode=structured
+2026-09-20 23:24:36,855 INFO client.llmclient llm resp label=minutes/supervisor model=deepseek-v4-flash-0731 finish=stop in=5160 out=81 json_mode=True chars=252
+2026-09-20 23:24:36,856 INFO agentflow agent done review line=minutes decision=approve
+2026-09-20 23:24:36,856 INFO tools.core.domain_engine route line=minutes decision=approve revision=0/1 -> __end__
+2026-09-20 23:24:36,857 INFO agentflow node done minutes_supervisor
+2026-09-20 23:24:36,857 INFO agentflow render start line=minutes
+2026-09-20 23:24:54,831 INFO agentflow render done line=minutes
+2026-09-20 23:24:54,833 INFO tools.core.runner saved html line=minutes path=/root/h00984725/demo_v2/data/test/output/0b4d6700df4e43eaa43923fed698b020/minutes.html
+2026-09-20 23:24:54,833 INFO tools.core.runner saved text line=minutes path=/root/h00984725/demo_v2/data/test/output/0b4d6700df4e43eaa43923fed698b020/result.md
+2026-09-20 23:24:55,104 INFO client.llmclient llm client backend=vllm model=deepseek-v4-flash-0731 base_url=http://127.0.0.1:8000/v1 ctx=65536 max_tokens=50000 timeout=600.0 retries=2 temperature=0.2 sampling_sent=False
+2026-09-20 23:24:55,114 INFO agentflow pipeline start lines=minutes
+2026-09-20 23:24:55,116 INFO agentflow agent start meeting_understanding
+2026-09-20 23:24:55,116 INFO client.llmclient llm call label=core/meeting_understanding mode=structured
+2026-09-20 23:24:55,118 INFO client.llmclient llm fit max_tokens 50000->47393 ctx=65536 input~17887
+2026-09-20 23:25:16,397 INFO client.llmclient llm resp label=core/meeting_understanding model=deepseek-v4-flash-0731 finish=stop in=12456 out=1371 json_mode=True chars=3273
+2026-09-20 23:25:16,397 INFO agentflow agent done meeting_understanding
+2026-09-20 23:25:16,398 INFO agentflow node done meeting_understanding
+2026-09-20 23:25:16,399 INFO agentflow skip perspective (objective)
+2026-09-20 23:25:16,399 INFO agentflow node done perspective_modeling
+2026-09-20 23:25:16,400 INFO agentflow agent start gen line=minutes
+2026-09-20 23:25:16,402 INFO client.llmclient llm call label=minutes/agent mode=structured
+2026-09-20 23:25:16,405 INFO client.llmclient llm fit max_tokens 50000->40265 ctx=65536 input~25015
+2026-09-20 23:25:25,975 INFO client.llmclient llm resp label=minutes/agent model=deepseek-v4-flash-0731 finish=stop in=17674 out=611 json_mode=True chars=1133
+2026-09-20 23:25:25,976 INFO agentflow agent done gen line=minutes
+2026-09-20 23:25:25,977 INFO agentflow node done minutes_agent
+2026-09-20 23:25:25,977 INFO agentflow agent start review line=minutes
+2026-09-20 23:25:25,983 INFO client.llmclient llm call label=minutes/supervisor mode=structured
+2026-09-20 23:25:27,470 INFO client.llmclient llm resp label=minutes/supervisor model=deepseek-v4-flash-0731 finish=stop in=6993 out=81 json_mode=True chars=252
+2026-09-20 23:25:27,470 INFO agentflow agent done review line=minutes decision=approve
+2026-09-20 23:25:27,471 INFO tools.core.domain_engine route line=minutes decision=approve revision=0/1 -> __end__
+2026-09-20 23:25:27,472 INFO agentflow node done minutes_supervisor
+2026-09-20 23:25:27,472 INFO agentflow render start line=minutes
+2026-09-20 23:25:50,397 INFO agentflow render done line=minutes
+2026-09-20 23:25:50,399 INFO tools.core.runner saved html line=minutes path=/root/h00984725/demo_v2/data/test/output/a26c7d0b937b43008119c7a9c7009319/minutes.html
+2026-09-20 23:25:50,399 INFO tools.core.runner saved text line=minutes path=/root/h00984725/demo_v2/data/test/output/a26c7d0b937b43008119c7a9c7009319/result.md
+2026-09-20 23:25:50,672 INFO client.llmclient llm client backend=vllm model=deepseek-v4-flash-0731 base_url=http://127.0.0.1:8000/v1 ctx=65536 max_tokens=50000 timeout=600.0 retries=2 temperature=0.2 sampling_sent=False
+2026-09-20 23:25:50,682 INFO agentflow pipeline start lines=minutes
+2026-09-20 23:25:50,684 INFO agentflow agent start meeting_understanding
+2026-09-20 23:25:50,684 INFO client.llmclient llm call label=core/meeting_understanding mode=structured
+2026-09-20 23:26:02,288 INFO client.llmclient llm resp label=core/meeting_understanding model=deepseek-v4-flash-0731 finish=stop in=5339 out=813 json_mode=True chars=1989
+2026-09-20 23:26:02,288 INFO agentflow agent done meeting_understanding
+2026-09-20 23:26:02,289 INFO agentflow node done meeting_understanding
+2026-09-20 23:26:02,289 INFO agentflow skip perspective (objective)
+2026-09-20 23:26:02,290 INFO agentflow node done perspective_modeling
+2026-09-20 23:26:02,290 INFO agentflow agent start gen line=minutes
+2026-09-20 23:26:02,292 INFO client.llmclient llm call label=minutes/agent mode=structured
+2026-09-20 23:26:08,023 INFO client.llmclient llm resp label=minutes/agent model=deepseek-v4-flash-0731 finish=stop in=10093 out=356 json_mode=True chars=729
+2026-09-20 23:26:08,024 INFO agentflow agent done gen line=minutes
+2026-09-20 23:26:08,025 INFO agentflow node done minutes_agent
+2026-09-20 23:26:08,025 INFO agentflow agent start review line=minutes
+2026-09-20 23:26:08,028 INFO client.llmclient llm call label=minutes/supervisor mode=structured
+2026-09-20 23:26:09,493 INFO client.llmclient llm resp label=minutes/supervisor model=deepseek-v4-flash-0731 finish=stop in=5766 out=81 json_mode=True chars=252
+2026-09-20 23:26:09,494 INFO agentflow agent done review line=minutes decision=approve
+2026-09-20 23:26:09,494 INFO tools.core.domain_engine route line=minutes decision=approve revision=0/1 -> __end__
+2026-09-20 23:26:09,495 INFO agentflow node done minutes_supervisor
+2026-09-20 23:26:09,495 INFO agentflow render start line=minutes
+2026-09-20 23:26:20,235 INFO agentflow render done line=minutes
+2026-09-20 23:26:20,236 INFO tools.core.runner saved html line=minutes path=/root/h00984725/demo_v2/data/test/output/3f35f0732ee544cf90817206c22416fd/minutes.html
+2026-09-20 23:26:20,236 INFO tools.core.runner saved text line=minutes path=/root/h00984725/demo_v2/data/test/output/3f35f0732ee544cf90817206c22416fd/result.md
+2026-09-20 23:26:20,509 INFO client.llmclient llm client backend=vllm model=deepseek-v4-flash-0731 base_url=http://127.0.0.1:8000/v1 ctx=65536 max_tokens=50000 timeout=600.0 retries=2 temperature=0.2 sampling_sent=False
+2026-09-20 23:26:20,519 INFO agentflow pipeline start lines=minutes
+2026-09-20 23:26:20,521 INFO agentflow agent start meeting_understanding
+2026-09-20 23:26:20,521 INFO client.llmclient llm call label=core/meeting_understanding mode=structured
+2026-09-20 23:26:39,576 INFO client.llmclient llm resp label=core/meeting_understanding model=deepseek-v4-flash-0731 finish=stop in=8460 out=1077 json_mode=True chars=2193
+2026-09-20 23:26:39,576 INFO agentflow agent done meeting_understanding
+2026-09-20 23:26:39,578 INFO agentflow node done meeting_understanding
+2026-09-20 23:26:39,578 INFO agentflow skip perspective (objective)
+2026-09-20 23:26:39,578 INFO agentflow node done perspective_modeling
+2026-09-20 23:26:39,579 INFO agentflow agent start gen line=minutes
+2026-09-20 23:26:39,581 INFO client.llmclient llm call label=minutes/agent mode=structured
+2026-09-20 23:26:39,583 INFO client.llmclient llm fit max_tokens 50000->46650 ctx=65536 input~18630
+2026-09-20 23:26:49,335 INFO client.llmclient llm resp label=minutes/agent model=deepseek-v4-flash-0731 finish=stop in=13495 out=616 json_mode=True chars=1071
+2026-09-20 23:26:49,336 INFO agentflow agent done gen line=minutes
+2026-09-20 23:26:49,337 INFO agentflow node done minutes_agent
+2026-09-20 23:26:49,337 INFO agentflow agent start review line=minutes
+2026-09-20 23:26:49,341 INFO client.llmclient llm call label=minutes/supervisor mode=structured
+2026-09-20 23:26:50,580 INFO client.llmclient llm resp label=minutes/supervisor model=deepseek-v4-flash-0731 finish=stop in=5731 out=81 json_mode=True chars=252
+2026-09-20 23:26:50,581 INFO agentflow agent done review line=minutes decision=approve
+2026-09-20 23:26:50,581 INFO tools.core.domain_engine route line=minutes decision=approve revision=0/1 -> __end__
+2026-09-20 23:26:50,582 INFO agentflow node done minutes_supervisor
+2026-09-20 23:26:50,582 INFO agentflow render start line=minutes
+2026-09-20 23:26:50,590 INFO client.llmclient llm call label=template/fill mode=text
+2026-09-20 23:27:08,842 INFO client.llmclient llm resp label=template/fill model=deepseek-v4-flash-0731 finish=stop in=17332 out=1105 json_mode=True chars=1739
+2026-09-20 23:27:08,855 INFO agentflow render done line=minutes
+2026-09-20 23:27:08,856 INFO tools.core.runner saved html line=minutes path=/root/h00984725/demo_v2/data/test/output/7e1a1ee3eace4b8287f9887cf066a7eb/minutes.html
+2026-09-20 23:27:08,856 INFO tools.core.runner saved text line=minutes path=/root/h00984725/demo_v2/data/test/output/7e1a1ee3eace4b8287f9887cf066a7eb/result.md
+2026-09-20 23:27:09,132 INFO client.llmclient llm client backend=vllm model=deepseek-v4-flash-0731 base_url=http://127.0.0.1:8000/v1 ctx=65536 max_tokens=50000 timeout=600.0 retries=2 temperature=0.2 sampling_sent=False
+2026-09-20 23:27:09,142 INFO agentflow pipeline start lines=minutes
+2026-09-20 23:27:09,143 INFO agentflow agent start meeting_understanding
+2026-09-20 23:27:09,144 INFO client.llmclient llm call label=core/meeting_understanding mode=structured
+2026-09-20 23:27:09,147 INFO client.llmclient llm fit max_tokens 50000->37686 ctx=65536 input~27594
+2026-09-20 23:27:36,625 INFO client.llmclient llm resp label=core/meeting_understanding model=deepseek-v4-flash-0731 finish=stop in=16804 out=1649 json_mode=True chars=3447
+2026-09-20 23:27:36,626 INFO agentflow agent done meeting_understanding
+2026-09-20 23:27:36,627 INFO agentflow node done meeting_understanding
+2026-09-20 23:27:36,627 INFO agentflow skip perspective (objective)
+2026-09-20 23:27:36,628 INFO agentflow node done perspective_modeling
+2026-09-20 23:27:36,628 INFO agentflow agent start gen line=minutes
+2026-09-20 23:27:36,633 INFO client.llmclient llm call label=minutes/agent mode=structured
+2026-09-20 23:27:36,637 INFO client.llmclient llm fit max_tokens 50000->30062 ctx=65536 input~35218
+2026-09-20 23:27:49,392 INFO client.llmclient llm resp label=minutes/agent model=deepseek-v4-flash-0731 finish=stop in=22372 out=774 json_mode=True chars=1407
+2026-09-20 23:27:49,393 INFO agentflow agent done gen line=minutes
+2026-09-20 23:27:49,394 INFO agentflow node done minutes_agent
+2026-09-20 23:27:49,394 INFO agentflow agent start review line=minutes
+2026-09-20 23:27:49,403 INFO client.llmclient llm call label=minutes/supervisor mode=structured
+2026-09-20 23:27:50,839 INFO client.llmclient llm resp label=minutes/supervisor model=deepseek-v4-flash-0731 finish=stop in=6591 out=81 json_mode=True chars=252
+2026-09-20 23:27:50,840 INFO agentflow agent done review line=minutes decision=approve
+2026-09-20 23:27:50,841 INFO tools.core.domain_engine route line=minutes decision=approve revision=0/1 -> __end__
+2026-09-20 23:27:50,841 INFO agentflow node done minutes_supervisor
+2026-09-20 23:27:50,841 INFO agentflow render start line=minutes
+2026-09-20 23:29:39,560 INFO client.llmclient llm call label=template/fill mode=text
+2026-09-20 23:30:28,647 INFO client.llmclient llm resp label=template/fill model=deepseek-v4-flash-0731 finish=stop in=25588 out=2879 json_mode=True chars=4854
+2026-09-20 23:30:28,670 INFO agentflow render done line=minutes
+2026-09-20 23:30:28,672 INFO tools.core.runner saved html line=minutes path=/root/h00984725/demo_v2/data/test/output/5ea6262488af4a7ea6519f42b6d029e6/minutes.html
+2026-09-20 23:30:28,672 INFO tools.core.runner saved text line=minutes path=/root/h00984725/demo_v2/data/test/output/5ea6262488af4a7ea6519f42b6d029e6/result.md
+2026-09-20 23:30:28,948 INFO client.llmclient llm client backend=vllm model=deepseek-v4-flash-0731 base_url=http://127.0.0.1:8000/v1 ctx=65536 max_tokens=50000 timeout=600.0 retries=2 temperature=0.2 sampling_sent=False
+2026-09-20 23:30:28,958 INFO agentflow pipeline start lines=minutes
+2026-09-20 23:30:28,959 INFO agentflow agent start meeting_understanding
+2026-09-20 23:30:28,960 INFO client.llmclient llm call label=core/meeting_understanding mode=structured
+2026-09-20 23:30:41,832 INFO client.llmclient llm resp label=core/meeting_understanding model=deepseek-v4-flash-0731 finish=stop in=9467 out=803 json_mode=True chars=1804
+2026-09-20 23:30:41,833 INFO agentflow agent done meeting_understanding
+2026-09-20 23:30:41,834 INFO agentflow node done meeting_understanding
+2026-09-20 23:30:41,834 INFO agentflow skip perspective (objective)
+2026-09-20 23:30:41,835 INFO agentflow node done perspective_modeling
+2026-09-20 23:30:41,835 INFO agentflow agent start gen line=minutes
+2026-09-20 23:30:41,837 INFO client.llmclient llm call label=minutes/agent mode=structured
+2026-09-20 23:30:41,840 INFO client.llmclient llm fit max_tokens 50000->43991 ctx=65536 input~21289
+2026-09-20 23:30:47,853 INFO client.llmclient llm resp label=minutes/agent model=deepseek-v4-flash-0731 finish=stop in=14244 out=314 json_mode=True chars=593
+2026-09-20 23:30:47,853 INFO agentflow agent done gen line=minutes
+2026-09-20 23:30:47,854 INFO agentflow node done minutes_agent
+2026-09-20 23:30:47,854 INFO agentflow agent start review line=minutes
+2026-09-20 23:30:47,858 INFO client.llmclient llm call label=minutes/supervisor mode=structured
+2026-09-20 23:30:49,283 INFO client.llmclient llm resp label=minutes/supervisor model=deepseek-v4-flash-0731 finish=stop in=4996 out=81 json_mode=True chars=252
+2026-09-20 23:30:49,284 INFO agentflow agent done review line=minutes decision=approve
+2026-09-20 23:30:49,284 INFO tools.core.domain_engine route line=minutes decision=approve revision=0/1 -> __end__
+2026-09-20 23:30:49,285 INFO agentflow node done minutes_supervisor
+2026-09-20 23:30:49,285 INFO agentflow render start line=minutes
+2026-09-20 23:30:49,294 INFO client.llmclient llm call label=template/fill mode=text
+2026-09-20 23:31:12,842 ERROR uvicorn.error Traceback (most recent call last):
+  File "/opt/huawei/conda/envs/AgentFlow/lib/python3.10/site-packages/uvicorn/_compat.py", line 60, in asyncio_run
+    return loop.run_until_complete(main)
+  File "uvloop/loop.pyx", line 1512, in uvloop.loop.Loop.run_until_complete
+  File "uvloop/loop.pyx", line 1505, in uvloop.loop.Loop.run_until_complete
+  File "uvloop/loop.pyx", line 1379, in uvloop.loop.Loop.run_forever
+  File "uvloop/loop.pyx", line 557, in uvloop.loop.Loop._run
+  File "uvloop/loop.pyx", line 476, in uvloop.loop.Loop._on_idle
+  File "uvloop/cbhandles.pyx", line 83, in uvloop.loop.Handle._run
+  File "uvloop/cbhandles.pyx", line 63, in uvloop.loop.Handle._run
+  File "/opt/huawei/conda/envs/AgentFlow/lib/python3.10/site-packages/uvicorn/server.py", line 80, in serve
+    with self.capture_signals():
+  File "/opt/huawei/conda/envs/AgentFlow/lib/python3.10/contextlib.py", line 142, in __exit__
+    next(self.gen)
+  File "/opt/huawei/conda/envs/AgentFlow/lib/python3.10/site-packages/uvicorn/server.py", line 340, in capture_signals
+    signal.raise_signal(captured_signal)
+KeyboardInterrupt
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/opt/huawei/conda/envs/AgentFlow/lib/python3.10/site-packages/starlette/routing.py", line 655, in lifespan
+    await receive()
+  File "/opt/huawei/conda/envs/AgentFlow/lib/python3.10/site-packages/uvicorn/lifespan/on.py", line 137, in receive
+    return await self.receive_queue.get()
+  File "/opt/huawei/conda/envs/AgentFlow/lib/python3.10/asyncio/queues.py", line 159, in get
+    await getter
+asyncio.exceptions.CancelledError
+
+2026-09-20 23:31:12,843 ERROR uvicorn.error Exception in ASGI application
+Traceback (most recent call last):
+  File "/opt/huawei/conda/envs/AgentFlow/lib/python3.10/site-packages/uvicorn/_compat.py", line 60, in asyncio_run
+    return loop.run_until_complete(main)
+  File "uvloop/loop.pyx", line 1512, in uvloop.loop.Loop.run_until_complete
+  File "uvloop/loop.pyx", line 1505, in uvloop.loop.Loop.run_until_complete
+  File "uvloop/loop.pyx", line 1379, in uvloop.loop.Loop.run_forever
+  File "uvloop/loop.pyx", line 557, in uvloop.loop.Loop._run
+  File "uvloop/loop.pyx", line 476, in uvloop.loop.Loop._on_idle
+  File "uvloop/cbhandles.pyx", line 83, in uvloop.loop.Handle._run
+  File "uvloop/cbhandles.pyx", line 63, in uvloop.loop.Handle._run
+  File "/opt/huawei/conda/envs/AgentFlow/lib/python3.10/site-packages/uvicorn/server.py", line 80, in serve
+    with self.capture_signals():
+  File "/opt/huawei/conda/envs/AgentFlow/lib/python3.10/contextlib.py", line 142, in __exit__
+    next(self.gen)
+  File "/opt/huawei/conda/envs/AgentFlow/lib/python3.10/site-packages/uvicorn/server.py", line 340, in capture_signals
+    signal.raise_signal(captured_signal)
+KeyboardInterrupt
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/opt/huawei/conda/envs/AgentFlow/lib/python3.10/site-packages/uvicorn/protocols/http/httptools_impl.py", line 422, in run_asgi
+    result = await app(  # type: ignore[func-returns-value]
+  File "/opt/huawei/conda/envs/AgentFlow/lib/python3.10/site-packages/uvicorn/middleware/proxy_headers.py", line 63, in __call__
+    return await self.app(scope, receive, send)
+  File "/opt/huawei/conda/envs/AgentFlow/lib/python3.10/site-packages/fastapi/applications.py", line 1163, in __call__
+    await super().__call__(scope, receive, send)
+  File "/opt/huawei/conda/envs/AgentFlow/lib/python3.10/site-packages/starlette/applications.py", line 96, in __call__
+    await self.middleware_stack(scope, receive, send)
+  File "/opt/huawei/conda/envs/AgentFlow/lib/python3.10/site-packages/starlette/middleware/errors.py", line 164, in __call__
+    await self.app(scope, receive, _send)
+  File "/opt/huawei/conda/envs/AgentFlow/lib/python3.10/site-packages/starlette/middleware/exceptions.py", line 63, in __call__
+    await wrap_app_handling_exceptions(self.app, conn)(scope, receive, send)
+  File "/opt/huawei/conda/envs/AgentFlow/lib/python3.10/site-packages/starlette/_exception_handler.py", line 42, in wrapped_app
+    await app(scope, receive, sender)
+  File "/opt/huawei/conda/envs/AgentFlow/lib/python3.10/site-packages/fastapi/middleware/asyncexitstack.py", line 18, in __call__
+    await self.app(scope, receive, send)
+  File "/opt/huawei/conda/envs/AgentFlow/lib/python3.10/site-packages/starlette/routing.py", line 670, in __call__
+    await self.middleware_stack(scope, receive, send)
+  File "/opt/huawei/conda/envs/AgentFlow/lib/python3.10/site-packages/fastapi/routing.py", line 2734, in app
+    await route.handle(scope, receive, send)
+  File "/opt/huawei/conda/envs/AgentFlow/lib/python3.10/site-packages/fastapi/routing.py", line 1780, in handle
+    await self.original_router.handle(scope, receive, send)
+  File "/opt/huawei/conda/envs/AgentFlow/lib/python3.10/site-packages/fastapi/routing.py", line 2789, in handle
+    await included_router._handle_selected(scope, receive, send)
+  File "/opt/huawei/conda/envs/AgentFlow/lib/python3.10/site-packages/fastapi/routing.py", line 1800, in _handle_selected
+    await original_route.handle(scope, receive, send)
+  File "/opt/huawei/conda/envs/AgentFlow/lib/python3.10/site-packages/fastapi/routing.py", line 1279, in handle
+    await app(scope, receive, send)
+  File "/opt/huawei/conda/envs/AgentFlow/lib/python3.10/site-packages/fastapi/routing.py", line 158, in app
+    await wrap_app_handling_exceptions(app, request)(scope, receive, send)
+  File "/opt/huawei/conda/envs/AgentFlow/lib/python3.10/site-packages/starlette/_exception_handler.py", line 42, in wrapped_app
+    await app(scope, receive, sender)
+  File "/opt/huawei/conda/envs/AgentFlow/lib/python3.10/site-packages/fastapi/routing.py", line 144, in app
+    response = await f(request)
+  File "/opt/huawei/conda/envs/AgentFlow/lib/python3.10/site-packages/fastapi/routing.py", line 706, in app
+    raw_response = await run_endpoint_function(
+  File "/opt/huawei/conda/envs/AgentFlow/lib/python3.10/site-packages/fastapi/routing.py", line 352, in run_endpoint_function
+    return await dependant.call(**values)
+  File "/root/h00984725/demo_v2/app/routes/_registry.py", line 47, in _handler
+    return await run_task(domain, line, req, user_id=user_id, request_id=request_id)
+  File "/root/h00984725/demo_v2/app/tasks.py", line 573, in run_task
+    return await _run_task_impl(domain, task, req, user_id, request_id, _start_time)
+  File "/root/h00984725/demo_v2/app/tasks.py", line 591, in _run_task_impl
+    result = await run(
+  File "/root/h00984725/demo_v2/tools/core/runner.py", line 432, in run
+    async for event in system.run_streaming(
+  File "/root/h00984725/demo_v2/tools/core/domain_engine.py", line 821, in run_streaming
+    event = await queue.get()
+  File "/opt/huawei/conda/envs/AgentFlow/lib/python3.10/asyncio/queues.py", line 159, in get
+    await getter
+asyncio.exceptions.CancelledError
