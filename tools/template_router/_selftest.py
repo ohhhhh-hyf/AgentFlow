@@ -2980,6 +2980,27 @@ def test_domain_specific_accuracy_rules() -> None:
           and "## 证人/鉴定陈述" not in court, "")
     check("庭审记录：没有记载的部分整段不出现（不再逐部分写「未提及」）",
           "没有记载的部分整段不出现" in court and "四个部分都没有才写「未提及」" in court, "")
+    # 2026-09-20 本批 8 份庭审产物实测：[庭审结果] 8/8 都是单段、204–310 汉字，
+    # 段内 5–8 个「；」把 6–9 项内容压在一起（争议焦点/调解结果/金额权利安排/履行期限），
+    # 关键金额埋在长句里；该栏是模板里**唯一没有声明形态、也没有尺寸**的栏
+    # （诉辩栏有表格、举证栏有四部分 `##`）→ 模型没有可依附的结构，只能写成一段。
+    # 用户口径：按点分述，且**不放示例项目名清单**（示例会被照抄成固定标签）。
+    res_spec = next(l.strip() for l in court.splitlines() if l.startswith("[归纳"))
+    check("庭审记录：[庭审结果] 改为一项一条分述（不挤成一段）",
+          "一项一条分述" in res_spec and "不要挤成一段" in res_spec
+          and "`- **项目名**：内容`" in res_spec, res_spec[:80])
+    check("庭审记录：[庭审结果] 保留来源纪律（当事人主张不得写成法院认定）",
+          "只有原文明示的法院查明、认定、裁定、判决、调解结果或下次开庭安排才能作为结果" in res_spec
+          and "不得写成法院认定" in res_spec, "")
+    check("庭审记录：[庭审结果] 金额/比例/期限照原文，多安排用子条",
+          "金额、比例、履行期限照原文写全" in res_spec
+          and "需要拆分时用缩进子条 `  - `" in res_spec, "")
+    check("庭审记录：[庭审结果] 保留「尚未裁判」口径与不硬凑",
+          "尚未裁判时写「尚未裁判」并列出未决事项" in res_spec and "没有的不写" in res_spec, "")
+    check("庭审记录：[庭审结果] 不再出现示例式项目名清单（软引导已清除）",
+          "`- **争议焦点**：…`" not in court and "`- **法院查明**：…`" not in court
+          and "`- **合议庭认定**：…`" not in court and "`- **裁判/调解结果**：…`" not in court
+          and "`- **未决事项**：…`" not in court, "")
     understanding = Path("domain/meeting/meeting_core/prompts.py").read_text(encoding="utf-8")
     check("会议理解：有立场的陈述必须保留归属，不升级成事实",
           "陈述归属不得丢" in understanding and "不得把一方说法改写成客观事实" in understanding
