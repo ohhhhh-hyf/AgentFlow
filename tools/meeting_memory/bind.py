@@ -16,9 +16,11 @@ class BindResult:
     evidence: list[str] = field(default_factory=list)
     candidates: list[dict[str, Any]] = field(default_factory=list)
     warning: str = ""
+    core_name: str = ""
 
     def as_dict(self) -> dict[str, Any]:
         out: dict[str, Any] = {
+            "project_id": self.project_id,
             "mode": self.mode,
             "confidence": self.confidence,
             "evidence": self.evidence,
@@ -27,7 +29,14 @@ class BindResult:
             out["candidates"] = self.candidates
         if self.warning:
             out["warning"] = self.warning
+        if self.core_name:
+            out["core_name"] = self.core_name
         return out
+
+    @property
+    def is_bound(self) -> bool:
+        """High-confidence identity: inject history and merge project state."""
+        return bool(self.project_id) and self.confidence == "high"
 
 
 def _clean(text: object) -> str:
@@ -46,9 +55,18 @@ _PROJECT_TAIL_RE = re.compile(
     r"(开发进展|阶段复盘|推进会|收口会|"
     r"周会|例会|月会|评审会|复盘会|沟通会|汇报会|会议|复盘|总结)$"
 )
+_TASK_TAILS = (
+    "整理", "优化", "确认", "讨论", "推进", "跟进", "落实", "排查",
+    "修复", "开发", "测试", "上线", "对齐", "评估", "检查",
+)
+_LEAD_VERBS = (
+    "复盘", "跟进", "确认", "围绕", "讨论", "召开", "汇报", "总结", "明确",
+    "识别", "优化", "推进", "完成", "加快", "梳理", "协调", "沟通", "整理",
+)
 
 
-def _project_core(text: object) -> str:
+def project_core(text: object) -> str:
+    """Strip meeting-kind suffixes so 阶段复盘 / 推进会 share one identity."""
     core = _clean(text)
     for _ in range(3):
         new = _PROJECT_TAIL_RE.sub("", core).strip(" -_：:，,")
@@ -77,42 +95,67 @@ def _looks_malformed_anchor(text: str) -> bool:
         return True
     if raw.endswith(("第", "第一", "阶段第")):
         return True
-    # 相邻汉字 n-gram 容易切出这种不成词片段；只拦明显边界坏的短片段。
-    if 3 <= len(raw) <= 4 and raw[0] in "的一是在和与及" :
+    if 3 <= len(raw) <= 4 and raw[0] in "的一是在和与及":
         return True
     return False
 
 
-def _strong_anchor(text: str) -> bool:
+def is_strong_anchor(text: str) -> bool:
+    """Identity-grade token: mixed CN+EN, module ids, or a longer proper name.
+
+    Verb-noun task phrases (任务目录整理) are not strong even if ≥5 chars.
+    """
     raw = _clean(text)
-    if _is_generic_anchor(raw):
+    if _is_generic_anchor(raw) or _looks_malformed_anchor(raw):
         return False
-    # 中文+拉丁混合名、较长专名、含下划线模块名更像项目身份。
+    if any(raw.startswith(v) or raw.endswith(v) for v in _TASK_TAILS):
+        if not re.search(r"[A-Za-z]", raw):
+            return False
     if re.search(r"[\u4e00-\u9fff]", raw) and re.search(r"[A-Za-z]", raw):
         return len(raw) >= 4
     if "_" in raw or "-" in raw:
         return len(raw) >= 6
-    return len(raw) >= 5
+    return len(raw) >= 8
 
 
-def _pick_project_name(fact: Any) -> str:
-    """从本场事实中选择项目名：标题（headline/会议主题行）整体为第一信号，
-    靠 LCSubstring/名称包含匹配消化会种尾缀；标题不可用才回退候选中的拉丁实体。"""
+def is_weak_project_name(text: str) -> bool:
+    """True when this should not become a new project_id."""
+    core = project_core(text)
+    if not core or _is_generic_anchor(core) or _looks_malformed_anchor(core):
+        return True
+    if is_strong_anchor(core):
+        return False
+    if any(core.startswith(v) for v in _LEAD_VERBS):
+        return True
+    if not re.search(r"[A-Za-z]", core) and len(core) < 8:
+        return True
+    return True
+
+
+def pick_project_name(fact: Any) -> str:
+    """Stable project core: mixed/quoted proper name, not the first topic."""
     title = _clean(getattr(fact, "title", ""))
-    if 2 <= len(title) <= 40:
-        return title
-    cands = [str(x).strip() for x in (getattr(fact, "project_candidates", None) or []) if str(x).strip()]
+    core = project_core(title)
+    if core and not is_weak_project_name(core):
+        return core
+    cands = [
+        str(x).strip()
+        for x in (getattr(fact, "project_candidates", None) or [])
+        if str(x).strip()
+    ]
     for c in cands:
-        core = _project_core(c)
-        if 4 <= len(core) <= 24 and re.search(r"[A-Za-z]", core):
-            return core
-    if cands:
-        return _project_core(max(cands, key=len))[:30]
+        piece = project_core(c)
+        if piece and not is_weak_project_name(piece) and is_strong_anchor(piece):
+            return piece
+    for c in cands:
+        if re.search(r"[A-Za-z]", c):
+            piece = project_core(c)
+            if 4 <= len(piece) <= 24 and not is_weak_project_name(piece):
+                return piece
     return ""
 
 
 def _longest_common_substr(a: str, b: str) -> str:
-    """两个标题的最长公共连续子串。"""
     m, n = len(a), len(b)
     dp = [[0] * (n + 1) for _ in range(m + 1)]
     best = 0
@@ -132,9 +175,8 @@ def _longest_common_substr(a: str, b: str) -> str:
 def _valid_common_core(text: str) -> bool:
     if len(text) < 5:
         return False
-    # "Agent" 这类纯英文公共片段不能单独证明同一项目。
     if re.search(r"[\u4e00-\u9fff]", text):
-        return True
+        return not _is_generic_anchor(text)
     return len(text) >= 8 and not _is_generic_anchor(text)
 
 
@@ -147,15 +189,24 @@ def _contains_any(blob: str, values: list[str]) -> list[str]:
     return hits
 
 
-def _project_hits(project: dict[str, Any], fact: Any) -> dict[str, Any]:
-    blob = " ".join([
+def _fact_blob(fact: Any) -> str:
+    return " ".join([
         _clean(getattr(fact, "title", "")),
         _clean(getattr(fact, "summary", "")),
         " ".join(getattr(fact, "anchors", []) or []),
+        " ".join(getattr(fact, "project_candidates", []) or []),
         " ".join(getattr(fact, "decisions", []) or []),
         " ".join(getattr(fact, "open_items", []) or []),
         " ".join(getattr(fact, "risks", []) or []),
+        " ".join(
+            _clean(x.get("text") if isinstance(x, dict) else x)
+            for x in (getattr(fact, "action_items", None) or [])
+        ),
     ])
+
+
+def _project_hits(project: dict[str, Any], fact: Any) -> dict[str, Any]:
+    blob = _fact_blob(fact)
     names = _contains_any(blob, [_clean(project.get("name"))])
     aliases = _contains_any(blob, [str(x) for x in (project.get("aliases") or [])])
     raw_anchors = _contains_any(blob, [str(x) for x in (project.get("anchors") or [])])
@@ -170,15 +221,21 @@ def _project_hits(project: dict[str, Any], fact: Any) -> dict[str, Any]:
             generic.append(anchor)
         else:
             anchors.append(anchor)
-    # 标题公共核心：本场标题与项目名的最长公共连续子串 ≥5 字 → 视为同一项目
-    # （项目名可能是第一场标题整体，如「…阶段复盘」，后续「…推进会」靠公共核心命中）
     if not names and not aliases:
-        pname = _project_core(project.get("name"))
-        ftitle = _clean(getattr(fact, "title", ""))
+        pname = project_core(project.get("name"))
+        ftitle = project_core(getattr(fact, "title", ""))
         common = _longest_common_substr(ftitle, pname) if pname and ftitle else ""
         if _valid_common_core(common):
             names = [common[:24]]
-    strong = [anchor for anchor in anchors if _strong_anchor(anchor)]
+        else:
+            # alias cores vs this meeting title/core
+            for alias in [str(x) for x in (project.get("aliases") or [])]:
+                acore = project_core(alias)
+                common = _longest_common_substr(ftitle, acore) if acore and ftitle else ""
+                if _valid_common_core(common):
+                    names = [common[:24]]
+                    break
+    strong = [anchor for anchor in anchors if is_strong_anchor(anchor)]
     topic = [anchor for anchor in anchors if anchor not in strong]
     return {
         "name_alias": names + aliases,
@@ -225,6 +282,36 @@ def _clear_winner(top: dict[str, Any], second: dict[str, Any] | None) -> bool:
     return top_score >= second_score * 2 or top_score - second_score >= 10
 
 
+def score_projects(registry: dict[str, Any], fact: Any) -> list[dict[str, Any]]:
+    projects = registry.get("projects") or {}
+    scored: list[dict[str, Any]] = []
+    for pid, project in projects.items():
+        if not isinstance(project, dict):
+            continue
+        hits = _project_hits(project, fact)
+        score = _score_hits(hits)
+        if score:
+            scored.append({
+                "project_id": str(pid),
+                "name_alias": hits["name_alias"],
+                "strong_anchors": hits["strong_anchors"],
+                "topic_anchors": hits["topic_anchors"],
+                "generic_anchors": hits["generic_anchors"],
+                "malformed_anchors": hits["malformed_anchors"],
+                "negative": hits["negative"],
+                "score": score,
+            })
+    return sorted(scored, key=lambda x: -int(x["score"]))
+
+
+def has_overlap(project: dict[str, Any], fact: Any) -> bool:
+    """Any non-generic name/alias/anchor overlap — used by single-project prior."""
+    hits = _project_hits(project, fact)
+    if hits["negative"]:
+        return False
+    return bool(hits["name_alias"] or hits["strong_anchors"] or hits["topic_anchors"])
+
+
 def bind_meeting(
     registry: dict[str, Any],
     fact: Any,
@@ -241,33 +328,17 @@ def bind_meeting(
         if isinstance(project, dict):
             hits = _project_hits(project, fact)
             if not hits["name_alias"] and not hits["strong_anchors"] and not hits["topic_anchors"]:
-                warning = "显式 project 与本场 anchors 无重叠，请确认是否误传。"
+                warning = "显式 project 与本场内容无重叠，请确认是否误传。"
         return BindResult(
             project_id=pid,
             mode="explicit",
             confidence="high",
             evidence=[f"project:{pid}"],
             warning=warning,
+            core_name=project_core(explicit) or explicit,
         )
 
-    scored: list[dict[str, Any]] = []
-    for pid, project in (projects or {}).items():
-        if not isinstance(project, dict):
-            continue
-        hits = _project_hits(project, fact)
-        score = _score_hits(hits)
-        if score:
-            scored.append({
-                "project_id": str(pid),
-                "name_alias": hits["name_alias"],
-                "strong_anchors": hits["strong_anchors"],
-                "topic_anchors": hits["topic_anchors"],
-                "generic_anchors": hits["generic_anchors"],
-                "malformed_anchors": hits["malformed_anchors"],
-                "negative": hits["negative"],
-                "score": score,
-            })
-    scored = sorted(scored, key=lambda x: -int(x["score"]))
+    scored = score_projects(registry, fact)
     highs = [row for row in scored if _high(row)]
     if highs and _clear_winner(highs[0], scored[1] if len(scored) > 1 else None):
         row = highs[0]
@@ -295,11 +366,7 @@ def bind_meeting(
             evidence=["semantic_or_single_anchor_only"],
             candidates=sorted(scored, key=lambda x: -int(x["score"]))[:3],
         )
-    # 全部未命中（registry 空或与任何项目零重叠）：从本场内容提取项目实体，
-    # 自动注册项目指纹，供后续同项目会议实体匹配溯源。
-    # mode="auto_create"：runtime 层会在此之后做语义归属兜底——本项目标题
-    # 换了说法时规则零重叠，但向量可命中历史项目（救回变体、防重复建档）。
-    name = _pick_project_name(fact)
+    name = pick_project_name(fact)
     if name:
         pid = safe_id(name)
         return BindResult(
@@ -307,8 +374,18 @@ def bind_meeting(
             mode="auto_create",
             confidence="high",
             evidence=[f"auto_create:{name}"],
+            core_name=name,
         )
     return BindResult()
 
 
-__all__ = ["BindResult", "bind_meeting"]
+__all__ = [
+    "BindResult",
+    "bind_meeting",
+    "has_overlap",
+    "is_strong_anchor",
+    "is_weak_project_name",
+    "pick_project_name",
+    "project_core",
+    "score_projects",
+]

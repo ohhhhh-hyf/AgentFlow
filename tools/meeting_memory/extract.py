@@ -4,16 +4,18 @@ from __future__ import annotations
 import hashlib
 import re
 from dataclasses import dataclass, field
-from datetime import datetime
 from typing import Any
 
 from tools.memory.entities import extract_entities, extract_quoted, is_generic_entity, speaker_names
+
+from .bind import is_strong_anchor, project_core
 
 
 @dataclass
 class MeetingFact:
     meeting_id: str
     time: str
+    time_source: str = "unknown"  # user | unknown
     project_id: str = ""
     bind: dict[str, Any] = field(default_factory=dict)
     title: str = ""
@@ -22,6 +24,7 @@ class MeetingFact:
     project_candidates: list[str] = field(default_factory=list)
     decisions: list[str] = field(default_factory=list)
     open_items: list[str] = field(default_factory=list)
+    action_items: list[dict[str, str]] = field(default_factory=list)
     risks: list[str] = field(default_factory=list)
     closed_items: list[str] = field(default_factory=list)
     quotes: list[dict[str, str]] = field(default_factory=list)
@@ -30,6 +33,7 @@ class MeetingFact:
         return {
             "meeting_id": self.meeting_id,
             "time": self.time,
+            "time_source": self.time_source,
             "project_id": self.project_id,
             "bind": self.bind,
             "title": self.title,
@@ -38,10 +42,52 @@ class MeetingFact:
             "project_candidates": self.project_candidates,
             "decisions": self.decisions,
             "open_items": self.open_items,
+            "action_items": self.action_items,
             "risks": self.risks,
             "closed_items": self.closed_items,
             "quotes": self.quotes,
         }
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any] | None) -> "MeetingFact":
+        raw = data if isinstance(data, dict) else {}
+        actions = raw.get("action_items") or []
+        action_items: list[dict[str, str]] = []
+        for item in actions:
+            if isinstance(item, dict):
+                text = _clean(item.get("text") or item.get("action"))
+                if text:
+                    action_items.append({
+                        "text": text,
+                        "owner": _clean(item.get("owner")),
+                        "timing": _clean(item.get("timing")),
+                    })
+            else:
+                text = _clean(item)
+                if text:
+                    action_items.append({"text": text, "owner": "", "timing": ""})
+        time_val = _clean(raw.get("time"))
+        source = _clean(raw.get("time_source")) or ("user" if time_val else "unknown")
+        return cls(
+            meeting_id=_clean(raw.get("meeting_id")) or "m_unknown",
+            time=time_val,
+            time_source=source if source in {"user", "unknown"} else "unknown",
+            project_id=_clean(raw.get("project_id")),
+            bind=dict(raw.get("bind") or {}) if isinstance(raw.get("bind"), dict) else {},
+            title=_clean(raw.get("title")),
+            summary=_clean(raw.get("summary")),
+            anchors=_str_list(raw.get("anchors")),
+            project_candidates=_str_list(raw.get("project_candidates")),
+            decisions=_str_list(raw.get("decisions")),
+            open_items=_str_list(raw.get("open_items")),
+            action_items=action_items,
+            risks=_str_list(raw.get("risks")),
+            closed_items=_str_list(raw.get("closed_items")),
+            quotes=[
+                item for item in (raw.get("quotes") or [])
+                if isinstance(item, dict)
+            ],
+        )
 
 
 def _clean(text: object) -> str:
@@ -94,7 +140,6 @@ def _summary(understanding: dict[str, Any]) -> str:
 
 
 _LATIN_TOKEN = re.compile(r"[A-Za-z][A-Za-z0-9_\-]{1,}")
-# 概括句句首常见的动词性引导词（仅在项目名候选里剥离，避免"复盘小艺…"式杂质）
 _LEAD_VERBS = (
     "复盘", "跟进", "确认", "围绕", "讨论", "召开", "汇报", "总结", "明确",
     "识别", "优化", "推进", "完成", "加快", "梳理", "协调", "沟通",
@@ -102,10 +147,6 @@ _LEAD_VERBS = (
 
 
 def _latin_anchored_entities(*texts: str) -> list[str]:
-    """低门槛提取中文-拉丁混合段（项目名常以「中文+拉丁」形态出现在概括句/标题）。
-
-    例：「跟进小艺慧记Agent开发进展」→「小艺慧记Agent开发进展」。
-    """
     blob = " ".join(_clean(t) for t in texts if _clean(t))
     out: list[str] = []
     for m in _LATIN_TOKEN.finditer(blob):
@@ -119,19 +160,22 @@ def _latin_anchored_entities(*texts: str) -> list[str]:
             if piece.startswith(verb) and len(piece) > len(verb):
                 piece = piece[len(verb):].strip()
                 break
+        piece = project_core(piece)
         if 4 <= len(piece) <= 24 and piece not in out:
             out.append(piece)
     return out[:10]
 
 
 def _project_candidates(transcript: str, understanding: dict[str, Any], title: str) -> list[str]:
-    """项目名候选：标题（第一信号）→ 原文引号实体 → 中文-拉丁混合段。"""
     quoted = [q for q in extract_quoted(transcript or "") if 2 <= len(q) <= 24]
     purpose = _clean(understanding.get("meeting_purpose"))
     brief = _clean(understanding.get("meeting_brief"))
     mixed = _latin_anchored_entities(title, purpose, brief)
     cands: list[str] = []
-    if title and 2 <= len(title) <= 40:
+    core = project_core(title)
+    if core and 2 <= len(core) <= 40:
+        cands.append(core)
+    if title and title not in cands and 2 <= len(title) <= 40:
         cands.append(title)
     for c in quoted + mixed:
         if c and c not in cands:
@@ -140,6 +184,7 @@ def _project_candidates(transcript: str, understanding: dict[str, Any], title: s
 
 
 def _anchor_candidates(understanding: dict[str, Any], transcript: str) -> list[str]:
+    """Only identity-grade tokens (strong anchors). N-grams stay out of registry."""
     speakers = speaker_names(transcript)
     title = _meeting_title(understanding, transcript)
     text_bits = [
@@ -154,33 +199,75 @@ def _anchor_candidates(understanding: dict[str, Any], transcript: str) -> list[s
     blob = " ".join(bit for bit in text_bits if bit) or transcript
     candidates = (
         ([title] if title else [])
+        + [project_core(title)]
         + list(extract_quoted(transcript))
         + list(extract_quoted(blob))
-        + list(extract_entities(blob, limit=30))
         + _latin_anchored_entities(title, blob)
+        + list(extract_entities(blob, limit=30))
     )
     out: list[str] = []
     for item in candidates:
         text = _clean(item)
-        if not text or text in out or text in speakers or is_generic_entity(text):
+        core = project_core(text) or text
+        if not core or core in out or core in speakers or is_generic_entity(core):
             continue
-        if len(text) < 2 or len(text) > 24:
+        if any(len(s) >= 2 and (core.startswith(s) or s.startswith(core)) for s in speakers):
             continue
-        if any(len(s) >= 2 and (text.startswith(s) or s.startswith(text)) for s in speakers):
+        if not is_strong_anchor(core):
             continue
-        out.append(text)
-        if len(out) >= 16:
+        out.append(core)
+        if len(out) >= 12:
             break
     return out
 
 
-_DONE_RE = re.compile(r"(已完成|已解决|已闭环|已整改|完成整改|关闭|解决)")
+_DONE_RE = re.compile(r"(已完成|已解决|已闭环|已整改|完成整改|已关闭|关闭|解决|已落实)")
 
 
-def _closed_items(understanding: dict[str, Any]) -> list[str]:
+def _topic_conclusions(understanding: dict[str, Any]) -> list[str]:
     rows: list[str] = []
-    for text in _str_list(understanding.get("decisions")) + _str_list(understanding.get("open_questions")):
-        if _DONE_RE.search(text):
+    for topic in understanding.get("topics") or []:
+        if not isinstance(topic, dict):
+            continue
+        text = _clean(topic.get("conclusion"))
+        if text:
+            rows.append(text)
+        for point in topic.get("key_points") or []:
+            p = _clean(point)
+            if p:
+                rows.append(p)
+    return rows
+
+
+def _action_items(understanding: dict[str, Any]) -> list[dict[str, str]]:
+    rows: list[dict[str, str]] = []
+    seen: set[str] = set()
+    for item in understanding.get("action_hints") or []:
+        if isinstance(item, dict):
+            text = _clean(item.get("action") or item.get("text"))
+            owner = _clean(item.get("owner"))
+            timing = _clean(item.get("timing"))
+        else:
+            text = _clean(item)
+            owner = ""
+            timing = ""
+        if not text or text in seen:
+            continue
+        seen.add(text)
+        rows.append({"text": text, "owner": owner, "timing": timing})
+    return rows[:16]
+
+
+def _closed_items(understanding: dict[str, Any], actions: list[dict[str, str]]) -> list[str]:
+    pool = (
+        _str_list(understanding.get("decisions"))
+        + _str_list(understanding.get("open_questions"))
+        + [a["text"] for a in actions]
+        + _topic_conclusions(understanding)
+    )
+    rows: list[str] = []
+    for text in pool:
+        if _DONE_RE.search(text) and text not in rows:
             rows.append(text)
     return rows[:12]
 
@@ -212,19 +299,26 @@ def _quote_for(transcript: str, text: str) -> str:
     return best[:180]
 
 
-def _quotes(transcript: str, decisions: list[str], opens: list[str], risks: list[str], closed: list[str]) -> list[dict[str, str]]:
+def _quotes(
+    transcript: str,
+    decisions: list[str],
+    opens: list[str],
+    risks: list[str],
+    closed: list[str],
+    actions: list[dict[str, str]],
+) -> list[dict[str, str]]:
     rows: list[dict[str, str]] = []
+    action_texts = [a["text"] for a in actions]
     for kind, values in (
         ("decision", decisions),
         ("open", opens),
+        ("action", action_texts),
         ("risk", risks),
         ("closed", closed),
     ):
         for text in values[:6]:
             quote = _quote_for(transcript, text)
             if quote:
-                # state._quote 需要 text 做相似匹配，才能把原文摘录写回
-                # decisions/open_items/risks 对应条目。
                 rows.append({"kind": kind, "text": text, "quote": quote})
     return rows[:24]
 
@@ -232,9 +326,8 @@ def _quotes(transcript: str, decisions: list[str], opens: list[str], risks: list
 def _meeting_id(request_id: str, transcript: str) -> str:
     if request_id:
         return "m_" + re.sub(r"[^A-Za-z0-9_-]+", "_", request_id)[:80]
-    day = datetime.now().strftime("%Y%m%d")
     digest = hashlib.md5((transcript or "").encode("utf-8")).hexdigest()[:8]
-    return f"m_{day}_{digest}"
+    return f"m_{digest}"
 
 
 def extract_meeting_fact(
@@ -248,11 +341,14 @@ def extract_meeting_fact(
     decisions = _str_list(data.get("decisions"))
     opens = _str_list(data.get("open_questions"))
     risks = _str_list(data.get("risks"))
-    closed = _closed_items(data)
+    actions = _action_items(data)
+    closed = _closed_items(data, actions)
     title = _meeting_title(data, transcript)
+    time_val = (time or "").strip()
     return MeetingFact(
         meeting_id=_meeting_id(request_id, transcript),
-        time=(time or "").strip() or datetime.now().strftime("%Y-%m-%d %H:%M"),
+        time=time_val,
+        time_source="user" if time_val else "unknown",
         bind={"mode": "auto", "confidence": "low", "evidence": []},
         title=title,
         summary=_summary(data),
@@ -260,9 +356,10 @@ def extract_meeting_fact(
         project_candidates=_project_candidates(transcript, data, title),
         decisions=decisions,
         open_items=opens,
+        action_items=actions,
         risks=risks,
         closed_items=closed,
-        quotes=_quotes(transcript, decisions, opens, risks, closed),
+        quotes=_quotes(transcript, decisions, opens, risks, closed, actions),
     )
 
 

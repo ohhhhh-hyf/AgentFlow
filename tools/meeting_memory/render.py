@@ -18,15 +18,20 @@ SECTION_TITLE = "历史记忆引用"
 
 # 记忆块总是追加在（生成/渲染）上下文末尾；贪婪到文末，小节头不参与块边界。
 _MEMORY_BLOCK_RE = re.compile(r"【会议记忆】(.*)\Z", re.S)
-_SECTION_RE = re.compile(r"【(延续事项|风险演变|历史决策)】")
-_KIND_BY_SECTION = {"延续事项": "open", "风险演变": "risk", "历史决策": "decision"}
+_SECTION_RE = re.compile(r"【(延续事项|已闭环|风险演变|历史决策|历史对照素材)】")
+_KIND_BY_SECTION = {
+    "延续事项": "open",
+    "已闭环": "closed",
+    "风险演变": "risk",
+    "历史决策": "decision",
+}
 _ITEM_RE = re.compile(r"^- (.+)$")
 _QUOTE_RE = re.compile(r"^\s*原文摘录：(.+)$")
 _SOURCE_RE = re.compile(r"^\s*来源会议：(.+)$")
 _TIME_RE = re.compile(r"^\s*会议时间：(.+)$")
 _SINCE_RE = re.compile(r"自\s*([^\s，,]+)\s*，\s*最近\s*([^\s，,)）]+)")
 _LAST_RE = re.compile(r"最近\s*([^\s，,)）]+)")
-_META_TAIL_RE = re.compile(r"（[^）]*）$")
+_SESSION_RE = re.compile(r"第\s*(\d+)\s*场")
 _DECISION_LEAD_RE = re.compile(r"^(m_[A-Za-z0-9_-]+)：(.+)$")
 _MEM_SECTION_RE = re.compile(r"\n(?:-{3,}\s*\n+)*## " + re.escape(SECTION_TITLE) + r"\b.*\Z", re.S)
 _TAG_RE = re.compile(
@@ -105,25 +110,34 @@ def parse_memory_items(context: str) -> list[MemoryItem]:
         item_match = _ITEM_RE.match(stripped)
         if item_match:
             _flush()
+            if section == "历史对照素材":
+                continue
             body = _clean(item_match.group(1))
             meeting_id = ""
             since = ""
-            if section == "历史决策":
-                lead = _DECISION_LEAD_RE.match(body)
-                if lead:
-                    meeting_id = lead.group(1)
-                    body = _clean(lead.group(2))
-                body = _META_TAIL_RE.sub("", body).strip()
+            lead = _DECISION_LEAD_RE.match(body)
+            if lead:
+                meeting_id = lead.group(1)
+                body = _clean(lead.group(2))
+            meta = ""
+            idx = body.rfind("（")
+            if idx >= 0 and body.endswith("）"):
+                meta = body[idx:]
+                if "第" in meta or "状态" in meta or "已决策" in meta or "关闭" in meta:
+                    body = body[:idx].strip()
+            since_match = _SINCE_RE.search(meta)
+            if since_match:
+                since = since_match.group(1)
+                meeting_id = meeting_id or since_match.group(2)
             else:
-                since_match = _SINCE_RE.search(body)
-                if since_match:
-                    since = since_match.group(1)
-                    meeting_id = since_match.group(2)
+                sessions = _SESSION_RE.findall(meta)
+                if sessions:
+                    meeting_id = meeting_id or f"第{sessions[-1]}场"
+                    since = since or (f"第{sessions[0]}场" if sessions else "")
                 else:
-                    last_match = _LAST_RE.search(body)
+                    last_match = _LAST_RE.search(meta)
                     if last_match:
-                        meeting_id = last_match.group(1)
-                body = _META_TAIL_RE.sub("", body).strip()
+                        meeting_id = meeting_id or last_match.group(1)
             if not body:
                 continue
             pending = MemoryItem(

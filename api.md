@@ -316,8 +316,8 @@ GET /api/v1/{domain}/{task}/preview?request_id=&user_id=
 | 预览 | `GET /api/v1/meeting/minutes/preview?request_id=&user_id=` |
 
 - 必填：`texts.transcript`（会议转写文本）。
-- `extra.memory=true` 时：命中历史会议记忆则正文带"参考历史会议"来源标注并写入会议记忆
-  （按 `extra.project` 聚合）；`time` 非空时写入记忆时间。
+- `extra.memory=true` 时：命中历史会议记忆则正文带来源标注并写入会议记忆。
+  不传 `extra.project` 时按项目核心名 / 近期唯一项目 / 向量唯一赢家自动归并（标题变体仍应接到同一项目）；绑定时 headline 只作展示名、不参与身份。`time` 非空时作为会议发生时间并生成「第 N 场」；为空则时间未知，不用生成时刻冒充。显式 project 与本场内容无重叠时，响应 `quality_warning` 会提示确认。
 - 产物：`minutes.html`（页面版）+ `result.md`。
 
 ```jsonc

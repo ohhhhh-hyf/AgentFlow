@@ -38,7 +38,7 @@
 |------|------|
 | `memory/` | 项目记忆：原文实体挂钩；纪要对照历史；知识图谱增量合并 |
 | `knowledge/` | 文档知识库：PPT/PDF 等入库、向量检索、问答带来源出处 |
-| `meeting_memory/` | 会议记忆：语义锚点绑定、跨会引用、minute 记忆持久化 |
+| `meeting_memory/` | 会议记忆：项目核心名绑定、场次状态机、跨会引用与写回 |
 | `ocr/` | OCR 引擎适配（serverocr / rapidocr / paddleocr）与版面清理 |
 | `monitor/` | 任务监控：token / 缓存命中 / 按层耗时 |
 | `exercise_search/` | 题库检索（notes.quiz 用） |

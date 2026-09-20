@@ -849,6 +849,20 @@ class DomainNodes:
                     f"{quality_warning} 审核服务调用失败（未做质量把关）："
                     + "；".join(unavailable)
                 )
+        mem_warns = [
+            str(line(state, name).get("memory_warning") or "").strip()
+            for name in line_names
+        ]
+        mem_warns = [w for w in mem_warns if w]
+        if mem_warns:
+            extra = "；".join(dict.fromkeys(mem_warns))
+            quality_warning = f"{quality_warning} {extra}".strip() if quality_warning else extra
+        memory_bind = None
+        for name in line_names:
+            bind = line(state, name).get("memory_bind")
+            if bind:
+                memory_bind = bind
+                break
         gate_by_line = {
             name: line(state, name).get("render_gate_ok")
             for name in line_names
@@ -862,6 +876,7 @@ class DomainNodes:
             "understanding": state.get("meeting_understanding")
             or state.get("notes_understanding")
             or {},
+            "memory_bind": memory_bind,
         }
 
     def _pipeline_by_line(self, state: dict, line_names: list[str]) -> dict:

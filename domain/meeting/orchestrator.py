@@ -607,17 +607,24 @@ class _Nodes(DomainNodes):
             if mode and self._line_policy(line_name).cli_mode:
                 context = f"组织模式：{mode}\n\n{context}"
             extra = (state.get("line_extra") or {}).get(line_name)
+            memory_extra = ""
+            memory_bind: dict = {}
+            memory_warning = ""
+            memory_comparison: list[str] = []
             try:
                 from tools.meeting_memory.runtime import build_line_extra
 
-                memory_extra = build_line_extra(
+                injected = build_line_extra(
                     state,
                     line_name,
                     line_extra=state.get("line_extra") or {},
                 )
+                memory_extra = injected.context or ""
+                memory_bind = injected.bind.as_dict() if injected.bind else {}
+                memory_warning = injected.warning or ""
+                memory_comparison = list(injected.comparison or [])
             except Exception:
                 logger.warning("meeting memory v2 inject failed line=%s", line_name, exc_info=True)
-                memory_extra = ""
             if memory_extra:
                 extra = f"{extra}\n\n{memory_extra}".strip() if extra else memory_extra
             if extra:
@@ -642,12 +649,17 @@ class _Nodes(DomainNodes):
                     "quality_degraded": True,
                 }
             progress("agent done gen line=%s", line_name)
+            draft = result.model_dump()
+            if line_name == "minutes" and memory_comparison:
+                draft["history_comparison"] = memory_comparison
             return {
                 "lines": {
                     line_name: {
-                        "draft": result.model_dump(),
+                        "draft": draft,
                         "degraded": False,
                         "memory_context": memory_extra,
+                        "memory_bind": memory_bind,
+                        "memory_warning": memory_warning,
                     }
                 }
             }
@@ -801,11 +813,14 @@ class _Nodes(DomainNodes):
             return {"perspective_profile": EMPTY_PERSPECTIVE_MODELING}
         return await super()._perspective_modeling_node(state)
 
-    def _understanding_skip(self, line_names, template: str = "") -> frozenset[str]:
+    def _understanding_skip(
+        self, line_names, template: str = "", memory_on: bool = False
+    ) -> frozenset[str]:
         """单线运行时的理解输出裁剪集合；多线 / 未注册线保持全量。
 
         minutes 线在基础集合之外再按**模板栏位**裁一次：模板没有风险/未决栏时，
         risks / open_questions 也不进理解输出（省下的输出 token 会随 pack 影响后续每一次调用）。
+        开启会议记忆时保留 action_hints / risks / open_questions，供跨场状态机使用。
         """
         selected = [name for name in (line_names or []) if name]
         if len(selected) != 1 or selected[0] not in UNDERSTANDING_SKIP_FIELDS:
@@ -813,6 +828,8 @@ class _Nodes(DomainNodes):
         skip = set(UNDERSTANDING_SKIP_FIELDS[selected[0]])
         if selected[0] == "minutes":
             skip |= skip_fields_for_template(template)
+            if memory_on:
+                skip -= {"action_hints", "risks", "open_questions"}
         return frozenset(skip)
 
     def _make_meeting_understanding_node(self, line_names):
@@ -827,7 +844,9 @@ class _Nodes(DomainNodes):
             # 裁剪集合随模板变化（模板栏位决定 risks/open_questions 是否要抽），
             # 所以在节点内、拿到 state 之后再算。
             skip = self._understanding_skip(
-                line_names, str((state.get("templates") or {}).get("minutes") or "")
+                line_names,
+                str((state.get("templates") or {}).get("minutes") or ""),
+                memory_on=bool((state.get("line_extra") or {}).get("__meeting_memory__")),
             )
             focus = selected[0] if (skip and selected) else ""
             progress("agent start meeting_understanding")

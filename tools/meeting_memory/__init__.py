@@ -4,7 +4,7 @@ from __future__ import annotations
 from .bind import BindResult, bind_meeting
 from .extract import MeetingFact, extract_meeting_fact
 from .inject import build_memory_context
-from .runtime import build_line_extra, persist_after_run
+from .runtime import InjectResult, build_line_extra, persist_after_run, resolve_bind
 from .store import (
     append_or_replace_meeting,
     load_registry,
@@ -16,6 +16,7 @@ from .store import (
 
 __all__ = [
     "BindResult",
+    "InjectResult",
     "MeetingFact",
     "append_or_replace_meeting",
     "bind_meeting",
@@ -26,6 +27,7 @@ __all__ = [
     "load_state",
     "meeting_root",
     "persist_after_run",
+    "resolve_bind",
     "save_registry",
     "save_state",
 ]

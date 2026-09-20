@@ -477,6 +477,7 @@ async def run(
                         event.get("reports") or {},
                         event.get("understanding") or {},
                         meeting_time=meeting_time,
+                        bind=event.get("memory_bind"),
                     )
                 elif memory_enabled and memory_bind is not None:
                     from tools.memory import persist

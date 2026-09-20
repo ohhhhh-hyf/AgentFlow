@@ -804,6 +804,7 @@ async def _stream_task_impl(
                             event.get("reports") or {},
                             event.get("understanding") or {},
                             meeting_time=p.time,
+                            bind=event.get("memory_bind"),
                         )
                     elif prep.memory_enabled and prep.memory_bind is not None:
                         from tools.memory import persist
