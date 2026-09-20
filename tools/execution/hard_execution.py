@@ -800,16 +800,30 @@ def _merge_first_column_paragraphs(text: str, template: str) -> tuple[str, str |
             )
         ]
 
-    chosen = None
+    # 首栏定位（2026-09-20 收紧）：只认**第一个有正文的一级栏**——文档主标题（正文为空）
+    # 跳过，其后遇到的第一栏即首栏，**只判断这一栏**、不再向后扫描其它栏。
+    # 为什么改：旧实现"取第一个含 ≥2 段块的一级栏"在首栏只有 1 段时（[全文摘要] 本就要求
+    # 一段写完，这是常态）会顺延到第 2 栏，把 [分段速览] 当总述栏合并——实测 10 个时间段
+    # 被并成 1914 字一段（删空行、句间塞空格，不可逆）。名字叫 first-column merge，
+    # 管到第 2 栏就是越界。
+    first: tuple[int, int, list[str]] | None = None
     for k, h in enumerate(h1s):
         seg_end = h1s[k + 1] if k + 1 < len(h1s) else len(lines)
-        blocks = _prose_blocks(lines[h + 1 : seg_end])
-        if len(blocks) >= 2:
-            chosen = (h, h + 1, seg_end, blocks)
+        body = lines[h + 1 : seg_end]
+        if any(ln.strip() for ln in body):
+            first = (h, seg_end, body)
             break
-    if chosen is None:
+    if first is None:
         return text, None
-    _h_idx, start, end, blocks = chosen
+    _h_idx, end, body = first
+    start = _h_idx + 1
+    first_title = lines[_h_idx].strip().lstrip("# ").strip() or "首栏"
+    # 保险①：该栏声明过「不再分段」→ 跳过（两道独立判据同时失效才会误伤）
+    if _norm_heading(first_title) in _no_split_sections(template):
+        return text, None
+    blocks = _prose_blocks(body)
+    if len(blocks) < 2:
+        return text, None
 
     merged_text = ""
     for j, b in enumerate(blocks):
@@ -818,7 +832,6 @@ def _merge_first_column_paragraphs(text: str, template: str) -> tuple[str, str |
     tail_newline = "\n" if lines[end - 1].endswith("\n") else ""
     new_block = merged_text + ("\n\n" if tail_newline else "\n")
     out = lines[:start] + [new_block] + lines[end:]
-    first_title = lines[_h_idx].strip().lstrip("# ").strip() or "首栏"
     return (
         "".join(out),
         f"「{first_title}」为总述栏（一段写完）：已把 {len(blocks)} 段合并成一段",

@@ -3181,9 +3181,13 @@ def test_first_column_single_paragraph_merge() -> None:
     # ② 合并函数：多段散文 → 一段（用真实产物形态）
     tpl = (d / "project_progress.md").read_text(encoding="utf-8")
     doc = (
-        "# 项目进度会\n\n"
-        "# 项目概况\n第一段总述。" * 40 + "\n\n第二段总述。" * 30 + "\n\n第三段收尾。" * 10 + "\n\n"
-        "# 进度追踪\n\n| 模块 | 进展 |\n| --- | --- |\n| 模块A | 正常 |\n"
+        "# 项目进度会\n\n# 项目概况\n"
+        + "第一段总述。" * 40
+        + "\n\n"
+        + "第二段总述。" * 30
+        + "\n\n"
+        + "第三段收尾。" * 10
+        + "\n\n# 进度追踪\n\n| 模块 | 进展 |\n| --- | --- |\n| 模块A | 正常 |\n"
     )
     merged, note = _merge_first_column_paragraphs(doc, tpl)
     seg = merged.split("# 项目概况")[1].split("\n# 进度追踪")[0]
@@ -3212,6 +3216,25 @@ def test_first_column_single_paragraph_merge() -> None:
     other = (d / "media_qa_session.md").read_text(encoding="utf-8")
     check("media_qa_session 无「一段写完」标记 → 合并函数不生效",
           _merge_first_column_paragraphs(doc, other)[1] is None, "")
+
+    # ⑤ 越界防护（2026-09-20 线上事故）：首栏只有 1 段时，合并**不得顺延到第 2 栏**。
+    # 事故链：模型漏写 [分段速览] 的 `## 时间段` 子标题 → 旧实现"取第一个含 ≥2 段块的
+    # 一级栏"把第 2 栏当总述栏 → 10 个时间段并成 1914 字一段（删空行、塞空格）。
+    gm = (d / "general_minutes.md").read_text(encoding="utf-8")
+    one_para_first = (
+        "# 通用纪要\n\n# 全文摘要\n本次会议围绕三块内容展开。\n\n"
+        "# 分段速览\n会议开场由主持人交代议题。\n\n进入讨论环节，各方展开意见。\n\n达成一致后结束。\n\n"
+        "# 要点梳理\n- **要点**：略。\n"
+    )
+    merged5, note5 = _merge_first_column_paragraphs(one_para_first, gm)
+    check("首栏只有 1 段时，不再顺延合并第 2 栏（分段速览 10 段保持原样）",
+          note5 is None and merged5 == one_para_first, f"{note5}")
+    # 保险②：该栏声明过「不再分段」→ 即便出现在首栏位置也跳过
+    no_split_first = (
+        "# 通用纪要\n\n# 分段速览\n第一段。\n\n第二段。\n\n# 要点梳理\n- **要点**：略。\n"
+    )
+    _m6, note6 = _merge_first_column_paragraphs(no_split_first, gm)
+    check("声明「不再分段」的栏即便在首栏位置也跳过合并", note6 is None, f"{note6}")
 
 
 def test_supervisor_contract_and_unavailable() -> None:
