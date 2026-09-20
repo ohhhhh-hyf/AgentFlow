@@ -1544,7 +1544,7 @@ def test_qa_precision_rules() -> None:
     check("共用形态规则为「按点总结型互动栏」开豁免（不适用问答栏规则）",
           "按点总结型的互动栏" in BODY_FORMAT_RULES
           and "不适用本节问答栏规则" in BODY_FORMAT_RULES
-          and "按互动环节分组总结" in BODY_FORMAT_RULES, "")
+          and "按互动环节分组" in BODY_FORMAT_RULES, "")
     check("段落上限规则为问答轮次开了例外（再长也不拆段、长答话按要点压缩）",
           "问答/对话的一轮" in BODY_FORMAT_RULES and "再长也不拆段" in BODY_FORMAT_RULES
           and "长答话按要点压缩" in BODY_FORMAT_RULES, "")
@@ -2455,38 +2455,32 @@ def test_class_transcript_task_groups() -> None:
     from tools.template_router._placeholder import plan_placeholder_fill as _plan
 
     inter = next(
-        (s for s in _plan(text)["scalars"] if "按互动环节分组总结" in (s.get("hint") or "")), None
+        (s for s in _plan(text)["scalars"] if "按互动环节分组" in (s.get("hint") or "")), None
     )
-    check("课堂互动：栏说明改为「按互动环节分组总结」", inter is not None, "")
+    check("课堂互动：栏说明改为「按互动环节分组」", inter is not None, "")
     spec = (inter or {}).get("hint") or ""
-    # 2026-09-20 第三轮（用户口径）：内容奇怪 = 教师个人叙事被当互动。给"互动"下定义
-    # （师生之间的当场往来）+ 学生内容为主体 + 教师只留当场回应与点评；判据从
-    # "对理解有增量"（问答形态的准绳）换成"是不是师生往来"。
-    check("课堂互动：给「互动」下定义（师生之间的当场往来）",
-          "互动＝师生之间的当场往来" in spec
-          and "学生做了什么、说了什么（含典型例子）" in spec
-          and "教师如何当场回应" in spec
-          and "教师提问、组织活动" in spec and "学生的反应" in spec, "")
-    check("课堂互动：学生内容为主体、教师只保留当场回应与点评",
-          "学生内容为主体" in spec and "同类合并，典型例子可列举" in spec
-          and "教师只保留当场回应与点评" in spec, "")
-    check("课堂互动：点评性质的句子一律 `> ` 独立成行（行首写出处、逐字）",
-          "点评性质的句子一律 `> ` 独立成行（行首写出处、原句逐字）" in spec
-          and "不要把教师的每段话都引成点评" in spec
-          and "一般性话语可写进条内" in spec, "")
-    check("课堂互动：组内数量 3–6 条 + 每组一句话交代环节（可选）",
-          "每组 3–6 条" in spec and "必要时先一句话交代这个环节在做什么" in spec, "")
-    check("课堂互动：复述已讲、管理性对话、寒暄不收 + 引用不超 5 句",
-          "复述已讲内容、管理性对话、寒暄不收" in spec
-          and "整栏引用不超过 5 句" in spec, "")
+    # 2026-09-20 终稿（用户口径）：规则从十条精简到三条主干——① 互动定义（师生当场往来、
+    # 学生为主体、教师只留回应/点评/引申）② 值得记忆的原话·口诀·提醒 `> ` 独立成行
+    # ③ 内容由原文决定。依据：v2 那条 63 字与本版实测，十条例规互相牵制导致形态来回摆。
+    check("课堂互动：一条主干——互动定义（师生当场往来 / 学生为主体 / 教师三类）",
+          "互动＝师生之间的当场往来" in spec and "学生内容为主体" in spec
+          and "教师只保留当场回应、点评与引申" in spec, "")
+    check("课堂互动：二条主干——值得记忆的原话、口诀与提醒 `> ` 独立成行",
+          "值得记忆的原话、口诀与提醒用 `> ` 独立成行" in spec
+          and "行首写出处、原句逐字" in spec, "")
+    check("课堂互动：三条主干——内容由原文决定（同类合并/典型例子/复述不收）",
+          "内容由原文决定" in spec and "同类合并、典型例子可列举" in spec
+          and "复述已讲的不收" in spec, "")
     check("课堂互动：保留缺省词语义（没有互动 → 「未提及」）",
-          "原文没有互动就写「未提及」" in spec and inter.get("missing") is True, "")
-    check("课堂互动：旧口径已清除（问答形态与上一版的中间措辞）",
+          "没有互动就写「未提及」" in spec and inter.get("missing") is True, "")
+    check("课堂互动：被精简掉的旧口径已清除（不留余党）",
           all(k not in text for k in (
               "一问一答＝一组", "每轮称呼都加粗", "不抄原话", "整栏最多引 2–3 句",
               "按知识点配平", "每条 20–50 字", "每条 40–150 字", "写在同一段里",
               "一条一个互动点", "典型回答可举 1–2 例", "学生发言按点概括",
-              "一条一个互动主题", "只收对理解有增量的互动", "先把学生的发言",
+              "只收对理解有增量的互动",
+              "每组 3–6 条", "点评性质的句子", "整栏引用不超过 5 句",
+              "不要把教师的每段话都引成点评", "管理性对话",
           )), "")
 
 
