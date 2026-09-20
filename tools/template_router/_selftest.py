@@ -2491,6 +2491,54 @@ def test_class_transcript_task_groups() -> None:
           )), "")
 
 
+def test_blank_lines_normalized() -> None:
+    """标题与表格块前后必须空行（治"按空行分块的渲染器把正文并进标题"）。
+
+    2026-09-20 用户实测：产物里 76% 的标题行与下一行紧贴（667 个标题中 507 个），
+    按空行分块的查看器/粘贴 Excel 时会把下一行并进标题，看起来"所有内容都成了一级标题"。
+    修法：渲染清洗收口处补一个确定性函数（只加空行，不改字）。
+    """
+    from tools.execution.hard_execution import normalize_blank_lines
+
+    def _audit(text: str) -> tuple[int, int, int, int]:
+        """返回（标题数、标题后缺空行、表块前缺空行、表块内被插空行）。"""
+        lines = text.splitlines()
+        heads = after_missing = before_missing = inside_blank = 0
+        for i, l in enumerate(lines):
+            s = l.strip()
+            if re.match(r"^#{1,6}\s+\S", s):
+                heads += 1
+                if i + 1 < len(lines) and lines[i + 1].strip():
+                    after_missing += 1
+            if s.startswith("|") and i > 0:
+                prev = lines[i - 1].strip()
+                if prev and not prev.startswith("|"):
+                    before_missing += 1
+            if not s and i > 0 and i + 1 < len(lines):
+                if lines[i - 1].strip().startswith("|") and lines[i + 1].strip().startswith("|"):
+                    inside_blank += 1
+        return heads, after_missing, before_missing, inside_blank
+
+    raw = (
+        "# 栏一\n正文第一行。\n第二行。\n\n# 栏二\n## 组名\n- **要点**：内容。\n\n"
+        "前言段。\n| A | B |\n| --- | --- |\n| 1 | 2 |\n后置段。\n"
+    )
+    fixed = normalize_blank_lines(raw)
+    heads, after_missing, before_missing, inside_blank = _audit(fixed)
+    check("补空行：每个标题行之后都空行（下一行非空即补）",
+          heads == 3 and after_missing == 0, f"标题={heads} 缺={after_missing}")
+    check("补空行：表格块之前有空行", before_missing == 0, f"缺={before_missing}")
+    check("补空行：表格块内部不插空行（表不被断开）", inside_blank == 0, f"插入={inside_blank}")
+    check("补空行：不改字、不删行（只多出空行）",
+          [l for l in fixed.splitlines() if l.strip()] == [l for l in raw.splitlines() if l.strip()], "")
+    check("补空行：已规范文本幂等（跑两遍不变）",
+          normalize_blank_lines(fixed) == fixed, "")
+    src = Path("tools/execution/hard_execution.py").read_text(encoding="utf-8")
+    check("补空行接在渲染清洗收口处（两条路径都覆盖）",
+          "text = normalize_blank_lines(text)" in src
+          and "def normalize_blank_lines(" in src, "")
+
+
 def test_quote_columns_have_background() -> None:
     """金句/引语类栏：每条引用下带一句背景说明（治"脱离上下文的孤立金句"）。
 
@@ -3263,6 +3311,7 @@ def main() -> int:
         test_media_overview_scope()
         test_class_transcript_task_groups()
         test_quote_columns_have_background()
+        test_blank_lines_normalized()
         test_ellipsis_table_row_template_recognized()
         test_lecture_evidence_cap()
         test_first_column_single_paragraph_merge()

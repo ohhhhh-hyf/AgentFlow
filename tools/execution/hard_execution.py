@@ -541,6 +541,50 @@ def clean_template_render_text(text: str) -> tuple[str, list[str]]:
     return "\n".join(cleaned).strip(), notes
 
 
+def normalize_blank_lines(text: str) -> str:
+    """标题行与表格块前后统一补空行（**只加空行，不改字、不删行**）。
+
+    为什么需要（2026-09-20 用户实测）：装配层打印 `# 栏名` 后直接拼模型正文（正文常以
+    `## 组名` 或 `- ` 开头），产物里 **76% 的标题行与下一行紧贴**（667 个标题中 507 个）：
+    `# 栏名→正文` 124 个、`# 栏名→## 组名` 79 个、`## 组名→条目/段` 304 个。CommonMark
+    允许"标题后直接跟段落/列表"，但**按空行分块的渲染器（查看器、粘贴到 Excel）会把下一行
+    并进标题**，看起来"所有内容都成了一级标题"。补空行对所有渲染器无害，属渲染规范，
+    不该交给模型（执行不稳且白吃 token）。
+
+    规则：① 标题行之后、下一行非空 → 补空行；② 标题行之前、上一行非空 → 补空行；
+    ③ 表格块（表头＋分隔＋数据行）前后各补一个空行；④ **表格块内部绝不插空行**（会把表断开）。
+    """
+    if not text:
+        return text
+    lines = text.splitlines()
+    total = len(lines)
+
+    def _is_heading(s: str) -> bool:
+        t = s.strip()
+        return bool(t) and bool(_HEADING_RE.match(t))
+
+    def _is_row(s: str) -> bool:
+        t = s.lstrip()
+        return bool(t) and t.startswith("|")
+
+    out: list[str] = []
+    for i, line in enumerate(lines):
+        cur = line.strip()
+        nxt = lines[i + 1].strip() if i + 1 < total else ""
+        prv = out[-1].strip() if out else ""
+        interior = _is_row(cur) and _is_row(prv)  # 表格块内部（表头/分隔/数据行之间）
+        if not interior and prv and (_is_heading(cur) or _is_row(cur)):
+            out.append("")  # 标题 / 表格块首行之前
+        out.append(line)
+        if nxt and (_is_heading(cur) or _is_row(cur)):
+            if not (_is_row(cur) and _is_row(nxt)):
+                out.append("")  # 标题 / 表格块末行之后
+    result = "\n".join(out)
+    if text.endswith("\n"):
+        result += "\n"
+    return result
+
+
 def classify_issues(issues: list[str]) -> tuple[list[str], list[str]]:
     """拆成 (hard, soft)。"""
     hard: list[str] = []
@@ -848,6 +892,11 @@ def enforce_render_output(
     text = text2
     notes.extend(snote_list)
 
+    # 标题/表格块前后统一补空行（只加空行、不改字）：装配层打印 `# 栏名` 后直接拼模型正文
+    # （正文常以 `## 组名` 或 `- ` 起），实测 76% 的标题与下一行紧贴——按空行分块的渲染器
+    # （查看器/粘贴 Excel）会把下一行并进标题，看起来"所有内容都成了一级标题"（2026-09-20）。
+    text = normalize_blank_lines(text)
+
     struct = validate_rendered_output(text, template)
     eval_issues = evaluate_output_against_template(template, text)
     # 截断后行数超出类问题应消失，过滤已被强制处理的
@@ -1139,6 +1188,7 @@ __all__ = [
     "enforce_render_output",
     "enforce_upstream_carry",
     "extract_labeled_json",
+    "normalize_blank_lines",
     "parse_perspective_mode",
     "split_overlong_paragraphs",
     "subset_upstream_items",
