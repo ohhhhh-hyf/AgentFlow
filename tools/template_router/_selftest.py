@@ -1001,7 +1001,6 @@ def test_qa_speaker_labels() -> None:
         "media_qa_session": "核心提问与回应",
         "admission_briefing": "Q&A 环节",
         "special_lecture": "Q&A 环节",
-        "class_transcript": "课堂互动与答疑",
     }
     missing: list[str] = []
     old_mandate: list[str] = []
@@ -1291,12 +1290,36 @@ def test_exchange_forum_structure() -> None:
         check(f"沟通交流会：栏位存在 {col}", col in text, "")
     check("沟通交流会：旧栏名已退场（[信息同步]/[待协调事项]）",
           "# [信息同步]" not in text and "# [待协调事项]\n" not in text, "")
-    check("沟通交流会：新增栏要求分条与数字落地（不压成长段）",
-          "每条 30–120 字" in text and "不要压成长段" in text and "数字、年份、比例" in text, "")
-    check("沟通交流会：新增栏声明「条数由原文决定」",
-          "条数由原文决定" in text, "")
-    check("沟通交流会：立场栏收窄（事实清单归上一栏、不复述）",
-          "事实与数字清单归 [核心信息与数据]" in text and "本栏不复述" in text, "")
+    check("沟通交流会：核心信息栏要求分条与数字落地（不压成长段）",
+          "每条 30–100 字" in text and "不要压成长段" in text and "数字、年份、比例" in text
+          and "30–120 字" not in text, "")
+    check("沟通交流会：核心信息栏声明「条数由原文决定」", "条数由原文决定" in text, "")
+    # 2026-09-20 now.xlsx 行2 实测：[核心信息与数据] 43 条 × 平均 95 字（贴 120 上限），
+    # "学科设置"一条并排 5 个二级学科 + 3 个国防特色学科 → 读起来挤、也无法逐条归属。
+    # 用户同日口径：说明要压缩，且**不放示例**——示例（主题名清单、姓名样例、并排反例）
+    # 会被模型照抄或当成软引导，只留规则本身。
+    check("沟通交流会：核心信息栏「一条一个事实」（同类事实不并排塞一条）",
+          "一条一个事实，不要把同类事实并排塞进一条" in text, "")
+    check("沟通交流会：核心信息栏组内超过 6 条再拆一组",
+          "组内超过 6 条就再拆一组" in text, "")
+    # 用户口径（2026-09-20）：每条末尾用括号标注发言人「姓名＋职称/机构」；
+    # 只有编号或识别不到时不标；**讲话里提到的团队负责人/专家不是发言人**
+    # （该场源里杨世文/樊勇/李恩/延波/张怀武等教授都是被介绍的对象）。
+    check("沟通交流会：核心信息栏逐条标注发言人（姓名＋职称/机构）",
+          "每条末尾用括号标注发言的 姓名＋职称/机构" in text, "")
+    check("沟通交流会：只有编号/识别不到时不标（不写编号、不猜人）",
+          "原文能确定发言人才标，只给发言者编号或确实识别不到时不标" in text
+          and "不写编号、不猜人" in text, "")
+    check("沟通交流会：被介绍的团队负责人/专家不算发言人",
+          "讲话里提到的团队负责人、专家、校友不是发言人，不标" in text, "")
+    check("沟通交流会：核心信息栏不再出现示例式软引导",
+          "如单位概况" not in text and "柳教授" not in text
+          and "并列的二级学科方向" not in text and "「发言者3」这类编号" not in text, "")
+    check("沟通交流会：立场栏收窄为「听众诉求与宣讲方回应」",
+          "只写**听众诉求与宣讲方回应**" in text
+          and "各方向/各板块由谁介绍归 [核心信息与数据] 的逐条标注，本栏不复述" in text, "")
+    check("沟通交流会：立场栏保留事实清单归位与不复述口径",
+          "事实与数字清单也归 [核心信息与数据]" in text and "本栏不复述" in text, "")
     check("沟通交流会：共识栏与待协调互斥（待定不进共识）",
           "待定、计划、尚未确定的事项一律归 [待协调事项与后续]" in text, "")
     check("沟通交流会：待协调栏分两组（待协调事项 / 后续安排与参与方式）",
@@ -1516,11 +1539,17 @@ def test_qa_precision_rules() -> None:
         "原文没有正式问答就写「未提及」",
     ):
         check(f"共用形态规则含问答精度口径：{need}", need in BODY_FORMAT_RULES, "")
+    # 2026-09-20 用户口径：课堂记录 [课堂互动与答疑] 从"一问一答"改成"按点总结＋教师原句"，
+    # 它不再是问答栏——通用层的问答栏规则必须显式豁免它，否则两套指令互相拉扯。
+    check("共用形态规则为「按点总结型互动栏」开豁免（不适用问答栏规则）",
+          "按点总结型的互动栏" in BODY_FORMAT_RULES
+          and "不适用本节问答栏规则" in BODY_FORMAT_RULES
+          and "按互动环节分组总结" in BODY_FORMAT_RULES, "")
     check("段落上限规则为问答轮次开了例外（再长也不拆段、长答话按要点压缩）",
           "问答/对话的一轮" in BODY_FORMAT_RULES and "再长也不拆段" in BODY_FORMAT_RULES
           and "长答话按要点压缩" in BODY_FORMAT_RULES, "")
 
-    qa_templates = ("media_briefing", "media_qa_session", "admission_briefing", "special_lecture", "class_transcript")
+    qa_templates = ("media_briefing", "media_qa_session", "admission_briefing", "special_lecture")
     retired = ("覆盖所有重要提问", "答话可归并但不得改口径", "内容相似的合并成一条")
     from tools.templates.template_eval import parse_section_char_budgets
 
@@ -1535,32 +1564,13 @@ def test_qa_precision_rules() -> None:
         check(f"{stem}：问答栏 missing=True（留空自动补「未提及」）",
               bool(qa) and qa[0].get("missing") is True,
               f"{[s.get('missing') for s in qa]}")
-        # 问答长度口径：4 个模板保留可解析的 400/段提示；
-        # 课堂答疑（2026-09-18 用户口径）改为**按重要程度收**，全栏不带任何字数门禁
+        # 问答长度口径：4 个模板保留可解析的 400/段提示
         para = [b for b in parse_section_char_budgets(text) if b.get("scope") == "paragraph"]
-        if stem == "class_transcript":
-            check("class_transcript：问答栏不带字数门禁（不会触发压缩/返工）",
-                  not para, f"{para}")
-            check("class_transcript：按重要程度收（读完知识点仍会问 / 澄清纠正限定 / 无损失不收）",
-                  all(k in text for k in (
-                      "只收「看完知识点栏之后仍会问」的问答",
-                      "复述已讲内容的不收",
-                      "发生了澄清、纠正或限定的才收",
-                      "去掉它对理解有没有损失",
-                  )), "")
-            check("class_transcript：按知识点配平 + 同题只留一组（数量由内容决定）",
-                  "按知识点配平" in text and "同一问题只留信息最全的一组" in text
-                  and "最多 8 组" not in text, "")
-            check("class_transcript：保留条级字数（问 20–50 / 答 40–150）",
-                  "每条 20–50 字" in text and "每条 40–150 字" in text, "")
-            check("class_transcript：答话写在同一段里（不分段、不分点）",
-                  "写在同一段里" in text and "不分段、不分点" in text, "")
-        else:
-            check(f"{stem}：问答栏保留可解析的长度口径（400/段，作提示）",
-                  any(int(b["hi"]) == 400 for b in para), f"{para}")
-            check(f"{stem}：问答栏写明答话可压缩、仍按单段连着写（不拆段）",
-                  "答话可压缩、不必逐句照抄" in text and "仍**单段**连着写" in text
-                  and "答话超过约 400 字必须分点" not in text, "")
+        check(f"{stem}：问答栏保留可解析的长度口径（400/段，作提示）",
+              any(int(b["hi"]) == 400 for b in para), f"{para}")
+        check(f"{stem}：问答栏写明答话可压缩、仍按单段连着写（不拆段）",
+              "答话可压缩、不必逐句照抄" in text and "仍**单段**连着写" in text
+              and "答话超过约 400 字必须分点" not in text, "")
 
     # 一问一答各占一段：称呼行（对话轮次）不参与段落拆分，普通散文段照旧会被拆
     from tools.execution.hard_execution import split_overlong_paragraphs
@@ -2436,8 +2446,39 @@ def test_class_transcript_task_groups() -> None:
     budgets = [(b["title"], b["hi"], b["scope"]) for b in parse_section_char_budgets(text)]
     # 2026-09-19：首栏补了「一段写完，约 250–400 字」→ 课程概况成为该模板唯一预算（节级）；
     # 问答栏仍不带字数门禁（按重要程度收）
-    check("课堂记录：只有首栏预算（课程概况 400/节），问答栏无字数门禁",
+    check("课堂记录：只有首栏预算（课程概况 400/节），互动栏无字数门禁",
           budgets == [("课程概况", 400, "section")], f"{budgets}")
+
+    # 2026-09-20 用户口径：[课堂互动与答疑] 从"一问一答"改成"按点总结＋教师原句"——
+    # 课堂纪要看的是"互动发生了什么、教师怎么点评"，不是对话还原。实测旧形态四份产物
+    # 全是 6–14 行问答串（0 分点、0 分组、0 引用）。
+    from tools.template_router._placeholder import plan_placeholder_fill as _plan
+
+    inter = next(
+        (s for s in _plan(text)["scalars"] if "按互动环节分组总结" in (s.get("hint") or "")), None
+    )
+    check("课堂互动：栏说明改为「按互动环节分组总结」", inter is not None, "")
+    spec = (inter or {}).get("hint") or ""
+    check("课堂互动：一条一个互动点、不写成对话记录",
+          "一条一个互动点" in spec and "不写成对话记录" in spec
+          and "不逐轮照抄问答" in spec, "")
+    check("课堂互动：教师关键原句逐字引用（成句 `> ` 单独一行、行首写明出处）",
+          "照原文逐字引用" in spec and "用 `> ` 单独一行并在行首写明出处" in spec
+          and "短句可写在条目内用引号" in spec, "")
+    check("课堂互动：学生发言按点概括（同类合并、典型回答举 1–2 例）",
+          "学生发言按点概括" in spec and "典型回答可举 1–2 例" in spec, "")
+    check("课堂互动：保留增量判据（提问追问/澄清纠正限定/举例讨论/教师点评与引导）",
+          all(k in spec for k in ("提问与追问", "澄清/纠正/限定", "举例与讨论", "教师的点评与引导")), "")
+    check("课堂互动：复述已讲、管理性对话、寒暄不收 + 引用不超 5 句",
+          "复述已讲内容、管理性对话、寒暄不收" in spec
+          and "整栏引用不超过 5 句" in spec, "")
+    check("课堂互动：保留缺省词语义（没有互动 → 「未提及」）",
+          "原文没有互动就写「未提及」" in spec and inter.get("missing") is True, "")
+    check("课堂互动：旧的一问一答口径已清除",
+          all(k not in text for k in (
+              "一问一答＝一组", "每轮称呼都加粗", "不抄原话", "整栏最多引 2–3 句",
+              "按知识点配平", "每条 20–50 字", "每条 40–150 字", "写在同一段里",
+          )), "")
 
 
 def test_quote_columns_have_background() -> None:
@@ -2998,6 +3039,26 @@ def test_domain_specific_accuracy_rules() -> None:
           and "## 证人/鉴定陈述" not in court, "")
     check("庭审记录：没有记载的部分整段不出现（不再逐部分写「未提及」）",
           "没有记载的部分整段不出现" in court and "四个部分都没有才写「未提及」" in court, "")
+    # 2026-09-20 now.xlsx 行6/17 实测：[庭审结果] 两份都是 268–269 汉字的单段、零分点，
+    # 而内容天然有 4–6 个点（争议焦点/调解结果/金额权利安排/兜底条款/司法建议），
+    # 关键金额埋在长句里。该栏原是模板里唯一没声明形态的栏 → 补按点分述。
+    # 用户同日口径：压缩、**不放示例标签清单**（示例会被照抄成固定项目名）。
+    res_spec = next(l.strip() for l in court.splitlines() if l.startswith("[归纳"))
+    check("庭审记录：[庭审结果] 改为一项一条分述（不挤成一段）",
+          "一项一条分述" in res_spec and "不要挤成一段" in res_spec
+          and "`- **项目名**：内容`" in res_spec, res_spec[:80])
+    check("庭审记录：[庭审结果] 保留来源纪律（当事人主张不得写成法院认定）",
+          "只有原文明示的法院查明、认定、裁定、判决、调解结果或下次开庭安排才能作为结果" in res_spec
+          and "不得写成法院认定" in res_spec, "")
+    check("庭审记录：[庭审结果] 金额/比例/期限照原文，多安排用子条",
+          "金额、比例、履行期限照原文写全" in res_spec
+          and "需要拆分时用缩进子条 `  - `" in res_spec, "")
+    check("庭审记录：[庭审结果] 保留「尚未裁判」口径与不硬凑",
+          "尚未裁判时写「尚未裁判」并列出未决事项" in res_spec and "没有的不写" in res_spec, "")
+    check("庭审记录：[庭审结果] 不再出现示例式项目名清单（软引导已清除）",
+          "`- **争议焦点**：…`" not in court and "`- **法院查明**：…`" not in court
+          and "`- **合议庭认定**：…`" not in court and "`- **裁判/调解结果**：…`" not in court
+          and "`- **未决事项**：…`" not in court, "")
     understanding = Path("domain/meeting/meeting_core/prompts.py").read_text(encoding="utf-8")
     check("会议理解：有立场的陈述必须保留归属，不升级成事实",
           "陈述归属不得丢" in understanding and "不得把一方说法改写成客观事实" in understanding
