@@ -1085,6 +1085,53 @@ def test_knowledge_memo_groups() -> None:
           and "篇幅所限" in text, "")
 
 
+def test_debate_side_attribution_and_fabrication() -> None:
+    """辩论会立场/环节归属 + 四类模板的"不得补写原文没有的行动与角色"（2026-09-20）。
+
+    回归背景（score_now.xlsx now_25 辩论会：准确性 2.5，全库唯一低于 3 分）：
+    ① 1.2×3 —— 把反方对正方的攻击写成正方主张、把正方结辩观点写成反方、把主持人宣布的环节结果
+    当成某方立场；② 1.1×2 —— 捏造反方结辩内容与评委结论。
+    另有 now_22（小组讨论 1.1×9）：参会人员、主持人、下一步分工全是原文没有的。
+    """
+    d = _active_dir()
+    deb = (d / "debate_forum.md").read_text(encoding="utf-8")
+    check("辩论 requirement：立场归属以原文为准 + 不得凭论点推断阵营",
+          "**立场归属以原文为准**" in deb and "不得凭论点内容推断阵营" in deb, "")
+    check("辩论：主持人的环节结果属环节信息，不得写成某方立场",
+          "主持人的环节结果与规则信息（环节胜负、获得小结时间等）属环节信息" in deb
+          and "不得写成某一方的立场或主张" in deb, "")
+    check("辩论：各栏只还原本环节（不搬其它环节内容）",
+          "各栏只还原本环节原文出现的原话与判断" in deb
+          and "不得把其它环节的论点搬进结辩或点评" in deb, "")
+    check("辩论 [辩论内容概述]：提到某方立场只写原文明确归属该方的表述",
+          "**提到某一方立场时只写原文明确归属该方的表述**" in deb
+          and "分不清就写「一方」或只写议题" in deb, "")
+
+    fab = (
+        ("小组讨论", "group_seminar.md", (
+            ("**原文没说参会成员就不写**", "参会成员只在原文明说时写"),
+            ("**只有原文说出具体事项与责任方或时间点的才算**", "后续分工必须有具体事项"),
+            ("**只写原文说出的产出与一致/分歧", "共识栏不得补写安排"),
+        )),
+        ("工作研讨会", "workshop_session.md", (
+            ("**原文没说参与方就不写**", "参与方只在原文明说时写"),
+            ("**只写原文说出具体事项与责任方或跟进人的内容**", "后续探索必须有具体事项"),
+        )),
+        ("团队例会", "team_meeting.md", (
+            ("**原文没说参会人员就不写**", "参会人员只在原文明说时写"),
+            ("不得补写原文没有的「下一步」或「后续安排」", "决定与待办不得补写动作"),
+        )),
+        ("课堂记录", "class_transcript.md", (
+            ("**学生的话与教师的点评必须取自原文明确说出的内容**",
+             "互动栏不得改写教师讲解"),
+        )),
+    )
+    for name, fn, rules in fab:
+        text = (d / fn).read_text(encoding="utf-8")
+        for anchor, what in rules:
+            check(f"{name}：{what}", anchor in text, "")
+
+
 def test_home_school_feedback_groups() -> None:
     """家校沟通 [家长反馈]：按组按点（两组固定名）+ 原话组带背景行（2026-09-20 用户口径）。
 
@@ -3225,6 +3272,7 @@ def main() -> int:
         test_knowledge_memo_groups()
         test_clinical_history_column()
         test_home_school_feedback_groups()
+        test_debate_side_attribution_and_fabrication()
         test_overview_specs_have_scope()
         test_debate_rounds_and_rows()
         test_exchange_forum_structure()
