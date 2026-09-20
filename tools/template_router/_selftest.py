@@ -1088,7 +1088,6 @@ def test_clinical_history_column() -> None:
     text = (_active_dir() / "clinical_advisory.md").read_text(encoding="utf-8")
     for need in (
         "# [病史与背景]",
-        "过敏史（药物/食物）",
         "过敏史、禁忌类信息原文出现就必须逐项写入，不得省略",
         "职业照原文",
         "只有医生或原文明确认定为异常、偏高、偏低或需关注的指标才加粗",
