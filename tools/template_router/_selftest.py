@@ -1085,53 +1085,99 @@ def test_knowledge_memo_groups() -> None:
           and "篇幅所限" in text, "")
 
 
-def test_debate_side_attribution_and_fabrication() -> None:
-    """辩论会立场/环节归属 + 四类模板的"不得补写原文没有的行动与角色"（2026-09-20）。
-
-    回归背景（score_now.xlsx now_25 辩论会：准确性 2.5，全库唯一低于 3 分）：
-    ① 1.2×3 —— 把反方对正方的攻击写成正方主张、把正方结辩观点写成反方、把主持人宣布的环节结果
-    当成某方立场；② 1.1×2 —— 捏造反方结辩内容与评委结论。
-    另有 now_22（小组讨论 1.1×9）：参会人员、主持人、下一步分工全是原文没有的。
-    """
-    d = _active_dir()
-    deb = (d / "debate_forum.md").read_text(encoding="utf-8")
-    check("辩论 requirement：立场归属以原文为准 + 不得凭论点推断阵营",
-          "**立场归属以原文为准**" in deb and "不得凭论点内容推断阵营" in deb, "")
-    check("辩论：主持人的环节结果属环节信息，不得写成某方立场",
-          "主持人的环节结果与规则信息（环节胜负、获得小结时间等）属环节信息" in deb
-          and "不得写成某一方的立场或主张" in deb, "")
-    check("辩论：各栏只还原本环节（不搬其它环节内容）",
-          "各栏只还原本环节原文出现的原话与判断" in deb
-          and "不得把其它环节的论点搬进结辩或点评" in deb, "")
-    check("辩论 [辩论内容概述]：提到某方立场只写原文明确归属该方的表述",
-          "**提到某一方立场时只写原文明确归属该方的表述**" in deb
-          and "分不清就写「一方」或只写议题" in deb, "")
-
-    fab = (
-        ("小组讨论", "group_seminar.md", (
-            ("**原文没说参会成员就不写**", "参会成员只在原文明说时写"),
-            ("**只有原文说出具体事项与责任方或时间点的才算**", "后续分工必须有具体事项"),
-            ("**只写原文说出的产出与一致/分歧", "共识栏不得补写安排"),
-        )),
-        ("工作研讨会", "workshop_session.md", (
-            ("**原文没说参与方就不写**", "参与方只在原文明说时写"),
-            ("**只写原文说出具体事项与责任方或跟进人的内容**", "后续探索必须有具体事项"),
-        )),
-        ("团队例会", "team_meeting.md", (
-            ("**原文没说参会人员就不写**", "参会人员只在原文明说时写"),
-            ("不得补写原文没有的「下一步」或「后续安排」", "决定与待办不得补写动作"),
-        )),
-        ("课堂记录", "class_transcript.md", (
-            ("**学生的话与教师的点评必须取自原文明确说出的内容**",
-             "互动栏不得改写教师讲解"),
-        )),
-    )
-    for name, fn, rules in fab:
-        text = (d / fn).read_text(encoding="utf-8")
-        for anchor, what in rules:
-            check(f"{name}：{what}", anchor in text, "")
-
-
+def test_debate_side_attribution_and_fabrication() -> None:
+    """辩论会立场/环节归属 + 四类模板的"不得补写原文没有的行动与角色"（2026-09-20）。
+
+    回归背景（score_now.xlsx now_25 辩论会：准确性 2.5，全库唯一低于 3 分）：
+    ① 1.2×3 —— 把反方对正方的攻击写成正方主张、把正方结辩观点写成反方、把主持人宣布的环节结果
+    当成某方立场；② 1.1×2 —— 捏造反方结辩内容与评委结论。
+    另有 now_22（小组讨论 1.1×9）：参会人员、主持人、下一步分工全是原文没有的。
+    """
+    d = _active_dir()
+    deb = (d / "debate_forum.md").read_text(encoding="utf-8")
+    check("辩论 requirement：立场归属以原文为准 + 不得凭论点推断阵营",
+          "**立场归属以原文为准**" in deb and "不得凭论点内容推断阵营" in deb, "")
+    check("辩论：主持人的环节结果属环节信息，不得写成某方立场",
+          "主持人的环节结果与规则信息（环节胜负、获得小结时间等）属环节信息" in deb
+          and "不得写成某一方的立场或主张" in deb, "")
+    check("辩论：各栏只还原本环节（不搬其它环节内容）",
+          "各栏只还原本环节原文出现的原话与判断" in deb
+          and "不得把其它环节的论点搬进结辩或点评" in deb, "")
+    check("辩论 [辩论内容概述]：提到某方立场只写原文明确归属该方的表述",
+          "**提到某一方立场时只写原文明确归属该方的表述**" in deb
+          and "分不清就写「一方」或只写议题" in deb, "")
+
+    fab = (
+        ("小组讨论", "group_seminar.md", (
+            ("**原文没说参会成员就不写**", "参会成员只在原文明说时写"),
+            ("**只有原文说出具体事项与责任方或时间点的才算**", "后续分工必须有具体事项"),
+            ("**只写原文说出的产出与一致/分歧", "共识栏不得补写安排"),
+        )),
+        ("工作研讨会", "workshop_session.md", (
+            ("**原文没说参与方就不写**", "参与方只在原文明说时写"),
+            ("**只写原文说出具体事项与责任方或跟进人的内容**", "后续探索必须有具体事项"),
+        )),
+        ("团队例会", "team_meeting.md", (
+            ("**原文没说参会人员就不写**", "参会人员只在原文明说时写"),
+            ("不得补写原文没有的「下一步」或「后续安排」", "决定与待办不得补写动作"),
+        )),
+        ("课堂记录", "class_transcript.md", (
+            ("**学生的话与教师的点评必须取自原文明确说出的内容**",
+             "互动栏不得改写教师讲解"),
+        )),
+    )
+    for name, fn, rules in fab:
+        text = (d / fn).read_text(encoding="utf-8")
+        for anchor, what in rules:
+            check(f"{name}：{what}", anchor in text, "")
+
+
+def test_group_headings_need_body() -> None:
+    """`## 组 + - 条` 型栏目：标题下必须有正文；空标题是门禁硬伤（2026-09-20）。
+
+    回归背景：讲座那条 199.6s 的请求在渲染阶段「只重写 [核心观点与论证]」→ 单栏重写后仍不过
+    → 整篇回退重填（46s + 63s + 49s）。最可能的硬伤是「只有标题没有正文（空栏）」——
+    模型只写了 `## 论点` 而没落 `- ` 条目。故在各组标题型栏目统一声明「标题必带正文」。
+    """
+    clause = "**标题下必须至少一条正文（`- ` 条目或一段），不得只有标题"
+    cols = (
+        ("special_lecture.md", "核心观点与论证"),
+        ("class_transcript.md", "核心知识点梳理"),
+        ("group_seminar.md", "发言要点"),
+        ("interview_transcript.md", "访谈详细记录"),
+        ("general_minutes.md", "要点梳理"),
+        ("media_briefing.md", "核心信息"),
+        ("media_briefing.md", "官方表态"),
+        ("exchange_forum.md", "核心信息与数据"),
+        ("debate_forum.md", "环节交锋"),
+        ("government_bulletin.md", "重点工作"),
+        ("knowledge_memo.md", "核心概念"),
+        ("research_dialogue.md", "核心反馈"),
+        ("hiring_report.md", "面试问答纪要"),
+        ("psychological_session.md", "咨询详情"),
+        ("product_launch.md", "核心卖点与技术参数"),
+        ("team_meeting.md", "工作进展"),
+        ("retrospective_session.md", "结果与关键成果"),
+    )
+    missing: list[str] = []
+    for fn, col in cols:
+        text = (_active_dir() / fn).read_text(encoding="utf-8")
+        spec = ""
+        cur = None
+        for seg in parse_placeholder_template(text):
+            if seg["kind"] == "title":
+                cur = seg["raw"]
+            elif seg["kind"] == "field" and cur == col:
+                spec = str(seg["hint"])
+                break
+        if clause not in spec:
+            missing.append(f"{fn}#{col}")
+    check("组标题必须带正文（标题下至少一条 `- ` 条目或一段）", not missing, f"缺={missing}")
+    lec = (_active_dir() / "special_lecture.md").read_text(encoding="utf-8")
+    check("讲座：子论点作为条目＋缩进子条，不单独立标题",
+          "**子论点作为该论点下的一条" in lec and "不单独立标题**" in lec, "")
+
+
 def test_home_school_feedback_groups() -> None:
     """家校沟通 [家长反馈]：按组按点（两组固定名）+ 原话组带背景行（2026-09-20 用户口径）。
 
@@ -2738,9 +2784,12 @@ def test_subjective_judgment_guardrails() -> None:
     check("面试：行数随原文 + 依据必须有事例支撑",
           "行数随原文，原文提到几个维度就写几行" in hir
           and "每条都要有事例支撑，不做原文以外的推断" in hir, "")
-    check("面试：评级纪律（只依据原文、与同行依据同源、无依据写 `—`）",
-          "**评级只依据原文**" in hir and "**评级必须与同一行的依据同源**" in hir
-          and "依据栏空的维度不评级、写 `—`，不凭空打分" in hir
+    # 2026-09-20 实测（now.xlsx 行19）：原口径「评级只依据原文」被读成「原文没写评分 → 全列 `—`」；
+    # 改成「判据是本行依据、有依据必须给评级、只有无点评无事实才写 `—`」。
+    check("面试：评级纪律（判据是本行依据、有依据必须给评级、无依据才写 `—`）",
+          "**评级的判据是本行的依据**" in hir and "依据栏写了事例的维度**必须给出评级**" in hir
+          and "**只有该维度既无点评也无作答事实时评级才写 `—`**" in hir
+          and "评级不得与依据矛盾、不得出现录用结论" in hir
           and "不自行给候选人评分、评级或下结论" in hir, "")
     check("面试：[综合素质] 分组分点（三组固定名 + 组内一条一个观察）",
           "**按组、按点写**" in hir and "`## 突出亮点`" in hir
@@ -2924,9 +2973,13 @@ def test_qa_name_priority() -> None:
         (qa, "媒体问答", "「记者」「发言人」"),
     ):
         spec = next(l for l in text.splitlines() if "一条问答独立成段" in l)
-        check(f"{name}：一问一答＝一条记录 + 逐条编号（示例答方写姓名）",
-              "一问一答＝一条记录" in spec and "逐条编号" in spec
-              and "`**1. 记者（人民日报 张宇）**：…`" in spec
+        # 2026-09-20：新闻发布单方面改成「逐条输出、不带编号前缀」，媒体问答仍是「逐条编号」，
+        # 两者并存 → 按各自写法容忍；口径要不要统一由用户定。
+        check(f"{name}：一问一答＝一条记录（逐条呈现，示例答方写姓名）",
+              "一问一答＝一条记录" in spec
+              and ("逐条编号" in spec or "逐条输出" in spec)
+              and ("`**1. 记者（人民日报 张宇）**：…`" in spec
+                   or "`**记者（人民日报 张宇）**：…`" in spec)
               and "`**陈立**：…`（答方写姓名" in spec, spec[:70])
         check(f"{name}：回应方能确定姓名才写姓名（「答」只作无姓名兜底）",
               "回应方能确定姓名才写姓名" in spec and "不能确定就写「**答**」" in spec
@@ -3272,6 +3325,7 @@ def main() -> int:
         test_knowledge_memo_groups()
         test_clinical_history_column()
         test_home_school_feedback_groups()
+        test_group_headings_need_body()
         test_debate_side_attribution_and_fabrication()
         test_overview_specs_have_scope()
         test_debate_rounds_and_rows()
