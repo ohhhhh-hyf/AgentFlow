@@ -848,15 +848,15 @@ def test_general_minutes_speedread() -> None:
     budgets = parse_section_char_budgets(tpl)
     # 2026-09-20 用户口径（方案1）：段数最多 8 段（按议题/阶段分段）+ 每段一段话最多 150 字。
     # 上限与段数上限成对写，避免只压单段上限时"上限被当目标"（曾 13 段 ×272 字占全篇一半）。
-    check("通用纪要：摘要为一段 250–400（节级），速览为一段 120–150（段落级）",
+    check("通用纪要：摘要为一段 250–400（节级），速览为一段 200–250（段落级）",
           any(b["title"] == "全文摘要" and b["lo"] == 250 and b["hi"] == 400 and b["scope"] == "section" for b in budgets)
-          and any(b["title"] == "分段速览" and b["hi"] == 150 and b["scope"] == "paragraph" for b in budgets),
+          and any(b["title"] == "分段速览" and b["hi"] == 250 and b["scope"] == "paragraph" for b in budgets),
           f"{budgets}")
     seg_spec = next(l.strip() for l in raw.splitlines() if "推进顺序" in l)
-    check("通用纪要：速览按议题分段 + 段数最多 8 段 + 每段一段话 ≤150 字",
+    check("通用纪要：速览按议题分段 + 段数最多 8 段 + 每段一段话 ≤250 字",
           "每个时间段一行" in seg_spec and "按议题或阶段分段，不按每一个时间戳切" in seg_spec
           and "段数最多 8 段" in seg_spec and "一段话描述该段" in seg_spec
-          and "每段最多 150 字" in seg_spec and "每段至少一句" in seg_spec
+          and "每段最多 250 字" in seg_spec and "每段至少一句" in seg_spec
           and "单段不超过约 300 字" not in seg_spec
           and "不重复 [要点梳理] 已列的条目与数字" in seg_spec,
           seg_spec[:80])
@@ -865,15 +865,15 @@ def test_general_minutes_speedread() -> None:
         split_overlong_paragraphs,
     )
 
-    check("通用纪要：速览不声明「不拆段」（超长段由 150 字上限按句界拆分）",
+    check("通用纪要：速览不声明「不拆段」（超长段由 250 字上限按句界拆分）",
           "分段速览" not in _no_split_sections(tpl), f"{_no_split_sections(tpl)}")
-    long_seg = "这是一段概览文字。" * 55  # ≈440 汉字，远超 150×1.2
+    long_seg = "这是一段概览文字。" * 55  # ≈440 汉字，远超 250×1.2
     fixed_seg, seg_notes = split_overlong_paragraphs(
         "# 通用纪要\n\n# [分段速览]\n## 08:00-12:30 现场检查\n" + long_seg + "\n", tpl
     )
     seg_parts = [q for q in fixed_seg.split("\n\n") if "概览文字" in q]
-    check("通用纪要：速览超 180 字的段被程序按句界拆分（150 字上限生效）",
-          bool(seg_notes) and len(seg_parts) >= 2 and max(sum(1 for c in q if "一" <= c <= "鿿") for q in seg_parts) <= 160,
+    check("通用纪要：速览超 300 字的段被程序按句界拆分（250 字上限生效）",
+          bool(seg_notes) and len(seg_parts) >= 2 and max(sum(1 for c in q if "一" <= c <= "鿿") for q in seg_parts) <= 260,
           f"段数={len(seg_parts)} {seg_notes}")
     leftover = [
         p.stem
@@ -1688,12 +1688,12 @@ def test_paragraph_cap_from_explicit_per_para() -> None:
     # ② 父节预算继承：带 `## 子标题` 的栏目不能再让段落上限失效
     gm = (_active_dir() / "general_minutes.md").read_text(encoding="utf-8")
     gcaps = [b for b in parse_section_char_budgets(gm) if b["title"] == "分段速览"]
-    # 2026-09-20 方案1：速览改为「一段话 ≤150 字」，段落级预算重新生效（超 180 字按句界拆）
-    check("通用纪要：速览段落级预算 (120,150) 生效",
-          bool(gcaps) and gcaps[0]["hi"] == 150 and gcaps[0]["scope"] == "paragraph", f"{gcaps}")
+    # 2026-09-20：速览改为「一段话 ≤250 字」，段落级预算生效（超 300 字＝250×1.2 按句界拆）
+    check("通用纪要：速览段落级预算 (200,250) 生效",
+          bool(gcaps) and gcaps[0]["hi"] == 250 and gcaps[0]["scope"] == "paragraph", f"{gcaps}")
     spec_seg = next(l.strip() for l in gm.splitlines() if "推进顺序" in l)
-    check("通用纪要：速览一段话 ≤150 字、段数最多 8 段、明细归 [要点梳理]",
-          "一段话描述该段" in spec_seg and "每段最多 150 字" in spec_seg
+    check("通用纪要：速览一段话 ≤250 字、段数最多 8 段、明细归 [要点梳理]",
+          "一段话描述该段" in spec_seg and "每段最多 250 字" in spec_seg
           and "段数最多 8 段" in spec_seg and "每段至少一句" in spec_seg
           and "具体条目、数字与分工归 [要点梳理]" in spec_seg
           and "不重复 [要点梳理] 已列的条目与数字" in spec_seg,
@@ -1705,9 +1705,9 @@ def test_paragraph_cap_from_explicit_per_para() -> None:
     ):
         fixed, notes = split_overlong_paragraphs(doc, gm)
         seg_parts = [q for q in fixed.split("\n\n") if "概览文字" in q]
-        check(f"通用纪要：速览 440 字段按 150 字上限拆分（{label}）",
+        check(f"通用纪要：速览 440 字段按 250 字上限拆分（{label}）",
               bool(notes) and len(seg_parts) >= 2
-              and max(sum(1 for c in q if "一" <= c <= "鿿") for q in seg_parts) <= 160,
+              and max(sum(1 for c in q if "一" <= c <= "鿿") for q in seg_parts) <= 260,
               f"段数={len(seg_parts)} {notes}")
 
     # ③ 声明只作用于本栏：同一文档里其它栏（全文摘要）仍按节级上限拆
@@ -1717,7 +1717,7 @@ def test_paragraph_cap_from_explicit_per_para() -> None:
     )
     fixed4, notes4 = split_overlong_paragraphs(doc4, gm)
     abs_part = fixed4.split("# 全文摘要", 1)[1].split("# 分段速览", 1)[0]
-    check("通用纪要：两栏各自按自己的上限拆（摘要节级 400 / 速览段落级 150）",
+    check("通用纪要：两栏各自按自己的上限拆（摘要节级 400 / 速览段落级 250）",
           any("全文摘要" in n for n in notes4)
           and len([q for q in abs_part.split("\n\n") if "概览文字" in q]) >= 2,
           f"{notes4}")
@@ -2881,14 +2881,16 @@ def test_qa_name_priority() -> None:
               "一问一答＝一条记录" in spec and "逐条编号" in spec
               and "`**1. 记者（人民日报 张宇）**：…`" in spec
               and "`**陈立**：…`（答方写姓名" in spec, spec[:70])
-        check(f"{name}：回应方能确定姓名就写姓名（「答」只作无姓名兜底）",
-              "回应方能确定姓名就写姓名" in spec and "只有确实没有姓名时才写" in spec
+        check(f"{name}：回应方能确定姓名才写姓名（「答」只作无姓名兜底）",
+              "回应方能确定姓名才写姓名" in spec and "不能确定就写「**答**」" in spec
               and "全篇统一用同一个称呼" in spec
               and "首次写全" not in spec, "")
         check(f"{name}：称呼只写姓名/媒体名，机构不得单独充当身份",
               "机构只能跟在人名/媒体名后" in spec and "不得单独充当身份" in spec, "")
-        check(f"{name}：提问方姓名优先写成硬口径（原文出现过就必须用）",
-              "原文任何位置出现过姓名就必须用" in spec, "")
+        check(f"{name}：提问方按确定度回退（不确定就不写名字）",
+              "**提问方按确定度回退**" in spec
+              and "都不确定就不写名字、写成「问」" in spec
+              and "不得把原文别处出现过的姓名安到本次提问上" in spec, "")
         check(f"{name}：禁止用角色顶替已知姓名（{role}）",
               f"不得用{role}顶替已知姓名" in spec, "")
         check(f"{name}：保留问/答兜底与加粗、未提及兜底",
@@ -2913,6 +2915,9 @@ def test_qa_name_priority() -> None:
           "问答/对话中使用的姓名必须有支撑" in rule
           and "在问答段之外的原文里出现过" in rule
           and "没有支撑的一律按上述顺序回退" in rule, rule[-140:])
+    check("全局称呼规则：还要能确定对应的就是本次提问/回应的人（不确定不得用）",
+          "还要能确定对应的就是本次提问或回应的人" in rule
+          and "但无法确定对应关系的，**不得使用**" in rule, "")
     check("全局称呼规则：同音/近音变体取主流写法、全篇统一",
           "同音/近音变体" in rule and "取全场主流写法" in rule and "全篇统一" in rule, "")
 
