@@ -22,6 +22,7 @@ from perspective import (
     PerspectiveModelingAgent,
     address_aliases,
     build_preference_block,
+    foreign_only,
     slice_transcript_for_person,
 )
 from .meeting_factory import MeetingAgentFactory
@@ -748,9 +749,12 @@ class _Nodes(DomainNodes):
 
         sub = _line(state, line_name)
         extra = (state.get("line_extra") or {}).get(line_name) or ""
+        pack = self._meeting_pack(state, line_name)
+        if line_name in PREFERENCE_LINES:
+            pack = self._person_pack(pack, state)
         blocks: list[tuple[str, object, str]] = [
             ("用户画像", self._compact_user(state.get("user") or {}), "json"),
-            ("会议理解", self._meeting_pack(state, line_name), "json"),
+            ("会议理解", pack, "json"),
         ]
         perspective = self._compact_perspective(state.get("perspective_profile") or {})
         if perspective:
@@ -835,6 +839,46 @@ class _Nodes(DomainNodes):
         if self._mode_label(state) != "personal" or line_name not in PREFERENCE_LINES:
             return ""
         return PERSONAL_VIEW_DIRECTIVE
+
+    def _person_pack(self, pack: dict, state: dict) -> dict:
+        """真人纪要线的素材裁剪：理解包里的"别人为主语"条目去掉（客观/职业模板不动）。
+
+        为什么必须程序裁（2026-09-21 实测定位）：装配轮没有审核，模板「行动项与分工」栏位会
+        把会议理解里的 topics[].key_points 直接变成条目——「武思华明天找他们要数据」就是这样
+        进正文的（157 条里 49 条以别人为主语），写作纪律压不住素材。裁的只是"别人为主语、
+        且没提到他"的条目：他的条目留、无人称的全局事实（数字/结论）留，decisions/risks 不动。
+        """
+        if self._mode_label(state) != "personal":
+            return pack
+        user = state.get("user") or {}
+        name = str(user.get("name") or "").strip()
+        addresses = [item for item in (name, *address_aliases(user)) if item]
+        speakers = [
+            str(item.get("name") or "")
+            for item in ((state.get("meeting_understanding") or {}).get("speakers") or [])
+            if isinstance(item, dict)
+        ]
+        others = [who for who in speakers if who and who not in addresses]
+        topics = pack.get("topics")
+        if not addresses or not others or not topics:
+            return pack
+        kept: list[dict] = []
+        dropped = 0
+        for topic in topics:
+            points = topic.get("key_points") or []
+            keep_points = [
+                point for point in points
+                if not foreign_only(point, addresses, others, full_name=name)
+            ]
+            dropped += len(points) - len(keep_points)
+            kept.append({**topic, "key_points": keep_points})
+        if dropped:
+            logger.info(
+                "personal pack trim: 去掉别人为主的条目 %d/%d",
+                dropped,
+                sum(len(topic.get("key_points") or []) for topic in topics),
+            )
+        return {**pack, "topics": kept}
 
     def _make_fallback_node(self, line_name: str):
         """生成任务线降级节点：共识决策若已产出 issues 草稿，按确定性 Markdown 模板排版，严禁回退为空白占位符。"""

@@ -104,7 +104,7 @@ NOTES = """
 那个宏旭其实跟我一样都是刚来不久 ->还得再招人
 """
 
-URL = "http://10.33.240.226:8003/api/v1/meeting/minutes_trace"
+URL = "http://127.0.0.1:8000/api/v1/meeting/minutes_trace"
 USER_ID = "1"
 
 resp = requests.post(

@@ -35,7 +35,10 @@ class MinutesGenerationContract(GenerationContract):
         StrListField(
             "personally_relevant_points",
             "执行要点（有明确分工则写，无则[]；每条 2–3 句完整句、信息少时 1 句但要带数字/对象："
-            "谁、具体做什么、相关要求/协同对象、时间；禁止半截句）",
+            "谁、具体做什么、相关要求/协同对象、时间；禁止半截句。"
+            "**真人模式只写本人的**（以【本用户命中】里他的待办为准）：别人的分工不列，"
+            "确需他配合的合并成一句（如「上游出包后才能联调」）；"
+            "客观/职业模板按有明确责任人的分工条数写）",
         ),
         StrListField(
             "risks_and_blockers",

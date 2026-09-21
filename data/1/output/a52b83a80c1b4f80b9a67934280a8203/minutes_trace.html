@@ -1,0 +1,609 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>客观会议纪要</title>
+  <style>
+
+    body {
+      margin: 0;
+      padding: 14px 12px;
+      background: #f6f5f0;
+      color: #1a1a1a;
+      font-family: "Latin Modern Roman", "Computer Modern Roman", "CMU Serif", "Times New Roman", Times, "Songti SC", "SimSun", "STSong", serif;
+      -webkit-font-smoothing: antialiased;
+    }
+    .page { max-width: 1140px; margin: 0 auto; }
+    .ck-doc {
+      background: #ffffff;
+      border: 1px solid #d4d0c7;
+      border-radius: 4px;
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.05), 0 1px 3px rgba(0,0,0,0.03);
+      padding: 18px 22px;
+      line-height: 1.6;
+      font-size: 0.84rem;      /* 正文基准：左右两栏共用 --ck-fs */
+      --ck-fs: 0.84rem;
+    }
+    .ck-doc h1 {
+      margin: 0 0 6px;
+      font-size: 1.05rem;      /* 文档标题：只比正文略大一点 */
+      font-weight: 700;
+      text-align: center;
+      color: #111111;
+    }
+    .ck-doc-header {
+      margin-bottom: 10px;
+      padding-bottom: 8px;
+      border-bottom: 1px solid #111111;
+      text-align: center;
+    }
+    .ck-doc-meta {
+      font-size: 0.78rem;
+      color: #555555;
+      font-style: italic;
+    }
+    /* 层级标题一律"加粗 + 与右栏同级字号"，不加字号、不加下划线，前后留白压到最小 */
+    .ck-doc-content h1, .ck-doc-content .ck-doc-h1,
+    .ck-doc h2, .ck-doc-h2,
+    .ck-doc h3, .ck-doc-h3,
+    .ck-doc h4, .ck-doc-h4 {
+      font-size: var(--ck-fs);
+      font-weight: 700;
+      color: #111111;
+      border-bottom: 0;
+      padding-bottom: 0;
+      letter-spacing: 0;
+      font-variant: normal;
+      text-align: left;
+    }
+    .ck-doc-content h1, .ck-doc-content .ck-doc-h1, .ck-doc h2, .ck-doc-h2 {
+      margin: 12px 0 4px;
+    }
+    .ck-doc h3, .ck-doc-h3, .ck-doc h4, .ck-doc-h4 {
+      margin: 9px 0 3px;
+    }
+    .ck-doc p {
+      margin: 5px 0;
+      line-height: 1.6;
+      text-align: justify;
+    }
+    .ck-doc ul, .ck-doc ol {
+      margin: 4px 0 6px;
+      padding-left: 1.25em;
+      line-height: 1.6;
+    }
+    .ck-doc li {
+      margin: 2px 0;
+    }
+    .ck-doc blockquote, .ck-quote {
+      margin: 6px 0 8px;
+      padding: 5px 10px;
+      background: #faf9f6;
+      border-left: 3px solid #222222;
+      border-radius: 2px;
+      color: #222222;
+      font-size: var(--ck-fs);
+      font-style: italic;
+    }
+    .ck-doc code {
+      background: #f3f0e8;
+      border: 1px solid #e2ddd3;
+      border-radius: 3px;
+      padding: 1px 6px;
+      font-family: "Latin Modern Mono", Consolas, monospace;
+      font-size: 0.88em;
+    }
+    .ck-doc table, .ck-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: var(--ck-fs);
+      margin: 8px 0;
+      background: #ffffff;
+      border-top: 2px solid #222222;
+      border-bottom: 2px solid #222222;
+    }
+    .ck-doc table th, .ck-doc table td, .ck-table th, .ck-table td {
+      padding: 5px 8px;
+      text-align: left;
+      vertical-align: middle;
+      border-bottom: 1px solid #ede9e1;
+    }
+    .ck-doc table th, .ck-table th {
+      background: #fbfaf7;
+      border-bottom: 1.2px solid #222222;
+      font-weight: 700;
+      color: #111111;
+      letter-spacing: 0.3px;
+    }
+
+    /* Roomy & Spacious Academic Risk Table */
+    .ck-risk-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 18px 0 28px;
+      background: #ffffff;
+      border-top: 2.2px solid #111111;
+      border-bottom: 2.2px solid #111111;
+      font-size: 0.93rem;
+      line-height: 1.72;
+    }
+    .ck-risk-table th {
+      background: #faf8f5;
+      border-bottom: 1.5px solid #111111;
+      padding: 15px 16px;
+      font-weight: 700;
+      color: #111111;
+      letter-spacing: 0.3px;
+      text-align: left;
+      vertical-align: middle;
+    }
+    .ck-risk-table td {
+      padding: 16px 16px;
+      border-bottom: 1px solid #ede8e0;
+      vertical-align: top;
+      color: #1a1a1a;
+      word-break: break-word;
+    }
+    .ck-risk-table tr:nth-child(even) td {
+      background: #fdfcfb;
+    }
+    .ck-risk-table tr:hover td {
+      background: #f6f3eb;
+    }
+
+    /* Review Grid */
+    .ck-review {
+      display: grid;
+      grid-template-columns: minmax(0, 1.35fr) 1px minmax(260px, 0.95fr);
+      border: 1px solid #d4d0c7;
+      border-radius: 4px;
+      overflow: hidden;
+      margin: 8px 0 10px;
+      background: #ffffff;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.03);
+    }
+    .ck-review-left {
+      padding: 14px 16px;
+      background: #ffffff;
+      line-height: 1.6;
+      font-size: var(--ck-fs);
+    }
+    .ck-review-rule { background: #dcd8cf; }
+    .ck-review-right {
+      padding: 12px 14px;
+      background: #faf9f6;
+      box-sizing: border-box;
+      display: flex;
+      flex-direction: column;
+    }
+    .ck-ev-list {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    /* Entity Highlight in LaTeX Paper Style */
+    .ck-cite-entity {
+      background: #fff8db;
+      border-bottom: 1.5px solid #b86a04;
+      padding: 1px 4px;
+      border-radius: 2px;
+      cursor: pointer;
+      transition: all 0.18s ease;
+      color: #111111;
+      font-weight: 600;
+    }
+    .ck-cite-entity:hover {
+      background: #ffe58f;
+      color: #000000;
+    }
+    .ck-cite-entity.is-on {
+      background: #ffd54a;
+      border-bottom-color: #0047ab;
+      box-shadow: 0 0 0 2px rgba(0,71,171,0.25);
+    }
+
+    /* Blue Hyperref Citations [1], [2] */
+    .ck-cite-ref {
+      color: #0047ab;
+      font-weight: 600;
+      font-family: "Latin Modern Roman", "Computer Modern Roman", "Times New Roman", serif;
+      text-decoration: none;
+      cursor: pointer;
+      padding: 0 2px;
+      margin: 0 2px;
+      border-radius: 2px;
+      transition: all 0.15s ease;
+      font-size: 0.92em;
+      vertical-align: baseline;
+      user-select: none;
+    }
+    .ck-cite-ref:hover {
+      text-decoration: underline;
+      background: #e8f0fe;
+      color: #003380;
+    }
+    .ck-cite-ref.is-active {
+      background: #d2e3fc;
+      color: #002266;
+      font-weight: 700;
+      box-shadow: 0 0 0 1px #0047ab;
+    }
+
+    /* Right Memory Cards in LaTeX Paper Style */
+    .ck-provenance-head {
+      font-size: 0.82rem;
+      font-weight: 700;
+      color: #222222;
+      margin: 0 0 12px;
+      padding-bottom: 6px;
+      border-bottom: 1px solid #e0dcd4;
+      letter-spacing: 0.3px;
+      text-transform: uppercase;
+    }
+    .ck-ref-icon { color: #0047ab; margin-right: 4px; }
+    .ck-ev {
+      display: block;
+      margin: 0;
+      padding: 10px 12px;
+      border: 1px solid #dedad2;
+      border-left: 3.5px solid #0047ab;
+      border-radius: 2px;
+      background: #ffffff;
+      font-size: 0.82rem;
+      line-height: 1.55;
+      transition: all 0.2s ease;
+      cursor: pointer;
+    }
+    .ck-ev:hover { border-color: #b5b0a5; }
+    .ck-ev.is-on, .ck-ev.is-highlighted {
+      border-color: #0047ab;
+      box-shadow: 0 0 0 2px #0047ab, 0 3px 8px rgba(0,71,171,0.15);
+      background: #f0f5ff;
+    }
+    @keyframes citePulse {
+      0% { background: #dbeafe; box-shadow: 0 0 0 3px #0047ab; }
+      50% { background: #bfdbfe; box-shadow: 0 0 0 4px #0047ab; }
+      100% { background: #f0f5ff; box-shadow: 0 0 0 2px #0047ab; }
+    }
+    .ck-ev-k {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 0.75rem;
+      color: #444444;
+      margin-bottom: 5px;
+      font-weight: 700;
+    }
+    .ck-ev-cite-tag {
+      color: #0047ab;
+      font-weight: 700;
+      font-family: "Latin Modern Roman", serif;
+      text-decoration: none;
+    }
+    .ck-ev-kind-badge {
+      display: inline-block;
+      padding: 1px 6px;
+      border-radius: 2px;
+      font-size: 0.72rem;
+      font-weight: 600;
+      letter-spacing: 0.2px;
+    }
+    .ck-badge-keypoint {
+      border: 1px solid #0047ab;
+      color: #0047ab;
+      background: #f0f5ff;
+    }
+    .ck-badge-note {
+      border: 1px solid #b86a04;
+      color: #b86a04;
+      background: #fff8eb;
+    }
+    .ck-mem-title {
+      font-weight: 700;
+      color: #111111;
+      font-size: var(--ck-fs);
+      margin-bottom: 4px;
+      line-height: 1.5;
+    }
+    .ck-ev-quote {
+      color: #222222;
+      font-style: normal;
+      font-family: inherit;
+      margin: 4px 0 6px;
+      padding: 0;
+      background: transparent;
+      border: none;
+      line-height: 1.6;
+      font-size: var(--ck-fs);
+    }
+    .ck-ev-meta { font-size: 0.76rem; color: #666666; margin-top: 4px; }
+    .ck-ev-more {
+      margin-top: 2px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+    .ck-ev-more[open] { margin-top: 4px; }
+    .ck-ev-more summary { margin-bottom: 6px; }
+    .ck-proof-toggle {
+      cursor: pointer;
+      font-size: 0.82rem;
+      color: #0047ab;
+      user-select: none;
+      font-family: inherit;
+      padding: 2px 0;
+    }
+    .ck-proof-toggle:hover { text-decoration: underline; }
+    /* 右栏下段"状态演进"：无行内锚点，与上方证据卡视觉区分（灰底 + 徽章，无 [n]） */
+    .ck-ledger {
+      margin-top: 10px;
+      padding-top: 8px;
+      border-top: 1px dashed #d4d0c7;
+    }
+    .ck-ledger > summary { list-style: none; }
+    .ck-ledger > summary::-webkit-details-marker { display: none; }
+    .ck-ledger > summary::after { content: " ▾"; }
+    .ck-ledger:not([open]) > summary::after { content: " ▸"; }
+    /* 每类一张小灰卡：卡头类别 + 条数，卡内按 1. 2. 3. 编号 */
+    .ck-ledger-card {
+      background: #faf9f5;
+      border: 1px solid #e6e2d8;
+      border-left: 3px solid #bdb6a6;
+      border-radius: 4px;
+      padding: 7px 9px;
+      margin-bottom: 6px;
+    }
+    .ck-ledger-k {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 6px;
+      font-size: 0.72rem;
+      margin-bottom: 5px;
+    }
+    .ck-ledger-badge {
+      background: #efece4;
+      color: #6b6559;
+      border-radius: 3px;
+      padding: 1px 6px;
+      font-weight: 600;
+    }
+    .ck-ledger-count { color: #8a8578; }
+    .ck-ledger-list {
+      margin: 0;
+      padding-left: 1.35em;
+      font-size: var(--ck-fs);
+      line-height: 1.6;
+      color: #3b3a37;
+    }
+    .ck-ledger-list > li { margin: 2px 0; }
+    .ck-ledger-text { font-size: var(--ck-fs); line-height: 1.6; color: #3b3a37; }
+    .ck-ledger-meta { color: #8a8578; font-size: 0.76rem; }
+
+    @media(max-width: 860px) {
+      .ck-doc { padding: 22px 18px; }
+      .ck-review { grid-template-columns: 1fr; }
+      .ck-review-rule { display: none; }
+    }
+
+
+    /* 优化画布宽度与双栏比例：每行承载更多文字，降低纵向高度 */
+    .page {
+      max-width: 1260px;
+      margin: 0 auto;
+      padding: 24px 18px;
+    }
+    .ck-doc {
+      padding: 26px 30px;
+    }
+    .ck-review {
+      grid-template-columns: minmax(0, 1.48fr) 1px minmax(290px, 0.92fr);
+      overflow: visible;
+    }
+    .ck-review-left {
+      padding: 18px 26px;
+      font-size: 0.92rem;
+      line-height: 1.62;
+    }
+    .ck-review-left h2, .ck-review-left .ck-doc-h2 {
+      font-size: 1.12rem;
+      margin: 14px 0 6px;
+      padding-bottom: 3px;
+      border-bottom: 1px solid #e0dcd4;
+      font-weight: 700;
+    }
+    .ck-review-left h3, .ck-review-left .ck-doc-h3 {
+      font-size: 0.95rem;
+      font-weight: 700;
+      margin: 10px 0 4px;
+      color: #222222;
+    }
+    .ck-review-left p {
+      margin: 4px 0;
+      line-height: 1.62;
+    }
+    .ck-review-left ul, .ck-review-left ol {
+      margin: 4px 0 8px;
+      padding-left: 1.25em;
+    }
+    .ck-review-left li {
+      margin: 2px 0;
+      line-height: 1.6;
+    }
+    .ck-review-right {
+      padding: 18px 18px;
+      position: relative;
+    }
+    .ck-ev-list {
+      position: relative;
+      width: 100%;
+    }
+    .ck-ev {
+      padding: 9px 12px;
+      font-size: 0.82rem;
+      line-height: 1.5;
+    }
+  </style>
+</head>
+<body>
+  <main class="page">
+    <div class="ck-doc">
+      <header class="ck-doc-header">
+        <h1>客观会议纪要</h1>
+      </header>
+      <div class="ck-review">
+        <div class="ck-review-left">
+          <p>本次团队例会围绕定价与采购两个条线上半年工作数据、存在问题及下半年目标展开。定价条线上半年审批流程2477条、同比增长46%，超时率降至0.3%、同比减少0.38个百分点，项目总数由50个增至57个；会议重点指出定价依据性不足、风险意识缺乏、月度追踪敏感度与预见性不够、客户审核标准降低等问题，并提出下半年需充分跑市场、加强价格逻辑推导与定价后评估、树立去库存意识、完善退租台账等改进方向。采购条线上半年完成单项目调研74个标、4个集采，并总结考察单位需更深入了解合作动机与资金合理性。多位新人在会上汇报了各自下半年工作目标与举措，与会人员围绕务实作风、时间节点把控、多思考工作目的等提出建议与要求。</p><p>会议同时就月度梳理的优先顺序、跑市场同行、新人培养方式等形成具体交流意见，要求新人从务虚转向务实、按节点完成工作，并明确流程审批、月度内审、定价等具体目标与举措，实际效果有待后续验证。</p><h2>主要议题</h2><h2 class="ck-doc-h2">上半年项目追踪与流程审批数据</h2><h3 class="ck-doc-h3">问题与事实</h3><ul><li>上个月之前总共50个项目，其中消费销售23个、租赁27个，8月份广州、珠海增加7个项目，目前总数57个项目。</li><li>上半年审批2477条流程，比去年同期增加46%，流程超时共7个、占比0.3%，比去年同期减少0.38个百分点。</li><li>除月度追踪外，还有去库存价格评估、退租退售、定制总额评估、客户审核、数据模板更新制作、轻资产满意度访谈等零星工作。</li></ul><h3 class="ck-doc-h3">讨论观点</h3><ul><li><span class="ck-cite-entity" data-trace="trace-1" data-cite="1">整体月度评价偏一半，流程审批量有所增加，超时情况相对改善。</span><a href="javascript:void(0)" class="ck-cite-ref" data-target-trace="trace-1" title="点击查看要点归纳 [1]">[1]</a></li></ul><h3 class="ck-doc-h3">建议与方案</h3><ul><li>流程方面自己建立退租台账，同一项目退租整理直接截取台账信息，继续完善以加快退租整理和审批效率。</li></ul><h3 class="ck-doc-h3">议题小结</h3><ul><li>状态：已确认。</li><li><span class="ck-cite-entity" data-trace="trace-1" data-cite="1">依据：项目总数由50个增至57个、流程审批2477条同比增长46%、超时率0.3%同比减少0.38个百分点等数据已由汇报明确。</span><a href="javascript:void(0)" class="ck-cite-ref" data-target-trace="trace-1" title="点击查看要点归纳 [1]">[1]</a></li></ul><h2 class="ck-doc-h2">定价依据性与风险意识不足</h2><h3 class="ck-doc-h3">问题与事实</h3><ul><li><span class="ck-cite-entity" data-trace="trace-2 trace-3" data-cite="2">定价依据性不足，风险意识缺乏，价格输出有时根据经验判断，有时只对标竞品，未充分对比分析项目价值区位、圈层等因素，价格制定经不起推敲。</span><a href="javascript:void(0)" class="ck-cite-ref" data-target-trace="trace-2" title="点击查看随文批注 [2]">[2]</a><a href="javascript:void(0)" class="ck-cite-ref" data-target-trace="trace-3" title="点击查看要点归纳 [3]">[3]</a></li><li><span class="ck-cite-entity" data-trace="trace-4 trace-5" data-cite="4">项目区划思路缺乏关注，更多关注价格本身，对项目打法、人员组织安排和城市策略缺乏了解，可能造成价格和区划不匹配。</span><a href="javascript:void(0)" class="ck-cite-ref" data-target-trace="trace-4" title="点击查看随文批注 [4]">[4]</a><a href="javascript:void(0)" class="ck-cite-ref" data-target-trace="trace-5" title="点击查看要点归纳 [5]">[5]</a></li><li><span class="ck-cite-entity" data-trace="trace-6" data-cite="6">风险意识不足，定价过程中对项目面临的风险了解不多，对同一城市其他项目缺乏关注和了解，没有系统性地关注和解决城市问题，未把定价与去库存和风险意识更好结合。</span><a href="javascript:void(0)" class="ck-cite-ref" data-target-trace="trace-6" title="点击查看要点归纳 [6]">[6]</a></li></ul><h3 class="ck-doc-h3">讨论观点</h3><ul><li>上述问题需在接下来做进一步改进。</li></ul><h3 class="ck-doc-h3">建议与方案</h3><ul><li><span class="ck-cite-entity" data-trace="trace-7" data-cite="7">项目定价要充分跑市场，不能为了定价而定价，了解城市问题风险和解决思路，加强项目人员盘点。</span><a href="javascript:void(0)" class="ck-cite-ref" data-target-trace="trace-7" title="点击查看随文批注 [7]">[7]</a></li><li><span class="ck-cite-entity" data-trace="trace-8" data-cite="8">加强价格逻辑推导，与金额部门多探讨学习，关注价格与区划关系、后期策略与区划招商策略安排，加强定价后评估。</span><a href="javascript:void(0)" class="ck-cite-ref" data-target-trace="trace-8" title="点击查看要点归纳 [8]">[8]</a></li></ul><h3 class="ck-doc-h3">议题小结</h3><ul><li>状态：方向明确。</li><li>依据：定价依据性不足、价格与区划可能不匹配、风险意识不足等问题已明确，下半年改进方向为充分跑市场、加强价格逻辑推导与后评估。</li></ul><h2 class="ck-doc-h2">月度追踪敏感度与预见性不足</h2><h3 class="ck-doc-h3">问题与事实</h3><ul><li><span class="ck-cite-entity" data-trace="trace-9" data-cite="9">解决难点问题能力欠缺，对项目敏感度分析不够，难点项目未实现太好破局，如佛山石山、江门鹤山、广州租赁、北京北边租赁项目。</span><a href="javascript:void(0)" class="ck-cite-ref" data-target-trace="trace-9" title="点击查看随文批注 [9]">[9]</a></li><li><span class="ck-cite-entity" data-trace="trace-10" data-cite="10">对项目核心问题判断不准，不能有效出具政策方案和调整建议。</span><a href="javascript:void(0)" class="ck-cite-ref" data-target-trace="trace-10" title="点击查看要点归纳 [10]">[10]</a></li><li><span class="ck-cite-entity" data-trace="trace-11 trace-6" data-cite="11">对项目敏感度不足、预见性不足，对项目当前去库存问题、人员团队评估认识缺乏敏感度，影响市场法规灵敏度。</span><a href="javascript:void(0)" class="ck-cite-ref" data-target-trace="trace-11" title="点击查看要点归纳 [11]">[11]</a><a href="javascript:void(0)" class="ck-cite-ref" data-target-trace="trace-6" title="点击查看要点归纳 [6]">[6]</a></li><li>对市场跟进缺乏预见性，如北京租赁市场跑得较少，市场掌握相对欠缺。</li><li>月度追踪节奏不够紧凑，项目定价后追踪不及时，可能导致政策给出但未达去化预期。</li></ul><h3 class="ck-doc-h3">讨论观点</h3><ul><li><span class="ck-cite-entity" data-trace="trace-12 trace-13" data-cite="12">月度追踪需加强思想转变，树立去库存意识和思维，加强敏感度和感知度。</span><a href="javascript:void(0)" class="ck-cite-ref" data-target-trace="trace-12" title="点击查看随文批注 [12]">[12]</a><a href="javascript:void(0)" class="ck-cite-ref" data-target-trace="trace-13" title="点击查看要点归纳 [13]">[13]</a></li><li>对人员做横向对比和评估，单个总监负责多个项目要多做横向对比，包括本月与上月数据对比。</li><li><span class="ck-cite-entity" data-trace="trace-14" data-cite="14">加强服务，做实时追踪思维，不能把所有月度放到每月上半月集中攻关，日常在客户审核、价格申请、退租催售等环节了解项目情况。</span><a href="javascript:void(0)" class="ck-cite-ref" data-target-trace="trace-14" title="点击查看随文批注 [14]">[14]</a></li></ul><h3 class="ck-doc-h3">建议与方案</h3><ul><li>下半年进一步加强对去库存的敏感度和感知度，多做人员横向对比和评估。</li></ul><h3 class="ck-doc-h3">议题小结</h3><ul><li>状态：待跟进。</li><li>依据：难点项目未破局、核心问题判断不准、敏感度与预见性不足等问题已列出，下半年改进方向为树立去库存意识、加强横向对比与实时追踪。</li></ul><h2 class="ck-doc-h2">客户审核标准与履约风险管控</h2><h3 class="ck-doc-h3">问题与事实</h3><ul><li><span class="ck-cite-entity" data-trace="trace-15" data-cite="15">客户审核标准降低，个别项目风险意识需加强，不能一味放松。</span><a href="javascript:void(0)" class="ck-cite-ref" data-target-trace="trace-15" title="点击查看要点归纳 [15]">[15]</a></li><li><span class="ck-cite-entity" data-trace="trace-16" data-cite="16">个别项目考虑去化，质量没有太好把控，需做风险管控意识。</span><a href="javascript:void(0)" class="ck-cite-ref" data-target-trace="trace-16" title="点击查看随文批注 [16]">[16]</a></li></ul><h3 class="ck-doc-h3">讨论观点</h3><ul><li><span class="ck-cite-entity" data-trace="trace-17" data-cite="17">客户审核重点关注履约风险，对重点、亮点或有罚项目动态把握区划情况和客户主动，适当灵活但坚持底线。</span><a href="javascript:void(0)" class="ck-cite-ref" data-target-trace="trace-17" title="点击查看随文批注 [17]">[17]</a></li></ul><h3 class="ck-doc-h3">建议与方案</h3><ul><li>流程方面自己建立退租台账，同一项目退租整理直接截取台账信息，继续完善以加快退租整理和审批效率。</li></ul><h3 class="ck-doc-h3">议题小结</h3><ul><li>状态：方向明确。</li><li>依据：客户审核标准降低、个别项目风险意识需加强等问题已指出，改进方向为建立退租台账、重点关注履约风险并坚持底线。</li></ul><h2 class="ck-doc-h2">工作方法、月度梳理标准与新人培养</h2><h3 class="ck-doc-h3">问题与事实</h3><ul><li>相关发言建议提升抓重点能力，信息大而全、结构性弱，重点突出和关键信息抓取偏弱，时间花得多但效果一般。</li><li><span class="ck-cite-entity" data-trace="trace-1" data-cite="1">相关发言肯定流程超时控制和退租台账等好经验，建议及时分享提升部门效率。</span><a href="javascript:void(0)" class="ck-cite-ref" data-target-trace="trace-1" title="点击查看要点归纳 [1]">[1]</a></li><li>相关发言请教月度梳理优先处理内容、建议给出方式和评判标准。</li><li>相关发言回答月度梳理顺序：先更新上月数据，了解项目计划情况，关注核心项目核心问题，做招商沟通，再输出政策和调整建议。</li><li>相关发言建议跑市场时带上自己。</li><li>相关发言要求相关发言下半年摒除杂念、进一步内省、工作更有激情。</li><li>相关发言回应工作做久了疲，积极性不足，需改进激情和心态，减少杂念。</li></ul><h3 class="ck-doc-h3">讨论观点</h3><ul><li>相关发言建议：多思考工作目的和效果，避免为了做而做；</li><li>精准把控时间节点，按节点完成；</li><li>快速熟悉上手，提升效率；</li><li>规划较虚，根据实际工作需要推进，不要好高骛远，先做好基础流程。</li><li>相关发言建议：对每项工作分类梳理，明确基本步骤和关注点，多与老同事沟通；</li><li>月度信息和内审流程刚接手，有不确定可随时沟通；</li><li>细节把控可以，信息核对和准确性可进一步提升。</li><li>相关发言要求：从务虚转向务实，说一是一，明确意义，不要大而空的话；</li><li>说明如何做好月度定价和内审。</li><li>相关发言建议：每两三天碰头分享学到的新东西和遇到的问题。</li><li>相关发言建议：有空杯心态，忘记原来做过招商。</li><li>相关发言建议：新人互相帮助共同进步。</li></ul><h3 class="ck-doc-h3">建议与方案</h3><ul><li>相关发言建议跑市场时带上自己，相关发言、相关发言、相关发言每两三天碰头分享学到的新东西和遇到的问题。</li></ul><h3 class="ck-doc-h3">议题小结</h3><ul><li>状态：已确认。</li><li>依据：相关发言、5、6、7分别提出抓重点、月度梳理标准、跑市场同行、摒除杂念等建议，相关发言已回应改进方向。</li></ul><h2 class="ck-doc-h2">新人下半年工作目标及举措</h2><h3 class="ck-doc-h3">问题与事实</h3><ul><li><span class="ck-cite-entity" data-trace="trace-1" data-cite="1">相关发言梳理当前最重要工作为流程审批、月度、定价，流程审批效率低时间长，对内审项目情况不完全清楚，较难给出成熟客观的审批建议。</span><a href="javascript:void(0)" class="ck-cite-ref" data-target-trace="trace-1" title="点击查看要点归纳 [1]">[1]</a></li><li>相关发言月度问题：对没去过的项目没有具体概念，竞品价格和库存数据准确性难以把控。</li><li>相关发言定价问题：还没有完整定价经历，对目标城市、项目本体、竞品情况不太熟悉。</li><li>相关发言问题：工作效率偏低，拿到工作盲目开始，流程处理和表格完善时间长，工作偏滞后；</li><li>对项目掌握度偏低，数据不敏感，不能及时给出合理判断。</li><li>相关发言目标：下半年完成5个项目周边竞品实地调研，输出项目调研汇总表不少于5张，8月到12月每月一次共5次；</li><li>完成项目定价不少于5个，8月完成广州南湾项目模拟竞价。</li><li>相关发言市场调研：对接9个城市，一批次2024年去成都、德阳、眉山、莆田、福州、天津，二批次去后面城市，一个月去一个城市，输出调研表和市场认知总结。</li><li>相关发言新人计划：手写背诵定价课审和SOP系统操作文件；</li><li>抓住广州南湾项目8月定价，与建国背靠背模拟定价，独立做完后对比复盘；</li><li>9~11月完成对接9个城市的24个年终自有项目调研，与产发顾问同事访谈交流不少于50次，竞品调研不少于60次；</li><li>年底之前看完84个项目；</li><li>12月独立对接所有月度内审，独立输出项目定价报告并独立汇报。</li></ul><h3 class="ck-doc-h3">讨论观点</h3><ul><li>相关发言建议：多思考工作目的和效果，避免为了做而做；</li><li>精准把控时间节点，按节点完成；</li><li>快速熟悉上手，提升效率；</li><li>规划较虚，根据实际工作需要推进，不要好高骛远，先做好基础流程。</li><li>相关发言建议：对每项工作分类梳理，明确基本步骤和关注点，多与老同事沟通；</li><li>月度信息和内审流程刚接手，有不确定可随时沟通；</li><li>细节把控可以，信息核对和准确性可进一步提升。</li><li>相关发言要求：从务虚转向务实，说一是一，明确意义，不要大而空的话；</li><li>说明如何做好月度定价和内审。</li><li>相关发言建议：每两三天碰头分享学到的新东西和遇到的问题。</li><li>相关发言建议：有空杯心态，忘记原来做过招商。</li><li>相关发言建议：新人互相帮助共同进步。</li></ul><h3 class="ck-doc-h3">建议与方案</h3><ul><li>相关发言举措：流程分类处理，紧急重要流程优先审批，如456小时之内的合同新签，时间要求不高的下班或晚上集中处理；</li><li>每月月度更新内审表格动态数据，审批时当字典和指引使用，综合项目库存去化、客储、人员、税收、履约、政府满意度、亮点客户等多维度评估；</li><li>利用空余时间在地图上标记项目位置，通过卫星图或街景图了解周边，形成项目区位框架；</li><li>月度更新数据时多维度采集信息，多向项目同事、总监、经理、顾问沟通；</li><li>出差时尽可能集体调研在售项目；</li><li>收集填写三表数据，了解城市人口经济行政工业发展客户分布工业土地市场等；</li><li>研究城市视频互联网；</li><li>通过项目定位报告了解项目本体；</li><li>出差走访调研；</li><li>认真完成佛山大沥项目定价，全流程经历一遍。</li><li>相关发言举措：提高掌握分管项目是否有罚则，对罚则项目提高敏感度，对剩余库存能否履约做出明确判断；</li><li>关注旗舰型、示范性项目政府满意度，关注项目亮点客户及后续审核；</li><li>月度提升数据敏感度，通过库存、项目任务完成情况、科普情况判断问题并思考解决方案；</li><li>多方面收集竞品信息，了解竞品与我方关系、去化及成交价；</li><li>了解项目人员组织、竞争关系、区划程度及科属情况；</li><li>定价理解菱形定价，了解房源信息、过往成交情况、现阶段执行政策，动竞品同类型房源区划及成交价；</li><li>提高数据收集能力，包括重点城市供应水平基本情况，扣除信息有待提升。</li><li>相关发言回应：调整思维模式，思考工作意义，多沟通，通过网络找竞品电话了解市场动态。</li><li>相关发言回应：将改进思维方式，避免错别字和数据填错，梳理背后逻辑指导工作。</li></ul><h3 class="ck-doc-h3">议题小结</h3><ul><li>状态：待验证。</li><li>依据：相关发言、5、6分别提出流程审批、月度、定价等具体目标与举措，相关发言、2、7等提出务实、节点把控、多思考等要求，实际效果有待后续验证。</li></ul><h2 class="ck-doc-h2">采购组上半年工作总结与下半年计划</h2><h3 class="ck-doc-h3">问题与事实</h3><ul><li>上半年单项目调研完成74个标，其中总包12个，涉及52个新供应商、57个老供应商；</li><li>上半年完成4个集采。</li><li>自评一般偏上，没有4.5分及以上的单项目调研分；</li><li>单项目调研比去年平均值63个提升18%，今年达到74个；</li><li>集采去年全年做2个，今年上半年完成4个；</li><li>去年下半年总包只做4个，今年上半年完成12个总包。</li><li>行程铺开较紧凑，一般周二下午开始调研行程。</li><li>6月份做过半年度复盘，符合黑黄牌单位，总结历史不合格经验。</li></ul><h3 class="ck-doc-h3">讨论观点</h3><ul><li>考察单位需更深入了解与我司合作动机和诉求，与实控人对接要见其行动而非语言，分析铺开资金合理性。</li><li>集采需先整体评估行业，综合性论述单位匹配性，以及我司历史采购问题、本次招标和以后合作如何避免。</li></ul><h3 class="ck-doc-h3">建议与方案</h3><ul><li>下半年单项目结合经验夯实薄弱点；</li><li>介入物业工程领域，用最快速度了解学习；</li><li>持续跟踪零星材料如镀锌型材、钢结构链条。</li></ul><h3 class="ck-doc-h3">议题小结</h3><ul><li>状态：已确认。</li><li>依据：上半年单项目调研74个标、总包12个、集采4个等数据已汇报，下半年计划为夯实薄弱点、介入物业工程领域、持续跟踪零星材料。</li></ul><h2>关键决策与明确要求</h2><ul><li>相关发言要求相关发言下半年摒除杂念、进一步内省、工作更有激情。</li><li>相关发言要求相关发言从务虚转向务实，说一是一，明确意义，不要大而空的话。</li><li>相关发言要求相关发言说明如何做好月度定价和内审。</li><li>相关发言要求新人多思考工作目的和效果，避免为了做而做，精准把控时间节点。</li></ul><h2>行动项与后续安排</h2><ul><li>相关发言继续完善退租台账，加快退租整理和审批效率。</li><li>相关发言认真完成佛山大沥项目定价，全流程经历一遍。</li><li>相关发言下半年完成5个项目周边竞品实地调研，输出调研汇总表不少于5张，完成项目定价不少于5个，8月完成广州南湾项目模拟竞价。</li><li>相关发言9~11月完成对接9个城市的24个年终自有项目调研，与产发顾问同事访谈交流不少于50次，竞品调研不少于60次，年底之前看完84个项目。</li><li>相关发言12月独立对接所有月度内审，独立输出项目定价报告并独立汇报。</li><li>相关发言、相关发言、相关发言每两三天碰头分享学到的新东西和遇到的问题。</li></ul><h2>会议结论</h2><ul><li><span class="ck-cite-entity" data-trace="trace-8" data-cite="8">本次会议明确了定价依据性不足、风险意识缺乏、月度追踪敏感度与预见性不够、客户审核标准降低等问题，要求下半年充分跑市场、加强价格逻辑推导与定价后评估、树立去库存意识、完善退租台账，并强调新人需从务虚转向务实、按节点完成工作。</span><a href="javascript:void(0)" class="ck-cite-ref" data-target-trace="trace-8" title="点击查看要点归纳 [8]">[8]</a></li></ul>
+        </div>
+        <div class="ck-review-rule"></div>
+        <div class="ck-review-right">
+          <div class="ck-ev-list">
+            <aside class="ck-ev ck-trace-card" id="card-trace-1" data-trace="trace-1" data-cite="1"><div class="ck-ev-k"><a class="ck-ev-cite-tag" href="javascript:void(0);">[1]</a> <span class="ck-ev-kind-badge ck-badge-keypoint">要点归纳</span></div><div class="ck-mem-title"><strong>流程审批量同比增长46%，超时率下降0.38%</strong></div></aside><aside class="ck-ev ck-trace-card" id="card-trace-2" data-trace="trace-2" data-cite="2"><div class="ck-ev-k"><a class="ck-ev-cite-tag" href="javascript:void(0);">[2]</a> <span class="ck-ev-kind-badge ck-badge-note">随文批注</span></div><div class="ck-mem-title"><strong>有的时候呢是根据经验在判断，有的是只对标这个竞品没有充分对比分析出项目的这个价值区位</strong></div><div class="ck-ev-quote"><strong>用户批注：</strong>扯淡呢</div></aside><aside class="ck-ev ck-trace-card" id="card-trace-3" data-trace="trace-3" data-cite="3"><div class="ck-ev-k"><a class="ck-ev-cite-tag" href="javascript:void(0);">[3]</a> <span class="ck-ev-kind-badge ck-badge-keypoint">要点归纳</span></div><div class="ck-mem-title"><strong>定价依据性不足，多凭经验或简单对标竞品</strong></div></aside><aside class="ck-ev ck-trace-card" id="card-trace-4" data-trace="trace-4" data-cite="4"><div class="ck-ev-k"><a class="ck-ev-cite-tag" href="javascript:void(0);">[4]</a> <span class="ck-ev-kind-badge ck-badge-note">随文批注</span></div><div class="ck-mem-title"><strong>可能更多的是关注价格的这个本身，对这个项目的这个打法，包括接下来的这个人员组织安排和整个城市的一个策略呢其实是比较缺乏这个了解的</strong></div><div class="ck-ev-quote"><strong>用户批注：</strong>假大空</div></aside><aside class="ck-ev ck-trace-card" id="card-trace-5" data-trace="trace-5" data-cite="5"><div class="ck-ev-k"><a class="ck-ev-cite-tag" href="javascript:void(0);">[5]</a> <span class="ck-ev-kind-badge ck-badge-keypoint">要点归纳</span></div><div class="ck-mem-title"><strong>对项目整体打法与策略缺乏关注，价格与策略可能不匹配</strong></div></aside><aside class="ck-ev ck-trace-card" id="card-trace-6" data-trace="trace-6" data-cite="6"><div class="ck-ev-k"><a class="ck-ev-cite-tag" href="javascript:void(0);">[6]</a> <span class="ck-ev-kind-badge ck-badge-keypoint">要点归纳</span></div><div class="ck-mem-title"><strong>风险意识不足，对项目面临问题和同城项目缺乏系统了解</strong></div></aside><aside class="ck-ev ck-trace-card" id="card-trace-7" data-trace="trace-7" data-cite="7"><div class="ck-ev-k"><a class="ck-ev-cite-tag" href="javascript:void(0);">[7]</a> <span class="ck-ev-kind-badge ck-badge-note">随文批注</span></div><div class="ck-mem-title"><strong>到一个城市呢不能为了定价而定价。</strong></div><div class="ck-ev-quote"><strong>用户批注：</strong>这不废话</div></aside><aside class="ck-ev ck-trace-card" id="card-trace-8" data-trace="trace-8" data-cite="8"><div class="ck-ev-k"><a class="ck-ev-cite-tag" href="javascript:void(0);">[8]</a> <span class="ck-ev-kind-badge ck-badge-keypoint">要点归纳</span></div><div class="ck-mem-title"><strong>下半年需加强价格逻辑推导和定价后评估</strong></div></aside><aside class="ck-ev ck-trace-card" id="card-trace-9" data-trace="trace-9" data-cite="9"><div class="ck-ev-k"><a class="ck-ev-cite-tag" href="javascript:void(0);">[9]</a> <span class="ck-ev-kind-badge ck-badge-note">随文批注</span></div><div class="ck-mem-title"><strong>难点项目的话就是没有实现太好的一个破局，比如说像佛山的石山江门鹤山</strong></div><div class="ck-ev-quote"><strong>用户批注：</strong>唉，有啥办法</div></aside><aside class="ck-ev ck-trace-card" id="card-trace-10" data-trace="trace-10" data-cite="10"><div class="ck-ev-k"><a class="ck-ev-cite-tag" href="javascript:void(0);">[10]</a> <span class="ck-ev-kind-badge ck-badge-keypoint">要点归纳</span></div><div class="ck-mem-title"><strong>解决难点项目能力欠缺，对项目核心问题判断不准</strong></div></aside><aside class="ck-ev ck-trace-card" id="card-trace-11" data-trace="trace-11" data-cite="11"><div class="ck-ev-k"><a class="ck-ev-cite-tag" href="javascript:void(0);">[11]</a> <span class="ck-ev-kind-badge ck-badge-keypoint">要点归纳</span></div><div class="ck-mem-title"><strong>项目敏感度和预见性不足，市场跟进不够</strong></div></aside><aside class="ck-ev ck-trace-card" id="card-trace-12" data-trace="trace-12" data-cite="12"><div class="ck-ev-k"><a class="ck-ev-cite-tag" href="javascript:void(0);">[12]</a> <span class="ck-ev-kind-badge ck-badge-note">随文批注</span></div><div class="ck-mem-title"><strong>从今年上半年开始的话，就是要开始做这个去库存的风险的去库存的这个意识和思维的一个树立和转变</strong></div><div class="ck-ev-quote"><strong>用户批注：</strong>哈哈哈哈</div></aside><aside class="ck-ev ck-trace-card" id="card-trace-13" data-trace="trace-13" data-cite="13"><div class="ck-ev-k"><a class="ck-ev-cite-tag" href="javascript:void(0);">[13]</a> <span class="ck-ev-kind-badge ck-badge-keypoint">要点归纳</span></div><div class="ck-mem-title"><strong>工作需转变思维，加强去库存意识和敏感度</strong></div></aside><aside class="ck-ev ck-trace-card" id="card-trace-14" data-trace="trace-14" data-cite="14"><div class="ck-ev-k"><a class="ck-ev-cite-tag" href="javascript:void(0);">[14]</a> <span class="ck-ev-kind-badge ck-badge-note">随文批注</span></div><div class="ck-mem-title"><strong>就日常的话就是在日常的客户审核价格申请，包括退去催催售等环节呢，就是把这个项目的日常情况呢了解清楚</strong></div><div class="ck-ev-quote"><strong>用户批注：</strong>我信你还是信秦始皇？</div></aside><aside class="ck-ev ck-trace-card" id="card-trace-15" data-trace="trace-15" data-cite="15"><div class="ck-ev-k"><a class="ck-ev-cite-tag" href="javascript:void(0);">[15]</a> <span class="ck-ev-kind-badge ck-badge-keypoint">要点归纳</span></div><div class="ck-mem-title"><strong>客户审核标准降低，个别项目风险意识需加强</strong></div></aside><aside class="ck-ev ck-trace-card" id="card-trace-16" data-trace="trace-16" data-cite="16"><div class="ck-ev-k"><a class="ck-ev-cite-tag" href="javascript:void(0);">[16]</a> <span class="ck-ev-kind-badge ck-badge-note">随文批注</span></div><div class="ck-mem-title"><strong>目前个别项目的话可能就是考虑去化，可能就是质量没有做一个太好的一个把控，所以个别的项目的风险呢要做一个管控的这个意识吧</strong></div><div class="ck-ev-quote"><strong>用户批注：</strong>有点道理</div></aside><aside class="ck-ev ck-trace-card" id="card-trace-17" data-trace="trace-17" data-cite="17"><div class="ck-ev-k"><a class="ck-ev-cite-tag" href="javascript:void(0);">[17]</a> <span class="ck-ev-kind-badge ck-badge-note">随文批注</span></div><div class="ck-mem-title"><strong>个别重点的或者是亮点项目或者是有罚的项目比较多的这种项目呢，还是重点关注这个履约风险</strong></div><div class="ck-ev-quote"><strong>用户批注：</strong>弃车保帅</div></aside>
+          </div>
+        </div>
+      </div>
+    </div>
+  </main>
+<script>
+(function () {
+  function alignTraceCards() {
+    const isDesktop = window.innerWidth > 860;
+    document.querySelectorAll('.ck-review').forEach((review) => {
+      const leftEl = review.querySelector('.ck-review-left');
+      const rightEl = review.querySelector('.ck-review-right');
+      const listEl = review.querySelector('.ck-ev-list');
+      if (!leftEl || !rightEl || !listEl) return;
+
+      const cards = Array.from(listEl.querySelectorAll('.ck-ev'));
+      if (!cards.length) return;
+
+      if (!isDesktop) {
+        cards.forEach((c) => {
+          c.style.position = '';
+          c.style.top = '';
+          c.style.width = '';
+        });
+        rightEl.style.minHeight = '';
+        listEl.style.minHeight = '';
+        return;
+      }
+
+      // 桌面端：右侧卡片精确对齐左侧首次出现的位置，同时防重叠向下推
+      cards.forEach((c) => {
+        c.style.position = 'absolute';
+        c.style.width = '100%';
+        c.style.boxSizing = 'border-box';
+      });
+
+      const leftRect = leftEl.getBoundingClientRect();
+      let lastBottom = 0;
+      const gap = 10;
+
+      cards.forEach((card) => {
+        const traceId = card.getAttribute('data-trace');
+        const targetEntity = leftEl.querySelector(`.ck-cite-ref[data-target-trace="${traceId}"]`)
+                          || leftEl.querySelector(`.ck-cite-entity[data-trace~="${traceId}"]`);
+
+        let targetTop = 0;
+        if (targetEntity) {
+          const entRect = targetEntity.getBoundingClientRect();
+          targetTop = entRect.top - leftRect.top;
+        } else {
+          targetTop = lastBottom > 0 ? lastBottom + gap : 0;
+        }
+
+        // 避免与上一张卡片重叠
+        const placedTop = Math.max(targetTop, lastBottom > 0 ? lastBottom + gap : 0);
+        card.style.top = `${placedTop}px`;
+
+        const cardHeight = card.offsetHeight || 75;
+        lastBottom = placedTop + cardHeight;
+      });
+
+      const minHeight = Math.max(leftEl.offsetHeight, lastBottom + 16);
+      rightEl.style.minHeight = `${minHeight}px`;
+      listEl.style.minHeight = `${minHeight}px`;
+    });
+  }
+
+  window.__alignTraceCards = alignTraceCards;
+
+  document.querySelectorAll('.ck-review').forEach((row) => {
+    const cites = row.querySelectorAll('.ck-cite-ref');
+    const entities = row.querySelectorAll('.ck-cite-entity');
+    const cards = row.querySelectorAll('.ck-ev');
+
+    const clearHighlights = () => {
+      entities.forEach((el) => el.classList.remove('is-on'));
+      cards.forEach((el) => el.classList.remove('is-on', 'is-highlighted'));
+      cites.forEach((c) => c.classList.remove('is-active'));
+    };
+
+    const highlightTrace = (targetTraceId) => {
+      clearHighlights();
+      let targetCard = null;
+      row.querySelectorAll('.ck-ev').forEach((card) => {
+        if (card.getAttribute('data-trace') === targetTraceId) {
+          targetCard = card;
+          card.classList.add('is-on', 'is-highlighted');
+          card.style.animation = 'none';
+          void card.offsetHeight;
+          card.style.animation = 'citePulse 1.2s ease';
+        }
+      });
+      entities.forEach((ent) => {
+        const traces = (ent.getAttribute('data-trace') || '').split(' ');
+        if (traces.includes(targetTraceId)) {
+          ent.classList.add('is-on');
+        }
+      });
+      cites.forEach((c) => {
+        if (c.getAttribute('data-target-trace') === targetTraceId) {
+          c.classList.add('is-active');
+        }
+      });
+      if (targetCard) {
+        targetCard.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      }
+    };
+
+    cites.forEach((btn) => {
+      btn.addEventListener('click', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        const targetId = btn.getAttribute('data-target-trace');
+        if (targetId) highlightTrace(targetId);
+      });
+    });
+
+    entities.forEach((ent) => {
+      ent.addEventListener('click', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        const traces = (ent.getAttribute('data-trace') || '').split(' ');
+        if (traces.length > 0 && traces[0]) highlightTrace(traces[0]);
+      });
+    });
+
+    row.addEventListener('click', (e) => {
+      const card = e.target.closest('.ck-ev');
+      if (card) {
+        const traceId = card.getAttribute('data-trace');
+        if (traceId) highlightTrace(traceId);
+      }
+    });
+  });
+
+  alignTraceCards();
+  window.addEventListener('load', alignTraceCards);
+  let resizeTimer = null;
+  window.addEventListener('resize', () => {
+    clearTimeout(resizeTimer);
+    resizeTimer = setTimeout(alignTraceCards, 80);
+  });
+})();
+</script>
+</body>
+</html>

@@ -3581,12 +3581,15 @@ def test_personal_no_full_fallback() -> None:
 
 
 def test_person_reference_rules() -> None:
-    """人称口径（选项 1）：真人正文用「你」指代本人，分工/责任人/引语保真名；
+    """人名口径（方案③，2026-09-21 定）：本人动作省主语、他人动作写真名、
+    待办/提醒/被点名才用「你」，分工与引语一律真名，同句与相邻两句不混用；
     客观与职业模板仍是第三人称、不许出现「你」「您」。
 
-    回归背景（2026-09-21 用户实测）：此前三处（草稿硬规则 4 / 渲染纪律 / 审核视角偏差）
-    一律禁止「你」「您」，于是"个人视角纪要"读起来与他无关；现在反过来——真人用「你」，
-    但**人名保真优先**（分工栏写成「你」会被审核拦）。
+    口径演进：① 起初三处（草稿硬规则 / 渲染纪律 / 审核视角偏差）一律禁止「你」「您」
+    → 个人视角读起来与他无关；② 改成"真人正文用第二人称「你」" → 实测同一上下文两次跑
+    出来一次「你」37 次、另一次 11 次且与真名混排，读着别扭（本 session 用户反馈）；
+    ③ 现在按"中文允许省主语"的口径——叙述本人动作省主语，他人动作写名，只在需要点明
+    归属时用「你」。审校三条都同步：允许省主语、拦他人动作缺主语、拦同句混用。
     """
     from domain.meeting.tasks.minutes.prompts import (
         MINUTES_GENERATION_SYSTEM_PROMPT as GEN,
@@ -3594,20 +3597,66 @@ def test_person_reference_rules() -> None:
         MINUTES_SUPERVISOR_DOMAIN_PROMPT as REVIEW,
     )
 
-    check("草稿：真人模式用「你」，且限定只指代本人",
-          "真人模式正文对该用户用第二人称「你」" in GEN
-          and "分工、责任人、引语与第三方姓名一律保留真名" in GEN, "")
+    check("草稿：真人模式本人动作省主语 + 他人动作写真名",
+          "本人动作**省主语**" in GEN and "他人动作写真名" in GEN, "")
     check("草稿：不再无条件禁止「你」「您」", "禁止正文「你」「您」" not in GEN, "")
-    check("草稿：真人口径段同步（正文用「你」、人名照写）",
-          "正文对该用户用第二人称「你」" in GEN and "照原文写真名" in GEN, "")
-    check("渲染：真人用「你」，人名保真优先于人称",
-          "真人模式正文用第二人称「你」指代本人" in RENDER
-          and "人名保真优先于人称" in RENDER, "")
+    check("草稿：真人口径段同步（省主语 / 只在该用时用「你」/ 人名照写）",
+          "只保留与该姓名直接相关内容" in GEN and "照原文写真名" in GEN
+          and "不混用" in GEN, "")
+    check("渲染：人名口径四条齐备（省主语 / 真名 / 你 / 不混用）",
+          "本人动作省主语" in RENDER and "他人动作写真名" in RENDER
+          and "只有待办/提醒/被点名才用「你」" in RENDER
+          and "同一句与相邻两句不混用" in RENDER, "")
+    check("渲染：不再写「正文用第二人称「你」指代本人」那种全篇「你」的口径",
+          "正文用第二人称「你」指代本人" not in RENDER, "")
+    check("通顺性：给本人动作省主语开口子（否则被判半截句）",
+          "真人模式叙述本人动作时主语可省" in RENDER, "")
     check("审核：客观/职业模板出现「你」「您」仍要拦",
           "**客观/职业模板**正文出现「你」「您」" in REVIEW, "")
     check("审核：真人模式把分工/责任人写成「你」要拦",
           "真人模式把分工/责任人/引语里的人名写成「你」" in REVIEW
-          and "真名要保真——第二人称只用于正文叙述本人" in REVIEW, "")
+          and "真名要保真" in REVIEW, "")
+    check("审核：新增两条——他人动作缺主语、同句混用都要拦",
+          "真人模式他人动作缺主语" in REVIEW and "混用「你」与真名" in REVIEW, "")
+
+
+def test_assignment_scope_rules() -> None:
+    """分工范围：真人档只列他的条目，客观/职业模板仍按分工条数（2026-09-21 收紧）。
+
+    根因（实测分工栏里带出武思华/范炳杰/盛晋珲的条目）：不是模型不听话，是契约就这么写的——
+    ``personally_relevant_points`` 的字段说明与提示词都写「条数 = 有明确责任人 + 明确职责的
+    分工数」，通篇没限定本人；草稿照契约列了全场分工，渲染只是照抄。所以四处一起收：
+    ① 契约字段说明 ② 提示词字段小节 ③ 草稿真人视角段 ④ 审核一条（渲染后没有审核环节，
+    那一侧只能靠纪律，见 test_render_view_directive）。
+    """
+    from domain.meeting.tasks.minutes.contracts import MINUTES_GENERATION_OUTPUT_CONTRACT
+    from domain.meeting.tasks.minutes.prompts import (
+        MINUTES_GENERATION_SYSTEM_PROMPT as GEN,
+        MINUTES_SUPERVISOR_DOMAIN_PROMPT as REVIEW,
+    )
+
+    check("契约字段说明：真人模式只写本人（别人分工不列，需配合的合并成一句）",
+          "**真人模式只写本人的**" in MINUTES_GENERATION_OUTPUT_CONTRACT
+          and "确需他配合的合并成一句" in MINUTES_GENERATION_OUTPUT_CONTRACT
+          and "客观/职业模板按有明确责任人的分工条数写" in MINUTES_GENERATION_OUTPUT_CONTRACT,
+          "")
+    check("提示词字段小节：条数口径分档（客观/职业=分工数；真人=命中表里他的待办数）",
+          "条数 = 有明确责任人 + 明确职责的分工数**（客观/职业模板）" in GEN
+          and "**真人视角：条数 = 命中表里他的待办数**" in GEN
+          and "**别人的分工一律不列**" in GEN,
+          "")
+    check("草稿真人视角段：执行要点只写他的，未命中写 []",
+          "**执行要点只写他的**" in GEN and "命中表没给他派活时写 []" in GEN, "")
+    check("审核：真人模式逐条罗列他人分工要拦（条件句，不误伤客观/职业）",
+          "**分工范围（真人模式）**" in REVIEW
+          and "以条目形式逐条罗列别人的分工" in REVIEW
+          and "客观/职业模板按有明确责任人的分工条数写，不按本条拦" in REVIEW,
+          "")
+    check("审核：正当依赖不算（避免误拦）", "上游出包后才能联调」这类正当依赖不算" in REVIEW, "")
+    check("提示词里不留任何真实人名示例（全局提示词不得锚定到某个用户）",
+          all(name not in MINUTES_GENERATION_OUTPUT_CONTRACT + GEN + REVIEW
+              for name in ("申家坤", "徐玥", "武思华", "陈贺")),
+          "")
 
 
 def test_render_context_personal_injection() -> None:
@@ -3751,7 +3800,7 @@ def test_render_view_directive() -> None:
     check("纪律自带优先级：模板写「客观、非人格化」时人称与取舍以纪律为准",
           "人称与取舍以本纪律为准" in PERSONAL_VIEW_DIRECTIVE
           and "栏名、结构与事实口径照模板不变" in PERSONAL_VIEW_DIRECTIVE, "")
-    check("纪律含六条硬口径（相关=点名 / 聚焦 / 不漏全局 / 人称 / 命中表为准 / 不留空栏）",
+    check("纪律含六条硬口径（相关=点名 / 聚焦 / 不漏全局 / 人名口径 / 命中表为准 / 不留空栏）",
           all(
               clause in PERSONAL_VIEW_DIRECTIVE
               for clause in (
@@ -3759,7 +3808,9 @@ def test_render_view_directive() -> None:
                   "以本人为叙事主线",
                   "别人主讲、且与他无关的板块压成一句带过",
                   "关键数字仍**不得漏**",
-                  "第二人称「你」",
+                  "本人动作省主语",
+                  "他人动作写真名",
+                  "同一句与相邻两句不混用",
                   "以它为准",
                   "不要留空栏",
                   "已按人裁剪",
@@ -3827,6 +3878,41 @@ def test_render_context_person_transcript() -> None:
     objective = host._render_context({**state, "objective_perspective": True}, "minutes")
     check("客观：整篇原文原样、无裁剪标记",
           "已按人裁剪" not in objective and "另外引擎那部分我一起讲一下大概情况" in objective, "")
+
+    # 素材裁剪（2026-09-21 追加）：理解包里"别人为主语"的条目在真人装配轮去掉——
+    # 实测「行动项与分工」栏会把 key_points 直接变成条目（157 条里 49 条以别人为主语），
+    # 纪律压不住素材；裁完同一份输入的分工栏 8/8 都是他的条目（原来 5/8）。
+    pack = {
+        "meeting_brief": "进展",
+        "topics": [{"title": "长文本", "key_points": [
+            "长文本实测 8~9 万字不行，手头最大 40 多秒",   # 无人称全局事实 → 留
+            "申家坤回去改配置，明天给结论",                  # 点名他 → 留
+            "武思华明天找他们要数据，看能不能要到",          # 别人为主语 → 裁
+            "徐玥要求 930 前至少单卡四路",                   # 别人为主语 → 裁
+        ]}],
+        "decisions": ["930 前至少单卡四路"],
+        "risks": ["武思华找对方批权限一直不批"],
+    }
+    pack_state = {
+        **state,
+        "meeting_understanding": {
+            "speakers": [{"name": "申家坤"}, {"name": "武思华"}, {"name": "徐玥"}]
+        },
+    }
+    trimmed_pack = host._person_pack(pack, pack_state)
+    check("素材裁剪：别人为主语的条目去掉，他的与无人称全局事实都留",
+          len(trimmed_pack["topics"][0]["key_points"]) == 2
+          and "长文本实测 8~9 万字不行" in trimmed_pack["topics"][0]["key_points"][0]
+          and "申家坤回去改配置" in trimmed_pack["topics"][0]["key_points"][1],
+          str(trimmed_pack["topics"][0]["key_points"]))
+    check("素材裁剪：decisions / risks 不动（全局结论与风险仍进上下文）",
+          trimmed_pack["decisions"] == ["930 前至少单卡四路"]
+          and trimmed_pack["risks"] == ["武思华找对方批权限一直不批"], "")
+    check("素材裁剪：客观档与职业模板都不裁（原样返回）",
+          len(host._person_pack(pack, {**pack_state, "objective_perspective": True})["topics"][0]["key_points"]) == 4
+          and len(host._person_pack(
+              pack, {**pack_state, "user": {"name": "开发人员", "persona_type": "role_template"}}
+          )["topics"][0]["key_points"]) == 4, "")
 
     role = host._render_context(
         {**state, "user": {"name": "开发人员", "persona_type": "role_template"}}, "minutes"
@@ -3930,6 +4016,7 @@ def main() -> int:
         test_person_reference_rules()
         test_render_context_personal_injection()
         test_render_view_directive()
+        test_assignment_scope_rules()
         test_render_context_person_transcript()
         test_product_launch_overview()
         test_retro_annual_groups()

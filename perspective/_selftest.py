@@ -155,6 +155,9 @@ def test_view_directive() -> None:
     check("整栏与他无关时给缺省兜底，不留空栏（空栏会触发回退重写）",
           "不要留空栏" in PERSONAL_VIEW_DIRECTIVE
           and "缺省写法" in PERSONAL_VIEW_DIRECTIVE, "")
+    check("纪律含硬口径：分点/表格类栏目只列他的条目（别人条目合并成一句）",
+          "**分工类栏目只列他的条目**" in PERSONAL_VIEW_DIRECTIVE
+          and "别人的条目一律不列" in PERSONAL_VIEW_DIRECTIVE, "")
     check("纪律不含任何人物事实（纯写作纪律，不引入可被抄进正文的名字/数字）",
           "申家坤" not in PERSONAL_VIEW_DIRECTIVE
           and "赵衡" not in PERSONAL_VIEW_DIRECTIVE, "")
@@ -315,6 +318,26 @@ def test_transcript_slice() -> None:
     check("没有可用称呼 → fallback 且原样返回", st3["fallback"] and empty == t, str(st3))
 
 
+def test_foreign_only() -> None:
+    """素材裁判断据：别人为主语、且完全没提到他 → True（真人装配轮用它裁理解条目）。"""
+    from .hits import foreign_only
+
+    addrs, others = ["赵衡", "小赵"], ["武思华", "徐玥"]
+    check("点名到他 → 不是别人的（即使同时点了别人名）",
+          not foreign_only("问题单由赵衡找武思华核对，中测时带上中测版本", addrs, others, full_name="赵衡"), "")
+    check("别称也算提到他",
+          not foreign_only("小赵那边的权限单我提了，武思华帮忙看下", addrs, others), "")
+    check("别人为主语 → 裁掉",
+          foreign_only("武思华明天找他们要数据，看能不能要到", addrs, others, full_name="赵衡"), "")
+    check("无人称的全局事实 → 保留（数字/结论不能丢）",
+          not foreign_only("长文本实测 8~9 万字不行，手头最大 40 多秒", addrs, others, full_name="赵衡"), "")
+    check("空串不算", not foreign_only("", addrs, others, full_name="赵衡"), "")
+    # 已知边界（刻意不改）：理解层的 key_points 是纯文本、不带 owner，"他做的事但只写了别人名"
+    # 与"别人的事"在程序里无法区分 → 会被裁掉；这类条目在草稿的执行要点里有归属，靠草稿兜住。
+    check("边界：他的事、但文本里只有别人名 → 按别人为主语裁（由草稿兜住）",
+          foreign_only("问题单找武思华核对，中测时带上中测版本", addrs, others, full_name="赵衡"), "")
+
+
 def test_skip_and_synthesize() -> None:
     """跳过判定（保守口径）+ 合成：schema 一致性与六种画像形态。"""
     from .hits import build_hit_table
@@ -414,6 +437,7 @@ def main() -> int:
     test_user_channel_block()
     test_hit_table()
     test_transcript_slice()
+    test_foreign_only()
     test_skip_and_synthesize()
     test_tolerant_field_forms()
     print(f"pass {len(PASS)}  fail {len(FAIL)}")

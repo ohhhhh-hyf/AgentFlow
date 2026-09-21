@@ -99,6 +99,27 @@ def _item_text(value: object) -> str:
     return _clean(value)
 
 
+def foreign_only(
+    text: object,
+    addresses: list[str],
+    others: list[str],
+    *,
+    full_name: str = "",
+) -> bool:
+    """该条是不是"别人为主语、且完全没提到他"（真人模式裁素材用）。
+
+    装配轮没有审核，模板栏位会把会议理解的条目直接变成正文条目——实测「武思华明天找他们
+    要数据」就是这么进「行动项与分工」的，写作纪律压不住。裁素材只丢"别人为主语"的条目：
+    提到他的留（如"问题单找武思华核一下"是他的事）、无人称的全局事实留（数字、结论）。
+    """
+    clean = _clean(text)
+    if not clean:
+        return False
+    if _mentions(clean, addresses, full_name or (addresses[0] if addresses else "")):
+        return False
+    return any(name and name in clean for name in others)
+
+
 @dataclass
 class Hit:
     where: str       # 依据位置：action_hints[0].owner / speakers[1].name / risks[2]

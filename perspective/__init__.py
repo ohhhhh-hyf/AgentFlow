@@ -2,7 +2,14 @@
 from .agent import PerspectiveModelingAgent
 from .contracts import PERSPECTIVE_MODELING_GENERATION_OUTPUT_CONTRACT
 from .models import EMPTY_PERSPECTIVE_MODELING, PerspectiveModeling
-from .hits import Hit, HitTable, build_hit_table, render_hit_block, slice_transcript_for_person
+from .hits import (
+    Hit,
+    HitTable,
+    build_hit_table,
+    foreign_only,
+    render_hit_block,
+    slice_transcript_for_person,
+)
 from .preferences import (
     BLOCK_TITLE as PREFERENCE_BLOCK_TITLE,
     CHANNEL_TITLE as USER_CHANNEL_TITLE,
@@ -30,6 +37,7 @@ __all__ = [
     "USER_CHANNEL_TITLE",
     "address_aliases",
     "build_hit_table",
+    "foreign_only",
     "build_preference_block",
     "build_user_channel",
     "render_hit_block",
