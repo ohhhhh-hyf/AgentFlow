@@ -1,0 +1,12 @@
+{
+  "name": "申家坤",
+  "name_aliases": ["家坤"],
+  "role": "算法工程师",
+  "role_template": "algorithm_engineer",
+  "personality": ["务实", "直接", "严谨"],
+  "preferences": [
+    "先写我负责的待办",
+    "关键数字与口径优先保留",
+    "徐玥是我的上级，关注她的指示与行动"
+  ]
+}

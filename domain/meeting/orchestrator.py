@@ -16,7 +16,14 @@ import logging
 from langgraph.graph import START
 
 from client import LLMClient
-from perspective import PerspectiveModelingAgent
+from perspective import (
+    PREFERENCE_LINES,
+    PERSONAL_VIEW_DIRECTIVE,
+    PerspectiveModelingAgent,
+    address_aliases,
+    build_preference_block,
+    slice_transcript_for_person,
+)
 from .meeting_factory import MeetingAgentFactory
 from .meeting_core import MeetingUnderstandingAgent
 from .domain_config import LINE_CN_NAMES, LINE_KINDS
@@ -580,8 +587,19 @@ class _Nodes(DomainNodes):
             f"视角模式：{mode}",
             fact_note,
             f"用户画像：\n{_json(self._compact_user(state.get('user') or {}))}",
-            f"会议理解：\n{_json(pack)}",
         ]
+        # 偏好直接编成指令进纪要线（不走视角建模）：只调顺序与详略，事实口径不变。
+        # 客观视角返回空串（object.json 本来也没有个人偏好）。
+        if line_name in PREFERENCE_LINES:
+            preference_block = build_preference_block(state.get("user") or {})
+            if preference_block:
+                parts.append(preference_block)
+            # 命中表（程序判定，非模型推断）：他是谁、哪些待办是他的、依据在哪。
+            # 跳过视角建模时它是唯一的"按人裁剪"依据；跑建模时也用它复核。
+            hit_block = str(state.get("user_hits_block") or "").strip()
+            if hit_block:
+                parts.append(hit_block)
+        parts.append(f"会议理解：\n{_json(pack)}")
         perspective = self._compact_perspective(state.get("perspective_profile") or {})
         if perspective:
             parts.append(f"用户视角模型：\n{_json(perspective)}")
@@ -671,6 +689,8 @@ class _Nodes(DomainNodes):
 
         生成侧注入的【会议记忆】要一并给审核者：否则「对照缺失/误标」「记忆摘录被写成
         新决策」无从判定，历史对照段还会因缺锚点被判成捏造。
+        同理，**命中表也要给审核者**（P2-F）：没有它，"owner 是不是这个人""职业名当成
+        负责人""他名下的条被漏掉"这三类判断都只能靠猜。
         """
         sub = _line(state, line_name)
         revision_count = sub.get("revision_count", 0)
@@ -684,6 +704,10 @@ class _Nodes(DomainNodes):
         memory = str(sub.get("memory_context") or "").strip()
         if memory:
             blocks.append(memory)
+        # 命中表（程序判定，带依据）：真人/职业模板下是"谁的事"的唯一硬依据
+        hits = str(state.get("user_hits_block") or "").strip()
+        if hits and mode != "objective":
+            blocks.append(hits)
         budget = self._length_budget_line(state, line_name)
         if budget:
             blocks.append(budget)
@@ -732,10 +756,28 @@ class _Nodes(DomainNodes):
         if perspective:
             blocks.append(("已审核用户视角", perspective, "json"))
         if line_name in {"minutes", "minutes_trace", "minutes_styles", "mindmap", "consensus_decision"}:
-            blocks.insert(0, ("会议原文", state.get("transcript") or "", "raw"))
+            label, transcript = "会议原文", state.get("transcript") or ""
+            sliced = self._person_transcript(state) if line_name in PREFERENCE_LINES else ""
+            if sliced:
+                label = "会议原文（真人模式·已按人裁剪）"
+                transcript = sliced
+            blocks.insert(0, (label, transcript, "raw"))
         budget = self._length_budget_line(state, line_name)
         if budget:
             blocks.append(("篇幅预算", budget, "raw"))
+        # 命中块 / 偏好块也要进"逐栏填充"这一轮——装配才是真正写正文的地方，
+        # 它看不到"他是谁、他关心什么"就会把个人视角摊回整场（实测观感：与客观没区别）。
+        # 命中块对所有非客观线有用（谁的事）；偏好块只进纪要线（它讲的是"怎么写纪要"）。
+        extra_parts = [extra] if str(extra or "").strip() else []
+        if not bool(state.get("objective_perspective")):
+            hits = str(state.get("user_hits_block") or "").strip()
+            if hits:
+                extra_parts.append(hits)
+            if line_name in PREFERENCE_LINES:
+                preference = build_preference_block(state.get("user") or {})
+                if preference:
+                    extra_parts.append(preference)
+        extra = "\n\n".join(extra_parts)
         return build_render_context(
             mode=self._mode_label(state),
             objective=bool(state.get("objective_perspective")),
@@ -746,6 +788,53 @@ class _Nodes(DomainNodes):
             extra=extra,
             dumps=_json,
         )
+
+    def _person_transcript(self, state: dict) -> str:
+        """真人模式给渲染用的原文切片：只留他发言/被点名的段（返回空串＝不裁剪）。
+
+        为什么非裁不可：模板路径的正文由通用填充器逐栏写，【内容来源】里躺着整场原文、
+        模板栏名又是「全文摘要 / 分段速览」——写作纪律写在消息开头也压不过眼前的两万字，
+        实测两轮仍输出整场（提及他的段落只占 12%）。裁掉别人的发言，栏位就没得抄；
+        全局结论/数字由已批准草稿与会议理解承载，不会因此丢掉。
+
+        裁完太少（或原文没有稳定的「称呼 + 时间」结构）一律退回整篇：宁可不聚焦，不可没料。
+        """
+        if self._mode_label(state) != "personal":
+            return ""
+        user = state.get("user") or {}
+        name = str(user.get("name") or "").strip()
+        addresses = [name, *address_aliases(user)]
+        text, stats = slice_transcript_for_person(
+            state.get("transcript") or "",
+            [a for a in addresses if a],
+            full_name=name,
+            self_label="你",
+        )
+        if stats.get("fallback"):
+            logger.info("personal transcript slice skipped: %s", stats)
+            return ""
+        logger.info(
+            "personal transcript slice kept=%s dropped=%s chars=%s->%s",
+            stats.get("kept"),
+            stats.get("dropped"),
+            stats.get("chars"),
+            len(text),
+        )
+        return text
+
+    def _render_directives(self, state: dict, line_name: str) -> str:
+        """装配那一轮的「本栏写作纪律」：真人模式按本人聚焦，客观/职业模板不注入。
+
+        为什么必须从这里下发：带模板时正文由 ``tools.template_router`` 通用填充器逐栏写，
+        system 里只有「你只写本栏正文」——``MINUTES_RENDER_PROMPT`` 那条路不执行。不下发
+        取舍纪律，模型就只剩模板栏名（全文摘要 / 分段速览）可依，个人模式照样写成整场纪要
+        （实测 8172 字、超本篇参考上限 48%，与客观版看不出区别）。
+
+        职业模板不发：那份画像没有真人姓名，「你」无从指代，关注域已由【用户视角模型】块承担。
+        """
+        if self._mode_label(state) != "personal" or line_name not in PREFERENCE_LINES:
+            return ""
+        return PERSONAL_VIEW_DIRECTIVE
 
     def _make_fallback_node(self, line_name: str):
         """生成任务线降级节点：共识决策若已产出 issues 草稿，按确定性 Markdown 模板排版，严禁回退为空白占位符。"""
@@ -796,7 +885,7 @@ class _Nodes(DomainNodes):
         )
         if need_perspective:
             builder.add_node(
-                "perspective_modeling", self._perspective_modeling_node
+                "perspective_modeling", self._make_perspective_node(selected)
             )
             builder.add_edge("meeting_understanding", "perspective_modeling")
             cores = ["perspective_modeling"]
@@ -804,14 +893,52 @@ class _Nodes(DomainNodes):
 
     # ── 核心节点：会议理解（公共事实底座）──────────────────────
 
-    async def _perspective_modeling_node(self, state: dict) -> dict:
-        """客观全员模式跳过视角建模，省一次核心 LLM 调用。"""
-        if bool(state.get("objective_perspective")):
-            from perspective import EMPTY_PERSPECTIVE_MODELING
+    def _make_perspective_node(self, line_names: list[str]):
+        """会议域视角建模节点：客观跳过；真人命中非空时程序合成，省一轮核心调用。
 
-            progress("skip perspective (objective)")
-            return {"perspective_profile": EMPTY_PERSPECTIVE_MODELING}
-        return await super()._perspective_modeling_node(state)
+        判定与理由见 ``perspective.synth.skip_reason``——唯一保留 LLM 的是
+        "真人 + 完全没命中 + 挂 role_template"（要按职业关注域捞没点名的条目）。
+        节点同时把命中表写进 state，供草稿（按人裁剪）与审核（复核依据）使用。
+        降级：合成异常 → 空模型 + quality_degraded，不回退去跑 LLM（时间不可控）。
+        """
+        base_node = super()._perspective_modeling_node  # 绑定父类实现（闭包里不能直接用 super()）
+
+        async def node(state: dict) -> dict:
+            from perspective import (
+                EMPTY_PERSPECTIVE_MODELING,
+                build_hit_table,
+                render_hit_block,
+                skip_reason,
+                synthesize_perspective_profile,
+            )
+
+            if bool(state.get("objective_perspective")):
+                progress("skip perspective (objective)")
+                return {"perspective_profile": EMPTY_PERSPECTIVE_MODELING}
+
+            user = state.get("user") or {}
+            table = build_hit_table(user, self._understanding(state) or {})
+            extra = {
+                "user_hits": table.as_dict(),
+                "user_hits_block": render_hit_block(table),
+            }
+            reason = skip_reason(user, table, line_names)
+            if not reason:
+                result = await base_node(state)
+                return {**result, **extra}
+            try:
+                profile = synthesize_perspective_profile(user, table)
+            except Exception:  # noqa: BLE001 - 合成失败按降级处理，绝不把请求打成 500
+                logger.warning("synthesize perspective failed, degrade", exc_info=True)
+                return {
+                    "perspective_profile": EMPTY_PERSPECTIVE_MODELING,
+                    "quality_degraded": True,
+                    **extra,
+                }
+            progress(f"skip perspective ({reason}) hits={len(table.hits)}")
+            return {"perspective_profile": profile, **extra}
+
+        return node
 
     def _understanding_skip(
         self, line_names, template: str = "", memory_on: bool = False
@@ -851,10 +978,15 @@ class _Nodes(DomainNodes):
             focus = selected[0] if (skip and selected) else ""
             progress("agent start meeting_understanding")
             try:
+                # 本用户称呼表：把"赵工/小赵"这类原文称呼统一成真名，供下游裁剪与 owner 使用
+                # （客观/职业模板/无姓名 → 空串，不注入）
+                from perspective import build_user_channel
+
                 result = await self.meeting_understanding_agent.run(
                     state["transcript"],
                     focus_line=focus,
                     skip_fields=skip,
+                    user_channel=build_user_channel(state.get("user") or {}),
                 )
             except Exception:
                 logger.warning("meeting understanding failed, continue with empty", exc_info=True)
@@ -878,7 +1010,12 @@ class _Nodes(DomainNodes):
     async def _meeting_understanding_node(self, state: MeetingState) -> dict:
         """meeting理解：提取主题、结构、术语和待澄清问题。"""
         try:
-            result = await self.meeting_understanding_agent.run(state["transcript"])
+            from perspective import build_user_channel
+
+            result = await self.meeting_understanding_agent.run(
+                state["transcript"],
+                user_channel=build_user_channel(state.get("user") or {}),
+            )
         except Exception:
             logger.warning("meeting understanding failed, continue with empty", exc_info=True)
             return {

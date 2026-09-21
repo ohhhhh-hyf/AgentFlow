@@ -337,23 +337,18 @@ def resolve_template_format(template_value: str) -> str:
 PROFILE_DIR = PROJECT_ROOT / "perspective" / "profiles"
 
 
-def profile_path(domain: str, profile_value: str) -> Path:
-    """extra.profile 值 → 画像文件路径。
+def profile_path(domain: str, profile_value: str, user_id: str = "") -> Path:
+    """extra.profile 值 → 画像文件路径（实现见 ``tools.core.profiles.resolve_profile_file``）。
 
-    空/缺省 → 默认客观全员（域名 samples 优先，否则公共 object.json）；
-    否则查公共目录 {name}.json，不存在返回空 Path（调用方判 400）。
+    空/缺省 → 先看 ``data/{X-User-Id}/user.json``（用户自建真人档案，放文件即生效）；
+    没有有效档案则回落客观全员；``user`` = 强制真人（缺档案 → 空 Path 由调用方 400）；
+    ``objective`` / ``object`` = 强制客观（忽略 user.json）；
+    其余按职业模板名查 ``perspective/profiles/{name}.json``（忽略 user.json），
+    不存在返回空 Path（调用方判 400）。
     """
-    name = (profile_value or "").strip()
-    if not name:
-        domain_obj = PROJECT_ROOT / "samples" / domain / "profile" / "object_profile.json"
-        if domain_obj.is_file():
-            return domain_obj
-        shared_obj = PROFILE_DIR / "object.json"
-        if shared_obj.is_file():
-            return shared_obj
-        return Path("")
-    candidate = PROFILE_DIR / f"{name}.json"
-    return candidate if candidate.is_file() else Path("")
+    from tools.core.profiles import resolve_profile_file
+
+    return resolve_profile_file(profile_value, domain=domain, user_id=user_id)
 
 
 __all__ = [

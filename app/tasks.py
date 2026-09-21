@@ -414,10 +414,15 @@ def _template_file(domain: str, line: str, template_value: str) -> Path | None:
     return path
 
 
-def _profile_file(domain: str, profile_value: str) -> Path:
-    path = profile_path(domain, profile_value)
+def _profile_file(domain: str, profile_value: str, user_id: str = "") -> Path:
+    """画像文件定位（空值自动选档，见 ``app.config.profile_path``）。"""
+    path = profile_path(domain, profile_value, user_id)
     if not path or not path.is_file():
-        raise ApiError(400, f"extra.profile 非法：{profile_value or '(空)'}（可选：空=客观全员 或 职业模板名）")
+        hint = (
+            "空=有 data/{user_id}/user.json 则按真人、否则客观全员；user=强制真人；"
+            "objective/object=强制客观；或职业模板名"
+        )
+        raise ApiError(400, f"extra.profile 非法：{profile_value or '(空)'}（可选：{hint}）")
     return path
 
 
@@ -510,7 +515,7 @@ def _prepare(domain: str, task: str, req: TaskRequest, user_id: str) -> _Prepare
         raise
 
     ctx = load_domain(domain)
-    profile_file = _profile_file(domain, extra.profile)
+    profile_file = _profile_file(domain, extra.profile, (user_id or "").strip())
     template_path = _template_file(domain, line, extra.template)
 
     # 输入文件：library 传原文件路径列表（docs 图片+文档全量入库）；其余传临时文件/目录

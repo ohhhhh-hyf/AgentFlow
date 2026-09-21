@@ -43,12 +43,6 @@ class PerspectiveModelingGenerationContract(GenerationContract):
             "team-wide actions",
         ),
         StrListField(
-            "preference_signals",
-            "Inferred preference signals from profile + source "
-            "(e.g. values progress / quality / cost / risk-avoidance / "
-            "collaboration); each with basis; empty if no signal",
-        ),
-        StrListField(
             "stakeholders",
             "Parties, roles, or groups involved in or affected by this input "
             "(objective mode: all involved parties without favoritism; "

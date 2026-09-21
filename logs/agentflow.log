@@ -1452,3 +1452,460 @@ Traceback (most recent call last):
     await getter
 asyncio.exceptions.CancelledError
 
+2026-09-21 19:40:13,247 INFO uvicorn.error Application startup complete.
+2026-09-21 19:40:13,249 INFO uvicorn.error Uvicorn running on http://127.0.0.1:8000 (Press CTRL+C to quit)
+2026-09-21 19:40:17,627 INFO app.config 模板源目录：D:\study\demo\template_v3（AGENTFLOW_TEMPLATE_DIR 控制，缺省 template_v2）
+2026-09-21 19:40:19,027 INFO client.llmclient llm client backend=http model=deepseek-chat base_url=https://api.deepseek.com ctx=65536 max_tokens=50000 timeout=120.0 retries=2 temperature=0.2 sampling_sent=False
+2026-09-21 19:40:19,040 INFO agentflow pipeline start lines=minutes
+2026-09-21 19:40:19,046 INFO agentflow agent start meeting_understanding
+2026-09-21 19:40:19,046 INFO client.llmclient llm call label=core/meeting_understanding mode=structured
+2026-09-21 19:40:19,049 INFO client.llmclient llm fit max_tokens 50000->42304 ctx=65536 input~22976
+2026-09-21 19:40:42,874 INFO client.llmclient llm resp label=core/meeting_understanding model=deepseek-chat finish=stop in=16252 out=6024 json_mode=True chars=12722
+2026-09-21 19:40:42,875 INFO agentflow agent done meeting_understanding
+2026-09-21 19:40:42,878 INFO agentflow node done meeting_understanding
+2026-09-21 19:40:42,881 INFO agentflow agent start perspective
+2026-09-21 19:40:42,882 INFO client.llmclient llm call label=core/perspective_modeling mode=structured
+2026-09-21 19:40:52,573 INFO client.llmclient llm resp label=core/perspective_modeling model=deepseek-chat finish=stop in=7531 out=2399 json_mode=True chars=4139
+2026-09-21 19:40:52,574 INFO agentflow agent done perspective
+2026-09-21 19:40:52,575 INFO agentflow node done perspective_modeling
+2026-09-21 19:40:52,578 INFO agentflow agent start gen line=minutes
+2026-09-21 19:40:52,583 INFO client.llmclient llm call label=minutes/agent mode=structured
+2026-09-21 19:40:52,588 INFO client.llmclient llm fit max_tokens 50000->27766 ctx=65536 input~37514
+2026-09-21 19:41:00,638 INFO client.llmclient llm resp label=minutes/agent model=deepseek-chat finish=stop in=27053 out=1982 json_mode=True chars=3247
+2026-09-21 19:41:00,640 INFO agentflow agent done gen line=minutes
+2026-09-21 19:41:00,641 INFO agentflow node done minutes_agent
+2026-09-21 19:41:00,643 INFO agentflow agent start review line=minutes
+2026-09-21 19:41:00,650 INFO client.llmclient llm call label=minutes/supervisor mode=structured
+2026-09-21 19:41:01,522 INFO client.llmclient llm resp label=minutes/supervisor model=deepseek-chat finish=stop in=9708 out=62 json_mode=True chars=204
+2026-09-21 19:41:01,523 INFO agentflow agent done review line=minutes decision=approve
+2026-09-21 19:41:01,524 INFO tools.core.domain_engine route line=minutes decision=approve revision=0/1 -> __end__
+2026-09-21 19:41:01,525 INFO agentflow node done minutes_supervisor
+2026-09-21 19:41:01,527 INFO agentflow render start line=minutes
+2026-09-21 19:41:24,771 INFO tools.runtime.render advisory line=minutes：「本次会议由小艺慧记项目组召开…」一段 415 字，超过 320 字：拆段或改用 `- ` 分点；正文约 8615 字，超过本篇参考上限 5500 字（档位）
+2026-09-21 19:41:24,772 INFO tools.runtime.render render line=minutes fill_mode=assemble gate=pass
+2026-09-21 19:41:24,772 INFO agentflow render done line=minutes
+2026-09-21 19:41:24,786 INFO tools.core.runner saved html line=minutes path=D:\study\demo\data\1\output\6a6277566ce9494681e5af458c2e39b7\minutes.html
+2026-09-21 19:41:24,787 INFO tools.core.runner saved text line=minutes path=D:\study\demo\data\1\output\6a6277566ce9494681e5af458c2e39b7\result.md
+2026-09-21 19:41:24,792 INFO uvicorn.access 127.0.0.1:11513 - "POST /api/v1/meeting/minutes HTTP/1.1" 200
+2026-09-21 19:53:37,185 INFO uvicorn.error Shutting down
+2026-09-21 19:53:37,331 INFO uvicorn.error Finished server process [37400]
+2026-09-21 19:53:37,414 ERROR uvicorn.error Traceback (most recent call last):
+  File "C:\Users\OMEN\AppData\Roaming\Python\Python310\site-packages\uvicorn\_compat.py", line 60, in asyncio_run
+    return loop.run_until_complete(main)
+  File "C:\Users\OMEN\miniconda3\envs\agentflow\lib\asyncio\base_events.py", line 636, in run_until_complete
+    self.run_forever()
+  File "C:\Users\OMEN\miniconda3\envs\agentflow\lib\asyncio\windows_events.py", line 321, in run_forever
+    super().run_forever()
+  File "C:\Users\OMEN\miniconda3\envs\agentflow\lib\asyncio\base_events.py", line 603, in run_forever
+    self._run_once()
+  File "C:\Users\OMEN\miniconda3\envs\agentflow\lib\asyncio\base_events.py", line 1909, in _run_once
+    handle._run()
+  File "C:\Users\OMEN\miniconda3\envs\agentflow\lib\asyncio\events.py", line 80, in _run
+    self._context.run(self._callback, *self._args)
+  File "C:\Users\OMEN\AppData\Roaming\Python\Python310\site-packages\uvicorn\server.py", line 78, in serve
+    with self.capture_signals():
+  File "C:\Users\OMEN\miniconda3\envs\agentflow\lib\contextlib.py", line 142, in __exit__
+    next(self.gen)
+  File "C:\Users\OMEN\AppData\Roaming\Python\Python310\site-packages\uvicorn\server.py", line 339, in capture_signals
+    signal.raise_signal(captured_signal)
+KeyboardInterrupt
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "C:\Users\OMEN\miniconda3\envs\agentflow\lib\site-packages\starlette\routing.py", line 701, in lifespan
+    await receive()
+  File "C:\Users\OMEN\AppData\Roaming\Python\Python310\site-packages\uvicorn\lifespan\on.py", line 137, in receive
+    return await self.receive_queue.get()
+  File "C:\Users\OMEN\miniconda3\envs\agentflow\lib\asyncio\queues.py", line 159, in get
+    await getter
+asyncio.exceptions.CancelledError
+
+2026-09-21 19:53:40,325 INFO uvicorn.error Application startup complete.
+2026-09-21 19:53:40,326 INFO uvicorn.error Uvicorn running on http://127.0.0.1:8000 (Press CTRL+C to quit)
+2026-09-21 19:53:50,325 INFO app.config 模板源目录：D:\study\demo\template_v3（AGENTFLOW_TEMPLATE_DIR 控制，缺省 template_v2）
+2026-09-21 19:53:51,336 INFO client.llmclient llm client backend=http model=deepseek-chat base_url=https://api.deepseek.com ctx=65536 max_tokens=50000 timeout=120.0 retries=2 temperature=0.2 sampling_sent=False
+2026-09-21 19:53:51,352 INFO agentflow pipeline start lines=minutes
+2026-09-21 19:53:51,358 INFO agentflow agent start meeting_understanding
+2026-09-21 19:53:51,359 INFO client.llmclient llm call label=core/meeting_understanding mode=structured
+2026-09-21 19:53:51,362 INFO client.llmclient llm fit max_tokens 50000->42304 ctx=65536 input~22976
+2026-09-21 19:54:19,132 INFO client.llmclient llm resp label=core/meeting_understanding model=deepseek-chat finish=stop in=16252 out=7076 json_mode=True chars=14971
+2026-09-21 19:54:19,133 INFO agentflow agent done meeting_understanding
+2026-09-21 19:54:19,135 INFO agentflow node done meeting_understanding
+2026-09-21 19:54:19,137 INFO agentflow agent start perspective
+2026-09-21 19:54:19,138 INFO client.llmclient llm call label=core/perspective_modeling mode=structured
+2026-09-21 19:54:32,323 INFO client.llmclient llm resp label=core/perspective_modeling model=deepseek-chat finish=stop in=8420 out=3386 json_mode=True chars=5773
+2026-09-21 19:54:32,325 INFO agentflow agent done perspective
+2026-09-21 19:54:32,325 INFO agentflow node done perspective_modeling
+2026-09-21 19:54:32,325 INFO agentflow agent start gen line=minutes
+2026-09-21 19:54:32,325 INFO client.llmclient llm call label=minutes/agent mode=structured
+2026-09-21 19:54:32,332 INFO client.llmclient llm fit max_tokens 50000->26076 ctx=65536 input~39204
+2026-09-21 19:54:46,490 INFO client.llmclient llm resp label=minutes/agent model=deepseek-chat finish=stop in=28128 out=3537 json_mode=True chars=5682
+2026-09-21 19:54:46,492 INFO agentflow agent done gen line=minutes
+2026-09-21 19:54:46,494 INFO agentflow node done minutes_agent
+2026-09-21 19:54:46,497 INFO agentflow agent start review line=minutes
+2026-09-21 19:54:46,510 INFO client.llmclient llm call label=minutes/supervisor mode=structured
+2026-09-21 19:54:48,019 INFO client.llmclient llm resp label=minutes/supervisor model=deepseek-chat finish=stop in=10181 out=51 json_mode=True chars=186
+2026-09-21 19:54:48,019 INFO agentflow agent done review line=minutes decision=approve
+2026-09-21 19:54:48,021 INFO tools.core.domain_engine route line=minutes decision=approve revision=0/1 -> __end__
+2026-09-21 19:54:48,031 INFO agentflow node done minutes_supervisor
+2026-09-21 19:54:48,038 INFO agentflow render start line=minutes
+2026-09-21 19:55:07,528 INFO tools.runtime.render advisory line=minutes：正文约 8172 字，超过本篇参考上限 5500 字（档位）
+2026-09-21 19:55:07,530 INFO tools.runtime.render render line=minutes fill_mode=assemble gate=pass
+2026-09-21 19:55:07,531 INFO agentflow render done line=minutes
+2026-09-21 19:55:07,562 INFO tools.core.runner saved html line=minutes path=D:\study\demo\data\1\output\9a3e79922da448afbd28ed44e9465775\minutes.html
+2026-09-21 19:55:07,562 INFO tools.core.runner saved text line=minutes path=D:\study\demo\data\1\output\9a3e79922da448afbd28ed44e9465775\result.md
+2026-09-21 19:55:07,576 INFO uvicorn.access 127.0.0.1:8198 - "POST /api/v1/meeting/minutes HTTP/1.1" 200
+2026-09-21 20:03:22,422 INFO uvicorn.access 127.0.0.1:12573 - "GET /health HTTP/1.1" 404
+2026-09-21 20:03:22,502 INFO uvicorn.access 127.0.0.1:12574 - "GET / HTTP/1.1" 404
+2026-09-21 20:03:40,409 INFO uvicorn.error Application startup complete.
+2026-09-21 20:03:40,412 INFO uvicorn.error Uvicorn running on http://127.0.0.1:8787 (Press CTRL+C to quit)
+2026-09-21 20:04:04,234 INFO uvicorn.access 127.0.0.1:4142 - "GET / HTTP/1.1" 404
+2026-09-21 20:04:11,106 INFO app.config 模板源目录：D:\study\demo\template_v3（AGENTFLOW_TEMPLATE_DIR 控制，缺省 template_v2）
+2026-09-21 20:04:12,717 INFO client.llmclient llm client backend=http model=deepseek-chat base_url=https://api.deepseek.com ctx=65536 max_tokens=50000 timeout=120.0 retries=2 temperature=0.2 sampling_sent=False
+2026-09-21 20:04:12,740 INFO agentflow pipeline start lines=minutes
+2026-09-21 20:04:12,746 INFO agentflow agent start meeting_understanding
+2026-09-21 20:04:12,746 INFO client.llmclient llm call label=core/meeting_understanding mode=structured
+2026-09-21 20:04:12,750 INFO client.llmclient llm fit max_tokens 50000->42304 ctx=65536 input~22976
+2026-09-21 20:04:36,441 INFO client.llmclient llm resp label=core/meeting_understanding model=deepseek-chat finish=stop in=16252 out=6040 json_mode=True chars=12699
+2026-09-21 20:04:36,441 INFO agentflow agent done meeting_understanding
+2026-09-21 20:04:36,445 INFO agentflow node done meeting_understanding
+2026-09-21 20:04:36,445 INFO agentflow agent start perspective
+2026-09-21 20:04:36,445 INFO client.llmclient llm call label=core/perspective_modeling mode=structured
+2026-09-21 20:04:49,039 INFO client.llmclient llm resp label=core/perspective_modeling model=deepseek-chat finish=stop in=7560 out=3176 json_mode=True chars=5361
+2026-09-21 20:04:49,040 INFO agentflow agent done perspective
+2026-09-21 20:04:49,041 INFO agentflow node done perspective_modeling
+2026-09-21 20:04:49,042 INFO agentflow agent start gen line=minutes
+2026-09-21 20:04:49,044 INFO client.llmclient llm call label=minutes/agent mode=structured
+2026-09-21 20:04:49,044 INFO client.llmclient llm fit max_tokens 50000->26841 ctx=65536 input~38439
+2026-09-21 20:05:00,790 INFO client.llmclient llm resp label=minutes/agent model=deepseek-chat finish=stop in=27680 out=2785 json_mode=True chars=4476
+2026-09-21 20:05:00,794 INFO agentflow agent done gen line=minutes
+2026-09-21 20:05:00,796 INFO agentflow node done minutes_agent
+2026-09-21 20:05:00,796 INFO agentflow agent start review line=minutes
+2026-09-21 20:05:00,805 INFO client.llmclient llm call label=minutes/supervisor mode=structured
+2026-09-21 20:05:01,893 INFO client.llmclient llm resp label=minutes/supervisor model=deepseek-chat finish=stop in=10703 out=51 json_mode=True chars=186
+2026-09-21 20:05:01,895 INFO agentflow agent done review line=minutes decision=approve
+2026-09-21 20:05:01,897 INFO tools.core.domain_engine route line=minutes decision=approve revision=0/1 -> __end__
+2026-09-21 20:05:01,899 INFO agentflow node done minutes_supervisor
+2026-09-21 20:05:01,921 INFO agentflow render start line=minutes
+2026-09-21 20:05:17,581 INFO tools.runtime.render advisory line=minutes：「本次小艺慧记项目进展会由团队…」一段 401 字，超过 320 字：拆段或改用 `- ` 分点；正文约 6911 字，超过本篇参考上限 5500 字（档位）
+2026-09-21 20:05:17,582 INFO tools.runtime.render render line=minutes fill_mode=assemble gate=pass
+2026-09-21 20:05:17,582 INFO agentflow render done line=minutes
+2026-09-21 20:05:17,590 INFO tools.core.runner saved html line=minutes path=D:\study\demo\data\1\output\3cc334b0e5fe4d32976fe32e27bb9da8\minutes.html
+2026-09-21 20:05:17,590 INFO tools.core.runner saved text line=minutes path=D:\study\demo\data\1\output\3cc334b0e5fe4d32976fe32e27bb9da8\result.md
+2026-09-21 20:05:17,603 INFO uvicorn.access 127.0.0.1:4150 - "POST /api/v1/meeting/minutes HTTP/1.1" 200
+2026-09-21 20:05:51,511 INFO uvicorn.access 127.0.0.1:13383 - "GET / HTTP/1.1" 404
+2026-09-21 20:05:57,916 INFO uvicorn.error Application startup complete.
+2026-09-21 20:05:57,917 INFO uvicorn.error Uvicorn running on http://127.0.0.1:8787 (Press CTRL+C to quit)
+2026-09-21 20:06:19,068 INFO uvicorn.access 127.0.0.1:13397 - "GET / HTTP/1.1" 404
+2026-09-21 20:06:23,665 INFO app.config 模板源目录：D:\study\demo\template_v3（AGENTFLOW_TEMPLATE_DIR 控制，缺省 template_v2）
+2026-09-21 20:06:24,970 INFO client.llmclient llm client backend=http model=deepseek-chat base_url=https://api.deepseek.com ctx=65536 max_tokens=50000 timeout=120.0 retries=2 temperature=0.2 sampling_sent=False
+2026-09-21 20:06:24,990 INFO agentflow pipeline start lines=minutes
+2026-09-21 20:06:24,997 INFO agentflow agent start meeting_understanding
+2026-09-21 20:06:24,998 INFO client.llmclient llm call label=core/meeting_understanding mode=structured
+2026-09-21 20:06:24,999 INFO client.llmclient llm fit max_tokens 50000->42304 ctx=65536 input~22976
+2026-09-21 20:06:57,136 INFO client.llmclient llm resp label=core/meeting_understanding model=deepseek-chat finish=stop in=16252 out=8286 json_mode=True chars=17410
+2026-09-21 20:06:57,137 INFO agentflow agent done meeting_understanding
+2026-09-21 20:06:57,139 INFO agentflow node done meeting_understanding
+2026-09-21 20:06:57,141 INFO agentflow agent start perspective
+2026-09-21 20:06:57,142 INFO client.llmclient llm call label=core/perspective_modeling mode=structured
+2026-09-21 20:07:10,492 INFO client.llmclient llm resp label=core/perspective_modeling model=deepseek-chat finish=stop in=9482 out=3254 json_mode=True chars=5548
+2026-09-21 20:07:10,492 INFO agentflow agent done perspective
+2026-09-21 20:07:10,496 INFO agentflow node done perspective_modeling
+2026-09-21 20:07:10,497 INFO agentflow agent start gen line=minutes
+2026-09-21 20:07:10,500 INFO client.llmclient llm call label=minutes/agent mode=structured
+2026-09-21 20:07:10,504 INFO client.llmclient llm fit max_tokens 50000->24224 ctx=65536 input~41056
+2026-09-21 20:07:21,261 INFO client.llmclient llm resp label=minutes/agent model=deepseek-chat finish=stop in=29510 out=2701 json_mode=True chars=4486
+2026-09-21 20:07:21,266 INFO agentflow agent done gen line=minutes
+2026-09-21 20:07:21,268 INFO agentflow node done minutes_agent
+2026-09-21 20:07:21,269 INFO agentflow agent start review line=minutes
+2026-09-21 20:07:21,276 INFO client.llmclient llm call label=minutes/supervisor mode=structured
+2026-09-21 20:07:21,950 INFO client.llmclient llm resp label=minutes/supervisor model=deepseek-chat finish=stop in=10425 out=51 json_mode=True chars=186
+2026-09-21 20:07:21,950 INFO agentflow agent done review line=minutes decision=approve
+2026-09-21 20:07:21,953 INFO tools.core.domain_engine route line=minutes decision=approve revision=0/1 -> __end__
+2026-09-21 20:07:21,953 INFO agentflow node done minutes_supervisor
+2026-09-21 20:07:21,960 INFO agentflow render start line=minutes
+2026-09-21 20:07:36,460 INFO tools.runtime.render advisory line=minutes：「本次会议由小艺慧记项目组召开…」一段 327 字，超过 320 字：拆段或改用 `- ` 分点
+2026-09-21 20:07:36,461 INFO tools.runtime.render render line=minutes fill_mode=assemble gate=pass directives=508
+2026-09-21 20:07:36,461 INFO agentflow render done line=minutes
+2026-09-21 20:07:36,468 INFO tools.core.runner saved html line=minutes path=D:\study\demo\data\1\output\1824e98b732f4f2d818be18e4c28803a\minutes.html
+2026-09-21 20:07:36,468 INFO tools.core.runner saved text line=minutes path=D:\study\demo\data\1\output\1824e98b732f4f2d818be18e4c28803a\result.md
+2026-09-21 20:07:36,472 INFO uvicorn.access 127.0.0.1:13400 - "POST /api/v1/meeting/minutes HTTP/1.1" 200
+2026-09-21 20:08:04,652 INFO uvicorn.error Application startup complete.
+2026-09-21 20:08:04,656 INFO uvicorn.error Uvicorn running on http://127.0.0.1:8787 (Press CTRL+C to quit)
+2026-09-21 20:08:25,928 INFO uvicorn.access 127.0.0.1:6271 - "GET / HTTP/1.1" 404
+2026-09-21 20:08:29,336 INFO app.config 模板源目录：D:\study\demo\template_v3（AGENTFLOW_TEMPLATE_DIR 控制，缺省 template_v2）
+2026-09-21 20:08:30,432 INFO client.llmclient llm client backend=http model=deepseek-chat base_url=https://api.deepseek.com ctx=65536 max_tokens=50000 timeout=120.0 retries=2 temperature=0.2 sampling_sent=False
+2026-09-21 20:08:30,451 INFO agentflow pipeline start lines=minutes
+2026-09-21 20:08:30,452 INFO agentflow agent start meeting_understanding
+2026-09-21 20:08:30,456 INFO client.llmclient llm call label=core/meeting_understanding mode=structured
+2026-09-21 20:08:30,457 INFO client.llmclient llm fit max_tokens 50000->42304 ctx=65536 input~22976
+2026-09-21 20:08:53,137 INFO client.llmclient llm resp label=core/meeting_understanding model=deepseek-chat finish=stop in=16252 out=5868 json_mode=True chars=12416
+2026-09-21 20:08:53,138 INFO agentflow agent done meeting_understanding
+2026-09-21 20:08:53,140 INFO agentflow node done meeting_understanding
+2026-09-21 20:08:53,141 INFO agentflow agent start perspective
+2026-09-21 20:08:53,142 INFO client.llmclient llm call label=core/perspective_modeling mode=structured
+2026-09-21 20:09:03,055 INFO client.llmclient llm resp label=core/perspective_modeling model=deepseek-chat finish=stop in=7368 out=2418 json_mode=True chars=4186
+2026-09-21 20:09:03,057 INFO agentflow agent done perspective
+2026-09-21 20:09:03,058 INFO agentflow node done perspective_modeling
+2026-09-21 20:09:03,059 INFO agentflow agent start gen line=minutes
+2026-09-21 20:09:03,063 INFO client.llmclient llm call label=minutes/agent mode=structured
+2026-09-21 20:09:03,067 INFO client.llmclient llm fit max_tokens 50000->27793 ctx=65536 input~37487
+2026-09-21 20:09:11,373 INFO client.llmclient llm resp label=minutes/agent model=deepseek-chat finish=stop in=26981 out=1875 json_mode=True chars=3100
+2026-09-21 20:09:11,377 INFO agentflow agent done gen line=minutes
+2026-09-21 20:09:11,377 INFO agentflow node done minutes_agent
+2026-09-21 20:09:11,377 INFO agentflow agent start review line=minutes
+2026-09-21 20:09:11,384 INFO client.llmclient llm call label=minutes/supervisor mode=structured
+2026-09-21 20:09:12,051 INFO client.llmclient llm resp label=minutes/supervisor model=deepseek-chat finish=stop in=9780 out=51 json_mode=True chars=186
+2026-09-21 20:09:12,052 INFO agentflow agent done review line=minutes decision=approve
+2026-09-21 20:09:12,053 INFO tools.core.domain_engine route line=minutes decision=approve revision=0/1 -> __end__
+2026-09-21 20:09:12,055 INFO agentflow node done minutes_supervisor
+2026-09-21 20:09:12,062 INFO agentflow render start line=minutes
+2026-09-21 20:09:30,736 INFO tools.runtime.render advisory line=minutes：「本次会议为小艺慧记项目进展会…」一段 558 字，超过 320 字：拆段或改用 `- ` 分点；正文约 7180 字，超过本篇参考上限 5500 字（档位）
+2026-09-21 20:09:30,736 INFO tools.runtime.render render line=minutes fill_mode=assemble gate=pass directives=691
+2026-09-21 20:09:30,736 INFO agentflow render done line=minutes
+2026-09-21 20:09:30,744 INFO tools.core.runner saved html line=minutes path=D:\study\demo\data\1\output\42e03c557cc04543877fe198faf87d49\minutes.html
+2026-09-21 20:09:30,745 INFO tools.core.runner saved text line=minutes path=D:\study\demo\data\1\output\42e03c557cc04543877fe198faf87d49\result.md
+2026-09-21 20:09:30,745 INFO uvicorn.access 127.0.0.1:6275 - "POST /api/v1/meeting/minutes HTTP/1.1" 200
+2026-09-21 20:10:51,243 INFO uvicorn.error Application startup complete.
+2026-09-21 20:10:51,244 INFO uvicorn.error Uvicorn running on http://127.0.0.1:8787 (Press CTRL+C to quit)
+2026-09-21 20:11:12,393 INFO uvicorn.access 127.0.0.1:14340 - "GET / HTTP/1.1" 404
+2026-09-21 20:11:16,076 INFO app.config 模板源目录：D:\study\demo\template_v3（AGENTFLOW_TEMPLATE_DIR 控制，缺省 template_v2）
+2026-09-21 20:11:17,499 INFO client.llmclient llm client backend=http model=deepseek-chat base_url=https://api.deepseek.com ctx=65536 max_tokens=50000 timeout=120.0 retries=2 temperature=0.2 sampling_sent=False
+2026-09-21 20:11:17,523 INFO agentflow pipeline start lines=minutes
+2026-09-21 20:11:17,529 INFO agentflow agent start meeting_understanding
+2026-09-21 20:11:17,530 INFO client.llmclient llm call label=core/meeting_understanding mode=structured
+2026-09-21 20:11:17,531 INFO client.llmclient llm fit max_tokens 50000->42304 ctx=65536 input~22976
+2026-09-21 20:11:33,904 INFO client.llmclient llm resp label=core/meeting_understanding model=deepseek-chat finish=stop in=16252 out=3976 json_mode=True chars=8473
+2026-09-21 20:11:33,904 INFO agentflow agent done meeting_understanding
+2026-09-21 20:11:33,910 INFO agentflow node done meeting_understanding
+2026-09-21 20:11:33,910 INFO agentflow agent start perspective
+2026-09-21 20:11:33,912 INFO client.llmclient llm call label=core/perspective_modeling mode=structured
+2026-09-21 20:11:43,615 INFO client.llmclient llm resp label=core/perspective_modeling model=deepseek-chat finish=stop in=5770 out=2394 json_mode=True chars=4273
+2026-09-21 20:11:43,615 INFO agentflow agent done perspective
+2026-09-21 20:11:43,615 INFO agentflow node done perspective_modeling
+2026-09-21 20:11:43,615 INFO agentflow agent start gen line=minutes
+2026-09-21 20:11:43,622 INFO client.llmclient llm call label=minutes/agent mode=structured
+2026-09-21 20:11:43,626 INFO client.llmclient llm fit max_tokens 50000->30091 ctx=65536 input~35189
+2026-09-21 20:11:53,545 INFO client.llmclient llm resp label=minutes/agent model=deepseek-chat finish=stop in=25327 out=2375 json_mode=True chars=3823
+2026-09-21 20:11:53,548 INFO agentflow agent done gen line=minutes
+2026-09-21 20:11:53,548 INFO agentflow node done minutes_agent
+2026-09-21 20:11:53,548 INFO agentflow agent start review line=minutes
+2026-09-21 20:11:53,558 INFO client.llmclient llm call label=minutes/supervisor mode=structured
+2026-09-21 20:11:54,639 INFO client.llmclient llm resp label=minutes/supervisor model=deepseek-chat finish=stop in=9748 out=51 json_mode=True chars=186
+2026-09-21 20:11:54,640 INFO agentflow agent done review line=minutes decision=approve
+2026-09-21 20:11:54,641 INFO tools.core.domain_engine route line=minutes decision=approve revision=0/1 -> __end__
+2026-09-21 20:11:54,642 INFO agentflow node done minutes_supervisor
+2026-09-21 20:11:54,645 INFO agentflow render start line=minutes
+2026-09-21 20:11:54,647 INFO domain.meeting.orchestrator personal transcript slice kept=52 dropped=272 chars=5159->5159
+2026-09-21 20:12:06,232 INFO tools.runtime.render advisory line=minutes：「本次小艺慧记项目进展会由申家…」一段 336 字，超过 320 字：拆段或改用 `- ` 分点
+2026-09-21 20:12:06,233 INFO tools.runtime.render render line=minutes fill_mode=assemble gate=pass directives=780
+2026-09-21 20:12:06,233 INFO agentflow render done line=minutes
+2026-09-21 20:12:06,239 INFO tools.core.runner saved html line=minutes path=D:\study\demo\data\1\output\d45e796c1b59419b8613d326a8e797de\minutes.html
+2026-09-21 20:12:06,240 INFO tools.core.runner saved text line=minutes path=D:\study\demo\data\1\output\d45e796c1b59419b8613d326a8e797de\result.md
+2026-09-21 20:12:06,244 INFO uvicorn.access 127.0.0.1:14343 - "POST /api/v1/meeting/minutes HTTP/1.1" 200
+2026-09-21 20:12:13,695 INFO client.llmclient llm client backend=http model=deepseek-chat base_url=https://api.deepseek.com ctx=65536 max_tokens=50000 timeout=120.0 retries=2 temperature=0.2 sampling_sent=False
+2026-09-21 20:12:13,710 INFO agentflow pipeline start lines=minutes
+2026-09-21 20:12:13,712 INFO agentflow agent start meeting_understanding
+2026-09-21 20:12:13,713 INFO client.llmclient llm call label=core/meeting_understanding mode=structured
+2026-09-21 20:12:13,716 INFO client.llmclient llm fit max_tokens 50000->42304 ctx=65536 input~22976
+2026-09-21 20:12:35,597 INFO client.llmclient llm resp label=core/meeting_understanding model=deepseek-chat finish=stop in=16252 out=5360 json_mode=True chars=11464
+2026-09-21 20:12:35,598 INFO agentflow agent done meeting_understanding
+2026-09-21 20:12:35,601 INFO agentflow node done meeting_understanding
+2026-09-21 20:12:35,602 INFO agentflow agent start perspective
+2026-09-21 20:12:35,604 INFO client.llmclient llm call label=core/perspective_modeling mode=structured
+2026-09-21 20:12:49,745 INFO client.llmclient llm resp label=core/perspective_modeling model=deepseek-chat finish=stop in=6915 out=3661 json_mode=True chars=6345
+2026-09-21 20:12:49,747 INFO agentflow agent done perspective
+2026-09-21 20:12:49,749 INFO agentflow node done perspective_modeling
+2026-09-21 20:12:49,750 INFO agentflow agent start gen line=minutes
+2026-09-21 20:12:49,754 INFO client.llmclient llm call label=minutes/agent mode=structured
+2026-09-21 20:12:49,758 INFO client.llmclient llm fit max_tokens 50000->27280 ctx=65536 input~38000
+2026-09-21 20:13:00,917 INFO client.llmclient llm resp label=minutes/agent model=deepseek-chat finish=stop in=27353 out=2615 json_mode=True chars=4252
+2026-09-21 20:13:00,920 INFO agentflow agent done gen line=minutes
+2026-09-21 20:13:00,922 INFO agentflow node done minutes_agent
+2026-09-21 20:13:00,923 INFO agentflow agent start review line=minutes
+2026-09-21 20:13:00,934 INFO client.llmclient llm call label=minutes/supervisor mode=structured
+2026-09-21 20:13:02,263 INFO client.llmclient llm resp label=minutes/supervisor model=deepseek-chat finish=stop in=10214 out=51 json_mode=True chars=186
+2026-09-21 20:13:02,264 INFO agentflow agent done review line=minutes decision=approve
+2026-09-21 20:13:02,266 INFO tools.core.domain_engine route line=minutes decision=approve revision=0/1 -> __end__
+2026-09-21 20:13:02,268 INFO agentflow node done minutes_supervisor
+2026-09-21 20:13:02,269 INFO agentflow render start line=minutes
+2026-09-21 20:13:02,271 INFO domain.meeting.orchestrator personal transcript slice kept=52 dropped=272 chars=5159->5159
+2026-09-21 20:13:12,312 INFO tools.runtime.render advisory line=minutes：「本次会议由小艺慧记项目组召开…」一段 449 字，超过 320 字：拆段或改用 `- ` 分点
+2026-09-21 20:13:12,312 INFO tools.runtime.render render line=minutes fill_mode=assemble gate=pass directives=780
+2026-09-21 20:13:12,312 INFO agentflow render done line=minutes
+2026-09-21 20:13:12,320 INFO tools.core.runner saved html line=minutes path=D:\study\demo\data\1\output\c68e9735257b4a249b9472c62f762d34\minutes.html
+2026-09-21 20:13:12,321 INFO tools.core.runner saved text line=minutes path=D:\study\demo\data\1\output\c68e9735257b4a249b9472c62f762d34\result.md
+2026-09-21 20:13:12,326 INFO uvicorn.access 127.0.0.1:11684 - "POST /api/v1/meeting/minutes HTTP/1.1" 200
+2026-09-21 20:14:54,302 INFO uvicorn.error Application startup complete.
+2026-09-21 20:14:54,303 INFO uvicorn.error Uvicorn running on http://127.0.0.1:8787 (Press CTRL+C to quit)
+2026-09-21 20:15:16,715 INFO app.config 模板源目录：D:\study\demo\template_v3（AGENTFLOW_TEMPLATE_DIR 控制，缺省 template_v2）
+2026-09-21 20:15:17,966 INFO client.llmclient llm client backend=http model=deepseek-chat base_url=https://api.deepseek.com ctx=65536 max_tokens=50000 timeout=120.0 retries=2 temperature=0.2 sampling_sent=False
+2026-09-21 20:15:17,985 INFO agentflow pipeline start lines=minutes
+2026-09-21 20:15:17,992 INFO agentflow agent start meeting_understanding
+2026-09-21 20:15:17,993 INFO client.llmclient llm call label=core/meeting_understanding mode=structured
+2026-09-21 20:15:17,996 INFO client.llmclient llm fit max_tokens 50000->42304 ctx=65536 input~22976
+2026-09-21 20:15:37,903 INFO client.llmclient llm resp label=core/meeting_understanding model=deepseek-chat finish=stop in=16252 out=5007 json_mode=True chars=10717
+2026-09-21 20:15:37,905 INFO agentflow agent done meeting_understanding
+2026-09-21 20:15:37,907 INFO agentflow node done meeting_understanding
+2026-09-21 20:15:37,908 INFO agentflow agent start perspective
+2026-09-21 20:15:37,909 INFO client.llmclient llm call label=core/perspective_modeling mode=structured
+2026-09-21 20:16:01,848 INFO client.llmclient llm resp label=core/perspective_modeling model=deepseek-chat finish=stop in=6651 out=6784 json_mode=True chars=11949
+2026-09-21 20:16:01,851 INFO agentflow agent done perspective
+2026-09-21 20:16:01,852 INFO agentflow node done perspective_modeling
+2026-09-21 20:16:01,853 INFO agentflow agent start gen line=minutes
+2026-09-21 20:16:01,857 INFO client.llmclient llm call label=minutes/agent mode=structured
+2026-09-21 20:16:01,862 INFO client.llmclient llm fit max_tokens 50000->23515 ctx=65536 input~41765
+2026-09-21 20:16:11,145 INFO client.llmclient llm resp label=minutes/agent model=deepseek-chat finish=stop in=29787 out=2242 json_mode=True chars=3741
+2026-09-21 20:16:11,149 INFO agentflow agent done gen line=minutes
+2026-09-21 20:16:11,150 INFO agentflow node done minutes_agent
+2026-09-21 20:16:11,151 INFO agentflow agent start review line=minutes
+2026-09-21 20:16:11,157 INFO client.llmclient llm call label=minutes/supervisor mode=structured
+2026-09-21 20:16:11,159 INFO client.llmclient llm fit max_tokens 50000->48419 ctx=65536 input~16861
+2026-09-21 20:16:12,147 INFO client.llmclient llm resp label=minutes/supervisor model=deepseek-chat finish=stop in=11957 out=51 json_mode=True chars=186
+2026-09-21 20:16:12,148 INFO agentflow agent done review line=minutes decision=approve
+2026-09-21 20:16:12,149 INFO tools.core.domain_engine route line=minutes decision=approve revision=0/1 -> __end__
+2026-09-21 20:16:12,150 INFO agentflow node done minutes_supervisor
+2026-09-21 20:16:12,158 INFO agentflow render start line=minutes
+2026-09-21 20:16:12,161 INFO domain.meeting.orchestrator personal transcript slice kept=52 dropped=272 chars=5069->5069
+2026-09-21 20:16:24,378 INFO tools.runtime.render advisory line=minutes：「本次小艺慧记项目进展会由你（…」一段 450 字，超过 320 字：拆段或改用 `- ` 分点
+2026-09-21 20:16:24,379 INFO tools.runtime.render render line=minutes fill_mode=assemble gate=pass directives=780
+2026-09-21 20:16:24,379 INFO agentflow render done line=minutes
+2026-09-21 20:16:24,385 INFO tools.core.runner saved html line=minutes path=D:\study\demo\data\1\output\28bbcb4ed3c54adc9fdb24e2fa7e626e\minutes.html
+2026-09-21 20:16:24,385 INFO tools.core.runner saved text line=minutes path=D:\study\demo\data\1\output\28bbcb4ed3c54adc9fdb24e2fa7e626e\result.md
+2026-09-21 20:16:24,393 INFO uvicorn.access 127.0.0.1:8568 - "POST /api/v1/meeting/minutes HTTP/1.1" 200
+2026-09-21 20:17:29,646 INFO uvicorn.error Shutting down
+2026-09-21 20:17:29,755 INFO uvicorn.error Finished server process [22844]
+2026-09-21 20:17:29,792 ERROR uvicorn.error Traceback (most recent call last):
+  File "C:\Users\OMEN\AppData\Roaming\Python\Python310\site-packages\uvicorn\_compat.py", line 60, in asyncio_run
+    return loop.run_until_complete(main)
+  File "C:\Users\OMEN\miniconda3\envs\agentflow\lib\asyncio\base_events.py", line 636, in run_until_complete
+    self.run_forever()
+  File "C:\Users\OMEN\miniconda3\envs\agentflow\lib\asyncio\windows_events.py", line 321, in run_forever
+    super().run_forever()
+  File "C:\Users\OMEN\miniconda3\envs\agentflow\lib\asyncio\base_events.py", line 603, in run_forever
+    self._run_once()
+  File "C:\Users\OMEN\miniconda3\envs\agentflow\lib\asyncio\base_events.py", line 1909, in _run_once
+    handle._run()
+  File "C:\Users\OMEN\miniconda3\envs\agentflow\lib\asyncio\events.py", line 80, in _run
+    self._context.run(self._callback, *self._args)
+  File "C:\Users\OMEN\AppData\Roaming\Python\Python310\site-packages\uvicorn\server.py", line 78, in serve
+    with self.capture_signals():
+  File "C:\Users\OMEN\miniconda3\envs\agentflow\lib\contextlib.py", line 142, in __exit__
+    next(self.gen)
+  File "C:\Users\OMEN\AppData\Roaming\Python\Python310\site-packages\uvicorn\server.py", line 339, in capture_signals
+    signal.raise_signal(captured_signal)
+KeyboardInterrupt
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "C:\Users\OMEN\miniconda3\envs\agentflow\lib\site-packages\starlette\routing.py", line 701, in lifespan
+    await receive()
+  File "C:\Users\OMEN\AppData\Roaming\Python\Python310\site-packages\uvicorn\lifespan\on.py", line 137, in receive
+    return await self.receive_queue.get()
+  File "C:\Users\OMEN\miniconda3\envs\agentflow\lib\asyncio\queues.py", line 159, in get
+    await getter
+asyncio.exceptions.CancelledError
+
+2026-09-21 20:17:32,578 INFO uvicorn.error Application startup complete.
+2026-09-21 20:17:32,578 INFO uvicorn.error Uvicorn running on http://127.0.0.1:8000 (Press CTRL+C to quit)
+2026-09-21 20:17:43,493 INFO app.config 模板源目录：D:\study\demo\template_v3（AGENTFLOW_TEMPLATE_DIR 控制，缺省 template_v2）
+2026-09-21 20:17:44,525 INFO client.llmclient llm client backend=http model=deepseek-chat base_url=https://api.deepseek.com ctx=65536 max_tokens=50000 timeout=120.0 retries=2 temperature=0.2 sampling_sent=False
+2026-09-21 20:17:44,540 INFO agentflow pipeline start lines=minutes
+2026-09-21 20:17:44,545 INFO agentflow agent start meeting_understanding
+2026-09-21 20:17:44,545 INFO client.llmclient llm call label=core/meeting_understanding mode=structured
+2026-09-21 20:17:44,547 INFO client.llmclient llm fit max_tokens 50000->42304 ctx=65536 input~22976
+2026-09-21 20:18:15,189 INFO client.llmclient llm resp label=core/meeting_understanding model=deepseek-chat finish=stop in=16252 out=7533 json_mode=True chars=15340
+2026-09-21 20:18:15,190 INFO agentflow agent done meeting_understanding
+2026-09-21 20:18:15,192 INFO agentflow node done meeting_understanding
+2026-09-21 20:18:15,193 INFO agentflow agent start perspective
+2026-09-21 20:18:15,194 INFO client.llmclient llm call label=core/perspective_modeling mode=structured
+2026-09-21 20:18:28,990 INFO client.llmclient llm resp label=core/perspective_modeling model=deepseek-chat finish=stop in=8957 out=3351 json_mode=True chars=5616
+2026-09-21 20:18:28,990 INFO agentflow agent done perspective
+2026-09-21 20:18:28,992 INFO agentflow node done perspective_modeling
+2026-09-21 20:18:28,992 INFO agentflow agent start gen line=minutes
+2026-09-21 20:18:28,995 INFO client.llmclient llm call label=minutes/agent mode=structured
+2026-09-21 20:18:28,999 INFO client.llmclient llm fit max_tokens 50000->24845 ctx=65536 input~40435
+2026-09-21 20:18:40,470 INFO client.llmclient llm resp label=minutes/agent model=deepseek-chat finish=stop in=29136 out=2669 json_mode=True chars=4298
+2026-09-21 20:18:40,470 INFO agentflow agent done gen line=minutes
+2026-09-21 20:18:40,470 INFO agentflow node done minutes_agent
+2026-09-21 20:18:40,470 INFO agentflow agent start review line=minutes
+2026-09-21 20:18:40,478 INFO client.llmclient llm call label=minutes/supervisor mode=structured
+2026-09-21 20:18:41,128 INFO client.llmclient llm resp label=minutes/supervisor model=deepseek-chat finish=stop in=10298 out=51 json_mode=True chars=186
+2026-09-21 20:18:41,130 INFO agentflow agent done review line=minutes decision=approve
+2026-09-21 20:18:41,130 INFO tools.core.domain_engine route line=minutes decision=approve revision=0/1 -> __end__
+2026-09-21 20:18:41,132 INFO agentflow node done minutes_supervisor
+2026-09-21 20:18:41,133 INFO agentflow render start line=minutes
+2026-09-21 20:18:41,133 INFO domain.meeting.orchestrator personal transcript slice kept=52 dropped=272 chars=5069->5069
+2026-09-21 20:18:52,465 INFO tools.runtime.render render line=minutes fill_mode=assemble gate=pass directives=780
+2026-09-21 20:18:52,465 INFO agentflow render done line=minutes
+2026-09-21 20:18:52,492 INFO tools.core.runner saved html line=minutes path=D:\study\demo\data\1\output\2c1c2ce694a24d3dbad8b1e635586ce4\minutes.html
+2026-09-21 20:18:52,492 INFO tools.core.runner saved text line=minutes path=D:\study\demo\data\1\output\2c1c2ce694a24d3dbad8b1e635586ce4\result.md
+2026-09-21 20:18:52,508 INFO uvicorn.access 127.0.0.1:11177 - "POST /api/v1/meeting/minutes HTTP/1.1" 200
+2026-09-21 20:20:09,539 INFO client.llmclient llm client backend=http model=deepseek-chat base_url=https://api.deepseek.com ctx=65536 max_tokens=50000 timeout=120.0 retries=2 temperature=0.2 sampling_sent=False
+2026-09-21 20:20:09,563 INFO agentflow pipeline start lines=minutes
+2026-09-21 20:20:09,569 INFO agentflow agent start meeting_understanding
+2026-09-21 20:20:09,569 INFO client.llmclient llm call label=core/meeting_understanding mode=structured
+2026-09-21 20:20:09,572 INFO client.llmclient llm fit max_tokens 50000->42404 ctx=65536 input~22876
+2026-09-21 20:20:36,542 INFO client.llmclient llm resp label=core/meeting_understanding model=deepseek-chat finish=stop in=16174 out=7125 json_mode=True chars=15107
+2026-09-21 20:20:36,542 INFO agentflow agent done meeting_understanding
+2026-09-21 20:20:36,542 INFO agentflow node done meeting_understanding
+2026-09-21 20:20:36,542 INFO agentflow skip perspective (objective)
+2026-09-21 20:20:36,542 INFO agentflow node done perspective_modeling
+2026-09-21 20:20:36,542 INFO agentflow agent start gen line=minutes
+2026-09-21 20:20:36,552 INFO client.llmclient llm call label=minutes/agent mode=structured
+2026-09-21 20:20:36,552 INFO client.llmclient llm fit max_tokens 50000->28482 ctx=65536 input~36798
+2026-09-21 20:20:48,776 INFO client.llmclient llm resp label=minutes/agent model=deepseek-chat finish=stop in=26393 out=3103 json_mode=True chars=4957
+2026-09-21 20:20:48,776 INFO agentflow agent done gen line=minutes
+2026-09-21 20:20:48,778 INFO agentflow node done minutes_agent
+2026-09-21 20:20:48,778 INFO agentflow agent start review line=minutes
+2026-09-21 20:20:48,795 INFO client.llmclient llm call label=minutes/supervisor mode=structured
+2026-09-21 20:20:49,438 INFO client.llmclient llm resp label=minutes/supervisor model=deepseek-chat finish=stop in=8648 out=51 json_mode=True chars=186
+2026-09-21 20:20:49,440 INFO agentflow agent done review line=minutes decision=approve
+2026-09-21 20:20:49,441 INFO tools.core.domain_engine route line=minutes decision=approve revision=0/1 -> __end__
+2026-09-21 20:20:49,443 INFO agentflow node done minutes_supervisor
+2026-09-21 20:20:49,444 INFO agentflow render start line=minutes
+2026-09-21 20:21:04,745 INFO tools.runtime.render advisory line=minutes：「本次会议为小艺慧记项目进展会…」一段 424 字，超过 320 字：拆段或改用 `- ` 分点；正文约 6700 字，超过本篇参考上限 5500 字（档位）
+2026-09-21 20:21:04,746 INFO tools.runtime.render render line=minutes fill_mode=assemble gate=pass directives=0
+2026-09-21 20:21:04,746 INFO agentflow render done line=minutes
+2026-09-21 20:21:04,782 INFO tools.core.runner saved html line=minutes path=D:\study\demo\data\1\output\501a87464f6241c5b2ff7bbb4a695d18\minutes.html
+2026-09-21 20:21:04,782 INFO tools.core.runner saved text line=minutes path=D:\study\demo\data\1\output\501a87464f6241c5b2ff7bbb4a695d18\result.md
+2026-09-21 20:21:04,787 INFO uvicorn.access 127.0.0.1:6755 - "POST /api/v1/meeting/minutes HTTP/1.1" 200
+2026-09-21 20:27:51,758 INFO client.llmclient llm client backend=http model=deepseek-chat base_url=https://api.deepseek.com ctx=65536 max_tokens=50000 timeout=120.0 retries=2 temperature=0.2 sampling_sent=False
+2026-09-21 20:27:51,781 INFO agentflow pipeline start lines=minutes
+2026-09-21 20:27:51,788 INFO agentflow agent start meeting_understanding
+2026-09-21 20:27:51,789 INFO client.llmclient llm call label=core/meeting_understanding mode=structured
+2026-09-21 20:27:51,792 INFO client.llmclient llm fit max_tokens 50000->42304 ctx=65536 input~22976
+2026-09-21 20:28:18,443 INFO client.llmclient llm resp label=core/meeting_understanding model=deepseek-chat finish=stop in=16252 out=6388 json_mode=True chars=13546
+2026-09-21 20:28:18,445 INFO agentflow agent done meeting_understanding
+2026-09-21 20:28:18,447 INFO agentflow node done meeting_understanding
+2026-09-21 20:28:18,449 INFO agentflow agent start perspective
+2026-09-21 20:28:18,450 INFO client.llmclient llm call label=core/perspective_modeling mode=structured
+2026-09-21 20:28:34,571 INFO client.llmclient llm resp label=core/perspective_modeling model=deepseek-chat finish=stop in=7800 out=3925 json_mode=True chars=6593
+2026-09-21 20:28:34,572 INFO agentflow agent done perspective
+2026-09-21 20:28:34,574 INFO agentflow node done perspective_modeling
+2026-09-21 20:28:34,577 INFO agentflow agent start gen line=minutes
+2026-09-21 20:28:34,581 INFO client.llmclient llm call label=minutes/agent mode=structured
+2026-09-21 20:28:34,585 INFO client.llmclient llm fit max_tokens 50000->25971 ctx=65536 input~39309
+2026-09-21 20:28:42,463 INFO client.llmclient llm resp label=minutes/agent model=deepseek-chat finish=stop in=28349 out=1796 json_mode=True chars=2947
+2026-09-21 20:28:42,467 INFO agentflow agent done gen line=minutes
+2026-09-21 20:28:42,468 INFO agentflow node done minutes_agent
+2026-09-21 20:28:42,469 INFO agentflow agent start review line=minutes
+2026-09-21 20:28:42,479 INFO client.llmclient llm call label=minutes/supervisor mode=structured
+2026-09-21 20:28:43,745 INFO client.llmclient llm resp label=minutes/supervisor model=deepseek-chat finish=stop in=10477 out=51 json_mode=True chars=186
+2026-09-21 20:28:43,745 INFO agentflow agent done review line=minutes decision=approve
+2026-09-21 20:28:43,748 INFO tools.core.domain_engine route line=minutes decision=approve revision=0/1 -> __end__
+2026-09-21 20:28:43,749 INFO agentflow node done minutes_supervisor
+2026-09-21 20:28:43,750 INFO agentflow render start line=minutes
+2026-09-21 20:28:43,752 INFO domain.meeting.orchestrator personal transcript slice kept=52 dropped=272 chars=5069->5069
+2026-09-21 20:28:54,848 INFO tools.runtime.render advisory line=minutes：「本次会议由小艺慧记项目组召开…」一段 348 字，超过 320 字：拆段或改用 `- ` 分点
+2026-09-21 20:28:54,848 INFO tools.runtime.render render line=minutes fill_mode=assemble gate=pass directives=780
+2026-09-21 20:28:54,849 INFO agentflow render done line=minutes
+2026-09-21 20:28:54,865 INFO tools.core.runner saved html line=minutes path=D:\study\demo\data\1\output\b2f890fbca3b460184d9c4c699dadaa3\minutes.html
+2026-09-21 20:28:54,866 INFO tools.core.runner saved text line=minutes path=D:\study\demo\data\1\output\b2f890fbca3b460184d9c4c699dadaa3\result.md
+2026-09-21 20:28:54,874 INFO uvicorn.access 127.0.0.1:1722 - "POST /api/v1/meeting/minutes HTTP/1.1" 200
+2026-09-21 20:30:51,168 INFO uvicorn.error Shutting down
+2026-09-21 20:30:51,293 INFO uvicorn.error Waiting for application shutdown.
+2026-09-21 20:30:51,302 INFO uvicorn.error Application shutdown complete.
+2026-09-21 20:30:51,307 INFO uvicorn.error Finished server process [38276]

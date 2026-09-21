@@ -639,14 +639,17 @@ def build_placeholder_fill_user(
     *,
     revision_notes: str = "",
     target_line: str = "",
+    directives: str = "",
 ) -> str:
-    """构造字段 JSON 填充的用户消息。"""
+    """构造字段 JSON 填充的用户消息（``directives`` = 领域给的本栏写作纪律）。"""
     template, requirement = split_template_meta(template)
     plan = plan_placeholder_fill(template)
     lines = [
         "根据内容来源填充模板，只输出 JSON。",
         "形如 `# [栏名]` 的标题行由程序生成，不要填进 fields；你只填标题下方正文占位。",
     ]
+    if directives.strip():
+        lines.append(directives.strip())
     if target_line.strip():
         lines.append(target_line.strip())
     lines.extend([
@@ -797,13 +800,20 @@ def _column_fill_user(
     others: list[str],
     revision: str = "",
     target_line: str = "",
+    directives: str = "",
 ) -> str:
-    """单栏填充的用户消息：只给这一栏的说明，其余栏目只列栏名（防止越栏）。"""
+    """单栏填充的用户消息：只给这一栏的说明，其余栏目只列栏名（防止越栏）。
+
+    ``directives`` 是本栏写作纪律（领域给的取舍口径），紧跟【本栏说明】之后：说明管"这一栏
+    写什么主题"，纪律管"写谁、详到什么程度"，两者的优先级由纪律文本自己写明。
+    """
     body, requirement = split_template_meta(template)
     lines = [
         f"本次只写第 {index}/{total} 栏" + (f"（{title}）" if title else "") + "。",
         f"【本栏说明】{hint}",
     ]
+    if directives.strip():
+        lines.append(directives.strip())
     if others:
         lines.append(
             "其它栏目（" + "、".join(f"[{t}]" for t in others if t) + "）的内容归它们，本栏不复述。"
@@ -896,11 +906,15 @@ async def fill_placeholder_by_columns(
     plan: dict[str, Any],
     *,
     source_han: int | None = None,
+    directives: str = "",
 ) -> str | None:
     """逐栏填充（无表格模板）：每栏一次调用、并发、失败只重试该栏。
 
     返回 None 表示"逐栏不可用 / 一栏都没写出来"，调用方回退整篇 JSON 路径。
     门禁不过时只重写被点名的栏（最多两栏）——整篇重渲染的代价是它的十倍。
+
+    ``directives`` 是调用方（领域）给的**本栏写作纪律**（如真人模式的取舍口径）：逐栏填充的
+    system 里没有领域渲染提示词，取舍只能从这里进；为空则过去的行为一字不变。
     """
     scalars = list(plan.get("scalars") or [])
     if not scalars or plan.get("row_templates"):
@@ -934,6 +948,7 @@ async def fill_placeholder_by_columns(
                 others=others,
                 revision=revision,
                 target_line=target,
+                directives=directives,
             )
             text = await _stream_column(
                 client,
@@ -986,6 +1001,7 @@ async def fill_placeholder_template(
     template: str,
     *,
     source_han: int | None = None,
+    directives: str = "",
 ) -> str | None:
     """类型一稳定填充：LLM 出字段值，程序拼装正文。
 
@@ -995,6 +1011,7 @@ async def fill_placeholder_template(
 
     两条路径：**无表格模板先走逐栏填充**（每栏一次调用、可并发、流式早停，爆炸半径一栏）；
     有表格或逐栏失败才走"整篇一个 JSON"。两者都带 ``max_tokens`` 硬上限（见 length_budget）。
+    ``directives``（领域给的本栏写作纪律）两条路径都带，保证回退也不会退回"没纪律"的写法。
     """
     if not template or not template.strip():
         return None
@@ -1017,7 +1034,7 @@ async def fill_placeholder_template(
 
     if not plan["row_templates"]:
         by_column = await fill_placeholder_by_columns(
-            client, context, template, plan, source_han=source_han
+            client, context, template, plan, source_han=source_han, directives=directives
         )
         if by_column:
             return by_column
@@ -1033,6 +1050,7 @@ async def fill_placeholder_template(
                     template,
                     revision_notes=revision,
                     target_line=_target_line(source_han, template),
+                    directives=directives,
                 ),
                 json_mode=True,
                 temperature=0.0 if attempt == 0 else 0.2,

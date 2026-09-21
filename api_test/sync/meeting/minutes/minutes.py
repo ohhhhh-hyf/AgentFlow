@@ -683,7 +683,7 @@ resp = requests.post(
             "project": "",
             "subject": "",
             "style": "",
-            "memory": True,
+            "memory": False,
         },
     },
     headers={"X-Request-Id": uuid.uuid4().hex, "X-User-Id": USER_ID},

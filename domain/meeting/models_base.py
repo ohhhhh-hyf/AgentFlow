@@ -26,6 +26,10 @@ class UserIdentity(ModelMixin):
     persona_type: str | None = None
     # 真人画像引用的职业模板名（如 "developer" → 公共目录 perspective/profiles/developer.json）；合并时加载
     role_template: str | None = None
+    # ── 仅 data/{user_id}/user.json 会写的字段（职业模板不带）──────────
+    name_aliases: list[str] = field(default_factory=list)  # 会上别称（"小赵"/"赵工"）：精确匹配、禁单字姓
+    personality: str | list[str] | None = None   # 性格短句（可写单串或数组）：只调语气与详略，不得写成评价
+    preferences: list[str] = field(default_factory=list)   # 纪要偏好（"先写我的待办"）：按指令执行，不改事实
     # ── 视角画像扩展字段（客观/个人视角通用承载）────────────────
     scope: str | None = None          # 覆盖面：全员 / 跨组 / 组织级
     principles: list[str] = field(default_factory=list)   # 立场与记录原则

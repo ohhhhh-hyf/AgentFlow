@@ -216,8 +216,18 @@ def load_user(ctx: DomainContext, profile_path: Path):
     profile = json.loads(profile_file.read_text(encoding="utf-8"))
     if not isinstance(profile, dict):
         raise ValueError(f"用户画像必须是 JSON 对象：{profile_file}")
-    from tools.core.profiles import filter_identity_fields, resolve_role_template
+    from tools.core.profiles import (
+        filter_identity_fields,
+        is_user_profile_file,
+        resolve_role_template,
+        sanitize_user_profile,
+    )
 
+    if is_user_profile_file(profile_file):
+        # 用户自建档案：perspective 一律忽略、persona_type 强制为空（有档案就是真人）。
+        # 这一步只对 user.json 做——职业/客观文件正靠这两个字段被分类。
+        profile = sanitize_user_profile(profile)
+    # 真人挂职业模板：模板作底、档案字段整段覆盖（磁盘文件不动）
     profile = resolve_role_template(profile, profile_file.parent)
 
     return ctx.models.UserIdentity(**filter_identity_fields(profile, ctx.models.UserIdentity))

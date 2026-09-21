@@ -1,0 +1,405 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>小艺慧记项目进展与930节点目标对齐会</title>
+  <style>
+
+    body {
+      margin: 0;
+      padding: 14px 12px;
+      background: #f6f5f0;
+      color: #1a1a1a;
+      font-family: "Latin Modern Roman", "Computer Modern Roman", "CMU Serif", "Times New Roman", Times, "Songti SC", "SimSun", "STSong", serif;
+      -webkit-font-smoothing: antialiased;
+    }
+    .page { max-width: 1140px; margin: 0 auto; }
+    .ck-doc {
+      background: #ffffff;
+      border: 1px solid #d4d0c7;
+      border-radius: 4px;
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.05), 0 1px 3px rgba(0,0,0,0.03);
+      padding: 18px 22px;
+      line-height: 1.6;
+      font-size: 0.84rem;      /* 正文基准：左右两栏共用 --ck-fs */
+      --ck-fs: 0.84rem;
+    }
+    .ck-doc h1 {
+      margin: 0 0 6px;
+      font-size: 1.05rem;      /* 文档标题：只比正文略大一点 */
+      font-weight: 700;
+      text-align: center;
+      color: #111111;
+    }
+    .ck-doc-header {
+      margin-bottom: 10px;
+      padding-bottom: 8px;
+      border-bottom: 1px solid #111111;
+      text-align: center;
+    }
+    .ck-doc-meta {
+      font-size: 0.78rem;
+      color: #555555;
+      font-style: italic;
+    }
+    /* 层级标题一律"加粗 + 与右栏同级字号"，不加字号、不加下划线，前后留白压到最小 */
+    .ck-doc-content h1, .ck-doc-content .ck-doc-h1,
+    .ck-doc h2, .ck-doc-h2,
+    .ck-doc h3, .ck-doc-h3,
+    .ck-doc h4, .ck-doc-h4 {
+      font-size: var(--ck-fs);
+      font-weight: 700;
+      color: #111111;
+      border-bottom: 0;
+      padding-bottom: 0;
+      letter-spacing: 0;
+      font-variant: normal;
+      text-align: left;
+    }
+    .ck-doc-content h1, .ck-doc-content .ck-doc-h1, .ck-doc h2, .ck-doc-h2 {
+      margin: 12px 0 4px;
+    }
+    .ck-doc h3, .ck-doc-h3, .ck-doc h4, .ck-doc-h4 {
+      margin: 9px 0 3px;
+    }
+    .ck-doc p {
+      margin: 5px 0;
+      line-height: 1.6;
+      text-align: justify;
+    }
+    .ck-doc ul, .ck-doc ol {
+      margin: 4px 0 6px;
+      padding-left: 1.25em;
+      line-height: 1.6;
+    }
+    .ck-doc li {
+      margin: 2px 0;
+    }
+    .ck-doc blockquote, .ck-quote {
+      margin: 6px 0 8px;
+      padding: 5px 10px;
+      background: #faf9f6;
+      border-left: 3px solid #222222;
+      border-radius: 2px;
+      color: #222222;
+      font-size: var(--ck-fs);
+      font-style: italic;
+    }
+    .ck-doc code {
+      background: #f3f0e8;
+      border: 1px solid #e2ddd3;
+      border-radius: 3px;
+      padding: 1px 6px;
+      font-family: "Latin Modern Mono", Consolas, monospace;
+      font-size: 0.88em;
+    }
+    .ck-doc table, .ck-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: var(--ck-fs);
+      margin: 8px 0;
+      background: #ffffff;
+      border-top: 2px solid #222222;
+      border-bottom: 2px solid #222222;
+    }
+    .ck-doc table th, .ck-doc table td, .ck-table th, .ck-table td {
+      padding: 5px 8px;
+      text-align: left;
+      vertical-align: middle;
+      border-bottom: 1px solid #ede9e1;
+    }
+    .ck-doc table th, .ck-table th {
+      background: #fbfaf7;
+      border-bottom: 1.2px solid #222222;
+      font-weight: 700;
+      color: #111111;
+      letter-spacing: 0.3px;
+    }
+
+    /* Roomy & Spacious Academic Risk Table */
+    .ck-risk-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 18px 0 28px;
+      background: #ffffff;
+      border-top: 2.2px solid #111111;
+      border-bottom: 2.2px solid #111111;
+      font-size: 0.93rem;
+      line-height: 1.72;
+    }
+    .ck-risk-table th {
+      background: #faf8f5;
+      border-bottom: 1.5px solid #111111;
+      padding: 15px 16px;
+      font-weight: 700;
+      color: #111111;
+      letter-spacing: 0.3px;
+      text-align: left;
+      vertical-align: middle;
+    }
+    .ck-risk-table td {
+      padding: 16px 16px;
+      border-bottom: 1px solid #ede8e0;
+      vertical-align: top;
+      color: #1a1a1a;
+      word-break: break-word;
+    }
+    .ck-risk-table tr:nth-child(even) td {
+      background: #fdfcfb;
+    }
+    .ck-risk-table tr:hover td {
+      background: #f6f3eb;
+    }
+
+    /* Review Grid */
+    .ck-review {
+      display: grid;
+      grid-template-columns: minmax(0, 1.35fr) 1px minmax(260px, 0.95fr);
+      border: 1px solid #d4d0c7;
+      border-radius: 4px;
+      overflow: hidden;
+      margin: 8px 0 10px;
+      background: #ffffff;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.03);
+    }
+    .ck-review-left {
+      padding: 14px 16px;
+      background: #ffffff;
+      line-height: 1.6;
+      font-size: var(--ck-fs);
+    }
+    .ck-review-rule { background: #dcd8cf; }
+    .ck-review-right {
+      padding: 12px 14px;
+      background: #faf9f6;
+      box-sizing: border-box;
+      display: flex;
+      flex-direction: column;
+    }
+    .ck-ev-list {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    /* Entity Highlight in LaTeX Paper Style */
+    .ck-cite-entity {
+      background: #fff8db;
+      border-bottom: 1.5px solid #b86a04;
+      padding: 1px 4px;
+      border-radius: 2px;
+      cursor: pointer;
+      transition: all 0.18s ease;
+      color: #111111;
+      font-weight: 600;
+    }
+    .ck-cite-entity:hover {
+      background: #ffe58f;
+      color: #000000;
+    }
+    .ck-cite-entity.is-on {
+      background: #ffd54a;
+      border-bottom-color: #0047ab;
+      box-shadow: 0 0 0 2px rgba(0,71,171,0.25);
+    }
+
+    /* Blue Hyperref Citations [1], [2] */
+    .ck-cite-ref {
+      color: #0047ab;
+      font-weight: 600;
+      font-family: "Latin Modern Roman", "Computer Modern Roman", "Times New Roman", serif;
+      text-decoration: none;
+      cursor: pointer;
+      padding: 0 2px;
+      margin: 0 2px;
+      border-radius: 2px;
+      transition: all 0.15s ease;
+      font-size: 0.92em;
+      vertical-align: baseline;
+      user-select: none;
+    }
+    .ck-cite-ref:hover {
+      text-decoration: underline;
+      background: #e8f0fe;
+      color: #003380;
+    }
+    .ck-cite-ref.is-active {
+      background: #d2e3fc;
+      color: #002266;
+      font-weight: 700;
+      box-shadow: 0 0 0 1px #0047ab;
+    }
+
+    /* Right Memory Cards in LaTeX Paper Style */
+    .ck-provenance-head {
+      font-size: 0.82rem;
+      font-weight: 700;
+      color: #222222;
+      margin: 0 0 12px;
+      padding-bottom: 6px;
+      border-bottom: 1px solid #e0dcd4;
+      letter-spacing: 0.3px;
+      text-transform: uppercase;
+    }
+    .ck-ref-icon { color: #0047ab; margin-right: 4px; }
+    .ck-ev {
+      display: block;
+      margin: 0;
+      padding: 10px 12px;
+      border: 1px solid #dedad2;
+      border-left: 3.5px solid #0047ab;
+      border-radius: 2px;
+      background: #ffffff;
+      font-size: 0.82rem;
+      line-height: 1.55;
+      transition: all 0.2s ease;
+      cursor: pointer;
+    }
+    .ck-ev:hover { border-color: #b5b0a5; }
+    .ck-ev.is-on, .ck-ev.is-highlighted {
+      border-color: #0047ab;
+      box-shadow: 0 0 0 2px #0047ab, 0 3px 8px rgba(0,71,171,0.15);
+      background: #f0f5ff;
+    }
+    @keyframes citePulse {
+      0% { background: #dbeafe; box-shadow: 0 0 0 3px #0047ab; }
+      50% { background: #bfdbfe; box-shadow: 0 0 0 4px #0047ab; }
+      100% { background: #f0f5ff; box-shadow: 0 0 0 2px #0047ab; }
+    }
+    .ck-ev-k {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 0.75rem;
+      color: #444444;
+      margin-bottom: 5px;
+      font-weight: 700;
+    }
+    .ck-ev-cite-tag {
+      color: #0047ab;
+      font-weight: 700;
+      font-family: "Latin Modern Roman", serif;
+      text-decoration: none;
+    }
+    .ck-ev-kind-badge {
+      display: inline-block;
+      padding: 1px 6px;
+      border-radius: 2px;
+      font-size: 0.72rem;
+      font-weight: 600;
+      letter-spacing: 0.2px;
+    }
+    .ck-badge-keypoint {
+      border: 1px solid #0047ab;
+      color: #0047ab;
+      background: #f0f5ff;
+    }
+    .ck-badge-note {
+      border: 1px solid #b86a04;
+      color: #b86a04;
+      background: #fff8eb;
+    }
+    .ck-mem-title {
+      font-weight: 700;
+      color: #111111;
+      font-size: var(--ck-fs);
+      margin-bottom: 4px;
+      line-height: 1.5;
+    }
+    .ck-ev-quote {
+      color: #222222;
+      font-style: normal;
+      font-family: inherit;
+      margin: 4px 0 6px;
+      padding: 0;
+      background: transparent;
+      border: none;
+      line-height: 1.6;
+      font-size: var(--ck-fs);
+    }
+    .ck-ev-meta { font-size: 0.76rem; color: #666666; margin-top: 4px; }
+    .ck-ev-more {
+      margin-top: 2px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+    .ck-ev-more[open] { margin-top: 4px; }
+    .ck-ev-more summary { margin-bottom: 6px; }
+    .ck-proof-toggle {
+      cursor: pointer;
+      font-size: 0.82rem;
+      color: #0047ab;
+      user-select: none;
+      font-family: inherit;
+      padding: 2px 0;
+    }
+    .ck-proof-toggle:hover { text-decoration: underline; }
+    /* 右栏下段"状态演进"：无行内锚点，与上方证据卡视觉区分（灰底 + 徽章，无 [n]） */
+    .ck-ledger {
+      margin-top: 10px;
+      padding-top: 8px;
+      border-top: 1px dashed #d4d0c7;
+    }
+    .ck-ledger > summary { list-style: none; }
+    .ck-ledger > summary::-webkit-details-marker { display: none; }
+    .ck-ledger > summary::after { content: " ▾"; }
+    .ck-ledger:not([open]) > summary::after { content: " ▸"; }
+    /* 每类一张小灰卡：卡头类别 + 条数，卡内按 1. 2. 3. 编号 */
+    .ck-ledger-card {
+      background: #faf9f5;
+      border: 1px solid #e6e2d8;
+      border-left: 3px solid #bdb6a6;
+      border-radius: 4px;
+      padding: 7px 9px;
+      margin-bottom: 6px;
+    }
+    .ck-ledger-k {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 6px;
+      font-size: 0.72rem;
+      margin-bottom: 5px;
+    }
+    .ck-ledger-badge {
+      background: #efece4;
+      color: #6b6559;
+      border-radius: 3px;
+      padding: 1px 6px;
+      font-weight: 600;
+    }
+    .ck-ledger-count { color: #8a8578; }
+    .ck-ledger-list {
+      margin: 0;
+      padding-left: 1.35em;
+      font-size: var(--ck-fs);
+      line-height: 1.6;
+      color: #3b3a37;
+    }
+    .ck-ledger-list > li { margin: 2px 0; }
+    .ck-ledger-text { font-size: var(--ck-fs); line-height: 1.6; color: #3b3a37; }
+    .ck-ledger-meta { color: #8a8578; font-size: 0.76rem; }
+
+    @media(max-width: 860px) {
+      .ck-doc { padding: 22px 18px; }
+      .ck-review { grid-template-columns: 1fr; }
+      .ck-review-rule { display: none; }
+    }
+
+  </style>
+</head>
+<body>
+  <main class="page">
+    <div class="ck-doc">
+      <header class="ck-doc-header">
+        <h1>小艺慧记项目进展与930节点目标对齐会</h1>
+      </header>
+      <div class="ck-doc-content">
+        <h1 class="ck-doc-h1">全文摘要</h1><p>本次小艺慧记项目进展会由团队内部召开，申家坤、武思华、方思邈、范炳杰、李梦甜、盛晋珲、徐玥、邬昱圣、张宇翔、郭慧敏、姜彪、李家豪、郭镨岳、鄢书畅等参与，按Java侧、引擎、模型与数据各线过进展。你作为算法侧核心，会上推进的事项集中在：Java侧需求与测试安排、模型接口与端侧处理、权限与链路申请、流失待办格式与微服务测试、长文本性能与竞品测试、微服务统一接口与模型调用改造、问题单与短输出优化、录音机控件与910c机器验证、ASR模型效果与优化方案。会议明确930节点前引擎至少单卡四路、效果至少持平4.0，徐玥强调窗口期不多、单卡一并发肯定不行，做到四并发或六并发还有协商余地；长文本问题决定把时间和发言人去掉、效果应该不太影响，问题单找武思华核、中测时带上中测版本；徐玥要求看强基性4.0和1.0、2.5、4.0的横向对比、相对提升到10%几，并建议demo阶段直接走翻译云、会去问杨老师能不能起单独的sdk。关键锚点：长文本实测60000多字还行、8~9万字不行，prefill耗时40多秒；领域关键词槽准低于1%点几、收访人错误率低比较多；汇金峰值并发约650、平均300~400；内部WeLink打标完成201、还差300多。徐玥说会上先不做决策，会后你们可能要讨论一下。</p><h1 class="ck-doc-h1">分段速览</h1><h2 class="ck-doc-h2">00:35:20-00:39:22 Java侧需求、模型接口与权限申请</h2><p>你按节奏过Java侧问题，本周转政策、下周转线、再下周商品，商品版本要带录音机命名字数、仿写流失、数据汇流三个需求；后两个需求的测试报告能否出来、微服务由谁测都还没定，武思华称刘师未回复、会再问，当前微服务接口由腾意去测。模型接口上武思华认为主干侧主动锻炼这边做处理即可、不统计成功率，你先做处理再跟产品反馈看端侧有没有办法改，并提到之前生成过程中切换走会断换的类似问题、群里问过isales没给方案。tob数统计今天改了、统计一天的，明天看hall t，武思华明天找他们要数据。重复和标点问题让端侧和这边看有哪些要改的改一下。</p><p>权限上武思华找批权限的人一直不批、找了好几次，你整体链路已批完、董明也给你编了，你表示后面如有申请可以一起申请。流失改的待办格式已跟晋明对过并一起改了，这边改成他要的格式、让他那边也改。</p><h2 class="ck-doc-h2">00:39:22-00:42:08 长文本性能、标题与字幕摘要</h2><p>方思邈问你昨晚发的内容看过没有，你说长文本实测60000多字还行、8~9万字不行，改配置后长文本是k了但token比较慢、prefill费时间，手头跟最大都到40多秒；方思邈认为按晓华的标准一定打不了标，第一步10s也一定超时、加上后面40多秒加起来就一分钟，建议拿竞品测这么多字会多久，你同意测并再问推理优化方式，并说明当时给晓华的指标是按p五零p九零给的。标题问了子浩、明天出报告。字幕摘要需求后面思华看改一下、他们还没排，主要是通用摘要模板、流失输出，可能加一个一词做领域检测。其他主要是agent相关，包括上周做的图文摘要和加多盟demo；范炳杰说昨晚月份才发的4~5个接口还没挨个试、今天晚点会试，可以的话先集成到网页版。</p><h2 class="ck-doc-h2">00:42:08-00:45:47 微服务接口改造、录音机控件与910c验证</h2><p>微服务统一接口可能还需要改：python接口里要调mep、通过bid调fm一p模型，当前还是调部署在a版本上自己布的调用方式，需要改成根据此部署的bid调，先调千问码调通流程，效果按现在子部署的ds模型去看。录音机控件之前跟杰哥、月姐对过，等他们汇报完再一起看，暂时跟武思华这边没关系，后面现网开发可能微服务那块去改。910c机器密码武思华还没申请、也没镜像、软件镜像得找人专门推，你说时间比较短、这周下周初要去验证是模型的问题还是机器的问题，武思华说这块你先来看一下。问题单与短输出优化上，单贝塔单转过来的标题、自理模板、场景时延问题后面改一下，能改的也就短输出的标题、关键词、场景检测、内容过滤；</p><p>长文本问题是有发言人和时间、投根比较多占实，计划把时间和发言人去掉、效果应该不太影响，问题单找武思华核一下、中测时带上中测版本。</p><h2 class="ck-doc-h2">00:46:32-00:53:19 引擎流量统计与端侧幻觉修复</h2><p>范炳杰讲引擎，补了上周流量报表：过滤条件后汇金峰值并发约650、平均300~400，工作时间8点到12点600多应是常态，之前长了一周估计也要800多，其他几个同比换算接近1:10、可能2000多；盛晋珲据此推算认知大模型要上需650张卡。端侧麦克风加媒体音播报幻觉问题已解决、之前版本没更新上去，已把开发环境那套布到demo环境，找书畅要了模型版本、找胡跃和舒畅搭了镜像；但识别输出需加后处理、时间戳对齐、所有人分别分段成自己格式，49min会议转写要13分多、约原始音频的1/3耗时，只能串行不能并行，专业词识别效果比较差，音频最大专系时长90min、现网最长可10个小时。范炳杰跟翔哥商量通过量化手段压模型权重提高并发，还在探索、何时出结果不一定。</p><h2 class="ck-doc-h2">00:55:33-01:15:03 引擎优化目标、强基性4.0对比与链路方案</h2><p>徐玥说留给我们的窗口期不多了、节点就是930，长基线4.0最开始单卡一并发、优化一个半月左右达到单卡10并发；邬昱圣建议先做到四并发或五并发，徐玥认为单卡一并发肯定不行、做到四并发或六并发还有协商余地、准确性方面已经相对可以，盛晋珲说至少单卡四路、效果至少持平4.0。强基性4.0接口上，张宇翔找了学姐、给了测试java的一套东西、昨晚还没跑起来，徐玥要求看和1.0、2.5、4.0的横向对比，之前没和4.0对比过、相对提升到10%几。与录音机控件联调上，控件6.1/7.1前后链路不同，7.1之后找坤鹏、陈赫，7.1之前找拜杰；陈赫是自己人、上周说晚几天出研发环境包一直没给消息；控件团队09/18上会，熊帆是se、王玉学是开发。徐玥认为过apa会受限制、人家不一定愿意配合，这条链路未来100%通不了，建议demo阶段直接走翻译云、直接先上来，并说会去问杨老师能不能起单独的sdk。</p><h2 class="ck-doc-h2">01:15:36-01:30:58 单卡四路目标、ASR方案取舍与转测范围</h2><p>盛晋珲确认930之前要搞一套至少单卡四路的引擎效果、效果至少持平4.0，并提出训练同学先启动小模型训练做保底：把千问三omny换成most讯号的大模型做SC预测再加聚类，模型小几倍、可能直接单卡四路推，但most的asr会差一些、宇翔还没补测。徐玥说没有保底、两个只能二选一，千问的好处是效果已经做出来、只需把并发打上去，这是工程性任务、收益确定，most收益不确定、相当于把半年来的东西再过一遍，且模型小上限低、未来还得扩模型；她建议非实时的先不做、人力先放到实时上，并说会上先不做决策、会后你们讨论，一方面你们再排一排人力，另一方面她去问杨老师链路这块有没有什么可以做的点。</p><p>转测范围上，范炳杰问优先关注哪些指标、包括w流压、并发、首字时延、组织时延，转测基于需求单来测；盛晋珲说下来还得再跟月杰讨论、先看小一会计，范炳杰说转测之前还得知道测试内容有哪些。</p><h2 class="ck-doc-h2">01:31:12-01:37:21 ASR模型效果与GRPO改动</h2><p>郭慧敏说晋晖转过来的数据还没转到北京市那边、还没加进来，上周调整数据配比、增加噪声数据，ASR能力稳定没下降，说话人认知结果有一点改善、confusion和受害人错误率有一点改善，会后往出倒放到demo上测敲键盘等声音、初步测直接识别为noise不出乱字，后面把那批数据转过来整理好后和你一起训。你说WeLink结果、强华学院优化ASR效果还可以，自己录制关键词的槽准和WER都还可以、远锦城也还行、first h db稍差，比较差的两个指标是领域关键词槽准低于1%点几、收访人错误率低比较多；GRPO改动主要是奖励函数，一个是ASR的、一个是重复惩罚的，其他没加太多，因为这版基础模型已训过实验戳和分割符，这版奖励函数用纯ASR文本、其他正则化掉。你按句子处理不知会不会时延比较高，要导出测一下，有问题可能需要再调整。</p><h2 class="ck-doc-h2">01:37:21-01:45:54 数据标注、现网与博客数据、非实时方案</h2><p>姜彪说数据标注：法本这周一开始启动标注、这个月分290个小时、月底能交付；文德330个小时、比法本多、月底可交付；fp之前230个小时做完正在审、这周可审核完归档，第二批250个小时月中下旬可做完；内部WeLink打标完成201、还差300多，姜彪说大家都是临时支援在做。李家豪说现网数据翔哥上周给第四批回流数据、0~310min打完，现在打30~60min的，信息丢失和超长90min以上也在跑、比较慢，1000多条跑了200多条；郭镨岳说博客数据已打完约15000h，正在用秦万三中达标，估计三天、比mos快一点。李梦甜说0~6人、WeLink和hl都比现网好、还没和日大模型比；盛晋珲建议向mos流式版本也搞一个图横向对比；</p><p>鄢书畅准备这几天把解决方案合一下给炳杰一版新的，生物模型在跨设备以及音响波上指标劣化比较明显，会加混响数据训、把生活模型可靠性再增加一点。张宇翔在做关键词、口语中华提取的一套流程、稳定通差不多搞完，后面发群里，包括sr信息、热词修复、关键词提取，关键词RG、agent、训练都可以用，WER效果好的训练应该也有用、但流程比较长、后面用文本单模型去做。# 要点梳理</p><h2 class="ck-doc-h2">Java侧需求与测试安排</h2><ul><li><strong>转测节奏</strong>：本周转政策，下周转线，再下周商品；商品版本要带的需求包括录音机命名字数、仿写流失、数据汇流。</li><li><strong>测试报告</strong>：后两个需求（仿写流失、数据汇流）的测试报告能否出来待确认。</li><li><strong>微服务测试人</strong>：微服务由谁测还不知道，可能跟会记的测试是同一人；武思华问刘师未回复，会再问。</li><li><strong>tob数统计</strong>：今天改了，统计一天的，明天看hall t；武思华明天找他们要数据。</li><li><strong>重复与标点</strong>：今天对过的重复、标点问题，让端侧和这边看有哪些要改的改一下；武思华说这边应该没啥，英文的可能需要再看一下、测一下。</li></ul><h2 class="ck-doc-h2">模型接口与端侧处理</h2><ul><li><strong>主干侧主动锻炼</strong>：武思华认为这边做一下处理即可，不统计成功率；你表示先做处理，再跟产品反馈看端侧有没有办法改。</li><li><strong>同类问题</strong>：之前反馈过生成过程中切换走会断换，感觉跟这个问题类似；当时端侧说不好做，可以再跟产品说看能否息屏时后台保存。</li><li><strong>isales</strong>：之前群里问过isales，没给方案，再反馈一下类似问题。</li></ul><h2 class="ck-doc-h2">权限与链路申请</h2><ul><li><strong>权限审批</strong>：武思华找批权限的人一直不批，找了好几次；你整体链路已批完，董明也给你编了。</li><li><strong>后续申请</strong>：你表示后面如有申请可以一起申请。</li></ul><h2 class="ck-doc-h2">流失待办格式与微服务测试</h2><ul><li><strong>格式对齐</strong>：流失改的待办格式已跟晋明对过、一起改了；这边改成他要的格式，让他那边也改；上次给了他一个报文。</li><li><strong>微服务接口测试</strong>：当前也是腾意去测微服务接口，武思华确认应该是他，下来找他们对一下。</li><li><strong>打点</strong>：你上午问罗毅男谈，他说这两天在搞打点；后面体验和方案你再跟罗岩和晓华看一下。</li></ul><h2 class="ck-doc-h2">长文本性能与竞品测试</h2><ul><li><strong>实测结果</strong>：长文本实际测60000多字还行，8~9万字不行；改了个配置，长文本是k了，但token比较慢，因为长文本prefill比较费时间；手头跟最大的都到40多秒。</li><li><strong>达标判断</strong>：方思邈认为按晓华的标准一定打不了标，第一步10s也一定超时，加上后面40多秒加起来就一分钟；建议拿竞品测这么多字会多久。</li><li><strong>指标口径</strong>：当时给晓华的指标是按p五零p九零给的。</li><li><strong>下一步</strong>：你同意测竞品，并再去问推理这块有没有优化的方式；按现在部署方式，长文本手头文就是会慢。</li></ul><h2 class="ck-doc-h2">标题、字幕摘要与Agent相关</h2><ul><li><strong>标题</strong>：问了子浩，他明天出报告，到时候看一下。</li><li><strong>字幕摘要</strong>：那天对了一个字幕摘要需求，后面思华看改一下，他们还没排；主要是通用摘要的模板、流失输出，可能加一个一词做领域的检测。</li><li><strong>Agent相关</strong>：其他主要是agent相关的，包括上周做的图文摘要和加多盟demo。</li><li><strong>接口demo</strong>：范炳杰说昨晚月份才发的应该有4~5个接口，还没挨个试，今天晚点会试，可以的话先集成到网页版。</li></ul><h2 class="ck-doc-h2">微服务统一接口与模型调用改造</h2><ul><li><strong>统一接口</strong>：微服务这块统一接口可能还需要改一下。</li><li><strong>模型调用</strong>：python接口里要调mep，通过bid去调fm一p模型；当前还是调部署在a版本上自己布的调用方式，需要改成根据此部署的bid调。</li><li><strong>调通顺序</strong>：先调千问码调通流程，效果按现在子部署的ds模型去看。</li></ul><h2 class="ck-doc-h2">录音机控件与910c机器验证</h2><ul><li><strong>录音机控件</strong>：之前跟杰哥、月姐对过，等他们汇报完再一起看；录音机接口暂时跟武思华这边没关系，后面现网开发可能微服务那块去改，就是上次让你统计的那些，后面去增加修改。</li><li><strong>910c机器</strong>：密码武思华还没申请，这两天事有点多；时间比较短，这周下周初要去验证是模型的问题还是机器的问题。</li><li><strong>镜像</strong>：武思华说没镜像，软件镜像得找人专门去推；你表示先上机器看一下、在机上测一下。</li></ul><h2 class="ck-doc-h2">问题单与短输出优化</h2><ul><li><strong>待改问题</strong>：单贝塔单转过来的标题、自理模板、场景时延问题后面改一下。</li><li><strong>可改范围</strong>：昨天跟苗哥看，感觉能改的也就短输出的标题、关键词、场景检测、内容过滤。</li><li><strong>长文本占时</strong>：长文本问题是有发言人和时间，比较多的话投根就比较多、比较占时；计划把时间和发言人去掉，效果应该不太影响。</li><li><strong>问题单核对</strong>：问题单找你核一下，中测的时候带上中测版本。</li></ul><h2 class="ck-doc-h2">引擎并发与流量统计</h2><ul><li><strong>流量报表</strong>：范炳杰补了上周流量报表，过滤条件后汇金峰值并发大概650左右，平均300~400；工作时间8点到12点，600多应是常态数值；之前长了一周，估计也要800多。</li><li><strong>同比换算</strong>：其他几个同比换算接近1:10，可能2000多。</li><li><strong>卡数推算</strong>：盛晋珲据此推算，认知大模型要上、按单卡一路，至少需要650张卡。</li><li><strong>加速负责人</strong>：徐玥问单卡一路推理加速谁负责，范炳杰说主要是翔哥，他和翔哥一起合议。</li></ul><h2 class="ck-doc-h2">端侧麦克风与媒体音播报幻觉</h2><ul><li><strong>问题解决</strong>：解决了端侧麦克风加媒体音播报幻觉问题，之前有个版本没更新上去；把开发环境那套布到demo环境，后面提应该能解决。</li><li><strong>镜像与版本</strong>：找书畅要了模型版本，中间也找胡跃和舒畅搭了镜像。</li><li><strong>后处理</strong>：识别输出需加后处理、时间戳对齐、所有人分别分段成自己格式，才能无缝衔接之前的显示接口。</li><li><strong>实测问题</strong>：49min会议转写要13分多，约原始音频的1/3耗时；只能串行、不能并行；专业词识别效果比较差；音频最大专系时长90min，现网最长可10个小时。</li><li><strong>能力判断</strong>：范炳杰认为如果这块没做优化或市场没改，目前能力还是不具备直接用。</li></ul><h2 class="ck-doc-h2">模型量化与端到端demo依赖</h2><ul><li><strong>量化探索</strong>：跟翔哥商量通过量化手段压模型权重提高并发，还在探索，何时出结果不一定。</li><li><strong>demo依赖</strong>：demo依赖录音机控件团队出完会才能集成；链路涉及熊帆的应急控件开发、下游郑坤法、思聪那边的陈贺端次开发。</li><li><strong>人力支撑</strong>：拉了个群，但他们比较忙，暂时没有人力支撑端侧demo；如无支撑，可能需自己看他们代码、自己拉通或调。</li></ul><h2 class="ck-doc-h2">引擎优化目标与930节点</h2><ul><li><strong>窗口期</strong>：徐玥说留给我们的窗口期不多了，节点就是930；媒体院也得进来，最好是比较专业的同学负责加速。</li><li><strong>基线参考</strong>：长基线4.0最开始单卡一并发，优化一个半月左右达到单卡10并发。</li><li><strong>并发目标</strong>：邬昱圣建议先做到四并发或五并发，不能只有一卡一并发；徐玥认为单卡一并发肯定不行，做到四并发或六并发还有协商余地，准确性方面已经相对可以；盛晋珲说至少单卡四路、效果至少持平4.0。</li></ul><h2 class="ck-doc-h2">强基性4.0接口与横向对比</h2><ul><li><strong>接口获取</strong>：张宇翔找了学姐，给了测试java的一套东西，昨晚还没跑起来。</li><li><strong>横向对比</strong>：徐玥要求看和1.0、2.5、4.0的横向对比；之前没和4.0对比过，相对提升到10%几。</li><li><strong>下一步</strong>：张宇翔说尽快做，不行就拉个群。</li></ul><h2 class="ck-doc-h2">与录音机控件联调及链路方案</h2><ul><li><strong>链路差异</strong>：控件6.1/7.1前后链路不同，7.1之后找坤鹏、陈赫，7.1之前找拜杰。</li><li><strong>陈赫</strong>：陈赫是自己人，上周说晚几天出研发环境包，一直没给消息，范炳杰再催。</li><li><strong>控件团队</strong>：控件团队09/18上会，熊帆是se、王玉学是开发；控件调坤坊的sdk，坤坊再调陈赫那边的链路。</li><li><strong>链路判断</strong>：徐玥认为过apa会受限制、人家不一定愿意配合，这条链路未来100%通不了；建议demo阶段直接走翻译云、直接先上来。</li><li><strong>翻译sdk</strong>：范炳杰说通过翻译sdk去接只能搭demo方式；徐玥说会去问杨老师能不能起单独的sdk，范炳杰希望拉他一起听。</li></ul><h2 class="ck-doc-h2">转测范围与指标定义</h2><ul><li><strong>指标关注</strong>：范炳杰问转测优先关注哪些指标，包括w流压、并发、首字时延、组织时延。</li><li><strong>测试依据</strong>：转测基于需求单来测，测试达到单子后基于描述测能力；指标定义与转测关系很大，需先知道测试内容有哪些。</li><li><strong>小一会计</strong>：小一会计转测对蹦的时延没那么敏感、可能没单独测，有时为效果可能牺牲一些速度。</li><li><strong>下一步</strong>：盛晋珲说下来还得再跟月杰讨论、先看小一会计。</li></ul><h2 class="ck-doc-h2">ASR模型效果与优化方案</h2><ul><li><strong>郭慧敏进展</strong>：晋晖转过来的数据还没转到北京市那边、还没加进来；上周调整数据配比、增加噪声数据，ASR能力稳定没下降，说话人认知结果有一点改善，confusion和受害人错误率有一点改善。</li><li><strong>你的WeLink结果</strong>：挑了一个之前在日志上结果比较好的模型做强华学院优化ASR，看上去效果还可以；自己录制关键词的槽准和WER都还可以，远锦城也还行，first h db稍差。</li><li><strong>较差指标</strong>：领域关键词槽准低于1%点几，收访人错误率低比较多，其他指标基本跟之前持平。</li><li><strong>GRPO改动</strong>：主要是奖励函数，一个是ASR的、一个是重复惩罚的，其他没加太多；基础模型已训过实验戳和分割符，这版奖励函数用纯ASR文本、其他正则化掉，在线好像好一点。</li><li><strong>时延待测</strong>：你按句子处理不知会不会时延比较高，要导出测一下，有问题可能需要再调整。</li><li><strong>协同训练</strong>：郭慧敏把那批数据转过来整理好后和你一起训一下。</li></ul><h2 class="ck-doc-h2">数据标注进度</h2><ul><li><strong>法本</strong>：这周一开始启动标注，这个月分290个小时，月底能交付，先看速度。</li><li><strong>文德</strong>：330个小时，比法本多，之前做得相对熟练，月底可交付。</li><li><strong>fp</strong>：之前230个小时做完，正在审，这周可审核完归档；第二批250个小时月中下旬可做完。</li><li><strong>内部WeLink打标</strong>：完成201，还差300多，进度慢；姜彪说大家都是临时支援在做，得想办法，不然得10好几周出去。</li></ul><h2 class="ck-doc-h2">现网与博客数据</h2><ul><li><strong>现网数据</strong>：翔哥上周给第四批回流数据，0~310min打完，现在打30~60min的；信息丢失和超长90min以上也在跑、比较慢，1000多条跑了200多条。</li><li><strong>博客数据</strong>：已打完约15000h，正在用秦万三中达标；郭镨岳估计三天，比mos快一点。</li></ul><h2 class="ck-doc-h2">非实时与实时方案</h2><ul><li><strong>李梦甜结果</strong>：现网数据上线后测的结果，0~6人、WeLink和hl都比现网好，还没和日大模型比；效果相对稳定，尤其是受害人。</li><li><strong>横向对比</strong>：盛晋珲建议向mos流式版本也搞一个图横向对比，李梦甜说也测一下。</li><li><strong>鄢书畅方案</strong>：准备这几天把解决方案合一下给炳杰一版新的；生物模型在跨设备以及音响波上指标劣化比较明显，会加混响数据训、把生活模型可靠性再增加一点。</li></ul><h2 class="ck-doc-h2">专业词汇与关键词数据</h2><ul><li><strong>流程</strong>：张宇翔在做关键词、口语中华提取的一套流程，稳定通差不多搞完，后面发群里，包括sr信息、热词修复、关键词提取。</li><li><strong>用途</strong>：关键词RG也可以用、agent也可以用、训练也可以用；WER效果好的训练应该也有用，但流程比较长，后面用文本单模型去做。</li></ul><h2 class="ck-doc-h2">结论与决定</h2><ul><li><strong>主干侧主动锻炼</strong>：这边做处理，不统计成功率；你先做处理，再跟产品反馈看端侧有没有办法改。</li><li><strong>流失待办格式</strong>：这边改成他要的格式，让他那边也改。</li><li><strong>长文本问题</strong>：把时间和发言人去掉，效果应该不太影响。</li><li><strong>问题单</strong>：找你核一下，中测的时候带上中测版本。</li><li><strong>强基性4.0对比</strong>：徐玥要求看和1.0、2.5、4.0的横向对比。</li><li><strong>链路方案</strong>：徐玥建议demo阶段直接走翻译云、直接先上来；她会去问杨老师能不能起单独的sdk。</li><li><strong>转测范围</strong>：盛晋珲说下来还得再跟月杰讨论，先看小一会计。</li><li><strong>会上不做决策</strong>：徐玥说会上先不做决策，会后你们可能要讨论一下。</li></ul><h2 class="ck-doc-h2">行动项与分工</h2><ul><li><strong>你</strong>：测竞品长文本这么多字会多久，并再问推理这块有没有优化的方式。</li><li><strong>你</strong>：导出测一下按句子处理会不会时延比较高，有问题再调整。</li><li><strong>你</strong>：微服务统一接口改造，先调千问码调通流程，效果按现在子部署的ds模型去看。</li><li><strong>你</strong>：问题单找武思华核一下，中测的时候带上中测版本。</li><li><strong>你</strong>：后面如有权限申请可以一起申请。</li><li><strong>武思华</strong>：再问刘师微服务测试的事；明天找他们要tob数统计数据。</li><li><strong>武思华</strong>：申请910c机器密码，找人专门推软件镜像。</li><li><strong>范炳杰</strong>：今天晚点试4~5个接口，可以的话先集成到网页版；再催陈赫出研发环境包。</li><li><strong>张宇翔</strong>：尽快做1.0、2.5、4.0横向对比，不行就拉个群。</li><li><strong>郭慧敏</strong>：会后把数据往出倒，放到demo上测敲键盘等声音；那批数据转过来整理好后和申家坤一起训。</li><li><strong>鄢书畅</strong>：这几天把解决方案合一下给炳杰一版新的。</li><li><strong>徐玥</strong>：去问杨老师链路这块有没有什么可以做的点、能不能起单独的sdk。</li><li><strong>盛晋珲</strong>：下来再跟月杰讨论转测范围，先看小一会计。</li></ul><h2 class="ck-doc-h2">待确认与风险</h2><ul><li><strong>测试报告</strong>：商品版本后两个需求的测试报告能否出来待确认。</li><li><strong>微服务测试人</strong>：微服务由谁测还不知道，可能跟会记的测试是同一人；刘师未回复武思华。</li><li><strong>910c机器</strong>：密码武思华还没申请，没镜像、软件镜像得找人专门推。</li><li><strong>长文本达标</strong>：8~9万字不行，token比较慢、prefill费时间，手头跟最大都到40多秒；第一步10s也一定超时，加上后面40多秒加起来就一分钟；按晓华标准能否达标需拿竞品测。</li><li><strong>ASR指标</strong>：领域关键词槽准低于1%点几，收访人错误率低比较多。</li><li><strong>时延</strong>：按句子处理不知会不会时延比较高，要导出测一下。</li><li><strong>权限</strong>：武思华找批权限的人一直不批，找了好几次。</li><li><strong>端到端demo</strong>：拉群但他们比较忙，暂时没有人力支撑；徐玥认为过apa会受限制、人家不一定愿意配合，这条链路未来100%通不了。</li><li><strong>窗口期</strong>：徐玥说留给我们的窗口期不多了，节点就是930；单卡一并发肯定不行。</li><li><strong>打标进度</strong>：内部WeLink打标还差300多，得10好几周出去。</li><li><strong>模型劣化</strong>：鄢书畅说生物模型在跨设备以及音响波上指标劣化比较明显。</li><li><strong>转测范围</strong>：转测范围与指标定义待与月杰讨论；强基性4.0接口测试java昨晚还没跑起来。</li></ul>
+      </div>
+    </div>
+  </main>
+</body>
+</html>

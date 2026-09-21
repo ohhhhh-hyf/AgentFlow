@@ -7,10 +7,13 @@
 from __future__ import annotations
 
 import json
+import logging
 import re
 from dataclasses import fields
 from pathlib import Path
 from typing import Any
+
+logger = logging.getLogger(__name__)
 
 # 跨域公共画像目录：客观画像与职业模板平铺在同一目录
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
@@ -25,6 +28,12 @@ KIND_LABEL = {
     KIND_PERSON: "真人",
     KIND_ROLE: "职业",
 }
+
+# 用户自建真人档案：``data/{X-User-Id}/user.json``（用户放文件即生效，不改仓库）
+USER_PROFILE_FILENAME = "user.json"
+# extra.profile 里强制客观/强制真人的取值（与「空值自动选档」区分开）
+_OBJECTIVE_ALIASES = frozenset({"objective", "object"})
+_USER_ALIAS = "user"
 
 
 def _role_template_candidates(profile_dir: Path, key: str) -> list[Path]:
@@ -130,14 +139,123 @@ def filter_identity_fields(data: dict[str, Any], identity_cls: type) -> dict[str
     return {key: value for key, value in (data or {}).items() if key in allowed}
 
 
+# ── 用户自建真人档案 user.json ──────────────────────────────────
+# 打通方式：用户把档案放在自己的数据目录 data/{X-User-Id}/user.json，
+# extra.profile 传空时自动发现：有合法档案 → 真人；否则维持客观全员。
+
+
+def user_profile_path(user_id: str, project_root: Path | None = None) -> Path:
+    """``data/{safe_id(user_id)}/user.json``；user_id 为空返回空 Path。
+
+    目录段与记忆/产物同源（``safe_id``），杜绝 ``../`` 之类的路径穿越。
+    """
+    if not str(user_id or "").strip():
+        return Path("")
+    from tools.memory.store import safe_id
+
+    root = project_root or PROJECT_ROOT
+    return root / "data" / safe_id(user_id) / USER_PROFILE_FILENAME
+
+
+def read_user_profile(path: Path) -> dict[str, Any] | None:
+    """读 user.json：必须是 JSON 对象且 ``name`` 非空，否则当"没有档案"（记一条 warning）。
+
+    为什么要 name：没有姓名就无法按人点名，后续命中表/裁剪全落空——
+    与其带着半残档案跑，不如退回客观。
+    """
+    if not path or not path.is_file():
+        return None
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        logger.warning("user.json 读取失败，按无档案处理：%s", path)
+        return None
+    if not isinstance(data, dict):
+        logger.warning("user.json 必须是 JSON 对象，按无档案处理：%s", path)
+        return None
+    if not str(data.get("name") or "").strip():
+        logger.warning("user.json 缺少 name，按无档案处理：%s", path)
+        return None
+    return data
+
+
+def sanitize_user_profile(data: dict[str, Any]) -> dict[str, Any]:
+    """user.json 专属清洗：``perspective`` 一律忽略（有档案就是真人）、``persona_type`` 强制置空。
+
+    只能在 user.json 这一侧做：职业文件正是靠 ``persona_type=role_template``
+    才被认成职业模板（``classify_profile``），客观文件靠 ``perspective=objective``；
+    统一清洗会把它们改坏。persona_type 若留着用户误写的 role_template，
+    姓名会被当成职业通称（prompt 第三类画像的判定依据）。
+    """
+    out = dict(data or {})
+    out.pop("perspective", None)
+    out["persona_type"] = None
+    return out
+
+
+def is_user_profile_file(path: Path | None) -> bool:
+    """该画像文件是否来自 user.json（只有自动发现会产出这个名字）。"""
+    return bool(path) and Path(path).name == USER_PROFILE_FILENAME
+
+
+def _objective_path(domain: str, project_root: Path) -> Path:
+    """客观全员画像：域名 samples 优先，否则公共 object.json。"""
+    root = project_root or PROJECT_ROOT
+    domain_obj = root / "samples" / domain / "profile" / "object_profile.json"
+    if domain_obj.is_file():
+        return domain_obj
+    shared_obj = root / "perspective" / "profiles" / "object.json"
+    return shared_obj if shared_obj.is_file() else Path("")
+
+
+def resolve_profile_file(
+    profile_value: str,
+    *,
+    domain: str,
+    user_id: str = "",
+    project_root: Path | None = None,
+) -> Path:
+    """``extra.profile`` → 画像文件路径（API 与 CLI 共用的唯一入口）。
+
+    | extra.profile | 行为 |
+    |---|---|
+    | ``""``（空） | ``data/{uid}/user.json`` 存在且合法 → 真人档案；否则客观全员
+    | ``"user"`` | 强制真人（档案缺失/非法 → 空 Path，由调用方 400）
+    | ``"objective"`` / ``"object"`` | 强制客观，忽略 user.json
+    | 职业模板名 | 强制该职业，忽略 user.json
+
+    返回空 Path 表示"取值非法"，调用方负责报 400。
+    """
+    name = str(profile_value or "").strip()
+    root = project_root or PROJECT_ROOT
+    user_path = user_profile_path(user_id, root)
+    if not name:
+        if read_user_profile(user_path) is not None:
+            return user_path
+        return _objective_path(domain, root)
+    if name == _USER_ALIAS:
+        return user_path if read_user_profile(user_path) is not None else Path("")
+    if name.lower() in _OBJECTIVE_ALIASES:
+        return _objective_path(domain, root)
+    # 职业模板：只读共享/域内 profiles，不碰 user.json
+    candidate = SHARED_PROFILE_DIR / f"{name}.json"
+    return candidate if candidate.is_file() else Path("")
+
+
 __all__ = [
     "KIND_OBJECTIVE",
     "KIND_PERSON",
     "KIND_ROLE",
     "SHARED_PROFILE_DIR",
+    "USER_PROFILE_FILENAME",
     "classify_profile",
     "filter_identity_fields",
+    "is_user_profile_file",
     "list_profile_entries",
     "profile_choice_label",
+    "read_user_profile",
+    "resolve_profile_file",
     "resolve_role_template",
+    "sanitize_user_profile",
+    "user_profile_path",
 ]

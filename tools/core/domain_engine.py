@@ -69,8 +69,8 @@ class DomainNodes:
       ``_state_class`` / ``_quality_warning``（后三者之外的 ``_fallback_rules`` /
       ``_report_assemblers`` 由 sync_domain 生成区写入）
     - 可选覆写钩子：``_compute_title`` / ``_line_title`` / ``_shared_context`` /
-      ``_supervisor_context`` / ``_build_core`` / ``_pre_render_hook`` /
-      ``_post_render_hook`` / ``_empty_purpose`` /
+      ``_supervisor_context`` / ``_render_directives`` / ``_build_core`` /
+      ``_pre_render_hook`` / ``_post_render_hook`` / ``_empty_purpose`` /
       ``_understanding_key`` / ``_understanding_label`` / ``_transcript_label``
     """
 
@@ -93,6 +93,15 @@ class DomainNodes:
         if str(user.get("persona_type") or "").strip().lower() == "role_template":
             return "role_template"
         return "personal"
+
+    def _render_directives(self, state: dict, line_name: str) -> str:
+        """逐栏填充（装配）那一轮的本栏写作纪律；默认无。
+
+        带模板时正文由 ``tools.template_router`` 的通用填充器逐栏写，system 里没有领域渲染
+        提示词——领域的取舍口径（如个人模式的聚焦）只能从这里下发，否则模型只能照着模板
+        栏名写。领域按需覆写（见 meeting orchestrator）。
+        """
+        return ""
 
     @staticmethod
     def _revision_context(context: str, feedback: list[str], label: str) -> str:

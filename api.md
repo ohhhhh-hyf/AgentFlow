@@ -121,7 +121,7 @@
   "docs": [],                       // 文件名列表（须已存在于服务端 data/{user_id}/docs/ 或 catalog 目录）
   "extra": {
     "template": "",                 // 输出模板（纪要线可空=自动套用「通用纪要」；其它线可空=不套模板）
-    "profile": "",                  // 用户画像/职业模板名（可空=客观全员视角）
+    "profile": "",                  // 用户画像选档：空=有 user.json 按真人、否则客观全员；见下方说明
     "project": "",                  // 项目绑定（会议记忆按项目聚合时使用；可空）
     "subject": "",                  // 学科（notes 域知识相关任务必填；中文自动转拼音，如 物理→wuli）
     "style": "",                    // 仅 minutes_styles 使用（见 2.6.4）
@@ -144,7 +144,36 @@
   结合它是否落在该图正文范围的上下 12% 边缘带内来判断，因此**不要求**页眉每页重复、
   也不要求各页排版一致；跨页重复的行另有一道路后备判据。
 - `template` 为空字符串时：**纪要线（minutes）自动套用「通用纪要」模板**（2026-09-18 起），
-  其它任务线仍表示"不套模板"；`profile` 为空表示"客观全员视角"。
+  其它任务线仍表示"不套模板"。
+
+**`profile` 选档（用户画像 / 职业模板）**
+
+| `profile` 取值 | 行为 |
+|---|---|
+| `""`（空） | 先看 `data/{X-User-Id}/user.json`：**存在且合法 → 按真人**；否则**客观全员**（默认） |
+| `user` | 强制真人；`user.json` 缺失或 `name` 为空 → **400** |
+| `objective` / `object` | 强制客观全员，**忽略** `user.json` |
+| 职业模板名（`developer` 等 6 个） | 强制该职业，忽略 `user.json` |
+
+**`user.json`**（放在自己的数据目录，不改仓库；只在本机读取）
+
+```json
+{
+  "name": "赵衡",
+  "name_aliases": ["小赵", "赵工"],
+  "role": "后端工程师",
+  "role_template": "developer",
+  "personality": "务实，讨厌含糊的截止日期",
+  "preferences": ["先写我的待办和接口依赖"]
+}
+```
+
+- **必填**：`name`（真实姓名；空则整份档案按"不存在"处理）。
+- `role_template`：挂已有职业模板（`perspective/profiles/{名}.json`）；模板作底，`user.json` 里**写了且非 null 的键整段替换**（列表覆盖、不拼接），没写的键继承模板；找不到模板 → 400。
+- 也可不挂模板，用同一套键自写：`scope / responsibilities / interests / principles / focus_areas / constraints / values / output_style / context`。
+- 仅真人有：`name_aliases`（会上别称）、`personality`（只调语气详略）、`preferences`（纪要偏好）。
+- **不要填** `perspective` 与 `persona_type`：有 `user.json` 即真人，程序会忽略前者、把后者置空（误写会让姓名被当成职业通称）。
+- 档案里的姓名、别称、性格与偏好会随上下文进入模型调用（业务需要）；文件本身只保存在本机 `data/{user_id}/` 下。
 
 各任务线的必填项（缺必填字段时**秒回 400，不触发模型调用**）：
 

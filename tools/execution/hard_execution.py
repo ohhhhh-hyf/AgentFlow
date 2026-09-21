@@ -159,10 +159,22 @@ def _match_score(draft_item: str, upstream_item: str) -> float:
     return jaccard
 
 
-def subset_upstream_items(upstream: Any, draft: Any) -> list[str]:
+def subset_upstream_items(
+    upstream: Any,
+    draft: Any,
+    *,
+    fallback_full: bool = True,
+) -> list[str]:
     """职业/真人下采：只保留草稿选中的上游条目（不得增改）。
 
-    对不上任何上游条目则回退为全量，避免空裁剪丢掉底座。
+    ``fallback_full=True``（职业模板沿用）：草稿选空 / 对不上任何上游条目 → 回退全量，
+    避免空裁剪丢掉底座。
+    ``fallback_full=False``（**真人**，P1-10 2026-09-21）：**不**回退全量——草稿选空就是
+    "本场没有他的条目"（分工栏允许为空），对不上则只保留能对上的那些。
+    为什么必须区分：以前两种模式共用回退，命中块告诉草稿"哪些是他的"、模型也照做裁了，
+    但只要裁成空（或措辞对不上），程序就把**全员条目**塞回他的视角——实测"赵衡视角"
+    输出全员待办就是这么来的（比"少写"更坏的假象）。职业模板保留回退，是因为它按关注域
+    裁、模型更容易整类漏掉，宁可多给底座。
     选中条目按上游原序、上游原文返回。
     """
     up = _as_str_list(upstream)
@@ -170,7 +182,7 @@ def subset_upstream_items(upstream: Any, draft: Any) -> list[str]:
     if not up:
         return []
     if not selected:
-        return up
+        return up if fallback_full else []
     used: set[int] = set()
     picked: list[int] = []
     for item in selected:
@@ -187,7 +199,7 @@ def subset_upstream_items(upstream: Any, draft: Any) -> list[str]:
             used.add(best_i)
             picked.append(best_i)
     if not picked:
-        return up
+        return up if fallback_full else []
     return [up[i] for i in sorted(picked)]
 
 
@@ -236,7 +248,8 @@ def enforce_minutes_draft(
 ) -> dict[str, Any]:
     """纪要草稿硬对齐：搬运字段措辞以会议理解为准。
 
-    客观：三项全量拷贝。职业/真人：按草稿下采（只删不改），对不上则回退全量。
+    客观：三项全量拷贝。职业模板：按草稿下采（只删不改），对不上则回退全量。
+    **真人：同样下采，但选空就是空**（不回退全量，见 ``subset_upstream_items``）。
     """
     if hasattr(draft, "model_dump"):
         data = draft.model_dump()
@@ -251,11 +264,16 @@ def enforce_minutes_draft(
         headline_field="headline",
         purpose_field="meeting_purpose",
     )
-    if (mode or "objective").strip().lower() not in _SUBSET_MODES:
+    mode_key = (mode or "objective").strip().lower()
+    if mode_key not in _SUBSET_MODES:
         return out
     upstream = understanding or {}
     for dst, src in MINUTES_CARRY_MAP.items():
-        out[dst] = subset_upstream_items(upstream.get(src), data.get(dst))
+        out[dst] = subset_upstream_items(
+            upstream.get(src),
+            data.get(dst),
+            fallback_full=(mode_key != "personal"),
+        )
     return out
 
 

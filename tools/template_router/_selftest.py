@@ -2251,9 +2251,11 @@ def test_template_aware_understanding_skip() -> None:
     class _FakeAgent:
         def __init__(self) -> None:
             self.seen: list[tuple[str, frozenset[str]]] = []
+            self.channel = None
 
-        async def run(self, transcript, *, focus_line="", skip_fields=()):
+        async def run(self, transcript, *, focus_line="", skip_fields=(), user_channel=""):
             self.seen.append((focus_line, frozenset(skip_fields)))
+            self.channel = user_channel
 
             class _Out:
                 @staticmethod
@@ -2287,6 +2289,13 @@ def test_template_aware_understanding_skip() -> None:
           f"{[(f, sorted(s)) for f, s in fake.seen]}")
     check("节点只在裁剪非空时报线名（无裁剪则不给 focus）",
           [f for f, _ in fake.seen] == ["minutes", "minutes", "minutes"], "")
+
+    # 本用户称呼表由节点按 state 画像现算（客观/无画像 → 空串，不注入）
+    asyncio.run(node({"transcript": "原文略。", "user": {"name": "赵衡", "name_aliases": ["小赵"]}}))
+    check("节点把称呼表传给理解层",
+          "赵衡（全称）" in (fake.channel or "") and "小赵" in (fake.channel or ""), str(fake.channel))
+    asyncio.run(node({"transcript": "原文略。", "user": {"perspective": "objective", "name": "赵衡"}}))
+    check("客观视角不传称呼表", not fake.channel, str(fake.channel))
 
 
 def test_long_generation_output_cap() -> None:
@@ -3333,6 +3342,502 @@ def test_supervisor_contract_and_unavailable() -> None:
     check("契约仍声明 checks 非空（契约类不变量）", bool(MinutesSupervisorContract.checks), "")
 
 
+def test_understanding_user_channel() -> None:
+    """理解层「本用户称呼表」：别称归全称、编号发言人不绑、客观/职业模板不注入。
+
+    回归背景（P0-A 2026-09-21）：下游（视角裁剪、待办 owner、跨场记忆、审核）只认理解层
+    写下的那个名字字符串——实测同一个人在三场里被写成「发言者1 / 小赵 / 赵工」，状态里
+    他的三条待办漂在三个"名字"下，个人模式分工栏因对不上姓名而选空、程序又回退全量。
+    视角建模那轮连原文都看不到，治不了人名；只有理解层能统一（零新增调用，约百字输入）。
+    """
+    import asyncio
+
+    from domain.meeting.meeting_core.meeting_understanding_agent import (
+        MeetingUnderstandingAgent,
+    )
+    from domain.meeting.meeting_core.prompts import MEETING_UNDERSTANDING_SYSTEM_PROMPT
+    from perspective import build_user_channel
+
+    prompt = MEETING_UNDERSTANDING_SYSTEM_PROMPT
+    check("理解 prompt：称呼表把别称归全称、编号发言人不绑",
+          "【本用户称呼】" in prompt and "永远不等于本用户" in prompt
+          and "归到全称那一个写法" in prompt,
+          "")
+    check("理解 prompt：仍是「不猜姓名」的口径（只统一既有称呼）",
+          "不猜姓名" in prompt and "不要拿用户姓名去替换别人" in prompt, "")
+
+    block = build_user_channel(
+        {"name": "赵衡", "name_aliases": ["小赵", "赵工"], "role": "后端工程师"}
+    )
+    check("称呼表含全称与别称", "赵衡（全称）" in block and "小赵、赵工" in block, block)
+    check("称呼表写明统一写法与不猜编号",
+          "统一写成「赵衡」" in block and "发言者1" in block, block)
+    check("客观视角不注入", build_user_channel({"perspective": "objective", "name": "赵衡"}) == "", "")
+    check("职业模板不注入（姓名是职业通称，不能当人名）",
+          build_user_channel({"name": "开发人员", "persona_type": "role_template"}) == "", "")
+    check("没有姓名不注入", build_user_channel({"name": "  "}) == "", "")
+
+    class _Stub:
+        """只记录用户消息，不真的调模型。"""
+
+        def __init__(self) -> None:
+            self.user = ""
+
+        async def structured(self, system, user, model_cls, contract, **kw):
+            self.user = user
+            return {"_stub": True}
+
+    stub = _Stub()
+    agent = MeetingUnderstandingAgent(stub)
+    asyncio.run(
+        agent.run(
+            "发言者1：这周我把接口联调完。小赵：行，我下午提单。",
+            focus_line="minutes",
+            skip_fields={"risks"},
+            user_channel=block,
+        )
+    )
+    check("称呼表拼在裁剪指令之后、会议原文之前",
+          stub.user.index("【本次输出裁剪】")
+          < stub.user.index("本用户称呼")
+          < stub.user.index("会议原文："),
+          stub.user[:120])
+    asyncio.run(agent.run("原文", user_channel=""))
+    check("无称呼表时不注入空块（用户消息仍以会议原文开头）",
+          "本用户称呼" not in stub.user and stub.user.startswith("会议原文："), stub.user[:60])
+
+
+def test_perspective_skip_for_personal() -> None:
+    """P1-C：真人命中非空时跳过视角建模（省一轮核心调用），改用程序合成。
+
+    回归背景：视角建模那轮看不到原文（输入只有理解 JSON + 画像），"他是谁"由理解层的
+    称呼表 + 命中表决定；有命中时它的产出字段（attention_points / responsibilities /
+    possible_actions / evidence）程序都能算，再跑一轮只是复述。唯一保留 LLM 的是
+    "真人 + 完全没命中 + 挂 role_template"。
+    """
+    import asyncio
+
+    from domain.meeting.orchestrator import _Nodes
+    from perspective import PerspectiveModeling
+
+    class _Spy:
+        def __init__(self, behave: str = "raise") -> None:
+            self.calls = 0
+            self.behave = behave
+
+        async def run(self, input_context, user_json):
+            self.calls += 1
+            if self.behave == "raise":
+                raise AssertionError("这一路不该调用视角建模 LLM")
+
+            class _Out:
+                @staticmethod
+                def model_dump() -> dict:
+                    return {"confidence": "high", "name": "赵衡", "inferred_role": "后端工程师"}
+
+            return _Out()
+
+    class _Host(_Nodes):
+        """只借 _Nodes 的方法；不跑父类 __init__（不建 LLM 客户端）。"""
+
+        def __init__(self, agent) -> None:
+            self.perspective_modeling_agent = agent
+
+        def _understanding(self, state):
+            return state.get("meeting_understanding") or {}
+
+    user = {"name": "赵衡", "name_aliases": ["小赵", "赵工"], "role": "后端工程师"}
+    understanding = {
+        "speakers": [{"name": "赵衡"}],
+        "action_hints": [{"text": "接口联调周五前给测试", "owner": "赵衡", "timing": "周五前"}],
+        "decisions": [],
+        "risks": [],
+        "open_questions": [],
+        "topics": [],
+    }
+    empty_understanding = {"speakers": [], "action_hints": [], "decisions": [], "risks": [],
+                           "open_questions": [], "topics": []}
+
+    spy = _Spy()
+    out = asyncio.run(
+        _Host(spy)._make_perspective_node(["minutes"])(
+            {"user": user, "meeting_understanding": understanding, "objective_perspective": False}
+        )
+    )
+    check("命中非空（单线）：没有调用视角建模 LLM", spy.calls == 0, f"calls={spy.calls}")
+    PerspectiveModeling.validate(out["perspective_profile"])  # 合成必须过 schema（全字段必填）
+    check("命中非空：合成模型过 schema，且要点/依据来自命中",
+          out["perspective_profile"]["name"] == "赵衡"
+          and "接口联调周五前给测试" in out["perspective_profile"]["attention_points"]
+          and bool(out["perspective_profile"]["evidence"]),
+          str(out["perspective_profile"])[:120])
+    check("命中表写进 state（供草稿/审核）",
+          (out.get("user_hits") or {}).get("confidence") == "high"
+          and "本用户命中" in (out.get("user_hits_block") or ""),
+          str(out.get("user_hits_block"))[:70])
+
+    spy2 = _Spy("ok")
+    asyncio.run(
+        _Host(spy2)._make_perspective_node(["minutes"])(
+            {
+                "user": dict(user, role_template="developer"),
+                "meeting_understanding": empty_understanding,
+                "objective_perspective": False,
+            }
+        )
+    )
+    check("未命中 + 有职业底：仍然跑建模（唯一保留）", spy2.calls == 1, f"calls={spy2.calls}")
+
+    spy3 = _Spy("ok")
+    asyncio.run(
+        _Host(spy3)._make_perspective_node(["minutes", "actions"])(
+            {"user": user, "meeting_understanding": understanding, "objective_perspective": False}
+        )
+    )
+    check("多线请求：不跳（保待办/风险线的视角模型）", spy3.calls == 1, f"calls={spy3.calls}")
+
+    # 保守口径（2026-09-21 定）：画像里有可扫关注域（挂职业底 / 自写 focus_areas 等）→ 一律走建模。
+    # 理由：命中表只按姓名查，"没点名但落在他关注域"的条目只有建模能捞；只有极简画像才允许跳过。
+    spy5 = _Spy("ok")
+    asyncio.run(
+        _Host(spy5)._make_perspective_node(["minutes"])(
+            {
+                "user": dict(user, focus_areas=["接口契约与依赖", "排期节点"]),
+                "meeting_understanding": understanding,
+                "objective_perspective": False,
+            }
+        )
+    )
+    check("自写关注域 + 命中非空：仍走建模（保守口径）", spy5.calls == 1, f"calls={spy5.calls}")
+
+    spy4 = _Spy("ok")
+    out4 = asyncio.run(
+        _Host(spy4)._make_perspective_node(["minutes"])(
+            {
+                "user": {k: v for k, v in user.items()},
+                "meeting_understanding": empty_understanding,
+                "objective_perspective": False,
+            }
+        )
+    )
+    check("未命中 + 无职业底：跳过并合成「本场未点到」（不跑 LLM）",
+          spy4.calls == 0 and "未点到" in out4["perspective_profile"]["personal_summary"],
+          f"calls={spy4.calls} {out4['perspective_profile']['personal_summary']}")
+
+
+def test_personal_no_full_fallback() -> None:
+    """P1-10 真人不再"裁空回退全量" + P2-F 命中表进审核上下文与三条检查。
+
+    回归背景：命中块告诉草稿"哪些是他的"、模型照做裁成空（本场确实没他的事），
+    但程序 ``subset_upstream_items`` 会把**全员条目**塞回他的视角——"赵衡视角"输出
+    全员待办就是这么来的。职业模板保留回退（它更容易整类漏），真人必须选空即空。
+    """
+    from tools.execution.hard_execution import enforce_minutes_draft, subset_upstream_items
+
+    upstream = ["接口联调周五前给测试", "端侧版本下周带上", "数据标注这周归档"]
+    check("真人：选空 → 空（不再回退全量）",
+          subset_upstream_items(upstream, [], fallback_full=False) == [], "")
+    check("职业模板：选空 → 仍回退全量（行为不变）",
+          subset_upstream_items(upstream, [], fallback_full=True) == upstream, "")
+    check("真人：选中能对上的 → 只留对上的（上游原序原文）",
+          subset_upstream_items(upstream, ["端侧版本下周带上"], fallback_full=False)
+          == ["端侧版本下周带上"], "")
+    check("真人：一条都对不上 → 空（不回退全量）",
+          subset_upstream_items(upstream, ["完全无关的一句"], fallback_full=False) == [], "")
+    check("默认参数仍是回退全量（老调用不静默改行为）",
+          subset_upstream_items(upstream, []) == upstream, "")
+
+    draft = {
+        "headline": "进展同步",
+        "key_decisions": [],
+        "risks_and_blockers": [],
+        "unresolved_questions": ["端侧版本下周带上"],
+    }
+    understanding = {"meeting_purpose": "进展同步", "decisions": ["引擎并发先借资源"],
+                     "risks": ["双录还没确认"], "open_questions": ["端侧版本下周带上"]}
+    personal = enforce_minutes_draft(dict(draft), understanding, mode="personal")
+    check("enforce（真人）：选空的两项是空、选中的对齐上游原文",
+          personal["key_decisions"] == [] and personal["risks_and_blockers"] == []
+          and personal["unresolved_questions"] == ["端侧版本下周带上"], str(personal))
+    role = enforce_minutes_draft(dict(draft), understanding, mode="role_template")
+    check("enforce（职业模板）：选空的两项回退全量",
+          role["key_decisions"] == ["引擎并发先借资源"] and role["risks_and_blockers"] == ["双录还没确认"],
+          str(role))
+    objective = enforce_minutes_draft(dict(draft), understanding, mode="objective")
+    check("enforce（客观）：三项全量拷贝（与模式判定无关）",
+          objective["key_decisions"] == ["引擎并发先借资源"] and len(objective["risks_and_blockers"]) == 1, "")
+
+    # P2-F：审核上下文带命中块 + 审核提示词三条
+    from domain.meeting.tasks.minutes.prompts import MINUTES_SUPERVISOR_DOMAIN_PROMPT as MINUTES_SUPERVISOR_PROMPT
+
+    # 注：提示词里有 ** 加粗标记，断言别跨标记取串
+    check("审核提示词含命中表三条检查",
+          "命中表三条" in MINUTES_SUPERVISOR_PROMPT
+          and "在命中表内" in MINUTES_SUPERVISOR_PROMPT
+          and "不得当负责人或发言人" in MINUTES_SUPERVISOR_PROMPT
+          and "至少用上一条命中条目" in MINUTES_SUPERVISOR_PROMPT, "")
+    check("审核提示词允许「命中表未命中 → 分工为空」",
+          "分工栏为空是允许的" in MINUTES_SUPERVISOR_PROMPT, "")
+
+
+def test_person_reference_rules() -> None:
+    """人称口径（选项 1）：真人正文用「你」指代本人，分工/责任人/引语保真名；
+    客观与职业模板仍是第三人称、不许出现「你」「您」。
+
+    回归背景（2026-09-21 用户实测）：此前三处（草稿硬规则 4 / 渲染纪律 / 审核视角偏差）
+    一律禁止「你」「您」，于是"个人视角纪要"读起来与他无关；现在反过来——真人用「你」，
+    但**人名保真优先**（分工栏写成「你」会被审核拦）。
+    """
+    from domain.meeting.tasks.minutes.prompts import (
+        MINUTES_GENERATION_SYSTEM_PROMPT as GEN,
+        MINUTES_RENDER_PROMPT as RENDER,
+        MINUTES_SUPERVISOR_DOMAIN_PROMPT as REVIEW,
+    )
+
+    check("草稿：真人模式用「你」，且限定只指代本人",
+          "真人模式正文对该用户用第二人称「你」" in GEN
+          and "分工、责任人、引语与第三方姓名一律保留真名" in GEN, "")
+    check("草稿：不再无条件禁止「你」「您」", "禁止正文「你」「您」" not in GEN, "")
+    check("草稿：真人口径段同步（正文用「你」、人名照写）",
+          "正文对该用户用第二人称「你」" in GEN and "照原文写真名" in GEN, "")
+    check("渲染：真人用「你」，人名保真优先于人称",
+          "真人模式正文用第二人称「你」指代本人" in RENDER
+          and "人名保真优先于人称" in RENDER, "")
+    check("审核：客观/职业模板出现「你」「您」仍要拦",
+          "**客观/职业模板**正文出现「你」「您」" in REVIEW, "")
+    check("审核：真人模式把分工/责任人写成「你」要拦",
+          "真人模式把分工/责任人/引语里的人名写成「你」" in REVIEW
+          and "真名要保真——第二人称只用于正文叙述本人" in REVIEW, "")
+
+
+def test_render_context_personal_injection() -> None:
+    """装配那一轮也要拿到命中块/偏好块 + 渲染提示词的"真人聚焦"口径。
+
+    回归背景（2026-09-21 用户实测）：草稿那轮有命中块/偏好块，但**逐栏填充（真正写正文
+    的地方）**没有——它看不到"他是谁、他关心什么"，于是把个人视角摊回整场，读起来与
+    客观没区别。这里锁住：命中块进所有非客观线、偏好块只进纪要线；渲染提示词写明聚焦口径。
+    """
+    from domain.meeting.orchestrator import _Nodes
+    from domain.meeting.tasks.minutes.prompts import MINUTES_RENDER_PROMPT
+
+    class _Host(_Nodes):
+        """只借方法；用真实 _render_context，其余依赖最小化。"""
+
+        def __init__(self) -> None:
+            pass
+
+        def _meeting_pack(self, state, line_name):
+            return {"meeting_purpose": "进展"}
+
+        def _compact_user(self, user):
+            return dict(user)
+
+        def _compact_perspective(self, profile):
+            return dict(profile or {})
+
+        def _length_budget_line(self, state, line_name):
+            return ""
+
+        def _mode_label(self, state):
+            return "objective" if state.get("objective_perspective") else "personal"
+
+    hits = "【本用户命中（程序判定，带依据）】申家坤：命中 1 处。\n- [强] action_hints[0].owner：细对口径"
+    state = {
+        "transcript": "申家坤：我下来找他们细对一下。",
+        "meeting_understanding": {"meeting_purpose": "进展"},
+        "user": {"name": "申家坤", "preferences": ["先写我负责的待办"]},
+        "user_hits_block": hits,
+        "perspective_profile": {"personal_summary": "与本场相关：口径细对。"},
+        "objective_perspective": False,
+        "line_extra": {},
+        "lines": {"minutes": {"draft": {"headline": "进展"}, "review": {}}},
+    }
+    host = _Host()
+    for line, want_pref in (("minutes", True), ("minutes_styles", True), ("actions", False), ("risks", False)):
+        text = host._render_context(state, line)
+        check(f"渲染上下文（{line}）：命中块（非客观线都有）",
+              "本用户命中" in text, text[-160:])
+        check(f"渲染上下文（{line}）：偏好块 {'有' if want_pref else '不注入'}",
+              ("本用户偏好" in text) is want_pref, text[-160:])
+    objective = host._render_context({**state, "objective_perspective": True, "user": {"perspective": "objective"}}, "minutes")
+    check("渲染上下文（客观）：命中块与偏好块都不注入",
+          "本用户命中" not in objective and "本用户偏好" not in objective, "")
+
+    check("渲染提示词：真人模式以本人为叙事主线（非相关板块可压缩）",
+          "真人模式聚焦" in MINUTES_RENDER_PROMPT
+          and "以本人为叙事主线" in MINUTES_RENDER_PROMPT
+          and "可压缩成一句带过" in MINUTES_RENDER_PROMPT, "")
+    check("渲染提示词：真人聚焦不得漏全局结论（与审核口径对齐）",
+          "影响全局的结论、范围纳入/排除、关键数字仍不得漏" in MINUTES_RENDER_PROMPT, "")
+    check("渲染提示词：给了命中表就以它为准",
+          "以它为准" in MINUTES_RENDER_PROMPT
+          and "未命中的条目不要写成他的事" in MINUTES_RENDER_PROMPT, "")
+
+
+def test_render_view_directive() -> None:
+    """装配那一轮的「本视角纪律」：模板路径正文是通用填充器逐栏写的，纪律必须随栏下发。
+
+    回归背景（2026-09-21 用户第二轮实测「还是整体输出」）：上一版把聚焦规则写进
+    ``MINUTES_RENDER_PROMPT``，但**带模板时那条路根本不执行**——逐栏填充的 system 只有
+    「你只写本栏正文」，正文只按模板栏名（全文摘要 / 分段速览）走，于是真人模式照样写成
+    整场纪要（实测 8172 字、超本篇参考上限 48%，与客观版看不出区别）。这里锁住：
+    纪律进每一栏的用户消息、经领域钩子只在真人纪要线生效、客观与其它线一字不变。
+    """
+    import asyncio
+
+    from domain.meeting.orchestrator import _Nodes
+    from perspective import PERSONAL_VIEW_DIRECTIVE, VIEW_DIRECTIVE_TITLE
+    from tools.template_router import fill_placeholder_template
+    from tools.template_router._placeholder import _column_fill_user
+
+    template = "# 通用纪要\n\n# [全文摘要]\n[一段话概括]\n\n# [要点梳理]\n[分点列具体事实]\n"
+    mark = f"【{VIEW_DIRECTIVE_TITLE}】"
+
+    class _Stub:
+        """只记 (system, user)，不调 LLM。"""
+
+        def __init__(self) -> None:
+            self.calls: list[tuple[str, str]] = []
+
+        async def stream_text(self, system_prompt, user_prompt, **kwargs):
+            self.calls.append((system_prompt, user_prompt))
+            yield "本栏正文（占位）。"
+
+        async def text(self, system_prompt, user_prompt, **kwargs):
+            self.calls.append((system_prompt, user_prompt))
+            return '{"fields": {"1": "x", "2": "y"}, "tables": []}'
+
+    class _Host(_Nodes):
+        def __init__(self) -> None:
+            pass
+
+    stub = _Stub()
+    asyncio.run(
+        fill_placeholder_template(
+            stub, "来源", template, source_han=9000, directives=PERSONAL_VIEW_DIRECTIVE
+        )
+    )
+    check("逐栏填充：每一栏的用户消息都带本视角纪律",
+          bool(stub.calls) and all(mark in user for _, user in stub.calls),
+          str([user.splitlines()[0] for _, user in stub.calls]))
+    check("逐栏填充：system 里没有领域渲染提示词（这正是要向用户消息下发纪律的原因）",
+          all("真人模式聚焦" not in system for system, _ in stub.calls), "")
+
+    host = _Host()
+    personal = {"user": {"name": "申家坤"}}
+    check("钩子：真人纪要线（minutes / minutes_styles）→ 有纪律",
+          mark in host._render_directives(personal, "minutes")
+          and mark in host._render_directives(personal, "minutes_styles"), "")
+    check("钩子：客观、非纪要线、职业模板 → 都不注入",
+          host._render_directives({**personal, "objective_perspective": True}, "minutes") == ""
+          and host._render_directives(personal, "actions") == ""
+          and host._render_directives(
+              {"user": {"persona_type": "role_template", "name": "开发人员"}}, "minutes"
+          ) == "",
+          "")
+
+    user = _column_fill_user(
+        "来源", template, index=1, total=2, hint="一段话概括", title="全文摘要",
+        others=["要点梳理"], directives=PERSONAL_VIEW_DIRECTIVE,
+    )
+    check("纪律排在【本栏说明】之后、【内容来源】之前",
+          user.index("【本栏说明】") < user.index(mark) < user.index("【内容来源】"), "")
+    check("纪律为空 → 不出现该段（客观路径一字不变）",
+          mark not in _column_fill_user(
+              "来源", template, index=1, total=2, hint="一段话概括", title="全文摘要",
+              others=["要点梳理"], directives="",
+          ),
+          "")
+    check("纪律自带优先级：模板写「客观、非人格化」时人称与取舍以纪律为准",
+          "人称与取舍以本纪律为准" in PERSONAL_VIEW_DIRECTIVE
+          and "栏名、结构与事实口径照模板不变" in PERSONAL_VIEW_DIRECTIVE, "")
+    check("纪律含六条硬口径（相关=点名 / 聚焦 / 不漏全局 / 人称 / 命中表为准 / 不留空栏）",
+          all(
+              clause in PERSONAL_VIEW_DIRECTIVE
+              for clause in (
+                  "相关＝点名，不是「属于他的关注领域」",
+                  "以本人为叙事主线",
+                  "别人主讲、且与他无关的板块压成一句带过",
+                  "关键数字仍**不得漏**",
+                  "第二人称「你」",
+                  "以它为准",
+                  "不要留空栏",
+                  "已按人裁剪",
+              )
+          ),
+          "")
+
+
+def test_render_context_person_transcript() -> None:
+    """真人模式的渲染上下文：会议原文按人裁剪（别人发言折叠），客观路径原样整篇。
+
+    为什么非裁不可（2026-09-21 实测）：纪律写进消息开头（691 字）也压不过眼前的整场原文，
+    真人模式照样输出整场（提及他的段落只占 12%、正文 9082 字）。裁掉别人的发言后同一份输入
+    降到 6266 字，全文摘要出现「与你直接相关的是…」，且 930 节点/单卡四路等全局结论仍在。
+    """
+    from domain.meeting.orchestrator import _Nodes
+
+    transcript = (
+        "项目会\n"
+        "申家坤 00:00:01\n" + "我们先过接口这块的对齐情况，把上周遗留的两条也一起带上。" * 4 + "\n"
+        "武思华 00:00:10\n" + "这个问题由我来跟，细节我明天说清楚。" * 6 + "\n"
+        "申家坤 00:00:40\n" + "小坤这边的权限单我提了，回流数据表也要一起加上。" * 4 + "\n"
+        "武思华 00:00:50\n" + "另外引擎那部分我一起讲一下大概情况。" * 6 + "\n"
+        "李梦甜 00:01:10\n申家坤那边的双录还没确认。\n"
+    )
+
+    class _Host(_Nodes):
+        def __init__(self) -> None:
+            pass
+
+        def _meeting_pack(self, state, line_name):
+            return {}
+
+        def _compact_user(self, user):
+            return dict(user)
+
+        def _compact_perspective(self, profile):
+            return {}
+
+        def _length_budget_line(self, state, line_name):
+            return ""
+
+    host = _Host()
+    state = {
+        "transcript": transcript,
+        "user": {"name": "申家坤", "name_aliases": ["小坤"]},
+        "meeting_understanding": {},
+        "perspective_profile": {},
+        "objective_perspective": False,
+        "line_extra": {},
+        "lines": {"minutes": {"draft": {}, "review": {}}},
+    }
+    sliced = host._render_context(state, "minutes")
+    check("真人：原文块改标为「已按人裁剪」", "会议原文（真人模式·已按人裁剪）" in sliced, "")
+    check("真人：别人的段被折叠（原文里那些长段不见了）",
+          "另外引擎那部分我一起讲一下大概情况" not in sliced
+          and "这个问题由我来跟，细节我明天说清楚。" not in sliced, "")
+    check("真人：他自己的段留下且块首改称「你」",
+          "你 00:00:01" in sliced and "我们先过接口这块的对齐情况" in sliced, sliced[:120])
+    check("真人：提到他的别人的段也留（引述保真名）",
+          "李梦甜 00:01:10" in sliced and "双录还没确认" in sliced, "")
+    check("真人：非纪要线（trace/mindmap）不动原文",
+          "已按人裁剪" not in host._render_context(state, "minutes_trace"), "")
+
+    objective = host._render_context({**state, "objective_perspective": True}, "minutes")
+    check("客观：整篇原文原样、无裁剪标记",
+          "已按人裁剪" not in objective and "另外引擎那部分我一起讲一下大概情况" in objective, "")
+
+    role = host._render_context(
+        {**state, "user": {"name": "开发人员", "persona_type": "role_template"}}, "minutes"
+    )
+    check("职业模板：没有真人姓名可裁 → 走整篇",
+          "已按人裁剪" not in role, "")
+
+    check("裁不动时退回空串（调用方用整篇）：无关姓名",
+          host._person_transcript({**state, "user": {"name": "查无此人"}}) == "", "")
+
+
 def main() -> int:
     caplog_records: list[logging.LogRecord] = []
 
@@ -3419,6 +3924,13 @@ def main() -> int:
         test_media_briefing_evidence_and_depth()
         test_qa_name_priority()
         test_understanding_speakers_field()
+        test_understanding_user_channel()
+        test_perspective_skip_for_personal()
+        test_personal_no_full_fallback()
+        test_person_reference_rules()
+        test_render_context_personal_injection()
+        test_render_view_directive()
+        test_render_context_person_transcript()
         test_product_launch_overview()
         test_retro_annual_groups()
         test_domain_specific_accuracy_rules()

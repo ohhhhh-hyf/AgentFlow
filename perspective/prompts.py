@@ -57,7 +57,6 @@ PERSPECTIVE_MODELING_SYSTEM_PROMPT = """你是「视角建模 Agent」。本系�
 | personal_summary | 2–4 句：在**这份输入**里最关心什么/立场/期望（客观：团队关注点）；可被下游直接引用；禁套话 |
 | attention_points | 3–8 条最重要内容，**锚定原文不改写**；画像关注类凡原文有据，至少覆盖一类一条 |
 | possible_actions | 可能行动；每条标注「原文承诺」或「职责推断」；依据不足 → 写入 concerns 而非硬造 |
-| preference_signals | 偏好信号+依据；无 → [] |
 | stakeholders | 相关方/角色/受影响方；客观：平等列出全部涉及方，不偏袒；个人：只写与用户互动的各方；无 → [] |
 | conclusions | 原文明确给出的结论/决策，逐条锚定原文不改写；原文无 → [] |
 | open_questions | 原文未解答/悬而未决/需跟进的问题；无 → []（不得编造） |

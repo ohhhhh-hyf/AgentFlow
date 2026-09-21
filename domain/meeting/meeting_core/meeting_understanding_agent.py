@@ -47,8 +47,18 @@ class MeetingUnderstandingAgent:
         *,
         focus_line: str = "",
         skip_fields: Iterable[str] = (),
+        user_channel: str = "",
     ) -> MeetingUnderstanding:
+        """``user_channel``：本用户称呼表（全称 + 会上别称），由画像生成、注入在原文之前。
+
+        为什么放在理解层：下游（视角裁剪、待办 owner、跨场记忆、审核）只认理解层写下的
+        那个名字字符串，而视角建模那轮连原文都看不到、帮不上"这个人是谁"。这里只要求
+        「把原文已有的称呼统一成一个写法」，不新增事实（提示词里写死不许猜编号发言人）。
+        """
         user = f"会议原文：\n{transcript}"
+        # 称呼表先拼在原文之前；裁剪指令最后拼到最前，保持"指令先于原文"的既有约定
+        if (user_channel or "").strip():
+            user = f"{user_channel.strip()}\n\n{user}"
         instruction = _trim_instruction(focus_line, skip_fields)
         if instruction:
             user = f"{instruction}\n\n{user}"

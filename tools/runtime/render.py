@@ -185,6 +185,9 @@ async def produce_line(
         )
 
         context = engine._render_context(state, line_name)
+        # 本栏写作纪律（领域钩子，默认空）：逐栏填充的 system 里没有领域渲染提示词，
+        # 取舍口径（如真人聚焦）只能随用户消息下发，见 DomainNodes._render_directives。
+        directives = str(engine._render_directives(state, line_name) or "")
         full_text = ""
         fill_mode = "none"
         gate_ok: bool | None = None
@@ -199,7 +202,11 @@ async def produce_line(
             if client is not None:
                 try:
                     filled = await fill_placeholder_template(
-                        client, context, template, source_han=_doc_han(state)
+                        client,
+                        context,
+                        template,
+                        source_han=_doc_han(state),
+                        directives=directives,
                     )
                 except Exception:  # noqa: BLE001
                     logger.warning(
@@ -500,7 +507,11 @@ async def produce_line(
             ):
                 try:
                     filled2 = await fill_placeholder_template(
-                        render.client, context, template, source_han=_doc_han(state)
+                        render.client,
+                        context,
+                        template,
+                        source_han=_doc_han(state),
+                        directives=directives,
                     )
                 except Exception:  # noqa: BLE001
                     filled2 = None
@@ -576,7 +587,13 @@ async def produce_line(
             if gate_ok is None
             else ("pass" if gate_ok else "fail")
         )
-        logger.info("render line=%s fill_mode=%s gate=%s", line_name, fill_mode, gate_s)
+        logger.info(
+            "render line=%s fill_mode=%s gate=%s directives=%d",
+            line_name,
+            fill_mode,
+            gate_s,
+            len(directives),
+        )
         if enforce_notes:
             logger.info("enforce line=%s notes=%s", line_name, ";".join(enforce_notes))
         if gate_ok is False:

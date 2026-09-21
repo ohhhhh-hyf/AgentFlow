@@ -38,7 +38,6 @@ class PerspectiveModeling(ModelMixin):
     evidence: list[str] = field(default_factory=list)
     attention_points: list[str] = field(default_factory=list)
     possible_actions: list[str] = field(default_factory=list)
-    preference_signals: list[str] = field(default_factory=list)
     stakeholders: list[str] = field(default_factory=list)
     conclusions: list[str] = field(default_factory=list)
     open_questions: list[str] = field(default_factory=list)
@@ -58,7 +57,6 @@ class PerspectiveModeling(ModelMixin):
         _string_list(data["evidence"], "evidence")
         _string_list(data["attention_points"], "attention_points")
         _string_list(data["possible_actions"], "possible_actions")
-        _string_list(data["preference_signals"], "preference_signals")
         _string_list(data["stakeholders"], "stakeholders")
         _string_list(data["conclusions"], "conclusions")
         _string_list(data["open_questions"], "open_questions")
@@ -78,7 +76,6 @@ EMPTY_PERSPECTIVE_MODELING = {
     "personal_summary": "",
     "attention_points": [],
     "possible_actions": [],
-    "preference_signals": [],
     "stakeholders": [],
     "conclusions": [],
     "open_questions": [],
