@@ -112,8 +112,17 @@ def _upsert_open(
     *,
     kind: str,
     extras: list[dict[str, str]] | None = None,
+    other: list[dict[str, Any]] | None = None,
 ) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+    """未决/待办共用入口。
+
+    ``other``：另一条同名列表（未决 ↔ 待办）。两条列表此前互不查询，同一件事会
+    以两种措辞各存一份（实测 7 组重复对），区块又在去重之后才把两者拼接 →
+    同一事实占两个名额、还获得两次被锚定的机会。这里跨列表查重：
+    命中对面那条就把 owner/timing/状态补到它身上，不再另存一份。
+    """
     out = [dict(r) for r in rows if isinstance(r, dict) and _clean(r.get("text"))]
+    pool = out + [r for r in (other or []) if isinstance(r, dict) and _clean(r.get("text"))]
     events: list[dict[str, Any]] = []
     extra_by_text = {
         _clean(e.get("text")): e for e in (extras or []) if _clean(e.get("text"))
@@ -122,7 +131,7 @@ def _upsert_open(
         text = _clean(value)
         if not text:
             continue
-        hit = _find_similar(out, text)
+        hit = _find_similar(pool, text)
         meta = extra_by_text.get(text) or {}
         if hit is None:
             item_id = _next_id(out, "a" if kind == "action" else "o")
@@ -139,6 +148,7 @@ def _upsert_open(
                 },
             )
             out.append(row)
+            pool.append(row)
             events.append({
                 "type": "added",
                 "item_id": item_id,
@@ -164,6 +174,7 @@ def _upsert_open(
                     "meeting_id": fact.meeting_id,
                     "time": _clean(getattr(fact, "time", "")),
                 })
+    # 跨列表合并过的行不在 out 里，但它的 owner/状态已更新；out 只回自己的行
     return out[:40], events
 
 
@@ -171,20 +182,29 @@ def _close_items(
     rows: list[dict[str, Any]],
     closed: list[str],
     fact: Any,
+    *,
+    done_status: str = "done",
+    event_type: str = "done",
 ) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+    """本场宣告已闭环的条目改状态（不删除）。
+
+    ``done_status``：open/action 用 ``done``，risk 用 ``mitigated``——
+    风险过去没有闭环通道（只有条目文本里出现"已解决"才转 mitigated），
+    实测"池子不稳定"被明确宣告解决后仍以 active 挂在【风险演变】里。
+    """
     if not closed:
         return rows, []
     events: list[dict[str, Any]] = []
     for row in rows:
         text = _clean(row.get("text"))
-        if not text or (row.get("status") == "done"):
+        if not text or (row.get("status") == done_status):
             continue
         if any(similar(text, c) for c in closed):
-            row["status"] = "done"
+            row["status"] = done_status
             row["closed_at"] = fact.meeting_id
             _touch(row, fact, quote_kind="closed", text=text)
             events.append({
-                "type": "done",
+                "type": event_type,
                 "item_id": row.get("item_id"),
                 "kind": row.get("kind") or "open",
                 "text": text,
@@ -408,13 +428,19 @@ def session_index(meetings: list[dict[str, Any]], project_id: str) -> dict[str, 
 
 
 def session_label(seq_map: dict[str, dict[str, Any]], meeting_id: str) -> str:
+    """场次标签：``第2场·2026-09-08``。
+
+    用 ``·`` 而不是括号：这个标签会被写进注入块的括号 meta
+    （``（第2场·2026-09-08起，最近…）``），括号嵌套会让渲染侧的 meta 剥离正则失效
+    （实测 15/15 条条目的正文混进内部 meta，卡片上出现「（第1场（2026-09-01）起…」）。
+    """
     info = seq_map.get(meeting_id) or {}
     seq = info.get("seq")
     if not seq:
         return "未知场次"
     time_val = _clean(info.get("time"))
     if time_val:
-        return f"第{seq}场（{time_val}）"
+        return f"第{seq}场·{time_val}"
     return f"第{seq}场"
 
 
@@ -430,7 +456,13 @@ def update_state(state: dict[str, Any], fact: Any, project_id: str, project_name
     out["decisions"] = decisions
     events.extend(ev)
 
-    opens, ev = _upsert_open(out.get("open_items") or [], getattr(fact, "open_items", []) or [], fact, kind="open")
+    opens, ev = _upsert_open(
+        out.get("open_items") or [],
+        getattr(fact, "open_items", []) or [],
+        fact,
+        kind="open",
+        other=out.get("actions") or [],  # 跨列表查重（上一场的待办）
+    )
     events.extend(ev)
     action_rows = list(getattr(fact, "action_items", None) or [])
     action_texts = [_clean(a.get("text") if isinstance(a, dict) else a) for a in action_rows]
@@ -440,6 +472,7 @@ def update_state(state: dict[str, Any], fact: Any, project_id: str, project_name
         fact,
         kind="action",
         extras=[a for a in action_rows if isinstance(a, dict)],
+        other=opens,  # 跨列表查重：同一件事不在未决/待办各存一份
     )
     events.extend(ev)
 
@@ -452,6 +485,10 @@ def update_state(state: dict[str, Any], fact: Any, project_id: str, project_name
     out["actions"] = actions
 
     risks, ev = _upsert_risks(out.get("risks") or [], getattr(fact, "risks", []) or [], fact)
+    events.extend(ev)
+    # 风险也吃 closed_items（记 mitigated + closed_at）：此前只有"条目文本自带已解决"
+    # 一条通道，闭环信号到不了风险表（实测"池子不稳定"已宣告解决仍留在 active）。
+    risks, ev = _close_items(risks, closed, fact, done_status="mitigated", event_type="mitigated")
     events.extend(ev)
 
     recent = [str(x) for x in (out.get("recent_meetings") or []) if str(x).strip()]
@@ -478,7 +515,11 @@ def update_state(state: dict[str, Any], fact: Any, project_id: str, project_name
     if active_risks:
         bits.append("风险：" + "；".join(active_risks[:4]))
     out["summary"] = " ".join(bit for bit in bits if bit)[:800]
-    out["events"] = events[-40:]
+    # 事件按"最近 N 场"保留（而不是只留最近 40 条）：40 条≈一场的量，
+    # 实测两场之后磁盘上只剩最后一场的审计，跨场轨迹全丢。
+    keep = set(out["recent_meetings"])
+    kept = [e for e in events if _clean(e.get("meeting_id")) in keep]
+    out["events"] = kept[-240:]
     return out
 
 

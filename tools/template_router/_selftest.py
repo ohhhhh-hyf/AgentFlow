@@ -3183,11 +3183,14 @@ def test_fallback_text_dedupe() -> None:
 
 
 def test_first_column_single_paragraph_merge() -> None:
-    """总述栏「一段写完」的程序保证：多段合并成一段 + 首栏豁免拆段（两条规则不打架）。
+    """总述栏「一段写完」的程序保证：多段合并成一段 + 总述栏豁免拆段（两条规则不打架）。
 
     回归背景（2026-09-19 now.xlsx 实测）：项目概况 862 字/3 段、沟通背景 974 字/3 段、
     课程概况 734 字/4 段——"一段写完"只有 prompt 约束；节级预算只管"单段超上限才拆"，
     模型拆成 3 段每段 ≤400 时任何检查都不触发；_overlong_issue 报了又被 repair 豁免。
+
+    补记（2026-09-21 通用纪要实测）：规则按"位置"认总述栏会认错——首栏按规范只写一段
+    时定位滑到下一栏（[分段速览]）并把它合并、`##` 子标题一起删；⑤⑥⑦ 就是这次的口径。
     """
     from tools.execution.hard_execution import (
         _merge_first_column_paragraphs,
@@ -3209,11 +3212,16 @@ def test_first_column_single_paragraph_merge() -> None:
               and caps[0]["scope"] == "section", f"{caps}")
 
     # ② 合并函数：多段散文 → 一段（用真实产物形态）
+    #    「首栏 3 段」＝一个 [项目概况] 栏里三个散文段；写法上必须让 `* 40` 只作用于整句，
+    #    否则字面量隐式拼接（优先级高于 `*`）会把 `# 项目进度会`/`# 项目概况` 复制 40 遍，
+    #    42 个一级栏的畸形稿会让断言测不到首栏（2026-09-21 修）
     tpl = (d / "project_progress.md").read_text(encoding="utf-8")
     doc = (
-        "# 项目进度会\n\n"
-        "# 项目概况\n第一段总述。" * 40 + "\n\n第二段总述。" * 30 + "\n\n第三段收尾。" * 10 + "\n\n"
-        "# 进度追踪\n\n| 模块 | 进展 |\n| --- | --- |\n| 模块A | 正常 |\n"
+        "# 项目进度会\n\n# 项目概况\n"
+        + "第一段总述。" * 40
+        + "\n\n第二段总述。" * 30
+        + "\n\n第三段收尾。" * 10
+        + "\n\n# 进度追踪\n\n| 模块 | 进展 |\n| --- | --- |\n| 模块A | 正常 |\n"
     )
     merged, note = _merge_first_column_paragraphs(doc, tpl)
     seg = merged.split("# 项目概况")[1].split("\n# 进度追踪")[0]
@@ -3242,6 +3250,60 @@ def test_first_column_single_paragraph_merge() -> None:
     other = (d / "media_qa_session.md").read_text(encoding="utf-8")
     check("media_qa_session 无「一段写完」标记 → 合并函数不生效",
           _merge_first_column_paragraphs(doc, other)[1] is None, "")
+
+    # ⑤ 2026-09-21 通用纪要实测：首栏按规范只写一段（1 段 < 2）时定位不能滑到下一栏。
+    #    旧位置口径取"第一个含 ≥2 散文段的栏"，[全文摘要] 一段被跳过 → [分段速览]
+    #    （时间轴恰好 2 段）被当总述栏合并成一段，`## 时间段` 子标题随正文一起消失，
+    #    门禁仍 pass（日志只有一行 INFO：「分段速览」为总述栏（一段写完））。
+    gm = (d / "general_minutes.md").read_text(encoding="utf-8")
+    gm_head = "# 通用纪要\n\n# 全文摘要\n本次例会围绕端侧待办与回流展开。（一段写完）\n\n"
+    gm_seg = (
+        "# 分段速览\n"
+        "## 08:00-12:30 现场检查\n\n第一段时间段的一段话。\n\n"
+        "## 12:30-17:00 讨论\n\n第二段时间段的一段话。\n\n"
+        "# 要点梳理\n\n- 条目一。\n"
+    )
+    same, gm_note = _merge_first_column_paragraphs(gm_head + gm_seg, gm)
+    check("通用纪要：首栏已是一段 → 不拿下一栏顶替总述栏（2026-09-21 实测）",
+          gm_note is None and same == gm_head + gm_seg, f"{gm_note}")
+    # 首栏多段时仍合并，且合的是 [全文摘要]、不碰 [分段速览] 的时间轴子标题
+    gm_multi = gm_head + "第二段摘要。\n\n" + gm_seg
+    merged_gm, note_gm = _merge_first_column_paragraphs(gm_multi, gm)
+    check("通用纪要：首栏多段 → 合并 [全文摘要]（时间轴栏与子标题不动）",
+          note_gm is not None and "全文摘要" in note_gm
+          and "## 08:00-12:30 现场检查" in merged_gm
+          and "## 12:30-17:00 讨论" in merged_gm, f"{note_gm}")
+    gm_text, gm_notes, _ = enforce_render_output(gm, gm_multi)
+    check("通用纪要：enforce 全链路后 [分段速览] 两个时间段子标题仍在",
+          "## 08:00-12:30 现场检查" in gm_text.split("# 分段速览")[1]
+          and "## 12:30-17:00 讨论" in gm_text.split("# 分段速览")[1],
+          f"{gm_notes}")
+
+    # ⑥ 文档标题以 `# 一级栏` 出现时（装配稿常见），总述栏仍豁免拆段——
+    #    旧实现只跳"首个一级栏"，真正的总述栏落到第二位、合并完又被拆回多段。
+    titled = (
+        "# 项目进度会\n\n# 项目概况\n"
+        + "总述。" * 200
+        + "\n\n# 进度追踪\n\n| 模块 | 进展 |\n| --- | --- |\n| 模块A | 正常 |\n"
+    )
+    t_text, t_notes, _ = enforce_render_output(tpl, titled)
+    t_seg = t_text.split("# 项目概况")[1].split("# 进度追踪")[0]
+    check("文档标题在场时总述栏仍不被拆段（600 字一段原样保留）",
+          len([b for b in t_seg.split("\n\n") if b.strip()]) == 1
+          and not any("项目概况」超长段" in n for n in t_notes),
+          f"{t_notes}")
+
+    # ⑦ 模板栏名解析不出（标记写在序言里）→ 退回位置口径：只认第一个有散文段的栏，
+    #    且首栏已是一段时不得再往后找（否则就是 ⑤ 的老毛病）
+    raw_tpl = "（一段写完，约 250–400 字）\n\n# [概况]\n[概述]\n\n# [其它]\n[明细]\n"
+    _r, r_note = _merge_first_column_paragraphs(
+        "# 标题\n\n# 概况\n第一段。\n\n第二段。\n\n# 其它\n明细一。\n", raw_tpl
+    )
+    check("栏名解析不出：退回位置口径仍能合并首栏", r_note is not None and "概况" in r_note, f"{r_note}")
+    _r2, r_note2 = _merge_first_column_paragraphs(
+        "# 标题\n\n# 概况\n一段。\n\n# 其它\n明细一。\n\n明细二。\n", raw_tpl
+    )
+    check("栏名解析不出：首栏一段时不滑到后面的多段栏", r_note2 is None, f"{r_note2}")
 
 
 def test_supervisor_contract_and_unavailable() -> None:

@@ -521,7 +521,15 @@ async def produce_line(
                 citation_context = (
                     line(state, line_name).get("memory_context") or context
                 )
-                full_text = apply_memory_citations(full_text, citation_context)
+                # 程序算好的历史对照（gen 节点写进草稿的 history_comparison）：
+                # 模型被要求"历史不写进正文"，词面锚点在跨场复述下命中率很低
+                # （实测 15 条只挂 2 条且都在泛词上），对照小节是零锚点时的可见溯源。
+                comparison = (
+                    line(state, line_name).get("draft") or {}
+                ).get("history_comparison") or []
+                full_text = apply_memory_citations(
+                    full_text, citation_context, comparison=comparison
+                )
             except Exception:  # noqa: BLE001
                 logger.warning("memory citation failed line=%s", line_name, exc_info=True)
         if full_text and not template and line_name in {"minutes", "minutes_trace"}:

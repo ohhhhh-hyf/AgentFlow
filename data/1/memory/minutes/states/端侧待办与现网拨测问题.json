@@ -1,0 +1,1981 @@
+{
+  "project_id": "端侧待办与现网拨测问题",
+  "name": "端侧待办与现网拨测问题",
+  "anchors": [
+    "端侧待办与现网拨测问题",
+    "OCR接口适配",
+    "数据标注与ASR",
+    "MOSS流式续写等展开",
+    "录音机接口与OCR适配",
+    "网页demo集成",
+    "录音机控件与端到端demo链路",
+    "ASR静音出字与噪声问题",
+    "ASR与说话人模型实验",
+    "MOSS数据与流式续写",
+    "端侧PC没有显示的问题端侧大概什么时候带上版本",
+    "Java侧商品版本需求与测试安排",
+    "引擎并发与ASR模型优化方向及",
+    "过Java侧商品版本需求",
+    "ASR模型效果与数据标注进度",
+    "tob数统计与重复标点问题",
+    "agent相关与接口",
+    "相关与接口demo",
+    "端侧麦克风与媒体音播报幻觉及ASR适配",
+    "量化手段与端侧demo依赖",
+    "绕开APA链路与翻译云方案"
+  ],
+  "decisions": [
+    {
+      "item_id": "d1",
+      "text": "每个任务加字段区分是否做完",
+      "status": "active",
+      "meeting_id": "m_3fb2ab896eea4747883769e56faa6fa4",
+      "last_seen": "m_3fb2ab896eea4747883769e56faa6fa4",
+      "meeting_title": "小艺慧记项目进展与待办同步会",
+      "time": "2026-09-01",
+      "time_source": "user",
+      "quote": "你每个任务加个字段去区分一下。"
+    },
+    {
+      "item_id": "d2",
+      "text": "风控提示文本和字数过少提示需中文和英文，下来再问晓华",
+      "status": "active",
+      "meeting_id": "m_3fb2ab896eea4747883769e56faa6fa4",
+      "last_seen": "m_3fb2ab896eea4747883769e56faa6fa4",
+      "meeting_title": "小艺慧记项目进展与待办同步会",
+      "time": "2026-09-01",
+      "time_source": "user",
+      "quote": "行，然后还有一个就是说的那个等后面方案的，不对，还有就是昨天是说风控的提示的文本，要有中文和英文是吧？"
+    },
+    {
+      "item_id": "d3",
+      "text": "控件改动等群里再定，由产品推、后端协助",
+      "status": "active",
+      "meeting_id": "m_3fb2ab896eea4747883769e56faa6fa4",
+      "last_seen": "m_3fb2ab896eea4747883769e56faa6fa4",
+      "meeting_title": "小艺慧记项目进展与待办同步会",
+      "time": "2026-09-01",
+      "time_source": "user",
+      "quote": ""
+    },
+    {
+      "item_id": "d4",
+      "text": "范炳杰这周更新版本解决双录信号问题",
+      "status": "active",
+      "meeting_id": "m_3fb2ab896eea4747883769e56faa6fa4",
+      "last_seen": "m_3fb2ab896eea4747883769e56faa6fa4",
+      "meeting_title": "小艺慧记项目进展与待办同步会",
+      "time": "2026-09-01",
+      "time_source": "user",
+      "quote": ""
+    },
+    {
+      "item_id": "d5",
+      "text": "主干侧主动锻炼，不统计成功率，申家坤先做处理再跟产品反馈看端侧有没有办法改",
+      "status": "active",
+      "meeting_id": "m_a44365a5525248468a7d6a2d68f4c489",
+      "last_seen": "m_a44365a5525248468a7d6a2d68f4c489",
+      "meeting_title": "小艺慧记项目进展与930节点安排会",
+      "time": "2026-09-01",
+      "time_source": "user",
+      "quote": "这个我觉得就是咱们这边做一下处理就完了，就是主干侧主动锻炼，咱就不统计成功率了。"
+    },
+    {
+      "item_id": "d6",
+      "text": "tob数统计今天改了，统计一天的，明天看hall t",
+      "status": "active",
+      "meeting_id": "m_a44365a5525248468a7d6a2d68f4c489",
+      "last_seen": "m_a44365a5525248468a7d6a2d68f4c489",
+      "meeting_title": "小艺慧记项目进展与930节点安排会",
+      "time": "2026-09-01",
+      "time_source": "user",
+      "quote": "然后tob数统计那个是，今天改了，然后统计一天的，明天看一下hall t."
+    },
+    {
+      "item_id": "d7",
+      "text": "重复和标点问题让端头那边和这边看有哪些要改的",
+      "status": "active",
+      "meeting_id": "m_a44365a5525248468a7d6a2d68f4c489",
+      "last_seen": "m_a44365a5525248468a7d6a2d68f4c489",
+      "meeting_title": "小艺慧记项目进展与930节点安排会",
+      "time": "2026-09-01",
+      "time_source": "user",
+      "quote": "ok ok.后还有就是刚刚说的那个今天对的那个重复的，还有标点的，就让端头那边还有这边看有哪些要改的改一下。"
+    },
+    {
+      "item_id": "d8",
+      "text": "流失待办格式改成他要的格式，让他那边也改了",
+      "status": "active",
+      "meeting_id": "m_a44365a5525248468a7d6a2d68f4c489",
+      "last_seen": "m_a44365a5525248468a7d6a2d68f4c489",
+      "meeting_title": "小艺慧记项目进展与930节点安排会",
+      "time": "2026-09-01",
+      "time_source": "user",
+      "quote": "ok ok，就是我们这边改成他要的格式，然后让他那边也改了，也改，是吧？"
+    },
+    {
+      "item_id": "d9",
+      "text": "微服务统一接口需要改，接口python里通过bi d调fm一p模型，先调千问码调通流程，效果按现在子部署的ds模型看",
+      "status": "active",
+      "meeting_id": "m_a44365a5525248468a7d6a2d68f4c489",
+      "last_seen": "m_a44365a5525248468a7d6a2d68f4c489",
+      "meeting_title": "小艺慧记项目进展与930节点安排会",
+      "time": "2026-09-01",
+      "time_source": "user",
+      "quote": "千问码调通流程，然后效果的话就按现在子部署的ds模型去看一下。"
+    },
+    {
+      "item_id": "d10",
+      "text": "910c机器这周下周初去验证是模型的问题还是机器的问题",
+      "status": "active",
+      "meeting_id": "m_a44365a5525248468a7d6a2d68f4c489",
+      "last_seen": "m_a44365a5525248468a7d6a2d68f4c489",
+      "meeting_title": "小艺慧记项目进展与930节点安排会",
+      "time": "2026-09-01",
+      "time_source": "user",
+      "quote": "这周下周初的时候去验证一下，看是模型的问题，还是机器的问题。"
+    },
+    {
+      "item_id": "d11",
+      "text": "问题单到时候找武思华核一下，中测时带上中测版本",
+      "status": "active",
+      "meeting_id": "m_a44365a5525248468a7d6a2d68f4c489",
+      "last_seen": "m_a44365a5525248468a7d6a2d68f4c489",
+      "meeting_title": "小艺慧记项目进展与930节点安排会",
+      "time": "2026-09-01",
+      "time_source": "user",
+      "quote": ""
+    },
+    {
+      "item_id": "d12",
+      "text": "徐玥说没有保底，千问和most两个只能二选一，所有人力集中做一个",
+      "status": "active",
+      "meeting_id": "m_a44365a5525248468a7d6a2d68f4c489",
+      "last_seen": "m_a44365a5525248468a7d6a2d68f4c489",
+      "meeting_title": "小艺慧记项目进展与930节点安排会",
+      "time": "2026-09-01",
+      "time_source": "user",
+      "quote": ""
+    },
+    {
+      "item_id": "d13",
+      "text": "徐玥说非实时先不做，人力放到实时上面，先把实时的搞定",
+      "status": "active",
+      "meeting_id": "m_a44365a5525248468a7d6a2d68f4c489",
+      "last_seen": "m_a44365a5525248468a7d6a2d68f4c489",
+      "meeting_title": "小艺慧记项目进展与930节点安排会",
+      "time": "2026-09-01",
+      "time_source": "user",
+      "quote": ""
+    },
+    {
+      "item_id": "d14",
+      "text": "徐玥说会上先不做决策，崔辉排人力，她去找杨老师问链路",
+      "status": "active",
+      "meeting_id": "m_a44365a5525248468a7d6a2d68f4c489",
+      "last_seen": "m_a44365a5525248468a7d6a2d68f4c489",
+      "meeting_title": "小艺慧记项目进展与930节点安排会",
+      "time": "2026-09-01",
+      "time_source": "user",
+      "quote": ""
+    }
+  ],
+  "open_items": [
+    {
+      "item_id": "o1",
+      "text": "端侧PC没有显示的问题端侧大概什么时候带上版本",
+      "status": "open",
+      "since": "m_3fb2ab896eea4747883769e56faa6fa4",
+      "last_seen": "m_3fb2ab896eea4747883769e56faa6fa4",
+      "meeting_title": "小艺慧记项目进展与待办同步会",
+      "time": "2026-09-01",
+      "time_source": "user",
+      "quote": "对，这个我得问一下，他们大概什么时候，我估计这个这个版本应该带上。",
+      "kind": "open",
+      "owner": "武思华",
+      "timing": ""
+    },
+    {
+      "item_id": "o2",
+      "text": "华山数据表能否加到数据检索或数据表里",
+      "status": "open",
+      "since": "m_3fb2ab896eea4747883769e56faa6fa4",
+      "last_seen": "m_3fb2ab896eea4747883769e56faa6fa4",
+      "meeting_title": "小艺慧记项目进展与待办同步会",
+      "time": "2026-09-01",
+      "time_source": "user",
+      "quote": "ok那你看就能加让他能加到数据检索或者数据表里面能够查就是。",
+      "kind": "open",
+      "owner": "武思华",
+      "timing": ""
+    },
+    {
+      "item_id": "o3",
+      "text": "风控提示文本和字数过少提示中英文描述需问晓华",
+      "status": "open",
+      "since": "m_3fb2ab896eea4747883769e56faa6fa4",
+      "last_seen": "m_3fb2ab896eea4747883769e56faa6fa4",
+      "meeting_title": "小艺慧记项目进展与待办同步会",
+      "time": "2026-09-01",
+      "time_source": "user",
+      "quote": "这个就是这个其实跟那个检测字数，字数就是字数过少，那是不一样的。",
+      "kind": "open",
+      "owner": "申家坤",
+      "timing": "下来"
+    },
+    {
+      "item_id": "o4",
+      "text": "现网流量报表数据与纪要数据差一个数量级，需找他们拆",
+      "status": "open",
+      "since": "m_3fb2ab896eea4747883769e56faa6fa4",
+      "last_seen": "m_3fb2ab896eea4747883769e56faa6fa4",
+      "meeting_title": "小艺慧记项目进展与待办同步会",
+      "time": "2026-09-01",
+      "time_source": "user",
+      "quote": "绩要数据是6000，差对差了一个数量级6000~7000。",
+      "kind": "open",
+      "owner": "",
+      "timing": ""
+    },
+    {
+      "item_id": "o5",
+      "text": "模型并发资源需多少、现网有多少机器需确认",
+      "status": "open",
+      "since": "m_3fb2ab896eea4747883769e56faa6fa4",
+      "last_seen": "m_3fb2ab896eea4747883769e56faa6fa4",
+      "meeting_title": "小艺慧记项目进展与待办同步会",
+      "time": "2026-09-01",
+      "time_source": "user",
+      "quote": "咱们现在大概有多少机器不需要有bg?",
+      "kind": "open",
+      "owner": "",
+      "timing": ""
+    },
+    {
+      "item_id": "o6",
+      "text": "推理加速优化需找专业团队支撑",
+      "status": "open",
+      "since": "m_3fb2ab896eea4747883769e56faa6fa4",
+      "last_seen": "m_3fb2ab896eea4747883769e56faa6fa4",
+      "meeting_title": "小艺慧记项目进展与待办同步会",
+      "time": "2026-09-01",
+      "time_source": "user",
+      "quote": "主要是这块，就是对推理加速的话，这块我们现在能求助。",
+      "kind": "open",
+      "owner": "",
+      "timing": ""
+    },
+    {
+      "item_id": "o7",
+      "text": "平板端到端demo链条包明天能否调通",
+      "status": "open",
+      "since": "m_3fb2ab896eea4747883769e56faa6fa4",
+      "last_seen": "m_3fb2ab896eea4747883769e56faa6fa4",
+      "meeting_title": "小艺慧记项目进展与待办同步会",
+      "time": "2026-09-01",
+      "time_source": "user",
+      "quote": "",
+      "kind": "open",
+      "owner": "范炳杰",
+      "timing": "这周"
+    },
+    {
+      "item_id": "o8",
+      "text": "商品版本后两个需求的测试报告能否出来",
+      "status": "open",
+      "since": "m_a44365a5525248468a7d6a2d68f4c489",
+      "last_seen": "m_a44365a5525248468a7d6a2d68f4c489",
+      "meeting_title": "小艺慧记项目进展与930节点安排会",
+      "time": "2026-09-01",
+      "time_source": "user",
+      "quote": "但是这次这个商品版本要带哪些需求？",
+      "kind": "open",
+      "owner": "",
+      "timing": ""
+    },
+    {
+      "item_id": "o9",
+      "text": "刘师是否测微服务、谁测微服务尚未确定",
+      "status": "open",
+      "since": "m_a44365a5525248468a7d6a2d68f4c489",
+      "last_seen": "m_a44365a5525248468a7d6a2d68f4c489",
+      "meeting_title": "小艺慧记项目进展与930节点安排会",
+      "time": "2026-09-01",
+      "time_source": "user",
+      "quote": "那个刘师也是腾坤来测微服务。",
+      "kind": "open",
+      "owner": "武思华",
+      "timing": ""
+    },
+    {
+      "item_id": "o10",
+      "text": "端侧能否改生成过程中切换走断换的问题，之前isales没给方案",
+      "status": "done",
+      "since": "m_a44365a5525248468a7d6a2d68f4c489",
+      "last_seen": "m_a44365a5525248468a7d6a2d68f4c489",
+      "meeting_title": "小艺慧记项目进展与930节点安排会",
+      "time": "2026-09-01",
+      "time_source": "user",
+      "quote": "对，然后就算然后对，然后解决了一下端侧麦克风加媒体音播报幻觉的问题，就是他之前有个版本没有更新上去。",
+      "kind": "open",
+      "owner": "",
+      "timing": "",
+      "closed_at": "m_a44365a5525248468a7d6a2d68f4c489"
+    },
+    {
+      "item_id": "o11",
+      "text": "蓝色回流权限一直不批，武思华找了好几次",
+      "status": "open",
+      "since": "m_a44365a5525248468a7d6a2d68f4c489",
+      "last_seen": "m_a44365a5525248468a7d6a2d68f4c489",
+      "meeting_title": "小艺慧记项目进展与930节点安排会",
+      "time": "2026-09-01",
+      "time_source": "user",
+      "quote": "不知道刚才有待申请，后面我如果有申请的，可以一起申请。",
+      "kind": "open",
+      "owner": "申家坤",
+      "timing": ""
+    },
+    {
+      "item_id": "o12",
+      "text": "长文本8~9万字不行、token慢，是否拿竞品测、推理有没有优化方式",
+      "status": "open",
+      "since": "m_a44365a5525248468a7d6a2d68f4c489",
+      "last_seen": "m_a44365a5525248468a7d6a2d68f4c489",
+      "meeting_title": "小艺慧记项目进展与930节点安排会",
+      "time": "2026-09-01",
+      "time_source": "user",
+      "quote": "你发的那个时间长的那个就是之前跟思华看的，就是我们当时不是说支持那个长文本，但是实际测的时候就是60000多字还行，但是8~9万字不行？",
+      "kind": "open",
+      "owner": "",
+      "timing": ""
+    },
+    {
+      "item_id": "o13",
+      "text": "910c机器是模型问题还是机器问题待验证，镜像需找人推",
+      "status": "open",
+      "since": "m_a44365a5525248468a7d6a2d68f4c489",
+      "last_seen": "m_a44365a5525248468a7d6a2d68f4c489",
+      "meeting_title": "小艺慧记项目进展与930节点安排会",
+      "time": "2026-09-01",
+      "time_source": "user",
+      "quote": "然后910c那个机器密码，你申请了？",
+      "kind": "open",
+      "owner": "武思华",
+      "timing": "这周下周初"
+    },
+    {
+      "item_id": "o14",
+      "text": "引擎并发优化目标、能否达到单卡四路或六路",
+      "status": "open",
+      "since": "m_a44365a5525248468a7d6a2d68f4c489",
+      "last_seen": "m_a44365a5525248468a7d6a2d68f4c489",
+      "meeting_title": "小艺慧记项目进展与930节点安排会",
+      "time": "2026-09-01",
+      "time_source": "user",
+      "quote": "",
+      "kind": "open",
+      "owner": "",
+      "timing": ""
+    },
+    {
+      "item_id": "o15",
+      "text": "强基性4.0接口测试java还没跑起来，横向对比待做",
+      "status": "open",
+      "since": "m_a44365a5525248468a7d6a2d68f4c489",
+      "last_seen": "m_a44365a5525248468a7d6a2d68f4c489",
+      "meeting_title": "小艺慧记项目进展与930节点安排会",
+      "time": "2026-09-01",
+      "time_source": "user",
+      "quote": "",
+      "kind": "open",
+      "owner": "",
+      "timing": ""
+    },
+    {
+      "item_id": "o16",
+      "text": "与录音机控件联调走哪条链路、能否拿到链条包",
+      "status": "open",
+      "since": "m_a44365a5525248468a7d6a2d68f4c489",
+      "last_seen": "m_a44365a5525248468a7d6a2d68f4c489",
+      "meeting_title": "小艺慧记项目进展与930节点安排会",
+      "time": "2026-09-01",
+      "time_source": "user",
+      "quote": "",
+      "kind": "open",
+      "owner": "",
+      "timing": ""
+    },
+    {
+      "item_id": "o17",
+      "text": "是否绕开APA、走翻译云或新建智慧记录控件sdk，需问杨老师",
+      "status": "open",
+      "since": "m_a44365a5525248468a7d6a2d68f4c489",
+      "last_seen": "m_a44365a5525248468a7d6a2d68f4c489",
+      "meeting_title": "小艺慧记项目进展与930节点安排会",
+      "time": "2026-09-01",
+      "time_source": "user",
+      "quote": "",
+      "kind": "open",
+      "owner": "",
+      "timing": ""
+    },
+    {
+      "item_id": "o18",
+      "text": "转测范围、测试指标定义、测试人是否与小一会计同一人待讨论",
+      "status": "open",
+      "since": "m_a44365a5525248468a7d6a2d68f4c489",
+      "last_seen": "m_a44365a5525248468a7d6a2d68f4c489",
+      "meeting_title": "小艺慧记项目进展与930节点安排会",
+      "time": "2026-09-01",
+      "time_source": "user",
+      "quote": "",
+      "kind": "open",
+      "owner": "",
+      "timing": ""
+    },
+    {
+      "item_id": "o19",
+      "text": "千问与most二选一，会后讨论，会上不做决策",
+      "status": "open",
+      "since": "m_a44365a5525248468a7d6a2d68f4c489",
+      "last_seen": "m_a44365a5525248468a7d6a2d68f4c489",
+      "meeting_title": "小艺慧记项目进展与930节点安排会",
+      "time": "2026-09-01",
+      "time_source": "user",
+      "quote": "",
+      "kind": "open",
+      "owner": "",
+      "timing": ""
+    }
+  ],
+  "actions": [
+    {
+      "item_id": "a1",
+      "text": "跟华山那边联调现网DMQ",
+      "status": "open",
+      "since": "m_3fb2ab896eea4747883769e56faa6fa4",
+      "last_seen": "m_3fb2ab896eea4747883769e56faa6fa4",
+      "meeting_title": "小艺慧记项目进展与待办同步会",
+      "time": "2026-09-01",
+      "time_source": "user",
+      "quote": "估计上了政测得验一下，这个到时候还得跟华山那边去对一下，联调一下这个。",
+      "kind": "action",
+      "owner": "武思华",
+      "timing": ""
+    },
+    {
+      "item_id": "a2",
+      "text": "每个任务加字段区分是否做完",
+      "status": "open",
+      "since": "m_3fb2ab896eea4747883769e56faa6fa4",
+      "last_seen": "m_3fb2ab896eea4747883769e56faa6fa4",
+      "meeting_title": "小艺慧记项目进展与待办同步会",
+      "time": "2026-09-01",
+      "time_source": "user",
+      "quote": "你每个任务加个字段去区分一下。",
+      "kind": "action",
+      "owner": "",
+      "timing": ""
+    },
+    {
+      "item_id": "a3",
+      "text": "范炳杰本地跑通python接口",
+      "status": "open",
+      "since": "m_3fb2ab896eea4747883769e56faa6fa4",
+      "last_seen": "m_3fb2ab896eea4747883769e56faa6fa4",
+      "meeting_title": "小艺慧记项目进展与待办同步会",
+      "time": "2026-09-01",
+      "time_source": "user",
+      "quote": "我问一下，这个是它的python接口？",
+      "kind": "action",
+      "owner": "范炳杰",
+      "timing": ""
+    },
+    {
+      "item_id": "a4",
+      "text": "范炳杰这周更新版本刷掉双录信号问题",
+      "status": "done",
+      "since": "m_3fb2ab896eea4747883769e56faa6fa4",
+      "last_seen": "m_3fb2ab896eea4747883769e56faa6fa4",
+      "meeting_title": "小艺慧记项目进展与待办同步会",
+      "time": "2026-09-01",
+      "time_source": "user",
+      "quote": "",
+      "kind": "action",
+      "owner": "范炳杰",
+      "timing": "这周",
+      "closed_at": "m_3fb2ab896eea4747883769e56faa6fa4"
+    },
+    {
+      "item_id": "a5",
+      "text": "范炳杰下来找他们拆报表确认现网流量数据",
+      "status": "open",
+      "since": "m_3fb2ab896eea4747883769e56faa6fa4",
+      "last_seen": "m_3fb2ab896eea4747883769e56faa6fa4",
+      "meeting_title": "小艺慧记项目进展与待办同步会",
+      "time": "2026-09-01",
+      "time_source": "user",
+      "quote": "",
+      "kind": "action",
+      "owner": "范炳杰",
+      "timing": "下来"
+    },
+    {
+      "item_id": "a6",
+      "text": "大家帮忙标内部WeLink数据",
+      "status": "open",
+      "since": "m_3fb2ab896eea4747883769e56faa6fa4",
+      "last_seen": "m_a44365a5525248468a7d6a2d68f4c489",
+      "meeting_title": "小艺慧记项目进展与930节点安排会",
+      "time": "2026-09-01",
+      "time_source": "user",
+      "quote": "",
+      "kind": "action",
+      "owner": "",
+      "timing": ""
+    },
+    {
+      "item_id": "a7",
+      "text": "徐玥先搞AI、华为、政府、金融、法律、数学几个领域术语",
+      "status": "open",
+      "since": "m_3fb2ab896eea4747883769e56faa6fa4",
+      "last_seen": "m_3fb2ab896eea4747883769e56faa6fa4",
+      "meeting_title": "小艺慧记项目进展与待办同步会",
+      "time": "2026-09-01",
+      "time_source": "user",
+      "quote": "",
+      "kind": "action",
+      "owner": "徐玥",
+      "timing": ""
+    },
+    {
+      "item_id": "a8",
+      "text": "家坤慧敏试宇翔传的5000h关键词ASR数据",
+      "status": "open",
+      "since": "m_3fb2ab896eea4747883769e56faa6fa4",
+      "last_seen": "m_3fb2ab896eea4747883769e56faa6fa4",
+      "meeting_title": "小艺慧记项目进展与待办同步会",
+      "time": "2026-09-01",
+      "time_source": "user",
+      "quote": "",
+      "kind": "action",
+      "owner": "申家坤",
+      "timing": ""
+    },
+    {
+      "item_id": "a9",
+      "text": "李梦甜把超长/未标完list整理给家豪用书畅补打",
+      "status": "open",
+      "since": "m_3fb2ab896eea4747883769e56faa6fa4",
+      "last_seen": "m_3fb2ab896eea4747883769e56faa6fa4",
+      "meeting_title": "小艺慧记项目进展与待办同步会",
+      "time": "2026-09-01",
+      "time_source": "user",
+      "quote": "",
+      "kind": "action",
+      "owner": "李梦甜",
+      "timing": ""
+    },
+    {
+      "item_id": "a10",
+      "text": "鄢书畅测MOSS原型、分段推理和最新日志大模型指标",
+      "status": "open",
+      "since": "m_3fb2ab896eea4747883769e56faa6fa4",
+      "last_seen": "m_3fb2ab896eea4747883769e56faa6fa4",
+      "meeting_title": "小艺慧记项目进展与待办同步会",
+      "time": "2026-09-01",
+      "time_source": "user",
+      "quote": "",
+      "kind": "action",
+      "owner": "鄢书畅",
+      "timing": ""
+    },
+    {
+      "item_id": "a11",
+      "text": "申家坤做处理并跟产品反馈看端侧有没有办法改",
+      "status": "open",
+      "since": "m_a44365a5525248468a7d6a2d68f4c489",
+      "last_seen": "m_a44365a5525248468a7d6a2d68f4c489",
+      "meeting_title": "小艺慧记项目进展与930节点安排会",
+      "time": "2026-09-01",
+      "time_source": "user",
+      "quote": "行，那我们就做下处理，然后我跟产品那边反馈一下，看他们要不要让端侧那边有没有办法改，好像之前反馈过类似的就是。",
+      "kind": "action",
+      "owner": "申家坤",
+      "timing": ""
+    },
+    {
+      "item_id": "a12",
+      "text": "武思华明天找他们要tob数统计数据",
+      "status": "open",
+      "since": "m_a44365a5525248468a7d6a2d68f4c489",
+      "last_seen": "m_a44365a5525248468a7d6a2d68f4c489",
+      "meeting_title": "小艺慧记项目进展与930节点安排会",
+      "time": "2026-09-01",
+      "time_source": "user",
+      "quote": "然后tob数统计那个是，今天改了，然后统计一天的，明天看一下hall t.",
+      "kind": "action",
+      "owner": "武思华",
+      "timing": "明天"
+    },
+    {
+      "item_id": "a13",
+      "text": "端头那边和这边看重复和标点有哪些要改的改一下",
+      "status": "open",
+      "since": "m_a44365a5525248468a7d6a2d68f4c489",
+      "last_seen": "m_a44365a5525248468a7d6a2d68f4c489",
+      "meeting_title": "小艺慧记项目进展与930节点安排会",
+      "time": "2026-09-01",
+      "time_source": "user",
+      "quote": "ok ok.后还有就是刚刚说的那个今天对的那个重复的，还有标点的，就让端头那边还有这边看有哪些要改的改一下。",
+      "kind": "action",
+      "owner": "",
+      "timing": ""
+    },
+    {
+      "item_id": "a14",
+      "text": "申家坤测竞品长文本耗时并问推理优化方式",
+      "status": "open",
+      "since": "m_a44365a5525248468a7d6a2d68f4c489",
+      "last_seen": "m_a44365a5525248468a7d6a2d68f4c489",
+      "meeting_title": "小艺慧记项目进展与930节点安排会",
+      "time": "2026-09-01",
+      "time_source": "user",
+      "quote": "",
+      "kind": "action",
+      "owner": "申家坤",
+      "timing": ""
+    },
+    {
+      "item_id": "a15",
+      "text": "思华看改字幕摘要需求",
+      "status": "open",
+      "since": "m_a44365a5525248468a7d6a2d68f4c489",
+      "last_seen": "m_a44365a5525248468a7d6a2d68f4c489",
+      "meeting_title": "小艺慧记项目进展与930节点安排会",
+      "time": "2026-09-01",
+      "time_source": "user",
+      "quote": "",
+      "kind": "action",
+      "owner": "武思华",
+      "timing": ""
+    },
+    {
+      "item_id": "a16",
+      "text": "范炳杰今天晚点试4~5个接口并集成到网页版",
+      "status": "open",
+      "since": "m_a44365a5525248468a7d6a2d68f4c489",
+      "last_seen": "m_a44365a5525248468a7d6a2d68f4c489",
+      "meeting_title": "小艺慧记项目进展与930节点安排会",
+      "time": "2026-09-01",
+      "time_source": "user",
+      "quote": "",
+      "kind": "action",
+      "owner": "范炳杰",
+      "timing": "今天晚点"
+    },
+    {
+      "item_id": "a17",
+      "text": "申家坤找武思华核问题单，中测时带上中测版本",
+      "status": "open",
+      "since": "m_a44365a5525248468a7d6a2d68f4c489",
+      "last_seen": "m_a44365a5525248468a7d6a2d68f4c489",
+      "meeting_title": "小艺慧记项目进展与930节点安排会",
+      "time": "2026-09-01",
+      "time_source": "user",
+      "quote": "",
+      "kind": "action",
+      "owner": "申家坤",
+      "timing": "中测时"
+    },
+    {
+      "item_id": "a18",
+      "text": "范炳杰继续找承坤要链条包引向研发环境",
+      "status": "open",
+      "since": "m_a44365a5525248468a7d6a2d68f4c489",
+      "last_seen": "m_a44365a5525248468a7d6a2d68f4c489",
+      "meeting_title": "小艺慧记项目进展与930节点安排会",
+      "time": "2026-09-01",
+      "time_source": "user",
+      "quote": "",
+      "kind": "action",
+      "owner": "范炳杰",
+      "timing": ""
+    },
+    {
+      "item_id": "a19",
+      "text": "徐玥去找杨老师问链路有没有可做的点",
+      "status": "open",
+      "since": "m_a44365a5525248468a7d6a2d68f4c489",
+      "last_seen": "m_a44365a5525248468a7d6a2d68f4c489",
+      "meeting_title": "小艺慧记项目进展与930节点安排会",
+      "time": "2026-09-01",
+      "time_source": "user",
+      "quote": "",
+      "kind": "action",
+      "owner": "徐玥",
+      "timing": ""
+    },
+    {
+      "item_id": "a20",
+      "text": "范炳杰先研究走翻译云、翻译sdk的demo方案",
+      "status": "open",
+      "since": "m_a44365a5525248468a7d6a2d68f4c489",
+      "last_seen": "m_a44365a5525248468a7d6a2d68f4c489",
+      "meeting_title": "小艺慧记项目进展与930节点安排会",
+      "time": "2026-09-01",
+      "time_source": "user",
+      "quote": "",
+      "kind": "action",
+      "owner": "范炳杰",
+      "timing": ""
+    },
+    {
+      "item_id": "a21",
+      "text": "崔辉排人力",
+      "status": "open",
+      "since": "m_a44365a5525248468a7d6a2d68f4c489",
+      "last_seen": "m_a44365a5525248468a7d6a2d68f4c489",
+      "meeting_title": "小艺慧记项目进展与930节点安排会",
+      "time": "2026-09-01",
+      "time_source": "user",
+      "quote": "",
+      "kind": "action",
+      "owner": "崔辉",
+      "timing": ""
+    },
+    {
+      "item_id": "a22",
+      "text": "郭慧敏会后把模型往出倒并放到demo上测",
+      "status": "open",
+      "since": "m_a44365a5525248468a7d6a2d68f4c489",
+      "last_seen": "m_a44365a5525248468a7d6a2d68f4c489",
+      "meeting_title": "小艺慧记项目进展与930节点安排会",
+      "time": "2026-09-01",
+      "time_source": "user",
+      "quote": "",
+      "kind": "action",
+      "owner": "郭慧敏",
+      "timing": "会后"
+    },
+    {
+      "item_id": "a23",
+      "text": "申家坤导出模型测时延，有问题再调整",
+      "status": "open",
+      "since": "m_a44365a5525248468a7d6a2d68f4c489",
+      "last_seen": "m_a44365a5525248468a7d6a2d68f4c489",
+      "meeting_title": "小艺慧记项目进展与930节点安排会",
+      "time": "2026-09-01",
+      "time_source": "user",
+      "quote": "",
+      "kind": "action",
+      "owner": "申家坤",
+      "timing": ""
+    }
+  ],
+  "recent_meetings": [
+    "m_3fb2ab896eea4747883769e56faa6fa4",
+    "m_a44365a5525248468a7d6a2d68f4c489"
+  ],
+  "risks": [
+    {
+      "item_id": "r1",
+      "text": "端侧PC没有显示的问题还没改",
+      "status": "active",
+      "since": "m_3fb2ab896eea4747883769e56faa6fa4",
+      "last_seen": "m_3fb2ab896eea4747883769e56faa6fa4",
+      "meeting_title": "小艺慧记项目进展与待办同步会",
+      "time": "2026-09-01",
+      "time_source": "user",
+      "quote": ""
+    },
+    {
+      "item_id": "r2",
+      "text": "摘要生成完其他没生成完有关联影响",
+      "status": "active",
+      "since": "m_3fb2ab896eea4747883769e56faa6fa4",
+      "last_seen": "m_3fb2ab896eea4747883769e56faa6fa4",
+      "meeting_title": "小艺慧记项目进展与待办同步会",
+      "time": "2026-09-01",
+      "time_source": "user",
+      "quote": "行，但主要还是说摘要生成完，其他没生成完，他有这个。"
+    },
+    {
+      "item_id": "r3",
+      "text": "字数过少判断中英比例复杂，背景噪音几秒可能识别错",
+      "status": "active",
+      "since": "m_3fb2ab896eea4747883769e56faa6fa4",
+      "last_seen": "m_3fb2ab896eea4747883769e56faa6fa4",
+      "meeting_title": "小艺慧记项目进展与待办同步会",
+      "time": "2026-09-01",
+      "time_source": "user",
+      "quote": "就如果你只有背景噪音放了几秒钟，它就可能识别错，有可能是有中有音的。"
+    },
+    {
+      "item_id": "r4",
+      "text": "控件链路太长，后端推不动",
+      "status": "active",
+      "since": "m_3fb2ab896eea4747883769e56faa6fa4",
+      "last_seen": "m_3fb2ab896eea4747883769e56faa6fa4",
+      "meeting_title": "小艺慧记项目进展与待办同步会",
+      "time": "2026-09-01",
+      "time_source": "user",
+      "quote": "我觉得是的，因为这个链路太长了，然后我们肯定不可能说我们去推。"
+    },
+    {
+      "item_id": "r5",
+      "text": "910B四自由镜像显存占更多，现网可能需B或C",
+      "status": "active",
+      "since": "m_3fb2ab896eea4747883769e56faa6fa4",
+      "last_seen": "m_3fb2ab896eea4747883769e56faa6fa4",
+      "meeting_title": "小艺慧记项目进展与待办同步会",
+      "time": "2026-09-01",
+      "time_source": "user",
+      "quote": "这个我设置的是6536，然后920p四的话，如果是自由镜像，它显存的占的更多。"
+    },
+    {
+      "item_id": "r6",
+      "text": "现网流量报表数据不稳定，与纪要数据差一个数量级",
+      "status": "active",
+      "since": "m_3fb2ab896eea4747883769e56faa6fa4",
+      "last_seen": "m_3fb2ab896eea4747883769e56faa6fa4",
+      "meeting_title": "小艺慧记项目进展与待办同步会",
+      "time": "2026-09-01",
+      "time_source": "user",
+      "quote": "绩要数据是6000，差对差了一个数量级6000~7000。"
+    },
+    {
+      "item_id": "r7",
+      "text": "语音在会议上资源是零，需从头申请或借其他项目",
+      "status": "active",
+      "since": "m_3fb2ab896eea4747883769e56faa6fa4",
+      "last_seen": "m_3fb2ab896eea4747883769e56faa6fa4",
+      "meeting_title": "小艺慧记项目进展与待办同步会",
+      "time": "2026-09-01",
+      "time_source": "user",
+      "quote": ""
+    },
+    {
+      "item_id": "r8",
+      "text": "推理还没优化，模型资源消耗大，64卡64路并发太奢侈",
+      "status": "active",
+      "since": "m_3fb2ab896eea4747883769e56faa6fa4",
+      "last_seen": "m_3fb2ab896eea4747883769e56faa6fa4",
+      "meeting_title": "小艺慧记项目进展与待办同步会",
+      "time": "2026-09-01",
+      "time_source": "user",
+      "quote": ""
+    },
+    {
+      "item_id": "r9",
+      "text": "升7.0后远近如一加剧静音出字/噪声出字问题",
+      "status": "active",
+      "since": "m_3fb2ab896eea4747883769e56faa6fa4",
+      "last_seen": "m_3fb2ab896eea4747883769e56faa6fa4",
+      "meeting_title": "小艺慧记项目进展与待办同步会",
+      "time": "2026-09-01",
+      "time_source": "user",
+      "quote": ""
+    },
+    {
+      "item_id": "r10",
+      "text": "部分模型有幻觉问题，后面莫名其妙补幻觉",
+      "status": "mitigated",
+      "since": "m_3fb2ab896eea4747883769e56faa6fa4",
+      "last_seen": "m_a44365a5525248468a7d6a2d68f4c489",
+      "meeting_title": "小艺慧记项目进展与930节点安排会",
+      "time": "2026-09-01",
+      "time_source": "user",
+      "quote": "对，然后就算然后对，然后解决了一下端侧麦克风加媒体音播报幻觉的问题，就是他之前有个版本没有更新上去。",
+      "closed_at": "m_a44365a5525248468a7d6a2d68f4c489"
+    },
+    {
+      "item_id": "r11",
+      "text": "自录制数据有超过30s的，按阶段测导致指标差",
+      "status": "active",
+      "since": "m_3fb2ab896eea4747883769e56faa6fa4",
+      "last_seen": "m_3fb2ab896eea4747883769e56faa6fa4",
+      "meeting_title": "小艺慧记项目进展与待办同步会",
+      "time": "2026-09-01",
+      "time_source": "user",
+      "quote": ""
+    },
+    {
+      "item_id": "r12",
+      "text": "千问三harmony幻觉严重，整体指标差",
+      "status": "active",
+      "since": "m_3fb2ab896eea4747883769e56faa6fa4",
+      "last_seen": "m_3fb2ab896eea4747883769e56faa6fa4",
+      "meeting_title": "小艺慧记项目进展与待办同步会",
+      "time": "2026-09-01",
+      "time_source": "user",
+      "quote": ""
+    },
+    {
+      "item_id": "r13",
+      "text": "MOSS与现网在confusion上还差一些",
+      "status": "active",
+      "since": "m_3fb2ab896eea4747883769e56faa6fa4",
+      "last_seen": "m_3fb2ab896eea4747883769e56faa6fa4",
+      "meeting_title": "小艺慧记项目进展与待办同步会",
+      "time": "2026-09-01",
+      "time_source": "user",
+      "quote": ""
+    },
+    {
+      "item_id": "r14",
+      "text": "长文本8~9万字不行，token比较慢，prefil费时间，手头跟最大都到40多秒",
+      "status": "active",
+      "since": "m_a44365a5525248468a7d6a2d68f4c489",
+      "last_seen": "m_a44365a5525248468a7d6a2d68f4c489",
+      "meeting_title": "小艺慧记项目进展与930节点安排会",
+      "time": "2026-09-01",
+      "time_source": "user",
+      "quote": "我们改了个配置，长文本是k了，但是它就是说token比较慢。"
+    },
+    {
+      "item_id": "r15",
+      "text": "第一步10s也一定超时，加上后面40多秒加起来就一分钟",
+      "status": "active",
+      "since": "m_a44365a5525248468a7d6a2d68f4c489",
+      "last_seen": "m_a44365a5525248468a7d6a2d68f4c489",
+      "meeting_title": "小艺慧记项目进展与930节点安排会",
+      "time": "2026-09-01",
+      "time_source": "user",
+      "quote": "现在因为现在这个东西，它那个第一步10s也一定超时，加上你后面这40多秒加起来就一分钟了。"
+    },
+    {
+      "item_id": "r16",
+      "text": "910c机器密码还没申请，时间比较短，需这周下周初验证",
+      "status": "active",
+      "since": "m_a44365a5525248468a7d6a2d68f4c489",
+      "last_seen": "m_a44365a5525248468a7d6a2d68f4c489",
+      "meeting_title": "小艺慧记项目进展与930节点安排会",
+      "time": "2026-09-01",
+      "time_source": "user",
+      "quote": "这个时间比较短，可能我们需要。"
+    },
+    {
+      "item_id": "r17",
+      "text": "软件镜像没在环境，得找人专门去推",
+      "status": "active",
+      "since": "m_a44365a5525248468a7d6a2d68f4c489",
+      "last_seen": "m_a44365a5525248468a7d6a2d68f4c489",
+      "meeting_title": "小艺慧记项目进展与930节点安排会",
+      "time": "2026-09-01",
+      "time_source": "user",
+      "quote": "软件镜像还得我得找人去专门去推。"
+    },
+    {
+      "item_id": "r18",
+      "text": "峰值并发650，单卡一路就需650张卡",
+      "status": "active",
+      "since": "m_a44365a5525248468a7d6a2d68f4c489",
+      "last_seen": "m_a44365a5525248468a7d6a2d68f4c489",
+      "meeting_title": "小艺慧记项目进展与930节点安排会",
+      "time": "2026-09-01",
+      "time_source": "user",
+      "quote": "那这个并杰它这个意思就是峰值并发650的话，小型飞机。"
+    },
+    {
+      "item_id": "r19",
+      "text": "49min会议转写要13分多，约原始音频1/3耗时",
+      "status": "active",
+      "since": "m_a44365a5525248468a7d6a2d68f4c489",
+      "last_seen": "m_a44365a5525248468a7d6a2d68f4c489",
+      "meeting_title": "小艺慧记项目进展与930节点安排会",
+      "time": "2026-09-01",
+      "time_source": "user",
+      "quote": "就是这个我用49min的会议去转写，它，夯实要13分多。"
+    },
+    {
+      "item_id": "r20",
+      "text": "ASR只能串行，不能并行",
+      "status": "active",
+      "since": "m_a44365a5525248468a7d6a2d68f4c489",
+      "last_seen": "m_a44365a5525248468a7d6a2d68f4c489",
+      "meeting_title": "小艺慧记项目进展与930节点安排会",
+      "time": "2026-09-01",
+      "time_source": "user",
+      "quote": ""
+    },
+    {
+      "item_id": "r21",
+      "text": "专业词识别效果比较差",
+      "status": "active",
+      "since": "m_a44365a5525248468a7d6a2d68f4c489",
+      "last_seen": "m_a44365a5525248468a7d6a2d68f4c489",
+      "meeting_title": "小艺慧记项目进展与930节点安排会",
+      "time": "2026-09-01",
+      "time_source": "user",
+      "quote": ""
+    },
+    {
+      "item_id": "r22",
+      "text": "音频最大专系时长90min，现网最长10小时",
+      "status": "active",
+      "since": "m_a44365a5525248468a7d6a2d68f4c489",
+      "last_seen": "m_a44365a5525248468a7d6a2d68f4c489",
+      "meeting_title": "小艺慧记项目进展与930节点安排会",
+      "time": "2026-09-01",
+      "time_source": "user",
+      "quote": ""
+    },
+    {
+      "item_id": "r23",
+      "text": "范炳杰认为目前能力还不具备直接用",
+      "status": "active",
+      "since": "m_a44365a5525248468a7d6a2d68f4c489",
+      "last_seen": "m_a44365a5525248468a7d6a2d68f4c489",
+      "meeting_title": "小艺慧记项目进展与930节点安排会",
+      "time": "2026-09-01",
+      "time_source": "user",
+      "quote": ""
+    },
+    {
+      "item_id": "r24",
+      "text": "量化手段还在探索，什么时候出结果不一定",
+      "status": "active",
+      "since": "m_a44365a5525248468a7d6a2d68f4c489",
+      "last_seen": "m_a44365a5525248468a7d6a2d68f4c489",
+      "meeting_title": "小艺慧记项目进展与930节点安排会",
+      "time": "2026-09-01",
+      "time_source": "user",
+      "quote": ""
+    },
+    {
+      "item_id": "r25",
+      "text": "端侧demo拉了个群但他们比较忙，暂时没有人力支撑",
+      "status": "active",
+      "since": "m_a44365a5525248468a7d6a2d68f4c489",
+      "last_seen": "m_a44365a5525248468a7d6a2d68f4c489",
+      "meeting_title": "小艺慧记项目进展与930节点安排会",
+      "time": "2026-09-01",
+      "time_source": "user",
+      "quote": ""
+    },
+    {
+      "item_id": "r26",
+      "text": "推理加速窗口期不多，节点930，留给我们的机会不多了",
+      "status": "active",
+      "since": "m_a44365a5525248468a7d6a2d68f4c489",
+      "last_seen": "m_a44365a5525248468a7d6a2d68f4c489",
+      "meeting_title": "小艺慧记项目进展与930节点安排会",
+      "time": "2026-09-01",
+      "time_source": "user",
+      "quote": ""
+    },
+    {
+      "item_id": "r27",
+      "text": "单卡一并发肯定不行",
+      "status": "active",
+      "since": "m_a44365a5525248468a7d6a2d68f4c489",
+      "last_seen": "m_a44365a5525248468a7d6a2d68f4c489",
+      "meeting_title": "小艺慧记项目进展与930节点安排会",
+      "time": "2026-09-01",
+      "time_source": "user",
+      "quote": ""
+    },
+    {
+      "item_id": "r28",
+      "text": "过APA会受限制，人家不一定愿意让整套能力上去",
+      "status": "active",
+      "since": "m_a44365a5525248468a7d6a2d68f4c489",
+      "last_seen": "m_a44365a5525248468a7d6a2d68f4c489",
+      "meeting_title": "小艺慧记项目进展与930节点安排会",
+      "time": "2026-09-01",
+      "time_source": "user",
+      "quote": ""
+    },
+    {
+      "item_id": "r29",
+      "text": "架构上上面不会同意，涉及隐私问题",
+      "status": "active",
+      "since": "m_a44365a5525248468a7d6a2d68f4c489",
+      "last_seen": "m_a44365a5525248468a7d6a2d68f4c489",
+      "meeting_title": "小艺慧记项目进展与930节点安排会",
+      "time": "2026-09-01",
+      "time_source": "user",
+      "quote": ""
+    },
+    {
+      "item_id": "r30",
+      "text": "按目前架构未来一定会被tokoe",
+      "status": "active",
+      "since": "m_a44365a5525248468a7d6a2d68f4c489",
+      "last_seen": "m_a44365a5525248468a7d6a2d68f4c489",
+      "meeting_title": "小艺慧记项目进展与930节点安排会",
+      "time": "2026-09-01",
+      "time_source": "user",
+      "quote": ""
+    },
+    {
+      "item_id": "r31",
+      "text": "单独搞端sdk和云服务工作量double",
+      "status": "active",
+      "since": "m_a44365a5525248468a7d6a2d68f4c489",
+      "last_seen": "m_a44365a5525248468a7d6a2d68f4c489",
+      "meeting_title": "小艺慧记项目进展与930节点安排会",
+      "time": "2026-09-01",
+      "time_source": "user",
+      "quote": ""
+    },
+    {
+      "item_id": "r32",
+      "text": "控件链条包一直没给消息，他们太忙不太能支撑",
+      "status": "active",
+      "since": "m_a44365a5525248468a7d6a2d68f4c489",
+      "last_seen": "m_a44365a5525248468a7d6a2d68f4c489",
+      "meeting_title": "小艺慧记项目进展与930节点安排会",
+      "time": "2026-09-01",
+      "time_source": "user",
+      "quote": ""
+    },
+    {
+      "item_id": "r33",
+      "text": "内部WeLink打标进度慢，不然得10好几周出去",
+      "status": "active",
+      "since": "m_a44365a5525248468a7d6a2d68f4c489",
+      "last_seen": "m_a44365a5525248468a7d6a2d68f4c489",
+      "meeting_title": "小艺慧记项目进展与930节点安排会",
+      "time": "2026-09-01",
+      "time_source": "user",
+      "quote": ""
+    },
+    {
+      "item_id": "r34",
+      "text": "博客数据这周可能不能用",
+      "status": "active",
+      "since": "m_a44365a5525248468a7d6a2d68f4c489",
+      "last_seen": "m_a44365a5525248468a7d6a2d68f4c489",
+      "meeting_title": "小艺慧记项目进展与930节点安排会",
+      "time": "2026-09-01",
+      "time_source": "user",
+      "quote": ""
+    },
+    {
+      "item_id": "r35",
+      "text": "生物模型在跨设备和音响波上指标劣化明显",
+      "status": "active",
+      "since": "m_a44365a5525248468a7d6a2d68f4c489",
+      "last_seen": "m_a44365a5525248468a7d6a2d68f4c489",
+      "meeting_title": "小艺慧记项目进展与930节点安排会",
+      "time": "2026-09-01",
+      "time_source": "user",
+      "quote": ""
+    },
+    {
+      "item_id": "r36",
+      "text": "most收益不确定，模型小上限低，未来还得扩模型",
+      "status": "active",
+      "since": "m_a44365a5525248468a7d6a2d68f4c489",
+      "last_seen": "m_a44365a5525248468a7d6a2d68f4c489",
+      "meeting_title": "小艺慧记项目进展与930节点安排会",
+      "time": "2026-09-01",
+      "time_source": "user",
+      "quote": ""
+    },
+    {
+      "item_id": "r37",
+      "text": "数据得洗，洗数据赶不上930",
+      "status": "active",
+      "since": "m_a44365a5525248468a7d6a2d68f4c489",
+      "last_seen": "m_a44365a5525248468a7d6a2d68f4c489",
+      "meeting_title": "小艺慧记项目进展与930节点安排会",
+      "time": "2026-09-01",
+      "time_source": "user",
+      "quote": ""
+    },
+    {
+      "item_id": "r38",
+      "text": "盛晋珲担心引擎了解程度不如算法，930不一定优化上去",
+      "status": "active",
+      "since": "m_a44365a5525248468a7d6a2d68f4c489",
+      "last_seen": "m_a44365a5525248468a7d6a2d68f4c489",
+      "meeting_title": "小艺慧记项目进展与930节点安排会",
+      "time": "2026-09-01",
+      "time_source": "user",
+      "quote": ""
+    }
+  ],
+  "summary": "过一遍小艺慧记项目各线进展，明确商品版本需求、引擎并发与ASR模型优化方向及930节点安排。 议题：Java侧商品版本需求与测试安排；模型接口与端侧需求；tob数统计与重复标点问题；蓝色回流与权限申请；流失待办格式与微服务测试 决策：主干侧主动锻炼，不统计成功率，申家坤先做处理再跟产品反馈看端侧有没有办法改；tob数统计今天改了，统计一天的，明天看hall t；重复和标点问题让端头那边和这边看有哪些要改的 未决：端侧PC没有显示的问题端侧大概什么时候带上版本；华山数据表能否加到数据检索或数据表里；风控提示文本和字数过少提示中英文描述需问晓华；现网流量报表数据与纪要数据差一个数量级，需找他们拆；模型并发资源需多少、现网有多少机器需确认 风险：端侧PC没有显示的问题还没改；摘要生成完其他没生成完有关联影响；字数过少判断中英比例复杂，背景噪音几秒可能识别错；控件链路太长，后端推不动",
+  "events": [
+    {
+      "type": "decision_added",
+      "item_id": "d1",
+      "kind": "decision",
+      "text": "每个任务加字段区分是否做完",
+      "meeting_id": "m_3fb2ab896eea4747883769e56faa6fa4",
+      "time": "2026-09-01"
+    },
+    {
+      "type": "decision_added",
+      "item_id": "d2",
+      "kind": "decision",
+      "text": "风控提示文本和字数过少提示需中文和英文，下来再问晓华",
+      "meeting_id": "m_3fb2ab896eea4747883769e56faa6fa4",
+      "time": "2026-09-01"
+    },
+    {
+      "type": "decision_added",
+      "item_id": "d3",
+      "kind": "decision",
+      "text": "控件改动等群里再定，由产品推、后端协助",
+      "meeting_id": "m_3fb2ab896eea4747883769e56faa6fa4",
+      "time": "2026-09-01"
+    },
+    {
+      "type": "decision_added",
+      "item_id": "d4",
+      "kind": "decision",
+      "text": "范炳杰这周更新版本解决双录信号问题",
+      "meeting_id": "m_3fb2ab896eea4747883769e56faa6fa4",
+      "time": "2026-09-01"
+    },
+    {
+      "type": "added",
+      "item_id": "o1",
+      "kind": "open",
+      "text": "端侧PC没有显示的问题端侧大概什么时候带上版本",
+      "meeting_id": "m_3fb2ab896eea4747883769e56faa6fa4",
+      "time": "2026-09-01"
+    },
+    {
+      "type": "added",
+      "item_id": "o2",
+      "kind": "open",
+      "text": "华山数据表能否加到数据检索或数据表里",
+      "meeting_id": "m_3fb2ab896eea4747883769e56faa6fa4",
+      "time": "2026-09-01"
+    },
+    {
+      "type": "added",
+      "item_id": "o3",
+      "kind": "open",
+      "text": "风控提示文本和字数过少提示中英文描述需问晓华",
+      "meeting_id": "m_3fb2ab896eea4747883769e56faa6fa4",
+      "time": "2026-09-01"
+    },
+    {
+      "type": "added",
+      "item_id": "o4",
+      "kind": "open",
+      "text": "现网流量报表数据与纪要数据差一个数量级，需找他们拆",
+      "meeting_id": "m_3fb2ab896eea4747883769e56faa6fa4",
+      "time": "2026-09-01"
+    },
+    {
+      "type": "added",
+      "item_id": "o5",
+      "kind": "open",
+      "text": "模型并发资源需多少、现网有多少机器需确认",
+      "meeting_id": "m_3fb2ab896eea4747883769e56faa6fa4",
+      "time": "2026-09-01"
+    },
+    {
+      "type": "added",
+      "item_id": "o6",
+      "kind": "open",
+      "text": "推理加速优化需找专业团队支撑",
+      "meeting_id": "m_3fb2ab896eea4747883769e56faa6fa4",
+      "time": "2026-09-01"
+    },
+    {
+      "type": "added",
+      "item_id": "o7",
+      "kind": "open",
+      "text": "平板端到端demo链条包明天能否调通",
+      "meeting_id": "m_3fb2ab896eea4747883769e56faa6fa4",
+      "time": "2026-09-01"
+    },
+    {
+      "type": "added",
+      "item_id": "a1",
+      "kind": "action",
+      "text": "跟华山那边联调现网DMQ",
+      "meeting_id": "m_3fb2ab896eea4747883769e56faa6fa4",
+      "time": "2026-09-01"
+    },
+    {
+      "type": "added",
+      "item_id": "a2",
+      "kind": "action",
+      "text": "每个任务加字段区分是否做完",
+      "meeting_id": "m_3fb2ab896eea4747883769e56faa6fa4",
+      "time": "2026-09-01"
+    },
+    {
+      "type": "added",
+      "item_id": "a3",
+      "kind": "action",
+      "text": "范炳杰本地跑通python接口",
+      "meeting_id": "m_3fb2ab896eea4747883769e56faa6fa4",
+      "time": "2026-09-01"
+    },
+    {
+      "type": "added",
+      "item_id": "a4",
+      "kind": "action",
+      "text": "范炳杰这周更新版本刷掉双录信号问题",
+      "meeting_id": "m_3fb2ab896eea4747883769e56faa6fa4",
+      "time": "2026-09-01"
+    },
+    {
+      "type": "added",
+      "item_id": "a5",
+      "kind": "action",
+      "text": "范炳杰下来找他们拆报表确认现网流量数据",
+      "meeting_id": "m_3fb2ab896eea4747883769e56faa6fa4",
+      "time": "2026-09-01"
+    },
+    {
+      "type": "added",
+      "item_id": "a6",
+      "kind": "action",
+      "text": "大家帮忙标内部WeLink数据",
+      "meeting_id": "m_3fb2ab896eea4747883769e56faa6fa4",
+      "time": "2026-09-01"
+    },
+    {
+      "type": "added",
+      "item_id": "a7",
+      "kind": "action",
+      "text": "徐玥先搞AI、华为、政府、金融、法律、数学几个领域术语",
+      "meeting_id": "m_3fb2ab896eea4747883769e56faa6fa4",
+      "time": "2026-09-01"
+    },
+    {
+      "type": "added",
+      "item_id": "a8",
+      "kind": "action",
+      "text": "家坤慧敏试宇翔传的5000h关键词ASR数据",
+      "meeting_id": "m_3fb2ab896eea4747883769e56faa6fa4",
+      "time": "2026-09-01"
+    },
+    {
+      "type": "added",
+      "item_id": "a9",
+      "kind": "action",
+      "text": "李梦甜把超长/未标完list整理给家豪用书畅补打",
+      "meeting_id": "m_3fb2ab896eea4747883769e56faa6fa4",
+      "time": "2026-09-01"
+    },
+    {
+      "type": "added",
+      "item_id": "a10",
+      "kind": "action",
+      "text": "鄢书畅测MOSS原型、分段推理和最新日志大模型指标",
+      "meeting_id": "m_3fb2ab896eea4747883769e56faa6fa4",
+      "time": "2026-09-01"
+    },
+    {
+      "type": "done",
+      "item_id": "a4",
+      "kind": "action",
+      "text": "范炳杰这周更新版本刷掉双录信号问题",
+      "meeting_id": "m_3fb2ab896eea4747883769e56faa6fa4",
+      "time": "2026-09-01"
+    },
+    {
+      "type": "risk_added",
+      "item_id": "r1",
+      "kind": "risk",
+      "text": "端侧PC没有显示的问题还没改",
+      "meeting_id": "m_3fb2ab896eea4747883769e56faa6fa4",
+      "time": "2026-09-01"
+    },
+    {
+      "type": "risk_added",
+      "item_id": "r2",
+      "kind": "risk",
+      "text": "摘要生成完其他没生成完有关联影响",
+      "meeting_id": "m_3fb2ab896eea4747883769e56faa6fa4",
+      "time": "2026-09-01"
+    },
+    {
+      "type": "risk_added",
+      "item_id": "r3",
+      "kind": "risk",
+      "text": "字数过少判断中英比例复杂，背景噪音几秒可能识别错",
+      "meeting_id": "m_3fb2ab896eea4747883769e56faa6fa4",
+      "time": "2026-09-01"
+    },
+    {
+      "type": "risk_added",
+      "item_id": "r4",
+      "kind": "risk",
+      "text": "控件链路太长，后端推不动",
+      "meeting_id": "m_3fb2ab896eea4747883769e56faa6fa4",
+      "time": "2026-09-01"
+    },
+    {
+      "type": "risk_added",
+      "item_id": "r5",
+      "kind": "risk",
+      "text": "910B四自由镜像显存占更多，现网可能需B或C",
+      "meeting_id": "m_3fb2ab896eea4747883769e56faa6fa4",
+      "time": "2026-09-01"
+    },
+    {
+      "type": "risk_added",
+      "item_id": "r6",
+      "kind": "risk",
+      "text": "现网流量报表数据不稳定，与纪要数据差一个数量级",
+      "meeting_id": "m_3fb2ab896eea4747883769e56faa6fa4",
+      "time": "2026-09-01"
+    },
+    {
+      "type": "risk_added",
+      "item_id": "r7",
+      "kind": "risk",
+      "text": "语音在会议上资源是零，需从头申请或借其他项目",
+      "meeting_id": "m_3fb2ab896eea4747883769e56faa6fa4",
+      "time": "2026-09-01"
+    },
+    {
+      "type": "risk_added",
+      "item_id": "r8",
+      "kind": "risk",
+      "text": "推理还没优化，模型资源消耗大，64卡64路并发太奢侈",
+      "meeting_id": "m_3fb2ab896eea4747883769e56faa6fa4",
+      "time": "2026-09-01"
+    },
+    {
+      "type": "risk_added",
+      "item_id": "r9",
+      "kind": "risk",
+      "text": "升7.0后远近如一加剧静音出字/噪声出字问题",
+      "meeting_id": "m_3fb2ab896eea4747883769e56faa6fa4",
+      "time": "2026-09-01"
+    },
+    {
+      "type": "risk_added",
+      "item_id": "r10",
+      "kind": "risk",
+      "text": "部分模型有幻觉问题，后面莫名其妙补幻觉",
+      "meeting_id": "m_3fb2ab896eea4747883769e56faa6fa4",
+      "time": "2026-09-01"
+    },
+    {
+      "type": "risk_added",
+      "item_id": "r11",
+      "kind": "risk",
+      "text": "自录制数据有超过30s的，按阶段测导致指标差",
+      "meeting_id": "m_3fb2ab896eea4747883769e56faa6fa4",
+      "time": "2026-09-01"
+    },
+    {
+      "type": "risk_added",
+      "item_id": "r12",
+      "kind": "risk",
+      "text": "千问三harmony幻觉严重，整体指标差",
+      "meeting_id": "m_3fb2ab896eea4747883769e56faa6fa4",
+      "time": "2026-09-01"
+    },
+    {
+      "type": "risk_added",
+      "item_id": "r13",
+      "kind": "risk",
+      "text": "MOSS与现网在confusion上还差一些",
+      "meeting_id": "m_3fb2ab896eea4747883769e56faa6fa4",
+      "time": "2026-09-01"
+    },
+    {
+      "type": "decision_added",
+      "item_id": "d5",
+      "kind": "decision",
+      "text": "主干侧主动锻炼，不统计成功率，申家坤先做处理再跟产品反馈看端侧有没有办法改",
+      "meeting_id": "m_a44365a5525248468a7d6a2d68f4c489",
+      "time": "2026-09-01"
+    },
+    {
+      "type": "decision_added",
+      "item_id": "d6",
+      "kind": "decision",
+      "text": "tob数统计今天改了，统计一天的，明天看hall t",
+      "meeting_id": "m_a44365a5525248468a7d6a2d68f4c489",
+      "time": "2026-09-01"
+    },
+    {
+      "type": "decision_added",
+      "item_id": "d7",
+      "kind": "decision",
+      "text": "重复和标点问题让端头那边和这边看有哪些要改的",
+      "meeting_id": "m_a44365a5525248468a7d6a2d68f4c489",
+      "time": "2026-09-01"
+    },
+    {
+      "type": "decision_added",
+      "item_id": "d8",
+      "kind": "decision",
+      "text": "流失待办格式改成他要的格式，让他那边也改了",
+      "meeting_id": "m_a44365a5525248468a7d6a2d68f4c489",
+      "time": "2026-09-01"
+    },
+    {
+      "type": "decision_added",
+      "item_id": "d9",
+      "kind": "decision",
+      "text": "微服务统一接口需要改，接口python里通过bi d调fm一p模型，先调千问码调通流程，效果按现在子部署的ds模型看",
+      "meeting_id": "m_a44365a5525248468a7d6a2d68f4c489",
+      "time": "2026-09-01"
+    },
+    {
+      "type": "decision_added",
+      "item_id": "d10",
+      "kind": "decision",
+      "text": "910c机器这周下周初去验证是模型的问题还是机器的问题",
+      "meeting_id": "m_a44365a5525248468a7d6a2d68f4c489",
+      "time": "2026-09-01"
+    },
+    {
+      "type": "decision_added",
+      "item_id": "d11",
+      "kind": "decision",
+      "text": "问题单到时候找武思华核一下，中测时带上中测版本",
+      "meeting_id": "m_a44365a5525248468a7d6a2d68f4c489",
+      "time": "2026-09-01"
+    },
+    {
+      "type": "decision_added",
+      "item_id": "d12",
+      "kind": "decision",
+      "text": "徐玥说没有保底，千问和most两个只能二选一，所有人力集中做一个",
+      "meeting_id": "m_a44365a5525248468a7d6a2d68f4c489",
+      "time": "2026-09-01"
+    },
+    {
+      "type": "decision_added",
+      "item_id": "d13",
+      "kind": "decision",
+      "text": "徐玥说非实时先不做，人力放到实时上面，先把实时的搞定",
+      "meeting_id": "m_a44365a5525248468a7d6a2d68f4c489",
+      "time": "2026-09-01"
+    },
+    {
+      "type": "decision_added",
+      "item_id": "d14",
+      "kind": "decision",
+      "text": "徐玥说会上先不做决策，崔辉排人力，她去找杨老师问链路",
+      "meeting_id": "m_a44365a5525248468a7d6a2d68f4c489",
+      "time": "2026-09-01"
+    },
+    {
+      "type": "added",
+      "item_id": "o8",
+      "kind": "open",
+      "text": "商品版本后两个需求的测试报告能否出来",
+      "meeting_id": "m_a44365a5525248468a7d6a2d68f4c489",
+      "time": "2026-09-01"
+    },
+    {
+      "type": "added",
+      "item_id": "o9",
+      "kind": "open",
+      "text": "刘师是否测微服务、谁测微服务尚未确定",
+      "meeting_id": "m_a44365a5525248468a7d6a2d68f4c489",
+      "time": "2026-09-01"
+    },
+    {
+      "type": "added",
+      "item_id": "o10",
+      "kind": "open",
+      "text": "端侧能否改生成过程中切换走断换的问题，之前isales没给方案",
+      "meeting_id": "m_a44365a5525248468a7d6a2d68f4c489",
+      "time": "2026-09-01"
+    },
+    {
+      "type": "added",
+      "item_id": "o11",
+      "kind": "open",
+      "text": "蓝色回流权限一直不批，武思华找了好几次",
+      "meeting_id": "m_a44365a5525248468a7d6a2d68f4c489",
+      "time": "2026-09-01"
+    },
+    {
+      "type": "added",
+      "item_id": "o12",
+      "kind": "open",
+      "text": "长文本8~9万字不行、token慢，是否拿竞品测、推理有没有优化方式",
+      "meeting_id": "m_a44365a5525248468a7d6a2d68f4c489",
+      "time": "2026-09-01"
+    },
+    {
+      "type": "added",
+      "item_id": "o13",
+      "kind": "open",
+      "text": "910c机器是模型问题还是机器问题待验证，镜像需找人推",
+      "meeting_id": "m_a44365a5525248468a7d6a2d68f4c489",
+      "time": "2026-09-01"
+    },
+    {
+      "type": "added",
+      "item_id": "o14",
+      "kind": "open",
+      "text": "引擎并发优化目标、能否达到单卡四路或六路",
+      "meeting_id": "m_a44365a5525248468a7d6a2d68f4c489",
+      "time": "2026-09-01"
+    },
+    {
+      "type": "added",
+      "item_id": "o15",
+      "kind": "open",
+      "text": "强基性4.0接口测试java还没跑起来，横向对比待做",
+      "meeting_id": "m_a44365a5525248468a7d6a2d68f4c489",
+      "time": "2026-09-01"
+    },
+    {
+      "type": "added",
+      "item_id": "o16",
+      "kind": "open",
+      "text": "与录音机控件联调走哪条链路、能否拿到链条包",
+      "meeting_id": "m_a44365a5525248468a7d6a2d68f4c489",
+      "time": "2026-09-01"
+    },
+    {
+      "type": "added",
+      "item_id": "o17",
+      "kind": "open",
+      "text": "是否绕开APA、走翻译云或新建智慧记录控件sdk，需问杨老师",
+      "meeting_id": "m_a44365a5525248468a7d6a2d68f4c489",
+      "time": "2026-09-01"
+    },
+    {
+      "type": "added",
+      "item_id": "o18",
+      "kind": "open",
+      "text": "转测范围、测试指标定义、测试人是否与小一会计同一人待讨论",
+      "meeting_id": "m_a44365a5525248468a7d6a2d68f4c489",
+      "time": "2026-09-01"
+    },
+    {
+      "type": "added",
+      "item_id": "o19",
+      "kind": "open",
+      "text": "千问与most二选一，会后讨论，会上不做决策",
+      "meeting_id": "m_a44365a5525248468a7d6a2d68f4c489",
+      "time": "2026-09-01"
+    },
+    {
+      "type": "added",
+      "item_id": "a11",
+      "kind": "action",
+      "text": "申家坤做处理并跟产品反馈看端侧有没有办法改",
+      "meeting_id": "m_a44365a5525248468a7d6a2d68f4c489",
+      "time": "2026-09-01"
+    },
+    {
+      "type": "added",
+      "item_id": "a12",
+      "kind": "action",
+      "text": "武思华明天找他们要tob数统计数据",
+      "meeting_id": "m_a44365a5525248468a7d6a2d68f4c489",
+      "time": "2026-09-01"
+    },
+    {
+      "type": "added",
+      "item_id": "a13",
+      "kind": "action",
+      "text": "端头那边和这边看重复和标点有哪些要改的改一下",
+      "meeting_id": "m_a44365a5525248468a7d6a2d68f4c489",
+      "time": "2026-09-01"
+    },
+    {
+      "type": "added",
+      "item_id": "a14",
+      "kind": "action",
+      "text": "申家坤测竞品长文本耗时并问推理优化方式",
+      "meeting_id": "m_a44365a5525248468a7d6a2d68f4c489",
+      "time": "2026-09-01"
+    },
+    {
+      "type": "added",
+      "item_id": "a15",
+      "kind": "action",
+      "text": "思华看改字幕摘要需求",
+      "meeting_id": "m_a44365a5525248468a7d6a2d68f4c489",
+      "time": "2026-09-01"
+    },
+    {
+      "type": "added",
+      "item_id": "a16",
+      "kind": "action",
+      "text": "范炳杰今天晚点试4~5个接口并集成到网页版",
+      "meeting_id": "m_a44365a5525248468a7d6a2d68f4c489",
+      "time": "2026-09-01"
+    },
+    {
+      "type": "added",
+      "item_id": "a17",
+      "kind": "action",
+      "text": "申家坤找武思华核问题单，中测时带上中测版本",
+      "meeting_id": "m_a44365a5525248468a7d6a2d68f4c489",
+      "time": "2026-09-01"
+    },
+    {
+      "type": "added",
+      "item_id": "a18",
+      "kind": "action",
+      "text": "范炳杰继续找承坤要链条包引向研发环境",
+      "meeting_id": "m_a44365a5525248468a7d6a2d68f4c489",
+      "time": "2026-09-01"
+    },
+    {
+      "type": "added",
+      "item_id": "a19",
+      "kind": "action",
+      "text": "徐玥去找杨老师问链路有没有可做的点",
+      "meeting_id": "m_a44365a5525248468a7d6a2d68f4c489",
+      "time": "2026-09-01"
+    },
+    {
+      "type": "added",
+      "item_id": "a20",
+      "kind": "action",
+      "text": "范炳杰先研究走翻译云、翻译sdk的demo方案",
+      "meeting_id": "m_a44365a5525248468a7d6a2d68f4c489",
+      "time": "2026-09-01"
+    },
+    {
+      "type": "added",
+      "item_id": "a21",
+      "kind": "action",
+      "text": "崔辉排人力",
+      "meeting_id": "m_a44365a5525248468a7d6a2d68f4c489",
+      "time": "2026-09-01"
+    },
+    {
+      "type": "added",
+      "item_id": "a22",
+      "kind": "action",
+      "text": "郭慧敏会后把模型往出倒并放到demo上测",
+      "meeting_id": "m_a44365a5525248468a7d6a2d68f4c489",
+      "time": "2026-09-01"
+    },
+    {
+      "type": "added",
+      "item_id": "a23",
+      "kind": "action",
+      "text": "申家坤导出模型测时延，有问题再调整",
+      "meeting_id": "m_a44365a5525248468a7d6a2d68f4c489",
+      "time": "2026-09-01"
+    },
+    {
+      "type": "done",
+      "item_id": "o10",
+      "kind": "open",
+      "text": "端侧能否改生成过程中切换走断换的问题，之前isales没给方案",
+      "meeting_id": "m_a44365a5525248468a7d6a2d68f4c489",
+      "time": "2026-09-01"
+    },
+    {
+      "type": "risk_added",
+      "item_id": "r14",
+      "kind": "risk",
+      "text": "长文本8~9万字不行，token比较慢，prefil费时间，手头跟最大都到40多秒",
+      "meeting_id": "m_a44365a5525248468a7d6a2d68f4c489",
+      "time": "2026-09-01"
+    },
+    {
+      "type": "risk_added",
+      "item_id": "r15",
+      "kind": "risk",
+      "text": "第一步10s也一定超时，加上后面40多秒加起来就一分钟",
+      "meeting_id": "m_a44365a5525248468a7d6a2d68f4c489",
+      "time": "2026-09-01"
+    },
+    {
+      "type": "risk_added",
+      "item_id": "r16",
+      "kind": "risk",
+      "text": "910c机器密码还没申请，时间比较短，需这周下周初验证",
+      "meeting_id": "m_a44365a5525248468a7d6a2d68f4c489",
+      "time": "2026-09-01"
+    },
+    {
+      "type": "risk_added",
+      "item_id": "r17",
+      "kind": "risk",
+      "text": "软件镜像没在环境，得找人专门去推",
+      "meeting_id": "m_a44365a5525248468a7d6a2d68f4c489",
+      "time": "2026-09-01"
+    },
+    {
+      "type": "risk_added",
+      "item_id": "r18",
+      "kind": "risk",
+      "text": "峰值并发650，单卡一路就需650张卡",
+      "meeting_id": "m_a44365a5525248468a7d6a2d68f4c489",
+      "time": "2026-09-01"
+    },
+    {
+      "type": "risk_added",
+      "item_id": "r19",
+      "kind": "risk",
+      "text": "49min会议转写要13分多，约原始音频1/3耗时",
+      "meeting_id": "m_a44365a5525248468a7d6a2d68f4c489",
+      "time": "2026-09-01"
+    },
+    {
+      "type": "risk_added",
+      "item_id": "r20",
+      "kind": "risk",
+      "text": "ASR只能串行，不能并行",
+      "meeting_id": "m_a44365a5525248468a7d6a2d68f4c489",
+      "time": "2026-09-01"
+    },
+    {
+      "type": "risk_added",
+      "item_id": "r21",
+      "kind": "risk",
+      "text": "专业词识别效果比较差",
+      "meeting_id": "m_a44365a5525248468a7d6a2d68f4c489",
+      "time": "2026-09-01"
+    },
+    {
+      "type": "risk_added",
+      "item_id": "r22",
+      "kind": "risk",
+      "text": "音频最大专系时长90min，现网最长10小时",
+      "meeting_id": "m_a44365a5525248468a7d6a2d68f4c489",
+      "time": "2026-09-01"
+    },
+    {
+      "type": "risk_added",
+      "item_id": "r23",
+      "kind": "risk",
+      "text": "范炳杰认为目前能力还不具备直接用",
+      "meeting_id": "m_a44365a5525248468a7d6a2d68f4c489",
+      "time": "2026-09-01"
+    },
+    {
+      "type": "risk_added",
+      "item_id": "r24",
+      "kind": "risk",
+      "text": "量化手段还在探索，什么时候出结果不一定",
+      "meeting_id": "m_a44365a5525248468a7d6a2d68f4c489",
+      "time": "2026-09-01"
+    },
+    {
+      "type": "risk_added",
+      "item_id": "r25",
+      "kind": "risk",
+      "text": "端侧demo拉了个群但他们比较忙，暂时没有人力支撑",
+      "meeting_id": "m_a44365a5525248468a7d6a2d68f4c489",
+      "time": "2026-09-01"
+    },
+    {
+      "type": "risk_added",
+      "item_id": "r26",
+      "kind": "risk",
+      "text": "推理加速窗口期不多，节点930，留给我们的机会不多了",
+      "meeting_id": "m_a44365a5525248468a7d6a2d68f4c489",
+      "time": "2026-09-01"
+    },
+    {
+      "type": "risk_added",
+      "item_id": "r27",
+      "kind": "risk",
+      "text": "单卡一并发肯定不行",
+      "meeting_id": "m_a44365a5525248468a7d6a2d68f4c489",
+      "time": "2026-09-01"
+    },
+    {
+      "type": "risk_added",
+      "item_id": "r28",
+      "kind": "risk",
+      "text": "过APA会受限制，人家不一定愿意让整套能力上去",
+      "meeting_id": "m_a44365a5525248468a7d6a2d68f4c489",
+      "time": "2026-09-01"
+    },
+    {
+      "type": "risk_added",
+      "item_id": "r29",
+      "kind": "risk",
+      "text": "架构上上面不会同意，涉及隐私问题",
+      "meeting_id": "m_a44365a5525248468a7d6a2d68f4c489",
+      "time": "2026-09-01"
+    },
+    {
+      "type": "risk_added",
+      "item_id": "r30",
+      "kind": "risk",
+      "text": "按目前架构未来一定会被tokoe",
+      "meeting_id": "m_a44365a5525248468a7d6a2d68f4c489",
+      "time": "2026-09-01"
+    },
+    {
+      "type": "risk_added",
+      "item_id": "r31",
+      "kind": "risk",
+      "text": "单独搞端sdk和云服务工作量double",
+      "meeting_id": "m_a44365a5525248468a7d6a2d68f4c489",
+      "time": "2026-09-01"
+    },
+    {
+      "type": "risk_added",
+      "item_id": "r32",
+      "kind": "risk",
+      "text": "控件链条包一直没给消息，他们太忙不太能支撑",
+      "meeting_id": "m_a44365a5525248468a7d6a2d68f4c489",
+      "time": "2026-09-01"
+    },
+    {
+      "type": "risk_added",
+      "item_id": "r33",
+      "kind": "risk",
+      "text": "内部WeLink打标进度慢，不然得10好几周出去",
+      "meeting_id": "m_a44365a5525248468a7d6a2d68f4c489",
+      "time": "2026-09-01"
+    },
+    {
+      "type": "risk_added",
+      "item_id": "r34",
+      "kind": "risk",
+      "text": "博客数据这周可能不能用",
+      "meeting_id": "m_a44365a5525248468a7d6a2d68f4c489",
+      "time": "2026-09-01"
+    },
+    {
+      "type": "risk_added",
+      "item_id": "r35",
+      "kind": "risk",
+      "text": "生物模型在跨设备和音响波上指标劣化明显",
+      "meeting_id": "m_a44365a5525248468a7d6a2d68f4c489",
+      "time": "2026-09-01"
+    },
+    {
+      "type": "risk_added",
+      "item_id": "r36",
+      "kind": "risk",
+      "text": "most收益不确定，模型小上限低，未来还得扩模型",
+      "meeting_id": "m_a44365a5525248468a7d6a2d68f4c489",
+      "time": "2026-09-01"
+    },
+    {
+      "type": "risk_added",
+      "item_id": "r37",
+      "kind": "risk",
+      "text": "数据得洗，洗数据赶不上930",
+      "meeting_id": "m_a44365a5525248468a7d6a2d68f4c489",
+      "time": "2026-09-01"
+    },
+    {
+      "type": "risk_added",
+      "item_id": "r38",
+      "kind": "risk",
+      "text": "盛晋珲担心引擎了解程度不如算法，930不一定优化上去",
+      "meeting_id": "m_a44365a5525248468a7d6a2d68f4c489",
+      "time": "2026-09-01"
+    },
+    {
+      "type": "mitigated",
+      "item_id": "r10",
+      "kind": "open",
+      "text": "部分模型有幻觉问题，后面莫名其妙补幻觉",
+      "meeting_id": "m_a44365a5525248468a7d6a2d68f4c489",
+      "time": "2026-09-01"
+    }
+  ]
+}

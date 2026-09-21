@@ -579,32 +579,38 @@ def _split_one_paragraph(line: str, cap: int) -> list[str]:
 def split_overlong_paragraphs_except_first(
     text: str, template: str
 ) -> tuple[str, list[str]]:
-    """同 :func:`split_overlong_paragraphs`，但**跳过总述栏（首个 `# 栏名`）**。
+    """同 :func:`split_overlong_paragraphs`，但**跳过「一段写完」的总述栏**。
 
-    模板声明「一段写完」的首栏刚被合并成一段（用户口径：一段不拆），
+    模板声明「一段写完」的栏刚被合并成一段（用户口径：一段不拆），
     若不跳过，拆段函数会立刻把它拆回多段——两条规则打架（实测 89d781 项目概况）。
-    其余栏照常拆。
+    豁免口径与合并函数一致：**按栏名**认（``_first_col_paragraph_titles``），
+    模板栏名解析不出时退回位置口径（首个 `# 栏名`）。原先只跳"首个一级栏"，
+    文档标题一旦以 `# 一级栏` 出现在产出里（装配稿常见），真正的总述栏就落到
+    第二位、合并完又被拆回去。其余栏照常拆。
     """
-    lines = (text or "").splitlines(keepends=True)
-    first_end = None
-    seen_first = False
-    for i, line in enumerate(lines):
-        s = line.strip()
-        if s.startswith("# ") and not s.startswith("## "):
-            if not seen_first:
-                seen_first = True
-                continue
-            first_end = i
-            break
-    if not seen_first or first_end is None:
-        # 只有一栏或没有标题：整个就是首栏 → 完全不拆
+    if not text or not template:
         return text, []
-    # 头段（首个栏名 + 其正文）原样保留——它就是"一段写完"的总述栏
-    head_text = "".join(lines[:first_end])
-    tail_text, tail_notes = split_overlong_paragraphs(
-        "".join(lines[first_end:]), template
-    )
-    return head_text + tail_text, tail_notes
+    lines = (text or "").splitlines(keepends=True)
+    h1s = _h1_indexes(lines)
+    if not h1s:
+        # 没有一级标题：整篇无从判定栏位，不拆
+        return text, []
+    targets = _first_col_paragraph_titles(template)
+    out: list[str] = []
+    notes: list[str] = []
+    if h1s[0] > 0:
+        out.append("".join(lines[: h1s[0]]))  # 首个栏名前的序言：无栏可归，原样保留
+    for k, h in enumerate(h1s):
+        end = h1s[k + 1] if k + 1 < len(h1s) else len(lines)
+        seg = "".join(lines[h:end])
+        exempt = _matches_target(_h1_name(lines[h]), targets) if targets else k == 0
+        if exempt:
+            out.append(seg)
+            continue
+        seg_text, seg_notes = split_overlong_paragraphs(seg, template)
+        out.append(seg_text)
+        notes.extend(seg_notes)
+    return "".join(out), notes
 
 
 def split_overlong_paragraphs(text: str, template: str) -> tuple[str, list[str]]:
@@ -703,33 +709,69 @@ def _top_level_sections(text: str) -> list[tuple[str, str]]:
     return [(title, "\n".join(parts)) for title, parts in merged]
 
 
-# 「一段写完，约 N–M 字」：总述栏（首栏）单段口径——模型写成多段时由程序合并成一段
+# 「一段写完，约 N–M 字」：总述栏单段口径——模型写成多段时由程序合并成一段
 _FIRST_COL_PARA_RE = re.compile(
     r"[（(]一段写完[，,]?\s*约?\s*\d+\s*[–—-]\s*\d+\s*字[)）]"
 )
 
 
+def _is_h1_line(line: str) -> bool:
+    s = line.strip()
+    return s.startswith("# ") and not s.startswith("## ")
+
+
+def _h1_indexes(lines: list[str]) -> list[int]:
+    return [i for i, ln in enumerate(lines) if _is_h1_line(ln)]
+
+
+def _h1_name(line: str) -> str:
+    return _norm_heading(line.strip().lstrip("# ").strip())
+
+
+def _matches_target(name: str, targets: set[str]) -> bool:
+    """栏名是否命中靶栏（含"概况"↔"项目概况"这类包含式写法，与拆段函数的栏名口径一致）。"""
+    return any(name and (t == name or t in name or name in t) for t in targets)
+
+
+def _first_col_paragraph_titles(template: str) -> set[str]:
+    """模板里声明「一段写完」的栏名（规范化）；解析不出返回空集。
+
+    2026-09-21（通用纪要实测）：声明写在第 1 栏，而产出里"第一个含 ≥2 散文段的栏"
+    未必是它——首栏按规范只写一段（1 段 < 2）时定位会一路滑到后面的多段栏，
+    把那一栏合并掉。位置口径治不了这个，故改成按栏名认。
+    """
+    try:
+        from tools.templates.template_eval import split_markdown_sections
+    except Exception:  # noqa: BLE001
+        return set()
+    names: set[str] = set()
+    for title, body in split_markdown_sections(template or ""):
+        if _FIRST_COL_PARA_RE.search(f"{title}\n{body}"):
+            name = _norm_heading(title)
+            if name:
+                names.add(name)
+    return names
+
+
 def _merge_first_column_paragraphs(text: str, template: str) -> tuple[str, str | None]:
-    """总述栏（首栏）声明了「一段写完」时，把栏内多个段块合并成一段（确定性拼装）。
+    """声明「一段写完」的总述栏被写成多段时，把栏内多个段块合并成一段（确定性拼装）。
 
     为什么在 enforce 里做：拆段函数只看"单段超上限"，模型把首栏拆成 3 段每段 ≤400
     （合计 981 字）时既不拆也不报——"段数"从来没有程序约束。合并是零 LLM 调用的
     确定性手段，配合 prompt 里的字数口径把首栏压回一段。
 
-    首栏定位：取**第一个其正文含散文段块的一级栏**——先收集所有一级标题（`# `，
-    不含 `## `）的行号，逐栏看正文；文档主标题（`# 项目进度会`，正文为空）自然跳过。
+    靶栏定位：**按栏名**取模板里声明「一段写完」的那一栏
+    （:func:`_first_col_paragraph_titles`），在产出里找同名的一级栏；命中栏不足 2 段
+    就什么都不做。曾经用"第一个含 ≥2 个散文段的一级栏"作位置口径，2026-09-21 踩坑：
+    通用纪要的 [全文摘要] 按规范写成一段被跳过，定位滑到下一栏 [分段速览]（时间轴恰好
+    2 段），该栏被合并成一段、`## 时间段` 子标题随正文一起消失，门禁仍 pass。模板栏名
+    解析不出时退回位置口径（第一个有散文段的栏），同样只在 ≥2 段时才合并。
     栏内表格行/列表/引用不动，只合并散文段块。
     """
-    m = _FIRST_COL_PARA_RE.search(template or "")
-    if not m:
+    if not _FIRST_COL_PARA_RE.search(template or ""):
         return text, None
     lines = (text or "").splitlines(keepends=True)
-
-    def _is_h1(line: str) -> bool:
-        s = line.strip()
-        return s.startswith("# ") and not s.startswith("## ")
-
-    h1s = [i for i, ln in enumerate(lines) if _is_h1(ln)]
+    h1s = _h1_indexes(lines)
     if not h1s:
         return text, None
 
@@ -742,7 +784,6 @@ def _merge_first_column_paragraphs(text: str, template: str) -> tuple[str, str |
                     blocks.append(cur)
                     cur = []
                 continue
-            blocks.append(cur) if False else None
             cur.append(line)
         if cur:
             blocks.append(cur)
@@ -754,14 +795,18 @@ def _merge_first_column_paragraphs(text: str, template: str) -> tuple[str, str |
             )
         ]
 
+    targets = _first_col_paragraph_titles(template)
     chosen = None
     for k, h in enumerate(h1s):
+        if targets and not _matches_target(_h1_name(lines[h]), targets):
+            continue
         seg_end = h1s[k + 1] if k + 1 < len(h1s) else len(lines)
         blocks = _prose_blocks(lines[h + 1 : seg_end])
-        if len(blocks) >= 2:
-            chosen = (h, h + 1, seg_end, blocks)
-            break
-    if chosen is None:
+        if not blocks:
+            continue  # 表格栏/空栏：不是合并对象
+        chosen = (h, h + 1, seg_end, blocks)
+        break
+    if chosen is None or len(chosen[3]) < 2:
         return text, None
     _h_idx, start, end, blocks = chosen
 

@@ -29,11 +29,42 @@ _ITEM_RE = re.compile(r"^- (.+)$")
 _QUOTE_RE = re.compile(r"^\s*原文摘录：(.+)$")
 _SOURCE_RE = re.compile(r"^\s*来源会议：(.+)$")
 _TIME_RE = re.compile(r"^\s*会议时间：(.+)$")
+# 新 meta 协议（inject._open_meta 等）：括号内不再嵌套括号，字段词形固定，
+# 这样 （[^（）()]*）$ 一定剥得掉——旧格式「（第1场（2026-09-01）起…）」嵌套括号
+# 剥不掉，实测 15/15 条条目的正文混进内部 meta，卡片上出现「…（第1场（2026-09-01）起，最近第1场」。
+_META_TAIL_RE = re.compile(r"[（(]([^（）()]*)[)）]\s*$")
+_META_SINCE_RE = re.compile(r"(\S*?第\d+场(?:·[^，,]*)?)起")
+_META_LAST_RE = re.compile(r"最近\s*(第\d+场(?:·[^，,]*)?)")
+_META_STATUS_RE = re.compile(r"状态\s*([A-Za-z_]+)")
+_META_OWNER_RE = re.compile(r"负责人\s*([^，,）)]+)")
+_META_TIMING_RE = re.compile(r"时限\s*([^，,）)]+)")
+_META_CLOSED_RE = re.compile(r"(第\d+场(?:·[^，,]*)?)关闭")
+_META_DECIDED_RE = re.compile(r"(第\d+场(?:·[^，,]*)?)已决策")
+_RISK_STATUS_RE = re.compile(r"^(active|mitigated|dormant)\b")
+_STATUS_CN = {
+    "open": "未闭环",
+    "done": "已闭环",
+    "closed": "已闭环",
+    "active": "持续中",
+    "mitigated": "已缓解",
+    "dormant": "已沉寂",
+    "reaffirmed": "已重申",
+    "superseded": "已被取代",
+}
+# 旧格式兼容（历史块 / 外部注入）
 _SINCE_RE = re.compile(r"自\s*([^\s，,]+)\s*，\s*最近\s*([^\s，,)）]+)")
 _LAST_RE = re.compile(r"最近\s*([^\s，,)）]+)")
 _SESSION_RE = re.compile(r"第\s*(\d+)\s*场")
 _DECISION_LEAD_RE = re.compile(r"^(m_[A-Za-z0-9_-]+)：(.+)$")
 _MEM_SECTION_RE = re.compile(r"\n(?:-{3,}\s*\n+)*## " + re.escape(SECTION_TITLE) + r"\b.*\Z", re.S)
+COMPARISON_TITLE = "历史对照"
+_COMPARISON_SECTION_RE = re.compile(
+    r"\n(?:-{3,}\s*\n+)*## " + re.escape(COMPARISON_TITLE) + r"\b.*?(?=\n#{1,2} |\Z)", re.S
+)
+# 台账行：- 类别（主题｜场次说明）：内容 / - 类别（场次说明）：内容 / - 类别：内容
+_LEDGER_LINE_RE = re.compile(
+    r"^(新增决策|延续事项|已闭环|风险演变)(?:[（(]([^）)]*)[)）])?：(.*)$"
+)
 _TAG_RE = re.compile(
     r"(?:<sup>)?\[记忆\d+\]\(#memory-\d+\)(?:</sup>)?|class=\"memory-link\"|\[[^\]]+\]\(#memory-\d+\)"
 )
@@ -42,31 +73,127 @@ _LATIN_TERM = re.compile(r"[A-Za-z][A-Za-z0-9_\-]{2,}")
 _DATE_TERM = re.compile(r"\d{1,4}月\d{1,2}日")
 _MIN_ANCHOR = 5
 _MAX_ANCHOR = 22
+# 数字/单位与高位数：会场里"400min""930""8~9万字"这类锚点精度最高，允许短到 3 字
+_NUM_UNIT_RE = re.compile(
+    r"\d+(?:\.\d+)?(?:min|ms|h|w|s|%|万|字|卡|路|场|小时|分钟|天|周|月|年|多)"
+)
+_NUM_LONG_RE = re.compile(r"\d{3,}")
+_MIN_SCAN = 4  # 汉字词组锚点下限（整词，按标点分句切出来的）
+_MIN_GRIND = 4  # 汉字公共子串兜底下限（放宽到 4：跨场复述本来就只剩 3–4 字重合，
+#               5 字门槛实测把 13/15 条全挡在门外；命中片段会扩到句读边界再显示）
+_MIN_TOKEN = 3  # 数字/拉丁 token 下限
+# 泛化过程短语：本身及其任意子串都不能当锚点。2026-09-21 实测：
+# 「下来找他们」把"现网流量数据"条目挂到了本场"微服务测试"那句上（挂错比挂不上更差）。
+_GENERIC_NEEDLES = (
+    "下来找他们", "下来再", "下来找", "对一下", "看一下", "再看一下", "问一下", "再问",
+    "再对", "找他们", "找个", "群里", "这边", "那边", "这块", "后续", "待确认", "需确认",
+    "再确认", "什么时候", "这个", "那个", "可以", "应该", "可能", "需要", "还没", "再看",
+    "下来", "拉人", "一下", "以及", "同时", "另外",
+)
+_MAX_NEEDLE_LINES = 3  # 同一锚点文本的行频上限（还会按篇幅放大：长文里 5 次不算泛）
+# 单位词/英文虚词不能当锚点：数值锚点里的 "min" 会被单独抽成拉丁 token，
+# 实测把"还差400min"条目挂到了另一句的 "49min" 上（同字不同事）。
+_LATIN_SKIP = frozenset({
+    "min", "mins", "sec", "secs", "ms", "hr", "hrs", "hour", "hours", "day", "days",
+    "week", "weeks", "and", "the", "for", "with", "you", "not", "are", "was", "his",
+    "her", "our", "its", "can", "has", "have", "will", "that", "this", "from", "they",
+    "but", "all", "any", "one", "two", "new", "old", "now", "out",
+})
 
 
 @dataclass
 class MemoryItem:
-    """一条可溯源的历史记忆条目。"""
+    """一条可溯源的历史记忆条目（含状态机字段）。"""
 
-    kind: str  # open / risk / decision
+    kind: str  # open / closed / risk / decision
     text: str
     quote: str = ""
     meeting_id: str = ""  # 最近场次（open/risk 为 last_seen，decision 为 meeting_id）
     since: str = ""
     meeting_title: str = ""  # 最近场次会议标题（引用区"来源会议"）
     meeting_time: str = ""  # 该场会议时间（请求体 time；空则不展示）
+    status: str = ""  # open / done / active / mitigated / dormant / reaffirmed …
+    owner: str = ""  # 待办负责人（有则展示）
+    timing: str = ""  # 时限（有则展示）
 
 
 def _clean(text: object) -> str:
     return " ".join(str(text or "").split()).strip()
 
 
+def _split_meta(body: str) -> tuple[str, str]:
+    """把条目行拆成 (正文, meta)。
+
+    新协议优先（括号内无嵌套 → 一次剥净）；旧协议退回"最后一个左括号"的启发式，
+    只用于兼容历史块。
+    """
+    match = _META_TAIL_RE.search(body)
+    if match and match.start() > 0:
+        return body[: match.start()].strip(), match.group(1)
+    idx = body.rfind("（")
+    if idx > 0 and body.endswith("）"):
+        meta = body[idx:]
+        if "第" in meta or "状态" in meta or "已决策" in meta or "关闭" in meta:
+            return body[:idx].strip(), meta
+    return body, ""
+
+
+def _meta_fields(meta: str) -> dict[str, str]:
+    """从 meta 文本取 state 字段（新协议 + 旧格式兼容）。"""
+    out: dict[str, str] = {}
+    status = _META_STATUS_RE.search(meta)
+    if not status:
+        risk_status = _RISK_STATUS_RE.match(_clean(meta))
+        status = risk_status if risk_status else None
+    if status:
+        out["status"] = status.group(1)
+    owner = _META_OWNER_RE.search(meta)
+    if owner:
+        out["owner"] = _clean(owner.group(1))
+    timing = _META_TIMING_RE.search(meta)
+    if timing:
+        out["timing"] = _clean(timing.group(1))
+    since = _META_SINCE_RE.search(meta)
+    if since:
+        out["since"] = _clean(since.group(1))
+    last = _META_LAST_RE.search(meta)
+    if last:
+        out["last"] = _clean(last.group(1))
+    closed = _META_CLOSED_RE.search(meta)
+    if closed:
+        out["closed_at"] = _clean(closed.group(1))
+        out.setdefault("status", "done")
+    decided = _META_DECIDED_RE.search(meta)
+    if decided:
+        out["decided"] = _clean(decided.group(1))
+    if "since" in out or "last" in out or "decided" in out:
+        return out
+    # 旧格式：自 X，最近 Y / 最近 Y
+    legacy = _SINCE_RE.search(meta)
+    if legacy:
+        out["since"] = _clean(legacy.group(1))
+        out["last"] = _clean(legacy.group(2))
+        return out
+    legacy_last = _LAST_RE.search(meta)
+    if legacy_last:
+        out["last"] = _clean(legacy_last.group(1))
+        return out
+    sessions = _SESSION_RE.findall(meta)
+    if sessions:
+        out["since"] = out.get("since") or f"第{sessions[0]}场"
+        out["last"] = out.get("last") or f"第{sessions[-1]}场"
+    return out
+
+
 def parse_memory_items(context: str) -> list[MemoryItem]:
     """从【会议记忆】块解析出可溯源条目。
 
     兼容两种形态：
-    - ``- 文本（自 X，最近 Y）`` + 缩进 ``原文摘录：…``（open / risk）
-    - ``- m_xxx：文本`` + 缩进 ``原文摘录：…``（decision）
+    - 新协议 ``- 文本（第2场·2026-09-08起，最近第2场·2026-09-08，状态 open，负责人 武思华）``
+    - 旧协议 ``- 文本（自 X，最近 Y）`` / ``- m_xxx：文本``（历史块兼容）
+
+    ``status/owner/timing`` 一并解析出来：状态机在 state 里维护齐全，但过去没有承载字段，
+    卡片上永远看不到「已闭环/已缓解/已取代」。
     """
     raw = context or ""
     match = _MEMORY_BLOCK_RE.search(raw)
@@ -114,37 +241,22 @@ def parse_memory_items(context: str) -> list[MemoryItem]:
                 continue
             body = _clean(item_match.group(1))
             meeting_id = ""
-            since = ""
             lead = _DECISION_LEAD_RE.match(body)
             if lead:
                 meeting_id = lead.group(1)
                 body = _clean(lead.group(2))
-            meta = ""
-            idx = body.rfind("（")
-            if idx >= 0 and body.endswith("）"):
-                meta = body[idx:]
-                if "第" in meta or "状态" in meta or "已决策" in meta or "关闭" in meta:
-                    body = body[:idx].strip()
-            since_match = _SINCE_RE.search(meta)
-            if since_match:
-                since = since_match.group(1)
-                meeting_id = meeting_id or since_match.group(2)
-            else:
-                sessions = _SESSION_RE.findall(meta)
-                if sessions:
-                    meeting_id = meeting_id or f"第{sessions[-1]}场"
-                    since = since or (f"第{sessions[0]}场" if sessions else "")
-                else:
-                    last_match = _LAST_RE.search(meta)
-                    if last_match:
-                        meeting_id = meeting_id or last_match.group(1)
+            body, meta = _split_meta(body)
+            fields = _meta_fields(meta)
             if not body:
                 continue
             pending = MemoryItem(
                 kind=_KIND_BY_SECTION.get(section, "history"),
                 text=body,
-                meeting_id=meeting_id,
-                since=since,
+                meeting_id=meeting_id or fields.get("last") or fields.get("decided") or "",
+                since=fields.get("since") or "",
+                status=fields.get("status") or "",
+                owner=fields.get("owner") or "",
+                timing=fields.get("timing") or "",
             )
     _flush()
     return items
@@ -161,9 +273,9 @@ def _han_ngrams(text: str, size: int = 6) -> set[str]:
 
 
 def _related(line: str, item: MemoryItem) -> bool:
-    """正文行与记忆条目是否可能相关（保守，宁漏勿滥）。
+    """正文行与记忆条目是否可能相关（预筛，宁漏勿滥）。
 
-    信号分级：整句互相包含（≥5 字）、共享拉丁专名或日期 token（强实体信号，
+    信号分级：整句互相包含（≥4 字）、共享拉丁专名或日期 token（强实体信号，
     如 minutes_trace / Gradio / 8月20日）、长分句互相包含（≥5 字）、
     共享 ≥4 字连续汉字片段。
     """
@@ -171,7 +283,7 @@ def _related(line: str, item: MemoryItem) -> bool:
     if not a or not b:
         return False
     if a in b or b in a:
-        return min(len(a), len(b)) >= _MIN_ANCHOR
+        return min(len(a), len(b)) >= _MIN_GRIND
     a_tokens = set(_LATIN_TERM.findall(a)) | set(_DATE_TERM.findall(a))
     b_tokens = set(_LATIN_TERM.findall(b)) | set(_DATE_TERM.findall(b))
     if a_tokens & b_tokens:
@@ -195,9 +307,32 @@ def _clip_anchor(text: str) -> str:
     return cut
 
 
-def _exact_span(line: str, needle: str) -> tuple[int, int] | None:
+_SPAN_BOUNDARY = set("，。；;、：:！？!?）)】」》”\"' \t")
+
+
+def _expand_span(
+    line: str, start: int, end: int, cap: int = _MAX_ANCHOR
+) -> tuple[int, int]:
+    """把命中片段扩到句读边界（不超过 cap 字）：正文里读到的是完整短语。
+
+    放宽到 4 字后若直接显示命中片段，会挂出「时候带上」这种半句碎片；
+    扩到边界后同一处显示成「大概什么时候带上版本」，读者能看懂在引什么。
+    """
+    if end - start >= cap:
+        return start, end
+    left, right = start, end
+    while left > 0 and (right - left) < cap and line[left - 1] not in _SPAN_BOUNDARY:
+        left -= 1
+    while right < len(line) and (right - left) < cap and line[right] not in _SPAN_BOUNDARY:
+        right += 1
+    return left, right
+
+
+def _exact_span(
+    line: str, needle: str, min_len: int = _MIN_ANCHOR
+) -> tuple[int, int] | None:
     needle = _clip_anchor(needle)
-    if len(needle) < _MIN_ANCHOR:
+    if len(needle) < min_len:
         return None
     idx = line.find(needle)
     if idx < 0:
@@ -205,45 +340,108 @@ def _exact_span(line: str, needle: str) -> tuple[int, int] | None:
     return idx, idx + len(needle)
 
 
-def _best_span(line: str, item: MemoryItem) -> tuple[int, int] | None:
-    """在正文行里找短锚点：连续原文 8–22 字，禁止跨半句散标。"""
+def _is_generic(needle: str) -> bool:
+    """泛化过程短语（含其任意子串）不能当锚点。"""
+    return any(needle in g for g in _GENERIC_NEEDLES)
+
+
+def _needles(text: str) -> list[str]:
+    """按精度排序的候选锚点：数字/日期/拉丁专名 → 汉字词组（长的在前）。
+
+    方向是"条目 → 本场证据"：先把条目里**精度最高**的串（数字、单位、专名）拿去正文里找，
+    找不到再退到汉字词组。旧实现只按"最长"排序且没有精度概念，长短语一失配就一路降到
+    5 字公共子串，于是"下来找他们"这种泛化短语成了唯一的命中项。
+    """
+    high: list[str] = []
+    low: list[str] = []
+    seen: set[str] = set()
+
+    def _add(bucket: list[str], value: object, min_len: int) -> None:
+        candidate = _clean(value)
+        if len(candidate) < min_len or candidate in seen or _is_generic(candidate):
+            return
+        if candidate.lower() in _LATIN_SKIP:
+            return
+        seen.add(candidate)
+        bucket.append(candidate)
+
+    for pattern in (_DATE_TERM, _NUM_UNIT_RE, _NUM_LONG_RE):
+        for token in pattern.findall(text):
+            _add(high, token, _MIN_TOKEN)
+    for token in _LATIN_TERM.findall(text):
+        _add(high, token, _MIN_TOKEN)
+    for chunk in re.split(r"[，。；;、\s]+", text):
+        _add(low, chunk, _MIN_SCAN)
+    low.sort(key=len, reverse=True)
+    return high + low
+
+
+class _NeedleStats:
+    """锚点文本的正文行频：出现太多行说明是个泛词（满篇的 demo），不是证据。
+
+    阈值随篇幅放大——126 行的纪要里 "WeLink" 出现 7 次仍是有意义的共同话题，
+    固定 3 行会把这类真锚点一起误杀。
+    """
+
+    def __init__(self, lines: list[str], cap: int = _MAX_NEEDLE_LINES) -> None:
+        self._lines = lines
+        self._cap = max(cap, len(lines) // 8)
+        self._cache: dict[str, bool] = {}
+
+    def too_common(self, needle: str) -> bool:
+        hit = self._cache.get(needle)
+        if hit is None:
+            hit = sum(1 for line in self._lines if needle in line) > self._cap
+            self._cache[needle] = hit
+        return hit
+
+
+def _match_span(
+    line: str,
+    item: MemoryItem,
+    stats: _NeedleStats | None = None,
+) -> tuple[int, int, int] | None:
+    """在正文行里找该条目的锚点，返回 ``(start, end, 命中长度)``（**未展开**）。
+
+    命中长度是"有多硬"的证据：调用方用它让长命中优先占位，避免 4 字的弱命中
+    把另一条 10 字的强命中挤掉（实测："是否默认开启记忆引用" 靠 4 字「记忆引用」
+    抢先，结果把「补齐记忆引用来源字段」的锚点吞掉，卡片与正文对不上）。
+    """
     ref_text = _clean(item.text)
     if not line or not ref_text:
         return None
-    candidates: list[str] = []
-    for chunk in re.split(r"[，。；;、\s]+", ref_text):
-        chunk = _clean(chunk)
-        if len(chunk) >= _MIN_ANCHOR:
-            candidates.append(_clip_anchor(chunk))
-    if len(ref_text) >= _MIN_ANCHOR:
-        candidates.append(_clip_anchor(ref_text))
-    candidates.extend(
-        token for token in _LATIN_TERM.findall(ref_text)
-        if 3 <= len(token) <= _MAX_ANCHOR
-    )
-    seen: set[str] = set()
-    ordered: list[str] = []
-
-    def _anchor_rank(cand: str) -> tuple[int, int]:
-        has_han = 1 if any("\u4e00" <= ch <= "\u9fff" for ch in cand) else 0
-        return (has_han, len(cand))
-
-    for cand in sorted(candidates, key=_anchor_rank, reverse=True):
-        if cand and cand not in seen:
-            seen.add(cand)
-            ordered.append(cand)
-    for cand in ordered:
-        span = _exact_span(line, cand)
+    for needle in _needles(ref_text):
+        if stats is not None and stats.too_common(needle):
+            continue
+        min_len = _MIN_TOKEN if not _HAN.search(needle) else _MIN_SCAN
+        span = _exact_span(line, needle, min_len)
         if span:
-            return span
-
+            return span[0], span[1], len(needle)
+    # 兜底：条目汉字里的连续子串（长的优先），4 字起且避开泛化短语/泛词
     right = "".join(ch for ch in ref_text if "\u4e00" <= ch <= "\u9fff")
-    for size in range(min(_MAX_ANCHOR, len(right)), _MIN_ANCHOR - 1, -1):
+    for size in range(min(_MAX_ANCHOR, len(right)), _MIN_GRIND - 1, -1):
         for i in range(0, len(right) - size + 1):
-            span = _exact_span(line, right[i : i + size])
+            candidate = right[i : i + size]
+            if _is_generic(candidate):
+                continue
+            if stats is not None and stats.too_common(candidate):
+                continue
+            span = _exact_span(line, candidate, _MIN_GRIND)
             if span:
-                return span
+                return span[0], span[1], size
     return None
+
+
+def _best_span(
+    line: str,
+    item: MemoryItem,
+    stats: _NeedleStats | None = None,
+) -> tuple[int, int] | None:
+    """单条锚点（含句读边界展开）；供外部直接调用，条目间竞争见 ``_append_markers``。"""
+    match = _match_span(line, item, stats)
+    if match is None:
+        return None
+    return _expand_span(line, match[0], match[1])
 
 
 def _is_citeable_line(line: str) -> bool:
@@ -261,6 +459,7 @@ def _append_markers(
     line: str,
     items: list[MemoryItem],
     seen: list[MemoryItem] | None = None,
+    stats: _NeedleStats | None = None,
 ) -> tuple[str, list[MemoryItem]]:
     if not items or _TAG_RE.search(line):
         return line, []
@@ -269,22 +468,31 @@ def _append_markers(
     hits = [item for item in items if item not in seen and _related(line, item)]
     if not hits:
         return line, []
-    spans: list[tuple[int, int, MemoryItem]] = []
-    for item in hits:
-        span = _best_span(line, item)
+    # 命中越长越硬，先占位；同样长按条目顺序。占位判定用**未展开**片段，
+    # 展开只用于显示——否则 4 字弱命中扩成整句后会把别人的强命中吞掉。
+    matched: list[tuple[int, int, int, int, MemoryItem]] = []
+    for order, item in enumerate(hits):
+        span = _match_span(line, item, stats)
         if span is None:
             continue
-        start, end = span
-        if end <= start:
+        matched.append((span[0], span[1], span[2], order, item))
+    matched.sort(key=lambda row: (-row[2], row[3]))
+    chosen: list[tuple[int, int, MemoryItem]] = []
+    for start, end, _hard, _order, item in matched:
+        if any(not (end <= s or start >= e) for s, e, _ in chosen):
             continue
-        if any(not (end <= s or start >= e) for s, e, _ in spans):
-            continue
-        spans.append((start, end, item))
-        if len(spans) >= 2:
+        chosen.append((start, end, item))
+        if len(chosen) >= 2:
             break
-    if not spans:
+    if not chosen:
         return line, []
-    spans.sort(key=lambda item: item[0])
+    chosen.sort(key=lambda row: row[0])
+    spans: list[tuple[int, int, MemoryItem]] = []
+    for index, (start, end, item) in enumerate(chosen):
+        lo, hi = _expand_span(line, start, end)
+        if index + 1 < len(chosen):
+            hi = min(hi, chosen[index + 1][0])  # 不越过相邻锚点
+        spans.append((lo, hi, item))
     out: list[str] = []
     pos = 0
     used: list[MemoryItem] = []
@@ -299,25 +507,69 @@ def _append_markers(
     return "".join(out), used
 
 
-def apply_memory_citations(markdown: str, context: str) -> str:
-    """给渲染后的纪要加记忆引用标注并追加「历史记忆引用」区。
+def history_comparison_section(lines: list[str]) -> str:
+    """「历史对照」小节：程序算好的四类对照（不依赖词面重合，永远可见）。
 
-    与旧 ``tools.memory.citations.apply_memory_citations`` 行为等价：
-    保守锚定、不改事实措辞、只追加标记；上下文无【会议记忆】块时原样返回。
+    为什么单独成节：模型被明确要求"历史不写进正文"，而正文锚点只在**词面巧合**时
+    才挂得上（实测第二场 15 条只挂上 2 条，且都是在泛词上）。对照是程序用条目+场次
+    拼的确定性文本，落盘才有"记忆看得见"的兜底。
     """
+    rows = [_clean(line) for line in (lines or []) if _clean(line)]
+    if not rows:
+        return ""
+    return "\n".join(
+        ["", f"## {COMPARISON_TITLE}", ""] + [f"- {row}" for row in rows]
+    )
+
+
+def _status_line(item: MemoryItem) -> str:
+    """卡片上的状态行：``状态：未闭环（负责人 武思华，时限 8月19日前）``。"""
+    status = (item.status or "").strip()
+    bits: list[str] = []
+    if item.owner:
+        bits.append(f"负责人 {item.owner}")
+    if item.timing:
+        bits.append(f"时限 {item.timing}")
+    if item.since and item.meeting_id and item.since != item.meeting_id:
+        bits.append(f"{item.since} 起，最近 {item.meeting_id}")
+    if not status and not bits:
+        return ""
+    label = _STATUS_CN.get(status, status) or "历史"
+    tail = f"（{'，'.join(bits)}）" if bits else ""
+    return f"状态：{label}{tail}"
+
+
+def apply_memory_citations(
+    markdown: str,
+    context: str,
+    comparison: list[str] | None = None,
+) -> str:
+    """给渲染后的纪要加记忆引用标注 + 「历史对照」小节 + 文末「历史记忆引用」区。
+
+    保守锚定、不改事实措辞、只追加标记；上下文无【会议记忆】块时原样返回。
+    ``comparison``：程序算好的历史对照（build_memory_context 的第二个返回值），
+    无条件写成固定小节——它是零锚点时的唯一可见溯源。
+    """
+    body = markdown or ""
+    comparison_section = history_comparison_section(list(comparison or []))
+    # 幂等：先摘掉已有的对照/溯源小节（重复调用不再叠加）
+    body = _COMPARISON_SECTION_RE.sub("", body)
+    body = _MEM_SECTION_RE.sub("", body).strip()
+    if not body:
+        return markdown or ""
+
     items = parse_memory_items(context)
     if not items:
-        return markdown or ""
-    text = _MEM_SECTION_RE.sub("", markdown or "").strip()
-    if not text:
-        return markdown or ""
+        return body + comparison_section
 
+    citable = [line for line in body.splitlines() if _is_citeable_line(line)]
+    stats = _NeedleStats(citable)
     used: list[MemoryItem] = []
     seen: list[MemoryItem] = []
     lines: list[str] = []
-    for line in text.splitlines():
+    for line in body.splitlines():
         if _is_citeable_line(line):
-            line, found = _append_markers(line, items, seen)
+            line, found = _append_markers(line, items, seen, stats)
             for item in found:
                 if item not in seen:
                     seen.append(item)
@@ -327,29 +579,32 @@ def apply_memory_citations(markdown: str, context: str) -> str:
     # 正文没有任何可精确锚定的行时，不伪造溯源入口：既不声明命中，也不生成
     # 「历史记忆引用」区（宁可无引用，也不在正文插入「记忆命中」这类系统表达）。
     if not used:
-        return "\n".join(lines) if lines else markdown or ""
+        return "\n".join(lines) + comparison_section
 
     appendix = ["", f"## {SECTION_TITLE}", ""]
-    for idx, item in enumerate(used):
+    for item in used:
         ref_id = f"memory-{items.index(item) + 1}"
         source = item.meeting_title or item.meeting_id or "历史会议"
         quote = item.quote or item.text
         rows = [
             f"#### 溯源 {ref_id}",
             f"> {quote}",
-            f"来源会议：{source}",
         ]
+        status_line = _status_line(item)
+        if status_line:
+            rows.append(status_line)
+        rows.append(f"来源会议：{source}")
         if item.meeting_time:
             rows.append(f"会议时间：{item.meeting_time}")
         appendix.extend(rows)
-    return "\n".join(lines) + "\n" + "\n".join(appendix)
+    return "\n".join(lines) + comparison_section + "\n" + "\n".join(appendix)
 
 
 def _latex_paper_css() -> str:
     return """
     body {
       margin: 0;
-      padding: 32px 16px;
+      padding: 14px 12px;
       background: #f6f5f0;
       color: #1a1a1a;
       font-family: "Latin Modern Roman", "Computer Modern Roman", "CMU Serif", "Times New Roman", Times, "Songti SC", "SimSun", "STSong", serif;
@@ -361,83 +616,70 @@ def _latex_paper_css() -> str:
       border: 1px solid #d4d0c7;
       border-radius: 4px;
       box-shadow: 0 4px 20px rgba(0, 0, 0, 0.05), 0 1px 3px rgba(0,0,0,0.03);
-      padding: 36px 44px;
-      line-height: 1.75;
-      font-size: 0.96rem;
+      padding: 18px 22px;
+      line-height: 1.6;
+      font-size: 0.84rem;      /* 正文基准：左右两栏共用 --ck-fs */
+      --ck-fs: 0.84rem;
     }
     .ck-doc h1 {
-      margin: 0 0 10px;
-      font-size: 1.85rem;
+      margin: 0 0 6px;
+      font-size: 1.05rem;      /* 文档标题：只比正文略大一点 */
       font-weight: 700;
-      letter-spacing: 0.4px;
       text-align: center;
-      font-variant: small-caps;
       color: #111111;
     }
     .ck-doc-header {
-      margin-bottom: 24px;
-      padding-bottom: 16px;
-      border-bottom: 2px solid #111111;
+      margin-bottom: 10px;
+      padding-bottom: 8px;
+      border-bottom: 1px solid #111111;
       text-align: center;
     }
     .ck-doc-meta {
-      font-size: 0.85rem;
+      font-size: 0.78rem;
       color: #555555;
       font-style: italic;
     }
-    .ck-doc-content h1, .ck-doc-content .ck-doc-h1 {
-      margin: 28px 0 14px;
-      font-size: 1.32rem;
-      font-weight: 700;
-      color: #111111;
-      border-bottom: 1.5px solid #222222;
-      padding-bottom: 5px;
-      text-align: left;
-      font-variant: normal;
-      letter-spacing: 0.3px;
-    }
-    .ck-doc h2, .ck-doc-h2 {
-      margin: 28px 0 14px;
-      font-size: 1.22rem;
-      font-weight: 700;
-      color: #111111;
-      border-bottom: 1.5px solid #222222;
-      padding-bottom: 5px;
-      letter-spacing: 0.3px;
-    }
-    .ck-doc h3, .ck-doc-h3 {
-      margin: 20px 0 10px;
-      font-size: 1.05rem;
-      font-weight: 700;
-      color: #222222;
-    }
+    /* 层级标题一律"加粗 + 与右栏同级字号"，不加字号、不加下划线，前后留白压到最小 */
+    .ck-doc-content h1, .ck-doc-content .ck-doc-h1,
+    .ck-doc h2, .ck-doc-h2,
+    .ck-doc h3, .ck-doc-h3,
     .ck-doc h4, .ck-doc-h4 {
-      margin: 16px 0 8px;
-      font-size: 0.98rem;
+      font-size: var(--ck-fs);
       font-weight: 700;
-      color: #333333;
+      color: #111111;
+      border-bottom: 0;
+      padding-bottom: 0;
+      letter-spacing: 0;
+      font-variant: normal;
+      text-align: left;
+    }
+    .ck-doc-content h1, .ck-doc-content .ck-doc-h1, .ck-doc h2, .ck-doc-h2 {
+      margin: 12px 0 4px;
+    }
+    .ck-doc h3, .ck-doc-h3, .ck-doc h4, .ck-doc-h4 {
+      margin: 9px 0 3px;
     }
     .ck-doc p {
-      margin: 10px 0;
-      line-height: 1.75;
+      margin: 5px 0;
+      line-height: 1.6;
       text-align: justify;
     }
     .ck-doc ul, .ck-doc ol {
-      margin: 8px 0 12px;
-      padding-left: 1.5em;
-      line-height: 1.72;
+      margin: 4px 0 6px;
+      padding-left: 1.25em;
+      line-height: 1.6;
     }
     .ck-doc li {
-      margin: 4px 0;
+      margin: 2px 0;
     }
     .ck-doc blockquote, .ck-quote {
-      margin: 10px 0 14px;
-      padding: 8px 14px;
+      margin: 6px 0 8px;
+      padding: 5px 10px;
       background: #faf9f6;
-      border-left: 3.5px solid #222222;
+      border-left: 3px solid #222222;
       border-radius: 2px;
       color: #222222;
-      font-size: 0.92rem;
+      font-size: var(--ck-fs);
       font-style: italic;
     }
     .ck-doc code {
@@ -451,14 +693,14 @@ def _latex_paper_css() -> str:
     .ck-doc table, .ck-table {
       width: 100%;
       border-collapse: collapse;
-      font-size: 0.88rem;
-      margin: 14px 0;
+      font-size: var(--ck-fs);
+      margin: 8px 0;
       background: #ffffff;
       border-top: 2px solid #222222;
       border-bottom: 2px solid #222222;
     }
     .ck-doc table th, .ck-doc table td, .ck-table th, .ck-table td {
-      padding: 9px 12px;
+      padding: 5px 8px;
       text-align: left;
       vertical-align: middle;
       border-bottom: 1px solid #ede9e1;
@@ -513,18 +755,19 @@ def _latex_paper_css() -> str:
       border: 1px solid #d4d0c7;
       border-radius: 4px;
       overflow: hidden;
-      margin: 14px 0 20px;
+      margin: 8px 0 10px;
       background: #ffffff;
       box-shadow: 0 1px 4px rgba(0,0,0,0.03);
     }
     .ck-review-left {
-      padding: 22px 26px;
+      padding: 14px 16px;
       background: #ffffff;
-      line-height: 1.75;
+      line-height: 1.6;
+      font-size: var(--ck-fs);
     }
     .ck-review-rule { background: #dcd8cf; }
     .ck-review-right {
-      padding: 16px 18px;
+      padding: 12px 14px;
       background: #faf9f6;
       box-sizing: border-box;
       display: flex;
@@ -533,7 +776,7 @@ def _latex_paper_css() -> str:
     .ck-ev-list {
       display: flex;
       flex-direction: column;
-      gap: 10px;
+      gap: 6px;
     }
 
     /* Entity Highlight in LaTeX Paper Style */
@@ -656,9 +899,9 @@ def _latex_paper_css() -> str:
     .ck-mem-title {
       font-weight: 700;
       color: #111111;
-      font-size: 0.88rem;
-      margin-bottom: 6px;
-      line-height: 1.45;
+      font-size: var(--ck-fs);
+      margin-bottom: 4px;
+      line-height: 1.5;
     }
     .ck-ev-quote {
       color: #222222;
@@ -669,9 +912,9 @@ def _latex_paper_css() -> str:
       background: transparent;
       border: none;
       line-height: 1.6;
-      font-size: 0.84rem;
+      font-size: var(--ck-fs);
     }
-    .ck-ev-meta { font-size: 0.76rem; color: #666666; margin-top: 6px; }
+    .ck-ev-meta { font-size: 0.76rem; color: #666666; margin-top: 4px; }
     .ck-ev-more {
       margin-top: 2px;
       display: flex;
@@ -689,6 +932,51 @@ def _latex_paper_css() -> str:
       padding: 2px 0;
     }
     .ck-proof-toggle:hover { text-decoration: underline; }
+    /* 右栏下段"状态演进"：无行内锚点，与上方证据卡视觉区分（灰底 + 徽章，无 [n]） */
+    .ck-ledger {
+      margin-top: 10px;
+      padding-top: 8px;
+      border-top: 1px dashed #d4d0c7;
+    }
+    .ck-ledger > summary { list-style: none; }
+    .ck-ledger > summary::-webkit-details-marker { display: none; }
+    .ck-ledger > summary::after { content: " ▾"; }
+    .ck-ledger:not([open]) > summary::after { content: " ▸"; }
+    /* 每类一张小灰卡：卡头类别 + 条数，卡内按 1. 2. 3. 编号 */
+    .ck-ledger-card {
+      background: #faf9f5;
+      border: 1px solid #e6e2d8;
+      border-left: 3px solid #bdb6a6;
+      border-radius: 4px;
+      padding: 7px 9px;
+      margin-bottom: 6px;
+    }
+    .ck-ledger-k {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 6px;
+      font-size: 0.72rem;
+      margin-bottom: 5px;
+    }
+    .ck-ledger-badge {
+      background: #efece4;
+      color: #6b6559;
+      border-radius: 3px;
+      padding: 1px 6px;
+      font-weight: 600;
+    }
+    .ck-ledger-count { color: #8a8578; }
+    .ck-ledger-list {
+      margin: 0;
+      padding-left: 1.35em;
+      font-size: var(--ck-fs);
+      line-height: 1.6;
+      color: #3b3a37;
+    }
+    .ck-ledger-list > li { margin: 2px 0; }
+    .ck-ledger-text { font-size: var(--ck-fs); line-height: 1.6; color: #3b3a37; }
+    .ck-ledger-meta { color: #8a8578; font-size: 0.76rem; }
 
     @media(max-width: 860px) {
       .ck-doc { padding: 22px 18px; }
@@ -715,6 +1003,7 @@ def _parse_memory_sources(markdown: str) -> dict[str, dict[str, str]]:
         title = ""
         quote = ""
         mtime = ""
+        status = ""
         for line in lines:
             if line.startswith(">"):
                 quote = line.lstrip("> ").strip()
@@ -722,7 +1011,9 @@ def _parse_memory_sources(markdown: str) -> dict[str, dict[str, str]]:
                 title = line.removeprefix("来源会议：").strip()
             elif line.startswith("会议时间："):
                 mtime = line.removeprefix("会议时间：").strip()
-        out[ref_id] = {"quote": quote, "title": title, "time": mtime}
+            elif line.startswith("状态："):
+                status = line.removeprefix("状态：").strip()
+        out[ref_id] = {"quote": quote, "title": title, "time": mtime, "status": status}
     return out
 
 
@@ -862,9 +1153,40 @@ _MEMORY_SCRIPT = """<script>
       }
 
       const allEvs = Array.from(listEl.querySelectorAll(':scope > .ck-ev'));
-      if (allEvs.length <= 1) return;
+      const ledger = listEl.querySelector('.ck-ledger');
+      const ledgerUser = ledger ? (ledger.dataset.user || '') : '';
+      const setLedgerOpen = (next) => {
+        if (!ledger || ledger.open === next) return;
+        // details 的 toggle 事件是异步派发的，busy 标志到那时已被清掉——用"程序意图"对比：
+        // 收到与意图一致的 toggle 就认作程序所为，否则才算用户手动选择。
+        ledger.dataset.prog = next ? 'open' : 'closed';
+        ledger.open = next;
+        ledger.dataset.auto = next ? '' : '1';
+      };
+      // 量高度前先展开「状态演进」（除非用户自己折了）；用户手动展开的一律尊重，不再自动折
+      if (ledger && ledgerUser !== 'closed' && !ledger.open) setLedgerOpen(true);
+
+      if (allEvs.length === 0 && !ledger) return;
 
       const leftContentHeight = getActualContentHeight(leftEl);
+      const measure = (el) => {
+        const r = el.getBoundingClientRect();
+        return ((r && r.height > 0) ? r.height : el.offsetHeight) + 10;
+      };
+
+      if (ledger && isDesktop) {
+        // 判据：对照**明显**比左栏还长才折（留 15% 容差，避免刚好擦边就折叠）；
+        // 证据卡（带行内锚点）永远优先留可见，证据自己超高时由下面"查看更多"兜底。
+        const ledgerHeight = ledger.getBoundingClientRect().height;
+        const tooTall = ledgerHeight > leftContentHeight * 1.15;
+        if (tooTall && ledgerUser !== 'open') {
+          setLedgerOpen(false);
+        } else if (!tooTall && ledger.dataset.auto === '1' && ledgerUser !== 'closed') {
+          setLedgerOpen(true);           // 空间恢复（如放大窗口）再展开
+        }
+      }
+
+      if (allEvs.length <= 1) return;
 
       let totalHeight = 0;
       const itemsToFold = [];
@@ -876,7 +1198,7 @@ _MEMORY_SCRIPT = """<script>
         }
         const evRect = ev.getBoundingClientRect();
         const evHeight = (evRect && evRect.height > 0) ? evRect.height + 10 : ev.offsetHeight + 10;
-        // 当右侧卡片累积高度超过左侧正文纪要内容高度时，对超出的卡片进行折叠
+        // 「状态演进」已让位后仍超出，才折证据卡（最后手段）
         if (totalHeight + evHeight > leftContentHeight && idx >= 1) {
           itemsToFold.push(ev);
         } else {
@@ -889,7 +1211,7 @@ _MEMORY_SCRIPT = """<script>
         details.className = 'ck-ev-more';
         const summary = document.createElement('summary');
         summary.className = 'ck-proof-toggle';
-        summary.innerHTML = `查看更多历史会议 (${itemsToFold.length}) ▾`;
+        summary.innerHTML = `查看更多本场证据 (${itemsToFold.length}) ▾`;
         details.appendChild(summary);
 
         itemsToFold[0].before(details);
@@ -967,6 +1289,18 @@ _MEMORY_SCRIPT = """<script>
     });
   });
 
+  // 「状态演进」的展开/折叠：记下"用户手动选择"，自动折叠不覆盖它
+  document.querySelectorAll('.ck-ledger').forEach((el) => {
+    el.addEventListener('toggle', () => {
+      const intent = el.dataset.prog || '';
+      el.dataset.prog = '';
+      const programmatic =
+        (intent === 'open' && el.open) || (intent === 'closed' && !el.open);
+      if (programmatic) return;
+      el.dataset.user = el.open ? 'open' : 'closed';
+    });
+  });
+
   adjustMemoryFolding();
   window.addEventListener('load', adjustMemoryFolding);
   let resizeTimer = null;
@@ -976,6 +1310,91 @@ _MEMORY_SCRIPT = """<script>
   });
 })();
 </script>"""
+
+
+def _parse_comparison_ledger(markdown: str) -> tuple[list[dict[str, str]], str]:
+    """从「历史对照」小节解析「状态演进」清单，返回 (条目列表, 汇总行)。
+
+    行格式：``- 延续事项（端侧待办｜自第1场·2026-09-01）：端侧大概什么时候带上版本``；
+    新增决策可能没有主题（``- 新增决策：…``），此时只有类别。
+    """
+    raw = markdown or ""
+    marker = f"## {COMPARISON_TITLE}"
+    if marker not in raw:
+        return [], ""
+    chunk = raw.split(marker, 1)[1]
+    chunk = re.split(r"\n#{1,2} ", chunk)[0]
+    rows: list[dict[str, str]] = []
+    summary = ""
+    for line in chunk.splitlines():
+        stripped = line.strip()
+        if not stripped.startswith("- "):
+            continue
+        body = stripped[2:].strip()
+        if body.startswith("本场历史对照合计"):
+            summary = body.split("：", 1)[-1].strip()
+            continue
+        match = _LEDGER_LINE_RE.match(body)
+        if not match:
+            continue
+        kind, meta, text = match.group(1), _clean(match.group(2)), _clean(match.group(3))
+        topic = ""
+        tail = meta
+        if "｜" in meta:
+            topic, tail = (_clean(part) for part in meta.split("｜", 1))
+        rows.append({"kind": kind, "topic": topic, "meta": tail, "text": text})
+    return rows, summary
+
+
+# 右栏「状态演进」只展示这三类，顺序固定（风险演变只保留在正文对照里）
+_LEDGER_PANEL_ORDER = ("延续事项", "已闭环", "新增决策")
+
+
+def _ledger_cards_html(rows: list[dict[str, str]]) -> str:
+    """状态演进：**每类一张小灰卡，卡内条目各自编号 1. 2. 3.**。
+
+    只展示三类，顺序固定 延续事项 → 已闭环 → 新增决策（风险演变不进右栏，只在正文
+    「## 历史对照」里保留）。每卡卡头是类别 + 条数，卡内是该类的有序列表；整块灰底、
+    无 [n] 序号（不冒充正文证据）。
+    """
+    keep = [row for row in rows if row.get("kind", "") in _LEDGER_PANEL_ORDER]
+    if not keep:
+        return ""
+    keep.sort(key=lambda row: _LEDGER_PANEL_ORDER.index(row.get("kind", "")))
+    groups: list[tuple[str, list[dict[str, str]]]] = []
+    for row in keep:
+        kind = row.get("kind", "")
+        if groups and groups[-1][0] == kind:
+            groups[-1][1].append(row)
+        else:
+            groups.append((kind, [row]))
+    cards: list[str] = []
+    for kind, items in groups:
+        lis: list[str] = []
+        for row in items:
+            bits = [bit for bit in (row.get("topic"), row.get("meta")) if bit]
+            meta_html = (
+                f' <span class="ck-ledger-meta">（{escape(" · ".join(bits), quote=False)}）</span>'
+                if bits
+                else ""
+            )
+            lis.append(
+                f'<li><span class="ck-ledger-text">{escape(row.get("text", ""), quote=False)}</span>'
+                f"{meta_html}</li>"
+            )
+        cards.append(
+            f'<aside class="ck-ledger-card" data-kind="{escape(kind, quote=True)}">'
+            f'<div class="ck-ledger-k">'
+            f'<span class="ck-ledger-badge">{escape(kind, quote=False)}</span>'
+            f'<span class="ck-ledger-count">（{len(items)}）</span></div>'
+            f'<ol class="ck-ledger-list">{"".join(lis)}</ol>'
+            f"</aside>"
+        )
+    return (
+        f'<details class="ck-ledger" open>'
+        f'<summary class="ck-proof-toggle">状态演进（{len(keep)} 条）</summary>'
+        f"{''.join(cards)}</details>"
+    )
 
 
 def memory_review_html(markdown: str, title: str = "") -> str:
@@ -996,6 +1415,10 @@ def memory_review_html(markdown: str, title: str = "") -> str:
     sources = _parse_memory_sources(text)
     if not sources:
         return render_markdown_page_html(title or "会议纪要", main)
+
+    # 「历史对照」在双栏页里改由右栏「状态演进」呈现（正文不再重复同一份清单）
+    ledger_rows, _summary = _parse_comparison_ledger(text)
+    main = _COMPARISON_SECTION_RE.sub("", main).strip()
 
     # 提取所有出现的 ref_id，按正文首次出现顺序赋予连续编号 [1], [2], [3]...
     ref_id_to_num: dict[str, int] = {}
@@ -1024,6 +1447,7 @@ def memory_review_html(markdown: str, title: str = "") -> str:
         m_title = info.get("title") or "历史会议"
         quote = info.get("quote") or ""
         mtime = info.get("time") or ""
+        mstatus = info.get("status") or ""
 
         card = [
             f'<aside class="ck-ev ck-mem-card" id="card-{escape(ref_id, quote=True)}" data-mem="{escape(ref_id, quote=True)}" data-cite="{num}">',
@@ -1032,10 +1456,15 @@ def memory_review_html(markdown: str, title: str = "") -> str:
         ]
         if quote:
             card.append(f'<div class="ck-ev-quote">“{escape(quote, quote=False)}”</div>')
+        if mstatus:
+            card.append(f'<div class="ck-ev-meta">状态：{escape(mstatus, quote=False)}</div>')
         if mtime:
             card.append(f'<div class="ck-ev-meta">会议时间：{escape(mtime, quote=False)}</div>')
         card.append("</aside>")
         cards_html.append("".join(card))
+
+    # 右栏：证据卡（带行内锚点/[n]）+ 下方「状态演进」（无锚点）
+    evidence_html = "".join(cards_html) + _ledger_cards_html(ledger_rows)
 
     page_html = f"""<!doctype html>
 <html lang="zh-CN">
@@ -1060,7 +1489,7 @@ def memory_review_html(markdown: str, title: str = "") -> str:
         <div class="ck-review-rule"></div>
         <div class="ck-review-right">
           <div class="ck-ev-list">
-            {"".join(cards_html)}
+            {evidence_html}
           </div>
         </div>
       </div>
@@ -1513,9 +1942,11 @@ def render_actions_html(title: str, text: str, data: dict | None = None) -> str:
 
 
 __all__ = [
+    "COMPARISON_TITLE",
     "MemoryItem",
     "SECTION_TITLE",
     "apply_memory_citations",
+    "history_comparison_section",
     "memory_review_html",
     "parse_memory_items",
     "render_actions_html",
