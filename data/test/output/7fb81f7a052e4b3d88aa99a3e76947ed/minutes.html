@@ -1,0 +1,372 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>月度销售复盘与下月去化目标研讨会</title>
+  <style>
+
+    body {
+      margin: 0;
+      padding: 32px 16px;
+      background: #f6f5f0;
+      color: #1a1a1a;
+      font-family: "Latin Modern Roman", "Computer Modern Roman", "CMU Serif", "Times New Roman", Times, "Songti SC", "SimSun", "STSong", serif;
+      -webkit-font-smoothing: antialiased;
+    }
+    .page { max-width: 1140px; margin: 0 auto; }
+    .ck-doc {
+      background: #ffffff;
+      border: 1px solid #d4d0c7;
+      border-radius: 4px;
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.05), 0 1px 3px rgba(0,0,0,0.03);
+      padding: 36px 44px;
+      line-height: 1.75;
+      font-size: 0.96rem;
+    }
+    .ck-doc h1 {
+      margin: 0 0 10px;
+      font-size: 1.85rem;
+      font-weight: 700;
+      letter-spacing: 0.4px;
+      text-align: center;
+      font-variant: small-caps;
+      color: #111111;
+    }
+    .ck-doc-header {
+      margin-bottom: 24px;
+      padding-bottom: 16px;
+      border-bottom: 2px solid #111111;
+      text-align: center;
+    }
+    .ck-doc-meta {
+      font-size: 0.85rem;
+      color: #555555;
+      font-style: italic;
+    }
+    .ck-doc-content h1, .ck-doc-content .ck-doc-h1 {
+      margin: 28px 0 14px;
+      font-size: 1.32rem;
+      font-weight: 700;
+      color: #111111;
+      border-bottom: 1.5px solid #222222;
+      padding-bottom: 5px;
+      text-align: left;
+      font-variant: normal;
+      letter-spacing: 0.3px;
+    }
+    .ck-doc h2, .ck-doc-h2 {
+      margin: 28px 0 14px;
+      font-size: 1.22rem;
+      font-weight: 700;
+      color: #111111;
+      border-bottom: 1.5px solid #222222;
+      padding-bottom: 5px;
+      letter-spacing: 0.3px;
+    }
+    .ck-doc h3, .ck-doc-h3 {
+      margin: 20px 0 10px;
+      font-size: 1.05rem;
+      font-weight: 700;
+      color: #222222;
+    }
+    .ck-doc h4, .ck-doc-h4 {
+      margin: 16px 0 8px;
+      font-size: 0.98rem;
+      font-weight: 700;
+      color: #333333;
+    }
+    .ck-doc p {
+      margin: 10px 0;
+      line-height: 1.75;
+      text-align: justify;
+    }
+    .ck-doc ul, .ck-doc ol {
+      margin: 8px 0 12px;
+      padding-left: 1.5em;
+      line-height: 1.72;
+    }
+    .ck-doc li {
+      margin: 4px 0;
+    }
+    .ck-doc blockquote, .ck-quote {
+      margin: 10px 0 14px;
+      padding: 8px 14px;
+      background: #faf9f6;
+      border-left: 3.5px solid #222222;
+      border-radius: 2px;
+      color: #222222;
+      font-size: 0.92rem;
+      font-style: italic;
+    }
+    .ck-doc code {
+      background: #f3f0e8;
+      border: 1px solid #e2ddd3;
+      border-radius: 3px;
+      padding: 1px 6px;
+      font-family: "Latin Modern Mono", Consolas, monospace;
+      font-size: 0.88em;
+    }
+    .ck-doc table, .ck-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.88rem;
+      margin: 14px 0;
+      background: #ffffff;
+      border-top: 2px solid #222222;
+      border-bottom: 2px solid #222222;
+    }
+    .ck-doc table th, .ck-doc table td, .ck-table th, .ck-table td {
+      padding: 9px 12px;
+      text-align: left;
+      vertical-align: middle;
+      border-bottom: 1px solid #ede9e1;
+    }
+    .ck-doc table th, .ck-table th {
+      background: #fbfaf7;
+      border-bottom: 1.2px solid #222222;
+      font-weight: 700;
+      color: #111111;
+      letter-spacing: 0.3px;
+    }
+
+    /* Roomy & Spacious Academic Risk Table */
+    .ck-risk-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 18px 0 28px;
+      background: #ffffff;
+      border-top: 2.2px solid #111111;
+      border-bottom: 2.2px solid #111111;
+      font-size: 0.93rem;
+      line-height: 1.72;
+    }
+    .ck-risk-table th {
+      background: #faf8f5;
+      border-bottom: 1.5px solid #111111;
+      padding: 15px 16px;
+      font-weight: 700;
+      color: #111111;
+      letter-spacing: 0.3px;
+      text-align: left;
+      vertical-align: middle;
+    }
+    .ck-risk-table td {
+      padding: 16px 16px;
+      border-bottom: 1px solid #ede8e0;
+      vertical-align: top;
+      color: #1a1a1a;
+      word-break: break-word;
+    }
+    .ck-risk-table tr:nth-child(even) td {
+      background: #fdfcfb;
+    }
+    .ck-risk-table tr:hover td {
+      background: #f6f3eb;
+    }
+
+    /* Review Grid */
+    .ck-review {
+      display: grid;
+      grid-template-columns: minmax(0, 1.35fr) 1px minmax(260px, 0.95fr);
+      border: 1px solid #d4d0c7;
+      border-radius: 4px;
+      overflow: hidden;
+      margin: 14px 0 20px;
+      background: #ffffff;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.03);
+    }
+    .ck-review-left {
+      padding: 22px 26px;
+      background: #ffffff;
+      line-height: 1.75;
+    }
+    .ck-review-rule { background: #dcd8cf; }
+    .ck-review-right {
+      padding: 16px 18px;
+      background: #faf9f6;
+      box-sizing: border-box;
+      display: flex;
+      flex-direction: column;
+    }
+    .ck-ev-list {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    /* Entity Highlight in LaTeX Paper Style */
+    .ck-cite-entity {
+      background: #fff8db;
+      border-bottom: 1.5px solid #b86a04;
+      padding: 1px 4px;
+      border-radius: 2px;
+      cursor: pointer;
+      transition: all 0.18s ease;
+      color: #111111;
+      font-weight: 600;
+    }
+    .ck-cite-entity:hover {
+      background: #ffe58f;
+      color: #000000;
+    }
+    .ck-cite-entity.is-on {
+      background: #ffd54a;
+      border-bottom-color: #0047ab;
+      box-shadow: 0 0 0 2px rgba(0,71,171,0.25);
+    }
+
+    /* Blue Hyperref Citations [1], [2] */
+    .ck-cite-ref {
+      color: #0047ab;
+      font-weight: 600;
+      font-family: "Latin Modern Roman", "Computer Modern Roman", "Times New Roman", serif;
+      text-decoration: none;
+      cursor: pointer;
+      padding: 0 2px;
+      margin: 0 2px;
+      border-radius: 2px;
+      transition: all 0.15s ease;
+      font-size: 0.92em;
+      vertical-align: baseline;
+      user-select: none;
+    }
+    .ck-cite-ref:hover {
+      text-decoration: underline;
+      background: #e8f0fe;
+      color: #003380;
+    }
+    .ck-cite-ref.is-active {
+      background: #d2e3fc;
+      color: #002266;
+      font-weight: 700;
+      box-shadow: 0 0 0 1px #0047ab;
+    }
+
+    /* Right Memory Cards in LaTeX Paper Style */
+    .ck-provenance-head {
+      font-size: 0.82rem;
+      font-weight: 700;
+      color: #222222;
+      margin: 0 0 12px;
+      padding-bottom: 6px;
+      border-bottom: 1px solid #e0dcd4;
+      letter-spacing: 0.3px;
+      text-transform: uppercase;
+    }
+    .ck-ref-icon { color: #0047ab; margin-right: 4px; }
+    .ck-ev {
+      display: block;
+      margin: 0;
+      padding: 10px 12px;
+      border: 1px solid #dedad2;
+      border-left: 3.5px solid #0047ab;
+      border-radius: 2px;
+      background: #ffffff;
+      font-size: 0.82rem;
+      line-height: 1.55;
+      transition: all 0.2s ease;
+      cursor: pointer;
+    }
+    .ck-ev:hover { border-color: #b5b0a5; }
+    .ck-ev.is-on, .ck-ev.is-highlighted {
+      border-color: #0047ab;
+      box-shadow: 0 0 0 2px #0047ab, 0 3px 8px rgba(0,71,171,0.15);
+      background: #f0f5ff;
+    }
+    @keyframes citePulse {
+      0% { background: #dbeafe; box-shadow: 0 0 0 3px #0047ab; }
+      50% { background: #bfdbfe; box-shadow: 0 0 0 4px #0047ab; }
+      100% { background: #f0f5ff; box-shadow: 0 0 0 2px #0047ab; }
+    }
+    .ck-ev-k {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 0.75rem;
+      color: #444444;
+      margin-bottom: 5px;
+      font-weight: 700;
+    }
+    .ck-ev-cite-tag {
+      color: #0047ab;
+      font-weight: 700;
+      font-family: "Latin Modern Roman", serif;
+      text-decoration: none;
+    }
+    .ck-ev-kind-badge {
+      display: inline-block;
+      padding: 1px 6px;
+      border-radius: 2px;
+      font-size: 0.72rem;
+      font-weight: 600;
+      letter-spacing: 0.2px;
+    }
+    .ck-badge-keypoint {
+      border: 1px solid #0047ab;
+      color: #0047ab;
+      background: #f0f5ff;
+    }
+    .ck-badge-note {
+      border: 1px solid #b86a04;
+      color: #b86a04;
+      background: #fff8eb;
+    }
+    .ck-mem-title {
+      font-weight: 700;
+      color: #111111;
+      font-size: 0.88rem;
+      margin-bottom: 6px;
+      line-height: 1.45;
+    }
+    .ck-ev-quote {
+      color: #222222;
+      font-style: normal;
+      font-family: inherit;
+      margin: 4px 0 6px;
+      padding: 0;
+      background: transparent;
+      border: none;
+      line-height: 1.6;
+      font-size: 0.84rem;
+    }
+    .ck-ev-meta { font-size: 0.76rem; color: #666666; margin-top: 6px; }
+    .ck-ev-more {
+      margin-top: 2px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+    .ck-ev-more[open] { margin-top: 4px; }
+    .ck-ev-more summary { margin-bottom: 6px; }
+    .ck-proof-toggle {
+      cursor: pointer;
+      font-size: 0.82rem;
+      color: #0047ab;
+      user-select: none;
+      font-family: inherit;
+      padding: 2px 0;
+    }
+    .ck-proof-toggle:hover { text-decoration: underline; }
+
+    @media(max-width: 860px) {
+      .ck-doc { padding: 22px 18px; }
+      .ck-review { grid-template-columns: 1fr; }
+      .ck-review-rule { display: none; }
+    }
+
+  </style>
+</head>
+<body>
+  <main class="page">
+    <div class="ck-doc">
+      <header class="ck-doc-header">
+        <h1>月度销售复盘与下月去化目标研讨会</h1>
+      </header>
+      <div class="ck-doc-content">
+        <h1 class="ck-doc-h1">全文摘要</h1><p>本次月度研讨会由总监主持，组长、销冠、销售A、销售B参加，围绕上月销售数据复盘与下月去化目标展开。上月案场总到访320组，环比增15%；成交76套，转化率23%，较上月降4个百分点；渠道带看占比65%，自然来访35%；蓄客量约3200组，认购到成交流失率约18%。总监指出量够但转化不足，客户流失主因价格预期与交付信心。会议确定多项动作：工地开放日定于每周三固定开放并提前推送；逼定权益可视化并更新物料；渠道带看实名登记；下月总去化目标120套，其中销冠28套、三人组50套、机动12套；周末办业主答谢会联动去化；安排两次专项培训；销控实时同步并问责；财务法务周末值班；邀约话术统一为“老业主专属品鉴宴”。总监强调跟进提速、客户不过夜，安排回访未成交300多组客户，渠道部由总监亲自沟通。</p><h1 class="ck-doc-h1">分段速览</h1><h2 class="ck-doc-h2">00:00:00-00:01:17 开场与上月数据复盘</h2><p>总监开场说明会议定于下午两点至两点四十，共四十分钟，指出上月市场波动大、项目整体去化尚可但部分数据不理想。组长汇报后台完整数据：上月案场总到访三百二十组，环比增加百分之十五，达标；成交七十六套，转化率百分之二十三，较上月百分之二十七下降；渠道带看占比百分之六十五，自然来访百分之三十五；蓄客量约三千二百组，认购到成交流失率约百分之十八。总监总结为量够但卡在逼定和转化环节，并指出渠道带看比例偏高意味着自主拓客和案场拦截能力在退化。</p><h2 class="ck-doc-h2">00:01:53-00:03:36 客户流失抗性分析与工地开放日提议</h2><p>销冠复盘上月流失客户，集中在两个抗性：价格预期方面竞品推特价房、首付分期或送物业费，客户有落差；交付信心方面客户关注园林选材、地下车库层高、外墙保温层等细节，需将工地实时进展和材料样板直接呈现。销售A补充称带改善型客户看房时请施工经理和工人直接答疑，客户认可工程透明才成交，但工地开放日频率不够、陪看占时间。组长反馈开放日流程繁琐、报备审批需半天，建议设固定节点每周三下午开放，提前在客户群和朋友圈预告。总监认可并要求组长出方案，定于每周三、提前两天在CRM系统推送意向客户。</p><h2 class="ck-doc-h2">00:04:22-00:06:12 价格抗性逼定策略与物料更新</h2><p>总监提出下月政策调整，特价房名额有限，可在装修包和车位上做文章，并询问销冠送三年物业费的逼定手法。销冠说明采用算总账方式：不直接降价，而是将物业费、车位管理费、装修损耗拉表对比竞品，说明单价虽高两千但十年省下物业和品质维修费，再递上"限时权益"逼定函，承诺本周定可申请多送三年物业费。销售B提出客户对"限时权益"不买账，需将权益具象化，如打印三年缴费明细放在合同旁，并反映案场物料更新慢、逼定函常为上月版本。组长记录物料问题，联系设计本周出新版，并计划下月制作"权益可视化"台卡放洽谈区。</p><h2 class="ck-doc-h2">00:06:12-00:09:10 跟进节奏提速与渠道实名制</h2><p>总监强调客户不过夜，安排组长带销售A和销售B回访上周未成交的三百多组客户，重点盯"再考虑考虑"的；销冠梳理手头二十几个高意向客户，看能否周末逼定。针对渠道无效带看多，总监决定下月起带看必须实名登记并有明确需求标签，否则扣减渠道积分。销售A反映中介可能抵触，总监表示渠道部由自己沟通，质量大于数量底线不能破。销售B汇报老带新政策已下来，成功一套奖励两万现金或等值车位券，本月推四组、两组在谈，老业主需话术和礼品支持。组长准备定制伴手礼（高端茶叶礼盒、保温杯），销冠建议搞"业主推荐官"活动，成功推荐可升级物业服务等级、优先预约维修、免费家政清洗一次。</p><h2 class="ck-doc-h2">00:09:46-00:11:20 下月目标分解与周末答谢会</h2><p>总监传达集团下月总去化一百二十套指标，比上月多百分之五十。组长按人员配置和上月产出权重拆分：销冠目标二十八套，组长、销售A、销售B三人一组共五十套，剩余十二套作为机动和渠道攻坚储备。销售A表态手头有十五个准客户等认筹通知，配合组长资源倾斜可扛住，希望渠道带看质量再筛一筛；销售B计划周末办小型业主答谢会，邀请成交业主分享并推老带新政策。销冠表示可协助盯两桌，其改善型客户与答谢会客群重合度高，可做联动集中去化。总监明确分工：销冠带人协助、销售B主抓流程、销售A负责客户邀约和逼定记录。</p><h2 class="ck-doc-h2">00:11:20-00:15:07 培训安排、销控纪律与收尾补充</h2><p>总监安排本周两次专项演练，分别为"竞品对比与抗性化解"和"逼定时机与谈判心理学"，每人必须参加、课后现场抽考、不过加练，组长盯进度并安排签到考核表挂钩下周绩效系数。组长提出销控表更新延迟易引起客诉，总监要求销控实时同步、CRM系统锁房，再出现丢单或客诉直接问责，组长设专人每小时刷新销控大屏。组长总结五项核心议题：工地开放日周三固定开放、逼定权益可视化、渠道带看实名制、周末答谢会联动、专项培训与销控纪律。销售A建议邀约话术统一为"老业主专属品鉴宴"避开"促销"字眼，销售B随即修改短信和电话模板；销冠建议财务和法务在洽谈区待命，现场签单出收据可提升成交率至少两成，总监协调财务法务周六日轮流值班。总监要求组长散会后半小时内发会议纪要和任务分解表，销冠下周晨会分享逼定案例。</p><h1 class="ck-doc-h1">要点梳理</h1><h2 class="ck-doc-h2">上月销售数据复盘</h2><ul><li><strong>整体数据</strong>：上月案场总到访320组，环比增加15%；成交76套，转化率23%，较上月27%下降4个百分点。</li><li><strong>来访结构</strong>：渠道带看占比65%，自然来访仅35%；蓄客量约3200组，认购到成交流失率约18%。</li><li><strong>流失原因</strong>：主要集中在价格预期（竞品推特价房、首付分期、送物业费等）和交付信心（客户细问园林选材、地下车库层高、外墙保温层）两个抗性。</li><li><strong>总监判断</strong>：量够但转化不够，渠道带看比例高意味着自主拓客能力和案场拦截能力在退化，卡点在逼定和转化环节。</li></ul><h2 class="ck-doc-h2">工地开放日标准化</h2><ul><li><strong>现状问题</strong>：工地开放日频率不够，客户自行看房不便，销售陪看占时间；报备审批流程繁琐需半天。</li><li><strong>决定</strong>：工地开放日定于每周三下午固定开放，提前两天在CRM系统推送意向客户，客户直接对接专属顾问，不走复杂流程。</li><li><strong>依据</strong>：销售A分享改善型客户案例，带客户三次看工地并直接问工人，客户因工程透明才成交。</li></ul><h2 class="ck-doc-h2">价格抗性与逼定策略</h2><ul><li><strong>算总账法</strong>：销冠不直接降价，而是拉表对比物业费、车位管理费、装修损耗，说明单价虽高2000元但十年省物业和品质维修维护费。</li><li><strong>限时权益</strong>：销冠递送“限时权益”逼定函，承诺本周定下来亲自向营销总申请多送三年物业费，过了本周就没有。</li><li><strong>权益具象化</strong>：销售B建议把三年缴费明细打印出来放在合同旁，客户更有底；现场物料更新慢，逼定函常是上月版本。</li><li><strong>决定</strong>：组长联系设计本周出新版物料，把权益条款写清楚避免歧义；下月做“权益可视化”台卡放洽谈区。</li></ul><h2 class="ck-doc-h2">跟进节奏与渠道管理</h2><ul><li><strong>跟进问题</strong>：客户周末来看，平时销售打电话或整理资料，客户晚上问政策回复慢热度下降。</li><li><strong>回访安排</strong>：总监强调“客户不过夜”，组长带销售A和销售B回访上周未成交的300多组客户，重点盯“再考虑考虑”的。</li><li><strong>渠道实名制</strong>：下月起带看必须实名登记并有明确需求标签，否则扣减渠道积分；渠道带看量上去了但无效带看太多，中介随便拉人凑数。</li><li><strong>渠道沟通</strong>：销售A担心查太严渠道不愿推项目，总监表示渠道部由他亲自沟通，质量大于数量底线不能破，带看质量不行直接换备选。</li></ul><h2 class="ck-doc-h2">老带新与业主答谢会</h2><ul><li><strong>奖励政策</strong>：老带新成功一套奖励两万现金或等值车位券；销售B本月推4组，2组在谈。</li><li><strong>伴手礼支持</strong>：组长准备定制高端茶叶礼盒和保温杯，老业主转介绍时直接送。</li><li><strong>业主推荐官</strong>：销冠建议每成功推荐一套不仅有钱，还可升级物业服务等级（优先预约维修、免费家政清洗一次），软性权益更易在小区群传播。</li><li><strong>周末答谢会</strong>：销售B主抓流程，销售A负责客户邀约和逼定记录，销冠带人协助盯两桌；邀约话术统一为“老业主专属品鉴宴”，避开“促销”字眼。</li></ul><h2 class="ck-doc-h2">下月目标与任务分解</h2><ul><li><strong>总目标</strong>：集团下指标下月总去化120套，比上月多50%。</li><li><strong>拆分</strong>：销冠目标28套；组长、销售A、销售B三人一组目标50套；剩余12套作为机动和渠道攻坚储备。</li><li><strong>表态</strong>：销售A手头有15个准客户等下周认筹通知，希望渠道带看质量再筛一筛；销售B计划周末业主答谢会推老带新政策。</li></ul><h2 class="ck-doc-h2">培训与销控纪律</h2><ul><li><strong>专项培训</strong>：本周安排两次演练——“竞品对比与抗性化解”“逼定时机与谈判心理学”，每人必须参加，课后现场抽考，过不了加练。</li><li><strong>考核挂钩</strong>：组长安排签到和考核表，结果直接挂钩下周绩效系数。</li><li><strong>销控问题</strong>：销控表更新延迟，客户定了之后销售还在推同套房子，容易引起客诉。</li><li><strong>销控纪律</strong>：销控必须实时同步，谁推哪套在群里喊一声，CRM系统同步锁房；再出现丢单或客诉直接问责，组长设置专人每小时刷新销控大屏。</li></ul><h2 class="ck-doc-h2">结论与决定</h2><ul><li><strong>核心判断</strong>：上月量够但转化不足，卡在逼定和转化环节，需重点提升逼定与转化。</li><li><strong>已拍板事项</strong>：工地开放日每周三固定开放；逼定权益可视化并更新物料；渠道带看实名制与质量考核；下月去化目标120套及拆分；周末业主答谢会联动；两次专项培训强制参加；销控实时同步并问责；财务和法务周六日轮流值班在案场外围待命；邀约话术统一为“老业主专属品鉴宴”。</li></ul><h2 class="ck-doc-h2">行动项与分工</h2><ul><li><strong>组长</strong>：出工地开放日标准化方案（每周三、提前两天CRM推送）；带销售A和销售B回访上周未成交300多组客户；准备定制伴手礼；推进“业主推荐官”活动，下周前出详细执行表；安排培训签到考核表；设专人每小时刷新销控大屏；散会后半小时内发会议纪要和任务分解表到工作群。</li><li><strong>销冠</strong>：梳理手头二十几个高意向客户，周末一波逼定；协助周末答谢会盯两桌；下周晨会分享逼定案例。</li><li><strong>销售A</strong>：梳理客户池（15个准客户）；负责答谢会客户邀约和逼定记录；配合组长回访未成交客户。</li><li><strong>销售B</strong>：主抓答谢会流程；修改邀约短信和电话模板为“老业主专属品鉴宴”；准备逼定权益具象化物料。</li><li><strong>总监</strong>：协调财务和法务周六日轮流值班；亲自与渠道部沟通实名制事宜；盯渠道和工程对接。</li></ul><h2 class="ck-doc-h2">待确认与风险</h2><ul><li><strong>渠道抵触风险</strong>：渠道方称别的楼盘不查实名制，查太严可能不愿推项目，需总监与渠道部沟通确认。</li><li><strong>物料滞后风险</strong>：逼定函等现场物料更新慢，常为上月版本，可能影响逼定效果。</li><li><strong>销控客诉风险</strong>：销控不同步可能导致丢单或客诉，已定问责纪律。</li><li><strong>答谢会待细化</strong>：业主答谢会的具体流程和物料尚未细化。</li></ul>
+      </div>
+    </div>
+  </main>
+</body>
+</html>

@@ -1,0 +1,372 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>周会总结与社区建设规划</title>
+  <style>
+
+    body {
+      margin: 0;
+      padding: 32px 16px;
+      background: #f6f5f0;
+      color: #1a1a1a;
+      font-family: "Latin Modern Roman", "Computer Modern Roman", "CMU Serif", "Times New Roman", Times, "Songti SC", "SimSun", "STSong", serif;
+      -webkit-font-smoothing: antialiased;
+    }
+    .page { max-width: 1140px; margin: 0 auto; }
+    .ck-doc {
+      background: #ffffff;
+      border: 1px solid #d4d0c7;
+      border-radius: 4px;
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.05), 0 1px 3px rgba(0,0,0,0.03);
+      padding: 36px 44px;
+      line-height: 1.75;
+      font-size: 0.96rem;
+    }
+    .ck-doc h1 {
+      margin: 0 0 10px;
+      font-size: 1.85rem;
+      font-weight: 700;
+      letter-spacing: 0.4px;
+      text-align: center;
+      font-variant: small-caps;
+      color: #111111;
+    }
+    .ck-doc-header {
+      margin-bottom: 24px;
+      padding-bottom: 16px;
+      border-bottom: 2px solid #111111;
+      text-align: center;
+    }
+    .ck-doc-meta {
+      font-size: 0.85rem;
+      color: #555555;
+      font-style: italic;
+    }
+    .ck-doc-content h1, .ck-doc-content .ck-doc-h1 {
+      margin: 28px 0 14px;
+      font-size: 1.32rem;
+      font-weight: 700;
+      color: #111111;
+      border-bottom: 1.5px solid #222222;
+      padding-bottom: 5px;
+      text-align: left;
+      font-variant: normal;
+      letter-spacing: 0.3px;
+    }
+    .ck-doc h2, .ck-doc-h2 {
+      margin: 28px 0 14px;
+      font-size: 1.22rem;
+      font-weight: 700;
+      color: #111111;
+      border-bottom: 1.5px solid #222222;
+      padding-bottom: 5px;
+      letter-spacing: 0.3px;
+    }
+    .ck-doc h3, .ck-doc-h3 {
+      margin: 20px 0 10px;
+      font-size: 1.05rem;
+      font-weight: 700;
+      color: #222222;
+    }
+    .ck-doc h4, .ck-doc-h4 {
+      margin: 16px 0 8px;
+      font-size: 0.98rem;
+      font-weight: 700;
+      color: #333333;
+    }
+    .ck-doc p {
+      margin: 10px 0;
+      line-height: 1.75;
+      text-align: justify;
+    }
+    .ck-doc ul, .ck-doc ol {
+      margin: 8px 0 12px;
+      padding-left: 1.5em;
+      line-height: 1.72;
+    }
+    .ck-doc li {
+      margin: 4px 0;
+    }
+    .ck-doc blockquote, .ck-quote {
+      margin: 10px 0 14px;
+      padding: 8px 14px;
+      background: #faf9f6;
+      border-left: 3.5px solid #222222;
+      border-radius: 2px;
+      color: #222222;
+      font-size: 0.92rem;
+      font-style: italic;
+    }
+    .ck-doc code {
+      background: #f3f0e8;
+      border: 1px solid #e2ddd3;
+      border-radius: 3px;
+      padding: 1px 6px;
+      font-family: "Latin Modern Mono", Consolas, monospace;
+      font-size: 0.88em;
+    }
+    .ck-doc table, .ck-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.88rem;
+      margin: 14px 0;
+      background: #ffffff;
+      border-top: 2px solid #222222;
+      border-bottom: 2px solid #222222;
+    }
+    .ck-doc table th, .ck-doc table td, .ck-table th, .ck-table td {
+      padding: 9px 12px;
+      text-align: left;
+      vertical-align: middle;
+      border-bottom: 1px solid #ede9e1;
+    }
+    .ck-doc table th, .ck-table th {
+      background: #fbfaf7;
+      border-bottom: 1.2px solid #222222;
+      font-weight: 700;
+      color: #111111;
+      letter-spacing: 0.3px;
+    }
+
+    /* Roomy & Spacious Academic Risk Table */
+    .ck-risk-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 18px 0 28px;
+      background: #ffffff;
+      border-top: 2.2px solid #111111;
+      border-bottom: 2.2px solid #111111;
+      font-size: 0.93rem;
+      line-height: 1.72;
+    }
+    .ck-risk-table th {
+      background: #faf8f5;
+      border-bottom: 1.5px solid #111111;
+      padding: 15px 16px;
+      font-weight: 700;
+      color: #111111;
+      letter-spacing: 0.3px;
+      text-align: left;
+      vertical-align: middle;
+    }
+    .ck-risk-table td {
+      padding: 16px 16px;
+      border-bottom: 1px solid #ede8e0;
+      vertical-align: top;
+      color: #1a1a1a;
+      word-break: break-word;
+    }
+    .ck-risk-table tr:nth-child(even) td {
+      background: #fdfcfb;
+    }
+    .ck-risk-table tr:hover td {
+      background: #f6f3eb;
+    }
+
+    /* Review Grid */
+    .ck-review {
+      display: grid;
+      grid-template-columns: minmax(0, 1.35fr) 1px minmax(260px, 0.95fr);
+      border: 1px solid #d4d0c7;
+      border-radius: 4px;
+      overflow: hidden;
+      margin: 14px 0 20px;
+      background: #ffffff;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.03);
+    }
+    .ck-review-left {
+      padding: 22px 26px;
+      background: #ffffff;
+      line-height: 1.75;
+    }
+    .ck-review-rule { background: #dcd8cf; }
+    .ck-review-right {
+      padding: 16px 18px;
+      background: #faf9f6;
+      box-sizing: border-box;
+      display: flex;
+      flex-direction: column;
+    }
+    .ck-ev-list {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    /* Entity Highlight in LaTeX Paper Style */
+    .ck-cite-entity {
+      background: #fff8db;
+      border-bottom: 1.5px solid #b86a04;
+      padding: 1px 4px;
+      border-radius: 2px;
+      cursor: pointer;
+      transition: all 0.18s ease;
+      color: #111111;
+      font-weight: 600;
+    }
+    .ck-cite-entity:hover {
+      background: #ffe58f;
+      color: #000000;
+    }
+    .ck-cite-entity.is-on {
+      background: #ffd54a;
+      border-bottom-color: #0047ab;
+      box-shadow: 0 0 0 2px rgba(0,71,171,0.25);
+    }
+
+    /* Blue Hyperref Citations [1], [2] */
+    .ck-cite-ref {
+      color: #0047ab;
+      font-weight: 600;
+      font-family: "Latin Modern Roman", "Computer Modern Roman", "Times New Roman", serif;
+      text-decoration: none;
+      cursor: pointer;
+      padding: 0 2px;
+      margin: 0 2px;
+      border-radius: 2px;
+      transition: all 0.15s ease;
+      font-size: 0.92em;
+      vertical-align: baseline;
+      user-select: none;
+    }
+    .ck-cite-ref:hover {
+      text-decoration: underline;
+      background: #e8f0fe;
+      color: #003380;
+    }
+    .ck-cite-ref.is-active {
+      background: #d2e3fc;
+      color: #002266;
+      font-weight: 700;
+      box-shadow: 0 0 0 1px #0047ab;
+    }
+
+    /* Right Memory Cards in LaTeX Paper Style */
+    .ck-provenance-head {
+      font-size: 0.82rem;
+      font-weight: 700;
+      color: #222222;
+      margin: 0 0 12px;
+      padding-bottom: 6px;
+      border-bottom: 1px solid #e0dcd4;
+      letter-spacing: 0.3px;
+      text-transform: uppercase;
+    }
+    .ck-ref-icon { color: #0047ab; margin-right: 4px; }
+    .ck-ev {
+      display: block;
+      margin: 0;
+      padding: 10px 12px;
+      border: 1px solid #dedad2;
+      border-left: 3.5px solid #0047ab;
+      border-radius: 2px;
+      background: #ffffff;
+      font-size: 0.82rem;
+      line-height: 1.55;
+      transition: all 0.2s ease;
+      cursor: pointer;
+    }
+    .ck-ev:hover { border-color: #b5b0a5; }
+    .ck-ev.is-on, .ck-ev.is-highlighted {
+      border-color: #0047ab;
+      box-shadow: 0 0 0 2px #0047ab, 0 3px 8px rgba(0,71,171,0.15);
+      background: #f0f5ff;
+    }
+    @keyframes citePulse {
+      0% { background: #dbeafe; box-shadow: 0 0 0 3px #0047ab; }
+      50% { background: #bfdbfe; box-shadow: 0 0 0 4px #0047ab; }
+      100% { background: #f0f5ff; box-shadow: 0 0 0 2px #0047ab; }
+    }
+    .ck-ev-k {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 0.75rem;
+      color: #444444;
+      margin-bottom: 5px;
+      font-weight: 700;
+    }
+    .ck-ev-cite-tag {
+      color: #0047ab;
+      font-weight: 700;
+      font-family: "Latin Modern Roman", serif;
+      text-decoration: none;
+    }
+    .ck-ev-kind-badge {
+      display: inline-block;
+      padding: 1px 6px;
+      border-radius: 2px;
+      font-size: 0.72rem;
+      font-weight: 600;
+      letter-spacing: 0.2px;
+    }
+    .ck-badge-keypoint {
+      border: 1px solid #0047ab;
+      color: #0047ab;
+      background: #f0f5ff;
+    }
+    .ck-badge-note {
+      border: 1px solid #b86a04;
+      color: #b86a04;
+      background: #fff8eb;
+    }
+    .ck-mem-title {
+      font-weight: 700;
+      color: #111111;
+      font-size: 0.88rem;
+      margin-bottom: 6px;
+      line-height: 1.45;
+    }
+    .ck-ev-quote {
+      color: #222222;
+      font-style: normal;
+      font-family: inherit;
+      margin: 4px 0 6px;
+      padding: 0;
+      background: transparent;
+      border: none;
+      line-height: 1.6;
+      font-size: 0.84rem;
+    }
+    .ck-ev-meta { font-size: 0.76rem; color: #666666; margin-top: 6px; }
+    .ck-ev-more {
+      margin-top: 2px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+    .ck-ev-more[open] { margin-top: 4px; }
+    .ck-ev-more summary { margin-bottom: 6px; }
+    .ck-proof-toggle {
+      cursor: pointer;
+      font-size: 0.82rem;
+      color: #0047ab;
+      user-select: none;
+      font-family: inherit;
+      padding: 2px 0;
+    }
+    .ck-proof-toggle:hover { text-decoration: underline; }
+
+    @media(max-width: 860px) {
+      .ck-doc { padding: 22px 18px; }
+      .ck-review { grid-template-columns: 1fr; }
+      .ck-review-rule { display: none; }
+    }
+
+  </style>
+</head>
+<body>
+  <main class="page">
+    <div class="ck-doc">
+      <header class="ck-doc-header">
+        <h1>周会总结与社区建设规划</h1>
+      </header>
+      <div class="ck-doc-content">
+        <h1 class="ck-doc-h1">例会概况</h1><p>本次周会于10月28日召开，会议等级为自愿级，会议资料包括工作报告、这班看法、这班型社区介绍，目标是初步统一成员意见，统一对社区的认识。会议围绕工作总结、社区建设、任务分配、课程开发、执法队伍组建等议题展开讨论。工作方向与任务安排方面，下周主要任务是组建执法队伍，需组建教育团队、确定路线并修订纲领章程，任务包括课程开发，需招聘20多位师傅，相关讨论尚待进一步细化；社区建设与成员要求方面，强调社区环境重要性，成员按角色分为学生、教师、家长、学校、教育主管，需防止坏人进入，方向已明确；待遇与休假方面，明确上班5000元、额外有奖励和提成，休假为周五半天加周末两天，已定；学习介绍修改方面，已将“我们是谁”提到最上面，公众号和抖音任务已讨论，修改基本完成。整体上学习介绍修改等事项推进顺利，但工作方向可能偏了、工作量需考虑，会议纲要是否还需修改待定。会议结论为下一步邀请同事加入，继续线下学习。</p><h1 class="ck-doc-h1">工作进展</h1><h2 class="ck-doc-h2">社区建设与学习介绍</h2><ul><li><strong>学习介绍修改（✅已完成）</strong>：已将“我们是谁”部分提到最前面，并同步调整了封面与镜头衔接；下一步将学习介绍发送给成员审阅，确认后进入邀请同事加入环节。</li><li><strong>公众号与抖音任务（🔄进行中）</strong>：已讨论公众号运营与抖音任务的可视化学习方案和工具，涉及服务时间与工具调整；下一步根据数据配热情况确定每月充值赞助方案，具体费用待统计。</li><li><strong>社区成员角色划分（🔄进行中）</strong>：已按学生、教师、家长、学校、教育主管五类角色划分社区成员，并明确需防止坏人进入；下一步结合角色定位完善社区环境建设方案。</li></ul><h2 class="ck-doc-h2">任务与队伍建设</h2><ul><li><strong>组建执法队伍（🔄进行中）</strong>：确定为下月主要任务，是当前占比最大的任务，需招聘20多位师傅组建教育班队；下一步确定路线并修订纲领章程，随后安排任务分工。</li><li><strong>课程开发（🔄进行中）</strong>：已列为四个任务之一，开发性质待明确；下一步结合教育团队组建推进课程内容设计。</li><li><strong>纲领章程修订（🔄进行中）</strong>：已修订303相关章程，基本接近完成；下一步由成员自行审阅后打勾确认。</li><li><strong>大运发放调试（🔄进行中）</strong>：工作刚开始，目前仅以志愿者身份参与；下一步继续调试发放流程。</li></ul><h2 class="ck-doc-h2">待遇与运营</h2><ul><li><strong>待遇方案（🔄进行中）</strong>：已明确上班5000元，额外有奖励和提成，休假为周五半天加周末两天；下一步在月会上正式发放薪资待遇。</li><li><strong>账单统计（🔄进行中）</strong>：发现两个账单未发送，全场活动的优美和棒棒糖待遇尚未发放，导致今日余额趋势比上次多；下一步完成发放后再入职统计。</li></ul><h1 class="ck-doc-h1">决定与待办</h1><ul><li><strong>下周主要任务</strong>：组建执法队伍，为下月主要任务。</li><li><strong>组建教育团队</strong>：需组建教育团队，确定路线并修订纲领章程。</li><li><strong>课程开发</strong>：任务包括课程开发，需招聘20多位师傅。</li><li><strong>学习介绍修改</strong>：已将“我们是谁”提到最上面，修改完成。</li><li><strong>邀请同事加入</strong>：下一步邀请同事加入，共同制作解决方案。</li></ul><h1 class="ck-doc-h1">协作需求</h1><ul><li><strong>邀请同事加入</strong>：主持人提出下一步邀请同事加入，共同制作解决方案，需成员会后确认有谁愿意参与，并安排下道工序后即可加入。</li><li><strong>学习介绍修改配合</strong>：主持人已修改学习介绍并将「我们是谁」提到最上面，需相关成员根据修改后的参数同步调整公众号、抖音任务及可视化学习方案和工具。</li><li><strong>任务分配调整</strong>：主持人指出部分任务地方性不大，需张经理（张张经理）修改任务安排，将下周洛阳行程相关事项排到第二项。</li><li><strong>课程开发与执法队伍组建</strong>：组建执法队伍为下月主要任务，需招聘20多位师傅，需成员配合确定路线、修订纲领章程，并安排任务运行。</li><li><strong>待遇与休假确认</strong>：待遇为上班5000元、额外奖励及提成，休假为周五半天加周末两天，需成员确认是否接受该安排。</li><li><strong>会议纲要修改</strong>：主持人询问会议纲要是否还需修改，需成员反馈意见后确定是否调整。</li></ul><h1 class="ck-doc-h1">待确认与风险</h1><ul><li><strong>工作方向是否偏了</strong>：主持人提出当前工作方向可能偏了，需要考虑工作量，但未明确具体偏差点与调整方案，待后续确认。</li><li><strong>会议纲要是否还需修改</strong>：会上有人提出「这个会议纲要还要改吗」，未形成结论，修改与否待定。</li><li><strong>是否要报上上</strong>：主持人提出「要不要报上上」，大家未好好讨论，是否申报未决。</li><li><strong>社区环境与成员准入</strong>：强调「人不出去怎么学习」，需防止坏人进入，但准入机制与执行方式未议定。</li><li><strong>任务分配与条件差异</strong>：提到任务分配时「可能他们菜品条件不太一样」，各任务条件差异对分配的影响未明确。</li></ul>
+      </div>
+    </div>
+  </main>
+</body>
+</html>
