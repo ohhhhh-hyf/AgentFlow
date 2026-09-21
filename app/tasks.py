@@ -415,12 +415,12 @@ def _template_file(domain: str, line: str, template_value: str) -> Path | None:
 
 
 def _profile_file(domain: str, profile_value: str, user_id: str = "") -> Path:
-    """画像文件定位（空值自动选档，见 ``app.config.profile_path``）。"""
+    """画像文件定位（选档规则见 ``app.config.profile_path``）。"""
     path = profile_path(domain, profile_value, user_id)
     if not path or not path.is_file():
         hint = (
-            "空=有 data/{user_id}/user.json 则按真人、否则客观全员；user=强制真人；"
-            "objective/object=强制客观；或职业模板名"
+            "空=默认档（客观全员）；user=真人档案 data/{user_id}/user.json；"
+            "objective/object=客观全员；或职业模板名（developer 等）"
         )
         raise ApiError(400, f"extra.profile 非法：{profile_value or '(空)'}（可选：{hint}）")
     return path

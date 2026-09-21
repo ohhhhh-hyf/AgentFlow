@@ -1,4 +1,4 @@
-"""tools/core 零 LLM 自测：画像选档（user.json 自动发现）、清洗、职业模板合并。
+"""tools/core 零 LLM 自测：画像选档（``profile=user`` → data/{uid}/user.json）、清洗、职业模板合并。
 
 用法::
 
@@ -84,7 +84,7 @@ def test_user_profile_path_safety() -> None:
 
 
 def test_selection_matrix(tmp: Path) -> None:
-    """extra.profile 选档：空值自动发现 → 真人；无档案 → 客观；显式值不被档案干扰。"""
+    """extra.profile 选档：空=默认档（客观，不读 user.json）；user=真人；职业名/显式客观各自独立。"""
     root = _root(tmp)
     ui = root / "data" / "1" / "user.json"
 
@@ -92,23 +92,24 @@ def test_selection_matrix(tmp: Path) -> None:
     obj = resolve_profile_file("", domain="meeting", user_id="1", project_root=root)
     check("空值 + 无 user.json → 客观全员", obj.name == "object.json", str(obj))
 
-    # ② 有档案 + 空值 → 真人档案
+    # ② 有档案 + 空值 → 仍是客观（2026-09-21 改口径：真人要显式 profile=user）
     _write(ui, USER_OK)
-    picked = resolve_profile_file("", domain="meeting", user_id="1", project_root=root)
-    check("空值 + 有 user.json → 真人档案", picked == ui, str(picked))
+    still_obj = resolve_profile_file("", domain="meeting", user_id="1", project_root=root)
+    check("空值 + 有 user.json → 不再自动发现，仍走默认档",
+          still_obj.name == "object.json", str(still_obj))
 
-    # ③ profile="user" 强制真人
+    # ③ profile="user" → 真人档案
     check("profile=user → user.json",
           resolve_profile_file("user", domain="meeting", user_id="1", project_root=root) == ui, "")
 
-    # ④ 显式客观忽略档案
+    # ④ 显式客观（与空值同档）
     for value in ("objective", "object"):
         path = resolve_profile_file(value, domain="meeting", user_id="1", project_root=root)
-        check(f"profile={value} → 强制客观（忽略 user.json）", path.name == "object.json", str(path))
+        check(f"profile={value} → 客观全员", path.name == "object.json", str(path))
 
-    # ⑤ 职业模板忽略档案
+    # ⑤ 职业模板
     dev = resolve_profile_file("developer", domain="meeting", user_id="1", project_root=root)
-    check("profile=developer → 职业模板（忽略 user.json）", dev.name == "developer.json", str(dev))
+    check("profile=developer → 职业模板", dev.name == "developer.json", str(dev))
 
     # ⑥ 未知职业名 → 空 Path（调用方 400）
     check("未知职业名 → 空 Path（400）",
@@ -118,13 +119,16 @@ def test_selection_matrix(tmp: Path) -> None:
     ui.unlink()
     check("无档案 + profile=user → 空 Path（400）",
           resolve_profile_file("user", domain="meeting", user_id="1", project_root=root) == Path(""), "")
-    check("无档案 + 空值 → 回客观（降级）",
+    check("无档案 + 空值 → 客观",
           resolve_profile_file("", domain="meeting", user_id="1", project_root=root).name == "object.json", "")
 
-    # ⑧ 其它用户的档案互不可见
+    # ⑧ 其它用户的档案互不可见（profile=user 只看自己那份）
     _write(root / "data" / "2" / "user.json", USER_OK)
-    check("按 user_id 隔离：1 号用户无档案 → 客观",
-          resolve_profile_file("", domain="meeting", user_id="1", project_root=root).name == "object.json", "")
+    check("按 user_id 隔离：1 号用户无档案 → profile=user 报 400",
+          resolve_profile_file("user", domain="meeting", user_id="1", project_root=root) == Path(""), "")
+    check("2 号用户 profile=user → 认自己那份",
+          resolve_profile_file("user", domain="meeting", user_id="2", project_root=root)
+          == root / "data" / "2" / "user.json", "")
 
 
 def test_broken_user_profile(tmp: Path) -> None:
@@ -140,7 +144,9 @@ def test_broken_user_profile(tmp: Path) -> None:
     for label, payload in cases.items():
         _write(ui, payload)
         check(f"user.json {label} → 按无档案处理", read_user_profile(ui) is None, "")
-        check(f"user.json {label} → 空值降级客观",
+        check(f"user.json {label} → profile=user 报 400（不静默降级）",
+              resolve_profile_file("user", domain="meeting", user_id="1", project_root=root) == Path(""), "")
+        check(f"user.json {label} → 空值仍走默认档（客观）",
               resolve_profile_file("", domain="meeting", user_id="1", project_root=root).name == "object.json", "")
     _write(ui, USER_OK)
     check("合法档案可读且必填项非空", (read_user_profile(ui) or {}).get("name") == "赵衡", "")

@@ -7,7 +7,7 @@
     python tools/scripts/check_user_profile.py 1 --show-block   # 顺带打印两个注入块全文
 
 检查四件事：
-1. ``extra.profile`` 留空时会不会选中这份档案（没档案则回落客观全员）；
+1. ``extra.profile="user"`` 指向这份档案（``profile`` 传空是默认档＝客观全员，不读档案）；
 2. 档案有没有被判成"真人"（``persona_type`` 是否为空）、``role_template`` 有没有合并进来；
 3. 注入理解层的「本用户称呼」和注入纪要线的「本用户偏好」长什么样；
 4. 按保守口径，这次会跑视角建模还是跳过（有可扫关注域 → 跑）。
@@ -39,11 +39,13 @@ def main(argv: list[str]) -> int:
     user_id = next((a for a in argv[1:] if not a.startswith("-")), "1")
     show_block = "--show-block" in argv
 
-    picked = profile_path("meeting", "", user_id)
-    print(f"① extra.profile 留空 → {picked or '（空：回落客观全员）'}")
+    picked = profile_path("meeting", "user", user_id)
+    print(f"① extra.profile=\"user\" → {picked or '（空：档案缺失/非法，接口会 400）'}")
     if not str(picked) or not Path(picked).is_file():
         print("   ✗ 没找到可用档案：放好 data/{user_id}/user.json 后重跑")
         return 1
+    empty_pick = profile_path("meeting", "", user_id)
+    print(f"   （对照）extra.profile 传空 → {empty_pick}（默认档＝客观全员，不读档案）")
 
     raw = read_user_profile(picked)
     if raw is None:

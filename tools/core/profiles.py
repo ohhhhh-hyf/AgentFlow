@@ -29,7 +29,7 @@ KIND_LABEL = {
     KIND_ROLE: "职业",
 }
 
-# 用户自建真人档案：``data/{X-User-Id}/user.json``（用户放文件即生效，不改仓库）
+# 用户自建真人档案：``data/{X-User-Id}/user.json``（不改仓库；``extra.profile=user`` 时读取）
 USER_PROFILE_FILENAME = "user.json"
 # extra.profile 里强制客观/强制真人的取值（与「空值自动选档」区分开）
 _OBJECTIVE_ALIASES = frozenset({"objective", "object"})
@@ -141,7 +141,9 @@ def filter_identity_fields(data: dict[str, Any], identity_cls: type) -> dict[str
 
 # ── 用户自建真人档案 user.json ──────────────────────────────────
 # 打通方式：用户把档案放在自己的数据目录 data/{X-User-Id}/user.json，
-# extra.profile 传空时自动发现：有合法档案 → 真人；否则维持客观全员。
+# **``extra.profile`` 传 ``user`` 才注入**。2026-09-21 改口径：以前"传空即自动发现"，
+# 结果是"放了个文件就悄悄换档"——调用方拿不到稳定默认，事后也说不清某次输出是按哪个
+# 视角跑的。现在传空一律走默认档（客观全员），纪要线再由 template 留空自动套「通用纪要」。
 
 
 def user_profile_path(user_id: str, project_root: Path | None = None) -> Path:
@@ -194,7 +196,7 @@ def sanitize_user_profile(data: dict[str, Any]) -> dict[str, Any]:
 
 
 def is_user_profile_file(path: Path | None) -> bool:
-    """该画像文件是否来自 user.json（只有自动发现会产出这个名字）。"""
+    """该画像文件是否来自 user.json（只有 ``extra.profile=user`` 这一档会指向它）。"""
     return bool(path) and Path(path).name == USER_PROFILE_FILENAME
 
 
@@ -219,21 +221,19 @@ def resolve_profile_file(
 
     | extra.profile | 行为 |
     |---|---|
-    | ``""``（空） | ``data/{uid}/user.json`` 存在且合法 → 真人档案；否则客观全员
-    | ``"user"`` | 强制真人（档案缺失/非法 → 空 Path，由调用方 400）
-    | ``"objective"`` / ``"object"`` | 强制客观，忽略 user.json
-    | 职业模板名 | 强制该职业，忽略 user.json
+    | ``""``（空） | **默认档：客观全员**（不读 user.json；纪要线再由 template 留空套「通用纪要」） |
+    | ``"user"`` | 真人档案 ``data/{uid}/user.json``（缺失/非法 → 空 Path，由调用方 400） |
+    | ``"objective"`` / ``"object"`` | 客观全员（与空值同档，留作显式表达） |
+    | 职业模板名 | 该职业模板（``perspective/profiles/{名}.json``），忽略 user.json |
 
     返回空 Path 表示"取值非法"，调用方负责报 400。
     """
     name = str(profile_value or "").strip()
     root = project_root or PROJECT_ROOT
-    user_path = user_profile_path(user_id, root)
     if not name:
-        if read_user_profile(user_path) is not None:
-            return user_path
         return _objective_path(domain, root)
     if name == _USER_ALIAS:
+        user_path = user_profile_path(user_id, root)
         return user_path if read_user_profile(user_path) is not None else Path("")
     if name.lower() in _OBJECTIVE_ALIASES:
         return _objective_path(domain, root)

@@ -121,7 +121,7 @@
   "docs": [],                       // 文件名列表（须已存在于服务端 data/{user_id}/docs/ 或 catalog 目录）
   "extra": {
     "template": "",                 // 输出模板（纪要线可空=自动套用「通用纪要」；其它线可空=不套模板）
-    "profile": "",                  // 用户画像选档：空=有 user.json 按真人、否则客观全员；见下方说明
+    "profile": "",                  // 用户画像选档：空=默认档（客观全员）；user=真人 user.json；见下方说明
     "project": "",                  // 项目绑定（会议记忆按项目聚合时使用；可空）
     "subject": "",                  // 学科（notes 域知识相关任务必填；中文自动转拼音，如 物理→wuli）
     "style": "",                    // 仅 minutes_styles 使用（见 2.6.4）
@@ -150,12 +150,12 @@
 
 | `profile` 取值 | 行为 |
 |---|---|
-| `""`（空） | 先看 `data/{X-User-Id}/user.json`：**存在且合法 → 按真人**；否则**客观全员**（默认） |
-| `user` | 强制真人；`user.json` 缺失或 `name` 为空 → **400** |
-| `objective` / `object` | 强制客观全员，**忽略** `user.json` |
-| 职业模板名（`developer` 等 6 个） | 强制该职业，忽略 `user.json` |
+| `""`（空） | **默认档：客观全员**（不读 `user.json`）；纪要线再由 `template` 留空自动套「通用纪要」 |
+| `user` | 真人视角：读 `data/{X-User-Id}/user.json` 注入（缺失、非 JSON 对象或 `name` 为空 → **400**） |
+| `objective` / `object` | 客观全员（与空值同档，留作显式表达） |
+| 职业模板名（`developer` 等 6 个） | 按该职业模板走，忽略 `user.json` |
 
-**`user.json`**（放在自己的数据目录，不改仓库；只在本机读取）
+**`user.json`**（放在自己的数据目录，不改仓库；只在本机读取，`profile: "user"` 才注入）
 
 ```json
 {
@@ -163,15 +163,17 @@
   "name_aliases": ["小赵", "赵工"],
   "role": "后端工程师",
   "role_template": "developer",
-  "personality": "务实，讨厌含糊的截止日期",
-  "preferences": ["先写我的待办和接口依赖"]
+  "personality": ["务实", "严谨"],
+  "preferences": ["先写我负责的待办", "关键数字与口径优先保留"]
 }
 ```
 
 - **必填**：`name`（真实姓名；空则整份档案按"不存在"处理）。
 - `role_template`：挂已有职业模板（`perspective/profiles/{名}.json`）；模板作底，`user.json` 里**写了且非 null 的键整段替换**（列表覆盖、不拼接），没写的键继承模板；找不到模板 → 400。
 - 也可不挂模板，用同一套键自写：`scope / responsibilities / interests / principles / focus_areas / constraints / values / output_style / context`。
-- 仅真人有：`name_aliases`（会上别称）、`personality`（只调语气详略）、`preferences`（纪要偏好）。
+- 仅真人有：`name_aliases`（会上别称）、`personality`（只调语气详略）、`preferences`（纪要偏好）。两者都**可以写单串或数组**，单条超 40 字截断。
+- **`personality` 只认关键词白名单**（务实/直接/干脆、严谨/较真/细致/含糊/讨厌、技术/工程/细节控、委婉/温和/平和），命不中＝不注入；要表达白名单外的语气，写进 `preferences`（自由文本会以「偏好说明」原样进 prompt）。
+- **`preferences` 命中白名单**（待办/简洁/先给结论/细节/数字口径/风险阻塞/少写）→ 映射成可执行指令；命不中 → 原样列为偏好说明。注入块**上限 6 条**（其中映射指令 ≤4 条），写太多后面的会被挤掉。
 - **不要填** `perspective` 与 `persona_type`：有 `user.json` 即真人，程序会忽略前者、把后者置空（误写会让姓名被当成职业通称）。
 - 档案里的姓名、别称、性格与偏好会随上下文进入模型调用（业务需要）；文件本身只保存在本机 `data/{user_id}/` 下。
 

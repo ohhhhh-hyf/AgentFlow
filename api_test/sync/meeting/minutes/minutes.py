@@ -679,7 +679,7 @@ resp = requests.post(
         "docs": [],
         "extra": {
             "template": "",
-            "profile": "",
+            "profile": "user",
             "project": "",
             "subject": "",
             "style": "",

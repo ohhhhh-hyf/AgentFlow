@@ -340,10 +340,11 @@ PROFILE_DIR = PROJECT_ROOT / "perspective" / "profiles"
 def profile_path(domain: str, profile_value: str, user_id: str = "") -> Path:
     """extra.profile 值 → 画像文件路径（实现见 ``tools.core.profiles.resolve_profile_file``）。
 
-    空/缺省 → 先看 ``data/{X-User-Id}/user.json``（用户自建真人档案，放文件即生效）；
-    没有有效档案则回落客观全员；``user`` = 强制真人（缺档案 → 空 Path 由调用方 400）；
-    ``objective`` / ``object`` = 强制客观（忽略 user.json）；
-    其余按职业模板名查 ``perspective/profiles/{name}.json``（忽略 user.json），
+    空/缺省 → **默认档：客观全员**（2026-09-21 起不再自动发现 user.json；纪要线再由
+    ``extra.template`` 留空自动套「通用纪要」）；``user`` = 真人档案
+    ``data/{X-User-Id}/user.json``（缺档案 → 空 Path 由调用方 400）；
+    ``objective`` / ``object`` = 客观全员（与空值同档，留作显式表达）；
+    其余按职业模板名查 ``perspective/profiles/{name}.json``，
     不存在返回空 Path（调用方判 400）。
     """
     from tools.core.profiles import resolve_profile_file
