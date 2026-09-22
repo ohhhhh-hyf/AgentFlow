@@ -7,8 +7,10 @@ from .hits import (
     HitTable,
     build_hit_table,
     foreign_only,
+    attribute_to_speaker,
     render_hit_block,
     slice_transcript_for_person,
+    speaker_blocks,
 )
 from .preferences import (
     BLOCK_TITLE as PREFERENCE_BLOCK_TITLE,
@@ -42,8 +44,10 @@ __all__ = [
     "foreign_only",
     "build_preference_block",
     "build_user_channel",
+    "attribute_to_speaker",
     "render_hit_block",
     "skip_reason",
     "slice_transcript_for_person",
+    "speaker_blocks",
     "synthesize_perspective_profile",
 ]

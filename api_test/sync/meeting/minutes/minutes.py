@@ -679,11 +679,11 @@ resp = requests.post(
         "docs": [],
         "extra": {
             "template": "",
-            "profile": "",
+            "profile": "user",
             "project": "",
             "subject": "",
             "style": "",
-            "memory": True,
+            "memory": False,
         },
     },
     headers={"X-Request-Id": uuid.uuid4().hex, "X-User-Id": USER_ID},

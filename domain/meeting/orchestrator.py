@@ -352,6 +352,36 @@ def _empty_purpose(state) -> str:
     ) or ""
     return f"会议目的：{purpose}" if purpose else ""
 
+def _attribute_person_items(state: dict, items: list[str]) -> list[str]:
+    """真人模式：按原文给风险/未决条目补出归属（「姓名：」前缀），对不上的原样返回。
+
+    为什么在程序里做（2026-09-22 实测三轮）：契约要求"按人分组"，但上游 risks 是纯文本、
+    没有归属，模型又受"措辞用上游原文"约束——三次真链路都没分组。这里用原文的发言行结构
+    定位"这条是谁提出/谁在跟"，把归属变成**可照抄的事实**，草稿只做分组、不再做推理。
+    只在能对上时才补（看不出归属的不补），零 LLM 调用；客观/职业模板原样返回。
+
+    **模块级函数而非方法**：既有测试以 ``_Nodes._meeting_pack(object(), state, line)`` 的
+    形式调用（用 ``object()`` 当 self），方法一旦用到 self 就会 AttributeError。
+    """
+    if DomainNodes._mode_label(state) != "personal" or not items:
+        return list(items)
+    from perspective import address_aliases, attribute_to_speaker
+
+    user = state.get("user") or {}
+    name = str(user.get("name") or "").strip()
+    addresses = [item for item in (name, *address_aliases(user)) if item]
+    found = attribute_to_speaker(
+        state.get("transcript") or "",
+        list(items),
+        self_addresses=addresses,
+        self_name=name,
+    )
+    return [
+        f"{found[item.strip()]}：{item}" if found.get(str(item).strip()) else item
+        for item in items
+    ]
+
+
 class _Nodes(DomainNodes):
     """meeting 图节点实现：共享内核 + 领域专属钩子与会议理解节点。"""
 
@@ -547,8 +577,8 @@ class _Nodes(DomainNodes):
                 **base,
                 "topics": full_topics or topics,
                 "decisions": u.get("decisions") or [],
-                "risks": u.get("risks") or [],
-                "open_questions": u.get("open_questions") or [],
+                "risks": _attribute_person_items(state, u.get("risks") or []),
+                "open_questions": _attribute_person_items(state, u.get("open_questions") or []),
             }
         return {
             **base,
@@ -766,6 +796,10 @@ class _Nodes(DomainNodes):
         把会议理解里的 topics[].key_points 直接变成条目——「武思华明天找他们要数据」就是这样
         进正文的（157 条里 49 条以别人为主语），写作纪律压不住素材。裁的只是"别人为主语、
         且没提到他"的条目：他的条目留、无人称的全局事实（数字/结论）留，decisions/risks 不动。
+
+        2026-09-22 追加：**topics[].discussion（议题讨论经过）走同一套判定**。它按契约写的就是
+        "谁提出、怎么讨论"，是别人为主语的高发区，此前只裁 key_points ⇒ 这条通道整段漏网。
+        命中即置空串（键保留），键不存在时不新增（minutes_styles 的 topic 没有该字段）。
         """
         if self._mode_label(state) != "personal":
             return pack
@@ -783,6 +817,7 @@ class _Nodes(DomainNodes):
             return pack
         kept: list[dict] = []
         dropped = 0
+        dropped_discussions = 0
         for topic in topics:
             points = topic.get("key_points") or []
             keep_points = [
@@ -790,12 +825,30 @@ class _Nodes(DomainNodes):
                 if not foreign_only(point, addresses, others, full_name=name)
             ]
             dropped += len(points) - len(keep_points)
-            kept.append({**topic, "key_points": keep_points})
+            entry = {**topic, "key_points": keep_points}
+            if "discussion" in topic:  # 讨论经过：同一套判定，命中置空（键保留、形状不变）
+                discussion = str(topic.get("discussion") or "")
+                if discussion.strip() and foreign_only(
+                    discussion, addresses, others, full_name=name
+                ):
+                    entry["discussion"] = ""
+                    dropped_discussions += 1
+            kept.append(entry)
         if dropped:
             logger.info(
                 "personal pack trim: 去掉别人为主的条目 %d/%d",
                 dropped,
                 sum(len(topic.get("key_points") or []) for topic in topics),
+            )
+        if dropped_discussions:
+            logger.info(
+                "personal pack trim: 去掉别人为主的议题讨论经过 %d/%d",
+                dropped_discussions,
+                sum(
+                    1
+                    for topic in topics
+                    if str(topic.get("discussion") or "").strip()
+                ),
             )
         return {**pack, "topics": kept}
 

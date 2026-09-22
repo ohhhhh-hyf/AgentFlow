@@ -2566,6 +2566,47 @@ def test_column_fill_overlong_item_rewrite() -> None:
     check("超长条：最终正文不再有超长条", bool(text) and overlong_items(text) == [], "")
 
 
+def test_personal_risk_attribution_in_pack() -> None:
+    """真人模式：分钟线 pack 的风险/未决按原文补出归属（「姓名：」前缀）；客观零外溢。"""
+    from domain.meeting.orchestrator import MeetingAgentSystem
+
+    transcript = (
+        "申家坤 00:00:05\n今天过长文本线。\n"
+        "徐玥 00:00:20\n我这边还有一个风险：合规材料还没批下来，审批拖着会影响你的报告交付。\n"
+        "武思华 00:00:45\n我的风险是接口权限没批，可能影响我这边的测试进度。\n"
+    )
+    understanding = {
+        "speakers": [{"name": "申家坤"}, {"name": "徐玥"}, {"name": "武思华"}],
+        "topics": [],
+        "decisions": [],
+        "risks": [
+            "合规材料还没批下来，审批拖着会影响你的报告交付",
+            "接口权限没批，可能影响测试进度",  # 轻度改写：靠 12 字探针对上原文
+            "930 窗口期不多了",
+        ],
+        "open_questions": ["合规材料审批何时批下来"],
+    }
+    host = object.__new__(MeetingAgentSystem)  # 不跑 __init__（会建 LLM client）
+    state = {
+        "transcript": transcript,
+        "user": {"name": "申家坤", "name_aliases": ["家坤"]},
+        "objective_perspective": False,
+        "meeting_understanding": understanding,
+    }
+    pack = host._meeting_pack(state, "minutes")
+    risks = list(pack["risks"])
+    check("真人 pack：有归属的风险条目带「姓名：」前缀",
+          risks[0].startswith("徐玥：") and risks[1].startswith("武思华："), str(risks))
+    check("真人 pack：看不出归属的全局风险不加前缀",
+          risks[2] == "930 窗口期不多了", str(risks))
+    check("真人 pack：派生问句（原文没有逐字表述）不硬归人",
+          pack["open_questions"] == ["合规材料审批何时批下来"], str(pack["open_questions"]))
+    obj = host._meeting_pack({**state, "objective_perspective": True}, "minutes")
+    check("客观 pack：不加任何前缀（零外溢）",
+          obj["risks"] == understanding["risks"]
+          and obj["open_questions"] == understanding["open_questions"], str(obj["risks"]))
+
+
 def test_media_overview_scope() -> None:
     """新闻发布 [发布会概况]：要素去掉与 [核心信息] 同名的词 + 可解析段上限 + 归位边界。
 
@@ -3720,21 +3761,35 @@ def test_assignment_scope_rules() -> None:
         MINUTES_SUPERVISOR_DOMAIN_PROMPT as REVIEW,
     )
 
-    check("契约字段说明：真人模式只写本人（别人分工不列，需配合的合并成一句）",
-          "**真人模式只写本人的**" in MINUTES_GENERATION_OUTPUT_CONTRACT
+    check("契约：真人模式自己的在前不写姓名、他人的带姓名前缀；客观/职业口径不变",
+          "**真人模式**" in MINUTES_GENERATION_OUTPUT_CONTRACT
+          and "不写自己的姓名" in MINUTES_GENERATION_OUTPUT_CONTRACT
+          and "每条以「姓名：」开头" in MINUTES_GENERATION_OUTPUT_CONTRACT
           and "确需他配合的合并成一句" in MINUTES_GENERATION_OUTPUT_CONTRACT
           and "客观/职业模板按有明确责任人的分工条数写" in MINUTES_GENERATION_OUTPUT_CONTRACT,
           "")
+    check("契约：风险/未决「有明确归属才分组」，分组写法自述；客观口径保留",
+          "风险（客观全量" in MINUTES_GENERATION_OUTPUT_CONTRACT
+          and "**有明确归属才分组**" in MINUTES_GENERATION_OUTPUT_CONTRACT
+          and "**分组写法**：" in MINUTES_GENERATION_OUTPUT_CONTRACT
+          and "看不出归属的不写姓名、平铺在最前" in MINUTES_GENERATION_OUTPUT_CONTRACT,
+          "")
+    check("契约：不再用「与某栏一致」的交叉引用（换模板/改栏名也不会被带偏）",
+          "与行动项一致" not in MINUTES_GENERATION_OUTPUT_CONTRACT
+          and "与风险栏一致" not in MINUTES_GENERATION_OUTPUT_CONTRACT,
+          "")
     check("提示词字段小节：条数口径分档（客观/职业=分工数；真人=命中表里他的待办数）",
           "条数 = 有明确责任人 + 明确职责的分工数**（客观/职业模板）" in GEN
-          and "**真人视角：条数 = 命中表里他的待办数**" in GEN
-          and "**别人的分工一律不列**" in GEN,
+          and "条数 = 命中表里他的待办数）" in GEN
+          and "**不写自己的姓名**" in GEN
+          and "按姓名分组" in GEN,
           "")
-    check("草稿真人视角段：执行要点只写他的，未命中写 []",
-          "**执行要点只写他的**" in GEN and "命中表没给他派活时写 []" in GEN, "")
-    check("审核：真人模式逐条罗列他人分工要拦（条件句，不误伤客观/职业）",
-          "**分工范围（真人模式）**" in REVIEW
-          and "以条目形式逐条罗列别人的分工" in REVIEW
+    check("草稿真人视角段：自己的在前不写姓名、他人的带姓名前缀，未命中写 []",
+          "不写自己的姓名**" in GEN and "命中表没给他派活时自己的部分写 []" in GEN, "")
+    check("审核：有明确归属却未标出要拦、无归属不加姓名不算缺陷（条件句）",
+          "**分工归属（真人模式）**" in REVIEW
+          and "有明确归属却未标出" in REVIEW
+          and "无归属的全局项不加姓名是允许的" in REVIEW
           and "客观/职业模板按有明确责任人的分工条数写，不按本条拦" in REVIEW,
           "")
     check("审核：正当依赖不算（避免误拦）", "上游出包后才能联调」这类正当依赖不算" in REVIEW, "")
@@ -3969,12 +4024,23 @@ def test_render_context_person_transcript() -> None:
     # 纪律压不住素材；裁完同一份输入的分工栏 8/8 都是他的条目（原来 5/8）。
     pack = {
         "meeting_brief": "进展",
-        "topics": [{"title": "长文本", "key_points": [
-            "长文本实测 8~9 万字不行，手头最大 40 多秒",   # 无人称全局事实 → 留
-            "申家坤回去改配置，明天给结论",                  # 点名他 → 留
-            "武思华明天找他们要数据，看能不能要到",          # 别人为主语 → 裁
-            "徐玥要求 930 前至少单卡四路",                   # 别人为主语 → 裁
-        ]}],
+        "topics": [
+            {
+                "title": "长文本",
+                "discussion": "武思华提出先测接口，徐玥要求本周出结论，讨论集中在人力上",  # 别人为主 → 裁
+                "key_points": [
+                    "长文本实测 8~9 万字不行，手头最大 40 多秒",   # 无人称全局事实 → 留
+                    "申家坤回去改配置，明天给结论",                  # 点名他 → 留
+                    "武思华明天找他们要数据，看能不能要到",          # 别人为主语 → 裁
+                    "徐玥要求 930 前至少单卡四路",                   # 别人为主语 → 裁
+                ],
+            },
+            {
+                "title": "引擎并发",
+                "discussion": "申家坤讲了长文本实测情况，其他人补充",  # 提到他 → 留
+                "key_points": ["申家坤负责压测"],
+            },
+        ],
         "decisions": ["930 前至少单卡四路"],
         "risks": ["武思华找对方批权限一直不批"],
     }
@@ -3993,8 +4059,15 @@ def test_render_context_person_transcript() -> None:
     check("素材裁剪：decisions / risks 不动（全局结论与风险仍进上下文）",
           trimmed_pack["decisions"] == ["930 前至少单卡四路"]
           and trimmed_pack["risks"] == ["武思华找对方批权限一直不批"], "")
-    check("素材裁剪：客观档与职业模板都不裁（原样返回）",
+    check("素材裁剪：别人为主的「议题讨论经过」同样去掉（2026-09-22 追加）",
+          trimmed_pack["topics"][0]["discussion"] == ""
+          and trimmed_pack["topics"][1]["discussion"] == "申家坤讲了长文本实测情况，其他人补充",
+          f"{[tp.get('discussion') for tp in trimmed_pack['topics']]}")
+    check("素材裁剪：客观档与职业模板都不裁（原样返回，含讨论经过）",
           len(host._person_pack(pack, {**pack_state, "objective_perspective": True})["topics"][0]["key_points"]) == 4
+          and host._person_pack(
+              pack, {**pack_state, "objective_perspective": True}
+          )["topics"][0]["discussion"].startswith("武思华提出")
           and len(host._person_pack(
               pack, {**pack_state, "user": {"name": "开发人员", "persona_type": "role_template"}}
           )["topics"][0]["key_points"]) == 4, "")
@@ -4084,6 +4157,7 @@ def main() -> int:
         test_long_generation_output_cap()
         test_column_fill_concurrency_and_early_stop()
         test_column_fill_overlong_item_rewrite()
+        test_personal_risk_attribution_in_pack()
         test_media_overview_scope()
         test_class_transcript_task_groups()
         test_quote_columns_have_background()

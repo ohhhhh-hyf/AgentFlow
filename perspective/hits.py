@@ -15,6 +15,8 @@
 """
 from __future__ import annotations
 
+from difflib import SequenceMatcher
+
 import re
 from dataclasses import asdict, dataclass, field
 from typing import Any
@@ -236,6 +238,106 @@ _SPEAKER_LINE_RE = re.compile(r"^\s*([^\s]{1,12})[ \t]+(\d{1,2}:\d{2}(?::\d{2})?
 _OMIT_TEMPLATE = "……（此处省略 {n} 段与本人无关的发言）"
 
 
+def speaker_blocks(transcript: str) -> list[tuple[str, str]]:
+    """按「姓名 HH:MM:SS」发言行把原文切成块 → ``[(发言人称谓, 块文本)]``。
+
+    与 :func:`slice_transcript_for_person` 共用同一发言行正则（``_SPEAKER_LINE_RE``）；
+    题头（首个发言行之前）不返回，没有发言行结构时返回空表。
+    """
+    blocks: list[list[str]] = []
+    for line in (transcript or "").splitlines():
+        match = _SPEAKER_LINE_RE.match(line)
+        if match:
+            blocks.append([match.group(1), line])
+            continue
+        if blocks:
+            blocks[-1][1] = f"{blocks[-1][1]}\n{line}"
+    return [(speaker, block) for speaker, block in blocks]
+
+
+_NORM_DROP_RE = re.compile(r"\W")  # 去掉所有非单词字符（空白/中英标点/符号/emoji）
+# 归属判定门槛：与原文的最长公共连续子串至少这么多字、且覆盖条目这么多比例（见 _MATCH_NUM/_MATCH_DEN）
+_MIN_MATCH_CHARS = 8  # 部分匹配（最长公共片段）门槛
+_MIN_EXACT_CHARS = 6  # 完全包含也要求的最小长度（防两三个字的碎片乱命中）
+_MATCH_NUM, _MATCH_DEN = 2, 5  # 覆盖率门槛 = 2/5（40%）
+
+
+def _compact_for_match(text: str) -> str:
+    """归一化：去掉所有非单词字符（空白、中英标点、符号、emoji 一并去掉，
+    只留字母/数字/下划线与汉字）——转写与索引条目的标点常不一致，逐一点名标点不可维护。"""
+    return _NORM_DROP_RE.sub("", text or "")
+
+
+def _longest_common_run(left: str, right: str) -> int:
+    """两串最长公共**连续子串**的长度（stdlib difflib）。
+
+    用最长公共片段而不是整条包含：条目常被轻度改写（如「影响我这边」→「影响测试」），
+    "整条包含"会全错过；而"最长公共片段"能对上改写点两侧的内容。
+    """
+    if not left or not right:
+        return 0
+    match = SequenceMatcher(None, left, right).find_longest_match(
+        0, len(left), 0, len(right)
+    )
+    return match.size
+
+
+def attribute_to_speaker(
+    transcript: str,
+    items: list[str],
+    *,
+    self_addresses: list[str] | None = None,
+    self_name: str = "",
+) -> dict[str, str]:
+    """给每条文本找它在原文里出自哪位发言人 → ``{条目原文: 称谓}``（对不上就不出现）。
+
+    用途：把"这条风险/未决是谁提出、谁在跟"变成**可照抄的事实**，而不是让模型去推理
+    （2026-09-22 实测：契约要求按人分组，但上游 risks 无归属、模型又受"措辞用上游原文"
+    约束，三轮真链路都没分组）。只在**能对上**时才给：条目按去标点归一化后被某个发言块
+    包含、或与之的最长公共连续子串达到 ``_MIN_MATCH_CHARS`` 且覆盖条目
+    ``_MATCH_NUM/_MATCH_DEN`` 以上）才返回该块首称呼；对不上一律不给（调用方按
+    "看不出归属"处理）。块首属于 ``self_addresses``（全称/别称）时统一返回 ``self_name``。
+    """
+    blocks = speaker_blocks(transcript)
+    if not blocks or not items:
+        return {}
+    norm = [(speaker, _compact_for_match(block)) for speaker, block in blocks]
+    addresses = [a for a in (self_addresses or []) if a]
+
+    def _canonical(speaker: str) -> str:
+        if addresses and _equals(speaker, addresses):
+            return self_name or speaker
+        return speaker
+
+    out: dict[str, str] = {}
+    for item in items:
+        key = _clean(item)
+        probe = _compact_for_match(key)
+        if not probe:
+            continue
+        hit = ""
+        probe_chars = set(probe)
+        best = 0
+        for speaker, block in norm:
+            if probe in block:  # 完全包含：直接命中（短条目也能算，只需过 _MIN_EXACT_CHARS）
+                hit, best = speaker, len(probe)
+                break
+            if len(probe_chars & set(block)) * 2 < len(probe_chars):
+                continue  # 字符重合太低，不可能有长公共片段（省掉昂贵的比对）
+            size = _longest_common_run(probe, block)
+            if size > best:
+                hit, best = speaker, size
+        if not hit:
+            continue
+        if best == len(probe):  # 完全包含
+            if best >= _MIN_EXACT_CHARS:
+                out[key] = _canonical(hit)
+            continue
+        if best >= _MIN_MATCH_CHARS and best * _MATCH_DEN >= len(probe) * _MATCH_NUM:
+            out[key] = _canonical(hit)
+    return out
+
+
 def slice_transcript_for_person(
     transcript: str,
     addresses: list[str],
@@ -332,4 +434,13 @@ def render_hit_block(table: HitTable) -> str:
     return "\n".join(lines)
 
 
-__all__ = ["Hit", "HitTable", "STRONG", "WEAK", "build_hit_table", "render_hit_block"]
+__all__ = [
+    "Hit",
+    "HitTable",
+    "STRONG",
+    "WEAK",
+    "attribute_to_speaker",
+    "build_hit_table",
+    "render_hit_block",
+    "speaker_blocks",
+]

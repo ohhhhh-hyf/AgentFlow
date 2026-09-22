@@ -155,12 +155,45 @@ def test_view_directive() -> None:
     check("整栏与他无关时给缺省兜底，不留空栏（空栏会触发回退重写）",
           "不要留空栏" in PERSONAL_VIEW_DIRECTIVE
           and "缺省写法" in PERSONAL_VIEW_DIRECTIVE, "")
-    check("纪律含硬口径：分点/表格类栏目只列他的条目（别人条目合并成一句）",
-          "**分工类栏目只列他的条目**" in PERSONAL_VIEW_DIRECTIVE
-          and "别人的条目一律不列" in PERSONAL_VIEW_DIRECTIVE, "")
+    check("纪律含硬口径：分栏按人分组（自己的在前不写姓名、他人的按姓名分组）",
+          "组名独占一行写 `**我的事项**：`" in PERSONAL_VIEW_DIRECTIVE
+          and "他人的按其姓名分组" in PERSONAL_VIEW_DIRECTIVE
+          and "不写自己的姓名" in PERSONAL_VIEW_DIRECTIVE, "")
+    check("纪律：凡按条列项的分栏都按人分组（有归属才分组、无归属不加姓名、不点名具体栏）",
+          "凡是按条列项的分栏都按「人」分组" in PERSONAL_VIEW_DIRECTIVE
+          and "**有明确归属才分组**：看不出归属的全局项平铺在最前、不加任何姓名"
+          in PERSONAL_VIEW_DIRECTIVE,
+          "")
     check("纪律不含任何人物事实（纯写作纪律，不引入可被抄进正文的名字/数字）",
           "申家坤" not in PERSONAL_VIEW_DIRECTIVE
           and "赵衡" not in PERSONAL_VIEW_DIRECTIVE, "")
+
+
+def test_speaker_attribution() -> None:
+    """发言行切块 + 条目归属判定（A2：把「这条是谁的」变成可照抄的事实，不让模型推理）。"""
+    from perspective import attribute_to_speaker, speaker_blocks
+
+    transcript = (
+        "申家坤 00:00:05\n今天过长文本线。\n"
+        "徐玥 00:00:20\n我这边还有一个风险：合规材料还没批下来，审批拖着会影响你的报告交付。\n"
+        "武思华 00:00:45\n我的风险是接口权限没批，可能影响我这边的测试进度。\n"
+    )
+    blocks = speaker_blocks(transcript)
+    check("发言行切块：按「姓名 HH:MM:SS」切、题头不入块",
+          [b[0] for b in blocks] == ["申家坤", "徐玥", "武思华"], str([b[0] for b in blocks]))
+    item_risk = "合规材料还没批下来，审批拖着会影响你的报告交付"
+    got = attribute_to_speaker(
+        transcript, [item_risk, "930 窗口期不多了"],
+        self_addresses=["申家坤", "家坤"], self_name="申家坤",
+    )
+    check("归属判定：原文能对上的给出发言人、对不上的不给",
+          got.get(item_risk) == "徐玥" and "930 窗口期不多了" not in got, str(got))
+    mine = attribute_to_speaker(
+        transcript, ["今天过长文本线"],
+        self_addresses=["申家坤", "家坤"], self_name="申家坤",
+    )
+    check("归属判定：块首是他的别称时归一成全称",
+          mine.get("今天过长文本线") == "申家坤", str(mine))
 
 
 def test_user_channel_block() -> None:
@@ -438,6 +471,7 @@ def main() -> int:
     test_hit_table()
     test_transcript_slice()
     test_foreign_only()
+    test_speaker_attribution()
     test_skip_and_synthesize()
     test_tolerant_field_forms()
     print(f"pass {len(PASS)}  fail {len(FAIL)}")
