@@ -21,6 +21,7 @@ from .config import (
     PROJECT_ROOT,
     load_domain,
     load_env,
+    personal_minutes_template,
     profile_path,
     resolve_template_format,
 )
@@ -370,22 +371,28 @@ def _validate(req: TaskRequest, task: str, user_id: str) -> str:
     return line
 
 
-def _template_file(domain: str, line: str, template_value: str) -> Path | None:
+def _template_file(
+    domain: str,
+    line: str,
+    template_value: str,
+    profile_value: str = "",
+) -> Path | None:
     """extra.template → 临时模板文件；非法抛 400。
 
     取值只两种：模板 md 英文名（``project_progress``）、模板中文名（``项目进度会``）。
 
-    **纪要线留空 → 自动套用「通用纪要」**（``DEFAULT_MINUTES_TEMPLATE``）。为什么
-    （2026-09-18 实测）：不传模板时走自由渲染，完全听模型的——栏目自定、无缺省词、
-    无段落上限、不跑模板门禁（同一份原文 6410 汉字、最长单行 515 字、超出篇幅上限 16%
-    无人管）。其它线留空仍表示"不套模板"；默认模板在注册表缺失时退回无模板并记 warning，
-    不让调用方因默认值缺失而 400。
+    **纪要线留空 → 自动套用默认模板**：
+    - 客观模式（profile 为空或 objective）：始终套用「通用纪要」（``DEFAULT_MINUTES_TEMPLATE``）；
+    - 真人模式（profile="user"）：由 ``personal_minutes_template()`` 决定，默认套用「个人视角纪要」
+      （``personal_minutes``），可通过 .env 的 AGENTFLOW_PERSONAL_MINUTES_TEMPLATE 切换回通用纪要。
     """
     value = (template_value or "").strip()
     auto_default = False
     if not value:
         if domain == "meeting" and line == "minutes":
-            value, auto_default = DEFAULT_MINUTES_TEMPLATE, True
+            is_personal = (profile_value or "").strip().lower() == "user"
+            value = personal_minutes_template() if is_personal else DEFAULT_MINUTES_TEMPLATE
+            auto_default = True
         else:
             return None
     fmt = resolve_template_format(value)
@@ -531,7 +538,7 @@ def _prepare(domain: str, task: str, req: TaskRequest, user_id: str) -> _Prepare
 
     ctx = load_domain(domain)
     profile_file = _profile_file(domain, extra.profile, (user_id or "").strip())
-    template_path = _template_file(domain, line, extra.template)
+    template_path = _template_file(domain, line, extra.template, profile_value=extra.profile)
 
     # 输入文件：library 传原文件路径列表（docs 图片+文档全量入库）；其余传临时文件/目录
     input_files: list[Path] | Path | None

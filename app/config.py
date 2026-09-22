@@ -24,6 +24,21 @@ DEFAULT_TEMPLATE_DIR = "template_v2"
 # 不跑模板门禁（同一份原文 6410 汉字、最长单行 515 字、超出篇幅上限 16% 无人管）。
 DEFAULT_MINUTES_TEMPLATE = "general_minutes"
 
+# 个人视角纪要线的默认模板：extra.profile="user" 且 extra.template 留空时套用。
+# 取值来自 .env 的 AGENTFLOW_PERSONAL_MINUTES_TEMPLATE，缺省为 "personal_minutes"；
+# 设为 "general_minutes" 可回退到历史通用模板剪裁逻辑（双轨可控）。
+DEFAULT_PERSONAL_MINUTES_TEMPLATE = "personal_minutes"
+
+
+def personal_minutes_template() -> str:
+    """真人模式（profile=user）默认套用的纪要模板名。"""
+    load_env()
+    return (
+        os.getenv("AGENTFLOW_PERSONAL_MINUTES_TEMPLATE", DEFAULT_PERSONAL_MINUTES_TEMPLATE).strip()
+        or DEFAULT_PERSONAL_MINUTES_TEMPLATE
+    )
+
+
 # 每个取值只打一次日志（template_dir() 会被频繁调用），避免配置写错时逐请求刷屏
 _template_dir_logged: set[str] = set()
 
@@ -212,6 +227,7 @@ TEMPLATE_SCENARIO = {
     "government_bulletin": "press_conference",
     "media_qa_session": "press_conference",
     "admission_briefing": "meeting_minutes",
+    "personal_minutes": "meeting_minutes",
     "general_minutes": "daily_journal",
     "personal_memo": "daily_journal",
     "conversation_transcript": "daily_journal",
@@ -357,6 +373,8 @@ __all__ = [
     "DEFAULT_JOB_TTL_SECONDS",
     "DEFAULT_LEASE_SECONDS",
     "DEFAULT_MINUTES_TEMPLATE",
+    "DEFAULT_PERSONAL_MINUTES_TEMPLATE",
+    "personal_minutes_template",
     "DEFAULT_REDIS_URL",
     "DEFAULT_RUN_MODE",
     "PROFILE_DIR",

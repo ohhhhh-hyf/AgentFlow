@@ -18,6 +18,7 @@ from langgraph.graph import START
 from tools.llm import LLMClient
 from perspective import (
     PREFERENCE_LINES,
+    PERSONAL_TEMPLATE_VIEW_DIRECTIVE,
     PERSONAL_VIEW_DIRECTIVE,
     PerspectiveModelingAgent,
     address_aliases,
@@ -798,6 +799,9 @@ class _Nodes(DomainNodes):
         """
         if self._mode_label(state) != "personal" or line_name not in PREFERENCE_LINES:
             return ""
+        template = str((state.get("templates") or {}).get(line_name) or "")
+        if any(marker in template for marker in ("本场概况与本人定调", "重点关注与业务进展", "行动项与协同依赖", "待确认事项与风险卡点")):
+            return PERSONAL_TEMPLATE_VIEW_DIRECTIVE
         return PERSONAL_VIEW_DIRECTIVE
 
     def _person_pack(self, pack: dict, state: dict) -> dict:

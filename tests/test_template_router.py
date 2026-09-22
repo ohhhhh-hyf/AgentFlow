@@ -34,6 +34,7 @@ SCALAR_BASELINE_BY_DIR: dict[str, dict[str, int]] = {
         "class_transcript": 4, "clinical_advisory": 4, "contract_vetting": 4,
         "conversation_transcript": 4, "court_transcript": 4, "debate_forum": 4,
         "decision_review": 4, "exchange_forum": 4, "general_minutes": 6,
+        "personal_minutes": 4,
         "government_bulletin": 3, "group_seminar": 4, "hiring_report": 3,
         "home_school_liaison": 4, "interview_debrief": 4, "interview_transcript": 3,
         "knowledge_memo": 3, "legal_advisory": 4, "media_briefing": 4,
@@ -49,6 +50,7 @@ SCALAR_BASELINE_BY_DIR: dict[str, dict[str, int]] = {
         "class_transcript": 4, "clinical_advisory": 5, "contract_vetting": 4,
         "conversation_transcript": 5, "court_transcript": 3, "debate_forum": 5,
         "decision_review": 4, "exchange_forum": 5, "general_minutes": 3,
+        "personal_minutes": 4,
         "government_bulletin": 3, "group_seminar": 4, "hiring_report": 3,
         "home_school_liaison": 4, "interview_debrief": 4, "interview_transcript": 3,
         "knowledge_memo": 3, "legal_advisory": 4, "media_briefing": 4,
@@ -4058,6 +4060,27 @@ def test_render_view_directive() -> None:
               {"user": {"persona_type": "role_template", "name": "开发人员"}}, "minutes"
           ) == "",
           "")
+
+    from perspective import PERSONAL_TEMPLATE_VIEW_DIRECTIVE
+    personal_custom = {
+        "user": {"name": "申家坤"},
+        "templates": {"minutes": "# [本场概况与本人定调]\n[说明]\n"},
+    }
+    check(
+        "钩子：真人模式 + 专属个人模板 → 注入 PERSONAL_TEMPLATE_VIEW_DIRECTIVE",
+        host._render_directives(personal_custom, "minutes") == PERSONAL_TEMPLATE_VIEW_DIRECTIVE,
+        host._render_directives(personal_custom, "minutes")[:60],
+    )
+    check(
+        "钩子：真人模式 + 通用模板 → 注入通用纪律 PERSONAL_VIEW_DIRECTIVE",
+        host._render_directives(personal, "minutes") == PERSONAL_VIEW_DIRECTIVE,
+        "",
+    )
+    check(
+        "钩子：客观模式 + 专属个人模板 → 绝不注入（客观纪要 100% 零影响）",
+        host._render_directives({**personal_custom, "objective_perspective": True}, "minutes") == "",
+        "",
+    )
 
     user = _column_fill_user(
         "来源", template, index=1, total=2, hint="一段话概括", title="全文摘要",

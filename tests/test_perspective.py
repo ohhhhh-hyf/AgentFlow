@@ -591,6 +591,82 @@ def test_personal_grouping_and_normalization() -> None:
           "## 待确认与风险\n**与我相关**：\n- 显存不够可能导致 OOM\n\n**徐玥**：\n- 排期依赖外部团队" in norm, norm)
 
 
+def test_personal_template_view_directive() -> None:
+    """专属个人模板纪律：契合个人工作台原生契约，无通用模板对抗指令。"""
+    from perspective import (
+        PERSONAL_TEMPLATE_VIEW_DIRECTIVE,
+        VIEW_DIRECTIVE_TITLE,
+    )
+
+    check("专属纪律：块头也是独立标题",
+          PERSONAL_TEMPLATE_VIEW_DIRECTIVE.startswith(f"【{VIEW_DIRECTIVE_TITLE}】"), "")
+    check("专属纪律：以本人为叙事主线",
+          "以本人为叙事主线" in PERSONAL_TEMPLATE_VIEW_DIRECTIVE, "")
+    check("专属纪律：人名口径包含本人省主语与他人写真名",
+          "本人动作省主语" in PERSONAL_TEMPLATE_VIEW_DIRECTIVE
+          and "他人动作写真名" in PERSONAL_TEMPLATE_VIEW_DIRECTIVE, "")
+    check("专属纪律：分栏组名包含与我相关和前置依赖",
+          "与我相关" in PERSONAL_TEMPLATE_VIEW_DIRECTIVE
+          and "前置依赖" in PERSONAL_TEMPLATE_VIEW_DIRECTIVE, "")
+    check("专属纪律：无通用模板栏名对抗修正（没有「全文摘要」「分段速览」等对抗词）",
+          "全文摘要" not in PERSONAL_TEMPLATE_VIEW_DIRECTIVE
+          and "分段速览" not in PERSONAL_TEMPLATE_VIEW_DIRECTIVE, "")
+
+
+def test_personal_template_config_and_task_routing() -> None:
+    """测试个人模板配置开关与 tasks 路由：客观纪要 100% 隔离，个人纪要支持双轨平滑回退。"""
+    import os
+    from app.config import personal_minutes_template, DEFAULT_PERSONAL_MINUTES_TEMPLATE
+    from app.tasks import _template_file
+
+    orig_env = os.environ.get("AGENTFLOW_PERSONAL_MINUTES_TEMPLATE")
+    try:
+        if "AGENTFLOW_PERSONAL_MINUTES_TEMPLATE" in os.environ:
+            del os.environ["AGENTFLOW_PERSONAL_MINUTES_TEMPLATE"]
+        check("配置：无环境变量时返回默认模板 personal_minutes",
+              personal_minutes_template() == DEFAULT_PERSONAL_MINUTES_TEMPLATE, "")
+
+        os.environ["AGENTFLOW_PERSONAL_MINUTES_TEMPLATE"] = "custom_personal"
+        check("配置：环境变量生效", personal_minutes_template() == "custom_personal", "")
+
+        # 路由测试：客观纪要（profile="" 或 "objective"）必须始终走 general_minutes
+        os.environ["AGENTFLOW_PERSONAL_MINUTES_TEMPLATE"] = "personal_minutes"
+        obj_tpl_path = _template_file("meeting", "minutes", "", profile_value="")
+        obj_content = obj_tpl_path.read_text(encoding="utf-8") if obj_tpl_path else ""
+        check("路由：客观模式（profile为空）100% 保持 general_minutes",
+              "全文摘要" in obj_content and "本场概况与本人定调" not in obj_content, obj_content[:60])
+
+        obj_explicit_path = _template_file("meeting", "minutes", "", profile_value="objective")
+        obj_exp_content = obj_explicit_path.read_text(encoding="utf-8") if obj_explicit_path else ""
+        check("路由：客观模式（profile=objective）100% 保持 general_minutes",
+              "全文摘要" in obj_exp_content and "本场概况与本人定调" not in obj_exp_content, obj_exp_content[:60])
+
+        # 路由测试：个人模式（profile="user"）默认走 personal_minutes
+        user_tpl_path = _template_file("meeting", "minutes", "", profile_value="user")
+        user_content = user_tpl_path.read_text(encoding="utf-8") if user_tpl_path else ""
+        check("路由：个人模式（profile=user）默认走 personal_minutes",
+              "本场概况与本人定调" in user_content and "行动项与协同依赖" in user_content, user_content[:60])
+
+        # 路由测试：若显式指定 template，尊重指定值
+        explicit_tpl_path = _template_file("meeting", "minutes", "general_minutes", profile_value="user")
+        explicit_content = explicit_tpl_path.read_text(encoding="utf-8") if explicit_tpl_path else ""
+        check("路由：个人模式显式指定 general_minutes 时尊重显式入参",
+              "全文摘要" in explicit_content, explicit_content[:60])
+
+        # 路由测试：平滑回退，当环境变量改为 general_minutes 时，profile=user 自动回退
+        os.environ["AGENTFLOW_PERSONAL_MINUTES_TEMPLATE"] = "general_minutes"
+        fallback_path = _template_file("meeting", "minutes", "", profile_value="user")
+        fallback_content = fallback_path.read_text(encoding="utf-8") if fallback_path else ""
+        check("路由：环境变量改为 general_minutes 时，个人模式平滑回退",
+              "全文摘要" in fallback_content and "本场概况与本人定调" not in fallback_content, fallback_content[:60])
+
+    finally:
+        if orig_env is not None:
+            os.environ["AGENTFLOW_PERSONAL_MINUTES_TEMPLATE"] = orig_env
+        elif "AGENTFLOW_PERSONAL_MINUTES_TEMPLATE" in os.environ:
+            del os.environ["AGENTFLOW_PERSONAL_MINUTES_TEMPLATE"]
+
+
 def main() -> int:
     test_empty_cases()
     test_whitelist_mapping()
@@ -598,6 +674,8 @@ def main() -> int:
     test_limits()
     test_injection_scope()
     test_view_directive()
+    test_personal_template_view_directive()
+    test_personal_template_config_and_task_routing()
     test_action_groups_block()
     test_user_channel_block()
     test_hit_table()
