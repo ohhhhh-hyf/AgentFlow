@@ -643,6 +643,9 @@ def test_minutes_chain_consistency() -> None:
         ("纪要渲染 prompt", render),
     ):
         check(f"{label} 逐字包含 BODY_FORMAT_RULES（单点维护）", BODY_FORMAT_RULES in text, "")
+    check("形态单点：人分组用 `**姓名**：` 独占行、明确不把人名写成 `##`",
+          "「人」不是板块" in BODY_FORMAT_RULES
+          and "不得把人名或「我的事项」写成 `##` 标题" in BODY_FORMAT_RULES, "")
     stale = ["每栏至少 2 个分类标签", "每条 20–80 字", "每条 2–3 处（分类标签"]
     hit = [k for k in stale if any(k in t for t in (fill_system, user, PLACEHOLDER_RULES, draft, render))]
     check("旧形态口径已从全部路径清除", not hit, f"残留={hit}")
@@ -3872,10 +3875,10 @@ def test_assignment_scope_rules() -> None:
         MINUTES_SUPERVISOR_DOMAIN_PROMPT as REVIEW,
     )
 
-    check("契约：真人模式自己的在前不写姓名、他人的带姓名前缀；客观/职业口径不变",
-          "**真人模式**" in MINUTES_GENERATION_OUTPUT_CONTRACT
-          and "不写自己的姓名" in MINUTES_GENERATION_OUTPUT_CONTRACT
-          and "每条以「姓名：」开头" in MINUTES_GENERATION_OUTPUT_CONTRACT
+    check("契约：真人模式草稿即产出组名行（我的事项 / 每位他人一行）；客观口径不变",
+          "先给一个组名元素 `**我的事项**：`" in MINUTES_GENERATION_OUTPUT_CONTRACT
+          and "他人每位各给一个组名元素 `**姓名**：`" in MINUTES_GENERATION_OUTPUT_CONTRACT
+          and "条目不重复姓名" in MINUTES_GENERATION_OUTPUT_CONTRACT
           and "确需他配合的合并成一句" in MINUTES_GENERATION_OUTPUT_CONTRACT
           and "客观/职业模板按有明确责任人的分工条数写" in MINUTES_GENERATION_OUTPUT_CONTRACT,
           "")
@@ -3897,6 +3900,11 @@ def test_assignment_scope_rules() -> None:
           "")
     check("草稿真人视角段：自己的在前不写姓名、他人的带姓名前缀，未命中写 []",
           "不写自己的姓名**" in GEN and "命中表没给他派活时自己的部分写 []" in GEN, "")
+    check("审核：两种归属形态都接受，但归属必须可核、组名行须与条目对应",
+          "执行要点必须**按人分块**" in REVIEW
+          and "组名与组内条目必须对应" in REVIEW
+          and "他自己的条目**不得写自己的姓名**" in REVIEW,
+          "")
     check("审核：有明确归属却未标出要拦、无归属不加姓名不算缺陷（条件句）",
           "**分工归属（真人模式）**" in REVIEW
           and "有明确归属却未标出" in REVIEW
