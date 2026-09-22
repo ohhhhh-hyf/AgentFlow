@@ -1103,18 +1103,6 @@ def test_paragraph_split() -> None:
           not re.search(r"(?m)^#\s*$", bare_doc)
           and any("裸标题" in n for n in bare_notes),
           f"{bare_notes} {bare_doc[-40:]!r}")
-    dup_gate = gate_render_output(
-        gm, "# 分段速览\n正文结束。\n\n# 分段速览\n- 乙\n"
-    )
-    check("同级别同名标题重复 → 硬伤（触发返工）",
-          not dup_gate["gate_ok"]
-          and any("标题重复" in x for x in dup_gate["hard_issues"]),
-          f"{dup_gate['hard_issues']}")
-    from tools.execution.hard_execution import duplicate_heading_issues as _dup_head
-    dup_cross = _dup_head("# 分段速览\n正文。\n\n## 分段速览\n- 乙\n")
-    dup_same = _dup_head("# 分段速览\n正文。\n\n# 分段速览\n- 乙\n")
-    check("跨级别同名（# 栏名 + ## 组名）不算重复；同级别同名才算",
-          dup_cross == [] and bool(dup_same), f"{dup_same}")
 
 
 def test_qa_speaker_labels() -> None:

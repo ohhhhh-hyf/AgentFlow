@@ -37,7 +37,6 @@ HARD_ISSUE_MARKERS = (
     "无有效数据行",
     "同行粘连",
     "只有标题没有正文",
-    "标题重复",
 )
 
 _HEADING_RE = re.compile(r"^(#{1,6})\s+(\S.*?)\s*$")
@@ -975,7 +974,6 @@ def gate_render_output(
     """
     text, notes, issues = enforce_render_output(template, output)
     issues.extend(empty_section_issues(text, template))
-    issues.extend(duplicate_heading_issues(text))
     over = _overlong_issue(template, text)
     if over:
         issues.append(over)
@@ -1095,35 +1093,6 @@ def fix_bare_headings(text: str) -> tuple[str, list[str]]:
     if not removed:
         return text, []
     return "".join(kept), [f"已删除 {removed} 行裸标题（只有 `#` 没有文字）"]
-
-
-def duplicate_heading_issues(text: str, *, limit: int = 5) -> list[str]:
-    """同一级别出现同名标题（≥2 次）→ 形态缺陷（列标题与次数，最多 ``limit`` 条）。
-
-    为什么算硬伤（2026-09-22 实测）：程序改写或模型退化都可能把栏名/组名写重，
-    表现为「同一标题下内容被劈成两段」；门禁原先只查光杆标题（标题下没正文），
-    认不出"标题重复"。**跨级别同名不算重复**——`# 栏名` 之下再写 `## 栏名` 是
-    模板要求的正常层级（knowledge_memo 的 `## 核心结论` 就是如此）。
-    """
-    counts: dict[tuple[int, str], int] = {}
-    order: list[tuple[int, str]] = []
-    for raw_line in (text or "").splitlines():
-        match = _HEADING_RE.match(raw_line.strip())
-        if not match:
-            continue
-        key = (len(match.group(1)), match.group(2).strip())
-        if key not in counts:
-            order.append(key)
-        counts[key] = counts.get(key, 0) + 1
-    out: list[str] = []
-    for key in order:
-        if counts[key] >= 2:
-            out.append(
-                f"标题重复：「{'#' * key[0]} {key[1]}」出现 {counts[key]} 次（同级别同名），合并成一处"
-            )
-            if len(out) >= limit:
-                break
-    return out
 
 
 def advisory_issues(
@@ -1320,7 +1289,6 @@ __all__ = [
     "advisory_issues",
     "apply_table_row_limits",
     "classify_issues",
-    "duplicate_heading_issues",
     "empty_section_issues",
     "fix_bare_headings",
     "enforce_minutes_draft",

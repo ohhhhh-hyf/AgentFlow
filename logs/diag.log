@@ -1651,3 +1651,11 @@
 2026-09-22 12:18:47,128 INFO agentflow agent done gen line=minutes
 2026-09-22 12:18:47,130 INFO agentflow agent start gen line=graph
 2026-09-22 12:18:47,130 INFO agentflow agent done gen line=graph
+2026-09-22 14:14:28,345 INFO tools.core.runner saved html line=minutes path=C:\Users\OMEN\AppData\Local\Temp\tmp_umd6e_9\out\minutes.html
+2026-09-22 14:14:28,346 INFO tools.core.runner saved text line=minutes path=C:\Users\OMEN\AppData\Local\Temp\tmp_umd6e_9\out\result.md
+2026-09-22 14:14:28,349 INFO tools.core.runner saved html line=minutes path=C:\Users\OMEN\AppData\Local\Temp\tmp_umd6e_9\out\minutes.html
+2026-09-22 14:14:28,352 INFO tools.core.runner saved text line=minutes path=C:\Users\OMEN\AppData\Local\Temp\tmp_umd6e_9\out\result.md
+2026-09-22 14:14:28,354 INFO agentflow agent start gen line=minutes
+2026-09-22 14:14:28,356 INFO agentflow agent done gen line=minutes
+2026-09-22 14:14:28,356 INFO agentflow agent start gen line=graph
+2026-09-22 14:14:28,358 INFO agentflow agent done gen line=graph
