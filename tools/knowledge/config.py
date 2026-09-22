@@ -11,7 +11,7 @@ from pathlib import Path
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 
 try:
-    from client.config import load_env
+    from tools.llm.config import load_env
 except Exception:  # pragma: no cover - 单测/脚手架时允许无 client 包
     def load_env(path: Path) -> None:  # type: ignore[misc]
         if not path.exists():
@@ -137,7 +137,7 @@ def persist_dir_for_user(user_id: str) -> str:
             "目标目录应为 data/{user_id}/knowledge/chromadb。"
             "单租户部署请显式设置 KNOWLEDGE_PERSIST_DIR。"
         )
-    from tools.memory.store import safe_id
+    from tools.core.ids import safe_id
 
     return str(PROJECT_ROOT / "data" / safe_id(uid) / "knowledge" / "chromadb")
 

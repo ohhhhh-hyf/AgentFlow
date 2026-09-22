@@ -1,33 +1,23 @@
-"""知识库子系统：文档入库、向量检索、带出处问答。
+"""通用知识/文件底座（非某一业务域）：文件 → 文本、向量库封装、存储配置。
 
-供后续 task 调用，不绑死任何一条任务线。
+- ``document_processor``：PPT/PDF/docx/xlsx/txt → 文本（``tools/core/io`` 与 ``tools/ocr`` 共用）
+- ``vector_store``：chromadb 集合封装（知识库与记忆向量索引共用）
+- ``config``：存储目录/embedding 配置 + ``subject_to_pinyin``
+- ``source_role``：入库资料角色 + 标题层级（``document_processor`` 与 notes 目录骨架共用）
 
-    from tools.knowledge import KnowledgeTool, get_knowledge
-
-    kb = get_knowledge()                                   # 读项目根 .env
-    kb.add_file("课件.pptx", collection="某学科")           # PPT/PDF/docx/xlsx/txt
-    hits = kb.locate("某个知识点关键词", collection="某学科")
-    ans = kb.ask("某知识点的适用条件是什么？", collection="某学科")
-    ans.answer / ans.sources
+notes 域的 RAG 门面（KnowledgeTool / cite / source_role / rag）已下沉到
+``domain/notes/knowledge/``（2026-09-22）；本包只留被多个子系统复用的底座，不再有域语义。
 """
+from __future__ import annotations
 
-from .cite import cite_text, format_cite_line, library_has_docs, open_knowledge
-from .config import KnowledgeToolConfig
-from .tool import (
-    AskResult,
-    KnowledgeTool,
-    SearchResult,
-    get_knowledge,
-)
+from .config import KnowledgeToolConfig, subject_to_pinyin
+from .source_role import classify_source_role, heading_level
+from .vector_store import VectorStore
 
 __all__ = [
-    "AskResult",
-    "KnowledgeTool",
     "KnowledgeToolConfig",
-    "SearchResult",
-    "cite_text",
-    "format_cite_line",
-    "get_knowledge",
-    "library_has_docs",
-    "open_knowledge",
+    "VectorStore",
+    "classify_source_role",
+    "heading_level",
+    "subject_to_pinyin",
 ]

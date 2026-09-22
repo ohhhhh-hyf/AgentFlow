@@ -13,7 +13,7 @@ from __future__ import annotations
 import shutil
 from pathlib import Path
 
-PROJECT_ROOT = Path(__file__).resolve().parents[1]
+from .config import PROJECT_ROOT
 
 
 def output_dir(user_id: str, request_id: str) -> Path:

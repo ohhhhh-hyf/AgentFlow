@@ -34,6 +34,7 @@ from collections.abc import AsyncIterator, Iterable
 from langgraph.graph import END, START, StateGraph
 
 from perspective import EMPTY_PERSPECTIVE_MODELING
+from tools.core.domain_hooks import hooks_for
 from tools.core.domain_engine_text import (
     assemble_report,
     fallback_text,
@@ -69,6 +70,7 @@ class DomainNodes:
       ``_state_class`` / ``_quality_warning``（后三者之外的 ``_fallback_rules`` /
       ``_report_assemblers`` 由 sync_domain 生成区写入）
     - 可选覆写钩子：``_compute_title`` / ``_line_title`` / ``_shared_context`` /
+      ``_line_shared_context`` /
       ``_supervisor_context`` / ``_render_directives`` / ``_build_core`` /
       ``_pre_render_hook`` / ``_post_render_hook`` / ``_empty_purpose`` /
       ``_understanding_key`` / ``_understanding_label`` / ``_transcript_label``
@@ -94,10 +96,20 @@ class DomainNodes:
             return "role_template"
         return "personal"
 
+    @property
+    def domain_name(self) -> str:
+        """域名（从类所在模块推导：``domain.<name>.orchestrator`` → ``<name>``）。
+
+        引擎层不 import 具体域，改按域名取钩子（``tools/core/domain_hooks.py``）；
+        测试桩类不在 ``domain.*`` 下 ⇒ 返回空串 ⇒ 空钩子，不会误触域逻辑。
+        """
+        parts = type(self).__module__.split(".")
+        return parts[1] if len(parts) > 1 and parts[0] == "domain" else ""
+
     def _render_directives(self, state: dict, line_name: str) -> str:
         """逐栏填充（装配）那一轮的本栏写作纪律；默认无。
 
-        带模板时正文由 ``tools.template_router`` 的通用填充器逐栏写，system 里没有领域渲染
+        带模板时正文由 ``tools.templates.router`` 的通用填充器逐栏写，system 里没有领域渲染
         提示词——领域的取舍口径（如个人模式的聚焦）只能从这里下发，否则模型只能照着模板
         栏名写。领域按需覆写（见 meeting orchestrator）。
         """
@@ -211,6 +223,33 @@ class DomainNodes:
         if perspective:
             parts.append(f"用户视角模型：\n{perspective}")
         return "\n\n".join(parts)
+
+    def _line_shared_context(self, state: dict, line_name: str) -> str:
+        """某任务线的共享上下文；默认全线条共用一份，领域按需覆写。
+
+        为什么需要这个钩子（2026-09-22）：meeting / notes 各自覆写了 `_make_agent_node`
+        只为把"一刀切上下文"换成"按线裁剪上下文"，其余 ~45 行与引擎逐字相同。现在引擎
+        调本方法，两域只需覆写这里。
+        """
+        return self._shared_context(state)
+
+    def _revision_instruction(self, state: dict, line_name: str) -> str:
+        """审核上下文的三行表头：视角模式 / 返工次数 / 本轮可选动作。
+
+        为什么抽出来（2026-09-22）：meeting 与 notes 的 ``_supervisor_context`` 各抄了一份
+        逐字相同的表头，而引擎自己那份又因两域都覆写而**不可达**——三处漂移风险收成一处。
+        """
+        revision_count = line(state, line_name).get("revision_count", 0)
+        allowed = (
+            "本轮可以选择 approve、revise 或 reject。"
+            if revision_count < self.MAX_REVISIONS
+            else "返工次数已用完，本轮只能选择 approve 或 reject。"
+        )
+        return (
+            f"视角模式：{self._mode_label(state)}\n"
+            f"{line_cn(line_name, self._line_cn_names)}返工次数：{revision_count}/{self.MAX_REVISIONS}\n"
+            f"{allowed}"
+        )
 
     def _supervisor_context(self, state: dict, line_name: str) -> str:
         from tools.runtime.supervisor_slice import compact_draft_for_review
@@ -419,11 +458,28 @@ class DomainNodes:
             progress("agent start gen line=%s", line_name)
             agent = getattr(self, cfg["agent_attr"])
             # 每线可选参数：组织模式 / 附加上下文（state["line_modes"] / ["line_extra"]）
-            context = self._shared_context(state)
+            context = self._line_shared_context(state, line_name)
             mode = (state.get("line_modes") or {}).get(line_name)
             if mode and self._line_policy(line_name).cli_mode:
                 context = f"组织模式：{mode}\n\n{context}"
+            # 记忆注入：域钩子决定（会议记忆的 meta 协议 / notes 的归属注入都在域侧）
+            injected = None
+            hooks = hooks_for(self.domain_name)
+            if hooks.inject_line_extra is not None:
+                try:
+                    injected = hooks.inject_line_extra(
+                        state, line_name, line_extra=state.get("line_extra") or {}
+                    )
+                except Exception:  # noqa: BLE001 - 注入失败不阻断生成（记录后继续）
+                    logger.warning("line memory inject failed line=%s", line_name, exc_info=True)
+            memory_extra = str(getattr(injected, "context", "") or "")
+            memory_warning = str(getattr(injected, "warning", "") or "")
+            bind_obj = getattr(injected, "bind", None)
+            memory_bind = bind_obj.as_dict() if hasattr(bind_obj, "as_dict") else (bind_obj or {})
+            memory_comparison = list(getattr(injected, "comparison", None) or [])
             extra = (state.get("line_extra") or {}).get(line_name)
+            if memory_extra:
+                extra = f"{extra}\n\n{memory_extra}".strip() if extra else memory_extra
             if extra:
                 context = f"{context}\n\n{extra}"
             try:
@@ -447,11 +503,18 @@ class DomainNodes:
                 }
             # 显式写 degraded=False：返工成功后清除此前失败标记
             progress("agent done gen line=%s", line_name)
+            draft = result.model_dump()
+            # 历史对照（域钩子给的跨场对比）：只落在声明了该字段的草稿上，不新增键
+            if memory_comparison and "history_comparison" in draft:
+                draft["history_comparison"] = memory_comparison
             return {
                 "lines": {
                     line_name: {
-                        "draft": result.model_dump(),
+                        "draft": draft,
                         "degraded": False,
+                        "memory_context": memory_extra,
+                        "memory_bind": memory_bind,
+                        "memory_warning": memory_warning,
                     }
                 }
             }

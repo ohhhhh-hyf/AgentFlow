@@ -191,7 +191,7 @@ def load_user(ctx: DomainContext, profile_path: Path):
         # 兼容：未传具体文件时走 samples/{domain}/profile
         resolved = resolve_path(ctx, profile_path)
     if not resolved.exists():
-        # 客观画像与职业模板都平铺在公共目录 perspective/profiles/
+        # 客观画像与职业模板都平铺在公共目录 assets/profiles/
         from tools.core.profiles import SHARED_PROFILE_DIR
 
         shared = next(

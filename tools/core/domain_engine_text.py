@@ -7,7 +7,48 @@ from __future__ import annotations
 import json
 import re
 from dataclasses import fields
+from typing import Any
 
+
+
+def scrape_draft(context: str, markers: str | tuple[str, ...]) -> dict[str, Any]:
+    """从渲染/批准上下文里抠出草稿 JSON（首个可解析对象；拿不到返回空 dict）。
+
+    各任务线的渲染 / 组装步骤原本各抄一份实现（2026-09-21 收拢 10 处），彼此只有 marker
+    文案不同：命中第一个 marker 后取其右侧文本，再从第一个 ``{`` 起解析一个 JSON 对象；
+    解析结果不是对象就按空草稿处理（与旧实现逐字等价）。
+    """
+    blob = str(context or "")
+    for marker in ((markers,) if isinstance(markers, str) else markers):
+        if marker and marker in blob:
+            blob = blob.split(marker, 1)[1]
+            break
+    start = blob.find("{")
+    if start < 0:
+        return {}
+    try:
+        data, _ = json.JSONDecoder().raw_decode(blob[start:])
+    except json.JSONDecodeError:
+        return {}
+    return data if isinstance(data, dict) else {}
+
+
+def scrape_original(context: str, markers: tuple[str, ...], stops: tuple[str, ...]) -> str:
+    """从上下文里抠出原文块：命中第一个 marker 后，截到最近一个 stop 之前。
+
+    收拢自 notes 的 review / quiz 两份逐字相同的实现（2026-09-21）。
+    """
+    raw = str(context or "")
+    for marker in markers:
+        if marker not in raw:
+            continue
+        body = raw.split(marker, 1)[1]
+        for stop in stops:
+            if stop in body:
+                body = body.split(stop, 1)[0]
+                break
+        return body.strip()
+    return ""
 
 def line(state: dict, line_name: str) -> dict:
     """读取某条任务线的子空间（未初始化时返回空 dict）。"""
@@ -284,6 +325,8 @@ def make_fallback_text(formatters, empty_purpose, disclaimer):
 
 
 __all__ = [
+    "scrape_original",
+    "scrape_draft",
     "assemble_report",
     "fallback_text",
     "field_values",

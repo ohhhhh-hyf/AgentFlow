@@ -7,15 +7,9 @@ from .steps.risks_agent import RiskAgent
 from .steps.risks_render import RiskRender
 from .steps.risks_supervisor import RiskSupervisor
 
-RisksAgent = RiskAgent
-RisksRender = RiskRender
-RisksSupervisor = RiskSupervisor
 
 __all__ = [
     "RiskAgent",
     "RiskRender",
     "RiskSupervisor",
-    "RisksAgent",
-    "RisksRender",
-    "RisksSupervisor",
 ]

@@ -1,14 +1,13 @@
 """自测题：筛掉可抄原文的题，并做成答案默认折叠的对照页。"""
 from __future__ import annotations
 
-import json
 import re
 from html import escape
 from typing import Any
 
 from tools.core.domain_engine_text import line
-from tools.exercise_search.images import rewrite_images
-from tools.exercise_search.tex import pretty_latex, replace_tex_html
+from domain.notes.exercise_search.images import rewrite_images
+from domain.notes.exercise_search.tex import pretty_latex, replace_tex_html
 
 DIMENSIONS: dict[str, str] = {
     "cause": "因果",
@@ -27,20 +26,16 @@ _COPY_STEMS = (
     "结果是什么",
     "定义是",
 )
+from tools.core.domain_engine_text import scrape_draft
+from tools.core.domain_engine_text import scrape_original
+from domain._shared.text import clean_text as _clean
+from domain._shared.text import as_dict_list as _as_list
 
 _MIN_CHUNK = 8
 
 
-def _clean(text: object) -> str:
-    return " ".join(str(text or "").split()).strip()
 
 
-
-
-def _as_list(value: object) -> list[dict[str, Any]]:
-    if not isinstance(value, list):
-        return []
-    return [item for item in value if isinstance(item, dict)]
 
 
 def _answer_points(raw: object) -> list[str]:
@@ -219,8 +214,6 @@ def context_from_extra(extra: str) -> dict[str, str]:
         "subject": "",
         "chapter": "",
         "level": "",
-        "grade": "",
-        "edition": "",
         "difficulty": "",
         "qtype": "",
     }
@@ -231,10 +224,6 @@ def context_from_extra(extra: str) -> dict[str, str]:
             out["chapter"] = line_text.split("：", 1)[1].strip()
         elif line_text.startswith("用户水平："):
             out["level"] = line_text.split("：", 1)[1].strip()
-        elif line_text.startswith("年级："):
-            out["grade"] = line_text.split("：", 1)[1].strip()
-        elif line_text.startswith("课本版本："):
-            out["edition"] = line_text.split("：", 1)[1].strip()
         elif line_text.startswith("题目难度："):
             out["difficulty"] = line_text.split("：", 1)[1].strip()
         elif line_text.startswith("题目类型："):
@@ -547,38 +536,17 @@ def build_quiz_html(
 
 
 def draft_from_context(approved_context: str) -> dict[str, Any]:
-    blob = approved_context or ""
-    for marker in ("已批准自测题草稿：", "已批准quiz草稿："):
-        if marker in blob:
-            blob = blob.split(marker, 1)[1]
-            break
-    start = blob.find("{")
-    if start < 0:
-        return {}
-    try:
-        data, _ = json.JSONDecoder().raw_decode(blob[start:])
-    except json.JSONDecodeError:
-        return {}
-    return data if isinstance(data, dict) else {}
+    """从渲染上下文里抽出已批准草稿（实现见 domain_engine_text.scrape_draft）。"""
+    return scrape_draft(approved_context, ('已批准自测题草稿：', '已批准quiz草稿：'))
 
 
 def original_from_context(approved_context: str) -> str:
-    raw = approved_context or ""
-    for marker in ("原文（最高事实来源）：", "原文："):
-        if marker not in raw:
-            continue
-        body = raw.split(marker, 1)[1]
-        for stop in (
-            "\n\n用户画像：",
-            "\n\n已审核笔记理解：",
-            "\n\n已审核用户视角：",
-            "\n\n已批准",
-        ):
-            if stop in body:
-                body = body.split(stop, 1)[0]
-                break
-        return body.strip()
-    return ""
+    """抠出原文块（实现见 domain_engine_text.scrape_original）。"""
+    return scrape_original(
+        approved_context,
+        ("原文（最高事实来源）：", "原文："),
+        ("\n\n用户画像：", "\n\n已审核笔记理解：", "\n\n已审核用户视角：", "\n\n已批准"),
+    )
 
 
 def _quiz_cite(item: dict[str, Any]) -> str:
@@ -592,7 +560,7 @@ def _quiz_cite(item: dict[str, Any]) -> str:
 def attach_quiz_library(
     draft: dict[str, Any], kb=None, user_id: str = "", subject: str = ""
 ) -> dict[str, Any]:
-    from tools.knowledge.cite import cite_text, library_has_docs, open_knowledge
+    from domain.notes.knowledge.cite import cite_text, library_has_docs, open_knowledge
 
     if kb is None:
         kb = open_knowledge(user_id=user_id)
@@ -622,7 +590,7 @@ def attach_quiz_bank(
     ctx = context_from_extra(extra)
     try:
         if tool is None:
-            from tools.exercise_search import ExerciseSearchTool
+            from domain.notes.exercise_search import ExerciseSearchTool
 
             tool = ExerciseSearchTool()
         bundle = tool.search_for_notes(
@@ -631,8 +599,6 @@ def attach_quiz_bank(
             concepts=list(draft.get("concepts") or [])
             + list(draft.get("questions") or []),
             subject=ctx.get("subject") or "",
-            grade=ctx.get("grade") or "",
-            edition=ctx.get("edition") or "",
             difficulty=ctx.get("difficulty") or "",
             qtype=ctx.get("qtype") or "",
         )
@@ -655,7 +621,7 @@ def attach_quiz_artifacts(state: dict[str, Any]) -> None:
     understanding = state.get("notes_understanding")
     if not isinstance(understanding, dict):
         understanding = {}
-    from tools.knowledge.cite import parse_scope
+    from domain.notes.knowledge.cite import parse_scope
 
     scope = parse_scope(extra)
     attach_quiz_library(

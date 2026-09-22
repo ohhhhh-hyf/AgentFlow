@@ -16,3 +16,10 @@ __pycache__/
 .codegraph/
 .cac/
 .vscode/
+
+# ── 运行时产物（本地跑出来的东西，不进版本库）──────────────────
+# 保留 data/{user_id}/docs 等输入夹具；只忽略产物/记忆/知识库
+logs/
+data/*/output/
+data/*/memory/
+data/*/knowledge/

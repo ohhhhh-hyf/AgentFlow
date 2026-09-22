@@ -8,6 +8,7 @@ import asyncio
 import logging
 
 from tools.core.domain_engine_text import line, line_cn, line_template
+from tools.core.domain_hooks import hooks_for
 
 logger = logging.getLogger(__name__)
 
@@ -153,14 +154,13 @@ async def produce_line(
                 full_text = (
                     f"# {draft.get('title') or line_cn(line_name, engine._line_cn_names)}"
                 )
-            if full_text:
+            cite = hooks_for(engine.domain_name).apply_citations
+            if full_text and cite is not None:
                 try:
-                    from tools.meeting_memory.render import apply_memory_citations
-
                     citation_context = (
                         line(state, line_name).get("memory_context") or context
                     )
-                    full_text = apply_memory_citations(full_text, citation_context)
+                    full_text = cite(full_text, citation_context)
                 except Exception:  # noqa: BLE001
                     logger.warning("memory citation failed line=%s", line_name, exc_info=True)
             line_state = line(state, line_name)
@@ -178,7 +178,7 @@ async def produce_line(
             return
 
         from tools.execution.hard_execution import gate_render_output
-        from tools.template_router import (
+        from tools.templates.router import (
             detect_template_kind,
             fill_placeholder_template,
             is_router_enabled,
@@ -250,7 +250,7 @@ async def produce_line(
             and hasattr(render, "run")
         ):
             try:
-                from tools.template_router import _body_han_count
+                from tools.templates.router import _body_han_count
                 from tools.templates.length_budget import effective_doc_budget
             except Exception:  # noqa: BLE001
                 effective_doc_budget = None  # type: ignore[assignment]
@@ -330,7 +330,7 @@ async def produce_line(
             and hasattr(render, "run")
         ):
             try:
-                from tools.template_router import _body_han_count
+                from tools.templates.router import _body_han_count
                 from tools.templates.length_budget import effective_doc_budget
             except Exception:  # noqa: BLE001
                 effective_doc_budget = None  # type: ignore[assignment]
@@ -525,10 +525,9 @@ async def produce_line(
                         gate_ok = bool(gate3.get("gate_ok"))
                         fill_mode = "assemble"
 
-        if full_text and line_name in {"minutes", "minutes_styles"}:
+        cite_fn = hooks_for(engine.domain_name).apply_citations
+        if full_text and cite_fn is not None and line_name in {"minutes", "minutes_styles"}:
             try:
-                from tools.meeting_memory.render import apply_memory_citations
-
                 citation_context = (
                     line(state, line_name).get("memory_context") or context
                 )
@@ -538,17 +537,15 @@ async def produce_line(
                 comparison = (
                     line(state, line_name).get("draft") or {}
                 ).get("history_comparison") or []
-                full_text = apply_memory_citations(
+                full_text = cite_fn(
                     full_text, citation_context, comparison=comparison
                 )
             except Exception:  # noqa: BLE001
                 logger.warning("memory citation failed line=%s", line_name, exc_info=True)
-        if full_text and not template and line_name in {"minutes", "minutes_trace"}:
-            from domain.meeting.tasks.minutes.steps.minutes_render import (
-                compact_untemplated_minutes,
-            )
-
-            full_text = compact_untemplated_minutes(full_text)
+        # 无模板正文的收尾压缩：哪条线要压由域钩子决定（引擎不再点名线名）
+        compact = hooks_for(engine.domain_name).compact_plain
+        if full_text and not template and compact is not None:
+            full_text = compact(line_name, full_text)
 
         if not streamed and full_text is not None:
             await queue.put(

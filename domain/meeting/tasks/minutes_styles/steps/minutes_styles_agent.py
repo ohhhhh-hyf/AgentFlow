@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import re
 
-from client import LLMClient
+from tools.llm import LLMClient
 
 from ....models import MultiStyles
 from ..contracts import MULTI_STYLES_GENERATION_OUTPUT_CONTRACT

@@ -34,7 +34,7 @@ _FORMAT = "%(asctime)s %(levelname)s %(name)s %(message)s"
 
 # 诊断日志的 logger 白名单：与"为什么降级"直接相关的模块
 _DIAG_LOGGERS = (
-    "client.llmclient",      # 请求/响应/finish_reason/HTTP 错误/空正文/解析失败
+    "tools.llm.llmclient",      # 请求/响应/finish_reason/HTTP 错误/空正文/解析失败
     "tools.core.domain_engine",  # 审核结论、路由去向、降级汇总
     "tools.core.runner",     # ⚠ 生成可能有误
     "agentflow",             # 流水线节点进度（start/done）

@@ -1,38 +1,41 @@
-"""项目记忆：notes（graph / catalog）的共享记忆能力。
+"""记忆/向量的**共享底座**（跨域）：落盘布局、实体抽取、记忆向量索引。
 
-会议域记忆在 ``tools.meeting_memory``（registry + meetings + states +
-ChromaDB 语义兜底）。本模块只服务 notes 域：解析入口 ``resolve()``，
-注入（inject_graph）与回写（persist）共用同一份 Bind。
+- ``store``：``data/{user_id}/memory/{线名}/`` 落盘布局（json 为事实权威，chroma 可重建）
+- ``entities``：从原文抽挂钩实体（纯形态/频次，不维护业务词表）
+- ``embed``：记忆向量索引（复用知识库向量库；语义兜底检索用）
+
+域侧实现（各自的记忆语义）已按域下沉（2026-09-22）：
+``domain/notes/memory/``（graph 线记忆）、``domain/meeting/memory/``（会议跨场记忆）。
 """
 from __future__ import annotations
 
-from .entities import extract_quoted
-from .graph import inject_graph, merge_graph
-from .resolve import Bind, resolve
-from .runtime import persist, prepare
+from .entities import extract_entities, extract_quoted, is_generic_entity, speaker_names
 from .store import (
     append_history,
     empty_record,
+    history_path,
     list_records,
     load_record,
     record_dir,
+    record_path,
     save_record,
     shape_record,
+    user_dir,
 )
 
 __all__ = [
-    "Bind",
     "append_history",
     "empty_record",
+    "extract_entities",
     "extract_quoted",
-    "inject_graph",
+    "history_path",
+    "is_generic_entity",
     "list_records",
     "load_record",
-    "merge_graph",
-    "persist",
-    "prepare",
     "record_dir",
-    "resolve",
+    "record_path",
     "save_record",
     "shape_record",
+    "speaker_names",
+    "user_dir",
 ]

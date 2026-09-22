@@ -19,7 +19,7 @@ BLOCK_TITLE = "本用户偏好（只调顺序与详略，不改事实）"
 PREFERENCE_LINES = frozenset({"minutes", "minutes_styles"})
 
 # ── 本视角纪律（逐栏填充/装配那一轮的写作纪律）─────────────────────
-# 为什么还要一份：带模板时正文由 ``tools.template_router`` 的通用填充器写，它的 system
+# 为什么还要一份：带模板时正文由 ``tools.templates.router`` 的通用填充器写，它的 system
 # 里**没有**领域渲染提示词（只有「你只写本栏正文」），模板渲染提示词那条路根本不执行。
 # 于是个人模式会照着模板栏名（全文摘要 / 分段速览）把整场会都写出来——实测 8172 字、
 # 超本篇参考上限 48%，和客观纪要看不出差别。所以取舍纪律要作为"本栏写作纪律"显式下发。
@@ -82,16 +82,13 @@ _PERSONALITY_RULES: tuple[tuple[tuple[str, ...], str], ...] = (
     (("技术", "工程", "细节控"), "技术细节（接口/参数/版本/依赖）优先保留"),
     (("委婉", "温和", "平和"), "语气平和，不加评价性措辞"),
 )
+from tools.core.text import clean_text as _clean
 
 _MAX_RULES = 4      # 映射出的可执行指令条数上限
 _MAX_FREE = 3       # 未命中的偏好原样列出条数上限
 _MAX_PREFS = 6      # 读入的偏好条数上限（下游另有输出上限，这里只防超长列表）
 _MAX_ITEM = 40      # 每条偏好/性格的字符上限（超长截断，避免把整段话塞进 prompt）
 _MAX_TOTAL = 6      # 整块条数上限
-
-
-def _clean(text: object) -> str:
-    return " ".join(str(text or "").split()).strip()
 
 
 def _clip(text: str, limit: int = _MAX_ITEM) -> str:

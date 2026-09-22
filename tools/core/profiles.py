@@ -1,7 +1,7 @@
 """会议/笔记画像分类：客观全员、真人、职业模板。
 
 职业模板（``*.json``）与客观画像一起平铺在跨域公共目录
-``perspective/profiles/``（文件名不含 ``_profile`` 后缀）；
+``assets/profiles/``（文件名不含 ``_profile`` 后缀）；
 域名下仍可保留自己的客观/真人画像（``samples/{domain}/profile/``）。
 """
 from __future__ import annotations
@@ -17,17 +17,12 @@ logger = logging.getLogger(__name__)
 
 # 跨域公共画像目录：客观画像与职业模板平铺在同一目录
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
-SHARED_PROFILE_DIR = PROJECT_ROOT / "perspective" / "profiles"
+SHARED_PROFILE_DIR = PROJECT_ROOT / "assets" / "profiles"
 
 KIND_OBJECTIVE = "objective"
 KIND_PERSON = "person"
 KIND_ROLE = "role_template"
 
-KIND_LABEL = {
-    KIND_OBJECTIVE: "客观",
-    KIND_PERSON: "真人",
-    KIND_ROLE: "职业",
-}
 
 # 用户自建真人档案：``data/{X-User-Id}/user.json``（不改仓库；``extra.profile=user`` 时读取）
 USER_PROFILE_FILENAME = "user.json"
@@ -56,7 +51,7 @@ def classify_profile(data: dict[str, Any] | None) -> str:
 def resolve_role_template(data: dict[str, Any], profile_dir: Path) -> dict[str, Any]:
     """真人画像引用职业模板：返回合并后的 dict（真人字段覆盖模板字段）。
 
-    - ``data["role_template"]`` 指定模板名（如 "developer" → 公共目录 ``perspective/profiles/developer.json``）
+    - ``data["role_template"]`` 指定模板名（如 "developer" → 公共目录 ``assets/profiles/developer.json``）
     - 模板字段作基底，真人**显式写且值非 None** 的字段覆盖模板
     - 模板自身不允许再嵌套 ``role_template``（防递归）
     - 真人未显式写 ``persona_type`` 时重置为空（引用模板的真人仍是真人身份）
@@ -88,52 +83,6 @@ def resolve_role_template(data: dict[str, Any], profile_dir: Path) -> dict[str, 
     return merged
 
 
-def profile_choice_label(data: dict[str, Any], filename: str = "", profile_dir: Path | None = None) -> str:
-    kind = classify_profile(data)
-    prefix = KIND_LABEL[kind]
-    if kind == KIND_OBJECTIVE:
-        return f"{prefix} · 客观全员"
-    name = str(data.get("name") or "").strip()
-    if not name:
-        name = Path(filename).stem or "未命名"
-    role = str(data.get("role") or "").strip()
-    # 真人引用职业模板且未自写 role 时，用模板的 role 展示（如「真人 · 姓名（职业）」）
-    if not role and profile_dir is not None:
-        try:
-            merged = resolve_role_template(data, profile_dir)
-            role = str(merged.get("role") or "").strip()
-        except ValueError:
-            role = ""
-    if kind == KIND_PERSON and role:
-        return f"{prefix} · {name}（{role}）"
-    return f"{prefix} · {name}"
-
-
-def list_profile_entries(profile_dir: Path) -> list[dict[str, Any]]:
-    if not profile_dir.is_dir():
-        return []
-    entries: list[dict[str, Any]] = []
-    for path in sorted(profile_dir.glob("*.json")):
-        try:
-            data = json.loads(path.read_text(encoding="utf-8"))
-        except (OSError, json.JSONDecodeError):
-            continue
-        if not isinstance(data, dict):
-            continue
-        entries.append(
-            {
-                "path": path,
-                "filename": path.name,
-                "data": data,
-                "kind": classify_profile(data),
-                "label": profile_choice_label(data, path.name, profile_dir),
-            }
-        )
-    order = {KIND_OBJECTIVE: 0, KIND_PERSON: 1, KIND_ROLE: 2}
-    entries.sort(key=lambda item: (order.get(item["kind"], 9), item["label"]))
-    return entries
-
-
 def filter_identity_fields(data: dict[str, Any], identity_cls: type) -> dict[str, Any]:
     allowed = {item.name for item in fields(identity_cls)}
     return {key: value for key, value in (data or {}).items() if key in allowed}
@@ -153,7 +102,7 @@ def user_profile_path(user_id: str, project_root: Path | None = None) -> Path:
     """
     if not str(user_id or "").strip():
         return Path("")
-    from tools.memory.store import safe_id
+    from tools.core.ids import safe_id
 
     root = project_root or PROJECT_ROOT
     return root / "data" / safe_id(user_id) / USER_PROFILE_FILENAME
@@ -206,7 +155,7 @@ def _objective_path(domain: str, project_root: Path) -> Path:
     domain_obj = root / "samples" / domain / "profile" / "object_profile.json"
     if domain_obj.is_file():
         return domain_obj
-    shared_obj = root / "perspective" / "profiles" / "object.json"
+    shared_obj = root / "assets" / "profiles" / "object.json"
     return shared_obj if shared_obj.is_file() else Path("")
 
 
@@ -224,7 +173,7 @@ def resolve_profile_file(
     | ``""``（空） | **默认档：客观全员**（不读 user.json；纪要线再由 template 留空套「通用纪要」） |
     | ``"user"`` | 真人档案 ``data/{uid}/user.json``（缺失/非法 → 空 Path，由调用方 400） |
     | ``"objective"`` / ``"object"`` | 客观全员（与空值同档，留作显式表达） |
-    | 职业模板名 | 该职业模板（``perspective/profiles/{名}.json``），忽略 user.json |
+    | 职业模板名 | 该职业模板（``assets/profiles/{名}.json``），忽略 user.json |
 
     返回空 Path 表示"取值非法"，调用方负责报 400。
     """
@@ -251,8 +200,6 @@ __all__ = [
     "classify_profile",
     "filter_identity_fields",
     "is_user_profile_file",
-    "list_profile_entries",
-    "profile_choice_label",
     "read_user_profile",
     "resolve_profile_file",
     "resolve_role_template",

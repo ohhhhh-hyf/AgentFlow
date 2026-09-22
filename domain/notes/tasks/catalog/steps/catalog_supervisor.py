@@ -2,9 +2,9 @@ from __future__ import annotations
 
 import json
 
-from supervisor import GlobalSupervisor
+from domain._shared import GlobalSupervisor
 
-from client import LLMClient
+from tools.llm import LLMClient
 from ....models import CatalogSupervisorReview
 from ..contracts import CATALOG_SUPERVISOR_OUTPUT_CONTRACT
 from ..prompts import CATALOG_SUPERVISOR_DOMAIN_PROMPT

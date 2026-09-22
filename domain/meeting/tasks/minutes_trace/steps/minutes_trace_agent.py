@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 import re
 
-from client import LLMClient
+from tools.llm import LLMClient
 from tools.execution.hard_execution import extract_labeled_json
 
 from ....models import MinutesTrace

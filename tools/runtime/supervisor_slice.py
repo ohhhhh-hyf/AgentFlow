@@ -52,6 +52,7 @@ _GENERIC_MORPHEME = re.compile(
     r"树立|转变|培养|强调|认为|表示|指出|"
     r"追踪|梳理|评估|判断)"
 )
+from tools.core.text import clean_text as _clean
 
 
 def _informative_runs(text: str, min_len: int = 4) -> list[str]:
@@ -123,10 +124,6 @@ def _fuzzy_locate(text: str, needle: str) -> int:
             best_score = score
             best_pos = pos
     return best_pos
-
-
-def _clean(text: object) -> str:
-    return " ".join(str(text or "").split()).strip()
 
 
 def _is_useful_needle(text: str) -> bool:

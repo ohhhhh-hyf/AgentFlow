@@ -5,7 +5,7 @@ from collections.abc import AsyncIterator
 
 from tools.core.prompt_utils import build_render_prompt
 
-from client import LLMClient
+from tools.llm import LLMClient
 from ..prompts import MINUTES_RENDER_PROMPT, MINUTES_RENDER_TEMPLATE_PROMPT
 
 
@@ -72,8 +72,10 @@ class MinutesGenerationRender:
             )
         except TypeError:
             text = await self.client.text(prompt, user, label="minutes/render")
-        if not has_template:
-            return compact_untemplated_minutes(text)
+        # 无模板时的收尾压缩**不在这里做**（2026-09-22 核对后删除）：编排层只在有模板时调
+        # 本方法（见 tools/runtime/render.py 的 use_block / 返工 / 压缩扩写各分支），无模板
+        # 正文的压缩由域钩子 compact_plain 在 tools/runtime/render 与 tools/exports/outputs
+        # 两处统一执行（见 domain/meeting/hooks.py）。原地保留会让人以为这里也管压缩。
         return text
 
     async def stream(self, approved_context: str, template: str = "") -> AsyncIterator[str]:

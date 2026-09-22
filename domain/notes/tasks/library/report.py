@@ -8,14 +8,13 @@ from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from typing import Any
 
-from tools.knowledge.document_processor import SUPPORTED_EXTS
-from tools.knowledge.tool import KnowledgeTool
+from tools.knowledge.document_processor import IMAGE_EXTS, SUPPORTED_EXTS
+from domain.notes.knowledge.tool import KnowledgeTool
 
 logger = logging.getLogger("agentflow")
 
 _FILE_MARK = "【入库文件】"
 _UNIT_CAP = 12
-IMAGE_EXTS = {".png", ".jpg", ".jpeg"}
 _SENT_SPLIT = re.compile(r"(?<=[。！？；!\?\n])")
 _ITEM_ONLY_TAGS = {"example", "mistake"}
 _ITEM_ONLY_HEAD_RE = re.compile(r"(例题|易错|注意|步骤|题型|技巧|提醒|小结|总结)")
@@ -182,7 +181,7 @@ def _dedup_against_history(
     去掉新 md 里和历史重复的段落，覆盖写回。历史 md 文件不动。
     返回去掉的段落数。
     """
-    from tools.memory.store import safe_id
+    from tools.core.ids import safe_id
     from tools.ocr.levels.light import ocr_log
 
     ocr_dir = project_root / "data" / safe_id(user_id) / "ocr" / safe_id(subject)

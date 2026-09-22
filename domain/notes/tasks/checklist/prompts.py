@@ -47,6 +47,8 @@ CHECKLIST_SUPERVISOR_DOMAIN_PROMPT = """## 领域审核规则：复习清单
 个别卡片略短、策略稍泛 → approve。"""
 
 
+# 任务线完备性协议符号（sync_domain readiness 按名称存在性判定）：
+# checklist_render 为程序化渲染（display/mindmap 里各自排版），不进入 LLM 调用。
 CHECKLIST_RENDER_PROMPT = """把已批准复习清单草稿排成 Markdown。不要新增知识点。"""
 
 

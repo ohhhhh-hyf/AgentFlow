@@ -1,17 +1,17 @@
 """Agent 工厂 —— 组装全部 Agent 依赖。
 
-统一创建核心 Agent（meeting_core）与两条任务线（tasks）的全部组件，
+统一创建核心 Agent（meeting_core）与全部任务线（tasks，当前 7 条）的组件，
 供 MeetingAgentSystem（orchestrator.py）注入使用。
 """
 from __future__ import annotations
 
 from typing import Any
 
-from client import LLMClient
+from tools.llm import LLMClient
 from perspective import PerspectiveModelingAgent
 from .meeting_core import MeetingUnderstandingAgent
 
-# ── 任务线 import 生成区：由 tools/scripts/sync_domain.py 生成，勿手改 ──
+# ── 任务线 import 生成区：由 tools/codegen/sync_domain.py 生成，勿手改 ──
 
 from .tasks.actions import (
     ActionItemsAgent,
@@ -65,15 +65,15 @@ class MeetingAgentFactory:
         """创建全部 Agent，返回按角色命名的字典。
 
         Keys:
-            meeting_understanding / perspective_modeling —— 核心层
-            minutes / minutes_supervisor / minutes_render —— 纪要线
-            actions / actions_supervisor / actions_render —— 待办线
+            meeting_understanding_agent / perspective_modeling_agent —— 核心层
+            其余按 ``{线名}_{角色}`` 命名（角色 ∈ agent / supervisor / render），
+            线名见下方"任务线装配生成区"（由 sync_domain 生成，勿手改）。
         """
         return {
             # 核心层（键 = 属性名，与任务线统一：{角色}_agent）
             "meeting_understanding_agent": MeetingUnderstandingAgent(client),
             "perspective_modeling_agent": PerspectiveModelingAgent(client),
-            # ── 任务线装配生成区：由 tools/scripts/sync_domain.py 生成，勿手改 ──
+            # ── 任务线装配生成区：由 tools/codegen/sync_domain.py 生成，勿手改 ──
 
             "actions_agent": ActionItemsAgent(client),
             "actions_supervisor": ActionItemsSupervisor(client),

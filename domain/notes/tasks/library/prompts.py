@@ -2,7 +2,7 @@
 
 library 是**程序化任务线**：多文件入库、OCR 合并、知识增量统计全部为
 确定性程序流程，不经过任何 LLM 生成调用。本文件的四个常量是任务线
-完备性协议（tools/scripts/sync_domain.py readiness 检查按名称存在性
+完备性协议（tools/codegen/sync_domain.py readiness 检查按名称存在性
 判定）的一部分，运行时不进入 LLM 调用。
 """
 

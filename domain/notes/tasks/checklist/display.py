@@ -7,9 +7,10 @@ from html import escape
 from typing import Any
 
 from .mindmap import build_checklist_mindmap_outline
-from .select import _as_list, _clean
+from .select import GRADE_LABELS, _as_list, _clean
+from tools.core.domain_engine_text import scrape_draft
 
-_GRADE = {"S": "核心", "A": "重点", "B": "简要", "C": "补充"}
+_GRADE = GRADE_LABELS  # 唯一定义在 select.py（与导图节点共用）
 _STAR = {"S": 5, "A": 4, "B": 3, "C": 2}
 _GRADE_ORDER = {"S": 0, "A": 1, "B": 2, "C": 3}
 _GRADE_VALUE = {"S": 45, "A": 30, "B": 18, "C": 8}
@@ -307,19 +308,8 @@ def _review_overview(cards: list[dict[str, Any]]) -> dict[str, Any]:
 
 
 def draft_from_context(approved_context: str) -> dict[str, Any]:
-    blob = approved_context or ""
-    for marker in ("已批准复习清单草稿：", "已批准checklist草稿："):
-        if marker in blob:
-            blob = blob.split(marker, 1)[1]
-            break
-    start = blob.find("{")
-    if start < 0:
-        return {}
-    try:
-        data, _ = json.JSONDecoder().raw_decode(blob[start:])
-    except json.JSONDecodeError:
-        return {}
-    return data if isinstance(data, dict) else {}
+    """从渲染上下文里抽出已批准草稿（实现见 domain_engine_text.scrape_draft）。"""
+    return scrape_draft(approved_context, ('已批准复习清单草稿：', '已批准checklist草稿：'))
 
 
 def importance_stars(card: dict[str, Any]) -> str:
@@ -1622,9 +1612,9 @@ def _trace_script() -> str:
 
 
 def build_checklist_html(draft: dict[str, Any], *, has_teacher: bool | None = None) -> str:
-    from tools.exports.checklist_graph import build_checklist_graph_embed
-    from tools.exports.knowledge_graph import _CYTOSCAPE_CDN
-    from tools.exports.mindmap import _D3_CDN, _MARKMAP_VIEW_CDN, build_editable_mindmap_embed
+    from tools.exports.html.checklist_graph import build_checklist_graph_embed
+    from tools.exports.html.knowledge_graph import _CYTOSCAPE_CDN
+    from tools.exports.html.mindmap import _D3_CDN, _MARKMAP_VIEW_CDN, build_editable_mindmap_embed
 
     course = _clean(draft.get("course")) or "复习清单"
     cards = [c for c in (draft.get("cards") or []) if isinstance(c, dict)]

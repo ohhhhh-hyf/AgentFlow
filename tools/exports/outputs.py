@@ -13,13 +13,14 @@ from dataclasses import asdict, is_dataclass
 from datetime import datetime
 from pathlib import Path
 
-from tools.exports.knowledge_graph import render_graph_bundle
-from tools.exports.mindmap import (
+from tools.exports.html.knowledge_graph import render_graph_bundle
+from tools.exports.html.mindmap import (
     markmap_available,
     mindmap_png_available,
     render_mindmap_html,
     render_mindmap_png,
 )
+from tools.core.domain_hooks import hooks_for
 from tools.core.runtime_context import DomainContext
 
 logger = logging.getLogger(__name__)
@@ -36,7 +37,7 @@ def task_output_dir(ctx: DomainContext, line_name: str) -> Path:
         out_dir.mkdir(parents=True, exist_ok=True)
         return out_dir
     if (ctx.user_id or "").strip():
-        from tools.memory.store import safe_id
+        from tools.core.ids import safe_id
 
         uid = safe_id(ctx.user_id)
     else:
@@ -74,7 +75,7 @@ def report_text(data: dict) -> str:
 
 
 def _html_document(title: str, body: str) -> str:
-    from tools.meeting_memory.render import _latex_paper_css
+    from tools.exports.html.paper_css import latex_paper_css
 
     return f"""<!doctype html>
 <html lang="zh-CN">
@@ -84,7 +85,7 @@ def _html_document(title: str, body: str) -> str:
   <meta name="referrer" content="no-referrer">
   <title>{title}</title>
   <style>
-{_latex_paper_css()}
+{latex_paper_css()}
   </style>
 </head>
 <body>
@@ -118,10 +119,10 @@ def save_report_artifacts(
     目录按请求隔离，不重复叠加时间戳。
 
     Args:
-        gate_ok: True 通过 / False 失败 / None 未做门禁（无模板）→ 仍写正式 md。
+        gate_ok: True 通过 / False 失败 / None 未做门禁（无模板）。
+            **三种情况都写正式 md**：质量信号由 API 的
+            ``quality_warning`` 与同目录的 ``result_rejected.md`` 承担，不靠"不落盘"表达。
     """
-    from tools.execution.hard_execution import should_write_result_md
-
     # md 与 html 同模式按线命名的任务线（无 HTML 产物，file_name 直接指向 md）
     line_named_md = line_name in {"actions", "risks", "minutes_styles", "minutes_trace", "consensus_decision"}
 
@@ -138,111 +139,89 @@ def save_report_artifacts(
     title = str(data.get("title") or "").strip()
     if title and not text.lstrip().startswith("# "):
         text = f"# {title}\n\n{text}"
-    if line_name in {"minutes", "minutes_trace"} and not has_template:
-        from domain.meeting.tasks.minutes.steps.minutes_render import (
-            compact_untemplated_minutes,
-        )
-
-        text = compact_untemplated_minutes(text)
+    compact = hooks_for(ctx.name).compact_plain
+    if compact is not None and not has_template:
+        text = compact(line_name, text)
     html_title = title or ctx.line_cn_names.get(line_name, line_name)
-    if should_write_result_md(gate_ok, has_template=has_template):
-        # library / graph 只输出 text（API 响应携带），不落盘 md/html；
-        # graph 的交互 HTML 由 export_graph 单独落盘（见 runner）
-        if line_name not in ("library", "graph"):
-            md_path = out_dir / (
-                f"{line_name}.md" if line_named_md else "result.md"
-            )
-            md_path.write_text(text, encoding="utf-8")
-            paths["text"] = md_path
-            review_html = (
-                data.get("review_html")
-                or data.get("quiz_html")
-                or data.get("library_html")
-                or data.get("catalog_html")
-                or data.get("checklist_html")
-            )
-            if isinstance(review_html, str) and (
-                "memory-review" in review_html
-                or "quiz-sheet" in review_html
-                or "cat-doc" in review_html
-                or "ck-doc" in review_html
-                or "library-hero" in review_html
+    # 门禁失败也照写正式 result.md（2026-09 决定）：实测出现过「正文合格但门禁误判」
+    # （表格写法变体被判「固定文字丢失」），此时不落盘会让用户拿不到可用内容。
+    # 质量信号由两条承担：API 的 quality_warning（带门禁原因）与同目录的
+    # result_rejected.md（备查副本）。
+    # library / graph 只输出 text（API 响应携带），不落盘 md/html；
+    # graph 的交互 HTML 由 export_graph 单独落盘（见 runner）
+    if line_name not in ("library", "graph"):
+        md_path = out_dir / (
+            f"{line_name}.md" if line_named_md else "result.md"
+        )
+        md_path.write_text(text, encoding="utf-8")
+        paths["text"] = md_path
+        review_html = (
+            data.get("review_html")
+            or data.get("quiz_html")
+            or data.get("library_html")
+            or data.get("catalog_html")
+            or data.get("checklist_html")
+        )
+        # 域专属 HTML（没这项钩子就回退通用/工具侧渲染器）
+        domain_html: str | None = None
+        domain_hooks = hooks_for(ctx.name)
+        if domain_hooks.html_for is not None:
+            domain_html = domain_hooks.html_for(line_name, html_title, text, data)
+        if isinstance(review_html, str) and (
+            "memory-review" in review_html
+            or "quiz-sheet" in review_html
+            or "cat-doc" in review_html
+            or "ck-doc" in review_html
+            or "library-hero" in review_html
+        ):
+            body = review_html
+            html_path = out_dir / f"{line_name}.html"
+            if line_name == "checklist" and body.lstrip()[:15].lower().startswith(
+                "<!doctype"
             ):
-                body = review_html
-                html_path = out_dir / f"{line_name}.html"
-                if line_name == "checklist" and body.lstrip()[:15].lower().startswith(
-                    "<!doctype"
-                ):
-                    html_path.write_text(body, encoding="utf-8")
-                else:
-                    html_path.write_text(
-                        _html_document(html_title, body),
-                        encoding="utf-8",
-                    )
-                paths["html"] = html_path
-            elif ctx.name == "meeting" and line_name == "risks":
-                from tools.meeting_memory.render import render_risks_html
+                html_path.write_text(body, encoding="utf-8")
+            else:
+                html_path.write_text(
+                    _html_document(html_title, body),
+                    encoding="utf-8",
+                )
+            paths["html"] = html_path
+        elif domain_html:
+            # 域专属渲染器（纪要 / 风险 / 待办 / 溯源）：见 domain/<name>/hooks.py
+            html_path = out_dir / f"{line_name}.html"
+            html_path.write_text(domain_html, encoding="utf-8")
+            paths["html"] = html_path
+        elif line_name == "consensus_decision":
+            from tools.exports.html.consensus_decision import render_consensus_decision_html
 
-                html_doc = render_risks_html(html_title, text, data)
-                html_path = out_dir / f"{line_name}.html"
-                html_path.write_text(html_doc, encoding="utf-8")
-                paths["html"] = html_path
-            elif ctx.name == "meeting" and line_name == "actions":
-                from tools.meeting_memory.render import render_actions_html
+            html_doc = render_consensus_decision_html(html_title, text, data)
+            html_path = out_dir / f"{line_name}.html"
+            html_path.write_text(html_doc, encoding="utf-8")
+            paths["html"] = html_path
+    if line_name == "review":
+        import json
 
-                html_doc = render_actions_html(html_title, text, data)
-                html_path = out_dir / f"{line_name}.html"
-                html_path.write_text(html_doc, encoding="utf-8")
-                paths["html"] = html_path
-            elif ctx.name == "meeting" and line_name == "minutes_trace":
-                # 溯源纪要：md 保持溯源钉不变；html 渲染为 LaTeX Paper 风格左正文 / 右证据审阅栏
-                from domain.meeting.tasks.minutes_trace.html import trace_review_html
-
-                html_doc = trace_review_html(text, title=html_title)
-                html_path = out_dir / f"{line_name}.html"
-                html_path.write_text(html_doc, encoding="utf-8")
-                paths["html"] = html_path
-            elif ctx.name == "meeting" and line_name == "consensus_decision":
-                from tools.exports.consensus_decision import render_consensus_decision_html
-
-                html_doc = render_consensus_decision_html(html_title, text, data)
-                html_path = out_dir / f"{line_name}.html"
-                html_path.write_text(html_doc, encoding="utf-8")
-                paths["html"] = html_path
-            elif ctx.name == "meeting" and line_name in (
-                "minutes",
-                "minutes_styles",
-            ):
-                from tools.meeting_memory.render import render_minutes_html
-
-                html_doc = render_minutes_html(html_title, text)
-                html_path = out_dir / f"{line_name}.html"
-                html_path.write_text(html_doc, encoding="utf-8")
-                paths["html"] = html_path
-        if line_name == "review":
-            import json
-
-            corrected = str(data.get("corrected_notes") or "").strip()
-            if corrected:
-                corr_path = out_dir / "result_corrected.md"
-                corr_path.write_text(corrected, encoding="utf-8")
-                paths["corrected"] = corr_path
-            payload = {
-                "original_notes": data.get("original_notes") or "",
-                "knowledge_points": data.get("knowledge_points") or [],
-                "issues": data.get("issues") or [],
-                "corrected_notes": corrected,
-                "accepted": False,
-            }
-            payload_path = out_dir / "result.review.json"
-            payload_path.write_text(
-                json.dumps(payload, ensure_ascii=False, indent=2),
-                encoding="utf-8",
-            )
-            paths["review"] = payload_path
+        corrected = str(data.get("corrected_notes") or "").strip()
+        if corrected:
+            corr_path = out_dir / "result_corrected.md"
+            corr_path.write_text(corrected, encoding="utf-8")
+            paths["corrected"] = corr_path
+        payload = {
+            "original_notes": data.get("original_notes") or "",
+            "knowledge_points": data.get("knowledge_points") or [],
+            "issues": data.get("issues") or [],
+            "corrected_notes": corrected,
+            "accepted": False,
+        }
+        payload_path = out_dir / "result.review.json"
+        payload_path.write_text(
+            json.dumps(payload, ensure_ascii=False, indent=2),
+            encoding="utf-8",
+        )
+        paths["review"] = payload_path
     if gate_ok is False:
         # 门禁失败也留一份备查副本（便于复盘"门禁到底看到了什么"）；
-        # 正式 result.md 照写（见 should_write_result_md），质量信号由 API 的 quality_warning 承担。
+        # 正式 result.md 照写（门禁失败也写），质量信号由 API 的 quality_warning 承担。
         rej = out_dir / "result_rejected.md"
         rej.write_text(text, encoding="utf-8")
         paths["rejected"] = rej
@@ -259,7 +238,7 @@ def save_all_reports(
 ) -> dict[str, dict[str, Path]]:
     """保存各线报告。
 
-    gate_by_line: 线名 → gate_ok（True/False/None）；False 时不写正式 result.md。
+    gate_by_line: 线名 → gate_ok（True/False/None），透传给 Report 落盘；三种情况都写 md。
     memory_on: 本次开启会议记忆（meeting+minutes 无命中时也输出左右审阅栏）。
     """
     saved: dict[str, dict[str, Path]] = {}

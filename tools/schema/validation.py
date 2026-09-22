@@ -43,7 +43,7 @@ def _choice(value: object, choices: set, path: str) -> None:
         raise OutputValidationError(f"{path} 必须是 {sorted(choices)} 之一")
 
 
-def _choice_or_default(value: object, choices: set, path: str, default: str) -> object:
+def _choice_or_default(value: object, choices: set, default: str) -> object:
     """枚举容错：不在 choices 内时归一到 default（不抛错），合法值原样返回。
 
     为什么（2026-09-18 实测）：理解层 scene 是 7 个**粗粒度形态标签**，而真实场景有二十多种

@@ -12,7 +12,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Callable, Iterator
 
-from tools.memory.store import safe_id
+from tools.core.ids import safe_id
 from tools.ocr.heading_levels import normalize_heading_levels
 from tools.ocr.reconstruct import (
     deterministic_reconstruct_markdown,

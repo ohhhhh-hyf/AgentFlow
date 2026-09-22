@@ -670,7 +670,7 @@ USER_ID = "1"
 resp = requests.post(
     URL,
     json={
-        "time" : "2026-09-01",
+        "time" : "2026-09-08",
         "texts": {
             "transcript": TRANSCRIPT,
             "keypoints": "",
@@ -679,11 +679,11 @@ resp = requests.post(
         "docs": [],
         "extra": {
             "template": "",
-            "profile": "user",
+            "profile": "",
             "project": "",
             "subject": "",
             "style": "",
-            "memory": False,
+            "memory": True,
         },
     },
     headers={"X-Request-Id": uuid.uuid4().hex, "X-User-Id": USER_ID},

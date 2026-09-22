@@ -1,6 +1,6 @@
 """Shared perspective model definitions.
 
-The generated zone is maintained by tools/scripts/sync_domain.py from
+The generated zone is maintained by tools/codegen/sync_domain.py from
 perspective/contracts.py.
 """
 from __future__ import annotations

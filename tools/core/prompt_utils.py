@@ -4,7 +4,7 @@
 - 有模板：用模板 prompt，模板原样拼进用户消息（LLM 只替换占位符）
 - 无模板：用普通渲染 prompt，用户消息就是上下文本身
 
-模板路由（tools.template_router）：有模板时先自动判型分派——
+模板路由（tools.templates.router）：有模板时先自动判型分派——
 占位符模板 / 格式规范模板 / 自然语言描述三类各自最优处理；
 任何无法处理的情况回退旧路径（原样拼模板），不影响现有逻辑。
 开关：环境变量 ``TEMPLATE_ROUTER=off`` 关闭路由。
@@ -20,7 +20,7 @@
 from __future__ import annotations
 
 from tools.templates.template_prompt import FALLBACK_TEMPLATE_RULES
-from tools.template_router import route_template
+from tools.templates.router import route_template
 
 
 def build_render_prompt(

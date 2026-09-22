@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-from client import LLMClient
-from tools.memory.graph import apply_graph_memory, sanitize_graph
+from tools.llm import LLMClient
+from domain.notes.memory.graph import apply_graph_memory, sanitize_graph
 
 from ....models import KnowledgeGraph
 from ..contracts import KNOWLEDGE_GRAPH_GENERATION_OUTPUT_CONTRACT

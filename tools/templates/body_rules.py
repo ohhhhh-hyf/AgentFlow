@@ -15,8 +15,8 @@
 并单列「禁止结论式孤条」——"或一个判断"原本给了写结论式短条的许可。
 
 现在 5 处统一引用 ``BODY_FORMAT_RULES``：
-1. ``tools/template_router/_base.py`` —— 装配路径 system prompt
-2. ``tools/template_router/_placeholder.py`` —— 装配路径 user 消息
+1. ``tools/templates/router/_base.py`` —— 装配路径 system prompt
+2. ``tools/templates/router/_placeholder.py`` —— 装配路径 user 消息
 3. ``tools/templates/template_prompt.py`` —— 自由渲染路径 PLACEHOLDER_RULES
 4. ``domain/meeting/tasks/minutes/prompts.py`` —— 纪要草稿 prompt（四.6）
 5. 同上 —— 纪要渲染 prompt（呈现形态）

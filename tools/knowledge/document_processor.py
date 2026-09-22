@@ -12,6 +12,9 @@ from .source_role import classify_source_role, heading_level
 
 SUPPORTED_EXTS = {".txt", ".md", ".pdf", ".docx", ".pptx", ".xlsx"}
 
+# 图片类扩展名（手写笔记/截图）：与 SUPPORTED_EXTS 同处，是「文件类型」知识的唯一定义处
+IMAGE_EXTS = {".png", ".jpg", ".jpeg"}
+
 # Excel 分块参数
 EXCEL_ROWS_PER_CHUNK = 30
 EXCEL_HEADER_DETECT_MAX_ROWS = 5
@@ -879,7 +882,7 @@ def _term_cooccurrence(text: str, heading: str = "") -> dict[str, list[str]]:
     return out
 
 
-def _content_fingerprint(text: str, heading: str = "", tags: str = "") -> str:
+def _content_fingerprint(text: str, tags: str = "") -> str:
     """块内容指纹:公式信号(≤2 个)+ 内容标签 + 首句(≤50 字)。
 
     下游 catalog/checklist 用指纹替代重读全文(≤200 字/块)。
@@ -935,7 +938,7 @@ def process_file(file_path: str, chunk_size: int = 500,
         heading = str(meta.get("heading") or "")
         tags = str(meta.get("content_tags") or "")
         if not meta.get("content_fingerprint"):
-            meta["content_fingerprint"] = _content_fingerprint(chunk.text, heading, tags)
+            meta["content_fingerprint"] = _content_fingerprint(chunk.text, tags)
         if not meta.get("term_cooccurrence"):
             co = _term_cooccurrence(chunk.text, heading)
             meta["term_cooccurrence"] = _json.dumps(co, ensure_ascii=False)

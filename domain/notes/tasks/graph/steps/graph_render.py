@@ -4,26 +4,17 @@ from collections.abc import AsyncIterator
 
 import json
 
-from client import LLMClient
-from tools.exports.knowledge_graph import build_learning_map
+from tools.llm import LLMClient
+from tools.exports.html.knowledge_graph import build_learning_map
 from tools.core.prompt_utils import build_render_prompt
 
 from ..prompts import KNOWLEDGE_GRAPH_RENDER_PROMPT, KNOWLEDGE_GRAPH_RENDER_TEMPLATE_PROMPT
+from tools.core.domain_engine_text import scrape_draft
 
 
-def _draft_from_context(approved_context: str) -> dict:
-    marker = "已批准知识图谱草稿："
-    blob = approved_context or ""
-    if marker in blob:
-        blob = blob.split(marker, 1)[1]
-    start = blob.find("{")
-    if start < 0:
-        return {}
-    try:
-        data, _ = json.JSONDecoder().raw_decode(blob[start:])
-    except json.JSONDecodeError:
-        return {}
-    return data if isinstance(data, dict) else {}
+def _draft_from_context(approved_context: str) -> dict[str, Any]:
+    """从渲染上下文里抽出已批准草稿（实现见 domain_engine_text.scrape_draft）。"""
+    return scrape_draft(approved_context, ('已批准知识图谱草稿：',))
 
 
 class KnowledgeGraphRender:

@@ -5,7 +5,7 @@ import logging
 import os
 from typing import Any
 
-from client import LLMClient
+from tools.llm import LLMClient
 
 from ....models import Checklist
 from ..assemble import assemble_checklist

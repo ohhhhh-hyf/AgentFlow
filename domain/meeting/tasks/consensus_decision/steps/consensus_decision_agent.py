@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from client import LLMClient
+from tools.llm import LLMClient
 from ....models import ConsensusDecision
 from ..contracts import CONSENSUS_DECISION_GENERATION_OUTPUT_CONTRACT
 from ..prompts import CONSENSUS_DECISION_GENERATION_SYSTEM_PROMPT

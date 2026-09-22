@@ -1,6 +1,6 @@
 """consensus_decision prompt definitions.
 
-Required by tools/scripts/sync_domain.py:
+Required by tools/codegen/sync_domain.py:
 - CONSENSUS_DECISION_GENERATION_SYSTEM_PROMPT
 - CONSENSUS_DECISION_SUPERVISOR_DOMAIN_PROMPT
 - CONSENSUS_DECISION_RENDER_PROMPT

@@ -3,11 +3,11 @@ from __future__ import annotations
 
 from typing import Any
 
-from tools.exports.mindmap import sanitize_mindmap_outline
+from tools.exports.html.mindmap import sanitize_mindmap_outline
 
-from .select import _as_list, _clean
+from .select import GRADE_LABELS, _as_list, _clean
 
-_GRADE = {"S": "核心", "A": "重点", "B": "简要", "C": "结构"}
+_GRADE = GRADE_LABELS  # 唯一定义在 select.py；C 级统一为「补充」（原「结构」）
 
 
 def _short(text: object, limit: int = 22) -> str:

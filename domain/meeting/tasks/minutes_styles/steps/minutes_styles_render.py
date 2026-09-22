@@ -3,25 +3,15 @@ from __future__ import annotations
 import json
 from collections.abc import AsyncIterator
 
-from client import LLMClient
+from tools.llm import LLMClient
 from tools.core.prompt_utils import build_render_prompt
 
 from ..prompts import MULTI_STYLES_RENDER_PROMPT, MULTI_STYLES_RENDER_TEMPLATE_PROMPT
+from tools.core.domain_engine_text import scrape_draft
 
-def _draft_from_context(approved_context: str) -> dict:
-    """从渲染上下文里抽出已批准草稿（取第一段可解析 JSON）。"""
-    marker = "已批准多样式纪要草稿："
-    blob = approved_context or ""
-    if marker in blob:
-        blob = blob.split(marker, 1)[1]
-    start = blob.find("{")
-    if start < 0:
-        return {}
-    try:
-        data, _ = json.JSONDecoder().raw_decode(blob[start:])
-    except json.JSONDecodeError:
-        return {}
-    return data if isinstance(data, dict) else {}
+def _draft_from_context(approved_context: str) -> dict[str, Any]:
+    """从渲染上下文里抽出已批准草稿（实现见 domain_engine_text.scrape_draft）。"""
+    return scrape_draft(approved_context, ('已批准多样式纪要草稿：',))
 
 
 def _empty_render_text(draft: dict) -> str:

@@ -24,21 +24,18 @@ KNOWN_KINDS = (LLM_EXTRACT, LLM_DOCUMENT, DETERMINISTIC_PIPELINE)
 _KIND_DEFAULTS: dict[str, dict] = {
     LLM_EXTRACT: {
         "sidecar": False,
-        "cli_template": True,
         "cli_mode": False,
         "llm_render": "always",
         "extracts_structure": True,
     },
     LLM_DOCUMENT: {
         "sidecar": False,
-        "cli_template": True,
         "cli_mode": False,
         "llm_render": "always",
         "extracts_structure": False,
     },
     DETERMINISTIC_PIPELINE: {
         "sidecar": False,
-        "cli_template": False,
         "cli_mode": False,
         "llm_render": "never",
         "extracts_structure": False,
@@ -50,7 +47,6 @@ _KIND_DEFAULTS: dict[str, dict] = {
 class LinePolicy:
     kind: str
     sidecar: bool = False
-    cli_template: bool = True
     cli_mode: bool = False
     llm_render: str = "always"
     extracts_structure: bool = False

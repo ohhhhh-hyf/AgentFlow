@@ -363,7 +363,7 @@ def parse_md_skeleton(text: str, *, source: str = "") -> dict[str, Any]:
 
 def _ocr_md_paths(user_id: str, subject: str) -> list[Path]:
     """该用户/学科下的 OCR 合并稿（按修改时间从旧到新＝文件序）。"""
-    from tools.memory.store import safe_id
+    from tools.core.ids import safe_id
 
     folder = _SOURCE / "data" / safe_id(user_id) / "ocr" / safe_id(subject)
     if not folder.is_dir():
@@ -483,7 +483,7 @@ def build_metadata_skeleton(shared_context: str) -> dict[str, Any]:
     低可信、例题、注意、小结等内容留作 evidence/body，不强行升节点。
     """
     from .gather import subject_from_context, user_id_from_context
-    from tools.knowledge.cite import open_knowledge
+    from domain.notes.knowledge.cite import open_knowledge
 
     user_id = user_id_from_context(shared_context)
     subject = subject_from_context(shared_context)

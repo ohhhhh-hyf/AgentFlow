@@ -9,7 +9,7 @@ from collections import defaultdict
 from pathlib import Path
 from typing import Any
 
-from tools.knowledge.cite import open_knowledge
+from domain.notes.knowledge.cite import open_knowledge
 from tools.knowledge.config import PROJECT_ROOT
 from tools.knowledge.source_role import (
     ROLE_MATERIAL,
@@ -71,7 +71,7 @@ def _is_ocr_note_source(source: str, user_id: str = "", subject: str = "") -> bo
     stem = Path(source or "").stem
     if not stem or not (user_id or "").strip() or not (subject or "").strip():
         return False
-    from tools.memory.store import safe_id
+    from tools.core.ids import safe_id
 
     path = (
         PROJECT_ROOT

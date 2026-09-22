@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from client import LLMClient
+from tools.llm import LLMClient
 from .models import PerspectiveModeling
 from .prompts import PERSPECTIVE_MODELING_SYSTEM_PROMPT
 from .contracts import PERSPECTIVE_MODELING_GENERATION_OUTPUT_CONTRACT

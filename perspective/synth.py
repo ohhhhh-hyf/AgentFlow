@@ -21,7 +21,6 @@ from __future__ import annotations
 from typing import Any
 
 from .hits import HitTable
-from .preferences import PREFERENCE_LINES
 
 # 允许程序合成的线集合：视角模型被所有线消费，多线（待办/风险）依赖可能的行动推断，
 # 合成版会薄，所以只在"只跑纪要"时跳；多线保留建模（保守，等命中表跑稳再放开）。

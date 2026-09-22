@@ -9,7 +9,18 @@ from __future__ import annotations
 
 from typing import Optional
 
+import json
+
 from pydantic import BaseModel, Field, field_validator
+
+
+def ndjson_line(payload: dict) -> str:
+    """一行 NDJSON（流式接口的事件编码）。
+
+    2026-09-22 收拢：app/tasks.py 与 app/routes/tasks.py 各写了一份同名同实现的私有副本。
+    """
+    return json.dumps(payload, ensure_ascii=False) + "\n"
+
 
 TEXT_KEYS = ("transcript", "keypoints", "notes")
 

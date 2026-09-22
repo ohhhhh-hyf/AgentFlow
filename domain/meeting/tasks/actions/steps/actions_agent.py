@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from client import LLMClient
+from tools.llm import LLMClient
 from ....models import ActionItems
 from ..prompts import (
     ACTION_ITEMS_GENERATION_SYSTEM_PROMPT,

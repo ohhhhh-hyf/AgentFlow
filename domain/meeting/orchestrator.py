@@ -5,7 +5,7 @@ MeetingAgentSystem 负责：组装 Agent 依赖、构建多线并行 DAG、条�
 架构（注册表驱动）：
 - meeting_core：会议理解 + 视角建模（公共事实底座，先行并行执行）
 - tasks/{线}：各任务线（生成 → 监督 → 返工闭环），互不阻塞
-- 共享编排内核位于 ``tools/domain_engine.py``；渲染在 ``tools.runtime.render``。
+- 共享编排内核位于 ``tools/core/domain_engine.py``；渲染在 ``tools.runtime.render``。
   本文件只保留：sync_domain 管理的注册/挂载生成区、领域专属 core 节点、
   领域钩子覆写。render / fallback 由运行时一份函数生成，不再按线出样板。
 """
@@ -15,7 +15,7 @@ import logging
 
 from langgraph.graph import START
 
-from client import LLMClient
+from tools.llm import LLMClient
 from perspective import (
     PREFERENCE_LINES,
     PERSONAL_VIEW_DIRECTIVE,
@@ -44,7 +44,7 @@ from tools.runtime.kinds import resolve_line_policies
 from tools.runtime.progress import progress
 from tools.runtime.supervisor_slice import compact_draft_for_review
 
-# ── Report import 生成区：由 tools/scripts/sync_domain.py 生成，勿手改 ──
+# ── Report import 生成区：由 tools/codegen/sync_domain.py 生成，勿手改 ──
 
 from .reports import (
     ActionItemsReport,
@@ -58,7 +58,7 @@ from .reports import (
 # ── Report import 生成区结束 ──
 
 from .models import MeetingState
-# ── 任务线 import 生成区：由 tools/scripts/sync_domain.py 生成，勿手改 ──
+# ── 任务线 import 生成区：由 tools/codegen/sync_domain.py 生成，勿手改 ──
 
 from .tasks.actions import (
     ActionItemsAgent,
@@ -104,7 +104,7 @@ from .tasks.risks import (
 
 # ── 任务线 import 生成区结束 ──
 
-# ── FallbackRules import 生成区：由 tools/scripts/sync_domain.py 生成，勿手改 ──
+# ── FallbackRules import 生成区：由 tools/codegen/sync_domain.py 生成，勿手改 ──
 
 from .tasks.actions.contracts import ACTION_ITEMS_FALLBACK_RULES
 from .tasks.consensus_decision.contracts import CONSENSUS_DECISION_FALLBACK_RULES
@@ -120,7 +120,7 @@ logger = logging.getLogger(__name__)
 
 QUALITY_WARNING = "生成可能有误，请结合会议原文核对。"
 
-# ── 空结构常量生成区：由 tools/scripts/sync_domain.py 生成，勿手改 ──
+# ── 空结构常量生成区：由 tools/codegen/sync_domain.py 生成，勿手改 ──
 
 _EMPTY_ACTION_ITEMS = {
     "my_actions": [],
@@ -181,7 +181,7 @@ _EMPTY_RISK = {
 
 # ── 空结构常量生成区结束 ──
 
-# ── 拒绝审核常量生成区：由 tools/scripts/sync_domain.py 生成，勿手改 ──
+# ── 拒绝审核常量生成区：由 tools/codegen/sync_domain.py 生成，勿手改 ──
 
 _REJECT_MINUTES_REVIEW = {
     "decision": "reject",
@@ -233,9 +233,10 @@ _REJECT_CONSENSUS_DECISION_REVIEW = {
     "feedback": ["LLM 调用失败，未完成审核，转降级输出"],
 }
 
+
 # ── 拒绝审核常量生成区结束 ──
 
-# ── 任务线注册生成区：由 tools/scripts/sync_domain.py 生成，勿手改 ──
+# ── 任务线注册生成区：由 tools/codegen/sync_domain.py 生成，勿手改 ──
 
 TASK_LINES: dict[str, dict] = {
     "actions": {
@@ -613,78 +614,6 @@ class _Nodes(DomainNodes):
                 parts.append(budget)
         return "\n\n".join(parts)
 
-    def _make_agent_node(self, line_name: str):
-        """会议域生成节点：给不同任务线注入专属瘦身上下文。"""
-        cfg = self._task_lines[line_name]
-        cn = _line_cn(line_name)
-
-        async def node(state: dict) -> dict:
-            progress("agent start gen line=%s", line_name)
-            agent = getattr(self, cfg["agent_attr"])
-            context = self._line_shared_context(state, line_name)
-            mode = (state.get("line_modes") or {}).get(line_name)
-            if mode and self._line_policy(line_name).cli_mode:
-                context = f"组织模式：{mode}\n\n{context}"
-            extra = (state.get("line_extra") or {}).get(line_name)
-            memory_extra = ""
-            memory_bind: dict = {}
-            memory_warning = ""
-            memory_comparison: list[str] = []
-            try:
-                from tools.meeting_memory.runtime import build_line_extra
-
-                injected = build_line_extra(
-                    state,
-                    line_name,
-                    line_extra=state.get("line_extra") or {},
-                )
-                memory_extra = injected.context or ""
-                memory_bind = injected.bind.as_dict() if injected.bind else {}
-                memory_warning = injected.warning or ""
-                memory_comparison = list(injected.comparison or [])
-            except Exception:
-                logger.warning("meeting memory v2 inject failed line=%s", line_name, exc_info=True)
-            if memory_extra:
-                extra = f"{extra}\n\n{memory_extra}".strip() if extra else memory_extra
-            if extra:
-                context = f"{context}\n\n{extra}"
-            try:
-                result = await agent.run(
-                    self._revision_context(
-                        context,
-                        _line(state, line_name).get("revision_feedback", []),
-                        f"{cn}返工意见",
-                    )
-                )
-            except Exception:  # noqa: BLE001 - 有意的降级设计
-                logger.warning(f"gen failed, empty draft line={cn}", exc_info=True)
-                return {
-                    "lines": {
-                        line_name: {
-                            "draft": cfg["empty_draft"],
-                            "degraded": True,
-                        }
-                    },
-                    "quality_degraded": True,
-                }
-            progress("agent done gen line=%s", line_name)
-            draft = result.model_dump()
-            if line_name == "minutes" and memory_comparison:
-                draft["history_comparison"] = memory_comparison
-            return {
-                "lines": {
-                    line_name: {
-                        "draft": draft,
-                        "degraded": False,
-                        "memory_context": memory_extra,
-                        "memory_bind": memory_bind,
-                        "memory_warning": memory_warning,
-                    }
-                }
-            }
-
-        return node
-
     def _supervisor_context(self, state, line_name: str) -> str:
         """审核上下文：原文按草稿事实点摘录，理解只给摘要。
 
@@ -694,13 +623,7 @@ class _Nodes(DomainNodes):
         负责人""他名下的条被漏掉"这三类判断都只能靠猜。
         """
         sub = _line(state, line_name)
-        revision_count = sub.get("revision_count", 0)
         mode = self._mode_label(state)
-        allowed = (
-            "本轮可以选择 approve、revise 或 reject。"
-            if revision_count < self.MAX_REVISIONS
-            else "返工次数已用完，本轮只能选择 approve 或 reject。"
-        )
         blocks = [self._supervisor_source_pack(state, line_name)]
         memory = str(sub.get("memory_context") or "").strip()
         if memory:
@@ -716,11 +639,7 @@ class _Nodes(DomainNodes):
             f"{_line_draft_title(line_name)}：\n"
             f"{_json(compact_draft_for_review(sub['draft']))}"
         )
-        return (
-            f"视角模式：{mode}\n"
-            f"{_line_cn(line_name)}返工次数：{revision_count}/{self.MAX_REVISIONS}\n"
-            f"{allowed}\n\n" + "\n\n".join(blocks)
-        )
+        return f"{self._revision_instruction(state, line_name)}\n\n" + "\n\n".join(blocks)
 
     @staticmethod
     def _length_budget_line(state: dict, line_name: str) -> str:
@@ -736,7 +655,7 @@ class _Nodes(DomainNodes):
         template = (state.get("templates") or {}).get(line_name) or ""
         if template:
             try:
-                from tools.template_router import plan_placeholder_fill
+                from tools.templates.router import plan_placeholder_fill
 
                 columns = len(plan_placeholder_fill(template).get("scalars") or [])
             except Exception:  # noqa: BLE001 - 预算只是软提示，算不出栏数就不带
@@ -829,7 +748,7 @@ class _Nodes(DomainNodes):
     def _render_directives(self, state: dict, line_name: str) -> str:
         """装配那一轮的「本栏写作纪律」：真人模式按本人聚焦，客观/职业模板不注入。
 
-        为什么必须从这里下发：带模板时正文由 ``tools.template_router`` 通用填充器逐栏写，
+        为什么必须从这里下发：带模板时正文由 ``tools.templates.router`` 通用填充器逐栏写，
         system 里只有「你只写本栏正文」——``MINUTES_RENDER_PROMPT`` 那条路不执行。不下发
         取舍纪律，模型就只剩模板栏名（全文摘要 / 分段速览）可依，个人模式照样写成整场纪要
         （实测 8172 字、超本篇参考上限 48%，与客观版看不出区别）。
@@ -887,7 +806,7 @@ class _Nodes(DomainNodes):
                 draft = _line(state, "consensus_decision").get("draft") or {}
                 issues = draft.get("issues") or []
                 if issues:
-                    from tools.exports.consensus_decision import format_consensus_decision_markdown
+                    from tools.exports.html.consensus_decision import format_consensus_decision_markdown
                     title = self._compute_title(state)
                     text = format_consensus_decision_markdown(draft, title=title)
                     structure = issues
@@ -1051,23 +970,6 @@ class _Nodes(DomainNodes):
 
         return node
 
-    async def _meeting_understanding_node(self, state: MeetingState) -> dict:
-        """meeting理解：提取主题、结构、术语和待澄清问题。"""
-        try:
-            from perspective import build_user_channel
-
-            result = await self.meeting_understanding_agent.run(
-                state["transcript"],
-                user_channel=build_user_channel(state.get("user") or {}),
-            )
-        except Exception:
-            logger.warning("meeting understanding failed, continue with empty", exc_info=True)
-            return {
-                "meeting_understanding": _EMPTY_MEETING_UNDERSTANDING,
-                "quality_degraded": True,
-            }
-        return {"meeting_understanding": result.model_dump()}
-
 class MeetingAgentSystem(_Nodes):
     """使用 LangGraph 编排会议分析、多线并行审核返工与最终输出。"""
 
@@ -1085,7 +987,7 @@ class MeetingAgentSystem(_Nodes):
             "perspective_modeling_agent"
         ]
 
-        # ── Agent 挂载生成区：由 tools/scripts/sync_domain.py 生成，勿手改 ──
+        # ── Agent 挂载生成区：由 tools/codegen/sync_domain.py 生成，勿手改 ──
 
         self.actions_agent: ActionItemsAgent = agents["actions_agent"]
         self.actions_supervisor: ActionItemsSupervisor = agents["actions_supervisor"]
@@ -1111,14 +1013,8 @@ class MeetingAgentSystem(_Nodes):
 
         # ── Agent 挂载生成区结束 ──
 
-        # 兼容别名：线名 risks（复数）与属性 risk_*（单数）的历史映射，
-        # 引擎按 f"{line_name}_render" 取值，需与线名对齐
-        self.risk_agent = self.risks_agent
-        self.risk_supervisor = self.risks_supervisor
-        self.risk_render = self.risks_render
-
         # 各线 Report 组装器：线名 → Report 类（脚本生成，键 = 线名与 chunk.line 一致）
-        # ── Report 组装器生成区：由 tools/scripts/sync_domain.py 生成，勿手改 ──
+        # ── Report 组装器生成区：由 tools/codegen/sync_domain.py 生成，勿手改 ──
 
         self._report_assemblers = {
             "actions": ActionItemsReport,
@@ -1133,7 +1029,7 @@ class MeetingAgentSystem(_Nodes):
         # ── Report 组装器生成区结束 ──
 
         # 各线降级规则：线名 → FallbackRules 实例（脚本生成，图异常兜底用）
-        # ── FallbackRules 注册生成区：由 tools/scripts/sync_domain.py 生成，勿手改 ──
+        # ── FallbackRules 注册生成区：由 tools/codegen/sync_domain.py 生成，勿手改 ──
 
         self._fallback_rules = {
             "actions": ACTION_ITEMS_FALLBACK_RULES,

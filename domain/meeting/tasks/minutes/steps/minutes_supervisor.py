@@ -1,8 +1,8 @@
 from __future__ import annotations
 
-from supervisor import GlobalSupervisor
+from domain._shared import GlobalSupervisor
 
-from client import LLMClient
+from tools.llm import LLMClient
 from ....models import MinutesSupervisorReview
 from ..prompts import (
     MINUTES_SUPERVISOR_DOMAIN_PROMPT,

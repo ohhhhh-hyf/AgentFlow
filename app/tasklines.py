@@ -6,8 +6,8 @@
 - 同步接口校验：``app/tasks.py`` 的 ``LINE_NAMES``（task 取值 → 代码线名）
 
 字段含义：
-- ``line``：代码线名，同时是 URL 段
-- ``cn``：中文名（文档用）
+- ``line``：代码线名，同时是 URL 段（**中文名不在这里**：运行时用的中文名以各域
+  ``domain_config.LINE_CN_NAMES`` 为准，避免同一份清单维护两遍）
 - ``files``：是否注册产物端点。无落盘产物（library）或产物不在 output 目录
   （catalog，file_name 指向知识目录 JSON）的任务线不注册。
 
@@ -33,24 +33,23 @@ class TaskLine:
     """一条对外暴露的任务线。"""
 
     line: str
-    cn: str
     files: bool = False
 
 
 DOMAINS: dict[str, tuple[TaskLine, ...]] = {
     "meeting": (
-        TaskLine("minutes", "会议纪要", files=True),
-        TaskLine("actions", "待办行动", files=True),
-        TaskLine("risks", "风险分析", files=True),
-        TaskLine("minutes_styles", "多样式纪要", files=True),
-        TaskLine("minutes_trace", "溯源纪要", files=True),
-        TaskLine("consensus_decision", "共识决策", files=True),
+        TaskLine("minutes", files=True),
+        TaskLine("actions", files=True),
+        TaskLine("risks", files=True),
+        TaskLine("minutes_styles", files=True),
+        TaskLine("minutes_trace", files=True),
+        TaskLine("consensus_decision", files=True),
     ),
     "notes": (
-        TaskLine("graph", "知识图谱", files=True),
-        TaskLine("library", "资料入库"),  # 无落盘产物
-        TaskLine("catalog", "知识目录"),  # file_name 指向知识目录 JSON，不在 output 目录
-        TaskLine("checklist", "复习清单", files=True),
+        TaskLine("graph", files=True),
+        TaskLine("library"),  # 无落盘产物
+        TaskLine("catalog"),  # file_name 指向知识目录 JSON，不在 output 目录
+        TaskLine("checklist", files=True),
     ),
 }
 
@@ -58,20 +57,20 @@ DOMAINS: dict[str, tuple[TaskLine, ...]] = {
 DOMAIN_NAMES: dict[str, str] = {"meeting": "会议", "notes": "笔记"}
 
 
-def lines_for(domain: str) -> dict[str, str]:
-    """该域可接受的 task 取值 → 代码线名。"""
-    return {
-        item.line: item.line
-        for item in DOMAINS.get((domain or "").strip().lower(), ())
-    }
+def lines_for(domain: str) -> frozenset[str]:
+    """该域对外暴露的线名集合（调用方只需判存在，线名本身就是"task 取值"）。
+
+    历史上这里返回"task 取值 → 代码线名"的 dict，但两者恒相等 ⇒ 换成集合，调用方直接
+    用 `task if task in lines_for(domain) else None`。
+    """
+    return frozenset(
+        item.line for item in DOMAINS.get((domain or "").strip().lower(), ())
+    )
 
 
-def all_lines() -> dict[str, str]:
-    """全部域的 task 取值 → 代码线名（供同步接口的任务名映射使用）。"""
-    out: dict[str, str] = {}
-    for domain in DOMAINS:
-        out.update(lines_for(domain))
-    return out
+def all_lines() -> frozenset[str]:
+    """全部域对外暴露的线名集合（供同步接口的任务名校验使用）。"""
+    return frozenset().union(*(lines_for(domain) for domain in DOMAINS))
 
 
 __all__ = [

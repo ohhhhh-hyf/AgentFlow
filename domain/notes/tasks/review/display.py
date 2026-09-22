@@ -1,12 +1,15 @@
 """笔记审查：确定性总结、原文高亮、左右对照 HTML。"""
 from __future__ import annotations
 
-import json
 import re
 from html import escape
 from typing import Any
 
 from tools.core.domain_engine_text import line
+from tools.core.domain_engine_text import scrape_draft
+from tools.core.domain_engine_text import scrape_original
+from domain._shared.text import clean_text as _clean
+from domain._shared.text import as_dict_list as _as_list
 
 ISSUE_KINDS: dict[str, tuple[str, str]] = {
     "incomplete": ("⚠", "知识点记录不完整"),
@@ -28,8 +31,6 @@ _MAX_MARK = 80
 _MIN_QUOTE = 4
 
 
-def _clean(text: object) -> str:
-    return " ".join(str(text or "").split()).strip()
 
 
 def normalize_kind(kind: object) -> str:
@@ -50,10 +51,6 @@ def normalize_kind(kind: object) -> str:
     return aliases.get(raw, raw if raw in ISSUE_KINDS else "")
 
 
-def _as_list(value: object) -> list[dict[str, Any]]:
-    if not isinstance(value, list):
-        return []
-    return [item for item in value if isinstance(item, dict)]
 
 
 def _issue_items(draft: dict[str, Any]) -> list[dict[str, Any]]:
@@ -392,38 +389,17 @@ def build_review_markdown(original: str, draft: dict[str, Any]) -> str:
 
 
 def draft_from_context(approved_context: str) -> dict[str, Any]:
-    blob = approved_context or ""
-    for marker in ("已批准笔记审查草稿：", "已批准审查草稿："):
-        if marker in blob:
-            blob = blob.split(marker, 1)[1]
-            break
-    start = blob.find("{")
-    if start < 0:
-        return {}
-    try:
-        data, _ = json.JSONDecoder().raw_decode(blob[start:])
-    except json.JSONDecodeError:
-        return {}
-    return data if isinstance(data, dict) else {}
+    """从渲染上下文里抽出已批准草稿（实现见 domain_engine_text.scrape_draft）。"""
+    return scrape_draft(approved_context, ('已批准笔记审查草稿：', '已批准审查草稿：'))
 
 
 def original_from_context(approved_context: str) -> str:
-    raw = approved_context or ""
-    for marker in ("原文（最高事实来源）：", "原文："):
-        if marker not in raw:
-            continue
-        body = raw.split(marker, 1)[1]
-        for stop in (
-            "\n\n用户画像：",
-            "\n\n已审核笔记理解：",
-            "\n\n已审核用户视角：",
-            "\n\n已批准",
-        ):
-            if stop in body:
-                body = body.split(stop, 1)[0]
-                break
-        return body.strip()
-    return ""
+    """抠出原文块（实现见 domain_engine_text.scrape_original）。"""
+    return scrape_original(
+        approved_context,
+        ("原文（最高事实来源）：", "原文："),
+        ("\n\n用户画像：", "\n\n已审核笔记理解：", "\n\n已审核用户视角：", "\n\n已批准"),
+    )
 
 
 
@@ -432,7 +408,7 @@ def attach_library_hits(
     draft: dict[str, Any], kb: Any = None, user_id: str = "", subject: str = ""
 ) -> dict[str, Any]:
     """有库则给每条主张钉出处；库空不动，走原来的挑刺。"""
-    from tools.knowledge.cite import cite_text, library_has_docs, open_knowledge
+    from domain.notes.knowledge.cite import cite_text, library_has_docs, open_knowledge
 
     if kb is None:
         kb = open_knowledge(user_id=user_id)
@@ -492,7 +468,7 @@ def attach_review_artifacts(state: dict[str, Any]) -> None:
     sub = line(state, "review")
     draft = dict(sub.get("draft") or {})
     original = str(state.get("transcript") or "")
-    from tools.knowledge.cite import parse_scope
+    from domain.notes.knowledge.cite import parse_scope
 
     scope = parse_scope(
         "\n".join(str(v) for v in (state.get("line_extra") or {}).values())

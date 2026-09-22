@@ -7,15 +7,9 @@ from .steps.minutes_styles_agent import MultiStylesAgent
 from .steps.minutes_styles_render import MultiStylesRender
 from .steps.minutes_styles_supervisor import MultiStylesSupervisor
 
-MinutesStylesAgent = MultiStylesAgent
-MinutesStylesRender = MultiStylesRender
-MinutesStylesSupervisor = MultiStylesSupervisor
 
 __all__ = [
     "MultiStylesAgent",
     "MultiStylesRender",
     "MultiStylesSupervisor",
-    "MinutesStylesAgent",
-    "MinutesStylesRender",
-    "MinutesStylesSupervisor",
 ]

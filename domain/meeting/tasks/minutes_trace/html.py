@@ -13,7 +13,7 @@ import re
 from html import escape
 from typing import Any
 
-from tools.meeting_memory.render import _latex_paper_css
+from domain.meeting.memory.render import _latex_paper_css
 
 _PIN_RE = re.compile(r"###\[【([^】]+)】\](?:\([^)]*\))?")
 _NOTE_SEP = " **用户批注** "
@@ -340,7 +340,7 @@ def trace_review_html(markdown: str, title: str = "") -> str:
     """
     text = markdown or ""
     if "###[【" not in text:
-        from tools.meeting_memory.render import render_markdown_page_html
+        from domain.meeting.memory.render import render_markdown_page_html
         return render_markdown_page_html(title or "会议纪要", text)
 
     # 第一遍扫描：收集按首次出现顺序排序的唯一材料条目，去重并分配全局连续序号 [1], [2], [3]...

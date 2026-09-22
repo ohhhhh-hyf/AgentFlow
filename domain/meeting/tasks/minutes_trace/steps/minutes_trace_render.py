@@ -4,7 +4,7 @@ import json
 from collections.abc import AsyncIterator
 from typing import Any
 
-from client import LLMClient
+from tools.llm import LLMClient
 from tools.execution.hard_execution import extract_labeled_json
 from tools.runtime.progress import progress
 
@@ -23,21 +23,12 @@ from ..align import (
 )
 from ..extras import parse_trace_extras
 from ..prompts import MINUTES_TRACE_VERDICT_PROMPT
+from tools.core.domain_engine_text import scrape_draft
 
 
-def _draft_from_context(approved_context: str) -> dict:
-    marker = "已批准溯源纪要草稿："
-    blob = approved_context or ""
-    if marker in blob:
-        blob = blob.split(marker, 1)[1]
-    start = blob.find("{")
-    if start < 0:
-        return {}
-    try:
-        data, _ = json.JSONDecoder().raw_decode(blob[start:])
-    except json.JSONDecodeError:
-        return {}
-    return data if isinstance(data, dict) else {}
+def _draft_from_context(approved_context: str) -> dict[str, Any]:
+    """从渲染上下文里抽出已批准草稿（实现见 domain_engine_text.scrape_draft）。"""
+    return scrape_draft(approved_context, ('已批准溯源纪要草稿：',))
 
 
 def _transcript_from_context(context: str) -> str:

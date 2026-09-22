@@ -1,6 +1,6 @@
 """consensus_decision contract definitions.
 
-Required by tools/scripts/sync_domain.py:
+Required by tools/codegen/sync_domain.py:
 - class ConsensusDecisionGenerationContract(GenerationContract)
 - class ConsensusDecisionSupervisorContract(SupervisorContract)
 - CONSENSUS_DECISION_GENERATION_OUTPUT_CONTRACT = ConsensusDecisionGenerationContract.to_output_contract()

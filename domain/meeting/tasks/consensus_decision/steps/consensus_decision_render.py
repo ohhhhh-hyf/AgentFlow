@@ -2,8 +2,8 @@ from __future__ import annotations
 
 from collections.abc import AsyncIterator
 
-from client import LLMClient
-from tools.exports.consensus_decision import format_consensus_decision_markdown
+from tools.llm import LLMClient
+from tools.exports.html.consensus_decision import format_consensus_decision_markdown
 from tools.core.prompt_utils import build_render_prompt
 
 from ....models import MeetingState

@@ -42,7 +42,7 @@ def catalog_dir_for(user_id: str = "") -> Path:
             "知识目录按用户隔离，user_id 不能为空："
             "目标目录应为 data/{user_id}/knowledge/catalogs。"
         )
-    from tools.memory.store import safe_id
+    from tools.core.ids import safe_id
 
     return PROJECT_ROOT / "data" / safe_id(uid) / "knowledge" / "catalogs"
 
@@ -73,7 +73,7 @@ def new_catalog_path(user_id: str = "", subject: str = "", stamp: str = "") -> P
 
 def _ocr_output_stems(user_id: str, subject: str) -> list[str]:
     """Standard 会把原图 xx 存成 ocr/{subject}/xx.md，meta 则是 catalogs/xx_meta.json。"""
-    from tools.memory.store import safe_id
+    from tools.core.ids import safe_id
 
     uid = (user_id or "").strip()
     if not uid:

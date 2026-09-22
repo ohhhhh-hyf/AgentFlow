@@ -12,7 +12,7 @@ import sys
 from dataclasses import dataclass
 from pathlib import Path
 
-from client.config import load_env
+from tools.llm.config import load_env
 
 from .io import (
     format_trace_extra,
@@ -35,9 +35,9 @@ from tools.exports.outputs import (
     task_output_dir,
 )
 from .runtime_context import DomainContext, normalize_tasks
-from tools.memory.runtime import MEMORY_LINES
+from tools.core.domain_hooks import hooks_for
 from tools.runtime.kinds import sidecar_lines
-from tools.template_router import LINE_SCHEMA_HINTS, maybe_compile_natural_template
+from tools.templates.router import LINE_SCHEMA_HINTS, maybe_compile_natural_template
 
 logger = logging.getLogger(__name__)
 
@@ -202,7 +202,7 @@ async def prepare_run(
         try:
             from tools.monitor import TaskMonitor
 
-            from tools.memory.store import safe_id
+            from tools.core.ids import safe_id
 
             monitor_dir = (
                 ctx.project_root / "data" / safe_id(user_id or "")
@@ -235,13 +235,9 @@ async def prepare_run(
 
     memory_bind = None
     line_extra: dict[str, str] = {}
-    memory_enabled = bool(memory and user_id and (set(line_names) & MEMORY_LINES))
-    meeting_memory_v2 = bool(
-        memory
-        and user_id
-        and ctx.name == "meeting"
-        and (set(line_names) & {"minutes", "minutes_styles"})
-    )
+    # 记忆由**域钩子**决定：哪些线要记、怎么准备（引擎不再知道任何域名/线名细节）
+    hooks = hooks_for(ctx.name)
+    memory_enabled = bool(memory and user_id and (set(line_names) & hooks.memory_lines))
     if "quiz" in line_names:
         quiz_rows: list[str] = ["用户水平：期中备考"]
         bank_rows: list[str] = []
@@ -266,32 +262,22 @@ async def prepare_run(
             )
         if parts:
             pending_extra["quiz"] = "\n\n".join(parts)
-    if meeting_memory_v2:
-        from tools.meeting_memory.runtime import META_KEY, encode_meta
-
+    if memory_enabled and hooks.prepare_memory is not None:
         request_id = ""
         try:
             request_id = str(getattr(ctx, "output_dir", "") and Path(ctx.output_dir).name)
         except Exception:
             request_id = ""
-        line_extra[META_KEY] = encode_meta(
-            ctx.project_root,
-            user_id,
-            project_id or "",
-            request_id,
-            meeting_time,
-        )
-    elif memory_enabled:
-        from tools.memory import prepare
-
-        memory_bind, line_extra = prepare(
-            ctx.project_root,
-            ctx.name,
-            user_id,
-            transcript,
-            line_names,
-            project_id,
-            subject,
+        memory_bind, line_extra = hooks.prepare_memory(
+            project_root=ctx.project_root,
+            domain=ctx.name,
+            user_id=user_id or "",
+            transcript=transcript,
+            line_names=list(line_names),
+            project_id=project_id,
+            subject=subject,
+            meeting_time=meeting_time,
+            request_id=request_id,
         )
     if scope_text:
         # review / quiz 的产物挂载是从本线 line_extra 里 parse_scope 取 user 的
@@ -413,6 +399,7 @@ async def run(
     line_extra = prep.line_extra
     memory_enabled = prep.memory_enabled
     memory_bind = prep.memory_bind
+    hooks = hooks_for(ctx.name)  # 记忆回写走域钩子（prepare_run 里已用它做过准备）
     graph_silent = prep.graph_silent
     usage_before = prep.usage_before
     _task_monitor = prep.task_monitor
@@ -454,43 +441,30 @@ async def run(
                     collected["understanding"] = event.get("understanding") or {}
                     collected["quality_warning"] = event.get("quality_warning")
                     collected["saved"] = await _handle_done(
-                        ctx, event, memory_on=bool((line_extra or {}).get("__meeting_memory__"))
+                        ctx, event, memory_on=bool(memory_bind is not None or line_extra)
                     ) or {}
                 else:
                     await _handle_done(
-                        ctx, event, memory_on=bool((line_extra or {}).get("__meeting_memory__"))
+                        ctx, event, memory_on=bool(memory_bind is not None or line_extra)
                     )
-                if (line_extra or {}).get("__meeting_memory__"):
-                    from tools.meeting_memory.runtime import persist_after_run
-
+                if hooks.persist_memory is not None and (memory_bind is not None or line_extra):
                     request_id = ""
                     try:
                         request_id = str(getattr(ctx, "output_dir", "") and Path(ctx.output_dir).name)
                     except Exception:
                         request_id = ""
-                    persist_after_run(
-                        ctx.project_root,
-                        user_id or "",
-                        project_id or "",
-                        request_id,
-                        transcript,
-                        event.get("reports") or {},
-                        event.get("understanding") or {},
+                    hooks.persist_memory(
+                        project_root=ctx.project_root,
+                        domain=ctx.name,
+                        user_id=user_id or "",
+                        project_id=project_id,
+                        request_id=request_id,
+                        subject=subject,
+                        transcript=transcript,
+                        reports=event.get("reports") or {},
+                        understanding=event.get("understanding") or {},
                         meeting_time=meeting_time,
-                        bind=event.get("memory_bind"),
-                    )
-                elif memory_enabled and memory_bind is not None:
-                    from tools.memory import persist
-
-                    persist(
-                        ctx.project_root,
-                        ctx.name,
-                        user_id,
-                        memory_bind,
-                        event.get("reports") or {},
-                        event.get("understanding") or {},
-                        transcript,
-                        subject,
+                        bind=event.get("memory_bind") or memory_bind,
                     )
     except Exception as exc:
         run_error = exc

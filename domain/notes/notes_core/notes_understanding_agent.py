@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from client import LLMClient
+from tools.llm import LLMClient
 
 from ..models import NotesUnderstanding
 from .contracts import NOTES_UNDERSTANDING_GENERATION_OUTPUT_CONTRACT

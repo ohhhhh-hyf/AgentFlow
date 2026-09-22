@@ -19,7 +19,7 @@ from dataclasses import dataclass, field
 
 from typing import Any
 
-# ── Report 基类 import 生成区：由 tools/scripts/sync_domain.py 生成，勿手改 ──
+# ── Report 基类 import 生成区：由 tools/codegen/sync_domain.py 生成，勿手改 ──
 
 from .models import (
     ModelMixin,

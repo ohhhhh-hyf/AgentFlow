@@ -16,6 +16,7 @@ import logging
 import re
 from typing import Any
 
+from tools.templates.length_budget import han_count as _han_count
 from tools.templates.template_eval import (
     evaluate_output_against_template,
     extract_markdown_tables,
@@ -626,6 +627,12 @@ def split_overlong_paragraphs_except_first(
             out.append(seg)
             continue
         seg_text, seg_notes = split_overlong_paragraphs(seg, template)
+        # 内层 split_overlong_paragraphs 走的是 "\n".join(行)，段尾换行会丢；丢一个就把
+        # 下一段的 `# 栏名` 粘到本段末尾（实测：渲染层对同一份文本跑两次 enforce——逐栏填充
+        # 内部一次、render 层一次——第一遍把空行削成单换行，第二遍直接粘连）。这里按原样补回。
+        tail = seg[len(seg.rstrip("\n")) :]
+        if tail and seg_text:
+            seg_text = seg_text.rstrip("\n") + tail
         out.append(seg_text)
         notes.extend(seg_notes)
     return "".join(out), notes
@@ -854,7 +861,7 @@ def enforce_render_output(
     if not template or not (output or "").strip():
         return output or "", [], (["输出为空"] if not (output or "").strip() else [])
 
-    from tools.template_router import (
+    from tools.templates.router import (
         detect_template_kind,
         validate_rendered_output,
     )
@@ -863,6 +870,10 @@ def enforce_render_output(
     text = fix_glued_table_rows(output)
     if text != output:
         notes.append("已修复表格行粘连（||）")
+    text2, gnotes = fix_glued_column_titles(text, template)
+    if gnotes:
+        text = text2
+        notes.extend(gnotes)
     text2, cnotes = clean_template_render_text(text)
     text = text2
     notes.extend(cnotes)
@@ -875,7 +886,7 @@ def enforce_render_output(
 
     # 剔除误包的外层代码围栏 + 字数元说明
     try:
-        from tools.template_router import (
+        from tools.templates.router import (
             strip_char_budget_meta,
             strip_outer_markdown_fence,
         )
@@ -978,14 +989,74 @@ def gate_render_output(
     }
 
 
-def _han_count(text: str) -> int:
-    return sum(1 for ch in (text or "") if "\u4e00" <= ch <= "\u9fff")
 
 
 _LONG_ITEM_HAN = 200
 _META_SENTENCE_RE = re.compile(
     r"原文(?:中|里)?\s*(?:未|没有|无)\s*(?:明确|提及|说明|给出|写)"
 )
+
+
+def overlong_items(
+    text: str,
+    *,
+    long_han: int = _LONG_ITEM_HAN,
+    limit: int = 4,
+) -> list[str]:
+    """`- ` 条目超过 ``long_han`` 汉字的告警文本（无则空）。
+
+    单点维护：这是「单条超长」判据的唯一实现，``advisory_issues`` 与逐栏填充共用。
+    两处用法不同——逐栏填充把它当**硬问题**（命中即只重写中招那一栏，一次单栏调用），
+    渲染门禁仍只当 advisory 记账（软问题进 ``issues`` 会让几乎每行都触发整篇返工，
+    见 :func:`advisory_issues` 的说明）。
+    """
+    out: list[str] = []
+    for raw in (text or "").splitlines():
+        s = raw.strip()
+        if not re.match(r"^-\s+\S", s):
+            continue
+        n = _han_count(s)
+        if n <= long_han:
+            continue
+        label = re.sub(r"^-\s+", "", s)[:14]
+        out.append(f"「{label}…」一条 {n} 字，超过 {long_han} 字：拆成多条或缩进子条 `  - `")
+        if len(out) >= limit:
+            break
+    return out
+
+
+def _template_h1_titles(template: str) -> list[str]:
+    """模板里的一级栏名（`# [名]` / `# 名`），规范化后返回。"""
+    names: list[str] = []
+    for m in re.finditer(r"(?m)^#\s+\[?([^\[\]\n]+?)\]?\s*$", template or ""):
+        name = _norm_heading(m.group(1))
+        if name:
+            names.append(name)
+    return names
+
+
+def fix_glued_column_titles(text: str, template: str) -> tuple[str, list[str]]:
+    """把粘在正文里的 `# 栏名` 提回独立行（只动模板声明的一级栏名）。
+
+    背景（2026-09-22 实测）：渲染层对同一份文本跑**两次** enforce——逐栏填充内部一次、
+    render 层一次——而 :func:`split_overlong_paragraphs_except_first` 逐段处理时丢掉了段尾
+    换行，第二遍就把 `# 要点梳理` 粘到上一栏末尾（Markdown 里不再算标题，页面上那一栏
+    连标题都没有）。根因已在段边界补回换行修掉；这一步是确定性兜底：模型自己写粘连、
+    或历史文本再次入库时，也能把栏名提回独立行（零 LLM 调用）。
+    """
+    names = _template_h1_titles(template)
+    if not text or not names:
+        return text, []
+    out = text
+    fixed: list[str] = []
+    for name in sorted(dict.fromkeys(names), key=len, reverse=True):
+        pat = re.compile(r"(?<=[^\n])[ \t]*(#\s*" + re.escape(name) + r")(?=[ \t]*(?:\n|$))")
+        out, n = pat.subn(r"\n\n\1", out)
+        if n:
+            fixed.append(name)
+    if not fixed:
+        return text, []
+    return out, [f"已把粘连的栏名提回独立行：{'、'.join(fixed)}"]
 
 
 def advisory_issues(
@@ -1009,25 +1080,19 @@ def advisory_issues(
     这两类先以 advisory 记录（日志 + monitor），观察一批再决定是否升级成
     issue（触发返工）或硬伤：软问题若直接进 ``issues`` 会让几乎每行都触发
     一次整篇返工（装配稿会被自由渲染稿替换），成本与内容风险都不小。
+
+    2026-09-22：「单条超长」已升级——**只在逐栏填充里**当硬问题（命中即只重写那一栏，
+    见 ``tools/templates/router/_placeholder.py``），渲染层仍是 advisory。
     """
     lines = (text or "").splitlines()
-    out: list[str] = []
+    # ① 单条超长（`- ` / `  - ` 条目行）——判据在 overlong_items（逐栏填充也用它，那边当硬问题）
+    out: list[str] = list(overlong_items(text, long_han=long_han, limit=limit))
+    if len(out) >= limit:
+        return out
 
     def _add(msg: str) -> bool:
         out.append(msg)
         return len(out) < limit
-
-    # ① 单条超长（`- ` / `  - ` 条目行）
-    for raw in lines:
-        s = raw.strip()
-        if not re.match(r"^-\s+\S", s):
-            continue
-        n = _han_count(s)
-        if n <= long_han:
-            continue
-        label = re.sub(r"^-\s+", "", s)[:14]
-        if not _add(f"「{label}…」一条 {n} 字，超过 {long_han} 字：拆成多条或缩进子条 `  - `"):
-            return out
     # ② 单段超长（连续正文行组成的段落；含单行成段，`- ` 条目已在 ① 覆盖）
     para: list[str] = []
     for raw in lines + [""]:
@@ -1182,16 +1247,6 @@ def _overlong_issue(template: str, text: str) -> str | None:
     )
 
 
-def should_write_result_md(gate_ok: bool | None, has_template: bool) -> bool:
-    """是否写正式 ``result.md`` —— **总是写**（含门禁失败）。
-
-    实测出现过"正文合格但门禁误判"（表格写法变体被判「固定文字丢失」），此时不落盘会让
-    用户拿不到可用内容 ✗。质量信号改由两条承担：API 的 ``quality_warning`` 字段
-    （带上门禁原因）与同目录的 ``result_rejected.md``（备查副本）。
-    """
-    return True
-
-
 __all__ = [
     "HARD_ISSUE_MARKERS",
     "MINUTES_CARRY_MAP",
@@ -1203,9 +1258,10 @@ __all__ = [
     "enforce_render_output",
     "enforce_upstream_carry",
     "extract_labeled_json",
+    "fix_glued_column_titles",
+    "overlong_items",
     "parse_perspective_mode",
     "split_overlong_paragraphs",
     "subset_upstream_items",
     "gate_render_output",
-    "should_write_result_md",
 ]

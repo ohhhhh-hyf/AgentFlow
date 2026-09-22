@@ -24,3 +24,11 @@ __all__ = [
     "UserIdentity",
     "NotesState",
 ]
+
+
+# ── 域钩子自注册（2026-09-22）：引擎层不 import 具体域，只问 hooks_for("<domain>") ──
+# 放在包 __init__ 末尾：load_domain 先 import 域包 ⇒ 注册一定早于引擎的任何调用。
+from .hooks import HOOKS as NotesHooks  # noqa: E402
+from tools.core.domain_hooks import register as _register_hooks  # noqa: E402
+
+_register_hooks("notes", NotesHooks)

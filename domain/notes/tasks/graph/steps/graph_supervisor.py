@@ -1,8 +1,8 @@
 from __future__ import annotations
 
-from supervisor import GlobalSupervisor
+from domain._shared import GlobalSupervisor
 
-from client import LLMClient
+from tools.llm import LLMClient
 from ....models import KnowledgeGraphSupervisorReview
 from ..contracts import KNOWLEDGE_GRAPH_SUPERVISOR_OUTPUT_CONTRACT
 from ..prompts import KNOWLEDGE_GRAPH_SUPERVISOR_DOMAIN_PROMPT

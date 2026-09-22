@@ -3,7 +3,7 @@ from __future__ import annotations
 from collections.abc import Iterable
 from dataclasses import fields as dc_fields
 
-from client import LLMClient
+from tools.llm import LLMClient
 from ..models import MeetingUnderstanding
 from .prompts import (
     MEETING_UNDERSTANDING_SYSTEM_PROMPT,

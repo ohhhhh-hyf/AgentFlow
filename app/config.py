@@ -3,7 +3,7 @@
 模板权威来源是**一个目录下的 md 文件**（每个模板一个文件，运行时直接读）：
 缺省 ``template_v2``，用 ``.env`` 的 ``AGENTFLOW_TEMPLATE_DIR`` 可切到 ``template_v3`` /
 以后的 ``template_v4``（改一行配置即可，不动代码，见 :func:`template_dir`）。
-视角来自 perspective/profiles/。
+视角来自 assets/profiles/。
 """
 from __future__ import annotations
 
@@ -47,7 +47,7 @@ def load_env() -> None:
     global _env_loaded
     if _env_loaded:
         return
-    from client.config import load_env as _load_env
+    from tools.llm.config import load_env as _load_env
 
     _load_env(PROJECT_ROOT / ".env")
     _env_loaded = True
@@ -237,7 +237,7 @@ def _parse_template_md(path: Path) -> dict[str, object] | None:
     与下游 ``wrap_template_requirement`` / ``split_template_meta`` 的分工保持一致。
     """
     try:
-        from tools.template_router._base import split_template_meta
+        from tools.templates.router._base import split_template_meta
 
         raw = path.read_text(encoding="utf-8")
     except Exception:  # noqa: BLE001 - 单文件读失败不影响其它模板
@@ -297,7 +297,7 @@ def template_key(template_value: str) -> str:
     - 模板中文名（YAML ``name``）：``项目进度会``
 
     旧契约值 ``{场景ID}_{模板ID}`` 与其它串一律不识别（调用方按 400 处理）。
-    29 个模板 ID 与 29 条中文名各自唯一、且互不冲突，别名不会歧义。
+    注册表内每个模板 ID 与中文名各自唯一、且互不冲突，别名不会歧义（数量随模板目录变化）。
     """
     raw = (template_value or "").strip()
     if not raw:
@@ -327,14 +327,14 @@ def resolve_template_format(template_value: str) -> str:
     req = str(item.get("requirement") or "").strip()
     if not fmt:
         return ""
-    from tools.template_router._base import wrap_template_requirement
+    from tools.templates.router._base import wrap_template_requirement
 
     return wrap_template_requirement(fmt, req)
 
 
-# ── 视角注册表（perspective/profiles 平铺）────────────────────
+# ── 视角注册表（assets/profiles 平铺）────────────────────
 
-PROFILE_DIR = PROJECT_ROOT / "perspective" / "profiles"
+PROFILE_DIR = PROJECT_ROOT / "assets" / "profiles"
 
 
 def profile_path(domain: str, profile_value: str, user_id: str = "") -> Path:
@@ -344,7 +344,7 @@ def profile_path(domain: str, profile_value: str, user_id: str = "") -> Path:
     ``extra.template`` 留空自动套「通用纪要」）；``user`` = 真人档案
     ``data/{X-User-Id}/user.json``（缺档案 → 空 Path 由调用方 400）；
     ``objective`` / ``object`` = 客观全员（与空值同档，留作显式表达）；
-    其余按职业模板名查 ``perspective/profiles/{name}.json``，
+    其余按职业模板名查 ``assets/profiles/{name}.json``，
     不存在返回空 Path（调用方判 400）。
     """
     from tools.core.profiles import resolve_profile_file

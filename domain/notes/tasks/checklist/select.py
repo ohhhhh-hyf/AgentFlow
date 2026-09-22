@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import re
 from typing import Any
+from domain._shared.text import clean_text as _clean
 
 _SENT_SPLIT = re.compile(r"(?<=[。！？；;\n])")
 _STRONG = ("必考", "一定出", "每届必出", "必须背", "务必掌握", "拉开分差", "一定要会", "年年有")
@@ -19,8 +20,12 @@ _CN_NUM = {
 _EXAM_RANK = {"none": 0, "weak": 1, "medium": 2, "strong": 3}
 
 
-def _clean(text: object) -> str:
-    return " ".join(str(text or "").split()).strip()
+GRADE_LABELS = {"S": "核心", "A": "重点", "B": "简要", "C": "补充"}
+"""session_priority 档位 → 展示词，**唯一定义处**：清单卡片（display）与导图节点（mindmap）
+共用。历史上两处各写一份，C 级一处「补充」一处「结构」（2026-09-22 统一为「补充」）；
+档位由本模块按排序赋给（S/A/B/C/DROP），是"重要性阶梯"，展示词也沿同一梯度。"""
+
+
 
 
 def _compact(text: object) -> str:

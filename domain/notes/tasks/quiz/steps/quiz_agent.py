@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from client import LLMClient
+from tools.llm import LLMClient
 
 from ....models import Quiz
 from ..contracts import QUIZ_GENERATION_OUTPUT_CONTRACT

@@ -14,6 +14,8 @@ from pathlib import Path
 
 from fastapi.responses import StreamingResponse
 
+from tools.knowledge.document_processor import IMAGE_EXTS
+
 from .config import (
     DEFAULT_MINUTES_TEMPLATE,
     PROJECT_ROOT,
@@ -24,7 +26,7 @@ from .config import (
 )
 from .id_worker import next_request_id
 from .outputs import output_dir, save_task_outputs
-from .schemas import TaskRequest, TaskResponse
+from .schemas import TaskRequest, TaskResponse, ndjson_line as _ndjson
 from .tasklines import all_lines
 
 logger = logging.getLogger("agentflow")
@@ -34,9 +36,6 @@ logger = logging.getLogger("agentflow")
 LINE_NAMES = all_lines()
 
 STYLE_CHOICES = {"time", "logic", "causal", "party", "urgency"}
-IMAGE_EXTS = {".png", ".jpg", ".jpeg"}
-
-
 class ApiError(Exception):
     """API 业务错误：status 即业务码（HTTP 状态码）。"""
 
@@ -338,13 +337,7 @@ def _trace_extra(keypoints: str, notes: str) -> str:
     )
 
 
-def _prepare_input_dir(
-    domain: str,
-    line: str,
-    transcript: str,
-    keypoints: str,
-    notes: str,
-) -> Path | None:
+def _prepare_input_dir(transcript: str) -> Path | None:
     """非 library 任务的输入准备：只写主文本 input.txt（sidecar 走 line_extra 注入）。"""
     if not transcript.strip():
         return None
@@ -355,9 +348,9 @@ def _prepare_input_dir(
 
 def _validate(req: TaskRequest, task: str, user_id: str) -> str:
     """基础校验，返回代码线名；失败抛 ApiError。domain/task 由 URL 路径表达。"""
-    line = LINE_NAMES.get(task)
-    if line is None:
+    if task not in LINE_NAMES:
         raise ApiError(404, f"任务线不存在：{task}")
+    line = task  # 线名即 task 取值（见 app/tasklines.lines_for）
 
     if not (user_id or "").strip():
         raise ApiError(400, f"{task} 需要 X-User-Id（用户标识：数据目录和知识库按用户隔离）")
@@ -451,6 +444,31 @@ class _Prepared:
     time: str = ""
 
 
+def _runner_args(p: _Prepared) -> dict:
+    """`prepare_run` / `run` 的公共实参（同步与流式共用一份，避免两处长块漂移）。
+
+    全部走关键字：历史上两处各写 19 个位置实参，其中 6 个是恒 None 的 CLI 时代参数
+    （chapter/level/grade/edition/difficulty/qtype，runner 侧仍保留签名以兼容 CLI 用法）。
+    """
+    return {
+        "file": p.input_files,
+        "profile": p.profile_file,
+        "env_file": PROJECT_ROOT / ".env",
+        "templates": p.templates,
+        "tasks": [p.line],
+        "modes": p.modes,
+        "user_id": p.user_id or None,
+        "project_id": p.project or None,
+        "subject": p.subject or None,
+        "compile_natural": True,
+        "monitor": False,
+        "collect_reports": True,
+        "extra_line_inputs": p.extra_line_inputs,
+        "memory": p.memory,
+        "meeting_time": p.time,
+    }
+
+
 def _prepare(domain: str, task: str, req: TaskRequest, user_id: str) -> _Prepared:
     """校验 + 输入组装（run_task / stream_task 共用；失败抛 ApiError）。"""
     load_env()  # 提前加载：docs 的 OCR 引擎分派依赖 OCR_ENGINE
@@ -468,51 +486,48 @@ def _prepare(domain: str, task: str, req: TaskRequest, user_id: str) -> _Prepare
     catalog_files: list[str] = []
     teacher_docs: list[str] = []
     material_docs: list[str] = []
-    try:
-        if line != "library" and req.docs:
-            if line == "checklist":
-                # checklist 的 docs：.json 为 catalog 目录文件，.txt 为老师重点文件，其余拒绝
-                for name in req.docs:
-                    if _is_catalog_json_name(name):
-                        _catalog_input_file(user_id, extra.subject, name)
-                        catalog_files.append(name.strip())
-                    elif _is_teacher_txt_name(name):
-                        teacher_docs.append(name.strip())
-                    else:
-                        raise ApiError(
-                            400,
-                            f"checklist 的 docs 应为 catalog 文件名（.json）或老师重点文件（.txt）：{name}",
-                        )
-            elif line == "catalog":
-                # catalog 的 docs：.txt 为老师重点文件，其余按资料处理（OCR/解析并入主文本）
-                for name in req.docs:
-                    if _is_teacher_txt_name(name):
-                        teacher_docs.append(name.strip())
-                    else:
-                        material_docs.append(name.strip())
-            else:
-                material_docs = [name.strip() for name in req.docs]
-            if material_docs and line == "graph":
-                # graph：图片走「OCR + LLM 整理审校」生成 md 后直接解析图谱（不经知识库入库）；
-                # 非图片文档仍走正文预览
-                image_docs = [n for n in material_docs if _is_image_name(n)]
-                other_docs = [n for n in material_docs if not _is_image_name(n)]
-                if image_docs:
-                    from tools.ocr.levels.light import images_to_reviewed_markdown
+    if line != "library" and req.docs:
+        if line == "checklist":
+            # checklist 的 docs：.json 为 catalog 目录文件，.txt 为老师重点文件，其余拒绝
+            for name in req.docs:
+                if _is_catalog_json_name(name):
+                    _catalog_input_file(user_id, extra.subject, name)
+                    catalog_files.append(name.strip())
+                elif _is_teacher_txt_name(name):
+                    teacher_docs.append(name.strip())
+                else:
+                    raise ApiError(
+                        400,
+                        f"checklist 的 docs 应为 catalog 文件名（.json）或老师重点文件（.txt）：{name}",
+                    )
+        elif line == "catalog":
+            # catalog 的 docs：.txt 为老师重点文件，其余按资料处理（OCR/解析并入主文本）
+            for name in req.docs:
+                if _is_teacher_txt_name(name):
+                    teacher_docs.append(name.strip())
+                else:
+                    material_docs.append(name.strip())
+        else:
+            material_docs = [name.strip() for name in req.docs]
+        if material_docs and line == "graph":
+            # graph：图片走「OCR + LLM 整理审校」生成 md 后直接解析图谱（不经知识库入库）；
+            # 非图片文档仍走正文预览
+            image_docs = [n for n in material_docs if _is_image_name(n)]
+            other_docs = [n for n in material_docs if not _is_image_name(n)]
+            if image_docs:
+                from tools.ocr.levels.light import images_to_reviewed_markdown
 
-                    image_paths = [_input_file(user_id, "docs", n) for n in image_docs]
-                    md_text = images_to_reviewed_markdown(image_paths)
-                    transcript = "\n\n".join(part for part in (transcript, md_text) if part)
-                if other_docs:
-                    preview = _doc_previews(user_id, other_docs)
-                    transcript = "\n\n".join(part for part in (transcript, preview) if part)
-            elif material_docs:
-                ocr_text = _ocr_docs(user_id, material_docs)
-                transcript = "\n\n".join(part for part in (transcript, ocr_text) if part)
-                preview = _doc_previews(user_id, material_docs)
+                image_paths = [_input_file(user_id, "docs", n) for n in image_docs]
+                md_text = images_to_reviewed_markdown(image_paths)
+                transcript = "\n\n".join(part for part in (transcript, md_text) if part)
+            if other_docs:
+                preview = _doc_previews(user_id, other_docs)
                 transcript = "\n\n".join(part for part in (transcript, preview) if part)
-    except ApiError:
-        raise
+        elif material_docs:
+            ocr_text = _ocr_docs(user_id, material_docs)
+            transcript = "\n\n".join(part for part in (transcript, ocr_text) if part)
+            preview = _doc_previews(user_id, material_docs)
+            transcript = "\n\n".join(part for part in (transcript, preview) if part)
 
     ctx = load_domain(domain)
     profile_file = _profile_file(domain, extra.profile, (user_id or "").strip())
@@ -525,7 +540,7 @@ def _prepare(domain: str, task: str, req: TaskRequest, user_id: str) -> _Prepare
     elif line in {"catalog", "checklist"} and not transcript.strip():
         input_files = None
     else:
-        input_files = _prepare_input_dir(domain, line, transcript, keypoints, notes)
+        input_files = _prepare_input_dir(transcript)
         if input_files is None and line not in {"catalog", "checklist"}:
             raise ApiError(400, "texts / docs 未能产生有效输入")
 
@@ -593,25 +608,7 @@ async def _run_task_impl(
     from tools.core.runner import run
 
     try:
-        result = await run(
-            p.ctx,
-            p.input_files,
-            p.profile_file,
-            PROJECT_ROOT / ".env",
-            p.templates,
-            [p.line],
-            p.modes,
-            p.user_id or None,
-            p.project or None,
-            p.subject or None,
-            None, None, None, None, None, None,
-            compile_natural=True,
-            monitor=False,
-            collect_reports=True,
-            extra_line_inputs=p.extra_line_inputs,
-            memory=p.memory,
-            meeting_time=p.time,
-        )
+        result = await run(p.ctx, **_runner_args(p))
     except ApiError:
         raise
     except Exception as exc:  # noqa: BLE001 - 运行失败统一转 500
@@ -676,12 +673,6 @@ async def _run_task_impl(
     return response
 
 
-def _ndjson(payload: dict) -> str:
-    import json
-
-    return json.dumps(payload, ensure_ascii=False) + "\n"
-
-
 async def stream_task(
     domain: str,
     task: str,
@@ -720,25 +711,7 @@ async def _stream_task_impl(
 
         _start_time = time.time()
         try:
-            prep = await prepare_run(
-                p.ctx,
-                p.input_files,
-                p.profile_file,
-                PROJECT_ROOT / ".env",
-                p.templates,
-                [p.line],
-                p.modes,
-                p.user_id or None,
-                p.project or None,
-                p.subject or None,
-                None, None, None, None, None, None,
-                compile_natural=True,
-                monitor=False,
-                collect_reports=True,
-                extra_line_inputs=p.extra_line_inputs,
-                memory=p.memory,
-                meeting_time=p.time,
-            )
+            prep = await prepare_run(p.ctx, **_runner_args(p))
         except ApiError as exc:
             # 输入类错误（缺必填/文件不存在）：带上真实状态码，异步端据此不重试
             yield _ndjson({"type": "error", "code": exc.status, "message": exc.message})
@@ -798,7 +771,7 @@ async def _stream_task_impl(
                         )
                     meeting_meta = (prep.line_extra or {}).get("__meeting_memory__")
                     if meeting_meta:
-                        from tools.meeting_memory.runtime import persist_after_run
+                        from domain.meeting.memory.runtime import persist_after_run
 
                         persist_after_run(
                             prep.ctx.project_root,
@@ -812,7 +785,7 @@ async def _stream_task_impl(
                             bind=event.get("memory_bind"),
                         )
                     elif prep.memory_enabled and prep.memory_bind is not None:
-                        from tools.memory import persist
+                        from domain.notes.memory.runtime import persist
 
                         persist(
                             prep.ctx.project_root,

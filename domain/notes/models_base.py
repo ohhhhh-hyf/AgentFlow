@@ -24,7 +24,7 @@ class UserIdentity(ModelMixin):
     perspective: str | None = None
     # 画像类型：null/缺省 = 真人画像（name 为真实姓名）；"role_template" = 大众职业模板（name 为职业名）
     persona_type: str | None = None
-    # 真人画像引用的职业模板名（如 "developer" → 公共目录 perspective/profiles/developer.json）；合并时加载
+    # 真人画像引用的职业模板名（如 "developer" → 公共目录 assets/profiles/developer.json）；合并时加载
     role_template: str | None = None
     # ── 仅 data/{user_id}/user.json 会写的字段（职业模板不带）──────────
     name_aliases: list[str] = field(default_factory=list)  # 会上别称（"小赵"/"赵工"）：精确匹配、禁单字姓

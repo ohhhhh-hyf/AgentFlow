@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from collections.abc import AsyncIterator
 
-from client import LLMClient
+from tools.llm import LLMClient
 
 from ..display import build_catalog_markdown, draft_from_context, normalize_catalog_draft
 

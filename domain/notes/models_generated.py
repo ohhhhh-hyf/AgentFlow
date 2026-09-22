@@ -1,4 +1,4 @@
-"""生成模型 / 审核模型 / Report 校验。由 tools/scripts/sync_domain.py 写入，勿手改。"""
+"""生成模型 / 审核模型 / Report 校验。由 tools/codegen/sync_domain.py 写入，勿手改。"""
 from __future__ import annotations
 
 from dataclasses import dataclass, field, fields
@@ -15,7 +15,7 @@ from tools.schema.validation import (
 
 from .models_base import ModelMixin
 
-# ── 生成模型生成区：由 tools/scripts/sync_domain.py 生成，勿手改 ──
+# ── 生成模型生成区：由 tools/codegen/sync_domain.py 生成，勿手改 ──
 
 @dataclass
 class Catalog(ModelMixin):
@@ -213,7 +213,7 @@ class Review(ModelMixin):
 
 # ── 生成模型生成区结束 ──
 
-# ── 审核模型生成区：由 tools/scripts/sync_domain.py 生成，勿手改 ──
+# ── 审核模型生成区：由 tools/codegen/sync_domain.py 生成，勿手改 ──
 
 @dataclass
 class KnowledgeGraphSupervisorReview(ModelMixin):
@@ -367,7 +367,7 @@ class ChecklistSupervisorReview(ModelMixin):
 
 # ── 审核模型生成区结束 ──
 
-# ── Report 校验生成区：由 tools/scripts/sync_domain.py 生成，勿手改 ──
+# ── Report 校验生成区：由 tools/codegen/sync_domain.py 生成，勿手改 ──
 
 class CatalogReportValidation:
     """CatalogReport 的校验逻辑（由脚本按手写字段自动生成）。"""

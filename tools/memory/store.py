@@ -14,21 +14,7 @@ from pathlib import Path
 from typing import Any
 
 
-_WINDOWS_RESERVED = {
-    "CON", "PRN", "AUX", "NUL",
-    *(f"COM{i}" for i in range(1, 10)),
-    *(f"LPT{i}" for i in range(1, 10)),
-}
-
-
-def safe_id(name: str) -> str:
-    cleaned = "".join(
-        ch if ch.isalnum() or ch in "-_" else "_"
-        for ch in (name or "").strip()
-    )[:80] or "default"
-    if cleaned.upper() in _WINDOWS_RESERVED:
-        cleaned = f"{cleaned}_"
-    return cleaned
+from tools.core.ids import safe_id  # 通用 id 安全化已提到 tools/core（2026-09-22）
 
 
 def _store_dir_name(domain: str) -> str:

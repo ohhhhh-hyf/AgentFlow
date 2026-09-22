@@ -1,10 +1,10 @@
 """notes 编排层：LangGraph 图 + 节点 + 流式输出（笔记 域）。
 
 手写区 = 领域钩子覆写（共享上下文 / core 节点 / render 前特判）；
-生成区（由 tools/scripts/sync_domain.py 生成）：任务线注册 / Agent 挂载 /
+生成区（由 tools/codegen/sync_domain.py 生成）：任务线注册 / Agent 挂载 /
 各类 import / Report 组装器 / FallbackRules。render / fallback 由运行时一份函数生成。
 
-共享编排内核位于 ``tools/domain_engine.py``，渲染在 ``tools.runtime.render``。
+共享编排内核位于 ``tools/core/domain_engine.py``，渲染在 ``tools.runtime.render``。
 本文件只保留领域差异：笔记理解 core 节点、含 notes 理解的上下文、
 graph 线 render 前特判、降级格式化器。
 
@@ -18,7 +18,7 @@ import logging
 
 from langgraph.graph import START
 
-from client import LLMClient
+from tools.llm import LLMClient
 from perspective import PerspectiveModelingAgent
 from .domain_config import LINE_CN_NAMES, LINE_KINDS
 from .models import NotesState
@@ -38,7 +38,7 @@ from tools.runtime.kinds import resolve_line_policies
 from tools.runtime.progress import progress
 from tools.runtime.supervisor_slice import compact_draft_for_review
 
-# ── Report import 生成区：由 tools/scripts/sync_domain.py 生成，勿手改 ──
+# ── Report import 生成区：由 tools/codegen/sync_domain.py 生成，勿手改 ──
 
 from .reports import (
     CatalogReport,
@@ -50,7 +50,7 @@ from .reports import (
 )
 # ── Report import 生成区结束 ──
 
-# ── 任务线 import 生成区：由 tools/scripts/sync_domain.py 生成，勿手改 ──
+# ── 任务线 import 生成区：由 tools/codegen/sync_domain.py 生成，勿手改 ──
 
 from .tasks.catalog import (
     CatalogAgent,
@@ -90,7 +90,7 @@ from .tasks.review import (
 
 # ── 任务线 import 生成区结束 ──
 
-# ── FallbackRules import 生成区：由 tools/scripts/sync_domain.py 生成，勿手改 ──
+# ── FallbackRules import 生成区：由 tools/codegen/sync_domain.py 生成，勿手改 ──
 
 from .tasks.catalog.contracts import CATALOG_FALLBACK_RULES
 from .tasks.checklist.contracts import CHECKLIST_FALLBACK_RULES
@@ -106,23 +106,9 @@ logger = logging.getLogger(__name__)
 QUALITY_WARNING = "生成可能有误，请结合原文核对。"
 QUALITY_DISCLAIMER = "（生成可能有误）"
 
-# ── 空结构常量生成区：由 tools/scripts/sync_domain.py 生成，勿手改 ──
+# ── 空结构常量生成区：由 tools/codegen/sync_domain.py 生成，勿手改 ──
 
 _EMPTY_CATALOG = {
-    "course": "",
-    "version": "",
-    "mode": "",
-    "chapters": [],
-    "unmatched_content": [],
-    "uncertain_nodes": [],
-    "added_chapters": [],
-    "added_topics": [],
-    "added_knowledge_points": [],
-    "updated_knowledge_points": [],
-    "merged_nodes": [],
-}
-
-_EMPTY_CATALOG_SLIM = {
     "course": "",
     "version": "",
     "mode": "",
@@ -183,7 +169,7 @@ _EMPTY_REVIEW = {
 
 # ── 空结构常量生成区结束 ──
 
-# ── 拒绝审核常量生成区：由 tools/scripts/sync_domain.py 生成，勿手改 ──
+# ── 拒绝审核常量生成区：由 tools/codegen/sync_domain.py 生成，勿手改 ──
 
 _REJECT_KNOWLEDGE_GRAPH_REVIEW = {
     "decision": "reject",
@@ -224,7 +210,7 @@ _REJECT_CHECKLIST_REVIEW = {
 
 # ── 拒绝审核常量生成区结束 ──
 
-# ── 任务线注册生成区：由 tools/scripts/sync_domain.py 生成，勿手改 ──
+# ── 任务线注册生成区：由 tools/codegen/sync_domain.py 生成，勿手改 ──
 
 TASK_LINES: dict[str, dict] = {
     "catalog": {
@@ -333,74 +319,10 @@ class _Nodes(DomainNodes):
         parts.append(f"原文：\n{state['transcript']}")
         return "\n\n".join(parts)
 
-    def _make_agent_node(self, line_name: str):
-        """笔记域生成节点：使用按线裁剪的上下文（同构共享内核，替换一刀切上下文）。"""
-        cfg = self._task_lines[line_name]
-        cn = _line_cn(line_name)
-
-        async def node(state: dict) -> dict:
-            progress("agent start gen line=%s", line_name)
-            agent = getattr(self, cfg["agent_attr"])
-            context = self._line_shared_context(state, line_name)
-            extra = (state.get("line_extra") or {}).get(line_name)
-            if extra:
-                context = f"{context}\n\n{extra}"
-            try:
-                result = await agent.run(
-                    self._revision_context(
-                        context,
-                        _line(state, line_name).get("revision_feedback", []),
-                        f"{cn}返工意见",
-                    )
-                )
-            except Exception:  # noqa: BLE001 - 有意的降级设计
-                logger.warning(f"gen failed, empty draft line={cn}", exc_info=True)
-                return {
-                    "lines": {
-                        line_name: {
-                            "draft": cfg["empty_draft"],
-                            "degraded": True,
-                        }
-                    },
-                    "quality_degraded": True,
-                }
-            progress("agent done gen line=%s", line_name)
-            return {
-                "lines": {
-                    line_name: {
-                        "draft": result.model_dump(),
-                        "degraded": False,
-                    }
-                }
-            }
-
-        return node
-
-    def _understanding_needle_fields(self, line_name: str) -> set[str] | None:
-        """审核摘录时笔记理解参与 needle 的字段白名单（未列出的线走全字段）。"""
-        keep = {
-            "graph": {"note_purpose", "sections", "key_terms"},
-            "catalog": {"note_purpose", "sections", "key_terms"},
-            "review": {"note_purpose", "sections", "key_terms", "open_questions"},
-            "quiz": {"note_purpose", "sections", "key_terms", "open_questions"},
-        }.get(line_name)
-        return set(keep) if keep else None
-
     def _supervisor_context(self, state, line_name: str) -> str:
         """审核上下文：原文按草稿事实点摘录，理解只给摘要。"""
         sub = _line(state, line_name)
-        revision_count = sub.get("revision_count", 0)
-        mode = self._mode_label(state)
-        allowed = (
-            "本轮可以选择 approve、revise 或 reject。"
-            if revision_count < self.MAX_REVISIONS
-            else "返工次数已用完，本轮只能选择 approve 或 reject。"
-        )
-        head = (
-            f"视角模式：{mode}\n"
-            f"{_line_cn(line_name)}返工次数：{revision_count}/{self.MAX_REVISIONS}\n"
-            f"{allowed}\n\n"
-        )
+        head = f"{self._revision_instruction(state, line_name)}\n\n" 
         if line_name == "checklist":
             from domain.notes.tasks.checklist.gather import (
                 compact_checklist_for_supervisor,
@@ -519,7 +441,7 @@ class NotesAgentSystem(_Nodes):
             "notes_understanding_agent"
         ]
 
-        # ── Agent 挂载生成区：由 tools/scripts/sync_domain.py 生成，勿手改 ──
+        # ── Agent 挂载生成区：由 tools/codegen/sync_domain.py 生成，勿手改 ──
 
         self.catalog_agent: CatalogAgent = agents["catalog_agent"]
         self.catalog_supervisor: CatalogSupervisor = agents["catalog_supervisor"]
@@ -542,7 +464,7 @@ class NotesAgentSystem(_Nodes):
 
         # ── Agent 挂载生成区结束 ──
 
-        # ── Report 组装器生成区：由 tools/scripts/sync_domain.py 生成，勿手改 ──
+        # ── Report 组装器生成区：由 tools/codegen/sync_domain.py 生成，勿手改 ──
 
         self._report_assemblers = {
             "catalog": CatalogReport,
@@ -555,7 +477,7 @@ class NotesAgentSystem(_Nodes):
 
         # ── Report 组装器生成区结束 ──
 
-        # ── FallbackRules 注册生成区：由 tools/scripts/sync_domain.py 生成，勿手改 ──
+        # ── FallbackRules 注册生成区：由 tools/codegen/sync_domain.py 生成，勿手改 ──
 
         self._fallback_rules = {
             "catalog": CATALOG_FALLBACK_RULES,

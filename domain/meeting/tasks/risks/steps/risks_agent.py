@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from client import LLMClient
+from tools.llm import LLMClient
 
 from ....models import Risk
 from ..contracts import RISK_GENERATION_OUTPUT_CONTRACT

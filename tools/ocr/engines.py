@@ -73,13 +73,12 @@ def _log_ocr_failure(image_path: str, detail: str) -> None:
         logger.warning("save ocr fail sample failed: %s", exc)
 
 
-def run_ocr_subprocess(image_path: str, timeout: int = 180) -> dict:
+def run_ocr_subprocess(image_path: str) -> dict:
     """识别一张图：按 ``OCR_ENGINE`` 分派到对应引擎模块，统一 3 次重试。
 
     返回 ``{"engine": 展示名, "lines": [...]}``；三次失败 / 引擎名未知 →
-    失败样本落盘并返回空 lines，不抛异常（超时除外，见下）。
+    失败样本落盘并返回空 lines，不抛异常（超时由各引擎自身的环境变量控制：SERVER_OCR_TIMEOUT / PADDLE_OCR_*）。
     """
-    del timeout  # 超时由各引擎自身的环境变量配置（SERVER_OCR_TIMEOUT / PADDLE_OCR_*）
     alias = os.environ.get("OCR_ENGINE", "").strip().lower()
     module_name = _ENGINE_ALIASES.get(alias)
     if module_name is None:
@@ -115,8 +114,8 @@ def run_ocr_subprocess(image_path: str, timeout: int = 180) -> dict:
 def get_llm_client():
     """项目现有 LLM 客户端（DeepSeek）——重构用。失败返回 None。"""
     try:
-        from client import LLMClient
-        from client.config import load_env
+        from tools.llm import LLMClient
+        from tools.llm.config import load_env
 
         load_env(ROOT / ".env")
         return LLMClient()

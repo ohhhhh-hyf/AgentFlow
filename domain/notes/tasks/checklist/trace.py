@@ -5,7 +5,7 @@ from functools import lru_cache
 import re
 from typing import Any
 
-from tools.knowledge.cite import _overlap_score, open_knowledge
+from domain.notes.knowledge.cite import _overlap_score, open_knowledge
 from tools.knowledge.source_role import (
     ROLE_MATERIAL,
     ROLE_NOTES,

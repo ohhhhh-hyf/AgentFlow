@@ -20,7 +20,6 @@
 from __future__ import annotations
 
 import asyncio
-import json
 from typing import Any, Optional
 
 from fastapi import APIRouter, BackgroundTasks, Header
@@ -30,7 +29,7 @@ from ..config import run_mode
 from ..executor import payload_from_request, run_inline
 from ..id_worker import next_request_id
 from ..job_store import JobStoreError, job_store
-from ..schemas import Extra, TaskRequest
+from ..schemas import Extra, TaskRequest, ndjson_line as _ndjson
 from ..tasklines import DOMAIN_NAMES, DOMAINS, all_lines, lines_for
 
 router = APIRouter(prefix="/api/v1/tasks", tags=["tasks"])
@@ -67,13 +66,12 @@ def _validate_domain_task(domain: str, task: str) -> tuple[str, str]:
     task = (task or "").strip()
     if domain not in DOMAINS:
         raise AsyncApiError(400, f"domain 仅支持 {' / '.join(DOMAIN_NAMES)}")
-    line = lines_for(domain).get(task)
-    if line is None:
+    if task not in lines_for(domain):
         # 与其他域的同名任务线区分开：域内不存在 vs 全局不存在
         if task in all_lines():
             raise AsyncApiError(404, f"{domain} 不支持任务线：{task}")
         raise AsyncApiError(404, f"任务线不存在：{task}")
-    return domain, line
+    return domain, task  # 线名即 task 取值（见 app/tasklines.lines_for）
 
 
 def _job_view(job: dict[str, Any], *, with_text: bool = False) -> dict[str, Any]:
@@ -159,10 +157,6 @@ def _event_view(job_id: str, event: dict[str, Any]) -> dict[str, Any]:
             view["quality_warning"] = event["quality_warning"]
         return view
     return {"type": etype, "job_id": job_id}
-
-
-def _ndjson(payload: dict) -> str:
-    return json.dumps(payload, ensure_ascii=False) + "\n"
 
 
 @router.post("")

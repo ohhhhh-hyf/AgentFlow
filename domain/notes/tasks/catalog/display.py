@@ -6,6 +6,7 @@ import re
 from typing import Any
 
 from .gather import _is_noise_title, strip_heading_prefix
+from tools.core.domain_engine_text import scrape_draft
 
 _RELATION = {
     "alternative": "替代方法",
@@ -89,19 +90,8 @@ def _related(value: object) -> list[dict[str, str]]:
 
 
 def draft_from_context(approved_context: str) -> dict[str, Any]:
-    blob = approved_context or ""
-    for marker in ("已批准知识目录草稿：", "已批准catalog草稿："):
-        if marker in blob:
-            blob = blob.split(marker, 1)[1]
-            break
-    start = blob.find("{")
-    if start < 0:
-        return {}
-    try:
-        data, _ = json.JSONDecoder().raw_decode(blob[start:])
-    except json.JSONDecodeError:
-        return {}
-    return data if isinstance(data, dict) else {}
+    """从渲染上下文里抽出已批准草稿（实现见 domain_engine_text.scrape_draft）。"""
+    return scrape_draft(approved_context, ('已批准知识目录草稿：', '已批准catalog草稿：'))
 
 
 def normalize_catalog_draft(draft: dict[str, Any]) -> dict[str, Any]:

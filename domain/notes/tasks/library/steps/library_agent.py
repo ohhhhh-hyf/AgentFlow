@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from client import LLMClient
+from tools.llm import LLMClient
 
 from domain.notes.tasks.catalog.gather import subject_from_context, user_id_from_context
 

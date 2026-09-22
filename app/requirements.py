@@ -84,10 +84,8 @@ def check_required(task: str, req: TaskRequest, user_id: str) -> list[str]:
         elif key == "extra.subject":
             if not (req.extra.subject or "").strip():
                 missing.append(label)
-        elif key == "docs":
-            if not (req.docs or []):
-                missing.append(label)
-        elif key == "docs_any":
+        elif key in {"docs", "docs_any"}:
+            # docs_any 与 docs 同义（都是"docs 数组非空"）；别名保留以兼容既有声明表
             if not (req.docs or []):
                 missing.append(label)
         elif key.startswith("texts."):

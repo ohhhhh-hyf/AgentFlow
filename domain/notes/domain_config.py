@@ -22,31 +22,25 @@ LINE_KINDS: dict[str, object] = {
     "graph": {
         "kind": DETERMINISTIC_PIPELINE,
         "llm_render": "if_template",
-        "cli_template": True,
     },
     "review": {
         "kind": LLM_EXTRACT,
-        "cli_template": False,
         "llm_render": "if_template",
     },
     "quiz": {
         "kind": LLM_EXTRACT,
-        "cli_template": False,
         "llm_render": "if_template",
     },
     "library": {
         "kind": DETERMINISTIC_PIPELINE,
-        "cli_template": False,
         "llm_render": "never",
     },
     "catalog": {
         "kind": LLM_EXTRACT,
-        "cli_template": False,
         "llm_render": "if_template",
     },
     "checklist": {
         "kind": LLM_EXTRACT,
-        "cli_template": False,
         "llm_render": "if_template",
     },
 }

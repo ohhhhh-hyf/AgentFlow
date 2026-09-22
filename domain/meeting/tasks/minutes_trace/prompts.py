@@ -98,6 +98,4 @@ MINUTES_TRACE_VERDICT_PROMPT = """你是溯源对齐裁判。只能从候选包�
 - sentence_id / evidence_id 必须来自候选包对应数组；缺失或拿不准时 decision=reject。
 - reason 一句话说明判断依据或拒绝原因。"""
 
-MINUTES_TRACE_RENDER_PROMPT = ""
-MINUTES_TRACE_RENDER_TEMPLATE_PROMPT = ""
 

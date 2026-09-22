@@ -3,13 +3,13 @@ from __future__ import annotations
 
 from typing import Any
 
-from client import LLMClient
+from tools.llm import LLMClient
 from perspective import PerspectiveModelingAgent
 from .notes_core import NotesUnderstandingAgent
 # 领域核心 Agent（如"笔记理解"）在此 import：
 # from .notes_core import XxxAgent
 
-# ── 任务线 import 生成区：由 tools/scripts/sync_domain.py 生成，勿手改 ──
+# ── 任务线 import 生成区：由 tools/codegen/sync_domain.py 生成，勿手改 ──
 
 from .tasks.catalog import (
     CatalogAgent,
@@ -59,7 +59,7 @@ class NotesAgentFactory:
             # 核心层（perspective 公共组件；领域核心 Agent 在此追加）
             "perspective_modeling_agent": PerspectiveModelingAgent(client),
             "notes_understanding_agent": NotesUnderstandingAgent(client),
-            # ── 任务线装配生成区：由 tools/scripts/sync_domain.py 生成，勿手改 ──
+            # ── 任务线装配生成区：由 tools/codegen/sync_domain.py 生成，勿手改 ──
 
             "catalog_agent": CatalogAgent(client),
             "catalog_supervisor": CatalogSupervisor(client),

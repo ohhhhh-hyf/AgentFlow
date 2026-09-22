@@ -4,7 +4,7 @@
 五种组织模式分别成稿。契约采用统一的 sections 结构承载不同组织段落，
 模式由 mode 字段标明（time / logic / causal / party / urgency）。
 
-Required by tools/scripts/sync_domain.py:
+Required by tools/codegen/sync_domain.py:
 - class MultiStylesGenerationContract(GenerationContract)
 - class MultiStylesSupervisorContract(SupervisorContract)
 - MULTI_STYLES_GENERATION_OUTPUT_CONTRACT = MultiStylesGenerationContract.to_json_template()

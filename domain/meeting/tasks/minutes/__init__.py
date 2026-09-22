@@ -7,15 +7,9 @@ from .steps.minutes_agent import MinutesGenerationAgent
 from .steps.minutes_render import MinutesGenerationRender
 from .steps.minutes_supervisor import MinutesGenerationSupervisor
 
-MinutesAgent = MinutesGenerationAgent
-MinutesRender = MinutesGenerationRender
-MinutesSupervisor = MinutesGenerationSupervisor
 
 __all__ = [
     "MinutesGenerationAgent",
     "MinutesGenerationRender",
     "MinutesGenerationSupervisor",
-    "MinutesAgent",
-    "MinutesRender",
-    "MinutesSupervisor",
 ]

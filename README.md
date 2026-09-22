@@ -38,25 +38,34 @@ domain/
     meeting_core/             # 核心层：会议理解（客观事实底座）
     tasks/{minutes,actions,risks,mindmap,minutes_styles,minutes_trace}/
       contracts.py / prompts.py / steps/{agent,supervisor,render}
+  meeting/hooks.py            # 会议域钩子（记忆 v2 / 各线产物 HTML / 无模板收尾压缩）
+  meeting/memory/             # 会议跨场记忆：registry / 场次状态 / 注入 / 记忆 HTML
   notes/                      # 笔记域：graph/review/quiz/library/catalog/checklist
-client/                       # LLM 客户端（HTTP / WebSocket / vLLM）+ 配置（.env）
-perspective/                  # 跨 domain 公共视角建模 + profiles/（客观画像 + 职业模板）
-supervisor/                   # 全局监督标准（prompt 注入，不单独调 LLM）
+    hooks.py                  # notes 域钩子（记忆：归属解析 + 图注入/回写）
+    memory/                   # notes 记忆实现（graph 线）：resolve / 图合并 / 注入回写
+    knowledge/                # notes 知识库门面（RAG）：KnowledgeTool / 出处引用 / rag
+    exercise_search/          # 高中题库检索（quiz 线用）
+tools/llm/                    # LLM 客户端（HTTP / WebSocket / vLLM）+ 配置（.env）
+perspective/                  # 跨 domain 公共视角建模（代码；画像数据见 assets/profiles/）
+domain/_shared/               # 全局监督标准（prompt 前缀注入各线 supervisor，不单独调 LLM）
 tools/
   schema/                     # 契约 DSL（contracts）/ fallback 规则 / 结构化输出校验
-  core/                       # 共享编排内核：domain_engine（图节点 mixin）/ runner / io / runtime_context / profiles / prompt_utils
+  core/                       # 共享编排内核：domain_engine / runner / io / runtime_context / profiles /
+                              #   prompt_utils / domain_hooks（域钩子协议，引擎据此取域能力）
   execution/                  # 硬执行规则：上游对齐 / 表行截断 / 验收门禁
   runtime/                    # 渲染运行时：render / context / kinds / supervisor_slice
-  templates/                  # 模板渲染 prompt（template_prompt）与约束评测（template_eval）
-  template_router/            # 模板路由：判型 / 占位填充 / 门禁 / 可读化
-  exports/                    # 产物落盘：outputs / knowledge_graph / mindmap
-  memory/                     # 跨会话记忆：记录累积 / 语义检索 / 引用标注 / 图谱增量
-  knowledge/                  # 知识库：PPT/PDF/docx/xlsx 入库 + 向量检索 + 出处（RAG）
+  templates/                  # 模板子系统：渲染 prompt / 评测 / 篇幅预算 + router/（判型、占位填充、门禁）
+  exports/                    # 产物落盘编排（outputs.py）+ html/（各线 HTML/交互渲染器）
+  memory/                     # 记忆/向量共享底座：落盘布局 / 实体抽取 / 记忆向量索引（两个域共用）
+  knowledge/                  # 通用知识底座：文件 → 文本 / 向量库封装 / 存储配置 / 资料角色
   ocr/                        # OCR 引擎适配（serverocr / rapidocr / paddleocr）
   monitor/                    # 任务监控：token / 缓存命中 / 按层耗时
-  exercise_search/            # 高中题库检索（notes.quiz 用）
-  scripts/                    # 开发工具：sync_domain / register_task 代码生成器
-template_v2/                  # 模板注册表（29 类模板的唯一权威源，运行时直接读 *.md）
+  codegen/                    # 代码生成器：sync_domain / register_domain / register_task + domain_template/
+  devtools/                   # 手工运维脚本：check_user_profile / purge_kb_source
+tests/                        # 零 LLM 自测套件（见「自测」一节；python -m tests）
+assets/profiles/              # 画像注册表（客观全员 + 6 个职业模板），运行时直接读 *.json
+template_v2/ template_v3/     # 模板注册表（运行时直接读 *.md）：生效目录由 AGENTFLOW_TEMPLATE_DIR 决定
+                              # （.env 当前指向 template_v3，30 类）；未配置/目录缺失时回落内置 template_v2
 ```
 
 ## 快速开始
@@ -267,12 +276,35 @@ pip install "numpy<2" onnxruntime==1.16.3 rapidocr_onnxruntime==1.4.4
 | 目录 | 用途 |
 |---|---|
 | `data/{user_id}/docs/` | 接口 `docs[]` 的输入文件（图片/文档/笔记） |
-| `perspective/profiles/` | 跨域公共画像（客观 + 职业模板）`.json` |
+| `assets/profiles/` | 跨域公共画像（客观 + 职业模板）`.json` |
 | `data/{user_id}/output/{request_id}/` | API 每次调用产物（`result.md` / `{task}.html`） |
 | `data/{user_id}/memory/` | 跨会话记忆（records + chromadb 索引） |
 | `data/{user_id}/knowledge/` | 知识库向量 + 知识目录 JSON |
 | `data/{user_id}/ocr/{学科}/` | OCR 合并稿（**仅 `library` 资料入库落盘**，文件名 `ocr_{时间戳}.md`）；其它任务线的图片 OCR 只在内存里参与本次任务，不落盘 |
 | `data/monitor/` | 任务监控 JSON（CLI monitor 开启时） |
+
+## 自测（零 LLM，秒级、不花钱）
+
+`tests/` 下的六个套件只覆盖"程序说了算"的部分——契约不变量、硬执行规则、模板解析与
+门禁方向、画像选档、记忆状态机，以及"某条纪律必须出现在发给模型的文本里"这类提示词断言；
+凡是需要模型判断的一律不测（所以都叫"零 LLM"）。提示词断言是刻意的：防止有人把纪律误删或改漂。
+
+```bash
+python -m tests                        # 全部套件：逐个打印 pass/fail + 汇总一行，失败退出码 1
+python -m tests.test_template_router   # 单跑一个套件（排查问题时更省事）
+```
+
+| 套件 | 覆盖 |
+|---|---|
+| `tests/test_core.py` | 画像选档（`profile=user` → `data/{uid}/user.json`）、清洗、职业模板合并 |
+| `tests/test_template_router.py` | 模板判型、占位识别、门禁方向、各线提示词的关键不变量（最大的一套） |
+| `tests/test_meeting_memory.py` | 会议记忆：身份绑定、跨场状态机、时间与场次 |
+| `tests/test_perspective.py` | 视角建模：偏好块 / 称呼表 / 命中表 / 原文按人裁剪 / 人名口径 |
+| `tests/test_draft_scrape.py` | 草稿/原文抽取：各线 `*_from_context` 与共享实现的 marker 一致性 |
+| `tests/test_engine_smoke.py` | 引擎/app 层冒烟（桩系统、零 LLM）：prepare_run → run → 落盘 → 记忆钩子 |
+
+改完代码至少跑 `python -m tests`；动到生成区（contracts、TASK_LINES）再加
+`python tools/codegen/sync_domain.py --domain meeting --check`（notes 域同理）。
 
 ## 异步任务与 Redis（队列 / 租约 / 重试）
 
@@ -289,7 +321,7 @@ pip install "numpy<2" onnxruntime==1.16.3 rapidocr_onnxruntime==1.4.4
 | `queue` | 写状态 + 存载荷 + `LPUSH` 入队，**立刻返回**；由独立 worker 进程消费 | 生产主路径：并发可控、失败可重试、重启不丢任务 |
 
 `queue` 模式下必须至少有一个 `python -m app.worker` 在跑，否则任务会一直停在 `queued`（`LLEN agentflow:queue` 能看到）。
-当前模式可从 `GET /api/v1/health` 的 `run_mode` 或提交响应里读到；`.env` 非法取值一律回落 `inline`。
+当前模式从 `GET /api/v1/health` 的 `run_mode` 读（提交响应里没有这个字段）；`.env` 非法取值一律回落 `inline`。
 
 > 回滚注意：从 `queue` 切回 `inline` 前先让 worker 把队列排空，否则队列里的任务不会有人处理。
 
@@ -405,8 +437,8 @@ $R ttl    agentflow:job:<job_id>              # 状态留存剩余时间
 | 同一条任务跑了两遍 | 租约被误判（阻塞超过租约 / 时钟漂移大） | 加大租约或减小任务内的同步阻塞；检查 NTP；确认没有手工重投 |
 | `attempts` 变 2 但仍失败 | 重试次数用尽 | 看 `error` 字段；输入类错误需修数据而不是重试 |
 
-日志关键字：`worker 启动 id=… 并发=… 租约=…s 心跳=…s 最多尝试=… 次`（启动生效值）、
-`回收失联任务`（租约触发）、`停止取新任务，等待…收尾（最多 Ns）`（grace 开始）、`收尾超时，取消该槽位`（grace 到期）。
+日志关键字（英文短句，与全仓日志口径一致）：`worker start id=… concurrency=… lease=…s heartbeat=…s max_attempts=…`（启动生效值）、
+`reclaim job=…`（租约触发回收）、`draining: N running jobs, grace=…s`（grace 开始）、`grace timeout, slot cancelled …`（grace 到期）。
 worker 启动时若 `run_mode != queue` 会打警告（任务不会进队列，worker 只会空转）。
 
 ### 9. 参数速查
@@ -576,7 +608,7 @@ LLM 生成、层级跨页不可比，不归一时"整篇 ###"的文件会整页�
    （章级候选宁可跳过并计数，交给结构修复器用真名回退补点）。`monitor.catalog.generic_nodes`
    统计最终目录里的占位名节点，非 0 时应检查目录合并与重命名路径。
 
-知识库维护工具 `tools/scripts/purge_kb_source.py` 可按来源列出或清除旧知识块。
+知识库维护工具 `tools/devtools/purge_kb_source.py` 可按来源列出或清除旧知识块。
 不传 `--source` 时只展示；删除前应先用 `--list` 核对用户、学科和来源文件。
 
 生产运维注意：
@@ -597,17 +629,8 @@ LLM 生成、层级跨页不可比，不归一时"整篇 ###"的文件会整页�
 接口分两族：**按任务线组织的同步 / 流式 / 产物端点**（两条域、10 条任务线），
 以及一组**与任务线解耦的异步任务接口**（生产主路径，见上文 Redis 章节，接口契约见 [API.md](API.md)）。
 
-URL 约定（`{domain}` ∈ `meeting` / `notes`，`{task}` 见下表）：
-
-| 端点形态 | 路径 | 方法 |
-|---|---|---|
-| 同步 | `/api/v1/{domain}/{task}` | POST |
-| 流式（NDJSON） | `/api/v1/{domain}/{task}/stream` | POST |
-| 指定文件名下载 | `/api/v1/{domain}/{task}/file/{request_id}/{file_name}` | GET |
-| 浏览器预览 | `/api/v1/{domain}/{task}/preview?request_id=&user_id=` | GET |
-| 异步任务组 | `/api/v1/tasks`、`/tasks/{job_id}`、`/tasks/{job_id}/result`、`/tasks/{job_id}/stream` | POST/GET |
-| 健康检查 | `/api/v1/health` | GET |
-| 静态产物 | `/data/{user_id}/output/{request_id}/{file_name}` | GET |
+> **接口契约以 [API.md](API.md) 为准**：URL 一览与逐字段说明见其 §0.1 / §2 / §3
+> （本节的表只作概览，两处内容若不一致以 API.md 为权威，并请顺手修这里）。
 
 10 条任务线**都有同步与流式接口**，产物端点按是否有落盘产物注册：
 
@@ -636,38 +659,26 @@ curl -X POST http://127.0.0.1:8000/api/v1/meeting/minutes \
   -d '{"texts": {"transcript": "会议记录全文……"}}'
 ```
 
-任务线：
+产物落盘规则（均在 `data/{user_id}/output/{request_id}/` 下）：
 
-| 领域 | 任务线 | 输出内容 | 主要产物（`data/{user_id}/output/{request_id}/`） |
-|---|---|---|---|
-| `meeting` | `minutes` | 会议纪要 | `result.md` + `minutes.html` |
-| `meeting` | `actions` | 待办事项 | `actions.md` + `actions.html` |
-| `meeting` | `risks` | 风险分析 | `risks.md` + `risks.html` |
-| `meeting` | `minutes_styles` | 多样式纪要 | `result.md` |
-| `meeting` | `minutes_trace` | 溯源纪要 | `minutes_trace.md` |
-| `meeting` | `mindmap` | 思维导图 | CLI：`data/{user_id}/output/cli_*/mindmap/`（`mindmap_*.png` / `.html`） |
-| `notes` | `graph` | 知识图谱 | `graph.html`（无 md） |
-| `notes` | `review` | 笔记审查 | `result.md` + `review.html` |
-| `notes` | `quiz` | 自测题（推理题 + 高中题库真题） | `result.md` + `quiz.html` |
-| `notes` | `library` | 资料入库 | 仅接口返回文本，不落盘文件 |
-| `notes` | `catalog` | 知识目录 | `result.md` + 目录 JSON（`data/{user_id}/knowledge/catalogs/{学科}/`） |
-| `notes` | `checklist` | 复习清单 | `result.md` + `checklist.html` |
-
-产物落盘规则（均在 `data/` 下，不再有根目录 `output/` 归档层）：
-
-| 目录 | 内容 | 说明 |
+| 文件 | 内容 | 说明 |
 |---|---|---|
-| `data/{user_id}/output/{request_id}/result.md` | 最终文本 / 大纲 | `minutes` / `catalog` / `checklist` 等使用；`actions` / `risks` / `minutes_styles` / `minutes_trace` 按任务线命名为 `{task}.md`；模板门禁失败时改写为 `result_rejected.md` |
-| `data/{user_id}/output/{request_id}/{task}.html` | 页面版 | 生成线：`minutes` / `actions` / `risks` / `minutes_styles` / `minutes_trace` / `review` / `quiz` / `checklist` / `graph`；`library` / `catalog` 不生成页面版 |
-| `data/{user_id}/output/cli_*/mindmap/mindmap_*.html` | 思维导图 HTML | CLI 运行兜底目录；`mindmap` 只保留 HTML/PNG |
-| `data/{user_id}/output/cli_*/mindmap/mindmap_*.png` | 思维导图 PNG | Playwright 不可用时跳过 |
-| `data/{user_id}/output/{request_id}/graph.html` | 知识图谱交互 HTML | Cytoscape.js 交互演示版 |
+| `result.md` | 最终文本 / 大纲 | 不按线命名的任务线用这个文件名 |
+| `{task}.md` | 最终文本 | 按线命名的任务线：`actions` / `risks` / `minutes_styles` / `minutes_trace` / `consensus_decision` |
+| `{task}.html` | 页面版 | 只有生成线有（`minutes` / `actions` / `risks` / `minutes_styles` / `minutes_trace` / `consensus_decision` / `graph` / `checklist`）；`library` / `catalog` 不生成 |
+| `result_rejected.md` | 门禁失败时的备查副本 | 内容与 `result.md` 相同，用于复盘"门禁看到了什么" |
+| `result.review.json` | 审核载荷（该线有审核产物时） | 回看审核结论用 |
+
+> 任务线清单与产物端点以 [app/tasklines.py](app/tasklines.py) 为唯一声明处（见本节开头那张表）。
+> `mindmap` 不在对外任务线清单里（`app/tasklines.py` 没有它）：它是 meeting 域的线，
+> 产物由 `tools/core/runner.py` 走 `tools/exports/html/mindmap.py` 导出 HTML/PNG（见「架构要点」）；
+> `notes` 域对外的任务线是 `graph` / `library` / `catalog` / `checklist`。
 
 产物文件可通过配套下载端点获取（`GET /api/v1/{domain}/{task}/file/{request_id}/{file_name}`，强制下载），也可直接访问静态路径 `/data/{user_id}/output/{request_id}/{file_name}`（浏览器直接打开，无鉴权）。
 
 ## 自定义输出模板
 
-接口 `extra.template` 支持 29 个预设模板，也可通过 `TEMPLATE_ROUTER` 机制处理自定义模板。模板支持三种形式，系统**自动判型**处理：
+接口 `extra.template` 支持模板注册表里的全部预设模板（生效目录见上「项目结构」，`template_v3` 当前 30 个），也可通过 `TEMPLATE_ROUTER` 机制处理自定义模板。模板支持三种形式，系统**自动判型**处理：
 
 | 形式 | 示例 | 处理方式 |
 |---|---|---|
@@ -683,12 +694,12 @@ curl -X POST http://127.0.0.1:8000/api/v1/meeting/minutes \
 
 ```
 ① 手写 domain/meeting/tasks/xxx/contracts.py      # 生成/审核契约 + 降级规则
-② python tools/scripts/register_task.py --domain meeting --task xxx --name "中文名"
+② python tools/codegen/register_task.py --domain meeting --task xxx --name "中文名"
    # 自动：注册中文名 + steps/ 三件套 + 工厂 import + 占位校验类
 ③ 手写 domain/meeting/tasks/xxx/prompts.py         # 4 个 prompt 常量
 ④ reports.py 末尾追加 XxxReport 类（继承 ModelMixin, XxxReportValidation）
-⑤ python tools/scripts/sync_domain.py --domain meeting   # 全量生成 → SUCCESS!
-⑥ python tools/scripts/sync_domain.py --domain meeting --check   # 校验 → SUCCESS!
+⑤ python tools/codegen/sync_domain.py --domain meeting   # 全量生成 → SUCCESS!
+⑥ python tools/codegen/sync_domain.py --domain meeting --check   # 校验 → SUCCESS!
 ⑦ 在 app/tasklines.py 的 DOMAINS 里加一行声明（域、线名、中文名、是否有产物端点）
    # 同步 / 流式 / 下载 / 预览四类路由自动注册；同步与异步接口的任务名校验同时生效
 ⑧ 在 app/requirements.py 的 REQUIRED_FIELDS 里声明必填项（缺必填秒回 400，不触发模型）
@@ -697,24 +708,115 @@ curl -X POST http://127.0.0.1:8000/api/v1/meeting/minutes \
 > 路由声明是**唯一来源**：`app/tasklines.py` 之外不要再写任务线清单（`app/tasks.py` 的 `LINE_NAMES`
 > 与 `app/routes/tasks.py` 的域校验都从它派生）。
 
+## 变更记录 · 纪要形态（2026-09-22）
+
+一轮**有行为改动**的质量修复，治"末尾三组把十几条压成一两条"（实测同输入两次运行：一次分条正常，
+另一次 12 条待确认 + 20 条风险各被「；」压成一条 bullet，233 字 / 519 字，原样落盘）。
+
+- **模板（a）**：`template_v3/general_minutes.md` 的 [要点梳理] 说明补上「末尾三组一律 `- ` 一条一行、
+  一条一个事项；**禁止把多条用「；」压成一条**；单条超过两百字就拆成多条或用缩进子条」——
+  原先只有第一大栏写了"一条一行"，末尾三组只写了内容范围，给了模型合并的口子。
+- **判据与重写（b）**：「单条超长（`- ` 条目 >200 汉字）」判据抽成单点函数
+  `tools/execution/hard_execution.py::overlong_items()`（`advisory_issues()` 改调它，报错文本逐字不变）；
+  **逐栏填充**把它当硬问题——命中即只重写中招那一栏（一次单栏调用、最多两栏），并下发具体修法
+  （`_OVERLONG_ITEM_REVISION`）。**渲染层门禁行为不变**，仍只当 advisory 记账：软问题进 `issues`
+  会让几乎每行都触发整篇返工，代价与内容风险都不小（见 `advisory_issues` docstring）。
+- **自测**：+7 项（判据单点、只重写那一栏、重写下发修法、重写后无超长条），6 套件 1018 项断言全过；
+  真链路复跑 0 超长条、末尾三组逐条分列。
+- **`# 栏名` 粘连在上一栏末尾（同轮修掉）**：根因是 `split_overlong_paragraphs_except_first`
+  按 `# 栏名` 切段后逐段调 `split_overlong_paragraphs`，后者返回 `"\n".join(行)` —— **段尾换行被丢掉**，
+  再用 `"".join(各段)` 拼回，下一段的一级标题就粘到上一段末尾。渲染层对同一份文本跑**两次** enforce
+  （逐栏填充内部一次、render 层一次）：第一遍把段间空行削成单换行、第二遍直接粘连，所以每篇必现。
+  修法：段边界**按原样补回段尾换行**（保真且幂等）；另加确定性兜底 `hard_execution.fix_glued_column_titles()`
+  —— 把粘在正文里的 `# 栏名` 提回独立行（只动模板声明的一级栏名，零 LLM 调用），已粘连的历史文本也能修回。
+- **未做（沿用现状）**：审核仍在渲染之前 ⇒ 形态问题审核不到；`render_advisory_issues` 仍只进日志
+  （未接响应 `monitor`）；段落级超长仍只记账。
+
+## 变更记录 · 结构整理（2026-09-21 / 22）
+
+一轮"零行为改动"的整理：功能与对外契约不变，改的是**代码组织、死代码与文档**。全部改动都过了
+`python -m tests`（6 套件 1011 项断言）+ 两域 `sync_domain --check` + 全仓 `py_compile` + 真实链路
+冒烟（meeting 与 notes 两条域）。
+
+**目录与层次**
+- 自测套件收拢到顶层 `tests/`（`python -m tests` 一键跑；不叫 `test`，避免遮蔽标准库同名包）
+- 三包归位：`supervisor/` → `domain/_shared/`；`client/` → `tools/llm/`；
+  `perspective/` 回顶层，画像数据独立成 `assets/profiles/`（附 `assets/README.md`）
+- 领域支撑下沉：`meeting_memory/` → `domain/meeting/memory/`；`memory/`、`knowledge/`、
+  `exercise_search/` → `domain/notes/…`；共享底座（落盘布局 / 向量库 / 文件→文本 / `safe_id`）留在 `tools/`
+- `tools/` 内部：模板路由并入 `tools/templates/router/`；四个 HTML 生成器进 `tools/exports/html/`；
+  代码生成器 → `tools/codegen/`，手工运维脚本 → `tools/devtools/`
+- 仓库卫生：`.gitignore` 忽略 `logs/`、`data/*/{output,memory,knowledge}/`（60 个运行时文件移出版本库）
+
+**引擎层零域导入（域钩子注册表）**
+- 引擎（`tools/core/runner`、`tools/runtime/render`、`tools/exports/outputs`）不再 `import domain.*`：
+  记忆准备/注入/回写、各线产物 HTML、无模板正文压缩统一由 `domain/<name>/hooks.py` 声明、
+  域包 `__init__` 自注册，引擎只问 `hooks_for(ctx.name)`（未注册域 ⇒ 空钩子）。协议见
+  `tools/core/domain_hooks.py`；加新域不必改 `tools/`
+
+**去重与死代码**
+- 删：`_preview` 的"可读化/编辑模型"死簇、`build_graph_embed`、`list_profile_entries`、
+  `format_cite_line`、恒真 `should_write_result_md`、15 处历史别名、`cli_template` 死字段、
+  不可达的 `LibraryRender.extract_structure` / 旧版理解节点 / 两个空渲染提示词、`minutes_render` 的
+  无模板压缩分支（编排路径不可达）
+- 收拢：10 份 `draft_from_context` → `domain_engine_text.scrape_draft`；8 份 `_clean` →
+  `tools/core/text.py`（域侧经 `domain/_shared/text.py` 转导出）；`_han_count` → `length_budget.han_count`
+- 三份 `_make_agent_node` → 引擎一份（域只覆写 `_line_shared_context`）；三处审核表头 →
+  `DomainNodes._revision_instruction`；`_GRADE` 词表两处 → `select.GRADE_LABELS` 一处
+- 去 no-op：`run_ocr_subprocess(timeout)`、`exercise_search` 的 grade/edition 空转链、
+  `_choice_or_default(path)`（含生成器同步重生）；重复小常量 `IMAGE_EXTS` / `PROJECT_ROOT` / `_ndjson`
+- app 层：两处 19 参调用块 → `_runner_args(p)`；`TaskLine.cn`（只写不读）删除；
+  `lines_for` / `all_lines` 的"恒等映射 dict" → 线名集合
+- 生成器：空结构常量改为"任务线契约 ∪ 域内真有引用"才生成（消掉与人手写的 `_EMPTY_*` 重复的死常量）
+
+- 收尾自检补删（2026-09-22）：上一轮删掉 `_preview` 里"预览↔可读文本↔编辑模型"四函数后，
+  `tools/templates/router/_base.py` 中只服务它们的 5 个符号成了孤儿（`_BANNER_RE` / `_SLOT_LINE_RE` /
+  `_OLD_FILL_RE` / `_is_slot_body` / `_split_by_heading`；其中 `_is_slot_body` 只调那两个 `_*_RE`，
+  属传递性死代码）；另删 `_placeholder.py` 从未被读取的 `_COLUMN_CONCURRENCY`、2 处孤儿
+  `import json` 与 1 处未用导入；补 `perspective.__all__` 漏掉的 `PERSONAL_VIEW_DIRECTIVE` /
+  `VIEW_DIRECTIVE_TITLE`
+
+**文档**
+- `README` 与 `api.md` 去重：接口契约以 `api.md` 为权威，README 只留概览与指针；模板三种形式的
+  说明只保留一处；命令示例与目录树全部对齐新路径
+- 修正一批与代码不符的说明：`run_mode` 的读取位置、worker 日志关键字（改为实际英文短句）、
+  模板目录与 `AGENTFLOW_TEMPLATE_DIR`、`profile` 选档表、`user.json` 写法（含偏好/性格白名单与上限）
+
+**已知待办（未含在本轮）**
+- **quiz 的 `structure` 不重抽**（review 分支在附件改写后会重抽一次，quiz 不会 ⇒ 响应里的
+  `questions` 不带 `kb_*` 溯源，页面仍带）：**按当前需求，quiz 线暂不使用 ⇒ 不改**。将来要用
+  quiz 前先决定：两条线都重抽（推荐）或都不重抽（届时也要去掉 review 那 3 行），别留中间态
+- **同步接口的 `monitor.catalog` 恒空**：`_catalog_quality_monitor` 只在流式接口挂载（待定：同步也返回，
+  或明确只在文档里标注"仅流式"）
+- `use_cache` 若要可用，需先做 LLMClient 进程级复用并同步改 `_client_usage` 的 token 差值统计
+- 模板注册表（`template_v2` / `template_v3`）按需保留在顶层：`api_test` 以 `template_v2` 作为
+  仓库根标记，搬入 `tools/` 会打断它
+- **逐栏填充目前不限并发**：原 `_COLUMN_CONCURRENCY = 3`（注释写「同时最多起几栏」）定义后从未被
+  任何代码读取，2026-09-22 自检时按死代码删除 ⇒ 现状是 `asyncio.gather` 一次起满所有栏。若要真的
+  限到 3 栏，属于**行为改动**，需接线（本地端点排队时才有必要）
+
 ## 架构要点
 
 - **多线并行**：各任务线监督返工闭环（approve/revise≤1次/reject→降级），互不阻塞
 - **契约驱动**：每条任务线的模型/校验/装配由 `contracts.py` 声明，`sync_domain.py` 生成
 - **生成区**：`models.py` / `orchestrator.py` / `meeting_factory.py` 的生成区由脚本管理
   （`--write` 重写、`--check` 校验），手写区（contracts/prompts/reports 类）脚本不碰
-- **全局标准注入**：`supervisor/` 的全局标准经 `GlobalSupervisor.build_prompt` 注入各线 supervisor
+- **全局标准注入**：`domain/_shared/` 的全局标准经 `GlobalSupervisor.build_prompt` 注入各线 supervisor
+- **域钩子（2026-09-22 反转）**：引擎层（`tools/`）**不 import 任何域**——记忆准备/注入/回写、
+  各线产物 HTML、无模板正文收尾压缩，由 `domain/<name>/hooks.py` 声明、域包 `__init__` 自注册，
+  引擎只问 `hooks_for(ctx.name)`（未注册域拿到空钩子，不抛）。加新域不必改 `tools/`；
+  协议见 `tools/core/domain_hooks.py`
 - **占位校验**：register 阶段预生成 `XxxReportValidation: pass`，写 Report 类无 NameError，
   sync_domain 全量后按字段生成真实校验
-- **模板路由**：`tools/template_router/` 包自动判型三类模板并分派最优处理，
+- **模板路由**：`tools/templates/router/` 包自动判型三类模板并分派最优处理，
   任何失败回退旧路径；渲染输出附带只读校验（残留占位符/JSON 合法性）
-- **结构化输出加固**：`client/llmclient.py` 的 `structured()` 对截断输出做程序修复
+- **结构化输出加固**：`tools/llm/llmclient.py` 的 `structured()` 对截断输出做程序修复
   （括号栈补全保留有效数据），非截断校验错误最多一次针对性重试，不再依赖 repair 兜底
-- **思维导图**：mindmap 线产出 Markdown 大纲，经 `tools/exports/mindmap.py` 固定导出
+- **思维导图**：mindmap 线产出 Markdown 大纲，经 `tools/exports/html/mindmap.py` 固定导出
   交互式 HTML（markmap，离线单文件）和 PNG 图片（Playwright 截图）；
   npx/playwright 缺失时自动降级不影响主流程
 - **知识图谱**：notes 域 graph 线提取概念节点与关系边（nodes/edges，
-  均锚定原文 + evidence），经 `tools/exports/knowledge_graph.py` 导出 Cytoscape.js 交互式 HTML 和学习地图 Markdown（默认输出到 `data/{user_id}/output/{request_id}/`）；悬空边自动过滤、HTML 仍尽量生成；
+  均锚定原文 + evidence），经 `tools/exports/html/knowledge_graph.py` 导出 Cytoscape.js 交互式 HTML 和学习地图 Markdown（默认输出到 `data/{user_id}/output/{request_id}/`）；悬空边自动过滤、HTML 仍尽量生成；
   传 `extra.memory=true` + `X-User-Id` + `extra.subject` 时按学科跨会话增量（新增节点高亮，见 API.md 2.7.1）
 - **输出稳定性**：各线 prompt 采用确定性规则（数量由内容决定、措辞锚定原文、
   顺序按原文出现、空字段 null/[]），同一输入重复运行保持内容与篇幅稳定

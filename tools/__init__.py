@@ -4,5 +4,5 @@
 - 领域加载：``from tools.core.runtime_context import load_domain``
 - 编排：``from tools.core.domain_engine import DomainNodes``
 - 渲染：``from tools.runtime.render import produce_line``
-- 模板：``from tools.template_router import route_template``
+- 模板：``from tools.templates.router import route_template``
 """
