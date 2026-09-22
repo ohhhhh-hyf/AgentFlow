@@ -353,16 +353,18 @@ def _empty_purpose(state) -> str:
     return f"会议目的：{purpose}" if purpose else ""
 
 def _attribute_person_items(state: dict, items: list[str]) -> list[str]:
-    """真人模式：按原文给风险/未决条目补出归属（「姓名：」前缀），对不上的原样返回。
+    """真人模式：按原文给结论/风险/未决条目补出归属（「姓名：」前缀），对不上的原样返回。
 
-    为什么在程序里做（2026-09-22 实测三轮）：契约要求"按人分组"，但上游 risks 是纯文本、
-    没有归属，模型又受"措辞用上游原文"约束——三次真链路都没分组。这里用原文的发言行结构
-    定位"这条是谁提出/谁在跟"，把归属变成**可照抄的事实**，草稿只做分组、不再做推理。
-    只在能对上时才补（看不出归属的不补），零 LLM 调用；客观/职业模板原样返回。
+    为什么在程序里做（2026-09-22 实测三轮）：契约要求"按人分组"，但上游 decisions /
+    risks 都是纯文本、没有归属，模型又受"措辞用上游原文"约束——三次真链路都没分组。
+    这里用原文的发言行结构定位"这条是谁提出/谁在跟"，把归属变成**可照抄的事实**，
+    草稿只做分组、不再做推理。只在能对上时才补（看不出归属的不补），零 LLM 调用；
+    客观/职业模板原样返回。
 
-    **模块级函数而非方法**：既有测试以 ``_Nodes._meeting_pack(object(), state, line)`` 的
-    形式调用（用 ``object()`` 当 self），方法一旦用到 self 就会 AttributeError。
+    **模块级函数而非方法**：既有测试以 ``_Nodes._meeting_pack(object(), state, line)``
+    的形式调用（用 ``object()`` 当 self），方法一旦用到 self 就会 AttributeError。
     """
+
     if DomainNodes._mode_label(state) != "personal" or not items:
         return list(items)
     from perspective import address_aliases, attribute_to_speaker
@@ -576,7 +578,7 @@ class _Nodes(DomainNodes):
             return {
                 **base,
                 "topics": full_topics or topics,
-                "decisions": u.get("decisions") or [],
+                "decisions": _attribute_person_items(state, u.get("decisions") or []),
                 "risks": _attribute_person_items(state, u.get("risks") or []),
                 "open_questions": _attribute_person_items(state, u.get("open_questions") or []),
             }
@@ -631,6 +633,9 @@ class _Nodes(DomainNodes):
             hit_block = str(state.get("user_hits_block") or "").strip()
             if hit_block:
                 parts.append(hit_block)
+            groups_block = str(state.get("user_action_groups_block") or "").strip()
+            if groups_block:
+                parts.append(groups_block)
         parts.append(f"会议理解：\n{_json(pack)}")
         perspective = self._compact_perspective(state.get("perspective_profile") or {})
         if perspective:
@@ -662,6 +667,9 @@ class _Nodes(DomainNodes):
         hits = str(state.get("user_hits_block") or "").strip()
         if hits and mode != "objective":
             blocks.append(hits)
+        groups = str(state.get("user_action_groups_block") or "").strip()
+        if groups and mode != "objective":
+            blocks.append(groups)
         budget = self._length_budget_line(state, line_name)
         if budget:
             blocks.append(budget)
@@ -726,6 +734,9 @@ class _Nodes(DomainNodes):
             hits = str(state.get("user_hits_block") or "").strip()
             if hits:
                 extra_parts.append(hits)
+            groups = str(state.get("user_action_groups_block") or "").strip()
+            if groups:
+                extra_parts.append(groups)
             if line_name in PREFERENCE_LINES:
                 preference = build_preference_block(state.get("user") or {})
                 if preference:
@@ -923,6 +934,7 @@ class _Nodes(DomainNodes):
             from perspective import (
                 EMPTY_PERSPECTIVE_MODELING,
                 build_hit_table,
+                render_action_groups_block,
                 render_hit_block,
                 skip_reason,
                 synthesize_perspective_profile,
@@ -937,6 +949,10 @@ class _Nodes(DomainNodes):
             extra = {
                 "user_hits": table.as_dict(),
                 "user_hits_block": render_hit_block(table),
+                # 分组骨架：把"要出现哪些组名行"变成可照抄的清单（模型只复制、不重排）
+                "user_action_groups_block": render_action_groups_block(
+                    user, self._understanding(state) or {}
+                ),
             }
             reason = skip_reason(user, table, line_names)
             if not reason:

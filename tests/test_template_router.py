@@ -643,9 +643,10 @@ def test_minutes_chain_consistency() -> None:
         ("纪要渲染 prompt", render),
     ):
         check(f"{label} 逐字包含 BODY_FORMAT_RULES（单点维护）", BODY_FORMAT_RULES in text, "")
-    check("形态单点：人分组用 `**姓名**：` 独占行、明确不把人名写成 `##`",
+    check("形态单点：人分组用 `**姓名**：` 独占行、本人那组叫「与我相关」、不把人名写成 `##`",
           "「人」不是板块" in BODY_FORMAT_RULES
-          and "不得把人名或「我的事项」写成 `##` 标题" in BODY_FORMAT_RULES, "")
+          and "（本人那一组写 `**与我相关**：`）" in BODY_FORMAT_RULES
+          and "不得把人名或「与我相关」写成 `##` 标题" in BODY_FORMAT_RULES, "")
     stale = ["每栏至少 2 个分类标签", "每条 20–80 字", "每条 2–3 处（分类标签"]
     hit = [k for k in stale if any(k in t for t in (fill_system, user, PLACEHOLDER_RULES, draft, render))]
     check("旧形态口径已从全部路径清除", not hit, f"残留={hit}")
@@ -1777,7 +1778,7 @@ def test_qa_precision_rules() -> None:
         check(f"{stem}：问答栏 missing=True（留空自动补「未提及」）",
               bool(qa) and qa[0].get("missing") is True,
               f"{[s.get('missing') for s in qa]}")
-        # 问答长度口径：4 个模板保留可解析的 400/段提示；
+        # 问答长度口径：各模板保留可解析的「每段上限」提示（media_briefing 于 2026-09-22 有意收紧到 350）；
         # 课堂答疑（2026-09-18 用户口径）改为**按重要程度收**，全栏不带任何字数门禁
         para = [b for b in parse_section_char_budgets(text) if b.get("scope") == "paragraph"]
         if stem == "class_transcript":
@@ -1798,8 +1799,9 @@ def test_qa_precision_rules() -> None:
             check("class_transcript：答话写在同一段里（不分段、不分点）",
                   "写在同一段里" in text and "不分段、不分点" in text, "")
         else:
-            check(f"{stem}：问答栏保留可解析的长度口径（400/段，作提示）",
-                  any(int(b["hi"]) == 400 for b in para), f"{para}")
+            expect_hi = 350 if stem == "media_briefing" else 400
+            check(f"{stem}：问答栏保留可解析的长度口径（{expect_hi}/段，作提示）",
+                  any(int(b["hi"]) == expect_hi for b in para), f"{para}")
             check(f"{stem}：问答栏写明答话可压缩、仍按单段连着写（不拆段）",
                   "答话可压缩、不必逐句照抄" in text and "仍**单段**连着写" in text
                   and "答话超过约 400 字必须分点" not in text, "")
@@ -1835,8 +1837,8 @@ def test_project_progress_overview() -> None:
     text = (_active_dir() / "project_progress.md").read_text(encoding="utf-8")
     specs = [l.strip() for l in text.splitlines() if l.strip().startswith("[") and l.strip().endswith("]")]
     overview = next((s for s in specs if "一段话概览" in s), "")
-    check("项目进度会：概况栏改为可解析的字数区间（一段写完，约 250–400 字）",
-          "一段写完，约 250–400 字" in overview, f"{overview[:60]}")
+    check("项目进度会：概况栏改为可解析的字数区间（一段写完，约 250–350 字）",
+          "一段写完，约 250–350 字" in overview, f"{overview[:60]}")
     check("项目进度会：旧的句数口径已删除（3–6 句不再出现）",
           "3–6 句" not in text and "句概览" not in text, "")
     check("项目进度会：边界写成可执行的「只写进某两栏 + 本栏不复述」",
@@ -1860,8 +1862,8 @@ def test_project_progress_overview() -> None:
     from tools.templates.template_eval import parse_section_char_budgets
 
     caps = [b for b in parse_section_char_budgets(text) if b["title"] == "项目概况"]
-    check("项目进度会：概况栏预算为节级 250–400（首栏只写一段）",
-          bool(caps) and caps[0]["hi"] == 400 and caps[0]["scope"] == "section", f"{caps}")
+    check("项目进度会：概况栏预算为节级 250–350（首栏只写一段）",
+          bool(caps) and caps[0]["hi"] == 350 and caps[0]["scope"] == "section", f"{caps}")
 
 
 def test_paragraph_cap_from_explicit_per_para() -> None:
@@ -3069,8 +3071,8 @@ def test_media_briefing_evidence_and_depth() -> None:
     check("核心信息：覆盖度口径上移到板块/主题（不再是「一条一指标」）",
           "覆盖度以板块/主题为单位保证" in core and "每组数据都要有落点" in core
           and "数字、时间表、适用范围与对象、执行方式不落项" in core, "")
-    check("核心信息：两级结构（`## 板块名` 分组 + 每组 3–5 条）",
-          "分两层写" in core and "`## 板块名`" in core and "每组 3–5 条" in core, core[:80])
+    check("核心信息：两级结构（`## 板块名` 分组 + 每组 1–4 条）",
+          "分两层写" in core and "`## 板块名`" in core and "每组 1–4 条" in core, core[:80])
     check("核心信息：准确性（不换算不估算 + 时间分写 + 两栏分工）",
           "不换算、不估算、不自行加总" in core
           and "发布时间与生效/执行时间分开写" in core
@@ -3125,12 +3127,13 @@ def test_media_briefing_evidence_and_depth() -> None:
 
     # 预算守卫：说明里的裸「数字+字」会被解析成节级上限（parser 接受 `\d+\s*字`）。
     # Q&A 栏故意不声明字数（一旦写进去就变成"40 字上限"式误判并触发整篇返工）；
-    # [官方表态] 的 800 是 2026-09-19 有意加的**栏级天花板**（now.xlsx 行8 实测 1174 汉字），
+    # [官方表态] 的栏级天花板 2026-09-19 定为 800（now.xlsx 行8 实测 1174 汉字）、
+    # 2026-09-22 有意收紧到 700；
     # 该栏是 `- ` 分点行、不是散文段，超限只记 advisory、不会被拆段。
     got = [(s["title"], s["hi"], s["scope"]) for s in parse_section_char_budgets(text)]
-    check("新闻发布：预算仍是 概况 400 / 官方表态 800 / Q&A 400 三条（无杂散解析）",
-          got == [("发布会概况", 400, "section"), ("官方表态", 800, "section"),
-                  ("Q&A环节", 400, "paragraph")], f"{got}")
+    check("新闻发布：预算仍是 概况 400 / 官方表态 700 / Q&A 350 三条（无杂散解析）",
+          got == [("发布会概况", 400, "section"), ("官方表态", 700, "section"),
+                  ("Q&A环节", 350, "paragraph")], f"{got}")
 
 
 def test_understanding_speakers_field() -> None:
@@ -3863,13 +3866,37 @@ def test_assignment_scope_rules() -> None:
         MINUTES_SUPERVISOR_DOMAIN_PROMPT as REVIEW,
     )
 
-    check("契约：真人模式草稿即产出组名行（我的事项 / 每位他人一行）；客观口径不变",
-          "先给一个组名元素 `**我的事项**：`" in MINUTES_GENERATION_OUTPUT_CONTRACT
+    check("契约：真人模式草稿即产出组名行（与我相关 / 每位他人一行）；客观口径不变",
+          "先给一个组名元素 `**与我相关**：`" in MINUTES_GENERATION_OUTPUT_CONTRACT
           and "他人每位各给一个组名元素 `**姓名**：`" in MINUTES_GENERATION_OUTPUT_CONTRACT
           and "条目不重复姓名" in MINUTES_GENERATION_OUTPUT_CONTRACT
           and "确需他配合的合并成一句" in MINUTES_GENERATION_OUTPUT_CONTRACT
           and "客观/职业模板按有明确责任人的分工条数写" in MINUTES_GENERATION_OUTPUT_CONTRACT,
           "")
+    check("契约：结论与决定同口径分组（本人「与我相关」/ 他人「姓名」/ 无归属平铺）",
+          "key_decisions" in MINUTES_GENERATION_OUTPUT_CONTRACT  # 字段名在契约里
+          and "**上游 decisions 是纯文本、没有归属，要对照会议原文补出归属**"
+          in MINUTES_GENERATION_OUTPUT_CONTRACT
+          and "归属本人的先写一行 `**与我相关**：` 再列其条目" in MINUTES_GENERATION_OUTPUT_CONTRACT
+          and "归属他人的写一行 `**姓名**：` 再列其条目" in MINUTES_GENERATION_OUTPUT_CONTRACT,
+          "")
+    check("契约：同为决策的写法不再用「我的事项」旧名（三栏统一组名）",
+          "我的事项" not in MINUTES_GENERATION_OUTPUT_CONTRACT,
+          "")
+    # 旧组名漂移守护：组名只在「与我相关」一处口径里——任何一份 prompt 源文件残留
+    # 「我的事项」都会让模型在旧名/新名之间二选一（上次的教训：两处口径打架，模型照旧的写）。
+    stale_group = [
+        str(path)
+        for path in (
+            Path("domain/meeting/tasks/minutes/contracts.py"),
+            Path("domain/meeting/tasks/minutes/prompts.py"),
+            Path("perspective/preferences.py"),
+            Path("perspective/hits.py"),
+            Path("tools/templates/body_rules.py"),
+        )
+        if "我的事项" in path.read_text(encoding="utf-8")
+    ]
+    check("旧组名「我的事项」已在全部 prompt 源文件清除", not stale_group, f"残留={stale_group}")
     check("契约：风险/未决「有明确归属才分组」，分组写法自述；客观口径保留",
           "风险（客观全量" in MINUTES_GENERATION_OUTPUT_CONTRACT
           and "**有明确归属才分组**" in MINUTES_GENERATION_OUTPUT_CONTRACT
@@ -3889,7 +3916,7 @@ def test_assignment_scope_rules() -> None:
     check("草稿真人视角段：自己的在前不写姓名、他人的带姓名前缀，未命中写 []",
           "不写自己的姓名**" in GEN and "命中表没给他派活时自己的部分写 []" in GEN, "")
     check("审核：两种归属形态都接受，但归属必须可核、组名行须与条目对应",
-          "执行要点必须**按人分块**" in REVIEW
+          "末尾三栏（结论与决定 / 行动项与分工 / 待确认与风险）必须**按人分块**" in REVIEW
           and "组名与组内条目必须对应" in REVIEW
           and "他自己的条目**不得写自己的姓名**" in REVIEW,
           "")
@@ -4125,6 +4152,29 @@ def test_render_context_person_transcript() -> None:
     objective = host._render_context({**state, "objective_perspective": True}, "minutes")
     check("客观：整篇原文原样、无裁剪标记",
           "已按人裁剪" not in objective and "另外引擎那部分我一起讲一下大概情况" in objective, "")
+
+    # 分组骨架块（2026-09-22）：把「要出现哪些组名行」变成可照抄的清单——模型只复制、不重排。
+    grid = {**state, "user_action_groups_block": "【本用户分栏分组骨架】\n**与我相关**："}
+    check("真人渲染上下文注入「分栏分组骨架」块",
+          "**与我相关**：" in host._render_context(grid, "minutes"), "")
+    check("客观不注入骨架块（零外溢）",
+          "**与我相关**：" not in host._render_context(
+              {**grid, "objective_perspective": True}, "minutes"
+          ),
+          "")
+    # 状态通道守护（2026-09-22 真链路事故）：LangGraph 只传 MeetingState 里声明过的 key，
+    # 未声明的写入被静默丢掉——骨架块写了，草稿/审核/渲染全程收不到（单元测试注入 dict 掩盖了）。
+    from domain.meeting.models import MeetingState
+
+    check("状态通道：视角节点写的两个块都在 MeetingState 里声明（否则被 LangGraph 丢掉）",
+          "user_action_groups_block" in MeetingState.__annotations__
+          and "user_hits_block" in MeetingState.__annotations__,
+          "")
+    check("状态通道：视角节点确实写入骨架 key",
+          "user_action_groups_block" in Path("domain/meeting/orchestrator.py").read_text(
+              encoding="utf-8"
+          ),
+          "")
 
     # 素材裁剪（2026-09-21 追加）：理解包里"别人为主语"的条目在真人装配轮去掉——
     # 实测「行动项与分工」栏会把 key_points 直接变成条目（157 条里 49 条以别人为主语），

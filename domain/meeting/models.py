@@ -54,6 +54,10 @@ class MeetingState(TypedDict, total=False):
     user_hits: dict
     # 命中块的渲染文本（拼进纪要上下文，避免多处重拼）
     user_hits_block: str
+    # 分栏分组骨架（程序判定：末尾三栏要出现哪些组名行 `**与我相关**：`/`**姓名**：`；
+    # 与命中块一样由视角节点写入）。**必须在这里声明**：LangGraph 只传本 TypedDict
+    # 声明过的 key，未声明的写入会被静默丢掉（实测：骨架写了、下游全程收不到）。
+    user_action_groups_block: str
     # 任务线子空间：lines[线名] = {draft, review,
     #   revision_feedback, revision_count, degraded, rendered, structure}
     lines: Annotated[dict[str, dict], _merge_lines]

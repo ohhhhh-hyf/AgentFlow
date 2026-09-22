@@ -338,6 +338,68 @@ def attribute_to_speaker(
     return out
 
 
+_GROUPS_TITLE = "本用户分栏分组骨架"
+_MAX_GROUPS = 6
+
+
+def render_action_groups_block(
+    user: dict[str, Any] | None,
+    understanding: dict[str, Any] | None,
+    *,
+    limit: int = _MAX_GROUPS,
+) -> str:
+    """「分栏分组骨架」块：给模型一份**可直接照抄**的组名行清单（程序判定）。
+
+    为什么（2026-09-22 两个模型实测）：契约与纪律都只是"描述"按人分块的形态，
+    而模型擅长复制、不擅长重排 ⇒ 组名行始终写不出来。这里把"要出现哪些
+    组名行"变成清单（与命中块同一机制），模型只需把条目填进对应块。
+    末尾三栏（结论与决定 / 行动项与分工 / 待确认与风险）共用这一份骨架。
+
+    他人侧优先取待办 owner（理解层 action_hints；单线纪要会被裁掉），
+    退回与会发言人（speakers）；本人那行固定 ``SELF_GROUP_ROW``（`**与我相关**：`）。
+    没有姓名（客观/无档案）时返回空串 ⇒ 不注入。
+    """
+    from .preferences import SELF_GROUP_ROW, address_aliases
+
+    profile = user if isinstance(user, dict) else {}
+    name = _clean(profile.get("name"))
+    if not name:
+        return ""
+    addresses = [item for item in (name, *address_aliases(profile)) if item]
+    pack = understanding if isinstance(understanding, dict) else {}
+
+    def _is_self(value: object) -> bool:
+        text = _clean(value)
+        return bool(text) and (text in addresses or bool(_mentions(text, addresses, name)))
+
+    # 他人组名 = 待办 owner ∪ 与会发言人：三栏共用一份骨架，而结论/风险里的条目可能挂在
+    # 任何一位发言人名下（不只是有待办的人）。多出的行使"没有内容的组不出现"兜住，不会硬凑。
+    others: list[str] = []
+    for row in pack.get("action_hints") or []:
+        if not isinstance(row, dict):
+            continue
+        owner = _clean(row.get("owner"))
+        if not owner or _is_self(owner) or owner in others:
+            continue
+        others.append(owner)
+    for row in pack.get("speakers") or []:
+        if not isinstance(row, dict):
+            continue
+        who = _clean(row.get("name"))
+        if not who or _is_self(who) or who in others:
+            continue
+        others.append(who)
+
+    lines = [
+        f"【{_GROUPS_TITLE}（程序判定；末尾三栏「结论与决定」「行动项与分工」「待确认与风险」"
+        "都按它分块——组名行**照抄**、把条目填到对应块里）】",
+        SELF_GROUP_ROW,
+    ]
+    lines.extend(f"**{who}**：" for who in others[:limit])
+    lines.append("（没有内容的组不出现；组名行独占一行、不加 `- `）")
+    return "\n".join(lines)
+
+
 def slice_transcript_for_person(
     transcript: str,
     addresses: list[str],
@@ -441,6 +503,7 @@ __all__ = [
     "WEAK",
     "attribute_to_speaker",
     "build_hit_table",
+    "render_action_groups_block",
     "render_hit_block",
     "speaker_blocks",
 ]

@@ -144,7 +144,12 @@ def test_injection_scope() -> None:
 
 def test_view_directive() -> None:
     """本视角纪律：装配那一轮（逐栏填充）的取舍口径，独立于渲染提示词。"""
-    from perspective.preferences import PERSONAL_VIEW_DIRECTIVE, VIEW_DIRECTIVE_TITLE
+    from perspective.preferences import (
+        PERSONAL_VIEW_DIRECTIVE,
+        SELF_GROUP_NAME,
+        SELF_GROUP_ROW,
+        VIEW_DIRECTIVE_TITLE,
+    )
 
     check("块头是独立标题（正文里能一眼认出是哪条纪律）",
           PERSONAL_VIEW_DIRECTIVE.startswith(f"【{VIEW_DIRECTIVE_TITLE}】"), "")
@@ -155,18 +160,74 @@ def test_view_directive() -> None:
     check("整栏与他无关时给缺省兜底，不留空栏（空栏会触发回退重写）",
           "不要留空栏" in PERSONAL_VIEW_DIRECTIVE
           and "缺省写法" in PERSONAL_VIEW_DIRECTIVE, "")
-    check("纪律含硬口径：分栏按人分组（自己的在前不写姓名、他人的按姓名分组）",
-          "组名独占一行写 `**我的事项**：`" in PERSONAL_VIEW_DIRECTIVE
+    check("纪律含硬口径：末尾三栏按人分组（形状照抄 + 自己的在前不写姓名、他人的按姓名分组）",
+          SELF_GROUP_ROW in PERSONAL_VIEW_DIRECTIVE
+          and "组名行独占一行" in PERSONAL_VIEW_DIRECTIVE
           and "他人的按其姓名分组" in PERSONAL_VIEW_DIRECTIVE
           and "不写自己的姓名" in PERSONAL_VIEW_DIRECTIVE, "")
-    check("纪律：凡按条列项的分栏都按人分组（有归属才分组、无归属不加姓名、不点名具体栏）",
-          "凡是按条列项的分栏都按「人」分组" in PERSONAL_VIEW_DIRECTIVE
-          and "**有明确归属才分组**：看不出归属的全局项平铺在最前、不加任何姓名"
+    check("纪律：点明末尾三栏（结论与决定 / 行动项与分工 / 待确认与风险）都按人分组",
+          "末尾三栏（结论与决定 / 行动项与分工 / 待确认与风险）都按「人」分组"
           in PERSONAL_VIEW_DIRECTIVE,
           "")
+    check("纪律：无归属的全局项不加姓名（不点名具体栏、也不冠本人组名）",
+          "**有明确归属才分组**：看不出归属的全局项平铺在最前、不加任何姓名"
+          in PERSONAL_VIEW_DIRECTIVE
+          and f"也不冠「{SELF_GROUP_NAME}」" in PERSONAL_VIEW_DIRECTIVE,
+          "")
+    check("组名口径：本人那一组统一叫「与我相关」（不是「我的事项」——结论/风险不是事项）",
+          SELF_GROUP_ROW == "**与我相关**：" and SELF_GROUP_NAME == "与我相关", SELF_GROUP_ROW)
+    check("纪律含可照抄的形状微样（组名行 + 块内条目）",
+          "形状照抄" in PERSONAL_VIEW_DIRECTIVE
+          and "（本人条目，不写自己的姓名）" in PERSONAL_VIEW_DIRECTIVE
+          and "（该人的条目，不重复姓名）" in PERSONAL_VIEW_DIRECTIVE, "")
     check("纪律不含任何人物事实（纯写作纪律，不引入可被抄进正文的名字/数字）",
           "申家坤" not in PERSONAL_VIEW_DIRECTIVE
           and "赵衡" not in PERSONAL_VIEW_DIRECTIVE, "")
+
+
+def test_action_groups_block() -> None:
+    """分栏分组骨架：把"要出现哪些组名行"变成可照抄的清单（模型只复制、不重排）。"""
+    from perspective import render_action_groups_block
+    from perspective.preferences import SELF_GROUP_NAME, SELF_GROUP_ROW
+
+    user = {"name": "申家坤", "name_aliases": ["家坤"]}
+    understanding = {
+        "action_hints": [
+            {"owner": "申家坤"},
+            {"owner": "武思华"},
+            {"owner": "徐玥"},
+            {"owner": "武思华"},
+            {},
+        ],
+        "speakers": [{"name": "申家坤"}, {"name": "武思华"}, {"name": "徐玥"}],
+    }
+    block = render_action_groups_block(user, understanding)
+    check(f"分组骨架：本人那一行固定 `{SELF_GROUP_ROW}`", SELF_GROUP_ROW in block, block[:80])
+    check("分组骨架：点明末尾三栏共用（结论与决定 / 行动项与分工 / 待确认与风险）",
+          "「结论与决定」「行动项与分工」「待确认与风险」" in block, block[:120])
+    check("分组骨架：他人按待办 owner 去重各一行",
+          "**武思华**：" in block and "**徐玥**：" in block
+          and block.count("**武思华**") == 1, block)
+    check("分组骨架：别名识别为自己，不列成他人", "**家坤**：" not in block, block)
+    # 三栏共用骨架 ⇒ 结论/风险里的条目可能挂在任何一位发言人名下（不只是有待办的人），
+    # 所以他人组名取 owner ∪ speakers，否则会出现"有归属却没有可用组名行"。
+    union = render_action_groups_block(
+        user,
+        {
+            "action_hints": [{"owner": "武思华"}],
+            "speakers": [{"name": "武思华"}, {"name": "徐玥"}],
+        },
+    )
+    check("分组骨架：他人组名取 owner ∪ 与会发言人（待办之外的人也有组名行可用）",
+          "**武思华**：" in union and "**徐玥**：" in union and union.count("**武思华**") == 1,
+          union)
+    fallback = render_action_groups_block(
+        user, {"action_hints": [], "speakers": [{"name": "家坤"}, {"name": "武思华"}]}
+    )
+    check("分组骨架：待办线索被裁掉时退回与会发言人（别名仍算自己）",
+          "**武思华**：" in fallback and "**家坤**：" not in fallback, fallback)
+    check("分组骨架：无姓名（客观/无档案）不注入",
+          render_action_groups_block({}, understanding) == "", "")
 
 
 def test_speaker_attribution() -> None:
@@ -467,6 +528,7 @@ def main() -> int:
     test_limits()
     test_injection_scope()
     test_view_directive()
+    test_action_groups_block()
     test_user_channel_block()
     test_hit_table()
     test_transcript_slice()
