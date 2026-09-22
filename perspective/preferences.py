@@ -12,6 +12,7 @@
 """
 from __future__ import annotations
 
+import re
 from typing import Any
 
 BLOCK_TITLE = "本用户偏好（只调顺序与详略，不改事实）"
@@ -81,6 +82,10 @@ _PREFERENCE_RULES: tuple[tuple[tuple[str, ...], str], ...] = (
     (("详细", "细节", "写全", "不要省略"), "细节写全：原文有的数字、时限、口径、责任人不省略"),
     (("数字", "口径", "金额"), "关键数字与口径优先保留，写全单位与对比基准"),
     (("风险", "阻塞", "问题"), "风险与阻塞单独成段，写清影响面与谁在跟"),
+    (
+        ("上级", "领导", "老板", "主管", "指示", "指示与行动"),
+        "关注上级要求与指示，相关结论与行动项紧随本人分组优先呈现",
+    ),
     # 与上一条互斥：「不要省略」属上一条，这里只认"少写/不要写/别写"的减法意图
     (("少写", "不要写", "别写"), "未点名且不在关注域内的条目可以少写"),
 )
@@ -233,6 +238,54 @@ def build_user_channel(user: dict[str, Any] | None) -> str:
     return "\n".join(lines)
 
 
+_SUPERVISOR_STOPWORDS = frozenset(
+    {
+        "自己", "本人", "我们", "大家", "上级", "领导", "主管", "老板", "他人", "对方",
+        "组长", "指示", "要求", "安排", "行动", "意见", "关注", "跟进", "决策", "她的",
+        "他的", "他们", "她们", "各个", "各位",
+    }
+)
+
+
+def extract_supervisors(user: dict[str, Any] | None) -> list[str]:
+    """从用户画像中提取上级/领导姓名（用于优先级与分组排序）。"""
+    profile = user if isinstance(user, dict) else {}
+    if not profile:
+        return []
+
+    self_name = _clean(profile.get("name"))
+    aliases = set(address_aliases(profile))
+    blocked = {self_name, *aliases, *_SUPERVISOR_STOPWORDS}
+
+    supervisors: list[str] = []
+
+    def _add(cand: str) -> None:
+        c = _clean(cand)
+        if 2 <= len(c) <= 4 and c not in blocked and c not in supervisors:
+            supervisors.append(c)
+
+    # 1. 显式字段声明
+    for key in ("supervisor", "leader", "reports_to", "manager"):
+        val = profile.get(key)
+        if isinstance(val, str):
+            _add(val)
+        elif isinstance(val, (list, tuple, set)):
+            for item in val:
+                _add(str(item))
+
+    # 2. 从偏好/说明中提取
+    prefs = as_text_list(profile.get("preferences"), cap=10)
+    for text in prefs:
+        for m in re.finditer(r"([^\s，,。；;：:]{2,4})\s*(?:是|为)\s*(?:我的)?(?:直接)?(?:上级|领导|老板|主管|TL|组长)", text):
+            _add(m.group(1))
+        for m in re.finditer(r"(?:直接)?(?:上级|领导|老板|主管|汇报对象|汇报给)\s*(?:是|为|[：:\s])\s*([^\s，,。；;：:]{2,4})", text):
+            _add(m.group(1))
+        for m in re.finditer(r"(?:关注|跟进|落实|执行)\s*([^\s，,。；;：:]{2,4})\s*的\s*(?:指示|要求|意见|安排|决策)", text):
+            _add(m.group(1))
+
+    return supervisors
+
+
 __all__ = [
     "BLOCK_TITLE",
     "CHANNEL_TITLE",
@@ -240,4 +293,5 @@ __all__ = [
     "address_aliases",
     "build_preference_block",
     "build_user_channel",
+    "extract_supervisors",
 ]

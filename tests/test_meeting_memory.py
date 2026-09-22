@@ -129,7 +129,8 @@ def test_extract_time_and_actions() -> None:
     check("锚点含混合专名核心", "小艺慧记Agent" in stamped.anchors, str(stamped.anchors))
 
 
-def test_persist_no_project_and_headline(tmp: Path) -> None:
+def test_persist_no_project_and_headline(tmp_path: Path) -> None:
+    tmp = tmp_path
     u1 = {
         "meeting_purpose": "复盘小艺慧记Agent开发进展",
         "topics": [{"title": "任务目录整理", "key_points": [], "conclusion": None}],
@@ -269,7 +270,8 @@ def test_rebuild_idempotent() -> None:
     check("rebuild 按去重后的场次折叠", len(st.get("recent_meetings") or []) == 1, str(st.get("recent_meetings")))
 
 
-def test_pending_two_projects(tmp: Path) -> None:
+def test_pending_two_projects(tmp_path: Path) -> None:
+    tmp = tmp_path
     persist_after_run(
         tmp, "u2", "项目甲", "a1",
         "甲项目周会。锚点AlphaCore。",

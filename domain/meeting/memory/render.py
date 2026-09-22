@@ -646,6 +646,7 @@ def _format_minutes_html(
     out: list[str] = []
     list_buf: list[str] = []
     ol_buf: list[str] = []
+    in_self_block = False
 
     def flush_list() -> None:
         if list_buf:
@@ -654,6 +655,13 @@ def _format_minutes_html(
         if ol_buf:
             out.append("<ol>" + "".join(f"<li>{x}</li>" for x in ol_buf) + "</ol>")
             ol_buf.clear()
+
+    def close_self_block() -> None:
+        nonlocal in_self_block
+        if in_self_block:
+            flush_list()
+            out.append("</div>")
+            in_self_block = False
 
     def inline_format(s: str) -> str:
         parts: list[str] = []
@@ -679,6 +687,9 @@ def _format_minutes_html(
         text = re.sub(r"`([^`]+)`", r"<code>\1</code>", text)
         return text
 
+    self_group_re = re.compile(r"^\s*(?:-\s*)?\*\*(?:与我相关|本人)\*\*[：:]?\s*$")
+    other_group_re = re.compile(r"^\s*(?:-\s*)?\*\*([^*:\n]{1,20})\*\*[：:]?\s*$")
+
     i = 0
     while i < len(lines):
         raw_line = lines[i]
@@ -689,18 +700,36 @@ def _format_minutes_html(
             continue
 
         if stripped.startswith("### "):
+            close_self_block()
             flush_list()
             out.append(f'<h3 class="ck-doc-h3">{inline_format(stripped[4:])}</h3>')
             i += 1
             continue
         if stripped.startswith("## "):
+            close_self_block()
             flush_list()
             out.append(f'<h2 class="ck-doc-h2">{inline_format(stripped[3:])}</h2>')
             i += 1
             continue
         if stripped.startswith("# "):
+            close_self_block()
             flush_list()
             out.append(f'<h2>{inline_format(stripped[2:])}</h2>')
+            i += 1
+            continue
+
+        if self_group_re.match(stripped):
+            close_self_block()
+            flush_list()
+            in_self_block = True
+            out.append('<div class="ck-self-block"><div class="ck-self-title"><strong>与我相关</strong>：<span class="ck-self-badge">本人</span></div>')
+            i += 1
+            continue
+
+        if other_group_re.match(stripped):
+            close_self_block()
+            flush_list()
+            out.append(f'<p>{inline_format(stripped)}</p>')
             i += 1
             continue
 
@@ -719,16 +748,19 @@ def _format_minutes_html(
             continue
 
         if stripped.startswith(">"):
+            close_self_block()
             flush_list()
             out.append(f'<div class="ck-quote">{inline_format(stripped.lstrip("> "))}</div>')
             i += 1
             continue
 
+        close_self_block()
         flush_list()
         out.append(f'<p>{inline_format(stripped)}</p>')
         i += 1
 
     flush_list()
+    close_self_block()
     return meeting_title, "".join(out)
 
 
@@ -1126,6 +1158,8 @@ def _render_markdown_content(text: str) -> str:
     list_buf: list[str] = []
     ol_buf: list[str] = []
 
+    in_self_block = False
+
     def flush_ul() -> None:
         if list_buf:
             out.append("<ul>" + "".join(f"<li>{x}</li>" for x in list_buf) + "</ul>")
@@ -1140,6 +1174,13 @@ def _render_markdown_content(text: str) -> str:
         flush_ul()
         flush_ol()
 
+    def close_self_block() -> None:
+        nonlocal in_self_block
+        if in_self_block:
+            flush_list()
+            out.append("</div>")
+            in_self_block = False
+
     def inline(s: str) -> str:
         esc = escape(s, quote=False)
         esc = re.sub(r"\[([^\]]+)\]\(([^)]+)\)", r'<a href="\2">\1</a>', esc)
@@ -1147,6 +1188,9 @@ def _render_markdown_content(text: str) -> str:
         esc = re.sub(r"(?<!\*)\*(?!\*)(.+?)(?<!\*)\*(?!\*)", r"<em>\1</em>", esc)
         esc = re.sub(r"`([^`]+)`", r"<code>\1</code>", esc)
         return esc
+
+    self_group_re = re.compile(r"^\s*(?:-\s*)?\*\*(?:与我相关|本人)\*\*[：:]?\s*$")
+    other_group_re = re.compile(r"^\s*(?:-\s*)?\*\*([^*:\n]{1,20})\*\*[：:]?\s*$")
 
     i = 0
     while i < len(lines):
@@ -1159,6 +1203,7 @@ def _render_markdown_content(text: str) -> str:
 
         m_head = re.match(r"^(#{1,6})\s+(.*)$", stripped)
         if m_head:
+            close_self_block()
             flush_list()
             level = len(m_head.group(1))
             cls_name = f"ck-doc-h{level}" if level in (1, 2, 3, 4) else ""
@@ -1167,7 +1212,23 @@ def _render_markdown_content(text: str) -> str:
             i += 1
             continue
 
+        if self_group_re.match(stripped):
+            close_self_block()
+            flush_list()
+            in_self_block = True
+            out.append('<div class="ck-self-block"><div class="ck-self-title"><strong>与我相关</strong>：<span class="ck-self-badge">本人</span></div>')
+            i += 1
+            continue
+
+        if other_group_re.match(stripped):
+            close_self_block()
+            flush_list()
+            out.append(f"<p>{inline(stripped)}</p>")
+            i += 1
+            continue
+
         if re.match(r"^\s*\|.*\|\s*$", line):
+            close_self_block()
             flush_list()
             rows = []
             while i < len(lines) and re.match(r"^\s*\|.*\|\s*$", lines[i]):
@@ -1204,17 +1265,20 @@ def _render_markdown_content(text: str) -> str:
             continue
 
         if re.match(r"^\s*>\s?", line):
+            close_self_block()
             flush_list()
             quote = re.sub(r"^\s*>\s?", "", line)
             out.append(f'<div class="ck-quote">{inline(quote)}</div>')
             i += 1
             continue
 
+        close_self_block()
         flush_list()
         out.append(f"<p>{inline(stripped)}</p>")
         i += 1
 
     flush_list()
+    close_self_block()
     return "".join(out)
 
 

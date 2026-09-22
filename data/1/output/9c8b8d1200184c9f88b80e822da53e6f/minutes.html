@@ -1,14 +1,11 @@
-"""LaTeX Paper 风格的内联样式表（各线 HTML 共用）。
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>申家坤视角会议纪要</title>
+  <style>
 
-2026-09-22 从 ``domain/meeting/memory/render.py`` 提到这里：它是**纯样式**，被
-meeting 域的三类 HTML 与 tools 侧的 ``exports/html/consensus_decision.py`` 共用。
-留在域里会让 tools 的渲染器反向依赖域包，故独立成模块。
-"""
-from __future__ import annotations
-
-
-def latex_paper_css() -> str:
-    return """
     body {
       margin: 0;
       padding: 14px 12px;
@@ -382,50 +379,27 @@ def latex_paper_css() -> str:
       color: #3b3a37;
     }
     .ck-ledger-list > li { margin: 2px 0; }
-    /* Personal Perspective "与我相关" Focus Block */
-    .ck-self-block {
-      background: #f4f8fe;
-      border: 1px solid #d4e2f5;
-      border-left: 3.5px solid #0047ab;
-      border-radius: 3px;
-      padding: 8px 12px;
-      margin: 8px 0 10px;
-    }
-    .ck-self-title {
-      margin: 0 0 4px;
-      color: #003380;
-      font-weight: 700;
-      font-size: var(--ck-fs);
-      display: flex;
-      align-items: center;
-      gap: 4px;
-    }
-    .ck-self-badge {
-      display: inline-block;
-      background: #0047ab;
-      color: #ffffff;
-      font-size: 0.68rem;
-      padding: 1px 5px;
-      border-radius: 2px;
-      font-weight: 600;
-      letter-spacing: 0.2px;
-      margin-left: 4px;
-    }
-    .ck-self-block ul, .ck-self-block ol {
-      margin: 2px 0 2px;
-      padding-left: 1.25em;
-    }
-    .ck-self-block li {
-      margin: 2px 0;
-      color: #1a1a1a;
-    }
+    .ck-ledger-text { font-size: var(--ck-fs); line-height: 1.6; color: #3b3a37; }
+    .ck-ledger-meta { color: #8a8578; font-size: 0.76rem; }
 
     @media(max-width: 860px) {
       .ck-doc { padding: 22px 18px; }
       .ck-review { grid-template-columns: 1fr; }
       .ck-review-rule { display: none; }
     }
-"""
 
-
-__all__ = ["latex_paper_css"]
+  </style>
+</head>
+<body>
+  <main class="page">
+    <div class="ck-doc">
+      <header class="ck-doc-header">
+        <h1>申家坤视角会议纪要</h1>
+      </header>
+      <div class="ck-doc-content">
+        <p>请直接参考会议原文。</p>
+      </div>
+    </div>
+  </main>
+</body>
+</html>

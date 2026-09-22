@@ -359,7 +359,7 @@ def render_action_groups_block(
     退回与会发言人（speakers）；本人那行固定 ``SELF_GROUP_ROW``（`**与我相关**：`）。
     没有姓名（客观/无档案）时返回空串 ⇒ 不注入。
     """
-    from .preferences import SELF_GROUP_ROW, address_aliases
+    from .preferences import SELF_GROUP_ROW, address_aliases, extract_supervisors
 
     profile = user if isinstance(user, dict) else {}
     name = _clean(profile.get("name"))
@@ -389,6 +389,15 @@ def render_action_groups_block(
         if not who or _is_self(who) or who in others:
             continue
         others.append(who)
+
+    # 上级优先：画像中声明的上级若在参会/分工名单中，提到他人组名最前
+    supervisors = extract_supervisors(profile)
+    for sup in reversed(supervisors):
+        if sup in others:
+            others.remove(sup)
+            others.insert(0, sup)
+        elif any(sup in str(row.get("name") if isinstance(row, dict) else row) for row in (pack.get("speakers") or [])):
+            others.insert(0, sup)
 
     lines = [
         f"【{_GROUPS_TITLE}（程序判定；末尾三栏「结论与决定」「行动项与分工」「待确认与风险」"
@@ -496,6 +505,226 @@ def render_hit_block(table: HitTable) -> str:
     return "\n".join(lines)
 
 
+# ── 真人模式末尾三栏确定性规范化 ──────────────────────────────
+_DEFAULT_ONLY_RE = re.compile(
+    r"^(?:原文|本次|本栏|文中|此处)?(?:也|均|尚|暂|都)?(?:未提及|未明确|未提供|未给出|没有提及|无提及|暂无|待定|不明确|未涉及|未写|无)[。.；;]?$"
+)
+
+
+def _is_default_only_text(s: str) -> bool:
+    t = re.sub(r"[\s*`>#|()（）\[\]【】]+", "", s or "")
+    if not t:
+        return True
+    return bool(_DEFAULT_ONLY_RE.match(t))
+
+
+_TARGET_SECTION_KEYWORDS = (
+    ("结论", "决定", "决策"),
+    ("行动", "分工", "待办", "任务"),
+    ("待确认", "风险", "未决", "阻塞"),
+)
+
+
+def _is_target_section(title: str) -> bool:
+    t = str(title or "").strip()
+    return any(any(k in t for k in group) for group in _TARGET_SECTION_KEYWORDS)
+
+
+def _normalize_section_body(
+    body: str,
+    addresses: list[str],
+    self_name: str,
+    supervisors: list[str] | None = None,
+) -> str:
+    lines = [ln.rstrip() for ln in body.splitlines()]
+    non_empty = [ln for ln in lines if ln.strip()]
+    if not non_empty:
+        return body
+
+    if len(non_empty) == 1 and _is_default_only_text(non_empty[0]):
+        return body
+
+    group_header_re = re.compile(r"^\s*(?:-\s*)?\*\*([^*:\n]{1,20})\*\*[：:]?\s*$")
+    inline_group_re = re.compile(r"^\s*(?:-\s*)?\*\*([^*:\n]{1,20})\*\*[：:]\s*(.+)$")
+    inline_plain_re = re.compile(r"^\s*-\s+([^\s：:]{2,6})[：:]\s*(.+)$")
+
+    global_items: list[str] = []
+    groups: dict[str, list[str]] = {}
+    current_group: str | None = None
+    active_supervisors = list(supervisors or [])
+
+    def _is_self_group(gname: str) -> bool:
+        gn = gname.strip()
+        return (
+            gn in addresses
+            or gn in {"与我相关", "本人", "我的待办", "自己"}
+            or bool(self_name and gn == self_name)
+        )
+
+    for line in lines:
+        s = line.strip()
+        if not s:
+            continue
+
+        # 1. 独立组名行：**组名**：或 - **组名**：
+        m_hdr = group_header_re.match(s)
+        if m_hdr:
+            gname = m_hdr.group(1).strip()
+            if _is_self_group(gname):
+                current_group = "**与我相关**："
+            else:
+                current_group = f"**{gname}**："
+            if current_group not in groups:
+                groups[current_group] = []
+            continue
+
+        # 2. 单行内嵌组名：- **姓名**：内容 或 - 姓名：内容
+        m_inline = inline_group_re.match(s) or inline_plain_re.match(s)
+        if m_inline:
+            gname = m_inline.group(1).strip()
+            content = m_inline.group(2).strip()
+            if _is_self_group(gname):
+                grp = "**与我相关**："
+            else:
+                grp = f"**{gname}**："
+            if grp not in groups:
+                groups[grp] = []
+            current_group = grp
+            item = content if content.startswith("- ") else f"- {content}"
+            groups[grp].append(item)
+            continue
+
+        # 3. 缩进子条（如   - 细节）
+        if line.startswith(("  -", "    -", "\t-")):
+            if current_group is not None and current_group in groups:
+                if not groups[current_group]:
+                    groups[current_group].append(re.sub(r"^\s*-\s*", "- ", line))
+                else:
+                    groups[current_group].append(line)
+            else:
+                global_items.append(line)
+            continue
+
+        # 4. 普通条目行
+        raw_content = re.sub(r"^\s*[-*+•]\s*", "", s).strip()
+        if not raw_content:
+            continue
+
+        if current_group is not None:
+            content = raw_content
+            if current_group == "**与我相关**：":
+                for addr in addresses:
+                    if content.startswith(f"{addr}：") or content.startswith(f"{addr}:"):
+                        content = content[len(addr) + 1:].strip()
+                    elif content.startswith(f"{addr} "):
+                        content = content[len(addr) + 1:].strip()
+            groups[current_group].append(f"- {content}")
+        else:
+            matched_who = None
+            for addr in addresses:
+                if (
+                    raw_content.startswith(f"{addr}：")
+                    or raw_content.startswith(f"{addr}:")
+                    or raw_content.startswith(f"{addr} ")
+                ):
+                    matched_who = "self"
+                    content = re.sub(rf"^{re.escape(addr)}[：:\s]+", "", raw_content)
+                    break
+            if not matched_who and active_supervisors:
+                for sup in active_supervisors:
+                    if (
+                        raw_content.startswith(f"{sup}：")
+                        or raw_content.startswith(f"{sup}:")
+                        or raw_content.startswith(f"{sup} ")
+                    ):
+                        matched_who = sup
+                        content = re.sub(rf"^{re.escape(sup)}[：:\s]+", "", raw_content)
+                        break
+
+            if matched_who == "self":
+                grp = "**与我相关**："
+                if grp not in groups:
+                    groups[grp] = []
+                current_group = grp
+                groups[grp].append(f"- {content}")
+            elif matched_who:
+                grp = f"**{matched_who}**："
+                if grp not in groups:
+                    groups[grp] = []
+                current_group = grp
+                groups[grp].append(f"- {content}")
+            else:
+                global_items.append(f"- {raw_content}")
+
+    ordered_groups: list[tuple[str, list[str]]] = []
+    if "**与我相关**：" in groups and groups["**与我相关**："]:
+        ordered_groups.append(("**与我相关**：", groups["**与我相关**："]))
+
+    for sup in active_supervisors:
+        s_key = f"**{sup}**："
+        if s_key in groups and groups[s_key]:
+            ordered_groups.append((s_key, groups[s_key]))
+
+    for grp, items in groups.items():
+        if grp != "**与我相关**：" and grp not in [k for k, _ in ordered_groups] and items:
+            ordered_groups.append((grp, items))
+
+    if not ordered_groups:
+        if global_items:
+            return "\n".join(global_items)
+        return body
+
+    chunks: list[str] = []
+    if global_items:
+        chunks.append("\n".join(global_items))
+    for grp_header, items in ordered_groups:
+        chunks.append(f"{grp_header}\n" + "\n".join(items))
+
+    return "\n\n".join(chunks)
+
+
+def normalize_personal_sections(
+    text: str,
+    addresses: list[str],
+    self_name: str = "",
+    supervisors: list[str] | None = None,
+) -> str:
+    """真人模式下对末尾三栏（结论与决定/行动项与分工/待确认与风险）做确定性规范化。
+
+    将平铺的 `- 姓名：内容` 或混入 bullet 的 `- **与我相关**：` 规范化为统一的
+    独占行组名（**与我相关**：/ **姓名**：）及下方分条，并确保本人在前、上级紧随其后。
+    """
+    if not text or not text.strip():
+        return text
+
+    parts = re.split(r"(?m)^(#{2,3}\s+[^\n]+)$", text)
+    if len(parts) < 3:
+        return text
+
+    new_parts: list[str] = [parts[0]]
+    i = 1
+    while i < len(parts):
+        header = parts[i]
+        body = parts[i + 1] if i + 1 < len(parts) else ""
+        m = re.match(r"^#{2,3}\s+(.+)$", header.strip())
+        title = m.group(1).strip() if m else ""
+        if _is_target_section(title):
+            norm_body = _normalize_section_body(
+                body,
+                addresses=addresses,
+                self_name=self_name,
+                supervisors=supervisors,
+            )
+            new_parts.append(header)
+            new_parts.append(norm_body if norm_body.startswith("\n") else f"\n{norm_body}\n\n")
+        else:
+            new_parts.append(header)
+            new_parts.append(body)
+        i += 2
+
+    return "".join(new_parts)
+
+
 __all__ = [
     "Hit",
     "HitTable",
@@ -503,6 +732,7 @@ __all__ = [
     "WEAK",
     "attribute_to_speaker",
     "build_hit_table",
+    "normalize_personal_sections",
     "render_action_groups_block",
     "render_hit_block",
     "speaker_blocks",

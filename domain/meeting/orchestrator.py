@@ -891,6 +891,32 @@ class _Nodes(DomainNodes):
             return node
         return super()._make_fallback_node(line_name)
 
+    def _post_render_hook(self, state: dict, line_name: str) -> None:
+        super()._post_render_hook(state, line_name)
+        if line_name in PREFERENCE_LINES and self._mode_label(state) == "personal":
+            try:
+                line_data = _line(state, line_name)
+                rendered = line_data.get("rendered")
+                if rendered and isinstance(rendered, str):
+                    from perspective.hits import normalize_personal_sections
+                    from perspective.preferences import address_aliases, extract_supervisors
+
+                    user = state.get("user") or {}
+                    name = str(user.get("name") or "").strip()
+                    aliases = address_aliases(user)
+                    addresses = [a for a in (name, *aliases) if a]
+                    supervisors = extract_supervisors(user)
+                    normalized = normalize_personal_sections(
+                        rendered,
+                        addresses=addresses,
+                        self_name=name,
+                        supervisors=supervisors,
+                    )
+                    if normalized != rendered:
+                        line_data["rendered"] = normalized
+            except Exception:
+                logger.warning("normalize_personal_sections failed line=%s", line_name, exc_info=True)
+
     # ── 领域钩子：core 节点 ───────────────────────────────────
 
     def _build_core(self, builder, line_names=None) -> list[str]:

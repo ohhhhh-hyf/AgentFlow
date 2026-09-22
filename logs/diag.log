@@ -1,0 +1,954 @@
+2026-09-22 18:03:06,063 INFO tools.llm.llmclient llm client backend=http model=deepseek-chat base_url=https://api.deepseek.com ctx=65536 max_tokens=50000 timeout=120.0 retries=2 temperature=0.2 sampling_sent=False
+2026-09-22 18:03:06,073 INFO agentflow pipeline start lines=minutes
+2026-09-22 18:03:06,081 INFO agentflow agent start meeting_understanding
+2026-09-22 18:03:06,082 INFO tools.llm.llmclient llm call label=core/meeting_understanding mode=structured
+2026-09-22 18:03:06,085 INFO tools.llm.llmclient llm fit max_tokens 50000->42304 ctx=65536 input~22976
+2026-09-22 18:03:06,610 WARNING tools.llm.llmclient llm http error label=core/meeting_understanding model=deepseek-chat code=402 body={"error":{"message":"Insufficient Balance","type":"unknown_error","param":null,"code":"invalid_request_error"}}
+2026-09-22 18:03:07,625 INFO tools.llm.llmclient llm call label=core/meeting_understanding mode=structured 第2次
+2026-09-22 18:03:07,628 INFO tools.llm.llmclient llm fit max_tokens 50000->42304 ctx=65536 input~22976
+2026-09-22 18:03:08,130 WARNING tools.llm.llmclient llm http error label=core/meeting_understanding model=deepseek-chat code=402 body={"error":{"message":"Insufficient Balance","type":"unknown_error","param":null,"code":"invalid_request_error"}}
+2026-09-22 18:03:10,137 INFO tools.llm.llmclient llm call label=core/meeting_understanding mode=structured 第3次
+2026-09-22 18:03:10,140 INFO tools.llm.llmclient llm fit max_tokens 50000->42304 ctx=65536 input~22976
+2026-09-22 18:03:10,646 WARNING tools.llm.llmclient llm http error label=core/meeting_understanding model=deepseek-chat code=402 body={"error":{"message":"Insufficient Balance","type":"unknown_error","param":null,"code":"invalid_request_error"}}
+2026-09-22 18:03:10,648 WARNING domain.meeting.orchestrator meeting understanding failed, continue with empty
+Traceback (most recent call last):
+  File "D:\study\demo\tools\llm\llmclient.py", line 339, in _post_http
+    return self._http_once(messages, json_mode, temp, tok, to, label)
+  File "D:\study\demo\tools\llm\llmclient.py", line 397, in _http_once
+    with urllib.request.urlopen(request, timeout=to) as response:
+  File "C:\Users\OMEN\miniconda3\envs\agentflow\lib\urllib\request.py", line 216, in urlopen
+    return opener.open(url, data, timeout)
+  File "C:\Users\OMEN\miniconda3\envs\agentflow\lib\urllib\request.py", line 525, in open
+    response = meth(req, response)
+  File "C:\Users\OMEN\miniconda3\envs\agentflow\lib\urllib\request.py", line 634, in http_response
+    response = self.parent.error(
+  File "C:\Users\OMEN\miniconda3\envs\agentflow\lib\urllib\request.py", line 563, in error
+    return self._call_chain(*args)
+  File "C:\Users\OMEN\miniconda3\envs\agentflow\lib\urllib\request.py", line 496, in _call_chain
+    result = func(*args)
+  File "C:\Users\OMEN\miniconda3\envs\agentflow\lib\urllib\request.py", line 643, in http_error_default
+    raise HTTPError(req.full_url, code, msg, hdrs, fp)
+urllib.error.HTTPError: HTTP Error 402: Payment Required
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "D:\study\demo\domain\meeting\orchestrator.py", line 1043, in node
+    result = await self.meeting_understanding_agent.run(
+  File "D:\study\demo\domain\meeting\meeting_core\meeting_understanding_agent.py", line 71, in run
+    return await self.client.structured(
+  File "D:\study\demo\tools\llm\llmclient.py", line 865, in structured
+    last_content = await self._in_thread(
+  File "D:\study\demo\tools\llm\llmclient.py", line 237, in _in_thread
+    return await asyncio.to_thread(runner)
+  File "C:\Users\OMEN\miniconda3\envs\agentflow\lib\asyncio\threads.py", line 25, in to_thread
+    return await loop.run_in_executor(None, func_call)
+  File "C:\Users\OMEN\miniconda3\envs\agentflow\lib\concurrent\futures\thread.py", line 58, in run
+    result = self.fn(*self.args, **self.kwargs)
+  File "D:\study\demo\tools\llm\llmclient.py", line 235, in runner
+    return ctx.run(lambda: fn(*args, **kwargs))
+  File "D:\study\demo\tools\llm\llmclient.py", line 235, in <lambda>
+    return ctx.run(lambda: fn(*args, **kwargs))
+  File "D:\study\demo\tools\llm\llmclient.py", line 263, in _post
+    return self._post_http(messages, json_mode, temp, tok, to, label)
+  File "D:\study\demo\tools\llm\llmclient.py", line 358, in _post_http
+    raise RuntimeError(
+RuntimeError: core/meeting_understanding API 返回 HTTP 402：{"error":{"message":"Insufficient Balance","type":"unknown_error","param":null,"code":"invalid_request_error"}}
+2026-09-22 18:03:10,671 INFO agentflow node done meeting_understanding
+2026-09-22 18:03:10,672 INFO agentflow agent start perspective
+2026-09-22 18:03:10,673 INFO tools.llm.llmclient llm call label=core/perspective_modeling mode=structured
+2026-09-22 18:03:11,122 WARNING tools.llm.llmclient llm http error label=core/perspective_modeling model=deepseek-chat code=402 body={"error":{"message":"Insufficient Balance","type":"unknown_error","param":null,"code":"invalid_request_error"}}
+2026-09-22 18:03:12,146 INFO tools.llm.llmclient llm call label=core/perspective_modeling mode=structured 第2次
+2026-09-22 18:03:12,614 WARNING tools.llm.llmclient llm http error label=core/perspective_modeling model=deepseek-chat code=402 body={"error":{"message":"Insufficient Balance","type":"unknown_error","param":null,"code":"invalid_request_error"}}
+2026-09-22 18:03:14,605 INFO tools.llm.llmclient llm call label=core/perspective_modeling mode=structured 第3次
+2026-09-22 18:03:15,056 WARNING tools.llm.llmclient llm http error label=core/perspective_modeling model=deepseek-chat code=402 body={"error":{"message":"Insufficient Balance","type":"unknown_error","param":null,"code":"invalid_request_error"}}
+2026-09-22 18:03:15,057 WARNING tools.core.domain_engine perspective failed, continue with empty
+Traceback (most recent call last):
+  File "D:\study\demo\tools\llm\llmclient.py", line 339, in _post_http
+    return self._http_once(messages, json_mode, temp, tok, to, label)
+  File "D:\study\demo\tools\llm\llmclient.py", line 397, in _http_once
+    with urllib.request.urlopen(request, timeout=to) as response:
+  File "C:\Users\OMEN\miniconda3\envs\agentflow\lib\urllib\request.py", line 216, in urlopen
+    return opener.open(url, data, timeout)
+  File "C:\Users\OMEN\miniconda3\envs\agentflow\lib\urllib\request.py", line 525, in open
+    response = meth(req, response)
+  File "C:\Users\OMEN\miniconda3\envs\agentflow\lib\urllib\request.py", line 634, in http_response
+    response = self.parent.error(
+  File "C:\Users\OMEN\miniconda3\envs\agentflow\lib\urllib\request.py", line 563, in error
+    return self._call_chain(*args)
+  File "C:\Users\OMEN\miniconda3\envs\agentflow\lib\urllib\request.py", line 496, in _call_chain
+    result = func(*args)
+  File "C:\Users\OMEN\miniconda3\envs\agentflow\lib\urllib\request.py", line 643, in http_error_default
+    raise HTTPError(req.full_url, code, msg, hdrs, fp)
+urllib.error.HTTPError: HTTP Error 402: Payment Required
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "D:\study\demo\tools\core\domain_engine.py", line 427, in _perspective_modeling_node
+    result = await self.perspective_modeling_agent.run(
+  File "D:\study\demo\perspective\agent.py", line 20, in run
+    return await self.client.structured(
+  File "D:\study\demo\tools\llm\llmclient.py", line 865, in structured
+    last_content = await self._in_thread(
+  File "D:\study\demo\tools\llm\llmclient.py", line 237, in _in_thread
+    return await asyncio.to_thread(runner)
+  File "C:\Users\OMEN\miniconda3\envs\agentflow\lib\asyncio\threads.py", line 25, in to_thread
+    return await loop.run_in_executor(None, func_call)
+  File "C:\Users\OMEN\miniconda3\envs\agentflow\lib\concurrent\futures\thread.py", line 58, in run
+    result = self.fn(*self.args, **self.kwargs)
+  File "D:\study\demo\tools\llm\llmclient.py", line 235, in runner
+    return ctx.run(lambda: fn(*args, **kwargs))
+  File "D:\study\demo\tools\llm\llmclient.py", line 235, in <lambda>
+    return ctx.run(lambda: fn(*args, **kwargs))
+  File "D:\study\demo\tools\llm\llmclient.py", line 263, in _post
+    return self._post_http(messages, json_mode, temp, tok, to, label)
+  File "D:\study\demo\tools\llm\llmclient.py", line 358, in _post_http
+    raise RuntimeError(
+RuntimeError: core/perspective_modeling API 返回 HTTP 402：{"error":{"message":"Insufficient Balance","type":"unknown_error","param":null,"code":"invalid_request_error"}}
+2026-09-22 18:03:15,061 INFO agentflow node done perspective_modeling
+2026-09-22 18:03:15,062 INFO agentflow agent start gen line=minutes
+2026-09-22 18:03:15,064 INFO tools.llm.llmclient llm call label=minutes/agent mode=structured
+2026-09-22 18:03:15,068 INFO tools.llm.llmclient llm fit max_tokens 50000->35271 ctx=65536 input~30009
+2026-09-22 18:03:15,536 WARNING tools.llm.llmclient llm http error label=minutes/agent model=deepseek-chat code=402 body={"error":{"message":"Insufficient Balance","type":"unknown_error","param":null,"code":"invalid_request_error"}}
+2026-09-22 18:03:16,542 INFO tools.llm.llmclient llm call label=minutes/agent mode=structured 第2次
+2026-09-22 18:03:16,546 INFO tools.llm.llmclient llm fit max_tokens 50000->35271 ctx=65536 input~30009
+2026-09-22 18:03:17,012 WARNING tools.llm.llmclient llm http error label=minutes/agent model=deepseek-chat code=402 body={"error":{"message":"Insufficient Balance","type":"unknown_error","param":null,"code":"invalid_request_error"}}
+2026-09-22 18:03:19,026 INFO tools.llm.llmclient llm call label=minutes/agent mode=structured 第3次
+2026-09-22 18:03:19,030 INFO tools.llm.llmclient llm fit max_tokens 50000->35271 ctx=65536 input~30009
+2026-09-22 18:03:19,536 WARNING tools.llm.llmclient llm http error label=minutes/agent model=deepseek-chat code=402 body={"error":{"message":"Insufficient Balance","type":"unknown_error","param":null,"code":"invalid_request_error"}}
+2026-09-22 18:03:19,537 WARNING tools.core.domain_engine gen failed, empty draft line=纪要
+Traceback (most recent call last):
+  File "D:\study\demo\tools\llm\llmclient.py", line 339, in _post_http
+    return self._http_once(messages, json_mode, temp, tok, to, label)
+  File "D:\study\demo\tools\llm\llmclient.py", line 397, in _http_once
+    with urllib.request.urlopen(request, timeout=to) as response:
+  File "C:\Users\OMEN\miniconda3\envs\agentflow\lib\urllib\request.py", line 216, in urlopen
+    return opener.open(url, data, timeout)
+  File "C:\Users\OMEN\miniconda3\envs\agentflow\lib\urllib\request.py", line 525, in open
+    response = meth(req, response)
+  File "C:\Users\OMEN\miniconda3\envs\agentflow\lib\urllib\request.py", line 634, in http_response
+    response = self.parent.error(
+  File "C:\Users\OMEN\miniconda3\envs\agentflow\lib\urllib\request.py", line 563, in error
+    return self._call_chain(*args)
+  File "C:\Users\OMEN\miniconda3\envs\agentflow\lib\urllib\request.py", line 496, in _call_chain
+    result = func(*args)
+  File "C:\Users\OMEN\miniconda3\envs\agentflow\lib\urllib\request.py", line 643, in http_error_default
+    raise HTTPError(req.full_url, code, msg, hdrs, fp)
+urllib.error.HTTPError: HTTP Error 402: Payment Required
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "D:\study\demo\tools\core\domain_engine.py", line 486, in node
+    result = await agent.run(
+  File "D:\study\demo\domain\meeting\tasks\minutes\steps\minutes_agent.py", line 28, in run
+    raw = await self.client.structured(
+  File "D:\study\demo\tools\llm\llmclient.py", line 865, in structured
+    last_content = await self._in_thread(
+  File "D:\study\demo\tools\llm\llmclient.py", line 237, in _in_thread
+    return await asyncio.to_thread(runner)
+  File "C:\Users\OMEN\miniconda3\envs\agentflow\lib\asyncio\threads.py", line 25, in to_thread
+    return await loop.run_in_executor(None, func_call)
+  File "C:\Users\OMEN\miniconda3\envs\agentflow\lib\concurrent\futures\thread.py", line 58, in run
+    result = self.fn(*self.args, **self.kwargs)
+  File "D:\study\demo\tools\llm\llmclient.py", line 235, in runner
+    return ctx.run(lambda: fn(*args, **kwargs))
+  File "D:\study\demo\tools\llm\llmclient.py", line 235, in <lambda>
+    return ctx.run(lambda: fn(*args, **kwargs))
+  File "D:\study\demo\tools\llm\llmclient.py", line 263, in _post
+    return self._post_http(messages, json_mode, temp, tok, to, label)
+  File "D:\study\demo\tools\llm\llmclient.py", line 358, in _post_http
+    raise RuntimeError(
+RuntimeError: minutes/agent API 返回 HTTP 402：{"error":{"message":"Insufficient Balance","type":"unknown_error","param":null,"code":"invalid_request_error"}}
+2026-09-22 18:03:19,541 INFO agentflow node done minutes_agent
+2026-09-22 18:03:19,542 INFO agentflow agent start review line=minutes
+2026-09-22 18:03:19,544 INFO tools.llm.llmclient llm call label=minutes/supervisor mode=structured
+2026-09-22 18:03:20,023 WARNING tools.llm.llmclient llm http error label=minutes/supervisor model=deepseek-chat code=402 body={"error":{"message":"Insufficient Balance","type":"unknown_error","param":null,"code":"invalid_request_error"}}
+2026-09-22 18:03:21,040 INFO tools.llm.llmclient llm call label=minutes/supervisor mode=structured 第2次
+2026-09-22 18:03:21,508 WARNING tools.llm.llmclient llm http error label=minutes/supervisor model=deepseek-chat code=402 body={"error":{"message":"Insufficient Balance","type":"unknown_error","param":null,"code":"invalid_request_error"}}
+2026-09-22 18:03:23,507 INFO tools.llm.llmclient llm call label=minutes/supervisor mode=structured 第3次
+2026-09-22 18:03:23,952 WARNING tools.llm.llmclient llm http error label=minutes/supervisor model=deepseek-chat code=402 body={"error":{"message":"Insufficient Balance","type":"unknown_error","param":null,"code":"invalid_request_error"}}
+2026-09-22 18:03:23,953 WARNING tools.core.domain_engine review unavailable, conservative approve line=minutes err=RuntimeError: minutes/supervisor API 返回 HTTP 402：{"error":{"message":"Insufficient Balance","type":"unknown_error","param":null,"code":"invalid_request_error"}}
+Traceback (most recent call last):
+  File "D:\study\demo\tools\llm\llmclient.py", line 339, in _post_http
+    return self._http_once(messages, json_mode, temp, tok, to, label)
+  File "D:\study\demo\tools\llm\llmclient.py", line 397, in _http_once
+    with urllib.request.urlopen(request, timeout=to) as response:
+  File "C:\Users\OMEN\miniconda3\envs\agentflow\lib\urllib\request.py", line 216, in urlopen
+    return opener.open(url, data, timeout)
+  File "C:\Users\OMEN\miniconda3\envs\agentflow\lib\urllib\request.py", line 525, in open
+    response = meth(req, response)
+  File "C:\Users\OMEN\miniconda3\envs\agentflow\lib\urllib\request.py", line 634, in http_response
+    response = self.parent.error(
+  File "C:\Users\OMEN\miniconda3\envs\agentflow\lib\urllib\request.py", line 563, in error
+    return self._call_chain(*args)
+  File "C:\Users\OMEN\miniconda3\envs\agentflow\lib\urllib\request.py", line 496, in _call_chain
+    result = func(*args)
+  File "C:\Users\OMEN\miniconda3\envs\agentflow\lib\urllib\request.py", line 643, in http_error_default
+    raise HTTPError(req.full_url, code, msg, hdrs, fp)
+urllib.error.HTTPError: HTTP Error 402: Payment Required
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "D:\study\demo\tools\core\domain_engine.py", line 549, in node
+    review = await supervisor.review(
+  File "D:\study\demo\domain\meeting\tasks\minutes\steps\minutes_supervisor.py", line 27, in review
+    return await self.client.structured(
+  File "D:\study\demo\tools\llm\llmclient.py", line 865, in structured
+    last_content = await self._in_thread(
+  File "D:\study\demo\tools\llm\llmclient.py", line 237, in _in_thread
+    return await asyncio.to_thread(runner)
+  File "C:\Users\OMEN\miniconda3\envs\agentflow\lib\asyncio\threads.py", line 25, in to_thread
+    return await loop.run_in_executor(None, func_call)
+  File "C:\Users\OMEN\miniconda3\envs\agentflow\lib\concurrent\futures\thread.py", line 58, in run
+    result = self.fn(*self.args, **self.kwargs)
+  File "D:\study\demo\tools\llm\llmclient.py", line 235, in runner
+    return ctx.run(lambda: fn(*args, **kwargs))
+  File "D:\study\demo\tools\llm\llmclient.py", line 235, in <lambda>
+    return ctx.run(lambda: fn(*args, **kwargs))
+  File "D:\study\demo\tools\llm\llmclient.py", line 263, in _post
+    return self._post_http(messages, json_mode, temp, tok, to, label)
+  File "D:\study\demo\tools\llm\llmclient.py", line 358, in _post_http
+    raise RuntimeError(
+RuntimeError: minutes/supervisor API 返回 HTTP 402：{"error":{"message":"Insufficient Balance","type":"unknown_error","param":null,"code":"invalid_request_error"}}
+2026-09-22 18:03:23,957 INFO tools.core.domain_engine route line=minutes decision=approve revision=0/1 -> __end__
+2026-09-22 18:03:23,958 INFO agentflow node done minutes_supervisor
+2026-09-22 18:03:23,964 INFO agentflow render start line=minutes
+2026-09-22 18:03:28,209 WARNING tools.templates.router._placeholder column fill stream failed label=template/fill:分段速览
+Traceback (most recent call last):
+  File "D:\study\demo\tools\llm\llmclient.py", line 499, in _stream_sync
+    with urllib.request.urlopen(request, timeout=to) as response:
+  File "C:\Users\OMEN\miniconda3\envs\agentflow\lib\urllib\request.py", line 216, in urlopen
+    return opener.open(url, data, timeout)
+  File "C:\Users\OMEN\miniconda3\envs\agentflow\lib\urllib\request.py", line 525, in open
+    response = meth(req, response)
+  File "C:\Users\OMEN\miniconda3\envs\agentflow\lib\urllib\request.py", line 634, in http_response
+    response = self.parent.error(
+  File "C:\Users\OMEN\miniconda3\envs\agentflow\lib\urllib\request.py", line 557, in error
+    result = self._call_chain(*args)
+  File "C:\Users\OMEN\miniconda3\envs\agentflow\lib\urllib\request.py", line 496, in _call_chain
+    result = func(*args)
+  File "C:\Users\OMEN\miniconda3\envs\agentflow\lib\urllib\request.py", line 749, in http_error_302
+    return self.parent.open(new, timeout=req.timeout)
+  File "C:\Users\OMEN\miniconda3\envs\agentflow\lib\urllib\request.py", line 525, in open
+    response = meth(req, response)
+  File "C:\Users\OMEN\miniconda3\envs\agentflow\lib\urllib\request.py", line 634, in http_response
+    response = self.parent.error(
+  File "C:\Users\OMEN\miniconda3\envs\agentflow\lib\urllib\request.py", line 563, in error
+    return self._call_chain(*args)
+  File "C:\Users\OMEN\miniconda3\envs\agentflow\lib\urllib\request.py", line 496, in _call_chain
+    result = func(*args)
+  File "C:\Users\OMEN\miniconda3\envs\agentflow\lib\urllib\request.py", line 643, in http_error_default
+    raise HTTPError(req.full_url, code, msg, hdrs, fp)
+urllib.error.HTTPError: HTTP Error 405: Method Not Allowed
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "D:\study\demo\tools\templates\router\_placeholder.py", line 913, in _stream_column
+    async for chunk in stream:
+  File "D:\study\demo\tools\llm\llmclient.py", line 691, in stream_text
+    raise item
+  File "D:\study\demo\tools\llm\llmclient.py", line 661, in _producer
+    for chunk in self._stream_sync(
+  File "D:\study\demo\tools\llm\llmclient.py", line 531, in _stream_sync
+    raise RuntimeError(
+RuntimeError: template/fill:分段速览 API 返回 HTTP 405：
+2026-09-22 18:03:28,243 WARNING tools.templates.router._placeholder column fill stream failed label=template/fill:全文摘要
+Traceback (most recent call last):
+  File "D:\study\demo\tools\llm\llmclient.py", line 499, in _stream_sync
+    with urllib.request.urlopen(request, timeout=to) as response:
+  File "C:\Users\OMEN\miniconda3\envs\agentflow\lib\urllib\request.py", line 216, in urlopen
+    return opener.open(url, data, timeout)
+  File "C:\Users\OMEN\miniconda3\envs\agentflow\lib\urllib\request.py", line 525, in open
+    response = meth(req, response)
+  File "C:\Users\OMEN\miniconda3\envs\agentflow\lib\urllib\request.py", line 634, in http_response
+    response = self.parent.error(
+  File "C:\Users\OMEN\miniconda3\envs\agentflow\lib\urllib\request.py", line 557, in error
+    result = self._call_chain(*args)
+  File "C:\Users\OMEN\miniconda3\envs\agentflow\lib\urllib\request.py", line 496, in _call_chain
+    result = func(*args)
+  File "C:\Users\OMEN\miniconda3\envs\agentflow\lib\urllib\request.py", line 749, in http_error_302
+    return self.parent.open(new, timeout=req.timeout)
+  File "C:\Users\OMEN\miniconda3\envs\agentflow\lib\urllib\request.py", line 525, in open
+    response = meth(req, response)
+  File "C:\Users\OMEN\miniconda3\envs\agentflow\lib\urllib\request.py", line 634, in http_response
+    response = self.parent.error(
+  File "C:\Users\OMEN\miniconda3\envs\agentflow\lib\urllib\request.py", line 563, in error
+    return self._call_chain(*args)
+  File "C:\Users\OMEN\miniconda3\envs\agentflow\lib\urllib\request.py", line 496, in _call_chain
+    result = func(*args)
+  File "C:\Users\OMEN\miniconda3\envs\agentflow\lib\urllib\request.py", line 643, in http_error_default
+    raise HTTPError(req.full_url, code, msg, hdrs, fp)
+urllib.error.HTTPError: HTTP Error 405: Method Not Allowed
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "D:\study\demo\tools\templates\router\_placeholder.py", line 913, in _stream_column
+    async for chunk in stream:
+  File "D:\study\demo\tools\llm\llmclient.py", line 691, in stream_text
+    raise item
+  File "D:\study\demo\tools\llm\llmclient.py", line 661, in _producer
+    for chunk in self._stream_sync(
+  File "D:\study\demo\tools\llm\llmclient.py", line 531, in _stream_sync
+    raise RuntimeError(
+RuntimeError: template/fill:全文摘要 API 返回 HTTP 405：
+2026-09-22 18:03:28,275 WARNING tools.templates.router._placeholder column fill stream failed label=template/fill:要点梳理
+Traceback (most recent call last):
+  File "D:\study\demo\tools\llm\llmclient.py", line 499, in _stream_sync
+    with urllib.request.urlopen(request, timeout=to) as response:
+  File "C:\Users\OMEN\miniconda3\envs\agentflow\lib\urllib\request.py", line 216, in urlopen
+    return opener.open(url, data, timeout)
+  File "C:\Users\OMEN\miniconda3\envs\agentflow\lib\urllib\request.py", line 525, in open
+    response = meth(req, response)
+  File "C:\Users\OMEN\miniconda3\envs\agentflow\lib\urllib\request.py", line 634, in http_response
+    response = self.parent.error(
+  File "C:\Users\OMEN\miniconda3\envs\agentflow\lib\urllib\request.py", line 557, in error
+    result = self._call_chain(*args)
+  File "C:\Users\OMEN\miniconda3\envs\agentflow\lib\urllib\request.py", line 496, in _call_chain
+    result = func(*args)
+  File "C:\Users\OMEN\miniconda3\envs\agentflow\lib\urllib\request.py", line 749, in http_error_302
+    return self.parent.open(new, timeout=req.timeout)
+  File "C:\Users\OMEN\miniconda3\envs\agentflow\lib\urllib\request.py", line 525, in open
+    response = meth(req, response)
+  File "C:\Users\OMEN\miniconda3\envs\agentflow\lib\urllib\request.py", line 634, in http_response
+    response = self.parent.error(
+  File "C:\Users\OMEN\miniconda3\envs\agentflow\lib\urllib\request.py", line 563, in error
+    return self._call_chain(*args)
+  File "C:\Users\OMEN\miniconda3\envs\agentflow\lib\urllib\request.py", line 496, in _call_chain
+    result = func(*args)
+  File "C:\Users\OMEN\miniconda3\envs\agentflow\lib\urllib\request.py", line 643, in http_error_default
+    raise HTTPError(req.full_url, code, msg, hdrs, fp)
+urllib.error.HTTPError: HTTP Error 405: Method Not Allowed
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "D:\study\demo\tools\templates\router\_placeholder.py", line 913, in _stream_column
+    async for chunk in stream:
+  File "D:\study\demo\tools\llm\llmclient.py", line 691, in stream_text
+    raise item
+  File "D:\study\demo\tools\llm\llmclient.py", line 661, in _producer
+    for chunk in self._stream_sync(
+  File "D:\study\demo\tools\llm\llmclient.py", line 531, in _stream_sync
+    raise RuntimeError(
+RuntimeError: template/fill:要点梳理 API 返回 HTTP 405：
+2026-09-22 18:03:32,433 WARNING tools.templates.router._placeholder column fill stream failed label=template/fill:要点梳理
+Traceback (most recent call last):
+  File "D:\study\demo\tools\llm\llmclient.py", line 499, in _stream_sync
+    with urllib.request.urlopen(request, timeout=to) as response:
+  File "C:\Users\OMEN\miniconda3\envs\agentflow\lib\urllib\request.py", line 216, in urlopen
+    return opener.open(url, data, timeout)
+  File "C:\Users\OMEN\miniconda3\envs\agentflow\lib\urllib\request.py", line 525, in open
+    response = meth(req, response)
+  File "C:\Users\OMEN\miniconda3\envs\agentflow\lib\urllib\request.py", line 634, in http_response
+    response = self.parent.error(
+  File "C:\Users\OMEN\miniconda3\envs\agentflow\lib\urllib\request.py", line 557, in error
+    result = self._call_chain(*args)
+  File "C:\Users\OMEN\miniconda3\envs\agentflow\lib\urllib\request.py", line 496, in _call_chain
+    result = func(*args)
+  File "C:\Users\OMEN\miniconda3\envs\agentflow\lib\urllib\request.py", line 749, in http_error_302
+    return self.parent.open(new, timeout=req.timeout)
+  File "C:\Users\OMEN\miniconda3\envs\agentflow\lib\urllib\request.py", line 525, in open
+    response = meth(req, response)
+  File "C:\Users\OMEN\miniconda3\envs\agentflow\lib\urllib\request.py", line 634, in http_response
+    response = self.parent.error(
+  File "C:\Users\OMEN\miniconda3\envs\agentflow\lib\urllib\request.py", line 563, in error
+    return self._call_chain(*args)
+  File "C:\Users\OMEN\miniconda3\envs\agentflow\lib\urllib\request.py", line 496, in _call_chain
+    result = func(*args)
+  File "C:\Users\OMEN\miniconda3\envs\agentflow\lib\urllib\request.py", line 643, in http_error_default
+    raise HTTPError(req.full_url, code, msg, hdrs, fp)
+urllib.error.HTTPError: HTTP Error 405: Method Not Allowed
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "D:\study\demo\tools\templates\router\_placeholder.py", line 913, in _stream_column
+    async for chunk in stream:
+  File "D:\study\demo\tools\llm\llmclient.py", line 691, in stream_text
+    raise item
+  File "D:\study\demo\tools\llm\llmclient.py", line 661, in _producer
+    for chunk in self._stream_sync(
+  File "D:\study\demo\tools\llm\llmclient.py", line 531, in _stream_sync
+    raise RuntimeError(
+RuntimeError: template/fill:要点梳理 API 返回 HTTP 405：
+2026-09-22 18:03:32,522 WARNING tools.templates.router._placeholder column fill stream failed label=template/fill:分段速览
+Traceback (most recent call last):
+  File "D:\study\demo\tools\llm\llmclient.py", line 499, in _stream_sync
+    with urllib.request.urlopen(request, timeout=to) as response:
+  File "C:\Users\OMEN\miniconda3\envs\agentflow\lib\urllib\request.py", line 216, in urlopen
+    return opener.open(url, data, timeout)
+  File "C:\Users\OMEN\miniconda3\envs\agentflow\lib\urllib\request.py", line 525, in open
+    response = meth(req, response)
+  File "C:\Users\OMEN\miniconda3\envs\agentflow\lib\urllib\request.py", line 634, in http_response
+    response = self.parent.error(
+  File "C:\Users\OMEN\miniconda3\envs\agentflow\lib\urllib\request.py", line 557, in error
+    result = self._call_chain(*args)
+  File "C:\Users\OMEN\miniconda3\envs\agentflow\lib\urllib\request.py", line 496, in _call_chain
+    result = func(*args)
+  File "C:\Users\OMEN\miniconda3\envs\agentflow\lib\urllib\request.py", line 749, in http_error_302
+    return self.parent.open(new, timeout=req.timeout)
+  File "C:\Users\OMEN\miniconda3\envs\agentflow\lib\urllib\request.py", line 525, in open
+    response = meth(req, response)
+  File "C:\Users\OMEN\miniconda3\envs\agentflow\lib\urllib\request.py", line 634, in http_response
+    response = self.parent.error(
+  File "C:\Users\OMEN\miniconda3\envs\agentflow\lib\urllib\request.py", line 563, in error
+    return self._call_chain(*args)
+  File "C:\Users\OMEN\miniconda3\envs\agentflow\lib\urllib\request.py", line 496, in _call_chain
+    result = func(*args)
+  File "C:\Users\OMEN\miniconda3\envs\agentflow\lib\urllib\request.py", line 643, in http_error_default
+    raise HTTPError(req.full_url, code, msg, hdrs, fp)
+urllib.error.HTTPError: HTTP Error 405: Method Not Allowed
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "D:\study\demo\tools\templates\router\_placeholder.py", line 913, in _stream_column
+    async for chunk in stream:
+  File "D:\study\demo\tools\llm\llmclient.py", line 691, in stream_text
+    raise item
+  File "D:\study\demo\tools\llm\llmclient.py", line 661, in _producer
+    for chunk in self._stream_sync(
+  File "D:\study\demo\tools\llm\llmclient.py", line 531, in _stream_sync
+    raise RuntimeError(
+RuntimeError: template/fill:分段速览 API 返回 HTTP 405：
+2026-09-22 18:03:32,540 WARNING tools.templates.router._placeholder column fill stream failed label=template/fill:全文摘要
+Traceback (most recent call last):
+  File "D:\study\demo\tools\llm\llmclient.py", line 499, in _stream_sync
+    with urllib.request.urlopen(request, timeout=to) as response:
+  File "C:\Users\OMEN\miniconda3\envs\agentflow\lib\urllib\request.py", line 216, in urlopen
+    return opener.open(url, data, timeout)
+  File "C:\Users\OMEN\miniconda3\envs\agentflow\lib\urllib\request.py", line 525, in open
+    response = meth(req, response)
+  File "C:\Users\OMEN\miniconda3\envs\agentflow\lib\urllib\request.py", line 634, in http_response
+    response = self.parent.error(
+  File "C:\Users\OMEN\miniconda3\envs\agentflow\lib\urllib\request.py", line 557, in error
+    result = self._call_chain(*args)
+  File "C:\Users\OMEN\miniconda3\envs\agentflow\lib\urllib\request.py", line 496, in _call_chain
+    result = func(*args)
+  File "C:\Users\OMEN\miniconda3\envs\agentflow\lib\urllib\request.py", line 749, in http_error_302
+    return self.parent.open(new, timeout=req.timeout)
+  File "C:\Users\OMEN\miniconda3\envs\agentflow\lib\urllib\request.py", line 525, in open
+    response = meth(req, response)
+  File "C:\Users\OMEN\miniconda3\envs\agentflow\lib\urllib\request.py", line 634, in http_response
+    response = self.parent.error(
+  File "C:\Users\OMEN\miniconda3\envs\agentflow\lib\urllib\request.py", line 563, in error
+    return self._call_chain(*args)
+  File "C:\Users\OMEN\miniconda3\envs\agentflow\lib\urllib\request.py", line 496, in _call_chain
+    result = func(*args)
+  File "C:\Users\OMEN\miniconda3\envs\agentflow\lib\urllib\request.py", line 643, in http_error_default
+    raise HTTPError(req.full_url, code, msg, hdrs, fp)
+urllib.error.HTTPError: HTTP Error 405: Method Not Allowed
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "D:\study\demo\tools\templates\router\_placeholder.py", line 913, in _stream_column
+    async for chunk in stream:
+  File "D:\study\demo\tools\llm\llmclient.py", line 691, in stream_text
+    raise item
+  File "D:\study\demo\tools\llm\llmclient.py", line 661, in _producer
+    for chunk in self._stream_sync(
+  File "D:\study\demo\tools\llm\llmclient.py", line 531, in _stream_sync
+    raise RuntimeError(
+RuntimeError: template/fill:全文摘要 API 返回 HTTP 405：
+2026-09-22 18:03:36,762 WARNING tools.templates.router._placeholder column fill stream failed label=template/fill:全文摘要
+Traceback (most recent call last):
+  File "D:\study\demo\tools\llm\llmclient.py", line 499, in _stream_sync
+    with urllib.request.urlopen(request, timeout=to) as response:
+  File "C:\Users\OMEN\miniconda3\envs\agentflow\lib\urllib\request.py", line 216, in urlopen
+    return opener.open(url, data, timeout)
+  File "C:\Users\OMEN\miniconda3\envs\agentflow\lib\urllib\request.py", line 525, in open
+    response = meth(req, response)
+  File "C:\Users\OMEN\miniconda3\envs\agentflow\lib\urllib\request.py", line 634, in http_response
+    response = self.parent.error(
+  File "C:\Users\OMEN\miniconda3\envs\agentflow\lib\urllib\request.py", line 557, in error
+    result = self._call_chain(*args)
+  File "C:\Users\OMEN\miniconda3\envs\agentflow\lib\urllib\request.py", line 496, in _call_chain
+    result = func(*args)
+  File "C:\Users\OMEN\miniconda3\envs\agentflow\lib\urllib\request.py", line 749, in http_error_302
+    return self.parent.open(new, timeout=req.timeout)
+  File "C:\Users\OMEN\miniconda3\envs\agentflow\lib\urllib\request.py", line 525, in open
+    response = meth(req, response)
+  File "C:\Users\OMEN\miniconda3\envs\agentflow\lib\urllib\request.py", line 634, in http_response
+    response = self.parent.error(
+  File "C:\Users\OMEN\miniconda3\envs\agentflow\lib\urllib\request.py", line 563, in error
+    return self._call_chain(*args)
+  File "C:\Users\OMEN\miniconda3\envs\agentflow\lib\urllib\request.py", line 496, in _call_chain
+    result = func(*args)
+  File "C:\Users\OMEN\miniconda3\envs\agentflow\lib\urllib\request.py", line 643, in http_error_default
+    raise HTTPError(req.full_url, code, msg, hdrs, fp)
+urllib.error.HTTPError: HTTP Error 405: Method Not Allowed
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "D:\study\demo\tools\templates\router\_placeholder.py", line 913, in _stream_column
+    async for chunk in stream:
+  File "D:\study\demo\tools\llm\llmclient.py", line 691, in stream_text
+    raise item
+  File "D:\study\demo\tools\llm\llmclient.py", line 661, in _producer
+    for chunk in self._stream_sync(
+  File "D:\study\demo\tools\llm\llmclient.py", line 531, in _stream_sync
+    raise RuntimeError(
+RuntimeError: template/fill:全文摘要 API 返回 HTTP 405：
+2026-09-22 18:03:41,012 WARNING tools.templates.router._placeholder column fill stream failed label=template/fill:全文摘要
+Traceback (most recent call last):
+  File "D:\study\demo\tools\llm\llmclient.py", line 499, in _stream_sync
+    with urllib.request.urlopen(request, timeout=to) as response:
+  File "C:\Users\OMEN\miniconda3\envs\agentflow\lib\urllib\request.py", line 216, in urlopen
+    return opener.open(url, data, timeout)
+  File "C:\Users\OMEN\miniconda3\envs\agentflow\lib\urllib\request.py", line 525, in open
+    response = meth(req, response)
+  File "C:\Users\OMEN\miniconda3\envs\agentflow\lib\urllib\request.py", line 634, in http_response
+    response = self.parent.error(
+  File "C:\Users\OMEN\miniconda3\envs\agentflow\lib\urllib\request.py", line 557, in error
+    result = self._call_chain(*args)
+  File "C:\Users\OMEN\miniconda3\envs\agentflow\lib\urllib\request.py", line 496, in _call_chain
+    result = func(*args)
+  File "C:\Users\OMEN\miniconda3\envs\agentflow\lib\urllib\request.py", line 749, in http_error_302
+    return self.parent.open(new, timeout=req.timeout)
+  File "C:\Users\OMEN\miniconda3\envs\agentflow\lib\urllib\request.py", line 525, in open
+    response = meth(req, response)
+  File "C:\Users\OMEN\miniconda3\envs\agentflow\lib\urllib\request.py", line 634, in http_response
+    response = self.parent.error(
+  File "C:\Users\OMEN\miniconda3\envs\agentflow\lib\urllib\request.py", line 563, in error
+    return self._call_chain(*args)
+  File "C:\Users\OMEN\miniconda3\envs\agentflow\lib\urllib\request.py", line 496, in _call_chain
+    result = func(*args)
+  File "C:\Users\OMEN\miniconda3\envs\agentflow\lib\urllib\request.py", line 643, in http_error_default
+    raise HTTPError(req.full_url, code, msg, hdrs, fp)
+urllib.error.HTTPError: HTTP Error 405: Method Not Allowed
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "D:\study\demo\tools\templates\router\_placeholder.py", line 913, in _stream_column
+    async for chunk in stream:
+  File "D:\study\demo\tools\llm\llmclient.py", line 691, in stream_text
+    raise item
+  File "D:\study\demo\tools\llm\llmclient.py", line 661, in _producer
+    for chunk in self._stream_sync(
+  File "D:\study\demo\tools\llm\llmclient.py", line 531, in _stream_sync
+    raise RuntimeError(
+RuntimeError: template/fill:全文摘要 API 返回 HTTP 405：
+2026-09-22 18:03:45,197 WARNING tools.templates.router._placeholder column fill stream failed label=template/fill:分段速览
+Traceback (most recent call last):
+  File "D:\study\demo\tools\llm\llmclient.py", line 499, in _stream_sync
+    with urllib.request.urlopen(request, timeout=to) as response:
+  File "C:\Users\OMEN\miniconda3\envs\agentflow\lib\urllib\request.py", line 216, in urlopen
+    return opener.open(url, data, timeout)
+  File "C:\Users\OMEN\miniconda3\envs\agentflow\lib\urllib\request.py", line 525, in open
+    response = meth(req, response)
+  File "C:\Users\OMEN\miniconda3\envs\agentflow\lib\urllib\request.py", line 634, in http_response
+    response = self.parent.error(
+  File "C:\Users\OMEN\miniconda3\envs\agentflow\lib\urllib\request.py", line 557, in error
+    result = self._call_chain(*args)
+  File "C:\Users\OMEN\miniconda3\envs\agentflow\lib\urllib\request.py", line 496, in _call_chain
+    result = func(*args)
+  File "C:\Users\OMEN\miniconda3\envs\agentflow\lib\urllib\request.py", line 749, in http_error_302
+    return self.parent.open(new, timeout=req.timeout)
+  File "C:\Users\OMEN\miniconda3\envs\agentflow\lib\urllib\request.py", line 525, in open
+    response = meth(req, response)
+  File "C:\Users\OMEN\miniconda3\envs\agentflow\lib\urllib\request.py", line 634, in http_response
+    response = self.parent.error(
+  File "C:\Users\OMEN\miniconda3\envs\agentflow\lib\urllib\request.py", line 563, in error
+    return self._call_chain(*args)
+  File "C:\Users\OMEN\miniconda3\envs\agentflow\lib\urllib\request.py", line 496, in _call_chain
+    result = func(*args)
+  File "C:\Users\OMEN\miniconda3\envs\agentflow\lib\urllib\request.py", line 643, in http_error_default
+    raise HTTPError(req.full_url, code, msg, hdrs, fp)
+urllib.error.HTTPError: HTTP Error 405: Method Not Allowed
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "D:\study\demo\tools\templates\router\_placeholder.py", line 913, in _stream_column
+    async for chunk in stream:
+  File "D:\study\demo\tools\llm\llmclient.py", line 691, in stream_text
+    raise item
+  File "D:\study\demo\tools\llm\llmclient.py", line 661, in _producer
+    for chunk in self._stream_sync(
+  File "D:\study\demo\tools\llm\llmclient.py", line 531, in _stream_sync
+    raise RuntimeError(
+RuntimeError: template/fill:分段速览 API 返回 HTTP 405：
+2026-09-22 18:03:49,300 WARNING tools.templates.router._placeholder column fill stream failed label=template/fill:分段速览
+Traceback (most recent call last):
+  File "D:\study\demo\tools\llm\llmclient.py", line 499, in _stream_sync
+    with urllib.request.urlopen(request, timeout=to) as response:
+  File "C:\Users\OMEN\miniconda3\envs\agentflow\lib\urllib\request.py", line 216, in urlopen
+    return opener.open(url, data, timeout)
+  File "C:\Users\OMEN\miniconda3\envs\agentflow\lib\urllib\request.py", line 525, in open
+    response = meth(req, response)
+  File "C:\Users\OMEN\miniconda3\envs\agentflow\lib\urllib\request.py", line 634, in http_response
+    response = self.parent.error(
+  File "C:\Users\OMEN\miniconda3\envs\agentflow\lib\urllib\request.py", line 557, in error
+    result = self._call_chain(*args)
+  File "C:\Users\OMEN\miniconda3\envs\agentflow\lib\urllib\request.py", line 496, in _call_chain
+    result = func(*args)
+  File "C:\Users\OMEN\miniconda3\envs\agentflow\lib\urllib\request.py", line 749, in http_error_302
+    return self.parent.open(new, timeout=req.timeout)
+  File "C:\Users\OMEN\miniconda3\envs\agentflow\lib\urllib\request.py", line 525, in open
+    response = meth(req, response)
+  File "C:\Users\OMEN\miniconda3\envs\agentflow\lib\urllib\request.py", line 634, in http_response
+    response = self.parent.error(
+  File "C:\Users\OMEN\miniconda3\envs\agentflow\lib\urllib\request.py", line 563, in error
+    return self._call_chain(*args)
+  File "C:\Users\OMEN\miniconda3\envs\agentflow\lib\urllib\request.py", line 496, in _call_chain
+    result = func(*args)
+  File "C:\Users\OMEN\miniconda3\envs\agentflow\lib\urllib\request.py", line 643, in http_error_default
+    raise HTTPError(req.full_url, code, msg, hdrs, fp)
+urllib.error.HTTPError: HTTP Error 405: Method Not Allowed
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "D:\study\demo\tools\templates\router\_placeholder.py", line 913, in _stream_column
+    async for chunk in stream:
+  File "D:\study\demo\tools\llm\llmclient.py", line 691, in stream_text
+    raise item
+  File "D:\study\demo\tools\llm\llmclient.py", line 661, in _producer
+    for chunk in self._stream_sync(
+  File "D:\study\demo\tools\llm\llmclient.py", line 531, in _stream_sync
+    raise RuntimeError(
+RuntimeError: template/fill:分段速览 API 返回 HTTP 405：
+2026-09-22 18:03:49,304 INFO tools.llm.llmclient llm call label=template/fill mode=text
+2026-09-22 18:03:49,758 WARNING tools.llm.llmclient llm http error label=template/fill model=deepseek-chat code=402 body={"error":{"message":"Insufficient Balance","type":"unknown_error","param":null,"code":"invalid_request_error"}}
+2026-09-22 18:03:50,789 INFO tools.llm.llmclient llm call label=template/fill mode=text 第2次
+2026-09-22 18:03:51,351 WARNING tools.llm.llmclient llm http error label=template/fill model=deepseek-chat code=402 body={"error":{"message":"Insufficient Balance","type":"unknown_error","param":null,"code":"invalid_request_error"}}
+2026-09-22 18:03:53,358 INFO tools.llm.llmclient llm call label=template/fill mode=text 第3次
+2026-09-22 18:03:53,904 WARNING tools.llm.llmclient llm http error label=template/fill model=deepseek-chat code=402 body={"error":{"message":"Insufficient Balance","type":"unknown_error","param":null,"code":"invalid_request_error"}}
+2026-09-22 18:03:53,905 WARNING tools.templates.router._placeholder placeholder json fill failed, fallback to free render
+Traceback (most recent call last):
+  File "D:\study\demo\tools\llm\llmclient.py", line 339, in _post_http
+    return self._http_once(messages, json_mode, temp, tok, to, label)
+  File "D:\study\demo\tools\llm\llmclient.py", line 397, in _http_once
+    with urllib.request.urlopen(request, timeout=to) as response:
+  File "C:\Users\OMEN\miniconda3\envs\agentflow\lib\urllib\request.py", line 216, in urlopen
+    return opener.open(url, data, timeout)
+  File "C:\Users\OMEN\miniconda3\envs\agentflow\lib\urllib\request.py", line 525, in open
+    response = meth(req, response)
+  File "C:\Users\OMEN\miniconda3\envs\agentflow\lib\urllib\request.py", line 634, in http_response
+    response = self.parent.error(
+  File "C:\Users\OMEN\miniconda3\envs\agentflow\lib\urllib\request.py", line 563, in error
+    return self._call_chain(*args)
+  File "C:\Users\OMEN\miniconda3\envs\agentflow\lib\urllib\request.py", line 496, in _call_chain
+    result = func(*args)
+  File "C:\Users\OMEN\miniconda3\envs\agentflow\lib\urllib\request.py", line 643, in http_error_default
+    raise HTTPError(req.full_url, code, msg, hdrs, fp)
+urllib.error.HTTPError: HTTP Error 402: Payment Required
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "D:\study\demo\tools\templates\router\_placeholder.py", line 1113, in fill_placeholder_template
+    raw = await _client_text(
+  File "D:\study\demo\tools\templates\router\_base.py", line 664, in _client_text
+    await client.text(
+  File "D:\study\demo\tools\llm\llmclient.py", line 1001, in text
+    content = await self._in_thread(
+  File "D:\study\demo\tools\llm\llmclient.py", line 237, in _in_thread
+    return await asyncio.to_thread(runner)
+  File "C:\Users\OMEN\miniconda3\envs\agentflow\lib\asyncio\threads.py", line 25, in to_thread
+    return await loop.run_in_executor(None, func_call)
+  File "C:\Users\OMEN\miniconda3\envs\agentflow\lib\concurrent\futures\thread.py", line 58, in run
+    result = self.fn(*self.args, **self.kwargs)
+  File "D:\study\demo\tools\llm\llmclient.py", line 235, in runner
+    return ctx.run(lambda: fn(*args, **kwargs))
+  File "D:\study\demo\tools\llm\llmclient.py", line 235, in <lambda>
+    return ctx.run(lambda: fn(*args, **kwargs))
+  File "D:\study\demo\tools\llm\llmclient.py", line 263, in _post
+    return self._post_http(messages, json_mode, temp, tok, to, label)
+  File "D:\study\demo\tools\llm\llmclient.py", line 358, in _post_http
+    raise RuntimeError(
+RuntimeError: template/fill API 返回 HTTP 402：{"error":{"message":"Insufficient Balance","type":"unknown_error","param":null,"code":"invalid_request_error"}}
+2026-09-22 18:03:53,907 INFO tools.llm.llmclient llm call label=minutes/render mode=text
+2026-09-22 18:03:54,366 WARNING tools.llm.llmclient llm http error label=minutes/render model=deepseek-chat code=402 body={"error":{"message":"Insufficient Balance","type":"unknown_error","param":null,"code":"invalid_request_error"}}
+2026-09-22 18:03:55,340 INFO tools.llm.llmclient llm call label=minutes/render mode=text 第2次
+2026-09-22 18:03:55,795 WARNING tools.llm.llmclient llm http error label=minutes/render model=deepseek-chat code=402 body={"error":{"message":"Insufficient Balance","type":"unknown_error","param":null,"code":"invalid_request_error"}}
+2026-09-22 18:03:57,808 INFO tools.llm.llmclient llm call label=minutes/render mode=text 第3次
+2026-09-22 18:03:58,286 WARNING tools.llm.llmclient llm http error label=minutes/render model=deepseek-chat code=402 body={"error":{"message":"Insufficient Balance","type":"unknown_error","param":null,"code":"invalid_request_error"}}
+2026-09-22 18:03:58,287 WARNING tools.runtime.render render failed, fallback to deterministic line=minutes
+Traceback (most recent call last):
+  File "D:\study\demo\tools\llm\llmclient.py", line 339, in _post_http
+    return self._http_once(messages, json_mode, temp, tok, to, label)
+  File "D:\study\demo\tools\llm\llmclient.py", line 397, in _http_once
+    with urllib.request.urlopen(request, timeout=to) as response:
+  File "C:\Users\OMEN\miniconda3\envs\agentflow\lib\urllib\request.py", line 216, in urlopen
+    return opener.open(url, data, timeout)
+  File "C:\Users\OMEN\miniconda3\envs\agentflow\lib\urllib\request.py", line 525, in open
+    response = meth(req, response)
+  File "C:\Users\OMEN\miniconda3\envs\agentflow\lib\urllib\request.py", line 634, in http_response
+    response = self.parent.error(
+  File "C:\Users\OMEN\miniconda3\envs\agentflow\lib\urllib\request.py", line 563, in error
+    return self._call_chain(*args)
+  File "C:\Users\OMEN\miniconda3\envs\agentflow\lib\urllib\request.py", line 496, in _call_chain
+    result = func(*args)
+  File "C:\Users\OMEN\miniconda3\envs\agentflow\lib\urllib\request.py", line 643, in http_error_default
+    raise HTTPError(req.full_url, code, msg, hdrs, fp)
+urllib.error.HTTPError: HTTP Error 402: Payment Required
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "D:\study\demo\tools\runtime\render.py", line 227, in produce_line
+    full_text = await _render_run(render, context, template, cap)
+  File "D:\study\demo\tools\runtime\render.py", line 40, in _render_run
+    return await render.run(context, template, max_tokens=cap)
+  File "D:\study\demo\domain\meeting\tasks\minutes\steps\minutes_render.py", line 70, in run
+    text = await self.client.text(
+  File "D:\study\demo\tools\llm\llmclient.py", line 1001, in text
+    content = await self._in_thread(
+  File "D:\study\demo\tools\llm\llmclient.py", line 237, in _in_thread
+    return await asyncio.to_thread(runner)
+  File "C:\Users\OMEN\miniconda3\envs\agentflow\lib\asyncio\threads.py", line 25, in to_thread
+    return await loop.run_in_executor(None, func_call)
+  File "C:\Users\OMEN\miniconda3\envs\agentflow\lib\concurrent\futures\thread.py", line 58, in run
+    result = self.fn(*self.args, **self.kwargs)
+  File "D:\study\demo\tools\llm\llmclient.py", line 235, in runner
+    return ctx.run(lambda: fn(*args, **kwargs))
+  File "D:\study\demo\tools\llm\llmclient.py", line 235, in <lambda>
+    return ctx.run(lambda: fn(*args, **kwargs))
+  File "D:\study\demo\tools\llm\llmclient.py", line 263, in _post
+    return self._post_http(messages, json_mode, temp, tok, to, label)
+  File "D:\study\demo\tools\llm\llmclient.py", line 358, in _post_http
+    raise RuntimeError(
+RuntimeError: minutes/render API 返回 HTTP 402：{"error":{"message":"Insufficient Balance","type":"unknown_error","param":null,"code":"invalid_request_error"}}
+2026-09-22 18:03:58,289 WARNING tools.core.domain_engine degraded line=minutes decision=approve revisions=0/1 review_call_failed=True review_unavailable=RuntimeError: minutes/supervisor API 返回 HTTP 402：{"error":{"message":"Insufficient Balance","type":"unknown_error","param":null,"code":"invalid_request_error"}} feedback=[]
+2026-09-22 18:03:58,291 WARNING tools.core.runner ⚠ 生成可能有误，请结合会议原文核对。 审核服务调用失败（未做质量把关）：纪要：RuntimeError: minutes/supervisor API 返回 HTTP 402：{"error":{"message":"Insufficient Balance","type":"unknown_error","param":null,"code":"invalid_request_error"}}
+2026-09-22 18:03:58,293 INFO tools.core.runner saved html line=minutes path=D:\study\demo\data\1\output\9c8b8d1200184c9f88b80e822da53e6f\minutes.html
+2026-09-22 18:03:58,294 INFO tools.core.runner saved text line=minutes path=D:\study\demo\data\1\output\9c8b8d1200184c9f88b80e822da53e6f\result.md
+2026-09-22 18:05:24,028 INFO tools.llm.llmclient llm client backend=http model=deepseek-chat base_url=https://api.deepseek.com ctx=65536 max_tokens=50000 timeout=120.0 retries=2 temperature=0.2 sampling_sent=False
+2026-09-22 18:05:24,037 INFO agentflow pipeline start lines=minutes
+2026-09-22 18:05:24,039 INFO agentflow agent start meeting_understanding
+2026-09-22 18:05:24,040 INFO tools.llm.llmclient llm call label=core/meeting_understanding mode=structured
+2026-09-22 18:05:24,043 INFO tools.llm.llmclient llm fit max_tokens 50000->42304 ctx=65536 input~22976
+2026-09-22 18:05:24,506 WARNING tools.llm.llmclient llm http error label=core/meeting_understanding model=deepseek-chat code=402 body={"error":{"message":"Insufficient Balance","type":"unknown_error","param":null,"code":"invalid_request_error"}}
+2026-09-22 18:05:25,522 INFO tools.llm.llmclient llm call label=core/meeting_understanding mode=structured 第2次
+2026-09-22 18:05:25,524 INFO tools.llm.llmclient llm fit max_tokens 50000->42304 ctx=65536 input~22976
+2026-09-22 18:05:26,017 WARNING tools.llm.llmclient llm http error label=core/meeting_understanding model=deepseek-chat code=402 body={"error":{"message":"Insufficient Balance","type":"unknown_error","param":null,"code":"invalid_request_error"}}
+2026-09-22 18:05:28,035 INFO tools.llm.llmclient llm call label=core/meeting_understanding mode=structured 第3次
+2026-09-22 18:05:28,038 INFO tools.llm.llmclient llm fit max_tokens 50000->42304 ctx=65536 input~22976
+2026-09-22 18:05:28,588 WARNING tools.llm.llmclient llm http error label=core/meeting_understanding model=deepseek-chat code=402 body={"error":{"message":"Insufficient Balance","type":"unknown_error","param":null,"code":"invalid_request_error"}}
+2026-09-22 18:05:28,589 WARNING domain.meeting.orchestrator meeting understanding failed, continue with empty
+Traceback (most recent call last):
+  File "D:\study\demo\tools\llm\llmclient.py", line 339, in _post_http
+    return self._http_once(messages, json_mode, temp, tok, to, label)
+  File "D:\study\demo\tools\llm\llmclient.py", line 397, in _http_once
+    with urllib.request.urlopen(request, timeout=to) as response:
+  File "C:\Users\OMEN\miniconda3\envs\agentflow\lib\urllib\request.py", line 216, in urlopen
+    return opener.open(url, data, timeout)
+  File "C:\Users\OMEN\miniconda3\envs\agentflow\lib\urllib\request.py", line 525, in open
+    response = meth(req, response)
+  File "C:\Users\OMEN\miniconda3\envs\agentflow\lib\urllib\request.py", line 634, in http_response
+    response = self.parent.error(
+  File "C:\Users\OMEN\miniconda3\envs\agentflow\lib\urllib\request.py", line 563, in error
+    return self._call_chain(*args)
+  File "C:\Users\OMEN\miniconda3\envs\agentflow\lib\urllib\request.py", line 496, in _call_chain
+    result = func(*args)
+  File "C:\Users\OMEN\miniconda3\envs\agentflow\lib\urllib\request.py", line 643, in http_error_default
+    raise HTTPError(req.full_url, code, msg, hdrs, fp)
+urllib.error.HTTPError: HTTP Error 402: Payment Required
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "D:\study\demo\domain\meeting\orchestrator.py", line 1043, in node
+    result = await self.meeting_understanding_agent.run(
+  File "D:\study\demo\domain\meeting\meeting_core\meeting_understanding_agent.py", line 71, in run
+    return await self.client.structured(
+  File "D:\study\demo\tools\llm\llmclient.py", line 865, in structured
+    last_content = await self._in_thread(
+  File "D:\study\demo\tools\llm\llmclient.py", line 237, in _in_thread
+    return await asyncio.to_thread(runner)
+  File "C:\Users\OMEN\miniconda3\envs\agentflow\lib\asyncio\threads.py", line 25, in to_thread
+    return await loop.run_in_executor(None, func_call)
+  File "C:\Users\OMEN\miniconda3\envs\agentflow\lib\concurrent\futures\thread.py", line 58, in run
+    result = self.fn(*self.args, **self.kwargs)
+  File "D:\study\demo\tools\llm\llmclient.py", line 235, in runner
+    return ctx.run(lambda: fn(*args, **kwargs))
+  File "D:\study\demo\tools\llm\llmclient.py", line 235, in <lambda>
+    return ctx.run(lambda: fn(*args, **kwargs))
+  File "D:\study\demo\tools\llm\llmclient.py", line 263, in _post
+    return self._post_http(messages, json_mode, temp, tok, to, label)
+  File "D:\study\demo\tools\llm\llmclient.py", line 358, in _post_http
+    raise RuntimeError(
+RuntimeError: core/meeting_understanding API 返回 HTTP 402：{"error":{"message":"Insufficient Balance","type":"unknown_error","param":null,"code":"invalid_request_error"}}
+2026-09-22 18:05:28,592 INFO agentflow node done meeting_understanding
+2026-09-22 18:05:28,592 INFO agentflow agent start perspective
+2026-09-22 18:05:28,593 INFO tools.llm.llmclient llm call label=core/perspective_modeling mode=structured
+2026-09-22 18:05:29,141 WARNING tools.llm.llmclient llm http error label=core/perspective_modeling model=deepseek-chat code=402 body={"error":{"message":"Insufficient Balance","type":"unknown_error","param":null,"code":"invalid_request_error"}}
+2026-09-22 18:05:30,134 INFO tools.llm.llmclient llm call label=core/perspective_modeling mode=structured 第2次
+2026-09-22 18:05:31,134 WARNING tools.llm.llmclient llm http error label=core/perspective_modeling model=deepseek-chat code=402 body={"error":{"message":"Insufficient Balance","type":"unknown_error","param":null,"code":"invalid_request_error"}}
+2026-09-22 18:05:33,155 INFO tools.llm.llmclient llm call label=core/perspective_modeling mode=structured 第3次
+2026-09-22 18:05:33,413 ERROR uvicorn.error Traceback (most recent call last):
+  File "C:\Users\OMEN\AppData\Roaming\Python\Python310\site-packages\uvicorn\_compat.py", line 60, in asyncio_run
+    return loop.run_until_complete(main)
+  File "C:\Users\OMEN\miniconda3\envs\agentflow\lib\asyncio\base_events.py", line 636, in run_until_complete
+    self.run_forever()
+  File "C:\Users\OMEN\miniconda3\envs\agentflow\lib\asyncio\windows_events.py", line 321, in run_forever
+    super().run_forever()
+  File "C:\Users\OMEN\miniconda3\envs\agentflow\lib\asyncio\base_events.py", line 603, in run_forever
+    self._run_once()
+  File "C:\Users\OMEN\miniconda3\envs\agentflow\lib\asyncio\base_events.py", line 1909, in _run_once
+    handle._run()
+  File "C:\Users\OMEN\miniconda3\envs\agentflow\lib\asyncio\events.py", line 80, in _run
+    self._context.run(self._callback, *self._args)
+  File "C:\Users\OMEN\AppData\Roaming\Python\Python310\site-packages\uvicorn\server.py", line 78, in serve
+    with self.capture_signals():
+  File "C:\Users\OMEN\miniconda3\envs\agentflow\lib\contextlib.py", line 142, in __exit__
+    next(self.gen)
+  File "C:\Users\OMEN\AppData\Roaming\Python\Python310\site-packages\uvicorn\server.py", line 339, in capture_signals
+    signal.raise_signal(captured_signal)
+KeyboardInterrupt
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "C:\Users\OMEN\miniconda3\envs\agentflow\lib\site-packages\starlette\routing.py", line 701, in lifespan
+    await receive()
+  File "C:\Users\OMEN\AppData\Roaming\Python\Python310\site-packages\uvicorn\lifespan\on.py", line 137, in receive
+    return await self.receive_queue.get()
+  File "C:\Users\OMEN\miniconda3\envs\agentflow\lib\asyncio\queues.py", line 159, in get
+    await getter
+asyncio.exceptions.CancelledError
+
+2026-09-22 18:05:33,639 WARNING tools.llm.llmclient llm http error label=core/perspective_modeling model=deepseek-chat code=402 body={"error":{"message":"Insufficient Balance","type":"unknown_error","param":null,"code":"invalid_request_error"}}
+2026-09-22 18:05:40,813 INFO tools.llm.llmclient llm client backend=http model=deepseek-chat base_url=https://api.deepseek.com ctx=65536 max_tokens=50000 timeout=120.0 retries=2 temperature=0.2 sampling_sent=False
+2026-09-22 18:05:40,824 INFO agentflow pipeline start lines=minutes
+2026-09-22 18:05:40,831 INFO agentflow agent start meeting_understanding
+2026-09-22 18:05:40,832 INFO tools.llm.llmclient llm call label=core/meeting_understanding mode=structured
+2026-09-22 18:05:40,835 INFO tools.llm.llmclient llm fit max_tokens 50000->42304 ctx=65536 input~22976
+2026-09-22 18:06:11,767 INFO tools.llm.llmclient llm resp label=core/meeting_understanding model=deepseek-chat finish=stop in=16252 out=8118 json_mode=True chars=16810
+2026-09-22 18:06:11,768 INFO agentflow agent done meeting_understanding
+2026-09-22 18:06:11,770 INFO agentflow node done meeting_understanding
+2026-09-22 18:06:11,771 INFO agentflow agent start perspective
+2026-09-22 18:06:11,772 INFO tools.llm.llmclient llm call label=core/perspective_modeling mode=structured
+2026-09-22 18:06:24,312 INFO tools.llm.llmclient llm resp label=core/perspective_modeling model=deepseek-chat finish=stop in=9384 out=3062 json_mode=True chars=5164
+2026-09-22 18:06:24,313 INFO agentflow agent done perspective
+2026-09-22 18:06:24,315 INFO agentflow node done perspective_modeling
+2026-09-22 18:06:24,316 INFO agentflow agent start gen line=minutes
+2026-09-22 18:06:24,373 INFO tools.llm.llmclient llm call label=minutes/agent mode=structured
+2026-09-22 18:06:24,377 INFO tools.llm.llmclient llm fit max_tokens 50000->23277 ctx=65536 input~42003
+2026-09-22 18:06:38,608 INFO tools.llm.llmclient llm resp label=minutes/agent model=deepseek-chat finish=stop in=30357 out=3471 json_mode=True chars=5323
+2026-09-22 18:06:38,610 INFO agentflow agent done gen line=minutes
+2026-09-22 18:06:38,611 INFO agentflow node done minutes_agent
+2026-09-22 18:06:38,612 INFO agentflow agent start review line=minutes
+2026-09-22 18:06:38,620 INFO tools.llm.llmclient llm call label=minutes/supervisor mode=structured
+2026-09-22 18:06:39,401 INFO tools.llm.llmclient llm resp label=minutes/supervisor model=deepseek-chat finish=stop in=9915 out=51 json_mode=True chars=186
+2026-09-22 18:06:39,402 INFO agentflow agent done review line=minutes decision=approve
+2026-09-22 18:06:39,403 INFO tools.core.domain_engine route line=minutes decision=approve revision=0/1 -> __end__
+2026-09-22 18:06:39,404 INFO agentflow node done minutes_supervisor
+2026-09-22 18:06:39,408 INFO agentflow render start line=minutes
+2026-09-22 18:06:48,990 INFO agentflow render done line=minutes
+2026-09-22 18:06:48,997 INFO tools.core.runner saved html line=minutes path=D:\study\demo\data\1\output\5c4220ac8880443b81b4fa21c0e53dbf\minutes.html
+2026-09-22 18:06:48,998 INFO tools.core.runner saved text line=minutes path=D:\study\demo\data\1\output\5c4220ac8880443b81b4fa21c0e53dbf\result.md
+2026-09-22 18:32:40,112 INFO tools.llm.llmclient llm client backend=http model=deepseek-chat base_url=https://api.deepseek.com ctx=65536 max_tokens=50000 timeout=120.0 retries=2 temperature=0.2 sampling_sent=False
+2026-09-22 18:32:40,124 INFO agentflow pipeline start lines=minutes
+2026-09-22 18:32:40,126 INFO agentflow agent start meeting_understanding
+2026-09-22 18:32:40,128 INFO tools.llm.llmclient llm call label=core/meeting_understanding mode=structured
+2026-09-22 18:32:40,130 INFO tools.llm.llmclient llm fit max_tokens 50000->42304 ctx=65536 input~22976
+2026-09-22 18:33:17,009 INFO tools.llm.llmclient llm resp label=core/meeting_understanding model=deepseek-chat finish=stop in=16252 out=9106 json_mode=True chars=17989
+2026-09-22 18:33:17,010 INFO agentflow agent done meeting_understanding
+2026-09-22 18:33:17,011 INFO agentflow node done meeting_understanding
+2026-09-22 18:33:17,013 INFO agentflow agent start perspective
+2026-09-22 18:33:17,015 INFO tools.llm.llmclient llm call label=core/perspective_modeling mode=structured
+2026-09-22 18:33:32,816 INFO tools.llm.llmclient llm resp label=core/perspective_modeling model=deepseek-chat finish=stop in=10398 out=4035 json_mode=True chars=6757
+2026-09-22 18:33:32,818 INFO agentflow agent done perspective
+2026-09-22 18:33:32,819 INFO agentflow node done perspective_modeling
+2026-09-22 18:33:32,820 INFO agentflow agent start gen line=minutes
+2026-09-22 18:33:32,886 INFO tools.llm.llmclient llm call label=minutes/agent mode=structured
+2026-09-22 18:33:32,890 INFO tools.llm.llmclient llm fit max_tokens 50000->21247 ctx=65536 input~44033
+2026-09-22 18:33:47,030 INFO tools.llm.llmclient llm resp label=minutes/agent model=deepseek-chat finish=stop in=31894 out=3681 json_mode=True chars=5764
+2026-09-22 18:33:47,034 INFO agentflow agent done gen line=minutes
+2026-09-22 18:33:47,035 INFO agentflow node done minutes_agent
+2026-09-22 18:33:47,036 INFO agentflow agent start review line=minutes
+2026-09-22 18:33:47,044 INFO tools.llm.llmclient llm call label=minutes/supervisor mode=structured
+2026-09-22 18:33:51,197 INFO tools.llm.llmclient llm resp label=minutes/supervisor model=deepseek-chat finish=stop in=11253 out=705 json_mode=True chars=1221
+2026-09-22 18:33:51,198 INFO agentflow agent done review line=minutes decision=revise
+2026-09-22 18:33:51,199 INFO tools.core.domain_engine review reason line=minutes decision=revise feedback=["executive_summary 首条不应以「**与我相关**：」开头——概况栏要写完整概括（谁/什么场合、围绕什么、覆盖哪几块、结论基调），把分栏组名行从概况栏移除。","key_decisions、risks_and_blockers、unresolved_questions 中出现的「**方思邈**：」「**张宇翔**：」「**范炳杰**：」等组名行下没有任何条目，属空组名残留，请删除这些空组名行，或把对应条目补到该组名下。","末尾三栏请严格按程序给定的分块骨架组织：**与我相关** / **徐玥** / **武思华** / **方思邈** / **范炳杰** / **李梦甜** / **盛晋珲**；骨架外的姓名（张宇翔、郭慧敏、鄢书畅、姜彪、李家豪、郭镨岳）不应作为独立组名行出现，其与申家坤本人相关的条目应并入「与我相关」或对应骨架组，与本人无关的条目可删。"] failed_checks={"facts_check":["executive_summary 首条以「**与我相关**：」开头，把分栏骨架的组名行写进了概况栏，概况栏应写完整概括（谁/什么场合/覆盖哪几块/结论基调），不应出现分栏组名。","key_decisions 中混入「**方思邈**：」这一组名行，且该组名下无任何条目，属空组名残留，决策栏不应出现人名组名行。","risks_and_blockers 中混入「**方思邈**：」空组名行，无对应风险条目。","unresolved_questions 中混入「**张宇翔**：」「**范炳杰**：」空组名行，无对应未决条目。"],"perspective_check":["末尾三栏（结论与决定 / 行动项与分工 / 待确认与风险）未按程序给定的分块骨架组织：骨架为「与我相关 / 徐玥 / 武思华 / 方思邈 / 范炳杰 / 李梦甜 / 盛晋珲」，但草稿在 key_decisions、risks_and_blockers、unresolved_questions 中出现了骨架外的组名行（方思邈、张宇翔、范炳杰），且这些组名行下无条目，归属不可核。","personally_relevant_points 中出现了骨架外的组名行「**张宇翔**：」「**郭慧敏**：」「**鄢书畅**：」「**姜彪**：」「**李家豪**：」「**郭镨岳**：」，这些人的条目未归入程序给定的分块骨架，且部分内容（如姜彪标注工时、郭镨岳博客数据）与申家坤本人关注域关联弱，属跑出本人视角。"]}
+2026-09-22 18:33:51,200 INFO tools.core.domain_engine route line=minutes decision=revise revision=0/1 -> minutes_revision
+2026-09-22 18:33:51,202 INFO agentflow node done minutes_supervisor
+2026-09-22 18:33:51,203 INFO agentflow agent start rework line=minutes
+2026-09-22 18:33:51,203 INFO agentflow agent start gen line=minutes
+2026-09-22 18:33:51,268 INFO tools.llm.llmclient llm call label=minutes/agent mode=structured
+2026-09-22 18:33:51,272 INFO tools.llm.llmclient llm fit max_tokens 50000->20931 ctx=65536 input~44349
+2026-09-22 18:34:07,358 INFO tools.llm.llmclient llm resp label=minutes/agent model=deepseek-chat finish=stop in=32149 out=4248 json_mode=True chars=6883
+2026-09-22 18:34:07,361 INFO agentflow agent done gen line=minutes
+2026-09-22 18:34:07,363 INFO agentflow node done minutes_revision
+2026-09-22 18:34:07,363 INFO agentflow agent start review line=minutes
+2026-09-22 18:34:07,371 INFO tools.llm.llmclient llm call label=minutes/supervisor mode=structured
+2026-09-22 18:34:07,373 INFO tools.llm.llmclient llm fit max_tokens 50000->49729 ctx=65536 input~15551
+2026-09-22 18:34:08,141 INFO tools.llm.llmclient llm resp label=minutes/supervisor model=deepseek-chat finish=stop in=11452 out=51 json_mode=True chars=186
+2026-09-22 18:34:08,142 INFO agentflow agent done review line=minutes decision=approve
+2026-09-22 18:34:08,142 INFO tools.core.domain_engine route line=minutes decision=approve revision=1/1 -> __end__
+2026-09-22 18:34:08,143 INFO agentflow node done minutes_supervisor
+2026-09-22 18:34:08,144 INFO agentflow render start line=minutes
+2026-09-22 18:34:14,397 INFO agentflow render done line=minutes
+2026-09-22 18:34:14,405 INFO tools.core.runner saved html line=minutes path=D:\study\demo\data\1\output\1f77e11583954fbd8dd141b26bc25277\minutes.html
+2026-09-22 18:34:14,406 INFO tools.core.runner saved text line=minutes path=D:\study\demo\data\1\output\1f77e11583954fbd8dd141b26bc25277\result.md
+2026-09-22 18:35:04,585 INFO tools.llm.llmclient llm client backend=http model=deepseek-chat base_url=https://api.deepseek.com ctx=65536 max_tokens=50000 timeout=120.0 retries=2 temperature=0.2 sampling_sent=False
+2026-09-22 18:35:04,596 INFO agentflow pipeline start lines=minutes
+2026-09-22 18:35:04,604 INFO agentflow agent start meeting_understanding
+2026-09-22 18:35:04,604 INFO tools.llm.llmclient llm call label=core/meeting_understanding mode=structured
+2026-09-22 18:35:04,607 INFO tools.llm.llmclient llm fit max_tokens 50000->42304 ctx=65536 input~22976
+2026-09-22 18:35:35,092 INFO tools.llm.llmclient llm resp label=core/meeting_understanding model=deepseek-chat finish=stop in=16252 out=7983 json_mode=True chars=16449
+2026-09-22 18:35:35,093 INFO agentflow agent done meeting_understanding
+2026-09-22 18:35:35,095 INFO agentflow node done meeting_understanding
+2026-09-22 18:35:35,097 INFO agentflow agent start perspective
+2026-09-22 18:35:35,099 INFO tools.llm.llmclient llm call label=core/perspective_modeling mode=structured
+2026-09-22 18:35:48,272 INFO tools.llm.llmclient llm resp label=core/perspective_modeling model=deepseek-chat finish=stop in=9285 out=3423 json_mode=True chars=5768
+2026-09-22 18:35:48,273 INFO agentflow agent done perspective
+2026-09-22 18:35:48,275 INFO agentflow node done perspective_modeling
+2026-09-22 18:35:48,276 INFO agentflow agent start gen line=minutes
+2026-09-22 18:35:48,336 INFO tools.llm.llmclient llm call label=minutes/agent mode=structured
+2026-09-22 18:35:48,340 INFO tools.llm.llmclient llm fit max_tokens 50000->22771 ctx=65536 input~42509
+2026-09-22 18:36:01,267 INFO tools.llm.llmclient llm resp label=minutes/agent model=deepseek-chat finish=stop in=30692 out=3383 json_mode=True chars=5173
+2026-09-22 18:36:01,269 INFO agentflow agent done gen line=minutes
+2026-09-22 18:36:01,270 INFO agentflow node done minutes_agent
+2026-09-22 18:36:01,272 INFO agentflow agent start review line=minutes
+2026-09-22 18:36:01,278 INFO tools.llm.llmclient llm call label=minutes/supervisor mode=structured
+2026-09-22 18:36:02,034 INFO tools.llm.llmclient llm resp label=minutes/supervisor model=deepseek-chat finish=stop in=10212 out=51 json_mode=True chars=186
+2026-09-22 18:36:02,035 INFO agentflow agent done review line=minutes decision=approve
+2026-09-22 18:36:02,037 INFO tools.core.domain_engine route line=minutes decision=approve revision=0/1 -> __end__
+2026-09-22 18:36:02,038 INFO agentflow node done minutes_supervisor
+2026-09-22 18:36:02,041 INFO agentflow render start line=minutes
+2026-09-22 18:36:14,268 INFO agentflow render done line=minutes
+2026-09-22 18:36:14,274 INFO tools.core.runner saved html line=minutes path=D:\study\demo\data\1\output\89f58f257ea24a8385196aa9403dcf1a\minutes.html
+2026-09-22 18:36:14,275 INFO tools.core.runner saved text line=minutes path=D:\study\demo\data\1\output\89f58f257ea24a8385196aa9403dcf1a\result.md
+2026-09-22 18:46:35,341 ERROR uvicorn.error Traceback (most recent call last):
+  File "C:\Users\OMEN\AppData\Roaming\Python\Python310\site-packages\uvicorn\_compat.py", line 60, in asyncio_run
+    return loop.run_until_complete(main)
+  File "C:\Users\OMEN\miniconda3\envs\agentflow\lib\asyncio\base_events.py", line 636, in run_until_complete
+    self.run_forever()
+  File "C:\Users\OMEN\miniconda3\envs\agentflow\lib\asyncio\windows_events.py", line 321, in run_forever
+    super().run_forever()
+  File "C:\Users\OMEN\miniconda3\envs\agentflow\lib\asyncio\base_events.py", line 603, in run_forever
+    self._run_once()
+  File "C:\Users\OMEN\miniconda3\envs\agentflow\lib\asyncio\base_events.py", line 1909, in _run_once
+    handle._run()
+  File "C:\Users\OMEN\miniconda3\envs\agentflow\lib\asyncio\events.py", line 80, in _run
+    self._context.run(self._callback, *self._args)
+  File "C:\Users\OMEN\AppData\Roaming\Python\Python310\site-packages\uvicorn\server.py", line 78, in serve
+    with self.capture_signals():
+  File "C:\Users\OMEN\miniconda3\envs\agentflow\lib\contextlib.py", line 142, in __exit__
+    next(self.gen)
+  File "C:\Users\OMEN\AppData\Roaming\Python\Python310\site-packages\uvicorn\server.py", line 339, in capture_signals
+    signal.raise_signal(captured_signal)
+KeyboardInterrupt
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "C:\Users\OMEN\miniconda3\envs\agentflow\lib\site-packages\starlette\routing.py", line 701, in lifespan
+    await receive()
+  File "C:\Users\OMEN\AppData\Roaming\Python\Python310\site-packages\uvicorn\lifespan\on.py", line 137, in receive
+    return await self.receive_queue.get()
+  File "C:\Users\OMEN\miniconda3\envs\agentflow\lib\asyncio\queues.py", line 159, in get
+    await getter
+asyncio.exceptions.CancelledError
+

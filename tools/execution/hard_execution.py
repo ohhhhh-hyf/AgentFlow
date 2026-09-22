@@ -160,11 +160,16 @@ def _match_score(draft_item: str, upstream_item: str) -> float:
     return jaccard
 
 
+_GROUP_HEADER_RE = re.compile(r"^\s*(?:-\s*)?\*\*([^*:\n]{1,20})\*\*[：:]?\s*$")
+_INLINE_GROUP_RE = re.compile(r"^\s*(?:-\s*)?\*\*([^*:\n]{1,20})\*\*[：:]\s*(.+)$")
+
+
 def subset_upstream_items(
     upstream: Any,
     draft: Any,
     *,
     fallback_full: bool = True,
+    preserve_groups: bool = False,
 ) -> list[str]:
     """职业/真人下采：只保留草稿选中的上游条目（不得增改）。
 
@@ -177,6 +182,8 @@ def subset_upstream_items(
     输出全员待办就是这么来的（比"少写"更坏的假象）。职业模板保留回退，是因为它按关注域
     裁、模型更容易整类漏掉，宁可多给底座。
     选中条目按上游原序、上游原文返回。
+    ``preserve_groups=True``（真人模式）：保留草稿中的组名行与分组结构，对不上上游的组名行
+    不被判空剔除，组下无条目时自动修剪该组。
     """
     up = _as_str_list(upstream)
     selected = _as_str_list(draft)
@@ -184,24 +191,92 @@ def subset_upstream_items(
         return []
     if not selected:
         return up if fallback_full else []
-    used: set[int] = set()
-    picked: list[int] = []
-    for item in selected:
+
+    if not preserve_groups:
+        used: set[int] = set()
+        picked: list[int] = []
+        for item in selected:
+            best_i = -1
+            best = _MATCH_KEEP
+            for i, src in enumerate(up):
+                if i in used:
+                    continue
+                score = _match_score(item, src)
+                if score > best:
+                    best = score
+                    best_i = i
+            if best_i >= 0:
+                used.add(best_i)
+                picked.append(best_i)
+        if not picked:
+            return up if fallback_full else []
+        return [up[i] for i in sorted(picked)]
+
+    # 真人模式保留分组
+    used_set: set[int] = set()
+    prefix_items: list[str] = []
+    groups: dict[str, list[str]] = {}
+    current_group: str | None = None
+
+    _INLINE_PLAIN_RE = re.compile(r"^\s*([^\s：:\*]{2,6})[：:]\s*(.+)$")
+
+    for raw_item in selected:
+        s = raw_item.strip()
+        if not s:
+            continue
+        m_hdr = _GROUP_HEADER_RE.match(s)
+        if m_hdr:
+            gname = m_hdr.group(1).strip()
+            current_group = f"**{gname}**："
+            if current_group not in groups:
+                groups[current_group] = []
+            continue
+
+        m_inline = _INLINE_GROUP_RE.match(s)
+        if m_inline:
+            gname = m_inline.group(1).strip()
+            current_group = f"**{gname}**："
+            if current_group not in groups:
+                groups[current_group] = []
+            target_text = m_inline.group(2).strip()
+        else:
+            clean_s = re.sub(r"^\s*[-*+•]\s*", "", s).strip()
+            m_plain = _INLINE_PLAIN_RE.match(clean_s)
+            if m_plain:
+                gname = m_plain.group(1).strip()
+                current_group = f"**{gname}**："
+                if current_group not in groups:
+                    groups[current_group] = []
+                target_text = m_plain.group(2).strip()
+            else:
+                target_text = clean_s
+
         best_i = -1
         best = _MATCH_KEEP
         for i, src in enumerate(up):
-            if i in used:
+            if i in used_set:
                 continue
-            score = _match_score(item, src)
+            score = _match_score(target_text, src)
             if score > best:
                 best = score
                 best_i = i
         if best_i >= 0:
-            used.add(best_i)
-            picked.append(best_i)
-    if not picked:
+            used_set.add(best_i)
+            matched_src = up[best_i]
+            if current_group is not None:
+                groups[current_group].append(matched_src)
+            else:
+                prefix_items.append(matched_src)
+
+    out: list[str] = list(prefix_items)
+    for grp, items in groups.items():
+        if items:
+            out.append(grp)
+            out.extend(items)
+
+    if not out:
         return up if fallback_full else []
-    return [up[i] for i in sorted(picked)]
+    return out
 
 
 def enforce_upstream_carry(
@@ -274,6 +349,7 @@ def enforce_minutes_draft(
             upstream.get(src),
             data.get(dst),
             fallback_full=(mode_key != "personal"),
+            preserve_groups=(mode_key == "personal"),
         )
     return out
 

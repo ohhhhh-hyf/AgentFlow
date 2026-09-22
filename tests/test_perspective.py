@@ -521,6 +521,76 @@ def test_tolerant_field_forms() -> None:
           "先给结论" in build_preference_block({"name": "申家坤", "preferences": ["喜欢先看结论"]}), "")
 
 
+def test_personal_grouping_and_normalization() -> None:
+    """测试真人视角建模的分组保留、上级感知与确定性格式化。"""
+    from perspective.preferences import extract_supervisors
+    from perspective.hits import normalize_personal_sections, render_action_groups_block
+    from tools.execution.hard_execution import subset_upstream_items
+
+    # 1. extract_supervisors
+    u1 = {
+        "name": "申家坤",
+        "preferences": ["徐玥是我的上级，关注她的指示与行动", "关键数字优先保留"],
+    }
+    check("上级提取：偏好句式匹配", extract_supervisors(u1) == ["徐玥"], str(extract_supervisors(u1)))
+
+    u2 = {"name": "申家坤", "supervisor": "徐总"}
+    check("上级提取：显式字段", extract_supervisors(u2) == ["徐总"], str(extract_supervisors(u2)))
+
+    # 2. render_action_groups_block 上级置顶
+    pack = {
+        "speakers": [{"name": "张三"}, {"name": "徐玥"}, {"name": "申家坤"}],
+        "action_hints": [{"owner": "张三", "text": "排期"}, {"owner": "徐玥", "text": "审批"}],
+    }
+    block = render_action_groups_block(u1, pack)
+    check("骨架块：本人排首位", "**与我相关**：" in block, block)
+    lines = [ln.strip() for ln in block.splitlines() if ln.strip().startswith("**")]
+    check("骨架块：上级排在他人第一位", lines[:2] == ["**与我相关**：", "**徐玥**："], str(lines))
+
+    # 3. subset_upstream_items 组名保留与上游原句对齐
+    up = ["长文本回去改配置，明天给结论。", "周五前完成接口联调。", "双录还没确认。"]
+    draft = [
+        "**与我相关**：",
+        "长文本回去改配置，明天给结论",
+        "**徐玥**：",
+        "周五前完成接口联调",
+        "**张三**：",
+        "完全无关的条目",
+    ]
+    res = subset_upstream_items(up, draft, fallback_full=False, preserve_groups=True)
+    check("草稿下采（真人）：保留组名行且按上游原文对齐",
+          res == ["**与我相关**：", "长文本回去改配置，明天给结论。", "**徐玥**：", "周五前完成接口联调。"],
+          str(res))
+
+    # 4. normalize_personal_sections 规范化
+    raw_doc = (
+        "# 要点梳理\n\n"
+        "## 议题讨论\n- 讨论了长文本评测。\n\n"
+        "## 行动项与分工\n"
+        "- 申家坤：长文本回去改配置，明天给结论。\n"
+        "- 徐玥：关注评测指标。\n"
+        "- 张三：准备联调数据。\n\n"
+        "## 待确认与风险\n"
+        "- **与我相关**：\n"
+        "  - 显存不够可能导致 OOM\n"
+        "- **徐玥**：\n"
+        "  - 排期依赖外部团队\n"
+    )
+    norm = normalize_personal_sections(
+        raw_doc,
+        addresses=["申家坤", "家坤"],
+        self_name="申家坤",
+        supervisors=["徐玥"],
+    )
+    check("规范化：非目标节不受影响", "## 议题讨论\n- 讨论了长文本评测。" in norm, norm)
+    check("规范化：本人组置顶且条目不带冗余姓名",
+          "## 行动项与分工\n**与我相关**：\n- 长文本回去改配置，明天给结论。" in norm, norm)
+    check("规范化：上级紧随本人之后",
+          "**与我相关**：\n- 长文本回去改配置，明天给结论。\n\n**徐玥**：\n- 关注评测指标。" in norm, norm)
+    check("规范化：多余子条符号修复为干净组名结构",
+          "## 待确认与风险\n**与我相关**：\n- 显存不够可能导致 OOM\n\n**徐玥**：\n- 排期依赖外部团队" in norm, norm)
+
+
 def main() -> int:
     test_empty_cases()
     test_whitelist_mapping()
@@ -536,6 +606,7 @@ def main() -> int:
     test_speaker_attribution()
     test_skip_and_synthesize()
     test_tolerant_field_forms()
+    test_personal_grouping_and_normalization()
     print(f"pass {len(PASS)}  fail {len(FAIL)}")
     for name in FAIL:
         print("FAIL", name)

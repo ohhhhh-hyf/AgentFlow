@@ -83,8 +83,9 @@ def test_user_profile_path_safety() -> None:
           str(traversal))
 
 
-def test_selection_matrix(tmp: Path) -> None:
+def test_selection_matrix(tmp_path: Path) -> None:
     """extra.profile 选档：空=默认档（客观，不读 user.json）；user=真人；职业名/显式客观各自独立。"""
+    tmp = tmp_path
     root = _root(tmp)
     ui = root / "data" / "1" / "user.json"
 
@@ -131,8 +132,9 @@ def test_selection_matrix(tmp: Path) -> None:
           == root / "data" / "2" / "user.json", "")
 
 
-def test_broken_user_profile(tmp: Path) -> None:
+def test_broken_user_profile(tmp_path: Path) -> None:
     """坏档案（非对象 / 缺 name / 坏 JSON）→ 当没有档案，不阻断请求。"""
+    tmp = tmp_path
     root = _root(tmp)
     ui = root / "data" / "1" / "user.json"
     cases = {
@@ -152,8 +154,9 @@ def test_broken_user_profile(tmp: Path) -> None:
     check("合法档案可读且必填项非空", (read_user_profile(ui) or {}).get("name") == "赵衡", "")
 
 
-def test_sanitize_and_merge(tmp: Path) -> None:
+def test_sanitize_and_merge(tmp_path: Path) -> None:
     """清洗 + 挂职业底：perspective 忽略、persona_type 置空、模板作底、真人字段覆盖。"""
+    tmp = tmp_path
     root = _root(tmp)
     ui = _write(root / "data" / "1" / "user.json", dict(USER_OK, perspective="objective", persona_type="role_template"))
     raw = read_user_profile(ui) or {}
@@ -210,8 +213,9 @@ def test_sanitize_and_merge(tmp: Path) -> None:
           "")
 
 
-def test_missing_role_template(tmp: Path) -> None:
+def test_missing_role_template(tmp_path: Path) -> None:
     """role_template 指向不存在的职业 → 明确报错（不静默降级成无底真人）。"""
+    tmp = tmp_path
     root = _root(tmp)
     ui = _write(root / "data" / "1" / "user.json", dict(USER_OK, role_template="nobody"))
     cleaned = sanitize_user_profile(read_user_profile(ui) or {})
