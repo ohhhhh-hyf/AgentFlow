@@ -1,0 +1,405 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>18岁前深刻记忆分享会</title>
+  <style>
+
+    body {
+      margin: 0;
+      padding: 14px 12px;
+      background: #f6f5f0;
+      color: #1a1a1a;
+      font-family: "Latin Modern Roman", "Computer Modern Roman", "CMU Serif", "Times New Roman", Times, "Songti SC", "SimSun", "STSong", serif;
+      -webkit-font-smoothing: antialiased;
+    }
+    .page { max-width: 1140px; margin: 0 auto; }
+    .ck-doc {
+      background: #ffffff;
+      border: 1px solid #d4d0c7;
+      border-radius: 4px;
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.05), 0 1px 3px rgba(0,0,0,0.03);
+      padding: 18px 22px;
+      line-height: 1.6;
+      font-size: 0.84rem;      /* 正文基准：左右两栏共用 --ck-fs */
+      --ck-fs: 0.84rem;
+    }
+    .ck-doc h1 {
+      margin: 0 0 6px;
+      font-size: 1.05rem;      /* 文档标题：只比正文略大一点 */
+      font-weight: 700;
+      text-align: center;
+      color: #111111;
+    }
+    .ck-doc-header {
+      margin-bottom: 10px;
+      padding-bottom: 8px;
+      border-bottom: 1px solid #111111;
+      text-align: center;
+    }
+    .ck-doc-meta {
+      font-size: 0.78rem;
+      color: #555555;
+      font-style: italic;
+    }
+    /* 层级标题一律"加粗 + 与右栏同级字号"，不加字号、不加下划线，前后留白压到最小 */
+    .ck-doc-content h1, .ck-doc-content .ck-doc-h1,
+    .ck-doc h2, .ck-doc-h2,
+    .ck-doc h3, .ck-doc-h3,
+    .ck-doc h4, .ck-doc-h4 {
+      font-size: var(--ck-fs);
+      font-weight: 700;
+      color: #111111;
+      border-bottom: 0;
+      padding-bottom: 0;
+      letter-spacing: 0;
+      font-variant: normal;
+      text-align: left;
+    }
+    .ck-doc-content h1, .ck-doc-content .ck-doc-h1, .ck-doc h2, .ck-doc-h2 {
+      margin: 12px 0 4px;
+    }
+    .ck-doc h3, .ck-doc-h3, .ck-doc h4, .ck-doc-h4 {
+      margin: 9px 0 3px;
+    }
+    .ck-doc p {
+      margin: 5px 0;
+      line-height: 1.6;
+      text-align: justify;
+    }
+    .ck-doc ul, .ck-doc ol {
+      margin: 4px 0 6px;
+      padding-left: 1.25em;
+      line-height: 1.6;
+    }
+    .ck-doc li {
+      margin: 2px 0;
+    }
+    .ck-doc blockquote, .ck-quote {
+      margin: 6px 0 8px;
+      padding: 5px 10px;
+      background: #faf9f6;
+      border-left: 3px solid #222222;
+      border-radius: 2px;
+      color: #222222;
+      font-size: var(--ck-fs);
+      font-style: italic;
+    }
+    .ck-doc code {
+      background: #f3f0e8;
+      border: 1px solid #e2ddd3;
+      border-radius: 3px;
+      padding: 1px 6px;
+      font-family: "Latin Modern Mono", Consolas, monospace;
+      font-size: 0.88em;
+    }
+    .ck-doc table, .ck-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: var(--ck-fs);
+      margin: 8px 0;
+      background: #ffffff;
+      border-top: 2px solid #222222;
+      border-bottom: 2px solid #222222;
+    }
+    .ck-doc table th, .ck-doc table td, .ck-table th, .ck-table td {
+      padding: 5px 8px;
+      text-align: left;
+      vertical-align: middle;
+      border-bottom: 1px solid #ede9e1;
+    }
+    .ck-doc table th, .ck-table th {
+      background: #fbfaf7;
+      border-bottom: 1.2px solid #222222;
+      font-weight: 700;
+      color: #111111;
+      letter-spacing: 0.3px;
+    }
+
+    /* Roomy & Spacious Academic Risk Table */
+    .ck-risk-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 18px 0 28px;
+      background: #ffffff;
+      border-top: 2.2px solid #111111;
+      border-bottom: 2.2px solid #111111;
+      font-size: 0.93rem;
+      line-height: 1.72;
+    }
+    .ck-risk-table th {
+      background: #faf8f5;
+      border-bottom: 1.5px solid #111111;
+      padding: 15px 16px;
+      font-weight: 700;
+      color: #111111;
+      letter-spacing: 0.3px;
+      text-align: left;
+      vertical-align: middle;
+    }
+    .ck-risk-table td {
+      padding: 16px 16px;
+      border-bottom: 1px solid #ede8e0;
+      vertical-align: top;
+      color: #1a1a1a;
+      word-break: break-word;
+    }
+    .ck-risk-table tr:nth-child(even) td {
+      background: #fdfcfb;
+    }
+    .ck-risk-table tr:hover td {
+      background: #f6f3eb;
+    }
+
+    /* Review Grid */
+    .ck-review {
+      display: grid;
+      grid-template-columns: minmax(0, 1.35fr) 1px minmax(260px, 0.95fr);
+      border: 1px solid #d4d0c7;
+      border-radius: 4px;
+      overflow: hidden;
+      margin: 8px 0 10px;
+      background: #ffffff;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.03);
+    }
+    .ck-review-left {
+      padding: 14px 16px;
+      background: #ffffff;
+      line-height: 1.6;
+      font-size: var(--ck-fs);
+    }
+    .ck-review-rule { background: #dcd8cf; }
+    .ck-review-right {
+      padding: 12px 14px;
+      background: #faf9f6;
+      box-sizing: border-box;
+      display: flex;
+      flex-direction: column;
+    }
+    .ck-ev-list {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    /* Entity Highlight in LaTeX Paper Style */
+    .ck-cite-entity {
+      background: #fff8db;
+      border-bottom: 1.5px solid #b86a04;
+      padding: 1px 4px;
+      border-radius: 2px;
+      cursor: pointer;
+      transition: all 0.18s ease;
+      color: #111111;
+      font-weight: 600;
+    }
+    .ck-cite-entity:hover {
+      background: #ffe58f;
+      color: #000000;
+    }
+    .ck-cite-entity.is-on {
+      background: #ffd54a;
+      border-bottom-color: #0047ab;
+      box-shadow: 0 0 0 2px rgba(0,71,171,0.25);
+    }
+
+    /* Blue Hyperref Citations [1], [2] */
+    .ck-cite-ref {
+      color: #0047ab;
+      font-weight: 600;
+      font-family: "Latin Modern Roman", "Computer Modern Roman", "Times New Roman", serif;
+      text-decoration: none;
+      cursor: pointer;
+      padding: 0 2px;
+      margin: 0 2px;
+      border-radius: 2px;
+      transition: all 0.15s ease;
+      font-size: 0.92em;
+      vertical-align: baseline;
+      user-select: none;
+    }
+    .ck-cite-ref:hover {
+      text-decoration: underline;
+      background: #e8f0fe;
+      color: #003380;
+    }
+    .ck-cite-ref.is-active {
+      background: #d2e3fc;
+      color: #002266;
+      font-weight: 700;
+      box-shadow: 0 0 0 1px #0047ab;
+    }
+
+    /* Right Memory Cards in LaTeX Paper Style */
+    .ck-provenance-head {
+      font-size: 0.82rem;
+      font-weight: 700;
+      color: #222222;
+      margin: 0 0 12px;
+      padding-bottom: 6px;
+      border-bottom: 1px solid #e0dcd4;
+      letter-spacing: 0.3px;
+      text-transform: uppercase;
+    }
+    .ck-ref-icon { color: #0047ab; margin-right: 4px; }
+    .ck-ev {
+      display: block;
+      margin: 0;
+      padding: 10px 12px;
+      border: 1px solid #dedad2;
+      border-left: 3.5px solid #0047ab;
+      border-radius: 2px;
+      background: #ffffff;
+      font-size: 0.82rem;
+      line-height: 1.55;
+      transition: all 0.2s ease;
+      cursor: pointer;
+    }
+    .ck-ev:hover { border-color: #b5b0a5; }
+    .ck-ev.is-on, .ck-ev.is-highlighted {
+      border-color: #0047ab;
+      box-shadow: 0 0 0 2px #0047ab, 0 3px 8px rgba(0,71,171,0.15);
+      background: #f0f5ff;
+    }
+    @keyframes citePulse {
+      0% { background: #dbeafe; box-shadow: 0 0 0 3px #0047ab; }
+      50% { background: #bfdbfe; box-shadow: 0 0 0 4px #0047ab; }
+      100% { background: #f0f5ff; box-shadow: 0 0 0 2px #0047ab; }
+    }
+    .ck-ev-k {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 0.75rem;
+      color: #444444;
+      margin-bottom: 5px;
+      font-weight: 700;
+    }
+    .ck-ev-cite-tag {
+      color: #0047ab;
+      font-weight: 700;
+      font-family: "Latin Modern Roman", serif;
+      text-decoration: none;
+    }
+    .ck-ev-kind-badge {
+      display: inline-block;
+      padding: 1px 6px;
+      border-radius: 2px;
+      font-size: 0.72rem;
+      font-weight: 600;
+      letter-spacing: 0.2px;
+    }
+    .ck-badge-keypoint {
+      border: 1px solid #0047ab;
+      color: #0047ab;
+      background: #f0f5ff;
+    }
+    .ck-badge-note {
+      border: 1px solid #b86a04;
+      color: #b86a04;
+      background: #fff8eb;
+    }
+    .ck-mem-title {
+      font-weight: 700;
+      color: #111111;
+      font-size: var(--ck-fs);
+      margin-bottom: 4px;
+      line-height: 1.5;
+    }
+    .ck-ev-quote {
+      color: #222222;
+      font-style: normal;
+      font-family: inherit;
+      margin: 4px 0 6px;
+      padding: 0;
+      background: transparent;
+      border: none;
+      line-height: 1.6;
+      font-size: var(--ck-fs);
+    }
+    .ck-ev-meta { font-size: 0.76rem; color: #666666; margin-top: 4px; }
+    .ck-ev-more {
+      margin-top: 2px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+    .ck-ev-more[open] { margin-top: 4px; }
+    .ck-ev-more summary { margin-bottom: 6px; }
+    .ck-proof-toggle {
+      cursor: pointer;
+      font-size: 0.82rem;
+      color: #0047ab;
+      user-select: none;
+      font-family: inherit;
+      padding: 2px 0;
+    }
+    .ck-proof-toggle:hover { text-decoration: underline; }
+    /* 右栏下段"状态演进"：无行内锚点，与上方证据卡视觉区分（灰底 + 徽章，无 [n]） */
+    .ck-ledger {
+      margin-top: 10px;
+      padding-top: 8px;
+      border-top: 1px dashed #d4d0c7;
+    }
+    .ck-ledger > summary { list-style: none; }
+    .ck-ledger > summary::-webkit-details-marker { display: none; }
+    .ck-ledger > summary::after { content: " ▾"; }
+    .ck-ledger:not([open]) > summary::after { content: " ▸"; }
+    /* 每类一张小灰卡：卡头类别 + 条数，卡内按 1. 2. 3. 编号 */
+    .ck-ledger-card {
+      background: #faf9f5;
+      border: 1px solid #e6e2d8;
+      border-left: 3px solid #bdb6a6;
+      border-radius: 4px;
+      padding: 7px 9px;
+      margin-bottom: 6px;
+    }
+    .ck-ledger-k {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 6px;
+      font-size: 0.72rem;
+      margin-bottom: 5px;
+    }
+    .ck-ledger-badge {
+      background: #efece4;
+      color: #6b6559;
+      border-radius: 3px;
+      padding: 1px 6px;
+      font-weight: 600;
+    }
+    .ck-ledger-count { color: #8a8578; }
+    .ck-ledger-list {
+      margin: 0;
+      padding-left: 1.35em;
+      font-size: var(--ck-fs);
+      line-height: 1.6;
+      color: #3b3a37;
+    }
+    .ck-ledger-list > li { margin: 2px 0; }
+    .ck-ledger-text { font-size: var(--ck-fs); line-height: 1.6; color: #3b3a37; }
+    .ck-ledger-meta { color: #8a8578; font-size: 0.76rem; }
+
+    @media(max-width: 860px) {
+      .ck-doc { padding: 22px 18px; }
+      .ck-review { grid-template-columns: 1fr; }
+      .ck-review-rule { display: none; }
+    }
+
+  </style>
+</head>
+<body>
+  <main class="page">
+    <div class="ck-doc">
+      <header class="ck-doc-header">
+        <h1>18岁前深刻记忆分享会</h1>
+      </header>
+      <div class="ck-doc-content">
+        <h1 class="ck-doc-h1">讨论议题与背景</h1><p>本次会议为6位发言人（发言人1至发言人6）围绕“18岁以前的深刻印象和记忆”展开的漫谈式分享，由发言人1发起话题，引导大家回忆逃课、网吧游戏、追星、乐队等经历。讨论覆盖了多个议题：18岁前的深刻记忆分享（逃课、网吧游戏、追星、乐队、小说漫画）、电脑游戏回忆（摩尔庄园、赛尔号、穿越火线、地下城与勇士、仙剑系列、求生之路等）、游戏暴力与年龄限制（求生之路第二部血腥内容及Steam 18岁注册限制）、求生之路游戏剧情与现实关联（2020年新冠疫情后游戏重新火爆）、游戏与电影关系（生化危机先有游戏后有电影、求生之路先有电影后有游戏、变形金刚先有玩具）、其他游戏讨论（植物大战僵尸、使命召唤黑色行动等）。讨论以分享观点为主，未形成统一结论，整体按话题自然流转、漫谈发散推进，由发言人1多次引导切换议题。</p><h1 class="ck-doc-h1">发言要点</h1><h2 class="ck-doc-h2">18岁前的深刻记忆分享</h2><ul><li><strong>发言人1</strong>：初中走读，每周一下午4点放学后去游戏厅、网吧，流行穿越火线（CF）、反恐精英online（CS online）及动视、易电、暴雪旗下游戏如使命召唤、战地、魔兽。</li><li><strong>发言人1</strong>：高中因高考压力不敢逃课，主要追星、搞乐队，玩架子鼓、电吉他、贝斯，偏好朋克金属音乐。</li><li><strong>发言人5</strong>：特别喜欢郭敬明的小说。</li><li><strong>发言人2</strong>：认为郭敬明小说看着难受、扭曲，提到《梦里花落知多少》。</li><li><strong>发言人4</strong>：班里流行看柯南。</li><li><strong>发言人1</strong>：补充流行看柯南和老夫子（香港漫画），并惊讶发言人5不知老夫子。</li><li><strong>发言人5</strong>：提到有叫《萌化三国》的漫画。</li><li><strong>发言人2</strong>：提到当时看意林、读者、故事会等杂志，认为意林讲得好但现在反转了。</li></ul><h2 class="ck-doc-h2">电脑游戏回忆</h2><ul><li><strong>发言人4</strong>：小学初中流行摩尔庄园、赛尔号。</li><li><strong>发言人2</strong>：初中玩穿越火线、地下城与勇士。</li><li><strong>发言人5</strong>：玩过仙剑四，也玩过仙剑一或古剑四。</li><li><strong>发言人1</strong>：单机最流行求生之路，联机局域玩；还提到流星蝴蝶剑。</li><li><strong>发言人4</strong>：认为仙剑三最火，有电视剧。</li><li><strong>发言人2</strong>：初中玩魔兽争霸，与魔兽世界区别是单机与网游。</li><li><strong>发言人5</strong>：提到英雄联盟、DOTA，并问是否有鄙视链。</li><li><strong>发言人2</strong>：认为撸啊撸和DOTA有鄙视链，王者荣耀在鄙视链最底端。</li></ul><h2 class="ck-doc-h2">游戏暴力与年龄限制</h2><ul><li><strong>发言人5</strong>：质疑穿越火线等游戏没有年龄限制，内容暴力，感觉同龄人没怎么玩过。</li><li><strong>发言人1</strong>：解释求生之路第二部血腥暴力，可用东洋刀、电锯砍丧尸，血能喷一脸，因此未成年人不能注册Steam账号，需18岁以上才能玩。</li><li><strong>发言人1</strong>：提到穿越火线是08年游戏，国服开服时比较血腥。</li><li><strong>发言人1</strong>：因在贴吧和QQ空间写文章骂穿越火线抄袭，被穿越火线平台封禁，后成为CS反恐精英铁杆粉丝，最喜欢僵尸模式。</li></ul><h2 class="ck-doc-h2">求生之路剧情与现实关联</h2><ul><li><strong>发言人1</strong>：认为求生之路制作团队精准预测了美国政府在大灾难中的表现，2020年新冠疫情后游戏重新火爆。</li><li><strong>发言人1</strong>：描述游戏剧情：美国政府默不作声致病毒失控，军队暴力清理，主角团不信政府自救，最后去荒岛开辟住处。</li><li><strong>发言人1</strong>：认为游戏通过自有发行方式揭露了美国政府的虚伪。</li><li><strong>发言人6</strong>：表示「艺术源于生活」。</li><li><strong>发言人1</strong>：补充主角团是无症状感染者，被正常人攻击，类似狂犬病狂暴病毒感染。</li><li><strong>发言人2</strong>：提到欧美玩家爱玩打僵尸游戏，模式一上线欧洲年轻人疯狂在线。</li><li><strong>发言人1</strong>：提到生化危机也是病毒泄露、政府反应迟钝，生化三用核武器夷平城市。</li><li><strong>发言人2</strong>：认为生化危机游戏恐怖，不敢玩。</li><li><strong>发言人1</strong>：最怕求生之路中的坦克，最烦smoke（长舌头捆人）和jacking（骑肩膀控制主界面）。</li><li><strong>发言人2</strong>：引用「一切恐惧源于火力不足」。</li></ul><h2 class="ck-doc-h2">游戏与电影关系</h2><ul><li><strong>发言人2</strong>：询问游戏与电影先后关系。</li><li><strong>发言人1</strong>：指出生化危机先有游戏后有电影；求生之路是在惊变48小时、生化危机基础上先有电影后有游戏。</li><li><strong>发言人4</strong>：提问变形金刚先有玩具还是电影。</li><li><strong>发言人1</strong>：认为变形金刚先有玩具，后有MV和电影，提到绿日（Green Day）出过介绍变形金刚的MV。</li><li><strong>发言人1</strong>：认为变形金刚有点抄袭日本题材，电影有翻拍盗版的感觉。</li></ul><h2 class="ck-doc-h2">其他游戏讨论</h2><ul><li><strong>发言人3</strong>：小时候常玩塔防游戏如植物大战僵尸，现在还在玩。</li><li><strong>发言人2</strong>：提到植物大战僵尸有变态版，后期满屏子弹，电脑卡顿扛不住。</li><li><strong>发言人1</strong>：询问使命召唤玩的人多不多。</li><li><strong>发言人2</strong>：认为使命召唤等游戏太男性化。</li><li><strong>发言人1</strong>：介绍使命召唤黑色行动涉及冷战时期美苏秘密行动，现在战争虚构较多，认为结合俄乌冲突表现，游戏有点高估俄罗斯。</li><li><strong>发言人6</strong>：提到最近看《最后生还者》视频介绍，游戏挺火。</li><li><strong>发言人1</strong>：补充最后生还者剧情是主角团差点被军队物理消灭，后反杀军队杀出血路。</li></ul><h1 class="ck-doc-h1">共识形成</h1><ul><li><strong>一致意见</strong>：与会者普遍认同18岁前游戏与流行文化构成深刻记忆，并围绕穿越火线（CF）、反恐精英online（CS online）、求生之路、生化危机、仙剑系列等游戏展开共鸣式分享；对<strong>求生之路第二部血腥暴力、未成年人需18岁以上才能注册Steam账号</strong>这一年龄限制口径，发言人1与发言人5在讨论中形成一致认识。</li><li><strong>倾向性认识</strong>：发言人1认为求生之路制作团队精准预测了美国政府在大灾难中的表现，2020年新冠疫情后游戏重新火爆；发言人6以「艺术源于生活」表示认同，发言人2补充欧美玩家热衷打僵尸类游戏。</li><li><strong>主要分歧点</strong>：发言人5质疑穿越火线等游戏没有年龄限制、内容暴力，且其同龄人中少有人玩；发言人1回应穿越火线为08年游戏、国服开服时较血腥，并解释求生之路第二部因暴力内容而设年龄限制，双方对游戏暴力程度与年龄限制适用性的认知不一致。</li><li><strong>游戏与电影先后关系</strong>：发言人1指出生化危机先有游戏后有电影，求生之路在惊变48小时、生化危机基础上先有电影后有游戏；发言人4询问变形金刚先后关系，发言人1认为先有玩具后有MV和电影，发言人2未提出异议。</li></ul><h1 class="ck-doc-h1">待探讨问题与后续</h1><ul><li><strong>未确认</strong>：发言人5对穿越火线等游戏没有年龄限制、内容暴力提出质疑，发言人1解释求生之路第二部血腥暴力、未成年人不能注册Steam账号需18岁以上才能玩，但未确认穿越火线等游戏当时是否有年龄限制。</li><li><strong>未定论</strong>：发言人2认为郭敬明小说看着难受、扭曲，发言人5表示喜欢郭敬明小说，双方未就郭敬明小说的评价达成一致。</li><li><strong>未确认</strong>：发言人5提到玩过仙剑四，也玩过仙剑一或古剑四，但记不清具体是仙剑还是古剑，未确认其玩过的具体游戏版本。</li><li><strong>未定论</strong>：发言人1认为变形金刚先有玩具后有MV和电影，发言人4询问变形金刚先有的啥，发言人1回答先有玩具，但未确认变形金刚的起源顺序。</li><li><strong>未确认</strong>：发言人2提到植物大战僵尸有特别变态的版，后期满屏子弹、电脑卡顿，但未确认该版本的具体名称或来源。</li><li><strong>未确认</strong>：发言人1提到求生之路制作团队精准预测了美国政府在大灾难中的表现，2020年新冠疫情后游戏重新火爆，但未确认该说法是否有数据或事实支撑。</li></ul>
+      </div>
+    </div>
+  </main>
+</body>
+</html>

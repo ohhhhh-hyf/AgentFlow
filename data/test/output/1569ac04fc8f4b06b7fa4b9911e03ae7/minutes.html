@@ -1,0 +1,405 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>古典小说闲谈会：红楼金瓶水浒版本与背景讨论</title>
+  <style>
+
+    body {
+      margin: 0;
+      padding: 14px 12px;
+      background: #f6f5f0;
+      color: #1a1a1a;
+      font-family: "Latin Modern Roman", "Computer Modern Roman", "CMU Serif", "Times New Roman", Times, "Songti SC", "SimSun", "STSong", serif;
+      -webkit-font-smoothing: antialiased;
+    }
+    .page { max-width: 1140px; margin: 0 auto; }
+    .ck-doc {
+      background: #ffffff;
+      border: 1px solid #d4d0c7;
+      border-radius: 4px;
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.05), 0 1px 3px rgba(0,0,0,0.03);
+      padding: 18px 22px;
+      line-height: 1.6;
+      font-size: 0.84rem;      /* 正文基准：左右两栏共用 --ck-fs */
+      --ck-fs: 0.84rem;
+    }
+    .ck-doc h1 {
+      margin: 0 0 6px;
+      font-size: 1.05rem;      /* 文档标题：只比正文略大一点 */
+      font-weight: 700;
+      text-align: center;
+      color: #111111;
+    }
+    .ck-doc-header {
+      margin-bottom: 10px;
+      padding-bottom: 8px;
+      border-bottom: 1px solid #111111;
+      text-align: center;
+    }
+    .ck-doc-meta {
+      font-size: 0.78rem;
+      color: #555555;
+      font-style: italic;
+    }
+    /* 层级标题一律"加粗 + 与右栏同级字号"，不加字号、不加下划线，前后留白压到最小 */
+    .ck-doc-content h1, .ck-doc-content .ck-doc-h1,
+    .ck-doc h2, .ck-doc-h2,
+    .ck-doc h3, .ck-doc-h3,
+    .ck-doc h4, .ck-doc-h4 {
+      font-size: var(--ck-fs);
+      font-weight: 700;
+      color: #111111;
+      border-bottom: 0;
+      padding-bottom: 0;
+      letter-spacing: 0;
+      font-variant: normal;
+      text-align: left;
+    }
+    .ck-doc-content h1, .ck-doc-content .ck-doc-h1, .ck-doc h2, .ck-doc-h2 {
+      margin: 12px 0 4px;
+    }
+    .ck-doc h3, .ck-doc-h3, .ck-doc h4, .ck-doc-h4 {
+      margin: 9px 0 3px;
+    }
+    .ck-doc p {
+      margin: 5px 0;
+      line-height: 1.6;
+      text-align: justify;
+    }
+    .ck-doc ul, .ck-doc ol {
+      margin: 4px 0 6px;
+      padding-left: 1.25em;
+      line-height: 1.6;
+    }
+    .ck-doc li {
+      margin: 2px 0;
+    }
+    .ck-doc blockquote, .ck-quote {
+      margin: 6px 0 8px;
+      padding: 5px 10px;
+      background: #faf9f6;
+      border-left: 3px solid #222222;
+      border-radius: 2px;
+      color: #222222;
+      font-size: var(--ck-fs);
+      font-style: italic;
+    }
+    .ck-doc code {
+      background: #f3f0e8;
+      border: 1px solid #e2ddd3;
+      border-radius: 3px;
+      padding: 1px 6px;
+      font-family: "Latin Modern Mono", Consolas, monospace;
+      font-size: 0.88em;
+    }
+    .ck-doc table, .ck-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: var(--ck-fs);
+      margin: 8px 0;
+      background: #ffffff;
+      border-top: 2px solid #222222;
+      border-bottom: 2px solid #222222;
+    }
+    .ck-doc table th, .ck-doc table td, .ck-table th, .ck-table td {
+      padding: 5px 8px;
+      text-align: left;
+      vertical-align: middle;
+      border-bottom: 1px solid #ede9e1;
+    }
+    .ck-doc table th, .ck-table th {
+      background: #fbfaf7;
+      border-bottom: 1.2px solid #222222;
+      font-weight: 700;
+      color: #111111;
+      letter-spacing: 0.3px;
+    }
+
+    /* Roomy & Spacious Academic Risk Table */
+    .ck-risk-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 18px 0 28px;
+      background: #ffffff;
+      border-top: 2.2px solid #111111;
+      border-bottom: 2.2px solid #111111;
+      font-size: 0.93rem;
+      line-height: 1.72;
+    }
+    .ck-risk-table th {
+      background: #faf8f5;
+      border-bottom: 1.5px solid #111111;
+      padding: 15px 16px;
+      font-weight: 700;
+      color: #111111;
+      letter-spacing: 0.3px;
+      text-align: left;
+      vertical-align: middle;
+    }
+    .ck-risk-table td {
+      padding: 16px 16px;
+      border-bottom: 1px solid #ede8e0;
+      vertical-align: top;
+      color: #1a1a1a;
+      word-break: break-word;
+    }
+    .ck-risk-table tr:nth-child(even) td {
+      background: #fdfcfb;
+    }
+    .ck-risk-table tr:hover td {
+      background: #f6f3eb;
+    }
+
+    /* Review Grid */
+    .ck-review {
+      display: grid;
+      grid-template-columns: minmax(0, 1.35fr) 1px minmax(260px, 0.95fr);
+      border: 1px solid #d4d0c7;
+      border-radius: 4px;
+      overflow: hidden;
+      margin: 8px 0 10px;
+      background: #ffffff;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.03);
+    }
+    .ck-review-left {
+      padding: 14px 16px;
+      background: #ffffff;
+      line-height: 1.6;
+      font-size: var(--ck-fs);
+    }
+    .ck-review-rule { background: #dcd8cf; }
+    .ck-review-right {
+      padding: 12px 14px;
+      background: #faf9f6;
+      box-sizing: border-box;
+      display: flex;
+      flex-direction: column;
+    }
+    .ck-ev-list {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    /* Entity Highlight in LaTeX Paper Style */
+    .ck-cite-entity {
+      background: #fff8db;
+      border-bottom: 1.5px solid #b86a04;
+      padding: 1px 4px;
+      border-radius: 2px;
+      cursor: pointer;
+      transition: all 0.18s ease;
+      color: #111111;
+      font-weight: 600;
+    }
+    .ck-cite-entity:hover {
+      background: #ffe58f;
+      color: #000000;
+    }
+    .ck-cite-entity.is-on {
+      background: #ffd54a;
+      border-bottom-color: #0047ab;
+      box-shadow: 0 0 0 2px rgba(0,71,171,0.25);
+    }
+
+    /* Blue Hyperref Citations [1], [2] */
+    .ck-cite-ref {
+      color: #0047ab;
+      font-weight: 600;
+      font-family: "Latin Modern Roman", "Computer Modern Roman", "Times New Roman", serif;
+      text-decoration: none;
+      cursor: pointer;
+      padding: 0 2px;
+      margin: 0 2px;
+      border-radius: 2px;
+      transition: all 0.15s ease;
+      font-size: 0.92em;
+      vertical-align: baseline;
+      user-select: none;
+    }
+    .ck-cite-ref:hover {
+      text-decoration: underline;
+      background: #e8f0fe;
+      color: #003380;
+    }
+    .ck-cite-ref.is-active {
+      background: #d2e3fc;
+      color: #002266;
+      font-weight: 700;
+      box-shadow: 0 0 0 1px #0047ab;
+    }
+
+    /* Right Memory Cards in LaTeX Paper Style */
+    .ck-provenance-head {
+      font-size: 0.82rem;
+      font-weight: 700;
+      color: #222222;
+      margin: 0 0 12px;
+      padding-bottom: 6px;
+      border-bottom: 1px solid #e0dcd4;
+      letter-spacing: 0.3px;
+      text-transform: uppercase;
+    }
+    .ck-ref-icon { color: #0047ab; margin-right: 4px; }
+    .ck-ev {
+      display: block;
+      margin: 0;
+      padding: 10px 12px;
+      border: 1px solid #dedad2;
+      border-left: 3.5px solid #0047ab;
+      border-radius: 2px;
+      background: #ffffff;
+      font-size: 0.82rem;
+      line-height: 1.55;
+      transition: all 0.2s ease;
+      cursor: pointer;
+    }
+    .ck-ev:hover { border-color: #b5b0a5; }
+    .ck-ev.is-on, .ck-ev.is-highlighted {
+      border-color: #0047ab;
+      box-shadow: 0 0 0 2px #0047ab, 0 3px 8px rgba(0,71,171,0.15);
+      background: #f0f5ff;
+    }
+    @keyframes citePulse {
+      0% { background: #dbeafe; box-shadow: 0 0 0 3px #0047ab; }
+      50% { background: #bfdbfe; box-shadow: 0 0 0 4px #0047ab; }
+      100% { background: #f0f5ff; box-shadow: 0 0 0 2px #0047ab; }
+    }
+    .ck-ev-k {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 0.75rem;
+      color: #444444;
+      margin-bottom: 5px;
+      font-weight: 700;
+    }
+    .ck-ev-cite-tag {
+      color: #0047ab;
+      font-weight: 700;
+      font-family: "Latin Modern Roman", serif;
+      text-decoration: none;
+    }
+    .ck-ev-kind-badge {
+      display: inline-block;
+      padding: 1px 6px;
+      border-radius: 2px;
+      font-size: 0.72rem;
+      font-weight: 600;
+      letter-spacing: 0.2px;
+    }
+    .ck-badge-keypoint {
+      border: 1px solid #0047ab;
+      color: #0047ab;
+      background: #f0f5ff;
+    }
+    .ck-badge-note {
+      border: 1px solid #b86a04;
+      color: #b86a04;
+      background: #fff8eb;
+    }
+    .ck-mem-title {
+      font-weight: 700;
+      color: #111111;
+      font-size: var(--ck-fs);
+      margin-bottom: 4px;
+      line-height: 1.5;
+    }
+    .ck-ev-quote {
+      color: #222222;
+      font-style: normal;
+      font-family: inherit;
+      margin: 4px 0 6px;
+      padding: 0;
+      background: transparent;
+      border: none;
+      line-height: 1.6;
+      font-size: var(--ck-fs);
+    }
+    .ck-ev-meta { font-size: 0.76rem; color: #666666; margin-top: 4px; }
+    .ck-ev-more {
+      margin-top: 2px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+    .ck-ev-more[open] { margin-top: 4px; }
+    .ck-ev-more summary { margin-bottom: 6px; }
+    .ck-proof-toggle {
+      cursor: pointer;
+      font-size: 0.82rem;
+      color: #0047ab;
+      user-select: none;
+      font-family: inherit;
+      padding: 2px 0;
+    }
+    .ck-proof-toggle:hover { text-decoration: underline; }
+    /* 右栏下段"状态演进"：无行内锚点，与上方证据卡视觉区分（灰底 + 徽章，无 [n]） */
+    .ck-ledger {
+      margin-top: 10px;
+      padding-top: 8px;
+      border-top: 1px dashed #d4d0c7;
+    }
+    .ck-ledger > summary { list-style: none; }
+    .ck-ledger > summary::-webkit-details-marker { display: none; }
+    .ck-ledger > summary::after { content: " ▾"; }
+    .ck-ledger:not([open]) > summary::after { content: " ▸"; }
+    /* 每类一张小灰卡：卡头类别 + 条数，卡内按 1. 2. 3. 编号 */
+    .ck-ledger-card {
+      background: #faf9f5;
+      border: 1px solid #e6e2d8;
+      border-left: 3px solid #bdb6a6;
+      border-radius: 4px;
+      padding: 7px 9px;
+      margin-bottom: 6px;
+    }
+    .ck-ledger-k {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 6px;
+      font-size: 0.72rem;
+      margin-bottom: 5px;
+    }
+    .ck-ledger-badge {
+      background: #efece4;
+      color: #6b6559;
+      border-radius: 3px;
+      padding: 1px 6px;
+      font-weight: 600;
+    }
+    .ck-ledger-count { color: #8a8578; }
+    .ck-ledger-list {
+      margin: 0;
+      padding-left: 1.35em;
+      font-size: var(--ck-fs);
+      line-height: 1.6;
+      color: #3b3a37;
+    }
+    .ck-ledger-list > li { margin: 2px 0; }
+    .ck-ledger-text { font-size: var(--ck-fs); line-height: 1.6; color: #3b3a37; }
+    .ck-ledger-meta { color: #8a8578; font-size: 0.76rem; }
+
+    @media(max-width: 860px) {
+      .ck-doc { padding: 22px 18px; }
+      .ck-review { grid-template-columns: 1fr; }
+      .ck-review-rule { display: none; }
+    }
+
+  </style>
+</head>
+<body>
+  <main class="page">
+    <div class="ck-doc">
+      <header class="ck-doc-header">
+        <h1>古典小说闲谈会：红楼金瓶水浒版本与背景讨论</h1>
+      </header>
+      <div class="ck-doc-content">
+        <h1 class="ck-doc-h1">讨论议题与背景</h1><p>本次讨论为四人（发言人1至发言人4）围绕《红楼梦》《金瓶梅》《水浒传》等古典小说的闲谈式交流，由发言人2提议继续此前未说完的《红楼梦》话题而起。议题范围涵盖《红楼梦》的官场暗线与四大家族兴衰、冷香丸制作细节、薛宝钗结局版本差异及成书背景；《金瓶梅》与《水浒传》的叙事差异、西门庆人物线及结局；《西游记》中佛教虚伪的桥段；以及《三国演义》等作品的历史背景对照。讨论以分享观点为主，未形成统一结论，整体呈漫谈发散式推进，各议题间自然流转，最后因时间关系由发言人1提议暂停并约定另起一条继续。讨论中提及四大家族护官符诗句、冷香丸需特定节气材料、西门庆纵欲过度而死等具体细节。</p><h1 class="ck-doc-h1">发言要点</h1><h2 class="ck-doc-h2">《红楼梦》讨论</h2><ul><li><strong>发言人3</strong>：提出《红楼梦》有一条官场暗线，四大家族兴衰与朝堂变化相关；王熙凤前期地位高、结局惨，与其兄长在官场上的地位和先死直接相关。</li><li><strong>发言人4</strong>：质疑四大家族「感觉就没几个人」，每家只两家人多一点，只知典型人物，薛宝钗家也没什么靠山。</li><li><strong>发言人3</strong>：回应薛宝钗家是做生意的，主要是有钱。</li><li><strong>发言人1</strong>：背诵四大家族护官符——「贾不假，白玉为堂金作马；阿房宫三百里，住不下金陵一个史；东海缺少白玉床，龙王来请金陵王；丰年好大雪，珍珠如土金如铁」。</li><li><strong>发言人4</strong>：称护官符说得都很牛逼，但感觉没什么厉害人家；史家只有史湘云。</li><li><strong>发言人3</strong>：判断四大家族整体都在走下坡路。</li><li><strong>发言人1</strong>：认同说的就是王朝家族的衰败。</li><li><strong>发言人4</strong>：回忆小时候看《红楼梦》没看明白，但对吃螃蟹的讲究印象深刻——江南吃螃蟹非常讲究，要卸钳卸身，第一次听说吃螃蟹需要这么多工具。</li><li><strong>发言人3</strong>：提到冷香丸的制作——要雨水那一日的雨水、小雪那一日的雪，每个节气都要正好碰上。</li><li><strong>发言人1</strong>：补充冷香丸材料——春天的白牡丹、夏天的白荷花、秋天的白芙蓉、冬天的白梅花。</li><li><strong>发言人3</strong>：提及薛宝钗结局版本差异——120回版本中她嫁给贾宝玉，但贾宝玉不久就出家，好多人说是无性婚姻；后来好像怀了孩子，但那是狗血版本。</li><li><strong>发言人2</strong>：追问孩子是贾宝玉的吗。</li><li><strong>发言人3</strong>：称那肯定是狗血版本。</li><li><strong>发言人1</strong>：认为应该不至于弄这么狗血。</li><li><strong>发言人2</strong>：指出有人把金瓶梅和红楼梦混淆。</li><li><strong>发言人4</strong>：称有说法《红楼梦》演的是曹雪芹的经历，他以前好像是个大家族。</li><li><strong>发言人3</strong>：认为要不然写不出那么多细节。</li><li><strong>发言人1</strong>：补充《红楼梦》当时是禁书，不说朝代已经是禁书，说朝代更禁。</li><li><strong>发言人3</strong>：称《红楼梦》没有明确朝代，是一个写得很虚的故事。</li><li><strong>发言人4</strong>：称作者是那个时代的，就是映射那个时代。</li></ul><h2 class="ck-doc-h2">《金瓶梅》与《水浒传》讨论</h2><ul><li><strong>发言人4</strong>：问金瓶梅后来讲的什么，感觉金瓶梅比红楼梦接地气一点。</li><li><strong>发言人1</strong>：介绍金瓶梅从武松杀武德郎之后开始写；武松去找西门庆时，西门庆在楼上喝茶，仆人报信后从楼上翻下去逃了——原水浒传里没有翻下去、直接砍头，金瓶梅里翻下去就给了他一线生机，之后怎么都报仇不了，武松被发配，开始讲西门庆的线。</li><li><strong>发言人3</strong>：称金瓶梅里武松有报仇线，但没有报仇成功，所以很真实。</li><li><strong>发言人1</strong>：解释武松报仇总被打压下去，被高官和大家族权势摁压下来。</li><li><strong>发言人2</strong>：概括为西门庆霸凌武大郎。</li><li><strong>发言人4</strong>：称西门庆最后直接跟童贯还是谁攀上中央的线，当地一霸。</li><li><strong>发言人2</strong>：问西门庆后来和宋江这些人有没有交集。</li><li><strong>发言人3</strong>：称应该不会写，但丞相是同一个丞相。</li><li><strong>发言人2</strong>：问宋江他们起义成功了吗。</li><li><strong>发言人3</strong>：称金瓶梅就是从西门庆这个小人物的发展史写起，一个无赖能爬到比较高、过得比较舒服，讲的是官场如何黑。</li><li><strong>发言人4</strong>：称金瓶梅里吃的也写得可好，西门庆摆宴。</li><li><strong>发言人2</strong>：问金瓶梅里西门庆的结局，水浒里是脑袋被砍下来。</li><li><strong>发言人3</strong>：称金瓶梅版本里西门庆是纵欲过度死。</li><li><strong>发言人2</strong>：问宰相或丞相最后什么结局。</li><li><strong>发言人3</strong>：称没看，只看了一点。</li><li><strong>发言人4</strong>：称也忘了。</li><li><strong>发言人4</strong>：问潘金莲在金瓶梅里属于啥。</li><li><strong>发言人3</strong>：称西门庆好像有十个老婆，有的老婆特别懦弱，潘金莲属于很有心机、比较强势那一种。</li><li><strong>发言人4</strong>：确认前面还有武大郎，武大郎也是死在潘金莲手下。</li><li><strong>发言人3</strong>：记得西门庆有一个老婆生病后去看和尚、不去治病，信这个，回来死了；里面佛教也可黑，收灯油钱。</li></ul><h2 class="ck-doc-h2">《西游记》佛教虚伪讨论</h2><ul><li><strong>发言人1</strong>：提到如来佛祖帮一个国家后，说「区区收了300两黄金」。</li><li><strong>发言人2</strong>：记得两个例子——狮驼岭；孙悟空和唐僧单独取经时寄宿寺院，住持有很多袈裟，觊觎唐僧袈裟，后来不知怎么引火把自己烧死了。</li><li><strong>发言人3</strong>：称也可能看的是电视剧，没看过原著。</li><li><strong>发言人4</strong>：提到黑神话里也有相关boss。</li></ul><h2 class="ck-doc-h2">历史背景与版本关系讨论</h2><ul><li><strong>发言人2</strong>：问水浒跟金瓶梅是平行的、红楼梦是单独的故事线。</li><li><strong>发言人3</strong>：称不是一个朝代，红楼梦没有明确朝代。</li><li><strong>发言人4</strong>：称红楼梦是明清的、明末清初；金瓶梅和水浒是北宋时期。</li><li><strong>发言人2</strong>：问红楼梦在历史上有没有真实发生的历史事件。</li><li><strong>发言人3</strong>：称红楼梦开头就是湖边漫步，写得很虚。</li><li><strong>发言人2</strong>：对比三国演义有明确历史人物和时间线，事件大致相同；水浒也是同时期真实发生的事情。</li><li><strong>发言人1</strong>：补充红楼梦当时是禁书，不敢写朝代。</li></ul><h2 class="ck-doc-h2">东吴二宫之争讨论</h2><ul><li><strong>发言人2</strong>：提到孙权二宫之争——长子孙和与太子孙登，一个被立为太子、一个被立为鲁王，不同大臣支持不同儿子；孙权其中一个老婆王夫人特别有心机，和孙鲁班一起反杀，把东吴政局搅得一团糟；询问大家了解程度。</li></ul><h1 class="ck-doc-h1">共识形成</h1><ul><li><strong>一致意见</strong>：与会者普遍认同《红楼梦》存在官场暗线，四大家族兴衰与朝堂变化相关，王熙凤地位与其兄长在官场地位相关；整体上四大家族都在走下坡路，映射王朝家族衰败。对《金瓶梅》从武松杀西门庆失败写起、武松被发配后展开西门庆线的叙事结构，以及西门庆结局为纵欲过度死，与会者无异议。</li><li><strong>倾向性认识</strong>：关于《红楼梦》朝代背景，发言人3称其无明确朝代、是虚构故事，发言人4称作者映射当时时代，发言人1补充称《红楼梦》当时是禁书、不敢写明朝代，三人认识基本一致。关于《金瓶梅》与《水浒传》关系，发言人3称《金瓶梅》是西门庆这个小人物的发展史，发言人2问及西门庆与宋江有无交集，发言人3称应该不会写。</li><li><strong>主要分歧点</strong>：关于薛宝钗结局，发言人3提及120回版本中她嫁给贾宝玉后贾宝玉出家，有人说无性婚姻，后来好像怀了孩子，但发言人3随即称那是狗血版本，发言人1回应「这个应该不至于弄这么狗血」，发言人2追问孩子归属，发言人3未给出定论。关于《金瓶梅》中武松报仇线，发言人3称有报仇线但没报仇成功，发言人4称武松最后因重病昏过去而死，两人表述略有出入。</li></ul><h1 class="ck-doc-h1">待探讨问题与后续</h1><ul><li><strong>未确认</strong>：《红楼梦》中薛宝钗嫁给贾宝玉后是否怀孕，存在版本差异，发言人3称其看到的120回版本中贾宝玉不久出家，有说法称无性婚姻，也有说法称后来怀了孩子，但被指为狗血版本。</li><li><strong>未确认</strong>：《金瓶梅》中武松报仇线是否成功，发言人3称武松报仇总是被打压下去，西门庆当地一霸，但未明确最终是否成功。</li><li><strong>待核实</strong>：《金瓶梅》中宰相或丞相的结局，发言人3称未看，发言人4称忘了，未确认。</li><li><strong>待核实</strong>：《西游记》中如来佛祖收300两黄金的章节，发言人1忘记具体是哪一集，只记得好像是最后一集。</li><li><strong>未定论</strong>：《红楼梦》是否映射曹雪芹自身经历，发言人4提到有这种说法，但未确认。</li><li><strong>未定论</strong>：东吴二宫之争中王夫人与孙鲁班的具体作为，发言人2提及后询问大家了解程度，无人回应，未展开讨论。</li></ul><p>后续约定：发言人1在会议末尾提出「时间差不多了，咱们再起一条」，发言人2回应「下一个场景是啥你接」，约定另起一条继续讨论，但未明确具体话题、责任方或时间点。</p>
+      </div>
+    </div>
+  </main>
+</body>
+</html>

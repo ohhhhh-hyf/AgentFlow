@@ -1,0 +1,405 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>三国经典战役与武将能力讨论</title>
+  <style>
+
+    body {
+      margin: 0;
+      padding: 14px 12px;
+      background: #f6f5f0;
+      color: #1a1a1a;
+      font-family: "Latin Modern Roman", "Computer Modern Roman", "CMU Serif", "Times New Roman", Times, "Songti SC", "SimSun", "STSong", serif;
+      -webkit-font-smoothing: antialiased;
+    }
+    .page { max-width: 1140px; margin: 0 auto; }
+    .ck-doc {
+      background: #ffffff;
+      border: 1px solid #d4d0c7;
+      border-radius: 4px;
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.05), 0 1px 3px rgba(0,0,0,0.03);
+      padding: 18px 22px;
+      line-height: 1.6;
+      font-size: 0.84rem;      /* 正文基准：左右两栏共用 --ck-fs */
+      --ck-fs: 0.84rem;
+    }
+    .ck-doc h1 {
+      margin: 0 0 6px;
+      font-size: 1.05rem;      /* 文档标题：只比正文略大一点 */
+      font-weight: 700;
+      text-align: center;
+      color: #111111;
+    }
+    .ck-doc-header {
+      margin-bottom: 10px;
+      padding-bottom: 8px;
+      border-bottom: 1px solid #111111;
+      text-align: center;
+    }
+    .ck-doc-meta {
+      font-size: 0.78rem;
+      color: #555555;
+      font-style: italic;
+    }
+    /* 层级标题一律"加粗 + 与右栏同级字号"，不加字号、不加下划线，前后留白压到最小 */
+    .ck-doc-content h1, .ck-doc-content .ck-doc-h1,
+    .ck-doc h2, .ck-doc-h2,
+    .ck-doc h3, .ck-doc-h3,
+    .ck-doc h4, .ck-doc-h4 {
+      font-size: var(--ck-fs);
+      font-weight: 700;
+      color: #111111;
+      border-bottom: 0;
+      padding-bottom: 0;
+      letter-spacing: 0;
+      font-variant: normal;
+      text-align: left;
+    }
+    .ck-doc-content h1, .ck-doc-content .ck-doc-h1, .ck-doc h2, .ck-doc-h2 {
+      margin: 12px 0 4px;
+    }
+    .ck-doc h3, .ck-doc-h3, .ck-doc h4, .ck-doc-h4 {
+      margin: 9px 0 3px;
+    }
+    .ck-doc p {
+      margin: 5px 0;
+      line-height: 1.6;
+      text-align: justify;
+    }
+    .ck-doc ul, .ck-doc ol {
+      margin: 4px 0 6px;
+      padding-left: 1.25em;
+      line-height: 1.6;
+    }
+    .ck-doc li {
+      margin: 2px 0;
+    }
+    .ck-doc blockquote, .ck-quote {
+      margin: 6px 0 8px;
+      padding: 5px 10px;
+      background: #faf9f6;
+      border-left: 3px solid #222222;
+      border-radius: 2px;
+      color: #222222;
+      font-size: var(--ck-fs);
+      font-style: italic;
+    }
+    .ck-doc code {
+      background: #f3f0e8;
+      border: 1px solid #e2ddd3;
+      border-radius: 3px;
+      padding: 1px 6px;
+      font-family: "Latin Modern Mono", Consolas, monospace;
+      font-size: 0.88em;
+    }
+    .ck-doc table, .ck-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: var(--ck-fs);
+      margin: 8px 0;
+      background: #ffffff;
+      border-top: 2px solid #222222;
+      border-bottom: 2px solid #222222;
+    }
+    .ck-doc table th, .ck-doc table td, .ck-table th, .ck-table td {
+      padding: 5px 8px;
+      text-align: left;
+      vertical-align: middle;
+      border-bottom: 1px solid #ede9e1;
+    }
+    .ck-doc table th, .ck-table th {
+      background: #fbfaf7;
+      border-bottom: 1.2px solid #222222;
+      font-weight: 700;
+      color: #111111;
+      letter-spacing: 0.3px;
+    }
+
+    /* Roomy & Spacious Academic Risk Table */
+    .ck-risk-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 18px 0 28px;
+      background: #ffffff;
+      border-top: 2.2px solid #111111;
+      border-bottom: 2.2px solid #111111;
+      font-size: 0.93rem;
+      line-height: 1.72;
+    }
+    .ck-risk-table th {
+      background: #faf8f5;
+      border-bottom: 1.5px solid #111111;
+      padding: 15px 16px;
+      font-weight: 700;
+      color: #111111;
+      letter-spacing: 0.3px;
+      text-align: left;
+      vertical-align: middle;
+    }
+    .ck-risk-table td {
+      padding: 16px 16px;
+      border-bottom: 1px solid #ede8e0;
+      vertical-align: top;
+      color: #1a1a1a;
+      word-break: break-word;
+    }
+    .ck-risk-table tr:nth-child(even) td {
+      background: #fdfcfb;
+    }
+    .ck-risk-table tr:hover td {
+      background: #f6f3eb;
+    }
+
+    /* Review Grid */
+    .ck-review {
+      display: grid;
+      grid-template-columns: minmax(0, 1.35fr) 1px minmax(260px, 0.95fr);
+      border: 1px solid #d4d0c7;
+      border-radius: 4px;
+      overflow: hidden;
+      margin: 8px 0 10px;
+      background: #ffffff;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.03);
+    }
+    .ck-review-left {
+      padding: 14px 16px;
+      background: #ffffff;
+      line-height: 1.6;
+      font-size: var(--ck-fs);
+    }
+    .ck-review-rule { background: #dcd8cf; }
+    .ck-review-right {
+      padding: 12px 14px;
+      background: #faf9f6;
+      box-sizing: border-box;
+      display: flex;
+      flex-direction: column;
+    }
+    .ck-ev-list {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    /* Entity Highlight in LaTeX Paper Style */
+    .ck-cite-entity {
+      background: #fff8db;
+      border-bottom: 1.5px solid #b86a04;
+      padding: 1px 4px;
+      border-radius: 2px;
+      cursor: pointer;
+      transition: all 0.18s ease;
+      color: #111111;
+      font-weight: 600;
+    }
+    .ck-cite-entity:hover {
+      background: #ffe58f;
+      color: #000000;
+    }
+    .ck-cite-entity.is-on {
+      background: #ffd54a;
+      border-bottom-color: #0047ab;
+      box-shadow: 0 0 0 2px rgba(0,71,171,0.25);
+    }
+
+    /* Blue Hyperref Citations [1], [2] */
+    .ck-cite-ref {
+      color: #0047ab;
+      font-weight: 600;
+      font-family: "Latin Modern Roman", "Computer Modern Roman", "Times New Roman", serif;
+      text-decoration: none;
+      cursor: pointer;
+      padding: 0 2px;
+      margin: 0 2px;
+      border-radius: 2px;
+      transition: all 0.15s ease;
+      font-size: 0.92em;
+      vertical-align: baseline;
+      user-select: none;
+    }
+    .ck-cite-ref:hover {
+      text-decoration: underline;
+      background: #e8f0fe;
+      color: #003380;
+    }
+    .ck-cite-ref.is-active {
+      background: #d2e3fc;
+      color: #002266;
+      font-weight: 700;
+      box-shadow: 0 0 0 1px #0047ab;
+    }
+
+    /* Right Memory Cards in LaTeX Paper Style */
+    .ck-provenance-head {
+      font-size: 0.82rem;
+      font-weight: 700;
+      color: #222222;
+      margin: 0 0 12px;
+      padding-bottom: 6px;
+      border-bottom: 1px solid #e0dcd4;
+      letter-spacing: 0.3px;
+      text-transform: uppercase;
+    }
+    .ck-ref-icon { color: #0047ab; margin-right: 4px; }
+    .ck-ev {
+      display: block;
+      margin: 0;
+      padding: 10px 12px;
+      border: 1px solid #dedad2;
+      border-left: 3.5px solid #0047ab;
+      border-radius: 2px;
+      background: #ffffff;
+      font-size: 0.82rem;
+      line-height: 1.55;
+      transition: all 0.2s ease;
+      cursor: pointer;
+    }
+    .ck-ev:hover { border-color: #b5b0a5; }
+    .ck-ev.is-on, .ck-ev.is-highlighted {
+      border-color: #0047ab;
+      box-shadow: 0 0 0 2px #0047ab, 0 3px 8px rgba(0,71,171,0.15);
+      background: #f0f5ff;
+    }
+    @keyframes citePulse {
+      0% { background: #dbeafe; box-shadow: 0 0 0 3px #0047ab; }
+      50% { background: #bfdbfe; box-shadow: 0 0 0 4px #0047ab; }
+      100% { background: #f0f5ff; box-shadow: 0 0 0 2px #0047ab; }
+    }
+    .ck-ev-k {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 0.75rem;
+      color: #444444;
+      margin-bottom: 5px;
+      font-weight: 700;
+    }
+    .ck-ev-cite-tag {
+      color: #0047ab;
+      font-weight: 700;
+      font-family: "Latin Modern Roman", serif;
+      text-decoration: none;
+    }
+    .ck-ev-kind-badge {
+      display: inline-block;
+      padding: 1px 6px;
+      border-radius: 2px;
+      font-size: 0.72rem;
+      font-weight: 600;
+      letter-spacing: 0.2px;
+    }
+    .ck-badge-keypoint {
+      border: 1px solid #0047ab;
+      color: #0047ab;
+      background: #f0f5ff;
+    }
+    .ck-badge-note {
+      border: 1px solid #b86a04;
+      color: #b86a04;
+      background: #fff8eb;
+    }
+    .ck-mem-title {
+      font-weight: 700;
+      color: #111111;
+      font-size: var(--ck-fs);
+      margin-bottom: 4px;
+      line-height: 1.5;
+    }
+    .ck-ev-quote {
+      color: #222222;
+      font-style: normal;
+      font-family: inherit;
+      margin: 4px 0 6px;
+      padding: 0;
+      background: transparent;
+      border: none;
+      line-height: 1.6;
+      font-size: var(--ck-fs);
+    }
+    .ck-ev-meta { font-size: 0.76rem; color: #666666; margin-top: 4px; }
+    .ck-ev-more {
+      margin-top: 2px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+    .ck-ev-more[open] { margin-top: 4px; }
+    .ck-ev-more summary { margin-bottom: 6px; }
+    .ck-proof-toggle {
+      cursor: pointer;
+      font-size: 0.82rem;
+      color: #0047ab;
+      user-select: none;
+      font-family: inherit;
+      padding: 2px 0;
+    }
+    .ck-proof-toggle:hover { text-decoration: underline; }
+    /* 右栏下段"状态演进"：无行内锚点，与上方证据卡视觉区分（灰底 + 徽章，无 [n]） */
+    .ck-ledger {
+      margin-top: 10px;
+      padding-top: 8px;
+      border-top: 1px dashed #d4d0c7;
+    }
+    .ck-ledger > summary { list-style: none; }
+    .ck-ledger > summary::-webkit-details-marker { display: none; }
+    .ck-ledger > summary::after { content: " ▾"; }
+    .ck-ledger:not([open]) > summary::after { content: " ▸"; }
+    /* 每类一张小灰卡：卡头类别 + 条数，卡内按 1. 2. 3. 编号 */
+    .ck-ledger-card {
+      background: #faf9f5;
+      border: 1px solid #e6e2d8;
+      border-left: 3px solid #bdb6a6;
+      border-radius: 4px;
+      padding: 7px 9px;
+      margin-bottom: 6px;
+    }
+    .ck-ledger-k {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 6px;
+      font-size: 0.72rem;
+      margin-bottom: 5px;
+    }
+    .ck-ledger-badge {
+      background: #efece4;
+      color: #6b6559;
+      border-radius: 3px;
+      padding: 1px 6px;
+      font-weight: 600;
+    }
+    .ck-ledger-count { color: #8a8578; }
+    .ck-ledger-list {
+      margin: 0;
+      padding-left: 1.35em;
+      font-size: var(--ck-fs);
+      line-height: 1.6;
+      color: #3b3a37;
+    }
+    .ck-ledger-list > li { margin: 2px 0; }
+    .ck-ledger-text { font-size: var(--ck-fs); line-height: 1.6; color: #3b3a37; }
+    .ck-ledger-meta { color: #8a8578; font-size: 0.76rem; }
+
+    @media(max-width: 860px) {
+      .ck-doc { padding: 22px 18px; }
+      .ck-review { grid-template-columns: 1fr; }
+      .ck-review-rule { display: none; }
+    }
+
+  </style>
+</head>
+<body>
+  <main class="page">
+    <div class="ck-doc">
+      <header class="ck-doc-header">
+        <h1>三国经典战役与武将能力讨论</h1>
+      </header>
+      <div class="ck-doc-content">
+        <h1 class="ck-doc-h1">讨论议题与背景</h1><p>本次讨论由主持人（发言人1）发起，从兵法和战法角度延伸三国故事线，围绕赤壁之战、合肥之战、火烧连营等经典战役展开，并延伸至孙权军事能力评价、关羽张飞等武将战斗力及诸葛亮北伐的假设性探讨。参会成员共3人（发言人1、发言人2、发言人3），以漫谈分享为主，未形成统一结论。讨论以赤壁之战影响为切入点，逐块推进至东吴北伐困境、火烧连营与陆逊评价、武将能力比较及北伐假设等议题。关键锚点包括：公元215年合肥之战张辽率800死士大破孙权十万大军、火烧连营七百里、孙权一生未能攻下合肥。</p><h1 class="ck-doc-h1">发言要点</h1><h2 class="ck-doc-h2">赤壁之战与东吴北伐的困境</h2><ul><li><strong>发言人1</strong>：赤壁之战曹军失败主因是军队以虎豹骑等骑兵为主、擅长陆战，刚收服荆州没有像样水军，而江东以水军为主，故无法打水战。</li><li><strong>发言人1</strong>：东吴北伐必须经过合肥——从建业（今南京）过长江到江北，经小河到巢湖上岸，打下合肥后才能靠近淮河继续北进；孙权一生都在朝打合肥努力，但从未攻下。</li><li><strong>发言人1</strong>：公元215年合肥之战，曹军主力在攻汉中，合肥仅张辽、李典、乐进三将镇守且三人矛盾深重；张辽率800死士骑马冲锋，大败孙权，留下「张八百大破孙十万」的段子。</li><li><strong>发言人1</strong>：合肥之战中孙权差点被俘——张辽冲营时吴军未反应过来，张辽、李典不认识孙权，后问被俘吴军「骑马好、射箭准、上身长下身短、留小胡子的人是谁」，得知是孙权后后悔没抓住。</li><li><strong>发言人1</strong>：张辽在合肥威名远扬，城内小孩一听张辽跺脚都不敢啼哭；后人吐槽孙权「正面打敌人打不过，偷盟友的家专业」。</li><li><strong>发言人1</strong>：南京紫金山孙权墓确切位置已找不着，只立碑写「此地可能就是孙权墓的大概位置」，游客在碑前堆满张辽的影视海报和游戏卡片。</li><li><strong>发言人2</strong>：小时候看「生子当如孙仲谋」觉得孙权厉害，长大后感觉反转厉害，不只是「孙十万」的问题。</li><li><strong>发言人3</strong>：孙权在孙十万之前也打过一场很坑的仗——好几万人去打人家，被人家几千人追着打；具体对手名字记不清，不是刘表，也不是张辽，时间在赤壁之战前。</li></ul><h2 class="ck-doc-h2">火烧连营与陆逊评价</h2><ul><li><strong>发言人1</strong>：刘备因体恤下属，不忍酷暑折磨，让士兵在密林扎营避暑；陆逊抓住秋季干燥、树叶飘落的时机，在秋老虎时期一口气放火，烧掉连营七百里，刘备只身逃回白帝城。</li><li><strong>发言人2</strong>：询问陆逊是否与孙家有仇，陆家和孙家没听过。</li><li><strong>发言人1</strong>：陆逊是江东四杰之一；孙策被称为小霸王、太冒失，后来被刺杀，因孙家是外来户。</li><li><strong>发言人1</strong>：曹操说「生子当如孙仲谋」，因孙策传位给弟弟孙权，孙权开疆拓土能力不行但能守住家业，对比曹操几个儿子算最争气的。</li></ul><h2 class="ck-doc-h2">武将能力与诸葛亮北伐假设</h2><ul><li><strong>发言人3</strong>：从南往北打，除了朱元璋打过去，剩下能守住首都就不错了，北伐南下容易。</li><li><strong>发言人3</strong>：刘备至少汉中之战打得挺好；孙权打仗打得都挺颓。</li><li><strong>发言人1</strong>：夷陵之战刘备被仇恨冲昏头脑、冒进；汉中之战有法正和黄权辅佐，靠地势地利把曹操耗出汉中。</li><li><strong>发言人1</strong>：关羽很厉害，阵中斩将可能是历史第一人——摆好阵后直接过去把对方主将干掉，对面就谈都不行直接打赢；水淹七军之外还有斩颜良、诛文丑。</li><li><strong>发言人3</strong>：关羽个人战力强，但部队打仗方面只知道水淹七军；阵中斩将确实改变战场局势。</li><li><strong>发言人1</strong>：黄忠定军山斩夏侯渊也行，但跟关羽不太一样，可能是从山上冲下来。</li><li><strong>发言人3</strong>：张飞不知道有什么经典战役，只知道长坂坡。</li><li><strong>发言人1</strong>：张飞在演义里和马超在成都城下大战五百回合。</li><li><strong>发言人1</strong>：五子良将包括张辽（从吕布降过来的）、曹仁、夏侯渊、张郃、徐晃、于禁；于禁后来被关羽生擒。</li><li><strong>发言人1</strong>：曹操底下人多血厚、耗得起；若诸葛亮第一次北伐用魏延守街亭，大概率能把张郃反杀回去，不会像马谡那样轻易丢掉街亭，北伐第一次可能就成功。</li><li><strong>发言人3</strong>：魏延想法大胆，但蜀汉地盘太小，不符合实际支撑。</li></ul><h1 class="ck-doc-h1">共识形成</h1><ul><li><strong>一致意见</strong>：赤壁之战与合肥之战均因双方擅长领域不同而僵持——曹军以骑兵为主、不擅水战，吴军擅长水战但陆战不敌曹军；孙权军事能力受质疑，一生未能攻下合肥，公元215年合肥之战张辽率800死士大破孙权十万大军，孙权差点被俘。</li><li><strong>倾向性认识</strong>：火烧连营是刘备因体恤士兵在密林扎营、被陆逊抓住秋季干燥时机所致，刘备只身逃回白帝城；关羽战斗力受认可，曾阵中斩将改变战场局势，但队友不争气。</li><li><strong>主要分歧点</strong>：发言人1认为关羽战斗力强，发言人3质疑其战绩，只知水淹七军；关于诸葛亮第一次北伐若用魏延守街亭可能反杀张郃的假设，发言人1提出此观点，发言人3仅以「地盘太小了」回应，未形成统一结论。</li></ul><h1 class="ck-doc-h1">待探讨问题与后续</h1><ul><li><strong>未确认</strong>：孙权早期被某位将领打败的具体人物，发言人3提及孙权在孙策刚死时曾以数万人被对方几千人追打，但未能确认该将领姓名（排除张辽、刘表、曹仁后仍未定论）。</li><li><strong>未确认</strong>：关羽阵中斩将是否为历史第一人，发言人1提出此说法，发言人3未予确认，仅认可关羽个人战力突出。</li><li><strong>未定论</strong>：孙权军事能力评价存在分歧——发言人2表示小时候认为孙权厉害、长大后观感反转，发言人1认为孙权「开疆拓土能力不行，但能守住家业」，发言人3认为孙权打仗「挺颓的」，未形成一致结论。</li><li><strong>未定论</strong>：诸葛亮第一次北伐若用魏延守街亭能否成功的假设，发言人1认为魏延大概率能反杀张郃、北伐可能成功，但魏延想法不符合蜀汉实际支撑，发言人3仅回应「地盘太小了」，未深入展开。</li></ul>
+      </div>
+    </div>
+  </main>
+</body>
+</html>

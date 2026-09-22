@@ -1,0 +1,405 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>梦想主题班会：认识梦想与坚持</title>
+  <style>
+
+    body {
+      margin: 0;
+      padding: 14px 12px;
+      background: #f6f5f0;
+      color: #1a1a1a;
+      font-family: "Latin Modern Roman", "Computer Modern Roman", "CMU Serif", "Times New Roman", Times, "Songti SC", "SimSun", "STSong", serif;
+      -webkit-font-smoothing: antialiased;
+    }
+    .page { max-width: 1140px; margin: 0 auto; }
+    .ck-doc {
+      background: #ffffff;
+      border: 1px solid #d4d0c7;
+      border-radius: 4px;
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.05), 0 1px 3px rgba(0,0,0,0.03);
+      padding: 18px 22px;
+      line-height: 1.6;
+      font-size: 0.84rem;      /* 正文基准：左右两栏共用 --ck-fs */
+      --ck-fs: 0.84rem;
+    }
+    .ck-doc h1 {
+      margin: 0 0 6px;
+      font-size: 1.05rem;      /* 文档标题：只比正文略大一点 */
+      font-weight: 700;
+      text-align: center;
+      color: #111111;
+    }
+    .ck-doc-header {
+      margin-bottom: 10px;
+      padding-bottom: 8px;
+      border-bottom: 1px solid #111111;
+      text-align: center;
+    }
+    .ck-doc-meta {
+      font-size: 0.78rem;
+      color: #555555;
+      font-style: italic;
+    }
+    /* 层级标题一律"加粗 + 与右栏同级字号"，不加字号、不加下划线，前后留白压到最小 */
+    .ck-doc-content h1, .ck-doc-content .ck-doc-h1,
+    .ck-doc h2, .ck-doc-h2,
+    .ck-doc h3, .ck-doc-h3,
+    .ck-doc h4, .ck-doc-h4 {
+      font-size: var(--ck-fs);
+      font-weight: 700;
+      color: #111111;
+      border-bottom: 0;
+      padding-bottom: 0;
+      letter-spacing: 0;
+      font-variant: normal;
+      text-align: left;
+    }
+    .ck-doc-content h1, .ck-doc-content .ck-doc-h1, .ck-doc h2, .ck-doc-h2 {
+      margin: 12px 0 4px;
+    }
+    .ck-doc h3, .ck-doc-h3, .ck-doc h4, .ck-doc-h4 {
+      margin: 9px 0 3px;
+    }
+    .ck-doc p {
+      margin: 5px 0;
+      line-height: 1.6;
+      text-align: justify;
+    }
+    .ck-doc ul, .ck-doc ol {
+      margin: 4px 0 6px;
+      padding-left: 1.25em;
+      line-height: 1.6;
+    }
+    .ck-doc li {
+      margin: 2px 0;
+    }
+    .ck-doc blockquote, .ck-quote {
+      margin: 6px 0 8px;
+      padding: 5px 10px;
+      background: #faf9f6;
+      border-left: 3px solid #222222;
+      border-radius: 2px;
+      color: #222222;
+      font-size: var(--ck-fs);
+      font-style: italic;
+    }
+    .ck-doc code {
+      background: #f3f0e8;
+      border: 1px solid #e2ddd3;
+      border-radius: 3px;
+      padding: 1px 6px;
+      font-family: "Latin Modern Mono", Consolas, monospace;
+      font-size: 0.88em;
+    }
+    .ck-doc table, .ck-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: var(--ck-fs);
+      margin: 8px 0;
+      background: #ffffff;
+      border-top: 2px solid #222222;
+      border-bottom: 2px solid #222222;
+    }
+    .ck-doc table th, .ck-doc table td, .ck-table th, .ck-table td {
+      padding: 5px 8px;
+      text-align: left;
+      vertical-align: middle;
+      border-bottom: 1px solid #ede9e1;
+    }
+    .ck-doc table th, .ck-table th {
+      background: #fbfaf7;
+      border-bottom: 1.2px solid #222222;
+      font-weight: 700;
+      color: #111111;
+      letter-spacing: 0.3px;
+    }
+
+    /* Roomy & Spacious Academic Risk Table */
+    .ck-risk-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 18px 0 28px;
+      background: #ffffff;
+      border-top: 2.2px solid #111111;
+      border-bottom: 2.2px solid #111111;
+      font-size: 0.93rem;
+      line-height: 1.72;
+    }
+    .ck-risk-table th {
+      background: #faf8f5;
+      border-bottom: 1.5px solid #111111;
+      padding: 15px 16px;
+      font-weight: 700;
+      color: #111111;
+      letter-spacing: 0.3px;
+      text-align: left;
+      vertical-align: middle;
+    }
+    .ck-risk-table td {
+      padding: 16px 16px;
+      border-bottom: 1px solid #ede8e0;
+      vertical-align: top;
+      color: #1a1a1a;
+      word-break: break-word;
+    }
+    .ck-risk-table tr:nth-child(even) td {
+      background: #fdfcfb;
+    }
+    .ck-risk-table tr:hover td {
+      background: #f6f3eb;
+    }
+
+    /* Review Grid */
+    .ck-review {
+      display: grid;
+      grid-template-columns: minmax(0, 1.35fr) 1px minmax(260px, 0.95fr);
+      border: 1px solid #d4d0c7;
+      border-radius: 4px;
+      overflow: hidden;
+      margin: 8px 0 10px;
+      background: #ffffff;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.03);
+    }
+    .ck-review-left {
+      padding: 14px 16px;
+      background: #ffffff;
+      line-height: 1.6;
+      font-size: var(--ck-fs);
+    }
+    .ck-review-rule { background: #dcd8cf; }
+    .ck-review-right {
+      padding: 12px 14px;
+      background: #faf9f6;
+      box-sizing: border-box;
+      display: flex;
+      flex-direction: column;
+    }
+    .ck-ev-list {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    /* Entity Highlight in LaTeX Paper Style */
+    .ck-cite-entity {
+      background: #fff8db;
+      border-bottom: 1.5px solid #b86a04;
+      padding: 1px 4px;
+      border-radius: 2px;
+      cursor: pointer;
+      transition: all 0.18s ease;
+      color: #111111;
+      font-weight: 600;
+    }
+    .ck-cite-entity:hover {
+      background: #ffe58f;
+      color: #000000;
+    }
+    .ck-cite-entity.is-on {
+      background: #ffd54a;
+      border-bottom-color: #0047ab;
+      box-shadow: 0 0 0 2px rgba(0,71,171,0.25);
+    }
+
+    /* Blue Hyperref Citations [1], [2] */
+    .ck-cite-ref {
+      color: #0047ab;
+      font-weight: 600;
+      font-family: "Latin Modern Roman", "Computer Modern Roman", "Times New Roman", serif;
+      text-decoration: none;
+      cursor: pointer;
+      padding: 0 2px;
+      margin: 0 2px;
+      border-radius: 2px;
+      transition: all 0.15s ease;
+      font-size: 0.92em;
+      vertical-align: baseline;
+      user-select: none;
+    }
+    .ck-cite-ref:hover {
+      text-decoration: underline;
+      background: #e8f0fe;
+      color: #003380;
+    }
+    .ck-cite-ref.is-active {
+      background: #d2e3fc;
+      color: #002266;
+      font-weight: 700;
+      box-shadow: 0 0 0 1px #0047ab;
+    }
+
+    /* Right Memory Cards in LaTeX Paper Style */
+    .ck-provenance-head {
+      font-size: 0.82rem;
+      font-weight: 700;
+      color: #222222;
+      margin: 0 0 12px;
+      padding-bottom: 6px;
+      border-bottom: 1px solid #e0dcd4;
+      letter-spacing: 0.3px;
+      text-transform: uppercase;
+    }
+    .ck-ref-icon { color: #0047ab; margin-right: 4px; }
+    .ck-ev {
+      display: block;
+      margin: 0;
+      padding: 10px 12px;
+      border: 1px solid #dedad2;
+      border-left: 3.5px solid #0047ab;
+      border-radius: 2px;
+      background: #ffffff;
+      font-size: 0.82rem;
+      line-height: 1.55;
+      transition: all 0.2s ease;
+      cursor: pointer;
+    }
+    .ck-ev:hover { border-color: #b5b0a5; }
+    .ck-ev.is-on, .ck-ev.is-highlighted {
+      border-color: #0047ab;
+      box-shadow: 0 0 0 2px #0047ab, 0 3px 8px rgba(0,71,171,0.15);
+      background: #f0f5ff;
+    }
+    @keyframes citePulse {
+      0% { background: #dbeafe; box-shadow: 0 0 0 3px #0047ab; }
+      50% { background: #bfdbfe; box-shadow: 0 0 0 4px #0047ab; }
+      100% { background: #f0f5ff; box-shadow: 0 0 0 2px #0047ab; }
+    }
+    .ck-ev-k {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 0.75rem;
+      color: #444444;
+      margin-bottom: 5px;
+      font-weight: 700;
+    }
+    .ck-ev-cite-tag {
+      color: #0047ab;
+      font-weight: 700;
+      font-family: "Latin Modern Roman", serif;
+      text-decoration: none;
+    }
+    .ck-ev-kind-badge {
+      display: inline-block;
+      padding: 1px 6px;
+      border-radius: 2px;
+      font-size: 0.72rem;
+      font-weight: 600;
+      letter-spacing: 0.2px;
+    }
+    .ck-badge-keypoint {
+      border: 1px solid #0047ab;
+      color: #0047ab;
+      background: #f0f5ff;
+    }
+    .ck-badge-note {
+      border: 1px solid #b86a04;
+      color: #b86a04;
+      background: #fff8eb;
+    }
+    .ck-mem-title {
+      font-weight: 700;
+      color: #111111;
+      font-size: var(--ck-fs);
+      margin-bottom: 4px;
+      line-height: 1.5;
+    }
+    .ck-ev-quote {
+      color: #222222;
+      font-style: normal;
+      font-family: inherit;
+      margin: 4px 0 6px;
+      padding: 0;
+      background: transparent;
+      border: none;
+      line-height: 1.6;
+      font-size: var(--ck-fs);
+    }
+    .ck-ev-meta { font-size: 0.76rem; color: #666666; margin-top: 4px; }
+    .ck-ev-more {
+      margin-top: 2px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+    .ck-ev-more[open] { margin-top: 4px; }
+    .ck-ev-more summary { margin-bottom: 6px; }
+    .ck-proof-toggle {
+      cursor: pointer;
+      font-size: 0.82rem;
+      color: #0047ab;
+      user-select: none;
+      font-family: inherit;
+      padding: 2px 0;
+    }
+    .ck-proof-toggle:hover { text-decoration: underline; }
+    /* 右栏下段"状态演进"：无行内锚点，与上方证据卡视觉区分（灰底 + 徽章，无 [n]） */
+    .ck-ledger {
+      margin-top: 10px;
+      padding-top: 8px;
+      border-top: 1px dashed #d4d0c7;
+    }
+    .ck-ledger > summary { list-style: none; }
+    .ck-ledger > summary::-webkit-details-marker { display: none; }
+    .ck-ledger > summary::after { content: " ▾"; }
+    .ck-ledger:not([open]) > summary::after { content: " ▸"; }
+    /* 每类一张小灰卡：卡头类别 + 条数，卡内按 1. 2. 3. 编号 */
+    .ck-ledger-card {
+      background: #faf9f5;
+      border: 1px solid #e6e2d8;
+      border-left: 3px solid #bdb6a6;
+      border-radius: 4px;
+      padding: 7px 9px;
+      margin-bottom: 6px;
+    }
+    .ck-ledger-k {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 6px;
+      font-size: 0.72rem;
+      margin-bottom: 5px;
+    }
+    .ck-ledger-badge {
+      background: #efece4;
+      color: #6b6559;
+      border-radius: 3px;
+      padding: 1px 6px;
+      font-weight: 600;
+    }
+    .ck-ledger-count { color: #8a8578; }
+    .ck-ledger-list {
+      margin: 0;
+      padding-left: 1.35em;
+      font-size: var(--ck-fs);
+      line-height: 1.6;
+      color: #3b3a37;
+    }
+    .ck-ledger-list > li { margin: 2px 0; }
+    .ck-ledger-text { font-size: var(--ck-fs); line-height: 1.6; color: #3b3a37; }
+    .ck-ledger-meta { color: #8a8578; font-size: 0.76rem; }
+
+    @media(max-width: 860px) {
+      .ck-doc { padding: 22px 18px; }
+      .ck-review { grid-template-columns: 1fr; }
+      .ck-review-rule { display: none; }
+    }
+
+  </style>
+</head>
+<body>
+  <main class="page">
+    <div class="ck-doc">
+      <header class="ck-doc-header">
+        <h1>梦想主题班会：认识梦想与坚持</h1>
+      </header>
+      <div class="ck-doc-content">
+        <h1 class="ck-doc-h1">课程概况</h1><p>本节为“梦想”主题班会课，由老师主讲，面向全班学生。课程以提问开场，引导学生分享各自的梦想（如当保安、喜剧人、歌手等），随后老师结合自身经历展开讲述：其梦想是成为受学生喜爱的有名望的优秀人民教师，曾梦想考取中国美术学院（单考通过但因离家远、经济原因未就读），后作为定向生入读广东技术师范大学并定向回龙川县教书，大学四年保持专业排名第一（专业41人），并考取教师资格证。课程通过播放航模爱好者何聪发与普通歌手追梦的视频，引导学生讨论实现梦想的条件，总结出坚持、努力、勇敢、机会、兴趣、能力和学习等要素，并以马云中考两次、高考三次最终成为中国首富为例，说明起点不重要、坚持更重要。最后，老师让学生写下自己的梦想清单（含小目标与大目标），并要求每个小组第1个同学收齐后交给老师；班会结束前学生自愿上台唱歌。</p><h1 class="ck-doc-h1">核心知识点梳理</h1><h2 class="ck-doc-h2">梦想的定义与价值</h2><ul><li><strong>梦想的提出</strong>：班会以“梦想”为主题，老师提问“我们班有没有同学有哪些梦想”，学生回答当保安、当喜剧人、当太空人、当世界冠军、当主角、当歌手等，老师指出“每一个班的人都会有想当太空人”，说明广告词深入人心。</li><li><strong>梦想值得尊重</strong>：老师强调“每一个梦想都是值得我们尊重的”“我们不要去嘲笑任何一个人的梦想”，并举唱歌走调者可通过后天学习调整为例，说明“尽管他现在在睡觉也好，在干什么都好，顶峰相见”。</li><li><strong>梦想不可复制</strong>：针对“马云梦想是神话、不可复制”的说法，老师回应“我们每一个人的梦想都是不可以复制的，都是独一无二的”。</li><li><strong>梦想需分阶段</strong>：老师建议“先定小目标，然后大目标”，如考不进年级前50可先调整为前百，考进前百后再定前50，“我们就一步步地往前面去”。</li></ul><h2 class="ck-doc-h2">实现梦想的条件</h2><ul><li><strong>坚持与努力</strong>：老师总结实现梦想的必备条件为“学习、坚持、行动”，并强调“天赋只是1%”，努力是主要因素；⭐难点在于坚持，老师以大学四年保持专业排名第一为例，说明“每天都能5点起床”体现自律与坚持。</li><li><strong>勇敢与行动</strong>：老师表扬“抖音班那个同学”虽被起哄仍勇敢站上讲台唱歌，鼓励学生“都能有一个勇气，然后去行动”。</li><li><strong>机会与准备</strong>：老师指出实现梦想需要机会，但“机会都是留给有准备的人”。</li><li><strong>兴趣、能力与学习</strong>：老师补充兴趣、能力、学习等也是实现梦想的具备条件；若缺少某一条件梦想仍可能实现，但“如果我们都具备，我们的梦想会更快地实现”。</li><li><strong>条件讨论活动</strong>：老师组织4个大组作为“梦想观察团”，观察对象为玩航模的小伙子和想成为歌手的普通人，讨论实现梦想所需条件。</li></ul><h2 class="ck-doc-h2">教师个人梦想案例</h2><ul><li><strong>教师梦想</strong>：老师梦想“成为一个受学生喜爱的、有名望的优秀人民教师”，并称“这是一个非常伟大的梦想，我会实现的”，目前“还在努力的过程中”。</li><li><strong>考中国美术学院经历</strong>：老师曾梦想考中国美术学院，单考已通过，但因“离家太远”和“没钱”未就读；老师高中时“是大家资助着一路成长过来”，并称“学美术的是有钱的，像我学美术我是没钱的”。</li><li><strong>定向生经历</strong>：老师是定向生，定向回龙川县教书，免学费；定向不能考研，但可在职考研，“边工作边读研”，且“学费也得自己交”；老师当时“哭了三天”，但“现在是很开心的”，认为“听了父母的一个选择是真的”。</li><li><strong>大学成就</strong>：老师大学四年保持本专业排名第一（专业共41人），曾想加入学生会、参加校运会和新生晚会等各类比赛，认为“大学评优不只看学习好”。</li><li><strong>高中经历</strong>：老师高中时被选在国旗下讲话，当着全校面说“一定要考上中国美术学院”，当时“底下很多人都嘲笑”，但最终单考通过；老师自述高中时“在同学们眼里就是一个死读书”，现在“开朗了”。</li></ul><h2 class="ck-doc-h2">视频案例与榜样</h2><ul><li><strong>航模爱好者何聪发</strong>：视频展示航模爱好者何聪发（原文亦作“何宗发”）通过一步步努力走上更大舞台，是中国唯一去法国巴黎比赛的航模选手，带着歼10模型表演，目标是“把中国国旗挂在世界各大赛场上”，并计划“在明年的世界锦标赛上再一比高下”。</li><li><strong>歌手梦想的普通人</strong>：视频展示普通人想当歌手的梦想，在宿舍练习，即使唱歌走调也可通过后天学习调整，说明“他能成为一个歌手还是可以的”。</li><li><strong>马云案例</strong>：老师举例马云“中考的时候考了两次才考上了高中，高考的时候考了三次”，最终成为中国首富，说明“一个人的起点高还是低不重要，看的是你能不能坚持”；马云的新梦想是“在未来的15年里面，世界因他们而改变”，他“在享受着改变他人的乐趣”。</li></ul><h2 class="ck-doc-h2">梦想清单的制定</h2><ul><li><strong>梦想清单方法</strong>：老师展示自己的梦想之路清单，从读书到考大学经历11年，录取优秀班干部用2年，获得国家励志奖学金用1年，成为优秀人民教师“还没开始待定”；建议学生“列清单”，实现后“打一个勾”，并思考“实现这个梦想我们需要具备的时间”及“收获了什么”。</li><li><strong>学生梦想分享</strong>：老师展示学生写的梦想，包括“考试圆满通过”“考上重本、211”“成为一名光荣的人民教师”“大学4年攒20万”“成为一个创业者”“希望家人平平安安”“希望世界和平”“希望祖国越来越好”等，并点评“每天开开心心的这个梦想其实就很难实现”。</li><li><strong>梦想调整原则</strong>：老师总结“有梦想有追求，也许我们就有一个困惑，需要我们量力而行，也需要去调整”，目标实现不了可调整后再坚持实现，“追梦的人是特别充实的”。</li></ul><h1 class="ck-doc-h1">课堂互动与答疑</h1><p><strong>学生</strong>：老师，您的梦想是什么？</p><p><strong>教师</strong>：我的梦想是成为受学生喜爱的、有名望的优秀人民教师，目前还在努力过程中。</p><p><strong>学生</strong>：老师，您以前想考中国美术学院，后来为什么没去？</p><p><strong>教师</strong>：我单考过了，但没去读。一是离家太远，二是学美术费用高，我高中是靠大家资助读完的。后来选了定向生，免学费，定向回龙川县教书。</p><p><strong>学生</strong>：定向生可以考研吗？</p><p><strong>教师</strong>：定向生不能在校读研，但可以在职考研，边工作边读，学费自己交。</p><p><strong>学生</strong>：老师，您大学是怎么保持专业排名第一的？</p><p><strong>教师</strong>：专业共41人，我四年保持第一。靠的是每天5点起床、坚持和自律。</p><p><strong>学生</strong>：实现梦想需要哪些条件？</p><p><strong>教师</strong>：坚持、努力、勇敢、机会、兴趣、能力和学习。机会留给有准备的人，学习、坚持、行动是必不可少的三个条件。</p><p><strong>学生</strong>：缺少其中一个条件，梦想还能实现吗？</p><p><strong>教师</strong>：缺少某个条件，梦想仍有可能实现；但条件都具备，实现会更快。</p><p><strong>学生</strong>：马云中考考了两次才上高中，高考也考了多次，为什么还能成功？</p><p><strong>教师</strong>：起点高低不重要，关键在能不能坚持。马云现在成了中国首富，说明坚持比起点更重要。</p><p><strong>学生</strong>：马云的新梦想是什么？</p><p><strong>教师</strong>：过去15年中国因他们而改变，未来15年希望世界因他们而改变，他享受改变他人的乐趣。</p><p><strong>学生</strong>：如果考不进年级前50怎么办？</p><p><strong>教师</strong>：可以先把梦想调整为考进前百，考进后再定前50，一步步往前进。</p><p><strong>学生</strong>：马云的梦想可以复制吗？</p><p><strong>教师</strong>：不可以，每个人的梦想都是独一无二、不可复制的。</p><p><strong>学生</strong>：老师，您之前当着全校说考中国美术学院，被嘲笑了吗？</p><p><strong>教师</strong>：是的，当时很多人嘲笑我，但我不被嘲笑的梦想就不是梦想，最终我单考过了。</p><h1 class="ck-doc-h1">课后任务与学习建议</h1><h2 class="ck-doc-h2">课堂练习</h2><ul><li><strong>梦想观察团活动</strong>：全班分4个大组，各为一观察团，观看航模爱好者与普通歌手追梦视频，找出实现梦想所需条件，讨论缺少某一条件梦想是否还能实现。</li><li><strong>梦想清单写作</strong>：学生拿出纸张，仿照老师示例列出梦想清单，含第1个、第2个、第3个等分项，写明实现所需时间与实现后的收获，完成后可打勾。</li><li><strong>梦想清单分享</strong>：老师当堂展示并点评多名学生的梦想清单，如考630分、成为人民教师、大学4年攒20万、迎娶贤惠妻子等，肯定朴实可行的梦想。</li></ul><h2 class="ck-doc-h2">复习重点</h2><ul><li><strong>实现梦想的条件</strong>：坚持、努力、勇敢、机会、兴趣、能力、学习，其中学习、坚持、行动是必不可少的三个条件；机会留给有准备的人。</li><li><strong>梦想可调整</strong>：目标实现不了可量力调整，如先定考进年级前百、再定前50，一步步往前进；梦想可以分阶段、列小目标与大目标。</li><li><strong>起点不重要、坚持重要</strong>：以马云中考考两次、高考考三次最终成为中国首富为例，说明起点高低不影响能否坚持实现梦想。</li><li><strong>梦想值得尊重</strong>：不被嘲笑的梦想不是梦想，不要嘲笑任何人的梦想，每个梦想都独一无二、不可复制。</li></ul><h2 class="ck-doc-h2">学习建议</h2><ul><li><strong>制定梦想清单</strong>：仿照老师示例，用漂亮纸张列出梦想清单，分条写明第1个、第2个、第3个梦想，实现后打勾，并记录所需时间与收获。</li><li><strong>分阶段设定目标</strong>：先定小目标再定大目标，目标实现不了时量力调整，通过努力与坚持逐步实现，如从年级前百调整到前50。</li><li><strong>勇敢行动与展示</strong>：像主动上台唱歌的同学一样，抓住机会勇敢行动；班会结束前学生可自愿上台唱歌，展示才艺与勇气。</li><li><strong>梦想清单收交</strong>：每个小组第1个同学负责收齐本组同学的梦想清单，交给老师。</li></ul>
+      </div>
+    </div>
+  </main>
+</body>
+</html>
