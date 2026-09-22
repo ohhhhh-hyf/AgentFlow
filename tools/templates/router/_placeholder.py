@@ -755,6 +755,46 @@ _OVERLONG_ITEM_REVISION = (
 )
 
 
+# ── 表格承载栏 / 栏内自声明的缺省词（模板声明优先，程序只做确定性识别）────────
+# 「本栏明细由下表承载（本栏不再另写说明文字、不要写「未提及」）」是 body_rules 已列明的
+# 模板写法：这类栏位的正文本就该为空（内容在表里）⇒ 不得按"漏填"重试、也不得强填缺省词。
+# 实测（2026-09-22 hiring_report）：该模板第 3 栏如此声明，模型正确留空，而旧判定把
+# "任一栏为空"当漏填 ⇒ 重试 3 轮（每轮 ~19s）、最后还把该栏强填「未提及」。
+_TABLE_CARRIED_RE = re.compile(r"明细由下表承载|本栏不再另写|只用下表|不写「未提及」")
+# 栏位自己声明的缺省词（如「没有就写「未明确」」）；找不到才回落「未提及」。
+_DEFAULT_WORD_RE = re.compile(r"(?:没有就写|无则写|缺省词|无内容时写|没有则写)\s*「([^」]+)」")
+_DEFAULT_WORD = "未提及"
+
+
+def _table_carried_indexes(plan: dict[str, Any]) -> set[int]:
+    """1 基下标集合：说明里声明「明细由下表承载」的标量栏（允许为空）。
+
+    只在模板确实带表时才算——没表的模板不存在"表格承载栏"。
+    """
+    if not (plan.get("row_templates") or []):
+        return set()
+    out: set[int] = set()
+    for i, scalar in enumerate(plan.get("scalars") or [], start=1):
+        text = f"{scalar.get('hint') or ''}{scalar.get('raw') or ''}"
+        if _TABLE_CARRIED_RE.search(text):
+            out.add(i)
+    return out
+
+
+def _declared_default_word(plan: dict[str, Any], index: int) -> str:
+    """第 index 栏（1 基）声明的缺省词；没声明回落「未提及」。"""
+    scalars = plan.get("scalars") or []
+    if 1 <= index <= len(scalars):
+        scalar = scalars[index - 1]
+        text = f"{scalar.get('hint') or ''}{scalar.get('raw') or ''}"
+        match = _DEFAULT_WORD_RE.search(text)
+        if match:
+            word = match.group(1).strip()
+            if word:
+                return word
+    return _DEFAULT_WORD
+
+
 def _scalar_titles(template: str) -> list[str]:
     """标量字段所属栏名（与 ``plan_placeholder_fill`` 同序）：`# [栏名]` 之下的取栏名。
 
@@ -1066,6 +1106,8 @@ async def fill_placeholder_template(
             return by_column
 
     revision = ""
+    carried = _table_carried_indexes(plan)  # 表格承载栏：允许为空
+    prev_raw = ""
     try:
         for attempt in range(3):
             raw = await _client_text(
@@ -1083,6 +1125,15 @@ async def fill_placeholder_template(
                 max_tokens=cap,
                 label="template/fill",
             )
+            # ③ 与上一轮逐字相同（temperature=0 下几乎必然）：再重试没有新信息，直接收尾。
+            repeated = bool(attempt) and (raw or "").strip() == prev_raw
+            if repeated:
+                logger.info(
+                    "placeholder fill 输出与上一轮相同（attempt=%s）：跳过剩余重试，直接收尾",
+                    attempt + 1,
+                )
+            prev_raw = (raw or "").strip()
+            last_round = attempt >= 2 or repeated  # 本轮即最后一轮（重试无新信息的那些轮）
             fields, rows, tables = parse_fill_response(raw)
             if not tables and rows:
                 tables = [rows]
@@ -1110,7 +1161,7 @@ async def fill_placeholder_template(
             blank = [
                 i
                 for i, _seg in enumerate(plan["scalars"], start=1)
-                if not str(fields.get(str(i), "")).strip()
+                if i not in carried and not str(fields.get(str(i), "")).strip()
             ]
             no_rows = not any(tables[i] for i in range(len(plan["row_templates"])))
             all_empty = no_rows and not any(str(v).strip() for v in fields.values())
@@ -1122,21 +1173,23 @@ async def fill_placeholder_template(
                     all_empty,
                     (raw or "")[:160].replace("\n", " "),
                 )
-                if attempt < 2:
+                if attempt < 2 and not repeated:
                     named = "、".join(f"字段{i}" for i in blank) or "全部标量字段"
                     revision = (
                         f"上次输出漏填或留空了这些栏目：{named}。"
                         "fields 必须给出清单里的全部编号（缺键＝漏填），"
                         "每一栏都要有内容；内容来源里确实没有依据的按该栏约定缺省词填写（模板没约定时写「未提及」）。"
+                        "若某栏的说明已声明「明细由下表承载／本栏不再另写文字」，该栏可以留空。"
                         "请只输出 JSON：{\"fields\": {\"1\": \"…\"}, \"tables\": []}，"
                         "每个字段按占位说明写原文要点，不得留空、不得只留标题。"
                     )
                     continue
-                # 三轮仍缺栏：不再 return None（整篇退回 freeform 会丢模板结构），
-                # 改为给仍空的字段补缺省词继续走完校验——漏填已有三轮机会，
-                # 最终宁可让该栏显式写「未提及」，也不放半截文档或丢结构。
+                # 多轮仍缺栏（或输出与上一轮相同）：不再 return None（整篇退回 freeform 会丢模板结构），
+                # 改为给仍空的字段补该栏声明的缺省词继续走完校验——漏填已有多次机会，
+                # 最终宁可让该栏显式写缺省词，也不放半截文档或丢结构。
+                # ② 按该栏自己声明的缺省词填（如「未明确」），没声明才回落「未提及」。
                 for i in blank:
-                    fields[str(i)] = "未提及"
+                    fields[str(i)] = _declared_default_word(plan, i)
                 assembled = assemble_placeholder_output(template, fields, tables=tables)
                 logger.warning(
                     "placeholder blanks filled with default word (attempt=%s)：%s",
@@ -1148,7 +1201,7 @@ async def fill_placeholder_template(
             logger.debug("placeholder fill attempt=%s han=%s", attempt + 1, _body_han_count(assembled))
             lo = budget.get("lo") if isinstance(budget, dict) else None
             hi = budget.get("hi") if isinstance(budget, dict) else None
-            if (lo or hi) and attempt < 2:
+            if (lo or hi) and not last_round:
                 han = _body_han_count(assembled)
                 lo_i = int(lo or 0)
                 hi_i = int(hi or 0)
@@ -1198,7 +1251,7 @@ async def fill_placeholder_template(
                 attempt + 1,
                 "；".join(issues),
             )
-            if attempt >= 1:
+            if attempt >= 1 or last_round:
                 # 多轮后仍无硬伤则接受当前拼装，交给上层 freeform/repair 的情况仅在硬伤时
                 hard = list(gate.get("hard_issues") or [])
                 if not hard:

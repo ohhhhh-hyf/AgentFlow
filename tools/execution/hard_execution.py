@@ -37,6 +37,7 @@ HARD_ISSUE_MARKERS = (
     "无有效数据行",
     "同行粘连",
     "只有标题没有正文",
+    "标题重复",
 )
 
 _HEADING_RE = re.compile(r"^(#{1,6})\s+(\S.*?)\s*$")
@@ -660,7 +661,7 @@ def split_overlong_paragraphs(text: str, template: str) -> tuple[str, list[str]]
             continue
         key = _norm_heading(str(item.get("title") or ""))
         para = str(item.get("scope") or "section") == "paragraph"
-        limits[key] = (int(hi), 1.2 if para else 1.0)
+        limits[key] = (int(hi), _SPLIT_RATIO if para else 1.0)
     if not limits:
         return text, []
     no_split = _no_split_sections(template)
@@ -874,6 +875,10 @@ def enforce_render_output(
     if gnotes:
         text = text2
         notes.extend(gnotes)
+    text2, bnotes = fix_bare_headings(text)
+    if bnotes:
+        text = text2
+        notes.extend(bnotes)
     text2, cnotes = clean_template_render_text(text)
     text = text2
     notes.extend(cnotes)
@@ -935,7 +940,7 @@ def enforce_render_output(
 
 
 def truncate_to_budget(text: str, hi: int, *, ratio: float = 1.05) -> str:
-    """按句子边界截断到约 hi 字（保完整句，宁少勿多）。
+    """按句子边界截断到约 hi 字（保完整句，宁少勿多）——**兜底线**（第三层）。
 
     LLM 压缩仍有极限（对汉字数感知不准），作为字数门禁的最终兜底：
     优先整句保留（句号/分号/换行切句），超出部分丢弃；
@@ -970,6 +975,7 @@ def gate_render_output(
     """
     text, notes, issues = enforce_render_output(template, output)
     issues.extend(empty_section_issues(text, template))
+    issues.extend(duplicate_heading_issues(text))
     over = _overlong_issue(template, text)
     if over:
         issues.append(over)
@@ -991,7 +997,19 @@ def gate_render_output(
 
 
 
-_LONG_ITEM_HAN = 200
+# ── 篇幅口径：三层同源（要求线 → 拆分线 → 检查线 → 兜底线），不再各写一份数字 ──
+# 要求线：写进 prompt、模型应当遵守的字数，与 tools/templates/body_rules.py 的文案一一对应
+#   （改这里必须同步改那段文案；tests/test_template_router.py 有断言把两边钉在一起）。
+_PARA_REQUIRE_HAN = 200  # 一般叙述单段（body_rules：「不超过约 200 字」）
+_ITEM_REQUIRE_HAN = 140  # `- ` 条目（body_rules：「单条不超过约 140 字」）
+# 拆分线 = 要求线 × 1.2：确定性按句界拆段（只加换行、零 LLM 调用），贴着要求线
+_SPLIT_RATIO = 1.2
+_PARA_SPLIT_HAN = int(_PARA_REQUIRE_HAN * _SPLIT_RATIO)  # 240
+# 检查线 = 要求线 × 1.5：拆分没治好才算异常，进 advisory 记账（只记录、不返工）。
+# 条目维度没有「拆分」层（不能程序拆句），所以检查线即兜底线（触发只重写那一栏）。
+_CHECK_RATIO = 1.5
+_PARA_CHECK_HAN = int(_PARA_REQUIRE_HAN * _CHECK_RATIO)  # 300
+_ITEM_CHECK_HAN = int(_ITEM_REQUIRE_HAN * _CHECK_RATIO)  # 210
 _META_SENTENCE_RE = re.compile(
     r"原文(?:中|里)?\s*(?:未|没有|无)\s*(?:明确|提及|说明|给出|写)"
 )
@@ -1000,7 +1018,7 @@ _META_SENTENCE_RE = re.compile(
 def overlong_items(
     text: str,
     *,
-    long_han: int = _LONG_ITEM_HAN,
+    long_han: int = _ITEM_CHECK_HAN,
     limit: int = 4,
 ) -> list[str]:
     """`- ` 条目超过 ``long_han`` 汉字的告警文本（无则空）。
@@ -1050,7 +1068,9 @@ def fix_glued_column_titles(text: str, template: str) -> tuple[str, list[str]]:
     out = text
     fixed: list[str] = []
     for name in sorted(dict.fromkeys(names), key=len, reverse=True):
-        pat = re.compile(r"(?<=[^\n])[ \t]*(#\s*" + re.escape(name) + r")(?=[ \t]*(?:\n|$))")
+        # 前视必须**不是** `#`：否则 `## 核心结论` 的第二个 `#` 会被当成粘在正文里的栏名，
+        # 改写成 `#\n\n# 核心结论`（裸 # + 重复标题）——2026-09-22 实测的回归。
+        pat = re.compile(r"(?<=[^\n#])(#{1,6}\s*" + re.escape(name) + r")(?=[ \t]*(?:\n|$))")
         out, n = pat.subn(r"\n\n\1", out)
         if n:
             fixed.append(name)
@@ -1059,11 +1079,58 @@ def fix_glued_column_titles(text: str, template: str) -> tuple[str, list[str]]:
     return out, [f"已把粘连的栏名提回独立行：{'、'.join(fixed)}"]
 
 
+
+_BARE_HEADING_RE = re.compile(r"^#{1,6}[ \t]*$")
+
+
+def fix_bare_headings(text: str) -> tuple[str, list[str]]:
+    """删掉「只有 `#` 没有文字」的行（确定性，只删该行、零 LLM）。
+
+    这类行不是合法 Markdown 标题，只可能是改写/退化留下的残渣（2026-09-22 实测：
+    栏名粘连兜底改写的副产物）。留在正文里既不显示为标题，也会把门禁骗过去。
+    """
+    lines = (text or "").splitlines(keepends=True)
+    kept = [ln for ln in lines if not _BARE_HEADING_RE.match(ln.rstrip("\r\n"))]
+    removed = len(lines) - len(kept)
+    if not removed:
+        return text, []
+    return "".join(kept), [f"已删除 {removed} 行裸标题（只有 `#` 没有文字）"]
+
+
+def duplicate_heading_issues(text: str, *, limit: int = 5) -> list[str]:
+    """同一级别出现同名标题（≥2 次）→ 形态缺陷（列标题与次数，最多 ``limit`` 条）。
+
+    为什么算硬伤（2026-09-22 实测）：程序改写或模型退化都可能把栏名/组名写重，
+    表现为「同一标题下内容被劈成两段」；门禁原先只查光杆标题（标题下没正文），
+    认不出"标题重复"。**跨级别同名不算重复**——`# 栏名` 之下再写 `## 栏名` 是
+    模板要求的正常层级（knowledge_memo 的 `## 核心结论` 就是如此）。
+    """
+    counts: dict[tuple[int, str], int] = {}
+    order: list[tuple[int, str]] = []
+    for raw_line in (text or "").splitlines():
+        match = _HEADING_RE.match(raw_line.strip())
+        if not match:
+            continue
+        key = (len(match.group(1)), match.group(2).strip())
+        if key not in counts:
+            order.append(key)
+        counts[key] = counts.get(key, 0) + 1
+    out: list[str] = []
+    for key in order:
+        if counts[key] >= 2:
+            out.append(
+                f"标题重复：「{'#' * key[0]} {key[1]}」出现 {counts[key]} 次（同级别同名），合并成一处"
+            )
+            if len(out) >= limit:
+                break
+    return out
+
+
 def advisory_issues(
     text: str,
     *,
-    long_han: int = _LONG_ITEM_HAN,
-    para_han: int = 320,
+    long_han: int = _ITEM_CHECK_HAN,
+    para_han: int = _PARA_CHECK_HAN,
     limit: int = 4,
 ) -> list[str]:
     """咨询级形态检查（超长条/段 + 缺失说明句）：**记录用，不触发返工**。
@@ -1072,10 +1139,10 @@ def advisory_issues(
     （占比 before 的 13 倍，如「一条 736 字」「课程概况 631 字一段」）；
     另有「机构信息原文未提及」这类**缺失说明句**（应只写约定缺省词）。
 
-    阈值分层：`- ` 条目用 ``long_han``（200 字，超过即为异常）；叙述段用
-    ``para_han``（默认 320 字）——它是比规格更早的预警线（概况类规格为
-    "最多 3 段、每段不超过 400 字"），231–275 字的概况段属正常，
-    用 200 字会把 30+ 行误报（实测 36/55），失去观察价值。
+    阈值**不硬编码**，而是从要求线派生（三层同源，见文件头部常量块）：
+    ``long_han = _ITEM_CHECK_HAN``（要求 140 × 1.5）、``para_han = _PARA_CHECK_HAN``
+    （要求 200 × 1.5）。它们是比规格更早的预警线，不是要求本身——直接拿要求线（200）
+    去判会把 30+ 行正常段误报（实测 36/55），失去观察价值。
 
     这两类先以 advisory 记录（日志 + monitor），观察一批再决定是否升级成
     issue（触发返工）或硬伤：软问题若直接进 ``issues`` 会让几乎每行都触发
@@ -1253,7 +1320,9 @@ __all__ = [
     "advisory_issues",
     "apply_table_row_limits",
     "classify_issues",
+    "duplicate_heading_issues",
     "empty_section_issues",
+    "fix_bare_headings",
     "enforce_minutes_draft",
     "enforce_render_output",
     "enforce_upstream_carry",

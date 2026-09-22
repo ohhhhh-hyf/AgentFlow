@@ -288,21 +288,67 @@ def test_missing_field_guard() -> None:
 
     c1 = _FakeFillClient([partial])
     out1 = asyncio.run(fill_placeholder_template(c1, "内容来源：甲乙丙。", FILL_TPL))
-    # 不再 return None：三轮重试后给仍空的字段补「未提及」，保住模板结构（原先整篇退回 freeform）
-    check("三轮仍缺栏 → 补缺省词保结构（不放半截文档、也不退回 freeform）",
+    # 不再 return None：最后一轮（或与上一轮输出相同的那一轮）给仍空的字段补缺省词，保住模板结构。
+    check("多轮仍缺栏 → 补缺省词保结构（不放半截文档、也不退回 freeform）",
           bool(out1) and "未提及" in (out1 or "") and "# 丙栏" in (out1 or ""), f"out={(out1 or '')[:80]!r}")
     check("仍空字段未被静默丢弃（甲/乙栏内容在）",
           "甲栏内容" in (out1 or "") and "乙栏内容" in (out1 or ""), "")
-    check("缺栏按上限重试 3 轮", c1.calls == 3, f"calls={c1.calls}")
+    check("连续两轮输出相同 ⇒ 提前收尾，不空跑第三轮", c1.calls == 2, f"calls={c1.calls}")
     check("重试指令点名缺哪一栏",
           len(c1.users) > 1 and "字段3" in c1.users[1],
           f"{c1.users[1][:100] if len(c1.users) > 1 else ''!r}")
+
+    partial2 = '{"fields": {"1": "甲栏内容v2。", "2": "乙栏内容。"}, "tables": []}'
+    partial3 = '{"fields": {"1": "甲栏内容v3。", "2": "乙栏内容。"}, "tables": []}'
+    c3 = _FakeFillClient([partial, partial2, partial3])
+    out3 = asyncio.run(fill_placeholder_template(c3, "内容来源：甲乙丙。", FILL_TPL))
+    check("三轮输出各不相同 ⇒ 仍按上限重试 3 轮（原路径保留）",
+          c3.calls == 3 and "甲栏内容v3" in (out3 or ""), f"calls={c3.calls}")
 
     c2 = _FakeFillClient([partial, full])
     out2 = asyncio.run(fill_placeholder_template(c2, "内容来源：甲乙丙。", FILL_TPL))
     check("重试补齐后按完整字段拼装",
           bool(out2) and "丙栏内容" in (out2 or ""), f"out={(out2 or '')[:60]!r}")
     check("补齐即停（不无谓多调一次）", c2.calls == 2, f"calls={c2.calls}")
+
+
+def test_table_carried_column_allows_blank() -> None:
+    """表格承载栏允许为空：不按"漏填"重试、不强填缺省词（hiring_report 实测，2026-09-22）。
+
+    背景：hiring_report 第 3 栏说明写着「本栏明细由下表承载（本栏不再另写说明文字、
+    不要写「未提及」）」——该栏正文本就该为空。旧判定把"任一栏为空"当漏填 ⇒ 每轮重试
+    （~19s/轮）且最后强填「未提及」（与模板声明冲突），稳定复现。
+    """
+    import asyncio
+
+    from tools.templates.router._placeholder import fill_placeholder_template
+
+    tpl = (
+        "# [候选人概况]\n[一段话概括候选人]\n\n"
+        "# [能力评估]\n[**本栏明细由下表承载**（本栏不再另写说明文字、不要写「未提及」）]\n"
+        "| 评估维度 | 评级 |\n| --- | --- |\n| [维度] | [评级] |\n"
+    )
+
+    class _Fake:
+        def __init__(self, payload: str) -> None:
+            self.payload = payload
+            self.calls = 0
+
+        async def text(self, system: str, user: str, **_kw) -> str:
+            self.calls += 1
+            return self.payload
+
+    payload = (
+        '{"fields": {"1": "候选人概况内容。", "2": ""}, '
+        '"tables": [[["综合分析", "良"]]]}'
+    )
+    client = _Fake(payload)
+    out = asyncio.run(fill_placeholder_template(client, "内容来源：略。", tpl))
+    check("表格承载栏为空 ⇒ 一次调用即收尾（不按漏填重试）",
+          client.calls == 1, f"calls={client.calls}")
+    check("表格承载栏为空 ⇒ 终稿不含「未提及」",
+          bool(out) and "未提及" not in (out or ""), (out or "")[:100])
+    check("表格内容照常装配", "综合分析" in (out or ""), (out or "")[:140])
 
 
 def test_fill_prompt_requires_all_keys() -> None:
@@ -601,11 +647,39 @@ def test_minutes_chain_consistency() -> None:
     hit = [k for k in stale if any(k in t for t in (fill_system, user, PLACEHOLDER_RULES, draft, render))]
     check("旧形态口径已从全部路径清除", not hit, f"残留={hit}")
 
-    # ② 摘要分段：三处同一套（段数按内容、单段 ≤3 句/约 200 字），且旧数字已清除
+    # ② 摘要分段：三处同一套（段数按内容、单段 ≤约 200 字——**只按字数口径**），旧数字已清除
     check("草稿 prompt / 契约都不再设固定段数上限",
           "≤4 段" not in draft and "≤4 段" not in gen_contract, "")
-    check("草稿 prompt / 契约同写「不超过 3 句或约 200 字」",
-          "不超过 3 句或约 200 字" in draft and "不超过 3 句或约 200 字" in gen_contract, "")
+    check("草稿 prompt / 契约同写「不超过约 200 字」（单一维度，句数只作写法建议）",
+          "不超过约 200 字" in draft and "不超过约 200 字" in gen_contract
+          and "3 句或约" not in draft and "3 句或约" not in gen_contract, "")
+
+    # ④ 篇幅口径三层同源（2026-09-22）：要求线（进 prompt）→ 拆分线（×1.2）→ 检查线（×1.5）
+    # 兜底（重写/按句界截断）在动作层，不再有硬编码的 320/200。
+    from tools.execution.hard_execution import (
+        _CHECK_RATIO,
+        _ITEM_CHECK_HAN,
+        _ITEM_REQUIRE_HAN,
+        _PARA_CHECK_HAN,
+        _PARA_REQUIRE_HAN,
+        _PARA_SPLIT_HAN,
+        _SPLIT_RATIO,
+    )
+    check("三层数字有序：要求线 < 拆分线 ≤ 检查线（段落）／要求线 < 检查线（条目）",
+          _PARA_REQUIRE_HAN < _PARA_SPLIT_HAN <= _PARA_CHECK_HAN
+          and _ITEM_REQUIRE_HAN < _ITEM_CHECK_HAN,
+          f"段落 {_PARA_REQUIRE_HAN}/{_PARA_SPLIT_HAN}/{_PARA_CHECK_HAN}，条目 {_ITEM_REQUIRE_HAN}/{_ITEM_CHECK_HAN}")
+    check("检查线/拆分线由要求线派生（不再硬编码 320/200）",
+          _PARA_CHECK_HAN == int(_PARA_REQUIRE_HAN * _CHECK_RATIO)
+          and _PARA_SPLIT_HAN == int(_PARA_REQUIRE_HAN * _SPLIT_RATIO)
+          and _ITEM_CHECK_HAN == int(_ITEM_REQUIRE_HAN * _CHECK_RATIO), "")
+    check("prompt 里的要求线与代码常量一致（单一来源，必须同时改）",
+          f"不超过约 {_PARA_REQUIRE_HAN} 字" in BODY_FORMAT_RULES
+          and f"单条不超过约 {_ITEM_REQUIRE_HAN} 字" in BODY_FORMAT_RULES, "")
+    from tools.execution.hard_execution import advisory_issues as _adv
+    check("advisory 阈值取自派生常量（默认值不再硬编码）",
+          _adv.__kwdefaults__.get("para_han") == _PARA_CHECK_HAN
+          and _adv.__kwdefaults__.get("long_han") == _ITEM_CHECK_HAN, "")
     check("契约声明「段数/句数是表达预算，不构成删事实的理由」",
           "不构成删事实的理由" in gen_contract, "")
     old_summary = [
@@ -1001,6 +1075,43 @@ def test_paragraph_split() -> None:
     check("已粘连的栏名由兜底步骤提回独立行",
           "\n# 要点梳理" in glued_doc and any("粘连" in n for n in gnotes),
           f"{gnotes} {glued_doc[-34:]!r}")
+
+    # 回归（2026-09-22）：`## 栏名` 曾被误判为「粘在正文里的栏名」⇒ 改写成 `#` 裸行 +
+    # 重复标题（knowledge_memo 的 `## 核心结论` 稳定复现）。合法子标题必须原样保留。
+    keep_doc, keep_notes, _ = enforce_render_output(
+        gm, "# 分段速览\n正文结束。\n\n## 分段速览\n- 乙\n"
+    )
+    check("合法的 ## 子标题（与栏名同名）保持原样、不改写",
+          "## 分段速览" in keep_doc
+          and not re.search(r"(?m)^#\s*$", keep_doc)
+          and not keep_notes,
+          f"{keep_notes} {keep_doc[-46:]!r}")
+    keep2, keep2_notes, _ = enforce_render_output(
+        gm, "# 分段速览\n正文结束。\n\n### 分段速览\n- 乙\n"
+    )
+    check("合法的 ### 子标题同样不改写",
+          "### 分段速览" in keep2 and not keep2_notes, "")
+
+    # 标题形态加固（2026-09-22）：裸标题确定性删除；同级别同名标题重复判硬伤。
+    bare_doc, bare_notes, _ = enforce_render_output(
+        gm, "# 分段速览\n正文结束。\n\n#\n\n# 分段速览\n- 乙\n"
+    )
+    check("裸标题行（只有 # 没有文字）被确定性删除并记 note",
+          not re.search(r"(?m)^#\s*$", bare_doc)
+          and any("裸标题" in n for n in bare_notes),
+          f"{bare_notes} {bare_doc[-40:]!r}")
+    dup_gate = gate_render_output(
+        gm, "# 分段速览\n正文结束。\n\n# 分段速览\n- 乙\n"
+    )
+    check("同级别同名标题重复 → 硬伤（触发返工）",
+          not dup_gate["gate_ok"]
+          and any("标题重复" in x for x in dup_gate["hard_issues"]),
+          f"{dup_gate['hard_issues']}")
+    from tools.execution.hard_execution import duplicate_heading_issues as _dup_head
+    dup_cross = _dup_head("# 分段速览\n正文。\n\n## 分段速览\n- 乙\n")
+    dup_same = _dup_head("# 分段速览\n正文。\n\n# 分段速览\n- 乙\n")
+    check("跨级别同名（# 栏名 + ## 组名）不算重复；同级别同名才算",
+          dup_cross == [] and bool(dup_same), f"{dup_same}")
 
 
 def test_qa_speaker_labels() -> None:
@@ -4115,6 +4226,7 @@ def main() -> int:
         test_buggy_template_now_works()
         test_gate_flags_bare_heading()
         test_missing_field_guard()
+        test_table_carried_column_allows_blank()
         test_fill_prompt_requires_all_keys()
         test_table_caption_not_a_field()
         test_shape_rules_in_prompts()

@@ -1405,3 +1405,117 @@
 2026-09-22 11:06:20,043 INFO agentflow render done line=minutes
 2026-09-22 11:06:20,045 INFO tools.core.runner saved html line=minutes path=/root/h00984725/memory/data/test/output/918c97023e1545688925ca8aebd9ee61/minutes.html
 2026-09-22 11:06:20,045 INFO tools.core.runner saved text line=minutes path=/root/h00984725/memory/data/test/output/918c97023e1545688925ca8aebd9ee61/result.md
+2026-09-22 11:42:49,206 INFO tools.core.runner saved html line=minutes path=C:\Users\OMEN\AppData\Local\Temp\tmpklfm0o41\out\minutes.html
+2026-09-22 11:42:49,206 INFO tools.core.runner saved text line=minutes path=C:\Users\OMEN\AppData\Local\Temp\tmpklfm0o41\out\result.md
+2026-09-22 11:42:49,212 INFO tools.core.runner saved html line=minutes path=C:\Users\OMEN\AppData\Local\Temp\tmpklfm0o41\out\minutes.html
+2026-09-22 11:42:49,212 INFO tools.core.runner saved text line=minutes path=C:\Users\OMEN\AppData\Local\Temp\tmpklfm0o41\out\result.md
+2026-09-22 11:42:49,213 INFO agentflow agent start gen line=minutes
+2026-09-22 11:42:49,213 INFO agentflow agent done gen line=minutes
+2026-09-22 11:42:49,213 INFO agentflow agent start gen line=graph
+2026-09-22 11:42:49,218 INFO agentflow agent done gen line=graph
+2026-09-22 11:48:46,752 INFO tools.core.runner saved html line=minutes path=C:\Users\OMEN\AppData\Local\Temp\tmpg13x0pee\out\minutes.html
+2026-09-22 11:48:46,752 INFO tools.core.runner saved text line=minutes path=C:\Users\OMEN\AppData\Local\Temp\tmpg13x0pee\out\result.md
+2026-09-22 11:48:46,761 INFO tools.core.runner saved html line=minutes path=C:\Users\OMEN\AppData\Local\Temp\tmpg13x0pee\out\minutes.html
+2026-09-22 11:48:46,761 INFO tools.core.runner saved text line=minutes path=C:\Users\OMEN\AppData\Local\Temp\tmpg13x0pee\out\result.md
+2026-09-22 11:48:46,764 INFO agentflow agent start gen line=minutes
+2026-09-22 11:48:46,764 INFO agentflow agent done gen line=minutes
+2026-09-22 11:48:46,764 INFO agentflow agent start gen line=graph
+2026-09-22 11:48:46,764 INFO agentflow agent done gen line=graph
+2026-09-22 11:49:03,357 INFO tools.llm.llmclient llm client backend=http model=deepseek-chat base_url=https://api.deepseek.com ctx=65536 max_tokens=50000 timeout=120.0 retries=2 temperature=0.2 sampling_sent=False
+2026-09-22 11:49:03,370 INFO agentflow pipeline start lines=minutes
+2026-09-22 11:49:03,374 INFO agentflow agent start meeting_understanding
+2026-09-22 11:49:03,374 INFO tools.llm.llmclient llm call label=core/meeting_understanding mode=structured
+2026-09-22 11:49:07,483 INFO tools.llm.llmclient llm resp label=core/meeting_understanding model=deepseek-chat finish=stop in=2856 out=1021 json_mode=True chars=2583
+2026-09-22 11:49:07,483 INFO agentflow agent done meeting_understanding
+2026-09-22 11:49:07,486 INFO agentflow node done meeting_understanding
+2026-09-22 11:49:07,486 INFO agentflow skip perspective (objective)
+2026-09-22 11:49:07,486 INFO agentflow node done perspective_modeling
+2026-09-22 11:49:07,486 INFO agentflow agent start gen line=minutes
+2026-09-22 11:49:07,486 INFO tools.llm.llmclient llm call label=minutes/agent mode=structured
+2026-09-22 11:49:09,313 INFO tools.llm.llmclient llm resp label=minutes/agent model=deepseek-chat finish=stop in=8495 out=355 json_mode=True chars=709
+2026-09-22 11:49:09,313 INFO agentflow agent done gen line=minutes
+2026-09-22 11:49:09,315 INFO agentflow node done minutes_agent
+2026-09-22 11:49:09,315 INFO agentflow agent start review line=minutes
+2026-09-22 11:49:09,315 INFO tools.llm.llmclient llm call label=minutes/supervisor mode=structured
+2026-09-22 11:49:09,845 INFO tools.llm.llmclient llm resp label=minutes/supervisor model=deepseek-chat finish=stop in=3964 out=51 json_mode=True chars=186
+2026-09-22 11:49:09,845 INFO agentflow agent done review line=minutes decision=approve
+2026-09-22 11:49:09,845 INFO tools.core.domain_engine route line=minutes decision=approve revision=0/1 -> __end__
+2026-09-22 11:49:09,845 INFO agentflow node done minutes_supervisor
+2026-09-22 11:49:09,849 INFO agentflow render start line=minutes
+2026-09-22 11:49:09,855 INFO tools.llm.llmclient llm call label=template/fill mode=text
+2026-09-22 11:49:13,006 INFO tools.llm.llmclient llm resp label=template/fill model=deepseek-chat finish=stop in=10584 out=748 json_mode=True chars=1335
+2026-09-22 11:49:13,014 INFO agentflow render done line=minutes
+2026-09-22 11:49:13,019 INFO tools.core.runner saved html line=minutes path=D:\study\demo\data\1\output\hiring_smoke\minutes.html
+2026-09-22 11:49:13,019 INFO tools.core.runner saved text line=minutes path=D:\study\demo\data\1\output\hiring_smoke\result.md
+2026-09-22 11:50:41,196 INFO tools.llm.llmclient llm client backend=http model=deepseek-chat base_url=https://api.deepseek.com ctx=65536 max_tokens=50000 timeout=120.0 retries=2 temperature=0.2 sampling_sent=False
+2026-09-22 11:50:41,208 INFO agentflow pipeline start lines=minutes
+2026-09-22 11:50:41,211 INFO agentflow agent start meeting_understanding
+2026-09-22 11:50:41,211 INFO tools.llm.llmclient llm call label=core/meeting_understanding mode=structured
+2026-09-22 11:50:44,600 INFO tools.llm.llmclient llm resp label=core/meeting_understanding model=deepseek-chat finish=stop in=2846 out=967 json_mode=True chars=2480
+2026-09-22 11:50:44,602 INFO agentflow agent done meeting_understanding
+2026-09-22 11:50:44,603 INFO agentflow node done meeting_understanding
+2026-09-22 11:50:44,603 INFO agentflow skip perspective (objective)
+2026-09-22 11:50:44,603 INFO agentflow node done perspective_modeling
+2026-09-22 11:50:44,603 INFO agentflow agent start gen line=minutes
+2026-09-22 11:50:44,603 INFO tools.llm.llmclient llm call label=minutes/agent mode=structured
+2026-09-22 11:50:46,822 INFO tools.llm.llmclient llm resp label=minutes/agent model=deepseek-chat finish=stop in=8460 out=356 json_mode=True chars=722
+2026-09-22 11:50:46,823 INFO agentflow agent done gen line=minutes
+2026-09-22 11:50:46,823 INFO agentflow node done minutes_agent
+2026-09-22 11:50:46,823 INFO agentflow agent start review line=minutes
+2026-09-22 11:50:46,826 INFO tools.llm.llmclient llm call label=minutes/supervisor mode=structured
+2026-09-22 11:50:47,403 INFO tools.llm.llmclient llm resp label=minutes/supervisor model=deepseek-chat finish=stop in=3913 out=51 json_mode=True chars=186
+2026-09-22 11:50:47,403 INFO agentflow agent done review line=minutes decision=approve
+2026-09-22 11:50:47,403 INFO tools.core.domain_engine route line=minutes decision=approve revision=0/1 -> __end__
+2026-09-22 11:50:47,406 INFO agentflow node done minutes_supervisor
+2026-09-22 11:50:47,407 INFO agentflow render start line=minutes
+2026-09-22 11:50:49,303 INFO agentflow render done line=minutes
+2026-09-22 11:50:49,306 INFO tools.core.runner saved html line=minutes path=D:\study\demo\data\1\output\memo_probe\minutes.html
+2026-09-22 11:50:49,306 INFO tools.core.runner saved text line=minutes path=D:\study\demo\data\1\output\memo_probe\result.md
+2026-09-22 11:51:58,556 INFO tools.core.runner saved html line=minutes path=C:\Users\OMEN\AppData\Local\Temp\tmpp04hndfu\out\minutes.html
+2026-09-22 11:51:58,560 INFO tools.core.runner saved text line=minutes path=C:\Users\OMEN\AppData\Local\Temp\tmpp04hndfu\out\result.md
+2026-09-22 11:51:58,565 INFO tools.core.runner saved html line=minutes path=C:\Users\OMEN\AppData\Local\Temp\tmpp04hndfu\out\minutes.html
+2026-09-22 11:51:58,565 INFO tools.core.runner saved text line=minutes path=C:\Users\OMEN\AppData\Local\Temp\tmpp04hndfu\out\result.md
+2026-09-22 11:51:58,569 INFO agentflow agent start gen line=minutes
+2026-09-22 11:51:58,569 INFO agentflow agent done gen line=minutes
+2026-09-22 11:51:58,571 INFO agentflow agent start gen line=graph
+2026-09-22 11:51:58,571 INFO agentflow agent done gen line=graph
+2026-09-22 11:52:11,079 INFO tools.llm.llmclient llm client backend=http model=deepseek-chat base_url=https://api.deepseek.com ctx=65536 max_tokens=50000 timeout=120.0 retries=2 temperature=0.2 sampling_sent=False
+2026-09-22 11:52:11,092 INFO agentflow pipeline start lines=minutes
+2026-09-22 11:52:11,096 INFO agentflow agent start meeting_understanding
+2026-09-22 11:52:11,096 INFO tools.llm.llmclient llm call label=core/meeting_understanding mode=structured
+2026-09-22 11:52:13,279 INFO tools.llm.llmclient llm resp label=core/meeting_understanding model=deepseek-chat finish=stop in=2770 out=485 json_mode=True chars=1102
+2026-09-22 11:52:13,279 INFO agentflow agent done meeting_understanding
+2026-09-22 11:52:13,281 INFO agentflow node done meeting_understanding
+2026-09-22 11:52:13,281 INFO agentflow skip perspective (objective)
+2026-09-22 11:52:13,281 INFO agentflow node done perspective_modeling
+2026-09-22 11:52:13,283 INFO agentflow agent start gen line=minutes
+2026-09-22 11:52:13,283 INFO tools.llm.llmclient llm call label=minutes/agent mode=structured
+2026-09-22 11:52:15,256 INFO tools.llm.llmclient llm resp label=minutes/agent model=deepseek-chat finish=stop in=7701 out=269 json_mode=True chars=580
+2026-09-22 11:52:15,256 INFO agentflow agent done gen line=minutes
+2026-09-22 11:52:15,258 INFO agentflow node done minutes_agent
+2026-09-22 11:52:15,258 INFO agentflow agent start review line=minutes
+2026-09-22 11:52:15,258 INFO tools.llm.llmclient llm call label=minutes/supervisor mode=structured
+2026-09-22 11:52:16,344 INFO tools.llm.llmclient llm resp label=minutes/supervisor model=deepseek-chat finish=stop in=3386 out=51 json_mode=True chars=186
+2026-09-22 11:52:16,344 INFO agentflow agent done review line=minutes decision=approve
+2026-09-22 11:52:16,345 INFO tools.core.domain_engine route line=minutes decision=approve revision=0/1 -> __end__
+2026-09-22 11:52:16,345 INFO agentflow node done minutes_supervisor
+2026-09-22 11:52:16,345 INFO agentflow render start line=minutes
+2026-09-22 11:52:18,077 INFO agentflow render done line=minutes
+2026-09-22 11:52:18,080 INFO tools.core.runner saved html line=minutes path=D:\study\demo\data\1\output\memo_verify\minutes.html
+2026-09-22 11:52:18,080 INFO tools.core.runner saved text line=minutes path=D:\study\demo\data\1\output\memo_verify\result.md
+2026-09-22 11:54:07,039 INFO tools.core.runner saved html line=minutes path=C:\Users\OMEN\AppData\Local\Temp\tmpl__iydq2\out\minutes.html
+2026-09-22 11:54:07,040 INFO tools.core.runner saved text line=minutes path=C:\Users\OMEN\AppData\Local\Temp\tmpl__iydq2\out\result.md
+2026-09-22 11:54:07,043 INFO tools.core.runner saved html line=minutes path=C:\Users\OMEN\AppData\Local\Temp\tmpl__iydq2\out\minutes.html
+2026-09-22 11:54:07,043 INFO tools.core.runner saved text line=minutes path=C:\Users\OMEN\AppData\Local\Temp\tmpl__iydq2\out\result.md
+2026-09-22 11:54:07,047 INFO agentflow agent start gen line=minutes
+2026-09-22 11:54:07,051 INFO agentflow agent done gen line=minutes
+2026-09-22 11:54:07,052 INFO agentflow agent start gen line=graph
+2026-09-22 11:54:07,052 INFO agentflow agent done gen line=graph
+2026-09-22 11:54:37,190 INFO tools.core.runner saved html line=minutes path=C:\Users\OMEN\AppData\Local\Temp\tmpjq6xgb8n\out\minutes.html
+2026-09-22 11:54:37,190 INFO tools.core.runner saved text line=minutes path=C:\Users\OMEN\AppData\Local\Temp\tmpjq6xgb8n\out\result.md
+2026-09-22 11:54:37,198 INFO tools.core.runner saved html line=minutes path=C:\Users\OMEN\AppData\Local\Temp\tmpjq6xgb8n\out\minutes.html
+2026-09-22 11:54:37,198 INFO tools.core.runner saved text line=minutes path=C:\Users\OMEN\AppData\Local\Temp\tmpjq6xgb8n\out\result.md
+2026-09-22 11:54:37,198 INFO agentflow agent start gen line=minutes
+2026-09-22 11:54:37,202 INFO agentflow agent done gen line=minutes
+2026-09-22 11:54:37,202 INFO agentflow agent start gen line=graph
+2026-09-22 11:54:37,202 INFO agentflow agent done gen line=graph
