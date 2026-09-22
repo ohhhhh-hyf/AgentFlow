@@ -25,7 +25,7 @@ _KIND_BY_SECTION = {
     "风险演变": "risk",
     "历史决策": "decision",
 }
-_ITEM_RE = re.compile(r"^- (.+)$")
+_ITEM_RE = re.compile(r"^(?:[-*]|\d+[.)、])\s+(.+)$")
 _QUOTE_RE = re.compile(r"^\s*原文摘录：(.+)$")
 _SOURCE_RE = re.compile(r"^\s*来源会议：(.+)$")
 _TIME_RE = re.compile(r"^\s*会议时间：(.+)$")
