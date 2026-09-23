@@ -816,13 +816,28 @@ _FIRST_COL_PARA_RE = re.compile(
 )
 
 
-def _is_h1_line(line: str) -> bool:
+def _is_section_line(line: str, level: int = 1) -> bool:
     s = line.strip()
-    return s.startswith("# ") and not s.startswith("## ")
+    prefix = "#" * level + " "
+    next_prefix = "#" * (level + 1) + " "
+    return s.startswith(prefix) and not s.startswith(next_prefix)
+
+
+def _is_h1_line(line: str) -> bool:
+    return _is_section_line(line, 1)
+
+
+def _section_heading_level(lines: list[str]) -> int:
+    has_h2 = sum(1 for ln in lines if _is_section_line(ln, 2))
+    has_h1 = sum(1 for ln in lines if _is_section_line(ln, 1))
+    if has_h2 >= 2 and has_h1 <= 1:
+        return 2
+    return 1
 
 
 def _h1_indexes(lines: list[str]) -> list[int]:
-    return [i for i, ln in enumerate(lines) if _is_h1_line(ln)]
+    lvl = _section_heading_level(lines)
+    return [i for i, ln in enumerate(lines) if _is_section_line(ln, lvl)]
 
 
 def _h1_name(line: str) -> str:
@@ -1075,7 +1090,7 @@ def gate_render_output(
 # 要求线：写进 prompt、模型应当遵守的字数，与 tools/templates/body_rules.py 的文案一一对应
 #   （改这里必须同步改那段文案；tests/test_template_router.py 有断言把两边钉在一起）。
 _PARA_REQUIRE_HAN = 200  # 一般叙述单段（body_rules：「不超过约 200 字」）
-_ITEM_REQUIRE_HAN = 140  # `- ` 条目（body_rules：「单条不超过约 140 字」）
+_ITEM_REQUIRE_HAN = 150  # `- ` 条目（body_rules：「单条不超过约 150 字」）
 # 拆分线 = 要求线 × 1.2：确定性按句界拆段（只加换行、零 LLM 调用），贴着要求线
 _SPLIT_RATIO = 1.2
 _PARA_SPLIT_HAN = int(_PARA_REQUIRE_HAN * _SPLIT_RATIO)  # 240
@@ -1083,7 +1098,7 @@ _PARA_SPLIT_HAN = int(_PARA_REQUIRE_HAN * _SPLIT_RATIO)  # 240
 # 条目维度没有「拆分」层（不能程序拆句），所以检查线即兜底线（触发只重写那一栏）。
 _CHECK_RATIO = 1.5
 _PARA_CHECK_HAN = int(_PARA_REQUIRE_HAN * _CHECK_RATIO)  # 300
-_ITEM_CHECK_HAN = int(_ITEM_REQUIRE_HAN * _CHECK_RATIO)  # 210
+_ITEM_CHECK_HAN = int(_ITEM_REQUIRE_HAN * _CHECK_RATIO)  # 225
 _META_SENTENCE_RE = re.compile(
     r"原文(?:中|里)?\s*(?:未|没有|无)\s*(?:明确|提及|说明|给出|写)"
 )
@@ -1118,9 +1133,9 @@ def overlong_items(
 
 
 def _template_h1_titles(template: str) -> list[str]:
-    """模板里的一级栏名（`# [名]` / `# 名`），规范化后返回。"""
+    """模板里的主栏名（`# [名]` / `## [名]` / `# 名` / `## 名`），规范化后返回。"""
     names: list[str] = []
-    for m in re.finditer(r"(?m)^#\s+\[?([^\[\]\n]+?)\]?\s*$", template or ""):
+    for m in re.finditer(r"(?m)^#{1,2}\s+\[?([^\[\]\n]+?)\]?\s*$", template or ""):
         name = _norm_heading(m.group(1))
         if name:
             names.append(name)
