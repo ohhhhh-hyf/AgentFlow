@@ -111,6 +111,8 @@ class LLMSettings:
     timeout: float = DEFAULT_TIMEOUT
     max_retries: int = DEFAULT_MAX_RETRIES
     context_length: int = DEFAULT_CONTEXT_LENGTH
+    # 是否显式配置了温度（来自 .env 或显式入参），拥有最高优先级（最高级）
+    has_env_temperature: bool = False
 
 
 def load_env(path: Path) -> None:
@@ -207,17 +209,30 @@ def resolve_llm_settings(
             raise ValueError(f"未找到 WebSocket API Key，请配置：{ENV_WS_API_KEY}=...")
         if not resolved_model:
             raise ValueError(f"未找到 WebSocket 模型名，请配置：{ENV_WS_MODEL}=...")
+        raw_temp = (
+            _env(ENV_WS_TEMPERATURE)
+            or _env("TEMPERATURE")
+            or _env("LLM_TEMPERATURE")
+            or _env(ENV_TEMPERATURE)
+        )
+        has_env_temp = (temperature is not None) or bool(raw_temp)
+        if temperature is not None:
+            resolved_temperature = float(temperature)
+        elif raw_temp:
+            try:
+                resolved_temperature = float(raw_temp)
+            except ValueError as exc:
+                raise ValueError(f"WebSocket temperature 必须是数字，当前为：{raw_temp!r}") from exc
+        else:
+            resolved_temperature = DEFAULT_TEMPERATURE
+
         return LLMSettings(
             backend="websocket",
             provider=provider or "websocket",
             api_key=resolved_key,
             base_url="",
             model=resolved_model,
-            temperature=(
-                float(temperature)
-                if temperature is not None
-                else _env_float(ENV_WS_TEMPERATURE, DEFAULT_TEMPERATURE)
-            ),
+            temperature=resolved_temperature,
             ws_url=resolved_url,
             ws_sender=_env(ENV_WS_SENDER),
             ws_user=_env(ENV_WS_USER),
@@ -229,32 +244,54 @@ def resolve_llm_settings(
             timeout=resolved_timeout,
             max_retries=resolved_max_retries,
             context_length=resolved_context,
+            has_env_temperature=has_env_temp,
         )
 
     if backend in {"vllm"}:
-        resolved_key = api_key or _env(ENV_VLLM_API_KEY)
+        resolved_key = (
+            api_key
+            or _env(ENV_VLLM_API_KEY)
+            or _env("VLLM_API_KEY")
+            or _env(ENV_API_KEY)
+            or "EMPTY"
+        )
         resolved_base = (
             base_url
             or _env(ENV_VLLM_BASE_URL)
+            or _env("VLLM_BASE_URL")
             or "http://127.0.0.1:8000/v1"
         ).rstrip("/")
-        resolved_model = model or _env(ENV_VLLM_MODEL) or "deepseek-v4-flash-0731"
-        if not resolved_key:
-            raise ValueError(
-                f"未找到 vLLM API Key，请在项目根目录的 .env 中配置："
-                f"{ENV_VLLM_API_KEY}=你的BearerToken"
-            )
+        resolved_model = (
+            model
+            or _env(ENV_VLLM_MODEL)
+            or _env("VLLM_MODEL")
+            or "deepseek-v4-flash-0731"
+        )
+        # 优先读取 vLLM 专用配置，支持回退通用环境变量 TEMPERATURE / LLM_TEMPERATURE / DEEPSEEK_TEMPERATURE
+        raw_temp = (
+            _env(ENV_VLLM_TEMPERATURE)
+            or _env("TEMPERATURE")
+            or _env("LLM_TEMPERATURE")
+            or _env(ENV_TEMPERATURE)
+        )
+        has_env_temp = (temperature is not None) or bool(raw_temp)
+        if temperature is not None:
+            resolved_temperature = float(temperature)
+        elif raw_temp:
+            try:
+                resolved_temperature = float(raw_temp)
+            except ValueError as exc:
+                raise ValueError(f"vLLM temperature 必须是数字，当前为：{raw_temp!r}") from exc
+        else:
+            resolved_temperature = DEFAULT_TEMPERATURE
+
         return LLMSettings(
             backend="vllm",
             provider="vllm",
             api_key=resolved_key,
             base_url=resolved_base,
             model=resolved_model,
-            temperature=(
-                float(temperature)
-                if temperature is not None
-                else _env_float(ENV_VLLM_TEMPERATURE, DEFAULT_TEMPERATURE)
-            ),
+            temperature=resolved_temperature,
             top_p=_env_float(ENV_VLLM_TOP_P, DEFAULT_TOP_P),
             top_k=_env_int(ENV_VLLM_TOP_K, DEFAULT_TOP_K),
             max_tokens=_env_int(ENV_VLLM_MAX_TOKENS, DEFAULT_MAX_TOKENS),
@@ -263,6 +300,7 @@ def resolve_llm_settings(
             timeout=resolved_timeout,
             max_retries=resolved_max_retries,
             context_length=resolved_context,
+            has_env_temperature=has_env_temp,
         )
 
     resolved_key = api_key or _env(ENV_API_KEY)
@@ -275,17 +313,21 @@ def resolve_llm_settings(
     resolved_base = (base_url or _env(ENV_BASE_URL) or DEFAULT_BASE_URL).rstrip("/")
     resolved_model = model or _env(ENV_MODEL) or DEFAULT_MODEL
 
+    raw_temp = (
+        _env(ENV_TEMPERATURE)
+        or _env("TEMPERATURE")
+        or _env("LLM_TEMPERATURE")
+    )
+    has_env_temp = (temperature is not None) or bool(raw_temp)
     if temperature is not None:
         resolved_temperature = float(temperature)
+    elif raw_temp:
+        try:
+            resolved_temperature = float(raw_temp)
+        except ValueError as exc:
+            raise ValueError(f"temperature 必须是数字，当前为：{raw_temp!r}") from exc
     else:
-        raw = _env(ENV_TEMPERATURE)
-        if raw:
-            try:
-                resolved_temperature = float(raw)
-            except ValueError as exc:
-                raise ValueError(f"temperature 必须是数字，当前为：{raw!r}") from exc
-        else:
-            resolved_temperature = DEFAULT_TEMPERATURE
+        resolved_temperature = DEFAULT_TEMPERATURE
 
     return LLMSettings(
         backend="http",
@@ -297,4 +339,5 @@ def resolve_llm_settings(
         timeout=resolved_timeout,
         max_retries=resolved_max_retries,
         context_length=resolved_context,
+        has_env_temperature=has_env_temp,
     )

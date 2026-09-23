@@ -35,10 +35,9 @@ class ActionItemsRender:
     async def run(self, context: str, template: str = "") -> str:
         """整段渲染待办文本（无模板 / 有模板统一入口）。"""
         prompt, user = self._prompt_and_user(context, template)
-        temp = 0.0 if (template or "").strip() else None
         try:
             return await self.client.text(
-                prompt, user, temperature=temp, label="actions/render"
+                prompt, user, label="actions/render"
             )
         except TypeError:
             return await self.client.text(prompt, user, label="actions/render")

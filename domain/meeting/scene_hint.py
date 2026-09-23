@@ -52,16 +52,22 @@ TEMPLATE_SCENE_HINTS: dict[str, str] = {
     # 通用兜底
     "通用纪要": "通用",
     "个人备忘": "通用",
+    "个人视角纪要": "通用",
     "参观游览": "通用",
 }
 
 
 def _template_name(template_text: str) -> str:
-    """取模板中文名：模板首行 ``# 中文名``（不是 `# [栏名]` 占位）。"""
+    """取模板中文名：模板首行 ``# 中文名`` 或 ``# [中文名主题]``。"""
     for line in (template_text or "").splitlines():
         s = line.strip()
-        if s.startswith("# ") and not s[2:].strip().startswith("["):
-            return s[2:].strip()
+        if s.startswith("# "):
+            title_part = s[2:].strip().strip("[]").strip()
+            for k in TEMPLATE_SCENE_HINTS:
+                if k == title_part or title_part.startswith(k) or k in title_part:
+                    return k
+            if not s[2:].strip().startswith("["):
+                return s[2:].strip()
         if s:
             break
     return ""

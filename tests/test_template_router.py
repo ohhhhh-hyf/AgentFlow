@@ -1159,7 +1159,7 @@ def test_progress_table_rows() -> None:
     for need in (
         "一个分项一行",
         "原文有几个分项就写几行，宁多不漏",
-        "⏸未开始",
+        "未开始",
         "尚未开展或尚未闭合的事项",
         "资料、依据、签字等程序性不完善",
     ):
@@ -1169,7 +1169,7 @@ def test_progress_table_rows() -> None:
     from tools.templates.body_rules import BODY_FORMAT_RULES
 
     check("共用形态规则的状态集同步四态",
-          "⏸未开始" in BODY_FORMAT_RULES, "")
+          "未开始" in BODY_FORMAT_RULES, "")
 
 
 def test_no_test_corpus_leak() -> None:
@@ -1353,8 +1353,8 @@ def test_clinical_history_column() -> None:
           "病史与用药细节留给下面各栏" not in text, "")
     # 2026-09-20 用户口径：病史背景从 [就诊概况] 拆出，单开一栏按点总结（5 栏）。
     check("就医咨询：5 栏（病史背景单开 [病史与背景]；[病情说明与沟通] 仍不退场）",
-          "# [病史与背景]" in text and "# [病情说明与沟通]" not in text
-          and text.count("\n# [") == 5, "")
+          (("# [病史与背景]" in text or "## [病史与背景]" in text) and "# [病情说明与沟通]" not in text
+          and (text.count("\n# [") == 5 or text.count("\n## [") == 5)), "")
     check("就医咨询：[病史与背景] 按点总结（一条一个事实 + 原文明说才写缺省）",
           "**一条一个事实**（`- **项别**：内容`）" in text
           and "原文说到哪几项就写哪几项，不要为凑清单把没有的项写成「未提及」" in text
@@ -1500,10 +1500,10 @@ def test_debate_rounds_and_rows() -> None:
           "行数＝论点数" in debate and "每方通常 2–4 行" in debate
           and "不要一方一行" in debate and "也不要求两方行数对称" in debate
           and "（一行一方）" not in debate, "")
-    check("辩论会：论点表样例行交错示范（正方→反方→正方，4 列无时间列）",
-          "| 正方 | … | … | … |" in debate
-          and debate.index("| 正方 | …") < debate.index("| 反方 | …")
-          and debate.count("| 正方 | … | … | … |") == 2
+    check("辩论会：论点表样例行交错示范（一方/立场A→对方/立场B→一方/立场A，4 列无时间列）",
+          "| [一方/立场A] | … | … | … |" in debate
+          and debate.index("| [一方/立场A] | …") < debate.index("| [对方/立场B] | …")
+          and debate.count("| [一方/立场A] | … | … | … |") == 2
           and "时间" not in debate.split("# [核心论点]", 1)[1].split("# [环节交锋]", 1)[0], "")
     # 新增承载位（2026-09-19 now.xlsx 行25）：一场 10284 汉字的辩论只出 956 汉字（低于下限
     # 1680）——现有四栏全是"按论点/按环节"维度，缺"按议题"的分歧归纳，质询与总结也无落点。
@@ -2110,9 +2110,17 @@ def test_scene_hint_from_template() -> None:
         name = ""
         for line in md.read_text(encoding="utf-8").splitlines():
             s = line.strip()
-            if s.startswith("# ") and not s[2:].strip().startswith("["):
-                name = s[2:].strip()
-                break
+            if s.startswith("# "):
+                title_part = s[2:].strip().strip("[]").strip()
+                for k in TEMPLATE_SCENE_HINTS:
+                    if k == title_part or title_part.startswith(k) or k in title_part:
+                        name = k
+                        break
+                if name:
+                    break
+                if not s[2:].strip().startswith("["):
+                    name = s[2:].strip()
+                    break
         if name not in TEMPLATE_SCENE_HINTS:
             missing.append(md.stem)
     check("映射表覆盖全部模板（新增模板必须登记）", not missing, f"未登记={missing}")

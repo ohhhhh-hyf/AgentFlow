@@ -264,7 +264,10 @@ def _parse_template_md(path: Path) -> dict[str, object] | None:
     name = ""
     for i, line in enumerate(lines):
         if line.startswith("# "):
-            name = line[2:].strip()
+            name = line[2:].strip().strip("[]").strip()
+            for suffix in ("主题", "模版", "模板"):
+                if name.endswith(suffix):
+                    name = name[: -len(suffix)].strip()
             lines = lines[i + 1 :]  # 中文名标题行是文件头，不进 format
             break
     format_text = "\n".join(lines).strip()

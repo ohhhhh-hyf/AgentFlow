@@ -65,6 +65,7 @@ class LLMClient:
         self.base_url = cfg.base_url
         self.model = cfg.model
         self.temperature = cfg.temperature
+        self.has_env_temperature = bool(getattr(cfg, "has_env_temperature", False))
         self.ws_url = cfg.ws_url
         self.ws_sender = cfg.ws_sender
         self.ws_user = cfg.ws_user
@@ -81,7 +82,7 @@ class LLMClient:
         # 生效配置一览：排查"服务器上到底用的什么参数"（不含 api_key）
         logger.info(
             "llm client backend=%s model=%s base_url=%s ctx=%s max_tokens=%s timeout=%s retries=%s"
-            " temperature=%s sampling_sent=%s",
+            " temperature=%s (env_priority=%s) sampling_sent=%s",
             self.backend or self.provider,
             self.model,
             self.base_url or self.ws_url,
@@ -90,6 +91,7 @@ class LLMClient:
             self.timeout,
             self.max_retries,
             self.temperature,
+            self.has_env_temperature,
             self.send_sampling,
         )
         # 调用统计
@@ -236,6 +238,21 @@ class LLMClient:
 
         return await asyncio.to_thread(runner)
 
+    def _effective_temperature(self, call_temp: float | None = None) -> float:
+        """计算发送给 LLM 的最终采样温度。
+
+        分工原则（提取与质检锁定为 0，文本生成与正文渲染尊重 .env）：
+        1. 提取与质检锁定为 0.0：
+           所有结构化提取（structured）、门禁质检（_gate / supervisor）等显式传入
+           call_temp（如 0.0）的任务，严格执行传入的低温度，锁定 Schema 严谨度与判定一致性；
+        2. 正文渲染与文本生成尊崇 .env 配置（call_temp 为 None）：
+           业务渲染层（minutes_render / actions_render 等纯文本生成）不硬编码温度，
+           统一使用 .env 中配置的 self.temperature，支持用户自由调控文风与发散度。
+        """
+        if call_temp is not None:
+            return float(call_temp)
+        return self.temperature
+
     def _post(
         self,
         messages: list[dict[str, str]],
@@ -246,7 +263,7 @@ class LLMClient:
         timeout: float | None = None,
         label: str = "",
     ) -> str:
-        temp = self.temperature if temperature is None else float(temperature)
+        temp = self._effective_temperature(temperature)
         tok = self.max_tokens if max_tokens is None else max_tokens
         to = self.timeout if timeout is None else float(timeout)
         tok = self._fit_max_tokens(messages, tok)
@@ -440,7 +457,7 @@ class LLMClient:
         label: str = "",
     ) -> Iterable[str]:
         """同步读取流式响应，逐块产出 content 增量。"""
-        temp = self.temperature if temperature is None else float(temperature)
+        temp = self._effective_temperature(temperature)
         tok = self.max_tokens if max_tokens is None else max_tokens
         to = self.timeout if timeout is None else float(timeout)
         tok = self._fit_max_tokens(messages, tok)
@@ -852,8 +869,8 @@ class LLMClient:
         ]
         last_content = ""
         last_error = ""
-        # structured 默认更低温度以稳住 schema
-        temp = 0.0 if temperature is None else temperature
+        # structured 结构化抽取锁定为 0.0，确保输出合法 JSON Schema
+        temp = 0.0 if temperature is None else float(temperature)
         # 校验失败后的针对性重试只允许一次（网络错误重试不占此名额）
         validation_retried = False
 
@@ -966,7 +983,7 @@ class LLMClient:
             {"role": "system", "content": system_prompt},
             {"role": "user", "content": user_prompt},
         ]
-        temp = self.temperature if temperature is None else float(temperature)
+        temp = self._effective_temperature(temperature)
         cache_key = ""
         if use_cache:
             cache_key = self._cache_key(

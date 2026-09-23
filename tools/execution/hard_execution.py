@@ -816,13 +816,28 @@ _FIRST_COL_PARA_RE = re.compile(
 )
 
 
-def _is_h1_line(line: str) -> bool:
+def _is_section_line(line: str, level: int = 1) -> bool:
     s = line.strip()
-    return s.startswith("# ") and not s.startswith("## ")
+    prefix = "#" * level + " "
+    next_prefix = "#" * (level + 1) + " "
+    return s.startswith(prefix) and not s.startswith(next_prefix)
+
+
+def _is_h1_line(line: str) -> bool:
+    return _is_section_line(line, 1)
+
+
+def _section_heading_level(lines: list[str]) -> int:
+    has_h2 = sum(1 for ln in lines if _is_section_line(ln, 2))
+    has_h1 = sum(1 for ln in lines if _is_section_line(ln, 1))
+    if has_h2 >= 2 and has_h1 <= 1:
+        return 2
+    return 1
 
 
 def _h1_indexes(lines: list[str]) -> list[int]:
-    return [i for i, ln in enumerate(lines) if _is_h1_line(ln)]
+    lvl = _section_heading_level(lines)
+    return [i for i, ln in enumerate(lines) if _is_section_line(ln, lvl)]
 
 
 def _h1_name(line: str) -> str:
@@ -1118,9 +1133,9 @@ def overlong_items(
 
 
 def _template_h1_titles(template: str) -> list[str]:
-    """模板里的一级栏名（`# [名]` / `# 名`），规范化后返回。"""
+    """模板里的主栏名（`# [名]` / `## [名]` / `# 名` / `## 名`），规范化后返回。"""
     names: list[str] = []
-    for m in re.finditer(r"(?m)^#\s+\[?([^\[\]\n]+?)\]?\s*$", template or ""):
+    for m in re.finditer(r"(?m)^#{1,2}\s+\[?([^\[\]\n]+?)\]?\s*$", template or ""):
         name = _norm_heading(m.group(1))
         if name:
             names.append(name)

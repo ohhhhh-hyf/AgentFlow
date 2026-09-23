@@ -64,11 +64,9 @@ class MinutesGenerationRender:
         ~8k），退化时会一路写满上下文（实测 49k token / 9 分钟），必须由调用方设硬上限。
         """
         prompt, user = self._prompt_and_user(approved_context, template)
-        has_template = bool((template or "").strip())
-        temp = 0.0 if has_template else None
         try:
             text = await self.client.text(
-                prompt, user, temperature=temp, max_tokens=max_tokens, label="minutes/render"
+                prompt, user, max_tokens=max_tokens, label="minutes/render"
             )
         except TypeError:
             text = await self.client.text(prompt, user, label="minutes/render")

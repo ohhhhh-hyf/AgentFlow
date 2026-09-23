@@ -48,9 +48,8 @@ class KnowledgeGraphRender:
 
     async def run(self, approved_context: str, template: str = "") -> str:
         prompt, user = self._prompt_and_user(approved_context, template)
-        temp = 0.0 if (template or "").strip() else None
         try:
-            return await self.client.text(prompt, user, temperature=temp, label='graph/render')
+            return await self.client.text(prompt, user, label='graph/render')
         except TypeError:
             return await self.client.text(prompt, user, label='graph/render')
 
