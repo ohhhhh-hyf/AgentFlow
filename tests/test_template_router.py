@@ -2921,6 +2921,36 @@ def test_lecture_evidence_cap() -> None:
           ("讲座概况", 400, "section") in got and ("Q&A 环节", 400, "paragraph") in got, f"{got}")
 
 
+def test_table_row_bracket_not_split_as_field() -> None:
+    """表格数据行内的方括号（如 `| [一方/立场A] | … |`）不应被拆解为正文占位字段。
+
+    回归背景（2026-09-23 辩论会实测）：辩论会论点表使用了 `| [一方/立场A] | … | … | … |` 示范，
+    parse_placeholder_template 误将其拆为字段，导致表格被腰斩成断头残片，门禁 100% 误报
+    「模板表格结构不符」并触发 repair 重试。
+    """
+    from tools.templates.router._detect import parse_placeholder_template
+    from tools.templates.router._gate import validate_rendered_output
+
+    deb_tmpl = (_active_dir() / "debate_forum.md").read_text(encoding="utf-8")
+    segs = parse_placeholder_template(deb_tmpl)
+    table_segs = [s for s in segs if s.get("kind") == "table_rows"]
+    check("辩论会：论点表被完整解析为 3 行 table_rows（未被括号割裂）", len(table_segs) == 3, f"{len(table_segs)}")
+
+    rendered = (
+        "# 辩论会\n\n"
+        "## 辩论内容概述\n一段话概括辩题与走势。\n\n"
+        "## 核心论点\n双方整体格局与立论框架。\n\n"
+        "| 阵营 / 立场方 | 立论框架 | 核心论点 | 支撑论据 |\n"
+        "| --- | --- | --- | --- |\n"
+        "| 正方 | 框架一 | 论点一 | 支撑论据数据与原话 |\n"
+        "| 反方 | 框架二 | 论点二 | 支撑论据事实依据 |\n\n"
+        "## 争议焦点\n1. **【争议焦点】核心矛盾**\n   - **分歧本质**：取舍\n\n"
+        "## 环节交锋\n### 自由辩论：【攻防】\n- **正方（张三）**：发言\n> **反方（李四）**：回应\n\n"
+        "## 结辩与评委点评\n1. **正方结辩**：陈词\n2. **反方结辩**：陈词\n3. **评委点评**：点评\n"
+    )
+    errs = validate_rendered_output(rendered, deb_tmpl)
+    check("辩论会：正常输出表格门禁 0 报错（彻底杜绝表格结构不符误判）", len(errs) == 0, f"{errs}")
+
 
 def test_court_claims_table_both_sides() -> None:
     """庭审 [原告诉称与被告辩称]：双方都要有成行承载（"各占一行"不再是 1 行上限）。
@@ -4351,6 +4381,7 @@ def main() -> int:
         test_class_transcript_task_groups()
         test_quote_columns_have_background()
         test_ellipsis_table_row_template_recognized()
+        test_table_row_bracket_not_split_as_field()
         test_lecture_evidence_cap()
         test_first_column_single_paragraph_merge()
         test_court_claims_table_both_sides()

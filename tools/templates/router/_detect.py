@@ -104,6 +104,12 @@ def parse_placeholder_template(template: str) -> list[dict]:
         is_link = template[m.end() : m.end() + 1] == "("
         if not _looks_like_placeholder(content) or is_link:
             continue  # 非占位符括号（JSON/链接等）→ 保留在后续固定文字段中
+        # 表格数据行内的方括号（如 `| [一方/立场A] | … |`）：属于表格行语法示例，而非正文标量占位符
+        line_start = template.rfind("\n", 0, m.start()) + 1
+        line_end = template.find("\n", m.end())
+        cur_line = template[line_start : line_end if line_end != -1 else len(template)].strip()
+        if cur_line.startswith("|") and cur_line.endswith("|"):
+            continue
         if m.start() > pos:
             segments.append({"kind": "text", "text": template[pos : m.start()]})
         field = _parse_field(content)
