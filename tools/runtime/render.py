@@ -182,7 +182,21 @@ async def produce_line(
             detect_template_kind,
             fill_placeholder_template,
             is_router_enabled,
+            resolve_guarded_template,
         )
+
+        # ── 路由硬前置约束守卫（防张冠李戴）────────────────
+        if template and is_router_enabled():
+            speakers_meta = (state.get("meeting_understanding") or {}).get("speakers")
+            guarded_tpl, redirected, guard_reason = resolve_guarded_template(
+                template,
+                transcript=str(state.get("transcript") or ""),
+                speakers=speakers_meta,
+            )
+            if redirected and guarded_tpl:
+                template = guarded_tpl
+                if "templates" in state and isinstance(state["templates"], dict):
+                    state["templates"][line_name] = guarded_tpl
 
         context = engine._render_context(state, line_name)
         # 本栏写作纪律（领域钩子，默认空）：逐栏填充的 system 里没有领域渲染提示词，

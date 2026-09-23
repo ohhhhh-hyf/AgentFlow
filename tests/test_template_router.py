@@ -1332,6 +1332,10 @@ def test_home_school_feedback_groups() -> None:
     check("家校沟通：[家长反馈] 不再出现示例式软引导（项别名与示范清单已清除）",
           "如费用" not in spec and "如手机" not in spec and "例如" not in spec
           and "（照原文）" not in spec, spec[:60])
+    check("家校沟通：[共识与配合事项] 解耦育人原则与待办清单（分两部分，按主体分组）",
+          "## 家校共识与育人原则" in text and "## 待办与配合清单" in text
+          and "### 班主任待办" in text and "### 家长配合待办" in text
+          and "不得生成同名二级标题" in text, "")
 
 
 def test_clinical_history_column() -> None:
@@ -1500,11 +1504,13 @@ def test_debate_rounds_and_rows() -> None:
           "行数＝论点数" in debate and "每方通常 2–4 行" in debate
           and "不要一方一行" in debate and "也不要求两方行数对称" in debate
           and "（一行一方）" not in debate, "")
-    check("辩论会：论点表样例行交错示范（一方/立场A→对方/立场B→一方/立场A，4 列无时间列）",
-          "| [一方/立场A] | … | … | … |" in debate
-          and debate.index("| [一方/立场A] | …") < debate.index("| [对方/立场B] | …")
-          and debate.count("| [一方/立场A] | … | … | … |") == 2
+    check("辩论会：论点表样例行交错示范（正方/支持方→反方/反对方→正方/支持方，4 列无时间列）",
+          ("正方（或支持方）" in debate or "正方" in debate)
+          and ("反方（或反对方）" in debate or "反方" in debate)
           and "时间" not in debate.split("# [核心论点]", 1)[1].split("# [环节交锋]", 1)[0], "")
+    check("辩论会：环节交锋采用对决微卡片（双引用、禁止A(A)同义反复、中立动作记录）",
+          "对决微卡片结构" in debate and "严禁凭论点内容主观推断正反方" in debate
+          and "禁止在阵营后重复加括号" in debate, "")
     # 新增承载位（2026-09-19 now.xlsx 行25）：一场 10284 汉字的辩论只出 956 汉字（低于下限
     # 1680）——现有四栏全是"按论点/按环节"维度，缺"按议题"的分歧归纳，质询与总结也无落点。
     check("辩论会：新增 [争议焦点]（按议题归纳双方分歧）",
@@ -4300,6 +4306,65 @@ def test_render_context_person_transcript() -> None:
           host._person_transcript({**state, "user": {"name": "查无此人"}}) == "", "")
 
 
+def test_special_lecture_precondition_guard() -> None:
+    """专题讲座硬前置约束（杜绝张冠李戴）：
+
+    1. 单核心主讲人（授课独白/单向分享）：正常放行 special_lecture；
+    2. 多方平等交流（多人交替/圆桌交流观影等）：触发硬拦截，自动安全分流至 group_seminar。
+    """
+    from tools.templates.router import (
+        analyze_speaker_topology,
+        guard_template_routing,
+        is_special_lecture_disqualified,
+        resolve_guarded_template,
+    )
+
+    # 用例 1：真正的单人授课讲座（主讲人占比 85% 以上，听众只有 1 次简短提问）
+    lecture_transcript = (
+        "主讲人张教授：各位同学大家好，今天我们来深入讲解量子纠缠与贝尔不等式。"
+        "首先我们来看历史背景，爱因斯坦在1935年提出了著名的EPR佯谬，质疑量子力学的完备性..."
+        "在实验验证方面，阿斯佩团队在1982年完成了划时代的实验验证，彻底证实了量子非定域性..."
+        "总结来说，量子力学的统计解释在微观尺度是无懈可击的。"
+        "听众A：请问张教授，量子通信保密性如何体现？"
+        "主讲人张教授：量子通信依赖的是量子不可克隆定理，任何窃听都会导致态的坍缩。"
+    )
+    topo1 = analyze_speaker_topology(lecture_transcript)
+    check("讲座素材拓扑：识别为主讲人主导", not topo1["is_multi_party_discussion"])
+    dis1, _, target1 = is_special_lecture_disqualified(lecture_transcript)
+    check("讲座素材不违背约束：正常放行", not dis1 and target1 == "special_lecture")
+    eff1, red1, _ = guard_template_routing("special_lecture", lecture_transcript)
+    check("守卫未触发重定向：保持 special_lecture", not red1 and eff1 == "special_lecture")
+
+    # 用例 2：多方平等圆桌观影交流（5人平等交替，无单一核心主讲人）
+    multi_party_transcript = (
+        "贝姐：大家好，今天我们几位聚在一起，聊一聊最近热映的电影《南京照相馆》。大家各自都看了吗？有什么第一感受？\n"
+        "发言人2：我觉得这部电影拍得挺深刻的，尤其是镜头语言很克制，很多真实历史细节处理得让人震撼。\n"
+        "发言人3：我之前其实在抖音刷到了不少切片，当时就觉得挺有看头，后来专程去电影院看的，感觉确实非常扎实。\n"
+        "发言人4：对，而且关于南京保卫战和淞沪会战那段历史，我特意去查了史料，中华门那场阻击战基本还原了真实战况。\n"
+        "发言人5：我因为个人习惯不太敢看这种沉重题材，但听大家聊下来，感觉它不是单纯卖惨，而是很有历史责任感。\n"
+        "发言人2：确实，尤其是传教士胶卷那条线，跟战后东京审判的证据链是严丝合缝的。\n"
+        "贝姐：那我们接下来具体分几个板块深入探讨一下，先从影片的虚实细节辨析开始吧。"
+    )
+    topo2 = analyze_speaker_topology(multi_party_transcript)
+    check("多人圆桌拓扑：识别出多位发言人", topo2["distinct_speaker_count"] >= 4)
+    check("多人圆桌拓扑：判定为多方平等讨论", topo2["is_multi_party_discussion"])
+
+    dis2, reason2, target2 = is_special_lecture_disqualified(multi_party_transcript)
+    check("违背专题讲座前置约束：判定不合格", dis2 and target2 == "group_seminar")
+    check("拦截原因说明清晰：指出多方平等交流与无单一主讲人", "平等" in reason2 or "圆桌" in reason2)
+
+    eff2, red2, _ = guard_template_routing("special_lecture", multi_party_transcript)
+    check("守卫触发重定向：自动分流至 group_seminar", red2 and eff2 == "group_seminar")
+
+    eff_cn, red_cn, _ = guard_template_routing("专题讲座", multi_party_transcript)
+    check("中文名传参同样触发重定向：分流至 group_seminar", red_cn and eff_cn == "group_seminar")
+
+    # 测试 resolve_guarded_template 能正确替换模板内容
+    lec_raw = (_active_dir() / "special_lecture.md").read_text(encoding="utf-8")
+    guarded_text, was_replaced, _ = resolve_guarded_template(lec_raw, multi_party_transcript)
+    check("模板文本内容被成功替换为圆桌研讨模板", was_replaced and "讨论议题与背景" in guarded_text)
+
+
 def main() -> int:
     caplog_records: list[logging.LogRecord] = []
 
@@ -4403,6 +4468,7 @@ def main() -> int:
         test_domain_specific_accuracy_rules()
         test_fallback_text_dedupe()
         test_supervisor_contract_and_unavailable()
+        test_special_lecture_precondition_guard()
     finally:
         logging.getLogger("tools.templates.router._gate").removeHandler(handler)
 

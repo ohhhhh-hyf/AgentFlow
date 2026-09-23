@@ -49,6 +49,13 @@ from ._gate import (
     modify_template,
     validate_rendered_output,
 )
+from ._guard import (
+    analyze_speaker_topology,
+    guard_template_routing,
+    is_special_lecture_disqualified,
+    load_fallback_template_text,
+    resolve_guarded_template,
+)
 
 LINE_SCHEMA_HINTS: dict[str, str] = {
     "minutes": (
@@ -91,6 +98,11 @@ __all__ = [
     "strip_char_budget_meta",
     "strip_outer_markdown_fence",
     "wrap_template_requirement",
+    "analyze_speaker_topology",
+    "guard_template_routing",
+    "is_special_lecture_disqualified",
+    "load_fallback_template_text",
+    "resolve_guarded_template",
     "template_to_preview",
     "validate_rendered_output",
 ]

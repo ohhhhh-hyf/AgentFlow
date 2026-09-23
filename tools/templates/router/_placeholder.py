@@ -120,11 +120,28 @@ def plan_placeholder_fill(template: str) -> dict[str, Any]:
             continue  # 表格栏说明：不进字段清单（明细由下表承载，正文不另写）
         phs = _line_placeholders(line)
         if _is_table_data_row(line):
-            fields = (
-                [_parse_field(m.group(1)) for m in phs]
-                if phs
-                else _ellipsis_row_fields(line, template)
-            )
+            raw_cells = _table_cells(line)
+            n_cells = len(raw_cells)
+            if phs and len(phs) == n_cells and not any("…" in c for c in raw_cells):
+                fields = [_parse_field(m.group(1)) for m in phs]
+            elif not phs:
+                fields = _ellipsis_row_fields(line, template)
+            else:
+                headers = _table_header_cells(line, template)
+                fields = []
+                for i, c in enumerate(raw_cells):
+                    c_phs = _line_placeholders(c)
+                    if c_phs:
+                        fields.append(_parse_field(c_phs[0].group(1)))
+                    else:
+                        hdr = headers[i] if i < len(headers) else f"列{i + 1}"
+                        fields.append({
+                            "kind": "field",
+                            "raw": hdr,
+                            "hint": hdr,
+                            "enum": None,
+                            "missing": False,
+                        })
             # 同一张表的**连续样例行**合并成一个行模板（表只填一组数据行，不重复展开）
             if row_templates and idx == row_templates[-1]["indices"][-1] + 1:
                 row_templates[-1]["indices"].append(idx)
@@ -190,13 +207,15 @@ def _render_table_data_row(
     values: list[str],
     fields: list[dict] | None = None,
 ) -> str:
-    """把一行表格模板填成数据行。``[占位]`` 行替换括号；省略号样例行按列重建。"""
-    if _line_placeholders(line):
+    """把一行表格模板填成数据行。全占位行替换括号；省略号或混合样例行按列重建。"""
+    raw_cells = _table_cells(line)
+    n = max(len(fields or []), len(raw_cells), 1)
+    phs = _line_placeholders(line)
+    if phs and len(phs) == len(raw_cells) and not any("…" in c for c in raw_cells):
         rendered = _replace_placeholders_in_line(line, values, fields)
         if not rendered.endswith("\n") and line.endswith("\n"):
             rendered += "\n"
         return rendered
-    n = max(len(fields or []), len(_table_cells(line)), 1)
     cells = [("" if v is None else str(v).strip()) for v in values]
     if len(cells) < n:
         cells.extend(["—"] * (n - len(cells)))

@@ -1058,6 +1058,25 @@ class _Nodes(DomainNodes):
                 }
             progress("agent done meeting_understanding")
             data = result.model_dump()
+            # 路由硬前置约束守卫（防张冠李戴）：
+            # 若调用方或上游选了 special_lecture，但理解出的 speakers/原文为多人平等讨论，
+            # 立即执行硬前置拦截与分流，更新 state["templates"]，形态标签自然同步调整。
+            tpls = state.get("templates")
+            if tpls and isinstance(tpls, dict):
+                try:
+                    from tools.templates.router import is_router_enabled, resolve_guarded_template
+                    if is_router_enabled():
+                        for k, tpl_text in list(tpls.items()):
+                            guarded, redirected, _ = resolve_guarded_template(
+                                str(tpl_text or ""),
+                                transcript=state.get("transcript", ""),
+                                speakers=data.get("speakers"),
+                            )
+                            if redirected and guarded:
+                                tpls[k] = guarded
+                except Exception:
+                    logger.warning("template routing guard check failed in meeting_core", exc_info=True)
+
             # 形态标签程序优先：调用方已选模板 → 单点映射到 7 类形态（见 scene_hint.py）。
             # 模型自选的 scene 只作没有模板时的兜底——它只有 7 类可填，遇到发布会/课堂/就医
             # 这类细粒度场景会自造类别（曾致校验失败白跑一轮），归一后也只能落到「通用」骨架。
