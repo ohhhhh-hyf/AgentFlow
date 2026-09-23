@@ -1,0 +1,440 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>超能力爱情观辩论赛</title>
+  <style>
+
+    body {
+      margin: 0;
+      padding: 14px 12px;
+      background: #f6f5f0;
+      color: #1a1a1a;
+      font-family: "Latin Modern Roman", "Computer Modern Roman", "CMU Serif", "Times New Roman", Times, "Songti SC", "SimSun", "STSong", serif;
+      -webkit-font-smoothing: antialiased;
+    }
+    .page { max-width: 1140px; margin: 0 auto; }
+    .ck-doc {
+      background: #ffffff;
+      border: 1px solid #d4d0c7;
+      border-radius: 4px;
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.05), 0 1px 3px rgba(0,0,0,0.03);
+      padding: 18px 22px;
+      line-height: 1.6;
+      font-size: 0.84rem;      /* 正文基准：左右两栏共用 --ck-fs */
+      --ck-fs: 0.84rem;
+    }
+    .ck-doc h1 {
+      margin: 0 0 6px;
+      font-size: 1.05rem;      /* 文档标题：只比正文略大一点 */
+      font-weight: 700;
+      text-align: center;
+      color: #111111;
+    }
+    .ck-doc-header {
+      margin-bottom: 10px;
+      padding-bottom: 8px;
+      border-bottom: 1px solid #111111;
+      text-align: center;
+    }
+    .ck-doc-meta {
+      font-size: 0.78rem;
+      color: #555555;
+      font-style: italic;
+    }
+    /* 层级标题一律"加粗 + 与右栏同级字号"，不加字号、不加下划线，前后留白压到最小 */
+    .ck-doc-content h1, .ck-doc-content .ck-doc-h1,
+    .ck-doc h2, .ck-doc-h2,
+    .ck-doc h3, .ck-doc-h3,
+    .ck-doc h4, .ck-doc-h4 {
+      font-size: var(--ck-fs);
+      font-weight: 700;
+      color: #111111;
+      border-bottom: 0;
+      padding-bottom: 0;
+      letter-spacing: 0;
+      font-variant: normal;
+      text-align: left;
+    }
+    .ck-doc-content h1, .ck-doc-content .ck-doc-h1, .ck-doc h2, .ck-doc-h2 {
+      margin: 12px 0 4px;
+    }
+    .ck-doc h3, .ck-doc-h3, .ck-doc h4, .ck-doc-h4 {
+      margin: 9px 0 3px;
+    }
+    .ck-doc p {
+      margin: 5px 0;
+      line-height: 1.6;
+      text-align: justify;
+    }
+    .ck-doc ul, .ck-doc ol {
+      margin: 4px 0 6px;
+      padding-left: 1.25em;
+      line-height: 1.6;
+    }
+    .ck-doc li {
+      margin: 2px 0;
+    }
+    .ck-doc blockquote, .ck-quote {
+      margin: 6px 0 8px;
+      padding: 5px 10px;
+      background: #faf9f6;
+      border-left: 3px solid #222222;
+      border-radius: 2px;
+      color: #222222;
+      font-size: var(--ck-fs);
+      font-style: italic;
+    }
+    .ck-doc code {
+      background: #f3f0e8;
+      border: 1px solid #e2ddd3;
+      border-radius: 3px;
+      padding: 1px 6px;
+      font-family: "Latin Modern Mono", Consolas, monospace;
+      font-size: 0.88em;
+    }
+    .ck-doc table, .ck-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: var(--ck-fs);
+      margin: 8px 0;
+      background: #ffffff;
+      border-top: 2px solid #222222;
+      border-bottom: 2px solid #222222;
+    }
+    .ck-doc table th, .ck-doc table td, .ck-table th, .ck-table td {
+      padding: 5px 8px;
+      text-align: left;
+      vertical-align: middle;
+      border-bottom: 1px solid #ede9e1;
+    }
+    .ck-doc table th, .ck-table th {
+      background: #fbfaf7;
+      border-bottom: 1.2px solid #222222;
+      font-weight: 700;
+      color: #111111;
+      letter-spacing: 0.3px;
+    }
+
+    /* Roomy & Spacious Academic Risk Table */
+    .ck-risk-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 18px 0 28px;
+      background: #ffffff;
+      border-top: 2.2px solid #111111;
+      border-bottom: 2.2px solid #111111;
+      font-size: 0.93rem;
+      line-height: 1.72;
+    }
+    .ck-risk-table th {
+      background: #faf8f5;
+      border-bottom: 1.5px solid #111111;
+      padding: 15px 16px;
+      font-weight: 700;
+      color: #111111;
+      letter-spacing: 0.3px;
+      text-align: left;
+      vertical-align: middle;
+    }
+    .ck-risk-table td {
+      padding: 16px 16px;
+      border-bottom: 1px solid #ede8e0;
+      vertical-align: top;
+      color: #1a1a1a;
+      word-break: break-word;
+    }
+    .ck-risk-table tr:nth-child(even) td {
+      background: #fdfcfb;
+    }
+    .ck-risk-table tr:hover td {
+      background: #f6f3eb;
+    }
+
+    /* Review Grid */
+    .ck-review {
+      display: grid;
+      grid-template-columns: minmax(0, 1.35fr) 1px minmax(260px, 0.95fr);
+      border: 1px solid #d4d0c7;
+      border-radius: 4px;
+      overflow: hidden;
+      margin: 8px 0 10px;
+      background: #ffffff;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.03);
+    }
+    .ck-review-left {
+      padding: 14px 16px;
+      background: #ffffff;
+      line-height: 1.6;
+      font-size: var(--ck-fs);
+    }
+    .ck-review-rule { background: #dcd8cf; }
+    .ck-review-right {
+      padding: 12px 14px;
+      background: #faf9f6;
+      box-sizing: border-box;
+      display: flex;
+      flex-direction: column;
+    }
+    .ck-ev-list {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    /* Entity Highlight in LaTeX Paper Style */
+    .ck-cite-entity {
+      background: #fff8db;
+      border-bottom: 1.5px solid #b86a04;
+      padding: 1px 4px;
+      border-radius: 2px;
+      cursor: pointer;
+      transition: all 0.18s ease;
+      color: #111111;
+      font-weight: 600;
+    }
+    .ck-cite-entity:hover {
+      background: #ffe58f;
+      color: #000000;
+    }
+    .ck-cite-entity.is-on {
+      background: #ffd54a;
+      border-bottom-color: #0047ab;
+      box-shadow: 0 0 0 2px rgba(0,71,171,0.25);
+    }
+
+    /* Blue Hyperref Citations [1], [2] */
+    .ck-cite-ref {
+      color: #0047ab;
+      font-weight: 600;
+      font-family: "Latin Modern Roman", "Computer Modern Roman", "Times New Roman", serif;
+      text-decoration: none;
+      cursor: pointer;
+      padding: 0 2px;
+      margin: 0 2px;
+      border-radius: 2px;
+      transition: all 0.15s ease;
+      font-size: 0.92em;
+      vertical-align: baseline;
+      user-select: none;
+    }
+    .ck-cite-ref:hover {
+      text-decoration: underline;
+      background: #e8f0fe;
+      color: #003380;
+    }
+    .ck-cite-ref.is-active {
+      background: #d2e3fc;
+      color: #002266;
+      font-weight: 700;
+      box-shadow: 0 0 0 1px #0047ab;
+    }
+
+    /* Right Memory Cards in LaTeX Paper Style */
+    .ck-provenance-head {
+      font-size: 0.82rem;
+      font-weight: 700;
+      color: #222222;
+      margin: 0 0 12px;
+      padding-bottom: 6px;
+      border-bottom: 1px solid #e0dcd4;
+      letter-spacing: 0.3px;
+      text-transform: uppercase;
+    }
+    .ck-ref-icon { color: #0047ab; margin-right: 4px; }
+    .ck-ev {
+      display: block;
+      margin: 0;
+      padding: 10px 12px;
+      border: 1px solid #dedad2;
+      border-left: 3.5px solid #0047ab;
+      border-radius: 2px;
+      background: #ffffff;
+      font-size: 0.82rem;
+      line-height: 1.55;
+      transition: all 0.2s ease;
+      cursor: pointer;
+    }
+    .ck-ev:hover { border-color: #b5b0a5; }
+    .ck-ev.is-on, .ck-ev.is-highlighted {
+      border-color: #0047ab;
+      box-shadow: 0 0 0 2px #0047ab, 0 3px 8px rgba(0,71,171,0.15);
+      background: #f0f5ff;
+    }
+    @keyframes citePulse {
+      0% { background: #dbeafe; box-shadow: 0 0 0 3px #0047ab; }
+      50% { background: #bfdbfe; box-shadow: 0 0 0 4px #0047ab; }
+      100% { background: #f0f5ff; box-shadow: 0 0 0 2px #0047ab; }
+    }
+    .ck-ev-k {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 0.75rem;
+      color: #444444;
+      margin-bottom: 5px;
+      font-weight: 700;
+    }
+    .ck-ev-cite-tag {
+      color: #0047ab;
+      font-weight: 700;
+      font-family: "Latin Modern Roman", serif;
+      text-decoration: none;
+    }
+    .ck-ev-kind-badge {
+      display: inline-block;
+      padding: 1px 6px;
+      border-radius: 2px;
+      font-size: 0.72rem;
+      font-weight: 600;
+      letter-spacing: 0.2px;
+    }
+    .ck-badge-keypoint {
+      border: 1px solid #0047ab;
+      color: #0047ab;
+      background: #f0f5ff;
+    }
+    .ck-badge-note {
+      border: 1px solid #b86a04;
+      color: #b86a04;
+      background: #fff8eb;
+    }
+    .ck-mem-title {
+      font-weight: 700;
+      color: #111111;
+      font-size: var(--ck-fs);
+      margin-bottom: 4px;
+      line-height: 1.5;
+    }
+    .ck-ev-quote {
+      color: #222222;
+      font-style: normal;
+      font-family: inherit;
+      margin: 4px 0 6px;
+      padding: 0;
+      background: transparent;
+      border: none;
+      line-height: 1.6;
+      font-size: var(--ck-fs);
+    }
+    .ck-ev-meta { font-size: 0.76rem; color: #666666; margin-top: 4px; }
+    .ck-ev-more {
+      margin-top: 2px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+    .ck-ev-more[open] { margin-top: 4px; }
+    .ck-ev-more summary { margin-bottom: 6px; }
+    .ck-proof-toggle {
+      cursor: pointer;
+      font-size: 0.82rem;
+      color: #0047ab;
+      user-select: none;
+      font-family: inherit;
+      padding: 2px 0;
+    }
+    .ck-proof-toggle:hover { text-decoration: underline; }
+    /* 右栏下段"状态演进"：无行内锚点，与上方证据卡视觉区分（灰底 + 徽章，无 [n]） */
+    .ck-ledger {
+      margin-top: 10px;
+      padding-top: 8px;
+      border-top: 1px dashed #d4d0c7;
+    }
+    .ck-ledger > summary { list-style: none; }
+    .ck-ledger > summary::-webkit-details-marker { display: none; }
+    .ck-ledger > summary::after { content: " ▾"; }
+    .ck-ledger:not([open]) > summary::after { content: " ▸"; }
+    /* 每类一张小灰卡：卡头类别 + 条数，卡内按 1. 2. 3. 编号 */
+    .ck-ledger-card {
+      background: #faf9f5;
+      border: 1px solid #e6e2d8;
+      border-left: 3px solid #bdb6a6;
+      border-radius: 4px;
+      padding: 7px 9px;
+      margin-bottom: 6px;
+    }
+    .ck-ledger-k {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 6px;
+      font-size: 0.72rem;
+      margin-bottom: 5px;
+    }
+    .ck-ledger-badge {
+      background: #efece4;
+      color: #6b6559;
+      border-radius: 3px;
+      padding: 1px 6px;
+      font-weight: 600;
+    }
+    .ck-ledger-count { color: #8a8578; }
+    .ck-ledger-list {
+      margin: 0;
+      padding-left: 1.35em;
+      font-size: var(--ck-fs);
+      line-height: 1.6;
+      color: #3b3a37;
+    }
+    .ck-ledger-list > li { margin: 2px 0; }
+    /* Personal Perspective "与我相关" Focus Block */
+    .ck-self-block {
+      background: #f4f8fe;
+      border: 1px solid #d4e2f5;
+      border-left: 3.5px solid #0047ab;
+      border-radius: 3px;
+      padding: 8px 12px;
+      margin: 8px 0 10px;
+    }
+    .ck-self-title {
+      margin: 0 0 4px;
+      color: #003380;
+      font-weight: 700;
+      font-size: var(--ck-fs);
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
+    .ck-self-badge {
+      display: inline-block;
+      background: #0047ab;
+      color: #ffffff;
+      font-size: 0.68rem;
+      padding: 1px 5px;
+      border-radius: 2px;
+      font-weight: 600;
+      letter-spacing: 0.2px;
+      margin-left: 4px;
+    }
+    .ck-self-block ul, .ck-self-block ol {
+      margin: 2px 0 2px;
+      padding-left: 1.25em;
+    }
+    .ck-self-block li {
+      margin: 2px 0;
+      color: #1a1a1a;
+    }
+
+    @media(max-width: 860px) {
+      .ck-doc { padding: 22px 18px; }
+      .ck-review { grid-template-columns: 1fr; }
+      .ck-review-rule { display: none; }
+    }
+
+  </style>
+</head>
+<body>
+  <main class="page">
+    <div class="ck-doc">
+      <header class="ck-doc-header">
+        <h1>超能力爱情观辩论赛</h1>
+      </header>
+      <div class="ck-doc-content">
+        <h2 class="ck-doc-h2">辩论内容概述</h2><p>本次辩论赛围绕“拥有让任何人爱上自己的超能力是否可取”展开。正方（RUC棒辩论队）主张超能力能实现真爱，且掌握在爱人手中优于命运；反方认为其剥夺自由意志，本质是占有和洗脑。双方就爱的本质、自由意志、占有与爱的区别、超能力机制等议题展开交锋。正方以“坠入爱河”而非“跳入爱河”佐证爱不受自由意志控制，提出超能力机制可能不是洗脑，而是改变自己或创造100%符合对方标准的人；反方类比强奸违背妇女意志，坚持洗脑换不来真爱，只能获得服从。正方在承诺环节获胜，获得4分钟小节时间。</p><h2 class="ck-doc-h2">核心论点</h2><p>辩题为“拥有让任何人爱上自己的超能力是否可取”，正方（RUC棒辩论队）与反方就爱的本质、自由意志、超能力机制等展开交锋。</p><table class="ck-table"><thead><tr><th>阵营</th><th>立论框架</th><th>核心论点</th><th>支撑论据</th></tr></thead><tbody><tr><td>正方</td><td>爱是超能力，不受自由意志控制</td><td>超能力能实现真爱，掌握在爱人手中优于命运</td><td>用“坠入爱河”而非“跳入爱河”佐证；超能力机制可能不是洗脑，而是改变自己或创造100%符合对方标准的人</td></tr><tr><td>反方</td><td>超能力是洗脑，剥夺自由意志</td><td>超能力本质是占有和洗脑，洗脑换不来真爱</td><td>类比强奸违背妇女意志；通过洗脑获取的爱是占有而非爱</td></tr><tr><td>正方</td><td>爱是玄学，科学无法解释</td><td>超能力机制未知，可能改变自己或对方</td><td>科学无法解释爱的特殊性，不得已归于玄学</td></tr><tr><td>反方</td><td>超能力让爱来得太容易</td><td>超能力让爱容易变质、不珍惜</td><td>正方反驳珍惜程度取决于认真程度而非难易</td></tr><tr><td>反方</td><td>超能力可能让使用者成为世界中心</td><td>超能力让使用者失去真实选择</td><td>当世界围着你转的时候，你就成了世界中心</td></tr></tbody></table><h2 class="ck-doc-h2">争议焦点</h2><h3 class="ck-doc-h3">超能力是否剥夺自由意志</h3><ol><li><strong>【超能力是否剥夺自由意志】争的是什么</strong></li></ol><ul><li><strong>正方主张与依据</strong>：爱不受自由意志控制，用“坠入爱河”而非“跳入爱河”佐证；超能力机制可能不是洗脑，而是改变自己或创造100%符合对方标准的人。</li><li><strong>反方主张与依据</strong>：超能力是洗脑，剥夺对方自由选择，类比强奸违背妇女意志；洗脑换不来真爱，只能获得服从。</li></ul><h3 class="ck-doc-h3">超能力与占有、爱的区别</h3><ol><li><strong>【超能力与占有、爱的区别】争的是什么</strong></li></ol><ul><li><strong>正方主张与依据</strong>：爱是双方付出，超能力掌握在爱人手中优于命运；若相处后不合适，会选择放手。</li><li><strong>反方主张与依据</strong>：通过洗脑获取的爱是占有而非爱；正方将“为对方好”定义为自己的标准，是自私的来源。</li></ul><h3 class="ck-doc-h3">超能力的机制与风险</h3><ol><li><strong>【超能力的机制与风险】争的是什么</strong></li></ol><ul><li><strong>正方主张与依据</strong>：爱是玄学，科学无法解释，超能力机制未知，可能改变自己或对方。</li><li><strong>反方主张与依据</strong>：超能力让爱来得太容易，容易变质、不珍惜；可能让使用者成为世界中心，失去真实选择。</li></ul><h2 class="ck-doc-h2">环节交锋</h2><h3 class="ck-doc-h3">承诺环节</h3><ol><li><strong>正方质询反方</strong>：正方问反方是否认为超能力剥夺自由选择、类似洗脑，反方回应称爱和占有区别在于爱是双方付出，超能力通过洗脑获取爱更像占有。</li></ol><div class="ck-quote">“你方觉得我们这个超能力就是操控他的自由意志，有点像给他洗脑。”</div><div class="ck-quote">—— <strong>正方</strong></div><ol><li><strong>反方质询正方</strong>：反方问正方若超能力是洗脑，是否还能称为爱，正方反驳称超能力机制可能不是洗脑，而是改变自己或创造100%符合对方标准的人。</li></ol><div class="ck-quote">“洗脑真的是爱吗？我真的能获得爱吗？”</div><div class="ck-quote">—— <strong>反方</strong></div><ol><li><strong>正方回应反方</strong>：正方称超能力掌握在爱你的人手里比掌握在蒙眼的小孩子手里好，反方质疑正方将“为对方好”定义为自己的标准是自私来源。</li></ol><div class="ck-quote">“这根线到底掌握在谁的手里，我方认为掌握在一个爱你的人手里，比掌握在一个蒙眼的小孩子手里来的好。”</div><div class="ck-quote">—— <strong>正方</strong></div><ol><li><strong>反方质疑正方</strong>：反方称超能力让爱来得太容易，容易变质、不珍惜，正方反驳珍惜程度取决于认真程度而非难易。</li></ol><div class="ck-quote">“难道我们在恋爱过程当中珍不珍惜对方这件事情完全看我们之间的新鲜感？”</div><div class="ck-quote">—— <strong>正方</strong></div><ol><li><strong>正方总结</strong>：正方称若相处后不合适，会选择放手，不会再用超能力；反方质疑正方一开始想天长地久，与放手是否矛盾。</li></ol><div class="ck-quote">“如果这个时候真的是相处之后，我也觉得我跟他没有办法在一起，那这个时候爱的信号就是我会再用这个超能力。”</div><div class="ck-quote">—— <strong>正方</strong></div><h2 class="ck-doc-h2">结辩与评委点评</h2><ol><li><strong>正方结辩</strong>：正方强调爱是超能力，不受自由意志控制，超能力机制可能不是洗脑，而是改变自己或创造100%符合对方标准的人；超能力掌握在爱人手中优于命运，若相处后不合适会选择放手。</li><li><strong>反方结辩</strong>：反方坚持超能力是洗脑，剥夺对方自由选择，类比强奸违背妇女意志；通过洗脑获取的爱是占有而非爱，正方将“为对方好”定义为自己的标准是自私来源。</li><li><strong>评委点评</strong>：正方在承诺环节获胜，获得4分钟小节时间。</li></ol>
+      </div>
+    </div>
+  </main>
+</body>
+</html>
