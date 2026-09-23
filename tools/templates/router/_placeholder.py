@@ -231,6 +231,41 @@ def _replace_placeholders_in_line(
     return "".join(parts) + ("\n" if ended else "")
 
 
+def _strip_redundant_column_heading(text: str, title: str) -> str:
+    """若模型在单栏正文开头复述了该栏栏名，剥离多余的首行标题。
+
+    例如：模板已渲染 `# 核心政策`，模型若首行又输出 `## 核心政策：`、`# 核心政策`、
+    `**核心政策**：`、`【核心政策】` 等，将其剥离，防止拼装后出现重复标题或光杆标题误判。
+    """
+    if not text or not title:
+        return text
+    norm_target = re.sub(r"^[0-9一二三四五六七八九十]+[\.、\s]*", "", title.strip())
+    norm_target = re.sub(r"[#*_\s\[\]【】:：]", "", norm_target)
+    if not norm_target:
+        return text
+
+    lines = text.splitlines(keepends=True)
+    first_nonempty_idx = None
+    for idx, line in enumerate(lines):
+        if line.strip():
+            first_nonempty_idx = idx
+            break
+    if first_nonempty_idx is None:
+        return text
+
+    first_line = lines[first_nonempty_idx].strip()
+    norm_line = re.sub(r"^[0-9一二三四五六七八九十]+[\.、\s]*", "", first_line)
+    norm_line = re.sub(r"[#*_\s\[\]【】:：]", "", norm_line)
+
+    if norm_line == norm_target:
+        next_idx = first_nonempty_idx + 1
+        if next_idx < len(lines) and not lines[next_idx].strip():
+            next_idx += 1
+        return "".join(lines[next_idx:])
+
+    return text
+
+
 def assemble_placeholder_output(
     template: str,
     field_values: dict[str, str] | list[str],
@@ -271,6 +306,7 @@ def assemble_placeholder_output(
         tables.append([])
 
     scalar_i = 0
+    current_title = ""
     out_lines: list[str] = []
     # 行模板按**行号**定位（同表多行样例会重复出现同样文本，不能按文本匹配）；
     # 每个模板只在它的首行展开一次，其余样例行跳过
@@ -288,6 +324,7 @@ def assemble_placeholder_output(
         title_m = _section_title_match(line)
         if title_m:
             hashes, title = title_m.group(1), title_m.group(2).strip()
+            current_title = title
             rendered = f"{hashes} {title}"
             out_lines.append(rendered + ("\n" if line.endswith("\n") else ""))
             continue
@@ -323,6 +360,8 @@ def assemble_placeholder_output(
         chunk = scalar_list[scalar_i : scalar_i + n]
         while len(chunk) < n:
             chunk.append("")
+        if current_title:
+            chunk = [_strip_redundant_column_heading(c, current_title) for c in chunk]
         fields = [_parse_field(m.group(1)) for m in phs]
         out_lines.append(_replace_placeholders_in_line(line, chunk, fields))
         scalar_i += n
@@ -871,6 +910,13 @@ def _column_fill_user(
         BODY_FORMAT_RULES,
         *_char_budget_lines(template),
     ])
+    # 针对清单与重点工作类栏目：前置注入领域结构化锚点与句式多样性纪律，防止自回归死循环
+    _LISTING_KEYWORDS = ("工作", "政策", "措施", "要点", "清单", "建议", "议题", "事项", "内容", "实录", "记录")
+    if any(kw in title for kw in _LISTING_KEYWORDS):
+        lines.append(
+            "【要点纪律】各条目须按不同维度/领域分别展开，每条聚焦独立的具体举措与事实；"
+            "严禁在不同条目中使用完全相同的主谓宾句式或套话短语；所有要点陈述完毕后立即停笔，严禁循环复述。"
+        )
     if requirement.strip():
         lines.extend(["", "【模板写作要求】（必须遵守，不要写进正文）", requirement.strip()])
     if revision.strip():
@@ -895,7 +941,16 @@ def _degenerate_reason(text: str) -> str:
 
 
 async def _stream_column(
-    client: Any, user: str, *, cap: int, ceiling: int, label: str
+    client: Any,
+    user: str,
+    *,
+    cap: int,
+    ceiling: int,
+    label: str,
+    timeout: float | None = None,
+    presence_penalty: float | None = None,
+    frequency_penalty: float | None = None,
+    temperature: float | None = None,
 ) -> str | None:
     """流式写一栏：边收边查（重复/超长），命中即中止并返回 None。
 
@@ -908,7 +963,16 @@ async def _stream_column(
     parts: list[str] = []
     size = 0
     checked = 0
-    stream = stream_text(_COLUMN_FILL_SYSTEM, user, max_tokens=cap, label=label)
+    stream_kwargs: dict[str, Any] = {"max_tokens": cap, "label": label}
+    if timeout is not None:
+        stream_kwargs["timeout"] = timeout
+    if presence_penalty is not None:
+        stream_kwargs["presence_penalty"] = presence_penalty
+    if frequency_penalty is not None:
+        stream_kwargs["frequency_penalty"] = frequency_penalty
+    if temperature is not None:
+        stream_kwargs["temperature"] = temperature
+    stream = stream_text(_COLUMN_FILL_SYSTEM, user, **stream_kwargs)
     try:
         async for chunk in stream:
             if chunk:
@@ -986,7 +1050,23 @@ async def fill_placeholder_by_columns(
         hint = str(scalars[index].get("hint") or "")
         title = titles[index]
         others = [t for i, t in enumerate(titles) if i != index and t]
+
+        # 自适应单栏超时：基础超时以 client.timeout 为底（至少 60s），对超重长栏目适度放宽
+        raw_to = getattr(client, "timeout", None)
+        base_to = float(raw_to) if raw_to else 60.0
+        base_to = max(base_to, 60.0)
+        _HEAVY_KEYWORDS = ("政策", "工作", "内容", "实录", "记录", "交锋", "要点", "报告", "经过", "清单", "意见", "事项")
+        is_heavy = any(kw in title for kw in _HEAVY_KEYWORDS) or len(hint) > 80
+        col_to = base_to + (30.0 if is_heavy else 0.0)
+
         for attempt in range(2):
+            cur_to = col_to + (10.0 if attempt > 0 else 0.0)
+            # 采样参数动态干预：
+            # 1. 尝试重写 (attempt > 0) 或带 revision（如超长重写）时，提升 presence_penalty 至 0.3 并略微抬高温度至 0.35，打破自回归重复循环
+            # 2. 首轮针对重点清单或超重大栏目，施加轻微 presence_penalty 0.15，前置规避自回归退化死循环
+            cur_pen = 0.3 if (attempt > 0 or revision) else (0.15 if is_heavy else None)
+            cur_temp = 0.35 if (attempt > 0 or revision) else None
+
             user = _column_fill_user(
                 context,
                 template,
@@ -1005,9 +1085,14 @@ async def fill_placeholder_by_columns(
                 cap=cap,
                 ceiling=ceiling,
                 label=f"template/fill:{title or index + 1}",
+                timeout=cur_to,
+                presence_penalty=cur_pen,
+                temperature=cur_temp,
             )
             if text:
-                return text
+                text = _strip_redundant_column_heading(text, title)
+                if text.strip():
+                    return text
             revision = (
                 "上一版没有产出可用正文（输出为空、超长或出现重复段落）。"
                 "只写这一栏最关键的要点，写完立刻停，不要重复任何句子。"

@@ -82,6 +82,8 @@ def _is_non_prose_line(body: str) -> bool:
         return True
     if _DIALOGUE_LINE_RE.match(body):
         return True
+    if bool(re.match(r"^\d+[\.、]\s*", body)):
+        return True
     return bool(_STAR_BULLET_RE.match(body))
 
 
@@ -620,14 +622,23 @@ def clean_template_render_text(text: str) -> tuple[str, list[str]]:
                 not lines[j].strip() or lines[j].strip() == "\\"
             ):
                 j += 1
-            if (
-                j < len(lines)
-                and len(heading_text) >= 24
-                and re.sub(r"\s+", "", lines[j].strip()) == heading_text
-            ):
-                removed_dup = True
-                i += 1
-                continue
+            if j < len(lines):
+                # 检查情形 1：长标题占位误填导致的相邻重复段落
+                if (
+                    len(heading_text) >= 24
+                    and re.sub(r"\s+", "", lines[j].strip()) == heading_text
+                ):
+                    removed_dup = True
+                    i += 1
+                    continue
+                # 检查情形 2：相邻同名标题（如 `# 核心政策` 紧跟 `## 核心政策：` 或 `# 核心政策`）
+                m2 = re.match(r"^(#{1,6})\s+(.+?)\s*$", lines[j].strip())
+                if m2:
+                    h1 = re.sub(r"[#*_\s\[\]【】:：]", "", m.group(2))
+                    h2 = re.sub(r"[#*_\s\[\]【】:：]", "", m2.group(2))
+                    if h1 and h1 == h2:
+                        lines[j] = ""  # 消除后一个冗余标题行
+                        removed_dup = True
         cleaned.append(line)
         i += 1
     if removed_slash:
@@ -1089,15 +1100,15 @@ def gate_render_output(
 # ── 篇幅口径：三层同源（要求线 → 拆分线 → 检查线 → 兜底线），不再各写一份数字 ──
 # 要求线：写进 prompt、模型应当遵守的字数，与 tools/templates/body_rules.py 的文案一一对应
 #   （改这里必须同步改那段文案；tests/test_template_router.py 有断言把两边钉在一起）。
-_PARA_REQUIRE_HAN = 200  # 一般叙述单段（body_rules：「不超过约 200 字」）
+_PARA_REQUIRE_HAN = 300  # 一般叙述单段（body_rules：「不超过约 300 字」）
 _ITEM_REQUIRE_HAN = 150  # `- ` 条目（body_rules：「单条不超过约 150 字」）
 # 拆分线 = 要求线 × 1.2：确定性按句界拆段（只加换行、零 LLM 调用），贴着要求线
 _SPLIT_RATIO = 1.2
-_PARA_SPLIT_HAN = int(_PARA_REQUIRE_HAN * _SPLIT_RATIO)  # 240
+_PARA_SPLIT_HAN = int(_PARA_REQUIRE_HAN * _SPLIT_RATIO)  # 360
 # 检查线 = 要求线 × 1.5：拆分没治好才算异常，进 advisory 记账（只记录、不返工）。
 # 条目维度没有「拆分」层（不能程序拆句），所以检查线即兜底线（触发只重写那一栏）。
 _CHECK_RATIO = 1.5
-_PARA_CHECK_HAN = int(_PARA_REQUIRE_HAN * _CHECK_RATIO)  # 300
+_PARA_CHECK_HAN = int(_PARA_REQUIRE_HAN * _CHECK_RATIO)  # 450
 _ITEM_CHECK_HAN = int(_ITEM_REQUIRE_HAN * _CHECK_RATIO)  # 225
 _META_SENTENCE_RE = re.compile(
     r"原文(?:中|里)?\s*(?:未|没有|无)\s*(?:明确|提及|说明|给出|写)"
@@ -1201,7 +1212,7 @@ def advisory_issues(
 
     阈值**不硬编码**，而是从要求线派生（三层同源，见文件头部常量块）：
     ``long_han = _ITEM_CHECK_HAN``（要求 140 × 1.5）、``para_han = _PARA_CHECK_HAN``
-    （要求 200 × 1.5）。它们是比规格更早的预警线，不是要求本身——直接拿要求线（200）
+    （要求 300 × 1.5）。它们是比规格更早的预警线，不是要求本身——直接拿要求线（300）
     去判会把 30+ 行正常段误报（实测 36/55），失去观察价值。
 
     这两类先以 advisory 记录（日志 + monitor），观察一批再决定是否升级成
@@ -1224,7 +1235,8 @@ def advisory_issues(
     para: list[str] = []
     for raw in lines + [""]:
         s = raw.strip()
-        is_body = bool(s) and not s.startswith(("#", "|", ">", "-"))
+        is_list_item = s.startswith("-") or bool(re.match(r"^\d+[\.、]\s*", s))
+        is_body = bool(s) and not s.startswith(("#", "|", ">")) and not is_list_item
         if is_body:
             para.append(s)
             continue
@@ -1282,6 +1294,12 @@ def empty_section_issues(text: str, template: str = "", *, limit: int = 5) -> li
         )
         if body.strip():
             continue
+        # 若下一个标题是与本标题同名的重复标题，正文实际在下一个标题下方，不误判为空栏
+        if k + 1 < len(heads):
+            norm_curr = re.sub(r"[#*_\s\[\]【】:：]", "", head)
+            norm_next = re.sub(r"[#*_\s\[\]【】:：]", "", heads[k + 1][2])
+            if norm_curr and norm_curr == norm_next:
+                continue
         issues.append(f"「{head[:24]}」只有标题没有正文（空栏）")
         if len(issues) >= limit:
             break

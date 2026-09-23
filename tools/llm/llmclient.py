@@ -437,6 +437,8 @@ class LLMClient:
         temperature: float | None = None,
         max_tokens: int | None = None,
         timeout: float | None = None,
+        presence_penalty: float | None = None,
+        frequency_penalty: float | None = None,
         label: str = "",
     ) -> Iterable[str]:
         """同步读取流式响应，逐块产出 content 增量。"""
@@ -476,6 +478,10 @@ class LLMClient:
             body["max_tokens"] = tok
         if json_mode:
             body["response_format"] = {"type": "json_object"}
+        if presence_penalty is not None:
+            body["presence_penalty"] = float(presence_penalty)
+        if frequency_penalty is not None:
+            body["frequency_penalty"] = float(frequency_penalty)
         if self.provider == "vllm" and self.send_sampling:
             # 与官方 API 行为一致：默认**不发送** top_p / top_k；
             # 只有显式配置 LLM_VLLM_TOP_P / LLM_VLLM_TOP_K 时才透传（vLLM 支持这两个参数）
@@ -645,6 +651,8 @@ class LLMClient:
         temperature: float | None = None,
         max_tokens: int | None = None,
         timeout: float | None = None,
+        presence_penalty: float | None = None,
+        frequency_penalty: float | None = None,
         label: str = "",
     ) -> AsyncIterator[str]:
         """流式调用 LLM 返回纯文本增量块（SSE，非 JSON 模式）。"""
@@ -664,6 +672,8 @@ class LLMClient:
                     temperature=temperature,
                     max_tokens=max_tokens,
                     timeout=timeout,
+                    presence_penalty=presence_penalty,
+                    frequency_penalty=frequency_penalty,
                     label=label,
                 ):
                     try:

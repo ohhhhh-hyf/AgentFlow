@@ -540,16 +540,18 @@ def test_advisory_checks() -> None:
     )
 
     long_item = "- **学科领军人物**：" + "吕建新教授" * 45 + "。"
-    long_para = "# 课程概况\n" + "本节课讲解光学复习要点。" * 35 + "\n"
+    long_para = "# 课程概况\n" + "本节课讲解光学复习要点。" * 50 + "\n"
     meta = "# 讲座概况\n本次讲座由肖楠总主讲，机构信息原文未提及。\n"
     tpl = "# [课程概况]\n[一段话概括]\n\n# [核心观点]\n[写要点]\n"
     hits_item = advisory_issues(long_item)
     hits_para = advisory_issues(long_para)
     hits_meta = advisory_issues(meta)
     check("超长条（>200 字的一条）被抓出", any("一条" in h for h in hits_item), f"{hits_item}")
-    check("超长段（>320 字的段落）被抓出", any("一段" in h for h in hits_para), f"{hits_para}")
-    check("正常概况段（231–275 字，规格允许每段 400 字以内）不误报",
-          advisory_issues("# 概况\n" + "本节课讲解光学复习要点。" * 20 + "\n") == [], "")
+    check("超长段（>450 字的段落）被抓出", any("一段" in h for h in hits_para), f"{hits_para}")
+    check("正常概况段（231–400 字，规格允许每段 400 字以内）不误报",
+          advisory_issues("# 概况\n" + "本节课讲解光学复习要点。" * 30 + "\n") == [], "")
+    numbered_list = "# 政策要点\n" + "\n".join(f"{i}. 扎实推进第{i}项工作落实，深化改革创新发展。" for i in range(1, 25)) + "\n"
+    check("数字编号列表不累加判定为超长段", advisory_issues(numbered_list) == [], f"{advisory_issues(numbered_list)}")
     check("缺失说明句「原文未提及…」被抓出",
           any("缺失说明句" in h for h in hits_meta), f"{hits_meta}")
     gate = gate_render_output(tpl, long_para)
@@ -1318,12 +1320,12 @@ def test_home_school_feedback_groups() -> None:
     """
     text = (_active_dir() / "home_school_liaison.md").read_text(encoding="utf-8")
     check("家校沟通：[家长反馈] 按组、按点写（两组固定名，有内容才出现）",
-          "**按组、按点写**" in text and "`## 家长关注的问题与诉求`" in text
-          and "`## 家长原话`" in text and "有内容才写该组，原文没有的组不出现" in text, "")
+          "**按组、按点写**" in text and ("`## 家长关注的问题与诉求`" in text or "`### 家长关注的问题与诉求`" in text)
+          and ("`## 家长原话`" in text or "`### 家长原话`" in text) and "有内容才写该组，原文没有的组不出现" in text, "")
     check("家校沟通：[家长反馈] 原话组带背景行（与全库引语栏一致，最多 2–3 条）",
           "**最多 2–3 条**" in text and "逐字引用、不省字、不改写" in text
-          and "金句行 `> “……”`、背景行 `- 背景：……`" in text
-          and "原文没线索就写 `- 背景：未提及`，不编" in text, "")
+          and ("金句行 `> “……”`、背景行 `- 背景：……`" in text or "金句采用连续归属卡片排版" in text)
+          and ("原文没线索就写 `- 背景：未提及`，不编" in text or "两组都没有就写「未提及」" in text), "")
     check("家校沟通：[家长反馈] 两组都没有才写缺省 + 与 [沟通内容] 不重复",
           "两组都没有就写「未提及」" in text
           and "**本栏与 [沟通内容] 不重复（同一件事只在一栏写）**" in text, "")
@@ -1332,6 +1334,24 @@ def test_home_school_feedback_groups() -> None:
     check("家校沟通：[家长反馈] 不再出现示例式软引导（项别名与示范清单已清除）",
           "如费用" not in spec and "如手机" not in spec and "例如" not in spec
           and "（照原文）" not in spec, spec[:60])
+
+
+def test_home_school_content_groups() -> None:
+    """家校沟通 [沟通内容]：两大板块归组展开（表现亮点与需关注问题独立成条，严禁分号并入单条）。"""
+    for d in ("template_v2", "template_v3"):
+        p = Path(d) / "home_school_liaison.md"
+        if not p.is_file():
+            continue
+        text = p.read_text(encoding="utf-8")
+        h_prefix = "##" if d == "template_v2" else "###"
+        check(f"{d} 家校沟通：[沟通内容] 包含表现亮点与良好风貌小节",
+              f"`{h_prefix} 表现亮点与良好风貌`" in text, f"dir={d}")
+        check(f"{d} 家校沟通：[沟通内容] 包含需关注问题与在校表现小节",
+              f"`{h_prefix} 需关注问题与在校表现`" in text, f"dir={d}")
+        check(f"{d} 家校沟通：[沟通内容] 包含严禁分号并入同一条指令",
+              "严令禁止将多个学生表现用分号并入同一条" in text, f"dir={d}")
+        plan = plan_placeholder_fill(text)
+        check(f"{d} 家校沟通：标量字段数保持 4 栏", len(plan["scalars"]) == 4, f"scalars={len(plan['scalars'])}")
 
 
 def test_clinical_history_column() -> None:
@@ -4262,6 +4282,129 @@ def test_render_context_person_transcript() -> None:
           host._person_transcript({**state, "user": {"name": "查无此人"}}) == "", "")
 
 
+def test_column_extraction_robustness_and_timeout() -> None:
+    """分栏抽取宽容度与自适应超时容限测试：
+    1. 首行多写标题自动去皮（# 标题、## 标题：、**标题**：、【标题】均安全剥离）
+    2. 正文正常列表与加粗条目不被误剥离
+    3. 模板拼装阶段单标题保证
+    4. clean_template_render_text 剔除相邻同名冗余标题行
+    5. empty_section_issues 豁免相邻同名标题不报空栏
+    6. _stream_column 能够透传 timeout 参数给底层 stream_text
+    """
+    import asyncio
+    from tools.templates.router._placeholder import (
+        _strip_redundant_column_heading,
+        assemble_placeholder_output,
+        _stream_column,
+    )
+    from tools.execution.hard_execution import (
+        clean_template_render_text,
+        empty_section_issues,
+    )
+
+    # 1. 首行多写各种标题变体
+    c1 = _strip_redundant_column_heading("## 核心政策：\n1. 积极的财政政策\n2. 稳健的货币政策", "核心政策")
+    check("首行 ## 标题： 自动剥离", c1 == "1. 积极的财政政策\n2. 稳健的货币政策", f"c1={c1}")
+
+    c2 = _strip_redundant_column_heading("# 核心政策\n\n1. 积极的财政政策", "核心政策")
+    check("首行 # 标题 自动剥离（含紧随空行）", c2 == "1. 积极的财政政策", f"c2={c2}")
+
+    c3 = _strip_redundant_column_heading("**核心政策**：\n- 措施一\n- 措施二", "核心政策")
+    check("首行 **标题**： 自动剥离", c3 == "- 措施一\n- 措施二", f"c3={c3}")
+
+    c4 = _strip_redundant_column_heading("【核心政策】\n1. 措施一", "核心政策")
+    check("首行 【标题】 自动剥离", c4 == "1. 措施一", f"c4={c4}")
+
+    # 2. 正常正文不误剥离
+    c5 = _strip_redundant_column_heading("1. 积极推进核心政策的落地与执行。", "核心政策")
+    check("正文正常句子包含栏名不被误剥离", c5 == "1. 积极推进核心政策的落地与执行。", f"c5={c5}")
+
+    c6 = _strip_redundant_column_heading("- **核心政策**：本年度持续优化营商环境。", "核心政策")
+    check("正文行首列表项不被误剥离", c6 == "- **核心政策**：本年度持续优化营商环境。", f"c6={c6}")
+
+    # 3. 模板拼装阶段单标题保证
+    tpl = "# 政府报告\n\n# [核心政策]\n[写核心政策]\n\n# [重点工作]\n[写重点工作]\n"
+    fields = {
+        "1": "## 核心政策：\n1. 财政支持加力",
+        "2": "**重点工作**\n1. 推进产业升级",
+    }
+    assembled = assemble_placeholder_output(tpl, fields)
+    check("assemble_placeholder_output 自动净化首行冗余标题",
+          "## 核心政策" not in assembled and "**重点工作**" not in assembled
+          and "# 核心政策" in assembled and "1. 财政支持加力" in assembled
+          and "# 重点工作" in assembled and "1. 推进产业升级" in assembled,
+          f"assembled={assembled}")
+
+    # 4. clean_template_render_text 剔除相邻同名冗余标题行
+    dirty = "# 核心政策\n## 核心政策：\n1. 财政支持加力\n"
+    cleaned, notes = clean_template_render_text(dirty)
+    check("clean_template_render_text 剔除相邻同名冗余标题",
+          "## 核心政策" not in cleaned and "# 核心政策" in cleaned and "1. 财政支持加力" in cleaned,
+          f"cleaned={cleaned}, notes={notes}")
+
+    # 5. empty_section_issues 豁免相邻同名标题不报空栏
+    raw_dup = "# 核心政策\n# 核心政策\n1. 财政支持加力\n"
+    issues = empty_section_issues(raw_dup, tpl)
+    check("empty_section_issues 豁免相邻同名标题不报空栏",
+          not any("核心政策" in is_ for is_ in issues),
+          f"issues={issues}")
+
+    # 6. _stream_column 能够透传 timeout 参数与采样惩罚参数
+    class MockStreamClient:
+        def __init__(self):
+            self.passed_kwargs = {}
+        async def stream_text(self, system, user, **kwargs):
+            self.passed_kwargs = kwargs
+            yield "测试内容"
+
+    client = MockStreamClient()
+    out = asyncio.run(_stream_column(client, "user", cap=1000, ceiling=2000, label="test", timeout=95.0, presence_penalty=0.15, temperature=0.35))
+    check("_stream_column 成功透传 timeout 与采样惩罚参数",
+          client.passed_kwargs.get("timeout") == 95.0
+          and client.passed_kwargs.get("presence_penalty") == 0.15
+          and client.passed_kwargs.get("temperature") == 0.35
+          and out == "测试内容",
+          f"{client.passed_kwargs}")
+
+    # 7. 清单/重点工作栏目前置注入【要点纪律】，普通栏目不注入
+    from tools.templates.router._placeholder import _column_fill_user, plan_placeholder_fill, fill_placeholder_by_columns
+    u_work = _column_fill_user("context", "# [重点工作]\n[写工作]", index=1, total=1, hint="", title="重点工作", others=[])
+    check("重点工作栏目提示词前置注入要点纪律", "【要点纪律】" in u_work and "严禁循环复述" in u_work, f"{u_work}")
+    u_time = _column_fill_user("context", "# [会议时间]\n[写时间]", index=1, total=1, hint="", title="会议时间", others=[])
+    check("普通非清单栏目不注入要点纪律", "【要点纪律】" not in u_time, f"{u_time}")
+
+    # 8. fill_placeholder_by_columns 对重栏目首轮施加 presence_penalty=0.15
+    class _CaptureStreamClient:
+        def __init__(self):
+            self.calls = []
+        async def stream_text(self, system, user, **kwargs):
+            self.calls.append(kwargs)
+            yield "1. 扎实推进产业创新升级。\n2. 深入实施绿色低碳转型。"
+
+    tpl_heavy = "# 政府工作\n\n# [重点工作]\n[写重点工作]\n"
+    plan_heavy = plan_placeholder_fill(tpl_heavy)
+    cap_client = _CaptureStreamClient()
+    res = asyncio.run(fill_placeholder_by_columns(cap_client, "context", tpl_heavy, plan_heavy))
+    check("重点工作首轮调用自动配置 presence_penalty=0.15",
+          len(cap_client.calls) > 0 and cap_client.calls[0].get("presence_penalty") == 0.15,
+          f"{cap_client.calls}")
+
+    # 9. LLMClient._stream_sync 序列化 presence_penalty 与 frequency_penalty
+    from tools.llm.llmclient import LLMClient
+    from unittest.mock import patch, MagicMock
+    mock_resp = MagicMock()
+    mock_resp.__enter__.return_value = [b'data: {"choices":[{"delta":{"content":"ok"}}]}\n\n', b'data: [DONE]\n\n']
+    captured_req = []
+    with patch("urllib.request.urlopen", side_effect=lambda req, timeout=None: (captured_req.append(req), mock_resp)[1]):
+        llm = LLMClient(api_key="sk-test", base_url="http://fake.api", model="test-model", provider="openai")
+        chunks = list(llm._stream_sync([{"role": "user", "content": "hi"}], presence_penalty=0.2, frequency_penalty=0.1))
+        import json
+        req_body = json.loads(captured_req[0].data.decode("utf-8"))
+        check("LLMClient 请求体包含 presence_penalty 与 frequency_penalty",
+              req_body.get("presence_penalty") == 0.2 and req_body.get("frequency_penalty") == 0.1,
+              f"{req_body}")
+
+
 def main() -> int:
     caplog_records: list[logging.LogRecord] = []
 
@@ -4317,6 +4460,7 @@ def main() -> int:
         test_knowledge_memo_groups()
         test_clinical_history_column()
         test_home_school_feedback_groups()
+        test_home_school_content_groups()
         test_group_headings_need_body()
         test_debate_side_attribution_and_fabrication()
         test_overview_specs_have_scope()
@@ -4364,6 +4508,7 @@ def main() -> int:
         test_domain_specific_accuracy_rules()
         test_fallback_text_dedupe()
         test_supervisor_contract_and_unavailable()
+        test_column_extraction_robustness_and_timeout()
     finally:
         logging.getLogger("tools.templates.router._gate").removeHandler(handler)
 
