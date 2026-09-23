@@ -140,6 +140,28 @@ def validate_rendered_output(
                     errors.append(f"模板固定文字丢失：{text[:30]!r}")
         if missing_fixed > 2:
             errors.append(f"另有 {missing_fixed - 2} 处固定文字缺失")
+
+        # ── 防 2.1 核心遗漏：检查模板预设的核心一级/二级标题是否在输出中丢失（防中途截断烂尾）──
+        expected_headings: list[str] = []
+        for s in segments:
+            if s.get("kind") == "title":
+                hint_str = str(s.get("hint") or s.get("raw") or "").strip()
+                lvl = int(s.get("level") or 2)
+                if hint_str and lvl in {1, 2}:
+                    clean_h = re.sub(r"[\[\]\s]", "", hint_str)
+                    if clean_h and len(clean_h) >= 2:
+                        expected_headings.append(clean_h)
+
+        if expected_headings:
+            rendered_h_lines = [
+                re.sub(r"^[#\s]+", "", ln).strip().strip("[]")
+                for ln in rendered.splitlines()
+                if ln.strip().startswith("#")
+            ]
+            for exp in expected_headings:
+                if not any(exp in act or act in exp for act in rendered_h_lines):
+                    errors.append(f"核心栏目缺失（防截断遗漏）：模板要求的栏目「{exp}」未在输出中出现")
+                    break
     elif kind == "spec":
         stripped = rendered.strip()
         # 允许被 ``` 包裹
