@@ -19,7 +19,7 @@ from fastapi.responses import JSONResponse  # noqa: E402
 from fastapi.staticfiles import StaticFiles  # noqa: E402
 
 from .config import load_env  # noqa: E402
-from .routes import meeting, notes, tasks as async_tasks  # noqa: E402
+from .routes import agent, meeting, notes, tasks as async_tasks  # noqa: E402
 from .routes.tasks import AsyncApiError  # noqa: E402
 from .schemas import TaskResponse  # noqa: E402
 from .tasks import ApiError  # noqa: E402
@@ -45,9 +45,10 @@ app = FastAPI(
     response_model_exclude_unset=True,
 )
 
-app.include_router(meeting.router)
+app.include_router(agent.router)          # 统一入口 /api/agent/v1（同步 / 流式 / 下载）
+app.include_router(meeting.router)        # 各线产物预览 /api/v1/{domain}/{task}/preview
 app.include_router(notes.router)
-app.include_router(async_tasks.router)
+app.include_router(async_tasks.router)    # 异步任务 /api/v1/tasks
 
 
 # html 产物预览（可选）：data/{user_id}/output/{request_id}/{task}.html

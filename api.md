@@ -6,9 +6,9 @@
 本文档分三块：
 
 1. **健康检查**（第 1 节）：服务状态与任务线清单；
-2. **任务线接口**（第 2 节，老接口）：URL 带 `domain`/`task`，每条任务线固定四种形态 ——
-   普通（同步）、流式、GET 下载、GET 预览；
-3. **异步任务接口**（第 3 节，新增）：`/api/v1/tasks` 四件套（提交 / 状态 / 结果 / 事件流），
+2. **任务线接口**（第 2 节）：统一入口 `/api/agent/v1`，域与任务名由请求体给出；四种形态 ——
+   普通（同步）、流式、GET 下载、GET 预览（预览是唯一仍按域/任务名分路径的形态）；
+3. **异步任务接口**（第 3 节）：`/api/v1/tasks` 四件套（提交 / 状态 / 结果 / 事件流），
    与具体任务线解耦。
 
 ---
@@ -19,9 +19,9 @@
 
 | 端点形态 | 路径 | 方法 | 说明 |
 |---|---|---|---|
-| 普通（同步） | `/api/v1/{domain}/{task}` | POST | 请求体 TaskRequest，返回 TaskResponse（2.5.1） |
-| 流式 | `/api/v1/{domain}/{task}/stream` | POST | NDJSON 事件流，请求体与普通接口一致（2.5.2） |
-| 下载 | `/api/v1/{domain}/{task}/file/{request_id}/{file_name}` | GET | 附件下载，`file_name` 取响应 `data.file_name`（2.5.3） |
+| 普通（同步） | `/api/agent/v1` | POST | 请求体 `DomainTaskRequest`（TaskRequest + `domain`/`task`），返回 TaskResponse（2.5.1） |
+| 流式 | `/api/agent/v1/stream` | POST | NDJSON 事件流，请求体与普通接口一致（2.5.2） |
+| 下载 | `/api/agent/v1/file/{request_id}/{file_name}` | GET | 附件下载，`file_name` 取响应 `data.file_name`（2.5.3） |
 | 预览 | `/api/v1/{domain}/{task}/preview?request_id=&user_id=` | GET | 页面版 `{task}.html`，`text/html` 直接渲染（2.5.4） |
 | 健康检查 | `/api/v1/health` | GET | 服务状态 + 执行模式 `run_mode` + 两个域当前任务线清单（第 1 节） |
 | 异步提交 | `/api/v1/tasks` | POST | 立即返回任务快照 `status=queued`（3.3） |
@@ -31,9 +31,15 @@
 | 静态产物 | `/data/{user_id}/output/{request_id}/{file_name}` | GET | 同源直接访问（无鉴权） |
 | 框架自带 | `/docs`、`/redoc`、`/openapi.json` | GET | Swagger / ReDoc / OpenAPI |
 
+> 同步 / 流式 / 下载三类端点与具体任务线解耦：**域名与线名是请求体字段**（POST）或与产物
+> 绑定的路径段（下载只需 `request_id`）。10 条任务线共用这三条端点，靠请求体区分。
+> 只有**预览**保留 `/api/v1/{domain}/{task}/preview`：它没有 `file_name` 入参，
+> 只能按 `{task}.html` 的命名约定取产物，需要路径里的域与线名。
+
 ### 0.2 任务线矩阵
 
-10 条任务线**都有普通 POST 与流式 POST**；下载 / 预览按"是否有落盘到 output 目录的产物"注册：
+10 条任务线**都走统一的普通 POST 与流式 POST**（`/api/agent/v1`，请求体带 `domain`/`task`）；
+下载按"产物是否落盘到 output 目录"注册，预览在此基础上还需产物名为 `{task}.html`：
 
 | 域 | task | 中文 | 下载 / 预览 | 产物文件（`data/{user_id}/output/{request_id}/`） |
 |---|---|---|---|---|
@@ -49,16 +55,19 @@
 | notes | `checklist` | 复习清单 | ✅ | `checklist.html` + `result.md` |
 
 路由与清单的**唯一声明处**是 `app/tasklines.py`（域 → 任务线 → 是否注册产物端点），
-路由注册、普通与异步接口的任务名校验都从它派生。
+统一入口的 `domain`/`task` 校验、预览路由注册与异步接口的任务名校验都从它派生。
 
 ### 0.3 已下线的端点形态（2026-09 精简）
 
 | 已下线 | 替代方式 |
 |---|---|
-| `GET /api/v1/{domain}/{task}/file?request_id=&user_id=`（便捷下载，文件名自动回退） | 用 `GET /api/v1/{domain}/{task}/file/{request_id}/{file_name}`，`file_name` 取响应 `data.file_name` |
-| `POST /api/v1/meeting/consensus`、`POST /api/v1/meeting/decision`（同义 URL） | 用规范名 `POST /api/v1/meeting/consensus_decision` |
+| `POST /api/v1/{domain}/{task}`、`POST /api/v1/{domain}/{task}/stream`、`GET /api/v1/{domain}/{task}/file/{request_id}/{file_name}`（路径带域与线名） | 统一入口 `POST /api/agent/v1`、`POST /api/agent/v1/stream`、`GET /api/agent/v1/file/{request_id}/{file_name}`，`domain`/`task` 改由请求体给出 |
+| `GET /api/v1/{domain}/{task}/file?request_id=&user_id=`（便捷下载，文件名自动回退） | 用 `GET /api/agent/v1/file/{request_id}/{file_name}`，`file_name` 取响应 `data.file_name` |
+| `POST /api/v1/meeting/consensus`、`POST /api/v1/meeting/decision`（同义 URL） | 用规范名：请求体 `task: "consensus_decision"` |
 
-两个域的路由面因此从 46 条收敛到 36 条（每条任务线固定四类端点）。
+> 旧路径一律 404，不做兼容转发：调用方按上表改地址即可（预览路径不受影响）。
+> 收敛后路由总数 46 → 21（其中域相关 36 → 11：统一入口 3 + 产物预览 8），
+> 可用 `GET /openapi.json` 核对。
 
 ---
 
@@ -89,14 +98,16 @@
 
 ---
 
-## 2. 任务线接口（`/api/v1/{domain}/{task}`）
+## 2. 任务线接口（`/api/agent/v1`）
 
-老接口，URL 自带 `domain`（`meeting` / `notes`）与 `task`。每条任务线固定四种形态：
-普通、流式、下载、预览（后两种仅当该任务线有落盘产物）。
+域（`meeting` / `notes`）与任务名由**请求体**给出（普通 / 流式两个 POST），三种形态共享同一份
+产物目录约定。下载与预览是 GET，没有请求体，故分别靠 `request_id` + `file_name` 与
+`/api/v1/{domain}/{task}/preview` 的路径定位产物。
 
 > notes 域当前对外任务线为 `graph` / `library` / `catalog` / `checklist`，规则均以本文为准。
 
-先讲三种形态共用的**请求头 / 请求体 / 响应体 / 错误**，再讲四种形态的协议，最后逐条介绍 10 条任务线。
+先讲四个形态共用的**请求头 / 请求体 / 响应体 / 错误**（请求体只对两个 POST 适用），
+再讲四种形态的协议，最后逐条介绍 10 条任务线。
 
 ### 2.1 请求头
 
@@ -106,12 +117,14 @@
 | `X-User-Id` | POST 必填 | 普通 / 流式 / 下载 / 预览 | 用户标识。知识库、知识目录、记忆、产物全部按用户隔离在 `data/{user_id}/` 下。GET 端点也可改用 URL 参数 `?user_id=`（浏览器直接访问时无法带请求头），二者取一，都没有返回 400 |
 | `Content-Type` | POST 必填 | 普通 / 流式 | `application/json` |
 
-### 2.2 请求体（TaskRequest）
+### 2.2 请求体（DomainTaskRequest）
 
-`domain` / `task` 由 URL 表达，请求体对全部任务线同构：
+普通 / 流式两个 POST 的请求体 = 任务参数（`TaskRequest`）+ `domain` / `task` 两个**必填**定位字段：
 
 ```jsonc
 {
+  "domain": "meeting",              // 必填：meeting / notes（见 0.2 矩阵）
+  "task": "minutes",                // 必填：该域的任务线名，如 minutes / actions / graph
   "time": "",                       // 任务时间（会议开始/转录完成时刻）；可为空
   "texts": {                        // 三类固定 key 的文本（多段用 \n 拼接）
     "transcript": "",               //   正文：会议转写 / 笔记原文 / 老师重点全文
@@ -129,6 +142,15 @@
   }
 }
 ```
+
+`domain` / `task` 的校验在跑任务之前完成，**失败不触发模型调用**：
+
+| 组合 | HTTP | 消息 |
+|---|---|---|
+| 缺 `domain` / `task` 字段 | 422 | Pydantic 校验错误体（两个字段都必填） |
+| `domain` 不在 `meeting` / `notes` | 400 | `domain 仅支持 meeting / notes` |
+| 该域没有这个任务线（别的域有） | 404 | `<domain> 不支持任务线：<task>`（如 `notes` + `minutes`） |
+| 任务线全局不存在 | 404 | `任务线不存在：<task>` |
 
 字段说明：
 
@@ -227,8 +249,8 @@ graph 为交互式 `graph.html`；catalog 的 json 在 `data/{user_id}/knowledge
 
 | HTTP | 场景 | 响应体 |
 |---|---|---|
-| 400 | 缺少必填请求头/必填字段/字段取值非法 | `{"code": 400, "request_id": "…", "message": "缺少…"}` |
-| 404 | 任务不存在 / 产物文件不存在 | 同上结构 |
+| 400 | 缺少必填请求头/必填字段/字段取值非法（含 `domain` 取值不在白名单） | `{"code": 400, "request_id": "…", "message": "缺少…"}` |
+| 404 | 任务线不存在 / 域不支持该任务线 / 产物文件不存在 | 同上结构 |
 | 422 | 请求体不符合模型（如 texts 未知 key、类型错误） | Pydantic 默认校验错误体 |
 | 500 | 任务运行失败 / 未捕获异常 | `{"code": 500, "request_id": "…", "message": "任务运行失败：…"}` |
 
@@ -244,21 +266,21 @@ graph 为交互式 `graph.html`；catalog 的 json 在 `data/{user_id}/knowledge
 #### 2.5.1 普通接口（同步 POST）
 
 ```
-POST /api/v1/{domain}/{task}
+POST /api/agent/v1
 ```
 
-请求头见 2.1，请求体 TaskRequest（2.2），响应 TaskResponse（2.3）。
+请求头见 2.1，请求体 DomainTaskRequest（2.2，域与任务名在请求体），响应 TaskResponse（2.3）。
 阻塞直到任务跑完（十几秒到几分钟），适合小文本调试与不需要实时进度的场景；
 长任务建议用流式（2.5.2）或异步接口（第 3 节）。
 
-完整示例（`minutes`）：
+完整示例（`meeting` + `minutes`）：
 
 ```bash
-curl -s -X POST http://127.0.0.1:8000/api/v1/meeting/minutes \
+curl -s -X POST http://127.0.0.1:8000/api/agent/v1 \
   -H "Content-Type: application/json" \
   -H "X-User-Id: 1" \
   -H "X-Request-Id: $(uuidgen)" \
-  -d '{"time":"","texts":{"transcript":"<会议转写文本>"},"docs":[],"extra":{}}'
+  -d '{"domain":"meeting","task":"minutes","time":"","texts":{"transcript":"<会议转写文本>"},"docs":[],"extra":{}}'
 ```
 
 ```jsonc
@@ -277,7 +299,7 @@ curl -s -X POST http://127.0.0.1:8000/api/v1/meeting/minutes \
 #### 2.5.2 流式接口（POST NDJSON）
 
 ```
-POST /api/v1/{domain}/{task}/stream
+POST /api/agent/v1/stream
 ```
 
 请求体与校验规则和普通接口**完全一致**（校验失败仍直接返回 HTTP 错误，不走流）。
@@ -291,10 +313,10 @@ POST /api/v1/{domain}/{task}/stream
 | `{"type": "error", "code": int, "message": str}` | 运行失败 | `code` 4xx 表示输入类错误、5xx 表示可重试的运行错误 |
 
 ```bash
-curl -N -X POST http://127.0.0.1:8000/api/v1/meeting/minutes/stream \
+curl -N -X POST http://127.0.0.1:8000/api/agent/v1/stream \
   -H "Content-Type: application/json" \
   -H "X-Request-Id: $(uuidgen)" -H "X-User-Id: 1" \
-  -d '{"time":"","texts":{"transcript":"<会议转写文本>"},"docs":[],"extra":{}}'
+  -d '{"domain":"meeting","task":"minutes","time":"","texts":{"transcript":"<会议转写文本>"},"docs":[],"extra":{}}'
 # 输出示例（每行一个事件，phase 节点名随任务不同）：
 # {"type": "phase", "node": "<编排节点名>"}
 # {"type": "chunk", "line": "minutes", "title": "会议纪要", "text": "# …"}
@@ -304,15 +326,17 @@ curl -N -X POST http://127.0.0.1:8000/api/v1/meeting/minutes/stream \
 #### 2.5.3 下载接口（GET 附件）
 
 ```
-GET /api/v1/{domain}/{task}/file/{request_id}/{file_name}
+GET /api/agent/v1/file/{request_id}/{file_name}
 ```
 
 - `request_id` = 普通/流式接口响应里的 `request_id`，`file_name` = 响应里的 `data.file_name`。
+- 域与任务名**不需要**：产物目录 `data/{user_id}/output/{request_id}/` 由 `request_id` 唯一确定，
+  同一产物既能取 `.html` 页面版，也能取 `result.md` Markdown。
 - 返回 `Content-Disposition: attachment`（浏览器弹保存），`user_id` 用 `?user_id=` 或 `X-User-Id` 提供。
 - 产物不存在返回 404，提示缺哪个文件。
 
 ```bash
-curl -OJ "http://127.0.0.1:8000/api/v1/meeting/minutes/file/<request_id>/minutes.html?user_id=1"
+curl -OJ "http://127.0.0.1:8000/api/agent/v1/file/<request_id>/minutes.html?user_id=1"
 ```
 
 #### 2.5.4 预览接口（GET 页面版）
@@ -323,6 +347,8 @@ GET /api/v1/{domain}/{task}/preview?request_id=&user_id=
 
 - 只允许取产物目录内的 `{task}.html`（受 `resolve_output_file` 校验，**不暴露 `/data` 整树**）。
 - 无 `Content-Disposition` 头 → 浏览器直接渲染；适合人工查看页面版产物。
+- 四类形态里**只有预览保留路径中的域与任务名**：它没有 `file_name` 入参，只能按
+  `{task}.html` 的命名约定取产物（下载接口因此不受影响，两者取的可以是同一份文件）。
 
 #### 2.5.5 静态路径与产物定位速查
 
@@ -331,7 +357,8 @@ GET /api/v1/{domain}/{task}/preview?request_id=&user_id=
 | 已拿到 | 位置/URL |
 |---|---|
 | `request_id` + `file_name` | `/data/{user_id}/output/{request_id}/{file_name}`（静态，浏览器直接打开） |
-| 支持下载/预览的任务线（meeting 六线 + notes graph/checklist） | `/api/v1/{domain}/{task}/preview?request_id=…&user_id=…` 预览；`/api/v1/{domain}/{task}/file/{request_id}/{file_name}` 下载 |
+| `request_id` + `file_name`（走接口，受产物目录校验） | `/api/agent/v1/file/{request_id}/{file_name}?user_id=…` 下载；要 Markdown 就把文件名换成 `result.md` / `{task}.md` |
+| 支持预览的任务线（meeting 六线 + notes graph/checklist） | `/api/v1/{domain}/{task}/preview?request_id=…&user_id=…` 预览（需域与任务名） |
 | catalog 目录数据 | `data/{user_id}/knowledge/catalogs/{学科拼音}/{file_name}`（`file_name` 为 catalog 响应值） |
 
 > 未传 `X-User-Id` 的历史兼容路径 `data/output/{request_id}/` 仍被 `/data` 静态目录覆盖，
@@ -343,9 +370,8 @@ GET /api/v1/{domain}/{task}/preview?request_id=&user_id=
 
 | 形态 | 方法与路径 |
 |---|---|
-| 普通 | `POST /api/v1/meeting/minutes` |
-| 流式 | `POST /api/v1/meeting/minutes/stream` |
-| 下载 | `GET /api/v1/meeting/minutes/file/{request_id}/{file_name}` |
+| 普通 / 流式 | `POST /api/agent/v1`、`POST /api/agent/v1/stream`（请求体 `"domain":"meeting","task":"minutes"`，见 2.2） |
+| 下载 | `GET /api/agent/v1/file/{request_id}/{file_name}`（无需域与任务名） |
 | 预览 | `GET /api/v1/meeting/minutes/preview?request_id=&user_id=` |
 
 - 必填：`texts.transcript`（会议转写文本）。
@@ -355,7 +381,8 @@ GET /api/v1/{domain}/{task}/preview?request_id=&user_id=
 
 ```jsonc
 // 请求
-{ "time": "", "texts": { "transcript": "<会议转写文本>", "keypoints": "", "notes": "" },
+{ "domain": "meeting", "task": "minutes",
+  "time": "", "texts": { "transcript": "<会议转写文本>", "keypoints": "", "notes": "" },
   "docs": [], "extra": { "template": "", "profile": "", "project": "", "subject": "", "style": "", "memory": false } }
 // 响应 data
 { "text": "# 会议纪要标题\n…", "file_name": "minutes.html" }
@@ -363,18 +390,17 @@ GET /api/v1/{domain}/{task}/preview?request_id=&user_id=
 
 ```bash
 # 带记忆的会议纪要（第二场会可接住第一场的项目进展）
-curl -X POST http://127.0.0.1:8000/api/v1/meeting/minutes -H "Content-Type: application/json" \
+curl -X POST http://127.0.0.1:8000/api/agent/v1 -H "Content-Type: application/json" \
   -H "X-Request-Id: $(uuidgen)" -H "X-User-Id: 1" \
-  -d '{"time":"2026-09-07","texts":{"transcript":"<会议转写文本>"},"extra":{"memory":true,"project":"<项目名(可选)>"}}'
+  -d '{"domain":"meeting","task":"minutes","time":"2026-09-07","texts":{"transcript":"<会议转写文本>"},"extra":{"memory":true,"project":"<项目名(可选)>"}}'
 ```
 
 #### 2.6.2 待办行动 `actions`
 
 | 形态 | 方法与路径 |
 |---|---|
-| 普通 | `POST /api/v1/meeting/actions` |
-| 流式 | `POST /api/v1/meeting/actions/stream` |
-| 下载 | `GET /api/v1/meeting/actions/file/{request_id}/{file_name}` |
+| 普通 / 流式 | `POST /api/agent/v1`、`POST /api/agent/v1/stream`（请求体 `"domain":"meeting","task":"actions"`，见 2.2） |
+| 下载 | `GET /api/agent/v1/file/{request_id}/{file_name}`（无需域与任务名） |
 | 预览 | `GET /api/v1/meeting/actions/preview?request_id=&user_id=` |
 
 - 必填：`texts.transcript`。从会议中提取待办与分工（含负责人、时间要求）。
@@ -384,9 +410,8 @@ curl -X POST http://127.0.0.1:8000/api/v1/meeting/minutes -H "Content-Type: appl
 
 | 形态 | 方法与路径 |
 |---|---|
-| 普通 | `POST /api/v1/meeting/risks` |
-| 流式 | `POST /api/v1/meeting/risks/stream` |
-| 下载 | `GET /api/v1/meeting/risks/file/{request_id}/{file_name}` |
+| 普通 / 流式 | `POST /api/agent/v1`、`POST /api/agent/v1/stream`（请求体 `"domain":"meeting","task":"risks"`，见 2.2） |
+| 下载 | `GET /api/agent/v1/file/{request_id}/{file_name}`（无需域与任务名） |
 | 预览 | `GET /api/v1/meeting/risks/preview?request_id=&user_id=` |
 
 - 必填：`texts.transcript`。输出风险条目（描述/严重度/来源/应对/负责人）。
@@ -396,9 +421,8 @@ curl -X POST http://127.0.0.1:8000/api/v1/meeting/minutes -H "Content-Type: appl
 
 | 形态 | 方法与路径 |
 |---|---|
-| 普通 | `POST /api/v1/meeting/minutes_styles` |
-| 流式 | `POST /api/v1/meeting/minutes_styles/stream` |
-| 下载 | `GET /api/v1/meeting/minutes_styles/file/{request_id}/{file_name}` |
+| 普通 / 流式 | `POST /api/agent/v1`、`POST /api/agent/v1/stream`（请求体 `"domain":"meeting","task":"minutes_styles"`，见 2.2） |
+| 下载 | `GET /api/agent/v1/file/{request_id}/{file_name}`（无需域与任务名） |
 | 预览 | `GET /api/v1/meeting/minutes_styles/preview?request_id=&user_id=` |
 
 - 必填：`texts.transcript`、`extra.style`（组织模式，取值：`time` 时间线 / `logic` 逻辑 /
@@ -409,9 +433,8 @@ curl -X POST http://127.0.0.1:8000/api/v1/meeting/minutes -H "Content-Type: appl
 
 | 形态 | 方法与路径 |
 |---|---|
-| 普通 | `POST /api/v1/meeting/minutes_trace` |
-| 流式 | `POST /api/v1/meeting/minutes_trace/stream` |
-| 下载 | `GET /api/v1/meeting/minutes_trace/file/{request_id}/{file_name}` |
+| 普通 / 流式 | `POST /api/agent/v1`、`POST /api/agent/v1/stream`（请求体 `"domain":"meeting","task":"minutes_trace"`，见 2.2） |
+| 下载 | `GET /api/agent/v1/file/{request_id}/{file_name}`（无需域与任务名） |
 | 预览 | `GET /api/v1/meeting/minutes_trace/preview?request_id=&user_id=` |
 
 - 必填：`texts.transcript`（会议事实）+ `texts.keypoints`（用户重点）+ `texts.notes`（用户笔记）。
@@ -422,9 +445,8 @@ curl -X POST http://127.0.0.1:8000/api/v1/meeting/minutes -H "Content-Type: appl
 
 | 形态 | 方法与路径 |
 |---|---|
-| 普通 | `POST /api/v1/meeting/consensus_decision` |
-| 流式 | `POST /api/v1/meeting/consensus_decision/stream` |
-| 下载 | `GET /api/v1/meeting/consensus_decision/file/{request_id}/{file_name}` |
+| 普通 / 流式 | `POST /api/agent/v1`、`POST /api/agent/v1/stream`（请求体 `"domain":"meeting","task":"consensus_decision"`，见 2.2） |
+| 下载 | `GET /api/agent/v1/file/{request_id}/{file_name}`（无需域与任务名） |
 | 预览 | `GET /api/v1/meeting/consensus_decision/preview?request_id=&user_id=` |
 
 - 必填：`texts.transcript`。输出议题共识结论与因果推导报告。
@@ -436,9 +458,8 @@ curl -X POST http://127.0.0.1:8000/api/v1/meeting/minutes -H "Content-Type: appl
 
 | 形态 | 方法与路径 |
 |---|---|
-| 普通 | `POST /api/v1/notes/graph` |
-| 流式 | `POST /api/v1/notes/graph/stream` |
-| 下载 | `GET /api/v1/notes/graph/file/{request_id}/{file_name}` |
+| 普通 / 流式 | `POST /api/agent/v1`、`POST /api/agent/v1/stream`（请求体 `"domain":"notes","task":"graph"`，见 2.2） |
+| 下载 | `GET /api/agent/v1/file/{request_id}/{file_name}`（无需域与任务名） |
 | 预览 | `GET /api/v1/notes/graph/preview?request_id=&user_id=` |
 
 - 必填：`docs`（`data/{user_id}/docs/` 下的笔记 `.txt/.md` 文件；图片会先 OCR + 审校再解析）。
@@ -449,8 +470,7 @@ curl -X POST http://127.0.0.1:8000/api/v1/meeting/minutes -H "Content-Type: appl
 
 | 形态 | 方法与路径 |
 |---|---|
-| 普通 | `POST /api/v1/notes/library` |
-| 流式 | `POST /api/v1/notes/library/stream` |
+| 普通 / 流式 | `POST /api/agent/v1`、`POST /api/agent/v1/stream`（请求体 `"domain":"notes","task":"library"`，见 2.2） |
 | 下载 | 不提供（无落盘产物） |
 | 预览 | 不提供（无页面版产物） |
 
@@ -462,8 +482,7 @@ curl -X POST http://127.0.0.1:8000/api/v1/meeting/minutes -H "Content-Type: appl
 
 | 形态 | 方法与路径 |
 |---|---|
-| 普通 | `POST /api/v1/notes/catalog` |
-| 流式 | `POST /api/v1/notes/catalog/stream` |
+| 普通 / 流式 | `POST /api/agent/v1`、`POST /api/agent/v1/stream`（请求体 `"domain":"notes","task":"catalog"`，见 2.2） |
 | 下载 | 不提供（`file_name` 指向知识目录 json，不在 output 目录） |
 | 预览 | 不提供（无页面版产物） |
 
@@ -479,9 +498,8 @@ curl -X POST http://127.0.0.1:8000/api/v1/meeting/minutes -H "Content-Type: appl
 
 | 形态 | 方法与路径 |
 |---|---|
-| 普通 | `POST /api/v1/notes/checklist` |
-| 流式 | `POST /api/v1/notes/checklist/stream` |
-| 下载 | `GET /api/v1/notes/checklist/file/{request_id}/{file_name}` |
+| 普通 / 流式 | `POST /api/agent/v1`、`POST /api/agent/v1/stream`（请求体 `"domain":"notes","task":"checklist"`，见 2.2） |
+| 下载 | `GET /api/agent/v1/file/{request_id}/{file_name}`（无需域与任务名） |
 | 预览 | `GET /api/v1/notes/checklist/preview?request_id=&user_id=` |
 
 - 必填：`extra.subject`、`docs`——docs 里**必须包含一个 catalog json 文件名**
@@ -494,19 +512,19 @@ curl -X POST http://127.0.0.1:8000/api/v1/meeting/minutes -H "Content-Type: appl
 
 ```bash
 # 1) 资料入库（docs 在 data/1/docs/ 下）
-curl -X POST http://127.0.0.1:8000/api/v1/notes/library -H "Content-Type: application/json" \
+curl -X POST http://127.0.0.1:8000/api/agent/v1 -H "Content-Type: application/json" \
   -H "X-Request-Id: $(uuidgen)" -H "X-User-Id: 1" \
-  -d '{"docs":["<文件名.docx>"],"extra":{"subject":"<学科>"}}'
+  -d '{"domain":"notes","task":"library","docs":["<文件名.docx>"],"extra":{"subject":"<学科>"}}'
 # 2) 生成/更新知识目录 → 响应 data.file_name 为目录 json 文件名
-curl -X POST http://127.0.0.1:8000/api/v1/notes/catalog -H "Content-Type: application/json" \
+curl -X POST http://127.0.0.1:8000/api/agent/v1 -H "Content-Type: application/json" \
   -H "X-Request-Id: $(uuidgen)" -H "X-User-Id: 1" \
-  -d '{"docs":["<老师重点.txt(可选)>"],"extra":{"subject":"<学科>"}}'
+  -d '{"domain":"notes","task":"catalog","docs":["<老师重点.txt(可选)>"],"extra":{"subject":"<学科>"}}'
 # 3) 基于目录生成复习清单（docs 填第 2 步的 file_name）
-curl -X POST http://127.0.0.1:8000/api/v1/notes/checklist -H "Content-Type: application/json" \
+curl -X POST http://127.0.0.1:8000/api/agent/v1 -H "Content-Type: application/json" \
   -H "X-Request-Id: $(uuidgen)" -H "X-User-Id: 1" \
-  -d '{"docs":["<catalog文件名.json>"],"extra":{"subject":"<学科>"}}'
+  -d '{"domain":"notes","task":"checklist","docs":["<catalog文件名.json>"],"extra":{"subject":"<学科>"}}'
 # 4) 取产物（用各步响应里的 request_id 与 data.file_name）
-curl -OJ "http://127.0.0.1:8000/api/v1/notes/checklist/file/<rid>/checklist.html?user_id=1"
+curl -OJ "http://127.0.0.1:8000/api/agent/v1/file/<rid>/checklist.html?user_id=1"
 # 浏览器预览：http://127.0.0.1:8000/api/v1/notes/checklist/preview?request_id=<rid>&user_id=1
 ```
 
@@ -534,8 +552,11 @@ curl -OJ "http://127.0.0.1:8000/api/v1/notes/checklist/file/<rid>/checklist.html
 `AGENTFLOW_JOB_TTL_SECONDS`（缺省 7 天）。Redis 不可用时本组接口返回 503，第 2 节的接口不受影响。
 执行模式（`inline` / `queue`）看 `GET /api/v1/health` 的 `run_mode` 字段。
 
-### 3.1 请求体（AsyncTaskRequest = TaskRequest + `domain` / `task`）
+### 3.1 请求体（`AsyncTaskRequest` = 第 2 节的 `DomainTaskRequest`）
 
+与统一入口 `POST /api/agent/v1` **完全同形**（`TaskRequest` + 必填的 `domain` / `task`；
+代码里 `AsyncTaskRequest` 直接继承 `DomainTaskRequest`），只是处理方式不同：这里提交后立即返回
+任务快照，而不是阻塞到出结果。
 ```jsonc
 {
   "domain": "meeting",              // meeting / notes
@@ -726,12 +747,12 @@ curl -s http://127.0.0.1:8000/api/v1/tasks/job_637571127538876418/result
 
 ```bash
 rid="request_637571127538876417"
-# ① 下载页面版 HTML（file_name 就是返回里的那个）
-curl -OJ "http://127.0.0.1:8000/api/v1/meeting/minutes/file/$rid/minutes.html?user_id=1"
-# ② 浏览器直接看页面版
+# ① 下载页面版 HTML（file_name 就是返回里的那个；下载不需要域与任务名）
+curl -OJ "http://127.0.0.1:8000/api/agent/v1/file/$rid/minutes.html?user_id=1"
+# ② 浏览器直接看页面版（预览仍需域与任务名）
 open "http://127.0.0.1:8000/api/v1/meeting/minutes/preview?request_id=$rid&user_id=1"
 # ③ 要 Markdown 文件（有 md 落盘的任务线；graph 没有 result.md，会 404）
-curl -OJ "http://127.0.0.1:8000/api/v1/meeting/minutes/file/$rid/result.md?user_id=1"
+curl -OJ "http://127.0.0.1:8000/api/agent/v1/file/$rid/result.md?user_id=1"
 # ④ 同源静态路径（无鉴权）
 curl -OJ "http://127.0.0.1:8000/data/1/output/$rid/minutes.html"
 ```
@@ -868,9 +889,9 @@ if snap["status"] == "failed":            # 任务失败（HTTP 仍是 200）
 
 result = requests.get(f"{base}/api/v1/tasks/{job_id}/result", timeout=60).json()
 print(result["text"][:200])               # Markdown 正文
-# 取文件：用 request_id + file_name 拼
+# 取文件：用 request_id + file_name 拼（下载只需这两个）
 html = requests.get(
-    f"{base}/api/v1/meeting/minutes/file/{request_id}/{result['file_name']}",
+    f"{base}/api/agent/v1/file/{request_id}/{result['file_name']}",
     params={"user_id": "1"}, timeout=60,
 ).content
 open("minutes.html", "wb").write(html)

@@ -1,4 +1,7 @@
-"""请求 minutes 接口并解析返回字段。用法：python minutes.py"""
+"""请求 risks 接口并解析返回字段。用法：python risks.py
+
+统一入口：POST /api/agent/v1，域与任务名在请求体（"domain": "meeting", "task": "risks"）。
+"""
 import json
 import uuid
 from pathlib import Path
@@ -150,12 +153,14 @@ TRANSCRIPT = """
 唉行。
 """
 
-URL = "http://10.33.240.226:8003/api/v1/meeting/risks"
+URL = "http://10.33.240.226:8003/api/agent/v1"
 USER_ID = "1"
 
 resp = requests.post(
     URL,
     json={
+        "domain": "meeting",
+        "task": "risks",
         "time" : "",
         "texts": {
             "transcript": TRANSCRIPT,

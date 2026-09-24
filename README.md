@@ -15,17 +15,18 @@ LLM 支持 **HTTP（如 DeepSeek）**、**WebSocket OpenAI 兼容接口** 与 **
 ```
 app/                          # FastAPI 后端服务（唯一入口）
   main.py                     # 应用入口：路由挂载 + /api/v1/health
-  tasklines.py                # 任务线声明（域 → 线名 / 中文名 / 产物端点）：接口清单的唯一来源
-  routes/_registry.py         # 按声明注册一个域的全部路由（同步 / 流式 / 下载 / 预览）
-  routes/{meeting,notes}.py   # 两条域的路由入口（薄封装，只调用 register_domain）
+  tasklines.py                # 任务线声明（域 → 线名 / 产物端点）：接口清单的唯一来源
+  routes/agent.py             # 统一入口 /api/agent/v1（同步 / 流式 / 下载；域与线名走请求体）
+  routes/_registry.py         # 按声明注册一个域的产物预览路由（唯一仍需域/线名在路径上的形态）
+  routes/{meeting,notes}.py   # 两条域的预览路由入口（薄封装，只调用 register_domain）
   routes/tasks.py             # 异步任务接口：提交 / 状态 / 结果 / 事件流（Redis）
-  routes/_file_endpoints.py   # 产物文件端点工厂（指定文件名下载 / 预览）
+  routes/_file_endpoints.py   # 产物文件端点（指定文件名下载 / 预览）
   executor.py                 # 异步任务执行体：inline 与 worker 两种模式共用
   worker.py                   # 独立 worker：队列消费 / 并发槽 / 心跳租约 / 超时回收 / 优雅停机
   job_store.py                # Redis 任务状态、事件流、载荷、队列与租约（TTL 默认 7 天）
   id_worker.py                # request_id / job_id 发号器（Redis 日序号，无 Redis 时进程内降级）
   tasks.py                    # 任务执行核心：请求 → 输入组装 → run() → 统一响应
-  schemas.py                  # 请求/响应模型（通用 TaskRequest / TaskResponse）
+  schemas.py                  # 请求/响应模型（TaskRequest / DomainTaskRequest / TaskResponse）
   outputs.py                  # API 产物落盘 data/{user_id}/output/{request_id}/
   requirements.py             # 各接口必填字段声明表
 domain/
@@ -626,13 +627,14 @@ LLM 生成、层级跨页不可比，不归一时"整篇 ###"的文件会整页�
 
 ## 接口调用
 
-接口分两族：**按任务线组织的同步 / 流式 / 产物端点**（两条域、10 条任务线），
+接口分两族：**统一入口的同步 / 流式 / 产物端点**（两族共 10 条任务线，域与任务名由请求体给出），
 以及一组**与任务线解耦的异步任务接口**（生产主路径，见上文 Redis 章节，接口契约见 [API.md](API.md)）。
 
 > **接口契约以 [API.md](API.md) 为准**：URL 一览与逐字段说明见其 §0.1 / §2 / §3
 > （本节的表只作概览，两处内容若不一致以 API.md 为权威，并请顺手修这里）。
 
-10 条任务线**都有同步与流式接口**，产物端点按是否有落盘产物注册：
+10 条任务线**都走同一个同步 POST 与流式 POST**（`POST /api/agent/v1`、`POST /api/agent/v1/stream`，
+请求体带 `domain` + `task`）；产物端点按是否有落盘产物注册，预览仍按域/任务名分路径：
 
 | 域 | task | 用途 | 产物端点 | 产物 |
 |---|---|---|---|---|
@@ -648,15 +650,17 @@ LLM 生成、层级跨页不可比，不归一时"整篇 ###"的文件会整页�
 | notes | `checklist` | 复习清单 | ✅ | `checklist.html` + `result.md` |
 
 > **路由的唯一声明处是 [app/tasklines.py](app/tasklines.py)**（域 → 任务线 → 是否注册产物端点）：
-> 路由注册（[app/routes/_registry.py](app/routes/_registry.py)）、同步与异步接口的任务名校验都从它派生，
-> 加一条任务线只需在这里加一行。哪些线有产物端点、各自必填什么，见 [API.md](API.md) 第 0.2 节与第 2.2 节；
+> 统一入口的 `domain`/`task` 校验（[app/routes/agent.py](app/routes/agent.py) 与
+> [app/routes/tasks.py](app/routes/tasks.py) 共用一份）、预览路由注册
+> （[app/routes/_registry.py](app/routes/_registry.py)）都从它派生，加一条任务线只需在这里加一行。
+> 哪些线有产物端点、各自必填什么，见 [API.md](API.md) 第 0.2 节与第 2.2 节；
 > notes 域当前对外任务线为 graph / library / catalog / checklist。
 
 ```bash
-curl -X POST http://127.0.0.1:8000/api/v1/meeting/minutes \
+curl -X POST http://127.0.0.1:8000/api/agent/v1 \
   -H "Content-Type: application/json" \
   -H "X-User-Id: u1" \
-  -d '{"texts": {"transcript": "会议记录全文……"}}'
+  -d '{"domain": "meeting", "task": "minutes", "texts": {"transcript": "会议记录全文……"}}'
 ```
 
 产物落盘规则（均在 `data/{user_id}/output/{request_id}/` 下）：
@@ -674,7 +678,7 @@ curl -X POST http://127.0.0.1:8000/api/v1/meeting/minutes \
 > 产物由 `tools/core/runner.py` 走 `tools/exports/html/mindmap.py` 导出 HTML/PNG（见「架构要点」）；
 > `notes` 域对外的任务线是 `graph` / `library` / `catalog` / `checklist`。
 
-产物文件可通过配套下载端点获取（`GET /api/v1/{domain}/{task}/file/{request_id}/{file_name}`，强制下载），也可直接访问静态路径 `/data/{user_id}/output/{request_id}/{file_name}`（浏览器直接打开，无鉴权）。
+产物文件可通过配套下载端点获取（`GET /api/agent/v1/file/{request_id}/{file_name}`，强制下载，无需域与任务名），也可直接访问静态路径 `/data/{user_id}/output/{request_id}/{file_name}`（浏览器直接打开，无鉴权）。
 
 ## 自定义输出模板
 
@@ -700,13 +704,14 @@ curl -X POST http://127.0.0.1:8000/api/v1/meeting/minutes \
 ④ reports.py 末尾追加 XxxReport 类（继承 ModelMixin, XxxReportValidation）
 ⑤ python tools/codegen/sync_domain.py --domain meeting   # 全量生成 → SUCCESS!
 ⑥ python tools/codegen/sync_domain.py --domain meeting --check   # 校验 → SUCCESS!
-⑦ 在 app/tasklines.py 的 DOMAINS 里加一行声明（域、线名、中文名、是否有产物端点）
-   # 同步 / 流式 / 下载 / 预览四类路由自动注册；同步与异步接口的任务名校验同时生效
+⑦ 在 app/tasklines.py 的 DOMAINS 里加一行声明（域、线名、是否有产物端点）
+   # 统一入口 /api/agent/v1 直接可用（domain/task 走请求体，校验从这份声明派生）；
+   # files=True 时自动注册产物预览路由；下载端点与域/线名无关，无需逐线注册
 ⑧ 在 app/requirements.py 的 REQUIRED_FIELDS 里声明必填项（缺必填秒回 400，不触发模型）
 ```
 
-> 路由声明是**唯一来源**：`app/tasklines.py` 之外不要再写任务线清单（`app/tasks.py` 的 `LINE_NAMES`
-> 与 `app/routes/tasks.py` 的域校验都从它派生）。
+> 路由声明是**唯一来源**：`app/tasklines.py` 之外不要再写任务线清单（`app/tasks.py` 的 `LINE_NAMES`、
+> `app/routes/agent.py` 与 `app/routes/tasks.py` 共用的 `resolve_line` 域校验都从它派生）。
 
 ## 变更记录 · 纪要形态（2026-09-22）
 

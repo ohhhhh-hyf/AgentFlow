@@ -29,8 +29,8 @@ from ..config import run_mode
 from ..executor import payload_from_request, run_inline
 from ..id_worker import next_request_id
 from ..job_store import JobStoreError, job_store
-from ..schemas import Extra, TaskRequest, ndjson_line as _ndjson
-from ..tasklines import DOMAIN_NAMES, DOMAINS, all_lines, lines_for
+from ..schemas import DomainTaskRequest, Extra, TaskRequest, ndjson_line as _ndjson
+from ..tasklines import TaskLineNotFound, resolve_line
 
 router = APIRouter(prefix="/api/v1/tasks", tags=["tasks"])
 
@@ -44,11 +44,8 @@ class AsyncApiError(Exception):
         self.message = message
 
 
-class AsyncTaskRequest(TaskRequest):
-    """Async task submission body: URL task fields plus the existing TaskRequest."""
-
-    domain: str
-    task: str
+class AsyncTaskRequest(DomainTaskRequest):
+    """异步提交请求体：与统一入口 ``/api/agent/v1`` 同形（domain + task + TaskRequest）。"""
 
 
 def _store():
@@ -61,17 +58,15 @@ def _store():
 
 
 def _validate_domain_task(domain: str, task: str) -> tuple[str, str]:
-    """校验 domain + task 组合，返回 (域, 代码线名)。任务线清单见 app/tasklines.py。"""
-    domain = (domain or "").strip().lower()
-    task = (task or "").strip()
-    if domain not in DOMAINS:
-        raise AsyncApiError(400, f"domain 仅支持 {' / '.join(DOMAIN_NAMES)}")
-    if task not in lines_for(domain):
-        # 与其他域的同名任务线区分开：域内不存在 vs 全局不存在
-        if task in all_lines():
-            raise AsyncApiError(404, f"{domain} 不支持任务线：{task}")
-        raise AsyncApiError(404, f"任务线不存在：{task}")
-    return domain, task  # 线名即 task 取值（见 app/tasklines.lines_for）
+    """校验 domain + task 组合，返回 (域, 代码线名)。白名单与统一入口共用一份。
+
+    判定规则与文案在 ``app.tasklines.resolve_line``（同步 / 流式同样调它），这里只把
+    错误转成异步接口的 ``AsyncApiError``。
+    """
+    try:
+        return resolve_line(domain, task)
+    except TaskLineNotFound as exc:
+        raise AsyncApiError(exc.status, exc.message) from exc
 
 
 def _job_view(job: dict[str, Any], *, with_text: bool = False) -> dict[str, Any]:

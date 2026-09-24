@@ -1,52 +1,44 @@
-"""方式三：GET /api/v1/meeting/minutes/preview，受控预览 minutes 页面版。
+"""下载 consensus_decision 产物：GET /api/agent/v1/file/{request_id}/{file_name}。
 
-与方式一（/data 静态）的区别：走 API 路由，只允许定位产物目录内的
-{task}.html（resolve_output_file 校验），不暴露 /data 整树；
-同样不带 attachment 头（text/html inline）→ 浏览器直接渲染展示。
+统一入口：域与任务名不再出现在路径里，下载只认 request_id + file_name
+（产物目录 data/{user_id}/output/{request_id}/ 由 request_id 唯一确定）：
+- request_id：POST /api/agent/v1（"domain":"meeting","task":"consensus_decision"）响应里的 request_id
+- file_name ：该响应里的 data.file_name（本脚本默认 consensus_decision.html）
+- user_id   ：URL 参数 ?user_id= 或 X-User-Id 头，二者取一
 
-用法：python minutes_view_preview.py
+响应带 Content-Disposition: attachment（强制下载），文件存到本目录 downloads/ 下。
+想在浏览器里直接看页面版（不落盘），用预览端点（唯一保留域/线名的形态）：
+    GET /api/v1/meeting/consensus_decision/preview?request_id=…&user_id=…
+想取 Markdown 正文：把 FILE_NAME 换成 consensus_decision.md。
+
+用法：python consensus_decision_get.py
 """
-import json
-import webbrowser
 from pathlib import Path
 
 import requests
 
-# ── 请求参数 ──
-REQUEST_ID = "a5ecb8d44ad947b7bebd1e578df50622"   # ← 自己填：POST minutes 响应里的 request_id（留空则自动读取）
+BASE_URL = "http://10.33.240.226:8003"   # 换服务器时改这里
 USER_ID = "1"
 
-URL = (
-    "http://10.33.240.226:8003/api/v1/meeting/consensus_decision/preview"
-    f"?request_id={REQUEST_ID}&user_id={USER_ID}"
-)
+# ── 请求参数 ──
+REQUEST_ID = "a5ecb8d44ad947b7bebd1e578df50622"   # ← 自己填：POST 响应里的 request_id
+FILE_NAME = "consensus_decision.html"             # ← 响应里的 data.file_name；Markdown 用 consensus_decision.md
 
 if not REQUEST_ID:
-    saved = Path("data_minutes_response.json")
-    if saved.exists():
-        REQUEST_ID = json.loads(saved.read_text(encoding="utf-8"))["request_id"]
-        URL = (
-            "http://127.0.0.1:8000/api/v1/meeting/minutes/preview"
-            f"?request_id={REQUEST_ID}&user_id={USER_ID}"
-        )
-        print("request_id : 自动读取 ->", REQUEST_ID)
-    else:
-        print("请先在 REQUEST_ID 填入 POST minutes 响应的 request_id（或先跑 minutes.py）")
-        raise SystemExit(1)
-else:
-    print("request_id :", REQUEST_ID)
+    print("请先把 REQUEST_ID 填成 POST consensus_decision 响应里的 request_id")
+    raise SystemExit(1)
+
+URL = f"{BASE_URL}/api/agent/v1/file/{REQUEST_ID}/{FILE_NAME}?user_id={USER_ID}"
 
 resp = requests.get(URL, timeout=60)
 
 print("URL       :", URL)
 print("HTTP", resp.status_code, "|", resp.headers.get("content-type"))
-print("attachment:", resp.headers.get("content-disposition", "无（→ 浏览器直接渲染展示）"))
+print("attachment:", resp.headers.get("content-disposition", "无（该端点应为 attachment）"))
 if resp.status_code == 200:
-    print("体长      :", len(resp.content), "bytes（即页面 html 源码）")
-    try:
-        webbrowser.open(URL, new=2)
-        print("已在浏览器打开，请查看页面效果")
-    except Exception:  # noqa: BLE001 - 无浏览器环境时不影响
-        print("请在浏览器手动打开上面的 URL")
+    out = Path(__file__).resolve().parent / "downloads" / Path(FILE_NAME).name
+    out.parent.mkdir(parents=True, exist_ok=True)
+    out.write_bytes(resp.content)
+    print("已保存    :", out, f"（{len(resp.content)} bytes）")
 else:
     print("失败      :", resp.text[:300])

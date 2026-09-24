@@ -37,11 +37,13 @@ class Extra(BaseModel):
 
 
 class TaskRequest(BaseModel):
-    """通用请求体。domain/task 由 URL 路径表达，请求体不再携带。
+    """通用请求体（不含 domain/task，见 ``DomainTaskRequest``）。
     texts 为 {三类 key: 文本内容} 对象；docs 为文件名列表
     （.json 为 catalog 目录文件；catalog/checklist 的 .txt 为老师重点文件；其余按扩展名分派）。
 
-    兼容：历史客户端若仍发送 domain/task 会被 pydantic 静默忽略，不再做一致性校验。
+    纯 ``TaskRequest`` 的形态只用于任务层内部（runner / executor / worker 之间传参）；
+    对外接口一律用 ``DomainTaskRequest``：域与任务名是请求体字段（历史形态是 URL 路径，
+    2026-09 收敛为统一入口 ``/api/agent/v1``，见 API.md 2.5）。
     """
 
     texts: dict[str, str] = Field(default_factory=dict)
@@ -57,6 +59,17 @@ class TaskRequest(BaseModel):
         if unknown:
             raise ValueError(f"texts 只支持 {TEXT_KEYS}，未知 key：{unknown}")
         return {k: v for k, v in (value or {}).items() if isinstance(v, str)}
+
+
+class DomainTaskRequest(TaskRequest):
+    """带 domain / task 的请求体：同步、流式与异步提交三个接口共用。
+
+    域与任务名不再由 URL 路径表达（统一入口 ``/api/agent/v1``），改为请求体字段，
+    两个都是必填；合法性由 ``app.tasklines.resolve_line`` 校验（400/404）。
+    """
+
+    domain: str
+    task: str
 
 
 class Monitor(BaseModel):
@@ -87,4 +100,12 @@ class TaskResponse(BaseModel):
     data: ResponseData = Field(default_factory=ResponseData)
 
 
-__all__ = ["Extra", "Monitor", "ResponseData", "TEXT_KEYS", "TaskRequest", "TaskResponse"]
+__all__ = [
+    "DomainTaskRequest",
+    "Extra",
+    "Monitor",
+    "ResponseData",
+    "TEXT_KEYS",
+    "TaskRequest",
+    "TaskResponse",
+]

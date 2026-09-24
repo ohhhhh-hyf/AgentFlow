@@ -1,4 +1,7 @@
-"""请求 minutes 接口并解析返回字段。用法：python minutes.py"""
+"""请求 minutes 接口并解析返回字段。用法：python minutes.py
+
+统一入口：POST /api/agent/v1，域与任务名在请求体（"domain": "meeting", "task": "minutes"）。
+"""
 import json
 import uuid
 from pathlib import Path
@@ -663,13 +666,15 @@ Ok可以。这个耿杰，到时候你们就得试一下。宇翔这边专业词
 盛晋珲 01:50:03
 Ok行，这个可能。我们再对一下，我现在就定不下来。那还有别的问题？没有，那今天先这样。感谢大家，拜。
 """
-#URL = "http://10.33.240.226:8003/api/v1/meeting/minutes"
-URL = "http://127.0.0.1:8000/api/v1/meeting/minutes"
+#URL = "http://10.33.240.226:8003/api/agent/v1"
+URL = "http://127.0.0.1:8000/api/agent/v1"
 USER_ID = "1"
 
 resp = requests.post(
     URL,
     json={
+        "domain": "meeting",
+        "task": "minutes",
         "time" : "2026-09-08",
         "texts": {
             "transcript": TRANSCRIPT,

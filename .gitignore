@@ -21,3 +21,9 @@ __pycache__/
 # 保留 data/{user_id}/docs 等输入夹具；只忽略产物/记忆/知识库
 data/*/memory/
 data/*/knowledge/
+
+# api_test 调用脚本下载下来的产物（*_get.py 落到各自 downloads/ 下）
+api_test/**/downloads/
+
+# 服务运行日志（tools.core.logging_config 落到 logs/）
+/logs/

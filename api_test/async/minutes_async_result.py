@@ -49,5 +49,5 @@ if request_id and file_name:
     print()
     print("preview_url  :", f"{BASE_URL}/api/v1/meeting/minutes/preview?request_id={request_id}&user_id={USER_ID}")
     print("               （浏览器直接看页面版 HTML）")
-    print("download_url :", f"{BASE_URL}/api/v1/meeting/minutes/file/{request_id}/{file_name}?user_id={USER_ID}")
+    print("download_url :", f"{BASE_URL}/api/agent/v1/file/{request_id}/{file_name}?user_id={USER_ID}")
     print("               （下载页面版 HTML；想要 Markdown 就把文件名换成 result.md）")

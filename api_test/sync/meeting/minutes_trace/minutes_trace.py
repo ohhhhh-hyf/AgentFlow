@@ -1,5 +1,7 @@
 """请求 minutes_trace(会议溯源纪要)接口并解析返回字段。
 
+统一入口：POST /api/agent/v1，域与任务名在请求体（"domain": "meeting", "task": "minutes_trace"）。
+
 用法:
   1) 在下方 TRANSCRIPT / KEYPOINTS / NOTES 三个三引号内填入内容;
   2) python minutes_trace.py
@@ -104,12 +106,14 @@ NOTES = """
 那个宏旭其实跟我一样都是刚来不久 ->还得再招人
 """
 
-URL = "http://127.0.0.1:8000/api/v1/meeting/minutes_trace"
+URL = "http://127.0.0.1:8000/api/agent/v1"
 USER_ID = "1"
 
 resp = requests.post(
     URL,
     json={
+        "domain": "meeting",
+        "task": "minutes_trace",
         "time" : "",
         "texts": {
             "transcript": TRANSCRIPT,

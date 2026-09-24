@@ -95,6 +95,8 @@ def save_workbook(wb, out: Path) -> bool:
 def build_payload(transcript: str, template: str, date: str) -> dict:
     """与 api_test/sync/meeting/minutes/minutes.py 完全同构的请求体。"""
     return {
+        "domain": "meeting",
+        "task": "minutes",
         "time": date,
         "texts": {"transcript": transcript, "keypoints": "", "notes": ""},
         "docs": [],
@@ -155,7 +157,7 @@ def main() -> int:
     ap.add_argument("--col-len", type=int, default=5, help="文本长度列（默认 5 = E，格式 原文/纪要）")
     ap.add_argument("--out", default="", help="输出工作簿（默认就地写入，先备份 .bak.xlsx）")
     ap.add_argument("--base-url", default="http://127.0.0.1:8003", help="服务地址")
-    ap.add_argument("--path", default="/api/v1/meeting/minutes", help="minutes 接口路径")
+    ap.add_argument("--path", default="/api/agent/v1", help="统一入口路径（domain/task 在请求体）")
     ap.add_argument("--user", default="test", help="X-User-Id（默认 test）")
     ap.add_argument("--date", default="", help="请求体 time 字段（默认空串；需要固定会议日期时再传）")
     ap.add_argument("--timeout", type=int, default=1800, help="单请求超时秒数（默认 1800）")
