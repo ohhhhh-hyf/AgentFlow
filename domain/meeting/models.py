@@ -58,6 +58,8 @@ class MeetingState(TypedDict, total=False):
     # 与命中块一样由视角节点写入）。**必须在这里声明**：LangGraph 只传本 TypedDict
     # 声明过的 key，未声明的写入会被静默丢掉（实测：骨架写了、下游全程收不到）。
     user_action_groups_block: str
+    # 重点关注雷达块（程序判定：本人身份规范、重点盯防人物定调与重点标的深潜要求；由视角节点写入）
+    user_radar_block: str
     # 任务线子空间：lines[线名] = {draft, review,
     #   revision_feedback, revision_count, degraded, rendered, structure}
     lines: Annotated[dict[str, dict], _merge_lines]

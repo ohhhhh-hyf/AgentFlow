@@ -30,6 +30,8 @@ class UserIdentity(ModelMixin):
     name_aliases: list[str] = field(default_factory=list)  # 会上别称（"小赵"/"赵工"）：精确匹配、禁单字姓
     personality: str | list[str] | None = None   # 性格短句（可写单串或数组）：只调语气与详略，不得写成评价
     preferences: list[str] = field(default_factory=list)   # 纪要偏好（"先写我的待办"）：按指令执行，不改事实
+    focus_person: list[str] = field(default_factory=list)  # 重点关注人物（徐玥、张工、李总）
+    focus_thing: list[str] = field(default_factory=list)   # 重点关注事物与指标（风控决策引擎、端到端P99时延、Q3排期）
     # ── 视角画像扩展字段（客观/个人视角通用承载）────────────────
     scope: str | None = None          # 覆盖面：全员 / 跨组 / 组织级
     principles: list[str] = field(default_factory=list)   # 立场与记录原则

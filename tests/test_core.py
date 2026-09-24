@@ -15,9 +15,11 @@ from tools.core.profiles import (
     classify_profile,
     filter_identity_fields,
     is_user_profile_file,
+    load_role_mapping,
     read_user_profile,
     resolve_profile_file,
     resolve_role_template,
+    resolve_role_to_template_key,
     sanitize_user_profile,
     user_profile_path,
 )
@@ -233,6 +235,44 @@ def test_missing_role_template(tmp_path: Path) -> None:
             check(f"role_template={bad!r} → 拒绝", True, "")
 
 
+def test_role_mapping() -> None:
+    """验证 role 字段映射到已有的职业 profile（算法、开发、测试等）。"""
+    mapping = load_role_mapping()
+    check("映射表成功加载且条目非空", bool(mapping) and len(mapping) > 10, str(len(mapping)))
+
+    # 1. 算法工程师同义词与英文测试
+    algorithm_aliases = ["算法", "算法人员", "算法工程师", "algorithm_engineer", "algorithm", "algo"]
+    for alias in algorithm_aliases:
+        mapped = resolve_role_to_template_key(alias)
+        check(f"role映射：{alias!r} → algorithm_engineer", mapped == "algorithm_engineer", str(mapped))
+
+    # 2. 其它常见职业映射
+    check("role映射：开发 → developer", resolve_role_to_template_key("开发") == "developer", "")
+    check("role映射：测试工程师 → tester", resolve_role_to_template_key("测试工程师") == "tester", "")
+    check("role映射：产品经理 → product_manager", resolve_role_to_template_key("产品经理") == "product_manager", "")
+
+    # 3. 未知职业返回 None（不报错）
+    check("role映射：未知职业返回 None", resolve_role_to_template_key("未知职业") is None, "")
+
+    # 4. resolve_role_template 真实合并验证
+    raw_user = {
+        "name": "申家坤",
+        "name_aliases": ["小申", "申工"],
+        "role": "算法工程师",
+        "focus_person": ["徐玥", "张工", "李总"],
+        "focus_thing": ["风控决策引擎", "端到端P99时延", "Q3交付排期"],
+        "preferences": ["先写我的待办", "结论先行"],
+    }
+    merged = resolve_role_template(raw_user, Path("assets/profiles"))
+    check("合并后保留本人角色名称 role=算法工程师", merged.get("role") == "算法工程师", str(merged.get("role")))
+    check("合并后标记职业模板来源 role_template=algorithm_engineer", merged.get("role_template") == "algorithm_engineer", str(merged.get("role_template")))
+    check("合并后成功继承职责 responsibilities", len(merged.get("responsibilities", [])) >= 4, str(merged.get("responsibilities")))
+    check("合并后成功继承关注领域 focus_areas", len(merged.get("focus_areas", [])) >= 5, str(merged.get("focus_areas")))
+    check("合并后保留 focus_person 列表", merged.get("focus_person") == ["徐玥", "张工", "李总"], str(merged.get("focus_person")))
+    check("合并后保留 focus_thing 列表", merged.get("focus_thing") == ["风控决策引擎", "端到端P99时延", "Q3交付排期"], str(merged.get("focus_thing")))
+
+
+
 def test_domain_hooks_registry() -> None:
     """域钩子注册表：引擎只按域名取钩子；未注册/未知域一律空钩子，不抛。
 
@@ -331,6 +371,7 @@ def main() -> int:
         test_broken_user_profile(tmp)
         test_sanitize_and_merge(tmp)
         test_missing_role_template(tmp)
+    test_role_mapping()
     test_domain_hooks_registry()
     print(f"pass {len(PASS)}  fail {len(FAIL)}")
     for name in FAIL:

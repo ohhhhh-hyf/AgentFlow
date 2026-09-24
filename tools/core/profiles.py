@@ -18,6 +18,8 @@ logger = logging.getLogger(__name__)
 # 跨域公共画像目录：客观画像与职业模板平铺在同一目录
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 SHARED_PROFILE_DIR = PROJECT_ROOT / "assets" / "profiles"
+ASSETS_DIR = PROJECT_ROOT / "assets"
+ROLE_MAPPING_FILENAME = "role_mapping.json"
 
 KIND_OBJECTIVE = "objective"
 KIND_PERSON = "person"
@@ -39,6 +41,80 @@ def _role_template_candidates(profile_dir: Path, key: str) -> list[Path]:
     ]
 
 
+def load_role_mapping(assets_dir: Path | None = None) -> dict[str, str]:
+    """读取 assets/role_mapping.json 并构建反向索引表 (别名小写 -> 模板文件名 key)。"""
+    candidates: list[Path] = []
+    if assets_dir:
+        candidates.extend([
+            assets_dir / ROLE_MAPPING_FILENAME,
+            assets_dir / "profiles" / ROLE_MAPPING_FILENAME,
+            assets_dir / "assets" / ROLE_MAPPING_FILENAME,
+        ])
+    candidates.extend([
+        ASSETS_DIR / ROLE_MAPPING_FILENAME,
+        ASSETS_DIR / "profiles" / ROLE_MAPPING_FILENAME,
+        SHARED_PROFILE_DIR / ROLE_MAPPING_FILENAME,
+    ])
+    path = next((p for p in candidates if p.is_file()), None)
+    if path is None:
+        return {}
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except Exception:
+        logger.warning("职业映射表读取失败：%s", path, exc_info=True)
+        return {}
+    if not isinstance(data, dict):
+        return {}
+
+    mapping: dict[str, str] = {}
+    for template_key, aliases in data.items():
+        t_key = str(template_key or "").strip()
+        if not t_key:
+            continue
+        mapping[t_key.lower()] = t_key
+        mapping[t_key.lower().replace("_", "-")] = t_key
+        mapping[t_key.lower().replace("-", "_")] = t_key
+        if isinstance(aliases, (list, tuple, set)):
+            for alias in aliases:
+                a_str = str(alias or "").strip()
+                if a_str:
+                    mapping[a_str.lower()] = t_key
+                    mapping[a_str.lower().replace("_", "-")] = t_key
+                    mapping[a_str.lower().replace("-", "_")] = t_key
+        elif isinstance(aliases, str) and aliases.strip():
+            mapping[aliases.strip().lower()] = t_key
+    return mapping
+
+
+def resolve_role_to_template_key(
+    role: str, profile_dir: Path | None = None, assets_dir: Path | None = None
+) -> str | None:
+    """根据 role 文本解析对应的职业模板 key（若无匹配则返回 None）。"""
+    clean_role = str(role or "").strip()
+    if not clean_role:
+        return None
+
+    mapping = load_role_mapping(assets_dir)
+    r_lower = clean_role.lower()
+    if r_lower in mapping:
+        return mapping[r_lower]
+
+    # 直接匹配模板文件（如传入的是 algorithm_engineer 或 developer）
+    cands = _role_template_candidates(profile_dir or SHARED_PROFILE_DIR, clean_role)
+    if any(p.is_file() for p in cands):
+        return clean_role
+
+    # 归一化下划线/连字符再查
+    alt1 = r_lower.replace("_", "-")
+    if alt1 in mapping:
+        return mapping[alt1]
+    alt2 = r_lower.replace("-", "_")
+    if alt2 in mapping:
+        return mapping[alt2]
+
+    return None
+
+
 def classify_profile(data: dict[str, Any] | None) -> str:
     blob = data or {}
     if str(blob.get("perspective") or "").strip().lower() == KIND_OBJECTIVE:
@@ -48,29 +124,45 @@ def classify_profile(data: dict[str, Any] | None) -> str:
     return KIND_PERSON
 
 
-def resolve_role_template(data: dict[str, Any], profile_dir: Path) -> dict[str, Any]:
+def resolve_role_template(data: dict[str, Any], profile_dir: Path | None = None) -> dict[str, Any]:
     """真人画像引用职业模板：返回合并后的 dict（真人字段覆盖模板字段）。
 
-    - ``data["role_template"]`` 指定模板名（如 "developer" → 公共目录 ``assets/profiles/developer.json``）
+    - ``data["role_template"]`` 显式指定模板名（如 "developer" → 公共目录 ``assets/profiles/developer.json``）
+    - 若未指定 ``role_template``，但指定了 ``role``（如 "算法工程师"），自动通过 ``role_mapping.json`` 映射为模板
     - 模板字段作基底，真人**显式写且值非 None** 的字段覆盖模板
     - 模板自身不允许再嵌套 ``role_template``（防递归）
     - 真人未显式写 ``persona_type`` 时重置为空（引用模板的真人仍是真人身份）
-    - 找不到模板抛 ``ValueError``（名字写错应被明确指出）
+    - 显式写了 role_template 但找不到模板抛 ``ValueError``；仅写 role 未映射到模板则直接返回原数据
     """
+    if profile_dir is None:
+        profile_dir = SHARED_PROFILE_DIR
+    explicit_template = bool(str(data.get("role_template") or "").strip())
     key = str(data.get("role_template") or "").strip()
+    if not key:
+        role = str(data.get("role") or "").strip()
+        if role:
+            resolved = resolve_role_to_template_key(
+                role, profile_dir=profile_dir, assets_dir=profile_dir.parent if profile_dir else None
+            )
+            if resolved:
+                key = resolved
     if not key:
         return data
     # 安全：模板名只允许字母/数字/下划线/连字符，禁止路径穿越（../、绝对路径）
     if not re.fullmatch(r"[\w-]+", key):
-        raise ValueError(
-            f"role_template 只能由字母/数字/下划线/连字符组成：{key!r}"
-        )
+        if explicit_template:
+            raise ValueError(
+                f"role_template 只能由字母/数字/下划线/连字符组成：{key!r}"
+            )
+        return data
     path = next((p for p in _role_template_candidates(profile_dir, key) if p.is_file()), None)
     if path is None:
-        raise ValueError(
-            f"role_template 指向的画像不存在：{key}"
-            f"（在 {profile_dir} 或公共目录 {SHARED_PROFILE_DIR} 下查找 {key}.json）"
-        )
+        if explicit_template:
+            raise ValueError(
+                f"role_template 指向的画像不存在：{key}"
+                f"（在 {profile_dir} 或公共目录 {SHARED_PROFILE_DIR} 下查找 {key}.json）"
+            )
+        return data
     template = json.loads(path.read_text(encoding="utf-8"))
     if not isinstance(template, dict):
         raise ValueError(f"职业模板必须是 JSON 对象：{path}")
@@ -117,8 +209,17 @@ def read_user_profile(path: Path) -> dict[str, Any] | None:
     if not path or not path.is_file():
         return None
     try:
-        data = json.loads(path.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError):
+        raw_text = path.read_text(encoding="utf-8")
+        data = json.loads(raw_text)
+    except json.JSONDecodeError:
+        # 容错：允许手工编辑 JSON 时的尾随逗号 (trailing commas)
+        cleaned_text = re.sub(r",\s*([\]}])", r"\1", raw_text)
+        try:
+            data = json.loads(cleaned_text)
+        except Exception:
+            logger.warning("user.json 读取失败，按无档案处理：%s", path)
+            return None
+    except OSError:
         logger.warning("user.json 读取失败，按无档案处理：%s", path)
         return None
     if not isinstance(data, dict):
@@ -188,21 +289,32 @@ def resolve_profile_file(
         return _objective_path(domain, root)
     # 职业模板：只读共享/域内 profiles，不碰 user.json
     candidate = SHARED_PROFILE_DIR / f"{name}.json"
-    return candidate if candidate.is_file() else Path("")
+    if candidate.is_file():
+        return candidate
+    mapped_key = resolve_role_to_template_key(name, assets_dir=root / "assets")
+    if mapped_key:
+        mapped_cand = SHARED_PROFILE_DIR / f"{mapped_key}.json"
+        if mapped_cand.is_file():
+            return mapped_cand
+    return Path("")
 
 
 __all__ = [
+    "ASSETS_DIR",
     "KIND_OBJECTIVE",
     "KIND_PERSON",
     "KIND_ROLE",
+    "ROLE_MAPPING_FILENAME",
     "SHARED_PROFILE_DIR",
     "USER_PROFILE_FILENAME",
     "classify_profile",
     "filter_identity_fields",
     "is_user_profile_file",
+    "load_role_mapping",
     "read_user_profile",
     "resolve_profile_file",
     "resolve_role_template",
+    "resolve_role_to_template_key",
     "sanitize_user_profile",
     "user_profile_path",
 ]

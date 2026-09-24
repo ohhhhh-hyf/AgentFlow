@@ -46,6 +46,8 @@ def skip_reason(user: dict[str, Any] | None, table: HitTable, line_names: Any = 
     names = {str(name).strip() for name in (line_names or []) if str(name).strip()}
     if names and not names <= SYNTH_LINES:
         return None  # 多线：待办/风险线还要用视角模型
+    if profile.get("focus_person") or profile.get("focus_thing"):
+        return "程序合成(关注雷达)"
     if _has_scan_scope(profile):
         return None  # 有可扫关注域 → 关注域那层只有建模能做
     if table.matched:
@@ -112,12 +114,25 @@ def synthesize_perspective_profile(user: dict[str, Any] | None, table: HitTable)
     actions = [f"原文承诺：{text}" for text in table.my_actions[:6]]
     role = " ".join(str(profile.get("role") or "").split()).strip()
 
+    focus_points: list[str] = []
+    for s in getattr(table, "focus_person_statements", []):
+        if s and s not in hit_texts and s not in focus_points:
+            focus_points.append(f"重点关注人：{s}")
+    for m in getattr(table, "focus_thing_mentions", []):
+        if m and m not in hit_texts and m not in focus_points:
+            focus_points.append(f"重点关注标的：{m}")
+
+    all_attention = (hit_texts + focus_points)[:10] if (hit_texts or focus_points) else []
+
     if table.matched:
         # 摘要只取"内容型"命中：发言人名这类空壳不算内容（避免"…；赵衡。"这种碎话）
         contents = [*table.my_actions, *table.my_risks, *table.my_topics]
         contents += [text for text in hit_texts if text not in contents]
         head = "；".join(contents[:2]) or f"本场有 {len(table.hits)} 处提到{name}"
         summary = f"本场与{name}直接相关：{head}。"[:120]
+    elif focus_points:
+        head = "；".join(focus_points[:2])
+        summary = f"本场未直接点到{name}，但涉及其重点关注人物与标的：{head}。"[:120]
     else:
         summary = _NO_HIT_SUMMARY.format(name=name)
 
@@ -130,7 +145,7 @@ def synthesize_perspective_profile(user: dict[str, Any] | None, table: HitTable)
             "personal_summary": summary,
             "responsibilities": _intersect(profile.get("responsibilities"), hit_texts),
             "possible_actions": actions,
-            "attention_points": hit_texts[:8],
+            "attention_points": all_attention,
             "evidence": table.evidence()[:8],
         }
     )

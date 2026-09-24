@@ -1,0 +1,65 @@
+{
+  "algorithm_engineer": [
+    "算法",
+    "算法人员",
+    "算法工程师",
+    "算法研发",
+    "算法开发",
+    "AI算法",
+    "大模型算法",
+    "算法专家",
+    "algorithm_engineer",
+    "algorithm",
+    "algo"
+  ],
+  "developer": [
+    "开发",
+    "研发",
+    "开发人员",
+    "开发工程师",
+    "研发工程师",
+    "软件开发",
+    "程序员",
+    "后端",
+    "后端开发",
+    "前端",
+    "前端开发",
+    "全栈",
+    "全栈开发",
+    "developer",
+    "backend",
+    "frontend"
+  ],
+  "tester": [
+    "测试",
+    "测试人员",
+    "测试工程师",
+    "QA",
+    "测试开发",
+    "tester",
+    "test_engineer"
+  ],
+  "product_manager": [
+    "产品",
+    "产品经理",
+    "产品人员",
+    "PM",
+    "product_manager"
+  ],
+  "project_manager": [
+    "项目经理",
+    "项目管理",
+    "项目总监",
+    "PMP",
+    "project_manager"
+  ],
+  "client_manager": [
+    "客户经理",
+    "销售经理",
+    "商务经理",
+    "客户代表",
+    "销售",
+    "商务",
+    "client_manager"
+  ]
+}

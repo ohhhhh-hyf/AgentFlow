@@ -32,12 +32,12 @@ _SKIP_EXACT = {
     "followup",
 }
 _SKIP_PREFIX = ("kp_", "ch_", "tp_")
-_FULL_TRANSCRIPT_LIMIT = 3600
-_WINDOW = 180
-_MAX_SLICES = 18
-_MAX_SLICE_CHARS = 5500
-_MIN_NEEDLE = 4
-_MIN_USEFUL = 6
+_FULL_TRANSCRIPT_LIMIT = 30000
+_WINDOW = 200
+_MAX_SLICES = 40
+_MAX_SLICE_CHARS = 24000
+_MIN_NEEDLE = 2
+_MIN_USEFUL = 4
 
 # 泛词表（与 minutes_trace/align.py 的 _GENERIC_MORPHEME 同源）：
 # 时间/数量词、会议高频半泛词、抽象后缀、轻动词。
@@ -139,12 +139,12 @@ def _is_useful_needle(text: str) -> bool:
         return False
     if text.isdigit() and len(text) < 4:
         return False
-    if re.fullmatch(r"[A-Za-z_]+", text) and len(text) < 8:
+    if re.fullmatch(r"[A-Za-z_]+", text) and len(text) < 3:
         return False
     return True
 
 
-def collect_needles(value: object, *, limit: int = 80) -> list[str]:
+def collect_needles(value: object, *, limit: int = 120) -> list[str]:
     """从草稿/理解里抽出可回原文定位的短语，长的优先。"""
     found: list[str] = []
     seen: set[str] = set()
@@ -174,10 +174,15 @@ def collect_needles(value: object, *, limit: int = 80) -> list[str]:
             hint = (key_hint or "").lower()
             if hint in {"evidence", "source", "task", "risk", "action", "quote"}:
                 add(node)
-            elif hint in {"owner", "deadline", "title", "name"}:
+            elif hint in {"owner", "deadline", "title", "name", "speaker"}:
                 add(node)
             elif len(_clean(node)) >= _MIN_USEFUL:
                 add(node)
+            clean_str = _clean(node)
+            for m in re.finditer(r"\*\*([^*]{2,15})\*\*", clean_str):
+                add(m.group(1))
+            for m in re.finditer(r"^[-*•\s]*([^\s：:]{2,8})[：:]", clean_str):
+                add(m.group(1))
 
     walk(value)
     found.sort(key=len, reverse=True)
@@ -218,71 +223,131 @@ def _merge_spans(spans: list[tuple[int, int]]) -> list[tuple[int, int]]:
     return out
 
 
-def slice_transcript(transcript: str, needles: list[str]) -> tuple[str, int, int]:
+def slice_transcript(
+    transcript: str,
+    needles: list[str],
+    *,
+    priority_needles: list[str] | None = None,
+    full_limit: int = _FULL_TRANSCRIPT_LIMIT,
+    max_slices: int = _MAX_SLICES,
+    max_chars: int = _MAX_SLICE_CHARS,
+) -> tuple[str, int, int]:
     """按短语回原文取窗口。返回 (摘录文本, 命中条数, 使用的原文跨度)。"""
     text = transcript or ""
     if not text.strip():
         return "", 0, 0
-    if len(text) <= _FULL_TRANSCRIPT_LIMIT:
-        return text, len(needles), len(text)
+    if len(text) <= full_limit:
+        all_count = len(needles) + len(priority_needles or [])
+        return text, all_count, len(text)
 
-    spans: list[tuple[int, int]] = []
-    hits = 0
-    for needle in needles:
-        start = 0
-        matched = False
-        while True:
-            pos = text.find(needle, start)
-            if pos < 0:
-                break
-            matched = True
-            left = max(0, pos - _WINDOW // 4)
-            right = min(len(text), pos + len(needle) + _WINDOW)
-            spans.append(_snap(text, left, right))
-            start = pos + max(len(needle), 1)
-            if len(spans) >= _MAX_SLICES * 2:
-                break
-        if not matched:
-            # 精确 miss（理解层概述改写，措辞与原文不一致）：
-            # 用信息性片段聚集投票定位，窗口以定位位置为中心。
-            pos = _fuzzy_locate(text, needle)
-            if pos >= 0:
+    priority_clean = [n for n in (priority_needles or []) if n and _is_useful_needle(n)]
+    normal_clean = [n for n in (needles or []) if n and _is_useful_needle(n)]
+
+    def _find_spans_for_needles(target_needles: list[str], max_per_needle: int = 2) -> tuple[list[tuple[int, int]], int]:
+        spans_out: list[tuple[int, int]] = []
+        hits_out = 0
+        for needle in target_needles:
+            start = 0
+            matched = False
+            needle_count = 0
+            while True:
+                pos = text.find(needle, start)
+                if pos < 0:
+                    break
                 matched = True
+                needle_count += 1
                 left = max(0, pos - _WINDOW // 4)
                 right = min(len(text), pos + len(needle) + _WINDOW)
-                spans.append(_snap(text, left, right))
-        if matched:
-            hits += 1
-        if len(spans) >= _MAX_SLICES * 2:
-            break
+                spans_out.append(_snap(text, left, right))
+                start = pos + max(len(needle), 1)
+                if needle_count >= max_per_needle:
+                    break
+            if not matched:
+                # 精确 miss（理解层概述改写，措辞与原文不一致）：
+                # 用信息性片段聚集投票定位，窗口以定位位置为中心。
+                pos = _fuzzy_locate(text, needle)
+                if pos >= 0:
+                    matched = True
+                    left = max(0, pos - _WINDOW // 4)
+                    right = min(len(text), pos + len(needle) + _WINDOW)
+                    spans_out.append(_snap(text, left, right))
+            if matched:
+                hits_out += 1
+        return spans_out, hits_out
 
-    useful = [n for n in needles if len(n) >= _MIN_USEFUL]
+    priority_spans, p_hits = _find_spans_for_needles(priority_clean, max_per_needle=3)
+    normal_spans, n_hits = _find_spans_for_needles(normal_clean, max_per_needle=2)
+    hits = p_hits + n_hits
+
+    all_needles = priority_clean + normal_clean
+    useful = [n for n in all_needles if len(n) >= _MIN_USEFUL]
     if useful and hits * 3 < len(useful):
         head = min(1600, len(text))
         tail = max(head, len(text) - 1600)
-        spans.append((0, head))
+        normal_spans.append((0, head))
         if tail < len(text):
-            spans.append((tail, len(text)))
+            normal_spans.append((tail, len(text)))
 
-    merged = _merge_spans(spans)[:_MAX_SLICES]
-    if not merged:
+    merged_priority = _merge_spans(priority_spans)
+    merged_all = _merge_spans(priority_spans + normal_spans)
+    if not merged_all:
         keep = min(2400, len(text))
         return text[:keep], 0, keep
 
+    # 分组：区分优先级跨度与普通跨度
+    priority_items: list[tuple[int, int]] = []
+    normal_items: list[tuple[int, int]] = []
+    for s, e in merged_all:
+        if any(s <= pe and e >= ps for ps, pe in merged_priority):
+            priority_items.append((s, e))
+        else:
+            normal_items.append((s, e))
+
+    # 优先保留全部个人/关注项跨度
+    selected_spans: list[tuple[int, int]] = []
+    used_chars = 0
+    for s, e in priority_items:
+        chunk_len = e - s
+        if used_chars + chunk_len > max_chars:
+            break
+        selected_spans.append((s, e))
+        used_chars += chunk_len
+
+    # 剩余预算按时间线均匀采样普通跨度
+    remain_chars = max_chars - used_chars
+    remain_quota = max_slices - len(selected_spans)
+    if normal_items and remain_quota > 0 and remain_chars > 200:
+        if len(normal_items) <= remain_quota:
+            candidates = normal_items
+        else:
+            step = len(normal_items) / float(remain_quota)
+            candidates = [normal_items[int(i * step)] for i in range(remain_quota)]
+
+        for s, e in candidates:
+            chunk_len = e - s
+            if used_chars + chunk_len > max_chars:
+                continue
+            selected_spans.append((s, e))
+            used_chars += chunk_len
+
+    # 重新按原文先后顺序排序，保持时间线叙事
+    selected_spans.sort(key=lambda span: span[0])
+    final_merged = _merge_spans(selected_spans)
+
     parts: list[str] = []
     used = 0
-    for i, (start, end) in enumerate(merged, start=1):
+    for i, (start, end) in enumerate(final_merged, start=1):
         chunk = text[start:end].strip()
         if not chunk:
             continue
-        if used + len(chunk) > _MAX_SLICE_CHARS:
-            remain = _MAX_SLICE_CHARS - used
+        if used + len(chunk) > max_chars:
+            remain = max_chars - used
             if remain < 80:
                 break
             chunk = chunk[:remain].rstrip()
         used += len(chunk)
         parts.append(f"【原文摘录 {i}】\n{chunk}")
-        if used >= _MAX_SLICE_CHARS:
+        if used >= max_chars:
             break
     return "\n\n".join(parts), hits, used
 
@@ -394,7 +459,7 @@ def compact_perspective(profile: object) -> str:
     return json.dumps(slim, ensure_ascii=False, separators=(",", ":"))
 
 
-_REVIEW_LONG_TEXT = 200  # 超过此长度的字符串值截断（只留前 30 字 + 总长标记）
+_REVIEW_LONG_TEXT = 2000  # 提升字符上限至 2000，成段陈述与详细事实完整保留
 _REVIEW_LARGE_LIST = 20
 _REVIEW_HEAD_ITEMS = 12
 _REVIEW_TAIL_ITEMS = 4
@@ -413,15 +478,19 @@ _REVIEW_KEEP_ALL_LIST_KEYS = frozenset({
     "cards",
     "decisions",
     "delegated_actions",
+    "executive_summary",
+    "history_comparison",
     "key_decisions",
     "my_actions",
     "open_questions",
+    "personally_relevant_points",
     "risks",
     "risks_and_blockers",
     "risk_hints",
     "sections",
     "topics",
     "unassigned_actions",
+    "unresolved_questions",
 })
 
 
@@ -459,7 +528,7 @@ def _review_compact(node: object, *, key: str = "") -> object:
     if isinstance(node, str):
         if len(node) <= _REVIEW_LONG_TEXT:
             return node
-        return node[:30] + f"...（共 {len(node)} 字）"
+        return node[:_REVIEW_LONG_TEXT]
     return node
 
 
