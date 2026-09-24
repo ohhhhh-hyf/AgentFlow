@@ -1,0 +1,440 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>俄乌战争俄军表现与俄罗斯认知探讨</title>
+  <style>
+
+    body {
+      margin: 0;
+      padding: 14px 12px;
+      background: #f6f5f0;
+      color: #1a1a1a;
+      font-family: "Latin Modern Roman", "Computer Modern Roman", "CMU Serif", "Times New Roman", Times, "Songti SC", "SimSun", "STSong", serif;
+      -webkit-font-smoothing: antialiased;
+    }
+    .page { max-width: 1140px; margin: 0 auto; }
+    .ck-doc {
+      background: #ffffff;
+      border: 1px solid #d4d0c7;
+      border-radius: 4px;
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.05), 0 1px 3px rgba(0,0,0,0.03);
+      padding: 18px 22px;
+      line-height: 1.6;
+      font-size: 0.84rem;      /* 正文基准：左右两栏共用 --ck-fs */
+      --ck-fs: 0.84rem;
+    }
+    .ck-doc h1 {
+      margin: 0 0 6px;
+      font-size: 1.05rem;      /* 文档标题：只比正文略大一点 */
+      font-weight: 700;
+      text-align: center;
+      color: #111111;
+    }
+    .ck-doc-header {
+      margin-bottom: 10px;
+      padding-bottom: 8px;
+      border-bottom: 1px solid #111111;
+      text-align: center;
+    }
+    .ck-doc-meta {
+      font-size: 0.78rem;
+      color: #555555;
+      font-style: italic;
+    }
+    /* 层级标题一律"加粗 + 与右栏同级字号"，不加字号、不加下划线，前后留白压到最小 */
+    .ck-doc-content h1, .ck-doc-content .ck-doc-h1,
+    .ck-doc h2, .ck-doc-h2,
+    .ck-doc h3, .ck-doc-h3,
+    .ck-doc h4, .ck-doc-h4 {
+      font-size: var(--ck-fs);
+      font-weight: 700;
+      color: #111111;
+      border-bottom: 0;
+      padding-bottom: 0;
+      letter-spacing: 0;
+      font-variant: normal;
+      text-align: left;
+    }
+    .ck-doc-content h1, .ck-doc-content .ck-doc-h1, .ck-doc h2, .ck-doc-h2 {
+      margin: 12px 0 4px;
+    }
+    .ck-doc h3, .ck-doc-h3, .ck-doc h4, .ck-doc-h4 {
+      margin: 9px 0 3px;
+    }
+    .ck-doc p {
+      margin: 5px 0;
+      line-height: 1.6;
+      text-align: justify;
+    }
+    .ck-doc ul, .ck-doc ol {
+      margin: 4px 0 6px;
+      padding-left: 1.25em;
+      line-height: 1.6;
+    }
+    .ck-doc li {
+      margin: 2px 0;
+    }
+    .ck-doc blockquote, .ck-quote {
+      margin: 6px 0 8px;
+      padding: 5px 10px;
+      background: #faf9f6;
+      border-left: 3px solid #222222;
+      border-radius: 2px;
+      color: #222222;
+      font-size: var(--ck-fs);
+      font-style: italic;
+    }
+    .ck-doc code {
+      background: #f3f0e8;
+      border: 1px solid #e2ddd3;
+      border-radius: 3px;
+      padding: 1px 6px;
+      font-family: "Latin Modern Mono", Consolas, monospace;
+      font-size: 0.88em;
+    }
+    .ck-doc table, .ck-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: var(--ck-fs);
+      margin: 8px 0;
+      background: #ffffff;
+      border-top: 2px solid #222222;
+      border-bottom: 2px solid #222222;
+    }
+    .ck-doc table th, .ck-doc table td, .ck-table th, .ck-table td {
+      padding: 5px 8px;
+      text-align: left;
+      vertical-align: middle;
+      border-bottom: 1px solid #ede9e1;
+    }
+    .ck-doc table th, .ck-table th {
+      background: #fbfaf7;
+      border-bottom: 1.2px solid #222222;
+      font-weight: 700;
+      color: #111111;
+      letter-spacing: 0.3px;
+    }
+
+    /* Roomy & Spacious Academic Risk Table */
+    .ck-risk-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 18px 0 28px;
+      background: #ffffff;
+      border-top: 2.2px solid #111111;
+      border-bottom: 2.2px solid #111111;
+      font-size: 0.93rem;
+      line-height: 1.72;
+    }
+    .ck-risk-table th {
+      background: #faf8f5;
+      border-bottom: 1.5px solid #111111;
+      padding: 15px 16px;
+      font-weight: 700;
+      color: #111111;
+      letter-spacing: 0.3px;
+      text-align: left;
+      vertical-align: middle;
+    }
+    .ck-risk-table td {
+      padding: 16px 16px;
+      border-bottom: 1px solid #ede8e0;
+      vertical-align: top;
+      color: #1a1a1a;
+      word-break: break-word;
+    }
+    .ck-risk-table tr:nth-child(even) td {
+      background: #fdfcfb;
+    }
+    .ck-risk-table tr:hover td {
+      background: #f6f3eb;
+    }
+
+    /* Review Grid */
+    .ck-review {
+      display: grid;
+      grid-template-columns: minmax(0, 1.35fr) 1px minmax(260px, 0.95fr);
+      border: 1px solid #d4d0c7;
+      border-radius: 4px;
+      overflow: hidden;
+      margin: 8px 0 10px;
+      background: #ffffff;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.03);
+    }
+    .ck-review-left {
+      padding: 14px 16px;
+      background: #ffffff;
+      line-height: 1.6;
+      font-size: var(--ck-fs);
+    }
+    .ck-review-rule { background: #dcd8cf; }
+    .ck-review-right {
+      padding: 12px 14px;
+      background: #faf9f6;
+      box-sizing: border-box;
+      display: flex;
+      flex-direction: column;
+    }
+    .ck-ev-list {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    /* Entity Highlight in LaTeX Paper Style */
+    .ck-cite-entity {
+      background: #fff8db;
+      border-bottom: 1.5px solid #b86a04;
+      padding: 1px 4px;
+      border-radius: 2px;
+      cursor: pointer;
+      transition: all 0.18s ease;
+      color: #111111;
+      font-weight: 600;
+    }
+    .ck-cite-entity:hover {
+      background: #ffe58f;
+      color: #000000;
+    }
+    .ck-cite-entity.is-on {
+      background: #ffd54a;
+      border-bottom-color: #0047ab;
+      box-shadow: 0 0 0 2px rgba(0,71,171,0.25);
+    }
+
+    /* Blue Hyperref Citations [1], [2] */
+    .ck-cite-ref {
+      color: #0047ab;
+      font-weight: 600;
+      font-family: "Latin Modern Roman", "Computer Modern Roman", "Times New Roman", serif;
+      text-decoration: none;
+      cursor: pointer;
+      padding: 0 2px;
+      margin: 0 2px;
+      border-radius: 2px;
+      transition: all 0.15s ease;
+      font-size: 0.92em;
+      vertical-align: baseline;
+      user-select: none;
+    }
+    .ck-cite-ref:hover {
+      text-decoration: underline;
+      background: #e8f0fe;
+      color: #003380;
+    }
+    .ck-cite-ref.is-active {
+      background: #d2e3fc;
+      color: #002266;
+      font-weight: 700;
+      box-shadow: 0 0 0 1px #0047ab;
+    }
+
+    /* Right Memory Cards in LaTeX Paper Style */
+    .ck-provenance-head {
+      font-size: 0.82rem;
+      font-weight: 700;
+      color: #222222;
+      margin: 0 0 12px;
+      padding-bottom: 6px;
+      border-bottom: 1px solid #e0dcd4;
+      letter-spacing: 0.3px;
+      text-transform: uppercase;
+    }
+    .ck-ref-icon { color: #0047ab; margin-right: 4px; }
+    .ck-ev {
+      display: block;
+      margin: 0;
+      padding: 10px 12px;
+      border: 1px solid #dedad2;
+      border-left: 3.5px solid #0047ab;
+      border-radius: 2px;
+      background: #ffffff;
+      font-size: 0.82rem;
+      line-height: 1.55;
+      transition: all 0.2s ease;
+      cursor: pointer;
+    }
+    .ck-ev:hover { border-color: #b5b0a5; }
+    .ck-ev.is-on, .ck-ev.is-highlighted {
+      border-color: #0047ab;
+      box-shadow: 0 0 0 2px #0047ab, 0 3px 8px rgba(0,71,171,0.15);
+      background: #f0f5ff;
+    }
+    @keyframes citePulse {
+      0% { background: #dbeafe; box-shadow: 0 0 0 3px #0047ab; }
+      50% { background: #bfdbfe; box-shadow: 0 0 0 4px #0047ab; }
+      100% { background: #f0f5ff; box-shadow: 0 0 0 2px #0047ab; }
+    }
+    .ck-ev-k {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 0.75rem;
+      color: #444444;
+      margin-bottom: 5px;
+      font-weight: 700;
+    }
+    .ck-ev-cite-tag {
+      color: #0047ab;
+      font-weight: 700;
+      font-family: "Latin Modern Roman", serif;
+      text-decoration: none;
+    }
+    .ck-ev-kind-badge {
+      display: inline-block;
+      padding: 1px 6px;
+      border-radius: 2px;
+      font-size: 0.72rem;
+      font-weight: 600;
+      letter-spacing: 0.2px;
+    }
+    .ck-badge-keypoint {
+      border: 1px solid #0047ab;
+      color: #0047ab;
+      background: #f0f5ff;
+    }
+    .ck-badge-note {
+      border: 1px solid #b86a04;
+      color: #b86a04;
+      background: #fff8eb;
+    }
+    .ck-mem-title {
+      font-weight: 700;
+      color: #111111;
+      font-size: var(--ck-fs);
+      margin-bottom: 4px;
+      line-height: 1.5;
+    }
+    .ck-ev-quote {
+      color: #222222;
+      font-style: normal;
+      font-family: inherit;
+      margin: 4px 0 6px;
+      padding: 0;
+      background: transparent;
+      border: none;
+      line-height: 1.6;
+      font-size: var(--ck-fs);
+    }
+    .ck-ev-meta { font-size: 0.76rem; color: #666666; margin-top: 4px; }
+    .ck-ev-more {
+      margin-top: 2px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+    .ck-ev-more[open] { margin-top: 4px; }
+    .ck-ev-more summary { margin-bottom: 6px; }
+    .ck-proof-toggle {
+      cursor: pointer;
+      font-size: 0.82rem;
+      color: #0047ab;
+      user-select: none;
+      font-family: inherit;
+      padding: 2px 0;
+    }
+    .ck-proof-toggle:hover { text-decoration: underline; }
+    /* 右栏下段"状态演进"：无行内锚点，与上方证据卡视觉区分（灰底 + 徽章，无 [n]） */
+    .ck-ledger {
+      margin-top: 10px;
+      padding-top: 8px;
+      border-top: 1px dashed #d4d0c7;
+    }
+    .ck-ledger > summary { list-style: none; }
+    .ck-ledger > summary::-webkit-details-marker { display: none; }
+    .ck-ledger > summary::after { content: " ▾"; }
+    .ck-ledger:not([open]) > summary::after { content: " ▸"; }
+    /* 每类一张小灰卡：卡头类别 + 条数，卡内按 1. 2. 3. 编号 */
+    .ck-ledger-card {
+      background: #faf9f5;
+      border: 1px solid #e6e2d8;
+      border-left: 3px solid #bdb6a6;
+      border-radius: 4px;
+      padding: 7px 9px;
+      margin-bottom: 6px;
+    }
+    .ck-ledger-k {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 6px;
+      font-size: 0.72rem;
+      margin-bottom: 5px;
+    }
+    .ck-ledger-badge {
+      background: #efece4;
+      color: #6b6559;
+      border-radius: 3px;
+      padding: 1px 6px;
+      font-weight: 600;
+    }
+    .ck-ledger-count { color: #8a8578; }
+    .ck-ledger-list {
+      margin: 0;
+      padding-left: 1.35em;
+      font-size: var(--ck-fs);
+      line-height: 1.6;
+      color: #3b3a37;
+    }
+    .ck-ledger-list > li { margin: 2px 0; }
+    /* Personal Perspective "与我相关" Focus Block */
+    .ck-self-block {
+      background: #f4f8fe;
+      border: 1px solid #d4e2f5;
+      border-left: 3.5px solid #0047ab;
+      border-radius: 3px;
+      padding: 8px 12px;
+      margin: 8px 0 10px;
+    }
+    .ck-self-title {
+      margin: 0 0 4px;
+      color: #003380;
+      font-weight: 700;
+      font-size: var(--ck-fs);
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
+    .ck-self-badge {
+      display: inline-block;
+      background: #0047ab;
+      color: #ffffff;
+      font-size: 0.68rem;
+      padding: 1px 5px;
+      border-radius: 2px;
+      font-weight: 600;
+      letter-spacing: 0.2px;
+      margin-left: 4px;
+    }
+    .ck-self-block ul, .ck-self-block ol {
+      margin: 2px 0 2px;
+      padding-left: 1.25em;
+    }
+    .ck-self-block li {
+      margin: 2px 0;
+      color: #1a1a1a;
+    }
+
+    @media(max-width: 860px) {
+      .ck-doc { padding: 22px 18px; }
+      .ck-review { grid-template-columns: 1fr; }
+      .ck-review-rule { display: none; }
+    }
+
+  </style>
+</head>
+<body>
+  <main class="page">
+    <div class="ck-doc">
+      <header class="ck-doc-header">
+        <h1>俄乌战争俄军表现与俄罗斯认知探讨</h1>
+      </header>
+      <div class="ck-doc-content">
+        <h1 class="ck-doc-h1">讲座概况</h1><p>本次讨论由主持人发言人1发起，围绕2022年俄乌战争爆发后俄军在战场上的实际表现展开，形式为多人自由座谈。讨论旨在回应外界对俄军“钢铁洪流”的传统印象与战争初期俄军进攻受挫之间的巨大反差，探讨俄军表现是否为其真实状态，并交流对俄军及俄罗斯的认知。内容主要覆盖四个板块：俄军在俄乌战争中的具体表现、游戏与媒体中的俄军形象、俄罗斯的地缘政治与欧洲认知、以及俄罗斯旅游与文化。核心判断包括：俄军单兵素质强但后勤与指挥拉垮，整体呈“矮脚巨人”状态；俄乌战场与二战相比进步有限，双方重装备耗光后从“钢铁洪流”沦为“菜鸡互啄”；欧洲将乌克兰视为“欧洲之门”，视俄罗斯为“长着欧洲人面孔的亚洲游牧民族”，因此必须守住乌克兰。讨论以《战地风云》《使命召唤》《红警》等游戏中的俄军形象、2014年克里米亚事件、圣彼得堡东宫等为锚点。对关注俄乌局势、军事历史及地缘政治的听众具有参考意义。</p><h1 class="ck-doc-h1">核心观点与论证</h1><h2 class="ck-doc-h2">俄军单兵强而体系弱</h2><ul><li><strong>单兵素质与体系能力反差</strong>：发言人1总结俄军“单兵素质很厉害，但总体就很拉垮”，主要问题在后勤和指挥，形容为“矮脚巨人”“有点像柯基的感觉，腿特别短，支撑不起庞大的身子”。</li><li><strong>从闪电战到持久战</strong>：2022年俄军进攻乌克兰时，全世界预期战争天平向俄罗斯一边倒、基辅很快被占领、泽连斯基流亡；实际泽连斯基扛住进攻，把俄军从基辅打回白俄罗斯和乌克兰边境。</li><li><strong>基层官兵不知情</strong>：俄军基层官兵不知道2022年会进攻乌克兰，许多部队收到命令以为是去演习，“演着演着就进乌克兰了”；第一批部队进入乌克兰时遭遇的是民兵自发抵抗，而非军队有组织进攻。</li><li><strong>战场形态退化</strong>：发言人4认为俄乌战场与二战相比没多大进步，“多了点无人机，但还是欠好战”，双方重装备耗光后只能隔着战壕扔手雷或无人机互炸，从“钢铁洪流”变成“菜鸡互啄”。</li><li><strong>乌克兰民间抵抗手段</strong>：乌克兰民众在树上挂细线防无人机，利用无人机惯性冲击力勒住关节部位使其散架。</li></ul><h2 class="ck-doc-h2">普京决策与情报失灵</h2><ul><li><strong>信息茧房与策反经费贪污</strong>：发言人1认为普京“活在他自己的信息茧房里”，其下属情报官员把用于策反乌克兰官员的经费全部贪污瓜分，没想到普京真会进攻乌克兰，导致乌克兰高官未收到策反经费。</li><li><strong>克里米亚耻辱激发民族仇恨</strong>：2014年俄罗斯占领克里米亚后，乌克兰上下迸发民族仇恨，发言人1类比为“九一八事变”的耻辱——“一枪不发，丢掉整个克里米亚”，当权者的无能与腐败引发民众不满。</li></ul><h2 class="ck-doc-h2">游戏与媒体中的俄军形象</h2><ul><li><strong>游戏形象与现实的差距</strong>：发言人1指出《战地风云》《使命召唤》《红警》等游戏中俄军或苏联红军形象与现实“最起码有360度的改过”。</li><li><strong>《红警》的抹黑性质</strong>：发言人2认为《红警》是美国做出来黑苏联的，发言人4补充“抹黑得很夸张”，游戏多由西方主导，苏联形象几乎都是反面、很猛很变态、研究邪乎武器、规模非常夸张。</li><li><strong>意识形态抹黑</strong>：发言人1举例《尤里的复仇》中的心灵控制器，认为这是把共产主义解放世界的思想“抹黑成心灵控制器”，把毛子形容成暴力美学的形象代言。</li></ul><h2 class="ck-doc-h2">欧洲地缘认知与乌克兰地位</h2><ul><li><strong>乌克兰为欧洲之门</strong>：发言人1指出乌克兰在欧洲人认知中被称为“欧洲之门”；欧洲人认为欧亚分界线在乌克兰，因白俄罗斯大部分是沼泽地、无法形成大规模运输通道走廊，故把俄罗斯人当亚洲人看待。</li><li><strong>俄罗斯被视作亚洲游牧民族</strong>：俄罗斯人被蒙古人统治二百年，不被欧洲认可接纳，被视为“长着欧洲人面孔的亚洲游牧民族”，类似《冰封王座》中半兽人的反派角色。</li><li><strong>欧洲支援乌克兰的动机</strong>：欧洲自发支援乌克兰、不让俄罗斯打赢，因为若俄罗斯握紧乌克兰，欧洲会“再一次生活在曾经的阴影之下”；发言人1强调“唇亡齿寒的道理，他们也能明白”。</li><li><strong>俄乌历史渊源</strong>：乌克兰军队前身是苏联红军重要组成部分，俄罗斯立国靠乌克兰作为立国资本，因此俄罗斯必须把乌克兰握在手里；没有乌克兰的俄罗斯帝国“终究只是沦为边缘亚洲国家”。</li></ul><h2 class="ck-doc-h2">俄罗斯旅游与文化掠影</h2><ul><li><strong>东宫推荐</strong>：发言人1推荐圣彼得堡东宫，称其为世界四大艺术博物馆之一，连续去了三次、不同区域都没逛完，馆藏珍宝仍未看完，圣彼得堡夏天不错。</li><li><strong>美国入境经历</strong>：发言人1因去过俄罗斯多次，在美国边境入口被拦下询问去俄罗斯的目的，只能“瞎掰扯”，差点被怀疑是间谍。</li><li><strong>东宫藏品来源</strong>：包括列强殖民战争掠夺、王室联姻赠送、二战结束后从德国运回纳粹产品；往东有朝鲜半岛、蒙古、西藏、西夏王陵、敦煌的产品，往南有阿富汗、中亚、埃及、北非、奥斯曼帝国土耳其时期的藏品。</li><li><strong>俄罗斯族为主体</strong>：发言人3提到俄罗斯境内有多个共和国，发言人1回应总体上以俄罗斯族为主，俄国东扩类似美国西进，源源不断淘金移民。</li></ul><h1 class="ck-doc-h1">金句总结</h1><ol><li>&gt; “俄军单兵素质很厉害，但是总体就很拉垮，主要后勤和指挥上。”</li></ol><ul><li>背景：总结俄军在俄乌战争中的整体表现，指出其个体作战能力与体系支撑之间的落差。</li></ul><ol><li>&gt; “从一种钢铁洪流变成了最后的菜鸡互啄。”</li></ol><ul><li>背景：描述双方重装备耗光后，战场形态退化为战壕互扔手雷与无人机互炸的现状。</li></ul><ol><li>&gt; “普京飘了，他活在他自己的一个信息茧房里边。”</li></ol><ul><li>背景：分析俄军进攻乌克兰决策失误的根源，指其情报与决策链条脱离实际。</li></ul><ol><li>&gt; “没有乌克兰的俄罗斯帝国终究只是沦为边缘亚洲国家。”</li></ol><ul><li>背景：阐释俄罗斯必须控制乌克兰的地缘政治逻辑，以及乌克兰对俄罗斯欧洲身份的关键意义。</li></ul><ol><li>&gt; “在欧洲人的认知里面，欧亚分界线在乌克兰那边。”</li></ol><ul><li>背景：说明欧洲将乌克兰视为欧洲之门的认知框架，以及由此产生的对俄战略警惕。</li></ul><ol><li>&gt; “长着欧洲人面孔的亚洲游牧民族。”</li></ol><ul><li>背景：概括欧洲对俄罗斯的历史文化定位，源于其被蒙古统治二百年的历史记忆。</li></ul><ol><li>&gt; “把共产主义那种解放世界的思想，给抹黑成了心灵控制器的那种感觉。”</li></ol><ul><li>背景：批评西方游戏对苏联形象的扭曲，以《尤里的复仇》心灵控制器为例。</li></ul><h1 class="ck-doc-h1">Q&amp;A 环节</h1><p><strong>发言人1</strong>：俄军单兵素质很强，但总体很拉垮，主要问题在后勤和指挥上，像矮脚巨人，腿太短撑不起庞大的身子。俄乌战场跟二战比没多大进步，多了无人机，但双方重装备都耗光了，只能隔着战壕扔手雷或无人机互炸，从钢铁洪流变成了菜鸡互啄。</p><p><strong>发言人4</strong>：俄罗斯打仗得被打到快家破国亡时才能迸发战斗力，擅长防守反击；主动进攻表现很差。俄乌战场跟二战比没多大进步，多了无人机，但还是不太先进。</p><p><strong>发言人3</strong>：俄军存在腐败问题，比如之前的国防部长不太会盖房子，被叫总包工头。</p><p><strong>发言人2</strong>：《红警》是美国做出来黑苏联的，但黑得太过头了，反而像是在黑自己。</p><p><strong>发言人4</strong>：现在游戏大多由西方主导，苏联形象基本都是反面的，很猛、很变态，研究非常邪乎的武器，规模非常夸张，比如《尤里的复仇》里的心灵控制器，把人基因改变那种。</p><p><strong>发言人1</strong>：西方游戏把共产主义解放世界的思想抹黑成心灵控制器，把毛子形容成暴力美学的形象代言。俄罗斯被蒙古人统治过二百年，不被欧洲认可，被当成长着欧洲人面孔的亚洲游牧民族；欧洲人认为欧亚分界线在乌克兰，所以把乌克兰叫欧洲之门，必须守住它，把俄罗斯挡在亚洲之外。</p><p><strong>发言人4</strong>：俄罗斯欧洲部分和亚洲部分差别很大吧？地域那么宽阔，远东风格和欧洲那头应该很不一样。</p><p><strong>发言人1</strong>：总的来说还是以俄罗斯族为主，俄国东扩也像美国西进一样，源源不断地淘金移民。我去过俄罗斯多次，推荐圣彼得堡东宫，是世界四大艺术博物馆之一，连续去了三次都没逛完；东宫藏品来源包括列强殖民掠夺、王室联姻赠送、二战从德国运回，以及从中国、中亚、中东等地掠夺。</p>
+      </div>
+    </div>
+  </main>
+</body>
+</html>

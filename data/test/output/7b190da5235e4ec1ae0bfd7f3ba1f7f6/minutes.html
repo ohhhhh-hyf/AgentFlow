@@ -1,0 +1,440 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>朝鲜战争历史讲解与研讨</title>
+  <style>
+
+    body {
+      margin: 0;
+      padding: 14px 12px;
+      background: #f6f5f0;
+      color: #1a1a1a;
+      font-family: "Latin Modern Roman", "Computer Modern Roman", "CMU Serif", "Times New Roman", Times, "Songti SC", "SimSun", "STSong", serif;
+      -webkit-font-smoothing: antialiased;
+    }
+    .page { max-width: 1140px; margin: 0 auto; }
+    .ck-doc {
+      background: #ffffff;
+      border: 1px solid #d4d0c7;
+      border-radius: 4px;
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.05), 0 1px 3px rgba(0,0,0,0.03);
+      padding: 18px 22px;
+      line-height: 1.6;
+      font-size: 0.84rem;      /* 正文基准：左右两栏共用 --ck-fs */
+      --ck-fs: 0.84rem;
+    }
+    .ck-doc h1 {
+      margin: 0 0 6px;
+      font-size: 1.05rem;      /* 文档标题：只比正文略大一点 */
+      font-weight: 700;
+      text-align: center;
+      color: #111111;
+    }
+    .ck-doc-header {
+      margin-bottom: 10px;
+      padding-bottom: 8px;
+      border-bottom: 1px solid #111111;
+      text-align: center;
+    }
+    .ck-doc-meta {
+      font-size: 0.78rem;
+      color: #555555;
+      font-style: italic;
+    }
+    /* 层级标题一律"加粗 + 与右栏同级字号"，不加字号、不加下划线，前后留白压到最小 */
+    .ck-doc-content h1, .ck-doc-content .ck-doc-h1,
+    .ck-doc h2, .ck-doc-h2,
+    .ck-doc h3, .ck-doc-h3,
+    .ck-doc h4, .ck-doc-h4 {
+      font-size: var(--ck-fs);
+      font-weight: 700;
+      color: #111111;
+      border-bottom: 0;
+      padding-bottom: 0;
+      letter-spacing: 0;
+      font-variant: normal;
+      text-align: left;
+    }
+    .ck-doc-content h1, .ck-doc-content .ck-doc-h1, .ck-doc h2, .ck-doc-h2 {
+      margin: 12px 0 4px;
+    }
+    .ck-doc h3, .ck-doc-h3, .ck-doc h4, .ck-doc-h4 {
+      margin: 9px 0 3px;
+    }
+    .ck-doc p {
+      margin: 5px 0;
+      line-height: 1.6;
+      text-align: justify;
+    }
+    .ck-doc ul, .ck-doc ol {
+      margin: 4px 0 6px;
+      padding-left: 1.25em;
+      line-height: 1.6;
+    }
+    .ck-doc li {
+      margin: 2px 0;
+    }
+    .ck-doc blockquote, .ck-quote {
+      margin: 6px 0 8px;
+      padding: 5px 10px;
+      background: #faf9f6;
+      border-left: 3px solid #222222;
+      border-radius: 2px;
+      color: #222222;
+      font-size: var(--ck-fs);
+      font-style: italic;
+    }
+    .ck-doc code {
+      background: #f3f0e8;
+      border: 1px solid #e2ddd3;
+      border-radius: 3px;
+      padding: 1px 6px;
+      font-family: "Latin Modern Mono", Consolas, monospace;
+      font-size: 0.88em;
+    }
+    .ck-doc table, .ck-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: var(--ck-fs);
+      margin: 8px 0;
+      background: #ffffff;
+      border-top: 2px solid #222222;
+      border-bottom: 2px solid #222222;
+    }
+    .ck-doc table th, .ck-doc table td, .ck-table th, .ck-table td {
+      padding: 5px 8px;
+      text-align: left;
+      vertical-align: middle;
+      border-bottom: 1px solid #ede9e1;
+    }
+    .ck-doc table th, .ck-table th {
+      background: #fbfaf7;
+      border-bottom: 1.2px solid #222222;
+      font-weight: 700;
+      color: #111111;
+      letter-spacing: 0.3px;
+    }
+
+    /* Roomy & Spacious Academic Risk Table */
+    .ck-risk-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 18px 0 28px;
+      background: #ffffff;
+      border-top: 2.2px solid #111111;
+      border-bottom: 2.2px solid #111111;
+      font-size: 0.93rem;
+      line-height: 1.72;
+    }
+    .ck-risk-table th {
+      background: #faf8f5;
+      border-bottom: 1.5px solid #111111;
+      padding: 15px 16px;
+      font-weight: 700;
+      color: #111111;
+      letter-spacing: 0.3px;
+      text-align: left;
+      vertical-align: middle;
+    }
+    .ck-risk-table td {
+      padding: 16px 16px;
+      border-bottom: 1px solid #ede8e0;
+      vertical-align: top;
+      color: #1a1a1a;
+      word-break: break-word;
+    }
+    .ck-risk-table tr:nth-child(even) td {
+      background: #fdfcfb;
+    }
+    .ck-risk-table tr:hover td {
+      background: #f6f3eb;
+    }
+
+    /* Review Grid */
+    .ck-review {
+      display: grid;
+      grid-template-columns: minmax(0, 1.35fr) 1px minmax(260px, 0.95fr);
+      border: 1px solid #d4d0c7;
+      border-radius: 4px;
+      overflow: hidden;
+      margin: 8px 0 10px;
+      background: #ffffff;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.03);
+    }
+    .ck-review-left {
+      padding: 14px 16px;
+      background: #ffffff;
+      line-height: 1.6;
+      font-size: var(--ck-fs);
+    }
+    .ck-review-rule { background: #dcd8cf; }
+    .ck-review-right {
+      padding: 12px 14px;
+      background: #faf9f6;
+      box-sizing: border-box;
+      display: flex;
+      flex-direction: column;
+    }
+    .ck-ev-list {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    /* Entity Highlight in LaTeX Paper Style */
+    .ck-cite-entity {
+      background: #fff8db;
+      border-bottom: 1.5px solid #b86a04;
+      padding: 1px 4px;
+      border-radius: 2px;
+      cursor: pointer;
+      transition: all 0.18s ease;
+      color: #111111;
+      font-weight: 600;
+    }
+    .ck-cite-entity:hover {
+      background: #ffe58f;
+      color: #000000;
+    }
+    .ck-cite-entity.is-on {
+      background: #ffd54a;
+      border-bottom-color: #0047ab;
+      box-shadow: 0 0 0 2px rgba(0,71,171,0.25);
+    }
+
+    /* Blue Hyperref Citations [1], [2] */
+    .ck-cite-ref {
+      color: #0047ab;
+      font-weight: 600;
+      font-family: "Latin Modern Roman", "Computer Modern Roman", "Times New Roman", serif;
+      text-decoration: none;
+      cursor: pointer;
+      padding: 0 2px;
+      margin: 0 2px;
+      border-radius: 2px;
+      transition: all 0.15s ease;
+      font-size: 0.92em;
+      vertical-align: baseline;
+      user-select: none;
+    }
+    .ck-cite-ref:hover {
+      text-decoration: underline;
+      background: #e8f0fe;
+      color: #003380;
+    }
+    .ck-cite-ref.is-active {
+      background: #d2e3fc;
+      color: #002266;
+      font-weight: 700;
+      box-shadow: 0 0 0 1px #0047ab;
+    }
+
+    /* Right Memory Cards in LaTeX Paper Style */
+    .ck-provenance-head {
+      font-size: 0.82rem;
+      font-weight: 700;
+      color: #222222;
+      margin: 0 0 12px;
+      padding-bottom: 6px;
+      border-bottom: 1px solid #e0dcd4;
+      letter-spacing: 0.3px;
+      text-transform: uppercase;
+    }
+    .ck-ref-icon { color: #0047ab; margin-right: 4px; }
+    .ck-ev {
+      display: block;
+      margin: 0;
+      padding: 10px 12px;
+      border: 1px solid #dedad2;
+      border-left: 3.5px solid #0047ab;
+      border-radius: 2px;
+      background: #ffffff;
+      font-size: 0.82rem;
+      line-height: 1.55;
+      transition: all 0.2s ease;
+      cursor: pointer;
+    }
+    .ck-ev:hover { border-color: #b5b0a5; }
+    .ck-ev.is-on, .ck-ev.is-highlighted {
+      border-color: #0047ab;
+      box-shadow: 0 0 0 2px #0047ab, 0 3px 8px rgba(0,71,171,0.15);
+      background: #f0f5ff;
+    }
+    @keyframes citePulse {
+      0% { background: #dbeafe; box-shadow: 0 0 0 3px #0047ab; }
+      50% { background: #bfdbfe; box-shadow: 0 0 0 4px #0047ab; }
+      100% { background: #f0f5ff; box-shadow: 0 0 0 2px #0047ab; }
+    }
+    .ck-ev-k {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 0.75rem;
+      color: #444444;
+      margin-bottom: 5px;
+      font-weight: 700;
+    }
+    .ck-ev-cite-tag {
+      color: #0047ab;
+      font-weight: 700;
+      font-family: "Latin Modern Roman", serif;
+      text-decoration: none;
+    }
+    .ck-ev-kind-badge {
+      display: inline-block;
+      padding: 1px 6px;
+      border-radius: 2px;
+      font-size: 0.72rem;
+      font-weight: 600;
+      letter-spacing: 0.2px;
+    }
+    .ck-badge-keypoint {
+      border: 1px solid #0047ab;
+      color: #0047ab;
+      background: #f0f5ff;
+    }
+    .ck-badge-note {
+      border: 1px solid #b86a04;
+      color: #b86a04;
+      background: #fff8eb;
+    }
+    .ck-mem-title {
+      font-weight: 700;
+      color: #111111;
+      font-size: var(--ck-fs);
+      margin-bottom: 4px;
+      line-height: 1.5;
+    }
+    .ck-ev-quote {
+      color: #222222;
+      font-style: normal;
+      font-family: inherit;
+      margin: 4px 0 6px;
+      padding: 0;
+      background: transparent;
+      border: none;
+      line-height: 1.6;
+      font-size: var(--ck-fs);
+    }
+    .ck-ev-meta { font-size: 0.76rem; color: #666666; margin-top: 4px; }
+    .ck-ev-more {
+      margin-top: 2px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+    .ck-ev-more[open] { margin-top: 4px; }
+    .ck-ev-more summary { margin-bottom: 6px; }
+    .ck-proof-toggle {
+      cursor: pointer;
+      font-size: 0.82rem;
+      color: #0047ab;
+      user-select: none;
+      font-family: inherit;
+      padding: 2px 0;
+    }
+    .ck-proof-toggle:hover { text-decoration: underline; }
+    /* 右栏下段"状态演进"：无行内锚点，与上方证据卡视觉区分（灰底 + 徽章，无 [n]） */
+    .ck-ledger {
+      margin-top: 10px;
+      padding-top: 8px;
+      border-top: 1px dashed #d4d0c7;
+    }
+    .ck-ledger > summary { list-style: none; }
+    .ck-ledger > summary::-webkit-details-marker { display: none; }
+    .ck-ledger > summary::after { content: " ▾"; }
+    .ck-ledger:not([open]) > summary::after { content: " ▸"; }
+    /* 每类一张小灰卡：卡头类别 + 条数，卡内按 1. 2. 3. 编号 */
+    .ck-ledger-card {
+      background: #faf9f5;
+      border: 1px solid #e6e2d8;
+      border-left: 3px solid #bdb6a6;
+      border-radius: 4px;
+      padding: 7px 9px;
+      margin-bottom: 6px;
+    }
+    .ck-ledger-k {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 6px;
+      font-size: 0.72rem;
+      margin-bottom: 5px;
+    }
+    .ck-ledger-badge {
+      background: #efece4;
+      color: #6b6559;
+      border-radius: 3px;
+      padding: 1px 6px;
+      font-weight: 600;
+    }
+    .ck-ledger-count { color: #8a8578; }
+    .ck-ledger-list {
+      margin: 0;
+      padding-left: 1.35em;
+      font-size: var(--ck-fs);
+      line-height: 1.6;
+      color: #3b3a37;
+    }
+    .ck-ledger-list > li { margin: 2px 0; }
+    /* Personal Perspective "与我相关" Focus Block */
+    .ck-self-block {
+      background: #f4f8fe;
+      border: 1px solid #d4e2f5;
+      border-left: 3.5px solid #0047ab;
+      border-radius: 3px;
+      padding: 8px 12px;
+      margin: 8px 0 10px;
+    }
+    .ck-self-title {
+      margin: 0 0 4px;
+      color: #003380;
+      font-weight: 700;
+      font-size: var(--ck-fs);
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
+    .ck-self-badge {
+      display: inline-block;
+      background: #0047ab;
+      color: #ffffff;
+      font-size: 0.68rem;
+      padding: 1px 5px;
+      border-radius: 2px;
+      font-weight: 600;
+      letter-spacing: 0.2px;
+      margin-left: 4px;
+    }
+    .ck-self-block ul, .ck-self-block ol {
+      margin: 2px 0 2px;
+      padding-left: 1.25em;
+    }
+    .ck-self-block li {
+      margin: 2px 0;
+      color: #1a1a1a;
+    }
+
+    @media(max-width: 860px) {
+      .ck-doc { padding: 22px 18px; }
+      .ck-review { grid-template-columns: 1fr; }
+      .ck-review-rule { display: none; }
+    }
+
+  </style>
+</head>
+<body>
+  <main class="page">
+    <div class="ck-doc">
+      <header class="ck-doc-header">
+        <h1>朝鲜战争历史讲解与研讨</h1>
+      </header>
+      <div class="ck-doc-content">
+        <h2 class="ck-doc-h2">讲座概况</h2><p>本次研讨会由主讲人系统讲解朝鲜半岛从分裂到统一再到分裂的历史，重点围绕朝鲜战争展开，面向在场听众以讲授加自由提问的形式进行。讲座围绕朝鲜战争背景与进程、战争影响与意义、朝韩现状与旅游、半岛分裂原因、当前朝韩关系与统一展望、中俄朝关系与图们江问题、韩军战斗力评价、抗美援朝决策原因等板块展开。主讲人的核心判断包括：朝鲜战争奠定了中国的强国地位，美国再不敢小瞧中国；朝韩双方只是名义上停战，并未实现真正和平；若朝韩统一，大概率是韩国兼并朝鲜，但对东北亚地区可能成为不稳定的定时炸弹。讲座以1950年6月北朝鲜军队越过三八线、1950年9月15日美军仁川登陆、1953年7月27日双方达成停战协定等关键节点为锚点，系统梳理了战争全程。对听众而言，本讲座有助于理解朝鲜半岛问题的历史根源及当前东北亚地缘格局的形成逻辑。</p><h2 class="ck-doc-h2">核心观点与论证</h2><h3 class="ck-doc-h3">朝鲜战争爆发背景</h3><ol><li>1945年日本投降后，美苏军队以北纬38度为界分别进驻朝鲜南北，形成三八线。</li><li>1949年新中国宣布废除列强在华一切租界及特权，包括苏联在东北的中长铁路及大连旅顺特区，苏联不甘心，鼓动朝鲜进攻韩国，希望以仁川或釜山类似城市代替旅顺大连地位，继续在亚洲发挥影响力。</li><li>1950年6月北朝鲜军队率先越过三八线向南进攻，朝鲜战争爆发。</li></ol><h3 class="ck-doc-h3">战争进程与各方称谓</h3><ol><li>各方称谓不同：朝鲜称祖国统一解放战争，中国称抗美援朝，韩国称625事件，美国及西方国家称朝鲜战争或韩战（韩战主要为台湾地区称谓）。</li><li>战争初期朝鲜人民军从三八线打到洛东江环形防御圈（今大邱到釜山一带）；1950年9月15日美军仁川登陆，将朝鲜人民军分割包围、逐次歼灭，收复三八线以南领土。</li><li>美军以联合国军身份参战，共十六国出兵，联合国军总司令为麦克阿瑟；麦克阿瑟想扩大战果吞并北朝鲜，招致中国强烈不满，因朝鲜半岛对中国是唇亡齿寒状态。</li><li>中国以志愿军形式出兵：1950年10月19日跨过鸭绿江，10月25日与韩军首次交火，11月5日第一次战役结束；第二次战役为长津湖战役，第三次战役越过三八线占领汉城（今首尔）、仁川、水原等地，推进至三七线。</li><li>第五次战役为最后一次大规模战役，此后双方在三八线基础上互有攻防：西部中朝方面占领开城、延安半岛和瓮津半岛，东部美军占领襄阳地区及金刚山地区。</li><li>1953年7月27日双方正式达成停战协定，延续至今；朝韩仅名义上停战，未实现真正和平。</li></ol><h3 class="ck-doc-h3">战争影响与意义</h3><ol><li>从中国角度奠定强国地位，美国再不敢小瞧中国；1967年越南战争时期，中国警告美国不得越过北纬十七度线，美国未敢越线。</li><li>美国称朝鲜战争为“被遗忘的战争”，最后一任司令官克拉克承认自己是美国历史上首位在未取得胜利情况下签署停战协议的司令官。</li><li>伤害最深的还是朝鲜和韩国，同族血肉同胞分裂成两个国家，三八线悲剧延续至今。</li></ol><h3 class="ck-doc-h3">朝鲜半岛分裂原因</h3><ol><li>美苏都希望在朝鲜半岛建立缓冲区：美国为保护日本免遭苏联及共产主义势力影响，在南方单独建立韩国；苏联需在亚洲建立卫星附属国，扶植北朝鲜。</li><li>最初计划像奥地利一样在不同占领区受降后通过普选建立统一民选政府，但美苏关系恶化急转直下，所扶植领导人各有心思，因意识形态不同最终建立两个国家，这也是朝鲜战争爆发的缘由。</li></ol><h3 class="ck-doc-h3">当前朝韩关系与统一展望</h3><ol><li>美国因惧怕朝鲜背后的中国和俄罗斯，未主动进攻朝鲜或再次挑起武装冲突；朝鲜金家担心政权被颠覆，也不敢贸然发动战争，当前朝韩对立是微妙平衡。</li><li>若朝韩统一，大概率是韩国兼并朝鲜，因经济影响和综合实力占优；北方有充足优质兵源及核武器、导弹等尖端武器，统一后对东北亚地区都是不稳定的定时炸弹。</li><li>主讲人以越南统一后第二年进攻柬埔寨和泰国、被中国1979年出兵自卫反击为例，说明朝鲜半岛统一后局势更加不可控。</li></ol><h3 class="ck-doc-h3">中俄朝关系与图们江问题</h3><ol><li>中俄朝关系“各怀鬼胎”，主要问题是图们江出海口至今未解决。</li><li>图们江是俄罗斯和朝鲜的界江，位于日本海出海口，中朝俄边境；国际水域航道可通行，但俄朝建了一座小桥，大船无法通过，封死出海口，俄朝都不希望中国过分强大、不想把出海口让给中国。</li></ol><h3 class="ck-doc-h3">韩军战斗力评价</h3><ol><li>战争初期韩军指挥混乱，差点被朝鲜团灭；6月25日战争爆发后，7月10日起南部地面战斗主要由美军和朝鲜人民军进行，韩军初期只负责“冲人头”。</li><li>1952年后美国重新整训韩军，韩军才形成基本战斗力；此前对美军类似“猪队友”，志愿军每次从韩军战线突击，美军兵败多因韩军战线崩溃。</li><li>第五次战役中志愿军从朝鲜半岛东部反包围突击打崩韩军前线，美军在韩国领土上撤销韩国第三军团。</li><li>韩军军官主体是二战时期日本扶植的伪军和傀儡部队骨干，士兵类似抓壮丁强征的农村青年；沿用昭和日军武士道精神管理体制，老兵欺负新兵、军队霸凌事件延续至今。</li></ol><h3 class="ck-doc-h3">抗美援朝决策原因</h3><ol><li>台湾海峡距离约100公里，当时中共刚建国无海军实力，无法解放台湾；美国将台湾和韩国共同纳入亚太保护圈，海军第七舰队进驻台湾。</li><li>美军越过三八线向中朝边境进发，触动中国“唇亡齿寒”神经，即便不愿与美国爆发全面战争也不得不战；解放军陆军很强，海上无法战斗就选择在陆地战斗争取战略主动。</li><li>长津湖和上甘岭两场战役接连让美军惨败，成为美国人挥之不去的梦魇。</li></ol><h2 class="ck-doc-h2">金句总结</h2><div class="ck-quote">“朝鲜半岛对于中国的意义来说，就是一个唇亡齿寒的一个状态。”</div><div class="ck-quote">—— <strong>主讲人</strong> ｜ 针对中国出兵抗美援朝原因</div><div class="ck-quote">“他是美国历史上第一次在未取得胜利的情况下签署停战协议的司令官。”</div><div class="ck-quote">—— <strong>主讲人</strong> ｜ 针对朝鲜战争对美国的意义</div><div class="ck-quote">“伤害最深的其实还是朝鲜和韩国。毕竟大家都是就是一脉相承嘛，都是血肉同胞，却分裂成了两个国家。”</div><div class="ck-quote">—— <strong>主讲人</strong> ｜ 针对朝鲜战争对朝韩的伤害</div><div class="ck-quote">“今日朝韩如果统一的话，那对于整个东北亚地区来说，都是一颗不稳定的定时炸弹。”</div><div class="ck-quote">—— <strong>主讲人</strong> ｜ 针对朝韩统一展望</div><div class="ck-quote">“咱们和朝鲜的问题，还有俄罗斯的问题，主要就是图们江出海口的那个问题，到现在今天还拖着这个事没有着落。”</div><div class="ck-quote">—— <strong>主讲人</strong> ｜ 针对中俄朝关系</div><div class="ck-quote">“他就是一支充满着昭和军国主义时期那种思想余孽的，就是旧日军部队的一种延伸。”</div><div class="ck-quote">—— <strong>主讲人</strong> ｜ 针对韩军战斗力评价</div><h2 class="ck-doc-h2">Q&amp;A 环节</h2><h3 class="ck-doc-h3">Q1. 金刚山的位置</h3><ul><li><strong>听众</strong>：金刚山是在韩国还是在朝鲜？</li></ul><div class="ck-quote"><strong>主讲人</strong>：就是互有，就是都有。它不是单独一座山，是一个地区，有点像国内爬华山那样，有好几个峰，分主峰和附属峰。</div><h3 class="ck-doc-h3">Q2. 朝鲜战争对交战双方势力的改变</h3><ul><li><strong>听众</strong>：战争开始和结束时，韩国和朝鲜的势力有很大差别吗？战争的改变大吗？</li></ul><div class="ck-quote"><strong>主讲人</strong>：从中国角度来说，奠定了强国地位，美国再不敢小瞧我们，导致1967年越南战争时期中国警告美国不得越过北纬十七度线，美国未敢越线。美国称这场战争为“被遗忘的战争”，最后一任司令官克拉克承认是首位未取得胜利即签署停战协议的司令官。伤害最深的还是朝鲜和韩国，同族分裂成两个国家，三八线悲剧延续至今。</div><h3 class="ck-doc-h3">Q3. 越南是否还分南北</h3><ul><li><strong>听众</strong>：现在越南还分南北吗？</li></ul><div class="ck-quote"><strong>主讲人</strong>：没有，越南是统一的。美国最终放弃了南越，北越趁机会把南越统一了。</div><h3 class="ck-doc-h3">Q4. 韩国与朝鲜哪边更好玩</h3><ul><li><strong>听众</strong>：三八线定了之后，现在韩国跟朝鲜哪边好玩一点？</li></ul><div class="ck-quote"><strong>主讲人</strong>：当然是韩国更好玩。朝鲜旅游没有人身自由，入境第一件事是搜手机检查，没有无线网，只有平壤有自己的网络运营商，类似中国八九十年代状态，手机落后、网速慢，国际漫游和网络非常贵。那几天就是参观主体思想和社会主义建设成就，类似以前文革时期无产阶级高于一切的思想，活在异次元世界当中。</div><h3 class="ck-doc-h3">Q5. 朝鲜普通人能否上网</h3><ul><li><strong>听众</strong>：他们普通人可以上网吗？</li></ul><div class="ck-quote"><strong>主讲人</strong>：普通人不能上网，局域网都很有限，普通人连电脑和5G手机都用不起。主要因为外部有韩国，韩国用韩剧作为意识形态宣传武器，老百姓知道真相后会颠覆政权，所以那么多朝鲜老百姓吃不饱肚子还往韩国跑，鲜有韩国人去朝鲜，这就是脱北者。</div><h3 class="ck-doc-h3">Q6. 朝鲜的文化与历史</h3><ul><li><strong>听众</strong>：朝鲜有古代文化吗？高丽、古代将军那些？</li></ul><div class="ck-quote"><strong>主讲人</strong>：朝鲜半岛文明是中华文明的衍生物，文明有3500年历史，最早是商周时期形成初步文明，后来一直是中华文化圈中原附属国的形式存在，一直到甲午战争清朝战败后，朝鲜才彻底脱离与中国隶属关系，成立大韩帝国，后与日本合并，二战结束后复国又被分裂成朝鲜和韩国。</div><h3 class="ck-doc-h3">Q7. 金日成广场的命名</h3><ul><li><strong>听众</strong>：平壤的金日成广场是不是以领导人命名？</li></ul><div class="ck-quote"><strong>主讲人</strong>：对，以领导人来命名，他们大将军、大元帅这样的，战争类的也可以用。</div><h3 class="ck-doc-h3">Q8. 南北割裂的历史渊源</h3><ul><li><strong>听众</strong>：南北之间的割裂有什么历史渊源？为什么会成为两个政权？</li></ul><div class="ck-quote"><strong>主讲人</strong>：一开始美苏都希望在朝鲜半岛建立缓冲区。美国在南方单独建立韩国，是为保护日本免遭苏联及共产主义势力影响；苏联需在亚洲建立卫星附属国，扶植北朝鲜。最初计划像奥地利那样通过普选建立统一民选政府，但美苏关系恶化非常快，所扶植领导人各有心思，因意识形态不同最终建立两个国家，这也是朝鲜战争爆发的缘由。</div><h3 class="ck-doc-h3">Q9. 美国当前对朝鲜的态度</h3><ul><li><strong>听众</strong>：当时美国没有打败朝鲜，你觉得现在美国对朝鲜的态度是怎样的？</li></ul><div class="ck-quote"><strong>主讲人</strong>：美国惧怕朝鲜背后的中国和俄罗斯。朝鲜战争时中国出动志愿军把美国打回去，苏联提供空军掩护和武器后勤支持，中苏联手把美国打回三八线以南，所以美国忌惮这一因素，没有主动进攻朝鲜或再次挑起武装冲突。同时朝鲜金家担心江山在贸然发动战争后被颠覆，也不敢贸然发动战争。</div><h3 class="ck-doc-h3">Q10. 若没有冷战布局，朝鲜半岛会是什么形态</h3><ul><li><strong>听众</strong>：如果当时没有形成冷战布局、互相争夺半岛控制权，大一统的朝鲜半岛会是什么形态？是大号朝鲜还是平衡的韩朝？</li></ul><div class="ck-quote"><strong>主讲人</strong>：如果朝鲜战争爆发时美国没有下场救援韩国，今日朝鲜可能是苏联卫星国附属之下、用来牵制中国的一颗钉子，也是威胁美国在亚洲尤其是日本的不稳定定时炸弹。现在朝韩若统一，大概率是韩国兼并朝鲜，经济影响和综合实力摆在那儿；北方有充足优质兵源及核武器导弹等尖端武器，统一后对东北亚都是不稳定定时炸弹。当年越南统一时宣布继承法国在中南半岛所有地盘，第二年就进攻柬埔寨和泰国，被中国1979年出兵自卫反击；越南尚且如此，朝鲜半岛统一后局势更加不可控。</div><h3 class="ck-doc-h3">Q11. 中国、俄罗斯和朝鲜之间的关系</h3><ul><li><strong>听众</strong>：你感觉现在中国、俄罗斯和朝鲜之间关系怎么样？</li></ul><div class="ck-quote"><strong>主讲人</strong>：各怀鬼胎。咱们和朝鲜、俄罗斯的问题主要是图们江出海口，到现在还拖着没着落。</div><h3 class="ck-doc-h3">Q12. 图们江出海口问题</h3><ul><li><strong>听众</strong>：什么出海口？</li></ul><div class="ck-quote"><strong>主讲人</strong>：图们江是俄罗斯和朝鲜的界江，那个地方是日本海的出海口，在中朝俄边境。国际水域航道可以通行，但俄罗斯和朝鲜在那建了一座小桥，大船没法过去，俄朝都不希望中国过分强大、不想过多依附于我们，所以把图们江出海口封死了，都不想把出海口让给我们。</div><h3 class="ck-doc-h3">Q13. 朝鲜和韩国军队在战争中的作用</h3><ul><li><strong>听众</strong>：朝鲜战争中朝鲜军队、韩国军队有没有发挥什么作用？</li></ul><div class="ck-quote"><strong>主讲人</strong>：一开始韩军瞎指挥，差点被朝鲜团灭。6月25日战争爆发，7月10日以后南部地面战斗主要是美军和朝鲜人民军进行，韩军初期负责“冲人头”。1952年后美国重新整训韩军，韩军才形成基本战斗力。此前韩军对美军类似“猪队友”，志愿军每次从韩军战线突击，美军兵败多因韩军战线崩溃。第五次战役中志愿军从东部反包围突击打崩韩军前线，美国把韩国第三军团全部撤销。1952年之前韩军战斗力不敢恭维，之后不可小视。韩军军官主体是二战时日本扶植的伪军和傀儡部队骨干，士兵类似抓壮丁强征的农村青年，沿用昭和日军武士道精神，老兵欺负新兵、霸凌事件延续至今。</div><h3 class="ck-doc-h3">Q14. 为何选择抗美援朝而非收复台湾</h3><ul><li><strong>听众</strong>：1950年援朝鲜时中国刚成立，实力不强，为什么选择抗美援朝而不是收复台湾？</li></ul><div class="ck-quote"><strong>主讲人</strong>：台湾和大陆之间有一道漫长海峡，距离约100公里。当时中共刚建国，没有海军实力。50年朝鲜战争爆发，美国参众两院普遍认为这是共产主义世界对自由世界的全面进攻，把台湾和韩国共同纳入美国亚太保护圈，美军陆军出兵朝鲜半岛，海军第七舰队进驻台湾，既防解放军解放台湾，也防国民党反攻大陆。解放军建军时没有海军实力，无法进行解放台湾战斗。但美军越过三八线向中朝边境进发，触动“唇亡齿寒”神经，即便不愿与美国爆发全面战争也不得不战。台湾已让中国很被动，朝鲜半岛要争取战略主动，解放军陆军很强，海上无法战斗就只能在陆地战斗。长津湖和上甘岭接连让美军惨败，成为美国人挥之不去的梦魇。</div>
+      </div>
+    </div>
+  </main>
+</body>
+</html>

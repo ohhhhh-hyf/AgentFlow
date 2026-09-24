@@ -1,0 +1,440 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>历史小论文写作方法与解题技巧讲解</title>
+  <style>
+
+    body {
+      margin: 0;
+      padding: 14px 12px;
+      background: #f6f5f0;
+      color: #1a1a1a;
+      font-family: "Latin Modern Roman", "Computer Modern Roman", "CMU Serif", "Times New Roman", Times, "Songti SC", "SimSun", "STSong", serif;
+      -webkit-font-smoothing: antialiased;
+    }
+    .page { max-width: 1140px; margin: 0 auto; }
+    .ck-doc {
+      background: #ffffff;
+      border: 1px solid #d4d0c7;
+      border-radius: 4px;
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.05), 0 1px 3px rgba(0,0,0,0.03);
+      padding: 18px 22px;
+      line-height: 1.6;
+      font-size: 0.84rem;      /* 正文基准：左右两栏共用 --ck-fs */
+      --ck-fs: 0.84rem;
+    }
+    .ck-doc h1 {
+      margin: 0 0 6px;
+      font-size: 1.05rem;      /* 文档标题：只比正文略大一点 */
+      font-weight: 700;
+      text-align: center;
+      color: #111111;
+    }
+    .ck-doc-header {
+      margin-bottom: 10px;
+      padding-bottom: 8px;
+      border-bottom: 1px solid #111111;
+      text-align: center;
+    }
+    .ck-doc-meta {
+      font-size: 0.78rem;
+      color: #555555;
+      font-style: italic;
+    }
+    /* 层级标题一律"加粗 + 与右栏同级字号"，不加字号、不加下划线，前后留白压到最小 */
+    .ck-doc-content h1, .ck-doc-content .ck-doc-h1,
+    .ck-doc h2, .ck-doc-h2,
+    .ck-doc h3, .ck-doc-h3,
+    .ck-doc h4, .ck-doc-h4 {
+      font-size: var(--ck-fs);
+      font-weight: 700;
+      color: #111111;
+      border-bottom: 0;
+      padding-bottom: 0;
+      letter-spacing: 0;
+      font-variant: normal;
+      text-align: left;
+    }
+    .ck-doc-content h1, .ck-doc-content .ck-doc-h1, .ck-doc h2, .ck-doc-h2 {
+      margin: 12px 0 4px;
+    }
+    .ck-doc h3, .ck-doc-h3, .ck-doc h4, .ck-doc-h4 {
+      margin: 9px 0 3px;
+    }
+    .ck-doc p {
+      margin: 5px 0;
+      line-height: 1.6;
+      text-align: justify;
+    }
+    .ck-doc ul, .ck-doc ol {
+      margin: 4px 0 6px;
+      padding-left: 1.25em;
+      line-height: 1.6;
+    }
+    .ck-doc li {
+      margin: 2px 0;
+    }
+    .ck-doc blockquote, .ck-quote {
+      margin: 6px 0 8px;
+      padding: 5px 10px;
+      background: #faf9f6;
+      border-left: 3px solid #222222;
+      border-radius: 2px;
+      color: #222222;
+      font-size: var(--ck-fs);
+      font-style: italic;
+    }
+    .ck-doc code {
+      background: #f3f0e8;
+      border: 1px solid #e2ddd3;
+      border-radius: 3px;
+      padding: 1px 6px;
+      font-family: "Latin Modern Mono", Consolas, monospace;
+      font-size: 0.88em;
+    }
+    .ck-doc table, .ck-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: var(--ck-fs);
+      margin: 8px 0;
+      background: #ffffff;
+      border-top: 2px solid #222222;
+      border-bottom: 2px solid #222222;
+    }
+    .ck-doc table th, .ck-doc table td, .ck-table th, .ck-table td {
+      padding: 5px 8px;
+      text-align: left;
+      vertical-align: middle;
+      border-bottom: 1px solid #ede9e1;
+    }
+    .ck-doc table th, .ck-table th {
+      background: #fbfaf7;
+      border-bottom: 1.2px solid #222222;
+      font-weight: 700;
+      color: #111111;
+      letter-spacing: 0.3px;
+    }
+
+    /* Roomy & Spacious Academic Risk Table */
+    .ck-risk-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 18px 0 28px;
+      background: #ffffff;
+      border-top: 2.2px solid #111111;
+      border-bottom: 2.2px solid #111111;
+      font-size: 0.93rem;
+      line-height: 1.72;
+    }
+    .ck-risk-table th {
+      background: #faf8f5;
+      border-bottom: 1.5px solid #111111;
+      padding: 15px 16px;
+      font-weight: 700;
+      color: #111111;
+      letter-spacing: 0.3px;
+      text-align: left;
+      vertical-align: middle;
+    }
+    .ck-risk-table td {
+      padding: 16px 16px;
+      border-bottom: 1px solid #ede8e0;
+      vertical-align: top;
+      color: #1a1a1a;
+      word-break: break-word;
+    }
+    .ck-risk-table tr:nth-child(even) td {
+      background: #fdfcfb;
+    }
+    .ck-risk-table tr:hover td {
+      background: #f6f3eb;
+    }
+
+    /* Review Grid */
+    .ck-review {
+      display: grid;
+      grid-template-columns: minmax(0, 1.35fr) 1px minmax(260px, 0.95fr);
+      border: 1px solid #d4d0c7;
+      border-radius: 4px;
+      overflow: hidden;
+      margin: 8px 0 10px;
+      background: #ffffff;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.03);
+    }
+    .ck-review-left {
+      padding: 14px 16px;
+      background: #ffffff;
+      line-height: 1.6;
+      font-size: var(--ck-fs);
+    }
+    .ck-review-rule { background: #dcd8cf; }
+    .ck-review-right {
+      padding: 12px 14px;
+      background: #faf9f6;
+      box-sizing: border-box;
+      display: flex;
+      flex-direction: column;
+    }
+    .ck-ev-list {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    /* Entity Highlight in LaTeX Paper Style */
+    .ck-cite-entity {
+      background: #fff8db;
+      border-bottom: 1.5px solid #b86a04;
+      padding: 1px 4px;
+      border-radius: 2px;
+      cursor: pointer;
+      transition: all 0.18s ease;
+      color: #111111;
+      font-weight: 600;
+    }
+    .ck-cite-entity:hover {
+      background: #ffe58f;
+      color: #000000;
+    }
+    .ck-cite-entity.is-on {
+      background: #ffd54a;
+      border-bottom-color: #0047ab;
+      box-shadow: 0 0 0 2px rgba(0,71,171,0.25);
+    }
+
+    /* Blue Hyperref Citations [1], [2] */
+    .ck-cite-ref {
+      color: #0047ab;
+      font-weight: 600;
+      font-family: "Latin Modern Roman", "Computer Modern Roman", "Times New Roman", serif;
+      text-decoration: none;
+      cursor: pointer;
+      padding: 0 2px;
+      margin: 0 2px;
+      border-radius: 2px;
+      transition: all 0.15s ease;
+      font-size: 0.92em;
+      vertical-align: baseline;
+      user-select: none;
+    }
+    .ck-cite-ref:hover {
+      text-decoration: underline;
+      background: #e8f0fe;
+      color: #003380;
+    }
+    .ck-cite-ref.is-active {
+      background: #d2e3fc;
+      color: #002266;
+      font-weight: 700;
+      box-shadow: 0 0 0 1px #0047ab;
+    }
+
+    /* Right Memory Cards in LaTeX Paper Style */
+    .ck-provenance-head {
+      font-size: 0.82rem;
+      font-weight: 700;
+      color: #222222;
+      margin: 0 0 12px;
+      padding-bottom: 6px;
+      border-bottom: 1px solid #e0dcd4;
+      letter-spacing: 0.3px;
+      text-transform: uppercase;
+    }
+    .ck-ref-icon { color: #0047ab; margin-right: 4px; }
+    .ck-ev {
+      display: block;
+      margin: 0;
+      padding: 10px 12px;
+      border: 1px solid #dedad2;
+      border-left: 3.5px solid #0047ab;
+      border-radius: 2px;
+      background: #ffffff;
+      font-size: 0.82rem;
+      line-height: 1.55;
+      transition: all 0.2s ease;
+      cursor: pointer;
+    }
+    .ck-ev:hover { border-color: #b5b0a5; }
+    .ck-ev.is-on, .ck-ev.is-highlighted {
+      border-color: #0047ab;
+      box-shadow: 0 0 0 2px #0047ab, 0 3px 8px rgba(0,71,171,0.15);
+      background: #f0f5ff;
+    }
+    @keyframes citePulse {
+      0% { background: #dbeafe; box-shadow: 0 0 0 3px #0047ab; }
+      50% { background: #bfdbfe; box-shadow: 0 0 0 4px #0047ab; }
+      100% { background: #f0f5ff; box-shadow: 0 0 0 2px #0047ab; }
+    }
+    .ck-ev-k {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 0.75rem;
+      color: #444444;
+      margin-bottom: 5px;
+      font-weight: 700;
+    }
+    .ck-ev-cite-tag {
+      color: #0047ab;
+      font-weight: 700;
+      font-family: "Latin Modern Roman", serif;
+      text-decoration: none;
+    }
+    .ck-ev-kind-badge {
+      display: inline-block;
+      padding: 1px 6px;
+      border-radius: 2px;
+      font-size: 0.72rem;
+      font-weight: 600;
+      letter-spacing: 0.2px;
+    }
+    .ck-badge-keypoint {
+      border: 1px solid #0047ab;
+      color: #0047ab;
+      background: #f0f5ff;
+    }
+    .ck-badge-note {
+      border: 1px solid #b86a04;
+      color: #b86a04;
+      background: #fff8eb;
+    }
+    .ck-mem-title {
+      font-weight: 700;
+      color: #111111;
+      font-size: var(--ck-fs);
+      margin-bottom: 4px;
+      line-height: 1.5;
+    }
+    .ck-ev-quote {
+      color: #222222;
+      font-style: normal;
+      font-family: inherit;
+      margin: 4px 0 6px;
+      padding: 0;
+      background: transparent;
+      border: none;
+      line-height: 1.6;
+      font-size: var(--ck-fs);
+    }
+    .ck-ev-meta { font-size: 0.76rem; color: #666666; margin-top: 4px; }
+    .ck-ev-more {
+      margin-top: 2px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+    .ck-ev-more[open] { margin-top: 4px; }
+    .ck-ev-more summary { margin-bottom: 6px; }
+    .ck-proof-toggle {
+      cursor: pointer;
+      font-size: 0.82rem;
+      color: #0047ab;
+      user-select: none;
+      font-family: inherit;
+      padding: 2px 0;
+    }
+    .ck-proof-toggle:hover { text-decoration: underline; }
+    /* 右栏下段"状态演进"：无行内锚点，与上方证据卡视觉区分（灰底 + 徽章，无 [n]） */
+    .ck-ledger {
+      margin-top: 10px;
+      padding-top: 8px;
+      border-top: 1px dashed #d4d0c7;
+    }
+    .ck-ledger > summary { list-style: none; }
+    .ck-ledger > summary::-webkit-details-marker { display: none; }
+    .ck-ledger > summary::after { content: " ▾"; }
+    .ck-ledger:not([open]) > summary::after { content: " ▸"; }
+    /* 每类一张小灰卡：卡头类别 + 条数，卡内按 1. 2. 3. 编号 */
+    .ck-ledger-card {
+      background: #faf9f5;
+      border: 1px solid #e6e2d8;
+      border-left: 3px solid #bdb6a6;
+      border-radius: 4px;
+      padding: 7px 9px;
+      margin-bottom: 6px;
+    }
+    .ck-ledger-k {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 6px;
+      font-size: 0.72rem;
+      margin-bottom: 5px;
+    }
+    .ck-ledger-badge {
+      background: #efece4;
+      color: #6b6559;
+      border-radius: 3px;
+      padding: 1px 6px;
+      font-weight: 600;
+    }
+    .ck-ledger-count { color: #8a8578; }
+    .ck-ledger-list {
+      margin: 0;
+      padding-left: 1.35em;
+      font-size: var(--ck-fs);
+      line-height: 1.6;
+      color: #3b3a37;
+    }
+    .ck-ledger-list > li { margin: 2px 0; }
+    /* Personal Perspective "与我相关" Focus Block */
+    .ck-self-block {
+      background: #f4f8fe;
+      border: 1px solid #d4e2f5;
+      border-left: 3.5px solid #0047ab;
+      border-radius: 3px;
+      padding: 8px 12px;
+      margin: 8px 0 10px;
+    }
+    .ck-self-title {
+      margin: 0 0 4px;
+      color: #003380;
+      font-weight: 700;
+      font-size: var(--ck-fs);
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
+    .ck-self-badge {
+      display: inline-block;
+      background: #0047ab;
+      color: #ffffff;
+      font-size: 0.68rem;
+      padding: 1px 5px;
+      border-radius: 2px;
+      font-weight: 600;
+      letter-spacing: 0.2px;
+      margin-left: 4px;
+    }
+    .ck-self-block ul, .ck-self-block ol {
+      margin: 2px 0 2px;
+      padding-left: 1.25em;
+    }
+    .ck-self-block li {
+      margin: 2px 0;
+      color: #1a1a1a;
+    }
+
+    @media(max-width: 860px) {
+      .ck-doc { padding: 22px 18px; }
+      .ck-review { grid-template-columns: 1fr; }
+      .ck-review-rule { display: none; }
+    }
+
+  </style>
+</head>
+<body>
+  <main class="page">
+    <div class="ck-doc">
+      <header class="ck-doc-header">
+        <h1>历史小论文写作方法与解题技巧讲解</h1>
+      </header>
+      <div class="ck-doc-content">
+        <h2 class="ck-doc-h2">课程概况</h2><p>本次课程为历史小论文写作专题课，围绕观点提炼、论证结构与各类题型解题方法展开。教师首先强调小论文写作的核心要求：观点必须明确亮出并具有凝聚力，论证部分一般写两到三条，写作顺序为先写背景学术报告再加自身观点，可用序号或直接列出但逻辑须清晰，结论要升华观点而非简单抄写。随后系统讲解三类题型的解题方法：自命题类需按审题、读材料、罗列事实、作答的步骤进行，审题要慢并注意要求中的"小红帽"；观点提示类需选择核心观点、明确表达判断、不照抄材料、最后总结升华；图表信息类需快速提取题头及横向纵向关键信息，分析关系变化。课程通过武汉长江大桥、1940年抗战时期材料评析、历代民德等级变化等例题分析学生作答，指出审题不清、背景组织顺序不当、未结合时代背景说明写作目的等问题，并展示官方参考答案的论证思路。</p><h2 class="ck-doc-h2">核心知识点梳理</h2><h3 class="ck-doc-h3">小论文写作要点</h3><ul><li><strong>观点明确</strong>：观点必须亮出并具有凝聚力，不能只是简单陈述形式或“几个方面加个名词”，需形成自己的判断。</li><li><strong>论证结构</strong>：论证一般写两到三条，不宜过多或过少，否则无法支撑论点。</li><li><strong>写作顺序</strong>：先写背景学术报告，再加自己的观点，最后进行论述。</li><li><strong>逻辑呈现</strong>：可用序号或直接列出，但逻辑要清晰，可按时间脉络（如700时期、明清时期）、国内外、内因外因等维度组织，让阅卷者看清条理。</li><li><strong>结论升华</strong>：结论要升华观点，不能简单抄写观点，需体现写作目的。</li></ul><h3 class="ck-doc-h3">自命题类解题步骤</h3><ul><li><strong>审题</strong>：要慢审题，看清要求，注意“小红帽”要求及形成标准，明确是否限定用世界史知识或特定范围。</li><li><strong>读材料</strong>：先大概看材料抓主要信息，再细看材料之间的关系。</li><li><strong>罗列事实</strong>：先写好题目，再罗列与材料相关的事实，避免乱罗列。</li><li><strong>作答</strong>：最后进行论述，注意结论升华。</li></ul><h3 class="ck-doc-h3">例题分析：武汉长江大桥</h3><ul><li><strong>学生作答</strong>：学生分析武汉长江大桥，提到新中国成立和改革开放，但老师指出其背景部分直接作为版本，未明确具体时间和内容。</li><li><strong>老师点评</strong>：按时间顺序应先写对内改革，再写对外开放；审题未看清要求，需明确具体时间和内容。</li></ul><h3 class="ck-doc-h3">观点提示类解题方法</h3><ul><li><strong>选择核心观点</strong>：需选择核心观点，明确表达自己的判断，如“我认为什么观点是正确的或错误的”。</li><li><strong>不照抄材料</strong>：不能照抄材料观点，需用自己的语言表述。</li><li><strong>总结升华</strong>：最后要总结观点并进行升华。</li></ul><h3 class="ck-doc-h3">例题分析：历史材料评析</h3><ul><li><strong>材料背景</strong>：材料为1940年抗战时期，作者目的为应对抗战后的事情。</li><li><strong>学生作答</strong>：学生选择第二条观点，从经济、文化等方面论证，如丝绸之路、四大发明对欧洲的贡献。</li><li><strong>老师点评</strong>：需结合时代背景，说明为何在此时写，不能只罗列事实。</li></ul><h3 class="ck-doc-h3">图表信息类解题方法</h3><ul><li><strong>快速提取信息</strong>：需快速看图表关键信息，如题头、横向纵向信息。</li><li><strong>分析关系变化</strong>：注意信息之间的关系变化，提取有效信息进行分析。</li><li><strong>结合材料</strong>：提取有效信息后，需结合材料关系进行论述。</li></ul><h2 class="ck-doc-h2">课堂互动与答疑</h2><h3 class="ck-doc-h3">Q1. 小论文论证部分应写几条</h3><ul><li><strong>学生</strong>：小论文的论证部分一般写几条比较合适？</li></ul><div class="ck-quote"><strong>教师</strong>：写两到三条即可。写一条难以支撑论点，写太多则内容分散，两到三条既能充分论证，又保持逻辑清晰。</div><h3 class="ck-doc-h3">Q2. 小论文写作顺序如何安排</h3><ul><li><strong>学生</strong>：小论文的写作顺序应该怎样安排？</li></ul><div class="ck-quote"><strong>教师</strong>：先写背景学术报告，再亮出自己的观点，最后进行结论升华。结论必须升华观点，不能简单把观点抄一遍。</div><h3 class="ck-doc-h3">Q3. 自命题类题目解题步骤</h3><ul><li><strong>学生</strong>：自命题类题目应该按什么步骤解题？</li></ul><div class="ck-quote"><strong>教师</strong>：先审题，注意要求和小红帽；再读材料，先大概看抓主要信息，再细看材料间关系；先写好题目，再罗列与材料相关的事实，最后作答。</div><h3 class="ck-doc-h3">Q4. 武汉长江大桥材料背景如何组织</h3><ul><li><strong>学生</strong>：分析武汉长江大桥材料时，背景部分应如何组织？</li></ul><div class="ck-quote"><strong>教师</strong>：背景部分不能直接作为版本，应按时间顺序先写对内改革，再写对外开放。同时要审清题目要求，明确具体时间和内容。</div><h3 class="ck-doc-h3">Q5. 观点提示类题目如何选择观点</h3><ul><li><strong>学生</strong>：观点提示类题目应如何选择和处理观点？</li></ul><div class="ck-quote"><strong>教师</strong>：要选择核心观点，明确表达自己的判断，认为什么观点正确或错误。不能照抄材料观点，最后要总结观点并进行升华。</div><h3 class="ck-doc-h3">Q6. 评析1940年材料为何要结合时代背景</h3><ul><li><strong>学生</strong>：评析1940年抗战时期的材料，为什么要说明写作目的？</li></ul><div class="ck-quote"><strong>教师</strong>：1940年处于抗战时期，作者写此书有应对抗战后局势的目的。必须结合时代背景说明为何在此时写，否则论证缺乏深度。</div><h3 class="ck-doc-h3">Q7. 图表信息类题目如何提取信息</h3><ul><li><strong>学生</strong>：图表信息类题目应如何快速提取有效信息？</li></ul><div class="ck-quote"><strong>教师</strong>：先看图表关键信息，如题头、横向纵向内容，注意信息之间的关系变化，提取有效信息后再进行分析。</div><h2 class="ck-doc-h2">课后任务与学习建议</h2><h3 class="ck-doc-h3">课堂练习</h3><ul><li>[ ] <strong>自命题类小论文练习</strong>：审题要慢，注意题目要求与“小红帽”提示及形成标准；读材料先抓主要信息，再细看材料间关系；先写好题目，再罗列与材料相关的事实，最后作答。</li><li>[ ] <strong>观点提示类练习</strong>：从材料中提取观点，选择核心观点并明确表达自己的判断（正确或错误），不能照抄材料观点；论证后总结观点并进行升华。</li><li>[ ] <strong>图表信息类练习</strong>：快速看图表关键信息（题头、横向纵向），注意信息之间的关系变化，提取有效信息进行分析。</li><li>[ ] <strong>例题分析：武汉长江大桥</strong>：结合新中国成立、改革开放背景，按时间顺序先写对内改革再写对外开放，审题需明确具体时间和内容。</li><li>[ ] <strong>例题分析：1940年抗战时期材料评析</strong>：需结合时代背景，说明作者为何在此时写作，从经济、文化等方面论证，结论需体现自己的判断。</li></ul><h3 class="ck-doc-h3">复习重点</h3><ul><li><strong>小论文写作结构</strong>：观点必须明确亮出，不能只是简单陈述形式；论证写两到三条，不宜过多；写作顺序为先写背景学术报告，再加自己的观点；可用序号或直接列出，但逻辑要清晰。</li><li><strong>结论升华要求</strong>：结论要升华观点，不能简单抄写观点，需结合论述内容进行提升。</li><li><strong>自命题类解题步骤</strong>：审题（注意要求和小红帽）→ 读材料（抓主要信息，细看关系）→ 罗列事实（与材料相关）→ 作答。</li><li><strong>观点提示类解题方法</strong>：选择核心观点，明确表达判断，不照抄材料，最后总结升华。</li><li><strong>图表信息类解题方法</strong>：快速看关键信息（题头、横向纵向），注意信息之间的关系变化，提取有效信息进行分析。</li></ul><h3 class="ck-doc-h3">学习建议</h3><ul><li><strong>写作练习时先列提纲</strong>：先写好题目，再罗列要写的事实，避免乱罗列，确保事实与材料相关。</li><li><strong>审题要慢</strong>：仔细看题目要求，注意“小红帽”提示和形成标准，避免审题不清导致内容偏离。</li><li><strong>结合时代背景分析材料</strong>：评析历史材料时，需说明为何在此时写作，结合时代背景进行论证。</li><li><strong>注意时间顺序</strong>：分析材料时按时间顺序组织内容，如先写对内改革再写对外开放。</li></ul>
+      </div>
+    </div>
+  </main>
+</body>
+</html>

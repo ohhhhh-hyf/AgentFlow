@@ -1,0 +1,440 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>小艺慧记项目进展会</title>
+  <style>
+
+    body {
+      margin: 0;
+      padding: 14px 12px;
+      background: #f6f5f0;
+      color: #1a1a1a;
+      font-family: "Latin Modern Roman", "Computer Modern Roman", "CMU Serif", "Times New Roman", Times, "Songti SC", "SimSun", "STSong", serif;
+      -webkit-font-smoothing: antialiased;
+    }
+    .page { max-width: 1140px; margin: 0 auto; }
+    .ck-doc {
+      background: #ffffff;
+      border: 1px solid #d4d0c7;
+      border-radius: 4px;
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.05), 0 1px 3px rgba(0,0,0,0.03);
+      padding: 18px 22px;
+      line-height: 1.6;
+      font-size: 0.84rem;      /* 正文基准：左右两栏共用 --ck-fs */
+      --ck-fs: 0.84rem;
+    }
+    .ck-doc h1 {
+      margin: 0 0 6px;
+      font-size: 1.05rem;      /* 文档标题：只比正文略大一点 */
+      font-weight: 700;
+      text-align: center;
+      color: #111111;
+    }
+    .ck-doc-header {
+      margin-bottom: 10px;
+      padding-bottom: 8px;
+      border-bottom: 1px solid #111111;
+      text-align: center;
+    }
+    .ck-doc-meta {
+      font-size: 0.78rem;
+      color: #555555;
+      font-style: italic;
+    }
+    /* 层级标题一律"加粗 + 与右栏同级字号"，不加字号、不加下划线，前后留白压到最小 */
+    .ck-doc-content h1, .ck-doc-content .ck-doc-h1,
+    .ck-doc h2, .ck-doc-h2,
+    .ck-doc h3, .ck-doc-h3,
+    .ck-doc h4, .ck-doc-h4 {
+      font-size: var(--ck-fs);
+      font-weight: 700;
+      color: #111111;
+      border-bottom: 0;
+      padding-bottom: 0;
+      letter-spacing: 0;
+      font-variant: normal;
+      text-align: left;
+    }
+    .ck-doc-content h1, .ck-doc-content .ck-doc-h1, .ck-doc h2, .ck-doc-h2 {
+      margin: 12px 0 4px;
+    }
+    .ck-doc h3, .ck-doc-h3, .ck-doc h4, .ck-doc-h4 {
+      margin: 9px 0 3px;
+    }
+    .ck-doc p {
+      margin: 5px 0;
+      line-height: 1.6;
+      text-align: justify;
+    }
+    .ck-doc ul, .ck-doc ol {
+      margin: 4px 0 6px;
+      padding-left: 1.25em;
+      line-height: 1.6;
+    }
+    .ck-doc li {
+      margin: 2px 0;
+    }
+    .ck-doc blockquote, .ck-quote {
+      margin: 6px 0 8px;
+      padding: 5px 10px;
+      background: #faf9f6;
+      border-left: 3px solid #222222;
+      border-radius: 2px;
+      color: #222222;
+      font-size: var(--ck-fs);
+      font-style: italic;
+    }
+    .ck-doc code {
+      background: #f3f0e8;
+      border: 1px solid #e2ddd3;
+      border-radius: 3px;
+      padding: 1px 6px;
+      font-family: "Latin Modern Mono", Consolas, monospace;
+      font-size: 0.88em;
+    }
+    .ck-doc table, .ck-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: var(--ck-fs);
+      margin: 8px 0;
+      background: #ffffff;
+      border-top: 2px solid #222222;
+      border-bottom: 2px solid #222222;
+    }
+    .ck-doc table th, .ck-doc table td, .ck-table th, .ck-table td {
+      padding: 5px 8px;
+      text-align: left;
+      vertical-align: middle;
+      border-bottom: 1px solid #ede9e1;
+    }
+    .ck-doc table th, .ck-table th {
+      background: #fbfaf7;
+      border-bottom: 1.2px solid #222222;
+      font-weight: 700;
+      color: #111111;
+      letter-spacing: 0.3px;
+    }
+
+    /* Roomy & Spacious Academic Risk Table */
+    .ck-risk-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 18px 0 28px;
+      background: #ffffff;
+      border-top: 2.2px solid #111111;
+      border-bottom: 2.2px solid #111111;
+      font-size: 0.93rem;
+      line-height: 1.72;
+    }
+    .ck-risk-table th {
+      background: #faf8f5;
+      border-bottom: 1.5px solid #111111;
+      padding: 15px 16px;
+      font-weight: 700;
+      color: #111111;
+      letter-spacing: 0.3px;
+      text-align: left;
+      vertical-align: middle;
+    }
+    .ck-risk-table td {
+      padding: 16px 16px;
+      border-bottom: 1px solid #ede8e0;
+      vertical-align: top;
+      color: #1a1a1a;
+      word-break: break-word;
+    }
+    .ck-risk-table tr:nth-child(even) td {
+      background: #fdfcfb;
+    }
+    .ck-risk-table tr:hover td {
+      background: #f6f3eb;
+    }
+
+    /* Review Grid */
+    .ck-review {
+      display: grid;
+      grid-template-columns: minmax(0, 1.35fr) 1px minmax(260px, 0.95fr);
+      border: 1px solid #d4d0c7;
+      border-radius: 4px;
+      overflow: hidden;
+      margin: 8px 0 10px;
+      background: #ffffff;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.03);
+    }
+    .ck-review-left {
+      padding: 14px 16px;
+      background: #ffffff;
+      line-height: 1.6;
+      font-size: var(--ck-fs);
+    }
+    .ck-review-rule { background: #dcd8cf; }
+    .ck-review-right {
+      padding: 12px 14px;
+      background: #faf9f6;
+      box-sizing: border-box;
+      display: flex;
+      flex-direction: column;
+    }
+    .ck-ev-list {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    /* Entity Highlight in LaTeX Paper Style */
+    .ck-cite-entity {
+      background: #fff8db;
+      border-bottom: 1.5px solid #b86a04;
+      padding: 1px 4px;
+      border-radius: 2px;
+      cursor: pointer;
+      transition: all 0.18s ease;
+      color: #111111;
+      font-weight: 600;
+    }
+    .ck-cite-entity:hover {
+      background: #ffe58f;
+      color: #000000;
+    }
+    .ck-cite-entity.is-on {
+      background: #ffd54a;
+      border-bottom-color: #0047ab;
+      box-shadow: 0 0 0 2px rgba(0,71,171,0.25);
+    }
+
+    /* Blue Hyperref Citations [1], [2] */
+    .ck-cite-ref {
+      color: #0047ab;
+      font-weight: 600;
+      font-family: "Latin Modern Roman", "Computer Modern Roman", "Times New Roman", serif;
+      text-decoration: none;
+      cursor: pointer;
+      padding: 0 2px;
+      margin: 0 2px;
+      border-radius: 2px;
+      transition: all 0.15s ease;
+      font-size: 0.92em;
+      vertical-align: baseline;
+      user-select: none;
+    }
+    .ck-cite-ref:hover {
+      text-decoration: underline;
+      background: #e8f0fe;
+      color: #003380;
+    }
+    .ck-cite-ref.is-active {
+      background: #d2e3fc;
+      color: #002266;
+      font-weight: 700;
+      box-shadow: 0 0 0 1px #0047ab;
+    }
+
+    /* Right Memory Cards in LaTeX Paper Style */
+    .ck-provenance-head {
+      font-size: 0.82rem;
+      font-weight: 700;
+      color: #222222;
+      margin: 0 0 12px;
+      padding-bottom: 6px;
+      border-bottom: 1px solid #e0dcd4;
+      letter-spacing: 0.3px;
+      text-transform: uppercase;
+    }
+    .ck-ref-icon { color: #0047ab; margin-right: 4px; }
+    .ck-ev {
+      display: block;
+      margin: 0;
+      padding: 10px 12px;
+      border: 1px solid #dedad2;
+      border-left: 3.5px solid #0047ab;
+      border-radius: 2px;
+      background: #ffffff;
+      font-size: 0.82rem;
+      line-height: 1.55;
+      transition: all 0.2s ease;
+      cursor: pointer;
+    }
+    .ck-ev:hover { border-color: #b5b0a5; }
+    .ck-ev.is-on, .ck-ev.is-highlighted {
+      border-color: #0047ab;
+      box-shadow: 0 0 0 2px #0047ab, 0 3px 8px rgba(0,71,171,0.15);
+      background: #f0f5ff;
+    }
+    @keyframes citePulse {
+      0% { background: #dbeafe; box-shadow: 0 0 0 3px #0047ab; }
+      50% { background: #bfdbfe; box-shadow: 0 0 0 4px #0047ab; }
+      100% { background: #f0f5ff; box-shadow: 0 0 0 2px #0047ab; }
+    }
+    .ck-ev-k {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 0.75rem;
+      color: #444444;
+      margin-bottom: 5px;
+      font-weight: 700;
+    }
+    .ck-ev-cite-tag {
+      color: #0047ab;
+      font-weight: 700;
+      font-family: "Latin Modern Roman", serif;
+      text-decoration: none;
+    }
+    .ck-ev-kind-badge {
+      display: inline-block;
+      padding: 1px 6px;
+      border-radius: 2px;
+      font-size: 0.72rem;
+      font-weight: 600;
+      letter-spacing: 0.2px;
+    }
+    .ck-badge-keypoint {
+      border: 1px solid #0047ab;
+      color: #0047ab;
+      background: #f0f5ff;
+    }
+    .ck-badge-note {
+      border: 1px solid #b86a04;
+      color: #b86a04;
+      background: #fff8eb;
+    }
+    .ck-mem-title {
+      font-weight: 700;
+      color: #111111;
+      font-size: var(--ck-fs);
+      margin-bottom: 4px;
+      line-height: 1.5;
+    }
+    .ck-ev-quote {
+      color: #222222;
+      font-style: normal;
+      font-family: inherit;
+      margin: 4px 0 6px;
+      padding: 0;
+      background: transparent;
+      border: none;
+      line-height: 1.6;
+      font-size: var(--ck-fs);
+    }
+    .ck-ev-meta { font-size: 0.76rem; color: #666666; margin-top: 4px; }
+    .ck-ev-more {
+      margin-top: 2px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+    .ck-ev-more[open] { margin-top: 4px; }
+    .ck-ev-more summary { margin-bottom: 6px; }
+    .ck-proof-toggle {
+      cursor: pointer;
+      font-size: 0.82rem;
+      color: #0047ab;
+      user-select: none;
+      font-family: inherit;
+      padding: 2px 0;
+    }
+    .ck-proof-toggle:hover { text-decoration: underline; }
+    /* 右栏下段"状态演进"：无行内锚点，与上方证据卡视觉区分（灰底 + 徽章，无 [n]） */
+    .ck-ledger {
+      margin-top: 10px;
+      padding-top: 8px;
+      border-top: 1px dashed #d4d0c7;
+    }
+    .ck-ledger > summary { list-style: none; }
+    .ck-ledger > summary::-webkit-details-marker { display: none; }
+    .ck-ledger > summary::after { content: " ▾"; }
+    .ck-ledger:not([open]) > summary::after { content: " ▸"; }
+    /* 每类一张小灰卡：卡头类别 + 条数，卡内按 1. 2. 3. 编号 */
+    .ck-ledger-card {
+      background: #faf9f5;
+      border: 1px solid #e6e2d8;
+      border-left: 3px solid #bdb6a6;
+      border-radius: 4px;
+      padding: 7px 9px;
+      margin-bottom: 6px;
+    }
+    .ck-ledger-k {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 6px;
+      font-size: 0.72rem;
+      margin-bottom: 5px;
+    }
+    .ck-ledger-badge {
+      background: #efece4;
+      color: #6b6559;
+      border-radius: 3px;
+      padding: 1px 6px;
+      font-weight: 600;
+    }
+    .ck-ledger-count { color: #8a8578; }
+    .ck-ledger-list {
+      margin: 0;
+      padding-left: 1.35em;
+      font-size: var(--ck-fs);
+      line-height: 1.6;
+      color: #3b3a37;
+    }
+    .ck-ledger-list > li { margin: 2px 0; }
+    /* Personal Perspective "与我相关" Focus Block */
+    .ck-self-block {
+      background: #f4f8fe;
+      border: 1px solid #d4e2f5;
+      border-left: 3.5px solid #0047ab;
+      border-radius: 3px;
+      padding: 8px 12px;
+      margin: 8px 0 10px;
+    }
+    .ck-self-title {
+      margin: 0 0 4px;
+      color: #003380;
+      font-weight: 700;
+      font-size: var(--ck-fs);
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
+    .ck-self-badge {
+      display: inline-block;
+      background: #0047ab;
+      color: #ffffff;
+      font-size: 0.68rem;
+      padding: 1px 5px;
+      border-radius: 2px;
+      font-weight: 600;
+      letter-spacing: 0.2px;
+      margin-left: 4px;
+    }
+    .ck-self-block ul, .ck-self-block ol {
+      margin: 2px 0 2px;
+      padding-left: 1.25em;
+    }
+    .ck-self-block li {
+      margin: 2px 0;
+      color: #1a1a1a;
+    }
+
+    @media(max-width: 860px) {
+      .ck-doc { padding: 22px 18px; }
+      .ck-review { grid-template-columns: 1fr; }
+      .ck-review-rule { display: none; }
+    }
+
+  </style>
+</head>
+<body>
+  <main class="page">
+    <div class="ck-doc">
+      <header class="ck-doc-header">
+        <h1>小艺慧记项目进展会</h1>
+      </header>
+      <div class="ck-doc-content">
+        <h2 class="ck-doc-h2">本场概况与本人定调</h2><p>小艺慧记项目进展会由我主持，先过Java侧问题，后覆盖引擎并发、ASR模型效果、数据标注进度及930节点前的转测准备。对我牵头板块的定调：ASR模型以郭慧敏模型先导，我负责优化领域关键词槽准（低1%点几）和说话人错误率（低较多）两个指标，模型按句子处理时延可能高需导出测；长文本8~9万字不行、prefill耗时最大40多秒，我需测竞品并询问推理优化方式；910c机器密码由武思华申请，我先上机器验证模型或机器问题；问题单去掉发言人和时间后效果影响不大，我找淼哥看。商品版本需带录音机命名字数、仿写流失、数据汇流需求已获武思华确认。其余宏观议题（引擎并发930前至少单卡四路、数据标注按计划推进、实时与非实时方案取舍）由徐玥、盛晋珲等主导，非我直接牵头，仅作背景。</p><h2 class="ck-doc-h2">重点关注与业务进展</h2><ol><li><strong>ASR 模型优化</strong>（进行中 ｜ 优化版模型）：基于 WeLink 日志中效果较好的模型做强化学习优化 ASR，自录关键词槽准与 WER 表现良好，远场场景尚可，first_hdb 稍差；其余指标与之前持平；两个偏弱指标为领域关键词槽准（低约 1 个百分点）与说话人错误率（低较多）；模型按句子处理，时延可能偏高，需导出实测，如有问题再调整；奖励函数采用纯 ASR 文本并正则化其余项，基础模型已训过实验戳与分隔符，在线效果略好。</li></ol><ul><li>结论：郭慧敏模型先导，我负责优化领域关键词槽准与说话人错误率两个指标。</li></ul><ol><li><strong>长文本性能与竞品测试</strong>（进行中 ｜ 竞品对比结论）：长文本 6~8 万字可行，8~9 万字不行；改配置后 token 变慢，prefill 耗时最大 40 多秒，第一步 10s 超时，总计约一分钟；指标按 p50/p90 口径给晓华；需测竞品长文本性能，并询问推理侧是否有优化方式（当前部署方式下长文本必然慢）。</li><li><strong>问题单处理</strong>（进行中 ｜ 修改方案）：问题单含标题、自理模板、场景时延；可改项为短输出标题、关键词、场景检测、内容过滤；长文本问题涉及发言人和时间，去掉后对效果影响不大，找淼哥对齐后修改；问题单后续核对，中测版本带上。</li><li><strong>910c 机器验证</strong>（本周至下周初 ｜ 验证结论）：910c 机器密码未申请，武思华申请；我先上机器实测，判断是模型问题还是机器问题；用控环境无镜像，需先确认环境。</li><li><strong>商品版本需求</strong>（转测前 ｜ 需求清单）：商品版本需带录音机命名字数、仿写流失、数据汇流需求；测试报告后两个未出，刘师未回复，测试人员待定，可能与会记测试为同一批人；锻炼接口端侧不支持后台，先做处理、不统计成功率，向产品反馈看端侧能否改（与生成中切换断连问题类似，之前问过 isales 未给方案）；tob 数统计今天改、统计一天，明天看 hall t；重复与标点问题让端侧和这边改；流失格式与晋明对齐，双方已改；微服务接口由腾意测试。</li><li><strong>字幕摘要需求</strong>（未排期 ｜ 需求拆解）：含通用摘要模板、流失输出、领域检测；武思华负责改，待需求下来后拆解；标题报告子浩明天出。</li><li><strong>微服务接口调整</strong>（进行中 ｜ 接口改造）：统一接口需改，python 接口内通过 bid 调 FMP 模型，当前部署在 A 版本上的调用方式需改为按 bid 调；先调千问码通流程，效果按当前部署的 ds 模型看；录音机控件与杰哥、月姐对齐，等汇报后一起看；录音机接口现网开发时由微服务侧改。</li><li><strong>数据标注与回流</strong>（月底交付 ｜ 标注数据）：法本 290 小时月底交付，文德 330 小时月底交付，fp 230 小时已做完本周审核完，第二批 250 小时月中下旬完成；WeLink 打标完成 201，还差 300 多；现网第四批回流数据 0~310min 打完，30~60min 在打；超长数据 90min 以上在跑、较慢，上周 1000 多条跑了 200 多条；博客数据 15000h 已打完，用千问三标注，预计三天完成、本周可用。</li></ol><h2 class="ck-doc-h2">行动项与协同依赖</h2><div class="ck-self-block"><div class="ck-self-title"><strong>与我相关</strong>：<span class="ck-self-badge">本人</span></div><ul><li>[ ] <strong>测竞品长文本性能并询问推理优化方式</strong>：长文本6~8万字可行、8~9万字不行，改配置后token慢，prefill耗时最大40多秒，第一步10s超时，总计约一分钟；测竞品对比，并询问当前部署方式下长文本推理是否有优化空间</li><li>[ ] <strong>优化ASR模型两个指标</strong>：领域关键词槽准（低1%点几）和说话人错误率（低较多）；模型按句子处理，时延可能高，需导出测，如有问题再调整</li><li>[ ] <strong>上910c机器验证模型或机器问题</strong>：武思华申请密码，我先上机器测，本周或下周初验证</li><li>[ ] <strong>问题单处理</strong>：去掉发言人和时间，找淼哥看效果影响；问题单包括标题、自理模板、场景时延，可改项为短输出标题、关键词、场景检测、内容过滤</li><li>[ ] <strong>长文本指标按p50/p90给晓华</strong>：确认指标口径后测竞品数据</li><li>[ ] <strong>微服务调用方式调整</strong>：改为按bid调，先调千问码通流程，效果按ds模型看</li></ul></div><p><strong>徐玥</strong>：</p><ul><li>问杨老师端侧链路方案（demo阶段走翻译云）</li><li>推动930前单卡四路并发优化，集中人力做工程优化</li></ul><p><strong>前置依赖</strong>：</p><ul><li>[ ] <strong>武思华</strong>：申请910c机器密码；明天找对方要tob数统计数据</li><li>[ ] <strong>淼哥</strong>：确认问题单去掉发言人和时间后的效果影响</li><li>[ ] <strong>腾意</strong>：测微服务接口</li><li>[ ] <strong>刘师</strong>：确认测试报告后两个的测试人员安排</li></ul><p><strong>武思华</strong>：</p><ul><li>申请910c机器密码</li><li>改字幕摘要需求（未排期，含通用摘要模板、流失输出、领域检测）</li><li>确认商品版本需求（录音机命名字数、仿写流失、数据汇流）</li><li>明天找对方要tob数统计数据</li></ul><p><strong>范炳杰</strong>：</p><ul><li>试4~5个接口并集成到网页版</li><li>配合微服务统一接口调整（改为按bid调）</li></ul><p><strong>盛晋珲</strong>：</p><ul><li>会后讨论most与千问方案取舍</li><li>排人力做工程优化（930前至少单卡四路）</li></ul><h2 class="ck-doc-h2">待确认事项与风险卡点</h2><h3 class="ck-doc-h3">与我相关风险卡点</h3><ul><li>[ ] <strong>长文本性能瓶颈</strong>（【阻塞】｜跟进人：方思邈）：8~9万字输入不可用，改配置后token生成慢；prefill耗时最大40多秒，第一步10s超时，总计约一分钟。需测竞品并询问推理优化方式，确认是否有优化空间。</li><li>[ ] <strong>ASR模型两个指标待优化</strong>（【高风险】｜跟进人：郭慧敏）：领域关键词槽准低1%点几，说话人错误率低较多；模型按句子处理，时延可能偏高，需导出实测确认。</li><li>[ ] <strong>910c机器验证待推进</strong>（【阻塞】｜跟进人：武思华）：机器密码未申请，武思华因事多且无镜像未处理；需先上机器测，确认是模型问题还是机器问题。</li><li>[ ] <strong>问题单处理待对齐</strong>（跟进人：淼哥）：长文本问题涉及发言人和时间，去掉后效果影响不大；需找淼哥确认修改方案。</li><li>[ ] <strong>测试报告未出、测试人员待定</strong>（【高风险】｜跟进人：刘师）：商品版本后两个测试报告未出，刘师未回复；测试人员待确认，可能与会记测试为同一批人。</li></ul><h3 class="ck-doc-h3">全局重大风险与待确认</h3><ul><li><strong>930节点时间紧迫</strong>（【阻塞】）：需至少单卡四路并发，当前单卡一路，峰值并发650、平均300~400；长基线4.0优化一个半月达单卡10并发，窗口期不多，需集中人力做工程优化。</li><li><strong>most方案收益不确定</strong>（【高风险】）：模型小并发高，但收益不确定，可能赶不上930；千问方案效果已做出来，并发提升是工程性任务、收益确定，取舍待会后讨论。</li><li><strong>端侧链路依赖控件开发</strong>（【高风险】）：熊帆、王玉学负责，人力不足；多模态sdk需申请服务，工作量double；demo阶段走翻译云，徐玥问杨老师链路方案。</li><li><strong>蓝色回流权限未批</strong>（【阻塞】｜跟进人：武思华）：多次申请未果，原因不明。</li><li><strong>WeLink打标进度慢</strong>（跟进人：姜彪）：完成201，还差300多，需加快。</li></ul><p><strong>现网数据回流慢</strong>：</p><ul><li>超长数据90min以上在跑，上周1000多条仅跑200多条。</li></ul><p><strong>转测指标和范围待定义</strong>：</p><ul><li>包括并发、组织时延、首字时延等；参考小艺会议转测，对时延不敏感但不容忍等待，需再讨论。</li></ul>
+      </div>
+    </div>
+  </main>
+</body>
+</html>

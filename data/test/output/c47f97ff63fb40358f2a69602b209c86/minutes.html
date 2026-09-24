@@ -1,0 +1,440 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>出门必带物品闲聊讨论会</title>
+  <style>
+
+    body {
+      margin: 0;
+      padding: 14px 12px;
+      background: #f6f5f0;
+      color: #1a1a1a;
+      font-family: "Latin Modern Roman", "Computer Modern Roman", "CMU Serif", "Times New Roman", Times, "Songti SC", "SimSun", "STSong", serif;
+      -webkit-font-smoothing: antialiased;
+    }
+    .page { max-width: 1140px; margin: 0 auto; }
+    .ck-doc {
+      background: #ffffff;
+      border: 1px solid #d4d0c7;
+      border-radius: 4px;
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.05), 0 1px 3px rgba(0,0,0,0.03);
+      padding: 18px 22px;
+      line-height: 1.6;
+      font-size: 0.84rem;      /* 正文基准：左右两栏共用 --ck-fs */
+      --ck-fs: 0.84rem;
+    }
+    .ck-doc h1 {
+      margin: 0 0 6px;
+      font-size: 1.05rem;      /* 文档标题：只比正文略大一点 */
+      font-weight: 700;
+      text-align: center;
+      color: #111111;
+    }
+    .ck-doc-header {
+      margin-bottom: 10px;
+      padding-bottom: 8px;
+      border-bottom: 1px solid #111111;
+      text-align: center;
+    }
+    .ck-doc-meta {
+      font-size: 0.78rem;
+      color: #555555;
+      font-style: italic;
+    }
+    /* 层级标题一律"加粗 + 与右栏同级字号"，不加字号、不加下划线，前后留白压到最小 */
+    .ck-doc-content h1, .ck-doc-content .ck-doc-h1,
+    .ck-doc h2, .ck-doc-h2,
+    .ck-doc h3, .ck-doc-h3,
+    .ck-doc h4, .ck-doc-h4 {
+      font-size: var(--ck-fs);
+      font-weight: 700;
+      color: #111111;
+      border-bottom: 0;
+      padding-bottom: 0;
+      letter-spacing: 0;
+      font-variant: normal;
+      text-align: left;
+    }
+    .ck-doc-content h1, .ck-doc-content .ck-doc-h1, .ck-doc h2, .ck-doc-h2 {
+      margin: 12px 0 4px;
+    }
+    .ck-doc h3, .ck-doc-h3, .ck-doc h4, .ck-doc-h4 {
+      margin: 9px 0 3px;
+    }
+    .ck-doc p {
+      margin: 5px 0;
+      line-height: 1.6;
+      text-align: justify;
+    }
+    .ck-doc ul, .ck-doc ol {
+      margin: 4px 0 6px;
+      padding-left: 1.25em;
+      line-height: 1.6;
+    }
+    .ck-doc li {
+      margin: 2px 0;
+    }
+    .ck-doc blockquote, .ck-quote {
+      margin: 6px 0 8px;
+      padding: 5px 10px;
+      background: #faf9f6;
+      border-left: 3px solid #222222;
+      border-radius: 2px;
+      color: #222222;
+      font-size: var(--ck-fs);
+      font-style: italic;
+    }
+    .ck-doc code {
+      background: #f3f0e8;
+      border: 1px solid #e2ddd3;
+      border-radius: 3px;
+      padding: 1px 6px;
+      font-family: "Latin Modern Mono", Consolas, monospace;
+      font-size: 0.88em;
+    }
+    .ck-doc table, .ck-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: var(--ck-fs);
+      margin: 8px 0;
+      background: #ffffff;
+      border-top: 2px solid #222222;
+      border-bottom: 2px solid #222222;
+    }
+    .ck-doc table th, .ck-doc table td, .ck-table th, .ck-table td {
+      padding: 5px 8px;
+      text-align: left;
+      vertical-align: middle;
+      border-bottom: 1px solid #ede9e1;
+    }
+    .ck-doc table th, .ck-table th {
+      background: #fbfaf7;
+      border-bottom: 1.2px solid #222222;
+      font-weight: 700;
+      color: #111111;
+      letter-spacing: 0.3px;
+    }
+
+    /* Roomy & Spacious Academic Risk Table */
+    .ck-risk-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 18px 0 28px;
+      background: #ffffff;
+      border-top: 2.2px solid #111111;
+      border-bottom: 2.2px solid #111111;
+      font-size: 0.93rem;
+      line-height: 1.72;
+    }
+    .ck-risk-table th {
+      background: #faf8f5;
+      border-bottom: 1.5px solid #111111;
+      padding: 15px 16px;
+      font-weight: 700;
+      color: #111111;
+      letter-spacing: 0.3px;
+      text-align: left;
+      vertical-align: middle;
+    }
+    .ck-risk-table td {
+      padding: 16px 16px;
+      border-bottom: 1px solid #ede8e0;
+      vertical-align: top;
+      color: #1a1a1a;
+      word-break: break-word;
+    }
+    .ck-risk-table tr:nth-child(even) td {
+      background: #fdfcfb;
+    }
+    .ck-risk-table tr:hover td {
+      background: #f6f3eb;
+    }
+
+    /* Review Grid */
+    .ck-review {
+      display: grid;
+      grid-template-columns: minmax(0, 1.35fr) 1px minmax(260px, 0.95fr);
+      border: 1px solid #d4d0c7;
+      border-radius: 4px;
+      overflow: hidden;
+      margin: 8px 0 10px;
+      background: #ffffff;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.03);
+    }
+    .ck-review-left {
+      padding: 14px 16px;
+      background: #ffffff;
+      line-height: 1.6;
+      font-size: var(--ck-fs);
+    }
+    .ck-review-rule { background: #dcd8cf; }
+    .ck-review-right {
+      padding: 12px 14px;
+      background: #faf9f6;
+      box-sizing: border-box;
+      display: flex;
+      flex-direction: column;
+    }
+    .ck-ev-list {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    /* Entity Highlight in LaTeX Paper Style */
+    .ck-cite-entity {
+      background: #fff8db;
+      border-bottom: 1.5px solid #b86a04;
+      padding: 1px 4px;
+      border-radius: 2px;
+      cursor: pointer;
+      transition: all 0.18s ease;
+      color: #111111;
+      font-weight: 600;
+    }
+    .ck-cite-entity:hover {
+      background: #ffe58f;
+      color: #000000;
+    }
+    .ck-cite-entity.is-on {
+      background: #ffd54a;
+      border-bottom-color: #0047ab;
+      box-shadow: 0 0 0 2px rgba(0,71,171,0.25);
+    }
+
+    /* Blue Hyperref Citations [1], [2] */
+    .ck-cite-ref {
+      color: #0047ab;
+      font-weight: 600;
+      font-family: "Latin Modern Roman", "Computer Modern Roman", "Times New Roman", serif;
+      text-decoration: none;
+      cursor: pointer;
+      padding: 0 2px;
+      margin: 0 2px;
+      border-radius: 2px;
+      transition: all 0.15s ease;
+      font-size: 0.92em;
+      vertical-align: baseline;
+      user-select: none;
+    }
+    .ck-cite-ref:hover {
+      text-decoration: underline;
+      background: #e8f0fe;
+      color: #003380;
+    }
+    .ck-cite-ref.is-active {
+      background: #d2e3fc;
+      color: #002266;
+      font-weight: 700;
+      box-shadow: 0 0 0 1px #0047ab;
+    }
+
+    /* Right Memory Cards in LaTeX Paper Style */
+    .ck-provenance-head {
+      font-size: 0.82rem;
+      font-weight: 700;
+      color: #222222;
+      margin: 0 0 12px;
+      padding-bottom: 6px;
+      border-bottom: 1px solid #e0dcd4;
+      letter-spacing: 0.3px;
+      text-transform: uppercase;
+    }
+    .ck-ref-icon { color: #0047ab; margin-right: 4px; }
+    .ck-ev {
+      display: block;
+      margin: 0;
+      padding: 10px 12px;
+      border: 1px solid #dedad2;
+      border-left: 3.5px solid #0047ab;
+      border-radius: 2px;
+      background: #ffffff;
+      font-size: 0.82rem;
+      line-height: 1.55;
+      transition: all 0.2s ease;
+      cursor: pointer;
+    }
+    .ck-ev:hover { border-color: #b5b0a5; }
+    .ck-ev.is-on, .ck-ev.is-highlighted {
+      border-color: #0047ab;
+      box-shadow: 0 0 0 2px #0047ab, 0 3px 8px rgba(0,71,171,0.15);
+      background: #f0f5ff;
+    }
+    @keyframes citePulse {
+      0% { background: #dbeafe; box-shadow: 0 0 0 3px #0047ab; }
+      50% { background: #bfdbfe; box-shadow: 0 0 0 4px #0047ab; }
+      100% { background: #f0f5ff; box-shadow: 0 0 0 2px #0047ab; }
+    }
+    .ck-ev-k {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 0.75rem;
+      color: #444444;
+      margin-bottom: 5px;
+      font-weight: 700;
+    }
+    .ck-ev-cite-tag {
+      color: #0047ab;
+      font-weight: 700;
+      font-family: "Latin Modern Roman", serif;
+      text-decoration: none;
+    }
+    .ck-ev-kind-badge {
+      display: inline-block;
+      padding: 1px 6px;
+      border-radius: 2px;
+      font-size: 0.72rem;
+      font-weight: 600;
+      letter-spacing: 0.2px;
+    }
+    .ck-badge-keypoint {
+      border: 1px solid #0047ab;
+      color: #0047ab;
+      background: #f0f5ff;
+    }
+    .ck-badge-note {
+      border: 1px solid #b86a04;
+      color: #b86a04;
+      background: #fff8eb;
+    }
+    .ck-mem-title {
+      font-weight: 700;
+      color: #111111;
+      font-size: var(--ck-fs);
+      margin-bottom: 4px;
+      line-height: 1.5;
+    }
+    .ck-ev-quote {
+      color: #222222;
+      font-style: normal;
+      font-family: inherit;
+      margin: 4px 0 6px;
+      padding: 0;
+      background: transparent;
+      border: none;
+      line-height: 1.6;
+      font-size: var(--ck-fs);
+    }
+    .ck-ev-meta { font-size: 0.76rem; color: #666666; margin-top: 4px; }
+    .ck-ev-more {
+      margin-top: 2px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+    .ck-ev-more[open] { margin-top: 4px; }
+    .ck-ev-more summary { margin-bottom: 6px; }
+    .ck-proof-toggle {
+      cursor: pointer;
+      font-size: 0.82rem;
+      color: #0047ab;
+      user-select: none;
+      font-family: inherit;
+      padding: 2px 0;
+    }
+    .ck-proof-toggle:hover { text-decoration: underline; }
+    /* 右栏下段"状态演进"：无行内锚点，与上方证据卡视觉区分（灰底 + 徽章，无 [n]） */
+    .ck-ledger {
+      margin-top: 10px;
+      padding-top: 8px;
+      border-top: 1px dashed #d4d0c7;
+    }
+    .ck-ledger > summary { list-style: none; }
+    .ck-ledger > summary::-webkit-details-marker { display: none; }
+    .ck-ledger > summary::after { content: " ▾"; }
+    .ck-ledger:not([open]) > summary::after { content: " ▸"; }
+    /* 每类一张小灰卡：卡头类别 + 条数，卡内按 1. 2. 3. 编号 */
+    .ck-ledger-card {
+      background: #faf9f5;
+      border: 1px solid #e6e2d8;
+      border-left: 3px solid #bdb6a6;
+      border-radius: 4px;
+      padding: 7px 9px;
+      margin-bottom: 6px;
+    }
+    .ck-ledger-k {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 6px;
+      font-size: 0.72rem;
+      margin-bottom: 5px;
+    }
+    .ck-ledger-badge {
+      background: #efece4;
+      color: #6b6559;
+      border-radius: 3px;
+      padding: 1px 6px;
+      font-weight: 600;
+    }
+    .ck-ledger-count { color: #8a8578; }
+    .ck-ledger-list {
+      margin: 0;
+      padding-left: 1.35em;
+      font-size: var(--ck-fs);
+      line-height: 1.6;
+      color: #3b3a37;
+    }
+    .ck-ledger-list > li { margin: 2px 0; }
+    /* Personal Perspective "与我相关" Focus Block */
+    .ck-self-block {
+      background: #f4f8fe;
+      border: 1px solid #d4e2f5;
+      border-left: 3.5px solid #0047ab;
+      border-radius: 3px;
+      padding: 8px 12px;
+      margin: 8px 0 10px;
+    }
+    .ck-self-title {
+      margin: 0 0 4px;
+      color: #003380;
+      font-weight: 700;
+      font-size: var(--ck-fs);
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
+    .ck-self-badge {
+      display: inline-block;
+      background: #0047ab;
+      color: #ffffff;
+      font-size: 0.68rem;
+      padding: 1px 5px;
+      border-radius: 2px;
+      font-weight: 600;
+      letter-spacing: 0.2px;
+      margin-left: 4px;
+    }
+    .ck-self-block ul, .ck-self-block ol {
+      margin: 2px 0 2px;
+      padding-left: 1.25em;
+    }
+    .ck-self-block li {
+      margin: 2px 0;
+      color: #1a1a1a;
+    }
+
+    @media(max-width: 860px) {
+      .ck-doc { padding: 22px 18px; }
+      .ck-review { grid-template-columns: 1fr; }
+      .ck-review-rule { display: none; }
+    }
+
+  </style>
+</head>
+<body>
+  <main class="page">
+    <div class="ck-doc">
+      <header class="ck-doc-header">
+        <h1>出门必带物品闲聊讨论会</h1>
+      </header>
+      <div class="ck-doc-content">
+        <h1 class="ck-doc-h1">对话概况</h1><p>本次为多人闲聊式讨论，由发言人2发起“出门必带的三样东西”提问，各发言人围绕个人随身物品习惯展开分享，话题随后由皮圈自然延伸至头发绑扎与个人形象，再由带伞话题转入下雨季节与园区积水讨论。主要话题包括：出门必带物品、头发绑扎与个人形象、下雨季节与园区积水。各发言人分享以个人习惯为主，未形成明确结论；差异主要体现在必带物品选择上，如发言人2强调指甲刀与刮胡刀，发言人1坚持带钥匙但家中用指纹锁，发言人5每日必带手机、耳机和工卡，发言人3建议带纸巾和伞。值得记录的锚点包括：发言人2上班必带三件套（充电宝、手机、刮胡刀）且平均每三天带一次刮胡刀；发言人2曾留胡子被误认为新疆少数民族；发言人3提到李博家因地势低曾被淹。</p><h1 class="ck-doc-h1">交流内容</h1><ol><li><strong>出门必带物品</strong>：发言人2起头问大家出门必带三样东西，各人分享习惯，无定论。</li></ol><ul><li><strong>发言人2</strong>：主张必带<code>手机</code>、<code>充电宝</code>、<code>指甲刀</code>，指甲刀可磨手掌、戳钥匙；上班三件套为<code>充电宝</code>、<code>手机</code>、<code>刮胡刀</code>，平均<code>每三天</code>带一次刮胡刀，因胡子<code>一天长几毫米</code>，不带会痒。</li><li><strong>发言人1</strong>：表示必须带<code>钥匙</code>，但家中用<code>指纹锁</code>，实际无需钥匙；上班只带手机，出差才带工卡；领<code>夜宵</code>需工卡。</li><li><strong>发言人5</strong>：每天必带<code>手机</code>、<code>耳机</code>、<code>工卡</code>；耳机和工卡放单位，工卡用于<code>刷脸</code>进门和领夜宵。</li><li><strong>发言人3</strong>：建议出门带<code>纸巾</code>和<code>伞</code>。</li><li><strong>发言人2</strong>：回应充电宝话题，认为最好带<code>砖头重量</code>的充电宝，既能充电也能防身。</li></ul><ol><li><strong>头发绑扎与个人形象</strong>：由发言人4带<code>皮圈</code>引出，讨论头发绑扎与留长发胡子的形象偏好。</li></ol><ul><li><strong>发言人4</strong>：表示一定会带<code>皮圈</code>绑头发，否则头发想绑时不便。</li><li><strong>发言人2</strong>：好奇初中男生为何薅女生<code>头发圈</code>，不理解兴趣点；认为绑头发显得<code>脑袋大</code>，若自己是女生会选择披发。</li><li><strong>发言人1</strong>：认为散头发比绑着好看，不希望女生绑发。</li><li><strong>发言人2</strong>：分享曾想留<code>长发</code>和<code>大胡子</code>的梦想，因打理困难放弃；尝试留胡子时被误认为<code>新疆少数民族</code>。</li></ul><ol><li><strong>下雨季节与园区积水</strong>：由带伞话题引出，讨论北京下雨规律及园区积水经历。</li></ol><ul><li><strong>发言人1</strong>：认为北京下雨少、<code>无季节性</code>，夏天易下<code>暴雨</code>。</li><li><strong>发言人3</strong>：提到每年下雨<code>园区门口</code>都积水，<code>李博</code>家曾被淹，因其地势低。</li><li><strong>发言人2</strong>：建议住<code>三楼以上</code>以防水淹。</li></ul><h1 class="ck-doc-h1">关键原话</h1><div class="ck-quote">“手机充电宝指甲刀。指甲刀得对呀，因为那个指甲刀是多重指甲刀，比如说还有那个刮刮指甲呀，然后磨摸手掌啊什么的。”</div><ul><li>背景：发言人2回答“出门必带的三样东西是什么”时列举自己的必带物品。</li></ul><div class="ck-quote">“对呀，我必须带钥匙，不带钥匙就行。”</div><ul><li>背景：发言人1回应发言人2的提问，说明自己出门必须带钥匙。</li></ul><div class="ck-quote">“我我已经好多年的电子锁了，我都没什么钥匙的概念了都。然后所以说拿指甲刀来平替钥匙了。”</div><ul><li>背景：发言人2解释自己因长期使用电子锁而不再需要钥匙，用指甲刀替代。</li></ul><div class="ck-quote">“对，所以说我上班必带三件套，充电宝、手机、刮胡刀。”</div><ul><li>背景：发言人2总结自己上班时的必带物品。</li></ul><div class="ck-quote">“我现在每天就是手机、耳机和工卡。”</div><ul><li>背景：发言人5回应“上班带什么”时列举自己的每日必带物品。</li></ul><div class="ck-quote">“充电宝我是觉得既能充电也能防身最好带一块那个一块砖的那个重量的充电宝的这样的一个状态。”</div><ul><li>背景：发言人2讨论充电宝用途时提出带砖头重量充电宝的建议。</li></ul><div class="ck-quote">“反正要是我是女的，我肯定不绑。要一绑的话，我自个的角度就觉得显得自己脑袋很大。”</div><ul><li>背景：发言人2讨论女生绑头发话题时表达自己的看法。</li></ul><div class="ck-quote">“他住的一楼吗？是被淹了的时候。”</div><ul><li>背景：发言人2追问发言人3提到的李博家被淹情况。</li></ul><h1 class="ck-doc-h1">共识与分歧</h1><p>本场为分享漫谈型讨论，以个人习惯分享为主，未形成明确共识或分歧。<strong>大家普遍认同出门必带物品以实用、解决即时需求为导向</strong>，如手机、充电宝、钥匙、纸巾等，依据是这些物品能应对充电、开门、清洁等日常场景；同时，<strong>多数人认可电子锁替代实体钥匙的便利性</strong>，发言人1、发言人2均提及家中使用指纹锁或电子锁，故钥匙不再是必带品，这反映了对技术替代传统习惯的接受。分歧主要体现在物品选择与使用习惯上，性质为<strong>习惯差异与审美差异</strong>：如发言人2强调带刮胡刀、指甲刀等个人护理工具，依据是胡子生长快、需随时打理，而发言人5则选择耳机、工卡，依据是通勤与门禁需求；在头发绑扎问题上，发言人2认为绑发显脑袋大、倾向披发，属审美偏好，发言人4则因实际需要必带皮圈。</p><p>此外，关于下雨季节的认知存在分歧，发言人1认为北京下雨无季节性、夏天多暴雨，发言人3则提及园区门口每年积水，发言人2据此建议住三楼以上，分歧源于各自经验与观察角度不同。</p><h1 class="ck-doc-h1">延伸话题与后续</h1><ol><li><strong>为什么初中男生喜欢薅女生头发圈</strong>：发言人2在讨论皮圈话题时提出，表示不理解这个兴趣点在哪里，发言人1回应称自己没有特别爱好，不想薅这个玩意，话题未深入展开。</li><li><strong>为什么秋天容易下雨</strong>：发言人2在讨论带伞话题时提出，认为通常春天容易下雨，发言人1回应称北京下雨少、无季节性，发言人4认为北京夏天容易下雨，话题未形成定论。</li></ol>
+      </div>
+    </div>
+  </main>
+</body>
+</html>

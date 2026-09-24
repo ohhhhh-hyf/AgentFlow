@@ -1,0 +1,440 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>十四届全国人大三次会议开幕 审议政府工作报告</title>
+  <style>
+
+    body {
+      margin: 0;
+      padding: 14px 12px;
+      background: #f6f5f0;
+      color: #1a1a1a;
+      font-family: "Latin Modern Roman", "Computer Modern Roman", "CMU Serif", "Times New Roman", Times, "Songti SC", "SimSun", "STSong", serif;
+      -webkit-font-smoothing: antialiased;
+    }
+    .page { max-width: 1140px; margin: 0 auto; }
+    .ck-doc {
+      background: #ffffff;
+      border: 1px solid #d4d0c7;
+      border-radius: 4px;
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.05), 0 1px 3px rgba(0,0,0,0.03);
+      padding: 18px 22px;
+      line-height: 1.6;
+      font-size: 0.84rem;      /* 正文基准：左右两栏共用 --ck-fs */
+      --ck-fs: 0.84rem;
+    }
+    .ck-doc h1 {
+      margin: 0 0 6px;
+      font-size: 1.05rem;      /* 文档标题：只比正文略大一点 */
+      font-weight: 700;
+      text-align: center;
+      color: #111111;
+    }
+    .ck-doc-header {
+      margin-bottom: 10px;
+      padding-bottom: 8px;
+      border-bottom: 1px solid #111111;
+      text-align: center;
+    }
+    .ck-doc-meta {
+      font-size: 0.78rem;
+      color: #555555;
+      font-style: italic;
+    }
+    /* 层级标题一律"加粗 + 与右栏同级字号"，不加字号、不加下划线，前后留白压到最小 */
+    .ck-doc-content h1, .ck-doc-content .ck-doc-h1,
+    .ck-doc h2, .ck-doc-h2,
+    .ck-doc h3, .ck-doc-h3,
+    .ck-doc h4, .ck-doc-h4 {
+      font-size: var(--ck-fs);
+      font-weight: 700;
+      color: #111111;
+      border-bottom: 0;
+      padding-bottom: 0;
+      letter-spacing: 0;
+      font-variant: normal;
+      text-align: left;
+    }
+    .ck-doc-content h1, .ck-doc-content .ck-doc-h1, .ck-doc h2, .ck-doc-h2 {
+      margin: 12px 0 4px;
+    }
+    .ck-doc h3, .ck-doc-h3, .ck-doc h4, .ck-doc-h4 {
+      margin: 9px 0 3px;
+    }
+    .ck-doc p {
+      margin: 5px 0;
+      line-height: 1.6;
+      text-align: justify;
+    }
+    .ck-doc ul, .ck-doc ol {
+      margin: 4px 0 6px;
+      padding-left: 1.25em;
+      line-height: 1.6;
+    }
+    .ck-doc li {
+      margin: 2px 0;
+    }
+    .ck-doc blockquote, .ck-quote {
+      margin: 6px 0 8px;
+      padding: 5px 10px;
+      background: #faf9f6;
+      border-left: 3px solid #222222;
+      border-radius: 2px;
+      color: #222222;
+      font-size: var(--ck-fs);
+      font-style: italic;
+    }
+    .ck-doc code {
+      background: #f3f0e8;
+      border: 1px solid #e2ddd3;
+      border-radius: 3px;
+      padding: 1px 6px;
+      font-family: "Latin Modern Mono", Consolas, monospace;
+      font-size: 0.88em;
+    }
+    .ck-doc table, .ck-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: var(--ck-fs);
+      margin: 8px 0;
+      background: #ffffff;
+      border-top: 2px solid #222222;
+      border-bottom: 2px solid #222222;
+    }
+    .ck-doc table th, .ck-doc table td, .ck-table th, .ck-table td {
+      padding: 5px 8px;
+      text-align: left;
+      vertical-align: middle;
+      border-bottom: 1px solid #ede9e1;
+    }
+    .ck-doc table th, .ck-table th {
+      background: #fbfaf7;
+      border-bottom: 1.2px solid #222222;
+      font-weight: 700;
+      color: #111111;
+      letter-spacing: 0.3px;
+    }
+
+    /* Roomy & Spacious Academic Risk Table */
+    .ck-risk-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 18px 0 28px;
+      background: #ffffff;
+      border-top: 2.2px solid #111111;
+      border-bottom: 2.2px solid #111111;
+      font-size: 0.93rem;
+      line-height: 1.72;
+    }
+    .ck-risk-table th {
+      background: #faf8f5;
+      border-bottom: 1.5px solid #111111;
+      padding: 15px 16px;
+      font-weight: 700;
+      color: #111111;
+      letter-spacing: 0.3px;
+      text-align: left;
+      vertical-align: middle;
+    }
+    .ck-risk-table td {
+      padding: 16px 16px;
+      border-bottom: 1px solid #ede8e0;
+      vertical-align: top;
+      color: #1a1a1a;
+      word-break: break-word;
+    }
+    .ck-risk-table tr:nth-child(even) td {
+      background: #fdfcfb;
+    }
+    .ck-risk-table tr:hover td {
+      background: #f6f3eb;
+    }
+
+    /* Review Grid */
+    .ck-review {
+      display: grid;
+      grid-template-columns: minmax(0, 1.35fr) 1px minmax(260px, 0.95fr);
+      border: 1px solid #d4d0c7;
+      border-radius: 4px;
+      overflow: hidden;
+      margin: 8px 0 10px;
+      background: #ffffff;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.03);
+    }
+    .ck-review-left {
+      padding: 14px 16px;
+      background: #ffffff;
+      line-height: 1.6;
+      font-size: var(--ck-fs);
+    }
+    .ck-review-rule { background: #dcd8cf; }
+    .ck-review-right {
+      padding: 12px 14px;
+      background: #faf9f6;
+      box-sizing: border-box;
+      display: flex;
+      flex-direction: column;
+    }
+    .ck-ev-list {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    /* Entity Highlight in LaTeX Paper Style */
+    .ck-cite-entity {
+      background: #fff8db;
+      border-bottom: 1.5px solid #b86a04;
+      padding: 1px 4px;
+      border-radius: 2px;
+      cursor: pointer;
+      transition: all 0.18s ease;
+      color: #111111;
+      font-weight: 600;
+    }
+    .ck-cite-entity:hover {
+      background: #ffe58f;
+      color: #000000;
+    }
+    .ck-cite-entity.is-on {
+      background: #ffd54a;
+      border-bottom-color: #0047ab;
+      box-shadow: 0 0 0 2px rgba(0,71,171,0.25);
+    }
+
+    /* Blue Hyperref Citations [1], [2] */
+    .ck-cite-ref {
+      color: #0047ab;
+      font-weight: 600;
+      font-family: "Latin Modern Roman", "Computer Modern Roman", "Times New Roman", serif;
+      text-decoration: none;
+      cursor: pointer;
+      padding: 0 2px;
+      margin: 0 2px;
+      border-radius: 2px;
+      transition: all 0.15s ease;
+      font-size: 0.92em;
+      vertical-align: baseline;
+      user-select: none;
+    }
+    .ck-cite-ref:hover {
+      text-decoration: underline;
+      background: #e8f0fe;
+      color: #003380;
+    }
+    .ck-cite-ref.is-active {
+      background: #d2e3fc;
+      color: #002266;
+      font-weight: 700;
+      box-shadow: 0 0 0 1px #0047ab;
+    }
+
+    /* Right Memory Cards in LaTeX Paper Style */
+    .ck-provenance-head {
+      font-size: 0.82rem;
+      font-weight: 700;
+      color: #222222;
+      margin: 0 0 12px;
+      padding-bottom: 6px;
+      border-bottom: 1px solid #e0dcd4;
+      letter-spacing: 0.3px;
+      text-transform: uppercase;
+    }
+    .ck-ref-icon { color: #0047ab; margin-right: 4px; }
+    .ck-ev {
+      display: block;
+      margin: 0;
+      padding: 10px 12px;
+      border: 1px solid #dedad2;
+      border-left: 3.5px solid #0047ab;
+      border-radius: 2px;
+      background: #ffffff;
+      font-size: 0.82rem;
+      line-height: 1.55;
+      transition: all 0.2s ease;
+      cursor: pointer;
+    }
+    .ck-ev:hover { border-color: #b5b0a5; }
+    .ck-ev.is-on, .ck-ev.is-highlighted {
+      border-color: #0047ab;
+      box-shadow: 0 0 0 2px #0047ab, 0 3px 8px rgba(0,71,171,0.15);
+      background: #f0f5ff;
+    }
+    @keyframes citePulse {
+      0% { background: #dbeafe; box-shadow: 0 0 0 3px #0047ab; }
+      50% { background: #bfdbfe; box-shadow: 0 0 0 4px #0047ab; }
+      100% { background: #f0f5ff; box-shadow: 0 0 0 2px #0047ab; }
+    }
+    .ck-ev-k {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 0.75rem;
+      color: #444444;
+      margin-bottom: 5px;
+      font-weight: 700;
+    }
+    .ck-ev-cite-tag {
+      color: #0047ab;
+      font-weight: 700;
+      font-family: "Latin Modern Roman", serif;
+      text-decoration: none;
+    }
+    .ck-ev-kind-badge {
+      display: inline-block;
+      padding: 1px 6px;
+      border-radius: 2px;
+      font-size: 0.72rem;
+      font-weight: 600;
+      letter-spacing: 0.2px;
+    }
+    .ck-badge-keypoint {
+      border: 1px solid #0047ab;
+      color: #0047ab;
+      background: #f0f5ff;
+    }
+    .ck-badge-note {
+      border: 1px solid #b86a04;
+      color: #b86a04;
+      background: #fff8eb;
+    }
+    .ck-mem-title {
+      font-weight: 700;
+      color: #111111;
+      font-size: var(--ck-fs);
+      margin-bottom: 4px;
+      line-height: 1.5;
+    }
+    .ck-ev-quote {
+      color: #222222;
+      font-style: normal;
+      font-family: inherit;
+      margin: 4px 0 6px;
+      padding: 0;
+      background: transparent;
+      border: none;
+      line-height: 1.6;
+      font-size: var(--ck-fs);
+    }
+    .ck-ev-meta { font-size: 0.76rem; color: #666666; margin-top: 4px; }
+    .ck-ev-more {
+      margin-top: 2px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+    .ck-ev-more[open] { margin-top: 4px; }
+    .ck-ev-more summary { margin-bottom: 6px; }
+    .ck-proof-toggle {
+      cursor: pointer;
+      font-size: 0.82rem;
+      color: #0047ab;
+      user-select: none;
+      font-family: inherit;
+      padding: 2px 0;
+    }
+    .ck-proof-toggle:hover { text-decoration: underline; }
+    /* 右栏下段"状态演进"：无行内锚点，与上方证据卡视觉区分（灰底 + 徽章，无 [n]） */
+    .ck-ledger {
+      margin-top: 10px;
+      padding-top: 8px;
+      border-top: 1px dashed #d4d0c7;
+    }
+    .ck-ledger > summary { list-style: none; }
+    .ck-ledger > summary::-webkit-details-marker { display: none; }
+    .ck-ledger > summary::after { content: " ▾"; }
+    .ck-ledger:not([open]) > summary::after { content: " ▸"; }
+    /* 每类一张小灰卡：卡头类别 + 条数，卡内按 1. 2. 3. 编号 */
+    .ck-ledger-card {
+      background: #faf9f5;
+      border: 1px solid #e6e2d8;
+      border-left: 3px solid #bdb6a6;
+      border-radius: 4px;
+      padding: 7px 9px;
+      margin-bottom: 6px;
+    }
+    .ck-ledger-k {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 6px;
+      font-size: 0.72rem;
+      margin-bottom: 5px;
+    }
+    .ck-ledger-badge {
+      background: #efece4;
+      color: #6b6559;
+      border-radius: 3px;
+      padding: 1px 6px;
+      font-weight: 600;
+    }
+    .ck-ledger-count { color: #8a8578; }
+    .ck-ledger-list {
+      margin: 0;
+      padding-left: 1.35em;
+      font-size: var(--ck-fs);
+      line-height: 1.6;
+      color: #3b3a37;
+    }
+    .ck-ledger-list > li { margin: 2px 0; }
+    /* Personal Perspective "与我相关" Focus Block */
+    .ck-self-block {
+      background: #f4f8fe;
+      border: 1px solid #d4e2f5;
+      border-left: 3.5px solid #0047ab;
+      border-radius: 3px;
+      padding: 8px 12px;
+      margin: 8px 0 10px;
+    }
+    .ck-self-title {
+      margin: 0 0 4px;
+      color: #003380;
+      font-weight: 700;
+      font-size: var(--ck-fs);
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
+    .ck-self-badge {
+      display: inline-block;
+      background: #0047ab;
+      color: #ffffff;
+      font-size: 0.68rem;
+      padding: 1px 5px;
+      border-radius: 2px;
+      font-weight: 600;
+      letter-spacing: 0.2px;
+      margin-left: 4px;
+    }
+    .ck-self-block ul, .ck-self-block ol {
+      margin: 2px 0 2px;
+      padding-left: 1.25em;
+    }
+    .ck-self-block li {
+      margin: 2px 0;
+      color: #1a1a1a;
+    }
+
+    @media(max-width: 860px) {
+      .ck-doc { padding: 22px 18px; }
+      .ck-review { grid-template-columns: 1fr; }
+      .ck-review-rule { display: none; }
+    }
+
+  </style>
+</head>
+<body>
+  <main class="page">
+    <div class="ck-doc">
+      <header class="ck-doc-header">
+        <h1>十四届全国人大三次会议开幕 审议政府工作报告</h1>
+      </header>
+      <div class="ck-doc-content">
+        <h2 class="ck-doc-h2">报告概况</h2><p>十四届全国人大三次会议于2025年开幕，出席代表2880人，符合法定人数，会议第一项议程为审议政府工作报告，由国务院总理李强代表国务院作报告。报告回顾2024年工作，提出2025年经济社会发展主要预期目标与政府工作任务，整体基调为稳中求进、迎难而上，强调扩大内需、发展新质生产力、深化改革扩大开放、防范化解风险、保障改善民生，确保“十四五”规划圆满收官。2024年国内生产总值达134.9万亿元、增长5%，城镇新增就业1256万人，粮食产量首次跃上1.4万亿斤新台阶；2025年预期国内生产总值增长5%左右，赤字率拟按4%左右安排，实施更加积极的财政政策和适度宽松的货币政策。</p><h2 class="ck-doc-h2">核心政策</h2><ol><li><strong>2025年经济社会发展主要预期目标</strong>：国内生产总值增长<strong>5%左右</strong>；城镇调查失业率<strong>5.5%左右</strong>；城镇新增就业<strong>1200万人以上</strong>；居民消费价格涨幅<strong>2%左右</strong>；居民收入增长和经济增长同步；国际收支保持基本平衡；粮食产量<strong>1.4万亿斤左右</strong>；单位国内生产总值能耗降低<strong>3%左右</strong>；生态环境质量持续改善。</li></ol><ol><li><strong>更加积极的财政政策</strong>：今年赤字率拟按<strong>4%左右</strong>安排，赤字规模<strong>5.66万亿元</strong>；拟发行超长期特别国债<strong>1.3万亿元</strong>；拟发行特别国债<strong>5000亿元</strong>支持国有大型商业银行补充资本；安排地方政府专项债券<strong>4.4万亿元</strong>；今年合计新增政府债务总规模<strong>11.86万亿元</strong>，比上一年增加<strong>2.9万亿元</strong>；中央财政加大地方一般性转移支付力度，筑牢兜实基层<code>三保</code>底线。</li></ol><ol><li><strong>适度宽松的货币政策</strong>：适时降准降息，保持流动性充裕，使社会融资规模、货币供应量增长同经济增长、价格总水平预期目标相匹配；优化和创新结构性货币政策工具，促进楼市股市健康发展；进一步疏通货币政策传导渠道，推动社会综合融资成本下降。</li></ol><ol><li><strong>大力提振消费、全方位扩大国内需求</strong>：实施<code>提振消费专项行动</code>，制定提升消费能力、增加优质供给、改善消费环境专项措施；安排超长期特别国债<strong>3000亿元</strong>支持消费品以旧换新；扩大健康、养老、托幼、家政等多元化服务供给；加快数字、绿色、智能等新型消费发展；今年中央预算内投资已安排<strong>7350亿元</strong>，用好超长期特别国债更大力度支持<code>两重</code>建设。</li></ol><ol><li><strong>因地制宜发展新质生产力、加快建设现代化产业体系</strong>：深入推进战略性新兴产业融合集群发展，开展<code>新技术、新产品、新场景大规模应用示范行动</code>；培育生物制造、量子科技、具身智能、6G等未来产业；深入实施<code>制造业重大技术改造升级和大规模设备更新工程</code>；持续推进<code>人工智能+</code>行动，大力发展智能网联新能源汽车、人工智能手机和电脑、智能机器人等新一代智能终端，扩大5G规模化应用。</li></ol><ol><li><strong>深入实施科教兴国战略</strong>：制定实施<code>教育强国建设三年行动计划</code>，加强义务教育学校标准化建设，扩大高中阶段教育学位供给，逐步推行免费学前教育；加快组织实施和超前布局重大科技项目，加强企业主导的产学研深度融合；大力支持和大胆使用青年科技人才，深化人才分类评价改革。</li></ol><ol><li><strong>推动标志性改革举措加快落地</strong>：高质量完成<code>国有企业改革深化提升行动</code>；加力推进清理拖欠企业账款工作，开展<code>规范涉企执法专项行动</code>；纵深推进全国统一大市场建设，综合整治<code>内卷式</code>竞争，修订出台新版市场准入负面清单；开展中央部门<code>零基预算改革试点</code>，加快推进部分品目消费税征收环节后移并下划地方；深化资本市场投融资综合改革，大力推动中长期资金入市。</li></ol><ol><li><strong>扩大高水平对外开放</strong>：扩大出口信用保险承保规模和覆盖面，促进跨境电商发展，加强海外仓建设；推进服务业扩大开放综合试点示范，扩大电信、医疗、教育等领域开放试点；推动高质量共建<code>一带一路</code>走深走实，统筹推进重大标志性工程和<code>小而美</code>民生项目建设。</li></ol><ol><li><strong>有效防范化解重点领域风险</strong>：持续用力推动房地产市场止跌回稳，合理控制新增房地产用地供应，推进收购存量商品房，加快构建房地产发展新模式；完善和落实一揽子化债方案，动态调整债务高风险地区名单，坚决遏制违规举债行为；一体推进地方中小金融机构风险处置和转型发展，综合采取补充资本金、兼并重组、市场退出等方式分类化解风险。</li></ol><ol><li><strong>着力抓好三农工作、推进乡村全面振兴</strong>：稳定粮食播种面积，主攻单产和品质提升，严守耕地红线，高质量推进高标准农田建设，深入实施<code>种业振兴行动</code>；确保不发生规模性返贫致贫，统筹建立农村防止返贫致贫机制和低收入人口、欠发达地区分类分层帮扶制度；有序推进第二轮土地承包到期后再延长<strong>30年</strong>试点，扩大整省试点范围。</li></ol><ol><li><strong>推进新型城镇化和区域协调发展</strong>：深入实施<code>新型城镇化战略行动</code>，科学有序推进农业转移人口市民化，全面推进常住地提供基本公共服务；持续推进城市更新和城镇老旧小区改造；支持经济大省挑大梁，深化东中西东北地区产业协作。</li></ol><ol><li><strong>协同推进降碳减污扩绿增长</strong>：持续深入推进蓝天碧水净土保卫战，全面推进以国家公园为主体的自然保护地体系建设；深入实施<code>绿色低碳先进技术示范工程</code>，培育绿色建筑等新增长点；积极稳妥推进碳达峰碳中和，建立一批零碳园区、零碳工厂，建立产品碳足迹管理体系和碳标识认证制度，加快建设沙戈荒新能源基地。</li></ol><ol><li><strong>加大保障和改善民生力度</strong>：实施<code>重点领域、重点行业、城乡基层和中小微企业就业支持计划</code>，开展大规模职业技能提升培训；深化以公益性为导向的公立医院改革，优化药品集采政策，健全药品价格形成机制，支持创新药发展；城乡居民基础养老金最低标准再提高<strong>20元</strong>，适当提高退休人员基本养老金；制定促进生育政策，发放育儿补贴，大力发展托幼一体服务。</li></ol><ol><li><strong>维护国家安全和社会稳定</strong>：全面贯彻总体国家安全观，深入实施<code>安全生产治本攻坚三年行动</code>，抓好校园学生餐、餐饮平台、外卖安全监管，做好自然灾害防范应对，推进基层综治中心规范化建设，建设更高水平的平安中国。</li></ol><h2 class="ck-doc-h2">重点工作</h2><h3 class="ck-doc-h3">扩大国内需求</h3><ol><li><strong>提振消费专项行动</strong>：实施提振消费专项行动，制定提升消费能力、增加优质供给、改善消费环境专项措施，释放多样化、差异化消费潜力，多渠道促进居民增收。</li></ol><ul><li>安排超长期特别国债3000亿元支持消费品以旧换新。</li><li>扩大健康、养老、托幼、家政等多元化服务供给，加快数字、绿色、智能等新型消费发展，释放文化、旅游、体育等消费潜力。</li><li>强化消费者权益保护，营造安心放心消费环境。</li></ul><ol><li><strong>扩大有效投资</strong>：发挥各类政府投资工具作用，加快实施一批重点项目，切实选准选好项目、管好用好资金，坚决防止低效无效投资。</li></ol><ul><li>今年中央预算内投资已安排7350亿元，用超长期特别国债更大力度支持“两重”建设。</li><li>优化地方政府专项债券管理机制，支持和鼓励民间投资发展，让民间资本有更大发展空间。</li></ul><h3 class="ck-doc-h3">现代化产业体系建设</h3><ol><li><strong>培育壮大新兴产业、未来产业</strong>：深入推进战略性新兴产业融合集群发展，开展新技术、新产品、新场景大规模应用示范行动，培育生物制造、量子科技、具身智能、6G等未来产业。</li></ol><ul><li>加强产业统筹布局和产能监测预警，梯度培育创新型企业，让更多企业在新领域新赛道跑出加速度。</li></ul><ol><li><strong>推动传统产业改造升级</strong>：深入实施制造业重大技术改造升级和大规模设备更新工程，加快制造业数字化转型，开展标准提升引领传统产业优化升级行动，打造名品精品经典产业。</li><li><strong>激发数字经济创新活力</strong>：持续推进“人工智能+”行动，大力发展智能网联新能源汽车、人工智能手机和电脑、智能机器人等新一代智能终端，扩大5G规模化应用。</li></ol><ul><li>优化全国算力资源布局，深化数据资源开发利用，促进平台经济规范健康发展。</li></ul><h3 class="ck-doc-h3">科教兴国战略</h3><ol><li><strong>加快建设高质量教育体系</strong>：制定实施教育强国建设三年行动计划，加强义务教育学校标准化建设，扩大高中阶段教育学位供给，逐步推行免费学前教育。</li></ol><ul><li>扎实推进优质本科扩容，加快“双一流”建设，建设高素质专业化教师队伍，加强师德师风建设，加快从教育大国向教育强国迈进。</li></ul><ol><li><strong>推进高水平科技自立自强</strong>：加快组织实施和超前布局重大科技项目，优化国家战略科技力量布局，推进科研院所改革，加强企业主导的产学研深度融合。</li></ol><ul><li>从制度上保障企业参与国家科技创新决策、承担重大科技项目，健全科技成果转化支持政策和市场服务，加强科学普及工作，推动形成鼓励探索、宽容失败的创新环境。</li></ul><ol><li><strong>全面提高人才队伍质量</strong>：加快建设国家战略人才力量，大力支持和大胆使用青年科技人才，建设一流产业技术工人队伍，深化人才分类评价改革，鼓励各类人才潜心钻研、厚积薄发。</li></ol><h3 class="ck-doc-h3">标志性改革举措</h3><ol><li><strong>激发各类经营主体活力</strong>：坚持和落实“两个毫不动摇”，高质量完成国有企业改革深化提升行动，扎实落实促进民营经济发展的政策措施。</li></ol><ul><li>加力推进清理拖欠企业账款工作，开展规范涉企执法专项行动。政府要寓管理于服务之中，用服务的暖心增强企业的信心。</li></ul><ol><li><strong>纵深推进全国统一大市场建设</strong>：破除地方保护和市场分割，综合整治“内卷式”竞争，修订出台新版市场准入负面清单，优化新业态新领域市场准入环境。</li></ol><ul><li>构建统一的信用修复制度，完善企业简易注销程序，逐步推广经营主体活动发生地统计。</li></ul><ol><li><strong>深化财税金融体制改革</strong>：开展中央部门零基预算改革试点，支持地方深化零基预算改革，加快推进部分品目消费税征收环节后移并下划地方。</li></ol><ul><li>深化资本市场投融资综合改革，大力推动中长期资金入市，加强战略性力量储备和稳市机制建设。</li></ul><h3 class="ck-doc-h3">高水平对外开放</h3><ol><li><strong>稳定对外贸易发展</strong>：优化融资结算、外汇等金融服务，扩大出口信用保险承保规模和覆盖面，促进跨境电商发展，加强海外仓建设。</li></ol><ul><li>拓展境外经贸合作区功能，支持内外贸一体化发展，推动服务贸易创新发展，培育绿色贸易、数字贸易等新增长点。</li></ul><ol><li><strong>大力鼓励外商投资</strong>：推进服务业扩大开放综合试点示范，扩大电信、医疗、教育等领域开放试点，加强外资企业服务保障，推动自贸试验区提质增效和扩大改革任务授权。</li></ol><ul><li>持续营造市场化、法治化、国际化一流营商环境，让外资企业更好发展。</li></ul><ol><li><strong>推动高质量共建“一带一路”走深走实</strong>：统筹推进重大标志性工程和“小而美”民生项目建设，强化法律、金融、物流等海外综合服务，优化产业链供应链国际合作布局。</li><li><strong>深化多双边和区域经济合作</strong>：持续扩大面向全球的高标准自由贸易区网络，坚定维护以世界贸易组织为核心的多边贸易体制，扩大同各国利益的汇合点，促进共同发展。</li></ol><h3 class="ck-doc-h3">防范化解重点领域风险</h3><ol><li><strong>推动房地产市场止跌回稳</strong>：合理控制新增房地产用地供应，盘活存量用地和商办用房，推进收购存量商品房，有效防范房企债务违约风险，有序搭建相关基础性制度。</li></ol><ul><li>加快构建房地产发展新模式，推动建设安全、舒适、绿色、智慧的好房子。</li></ul><ol><li><strong>稳妥化解地方政府债务风险</strong>：完善和落实一揽子化债方案，优化考核和管控措施，动态调整债务高风险地区名单，做好地方政府隐性债务置换工作。</li></ol><ul><li>完善政府债务管理机制，坚决遏制违规举债行为。</li></ul><ol><li><strong>积极防范金融领域风险</strong>：一体推进地方中小金融机构风险处置和转型发展，综合采取补充资本金、兼并重组、市场退出等方式分类化解风险。</li></ol><ul><li>健全金融监管体系，强化央地监管协同，完善应对外部风险冲击预案，有效维护金融安全稳定。</li></ul><h3 class="ck-doc-h3">乡村全面振兴</h3><ol><li><strong>增强粮食等重要农产品稳产保供能力</strong>：稳定粮食播种面积，主攻单产和品质提升，严守耕地红线，高质量推进高标准农田建设。</li></ol><ul><li>深入实施种业振兴行动，加快先进适用农机装备研发应用和农业科技成果大面积推广。各地区都要扛稳保障国家粮食安全责任，共同把饭碗端得更牢。</li></ul><ol><li><strong>巩固拓展脱贫攻坚成果</strong>：提高监测帮扶效率，确保不发生规模性返贫致贫，加强易地搬迁后续扶持，分类推进帮扶产业提质增效，加大就业帮扶力度。</li></ol><ul><li>统筹建立农村防止返贫致贫机制和低收入人口、欠发达地区分层分类帮扶制度，完善过渡期后帮扶政策体系。</li></ul><ol><li><strong>扎实推进农村改革发展</strong>：有序推进第二轮土地承包到期后再延长30年试点，扩大整省试点范围，因地制宜推动兴业、强县、富民一体发展。</li></ol><ul><li>拓宽农民增收渠道，持续改善农村基础设施、公共服务和人居环境，建设宜居宜业和美乡村。</li></ul><h3 class="ck-doc-h3">新型城镇化和区域协调发展</h3><ol><li><strong>深入实施新型城镇化战略行动</strong>：科学有序推进农业转移人口市民化，全面推进常住地提供基本公共服务，强化随迁子女义务教育保障。</li></ol><ul><li>推动将符合条件的农业转移人口纳入住房保障体系，畅通参加社会保险渠道，持续推进城市更新和城镇老旧小区改造，打造宜居、韧性、智慧城市。</li></ul><ol><li><strong>加大区域战略实施力度</strong>：发挥区域协调发展战略、区域重大战略、主体功能区战略的叠加效应，积极培育新的增长极。</li></ol><ul><li>支持经济大省挑大梁，鼓励其他地区因地制宜、各展所长，深化东、中、西、东北地区产业协作。</li></ul><h3 class="ck-doc-h3">绿色低碳发展</h3><ol><li><strong>加强污染防治和生态建设</strong>：持续深入推进蓝天、碧水、净土保卫战，全面推进以国家公园为主体的自然保护地体系建设，实施生物多样性保护重大工程。</li></ol><ul><li>积极推进美丽中国先行区建设，不断满足人民群众对良好生态环境的新期待。</li></ul><ol><li><strong>加快发展绿色低碳经济</strong>：深入实施绿色低碳先进技术示范工程，培育绿色建筑等新增长点，有力有效管控高耗能项目，加强废弃物循环利用。</li></ol><ul><li>健全绿色消费激励机制，推动形成绿色低碳生产方式和生活方式。</li></ul><ol><li><strong>积极稳妥推进碳达峰碳中和</strong>：建立一批零碳园区、零碳工厂，开展碳排放统计核算，建立产品碳足迹管理体系和碳标识认证制度，加快建设“沙戈荒”新能源基地。</li></ol><ul><li>开展煤电低碳化改造试点示范，积极参与和引领全球环境和气候治理。</li></ul><h3 class="ck-doc-h3">保障和改善民生</h3><ol><li><strong>更大力度稳定和扩大就业</strong>：实施重点领域、重点行业、城乡基层和中小微企业就业支持计划，支持劳动密集型产业吸纳和稳定就业，统筹好新技术应用和岗位转换。</li></ol><ul><li>优化就业创业服务，拓宽高校毕业生等青年就业创业渠道，加强灵活就业和新就业形态劳动者权益保障，开展大规模职业技能提升培训行动，让多劳者多得、技高者多得、创新者多得。</li></ul><ol><li><strong>强化基本医疗卫生服务</strong>：深化以公益性为导向的公立医院改革，完善薪酬制度，实施医疗卫生强基工程，优化药品集采政策，强化质量评估和监管，让人民群众用药更放心。</li></ol><ul><li>健全药品价格形成机制，支持创新药发展，完善中医药传承创新发展机制，加强疾病预防控制体系建设，严格医保基金监管，让每一分钱都用于增进人民健康福祉。</li></ul><ol><li><strong>完善社会保障和服务政策</strong>：城乡居民基础养老金最低标准再提高20元，适当提高退休人员基本养老金，推进社区支持的居家养老，强化失能老年人照护。</li></ol><ul><li>加大对老年助餐服务、康复辅助器具购置和租赁支持力度，制定促进生育政策，发放育儿补贴，大力发展托幼一体服务，完善分层分类社会救助体系，保障困难群众基本生活。</li></ul><ol><li><strong>加强精神文明建设</strong>：完善培育和践行社会主义核心价值观制度机制，发展哲学社会科学、新闻出版、广播影视、文学艺术和档案事业，推动优质文化资源直达基层。</li></ol><ul><li>健全文化产业体系和市场体系，推进群众身边的运动场地设施建设，广泛开展全民健身活动，加强青少年科学健身和健康干预，让年轻一代在运动中强意志、健身心。</li></ul><h3 class="ck-doc-h3">国家安全和社会稳定</h3><ol><li><strong>维护国家安全和社会稳定</strong>：全面贯彻总体国家安全观，加强公共安全治理，深入实施安全生产治本攻坚三年行动。</li></ol><ul><li>抓好校园学生餐、平台外卖安全监管，做好自然灾害防范应对，推进基层综治中心规范化建设，提升公共法律服务均衡性和可及性，建设更高水平的平安中国。</li></ul>
+      </div>
+    </div>
+  </main>
+</body>
+</html>

@@ -1,0 +1,440 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>社区建设与教育项目周会</title>
+  <style>
+
+    body {
+      margin: 0;
+      padding: 14px 12px;
+      background: #f6f5f0;
+      color: #1a1a1a;
+      font-family: "Latin Modern Roman", "Computer Modern Roman", "CMU Serif", "Times New Roman", Times, "Songti SC", "SimSun", "STSong", serif;
+      -webkit-font-smoothing: antialiased;
+    }
+    .page { max-width: 1140px; margin: 0 auto; }
+    .ck-doc {
+      background: #ffffff;
+      border: 1px solid #d4d0c7;
+      border-radius: 4px;
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.05), 0 1px 3px rgba(0,0,0,0.03);
+      padding: 18px 22px;
+      line-height: 1.6;
+      font-size: 0.84rem;      /* 正文基准：左右两栏共用 --ck-fs */
+      --ck-fs: 0.84rem;
+    }
+    .ck-doc h1 {
+      margin: 0 0 6px;
+      font-size: 1.05rem;      /* 文档标题：只比正文略大一点 */
+      font-weight: 700;
+      text-align: center;
+      color: #111111;
+    }
+    .ck-doc-header {
+      margin-bottom: 10px;
+      padding-bottom: 8px;
+      border-bottom: 1px solid #111111;
+      text-align: center;
+    }
+    .ck-doc-meta {
+      font-size: 0.78rem;
+      color: #555555;
+      font-style: italic;
+    }
+    /* 层级标题一律"加粗 + 与右栏同级字号"，不加字号、不加下划线，前后留白压到最小 */
+    .ck-doc-content h1, .ck-doc-content .ck-doc-h1,
+    .ck-doc h2, .ck-doc-h2,
+    .ck-doc h3, .ck-doc-h3,
+    .ck-doc h4, .ck-doc-h4 {
+      font-size: var(--ck-fs);
+      font-weight: 700;
+      color: #111111;
+      border-bottom: 0;
+      padding-bottom: 0;
+      letter-spacing: 0;
+      font-variant: normal;
+      text-align: left;
+    }
+    .ck-doc-content h1, .ck-doc-content .ck-doc-h1, .ck-doc h2, .ck-doc-h2 {
+      margin: 12px 0 4px;
+    }
+    .ck-doc h3, .ck-doc-h3, .ck-doc h4, .ck-doc-h4 {
+      margin: 9px 0 3px;
+    }
+    .ck-doc p {
+      margin: 5px 0;
+      line-height: 1.6;
+      text-align: justify;
+    }
+    .ck-doc ul, .ck-doc ol {
+      margin: 4px 0 6px;
+      padding-left: 1.25em;
+      line-height: 1.6;
+    }
+    .ck-doc li {
+      margin: 2px 0;
+    }
+    .ck-doc blockquote, .ck-quote {
+      margin: 6px 0 8px;
+      padding: 5px 10px;
+      background: #faf9f6;
+      border-left: 3px solid #222222;
+      border-radius: 2px;
+      color: #222222;
+      font-size: var(--ck-fs);
+      font-style: italic;
+    }
+    .ck-doc code {
+      background: #f3f0e8;
+      border: 1px solid #e2ddd3;
+      border-radius: 3px;
+      padding: 1px 6px;
+      font-family: "Latin Modern Mono", Consolas, monospace;
+      font-size: 0.88em;
+    }
+    .ck-doc table, .ck-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: var(--ck-fs);
+      margin: 8px 0;
+      background: #ffffff;
+      border-top: 2px solid #222222;
+      border-bottom: 2px solid #222222;
+    }
+    .ck-doc table th, .ck-doc table td, .ck-table th, .ck-table td {
+      padding: 5px 8px;
+      text-align: left;
+      vertical-align: middle;
+      border-bottom: 1px solid #ede9e1;
+    }
+    .ck-doc table th, .ck-table th {
+      background: #fbfaf7;
+      border-bottom: 1.2px solid #222222;
+      font-weight: 700;
+      color: #111111;
+      letter-spacing: 0.3px;
+    }
+
+    /* Roomy & Spacious Academic Risk Table */
+    .ck-risk-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 18px 0 28px;
+      background: #ffffff;
+      border-top: 2.2px solid #111111;
+      border-bottom: 2.2px solid #111111;
+      font-size: 0.93rem;
+      line-height: 1.72;
+    }
+    .ck-risk-table th {
+      background: #faf8f5;
+      border-bottom: 1.5px solid #111111;
+      padding: 15px 16px;
+      font-weight: 700;
+      color: #111111;
+      letter-spacing: 0.3px;
+      text-align: left;
+      vertical-align: middle;
+    }
+    .ck-risk-table td {
+      padding: 16px 16px;
+      border-bottom: 1px solid #ede8e0;
+      vertical-align: top;
+      color: #1a1a1a;
+      word-break: break-word;
+    }
+    .ck-risk-table tr:nth-child(even) td {
+      background: #fdfcfb;
+    }
+    .ck-risk-table tr:hover td {
+      background: #f6f3eb;
+    }
+
+    /* Review Grid */
+    .ck-review {
+      display: grid;
+      grid-template-columns: minmax(0, 1.35fr) 1px minmax(260px, 0.95fr);
+      border: 1px solid #d4d0c7;
+      border-radius: 4px;
+      overflow: hidden;
+      margin: 8px 0 10px;
+      background: #ffffff;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.03);
+    }
+    .ck-review-left {
+      padding: 14px 16px;
+      background: #ffffff;
+      line-height: 1.6;
+      font-size: var(--ck-fs);
+    }
+    .ck-review-rule { background: #dcd8cf; }
+    .ck-review-right {
+      padding: 12px 14px;
+      background: #faf9f6;
+      box-sizing: border-box;
+      display: flex;
+      flex-direction: column;
+    }
+    .ck-ev-list {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    /* Entity Highlight in LaTeX Paper Style */
+    .ck-cite-entity {
+      background: #fff8db;
+      border-bottom: 1.5px solid #b86a04;
+      padding: 1px 4px;
+      border-radius: 2px;
+      cursor: pointer;
+      transition: all 0.18s ease;
+      color: #111111;
+      font-weight: 600;
+    }
+    .ck-cite-entity:hover {
+      background: #ffe58f;
+      color: #000000;
+    }
+    .ck-cite-entity.is-on {
+      background: #ffd54a;
+      border-bottom-color: #0047ab;
+      box-shadow: 0 0 0 2px rgba(0,71,171,0.25);
+    }
+
+    /* Blue Hyperref Citations [1], [2] */
+    .ck-cite-ref {
+      color: #0047ab;
+      font-weight: 600;
+      font-family: "Latin Modern Roman", "Computer Modern Roman", "Times New Roman", serif;
+      text-decoration: none;
+      cursor: pointer;
+      padding: 0 2px;
+      margin: 0 2px;
+      border-radius: 2px;
+      transition: all 0.15s ease;
+      font-size: 0.92em;
+      vertical-align: baseline;
+      user-select: none;
+    }
+    .ck-cite-ref:hover {
+      text-decoration: underline;
+      background: #e8f0fe;
+      color: #003380;
+    }
+    .ck-cite-ref.is-active {
+      background: #d2e3fc;
+      color: #002266;
+      font-weight: 700;
+      box-shadow: 0 0 0 1px #0047ab;
+    }
+
+    /* Right Memory Cards in LaTeX Paper Style */
+    .ck-provenance-head {
+      font-size: 0.82rem;
+      font-weight: 700;
+      color: #222222;
+      margin: 0 0 12px;
+      padding-bottom: 6px;
+      border-bottom: 1px solid #e0dcd4;
+      letter-spacing: 0.3px;
+      text-transform: uppercase;
+    }
+    .ck-ref-icon { color: #0047ab; margin-right: 4px; }
+    .ck-ev {
+      display: block;
+      margin: 0;
+      padding: 10px 12px;
+      border: 1px solid #dedad2;
+      border-left: 3.5px solid #0047ab;
+      border-radius: 2px;
+      background: #ffffff;
+      font-size: 0.82rem;
+      line-height: 1.55;
+      transition: all 0.2s ease;
+      cursor: pointer;
+    }
+    .ck-ev:hover { border-color: #b5b0a5; }
+    .ck-ev.is-on, .ck-ev.is-highlighted {
+      border-color: #0047ab;
+      box-shadow: 0 0 0 2px #0047ab, 0 3px 8px rgba(0,71,171,0.15);
+      background: #f0f5ff;
+    }
+    @keyframes citePulse {
+      0% { background: #dbeafe; box-shadow: 0 0 0 3px #0047ab; }
+      50% { background: #bfdbfe; box-shadow: 0 0 0 4px #0047ab; }
+      100% { background: #f0f5ff; box-shadow: 0 0 0 2px #0047ab; }
+    }
+    .ck-ev-k {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 0.75rem;
+      color: #444444;
+      margin-bottom: 5px;
+      font-weight: 700;
+    }
+    .ck-ev-cite-tag {
+      color: #0047ab;
+      font-weight: 700;
+      font-family: "Latin Modern Roman", serif;
+      text-decoration: none;
+    }
+    .ck-ev-kind-badge {
+      display: inline-block;
+      padding: 1px 6px;
+      border-radius: 2px;
+      font-size: 0.72rem;
+      font-weight: 600;
+      letter-spacing: 0.2px;
+    }
+    .ck-badge-keypoint {
+      border: 1px solid #0047ab;
+      color: #0047ab;
+      background: #f0f5ff;
+    }
+    .ck-badge-note {
+      border: 1px solid #b86a04;
+      color: #b86a04;
+      background: #fff8eb;
+    }
+    .ck-mem-title {
+      font-weight: 700;
+      color: #111111;
+      font-size: var(--ck-fs);
+      margin-bottom: 4px;
+      line-height: 1.5;
+    }
+    .ck-ev-quote {
+      color: #222222;
+      font-style: normal;
+      font-family: inherit;
+      margin: 4px 0 6px;
+      padding: 0;
+      background: transparent;
+      border: none;
+      line-height: 1.6;
+      font-size: var(--ck-fs);
+    }
+    .ck-ev-meta { font-size: 0.76rem; color: #666666; margin-top: 4px; }
+    .ck-ev-more {
+      margin-top: 2px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+    .ck-ev-more[open] { margin-top: 4px; }
+    .ck-ev-more summary { margin-bottom: 6px; }
+    .ck-proof-toggle {
+      cursor: pointer;
+      font-size: 0.82rem;
+      color: #0047ab;
+      user-select: none;
+      font-family: inherit;
+      padding: 2px 0;
+    }
+    .ck-proof-toggle:hover { text-decoration: underline; }
+    /* 右栏下段"状态演进"：无行内锚点，与上方证据卡视觉区分（灰底 + 徽章，无 [n]） */
+    .ck-ledger {
+      margin-top: 10px;
+      padding-top: 8px;
+      border-top: 1px dashed #d4d0c7;
+    }
+    .ck-ledger > summary { list-style: none; }
+    .ck-ledger > summary::-webkit-details-marker { display: none; }
+    .ck-ledger > summary::after { content: " ▾"; }
+    .ck-ledger:not([open]) > summary::after { content: " ▸"; }
+    /* 每类一张小灰卡：卡头类别 + 条数，卡内按 1. 2. 3. 编号 */
+    .ck-ledger-card {
+      background: #faf9f5;
+      border: 1px solid #e6e2d8;
+      border-left: 3px solid #bdb6a6;
+      border-radius: 4px;
+      padding: 7px 9px;
+      margin-bottom: 6px;
+    }
+    .ck-ledger-k {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 6px;
+      font-size: 0.72rem;
+      margin-bottom: 5px;
+    }
+    .ck-ledger-badge {
+      background: #efece4;
+      color: #6b6559;
+      border-radius: 3px;
+      padding: 1px 6px;
+      font-weight: 600;
+    }
+    .ck-ledger-count { color: #8a8578; }
+    .ck-ledger-list {
+      margin: 0;
+      padding-left: 1.35em;
+      font-size: var(--ck-fs);
+      line-height: 1.6;
+      color: #3b3a37;
+    }
+    .ck-ledger-list > li { margin: 2px 0; }
+    /* Personal Perspective "与我相关" Focus Block */
+    .ck-self-block {
+      background: #f4f8fe;
+      border: 1px solid #d4e2f5;
+      border-left: 3.5px solid #0047ab;
+      border-radius: 3px;
+      padding: 8px 12px;
+      margin: 8px 0 10px;
+    }
+    .ck-self-title {
+      margin: 0 0 4px;
+      color: #003380;
+      font-weight: 700;
+      font-size: var(--ck-fs);
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
+    .ck-self-badge {
+      display: inline-block;
+      background: #0047ab;
+      color: #ffffff;
+      font-size: 0.68rem;
+      padding: 1px 5px;
+      border-radius: 2px;
+      font-weight: 600;
+      letter-spacing: 0.2px;
+      margin-left: 4px;
+    }
+    .ck-self-block ul, .ck-self-block ol {
+      margin: 2px 0 2px;
+      padding-left: 1.25em;
+    }
+    .ck-self-block li {
+      margin: 2px 0;
+      color: #1a1a1a;
+    }
+
+    @media(max-width: 860px) {
+      .ck-doc { padding: 22px 18px; }
+      .ck-review { grid-template-columns: 1fr; }
+      .ck-review-rule { display: none; }
+    }
+
+  </style>
+</head>
+<body>
+  <main class="page">
+    <div class="ck-doc">
+      <header class="ck-doc-header">
+        <h1>社区建设与教育项目周会</h1>
+      </header>
+      <div class="ck-doc-content">
+        <h2 class="ck-doc-h2">例会概况</h2><p>本次周会于10月28日召开，主题为总结工作并安排下周任务，会议资料包括工作报告、看法和社区介绍，目标是初步统一成员对社区的认识。会议确认组建执法队伍为下月主要任务，目前共有四个任务，包括课程开发等，同时指出工作方向有些偏，需考虑工作量。会议讨论了社区介绍修改，已将“我们是谁”提到最上面，并根据修改参数调整了任务。关于服务定价，决定将定价权交给消费者，采用代购模式。教育团队组建方面，第一步是确定路线、修订纲领章程，修订303等已基本完成。任务分配方面，具体需招聘20多位师傅，待遇为上班5000元，额外有奖励和提成，休假为周五半天加周末两天。会议还讨论了是否继续线下学习、邀请同事加入等事项，会议纲要是否修改待定。</p><h2 class="ck-doc-h2">工作进展</h2><h3 class="ck-doc-h3">社区介绍与宣传</h3><ol><li><strong>社区介绍修改</strong>（状态：已完成 ｜ 交付度：已按新参数调整）</li></ol><ul><li>已将「我们是谁」板块提到介绍文件最上方，作为开篇首屏内容，突出社区身份定位。</li><li>根据会上确定的修改参数同步调整了任务内容，两个镜头衔接处已按新参数完成修改。</li><li>社区介绍文件已发送至工作群，供成员查阅确认。</li></ul><ol><li><strong>公众号与宣传物料</strong>（状态：进行中）</li></ol><ul><li>公众号内容已更新，将社区介绍作为对外宣传的入口材料。</li><li>抖音任务涉及可视化学习方案和工具，目前处于内容规划阶段，需进一步明确每个费用的具体数额。</li></ul><h3 class="ck-doc-h3">执法队伍组建</h3><ol><li><strong>组建执法队伍</strong>（状态：进行中 ｜ 交付度：下月主要任务）</li></ol><ul><li>被确认为下个月的核心任务，当前处于启动阶段，工作刚开始，参与者目前仅为志愿者身份。</li><li>任务具体需招聘20多位师傅，组建教育班队，队伍人数不宜过多。</li><li>第一步为确定路线、修订纲领章程，<strong>修订303</strong>等纲领性文件已基本完成，待成员自行查阅后打勾确认。</li></ul><h3 class="ck-doc-h3">课程开发</h3><ol><li><strong>课程开发任务</strong>（状态：进行中）</li></ol><ul><li>为当前四个任务之一，围绕教育团队建设展开，需先确定开发性质（由老师讲授）。</li><li>课程内容面向学生、教师、家长、学校、教育主管等角色分类设计，关注高中生上大学等升学关切点。</li></ul><h3 class="ck-doc-h3">任务分配与执行</h3><ol><li><strong>四个任务整体推进</strong>（状态：进行中）</li></ol><ul><li>目前共有四个任务，包括课程开发、执法队伍组建、大运发放等，其中执法队伍组建占比最大。</li><li>大运发放任务需要调试，负责人已明确，工作刚开始。</li><li>任务分配时需考虑各任务条件差异（如菜品条件不同），部分任务需同时进行。</li></ul><ol><li><strong>活动安排</strong>（状态：进行中）</li></ol><ul><li>需完成两个活动，活动重要性一般但需成员互相理解配合。</li><li>明日边缘分享活动页面需统计总费用，涉及两个零一乘二的支出项，需确认剩余费用明细。</li></ul><h3 class="ck-doc-h3">待遇与休假</h3><ol><li><strong>薪资待遇方案</strong>（状态：已明确）</li></ol><ul><li>上班薪资为5000元，额外有奖励和提成，具体发放安排在月会上确定。</li><li>休假安排为周五半天加周末两天，需公开的事项及时向当事人说明理由。</li></ul><h3 class="ck-doc-h3">工作方向与模式</h3><ol><li><strong>服务定价模式调整</strong>（状态：已确定）</li></ol><ul><li>决定将服务定价权交给消费者，采用代购模式运作，改变传统定价方式。</li><li>公司从传统方法转向AI辅助后，效率和质量均有提升，强调在实践中不断改进。</li></ul><ol><li><strong>工作方向评估</strong>（状态：进行中）</li></ol><ul><li>会上指出当前工作方向有些偏，需重新考虑工作量与方向的匹配度。</li><li>教育团队组建需具备政府资源，社区环境建设强调「人不出去怎么学习」的理念。</li></ul><h2 class="ck-doc-h2">决定与待办</h2><ul><li>[ ] <strong>组建执法队伍</strong>（下月主要任务，需招聘20多位师傅）</li><li>[ ] <strong>将服务定价权交给消费者</strong>（采用代购模式）</li><li>[ ] <strong>社区介绍修改</strong>（将“我们是谁”提到最上面，根据修改参数调整任务）</li><li>[ ] <strong>邀请同事加入</strong>（会后看有谁愿意参与，共同制作解决方案）</li><li>[ ] <strong>修订纲领章程</strong>（确定路线，修订303等已基本完成）</li><li>[ ] <strong>课程开发</strong>（目前四个任务之一）</li></ul><h2 class="ck-doc-h2">协作需求</h2><ol><li><strong>社区介绍修改与任务参数调整</strong>（发言人1 ➔ 张经理 ｜ 尽快）：需张经理根据已修改的社区介绍参数，同步调整对应任务内容，确保介绍与任务展示一致；若未及时调整，将影响社区介绍对外发布及后续宣传节奏。</li></ol><ol><li><strong>任务顺序调整</strong>（发言人1 ➔ 张经理 ｜ 下次会议前）：需张经理将「下周去洛阳」相关安排调整至任务列表第二项，并同步修改任务排序；若未调整，将影响下周行程与任务执行的优先级衔接。</li></ol><ol><li><strong>会议纲要修改确认</strong>（发言人1 ➔ 全体成员 ｜ 待定）：需成员确认会议纲要是否仍需修改，并反馈修改意见；若未确认，将影响后续会议资料定稿与统一思想工作的推进。</li></ol><ol><li><strong>邀请同事加入</strong>（发言人1 ➔ 全体成员 ｜ 会后）：需成员会后各自联系有意愿的同事，邀请其加入团队，共同参与解决方案制作；若参与人数不足，将影响教育团队组建及后续任务人力配置。</li></ol><h2 class="ck-doc-h2">待确认与风险</h2><ul><li>[ ] <strong>【待定论】会议纲要是否修改</strong>（影响后续会议规范 ｜ 会上提出「这个会议纲要还要改吗」，未形成结论 ｜ 跟进人未明确）</li><li>[ ] <strong>【待定论】是否继续线下学习</strong>（影响团队学习安排 ｜ 主持人提议「继续在线下继续吧，我们一起学」，尚未确定 ｜ 跟进人未明确）</li><li>[ ] <strong>【待定论】任务分配具体细节</strong>（影响任务执行 ｜ 提到「菜品条件可能不太一样」，任务分配条件存在差异，具体分配方案待确认 ｜ 跟进人未明确）</li><li>[ ] <strong>【高风险】工作方向偏颇</strong>（影响整体工作推进 ｜ 主持人指出「工作方向其实是有一点点偏的吧」，需考虑工作量 ｜ 应对预案未提及）</li><li>[ ] <strong>【待定论】两个账单未发放</strong>（影响全场活动与入职 ｜ 两个账单（优美和棒棒糖待遇）尚未发放，需发放完才能入职 ｜ 薪资待遇月会上再发）</li></ul>
+      </div>
+    </div>
+  </main>
+</body>
+</html>

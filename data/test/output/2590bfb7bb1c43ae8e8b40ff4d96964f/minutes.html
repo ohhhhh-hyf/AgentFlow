@@ -1,0 +1,440 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>GitHub实用项目与访问技巧分享</title>
+  <style>
+
+    body {
+      margin: 0;
+      padding: 14px 12px;
+      background: #f6f5f0;
+      color: #1a1a1a;
+      font-family: "Latin Modern Roman", "Computer Modern Roman", "CMU Serif", "Times New Roman", Times, "Songti SC", "SimSun", "STSong", serif;
+      -webkit-font-smoothing: antialiased;
+    }
+    .page { max-width: 1140px; margin: 0 auto; }
+    .ck-doc {
+      background: #ffffff;
+      border: 1px solid #d4d0c7;
+      border-radius: 4px;
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.05), 0 1px 3px rgba(0,0,0,0.03);
+      padding: 18px 22px;
+      line-height: 1.6;
+      font-size: 0.84rem;      /* 正文基准：左右两栏共用 --ck-fs */
+      --ck-fs: 0.84rem;
+    }
+    .ck-doc h1 {
+      margin: 0 0 6px;
+      font-size: 1.05rem;      /* 文档标题：只比正文略大一点 */
+      font-weight: 700;
+      text-align: center;
+      color: #111111;
+    }
+    .ck-doc-header {
+      margin-bottom: 10px;
+      padding-bottom: 8px;
+      border-bottom: 1px solid #111111;
+      text-align: center;
+    }
+    .ck-doc-meta {
+      font-size: 0.78rem;
+      color: #555555;
+      font-style: italic;
+    }
+    /* 层级标题一律"加粗 + 与右栏同级字号"，不加字号、不加下划线，前后留白压到最小 */
+    .ck-doc-content h1, .ck-doc-content .ck-doc-h1,
+    .ck-doc h2, .ck-doc-h2,
+    .ck-doc h3, .ck-doc-h3,
+    .ck-doc h4, .ck-doc-h4 {
+      font-size: var(--ck-fs);
+      font-weight: 700;
+      color: #111111;
+      border-bottom: 0;
+      padding-bottom: 0;
+      letter-spacing: 0;
+      font-variant: normal;
+      text-align: left;
+    }
+    .ck-doc-content h1, .ck-doc-content .ck-doc-h1, .ck-doc h2, .ck-doc-h2 {
+      margin: 12px 0 4px;
+    }
+    .ck-doc h3, .ck-doc-h3, .ck-doc h4, .ck-doc-h4 {
+      margin: 9px 0 3px;
+    }
+    .ck-doc p {
+      margin: 5px 0;
+      line-height: 1.6;
+      text-align: justify;
+    }
+    .ck-doc ul, .ck-doc ol {
+      margin: 4px 0 6px;
+      padding-left: 1.25em;
+      line-height: 1.6;
+    }
+    .ck-doc li {
+      margin: 2px 0;
+    }
+    .ck-doc blockquote, .ck-quote {
+      margin: 6px 0 8px;
+      padding: 5px 10px;
+      background: #faf9f6;
+      border-left: 3px solid #222222;
+      border-radius: 2px;
+      color: #222222;
+      font-size: var(--ck-fs);
+      font-style: italic;
+    }
+    .ck-doc code {
+      background: #f3f0e8;
+      border: 1px solid #e2ddd3;
+      border-radius: 3px;
+      padding: 1px 6px;
+      font-family: "Latin Modern Mono", Consolas, monospace;
+      font-size: 0.88em;
+    }
+    .ck-doc table, .ck-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: var(--ck-fs);
+      margin: 8px 0;
+      background: #ffffff;
+      border-top: 2px solid #222222;
+      border-bottom: 2px solid #222222;
+    }
+    .ck-doc table th, .ck-doc table td, .ck-table th, .ck-table td {
+      padding: 5px 8px;
+      text-align: left;
+      vertical-align: middle;
+      border-bottom: 1px solid #ede9e1;
+    }
+    .ck-doc table th, .ck-table th {
+      background: #fbfaf7;
+      border-bottom: 1.2px solid #222222;
+      font-weight: 700;
+      color: #111111;
+      letter-spacing: 0.3px;
+    }
+
+    /* Roomy & Spacious Academic Risk Table */
+    .ck-risk-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 18px 0 28px;
+      background: #ffffff;
+      border-top: 2.2px solid #111111;
+      border-bottom: 2.2px solid #111111;
+      font-size: 0.93rem;
+      line-height: 1.72;
+    }
+    .ck-risk-table th {
+      background: #faf8f5;
+      border-bottom: 1.5px solid #111111;
+      padding: 15px 16px;
+      font-weight: 700;
+      color: #111111;
+      letter-spacing: 0.3px;
+      text-align: left;
+      vertical-align: middle;
+    }
+    .ck-risk-table td {
+      padding: 16px 16px;
+      border-bottom: 1px solid #ede8e0;
+      vertical-align: top;
+      color: #1a1a1a;
+      word-break: break-word;
+    }
+    .ck-risk-table tr:nth-child(even) td {
+      background: #fdfcfb;
+    }
+    .ck-risk-table tr:hover td {
+      background: #f6f3eb;
+    }
+
+    /* Review Grid */
+    .ck-review {
+      display: grid;
+      grid-template-columns: minmax(0, 1.35fr) 1px minmax(260px, 0.95fr);
+      border: 1px solid #d4d0c7;
+      border-radius: 4px;
+      overflow: hidden;
+      margin: 8px 0 10px;
+      background: #ffffff;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.03);
+    }
+    .ck-review-left {
+      padding: 14px 16px;
+      background: #ffffff;
+      line-height: 1.6;
+      font-size: var(--ck-fs);
+    }
+    .ck-review-rule { background: #dcd8cf; }
+    .ck-review-right {
+      padding: 12px 14px;
+      background: #faf9f6;
+      box-sizing: border-box;
+      display: flex;
+      flex-direction: column;
+    }
+    .ck-ev-list {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    /* Entity Highlight in LaTeX Paper Style */
+    .ck-cite-entity {
+      background: #fff8db;
+      border-bottom: 1.5px solid #b86a04;
+      padding: 1px 4px;
+      border-radius: 2px;
+      cursor: pointer;
+      transition: all 0.18s ease;
+      color: #111111;
+      font-weight: 600;
+    }
+    .ck-cite-entity:hover {
+      background: #ffe58f;
+      color: #000000;
+    }
+    .ck-cite-entity.is-on {
+      background: #ffd54a;
+      border-bottom-color: #0047ab;
+      box-shadow: 0 0 0 2px rgba(0,71,171,0.25);
+    }
+
+    /* Blue Hyperref Citations [1], [2] */
+    .ck-cite-ref {
+      color: #0047ab;
+      font-weight: 600;
+      font-family: "Latin Modern Roman", "Computer Modern Roman", "Times New Roman", serif;
+      text-decoration: none;
+      cursor: pointer;
+      padding: 0 2px;
+      margin: 0 2px;
+      border-radius: 2px;
+      transition: all 0.15s ease;
+      font-size: 0.92em;
+      vertical-align: baseline;
+      user-select: none;
+    }
+    .ck-cite-ref:hover {
+      text-decoration: underline;
+      background: #e8f0fe;
+      color: #003380;
+    }
+    .ck-cite-ref.is-active {
+      background: #d2e3fc;
+      color: #002266;
+      font-weight: 700;
+      box-shadow: 0 0 0 1px #0047ab;
+    }
+
+    /* Right Memory Cards in LaTeX Paper Style */
+    .ck-provenance-head {
+      font-size: 0.82rem;
+      font-weight: 700;
+      color: #222222;
+      margin: 0 0 12px;
+      padding-bottom: 6px;
+      border-bottom: 1px solid #e0dcd4;
+      letter-spacing: 0.3px;
+      text-transform: uppercase;
+    }
+    .ck-ref-icon { color: #0047ab; margin-right: 4px; }
+    .ck-ev {
+      display: block;
+      margin: 0;
+      padding: 10px 12px;
+      border: 1px solid #dedad2;
+      border-left: 3.5px solid #0047ab;
+      border-radius: 2px;
+      background: #ffffff;
+      font-size: 0.82rem;
+      line-height: 1.55;
+      transition: all 0.2s ease;
+      cursor: pointer;
+    }
+    .ck-ev:hover { border-color: #b5b0a5; }
+    .ck-ev.is-on, .ck-ev.is-highlighted {
+      border-color: #0047ab;
+      box-shadow: 0 0 0 2px #0047ab, 0 3px 8px rgba(0,71,171,0.15);
+      background: #f0f5ff;
+    }
+    @keyframes citePulse {
+      0% { background: #dbeafe; box-shadow: 0 0 0 3px #0047ab; }
+      50% { background: #bfdbfe; box-shadow: 0 0 0 4px #0047ab; }
+      100% { background: #f0f5ff; box-shadow: 0 0 0 2px #0047ab; }
+    }
+    .ck-ev-k {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 0.75rem;
+      color: #444444;
+      margin-bottom: 5px;
+      font-weight: 700;
+    }
+    .ck-ev-cite-tag {
+      color: #0047ab;
+      font-weight: 700;
+      font-family: "Latin Modern Roman", serif;
+      text-decoration: none;
+    }
+    .ck-ev-kind-badge {
+      display: inline-block;
+      padding: 1px 6px;
+      border-radius: 2px;
+      font-size: 0.72rem;
+      font-weight: 600;
+      letter-spacing: 0.2px;
+    }
+    .ck-badge-keypoint {
+      border: 1px solid #0047ab;
+      color: #0047ab;
+      background: #f0f5ff;
+    }
+    .ck-badge-note {
+      border: 1px solid #b86a04;
+      color: #b86a04;
+      background: #fff8eb;
+    }
+    .ck-mem-title {
+      font-weight: 700;
+      color: #111111;
+      font-size: var(--ck-fs);
+      margin-bottom: 4px;
+      line-height: 1.5;
+    }
+    .ck-ev-quote {
+      color: #222222;
+      font-style: normal;
+      font-family: inherit;
+      margin: 4px 0 6px;
+      padding: 0;
+      background: transparent;
+      border: none;
+      line-height: 1.6;
+      font-size: var(--ck-fs);
+    }
+    .ck-ev-meta { font-size: 0.76rem; color: #666666; margin-top: 4px; }
+    .ck-ev-more {
+      margin-top: 2px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+    .ck-ev-more[open] { margin-top: 4px; }
+    .ck-ev-more summary { margin-bottom: 6px; }
+    .ck-proof-toggle {
+      cursor: pointer;
+      font-size: 0.82rem;
+      color: #0047ab;
+      user-select: none;
+      font-family: inherit;
+      padding: 2px 0;
+    }
+    .ck-proof-toggle:hover { text-decoration: underline; }
+    /* 右栏下段"状态演进"：无行内锚点，与上方证据卡视觉区分（灰底 + 徽章，无 [n]） */
+    .ck-ledger {
+      margin-top: 10px;
+      padding-top: 8px;
+      border-top: 1px dashed #d4d0c7;
+    }
+    .ck-ledger > summary { list-style: none; }
+    .ck-ledger > summary::-webkit-details-marker { display: none; }
+    .ck-ledger > summary::after { content: " ▾"; }
+    .ck-ledger:not([open]) > summary::after { content: " ▸"; }
+    /* 每类一张小灰卡：卡头类别 + 条数，卡内按 1. 2. 3. 编号 */
+    .ck-ledger-card {
+      background: #faf9f5;
+      border: 1px solid #e6e2d8;
+      border-left: 3px solid #bdb6a6;
+      border-radius: 4px;
+      padding: 7px 9px;
+      margin-bottom: 6px;
+    }
+    .ck-ledger-k {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 6px;
+      font-size: 0.72rem;
+      margin-bottom: 5px;
+    }
+    .ck-ledger-badge {
+      background: #efece4;
+      color: #6b6559;
+      border-radius: 3px;
+      padding: 1px 6px;
+      font-weight: 600;
+    }
+    .ck-ledger-count { color: #8a8578; }
+    .ck-ledger-list {
+      margin: 0;
+      padding-left: 1.35em;
+      font-size: var(--ck-fs);
+      line-height: 1.6;
+      color: #3b3a37;
+    }
+    .ck-ledger-list > li { margin: 2px 0; }
+    /* Personal Perspective "与我相关" Focus Block */
+    .ck-self-block {
+      background: #f4f8fe;
+      border: 1px solid #d4e2f5;
+      border-left: 3.5px solid #0047ab;
+      border-radius: 3px;
+      padding: 8px 12px;
+      margin: 8px 0 10px;
+    }
+    .ck-self-title {
+      margin: 0 0 4px;
+      color: #003380;
+      font-weight: 700;
+      font-size: var(--ck-fs);
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
+    .ck-self-badge {
+      display: inline-block;
+      background: #0047ab;
+      color: #ffffff;
+      font-size: 0.68rem;
+      padding: 1px 5px;
+      border-radius: 2px;
+      font-weight: 600;
+      letter-spacing: 0.2px;
+      margin-left: 4px;
+    }
+    .ck-self-block ul, .ck-self-block ol {
+      margin: 2px 0 2px;
+      padding-left: 1.25em;
+    }
+    .ck-self-block li {
+      margin: 2px 0;
+      color: #1a1a1a;
+    }
+
+    @media(max-width: 860px) {
+      .ck-doc { padding: 22px 18px; }
+      .ck-review { grid-template-columns: 1fr; }
+      .ck-review-rule { display: none; }
+    }
+
+  </style>
+</head>
+<body>
+  <main class="page">
+    <div class="ck-doc">
+      <header class="ck-doc-header">
+        <h1>GitHub实用项目与访问技巧分享</h1>
+      </header>
+      <div class="ck-doc-content">
+        <h2 class="ck-doc-h2">知识主题与概述</h2><p>本期内容围绕 GitHub 这一开源资源平台展开，核心议题是向观众介绍 GitHub 上的实用热门项目，并解决中国用户在使用中遇到的网络访问、页面汉化、搜索效率等常见问题。整体逻辑框架分为两大板块推进：其一，按项目类别逐一介绍工作性价比评估、表情包博物馆、健康指南、一键证件照、健身指导、教材合集、AI 视频生成、声音克隆、AI 学习资源库等热门开源项目及其功能；其二，针对访问不畅、全英文界面、原生搜索不精准等痛点，依次讲解加速软件、镜像站、翻译插件、AI 辅助搜索等解决方案，并说明项目主页的 star、watch、fork、read me 等核心功能。整体立场倾向于将 GitHub 定位为「人人都可用的宝藏资源库」，主张通过工具组合（加速、翻译、AI 搜索）降低使用门槛，并推荐用 AI 工具弥补原生搜索的不足。</p><h2 class="ck-doc-h2">核心概念</h2><h3 class="ck-doc-h3">工作性价比评估项目</h3><ul><li>定义：输入年薪、工作地区、年假、通勤时长、学历、工作年限及领导同事评价等参数，综合评估工作性价比并给出分数与评级。</li><li>推演示例：主讲人测试其程序员工作，评估结果为“性价比还不错，优质牛马”。</li><li>适用条件：适用于量化评估个人工作投入产出比，评级结果带有娱乐性质。</li></ul><h3 class="ck-doc-h3">表情包博物馆</h3><ul><li>定义：收录国内过去几年全网爆火表情包的合集项目，涵盖甄嬛传、罗翔、特朗普、马保国等主题。</li><li>适用场景：用于斗图，主讲人评价“可以把对方按在地上摩擦”。</li></ul><h3 class="ck-doc-h3">健康指南项目</h3><ul><li>定义：分享经科学验证的健康知识，目标为“活到150岁”。</li><li>关键内容：间歇性进食促进胆汁代谢与炎症自愈；天然发酵食品改善肠道菌群生态。</li><li>主讲人评点：不指望活到150岁，只求活到领养老金。</li></ul><h3 class="ck-doc-h3">一键证件照项目</h3><ul><li>定义：上传大头照即可一键抠图换背景，生成不同标准证件照及打印模板。</li><li>操作步骤：上传照片 → 自动抠图 → 选择规格 → 生成打印模板。</li></ul><h3 class="ck-doc-h3">健身指导项目</h3><ul><li>定义：提供自重、哑铃、弹力带、长凳等健身方式的参考动画。</li><li>操作流程：选择健身方式（如自重）→ 选择肌肉群（如腹肌）→ 获得对应参考动画。</li><li>适用条件：适合请不起真人教练的用户，主讲人称之为“丐版健身教练”。</li></ul><h3 class="ck-doc-h3">教材合集项目</h3><ul><li>定义：收集国内小学、初中、高中及部分大学PDF教材，全部免费。</li><li>特点：可找回当年撕掉或弃读的课本。</li></ul><h3 class="ck-doc-h3">全自动视频生成项目（Morning Printer Turbo）</h3><ul><li>定义：近期热门的全自动视频生成项目，未展开功能细节。</li></ul><h3 class="ck-doc-h3">声音克隆模型（Chatbox TTS）</h3><ul><li>定义：零样本语音克隆模型，情感控制到位，克隆声音接近真人。</li><li>操作演示：上传本人音频，合成英文台词并播放效果。</li></ul><h3 class="ck-doc-h3">AI学习资源库</h3><ul><li>定义：涵盖大语言模型、RAG、AI Agents、MSI等最新AI技术的教程合集。</li><li>配套资料：作者整理成500多页PDF文档，含大量示意图辅助理解。</li></ul><h3 class="ck-doc-h3">Awesome AI Agents</h3><ul><li>定义：收录大模型最新Agent应用的项目，如医学影像数据分析Agent、AI投资Agent、竞争对手情报分析Agent。</li><li>适用场景：跟进AI应用落地案例或寻找创业点子。</li></ul><h3 class="ck-doc-h3">GitHub访问加速方法</h3><ul><li><strong>Watt Toolkit</strong>：进入官网选择适配版本下载安装，打开后找到网络加速并勾选GitHub加速即可流畅访问。</li><li><strong>镜像站</strong>：如ghproxy，浏览器打开即可直接访问GitHub，可搜索任意项目；速度与稳定性较加速软件差。</li><li><strong>魔法（VPN）</strong>：主讲人个人最推荐的方法。</li></ul><h3 class="ck-doc-h3">GitHub页面汉化</h3><ul><li>翻译插件：谷歌浏览器推荐<code>谷歌translate</code>或<code>沉浸式翻译</code>，安装后可将网页翻译为中文。</li><li>安装路径：点击浏览器右上角三个点 → 拓展程序 → 管理拓展程序 → 搜索插件名安装。</li><li>进阶方案：动手能力强的用户可安装汉化插件。</li></ul><h3 class="ck-doc-h3">GitHub搜索功能</h3><ul><li>原生搜索局限：按关键词精准匹配，如搜<code>screen record</code>与<code>screen recording</code>结果不同，对中文用户不友好。</li><li>推荐方案：用AI搜索，如在ChatGPT中输入中文需求“在GitHub上帮我找好用的录屏软件”，AI可汇总热门项目并整理成表格。</li></ul><h3 class="ck-doc-h3">GitHub项目主页功能</h3><ul><li>项目本质：GitHub上的项目即一个文件夹，项目名下方为子文件夹或文件。</li><li>核心功能：<code>star</code>相当于收藏点赞，<code>watch</code>为关注，<code>fork</code>为复制项目到自己的账号。</li><li>页面要素：<code>about</code>为项目简介，<code>release</code>为软件安装包，<code>read me</code>为项目说明书，默认在项目最下方展开显示。</li><li>维护判断：通过文件最近的<code>commit</code>日期判断，若更新日期久远，大概率是无人维护的僵尸项目。</li></ul><h3 class="ck-doc-h3">热门项目追踪</h3><ul><li>内置途径：点击左侧<code>explore</code>，在<code>trending</code>中查看全站当天、本周、本月最热门项目。</li><li>推荐途径：用ChatGPT等AI工具搜索“GitHub daily”，可及时获取最新热门项目分享。</li></ul><h2 class="ck-doc-h2">核心结论</h2><h3 class="ck-doc-h3">核心结论</h3><ol><li>GitHub 是面向所有人的资源库，可找到名校公开课（麻省理工、斯坦福）、大厂面试题（字节、阿里、腾讯）、开源大模型、AI 学习资料及各类实用工具。</li><li>工作性价比评估项目（"b班值不值得上"）通过输入年薪、工作地区、年假、通勤时长、学历、工作年限等参数，综合输出性价比分数与评级；主讲人测试程序员岗位结果为"性价比还不错，优质牛马"。</li><li>表情包博物馆项目收录国内近年全网爆火表情包（甄嬛传、罗翔、特朗普、马保国等）；健康指南项目分享经科学验证的知识，如间歇性进食促进胆汁代谢与炎症自愈、天然发酵食品改善肠道菌群。</li><li>一键证件照项目可上传大头照后一键抠图换背景，生成不同标准证件照及打印模板；健身项目支持自重、哑铃、弹力带、长凳等方式，可选择肌肉群获得参考动画。</li><li>教材合集项目收集国内小学、初中、高中及部分大学 PDF 教材，全部免费；全自动视频生成项目 Morning Printer Turbo 近期热门。</li><li>声音克隆模型 Chatbox TTS 为零样本语音克隆，情感控制到位，克隆声音接近真人；AI 学习资源库涵盖大语言模型、RAG、AI Agents 等技术，附 500 多页 PDF 文档。</li><li>访问 GitHub 的三种方案：Watt Toolkit 加速软件（更流畅）、镜像站 ghproxy（速度与稳定性较差）、魔法（VPN，主讲人最推荐）；注册可用国内 QQ 邮箱。</li><li>页面汉化方案：谷歌浏览器安装谷歌 translate 或沉浸式翻译插件，可整页翻译为中文；动手能力强者可另装汉化插件。</li><li>GitHub 原生搜索按关键词精准匹配，如搜 screen record 与 screen recording 结果不同；推荐用 ChatGPT 等 AI 工具以中文描述需求，可汇总热门项目并生成表格。</li><li>项目主页中 star 相当于收藏点赞，watch 是关注，fork 是复制项目；about 为项目简介，release 为安装包，read me 是项目说明书；commit 日期可判断项目是否维护，explore 的 trending 可查看当天、本周、本月热门项目。</li></ol><h3 class="ck-doc-h3">易混点与适用边界</h3><ul><li><strong>GitHub 访问方式对比</strong>：Watt Toolkit 加速软件更流畅，镜像站（ghproxy）速度与稳定性更差，魔法（VPN）为主讲人最推荐方式，三者适用场景不同。</li><li><strong>搜索方式差异</strong>：GitHub 原生搜索按关键词精准匹配，同一含义的不同写法（如 screen record 与 screen recording）结果不同；AI 搜索（如 ChatGPT）可弥补英文不好、搜索不准确不全面的问题。</li><li><strong>项目维护判断</strong>：commit 日期为最近更新时间，若更新日期为好几年前，大概率是无人维护的僵尸项目。</li><li><strong>star 与 watch、fork 的区别</strong>：star 是收藏点赞，watch 是关注项目动态，fork 是复制项目到自己的账号，三者功能不同。</li><li><strong>read me 文件定位</strong>：read me 是项目说明书，默认在项目最下方展开显示，是了解项目用途、安装使用方法必看的内容。</li></ul>
+      </div>
+    </div>
+  </main>
+</body>
+</html>

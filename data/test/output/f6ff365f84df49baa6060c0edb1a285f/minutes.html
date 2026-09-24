@@ -1,0 +1,440 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>日本概况与文化历史自由讨论会</title>
+  <style>
+
+    body {
+      margin: 0;
+      padding: 14px 12px;
+      background: #f6f5f0;
+      color: #1a1a1a;
+      font-family: "Latin Modern Roman", "Computer Modern Roman", "CMU Serif", "Times New Roman", Times, "Songti SC", "SimSun", "STSong", serif;
+      -webkit-font-smoothing: antialiased;
+    }
+    .page { max-width: 1140px; margin: 0 auto; }
+    .ck-doc {
+      background: #ffffff;
+      border: 1px solid #d4d0c7;
+      border-radius: 4px;
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.05), 0 1px 3px rgba(0,0,0,0.03);
+      padding: 18px 22px;
+      line-height: 1.6;
+      font-size: 0.84rem;      /* 正文基准：左右两栏共用 --ck-fs */
+      --ck-fs: 0.84rem;
+    }
+    .ck-doc h1 {
+      margin: 0 0 6px;
+      font-size: 1.05rem;      /* 文档标题：只比正文略大一点 */
+      font-weight: 700;
+      text-align: center;
+      color: #111111;
+    }
+    .ck-doc-header {
+      margin-bottom: 10px;
+      padding-bottom: 8px;
+      border-bottom: 1px solid #111111;
+      text-align: center;
+    }
+    .ck-doc-meta {
+      font-size: 0.78rem;
+      color: #555555;
+      font-style: italic;
+    }
+    /* 层级标题一律"加粗 + 与右栏同级字号"，不加字号、不加下划线，前后留白压到最小 */
+    .ck-doc-content h1, .ck-doc-content .ck-doc-h1,
+    .ck-doc h2, .ck-doc-h2,
+    .ck-doc h3, .ck-doc-h3,
+    .ck-doc h4, .ck-doc-h4 {
+      font-size: var(--ck-fs);
+      font-weight: 700;
+      color: #111111;
+      border-bottom: 0;
+      padding-bottom: 0;
+      letter-spacing: 0;
+      font-variant: normal;
+      text-align: left;
+    }
+    .ck-doc-content h1, .ck-doc-content .ck-doc-h1, .ck-doc h2, .ck-doc-h2 {
+      margin: 12px 0 4px;
+    }
+    .ck-doc h3, .ck-doc-h3, .ck-doc h4, .ck-doc-h4 {
+      margin: 9px 0 3px;
+    }
+    .ck-doc p {
+      margin: 5px 0;
+      line-height: 1.6;
+      text-align: justify;
+    }
+    .ck-doc ul, .ck-doc ol {
+      margin: 4px 0 6px;
+      padding-left: 1.25em;
+      line-height: 1.6;
+    }
+    .ck-doc li {
+      margin: 2px 0;
+    }
+    .ck-doc blockquote, .ck-quote {
+      margin: 6px 0 8px;
+      padding: 5px 10px;
+      background: #faf9f6;
+      border-left: 3px solid #222222;
+      border-radius: 2px;
+      color: #222222;
+      font-size: var(--ck-fs);
+      font-style: italic;
+    }
+    .ck-doc code {
+      background: #f3f0e8;
+      border: 1px solid #e2ddd3;
+      border-radius: 3px;
+      padding: 1px 6px;
+      font-family: "Latin Modern Mono", Consolas, monospace;
+      font-size: 0.88em;
+    }
+    .ck-doc table, .ck-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: var(--ck-fs);
+      margin: 8px 0;
+      background: #ffffff;
+      border-top: 2px solid #222222;
+      border-bottom: 2px solid #222222;
+    }
+    .ck-doc table th, .ck-doc table td, .ck-table th, .ck-table td {
+      padding: 5px 8px;
+      text-align: left;
+      vertical-align: middle;
+      border-bottom: 1px solid #ede9e1;
+    }
+    .ck-doc table th, .ck-table th {
+      background: #fbfaf7;
+      border-bottom: 1.2px solid #222222;
+      font-weight: 700;
+      color: #111111;
+      letter-spacing: 0.3px;
+    }
+
+    /* Roomy & Spacious Academic Risk Table */
+    .ck-risk-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 18px 0 28px;
+      background: #ffffff;
+      border-top: 2.2px solid #111111;
+      border-bottom: 2.2px solid #111111;
+      font-size: 0.93rem;
+      line-height: 1.72;
+    }
+    .ck-risk-table th {
+      background: #faf8f5;
+      border-bottom: 1.5px solid #111111;
+      padding: 15px 16px;
+      font-weight: 700;
+      color: #111111;
+      letter-spacing: 0.3px;
+      text-align: left;
+      vertical-align: middle;
+    }
+    .ck-risk-table td {
+      padding: 16px 16px;
+      border-bottom: 1px solid #ede8e0;
+      vertical-align: top;
+      color: #1a1a1a;
+      word-break: break-word;
+    }
+    .ck-risk-table tr:nth-child(even) td {
+      background: #fdfcfb;
+    }
+    .ck-risk-table tr:hover td {
+      background: #f6f3eb;
+    }
+
+    /* Review Grid */
+    .ck-review {
+      display: grid;
+      grid-template-columns: minmax(0, 1.35fr) 1px minmax(260px, 0.95fr);
+      border: 1px solid #d4d0c7;
+      border-radius: 4px;
+      overflow: hidden;
+      margin: 8px 0 10px;
+      background: #ffffff;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.03);
+    }
+    .ck-review-left {
+      padding: 14px 16px;
+      background: #ffffff;
+      line-height: 1.6;
+      font-size: var(--ck-fs);
+    }
+    .ck-review-rule { background: #dcd8cf; }
+    .ck-review-right {
+      padding: 12px 14px;
+      background: #faf9f6;
+      box-sizing: border-box;
+      display: flex;
+      flex-direction: column;
+    }
+    .ck-ev-list {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    /* Entity Highlight in LaTeX Paper Style */
+    .ck-cite-entity {
+      background: #fff8db;
+      border-bottom: 1.5px solid #b86a04;
+      padding: 1px 4px;
+      border-radius: 2px;
+      cursor: pointer;
+      transition: all 0.18s ease;
+      color: #111111;
+      font-weight: 600;
+    }
+    .ck-cite-entity:hover {
+      background: #ffe58f;
+      color: #000000;
+    }
+    .ck-cite-entity.is-on {
+      background: #ffd54a;
+      border-bottom-color: #0047ab;
+      box-shadow: 0 0 0 2px rgba(0,71,171,0.25);
+    }
+
+    /* Blue Hyperref Citations [1], [2] */
+    .ck-cite-ref {
+      color: #0047ab;
+      font-weight: 600;
+      font-family: "Latin Modern Roman", "Computer Modern Roman", "Times New Roman", serif;
+      text-decoration: none;
+      cursor: pointer;
+      padding: 0 2px;
+      margin: 0 2px;
+      border-radius: 2px;
+      transition: all 0.15s ease;
+      font-size: 0.92em;
+      vertical-align: baseline;
+      user-select: none;
+    }
+    .ck-cite-ref:hover {
+      text-decoration: underline;
+      background: #e8f0fe;
+      color: #003380;
+    }
+    .ck-cite-ref.is-active {
+      background: #d2e3fc;
+      color: #002266;
+      font-weight: 700;
+      box-shadow: 0 0 0 1px #0047ab;
+    }
+
+    /* Right Memory Cards in LaTeX Paper Style */
+    .ck-provenance-head {
+      font-size: 0.82rem;
+      font-weight: 700;
+      color: #222222;
+      margin: 0 0 12px;
+      padding-bottom: 6px;
+      border-bottom: 1px solid #e0dcd4;
+      letter-spacing: 0.3px;
+      text-transform: uppercase;
+    }
+    .ck-ref-icon { color: #0047ab; margin-right: 4px; }
+    .ck-ev {
+      display: block;
+      margin: 0;
+      padding: 10px 12px;
+      border: 1px solid #dedad2;
+      border-left: 3.5px solid #0047ab;
+      border-radius: 2px;
+      background: #ffffff;
+      font-size: 0.82rem;
+      line-height: 1.55;
+      transition: all 0.2s ease;
+      cursor: pointer;
+    }
+    .ck-ev:hover { border-color: #b5b0a5; }
+    .ck-ev.is-on, .ck-ev.is-highlighted {
+      border-color: #0047ab;
+      box-shadow: 0 0 0 2px #0047ab, 0 3px 8px rgba(0,71,171,0.15);
+      background: #f0f5ff;
+    }
+    @keyframes citePulse {
+      0% { background: #dbeafe; box-shadow: 0 0 0 3px #0047ab; }
+      50% { background: #bfdbfe; box-shadow: 0 0 0 4px #0047ab; }
+      100% { background: #f0f5ff; box-shadow: 0 0 0 2px #0047ab; }
+    }
+    .ck-ev-k {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 0.75rem;
+      color: #444444;
+      margin-bottom: 5px;
+      font-weight: 700;
+    }
+    .ck-ev-cite-tag {
+      color: #0047ab;
+      font-weight: 700;
+      font-family: "Latin Modern Roman", serif;
+      text-decoration: none;
+    }
+    .ck-ev-kind-badge {
+      display: inline-block;
+      padding: 1px 6px;
+      border-radius: 2px;
+      font-size: 0.72rem;
+      font-weight: 600;
+      letter-spacing: 0.2px;
+    }
+    .ck-badge-keypoint {
+      border: 1px solid #0047ab;
+      color: #0047ab;
+      background: #f0f5ff;
+    }
+    .ck-badge-note {
+      border: 1px solid #b86a04;
+      color: #b86a04;
+      background: #fff8eb;
+    }
+    .ck-mem-title {
+      font-weight: 700;
+      color: #111111;
+      font-size: var(--ck-fs);
+      margin-bottom: 4px;
+      line-height: 1.5;
+    }
+    .ck-ev-quote {
+      color: #222222;
+      font-style: normal;
+      font-family: inherit;
+      margin: 4px 0 6px;
+      padding: 0;
+      background: transparent;
+      border: none;
+      line-height: 1.6;
+      font-size: var(--ck-fs);
+    }
+    .ck-ev-meta { font-size: 0.76rem; color: #666666; margin-top: 4px; }
+    .ck-ev-more {
+      margin-top: 2px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+    .ck-ev-more[open] { margin-top: 4px; }
+    .ck-ev-more summary { margin-bottom: 6px; }
+    .ck-proof-toggle {
+      cursor: pointer;
+      font-size: 0.82rem;
+      color: #0047ab;
+      user-select: none;
+      font-family: inherit;
+      padding: 2px 0;
+    }
+    .ck-proof-toggle:hover { text-decoration: underline; }
+    /* 右栏下段"状态演进"：无行内锚点，与上方证据卡视觉区分（灰底 + 徽章，无 [n]） */
+    .ck-ledger {
+      margin-top: 10px;
+      padding-top: 8px;
+      border-top: 1px dashed #d4d0c7;
+    }
+    .ck-ledger > summary { list-style: none; }
+    .ck-ledger > summary::-webkit-details-marker { display: none; }
+    .ck-ledger > summary::after { content: " ▾"; }
+    .ck-ledger:not([open]) > summary::after { content: " ▸"; }
+    /* 每类一张小灰卡：卡头类别 + 条数，卡内按 1. 2. 3. 编号 */
+    .ck-ledger-card {
+      background: #faf9f5;
+      border: 1px solid #e6e2d8;
+      border-left: 3px solid #bdb6a6;
+      border-radius: 4px;
+      padding: 7px 9px;
+      margin-bottom: 6px;
+    }
+    .ck-ledger-k {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 6px;
+      font-size: 0.72rem;
+      margin-bottom: 5px;
+    }
+    .ck-ledger-badge {
+      background: #efece4;
+      color: #6b6559;
+      border-radius: 3px;
+      padding: 1px 6px;
+      font-weight: 600;
+    }
+    .ck-ledger-count { color: #8a8578; }
+    .ck-ledger-list {
+      margin: 0;
+      padding-left: 1.35em;
+      font-size: var(--ck-fs);
+      line-height: 1.6;
+      color: #3b3a37;
+    }
+    .ck-ledger-list > li { margin: 2px 0; }
+    /* Personal Perspective "与我相关" Focus Block */
+    .ck-self-block {
+      background: #f4f8fe;
+      border: 1px solid #d4e2f5;
+      border-left: 3.5px solid #0047ab;
+      border-radius: 3px;
+      padding: 8px 12px;
+      margin: 8px 0 10px;
+    }
+    .ck-self-title {
+      margin: 0 0 4px;
+      color: #003380;
+      font-weight: 700;
+      font-size: var(--ck-fs);
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
+    .ck-self-badge {
+      display: inline-block;
+      background: #0047ab;
+      color: #ffffff;
+      font-size: 0.68rem;
+      padding: 1px 5px;
+      border-radius: 2px;
+      font-weight: 600;
+      letter-spacing: 0.2px;
+      margin-left: 4px;
+    }
+    .ck-self-block ul, .ck-self-block ol {
+      margin: 2px 0 2px;
+      padding-left: 1.25em;
+    }
+    .ck-self-block li {
+      margin: 2px 0;
+      color: #1a1a1a;
+    }
+
+    @media(max-width: 860px) {
+      .ck-doc { padding: 22px 18px; }
+      .ck-review { grid-template-columns: 1fr; }
+      .ck-review-rule { display: none; }
+    }
+
+  </style>
+</head>
+<body>
+  <main class="page">
+    <div class="ck-doc">
+      <header class="ck-doc-header">
+        <h1>日本概况与文化历史自由讨论会</h1>
+      </header>
+      <div class="ck-doc-content">
+        <h2 class="ck-doc-h2">讨论议题与背景</h2><p>本次会议为两人自由讨论，由主持人发言人1发起，参与者发言人2参与，围绕日本国家概况、文化历史、社会结构及旅游购物体验展开漫谈式交流。讨论由主持人提出「谈一谈日本这个国家的一个概况，还有大家对日本的一个印象」开场，发言人2分享个人对日本文化的喜爱及民族仇恨的影响，随后双方就日本文化的具体历史阶段、天皇制度演变、中古店产业起源等话题逐块推进。议题范围涵盖日本文化三次转型（大化改新、明治维新、和平宪法时期）、天皇神格认知的打破与君主立宪制现状、日本旅游城市推荐与购物体验、中古店产业起源等。讨论以分享观点为主，未形成统一结论，整体呈发散漫谈状态，由文化历史自然过渡至旅游购物话题。原文涉及的关键锚点包括1945年二战结束、广场协议、秋叶原等专名。</p><h2 class="ck-doc-h2">发言要点</h2><h3 class="ck-doc-h3">日本文化历史与印象</h3><ol><li><strong>【日本文化阶段界定】讨论核心</strong>（发言人：发言人1、发言人2）</li></ol><ul><li><strong>核心主张</strong>：发言人2表示对日本文化有好感，读研时修过日本文化课程，但读老舍《四世同堂》后认为民族仇恨仍应有所影响；发言人1回应称中日民族仇恨程度不及欧洲中亚地区严重。</li><li><strong>支撑论据/案例</strong>：发言人2列举漆艺、茶艺等日本传统文化标志；发言人1指出这些文化源于唐朝吴越文化基础上的本土化转型。</li><li><strong>观点碰撞/互动</strong>：发言人1追问发言人2所指日本文化具体属于哪个历史阶段，强调日本文化缺乏原创性，属外来接收后的本土化改进。</li></ul><ol><li><strong>【日本文化三次转型】系统阐述</strong>（发言人：发言人1）</li></ol><ul><li><strong>核心主张</strong>：日本文化经历三次重大转型，分别对应大化改新、明治维新与二战后和平宪法时期。</li><li><strong>支撑论据/案例</strong>：大化改新后日本向中国及朝鲜半岛学习，形成和服、制茶、漆器等传统印象；明治维新后向欧美列强看齐，引入英国和德国的法度；二战后美国制定和平宪法，社会结构大规模转型，并积极向美国看齐，形成动漫、二次元、汽车工业及铁道工业等当代印象。</li></ul><ol><li><strong>【天皇制度演变】讨论核心</strong>（发言人：发言人1、发言人2）</li></ol><ul><li><strong>核心主张</strong>：发言人1认为古代天皇对各地封建领主而言类似吉祥物，被以精神层面控制百姓，类比东汉末年及战国时期的天子地位。</li><li><strong>支撑论据/案例</strong>：1945年二战后美军统帅麦克阿瑟进驻日本，公开要求天皇在媒体和众人面前露面，打破其神灵认知，推动社会转型。</li><li><strong>观点碰撞/互动</strong>：发言人2询问日本民众对天皇是否仍有崇拜；发言人1回应称现为君主立宪制，天皇及皇室成员不能参与政治，由国会和内阁选出首相执政，天皇仅作象征性存在，且影响力不及英国国王（因英国国王还是英联邦国家名义元首）。</li></ul><h3 class="ck-doc-h3">日本旅游与购物体验</h3><ol><li><strong>【日本城市印象】讨论核心</strong>（发言人：发言人1、发言人2）</li></ol><ul><li><strong>核心主张</strong>：发言人1推荐东京、大阪、长崎等城市，认为东京在美食、购物、博物馆方面体验良好；个人偏好镰仓的气候，夏天去较舒适。</li><li><strong>支撑论据/案例</strong>：提及秋叶原以动漫、手办闻名，但认为其现状不如以前；还提到镰仓、京都、名古屋等地有本土化改良的文化场景，喜欢登山、逛古城和博物馆。</li></ul><ol><li><strong>【中古店产业起源】讨论核心</strong>（发言人：发言人1）</li></ol><ul><li><strong>核心主张</strong>：日本中古店（二手奢侈品商店）源于广场协议后泡沫经济崩溃催生的新产业。</li><li><strong>支撑论据/案例</strong>：广场协议后日本经济急剧恶化，失业上班族将高档大衣、西装、皮具等奢侈品通过二手回收方式寄卖，催生中古店产业；上海也有此类商店，可买到LV、Burberry、古奇等上个世纪知名品牌，女性款式较多，男性款式相对有限。</li></ul><ol><li><strong>【购物偏好交流】讨论核心</strong>（发言人：发言人1、发言人2）</li></ol><ul><li><strong>核心主张</strong>：发言人2提到日本购物以化妆品、美妆为主；发言人1补充奢侈品、玩具（如数码宝贝、铁甲小宝原装玩偶）也值得购买。</li><li><strong>支撑论据/案例</strong>：发言人1指出法国、意大利、韩国同样是女性购物热门地，男性购买名牌、化妆品和巧克力；认为欧洲、日韩的巧克力都比国内好。</li></ul><h2 class="ck-doc-h2">共识形成</h2><ol><li><strong>【达成共识】日本文化经历三次转型</strong>：双方一致认可日本文化缺乏原创性，属外来接收后的本土化改进，其形成经历<strong>大化改新</strong>（向中国、朝鲜半岛学习，形成和服、制茶、漆器等传统印象）、<strong>明治维新</strong>（向欧美列强学习，引入英国和德国的法度）与<strong>二战后和平宪法转型</strong>（美国主导社会结构大规模调整）三个阶段。</li></ol><ol><li><strong>【核心分歧/待定取舍】日本文化具体所指阶段</strong>：发言人1追问发言人2所指的日本文化具体属于哪个历史阶段，发言人2回应称既包含传统文化（漆艺、茶艺），也包含当代文化艺术；发言人1指出漆器、茶道等均源自唐朝吴越文化基础上的本土化转型，双方未就「日本文化」的界定范围达成统一口径。另就天皇崇拜现状存在探讨：发言人2询问日本民众对天皇是否仍有崇拜，发言人1认为已无崇拜，天皇现为君主立宪制下的象征性存在、无实权，政治由国会和内阁主导，但未形成正式结论。</li></ol><h2 class="ck-doc-h2">待探讨问题与后续</h2><ol><li><strong>未确认：日本民众对天皇的崇拜是否完全消失</strong>——发言人2提出「他们现在的民众对天皇没有那种崇拜了，还是有吧？」的疑问，发言人1回应称已转变为类似英国、西班牙的君主立宪制象征性存在，但未提供民意调查等实证数据，该问题仍属开放探讨。</li><li><strong>未定论：日本文化的具体历史阶段界定</strong>——发言人2表示其所述日本文化兼含传统文化（漆艺、茶艺）与现当代文化艺术，发言人1追问「具体指哪一个历史阶段的日本文化」，双方未就讨论对象的时间范畴达成明确界定。</li><li><strong>待核实：秋叶原现状评价</strong>——发言人1提及「秋叶原好像他现在不太行」，但未展开具体依据或数据支撑，该判断的准确性有待进一步核实。</li></ol>
+      </div>
+    </div>
+  </main>
+</body>
+</html>

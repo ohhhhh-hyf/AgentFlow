@@ -1,0 +1,440 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>苏阿战争历史讲解与问答研讨会</title>
+  <style>
+
+    body {
+      margin: 0;
+      padding: 14px 12px;
+      background: #f6f5f0;
+      color: #1a1a1a;
+      font-family: "Latin Modern Roman", "Computer Modern Roman", "CMU Serif", "Times New Roman", Times, "Songti SC", "SimSun", "STSong", serif;
+      -webkit-font-smoothing: antialiased;
+    }
+    .page { max-width: 1140px; margin: 0 auto; }
+    .ck-doc {
+      background: #ffffff;
+      border: 1px solid #d4d0c7;
+      border-radius: 4px;
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.05), 0 1px 3px rgba(0,0,0,0.03);
+      padding: 18px 22px;
+      line-height: 1.6;
+      font-size: 0.84rem;      /* 正文基准：左右两栏共用 --ck-fs */
+      --ck-fs: 0.84rem;
+    }
+    .ck-doc h1 {
+      margin: 0 0 6px;
+      font-size: 1.05rem;      /* 文档标题：只比正文略大一点 */
+      font-weight: 700;
+      text-align: center;
+      color: #111111;
+    }
+    .ck-doc-header {
+      margin-bottom: 10px;
+      padding-bottom: 8px;
+      border-bottom: 1px solid #111111;
+      text-align: center;
+    }
+    .ck-doc-meta {
+      font-size: 0.78rem;
+      color: #555555;
+      font-style: italic;
+    }
+    /* 层级标题一律"加粗 + 与右栏同级字号"，不加字号、不加下划线，前后留白压到最小 */
+    .ck-doc-content h1, .ck-doc-content .ck-doc-h1,
+    .ck-doc h2, .ck-doc-h2,
+    .ck-doc h3, .ck-doc-h3,
+    .ck-doc h4, .ck-doc-h4 {
+      font-size: var(--ck-fs);
+      font-weight: 700;
+      color: #111111;
+      border-bottom: 0;
+      padding-bottom: 0;
+      letter-spacing: 0;
+      font-variant: normal;
+      text-align: left;
+    }
+    .ck-doc-content h1, .ck-doc-content .ck-doc-h1, .ck-doc h2, .ck-doc-h2 {
+      margin: 12px 0 4px;
+    }
+    .ck-doc h3, .ck-doc-h3, .ck-doc h4, .ck-doc-h4 {
+      margin: 9px 0 3px;
+    }
+    .ck-doc p {
+      margin: 5px 0;
+      line-height: 1.6;
+      text-align: justify;
+    }
+    .ck-doc ul, .ck-doc ol {
+      margin: 4px 0 6px;
+      padding-left: 1.25em;
+      line-height: 1.6;
+    }
+    .ck-doc li {
+      margin: 2px 0;
+    }
+    .ck-doc blockquote, .ck-quote {
+      margin: 6px 0 8px;
+      padding: 5px 10px;
+      background: #faf9f6;
+      border-left: 3px solid #222222;
+      border-radius: 2px;
+      color: #222222;
+      font-size: var(--ck-fs);
+      font-style: italic;
+    }
+    .ck-doc code {
+      background: #f3f0e8;
+      border: 1px solid #e2ddd3;
+      border-radius: 3px;
+      padding: 1px 6px;
+      font-family: "Latin Modern Mono", Consolas, monospace;
+      font-size: 0.88em;
+    }
+    .ck-doc table, .ck-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: var(--ck-fs);
+      margin: 8px 0;
+      background: #ffffff;
+      border-top: 2px solid #222222;
+      border-bottom: 2px solid #222222;
+    }
+    .ck-doc table th, .ck-doc table td, .ck-table th, .ck-table td {
+      padding: 5px 8px;
+      text-align: left;
+      vertical-align: middle;
+      border-bottom: 1px solid #ede9e1;
+    }
+    .ck-doc table th, .ck-table th {
+      background: #fbfaf7;
+      border-bottom: 1.2px solid #222222;
+      font-weight: 700;
+      color: #111111;
+      letter-spacing: 0.3px;
+    }
+
+    /* Roomy & Spacious Academic Risk Table */
+    .ck-risk-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 18px 0 28px;
+      background: #ffffff;
+      border-top: 2.2px solid #111111;
+      border-bottom: 2.2px solid #111111;
+      font-size: 0.93rem;
+      line-height: 1.72;
+    }
+    .ck-risk-table th {
+      background: #faf8f5;
+      border-bottom: 1.5px solid #111111;
+      padding: 15px 16px;
+      font-weight: 700;
+      color: #111111;
+      letter-spacing: 0.3px;
+      text-align: left;
+      vertical-align: middle;
+    }
+    .ck-risk-table td {
+      padding: 16px 16px;
+      border-bottom: 1px solid #ede8e0;
+      vertical-align: top;
+      color: #1a1a1a;
+      word-break: break-word;
+    }
+    .ck-risk-table tr:nth-child(even) td {
+      background: #fdfcfb;
+    }
+    .ck-risk-table tr:hover td {
+      background: #f6f3eb;
+    }
+
+    /* Review Grid */
+    .ck-review {
+      display: grid;
+      grid-template-columns: minmax(0, 1.35fr) 1px minmax(260px, 0.95fr);
+      border: 1px solid #d4d0c7;
+      border-radius: 4px;
+      overflow: hidden;
+      margin: 8px 0 10px;
+      background: #ffffff;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.03);
+    }
+    .ck-review-left {
+      padding: 14px 16px;
+      background: #ffffff;
+      line-height: 1.6;
+      font-size: var(--ck-fs);
+    }
+    .ck-review-rule { background: #dcd8cf; }
+    .ck-review-right {
+      padding: 12px 14px;
+      background: #faf9f6;
+      box-sizing: border-box;
+      display: flex;
+      flex-direction: column;
+    }
+    .ck-ev-list {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    /* Entity Highlight in LaTeX Paper Style */
+    .ck-cite-entity {
+      background: #fff8db;
+      border-bottom: 1.5px solid #b86a04;
+      padding: 1px 4px;
+      border-radius: 2px;
+      cursor: pointer;
+      transition: all 0.18s ease;
+      color: #111111;
+      font-weight: 600;
+    }
+    .ck-cite-entity:hover {
+      background: #ffe58f;
+      color: #000000;
+    }
+    .ck-cite-entity.is-on {
+      background: #ffd54a;
+      border-bottom-color: #0047ab;
+      box-shadow: 0 0 0 2px rgba(0,71,171,0.25);
+    }
+
+    /* Blue Hyperref Citations [1], [2] */
+    .ck-cite-ref {
+      color: #0047ab;
+      font-weight: 600;
+      font-family: "Latin Modern Roman", "Computer Modern Roman", "Times New Roman", serif;
+      text-decoration: none;
+      cursor: pointer;
+      padding: 0 2px;
+      margin: 0 2px;
+      border-radius: 2px;
+      transition: all 0.15s ease;
+      font-size: 0.92em;
+      vertical-align: baseline;
+      user-select: none;
+    }
+    .ck-cite-ref:hover {
+      text-decoration: underline;
+      background: #e8f0fe;
+      color: #003380;
+    }
+    .ck-cite-ref.is-active {
+      background: #d2e3fc;
+      color: #002266;
+      font-weight: 700;
+      box-shadow: 0 0 0 1px #0047ab;
+    }
+
+    /* Right Memory Cards in LaTeX Paper Style */
+    .ck-provenance-head {
+      font-size: 0.82rem;
+      font-weight: 700;
+      color: #222222;
+      margin: 0 0 12px;
+      padding-bottom: 6px;
+      border-bottom: 1px solid #e0dcd4;
+      letter-spacing: 0.3px;
+      text-transform: uppercase;
+    }
+    .ck-ref-icon { color: #0047ab; margin-right: 4px; }
+    .ck-ev {
+      display: block;
+      margin: 0;
+      padding: 10px 12px;
+      border: 1px solid #dedad2;
+      border-left: 3.5px solid #0047ab;
+      border-radius: 2px;
+      background: #ffffff;
+      font-size: 0.82rem;
+      line-height: 1.55;
+      transition: all 0.2s ease;
+      cursor: pointer;
+    }
+    .ck-ev:hover { border-color: #b5b0a5; }
+    .ck-ev.is-on, .ck-ev.is-highlighted {
+      border-color: #0047ab;
+      box-shadow: 0 0 0 2px #0047ab, 0 3px 8px rgba(0,71,171,0.15);
+      background: #f0f5ff;
+    }
+    @keyframes citePulse {
+      0% { background: #dbeafe; box-shadow: 0 0 0 3px #0047ab; }
+      50% { background: #bfdbfe; box-shadow: 0 0 0 4px #0047ab; }
+      100% { background: #f0f5ff; box-shadow: 0 0 0 2px #0047ab; }
+    }
+    .ck-ev-k {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 0.75rem;
+      color: #444444;
+      margin-bottom: 5px;
+      font-weight: 700;
+    }
+    .ck-ev-cite-tag {
+      color: #0047ab;
+      font-weight: 700;
+      font-family: "Latin Modern Roman", serif;
+      text-decoration: none;
+    }
+    .ck-ev-kind-badge {
+      display: inline-block;
+      padding: 1px 6px;
+      border-radius: 2px;
+      font-size: 0.72rem;
+      font-weight: 600;
+      letter-spacing: 0.2px;
+    }
+    .ck-badge-keypoint {
+      border: 1px solid #0047ab;
+      color: #0047ab;
+      background: #f0f5ff;
+    }
+    .ck-badge-note {
+      border: 1px solid #b86a04;
+      color: #b86a04;
+      background: #fff8eb;
+    }
+    .ck-mem-title {
+      font-weight: 700;
+      color: #111111;
+      font-size: var(--ck-fs);
+      margin-bottom: 4px;
+      line-height: 1.5;
+    }
+    .ck-ev-quote {
+      color: #222222;
+      font-style: normal;
+      font-family: inherit;
+      margin: 4px 0 6px;
+      padding: 0;
+      background: transparent;
+      border: none;
+      line-height: 1.6;
+      font-size: var(--ck-fs);
+    }
+    .ck-ev-meta { font-size: 0.76rem; color: #666666; margin-top: 4px; }
+    .ck-ev-more {
+      margin-top: 2px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+    .ck-ev-more[open] { margin-top: 4px; }
+    .ck-ev-more summary { margin-bottom: 6px; }
+    .ck-proof-toggle {
+      cursor: pointer;
+      font-size: 0.82rem;
+      color: #0047ab;
+      user-select: none;
+      font-family: inherit;
+      padding: 2px 0;
+    }
+    .ck-proof-toggle:hover { text-decoration: underline; }
+    /* 右栏下段"状态演进"：无行内锚点，与上方证据卡视觉区分（灰底 + 徽章，无 [n]） */
+    .ck-ledger {
+      margin-top: 10px;
+      padding-top: 8px;
+      border-top: 1px dashed #d4d0c7;
+    }
+    .ck-ledger > summary { list-style: none; }
+    .ck-ledger > summary::-webkit-details-marker { display: none; }
+    .ck-ledger > summary::after { content: " ▾"; }
+    .ck-ledger:not([open]) > summary::after { content: " ▸"; }
+    /* 每类一张小灰卡：卡头类别 + 条数，卡内按 1. 2. 3. 编号 */
+    .ck-ledger-card {
+      background: #faf9f5;
+      border: 1px solid #e6e2d8;
+      border-left: 3px solid #bdb6a6;
+      border-radius: 4px;
+      padding: 7px 9px;
+      margin-bottom: 6px;
+    }
+    .ck-ledger-k {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 6px;
+      font-size: 0.72rem;
+      margin-bottom: 5px;
+    }
+    .ck-ledger-badge {
+      background: #efece4;
+      color: #6b6559;
+      border-radius: 3px;
+      padding: 1px 6px;
+      font-weight: 600;
+    }
+    .ck-ledger-count { color: #8a8578; }
+    .ck-ledger-list {
+      margin: 0;
+      padding-left: 1.35em;
+      font-size: var(--ck-fs);
+      line-height: 1.6;
+      color: #3b3a37;
+    }
+    .ck-ledger-list > li { margin: 2px 0; }
+    /* Personal Perspective "与我相关" Focus Block */
+    .ck-self-block {
+      background: #f4f8fe;
+      border: 1px solid #d4e2f5;
+      border-left: 3.5px solid #0047ab;
+      border-radius: 3px;
+      padding: 8px 12px;
+      margin: 8px 0 10px;
+    }
+    .ck-self-title {
+      margin: 0 0 4px;
+      color: #003380;
+      font-weight: 700;
+      font-size: var(--ck-fs);
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
+    .ck-self-badge {
+      display: inline-block;
+      background: #0047ab;
+      color: #ffffff;
+      font-size: 0.68rem;
+      padding: 1px 5px;
+      border-radius: 2px;
+      font-weight: 600;
+      letter-spacing: 0.2px;
+      margin-left: 4px;
+    }
+    .ck-self-block ul, .ck-self-block ol {
+      margin: 2px 0 2px;
+      padding-left: 1.25em;
+    }
+    .ck-self-block li {
+      margin: 2px 0;
+      color: #1a1a1a;
+    }
+
+    @media(max-width: 860px) {
+      .ck-doc { padding: 22px 18px; }
+      .ck-review { grid-template-columns: 1fr; }
+      .ck-review-rule { display: none; }
+    }
+
+  </style>
+</head>
+<body>
+  <main class="page">
+    <div class="ck-doc">
+      <header class="ck-doc-header">
+        <h1>苏阿战争历史讲解与问答研讨会</h1>
+      </header>
+      <div class="ck-doc-content">
+        <h2 class="ck-doc-h2">讲座概况</h2><p>本次研讨会由主讲人讲解1979年至1989年苏联入侵阿富汗战争（苏阿战争）的背景、经过与结果，面向对国际关系与冷战历史感兴趣的听众。讲座围绕五个板块展开：阿富汗的地理位置与战略价值、战前国内政治格局、苏联出兵原因与经过、圣战者与帝国坟场的成因、各方援助与苏联撤军。主讲人核心判断有三：其一，阿富汗地处亚洲中部，东接中国，北邻塔吉克斯坦，南接巴基斯坦、锡林、伊朗，被称为亚洲的中间走廊地带，谁控制了阿富汗谁就控制住亚洲的咽喉；其二，阿富汗国土90%为高原山地，易守难攻，历史上多次被称为帝国坟场；其三，苏联军事实力看似庞大，但重装武器在高原山地无法发挥有效作用，加上基层官兵普遍厌战，最终于1989年撤军。讲座以1979年12月24日平安夜苏联突袭喀布尔、处决阿明一家、扶植卡尔迈勒上台等关键史实为锚点，对听众理解冷战时期大国博弈与阿富汗问题的历史根源具有参考意义。</p><h2 class="ck-doc-h2">核心观点与论证</h2><h3 class="ck-doc-h3">阿富汗的战略位置与帝国坟场</h3><ol><li>阿富汗地处亚洲中部，东接中国，北邻塔吉克斯坦，南接巴基斯坦、锡林、伊朗，被称为亚洲的中间走廊地带，是兵家必争之地。</li><li>阿富汗国土纵深90%为高原山地地带，易守难攻，历史上各大列强入侵后多遭反推，多次获得帝国坟场称号。</li><li>此前已有三次英阿战争，第一次大英帝国入侵后短暂时期被阿富汗反推回巴基斯坦地区。</li></ol><h3 class="ck-doc-h3">战前阿富汗的政治格局</h3><ol><li>20世纪50年代，阿富汗同时与苏联及西方国家保持友好交往，实行君主立宪制。</li><li>国内精英阶层和知识界奉行亲英与亲苏两头政策：文化上向英国靠拢，师从英国的议会制度、君主立宪制度及大学现代科学；国家建设和工业方面向苏联看齐。</li><li>基辛格评价当时的阿富汗国王阿明是"用苏联的火柴在点美国的香烟"，两边一起要好处，获得墙头草的称号。</li></ol><h3 class="ck-doc-h3">苏联出兵的原因与经过</h3><ol><li>阿明对苏联日益干涉其内政不满，过度导向美国，使苏联领导阶层大为光火。</li><li>从苏联角度看，若阿富汗脱离掌控导向美国，对苏联中亚地区将非常被动，苏联高层政治局决定在阿富汗彻底导向美国之前以兵变和武力介入形式深入阿富汗。</li><li>1979年12月24日平安夜，苏联趁阿富汗高层及军队被先前释放的轻散信号麻痹之机，以阿富汗请求苏联救援的说法强行派兵突入，从东部、中部及西部（今塔吉克斯坦、土库曼斯坦方向）分路推进。</li><li>一夜之间控制喀布尔政府高层，处决阿明一家，扶植代理人卡尔迈勒上台，将阿富汗重新纳入苏联阵营。</li><li>发言人3补充冷战思维视角：阿富汗被苏联视为大家庭一员，根据勃列日涅夫逻辑不允许任何成员外出，类似之前出兵捷克，加上冷战时期苏攻美守、苏联进行意识形态扩张与军事霸权恐吓，共同导致苏联出兵。</li></ol><h3 class="ck-doc-h3">圣战者与阿富汗难打的原因</h3><ol><li>圣战者指具有狂烈激进伊斯兰圣战思想、从上到下宗教式洗脑的阿富汗抵抗者，抱着同归于尽的思想作战，类似二战时期日本军国主义荼毒之下的日本军民。</li><li>阿富汗90%地区为高原山地，是天然游击战地区；除喀布尔和坎大哈等主要城市外，大部分地区由部落长老制控制，政府无控制力，各村落部落各自为政。</li><li>任何列强及阿富汗城市政府都无法对广大高原山地形成有力控制。</li></ol><h3 class="ck-doc-h3">各方援助与苏联撤军</h3><ol><li>苏联出兵招致众多阿拉伯国家、中国及西方盟国共同不满，各方合力援助阿富汗抵抗组织，由阿富汗和穆斯林国家出动兵源，中国和西方盟国出动武器与情报资源。</li><li>中国帮助阿富汗圣战抵抗者，教授地道战、地雷战等抗战时期战法，并提供与AK47同型号的五六式冲锋枪和五六式半自动步枪，同时将国内已饱和的军工业产能稀释。</li><li>美国援助了毒刺防空导弹，可有效压制苏联最先进的雌鹿武装直升机；坦克和步兵战车在高原山地无法形成有效战斗力，需以步兵加武装直升机作战。</li><li>苏联基层官兵普遍厌战，不明白为何来此战斗，士气一落千丈，最终于1989年撤军。</li></ol><h2 class="ck-doc-h2">金句总结</h2><div class="ck-quote">"谁控制了阿富汗，谁就控制住了亚洲的咽喉。"</div><div class="ck-quote">—— <strong>主讲人</strong> ｜ 针对阿富汗战略价值的定调发言</div><div class="ck-quote">"它是用的苏联的火柴在点的美国的香烟。"</div><div class="ck-quote">—— <strong>主讲人</strong> ｜ 转述基辛格对阿富汗国王阿明的评价</div><div class="ck-quote">"阿富汗多次获得其帝国坟场的称号。"</div><div class="ck-quote">—— <strong>主讲人</strong> ｜ 针对阿富汗历史命运的概括</div><div class="ck-quote">"苏联的军事实力看似庞大，但实际上它的武器发挥不了任何的作用。"</div><div class="ck-quote">—— <strong>主讲人</strong> ｜ 针对苏联在阿富汗战场困境的总结</div><h2 class="ck-doc-h2">Q&amp;A 环节</h2><h3 class="ck-doc-h3">Q1. 阿富汗的战略价值</h3><ul><li><strong>发言人2</strong>：男生阿富汗到底有啥好呀？为啥都想打它？</li></ul><div class="ck-quote"><strong>主讲人</strong>：地理位置的原因，因为谁控制了阿富汗，谁就控制住了亚洲的咽喉。</div><h3 class="ck-doc-h3">Q2. 阿富汗是否有石油</h3><ul><li><strong>发言人2</strong>：是不是阿富汗有石油啊？</li></ul><div class="ck-quote"><strong>主讲人</strong>：它这个国家相对来说是个贫油国，但它周边的国家都是富油国，比如说是西边的伊朗，北边的土库曼斯坦和塔吉克斯坦。</div><h3 class="ck-doc-h3">Q3. 冷战思维下的苏联出兵逻辑</h3><ul><li><strong>发言人3</strong>：其实这个我感觉得用当时的冷战思维来看，因为阿富汗当时被苏联化为是苏联势力，就是苏联大家庭中的一员。根据这个勃列日涅夫的这个逻辑来说，是不允许任何一个成员外出的。所以就像之前出兵捷克一样，这次阿富汗他是必须要下场的，而阿富汗是一个非常特殊的战略要地，所以加上苏联这个错判，导致苏联的大大的战略性失误。</li></ul><div class="ck-quote"><strong>主讲人</strong>：对的，同时期冷战的状态也是苏攻美守时期，然后苏联咄咄逼人的进行意识形态的扩张以及军事霸权的恐吓，然后共同导致了苏联出兵阿富汗。</div><h3 class="ck-doc-h3">Q4. 圣战者的含义</h3><ul><li><strong>发言人3</strong>：之前看那个阿富汗那边把那个部队叫什么圣战者，这个是什么意思？</li></ul><div class="ck-quote"><strong>主讲人</strong>：就是狂烈的激进的伊斯兰圣战思想，以及从上到下那种宗教式那种洗脑，然后导致了其阿富汗圣战者具备像二战时期日本军国主义荼毒之下的日本军民的那样一样，不顾一切的就是抱着一种同归于尽的思想进行一种圣战的方式。</div><h3 class="ck-doc-h3">Q5. 阿富汗为何难打</h3><ul><li><strong>发言人3</strong>：其实这次苏阿战争之前，已经有三次这个英阿战争，这个阿富汗这个这个被称为叫做帝国坟场，这个可以，就是简单说一下为什么这个阿富汗这个位置这么难打？虽然它的国土面积没有那么大，然后经济实力又没有那么好。</li></ul><div class="ck-quote"><strong>主讲人</strong>：因为这个国家百分之九十都是处于高原山地地带，就是一个天然的游击战地区。它除了以喀布尔和坎大哈那几个主要城市为首的城市地区以外，剩下大部分百分之九十的地区都是乡村部落长老制的那种制度。你到乡村就是政府没有任何的控制力，都是由部落的长老，也就是咱们以前国内宗族的，像什么族长、村长这样的一个形式，然后控制的该部落，然后各个村落与部落各自为政，然后导致了，就任何一个列强以及阿富汗的城市政府对于广大的阿富汗高原山地地区无法形成一个有力的控制。</div><h3 class="ck-doc-h3">Q6. 中国对阿富汗的援助方式</h3><ul><li><strong>发言人3</strong>：只提供军火，但是没有派人。</li></ul><div class="ck-quote"><strong>主讲人</strong>：专家派的主要就教一些兵法、地道战、地雷战这一块的。</div>
+      </div>
+    </div>
+  </main>
+</body>
+</html>

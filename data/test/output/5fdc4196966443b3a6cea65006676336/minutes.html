@@ -1,0 +1,440 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>372班家长会：班级情况与家校协作沟通</title>
+  <style>
+
+    body {
+      margin: 0;
+      padding: 14px 12px;
+      background: #f6f5f0;
+      color: #1a1a1a;
+      font-family: "Latin Modern Roman", "Computer Modern Roman", "CMU Serif", "Times New Roman", Times, "Songti SC", "SimSun", "STSong", serif;
+      -webkit-font-smoothing: antialiased;
+    }
+    .page { max-width: 1140px; margin: 0 auto; }
+    .ck-doc {
+      background: #ffffff;
+      border: 1px solid #d4d0c7;
+      border-radius: 4px;
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.05), 0 1px 3px rgba(0,0,0,0.03);
+      padding: 18px 22px;
+      line-height: 1.6;
+      font-size: 0.84rem;      /* 正文基准：左右两栏共用 --ck-fs */
+      --ck-fs: 0.84rem;
+    }
+    .ck-doc h1 {
+      margin: 0 0 6px;
+      font-size: 1.05rem;      /* 文档标题：只比正文略大一点 */
+      font-weight: 700;
+      text-align: center;
+      color: #111111;
+    }
+    .ck-doc-header {
+      margin-bottom: 10px;
+      padding-bottom: 8px;
+      border-bottom: 1px solid #111111;
+      text-align: center;
+    }
+    .ck-doc-meta {
+      font-size: 0.78rem;
+      color: #555555;
+      font-style: italic;
+    }
+    /* 层级标题一律"加粗 + 与右栏同级字号"，不加字号、不加下划线，前后留白压到最小 */
+    .ck-doc-content h1, .ck-doc-content .ck-doc-h1,
+    .ck-doc h2, .ck-doc-h2,
+    .ck-doc h3, .ck-doc-h3,
+    .ck-doc h4, .ck-doc-h4 {
+      font-size: var(--ck-fs);
+      font-weight: 700;
+      color: #111111;
+      border-bottom: 0;
+      padding-bottom: 0;
+      letter-spacing: 0;
+      font-variant: normal;
+      text-align: left;
+    }
+    .ck-doc-content h1, .ck-doc-content .ck-doc-h1, .ck-doc h2, .ck-doc-h2 {
+      margin: 12px 0 4px;
+    }
+    .ck-doc h3, .ck-doc-h3, .ck-doc h4, .ck-doc-h4 {
+      margin: 9px 0 3px;
+    }
+    .ck-doc p {
+      margin: 5px 0;
+      line-height: 1.6;
+      text-align: justify;
+    }
+    .ck-doc ul, .ck-doc ol {
+      margin: 4px 0 6px;
+      padding-left: 1.25em;
+      line-height: 1.6;
+    }
+    .ck-doc li {
+      margin: 2px 0;
+    }
+    .ck-doc blockquote, .ck-quote {
+      margin: 6px 0 8px;
+      padding: 5px 10px;
+      background: #faf9f6;
+      border-left: 3px solid #222222;
+      border-radius: 2px;
+      color: #222222;
+      font-size: var(--ck-fs);
+      font-style: italic;
+    }
+    .ck-doc code {
+      background: #f3f0e8;
+      border: 1px solid #e2ddd3;
+      border-radius: 3px;
+      padding: 1px 6px;
+      font-family: "Latin Modern Mono", Consolas, monospace;
+      font-size: 0.88em;
+    }
+    .ck-doc table, .ck-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: var(--ck-fs);
+      margin: 8px 0;
+      background: #ffffff;
+      border-top: 2px solid #222222;
+      border-bottom: 2px solid #222222;
+    }
+    .ck-doc table th, .ck-doc table td, .ck-table th, .ck-table td {
+      padding: 5px 8px;
+      text-align: left;
+      vertical-align: middle;
+      border-bottom: 1px solid #ede9e1;
+    }
+    .ck-doc table th, .ck-table th {
+      background: #fbfaf7;
+      border-bottom: 1.2px solid #222222;
+      font-weight: 700;
+      color: #111111;
+      letter-spacing: 0.3px;
+    }
+
+    /* Roomy & Spacious Academic Risk Table */
+    .ck-risk-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 18px 0 28px;
+      background: #ffffff;
+      border-top: 2.2px solid #111111;
+      border-bottom: 2.2px solid #111111;
+      font-size: 0.93rem;
+      line-height: 1.72;
+    }
+    .ck-risk-table th {
+      background: #faf8f5;
+      border-bottom: 1.5px solid #111111;
+      padding: 15px 16px;
+      font-weight: 700;
+      color: #111111;
+      letter-spacing: 0.3px;
+      text-align: left;
+      vertical-align: middle;
+    }
+    .ck-risk-table td {
+      padding: 16px 16px;
+      border-bottom: 1px solid #ede8e0;
+      vertical-align: top;
+      color: #1a1a1a;
+      word-break: break-word;
+    }
+    .ck-risk-table tr:nth-child(even) td {
+      background: #fdfcfb;
+    }
+    .ck-risk-table tr:hover td {
+      background: #f6f3eb;
+    }
+
+    /* Review Grid */
+    .ck-review {
+      display: grid;
+      grid-template-columns: minmax(0, 1.35fr) 1px minmax(260px, 0.95fr);
+      border: 1px solid #d4d0c7;
+      border-radius: 4px;
+      overflow: hidden;
+      margin: 8px 0 10px;
+      background: #ffffff;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.03);
+    }
+    .ck-review-left {
+      padding: 14px 16px;
+      background: #ffffff;
+      line-height: 1.6;
+      font-size: var(--ck-fs);
+    }
+    .ck-review-rule { background: #dcd8cf; }
+    .ck-review-right {
+      padding: 12px 14px;
+      background: #faf9f6;
+      box-sizing: border-box;
+      display: flex;
+      flex-direction: column;
+    }
+    .ck-ev-list {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    /* Entity Highlight in LaTeX Paper Style */
+    .ck-cite-entity {
+      background: #fff8db;
+      border-bottom: 1.5px solid #b86a04;
+      padding: 1px 4px;
+      border-radius: 2px;
+      cursor: pointer;
+      transition: all 0.18s ease;
+      color: #111111;
+      font-weight: 600;
+    }
+    .ck-cite-entity:hover {
+      background: #ffe58f;
+      color: #000000;
+    }
+    .ck-cite-entity.is-on {
+      background: #ffd54a;
+      border-bottom-color: #0047ab;
+      box-shadow: 0 0 0 2px rgba(0,71,171,0.25);
+    }
+
+    /* Blue Hyperref Citations [1], [2] */
+    .ck-cite-ref {
+      color: #0047ab;
+      font-weight: 600;
+      font-family: "Latin Modern Roman", "Computer Modern Roman", "Times New Roman", serif;
+      text-decoration: none;
+      cursor: pointer;
+      padding: 0 2px;
+      margin: 0 2px;
+      border-radius: 2px;
+      transition: all 0.15s ease;
+      font-size: 0.92em;
+      vertical-align: baseline;
+      user-select: none;
+    }
+    .ck-cite-ref:hover {
+      text-decoration: underline;
+      background: #e8f0fe;
+      color: #003380;
+    }
+    .ck-cite-ref.is-active {
+      background: #d2e3fc;
+      color: #002266;
+      font-weight: 700;
+      box-shadow: 0 0 0 1px #0047ab;
+    }
+
+    /* Right Memory Cards in LaTeX Paper Style */
+    .ck-provenance-head {
+      font-size: 0.82rem;
+      font-weight: 700;
+      color: #222222;
+      margin: 0 0 12px;
+      padding-bottom: 6px;
+      border-bottom: 1px solid #e0dcd4;
+      letter-spacing: 0.3px;
+      text-transform: uppercase;
+    }
+    .ck-ref-icon { color: #0047ab; margin-right: 4px; }
+    .ck-ev {
+      display: block;
+      margin: 0;
+      padding: 10px 12px;
+      border: 1px solid #dedad2;
+      border-left: 3.5px solid #0047ab;
+      border-radius: 2px;
+      background: #ffffff;
+      font-size: 0.82rem;
+      line-height: 1.55;
+      transition: all 0.2s ease;
+      cursor: pointer;
+    }
+    .ck-ev:hover { border-color: #b5b0a5; }
+    .ck-ev.is-on, .ck-ev.is-highlighted {
+      border-color: #0047ab;
+      box-shadow: 0 0 0 2px #0047ab, 0 3px 8px rgba(0,71,171,0.15);
+      background: #f0f5ff;
+    }
+    @keyframes citePulse {
+      0% { background: #dbeafe; box-shadow: 0 0 0 3px #0047ab; }
+      50% { background: #bfdbfe; box-shadow: 0 0 0 4px #0047ab; }
+      100% { background: #f0f5ff; box-shadow: 0 0 0 2px #0047ab; }
+    }
+    .ck-ev-k {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 0.75rem;
+      color: #444444;
+      margin-bottom: 5px;
+      font-weight: 700;
+    }
+    .ck-ev-cite-tag {
+      color: #0047ab;
+      font-weight: 700;
+      font-family: "Latin Modern Roman", serif;
+      text-decoration: none;
+    }
+    .ck-ev-kind-badge {
+      display: inline-block;
+      padding: 1px 6px;
+      border-radius: 2px;
+      font-size: 0.72rem;
+      font-weight: 600;
+      letter-spacing: 0.2px;
+    }
+    .ck-badge-keypoint {
+      border: 1px solid #0047ab;
+      color: #0047ab;
+      background: #f0f5ff;
+    }
+    .ck-badge-note {
+      border: 1px solid #b86a04;
+      color: #b86a04;
+      background: #fff8eb;
+    }
+    .ck-mem-title {
+      font-weight: 700;
+      color: #111111;
+      font-size: var(--ck-fs);
+      margin-bottom: 4px;
+      line-height: 1.5;
+    }
+    .ck-ev-quote {
+      color: #222222;
+      font-style: normal;
+      font-family: inherit;
+      margin: 4px 0 6px;
+      padding: 0;
+      background: transparent;
+      border: none;
+      line-height: 1.6;
+      font-size: var(--ck-fs);
+    }
+    .ck-ev-meta { font-size: 0.76rem; color: #666666; margin-top: 4px; }
+    .ck-ev-more {
+      margin-top: 2px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+    .ck-ev-more[open] { margin-top: 4px; }
+    .ck-ev-more summary { margin-bottom: 6px; }
+    .ck-proof-toggle {
+      cursor: pointer;
+      font-size: 0.82rem;
+      color: #0047ab;
+      user-select: none;
+      font-family: inherit;
+      padding: 2px 0;
+    }
+    .ck-proof-toggle:hover { text-decoration: underline; }
+    /* 右栏下段"状态演进"：无行内锚点，与上方证据卡视觉区分（灰底 + 徽章，无 [n]） */
+    .ck-ledger {
+      margin-top: 10px;
+      padding-top: 8px;
+      border-top: 1px dashed #d4d0c7;
+    }
+    .ck-ledger > summary { list-style: none; }
+    .ck-ledger > summary::-webkit-details-marker { display: none; }
+    .ck-ledger > summary::after { content: " ▾"; }
+    .ck-ledger:not([open]) > summary::after { content: " ▸"; }
+    /* 每类一张小灰卡：卡头类别 + 条数，卡内按 1. 2. 3. 编号 */
+    .ck-ledger-card {
+      background: #faf9f5;
+      border: 1px solid #e6e2d8;
+      border-left: 3px solid #bdb6a6;
+      border-radius: 4px;
+      padding: 7px 9px;
+      margin-bottom: 6px;
+    }
+    .ck-ledger-k {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 6px;
+      font-size: 0.72rem;
+      margin-bottom: 5px;
+    }
+    .ck-ledger-badge {
+      background: #efece4;
+      color: #6b6559;
+      border-radius: 3px;
+      padding: 1px 6px;
+      font-weight: 600;
+    }
+    .ck-ledger-count { color: #8a8578; }
+    .ck-ledger-list {
+      margin: 0;
+      padding-left: 1.35em;
+      font-size: var(--ck-fs);
+      line-height: 1.6;
+      color: #3b3a37;
+    }
+    .ck-ledger-list > li { margin: 2px 0; }
+    /* Personal Perspective "与我相关" Focus Block */
+    .ck-self-block {
+      background: #f4f8fe;
+      border: 1px solid #d4e2f5;
+      border-left: 3.5px solid #0047ab;
+      border-radius: 3px;
+      padding: 8px 12px;
+      margin: 8px 0 10px;
+    }
+    .ck-self-title {
+      margin: 0 0 4px;
+      color: #003380;
+      font-weight: 700;
+      font-size: var(--ck-fs);
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
+    .ck-self-badge {
+      display: inline-block;
+      background: #0047ab;
+      color: #ffffff;
+      font-size: 0.68rem;
+      padding: 1px 5px;
+      border-radius: 2px;
+      font-weight: 600;
+      letter-spacing: 0.2px;
+      margin-left: 4px;
+    }
+    .ck-self-block ul, .ck-self-block ol {
+      margin: 2px 0 2px;
+      padding-left: 1.25em;
+    }
+    .ck-self-block li {
+      margin: 2px 0;
+      color: #1a1a1a;
+    }
+
+    @media(max-width: 860px) {
+      .ck-doc { padding: 22px 18px; }
+      .ck-review { grid-template-columns: 1fr; }
+      .ck-review-rule { display: none; }
+    }
+
+  </style>
+</head>
+<body>
+  <main class="page">
+    <div class="ck-doc">
+      <header class="ck-doc-header">
+        <h1>372班家长会：班级情况与家校协作沟通</h1>
+      </header>
+      <div class="ck-doc-content">
+        <h1 class="ck-doc-h1">沟通概况</h1><p>班主任林瑞主持召开372班家长会，围绕班级情况、存在问题及解决思路、家校协作等主题与家长沟通。班级共60人，男生25人、女生35人，学生处于生理心理持续变化的不稳定时期；班级优点是时间观念与执行力强、班风班貌纪律良好，缺点是少数同学周末玩手机、懒散，自习课效率低。教师团队多为老教师和优秀教师，师范院校毕业，多数有3年以上教学经验，部分达6年以上，林瑞本人教地理学科。针对存在问题，林瑞提出手机上交并贴名字、家长周一到周五不定时打电话检查等措施，并指出少数男生有网瘾（有学生充值400元玩游戏）、看直播不健康内容、谈恋爱等现象，建议家长关注学生QQ、抖音、快手等社交账号。后续计划包括每天加强思想教育、制定详细班规、严格请假制度、定期与家长沟通，下次月考在11月初。会议还成立家委会（至少三人，自愿报名），通知保险事宜（建议购买，约310多元）和电子学生证（移动套餐78元），并说明高中补助打在医保卡上的资助政策。家长代表张宇波（372班语文老师）分享家庭教育经验，强调关注孩子身心健康、尊重孩子、多倾听交流。</p><h1 class="ck-doc-h1">沟通内容</h1><ol><li><strong>亮点</strong>：班级整体时间观念与执行力强，班风班貌纪律良好，卫生干净整洁（原文如此，班主任称「周边环境就能感受到……地面干干净净的」）。</li><li><strong>需关注——个别学生时间观念差</strong>：班主任林瑞指出个别学生时间方面存在问题，已对个别同学提出批评。</li><li><strong>需关注——书写不良</strong>：个别学生书写不良，班主任已与家长沟通，建议家长查看学生手册后购买字帖练字；班主任提到有学生把班计划写成「372班一看写成绩里面写的太好了，把成绩172班去了」（原文如此）。</li><li><strong>需关注——自习课效率低</strong>：班主任在时学生表现安静，不在时秩序混乱；计划加强班委培训，自习课给学生10分钟讨论时间，有不懂的可离开座位去问。</li><li><strong>需关注——手机管理</strong>：要求手机上交并贴好名字放入手机箱；发现少数男生有网瘾，有学生充值400元玩游戏；有学生看直播、不健康内容（原文如此）；要求家长周一到周五不定时打电话检查手机是否开机、是否上交。</li><li><strong>需关注——学生携带镜子等物品</strong>：班主任在抽屉里发现有同学拿镜子，要求全部收掉，涉及约10人（原文如此）。</li><li><strong>需关注——谈恋爱</strong>：班主任发现班上有学生谈恋爱，建议家长关注孩子QQ、抖音、快手等社交账号，注意是否被屏蔽。</li><li><strong>需关注——生活费使用</strong>：班主任提醒家长注意学生生活费使用情况，有学生一周内多次以买资料为由向家里要钱，实际用于其他消费（原文如此）；建议家长控制生活费额度，一般每周不超过150元。</li><li><strong>需关注——安全教育</strong>：提醒未满16周岁学生骑电动车危险，尤其有载两三个人的情况；提醒防诈骗、防溺水、防校园欺凌，遇到问题第一时间联系班主任。</li></ol><h1 class="ck-doc-h1">家长反馈</h1><h2 class="ck-doc-h2">家长关注的问题与诉求</h2><ol><li><strong>费用问题</strong>：家长关注水费险、书费等收费情况，班主任说明每人每月2元水费，已购5本书预交11000元尚未结算，未购买书箱的费用将退还，少数同学费用约100元左右，具体明细后续会公布。</li></ol><ol><li><strong>费用缴纳方式</strong>：班主任明确不在微信群收取任何费用，由学生交给生活委员，提醒家长防范冒充班主任头像的诈骗，注意反诈。</li></ol><ol><li><strong>手机管理</strong>：班主任要求家长周一到周五不定时打电话检查孩子手机是否上交，确认手机是否在开机状态；家长需处理家中多余手机，避免孩子藏备用机。</li></ol><ol><li><strong>社交账号关注</strong>：班主任建议家长关注孩子QQ、抖音、快手等社交账号，查看是否屏蔽家长、是否有谈恋爱迹象。</li></ol><ol><li><strong>生活费管理</strong>：班主任提醒家长控制生活费额度，建议每周不超过150元，避免孩子攒钱买手机或用于非正常消费。</li></ol><ol><li><strong>家长委员会</strong>：班主任现场征集家委会成员，要求至少三人，有家长自愿报名。</li></ol><ol><li><strong>保险购买</strong>：班主任建议家长为孩子购买保险，约310多元，可在学校或自行购买，后续统计购买情况。</li></ol><ol><li><strong>电子学生证</strong>：班主任说明移动套餐78元可办电子学生证，方便联系，目前班级三个座席中两个已停机、一个9月20几号到期，希望家长能办则办。</li></ol><h2 class="ck-doc-h2">家长原话</h2><div class="ck-quote">“无论怎样，那你都是爸爸妈妈心里最优秀的儿子，你先批评他，还是不当，这样的话他会更加的深刻，这样的话更加的深刻。”</div><ul><li>背景：家长代表张宇波在家长会上分享家庭教育经验时，讲述自己如何安慰考试失利的孩子。</li></ul><div class="ck-quote">“做人的话是我们的必修技能。要想让孩子离开，就要让他们学会怎么样做人，千万不能让他们带上不良的风气。”</div><ul><li>背景：家长代表张宇波在家长会上分享家庭教育经验，强调教孩子做人的重要性。</li></ul><h1 class="ck-doc-h1">共识与配合事项</h1><h2 class="ck-doc-h2">家校共识与配合事项</h2><h3 class="ck-doc-h3">手机与网络管理</h3><ul><li>[ ] <strong>家长</strong>：周一到周五不定时拨打孩子电话，确认手机是否在校且已上交（能打通但无人接听说明手机已交；打不通需核实）。</li><li>[ ] <strong>家长</strong>：检查孩子书包、抽屉，确认是否携带备用手机或多余设备；家中多余手机请家长处理或收走，不要留多部。</li><li>[ ] <strong>家长</strong>：关注孩子QQ、抖音、快手等社交账号，留意是否发布异常内容、是否被屏蔽、是否有谈恋爱迹象。</li><li>[ ] <strong>家长</strong>：关注孩子是否观看直播、不健康内容或涉及网瘾，发现后及时干预。</li><li>[ ] <strong>班主任</strong>：要求学生在校期间手机统一上交，放入贴有姓名的手机箱；发现未交将按班规处理。</li><li>[ ] <strong>班主任</strong>：对少数有网瘾的男生（有学生充值400元玩游戏）加强关注与教育。</li></ul><h3 class="ck-doc-h3">学习与行为规范</h3><ul><li>[ ] <strong>家长</strong>：查看学生手册中孩子的书写情况，个别书写不良的学生请家长配合购买字帖练字。</li><li>[ ] <strong>班主任</strong>：制定详细班规，严格扣分、写检讨、罚站等纪律要求。</li><li>[ ] <strong>班主任</strong>：严格请假制度，稳定学习秩序。</li><li>[ ] <strong>班主任</strong>：加强自习课管理，培训班委；自习课给学生10分钟讨论时间，不懂可离座请教。</li><li>[ ] <strong>班主任</strong>：每天加强思想教育工作。</li><li>[ ] <strong>班主任</strong>：定期与家长沟通，了解学生学习及各方面表现。</li><li>[ ] <strong>班主任</strong>：组织下次月考（11月初），请家长关注学生手册中记录的月考目标。</li></ul><h3 class="ck-doc-h3">安全教育与心理健康</h3><ul><li>[ ] <strong>家长</strong>：提醒孩子注意交通安全，未满16周岁骑电动车非常危险（尤其载人），如实在要骑须一人骑行。</li><li>[ ] <strong>家长</strong>：提醒孩子注意运动安全、饮食安全、防诈骗、防溺水、防校园欺凌。</li><li>[ ] <strong>家长</strong>：关注孩子心理健康，发现异常及时联系班主任或安排心理辅导。</li><li>[ ] <strong>家长</strong>：合理控制生活费（建议每周不超过150元），避免孩子将钱用于非正常消费。</li><li>[ ] <strong>班主任</strong>：学生遇到矛盾或欺凌等情况，家长第一时间联系班主任，班主任会及时处理。</li></ul><h3 class="ck-doc-h3">家庭教育配合</h3><ul><li>[ ] <strong>家长</strong>：避免过分关注、放任不管、期望过高等教育误区。</li><li>[ ] <strong>家长</strong>：多鼓励少批评，给孩子适当压力，期望要适当。</li><li>[ ] <strong>家长</strong>：为孩子创造和睦、祥和、稳定的家庭气氛，不在孩子面前长时间玩手机。</li><li>[ ] <strong>家长</strong>：多抽时间了解孩子在校表现，经常给孩子制定容易达到的小目标。</li><li>[ ] <strong>家长</strong>：关注孩子身体健康，合理安排饮食、补充营养。</li></ul><h3 class="ck-doc-h3">家委会与费用事项</h3><ul><li>[ ] <strong>家长</strong>：自愿报名参加家委会（至少三人），大项事项经班主任与家长探讨后决定。</li><li>[ ] <strong>家长</strong>：保险事宜——建议购买学生保险（约310多元），可在学校、保险公司或线上平台自行购买，班主任将统计购买情况。</li><li>[ ] <strong>家长</strong>：电子学生证——移动套餐78元/月，方便联系与请假，能办则办；班主任将把新号码发在群里。</li><li>[ ] <strong>班主任</strong>：不在微信群收取任何费用，需交费用由学生交给生活委员；提醒家长防范冒充班主任收费的诈骗。</li><li>[ ] <strong>班主任</strong>：书费预交11000元尚未结算，待结算后退还未购买书箱学生的费用（约70–123元不等）。</li><li>[ ] <strong>班主任</strong>：学校资助政策已发家长群，高中补助打在医保卡上，每次打钱会通知家长确认用途。</li></ul>
+      </div>
+    </div>
+  </main>
+</body>
+</html>

@@ -1,0 +1,440 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>芦塘支部党员大会换届选举</title>
+  <style>
+
+    body {
+      margin: 0;
+      padding: 14px 12px;
+      background: #f6f5f0;
+      color: #1a1a1a;
+      font-family: "Latin Modern Roman", "Computer Modern Roman", "CMU Serif", "Times New Roman", Times, "Songti SC", "SimSun", "STSong", serif;
+      -webkit-font-smoothing: antialiased;
+    }
+    .page { max-width: 1140px; margin: 0 auto; }
+    .ck-doc {
+      background: #ffffff;
+      border: 1px solid #d4d0c7;
+      border-radius: 4px;
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.05), 0 1px 3px rgba(0,0,0,0.03);
+      padding: 18px 22px;
+      line-height: 1.6;
+      font-size: 0.84rem;      /* 正文基准：左右两栏共用 --ck-fs */
+      --ck-fs: 0.84rem;
+    }
+    .ck-doc h1 {
+      margin: 0 0 6px;
+      font-size: 1.05rem;      /* 文档标题：只比正文略大一点 */
+      font-weight: 700;
+      text-align: center;
+      color: #111111;
+    }
+    .ck-doc-header {
+      margin-bottom: 10px;
+      padding-bottom: 8px;
+      border-bottom: 1px solid #111111;
+      text-align: center;
+    }
+    .ck-doc-meta {
+      font-size: 0.78rem;
+      color: #555555;
+      font-style: italic;
+    }
+    /* 层级标题一律"加粗 + 与右栏同级字号"，不加字号、不加下划线，前后留白压到最小 */
+    .ck-doc-content h1, .ck-doc-content .ck-doc-h1,
+    .ck-doc h2, .ck-doc-h2,
+    .ck-doc h3, .ck-doc-h3,
+    .ck-doc h4, .ck-doc-h4 {
+      font-size: var(--ck-fs);
+      font-weight: 700;
+      color: #111111;
+      border-bottom: 0;
+      padding-bottom: 0;
+      letter-spacing: 0;
+      font-variant: normal;
+      text-align: left;
+    }
+    .ck-doc-content h1, .ck-doc-content .ck-doc-h1, .ck-doc h2, .ck-doc-h2 {
+      margin: 12px 0 4px;
+    }
+    .ck-doc h3, .ck-doc-h3, .ck-doc h4, .ck-doc-h4 {
+      margin: 9px 0 3px;
+    }
+    .ck-doc p {
+      margin: 5px 0;
+      line-height: 1.6;
+      text-align: justify;
+    }
+    .ck-doc ul, .ck-doc ol {
+      margin: 4px 0 6px;
+      padding-left: 1.25em;
+      line-height: 1.6;
+    }
+    .ck-doc li {
+      margin: 2px 0;
+    }
+    .ck-doc blockquote, .ck-quote {
+      margin: 6px 0 8px;
+      padding: 5px 10px;
+      background: #faf9f6;
+      border-left: 3px solid #222222;
+      border-radius: 2px;
+      color: #222222;
+      font-size: var(--ck-fs);
+      font-style: italic;
+    }
+    .ck-doc code {
+      background: #f3f0e8;
+      border: 1px solid #e2ddd3;
+      border-radius: 3px;
+      padding: 1px 6px;
+      font-family: "Latin Modern Mono", Consolas, monospace;
+      font-size: 0.88em;
+    }
+    .ck-doc table, .ck-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: var(--ck-fs);
+      margin: 8px 0;
+      background: #ffffff;
+      border-top: 2px solid #222222;
+      border-bottom: 2px solid #222222;
+    }
+    .ck-doc table th, .ck-doc table td, .ck-table th, .ck-table td {
+      padding: 5px 8px;
+      text-align: left;
+      vertical-align: middle;
+      border-bottom: 1px solid #ede9e1;
+    }
+    .ck-doc table th, .ck-table th {
+      background: #fbfaf7;
+      border-bottom: 1.2px solid #222222;
+      font-weight: 700;
+      color: #111111;
+      letter-spacing: 0.3px;
+    }
+
+    /* Roomy & Spacious Academic Risk Table */
+    .ck-risk-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 18px 0 28px;
+      background: #ffffff;
+      border-top: 2.2px solid #111111;
+      border-bottom: 2.2px solid #111111;
+      font-size: 0.93rem;
+      line-height: 1.72;
+    }
+    .ck-risk-table th {
+      background: #faf8f5;
+      border-bottom: 1.5px solid #111111;
+      padding: 15px 16px;
+      font-weight: 700;
+      color: #111111;
+      letter-spacing: 0.3px;
+      text-align: left;
+      vertical-align: middle;
+    }
+    .ck-risk-table td {
+      padding: 16px 16px;
+      border-bottom: 1px solid #ede8e0;
+      vertical-align: top;
+      color: #1a1a1a;
+      word-break: break-word;
+    }
+    .ck-risk-table tr:nth-child(even) td {
+      background: #fdfcfb;
+    }
+    .ck-risk-table tr:hover td {
+      background: #f6f3eb;
+    }
+
+    /* Review Grid */
+    .ck-review {
+      display: grid;
+      grid-template-columns: minmax(0, 1.35fr) 1px minmax(260px, 0.95fr);
+      border: 1px solid #d4d0c7;
+      border-radius: 4px;
+      overflow: hidden;
+      margin: 8px 0 10px;
+      background: #ffffff;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.03);
+    }
+    .ck-review-left {
+      padding: 14px 16px;
+      background: #ffffff;
+      line-height: 1.6;
+      font-size: var(--ck-fs);
+    }
+    .ck-review-rule { background: #dcd8cf; }
+    .ck-review-right {
+      padding: 12px 14px;
+      background: #faf9f6;
+      box-sizing: border-box;
+      display: flex;
+      flex-direction: column;
+    }
+    .ck-ev-list {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    /* Entity Highlight in LaTeX Paper Style */
+    .ck-cite-entity {
+      background: #fff8db;
+      border-bottom: 1.5px solid #b86a04;
+      padding: 1px 4px;
+      border-radius: 2px;
+      cursor: pointer;
+      transition: all 0.18s ease;
+      color: #111111;
+      font-weight: 600;
+    }
+    .ck-cite-entity:hover {
+      background: #ffe58f;
+      color: #000000;
+    }
+    .ck-cite-entity.is-on {
+      background: #ffd54a;
+      border-bottom-color: #0047ab;
+      box-shadow: 0 0 0 2px rgba(0,71,171,0.25);
+    }
+
+    /* Blue Hyperref Citations [1], [2] */
+    .ck-cite-ref {
+      color: #0047ab;
+      font-weight: 600;
+      font-family: "Latin Modern Roman", "Computer Modern Roman", "Times New Roman", serif;
+      text-decoration: none;
+      cursor: pointer;
+      padding: 0 2px;
+      margin: 0 2px;
+      border-radius: 2px;
+      transition: all 0.15s ease;
+      font-size: 0.92em;
+      vertical-align: baseline;
+      user-select: none;
+    }
+    .ck-cite-ref:hover {
+      text-decoration: underline;
+      background: #e8f0fe;
+      color: #003380;
+    }
+    .ck-cite-ref.is-active {
+      background: #d2e3fc;
+      color: #002266;
+      font-weight: 700;
+      box-shadow: 0 0 0 1px #0047ab;
+    }
+
+    /* Right Memory Cards in LaTeX Paper Style */
+    .ck-provenance-head {
+      font-size: 0.82rem;
+      font-weight: 700;
+      color: #222222;
+      margin: 0 0 12px;
+      padding-bottom: 6px;
+      border-bottom: 1px solid #e0dcd4;
+      letter-spacing: 0.3px;
+      text-transform: uppercase;
+    }
+    .ck-ref-icon { color: #0047ab; margin-right: 4px; }
+    .ck-ev {
+      display: block;
+      margin: 0;
+      padding: 10px 12px;
+      border: 1px solid #dedad2;
+      border-left: 3.5px solid #0047ab;
+      border-radius: 2px;
+      background: #ffffff;
+      font-size: 0.82rem;
+      line-height: 1.55;
+      transition: all 0.2s ease;
+      cursor: pointer;
+    }
+    .ck-ev:hover { border-color: #b5b0a5; }
+    .ck-ev.is-on, .ck-ev.is-highlighted {
+      border-color: #0047ab;
+      box-shadow: 0 0 0 2px #0047ab, 0 3px 8px rgba(0,71,171,0.15);
+      background: #f0f5ff;
+    }
+    @keyframes citePulse {
+      0% { background: #dbeafe; box-shadow: 0 0 0 3px #0047ab; }
+      50% { background: #bfdbfe; box-shadow: 0 0 0 4px #0047ab; }
+      100% { background: #f0f5ff; box-shadow: 0 0 0 2px #0047ab; }
+    }
+    .ck-ev-k {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 0.75rem;
+      color: #444444;
+      margin-bottom: 5px;
+      font-weight: 700;
+    }
+    .ck-ev-cite-tag {
+      color: #0047ab;
+      font-weight: 700;
+      font-family: "Latin Modern Roman", serif;
+      text-decoration: none;
+    }
+    .ck-ev-kind-badge {
+      display: inline-block;
+      padding: 1px 6px;
+      border-radius: 2px;
+      font-size: 0.72rem;
+      font-weight: 600;
+      letter-spacing: 0.2px;
+    }
+    .ck-badge-keypoint {
+      border: 1px solid #0047ab;
+      color: #0047ab;
+      background: #f0f5ff;
+    }
+    .ck-badge-note {
+      border: 1px solid #b86a04;
+      color: #b86a04;
+      background: #fff8eb;
+    }
+    .ck-mem-title {
+      font-weight: 700;
+      color: #111111;
+      font-size: var(--ck-fs);
+      margin-bottom: 4px;
+      line-height: 1.5;
+    }
+    .ck-ev-quote {
+      color: #222222;
+      font-style: normal;
+      font-family: inherit;
+      margin: 4px 0 6px;
+      padding: 0;
+      background: transparent;
+      border: none;
+      line-height: 1.6;
+      font-size: var(--ck-fs);
+    }
+    .ck-ev-meta { font-size: 0.76rem; color: #666666; margin-top: 4px; }
+    .ck-ev-more {
+      margin-top: 2px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+    .ck-ev-more[open] { margin-top: 4px; }
+    .ck-ev-more summary { margin-bottom: 6px; }
+    .ck-proof-toggle {
+      cursor: pointer;
+      font-size: 0.82rem;
+      color: #0047ab;
+      user-select: none;
+      font-family: inherit;
+      padding: 2px 0;
+    }
+    .ck-proof-toggle:hover { text-decoration: underline; }
+    /* 右栏下段"状态演进"：无行内锚点，与上方证据卡视觉区分（灰底 + 徽章，无 [n]） */
+    .ck-ledger {
+      margin-top: 10px;
+      padding-top: 8px;
+      border-top: 1px dashed #d4d0c7;
+    }
+    .ck-ledger > summary { list-style: none; }
+    .ck-ledger > summary::-webkit-details-marker { display: none; }
+    .ck-ledger > summary::after { content: " ▾"; }
+    .ck-ledger:not([open]) > summary::after { content: " ▸"; }
+    /* 每类一张小灰卡：卡头类别 + 条数，卡内按 1. 2. 3. 编号 */
+    .ck-ledger-card {
+      background: #faf9f5;
+      border: 1px solid #e6e2d8;
+      border-left: 3px solid #bdb6a6;
+      border-radius: 4px;
+      padding: 7px 9px;
+      margin-bottom: 6px;
+    }
+    .ck-ledger-k {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 6px;
+      font-size: 0.72rem;
+      margin-bottom: 5px;
+    }
+    .ck-ledger-badge {
+      background: #efece4;
+      color: #6b6559;
+      border-radius: 3px;
+      padding: 1px 6px;
+      font-weight: 600;
+    }
+    .ck-ledger-count { color: #8a8578; }
+    .ck-ledger-list {
+      margin: 0;
+      padding-left: 1.35em;
+      font-size: var(--ck-fs);
+      line-height: 1.6;
+      color: #3b3a37;
+    }
+    .ck-ledger-list > li { margin: 2px 0; }
+    /* Personal Perspective "与我相关" Focus Block */
+    .ck-self-block {
+      background: #f4f8fe;
+      border: 1px solid #d4e2f5;
+      border-left: 3.5px solid #0047ab;
+      border-radius: 3px;
+      padding: 8px 12px;
+      margin: 8px 0 10px;
+    }
+    .ck-self-title {
+      margin: 0 0 4px;
+      color: #003380;
+      font-weight: 700;
+      font-size: var(--ck-fs);
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
+    .ck-self-badge {
+      display: inline-block;
+      background: #0047ab;
+      color: #ffffff;
+      font-size: 0.68rem;
+      padding: 1px 5px;
+      border-radius: 2px;
+      font-weight: 600;
+      letter-spacing: 0.2px;
+      margin-left: 4px;
+    }
+    .ck-self-block ul, .ck-self-block ol {
+      margin: 2px 0 2px;
+      padding-left: 1.25em;
+    }
+    .ck-self-block li {
+      margin: 2px 0;
+      color: #1a1a1a;
+    }
+
+    @media(max-width: 860px) {
+      .ck-doc { padding: 22px 18px; }
+      .ck-review { grid-template-columns: 1fr; }
+      .ck-review-rule { display: none; }
+    }
+
+  </style>
+</head>
+<body>
+  <main class="page">
+    <div class="ck-doc">
+      <header class="ck-doc-header">
+        <h1>芦塘支部党员大会换届选举</h1>
+      </header>
+      <div class="ck-doc-content">
+        <h2 class="ck-doc-h2">全文摘要</h2><p>中共巢湖市银屏镇白母山村芦塘支部召开党员大会改选支部委员会，支部共有正式党员8名，因病请假1名，实到会7名，符合法定人数；银屏镇党委组织委员钱小丽应邀到会指导。会议依次完成上届支部委员会工作报告审议、党员大会选举办法表决、支委候选人名单及监票人计票人名单通过、候选人竞职演说、支部委员选举、支部书记选举及委员分工等议程。上届支部报告总结三年工作，指出党建工作制度不够完善、党员主体意识需提高、党员教育管理监督不够深入等问题。经无记名投票，卢燕娇、辛东升、杜军强当选新一届支部委员，卢燕娇当选支部书记，辛东升负责组织宣传、杜军强负责纪检，选举结果报镇党委批准。</p><h2 class="ck-doc-h2">分段速览</h2><h3 class="ck-doc-h3">00:00:13-00:05:26 大会开幕与上届工作报告</h3><p>会议开场清点人数：支部共有正式党员8名，因病请假1名，实到会有选举权党员7名，符合法定人数。镇党委组织委员钱小丽到会讲话，就换届选举提出三点意见：充分认识大会重要意义、正确行使选举权严格把握选举要求、服从大局遵守选举纪律。上届支部委员会作工作报告，总结三年工作成效并指出存在问题，党员对报告表示满意，鼓掌通过。</p><h3 class="ck-doc-h3">00:05:55-00:10:43 通过选举办法、候选人名单与工作人员名单</h3><p>杜军晓宣读党员大会选举办法草案，明确选举委员3名、候选人4名（差额不少于应选名额20%），采用无记名投票，先差额选委员再等额选书记，实到会有选举权党员须超过应到会4/5方可选举，候选人得赞成票超过应到会选举人数半数方可当选。办法经举手表决一致通过。随后宣读镇党委批复，公布委员候选人预备人选4名及书记候选人预备人选，经鼓掌通过。监票人贾淑玲经表决通过，计票人员为黄婷丽、刘彩云。</p><h3 class="ck-doc-h3">00:10:43-00:14:45 候选人竞职演说</h3><p>四位候选人依次发表竞职演说。卢燕娇介绍个人基本情况，承诺加强支部建设、推动村集体经济发展、抓好民生工程落实；杜军强结合村委会工作经历，表示愿担当桥梁纽带作用；辛东升承诺群众有困难随叫随到、严格要求自己、完成上级任务；秦磊阐述自身责任心和思想觉悟方面的有利条件，表示服从大局、不计较个人得失。</p><h3 class="ck-doc-h3">00:14:45-00:21:17 选举新一届支部委员会委员</h3><p>清点人数确认实到会7名，达到应到会选举权党员人数的4/5，可以进行选举。监票人员检查并封好票箱，分发选票并说明填写方法。投票后清点：发出选票7张、收回选票7张，选举有效。计票结果为卢燕娇6票、杜军强6票、秦磊2票。根据选举办法，卢燕娇、辛东升、杜军强当选为新一届支部委员会委员。</p><h3 class="ck-doc-h3">00:21:17-00:28:42 选举支部书记并明确委员分工</h3><p>召开第一次支部委员会全体会议，宣读选举办法草案，明确书记等额选举产生。卢燕娇作为书记候选人建议人选经鼓掌通过，辛东升担任监票人和计票人。发出选票3张、收回3张，卢燕娇得3票当选为新一届党支部书记。随后进行委员分工：辛东升负责组织宣传工作，杜军强负责纪检工作。选举结果以报镇党委批准为准。</p><h3 class="ck-doc-h3">00:28:42-00:29:56 新当选支委代表发言与大会闭幕</h3><p>新当选支委代表发言，表示将抓好支部学习工作争创学习型支部、抓好制度建设工作争创制度型支部、完善基层党组织建设争创服务型支部，并恳请党员提出建议和意见。大会完成各项任务后宣布换届选举大会圆满结束，全体起立奏国际歌。</p><h2 class="ck-doc-h2">要点梳理</h2><h3 class="ck-doc-h3">上届支部委员会工作报告</h3><ol><li>上届支部委员会作三年工作报告：在上级党组织领导下，认真落实党建工作要求，发挥党支部战斗堡垒作用和党员模范带头作用。</li><li>三年工作成效：新发展党员1名，按规定收缴党费2640元上交上级党组织；严格实行支部议事决策制度、民主生活会制度、民主评议党员制度、党员联系服务群众制度。</li><li>开展主题教育活动：认真开展“两学一做”学习教育常态化、制度化和“讲严立”专题警示教育活动；通过党内会议、公开栏等形式公开年度工作计划、党风廉政建设、党费收缴等内容。</li><li>上届支部指出存在问题：一是党建工作制度不够完善，二是党员主体意识尚需进一步提高，个别党员干部服务中心大局意识不强，三是党支部对党员教育管理监督不够深入。</li><li>党员对工作报告表示满意，鼓掌通过。</li></ol><h3 class="ck-doc-h3">通过党员大会选举办法</h3><ol><li>杜军晓宣读选举办法草案，依据《中国共产党章程》和《中国共产党基层组织选举工作暂行条例》制定。</li><li>选举中共芦塘支部委员会委员3名，候选人4名，差额不少于应选名额20%；候选人按姓氏笔画为序排列，采用无记名投票方式。</li><li>选举分两步进行：先差额选举支部委员会委员，再从当选委员中等额选举书记，两次选举分别投票、计票和宣布结果。</li><li>参加会议有选举权的正式党员必须超过应到会党员的4/5方可进行选举；收回选票等于或少于发出选票选举有效，多于发出选票选举无效。</li><li>候选人得到赞成票超过应到会选举人数半数方可当选；得票超过半数候选人多于应选名额时以得票多少为序取足；最后几名得票相等时重新投票；超过半数候选人少于应选名额时，不足名额在未过半数候选人中重新选举，接近应选名额可减少名额不再选举。</li><li>选举设监票人1名，经大会表决通过；设选举工作人员2名，由会议主持人指定；提名作为支部委员候选人的不能担任监票人和工作人员。</li><li>党员对选举办法无不同意见，举手表决一致通过。</li></ol><h3 class="ck-doc-h3">通过支委候选人名单</h3><ol><li>杜军晓宣读镇党委批复：同意新一届支部委员会委员和书记候选人预备人选名单，委员实行差额选举（差额1人），书记实行等额选举，批复日期为2019年10月12日。</li><li>委员候选人预备人选4名：卢燕娇、辛东升、杜军强、秦磊；书记候选人预备人选为卢燕娇。</li><li>党员对候选人名单无不同意见，鼓掌通过。</li></ol><h3 class="ck-doc-h3">通过选举工作人员名单</h3><ol><li>提议贾淑玲担任监票人，党员无意见，举手表决一致通过。</li><li>宣布计票人员为黄婷丽、刘彩云。</li></ol><h3 class="ck-doc-h3">候选人竞职演说</h3><ol><li>卢燕娇（1993年9月出生，2014年4月入党）承诺：进一步加强支部建设，落实“三会一课”、组织生活会和民主评议党员等基本制度，结合“两学一做”学习教育常态化制度化开展“不忘初心、牢记使命”主题教育；推动村集体经济发展，发挥党组织和党员在产业培育、农民增收、脱贫攻坚方面的示范引领和帮扶帮带作用；抓好各项民生工程落实，把群众利益作为首要职责、群众满意度作为衡量工作标准。</li><li>杜军强（从事村委会工作）表示：农村党支部是基层党组织与党员群众之间的桥梁纽带，如当选可更好担当纽带角色，为党员和群众服务。</li><li>辛东升承诺：群众有困难随叫随到；严格要求自己做合格党员干部，不该吃的饭不吃、不该拿的钱不拿、不该做的事不做；圆满完成上级党组织分配的各项任务。</li><li>秦磊表示竞选有利条件：有较强责任心，能认真参加支部理论学习，不折不扣完成组织交给的任务；有较高思想觉悟，积极参加学习，热情为群众办实事，配合上级工作，不计较个人得失。</li></ol><h3 class="ck-doc-h3">选举新一届支部委员会委员</h3><ol><li>清点人数：应到会有选举权党员8名，因病请假1名，实到会7名，达到应到会党员人数的4/5，可以进行选举。</li><li>监票人员检查并封好票箱，分发选票；填写选票一律用钢笔，所选人数等于或少于应选人数为有效票，多于应选人数为无效票。</li><li>投票顺序：监票人员、计票人员先投票，然后全体党员依次投票。</li><li>清点票数：实到会有选举权党员7名，发出选票7张，收回选票7张，选举有效。</li><li>计票结果：卢燕娇6票，杜军强6票，秦磊2票。</li><li>根据大会选举办法规定，卢燕娇、辛东升、杜军强当选为新一届支部委员会委员。</li></ol><h3 class="ck-doc-h3">选举新一届支部书记及委员分工</h3><ol><li>召开第一次支部委员会全体会议，宣读选举办法草案：选举产生支部书记1人，采用无记名投票、等额选举方式；实到会委员必须超过应到会委员的4/5方可选举；候选人得赞成票超过实到会委员半数当选。</li><li>介绍书记候选人建议名单：卢燕娇工作认真负责，上届支委会在其带领下各项工作取得较好成绩，建议继续由其担任支部书记，党员鼓掌通过。</li><li>通过选举工作人员名单：辛东升担任监票人和计票人，举手表决一致通过。</li><li>选举结果：发出选票3张，收回选票3张，卢燕娇得3票，当选为新一届党支部书记。</li><li>委员分工：辛东升负责组织宣传工作，杜军强负责纪检工作。</li><li>新当选支委代表表态：抓好支部学习工作，争创学习型支部，组织开展“不忘初心、牢记使命”主题教育；抓好支部制度建设工作，争创制度型支部，增强党支部凝聚力、战斗力；完善基层党组织建设，争创服务型支部，严格按照《中国共产党支部工作条例（试行）》加强支部建设，发挥战斗堡垒和党员先锋模范作用。</li></ol><h3 class="ck-doc-h3">结论与决定</h3><ol><li>通过上届支部委员会工作报告。</li><li>通过党员大会选举办法。</li><li>通过支委候选人名单：卢燕娇、辛东升、杜军强、秦磊。</li><li>通过监票人贾淑玲，计票人员黄婷丽、刘彩云。</li><li>卢燕娇、辛东升、杜军强当选为新一届支部委员会委员。</li><li>卢燕娇当选为新一届党支部书记，选举结果报镇党委批准。</li><li>辛东升负责组织宣传工作，杜军强负责纪检工作。</li></ol><h3 class="ck-doc-h3">行动项与分工</h3><ul><li>[ ] <strong>组织宣传工作</strong>（辛东升 ｜ 已明确分工）</li><li>[ ] <strong>纪检工作</strong>（杜军强 ｜ 已明确分工）</li><li>[ ] <strong>选举结果报镇党委批准</strong>（最终结果以报镇党委批准为准）</li></ul>
+      </div>
+    </div>
+  </main>
+</body>
+</html>

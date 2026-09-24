@@ -1,0 +1,440 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>具身智能圆桌论坛：技术路线与数据策略探讨</title>
+  <style>
+
+    body {
+      margin: 0;
+      padding: 14px 12px;
+      background: #f6f5f0;
+      color: #1a1a1a;
+      font-family: "Latin Modern Roman", "Computer Modern Roman", "CMU Serif", "Times New Roman", Times, "Songti SC", "SimSun", "STSong", serif;
+      -webkit-font-smoothing: antialiased;
+    }
+    .page { max-width: 1140px; margin: 0 auto; }
+    .ck-doc {
+      background: #ffffff;
+      border: 1px solid #d4d0c7;
+      border-radius: 4px;
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.05), 0 1px 3px rgba(0,0,0,0.03);
+      padding: 18px 22px;
+      line-height: 1.6;
+      font-size: 0.84rem;      /* 正文基准：左右两栏共用 --ck-fs */
+      --ck-fs: 0.84rem;
+    }
+    .ck-doc h1 {
+      margin: 0 0 6px;
+      font-size: 1.05rem;      /* 文档标题：只比正文略大一点 */
+      font-weight: 700;
+      text-align: center;
+      color: #111111;
+    }
+    .ck-doc-header {
+      margin-bottom: 10px;
+      padding-bottom: 8px;
+      border-bottom: 1px solid #111111;
+      text-align: center;
+    }
+    .ck-doc-meta {
+      font-size: 0.78rem;
+      color: #555555;
+      font-style: italic;
+    }
+    /* 层级标题一律"加粗 + 与右栏同级字号"，不加字号、不加下划线，前后留白压到最小 */
+    .ck-doc-content h1, .ck-doc-content .ck-doc-h1,
+    .ck-doc h2, .ck-doc-h2,
+    .ck-doc h3, .ck-doc-h3,
+    .ck-doc h4, .ck-doc-h4 {
+      font-size: var(--ck-fs);
+      font-weight: 700;
+      color: #111111;
+      border-bottom: 0;
+      padding-bottom: 0;
+      letter-spacing: 0;
+      font-variant: normal;
+      text-align: left;
+    }
+    .ck-doc-content h1, .ck-doc-content .ck-doc-h1, .ck-doc h2, .ck-doc-h2 {
+      margin: 12px 0 4px;
+    }
+    .ck-doc h3, .ck-doc-h3, .ck-doc h4, .ck-doc-h4 {
+      margin: 9px 0 3px;
+    }
+    .ck-doc p {
+      margin: 5px 0;
+      line-height: 1.6;
+      text-align: justify;
+    }
+    .ck-doc ul, .ck-doc ol {
+      margin: 4px 0 6px;
+      padding-left: 1.25em;
+      line-height: 1.6;
+    }
+    .ck-doc li {
+      margin: 2px 0;
+    }
+    .ck-doc blockquote, .ck-quote {
+      margin: 6px 0 8px;
+      padding: 5px 10px;
+      background: #faf9f6;
+      border-left: 3px solid #222222;
+      border-radius: 2px;
+      color: #222222;
+      font-size: var(--ck-fs);
+      font-style: italic;
+    }
+    .ck-doc code {
+      background: #f3f0e8;
+      border: 1px solid #e2ddd3;
+      border-radius: 3px;
+      padding: 1px 6px;
+      font-family: "Latin Modern Mono", Consolas, monospace;
+      font-size: 0.88em;
+    }
+    .ck-doc table, .ck-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: var(--ck-fs);
+      margin: 8px 0;
+      background: #ffffff;
+      border-top: 2px solid #222222;
+      border-bottom: 2px solid #222222;
+    }
+    .ck-doc table th, .ck-doc table td, .ck-table th, .ck-table td {
+      padding: 5px 8px;
+      text-align: left;
+      vertical-align: middle;
+      border-bottom: 1px solid #ede9e1;
+    }
+    .ck-doc table th, .ck-table th {
+      background: #fbfaf7;
+      border-bottom: 1.2px solid #222222;
+      font-weight: 700;
+      color: #111111;
+      letter-spacing: 0.3px;
+    }
+
+    /* Roomy & Spacious Academic Risk Table */
+    .ck-risk-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 18px 0 28px;
+      background: #ffffff;
+      border-top: 2.2px solid #111111;
+      border-bottom: 2.2px solid #111111;
+      font-size: 0.93rem;
+      line-height: 1.72;
+    }
+    .ck-risk-table th {
+      background: #faf8f5;
+      border-bottom: 1.5px solid #111111;
+      padding: 15px 16px;
+      font-weight: 700;
+      color: #111111;
+      letter-spacing: 0.3px;
+      text-align: left;
+      vertical-align: middle;
+    }
+    .ck-risk-table td {
+      padding: 16px 16px;
+      border-bottom: 1px solid #ede8e0;
+      vertical-align: top;
+      color: #1a1a1a;
+      word-break: break-word;
+    }
+    .ck-risk-table tr:nth-child(even) td {
+      background: #fdfcfb;
+    }
+    .ck-risk-table tr:hover td {
+      background: #f6f3eb;
+    }
+
+    /* Review Grid */
+    .ck-review {
+      display: grid;
+      grid-template-columns: minmax(0, 1.35fr) 1px minmax(260px, 0.95fr);
+      border: 1px solid #d4d0c7;
+      border-radius: 4px;
+      overflow: hidden;
+      margin: 8px 0 10px;
+      background: #ffffff;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.03);
+    }
+    .ck-review-left {
+      padding: 14px 16px;
+      background: #ffffff;
+      line-height: 1.6;
+      font-size: var(--ck-fs);
+    }
+    .ck-review-rule { background: #dcd8cf; }
+    .ck-review-right {
+      padding: 12px 14px;
+      background: #faf9f6;
+      box-sizing: border-box;
+      display: flex;
+      flex-direction: column;
+    }
+    .ck-ev-list {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    /* Entity Highlight in LaTeX Paper Style */
+    .ck-cite-entity {
+      background: #fff8db;
+      border-bottom: 1.5px solid #b86a04;
+      padding: 1px 4px;
+      border-radius: 2px;
+      cursor: pointer;
+      transition: all 0.18s ease;
+      color: #111111;
+      font-weight: 600;
+    }
+    .ck-cite-entity:hover {
+      background: #ffe58f;
+      color: #000000;
+    }
+    .ck-cite-entity.is-on {
+      background: #ffd54a;
+      border-bottom-color: #0047ab;
+      box-shadow: 0 0 0 2px rgba(0,71,171,0.25);
+    }
+
+    /* Blue Hyperref Citations [1], [2] */
+    .ck-cite-ref {
+      color: #0047ab;
+      font-weight: 600;
+      font-family: "Latin Modern Roman", "Computer Modern Roman", "Times New Roman", serif;
+      text-decoration: none;
+      cursor: pointer;
+      padding: 0 2px;
+      margin: 0 2px;
+      border-radius: 2px;
+      transition: all 0.15s ease;
+      font-size: 0.92em;
+      vertical-align: baseline;
+      user-select: none;
+    }
+    .ck-cite-ref:hover {
+      text-decoration: underline;
+      background: #e8f0fe;
+      color: #003380;
+    }
+    .ck-cite-ref.is-active {
+      background: #d2e3fc;
+      color: #002266;
+      font-weight: 700;
+      box-shadow: 0 0 0 1px #0047ab;
+    }
+
+    /* Right Memory Cards in LaTeX Paper Style */
+    .ck-provenance-head {
+      font-size: 0.82rem;
+      font-weight: 700;
+      color: #222222;
+      margin: 0 0 12px;
+      padding-bottom: 6px;
+      border-bottom: 1px solid #e0dcd4;
+      letter-spacing: 0.3px;
+      text-transform: uppercase;
+    }
+    .ck-ref-icon { color: #0047ab; margin-right: 4px; }
+    .ck-ev {
+      display: block;
+      margin: 0;
+      padding: 10px 12px;
+      border: 1px solid #dedad2;
+      border-left: 3.5px solid #0047ab;
+      border-radius: 2px;
+      background: #ffffff;
+      font-size: 0.82rem;
+      line-height: 1.55;
+      transition: all 0.2s ease;
+      cursor: pointer;
+    }
+    .ck-ev:hover { border-color: #b5b0a5; }
+    .ck-ev.is-on, .ck-ev.is-highlighted {
+      border-color: #0047ab;
+      box-shadow: 0 0 0 2px #0047ab, 0 3px 8px rgba(0,71,171,0.15);
+      background: #f0f5ff;
+    }
+    @keyframes citePulse {
+      0% { background: #dbeafe; box-shadow: 0 0 0 3px #0047ab; }
+      50% { background: #bfdbfe; box-shadow: 0 0 0 4px #0047ab; }
+      100% { background: #f0f5ff; box-shadow: 0 0 0 2px #0047ab; }
+    }
+    .ck-ev-k {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 0.75rem;
+      color: #444444;
+      margin-bottom: 5px;
+      font-weight: 700;
+    }
+    .ck-ev-cite-tag {
+      color: #0047ab;
+      font-weight: 700;
+      font-family: "Latin Modern Roman", serif;
+      text-decoration: none;
+    }
+    .ck-ev-kind-badge {
+      display: inline-block;
+      padding: 1px 6px;
+      border-radius: 2px;
+      font-size: 0.72rem;
+      font-weight: 600;
+      letter-spacing: 0.2px;
+    }
+    .ck-badge-keypoint {
+      border: 1px solid #0047ab;
+      color: #0047ab;
+      background: #f0f5ff;
+    }
+    .ck-badge-note {
+      border: 1px solid #b86a04;
+      color: #b86a04;
+      background: #fff8eb;
+    }
+    .ck-mem-title {
+      font-weight: 700;
+      color: #111111;
+      font-size: var(--ck-fs);
+      margin-bottom: 4px;
+      line-height: 1.5;
+    }
+    .ck-ev-quote {
+      color: #222222;
+      font-style: normal;
+      font-family: inherit;
+      margin: 4px 0 6px;
+      padding: 0;
+      background: transparent;
+      border: none;
+      line-height: 1.6;
+      font-size: var(--ck-fs);
+    }
+    .ck-ev-meta { font-size: 0.76rem; color: #666666; margin-top: 4px; }
+    .ck-ev-more {
+      margin-top: 2px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+    .ck-ev-more[open] { margin-top: 4px; }
+    .ck-ev-more summary { margin-bottom: 6px; }
+    .ck-proof-toggle {
+      cursor: pointer;
+      font-size: 0.82rem;
+      color: #0047ab;
+      user-select: none;
+      font-family: inherit;
+      padding: 2px 0;
+    }
+    .ck-proof-toggle:hover { text-decoration: underline; }
+    /* 右栏下段"状态演进"：无行内锚点，与上方证据卡视觉区分（灰底 + 徽章，无 [n]） */
+    .ck-ledger {
+      margin-top: 10px;
+      padding-top: 8px;
+      border-top: 1px dashed #d4d0c7;
+    }
+    .ck-ledger > summary { list-style: none; }
+    .ck-ledger > summary::-webkit-details-marker { display: none; }
+    .ck-ledger > summary::after { content: " ▾"; }
+    .ck-ledger:not([open]) > summary::after { content: " ▸"; }
+    /* 每类一张小灰卡：卡头类别 + 条数，卡内按 1. 2. 3. 编号 */
+    .ck-ledger-card {
+      background: #faf9f5;
+      border: 1px solid #e6e2d8;
+      border-left: 3px solid #bdb6a6;
+      border-radius: 4px;
+      padding: 7px 9px;
+      margin-bottom: 6px;
+    }
+    .ck-ledger-k {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 6px;
+      font-size: 0.72rem;
+      margin-bottom: 5px;
+    }
+    .ck-ledger-badge {
+      background: #efece4;
+      color: #6b6559;
+      border-radius: 3px;
+      padding: 1px 6px;
+      font-weight: 600;
+    }
+    .ck-ledger-count { color: #8a8578; }
+    .ck-ledger-list {
+      margin: 0;
+      padding-left: 1.35em;
+      font-size: var(--ck-fs);
+      line-height: 1.6;
+      color: #3b3a37;
+    }
+    .ck-ledger-list > li { margin: 2px 0; }
+    /* Personal Perspective "与我相关" Focus Block */
+    .ck-self-block {
+      background: #f4f8fe;
+      border: 1px solid #d4e2f5;
+      border-left: 3.5px solid #0047ab;
+      border-radius: 3px;
+      padding: 8px 12px;
+      margin: 8px 0 10px;
+    }
+    .ck-self-title {
+      margin: 0 0 4px;
+      color: #003380;
+      font-weight: 700;
+      font-size: var(--ck-fs);
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
+    .ck-self-badge {
+      display: inline-block;
+      background: #0047ab;
+      color: #ffffff;
+      font-size: 0.68rem;
+      padding: 1px 5px;
+      border-radius: 2px;
+      font-weight: 600;
+      letter-spacing: 0.2px;
+      margin-left: 4px;
+    }
+    .ck-self-block ul, .ck-self-block ol {
+      margin: 2px 0 2px;
+      padding-left: 1.25em;
+    }
+    .ck-self-block li {
+      margin: 2px 0;
+      color: #1a1a1a;
+    }
+
+    @media(max-width: 860px) {
+      .ck-doc { padding: 22px 18px; }
+      .ck-review { grid-template-columns: 1fr; }
+      .ck-review-rule { display: none; }
+    }
+
+  </style>
+</head>
+<body>
+  <main class="page">
+    <div class="ck-doc">
+      <header class="ck-doc-header">
+        <h1>具身智能圆桌论坛：技术路线与数据策略探讨</h1>
+      </header>
+      <div class="ck-doc-content">
+        <h2 class="ck-doc-h2">研讨背景与议题</h2><p>本次圆桌论坛以“具身智能”为主题，由主持人组织，汇聚了来自学术界与产业界的多位嘉宾及博士生，围绕具身智能的形态与硬件期待、世界模型的定义与构建、强化学习与模仿学习的路线选择、数据采集与仿真数据应用等核心议题展开研讨。与会者背景涵盖多模态大模型与具身智能融合、强化学习、柔性物体操作、具身世界模型、机械与传感器、计算机视觉、产业投资等多个方向。会议旨在通过跨领域的思想碰撞，探讨具身智能领域的关键技术问题与发展路径，交流不同研究方向的观点与经验。</p><ol><li><strong>具身智能的形态与硬件期待</strong>：探讨具身智能最终收敛为何种形态（人形机器人或特种机器人），以及从硬件角度对算法与软件学科提出的期待与需求。</li><li><strong>世界模型的定义与构建</strong>：围绕世界模型在强化学习与计算机视觉领域的不同理解，讨论其是否需要三维表征、物理规律与可交互性等核心要素。</li><li><strong>强化学习与模仿学习的路线选择</strong>：探讨在具身智能策略学习中，强化学习与模仿学习两大主流流派的关系，以及未来走向落地应用时的最终方案。</li><li><strong>数据采集与仿真数据应用</strong>：讨论真机数据与仿真数据的采集方式、质量保证、成本对比，以及两者结合使用的策略与未来方向。</li></ol><h2 class="ck-doc-h2">核心观点</h2><h3 class="ck-doc-h3">具身智能的形态与硬件期待</h3><ol><li><strong>硬件寿命与可靠性</strong>：具身智能实验特别是训练VLA时需大规模真机评估，机器人易因模型预测失误撞桌损坏，现有工业机械臂并非为此设计，需个人柔顺硬件结构以支持规模化评估（提出方：发言者4/薛寒博士）。</li><li><strong>软硬件协同进化</strong>：具身智能是软硬件协同优化的范式，以松灵产品两代迭代为例，第二代在遥操与策略部署上明显优于第一代；夹爪加凝胶后可反馈触觉且抓取更稳、摩擦力更好（提出方：发言者2）。</li><li><strong>模型分层而非统一</strong>：若大模型从上到下完全统一，会消除硬件迭代可能性——新硬件（如软体机器人）出现时前端大模型需完全重新训练；应至少分两层，大脑不变、小脑自适应肢体变化，以断手后大脑仍能指挥右手泡咖啡为类比（提出方：发言者5/王岳老师）。</li><li><strong>人形与特种机器人并存</strong>：从第一性原理出发，现实环境（桌椅）为人设计，故人形机器人（双足或轮式、配灵巧手）会占很大比例；特种机器人（如车厂、微电子制造厂中已实现97%以上自动化的机械臂）也大量存在，两类将长期共存（提出方：发言者6）。</li><li><strong>产业融资周期与形态演变</strong>：具身智能被视为手机和汽车之后第三个万亿级市场，当前10亿级融资相比自动驾驶、大模型、互联网规模仍很小，因行业尚处早期；资本界预计年后融资转冷进入低谷，未来将经历与自动驾驶、大模型、互联网规模相当的三波融资浪潮，每波浪潮将深刻改变本体形态与大模型形态（提出方：发言者7/赵昊老师）。</li></ol><h3 class="ck-doc-h3">世界模型的定义与构建</h3><ol><li><strong>强化学习视角的可交互性</strong>：世界模型概念可追溯至1990-91年萨顿（Sutton）的Dyna-Q文章，定义为黑盒、输出下一时刻观测；2018年Schmidhuber与杨立昆（LeCun）定义世界模型含表征与转移两个组件，将视觉等模态压缩至隐空间；强化学习领域首要追求可交互性，因最终目的是学策略（提出方：发言者8/志龙）。</li><li><strong>CV视角的三维重建</strong>：计算机视觉发展多年就是为了动态重建物理世界，CV界追求的三维表征可作为RL世界模型的工具；但三维视觉技术栈深，RL博士生难以完整学习，导致RL领域不太关注三维表征，这是学术发展阶段导致的现状（提出方：发言者7/赵昊老师）。</li><li><strong>世界模型的歧义性问题</strong>：以游戏主角跳楼后稳落地、现实cosplay同样动作却死亡为例，一模一样的观测输入对应不同动力学输出，属完全歧义问题，一个世界模型无法同时建模两种dynamics；世界模型可能做不到统一，但policy有可能——同一玩家在游戏中跳楼、现实中避免跳楼，是同一policy在不同场景的体现（提出方：发言者5/王岳老师）。</li><li><strong>任务导向的模型必要性</strong>：强化学习的目标只是让世界模型帮助更好学策略，最终只需在交互中产生奖励或latent state即可，CV世界模型做得足够好可用于强化，但为解强化任务未必需要；不同物理结构对应模型应不同，但可考虑不同物理结构共享统一表征（提出方：发言者9）。</li><li><strong>统一表征的可行性之争</strong>：针对发言者5的歧义性观点，发言者9提出可在世界模型中加condition（区分游戏或现实）实现统一；发言者5回应称加condition后需将M个独立模型装入一个高维可控模型，从可实现角度M个独立模型更简单，且目前没有能建模所有Atari游戏的单一世界模型（提出方：发言者5、发言者9）。</li><li><strong>归纳偏置与数据规模</strong>：GPT和ImageNet的成功说明大规模数据下不需要inductive bias，但UniSim等新模型因难以直接学习又需要三维inductive bias；数据少时需更多inductive bias、数据多时需求减少是基本第一性原理，学术发展呈螺旋前进状态（提出方：发言者7/赵昊老师）。</li></ol><h3 class="ck-doc-h3">强化学习与模仿学习的路线选择</h3><ol><li><strong>模型强化加机理融合</strong>：公司实际部署采用模型强化加机理融合方式；监督学习动作空间大、数据分布远不足以支撑高维动作学习，纯强化学习强依赖仿真环境、难以做到sim-to-real迁移；需将强化学习的决策规模与任务设定（如state-action对）做很好限定，上层用强化学习做决策、底层用MPC或DWA等传统方法执行，整体性能可提升（提出方：发言者10）。</li><li><strong>先模仿后强化的混合路线</strong>：复杂问题最终都是先模仿后强化，如AlphaStar和GPT；从零开始跑强化学习样本复杂度不可接受，人类模仿提供的先验信息没有坏处；单独模仿无法达到专家水平（除非任务就是模仿专家），单独强化也不行（除非任务足够简单），先模仿再强化是当前最practical的训练方式（提出方：发言者9）。</li><li><strong>PID反馈作为reward来源</strong>：PID控制天然包含反馈元素，没有反馈就无法做控制；所有PID能做的系统必然有反馈，可直接作为强化学习执行过程中的reward，过去用PID效果不够好，现在通过强化可做得更好（提出方：发言者5/王岳老师）。</li><li><strong>模仿与强化不冲突</strong>：模仿学习和强化学习没有本质冲突，只是获取运动先验的方式不同——有现成数据可从模仿学习（surprise learning）角度建模latent，没有数据（如人类复杂运动）可用强化学习（如DeepMind的Motion Matching）先获取再以BC形式呈现；有了latent后可通过RL快速找到对应状态完成任务（提出方：发言者11/李欣）。</li></ol><h3 class="ck-doc-h3">数据采集与仿真数据应用</h3><ol><li><strong>视角与标定决定数据质量</strong>：Open X等数据集融合多家数据导致相机视角无法固定，视角会显著影响policy表现；自采数据时严格控制视角与标定，手眼标定看似已解决但至今仍有人在发文章、解决得不好；Open X只捕捉本体信息（末端、关节角度、力矩），缺少物体运动信息，自建数据集必须记录物体运动（刚体与关节体），随技术进步数据质量将提升（提出方：发言者11/李欣）。</li><li><strong>真实数据是最佳仿真器</strong>：柔性体操作（叠衣服、系鞋带、拉拉链）现有仿真需IPC等先进图形学技术、算力要求极高且能做的人很少（如UCLA蒋正凡老师）；仿真技术无法很好模拟时，真实数据采集是相对低成本方案——现实生活场景天然丰富，真实数据本身就是最好的仿真器（提出方：发言者4/薛寒博士）。</li><li><strong>可穿戴设备规模化采集</strong>：派灵收集1万小时数据即使融资再多一两个数量级仍离GPT-2、GPT-3级别很远；终极形态可能是脑机接口或机电方式实现无感多模态采集（触觉、力觉、视觉、听觉内生），现阶段可穿戴设备在人们日常做事过程中采集是较能scale的方案（提出方：发言者4/薛寒博士）。</li><li><strong>互联网数据与机器人数据差异</strong>：互联网视频（如教叠衣服）展示的是平整状态开始叠，机器人实际面对的是从洗衣机取出揉成一团的状态；人类习以为常、不会发到网上的日常动作恰是机器人最缺的数据，需让数据采集融入日常生活而非专门雇人一波波采集（提出方：发言者4/薛寒博士）。</li><li><strong>仿真加少量真机数据显著提升成功率</strong>：300条仿真数据训出的策略直接部署真机成功率很低，但300条仿真数据加20条左右真机数据微调后成功率显著提升；仿真数据可提供海量随机位置、随机朝向、任意初始状态，配合几十条真机数据可训练出较好policy（提出方：发言者2）。</li><li><strong>无标注真实数据成为新方向</strong>：仿真与真实数据之争不应停留在有标注数据的配比（1:9、2:8、5:5等），2025年应迈向在自动驾驶和具身智能领域大规模利用无标注真实数据，类似Segment Anything和Depth Anything的路径（提出方：发言者7/赵昊老师）。</li><li><strong>国产仿真系统与生态依赖</strong>：Isaac Sim/Isaac Lab已开放柔性物体仿真接口且目前最好用，但中国是否强依赖英伟达生态值得探讨；有企业（如宋应）赌未来会被卡脖子、做国产替代，这是business层面的复杂问题，技术上最终会较统一（提出方：发言者2提问、发言者7/赵昊老师回应）。</li></ol><h2 class="ck-doc-h2">达成共识与解决方案</h2><p>未形成统一结论。本场研讨围绕具身智能的形态与硬件、世界模型、策略学习路线、数据采集与仿真四个议题展开，形成了以下倾向性认识与主流意见：</p><ol><li><strong>软硬件协同优化</strong>：发言者2提出具身智能一定是软硬件协同优化的范式，以松灵产品两代迭代为例，第二代在遥操与策略部署上明显优于第一代；与任老师合作的凝胶夹爪可反馈触觉且抓取更稳、摩擦力更好，说明硬件改进能直接提升算法部署效果。</li></ol><ol><li><strong>模型分层而非端到端统一</strong>：发言者5认为大模型不应从上到下完全统一，至少应分两层——大脑不变、小脑自适应肢体变化；以人手断后仍能用右手完成泡咖啡为例，说明底层控制需随动力学变化而调整，而非更换大脑。发言者6补充认为当前多模态大模型微调方案不是终极形态，世界模型可能更接近人类水平，但也不是最终答案。</li></ol><ol><li><strong>人形与特种机器人并存</strong>：发言者6认为现实中的桌椅等设施为人而设计，人形机器人（双足或轮式、配灵巧手）会占很大比例；同时车厂、微电子制造厂已有97%以上自动化采用特种机械臂，两类形态将长期并存。</li></ol><ol><li><strong>世界模型需可交互与物理规律</strong>：发言者8从强化学习视角指出世界模型概念源于1990-91年Dyna-Q文章，第一要义是可交互（黑盒输入输出下一时刻观测），当前世界模型在物理规律体现上欠缺明显，需引入3D、触觉等多模态信息完善。发言者7认为CV界追求重建物理世界，可作为RL世界模型的工具，但三维视觉技术栈长、RL博士生难以完全掌握，导致RL领域不太关注三维表征。</li></ol><ol><li><strong>世界模型统一性存在分歧</strong>：发言者5认为一个世界模型无法同时建模游戏与现实的不同动力学（相同观测、不同输出是歧义问题），policy有可能统一而world model很难；发言者9提出不同物理结构可能有统一表征，但发言者5认为将M个独立模型装进一个高维可控条件模型，工程上不如M个模型简单。</li></ol><ol><li><strong>复杂任务先模仿后强化</strong>：发言者9认为复杂问题（如AlphaStar、GPT）的解决路径都是先模仿后强化，单独模仿无法达到专家水平（除非任务就是模仿专家），单独强化样本复杂度不可接受；先模仿提供好的先验信息，工程手段可解决先模仿再强化可能带来的问题。发言者10从工程实践角度表示公司采用模型强化加机理融合方式，监督学习数据分布不足以应对高维动作空间，纯强化学习强依赖仿真环境、sim-to-real迁移困难。</li></ol><ol><li><strong>强化学习reward可从反馈获取</strong>：发言者5指出PID系统必有反馈，可完全拿反馈作为强化学习执行过程中的reward；过去用PID效果不够好，现在通过强化可做得更好，但PID能做必然有反馈，强化必然走得成。</li></ol><ol><li><strong>模仿学习与强化学习不冲突</strong>：发言者11认为两者只是获取运动先验的不同方式——有现成数据可从模仿学习角度做，没有数据可用DeepMind的底层方法先获取再以BC形式建模latent，之后通过RL快速找到对应latent完成任务。</li></ol><ol><li><strong>数据质量关键在于视角与标定</strong>：发言者11指出Open X等数据集融合多家数据、相机视角无法固定，视角非常影响policy表现；自家采集时严格控制视角，标定（尤其手眼标定）至今仍是难题；Open X只捕捉本体信息、缺少物体运动，因此采集时一定要记录物体运动（当时设备有限只能采刚体和关节体）。</li></ol><ol><li><strong>真实数据是最佳仿真器</strong>：发言者4认为柔性体操作（叠衣服、系鞋带等）现有仿真需IPC等先进图形学技术、算力要求高且能做的人少，真实数据采集是相对低成本方案，现实世界本身就是最好的仿真器；终极形态可能是脑机接口或机电方式无感采集多模态数据，现阶段可穿戴式设备是较能scale的方案。</li></ol><ol><li><strong>仿真数据与真实数据互补</strong>：发言者2以实验结果说明300条仿真数据训出的策略直接真机测试成功率很低，但300条仿真数据加上20条左右真机数据后成功率显著提升，所用方法只是pretrain后快速微调；仿真数据可提供物体随机位置、orientation、任意初始状态的海量覆盖，配合少量真机数据可训练出较好policy。</li></ol><ol><li><strong>互联网数据与机器人数据差异大</strong>：发言者4指出互联网视频（如教叠衣服）展示的多是平整状态，而机器人遇到的是从洗衣机取出揉成一团的状态，人类习以为常的简单任务恰恰是机器人最缺的数据；发言者2以自身洗ego4d数据集三个月无产出为例，说明互联网数据含大量与训练有效policy无关的内容，处于数据金字塔最底层。</li></ol><ol><li><strong>2025年应推广无标注数据利用</strong>：发言者7认为不应再纠结真实数据与仿真数据的比例（1:9、2:8、5:5等观点），2025年应在自动驾驶和具身智能领域推广大规模利用无标注真实数据，类似segment anything和depth anything的路径。</li></ol><ol><li><strong>国产仿真系统是产业问题</strong>：发言者7回应国产仿真系统问题时表示，有朋友（宋应）赌会被卡脖子、在做国产替代，这是business by business的生意；技术上最终会比较统一，但business上很复杂，取决于是否脱钩卡脖子。</li></ol><ol><li><strong>资本周期与产业变革</strong>：发言者7从产业角度预测具身智能融资将经历四波——过年后融资转冷进入低谷、第二波达自动驾驶融资规模、第三波达大模型规模、第四波达互联网规模；每波技术变革会深刻改变具身大模型的硬件和云端模型形态，何时到来取决于技术突破。</li></ol><ol><li><strong>数据量决定inductive bias需求</strong>：发言者7提出数据与inductive bias存在trade-off——数据多时所需inductive bias少，数据少时所需更多；以ImageNet、GPT成功说明大规模学习可不需要inductive bias，而UniSim等新模型因数据不足需要3D inductive bias，未来数据scaling up后更端到端的方式会更好。</li></ol><ol><li><strong>强化学习与CV世界模型视角差异</strong>：发言者7总结RL与CV对world models关注点不同——RL更端到端、CV更关注解耦表征，这是学术发展阶段导致的现状；发言者9认为CV世界模型对强化任务不必要，强化目标只是更好学策略，最终只需latent state和reward即可。</li></ol><ol><li><strong>具身智能融资规模仍小</strong>：发言者7指出当前具身智能融资约10亿人民币，相比自动驾驶、大模型、互联网都很小，因为赛道还非常早；投这个赛道是因为被认为是手机和汽车之后第三个万亿级市场。</li></ol><p>解决方案方面，本场研讨未形成明确的分工与执行方案，仅提出以下方向性做法：</p><ol><li><strong>数据采集</strong>：发言者11所在团队在采集时严格控制相机视角与标定，并记录物体运动（刚体和关节体），以提升数据质量。</li><li><strong>仿真与真机数据结合</strong>：发言者2建议用海量仿真数据（覆盖物体随机位置、orientation、任意初始状态）配合少量真机数据（约20条）训练policy，可显著提升成功率。</li><li><strong>无标注数据利用</strong>：发言者7建议2025年在自动驾驶和具身智能领域推广大规模利用无标注真实数据，类似segment anything和depth anything的路径。</li><li><strong>可穿戴式设备采集</strong>：发言者4建议通过可穿戴式设备在人们日常做事过程中采集数据，作为现阶段较能scale的方案，终极形态是脑机接口或机电方式无感采集多模态数据。</li><li><strong>国产仿真系统</strong>：发言者7提到有团队（宋应）在做国产替代，赌未来会被卡脖子，但未提及具体做法与时间表。</li></ol><h2 class="ck-doc-h2">未决分歧与后续探索</h2><ul><li>[ ] <strong>具身智能最终形态</strong>：发言者3提出具身智能会收敛成人形机器人还是科幻片中可变形的大方块形态，发言者6认为人形机器人与特种机器人将来都会存在（人形机器人会配备灵巧手，特种机器人大量存在于工业生产制造中），发言者7从产业角度预测未来3-4波技术变革会深刻改变具身大模型的硬件与云端模型形态，但暂时无法预测（发言者7 ｜ 验证目标：具身智能的最终形态 ｜ 下阶段计划：等待技术突破带来的产业变革）</li><li>[ ] <strong>世界模型是否需要三维表征</strong>：发言者7认为CV界追求重建物理世界（含3D、物理规律、可交互），可作为RL世界模型的工具，但当前三维计算机视觉技术栈较长、RL领域博士生难以完全学习，导致RL领域不太关注三维表征；发言者8从强化学习角度认为世界模型第一要义是可交互，希望有物理规律理解好的世界模型供策略优化，可引入3D信息或其他模态完善；发言者7提出需不需要inductive bias的问题，认为数据多时需要的inductive bias少、数据少时需要的多，整体由数据决定（发言者7 ｜ 验证目标：世界模型是否需要三维表征/inductive bias ｜ 下阶段计划：拭目以待，在历史上多梳理）</li><li>[ ] <strong>统一世界模型与多模型之争</strong>：发言者5认为一个世界模型无法同时建模游戏和现实的不同动力学（存在歧义问题），世界模型最后应该是很多个，但policy有可能是一个；发言者9提出不同物理结构最后可能有相同的统一表征，依然可以是统一模型；发言者5回应称加condition后变成高维可控模型，从可实现角度M个独立模型更简单，且目前没有atari game能靠一个世界模型建模所有游戏（发言者5、发言者9 ｜ 验证目标：统一世界模型是否可行 ｜ 下阶段计划：讨论中未形成结论）</li><li>[ ] <strong>强化学习与模仿学习的最终路线</strong>：发言者10表示公司采用模型强化加机理融合方式，监督学习数据分布不足以应对高维动作，纯强化学习强依赖仿真环境、sim-to-real迁移困难；发言者9认为复杂任务应先模仿后强化，单独模仿或单独强化都不行（除非任务足够简单）；发言者11认为模仿学习和强化学习不冲突，只是获取运动先验的方式不同；发言者5认为PID系统必有反馈，可作为强化学习的reward（发言者10、发言者9、发言者11、发言者5 ｜ 验证目标：策略学习的最终路线 ｜ 下阶段计划：讨论中未形成结论）</li><li>[ ] <strong>真机复杂任务reward获取</strong>：发言者2提出以RL作为最后一个环节时，真机复杂任务的reward如何获取（仿真有上帝视角，真机detection和传感器有偏差）；发言者5回应称PID能做的系统必然有反馈，可完全拿反馈作为执行过程中的reward（发言者2提问、发言者5回应 ｜ 验证目标：真机reward获取方案 ｜ 下阶段计划：讨论中未形成结论）</li><li>[ ] <strong>仿真数据与真实数据的配比</strong>：发言者2提到300条仿真数据加20条真机数据可显著提升成功率（用fenton方法pretrain后真机数据快速finetune）；发言者7认为用真实数据还是仿真数据要case by case看成本，并主张2025年应迈向大规模利用无标注真实数据（如segment anything、depth anything）（发言者2、发言者7 ｜ 验证目标：仿真与真实数据配比、无标注数据利用 ｜ 下阶段计划：发言者7表示无标注数据利用将成为其2025年的主题）</li><li>[ ] <strong>中国是否依赖英伟达生态</strong>：发言者2提出中国未来是否强依赖英伟达生态（如isaac sim/isaac lab支持柔性物体仿真接口），还是可以有国产产品支持仿真；发言者7回应称国产仿真系统产业问题复杂，有朋友在做国产替代（赌会被卡脖子），具体而言有人在做这个生意，但暂时工作人员不会直接touch这个生意（发言者2提问、发言者7回应 ｜ 验证目标：国产仿真系统可行性 ｜ 下阶段计划：讨论中未形成结论）</li><li>[ ] <strong>柔性物体仿真技术</strong>：发言者4指出现有simulation模拟柔性物体需要先进图形学技术（如IPC），算力要求高、能做的人少（如UCLA蒋正凡夫老师），进展较慢；发言者2认为柔性物体仿真不是解决不了，而是graphics领域的人认为做机器人布料海绵模拟发不了顶会paper所以看不上，未来可能会有发展（发言者4、发言者2 ｜ 验证目标：柔性物体仿真技术突破 ｜ 下阶段计划：讨论中未形成结论）</li><li>[ ] <strong>数据采集的scale up方案</strong>：发言者4认为真机数据采集即使多一两个数量级也达不到GPT-2/GPT-3级别，终极形态可能是脑机接口或机电方式无感采集多模态数据，现阶段可通过可穿戴式设备在人们做事过程中采集数据；发言者2提到可穿戴式设备收集的精度相比遥操数据有差距，需要cover这个GAP（发言者4、发言者2 ｜ 验证目标：数据采集scale up方案 ｜ 下阶段计划：讨论中未形成结论）</li></ul>
+      </div>
+    </div>
+  </main>
+</body>
+</html>
