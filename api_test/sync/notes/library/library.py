@@ -1,9 +1,11 @@
-"""请求 notes 域 graph（笔记知识图谱）接口并解析返回字段。用法：python graph.py
+"""请求 notes 域 library（资料入库）接口并解析返回字段。用法：python library.py
 
-graph 必填：X-User-Id + docs（data/{USER_ID}/docs/ 下的笔记 .txt/.md 文件）。
-docs 也支持图片/其它文档：图片会先走「OCR + LLM 整理审校」生成 md 再直接解析图谱
-（不经知识库入库，耗时较长）；非图片文档按正文预览并入。
-extra.subject 用于按用户+学科做图谱增量合并（空则视为新学科重建）。
+统一入口：POST /api/agent/v1，域与任务名在请求体（"domain": "notes", "task": "library"）。
+
+library 必填：X-User-Id + extra.subject + docs（PPT/PDF/docx/xlsx/txt/图片全量入库）。
+docs 里的文件名须已存在于**服务端** data/{USER_ID}/docs/ 下（本目录下的图片是样例，要先拷过去）。
+入库后资料进入该用户该学科的知识库（向量索引），供检索与带出处问答。
+无落盘产物：结果文本与统计只在 data.text 返回，data.file_name 为空串。
 """
 import json
 import uuid
@@ -11,7 +13,7 @@ import uuid
 import requests
 
 
-URL = "http://10.33.240.226:8003/api/v1/notes/library"
+URL = "http://10.33.240.226:8003/api/agent/v1"
 USER_ID = "1"
 DOCS = ["U202314751_1.jpg", "U202314751_2.jpg", "U202314751_3.jpg", "U202314751_4.jpg", "U202314751_5.jpg", "U202314751_6.jpg", "U202314751_7.jpg", "U202314751_8.jpg", "U202314751_9.jpg", "U202314751_10.jpg",
         "U202314751_11.jpg","U202314751_12.jpg","U202314751_13.jpg","U202314751_14.jpg","U202314751_15.jpg","U202314751_16.jpg","U202314751_17.jpg","U202314751_18.jpg","U202314751_19.jpg","U202314751_20.jpg","U202314751_21.jpg"]
@@ -20,6 +22,8 @@ SUBJECT = "物理"
 resp = requests.post(
     URL,
     json={
+        "domain": "notes",
+        "task": "library",
         "time": "",
         "texts": {
             "transcript": "",
