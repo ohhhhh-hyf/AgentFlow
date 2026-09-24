@@ -107,18 +107,29 @@ def foreign_only(
     others: list[str],
     *,
     full_name: str = "",
+    focus_persons: list[str] | None = None,
+    focus_things: list[str] | None = None,
 ) -> bool:
     """该条是不是"别人为主语、且完全没提到他"（真人模式裁素材用）。
 
     装配轮没有审核，模板栏位会把会议理解的条目直接变成正文条目——实测「武思华明天找他们
     要数据」就是这么进「行动项与分工」的，写作纪律压不住。裁素材只丢"别人为主语"的条目：
     提到他的留（如"问题单找武思华核一下"是他的事）、无人称的全局事实留（数字、结论）。
+    若提及重点关注人物或重点关注标的，视为协同或标的输入，予以保留（不当外人条目丢掉）。
     """
     clean = _clean(text)
     if not clean:
         return False
     if _mentions(clean, addresses, full_name or (addresses[0] if addresses else "")):
         return False
+    for fp in focus_persons or []:
+        cfp = _clean(fp)
+        if cfp and cfp in clean:
+            return False
+    for ft in focus_things or []:
+        cft = _clean(ft)
+        if cft and cft in clean:
+            return False
     return any(name and name in clean for name in others)
 
 
@@ -140,6 +151,10 @@ class HitTable:
     my_decisions: list[str] = field(default_factory=list)
     my_open_questions: list[str] = field(default_factory=list)
     my_topics: list[str] = field(default_factory=list)
+    focus_persons: list[str] = field(default_factory=list)
+    focus_things: list[str] = field(default_factory=list)
+    focus_person_statements: list[str] = field(default_factory=list)
+    focus_thing_mentions: list[str] = field(default_factory=list)
 
     @property
     def confidence(self) -> str:
@@ -179,17 +194,20 @@ def build_hit_table(user: dict[str, Any] | None, understanding: dict[str, Any] |
         return HitTable()
     addresses = [name, *address_aliases(profile)]
     data = understanding if isinstance(understanding, dict) else {}
-    table = HitTable(name=name, addresses=addresses)
+    fps = [p for p in (profile.get("focus_person") or []) if isinstance(p, str) and p.strip()]
+    fts = [t for t in (profile.get("focus_thing") or []) if isinstance(t, str) and t.strip()]
+    table = HitTable(name=name, addresses=addresses, focus_persons=fps, focus_things=fts)
 
     for index, item in enumerate(data.get("action_hints") or []):
         if not isinstance(item, dict):
             continue
         snippet = _clean(item.get("text"))
         owner = _clean(item.get("owner"))
+        timing = _clean(item.get("timing"))
+        action_desc = f"{snippet}（{timing}）" if snippet and timing else (snippet or owner)
         if _equals(owner, addresses):
             table.hits.append(Hit(f"action_hints[{index}].owner", snippet or owner, STRONG, owner))
-            timing = _clean(item.get("timing"))
-            table.my_actions.append(f"{snippet}（{timing}）" if snippet and timing else (snippet or owner))
+            table.my_actions.append(action_desc)
             # 挂在他条目上的风险也算他的：risks 是全场字符串列表，只有 action_hints 这侧带 owner，
             # 不在这里收，个人纪要的"他的风险"就只能靠风险文本里恰好写了他名字。
             risk_text = _item_text(item.get("risk"))
@@ -199,6 +217,15 @@ def build_hit_table(user: dict[str, Any] | None, understanding: dict[str, Any] |
         matched = _mentions(snippet, addresses, name)
         if matched:
             table.hits.append(Hit(f"action_hints[{index}]", snippet, WEAK, matched))
+        for p in fps:
+            if _equals(owner, [p]) or (p in snippet):
+                stmt = f"{owner}负责：{action_desc}" if owner else action_desc
+                if stmt not in table.focus_person_statements:
+                    table.focus_person_statements.append(stmt)
+        for t in fts:
+            if t in snippet:
+                if action_desc not in table.focus_thing_mentions:
+                    table.focus_thing_mentions.append(action_desc)
 
     for index, speaker in enumerate(data.get("speakers") or []):
         if not isinstance(speaker, dict):
@@ -218,24 +245,42 @@ def build_hit_table(user: dict[str, Any] | None, understanding: dict[str, Any] |
             if matched:
                 table.hits.append(Hit(f"{key}[{index}]", item, WEAK, matched))
                 bucket.append(item)
+            for p in fps:
+                if p in item:
+                    if item not in table.focus_person_statements:
+                        table.focus_person_statements.append(item)
+            for t in fts:
+                if t in item:
+                    if item not in table.focus_thing_mentions:
+                        table.focus_thing_mentions.append(item)
 
     for index, topic in enumerate(data.get("topics") or []):
         if not isinstance(topic, dict):
             continue
-        matched = _mentions(topic.get("title"), addresses, name)
-        for person in topic.get("participants") or []:
+        title = _clean(topic.get("title"))
+        matched = _mentions(title, addresses, name)
+        participants = topic.get("participants") or []
+        for person in participants:
             if _equals(person, addresses):
                 matched = matched or _clean(person)
         if matched:
-            title = _clean(topic.get("title"))
-            table.hits.append(Hit(f"topics[{index}]", title or matched, WEAK, matched))
-            if title:
-                table.my_topics.append(title)
+            title_clean = _clean(topic.get("title"))
+            table.hits.append(Hit(f"topics[{index}]", title_clean or matched, WEAK, matched))
+            if title_clean:
+                table.my_topics.append(title_clean)
+        for p in fps:
+            if any(_equals(person, [p]) for person in participants) or (title and p in title):
+                if title and title not in table.focus_person_statements:
+                    table.focus_person_statements.append(f"【{p}参与议题】{title}")
+        for t in fts:
+            if title and t in title:
+                if title not in table.focus_thing_mentions:
+                    table.focus_thing_mentions.append(f"【议题】{title}")
     return table
 
 
 _SPEAKER_LINE_RE = re.compile(r"^\s*([^\s]{1,12})[ \t]+(\d{1,2}:\d{2}(?::\d{2})?)\s*$")
-_OMIT_TEMPLATE = "……（此处省略 {n} 段与本人无关的发言）"
+_OMIT_TEMPLATE = "……（此处省略 {n} 段与本人及关注标的无关的发言）"
 
 
 def speaker_blocks(transcript: str) -> list[tuple[str, str]]:
@@ -390,9 +435,13 @@ def render_action_groups_block(
             continue
         others.append(who)
 
-    # 上级优先：画像中声明的上级若在参会/分工名单中，提到他人组名最前
-    supervisors = extract_supervisors(profile)
-    for sup in reversed(supervisors):
+    # 上级与重点关注人优先：画像中声明的上级或 focus_person 若在参会/分工名单中，提到他人组名最前
+    focus_persons = [p for p in (profile.get("focus_person") or []) if isinstance(p, str) and p.strip()]
+    priority_persons = list(extract_supervisors(profile))
+    for p in focus_persons:
+        if p not in priority_persons:
+            priority_persons.append(p)
+    for sup in reversed(priority_persons):
         if sup in others:
             others.remove(sup)
             others.insert(0, sup)
@@ -416,15 +465,17 @@ def slice_transcript_for_person(
     full_name: str = "",
     min_keep_chars: int = 200,
     self_label: str = "",
+    focus_persons: Sequence[str] = (),
+    focus_things: Sequence[str] = (),
 ) -> tuple[str, dict[str, Any]]:
-    """按人裁原文：只留**他发言的段**与**提到他的段**，其余折叠成一行省略说明。
+    """按人裁原文：只留**他发言的段**、**提到他的段**、以及**提到重点关注人/标的的段**，其余折叠成一行省略说明。
 
     为什么要在原文这一层动手（2026-09-21 实测两轮）：模板路径的正文由通用填充器逐栏写，
     【内容来源】里放着整场原文，模板栏名又是「全文摘要 / 分段速览」——写作纪律写在消息
     开头（691 字）也压不过眼前两万字原文，真人模式照样输出整场（实测「你」10 次、
     「申家坤」23 次、正文 9082 字，提及他的段落只占 12%）。把原文按人裁掉，栏位就没得抄。
 
-    形如 ``姓名 HH:MM:SS`` 的发言行分块；块首称呼能对上（全称/别称）或块内提到他 → 留。
+    形如 ``姓名 HH:MM:SS`` 的发言行分块；块首称呼能对上（全称/别称）或块内提到他/关注人/关注标的 → 留。
     ``self_label`` 非空时把他自己的块首称呼换成该字样（默认由调用方传「你」）：原文里
     满屏「申家坤 00:35:20」会把模型拽回第三人称，实测同一份上下文两轮，一轮「你」37 次、
     另一轮只剩 11 次。
@@ -436,6 +487,9 @@ def slice_transcript_for_person(
     if not text.strip() or not addresses:
         stats["fallback"] = True
         return text, stats
+
+    clean_fps = [p for p in (focus_persons or ()) if p]
+    clean_fts = [t for t in (focus_things or ()) if t]
 
     blocks: list[list[str]] = []  # [块首称呼, 整块文本]
     head: list[str] = []          # 首个发言行之前的题头
@@ -456,9 +510,14 @@ def slice_transcript_for_person(
     pending = 0  # 连续被丢掉的块数
     kept_chars = 0
     for speaker, block in blocks:
-        keep = _equals(speaker, addresses) or bool(
+        is_self = _equals(speaker, addresses) or bool(
             _mentions(block, addresses, full_name or addresses[0])
         )
+        is_focus_person = bool(clean_fps) and any(
+            _equals(speaker, [p]) or (p in block) for p in clean_fps
+        )
+        is_focus_thing = bool(clean_fts) and any(t in block for t in clean_fts)
+        keep = is_self or is_focus_person or is_focus_thing
         if keep:
             if pending:
                 out.append(_OMIT_TEMPLATE.format(n=pending))
@@ -479,6 +538,47 @@ def slice_transcript_for_person(
         return text, stats
     stats["chars"] = len("\n".join(out))
     return "\n".join(out), stats
+
+
+def render_radar_block(user: Any) -> str:
+    """给个人视角生成模型看的【重点关注雷达】硬事实约束块。
+    明确告知本人身份、重点关注人物以及重点关注标的，提示大模型深度深潜。
+    """
+    if not isinstance(user, dict):
+        if hasattr(user, "model_dump"):
+            user = user.model_dump()
+        elif hasattr(user, "__dict__"):
+            user = user.__dict__
+        else:
+            return ""
+
+    name = (user.get("name") or "").strip()
+    role = (user.get("role") or "").strip()
+    focus_persons = [p for p in (user.get("focus_person") or []) if isinstance(p, str) and p.strip()]
+    focus_things = [t for t in (user.get("focus_thing") or []) if isinstance(t, str) and t.strip()]
+
+    if not name and not focus_persons and not focus_things:
+        return ""
+
+    lines = ["【本用户重点关注雷达（输入画像硬约束，请在相关栏位深度聚焦）】"]
+    if name:
+        alias_str = ""
+        aliases = user.get("name_aliases") or []
+        if aliases:
+            alias_str = f"（别名：{' / '.join(aliases)}）"
+        role_str = f"，岗位职责：{role}" if role else ""
+        lines.append(f"- 纪要视角主体：{name}{alias_str}{role_str}")
+        lines.append("  * 行为规范：本人行动项与分工一律采用动宾短语省略主语（严禁出现“我/你/本人/某某负责”）；他人事项必须完整保留真名。")
+
+    if focus_persons:
+        lines.append(f"- 重点盯防人物：{', '.join(focus_persons)}")
+        lines.append("  * 关注要求：重点关注人物在会上的决策定调、业务输入、关键诉求与对本业务线的期许必须成句完整体现，严禁遗漏。")
+
+    if focus_things:
+        lines.append(f"- 重点关注标的与业务实体：{', '.join(focus_things)}")
+        lines.append("  * 关注要求：围绕关注标的深度深潜，方案进展、关键参数（指标/时延/版本/验收标准）与上下游依赖必须条目化清晰呈现，严禁泛泛而谈。")
+
+    return "\n".join(lines)
 
 
 def render_hit_block(table: HitTable) -> str:
@@ -520,8 +620,8 @@ def _is_default_only_text(s: str) -> bool:
 
 _TARGET_SECTION_KEYWORDS = (
     ("结论", "决定", "决策"),
-    ("行动", "分工", "待办", "任务"),
-    ("待确认", "风险", "未决", "阻塞"),
+    ("行动", "分工", "待办", "任务", "协同", "依赖"),
+    ("待确认", "风险", "未决", "阻塞", "卡点"),
 )
 
 
@@ -558,6 +658,8 @@ def _normalize_section_body(
         return (
             gn in addresses
             or gn in {"与我相关", "本人", "我的待办", "自己"}
+            or gn.startswith("与我相关")
+            or gn.startswith("本人")
             or bool(self_name and gn == self_name)
         )
 
@@ -732,8 +834,11 @@ __all__ = [
     "WEAK",
     "attribute_to_speaker",
     "build_hit_table",
+    "foreign_only",
     "normalize_personal_sections",
     "render_action_groups_block",
     "render_hit_block",
+    "render_radar_block",
+    "slice_transcript_for_person",
     "speaker_blocks",
 ]

@@ -30,5 +30,6 @@ class MinutesGenerationSupervisor:
             MinutesSupervisorReview,
             MINUTES_SUPERVISOR_OUTPUT_CONTRACT,
             label="minutes/supervisor",
+            max_tokens=3000,
         )
 

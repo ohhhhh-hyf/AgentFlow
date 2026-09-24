@@ -24,6 +24,7 @@ from perspective import (
     address_aliases,
     build_preference_block,
     foreign_only,
+    render_radar_block,
     slice_transcript_for_person,
 )
 from .meeting_factory import MeetingAgentFactory
@@ -637,6 +638,11 @@ class _Nodes(DomainNodes):
             groups_block = str(state.get("user_action_groups_block") or "").strip()
             if groups_block:
                 parts.append(groups_block)
+            radar_block = str(state.get("user_radar_block") or "").strip()
+            if not radar_block and line_name in PREFERENCE_LINES:
+                radar_block = render_radar_block(state.get("user") or {})
+            if radar_block:
+                parts.append(radar_block)
         parts.append(f"会议理解：\n{_json(pack)}")
         perspective = self._compact_perspective(state.get("perspective_profile") or {})
         if perspective:
@@ -671,6 +677,11 @@ class _Nodes(DomainNodes):
         groups = str(state.get("user_action_groups_block") or "").strip()
         if groups and mode != "objective":
             blocks.append(groups)
+        radar = str(state.get("user_radar_block") or "").strip()
+        if not radar and mode != "objective" and line_name in PREFERENCE_LINES:
+            radar = render_radar_block(state.get("user") or {})
+        if radar and mode != "objective":
+            blocks.append(radar)
         budget = self._length_budget_line(state, line_name)
         if budget:
             blocks.append(budget)
@@ -738,6 +749,11 @@ class _Nodes(DomainNodes):
             groups = str(state.get("user_action_groups_block") or "").strip()
             if groups:
                 extra_parts.append(groups)
+            radar = str(state.get("user_radar_block") or "").strip()
+            if not radar and line_name in PREFERENCE_LINES:
+                radar = render_radar_block(state.get("user") or {})
+            if radar:
+                extra_parts.append(radar)
             if line_name in PREFERENCE_LINES:
                 preference = build_preference_block(state.get("user") or {})
                 if preference:
@@ -769,11 +785,15 @@ class _Nodes(DomainNodes):
         user = state.get("user") or {}
         name = str(user.get("name") or "").strip()
         addresses = [name, *address_aliases(user)]
+        focus_persons = [p for p in (user.get("focus_person") or []) if isinstance(p, str) and p.strip()]
+        focus_things = [t for t in (user.get("focus_thing") or []) if isinstance(t, str) and t.strip()]
         text, stats = slice_transcript_for_person(
             state.get("transcript") or "",
             [a for a in addresses if a],
             full_name=name,
             self_label="你",
+            focus_persons=focus_persons,
+            focus_things=focus_things,
         )
         if stats.get("fallback"):
             logger.info("personal transcript slice skipped: %s", stats)
@@ -800,7 +820,7 @@ class _Nodes(DomainNodes):
         if self._mode_label(state) != "personal" or line_name not in PREFERENCE_LINES:
             return ""
         template = str((state.get("templates") or {}).get(line_name) or "")
-        if any(marker in template for marker in ("本场概况与本人定调", "重点关注与业务进展", "行动项与协同依赖", "待确认事项与风险卡点")):
+        if any(marker in template for marker in ("本场概况与本人定调", "会议全貌与本人定调", "重点关注与业务进展", "行动项与协同依赖", "待确认事项与风险卡点", "待确认与风险卡点")):
             return PERSONAL_TEMPLATE_VIEW_DIRECTIVE
         return PERSONAL_VIEW_DIRECTIVE
 
@@ -821,6 +841,8 @@ class _Nodes(DomainNodes):
         user = state.get("user") or {}
         name = str(user.get("name") or "").strip()
         addresses = [item for item in (name, *address_aliases(user)) if item]
+        focus_persons = [p for p in (user.get("focus_person") or []) if isinstance(p, str) and p.strip()]
+        focus_things = [t for t in (user.get("focus_thing") or []) if isinstance(t, str) and t.strip()]
         speakers = [
             str(item.get("name") or "")
             for item in ((state.get("meeting_understanding") or {}).get("speakers") or [])
@@ -837,14 +859,26 @@ class _Nodes(DomainNodes):
             points = topic.get("key_points") or []
             keep_points = [
                 point for point in points
-                if not foreign_only(point, addresses, others, full_name=name)
+                if not foreign_only(
+                    point,
+                    addresses,
+                    others,
+                    full_name=name,
+                    focus_persons=focus_persons,
+                    focus_things=focus_things,
+                )
             ]
             dropped += len(points) - len(keep_points)
             entry = {**topic, "key_points": keep_points}
             if "discussion" in topic:  # 讨论经过：同一套判定，命中置空（键保留、形状不变）
                 discussion = str(topic.get("discussion") or "")
                 if discussion.strip() and foreign_only(
-                    discussion, addresses, others, full_name=name
+                    discussion,
+                    addresses,
+                    others,
+                    full_name=name,
+                    focus_persons=focus_persons,
+                    focus_things=focus_things,
                 ):
                     entry["discussion"] = ""
                     dropped_discussions += 1
@@ -966,6 +1000,7 @@ class _Nodes(DomainNodes):
                 build_hit_table,
                 render_action_groups_block,
                 render_hit_block,
+                render_radar_block,
                 skip_reason,
                 synthesize_perspective_profile,
             )
@@ -983,6 +1018,7 @@ class _Nodes(DomainNodes):
                 "user_action_groups_block": render_action_groups_block(
                     user, self._understanding(state) or {}
                 ),
+                "user_radar_block": render_radar_block(user),
             }
             reason = skip_reason(user, table, line_names)
             if not reason:

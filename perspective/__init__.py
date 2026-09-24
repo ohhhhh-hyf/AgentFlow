@@ -10,6 +10,7 @@ from .hits import (
     attribute_to_speaker,
     render_action_groups_block,
     render_hit_block,
+    render_radar_block,
     slice_transcript_for_person,
     speaker_blocks,
 )
@@ -50,6 +51,7 @@ __all__ = [
     "attribute_to_speaker",
     "render_action_groups_block",
     "render_hit_block",
+    "render_radar_block",
     "skip_reason",
     "slice_transcript_for_person",
     "speaker_blocks",

@@ -926,15 +926,18 @@ class LLMClient:
                 if validation_retried:
                     break
                 validation_retried = True
+                assistant_content = last_content
+                if len(assistant_content) > 2000:
+                    assistant_content = assistant_content[:1000] + "\n...[超长内容截断]..."
                 messages.extend(
                     [
-                        {"role": "assistant", "content": last_content},
+                        {"role": "assistant", "content": assistant_content},
                         {
                             "role": "user",
                             "content": (
-                                "输出未通过严格校验。不要改变事实，"
-                                "请按唯一模板重新输出。"
-                                f"\n校验错误：{last_error}"
+                                "输出未通过严格校验。请注意篇幅精炼、切勿长篇大论，不要改变事实，"
+                                "请按唯一模板重新输出合法完整的 JSON 对象。"
+                                f"\n校验错误：{last_error[:500]}"
                             ),
                         },
                     ]

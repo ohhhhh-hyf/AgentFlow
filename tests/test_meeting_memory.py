@@ -652,6 +652,46 @@ def test_review_panel_ledger_group() -> None:
     check("零锚点单栏页保留正文里的对照小节", "历史对照" in html2, "")
 
 
+def test_personal_minutes_html_rendering() -> None:
+    from domain.meeting.memory.render import render_minutes_html
+
+    md = (
+        "# 个人视角纪要\n\n"
+        "## [本场概况与本人定调]\n"
+        "本场讨论了模型压测与demo落地。\n\n"
+        "## [重点关注与业务进展]\n"
+        "1. **【demo落地】进展与方案**（本周内 ｜ 联调 ｜ 压测通过）\n"
+        "  - 完成第一轮测试；\n\n"
+        "## [行动项与协同依赖]\n"
+        "### 与我相关行动项\n"
+        "- [ ] **完成demo落地压测**（周五前 ｜ 报告 ｜ P99<50ms）\n"
+        "- [x] **修复现网待办问题**（周三前 ｜ 补丁）\n\n"
+        "### 关注人定调与协同输入\n"
+        "- **[环境依赖] 张工**：明天就绪测试环境（明天下午）\n\n"
+        "### 协同人员主要分工\n"
+        "- **武思华**：负责权限开通\n\n"
+        "## [待确认事项与风险卡点]\n"
+        "### 本人及关注事项卡点\n"
+        "- [ ] **【阻塞】数据表权限未开通**：无法回流\n"
+        "- [ ] **【高风险】显存压力**：需额外压测\n\n"
+        "### 全局重大风险与未决争议\n"
+        "- **跨团队对齐延后**：可能影响整体排期\n"
+    )
+
+    html = render_minutes_html("个人视角纪要", md)
+    content = html.split('<div class="ck-doc-content">')[1].split('</div>\n    </div>')[0]
+    check("个人模式单栏页包含交互式复选框", '<input type="checkbox"' in content, "")
+    check("个人模式无字面量 [ ]", '[ ]' not in content, "")
+    check("个人模式生成本人待办卡片 ck-self-block", "ck-self-block" in content, "")
+    check("个人模式生成协同输入卡片 ck-dep-block", "ck-dep-block" in content, "")
+    check("个人模式生成全局风险卡片 ck-risk-block", "ck-risk-block" in content, "")
+    check("个人模式生成任务列表 ck-task-list", "ck-task-list" in content, "")
+    check("个人模式生成阻塞状态徽章 ck-tag-blocker", "ck-tag-blocker" in content, "")
+    check("个人模式生成依赖标签 ck-tag-dep", "ck-tag-dep" in content, "")
+    check("个人模式生成参数胶囊 ck-param-capsule", "ck-param-capsule" in content, "")
+    check("个人模式标题方括号剔除", "[本场概况与本人定调]" not in content and "本场概况与本人定调" in content, "")
+
+
 def main() -> int:
     test_identity_helpers()
     test_bind_explicit_warning()
@@ -669,6 +709,7 @@ def main() -> int:
     test_review_panel_ledger_group()
     test_selection_relevance_and_recency()
     test_state_lifecycle_consistency()
+    test_personal_minutes_html_rendering()
     with tempfile.TemporaryDirectory() as raw:
         tmp = Path(raw)
         test_persist_no_project_and_headline(tmp)

@@ -193,8 +193,29 @@ class DomainNodes:
         needles = collect_needles(draft) + collect_needles(
             understanding_for_needles
         )
+        priority_needles: list[str] = []
+        user = state.get("user") or {}
+        if isinstance(user, dict):
+            for fp in user.get("focus_person") or []:
+                if isinstance(fp, str) and len(fp.strip()) >= 2:
+                    priority_needles.append(fp.strip())
+            for ft in user.get("focus_thing") or []:
+                if isinstance(ft, str) and len(ft.strip()) >= 2:
+                    priority_needles.append(ft.strip())
+            name = str(user.get("name") or "").strip()
+            if name:
+                priority_needles.append(name)
+            for alias in user.get("name_aliases") or []:
+                if isinstance(alias, str) and len(alias.strip()) >= 2:
+                    priority_needles.append(alias.strip())
+        if isinstance(draft, dict):
+            for key in ("personally_relevant_points", "my_actions", "my_tasks"):
+                val = draft.get(key)
+                if val:
+                    priority_needles.extend(collect_needles(val))
+
         raw = state.get("transcript") or ""
-        excerpt, hits, used = slice_transcript(raw, needles)
+        excerpt, hits, used = slice_transcript(raw, needles, priority_needles=priority_needles)
         if not excerpt.strip():
             excerpt = raw.strip()
             used = len(raw)

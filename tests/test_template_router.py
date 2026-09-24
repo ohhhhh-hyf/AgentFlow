@@ -4209,12 +4209,15 @@ def test_render_context_person_transcript() -> None:
     # 未声明的写入被静默丢掉——骨架块写了，草稿/审核/渲染全程收不到（单元测试注入 dict 掩盖了）。
     from domain.meeting.models import MeetingState
 
-    check("状态通道：视角节点写的两个块都在 MeetingState 里声明（否则被 LangGraph 丢掉）",
+    check("状态通道：视角节点写的块都在 MeetingState 里声明（否则被 LangGraph 丢掉）",
           "user_action_groups_block" in MeetingState.__annotations__
-          and "user_hits_block" in MeetingState.__annotations__,
+          and "user_hits_block" in MeetingState.__annotations__
+          and "user_radar_block" in MeetingState.__annotations__,
           "")
-    check("状态通道：视角节点确实写入骨架 key",
+    check("状态通道：视角节点确实写入骨架 key 与雷达 key",
           "user_action_groups_block" in Path("domain/meeting/orchestrator.py").read_text(
+              encoding="utf-8"
+          ) and "user_radar_block" in Path("domain/meeting/orchestrator.py").read_text(
               encoding="utf-8"
           ),
           "")

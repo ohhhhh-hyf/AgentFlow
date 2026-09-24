@@ -631,6 +631,30 @@ def _parse_memory_sources(markdown: str) -> dict[str, dict[str, str]]:
     return out
 
 
+_SELF_HEAD_RE = re.compile(r"^###\s+(?:\[|\()?.*(?:与我相关|本人|待我攻坚|待我解决)")
+_SELF_GROUP_RE = re.compile(r"^\s*(?:-\s*)?\*\*(?:与我相关[^*]*|本人[^*]*|待我[^*]*)\*\*[：:]?\s*$")
+
+_DEP_HEAD_RE = re.compile(r"^###\s+(?:\[|\()?.*(?:协同输入|关注人定调|前置依赖|外部依赖)")
+_DEP_GROUP_RE = re.compile(r"^\s*(?:-\s*)?\*\*(?:协同输入[^*]*|关注人定调[^*]*|前置依赖[^*]*|外部依赖[^*]*)\*\*[：:]?\s*$")
+
+_RISK_HEAD_RE = re.compile(r"^###\s+(?:\[|\()?.*(?:全局重大风险|全局风险|未决争议|外部阻塞)")
+_RISK_GROUP_RE = re.compile(r"^\s*(?:-\s*)?\*\*(?:全局风险与未决[^*]*|全局重大风险[^*]*|外部阻塞[^*]*|未决争议[^*]*)\*\*[：:]?\s*$")
+
+_OTHER_GROUP_RE = re.compile(r"^\s*(?:-\s*)?\*\*([^*:\n]{1,20})\*\*[：:]?\s*$")
+_TASK_ITEM_RE = re.compile(r"^\s*[-*]\s+\[([ xX])\]\s*(.*)$")
+
+
+def _format_inline_tags(text: str) -> str:
+    """格式化纪要中的状态徽章、依赖标签与参数胶囊。"""
+    text = re.sub(r"【(?:阻塞|阻碍)】", r'<span class="ck-tag-blocker">阻塞</span>', text)
+    text = re.sub(r"【(高风险|中风险|低风险)】", r'<span class="ck-tag-risk">\1</span>', text)
+    text = re.sub(r"【(?:待确认|待决)】", r'<span class="ck-tag-warn">待确认</span>', text)
+    text = re.sub(r"[\[【]([\u4e00-\u9fff]{2,8}(?:依赖|定调|输入|输出|评审))[\]】]", r'<span class="ck-tag-dep">\1</span>', text)
+    text = re.sub(r"（([^）\n]+(?:[｜|][^）\n]+)+)）", r'<span class="ck-param-capsule">（\1）</span>', text)
+    text = re.sub(r"\(([^)\n]+(?:[｜|][^)\n]+)+)\)", r'<span class="ck-param-capsule">(\1)</span>', text)
+    return text
+
+
 def _format_minutes_html(
     markdown_text: str,
     sources: dict[str, dict[str, str]],
@@ -644,24 +668,62 @@ def _format_minutes_html(
         lines = lines[1:]
 
     out: list[str] = []
+    task_buf: list[tuple[bool, str]] = []
     list_buf: list[str] = []
     ol_buf: list[str] = []
-    in_self_block = False
+    active_block: str | None = None
 
-    def flush_list() -> None:
+    def flush_tasks() -> None:
+        if task_buf:
+            items_html = "".join(
+                f'<li class="ck-task-item"><label class="ck-task-label">'
+                f'<input type="checkbox" class="ck-task-checkbox"{" checked" if chk else ""}>'
+                f'<span class="ck-task-text">{txt}</span></label></li>'
+                for chk, txt in task_buf
+            )
+            out.append(f'<ul class="ck-task-list">{items_html}</ul>')
+            task_buf.clear()
+
+    def flush_ul() -> None:
         if list_buf:
-            out.append("<ul>" + "".join(f"<li>{x}</li>" for x in list_buf) + "</ul>")
+            items_html = []
+            for item in list_buf:
+                if isinstance(item, dict):
+                    subs_html = ""
+                    if item.get("subs"):
+                        subs_html = "<ul>" + "".join(f"<li>{s}</li>" for s in item["subs"]) + "</ul>"
+                    items_html.append(f"<li>{item['text']}{subs_html}</li>")
+                else:
+                    items_html.append(f"<li>{item}</li>")
+            out.append("<ul>" + "".join(items_html) + "</ul>")
             list_buf.clear()
+
+    def flush_ol() -> None:
         if ol_buf:
-            out.append("<ol>" + "".join(f"<li>{x}</li>" for x in ol_buf) + "</ol>")
+            items_html = []
+            for item in ol_buf:
+                if isinstance(item, dict):
+                    num_attr = f' value="{item["num"]}"' if item.get("num") else ""
+                    subs_html = ""
+                    if item.get("subs"):
+                        subs_html = "<ul>" + "".join(f"<li>{s}</li>" for s in item["subs"]) + "</ul>"
+                    items_html.append(f'<li{num_attr}>{item["text"]}{subs_html}</li>')
+                else:
+                    items_html.append(f"<li>{item}</li>")
+            out.append("<ol>" + "".join(items_html) + "</ol>")
             ol_buf.clear()
 
-    def close_self_block() -> None:
-        nonlocal in_self_block
-        if in_self_block:
+    def flush_list() -> None:
+        flush_tasks()
+        flush_ul()
+        flush_ol()
+
+    def close_active_block() -> None:
+        nonlocal active_block
+        if active_block is not None:
             flush_list()
             out.append("</div>")
-            in_self_block = False
+            active_block = None
 
     def inline_format(s: str) -> str:
         parts: list[str] = []
@@ -685,82 +747,170 @@ def _format_minutes_html(
         text = re.sub(r"\*\*(.+?)\*\*", r"<strong>\1</strong>", text)
         text = re.sub(r"(?<!\*)\*(?!\*)(.+?)(?<!\*)\*(?!\*)", r"<em>\1</em>", text)
         text = re.sub(r"`([^`]+)`", r"<code>\1</code>", text)
+        text = _format_inline_tags(text)
         return text
-
-    self_group_re = re.compile(r"^\s*(?:-\s*)?\*\*(?:与我相关|本人)\*\*[：:]?\s*$")
-    other_group_re = re.compile(r"^\s*(?:-\s*)?\*\*([^*:\n]{1,20})\*\*[：:]?\s*$")
 
     i = 0
     while i < len(lines):
         raw_line = lines[i]
         stripped = raw_line.strip()
         if not stripped:
-            flush_list()
+            if ol_buf:
+                next_is_ol = False
+                for j in range(i + 1, len(lines)):
+                    next_s = lines[j].strip()
+                    if next_s:
+                        if re.match(r"^\s*\d+[.)、]\s+", lines[j]):
+                            next_is_ol = True
+                        break
+                if not next_is_ol:
+                    flush_list()
+            else:
+                flush_list()
             i += 1
             continue
 
         if stripped.startswith("### "):
-            close_self_block()
+            h_text = stripped[4:].strip()
+            if h_text.startswith("[") and h_text.endswith("]"):
+                h_text = h_text[1:-1].strip()
+
+            if _SELF_HEAD_RE.match(stripped):
+                close_active_block()
+                flush_list()
+                active_block = "self"
+                out.append(f'<div class="ck-self-block"><div class="ck-self-title"><strong>{inline_format(h_text)}</strong><span class="ck-self-badge">本人</span></div>')
+                i += 1
+                continue
+            if _DEP_HEAD_RE.match(stripped):
+                close_active_block()
+                flush_list()
+                active_block = "dep"
+                out.append(f'<div class="ck-dep-block"><div class="ck-dep-title"><strong>{inline_format(h_text)}</strong><span class="ck-dep-badge">协同依赖</span></div>')
+                i += 1
+                continue
+            if _RISK_HEAD_RE.match(stripped):
+                close_active_block()
+                flush_list()
+                active_block = "risk"
+                out.append(f'<div class="ck-risk-block"><div class="ck-risk-title"><strong>{inline_format(h_text)}</strong><span class="ck-risk-badge">全局风险</span></div>')
+                i += 1
+                continue
+
+            close_active_block()
             flush_list()
-            out.append(f'<h3 class="ck-doc-h3">{inline_format(stripped[4:])}</h3>')
+            out.append(f'<h3 class="ck-doc-h3">{inline_format(h_text)}</h3>')
             i += 1
             continue
+
         if stripped.startswith("## "):
-            close_self_block()
+            close_active_block()
             flush_list()
-            out.append(f'<h2 class="ck-doc-h2">{inline_format(stripped[3:])}</h2>')
+            h_text = stripped[3:].strip()
+            if h_text.startswith("[") and h_text.endswith("]"):
+                h_text = h_text[1:-1].strip()
+            out.append(f'<h2 class="ck-doc-h2">{inline_format(h_text)}</h2>')
             i += 1
             continue
+
         if stripped.startswith("# "):
-            close_self_block()
+            close_active_block()
             flush_list()
-            out.append(f'<h2>{inline_format(stripped[2:])}</h2>')
+            h_text = stripped[2:].strip()
+            if h_text.startswith("[") and h_text.endswith("]"):
+                h_text = h_text[1:-1].strip()
+            out.append(f'<h2>{inline_format(h_text)}</h2>')
             i += 1
             continue
 
-        if self_group_re.match(stripped):
-            close_self_block()
+        if _SELF_GROUP_RE.match(stripped):
+            close_active_block()
             flush_list()
-            in_self_block = True
-            out.append('<div class="ck-self-block"><div class="ck-self-title"><strong>与我相关</strong>：<span class="ck-self-badge">本人</span></div>')
+            active_block = "self"
+            m_g = re.match(r"^\s*(?:-\s*)?\*\*([^*:\n]+)\*\*[：:]?\s*$", stripped)
+            g_title = m_g.group(1).strip() if m_g else "与我相关"
+            out.append(f'<div class="ck-self-block"><div class="ck-self-title"><strong>{inline_format(g_title)}</strong><span class="ck-self-badge">本人</span></div>')
             i += 1
             continue
 
-        if other_group_re.match(stripped):
-            close_self_block()
+        if _DEP_GROUP_RE.match(stripped):
+            close_active_block()
             flush_list()
-            out.append(f'<p>{inline_format(stripped)}</p>')
+            active_block = "dep"
+            m_g = re.match(r"^\s*(?:-\s*)?\*\*([^*:\n]+)\*\*[：:]?\s*$", stripped)
+            g_title = m_g.group(1).strip() if m_g else "协同输入"
+            out.append(f'<div class="ck-dep-block"><div class="ck-dep-title"><strong>{inline_format(g_title)}</strong><span class="ck-dep-badge">协同依赖</span></div>')
+            i += 1
+            continue
+
+        if _RISK_GROUP_RE.match(stripped):
+            close_active_block()
+            flush_list()
+            active_block = "risk"
+            m_g = re.match(r"^\s*(?:-\s*)?\*\*([^*:\n]+)\*\*[：:]?\s*$", stripped)
+            g_title = m_g.group(1).strip() if m_g else "全局风险与未决"
+            out.append(f'<div class="ck-risk-block"><div class="ck-risk-title"><strong>{inline_format(g_title)}</strong><span class="ck-risk-badge">全局风险</span></div>')
+            i += 1
+            continue
+
+        if _OTHER_GROUP_RE.match(stripped):
+            close_active_block()
+            flush_list()
+            out.append(f'<p class="ck-person-group">{inline_format(stripped)}</p>')
+            i += 1
+            continue
+
+        m_task = _TASK_ITEM_RE.match(raw_line)
+        if m_task:
+            flush_ul()
+            flush_ol()
+            is_chk = m_task.group(1).lower() == "x"
+            item_text = m_task.group(2).strip()
+            task_buf.append((is_chk, inline_format(item_text)))
+            i += 1
+            continue
+
+        m_ol = re.match(r"^\s*(\d+)[.)、]\s+(.*)$", raw_line)
+        if m_ol:
+            flush_tasks()
+            flush_ul()
+            ol_buf.append({"num": m_ol.group(1), "text": inline_format(m_ol.group(2).strip()), "subs": []})
+            i += 1
+            continue
+
+        if ol_buf and re.match(r"^\s{2,}[-*]\s+(.*)$", raw_line):
+            m_sub = re.match(r"^\s{2,}[-*]\s+(.*)$", raw_line)
+            ol_buf[-1]["subs"].append(inline_format(m_sub.group(1).strip()))
+            i += 1
+            continue
+
+        if list_buf and re.match(r"^\s{2,}[-*]\s+(.*)$", raw_line):
+            m_sub = re.match(r"^\s{2,}[-*]\s+(.*)$", raw_line)
+            list_buf[-1]["subs"].append(inline_format(m_sub.group(1).strip()))
             i += 1
             continue
 
         if re.match(r"^\s*[-*]\s+", raw_line):
-            if ol_buf:
-                flush_list()
-            list_buf.append(inline_format(re.sub(r"^\s*[-*]\s+", "", raw_line)))
-            i += 1
-            continue
-
-        if re.match(r"^\s*\d+[.)、]\s+", raw_line):
-            if list_buf:
-                flush_list()
-            ol_buf.append(inline_format(re.sub(r"^\s*\d+[.)、]\s+", "", raw_line)))
+            flush_tasks()
+            flush_ol()
+            list_buf.append({"text": inline_format(re.sub(r"^\s*[-*]\s+", "", raw_line)), "subs": []})
             i += 1
             continue
 
         if stripped.startswith(">"):
-            close_self_block()
+            close_active_block()
             flush_list()
             out.append(f'<div class="ck-quote">{inline_format(stripped.lstrip("> "))}</div>')
             i += 1
             continue
 
-        close_self_block()
+        close_active_block()
         flush_list()
         out.append(f'<p>{inline_format(stripped)}</p>')
         i += 1
 
     flush_list()
-    close_self_block()
+    close_active_block()
     return meeting_title, "".join(out)
 
 
@@ -1155,31 +1305,62 @@ def _render_markdown_content(text: str) -> str:
     """把 Markdown 转换为符合 LaTeX Paper 风格的 HTML 片段（保留 Markdown 原始格式）。"""
     lines = str(text or "").replace("\r\n", "\n").replace("\r", "\n").split("\n")
     out: list[str] = []
+    task_buf: list[tuple[bool, str]] = []
     list_buf: list[str] = []
     ol_buf: list[str] = []
+    active_block: str | None = None
 
-    in_self_block = False
+    def flush_tasks() -> None:
+        if task_buf:
+            items_html = "".join(
+                f'<li class="ck-task-item"><label class="ck-task-label">'
+                f'<input type="checkbox" class="ck-task-checkbox"{" checked" if chk else ""}>'
+                f'<span class="ck-task-text">{txt}</span></label></li>'
+                for chk, txt in task_buf
+            )
+            out.append(f'<ul class="ck-task-list">{items_html}</ul>')
+            task_buf.clear()
 
     def flush_ul() -> None:
         if list_buf:
-            out.append("<ul>" + "".join(f"<li>{x}</li>" for x in list_buf) + "</ul>")
+            items_html = []
+            for item in list_buf:
+                if isinstance(item, dict):
+                    subs_html = ""
+                    if item.get("subs"):
+                        subs_html = "<ul>" + "".join(f"<li>{s}</li>" for s in item["subs"]) + "</ul>"
+                    items_html.append(f"<li>{item['text']}{subs_html}</li>")
+                else:
+                    items_html.append(f"<li>{item}</li>")
+            out.append("<ul>" + "".join(items_html) + "</ul>")
             list_buf.clear()
 
     def flush_ol() -> None:
         if ol_buf:
-            out.append("<ol>" + "".join(f"<li>{x}</li>" for x in ol_buf) + "</ol>")
+            items_html = []
+            for item in ol_buf:
+                if isinstance(item, dict):
+                    num_attr = f' value="{item["num"]}"' if item.get("num") else ""
+                    subs_html = ""
+                    if item.get("subs"):
+                        subs_html = "<ul>" + "".join(f"<li>{s}</li>" for s in item["subs"]) + "</ul>"
+                    items_html.append(f'<li{num_attr}>{item["text"]}{subs_html}</li>')
+                else:
+                    items_html.append(f"<li>{item}</li>")
+            out.append("<ol>" + "".join(items_html) + "</ol>")
             ol_buf.clear()
 
     def flush_list() -> None:
+        flush_tasks()
         flush_ul()
         flush_ol()
 
-    def close_self_block() -> None:
-        nonlocal in_self_block
-        if in_self_block:
+    def close_active_block() -> None:
+        nonlocal active_block
+        if active_block is not None:
             flush_list()
             out.append("</div>")
-            in_self_block = False
+            active_block = None
 
     def inline(s: str) -> str:
         esc = escape(s, quote=False)
@@ -1187,48 +1368,106 @@ def _render_markdown_content(text: str) -> str:
         esc = re.sub(r"\*\*(.+?)\*\*", r"<strong>\1</strong>", esc)
         esc = re.sub(r"(?<!\*)\*(?!\*)(.+?)(?<!\*)\*(?!\*)", r"<em>\1</em>", esc)
         esc = re.sub(r"`([^`]+)`", r"<code>\1</code>", esc)
+        esc = _format_inline_tags(esc)
         return esc
-
-    self_group_re = re.compile(r"^\s*(?:-\s*)?\*\*(?:与我相关|本人)\*\*[：:]?\s*$")
-    other_group_re = re.compile(r"^\s*(?:-\s*)?\*\*([^*:\n]{1,20})\*\*[：:]?\s*$")
 
     i = 0
     while i < len(lines):
         line = lines[i]
         stripped = line.strip()
         if not stripped:
-            flush_list()
+            if ol_buf:
+                next_is_ol = False
+                for j in range(i + 1, len(lines)):
+                    next_s = lines[j].strip()
+                    if next_s:
+                        if re.match(r"^\s*\d+[.)、]\s+", lines[j]):
+                            next_is_ol = True
+                        break
+                if not next_is_ol:
+                    flush_list()
+            else:
+                flush_list()
             i += 1
             continue
 
         m_head = re.match(r"^(#{1,6})\s+(.*)$", stripped)
         if m_head:
-            close_self_block()
-            flush_list()
             level = len(m_head.group(1))
+            h_text = m_head.group(2).strip()
+            if h_text.startswith("[") and h_text.endswith("]"):
+                h_text = h_text[1:-1].strip()
+
+            if level == 3:
+                if _SELF_HEAD_RE.match(stripped):
+                    close_active_block()
+                    flush_list()
+                    active_block = "self"
+                    out.append(f'<div class="ck-self-block"><div class="ck-self-title"><strong>{inline(h_text)}</strong><span class="ck-self-badge">本人</span></div>')
+                    i += 1
+                    continue
+                if _DEP_HEAD_RE.match(stripped):
+                    close_active_block()
+                    flush_list()
+                    active_block = "dep"
+                    out.append(f'<div class="ck-dep-block"><div class="ck-dep-title"><strong>{inline(h_text)}</strong><span class="ck-dep-badge">协同依赖</span></div>')
+                    i += 1
+                    continue
+                if _RISK_HEAD_RE.match(stripped):
+                    close_active_block()
+                    flush_list()
+                    active_block = "risk"
+                    out.append(f'<div class="ck-risk-block"><div class="ck-risk-title"><strong>{inline(h_text)}</strong><span class="ck-risk-badge">全局风险</span></div>')
+                    i += 1
+                    continue
+
+            close_active_block()
+            flush_list()
             cls_name = f"ck-doc-h{level}" if level in (1, 2, 3, 4) else ""
             cls_attr = f' class="{cls_name}"' if cls_name else ""
-            out.append(f"<h{level}{cls_attr}>{inline(m_head.group(2))}</h{level}>")
+            out.append(f"<h{level}{cls_attr}>{inline(h_text)}</h{level}>")
             i += 1
             continue
 
-        if self_group_re.match(stripped):
-            close_self_block()
+        if _SELF_GROUP_RE.match(stripped):
+            close_active_block()
             flush_list()
-            in_self_block = True
-            out.append('<div class="ck-self-block"><div class="ck-self-title"><strong>与我相关</strong>：<span class="ck-self-badge">本人</span></div>')
+            active_block = "self"
+            m_g = re.match(r"^\s*(?:-\s*)?\*\*([^*:\n]+)\*\*[：:]?\s*$", stripped)
+            g_title = m_g.group(1).strip() if m_g else "与我相关"
+            out.append(f'<div class="ck-self-block"><div class="ck-self-title"><strong>{inline(g_title)}</strong><span class="ck-self-badge">本人</span></div>')
             i += 1
             continue
 
-        if other_group_re.match(stripped):
-            close_self_block()
+        if _DEP_GROUP_RE.match(stripped):
+            close_active_block()
             flush_list()
-            out.append(f"<p>{inline(stripped)}</p>")
+            active_block = "dep"
+            m_g = re.match(r"^\s*(?:-\s*)?\*\*([^*:\n]+)\*\*[：:]?\s*$", stripped)
+            g_title = m_g.group(1).strip() if m_g else "协同输入"
+            out.append(f'<div class="ck-dep-block"><div class="ck-dep-title"><strong>{inline(g_title)}</strong><span class="ck-dep-badge">协同依赖</span></div>')
+            i += 1
+            continue
+
+        if _RISK_GROUP_RE.match(stripped):
+            close_active_block()
+            flush_list()
+            active_block = "risk"
+            m_g = re.match(r"^\s*(?:-\s*)?\*\*([^*:\n]+)\*\*[：:]?\s*$", stripped)
+            g_title = m_g.group(1).strip() if m_g else "全局风险与未决"
+            out.append(f'<div class="ck-risk-block"><div class="ck-risk-title"><strong>{inline(g_title)}</strong><span class="ck-risk-badge">全局风险</span></div>')
+            i += 1
+            continue
+
+        if _OTHER_GROUP_RE.match(stripped):
+            close_active_block()
+            flush_list()
+            out.append(f'<p class="ck-person-group">{inline(stripped)}</p>')
             i += 1
             continue
 
         if re.match(r"^\s*\|.*\|\s*$", line):
-            close_self_block()
+            close_active_block()
             flush_list()
             rows = []
             while i < len(lines) and re.match(r"^\s*\|.*\|\s*$", lines[i]):
@@ -1252,33 +1491,58 @@ def _render_markdown_content(text: str) -> str:
                 )
             continue
 
-        if re.match(r"^\s*[-*]\s+", line):
+        m_task = _TASK_ITEM_RE.match(line)
+        if m_task:
+            flush_ul()
             flush_ol()
-            list_buf.append(inline(re.sub(r"^\s*[-*]\s+", "", line)))
+            is_chk = m_task.group(1).lower() == "x"
+            item_text = m_task.group(2).strip()
+            task_buf.append((is_chk, inline(item_text)))
             i += 1
             continue
 
-        if re.match(r"^\s*\d+[.)、]\s+", line):
+        m_ol = re.match(r"^\s*(\d+)[.)、]\s+(.*)$", line)
+        if m_ol:
+            flush_tasks()
             flush_ul()
-            ol_buf.append(inline(re.sub(r"^\s*\d+[.)、]\s+", "", line)))
+            ol_buf.append({"num": m_ol.group(1), "text": inline(m_ol.group(2).strip()), "subs": []})
+            i += 1
+            continue
+
+        if ol_buf and re.match(r"^\s{2,}[-*]\s+(.*)$", line):
+            m_sub = re.match(r"^\s{2,}[-*]\s+(.*)$", line)
+            ol_buf[-1]["subs"].append(inline(m_sub.group(1).strip()))
+            i += 1
+            continue
+
+        if list_buf and re.match(r"^\s{2,}[-*]\s+(.*)$", line):
+            m_sub = re.match(r"^\s{2,}[-*]\s+(.*)$", line)
+            list_buf[-1]["subs"].append(inline(m_sub.group(1).strip()))
+            i += 1
+            continue
+
+        if re.match(r"^\s*[-*]\s+", line):
+            flush_tasks()
+            flush_ol()
+            list_buf.append({"text": inline(re.sub(r"^\s*[-*]\s+", "", line)), "subs": []})
             i += 1
             continue
 
         if re.match(r"^\s*>\s?", line):
-            close_self_block()
+            close_active_block()
             flush_list()
             quote = re.sub(r"^\s*>\s?", "", line)
             out.append(f'<div class="ck-quote">{inline(quote)}</div>')
             i += 1
             continue
 
-        close_self_block()
+        close_active_block()
         flush_list()
         out.append(f"<p>{inline(stripped)}</p>")
         i += 1
 
     flush_list()
-    close_self_block()
+    close_active_block()
     return "".join(out)
 
 
@@ -1294,7 +1558,7 @@ def render_markdown_page_html(title: str, markdown: str) -> str:
         first_head = lines[0].strip()[2:].strip()
         if first_head in ("内容总结", "主要议题", "会议概要", "会议总结"):
             display_title = title or "会议纪要"
-        elif first_head == title or not title or title in ("会议纪要", "客观会议纪要", "会议分析报告"):
+        elif first_head == title or not title or title in ("会议纪要", "客观会议纪要", "会议分析报告", "个人视角纪要"):
             display_title = first_head or title or "会议纪要"
             text = "\n".join(lines[1:]).strip()
         else:
