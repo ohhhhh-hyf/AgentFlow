@@ -48,6 +48,7 @@ DOMAINS: dict[str, tuple[TaskLine, ...]] = {
         TaskLine("minutes", files=True),
         TaskLine("actions", files=True),
         TaskLine("risks", files=True),
+        TaskLine("mindmap", files=True),
         TaskLine("minutes_styles", files=True),
         TaskLine("minutes_trace", files=True),
         TaskLine("consensus_decision", files=True),

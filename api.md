@@ -32,13 +32,13 @@
 | 框架自带 | `/docs`、`/redoc`、`/openapi.json` | GET | Swagger / ReDoc / OpenAPI |
 
 > 同步 / 流式 / 下载三类端点与具体任务线解耦：**域名与线名是请求体字段**（POST）或与产物
-> 绑定的路径段（下载只需 `request_id`）。10 条任务线共用这三条端点，靠请求体区分。
+> 绑定的路径段（下载只需 `request_id`）。11 条任务线共用这三条端点，靠请求体区分。
 > 只有**预览**保留 `/api/v1/{domain}/{task}/preview`：它没有 `file_name` 入参，
 > 只能按 `{task}.html` 的命名约定取产物，需要路径里的域与线名。
 
 ### 0.2 任务线矩阵
 
-10 条任务线**都走统一的普通 POST 与流式 POST**（`/api/agent/v1`，请求体带 `domain`/`task`）；
+11 条任务线**都走统一的普通 POST 与流式 POST**（`/api/agent/v1`，请求体带 `domain`/`task`）；
 下载按"产物是否落盘到 output 目录"注册，预览在此基础上还需产物名为 `{task}.html`：
 
 | 域 | task | 中文 | 下载 / 预览 | 产物文件（`data/{user_id}/output/{request_id}/`） |
@@ -46,6 +46,7 @@
 | meeting | `minutes` | 会议纪要 | ✅ | `minutes.html` + `result.md` |
 | meeting | `actions` | 待办行动 | ✅ | `actions.html` + `actions.md` |
 | meeting | `risks` | 风险分析 | ✅ | `risks.html` + `risks.md` |
+| meeting | `mindmap` | 思维导图 | ✅ | `mindmap.html`（Markdown 大纲见 `data.text`） |
 | meeting | `minutes_styles` | 多样式纪要 | ✅ | `minutes_styles.html` + `minutes_styles.md` |
 | meeting | `minutes_trace` | 溯源纪要 | ✅ | `minutes_trace.html` + `minutes_trace.md` |
 | meeting | `consensus_decision` | 共识决策 | ✅ | `consensus_decision.html` + `consensus_decision.md` |
@@ -93,7 +94,7 @@
 > `run_mode` 是服务级配置（`.env` 的 `AGENTFLOW_RUN_MODE`），提交响应里不再回显它 ——
 > 想确认当前模式查这里即可；`queue` 模式必须有 `python -m app.worker` 在跑，否则任务会停在 `queued`。
 
-> `task_lines` 列的是**领域内全部已装配的任务线**，比对外接口多：`mindmap`、`quiz`、`review`
+> `task_lines` 列的是**领域内全部已装配的任务线**，比对外接口多：`quiz`、`review`
 > 等尚未开放 HTTP 接口的任务线只在这里出现（黑名单之外的差异以第 2 节的矩阵为准）。
 
 ---
@@ -107,7 +108,7 @@
 > notes 域当前对外任务线为 `graph` / `library` / `catalog` / `checklist`，规则均以本文为准。
 
 先讲四个形态共用的**请求头 / 请求体 / 响应体 / 错误**（请求体只对两个 POST 适用），
-再讲四种形态的协议，最后逐条介绍 10 条任务线。
+再讲四种形态的协议，最后逐条介绍 11 条任务线。
 
 ### 2.1 请求头
 
@@ -364,7 +365,7 @@ GET /api/v1/{domain}/{task}/preview?request_id=&user_id=
 > 未传 `X-User-Id` 的历史兼容路径 `data/output/{request_id}/` 仍被 `/data` 静态目录覆盖，
 > 但新调用请始终携带用户头。
 
-### 2.6 meeting 域（6 条任务线）
+### 2.6 meeting 域（7 条任务线）
 
 #### 2.6.1 会议纪要 `minutes`
 
@@ -451,6 +452,17 @@ curl -X POST http://127.0.0.1:8000/api/agent/v1 -H "Content-Type: application/js
 
 - 必填：`texts.transcript`。输出议题共识结论与因果推导报告。
 - 产物：`consensus_decision.html` + `consensus_decision.md`。
+
+#### 2.6.7 思维导图 `mindmap`
+
+| 形态 | 方法与路径 |
+|---|---|
+| 普通 / 流式 | `POST /api/agent/v1`、`POST /api/agent/v1/stream`（请求体 `"domain":"meeting","task":"mindmap"`，见 2.2） |
+| 下载 | `GET /api/agent/v1/file/{request_id}/{file_name}`（无需域与任务名） |
+| 预览 | `GET /api/v1/meeting/mindmap/preview?request_id=&user_id=` |
+
+- 必填：`texts.transcript`。从会议内容提炼树状结构要点大纲，生成单文件离线交互式思维导图。
+- 产物：`mindmap.html`（markmap 交互式页面版，Markdown 大纲由 `data.text` 返回）。
 
 ### 2.7 notes 域（4 条任务线）
 

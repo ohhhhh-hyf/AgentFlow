@@ -901,11 +901,7 @@ def test_default_word_precedence() -> None:
 
 
 def test_general_minutes_speedread() -> None:
-    """通用纪要：「分段速览」承载位（按时间/板块维度再现，不算重复）；2026-09-20 改时间轴口径。
-
-    回归背景（now.xlsx 对比）：同一场 ASR 周会，基线 1628 字里有「段落速览」——按时间段把要点
-    再讲一遍（时间维度，不是主题重复）；我们只有 [全文摘要]+[要点梳理] 两栏 → 1061 字且缺时间维度。
-    """
+    """通用纪要：精简为摘要与要点双栏结构（移除冗余的分段速览）。"""
     from tools.templates.router._base import (
         split_template_meta,
         wrap_template_requirement,
@@ -924,9 +920,9 @@ def test_general_minutes_speedread() -> None:
 
     plan = plan_placeholder_fill(tpl)
     hints = [str(s.get("hint") or "") for s in plan["scalars"]]
-    check("通用纪要：摘要/要点/速览三栏都在", len(plan["scalars"]) >= 3, f"字段数={len(plan['scalars'])}")
-    check("通用纪要：新增「分段速览」栏（按推进顺序）",
-          any("推进顺序" in h and "时间段" in h for h in hints), f"{hints}")
+    check("通用纪要：精简为双栏（摘要与要点）", len(plan["scalars"]) == 2, f"字段数={len(plan['scalars'])}")
+    check("通用纪要：已无「分段速览」冗余栏",
+          not any("分段速览" in h for h in hints), f"{hints}")
     # 摘要数字口径：原文有时总量 3–5 个，不是逐板块配额（2026-09-19 实测联播场：摘要 655 字
     # 带 48 个数字、与要点梳理 4-gram 重合 65%——"至少带 1–3 个"被执行成每板块 1–3 个）
     abstract = hints[0]
@@ -939,34 +935,18 @@ def test_general_minutes_speedread() -> None:
           "按主题打包概括" in abstract and "每个板块最多一句话" in abstract
           and "单句不超 40 字" in abstract and "禁止逐板块展开数字" in abstract, abstract[:90])
     budgets = parse_section_char_budgets(tpl)
-    # 2026-09-20 用户口径（方案1）：段数最多 8 段（按议题/阶段分段）+ 每段一段话最多 150 字。
-    # 上限与段数上限成对写，避免只压单段上限时"上限被当目标"（曾 13 段 ×272 字占全篇一半）。
-    check("通用纪要：摘要为一段 250–400（节级），速览为一段 200–250（段落级）",
-          any(b["title"] == "全文摘要" and b["lo"] == 250 and b["hi"] == 400 and b["scope"] == "section" for b in budgets)
-          and any(b["title"] == "分段速览" and b["hi"] == 250 and b["scope"] == "paragraph" for b in budgets),
+    check("通用纪要：摘要为一段 250–400（节级）",
+          any(b["title"] == "全文摘要" and b["lo"] == 250 and b["hi"] == 400 and b["scope"] == "section" for b in budgets),
           f"{budgets}")
-    seg_spec = next(l.strip() for l in raw.splitlines() if "推进顺序" in l)
-    check("通用纪要：速览按议题分段 + 段数最多 8 段 + 每段一段话 ≤250 字",
-          "每个时间段一行" in seg_spec and "按议题或阶段分段，不按每一个时间戳切" in seg_spec
-          and "段数最多 8 段" in seg_spec and "一段话描述该段" in seg_spec
-          and "每段最多 250 字" in seg_spec and "每段至少一句" in seg_spec
-          and "单段不超过约 300 字" not in seg_spec
-          and "不重复 [要点梳理] 已列的条目与数字" in seg_spec,
-          seg_spec[:80])
-    from tools.execution.hard_execution import (
-        _no_split_sections,
-        split_overlong_paragraphs,
-    )
+    from tools.execution.hard_execution import split_overlong_paragraphs
 
-    check("通用纪要：速览不声明「不拆段」（超长段由 250 字上限按句界拆分）",
-          "分段速览" not in _no_split_sections(tpl), f"{_no_split_sections(tpl)}")
-    long_seg = "这是一段概览文字。" * 55  # ≈440 汉字，远超 250×1.2
+    long_seg = "这是一段要点梳理文字。" * 55  # ≈440 汉字
     fixed_seg, seg_notes = split_overlong_paragraphs(
-        "# 通用纪要\n\n# [分段速览]\n## 08:00-12:30 现场检查\n" + long_seg + "\n", tpl
+        "# 通用纪要\n\n# [全文摘要]\n" + long_seg + "\n", tpl
     )
-    seg_parts = [q for q in fixed_seg.split("\n\n") if "概览文字" in q]
-    check("通用纪要：速览超 300 字的段被程序按句界拆分（250 字上限生效）",
-          bool(seg_notes) and len(seg_parts) >= 2 and max(sum(1 for c in q if "一" <= c <= "鿿") for q in seg_parts) <= 260,
+    seg_parts = [q for q in fixed_seg.split("\n\n") if "要点梳理文字" in q]
+    check("通用纪要：超长段被程序按句界拆分（400 字节级上限生效）",
+          bool(seg_notes) and len(seg_parts) >= 2,
           f"段数={len(seg_parts)} {seg_notes}")
     leftover = [
         p.stem
@@ -1932,45 +1912,44 @@ def test_paragraph_cap_from_explicit_per_para() -> None:
           bool(notes2) and len(parts2) >= 2, f"段长={[han(p) for p in parts2]} {notes2}")
 
     # ② 父节预算继承：带 `## 子标题` 的栏目不能再让段落上限失效
-    gm = (_active_dir() / "general_minutes.md").read_text(encoding="utf-8")
-    gcaps = [b for b in parse_section_char_budgets(gm) if b["title"] == "分段速览"]
-    # 2026-09-20：速览改为「一段话 ≤250 字」，段落级预算生效（超 300 字＝250×1.2 按句界拆）
-    check("通用纪要：速览段落级预算 (200,250) 生效",
+    tpl_para_text = (
+        "# 研讨速览\n\n"
+        "## [研讨速记]\n"
+        "[一段话描述该段，每段最多 250 字]\n\n"
+        "## [全文摘要]\n"
+        "[一段话（一段写完，约 250–400 字）交代主旨]\n"
+    )
+    gcaps = [b for b in parse_section_char_budgets(tpl_para_text) if b["title"] == "研讨速记"]
+    check("段落级预算 (200,250) 解析生效",
           bool(gcaps) and gcaps[0]["hi"] == 250 and gcaps[0]["scope"] == "paragraph", f"{gcaps}")
-    spec_seg = next(l.strip() for l in gm.splitlines() if "推进顺序" in l)
-    check("通用纪要：速览一段话 ≤250 字、段数最多 8 段、明细归 [要点梳理]",
-          "一段话描述该段" in spec_seg and "每段最多 250 字" in spec_seg
-          and "段数最多 8 段" in spec_seg and "每段至少一句" in spec_seg
-          and "具体条目、数字与分工归 [要点梳理]" in spec_seg
-          and "不重复 [要点梳理] 已列的条目与数字" in spec_seg,
-          spec_seg[:80])
     para_sub = "这是一段概览文字。" * 55  # ≈440 汉字，单段
     for label, doc in (
-        ("无子标题", "# 通用纪要\n\n# 分段速览\n" + para_sub + "\n"),
-        ("带 ## 时间段", "# 通用纪要\n\n# 分段速览\n## 08:00-12:30 现场检查\n" + para_sub + "\n"),
+        ("无子标题", "# 研讨速览\n\n# 研讨速记\n" + para_sub + "\n"),
+        ("带 ## 时间段", "# 研讨速览\n\n# 研讨速记\n## 08:00-12:30 现场检查\n" + para_sub + "\n"),
     ):
-        fixed, notes = split_overlong_paragraphs(doc, gm)
+        fixed, notes = split_overlong_paragraphs(doc, tpl_para_text)
         seg_parts = [q for q in fixed.split("\n\n") if "概览文字" in q]
-        check(f"通用纪要：速览 440 字段按 250 字上限拆分（{label}）",
+        check(f"带子标题栏目 440 字段按 250 字上限拆分（{label}）",
               bool(notes) and len(seg_parts) >= 2
               and max(sum(1 for c in q if "一" <= c <= "鿿") for q in seg_parts) <= 260,
               f"段数={len(seg_parts)} {notes}")
 
     # ③ 声明只作用于本栏：同一文档里其它栏（全文摘要）仍按节级上限拆
     doc4 = (
-        "# 通用纪要\n\n# 全文摘要\n" + para_sub
-        + "\n\n# 分段速览\n## 08:00-12:30 现场检查\n" + para_sub + "\n"
+        "# 研讨速览\n\n# 全文摘要\n" + para_sub
+        + "\n\n# 研讨速记\n## 08:00-12:30 现场检查\n" + para_sub + "\n"
     )
-    fixed4, notes4 = split_overlong_paragraphs(doc4, gm)
-    abs_part = fixed4.split("# 全文摘要", 1)[1].split("# 分段速览", 1)[0]
-    check("通用纪要：两栏各自按自己的上限拆（摘要节级 400 / 速览段落级 250）",
+    fixed4, notes4 = split_overlong_paragraphs(doc4, tpl_para_text)
+    abs_part = fixed4.split("# 全文摘要", 1)[1].split("# 研讨速记", 1)[0]
+    check("两栏各自按自己的上限拆（摘要节级 400 / 速记段落级 250）",
           any("全文摘要" in n for n in notes4)
           and len([q for q in abs_part.split("\n\n") if "概览文字" in q]) >= 2,
           f"{notes4}")
 
-    # ③ 单句超长（句界拆不动）→ 仍必须报「超出段落字数上限」，不能静默
+    # ④ 单句超长（句界拆不动）→ 仍必须报「超出段落字数上限」，不能静默
     from tools.execution.hard_execution import _overlong_issue
 
+    gm = (_active_dir() / "general_minutes.md").read_text(encoding="utf-8")
     one = "这是一句没有任何句号的超长段落" + "持续延伸内容" * 80 + "。"
     doc3 = "# 通用纪要\n\n# 全文摘要\n" + one + "\n"
     over = _overlong_issue(gm, doc3) or ""

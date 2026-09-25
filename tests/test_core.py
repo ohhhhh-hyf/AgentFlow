@@ -363,6 +363,17 @@ def test_domain_hooks_registry() -> None:
           set(registered()) >= {"meeting", "notes"}, str(sorted(registered())))
 
 
+def test_tasklines_registration() -> None:
+    """验证 meeting.mindmap 注册生效：白名单解析通过，且 FastAPI 预览端点挂载成功。"""
+    from app.main import app
+    from app.tasklines import lines_for, resolve_line
+
+    check("meeting 域包含 mindmap 任务线", "mindmap" in lines_for("meeting"), "")
+    check("resolve_line 支持 meeting + mindmap", resolve_line("meeting", "mindmap") == ("meeting", "mindmap"), "")
+    routes = {r.path for r in app.routes}
+    check("FastAPI 注册了 /api/v1/meeting/mindmap/preview", "/api/v1/meeting/mindmap/preview" in routes, str(routes))
+
+
 def main() -> int:
     with tempfile.TemporaryDirectory() as raw:
         tmp = Path(raw)
@@ -373,6 +384,7 @@ def main() -> int:
         test_missing_role_template(tmp)
     test_role_mapping()
     test_domain_hooks_registry()
+    test_tasklines_registration()
     print(f"pass {len(PASS)}  fail {len(FAIL)}")
     for name in FAIL:
         print("FAIL", name)
