@@ -1,0 +1,610 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>电影《南京照相馆》观影讨论与历史背景辨析</title>
+  <style>
+
+    body {
+      margin: 0;
+      padding: 14px 12px;
+      background: #f6f5f0;
+      color: #1a1a1a;
+      font-family: "Latin Modern Roman", "Computer Modern Roman", "CMU Serif", "Times New Roman", Times, "Songti SC", "SimSun", "STSong", serif;
+      -webkit-font-smoothing: antialiased;
+    }
+    .page { max-width: 1140px; margin: 0 auto; }
+    .ck-doc {
+      background: #ffffff;
+      border: 1px solid #d4d0c7;
+      border-radius: 4px;
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.05), 0 1px 3px rgba(0,0,0,0.03);
+      padding: 18px 22px;
+      line-height: 1.6;
+      font-size: 0.84rem;      /* 正文基准：左右两栏共用 --ck-fs */
+      --ck-fs: 0.84rem;
+    }
+    .ck-doc h1 {
+      margin: 0 0 6px;
+      font-size: 1.05rem;      /* 文档标题：只比正文略大一点 */
+      font-weight: 700;
+      text-align: center;
+      color: #111111;
+    }
+    .ck-doc-header {
+      margin-bottom: 10px;
+      padding-bottom: 8px;
+      border-bottom: 1px solid #111111;
+      text-align: center;
+    }
+    .ck-doc-meta {
+      font-size: 0.78rem;
+      color: #555555;
+      font-style: italic;
+    }
+    /* 层级标题一律"加粗 + 与右栏同级字号"，不加字号、不加下划线，前后留白压到最小 */
+    .ck-doc-content h1, .ck-doc-content .ck-doc-h1,
+    .ck-doc h2, .ck-doc-h2,
+    .ck-doc h3, .ck-doc-h3,
+    .ck-doc h4, .ck-doc-h4 {
+      font-size: var(--ck-fs);
+      font-weight: 700;
+      color: #111111;
+      border-bottom: 0;
+      padding-bottom: 0;
+      letter-spacing: 0;
+      font-variant: normal;
+      text-align: left;
+    }
+    .ck-doc-content h1, .ck-doc-content .ck-doc-h1, .ck-doc h2, .ck-doc-h2 {
+      margin: 12px 0 4px;
+    }
+    .ck-doc h3, .ck-doc-h3, .ck-doc h4, .ck-doc-h4 {
+      margin: 9px 0 3px;
+    }
+    .ck-doc p {
+      margin: 5px 0;
+      line-height: 1.6;
+      text-align: justify;
+    }
+    .ck-doc ul, .ck-doc ol {
+      margin: 4px 0 6px;
+      padding-left: 1.25em;
+      line-height: 1.6;
+    }
+    .ck-doc li {
+      margin: 2px 0;
+    }
+    .ck-doc blockquote, .ck-quote {
+      margin: 6px 0 8px;
+      padding: 5px 10px;
+      background: #faf9f6;
+      border-left: 3px solid #222222;
+      border-radius: 2px;
+      color: #222222;
+      font-size: var(--ck-fs);
+      font-style: italic;
+    }
+    .ck-doc code {
+      background: #f3f0e8;
+      border: 1px solid #e2ddd3;
+      border-radius: 3px;
+      padding: 1px 6px;
+      font-family: "Latin Modern Mono", Consolas, monospace;
+      font-size: 0.88em;
+    }
+    .ck-doc table, .ck-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: var(--ck-fs);
+      margin: 8px 0;
+      background: #ffffff;
+      border-top: 2px solid #222222;
+      border-bottom: 2px solid #222222;
+    }
+    .ck-doc table th, .ck-doc table td, .ck-table th, .ck-table td {
+      padding: 5px 8px;
+      text-align: left;
+      vertical-align: middle;
+      border-bottom: 1px solid #ede9e1;
+    }
+    .ck-doc table th, .ck-table th {
+      background: #fbfaf7;
+      border-bottom: 1.2px solid #222222;
+      font-weight: 700;
+      color: #111111;
+      letter-spacing: 0.3px;
+    }
+
+    /* Roomy & Spacious Academic Risk Table */
+    .ck-risk-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 18px 0 28px;
+      background: #ffffff;
+      border-top: 2.2px solid #111111;
+      border-bottom: 2.2px solid #111111;
+      font-size: 0.93rem;
+      line-height: 1.72;
+    }
+    .ck-risk-table th {
+      background: #faf8f5;
+      border-bottom: 1.5px solid #111111;
+      padding: 15px 16px;
+      font-weight: 700;
+      color: #111111;
+      letter-spacing: 0.3px;
+      text-align: left;
+      vertical-align: middle;
+    }
+    .ck-risk-table td {
+      padding: 16px 16px;
+      border-bottom: 1px solid #ede8e0;
+      vertical-align: top;
+      color: #1a1a1a;
+      word-break: break-word;
+    }
+    .ck-risk-table tr:nth-child(even) td {
+      background: #fdfcfb;
+    }
+    .ck-risk-table tr:hover td {
+      background: #f6f3eb;
+    }
+
+    /* Review Grid */
+    .ck-review {
+      display: grid;
+      grid-template-columns: minmax(0, 1.35fr) 1px minmax(260px, 0.95fr);
+      border: 1px solid #d4d0c7;
+      border-radius: 4px;
+      overflow: hidden;
+      margin: 8px 0 10px;
+      background: #ffffff;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.03);
+    }
+    .ck-review-left {
+      padding: 14px 16px;
+      background: #ffffff;
+      line-height: 1.6;
+      font-size: var(--ck-fs);
+    }
+    .ck-review-rule { background: #dcd8cf; }
+    .ck-review-right {
+      padding: 12px 14px;
+      background: #faf9f6;
+      box-sizing: border-box;
+      display: flex;
+      flex-direction: column;
+    }
+    .ck-ev-list {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    /* Entity Highlight in LaTeX Paper Style */
+    .ck-cite-entity {
+      background: #fff8db;
+      border-bottom: 1.5px solid #b86a04;
+      padding: 1px 4px;
+      border-radius: 2px;
+      cursor: pointer;
+      transition: all 0.18s ease;
+      color: #111111;
+      font-weight: 600;
+    }
+    .ck-cite-entity:hover {
+      background: #ffe58f;
+      color: #000000;
+    }
+    .ck-cite-entity.is-on {
+      background: #ffd54a;
+      border-bottom-color: #0047ab;
+      box-shadow: 0 0 0 2px rgba(0,71,171,0.25);
+    }
+
+    /* Blue Hyperref Citations [1], [2] */
+    .ck-cite-ref {
+      color: #0047ab;
+      font-weight: 600;
+      font-family: "Latin Modern Roman", "Computer Modern Roman", "Times New Roman", serif;
+      text-decoration: none;
+      cursor: pointer;
+      padding: 0 2px;
+      margin: 0 2px;
+      border-radius: 2px;
+      transition: all 0.15s ease;
+      font-size: 0.92em;
+      vertical-align: baseline;
+      user-select: none;
+    }
+    .ck-cite-ref:hover {
+      text-decoration: underline;
+      background: #e8f0fe;
+      color: #003380;
+    }
+    .ck-cite-ref.is-active {
+      background: #d2e3fc;
+      color: #002266;
+      font-weight: 700;
+      box-shadow: 0 0 0 1px #0047ab;
+    }
+
+    /* Right Memory Cards in LaTeX Paper Style */
+    .ck-provenance-head {
+      font-size: 0.82rem;
+      font-weight: 700;
+      color: #222222;
+      margin: 0 0 12px;
+      padding-bottom: 6px;
+      border-bottom: 1px solid #e0dcd4;
+      letter-spacing: 0.3px;
+      text-transform: uppercase;
+    }
+    .ck-ref-icon { color: #0047ab; margin-right: 4px; }
+    .ck-ev {
+      display: block;
+      margin: 0;
+      padding: 10px 12px;
+      border: 1px solid #dedad2;
+      border-left: 3.5px solid #0047ab;
+      border-radius: 2px;
+      background: #ffffff;
+      font-size: 0.82rem;
+      line-height: 1.55;
+      transition: all 0.2s ease;
+      cursor: pointer;
+    }
+    .ck-ev:hover { border-color: #b5b0a5; }
+    .ck-ev.is-on, .ck-ev.is-highlighted {
+      border-color: #0047ab;
+      box-shadow: 0 0 0 2px #0047ab, 0 3px 8px rgba(0,71,171,0.15);
+      background: #f0f5ff;
+    }
+    @keyframes citePulse {
+      0% { background: #dbeafe; box-shadow: 0 0 0 3px #0047ab; }
+      50% { background: #bfdbfe; box-shadow: 0 0 0 4px #0047ab; }
+      100% { background: #f0f5ff; box-shadow: 0 0 0 2px #0047ab; }
+    }
+    .ck-ev-k {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 0.75rem;
+      color: #444444;
+      margin-bottom: 5px;
+      font-weight: 700;
+    }
+    .ck-ev-cite-tag {
+      color: #0047ab;
+      font-weight: 700;
+      font-family: "Latin Modern Roman", serif;
+      text-decoration: none;
+    }
+    .ck-ev-kind-badge {
+      display: inline-block;
+      padding: 1px 6px;
+      border-radius: 2px;
+      font-size: 0.72rem;
+      font-weight: 600;
+      letter-spacing: 0.2px;
+    }
+    .ck-badge-keypoint {
+      border: 1px solid #0047ab;
+      color: #0047ab;
+      background: #f0f5ff;
+    }
+    .ck-badge-note {
+      border: 1px solid #b86a04;
+      color: #b86a04;
+      background: #fff8eb;
+    }
+    .ck-mem-title {
+      font-weight: 700;
+      color: #111111;
+      font-size: var(--ck-fs);
+      margin-bottom: 4px;
+      line-height: 1.5;
+    }
+    .ck-ev-quote {
+      color: #222222;
+      font-style: normal;
+      font-family: inherit;
+      margin: 4px 0 6px;
+      padding: 0;
+      background: transparent;
+      border: none;
+      line-height: 1.6;
+      font-size: var(--ck-fs);
+    }
+    .ck-ev-meta { font-size: 0.76rem; color: #666666; margin-top: 4px; }
+    .ck-ev-more {
+      margin-top: 2px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+    .ck-ev-more[open] { margin-top: 4px; }
+    .ck-ev-more summary { margin-bottom: 6px; }
+    .ck-proof-toggle {
+      cursor: pointer;
+      font-size: 0.82rem;
+      color: #0047ab;
+      user-select: none;
+      font-family: inherit;
+      padding: 2px 0;
+    }
+    .ck-proof-toggle:hover { text-decoration: underline; }
+    /* 右栏下段"状态演进"：无行内锚点，与上方证据卡视觉区分（灰底 + 徽章，无 [n]） */
+    .ck-ledger {
+      margin-top: 10px;
+      padding-top: 8px;
+      border-top: 1px dashed #d4d0c7;
+    }
+    .ck-ledger > summary { list-style: none; }
+    .ck-ledger > summary::-webkit-details-marker { display: none; }
+    .ck-ledger > summary::after { content: " ▾"; }
+    .ck-ledger:not([open]) > summary::after { content: " ▸"; }
+    /* 每类一张小灰卡：卡头类别 + 条数，卡内按 1. 2. 3. 编号 */
+    .ck-ledger-card {
+      background: #faf9f5;
+      border: 1px solid #e6e2d8;
+      border-left: 3px solid #bdb6a6;
+      border-radius: 4px;
+      padding: 7px 9px;
+      margin-bottom: 6px;
+    }
+    .ck-ledger-k {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 6px;
+      font-size: 0.72rem;
+      margin-bottom: 5px;
+    }
+    .ck-ledger-badge {
+      background: #efece4;
+      color: #6b6559;
+      border-radius: 3px;
+      padding: 1px 6px;
+      font-weight: 600;
+    }
+    .ck-ledger-count { color: #8a8578; }
+    .ck-ledger-list {
+      margin: 0;
+      padding-left: 1.35em;
+      font-size: var(--ck-fs);
+      line-height: 1.6;
+      color: #3b3a37;
+    }
+    .ck-ledger-list > li { margin: 2px 0; }
+    /* Personal Perspective Interactive Task Lists & Semantic Blocks */
+    .ck-self-block {
+      background: #f4f8fe;
+      border: 1px solid #d4e2f5;
+      border-left: 3.5px solid #0047ab;
+      border-radius: 4px;
+      padding: 9px 13px;
+      margin: 10px 0 12px;
+    }
+    .ck-self-title {
+      margin: 0 0 6px;
+      color: #003380;
+      font-weight: 700;
+      font-size: var(--ck-fs);
+      display: flex;
+      align-items: center;
+      gap: 5px;
+    }
+    .ck-self-badge {
+      display: inline-block;
+      background: #0047ab;
+      color: #ffffff;
+      font-size: 0.68rem;
+      padding: 1px 5px;
+      border-radius: 2px;
+      font-weight: 600;
+      letter-spacing: 0.2px;
+      margin-left: 4px;
+    }
+
+    .ck-dep-block {
+      background: #fefcf7;
+      border: 1px solid #f2e7cc;
+      border-left: 3.5px solid #b86a04;
+      border-radius: 4px;
+      padding: 9px 13px;
+      margin: 10px 0 12px;
+    }
+    .ck-dep-title {
+      margin: 0 0 6px;
+      color: #7a4502;
+      font-weight: 700;
+      font-size: var(--ck-fs);
+      display: flex;
+      align-items: center;
+      gap: 5px;
+    }
+    .ck-dep-badge {
+      display: inline-block;
+      background: #b86a04;
+      color: #ffffff;
+      font-size: 0.68rem;
+      padding: 1px 5px;
+      border-radius: 2px;
+      font-weight: 600;
+      letter-spacing: 0.2px;
+      margin-left: 4px;
+    }
+
+    .ck-risk-block {
+      background: #fff8f8;
+      border: 1px solid #fedcdc;
+      border-left: 3.5px solid #cf222e;
+      border-radius: 4px;
+      padding: 9px 13px;
+      margin: 10px 0 12px;
+    }
+    .ck-risk-title {
+      margin: 0 0 6px;
+      color: #a40e26;
+      font-weight: 700;
+      font-size: var(--ck-fs);
+      display: flex;
+      align-items: center;
+      gap: 5px;
+    }
+    .ck-risk-badge {
+      display: inline-block;
+      background: #cf222e;
+      color: #ffffff;
+      font-size: 0.68rem;
+      padding: 1px 5px;
+      border-radius: 2px;
+      font-weight: 600;
+      letter-spacing: 0.2px;
+      margin-left: 4px;
+    }
+
+    .ck-self-block ul, .ck-self-block ol,
+    .ck-dep-block ul, .ck-dep-block ol,
+    .ck-risk-block ul, .ck-risk-block ol {
+      margin: 2px 0 2px;
+      padding-left: 1.25em;
+    }
+    .ck-self-block li, .ck-dep-block li, .ck-risk-block li {
+      margin: 2px 0;
+      color: #1a1a1a;
+    }
+
+    /* Person Group Heading */
+    .ck-person-group {
+      margin: 8px 0 3px;
+      font-weight: 700;
+      color: #111111;
+    }
+
+    /* GFM Task List Checkboxes */
+    .ck-task-list {
+      list-style: none;
+      padding-left: 0 !important;
+      margin: 4px 0 6px !important;
+    }
+    .ck-task-item {
+      display: flex;
+      align-items: flex-start;
+      margin: 4px 0;
+      line-height: 1.6;
+    }
+    .ck-task-label {
+      display: inline-flex;
+      align-items: flex-start;
+      gap: 8px;
+      cursor: pointer;
+      width: 100%;
+    }
+    .ck-task-checkbox {
+      margin-top: 4px;
+      cursor: pointer;
+      accent-color: #0047ab;
+      width: 15px;
+      height: 15px;
+      flex-shrink: 0;
+    }
+    .ck-task-checkbox:checked + .ck-task-text {
+      color: #8c8c8c;
+      text-decoration: line-through;
+    }
+    .ck-task-text {
+      flex: 1;
+      color: #1a1a1a;
+    }
+
+    /* Status Badges & Pills */
+    .ck-tag-blocker {
+      display: inline-block;
+      background: #ffebe9;
+      color: #cf222e;
+      border: 1px solid rgba(255, 129, 130, 0.45);
+      font-size: 0.72rem;
+      font-weight: 700;
+      padding: 0 5px;
+      border-radius: 3px;
+      margin-right: 4px;
+      line-height: 1.5;
+      vertical-align: 1px;
+    }
+    .ck-tag-risk {
+      display: inline-block;
+      background: #fff8eb;
+      color: #b86a04;
+      border: 1px solid rgba(212, 167, 44, 0.45);
+      font-size: 0.72rem;
+      font-weight: 700;
+      padding: 0 5px;
+      border-radius: 3px;
+      margin-right: 4px;
+      line-height: 1.5;
+      vertical-align: 1px;
+    }
+    .ck-tag-warn {
+      display: inline-block;
+      background: #f0f4ff;
+      color: #0969da;
+      border: 1px solid rgba(84, 174, 255, 0.45);
+      font-size: 0.72rem;
+      font-weight: 700;
+      padding: 0 5px;
+      border-radius: 3px;
+      margin-right: 4px;
+      line-height: 1.5;
+      vertical-align: 1px;
+    }
+    .ck-tag-dep {
+      display: inline-block;
+      background: #eff6ff;
+      color: #1d4ed8;
+      border: 1px solid #bfdbfe;
+      font-size: 0.72rem;
+      font-weight: 600;
+      padding: 0 5px;
+      border-radius: 3px;
+      margin-right: 4px;
+      line-height: 1.5;
+      vertical-align: 1px;
+    }
+    .ck-param-capsule {
+      display: inline-block;
+      font-size: 0.82rem;
+      color: #57606a;
+      background: #f6f8fa;
+      border: 1px solid #eaeef2;
+      padding: 0 6px;
+      border-radius: 10px;
+      margin-left: 4px;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      letter-spacing: 0.2px;
+    }
+
+    @media(max-width: 860px) {
+      .ck-doc { padding: 22px 18px; }
+      .ck-review { grid-template-columns: 1fr; }
+      .ck-review-rule { display: none; }
+    }
+
+  </style>
+</head>
+<body>
+  <main class="page">
+    <div class="ck-doc">
+      <header class="ck-doc-header">
+        <h1>电影《南京照相馆》观影讨论与历史背景辨析</h1>
+      </header>
+      <div class="ck-doc-content">
+        <h2 class="ck-doc-h2">讲座概况</h2><p>本次讨论由主持人贝姐（发言人1）发起，围绕电影《南京照相馆》展开，与会者先交流观影印象，随后由主持人系统介绍南京大屠杀的历史背景，并辨析电影中虚构与真实的细节。讨论面向对历史题材电影及抗战史感兴趣的普通观众，旨在通过影片切入，厘清历史事实与艺术加工之间的边界。内容主要覆盖三个板块：观影印象交流、南京大屠杀历史背景梳理、电影虚构与真实细节辨析，并延伸至相关纪念馆参观经历与国人关注度的讨论。核心判断包括：八一三淞沪抗战是日军侵华以来首次遭遇成规模抵抗，此后日军因军纪失控、战场应激及武士道高压文化等因素酿成南京大屠杀；电影主要人物为虚构，但照片拍摄、中华门城墙战斗、挹江门撤退惨案及谷寿夫等主犯被枪决均为真实历史。讨论中提及松井石根、朝香宫鸠彦、谷寿夫等关键人物，以及1937年8月13日、九一八事变、七七事变等时间锚点。对听众而言，本次讨论有助于区分历史真实与影视虚构，增进对南京大屠杀历史背景及国人纪念态度的理解。</p><h2 class="ck-doc-h2">核心观点与论证</h2><h3 class="ck-doc-h3">电影虚构与真实细节辨析</h3><ol><li value="1"><strong>主要人物虚构，照片拍摄真实</strong>：电影中主角与日本军官建立友谊等情节为虚构，但照片拍摄确有其事——真实历史中由两位美国传教士拍摄日军暴行，而非电影人物所为。</li><li value="2"><strong>中国冲洗人员偷拷禁文照片</strong>：当时一名负责为日军冲洗照片的中国人员，无意间发现日军拍摄的暴行照片（在日本属禁文），偷偷拷贝藏匿，抗战后递交国民政府军事法庭，作为审判日本战犯的证据。</li><li value="3"><strong>中华门城墙战斗属实</strong>：电影开头中华门城墙的战斗是真实历史细节，反映日军进攻南京时遭遇的抵抗。</li><li value="4"><strong>挹江门撤退惨案</strong>：守挹江门部队未收到撤退命令，与友军信息差导致平民与军队撤退受阻，最终酿成惨案。</li><li value="5"><strong>战犯枪决属实</strong>：电影尾声审判中，谷寿夫（第六师团师团长）及数名南京大屠杀主犯被枪决，为真实历史。</li></ol><h3 class="ck-doc-h3">南京大屠杀历史背景与成因</h3><ol><li value="1"><strong>八一三淞沪抗战为首次成规模抵抗</strong>：1937年8月13日国军在上海与日军激战，是九一八事变以来日军首次遭遇迎头痛击，因伤亡惨重、战场长达四个月，日军逐渐杀红眼、人性泯灭。</li><li value="2"><strong>日军追击至南京</strong>：国军从上海撤退后，日军一路追击至南京，因缺乏军纪约束，攻破南京后酿成南京大屠杀。</li><li value="3"><strong>松井石根曾下令约束</strong>：原指挥官松井石根（老牌皇道派军人）曾发布命令，要求避免在上海至南京沿线烧杀抢掠，以防增强中国军民抵抗意志；后因生病被替换。</li><li value="4"><strong>朝香宫鸠彦接任后下令不留俘虏</strong>：接任者为裕仁亲王的叔叔朝香宫鸠彦亲王，狂热追随脱亚入欧思想，视亚洲其他国家为低贱；上任后发布第一道命令「不留俘虏，月后祭坟」，导致日军格杀勿论，并蔓延至平民，最终酿成南京大屠杀。</li><li value="5"><strong>日军暴行多重成因</strong>：包括战场应激创伤、日本自古攻破城镇后屠城狂欢的传统、高压武士道精神下的欺凌与宣泄需求。</li></ol><h3 class="ck-doc-h3">国人历史关注度与纪念馆参观现状</h3><ol><li value="1"><strong>沈阳伪满洲国博物馆需预约</strong>：发言人2上午参观，下午已排不上队，整个广场全是人，必须预约。</li><li value="2"><strong>唐山大地震纪念馆人满</strong>：发言人2参观时情况类似，人很多，反映国人关注度高。</li><li value="3"><strong>上海抗战纪念馆雨天仍爆满</strong>：发言人3参观淞沪会战相关纪念馆（含四行仓库），当天大雨但大人小孩仍很多，认为上海宣传做得好。</li><li value="4"><strong>南京大屠杀纪念馆难预约</strong>：发言人3称该馆很难抢票，发言人4表示多年前去过，当时尚可进入。</li></ol><h2 class="ck-doc-h2">金句总结</h2><div class="ck-quote">“八一三淞沪抗战的时候，是日本人当时第一次进入中国以来所遭受的迎头痛击。”</div><div class="ck-quote">—— <strong>发言人1（主持人）</strong> ｜ 针对南京大屠杀历史背景的定调发言</div><div class="ck-quote">“在战场上长达四个月的一个状态，然后已经杀红眼了，就是可以说是在战争底下那种就是人性的泯灭吧。”</div><div class="ck-quote">—— <strong>发言人1（主持人）</strong> ｜ 针对日军攻破南京后暴行根源的剖析</div><div class="ck-quote">“他上任之后发布的第一道命令就是不留俘虏，月后祭坟。”</div><div class="ck-quote">—— <strong>发言人1（主持人）</strong> ｜ 针对朝香宫鸠彦亲王接任日军统帅后军纪失控的定调发言</div><div class="ck-quote">“从他们当时那样的一个心态来说，就觉得遭受了一种前所未有的侮辱，以及在战场上的一种应激创伤反应。”</div><div class="ck-quote">—— <strong>发言人1（主持人）</strong> ｜ 针对日军在南京实施暴行心理动因的解读</div><div class="ck-quote">“就是说我兴许我活不到战争结束，那我就趁着我还活着的时候，我对自己进行一种放纵。”</div><div class="ck-quote">—— <strong>发言人1（主持人）</strong> ｜ 针对日军士兵屠城心态的剖析</div><div class="ck-quote">“真实的一个历史是，当时是两个美国的传教士，然后当时是拍摄的当时日军的这一块相关的一个暴行。”</div><div class="ck-quote">—— <strong>发言人1（主持人）</strong> ｜ 针对电影《南京照相馆》虚构与真实细节的辨析</div><div class="ck-quote">“他偷偷拷贝了下来，藏起来了之后，然后是于抗战之后然后嗯呃把这个递交给当时国民政府的军事法庭，就是作为审判日本战犯的一个证据。”</div><div class="ck-quote">—— <strong>发言人1（主持人）</strong> ｜ 针对电影中照片来源真实历史的澄清</div><div class="ck-quote">“这个话题太沉重，就这种电影我一般就是太沉重……看着感觉就心情非常难受，就很沉重。”</div><div class="ck-quote">—— <strong>发言人3（发言人）</strong> ｜ 针对观影感受的沉重表态</div><h2 class="ck-doc-h2">Q&amp;A 环节</h2><h3 class="ck-doc-h3">Q1. 电影中主角与日本军官建立友谊的情节是否真实？</h3><ul><li><strong>发言人4</strong>：电影里主角一度和一名日本军官建立友谊，这个情节是虚构的，还是历史上确有其事？</li></ul><div class="ck-quote"><strong>发言人1</strong>：电影里的主要人物是虚构的，但照片的拍摄是真实的，只是并非以电影里描述的方式进行。真实历史是两位美国传教士拍摄了日军暴行；同时期还有一位负责给日本人冲洗照片的中国后期人员，无意间发现日军拍摄的暴行照片（当时在日本属于禁文），偷偷拷贝藏起，抗战后递交国民政府军事法庭，作为审判日本战犯的证据。</div><h3 class="ck-doc-h3">Q2. 电影中还有哪些细节是真实历史？</h3><ul><li><strong>发言人1</strong>：除了照片拍摄，电影里还有哪些细节是历史上真实发生的？</li></ul><div class="ck-quote"><strong>发言人1</strong>：电影开头中华门城墙的战斗是真实历史细节；挹江门撤退时，宪兵未让军民撤出，因守军未收到撤退命令、双方信息差导致惨案；电影尾声审判中，谷寿夫（第六师团师团长）等南京大屠杀主犯被枪决，也是真实历史。</div>
+      </div>
+    </div>
+  </main>
+</body>
+</html>

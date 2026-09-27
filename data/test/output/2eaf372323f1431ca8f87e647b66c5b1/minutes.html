@@ -1,0 +1,610 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>锵锵三人行：日本文化精神与明朝历史漫谈</title>
+  <style>
+
+    body {
+      margin: 0;
+      padding: 14px 12px;
+      background: #f6f5f0;
+      color: #1a1a1a;
+      font-family: "Latin Modern Roman", "Computer Modern Roman", "CMU Serif", "Times New Roman", Times, "Songti SC", "SimSun", "STSong", serif;
+      -webkit-font-smoothing: antialiased;
+    }
+    .page { max-width: 1140px; margin: 0 auto; }
+    .ck-doc {
+      background: #ffffff;
+      border: 1px solid #d4d0c7;
+      border-radius: 4px;
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.05), 0 1px 3px rgba(0,0,0,0.03);
+      padding: 18px 22px;
+      line-height: 1.6;
+      font-size: 0.84rem;      /* 正文基准：左右两栏共用 --ck-fs */
+      --ck-fs: 0.84rem;
+    }
+    .ck-doc h1 {
+      margin: 0 0 6px;
+      font-size: 1.05rem;      /* 文档标题：只比正文略大一点 */
+      font-weight: 700;
+      text-align: center;
+      color: #111111;
+    }
+    .ck-doc-header {
+      margin-bottom: 10px;
+      padding-bottom: 8px;
+      border-bottom: 1px solid #111111;
+      text-align: center;
+    }
+    .ck-doc-meta {
+      font-size: 0.78rem;
+      color: #555555;
+      font-style: italic;
+    }
+    /* 层级标题一律"加粗 + 与右栏同级字号"，不加字号、不加下划线，前后留白压到最小 */
+    .ck-doc-content h1, .ck-doc-content .ck-doc-h1,
+    .ck-doc h2, .ck-doc-h2,
+    .ck-doc h3, .ck-doc-h3,
+    .ck-doc h4, .ck-doc-h4 {
+      font-size: var(--ck-fs);
+      font-weight: 700;
+      color: #111111;
+      border-bottom: 0;
+      padding-bottom: 0;
+      letter-spacing: 0;
+      font-variant: normal;
+      text-align: left;
+    }
+    .ck-doc-content h1, .ck-doc-content .ck-doc-h1, .ck-doc h2, .ck-doc-h2 {
+      margin: 12px 0 4px;
+    }
+    .ck-doc h3, .ck-doc-h3, .ck-doc h4, .ck-doc-h4 {
+      margin: 9px 0 3px;
+    }
+    .ck-doc p {
+      margin: 5px 0;
+      line-height: 1.6;
+      text-align: justify;
+    }
+    .ck-doc ul, .ck-doc ol {
+      margin: 4px 0 6px;
+      padding-left: 1.25em;
+      line-height: 1.6;
+    }
+    .ck-doc li {
+      margin: 2px 0;
+    }
+    .ck-doc blockquote, .ck-quote {
+      margin: 6px 0 8px;
+      padding: 5px 10px;
+      background: #faf9f6;
+      border-left: 3px solid #222222;
+      border-radius: 2px;
+      color: #222222;
+      font-size: var(--ck-fs);
+      font-style: italic;
+    }
+    .ck-doc code {
+      background: #f3f0e8;
+      border: 1px solid #e2ddd3;
+      border-radius: 3px;
+      padding: 1px 6px;
+      font-family: "Latin Modern Mono", Consolas, monospace;
+      font-size: 0.88em;
+    }
+    .ck-doc table, .ck-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: var(--ck-fs);
+      margin: 8px 0;
+      background: #ffffff;
+      border-top: 2px solid #222222;
+      border-bottom: 2px solid #222222;
+    }
+    .ck-doc table th, .ck-doc table td, .ck-table th, .ck-table td {
+      padding: 5px 8px;
+      text-align: left;
+      vertical-align: middle;
+      border-bottom: 1px solid #ede9e1;
+    }
+    .ck-doc table th, .ck-table th {
+      background: #fbfaf7;
+      border-bottom: 1.2px solid #222222;
+      font-weight: 700;
+      color: #111111;
+      letter-spacing: 0.3px;
+    }
+
+    /* Roomy & Spacious Academic Risk Table */
+    .ck-risk-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 18px 0 28px;
+      background: #ffffff;
+      border-top: 2.2px solid #111111;
+      border-bottom: 2.2px solid #111111;
+      font-size: 0.93rem;
+      line-height: 1.72;
+    }
+    .ck-risk-table th {
+      background: #faf8f5;
+      border-bottom: 1.5px solid #111111;
+      padding: 15px 16px;
+      font-weight: 700;
+      color: #111111;
+      letter-spacing: 0.3px;
+      text-align: left;
+      vertical-align: middle;
+    }
+    .ck-risk-table td {
+      padding: 16px 16px;
+      border-bottom: 1px solid #ede8e0;
+      vertical-align: top;
+      color: #1a1a1a;
+      word-break: break-word;
+    }
+    .ck-risk-table tr:nth-child(even) td {
+      background: #fdfcfb;
+    }
+    .ck-risk-table tr:hover td {
+      background: #f6f3eb;
+    }
+
+    /* Review Grid */
+    .ck-review {
+      display: grid;
+      grid-template-columns: minmax(0, 1.35fr) 1px minmax(260px, 0.95fr);
+      border: 1px solid #d4d0c7;
+      border-radius: 4px;
+      overflow: hidden;
+      margin: 8px 0 10px;
+      background: #ffffff;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.03);
+    }
+    .ck-review-left {
+      padding: 14px 16px;
+      background: #ffffff;
+      line-height: 1.6;
+      font-size: var(--ck-fs);
+    }
+    .ck-review-rule { background: #dcd8cf; }
+    .ck-review-right {
+      padding: 12px 14px;
+      background: #faf9f6;
+      box-sizing: border-box;
+      display: flex;
+      flex-direction: column;
+    }
+    .ck-ev-list {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    /* Entity Highlight in LaTeX Paper Style */
+    .ck-cite-entity {
+      background: #fff8db;
+      border-bottom: 1.5px solid #b86a04;
+      padding: 1px 4px;
+      border-radius: 2px;
+      cursor: pointer;
+      transition: all 0.18s ease;
+      color: #111111;
+      font-weight: 600;
+    }
+    .ck-cite-entity:hover {
+      background: #ffe58f;
+      color: #000000;
+    }
+    .ck-cite-entity.is-on {
+      background: #ffd54a;
+      border-bottom-color: #0047ab;
+      box-shadow: 0 0 0 2px rgba(0,71,171,0.25);
+    }
+
+    /* Blue Hyperref Citations [1], [2] */
+    .ck-cite-ref {
+      color: #0047ab;
+      font-weight: 600;
+      font-family: "Latin Modern Roman", "Computer Modern Roman", "Times New Roman", serif;
+      text-decoration: none;
+      cursor: pointer;
+      padding: 0 2px;
+      margin: 0 2px;
+      border-radius: 2px;
+      transition: all 0.15s ease;
+      font-size: 0.92em;
+      vertical-align: baseline;
+      user-select: none;
+    }
+    .ck-cite-ref:hover {
+      text-decoration: underline;
+      background: #e8f0fe;
+      color: #003380;
+    }
+    .ck-cite-ref.is-active {
+      background: #d2e3fc;
+      color: #002266;
+      font-weight: 700;
+      box-shadow: 0 0 0 1px #0047ab;
+    }
+
+    /* Right Memory Cards in LaTeX Paper Style */
+    .ck-provenance-head {
+      font-size: 0.82rem;
+      font-weight: 700;
+      color: #222222;
+      margin: 0 0 12px;
+      padding-bottom: 6px;
+      border-bottom: 1px solid #e0dcd4;
+      letter-spacing: 0.3px;
+      text-transform: uppercase;
+    }
+    .ck-ref-icon { color: #0047ab; margin-right: 4px; }
+    .ck-ev {
+      display: block;
+      margin: 0;
+      padding: 10px 12px;
+      border: 1px solid #dedad2;
+      border-left: 3.5px solid #0047ab;
+      border-radius: 2px;
+      background: #ffffff;
+      font-size: 0.82rem;
+      line-height: 1.55;
+      transition: all 0.2s ease;
+      cursor: pointer;
+    }
+    .ck-ev:hover { border-color: #b5b0a5; }
+    .ck-ev.is-on, .ck-ev.is-highlighted {
+      border-color: #0047ab;
+      box-shadow: 0 0 0 2px #0047ab, 0 3px 8px rgba(0,71,171,0.15);
+      background: #f0f5ff;
+    }
+    @keyframes citePulse {
+      0% { background: #dbeafe; box-shadow: 0 0 0 3px #0047ab; }
+      50% { background: #bfdbfe; box-shadow: 0 0 0 4px #0047ab; }
+      100% { background: #f0f5ff; box-shadow: 0 0 0 2px #0047ab; }
+    }
+    .ck-ev-k {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 0.75rem;
+      color: #444444;
+      margin-bottom: 5px;
+      font-weight: 700;
+    }
+    .ck-ev-cite-tag {
+      color: #0047ab;
+      font-weight: 700;
+      font-family: "Latin Modern Roman", serif;
+      text-decoration: none;
+    }
+    .ck-ev-kind-badge {
+      display: inline-block;
+      padding: 1px 6px;
+      border-radius: 2px;
+      font-size: 0.72rem;
+      font-weight: 600;
+      letter-spacing: 0.2px;
+    }
+    .ck-badge-keypoint {
+      border: 1px solid #0047ab;
+      color: #0047ab;
+      background: #f0f5ff;
+    }
+    .ck-badge-note {
+      border: 1px solid #b86a04;
+      color: #b86a04;
+      background: #fff8eb;
+    }
+    .ck-mem-title {
+      font-weight: 700;
+      color: #111111;
+      font-size: var(--ck-fs);
+      margin-bottom: 4px;
+      line-height: 1.5;
+    }
+    .ck-ev-quote {
+      color: #222222;
+      font-style: normal;
+      font-family: inherit;
+      margin: 4px 0 6px;
+      padding: 0;
+      background: transparent;
+      border: none;
+      line-height: 1.6;
+      font-size: var(--ck-fs);
+    }
+    .ck-ev-meta { font-size: 0.76rem; color: #666666; margin-top: 4px; }
+    .ck-ev-more {
+      margin-top: 2px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+    .ck-ev-more[open] { margin-top: 4px; }
+    .ck-ev-more summary { margin-bottom: 6px; }
+    .ck-proof-toggle {
+      cursor: pointer;
+      font-size: 0.82rem;
+      color: #0047ab;
+      user-select: none;
+      font-family: inherit;
+      padding: 2px 0;
+    }
+    .ck-proof-toggle:hover { text-decoration: underline; }
+    /* 右栏下段"状态演进"：无行内锚点，与上方证据卡视觉区分（灰底 + 徽章，无 [n]） */
+    .ck-ledger {
+      margin-top: 10px;
+      padding-top: 8px;
+      border-top: 1px dashed #d4d0c7;
+    }
+    .ck-ledger > summary { list-style: none; }
+    .ck-ledger > summary::-webkit-details-marker { display: none; }
+    .ck-ledger > summary::after { content: " ▾"; }
+    .ck-ledger:not([open]) > summary::after { content: " ▸"; }
+    /* 每类一张小灰卡：卡头类别 + 条数，卡内按 1. 2. 3. 编号 */
+    .ck-ledger-card {
+      background: #faf9f5;
+      border: 1px solid #e6e2d8;
+      border-left: 3px solid #bdb6a6;
+      border-radius: 4px;
+      padding: 7px 9px;
+      margin-bottom: 6px;
+    }
+    .ck-ledger-k {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 6px;
+      font-size: 0.72rem;
+      margin-bottom: 5px;
+    }
+    .ck-ledger-badge {
+      background: #efece4;
+      color: #6b6559;
+      border-radius: 3px;
+      padding: 1px 6px;
+      font-weight: 600;
+    }
+    .ck-ledger-count { color: #8a8578; }
+    .ck-ledger-list {
+      margin: 0;
+      padding-left: 1.35em;
+      font-size: var(--ck-fs);
+      line-height: 1.6;
+      color: #3b3a37;
+    }
+    .ck-ledger-list > li { margin: 2px 0; }
+    /* Personal Perspective Interactive Task Lists & Semantic Blocks */
+    .ck-self-block {
+      background: #f4f8fe;
+      border: 1px solid #d4e2f5;
+      border-left: 3.5px solid #0047ab;
+      border-radius: 4px;
+      padding: 9px 13px;
+      margin: 10px 0 12px;
+    }
+    .ck-self-title {
+      margin: 0 0 6px;
+      color: #003380;
+      font-weight: 700;
+      font-size: var(--ck-fs);
+      display: flex;
+      align-items: center;
+      gap: 5px;
+    }
+    .ck-self-badge {
+      display: inline-block;
+      background: #0047ab;
+      color: #ffffff;
+      font-size: 0.68rem;
+      padding: 1px 5px;
+      border-radius: 2px;
+      font-weight: 600;
+      letter-spacing: 0.2px;
+      margin-left: 4px;
+    }
+
+    .ck-dep-block {
+      background: #fefcf7;
+      border: 1px solid #f2e7cc;
+      border-left: 3.5px solid #b86a04;
+      border-radius: 4px;
+      padding: 9px 13px;
+      margin: 10px 0 12px;
+    }
+    .ck-dep-title {
+      margin: 0 0 6px;
+      color: #7a4502;
+      font-weight: 700;
+      font-size: var(--ck-fs);
+      display: flex;
+      align-items: center;
+      gap: 5px;
+    }
+    .ck-dep-badge {
+      display: inline-block;
+      background: #b86a04;
+      color: #ffffff;
+      font-size: 0.68rem;
+      padding: 1px 5px;
+      border-radius: 2px;
+      font-weight: 600;
+      letter-spacing: 0.2px;
+      margin-left: 4px;
+    }
+
+    .ck-risk-block {
+      background: #fff8f8;
+      border: 1px solid #fedcdc;
+      border-left: 3.5px solid #cf222e;
+      border-radius: 4px;
+      padding: 9px 13px;
+      margin: 10px 0 12px;
+    }
+    .ck-risk-title {
+      margin: 0 0 6px;
+      color: #a40e26;
+      font-weight: 700;
+      font-size: var(--ck-fs);
+      display: flex;
+      align-items: center;
+      gap: 5px;
+    }
+    .ck-risk-badge {
+      display: inline-block;
+      background: #cf222e;
+      color: #ffffff;
+      font-size: 0.68rem;
+      padding: 1px 5px;
+      border-radius: 2px;
+      font-weight: 600;
+      letter-spacing: 0.2px;
+      margin-left: 4px;
+    }
+
+    .ck-self-block ul, .ck-self-block ol,
+    .ck-dep-block ul, .ck-dep-block ol,
+    .ck-risk-block ul, .ck-risk-block ol {
+      margin: 2px 0 2px;
+      padding-left: 1.25em;
+    }
+    .ck-self-block li, .ck-dep-block li, .ck-risk-block li {
+      margin: 2px 0;
+      color: #1a1a1a;
+    }
+
+    /* Person Group Heading */
+    .ck-person-group {
+      margin: 8px 0 3px;
+      font-weight: 700;
+      color: #111111;
+    }
+
+    /* GFM Task List Checkboxes */
+    .ck-task-list {
+      list-style: none;
+      padding-left: 0 !important;
+      margin: 4px 0 6px !important;
+    }
+    .ck-task-item {
+      display: flex;
+      align-items: flex-start;
+      margin: 4px 0;
+      line-height: 1.6;
+    }
+    .ck-task-label {
+      display: inline-flex;
+      align-items: flex-start;
+      gap: 8px;
+      cursor: pointer;
+      width: 100%;
+    }
+    .ck-task-checkbox {
+      margin-top: 4px;
+      cursor: pointer;
+      accent-color: #0047ab;
+      width: 15px;
+      height: 15px;
+      flex-shrink: 0;
+    }
+    .ck-task-checkbox:checked + .ck-task-text {
+      color: #8c8c8c;
+      text-decoration: line-through;
+    }
+    .ck-task-text {
+      flex: 1;
+      color: #1a1a1a;
+    }
+
+    /* Status Badges & Pills */
+    .ck-tag-blocker {
+      display: inline-block;
+      background: #ffebe9;
+      color: #cf222e;
+      border: 1px solid rgba(255, 129, 130, 0.45);
+      font-size: 0.72rem;
+      font-weight: 700;
+      padding: 0 5px;
+      border-radius: 3px;
+      margin-right: 4px;
+      line-height: 1.5;
+      vertical-align: 1px;
+    }
+    .ck-tag-risk {
+      display: inline-block;
+      background: #fff8eb;
+      color: #b86a04;
+      border: 1px solid rgba(212, 167, 44, 0.45);
+      font-size: 0.72rem;
+      font-weight: 700;
+      padding: 0 5px;
+      border-radius: 3px;
+      margin-right: 4px;
+      line-height: 1.5;
+      vertical-align: 1px;
+    }
+    .ck-tag-warn {
+      display: inline-block;
+      background: #f0f4ff;
+      color: #0969da;
+      border: 1px solid rgba(84, 174, 255, 0.45);
+      font-size: 0.72rem;
+      font-weight: 700;
+      padding: 0 5px;
+      border-radius: 3px;
+      margin-right: 4px;
+      line-height: 1.5;
+      vertical-align: 1px;
+    }
+    .ck-tag-dep {
+      display: inline-block;
+      background: #eff6ff;
+      color: #1d4ed8;
+      border: 1px solid #bfdbfe;
+      font-size: 0.72rem;
+      font-weight: 600;
+      padding: 0 5px;
+      border-radius: 3px;
+      margin-right: 4px;
+      line-height: 1.5;
+      vertical-align: 1px;
+    }
+    .ck-param-capsule {
+      display: inline-block;
+      font-size: 0.82rem;
+      color: #57606a;
+      background: #f6f8fa;
+      border: 1px solid #eaeef2;
+      padding: 0 6px;
+      border-radius: 10px;
+      margin-left: 4px;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      letter-spacing: 0.2px;
+    }
+
+    @media(max-width: 860px) {
+      .ck-doc { padding: 22px 18px; }
+      .ck-review { grid-template-columns: 1fr; }
+      .ck-review-rule { display: none; }
+    }
+
+  </style>
+</head>
+<body>
+  <main class="page">
+    <div class="ck-doc">
+      <header class="ck-doc-header">
+        <h1>锵锵三人行：日本文化精神与明朝历史漫谈</h1>
+      </header>
+      <div class="ck-doc-content">
+        <h2 class="ck-doc-h2">访谈概述</h2><p>本期《锵锵三人行》由主持人窦文涛与嘉宾当年明月（《明朝那些事》作者）、马未都围绕日本历史剧《大奥》及日本文化、明朝历史与明式家具展开对话。节目先以热播剧《大奥》切入，讨论其历史背景（三部曲分别对应中国晚清至清初、明治维新前）及日本文化中的极端精神、忠诚文化与终身雇佣制，并与中国的中庸文化进行对比；随后转入明朝历史，当年明月介绍其写作缘由、明史研究难点、对朱元璋的评价及明朝兴亡经验，马未都则补充明代皇帝个性与明式家具的国际地位。关于日本文化，嘉宾认为日本民族具有“极端精神”，做事做到尽头，战后仅用30年便成为世界第二经济强国（绝对量），且是唯一没有资源的强国；日本是忠诚文化的典型国家，终身雇佣制下工作效率依然很高，如豆腐厂规定当天做当天卖、夜里12点整开始干活。中国文化精神则强调中庸，讲究融合与最适合的道路。当年明月表示不愿做日本人，因其文化存在盲从与对死亡的某种向往；马未都则认为日本民族并非藐视生命，而是重视生命。关于明朝历史，当年明月表示写《明朝那些事》是因为明史资料最多，但明清史研究难点在于同一事件有多个不同说法；他推崇朱元璋，因其从乞丐成为皇帝，是历史上唯一最底层出身者，且制定的明朝规章制度基本无大改动。明朝经历260多年，多次濒临灭亡（如土木堡之变、夺门之变）；明末江南市民生活富裕，工商业兴起，出现三言二拍等市民小说；1644年北京可能爆发瘟疫（疙瘩瘟，疑为天花）导致京城无人抵抗。马未都补充，中国历史王朝有300年大限，超过300年的只有宋朝。关于明代皇帝与明式家具，嘉宾讨论正德皇帝（明武宗）被评价为明朝最荒淫的皇帝，但可能被嘉靖时期编纂的实录所歪曲；天启皇帝爱好木匠，曾拆大盆去卖。马未都指出，明式家具在国际上地位高，反映当时社会时尚，皇帝能下大力气去做可见其影响之深。</p><h2 class="ck-doc-h2">访谈详细记录</h2><h3 class="ck-doc-h3">议题名：日本历史剧《大奥》与日本文化</h3><ul><li><strong>访谈员</strong>：《大奥》刚播完，引起很大反响，你们觉得它怎么样？</li></ul><div class="ck-quote"><strong>受访嘉宾</strong>：我觉得是大长今以后更有影响的国外电视剧，确实拍得非常好。</div><ol><li value="1">《大奥》共三部，前两部对应中国晚清到清初时段，第三部在明治维新之前，是一部有跨越性的历史剧。</li><li value="2">受访者认为该剧吸引人之处在于一种严谨的精神——日本历史剧中每个群众演员都非常认真，有专业精神，像大腕一样在演；第一集片头将军出场时所有人呈45度鞠躬，场面华丽、色彩讲究，一看就不一样。</li><li value="3">受访者解释「大奥」即中文的「后宫」，日语中「奥」指很深的地方、屋子最里处，中文还保留「深奥」等痕迹；大奥规矩非常严谨，后宫不许进人。</li><li value="4">受访者指出日本天皇一直是摆设，实际掌权的是幕府将军；德川家康开创德川幕府后权力集于一人，天皇曾因没钱办活动找将军要钱被拒，最后以退位抗议。</li><li value="5">受访者认为日本文化从头到尾没有变，是一种「极端精神」——所有事情要做到尽头；战后1945年日本用30年成为世界第二经济强国（绝对量），是强国中唯一没有资源的国家，这不是偶然而是必然。</li></ol><h3 class="ck-doc-h3">议题名：中日文化精神对比</h3><ol><li value="1">受访者认为中国文化精神是中庸——讲究世界上有一种道，不是对也不是错、不是黑也不是白，而是融合，是「最适合的路」；他以马未都家具店中一块硬木刻云彩为例，称「这么硬的东西能做得这么柔软」就是中庸。</li><li value="2">受访者认为日本精神恰恰相反，坚持一个原则做到极致——比如炮手开炮时忘记所有事情、只记得把这一炮开出去，就达到最高境界。</li><li value="3">受访者指出日本是忠诚文化的典型国家，其忠诚靠具体的事而非说教体现；如《大奥》中阿福25岁进宫当奶妈、65岁去世，40年无论做什么事都不出于私心，完全出于公心，连被伤害的对方都认为他是楷模。</li><li value="4">受访者认为日本终身雇佣制下工作效率依然很高，是西方经济学无法理解的奇迹；他举例参观日本豆腐厂，规定当天做当天卖，所有人夜里11:45坐等，12点整才开始干活，4点多干完上市，期间无人闲聊。</li><li value="5">受访者认为日本民族因岛国资源匮乏、火山地震频发，对世界有极强求生欲望和悲观感，必须融入团体按固定规则做事才能生存；他坦言不愿做日本人，因为日本文化有盲从和一种「寻死」的潜在欲望——看樱花只看落的那一天，对死亡不是藐视而是有点向往、不惧怕。</li></ol><h3 class="ck-doc-h3">议题名：明朝历史与《明朝那些事》</h3><ul><li><strong>访谈员</strong>：为什么周围很多人包括金庸晚年都说要研究明史，你对明史为什么感兴趣？</li></ul><div class="ck-quote"><strong>受访嘉宾</strong>：我很诚实地回答，明史我最熟，因为明史的资料最多。</div><ol><li value="1">受访者说明史资料最多，但明清史研究有两个难点：一是先秦史料少且不可靠（如孙武事迹在《史记》只有一两篇、多为编造）；二是明清史料虽堆得比山高却「没用」——同一事件可能有七个不同说法，像罗生门一样。</li><li value="2">受访者推崇朱元璋，认为他是历史上唯一由最底层（乞丐）坐上皇位的人，刘邦好歹算村长/乡长；朱元璋因知道每一层的猫腻而疑心重，但他从一起干到推翻元朝当上皇帝，明朝规章制度基本由他定下、无大改动，是了不起的人才。</li><li value="3">受访者认为历史最重要的是明白「它是发生过的」——朱元璋参加起义并非一跺脚就去了，而是好友汤和来信、被人告发后没办法才去，那是掉脑袋的风险；「你站在历史的原点，前后都看不见，必须撤出来才能看见」。</li><li value="4">受访者认为明朝260多年本身跌宕起伏，几次要死没死，如土木堡之变（皇上被瓦剌军抓走）、夺门之变等，构成现代版电视剧都捏造不出的离奇情节。</li><li value="5">受访者指出明末江南市民生活特别轻松富裕，江浙工商业兴起、给人当雇工活得很滋润，出现三言二拍这类市民小说是「温饱思淫欲」的娱乐产品；1644年明朝灭亡时北京可能爆发瘟疫（疙瘩瘟，疑为天花），导致京城无人抵抗。</li><li value="6">受访者认为「我们从历史中得到的唯一教训就是我们从来没有从历史中得到过教训」——史书记载下来的是照片，而古人的生活是录像，你不知道那一幕之前和之后是什么，所以不能套用历史经验。</li></ol><h3 class="ck-doc-h3">议题名：明代皇帝与明式家具</h3><ol><li value="1">受访者认为正德皇帝（明武宗）被评价为明朝最荒淫的皇帝，但可能被嘉靖时期编纂的实录歪曲——因嘉靖是堂兄弟接班、拐了个弯，不能把正德写得太好；正德从江南回来先在通州停半年打探京城有无埋伏，说明他非常有城府，绝不是史料所写的那么蠢。</li><li value="2">受访者提到天启皇帝爱当木匠，干完活拆大盆去卖，卖完还打听卖得怎么样，听说卖得很好成就感特大。</li><li value="3">受访者认为明式家具在国际上地位高绝非偶然——皇帝能下那么大力气去做，可见家具在当时每个人心里地位之高，「所有的偶然中一定有个必然的因素」。</li><li value="4">受访者指出宋明两代是典型汉人政权、文人政权，审美判断不是表象的；满族作为异族进来后对美的判断都是表象的——今天凡是外在直观能看到的都卖得贵，而晚清到民国初年值钱的一定是素雅的。</li></ol><h2 class="ck-doc-h2">关键引语与金句</h2><div class="ck-quote">“中国的文化精神是中庸……不是对也不是错，不是黑也不是白……就是太极。但是这条路可以走得通，叫融合。”</div><div class="ck-quote">—— <strong>发言人3（嘉宾）</strong> ｜ 对比中日文化精神差异时的定调发言</div><div class="ck-quote">“日本的精神就恰恰相反，他坚持一个原则……当他忘记所有的事情，只记得把这一炮开出去，他就达到了他的最高境界。”</div><div class="ck-quote">—— <strong>发言人3（嘉宾）</strong> ｜ 阐释日本“极端精神”时的发言</div><div class="ck-quote">“日本战后以后呢，他用30年的时间成为世界第二经济强国，他不是一个偶然，他是一个必然……他是这个世界上强国里唯一没有资源的国家。”</div><div class="ck-quote">—— <strong>发言人3（嘉宾）</strong> ｜ 论证日本民族精神与战后经济成就的关系</div><div class="ck-quote">“慢慢来才是最快的方法。”</div><div class="ck-quote">—— <strong>发言人3（嘉宾）</strong> ｜ 回应日本文化中“不偷奸耍滑”的工作方式</div><div class="ck-quote">“我们从历史中得到的唯一教训就是我们从来没有从历史中得到过教训。”</div><div class="ck-quote">—— <strong>发言人3（嘉宾）</strong> ｜ 回应明朝兴亡经验教训话题时的总结</div><div class="ck-quote">“你要明白你不比前人聪明，你甚至可能比前人笨，就是当那种情况出现的时候，你也得这么办，甚至还不如前人。”</div><div class="ck-quote">—— <strong>发言人3（嘉宾）</strong> ｜ 谈历史研究应设身处地、避免事后聪明</div><div class="ck-quote">“我们强调一种忠诚……他强调忠诚最终一定要冒这个风险，所以这个民族才繁荣。”</div><div class="ck-quote">—— <strong>发言人2（嘉宾）</strong> ｜ 回应“日本忠诚文化是否等于家奴”的批评</div><div class="ck-quote">“所有的偶然中一定有个必然的因素……当时皇帝能下那么大力气去做，可见这个东西对他的影响之深。”</div><div class="ck-quote">—— <strong>发言人2（嘉宾）</strong> ｜ 谈天启皇帝爱做木匠与明式家具国际地位的关系</div>
+      </div>
+    </div>
+  </main>
+</body>
+</html>

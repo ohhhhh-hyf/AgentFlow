@@ -1,0 +1,610 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>康熙朝大学士陈廷敬生平讲述</title>
+  <style>
+
+    body {
+      margin: 0;
+      padding: 14px 12px;
+      background: #f6f5f0;
+      color: #1a1a1a;
+      font-family: "Latin Modern Roman", "Computer Modern Roman", "CMU Serif", "Times New Roman", Times, "Songti SC", "SimSun", "STSong", serif;
+      -webkit-font-smoothing: antialiased;
+    }
+    .page { max-width: 1140px; margin: 0 auto; }
+    .ck-doc {
+      background: #ffffff;
+      border: 1px solid #d4d0c7;
+      border-radius: 4px;
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.05), 0 1px 3px rgba(0,0,0,0.03);
+      padding: 18px 22px;
+      line-height: 1.6;
+      font-size: 0.84rem;      /* 正文基准：左右两栏共用 --ck-fs */
+      --ck-fs: 0.84rem;
+    }
+    .ck-doc h1 {
+      margin: 0 0 6px;
+      font-size: 1.05rem;      /* 文档标题：只比正文略大一点 */
+      font-weight: 700;
+      text-align: center;
+      color: #111111;
+    }
+    .ck-doc-header {
+      margin-bottom: 10px;
+      padding-bottom: 8px;
+      border-bottom: 1px solid #111111;
+      text-align: center;
+    }
+    .ck-doc-meta {
+      font-size: 0.78rem;
+      color: #555555;
+      font-style: italic;
+    }
+    /* 层级标题一律"加粗 + 与右栏同级字号"，不加字号、不加下划线，前后留白压到最小 */
+    .ck-doc-content h1, .ck-doc-content .ck-doc-h1,
+    .ck-doc h2, .ck-doc-h2,
+    .ck-doc h3, .ck-doc-h3,
+    .ck-doc h4, .ck-doc-h4 {
+      font-size: var(--ck-fs);
+      font-weight: 700;
+      color: #111111;
+      border-bottom: 0;
+      padding-bottom: 0;
+      letter-spacing: 0;
+      font-variant: normal;
+      text-align: left;
+    }
+    .ck-doc-content h1, .ck-doc-content .ck-doc-h1, .ck-doc h2, .ck-doc-h2 {
+      margin: 12px 0 4px;
+    }
+    .ck-doc h3, .ck-doc-h3, .ck-doc h4, .ck-doc-h4 {
+      margin: 9px 0 3px;
+    }
+    .ck-doc p {
+      margin: 5px 0;
+      line-height: 1.6;
+      text-align: justify;
+    }
+    .ck-doc ul, .ck-doc ol {
+      margin: 4px 0 6px;
+      padding-left: 1.25em;
+      line-height: 1.6;
+    }
+    .ck-doc li {
+      margin: 2px 0;
+    }
+    .ck-doc blockquote, .ck-quote {
+      margin: 6px 0 8px;
+      padding: 5px 10px;
+      background: #faf9f6;
+      border-left: 3px solid #222222;
+      border-radius: 2px;
+      color: #222222;
+      font-size: var(--ck-fs);
+      font-style: italic;
+    }
+    .ck-doc code {
+      background: #f3f0e8;
+      border: 1px solid #e2ddd3;
+      border-radius: 3px;
+      padding: 1px 6px;
+      font-family: "Latin Modern Mono", Consolas, monospace;
+      font-size: 0.88em;
+    }
+    .ck-doc table, .ck-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: var(--ck-fs);
+      margin: 8px 0;
+      background: #ffffff;
+      border-top: 2px solid #222222;
+      border-bottom: 2px solid #222222;
+    }
+    .ck-doc table th, .ck-doc table td, .ck-table th, .ck-table td {
+      padding: 5px 8px;
+      text-align: left;
+      vertical-align: middle;
+      border-bottom: 1px solid #ede9e1;
+    }
+    .ck-doc table th, .ck-table th {
+      background: #fbfaf7;
+      border-bottom: 1.2px solid #222222;
+      font-weight: 700;
+      color: #111111;
+      letter-spacing: 0.3px;
+    }
+
+    /* Roomy & Spacious Academic Risk Table */
+    .ck-risk-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 18px 0 28px;
+      background: #ffffff;
+      border-top: 2.2px solid #111111;
+      border-bottom: 2.2px solid #111111;
+      font-size: 0.93rem;
+      line-height: 1.72;
+    }
+    .ck-risk-table th {
+      background: #faf8f5;
+      border-bottom: 1.5px solid #111111;
+      padding: 15px 16px;
+      font-weight: 700;
+      color: #111111;
+      letter-spacing: 0.3px;
+      text-align: left;
+      vertical-align: middle;
+    }
+    .ck-risk-table td {
+      padding: 16px 16px;
+      border-bottom: 1px solid #ede8e0;
+      vertical-align: top;
+      color: #1a1a1a;
+      word-break: break-word;
+    }
+    .ck-risk-table tr:nth-child(even) td {
+      background: #fdfcfb;
+    }
+    .ck-risk-table tr:hover td {
+      background: #f6f3eb;
+    }
+
+    /* Review Grid */
+    .ck-review {
+      display: grid;
+      grid-template-columns: minmax(0, 1.35fr) 1px minmax(260px, 0.95fr);
+      border: 1px solid #d4d0c7;
+      border-radius: 4px;
+      overflow: hidden;
+      margin: 8px 0 10px;
+      background: #ffffff;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.03);
+    }
+    .ck-review-left {
+      padding: 14px 16px;
+      background: #ffffff;
+      line-height: 1.6;
+      font-size: var(--ck-fs);
+    }
+    .ck-review-rule { background: #dcd8cf; }
+    .ck-review-right {
+      padding: 12px 14px;
+      background: #faf9f6;
+      box-sizing: border-box;
+      display: flex;
+      flex-direction: column;
+    }
+    .ck-ev-list {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    /* Entity Highlight in LaTeX Paper Style */
+    .ck-cite-entity {
+      background: #fff8db;
+      border-bottom: 1.5px solid #b86a04;
+      padding: 1px 4px;
+      border-radius: 2px;
+      cursor: pointer;
+      transition: all 0.18s ease;
+      color: #111111;
+      font-weight: 600;
+    }
+    .ck-cite-entity:hover {
+      background: #ffe58f;
+      color: #000000;
+    }
+    .ck-cite-entity.is-on {
+      background: #ffd54a;
+      border-bottom-color: #0047ab;
+      box-shadow: 0 0 0 2px rgba(0,71,171,0.25);
+    }
+
+    /* Blue Hyperref Citations [1], [2] */
+    .ck-cite-ref {
+      color: #0047ab;
+      font-weight: 600;
+      font-family: "Latin Modern Roman", "Computer Modern Roman", "Times New Roman", serif;
+      text-decoration: none;
+      cursor: pointer;
+      padding: 0 2px;
+      margin: 0 2px;
+      border-radius: 2px;
+      transition: all 0.15s ease;
+      font-size: 0.92em;
+      vertical-align: baseline;
+      user-select: none;
+    }
+    .ck-cite-ref:hover {
+      text-decoration: underline;
+      background: #e8f0fe;
+      color: #003380;
+    }
+    .ck-cite-ref.is-active {
+      background: #d2e3fc;
+      color: #002266;
+      font-weight: 700;
+      box-shadow: 0 0 0 1px #0047ab;
+    }
+
+    /* Right Memory Cards in LaTeX Paper Style */
+    .ck-provenance-head {
+      font-size: 0.82rem;
+      font-weight: 700;
+      color: #222222;
+      margin: 0 0 12px;
+      padding-bottom: 6px;
+      border-bottom: 1px solid #e0dcd4;
+      letter-spacing: 0.3px;
+      text-transform: uppercase;
+    }
+    .ck-ref-icon { color: #0047ab; margin-right: 4px; }
+    .ck-ev {
+      display: block;
+      margin: 0;
+      padding: 10px 12px;
+      border: 1px solid #dedad2;
+      border-left: 3.5px solid #0047ab;
+      border-radius: 2px;
+      background: #ffffff;
+      font-size: 0.82rem;
+      line-height: 1.55;
+      transition: all 0.2s ease;
+      cursor: pointer;
+    }
+    .ck-ev:hover { border-color: #b5b0a5; }
+    .ck-ev.is-on, .ck-ev.is-highlighted {
+      border-color: #0047ab;
+      box-shadow: 0 0 0 2px #0047ab, 0 3px 8px rgba(0,71,171,0.15);
+      background: #f0f5ff;
+    }
+    @keyframes citePulse {
+      0% { background: #dbeafe; box-shadow: 0 0 0 3px #0047ab; }
+      50% { background: #bfdbfe; box-shadow: 0 0 0 4px #0047ab; }
+      100% { background: #f0f5ff; box-shadow: 0 0 0 2px #0047ab; }
+    }
+    .ck-ev-k {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 0.75rem;
+      color: #444444;
+      margin-bottom: 5px;
+      font-weight: 700;
+    }
+    .ck-ev-cite-tag {
+      color: #0047ab;
+      font-weight: 700;
+      font-family: "Latin Modern Roman", serif;
+      text-decoration: none;
+    }
+    .ck-ev-kind-badge {
+      display: inline-block;
+      padding: 1px 6px;
+      border-radius: 2px;
+      font-size: 0.72rem;
+      font-weight: 600;
+      letter-spacing: 0.2px;
+    }
+    .ck-badge-keypoint {
+      border: 1px solid #0047ab;
+      color: #0047ab;
+      background: #f0f5ff;
+    }
+    .ck-badge-note {
+      border: 1px solid #b86a04;
+      color: #b86a04;
+      background: #fff8eb;
+    }
+    .ck-mem-title {
+      font-weight: 700;
+      color: #111111;
+      font-size: var(--ck-fs);
+      margin-bottom: 4px;
+      line-height: 1.5;
+    }
+    .ck-ev-quote {
+      color: #222222;
+      font-style: normal;
+      font-family: inherit;
+      margin: 4px 0 6px;
+      padding: 0;
+      background: transparent;
+      border: none;
+      line-height: 1.6;
+      font-size: var(--ck-fs);
+    }
+    .ck-ev-meta { font-size: 0.76rem; color: #666666; margin-top: 4px; }
+    .ck-ev-more {
+      margin-top: 2px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+    .ck-ev-more[open] { margin-top: 4px; }
+    .ck-ev-more summary { margin-bottom: 6px; }
+    .ck-proof-toggle {
+      cursor: pointer;
+      font-size: 0.82rem;
+      color: #0047ab;
+      user-select: none;
+      font-family: inherit;
+      padding: 2px 0;
+    }
+    .ck-proof-toggle:hover { text-decoration: underline; }
+    /* 右栏下段"状态演进"：无行内锚点，与上方证据卡视觉区分（灰底 + 徽章，无 [n]） */
+    .ck-ledger {
+      margin-top: 10px;
+      padding-top: 8px;
+      border-top: 1px dashed #d4d0c7;
+    }
+    .ck-ledger > summary { list-style: none; }
+    .ck-ledger > summary::-webkit-details-marker { display: none; }
+    .ck-ledger > summary::after { content: " ▾"; }
+    .ck-ledger:not([open]) > summary::after { content: " ▸"; }
+    /* 每类一张小灰卡：卡头类别 + 条数，卡内按 1. 2. 3. 编号 */
+    .ck-ledger-card {
+      background: #faf9f5;
+      border: 1px solid #e6e2d8;
+      border-left: 3px solid #bdb6a6;
+      border-radius: 4px;
+      padding: 7px 9px;
+      margin-bottom: 6px;
+    }
+    .ck-ledger-k {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 6px;
+      font-size: 0.72rem;
+      margin-bottom: 5px;
+    }
+    .ck-ledger-badge {
+      background: #efece4;
+      color: #6b6559;
+      border-radius: 3px;
+      padding: 1px 6px;
+      font-weight: 600;
+    }
+    .ck-ledger-count { color: #8a8578; }
+    .ck-ledger-list {
+      margin: 0;
+      padding-left: 1.35em;
+      font-size: var(--ck-fs);
+      line-height: 1.6;
+      color: #3b3a37;
+    }
+    .ck-ledger-list > li { margin: 2px 0; }
+    /* Personal Perspective Interactive Task Lists & Semantic Blocks */
+    .ck-self-block {
+      background: #f4f8fe;
+      border: 1px solid #d4e2f5;
+      border-left: 3.5px solid #0047ab;
+      border-radius: 4px;
+      padding: 9px 13px;
+      margin: 10px 0 12px;
+    }
+    .ck-self-title {
+      margin: 0 0 6px;
+      color: #003380;
+      font-weight: 700;
+      font-size: var(--ck-fs);
+      display: flex;
+      align-items: center;
+      gap: 5px;
+    }
+    .ck-self-badge {
+      display: inline-block;
+      background: #0047ab;
+      color: #ffffff;
+      font-size: 0.68rem;
+      padding: 1px 5px;
+      border-radius: 2px;
+      font-weight: 600;
+      letter-spacing: 0.2px;
+      margin-left: 4px;
+    }
+
+    .ck-dep-block {
+      background: #fefcf7;
+      border: 1px solid #f2e7cc;
+      border-left: 3.5px solid #b86a04;
+      border-radius: 4px;
+      padding: 9px 13px;
+      margin: 10px 0 12px;
+    }
+    .ck-dep-title {
+      margin: 0 0 6px;
+      color: #7a4502;
+      font-weight: 700;
+      font-size: var(--ck-fs);
+      display: flex;
+      align-items: center;
+      gap: 5px;
+    }
+    .ck-dep-badge {
+      display: inline-block;
+      background: #b86a04;
+      color: #ffffff;
+      font-size: 0.68rem;
+      padding: 1px 5px;
+      border-radius: 2px;
+      font-weight: 600;
+      letter-spacing: 0.2px;
+      margin-left: 4px;
+    }
+
+    .ck-risk-block {
+      background: #fff8f8;
+      border: 1px solid #fedcdc;
+      border-left: 3.5px solid #cf222e;
+      border-radius: 4px;
+      padding: 9px 13px;
+      margin: 10px 0 12px;
+    }
+    .ck-risk-title {
+      margin: 0 0 6px;
+      color: #a40e26;
+      font-weight: 700;
+      font-size: var(--ck-fs);
+      display: flex;
+      align-items: center;
+      gap: 5px;
+    }
+    .ck-risk-badge {
+      display: inline-block;
+      background: #cf222e;
+      color: #ffffff;
+      font-size: 0.68rem;
+      padding: 1px 5px;
+      border-radius: 2px;
+      font-weight: 600;
+      letter-spacing: 0.2px;
+      margin-left: 4px;
+    }
+
+    .ck-self-block ul, .ck-self-block ol,
+    .ck-dep-block ul, .ck-dep-block ol,
+    .ck-risk-block ul, .ck-risk-block ol {
+      margin: 2px 0 2px;
+      padding-left: 1.25em;
+    }
+    .ck-self-block li, .ck-dep-block li, .ck-risk-block li {
+      margin: 2px 0;
+      color: #1a1a1a;
+    }
+
+    /* Person Group Heading */
+    .ck-person-group {
+      margin: 8px 0 3px;
+      font-weight: 700;
+      color: #111111;
+    }
+
+    /* GFM Task List Checkboxes */
+    .ck-task-list {
+      list-style: none;
+      padding-left: 0 !important;
+      margin: 4px 0 6px !important;
+    }
+    .ck-task-item {
+      display: flex;
+      align-items: flex-start;
+      margin: 4px 0;
+      line-height: 1.6;
+    }
+    .ck-task-label {
+      display: inline-flex;
+      align-items: flex-start;
+      gap: 8px;
+      cursor: pointer;
+      width: 100%;
+    }
+    .ck-task-checkbox {
+      margin-top: 4px;
+      cursor: pointer;
+      accent-color: #0047ab;
+      width: 15px;
+      height: 15px;
+      flex-shrink: 0;
+    }
+    .ck-task-checkbox:checked + .ck-task-text {
+      color: #8c8c8c;
+      text-decoration: line-through;
+    }
+    .ck-task-text {
+      flex: 1;
+      color: #1a1a1a;
+    }
+
+    /* Status Badges & Pills */
+    .ck-tag-blocker {
+      display: inline-block;
+      background: #ffebe9;
+      color: #cf222e;
+      border: 1px solid rgba(255, 129, 130, 0.45);
+      font-size: 0.72rem;
+      font-weight: 700;
+      padding: 0 5px;
+      border-radius: 3px;
+      margin-right: 4px;
+      line-height: 1.5;
+      vertical-align: 1px;
+    }
+    .ck-tag-risk {
+      display: inline-block;
+      background: #fff8eb;
+      color: #b86a04;
+      border: 1px solid rgba(212, 167, 44, 0.45);
+      font-size: 0.72rem;
+      font-weight: 700;
+      padding: 0 5px;
+      border-radius: 3px;
+      margin-right: 4px;
+      line-height: 1.5;
+      vertical-align: 1px;
+    }
+    .ck-tag-warn {
+      display: inline-block;
+      background: #f0f4ff;
+      color: #0969da;
+      border: 1px solid rgba(84, 174, 255, 0.45);
+      font-size: 0.72rem;
+      font-weight: 700;
+      padding: 0 5px;
+      border-radius: 3px;
+      margin-right: 4px;
+      line-height: 1.5;
+      vertical-align: 1px;
+    }
+    .ck-tag-dep {
+      display: inline-block;
+      background: #eff6ff;
+      color: #1d4ed8;
+      border: 1px solid #bfdbfe;
+      font-size: 0.72rem;
+      font-weight: 600;
+      padding: 0 5px;
+      border-radius: 3px;
+      margin-right: 4px;
+      line-height: 1.5;
+      vertical-align: 1px;
+    }
+    .ck-param-capsule {
+      display: inline-block;
+      font-size: 0.82rem;
+      color: #57606a;
+      background: #f6f8fa;
+      border: 1px solid #eaeef2;
+      padding: 0 6px;
+      border-radius: 10px;
+      margin-left: 4px;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      letter-spacing: 0.2px;
+    }
+
+    @media(max-width: 860px) {
+      .ck-doc { padding: 22px 18px; }
+      .ck-review { grid-template-columns: 1fr; }
+      .ck-review-rule { display: none; }
+    }
+
+  </style>
+</head>
+<body>
+  <main class="page">
+    <div class="ck-doc">
+      <header class="ck-doc-header">
+        <h1>康熙朝大学士陈廷敬生平讲述</h1>
+      </header>
+      <div class="ck-doc-content">
+        <h2 class="ck-doc-h2">讲座概况</h2><p>本期视频由主讲人李正讲述康熙朝文渊阁大学士陈廷敬的一生，主题聚焦于陈廷敬在影视剧形象与历史事实之间的差异，以及他深得康熙信任的深层原因。讲座面向对清代历史、人物传记感兴趣的观众，围绕陈廷敬人生的三个阶段展开：<strong>妈妈张氏的开蒙</strong>、<strong>圣祖康熙的讲师</strong>、<strong>至公无私的落幕</strong>。核心主张在于：陈廷敬虽无影视剧中平三藩、收台湾等功绩，但凭借清廉正直、恪守初心的品格，赢得康熙终身的信任与尊重；其一生宦海浮沉50年而声名清白，本身就是了不起的成就。讲座以陈廷敬1638年出生于山西泽州府阳城县、21岁中进士入翰林院、75岁病逝谥号文贞等关键节点为锚点，穿插母亲张氏开蒙、因同名主动改名、张谦案受牵连后复出等具体事例。对听众而言，陈廷敬“知世故而不世故”的为官之道与坚守原则的品格，具有跨越时代的启示意义。</p><h2 class="ck-doc-h2">核心观点与论证</h2><h3 class="ck-doc-h3">母亲张氏开蒙与科举之路</h3><ol><li value="1"><strong>家学渊源</strong>：陈廷敬本名陈敬，字子端，号午亭，1638年（崇祯11年）生于山西泽州府阳城县，家族书香门第，往上数六代皆读书人，父亲陈长七曾入选顺治朝国子监。</li><li value="2"><strong>母亲开蒙</strong>：张氏自幼随父张弘毅研读儒家经典及《资治通鉴》，嫁后仍勤读不辍；陈廷敬6岁外出上学前，已由母亲口授背完《论语》《孟子》《大学》《中庸》及《诗经》。</li><li value="3"><strong>鼓励式教育</strong>：陈廷敬9岁作《咏牡丹》，母亲张氏听罢即夸“我儿子这就是天才”，其童年学习大半在母亲关照下展开。</li><li value="4"><strong>科举连捷</strong>：顺治八年（1651年）14岁以全省第一考中秀才，20岁中举人，21岁中进士并入翰林院任庶吉士；顺治十八年庶吉士毕业考试再获同届第一，授秘书院检讨。</li></ol><h3 class="ck-doc-h3">改名风波与仕途起步</h3><ol><li value="1"><strong>同名之困</strong>：陈廷敬入翰林时本名陈敬，同届另有直隶通州陈敬；因直隶陈敬不习满文被顺治点名罚俸一年，风言风语牵连山西陈敬，陈廷敬遂主动上书请改名。</li><li value="2"><strong>御赐之名</strong>：据李光地记载，“廷”字为顺治所赐，改名后既与直隶陈敬撇清关系，又借御赐之名与顺治拉近关系；顺治与陈廷敬同年（皆崇祯11年生），颇为欣赏其才。</li><li value="3"><strong>为母守孝</strong>：康熙元年母亲张氏病倒，陈廷敬在仕途起步关键期请假归乡三年；康熙六年返翰林院两年即获考察一等称职，康熙八年32岁升正六品国子监司业。</li></ol><h3 class="ck-doc-h3">执教康熙与经筵讲官</h3><ol><li value="1"><strong>整顿国子监</strong>：陈廷敬任国子监司业时废除学生拜见须带见面礼的不成文规定，坚持“学生越送礼越不见”，两年内连升三级，34岁官居从四品翰林院侍讲学士。</li><li value="2"><strong>日讲起居注官</strong>：康熙十一年十月，35岁的陈廷敬被19岁的康熙亲点为日讲起居注官，与康熙朝夕相处四年。</li><li value="3"><strong>经筵讲官</strong>：康熙十五年九月，39岁的陈廷敬以内阁学士兼礼部侍郎充经筵讲官；其教学风格外放，讲评经史狠辣，曾痛斥孙权背刺关羽为“猪是狗”。</li><li value="4"><strong>执掌翰林院</strong>：康熙十六年正月，陈廷敬出任翰林院掌院学士，兼教习庶吉士；同年母亲张氏病逝，终年59岁。</li></ol><h3 class="ck-doc-h3">至公无私与官场风波</h3><ol><li value="1"><strong>追封母亲</strong>：康熙破例命大学士明珠、喇沙里携茶酒往祭汉臣陈廷敬之母，礼部以“詹事虽皆三品，例不得祭奠”反对，康熙以“何以劝劳臣乎”驳回，追封张氏按学士品级由官方祭奠。</li><li value="2"><strong>整顿捐纳</strong>：康熙二十三年，47岁的陈廷敬升从一品左都御史，上奏要求捐纳买官者上岗前追加考试，“文艺略小者给予录用，否则且令异业听其再试”；吏部反对，康熙支持并补充要求各地督抚详查已任命官员，凡不识字义者参奏。</li><li value="3"><strong>严查懒政</strong>：针对各省督府作风与赈灾懒政，陈廷敬严查弹劾，并亲自拟定新的赈灾报批流程；两年内连续出任工部、户部、吏部三部尚书，所到之处皆整顿。</li><li value="4"><strong>张谦案受诬</strong>：康熙二十六年，湖广巡抚张谦（陈廷敬亲家）因贪污被抓，供称曾贿赂陈廷敬、徐乾学、高士奇，证据为三人曾写信劝其好好当官；陈廷敬自辩“积疑成恨，羽射连染”，康熙传旨主审官马齐“只处理张谦，不得蔓延”，其余人事后密查。</li><li value="5"><strong>辞官自证</strong>：51岁的陈廷敬主动上书辞官，康熙准许其辞官但留京修书；康熙二十九年53岁被重新启用，再次出任左都御史，康熙以此宣告其清白。</li></ol><h3 class="ck-doc-h3">晚年荣宠与身后哀荣</h3><ol><li value="1"><strong>位极人臣</strong>：康熙四十二年，66岁的陈廷敬升任文渊阁大学士，并总理南书房事务，是内阁中唯一既管南书房又任经筵讲官的大学士。</li><li value="2"><strong>四次请退</strong>：陈廷敬70岁起连续三年申请退休均被康熙以“机务重地，良难其人”拒绝；康熙四十九年73岁第四次申请终获准，康熙赐匾额“午亭山村”及楹联“春归乔木浓阴茂，秋到黄花晚节香”，并表示“自此不与人写字矣”。</li><li value="3"><strong>病逝哀荣</strong>：两年后陈廷敬病逝，终年75岁，谥号文贞；康熙包办全部治丧费用，从大内取紫砂碗为其做棺材，命皇三子允祉及大臣侍卫往吊，各部院满汉大臣皆往吊祭。</li></ol><h2 class="ck-doc-h2">金句总结</h2><div class="ck-quote">“朕日望大学士病体速愈，在佐朕料理机务几年。若事出意外，大臣中学问人品如大学士可代理内廷事务者为谁？”</div><div class="ck-quote">—— <strong>李正（主讲人）</strong> ｜ 引康熙原话，定调陈廷敬在康熙心中的分量与临终牵挂</div><div class="ck-quote">“自古未有不晓文艺之人可以为民父母者也，有未经考职遂行捐纳者，于选出之时仍行考试，文艺略小者给予录用，否则且令异业听其再试。”</div><div class="ck-quote">—— <strong>李正（主讲人）</strong> ｜ 针对捐纳买官者上岗前须追加考试的主张</div><div class="ck-quote">“我贤与虽折且怨，庸和尚说只要人是对的，事是好的，我陈廷敬即便遭受一点挫折和埋怨，你也是无所谓的。”</div><div class="ck-quote">—— <strong>李正（主讲人）</strong> ｜ 面对官场劝其“和光同尘”时的回应，体现其知世故而不世故</div><div class="ck-quote">“臣自念无他才能报塞万一，唯早夜静静私自淬砺，不寻亲党，不阿友朋，上恐负圣主之殊恩，下欲全微臣之孝节。”</div><div class="ck-quote">—— <strong>李正（主讲人）</strong> ｜ 张谦案受牵连后主动辞官以证清白的上书</div><div class="ck-quote">“苟正其身矣，于从政乎何有？”</div><div class="ck-quote">—— <strong>李正（主讲人）</strong> ｜ 引《论语》总结陈廷敬一生：自身品行端正，治理政事便无困难</div><div class="ck-quote">“一个人只要自身品行端正，那么治理政事就没有什么是困难的。这句话或许是陈廷敬在3岁时就听他妈妈张氏讲过，可陈廷敬帅就帅在他儿时学过的那些道理，直到死他都没有违背过。”</div><div class="ck-quote">—— <strong>李正（主讲人）</strong> ｜ 对陈廷敬一生恪守初心、言行一致的定调总结</div><h2 class="ck-doc-h2">Q&amp;A 环节</h2><p>未提及</p>
+      </div>
+    </div>
+  </main>
+</body>
+</html>

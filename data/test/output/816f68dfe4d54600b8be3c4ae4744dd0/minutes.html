@@ -1,0 +1,610 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>投资理念、研究布局与框架反思汇报会</title>
+  <style>
+
+    body {
+      margin: 0;
+      padding: 14px 12px;
+      background: #f6f5f0;
+      color: #1a1a1a;
+      font-family: "Latin Modern Roman", "Computer Modern Roman", "CMU Serif", "Times New Roman", Times, "Songti SC", "SimSun", "STSong", serif;
+      -webkit-font-smoothing: antialiased;
+    }
+    .page { max-width: 1140px; margin: 0 auto; }
+    .ck-doc {
+      background: #ffffff;
+      border: 1px solid #d4d0c7;
+      border-radius: 4px;
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.05), 0 1px 3px rgba(0,0,0,0.03);
+      padding: 18px 22px;
+      line-height: 1.6;
+      font-size: 0.84rem;      /* 正文基准：左右两栏共用 --ck-fs */
+      --ck-fs: 0.84rem;
+    }
+    .ck-doc h1 {
+      margin: 0 0 6px;
+      font-size: 1.05rem;      /* 文档标题：只比正文略大一点 */
+      font-weight: 700;
+      text-align: center;
+      color: #111111;
+    }
+    .ck-doc-header {
+      margin-bottom: 10px;
+      padding-bottom: 8px;
+      border-bottom: 1px solid #111111;
+      text-align: center;
+    }
+    .ck-doc-meta {
+      font-size: 0.78rem;
+      color: #555555;
+      font-style: italic;
+    }
+    /* 层级标题一律"加粗 + 与右栏同级字号"，不加字号、不加下划线，前后留白压到最小 */
+    .ck-doc-content h1, .ck-doc-content .ck-doc-h1,
+    .ck-doc h2, .ck-doc-h2,
+    .ck-doc h3, .ck-doc-h3,
+    .ck-doc h4, .ck-doc-h4 {
+      font-size: var(--ck-fs);
+      font-weight: 700;
+      color: #111111;
+      border-bottom: 0;
+      padding-bottom: 0;
+      letter-spacing: 0;
+      font-variant: normal;
+      text-align: left;
+    }
+    .ck-doc-content h1, .ck-doc-content .ck-doc-h1, .ck-doc h2, .ck-doc-h2 {
+      margin: 12px 0 4px;
+    }
+    .ck-doc h3, .ck-doc-h3, .ck-doc h4, .ck-doc-h4 {
+      margin: 9px 0 3px;
+    }
+    .ck-doc p {
+      margin: 5px 0;
+      line-height: 1.6;
+      text-align: justify;
+    }
+    .ck-doc ul, .ck-doc ol {
+      margin: 4px 0 6px;
+      padding-left: 1.25em;
+      line-height: 1.6;
+    }
+    .ck-doc li {
+      margin: 2px 0;
+    }
+    .ck-doc blockquote, .ck-quote {
+      margin: 6px 0 8px;
+      padding: 5px 10px;
+      background: #faf9f6;
+      border-left: 3px solid #222222;
+      border-radius: 2px;
+      color: #222222;
+      font-size: var(--ck-fs);
+      font-style: italic;
+    }
+    .ck-doc code {
+      background: #f3f0e8;
+      border: 1px solid #e2ddd3;
+      border-radius: 3px;
+      padding: 1px 6px;
+      font-family: "Latin Modern Mono", Consolas, monospace;
+      font-size: 0.88em;
+    }
+    .ck-doc table, .ck-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: var(--ck-fs);
+      margin: 8px 0;
+      background: #ffffff;
+      border-top: 2px solid #222222;
+      border-bottom: 2px solid #222222;
+    }
+    .ck-doc table th, .ck-doc table td, .ck-table th, .ck-table td {
+      padding: 5px 8px;
+      text-align: left;
+      vertical-align: middle;
+      border-bottom: 1px solid #ede9e1;
+    }
+    .ck-doc table th, .ck-table th {
+      background: #fbfaf7;
+      border-bottom: 1.2px solid #222222;
+      font-weight: 700;
+      color: #111111;
+      letter-spacing: 0.3px;
+    }
+
+    /* Roomy & Spacious Academic Risk Table */
+    .ck-risk-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 18px 0 28px;
+      background: #ffffff;
+      border-top: 2.2px solid #111111;
+      border-bottom: 2.2px solid #111111;
+      font-size: 0.93rem;
+      line-height: 1.72;
+    }
+    .ck-risk-table th {
+      background: #faf8f5;
+      border-bottom: 1.5px solid #111111;
+      padding: 15px 16px;
+      font-weight: 700;
+      color: #111111;
+      letter-spacing: 0.3px;
+      text-align: left;
+      vertical-align: middle;
+    }
+    .ck-risk-table td {
+      padding: 16px 16px;
+      border-bottom: 1px solid #ede8e0;
+      vertical-align: top;
+      color: #1a1a1a;
+      word-break: break-word;
+    }
+    .ck-risk-table tr:nth-child(even) td {
+      background: #fdfcfb;
+    }
+    .ck-risk-table tr:hover td {
+      background: #f6f3eb;
+    }
+
+    /* Review Grid */
+    .ck-review {
+      display: grid;
+      grid-template-columns: minmax(0, 1.35fr) 1px minmax(260px, 0.95fr);
+      border: 1px solid #d4d0c7;
+      border-radius: 4px;
+      overflow: hidden;
+      margin: 8px 0 10px;
+      background: #ffffff;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.03);
+    }
+    .ck-review-left {
+      padding: 14px 16px;
+      background: #ffffff;
+      line-height: 1.6;
+      font-size: var(--ck-fs);
+    }
+    .ck-review-rule { background: #dcd8cf; }
+    .ck-review-right {
+      padding: 12px 14px;
+      background: #faf9f6;
+      box-sizing: border-box;
+      display: flex;
+      flex-direction: column;
+    }
+    .ck-ev-list {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    /* Entity Highlight in LaTeX Paper Style */
+    .ck-cite-entity {
+      background: #fff8db;
+      border-bottom: 1.5px solid #b86a04;
+      padding: 1px 4px;
+      border-radius: 2px;
+      cursor: pointer;
+      transition: all 0.18s ease;
+      color: #111111;
+      font-weight: 600;
+    }
+    .ck-cite-entity:hover {
+      background: #ffe58f;
+      color: #000000;
+    }
+    .ck-cite-entity.is-on {
+      background: #ffd54a;
+      border-bottom-color: #0047ab;
+      box-shadow: 0 0 0 2px rgba(0,71,171,0.25);
+    }
+
+    /* Blue Hyperref Citations [1], [2] */
+    .ck-cite-ref {
+      color: #0047ab;
+      font-weight: 600;
+      font-family: "Latin Modern Roman", "Computer Modern Roman", "Times New Roman", serif;
+      text-decoration: none;
+      cursor: pointer;
+      padding: 0 2px;
+      margin: 0 2px;
+      border-radius: 2px;
+      transition: all 0.15s ease;
+      font-size: 0.92em;
+      vertical-align: baseline;
+      user-select: none;
+    }
+    .ck-cite-ref:hover {
+      text-decoration: underline;
+      background: #e8f0fe;
+      color: #003380;
+    }
+    .ck-cite-ref.is-active {
+      background: #d2e3fc;
+      color: #002266;
+      font-weight: 700;
+      box-shadow: 0 0 0 1px #0047ab;
+    }
+
+    /* Right Memory Cards in LaTeX Paper Style */
+    .ck-provenance-head {
+      font-size: 0.82rem;
+      font-weight: 700;
+      color: #222222;
+      margin: 0 0 12px;
+      padding-bottom: 6px;
+      border-bottom: 1px solid #e0dcd4;
+      letter-spacing: 0.3px;
+      text-transform: uppercase;
+    }
+    .ck-ref-icon { color: #0047ab; margin-right: 4px; }
+    .ck-ev {
+      display: block;
+      margin: 0;
+      padding: 10px 12px;
+      border: 1px solid #dedad2;
+      border-left: 3.5px solid #0047ab;
+      border-radius: 2px;
+      background: #ffffff;
+      font-size: 0.82rem;
+      line-height: 1.55;
+      transition: all 0.2s ease;
+      cursor: pointer;
+    }
+    .ck-ev:hover { border-color: #b5b0a5; }
+    .ck-ev.is-on, .ck-ev.is-highlighted {
+      border-color: #0047ab;
+      box-shadow: 0 0 0 2px #0047ab, 0 3px 8px rgba(0,71,171,0.15);
+      background: #f0f5ff;
+    }
+    @keyframes citePulse {
+      0% { background: #dbeafe; box-shadow: 0 0 0 3px #0047ab; }
+      50% { background: #bfdbfe; box-shadow: 0 0 0 4px #0047ab; }
+      100% { background: #f0f5ff; box-shadow: 0 0 0 2px #0047ab; }
+    }
+    .ck-ev-k {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 0.75rem;
+      color: #444444;
+      margin-bottom: 5px;
+      font-weight: 700;
+    }
+    .ck-ev-cite-tag {
+      color: #0047ab;
+      font-weight: 700;
+      font-family: "Latin Modern Roman", serif;
+      text-decoration: none;
+    }
+    .ck-ev-kind-badge {
+      display: inline-block;
+      padding: 1px 6px;
+      border-radius: 2px;
+      font-size: 0.72rem;
+      font-weight: 600;
+      letter-spacing: 0.2px;
+    }
+    .ck-badge-keypoint {
+      border: 1px solid #0047ab;
+      color: #0047ab;
+      background: #f0f5ff;
+    }
+    .ck-badge-note {
+      border: 1px solid #b86a04;
+      color: #b86a04;
+      background: #fff8eb;
+    }
+    .ck-mem-title {
+      font-weight: 700;
+      color: #111111;
+      font-size: var(--ck-fs);
+      margin-bottom: 4px;
+      line-height: 1.5;
+    }
+    .ck-ev-quote {
+      color: #222222;
+      font-style: normal;
+      font-family: inherit;
+      margin: 4px 0 6px;
+      padding: 0;
+      background: transparent;
+      border: none;
+      line-height: 1.6;
+      font-size: var(--ck-fs);
+    }
+    .ck-ev-meta { font-size: 0.76rem; color: #666666; margin-top: 4px; }
+    .ck-ev-more {
+      margin-top: 2px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+    .ck-ev-more[open] { margin-top: 4px; }
+    .ck-ev-more summary { margin-bottom: 6px; }
+    .ck-proof-toggle {
+      cursor: pointer;
+      font-size: 0.82rem;
+      color: #0047ab;
+      user-select: none;
+      font-family: inherit;
+      padding: 2px 0;
+    }
+    .ck-proof-toggle:hover { text-decoration: underline; }
+    /* 右栏下段"状态演进"：无行内锚点，与上方证据卡视觉区分（灰底 + 徽章，无 [n]） */
+    .ck-ledger {
+      margin-top: 10px;
+      padding-top: 8px;
+      border-top: 1px dashed #d4d0c7;
+    }
+    .ck-ledger > summary { list-style: none; }
+    .ck-ledger > summary::-webkit-details-marker { display: none; }
+    .ck-ledger > summary::after { content: " ▾"; }
+    .ck-ledger:not([open]) > summary::after { content: " ▸"; }
+    /* 每类一张小灰卡：卡头类别 + 条数，卡内按 1. 2. 3. 编号 */
+    .ck-ledger-card {
+      background: #faf9f5;
+      border: 1px solid #e6e2d8;
+      border-left: 3px solid #bdb6a6;
+      border-radius: 4px;
+      padding: 7px 9px;
+      margin-bottom: 6px;
+    }
+    .ck-ledger-k {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 6px;
+      font-size: 0.72rem;
+      margin-bottom: 5px;
+    }
+    .ck-ledger-badge {
+      background: #efece4;
+      color: #6b6559;
+      border-radius: 3px;
+      padding: 1px 6px;
+      font-weight: 600;
+    }
+    .ck-ledger-count { color: #8a8578; }
+    .ck-ledger-list {
+      margin: 0;
+      padding-left: 1.35em;
+      font-size: var(--ck-fs);
+      line-height: 1.6;
+      color: #3b3a37;
+    }
+    .ck-ledger-list > li { margin: 2px 0; }
+    /* Personal Perspective Interactive Task Lists & Semantic Blocks */
+    .ck-self-block {
+      background: #f4f8fe;
+      border: 1px solid #d4e2f5;
+      border-left: 3.5px solid #0047ab;
+      border-radius: 4px;
+      padding: 9px 13px;
+      margin: 10px 0 12px;
+    }
+    .ck-self-title {
+      margin: 0 0 6px;
+      color: #003380;
+      font-weight: 700;
+      font-size: var(--ck-fs);
+      display: flex;
+      align-items: center;
+      gap: 5px;
+    }
+    .ck-self-badge {
+      display: inline-block;
+      background: #0047ab;
+      color: #ffffff;
+      font-size: 0.68rem;
+      padding: 1px 5px;
+      border-radius: 2px;
+      font-weight: 600;
+      letter-spacing: 0.2px;
+      margin-left: 4px;
+    }
+
+    .ck-dep-block {
+      background: #fefcf7;
+      border: 1px solid #f2e7cc;
+      border-left: 3.5px solid #b86a04;
+      border-radius: 4px;
+      padding: 9px 13px;
+      margin: 10px 0 12px;
+    }
+    .ck-dep-title {
+      margin: 0 0 6px;
+      color: #7a4502;
+      font-weight: 700;
+      font-size: var(--ck-fs);
+      display: flex;
+      align-items: center;
+      gap: 5px;
+    }
+    .ck-dep-badge {
+      display: inline-block;
+      background: #b86a04;
+      color: #ffffff;
+      font-size: 0.68rem;
+      padding: 1px 5px;
+      border-radius: 2px;
+      font-weight: 600;
+      letter-spacing: 0.2px;
+      margin-left: 4px;
+    }
+
+    .ck-risk-block {
+      background: #fff8f8;
+      border: 1px solid #fedcdc;
+      border-left: 3.5px solid #cf222e;
+      border-radius: 4px;
+      padding: 9px 13px;
+      margin: 10px 0 12px;
+    }
+    .ck-risk-title {
+      margin: 0 0 6px;
+      color: #a40e26;
+      font-weight: 700;
+      font-size: var(--ck-fs);
+      display: flex;
+      align-items: center;
+      gap: 5px;
+    }
+    .ck-risk-badge {
+      display: inline-block;
+      background: #cf222e;
+      color: #ffffff;
+      font-size: 0.68rem;
+      padding: 1px 5px;
+      border-radius: 2px;
+      font-weight: 600;
+      letter-spacing: 0.2px;
+      margin-left: 4px;
+    }
+
+    .ck-self-block ul, .ck-self-block ol,
+    .ck-dep-block ul, .ck-dep-block ol,
+    .ck-risk-block ul, .ck-risk-block ol {
+      margin: 2px 0 2px;
+      padding-left: 1.25em;
+    }
+    .ck-self-block li, .ck-dep-block li, .ck-risk-block li {
+      margin: 2px 0;
+      color: #1a1a1a;
+    }
+
+    /* Person Group Heading */
+    .ck-person-group {
+      margin: 8px 0 3px;
+      font-weight: 700;
+      color: #111111;
+    }
+
+    /* GFM Task List Checkboxes */
+    .ck-task-list {
+      list-style: none;
+      padding-left: 0 !important;
+      margin: 4px 0 6px !important;
+    }
+    .ck-task-item {
+      display: flex;
+      align-items: flex-start;
+      margin: 4px 0;
+      line-height: 1.6;
+    }
+    .ck-task-label {
+      display: inline-flex;
+      align-items: flex-start;
+      gap: 8px;
+      cursor: pointer;
+      width: 100%;
+    }
+    .ck-task-checkbox {
+      margin-top: 4px;
+      cursor: pointer;
+      accent-color: #0047ab;
+      width: 15px;
+      height: 15px;
+      flex-shrink: 0;
+    }
+    .ck-task-checkbox:checked + .ck-task-text {
+      color: #8c8c8c;
+      text-decoration: line-through;
+    }
+    .ck-task-text {
+      flex: 1;
+      color: #1a1a1a;
+    }
+
+    /* Status Badges & Pills */
+    .ck-tag-blocker {
+      display: inline-block;
+      background: #ffebe9;
+      color: #cf222e;
+      border: 1px solid rgba(255, 129, 130, 0.45);
+      font-size: 0.72rem;
+      font-weight: 700;
+      padding: 0 5px;
+      border-radius: 3px;
+      margin-right: 4px;
+      line-height: 1.5;
+      vertical-align: 1px;
+    }
+    .ck-tag-risk {
+      display: inline-block;
+      background: #fff8eb;
+      color: #b86a04;
+      border: 1px solid rgba(212, 167, 44, 0.45);
+      font-size: 0.72rem;
+      font-weight: 700;
+      padding: 0 5px;
+      border-radius: 3px;
+      margin-right: 4px;
+      line-height: 1.5;
+      vertical-align: 1px;
+    }
+    .ck-tag-warn {
+      display: inline-block;
+      background: #f0f4ff;
+      color: #0969da;
+      border: 1px solid rgba(84, 174, 255, 0.45);
+      font-size: 0.72rem;
+      font-weight: 700;
+      padding: 0 5px;
+      border-radius: 3px;
+      margin-right: 4px;
+      line-height: 1.5;
+      vertical-align: 1px;
+    }
+    .ck-tag-dep {
+      display: inline-block;
+      background: #eff6ff;
+      color: #1d4ed8;
+      border: 1px solid #bfdbfe;
+      font-size: 0.72rem;
+      font-weight: 600;
+      padding: 0 5px;
+      border-radius: 3px;
+      margin-right: 4px;
+      line-height: 1.5;
+      vertical-align: 1px;
+    }
+    .ck-param-capsule {
+      display: inline-block;
+      font-size: 0.82rem;
+      color: #57606a;
+      background: #f6f8fa;
+      border: 1px solid #eaeef2;
+      padding: 0 6px;
+      border-radius: 10px;
+      margin-left: 4px;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      letter-spacing: 0.2px;
+    }
+
+    @media(max-width: 860px) {
+      .ck-doc { padding: 22px 18px; }
+      .ck-review { grid-template-columns: 1fr; }
+      .ck-review-rule { display: none; }
+    }
+
+  </style>
+</head>
+<body>
+  <main class="page">
+    <div class="ck-doc">
+      <header class="ck-doc-header">
+        <h1>投资理念、研究布局与框架反思汇报会</h1>
+      </header>
+      <div class="ck-doc-content">
+        <h2 class="ck-doc-h2">讲座概况</h2><p>肖楠（基金经理）面向机构投资者作投资理念与框架汇报，主题为过去一年的研究布局、投资框架的反思与更新，形式为线上路演并含客户问答环节。讲座开宗明义区分知识与信息的鸿沟，强调投资者应关注基金经理的研究积累、看问题角度与框架演进，而非具体买卖标的。汇报围绕三部分展开：一是明确反对市场上流行的“抱团”与“均值回归”两种观点；二是介绍互联网、财富管理、新消费、高端制造四个重点研究布局方向；三是分享对投资框架的五点反思，涉及商业模式分类、熵增视角、终局判断、长期变量、深度价值与X factor。核心主张包括：收益率呈幂律分布而非正态分布，美国股市200年价值增量由4%的公司贡献，投资核心在于找到摆脱均值回归的长线超级大牛股；定义不本质会导致研究误入歧途；长期变量（如国运、文化背景）可能解释相当部分收益率来源，需保持谦卑。对听众而言，本次汇报旨在帮助投资者理解基金经理的理念框架是否在持续升级、研究是否逐年加深加宽，并以言行一致作为检验依据。</p><h2 class="ck-doc-h2">核心观点与论证</h2><h3 class="ck-doc-h3">知识与信息的鸿沟</h3><ol><li value="1"><strong>知识≠信息</strong>：肖楠认为，投资者听到“我看好某板块”这类答案，对他而言是基于研究框架的<code>knowledge</code>，而听众得到的只是一条“肖楠看好某某”的<code>信息</code>，两者之间存在巨大鸿沟。</li><li value="2"><strong>观点会随知识更新而变</strong>：肖楠举例，他今天看好某板块，明天可能因新知识增加而修正判断；而投资者可能要等一年甚至更久才知道观点已变，因此“What happen next”式问题对听众用处不大。</li></ol><h3 class="ck-doc-h3">研究问题的分类框架</h3><ol><li value="1"><strong>四类问题划分</strong>：肖楠基于自身研究框架，将问题分为重要/不重要、可研究/难以研究四个象限，并强调该表仅针对其个人，不同投资者（如基于宏观变量做资产配置者）关心的象限不同。</li><li value="2"><strong>真正关心的问题</strong>：肖楠表示，其关心的是标的基本面是否变化、投资逻辑有无更新、对标的认知是否更深入领先，以及自身投资框架有无值得修正之处——这些是可被研究的“富矿”。</li></ol><h3 class="ck-doc-h3">反对“抱团”观点</h3><ol><li value="1"><strong>定义不本质</strong>：肖楠认为“抱团”是对现象的描述而非本质定义，如同给“一叫太阳就出来”的动物取名“光明使者”——若定义不本质，会导致研究误入歧途。</li><li value="2"><strong>主观上不可能抱团</strong>：基金经理之间是竞争关系，主观上无抱团意愿；肖楠举例，不可能出现“打电话给嘉实基金王经理商量一起买股票”的情形，大家都想买与别人不同的标的并获得市场认可。</li><li value="3"><strong>同公司买入不叫抱团</strong>：研究员推荐股票、多位基金经理认可后买入，是正常流程；肖楠反问，若这算抱团，是否要“抽取三位幸运基金经理”限制买入？这显然不可能。</li><li value="4"><strong>忽略时间维度</strong>：肖楠指出“抱团”是截面数据，忽略了时间变化——其团队8年前、5年前已买入某些标的，后来大量资金涌入“抱在一起”，拉长时间看，A股和海外股市均有此现象（如当年的五朵金花、眉飞色舞、长牛医药消费）。</li></ol><h3 class="ck-doc-h3">反对“均值回归”</h3><ol><li value="1"><strong>局部正确</strong>：均值回归（跌多了要涨、涨多了要跌）在短期K线图上确实成立，但拉长看无法解释大量长线牛股10年涨10倍、20倍、50倍、100倍的现象。</li><li value="2"><strong>案例：商学院老师的海螺水泥波段</strong>：某商学院老师在投资理论课上教学生做波段，过去10年在海螺水泥上赚了约两三倍；2016或2017年涨一波后卖出等回调，结果该股两年涨了五六倍，老师再也没能买回来。</li><li value="3"><strong>90%正确仍代价惨重</strong>：均值回归90%的时间正确，但10%的错误足以让投资者付出惨重代价。</li><li value="4"><strong>收益率呈幂律分布</strong>：肖楠强调，投资核心是找到摆脱“涨多跌多”局部规律的长线超级牛股；美国股市200年价值增量由4%的公司贡献，若剔除这4%，200年来美股没有上涨。</li></ol><h3 class="ck-doc-h3">四大研究布局方向</h3><ol><li value="1"><strong>互联网</strong>：全球能把互联网做成巨大产业、诞生巨大公司的只有中国和美国；中国短短十几年已迭代三代企业（第一代基于流量如门户网站、第二代基于运营管理如阿里淘宝、第三代基于算法如字节拼多多），未来仍有大机会；港股通开通后，可投资此前无法在A股上市的互联网公司。</li><li value="2"><strong>财富管理</strong>：中国从一穷二白进入小康，人均收入中位数每向前挪5%或10%，因巨大基数效应和收入分布密度效应，会产生巨额剩余财富，有待专业机构管理；行业增速和潜在空间远超想象。</li><li value="3"><strong>新消费</strong>：新消费公司从CEO理念、组织架构、基层执行到生产方式、营销方式，与匮乏年代诞生的传统企业完全不同；随着中国越来越富裕，此类公司会越来越多。</li><li value="4"><strong>高端制造</strong>：中国是全球几乎唯一拥有全产业链的国家；在众多制造业细分领域已“占据主导地位”（客气说法），与10年前“10亿双袜子换台飞机”的认知完全不同；欧美日企业手中的市场份额，从中国视角看已是“碗里的肉”。</li></ol><h3 class="ck-doc-h3">新消费领域的研究认知</h3><ol><li value="1"><strong>产品差异被低估</strong>：外人看两家公司产品差不多（如卖笔、卖电饭锅），但产品经理和CEO眼中，自家产品与竞品存在巨大鸿沟，这种差异在3年、5年、10年维度会被放大。</li><li value="2"><strong>行业格局差异大</strong>：传统消费领域龙头赚钱、龙二龙三也赚钱；新消费领域同一巨大行业可能只有两家公司，一家赚很多钱，另一家完全不挣钱、不知如何挣钱。</li></ol><h3 class="ck-doc-h3">投资框架反思一：商业模式分类不完备</h3><ol><li value="1"><strong>三类商业模式</strong>：肖楠将生意分为<code>坐地收钱</code>（最喜欢买）、<code>苦尽甘来</code>（可买）、<code>燃烧自己照亮别人</code>（不值得买）三类，至今仍相信这一划分。</li><li value="2"><strong>没有一劳永逸的坐地收钱</strong>：此类生意极端稀缺，如爱马仕也会因一个设计师的好坏影响未来5-10年销售；长期看所有企业都会死去，单一维度出发会错失很多机会。</li></ol><h3 class="ck-doc-h3">投资框架反思二：商增角度理解商业模式</h3><ol><li value="1"><strong>商增更本质</strong>：肖楠提出从<code>商增</code>（熵增）角度理解商业模式可能更本质——有些企业从诞生到收入和利润涨100倍，结构无大变化（商增少）；另一些企业扩张中商增剧烈，增到一定程度后科斯定理表明企业已无存在必要。</li><li value="2"><strong>核心问题</strong>：企业成长过程中靠什么吸收熵增，是肖楠团队过去大量讨论的问题。</li></ol><h3 class="ck-doc-h3">投资框架反思三：长期变量与收益率来源</h3><ol><li value="1"><strong>国运等长期变量</strong>：肖楠提问“为什么日本、德国、越南没有巴菲特、索罗斯”，认为美国诞生投资大师有其特殊背景；中国和平稳定高速发展30-40年是隐藏的巨大变量，可部分称作“国运”。</li><li value="2"><strong>茅台案例</strong>：过去买茅台赚钱的人写的回忆录中，有人因便宜、有人因产品好、有人因商业模式好，但这些逻辑加在一起无法解释茅台过去10-20年巨大涨幅——可能有一个更大的长期变量（宏观经济背景、文化背景、品牌背景）在起作用。</li><li value="3"><strong>奢侈品案例</strong>：LV、爱马仕讲“祖上给皇上当马夫、给娘娘当皮匠”的故事，但给的是英国、法国等老牌资本主义国家的皇室——因这些国家军舰当年横扫世界，其文化是强势文化。</li><li value="4"><strong>白酒出海逻辑</strong>：30年前洋酒刚进入中国时，中国土豪因难喝兑雪碧喝，但因洋酒代表强势文化仍要喝；若未来中国国力强盛，可讲“纯粮固态发酵才是好酒”的故事——当中国航母在别国十二海里外演习时，这个故事就讲得通。</li><li value="5"><strong>结论</strong>：穷尽智慧与精力探究收益率来源，往往仍忽略巨大长期变量；应对市场保持谦卑，同时保持大胆想象，将十年维度起作用的隐性长期变量纳入研究。</li></ol><h3 class="ck-doc-h3">投资框架反思四：深度价值可能长期无效</h3><ol><li value="1"><strong>深度价值只是结果</strong>：肖楠认为深度价值（公司特别便宜）只是结果，若导致深度价值的原因不变，最好的结果也就是“不输”。</li><li value="2"><strong>实践教训</strong>：去年投了一些认为是深度价值的标的，结果非常差，对团队产生很大启发和刺激；肖楠对“深度价值是否长期无效”打了问号，未得结论。</li></ol><h3 class="ck-doc-h3">投资框架反思五：X factor与增长曲线</h3><ol><li value="1"><strong>线性假设的局限</strong>：DCF、DDM等经典模型均为线性假设（增长率12%、13%、14%的区别），但拉长10年视角，企业发展是一条曲线而非直线。</li><li value="2"><strong>X factor定义</strong>：<code>X factor</code>指驱动企业增长且不被线性描述的因子，经典投资模型无法定价，但长期起作用的正是这些因素；肖楠强调，即使无法有效定价，也必须承认其存在。</li><li value="3"><strong>案例：顺丰与美的</strong>：疫情时只有顺丰能送快递，一下子把竞争对手甩开；家电领域格力一直是老大，美的做渠道扁平化、T+3长期未见成果，疫情一来占有率哗一下超过格力——曲率拐点就拐在那一下子。</li><li value="4"><strong>第二、第三增长曲线</strong>：5年前、10年前大家说某些企业产品渗透率、利润率已很高，但今天看当年说的都没实现，企业长出了第二、第三增长曲线——这就是有X factor的企业。</li></ol><h3 class="ck-doc-h3">投资框架反思六：错过中期机会的教训</h3><ol><li value="1"><strong>错过十几倍涨幅</strong>：某企业产品跨代领先竞争对手，肖楠团队判断这种领先不能长期保持、行业格局会变差、ROE会剧烈下降——判断对了，但该企业后来涨了十几倍，中间过程完全错过。</li><li value="2"><strong>反思结论</strong>：在坚持终局判断重要性的基础上，也要争取研究格局演进的阶段性特征，通过紧密跟踪认知快速迭代、识别里程碑式事件来提高胜率，在中期时间内获得好的投资回报。</li></ol><h2 class="ck-doc-h2">金句总结</h2><div class="ck-quote">“知识和信息之间是有着巨大的鸿沟的。”</div><div class="ck-quote">—— <strong>肖楠(主讲人)</strong> ｜ 针对投资者为何不应追逐“What happen next”式研判的定调发言</div><div class="ck-quote">“务实还是务虚，其实没有高下之分的。做好的都是大师，做不好都是东施效颦。”</div><div class="ck-quote">—— <strong>肖楠(主讲人)</strong> ｜ 针对巴菲特式务实派与索罗斯式务虚派两种投资流派的定调发言</div><div class="ck-quote">“均值回归这个事情，90%的时间都正确，那10%的错误依然让你代价惨重。”</div><div class="ck-quote">—— <strong>肖楠(主讲人)</strong> ｜ 针对反对均值回归、强调收益率呈幂律分布的定调发言</div><div class="ck-quote">“200年以来，美国股市的价值增量，是由4%的公司贡献的。”</div><div class="ck-quote">—— <strong>肖楠(主讲人)</strong> ｜ 针对长线牛股贡献绝大部分收益率的定调发言</div><div class="ck-quote">“长期看所有的企业都要死去，我们不能够抱着说我们要买一个千秋万代的这种企业。”</div><div class="ck-quote">—— <strong>肖楠(主讲人)</strong> ｜ 针对反思“坐地收钱”商业模式分类不完备性的定调发言</div><div class="ck-quote">“我们尽管穷尽了我们所有的智慧、所有的精力去力求探究我们的这个收益率的来源，往往依然是忽略了一个巨大的变量在后面起作用。”</div><div class="ck-quote">—— <strong>肖楠(主讲人)</strong> ｜ 针对长期变量（国运、文化背景等）解释收益率来源的定调发言</div><div class="ck-quote">“驱动企业增长且不被线性描述的因子，我们即使是没有办法去有效定价，我们也一定要承认它的存在。”</div><div class="ck-quote">—— <strong>肖楠(主讲人)</strong> ｜ 针对提出X factor概念、反思经典投资模型线性假设的定调发言</div><div class="ck-quote">“我们一定要把底线的风险搞好。……避免因为你对这个企业家的认可去犯投资上的错误。”</div><div class="ck-quote">—— <strong>肖楠(主讲人)</strong> ｜ 针对谨慎评价企业家精神、避免错误归因的定调发言</div><h2 class="ck-doc-h2">Q&amp;A 环节</h2><h3 class="ck-doc-h3">Q1. 中期投资机会与终局判断的平衡</h3><ul><li><strong>听众</strong>：您刚刚讲到在重视终局结果的过程中，也更加关注格局演进中的阶段性特征和中期投资机会，请问能再详细描述一下吗？</li></ul><div class="ck-quote"><strong>主讲人</strong>：这个想法最早来自我们过去错过的一些特别大的机会。我们当时判断某些行业的终局可能不大行，而最打脸的是我们明明判断对了，却在两三年的时间里深深错过了十几倍的涨幅。复盘时发现，这类企业有一些重要特征是我们当时忽略的——比如某一代产品当时领先，后来确实如我们所料被人追上，但这个企业却做出了第二增长曲线，而且第二增长曲线的壁垒比第一增长曲线还要深、还要厚。这让我们非常惊讶。所以在后来的投资中，我们开始承认终局可能没有那么强、不会像一劳永逸躺着收钱那么强，但在这个前提下依然能够做出好的投资。具体标的不太方便说，但确实有一两个标的给我们带来极大的刺激。</div><h3 class="ck-doc-h3">Q2. 伟大公司的判断标准</h3><ul><li><strong>听众</strong>：您在年报中也讲到坚定持有优秀乃至伟大的公司，请问对优秀乃至伟大公司的判断标准，有没有一些具体的财务指标？</li></ul><div class="ck-quote"><strong>主讲人</strong>：伟大公司是在财务指标里面看不出来的。我举一个例子，不能说具体企业：A企业和B企业同属一个大行业但不同细分子行业，投资逻辑很像，都是在自己领域把成本做到行业最低，市场份额稳固且不断提高。但有一点不一样——B公司不怎么研发，靠管理上精益求精，业内企业络绎不绝来学习但学不会；A公司每年有非常高额的研发支出，关键技术指标以非常强的速度迭代，而且很多研发项目是特别前沿的方向，这些方向的技术目前掌握在德国人、日本人手里。有意思的是这两家都是国企，A公司在发展初期被德国人、日本人狠狠坑过，从董事长到技术骨干都有强烈的产业报国、技术报国理想，从跟着学、越做越强、超越对手、对手来学，到做全产业链布局——这种企业堪称伟大。我们过去能看到非常多这样的企业，中国人一点点往前拱，这些人不是想今年赚三五个亿，而是一门心思往前做。</div><h3 class="ck-doc-h3">Q3. 全市场基金的选股逻辑</h3><ul><li><strong>听众</strong>：我们是全市场基金，能否介绍一下这个产品的投资逻辑？对于消费以外的行业选股，主要基于什么逻辑？</li></ul><div class="ck-quote"><strong>主讲人</strong>：我们很难分消费内消费外，选股逻辑都是一样的，都是以前讲过的"不可能三角"、企业三阶段、三种商业模式那一类。只不过消费行业基金只许买消费，所以肯定在消费行业里面选。两个的选股逻辑完全一样，没有什么区别。</div><h3 class="ck-doc-h3">Q4. 血制品行业的竞争壁垒</h3><ul><li><strong>听众</strong>：您怎么看待血制品行业的竞争壁垒？</li></ul><div class="ck-quote"><strong>主讲人</strong>：血制品行业我们初步研究过，觉得壁垒不是特别强，不是我们想要的那种强壁垒。这个就不展开了，因为我们的研究不是特别多。我们也找了一堆强壁垒的公司，相比之下买了另外一些。</div><h3 class="ck-doc-h3">Q5. 农林牧渔行业的配置提升</h3><ul><li><strong>听众</strong>：农林牧渔行业持仓有所提升，请问您对这个行业的观点？</li></ul><div class="ck-quote"><strong>主讲人</strong>：这行业太大了。农林牧渔行业的提升是因为牧原股份，就那一只股票。不是我先看好农林牧渔行业再去选牧原股份，就是牧原股份的比例提高了，就这么简单。具体股票的投资逻辑不能在公开场合讲。</div><h3 class="ck-doc-h3">Q6. 生意模式中的商增与商减分析</h3><ul><li><strong>听众</strong>：您能再具体讲一下生意模式里边商增和商减的分析吗？</li></ul><div class="ck-quote"><strong>主讲人</strong>：用直白的话讲，你们都是企业里的打工人，可以深切感受到：企业从小到大，部门越来越多，以前三五个部门现在十几个，中层干部一大堆，传达效率变低，内部腐败开始出现。企业为了解决这些问题要设巡视检查部门，又多一个部门，部门里的人干三五年要加工资提级别。企业要扩张，往下游做或往上游做，又多一项业务、多一个副总裁、多很多部门。你会发现有些生意收入10个亿跟100个亿时没多几个部门，有些企业不需要设那么多高管就把生意做成了。从商增角度讲，有些企业是商增把自己拖死的。比如有些行业剩两家大厂，一家效率特别高，另一家山头林立、互相推诿、腐败丛生——后者从一开始就没考虑好企业大了以后商增怎么处理。而另一家基本是高度中央集权，CEO有非常强大的情报部门，知道每件重要事情细入基层是怎么回事。我特别建议大家去读一读党史，看看这个组织怎么从国民革命时期一直走到现在还能保持活力，这是非常厉害的事情。有些国家也是被商增拖死的，一条铁路修几十年这种事在很多国家都会发生。</div><h3 class="ck-doc-h3">Q7. 伟大企业的增长曲线</h3><ul><li><strong>听众</strong>：您讲到伟大企业的增长曲线，能否再具体讲一下？</li></ul><div class="ck-quote"><strong>主讲人</strong>：有些企业你每年看都是线性的，今年增长20、明年15、后年17.5，但站到10年周期看，它跟竞争对手之间拉开了极大差距。举个例子：疫情的时候只有顺丰能送，没有疫情你看不出来，一下子顺丰的业绩和估值把竞争对手甩出一大截。家电领域也是，格力一直是老大，美的做渠道扁平化、T+3，一直没看到成果，突然疫情来了，美的占有率哗一下就上去了，超过格力。当一些企业在埋头做事、还没体现到报表的时候，我们往往忽略这些事情未来可能产生的重大影响。这些伟大的企业都是在一些特别特殊的时候拐上去的——平时走在路上大家都好好的，突然来一场雨，发现有一个人带伞了，别人都淋成落汤鸡，就他家有伞。</div><h3 class="ck-doc-h3">Q8. 财富管理行业的投资逻辑与机会</h3><ul><li><strong>听众</strong>：您讲到财富管理行业，能否对这个行业具体展开，讲一下投资逻辑和投资机会？</li></ul><div class="ck-quote"><strong>主讲人</strong>：财富管理行业这个话题特别大，而且行业是分层的——顶级富豪、普通中产阶级、中低收入人员的财富管理怎么做，都有不同的公司和商业模式。我们最早是研究保险时发现一些有意思的事：某些保险公司一个保险员一单能签七八千的首期保费，有些公司平均只有两三千，差距巨大。我们调研后发现，同样是卖保险，背后的结构设置、激励机制、文化差异超级大。去年发基金时也发现，有些渠道经理过来调研问的问题超级专业，有些永远问下半年是涨是跌。财富管理行业最大的逻辑在于财富分布超级不均匀，会导致头部的公司一口气拿掉行业增量的绝大部分，而第二名只能拿到剩下20%的80%。在这种特别偏激、幂律分布的行业里，有可能诞生特别大的企业。但很遗憾，我们有一些产品因为监管和法律规则的原因反而不能投类似标的，未来合同设置更清晰时，可能会在这方面有所体现。</div><h3 class="ck-doc-h3">Q9. 企业家精神的观察心得</h3><ul><li><strong>听众</strong>：您讲到第二、第三增长曲线需要卓越的企业家精神，企业家精神应该是投资中比较艺术的部分，请问您在观察这个指标方面有什么心得和把握？</li></ul><div class="ck-quote"><strong>主讲人</strong>：第一，评判这个因素要特别小心谨慎，不要乱归因。不要因为一个企业经营成功就说企业家特别厉害，就像不要因为一个基金经理业绩好就说他特别厉害一样。一定要把所有能归因到数据里、客观指标里的因素全部归因完，再特别谨慎地评价一些比较虚的因素。第二，不要轻易给这些因素定价，绝对不要说因为企业家在，所以公司就能值多少。我始终强调的是避免错误归因，避免因为对企业家认可而犯投资上的错误，一定要把底线的风险搞好。我们一致同意这个东西不可被定价。这些代表曲率的因素、技术进步、企业家精神，什么时候考虑？在所有客观归因尽量穷尽以后再说。另外，只能在有限范围内做两两比较——两个公司做同样生意、同样产品，在这种限定条件下比较两个企业家的水平高低、理念先后，去找你认可的那一家，不要跨行业、跨业务、跨产品去比较。不要什么事情都归结到企业家身上，一定要谨慎使用所谓企业家精神、伟大企业这些词，只在特别极端的时候，它可能是你某些信仰上的支持，但尽量不要去用。</div>
+      </div>
+    </div>
+  </main>
+</body>
+</html>
