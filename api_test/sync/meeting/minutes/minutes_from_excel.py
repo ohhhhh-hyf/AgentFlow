@@ -44,9 +44,9 @@ DEFAULT_SHEET = ""  # 空 = 第一个 sheet
 
 
 def repo_root() -> Path:
-    """向上找含模板目录 template_v2 的目录作为仓库根。"""
+    """向上找含模板目录 template 的目录作为仓库根。"""
     for parent in Path(__file__).resolve().parents:
-        if (parent / "template_v2").is_dir():
+        if (parent / "template").is_dir():
             return parent
     return Path.cwd()
 

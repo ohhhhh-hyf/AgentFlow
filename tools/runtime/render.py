@@ -293,7 +293,7 @@ async def produce_line(
                                     line_name,
                                 )
                                 continue
-                        elif lo_i and han < int(lo_i * 0.85):
+                        elif lo_i and han < int(lo_i * 0.85) and _doc_han(state) >= 5000:
                             try:
                                 expanded = await _render_run(
                                     render,
@@ -343,7 +343,7 @@ async def produce_line(
             if span and _body_han_count:
                 lo_i, hi_i = int(span[0]), int(span[1])
                 han = _body_han_count(full_text)
-                if lo_i and han < int(lo_i * 0.85):
+                if lo_i and han < int(lo_i * 0.85) and _doc_han(state) >= 5000:
                     try:
                         expanded = await _render_run(
                             render,

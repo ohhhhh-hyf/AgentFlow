@@ -1028,7 +1028,8 @@ async def fill_placeholder_by_columns(
     system 里没有领域渲染提示词，取舍只能从这里进；为空则过去的行为一字不变。
     """
     scalars = list(plan.get("scalars") or [])
-    if not scalars or plan.get("row_templates"):
+    row_templates = list(plan.get("row_templates") or [])
+    if not scalars:
         return None
     if getattr(client, "stream_text", None) is None:
         return None
@@ -1041,6 +1042,44 @@ async def fill_placeholder_by_columns(
     titles = _scalar_titles(template)
     if len(titles) != len(scalars):  # 结构对不上就不冒进，回退整篇
         return None
+
+    async def extract_tables() -> list[list[list[str]]]:
+        if not row_templates:
+            return []
+        lines = [
+            "你只从【内容来源】中提取指定表格的数据行，只输出 JSON 对象：`{\"tables\": [[[列1, 列2, ...], ...]]}`。",
+            "严禁输出任何多余解释，表格按如下模板结构提取：",
+        ]
+        for ti, rt in enumerate(row_templates):
+            limit = _row_limit_for_template(rt)
+            suffix = f"（最多 {limit} 行）" if limit else ""
+            lines.append(f"- tables[{ti}] 行样例{suffix}：{rt['line'].rstrip()}")
+            for col_i, seg in enumerate(rt["fields"], start=1):
+                lines.append(f"  - 列{col_i}（{seg['hint']}）")
+        lines.extend([
+            "",
+            "遵守模板要求，各当事方/立场方各占一行，原文明示的人名/机构/诉求照原文写全。",
+            "【内容来源】",
+            context,
+        ])
+        user_msg = "\n".join(lines)
+        try:
+            raw = await _client_text(
+                client,
+                "你只输出 JSON 格式的表格数据，严格满足 JSON 语法，不要任何多余字符。",
+                user_msg,
+                json_mode=True,
+                temperature=0.0,
+                max_tokens=2000,
+                label="template/fill_tables",
+            )
+            _, _, tbls = parse_fill_response(raw)
+            while len(tbls) < len(row_templates):
+                tbls.append([])
+            return normalize_fill_tables(tbls, row_templates)
+        except Exception:
+            logger.warning("column fill extract_tables failed", exc_info=True)
+            return []
 
     async def write(index: int, revision: str = "") -> str:
         """写第 index 栏（0 基）：一次正常 + 一次整改重试。
@@ -1099,9 +1138,18 @@ async def fill_placeholder_by_columns(
             )
         return ""
 
-    values = list(await asyncio.gather(*(write(i) for i in range(len(scalars)))))
+    table_task = extract_tables() if row_templates else None
+    scalar_tasks = [write(i) for i in range(len(scalars))]
+    if table_task is not None:
+        all_results = await asyncio.gather(*scalar_tasks, table_task)
+        values = list(all_results[:len(scalars)])
+        tables = list(all_results[len(scalars)])
+    else:
+        values = list(await asyncio.gather(*scalar_tasks))
+        tables = []
+
     assembled = assemble_placeholder_output(
-        template, {str(i + 1): v for i, v in enumerate(values)}, tables=[]
+        template, {str(i + 1): v for i, v in enumerate(values)}, tables=tables
     )
     assembled = strip_char_budget_meta(strip_outer_markdown_fence(assembled))
     gate = gate_render_output(template, assembled)
@@ -1138,7 +1186,7 @@ async def fill_placeholder_by_columns(
             "column fill 重写后仍有超长条目（保留）：%s", [titles[i] or i for i in still]
         )
     assembled = assemble_placeholder_output(
-        template, {str(i + 1): v for i, v in enumerate(values)}, tables=[]
+        template, {str(i + 1): v for i, v in enumerate(values)}, tables=tables
     )
     gate = gate_render_output(template, assembled)
     if gate.get("gate_ok") or not gate.get("hard_issues"):
@@ -1160,8 +1208,8 @@ async def fill_placeholder_template(
     代码只做通用结构拼装与校验（残留占位符、固定文字、去空行）。
     若模板有字数提示且明显偏短，会再给一轮「扩写」修订（不写进用户正文）。
 
-    两条路径：**无表格模板先走逐栏填充**（每栏一次调用、可并发、流式早停，爆炸半径一栏）；
-    有表格或逐栏失败才走"整篇一个 JSON"。两者都带 ``max_tokens`` 硬上限（见 length_budget）。
+    两条路径：**优先走逐栏并发填充**（每栏一次调用、可并发、流式早停，带表格模板由 extract_tables 并发抽取表格，爆炸半径一栏）；
+    若逐栏失败才走"整篇一个 JSON"。两者都带 ``max_tokens`` 硬上限（见 length_budget）。
     ``directives``（领域给的本栏写作纪律）两条路径都带，保证回退也不会退回"没纪律"的写法。
     """
     if not template or not template.strip():
@@ -1183,12 +1231,11 @@ async def fill_placeholder_template(
     )
     cap = output_token_cap(source_han, template) if output_token_cap else None
 
-    if not plan["row_templates"]:
-        by_column = await fill_placeholder_by_columns(
-            client, context, template, plan, source_han=source_han, directives=directives
-        )
-        if by_column:
-            return by_column
+    by_column = await fill_placeholder_by_columns(
+        client, context, template, plan, source_han=source_han, directives=directives
+    )
+    if by_column:
+        return by_column
 
     revision = ""
     carried = _table_carried_indexes(plan)  # 表格承载栏：允许为空

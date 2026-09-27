@@ -1,6 +1,6 @@
-# 模板注册表（本目录即权威源 · v3）
+# 模板注册表（本目录即权威源）
 
-`template_v3/*.md` 是**运行时的模板注册表**：服务通过 `app/config.py::template_registry()`
+`template/*.md` 是**运行时的模板注册表**：服务通过 `app/config.py::template_registry()`
 **直接读这些文件**，没有 YAML、也没有第二兜底源。文件名（不含 `.md`）就是模板 ID，
 也是接口 `extra.template` 可填的**英文名**。
 

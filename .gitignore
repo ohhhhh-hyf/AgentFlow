@@ -22,8 +22,4 @@ __pycache__/
 data/*/memory/
 data/*/knowledge/
 
-# api_test 调用脚本下载下来的产物（*_get.py 落到各自 downloads/ 下）
-api_test/**/downloads/
 
-# 服务运行日志（tools.core.logging_config 落到 logs/）
-/logs/

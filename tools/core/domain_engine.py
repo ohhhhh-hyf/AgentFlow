@@ -597,11 +597,14 @@ class DomainNodes:
             payload = review.model_dump() if hasattr(review, "model_dump") else dict(review)
             # 无理由的 reject 会直接把整线打成降级（替代品是拼接文本，代价更大）：
             # 只有写明具体理由的 reject 才生效，其余按 approve 处理并记 reject_downgraded。
-            from tools.schema.validation import soften_unreasoned_reject
+            from tools.schema.validation import soften_unreasoned_reject, soften_unsubstantial_revise
 
             payload, softened = soften_unreasoned_reject(payload)
             if softened:
                 logger.warning("review reject softened line=%s: %s", line_name, softened)
+            payload, softened_revise = soften_unsubstantial_revise(payload)
+            if softened_revise:
+                logger.info("review revise softened line=%s: %s", line_name, softened_revise)
             progress("agent done review line=%s decision=%s", line_name, payload.get("decision") or "returned")
             # 降级排查：非 approve 时把审核给的理由（feedback/失败检查项的 findings）一起落日志
             if str(payload.get("decision") or "").strip().lower() in {"revise", "reject"}:
@@ -992,6 +995,7 @@ class DomainNodes:
                 "revision_count": revisions,
                 "degraded": degraded,
                 "reject_downgraded": bool(review.get("reject_downgraded")),
+                "revise_downgraded": bool(review.get("revise_downgraded")),
                 "review_unavailable": review_unavailable,
                 "fallback": degraded or decision == "reject",
             }

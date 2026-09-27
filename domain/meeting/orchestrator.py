@@ -734,6 +734,32 @@ class _Nodes(DomainNodes):
             if sliced:
                 label = "会议原文（真人模式·已按人裁剪）"
                 transcript = sliced
+            elif line_name in {"minutes", "minutes_styles", "consensus_decision"} and len(transcript) > 8000:
+                from tools.runtime.supervisor_slice import collect_needles, slice_transcript
+
+                user = state.get("user") or {}
+                priority_needles: list[str] = []
+                if isinstance(user, dict):
+                    name = str(user.get("name") or "").strip()
+                    if name:
+                        priority_needles.append(name)
+                    for fp in user.get("focus_person") or []:
+                        if isinstance(fp, str) and len(fp.strip()) >= 2:
+                            priority_needles.append(fp.strip())
+                    for ft in user.get("focus_thing") or []:
+                        if isinstance(ft, str) and len(ft.strip()) >= 2:
+                            priority_needles.append(ft.strip())
+                needles = collect_needles(sub.get("draft") or {}) + collect_needles(pack or {})
+                excerpt, hits, used = slice_transcript(
+                    transcript,
+                    needles,
+                    priority_needles=priority_needles,
+                    full_limit=8000,
+                    max_chars=8000,
+                )
+                if excerpt and used < len(transcript):
+                    label = "会议原文（核心事实与证据摘录）"
+                    transcript = excerpt
             blocks.insert(0, (label, transcript, "raw"))
         budget = self._length_budget_line(state, line_name)
         if budget:

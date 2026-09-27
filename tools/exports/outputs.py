@@ -124,7 +124,7 @@ def save_report_artifacts(
             **三种情况都写正式 md**：质量信号由 API 的
             ``quality_warning`` 与同目录的 ``result_rejected.md`` 承担，不靠"不落盘"表达。
     """
-    # md 与 html 同模式按线命名的任务线（无 HTML 产物，file_name 直接指向 md）
+    # 按线命名的任务线（产物为 {line_name}.md 与 {line_name}.html，对齐 {line_name}.html 模式）
     line_named_md = line_name in {"actions", "risks", "minutes_styles", "minutes_trace", "consensus_decision"}
 
     out_dir = task_output_dir(ctx, line_name)

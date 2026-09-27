@@ -30,23 +30,8 @@ FAIL: list[str] = []
 # 少了就意味着某条说明又被误判成固定文案（占位识别回退）。切到别的代次时按对应快照比；
 # 没有快照的目录（如以后的 v4）退化为"每个模板至少 1 个字段"。
 SCALAR_BASELINE_BY_DIR: dict[str, dict[str, int]] = {
-    "template_v2": {
-        "class_transcript": 4, "clinical_advisory": 4, "contract_vetting": 4,
-        "conversation_transcript": 4, "court_transcript": 4, "debate_forum": 4,
-        "decision_review": 4, "exchange_forum": 4, "general_minutes": 6,
-        "personal_minutes": 4,
-        "government_bulletin": 3, "group_seminar": 4, "hiring_report": 3,
-        "home_school_liaison": 4, "interview_debrief": 4, "interview_transcript": 3,
-        "knowledge_memo": 3, "legal_advisory": 4, "media_briefing": 4,
-        "media_qa_session": 4, "personal_memo": 4, "product_launch": 4,
-        "project_progress": 4, "psychological_session": 3, "research_dialogue": 3,
-        "retrospective_session": 4, "site_visit_tour": 4, "special_lecture": 4,
-        "team_meeting": 3, "workshop_session": 4,
-    },
-    # v3 的结构优化改了几处栏位形态（general_minutes 由 6 个槽位改成 2 栏，2026-09 又补「分段速览」成 3 栏），故单独记一份。
-    # court_transcript / hiring_report / project_progress 另有"表格栏说明"行（紧跟表格的
-    # `[按下表逐行填写…]`）不计入字段——它们没有正文位，明细由表格承载（见 test_table_caption_*）。
-    "template_v3": {
+    # 统一使用 template
+    "template": {
         "class_transcript": 4, "clinical_advisory": 5, "contract_vetting": 4,
         "conversation_transcript": 5, "court_transcript": 3, "debate_forum": 5,
         "decision_review": 4, "exchange_forum": 5, "general_minutes": 3,
@@ -62,9 +47,7 @@ SCALAR_BASELINE_BY_DIR: dict[str, dict[str, int]] = {
     },
 }
 
-# template_v2 里已知的"固定段含方括号字面"：personal_memo 的两行示例待办 `- [ ] …`
-# 含字面 `[ ]`，被门禁当固定文案（template_v3 已修）。切到别的模板目录时这份白名单为空。
-KNOWN_PENDING_BRACKET_LITERALS: set[str] = {"personal_memo"}
+KNOWN_PENDING_BRACKET_LITERALS: set[str] = set()
 
 
 def check(name: str, ok: bool, detail: str = "") -> None:
@@ -73,7 +56,7 @@ def check(name: str, ok: bool, detail: str = "") -> None:
 
 
 def _active_dir() -> Path:
-    """当前生效模板目录（由 ``AGENTFLOW_TEMPLATE_DIR`` 决定，别写死 template_v2/v3）。"""
+    """当前生效模板目录（固定为 template）。"""
     from app.config import template_dir
 
     return Path(template_dir())
@@ -199,29 +182,16 @@ def test_templates_regression() -> None:
     check(f"{tdir.name} 里没有模板的占位识别回退（字段数 ≥ 基线）", not lost, f"{lost[:4]}")
     check("每张表都有占位数据行（表数 == 行模板数）", not tables_bad, f"{tables_bad[:4]}")
 
-    # 「固定段含方括号字面」：白名单只对 template_v2 生效（personal_memo 那两行示例待办
-    # 在 v3 已修）；切到别的模板目录时这份白名单按空处理，出现任何一条都判失败。
-    pending = KNOWN_PENDING_BRACKET_LITERALS if tdir.name == "template_v2" else set()
-    unknown = sorted(set(bracketed) - pending)
+    unknown = sorted(set(bracketed))
     check("当前模板目录里没有新增的「固定段含方括号字面」",
           not unknown,
-          f"新增={unknown}；已知待应用={sorted(set(bracketed) & pending)}")
+          f"新增={unknown}")
 
-    if tdir.name == "template_v3":
-        chinese_brackets = [
-            p.stem for p in md_files
-            if any(ch in p.read_text(encoding="utf-8") for ch in ("【", "】", "（", "）"))
-        ]
-        check("template_v3 模板全部采用半角英文括号 [] 与 ()", not chinese_brackets, f"含中文括号={chinese_brackets}")
-
-    # 未生效的另一代模板（缺省是 template_v3）也顺手体检一下：它在的话应当干净
-    other = tdir.parent / ("template_v3" if tdir.name != "template_v3" else "template_v2")
-    if other.is_dir() and other != tdir:
-        dirty = [p.stem for p in sorted(other.glob("*.md")) if scan_fixed_bracket_literals(p.read_text(encoding="utf-8"))]
-        other_pending = KNOWN_PENDING_BRACKET_LITERALS if other.name == "template_v2" else set()
-        check(f"{other.name}（另一代模板）里没有新增的「固定段含方括号字面」",
-              not (set(dirty) - other_pending),
-              f"={dirty[:4]}；已知待应用={sorted(set(dirty) & other_pending)}")
+    chinese_brackets = [
+        p.stem for p in md_files
+        if any(ch in p.read_text(encoding="utf-8") for ch in ("【", "】", "（", "）"))
+    ]
+    check("template 模板全部采用半角英文括号 [] 与 ()", not chinese_brackets, f"含中文括号={chinese_brackets}")
 
 
 def test_buggy_template_now_works() -> None:
@@ -1327,20 +1297,17 @@ def test_home_school_feedback_groups() -> None:
 
 def test_home_school_content_groups() -> None:
     """家校沟通 [沟通内容]：两大板块归组展开（表现亮点与需关注问题独立成条，严禁分号并入单条）。"""
-    for d in ("template_v2", "template_v3"):
-        p = Path(d) / "home_school_liaison.md"
-        if not p.is_file():
-            continue
-        text = p.read_text(encoding="utf-8")
-        h_prefix = "##" if d == "template_v2" else "###"
-        check(f"{d} 家校沟通：[沟通内容] 包含表现亮点与良好风貌小节",
-              f"`{h_prefix} 表现亮点与良好风貌`" in text, f"dir={d}")
-        check(f"{d} 家校沟通：[沟通内容] 包含需关注问题与在校表现小节",
-              f"`{h_prefix} 需关注问题与在校表现`" in text, f"dir={d}")
-        check(f"{d} 家校沟通：[沟通内容] 包含严禁分号并入同一条指令",
-              "严令禁止将多个学生表现用分号并入同一条" in text, f"dir={d}")
-        plan = plan_placeholder_fill(text)
-        check(f"{d} 家校沟通：标量字段数保持 4 栏", len(plan["scalars"]) == 4, f"scalars={len(plan['scalars'])}")
+    p = Path("template") / "home_school_liaison.md"
+    text = p.read_text(encoding="utf-8")
+    h_prefix = "###"
+    check("template 家校沟通：[沟通内容] 包含表现亮点与良好风貌小节",
+          f"`{h_prefix} 表现亮点与良好风貌`" in text, "dir=template")
+    check("template 家校沟通：[沟通内容] 包含需关注问题与在校表现小节",
+          f"`{h_prefix} 需关注问题与在校表现`" in text, "dir=template")
+    check("template 家校沟通：[沟通内容] 包含严禁分号并入同一条指令",
+          "严令禁止将多个学生表现用分号并入同一条" in text, "dir=template")
+    plan = plan_placeholder_fill(text)
+    check("template 家校沟通：标量字段数保持 4 栏", len(plan["scalars"]) == 4, f"scalars={len(plan['scalars'])}")
 
 
 def test_clinical_history_column() -> None:
@@ -2937,7 +2904,8 @@ def test_court_claims_table_both_sides() -> None:
 
     text = (_active_dir() / "court_transcript.md").read_text(encoding="utf-8")
     check("庭审模板：样例行含原告与被告两行",
-          "| 原告（或上诉人） | … |" in text and "| 被告（或被上诉人） | … |" in text, "")
+          ("| 原告(或上诉人) | … |" in text or "| 原告（或上诉人） | … |" in text)
+          and ("| 被告(或被上诉人) | … |" in text or "| 被告（或被上诉人） | … |" in text), "")
     cons = extract_template_table_constraints(text)
     check("庭审：诉辩表不再有 1 行上限（row_limit=None）",
           bool(cons) and cons[0]["row_limit"] is None, f"{cons}")
@@ -4396,6 +4364,168 @@ def test_column_extraction_robustness_and_timeout() -> None:
               f"{req_body}")
 
 
+def test_general_minutes_gate_and_minutes_styles_html() -> None:
+    """验证通用纪要粗体决策标签不被门禁误判为占位符，且 minutes_styles 生成有效 HTML。"""
+    from tools.templates.router._gate import validate_rendered_output
+    from domain.meeting.hooks import HOOKS
+    from pathlib import Path
+
+    tpl_path = Path(__file__).resolve().parents[1] / "template" / "general_minutes.md"
+    tpl = tpl_path.read_text(encoding="utf-8")
+
+    good_text = (
+        "# 通用纪要\n\n"
+        "## 全文摘要\n本次会议为小区物业招标答疑及评标会。\n\n"
+        "## 要点梳理\n1. **[改造计划与时间]**\n   > 富家物业承诺一年内完成一系列改造项目。(富家物业)\n\n"
+        "## 结论与决定\n1. **[中标候选人]选定深圳市资平物业发展有限公司为中标候选人**（评标委员会）\n   > 依据：评标打分结果。\n"
+    )
+    errs_good = validate_rendered_output(good_text, tpl)
+    check("通用纪要决策项加粗标签放行（不误判为残留占位符）", not errs_good, f"{errs_good}")
+
+    bad_text = (
+        "# 通用纪要\n\n"
+        "## 全文摘要\n本次会议为小区物业招标答疑及评标会。\n\n"
+        "## 要点梳理\n1. **[此处填写具体业务议题]**\n   > 具体事实。\n"
+    )
+    errs_bad = validate_rendered_output(bad_text, tpl)
+    check("通用纪要真实指令提示词占位符正确拦截", any("此处填写" in x for x in errs_bad), f"{errs_bad}")
+
+    styles_html = HOOKS.html_for("minutes_styles", "测试多样式纪要", "# 测试多样式纪要\n\n正文内容", {})
+    check("minutes_styles 任务线生成有效 HTML", bool(styles_html and "<!doctype html>" in styles_html), f"{bool(styles_html)}")
+
+
+def test_render_context_trim_and_supervisor_soften_and_expand_skip() -> None:
+    """验证：
+    1. 审核 revise 软化：检查项全 pass 时快速放行 approve，有 fail 时保留 revise。
+    2. 渲染上下文裁剪：纪要线原文 >8000 字时智能切片，原文 <=8000 字时保持完整。
+    3. 渲染扩写短文跳过：原文 <5000 字时，避免无效强制 expand。
+    """
+    from tools.schema.validation import soften_unsubstantial_revise
+    from domain.meeting.orchestrator import _Nodes
+
+    # 1. 审核快速放行验证
+    all_pass_revise = {
+        "decision": "revise",
+        "feedback": ["建议文笔更简练，段落适当合并"],
+        "facts_check": {"status": "pass", "findings": []},
+        "perspective_check": {"status": "pass", "findings": []},
+        "consistency_check": {"status": "pass", "findings": []},
+    }
+    softened, note = soften_unsubstantial_revise(dict(all_pass_revise))
+    check("全 pass 的 revise → 软化为 approve", softened["decision"] == "approve", f"{softened}")
+    check("全 pass 的 revise → 标记 revise_downgraded", bool(softened.get("revise_downgraded")), "")
+    check("全 pass 的 revise → feedback 清空保契约合法", softened["feedback"] == [], "")
+    check("全 pass 的 revise → 原 feedback 保存至 advisory_feedback", len(softened.get("advisory_feedback", [])) == 1, "")
+
+    has_fail_revise = {
+        "decision": "revise",
+        "feedback": ["数字错误需修正"],
+        "facts_check": {"status": "fail", "findings": ["金额 1000 万写成 100 万"]},
+        "perspective_check": {"status": "pass", "findings": []},
+    }
+    kept, note2 = soften_unsubstantial_revise(dict(has_fail_revise))
+    check("有 fail 检查项的 revise → 保持 revise 不软化", kept["decision"] == "revise" and note2 is None, f"{kept}")
+
+    # 2. 渲染上下文长文本裁剪验证
+    class _Host(_Nodes):
+        def __init__(self) -> None:
+            pass
+        def _meeting_pack(self, state, line_name):
+            return {"topics": ["技术改造架构方案与实施路径"]}
+        def _compact_user(self, user):
+            return dict(user or {})
+        def _compact_perspective(self, profile):
+            return {}
+        def _length_budget_line(self, state, line_name):
+            return ""
+
+    host = _Host()
+    long_raw = ("项目部关于系统架构升级与推进改造的正式研讨。\n"
+                "张经理表示：本次改造核心聚焦数据库吞吐瓶颈与缓存高并发优化，预计十月底全面验收上线。\n"
+                + "其他参与人员就日常事务性与行政配合内容进行零散沟通。\n" * 400)
+    check("测试用长文本超过 8000 字", len(long_raw) > 8000, f"{len(long_raw)}")
+
+    state_long = {
+        "transcript": long_raw,
+        "user": {"name": "张经理"},
+        "meeting_understanding": {},
+        "perspective_profile": {},
+        "objective_perspective": True,
+        "line_extra": {},
+        "lines": {
+            "minutes": {
+                "draft": {"executive_summary": "本次改造核心聚焦数据库吞吐瓶颈与缓存高并发优化，预计十月底全面验收上线。"},
+                "review": {},
+            }
+        },
+    }
+    ctx_long = host._render_context(state_long, "minutes")
+    check("长原文客观纪要：打上核心事实与证据摘录标签", "会议原文（核心事实与证据摘录）" in ctx_long, "")
+    check("长原文客观纪要：保留关键证据事实点", "数据库吞吐瓶颈" in ctx_long, "")
+    check("长原文客观纪要：裁剪后体积大幅缩减（远小于原长文本）", len(ctx_long) < len(long_raw) * 0.7, f"{len(ctx_long)} vs {len(long_raw)}")
+
+    # 3. 渲染短文本不强制 expand
+    from tools.runtime.render import _doc_han
+    check("短文本原文统计字数正确识别", _doc_han({"transcript": "短会议原文" * 100}) < 5000, "")
+
+
+def test_court_transcript_template_and_concurrent_fill():
+    """验证庭审记录模板增强及多栏+表格解耦并发填充能力。"""
+    import asyncio
+    import json
+    from pathlib import Path
+    from tools.templates.router._placeholder import (
+        fill_placeholder_template,
+        plan_placeholder_fill,
+        _scalar_titles,
+    )
+
+    court_tpl = Path("template/court_transcript.md").read_text(encoding="utf-8")
+    check("庭审记录模板包含证明目的与质证细化规则", "证明目的" in court_tpl and "对方质证意见" in court_tpl, "")
+    check("庭审记录模板包含反压缩纪律声明", "不得精简或合并" in court_tpl and "不设字数上限" in court_tpl, "")
+
+    plan = plan_placeholder_fill(court_tpl)
+    check("庭审记录模板识别出3个标量栏", len(plan["scalars"]) == 3, f"{len(plan['scalars'])}")
+    check("庭审记录模板识别出1个表格行模板", len(plan["row_templates"]) == 1, f"{len(plan['row_templates'])}")
+    titles = _scalar_titles(court_tpl)
+    check("标量栏目名称正确提取", titles == ["庭审概况", "举证与法庭调查", "庭审结果"], f"{titles}")
+
+    class _MockCourtClient:
+        def __init__(self):
+            self.stream_calls = []
+            self.text_calls = []
+
+        async def stream_text(self, system, user, **kwargs):
+            self.stream_calls.append(user)
+            if "（庭审概况）" in user:
+                yield "本案系原告张某诉被告李某买卖合同纠纷案，由北京市海淀区人民法院依法公开开庭审理。"
+            elif "（举证与法庭调查）" in user:
+                yield "## 原告举证及被告质证\n- **证据一**：《供货协议书》\n  - **证明目的**：证明双方存在买卖合同关系及约定付款期限。\n  - **对方质证意见**：被告认可协议真实性与签字。\n\n## 法官询问\n- **法官询问**：李某是否已收到货款凭条？\n  - **李某陈述**：李某表示尚未收到原告补寄发票。"
+            elif "（庭审结果）" in user:
+                yield "合议庭组织双方进行调解，双方均同意庭后协商调解方案。本案宣布休庭。"
+            else:
+                yield "正文内容"
+
+        async def text(self, system, user, **kwargs):
+            self.text_calls.append(user)
+            return json.dumps({
+                "tables": [
+                    [
+                        ["原告张某", "判令被告支付货款人民币50万元及逾期利息", "双方签订供货合同且原告已完成交付，被告逾期未付"],
+                        ["被告李某", "请求驳回原告诉讼请求", "原告交付货物存在严重质量瑕疵且未开具增值税专用发票"],
+                    ]
+                ]
+            })
+
+    mock_client = _MockCourtClient()
+    rendered = asyncio.run(fill_placeholder_template(mock_client, "庭审转写上下文", court_tpl, source_han=6000))
+    check("庭审记录并发填充成功产出渲染文本", bool(rendered and len(rendered) > 100), "")
+    check("并发调用发生：3次流式标量栏调用", len(mock_client.stream_calls) == 3, f"{len(mock_client.stream_calls)}")
+    check("并发调用发生：1次独立表格提取调用", len(mock_client.text_calls) == 1, f"{len(mock_client.text_calls)}")
+    check("产出中包含表格当事人与抗辩行", "| 原告张某 |" in rendered and "| 被告李某 |" in rendered, f"{rendered}")
+    check("产出中包含举证质证结构化条目", "证明目的" in rendered and "法官询问" in rendered, f"{rendered}")
+
+
 def main() -> int:
     caplog_records: list[logging.LogRecord] = []
 
@@ -4500,6 +4630,9 @@ def main() -> int:
         test_fallback_text_dedupe()
         test_supervisor_contract_and_unavailable()
         test_column_extraction_robustness_and_timeout()
+        test_general_minutes_gate_and_minutes_styles_html()
+        test_render_context_trim_and_supervisor_soften_and_expand_skip()
+        test_court_transcript_template_and_concurrent_fill()
     finally:
         logging.getLogger("tools.templates.router._gate").removeHandler(handler)
 

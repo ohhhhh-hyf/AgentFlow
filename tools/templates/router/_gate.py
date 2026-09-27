@@ -72,12 +72,7 @@ def validate_rendered_output(
             next_c = rendered[m.end() : m.end() + 1]
             if not _looks_like_placeholder(inner, next_char=next_c):
                 return False
-            # 1. 粗体包裹的标题标签，如 **[业务议题]** 或 **[改进项]**
-            start = m.start()
-            end = m.end()
-            if start >= 2 and end + 2 <= len(rendered) and rendered[start-2:start] == "**" and rendered[end:end+2] == "**":
-                return False
-            # 2. 已知业务状态与打标标签
+            # 1. 已知业务状态与打标标签
             _KNOWN_TAGS = {
                 "待确认", "待决", "待定", "待定论", "阻塞", "阻碍",
                 "高风险", "中风险", "低风险", "通过", "否决", "未决",
@@ -86,20 +81,32 @@ def validate_rendered_output(
             }
             if inner in _KNOWN_TAGS or inner.startswith("待确认") or inner.startswith("待定"):
                 return False
-            # 3. 问答/访谈序号标签，如 [Q1]、[Q2] 等
+            # 2. 问答/访谈序号标签，如 [Q1]、[Q2] 等
             if re.match(r"^Q\d+[\.\s]?", inner, re.I):
                 return False
-            # 4. 指令提示词特征，必定是未替换占位符
+            # 3. 指令提示词特征，必定是未替换占位符
             _INSTRUCTION_CUES = re.compile(r"一段话|填写|列出|根据|自主概括|此处|选填|如：|格式|逐行|简要概括|条目一行|请按")
             if _INSTRUCTION_CUES.search(inner):
                 return True
-            # 5. 命中模板中声明的占位说明原文
+            # 4. 命中模板中声明的占位说明原文
             if inner in tpl_hints or inner in tpl_titles or any(inner in h for h in tpl_hints if len(inner) >= 6):
                 return True
-            # 6. 行首列表符/编号后的短标题标签（通常 <= 20 字，如 1. [路面开裂整改方案]）
+            # 5. 粗体包裹的标题标签，如 **[业务议题]** 或 **[改进项]**；
+            #    或粗体内前置业务标签，如 **[中标候选人]选定公司为候选人**
+            start = m.start()
+            end = m.end()
+            line_end = rendered.find("\n", end)
+            if line_end == -1:
+                line_end = len(rendered)
+            if start >= 2 and rendered[start-2:start] == "**":
+                if end + 2 <= len(rendered) and rendered[end:end+2] == "**":
+                    return False
+                if "**" in rendered[end:line_end] and len(inner) <= 25:
+                    return False
+            # 6. 行首列表符/编号后的短标题标签（通常 <= 25 字，如 1. [路面开裂整改方案] 或 1. **[中标候选人]）
             line_start = rendered.rfind("\n", 0, start) + 1
             prefix = rendered[line_start:start].strip()
-            if re.match(r"^(?:#{1,4}\s*|\d+[\.、\s]+|[-*•])\s*$", prefix) and len(inner) <= 20:
+            if re.match(r"^(?:#{1,4}\s*|\d+[\.、\s]+|[-*•])\s*(?:\*\*)?\s*$", prefix) and len(inner) <= 25:
                 return False
             return True
 

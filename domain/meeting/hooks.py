@@ -78,7 +78,7 @@ def _persist_memory(
 
 def _html_for(line_name: str, title: str, text: str, data: dict[str, Any] | None = None) -> str | None:
     """本域专属的产物 HTML；其它线返回 None 让引擎走通用 HTML。"""
-    if line_name == "minutes":
+    if line_name in {"minutes", "minutes_styles"}:
         return render_minutes_html(title, text)
     if line_name == "risks":
         return render_risks_html(title, text, data)

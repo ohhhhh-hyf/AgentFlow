@@ -160,6 +160,32 @@ def soften_unreasoned_reject(payload: dict) -> tuple[dict, str | None]:
     return softened, "reject 未写具体理由（失败检查项的 findings 为空）→ 按 approve 处理"
 
 
+def soften_unsubstantial_revise(payload: dict) -> tuple[dict, str | None]:
+    """无实质检查项失败的 revise 快速放行：降为 approve，避免无效返工重跑。
+
+    审核的核心维度（facts_check、perspective_check、consistency_check 等）
+    全部为 pass 时，草稿事实与结构已达到上线质量标准。此时若 decision 仍为 revise，
+    多属无硬伤的形式建议（如语气修饰、段落微差、字数微调），整篇重走 Agent 返工
+    （单次 35 秒延迟 + 额外 token 开销）不仅收益极低，且易诱发幻觉漂移。
+    因此对此类 revise 降为 approve，原 feedback 归档为 advisory_feedback。
+    """
+    if str(payload.get("decision") or "").strip().lower() != "revise":
+        return payload, None
+    failed_checks: list[str] = []
+    for key, value in payload.items():
+        if isinstance(value, dict) and "status" in value:
+            if str(value.get("status")).strip().lower() == "fail":
+                failed_checks.append(key)
+    if failed_checks:
+        return payload, None
+    softened = dict(payload)
+    softened["decision"] = "approve"
+    softened["revise_downgraded"] = True
+    softened["advisory_feedback"] = list(payload.get("feedback") or [])
+    softened["feedback"] = []
+    return softened, "revise 无失败检查项（全部检查项均为 pass）→ 快速放行按 approve 处理"
+
+
 # ── 统一入口 ──────────────────────────────────────────────────
 def validate_payload(response_model: type[T], data: dict) -> T:
     """严格校验模型输出并返回实例。

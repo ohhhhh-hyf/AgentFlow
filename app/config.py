@@ -1,8 +1,6 @@
 """API 层共享配置：项目根、.env、模板注册表、视角注册表、领域上下文。
 
-模板权威来源是**一个目录下的 md 文件**（每个模板一个文件，运行时直接读）：
-缺省 ``template_v2``，用 ``.env`` 的 ``AGENTFLOW_TEMPLATE_DIR`` 可切到 ``template_v3`` /
-以后的 ``template_v4``（改一行配置即可，不动代码，见 :func:`template_dir`）。
+模板权威来源是 template/ 目录下的 md 文件（每个模板一个文件，运行时直接读）。
 视角来自 assets/profiles/。
 """
 from __future__ import annotations
@@ -15,8 +13,9 @@ PROJECT_ROOT = Path(__file__).resolve().parents[1]
 
 logger = logging.getLogger(__name__)
 
-# 模板源目录缺省值；实际生效目录由 AGENTFLOW_TEMPLATE_DIR 决定（见 template_dir()）
-DEFAULT_TEMPLATE_DIR = "template_v2"
+# 模板源目录：统一固定为 template
+DEFAULT_TEMPLATE_DIR = "template"
+TEMPLATE_DIR = PROJECT_ROOT / DEFAULT_TEMPLATE_DIR
 
 # 会议纪要线的默认模板：extra.template 留空时**自动套用「通用纪要」**（不再走无模板自由渲染）。
 # 只对纪要线（meeting/minutes）生效；其它线留空仍表示"不套模板"。
@@ -68,37 +67,14 @@ def load_env() -> None:
     _env_loaded = True
 
 
-# ── 模板源目录（template_v2 / v3 / 以后的 v4 靠一行配置切换）─────
+# ── 模板源目录（固定为 template）───────────────────────────────
 
 def template_dir() -> Path:
-    """当前生效的模板源目录。
-
-    取值来自 ``.env`` 的 ``AGENTFLOW_TEMPLATE_DIR``（相对项目根或绝对路径）：
-    ``template_v2``（缺省）/ ``template_v3`` / 以后的 ``template_v4`` —— 换模板代次只改这一行。
-
-    容错：目录不存在时告警并回退缺省目录（避免"一个模板都读不到"导致
-    ``extra.template`` 全部 400）；目录存在但模板不全时告警并列出缺哪些模板 id
-    （不阻断：按实际存在的注册）。每次进程只在首次调用时打一条 INFO 说明用的是哪个目录。
-    """
-    load_env()
-    raw = (os.getenv("AGENTFLOW_TEMPLATE_DIR") or "").strip()
-    fallback = PROJECT_ROOT / DEFAULT_TEMPLATE_DIR
-    path = fallback
-    if raw:
-        candidate = Path(raw).expanduser()
-        path = candidate if candidate.is_absolute() else PROJECT_ROOT / candidate
-    if not path.is_dir():
-        if raw not in _template_dir_logged:  # 每个取值只报一次，别逐请求刷屏
-            _template_dir_logged.add(raw)
-            logger.warning(
-                "模板目录不可用（AGENTFLOW_TEMPLATE_DIR=%r）→ 回退 %s", raw, fallback.name
-            )
-        path = fallback
+    """当前生效的模板源目录（固定为 template/）。"""
+    path = TEMPLATE_DIR
     if path.name not in _template_dir_logged:
         _template_dir_logged.add(path.name)
-        logger.info(
-            "模板源目录：%s（AGENTFLOW_TEMPLATE_DIR 控制，缺省 %s）", path, DEFAULT_TEMPLATE_DIR
-        )
+        logger.info("模板源目录：%s", path)
     missing = sorted(tid for tid in TEMPLATE_SCENARIO if not (path / f"{tid}.md").is_file())
     if missing and f"missing:{path.name}" not in _template_dir_logged:
         _template_dir_logged.add(f"missing:{path.name}")
@@ -291,9 +267,8 @@ def _parse_template_md(path: Path) -> dict[str, object] | None:
 def template_registry() -> dict[str, dict[str, object]]:
     """返回 {内部契约键: {"format","name","scenario","requirement","template"}}。
 
-    **唯一模板源是 ``template_dir()/*.md``**（缺省 ``template_v2``，可由
-    ``AGENTFLOW_TEMPLATE_DIR`` 切到 ``template_v3`` 等；运行时直接读，没有 YAML、
-    没有第二兜底源）。目录缺失或文件全部不合规时返回空注册表 —— 此时
+    **唯一模板源是 ``template_dir()/*.md``（固定为 template/）**。
+    运行时直接读，没有第二兜底源。目录缺失或文件全部不合规时返回空注册表 —— 此时
     ``extra.template`` 一律 400，不会静默套错模板。
     """
     tpl_dir = template_dir()

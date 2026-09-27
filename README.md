@@ -65,8 +65,7 @@ tools/
   devtools/                   # 手工运维脚本：check_user_profile / purge_kb_source
 tests/                        # 零 LLM 自测套件（见「自测」一节；python -m tests）
 assets/profiles/              # 画像注册表（客观全员 + 6 个职业模板），运行时直接读 *.json
-template_v2/ template_v3/     # 模板注册表（运行时直接读 *.md）：生效目录由 AGENTFLOW_TEMPLATE_DIR 决定
-                              # （.env 当前指向 template_v3，30 类）；未配置/目录缺失时回落内置 template_v2
+template/                     # 模板注册表（运行时直接读 *.md）：当前 31 类模板
 ```
 
 ## 快速开始
@@ -682,7 +681,7 @@ curl -X POST http://127.0.0.1:8000/api/agent/v1 \
 
 ## 自定义输出模板
 
-接口 `extra.template` 支持模板注册表里的全部预设模板（生效目录见上「项目结构」，`template_v3` 当前 30 个），也可通过 `TEMPLATE_ROUTER` 机制处理自定义模板。模板支持三种形式，系统**自动判型**处理：
+接口 `extra.template` 支持模板注册表里的全部预设模板（生效目录见上「项目结构」，`template` 当前 31 个），也可通过 `TEMPLATE_ROUTER` 机制处理自定义模板。模板支持三种形式，系统**自动判型**处理：
 
 | 形式 | 示例 | 处理方式 |
 |---|---|---|
@@ -718,7 +717,7 @@ curl -X POST http://127.0.0.1:8000/api/agent/v1 \
 一轮**有行为改动**的质量修复，治"末尾三组把十几条压成一两条"（实测同输入两次运行：一次分条正常，
 另一次 12 条待确认 + 20 条风险各被「；」压成一条 bullet，233 字 / 519 字，原样落盘）。
 
-- **模板（a）**：`template_v3/general_minutes.md` 的 [要点梳理] 说明补上「末尾三组一律 `- ` 一条一行、
+- **模板（a）**：`template/general_minutes.md` 的 [要点梳理] 说明补上「末尾三组一律 `- ` 一条一行、
   一条一个事项；**禁止把多条用「；」压成一条**；单条超过两百字就拆成多条或用缩进子条」——
   原先只有第一大栏写了"一条一行"，末尾三组只写了内容范围，给了模型合并的口子。
 - **判据与重写（b）**：「单条超长（`- ` 条目 >200 汉字）」判据抽成单点函数
@@ -814,7 +813,7 @@ curl -X POST http://127.0.0.1:8000/api/agent/v1 \
 - `README` 与 `api.md` 去重：接口契约以 `api.md` 为权威，README 只留概览与指针；模板三种形式的
   说明只保留一处；命令示例与目录树全部对齐新路径
 - 修正一批与代码不符的说明：`run_mode` 的读取位置、worker 日志关键字（改为实际英文短句）、
-  模板目录与 `AGENTFLOW_TEMPLATE_DIR`、`profile` 选档表、`user.json` 写法（含偏好/性格白名单与上限）
+  模板目录固定为 `template`、`profile` 选档表、`user.json` 写法（含偏好/性格白名单与上限）
 
 **已知待办（未含在本轮）**
 - **quiz 的 `structure` 不重抽**（review 分支在附件改写后会重抽一次，quiz 不会 ⇒ 响应里的
@@ -823,7 +822,7 @@ curl -X POST http://127.0.0.1:8000/api/agent/v1 \
 - **同步接口的 `monitor.catalog` 恒空**：`_catalog_quality_monitor` 只在流式接口挂载（待定：同步也返回，
   或明确只在文档里标注"仅流式"）
 - `use_cache` 若要可用，需先做 LLMClient 进程级复用并同步改 `_client_usage` 的 token 差值统计
-- 模板注册表（`template_v2` / `template_v3`）按需保留在顶层：`api_test` 以 `template_v2` 作为
+- 模板注册表（`template`）保留在顶层：`api_test` 以 `template` 作为
   仓库根标记，搬入 `tools/` 会打断它
 - **逐栏填充目前不限并发**：原 `_COLUMN_CONCURRENCY = 3`（注释写「同时最多起几栏」）定义后从未被
   任何代码读取，2026-09-22 自检时按死代码删除 ⇒ 现状是 `asyncio.gather` 一次起满所有栏。若要真的
