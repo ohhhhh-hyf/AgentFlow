@@ -165,19 +165,24 @@ _TABLE_SEP_RE = re.compile(r"^\s*\|?\s*:?-{3,}:?\s*(\|\s*:?-{3,}:?\s*)+\|?\s*$")
 # （项目进度会的进度追踪/风险预警、面试报告的能力评估），或被改写成散文
 # （庭审记录把诉辩表写成段落）。这类行只是**表格栏说明**：不进字段清单、不打印正文位，
 # 标题与表格照常输出；表内已承载明细，正文自然不需要缺省词。
+_EXPLICIT_TABLE_ONLY_RE = re.compile(
+    r"明细由下表承载|本栏不再另写|整栏不再另写|只用下表|不写「未提及」"
+)
 _TABLE_CAPTION_CARRIER_RE = re.compile(
     r"按下表|见下表|只写进下表|只用下表|表内已写|逐行填写|不要另建表格"
     r"|不要再用段落复述|第一列|第二列|第三列|以下表|由下表承载"
 )
 # 出现这些字样 = 该栏除表格外还要求正文（清单/分点/总述/维度文字…）→ 不算纯表格说明
 _TABLE_CAPTION_BODY_RE = re.compile(
-    r"各占一条|一条一行|分点|`- `|\*\*[^*\n]+\*\*[：:]|总述|一两句|一句|表外|`## |正文"
+    r"各占一条|一条一行|分点|`- `|(?:\d+\.|\-|\*)\s*\*\*[^*\n]+\*\*[：:]|总述|一两句|一句|表外|`## |正文"
 )
 
 
 def is_table_caption(text: str) -> bool:
     """纯表格栏说明：只讲"怎么填表"，不要求另写正文。"""
     t = (text or "").strip()
+    if _EXPLICIT_TABLE_ONLY_RE.search(t):
+        return True
     return bool(_TABLE_CAPTION_CARRIER_RE.search(t)) and not _TABLE_CAPTION_BODY_RE.search(t)
 
 

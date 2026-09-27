@@ -129,7 +129,13 @@ def plan_placeholder_fill(template: str) -> dict[str, Any]:
             if row_templates and idx == row_templates[-1]["indices"][-1] + 1:
                 row_templates[-1]["indices"].append(idx)
                 continue
-            row_templates.append({"line": line, "fields": fields, "indices": [idx]})
+            header_cells = _table_header_cells(line, template)
+            row_templates.append({
+                "line": line,
+                "fields": fields,
+                "indices": [idx],
+                "header_cells": header_cells,
+            })
             continue
         if not phs:
             continue
@@ -152,7 +158,7 @@ def normalize_fill_tables(
     tables: list[list[list[str]]],
     row_templates: list[dict[str, Any]],
 ) -> list[list[list[str]]]:
-    """通用清洗：对齐列数、去掉整行空白；若模板写了行数约束则截断。"""
+    """通用清洗：对齐列数、去掉整行空白、去重复表头行；若模板写了行数约束则截断。"""
     out: list[list[list[str]]] = []
     for i, rt in enumerate(row_templates):
         n_cols = max(len(rt.get("fields") or []), 1)
@@ -167,6 +173,21 @@ def normalize_fill_tables(
             if not any(cells):
                 continue
             cleaned.append(cells)
+        # 支柱 3-2：表头数据行过滤（若模型提取的数据行与表头列名定义一致，说明误把表头当作数据行输出了）
+        header_names = rt.get("header_cells") or [
+            str(f.get("hint") or "").strip() for f in rt.get("fields") or []
+        ]
+        if header_names:
+            norm_headers = [
+                re.sub(r"[\s*`_#|]", "", str(h)) for h in header_names if str(h).strip()
+            ]
+            if norm_headers:
+                cleaned = [
+                    row
+                    for row in cleaned
+                    if [re.sub(r"[\s*`_#|]", "", str(c)) for c in row if str(c).strip()]
+                    != norm_headers
+                ]
         limit = _row_limit_for_template(rt)
         if limit and len(cleaned) > limit:
             ranked = sorted(
@@ -266,6 +287,98 @@ def _strip_redundant_column_heading(text: str, title: str) -> str:
     return text
 
 
+def _section_has_table(template: str, title: str) -> bool:
+    """检查模板中指定栏目（title）所在小节内是否包含 Markdown 表格。"""
+    if not template or not title:
+        return False
+    body, _ = split_template_meta(template)
+    lines = body.splitlines()
+    in_section = False
+    norm_title = re.sub(r"^[0-9一二三四五六七八九十]+[\.、\s]*", "", title.strip())
+    norm_title = re.sub(r"[#*_\s\[\]【】:：]", "", norm_title)
+
+    for i, line in enumerate(lines):
+        tm = _section_title_match(line)
+        if tm:
+            sec_title = tm.group(2).strip()
+            norm_sec = re.sub(r"^[0-9一二三四五六七八九十]+[\.、\s]*", "", sec_title)
+            norm_sec = re.sub(r"[#*_\s\[\]【】:：]", "", norm_sec)
+            if in_section:
+                # 遇到了下一个栏目标题，说明目标栏目已结束
+                break
+            if norm_sec == norm_title:
+                in_section = True
+                continue
+        if in_section:
+            line_s = line.strip()
+            if line_s.startswith("|") and not _TABLE_SEP_RE.match(line_s):
+                k = i + 1
+                while k < len(lines) and not lines[k].strip():
+                    k += 1
+                if k < len(lines) and _TABLE_SEP_RE.match(lines[k].strip()):
+                    return True
+    return False
+
+
+def _is_followed_by_table(
+    template_lines: list[str],
+    start_idx: int,
+    caption_lines: set[int] | None = None,
+) -> bool:
+    """检查 template_lines[start_idx] 之后（跳过空行与表格说明行）是否紧跟着表格。"""
+    j = start_idx + 1
+    while j < len(template_lines):
+        line_s = template_lines[j].strip()
+        if not line_s:
+            j += 1
+            continue
+        if caption_lines and j in caption_lines:
+            j += 1
+            continue
+        if _section_title_match(template_lines[j]):
+            return False
+        if line_s.startswith("|") and not _TABLE_SEP_RE.match(line_s):
+            k = j + 1
+            while k < len(template_lines) and not template_lines[k].strip():
+                k += 1
+            if k < len(template_lines) and _TABLE_SEP_RE.match(template_lines[k].strip()):
+                return True
+        return False
+    return False
+
+
+def _strip_markdown_tables(text: str) -> str:
+    """从标量文本中剥离可能被模型私自绘制的 Markdown 表格。
+    只在文本中包含明确的表格分隔线且包含多行连续管道符行时触发。
+    """
+    if not text or "|" not in text:
+        return text
+    lines = text.splitlines(keepends=True)
+    out_lines: list[str] = []
+    i = 0
+    while i < len(lines):
+        line = lines[i]
+        line_s = line.strip()
+        if line_s.startswith("|") and line_s.count("|") >= 2 and i + 1 < len(lines):
+            next_s = lines[i + 1].strip()
+            if _TABLE_SEP_RE.match(next_s):
+                i += 2
+                while i < len(lines):
+                    row_s = lines[i].strip()
+                    if row_s.startswith("|") and row_s.count("|") >= 2:
+                        i += 1
+                    elif not row_s:
+                        while i < len(lines) and not lines[i].strip():
+                            i += 1
+                        break
+                    else:
+                        break
+                continue
+        out_lines.append(line)
+        i += 1
+    return "".join(out_lines).rstrip()
+
+
 def assemble_placeholder_output(
     template: str,
     field_values: dict[str, str] | list[str],
@@ -317,7 +430,8 @@ def assemble_placeholder_output(
         int(idx) for rt in row_templates for idx in rt["indices"][1:]
     }
 
-    for line_idx, line in enumerate(template.splitlines(keepends=True)):
+    template_lines = template.splitlines(keepends=True)
+    for line_idx, line in enumerate(template_lines):
         if line_idx in skip_lines or line_idx in caption_lines:
             # 表格栏说明行：不打印正文位、不消耗标量值（否则后续字段全部错位）
             continue
@@ -362,6 +476,11 @@ def assemble_placeholder_output(
             chunk.append("")
         if current_title:
             chunk = [_strip_redundant_column_heading(c, current_title) for c in chunk]
+        # 支柱 3-1：标量文本去表（若该占位符后紧随静态表头或本栏含表格，剥离末尾私自绘制的 Markdown 表格）
+        if _is_followed_by_table(template_lines, line_idx, caption_lines) or (
+            current_title and _section_has_table(template, current_title)
+        ):
+            chunk = [_strip_markdown_tables(c) for c in chunk]
         fields = [_parse_field(m.group(1)) for m in phs]
         out_lines.append(_replace_placeholders_in_line(line, chunk, fields))
         scalar_i += n
@@ -694,6 +813,7 @@ def build_placeholder_fill_user(
     lines.extend([
         "固定表头由模板保留；`| … |` 样例行必须换成原文事实，禁止整行照抄省略号。",
         "字段值里不要写 #/## 标题，不要重复栏目标题作前缀。",
+        "标量字段只填写纯文字或分点列表，严禁在标量字段中自行绘制 Markdown 表格；表格由 tables 数组独立承载。",
         "有据才写；缺内容写该栏约定的缺省词（模板没约定时写「未提及」）；**键必须齐全**：fields 要给出清单里全部编号，缺键＝漏填。",
         "字段值与表格里不得复述、解释或引用模板要求（如「以上均未明确…填写『无』」）；缺内容只写约定的缺省词。",
         "勿照抄「如：」示例；勿张冠李戴；勿改数字；勿用百科补履历；勿虚构原文没有的内容。",
@@ -917,6 +1037,12 @@ def _column_fill_user(
             "【要点纪律】各条目须按不同维度/领域分别展开，每条聚焦独立的具体举措与事实；"
             "严禁在不同条目中使用完全相同的主谓宾句式或套话短语；所有要点陈述完毕后立即停笔，严禁循环复述。"
         )
+    # 支柱 1 形态 B：正文 + 表格复合栏的职责隔离纪律
+    if _section_has_table(body, title):
+        lines.append(
+            "【表格隔离纪律】本栏下方的 Markdown 表格已由系统独立程序提取填充，"
+            "你只需输出本栏的正文说明/条目清单，严禁在正文输出任何 Markdown 表格（严禁输出包含 | 的表格行）。"
+        )
     if requirement.strip():
         lines.extend(["", "【模板写作要求】（必须遵守，不要写进正文）", requirement.strip()])
     if revision.strip():
@@ -1130,6 +1256,8 @@ async def fill_placeholder_by_columns(
             )
             if text:
                 text = _strip_redundant_column_heading(text, title)
+                if _section_has_table(template, title):
+                    text = _strip_markdown_tables(text)
                 if text.strip():
                     return text
             revision = (

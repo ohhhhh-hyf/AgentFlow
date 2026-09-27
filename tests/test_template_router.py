@@ -4526,6 +4526,119 @@ def test_court_transcript_template_and_concurrent_fill():
     check("产出中包含举证质证结构化条目", "证明目的" in rendered and "法官询问" in rendered, f"{rendered}")
 
 
+def test_table_isolation_and_deduplication() -> None:
+    """支柱 1 与支柱 3 验证：形态 A 纯表格栏识别、形态 B 复合栏表格隔离纪律、标量去表与表头行数据去重。"""
+    from tools.templates.router._base import is_table_caption
+    from tools.templates.router._placeholder import (
+        _strip_markdown_tables,
+        _section_has_table,
+        _column_fill_user,
+        assemble_placeholder_output,
+        normalize_fill_tables,
+    )
+
+    # 1. _strip_markdown_tables 单元测试
+    raw_with_trailing_table = (
+        "1. **用药说明**：阿莫西林 1.2g 口服。\n"
+        "2. **复诊建议**：3天后复查。\n\n"
+        "| 药品 | 剂量 | 用法 |\n"
+        "| --- | --- | --- |\n"
+        "| 阿莫西林 | 1.2g | 口服 |\n"
+    )
+    stripped = _strip_markdown_tables(raw_with_trailing_table)
+    check("标量末尾私自绘制的 Markdown 表格被干净剥离",
+          "| 药品 |" not in stripped and "2. **复诊建议**" in stripped,
+          f"{stripped}")
+
+    text_with_inline_pipe = "- **责任人**：张三 | 组长\n- **说明**：普通文本含管道符"
+    kept_pipe = _strip_markdown_tables(text_with_inline_pipe)
+    check("正文中非表格的管道符文字完整保留",
+          kept_pipe == text_with_inline_pipe.strip(),
+          f"{kept_pipe}")
+
+    only_table = "| 列1 | 列2 |\n| --- | --- |\n| 值1 | 值2 |"
+    check("纯表格文本被剥离为空", _strip_markdown_tables(only_table) == "", f"{_strip_markdown_tables(only_table)}")
+
+    # 2. 支柱 3-2：normalize_fill_tables 表头数据行过滤
+    row_templates = [{
+        "header_cells": ["维度", "本产品", "上代/竞品", "提升"],
+        "fields": [{"hint": "维度"}, {"hint": "本产品"}, {"hint": "上代/竞品"}, {"hint": "提升"}],
+    }]
+    dup_header_tables = [[
+        ["维度", "本产品", "上代/竞品", "提升"],  # 误输出的表头数据行
+        ["机身高度", "167厘米", "洗烘套装叠放", "无需踮脚操作"],  # 真实数据行
+    ]]
+    norm = normalize_fill_tables(dup_header_tables, row_templates)
+    check("normalize_fill_tables 成功过滤重复表头数据行",
+          len(norm[0]) == 1 and norm[0][0][0] == "机身高度",
+          f"{norm}")
+
+    # 3. 支柱 1 形态 A：纯表格承载栏识别
+    hiring_caption = (
+        "[**本栏明细由下表承载**(本栏不再另写说明文字、不要写「未提及」)："
+        "**一行一个评估维度**，维度名取原文的考察要素或评价口径……评级的判据是本行的依据……]"
+    )
+    check("面试报告能力评估说明行被识别为纯表格栏说明",
+          is_table_caption(hiring_caption),
+          f"{is_table_caption(hiring_caption)}")
+
+    court_caption = (
+        "[**本栏明细由下表承载**(本栏不再另写说明文字、不要写「未提及」；二审等无原告/被告之分时按实际立场方填写)："
+        "**每个立场方各一行，行数与当事方数量一致**……]"
+    )
+    check("庭审记录诉辩说明行被识别为纯表格栏说明",
+          is_table_caption(court_caption),
+          f"{is_table_caption(court_caption)}")
+
+    # 4. 支柱 1 形态 B：复合栏表格隔离纪律注入
+    with open("template/clinical_advisory.md", "r", encoding="utf-8") as f:
+        clinical_tpl = f.read()
+    check("临床咨询的「治疗方案与医嘱」被识别为复合表格栏",
+          _section_has_table(clinical_tpl, "治疗方案与医嘱"),
+          "")
+    col_user = _column_fill_user(
+        "上下文",
+        clinical_tpl,
+        index=4,
+        total=5,
+        hint="医嘱清单",
+        title="治疗方案与医嘱",
+        others=["就诊概况", "病史与背景"],
+    )
+    check("复合表格栏用户提示词中成功注入【表格隔离纪律】",
+          "【表格隔离纪律】" in col_user and "严禁在正文输出任何 Markdown 表格" in col_user,
+          f"{col_user}")
+
+    # 5. 拼装层去重集成验证：模拟模型在标量末尾画了表，拼装后只有一个表
+    scalar_values = [
+        "就诊概况正文",
+        "病史背景正文",
+        "诊断检查正文",
+        (
+            "1. **检查安排**：留大便做检查。\n"
+            "2. **用药说明**：阿莫西林与斯达舒。\n\n"
+            "| 药品名称 | 剂量 | 频次 | 用法 | 注意事项 |\n"
+            "| --- | --- | --- | --- | --- |\n"
+            "| 斯达舒 | — | 每日四五次 | 口服 | 初有效后效果不佳 |\n"
+        ),
+        "复诊预警正文",
+    ]
+    extracted_tables = [[
+        ["斯达舒", "未提及", "每日四五次", "口服", "初有效后效果不佳"],
+    ]]
+    assembled = assemble_placeholder_output(
+        clinical_tpl,
+        scalar_values,
+        tables=extracted_tables,
+    )
+    check("拼装结果中只包含一份表格（表头出现且仅出现一次）",
+          assembled.count("| 药品名称 | 剂量 | 频次 | 用法 | 注意事项 |") == 1,
+          f"{assembled}")
+    check("正文清单与表格提取数据同时存在且无重复表格",
+          "留大便做检查" in assembled and "| 斯达舒 | 未提及 | 每日四五次 |" in assembled,
+          f"{assembled}")
+
+
 def main() -> int:
     caplog_records: list[logging.LogRecord] = []
 
@@ -4633,6 +4746,7 @@ def main() -> int:
         test_general_minutes_gate_and_minutes_styles_html()
         test_render_context_trim_and_supervisor_soften_and_expand_skip()
         test_court_transcript_template_and_concurrent_fill()
+        test_table_isolation_and_deduplication()
     finally:
         logging.getLogger("tools.templates.router._gate").removeHandler(handler)
 
