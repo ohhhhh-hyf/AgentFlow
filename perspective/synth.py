@@ -25,7 +25,7 @@ from .hits import HitTable
 # 允许程序合成的线集合：视角模型被所有线消费，多线（待办/风险）依赖可能的行动推断，
 # 合成版会薄，所以只在"只跑纪要"时跳；多线保留建模（保守，等命中表跑稳再放开）。
 SYNTH_LINES = frozenset({"minutes", "minutes_styles"})
-_NO_HIT_SUMMARY = "本场未点到{name}，未发现与他直接相关的条目；分工栏可以为空。"
+_NO_HIT_SUMMARY = "本场未点到{name}，无直接牵头事项，重点关注上下游协同进展；分工栏可以为空。"
 
 
 def skip_reason(user: dict[str, Any] | None, table: HitTable, line_names: Any = None) -> str | None:
@@ -128,11 +128,11 @@ def synthesize_perspective_profile(user: dict[str, Any] | None, table: HitTable)
         # 摘要只取"内容型"命中：发言人名这类空壳不算内容（避免"…；赵衡。"这种碎话）
         contents = [*table.my_actions, *table.my_risks, *table.my_topics]
         contents += [text for text in hit_texts if text not in contents]
-        head = "；".join(contents[:2]) or f"本场有 {len(table.hits)} 处提到{name}"
-        summary = f"本场与{name}直接相关：{head}。"[:120]
+        head = "；".join(contents[:2]) or "涉及相关事项与交付讨论"
+        summary = f"核心承接目标与事项：{head}；按既定节点推进交付。"[:120]
     elif focus_points:
         head = "；".join(focus_points[:2])
-        summary = f"本场未直接点到{name}，但涉及其重点关注人物与标的：{head}。"[:120]
+        summary = f"重点关注协同进展与标的演变：{head}。"[:120]
     else:
         summary = _NO_HIT_SUMMARY.format(name=name)
 

@@ -4550,6 +4550,29 @@ def test_table_isolation_and_deduplication() -> None:
           "| 药品 |" not in stripped and "2. **复诊建议**" in stripped,
           f"{stripped}")
 
+    # 防线 3：条目列表内部（中间）潜伏表格的物理挖除与前后正文缝合（对标 1b6b7876）
+    raw_with_middle_table = (
+        "1. **检查安排**：留大便查潜血。\n"
+        "2. **复诊安排**：汇报医生。\n\n"
+        "| 药品名称 | 剂量 | 频次 | 用法 | 注意事项 |\n"
+        "| --- | --- | --- | --- | --- |\n"
+        "| 斯达舒 | — | 每日四五次 | 口服 | 初有效后效果不佳 |\n"
+        "| 奥美拉唑 | — | — | 口服 | 武汉药厂生产 |\n\n"
+        "3. **生活方式与饮食**：戒烟戒酒。"
+    )
+    stripped_mid = _strip_markdown_tables(raw_with_middle_table)
+    check("标量条目中间潜伏的 Markdown 表格被物理挖除且前后条目自然缝合",
+          "| 药品名称 |" not in stripped_mid
+          and "2. **复诊安排**" in stripped_mid
+          and "3. **生活方式与饮食**" in stripped_mid,
+          f"{stripped_mid}")
+
+    raw_with_leading_table = "| 类别 | 内容 |\n| --- | --- |\n| A | B |\n\n正文要点内容"
+    stripped_lead = _strip_markdown_tables(raw_with_leading_table)
+    check("标量开头私自绘制的 Markdown 表格被物理剥离",
+          "| 类别 |" not in stripped_lead and stripped_lead == "正文要点内容",
+          f"{stripped_lead}")
+
     text_with_inline_pipe = "- **责任人**：张三 | 组长\n- **说明**：普通文本含管道符"
     kept_pipe = _strip_markdown_tables(text_with_inline_pipe)
     check("正文中非表格的管道符文字完整保留",
@@ -4573,7 +4596,7 @@ def test_table_isolation_and_deduplication() -> None:
           len(norm[0]) == 1 and norm[0][0][0] == "机身高度",
           f"{norm}")
 
-    # 3. 支柱 1 形态 A：纯表格承载栏识别
+    # 3. 支柱 1 形态 A：纯表格承载栏识别与防线 1（彻底剔除纯表格标量）
     hiring_caption = (
         "[**本栏明细由下表承载**(本栏不再另写说明文字、不要写「未提及」)："
         "**一行一个评估维度**，维度名取原文的考察要素或评价口径……评级的判据是本行的依据……]"
@@ -4589,6 +4612,14 @@ def test_table_isolation_and_deduplication() -> None:
     check("庭审记录诉辩说明行被识别为纯表格栏说明",
           is_table_caption(court_caption),
           f"{is_table_caption(court_caption)}")
+
+    with open("template/hiring_report.md", "r", encoding="utf-8") as f:
+        hiring_tpl = f.read()
+    hiring_plan = plan_placeholder_fill(hiring_tpl)
+    check("防线1：面试报告能力评估在计划层彻底剔除纯表格标量（仅3个标量，不调模型）",
+          len(hiring_plan["scalars"]) == 3
+          and all("能力评估" not in s.get("hint", "") for s in hiring_plan["scalars"]),
+          f"{[s.get('hint')[:20] for s in hiring_plan['scalars']]}")
 
     # 4. 支柱 1 形态 B：复合栏表格隔离纪律注入
     with open("template/clinical_advisory.md", "r", encoding="utf-8") as f:
@@ -4609,7 +4640,7 @@ def test_table_isolation_and_deduplication() -> None:
           "【表格隔离纪律】" in col_user and "严禁在正文输出任何 Markdown 表格" in col_user,
           f"{col_user}")
 
-    # 5. 拼装层去重集成验证：模拟模型在标量末尾画了表，拼装后只有一个表
+    # 5. 拼装层去重集成验证：模拟模型在标量末尾或条目中间画了表，拼装后只有一个表
     scalar_values = [
         "就诊概况正文",
         "病史背景正文",
@@ -4637,6 +4668,27 @@ def test_table_isolation_and_deduplication() -> None:
     check("正文清单与表格提取数据同时存在且无重复表格",
           "留大便做检查" in assembled and "| 斯达舒 | 未提及 | 每日四五次 |" in assembled,
           f"{assembled}")
+
+    # 防线 3 集成验证：条目列表中间插表的标量在拼装时被干净挖除并自然缝合
+    scalar_values_mid = [
+        "就诊概况正文",
+        "病史背景正文",
+        "诊断检查正文",
+        raw_with_middle_table,
+        "复诊预警正文",
+    ]
+    assembled_mid = assemble_placeholder_output(
+        clinical_tpl,
+        scalar_values_mid,
+        tables=extracted_tables,
+    )
+    check("条目中间潜伏表格的标量拼装后仅出现一份表格且条目1/2/3全部保留",
+          assembled_mid.count("| 药品名称 | 剂量 | 频次 | 用法 | 注意事项 |") == 1
+          and "1. **检查安排**" in assembled_mid
+          and "2. **复诊安排**" in assembled_mid
+          and "3. **生活方式与饮食**" in assembled_mid
+          and "| 斯达舒 | 未提及 | 每日四五次 |" in assembled_mid,
+          f"{assembled_mid}")
 
 
 def main() -> int:

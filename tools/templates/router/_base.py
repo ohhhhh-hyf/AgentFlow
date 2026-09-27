@@ -166,7 +166,7 @@ _TABLE_SEP_RE = re.compile(r"^\s*\|?\s*:?-{3,}:?\s*(\|\s*:?-{3,}:?\s*)+\|?\s*$")
 # （庭审记录把诉辩表写成段落）。这类行只是**表格栏说明**：不进字段清单、不打印正文位，
 # 标题与表格照常输出；表内已承载明细，正文自然不需要缺省词。
 _EXPLICIT_TABLE_ONLY_RE = re.compile(
-    r"明细由下表承载|本栏不再另写|整栏不再另写|只用下表|不写「未提及」"
+    r"由下表承载|明细由下表承载|本栏不再另写|整栏不再另写|只用下表|不写「未提及」|不另写说明|不再另写"
 )
 _TABLE_CAPTION_CARRIER_RE = re.compile(
     r"按下表|见下表|只写进下表|只用下表|表内已写|逐行填写|不要另建表格"
@@ -174,16 +174,19 @@ _TABLE_CAPTION_CARRIER_RE = re.compile(
 )
 # 出现这些字样 = 该栏除表格外还要求正文（清单/分点/总述/维度文字…）→ 不算纯表格说明
 _TABLE_CAPTION_BODY_RE = re.compile(
-    r"各占一条|一条一行|分点|`- `|(?:\d+\.|\-|\*)\s*\*\*[^*\n]+\*\*[：:]|总述|一两句|一句|表外|`## |正文"
+    r"各占一条|一条一行|分点|`- `|(?:\d+\.|\-|\*)\s*\*\*[^*\n]+\*\*[：:]|总述|一两句|一句|表外|`## |`### |###|正文"
 )
 
 
 def is_table_caption(text: str) -> bool:
     """纯表格栏说明：只讲"怎么填表"，不要求另写正文。"""
     t = (text or "").strip()
-    if _EXPLICIT_TABLE_ONLY_RE.search(t):
+    if re.search(r"本栏不再另写|整栏不再另写|本栏明细由下表承载|明细由下表承载", t):
         return True
-    return bool(_TABLE_CAPTION_CARRIER_RE.search(t)) and not _TABLE_CAPTION_BODY_RE.search(t)
+    if _EXPLICIT_TABLE_ONLY_RE.search(t):
+        if not _TABLE_CAPTION_BODY_RE.search(t):
+            return True
+    return bool(_TABLE_CAPTION_CARRIER_RE.search(t)) and not bool(_TABLE_CAPTION_BODY_RE.search(t))
 
 
 def _next_is_table(text: str, pos: int) -> bool:
@@ -207,7 +210,8 @@ def table_caption_lines(template: str) -> set[int]:
     """返回"表格栏说明"所在行号（对 ``split_template_meta`` 后的正文行计数）。
 
     判据：整行一个 ``[说明]`` + 紧跟一张表（表头行 + 分隔行）+ 纯表格语义（见
-    ``is_table_caption``）。clinical_advisory 的医嘱清单（要 ``- `` 分点）、
+    ``is_table_caption``）。如果紧随其后就是表格且无任何 ### 子标题与正文要求，
+    无条件判定为纯表格说明行。clinical_advisory 的医嘱清单（要 ``- `` 分点）、
     decision_review 的"核心价值与总述"、debate_forum 的"正文交代辩题"等
     仍要求正文，不会被判为表格栏说明。
     """
@@ -216,8 +220,9 @@ def table_caption_lines(template: str) -> set[int]:
     out: set[int] = set()
     for i, line in enumerate(lines):
         m = _LINE_BRACKET_RE.match(line)
-        if not m or not is_table_caption(m.group(1)):
+        if not m:
             continue
+        hint = m.group(1)
         j = i + 1
         while j < len(lines) and not lines[j].strip():
             j += 1
@@ -229,7 +234,11 @@ def table_caption_lines(template: str) -> set[int]:
         k = j + 1
         while k < len(lines) and not lines[k].strip():
             k += 1
-        if k < len(lines) and _TABLE_SEP_RE.match(lines[k].strip()):
+        if not (k < len(lines) and _TABLE_SEP_RE.match(lines[k].strip())):
+            continue
+        if is_table_caption(hint):
+            out.add(i)
+        elif not _TABLE_CAPTION_BODY_RE.search(hint) and not re.search(r"###|##", hint):
             out.add(i)
     return out
 

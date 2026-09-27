@@ -2,6 +2,7 @@
 from __future__ import annotations
 import asyncio
 import contextlib
+import json
 import logging
 import re
 from typing import Any
@@ -348,35 +349,55 @@ def _is_followed_by_table(
 
 
 def _strip_markdown_tables(text: str) -> str:
-    """从标量文本中剥离可能被模型私自绘制的 Markdown 表格。
-    只在文本中包含明确的表格分隔线且包含多行连续管道符行时触发。
+    """从标量文本中物理剥离模型私自绘制的 Markdown 表格（支持开头、中间、末尾任意位置）。
+
+    通过识别表格表头 + 分隔行（_TABLE_SEP_RE）定位表格起始，连续剥离所有表格数据行，
+    并缝合前后正文段落，保持段落间距自然。
     """
     if not text or "|" not in text:
         return text
-    lines = text.splitlines(keepends=True)
+    lines = text.splitlines()
     out_lines: list[str] = []
     i = 0
-    while i < len(lines):
-        line = lines[i]
-        line_s = line.strip()
-        if line_s.startswith("|") and line_s.count("|") >= 2 and i + 1 < len(lines):
+    n = len(lines)
+    while i < n:
+        line_s = lines[i].strip()
+        is_table_start = False
+        if i + 1 < n and "|" in line_s and not _TABLE_SEP_RE.match(line_s):
             next_s = lines[i + 1].strip()
             if _TABLE_SEP_RE.match(next_s):
-                i += 2
-                while i < len(lines):
-                    row_s = lines[i].strip()
-                    if row_s.startswith("|") and row_s.count("|") >= 2:
-                        i += 1
-                    elif not row_s:
-                        while i < len(lines) and not lines[i].strip():
-                            i += 1
-                        break
-                    else:
-                        break
-                continue
-        out_lines.append(line)
+                is_table_start = True
+
+        if is_table_start:
+            # 找到了表格开始：lines[i] 是表头，lines[i+1] 是分隔线
+            i += 2
+            # 连续剥离所有表格数据行
+            while i < n:
+                row_s = lines[i].strip()
+                if not row_s:
+                    break
+                if row_s.startswith(("- ", "* ", "#", "> ")) or re.match(r"^\d+\.\s+", row_s):
+                    break
+                if "|" in row_s:
+                    i += 1
+                else:
+                    break
+            # 剥离表格紧随的空行
+            while i < n and not lines[i].strip():
+                i += 1
+            # 缝合前后正文：若前有正文且后有正文，缝合一个空行保持自然段落间隔
+            while out_lines and not out_lines[-1].strip():
+                out_lines.pop()
+            if out_lines and i < n and lines[i].strip():
+                out_lines.append("")
+            continue
+
+        out_lines.append(lines[i])
         i += 1
-    return "".join(out_lines).rstrip()
+
+    res = "\n".join(out_lines).strip()
+    res = re.sub(r"\n{3,}", "\n\n", res)
+    return res
 
 
 def assemble_placeholder_output(
@@ -993,6 +1014,310 @@ def _target_line(source_han: int | None, template: str) -> str:
     )
 
 
+def _prune_context_for_column(
+    context: str,
+    template: str,
+    *,
+    title: str,
+    hint: str,
+    directives: str = "",
+) -> str:
+    """根据栏目类型智能瘦身上下文（Targeted Column Context Pruning）。
+
+    - 待办与风险栏：切除长篇会议原文讨论，仅注入 action_hints、user_hits（命中表）和 decisions；
+    - 业务决策栏：仅注入与 focus_thing / focus_person 相关的议题讨论切片；
+    - 概况局势栏：保留宏观决策与结论，切除超长技术细节实录。
+    若 context 为简短无结构文本（如单元测试 mock），安全原样返回。
+    """
+    if not context or "\n\n" not in context:
+        return context
+
+    pattern = r"(?m)(?=^(?:视角模式：|objective_perspective：|用户画像：|会议理解：|已审核用户视角：|会议原文[^\n]*：|已批准[^\n]*草稿：|[^\n]*审核结论：|【[^\n]+】))"
+    raw_parts = [p.strip() for p in re.split(pattern, context) if p.strip()]
+    if len(raw_parts) < 3:
+        return context
+
+    sections: dict[str, str] = {}
+    extra_blocks: list[str] = []
+    head_block: str = ""
+
+    for part in raw_parts:
+        m = re.match(r"^([^：:\n]+[：:])\s*(.*)", part, re.DOTALL)
+        if m:
+            label = m.group(1).strip()
+            body = m.group(2).strip()
+            sections[label] = body
+        elif part.startswith("【"):
+            extra_blocks.append(part)
+        else:
+            if not head_block:
+                head_block = part
+
+    user_data: dict[str, Any] = {}
+    for k, v in sections.items():
+        if "用户画像" in k:
+            try:
+                user_data = json.loads(v)
+            except Exception:
+                pass
+            break
+
+    focus_things = [str(x).strip() for x in (user_data.get("focus_thing") or []) if str(x).strip()]
+    focus_persons = [str(x).strip() for x in (user_data.get("focus_person") or []) if str(x).strip()]
+    user_name = str(user_data.get("name") or "").strip()
+    key_needles = [n for n in ([user_name] + focus_persons + focus_things) if len(n) >= 2]
+
+    is_action_col = any(kw in title for kw in ("行动", "待办", "分工", "任务")) and not any(kw in title for kw in ("议题", "讨论", "决议", "方案"))
+    is_risk_col = any(kw in title for kw in ("风险", "卡点", "待确认", "未决", "争议"))
+    is_overview_col = any(kw in title for kw in ("概况", "局势", "背景", "承接目标", "本人定调", "摘要", "概述", "简述"))
+    is_decision_col = any(kw in title for kw in ("重点关注", "业务进展", "决策", "方案", "进展", "技术", "讨论", "议题"))
+
+    # 1. 待办栏与风险栏：切除长篇会议原文，仅注入 action_hints、user_hits（命中表）和 decisions
+    if is_action_col or is_risk_col:
+        out_parts = []
+        if head_block:
+            out_parts.append(head_block)
+        for label, body in sections.items():
+            if "会议原文" in label:
+                continue
+            if "会议理解" in label:
+                try:
+                    und = json.loads(body)
+                    compact_und: dict[str, Any] = {}
+                    for field in ("decisions", "action_hints", "risks", "meeting_purpose", "meeting_brief", "open_questions"):
+                        if field in und and und[field]:
+                            compact_und[field] = und[field]
+                    if "topics" in und and isinstance(und["topics"], list):
+                        compact_und["topics"] = [
+                            {"topic": t.get("topic"), "key_points": t.get("key_points", [])}
+                            for t in und["topics"] if isinstance(t, dict)
+                        ]
+                    out_parts.append(f"{label}\n{json.dumps(compact_und, ensure_ascii=False)}")
+                    continue
+                except Exception:
+                    pass
+            out_parts.append(f"{label}\n{body}")
+        out_parts.extend(extra_blocks)
+        return "\n\n".join(out_parts)
+
+    # 2. 业务决策栏：仅注入与 focus_thing / focus_person 相关的议题讨论切片
+    if is_decision_col and key_needles:
+        out_parts = []
+        if head_block:
+            out_parts.append(head_block)
+        for label, body in sections.items():
+            if "会议理解" in label:
+                try:
+                    und = json.loads(body)
+                    if "topics" in und and isinstance(und["topics"], list):
+                        new_topics = []
+                        for t in und["topics"]:
+                            if not isinstance(t, dict):
+                                continue
+                            t_str = json.dumps(t, ensure_ascii=False)
+                            if any(needle in t_str for needle in key_needles):
+                                new_topics.append(t)
+                            else:
+                                new_topics.append({"topic": t.get("topic"), "key_points": (t.get("key_points") or [])[:2]})
+                        und["topics"] = new_topics
+                        out_parts.append(f"{label}\n{json.dumps(und, ensure_ascii=False)}")
+                        continue
+                except Exception:
+                    pass
+            elif "会议原文" in label:
+                paragraphs = [p.strip() for p in body.splitlines() if p.strip()]
+                kept_paras = [p for p in paragraphs if any(needle in p for needle in key_needles)]
+                if kept_paras:
+                    out_parts.append(f"{label}（重点关注事项切片）：\n" + "\n".join(kept_paras))
+                    continue
+            out_parts.append(f"{label}\n{body}")
+        out_parts.extend(extra_blocks)
+        return "\n\n".join(out_parts)
+
+    # 3. 概况局势栏：若原文过长，裁剪原文仅保留开篇背景
+    if is_overview_col:
+        out_parts = []
+        if head_block:
+            out_parts.append(head_block)
+        for label, body in sections.items():
+            if "会议原文" in label and len(body) > 3000:
+                short_body = body[:1500].rsplit("\n", 1)[0] + "\n...(后文讨论略，宏观结论见【已批准纪要草稿】与【会议理解】)"
+                out_parts.append(f"{label}（开篇背景摘要）：\n{short_body}")
+                continue
+            out_parts.append(f"{label}\n{body}")
+        out_parts.extend(extra_blocks)
+        return "\n\n".join(out_parts)
+
+    return context
+
+
+def _format_action_items_projection(points: list[str]) -> str | None:
+    if not isinstance(points, list):
+        return None
+    if not points:
+        return "**与我相关**：\n- 暂无本人直接待办"
+
+    lines: list[str] = []
+    group_re = re.compile(r"^(?:###\s*|\*\*)[^*:\n]+(?:\*\*|)[：:]?\s*$")
+    current_group: str | None = None
+    has_self_group = False
+    self_items_count = 0
+
+    for raw in points:
+        item = str(raw or "").strip()
+        if not item:
+            continue
+
+        if group_re.match(item):
+            clean_g = re.sub(r"^(?:###\s*|\*\*)\s*|\s*(?:\*\*|)[：:]?\s*$", "", item)
+            current_group = clean_g
+            if lines and lines[-1] != "":
+                lines.append("")
+            lines.append(f"**{clean_g}**：")
+            if "与我相关" in clean_g:
+                has_self_group = True
+            continue
+
+        if current_group is None:
+            current_group = "与我相关"
+            has_self_group = True
+            lines.append("**与我相关**：")
+
+        if "与我相关" in current_group:
+            self_items_count += 1
+
+        cleaned = re.sub(r"^\s*(?:[-•+]|\*(?!\*)|\d+\.|\([0-9]+\)\.?)\s*(?:\[[ xX]?\]\s*)?", "", item).strip()
+        if cleaned.startswith("**"):
+            task_line = f"- {cleaned}"
+        elif "：" in cleaned:
+            parts = cleaned.split("：", 1)
+            task_line = f"- **{parts[0].strip()}**：{parts[1].strip()}"
+        elif ":" in cleaned:
+            parts = cleaned.split(":", 1)
+            task_line = f"- **{parts[0].strip()}**：{parts[1].strip()}"
+        else:
+            m_paren = re.match(r"^([^（(]+)[（(](.*)[）)]$", cleaned)
+            if m_paren:
+                task_name = m_paren.group(1).strip()
+                task_args = m_paren.group(2).strip()
+                task_line = f"- **{task_name}**（{task_args}）"
+            else:
+                task_line = f"- {cleaned}"
+
+        lines.append(task_line)
+
+    if has_self_group and self_items_count == 0:
+        idx = lines.index("**与我相关**：")
+        lines.insert(idx + 1, "- 暂无本人直接待办")
+
+    return "\n".join(lines).strip() or None
+
+
+def _format_risks_projection(risks: list[str]) -> str | None:
+    if not isinstance(risks, list):
+        return None
+    if not risks:
+        return "**与我相关**：\n- 暂无直接风险与卡点\n\n**全局风险与未决**：\n- 全局暂无重大未决争议"
+
+    lines: list[str] = []
+    group_re = re.compile(r"^(?:###\s*|\*\*)[^*:\n]+(?:\*\*|)[：:]?\s*$")
+    current_group: str | None = None
+
+    for raw in risks:
+        item = str(raw or "").strip()
+        if not item:
+            continue
+
+        if group_re.match(item):
+            clean_g = re.sub(r"^(?:###\s*|\*\*)\s*|\s*(?:\*\*|)[：:]?\s*$", "", item)
+            current_group = clean_g
+            if lines and lines[-1] != "":
+                lines.append("")
+            lines.append(f"**{clean_g}**：")
+            continue
+
+        if current_group is None:
+            current_group = "与我相关"
+            lines.append("**与我相关**：")
+
+        cleaned = re.sub(r"^\s*(?:[-•+]|\*(?!\*)|\d+\.|\([0-9]+\)\.?)\s*(?:\[[ xX]?\]\s*)?", "", item).strip()
+        if cleaned.startswith("**"):
+            task_line = f"- {cleaned}"
+        elif "：" in cleaned:
+            parts = cleaned.split("：", 1)
+            task_line = f"- **{parts[0].strip()}**：{parts[1].strip()}"
+        elif ":" in cleaned:
+            parts = cleaned.split(":", 1)
+            task_line = f"- **{parts[0].strip()}**：{parts[1].strip()}"
+        elif cleaned.startswith("【"):
+            m_tag = re.match(r"^(【[^】]+】)(.*)", cleaned)
+            if m_tag:
+                task_line = f"- **{m_tag.group(1)}{m_tag.group(2).strip()}**"
+            else:
+                task_line = f"- **{cleaned}**"
+        else:
+            task_line = f"- {cleaned}"
+
+        lines.append(task_line)
+
+    return "\n".join(lines).strip() or None
+
+
+def project_column_from_draft(
+    context: str,
+    template: str,
+    *,
+    title: str,
+    hint: str,
+    directives: str = "",
+) -> str | None:
+    """草稿直出快线（Direct Projection）：从上游已批准草稿中直接提取结构化列表回填。
+
+    若模板格式吻合，Python 程序直接按规范回填，完全跳过大模型调用，直接节省一次并发耗时。
+    仅在个人视角或显式个人模板中触发；若草稿未对齐或缺失，平滑回退 None 走 LLM 生成。
+    """
+    if not context or "\n\n" not in context:
+        return None
+
+    is_personal = (
+        "视角模式：personal" in context
+        or "personal_minutes.md" in template
+        or "本场概况与承接目标" in template
+        or "本场概况与本人定调" in template
+        or "【本视角纪律】" in directives
+    )
+    if not is_personal:
+        return None
+
+    is_action_col = any(kw in title for kw in ("行动项", "待办", "分工", "任务")) and not any(kw in title for kw in ("议题", "讨论", "决议", "方案"))
+    is_risk_col = any(kw in title for kw in ("风险", "卡点", "待确认", "未决")) and not any(kw in title for kw in ("议题", "讨论", "决议", "方案"))
+
+    if not is_action_col and not is_risk_col:
+        return None
+
+    m_draft = re.search(r"已批准[^\n]*草稿：\s*\n(\{.*?\})(?=\n\n|\Z)", context, re.DOTALL)
+    if not m_draft:
+        return None
+    try:
+        draft = json.loads(m_draft.group(1))
+    except Exception:
+        return None
+
+    if is_action_col:
+        points = draft.get("personally_relevant_points")
+        if not isinstance(points, list):
+            return None
+        return _format_action_items_projection(points)
+
+    if is_risk_col:
+        risks = draft.get("risks_and_blockers")
+        if not isinstance(risks, list):
+            return None
+        return _format_risks_projection(risks)
+
+    return None
+
+
 def _column_fill_user(
     context: str,
     template: str,
@@ -1216,6 +1541,20 @@ async def fill_placeholder_by_columns(
         title = titles[index]
         others = [t for i, t in enumerate(titles) if i != index and t]
 
+        # 草稿直出快线（Direct Projection）：
+        # 上游已批准结构化待办列表格式吻合时，直接回填，节省一次并发耗时
+        if not revision:
+            projected = project_column_from_draft(
+                context, template, title=title, hint=hint, directives=directives
+            )
+            if projected and not overlong_items(projected):
+                projected = _strip_redundant_column_heading(projected, title)
+                if _section_has_table(template, title):
+                    projected = _strip_markdown_tables(projected)
+                if projected.strip():
+                    logger.info("column fill direct projection hit for column [%s]", title)
+                    return projected
+
         # 自适应单栏超时：基础超时以 client.timeout 为底（至少 60s），对超重长栏目适度放宽
         raw_to = getattr(client, "timeout", None)
         base_to = float(raw_to) if raw_to else 60.0
@@ -1232,8 +1571,15 @@ async def fill_placeholder_by_columns(
             cur_pen = 0.3 if (attempt > 0 or revision) else (0.15 if is_heavy else None)
             cur_temp = 0.35 if (attempt > 0 or revision) else None
 
-            user = _column_fill_user(
+            pruned_context = _prune_context_for_column(
                 context,
+                template,
+                title=title,
+                hint=hint,
+                directives=directives,
+            )
+            user = _column_fill_user(
+                pruned_context,
                 template,
                 index=index + 1,
                 total=len(scalars),

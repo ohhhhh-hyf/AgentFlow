@@ -637,18 +637,18 @@ def test_personal_template_config_and_task_routing() -> None:
         obj_tpl_path = _template_file("meeting", "minutes", "", profile_value="")
         obj_content = obj_tpl_path.read_text(encoding="utf-8") if obj_tpl_path else ""
         check("路由：客观模式（profile为空）100% 保持 general_minutes",
-              "全文摘要" in obj_content and "本场概况与本人定调" not in obj_content, obj_content[:60])
+              "全文摘要" in obj_content and ("本场概况与承接目标" not in obj_content and "本场概况与本人定调" not in obj_content), obj_content[:60])
 
         obj_explicit_path = _template_file("meeting", "minutes", "", profile_value="objective")
         obj_exp_content = obj_explicit_path.read_text(encoding="utf-8") if obj_explicit_path else ""
         check("路由：客观模式（profile=objective）100% 保持 general_minutes",
-              "全文摘要" in obj_exp_content and "本场概况与本人定调" not in obj_exp_content, obj_exp_content[:60])
+              "全文摘要" in obj_exp_content and ("本场概况与承接目标" not in obj_exp_content and "本场概况与本人定调" not in obj_exp_content), obj_exp_content[:60])
 
         # 路由测试：个人模式（profile="user"）默认走 personal_minutes
         user_tpl_path = _template_file("meeting", "minutes", "", profile_value="user")
         user_content = user_tpl_path.read_text(encoding="utf-8") if user_tpl_path else ""
         check("路由：个人模式（profile=user）默认走 personal_minutes",
-              "本场概况与本人定调" in user_content and "行动项与协同依赖" in user_content, user_content[:60])
+              ("本场概况与承接目标" in user_content or "本场概况与本人定调" in user_content) and "行动项与协同依赖" in user_content, user_content[:60])
 
         # 路由测试：若显式指定 template，尊重指定值
         explicit_tpl_path = _template_file("meeting", "minutes", "general_minutes", profile_value="user")
@@ -661,7 +661,7 @@ def test_personal_template_config_and_task_routing() -> None:
         fallback_path = _template_file("meeting", "minutes", "", profile_value="user")
         fallback_content = fallback_path.read_text(encoding="utf-8") if fallback_path else ""
         check("路由：环境变量改为 general_minutes 时，个人模式平滑回退",
-              "全文摘要" in fallback_content and "本场概况与本人定调" not in fallback_content, fallback_content[:60])
+              "全文摘要" in fallback_content and ("本场概况与承接目标" not in fallback_content and "本场概况与本人定调" not in fallback_content), fallback_content[:60])
 
     finally:
         if orig_env is not None:
@@ -822,6 +822,71 @@ def test_supervisor_slice_enhancement() -> None:
     check("草稿送审保真：20条以上个人事项不被中间省略", len(compacted["personally_relevant_points"]) == 25 and not any("省略" in x for x in compacted["personally_relevant_points"]), str(compacted["personally_relevant_points"]))
 
 
+def test_personal_perspective_modeling_pruning_and_projection() -> None:
+    from perspective.synth import synthesize_perspective_profile
+    from perspective.hits import build_hit_table
+    from tools.templates.router._placeholder import _prune_context_for_column, project_column_from_draft
+
+    # 1. 建模层产出验证：高管任务简报范式，彻底消除系统内部日志腔
+    table = build_hit_table({"name": "申家坤"}, {"decisions": ["申家坤负责压测报告"]})
+    profile = synthesize_perspective_profile({"name": "申家坤"}, table)
+    summary = profile["personal_summary"]
+    check("建模层产出：承接目标事实块升级", "核心承接目标与事项" in summary and "按既定节点推进交付" in summary, summary)
+    check("建模层产出：彻底消灭内部机器日志腔", "本场与申家坤直接相关" not in summary, summary)
+
+    # 2. 指令层范式验证
+    from perspective import PERSONAL_TEMPLATE_VIEW_DIRECTIVE
+    check("指令层：注入高管任务简报规范与去我化约束",
+          "高管任务简报文风" in PERSONAL_TEMPLATE_VIEW_DIRECTIVE and "去“我”化" in PERSONAL_TEMPLATE_VIEW_DIRECTIVE, "")
+
+    # 3. 栏目靶向瘦身验证（Targeted Column Context Pruning）
+    context = (
+        "视角模式：personal\n"
+        "objective_perspective：False\n\n"
+        "用户画像：\n"
+        '{"name": "申家坤", "focus_thing": ["demo落地", "模型压测"], "focus_person": ["张工"]}\n\n'
+        "会议理解：\n"
+        '{"topics": [{"topic": "demo落地方案", "key_points": ["完成第一轮测试"], "discussion": "张工和申家坤讨论了很久..."}, {"topic": "财务报销规范", "key_points": ["发票规定"], "discussion": "财务详细汇报了发票流程..."}], "decisions": ["拍板demo落地本周上线"], "action_hints": ["申家坤完成压测报告"], "risks": ["压测显存超限"]}\n\n'
+        "已审核用户视角：\n"
+        '{"personal_summary": "核心承接目标与事项：完成压测。"}\n\n'
+        "会议原文（真人模式·已按人裁剪）：\n"
+        "张工：明天把测试环境搞好。\n"
+        "申家坤：我周五前出压测报告。\n"
+        "财务：报销流程必须在每月25日前提交。\n\n"
+        "已批准纪要草稿：\n"
+        '{"headline": "技术对齐会", "executive_summary": ["本场讨论了demo落地。"], "key_decisions": ["拍板demo落地本周上线"], "personally_relevant_points": ["**与我相关**：", "完成demo落地压测（周五前 ｜ 报告 ｜ P99<50ms）", "**协同输入**：", "**张工**：明天就绪测试环境（明天下午）"], "risks_and_blockers": ["**与我相关**：", "【阻塞】显存不足待协调机器"]}\n\n'
+        "纪要审核结论：\n"
+        '{"decision": "approve"}\n\n'
+        "【本用户命中】\n"
+        "命中申家坤 2 处"
+    )
+
+    # 待办栏瘦身：切除长篇会议原文，保留 action_hints 与 decisions
+    act_pruned = _prune_context_for_column(context, "", title="行动项与协同依赖", hint="")
+    check("待办栏瘦身：切除会议原文", "会议原文" not in act_pruned, act_pruned[:100])
+    check("待办栏瘦身：保留action_hints与decisions", "action_hints" in act_pruned and "decisions" in act_pruned, act_pruned[:100])
+    check("待办栏瘦身：剔除长篇topics讨论", "财务详细汇报" not in act_pruned, act_pruned)
+
+    # 业务决策栏瘦身：仅注入与 focus_thing 相关议题切片
+    biz_pruned = _prune_context_for_column(context, "", title="重点关注与业务进展", hint="")
+    check("业务决策栏瘦身：保留focus_thing相关讨论", "张工和申家坤讨论了很久" in biz_pruned, biz_pruned)
+    check("业务决策栏瘦身：剔除无关议题讨论", "财务详细汇报了发票流程" not in biz_pruned, biz_pruned)
+
+    # 4. 草稿直出快线验证（Direct Projection）
+    proj_act = project_column_from_draft(context, "personal_minutes.md", title="行动项与协同依赖", hint="")
+    check("草稿直出：行动项直出成功", bool(proj_act), str(proj_act))
+    check("草稿直出：格式标准化为看板与清单", "**与我相关**：" in (proj_act or "") and "- **完成demo落地压测**（周五前 ｜ 报告 ｜ P99<50ms）" in (proj_act or ""), str(proj_act))
+    check("草稿直出：协同输入分组保留", "**协同输入**：" in (proj_act or "") and "- **张工**：明天就绪测试环境（明天下午）" in (proj_act or ""), str(proj_act))
+
+    proj_risk = project_column_from_draft(context, "personal_minutes.md", title="待确认事项与风险卡点", hint="")
+    check("草稿直出：风险卡点直出成功", bool(proj_risk) and "**与我相关**：" in (proj_risk or "") and "【阻塞】" in (proj_risk or ""), str(proj_risk))
+
+    # 非个人模式平滑回退
+    obj_context = context.replace("视角模式：personal", "视角模式：objective")
+    proj_obj = project_column_from_draft(obj_context, "general_minutes.md", title="行动项与分工", hint="")
+    check("草稿直出：客观模式平滑回退None走LLM", proj_obj is None, str(proj_obj))
+
+
 def main() -> int:
     test_empty_cases()
     test_whitelist_mapping()
@@ -842,6 +907,7 @@ def main() -> int:
     test_personal_grouping_and_normalization()
     test_personal_enhancement_focus_radar()
     test_supervisor_slice_enhancement()
+    test_personal_perspective_modeling_pruning_and_projection()
     print(f"pass {len(PASS)}  fail {len(FAIL)}")
     for name in FAIL:
         print("FAIL", name)
