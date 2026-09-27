@@ -9,6 +9,7 @@
 from __future__ import annotations
 
 import logging
+import re
 from dataclasses import asdict, is_dataclass
 from datetime import datetime
 from pathlib import Path
@@ -135,14 +136,18 @@ def save_report_artifacts(
 
     # has_template：仅当显式走过门禁（True/False）时视为有模板约束
     has_template = gate_ok is not None
-    # 视角标题（如有）作为 H1 前缀；正文已自带 # 标题时不再重复叠加
+    # 视角标题（如有）作为 H1 前缀；正文已自带 # 标题时不再重复叠加；通用纪要模板固定使用 # 通用纪要
     title = str(data.get("title") or "").strip()
-    if title and not text.lstrip().startswith("# "):
-        text = f"# {title}\n\n{text}"
+    if not text.lstrip().startswith("# "):
+        if has_template and line_name == "minutes" and ("全文摘要" in text and "要点梳理" in text):
+            text = f"# 通用纪要\n\n{text}"
+        elif title:
+            text = f"# {title}\n\n{text}"
     compact = hooks_for(ctx.name).compact_plain
     if compact is not None and not has_template:
         text = compact(line_name, text)
-    html_title = title or ctx.line_cn_names.get(line_name, line_name)
+    h1_m = re.match(r"^#\s+(.+)$", text.lstrip())
+    html_title = h1_m.group(1).strip() if h1_m else (title or ctx.line_cn_names.get(line_name, line_name))
     # 门禁失败也照写正式 result.md（2026-09 决定）：实测出现过「正文合格但门禁误判」
     # （表格写法变体被判「固定文字丢失」），此时不落盘会让用户拿不到可用内容。
     # 质量信号由两条承担：API 的 quality_warning（带门禁原因）与同目录的
@@ -265,15 +270,24 @@ def _stamp() -> str:
     return datetime.now().strftime("%Y%m%d_%H%M%S_%f")[:-3]
 
 
+def export_mindmap_md(reports: dict, out_dir: Path) -> Path | None:
+    mindmap_report = reports.get("mindmap")
+    outline = getattr(mindmap_report, "outline", None) if mindmap_report else None
+    if not outline or not outline.strip():
+        return None
+    out_dir.mkdir(parents=True, exist_ok=True)
+    filename = "mindmap.md"
+    target = out_dir / filename
+    target.write_text(outline.strip() + "\n", encoding="utf-8")
+    return target
+
+
 def export_mindmap_html(reports: dict, out_dir: Path) -> Path | None:
     mindmap_report = reports.get("mindmap")
     outline = getattr(mindmap_report, "outline", None) if mindmap_report else None
     if not outline or not outline.strip():
         return None
-    if not markmap_available():
-        logger.warning("npx/node not found, skip mindmap html")
-        return None
-    filename = f"mindmap_{_stamp()}.html"
+    filename = "mindmap.html"
     return render_mindmap_html(outline, out_dir, filename)
 
 
@@ -287,7 +301,7 @@ async def export_mindmap_png(
     if not mindmap_png_available():
         logger.warning("playwright missing, skip mindmap png")
         return None
-    filename = f"mindmap_{_stamp()}.png"
+    filename = "mindmap.png"
     return await render_mindmap_png(outline, out_dir, filename, html_path=html_path)
 
 
@@ -311,6 +325,7 @@ def export_graph(reports: dict, out_dir: Path) -> dict[str, Path]:
 __all__ = [
     "export_graph",
     "export_mindmap_html",
+    "export_mindmap_md",
     "export_mindmap_png",
     "report_text",
     "report_to_dict",

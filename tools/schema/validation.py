@@ -62,11 +62,21 @@ def _review_check(value: dict, path: str) -> None:
 
 
 def _action(item: dict, path: str) -> None:
-    expected = {
+    required = {
         "task", "owner", "deadline", "priority",
         "status", "evidence", "confidence",
     }
-    _exact_fields(item, expected, path)
+    allowed = required | {"category", "deliverable", "dependency"}
+    if not isinstance(item, dict):
+        raise OutputValidationError(f"{path} 必须是 JSON 对象")
+    actual = set(item)
+    missing = required - actual
+    extra = actual - allowed
+    if missing or extra:
+        raise OutputValidationError(
+            f"{path} 字段不一致：缺失={sorted(missing)}，"
+            f"多余={sorted(extra)}"
+        )
     _string(item["task"], f"{path}.task")
     _string(item["owner"], f"{path}.owner", nullable=True)
     _string(item["deadline"], f"{path}.deadline", nullable=True)
@@ -74,6 +84,12 @@ def _action(item: dict, path: str) -> None:
     _choice(item["status"], {"explicit", "inferred"}, f"{path}.status")
     _string(item["evidence"], f"{path}.evidence")
     _choice(item["confidence"], {"high", "medium", "low"}, f"{path}.confidence")
+    if "category" in item:
+        _string(item["category"], f"{path}.category", nullable=True)
+    if "deliverable" in item:
+        _string(item["deliverable"], f"{path}.deliverable", nullable=True)
+    if "dependency" in item:
+        _string(item["dependency"], f"{path}.dependency", nullable=True)
 
 
 def validate_supervisor_semantics(

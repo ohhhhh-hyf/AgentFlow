@@ -66,8 +66,10 @@ def save_task_outputs(
         if not isinstance(paths, dict):
             continue
         if result["md"] is None and paths.get("text"):
-            # 保留源文件名（result.md 或按线命名的 {line}.md），不强行改名
-            result["md"] = _copy_as(Path(paths["text"]), out / Path(paths["text"]).name)
+            # 保留源文件名（result.md 或按线命名的 {line}.md），若带下划线时间戳前缀则规整为 {line}.md
+            src_name = Path(paths["text"]).name
+            target_name = f"{_line}.md" if src_name.startswith(f"{_line}_") else src_name
+            result["md"] = _copy_as(Path(paths["text"]), out / target_name)
         if result["html"] is None and paths.get("html"):
             result["html"] = _copy_as(Path(paths["html"]), out / f"{_line}.html")
         if result["md"] and result["html"]:

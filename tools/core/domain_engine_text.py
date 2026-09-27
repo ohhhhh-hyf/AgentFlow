@@ -203,24 +203,95 @@ def field_values(draft: dict, sec, objective: bool) -> list:
     return draft.get(field) or []
 
 
+def render_risk_items(items: list[dict]) -> str:
+    """把风险条目列表按业务板块（话题）归类聚合，渲染为结构化卡片清单。
+
+    格式规范：
+    1. 板块主行：{板块序号}. **[{业务板块}]**
+    2. 列表风险项：   - {风险核心隐患描述}({风险级别} · {责任主体})
+    3. 卡片属性块（条件输出，缩进 5 空格接 > ）：
+       - 潜在影响：{客观陈述后果或连锁反应}（必出）
+       - 应对方案：{预案动作或整改措施}（条件输出）
+    """
+    if not items:
+        return "暂无明确风险事项"
+
+    _invalid = {"null", "none", "无", "未提及", "未明确", "待排期", "待指定", "-"}
+    _sev_map = {
+        "high": "高风险", "medium": "中风险", "low": "低风险",
+        "高": "高风险", "中": "中风险", "低": "低风险",
+        "高风险": "高风险", "中风险": "中风险", "低风险": "低风险",
+    }
+
+    # 1. 话题归类聚合（保持初次出现的先后顺序）
+    groups: dict[str, list[dict]] = {}
+    for item in items:
+        if not isinstance(item, dict):
+            continue
+        risk_raw = str(item.get("risk") or "").strip()
+        if not risk_raw:
+            continue
+        cat = str(item.get("category") or "").strip()
+        if not cat and (risk_raw.startswith("【") or risk_raw.startswith("[")):
+            m = re.match(r"^[【\[](.*?)[】\]](.*)$", risk_raw)
+            if m:
+                cat = m.group(1).strip()
+        if not cat:
+            cat = "综合风险"
+        groups.setdefault(cat, []).append(item)
+
+    if not groups:
+        return "暂无明确风险事项"
+
+    topic_blocks: list[str] = []
+    for cat_idx, (cat, cat_items) in enumerate(groups.items(), start=1):
+        topic_lines = [f"{cat_idx}. **[{cat}]**"]
+        for item in cat_items:
+            risk_raw = str(item.get("risk") or "").strip()
+            # 剔除可能重复包含在 risk_raw 开头的 [cat] 或【cat】
+            if risk_raw.startswith(f"[{cat}]"):
+                risk = risk_raw[len(f"[{cat}]"):].strip()
+            elif risk_raw.startswith(f"【{cat}】"):
+                risk = risk_raw[len(f"【{cat}】"):].strip()
+            elif (risk_raw.startswith("【") and "】" in risk_raw) or (risk_raw.startswith("[") and "]" in risk_raw):
+                m = re.match(r"^[【\[](.*?)[】\]](.*)$", risk_raw)
+                risk = m.group(2).strip() if m else risk_raw
+            else:
+                risk = risk_raw
+
+            sev_key = str(item.get("severity") or "medium").lower().strip()
+            sev = _sev_map.get(sev_key, "中风险")
+
+            owner = str(item.get("owner") or "").strip()
+            impact = str(item.get("impact") or "").strip()
+            mitigation = str(item.get("mitigation") or "").strip()
+
+            owner_display = owner if (owner and owner.lower() not in _invalid) else "待认领"
+            meta_display = f"{sev} · {owner_display}"
+
+            topic_lines.append(f"   - {risk}({meta_display})")
+
+            # 潜在影响（必出）
+            if impact and impact.lower() not in _invalid:
+                topic_lines.append(f"     > 潜在影响：{impact}")
+            # 应对方案（条件输出）
+            if mitigation and mitigation.lower() not in _invalid:
+                topic_lines.append(f"     > 应对方案：{mitigation}")
+
+        topic_blocks.append("\n".join(topic_lines))
+
+    return "\n\n".join(topic_blocks)
+
+
 def format_risk_item(index: int, item: dict) -> str:
-    """把一条风险格式化为文本行（确定性降级输出用，与 LLM 渲染格式一致）。"""
-    _sev = {"high": "高", "medium": "中", "low": "低"}
-    meta = []
-    sev = item.get("severity", "")
-    if sev in _sev:
-        meta.append(_sev[sev])
-    if item.get("source"):
-        meta.append(f"来源：{item['source']}")
-    if item.get("impact"):
-        meta.append(f"影响：{item['impact']}")
-    if item.get("owner"):
-        meta.append(f"负责人：{item['owner']}")
-    if item.get("mitigation"):
-        meta.append(f"应对：{item['mitigation']}")
-    text = item.get("risk") or ""
-    suffix = f"（{'；'.join(meta)}）" if meta else ""
-    return f"{index}. {text}{suffix}"
+    """把单条风险格式化为规范文本块。"""
+    res = render_risk_items([item])
+    if index != 1 and res.startswith("1."):
+        res = f"{index}." + res[2:]
+    return res
+
+
+format_risk_item.render_items = render_risk_items
 
 
 def format_graph_node(index: int, item: dict) -> str:
@@ -282,6 +353,12 @@ def fallback_text(
             formatter = formatters.get(line_name)
             if formatter is None:
                 continue
+            batch_fn = getattr(formatter, "render_items", None)
+            if batch_fn is not None:
+                batch_text = batch_fn(list(values))
+                if batch_text and batch_text != sec_attr(rules, "empty_text", ""):
+                    sections.append(batch_text)
+                continue
             for index, item in enumerate(values, start=1):
                 sections.append(formatter(index, item))
     if not sections:
@@ -332,6 +409,7 @@ __all__ = [
     "field_values",
     "format_graph_node",
     "format_risk_item",
+    "render_risk_items",
     "json_dumps",
     "line",
     "line_cn",

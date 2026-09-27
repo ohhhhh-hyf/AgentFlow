@@ -29,6 +29,7 @@ from .logging_config import setup_logging
 from tools.exports.outputs import (
     export_graph,
     export_mindmap_html,
+    export_mindmap_md,
     export_mindmap_png,
     report_to_dict,
     save_all_reports,
@@ -531,6 +532,9 @@ async def _handle_done(
     if "mindmap" in reports:
         try:
             mindmap_dir = task_output_dir(ctx, "mindmap")
+            md_path = export_mindmap_md(reports, mindmap_dir)
+            if md_path:
+                logger.info("mindmap md saved path=%s", md_path)
             html_path = export_mindmap_html(reports, mindmap_dir)
             if html_path:
                 logger.info("mindmap html saved path=%s", html_path)
@@ -540,6 +544,7 @@ async def _handle_done(
             if png_path:
                 logger.info("mindmap png saved path=%s", png_path)
             saved["mindmap"] = {
+                "text": md_path,
                 "html": html_path,
                 "png": png_path,
             }

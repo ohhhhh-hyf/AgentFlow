@@ -13,6 +13,7 @@ class RiskGenerationContract(GenerationContract):
 
     fields = [
         ObjListField("risks", [
+            StrField("category", "该风险所属的具体业务领域或隐患场景短语，通常4–12字，带具体客体或业务场景，如核心网关压测与断流、室外混凝土路面收缩开裂、海外数据跨境合规审查"),
             StrField("risk", "风险描述，必须来自会议原文或会议理解结果"),
             StrField("source", "风险来源：原文依据或相关议题"),
             EnumField("severity", ["high", "medium", "low"]),
@@ -43,7 +44,7 @@ class RiskFallbackRules(FallbackRules):
     sections = [
         Lines("risks"),
     ]
-    empty_text = "暂无明确风险"
+    empty_text = "暂无明确风险事项"
     structured = {"field": "risks"}
 
 

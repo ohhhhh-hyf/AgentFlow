@@ -646,9 +646,9 @@ _TASK_ITEM_RE = re.compile(r"^\s*[-*]\s+\[([ xX])\]\s*(.*)$")
 
 def _format_inline_tags(text: str) -> str:
     """格式化纪要中的状态徽章、依赖标签与参数胶囊。"""
-    text = re.sub(r"【(?:阻塞|阻碍)】", r'<span class="ck-tag-blocker">阻塞</span>', text)
-    text = re.sub(r"【(高风险|中风险|低风险)】", r'<span class="ck-tag-risk">\1</span>', text)
-    text = re.sub(r"【(?:待确认|待决)】", r'<span class="ck-tag-warn">待确认</span>', text)
+    text = re.sub(r"[\[【](?:阻塞|阻碍)[\]】]", r'<span class="ck-tag-blocker">阻塞</span>', text)
+    text = re.sub(r"[\[【](高风险|中风险|低风险)[\]】]", r'<span class="ck-tag-risk">\1</span>', text)
+    text = re.sub(r"[\[【](?:待确认|待决)[\]】]", r'<span class="ck-tag-warn">待确认</span>', text)
     text = re.sub(r"[\[【]([\u4e00-\u9fff]{2,8}(?:依赖|定调|输入|输出|评审))[\]】]", r'<span class="ck-tag-dep">\1</span>', text)
     text = re.sub(r"（([^）\n]+(?:[｜|][^）\n]+)+)）", r'<span class="ck-param-capsule">（\1）</span>', text)
     text = re.sub(r"\(([^)\n]+(?:[｜|][^)\n]+)+)\)", r'<span class="ck-param-capsule">(\1)</span>', text)
@@ -1528,6 +1528,13 @@ def _render_markdown_content(text: str) -> str:
             i += 1
             continue
 
+        if ol_buf and re.match(r"^\s{2,}>\s*(.*)$", line):
+            m_q = re.match(r"^\s{2,}>\s*(.*)$", line)
+            q_text = inline(m_q.group(1).strip())
+            ol_buf[-1]["subs"].append(f'<span class="ck-item-quote" style="display:block; color:#666; font-size:13px; margin-top:2px; font-style:italic;">&gt; {q_text}</span>')
+            i += 1
+            continue
+
         if re.match(r"^\s*>\s?", line):
             close_active_block()
             flush_list()
@@ -1558,7 +1565,7 @@ def render_markdown_page_html(title: str, markdown: str) -> str:
         first_head = lines[0].strip()[2:].strip()
         if first_head in ("内容总结", "主要议题", "会议概要", "会议总结"):
             display_title = title or "会议纪要"
-        elif first_head == title or not title or title in ("会议纪要", "客观会议纪要", "会议分析报告", "个人视角纪要"):
+        elif first_head == title or not title or title in ("会议纪要", "客观会议纪要", "会议分析报告", "个人视角纪要", "通用纪要") or first_head == "通用纪要":
             display_title = first_head or title or "会议纪要"
             text = "\n".join(lines[1:]).strip()
         else:
@@ -1606,48 +1613,151 @@ def render_minutes_html(title: str, text: str) -> str:
 
 
 def _parse_risks_from_text(text: str) -> list[dict[str, Any]]:
-    """从纯文本或 Markdown 清单中解析结构化风险条目。"""
+    """从纯文本或 Markdown 清单中解析结构化风险条目。
+
+    兼容两种形态：
+    1. 业务板块聚合形态：
+       1. **【板块】**
+          - 风险描述（风险级别 · 责任主体）
+            > 潜在影响：xxx
+            > 应对方案：xxx
+    2. 单行卡片形态：
+       1. **【板块】风险描述**
+          > 风险级别：xxx
+          > 潜在影响：xxx
+          > 应对方案：xxx
+          > 责任主体：xxx
+    """
     risks: list[dict[str, Any]] = []
     lines = (text or "").strip().splitlines()
+    current_category = ""
+
     for line in lines:
         line_s = line.strip()
         if not line_s:
             continue
-        m = re.match(r"^(\d+)[\.、\s]+(.+?)(?:（|\()(.*)(?:）|\))$", line_s)
-        if m:
-            desc = m.group(2).strip()
-            meta_str = m.group(3).strip()
-            sev = "medium"
-            if re.search(r"\b高\b|高风险|high", meta_str, re.I):
-                sev = "high"
-            elif re.search(r"\b低\b|低风险|low", meta_str, re.I):
-                sev = "low"
+        if line_s.startswith(("#", "```", "---")):
+            continue
 
-            source = ""
+        # 1. 处理副行属性：风险级别 / 潜在影响 / 应对方案 / 责任主体 / 来源
+        if risks:
+            clean_sub = line_s.lstrip(">》- ").strip()
+            if re.match(r"^(?:风险级别|级别|严重程度|严重级别)[:：]", clean_sub):
+                s_val = re.sub(r"^(?:风险级别|级别|严重程度|严重级别)[:：]\s*", "", clean_sub)
+                if "高" in s_val:
+                    risks[-1]["severity"] = "high"
+                elif "低" in s_val:
+                    risks[-1]["severity"] = "low"
+                else:
+                    risks[-1]["severity"] = "medium"
+                continue
+            if re.match(r"^(?:潜在影响|影响)[:：]", clean_sub):
+                risks[-1]["impact"] = re.sub(r"^(?:潜在影响|影响)[:：]\s*", "", clean_sub)
+                continue
+            if re.match(r"^(?:应对方案|应对措施|整改方案|整改措施|应对)[:：]", clean_sub):
+                risks[-1]["mitigation"] = re.sub(r"^(?:应对方案|应对措施|整改方案|整改措施|应对)[:：]\s*", "", clean_sub)
+                continue
+            if re.match(r"^(?:责任主体|责任人|负责人|排查人|跟进人)[:：]", clean_sub):
+                risks[-1]["owner"] = re.sub(r"^(?:责任主体|责任人|负责人|排查人|跟进人)[:：]\s*", "", clean_sub)
+                continue
+            if re.match(r"^(?:来源|依据)[:：]", clean_sub):
+                risks[-1]["source"] = re.sub(r"^(?:来源|依据)[:：]\s*", "", clean_sub)
+                continue
+
+        # 2. 识别板块/话题标题行（如 1. **【网关架构】** 或 1. **[网关架构]**）
+        cat_m = re.match(r"^(?:#{1,4}\s*)?(\d+[\.、\s]+)?\*{0,2}[\[【](.*?)[\]】]\*{0,2}\s*$", line_s)
+        if cat_m:
+            current_category = cat_m.group(2).strip()
+            continue
+
+        # 3. 识别列表风险项（如 - 核心路由压测断流（高风险 · 架构组））
+        bullet_m = re.match(r"^[-*•]\s+(.+)$", line_s)
+        if bullet_m:
+            content = bullet_m.group(1).strip()
+            meta_m = re.search(r"[（\(]([^（\()]+)[）\)]\s*$", content)
+            sev = "medium"
+            owner = ""
+            if meta_m:
+                raw_risk = content[:meta_m.start()].strip().strip("*").strip()
+                meta_str = meta_m.group(1).strip()
+                segs = [s.strip() for s in re.split(r"[·•・|｜;；,，]", meta_str) if s.strip()]
+                for seg in segs:
+                    if seg in ("高", "中", "低", "高风险", "中风险", "低风险"):
+                        if "高" in seg:
+                            sev = "high"
+                        elif "低" in seg:
+                            sev = "low"
+                        else:
+                            sev = "medium"
+                    elif re.match(r"^(?:责任主体|负责人|责任人|执行人)[:：]", seg):
+                        owner = re.sub(r"^(?:责任主体|负责人|责任人|执行人)[:：]\s*", "", seg)
+                    else:
+                        owner = seg
+            else:
+                raw_risk = content.strip("*").strip()
+
+            category = current_category
+            if (raw_risk.startswith("【") and "】" in raw_risk) or (raw_risk.startswith("[") and "]" in raw_risk):
+                m_c = re.match(r"^[\[【](.*?)[\]】](.*)$", raw_risk)
+                if m_c:
+                    category = m_c.group(1).strip()
+                    raw_risk = m_c.group(2).strip()
+
+            if raw_risk and not raw_risk.startswith("暂无"):
+                risks.append({
+                    "category": category,
+                    "risk": raw_risk,
+                    "severity": sev,
+                    "source": "",
+                    "impact": "",
+                    "mitigation": "",
+                    "owner": owner,
+                })
+            continue
+
+        # 4. 主行匹配（单行卡片形态）：序号. [**]...[**] (meta)
+        m = re.match(r"^(\d+)[\.、\s]+(.+?)(?:[（\(](.*)[）\)])?$", line_s)
+        if m:
+            raw_risk = m.group(2).strip().strip("*").strip()
+            meta_str = (m.group(3) or "").strip()
+            category = current_category
+            if (raw_risk.startswith("【") and "】" in raw_risk) or (raw_risk.startswith("[") and "]" in raw_risk):
+                cat_m2 = re.match(r"^[\[【](.*?)[\]】](.*)$", raw_risk)
+                if cat_m2:
+                    category = cat_m2.group(1).strip()
+                    raw_risk = cat_m2.group(2).strip()
+
+            sev = "medium"
             impact = ""
             mitigation = ""
             owner = ""
-            for seg in re.split(r"[；;]", meta_str):
-                seg = seg.strip()
-                if not seg:
-                    continue
-                if re.match(r"^来源[:：]", seg):
-                    source = re.sub(r"^来源[:：]\s*", "", seg)
-                elif re.match(r"^影响[:：]", seg):
-                    impact = re.sub(r"^影响[:：]\s*", "", seg)
-                elif re.match(r"^(?:应对|整改|措施)[:：]", seg):
-                    mitigation = re.sub(r"^(?:应对|整改|措施)[:：]\s*", "", seg)
-                elif re.match(r"^(?:负责人|责任人|责任主体)[:：]", seg):
-                    owner = re.sub(r"^(?:负责人|责任人|责任主体)[:：]\s*", "", seg)
-                elif seg in ("高", "中", "低", "高风险", "中风险", "低风险"):
-                    if "高" in seg:
-                        sev = "high"
-                    elif "低" in seg:
-                        sev = "low"
+            source = ""
+
+            if meta_str:
+                segs = [s.strip() for s in re.split(r"[·•・|｜;；,，]", meta_str) if s.strip()]
+                for seg in segs:
+                    if re.match(r"^来源[:：]", seg):
+                        source = re.sub(r"^来源[:：]\s*", "", seg)
+                    elif re.match(r"^(?:潜在影响|影响)[:：]", seg):
+                        impact = re.sub(r"^(?:潜在影响|影响)[:：]\s*", "", seg)
+                    elif re.match(r"^(?:应对方案|应对措施|整改|措施|应对)[:：]", seg):
+                        mitigation = re.sub(r"^(?:应对方案|应对措施|整改|措施|应对)[:：]\s*", "", seg)
+                    elif re.match(r"^(?:责任主体|负责人|责任人)[:：]", seg):
+                        owner = re.sub(r"^(?:责任主体|负责人|责任人)[:：]\s*", "", seg)
+                    elif seg in ("高", "中", "低", "高风险", "中风险", "低风险"):
+                        if "高" in seg:
+                            sev = "high"
+                        elif "低" in seg:
+                            sev = "low"
+                        else:
+                            sev = "medium"
                     else:
-                        sev = "medium"
+                        if not owner:
+                            owner = seg
+
             risks.append({
-                "risk": desc,
+                "category": category,
+                "risk": raw_risk,
                 "severity": sev,
                 "source": source,
                 "impact": impact,
@@ -1655,11 +1765,10 @@ def _parse_risks_from_text(text: str) -> list[dict[str, Any]]:
                 "owner": owner,
             })
         else:
-            if line_s.startswith(("#", "```", "---")):
-                continue
-            clean_desc = re.sub(r"^[-*•\d\.\s]+", "", line_s).strip()
-            if clean_desc:
+            clean_desc = re.sub(r"^[-*•\d\.\s]+", "", line_s).strip().strip("*").strip()
+            if clean_desc and not clean_desc.startswith("暂无"):
                 risks.append({
+                    "category": current_category,
                     "risk": clean_desc,
                     "severity": "medium",
                     "source": "",
@@ -1673,7 +1782,7 @@ def _parse_risks_from_text(text: str) -> list[dict[str, Any]]:
 def render_risks_html(title: str, text: str, data: dict | None = None) -> str:
     """渲染风险分析为宽敞优雅的 LaTeX Paper 风格学术三线表格。
     
-    包含列：序号、风险描述、风险程度、来源、影响、应对。
+    包含列：序号、风险描述、风险程度、潜在影响、应对方案、责任主体。
     """
     raw_risks = (data or {}).get("risks")
     if isinstance(raw_risks, list) and raw_risks and isinstance(raw_risks[0], dict):
@@ -1699,23 +1808,27 @@ def render_risks_html(title: str, text: str, data: dict | None = None) -> str:
     for idx, item in enumerate(risks, start=1):
         sev_key = str(item.get("severity") or "medium").lower().strip()
         sev_cn, badge_cls = sev_map.get(sev_key, ("中", "ck-a"))
-        risk_desc = escape(str(item.get("risk") or "").strip(), quote=False)
-        source = escape(str(item.get("source") or "").strip(), quote=False)
+        risk_desc = escape(str(item.get("risk") or "").strip().strip("*"), quote=False)
+        category = escape(str(item.get("category") or "").strip(), quote=False)
         impact = escape(str(item.get("impact") or "").strip(), quote=False)
         mitigation = escape(str(item.get("mitigation") or "").strip(), quote=False)
+        owner = escape(str(item.get("owner") or "").strip(), quote=False)
+
+        cat_badge = f'<span class="ck-badge ck-b" style="margin-right: 6px; font-weight: 500;">{category}</span>' if category else ""
+        owner_display = f'<div style="text-align: center; font-weight: 500;">{owner}</div>' if (owner and owner not in ("null", "None", "无", "-", "未提及", "未明确")) else '<div style="text-align: center; color: #888;">—</div>'
 
         rows_html.append(
             f'<tr>'
             f'<td style="text-align: center; font-weight: 700; color: #333;">{idx}</td>'
-            f'<td><strong style="color: #111111; line-height: 1.65; display: block;">{risk_desc}</strong></td>'
+            f'<td>{cat_badge}<strong style="color: #111111; line-height: 1.65;">{risk_desc or "—"}</strong></td>'
             f'<td style="text-align: center;"><span class="ck-badge {badge_cls}">{sev_cn}</span></td>'
-            f'<td style="color: #444444; line-height: 1.6;">{source or "—"}</td>'
             f'<td style="color: #333333; line-height: 1.6;">{impact or "—"}</td>'
             f'<td style="line-height: 1.6;">{mitigation or "—"}</td>'
+            f'<td>{owner_display}</td>'
             f'</tr>'
         )
 
-    empty_row = '<tr><td colspan="6" style="text-align:center; color:#888; padding: 28px;">暂无明确风险</td></tr>'
+    empty_row = '<tr><td colspan="6" style="text-align:center; color:#888; padding: 28px;">暂无明确风险事项</td></tr>'
     table_body = "".join(rows_html) if rows_html else empty_row
     doc_title = escape(display_title, quote=False)
 
@@ -1739,13 +1852,20 @@ def render_risks_html(title: str, text: str, data: dict | None = None) -> str:
         <table class="ck-risk-table">
           <thead>
             <tr>
-              <th style="width: 58px; text-align: center; white-space: nowrap;">序号</th>
-              <th style="width: 26%; text-align: center;">风险描述</th>
-              <th style="width: 72px; text-align: center; line-height: 1.35; white-space: nowrap;">风险<br>程度</th>
-              <th style="width: 24%; text-align: center;">来源</th>
-              <th style="width: 20%; text-align: center;">影响</th>
-              <th style="width: 23%; text-align: center;">应对</th>
+              <th style="width: 50px; text-align: center; white-space: nowrap;">序号</th>
+              <th style="width: 30%; text-align: center;">风险描述</th>
+              <th style="width: 78px; text-align: center; white-space: nowrap;">风险<br>程度</th>
+              <th style="width: 25%; text-align: center;">潜在影响</th>
+              <th style="width: 25%; text-align: center;">应对方案</th>
+              <th style="width: 88px; text-align: center; white-space: nowrap;">责任主体</th>
             </tr>
+          </thead>
+          <tbody>
+            {table_body}
+          </tbody>
+        </table>
+      </div>
+    </div>
           </thead>
           <tbody>
             {table_body}
@@ -1761,48 +1881,155 @@ def render_risks_html(title: str, text: str, data: dict | None = None) -> str:
 
 
 def _parse_actions_from_text(text: str) -> list[dict[str, Any]]:
-    """从纯文本或 Markdown 清单中解析结构化待办条目。"""
+    """从纯文本或 Markdown 清单中解析结构化待办条目。
+
+    兼容两种形态：
+    1. 业务板块聚合形态：
+       1. **【板块】**
+          - 事项描述（责任主体）
+            > 交付时限：xxx
+            > 交付成果：xxx
+            > 前置依赖：xxx
+    2. 单行卡片形态：
+       1. **【板块】事项描述**
+          > 责任主体：xxx
+          > 交付时限：xxx
+    """
     actions: list[dict[str, Any]] = []
     lines = (text or "").strip().splitlines()
+    current_category = ""
+
     for line in lines:
         line_s = line.strip()
         if not line_s:
             continue
-        m = re.match(r"^(\d+)[\.、\s]+(.+?)(?:（|\()(.*)(?:）|\))$", line_s)
+        if line_s.startswith(("#", "```", "---")):
+            continue
+
+        # 1. 处理副行属性：责任主体 / 交付时限 / 交付成果 / 前置依赖 / 原文依据
+        if actions:
+            clean_sub = line_s.lstrip(">》- ").strip()
+            if re.match(r"^(?:责任主体|负责人|责任人|执行人)[:：]", clean_sub):
+                actions[-1]["owner"] = re.sub(r"^(?:责任主体|负责人|责任人|执行人)[:：]\s*", "", clean_sub)
+                continue
+            if re.match(r"^(?:交付时限|截止时间|截止|交付时间)[:：]", clean_sub):
+                actions[-1]["deadline"] = re.sub(r"^(?:交付时限|截止时间|截止|交付时间)[:：]\s*", "", clean_sub)
+                continue
+            if re.match(r"^(?:交付成果|交付产物|交付物|成果|产出)[:：]", clean_sub):
+                actions[-1]["deliverable"] = re.sub(r"^(?:交付成果|交付产物|交付物|成果|产出)[:：]\s*", "", clean_sub)
+                continue
+            if re.match(r"^(?:前置依赖|依赖)[:：]", clean_sub):
+                actions[-1]["dependency"] = re.sub(r"^(?:前置依赖|依赖)[:：]\s*", "", clean_sub)
+                continue
+            if line_s.startswith(("- 原文依据：", "原文依据：", ">", "》")) and any(q in line_s for q in ('"', "'", '“', '”')):
+                if "原文依据：" in line_s:
+                    ev = line_s.split("原文依据：", 1)[1].strip()
+                else:
+                    ev = line_s.lstrip(">》 ").strip()
+                ev = ev.strip("“”\"'")
+                actions[-1]["evidence"] = ev
+                continue
+
+        # 2. 识别板块/话题标题行（如 1. **【现场整改】** 或 1. **[现场整改]**）
+        cat_m = re.match(r"^(?:#{1,4}\s*)?(\d+[\.、\s]+)?\*{0,2}[\[【](.*?)[\]】]\*{0,2}\s*$", line_s)
+        if cat_m:
+            current_category = cat_m.group(2).strip()
+            continue
+
+        # 3. 识别列表待办项（如 - 事项描述（龚总））
+        bullet_m = re.match(r"^[-*•]\s+(.+)$", line_s)
+        if bullet_m:
+            content = bullet_m.group(1).strip()
+            owner_m = re.search(r"[（\(]([^（\()]+)[）\)]\s*$", content)
+            if owner_m:
+                raw_task = content[:owner_m.start()].strip().strip("*").strip()
+                owner_cand = owner_m.group(1).strip()
+                owner = re.sub(r"^(?:责任主体|负责人|责任人|执行人)[:：]\s*", "", owner_cand)
+            else:
+                raw_task = content.strip("*").strip()
+                owner = ""
+
+            category = current_category
+            if (raw_task.startswith("【") and "】" in raw_task) or (raw_task.startswith("[") and "]" in raw_task):
+                m_c = re.match(r"^[\[【](.*?)[\]】](.*)$", raw_task)
+                if m_c:
+                    category = m_c.group(1).strip()
+                    raw_task = m_c.group(2).strip()
+
+            if raw_task and not raw_task.startswith("暂无"):
+                actions.append({
+                    "category": category,
+                    "task": raw_task,
+                    "owner": owner,
+                    "deadline": "",
+                    "deliverable": "",
+                    "priority": "medium",
+                    "dependency": "",
+                    "evidence": "",
+                })
+            continue
+
+        # 4. 主行匹配（单行卡片形态）：序号. [**]...[**] (meta)
+        m = re.match(r"^(\d+)[\.、\s]+(.+?)(?:[（\(](.*)[）\)])?$", line_s)
         if m:
-            task = m.group(2).strip()
-            meta_str = m.group(3).strip()
+            raw_task = m.group(2).strip().strip("*").strip()
+            meta_str = (m.group(3) or "").strip()
+            category = current_category
+            if (raw_task.startswith("【") and "】" in raw_task) or (raw_task.startswith("[") and "]" in raw_task):
+                cat_m2 = re.match(r"^[\[【](.*?)[\]】](.*)$", raw_task)
+                if cat_m2:
+                    category = cat_m2.group(1).strip()
+                    raw_task = cat_m2.group(2).strip()
+
             owner = ""
             deadline = ""
+            deliverable = ""
             prio = "medium"
-            for seg in re.split(r"[；;]", meta_str):
-                seg = seg.strip()
-                if not seg:
-                    continue
-                if re.match(r"^(?:负责人|责任人|执行人)[:：]", seg):
-                    owner = re.sub(r"^(?:负责人|责任人|执行人)[:：]\s*", "", seg)
-                elif re.match(r"^(?:截止|截止时间|时间|交付)[:：]", seg):
-                    deadline = re.sub(r"^(?:截止|截止时间|时间|交付)[:：]\s*", "", seg)
-                elif re.search(r"高优先|高\b|high", seg, re.I):
-                    prio = "high"
-                elif re.search(r"低优先|低\b|low", seg, re.I):
-                    prio = "low"
+
+            if meta_str:
+                segs = [s.strip() for s in re.split(r"[；;｜|]", meta_str) if s.strip()]
+                for seg in segs:
+                    if re.match(r"^(?:负责人|责任人|执行人)[:：]", seg):
+                        owner = re.sub(r"^(?:负责人|责任人|执行人)[:：]\s*", "", seg)
+                    elif re.match(r"^(?:截止|截止时间|交付时限|时间|交付)[:：]", seg):
+                        deadline = re.sub(r"^(?:截止|截止时间|交付时限|时间|交付)[:：]\s*", "", seg)
+                    elif re.match(r"^(?:产出|交付物|成果)[:：]", seg):
+                        deliverable = re.sub(r"^(?:产出|交付物|成果)[:：]\s*", "", seg)
+                    elif re.search(r"高优先|高\b|high", seg, re.I):
+                        prio = "high"
+                    elif re.search(r"低优先|低\b|low", seg, re.I):
+                        prio = "low"
+                    else:
+                        # 无标签自然元数据
+                        if not owner and not any(k in seg for k in ("周", "月", "日", "前", "内", "期", "即", "点", "202")):
+                            owner = seg
+                        elif not deadline and any(k in seg for k in ("周", "月", "日", "前", "内", "期", "即", "点", "202")):
+                            deadline = seg
+                        elif not deliverable:
+                            deliverable = seg
+
             actions.append({
-                "task": task,
+                "category": category,
+                "task": raw_task,
                 "owner": owner,
                 "deadline": deadline,
+                "deliverable": deliverable,
                 "priority": prio,
+                "dependency": "",
+                "evidence": "",
             })
         else:
-            if line_s.startswith(("#", "```", "---")):
-                continue
-            clean_task = re.sub(r"^[-*•\d\.\s]+", "", line_s).strip()
-            if clean_task:
+            clean_task = re.sub(r"^[-*•\d\.\s]+", "", line_s).strip().strip("*").strip()
+            if clean_task and not clean_task.startswith("暂无"):
                 actions.append({
+                    "category": current_category,
                     "task": clean_task,
                     "owner": "",
                     "deadline": "",
+                    "deliverable": "",
                     "priority": "medium",
+                    "dependency": "",
+                    "evidence": "",
                 })
     return actions
 
@@ -1810,8 +2037,8 @@ def _parse_actions_from_text(text: str) -> list[dict[str, Any]]:
 def render_actions_html(title: str, text: str, data: dict | None = None) -> str:
     """渲染待办提取为宽敞优雅的 LaTeX Paper 风格学术三线表格。
     
-    包含列：序号、待办内容、负责人、截止时间。
-    内容不存在时使用 "-" 居中展示。
+    包含列：序号、待办事项、优先级、负责人、截止时间。
+    支持在待办事项下方清晰呈现交付成果与前置依赖。
     """
     raw_actions = (data or {}).get("actions")
     if isinstance(raw_actions, list) and raw_actions and isinstance(raw_actions[0], dict):
@@ -1819,28 +2046,63 @@ def render_actions_html(title: str, text: str, data: dict | None = None) -> str:
     else:
         actions = _parse_actions_from_text(text)
 
-    display_title = "待办提取"
+    display_title = "待办事项清单"
+    prio_map = {
+        "high": ("高优先", "ck-s"),
+        "高优先": ("高优先", "ck-s"),
+        "高": ("高优先", "ck-s"),
+        "low": ("低优先", "ck-b"),
+        "低优先": ("低优先", "ck-b"),
+        "低": ("低优先", "ck-b"),
+    }
 
     rows_html = []
     for idx, item in enumerate(actions, start=1):
-        task_desc = escape(str(item.get("task") or "").strip(), quote=False)
+        task_desc = escape(str(item.get("task") or "").strip().strip("*"), quote=False)
+        category = escape(str(item.get("category") or "").strip(), quote=False)
         owner = escape(str(item.get("owner") or "").strip(), quote=False)
         deadline = escape(str(item.get("deadline") or "").strip(), quote=False)
+        deliverable = escape(str(item.get("deliverable") or "").strip(), quote=False)
+        dependency = escape(str(item.get("dependency") or "").strip(), quote=False)
+        evidence = escape(str(item.get("evidence") or "").strip().strip("“”\"'"), quote=False)
+        prio_key = str(item.get("priority") or "medium").lower().strip()
+        prio_cn, prio_cls = prio_map.get(prio_key, ("—", ""))
 
-        owner_display = f'<div style="text-align: center;">{owner}</div>' if (owner and owner not in ("未分配", "null", "None", "无", "-")) else '<div style="text-align: center; color: #888;">-</div>'
-        deadline_display = f'<div style="text-align: center; color: #b86a04; font-weight: 600;">{deadline}</div>' if (deadline and deadline not in ("待排期", "未指定", "null", "None", "无", "-")) else '<div style="text-align: center; color: #888;">-</div>'
-        task_display = f'<strong style="color: #111111; line-height: 1.65; display: block;">{task_desc}</strong>' if task_desc else '<div style="text-align: center; color: #888;">-</div>'
+        owner_display = f'<div style="text-align: center; font-weight: 500;">{owner}</div>' if (owner and owner not in ("未分配", "null", "None", "无", "-", "待定", "待确认")) else '<div style="text-align: center; color: #888;">—</div>'
+        if owner and ("待定" in owner or "待确认" in owner or "待认领" in owner):
+            owner_display = f'<div style="text-align: center; color: #b86a04; font-size: 13px;">{owner}</div>'
+
+        deadline_display = f'<div style="text-align: center; color: #b86a04; font-weight: 600;">{deadline}</div>' if (deadline and deadline not in ("待排期", "未指定", "null", "None", "无", "-")) else '<div style="text-align: center; color: #888;">—</div>'
+
+        prio_display = f'<span class="ck-badge {prio_cls}">{prio_cn}</span>' if prio_cls else '<span style="color: #888;">—</span>'
+
+        task_parts = []
+        if category:
+            task_parts.append(f'<span class="ck-badge ck-b" style="margin-right: 6px; font-weight: 500;">{category}</span>')
+        task_parts.append(f'<strong style="color: #111111; line-height: 1.65;">{task_desc or "—"}</strong>')
+
+        if deliverable and deliverable not in ("null", "None", "无", "未提及", "未明确", "-"):
+            task_parts.append(f'<div style="font-size: 12px; color: #2e6930; margin-top: 4px; line-height: 1.45;"><strong>交付成果：</strong>{deliverable}</div>')
+        if dependency and dependency not in ("null", "None", "无", "未提及", "未明确", "-"):
+            task_parts.append(f'<div style="font-size: 12px; color: #b86a04; margin-top: 3px; line-height: 1.45;"><strong>前置依赖：</strong>{dependency}</div>')
+        if evidence and evidence not in ("null", "None", "无", "未提及", "未明确", "-"):
+            if len(evidence) > 40:
+                evidence = evidence[:37] + "…"
+            task_parts.append(f'<div style="font-size: 12px; color: #666666; margin-top: 3px; line-height: 1.45; font-style: italic;">&gt; “{evidence}”</div>')
+
+        task_html = "".join(task_parts)
 
         rows_html.append(
             f'<tr>'
             f'<td style="text-align: center; font-weight: 700; color: #333;">{idx}</td>'
-            f'<td>{task_display}</td>'
+            f'<td>{task_html}</td>'
+            f'<td style="text-align: center;">{prio_display}</td>'
             f'<td>{owner_display}</td>'
             f'<td>{deadline_display}</td>'
             f'</tr>'
         )
 
-    empty_row = '<tr><td colspan="4" style="text-align:center; color:#888; padding: 28px;">暂无明确待办</td></tr>'
+    empty_row = '<tr><td colspan="5" style="text-align:center; color:#888; padding: 28px;">暂无明确待办事项</td></tr>'
     table_body = "".join(rows_html) if rows_html else empty_row
     doc_title = escape(display_title, quote=False)
 
@@ -1865,9 +2127,10 @@ def render_actions_html(title: str, text: str, data: dict | None = None) -> str:
           <thead>
             <tr>
               <th style="width: 58px; text-align: center; white-space: nowrap;">序号</th>
-              <th style="width: 56%; text-align: center;">待办内容</th>
-              <th style="width: 20%; text-align: center;">负责人</th>
-              <th style="width: 20%; text-align: center;">截止时间</th>
+              <th style="width: 50%; text-align: center;">待办事项</th>
+              <th style="width: 78px; text-align: center; white-space: nowrap;">优先级</th>
+              <th style="width: 17%; text-align: center;">负责人</th>
+              <th style="width: 17%; text-align: center;">截止时间</th>
             </tr>
           </thead>
           <tbody>

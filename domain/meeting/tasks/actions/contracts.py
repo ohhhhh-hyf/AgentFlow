@@ -18,9 +18,12 @@ class ActionItemsGenerationContract(GenerationContract):
 
     fields = [
         ObjListField("my_actions", [
-            StrField("task", "以动词开头的任务描述，条件型任务写清触发条件"),
-            StrField("owner", "原文明示的负责人姓名，无明确负责人时为null"),
-            StrField("deadline", "原文明示的截止时间，无明确时间时为null"),
+            StrField("category", "该待办所属的具体业务议题或专项主题短语，通常4–12字，带具体客体或业务场景，如混凝土路面裂纹整改、音视频推流SDK适配、三个厂区资料组卷归档"),
+            StrField("task", "以动词开头的具体任务描述，条件型任务写清触发条件"),
+            StrField("owner", "原文明示的负责人姓名，未明示为null"),
+            StrField("deadline", "原文明示的截止时间，未明示为null"),
+            StrField("deliverable", "原文明示的特定交付成果物（如报告、方案、代码）；无特定实体成果为null"),
+            StrField("dependency", "原文明示的前置依赖动作或输入；无明确前后依赖为null"),
             EnumField("priority", ["high", "medium", "low"]),
             EnumField("status", ["explicit", "inferred"]),
             StrField("evidence", "原文中支撑此待办的具体语句（可直接定位）"),
@@ -54,7 +57,7 @@ class ActionItemsFallbackRules(FallbackRules):
             merge=["my_actions", "unassigned_actions"],
         ),
     ]
-    empty_text = "暂无明确待办"
+    empty_text = "暂无明确待办事项"
     structured = {"merge": ["my_actions", "unassigned_actions"]}
 
 

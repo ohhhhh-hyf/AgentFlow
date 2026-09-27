@@ -374,6 +374,247 @@ def test_tasklines_registration() -> None:
     check("FastAPI 注册了 /api/v1/meeting/mindmap/preview", "/api/v1/meeting/mindmap/preview" in routes, str(routes))
 
 
+def test_action_items_render() -> None:
+    """验证待办事项卡片式清单（4个核心维度、自适应输出、无原句）及降级拼装。"""
+    from domain.meeting.tasks.actions.steps.actions_render import ActionItemsRender
+    from domain.meeting.memory.render import _parse_actions_from_text, render_actions_html
+
+    # 1. 结构化草稿测试（含具象短语话题多事项聚合）
+    state = {
+        "lines": {
+            "actions": {
+                "draft": {
+                    "my_actions": [
+                        {
+                            "category": "音视频SDK推流适配",
+                            "task": "完成音视频推流协议适配与压测",
+                            "owner": "张伟",
+                            "deadline": "周五前",
+                            "deliverable": "压测报告及文档",
+                            "dependency": "需后端先提供鉴权Token",
+                            "priority": "high",
+                            "evidence": "张伟周五前把推流适配好",
+                        },
+                        {
+                            "category": "音视频SDK推流适配",
+                            "task": "与基础架构团队联调鉴权网关",
+                            "owner": "张伟",
+                            "priority": "medium",
+                            "evidence": "张伟再跟架构联调一下",
+                        },
+                    ],
+                    "delegated_actions": [
+                        {
+                            "category": "数据看表口径梳理",
+                            "task": "梳理数据看表口径",
+                            "owner": "李莉",
+                            "deadline": "09-28",
+                            "priority": "medium",
+                            "evidence": "李莉把看表口径理一下",
+                        },
+                    ],
+                    "unassigned_actions": [
+                        {
+                            "category": "预发布环境压测机申请",
+                            "task": "申请预发布压测机器",
+                            "deliverable": "机器分配就绪",
+                            "evidence": "尽快去运维申请压测机",
+                        },
+                    ],
+                }
+            }
+        }
+    }
+    draft_text = ActionItemsRender.render_draft(state)
+    check("待办草稿包含[音视频SDK推流适配]业务板块主行", "1. **[音视频SDK推流适配]**" in draft_text, draft_text)
+    check("包含具体任务及括号责任主体张伟", "完成音视频推流协议适配与压测(张伟)" in draft_text, draft_text)
+    check("同板块事项聚拢在[音视频SDK推流适配]下", "与基础架构团队联调鉴权网关(张伟)" in draft_text, draft_text)
+    check("包含[数据看表口径梳理]业务板块主行", "2. **[数据看表口径梳理]**" in draft_text, draft_text)
+    check("包含[预发布环境压测机申请]业务板块主行", "3. **[预发布环境压测机申请]**" in draft_text, draft_text)
+    check("未分配待办括号内为待认领", "申请预发布压测机器(待认领)" in draft_text, draft_text)
+    check("不再单列责任主体行", "> 责任主体：" not in draft_text, draft_text)
+    check("包含交付时限：周五前", "> 交付时限：周五前" in draft_text, draft_text)
+    check("包含交付成果：压测报告及文档", "> 交付成果：压测报告及文档" in draft_text, draft_text)
+    check("包含前置依赖：需后端先提供鉴权Token", "> 前置依赖：需后端先提供鉴权Token" in draft_text, draft_text)
+    check("包含交付成果：机器分配就绪", "> 交付成果：机器分配就绪" in draft_text, draft_text)
+    check("彻底去除原句引用", '张伟周五前把推流适配好' not in draft_text, draft_text)
+    check("无大标题分组", "## 一、重点待办" not in draft_text and "## 二、待分配" not in draft_text, draft_text)
+
+    # 2. 空状态测试
+    empty_state = {"lines": {"actions": {"draft": {}}}}
+    empty_text = ActionItemsRender.render_draft(empty_state)
+    check("空待办输出暂无明确待办事项", empty_text == "暂无明确待办事项", empty_text)
+
+    # 3. HTML 与解析测试
+    parsed = _parse_actions_from_text(draft_text)
+    check("文本能正确解析出 4 条待办", len(parsed) == 4, str(parsed))
+    check("解析项 1 业务板块正确", parsed[0].get("category") == "音视频SDK推流适配", str(parsed[0]))
+    check("解析项 1 包含责任人张伟", parsed[0].get("owner") == "张伟", str(parsed[0]))
+    check("解析项 1 包含交付物", parsed[0].get("deliverable") == "压测报告及文档", str(parsed[0]))
+    check("解析项 1 包含依赖", parsed[0].get("dependency") == "需后端先提供鉴权Token", str(parsed[0]))
+    check("解析项 2 同属音视频推流适配", parsed[1].get("category") == "音视频SDK推流适配", str(parsed[1]))
+    check("解析项 4 责任人为待认领", parsed[3].get("owner") == "待认领", str(parsed[3]))
+    html = render_actions_html("待办事项清单", draft_text)
+    check("HTML 表格渲染成功包含 tr", "<tr>" in html, html[:200])
+
+
+    # 4. ActionItemsReport 校验测试（确保多余 category, deliverable, dependency 不报错）
+    from domain.meeting.reports import ActionItemsReport
+    report_data = {
+        "actions": [
+            {
+                "category": "接口联调",
+                "task": "完成音视频推流协议适配与压测",
+                "owner": "张伟",
+                "deadline": "周五前",
+                "deliverable": "压测报告及文档",
+                "dependency": "需后端先提供鉴权Token",
+                "priority": "high",
+                "status": "explicit",
+                "evidence": "张伟周五前把推流适配好",
+                "confidence": "high",
+            }
+        ],
+        "quality_warning": None,
+        "personalized_text": None,
+    }
+    validated_report = ActionItemsReport.validate(report_data)
+    check("ActionItemsReport 校验成功通过且保留扩展字段", validated_report.actions[0]["category"] == "接口联调", str(validated_report))
+
+
+def test_risk_items_render() -> None:
+    """验证风险分析卡片式清单（4个核心维度、自适应输出、无原句）及降级拼装。"""
+    from domain.meeting.tasks.risks.steps.risks_render import RiskRender
+    from domain.meeting.memory.render import _parse_risks_from_text, render_risks_html
+
+    # 1. 结构化草稿测试（含具象短语话题多风险聚合）
+    state = {
+        "lines": {
+            "risks": {
+                "draft": {
+                    "risks": [
+                        {
+                            "category": "核心网关压测流控与断流",
+                            "risk": "核心路由在压测 QPS 超过 2000 时出现频繁断流",
+                            "severity": "high",
+                            "impact": "大促峰值期间接入层存在服务雪崩风险",
+                            "mitigation": "周工本周内完成异步队列削峰改造并组织复测",
+                            "owner": "周工",
+                            "source": "张工说QPS一上两千就断流",
+                        },
+                        {
+                            "category": "核心网关压测流控与断流",
+                            "risk": "鉴权网关跨机房调用存在单点超时抖动",
+                            "severity": "medium",
+                            "impact": "高峰期引发级联超时重试，拖垮下游服务",
+                            "mitigation": "增设本地缓存与降级熔断开关",
+                            "owner": "周工",
+                        },
+                        {
+                            "category": "跨团队基础鉴权Token审批",
+                            "risk": "跨团队联调所需的基础鉴权 Token 审批流程过长",
+                            "severity": "high",
+                            "impact": "直接导致音视频推流 SDK 联调进度延期 1-2 天",
+                            "mitigation": None,
+                            "owner": None,
+                            "source": "审批卡了三天了",
+                        },
+                        {
+                            "category": "老旧机型暗黑模式对比度",
+                            "risk": "部分老旧机型在暗黑模式下存在文本对比度缺失",
+                            "severity": "low",
+                            "impact": "极端夜间场景下轻微影响用户阅读体验",
+                            "mitigation": "",
+                            "owner": "",
+                        },
+                    ]
+                }
+            }
+        }
+    }
+    draft_text = RiskRender.render_draft(state)
+    check("风险草稿包含[核心网关压测流控与断流]业务板块主行", "1. **[核心网关压测流控与断流]**" in draft_text, draft_text)
+    check("包含具体隐患及内联评级与责任人周工", "核心路由在压测 QPS 超过 2000 时出现频繁断流(高风险 · 周工)" in draft_text, draft_text)
+    check("同板块事项聚拢在[核心网关压测流控与断流]下", "鉴权网关跨机房调用存在单点超时抖动(中风险 · 周工)" in draft_text, draft_text)
+    check("包含[跨团队基础鉴权Token审批]业务板块主行", "2. **[跨团队基础鉴权Token审批]**" in draft_text, draft_text)
+    check("未指定责任人时标注待认领", "跨团队联调所需的基础鉴权 Token 审批流程过长(高风险 · 待认领)" in draft_text, draft_text)
+    check("包含[老旧机型暗黑模式对比度]业务板块主行", "3. **[老旧机型暗黑模式对比度]**" in draft_text, draft_text)
+    check("不再单列风险级别行", "> 风险级别：" not in draft_text, draft_text)
+    check("不再单列责任主体行", "> 责任主体：" not in draft_text, draft_text)
+    check("包含潜在影响：大促峰值期间接入层存在服务雪崩风险", "> 潜在影响：大促峰值期间接入层存在服务雪崩风险" in draft_text, draft_text)
+    check("包含应对方案：周工本周内完成异步队列削峰改造并组织复测", "> 应对方案：周工本周内完成异步队列削峰改造并组织复测" in draft_text, draft_text)
+    check("无应对方案时自适应隐去整行", "应对方案：无" not in draft_text and "应对方案：未提及" not in draft_text, draft_text)
+    check("彻底去除原句引用", "张工说QPS一上两千就断流" not in draft_text, draft_text)
+    check("无大标题分组", "## 一、高风险" not in draft_text and "## 二、中低风险" not in draft_text, draft_text)
+
+    # 2. 空状态测试
+    empty_state = {"lines": {"risks": {"draft": {}}}}
+    empty_text = RiskRender.render_draft(empty_state)
+    check("空风险输出暂无明确风险事项", empty_text == "暂无明确风险事项", empty_text)
+
+    # 3. HTML 与解析测试
+    parsed = _parse_risks_from_text(draft_text)
+    check("文本能正确解析出 4 条风险", len(parsed) == 4, str(parsed))
+    check("解析项 1 业务板块正确", parsed[0].get("category") == "核心网关压测流控与断流", str(parsed[0]))
+    check("解析项 1 严重程度为 high", parsed[0].get("severity") == "high", str(parsed[0]))
+    check("解析项 1 责任人为周工", parsed[0].get("owner") == "周工", str(parsed[0]))
+    check("解析项 1 包含应对方案", "削峰改造" in str(parsed[0].get("mitigation")), str(parsed[0]))
+    check("解析项 2 同属网关架构", parsed[1].get("category") == "核心网关压测流控与断流", str(parsed[1]))
+    check("解析项 3 责任人为待认领", parsed[2].get("owner") == "待认领", str(parsed[2]))
+    check("解析项 4 严重程度为 low", parsed[3].get("severity") == "low", str(parsed[3]))
+    html = render_risks_html("风险分析", draft_text)
+
+    check("HTML 表格渲染成功包含 tr", "<tr>" in html, html[:200])
+    check("HTML 表格包含责任主体列", "责任主体" in html, html[:200])
+
+
+def test_general_minutes_title_fixed() -> None:
+    """通用纪要：模板与产物落盘顶部强制固定为 # 通用纪要，不被动态 headline 覆盖。"""
+    from app.config import resolve_template_format, template_registry
+    from domain.meeting.reports import MinutesReport
+    from tools.core.runtime_context import load_domain
+    from tools.exports.outputs import save_report_artifacts
+
+    # 1. 模板注册表 format 保留 # 通用纪要
+    item = template_registry().get("daily_journal_general_minutes")
+    check("模板注册表中通用纪要存在", item is not None, str(item))
+    if item:
+        fmt = str(item.get("format") or "")
+        check("通用纪要模板 format 顶部保留 # 通用纪要", fmt.startswith("# 通用纪要"), fmt[:40])
+
+    resolved = resolve_template_format("general_minutes")
+    check("resolve_template_format 包含 # 通用纪要", "# 通用纪要" in resolved, resolved[:80])
+
+    # 2. save_report_artifacts 落盘测试：即使 report.title 携带动态 headline，落盘正文与 HTML 均固定为 通用纪要
+    ctx = load_domain("meeting", Path("."))
+    report = MinutesReport(
+        title="关于音视频与长文本优化的研讨",  # 模拟从草稿提取出的动态 headline
+        personalized_minutes="# 通用纪要\n\n## 全文摘要\n本场会议围绕音视频SDK展开讨论。\n\n## 要点梳理\n1. **[音视频SDK]**\n   > 完成推流适配(张伟)",
+    )
+    with tempfile.TemporaryDirectory() as td:
+        ctx.output_dir = Path(td)
+        saved = save_report_artifacts(ctx, "minutes", report, gate_ok=True)
+        md_path = saved.get("text")
+        check("通用纪要产物保存成功", md_path is not None and md_path.is_file(), str(saved))
+        if md_path and md_path.is_file():
+            saved_md = md_path.read_text(encoding="utf-8")
+            check("落盘 Markdown 顶部固定为 # 通用纪要", saved_md.startswith("# 通用纪要"), saved_md[:50])
+            check("落盘 Markdown 不包含动态 headline H1", "# 关于音视频与长文本优化的研讨" not in saved_md, saved_md[:50])
+
+        # 3. 补充测试：即使模型输出时偶然遗漏 # 通用纪要，outputs.py 仍强制补充 # 通用纪要 而非动态 headline
+        report_no_h1 = MinutesReport(
+            title="关于音视频与长文本优化的研讨",
+            personalized_minutes="## 全文摘要\n本场会议围绕音视频SDK展开讨论。\n\n## 要点梳理\n1. **[音视频SDK]**\n   > 完成推流适配(张伟)",
+        )
+        saved_no_h1 = save_report_artifacts(ctx, "minutes", report_no_h1, gate_ok=True)
+        md_no_h1 = saved_no_h1.get("text")
+        if md_no_h1 and md_no_h1.is_file():
+            saved_md_no_h1 = md_no_h1.read_text(encoding="utf-8")
+            check("输出遗漏首行时强制补充 # 通用纪要", saved_md_no_h1.startswith("# 通用纪要"), saved_md_no_h1[:50])
+            check("强制补充时未被动态 headline 覆盖", "# 关于音视频与长文本优化的研讨" not in saved_md_no_h1, saved_md_no_h1[:50])
+
+
+
 def main() -> int:
     with tempfile.TemporaryDirectory() as raw:
         tmp = Path(raw)
@@ -385,6 +626,9 @@ def main() -> int:
     test_role_mapping()
     test_domain_hooks_registry()
     test_tasklines_registration()
+    test_action_items_render()
+    test_risk_items_render()
+    test_general_minutes_title_fixed()
     print(f"pass {len(PASS)}  fail {len(FAIL)}")
     for name in FAIL:
         print("FAIL", name)

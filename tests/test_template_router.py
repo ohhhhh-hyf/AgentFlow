@@ -207,6 +207,13 @@ def test_templates_regression() -> None:
           not unknown,
           f"新增={unknown}；已知待应用={sorted(set(bracketed) & pending)}")
 
+    if tdir.name == "template_v3":
+        chinese_brackets = [
+            p.stem for p in md_files
+            if any(ch in p.read_text(encoding="utf-8") for ch in ("【", "】", "（", "）"))
+        ]
+        check("template_v3 模板全部采用半角英文括号 [] 与 ()", not chinese_brackets, f"含中文括号={chinese_brackets}")
+
     # 未生效的另一代模板（缺省是 template_v3）也顺手体检一下：它在的话应当干净
     other = tdir.parent / ("template_v3" if tdir.name != "template_v3" else "template_v2")
     if other.is_dir() and other != tdir:
@@ -920,9 +927,11 @@ def test_general_minutes_speedread() -> None:
 
     plan = plan_placeholder_fill(tpl)
     hints = [str(s.get("hint") or "") for s in plan["scalars"]]
-    check("通用纪要：精简为双栏（摘要与要点）", len(plan["scalars"]) == 2, f"字段数={len(plan['scalars'])}")
+    check("通用纪要：标准三栏结构（全文摘要、要点梳理、结论与决定）", len(plan["scalars"]) == 3, f"字段数={len(plan['scalars'])}")
     check("通用纪要：已无「分段速览」冗余栏",
           not any("分段速览" in h for h in hints), f"{hints}")
+    check("通用纪要：包含独立的「结论与决定」栏",
+          any("结论与决定" in h or "拍板" in h for h in hints), f"{hints}")
     # 摘要数字口径：原文有时总量 3–5 个，不是逐板块配额（2026-09-19 实测联播场：摘要 655 字
     # 带 48 个数字、与要点梳理 4-gram 重合 65%——"至少带 1–3 个"被执行成每板块 1–3 个）
     abstract = hints[0]

@@ -1,17 +1,14 @@
-"""mindmap.py —— 思维导图 HTML 生成（markmap-cli 封装，无痛降级）。
+"""mindmap.py —— 纯静态思维导图 HTML 生成（零 Node/npx 依赖）。
 
-把 Markdown 大纲（mindmap 任务线的 outline 字段）渲染为交互式
-HTML 思维导图（markmap）：
-
-- 依赖：Node + npx（``npx --yes markmap-cli`` 首次自动下载，无需全局安装）
-- 产物：``--offline`` 单文件 HTML，所有 JS/CSS 内联，可离线打开/分享
-- 设计约束（沿用 tools/templates/router/ 的无痛惯例）：
-  - ``npx`` 不可用 / 网络失败 / 超时 → 一律返回 ``None``，**不影响主流程**
-  - 纯函数，不 import 任何任务线 / domain
-  - 临时文件放输出目录，且自动处理 WSL(linux) 调 Windows node 的路径差异
+把 Markdown 大纲（mindmap 任务线的 outline 字段）渲染为纯静态交互式
+HTML 思维导图（markmap + d3）：
+- 依赖：纯 Python 生成，零外部 Node/npx 依赖
+- 产物：交互式 HTML 单文件，内置居中对齐、缩放、复制大纲与离线降级卡片
 """
 from __future__ import annotations
 
+import html
+import json
 import logging
 import re
 import shutil
@@ -23,14 +20,18 @@ from pathlib import Path
 
 logger = logging.getLogger(__name__)
 
-# markmap-cli 版本固定，避免 npx 解析漂移
+# markmap-view / d3 CDN 版本固定
 _MARKMAP_CLI_VERSION = "0.18.12"
+_MARKMAP_VIEW_CDN = (
+    f"https://cdn.jsdelivr.net/npm/markmap-view@{_MARKMAP_CLI_VERSION}/dist/browser/index.js"
+)
+_D3_CDN = "https://cdn.jsdelivr.net/npm/d3@7.9.0/dist/d3.min.js"
 _RENDER_TIMEOUT_SECONDS = 120
 
 
 def markmap_available() -> bool:
-    """npx 是否可用（与 render_mindmap_html 的启动入口一致）。"""
-    return shutil.which("npx") is not None
+    """纯静态 HTML 生成，零外部依赖（无需 npx/node）。"""
+    return True
 
 
 def mindmap_png_available() -> bool:
@@ -465,12 +466,311 @@ def factor_common_prefixes(outline: str) -> str:
     return _serialize_outline_tree(root)
 
 
+def outline_to_markmap_data(outline: str) -> dict:
+    """把 #/##/###/- 大纲转成 markmap-view 的 {content, children} 树。"""
+    cleaned = sanitize_mindmap_outline(outline or "") or "# 思维导图"
+    root: dict = {"content": "思维导图", "children": []}
+    stack: list[tuple[int, dict]] = [(0, root)]
+    for raw in cleaned.splitlines():
+        line = raw.strip()
+        if not line:
+            continue
+        if line.startswith("#"):
+            m = re.match(r"^(#{1,6})\s+(.*)$", line)
+            if not m:
+                continue
+            level = min(len(m.group(1)), 4)
+            node = {"content": m.group(2).strip() or "未命名", "children": []}
+            while stack and stack[-1][0] >= level:
+                stack.pop()
+            stack[-1][1].setdefault("children", []).append(node)
+            stack.append((level, node))
+            continue
+        if line.startswith(("- ", "* ", "+ ")):
+            body = line[2:].strip()
+            if not body:
+                continue
+            stack[-1][1].setdefault("children", []).append(
+                {"content": body, "children": []}
+            )
+    if len(root.get("children") or []) == 1 and not (root["children"][0].get("children") is None):
+        return root["children"][0]
+    return root
+
+
+def generate_static_mindmap_html(
+    outline: str,
+    title: str = "",
+) -> str:
+    """生成无需 Node/npx 的纯静态 Markmap 思维导图 HTML。
+
+    采用 CDN (d3 + markmap-view) 在浏览器端完成 SVG 渲染，
+    同时内置结构化离线降级卡片与控制栏（居中对齐、缩放、复制大纲）。
+    """
+    cleaned = sanitize_mindmap_outline(outline or "") or "# 思维导图"
+
+    # 提取标题
+    heading = (title or "").strip()
+    if not heading:
+        for line in cleaned.splitlines():
+            s = line.strip()
+            if s.startswith("# "):
+                heading = s[2:].strip()
+                break
+    if not heading:
+        heading = "思维导图"
+
+    tree = outline_to_markmap_data(cleaned)
+    tree_json = json.dumps(tree, ensure_ascii=False)
+    raw_md_json = json.dumps(cleaned, ensure_ascii=False)
+    escaped_title = html.escape(heading)
+
+    def _render_fallback(node: dict) -> str:
+        txt = html.escape(str(node.get("content", "") or ""))
+        kids = node.get("children") or []
+        if not kids:
+            return f'<li><span class="node-text">{txt}</span></li>'
+        inner = "".join(_render_fallback(c) for c in kids)
+        return f'<li><span class="node-text">{txt}</span><ul>{inner}</ul></li>'
+
+    fallback_list = _render_fallback(tree)
+
+    return f"""<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{escaped_title}</title>
+  <style>
+    * {{
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }}
+    html, body {{
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      background-color: #ffffff;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, "PingFang SC", "Microsoft YaHei", sans-serif;
+    }}
+    #mindmap {{
+      width: 100vw;
+      height: 100vh;
+      display: block;
+    }}
+    .mm-toolbar {{
+      position: fixed;
+      top: 16px;
+      left: 20px;
+      z-index: 100;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      background: rgba(255, 255, 255, 0.92);
+      backdrop-filter: blur(10px);
+      -webkit-backdrop-filter: blur(10px);
+      padding: 6px 14px;
+      border-radius: 10px;
+      border: 1px solid #e2e8f0;
+      box-shadow: 0 4px 16px rgba(15, 23, 42, 0.08);
+    }}
+    .mm-title {{
+      font-size: 14px;
+      font-weight: 600;
+      color: #1e293b;
+      margin-right: 8px;
+      max-width: 280px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }}
+    .mm-btn {{
+      background: #ffffff;
+      border: 1px solid #cbd5e1;
+      color: #334155;
+      border-radius: 6px;
+      padding: 4px 10px;
+      font-size: 12px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.15s ease;
+      user-select: none;
+    }}
+    .mm-btn:hover {{
+      background: #f1f5f9;
+      border-color: #94a3b8;
+      color: #0f172a;
+    }}
+    .mm-btn:active {{
+      background: #e2e8f0;
+    }}
+    .mm-fallback {{
+      width: 100vw;
+      height: 100vh;
+      overflow: auto;
+      padding: 60px 24px;
+      background: #f8fafc;
+    }}
+    .fallback-card {{
+      max-width: 800px;
+      margin: 0 auto;
+      background: #ffffff;
+      padding: 32px 40px;
+      border-radius: 12px;
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.06);
+      border: 1px solid #e2e8f0;
+    }}
+    .fallback-card h1 {{
+      font-size: 22px;
+      color: #0f172a;
+      margin-bottom: 24px;
+      border-bottom: 2px solid #e2e8f0;
+      padding-bottom: 12px;
+    }}
+    .fallback-tree {{
+      list-style: none;
+      padding-left: 20px;
+    }}
+    .fallback-tree li {{
+      margin: 8px 0;
+      position: relative;
+      line-height: 1.6;
+    }}
+    .fallback-tree li::before {{
+      content: "";
+      position: absolute;
+      left: -14px;
+      top: 10px;
+      width: 5px;
+      height: 5px;
+      border-radius: 50%;
+      background: #3b82f6;
+    }}
+    .fallback-tree span.node-text {{
+      color: #1e293b;
+      font-weight: 500;
+    }}
+    .fallback-tree ul {{
+      list-style: none;
+      padding-left: 24px;
+      margin-top: 4px;
+    }}
+  </style>
+  <script src="{_D3_CDN}"></script>
+  <script src="{_MARKMAP_VIEW_CDN}"></script>
+</head>
+<body>
+  <div class="mm-toolbar">
+    <span class="mm-title">{escaped_title}</span>
+    <button type="button" class="mm-btn" id="btn-fit" title="适应窗口大小">居中对齐</button>
+    <button type="button" class="mm-btn" id="btn-zoom-in" title="放大">＋</button>
+    <button type="button" class="mm-btn" id="btn-zoom-out" title="缩小">－</button>
+    <button type="button" class="mm-btn" id="btn-copy" title="复制 Markdown 大纲">复制大纲</button>
+  </div>
+  <svg id="mindmap"></svg>
+  <div id="fallback" class="mm-fallback" style="display:none;">
+    <div class="fallback-card">
+      <h1>{escaped_title}</h1>
+      <ul class="fallback-tree">
+        {fallback_list}
+      </ul>
+    </div>
+  </div>
+  <script type="application/json" id="mm-data">{tree_json}</script>
+  <script>
+  (function () {{
+    const RAW_MD = {raw_md_json};
+    const treeEl = document.getElementById('mm-data');
+    const svg = document.getElementById('mindmap');
+    const fallback = document.getElementById('fallback');
+    if (!treeEl || !svg) return;
+
+    let tree;
+    try {{
+      tree = JSON.parse(treeEl.textContent || '{{}}');
+    }} catch (e) {{
+      console.error('Failed to parse tree JSON', e);
+      if (fallback) fallback.style.display = 'block';
+      if (svg) svg.style.display = 'none';
+      return;
+    }}
+
+    const Markmap = window.markmap && window.markmap.Markmap;
+    if (!Markmap || typeof window.d3 === 'undefined') {{
+      if (fallback) fallback.style.display = 'block';
+      if (svg) svg.style.display = 'none';
+      return;
+    }}
+
+    try {{
+      window.mm = Markmap.create(svg, {{
+        autoFit: true,
+        duration: 300,
+      }});
+      window.mm.setData(tree);
+      window.mm.fit();
+    }} catch (err) {{
+      console.error('Failed to initialize Markmap:', err);
+      if (fallback) fallback.style.display = 'block';
+      if (svg) svg.style.display = 'none';
+      return;
+    }}
+
+    const btnFit = document.getElementById('btn-fit');
+    if (btnFit) {{
+      btnFit.addEventListener('click', () => {{
+        if (window.mm && window.mm.fit) window.mm.fit();
+      }});
+    }}
+
+    const btnZoomIn = document.getElementById('btn-zoom-in');
+    if (btnZoomIn) {{
+      btnZoomIn.addEventListener('click', () => {{
+        if (window.mm && window.mm.rescale) window.mm.rescale(1.25);
+      }});
+    }}
+
+    const btnZoomOut = document.getElementById('btn-zoom-out');
+    if (btnZoomOut) {{
+      btnZoomOut.addEventListener('click', () => {{
+        if (window.mm && window.mm.rescale) window.mm.rescale(0.8);
+      }});
+    }}
+
+    const btnCopy = document.getElementById('btn-copy');
+    if (btnCopy) {{
+      btnCopy.addEventListener('click', () => {{
+        if (navigator.clipboard && navigator.clipboard.writeText) {{
+          navigator.clipboard.writeText(RAW_MD).then(() => {{
+            const old = btnCopy.textContent;
+            btnCopy.textContent = '已复制!';
+            setTimeout(() => {{ btnCopy.textContent = old; }}, 1500);
+          }}).catch(() => {{
+            prompt('请复制 Markdown 大纲：', RAW_MD);
+          }});
+        }} else {{
+          prompt('请复制 Markdown 大纲：', RAW_MD);
+        }}
+      }});
+    }}
+
+    window.addEventListener('resize', () => {{
+      if (window.mm && window.mm.fit) window.mm.fit();
+    }});
+  }})();
+  </script>
+</body>
+</html>
+"""
+
+
 def render_mindmap_html(
     outline: str,
     out_dir: Path | str,
     filename: str = "meeting_mindmap.html",
 ) -> Path | None:
-    """把 Markdown 大纲渲染为离线 HTML 思维导图文件。
+    """把 Markdown 大纲渲染为纯静态 HTML 思维导图文件（无需 npx/node）。
 
     Args:
         outline: markmap 输入（# 根节点 + ##/### 分支 + 列表项）。
@@ -478,72 +778,22 @@ def render_mindmap_html(
         filename: 输出文件名（默认 meeting_mindmap.html）。
 
     Returns:
-        生成的 HTML 文件路径；任何失败返回 ``None``（不抛异常）。
+        生成的 HTML 文件路径；大纲为空或写盘失败返回 ``None``。
     """
     outline = sanitize_mindmap_outline(outline or "")
     if not outline:
         logger.warning("mindmap outline empty, skip html")
         return None
     out_dir = Path(out_dir)
-    md_path: Path | None = None
     try:
         out_dir.mkdir(parents=True, exist_ok=True)
         out_path = out_dir / filename
-
-        npx = shutil.which("npx")
-        if not npx:
-            logger.warning("npx/node not found, cannot build mindmap html")
-            return None
-
-        # 临时 md 放输出目录（路径对 node 可见；WSL 场景经 _native_path 转换）
-        md_path = out_dir / f"._{filename}.md"
-        md_path.write_text(outline, encoding="utf-8")
-
-        cmd = _npx_command(
-            npx,
-            [
-                "--yes",
-                f"markmap-cli@{_MARKMAP_CLI_VERSION}",
-                _native_path(md_path),
-                "-o",
-                _native_path(out_path),
-                "--offline",
-                "--no-open",
-            ],
-        )
-        # Windows 经 cmd.exe /c 启动 .cmd 时需 shell=True；其余平台直接执行
-        use_shell = npx.lower().endswith((".cmd", ".bat"))
-        result = subprocess.run(
-            cmd,
-            capture_output=True,
-            text=True,
-            timeout=_RENDER_TIMEOUT_SECONDS,
-            check=False,
-            shell=use_shell,
-        )
-        if result.returncode != 0:
-            logger.warning(
-                "markmap-cli failed rc=%s: %s",
-                result.returncode,
-                (result.stderr or result.stdout or "").strip()[-500:],
-            )
-            return None
-        if not out_path.exists():
-            logger.warning("markmap-cli produced no file: %s", out_path)
-            return None
+        html_content = generate_static_mindmap_html(outline)
+        out_path.write_text(html_content, encoding="utf-8")
         return out_path
-    except subprocess.TimeoutExpired:
-        logger.warning("markmap-cli timeout (>%ss), aborted", _RENDER_TIMEOUT_SECONDS)
-        return None
     except Exception:  # noqa: BLE001 - 生成失败不影响主流程
         logger.warning("mindmap html failed, skipped", exc_info=True)
         return None
-    finally:
-        if md_path is not None:
-            try:
-                md_path.unlink(missing_ok=True)
-            except OSError:
-                pass
 
 
 def _png_pixel_stats(path: Path, sample_every: int = 4) -> tuple[int, float]:
@@ -787,47 +1037,6 @@ async def render_mindmap_png(
                 pass
 
 
-# 与 markmap-cli 锁定同一小版本，保证 notes / meeting 导图观感一致
-_MARKMAP_VIEW_CDN = (
-    f"https://cdn.jsdelivr.net/npm/markmap-view@{_MARKMAP_CLI_VERSION}/dist/browser/index.js"
-)
-_D3_CDN = "https://cdn.jsdelivr.net/npm/d3@7.9.0/dist/d3.min.js"
-
-
-
-
-def outline_to_markmap_data(outline: str) -> dict:
-    """把 #/##/###/- 大纲转成 markmap-view 的 {content, children} 树。"""
-    cleaned = sanitize_mindmap_outline(outline or "") or "# 思维导图"
-    root: dict = {"content": "思维导图", "children": []}
-    stack: list[tuple[int, dict]] = [(0, root)]
-    for raw in cleaned.splitlines():
-        line = raw.strip()
-        if not line:
-            continue
-        if line.startswith("#"):
-            m = re.match(r"^(#{1,6})\s+(.*)$", line)
-            if not m:
-                continue
-            level = min(len(m.group(1)), 4)
-            node = {"content": m.group(2).strip() or "未命名", "children": []}
-            while stack and stack[-1][0] >= level:
-                stack.pop()
-            stack[-1][1].setdefault("children", []).append(node)
-            stack.append((level, node))
-            continue
-        if line.startswith(("- ", "* ", "+ ")):
-            body = line[2:].strip()
-            if not body:
-                continue
-            stack[-1][1].setdefault("children", []).append(
-                {"content": body, "children": []}
-            )
-    if len(root.get("children") or []) == 1 and not (root["children"][0].get("children") is None):
-        return root["children"][0]
-    return root
-
-
 def build_editable_mindmap_embed(
     outline: str,
     title: str = "思维导图",
@@ -966,6 +1175,7 @@ def build_editable_mindmap_embed(
 
 __all__ = [
     "build_editable_mindmap_embed",
+    "generate_static_mindmap_html",
     "markmap_available",
     "mindmap_png_available",
     "outline_to_markmap_data",
