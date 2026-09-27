@@ -1,0 +1,610 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>通用纪要</title>
+  <style>
+
+    body {
+      margin: 0;
+      padding: 14px 12px;
+      background: #f6f5f0;
+      color: #1a1a1a;
+      font-family: "Latin Modern Roman", "Computer Modern Roman", "CMU Serif", "Times New Roman", Times, "Songti SC", "SimSun", "STSong", serif;
+      -webkit-font-smoothing: antialiased;
+    }
+    .page { max-width: 1140px; margin: 0 auto; }
+    .ck-doc {
+      background: #ffffff;
+      border: 1px solid #d4d0c7;
+      border-radius: 4px;
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.05), 0 1px 3px rgba(0,0,0,0.03);
+      padding: 18px 22px;
+      line-height: 1.6;
+      font-size: 0.84rem;      /* 正文基准：左右两栏共用 --ck-fs */
+      --ck-fs: 0.84rem;
+    }
+    .ck-doc h1 {
+      margin: 0 0 6px;
+      font-size: 1.05rem;      /* 文档标题：只比正文略大一点 */
+      font-weight: 700;
+      text-align: center;
+      color: #111111;
+    }
+    .ck-doc-header {
+      margin-bottom: 10px;
+      padding-bottom: 8px;
+      border-bottom: 1px solid #111111;
+      text-align: center;
+    }
+    .ck-doc-meta {
+      font-size: 0.78rem;
+      color: #555555;
+      font-style: italic;
+    }
+    /* 层级标题一律"加粗 + 与右栏同级字号"，不加字号、不加下划线，前后留白压到最小 */
+    .ck-doc-content h1, .ck-doc-content .ck-doc-h1,
+    .ck-doc h2, .ck-doc-h2,
+    .ck-doc h3, .ck-doc-h3,
+    .ck-doc h4, .ck-doc-h4 {
+      font-size: var(--ck-fs);
+      font-weight: 700;
+      color: #111111;
+      border-bottom: 0;
+      padding-bottom: 0;
+      letter-spacing: 0;
+      font-variant: normal;
+      text-align: left;
+    }
+    .ck-doc-content h1, .ck-doc-content .ck-doc-h1, .ck-doc h2, .ck-doc-h2 {
+      margin: 12px 0 4px;
+    }
+    .ck-doc h3, .ck-doc-h3, .ck-doc h4, .ck-doc-h4 {
+      margin: 9px 0 3px;
+    }
+    .ck-doc p {
+      margin: 5px 0;
+      line-height: 1.6;
+      text-align: justify;
+    }
+    .ck-doc ul, .ck-doc ol {
+      margin: 4px 0 6px;
+      padding-left: 1.25em;
+      line-height: 1.6;
+    }
+    .ck-doc li {
+      margin: 2px 0;
+    }
+    .ck-doc blockquote, .ck-quote {
+      margin: 6px 0 8px;
+      padding: 5px 10px;
+      background: #faf9f6;
+      border-left: 3px solid #222222;
+      border-radius: 2px;
+      color: #222222;
+      font-size: var(--ck-fs);
+      font-style: italic;
+    }
+    .ck-doc code {
+      background: #f3f0e8;
+      border: 1px solid #e2ddd3;
+      border-radius: 3px;
+      padding: 1px 6px;
+      font-family: "Latin Modern Mono", Consolas, monospace;
+      font-size: 0.88em;
+    }
+    .ck-doc table, .ck-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: var(--ck-fs);
+      margin: 8px 0;
+      background: #ffffff;
+      border-top: 2px solid #222222;
+      border-bottom: 2px solid #222222;
+    }
+    .ck-doc table th, .ck-doc table td, .ck-table th, .ck-table td {
+      padding: 5px 8px;
+      text-align: left;
+      vertical-align: middle;
+      border-bottom: 1px solid #ede9e1;
+    }
+    .ck-doc table th, .ck-table th {
+      background: #fbfaf7;
+      border-bottom: 1.2px solid #222222;
+      font-weight: 700;
+      color: #111111;
+      letter-spacing: 0.3px;
+    }
+
+    /* Roomy & Spacious Academic Risk Table */
+    .ck-risk-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 18px 0 28px;
+      background: #ffffff;
+      border-top: 2.2px solid #111111;
+      border-bottom: 2.2px solid #111111;
+      font-size: 0.93rem;
+      line-height: 1.72;
+    }
+    .ck-risk-table th {
+      background: #faf8f5;
+      border-bottom: 1.5px solid #111111;
+      padding: 15px 16px;
+      font-weight: 700;
+      color: #111111;
+      letter-spacing: 0.3px;
+      text-align: left;
+      vertical-align: middle;
+    }
+    .ck-risk-table td {
+      padding: 16px 16px;
+      border-bottom: 1px solid #ede8e0;
+      vertical-align: top;
+      color: #1a1a1a;
+      word-break: break-word;
+    }
+    .ck-risk-table tr:nth-child(even) td {
+      background: #fdfcfb;
+    }
+    .ck-risk-table tr:hover td {
+      background: #f6f3eb;
+    }
+
+    /* Review Grid */
+    .ck-review {
+      display: grid;
+      grid-template-columns: minmax(0, 1.35fr) 1px minmax(260px, 0.95fr);
+      border: 1px solid #d4d0c7;
+      border-radius: 4px;
+      overflow: hidden;
+      margin: 8px 0 10px;
+      background: #ffffff;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.03);
+    }
+    .ck-review-left {
+      padding: 14px 16px;
+      background: #ffffff;
+      line-height: 1.6;
+      font-size: var(--ck-fs);
+    }
+    .ck-review-rule { background: #dcd8cf; }
+    .ck-review-right {
+      padding: 12px 14px;
+      background: #faf9f6;
+      box-sizing: border-box;
+      display: flex;
+      flex-direction: column;
+    }
+    .ck-ev-list {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    /* Entity Highlight in LaTeX Paper Style */
+    .ck-cite-entity {
+      background: #fff8db;
+      border-bottom: 1.5px solid #b86a04;
+      padding: 1px 4px;
+      border-radius: 2px;
+      cursor: pointer;
+      transition: all 0.18s ease;
+      color: #111111;
+      font-weight: 600;
+    }
+    .ck-cite-entity:hover {
+      background: #ffe58f;
+      color: #000000;
+    }
+    .ck-cite-entity.is-on {
+      background: #ffd54a;
+      border-bottom-color: #0047ab;
+      box-shadow: 0 0 0 2px rgba(0,71,171,0.25);
+    }
+
+    /* Blue Hyperref Citations [1], [2] */
+    .ck-cite-ref {
+      color: #0047ab;
+      font-weight: 600;
+      font-family: "Latin Modern Roman", "Computer Modern Roman", "Times New Roman", serif;
+      text-decoration: none;
+      cursor: pointer;
+      padding: 0 2px;
+      margin: 0 2px;
+      border-radius: 2px;
+      transition: all 0.15s ease;
+      font-size: 0.92em;
+      vertical-align: baseline;
+      user-select: none;
+    }
+    .ck-cite-ref:hover {
+      text-decoration: underline;
+      background: #e8f0fe;
+      color: #003380;
+    }
+    .ck-cite-ref.is-active {
+      background: #d2e3fc;
+      color: #002266;
+      font-weight: 700;
+      box-shadow: 0 0 0 1px #0047ab;
+    }
+
+    /* Right Memory Cards in LaTeX Paper Style */
+    .ck-provenance-head {
+      font-size: 0.82rem;
+      font-weight: 700;
+      color: #222222;
+      margin: 0 0 12px;
+      padding-bottom: 6px;
+      border-bottom: 1px solid #e0dcd4;
+      letter-spacing: 0.3px;
+      text-transform: uppercase;
+    }
+    .ck-ref-icon { color: #0047ab; margin-right: 4px; }
+    .ck-ev {
+      display: block;
+      margin: 0;
+      padding: 10px 12px;
+      border: 1px solid #dedad2;
+      border-left: 3.5px solid #0047ab;
+      border-radius: 2px;
+      background: #ffffff;
+      font-size: 0.82rem;
+      line-height: 1.55;
+      transition: all 0.2s ease;
+      cursor: pointer;
+    }
+    .ck-ev:hover { border-color: #b5b0a5; }
+    .ck-ev.is-on, .ck-ev.is-highlighted {
+      border-color: #0047ab;
+      box-shadow: 0 0 0 2px #0047ab, 0 3px 8px rgba(0,71,171,0.15);
+      background: #f0f5ff;
+    }
+    @keyframes citePulse {
+      0% { background: #dbeafe; box-shadow: 0 0 0 3px #0047ab; }
+      50% { background: #bfdbfe; box-shadow: 0 0 0 4px #0047ab; }
+      100% { background: #f0f5ff; box-shadow: 0 0 0 2px #0047ab; }
+    }
+    .ck-ev-k {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 0.75rem;
+      color: #444444;
+      margin-bottom: 5px;
+      font-weight: 700;
+    }
+    .ck-ev-cite-tag {
+      color: #0047ab;
+      font-weight: 700;
+      font-family: "Latin Modern Roman", serif;
+      text-decoration: none;
+    }
+    .ck-ev-kind-badge {
+      display: inline-block;
+      padding: 1px 6px;
+      border-radius: 2px;
+      font-size: 0.72rem;
+      font-weight: 600;
+      letter-spacing: 0.2px;
+    }
+    .ck-badge-keypoint {
+      border: 1px solid #0047ab;
+      color: #0047ab;
+      background: #f0f5ff;
+    }
+    .ck-badge-note {
+      border: 1px solid #b86a04;
+      color: #b86a04;
+      background: #fff8eb;
+    }
+    .ck-mem-title {
+      font-weight: 700;
+      color: #111111;
+      font-size: var(--ck-fs);
+      margin-bottom: 4px;
+      line-height: 1.5;
+    }
+    .ck-ev-quote {
+      color: #222222;
+      font-style: normal;
+      font-family: inherit;
+      margin: 4px 0 6px;
+      padding: 0;
+      background: transparent;
+      border: none;
+      line-height: 1.6;
+      font-size: var(--ck-fs);
+    }
+    .ck-ev-meta { font-size: 0.76rem; color: #666666; margin-top: 4px; }
+    .ck-ev-more {
+      margin-top: 2px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+    .ck-ev-more[open] { margin-top: 4px; }
+    .ck-ev-more summary { margin-bottom: 6px; }
+    .ck-proof-toggle {
+      cursor: pointer;
+      font-size: 0.82rem;
+      color: #0047ab;
+      user-select: none;
+      font-family: inherit;
+      padding: 2px 0;
+    }
+    .ck-proof-toggle:hover { text-decoration: underline; }
+    /* 右栏下段"状态演进"：无行内锚点，与上方证据卡视觉区分（灰底 + 徽章，无 [n]） */
+    .ck-ledger {
+      margin-top: 10px;
+      padding-top: 8px;
+      border-top: 1px dashed #d4d0c7;
+    }
+    .ck-ledger > summary { list-style: none; }
+    .ck-ledger > summary::-webkit-details-marker { display: none; }
+    .ck-ledger > summary::after { content: " ▾"; }
+    .ck-ledger:not([open]) > summary::after { content: " ▸"; }
+    /* 每类一张小灰卡：卡头类别 + 条数，卡内按 1. 2. 3. 编号 */
+    .ck-ledger-card {
+      background: #faf9f5;
+      border: 1px solid #e6e2d8;
+      border-left: 3px solid #bdb6a6;
+      border-radius: 4px;
+      padding: 7px 9px;
+      margin-bottom: 6px;
+    }
+    .ck-ledger-k {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 6px;
+      font-size: 0.72rem;
+      margin-bottom: 5px;
+    }
+    .ck-ledger-badge {
+      background: #efece4;
+      color: #6b6559;
+      border-radius: 3px;
+      padding: 1px 6px;
+      font-weight: 600;
+    }
+    .ck-ledger-count { color: #8a8578; }
+    .ck-ledger-list {
+      margin: 0;
+      padding-left: 1.35em;
+      font-size: var(--ck-fs);
+      line-height: 1.6;
+      color: #3b3a37;
+    }
+    .ck-ledger-list > li { margin: 2px 0; }
+    /* Personal Perspective Interactive Task Lists & Semantic Blocks */
+    .ck-self-block {
+      background: #f4f8fe;
+      border: 1px solid #d4e2f5;
+      border-left: 3.5px solid #0047ab;
+      border-radius: 4px;
+      padding: 9px 13px;
+      margin: 10px 0 12px;
+    }
+    .ck-self-title {
+      margin: 0 0 6px;
+      color: #003380;
+      font-weight: 700;
+      font-size: var(--ck-fs);
+      display: flex;
+      align-items: center;
+      gap: 5px;
+    }
+    .ck-self-badge {
+      display: inline-block;
+      background: #0047ab;
+      color: #ffffff;
+      font-size: 0.68rem;
+      padding: 1px 5px;
+      border-radius: 2px;
+      font-weight: 600;
+      letter-spacing: 0.2px;
+      margin-left: 4px;
+    }
+
+    .ck-dep-block {
+      background: #fefcf7;
+      border: 1px solid #f2e7cc;
+      border-left: 3.5px solid #b86a04;
+      border-radius: 4px;
+      padding: 9px 13px;
+      margin: 10px 0 12px;
+    }
+    .ck-dep-title {
+      margin: 0 0 6px;
+      color: #7a4502;
+      font-weight: 700;
+      font-size: var(--ck-fs);
+      display: flex;
+      align-items: center;
+      gap: 5px;
+    }
+    .ck-dep-badge {
+      display: inline-block;
+      background: #b86a04;
+      color: #ffffff;
+      font-size: 0.68rem;
+      padding: 1px 5px;
+      border-radius: 2px;
+      font-weight: 600;
+      letter-spacing: 0.2px;
+      margin-left: 4px;
+    }
+
+    .ck-risk-block {
+      background: #fff8f8;
+      border: 1px solid #fedcdc;
+      border-left: 3.5px solid #cf222e;
+      border-radius: 4px;
+      padding: 9px 13px;
+      margin: 10px 0 12px;
+    }
+    .ck-risk-title {
+      margin: 0 0 6px;
+      color: #a40e26;
+      font-weight: 700;
+      font-size: var(--ck-fs);
+      display: flex;
+      align-items: center;
+      gap: 5px;
+    }
+    .ck-risk-badge {
+      display: inline-block;
+      background: #cf222e;
+      color: #ffffff;
+      font-size: 0.68rem;
+      padding: 1px 5px;
+      border-radius: 2px;
+      font-weight: 600;
+      letter-spacing: 0.2px;
+      margin-left: 4px;
+    }
+
+    .ck-self-block ul, .ck-self-block ol,
+    .ck-dep-block ul, .ck-dep-block ol,
+    .ck-risk-block ul, .ck-risk-block ol {
+      margin: 2px 0 2px;
+      padding-left: 1.25em;
+    }
+    .ck-self-block li, .ck-dep-block li, .ck-risk-block li {
+      margin: 2px 0;
+      color: #1a1a1a;
+    }
+
+    /* Person Group Heading */
+    .ck-person-group {
+      margin: 8px 0 3px;
+      font-weight: 700;
+      color: #111111;
+    }
+
+    /* GFM Task List Checkboxes */
+    .ck-task-list {
+      list-style: none;
+      padding-left: 0 !important;
+      margin: 4px 0 6px !important;
+    }
+    .ck-task-item {
+      display: flex;
+      align-items: flex-start;
+      margin: 4px 0;
+      line-height: 1.6;
+    }
+    .ck-task-label {
+      display: inline-flex;
+      align-items: flex-start;
+      gap: 8px;
+      cursor: pointer;
+      width: 100%;
+    }
+    .ck-task-checkbox {
+      margin-top: 4px;
+      cursor: pointer;
+      accent-color: #0047ab;
+      width: 15px;
+      height: 15px;
+      flex-shrink: 0;
+    }
+    .ck-task-checkbox:checked + .ck-task-text {
+      color: #8c8c8c;
+      text-decoration: line-through;
+    }
+    .ck-task-text {
+      flex: 1;
+      color: #1a1a1a;
+    }
+
+    /* Status Badges & Pills */
+    .ck-tag-blocker {
+      display: inline-block;
+      background: #ffebe9;
+      color: #cf222e;
+      border: 1px solid rgba(255, 129, 130, 0.45);
+      font-size: 0.72rem;
+      font-weight: 700;
+      padding: 0 5px;
+      border-radius: 3px;
+      margin-right: 4px;
+      line-height: 1.5;
+      vertical-align: 1px;
+    }
+    .ck-tag-risk {
+      display: inline-block;
+      background: #fff8eb;
+      color: #b86a04;
+      border: 1px solid rgba(212, 167, 44, 0.45);
+      font-size: 0.72rem;
+      font-weight: 700;
+      padding: 0 5px;
+      border-radius: 3px;
+      margin-right: 4px;
+      line-height: 1.5;
+      vertical-align: 1px;
+    }
+    .ck-tag-warn {
+      display: inline-block;
+      background: #f0f4ff;
+      color: #0969da;
+      border: 1px solid rgba(84, 174, 255, 0.45);
+      font-size: 0.72rem;
+      font-weight: 700;
+      padding: 0 5px;
+      border-radius: 3px;
+      margin-right: 4px;
+      line-height: 1.5;
+      vertical-align: 1px;
+    }
+    .ck-tag-dep {
+      display: inline-block;
+      background: #eff6ff;
+      color: #1d4ed8;
+      border: 1px solid #bfdbfe;
+      font-size: 0.72rem;
+      font-weight: 600;
+      padding: 0 5px;
+      border-radius: 3px;
+      margin-right: 4px;
+      line-height: 1.5;
+      vertical-align: 1px;
+    }
+    .ck-param-capsule {
+      display: inline-block;
+      font-size: 0.82rem;
+      color: #57606a;
+      background: #f6f8fa;
+      border: 1px solid #eaeef2;
+      padding: 0 6px;
+      border-radius: 10px;
+      margin-left: 4px;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      letter-spacing: 0.2px;
+    }
+
+    @media(max-width: 860px) {
+      .ck-doc { padding: 22px 18px; }
+      .ck-review { grid-template-columns: 1fr; }
+      .ck-review-rule { display: none; }
+    }
+
+  </style>
+</head>
+<body>
+  <main class="page">
+    <div class="ck-doc">
+      <header class="ck-doc-header">
+        <h1>通用纪要</h1>
+      </header>
+      <div class="ck-doc-content">
+        <h2 class="ck-doc-h2">全文摘要</h2><p>本次协调会由办事处组织，召集小区业委会成员、业主代表与物业方，围绕业主大会召开及物业服务缺失问题展开沟通。业委会成员发言者4代表业主提出，小区业主自发接龙已有200余位业主参与，主要诉求是尽快召开业主大会，由全体业主表决是否更换物业；并列举了入户门柱灯从未开启、内部水系与迎宾水系从未运行、监控几乎全部损坏、监控室24小时值班荒废、绿化维护缺失、北边围墙用烂铁皮遮挡且有缺口、民生配套（快递柜、直饮水、宽带、暖气开户）无进展、雨水倒灌自2019年未解决、物业人员配备严重不足等10条服务缺失问题。物业方（发言者2、发言者7）逐条回应，称门柱灯因能耗成本无法运营，水系泵存在质量问题属地产维修，监控维修缺乏费用，围墙属红线外且涉及违建，民生配套属地产前期配套，雨水倒灌属地产设计问题，人员配备不足因地产补亏款未结；并称业主欠物业费170多万元，园区保护收入100来万、人工成本100多万，每年亏损，维修费今年已花几十万，若回款40万可解决部分问题。业委会成员发言者4反驳物业服务无滞后性，问题自交房起即存在，双方就缴费与服务先后顺序争执不下。物业方宣布已与集团法务及高级人民法院、滨城区人民法院沟通，将于本月正式起诉业委会，称掌握业主群内煽动证据并已截屏保存，且欠费人员不能成为业主代表；业委会成员发言者8表示只要物业起诉就反诉。业委会成员发言者4表示基本决定换掉物业，将正常推进业主大会表决，并提议集体起诉要求返还部分物业费。双方未达成一致，矛盾激化，会议无实质结论。</p><h2 class="ck-doc-h2">要点梳理</h2><ol><li value="1"><strong>业主大会召开与表决</strong><ul><li><span class="ck-item-quote" style="display:block; color:#666; font-size:13px; margin-top:2px; font-style:italic;">&gt; 业主自发接龙已有200余位业主参与，主要诉求是尽快召开业主大会，由全体业主表决是否更换物业(发言者4)</span></li><li><span class="ck-item-quote" style="display:block; color:#666; font-size:13px; margin-top:2px; font-style:italic;">&gt; 业委会工作组设1个群、准业主分5个群，共6个工作群，由筹备组6人各联系一部分业主(发言者4、发言者5)</span></li><li><span class="ck-item-quote" style="display:block; color:#666; font-size:13px; margin-top:2px; font-style:italic;">&gt; 物业方质疑业主大会程序，称未接到沟通，并宣布将于本月正式起诉业委会(发言者2)</span></li><li><span class="ck-item-quote" style="display:block; color:#666; font-size:13px; margin-top:2px; font-style:italic;">&gt; 物业方称欠费人员不能成为业主代表，顶名亦无效，将依法追究责任(发言者2)</span></li><li><span class="ck-item-quote" style="display:block; color:#666; font-size:13px; margin-top:2px; font-style:italic;">&gt; 业委会成员表示基本决定换掉物业，将正常推进业主大会表决(发言者4)</span></li><li><span class="ck-item-quote" style="display:block; color:#666; font-size:13px; margin-top:2px; font-style:italic;">&gt; 双方就诉讼期间业主大会能否召开产生争议，物业方称法律意义上诉讼期间不能召开，业委会方称小区有多名律师可核实(发言者2、发言者4)</span></li></ul></li><li value="2"><strong>物业服务问题清单</strong><ul><li><span class="ck-item-quote" style="display:block; color:#666; font-size:13px; margin-top:2px; font-style:italic;">&gt; 业委会成员发言者4列举10条服务缺失问题，包括入户门柱灯从未开启、内部水系与迎宾水系从未运行、监控几乎全部损坏、监控室24小时值班荒废、绿化维护缺失、北边围墙用烂铁皮遮挡且有缺口、民生配套无进展、雨水倒灌自2019年未解决、物业人员配备严重不足等(发言者4)</span></li><li><span class="ck-item-quote" style="display:block; color:#666; font-size:13px; margin-top:2px; font-style:italic;">&gt; 上个月小区进贼，110派出所及刑警大队均未从监控获得任何数据，属严重安全隐患(发言者4)</span></li><li><span class="ck-item-quote" style="display:block; color:#666; font-size:13px; margin-top:2px; font-style:italic;">&gt; 监控室自交房时配备24小时值班及门铃一键直达功能，业主家中紧急情况可直连值班人员，但自王艳芳上任后该项服务已荒废(发言者4)</span></li><li><span class="ck-item-quote" style="display:block; color:#666; font-size:13px; margin-top:2px; font-style:italic;">&gt; 雨水倒灌问题自2019年起存在，业主多次向物业经理及管家反映要求完整解决方案，至今无进展，明年再有大雨可能再次淹水(发言者4)</span></li><li><span class="ck-item-quote" style="display:block; color:#666; font-size:13px; margin-top:2px; font-style:italic;">&gt; 物业办公室人员由最初近10人减至4人，维修人员由5人减至2人，人员配备严重不足(发言者4)</span></li><li><span class="ck-item-quote" style="display:block; color:#666; font-size:13px; margin-top:2px; font-style:italic;">&gt; 物业方回应称门柱灯因能耗成本无法运营，水系泵存在质量问题属地产维修范畴，监控维修缺乏费用(发言者2)</span></li><li><span class="ck-item-quote" style="display:block; color:#666; font-size:13px; margin-top:2px; font-style:italic;">&gt; 物业方称北边围墙属红线外、不在物业服务范围内，且涉及违建与法律官司，曾协调施工单位定做但因费用过高未成，已与业委会沟通不下5次(发言者2)</span></li><li><span class="ck-item-quote" style="display:block; color:#666; font-size:13px; margin-top:2px; font-style:italic;">&gt; 物业方称民生覆盖（宽带、快递柜、燃气）属地产前期配套问题，依据建设条例和前期配套要求应由地产负责(发言者7)</span></li></ul></li><li value="3"><strong>物业费欠费与经营状况</strong><ul><li><span class="ck-item-quote" style="display:block; color:#666; font-size:13px; margin-top:2px; font-style:italic;">&gt; 物业方称业主欠物业费170多万元，若回款40万可解决部分问题，但账上一分钱没有(发言者2)</span></li><li><span class="ck-item-quote" style="display:block; color:#666; font-size:13px; margin-top:2px; font-style:italic;">&gt; 物业方称园区保护收入100来万、人工成本100多万，每年亏损，维修费今年已花几十万，业主可随时查账核实(发言者2)</span></li><li><span class="ck-item-quote" style="display:block; color:#666; font-size:13px; margin-top:2px; font-style:italic;">&gt; 物业方称业委会成员在业主群内号召业主不要缴费，与明面表态矛盾，相关记录已保存并将走法律程序(发言者2)</span></li><li><span class="ck-item-quote" style="display:block; color:#666; font-size:13px; margin-top:2px; font-style:italic;">&gt; 业委会成员发言者4反驳物业服务无滞后性，问题自交房起即存在，双方就缴费与服务先后顺序争执不下(发言者4)</span></li><li><span class="ck-item-quote" style="display:block; color:#666; font-size:13px; margin-top:2px; font-style:italic;">&gt; 业委会成员发言者4提议集体起诉要求返还部分物业费(发言者4)</span></li></ul></li><li value="4"><strong>法律诉讼与维权</strong><ul><li><span class="ck-item-quote" style="display:block; color:#666; font-size:13px; margin-top:2px; font-style:italic;">&gt; 物业方称上午9:52与高级人民法院通话，并已与滨城区人民法院沟通，掌握业主群内煽动证据并已截屏保存，将于本月正式起诉业委会(发言者2)</span></li><li><span class="ck-item-quote" style="display:block; color:#666; font-size:13px; margin-top:2px; font-style:italic;">&gt; 物业方称起诉对象包括业委会及保洁业主代表，起诉过程可能影响个人经营(发言者2)</span></li><li><span class="ck-item-quote" style="display:block; color:#666; font-size:13px; margin-top:2px; font-style:italic;">&gt; 物业方称已给集团法务打电话，集团法务将在今天操作起诉手续(发言者2)</span></li><li><span class="ck-item-quote" style="display:block; color:#666; font-size:13px; margin-top:2px; font-style:italic;">&gt; 业委会成员发言者8表示只要物业起诉就反诉，拿出证据应对(发言者8)</span></li><li><span class="ck-item-quote" style="display:block; color:#666; font-size:13px; margin-top:2px; font-style:italic;">&gt; 物业方称欠费人员不能成为业主代表，选举及后期决策存在违法行为，将依法追究责任(发言者2)</span></li></ul></li><li value="5"><strong>物业经理服务态度争议</strong><ul><li><span class="ck-item-quote" style="display:block; color:#666; font-size:13px; margin-top:2px; font-style:italic;">&gt; 业委会成员发言者4反映物业经理说话欠妥，小区进贼时业主求助，物业经理第一句话即问「你交物业费了吗？你没交物业费我们不给你服务」，并对16号楼104业主称「你不交物业费我们就上你家去」(发言者4)</span></li><li><span class="ck-item-quote" style="display:block; color:#666; font-size:13px; margin-top:2px; font-style:italic;">&gt; 物业方发言者7否认该说法，反问信息来源，称业主有录音可核实(发言者7)</span></li></ul></li><li value="6"><strong>地产配套与责任归属</strong><ul><li><span class="ck-item-quote" style="display:block; color:#666; font-size:13px; margin-top:2px; font-style:italic;">&gt; 物业方称开户费应由地产出资并将管道交接给供暖公司，但煤炭流程处理至今未完工、未验收，导致大部分业主误认为是物业责任(发言者2)</span></li><li><span class="ck-item-quote" style="display:block; color:#666; font-size:13px; margin-top:2px; font-style:italic;">&gt; 物业方称地产公司已申请破产，无法再找其解决配套问题，已与地产沟通不下五六遍甚至十遍(发言者7)</span></li><li><span class="ck-item-quote" style="display:block; color:#666; font-size:13px; margin-top:2px; font-style:italic;">&gt; 业委会成员发言者3提出既然地产公司能把物业带进来，物业为何不能把地产签回来，物业方回应称地产已申请破产、无计可施(发言者3、发言者7)</span></li><li><span class="ck-item-quote" style="display:block; color:#666; font-size:13px; margin-top:2px; font-style:italic;">&gt; 物业方称园区自建设至后期从未验收过，供暖、开户等配套问题均受此影响(发言者2)</span></li></ul></li></ol><h2 class="ck-doc-h2">结论与决定</h2><ol><li value="1"><strong>业主大会推进</strong>：业委会明确将正常推进业主大会召开，由全体业主表决是否更换物业（业委会成员发言者4）<ul><li><span class="ck-item-quote" style="display:block; color:#666; font-size:13px; margin-top:2px; font-style:italic;">&gt; 依据：小区业主自发接龙已有200余位业主参与，主要诉求即召开业主大会表决换物业；业委会成员发言者4表示「基本决定换掉物业」并提议表决。</span></li><li><span class="ck-item-quote" style="display:block; color:#666; font-size:13px; margin-top:2px; font-style:italic;">&gt; 要求：业委会成员发言者4称「正常推进业主大会」，不再与物业方继续沟通。</span></li></ul></li><li value="2"><strong>物业起诉业委会</strong>：物业方明确将于本月正式起诉业委会，并同步起诉保洁业主代表（物业方发言者2、发言者7）<ul><li><span class="ck-item-quote" style="display:block; color:#666; font-size:13px; margin-top:2px; font-style:italic;">&gt; 依据：物业方称已与集团法务沟通，集团法务将于当日操作手续；上午9:52与高级人民法院通话，并已与滨城区人民法院沟通，均有沟通记录；称已掌握业主群内煽动证据并截屏保存。</span></li><li><span class="ck-item-quote" style="display:block; color:#666; font-size:13px; margin-top:2px; font-style:italic;">&gt; 要求：起诉理由为业委会成员在业主群煽动业主不缴费、阻碍正常经营、造成物业公司经济损失；欠费人员不能成为业主代表，顶名亦不能，将依法追究责任；物业方称起诉期间业主大会不能召开。</span></li></ul></li><li value="3"><strong>业委会反诉</strong>：业委会成员明确若物业起诉即提起反诉（业委会成员发言者8）<ul><li><span class="ck-item-quote" style="display:block; color:#666; font-size:13px; margin-top:2px; font-style:italic;">&gt; 依据：发言者8回应「只要他起诉我们就反诉拿出证据来」，并质疑物业方截屏业主群动态涉嫌窥探业主隐私。</span></li></ul></li></ol>
+      </div>
+    </div>
+  </main>
+</body>
+</html>
