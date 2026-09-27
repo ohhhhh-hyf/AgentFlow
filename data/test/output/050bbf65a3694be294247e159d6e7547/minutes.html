@@ -1,0 +1,610 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>电子科技大学电子科学与工程学院招生宣讲直播</title>
+  <style>
+
+    body {
+      margin: 0;
+      padding: 14px 12px;
+      background: #f6f5f0;
+      color: #1a1a1a;
+      font-family: "Latin Modern Roman", "Computer Modern Roman", "CMU Serif", "Times New Roman", Times, "Songti SC", "SimSun", "STSong", serif;
+      -webkit-font-smoothing: antialiased;
+    }
+    .page { max-width: 1140px; margin: 0 auto; }
+    .ck-doc {
+      background: #ffffff;
+      border: 1px solid #d4d0c7;
+      border-radius: 4px;
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.05), 0 1px 3px rgba(0,0,0,0.03);
+      padding: 18px 22px;
+      line-height: 1.6;
+      font-size: 0.84rem;      /* 正文基准：左右两栏共用 --ck-fs */
+      --ck-fs: 0.84rem;
+    }
+    .ck-doc h1 {
+      margin: 0 0 6px;
+      font-size: 1.05rem;      /* 文档标题：只比正文略大一点 */
+      font-weight: 700;
+      text-align: center;
+      color: #111111;
+    }
+    .ck-doc-header {
+      margin-bottom: 10px;
+      padding-bottom: 8px;
+      border-bottom: 1px solid #111111;
+      text-align: center;
+    }
+    .ck-doc-meta {
+      font-size: 0.78rem;
+      color: #555555;
+      font-style: italic;
+    }
+    /* 层级标题一律"加粗 + 与右栏同级字号"，不加字号、不加下划线，前后留白压到最小 */
+    .ck-doc-content h1, .ck-doc-content .ck-doc-h1,
+    .ck-doc h2, .ck-doc-h2,
+    .ck-doc h3, .ck-doc-h3,
+    .ck-doc h4, .ck-doc-h4 {
+      font-size: var(--ck-fs);
+      font-weight: 700;
+      color: #111111;
+      border-bottom: 0;
+      padding-bottom: 0;
+      letter-spacing: 0;
+      font-variant: normal;
+      text-align: left;
+    }
+    .ck-doc-content h1, .ck-doc-content .ck-doc-h1, .ck-doc h2, .ck-doc-h2 {
+      margin: 12px 0 4px;
+    }
+    .ck-doc h3, .ck-doc-h3, .ck-doc h4, .ck-doc-h4 {
+      margin: 9px 0 3px;
+    }
+    .ck-doc p {
+      margin: 5px 0;
+      line-height: 1.6;
+      text-align: justify;
+    }
+    .ck-doc ul, .ck-doc ol {
+      margin: 4px 0 6px;
+      padding-left: 1.25em;
+      line-height: 1.6;
+    }
+    .ck-doc li {
+      margin: 2px 0;
+    }
+    .ck-doc blockquote, .ck-quote {
+      margin: 6px 0 8px;
+      padding: 5px 10px;
+      background: #faf9f6;
+      border-left: 3px solid #222222;
+      border-radius: 2px;
+      color: #222222;
+      font-size: var(--ck-fs);
+      font-style: italic;
+    }
+    .ck-doc code {
+      background: #f3f0e8;
+      border: 1px solid #e2ddd3;
+      border-radius: 3px;
+      padding: 1px 6px;
+      font-family: "Latin Modern Mono", Consolas, monospace;
+      font-size: 0.88em;
+    }
+    .ck-doc table, .ck-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: var(--ck-fs);
+      margin: 8px 0;
+      background: #ffffff;
+      border-top: 2px solid #222222;
+      border-bottom: 2px solid #222222;
+    }
+    .ck-doc table th, .ck-doc table td, .ck-table th, .ck-table td {
+      padding: 5px 8px;
+      text-align: left;
+      vertical-align: middle;
+      border-bottom: 1px solid #ede9e1;
+    }
+    .ck-doc table th, .ck-table th {
+      background: #fbfaf7;
+      border-bottom: 1.2px solid #222222;
+      font-weight: 700;
+      color: #111111;
+      letter-spacing: 0.3px;
+    }
+
+    /* Roomy & Spacious Academic Risk Table */
+    .ck-risk-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 18px 0 28px;
+      background: #ffffff;
+      border-top: 2.2px solid #111111;
+      border-bottom: 2.2px solid #111111;
+      font-size: 0.93rem;
+      line-height: 1.72;
+    }
+    .ck-risk-table th {
+      background: #faf8f5;
+      border-bottom: 1.5px solid #111111;
+      padding: 15px 16px;
+      font-weight: 700;
+      color: #111111;
+      letter-spacing: 0.3px;
+      text-align: left;
+      vertical-align: middle;
+    }
+    .ck-risk-table td {
+      padding: 16px 16px;
+      border-bottom: 1px solid #ede8e0;
+      vertical-align: top;
+      color: #1a1a1a;
+      word-break: break-word;
+    }
+    .ck-risk-table tr:nth-child(even) td {
+      background: #fdfcfb;
+    }
+    .ck-risk-table tr:hover td {
+      background: #f6f3eb;
+    }
+
+    /* Review Grid */
+    .ck-review {
+      display: grid;
+      grid-template-columns: minmax(0, 1.35fr) 1px minmax(260px, 0.95fr);
+      border: 1px solid #d4d0c7;
+      border-radius: 4px;
+      overflow: hidden;
+      margin: 8px 0 10px;
+      background: #ffffff;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.03);
+    }
+    .ck-review-left {
+      padding: 14px 16px;
+      background: #ffffff;
+      line-height: 1.6;
+      font-size: var(--ck-fs);
+    }
+    .ck-review-rule { background: #dcd8cf; }
+    .ck-review-right {
+      padding: 12px 14px;
+      background: #faf9f6;
+      box-sizing: border-box;
+      display: flex;
+      flex-direction: column;
+    }
+    .ck-ev-list {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    /* Entity Highlight in LaTeX Paper Style */
+    .ck-cite-entity {
+      background: #fff8db;
+      border-bottom: 1.5px solid #b86a04;
+      padding: 1px 4px;
+      border-radius: 2px;
+      cursor: pointer;
+      transition: all 0.18s ease;
+      color: #111111;
+      font-weight: 600;
+    }
+    .ck-cite-entity:hover {
+      background: #ffe58f;
+      color: #000000;
+    }
+    .ck-cite-entity.is-on {
+      background: #ffd54a;
+      border-bottom-color: #0047ab;
+      box-shadow: 0 0 0 2px rgba(0,71,171,0.25);
+    }
+
+    /* Blue Hyperref Citations [1], [2] */
+    .ck-cite-ref {
+      color: #0047ab;
+      font-weight: 600;
+      font-family: "Latin Modern Roman", "Computer Modern Roman", "Times New Roman", serif;
+      text-decoration: none;
+      cursor: pointer;
+      padding: 0 2px;
+      margin: 0 2px;
+      border-radius: 2px;
+      transition: all 0.15s ease;
+      font-size: 0.92em;
+      vertical-align: baseline;
+      user-select: none;
+    }
+    .ck-cite-ref:hover {
+      text-decoration: underline;
+      background: #e8f0fe;
+      color: #003380;
+    }
+    .ck-cite-ref.is-active {
+      background: #d2e3fc;
+      color: #002266;
+      font-weight: 700;
+      box-shadow: 0 0 0 1px #0047ab;
+    }
+
+    /* Right Memory Cards in LaTeX Paper Style */
+    .ck-provenance-head {
+      font-size: 0.82rem;
+      font-weight: 700;
+      color: #222222;
+      margin: 0 0 12px;
+      padding-bottom: 6px;
+      border-bottom: 1px solid #e0dcd4;
+      letter-spacing: 0.3px;
+      text-transform: uppercase;
+    }
+    .ck-ref-icon { color: #0047ab; margin-right: 4px; }
+    .ck-ev {
+      display: block;
+      margin: 0;
+      padding: 10px 12px;
+      border: 1px solid #dedad2;
+      border-left: 3.5px solid #0047ab;
+      border-radius: 2px;
+      background: #ffffff;
+      font-size: 0.82rem;
+      line-height: 1.55;
+      transition: all 0.2s ease;
+      cursor: pointer;
+    }
+    .ck-ev:hover { border-color: #b5b0a5; }
+    .ck-ev.is-on, .ck-ev.is-highlighted {
+      border-color: #0047ab;
+      box-shadow: 0 0 0 2px #0047ab, 0 3px 8px rgba(0,71,171,0.15);
+      background: #f0f5ff;
+    }
+    @keyframes citePulse {
+      0% { background: #dbeafe; box-shadow: 0 0 0 3px #0047ab; }
+      50% { background: #bfdbfe; box-shadow: 0 0 0 4px #0047ab; }
+      100% { background: #f0f5ff; box-shadow: 0 0 0 2px #0047ab; }
+    }
+    .ck-ev-k {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 0.75rem;
+      color: #444444;
+      margin-bottom: 5px;
+      font-weight: 700;
+    }
+    .ck-ev-cite-tag {
+      color: #0047ab;
+      font-weight: 700;
+      font-family: "Latin Modern Roman", serif;
+      text-decoration: none;
+    }
+    .ck-ev-kind-badge {
+      display: inline-block;
+      padding: 1px 6px;
+      border-radius: 2px;
+      font-size: 0.72rem;
+      font-weight: 600;
+      letter-spacing: 0.2px;
+    }
+    .ck-badge-keypoint {
+      border: 1px solid #0047ab;
+      color: #0047ab;
+      background: #f0f5ff;
+    }
+    .ck-badge-note {
+      border: 1px solid #b86a04;
+      color: #b86a04;
+      background: #fff8eb;
+    }
+    .ck-mem-title {
+      font-weight: 700;
+      color: #111111;
+      font-size: var(--ck-fs);
+      margin-bottom: 4px;
+      line-height: 1.5;
+    }
+    .ck-ev-quote {
+      color: #222222;
+      font-style: normal;
+      font-family: inherit;
+      margin: 4px 0 6px;
+      padding: 0;
+      background: transparent;
+      border: none;
+      line-height: 1.6;
+      font-size: var(--ck-fs);
+    }
+    .ck-ev-meta { font-size: 0.76rem; color: #666666; margin-top: 4px; }
+    .ck-ev-more {
+      margin-top: 2px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+    .ck-ev-more[open] { margin-top: 4px; }
+    .ck-ev-more summary { margin-bottom: 6px; }
+    .ck-proof-toggle {
+      cursor: pointer;
+      font-size: 0.82rem;
+      color: #0047ab;
+      user-select: none;
+      font-family: inherit;
+      padding: 2px 0;
+    }
+    .ck-proof-toggle:hover { text-decoration: underline; }
+    /* 右栏下段"状态演进"：无行内锚点，与上方证据卡视觉区分（灰底 + 徽章，无 [n]） */
+    .ck-ledger {
+      margin-top: 10px;
+      padding-top: 8px;
+      border-top: 1px dashed #d4d0c7;
+    }
+    .ck-ledger > summary { list-style: none; }
+    .ck-ledger > summary::-webkit-details-marker { display: none; }
+    .ck-ledger > summary::after { content: " ▾"; }
+    .ck-ledger:not([open]) > summary::after { content: " ▸"; }
+    /* 每类一张小灰卡：卡头类别 + 条数，卡内按 1. 2. 3. 编号 */
+    .ck-ledger-card {
+      background: #faf9f5;
+      border: 1px solid #e6e2d8;
+      border-left: 3px solid #bdb6a6;
+      border-radius: 4px;
+      padding: 7px 9px;
+      margin-bottom: 6px;
+    }
+    .ck-ledger-k {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 6px;
+      font-size: 0.72rem;
+      margin-bottom: 5px;
+    }
+    .ck-ledger-badge {
+      background: #efece4;
+      color: #6b6559;
+      border-radius: 3px;
+      padding: 1px 6px;
+      font-weight: 600;
+    }
+    .ck-ledger-count { color: #8a8578; }
+    .ck-ledger-list {
+      margin: 0;
+      padding-left: 1.35em;
+      font-size: var(--ck-fs);
+      line-height: 1.6;
+      color: #3b3a37;
+    }
+    .ck-ledger-list > li { margin: 2px 0; }
+    /* Personal Perspective Interactive Task Lists & Semantic Blocks */
+    .ck-self-block {
+      background: #f4f8fe;
+      border: 1px solid #d4e2f5;
+      border-left: 3.5px solid #0047ab;
+      border-radius: 4px;
+      padding: 9px 13px;
+      margin: 10px 0 12px;
+    }
+    .ck-self-title {
+      margin: 0 0 6px;
+      color: #003380;
+      font-weight: 700;
+      font-size: var(--ck-fs);
+      display: flex;
+      align-items: center;
+      gap: 5px;
+    }
+    .ck-self-badge {
+      display: inline-block;
+      background: #0047ab;
+      color: #ffffff;
+      font-size: 0.68rem;
+      padding: 1px 5px;
+      border-radius: 2px;
+      font-weight: 600;
+      letter-spacing: 0.2px;
+      margin-left: 4px;
+    }
+
+    .ck-dep-block {
+      background: #fefcf7;
+      border: 1px solid #f2e7cc;
+      border-left: 3.5px solid #b86a04;
+      border-radius: 4px;
+      padding: 9px 13px;
+      margin: 10px 0 12px;
+    }
+    .ck-dep-title {
+      margin: 0 0 6px;
+      color: #7a4502;
+      font-weight: 700;
+      font-size: var(--ck-fs);
+      display: flex;
+      align-items: center;
+      gap: 5px;
+    }
+    .ck-dep-badge {
+      display: inline-block;
+      background: #b86a04;
+      color: #ffffff;
+      font-size: 0.68rem;
+      padding: 1px 5px;
+      border-radius: 2px;
+      font-weight: 600;
+      letter-spacing: 0.2px;
+      margin-left: 4px;
+    }
+
+    .ck-risk-block {
+      background: #fff8f8;
+      border: 1px solid #fedcdc;
+      border-left: 3.5px solid #cf222e;
+      border-radius: 4px;
+      padding: 9px 13px;
+      margin: 10px 0 12px;
+    }
+    .ck-risk-title {
+      margin: 0 0 6px;
+      color: #a40e26;
+      font-weight: 700;
+      font-size: var(--ck-fs);
+      display: flex;
+      align-items: center;
+      gap: 5px;
+    }
+    .ck-risk-badge {
+      display: inline-block;
+      background: #cf222e;
+      color: #ffffff;
+      font-size: 0.68rem;
+      padding: 1px 5px;
+      border-radius: 2px;
+      font-weight: 600;
+      letter-spacing: 0.2px;
+      margin-left: 4px;
+    }
+
+    .ck-self-block ul, .ck-self-block ol,
+    .ck-dep-block ul, .ck-dep-block ol,
+    .ck-risk-block ul, .ck-risk-block ol {
+      margin: 2px 0 2px;
+      padding-left: 1.25em;
+    }
+    .ck-self-block li, .ck-dep-block li, .ck-risk-block li {
+      margin: 2px 0;
+      color: #1a1a1a;
+    }
+
+    /* Person Group Heading */
+    .ck-person-group {
+      margin: 8px 0 3px;
+      font-weight: 700;
+      color: #111111;
+    }
+
+    /* GFM Task List Checkboxes */
+    .ck-task-list {
+      list-style: none;
+      padding-left: 0 !important;
+      margin: 4px 0 6px !important;
+    }
+    .ck-task-item {
+      display: flex;
+      align-items: flex-start;
+      margin: 4px 0;
+      line-height: 1.6;
+    }
+    .ck-task-label {
+      display: inline-flex;
+      align-items: flex-start;
+      gap: 8px;
+      cursor: pointer;
+      width: 100%;
+    }
+    .ck-task-checkbox {
+      margin-top: 4px;
+      cursor: pointer;
+      accent-color: #0047ab;
+      width: 15px;
+      height: 15px;
+      flex-shrink: 0;
+    }
+    .ck-task-checkbox:checked + .ck-task-text {
+      color: #8c8c8c;
+      text-decoration: line-through;
+    }
+    .ck-task-text {
+      flex: 1;
+      color: #1a1a1a;
+    }
+
+    /* Status Badges & Pills */
+    .ck-tag-blocker {
+      display: inline-block;
+      background: #ffebe9;
+      color: #cf222e;
+      border: 1px solid rgba(255, 129, 130, 0.45);
+      font-size: 0.72rem;
+      font-weight: 700;
+      padding: 0 5px;
+      border-radius: 3px;
+      margin-right: 4px;
+      line-height: 1.5;
+      vertical-align: 1px;
+    }
+    .ck-tag-risk {
+      display: inline-block;
+      background: #fff8eb;
+      color: #b86a04;
+      border: 1px solid rgba(212, 167, 44, 0.45);
+      font-size: 0.72rem;
+      font-weight: 700;
+      padding: 0 5px;
+      border-radius: 3px;
+      margin-right: 4px;
+      line-height: 1.5;
+      vertical-align: 1px;
+    }
+    .ck-tag-warn {
+      display: inline-block;
+      background: #f0f4ff;
+      color: #0969da;
+      border: 1px solid rgba(84, 174, 255, 0.45);
+      font-size: 0.72rem;
+      font-weight: 700;
+      padding: 0 5px;
+      border-radius: 3px;
+      margin-right: 4px;
+      line-height: 1.5;
+      vertical-align: 1px;
+    }
+    .ck-tag-dep {
+      display: inline-block;
+      background: #eff6ff;
+      color: #1d4ed8;
+      border: 1px solid #bfdbfe;
+      font-size: 0.72rem;
+      font-weight: 600;
+      padding: 0 5px;
+      border-radius: 3px;
+      margin-right: 4px;
+      line-height: 1.5;
+      vertical-align: 1px;
+    }
+    .ck-param-capsule {
+      display: inline-block;
+      font-size: 0.82rem;
+      color: #57606a;
+      background: #f6f8fa;
+      border: 1px solid #eaeef2;
+      padding: 0 6px;
+      border-radius: 10px;
+      margin-left: 4px;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      letter-spacing: 0.2px;
+    }
+
+    @media(max-width: 860px) {
+      .ck-doc { padding: 22px 18px; }
+      .ck-review { grid-template-columns: 1fr; }
+      .ck-review-rule { display: none; }
+    }
+
+  </style>
+</head>
+<body>
+  <main class="page">
+    <div class="ck-doc">
+      <header class="ck-doc-header">
+        <h1>电子科技大学电子科学与工程学院招生宣讲直播</h1>
+      </header>
+      <div class="ck-doc-content">
+        <h2 class="ck-doc-h2">沟通背景与目的</h2><p>本次沟通为电子科技大学电子科学与工程学院面向考生及家长的招生宣讲直播，由学院段院、柳教授、张教授、李天明教授及在读博士生田雨桐参与，主持人负责串场。沟通旨在介绍学院整体情况、各学科方向与人才培养成果，解答考生和家长关心的报考问题，吸引优秀生源。整体基调为积极推介，各方向介绍详实，并设有互动答疑与抽奖环节；夏令营具体安排尚未确定，相关信息将通过学院QQ群发布。</p><h2 class="ck-doc-h2">核心信息与数据</h2><h3 class="ck-doc-h3">学院整体情况</h3><ol><li value="1"><strong>历史沿革</strong>：学院源于1956年建校时成立的无线电系、电真空器件系、无线电零件系，经1979年、1992年、2001年、2018年4次院系调整成立电子科学与工程学院（示范性微电子学院），2023年响应国家号召成立电子科学与工程学院与基层电路学院（原文如此）。</li><li value="2"><strong>学科设置</strong>：电子科学与技术为国家重点一级学科，下设5个二级学科方向——电磁场与微波技术、电路与系统、微电子学与固体电子学、物理电子学、电磁信息功能材料与机构；另有3个国防特色学科。</li><li value="3"><strong>人才培养规模</strong>：本科生现有1545人，招生专业为工科试验班（电子工程类），含电子科学技术（国家特色专业、国家级一流本科专业建设点）与电磁场与无线技术两个专业方向；硕士和博士研究生1975人。</li><li value="4"><strong>研究生招生专业</strong>：学术学位博士、硕士为电子科学与技术、材料科学与工程；专业学位博士、硕士为电子信息、材料工程。</li><li value="5"><strong>师资构成</strong>：现有教师302人，其中教研系139人、科研系95人、教学系14人、实验系21人，教师总数269人，机关33人。</li><li value="6"><strong>高层次人才</strong>：两院院士2人、领军人才19人、青年人才28人、其他类型人才12人、博士后61人；融合2个全国高校黄大年式教师团队，2022年获批4个国家自然科学基金创新群体。</li><li value="7"><strong>科研经费与成果</strong>：近5年科研经费到账稳定在3–4亿元之间，以纵向项目为主、横向项目为辅；牵头获国家科技奖励11项，发表高水平学术论文2000余篇，申请专利1600余件、授权1300余件。</li><li value="8"><strong>科研团队与平台</strong>：共20个科研团队，年度经费过千万元的团队15个、过亿元团队1个；拥有2个国家级平台（国家电子辐射控制材料工程技术研究中心、微波电子工器件国家级重点实验室〔原文如此〕）、4个国际合作平台、7个省部级科研平台。</li><li value="9"><strong>国际交流</strong>：共建国际姊妹院系2个（香港大学电机工程电子系、香港城市大学电子工程系），主办高水平国际会议13场，学生长短期交流项目20多个。</li></ol><h3 class="ck-doc-h3">电子信息材料与元器件方向</h3><ol><li value="1"><strong>方向定位</strong>：以材料为基础、器件为核心、应用为目标导向，涉及电子材料、器件、电路的设计研制生产应用；以电子在物质中的输运特性（电磁声光热力及化学生物特性）为基础。</li><li value="2"><strong>产业背景</strong>：2021年中国集成电路电子产品进口额达2.8万亿元，约为原油进口量的1.7倍；先进电子材料元器件电路系统等电子产品是我国目前最为紧迫的卡脖子问题之一。</li><li value="3"><strong>应用领域</strong>：在6G通讯、量子技术、智慧城市、光电技术、新能源、智能电子等领域起重要作用，广泛用于物联网、移动设备、网络基础设施、无人驾驶、航空航天、医疗健康和可穿戴设备。</li><li value="4"><strong>邓龙江院士团队</strong>：电磁辐射控制材料与技术团队，现有研究人员19人（正高13人、副高15人〔原文如此〕），近年发表包括《自然》在内的论文300余篇，承担国家省部级及国际合作课题130余项，年均到账经费3000多万元，授权发明专利100余项，获国家科技进步或技术发明二等奖共计3项。</li><li value="5"><strong>张怀武教授团队</strong>：磁电薄膜与微型器件团队，现有研究人员17人（正高15人、副高2人），开展LTCC材料及集成技术、微波毫米波晶圆及器件、自旋电子与磁量子器件、传感器芯片等研究，承担国家重点研发计划、自然基金重点重大科学仪器项目等100余项，发表SCI论文400余篇，年均到账经费2000余万元，获科技进步二等奖共计3项。</li><li value="6"><strong>国家级平台</strong>：国家电磁辐射控制材料工程技术研究中心（历史可追溯至1990年校级材料与技术研究中心，经2008年、2013年两次升级），开展多频谱涂层、电磁材料与结构、智能材料与结构研究；电磁薄膜与集成器件全国重点实验室，形成电子聚合物与阵列传感器、功率半导体与集成技术三个重点方向。</li><li value="7"><strong>研究条件</strong>：科研面积2万余平米（超精尖3000平），建设两条国家重大任务试验生产线，大型设备或系统500余台套；材料制备设备约50余台套，微纳加工设备30台套。</li><li value="8"><strong>毕业生去向</strong>：遍布产业界与学术界，包括英特尔、中芯国际、华为、德州仪器及高校科研院所；在读学生杨伟豪以第一作者在《自然·电子》《自然·通讯》各发表一篇论文；5G滤波器芯片学生团队获挑战杯创新创业大赛四川省金奖。</li></ol><h3 class="ck-doc-h3">电磁场与微波技术、电路与系统方向</h3><ol><li value="1"><strong>电磁场与微波技术细分方向</strong>：包含微波毫米波电路、电波传播与电磁兼容、计算电磁学与工程电子学、天线理论与技术4个细分方向，涵盖射频微波整套系统的全部研发方向。</li><li value="2"><strong>电路与系统细分方向</strong>：包含非线性电路与复杂电子系统、射频微波电路与系统、集成电路与系统3个专业方向。</li><li value="3"><strong>学科历史</strong>：电磁场与微波技术学科始于1956年建校时期，由林卫干先生和谢楚芳先生创建，形成电磁场与无线技术国家特色专业及电波传播与天线国防紧缺特色专业，所属一级学科电子科学与技术入选双一流A类学科。</li><li value="4"><strong>研究团队</strong>：电磁场与微波技术方向由6个团队组成——电磁辐射与散射团队、毫米波技术与系统应用团队、微波毫米波集成电路与系统团队、电磁兼容技术团队、微波测试与成像技术团队、无线技术与集成系统团队。</li><li value="5"><strong>学科平台</strong>：含国家自然基金委创新群体、国家高等学校学科创新引智基地、国家工程技术研究中心及国家级重点实验室；硬件方面拥有中国高校最为先进的微波暗室群体及微波毫米波太赫兹仿真测试平台。</li><li value="6"><strong>天线与雷达成果</strong>：杨世文教授团队研究四维天线阵列技术，为天线阵列设计提供新自由度，实现低成本高性能，成果应用于中电14所某大型机载相控阵雷达；樊勇教授团队研制出0.22THz、0.34THz、0.42THz雷达成像系统，分辨率小于1厘米，成果在2023年成都大运会田径项目成功示范应用。</li><li value="7"><strong>测量与计算电磁学</strong>：李恩教授团队微波毫米波测量技术有60多年技术积累和传承，突破众多技术封锁；杨世文教授团队计算电磁学相关算法被评为20世纪十大算法之一。</li><li value="8"><strong>电路与系统学科</strong>：1981年开始招收研究生和博士研究生，1988年成立首批博士后流动站；拥有国家级人才4人、新世纪人才2人、教授10人、副教授22人。</li><li value="9"><strong>人才培养成果</strong>：连续三年获全国大学生集成电路创新创业大赛奖项，荣获华为优秀合作项目奖、研究生优秀导学团队提名奖；就业领域包括华为、中兴等领军企业及各大研究所、高校。</li></ol><h3 class="ck-doc-h3">物理电子学方向</h3><ol><li value="1"><strong>学科定义</strong>：物理电子学是物理学与电子科学技术的交叉学科，将物理学最新研究成果应用于电子学，产生新的电子器件；学科边界不一定清晰，如光电子学既可属物理电子学也可属光学工程一级学科。</li><li value="2"><strong>学科特点</strong>：基础性与前沿性，数理基础要求高，所生成的电子器件是信息科技产业的重要支撑，是支撑现代信息技术的关键技术学科。</li><li value="3"><strong>发展历程</strong>：起源于1956年建校时的电真空器件专业（归宿于电子器件系）；1979年在刘成刚院士带领下成立高能电子学研究所；2001年物理系、应用所、高能所成立物理电子学；2018年物理电子学院、电工学院和微工学院部分成立现电子科学与工程学院。</li><li value="4"><strong>纵向发展</strong>：上游为仿真设计、数字模拟材料，下游为系统应用——利用功率器件研制毫米波雷达（回旋行波管）、无线输能系统（行波管）、微波能干燥系统（磁控管）。</li><li value="5"><strong>横向拓展</strong>：频段从微波上移至毫米波、太赫兹；与医学交叉，利用太赫兹分辨率高、透视效果好的特点做太赫兹成像，利用宽频带特点做保密通信、高速通信。</li></ol><h3 class="ck-doc-h3">学生视角分享</h3><ol><li value="1"><strong>城市优势</strong>：成都为四川省会、国家中心城市、新一线城市，电子信息产业发达，汇聚英特尔、华为、京东方等企业。</li><li value="2"><strong>学科实力</strong>：电子科学与技术学科在第4轮学科评估中获A+，稳居全国第一。</li><li value="3"><strong>选团队建议</strong>：学院拥有四大学科和19个科研团队，建议先选团队再选导师；可通过学院网站、IEEE Xplore、中国知网等检索导师论文和指导研究生情况。</li><li value="4"><strong>就业情况</strong>：团队硕博毕业生实现100%就业率，就业单位包括民营企业、大型央国企和头部科研院所。</li><li value="5"><strong>奖助体系</strong>：学院奖助体系全覆盖、高额度、长周期，包括国家奖学金、学业奖学金、专项奖学金、新生奖学金及助学贷款。</li></ol><h2 class="ck-doc-h2">各方立场与诉求</h2><ol><li value="1"><strong>主持人（发言者1）</strong>：串场引导各方向介绍，并在直播互动环节提出考生家长关心的夏令营安排问题，询问电子学院今年是否举办夏令营及具体时间。</li><li value="2"><strong>段院（学院负责人）</strong>：回应夏令营问题，明确电子学院计划今年举办夏令营活动，但具体时间待定，相关信息将通过学院QQ群（978499108）发布。</li><li value="3"><strong>段院（学院负责人）</strong>：面向考生和家长介绍学院整体情况，强调电子科学与技术为国家重点一级学科、下设5个二级学科方向，并说明学院在党建、人才培养、师资、科研平台等方面的建设成果，意在吸引优秀生源报考。</li><li value="4"><strong>柳教授</strong>：介绍电子信息材料与元器件方向，指出中国是电子产品生产大国但尚非强国，2021年集成电路电子产品进口额达2.8万亿元、约为原油进口量的1.7倍，先进电子材料等是当前最为紧迫的卡脖子问题之一，以此说明该方向对国家重大需求的重要性。</li><li value="5"><strong>张教授</strong>：介绍电磁场与微波技术和电路与系统两个方向，说明两学科共同组建了射频电子系统的全方位专业覆盖，并展示团队在四维天线阵列、太赫兹雷达成像等方向的成果及其应用，突出学科实力与人才培养成效。</li><li value="6"><strong>李天明教授</strong>：介绍物理电子学方向，说明该学科是物理学与电子科学技术的交叉学科，强调其基础性与前沿性特点，并介绍学校物理电子学近70年的发展历程及纵向、横向拓展方向，表明该方向是支撑现代信息技术的关键技术学科。</li><li value="7"><strong>田雨桐（在读博士）</strong>：从学生视角分享选择电子学院的8个理由，包括成都城市优势、电子科学与技术学科获A+评级、学院拥有四大学科和19个科研团队、团队硕博毕业生100%就业率、奖助体系全覆盖等，并建议考生先选团队再选导师，可通过学院网站、IEEE Xplore、中国知网等检索导师论文和指导研究生情况。</li></ol><h2 class="ck-doc-h2">达成共识</h2><ol><li value="1"><strong>夏令营活动安排</strong>：电子学院计划今年举办夏令营活动，具体时间待定，相关信息将通过官方QQ群发布。</li><li value="2"><strong>信息发布渠道</strong>：学院官方QQ群号为 <strong>978499108</strong>，作为后续夏令营通知及招生咨询的主要发布渠道。</li><li value="3"><strong>直播互动承诺</strong>：主持人及学院老师确认将在直播结束后，从弹幕区选取具有代表性的问题进行解答。</li></ol><h2 class="ck-doc-h2">待协调事项与后续</h2><h3 class="ck-doc-h3">待协调事项</h3><ul><li><strong>夏令营活动安排</strong><span class="ck-param-capsule">（电子科学与工程学院 ｜ 考生及家长 ｜ 时间待定）</span>：学院计划今年举办夏令营活动，具体时间与形式尚未确定，相关信息后续通过官方渠道发布。</li></ul><h3 class="ck-doc-h3">后续安排与参与方式</h3><ul><li><strong>官方咨询QQ群</strong>：978499108，夏令营时间、报名方式等后续信息将通过该群发布。</li><li><strong>直播抽奖</strong>：抽奖口令为“E生一世，逐梦未来”，奖品为学校马克杯套装（含电子科技大学logo、配套勺子和杯盖），已通过弹幕截屏方式抽取幸运观众。</li></ul>
+      </div>
+    </div>
+  </main>
+</body>
+</html>

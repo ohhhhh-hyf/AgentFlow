@@ -1,0 +1,610 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>金融借款合同纠纷二审调解案</title>
+  <style>
+
+    body {
+      margin: 0;
+      padding: 14px 12px;
+      background: #f6f5f0;
+      color: #1a1a1a;
+      font-family: "Latin Modern Roman", "Computer Modern Roman", "CMU Serif", "Times New Roman", Times, "Songti SC", "SimSun", "STSong", serif;
+      -webkit-font-smoothing: antialiased;
+    }
+    .page { max-width: 1140px; margin: 0 auto; }
+    .ck-doc {
+      background: #ffffff;
+      border: 1px solid #d4d0c7;
+      border-radius: 4px;
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.05), 0 1px 3px rgba(0,0,0,0.03);
+      padding: 18px 22px;
+      line-height: 1.6;
+      font-size: 0.84rem;      /* 正文基准：左右两栏共用 --ck-fs */
+      --ck-fs: 0.84rem;
+    }
+    .ck-doc h1 {
+      margin: 0 0 6px;
+      font-size: 1.05rem;      /* 文档标题：只比正文略大一点 */
+      font-weight: 700;
+      text-align: center;
+      color: #111111;
+    }
+    .ck-doc-header {
+      margin-bottom: 10px;
+      padding-bottom: 8px;
+      border-bottom: 1px solid #111111;
+      text-align: center;
+    }
+    .ck-doc-meta {
+      font-size: 0.78rem;
+      color: #555555;
+      font-style: italic;
+    }
+    /* 层级标题一律"加粗 + 与右栏同级字号"，不加字号、不加下划线，前后留白压到最小 */
+    .ck-doc-content h1, .ck-doc-content .ck-doc-h1,
+    .ck-doc h2, .ck-doc-h2,
+    .ck-doc h3, .ck-doc-h3,
+    .ck-doc h4, .ck-doc-h4 {
+      font-size: var(--ck-fs);
+      font-weight: 700;
+      color: #111111;
+      border-bottom: 0;
+      padding-bottom: 0;
+      letter-spacing: 0;
+      font-variant: normal;
+      text-align: left;
+    }
+    .ck-doc-content h1, .ck-doc-content .ck-doc-h1, .ck-doc h2, .ck-doc-h2 {
+      margin: 12px 0 4px;
+    }
+    .ck-doc h3, .ck-doc-h3, .ck-doc h4, .ck-doc-h4 {
+      margin: 9px 0 3px;
+    }
+    .ck-doc p {
+      margin: 5px 0;
+      line-height: 1.6;
+      text-align: justify;
+    }
+    .ck-doc ul, .ck-doc ol {
+      margin: 4px 0 6px;
+      padding-left: 1.25em;
+      line-height: 1.6;
+    }
+    .ck-doc li {
+      margin: 2px 0;
+    }
+    .ck-doc blockquote, .ck-quote {
+      margin: 6px 0 8px;
+      padding: 5px 10px;
+      background: #faf9f6;
+      border-left: 3px solid #222222;
+      border-radius: 2px;
+      color: #222222;
+      font-size: var(--ck-fs);
+      font-style: italic;
+    }
+    .ck-doc code {
+      background: #f3f0e8;
+      border: 1px solid #e2ddd3;
+      border-radius: 3px;
+      padding: 1px 6px;
+      font-family: "Latin Modern Mono", Consolas, monospace;
+      font-size: 0.88em;
+    }
+    .ck-doc table, .ck-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: var(--ck-fs);
+      margin: 8px 0;
+      background: #ffffff;
+      border-top: 2px solid #222222;
+      border-bottom: 2px solid #222222;
+    }
+    .ck-doc table th, .ck-doc table td, .ck-table th, .ck-table td {
+      padding: 5px 8px;
+      text-align: left;
+      vertical-align: middle;
+      border-bottom: 1px solid #ede9e1;
+    }
+    .ck-doc table th, .ck-table th {
+      background: #fbfaf7;
+      border-bottom: 1.2px solid #222222;
+      font-weight: 700;
+      color: #111111;
+      letter-spacing: 0.3px;
+    }
+
+    /* Roomy & Spacious Academic Risk Table */
+    .ck-risk-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 18px 0 28px;
+      background: #ffffff;
+      border-top: 2.2px solid #111111;
+      border-bottom: 2.2px solid #111111;
+      font-size: 0.93rem;
+      line-height: 1.72;
+    }
+    .ck-risk-table th {
+      background: #faf8f5;
+      border-bottom: 1.5px solid #111111;
+      padding: 15px 16px;
+      font-weight: 700;
+      color: #111111;
+      letter-spacing: 0.3px;
+      text-align: left;
+      vertical-align: middle;
+    }
+    .ck-risk-table td {
+      padding: 16px 16px;
+      border-bottom: 1px solid #ede8e0;
+      vertical-align: top;
+      color: #1a1a1a;
+      word-break: break-word;
+    }
+    .ck-risk-table tr:nth-child(even) td {
+      background: #fdfcfb;
+    }
+    .ck-risk-table tr:hover td {
+      background: #f6f3eb;
+    }
+
+    /* Review Grid */
+    .ck-review {
+      display: grid;
+      grid-template-columns: minmax(0, 1.35fr) 1px minmax(260px, 0.95fr);
+      border: 1px solid #d4d0c7;
+      border-radius: 4px;
+      overflow: hidden;
+      margin: 8px 0 10px;
+      background: #ffffff;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.03);
+    }
+    .ck-review-left {
+      padding: 14px 16px;
+      background: #ffffff;
+      line-height: 1.6;
+      font-size: var(--ck-fs);
+    }
+    .ck-review-rule { background: #dcd8cf; }
+    .ck-review-right {
+      padding: 12px 14px;
+      background: #faf9f6;
+      box-sizing: border-box;
+      display: flex;
+      flex-direction: column;
+    }
+    .ck-ev-list {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    /* Entity Highlight in LaTeX Paper Style */
+    .ck-cite-entity {
+      background: #fff8db;
+      border-bottom: 1.5px solid #b86a04;
+      padding: 1px 4px;
+      border-radius: 2px;
+      cursor: pointer;
+      transition: all 0.18s ease;
+      color: #111111;
+      font-weight: 600;
+    }
+    .ck-cite-entity:hover {
+      background: #ffe58f;
+      color: #000000;
+    }
+    .ck-cite-entity.is-on {
+      background: #ffd54a;
+      border-bottom-color: #0047ab;
+      box-shadow: 0 0 0 2px rgba(0,71,171,0.25);
+    }
+
+    /* Blue Hyperref Citations [1], [2] */
+    .ck-cite-ref {
+      color: #0047ab;
+      font-weight: 600;
+      font-family: "Latin Modern Roman", "Computer Modern Roman", "Times New Roman", serif;
+      text-decoration: none;
+      cursor: pointer;
+      padding: 0 2px;
+      margin: 0 2px;
+      border-radius: 2px;
+      transition: all 0.15s ease;
+      font-size: 0.92em;
+      vertical-align: baseline;
+      user-select: none;
+    }
+    .ck-cite-ref:hover {
+      text-decoration: underline;
+      background: #e8f0fe;
+      color: #003380;
+    }
+    .ck-cite-ref.is-active {
+      background: #d2e3fc;
+      color: #002266;
+      font-weight: 700;
+      box-shadow: 0 0 0 1px #0047ab;
+    }
+
+    /* Right Memory Cards in LaTeX Paper Style */
+    .ck-provenance-head {
+      font-size: 0.82rem;
+      font-weight: 700;
+      color: #222222;
+      margin: 0 0 12px;
+      padding-bottom: 6px;
+      border-bottom: 1px solid #e0dcd4;
+      letter-spacing: 0.3px;
+      text-transform: uppercase;
+    }
+    .ck-ref-icon { color: #0047ab; margin-right: 4px; }
+    .ck-ev {
+      display: block;
+      margin: 0;
+      padding: 10px 12px;
+      border: 1px solid #dedad2;
+      border-left: 3.5px solid #0047ab;
+      border-radius: 2px;
+      background: #ffffff;
+      font-size: 0.82rem;
+      line-height: 1.55;
+      transition: all 0.2s ease;
+      cursor: pointer;
+    }
+    .ck-ev:hover { border-color: #b5b0a5; }
+    .ck-ev.is-on, .ck-ev.is-highlighted {
+      border-color: #0047ab;
+      box-shadow: 0 0 0 2px #0047ab, 0 3px 8px rgba(0,71,171,0.15);
+      background: #f0f5ff;
+    }
+    @keyframes citePulse {
+      0% { background: #dbeafe; box-shadow: 0 0 0 3px #0047ab; }
+      50% { background: #bfdbfe; box-shadow: 0 0 0 4px #0047ab; }
+      100% { background: #f0f5ff; box-shadow: 0 0 0 2px #0047ab; }
+    }
+    .ck-ev-k {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 0.75rem;
+      color: #444444;
+      margin-bottom: 5px;
+      font-weight: 700;
+    }
+    .ck-ev-cite-tag {
+      color: #0047ab;
+      font-weight: 700;
+      font-family: "Latin Modern Roman", serif;
+      text-decoration: none;
+    }
+    .ck-ev-kind-badge {
+      display: inline-block;
+      padding: 1px 6px;
+      border-radius: 2px;
+      font-size: 0.72rem;
+      font-weight: 600;
+      letter-spacing: 0.2px;
+    }
+    .ck-badge-keypoint {
+      border: 1px solid #0047ab;
+      color: #0047ab;
+      background: #f0f5ff;
+    }
+    .ck-badge-note {
+      border: 1px solid #b86a04;
+      color: #b86a04;
+      background: #fff8eb;
+    }
+    .ck-mem-title {
+      font-weight: 700;
+      color: #111111;
+      font-size: var(--ck-fs);
+      margin-bottom: 4px;
+      line-height: 1.5;
+    }
+    .ck-ev-quote {
+      color: #222222;
+      font-style: normal;
+      font-family: inherit;
+      margin: 4px 0 6px;
+      padding: 0;
+      background: transparent;
+      border: none;
+      line-height: 1.6;
+      font-size: var(--ck-fs);
+    }
+    .ck-ev-meta { font-size: 0.76rem; color: #666666; margin-top: 4px; }
+    .ck-ev-more {
+      margin-top: 2px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+    .ck-ev-more[open] { margin-top: 4px; }
+    .ck-ev-more summary { margin-bottom: 6px; }
+    .ck-proof-toggle {
+      cursor: pointer;
+      font-size: 0.82rem;
+      color: #0047ab;
+      user-select: none;
+      font-family: inherit;
+      padding: 2px 0;
+    }
+    .ck-proof-toggle:hover { text-decoration: underline; }
+    /* 右栏下段"状态演进"：无行内锚点，与上方证据卡视觉区分（灰底 + 徽章，无 [n]） */
+    .ck-ledger {
+      margin-top: 10px;
+      padding-top: 8px;
+      border-top: 1px dashed #d4d0c7;
+    }
+    .ck-ledger > summary { list-style: none; }
+    .ck-ledger > summary::-webkit-details-marker { display: none; }
+    .ck-ledger > summary::after { content: " ▾"; }
+    .ck-ledger:not([open]) > summary::after { content: " ▸"; }
+    /* 每类一张小灰卡：卡头类别 + 条数，卡内按 1. 2. 3. 编号 */
+    .ck-ledger-card {
+      background: #faf9f5;
+      border: 1px solid #e6e2d8;
+      border-left: 3px solid #bdb6a6;
+      border-radius: 4px;
+      padding: 7px 9px;
+      margin-bottom: 6px;
+    }
+    .ck-ledger-k {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 6px;
+      font-size: 0.72rem;
+      margin-bottom: 5px;
+    }
+    .ck-ledger-badge {
+      background: #efece4;
+      color: #6b6559;
+      border-radius: 3px;
+      padding: 1px 6px;
+      font-weight: 600;
+    }
+    .ck-ledger-count { color: #8a8578; }
+    .ck-ledger-list {
+      margin: 0;
+      padding-left: 1.35em;
+      font-size: var(--ck-fs);
+      line-height: 1.6;
+      color: #3b3a37;
+    }
+    .ck-ledger-list > li { margin: 2px 0; }
+    /* Personal Perspective Interactive Task Lists & Semantic Blocks */
+    .ck-self-block {
+      background: #f4f8fe;
+      border: 1px solid #d4e2f5;
+      border-left: 3.5px solid #0047ab;
+      border-radius: 4px;
+      padding: 9px 13px;
+      margin: 10px 0 12px;
+    }
+    .ck-self-title {
+      margin: 0 0 6px;
+      color: #003380;
+      font-weight: 700;
+      font-size: var(--ck-fs);
+      display: flex;
+      align-items: center;
+      gap: 5px;
+    }
+    .ck-self-badge {
+      display: inline-block;
+      background: #0047ab;
+      color: #ffffff;
+      font-size: 0.68rem;
+      padding: 1px 5px;
+      border-radius: 2px;
+      font-weight: 600;
+      letter-spacing: 0.2px;
+      margin-left: 4px;
+    }
+
+    .ck-dep-block {
+      background: #fefcf7;
+      border: 1px solid #f2e7cc;
+      border-left: 3.5px solid #b86a04;
+      border-radius: 4px;
+      padding: 9px 13px;
+      margin: 10px 0 12px;
+    }
+    .ck-dep-title {
+      margin: 0 0 6px;
+      color: #7a4502;
+      font-weight: 700;
+      font-size: var(--ck-fs);
+      display: flex;
+      align-items: center;
+      gap: 5px;
+    }
+    .ck-dep-badge {
+      display: inline-block;
+      background: #b86a04;
+      color: #ffffff;
+      font-size: 0.68rem;
+      padding: 1px 5px;
+      border-radius: 2px;
+      font-weight: 600;
+      letter-spacing: 0.2px;
+      margin-left: 4px;
+    }
+
+    .ck-risk-block {
+      background: #fff8f8;
+      border: 1px solid #fedcdc;
+      border-left: 3.5px solid #cf222e;
+      border-radius: 4px;
+      padding: 9px 13px;
+      margin: 10px 0 12px;
+    }
+    .ck-risk-title {
+      margin: 0 0 6px;
+      color: #a40e26;
+      font-weight: 700;
+      font-size: var(--ck-fs);
+      display: flex;
+      align-items: center;
+      gap: 5px;
+    }
+    .ck-risk-badge {
+      display: inline-block;
+      background: #cf222e;
+      color: #ffffff;
+      font-size: 0.68rem;
+      padding: 1px 5px;
+      border-radius: 2px;
+      font-weight: 600;
+      letter-spacing: 0.2px;
+      margin-left: 4px;
+    }
+
+    .ck-self-block ul, .ck-self-block ol,
+    .ck-dep-block ul, .ck-dep-block ol,
+    .ck-risk-block ul, .ck-risk-block ol {
+      margin: 2px 0 2px;
+      padding-left: 1.25em;
+    }
+    .ck-self-block li, .ck-dep-block li, .ck-risk-block li {
+      margin: 2px 0;
+      color: #1a1a1a;
+    }
+
+    /* Person Group Heading */
+    .ck-person-group {
+      margin: 8px 0 3px;
+      font-weight: 700;
+      color: #111111;
+    }
+
+    /* GFM Task List Checkboxes */
+    .ck-task-list {
+      list-style: none;
+      padding-left: 0 !important;
+      margin: 4px 0 6px !important;
+    }
+    .ck-task-item {
+      display: flex;
+      align-items: flex-start;
+      margin: 4px 0;
+      line-height: 1.6;
+    }
+    .ck-task-label {
+      display: inline-flex;
+      align-items: flex-start;
+      gap: 8px;
+      cursor: pointer;
+      width: 100%;
+    }
+    .ck-task-checkbox {
+      margin-top: 4px;
+      cursor: pointer;
+      accent-color: #0047ab;
+      width: 15px;
+      height: 15px;
+      flex-shrink: 0;
+    }
+    .ck-task-checkbox:checked + .ck-task-text {
+      color: #8c8c8c;
+      text-decoration: line-through;
+    }
+    .ck-task-text {
+      flex: 1;
+      color: #1a1a1a;
+    }
+
+    /* Status Badges & Pills */
+    .ck-tag-blocker {
+      display: inline-block;
+      background: #ffebe9;
+      color: #cf222e;
+      border: 1px solid rgba(255, 129, 130, 0.45);
+      font-size: 0.72rem;
+      font-weight: 700;
+      padding: 0 5px;
+      border-radius: 3px;
+      margin-right: 4px;
+      line-height: 1.5;
+      vertical-align: 1px;
+    }
+    .ck-tag-risk {
+      display: inline-block;
+      background: #fff8eb;
+      color: #b86a04;
+      border: 1px solid rgba(212, 167, 44, 0.45);
+      font-size: 0.72rem;
+      font-weight: 700;
+      padding: 0 5px;
+      border-radius: 3px;
+      margin-right: 4px;
+      line-height: 1.5;
+      vertical-align: 1px;
+    }
+    .ck-tag-warn {
+      display: inline-block;
+      background: #f0f4ff;
+      color: #0969da;
+      border: 1px solid rgba(84, 174, 255, 0.45);
+      font-size: 0.72rem;
+      font-weight: 700;
+      padding: 0 5px;
+      border-radius: 3px;
+      margin-right: 4px;
+      line-height: 1.5;
+      vertical-align: 1px;
+    }
+    .ck-tag-dep {
+      display: inline-block;
+      background: #eff6ff;
+      color: #1d4ed8;
+      border: 1px solid #bfdbfe;
+      font-size: 0.72rem;
+      font-weight: 600;
+      padding: 0 5px;
+      border-radius: 3px;
+      margin-right: 4px;
+      line-height: 1.5;
+      vertical-align: 1px;
+    }
+    .ck-param-capsule {
+      display: inline-block;
+      font-size: 0.82rem;
+      color: #57606a;
+      background: #f6f8fa;
+      border: 1px solid #eaeef2;
+      padding: 0 6px;
+      border-radius: 10px;
+      margin-left: 4px;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      letter-spacing: 0.2px;
+    }
+
+    @media(max-width: 860px) {
+      .ck-doc { padding: 22px 18px; }
+      .ck-review { grid-template-columns: 1fr; }
+      .ck-review-rule { display: none; }
+    }
+
+  </style>
+</head>
+<body>
+  <main class="page">
+    <div class="ck-doc">
+      <header class="ck-doc-header">
+        <h1>金融借款合同纠纷二审调解案</h1>
+      </header>
+      <div class="ck-doc-content">
+        <h1 class="ck-doc-h1">庭审概况</h1><p>本案系上诉人国家开发银行与被上诉人云南东源电力股份有限公司、云南东源曲靖电力有限公司、招银金融租赁有限公司金融借款合同纠纷一案，因不服云南省高级人民法院云民初88号民事判决提起上诉。本院依法组成合议庭，依据《中华人民共和国民事诉讼法》第一百三十四条第一款、第一百六十九条的规定公开开庭审理。庭审围绕抵押权与融资租赁物所有权冲突、罚息复利计算、违约金连带给付三个争议焦点进行审理，各方当事人及代理人到庭参加诉讼。合议庭休庭评议后提出调解方案，各方当事人均无异议并签字确认，本案以调解结案。</p><h1 class="ck-doc-h1">原告诉称与被告辩称</h1><table class="ck-table"><thead><tr><th>方</th><th>诉讼请求/答辩意见</th><th>事实与理由</th></tr></thead><tbody><tr><td>国家开发银行（上诉人）</td><td>主张对案涉93项设备享有抵押权，构成善意取得；主张利息、罚息、复利合计6474.4513万元；主张东源煤电支付千分之一违约金</td><td>抵押设备为通用设备，无唯一标识，无法逐一查询；已按法律法规履行核查义务，包括查询融资租赁登记信息，构成善意取得；利息应自2017年12月20日起算，罚息自2018年6月13日起算，复利按合同约定计算；东源煤电未配合办理账户管理及柜台签约，构成违约，应支付违约金</td></tr><tr><td>云南东源电力股份有限公司（被上诉人）</td><td>对调解方案无异议；对国开行主张的罚息、复利计算方式有异议；认为国开行未尽注意义务</td><td>合同约定限期偿还而非立即到期，国开行未发通知要求限期偿还；罚息不应计收复利，引用《人民币利率管理规定》第21条及最高院判例；2015年12月2日邮件中抵押设备名称与招银租赁设备完全一致且用红色标注，国开行作为专业金融机构应尽注意义务</td></tr><tr><td>云南东源曲靖电力有限公司（被上诉人）</td><td>对调解方案无异议；认为国开行未尽注意义务</td><td>抵押设备名称与招银租赁设备完全一致且用红色标注，国开行应进行适当核查避免重复抵押；国开行未提供证据证明已做区分</td></tr><tr><td>招银金融租赁有限公司（被上诉人）</td><td>主张对涉案六项设备享有所有权，对应债权1377.4137万元；认为国开行不构成善意取得</td><td>国开行未按央行规定查询融资租赁登记，不构成善意取得；2012年已取得设备所有权，国开行2015年抵押登记在后；融资租赁登记是行业指导性规范而非强制性规范</td></tr></tbody></table><h1 class="ck-doc-h1">举证与法庭调查</h1><h2 class="ck-doc-h2">举证与质证</h2><ol><li value="1"><strong>融资租赁登记核查表（国开行提交）</strong>：证明国开行在2018年核查时，曲靖电力公司名下没有任何融资租赁信息登记，该核查表见证据第108页，一审已向法庭提交。国开行据此主张其在办理抵押时已按相应法律法规履行核查义务，对抵押物取得构成法律上的善意取得。<ul><li>对方质证意见：招银租赁认为国开行未按央行规定查询融资租赁登记，不构成善意取得；东源公司指出国开行作为专业金融机构，在发现抵押设备名称与招银租赁设备完全一致时未尽注意义务。</li></ul></li><li value="2"><strong>2015年12月2日邮件及融资情况表（东源公司提交）</strong>：证明两家公司的抵押设备名称完全相同，且邮件截屏中抵押设备部分用红色予以标注、清晰突出，国开行在办理抵押时应当注意到设备重复问题。<ul><li>证明目的：东源公司主张国开行在发现即将办理的抵押设备名称与其他抵押设备完全一致时，起码应尽到注意义务进行适当核查，避免重复抵押。</li><li>对方质证意见：国开行认为抵押设备为通用设备、无唯一标识，无法逐一查询区分；东源公司反驳称国开行未提供任何证据证明其已对设备作出区分。</li></ul></li><li value="3"><strong>评估报告（国开行提交）</strong>：明确曲靖电力公司拥有的在建工程价值为5.7亿元，机械设备价值为5.1亿元。国开行主张上述设备和工程虽因企业内部管理原因未纳入资产负债表，但企业不拥有资产不等于不拥有所有权，评估报告已明确资产归属。<ul><li>对方质证意见：招银租赁对设备是否实际属于曲靖电力公司提出异议，认为未纳入资产负债表反映资产归属存在问题。</li></ul></li><li value="4"><strong>抵押登记证明（国开行提交）</strong>：国开行主张已办理抵押登记，系国家法定的抵押权确认方式，据此主张对93项设备享有抵押权。<ul><li>对方质证意见：招银租赁认为其2012年已取得设备所有权，国开行2015年抵押登记在后，抵押权不能对抗在先的融资租赁所有权。</li></ul></li><li value="5"><strong>借款合同（国开行提交）</strong>：合同第24条第二款第二项约定，借款人违约后国开行可宣布贷款提前到期，但同时设定通知义务，应向东源公司发出通知并要求限期偿还。<ul><li>对方质证意见：东源公司认为合同约定的是限期偿还而非立即到期，国开行2018年6月13日宣布贷款全部到期不符合合同约定。</li></ul></li><li value="6"><strong>借款合同第6条第四款及第13条、第14条（国开行提交）</strong>：国开行主张依据合同约定，东源煤电未配合办理账户管理及柜台签约手续，构成违约，应依约支付千分之一违约金。<ul><li>对方质证意见：东源公司认为国开行未举证东源煤电违反柜台协议的事实，且未发出限期纠正通知，违约主张缺乏依据。</li></ul></li><li value="7"><strong>《人民币利率管理规定》第21条（东源公司引用）</strong>：规定对贷款期内不能按期支付的利息按合同利率按季计收复利，贷款逾期后对未按合同利率计收复利。东源公司据此主张该规定仅针对贷款期内不能按期支付的利息，而非逾期后不能按期支付的罚息，罚息不应作为复利计算基数。<ul><li>对方质证意见：国开行认为罚息、复利、违约金金额未超过法定最高标准，应按合同约定计算。</li></ul></li></ol><h2 class="ck-doc-h2">证人、鉴定与其他来源陈述</h2><ol><li value="1"><strong>融资租赁司法解释第九条（国开行代理人援引）</strong>：第一款规定构成善意取得的情形，第二款列举排除善意取得的情形，包括查询问题。国开行代理人主张该司法解释针对的是与承租人交易或贷款时的查询要求，国开行已按上述查询范围和主体履行义务。<ul><li>招银租赁质证意见：认为国开行未按央行规定查询融资租赁登记，不构成善意取得。</li></ul></li><li value="2"><strong>央行融资租赁登记规定（各方援引）</strong>：国开行认为是行业强制性规范，招银租赁认为是行业指导性规范，双方对登记查询义务的性质和范围存在分歧。</li></ol><h2 class="ck-doc-h2">法官询问</h2><ol><li value="1"><strong>融资租赁登记查询范围与性质</strong>：合议庭询问各方对央行融资租赁登记性质的理解及查询方式。国开行代理人答复称查询针对抵押人曲靖电力公司，未发现融资租赁登记信息；招银租赁代理人答复称融资租赁司法解释第九条对查询有专门规定，国开行未按央行规定查询，不构成善意取得。</li><li value="2"><strong>抵押设备区分问题</strong>：审判长询问国开行在办理抵押时是否注意到抵押设备与招银租赁设备名称一致的问题。东源公司代理人答复称2015年12月2日邮件中抵押设备名称与招银租赁设备完全一致且用红色标注，国开行作为专业金融机构应当进行适当核查；国开行代理人答复称抵押设备为通用设备、无唯一标识，无法逐一查询区分。</li></ol><h2 class="ck-doc-h2">争议焦点与辩论</h2><ol><li value="1"><strong>争议焦点一：抵押权与融资租赁所有权冲突</strong><ul><li>国开行主张：抵押设备为通用设备、无唯一标识，无法逐一查询；已按相应法律法规履行核查义务，对抵押物取得构成善意取得；融资租赁登记查询系行业强制性规范，已按规定查询。</li><li>东源公司主张：2015年12月2日邮件中抵押设备名称与招银租赁设备完全一致且用红色标注，国开行未尽注意义务；国开行未提供证据证明已对设备作出区分。</li><li>招银租赁主张：2012年已取得设备所有权，国开行2015年抵押登记在后；国开行未按央行规定查询融资租赁登记，不构成善意取得；央行融资租赁登记系行业指导性规范而非强制性规范。</li></ul></li><li value="2"><strong>争议焦点二：罚息、复息计算</strong><ul><li>国开行主张：东源煤电利息支付截止2017年12月20日，利息应从2017年12月21日计算至2018年6月12日，合计2179万5727.08元；罚息自2018年6月13日计算至东源煤电、东源煤业申请破产受理之日即2019年2月19日，为4105万0579.57元；复利自2018年3月21日计算至2019年2月19日，为191.8206万元。</li><li>东源公司主张：国开行2018年6月13日宣布贷款提前到期不符合合同约定，合同约定的是限期偿还而非立即到期；依据《人民币利率管理规定》第21条，罚息不应作为复利计算基数；本案本金近8.37亿元，当天发通知即要求全部到期有违公平原则。</li></ul></li><li value="3"><strong>争议焦点三：违约金连带给付</strong><ul><li>国开行主张：依据借款合同第24条第三项约定，被上诉人出现违约事项时应向上诉人支付千分之一违约金；东源煤电未按借款合同第13条及第14条约定配合办理账户管理及柜台签约手续，已构成违约；被上诉人是否办理相关事项的举证责任在被上诉人而非上诉人；本案罚息、复利、违约金金额未超过法定最高标准。</li><li>东源公司主张：国开行未举证东源煤电违反柜台协议的事实，且未发出限期纠正通知，违约主张缺乏依据。</li></ul></li></ol><h1 class="ck-doc-h1">庭审结果</h1><ol><li value="1"><strong>调解协议达成</strong>：经合议庭休庭评议并主持调解，各方当事人自愿达成调解协议，对调解方案均无异议，由各方诉讼代理人依次在调解协议正式文本上签字确认。</li><li value="2"><strong>债权债务确认</strong>：<ul><li>国开行对东源公司债权扣除破产中已清偿的本金外，利息、罚息、复利计算方式为：利息自2017年12月21日至2018年6月12日期间合计2179万5727.08元；罚息自2018年6月13日至2019年2月19日期间合计4105万0579.57元；复利自2018年3月21日至2019年2月19日期间合计191.8206万元。</li><li>以上三项共计6474.4513万元。</li><li>在东源煤电、东源煤业破产重整程序中，已确定招银租赁对涉案六项设备享有所有权，对应债权数额为1377.4137万元。</li></ul></li><li value="3"><strong>物权确认与处置安排</strong>：<ul><li>确定国开行对93项设备享有抵押权，招银租赁对六项设备享有所有权。</li><li>招银租赁和国开行对案涉全部发电设备整体盘活处置，并从变现款中实现各自的债权。</li><li>在本案生效后20日内，由国开行向本案一审法院提出执行申请，启动司法变现。</li><li>变现价格双方各50%，实现的费用双方各担50%。</li></ul></li><li value="4"><strong>预留方案</strong>：由东源煤电按照此前招银租赁在东源煤电破产重整程序中有担保清偿方案予以清偿。若司法变现不能，国开行和招银租赁的权益通过前述方法实现后，均放弃对上述案涉设备的权益，由东源曲靖电力自主生产经营，由东源曲靖电力对上述案涉设备进行管理。</li><li value="5"><strong>一审判决确认</strong>：各方对一审判决第二项、第四项无争议，按照其判项内容在调解书中确认。</li><li value="6"><strong>诉讼费用安排</strong>：一审诉讼费用中，对于国开行诉请部分按照一审判决执行；对于招银租赁诉请部分的诉讼费，由二审法院按照规定根据证据确定；二审诉讼费由本院依法确定。</li><li value="7"><strong>争议终结</strong>：调解协议签订后，各方之间就本案涉及的问题不再存在任何争议。</li><li value="8"><strong>司法建议</strong>：合议庭通过本案审理发现，动产抵押权与融资租赁物所有权的冲突是司法实践中的普遍性难题，根本原因在于国家尚未建立统一的动产登记制度，现有动产融资租赁登记系统和动产抵押登记系统缺乏有效衔接。合议庭将按照《最高人民法院关于加强司法建议工作的意见》向有关部门提出司法建议，共同推进国家治理现代化。</li><li value="9"><strong>闭庭</strong>：审判长宣布庭审结束，现在闭庭。</li></ol>
+      </div>
+    </div>
+  </main>
+</body>
+</html>
