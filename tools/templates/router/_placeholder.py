@@ -930,9 +930,42 @@ _CHARS_PER_TOKEN = 1.6  # 早停字数阈值：实测 86,447 字符 / 49,074 tok
 # 超长条整改意见（逐栏填充把「单条超长」当硬问题后，重写那一栏时下发的具体修法）
 _OVERLONG_ITEM_REVISION = (
     "上一版这一栏有超过两百字的长条目：一条里塞了多个事项。"
-    "必须拆成多条：顶层保持数字序号或条目（如 `1. **标签**：内容` 或 `- **标签**：内容`）；"
+    "必须拆成多条：一条一个事项，顶层保持数字序号或条目（如 `1. **标签**：内容` 或 `- **标签**：内容`）；"
     "同一类目下多条用缩进子条 `  - ` 拆开；条数宁多不漏，不要为了短而丢事实。"
 )
+
+# 高信息密度重点事实栏与不设上限意图识别（豁免/放宽单条超长重写，保护新闻发布核心信息、法庭举证、政策要点等专业事实完整性）
+_HIGH_DENSITY_KEYWORDS = (
+    "核心信息",
+    "举证",
+    "法庭调查",
+    "核心政策",
+    "重点工作",
+    "病史",
+    "诊断",
+    "医嘱",
+    "访谈详细记录",
+    "核心论证",
+    "核心观点与论证",
+    "交锋",
+    "条款梳理",
+    "核心条款",
+    "争议焦点",
+)
+
+_EXEMPT_INTENT_KEYWORDS = (
+    "不设字数上限",
+    "不设上限",
+    "写全优先",
+    "不得精简",
+    "不得省略",
+    "一条一个主题",
+    "量化指标逐项保留",
+    "细节照原文写全",
+    "照原文写全",
+)
+
+_SHORT_ITEM_LIMIT_RE = re.compile(r"每条\s*\d+[-–~至]\d+\s*字")
 
 
 # ── 表格承载栏 / 栏内自声明的缺省词（模板声明优先，程序只做确定性识别）────────
@@ -1503,16 +1536,37 @@ async def fill_placeholder_by_columns(
     target_han = overlong_han if overlong_han is not None else _ITEM_CHECK_HAN
     min_cnt = overlong_min_count if overlong_min_count is not None else 1
 
-    def _is_column_overlong(col_text: str) -> bool:
-        """策略 A 与策略 B 综合判据：判定单栏是否需触发超长重写。"""
-        items = overlong_items(col_text, long_han=target_han)
+    def _is_column_overlong(col_text: str, col_idx: int = -1) -> bool:
+        """策略 A、策略 B 与高信息密度栏豁免综合判据：判定单栏是否需触发超长重写。"""
+        # 判断当前栏是否为高密度/不宜拆分的重点事实栏（如新闻发布会核心信息、法庭举证、政策要点等）
+        is_high_density = False
+        if 0 <= col_idx < len(titles) and col_idx < len(scalars):
+            t = titles[col_idx]
+            h = str(scalars[col_idx].get("hint") or "")
+            has_short_limit = bool(_SHORT_ITEM_LIMIT_RE.search(h))
+            if not has_short_limit:
+                if any(kw in t for kw in _HIGH_DENSITY_KEYWORDS) or any(
+                    kw in h for kw in _EXEMPT_INTENT_KEYWORDS
+                ):
+                    is_high_density = True
+
+        if is_high_density:
+            col_target_han = max(target_han, 380)
+            col_min_cnt = max(min_cnt, 3)
+            col_extreme_han = 450
+        else:
+            col_target_han = target_han
+            col_min_cnt = min_cnt
+            col_extreme_han = 350
+
+        items = overlong_items(col_text, long_han=col_target_han)
         if not items:
             return False
-        # 策略 B: 频次门槛（超长条数达到 min_cnt 才触发，容忍个别正常展开的专业事实）
-        if len(items) >= min_cnt:
+        # 策略 B: 频次门槛（超长条数达到 col_min_cnt 才触发，容忍个别正常展开的专业事实）
+        if len(items) >= col_min_cnt:
             return True
-        # 极端超长兜底保护：即使未达频次门槛，若单条超过 350 字（极严重大段挤压）依然触发重写
-        extreme_items = overlong_items(col_text, long_han=350)
+        # 极端超长兜底保护：即使未达频次门槛，若单条超过 col_extreme_han 字（极严重大段挤压）依然触发重写
+        extreme_items = overlong_items(col_text, long_han=col_extreme_han)
         return bool(extreme_items)
 
     async def extract_tables() -> list[list[list[str]]]:
@@ -1568,7 +1622,7 @@ async def fill_placeholder_by_columns(
             projected = project_column_from_draft(
                 context, template, title=title, hint=hint, directives=directives
             )
-            if projected and not _is_column_overlong(projected):
+            if projected and not _is_column_overlong(projected, index):
                 projected = _strip_redundant_column_heading(projected, title)
                 if _section_has_table(template, title):
                     projected = _strip_markdown_tables(projected)
@@ -1650,7 +1704,7 @@ async def fill_placeholder_by_columns(
     gate = gate_render_output(template, assembled)
     # ① 单条超长：逐栏填充当**硬问题**（能定位到栏）——只重写中招那一栏，一次单栏调用，
     # 比整篇返工便宜一个量级。渲染层的门禁仍把它当 advisory 记账（见 hard_execution）。
-    overlong = [i for i, v in enumerate(values) if _is_column_overlong(v)]
+    overlong = [i for i, v in enumerate(values) if _is_column_overlong(v, i)]
     hard = list(gate.get("hard_issues") or [])
     blamed = overlong[:2]
     # ② 门禁硬问题：仍按栏名定位（原逻辑）
@@ -1675,7 +1729,7 @@ async def fill_placeholder_by_columns(
     )
     for i in blamed:
         values[i] = await write(i, revision=_OVERLONG_ITEM_REVISION if i in overlong else "")
-    still = [i for i, v in enumerate(values) if _is_column_overlong(v)]
+    still = [i for i, v in enumerate(values) if _is_column_overlong(v, i)]
     if still:  # 只重写一轮：再差也保留（同一栏连重两次的收益与代价不成比例）
         logger.warning(
             "column fill 重写后仍有超长条目（保留）：%s", [titles[i] or i for i in still]

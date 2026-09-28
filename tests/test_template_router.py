@@ -2763,6 +2763,92 @@ def test_column_fill_overlong_minutes_strategies() -> None:
     check("极端超长兜底：单条380字（>=350）即使仅1条也触发安全重写", c4.counts.get(3) == 2, f"{c4.counts}")
 
 
+def test_column_fill_high_density_exemption() -> None:
+    """验证高信息密度重点事实栏（新闻发布会核心信息、法庭举证等）免于过度重写。
+
+    - 新闻发布会第 2 栏 [核心信息]：按模板要求合并指标与举措，即使 2 条每条 310 字（>280 且 count=2），
+      识别为高密度事实栏（放宽阈值至 380），不触发多余单栏重写；
+    - 庭审记录第 2 栏 [举证与法庭调查]：明确声明「不设字数上限、写全优先」，详细质证条目（320 字）直接放行；
+    - 对比项新闻发布会第 3 栏 [官方表态]：属于显式字数约束栏（每条 40–120 字），超长时仍严格受控重写。
+    """
+    import asyncio
+    import re as _re
+    from tools.templates.router._placeholder import (
+        fill_placeholder_by_columns,
+        plan_placeholder_fill,
+    )
+
+    # 1. 新闻发布会核心信息栏测试
+    mb = (_active_dir() / "media_briefing.md").read_text(encoding="utf-8")
+    plan_mb = plan_placeholder_fill(mb)
+
+    # 2 条每条约 310 字的高密度政策与多指标条目
+    dense_bullet = "- **政策措施**：" + "本季度落实增量政策工具并下达投资预算" * 15 + "。"  # ~310 字
+    two_dense_bullets = dense_bullet + "\n" + dense_bullet
+
+    good_mb = {
+        1: "发布会概况：主办方与整体基调。",
+        3: "- **表态**：官方口径一条。",
+        4: "**主持人**：提问？\n**发言人**：回答。",
+    }
+
+    class _ClientMB:
+        def __init__(self):
+            self.counts = {}
+
+        async def stream_text(self, system, user, **kw):
+            idx = int(_re.search(r"第 (\d+)/", user).group(1))
+            self.counts[idx] = self.counts.get(idx, 0) + 1
+            yield two_dense_bullets if idx == 2 else good_mb[idx]
+
+    c_mb = _ClientMB()
+    text_mb = asyncio.run(
+        fill_placeholder_by_columns(
+            c_mb, "内容来源略。", mb, plan_mb, source_han=12000, overlong_han=280, overlong_min_count=2
+        )
+    )
+    check("高密度豁免：新闻发布会[核心信息]包含2条310字详实条目时不触发重写（仅1次调用）",
+          c_mb.counts.get(2) == 1, f"{c_mb.counts}")
+    check("高密度豁免：核心信息正文完整保留", "增量政策工具" in (text_mb or ""), "")
+
+    # 2. 庭审记录 [举证与法庭调查] 测试
+    court = (_active_dir() / "court_transcript.md").read_text(encoding="utf-8")
+    plan_court = plan_placeholder_fill(court)
+
+    # 举证栏详细质证条目（约 320 字）
+    evidence_bullet = (
+        "## 举证与质证\n"
+        "- **证据一(原告提交供货单及对账确认函)**：证明原告已于约定时间足额供货，"
+        + "被告对真实性无异议但辩称存在质量瑕疵未能如期投产故拒绝结算尾款" * 8 + "。"
+    )
+    good_court = {
+        1: "庭审概况：案号与当事人。",
+        3: "- **庭审结果**：择期宣判。",
+    }
+
+    class _ClientCourt:
+        def __init__(self):
+            self.counts = {}
+
+        async def stream_text(self, system, user, **kw):
+            idx = int(_re.search(r"第 (\d+)/", user).group(1))
+            self.counts[idx] = self.counts.get(idx, 0) + 1
+            yield evidence_bullet if idx == 2 else good_court.get(idx, "内容。")
+
+        async def text(self, *a, **kw):
+            return '{"tables": [[["原告", "诉讼请求", "事实理由"]]]}'
+
+    c_court = _ClientCourt()
+    text_court = asyncio.run(
+        fill_placeholder_by_columns(
+            c_court, "内容来源略。", court, plan_court, source_han=12000, overlong_han=280, overlong_min_count=2
+        )
+    )
+    check("高密度豁免：庭审记录[举证与法庭调查]详实证据条目不触发重写（仅1次调用）",
+          c_court.counts.get(2) == 1, f"{c_court.counts}")
+    check("高密度豁免：法庭调查举证正文完整保留", "对账确认函" in (text_court or ""), "")
+
+
 def test_personal_risk_attribution_in_pack() -> None:
     """真人模式：分钟线 pack 的风险/未决按原文补出归属（「姓名：」前缀）；客观零外溢。"""
     from domain.meeting.orchestrator import MeetingAgentSystem
@@ -4885,6 +4971,7 @@ def main() -> int:
         test_column_fill_concurrency_and_early_stop()
         test_column_fill_overlong_item_rewrite()
         test_column_fill_overlong_minutes_strategies()
+        test_column_fill_high_density_exemption()
         test_personal_risk_attribution_in_pack()
         test_media_overview_scope()
         test_class_transcript_task_groups()
