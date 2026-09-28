@@ -16,6 +16,7 @@ from typing import Any
 from .models import (
     ModelMixin,
     ActionItemsReportValidation,
+    AgendaMinutesReportValidation,
     ConsensusDecisionReportValidation,
     MindmapReportValidation,
     MinutesReportValidation,
@@ -128,6 +129,28 @@ class ConsensusDecisionReport(ModelMixin, ConsensusDecisionReportValidation):
     summary: dict[str, Any] = field(
         default_factory=dict,
         metadata={"source": "draft.summary"},
+    )
+    quality_warning: str | None = None
+    personalized_text: str | None = field(
+        default=None,
+        metadata={"source": "rendered"},
+    )
+
+@dataclass
+class AgendaMinutesReport(ModelMixin, AgendaMinutesReportValidation):
+    """议程驱动型会议纪要最终产出报告。"""
+
+    meeting_meta: dict[str, Any] = field(
+        default_factory=dict,
+        metadata={"source": "draft.meeting_meta"},
+    )
+    agenda_items: list[dict[str, Any]] = field(
+        default_factory=list,
+        metadata={"source": "structure"},
+    )
+    adhoc_items: list[dict[str, Any]] = field(
+        default_factory=list,
+        metadata={"source": "draft.adhoc_items"},
     )
     quality_warning: str | None = None
     personalized_text: str | None = field(

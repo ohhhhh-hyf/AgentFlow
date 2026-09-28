@@ -40,6 +40,25 @@ class ActionItems(ModelMixin):
         return cls(**data)
 
 @dataclass
+class AgendaMinutes(ModelMixin):
+    """AgendaMinutes输出（浅校验：仅校验第一层键与类型，嵌套不校验）。"""
+
+    meeting_meta: dict[str, Any] = field(default_factory=dict)
+    agenda_items: list[dict[str, Any]] = field(default_factory=list)
+    adhoc_items: list[dict[str, Any]] = field(default_factory=list)
+
+    @classmethod
+    def validate(cls, data: dict) -> "AgendaMinutes":
+        _exact_fields(data, [f.name for f in fields(cls)], cls.__name__)
+        if not isinstance(data["meeting_meta"], dict):
+            raise OutputValidationError("meeting_meta 必须是对象")
+        if not isinstance(data["agenda_items"], list):
+            raise OutputValidationError("agenda_items 必须是数组")
+        if not isinstance(data["adhoc_items"], list):
+            raise OutputValidationError("adhoc_items 必须是数组")
+        return cls(**data)
+
+@dataclass
 class ConsensusDecision(ModelMixin):
     """ConsensusDecision输出（浅校验：仅校验第一层键与类型，嵌套不校验）。"""
 
@@ -365,6 +384,33 @@ class ConsensusDecisionSupervisorReview(ModelMixin):
         )
         return cls(**data)
 
+@dataclass
+class AgendaMinutesSupervisorReview(ModelMixin):
+    """议程纪要任务线的领域审核结果。"""
+
+    decision: Literal["approve", "revise", "reject"]
+    agenda_coverage_check: dict[str, Any]
+    grounding_facts_check: dict[str, Any]
+    decision_fidelity_check: dict[str, Any]
+    feedback: list[str] = field(default_factory=list)
+
+    # 本模型的全部检查项（供结构校验与公共语义校验使用）
+    CHECK_KEYS = ("agenda_coverage_check", "grounding_facts_check", "decision_fidelity_check")
+
+    @classmethod
+    def validate(cls, data: dict) -> "AgendaMinutesSupervisorReview":
+        _exact_fields(data, [f.name for f in fields(cls)], cls.__name__)
+        for key in cls.CHECK_KEYS:
+            _review_check(data[key], key)
+        _string_list(data["feedback"], "feedback")
+        # 公共语义规则：decision 枚举 + 与检查项/feedback 的联动约束
+        validate_supervisor_semantics(
+            data["decision"],
+            data["feedback"],
+            {key: data[key] for key in cls.CHECK_KEYS},
+        )
+        return cls(**data)
+
 # ── 审核模型生成区结束 ──
 
 # ── Report 校验生成区：由 tools/codegen/sync_domain.py 生成，勿手改 ──
@@ -396,6 +442,42 @@ class ActionItemsReportValidation:
 
         return cls(
             actions=data.get("actions") or [],
+            quality_warning=data.get("quality_warning"),
+            personalized_text=data.get("personalized_text"),
+        )
+
+
+class AgendaMinutesReportValidation:
+    """AgendaMinutesReport 的校验逻辑（由脚本按手写字段自动生成）。"""
+
+    @classmethod
+    def validate(cls, data: dict) -> "AgendaMinutesReport":
+        allowed = {"meeting_meta", "agenda_items", "adhoc_items", "quality_warning", "personalized_text"}
+
+        if not isinstance(data, dict):
+            raise OutputValidationError("AgendaMinutesReport 必须是 JSON 对象")
+
+        extra = set(data) - allowed
+        if extra:
+            raise OutputValidationError(
+                f"AgendaMinutesReport 字段不一致：多余={sorted(extra)}"
+            )
+
+        if data.get("meeting_meta") is not None and not isinstance(data["meeting_meta"], dict):
+            raise OutputValidationError("meeting_meta 必须是对象")
+        if not isinstance(data.get("agenda_items") or [], list):
+            raise OutputValidationError("agenda_items 必须是数组")
+        if not isinstance(data.get("adhoc_items") or [], list):
+            raise OutputValidationError("adhoc_items 必须是数组")
+        if data.get("quality_warning") is not None:
+            _string(data["quality_warning"], "quality_warning")
+        if data.get("personalized_text") is not None:
+            _string(data["personalized_text"], "personalized_text")
+
+        return cls(
+            meeting_meta=data.get("meeting_meta"),
+            agenda_items=data.get("agenda_items") or [],
+            adhoc_items=data.get("adhoc_items") or [],
             quality_warning=data.get("quality_warning"),
             personalized_text=data.get("personalized_text"),
         )

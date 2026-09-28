@@ -34,6 +34,10 @@ REQUIRED_FIELDS: dict[str, dict[str, str]] = {
         "user_id": "X-User-Id",
         "texts.transcript": "texts 中 transcript（会议转写文本）",
     },
+    "agenda_minutes": {
+        "user_id": "X-User-Id",
+        "texts.transcript": "texts 中 transcript（会议转写文本）",
+    },
     "minutes_styles": {
         "user_id": "X-User-Id",
         "texts.transcript": "texts 中 transcript（会议转写文本）",

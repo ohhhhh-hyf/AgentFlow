@@ -19,6 +19,12 @@ from .tasks.actions import (
     ActionItemsSupervisor,
 )
 
+from .tasks.agenda_minutes import (
+    AgendaMinutesAgent,
+    AgendaMinutesRender,
+    AgendaMinutesSupervisor,
+)
+
 from .tasks.consensus_decision import (
     ConsensusDecisionAgent,
     ConsensusDecisionRender,
@@ -78,6 +84,9 @@ class MeetingAgentFactory:
             "actions_agent": ActionItemsAgent(client),
             "actions_supervisor": ActionItemsSupervisor(client),
             "actions_render": ActionItemsRender(client),
+            "agenda_minutes_agent": AgendaMinutesAgent(client),
+            "agenda_minutes_supervisor": AgendaMinutesSupervisor(client),
+            "agenda_minutes_render": AgendaMinutesRender(client),
             "consensus_decision_agent": ConsensusDecisionAgent(client),
             "consensus_decision_supervisor": ConsensusDecisionSupervisor(client),
             "consensus_decision_render": ConsensusDecisionRender(client),

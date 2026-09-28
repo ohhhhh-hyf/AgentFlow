@@ -442,13 +442,13 @@ async def run(
                     collected["understanding"] = event.get("understanding") or {}
                     collected["quality_warning"] = event.get("quality_warning")
                     collected["saved"] = await _handle_done(
-                        ctx, event, memory_on=bool(memory_bind is not None or line_extra)
+                        ctx, event, memory_on=memory_enabled
                     ) or {}
                 else:
                     await _handle_done(
-                        ctx, event, memory_on=bool(memory_bind is not None or line_extra)
+                        ctx, event, memory_on=memory_enabled
                     )
-                if hooks.persist_memory is not None and (memory_bind is not None or line_extra):
+                if memory_enabled and hooks.persist_memory is not None:
                     request_id = ""
                     try:
                         request_id = str(getattr(ctx, "output_dir", "") and Path(ctx.output_dir).name)

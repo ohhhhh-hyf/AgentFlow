@@ -269,14 +269,30 @@ def _merge_same_row(lines: list[dict]) -> list[dict]:
         if len(row) == 1:
             merged.append(row[0])
             continue
-        confs = [float(item["conf"]) for item in row if item.get("conf") is not None]
-        item: dict[str, Any] = {
-            "text": _join_row_texts([str(part["text"]) for part in row]),
-            "bbox": _union_bbox([part["bbox"] for part in row]),
-        }
-        if confs:
-            item["conf"] = round(sum(confs) / len(confs), 4)
-        merged.append(item)
+        # 优化：同一行中，只有水平间距合理的相邻碎片才合并；
+        # 间距过大（如多列排版、表格独立单元格）保留为独立框，避免破坏列结构
+        clusters: list[list[dict]] = [[row[0]]]
+        for part in row[1:]:
+            prev_bbox = _bbox_rect(clusters[-1][-1]["bbox"])
+            curr_bbox = _bbox_rect(part["bbox"])
+            gap = curr_bbox[0] - prev_bbox[2]
+            max_gap = max(median * 2.0, 32.0)
+            if gap <= max_gap:
+                clusters[-1].append(part)
+            else:
+                clusters.append([part])
+        for cluster in clusters:
+            if len(cluster) == 1:
+                merged.append(cluster[0])
+                continue
+            confs = [float(item["conf"]) for item in cluster if item.get("conf") is not None]
+            item: dict[str, Any] = {
+                "text": _join_row_texts([str(part["text"]) for part in cluster]),
+                "bbox": _union_bbox([part["bbox"] for part in cluster]),
+            }
+            if confs:
+                item["conf"] = round(sum(confs) / len(confs), 4)
+            merged.append(item)
     return merged + orphans
 
 

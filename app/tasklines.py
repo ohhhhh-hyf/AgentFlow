@@ -52,6 +52,7 @@ DOMAINS: dict[str, tuple[TaskLine, ...]] = {
         TaskLine("minutes_styles", files=True),
         TaskLine("minutes_trace", files=True),
         TaskLine("consensus_decision", files=True),
+        TaskLine("agenda_minutes", files=True),
     ),
     "notes": (
         TaskLine("graph", files=True),

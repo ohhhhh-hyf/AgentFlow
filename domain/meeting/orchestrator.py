@@ -50,6 +50,7 @@ from tools.runtime.supervisor_slice import compact_draft_for_review
 
 from .reports import (
     ActionItemsReport,
+    AgendaMinutesReport,
     ConsensusDecisionReport,
     MindmapReport,
     MinutesReport,
@@ -66,6 +67,12 @@ from .tasks.actions import (
     ActionItemsAgent,
     ActionItemsRender,
     ActionItemsSupervisor,
+)
+
+from .tasks.agenda_minutes import (
+    AgendaMinutesAgent,
+    AgendaMinutesRender,
+    AgendaMinutesSupervisor,
 )
 
 from .tasks.consensus_decision import (
@@ -109,6 +116,7 @@ from .tasks.risks import (
 # ── FallbackRules import 生成区：由 tools/codegen/sync_domain.py 生成，勿手改 ──
 
 from .tasks.actions.contracts import ACTION_ITEMS_FALLBACK_RULES
+from .tasks.agenda_minutes.contracts import AGENDA_MINUTES_FALLBACK_RULES
 from .tasks.consensus_decision.contracts import CONSENSUS_DECISION_FALLBACK_RULES
 from .tasks.mindmap.contracts import MINDMAP_FALLBACK_RULES
 from .tasks.minutes.contracts import MINUTES_FALLBACK_RULES
@@ -128,6 +136,12 @@ _EMPTY_ACTION_ITEMS = {
     "my_actions": [],
     "delegated_actions": [],
     "unassigned_actions": [],
+}
+
+_EMPTY_AGENDA_MINUTES = {
+    "meeting_meta": {},
+    "agenda_items": [],
+    "adhoc_items": [],
 }
 
 _EMPTY_CONSENSUS_DECISION = {
@@ -235,6 +249,13 @@ _REJECT_CONSENSUS_DECISION_REVIEW = {
     "feedback": ["LLM 调用失败，未完成审核，转降级输出"],
 }
 
+_REJECT_AGENDA_MINUTES_REVIEW = {
+    "decision": "reject",
+    "agenda_coverage_check": {"status": "fail", "findings": ["LLM 调用失败，未完成审核"]},
+    "grounding_facts_check": {"status": "fail", "findings": ["LLM 调用失败，未完成审核"]},
+    "decision_fidelity_check": {"status": "fail", "findings": ["LLM 调用失败，未完成审核"]},
+    "feedback": ["LLM 调用失败，未完成审核，转降级输出"],
+}
 
 # ── 拒绝审核常量生成区结束 ──
 
@@ -246,6 +267,12 @@ TASK_LINES: dict[str, dict] = {
         "supervisor_attr": "actions_supervisor",
         "empty_draft": _EMPTY_ACTION_ITEMS,
         "reject_review": _REJECT_ACTION_ITEMS_REVIEW,
+    },
+    "agenda_minutes": {
+        "agent_attr": "agenda_minutes_agent",
+        "supervisor_attr": "agenda_minutes_supervisor",
+        "empty_draft": _EMPTY_AGENDA_MINUTES,
+        "reject_review": _REJECT_AGENDA_MINUTES_REVIEW,
     },
     "consensus_decision": {
         "agent_attr": "consensus_decision_agent",
@@ -384,7 +411,6 @@ def _attribute_person_items(state: dict, items: list[str]) -> list[str]:
         f"{found[item.strip()]}：{item}" if found.get(str(item).strip()) else item
         for item in items
     ]
-
 
 class _Nodes(DomainNodes):
     """meeting 图节点实现：共享内核 + 领域专属钩子与会议理解节点。"""
@@ -601,6 +627,13 @@ class _Nodes(DomainNodes):
         仍保留「会议理解」标签，兼容 minutes 的硬执行对齐。
         """
         pack = self._meeting_pack(state, line_name)
+        if line_name == "agenda_minutes":
+            agenda_text = str((state.get("line_extra") or {}).get("agenda_minutes") or "").strip()
+            parts = []
+            if agenda_text:
+                parts.append(f"【既定议程单】\n{agenda_text}")
+            parts.append(f"【会议原文】\n{state.get('transcript') or ''}")
+            return "\n\n".join(parts)
         if line_name == "minutes_trace":
             # minutes_trace 是客观溯源线：编排层已跳过视角建模，生成 prompt 也不消费
             # 视角/画像——上下文只发会议理解 + 原文（省输入 token，去掉误导性裁剪说明）。
@@ -670,6 +703,9 @@ class _Nodes(DomainNodes):
         memory = str(sub.get("memory_context") or "").strip()
         if memory:
             blocks.append(memory)
+        agenda_extra = str((state.get("line_extra") or {}).get("agenda_minutes") or "").strip()
+        if line_name == "agenda_minutes" and agenda_extra:
+            blocks.append(f"【既定议程单原件】\n{agenda_extra}")
         # 命中表（程序判定，带依据）：真人/职业模板下是"谁的事"的唯一硬依据
         hits = str(state.get("user_hits_block") or "").strip()
         if hits and mode != "objective":
@@ -1131,6 +1167,18 @@ class _Nodes(DomainNodes):
 
         return node
 
+    async def _meeting_understanding_node(self, state: MeetingState) -> dict:
+        """meeting理解：提取主题、结构、术语和待澄清问题。"""
+        try:
+            result = await self.meeting_understanding_agent.run(state["transcript"])
+        except Exception:
+            logger.warning("meeting understanding failed, continue with empty", exc_info=True)
+            return {
+                "meeting_understanding": _EMPTY_MEETING_UNDERSTANDING,
+                "quality_degraded": True,
+            }
+        return {"meeting_understanding": result.model_dump()}
+
 class MeetingAgentSystem(_Nodes):
     """使用 LangGraph 编排会议分析、多线并行审核返工与最终输出。"""
 
@@ -1153,6 +1201,9 @@ class MeetingAgentSystem(_Nodes):
         self.actions_agent: ActionItemsAgent = agents["actions_agent"]
         self.actions_supervisor: ActionItemsSupervisor = agents["actions_supervisor"]
         self.actions_render: ActionItemsRender = agents["actions_render"]
+        self.agenda_minutes_agent: AgendaMinutesAgent = agents["agenda_minutes_agent"]
+        self.agenda_minutes_supervisor: AgendaMinutesSupervisor = agents["agenda_minutes_supervisor"]
+        self.agenda_minutes_render: AgendaMinutesRender = agents["agenda_minutes_render"]
         self.consensus_decision_agent: ConsensusDecisionAgent = agents["consensus_decision_agent"]
         self.consensus_decision_supervisor: ConsensusDecisionSupervisor = agents["consensus_decision_supervisor"]
         self.consensus_decision_render: ConsensusDecisionRender = agents["consensus_decision_render"]
@@ -1179,6 +1230,7 @@ class MeetingAgentSystem(_Nodes):
 
         self._report_assemblers = {
             "actions": ActionItemsReport,
+            "agenda_minutes": AgendaMinutesReport,
             "consensus_decision": ConsensusDecisionReport,
             "mindmap": MindmapReport,
             "minutes": MinutesReport,
@@ -1194,6 +1246,7 @@ class MeetingAgentSystem(_Nodes):
 
         self._fallback_rules = {
             "actions": ACTION_ITEMS_FALLBACK_RULES,
+            "agenda_minutes": AGENDA_MINUTES_FALLBACK_RULES,
             "consensus_decision": CONSENSUS_DECISION_FALLBACK_RULES,
             "mindmap": MINDMAP_FALLBACK_RULES,
             "minutes": MINUTES_FALLBACK_RULES,

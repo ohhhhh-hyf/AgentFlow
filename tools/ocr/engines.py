@@ -3,12 +3,11 @@
 三种引擎各自成文件（``tools/ocr/{server_ocr,paddle_ocr,rapid_ocr}.py``），
 本模块只做分派，不含任何引擎实现：
 
-- ``serverocr``（别名 server / remote）：远程 OCR 服务 HTTP 直调
+- ``serverocr``（别名 server / remote）：远程 OCR 服务 HTTP 直调，失败按 .env 约定自动降级兜底至 RapidOCR
 - ``paddleocr``（别名 paddle）：PaddleOCR 3.x / PP-OCRv5，模型懒加载
 - ``rapidocr``（别名 rapid）：RapidOCR（CPU 本地，onnxruntime）
 
-三种引擎互不兜底；引擎不可用或三次失败 → 失败样本落盘 ``log/ocr_failed/``
-并返回空结果，不阻断主流程。
+引擎不可用或重试失败 → 失败样本落盘 ``log/ocr_failed/`` 并返回空结果，不阻断主流程。
 """
 from __future__ import annotations
 
@@ -78,8 +77,9 @@ def run_ocr_subprocess(image_path: str) -> dict:
 
     返回 ``{"engine": 展示名, "lines": [...]}``；三次失败 / 引擎名未知 →
     失败样本落盘并返回空 lines，不抛异常（超时由各引擎自身的环境变量控制：SERVER_OCR_TIMEOUT / PADDLE_OCR_*）。
+    如果配置为 serverocr 且重试失败，则按 .env 约定自动降级兜底至 RapidOCR。
     """
-    alias = os.environ.get("OCR_ENGINE", "").strip().lower()
+    alias = os.environ.get("OCR_ENGINE", "serverocr").strip().lower() or "serverocr"
     module_name = _ENGINE_ALIASES.get(alias)
     if module_name is None:
         detail = f"未知 OCR_ENGINE={alias!r}（可选：serverocr / paddleocr / rapidocr）"
@@ -107,6 +107,23 @@ def run_ocr_subprocess(image_path: str) -> dict:
             time.sleep(0.6 * attempt)
     detail = "\n".join(errors)[-4000:]
     _log_ocr_failure(image_path, detail)
+
+    # 按照 .env 约定：serverocr=服务器优先并兜底 RapidOCR
+    if engine == "serverocr":
+        logger.warning(
+            "serverocr failed (%s), falling back to rapidocr as configured in .env",
+            errors[-1] if errors else "empty result",
+        )
+        try:
+            from tools.ocr.rapid_ocr import ocr_image as rapid_ocr_image
+
+            fb_payload = rapid_ocr_image(image_path)
+            if fb_payload.get("lines"):
+                logger.info("fallback to rapidocr succeeded, got %d lines", len(fb_payload["lines"]))
+                return fb_payload
+        except Exception as fb_exc:  # noqa: BLE001
+            logger.warning("fallback to rapidocr also failed: %s", fb_exc)
+
     logger.warning("%s failed 3x, return empty", engine)
     return {"engine": engine, "lines": []}
 

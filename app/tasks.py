@@ -493,6 +493,7 @@ def _prepare(domain: str, task: str, req: TaskRequest, user_id: str) -> _Prepare
     catalog_files: list[str] = []
     teacher_docs: list[str] = []
     material_docs: list[str] = []
+    agenda_from_docs: str = ""
     if line != "library" and req.docs:
         if line == "checklist":
             # checklist 的 docs：.json 为 catalog 目录文件，.txt 为老师重点文件，其余拒绝
@@ -514,6 +515,25 @@ def _prepare(domain: str, task: str, req: TaskRequest, user_id: str) -> _Prepare
                     teacher_docs.append(name.strip())
                 else:
                     material_docs.append(name.strip())
+        elif line == "agenda_minutes":
+            # agenda_minutes 的 docs：既定议程单（文本或图片）。
+            # 议程单内容专供 extra_line_inputs，不得并入会议录音转写 transcript
+            agenda_parts = []
+            image_docs = [n for n in req.docs if _is_image_name(n)]
+            text_docs = [n for n in req.docs if not _is_image_name(n)]
+            if image_docs:
+                ocr_text = _ocr_docs(user_id, image_docs)
+                if ocr_text:
+                    agenda_parts.append(ocr_text)
+            for name in text_docs:
+                path = _input_file(user_id, "docs", name)
+                try:
+                    body = path.read_text(encoding="utf-8").strip()
+                except UnicodeDecodeError:
+                    body = path.read_text(encoding="gbk", errors="replace").strip()
+                if body:
+                    agenda_parts.append(body)
+            agenda_from_docs = "\n\n".join(agenda_parts).strip()
         else:
             material_docs = [name.strip() for name in req.docs]
         if material_docs and line == "graph":
@@ -569,6 +589,10 @@ def _prepare(domain: str, task: str, req: TaskRequest, user_id: str) -> _Prepare
         if teacher_block:
             prev = extra_line_inputs.get(line) or ""
             extra_line_inputs[line] = f"{prev}\n\n{teacher_block}".strip()
+    if line == "agenda_minutes":
+        agenda_val = (extra.agenda or "").strip() or agenda_from_docs
+        if agenda_val:
+            extra_line_inputs["agenda_minutes"] = agenda_val
 
     return _Prepared(
         line=line,

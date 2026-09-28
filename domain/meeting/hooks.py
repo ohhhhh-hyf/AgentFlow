@@ -86,6 +86,10 @@ def _html_for(line_name: str, title: str, text: str, data: dict[str, Any] | None
         return render_actions_html(title, text, data)
     if line_name == "minutes_trace":
         return trace_review_html(text, title=title)
+    if line_name == "agenda_minutes":
+        from tools.exports.html.agenda_minutes import render_agenda_minutes_html
+
+        return render_agenda_minutes_html(title, text, data)
     return None
 
 

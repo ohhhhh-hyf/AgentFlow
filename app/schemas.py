@@ -34,6 +34,7 @@ class Extra(BaseModel):
     subject: str = ""
     style: str = ""
     memory: bool = False
+    agenda: str = ""
 
 
 class TaskRequest(BaseModel):

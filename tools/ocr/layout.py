@@ -248,6 +248,37 @@ def _mark_page_chrome(lines: list[dict]) -> int:
     return marked
 
 
+def _cluster_reading_order(rows: list[dict], median_height: float) -> list[dict]:
+    """按人类自然阅读顺序排序：
+    同一水平视觉行（垂直中心相差 <= 0.45 * median_height）按 left 从左到右排；
+    不同行按 top 从上到下排。
+    避免表格与多列排版中微小的 Y 浮点抖动导致右列排到左列前面。
+    """
+    if len(rows) < 2:
+        return rows
+    items = sorted(rows, key=lambda it: ((it["_rect"][1] + it["_rect"][3]) / 2, it["_rect"][0]))
+    threshold = max(2.0, median_height * 0.45)
+
+    line_clusters: list[list[dict]] = []
+    for item in items:
+        cy = (item["_rect"][1] + item["_rect"][3]) / 2
+        if not line_clusters:
+            line_clusters.append([item])
+            continue
+        prev_cluster = line_clusters[-1]
+        prev_cy = sum((it["_rect"][1] + it["_rect"][3]) / 2 for it in prev_cluster) / len(prev_cluster)
+        if abs(cy - prev_cy) <= threshold:
+            prev_cluster.append(item)
+        else:
+            line_clusters.append([item])
+
+    sorted_rows: list[dict] = []
+    for cluster in line_clusters:
+        cluster.sort(key=lambda it: it["_rect"][0])
+        sorted_rows.extend(cluster)
+    return sorted_rows
+
+
 def _infer_layout_hints(lines: list[dict], image_size: tuple[int, int] | None) -> list[dict]:
     """给 OCR 行补充版面特征和标题候选提示。"""
     if not lines:
@@ -275,9 +306,9 @@ def _infer_layout_hints(lines: list[dict], image_size: tuple[int, int] | None) -
                 },
             }
         )
-    rows.sort(key=lambda item: (item["_rect"][1], item["_rect"][0]))
-    heights = [item["_rect"][3] - item["_rect"][1] for item in rows]
+    heights = [item["_rect"][3] - item["_rect"][1] for item in rows if item["_rect"][3] > item["_rect"][1]]
     median_height = max(1.0, _median(heights))
+    rows = _cluster_reading_order(rows, median_height)
 
     for idx, item in enumerate(rows):
         text = str(item.get("text") or "").strip()
