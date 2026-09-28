@@ -1,0 +1,610 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>公务员面试：四题综合能力考察</title>
+  <style>
+
+    body {
+      margin: 0;
+      padding: 14px 12px;
+      background: #f6f5f0;
+      color: #1a1a1a;
+      font-family: "Latin Modern Roman", "Computer Modern Roman", "CMU Serif", "Times New Roman", Times, "Songti SC", "SimSun", "STSong", serif;
+      -webkit-font-smoothing: antialiased;
+    }
+    .page { max-width: 1140px; margin: 0 auto; }
+    .ck-doc {
+      background: #ffffff;
+      border: 1px solid #d4d0c7;
+      border-radius: 4px;
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.05), 0 1px 3px rgba(0,0,0,0.03);
+      padding: 18px 22px;
+      line-height: 1.6;
+      font-size: 0.84rem;      /* 正文基准：左右两栏共用 --ck-fs */
+      --ck-fs: 0.84rem;
+    }
+    .ck-doc h1 {
+      margin: 0 0 6px;
+      font-size: 1.05rem;      /* 文档标题：只比正文略大一点 */
+      font-weight: 700;
+      text-align: center;
+      color: #111111;
+    }
+    .ck-doc-header {
+      margin-bottom: 10px;
+      padding-bottom: 8px;
+      border-bottom: 1px solid #111111;
+      text-align: center;
+    }
+    .ck-doc-meta {
+      font-size: 0.78rem;
+      color: #555555;
+      font-style: italic;
+    }
+    /* 层级标题一律"加粗 + 与右栏同级字号"，不加字号、不加下划线，前后留白压到最小 */
+    .ck-doc-content h1, .ck-doc-content .ck-doc-h1,
+    .ck-doc h2, .ck-doc-h2,
+    .ck-doc h3, .ck-doc-h3,
+    .ck-doc h4, .ck-doc-h4 {
+      font-size: var(--ck-fs);
+      font-weight: 700;
+      color: #111111;
+      border-bottom: 0;
+      padding-bottom: 0;
+      letter-spacing: 0;
+      font-variant: normal;
+      text-align: left;
+    }
+    .ck-doc-content h1, .ck-doc-content .ck-doc-h1, .ck-doc h2, .ck-doc-h2 {
+      margin: 12px 0 4px;
+    }
+    .ck-doc h3, .ck-doc-h3, .ck-doc h4, .ck-doc-h4 {
+      margin: 9px 0 3px;
+    }
+    .ck-doc p {
+      margin: 5px 0;
+      line-height: 1.6;
+      text-align: justify;
+    }
+    .ck-doc ul, .ck-doc ol {
+      margin: 4px 0 6px;
+      padding-left: 1.25em;
+      line-height: 1.6;
+    }
+    .ck-doc li {
+      margin: 2px 0;
+    }
+    .ck-doc blockquote, .ck-quote {
+      margin: 6px 0 8px;
+      padding: 5px 10px;
+      background: #faf9f6;
+      border-left: 3px solid #222222;
+      border-radius: 2px;
+      color: #222222;
+      font-size: var(--ck-fs);
+      font-style: italic;
+    }
+    .ck-doc code {
+      background: #f3f0e8;
+      border: 1px solid #e2ddd3;
+      border-radius: 3px;
+      padding: 1px 6px;
+      font-family: "Latin Modern Mono", Consolas, monospace;
+      font-size: 0.88em;
+    }
+    .ck-doc table, .ck-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: var(--ck-fs);
+      margin: 8px 0;
+      background: #ffffff;
+      border-top: 2px solid #222222;
+      border-bottom: 2px solid #222222;
+    }
+    .ck-doc table th, .ck-doc table td, .ck-table th, .ck-table td {
+      padding: 5px 8px;
+      text-align: left;
+      vertical-align: middle;
+      border-bottom: 1px solid #ede9e1;
+    }
+    .ck-doc table th, .ck-table th {
+      background: #fbfaf7;
+      border-bottom: 1.2px solid #222222;
+      font-weight: 700;
+      color: #111111;
+      letter-spacing: 0.3px;
+    }
+
+    /* Roomy & Spacious Academic Risk Table */
+    .ck-risk-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 18px 0 28px;
+      background: #ffffff;
+      border-top: 2.2px solid #111111;
+      border-bottom: 2.2px solid #111111;
+      font-size: 0.93rem;
+      line-height: 1.72;
+    }
+    .ck-risk-table th {
+      background: #faf8f5;
+      border-bottom: 1.5px solid #111111;
+      padding: 15px 16px;
+      font-weight: 700;
+      color: #111111;
+      letter-spacing: 0.3px;
+      text-align: left;
+      vertical-align: middle;
+    }
+    .ck-risk-table td {
+      padding: 16px 16px;
+      border-bottom: 1px solid #ede8e0;
+      vertical-align: top;
+      color: #1a1a1a;
+      word-break: break-word;
+    }
+    .ck-risk-table tr:nth-child(even) td {
+      background: #fdfcfb;
+    }
+    .ck-risk-table tr:hover td {
+      background: #f6f3eb;
+    }
+
+    /* Review Grid */
+    .ck-review {
+      display: grid;
+      grid-template-columns: minmax(0, 1.35fr) 1px minmax(260px, 0.95fr);
+      border: 1px solid #d4d0c7;
+      border-radius: 4px;
+      overflow: hidden;
+      margin: 8px 0 10px;
+      background: #ffffff;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.03);
+    }
+    .ck-review-left {
+      padding: 14px 16px;
+      background: #ffffff;
+      line-height: 1.6;
+      font-size: var(--ck-fs);
+    }
+    .ck-review-rule { background: #dcd8cf; }
+    .ck-review-right {
+      padding: 12px 14px;
+      background: #faf9f6;
+      box-sizing: border-box;
+      display: flex;
+      flex-direction: column;
+    }
+    .ck-ev-list {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    /* Entity Highlight in LaTeX Paper Style */
+    .ck-cite-entity {
+      background: #fff8db;
+      border-bottom: 1.5px solid #b86a04;
+      padding: 1px 4px;
+      border-radius: 2px;
+      cursor: pointer;
+      transition: all 0.18s ease;
+      color: #111111;
+      font-weight: 600;
+    }
+    .ck-cite-entity:hover {
+      background: #ffe58f;
+      color: #000000;
+    }
+    .ck-cite-entity.is-on {
+      background: #ffd54a;
+      border-bottom-color: #0047ab;
+      box-shadow: 0 0 0 2px rgba(0,71,171,0.25);
+    }
+
+    /* Blue Hyperref Citations [1], [2] */
+    .ck-cite-ref {
+      color: #0047ab;
+      font-weight: 600;
+      font-family: "Latin Modern Roman", "Computer Modern Roman", "Times New Roman", serif;
+      text-decoration: none;
+      cursor: pointer;
+      padding: 0 2px;
+      margin: 0 2px;
+      border-radius: 2px;
+      transition: all 0.15s ease;
+      font-size: 0.92em;
+      vertical-align: baseline;
+      user-select: none;
+    }
+    .ck-cite-ref:hover {
+      text-decoration: underline;
+      background: #e8f0fe;
+      color: #003380;
+    }
+    .ck-cite-ref.is-active {
+      background: #d2e3fc;
+      color: #002266;
+      font-weight: 700;
+      box-shadow: 0 0 0 1px #0047ab;
+    }
+
+    /* Right Memory Cards in LaTeX Paper Style */
+    .ck-provenance-head {
+      font-size: 0.82rem;
+      font-weight: 700;
+      color: #222222;
+      margin: 0 0 12px;
+      padding-bottom: 6px;
+      border-bottom: 1px solid #e0dcd4;
+      letter-spacing: 0.3px;
+      text-transform: uppercase;
+    }
+    .ck-ref-icon { color: #0047ab; margin-right: 4px; }
+    .ck-ev {
+      display: block;
+      margin: 0;
+      padding: 10px 12px;
+      border: 1px solid #dedad2;
+      border-left: 3.5px solid #0047ab;
+      border-radius: 2px;
+      background: #ffffff;
+      font-size: 0.82rem;
+      line-height: 1.55;
+      transition: all 0.2s ease;
+      cursor: pointer;
+    }
+    .ck-ev:hover { border-color: #b5b0a5; }
+    .ck-ev.is-on, .ck-ev.is-highlighted {
+      border-color: #0047ab;
+      box-shadow: 0 0 0 2px #0047ab, 0 3px 8px rgba(0,71,171,0.15);
+      background: #f0f5ff;
+    }
+    @keyframes citePulse {
+      0% { background: #dbeafe; box-shadow: 0 0 0 3px #0047ab; }
+      50% { background: #bfdbfe; box-shadow: 0 0 0 4px #0047ab; }
+      100% { background: #f0f5ff; box-shadow: 0 0 0 2px #0047ab; }
+    }
+    .ck-ev-k {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 0.75rem;
+      color: #444444;
+      margin-bottom: 5px;
+      font-weight: 700;
+    }
+    .ck-ev-cite-tag {
+      color: #0047ab;
+      font-weight: 700;
+      font-family: "Latin Modern Roman", serif;
+      text-decoration: none;
+    }
+    .ck-ev-kind-badge {
+      display: inline-block;
+      padding: 1px 6px;
+      border-radius: 2px;
+      font-size: 0.72rem;
+      font-weight: 600;
+      letter-spacing: 0.2px;
+    }
+    .ck-badge-keypoint {
+      border: 1px solid #0047ab;
+      color: #0047ab;
+      background: #f0f5ff;
+    }
+    .ck-badge-note {
+      border: 1px solid #b86a04;
+      color: #b86a04;
+      background: #fff8eb;
+    }
+    .ck-mem-title {
+      font-weight: 700;
+      color: #111111;
+      font-size: var(--ck-fs);
+      margin-bottom: 4px;
+      line-height: 1.5;
+    }
+    .ck-ev-quote {
+      color: #222222;
+      font-style: normal;
+      font-family: inherit;
+      margin: 4px 0 6px;
+      padding: 0;
+      background: transparent;
+      border: none;
+      line-height: 1.6;
+      font-size: var(--ck-fs);
+    }
+    .ck-ev-meta { font-size: 0.76rem; color: #666666; margin-top: 4px; }
+    .ck-ev-more {
+      margin-top: 2px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+    .ck-ev-more[open] { margin-top: 4px; }
+    .ck-ev-more summary { margin-bottom: 6px; }
+    .ck-proof-toggle {
+      cursor: pointer;
+      font-size: 0.82rem;
+      color: #0047ab;
+      user-select: none;
+      font-family: inherit;
+      padding: 2px 0;
+    }
+    .ck-proof-toggle:hover { text-decoration: underline; }
+    /* 右栏下段"状态演进"：无行内锚点，与上方证据卡视觉区分（灰底 + 徽章，无 [n]） */
+    .ck-ledger {
+      margin-top: 10px;
+      padding-top: 8px;
+      border-top: 1px dashed #d4d0c7;
+    }
+    .ck-ledger > summary { list-style: none; }
+    .ck-ledger > summary::-webkit-details-marker { display: none; }
+    .ck-ledger > summary::after { content: " ▾"; }
+    .ck-ledger:not([open]) > summary::after { content: " ▸"; }
+    /* 每类一张小灰卡：卡头类别 + 条数，卡内按 1. 2. 3. 编号 */
+    .ck-ledger-card {
+      background: #faf9f5;
+      border: 1px solid #e6e2d8;
+      border-left: 3px solid #bdb6a6;
+      border-radius: 4px;
+      padding: 7px 9px;
+      margin-bottom: 6px;
+    }
+    .ck-ledger-k {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 6px;
+      font-size: 0.72rem;
+      margin-bottom: 5px;
+    }
+    .ck-ledger-badge {
+      background: #efece4;
+      color: #6b6559;
+      border-radius: 3px;
+      padding: 1px 6px;
+      font-weight: 600;
+    }
+    .ck-ledger-count { color: #8a8578; }
+    .ck-ledger-list {
+      margin: 0;
+      padding-left: 1.35em;
+      font-size: var(--ck-fs);
+      line-height: 1.6;
+      color: #3b3a37;
+    }
+    .ck-ledger-list > li { margin: 2px 0; }
+    /* Personal Perspective Interactive Task Lists & Semantic Blocks */
+    .ck-self-block {
+      background: #f4f8fe;
+      border: 1px solid #d4e2f5;
+      border-left: 3.5px solid #0047ab;
+      border-radius: 4px;
+      padding: 9px 13px;
+      margin: 10px 0 12px;
+    }
+    .ck-self-title {
+      margin: 0 0 6px;
+      color: #003380;
+      font-weight: 700;
+      font-size: var(--ck-fs);
+      display: flex;
+      align-items: center;
+      gap: 5px;
+    }
+    .ck-self-badge {
+      display: inline-block;
+      background: #0047ab;
+      color: #ffffff;
+      font-size: 0.68rem;
+      padding: 1px 5px;
+      border-radius: 2px;
+      font-weight: 600;
+      letter-spacing: 0.2px;
+      margin-left: 4px;
+    }
+
+    .ck-dep-block {
+      background: #fefcf7;
+      border: 1px solid #f2e7cc;
+      border-left: 3.5px solid #b86a04;
+      border-radius: 4px;
+      padding: 9px 13px;
+      margin: 10px 0 12px;
+    }
+    .ck-dep-title {
+      margin: 0 0 6px;
+      color: #7a4502;
+      font-weight: 700;
+      font-size: var(--ck-fs);
+      display: flex;
+      align-items: center;
+      gap: 5px;
+    }
+    .ck-dep-badge {
+      display: inline-block;
+      background: #b86a04;
+      color: #ffffff;
+      font-size: 0.68rem;
+      padding: 1px 5px;
+      border-radius: 2px;
+      font-weight: 600;
+      letter-spacing: 0.2px;
+      margin-left: 4px;
+    }
+
+    .ck-risk-block {
+      background: #fff8f8;
+      border: 1px solid #fedcdc;
+      border-left: 3.5px solid #cf222e;
+      border-radius: 4px;
+      padding: 9px 13px;
+      margin: 10px 0 12px;
+    }
+    .ck-risk-title {
+      margin: 0 0 6px;
+      color: #a40e26;
+      font-weight: 700;
+      font-size: var(--ck-fs);
+      display: flex;
+      align-items: center;
+      gap: 5px;
+    }
+    .ck-risk-badge {
+      display: inline-block;
+      background: #cf222e;
+      color: #ffffff;
+      font-size: 0.68rem;
+      padding: 1px 5px;
+      border-radius: 2px;
+      font-weight: 600;
+      letter-spacing: 0.2px;
+      margin-left: 4px;
+    }
+
+    .ck-self-block ul, .ck-self-block ol,
+    .ck-dep-block ul, .ck-dep-block ol,
+    .ck-risk-block ul, .ck-risk-block ol {
+      margin: 2px 0 2px;
+      padding-left: 1.25em;
+    }
+    .ck-self-block li, .ck-dep-block li, .ck-risk-block li {
+      margin: 2px 0;
+      color: #1a1a1a;
+    }
+
+    /* Person Group Heading */
+    .ck-person-group {
+      margin: 8px 0 3px;
+      font-weight: 700;
+      color: #111111;
+    }
+
+    /* GFM Task List Checkboxes */
+    .ck-task-list {
+      list-style: none;
+      padding-left: 0 !important;
+      margin: 4px 0 6px !important;
+    }
+    .ck-task-item {
+      display: flex;
+      align-items: flex-start;
+      margin: 4px 0;
+      line-height: 1.6;
+    }
+    .ck-task-label {
+      display: inline-flex;
+      align-items: flex-start;
+      gap: 8px;
+      cursor: pointer;
+      width: 100%;
+    }
+    .ck-task-checkbox {
+      margin-top: 4px;
+      cursor: pointer;
+      accent-color: #0047ab;
+      width: 15px;
+      height: 15px;
+      flex-shrink: 0;
+    }
+    .ck-task-checkbox:checked + .ck-task-text {
+      color: #8c8c8c;
+      text-decoration: line-through;
+    }
+    .ck-task-text {
+      flex: 1;
+      color: #1a1a1a;
+    }
+
+    /* Status Badges & Pills */
+    .ck-tag-blocker {
+      display: inline-block;
+      background: #ffebe9;
+      color: #cf222e;
+      border: 1px solid rgba(255, 129, 130, 0.45);
+      font-size: 0.72rem;
+      font-weight: 700;
+      padding: 0 5px;
+      border-radius: 3px;
+      margin-right: 4px;
+      line-height: 1.5;
+      vertical-align: 1px;
+    }
+    .ck-tag-risk {
+      display: inline-block;
+      background: #fff8eb;
+      color: #b86a04;
+      border: 1px solid rgba(212, 167, 44, 0.45);
+      font-size: 0.72rem;
+      font-weight: 700;
+      padding: 0 5px;
+      border-radius: 3px;
+      margin-right: 4px;
+      line-height: 1.5;
+      vertical-align: 1px;
+    }
+    .ck-tag-warn {
+      display: inline-block;
+      background: #f0f4ff;
+      color: #0969da;
+      border: 1px solid rgba(84, 174, 255, 0.45);
+      font-size: 0.72rem;
+      font-weight: 700;
+      padding: 0 5px;
+      border-radius: 3px;
+      margin-right: 4px;
+      line-height: 1.5;
+      vertical-align: 1px;
+    }
+    .ck-tag-dep {
+      display: inline-block;
+      background: #eff6ff;
+      color: #1d4ed8;
+      border: 1px solid #bfdbfe;
+      font-size: 0.72rem;
+      font-weight: 600;
+      padding: 0 5px;
+      border-radius: 3px;
+      margin-right: 4px;
+      line-height: 1.5;
+      vertical-align: 1px;
+    }
+    .ck-param-capsule {
+      display: inline-block;
+      font-size: 0.82rem;
+      color: #57606a;
+      background: #f6f8fa;
+      border: 1px solid #eaeef2;
+      padding: 0 6px;
+      border-radius: 10px;
+      margin-left: 4px;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      letter-spacing: 0.2px;
+    }
+
+    @media(max-width: 860px) {
+      .ck-doc { padding: 22px 18px; }
+      .ck-review { grid-template-columns: 1fr; }
+      .ck-review-rule { display: none; }
+    }
+
+  </style>
+</head>
+<body>
+  <main class="page">
+    <div class="ck-doc">
+      <header class="ck-doc-header">
+        <h1>公务员面试：四题综合能力考察</h1>
+      </header>
+      <div class="ck-doc-content">
+        <h2 class="ck-doc-h2">候选人概况与面试岗位</h2><p>考生为一名参加公务员结构化面试的应试者，学历、专业及过往工作经历在原文中未提及。本次面试共20分钟，需回答4个问题，由考官（发言人2）主持提问，另有计时员（发言人1）负责计时。考生在面试中逐题作答，完成全部四题：第一题从自我反省、权利与责任平衡、责任感与成就感三个角度阐述绳子哲理对公务员工作的启示；第二题作为市政府办公室工作人员小王，从前期准备、制定方案、实施调研三方面阐述AI企业调研方案；第三题模拟回应记者关于排水管道问题的投诉，承认工作失职并说明已联系维修、汇报上级；第四题从公共服务角度分析道路改造引发社会矛盾的主要与次要矛盾并提出解决措施。面试全程未见考官当场点评或追问，作答完成度较高，语言表达流畅，引用曾子名言及具体工作场景支撑论点。</p><h2 class="ck-doc-h2">面试问答纪要</h2><h3 class="ck-doc-h3">Q1. 绳子哲理对公务员工作的启示</h3><ul><li><strong>面试官</strong>：骏马因绳子分开、风筝因绳子飞向天空、陀螺因绳子不停旋转，这三句话蕴含丰富的人生哲理，请展开联想，谈谈对做好公务员工作的启示。<ul><li>绳子对骏马是鞭策，对风筝是平衡，对陀螺是动力；对个人而言，绳子意味着自我反省，引用曾子“吾日三省吾身”，强调应反思工作中的失误与拖延，通过积极自我反省提升能力。</li><li>骏马成群出现，人才同批次出现，单位应形成紧张、活泼、团结、有趣的风气，同事之间比较能力与效率而非票子、车子、房子。</li><li>风筝飞翔既靠好风凭借力，也靠绳子拉住取得平衡；治国理政中权利与责任即“风”与“绳子”，权利让人知道什么该做，责任让人知道什么不该做，需建立权利清单、责任清单。</li><li>陀螺的特点是“连轴转”，公职人员无论基层扶贫报表还是机关材料撰写都需加班加点；支撑持续运转的是责任感和成就感，如撰写长材料时逐词逐句修改，虽辛苦但想到能为国家发展提供帮助便不觉苦。</li></ul></li></ul><h3 class="ck-doc-h3">Q2. AI企业调研方案</h3><ul><li><strong>面试官</strong>：某市政府为抢抓AI发展机遇，部署对本市AI相关企业进行调研，了解发展状况和服务需求，为出台扶持政策提供依据。领导将任务交给市政府办公室工作人员小王，假如你是小王，如何完成好这一任务？<ul><li>前期准备：因自身是文科生，对AI存在知识盲区，利用工作之余补课充实知识储备；学习兄弟城市调研经验；查阅国务院办公厅关于人工智能发展的指导意见及省厅相关举措。</li><li>制定方案：包含客观与主观两方面，客观侧重企业发展现状，主观侧重政府应提供的服务需求；调研分三部分——客观市场状况、服务需求、管理措施；方案呈报领导审阅后贯彻实施。</li><li>实施调研：与企业对接阅读发展报告进行文字归纳；根据企业情况和自身知识储备制定调查问卷，请单位中AI领域专家学者修改完善；召开人工智能企业座谈会，听取企业在人才对口引进、政策倾斜、用地审批、人才长效培养机制等方面的具体需求。</li><li>管理措施：参考共享充电宝带来的信任危机，通过问卷调查了解AI发展各领域不完善、不到位之处，明确需进一步规范的政策方向。</li></ul></li></ul><h3 class="ck-doc-h3">Q3. 回应记者关于排水管道问题的投诉</h3><ul><li><strong>面试官</strong>：周一上午，市电台记者找到某局服务窗口市级服务标兵小王，称有居民多次投诉其安排人疏通的地下排水管道没过几天又堵上，整个街道都是污水，居民质疑标兵名不副实。假如你是小王，将如何答复记者？请现场模拟。<ul><li>先询问记者贵姓，表明自己是片区负责人小王，也是片区普通居民，对管道漏水情况非常着急，会赶紧处理。</li><li>解释原因：管道建于上世纪90年代社区集中整治时期，城区属老城区，改造难度大，很多管道存在大大小小的问题，夏天用水高峰导致问题集中出现。</li><li>说明措施：已联系维修师傅正准备赶赴现场维修；管道硬件问题已汇报上级部门，计划通过城市综合保障工程完善基础设施。</li><li>承认工作失职，请求媒体给予改进机会，并表示马上赶赴现场重新维修居民管道，希望媒体向公众解释政府存在的难处和管道真正存在的问题。</li></ul></li></ul><h3 class="ck-doc-h3">Q4. 处理道路改造引发社会矛盾的思路</h3><ul><li><strong>面试官</strong>：我市实施道路改造和雨污分流工程，施工中噪音、灰尘较大，部分道路封堵导致干道上下班交通拥堵，不少居民通过网络表达不满。请从公共服务角度谈谈处理社会矛盾的思路。<ul><li>分析矛盾：主要矛盾是时间上的矛盾，过去城市发展滞后导致当前需求跟不上，要求城市规划和管理补上来；次要矛盾包括噪音污染、出行问题和舆论问题。</li><li>工程措施：督促施工方加快效率和进度，保证质量前提下尽量减少扰民；通过设备手段减少噪音和灰尘，如工地周边加防噪墙、采取洒水降尘。</li><li>交通疏导：建议主要干道设置出行便道，使用替代道路；通过交通广播向司机推荐良好出行路线；加强宣传引导市民多使用公交，请公交公司增加班次和频率。</li><li>舆论沟通：以公告形式在网络发布，将政府举措公正公开透明地表达出来，获得市民理解和支持。</li></ul></li></ul><h2 class="ck-doc-h2">能力评估</h2><table class="ck-table"><thead><tr><th>评估维度</th><th>推荐评级</th><th>评估依据(具体事例)</th></tr></thead><tbody><tr><td>第一题：绳子哲理对公务员工作的启示</td><td>综合分析能力</td><td>考生从骏马、风筝、陀螺与绳子的比喻出发，分别阐述自我反省（引用曾子“吾日三省吾身”）、权利与责任平衡（建立权利清单、责任清单）、责任感与成就感（陀螺“连轴转”体现公职人员加班撰写材料等）三个角度，提出单位应形成紧张、活泼、团结、有趣的风气，同事间比较能力与效率。</td></tr><tr><td>第二题：AI企业调研方案</td><td>组织协调能力</td><td>考生作为市政府办公室工作人员小王，提出前期补课学习AI知识、学习兄弟城市经验、查阅国务院及省厅指导意见；调研分客观市场状况、服务需求、管理措施三部分，方法包括阅读企业发展报告、设计调查问卷、召开企业座谈会；服务需求关注人才引进、政策倾斜、用地审批、人才培养机制，管理措施关注人工智能发展中的问题。</td></tr><tr><td>第三题：回应记者关于排水管道问题的投诉</td><td>应急处理能力</td><td>考生模拟小王回应记者，解释管道建于上世纪90年代、老城区改造难度大、夏天用水高峰导致问题集中出现；承认工作失职，已联系维修师傅准备赶赴现场，已汇报上级部门，计划通过城市综合保障工程改善基础设施，请求媒体给予改进机会。</td></tr><tr><td>第四题：处理道路改造引发社会矛盾的思路</td><td>公共服务能力</td><td>考生从公共服务角度分析主要矛盾是时间上的需求不满足，次要矛盾包括噪音、出行和舆论问题；措施包括督促施工方加快进度、减少噪音和灰尘（防噪墙、洒水降尘）、建议出行便道、通过交通广播推荐路线、鼓励公交出行、增加公交班次，并计划以公告形式在网络发布，公开透明表达政府举措。</td></tr></tbody></table><h2 class="ck-doc-h2">综合素质</h2><h3 class="ck-doc-h3">突出亮点</h3><ol><li value="1"><strong>哲理联想与自我反思</strong>：考生以绳子对骏马、风筝、陀螺的不同作用展开联想，分别对应鞭策、平衡与动力，并引用曾子“吾日三省吾身”强调自我反省，提出应反思工作中的失误与拖延。<ul><li>提出单位应形成“紧张、活泼、团结、有趣”的风气，同事间比较能力与效率而非票子、车子、房子。</li><li>以“权利清单、责任清单”说明权利与责任的平衡，强调责任让公职人员知道什么不该做。</li></ul></li><li value="2"><strong>调研方案的系统性</strong>：考生在AI企业调研题中，先承认自身作为文科生对AI存在知识盲区，计划利用工作之余补课充实知识储备。<ul><li>前期准备包括学习兄弟城市调研经验、查阅国务院及省厅关于人工智能发展的指导意见。</li><li>调研分客观市场状况、服务需求、管理措施三部分，方法涵盖阅读企业发展报告、设计调查问卷并请专家学者修改、召开企业座谈会。</li><li>服务需求关注人才引进、政策倾斜、用地审批、人才培养机制；管理措施关注人工智能发展中的问题，如共享充电宝的信任危机。</li></ul></li><li value="3"><strong>应急沟通的坦诚态度</strong>：回应记者投诉时，考生承认“我确实有做的工作失职的地方”，并请求媒体给予改进机会。<ul><li>解释管道建于上世纪90年代、老城区改造难度大、夏天用水高峰导致问题集中出现。</li><li>说明已联系维修师傅准备赶赴现场，并已将问题汇报上级部门，计划通过城市综合保障工程改善基础设施。</li></ul></li><li value="4"><strong>公共服务矛盾的结构化分析</strong>：考生将道路改造引发的问题分为主要矛盾（时间上的需求不满足）与次要矛盾（噪音、出行、舆论），并分别提出对策。<ul><li>工程方面：督促施工方加快进度、加装防噪墙、洒水降尘。</li><li>出行方面：建议出行便道、通过交通广播推荐路线、鼓励公交出行并增加公交班次。</li><li>沟通方面：计划以公告形式在网络发布，公开透明表达政府举措。</li></ul></li></ol><h3 class="ck-doc-h3">潜在风险点</h3><ol><li value="1"><strong>答题时间管理</strong>：第四题作答过程中，计时员提示“离本场考试结束还有3分钟”，考生在剩余时间内完成该题，时间较为紧张。</li><li value="2"><strong>个别表述不够精准</strong>：第一题中考生将“陀螺”口误为“陀螺癌”，第三题中“为咱们的加强理论去做好服务”表述含混，可能影响表达清晰度。</li><li value="3"><strong>对记者提问的回应侧重解释</strong>：考生在回应记者时较多解释管道老旧的客观原因，虽承认失职，但未主动提出具体的补偿或后续跟进方案，仅说明已联系维修和汇报上级。</li></ol><h3 class="ck-doc-h3">推进建议</h3><ol><li value="1"><strong>强化时间分配训练</strong>：考生在第四题临近结束3分钟时才进入作答，建议后续练习中注意每题时间分配，避免因时间不足压缩论述深度。</li><li value="2"><strong>提升语言表达的准确性</strong>：作答中出现口误和含混表述，建议通过模拟练习加强语言组织，确保关键概念和承诺表述清晰。</li><li value="3"><strong>补充具体行动细节</strong>：在回应投诉和矛盾处理中，考生多停留在措施方向层面，可进一步补充如维修时限、责任人、验收标准等具体执行细节，增强说服力。</li></ol>
+      </div>
+    </div>
+  </main>
+</body>
+</html>
