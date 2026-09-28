@@ -1467,6 +1467,8 @@ async def fill_placeholder_by_columns(
     *,
     source_han: int | None = None,
     directives: str = "",
+    overlong_han: int | None = None,
+    overlong_min_count: int | None = None,
 ) -> str | None:
     """逐栏填充（无表格模板）：每栏一次调用、并发、失败只重试该栏。
 
@@ -1484,7 +1486,11 @@ async def fill_placeholder_by_columns(
         return None
     if getattr(client, "stream_text", None) is None:
         return None
-    from tools.execution.hard_execution import gate_render_output, overlong_items
+    from tools.execution.hard_execution import (
+        _ITEM_CHECK_HAN,
+        gate_render_output,
+        overlong_items,
+    )
     from tools.templates.length_budget import output_token_cap
 
     cap = output_token_cap(source_han, template)
@@ -1493,6 +1499,21 @@ async def fill_placeholder_by_columns(
     titles = _scalar_titles(template)
     if len(titles) != len(scalars):  # 结构对不上就不冒进，回退整篇
         return None
+
+    target_han = overlong_han if overlong_han is not None else _ITEM_CHECK_HAN
+    min_cnt = overlong_min_count if overlong_min_count is not None else 1
+
+    def _is_column_overlong(col_text: str) -> bool:
+        """策略 A 与策略 B 综合判据：判定单栏是否需触发超长重写。"""
+        items = overlong_items(col_text, long_han=target_han)
+        if not items:
+            return False
+        # 策略 B: 频次门槛（超长条数达到 min_cnt 才触发，容忍个别正常展开的专业事实）
+        if len(items) >= min_cnt:
+            return True
+        # 极端超长兜底保护：即使未达频次门槛，若单条超过 350 字（极严重大段挤压）依然触发重写
+        extreme_items = overlong_items(col_text, long_han=350)
+        return bool(extreme_items)
 
     async def extract_tables() -> list[list[list[str]]]:
         if not row_templates:
@@ -1547,7 +1568,7 @@ async def fill_placeholder_by_columns(
             projected = project_column_from_draft(
                 context, template, title=title, hint=hint, directives=directives
             )
-            if projected and not overlong_items(projected):
+            if projected and not _is_column_overlong(projected):
                 projected = _strip_redundant_column_heading(projected, title)
                 if _section_has_table(template, title):
                     projected = _strip_markdown_tables(projected)
@@ -1629,7 +1650,7 @@ async def fill_placeholder_by_columns(
     gate = gate_render_output(template, assembled)
     # ① 单条超长：逐栏填充当**硬问题**（能定位到栏）——只重写中招那一栏，一次单栏调用，
     # 比整篇返工便宜一个量级。渲染层的门禁仍把它当 advisory 记账（见 hard_execution）。
-    overlong = [i for i, v in enumerate(values) if overlong_items(v)]
+    overlong = [i for i, v in enumerate(values) if _is_column_overlong(v)]
     hard = list(gate.get("hard_issues") or [])
     blamed = overlong[:2]
     # ② 门禁硬问题：仍按栏名定位（原逻辑）
@@ -1654,7 +1675,7 @@ async def fill_placeholder_by_columns(
     )
     for i in blamed:
         values[i] = await write(i, revision=_OVERLONG_ITEM_REVISION if i in overlong else "")
-    still = [i for i, v in enumerate(values) if overlong_items(v)]
+    still = [i for i, v in enumerate(values) if _is_column_overlong(v)]
     if still:  # 只重写一轮：再差也保留（同一栏连重两次的收益与代价不成比例）
         logger.warning(
             "column fill 重写后仍有超长条目（保留）：%s", [titles[i] or i for i in still]
@@ -1675,6 +1696,8 @@ async def fill_placeholder_template(
     *,
     source_han: int | None = None,
     directives: str = "",
+    overlong_han: int | None = None,
+    overlong_min_count: int | None = None,
 ) -> str | None:
     """类型一稳定填充：LLM 出字段值，程序拼装正文。
 
@@ -1706,7 +1729,14 @@ async def fill_placeholder_template(
     cap = output_token_cap(source_han, template) if output_token_cap else None
 
     by_column = await fill_placeholder_by_columns(
-        client, context, template, plan, source_han=source_han, directives=directives
+        client,
+        context,
+        template,
+        plan,
+        source_han=source_han,
+        directives=directives,
+        overlong_han=overlong_han,
+        overlong_min_count=overlong_min_count,
     )
     if by_column:
         return by_column

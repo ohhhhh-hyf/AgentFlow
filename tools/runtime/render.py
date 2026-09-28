@@ -201,12 +201,16 @@ async def produce_line(
             client = getattr(render, "client", None)
             if client is not None:
                 try:
+                    kw: dict[str, Any] = {}
+                    if line_name in {"minutes", "minutes_styles"}:
+                        kw = {"overlong_han": 280, "overlong_min_count": 2}
                     filled = await fill_placeholder_template(
                         client,
                         context,
                         template,
                         source_han=_doc_han(state),
                         directives=directives,
+                        **kw,
                     )
                 except Exception:  # noqa: BLE001
                     logger.warning(
@@ -506,12 +510,16 @@ async def produce_line(
                 and getattr(render, "client", None) is not None
             ):
                 try:
+                    kw2: dict[str, Any] = {}
+                    if line_name in {"minutes", "minutes_styles"}:
+                        kw2 = {"overlong_han": 280, "overlong_min_count": 2}
                     filled2 = await fill_placeholder_template(
                         render.client,
                         context,
                         template,
                         source_han=_doc_han(state),
                         directives=directives,
+                        **kw2,
                     )
                 except Exception:  # noqa: BLE001
                     filled2 = None

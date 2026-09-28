@@ -2652,6 +2652,117 @@ def test_column_fill_overlong_item_rewrite() -> None:
     check("超长条：最终正文不再有超长条", bool(text) and overlong_items(text) == [], "")
 
 
+def test_column_fill_overlong_minutes_strategies() -> None:
+    """验证 minutes 策略 A（调大判定阈值）与策略 B（频次门槛）有效性。
+
+    - 策略 A：单个条目在 230~250 字（如司法/技术详细举证），设置 overlong_han=280 时不触发重写；
+    - 策略 B：单条 290 字超过 280，但只有 1 条（未达到 min_count=2），不触发重写；
+    - 频次触发：达到 2 条 290 字时，触发重写；
+    - 极端超长：即使只有 1 条，但达到 380 字（>=350），依然安全兜底触发重写。
+    """
+    import asyncio
+    import re as _re
+    from tools.templates.router._placeholder import (
+        fill_placeholder_by_columns,
+        plan_placeholder_fill,
+    )
+
+    mb = (_active_dir() / "media_briefing.md").read_text(encoding="utf-8")
+    plan = plan_placeholder_fill(mb)
+
+    good = {
+        1: "发布会概况：主办方、三块板块与整体基调。",
+        2: "- **要点**：核心信息一条。",
+        4: "**主持人**：问题？\n**发言人**：回应。",
+    }
+
+    # 测试 1: 策略 A + 策略 B（1 条 245 字，完全不触发重写，仅 1 次调用）
+    court_evidence_bullet = "- **证据一**：" + "原告提交供货合同及对账单证明交付" * 15 + "。"  # ~240 字
+
+    class _Client1:
+        def __init__(self):
+            self.counts = {}
+
+        async def stream_text(self, system, user, **kw):
+            idx = int(_re.search(r"第 (\d+)/", user).group(1))
+            self.counts[idx] = self.counts.get(idx, 0) + 1
+            yield court_evidence_bullet if idx == 3 else good[idx]
+
+    c1 = _Client1()
+    asyncio.run(
+        fill_placeholder_by_columns(
+            c1, "内容来源略。", mb, plan, source_han=12000, overlong_han=280, overlong_min_count=2
+        )
+    )
+    check("minutes策略A：1条245字证据条目（<=280字）不触发重写", c1.counts.get(3) == 1, f"{c1.counts}")
+
+    # 测试 2: 策略 B（1 条 290 字，>280 但只有 1 条 < 2，容忍放行不触发重写）
+    single_long_bullet = "- **证据一**：" + "原告提交供货合同及对账单证明交付" * 18 + "。"  # ~290 字
+
+    class _Client2:
+        def __init__(self):
+            self.counts = {}
+
+        async def stream_text(self, system, user, **kw):
+            idx = int(_re.search(r"第 (\d+)/", user).group(1))
+            self.counts[idx] = self.counts.get(idx, 0) + 1
+            yield single_long_bullet if idx == 3 else good[idx]
+
+    c2 = _Client2()
+    asyncio.run(
+        fill_placeholder_by_columns(
+            c2, "内容来源略。", mb, plan, source_han=12000, overlong_han=280, overlong_min_count=2
+        )
+    )
+    check("minutes策略B：单条290字虽超280但仅1条（未达频次2），容忍放行不触发重写", c2.counts.get(3) == 1, f"{c2.counts}")
+
+    # 测试 3: 策略 B 触发（2 条 290 字，达到频次 2，触发单栏重写）
+    two_long_bullets = single_long_bullet + "\n" + single_long_bullet
+
+    class _Client3:
+        def __init__(self):
+            self.counts = {}
+
+        async def stream_text(self, system, user, **kw):
+            idx = int(_re.search(r"第 (\d+)/", user).group(1))
+            self.counts[idx] = self.counts.get(idx, 0) + 1
+            if idx == 3:
+                yield two_long_bullets if self.counts[idx] == 1 else "- **证据1**：拆分一。\n- **证据2**：拆分二。"
+            else:
+                yield good[idx]
+
+    c3 = _Client3()
+    asyncio.run(
+        fill_placeholder_by_columns(
+            c3, "内容来源略。", mb, plan, source_han=12000, overlong_han=280, overlong_min_count=2
+        )
+    )
+    check("minutes策略B触发：2条290字达到频次门槛，触发该栏重写", c3.counts.get(3) == 2, f"{c3.counts}")
+
+    # 测试 4: 极端大段挤压兜底（1 条 380 字，>=350，即使只有 1 条依然触发重写安全兜底）
+    extreme_bullet = "- **表态**：" + "大段文字挤压挤压" * 48 + "。"  # ~386 字
+
+    class _Client4:
+        def __init__(self):
+            self.counts = {}
+
+        async def stream_text(self, system, user, **kw):
+            idx = int(_re.search(r"第 (\d+)/", user).group(1))
+            self.counts[idx] = self.counts.get(idx, 0) + 1
+            if idx == 3:
+                yield extreme_bullet if self.counts[idx] == 1 else "- **表态**：拆分后内容。"
+            else:
+                yield good[idx]
+
+    c4 = _Client4()
+    asyncio.run(
+        fill_placeholder_by_columns(
+            c4, "内容来源略。", mb, plan, source_han=12000, overlong_han=280, overlong_min_count=2
+        )
+    )
+    check("极端超长兜底：单条380字（>=350）即使仅1条也触发安全重写", c4.counts.get(3) == 2, f"{c4.counts}")
+
+
 def test_personal_risk_attribution_in_pack() -> None:
     """真人模式：分钟线 pack 的风险/未决按原文补出归属（「姓名：」前缀）；客观零外溢。"""
     from domain.meeting.orchestrator import MeetingAgentSystem
@@ -4773,6 +4884,7 @@ def main() -> int:
         test_long_generation_output_cap()
         test_column_fill_concurrency_and_early_stop()
         test_column_fill_overlong_item_rewrite()
+        test_column_fill_overlong_minutes_strategies()
         test_personal_risk_attribution_in_pack()
         test_media_overview_scope()
         test_class_transcript_task_groups()
