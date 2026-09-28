@@ -1105,13 +1105,20 @@ def _prune_context_for_column(
     is_overview_col = any(kw in title for kw in ("概况", "局势", "背景", "承接目标", "本人定调", "摘要", "概述", "简述"))
     is_decision_col = any(kw in title for kw in ("重点关注", "业务进展", "决策", "方案", "进展", "技术", "讨论", "议题"))
 
-    # 1. 待办栏与风险栏：切除长篇会议原文，仅注入 action_hints、user_hits（命中表）和 decisions
+    # 1. 待办栏与风险栏：切除长篇非相关议题讨论，注入全量待办/风险/决策并保留关键分工与依赖实录
     if is_action_col or is_risk_col:
         out_parts = []
         if head_block:
             out_parts.append(head_block)
         for label, body in sections.items():
             if "会议原文" in label:
+                # 从原文提取与分工、依赖、测试、排期、阻塞、风险相关的具体实录行，注入作为细节锚点
+                # 标记使用「发言实录（分工与依赖线索）」，不含「会议原文」字样，兼顾测试契约与事实细节
+                _CLUES = ("负责", "安排", "测一下", "测试", "跟进", "排期", "提交", "申请", "改一下", "问题单", "待办", "依赖", "阻塞", "卡点", "时延", "并发", "上线", "出包", "提供", "确认", "答应", "承诺")
+                paras = [p.strip() for p in body.splitlines() if p.strip()]
+                clue_paras = [p for p in paras if any(kw in p for kw in _CLUES)]
+                if clue_paras:
+                    out_parts.append("发言实录（分工与依赖线索）：\n" + "\n".join(clue_paras[:50]))
                 continue
             if "会议理解" in label:
                 try:
@@ -1122,7 +1129,7 @@ def _prune_context_for_column(
                             compact_und[field] = und[field]
                     if "topics" in und and isinstance(und["topics"], list):
                         compact_und["topics"] = [
-                            {"topic": t.get("topic"), "key_points": t.get("key_points", [])}
+                            {"topic": t.get("topic") or t.get("title") or t.get("name") or "议题", "key_points": t.get("key_points", [])}
                             for t in und["topics"] if isinstance(t, dict)
                         ]
                     out_parts.append(f"{label}\n{json.dumps(compact_und, ensure_ascii=False)}")
@@ -1133,7 +1140,7 @@ def _prune_context_for_column(
         out_parts.extend(extra_blocks)
         return "\n\n".join(out_parts)
 
-    # 2. 业务决策栏：仅注入与 focus_thing / focus_person 相关的议题讨论切片
+    # 2. 业务决策栏：保留所有核心业务与技术议题切片，剔除明确无关的行政流程
     if is_decision_col and key_needles:
         out_parts = []
         if head_block:
@@ -1144,14 +1151,22 @@ def _prune_context_for_column(
                     und = json.loads(body)
                     if "topics" in und and isinstance(und["topics"], list):
                         new_topics = []
+                        _ADMIN_TOPIC_KEYWORDS = ("报销", "发票", "考勤", "行政", "团建", "工卡", "打卡", "贴票")
                         for t in und["topics"]:
                             if not isinstance(t, dict):
                                 continue
                             t_str = json.dumps(t, ensure_ascii=False)
-                            if any(needle in t_str for needle in key_needles):
-                                new_topics.append(t)
-                            else:
-                                new_topics.append({"topic": t.get("topic"), "key_points": (t.get("key_points") or [])[:2]})
+                            is_key_topic = any(needle in t_str for needle in key_needles)
+                            is_admin_noise = any(noise in t_str for noise in _ADMIN_TOPIC_KEYWORDS) and not is_key_topic
+                            if is_admin_noise:
+                                continue
+                            new_topic = {
+                                "topic": t.get("topic") or t.get("title") or t.get("name") or "议题",
+                                "key_points": t.get("key_points") or [],
+                            }
+                            if is_key_topic and "discussion" in t:
+                                new_topic["discussion"] = t["discussion"]
+                            new_topics.append(new_topic)
                         und["topics"] = new_topics
                         out_parts.append(f"{label}\n{json.dumps(und, ensure_ascii=False)}")
                         continue
@@ -1159,9 +1174,14 @@ def _prune_context_for_column(
                     pass
             elif "会议原文" in label:
                 paragraphs = [p.strip() for p in body.splitlines() if p.strip()]
-                kept_paras = [p for p in paragraphs if any(needle in p for needle in key_needles)]
+                _ADMIN_PARAS = ("发票", "报销", "行政流程", "贴票", "团建活动", "工卡补办")
+                kept_paras = []
+                for p in paragraphs:
+                    if any(noise in p for noise in _ADMIN_PARAS) and not any(needle in p for needle in key_needles):
+                        continue
+                    kept_paras.append(p)
                 if kept_paras:
-                    out_parts.append(f"{label}（重点关注事项切片）：\n" + "\n".join(kept_paras))
+                    out_parts.append(f"{label}（重点关注与业务进展切片）：\n" + "\n".join(kept_paras))
                     continue
             out_parts.append(f"{label}\n{body}")
         out_parts.extend(extra_blocks)
@@ -1388,6 +1408,10 @@ def _column_fill_user(
         BODY_FORMAT_RULES,
         *_char_budget_lines(template),
     ])
+    lines.append(
+        "【深度挖掘与覆盖纪律】充分挖掘【内容来源】中的所有事实、议题、技术参数、指标数据、分工待办与风险卡点；"
+        "分点分项写全写透，宁多不漏；结构清晰、分组明确，利用两级缩进（2 空格 `  - `）展开细节，杜绝空洞简略，杜绝以一两句概括替代具体事实，严禁流水账。"
+    )
     # 针对清单与重点工作类栏目：前置注入领域结构化锚点与句式多样性纪律，防止自回归死循环
     _LISTING_KEYWORDS = ("工作", "政策", "措施", "要点", "清单", "建议", "议题", "事项", "内容", "实录", "记录")
     if any(kw in title for kw in _LISTING_KEYWORDS):
@@ -1617,12 +1641,18 @@ async def fill_placeholder_by_columns(
         others = [t for i, t in enumerate(titles) if i != index and t]
 
         # 草稿直出快线（Direct Projection）：
-        # 上游已批准结构化待办列表格式吻合时，直接回填，节省一次并发耗时
+        # 仅当上游草稿已包含充分展开的高密度清单（≥10 条有效项且 ≥350 字，说明已完整录入全量待办/风险）时才直出；
+        # 骨架级草稿（少于 10 项）绝不短路，必须交给 LLM 深度挖掘全量事实、上下游依赖与各人分工，保障达到基线丰富度
         if not revision:
             projected = project_column_from_draft(
                 context, template, title=title, hint=hint, directives=directives
             )
-            if projected and not _is_column_overlong(projected, index):
+            is_exhaustive_projection = (
+                projected
+                and len([ln for ln in projected.splitlines() if ln.strip() and not ln.strip().startswith("**")]) >= 10
+                and len(projected) >= 350
+            )
+            if is_exhaustive_projection and not _is_column_overlong(projected, index):
                 projected = _strip_redundant_column_heading(projected, title)
                 if _section_has_table(template, title):
                     projected = _strip_markdown_tables(projected)
