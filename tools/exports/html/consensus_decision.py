@@ -14,17 +14,17 @@ from tools.exports.html.paper_css import latex_paper_css as _latex_paper_css
 
 
 GRADE_MAP = {
-    "hard_alignment": ("充分坚实共识", "Hard Alignment", "grade-hard", "dot-hard"),
-    "conditional_concession": ("带保留条件的妥协", "Conditional Concession", "grade-conditional", "dot-conditional"),
-    "unresolved_concern": ("未被采纳的关切", "Unresolved Concern", "grade-unresolved", "dot-unresolved"),
-    "active_disagreement": ("悬而未决的待决分歧", "Active Disagreement", "grade-disagreement", "dot-disagreement"),
+    "hard_alignment": ("一致赞成", "一致赞成", "grade-hard", "dot-hard"),
+    "conditional_concession": ("附带前提同意", "附带前提同意", "grade-conditional", "dot-conditional"),
+    "unresolved_concern": ("保留意见", "保留意见", "grade-unresolved", "dot-unresolved"),
+    "active_disagreement": ("悬而未决分歧", "悬而未决分歧", "grade-disagreement", "dot-disagreement"),
 }
 
 ARCHETYPE_MAP = {
-    "data_driven": "数据/标准驱动型 · Data-Driven",
-    "authority_fiat": "权威定夺型 · Authority Fiat",
-    "quid_pro_quo": "对等协同交换型 · Quid Pro Quo",
-    "consensus": "充分研讨共识型 · Consensus",
+    "data_driven": "数据驱动",
+    "authority_fiat": "最终拍板",
+    "quid_pro_quo": "协同交换",
+    "consensus": "讨论一致",
 }
 
 
@@ -73,7 +73,7 @@ def _get_speaker_initial(name_or_list: Any) -> str:
 def parse_consensus_decision_markdown(md: str) -> dict[str, Any]:
     """从 Markdown 文本容错解析出结构化草稿（确保在仅有 md 文本时依然能渲染出完整的脊柱流）。"""
     summary: dict[str, Any] = {}
-    headline_m = re.search(r">\s*(?:🧭\s*)?【执行健康度总评】\s*\\?\n>\s*([^\n]+(?:\n>[^\n]+)*)", md)
+    headline_m = re.search(r">\s*(?:🧭\s*)?【(?:执行健康度总评|执行评估|整体评估)】\s*\\?\n>\s*([^\n]+(?:\n>[^\n]+)*)", md)
     if headline_m:
         summary["health_headline"] = headline_m.group(1).replace("\n>", " ").strip()
 
@@ -87,25 +87,29 @@ def parse_consensus_decision_markdown(md: str) -> dict[str, Any]:
         topic = m_head.group(2).strip() if m_head else first_line.replace("###", "").strip()
 
         trigger = ""
-        m_trig = re.search(r"-\s*\*\*议题起因\s*\(Trigger\)\*\*[：:]\s*([^\n]+)", b)
+        m_trig = re.search(r"-\s*\*\*议题起因(?:\s*\(Trigger\))?\*\*[：:]\s*([^\n]+)", b)
         if m_trig:
             trigger = m_trig.group(1).strip()
 
         grade = "hard_alignment"
-        if "带保留妥协" in b or "conditional_concession" in b:
+        if any(k in b for k in ("附带前提同意", "带保留条件的妥协", "带保留妥协", "conditional_concession")):
             grade = "conditional_concession"
-        elif "未被采纳" in b or "unresolved_concern" in b:
+        elif any(k in b for k in ("保留意见", "未被采纳", "保留关切", "存在保留关切", "unresolved_concern")):
             grade = "unresolved_concern"
-        elif "悬而未决" in b or "待决分歧" in b or "active_disagreement" in b:
+        elif any(k in b for k in ("悬而未决", "待决分歧", "active_disagreement")):
             grade = "active_disagreement"
+        elif any(k in b for k in ("一致赞成", "充分坚实共识", "hard_alignment")):
+            grade = "hard_alignment"
 
         archetype = "consensus"
-        if "权威" in b or "authority_fiat" in b:
+        if any(k in b for k in ("最终拍板", "权威定夺", "权威", "authority_fiat")):
             archetype = "authority_fiat"
-        elif "数据" in b or "标准驱动" in b or "data_driven" in b:
+        elif any(k in b for k in ("数据驱动", "数据/标准驱动", "标准驱动", "data_driven")):
             archetype = "data_driven"
-        elif "协同交换" in b or "妥协交换" in b or "quid_pro_quo" in b:
+        elif any(k in b for k in ("协同交换", "对等协同交换", "妥协交换", "quid_pro_quo")):
             archetype = "quid_pro_quo"
+        elif any(k in b for k in ("讨论一致", "充分研讨共识", "consensus")):
+            archetype = "consensus"
 
         # Pro side
         pro_speakers: list[str] = []
@@ -121,7 +125,7 @@ def parse_consensus_decision_markdown(md: str) -> dict[str, Any]:
             pro_stance = m_pro.group(2).strip()
 
         m_pro_block = re.search(
-            r"(?:\[|【)?(?:主张方|主张/提案方|主张/汇报方|提案方)(?:\]|】)?[\s\S]*?(?=(?:\[|【)?(?:质询方|关切/质询方|关切/审议方|质询/关切方|审议方|关切方)(?:\]|】)?|####\s*2\.)",
+            r"(?:\[|【)?(?:主张方|主张/提案方|主张/汇报方|提案方)(?:\]|】)?[\s\S]*?(?=(?:\[|【)?(?:提出顾虑方|关切方|关切/质询方|关切/审议方|质询/关切方|质询方|审议方)(?:\]|】)?|####\s*2\.)",
             b,
         )
         if m_pro_block:
@@ -129,6 +133,12 @@ def parse_consensus_decision_markdown(md: str) -> dict[str, Any]:
             in_args = False
             for line in pro_text.splitlines():
                 ls = line.strip()
+                m_arg = re.search(r"^[-*]\s*\*\*(?:主要论据|支撑论据|核心论据|论据)\*\*[：:]\s*(.+)", ls)
+                if m_arg:
+                    arg_val = m_arg.group(1).strip()
+                    if arg_val:
+                        pro_args.append(arg_val)
+                    continue
                 if any(k in ls for k in ("主要论据", "支撑论据", "核心论据", "论据")):
                     in_args = True
                     continue
@@ -149,7 +159,7 @@ def parse_consensus_decision_markdown(md: str) -> dict[str, Any]:
         con_args: list[str] = []
         con_quote = ""
         m_con = re.search(
-            r"-\s*\*\*(?:\[|【)?(?:质询方|关切/质询方|关切/审议方|质询/关切方|审议方|关切方)(?:\]|】)?\s*([^：:\*]+)\*\*[：:]\s*\n\s*-\s*\*\*核心立场\*\*[：:]\s*([^\n]+)",
+            r"-\s*\*\*(?:\[|【)?(?:提出顾虑方|关切方|关切/质询方|关切/审议方|质询/关切方|质询方|审议方)(?:\]|】)?\s*([^：:\*]+)\*\*[：:]\s*\n\s*-\s*\*\*核心立场\*\*[：:]\s*([^\n]+)",
             b,
         )
         if m_con:
@@ -157,7 +167,7 @@ def parse_consensus_decision_markdown(md: str) -> dict[str, Any]:
             con_stance = m_con.group(2).strip()
 
         m_con_block = re.search(
-            r"(?:\[|【)?(?:质询方|关切/质询方|关切/审议方|质询/关切方|审议方|关切方)(?:\]|】)?[\s\S]*?(?=####\s*2\.)",
+            r"(?:\[|【)?(?:提出顾虑方|关切方|关切/质询方|关切/审议方|质询/关切方|质询方|审议方)(?:\]|】)?[\s\S]*?(?=####\s*2\.)",
             b,
         )
         if m_con_block:
@@ -165,7 +175,13 @@ def parse_consensus_decision_markdown(md: str) -> dict[str, Any]:
             in_args = False
             for line in con_text.splitlines():
                 ls = line.strip()
-                if any(k in ls for k in ("质询理由", "主要论据", "隐忧", "核心关切", "关切理由", "确认要点", "关切")):
+                m_carg = re.search(r"^[-*]\s*\*\*(?:顾虑|质疑理由|质询理由|主要论据|隐忧|核心关切|关切理由|确认要点|关切)\*\*[：:]\s*(.+)", ls)
+                if m_carg:
+                    carg_val = m_carg.group(1).strip()
+                    if carg_val:
+                        con_args.append(carg_val)
+                    continue
+                if any(k in ls for k in ("顾虑", "质疑理由", "质询理由", "主要论据", "隐忧", "核心关切", "关切理由", "确认要点", "关切")):
                     in_args = True
                     continue
                 if in_args and (ls.startswith("-") or ls.startswith("*")):
@@ -182,7 +198,7 @@ def parse_consensus_decision_markdown(md: str) -> dict[str, Any]:
         # Accord
         accord = ""
         m_acc = re.search(
-            r"####\s*2\.\s*(?:达成决议与共识结论|达成决议与共识公约|达成决议与破局公约|破局妥协公约|破局决议与终局公约|达成决议与终局公约|共识决议)\s*(?:\(Accord & Resolution\)|\(Accord\))?[\s\S]*?>\s*([^\n]+(?:\n>[^\n]+)*)",
+            r"####\s*2\.\s*(?:达成决议|达成决议与共识结论|达成决议与共识公约|达成决议与破局公约|破局妥协公约|破局决议与终局公约|达成决议与终局公约|共识决议)\s*(?:\([^\)]+\))?[\s\S]*?>\s*([^\n]+(?:\n>[^\n]+)*)",
             b,
         )
         if m_acc:
@@ -190,18 +206,19 @@ def parse_consensus_decision_markdown(md: str) -> dict[str, Any]:
 
         # Caveat
         caveat = ""
-        m_cav = re.search(r"####\s*3\.\s*(?:⚠️\s*)?附加保留条件与防范预警\s*\(Caveat\)[\s\S]*?>\s*([^\n]+(?:\n>[^\n]+)*)", b)
+        m_cav = re.search(r"####\s*3\.\s*(?:⚠️\s*)?(?:附带前提与预警|附加保留条件与防范预警|附加前提与预警|附加条件|保留条件)\s*(?:\([^\)]+\))?[\s\S]*?>\s*([^\n]+(?:\n>[^\n]+)*)", b)
         if m_cav:
             caveat = m_cav.group(1).replace("\n>", " ").strip()
-            if caveat.startswith("**保留前提与预警**："):
-                caveat = caveat[len("**保留前提与预警**："):].strip()
+            for prefix in ("**附带前提**：", "**保留前提与预警**：", "**前提与预警**："):
+                if caveat.startswith(prefix):
+                    caveat = caveat[len(prefix):].strip()
 
         # Trade off
         gain = ""
         sacrifice = ""
-        m_gain = re.search(r"-\s*\*\*(?:▲\s*)?换取的核心价值\s*\(Gain\)\*\*[：:]\s*([^\n]+)", b)
+        m_gain = re.search(r"-\s*\*\*(?:▲\s*)?(?:获取的好处|换取的核心价值)(?:\s*\(Gain\))?\*\*[：:]\s*([^\n]+)", b)
         m_sac = re.search(
-            r"-\s*\*\*(?:▼\s*)?(?:承受的主动代价|承受的主动代价与成本|承受的代价与承诺|付出的代价与成本)\s*\(Sacrifice\)\*\*[：:]\s*([^\n]+)",
+            r"-\s*\*\*(?:▼\s*)?(?:付出的代价|承受的主动代价|承受的主动代价与成本|承受的代价与承诺|付出的代价与成本)(?:\s*\(Sacrifice\))?\*\*[：:]\s*([^\n]+)",
             b,
         )
         if m_gain:
@@ -212,7 +229,7 @@ def parse_consensus_decision_markdown(md: str) -> dict[str, Any]:
         # Rollback
         rollback = ""
         m_roll = re.search(
-            r"####\s*5\.\s*(?:重议触发红线与复核机制|重议红线与复核机制|方案重议红线与复核机制|翻盘红线与复核机制|翻盘回滚红线)\s*(?:\(Rollback Trigger\)|\(Review & Risk Boundary\))?[\s\S]*?>\s*([^\n]+(?:\n>[^\n]+)*)",
+            r"####\s*5\.\s*(?:底线|重议触发红线与复核机制|重议红线与复核机制|方案重议红线与复核机制|翻盘红线与复核机制|翻盘回滚红线)\s*(?:\([^\)]+\))?[\s\S]*?>\s*([^\n]+(?:\n>[^\n]+)*)",
             b,
         )
         if m_roll:
@@ -220,7 +237,7 @@ def parse_consensus_decision_markdown(md: str) -> dict[str, Any]:
 
         # Key quote
         key_quote = ""
-        m_kq = re.search(r"-\s*\*\*现场关键(?:定调|决策)?(?:原句|引句)\*\*[：:]\s*[“\"]([^”\"]+)[”\"]", b)
+        m_kq = re.search(r"-\s*\*\*(?:现场原话|现场关键发言|现场关键(?:定调|决策)?(?:原句|引句))\*\*[：:]\s*[“\"]([^”\"]+)[”\"]", b)
         if m_kq:
             key_quote = m_kq.group(1).strip()
 
@@ -254,8 +271,8 @@ def parse_consensus_decision_markdown(md: str) -> dict[str, Any]:
     return {"summary": summary, "issues": issues}
 
 
-def format_consensus_decision_markdown(draft: dict[str, Any], title: str = "共识成色与因果决策推演报告") -> str:
-    """把结构化草稿格式化为麦肯锡/高盛决策备忘录质感的高级 Markdown 文档。"""
+def format_consensus_decision_markdown(draft: dict[str, Any], title: str = "决策分析与共识报告") -> str:
+    """把结构化草稿格式化为通俗、清晰的决策概览与议题决定过程 Markdown 文档。"""
     issues = draft.get("issues") or []
     summary = draft.get("summary") or {}
     health_headline = _safe_str(summary.get("health_headline"))
@@ -279,29 +296,29 @@ def format_consensus_decision_markdown(draft: dict[str, Any], title: str = "共�
     speaker_text = "、".join(all_speakers) if all_speakers else "全体参会人员"
 
     md_lines: list[str] = []
-    display_title = title if title else "共识分析与决策推演报告"
-    if not display_title.endswith("报告") and not display_title.endswith("推演"):
-        display_title = f"{display_title} · 共识分析与决策推演报告"
+    display_title = title if title else "决策分析与共识报告"
+    if not display_title.endswith("报告") and not display_title.endswith("推演") and not display_title.endswith("决议"):
+        display_title = f"{display_title} · 决策分析与共识报告"
 
     md_lines.append(f"# {display_title}\n")
-    md_lines.append(f"> **研讨议题数**：{total_issues} 项关键决议 | **共识分布**：{hard_count} 项充分共识 · {conditional_count} 项带保留妥协 · {unresolved_count} 项未决分歧  ")
+    md_lines.append(f"> **研讨议题数**：{total_issues} 项关键决议 | **共识分布**：{hard_count} 项一致赞成 · {conditional_count} 项附带前提同意 · {unresolved_count} 项未决分歧  ")
     md_lines.append(f"> **核心研讨成员**：{speaker_text}\n")
     md_lines.append("---\n")
 
-    md_lines.append("## 第一部分：全局共识收敛度与执行风险总览 (Consensus Overview)\n")
-    md_lines.append("| 统计指标 | 数量 | 战略诊断说明 |")
+    md_lines.append("## 第一部分：决策概览\n")
+    md_lines.append("| 统计指标 | 数量 | 实际情况 |")
     md_lines.append("| :--- | :---: | :--- |")
-    md_lines.append(f"| **深度研讨议题** | **{total_issues} 项** | 核心实质性议题推演 |")
-    md_lines.append(f"| **充分坚实共识** | **{hard_count} 项** | 各方理念充分对齐，无附加免责条件 |")
-    md_lines.append(f"| **带保留条件的妥协** | **{conditional_count} 项** | **重点关注**：表面达成一致，但附带严苛前提或免责声明 |")
-    md_lines.append(f"| **悬而未决的待决分歧** | **{unresolved_count} 项** | 未决关切或待决争议，需持续跟进落实 |")
+    md_lines.append(f"| **深度研讨议题** | **{total_issues} 项** | 核心实质性议题 |")
+    md_lines.append(f"| **一致赞成** | **{hard_count} 项** | 各方充分认可，无附加条件 |")
+    md_lines.append(f"| **附带前提同意** | **{conditional_count} 项** | 表面达成一致，但附带前提或限制要求 |")
+    md_lines.append(f"| **悬而未决的待决分歧** | **{unresolved_count} 项** | 未达成一致，需后续跟进 |")
     md_lines.append("")
 
-    headline_text = health_headline if health_headline else ("本次会议共识整体收敛，执行风险可控。" if conditional_count == 0 else "需重点关注带保留条件的议题，防范后续执行脱轨与重议风险。")
+    headline_text = health_headline if health_headline else ("本次会议共识整体收敛，执行风险可控。" if conditional_count == 0 else "需重点关注附带前提的议题，做好后续跟进。")
     md_lines.append(f"> **【执行健康度总评】**  \n> {headline_text}\n")
     md_lines.append("---\n")
 
-    md_lines.append("## 第二部分：核心议题研讨与决议推演 (Key Deliberations & Decisions)\n")
+    md_lines.append("## 第二部分：议题决定过程\n")
 
     if not issues:
         md_lines.append("本次会议未识别出重大分歧或妥协决议事项，各项议题均以常规流程平稳推进。\n")
@@ -313,27 +330,27 @@ def format_consensus_decision_markdown(draft: dict[str, Any], title: str = "共�
         trigger = _safe_str(item.get("trigger")) or "议题现状痛点研讨"
 
         grade_key = _safe_str(item.get("consensus_grade"))
-        grade_label = GRADE_MAP.get(grade_key, (grade_key or "充分研讨共识", "", ""))[0]
+        grade_label = GRADE_MAP.get(grade_key, (grade_key or "一致赞成", "", "", ""))[0]
 
         archetype_key = _safe_str(item.get("archetype"))
-        archetype_label = ARCHETYPE_MAP.get(archetype_key, archetype_key or "充分研讨共识型")
+        archetype_label = ARCHETYPE_MAP.get(archetype_key, archetype_key or "讨论一致")
 
         md_lines.append(f"### 议题 {issue_id} · {topic}\n")
-        md_lines.append(f"- **议题起因 (Trigger)**：{trigger}")
-        md_lines.append(f"- **共识分级定级**：`[{grade_label}]`")
-        md_lines.append(f"- **裁决达成形态**：`[{archetype_label}]`\n")
+        md_lines.append(f"- **议题起因**：{trigger}")
+        md_lines.append(f"- **共识分级**：`[{grade_label}]`")
+        md_lines.append(f"- **决定方式**：`[{archetype_label}]`\n")
 
-        # 研讨与多方关切
+        # 各方观点
         pro = item.get("pro_side") or {}
         con = item.get("con_side") or {}
         pro_speakers = "、".join(pro.get("speakers") or []) or "主张方"
-        con_speakers = "、".join(con.get("speakers") or []) or "关切/质询方"
+        con_speakers = "、".join(con.get("speakers") or []) or "提出顾虑方"
         pro_stance = _safe_str(pro.get("stance")) or "推进实施"
         con_stance = _safe_str(con.get("stance")) or "审慎评估"
         pro_quote = _safe_str(pro.get("quote"))
         con_quote = _safe_str(con.get("quote"))
 
-        md_lines.append("#### 1. 研讨考量与多方关切 (Deliberation & Key Concerns)")
+        md_lines.append("#### 1. 各方观点与讨论")
         md_lines.append(f"- **[主张/提案方] {pro_speakers}**：")
         md_lines.append(f"  - **核心立场**：{pro_stance}")
         for arg in (pro.get("arguments") or []):
@@ -342,28 +359,28 @@ def format_consensus_decision_markdown(draft: dict[str, Any], title: str = "共�
         if pro_quote:
             md_lines.append(f"  - **原文引句**：“{pro_quote}”")
 
-        md_lines.append(f"- **[关切/质询方] {con_speakers}**：")
+        md_lines.append(f"- **[提出顾虑方] {con_speakers}**：")
         md_lines.append(f"  - **核心立场**：{con_stance}")
         for arg in (con.get("arguments") or []):
             if _safe_str(arg):
-                md_lines.append(f"  - **关切**：{arg}")
+                md_lines.append(f"  - **顾虑**：{arg}")
         if con_quote:
             md_lines.append(f"  - **原文引句**：“{con_quote}”")
         md_lines.append("")
 
         # 达成决议与共识结论
         accord = _safe_str(item.get("accord")) or "各方达成共识，按既定决议推进。"
-        md_lines.append("#### 2. 达成决议与共识结论 (Accord & Resolution)")
+        md_lines.append("#### 2. 达成决议")
         md_lines.append(f"> {accord}\n")
 
         # 保留条件 Caveat
         caveat = _safe_str(item.get("caveat"))
-        if caveat and caveat.lower() not in ("null", "none", "无", "无保留条件", "无附加保留条件"):
-            md_lines.append("#### 3. 附加保留条件与防范预警 (Caveat)")
-            md_lines.append(f"> **保留前提与预警**：{caveat}\n")
+        if caveat and caveat.lower() not in ("null", "none", "无", "无保留条件", "无附加保留条件", "无附加前提", "无附加前提条件"):
+            md_lines.append("#### 3. 附带前提与预警")
+            md_lines.append(f"> **附带前提**：{caveat}\n")
         else:
-            md_lines.append("#### 3. 附加保留条件与防范预警 (Caveat)")
-            md_lines.append("> 无附加保留条件，全员充分闭环对齐。\n")
+            md_lines.append("#### 3. 附带前提与预警")
+            md_lines.append("> 无附加前提，各方一致赞成。\n")
 
         # 权衡取舍与成本代价
         tradeoff = item.get("trade_off") or {}
@@ -371,19 +388,19 @@ def format_consensus_decision_markdown(draft: dict[str, Any], title: str = "共�
         sacrifice = _safe_str(tradeoff.get("sacrifice")) or "承担部分灵活性损失或过渡成本"
         gain = re.sub(r"^[▲▼\s\-\:：]+", "", gain).strip()
         sacrifice = re.sub(r"^[▲▼\s\-\:：]+", "", sacrifice).strip()
-        md_lines.append("#### 4. 权衡取舍与成本代价 (Trade-Off & Commitments)")
-        md_lines.append(f"- **换取的核心价值 (Gain)**：{gain}")
-        md_lines.append(f"- **承受的主动代价 (Sacrifice)**：{sacrifice}\n")
+        md_lines.append("#### 4. 权衡取舍")
+        md_lines.append(f"- **获取的好处**：{gain}")
+        md_lines.append(f"- **付出的代价**：{sacrifice}\n")
 
         # 重议触发红线与复核机制
-        rollback = _safe_str(item.get("rollback_trigger")) or "无明确重议红线，按里程碑复核推进。"
-        md_lines.append("#### 5. 重议触发红线与复核机制 (Review & Risk Boundary)")
+        rollback = _safe_str(item.get("rollback_trigger")) or "无明确底线，按里程碑复核推进。"
+        md_lines.append("#### 5. 底线")
         md_lines.append(f"> {rollback}\n")
 
         # 关键引句
         key_quote = _safe_str(item.get("key_quote"))
         if key_quote:
-            md_lines.append(f"- **现场关键定调原句**：“{key_quote}”\n")
+            md_lines.append(f"- **现场原话**：“{key_quote}”\n")
 
         md_lines.append("---\n")
 
@@ -944,27 +961,27 @@ def render_consensus_decision_html(title: str, text: str, data: dict | None = No
       <div class="compass-score-deck">
         <div class="score-card">
           <div class="score-num">{total_issues}</div>
-          <div class="score-label">深度研讨议题</div>
+          <div class="score-label">研讨议题</div>
         </div>
         <div class="score-card score-hard">
           <div class="score-num">{hard_count}</div>
-          <div class="score-label">充分硬共识 (Zero Caveat)</div>
+          <div class="score-label">一致赞成</div>
         </div>
         <div class="score-card score-conditional">
           <div class="score-num">{conditional_count}</div>
-          <div class="score-label">带保留妥协 (需重点跟进)</div>
+          <div class="score-label">附带前提同意</div>
         </div>
         <div class="score-card score-unresolved">
           <div class="score-num">{unresolved_count}</div>
-          <div class="score-label">待决分歧 / 关切残留</div>
+          <div class="score-label">待决分歧</div>
         </div>
       </div>
       <div class="compass-nav-rail">
-        <span class="nav-rail-title">议题脉络导轨：</span>
+        <span class="nav-rail-title">议题导轨：</span>
         {nav_rail_html}
       </div>
       <div class="compass-diagnosis">
-        <strong>战略评估总评：</strong>{_md_to_html_inline(headline_text)}
+        <strong>实际情况：</strong>{_md_to_html_inline(headline_text)}
       </div>
     </div>
     """
@@ -974,16 +991,16 @@ def render_consensus_decision_html(title: str, text: str, data: dict | None = No
     for idx, item in enumerate(issues, start=1):
         issue_id = escape(_safe_str(item.get("issue_id")) or f"ISS-{idx:02d}", quote=False)
         topic = escape(_safe_str(item.get("topic")) or f"议题 #{idx}", quote=False)
-        trigger = _md_to_html_inline(_safe_str(item.get("trigger")) or "议题现状痛点与方案博弈研讨")
+        trigger = _md_to_html_inline(_safe_str(item.get("trigger")) or "议题现状痛点与方案讨论")
 
         grade_key = _safe_str(item.get("consensus_grade"))
-        grade_info = GRADE_MAP.get(grade_key, (grade_key or "自然充分共识", "", "grade-hard", "dot-hard"))
+        grade_info = GRADE_MAP.get(grade_key, (grade_key or "一致赞成", "", "grade-hard", "dot-hard"))
         grade_label = escape(grade_info[0], quote=False)
         grade_capsule_cls = grade_info[2]
         grade_dot_cls = grade_info[3]
 
         archetype_key = _safe_str(item.get("archetype"))
-        archetype_label = escape(ARCHETYPE_MAP.get(archetype_key, archetype_key or "充分共识型"), quote=False)
+        archetype_label = escape(ARCHETYPE_MAP.get(archetype_key, archetype_key or "讨论一致"), quote=False)
 
         # Pro side
         pro = item.get("pro_side") or {}
@@ -999,12 +1016,12 @@ def render_consensus_decision_html(title: str, text: str, data: dict | None = No
         # Con side
         con = item.get("con_side") or {}
         con_speakers = con.get("speakers") or []
-        con_speaker_text = escape("、".join(con_speakers) or "质询方", quote=False)
+        con_speaker_text = escape("、".join(con_speakers) or "提出顾虑方", quote=False)
         con_initial = _get_speaker_initial(con_speakers) if con_speakers else "审"
-        con_stance = _md_to_html_inline(_safe_str(con.get("stance")) or "审慎关切")
+        con_stance = _md_to_html_inline(_safe_str(con.get("stance")) or "提出顾虑")
         con_quote = escape(_safe_str(con.get("quote")), quote=False)
         con_args = [_md_to_html_inline(_safe_str(a)) for a in (con.get("arguments") or []) if _safe_str(a)]
-        con_args_li = "".join(f"<li>{a}</li>" for a in con_args) if con_args else "<li>审慎评估执行风险与隐患</li>"
+        con_args_li = "".join(f"<li>{a}</li>" for a in con_args) if con_args else "<li>充分评估执行风险与隐患</li>"
         con_quote_html = f'<div class="verbatim-pullquote">“{con_quote}”</div>' if con_quote else ""
 
         # Accord (最终解决)
@@ -1012,16 +1029,16 @@ def render_consensus_decision_html(title: str, text: str, data: dict | None = No
 
         # Caveat
         caveat = _safe_str(item.get("caveat"))
-        if caveat and caveat.lower() not in ("null", "none", "无", "无保留条件", "无附加保留条件"):
+        if caveat and caveat.lower() not in ("null", "none", "无", "无保留条件", "无附加保留条件", "无附加前提", "无附加前提条件"):
             caveat_html = f"""
             <div class="caveat-warning-strip">
-              <strong>附加保留条件与履约预警：</strong>{_md_to_html_inline(caveat)}
+              <strong>附带前提：</strong>{_md_to_html_inline(caveat)}
             </div>
             """
         else:
             caveat_html = """
             <div class="caveat-clean-strip">
-              全员无附加保留条件，逻辑闭环对齐
+              无附加前提，各方一致赞成
             </div>
             """
 
@@ -1033,9 +1050,9 @@ def render_consensus_decision_html(title: str, text: str, data: dict | None = No
         sacrifice = _md_to_html_inline(raw_sacrifice or "承担部分灵活性损失或过渡成本")
 
         # Rollback & Key quote
-        rollback = _md_to_html_inline(_safe_str(item.get("rollback_trigger")) or "无明确翻盘红线，按里程碑复核推进。")
+        rollback = _md_to_html_inline(_safe_str(item.get("rollback_trigger")) or "无明确底线，按里程碑复核推进。")
         key_quote = escape(_safe_str(item.get("key_quote")), quote=False)
-        ruling_quote_html = f'<div class="ruling-quote-ribbon"><span class="ruling-tag">现场定调决策：</span>“{key_quote}”</div>' if key_quote else ""
+        ruling_quote_html = f'<div class="ruling-quote-ribbon"><span class="ruling-tag">现场原话：</span>“{key_quote}”</div>' if key_quote else ""
 
         stream_item_html = f"""
         <section class="stream-section" id="stream-{issue_id}">
@@ -1063,7 +1080,7 @@ def render_consensus_decision_html(title: str, text: str, data: dict | None = No
                 <div class="marker-origin-dot" title="议题起因"></div>
               </div>
               <div class="origin-card">
-                <div class="origin-eyebrow">议题源起与背景动因 · Inception & Trigger</div>
+                <div class="origin-eyebrow">议题起因</div>
                 <div class="origin-narrative">{trigger}</div>
               </div>
             </div>
@@ -1077,7 +1094,7 @@ def render_consensus_decision_html(title: str, text: str, data: dict | None = No
                 <div class="stance-card-header">
                   <div class="speaker-title-wrap">
                     <span class="speaker-name-strong">{pro_speaker_text}</span>
-                    <span class="stance-role-tag role-pro">主张推进 · Proponent</span>
+                    <span class="stance-role-tag role-pro">主张方</span>
                   </div>
                 </div>
                 <div class="stance-thesis">{pro_stance}</div>
@@ -1088,16 +1105,16 @@ def render_consensus_decision_html(title: str, text: str, data: dict | None = No
               </div>
             </div>
 
-            <!-- Node 3: 关切质询/审议观点 -->
+            <!-- Node 3: 提出顾虑方观点 -->
             <div class="spine-node node-con">
               <div class="spine-marker">
-                <div class="speaker-avatar-circle avatar-con" title="关切质询: {con_speaker_text}">{con_initial}</div>
+                <div class="speaker-avatar-circle avatar-con" title="提出顾虑方: {con_speaker_text}">{con_initial}</div>
               </div>
               <div class="stance-card">
                 <div class="stance-card-header">
                   <div class="speaker-title-wrap">
                     <span class="speaker-name-strong">{con_speaker_text}</span>
-                    <span class="stance-role-tag role-con">关切质询 · Deliberation & Concerns</span>
+                    <span class="stance-role-tag role-con">提出顾虑方</span>
                   </div>
                 </div>
                 <div class="stance-thesis">{con_stance}</div>
@@ -1108,7 +1125,7 @@ def render_consensus_decision_html(title: str, text: str, data: dict | None = No
               </div>
             </div>
 
-            <!-- Node 4: 达成决议与共识结论 (The Accord & Resolution) -->
+            <!-- Node 4: 达成决议 -->
             <div class="spine-node node-accord">
               <div class="spine-marker">
                 <div class="marker-seal-circle" title="决议结论">决</div>
@@ -1116,7 +1133,7 @@ def render_consensus_decision_html(title: str, text: str, data: dict | None = No
               <div class="accord-resolution-dossier">
                 <div class="accord-top-eyebrow">
                   <div class="accord-label-headline">
-                    达成决议与共识结论 · The Accord & Resolution
+                    达成决议
                   </div>
                   <div class="accord-archetype-tag">{archetype_label}</div>
                 </div>
@@ -1125,26 +1142,26 @@ def render_consensus_decision_html(title: str, text: str, data: dict | None = No
               </div>
             </div>
 
-            <!-- Node 5: 履约防线、权衡代价与重议红线 -->
+            <!-- Node 5: 附带前提、权衡取舍与底线 -->
             <div class="spine-node node-safeguards">
               <div class="spine-marker">
-                <div class="marker-terminal-anchor" title="执行保障与红线"></div>
+                <div class="marker-terminal-anchor" title="底线与保障"></div>
               </div>
               <div class="safeguards-container">
                 {caveat_html}
                 <div class="balance-scale-grid tradeoff-deck">
                   <div class="scale-card-gain">
-                    <div class="scale-head-label">换取的核心价值 · Gain</div>
+                    <div class="scale-head-label">获取的好处</div>
                     <div class="scale-body-text">{gain}</div>
                   </div>
                   <div class="scale-pivot-cell">VS</div>
                   <div class="scale-card-sacrifice">
-                    <div class="scale-head-label">承受的代价与承诺 · Commitments & Trade-Off</div>
+                    <div class="scale-head-label">付出的代价</div>
                     <div class="scale-body-text">{sacrifice}</div>
                   </div>
                 </div>
                 <div class="rollback-tripwire-bar">
-                  <span class="tripwire-label">重议触发红线与复核机制：</span>{rollback}
+                  <span class="tripwire-label">底线：</span>{rollback}
                 </div>
               </div>
             </div>
@@ -1172,12 +1189,12 @@ def render_consensus_decision_html(title: str, text: str, data: dict | None = No
     <div class="ck-doc">
       <header class="ck-doc-header">
         <h1>{doc_title}</h1>
-        <div class="ck-doc-meta">麦肯锡决策备忘录规范 · 关键议题共识度与决议脉络推演</div>
+        <div class="ck-doc-meta">关键议题决策概览与共识分析</div>
       </header>
       <div class="ck-doc-content">
         {compass_html}
         <h2 style="margin: 32px 0 20px; border-bottom: 2px solid #111111; padding-bottom: 6px;">
-          核心议题研讨与决议脉络 (Key Deliberations & Decision Streams)
+          议题决定过程
         </h2>
         {streams_content}
       </div>

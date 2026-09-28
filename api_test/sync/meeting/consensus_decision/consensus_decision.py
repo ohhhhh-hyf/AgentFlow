@@ -153,7 +153,7 @@ TRANSCRIPT = """
 唉行。
 """
 
-URL = "http://10.33.240.226:8003/api/agent/v1"
+URL = "http://127.0.0.1:8000/api/agent/v1"
 USER_ID = "1"
 
 resp = requests.post(
