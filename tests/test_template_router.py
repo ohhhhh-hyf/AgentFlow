@@ -628,6 +628,11 @@ def test_minutes_chain_consistency() -> None:
           "「人」不是板块" in BODY_FORMAT_RULES
           and "（本人那一组写 `**与我相关**：`）" in BODY_FORMAT_RULES
           and "不得把人名或「与我相关」写成 `##` 标题" in BODY_FORMAT_RULES, "")
+    check("形态单点：受控二级缩进显式场景触发口径到位",
+          "受控二级缩进（显式场景触发）" in BODY_FORMAT_RULES
+          and "现状/问题 与 解决方案 并存时" in BODY_FORMAT_RULES
+          and "赞成观点/优势 与 潜在顾虑/风险 并存时" in BODY_FORMAT_RULES
+          and "核心交付物 包含多个并列指标/模块/时限时" in BODY_FORMAT_RULES, "")
     stale = ["每栏至少 2 个分类标签", "每条 20–80 字", "每条 2–3 处（分类标签"]
     hit = [k for k in stale if any(k in t for t in (fill_system, user, PLACEHOLDER_RULES, draft, render))]
     check("旧形态口径已从全部路径清除", not hit, f"残留={hit}")
