@@ -67,6 +67,35 @@ def _extract_agenda_and_transcript(shared_context: str) -> tuple[str, str]:
     return agenda_text, transcript_text
 
 
+def _extract_budgeted_evidence(
+    align: AgendaAlignment,
+    max_chars: int = 12000,
+) -> str:
+    """按预算截取议题证据，优先确保官方汇报人的发言100%保留。"""
+    if len(align.evidence_text) <= max_chars:
+        return align.evidence_text
+
+    blocks = align.matched_blocks
+    presenters = set(align.item.presenters)
+    # 优先抽取汇报人自己的发言
+    pres_blocks = [b for b in blocks if any(p in b.speaker for p in presenters)]
+    other_blocks = [b for b in blocks if not any(p in b.speaker for p in presenters)]
+
+    selected: list[Any] = list(pres_blocks)
+    current_len = sum(len(b.content) for b in selected)
+
+    # 填充其他重要讨论块（问答、决议）
+    for b in other_blocks:
+        if current_len + len(b.content) > max_chars:
+            break
+        selected.append(b)
+        current_len += len(b.content)
+
+    selected.sort(key=lambda b: b.index)
+    lines_buf = [f"{b.speaker} {b.timestamp}\n{b.content.strip()}" for b in selected]
+    return "\n\n".join(lines_buf)
+
+
 class AgendaMinutesAgent:
     """议程驱动型会议纪要 Agent（免分类通用四要素与绝对骨架锁定）。"""
 
@@ -76,11 +105,12 @@ class AgendaMinutesAgent:
     async def run(self, shared_context: str) -> AgendaMinutes:
         agenda_raw, transcript = _extract_agenda_and_transcript(shared_context)
 
-        # 1. 议程大盘解析
+        # 1. 议程大盘解析：Fail-Fast 坚决不反向扫描转写
         plan = parse_agenda_text(agenda_raw)
         if not plan.items:
-            # 容错：若未在专门议程单块提取到，尝试从全文解析
-            plan = parse_agenda_text(transcript)
+            raise ValueError(
+                "未能从输入文档中解析出会前既定议程单（请提供包含序号和议题名称的标准文档或清晰图片）。"
+            )
 
         # 2. 发言人双向锚定对齐
         alignment_res = align_agenda_with_transcript(plan, transcript)
@@ -106,13 +136,14 @@ class AgendaMinutesAgent:
             if a.status == "skipped":
                 context_prompt_parts.append(
                     f"\n### 议题 {a.item.seq} · {a.item.title}\n"
-                    f"【状态】：本次未讨论（录音全文未见汇报人发言及相关审议，严格标记为 skipped，禁止臆造）\n"
+                    f"【状态】：本次未讨论（录音全文未见汇报人发言及相关审议，严格标记为 skipped，禁止臆造，要素保持为空）\n"
                 )
             else:
+                budgeted_evidence = _extract_budgeted_evidence(a, max_chars=12000)
                 context_prompt_parts.append(
                     f"\n### 议题 {a.item.seq} · {a.item.title}\n"
                     f"【出场汇报人与发言人】：{', '.join(a.matched_speakers[:8])}\n"
-                    f"【现场实录切片（真实发言原声）】：\n{a.evidence_text[:12000]}\n"
+                    f"【现场实录切片（真实发言原声）】：\n{budgeted_evidence}\n"
                 )
 
         if alignment_res.adhoc_blocks:
@@ -179,21 +210,18 @@ class AgendaMinutesAgent:
             pres_str = "、".join(it.presenters) if it.presenters else (it.raw_presenter or "")
 
             if align.status == "skipped":
-                # 零证据确定性截断：绝对不保留任何脑补的指标或争锋
+                # 零证据确定性置空：不写要点、不写决议、不写「建议顺延」，要素彻底留空
                 enforced_item = {
                     "agenda_seq": seq,
-                    "agenda_title": it.title,  # 100% 遵从 txt
+                    "agenda_title": it.title,  # 100% 遵从 txt 法定原案
                     "presenter": pres_str,
                     "status_tag": "[本次未讨论]",
-                    "proposal_highlights": [
-                        f"既定议题全称：{it.title}",
-                        "现场会议录音转写未见汇报人上线发言，相关议题未进入实录审议环节。",
-                    ],
+                    "proposal_highlights": [],
                     "deliberation_details": {
                         "key_metrics": [],
                         "feedback_concerns": [],
                     },
-                    "resolution": "现场录音转写未见针对本议题的汇报或审议讨论记录，建议后续单独对齐或顺延至下期例会。",
+                    "resolution": "",
                     "action_commitments": [],
                     "discussion_state": "skipped",
                 }
@@ -203,17 +231,22 @@ class AgendaMinutesAgent:
                 if not isinstance(delib, dict):
                     delib = {"key_metrics": [], "feedback_concerns": []}
 
+                status_tag = str(raw_match.get("status_tag") or "").strip()
+                if not status_tag or status_tag == "[本次未讨论]":
+                    status_tag = "[审议通过]"
+
                 enforced_item = {
                     "agenda_seq": seq,
                     "agenda_title": it.title,  # 100% 遵从 txt 法定原案
                     "presenter": pres_str or str(raw_match.get("presenter") or ""),
-                    "status_tag": str(raw_match.get("status_tag") or "[审议通过]").strip(),
+                    "status_tag": status_tag,
                     "proposal_highlights": list(raw_match.get("proposal_highlights") or [f"既定议题审议：{it.title}"]),
                     "deliberation_details": {
                         "key_metrics": list(delib.get("key_metrics") or []),
                         "feedback_concerns": list(delib.get("feedback_concerns") or []),
                     },
-                    "resolution": str(raw_match.get("resolution") or "原则同意推进，按会议评审意见闭环。").strip(),
+                    # 拿掉默认通过语：未形成决议则保持为空，严禁随意补「原则同意推进」
+                    "resolution": str(raw_match.get("resolution") or "").strip(),
                     "action_commitments": list(raw_match.get("action_commitments") or []),
                     "discussion_state": "discussed",
                 }

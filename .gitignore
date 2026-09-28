@@ -24,6 +24,7 @@ data/*/knowledge/
 data/*/output/
 data/output/
 logs/
+log/
 /api_test/meeting
 
 

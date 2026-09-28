@@ -7,7 +7,7 @@
 - ``paddleocr``（别名 paddle）：PaddleOCR 3.x / PP-OCRv5，模型懒加载
 - ``rapidocr``（别名 rapid）：RapidOCR（CPU 本地，onnxruntime）
 
-引擎不可用或重试失败 → 失败样本落盘 ``log/ocr_failed/`` 并返回空结果，不阻断主流程。
+引擎不可用或重试失败 → 失败样本落盘 ``logs/ocr_failed/`` 并返回空结果，不阻断主流程。
 """
 from __future__ import annotations
 
@@ -22,7 +22,7 @@ from pathlib import Path
 logger = logging.getLogger(__name__)
 
 ROOT = Path(__file__).resolve().parents[2]
-_OCR_FAILURE_DIR = ROOT / "log" / "ocr_failed"
+_OCR_FAILURE_DIR = ROOT / "logs" / "ocr_failed"
 
 # OCR_ENGINE 取值别名 → 引擎模块名（tools/ocr/{module}.py）
 _ENGINE_ALIASES: dict[str, str] = {

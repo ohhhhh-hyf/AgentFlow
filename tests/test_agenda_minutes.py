@@ -129,7 +129,14 @@ def test_agenda_parser_bullet_fallback():
 
 
 def test_alignment_engine_test1_grounding_and_zero_evidence():
-    """核心防幻觉单测：验证 Test 1 中会议顺序变化（先议题2、再议题1、再议题4）与替代汇报人自适应绑定、未讨论议题3确定性截断。"""
+    """核心防幻觉单测：验证 Test 1 中发言块独立路由。
+    
+    结果：
+    - 议题01（小艺慧记，申家坤）：申家坤未参会未发言，如实判为 skipped，块数为 0；
+    - 议题02（翻译海外，刘畅）：正常讨论，为 discussed；
+    - 议题03（HAG）：未参会，为 skipped；
+    - 议题04（SpeechASR，陆敬怡等）：陆敬怡发言准确归入议题04（不再被孤立标题抢占到议题01），为 discussed。
+    """
     docx_path = AGENDA_DIR / "test1" / "商评1.docx"
     txt_path = AGENDA_DIR / "test1" / "商评1.txt"
     if not docx_path.is_file() or not txt_path.is_file():
@@ -141,15 +148,14 @@ def test_alignment_engine_test1_grounding_and_zero_evidence():
 
     res = align_agenda_with_transcript(plan, transcript)
     assert len(res.alignments) == 4
-    # 核心判决：既定议题1（小艺慧记）、2（翻译海外）、4（SpeechASR）均有充分审议，为 discussed；议题3（HAG）未讨论，为 skipped
-    assert res.discussed_count == 3
-    assert res.skipped_count == 1
+    # 核心判决：02 与 04 有效讨论，01 与 03 确实未讨论
+    assert res.discussed_count == 2
+    assert res.skipped_count == 2
 
     a1, a2, a3, a4 = res.alignments
     assert a1.item.seq == "01"
-    assert a1.status == "discussed"
-    assert "陆敬怡" in a1.matched_speakers
-    assert len(a1.matched_blocks) > 30
+    assert a1.status == "skipped"
+    assert a1.matched_blocks == []
 
     assert a2.item.seq == "02"
     assert a2.status == "discussed"
@@ -162,8 +168,43 @@ def test_alignment_engine_test1_grounding_and_zero_evidence():
 
     assert a4.item.seq == "04"
     assert a4.status == "discussed"
-    assert "耿安峰" in a4.matched_speakers
+    assert "陆敬怡" in a4.matched_speakers
     assert len(a4.matched_blocks) > 100
+
+
+def test_alignment_engine_test2_all_presenters_grounding():
+    """验证 Test 2 中 9 项议题依靠汇报人主权发言彻底解决标题错位问题。"""
+    docx_path = AGENDA_DIR / "test2" / "商评2.docx"
+    txt_path = AGENDA_DIR / "test2" / "商评2.txt"
+    if not docx_path.is_file() or not txt_path.is_file():
+        pytest.skip("Test 2 files not found")
+
+    doc = docx.Document(str(docx_path))
+    transcript = "\n".join(p.text for p in doc.paragraphs if p.text.strip())
+    plan = parse_agenda_text(txt_path.read_text(encoding="utf-8"))
+
+    res = align_agenda_with_transcript(plan, transcript)
+    assert len(res.alignments) == 9
+    assert res.discussed_count == 9
+
+    align_map = {a.item.seq: a for a in res.alignments}
+
+    # 郑爽准确回到 04 IDS，而不是留在小艺慧记或 HAG
+    assert "郑爽" in align_map["04"].matched_speakers
+    assert len(align_map["04"].matched_blocks) > 100
+
+    # 陈啟锴在 05 HAG
+    assert "陈啟锴" in align_map["05"].matched_speakers
+    assert len(align_map["05"].matched_blocks) > 100
+
+    # 陆敬怡在 06 SpeechASR
+    assert "陆敬怡" in align_map["06"].matched_speakers
+
+    # 孙鹤鸣在 07 SpeechTTS
+    assert "孙鹤鸣" in align_map["07"].matched_speakers
+
+    # 张昊辰在 08 HiTranslationService
+    assert "张昊辰" in align_map["08"].matched_speakers
 
 
 def test_agenda_minutes_agent_enforce_invariants():
@@ -217,14 +258,16 @@ def test_agenda_minutes_agent_enforce_invariants():
     assert items[0]["agenda_title"] == "官方议题A：关于语音LLM发布的严格评审"
     assert items[0]["presenter"] == "周径"
     assert items[0]["discussion_state"] == "discussed"
+    assert items[0]["resolution"] == "原则同意"
 
-    # 议题 2：未讨论议题的脑补事实被 100% 确定性截断为客观说明
+    # 议题 2：未讨论议题的脑补事实被 100% 确定性清空置空
     assert items[1]["agenda_seq"] == "02"
     assert items[1]["agenda_title"] == "官方议题B：关于音频降噪的架构审议"
     assert items[1]["status_tag"] == "[本次未讨论]"
     assert items[1]["discussion_state"] == "skipped"
+    assert items[1]["proposal_highlights"] == []
     assert items[1]["deliberation_details"]["key_metrics"] == []
-    assert "未见针对本议题" in items[1]["resolution"]
+    assert items[1]["resolution"] == ""
 
 
 def test_markdown_and_html_render():
@@ -351,4 +394,56 @@ def test_ocr_serverocr_fallback_to_rapidocr(monkeypatch):
     res = run_ocr_subprocess(str(img_path))
     assert res.get("engine") == "rapidocr"
     assert len(res.get("lines", [])) > 0
+
+
+@pytest.mark.asyncio
+async def test_agenda_minutes_fallback_in_orchestrator():
+    """测试当 Supervisor 驳回降级时，Orchestrator 产出完整的 Markdown 纪要而非裸字典。"""
+    from domain.meeting.orchestrator import MeetingAgentSystem
+    class DummyClient:
+        pass
+    orch = MeetingAgentSystem(client=DummyClient())
+
+    draft = {
+        "meeting_meta": {"theme": "降级测试例会", "date_time": "2026/09/28"},
+        "agenda_items": [
+            {
+                "agenda_seq": "01",
+                "agenda_title": "测试议题一",
+                "presenter": "张工",
+                "status_tag": "[审议通过]",
+                "proposal_highlights": ["方案陈述"],
+                "resolution": "同意",
+                "discussion_state": "discussed",
+            }
+        ],
+    }
+    state = {
+        "lines": {"agenda_minutes": {"draft": draft}},
+        "title": "降级测试例会",
+    }
+
+    fallback_node = orch._make_fallback_node("agenda_minutes")
+    out = await fallback_node(state)
+
+    line_out = out["lines"]["agenda_minutes"]
+    assert line_out["degraded"] is True
+    rendered_text = line_out["rendered"]
+    # 验证降级产物是完整的 Markdown 而非 str(dict)
+    assert not rendered_text.startswith("{'theme'")
+    assert "# 降级测试例会 · 议程全景纪要" in rendered_text
+    assert "### 议题 01 · 测试议题一" in rendered_text
+    assert len(line_out["structure"]) == 1
+
+
+@pytest.mark.asyncio
+async def test_fail_fast_when_agenda_empty():
+    """测试若未能从输入提取出会前议程单，Agent 立即 Fail-Fast，绝不反向解析转写污染骨架。"""
+    class DummyClient:
+        pass
+
+    agent = AgendaMinutesAgent(DummyClient())
+    with pytest.raises(ValueError, match="未能从输入文档中解析出会前既定议程单"):
+        await agent.run("这里只有会议转写，没有议程表格也没有任何议程序号...")
+
 

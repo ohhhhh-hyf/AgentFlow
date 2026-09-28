@@ -21,7 +21,7 @@ import requests
 from PIL import Image
 
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
-OCR_FAILURE_DIR = Path(ROOT) / "log" / "ocr_failed"
+OCR_FAILURE_DIR = Path(ROOT) / "logs" / "ocr_failed"
 MAX_BASE64_BYTES = int(os.getenv("SERVER_OCR_MAX_BASE64_BYTES", str(950 * 1024)))
 
 

@@ -1,21 +1,26 @@
-"""alignment_engine.py -- 发言人真名锚定与智能双向对齐引擎。
+"""alignment_engine.py -- 发言人真名与专名驱动的发言块独立归属与对齐引擎。
 
-核心机制：
-1. TranscriptGrouper：按「议题分段/标题识别 + 发言人 + 时间戳」把转录全文结构化分块为 DiscussionBlock；
-2. 议题标题与专名双向锚定：在实录中精确锚定各议题起始点，自适应处理乱序执行与替代汇报人；
-3. 零证据确定性截断 (Zero-Evidence Cutoff)：
-   若议题全场未见标题、专名、汇报人发言及相关审议，确定性标记为 skipped，切断幻觉通道；
-4. 临时追加捕集 (Adhoc Discovery)：
-   识别会议尾声或间歇中，由核心把关领导作出的重大指示与决策。
+核心机制（从抓标题定区间全面重构为以汇报人+专名密度的发言块独立路由）：
+1. TranscriptGrouper：把转录全文结构化分块为 DiscussionBlock（带发言人、时间戳、上下文断点）；
+2. BlockScorer & Router：对每一个发言块，综合计算「汇报人发言/点名(主权) + 专有名词密度(词法) + 标题锚点(候选边界)」亲和度得分；
+   一块发言可以独立归属给任何议题，彻底打破连续区间切片的束缚；
+3. 会话连续性平滑：在议题讨论进行中，专家质询、评委问答等未命名短块自动归入当前活跃议题，遇冲突专名或新汇报人立即换流；
+4. 程序化确定性核验 (Programmatic Grounding Verification)：
+   核对证据里是否有该议题的官方汇报人发言，或专属专名密度；若两项皆无，严格判定为 skipped（缺失）；
+5. 临时追加捕集 (Adhoc Discovery)：
+   未能归属到任何法定议题且字数充实的全局发言块（通常是高管散会决策），汇聚为临时追加事项。
 """
 from __future__ import annotations
 
 import difflib
+import logging
 import re
 from dataclasses import dataclass, field
 from typing import Any
 
 from .agenda_parser import AgendaItemParsed, AgendaPlan
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -66,27 +71,28 @@ _SPEAKER_TS_PATTERN = re.compile(
 )
 
 _GENERIC_TOKENS = {
+    # 英文泛词
+    "for", "and", "the", "with", "from", "service", "cloud", "version", "review",
+    "audio", "speech", "system", "project", "patch", "commercial", "release",
+    # 中文泛词
     "版本", "发布", "评审", "商用", "补丁", "需求", "优化", "例会", "实践", "技术", "洞察",
-    "service", "服务", "议题", "主题", "讨论", "分享", "进展", "同步"
+    "服务", "议题", "主题", "讨论", "分享", "进展", "同步", "委员会", "方案", "架构",
+    "测试", "开发", "上线", "业务", "系统", "管理", "平台"
 }
 
 _SPOKEN_MARKERS = {
-    "各位评委", "我共享", "我来共享", "晚上好", "各位好", "在不在", "大家好", "稍等一下"
+    "各位评委", "我共享", "我来共享", "晚上好", "各位好", "在不在", "大家好", "稍等一下",
+    "能听到吗", "可以听到", "打开来看一眼", "下一个", "散会"
 }
 
 
-def _extract_title_keywords(title: str) -> list[str]:
-    """从议题名称中提取核心技术关键词（版本号、服务名、英文简称等）。"""
-    tokens = re.findall(r"[A-Za-z0-9_\-\.]{3,}", title)
-    clean = re.sub(r"[版本发布评审商用补丁\s]", "", title)
-    cn_words = [w for w in re.findall(r"[\u4e00-\u9fa5]{3,}", clean) if w]
-    return list(dict.fromkeys(tokens + cn_words))
-
-
 def extract_distinctive_tokens(text: str) -> list[str]:
-    """提取排除了通用业务泛词的专有区分性词群。"""
+    """提取排除了通用业务泛词的专有区分性词群（支持整词边界与专名提炼）。"""
     en_tokens = [tok.lower() for tok in re.findall(r"[A-Za-z0-9_\-\.]{3,}", text)]
-    en_distinct = [tok for tok in en_tokens if tok not in _GENERIC_TOKENS and not re.match(r"^\d+(?:\.\d+)*$", tok)]
+    en_distinct = [
+        tok for tok in en_tokens
+        if tok not in _GENERIC_TOKENS and not re.match(r"^\d+(?:\.\d+)*$", tok)
+    ]
     clean = re.sub(r"[A-Za-z0-9_\-\.\s:：\(\)（）【】]", "", text)
     cn_tokens = []
     chunks = re.findall(r"[\u4e00-\u9fa5]{2,}", clean)
@@ -95,7 +101,7 @@ def extract_distinctive_tokens(text: str) -> list[str]:
             c_clean = c
             for g in _GENERIC_TOKENS:
                 c_clean = c_clean.replace(g, "")
-            if len(c_clean) >= 2:
+            if len(c_clean) >= 2 and c_clean not in _GENERIC_TOKENS:
                 cn_tokens.append(c_clean)
     return list(dict.fromkeys(en_distinct + cn_tokens))
 
@@ -108,7 +114,7 @@ def clean_title_str(s: str) -> str:
 
 
 def title_match_score(line: str, item_title: str) -> float:
-    """计算转录行与议题标题的匹配度。"""
+    """计算转录行与议题标题的匹配度（仅用于边界候选提示，不作为唯一裁判）。"""
     s = line.strip()
     if not s or len(s) > 120 or s[-1] in "。？！，、；~…":
         return 0.0
@@ -140,7 +146,7 @@ def group_transcript_blocks(
     transcript: str,
     plan: AgendaPlan | None = None,
 ) -> list[DiscussionBlock]:
-    """把转录实录聚合成连续的发言人讨论块，并精确识别议题标题断点。"""
+    """把转录实录聚合成连续的发言人讨论块，并附带议题标题边界候选标记。"""
     lines = (transcript or "").strip().splitlines()
     blocks: list[DiscussionBlock] = []
 
@@ -155,7 +161,7 @@ def group_transcript_blocks(
         if not s:
             continue
 
-        # 检查是否为议程标题独立行
+        # 检查是否为议程标题独立行（仅作为边界候选）
         best_item = None
         if plan:
             scores = [(it, title_match_score(s, it.title)) for it in plan.items]
@@ -165,7 +171,6 @@ def group_transcript_blocks(
                 best_item = scores[0][0]
 
         if best_item is not None:
-            # 遇到新的议题标题行：结算前一个发言块，切断跨议题污染
             if cur_speaker and cur_lines:
                 blocks.append(
                     DiscussionBlock(
@@ -173,6 +178,7 @@ def group_transcript_blocks(
                         timestamp=cur_ts,
                         content="\n".join(cur_lines).strip(),
                         index=idx,
+                        header_seq=pending_header_seq,
                     )
                 )
                 idx += 1
@@ -191,15 +197,14 @@ def group_transcript_blocks(
                         timestamp=cur_ts,
                         content="\n".join(cur_lines).strip(),
                         index=idx,
+                        header_seq=pending_header_seq,
                     )
                 )
                 idx += 1
+                pending_header_seq = ""
             cur_speaker = m.group(1).strip()
             cur_ts = m.group(2).strip()
             cur_lines = []
-            if pending_header_seq:
-                cur_lines.append(f"__AGENDA_HEADER__{pending_header_seq}__")
-                pending_header_seq = ""
         else:
             cur_lines.append(s)
 
@@ -210,10 +215,11 @@ def group_transcript_blocks(
                 timestamp=cur_ts,
                 content="\n".join(cur_lines).strip(),
                 index=idx,
+                header_seq=pending_header_seq,
             )
         )
 
-    # 兜底：如果转录稿未识别出时间戳，按段落切分
+    # 兜底：未识别出时间戳时按非空段落聚合
     if not blocks and lines:
         for i, line in enumerate(lines):
             if line.strip():
@@ -229,141 +235,147 @@ def group_transcript_blocks(
     return blocks
 
 
+def _match_token_in_text(token: str, text: str) -> bool:
+    """整词边界或安全子串匹配，防止如 'ids' 误伤其他英文单词。"""
+    if not token or not text:
+        return False
+    # 纯英文或数字：要求严格整词边界匹配
+    if re.match(r"^[A-Za-z0-9_\-\.]+$", token):
+        pattern = rf"\b{re.escape(token)}\b"
+        return bool(re.search(pattern, text, re.IGNORECASE))
+    # 中文：至少 2 字符
+    if len(token) >= 2:
+        return token in text
+    return False
+
+
 def align_agenda_with_transcript(
     plan: AgendaPlan,
     transcript: str,
 ) -> AlignmentResult:
-    """双向锚定对齐引擎：自适应处理乱序执行、替代汇报人与零证据确定性截断。"""
+    """以汇报人真名与专名密度驱动的发言块独立路由引擎。
+
+    彻底解决：
+    1. 误判标题劫持汇报人（如 test1 陆敬怡归入议题04，议题01如实留空）；
+    2. 标题与发言错位导致切段穿透（如 test2 郑爽回到 IDS，陈啟锴回到 HAG）；
+    3. 顺序严格按给定会前议程大盘输出，未讨论项确定性置空。
+    """
     blocks = group_transcript_blocks(transcript, plan=plan)
-    all_speakers = set(b.speaker for b in blocks)
+    all_speakers = set(b.speaker for b in blocks if b.speaker)
 
-    speaker_first_intro: dict[str, int] = {}
-    speaker_any_first: dict[str, int] = {}
+    item_tokens = {it.seq: extract_distinctive_tokens(it.title) for it in plan.items}
+
+    # ── 阶段 1：对转写中每个发言块执行多议题亲和度独立打分 ─────────────────────────
+    # 规则：
+    # 1. 官方汇报人主权发言：权重最高 (+5.0 / +3.0)；
+    # 2. 文本中明确点名该汇报人：(+2.0)；
+    # 3. 专有名词整词命中：(+2.0 / +1.5)；
+    # 4. 标题行边界提示：(+1.2，低于汇报人权重，绝不抢占其它汇报人)。
+    assigned: dict[int, str | None] = {}
     for b in blocks:
-        if b.speaker not in speaker_any_first:
-            speaker_any_first[b.speaker] = b.index
-        if b.speaker not in speaker_first_intro and len(b.content) > 30:
-            speaker_first_intro[b.speaker] = b.index
+        best_seq = None
+        best_score = 0.0
+        for it in plan.items:
+            score = 0.0
 
-    # 1. 第一轮：从发言块中检索确凿的议题标题锚点 (__AGENDA_HEADER__{seq}__)
-    topic_start_map: dict[str, int] = {}
-    for b in blocks:
-        m = re.search(r"__AGENDA_HEADER__(\w+)__", b.content)
-        if m:
-            seq = m.group(1)
-            if seq not in topic_start_map:
-                topic_start_map[seq] = b.index
+            # 汇报人身份匹配（最高优先级）
+            is_presenter = False
+            for p in it.presenters:
+                if p and (p in b.speaker or b.speaker in p):
+                    is_presenter = True
+                    score += 5.0 if len(b.content) >= 30 else 3.0
+                    break
+                elif p and p in b.content:
+                    score += 2.0
 
-    # 2. 第二轮：对未捕获到显式标题行的议题，按「专有关键词 + 汇报人」双向锚定
-    claimed_starts = set(topic_start_map.values())
-    for it in plan.items:
-        if it.seq in topic_start_map:
-            continue
+            # 专有名词与区分性词群（词法亲和度）
+            for tok in item_tokens[it.seq]:
+                if _match_token_in_text(tok, b.content):
+                    score += 2.0 if re.match(r"^[A-Za-z0-9_\-\.]+$", tok) else 1.5
 
-        distinct_kws = extract_distinctive_tokens(it.title)
-        kw_matched_indices = []
-        if distinct_kws:
-            for b in blocks:
-                if any(kw.lower() in b.content.lower() for kw in distinct_kws if len(kw) >= 3):
-                    kw_matched_indices.append(b.index)
+            # 候选标题行边界提示（弱权重，仅作辅助）
+            if getattr(b, "header_seq", "") == it.seq:
+                score += 1.2
 
-        active_pres = [p for p in it.presenters if any(p in sp or sp in p for sp in all_speakers)]
-        pres_start = -1
-        if active_pres:
-            starts = [speaker_first_intro[p] for p in active_pres if p in speaker_first_intro]
-            if not starts:
-                starts = [speaker_any_first[p] for p in active_pres if p in speaker_any_first]
-            if starts:
-                pres_start = min(starts)
-            else:
-                for b in blocks:
-                    if any(p in b.speaker or b.speaker in p for p in active_pres):
-                        pres_start = b.index
-                        break
+            if score > best_score:
+                best_score = score
+                best_seq = it.seq
 
-        best_start = -1
-        if kw_matched_indices and pres_start != -1:
-            best_start = min(kw_matched_indices[0], pres_start)
-        elif kw_matched_indices:
-            best_start = kw_matched_indices[0]
-        elif pres_start != -1:
-            # 只有当汇报人的出场发言未被其它议题的显式标题霸占时，才能作为锚点
-            if pres_start not in claimed_starts:
-                best_start = pres_start
-
-        if best_start != -1:
-            topic_start_map[it.seq] = best_start
-            claimed_starts.add(best_start)
-
-    # 3. 按实录中实际发生的先后时间（start_idx 升序）构建切片，彻底与议题单纸面顺序解耦
-    sorted_topics = sorted(
-        [(start_idx, it) for it in plan.items if (start_idx := topic_start_map.get(it.seq)) is not None],
-        key=lambda x: x[0],
-    )
-
-    topic_slices: dict[str, tuple[int, int]] = {}
-    for i, (start_idx, it) in enumerate(sorted_topics):
-        if i + 1 < len(sorted_topics):
-            end_idx = sorted_topics[i + 1][0]
+        if best_score >= 2.0:
+            assigned[b.index] = best_seq
         else:
-            end_idx = len(blocks)
-        topic_slices[it.seq] = (start_idx, end_idx)
+            assigned[b.index] = None
 
-    # 4. 组装最终结果（按 plan.items 原始官方法定顺序输出）
+    # ── 阶段 2：会话连续性平滑（Active Session Fill）─────────────────────────
+    # 在某个议题的汇报进行过程中，提问与短答辩（若无其它议题专名冲突）自动归属当前议题
+    active: str | None = None
+    for b in blocks:
+        if assigned[b.index] is not None:
+            active = assigned[b.index]
+        elif active is not None:
+            # 检查该块是否包含其它议程的专名冲突
+            has_conflict = False
+            for seq, kws in item_tokens.items():
+                if seq != active:
+                    if any(_match_token_in_text(tok, b.content) for tok in kws):
+                        has_conflict = True
+                        break
+            if not has_conflict:
+                assigned[b.index] = active
+
+    # ── 阶段 3：程序化确定性核验（缺少汇报人或专名则改判缺失）─────────────────────
     alignments: list[AgendaAlignment] = []
     used_block_indices: set[int] = set()
 
     for it in plan.items:
-        if it.seq in topic_slices:
-            s_idx, e_idx = topic_slices[it.seq]
-            matched = blocks[s_idx:e_idx]
-            used_block_indices.update(range(s_idx, e_idx))
+        it_blocks = [b for b in blocks if assigned.get(b.index) == it.seq]
+        evidence = "\n".join(b.content for b in it_blocks)
 
-            # 提取证据文本并清洗标记
-            lines_buf = []
-            for b in matched:
-                clean_content = re.sub(r"__AGENDA_HEADER__\w+__\n?", "", b.content).strip()
-                lines_buf.append(f"{b.speaker} {b.timestamp}\n{clean_content}")
-            evidence = "\n\n".join(lines_buf)
+        has_pres = any(any(p in b.speaker for p in it.presenters) for b in it_blocks)
+        has_distinctive = any(_match_token_in_text(tok, evidence) for tok in item_tokens[it.seq])
 
-            topic_speakers = list(dict.fromkeys(b.speaker for b in matched))
+        # 核心核验门禁：有汇报人发言，或有 2 块以上充分讨论且命中核心专名
+        if has_pres or (len(it_blocks) >= 2 and has_distinctive):
+            used_block_indices.update(b.index for b in it_blocks)
+            topic_speakers = list(dict.fromkeys(b.speaker for b in it_blocks if b.speaker))
+
+            # 组装证据文本
+            lines_buf = [f"{b.speaker} {b.timestamp}\n{b.content.strip()}" for b in it_blocks]
+            evidence_text = "\n\n".join(lines_buf)
+
+            s_idx = it_blocks[0].index if it_blocks else -1
+            e_idx = it_blocks[-1].index + 1 if it_blocks else -1
 
             alignments.append(
                 AgendaAlignment(
                     item=it,
                     status="discussed",
                     matched_speakers=topic_speakers,
-                    matched_blocks=matched,
-                    evidence_text=evidence,
+                    matched_blocks=it_blocks,
+                    evidence_text=evidence_text,
                     start_index=s_idx,
                     end_index=e_idx,
                 )
             )
         else:
-            # 零证据确定性截断
+            # 严格判空：零证据确定性截断
             alignments.append(
                 AgendaAlignment(
                     item=it,
                     status="skipped",
                     matched_speakers=[],
                     matched_blocks=[],
-                    evidence_text="（本次会议录音转写未见本议题汇报或讨论记录）",
+                    evidence_text="",
                     start_index=-1,
                     end_index=-1,
                 )
             )
 
-    # 临时追加事项捕集：未被分配到任何既定议程项的尾部讨论块（往往是高管总结）
+    # ── 阶段 4：未归属的重要长发言块捕集为 Adhoc（临时追加/高管总结）────────────
     adhoc_blocks: list[DiscussionBlock] = []
     for b in blocks:
         if b.index not in used_block_indices and len(b.content) > 40:
-            clean_b = DiscussionBlock(
-                speaker=b.speaker,
-                timestamp=b.timestamp,
-                content=re.sub(r"__AGENDA_HEADER__\w+__\n?", "", b.content).strip(),
-                index=b.index,
-            )
-            adhoc_blocks.append(clean_b)
+            adhoc_blocks.append(b)
 
     return AlignmentResult(
         plan=plan,

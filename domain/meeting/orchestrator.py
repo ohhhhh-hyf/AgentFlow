@@ -989,6 +989,30 @@ class _Nodes(DomainNodes):
                     "quality_degraded": True,
                 }
             return node
+        if line_name == "agenda_minutes":
+            async def node(state: dict) -> dict:
+                draft = _line(state, "agenda_minutes").get("draft") or {}
+                items = draft.get("agenda_items") or []
+                if items:
+                    from tools.exports.html.agenda_minutes import format_agenda_minutes_markdown
+                    title = self._compute_title(state)
+                    text = format_agenda_minutes_markdown(draft, title=title)
+                    structure = items
+                else:
+                    text, structure = self._domain_fallback_text(
+                        state, line_name, self._fallback_rules[line_name]
+                    )
+                return {
+                    "lines": {
+                        "agenda_minutes": {
+                            "rendered": text,
+                            "structure": structure,
+                            "degraded": True,
+                        }
+                    },
+                    "quality_degraded": True,
+                }
+            return node
         return super()._make_fallback_node(line_name)
 
     def _post_render_hook(self, state: dict, line_name: str) -> None:

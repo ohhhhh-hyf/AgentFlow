@@ -90,7 +90,7 @@ class AgendaMinutesSupervisorContract(SupervisorContract):
     decision = Decision()
     feedback = Feedback("decision=revise 时必填（具体、可执行、有原文依据）；approve/reject 时给空列表 []")
     checks = [
-        Check("agenda_coverage_check", "议程覆盖与骨架核对：检查是否严格以 txt 会前议程单为骨架基准，不得篡改、合并或遗漏议题，未讨论议题必须如实标记 skipped"),
+        Check("agenda_coverage_check", "议程覆盖与骨架核对：检查是否严格以会前议程单为骨架基准，不得篡改或遗漏议题。严格以议程单指定的法定汇报人为准，若法定汇报人未发言则议题如实标为 skipped，不得因孤立标题误判"),
         Check("grounding_facts_check", "现场事实与量化核对：检查各项参数、时延指标、发言人是否与现场实录严格一致，杜绝张冠李戴与伪造"),
         Check("decision_fidelity_check", "定调与共识核对：检查定调标签与结论是否准确反映现场权威拍板或技术研讨真实共识，附带约束条件不得遗漏"),
     ]
@@ -103,11 +103,7 @@ AGENDA_MINUTES_SUPERVISOR_OUTPUT_CONTRACT = AgendaMinutesSupervisorContract.to_o
 class AgendaMinutesFallbackRules(FallbackRules):
     """议程驱动纪要降级拼装规则。"""
 
-    sections = [
-        Raw("meeting_meta"),
-        Lines("agenda_items"),
-        Lines("adhoc_items"),
-    ]
+    sections: list = []
     empty_text = "未解析到有效议题纪要。"
     structured = {"field": "agenda_items"}
 

@@ -61,9 +61,10 @@ def format_agenda_minutes_markdown(draft: dict[str, Any], title: str = "") -> st
         seq = it.get("agenda_seq") or "01"
         it_title = it.get("agenda_title") or "议题"
         pres = it.get("presenter") or "未记录"
-        status = it.get("status_tag") or "[审议通过]"
-        res = it.get("resolution") or "原则同意推进。"
-        res_summary = res.splitlines()[0] if res else ""
+        state = it.get("discussion_state") or "discussed"
+        status = it.get("status_tag") or ("[本次未讨论]" if state == "skipped" else "[审议通过]")
+        res = it.get("resolution") or ""
+        res_summary = res.splitlines()[0] if res else ("—" if state == "skipped" else "（本次未形成明确决议）")
         if len(res_summary) > 60:
             res_summary = res_summary[:57] + "..."
         lines.append(f"| **议题 {seq}** | {it_title} | {pres} | `{status}` | {res_summary} |")
@@ -80,8 +81,8 @@ def format_agenda_minutes_markdown(draft: dict[str, Any], title: str = "") -> st
         seq = it.get("agenda_seq") or "01"
         it_title = it.get("agenda_title") or "议题"
         pres = it.get("presenter") or "未记录"
-        status = it.get("status_tag") or "[审议通过]"
         state = it.get("discussion_state") or "discussed"
+        status = it.get("status_tag") or ("[本次未讨论]" if state == "skipped" else "[审议通过]")
 
         lines.extend([
             f"### 议题 {seq} · {it_title}",
@@ -93,7 +94,7 @@ def format_agenda_minutes_markdown(draft: dict[str, Any], title: str = "") -> st
 
         if state == "skipped" or "[本次未讨论]" in status:
             lines.extend([
-                "> 现场录音转写未见针对本议题的汇报或审议讨论记录，建议后续单独对齐或顺延至下期例会。",
+                "> （本次会议录音转写未见本议题汇报或讨论记录）",
                 "",
             ])
             continue
@@ -124,12 +125,12 @@ def format_agenda_minutes_markdown(draft: dict[str, Any], title: str = "") -> st
             lines.append("- 现场就方案细节进行了深入评估，各项关键指标基本符合要求。")
         lines.append("")
 
-        res = it.get("resolution") or "原则同意推进，按评审要求完成闭环。"
-        lines.extend([
-            "#### 3. 最终定调与决议共识",
-            f"> {res}",
-            "",
-        ])
+        res = str(it.get("resolution") or "").strip()
+        lines.append("#### 3. 最终定调与决议共识")
+        if res:
+            lines.extend([f"> {res}", ""])
+        else:
+            lines.extend(["> （本次会议未记录到明确决议）", ""])
 
         actions = it.get("action_commitments") or []
         lines.append("#### 4. 后续行动与跟进责任")
@@ -250,7 +251,7 @@ def render_agenda_minutes_html(
                     <span><strong>汇报人/单位：</strong>{escape(pres)}</span>
                 </div>
                 <div class="skipped-banner">
-                    <span class="icon">ℹ️</span> 现场录音转写未见针对本议题的汇报或审议讨论记录，建议后续单独对齐或顺延至下期例会。
+                    <span class="icon">ℹ️</span> （本次会议录音转写未见本议题汇报或讨论记录）
                 </div>
             </div>
             """
