@@ -21,6 +21,8 @@ class AgendaItemParsed:
     title: str
     presenters: list[str] = field(default_factory=list)
     raw_presenter: str = ""
+    recorders: list[str] = field(default_factory=list)
+    members: list[str] = field(default_factory=list)
     duration: str = ""
     time_range: str = ""
     category: str = ""
@@ -67,6 +69,8 @@ def _resolve_columns(header_cells: list[str]) -> dict[str, int]:
     title_idx = -1
     seq_idx = -1
     pres_idx = -1
+    rec_idx = -1
+    mem_idx = -1
     time_idx = -1
     dur_idx = -1
     cat_idx = -1
@@ -95,6 +99,14 @@ def _resolve_columns(header_cells: list[str]) -> dict[str, int]:
         if any(k in name for k in ("汇报人", "reporter", "主讲人", "主讲", "报告人", "分享人", "责任人", "发言人")):
             pres_idx = idx
             continue
+        # 纪要人
+        if any(k in name for k in ("纪要人", "recorder", "记录人")):
+            rec_idx = idx
+            continue
+        # 参与人/成员
+        if any(k in name for k in ("参与人", "成员", "members", "attendees")):
+            mem_idx = idx
+            continue
         # 议题名称（优先匹配含「名称」「全称」「主题」的列）
         if any(k in name for k in ("议题名称", "topic name", "议题全称", "主题", "topic")):
             if not any(k in name for k in ("类型", "材料", "参与人", "成员", "人员", "category", "material", "member", "recorder", "纪要")):
@@ -106,17 +118,15 @@ def _resolve_columns(header_cells: list[str]) -> dict[str, int]:
             continue
 
     # 若未识别到独立汇报人列，尝试参与人列
-    if pres_idx == -1:
-        for idx, raw in enumerate(header_cells):
-            name = raw.strip().lower()
-            if any(k in name for k in ("参与人", "成员", "members", "attendees")) and idx != title_idx:
-                pres_idx = idx
-                break
+    if pres_idx == -1 and mem_idx != -1 and mem_idx != title_idx:
+        pres_idx = mem_idx
 
     return {
         "seq": seq_idx,
         "title": title_idx,
         "presenter": pres_idx,
+        "recorder": rec_idx,
+        "members": mem_idx,
         "time": time_idx,
         "duration": dur_idx,
         "category": cat_idx,
@@ -240,6 +250,14 @@ def parse_agenda_text(text: str) -> AgendaPlan:
             raw_pres = cells[p_col].strip() if p_col != -1 and p_col < len(cells) else ""
             presenters = clean_presenter_names(raw_pres)
 
+            rec_col = cols.get("recorder", -1)
+            raw_rec = cells[rec_col].strip() if rec_col != -1 and rec_col < len(cells) else ""
+            recorders = clean_presenter_names(raw_rec)
+
+            mem_col = cols.get("members", -1)
+            raw_mem = cells[mem_col].strip() if mem_col != -1 and mem_col < len(cells) else ""
+            members = clean_presenter_names(raw_mem)
+
             dur_col = cols["duration"]
             dur = cells[dur_col].strip() if dur_col != -1 and dur_col < len(cells) else ""
 
@@ -255,6 +273,8 @@ def parse_agenda_text(text: str) -> AgendaPlan:
                     title=title,
                     presenters=presenters,
                     raw_presenter=raw_pres,
+                    recorders=recorders,
+                    members=members,
                     duration=dur,
                     time_range=time_val,
                     category=cat_val,

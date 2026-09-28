@@ -38,7 +38,11 @@ from tools.exports.html.agenda_minutes import (
 )
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
-AGENDA_DIR = PROJECT_ROOT / "agenda"
+AGENDA_DIR = (
+    PROJECT_ROOT / "data" / "1" / "agenda"
+    if (PROJECT_ROOT / "data" / "1" / "agenda").exists()
+    else PROJECT_ROOT / "agenda"
+)
 
 
 def test_clean_presenter_names():
@@ -171,6 +175,11 @@ def test_alignment_engine_test1_grounding_and_zero_evidence():
     assert "陆敬怡" in a4.matched_speakers
     assert len(a4.matched_blocks) > 100
 
+    # 验证按现场研讨真实流向排序：先讨论的 02，随后 04，最后是 skipped 的 01 和 03
+    chrono = res.chronological_alignments
+    assert len(chrono) == 4
+    assert [c.item.seq for c in chrono] == ["02", "04", "01", "03"]
+
 
 def test_alignment_engine_test2_all_presenters_grounding():
     """验证 Test 2 中 9 项议题依靠汇报人主权发言彻底解决标题错位问题。"""
@@ -205,6 +214,47 @@ def test_alignment_engine_test2_all_presenters_grounding():
 
     # 张昊辰在 08 HiTranslationService
     assert "张昊辰" in align_map["08"].matched_speakers
+
+    # 验证现场换序（Permutations）：现场 SpeechTTS (07) 发生于 SpeechASR (06) 之前
+    chrono2 = res.chronological_alignments
+    assert len(chrono2) == 9
+    chrono_seqs = [c.item.seq for c in chrono2]
+    assert chrono_seqs.index("07") < chrono_seqs.index("06")
+
+
+def test_agenda_minutes_agent_chronological_ordering():
+    """验证纪要输出列表严格按现场讨论先后顺序（跟随文本），且标题来自议程单。"""
+    plan = AgendaPlan(
+        items=[
+            AgendaItemParsed(seq="01", title="议程原案A：小艺慧记发布", presenters=["申家坤"]),
+            AgendaItemParsed(seq="02", title="议程原案B：翻译海外发布", presenters=["刘畅"]),
+            AgendaItemParsed(seq="03", title="议程原案C：HAG商用评审", presenters=["沙彬斌"]),
+            AgendaItemParsed(seq="04", title="议程原案D：SpeechASR评审", presenters=["陆敬怡"]),
+        ]
+    )
+    # 现场先讨论议题02，再讨论议题04，议题01和03未讨论
+    transcript = (
+        "刘畅 00:20:00\n关于翻译海外发布，时延120ms...\n\n"
+        "陆敬怡 00:40:00\n关于SpeechASR评审，通用测试集下降0.7个点..."
+    )
+    alignment_res = align_agenda_with_transcript(plan, transcript)
+    assert [c.item.seq for c in alignment_res.chronological_alignments] == ["02", "04", "01", "03"]
+
+    class DummyClient:
+        pass
+
+    agent = AgendaMinutesAgent(DummyClient())
+    enforced = agent._enforce_agenda_invariants({}, alignment_res)
+    items = enforced["agenda_items"]
+    assert [it["agenda_seq"] for it in items] == ["02", "04", "01", "03"]
+    assert items[0]["agenda_title"] == "议程原案B：翻译海外发布"
+    assert items[0]["discussion_state"] == "discussed"
+    assert items[1]["agenda_title"] == "议程原案D：SpeechASR评审"
+    assert items[1]["discussion_state"] == "discussed"
+    assert items[2]["agenda_title"] == "议程原案A：小艺慧记发布"
+    assert items[2]["discussion_state"] == "skipped"
+    assert items[3]["agenda_title"] == "议程原案C：HAG商用评审"
+    assert items[3]["discussion_state"] == "skipped"
 
 
 def test_agenda_minutes_agent_enforce_invariants():
@@ -445,5 +495,79 @@ async def test_fail_fast_when_agenda_empty():
     agent = AgendaMinutesAgent(DummyClient())
     with pytest.raises(ValueError, match="未能从输入文档中解析出会前既定议程单"):
         await agent.run("这里只有会议转写，没有议程表格也没有任何议程序号...")
+
+
+@pytest.mark.asyncio
+async def test_agenda_minutes_agent_map_reduce_concurrency():
+    """验证 Map-Reduce 并发抽取架构：多议题并发提取且跳过项零 Token 调用。"""
+    shared_context = """【既定议程单】
+| 编号 | 议题名称 | 汇报人 |
+| --- | --- | --- |
+| 1 | 议题A：输入法引擎优化 | 赵鑫岳 |
+| 2 | 议题B：语音识别模型评审 | 陆敬怡 |
+| 3 | 议题C：离线翻译轻量化 | 张三（未出席） |
+
+【会议原文】
+赵鑫岳 00:10:00
+输入法引擎进行了全链路重构，时延由 120ms 下降至 85ms，本次提请商用。
+
+陆敬怡 00:30:00
+SpeechASR 模型完成通用测试集验证，虽然劣化 40ms 但现网表现可控，整体结论 go。
+"""
+    called_labels: list[str] = []
+
+    class MockClient:
+        async def structured(self, sys, user, model_cls, contract, label="", max_tokens=None):
+            called_labels.append(label)
+            if "item_01" in label:
+                return model_cls(
+                    presenter="赵鑫岳",
+                    status_tag="[审议通过]",
+                    proposal_highlights=["输入法引擎全链路重构"],
+                    deliberation_details={"key_metrics": ["时延 85ms"], "feedback_concerns": []},
+                    resolution="同意商用发布",
+                    action_commitments=[],
+                )
+            elif "item_02" in label:
+                return model_cls(
+                    presenter="陆敬怡",
+                    status_tag="[审议通过]",
+                    proposal_highlights=["SpeechASR 模型测试"],
+                    deliberation_details={"key_metrics": ["劣化 40ms"], "feedback_concerns": []},
+                    resolution="整体结论 go",
+                    action_commitments=[],
+                )
+            raise ValueError(f"Unexpected label {label}")
+
+        async def text(self, sys, user, label="", max_tokens=None):
+            return "输入法与语音识别评审顺利通过，未参会议题顺延。"
+
+    agent = AgendaMinutesAgent(MockClient())
+    res = await agent.run(shared_context)
+
+    # 1. 验证仅讨论过的 01 和 02 调用了单议题抽取 LLM，03 未调用
+    assert "agenda_minutes/item_01" in called_labels
+    assert "agenda_minutes/item_02" in called_labels
+    assert not any("item_03" in lbl for lbl in called_labels)
+
+    # 2. 验证结果包含完整的 3 个议题且骨架锁定
+    items = res.agenda_items
+    assert len(items) == 3
+    assert items[0]["agenda_seq"] == "01"
+    assert items[0]["discussion_state"] == "discussed"
+    assert "85ms" in items[0]["deliberation_details"]["key_metrics"][0]
+
+    assert items[1]["agenda_seq"] == "02"
+    assert items[1]["discussion_state"] == "discussed"
+    assert items[1]["resolution"] == "整体结论 go"
+
+    # 3. 验证未讨论的 03 确定性置空
+    assert items[2]["agenda_seq"] == "03"
+    assert items[2]["discussion_state"] == "skipped"
+    assert items[2]["status_tag"] == "[本次未讨论]"
+    assert items[2]["proposal_highlights"] == []
+
+    # 4. 验证全局 headline 正常生成
+    assert "顺利通过" in res.meeting_meta.get("overview_headline", "")
 
 

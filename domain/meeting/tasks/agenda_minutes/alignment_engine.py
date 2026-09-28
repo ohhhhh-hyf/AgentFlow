@@ -1,18 +1,18 @@
-"""alignment_engine.py -- 发言人真名与专名驱动的发言块独立归属与对齐引擎。
+"""alignment_engine.py -- 发言人切换与议程人员网络匹配的通用对齐引擎。
 
-核心机制（从抓标题定区间全面重构为以汇报人+专名密度的发言块独立路由）：
-1. TranscriptGrouper：把转录全文结构化分块为 DiscussionBlock（带发言人、时间戳、上下文断点）；
-2. BlockScorer & Router：对每一个发言块，综合计算「汇报人发言/点名(主权) + 专有名词密度(词法) + 标题锚点(候选边界)」亲和度得分；
-   一块发言可以独立归属给任何议题，彻底打破连续区间切片的束缚；
-3. 会话连续性平滑：在议题讨论进行中，专家质询、评委问答等未命名短块自动归入当前活跃议题，遇冲突专名或新汇报人立即换流；
-4. 程序化确定性核验 (Programmatic Grounding Verification)：
-   核对证据里是否有该议题的官方汇报人发言，或专属专名密度；若两项皆无，严格判定为 skipped（缺失）；
-5. 临时追加捕集 (Adhoc Discovery)：
-   未能归属到任何法定议题且字数充实的全局发言块（通常是高管散会决策），汇聚为临时追加事项。
+核心机制（彻底摆脱文本标题行，面向真实 ASR 口语转录）：
+1. group_transcript_blocks：按发言人与时间戳聚合为天然发言块（DiscussionBlock），绝不在正文中寻找伪标题行；
+2. 会话转换标记与动力学感知：利用收尾信号（"谢谢各位/好，拜/先下"）与开场信号（"我来共享/能看到桌面/结论是go"）感知转场；
+3. 议程人员网络与软亲和度打分：
+   - 区分汇报人主权发言（+5.0/+3.0）、纪要人/团队成员答辩（+2.5）、点名（+2.0）；
+   - 过滤全会中立枢纽人员（高雄、徐锋等全程评委/高频主持人）；
+   - 文本相似度与专名提供软概率加成（+2.5/+2.0），绝不作为硬切断点；
+4. 主讲人交接与会话状态机：支持跨议题换序（Permutations），当新议题主讲人强力接管时触发切换；
+5. 程序化确定性核验（Zero-Evidence Grounding）：无人员发言且无专名讨论的议题确定性置空（skipped）；
+6. 时序重构（Chronological Reconstruction）：已讨论议题按现场实际发言先后排序，未讨论议题排在最后。
 """
 from __future__ import annotations
 
-import difflib
 import logging
 import re
 from dataclasses import dataclass, field
@@ -31,7 +31,7 @@ class DiscussionBlock:
     timestamp: str
     content: str
     index: int = 0
-    header_seq: str = ""
+    header_seq: str = ""  # 保留字段以保持向后兼容
 
 
 @dataclass
@@ -64,9 +64,17 @@ class AlignmentResult:
     def skipped_count(self) -> int:
         return sum(1 for a in self.alignments if a.status == "skipped")
 
+    @property
+    def chronological_alignments(self) -> list[AgendaAlignment]:
+        """已讨论议题按现场实际发言先后时序排列，未讨论议题置于末尾。"""
+        discussed = [a for a in self.alignments if a.status == "discussed"]
+        discussed.sort(key=lambda a: (a.start_index if a.start_index >= 0 else 999999))
+        skipped = [a for a in self.alignments if a.status == "skipped"]
+        return discussed + skipped
+
 
 _SPEAKER_TS_PATTERN = re.compile(
-    r"^([^\n\d:]{2,12})\s+(\d{1,2}:\d{2}(?::\d{2})?)",
+    r"^([^\n\d:]{2,16})\s+(\d{1,2}:\d{2}(?::\d{2})?)",
     re.M,
 )
 
@@ -80,9 +88,18 @@ _GENERIC_TOKENS = {
     "测试", "开发", "上线", "业务", "系统", "管理", "平台"
 }
 
-_SPOKEN_MARKERS = {
-    "各位评委", "我共享", "我来共享", "晚上好", "各位好", "在不在", "大家好", "稍等一下",
-    "能听到吗", "可以听到", "打开来看一眼", "下一个", "散会"
+_CLOSING_MARKERS = {
+    "谢谢各位", "感谢各位", "多谢大家", "谢谢评委", "好，拜", "好的拜", "拜拜",
+    "我先下", "你们先下", "可以先下", "先这样了", "归纳一下", "走评审电子流",
+    "那就先散会", "辛苦各位", "闭环之后再发", "就这几个，今天", "散会", "好，拜。",
+    "先下了", "就先这样", "多谢大家拜", "感谢大家", "那先这样", "拜拜。"
+}
+
+_OPENING_MARKERS = {
+    "我来共享", "我共享", "我抢一下桌面", "能看到桌面", "能看到屏幕", "各位评委好",
+    "各位评委晚上好", "这次版本主要", "本次版本主要", "整体结论是go", "结论是go",
+    "看下一个", "切到下一个", "下面由我汇报", "单框架补丁", "我来介绍", "在不在",
+    "大家看本次", "大家看一下", "各位好", "开始汇报", "我先共享", "我来汇报"
 }
 
 
@@ -106,224 +123,193 @@ def extract_distinctive_tokens(text: str) -> list[str]:
     return list(dict.fromkeys(en_distinct + cn_tokens))
 
 
-def clean_title_str(s: str) -> str:
-    """去除序号与标点以便字符串对齐。"""
-    s = re.sub(r"^(?:议题\s*[\d一二三四五六七八九十]+[：:、\.\s]*|No\.\s*\d+[\.\s]*|\d+[\.、\s]+)", "", s)
-    s = re.sub(r"[\s\-_:：\(\)（）【】]", "", s)
-    return s.lower()
-
-
-def title_match_score(line: str, item_title: str) -> float:
-    """计算转录行与议题标题的匹配度（仅用于边界候选提示，不作为唯一裁判）。"""
-    s = line.strip()
-    if not s or len(s) > 120 or s[-1] in "。？！，、；~…":
-        return 0.0
-    if any(m in s for m in _SPOKEN_MARKERS):
-        return 0.0
-    if _SPEAKER_TS_PATTERN.match(s):
-        return 0.0
-
-    c_line = clean_title_str(s)
-    c_title = clean_title_str(item_title)
-    if not c_line or not c_title:
-        return 0.0
-
-    if c_line == c_title:
-        return 1.0
-
-    seq_ratio = difflib.SequenceMatcher(None, c_line, c_title).ratio()
-    tokens_l = extract_distinctive_tokens(s)
-    tokens_t = extract_distinctive_tokens(item_title)
-    common_tokens = [tok for tok in tokens_t if any(tok in tl or tl in tok for tl in tokens_l)]
-    if tokens_t and len(common_tokens) == len(tokens_t):
-        return max(seq_ratio, 0.9)
-    if common_tokens and seq_ratio >= 0.6:
-        return max(seq_ratio, 0.8)
-    return seq_ratio
+def _match_token_in_text(token: str, text: str) -> bool:
+    """整词边界或安全子串匹配，防止如 'ids' 误伤其他英文单词。"""
+    if not token or not text:
+        return False
+    if re.match(r"^[A-Za-z0-9_\-\.]+$", token):
+        pattern = rf"\b{re.escape(token)}\b"
+        return bool(re.search(pattern, text, re.IGNORECASE))
+    if len(token) >= 2:
+        return token.lower() in text.lower()
+    return False
 
 
 def group_transcript_blocks(
     transcript: str,
     plan: AgendaPlan | None = None,
 ) -> list[DiscussionBlock]:
-    """把转录实录聚合成连续的发言人讨论块，并附带议题标题边界候选标记。"""
-    lines = (transcript or "").strip().splitlines()
+    """把纯转录实录聚合成连续的发言人讨论块（彻底不依赖标题行断点）。"""
+    raw_text = (transcript or "").strip()
+    if not raw_text:
+        return []
+
+    text = raw_text.replace("\r\n", "\n").replace("\r", "\n")
+    matches = list(_SPEAKER_TS_PATTERN.finditer(text))
+
     blocks: list[DiscussionBlock] = []
-
-    cur_speaker = ""
-    cur_ts = ""
-    cur_lines: list[str] = []
-    idx = 0
-    pending_header_seq = ""
-
-    for line in lines:
-        s = line.strip()
-        if not s:
-            continue
-
-        # 检查是否为议程标题独立行（仅作为边界候选）
-        best_item = None
-        if plan:
-            scores = [(it, title_match_score(s, it.title)) for it in plan.items]
-            scores = [sc for sc in scores if sc[1] >= 0.75]
-            if scores:
-                scores.sort(key=lambda x: x[1], reverse=True)
-                best_item = scores[0][0]
-
-        if best_item is not None:
-            if cur_speaker and cur_lines:
-                blocks.append(
-                    DiscussionBlock(
-                        speaker=cur_speaker,
-                        timestamp=cur_ts,
-                        content="\n".join(cur_lines).strip(),
-                        index=idx,
-                        header_seq=pending_header_seq,
-                    )
+    if matches:
+        for idx, m in enumerate(matches):
+            sp = m.group(1).strip()
+            ts = m.group(2).strip()
+            next_start = matches[idx + 1].start() if idx + 1 < len(matches) else len(text)
+            body = text[m.end():next_start].strip()
+            blocks.append(
+                DiscussionBlock(
+                    speaker=sp,
+                    timestamp=ts,
+                    content=body,
+                    index=idx,
                 )
-                idx += 1
-                cur_speaker = ""
-                cur_ts = ""
-                cur_lines = []
-            pending_header_seq = best_item.seq
-            continue
-
-        m = _SPEAKER_TS_PATTERN.match(s)
-        if m:
-            if cur_speaker and cur_lines:
-                blocks.append(
-                    DiscussionBlock(
-                        speaker=cur_speaker,
-                        timestamp=cur_ts,
-                        content="\n".join(cur_lines).strip(),
-                        index=idx,
-                        header_seq=pending_header_seq,
-                    )
-                )
-                idx += 1
-                pending_header_seq = ""
-            cur_speaker = m.group(1).strip()
-            cur_ts = m.group(2).strip()
-            cur_lines = []
-        else:
-            cur_lines.append(s)
-
-    if cur_speaker and cur_lines:
-        blocks.append(
-            DiscussionBlock(
-                speaker=cur_speaker,
-                timestamp=cur_ts,
-                content="\n".join(cur_lines).strip(),
-                index=idx,
-                header_seq=pending_header_seq,
             )
-        )
-
-    # 兜底：未识别出时间戳时按非空段落聚合
-    if not blocks and lines:
-        for i, line in enumerate(lines):
-            if line.strip():
-                blocks.append(
-                    DiscussionBlock(
-                        speaker="现场发言人",
-                        timestamp="",
-                        content=line.strip(),
-                        index=i,
-                    )
+    else:
+        paragraphs = [p.strip() for p in text.split("\n\n") if p.strip()]
+        if not paragraphs:
+            paragraphs = [l.strip() for l in text.splitlines() if l.strip()]
+        for i, p in enumerate(paragraphs):
+            blocks.append(
+                DiscussionBlock(
+                    speaker="现场发言人",
+                    timestamp="",
+                    content=p,
+                    index=i,
                 )
+            )
 
     return blocks
 
 
-def _match_token_in_text(token: str, text: str) -> bool:
-    """整词边界或安全子串匹配，防止如 'ids' 误伤其他英文单词。"""
-    if not token or not text:
-        return False
-    # 纯英文或数字：要求严格整词边界匹配
-    if re.match(r"^[A-Za-z0-9_\-\.]+$", token):
-        pattern = rf"\b{re.escape(token)}\b"
-        return bool(re.search(pattern, text, re.IGNORECASE))
-    # 中文：至少 2 字符
-    if len(token) >= 2:
-        return token in text
-    return False
+def _identify_hub_speakers(plan: AgendaPlan, blocks: list[DiscussionBlock]) -> set[str]:
+    """识别全会主持人、评委等中立枢纽人员（高雄、徐锋、索勋飞等）。"""
+    hubs: set[str] = set()
+    if plan.meta and plan.meta.attendees:
+        m = re.search(r"全程与会人\s*[:：]?\s*([^;\n]+(?:;[^;\n]+)*)", plan.meta.attendees)
+        if m:
+            from .agenda_parser import clean_presenter_names
+            for name in clean_presenter_names(m.group(1)):
+                hubs.add(name)
+
+    speaker_counts: dict[str, int] = {}
+    for b in blocks:
+        if b.speaker:
+            speaker_counts[b.speaker] = speaker_counts.get(b.speaker, 0) + 1
+    all_presenters = set(p for it in plan.items for p in it.presenters)
+    for sp, cnt in speaker_counts.items():
+        if cnt >= 25 and sp not in all_presenters:
+            hubs.add(sp)
+    return hubs
+
+
+def _score_block_for_item(
+    b: DiscussionBlock,
+    it: AgendaItemParsed,
+    tokens: list[str],
+    hub_speakers: set[str],
+    is_opening: bool,
+) -> float:
+    score = 0.0
+    sp = b.speaker.strip()
+    content = b.content
+
+    # 1. 汇报人与团队身份匹配
+    if sp and sp not in hub_speakers:
+        if any(p in sp or sp in p for p in it.presenters):
+            if len(content) >= 50 or is_opening:
+                score += 5.0
+            else:
+                score += 3.0
+        elif hasattr(it, "recorders") and any(r in sp for r in it.recorders):
+            score += 2.5
+        elif hasattr(it, "members") and any(m in sp for m in it.members):
+            score += 2.5
+
+    # 2. 正文点名该议题人员
+    all_team = list(it.presenters)
+    if hasattr(it, "recorders"):
+        all_team.extend(it.recorders)
+    if hasattr(it, "members"):
+        all_team.extend(it.members)
+    for name in all_team:
+        if name and name in content:
+            score += 2.0
+            break
+
+    # 3. 专有名词与区分性词群（软亲和度加成）
+    for tok in tokens:
+        if _match_token_in_text(tok, content):
+            if re.match(r"^[A-Za-z0-9_\-\.]+$", tok):
+                score += 2.5
+            else:
+                score += 2.0
+
+    return score
 
 
 def align_agenda_with_transcript(
     plan: AgendaPlan,
     transcript: str,
 ) -> AlignmentResult:
-    """以汇报人真名与专名密度驱动的发言块独立路由引擎。
+    """基于发言人切换与议程人员网络匹配的通用对齐引擎。
 
     彻底解决：
-    1. 误判标题劫持汇报人（如 test1 陆敬怡归入议题04，议题01如实留空）；
-    2. 标题与发言错位导致切段穿透（如 test2 郑爽回到 IDS，陈啟锴回到 HAG）；
-    3. 顺序严格按给定会前议程大盘输出，未讨论项确定性置空。
+    1. 真实转录中无任何议题标题行的问题；
+    2. 会议现场换序（Permutations）或议题未讨论（Skips）问题；
+    3. 全会高管评委在各议题穿插质询的精准归属；
+    4. 最终纪要时序遵循现场研讨时间轴流淌。
     """
     blocks = group_transcript_blocks(transcript, plan=plan)
     all_speakers = set(b.speaker for b in blocks if b.speaker)
 
     item_tokens = {it.seq: extract_distinctive_tokens(it.title) for it in plan.items}
+    hub_speakers = _identify_hub_speakers(plan, blocks)
 
-    # ── 阶段 1：对转写中每个发言块执行多议题亲和度独立打分 ─────────────────────────
-    # 规则：
-    # 1. 官方汇报人主权发言：权重最高 (+5.0 / +3.0)；
-    # 2. 文本中明确点名该汇报人：(+2.0)；
-    # 3. 专有名词整词命中：(+2.0 / +1.5)；
-    # 4. 标题行边界提示：(+1.2，低于汇报人权重，绝不抢占其它汇报人)。
+    # ── 阶段 1：多维特征感知与主讲人交接状态机 ───────────────────────────
     assigned: dict[int, str | None] = {}
+    active_seq: str | None = None
+    session_closing: bool = False
+
     for b in blocks:
-        best_seq = None
-        best_score = 0.0
-        for it in plan.items:
-            score = 0.0
+        is_closing = any(m in b.content for m in _CLOSING_MARKERS)
+        is_opening = any(m in b.content for m in _OPENING_MARKERS)
 
-            # 汇报人身份匹配（最高优先级）
-            is_presenter = False
-            for p in it.presenters:
-                if p and (p in b.speaker or b.speaker in p):
-                    is_presenter = True
-                    score += 5.0 if len(b.content) >= 30 else 3.0
-                    break
-                elif p and p in b.content:
-                    score += 2.0
+        scores = {
+            it.seq: _score_block_for_item(b, it, item_tokens[it.seq], hub_speakers, is_opening)
+            for it in plan.items
+        }
+        best_seq, best_score = max(scores.items(), key=lambda x: x[1])
 
-            # 专有名词与区分性词群（词法亲和度）
-            for tok in item_tokens[it.seq]:
-                if _match_token_in_text(tok, b.content):
-                    score += 2.0 if re.match(r"^[A-Za-z0-9_\-\.]+$", tok) else 1.5
+        if is_closing:
+            session_closing = True
 
-            # 候选标题行边界提示（弱权重，仅作辅助）
-            if getattr(b, "header_seq", "") == it.seq:
-                score += 1.2
-
-            if score > best_score:
-                best_score = score
-                best_seq = it.seq
-
-        if best_score >= 2.0:
-            assigned[b.index] = best_seq
+        if best_score >= 3.0:
+            if best_seq != active_seq:
+                if (
+                    active_seq is None
+                    or session_closing
+                    or best_score >= 4.5
+                    or (best_score >= scores.get(active_seq, 0) + 2.0)
+                ):
+                    active_seq = best_seq
+                    session_closing = False
+            assigned[b.index] = active_seq
         else:
-            assigned[b.index] = None
-
-    # ── 阶段 2：会话连续性平滑（Active Session Fill）─────────────────────────
-    # 在某个议题的汇报进行过程中，提问与短答辩（若无其它议题专名冲突）自动归属当前议题
-    active: str | None = None
-    for b in blocks:
-        if assigned[b.index] is not None:
-            active = assigned[b.index]
-        elif active is not None:
-            # 检查该块是否包含其它议程的专名冲突
-            has_conflict = False
-            for seq, kws in item_tokens.items():
-                if seq != active:
-                    if any(_match_token_in_text(tok, b.content) for tok in kws):
+            if active_seq is not None:
+                has_conflict = False
+                for seq, kws in item_tokens.items():
+                    if seq != active_seq and scores.get(seq, 0) >= 2.5:
                         has_conflict = True
                         break
-            if not has_conflict:
-                assigned[b.index] = active
+                if not has_conflict:
+                    assigned[b.index] = active_seq
+                else:
+                    assigned[b.index] = None
+            else:
+                assigned[b.index] = None
 
-    # ── 阶段 3：程序化确定性核验（缺少汇报人或专名则改判缺失）─────────────────────
+        if is_opening and best_score >= 2.0:
+            session_closing = False
+
+    # ── 阶段 2：程序化确定性核验（缺项与有效讨论门禁判定）──────────────────
     alignments: list[AgendaAlignment] = []
     used_block_indices: set[int] = set()
 
@@ -331,15 +317,21 @@ def align_agenda_with_transcript(
         it_blocks = [b for b in blocks if assigned.get(b.index) == it.seq]
         evidence = "\n".join(b.content for b in it_blocks)
 
-        has_pres = any(any(p in b.speaker for p in it.presenters) for b in it_blocks)
+        all_team = list(it.presenters)
+        if hasattr(it, "recorders"):
+            all_team.extend(it.recorders)
+        if hasattr(it, "members"):
+            all_team.extend(it.members)
+
+        has_team = any(any(p in b.speaker for p in all_team) for b in it_blocks)
         has_distinctive = any(_match_token_in_text(tok, evidence) for tok in item_tokens[it.seq])
 
-        # 核心核验门禁：有汇报人发言，或有 2 块以上充分讨论且命中核心专名
-        if has_pres or (len(it_blocks) >= 2 and has_distinctive):
+        if (has_team and (len(it_blocks) >= 2 or len(evidence) >= 15 or has_distinctive)) or (
+            len(it_blocks) >= 3 and has_distinctive
+        ):
             used_block_indices.update(b.index for b in it_blocks)
             topic_speakers = list(dict.fromkeys(b.speaker for b in it_blocks if b.speaker))
 
-            # 组装证据文本
             lines_buf = [f"{b.speaker} {b.timestamp}\n{b.content.strip()}" for b in it_blocks]
             evidence_text = "\n\n".join(lines_buf)
 
@@ -358,7 +350,6 @@ def align_agenda_with_transcript(
                 )
             )
         else:
-            # 严格判空：零证据确定性截断
             alignments.append(
                 AgendaAlignment(
                     item=it,
@@ -371,7 +362,7 @@ def align_agenda_with_transcript(
                 )
             )
 
-    # ── 阶段 4：未归属的重要长发言块捕集为 Adhoc（临时追加/高管总结）────────────
+    # ── 阶段 3：未归属的重要长发言块捕集为 Adhoc（高管总结/全局指示）─────────
     adhoc_blocks: list[DiscussionBlock] = []
     for b in blocks:
         if b.index not in used_block_indices and len(b.content) > 40:

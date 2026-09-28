@@ -100,6 +100,38 @@ AGENDA_MINUTES_GENERATION_OUTPUT_CONTRACT = AgendaMinutesGenerationContract.to_o
 AGENDA_MINUTES_SUPERVISOR_OUTPUT_CONTRACT = AgendaMinutesSupervisorContract.to_output_contract()
 
 
+SINGLE_AGENDA_ITEM_OUTPUT_CONTRACT = """{
+  "presenter": "",
+  "status_tag": "",
+  "proposal_highlights": [],
+  "deliberation_details": {
+    "key_metrics": [],
+    "feedback_concerns": []
+  },
+  "resolution": "",
+  "action_commitments": [
+    {
+      "owner": "",
+      "task": "",
+      "deadline": ""
+    }
+  ]
+}
+
+字段说明：
+- presenter：实际现场汇报人（如现场由某专家实际汇报则填写其真实姓名，若为主讲人则填法定汇报人）
+- status_tag：议题结论状态标签（如 [审议通过]、[附条件通过]、[技术共识]、[延期再议]、[暂停评审] 等）
+- proposal_highlights：1. 方案背景与核心诉求（版本需求、功能范围、技术演进或业务痛点）
+- deliberation_details：2. 研讨过程与关键论据
+- deliberation_details.key_metrics：硬核论据与量化指标（时延对比、通过率、压测及评测数据）
+- deliberation_details.feedback_concerns：讨论交锋与各方反馈（评审把关质询、专家顾虑或解答，保留真实姓名）
+- resolution：3. 最终定调与决议共识（拍板口径、前置约束条件或技术演进共识）
+- action_commitments：4. 后续行动与跟进责任
+- action_commitments[].owner：跟进责任人/单位
+- action_commitments[].task：具体执行事项或探索方向
+- action_commitments[].deadline：完成时限节点或排期安排"""
+
+
 class AgendaMinutesFallbackRules(FallbackRules):
     """议程驱动纪要降级拼装规则。"""
 
@@ -113,5 +145,6 @@ AGENDA_MINUTES_FALLBACK_RULES = AgendaMinutesFallbackRules()
 __all__ = [
     "AGENDA_MINUTES_GENERATION_OUTPUT_CONTRACT",
     "AGENDA_MINUTES_SUPERVISOR_OUTPUT_CONTRACT",
+    "SINGLE_AGENDA_ITEM_OUTPUT_CONTRACT",
     "AGENDA_MINUTES_FALLBACK_RULES",
 ]

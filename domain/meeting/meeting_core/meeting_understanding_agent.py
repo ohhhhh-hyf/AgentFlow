@@ -55,7 +55,16 @@ class MeetingUnderstandingAgent:
         那个名字字符串，而视角建模那轮连原文都看不到、帮不上"这个人是谁"。这里只要求
         「把原文已有的称呼统一成一个写法」，不新增事实（提示词里写死不许猜编号发言人）。
         """
-        user = f"会议原文：\n{transcript}"
+        if len(transcript) > 45000:
+            # 针对超长会议文本执行首尾兼顾的安全采样，防止输入挤占模型输出空间导致 JSON 截断
+            sampled_text = (
+                transcript[:26000]
+                + "\n\n...[超长会议中段讨论，此处略去部分细节发言]...\n\n"
+                + transcript[-18000:]
+            )
+            user = f"会议原文：\n{sampled_text}"
+        else:
+            user = f"会议原文：\n{transcript}"
         # 称呼表先拼在原文之前；裁剪指令最后拼到最前，保持"指令先于原文"的既有约定
         if (user_channel or "").strip():
             user = f"{user_channel.strip()}\n\n{user}"
