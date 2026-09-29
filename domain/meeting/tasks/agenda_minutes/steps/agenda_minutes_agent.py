@@ -416,7 +416,7 @@ class AgendaMinutesAgent:
                 extracted["discussion_state"] = "discussed"
                 return extracted
 
-        # 并发抽取所有 discussed 项，skipped 项由状态机判定，零 Token 调用
+        # 并发抽取所有 discussed 项，严格遵从现场讨论时序（skipped 项由状态机判定，零 Token 调用）
         discussed_alignments = [a for a in alignment_res.chronological_alignments if a.status == "discussed"]
         extracted_map: dict[str, dict[str, Any]] = {}
         if discussed_alignments:
@@ -491,7 +491,7 @@ class AgendaMinutesAgent:
                     seq_key = f"{int(seq_key):02d}"
                 raw_items_map[seq_key] = item
 
-        # 建立严格按 plan.items 排布的议程输出列表
+        # 建立严格按现场讨论时序（先讨论在前，未讨论置底）的议程输出列表
         enforced_agenda_items: list[dict[str, Any]] = []
 
         for align in alignment_res.chronological_alignments:

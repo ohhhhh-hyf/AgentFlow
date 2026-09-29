@@ -193,11 +193,13 @@ def clean_presenter_names(raw: str) -> list[str]:
     """
     if not raw or not raw.strip():
         return []
-    # 剥离前缀
-    text = re.sub(r"^(?:汇报人|主讲人|报告人|分享人|责任人|发言人)\s*[:：]\s*", "", raw.strip(), flags=re.I)
+    # 剥离 Markdown 格式符号与首尾空白
+    text = re.sub(r"[\*#_`]", "", raw.strip())
+    # 剥离常见角色前缀
+    text = re.sub(r"^(?:汇报人|主讲人|报告人|分享人|责任人|发言人|主持人|会议主持|全程与会人|与会人|列席人|分段列席人)\s*[:：]\s*", "", text, flags=re.I)
     # 剥离 5~8 位连续数字工号
     text = re.sub(r"\b\d{5,8}\b", "", text)
-    # 剔除括号及其内工号或备注，如 (委托张三)
+    # 剔除括号及其内工号或备注，如 (委托某某)
     text = re.sub(r"\([^)]*\)|（[^）]*）", "", text)
     # 按常见分隔符拆分（包含顿号、分号、斜杠、逗号、空格）
     names = re.split(r"[;；,/，\s、]+", text)
@@ -222,11 +224,11 @@ def _split_table_row(line: str) -> list[str]:
 
 
 _COMMON_VARIANTS: dict[str, str] = {
-    # 形似与 OCR 易混字符
+    # 常见 OCR 易混形近字与变体
     "错": "锴", "锴": "锴",
     "九": "旭", "旭": "旭",
     "倍": "培", "培": "培",
-    # 繁简与同音异体字
+    # 常用繁简与异体字归一化
     "啟": "启", "啓": "启",
     "鋒": "锋", "峰": "锋",
     "恒": "恒", "恆": "恒",
@@ -252,19 +254,31 @@ _SPEAKER_COLON_PATTERN = re.compile(
 
 
 def match_presenter_name(p: str, sp: str) -> float:
-    """计算议程汇报人与实际发言人的匹配相似度（支持繁简异体、单字符 OCR 误识与变体归一化）。"""
+    """计算议程汇报人与实际发言人的匹配相似度（支持繁简异体、拼音同音与单字符容错）。"""
     if not p or not sp:
         return 0.0
-    p_strip = p.strip()
-    sp_strip = sp.strip()
+    p_strip = re.sub(r"[\*#_`\s]", "", p)
+    sp_strip = re.sub(r"[\*#_`\s]", "", sp)
+    if not p_strip or not sp_strip:
+        return 0.0
     if p_strip == sp_strip or p_strip in sp_strip or sp_strip in p_strip:
         return 1.0
 
-    # 变体汉字归一化（如 啟 -> 启，锴 -> 错）
+    # 变体汉字归一化（繁简与常见异体）
     p_norm = "".join(_COMMON_VARIANTS.get(c, c) for c in p_strip)
     sp_norm = "".join(_COMMON_VARIANTS.get(c, c) for c in sp_strip)
     if p_norm == sp_norm or p_norm in sp_norm or sp_norm in p_norm:
         return 0.95
+
+    # 语音转写 ASR 常见同音字容错（基于拼音同音比对）
+    if len(p_strip) == len(sp_strip) and len(p_strip) >= 2:
+        try:
+            from pypinyin import lazy_pinyin
+
+            if lazy_pinyin(p_strip) == lazy_pinyin(sp_strip):
+                return 0.9
+        except Exception:
+            pass
 
     return 0.0
 

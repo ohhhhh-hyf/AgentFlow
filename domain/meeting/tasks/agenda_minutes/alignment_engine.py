@@ -5,7 +5,7 @@
 2. 会话转换标记与动力学感知：利用收尾信号（"谢谢各位/好，拜/先下"）与开场信号（"我来共享/能看到桌面/结论是go"）感知转场；
 3. 议程人员网络与软亲和度打分：
    - 区分汇报人主权发言（+5.0/+3.0）、纪要人/团队成员答辩（+2.5）、点名（+2.0）；
-   - 过滤全会中立枢纽人员（高雄、徐锋等全程评委/高频主持人）；
+   - 过滤全会中立枢纽人员（全程评委/高频主持人）；
    - 文本相似度与专名提供软概率加成（+2.5/+2.0），绝不作为硬切断点；
 4. 主讲人交接与会话状态机：支持跨议题换序（Permutations），当新议题主讲人强力接管时触发切换；
 5. 程序化确定性核验（Zero-Evidence Grounding）：无人员发言且无专名讨论的议题确定性置空（skipped）；
@@ -101,7 +101,7 @@ _HOST_DIRECT_INVITE_PATTERN = re.compile(
     re.IGNORECASE,
 )
 _HOST_NEXT_PHRASE_PATTERN = re.compile(
-    r"(?:接下来|下面)\s*(?:有请|由|切到|听下|让|请)\s*([^\s,，。:：]{2,15})",
+    r"(?:接下来|下面|然后)\s*(?:就)?\s*(?:有请|由|切到|听下|让|请)\s*(?:那个|这位)?\s*([^\s,，。:：]{2,15})",
     re.IGNORECASE,
 )
 _HOST_GENERIC_PATTERN = re.compile(r"有请下一位", re.IGNORECASE)
@@ -126,6 +126,7 @@ _OPENING_PATTERNS = [
     re.compile(r"(?:这次版本主要|本次版本主要|看下一个|切到下一个|下面由我汇报)"),
     re.compile(r"(?:单框架补丁|我来介绍|大家看本次|大家看一下|各位好|开始汇报|我先共享|我来汇报|我就开始汇报|我快速过一下|今天我主要分享)"),
     re.compile(r"(?:我先|我来)\s*(?:共享|汇报|投屏|介绍)"),
+    re.compile(r"(?:各位老师|各位同学|各位领导|各位专家|各位同事|大家早上好|大家下午好|大家晚上好)"),
 ]
 
 # 4. 设备调试与过场闲聊（Equipment & Chitchat Noise）
@@ -142,7 +143,8 @@ _GENERIC_TOKENS = {
     # 中文泛词
     "版本", "发布", "评审", "商用", "补丁", "需求", "优化", "例会", "实践", "技术", "洞察",
     "服务", "议题", "主题", "讨论", "分享", "进展", "同步", "委员会", "方案", "架构",
-    "测试", "开发", "上线", "业务", "系统", "管理", "平台"
+    "测试", "开发", "上线", "业务", "系统", "管理", "平台", "处理", "应用", "探索",
+    "语音", "音频", "声学",
 }
 
 _CLOSING_MARKERS = {
@@ -266,21 +268,30 @@ def extract_distinctive_tokens(text: str) -> list[str]:
         tok for tok in en_tokens
         if tok not in _GENERIC_TOKENS and not re.match(r"^\d+(?:\.\d+)*$", tok)
     ]
-    clean = re.sub(r"[A-Za-z0-9_\-\.\s:：\(\)（）【】]", "", text)
+    # 按标点与常见连词/介词切分，提炼干净的短语片段
+    segments = re.split(r"[与及和的在向从对关于、，,·\-_/\\|\s:：\(\)（）【】]+", text)
     cn_tokens = []
-    chunks = re.findall(r"[\u4e00-\u9fa5]{2,}", clean)
-    for c in chunks:
-        if c not in _GENERIC_TOKENS:
+    for seg in segments:
+        clean = re.sub(r"[A-Za-z0-9_\-\.\s:：\(\)（）【】]", "", seg)
+        chunks = re.findall(r"[\u4e00-\u9fa5]{2,}", clean)
+        for c in chunks:
             c_clean = c
-            for g in _GENERIC_TOKENS:
+            for g in sorted(_GENERIC_TOKENS, key=len, reverse=True):
                 c_clean = c_clean.replace(g, "")
             if len(c_clean) >= 2 and c_clean not in _GENERIC_TOKENS:
                 cn_tokens.append(c_clean)
+                if len(c_clean) >= 4:
+                    if c_clean[:2] not in _GENERIC_TOKENS:
+                        cn_tokens.append(c_clean[:2])
+                    if c_clean[-2:] not in _GENERIC_TOKENS:
+                        cn_tokens.append(c_clean[-2:])
+            elif len(c) >= 2 and c not in _GENERIC_TOKENS:
+                cn_tokens.append(c)
     return list(dict.fromkeys(en_distinct + cn_tokens))
 
 
 def _match_token_in_text(token: str, text: str) -> bool:
-    """整词边界或安全子串匹配，防止如 'ids' 误伤其他英文单词。"""
+    """整词边界或安全子串匹配，防止英文缩写误伤其他单词。"""
     if not token or not text:
         return False
     if re.match(r"^[A-Za-z0-9_\-\.]+$", token):
@@ -356,19 +367,22 @@ def group_transcript_blocks(
 
 
 def _identify_hub_speakers(plan: AgendaPlan, blocks: list[DiscussionBlock]) -> tuple[set[str], set[str]]:
-    """识别全会主持人、评委等中立枢纽人员（高雄、徐锋、索勋飞等），并检出双重身份人员。"""
+    """识别全会主持人、评委等中立枢纽人员，并检出双重身份人员。"""
     raw_hubs: set[str] = set()
     if plan.meta and plan.meta.attendees:
         from .agenda_parser import clean_presenter_names
+        clean_att = re.sub(r"[\*#_`]", "", plan.meta.attendees)
         for role_prefix in [
-            "全程与会人", "主持人", "会议主持", "评委", "评审组长", "主席", "评委组",
+            "全程与会人/主持人", "全程与会人", "主持人", "会议主持", "评委", "评审组长", "主席", "评委组",
             "组织主席", "大会主席", "执行主席", "召集人", "Session Chair"
         ]:
             # 强化边界：匹配到换行、分段与会人/列席人标签、连字符、破折号时立即终止，防止单行穿透抓取汇报人
-            m = re.search(rf"{role_prefix}\s*[:：]?\s*([^;\n\r—\-]+(?:[;；][^;\n\r—\-]+)*)", plan.meta.attendees)
+            m = re.search(rf"{role_prefix}\s*[:：]?\s*([^;\n\r—\-]+(?:[;；][^;\n\r—\-]+)*)", clean_att)
             if m:
                 for name in clean_presenter_names(m.group(1)):
-                    raw_hubs.add(name)
+                    clean_n = re.sub(r"^(?:主持人|会议主持|全程与会人|与会人|列席人)[:：]?", "", name).strip()
+                    if clean_n:
+                        raw_hubs.add(clean_n)
 
     # 文本原生角色嗅探：转写文本中发言人若直接命名为“主持人/主席/评委”等，自动纳入枢纽池
     for b in blocks:
@@ -396,7 +410,7 @@ def _identify_hub_speakers(plan: AgendaPlan, blocks: list[DiscussionBlock]) -> t
         raw_hubs.remove("现场发言人")
 
     # 汇报人身份互斥保护（核心免疫，支持模糊容错）：
-    # 检出双重身份人员（如张晓雷既是组织主席，又是议题04主讲人）
+    # 检出双重身份人员（既是会议主持/组织人员，又是某议题法定主讲人）
     team_in_hubs = {h for h in raw_hubs if any(match_presenter_name(p, h) >= 0.8 for p in all_team if p)}
     dual_speakers = team_in_hubs
     # 凡是既定议题的汇报人/团队成员，绝不作为纯中立主持人（防止加分被彻底抹平）
@@ -413,6 +427,7 @@ def _score_block_for_item(
     is_opening: bool,
     roadsign_seq: str | None = None,
     dual_speakers: set[str] | None = None,
+    active_seq: str | None = None,
 ) -> float:
     score = 0.0
     sp = b.speaker.strip()
@@ -441,10 +456,14 @@ def _score_block_for_item(
     if sp and (sp not in hub_speakers or is_dual):
         if is_presenter:
             if is_dual:
-                # 双重身份（如张晓雷既是主席又是议题主讲人）：
-                # 若发言过短且未命中该议题专有词，说明正在履行主持职责，不加主讲人分
-                is_short_intro = len(content) < 100 and not any(_match_token_in_text(tok, content) for tok in tokens)
-                if not is_short_intro:
+                # 双重身份（既是会议主持/组织人员，又是某议题法定主讲人）：
+                # 当本议题不是当前活跃议题时，发言必须命中本议题专有区分词，或有明确路标切入，才激活为主讲人；
+                # 否则说明正在履行开场/串场/介绍他人的主持职责，不加主讲人分，防止主持开场提前误激活！
+                if active_seq != it.seq:
+                    has_topic_token = any(_match_token_in_text(tok, content) for tok in tokens)
+                    if has_topic_token or (roadsign_seq and roadsign_seq == it.seq):
+                        score += presenter_score
+                else:
                     score += presenter_score
             else:
                 if len(content) >= 50 or is_opening:
@@ -534,7 +553,7 @@ def _build_item_signals_for_content_track(it: AgendaItemParsed) -> list[str]:
 
     combined = f"{title} {desc}"
 
-    # 角色与尊称提取（如 何刚总 -> 何刚总, 何刚, 何总）
+    # 角色与尊称提取（提取姓氏+尊称如 张总、李工等）
     m_role = re.search(r"([\u4e00-\u9fa5]{1,4})(?:总|工|老师|主任|院长|博士|专家|主席)", combined)
     if m_role:
         leader_name = m_role.group(1)
@@ -551,7 +570,7 @@ def _build_item_signals_for_content_track(it: AgendaItemParsed) -> list[str]:
         if m_role:
             signals.append(f"{m_role.group(0)}致辞")
             if len(leader_name) >= 2:
-                signals.append(f"{leader_name[0]}总致辞")
+                signals.append(f"{leader_name[0]}{role_type}致辞")
     if any(k in combined for k in ("交流", "问答", "答疑", "互动", "讨论")):
         signals.extend(["团队交流", "互动交流", "现场问答", "自由交流", "互动答疑", "提问环节"])
     if any(k in combined for k in ("签署", "签发", "签约", "授予", "任务令")):
@@ -573,7 +592,7 @@ _TRANSITION_ROADSIGN_PATTERN = re.compile(
 
 _HIGH_CONFIDENCE_SIGNALS = {
     "全体合影", "全员合影", "任务令签署", "任务令签发", "签发仪式", "签署与授予",
-    "团队交流", "互动交流", "领导致辞", "何刚总致辞"
+    "团队交流", "互动交流", "领导致辞",
 }
 
 
@@ -604,15 +623,19 @@ def _align_by_topics_and_roadsigns(
     def _find_transition_candidate(b: DiscussionBlock, from_idx: int) -> tuple[str, int, str] | None:
         content = b.content
         has_trans_pattern = bool(_TRANSITION_ROADSIGN_PATTERN.search(content))
-        # 优先从高序号向下扫描到当前序号，匹配最具体的新议题（单向流）
-        for idx in range(len(items) - 1, from_idx - 1, -1):
+        cands: list[tuple[str, int, str]] = []
+        for idx in range(from_idx, len(items)):
             seq = items[idx].seq
             signals = item_signals[seq]
             for sig in signals:
                 if sig in content:
                     if has_trans_pattern or sig in _HIGH_CONFIDENCE_SIGNALS:
-                        return (seq, idx, sig)
-        return None
+                        cands.append((seq, idx, sig))
+        if not cands:
+            return None
+        # 优先匹配专有度最高（信号字长更长）的路标，同长度优先最近未处理议题
+        cands.sort(key=lambda x: (len(x[2]), -x[1]), reverse=True)
+        return cands[0]
 
     current_seq: str | None = None
     current_idx = 0
@@ -750,6 +773,7 @@ def align_agenda_with_transcript(
                 is_opening,
                 roadsign_seq=pending_roadsign,
                 dual_speakers=dual_speakers,
+                active_seq=active_seq,
             )
             for it in plan.items
         }
