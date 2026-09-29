@@ -447,20 +447,6 @@ class AgendaMinutesAgent:
 
         return AgendaMinutes.validate(enforced)
 
-    async def _generate_overview_headline(
-        self,
-        theme: str,
-        items: list[dict[str, Any]],
-    ) -> str:
-        """已弃用总体评价生成逻辑。"""
-        return ""
-
-    def _extract_adhoc_items(
-        self, adhoc_blocks: list[Any]
-    ) -> list[dict[str, Any]]:
-        """纯议题纪要不再输出临时追加议题。"""
-        return []
-
     def _enforce_agenda_invariants(
         self,
         raw: AgendaMinutes | dict,

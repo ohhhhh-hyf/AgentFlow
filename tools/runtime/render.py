@@ -5,6 +5,7 @@
 from __future__ import annotations
 
 import asyncio
+import inspect
 import logging
 
 from tools.core.domain_engine_text import line, line_cn, line_template
@@ -33,13 +34,41 @@ def _render_cap(state: dict, template: str) -> int | None:
         return None
 
 
-async def _render_run(render, context: str, template: str, cap: int | None):
-    """调用渲染步；支持 max_tokens 就带上，老步进对象不支持则退回旧签名。"""
-    if cap:
+_MAX_TOKENS_SUPPORT: dict = {}
+
+
+def _accepts_max_tokens(func) -> bool:
+    """``func`` 是否接受 ``max_tokens=`` 关键字（按底层函数缓存，每类只判一次）。
+
+    缓存键用底层函数对象本身（绑定方法的 ``__func__``），避免同名方法串味。
+    渲染步就这么十几个类，条数有界。
+    """
+    key = getattr(func, "__func__", func)
+    cached = _MAX_TOKENS_SUPPORT.get(key)
+    if cached is None:
         try:
-            return await render.run(context, template, max_tokens=cap)
-        except TypeError:
-            pass
+            params = inspect.signature(func).parameters
+        except (TypeError, ValueError):
+            cached = False
+        else:
+            cached = "max_tokens" in params or any(
+                p.kind is inspect.Parameter.VAR_KEYWORD for p in params.values()
+            )
+        _MAX_TOKENS_SUPPORT[key] = cached
+    return cached
+
+
+async def _render_run(render, context: str, template: str, cap: int | None):
+    """调用渲染步；支持 ``max_tokens`` 就带上（按签名预判，不拿异常兜底）。
+
+    历史上这里是 ``try: run(..., max_tokens=cap) / except TypeError: run(...)``。
+    14 个渲染步里只有 minutes_render 真的接受 ``max_tokens``，其余 13 个每次渲染
+    都靠抛 TypeError 走兜底；更糟的是 ``run()`` 内部**真**抛 TypeError 时会被当成
+    "老签名"，静默再跑一次整段渲染（重复 LLM 调用）。签名是静态事实，预先查一次
+    即可——对每个类的分支选择与旧行为逐字一致。
+    """
+    if cap and _accepts_max_tokens(render.run):
+        return await render.run(context, template, max_tokens=cap)
     return await render.run(context, template)
 
 # ── 渲染修订指令（从 produce_line 抽出，独立便于调整；函数内 format 插值）──

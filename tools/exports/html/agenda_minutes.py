@@ -93,8 +93,13 @@ def _md_inline(text: str) -> str:
     return escaped
 
 
-def format_agenda_minutes_markdown(draft: dict[str, Any], title: str = "") -> str:
-    """把结构化草稿排版为标准 Markdown 纪要（result.md）。"""
+def format_agenda_minutes_markdown(draft: dict[str, Any]) -> str:
+    """把结构化草稿排版为标准 Markdown 纪要（result.md）。
+
+    标题恒为「# 议程纪要」（H1 硬编码）。历史上这里收过一个 ``title`` 形参，
+    但函数体从未引用它，调用方（编排无模板分支、Render.render_draft）传进来的
+    计算值一直被丢弃——是未完成的接线而非可用开关，故删参以免误导。
+    """
     meta = draft.get("meeting_meta") or {}
     items = draft.get("agenda_items") or []
 

@@ -66,12 +66,12 @@ class MinutesGenerationRender:
         prompt, user = self._prompt_and_user(approved_context, template)
         has_template = bool((template or "").strip())
         temp = 0.0 if has_template else None
-        try:
-            text = await self.client.text(
-                prompt, user, temperature=temp, max_tokens=max_tokens, label="minutes/render"
-            )
-        except TypeError:
-            text = await self.client.text(prompt, user, label="minutes/render")
+        # 这里过去用 try/except TypeError 兜「老客户端没有 max_tokens」：但 LLMClient.text
+        # 本来就接受 temperature/max_tokens/label，那个 except 分支撑不到签名不匹配，
+        # 只会在 text() 内部真抛 TypeError 时静默**再打一次 LLM**（重复计费）。已删除。
+        text = await self.client.text(
+            prompt, user, temperature=temp, max_tokens=max_tokens, label="minutes/render"
+        )
         # 无模板时的收尾压缩**不在这里做**（2026-09-22 核对后删除）：编排层只在有模板时调
         # 本方法（见 tools/runtime/render.py 的 use_block / 返工 / 压缩扩写各分支），无模板
         # 正文的压缩由域钩子 compact_plain 在 tools/runtime/render 与 tools/exports/outputs

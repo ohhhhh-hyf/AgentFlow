@@ -28,12 +28,9 @@ class AgendaMinutesRender:
     async def run(self, approved_context: str, template: str = "") -> str:
         prompt, user = self._prompt_and_user(approved_context, template)
         temp = 0.0 if (template or "").strip() else None
-        try:
-            return await self.client.text(
-                prompt, user, temperature=temp, label="agenda_minutes/render"
-            )
-        except TypeError:
-            return await self.client.text(prompt, user, label="agenda_minutes/render")
+        return await self.client.text(
+            prompt, user, temperature=temp, label="agenda_minutes/render"
+        )
 
     @staticmethod
     def render_draft(state: dict) -> str:
@@ -44,8 +41,7 @@ class AgendaMinutesRender:
             .get("draft")
             or {}
         )
-        title = str(state.get("title") or "").strip()
-        return format_agenda_minutes_markdown(draft, title=title)
+        return format_agenda_minutes_markdown(draft)
 
     @staticmethod
     def extract_structure(state: dict) -> list[dict]:

@@ -995,8 +995,8 @@ class _Nodes(DomainNodes):
                 items = draft.get("agenda_items") or []
                 if items:
                     from tools.exports.html.agenda_minutes import format_agenda_minutes_markdown
-                    title = self._compute_title(state)
-                    text = format_agenda_minutes_markdown(draft, title=title)
+                    # 不调 _compute_title：该函数不接收 title 形参，算了也会被丢弃
+                    text = format_agenda_minutes_markdown(draft)
                     structure = items
                 else:
                     text, structure = self._domain_fallback_text(
