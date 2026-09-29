@@ -1,0 +1,40 @@
+2026-09-29 18:02:31,271 INFO agentflow agenda_ocr start engine=paddleocr images=1 mode=single_stream
+2026-09-29 18:02:41,384 INFO agentflow agenda_ocr item ok 1/1 lines=56 file=商评1.png
+2026-09-29 18:02:41,384 INFO tools.llm.llmclient llm client backend=vllm model=deepseek-v4-flash-0731 base_url=http://127.0.0.1:8000/v1 ctx=65536 max_tokens=50000 timeout=600.0 retries=2 temperature=0.2 sampling_sent=False
+2026-09-29 18:02:41,385 INFO tools.llm.llmclient llm call label=agenda_minutes/ocr_reconstruct mode=text
+2026-09-29 18:02:44,195 INFO tools.llm.llmclient llm resp label=agenda_minutes/ocr_reconstruct model=deepseek-v4-flash-0731 finish=stop in=1462 out=271 json_mode=False chars=388
+2026-09-29 18:02:44,196 INFO agentflow.agenda_extractor reconstruct_agenda_markdown succeeded, length=388
+2026-09-29 18:02:44,197 INFO agentflow agenda_ocr done total=1 chars=388
+2026-09-29 18:02:44,197 INFO agentflow Saved agenda OCR snapshot to logs/agenda_ocr/latest_agenda_ocr.md (388 chars)
+2026-09-29 18:02:44,606 INFO tools.llm.llmclient llm client backend=vllm model=deepseek-v4-flash-0731 base_url=http://127.0.0.1:8000/v1 ctx=65536 max_tokens=50000 timeout=600.0 retries=2 temperature=0.2 sampling_sent=False
+2026-09-29 18:02:44,623 INFO agentflow pipeline start lines=agenda_minutes
+2026-09-29 18:02:44,626 INFO agentflow agent start meeting_understanding
+2026-09-29 18:02:44,626 INFO tools.llm.llmclient llm call label=core/meeting_understanding mode=structured
+2026-09-29 18:02:44,630 INFO tools.llm.llmclient llm fit max_tokens 50000->25174 ctx=65536 input~40106
+2026-09-29 18:03:40,204 INFO tools.llm.llmclient llm resp label=core/meeting_understanding model=deepseek-v4-flash-0731 finish=stop in=29011 out=4119 json_mode=True chars=9689
+2026-09-29 18:03:40,204 INFO agentflow agent done meeting_understanding
+2026-09-29 18:03:40,206 INFO agentflow node done meeting_understanding
+2026-09-29 18:03:40,207 INFO agentflow skip perspective (objective)
+2026-09-29 18:03:40,207 INFO agentflow node done perspective_modeling
+2026-09-29 18:03:40,207 INFO agentflow agent start gen line=agenda_minutes
+2026-09-29 18:03:40,208 INFO agentflow.agenda_parser agenda_parser: parsing agenda text (388 chars, 7 lines)
+2026-09-29 18:03:40,208 INFO agentflow.agenda_parser agenda_parser: resolved table columns -> {'seq': 0, 'title': 1, 'presenter': 2, 'recorder': -1, 'members': -1, 'time': -1, 'duration': 3, 'category': -1, 'description': -1}
+2026-09-29 18:03:40,209 INFO agentflow.agenda_parser agenda_parser: matched table header at line 0: ['序号', '议题名称', '汇报人/主讲人', '预计时长']
+2026-09-29 18:03:40,209 INFO agentflow.agenda_parser agenda_parser: table mode extracted 3 items
+2026-09-29 18:03:40,209 INFO agentflow.agenda_parser [AGENDA_PARSER] 既定议程单识别成功 (来源: table, 共 3 项):
+  -> 议题 01: 《小艺慧记CeliaMinutesService1.4.5.500版本发布商用版本》 | 演讲人/汇报人: 申家坤 [预计时长: 15min]
+  -> 议题 02: 《翻译海外HiTranslationService21.1.1.300商用版本发布》 | 演讲人/汇报人: 刘畅 [预计时长: 15min]
+  -> 议题 03: 《HAG3.6.5.300版本商用发布评审》 | 演讲人/汇报人: 沙彬斌, 陈啟锴 [预计时长: 15min]
+2026-09-29 18:03:40,355 INFO tools.llm.llmclient llm call label=agenda_minutes/item_03 mode=structured
+2026-09-29 18:03:51,754 INFO tools.llm.llmclient llm resp label=agenda_minutes/item_03 model=deepseek-v4-flash-0731 finish=stop in=6551 out=644 json_mode=True chars=1237
+2026-09-29 18:03:51,758 INFO agentflow agent done gen line=agenda_minutes
+2026-09-29 18:03:51,759 INFO agentflow node done agenda_minutes_agent
+2026-09-29 18:03:51,760 INFO agentflow agent start review line=agenda_minutes
+2026-09-29 18:03:51,783 INFO tools.llm.llmclient llm call label=agenda_minutes/supervisor mode=structured
+2026-09-29 18:03:54,023 INFO tools.llm.llmclient llm resp label=agenda_minutes/supervisor model=deepseek-v4-flash-0731 finish=stop in=11977 out=87 json_mode=True chars=272
+2026-09-29 18:03:54,023 INFO agentflow agent done review line=agenda_minutes decision=approve
+2026-09-29 18:03:54,024 INFO tools.core.domain_engine route line=agenda_minutes decision=approve revision=0/1 -> __end__
+2026-09-29 18:03:54,024 INFO agentflow node done agenda_minutes_supervisor
+2026-09-29 18:03:54,025 INFO agentflow render start line=agenda_minutes
+2026-09-29 18:03:54,036 INFO tools.core.runner saved html line=agenda_minutes path=/root/h00984725/test/data/1/output/75deafbccc8c4f9c8c347b8943c8a9b8/agenda_minutes.html
+2026-09-29 18:03:54,036 INFO tools.core.runner saved text line=agenda_minutes path=/root/h00984725/test/data/1/output/75deafbccc8c4f9c8c347b8943c8a9b8/result.md

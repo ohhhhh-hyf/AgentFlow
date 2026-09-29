@@ -1,0 +1,7 @@
+[2026-09-29 18:03:40] Mode: table, Total Items: 3
+  Meta: theme='', time='', attendees='全程与会人/主持人**：徐锋；索勋飞；吴友国；王昊；黄江；何瑄；左飞'
+  Resolved Columns: {'seq': 0, 'title': 1, 'presenter': 2, 'recorder': -1, 'members': -1, 'time': -1, 'duration': 3, 'category': -1, 'description': -1}
+  - Item [01] 小艺慧记CeliaMinutesService1.4.5.500版本发布商用版本 | Presenter: ['申家坤'] (raw: '申家坤') | Dur: 15min | Time:  | Cat: 
+  - Item [02] 翻译海外HiTranslationService21.1.1.300商用版本发布 | Presenter: ['刘畅'] (raw: '刘畅') | Dur: 15min | Time:  | Cat: 
+  - Item [03] HAG3.6.5.300版本商用发布评审 | Presenter: ['沙彬斌', '陈啟锴'] (raw: '沙彬斌；陈啟锴') | Dur: 15min | Time:  | Cat: 
+----------------------------------------------------------------------
