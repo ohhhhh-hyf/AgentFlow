@@ -274,6 +274,40 @@ def _ocr_docs(user_id: str, docs: list[str]) -> str:
     return "\n\n".join(part for part in parts if part).strip()
 
 
+def _ocr_single_agenda_doc(user_id: str, docs: list[str]) -> str:
+    """议程单专用轻量 OCR：单线程直调，单图单实例，无嵌套线程池与跨页去噪开销。"""
+    names = [name for name in (docs or []) if _is_image_name(name)]
+    if not names:
+        return ""
+    from tools.ocr.engines import ocr_engine_label
+    from tools.ocr.layout import ocr_image_lines
+    from tools.ocr.levels.light import ocr_log
+    from tools.ocr.reconstruct import reconstruct_markdown
+
+    engine = ocr_engine_label()
+    total = len(names)
+    ocr_log(f"agenda_ocr start engine={engine} images={total} mode=single_stream")
+    parts: list[str] = []
+    for idx, name in enumerate(names, 1):
+        path = _input_file(user_id, "docs", name)
+        try:
+            lines = ocr_image_lines(str(path)) or []
+            ocr_log(f"agenda_ocr item ok {idx}/{total} lines={len(lines)} file={name}")
+            if lines:
+                clean_lines = [l for l in lines if str(l.get("role_hint") or "") != "boilerplate"]
+                md = reconstruct_markdown(clean_lines).strip()
+                if md:
+                    parts.append(md)
+        except Exception as exc:  # noqa: BLE001
+            ocr_log(f"agenda_ocr item fail {idx}/{total} file={name} err={exc}")
+            parts.append(f"（议程单图片 {name} OCR 失败：{exc}）")
+
+    result = "\n\n".join(part for part in parts if part).strip()
+    ocr_log(f"agenda_ocr done total={total} chars={len(result)}")
+    return result
+
+
+
 def _doc_previews(user_id: str, docs: list[str]) -> str:
     """docs 中的文档（非图片、非 catalog json）→ 正文预览文本。"""
     parts: list[str] = []
@@ -522,9 +556,23 @@ def _prepare(domain: str, task: str, req: TaskRequest, user_id: str) -> _Prepare
             image_docs = [n for n in req.docs if _is_image_name(n)]
             text_docs = [n for n in req.docs if not _is_image_name(n)]
             if image_docs:
-                ocr_text = _ocr_docs(user_id, image_docs)
+                ocr_text = _ocr_single_agenda_doc(user_id, image_docs)
                 if ocr_text:
                     agenda_parts.append(ocr_text)
+                    try:
+                        from datetime import datetime
+
+                        ocr_log_dir = PROJECT_ROOT / "logs" / "agenda_ocr"
+                        ocr_log_dir.mkdir(parents=True, exist_ok=True)
+                        stamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+                        (ocr_log_dir / "latest_agenda_ocr.md").write_text(ocr_text, encoding="utf-8")
+                        (ocr_log_dir / f"agenda_ocr_{stamp}.md").write_text(ocr_text, encoding="utf-8")
+                        logger.info(
+                            "Saved agenda OCR snapshot to logs/agenda_ocr/latest_agenda_ocr.md (%d chars)",
+                            len(ocr_text),
+                        )
+                    except Exception as dump_err:  # noqa: BLE001
+                        logger.warning("Failed to save agenda OCR debug snapshot: %s", dump_err)
             for name in text_docs:
                 path = _input_file(user_id, "docs", name)
                 try:

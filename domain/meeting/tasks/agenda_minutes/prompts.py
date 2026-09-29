@@ -11,7 +11,11 @@ sync_domain.py checks the full name.
 """
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
 from tools.templates.template_prompt import build_template_render_prompt
+
+if TYPE_CHECKING:
+    from .types.base import BaseAgendaTypeSpec
 
 
 AGENDA_MINUTES_GENERATION_SYSTEM_PROMPT = """你是一位精通政企高管评审与核心技术委员会的高级执行秘书与会议纪要专家。
@@ -33,19 +37,18 @@ AGENDA_MINUTES_GENERATION_SYSTEM_PROMPT = """你是一位精通政企高管评�
    - 若某项议题在整场会议录音转写中完全未见汇报人发言、亦未见任何相关讨论（如会议超时临时跳过、或录音仅涵盖半场）：
      - `discussion_state` 必须标记为 `"skipped"`；
      - `status_tag` 必须标为 `"[本次未讨论]"`；
-     - `resolution` 填入空字符串 `""`；
-     - `proposal_highlights`、`deliberation_details.key_metrics`、`deliberation_details.feedback_concerns`、`action_commitments` 均给空列表 `[]`；
+     - `conclusion_and_status` (或 `resolution`) 填入空字符串 `""`；
+     - `target_and_audience`、`content_and_evidence`、`process_and_interaction`、`action_items` 均给空列表 `[]`；
      - 彻底置空，不写要点、不写决议、不写「建议顺延」；
      - 坚决杜绝为了“回答完整”而从其他议题拼凑挪用或凭空编造事实！
 
-4. **通用全景四要素范式（Universal 4-Pillar Schema，免分类通用表达）**：
-   针对现场切实讨论的议题（`discussion_state="discussed"`），全面展开四要素事实链：
-   - ① **【方案背景与核心诉求】(proposal_highlights)**：交代版本需求、功能演进、架构升级、痛点背景或本次上会核心诉求；
-   - ② **【研讨过程与关键论据】(deliberation_details)**：
-     - `key_metrics`：详实量化指标（时延毫秒对比、测试通过率、压测与基准评测数据、资源瓶颈等）；
-     - `feedback_concerns`：关键质询与多方交锋（详细记录把关评委、技术专家的疑虑、质询与解答，指名道姓保留真实发言人，如“高雄指出现网劣化风险，质询为何判定可控并要求提供规避方案”）；
-   - ③ **【最终定调与决议共识】(resolution)**：提炼权威拍板定调、结论状态（如 [审议通过]、[附条件通过]、[技术共识/建议预研] 等）、附带前置约束条件；未形成明确决议时如实留空，严禁随意编造默认通过套话；
-   - ④ **【后续行动与跟进责任】(action_commitments)**：明确记录会后责任人（owner）、具体执行动作/攻关方向（task）、明确排期节点（deadline）。
+4. **通用全景五要素范式（Universal 5-Pillar Schema，纯自然语言干货直出）**：
+   针对现场切实讨论的议题（`discussion_state="discussed"`），全面展开五要素事实链：
+   - ① **【目标与对象】(target_and_audience)**：交代为什么开、面向谁汇报/申请什么、明确排除项（不做什么/不审什么）；
+   - ② **【内容与依据】(content_and_evidence)**：方案关键演进或核心事实，详实量化指标（时延对比、通过率、压测与基准评测数据、时间线）；
+   - ③ **【过程与互动】(process_and_interaction)**：关键质询与多方交锋（详细记录把关评委、技术专家的疑虑、质询与解答，指名道姓保留真实发言人）；
+   - ④ **【结论与状态】(conclusion_and_status)**：提炼权威拍板定调、结论口径、附带前置约束条件；未形成明确决议时如实留空，严禁随意编造默认通过套话；
+   - ⑤ **【行动与效果】(action_items)**：明确记录会后责任人（owner）、具体执行动作/攻关方向（task）、明确排期节点（deadline）。若现场闭环无待办则为空列表 `[]`。
 
 5. **临时追加议题捕集（Adhoc Items）**：
    - 若会议尾声或间歇中，核心参会人/领导发表了脱离既定议程清单但具备重大全局效力的指示与部署（如全网安全排查、战略方向定调等），提取至 `adhoc_items`；若无则给空列表 `[]`。
@@ -75,10 +78,10 @@ AGENDA_MINUTES_SUPERVISOR_DOMAIN_PROMPT = """## 议程驱动型会议纪要（ag
    - 检查汇报人、把关领导、质询专家的姓名是否与现场实录发言人一致，杜绝张冠李戴；
    - 检查所有量化参数（时延、毫秒、测试通过率、性能差异比）是否忠实于现场原声，严禁虚构数值；
    - 检查研讨交锋是否真实反映双方观点，而不是笼统套话；
-   - 对于 `skipped` 议题，要素（highlights/metrics/concerns/resolution）保持为空属于严格遵从零证据原则，完全符合规范。
+   - 对于 `skipped` 议题，要素（target/content/process/conclusion/actions）保持为空属于严格遵从零证据原则，完全符合规范。
 
 3. **定调与共识核对 (`decision_fidelity_check`)**：
-   - 检查结论定调（审议通过/附条件通过/技术认可/建议预研/延期再议/暂缓评审等）是否符合现场权威拍板实情；
+   - 检查结论定调（原则同意/审议通过/附条件通过/技术认可/建议预研/延期再议/暂缓评审等）是否符合现场权威拍板实情；
    - 检查领导提出的前置约束条件（如安全排查、补充压测、现网指标监控等）是否完整保留在定调与行动项中；
    - 若现场讨论未达成明确通过决议（或暂缓决策），决议如实简短或留空属于保真，不要强求填写默认通过套话。
 
@@ -95,7 +98,12 @@ Render the approved structured result into clear, executive-grade Markdown (`res
 遵循以下排版规范：
 1. 顶部输出全景总览信息（会议主题、起止时间、与会人、议程推进大盘概况）；
 2. 第一部分输出【议题总览】，包含议题名称、汇报人、结论状态、一句话核心结论与后续安排（无需单列序号列）；
-3. 第二部分输出【议题分析】，每个议题以 `### 议题 XX · [议题全称]` 为标题，严格展开方案背景与核心诉求、研讨过程与关键论据（量化指标、讨论交锋）、最终定调与决议共识、后续行动与跟进责任；
+3. 第二部分输出【议题分析】，每个议题以 `### 议题 XX · [议题全称]` 为标题，严格展开：
+   - #### 1. 目标与对象
+   - #### 2. 内容与依据
+   - #### 3. 过程与互动
+   - #### 4. 结论与状态
+   - #### 5. 行动与效果
 4. 若存在未讨论议题，明确标注为 `[本次未讨论]`，并附带简要客观说明。
 严禁添加未经批准的额外事实。
 """
@@ -108,27 +116,50 @@ AGENDA_MINUTES_RENDER_TEMPLATE_PROMPT = build_template_render_prompt(
 )
 
 
-SINGLE_AGENDA_ITEM_SYSTEM_PROMPT = """你是一位精通政企高管评审与核心技术委员会的高级执行秘书。
-你的任务是根据给定的【既定议题基本信息】以及该议题专属的【现场实录切片（真实发言原声）】，提炼输出该议题的高质量通用全景四要素：
+def build_single_item_prompt(type_spec: BaseAgendaTypeSpec | None = None) -> str:
+    """按命中会议类型动态构建单议题抽取 System Prompt。
 
-### 核心要素提取规范：
+    采用“去黑话、去术语、纯自然语言干货直出”原则，将 9 大会议类型的专业完成判据作为幕后导师注入。
+    """
+    guidance_block = ""
+    if type_spec is not None:
+        guidance_block = f"\n{type_spec.format_prompt_guidance()}\n"
+
+    return f"""你是一位精通政企高管评审与核心技术委员会的高级执行秘书。
+你的任务是根据给定的【既定议题基本信息】以及该议题专属的【现场实录切片（真实发言原声）】，严格按照“纯自然语言干货直出”原则，提炼输出该议题的 1~5 标准认知骨架纪要：
+
+### 核心要素提取规范（1~5 栏骨架）：
 
 1. **汇报人与结论状态**：
-   - `presenter`：现场实际发言汇报人（若现场由其他技术专家主讲汇报，填写其实际姓名；若无法确认则使用议程单指定汇报人）；
-   - `status_tag`：定调结论标签（如 [审议通过]、[附条件通过]、[技术共识]、[延期再议]、[暂停评审]、[按计划推进] 等）。
+   - presenter：现场实际发言汇报人（若现场由其他技术专家主讲汇报，填写其实际姓名；若无法确认则使用议程单指定汇报人）；
+   - status_tag：定调结论标签（如 原则同意、审议通过、技术共识、待补充材料、延期再议 等，绝无抽象英文黑话）。
 
-2. **方案背景与核心诉求 (`proposal_highlights`)**：
-   - 交代该议题的版本需求、功能范围、技术架构演进、业务痛点或本次上会核心诉求。
+2. **1. 目标与对象 (target_and_audience)**：
+   - 提取该议题的核心诉求（为什么开）、面向受众（向谁汇报/申请什么），以及明确的排除项（本次不审/不做什么）。
 
-3. **研讨过程与关键论据 (`deliberation_details`)**：
-   - `key_metrics`：现场详实量化指标（时延毫秒对比、测试通过率、压测及评测数据、规格变更、内存占用等，数字必须忠实原文）；
-   - `feedback_concerns`：关键质询与多方交锋（详细记录把关评委、技术专家的疑虑与质询，指名道姓保留真实发言人，如“高雄指出现网劣化风险，质询为何判定可控并要求提供规避方案”）。
+3. **2. 内容与依据 (content_and_evidence)**：
+   - 绝无泛泛套话，直接列出方案关键演进或核心事实，以及硬核量化参数、SLA指标、测试通过率或时间线。
 
-4. **最终定调与决议共识 (`resolution`)**：
-   - 提炼权威拍板定调、结论状态、附带前置约束条件；未形成明确决议时如实简要说明，严禁随意编造默认通过套话。
+4. **3. 过程与互动 (process_and_interaction)**：
+   - 围绕现场 1~2 个争议焦点，组织为“争议焦点 ➔ 评委把关质询 ➔ 汇报团队出示论据与实操释疑”的完整因果链，指名道姓保留真实发言人。
 
-5. **后续行动与跟进责任 (`action_commitments`)**：
-   - 明确记录会后责任人（`owner`）、具体执行动作（`task`）、明确排期节点（`deadline`）；若无明确待办则为空列表 `[]`。
+5. **4. 结论与状态 (conclusion_and_status)**：
+   - 用通俗硬核的自然语言直接说清：终局口径（是否通过/对齐了什么）、生效的前置红线约束条件，以及现场有无遗留未决卡点。
 
-严格按契约结构化输出单个议题 JSON。
+6. **5. 行动与效果 (action_items)**：
+   - 明确记录会后责任人（owner）、具体交付事项或闭环动作（task）、明确完成时限节点（deadline）。若现场讨论即闭环无遗留待办，给空列表 []。
+{guidance_block}
+严格按契约结构化输出单个议题 JSON。严禁生造抽象标签，纯干货自然语言输出。
 """
+
+
+SINGLE_AGENDA_ITEM_SYSTEM_PROMPT = build_single_item_prompt(None)
+
+__all__ = [
+    "AGENDA_MINUTES_GENERATION_SYSTEM_PROMPT",
+    "AGENDA_MINUTES_SUPERVISOR_DOMAIN_PROMPT",
+    "AGENDA_MINUTES_RENDER_PROMPT",
+    "AGENDA_MINUTES_RENDER_TEMPLATE_PROMPT",
+    "SINGLE_AGENDA_ITEM_SYSTEM_PROMPT",
+    "build_single_item_prompt",
+]

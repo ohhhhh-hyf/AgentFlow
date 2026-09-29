@@ -59,7 +59,7 @@ def format_agenda_minutes_markdown(draft: dict[str, Any], title: str = "") -> st
         pres = it.get("presenter") or "未记录"
         state = it.get("discussion_state") or "discussed"
         status = it.get("status_tag") or ("[本次未讨论]" if state == "skipped" else "[审议通过]")
-        res = it.get("resolution") or ""
+        res = it.get("conclusion_and_status") or it.get("resolution") or ""
         res_summary = res.splitlines()[0] if res else ("—" if state == "skipped" else "（本次未形成明确决议）")
         if len(res_summary) > 60:
             res_summary = res_summary[:57] + "..."
@@ -95,41 +95,63 @@ def format_agenda_minutes_markdown(draft: dict[str, Any], title: str = "") -> st
             ])
             continue
 
-        props = it.get("proposal_highlights") or []
-        lines.append("#### 1. 方案背景与核心诉求")
-        if props:
-            for p in props:
+        # 1. 目标与对象
+        target = it.get("target_and_audience") or it.get("proposal_highlights") or []
+        lines.append("#### 1. 目标与对象")
+        if target:
+            for p in target:
                 lines.append(f"- {p}")
         else:
-            lines.append("- 按既定方案申报，重点推进版本商用与技术演进。")
+            lines.append("- 按既定方案申报，明确核心诉求与预期目标。")
         lines.append("")
 
-        delib = it.get("deliberation_details") or {}
-        key_metrics = delib.get("key_metrics") or []
-        concerns = delib.get("feedback_concerns") or []
+        # 2. 内容与依据
+        content_raw = it.get("content_and_evidence")
+        if isinstance(content_raw, list):
+            content_list = list(content_raw)
+        elif isinstance(content_raw, dict):
+            content_list = list(content_raw.get("key_metrics") or []) + list(content_raw.get("facts_and_options") or [])
+        else:
+            delib = it.get("deliberation_details") or {}
+            content_list = list(delib.get("key_metrics") or []) if isinstance(delib, dict) else []
 
-        lines.append("#### 2. 研讨过程与关键论据")
-        if key_metrics:
-            lines.append("- **量化参数与指标**：")
-            for m in key_metrics:
-                lines.append(f"  - {m}")
-        if concerns:
-            lines.append("- **讨论交锋与各方反馈**：")
-            for c in concerns:
-                lines.append(f"  - {c}")
-        if not key_metrics and not concerns:
-            lines.append("- 现场就方案细节进行了深入评估，各项关键指标基本符合要求。")
+        lines.append("#### 2. 内容与依据")
+        if content_list:
+            for m in content_list:
+                lines.append(f"- {m}")
+        else:
+            lines.append("- 依据现场方案申报材料与基线指标开展审议。")
         lines.append("")
 
-        res = str(it.get("resolution") or "").strip()
-        lines.append("#### 3. 最终定调与决议共识")
-        if res:
-            lines.extend([f"> {res}", ""])
+        # 3. 过程与互动
+        process_raw = it.get("process_and_interaction")
+        if isinstance(process_raw, list):
+            process_list = list(process_raw)
+        elif isinstance(process_raw, dict):
+            process_list = list(process_raw.get("feedback_concerns") or []) + list(process_raw.get("focus_debates") or [])
+        else:
+            delib = it.get("deliberation_details") or {}
+            process_list = list(delib.get("feedback_concerns") or []) if isinstance(delib, dict) else []
+
+        lines.append("#### 3. 过程与互动")
+        if process_list:
+            for c in process_list:
+                lines.append(f"- {c}")
+        else:
+            lines.append("- 现场就方案细节与落地风险展开了充分质询与沟通。")
+        lines.append("")
+
+        # 4. 结论与状态
+        conclusion = str(it.get("conclusion_and_status") or it.get("resolution") or "").strip()
+        lines.append("#### 4. 结论与状态")
+        if conclusion:
+            lines.extend([f"> {conclusion}", ""])
         else:
             lines.extend(["> （本次会议未记录到明确决议）", ""])
 
-        actions = it.get("action_commitments") or []
-        lines.append("#### 4. 后续行动与跟进责任")
+        # 5. 行动与效果
+        actions = it.get("action_items") or it.get("action_commitments") or []
+        lines.append("#### 5. 行动与效果")
         if actions:
             lines.extend([
                 "| 责任人 | 跟进事项与交付目标 | 时限节点 |",
@@ -190,7 +212,7 @@ def render_agenda_minutes_html(
         it_title = _safe_str(it.get("agenda_title") or "议题")
         pres = _safe_str(it.get("presenter") or "未记录")
         status = _safe_str(it.get("status_tag") or "[审议通过]")
-        res = _safe_str(it.get("resolution") or "")
+        res = _safe_str(it.get("conclusion_and_status") or it.get("resolution") or "")
         badge_cls, badge_text = _status_class(status)
 
         table_rows.append(f"""
@@ -222,47 +244,49 @@ def render_agenda_minutes_html(
                     </div>
                     <span class="badge {badge_cls}">{escape(badge_text)}</span>
                 </div>
-                <div class="card-meta">
-                    <span>汇报人/责任单位：{escape(pres)}</span>
-                </div>
-                <div class="skipped-banner">
-                    （本次会议录音转写未见本议题汇报或讨论记录）
+                <div class="card-skipped-body">
+                    <span class="card-meta">汇报人/责任单位：{escape(pres)}</span>
+                    <span class="skipped-banner">（本次会议录音转写未见本议题汇报或讨论记录）</span>
                 </div>
             </div>
             """
             cards.append(card_html)
             continue
 
-        props = it.get("proposal_highlights") or []
-        delib = it.get("deliberation_details") or {}
-        key_metrics = delib.get("key_metrics") or []
-        concerns = delib.get("feedback_concerns") or []
-        res = _safe_str(it.get("resolution") or "")
-        actions = it.get("action_commitments") or []
+        # 1. 目标与对象
+        target = it.get("target_and_audience") or it.get("proposal_highlights") or []
+        target_li = "".join(f"<li>{_md_inline(p)}</li>" for p in target) if target else "<li>按既定方案申报，明确核心诉求与预期目标。</li>"
 
-        props_li = "".join(f"<li>{_md_inline(p)}</li>" for p in props) if props else "<li>按既定方案申报，重点推进版本商用与技术演进。</li>"
+        # 2. 内容与依据
+        content_raw = it.get("content_and_evidence")
+        if isinstance(content_raw, list):
+            content_list = list(content_raw)
+        elif isinstance(content_raw, dict):
+            content_list = list(content_raw.get("key_metrics") or []) + list(content_raw.get("facts_and_options") or [])
+        else:
+            delib = it.get("deliberation_details") or {}
+            content_list = list(delib.get("key_metrics") or []) if isinstance(delib, dict) else []
 
-        metrics_block = ""
-        if key_metrics:
-            metrics_li = "".join(f"<li>{_md_inline(m)}</li>" for m in key_metrics)
-            metrics_block = f"""
-            <div class="sub-block">
-                <div class="sub-block-title">量化参数与指标</div>
-                <ul class="bullet-list">{metrics_li}</ul>
-            </div>
-            """
+        content_li = "".join(f"<li>{_md_inline(m)}</li>" for m in content_list) if content_list else "<li>依据现场方案申报材料与基线指标开展审议。</li>"
 
-        concerns_block = ""
-        if concerns:
-            concerns_li = "".join(f"<li>{_md_inline(c)}</li>" for c in concerns)
-            concerns_block = f"""
-            <div class="sub-block">
-                <div class="sub-block-title">讨论交锋与各方反馈</div>
-                <ul class="bullet-list">{concerns_li}</ul>
-            </div>
-            """
+        # 3. 过程与互动
+        process_raw = it.get("process_and_interaction")
+        if isinstance(process_raw, list):
+            process_list = list(process_raw)
+        elif isinstance(process_raw, dict):
+            process_list = list(process_raw.get("feedback_concerns") or []) + list(process_raw.get("focus_debates") or [])
+        else:
+            delib = it.get("deliberation_details") or {}
+            process_list = list(delib.get("feedback_concerns") or []) if isinstance(delib, dict) else []
 
-        action_table = ""
+        process_li = "".join(f"<li>{_md_inline(c)}</li>" for c in process_list) if process_list else "<li>现场就方案细节与落地风险展开了充分质询与沟通。</li>"
+
+        # 4. 结论与状态
+        conclusion = _safe_str(it.get("conclusion_and_status") or it.get("resolution") or "")
+        conclusion_content = _md_inline(conclusion) if conclusion else "（本次会议未形成明确决议）"
+
+        # 5. 行动与效果
+        actions = it.get("action_items") or it.get("action_commitments") or []
         if actions:
             act_rows = []
             for a in actions:
@@ -289,8 +313,6 @@ def render_agenda_minutes_html(
         else:
             action_table = "<p class='no-action'>暂无额外待办，由主讲团队按常规流程推进。</p>"
 
-        res_content = _md_inline(res) if res else "（本次会议未形成明确决议）"
-
         card_html = f"""
         <div class="agenda-card" id="topic-{seq}">
             <div class="card-header">
@@ -305,25 +327,29 @@ def render_agenda_minutes_html(
             </div>
 
             <div class="pillar-section">
-                <div class="pillar-label"><span class="pillar-num">1</span> 方案背景与核心诉求</div>
-                <ul class="bullet-list">{props_li}</ul>
+                <div class="pillar-label"><span class="pillar-num">1</span> 目标与对象</div>
+                <ul class="bullet-list">{target_li}</ul>
             </div>
 
             <div class="pillar-section">
-                <div class="pillar-label"><span class="pillar-num">2</span> 研讨过程与关键论据</div>
-                {metrics_block}
-                {concerns_block}
+                <div class="pillar-label"><span class="pillar-num">2</span> 内容与依据</div>
+                <ul class="bullet-list">{content_li}</ul>
             </div>
 
             <div class="pillar-section">
-                <div class="pillar-label"><span class="pillar-num">3</span> 最终定调与决议共识</div>
+                <div class="pillar-label"><span class="pillar-num">3</span> 过程与互动</div>
+                <ul class="bullet-list">{process_li}</ul>
+            </div>
+
+            <div class="pillar-section">
+                <div class="pillar-label"><span class="pillar-num">4</span> 结论与状态</div>
                 <div class="resolution-box">
-                    <div class="resolution-text">{res_content}</div>
+                    <div class="resolution-text">{conclusion_content}</div>
                 </div>
             </div>
 
             <div class="pillar-section">
-                <div class="pillar-label"><span class="pillar-num">4</span> 后续行动与跟进责任</div>
+                <div class="pillar-label"><span class="pillar-num">5</span> 行动与效果</div>
                 {action_table}
             </div>
         </div>
@@ -333,6 +359,14 @@ def render_agenda_minutes_html(
     attendees_brief = attendees[:80] + ("..." if len(attendees) > 80 else "")
 
     custom_css = """
+    .ck-doc-meta {
+      font-style: normal;
+      color: #555555;
+      font-size: 0.8rem;
+    }
+    .ck-doc blockquote, .ck-quote {
+      font-style: normal;
+    }
     .summary-table {
       margin: 10px 0 24px;
     }
@@ -417,6 +451,26 @@ def render_agenda_minutes_html(
       background: #faf9f6;
       border-style: dashed;
       border-color: #c4bfb6;
+      padding: 8px 14px;
+      margin-bottom: 10px;
+    }
+    .card-skipped .card-header {
+      margin-bottom: 4px;
+      padding-bottom: 4px;
+      border-bottom: 1px dashed #ede9e1;
+    }
+    .card-skipped-body {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+    .card-skipped .card-meta {
+      font-size: 0.78rem;
+      color: #666666;
+      margin-bottom: 0;
+      font-style: normal;
     }
 
     .card-header {
@@ -516,12 +570,15 @@ def render_agenda_minutes_html(
     }
 
     .skipped-banner {
-      background: #f7f6f2;
-      border-radius: 3px;
-      padding: 10px 14px;
-      font-size: 0.82rem;
+      background: #f2efe8;
+      border-radius: 2px;
+      padding: 2px 8px;
+      font-size: 0.78rem;
       color: #666666;
-      font-style: italic;
+      font-style: normal;
+      line-height: 1.4;
+      display: inline-block;
+      margin: 0;
     }
 
     .action-table-wrap {
@@ -560,7 +617,7 @@ def render_agenda_minutes_html(
     .no-action {
       font-size: 0.82rem;
       color: #666666;
-      font-style: italic;
+      font-style: normal;
       margin: 4px 0 0 0;
     }
     """

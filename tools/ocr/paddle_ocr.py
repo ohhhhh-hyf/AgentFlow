@@ -40,12 +40,16 @@ def _device() -> str:
 def paddle_concurrency() -> int:
     """PaddleOCR worker count. Each worker owns one thread-bound OCR instance."""
     device = _device().lower()
-    raw = os.getenv("PADDLE_OCR_POOL_SIZE", "4").strip() or "4"
-    cap = 4 if device.startswith(("gpu", "cuda")) else 8
-    try:
-        return max(1, min(cap, int(raw)))
-    except ValueError:
-        return 4
+    raw = os.getenv("PADDLE_OCR_POOL_SIZE", "").strip()
+    if raw:
+        cap = 4 if device.startswith(("gpu", "cuda")) else 8
+        try:
+            return max(1, min(cap, int(raw)))
+        except ValueError:
+            pass
+    # GPU 模式下显存宝贵且单实例毫秒级推理，未显式配置 POOL_SIZE 时默认 1 路即可，避免占用多份显存；CPU 默认 4 路
+    return 1 if device.startswith(("gpu", "cuda")) else 4
+
 
 # 页眉/页脚机构署名行：跨语料的功能形态（机构类别词 + 联系方式 + 邮编 +
 # 国家署名 + 中文行尾类别后缀），不含任何具体校名/地名
@@ -351,7 +355,14 @@ def extract_paddle_lines(
                     **({"bbox": item["bbox"]} if item.get("bbox") else {}),
                 }
             )
+        logger.info(
+            "paddleocr extract: raw_texts=%d, retained=%d, angle=%d",
+            len(texts),
+            len(lines),
+            page_angle,
+        )
     return lines
+
 
 
 def _build_engine():
@@ -432,8 +443,16 @@ def _ocr_predict(path: str) -> dict:
     engine = _thread_engine()
     t0 = time.monotonic()
     result = engine.predict(path)
-    logger.info("paddleocr done file=%s dur=%.1fs", os.path.basename(path), time.monotonic() - t0)
-    return {"engine": "paddleocr", "lines": extract_paddle_lines(result, image_size=image_size)}
+    lines = extract_paddle_lines(result, image_size=image_size)
+    dur = time.monotonic() - t0
+    logger.info(
+        "paddleocr done file=%s dur=%.2fs lines=%d (image_size=%s)",
+        os.path.basename(path),
+        dur,
+        len(lines),
+        image_size,
+    )
+    return {"engine": "paddleocr", "lines": lines}
 
 
 def _ocr_on_worker(path: str) -> dict:

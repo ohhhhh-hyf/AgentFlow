@@ -8,9 +8,15 @@
 """
 from __future__ import annotations
 
+import logging
 import re
 from dataclasses import dataclass, field
+from datetime import datetime
+from pathlib import Path
 from typing import Any
+
+logger = logging.getLogger("agentflow.agenda_parser")
+
 
 
 @dataclass
@@ -64,6 +70,33 @@ class AgendaPlan:
         }
 
 
+def _log_parser_record(text: str, plan: AgendaPlan, mode: str, cols: dict | None = None) -> None:
+    """落盘解析审计记录到 logs/agenda_ocr/parser_debug.log，便于线上定位 OCR 解析效果。"""
+    try:
+        log_dir = Path("logs/agenda_ocr")
+        log_dir.mkdir(parents=True, exist_ok=True)
+        log_file = log_dir / "parser_debug.log"
+        now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        lines = [
+            f"[{now_str}] Mode: {mode}, Total Items: {len(plan.items)}",
+            f"  Meta: theme={plan.meta.theme!r}, time={plan.meta.date_time!r}, attendees={plan.meta.attendees!r}",
+        ]
+        if cols:
+            lines.append(f"  Resolved Columns: {cols}")
+        for it in plan.items:
+            lines.append(
+                f"  - Item [{it.seq}] {it.title} | Presenter: {it.presenters} (raw: {it.raw_presenter!r}) | Dur: {it.duration} | Time: {it.time_range} | Cat: {it.category}"
+            )
+        if not plan.items:
+            lines.append("  [WARNING] No items parsed! Raw text preview (first 300 chars):")
+            lines.append("  " + text[:300].replace("\n", "\n  "))
+        lines.append("-" * 70 + "\n")
+        with open(log_file, "a", encoding="utf-8") as f:
+            f.write("\n".join(lines))
+    except Exception as exc:  # noqa: BLE001
+        logger.debug("write parser_debug.log failed: %s", exc)
+
+
 def _resolve_columns(header_cells: list[str]) -> dict[str, int]:
     """解析表头各列职责。按语义优先级判定，避免多列含「议题」导致张冠李戴。"""
     title_idx = -1
@@ -80,48 +113,53 @@ def _resolve_columns(header_cells: list[str]) -> dict[str, int]:
         if not name:
             continue
         # 序号/编号
-        if any(k in name for k in ("序号", "编号", "no.", "no", "seq")):
+        if any(k in name for k in ("序号", "编号", "no.", "no", "seq", "项")):
             seq_idx = idx
             continue
         # 时长
-        if any(k in name for k in ("时长", "duration")):
+        if any(k in name for k in ("时长", "duration", "用时", "预计用时", "时长(min)", "时长（分）", "时间(分)")):
             dur_idx = idx
             continue
         # 起止时间
-        if any(k in name for k in ("起止时间", "时间", "time")) and dur_idx != idx:
+        if (any(k in name for k in ("起止时间", "时间段", "议题时间")) or (("时间" in name or "time" in name) and dur_idx != idx)):
             time_idx = idx
             continue
         # 汇报人类别
-        if any(k in name for k in ("类别", "类型", "category")):
+        if any(k in name for k in ("类别", "类型", "category", "性质")):
             cat_idx = idx
             continue
         # 汇报人/主讲人
-        if any(k in name for k in ("汇报人", "reporter", "主讲人", "主讲", "报告人", "分享人", "责任人", "发言人")):
+        if any(k in name for k in ("汇报人", "reporter", "主讲人", "主讲", "报告人", "分享人", "责任人", "发言人", "汇报人员", "汇报")):
             pres_idx = idx
             continue
         # 纪要人
-        if any(k in name for k in ("纪要人", "recorder", "记录人")):
+        if any(k in name for k in ("纪要人", "recorder", "记录人", "纪要")):
             rec_idx = idx
             continue
         # 参与人/成员
-        if any(k in name for k in ("参与人", "成员", "members", "attendees")):
+        if any(k in name for k in ("参与人", "成员", "members", "attendees", "列席人", "与会人", "参会人员")):
             mem_idx = idx
             continue
         # 议题名称（优先匹配含「名称」「全称」「主题」的列）
-        if any(k in name for k in ("议题名称", "topic name", "议题全称", "主题", "topic")):
-            if not any(k in name for k in ("类型", "材料", "参与人", "成员", "人员", "category", "material", "member", "recorder", "纪要")):
+        if any(k in name for k in ("议题名称", "topic name", "议题全称", "主题", "topic", "讨论事项", "审议事项", "汇报内容", "议题内容")):
+            if not any(k in name for k in ("类型", "材料", "参与人", "成员", "人员", "category", "material", "member", "recorder", "纪要", "时长")):
                 title_idx = idx
                 continue
-        # 兜底：含「议题」但不含类型/材料/人员
-        if "议题" in name and not any(k in name for k in ("类型", "材料", "参与人", "成员", "人员", "category", "material", "member")):
+        # 兜底：含「议题」但不含类型/材料/人员/时长
+        if "议题" in name and not any(k in name for k in ("类型", "材料", "参与人", "成员", "人员", "category", "material", "member", "recorder", "纪要", "时长")):
             title_idx = idx
             continue
+        # 兜底：含「事项」「内容」
+        if any(k in name for k in ("事项", "内容", "项目")) and not any(k in name for k in ("类型", "材料", "参与人", "成员", "人员", "category", "material", "member", "recorder", "纪要", "时长")):
+            if title_idx == -1:
+                title_idx = idx
+                continue
 
     # 若未识别到独立汇报人列，尝试参与人列
     if pres_idx == -1 and mem_idx != -1 and mem_idx != title_idx:
         pres_idx = mem_idx
 
-    return {
+    cols = {
         "seq": seq_idx,
         "title": title_idx,
         "presenter": pres_idx,
@@ -131,6 +169,8 @@ def _resolve_columns(header_cells: list[str]) -> dict[str, int]:
         "duration": dur_idx,
         "category": cat_idx,
     }
+    logger.info("agenda_parser: resolved table columns -> %s", cols)
+    return cols
 
 
 def clean_presenter_names(raw: str) -> list[str]:
@@ -141,6 +181,7 @@ def clean_presenter_names(raw: str) -> list[str]:
     - '沙彬斌; 陈啟锴' -> ['沙彬斌', '陈啟锴']
     - '陆敬怡; 林宇珂; 赖朝辉' -> ['陆敬怡', '林宇珂', '赖朝辉']
     - '汇报人: 林宇珂 00939670 陆敬怡 00841266' -> ['林宇珂', '陆敬怡']
+    - '张三、李四' -> ['张三', '李四']
     """
     if not raw or not raw.strip():
         return []
@@ -150,8 +191,8 @@ def clean_presenter_names(raw: str) -> list[str]:
     text = re.sub(r"\b\d{5,8}\b", "", text)
     # 剔除括号及其内工号或备注，如 (委托高雄)
     text = re.sub(r"\([^)]*\)|（[^）]*）", "", text)
-    # 按常见分隔符拆分
-    names = re.split(r"[;；,/，\s]+", text)
+    # 按常见分隔符拆分（包含顿号、分号、斜杠、逗号、空格）
+    names = re.split(r"[;；,/，\s、]+", text)
     valid = []
     for n in names:
         n_clean = n.strip()
@@ -185,6 +226,8 @@ def parse_agenda_text(text: str) -> AgendaPlan:
             )
 
     raw_lines = [line.strip() for line in normalized_text.splitlines() if line.strip()]
+    logger.info("agenda_parser: parsing agenda text (%d chars, %d lines)", len(normalized_text), len(raw_lines))
+
     meta = AgendaMeta()
     table_lines: list[str] = []
 
@@ -211,21 +254,29 @@ def parse_agenda_text(text: str) -> AgendaPlan:
     # 寻找表格表头
     header_idx = -1
     for i, line in enumerate(table_lines):
-        if "|" in line and not re.match(r"^[\s\+\-\|]+$", line):
+        if "|" in line and not re.match(r"^[\s\+\-\|:]+$", line):
             cells = _split_table_row(line)
-            if any("议题" in c or "Topic" in c for c in cells):
+            has_topic = any("议题" in c or "topic" in c.lower() or "主题" in c or "事项" in c for c in cells)
+            has_seq_and_role = any("序号" in c or "编号" in c or "no" in c.lower() for c in cells) and any(
+                "汇报" in c or "主讲" in c or "报告" in c or "时长" in c or "内容" in c for c in cells
+            )
+            if has_topic or has_seq_and_role:
                 header_idx = i
                 break
 
     items: list[AgendaItemParsed] = []
+    used_cols: dict[str, int] | None = None
+    mode = "table"
 
     # 模式 A：表格提取
     if header_idx != -1:
         headers = _split_table_row(table_lines[header_idx])
         cols = _resolve_columns(headers)
+        used_cols = cols
+        logger.info("agenda_parser: matched table header at line %d: %s", header_idx, headers)
 
         for line in table_lines[header_idx + 1:]:
-            if re.match(r"^[\s\+\-\|]+$", line):
+            if re.match(r"^[\s\+\-\|:]+$", line):
                 continue
             cells = _split_table_row(line)
 
@@ -280,9 +331,12 @@ def parse_agenda_text(text: str) -> AgendaPlan:
                     category=cat_val,
                 )
             )
+        logger.info("agenda_parser: table mode extracted %d items", len(items))
 
-    # 模式 B：若无表格，回退至行列表扫描（如：1. 议题名称 汇报人：XXX 或 议题一：XXX）
+    # 模式 B：若无表格或提取为0，回退至行列表扫描（如：1. 议题名称 汇报人：XXX 或 议题一：XXX）
     if not items:
+        mode = "line_scan"
+        logger.info("agenda_parser: falling back to line-scan mode")
         seq_counter = 1
         for line in raw_lines:
             # 匹配形如 "1. xxx" 或 "议题一：xxx" 或 "【议题1】xxx" 或 "1 xxx"
@@ -312,5 +366,29 @@ def parse_agenda_text(text: str) -> AgendaPlan:
                         )
                     )
                     seq_counter += 1
+        logger.info("agenda_parser: line-scan mode extracted %d items", len(items))
 
-    return AgendaPlan(meta=meta, items=items)
+    if items:
+        lines_summary = [
+            f"[AGENDA_PARSER] 既定议程单识别成功 (来源: {mode}, 共 {len(items)} 项):",
+        ]
+        if meta.theme:
+            lines_summary.append(f"  * 会议主题: {meta.theme}")
+        if meta.date_time:
+            lines_summary.append(f"  * 会议时间: {meta.date_time}")
+        for it in items:
+            pres_str = ", ".join(it.presenters) if it.presenters else "(未指定或未识别到演讲人)"
+            dur_str = f" [预计时长: {it.duration}]" if it.duration else ""
+            cat_str = f" [{it.category}]" if it.category else ""
+            lines_summary.append(f"  -> 议题 {it.seq}: 《{it.title}》 | 演讲人/汇报人: {pres_str}{dur_str}{cat_str}")
+        logger.info("\n".join(lines_summary))
+    else:
+        logger.warning(
+            "[AGENDA_PARSER] ⚠ 未能从输入文本中识别出任何既定议程项！原始输入预览 (前300字): %s",
+            normalized_text[:300].replace("\n", " "),
+        )
+
+    plan = AgendaPlan(meta=meta, items=items)
+    _log_parser_record(normalized_text, plan, mode, used_cols)
+    return plan
+

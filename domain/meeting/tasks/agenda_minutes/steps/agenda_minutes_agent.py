@@ -32,39 +32,116 @@ from ..contracts import (
 from ..prompts import (
     AGENDA_MINUTES_GENERATION_SYSTEM_PROMPT,
     SINGLE_AGENDA_ITEM_SYSTEM_PROMPT,
+    build_single_item_prompt,
 )
+from ..types import detect_agenda_type
 
 logger = logging.getLogger(__name__)
 
 
 @dataclass
 class SingleAgendaItemModel(ModelMixin):
-    """单议题结构化输出数据模型。"""
+    """单议题结构化输出数据模型（1~5 栏纯干货直出，向上兼容旧字段）。"""
 
     presenter: str = ""
     status_tag: str = "[审议通过]"
+    # 1~5 纯干货字段
+    target_and_audience: list[str] = field(default_factory=list)
+    content_and_evidence: list[str] = field(default_factory=list)
+    process_and_interaction: list[str] = field(default_factory=list)
+    conclusion_and_status: str = ""
+    action_items: list[dict[str, Any]] = field(default_factory=list)
+    # 兼容旧字段
     proposal_highlights: list[str] = field(default_factory=list)
     deliberation_details: dict[str, Any] = field(default_factory=dict)
     resolution: str = ""
     action_commitments: list[dict[str, Any]] = field(default_factory=list)
 
+    def __post_init__(self) -> None:
+        if not self.target_and_audience and self.proposal_highlights:
+            self.target_and_audience = list(self.proposal_highlights)
+        elif not self.proposal_highlights and self.target_and_audience:
+            self.proposal_highlights = list(self.target_and_audience)
+
+        delib = self.deliberation_details if isinstance(self.deliberation_details, dict) else {}
+        delib_metrics = list(delib.get("key_metrics") or [])
+        delib_concerns = list(delib.get("feedback_concerns") or [])
+
+        if not self.content_and_evidence and delib_metrics:
+            self.content_and_evidence = list(delib_metrics)
+        elif not delib_metrics and self.content_and_evidence:
+            if not isinstance(self.deliberation_details, dict):
+                self.deliberation_details = {}
+            self.deliberation_details["key_metrics"] = list(self.content_and_evidence)
+
+        if not self.process_and_interaction and delib_concerns:
+            self.process_and_interaction = list(delib_concerns)
+        elif not delib_concerns and self.process_and_interaction:
+            if not isinstance(self.deliberation_details, dict):
+                self.deliberation_details = {}
+            self.deliberation_details["feedback_concerns"] = list(self.process_and_interaction)
+
+        if not self.conclusion_and_status and self.resolution:
+            self.conclusion_and_status = self.resolution
+        elif not self.resolution and self.conclusion_and_status:
+            self.resolution = self.conclusion_and_status
+
+        if not self.action_items and self.action_commitments:
+            self.action_items = list(self.action_commitments)
+        elif not self.action_commitments and self.action_items:
+            self.action_commitments = list(self.action_items)
+
     @classmethod
     def validate(cls, data: dict) -> "SingleAgendaItemModel":
         if not isinstance(data, dict):
             raise OutputValidationError("SingleAgendaItemModel 必须是对象")
-        delib = data.get("deliberation_details")
-        if not isinstance(delib, dict):
-            delib = {"key_metrics": [], "feedback_concerns": []}
+
+        # 1. 目标与对象
+        target = list(data.get("target_and_audience") or data.get("proposal_highlights") or [])
+
+        # 2. 内容与依据
+        content_raw = data.get("content_and_evidence")
+        if isinstance(content_raw, list):
+            content = list(content_raw)
+        elif isinstance(content_raw, dict):
+            content = list(content_raw.get("key_metrics") or []) + list(content_raw.get("facts_and_options") or [])
+        else:
+            delib_raw = data.get("deliberation_details") or {}
+            content = list(delib_raw.get("key_metrics") or []) if isinstance(delib_raw, dict) else []
+
+        # 3. 过程与互动
+        process_raw = data.get("process_and_interaction")
+        if isinstance(process_raw, list):
+            process = list(process_raw)
+        elif isinstance(process_raw, dict):
+            process = list(process_raw.get("feedback_concerns") or []) + list(process_raw.get("focus_debates") or [])
+        else:
+            delib_raw = data.get("deliberation_details") or {}
+            process = list(delib_raw.get("feedback_concerns") or []) if isinstance(delib_raw, dict) else []
+
+        # 4. 结论与状态
+        conclusion = str(data.get("conclusion_and_status") or data.get("resolution") or "").strip()
+
+        # 5. 行动与效果
+        actions = list(data.get("action_items") or data.get("action_commitments") or [])
+
+        # 双向映射兼容
         return cls(
             presenter=str(data.get("presenter") or "").strip(),
             status_tag=str(data.get("status_tag") or "[审议通过]").strip(),
-            proposal_highlights=list(data.get("proposal_highlights") or []),
+            target_and_audience=target,
+            content_and_evidence=content,
+            process_and_interaction=process,
+            conclusion_and_status=conclusion,
+            action_items=actions,
+            # 兼容旧字段
+            proposal_highlights=target,
             deliberation_details={
-                "key_metrics": list(delib.get("key_metrics") or []),
-                "feedback_concerns": list(delib.get("feedback_concerns") or []),
+                "key_metrics": content,
+                "feedback_concerns": process,
             },
-            resolution=str(data.get("resolution") or "").strip(),
-            action_commitments=list(data.get("action_commitments") or []),
+            resolution=conclusion,
+            action_commitments=actions,
         )
 
 
@@ -156,14 +233,32 @@ class AgendaMinutesAgent:
 
         # 2. 发言人双向锚定对齐
         alignment_res = align_agenda_with_transcript(plan, transcript)
-        logger.info(
-            "agenda_minutes alignment: total=%d, discussed=%d, skipped=%d",
-            len(plan.items),
-            alignment_res.discussed_count,
-            alignment_res.skipped_count,
-        )
+        align_log = [
+            f"[AGENDA_ALIGNMENT] 现场研讨对齐结果汇总 (有效讨论: {alignment_res.discussed_count}, 未讨论/跳过: {alignment_res.skipped_count}):"
+        ]
+        for align in alignment_res.alignments:
+            status_tag = "【有效讨论】" if align.status == "discussed" else "【未讨论/跳过】"
+            speakers = ", ".join(align.matched_speakers) if align.matched_speakers else "无匹配发言"
+            pres_str = ", ".join(align.item.presenters) if align.item.presenters else "无"
+            align_log.append(
+                f"  {status_tag} 议题 {align.item.seq} 《{align.item.title}》 | 既定汇报人: [{pres_str}] | 现场发言人: [{speakers}] (命中讨论块: {len(align.matched_blocks)})"
+            )
+        logger.info("\n".join(align_log))
 
-        # 3. Map 阶段：受控并发抽取每个讨论过的议题（彻底打破单次 64K 上下文限制）
+
+        # 3. 动态检测会议类型（退居幕后的 9 大类型导师）并装配单议题 Prompt
+        type_spec = detect_agenda_type(
+            theme=plan.meta.theme or "",
+            context=transcript[:5000],
+        )
+        logger.info(
+            "agenda_minutes detected meeting type: %s (%s)",
+            type_spec.type_name,
+            type_spec.type_id,
+        )
+        item_system_prompt = build_single_item_prompt(type_spec)
+
+        # 4. Map 阶段：受控并发抽取每个讨论过的议题（彻底打破单次 64K 上下文限制）
         concurrency = int(os.getenv("AGENDA_MINUTES_CONCURRENCY", "4"))
         semaphore = asyncio.Semaphore(concurrency)
 
@@ -183,7 +278,7 @@ class AgendaMinutesAgent:
                 )
                 try:
                     res = await self.client.structured(
-                        SINGLE_AGENDA_ITEM_SYSTEM_PROMPT,
+                        item_system_prompt,
                         user_prompt,
                         SingleAgendaItemModel,
                         SINGLE_AGENDA_ITEM_OUTPUT_CONTRACT,
@@ -196,6 +291,11 @@ class AgendaMinutesAgent:
                     extracted = {
                         "presenter": pres_str,
                         "status_tag": "[审议通过]",
+                        "target_and_audience": [f"既定议题审议：{it.title}"],
+                        "content_and_evidence": [],
+                        "process_and_interaction": [],
+                        "conclusion_and_status": "",
+                        "action_items": [],
                         "proposal_highlights": [f"既定议题审议：{it.title}"],
                         "deliberation_details": {"key_metrics": [], "feedback_concerns": []},
                         "resolution": "",
@@ -217,7 +317,7 @@ class AgendaMinutesAgent:
                     seq_key = f"{int(seq_key):02d}"
                 extracted_map[seq_key] = r
 
-        # 4. Reduce 阶段：组装并强制锁定议题骨架与现场时序
+        # 5. Reduce 阶段：组装并强制锁定议题骨架与现场时序
         raw_draft = {
             "meeting_meta": {
                 "theme": plan.meta.theme or "商用发布与关键技术议题审议会",
@@ -232,7 +332,7 @@ class AgendaMinutesAgent:
             "adhoc_items": [],
         }
 
-        # 5. 后置硬约束锁定（议程序号与标题100%忠实原案，未讨论要素强制留空）
+        # 6. 后置硬约束锁定（议程序号与标题100%忠实原案，未讨论要素强制留空）
         enforced = self._enforce_agenda_invariants(raw_draft, alignment_res)
 
         return AgendaMinutes.validate(enforced)
@@ -297,6 +397,13 @@ class AgendaMinutesAgent:
                     "agenda_title": it.title,  # 100% 遵从 txt 法定原案
                     "presenter": pres_str,
                     "status_tag": "[本次未讨论]",
+                    # 1~5 栏纯干货直出
+                    "target_and_audience": [],
+                    "content_and_evidence": [],
+                    "process_and_interaction": [],
+                    "conclusion_and_status": "",
+                    "action_items": [],
+                    # 向上兼容旧字段
                     "proposal_highlights": [],
                     "deliberation_details": {
                         "key_metrics": [],
@@ -320,19 +427,64 @@ class AgendaMinutesAgent:
                 if not actual_pres or actual_pres == "未记录":
                     actual_pres = pres_str
 
+                # 1. 目标与对象
+                target = list(
+                    raw_match.get("target_and_audience")
+                    or raw_match.get("proposal_highlights")
+                    or [f"既定议题审议：{it.title}"]
+                )
+
+                # 2. 内容与依据
+                content_raw = raw_match.get("content_and_evidence")
+                if isinstance(content_raw, list) and content_raw:
+                    content = list(content_raw)
+                elif isinstance(content_raw, dict):
+                    content = list(content_raw.get("key_metrics") or []) + list(content_raw.get("facts_and_options") or [])
+                else:
+                    content = list(delib.get("key_metrics") or [])
+
+                # 3. 过程与互动
+                process_raw = raw_match.get("process_and_interaction")
+                if isinstance(process_raw, list) and process_raw:
+                    process = list(process_raw)
+                elif isinstance(process_raw, dict):
+                    process = list(process_raw.get("feedback_concerns") or []) + list(process_raw.get("focus_debates") or [])
+                else:
+                    process = list(delib.get("feedback_concerns") or [])
+
+                # 4. 结论与状态
+                conclusion = str(
+                    raw_match.get("conclusion_and_status")
+                    or raw_match.get("resolution")
+                    or ""
+                ).strip()
+
+                # 5. 行动与效果
+                actions = list(
+                    raw_match.get("action_items")
+                    or raw_match.get("action_commitments")
+                    or []
+                )
+
                 enforced_item = {
                     "agenda_seq": seq,
                     "agenda_title": it.title,  # 100% 遵从 txt 法定原案
                     "presenter": actual_pres,
                     "status_tag": status_tag,
-                    "proposal_highlights": list(raw_match.get("proposal_highlights") or [f"既定议题审议：{it.title}"]),
+                    # 1~5 栏纯干货直出
+                    "target_and_audience": target,
+                    "content_and_evidence": content,
+                    "process_and_interaction": process,
+                    "conclusion_and_status": conclusion,
+                    "action_items": actions,
+                    # 向上兼容旧字段
+                    "proposal_highlights": target,
                     "deliberation_details": {
-                        "key_metrics": list(delib.get("key_metrics") or []),
-                        "feedback_concerns": list(delib.get("feedback_concerns") or []),
+                        "key_metrics": content,
+                        "feedback_concerns": process,
                     },
-                    # 拿掉默认通过语：未形成决议则保持为空，严禁随意补「原则同意推进」
-                    "resolution": str(raw_match.get("resolution") or "").strip(),
-                    "action_commitments": list(raw_match.get("action_commitments") or []),
+                    "resolution": conclusion,
+                    "action_commitments": actions,
                     "discussion_state": "discussed",
                 }
 

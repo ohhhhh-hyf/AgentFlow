@@ -379,10 +379,11 @@ def test_markdown_and_html_render():
     assert "## 议题分析" in md_output
     assert "第二部分" not in md_output
     assert "### 议题 01 · 翻译海外HiTranslationService 21.1.1.300商用版本发布" in md_output
-    assert "#### 1. 方案背景与核心诉求" in md_output
-    assert "#### 2. 研讨过程与关键论据" in md_output
-    assert "#### 3. 最终定调与决议共识" in md_output
-    assert "#### 4. 后续行动与跟进责任" in md_output
+    assert "#### 1. 目标与对象" in md_output
+    assert "#### 2. 内容与依据" in md_output
+    assert "#### 3. 过程与互动" in md_output
+    assert "#### 4. 结论与状态" in md_output
+    assert "#### 5. 行动与效果" in md_output
     assert "总体评价" not in md_output
     assert "第三部分" not in md_output
     assert "临时追加议题" not in md_output
@@ -394,15 +395,24 @@ def test_markdown_and_html_render():
     assert "ck-doc" in html_output
     assert "议题总览" in html_output
     assert "议题分析" in html_output
+    assert "目标与对象" in html_output
+    assert "内容与依据" in html_output
+    assert "过程与互动" in html_output
+    assert "结论与状态" in html_output
+    assert "行动与效果" in html_output
     assert "col-seq" not in html_output
     assert "总体评价与导向" not in html_output
     assert "badge-approved" in html_output
     assert "badge-skipped" in html_output
     assert "card-skipped" in html_output
-    assert "临时追加议题" not in html_output
+    assert "card-skipped-body" in html_output
+    assert "skipped-banner" in html_output
     # 验证去除 AI 味：彻底清除 emoji 符号
     for emoji in ["📅", "📊", "👥", "📋", "📑", "💬", "📌", "ℹ️"]:
         assert emoji not in html_output
+    # 验证元信息与未讨论横幅不使用斜体
+    assert ".ck-doc-meta {\n      font-style: normal;" in html_output
+    assert ".skipped-banner {\n      background: #f2efe8;\n      border-radius: 2px;\n      padding: 2px 8px;\n      font-size: 0.78rem;\n      color: #666666;\n      font-style: normal;" in html_output
 
     # 3. 验证 Render 类的 render_draft 与 extract_structure
     state = {"lines": {"agenda_minutes": {"draft": draft}}}
@@ -677,6 +687,143 @@ def test_enhanced_state_machine_roadsign_and_buffer_isolation():
     assert "我去倒杯水" not in a2_evidence
     assert "喂喂喂" not in a2_evidence
     assert "俄罗斯节点" in a2_evidence
+
+
+def test_agenda_types_registry_and_specs():
+    """测试 9 大会议类型注册表与 Spec 规范定义。"""
+    from domain.meeting.tasks.agenda_minutes.types import (
+        AGENDA_TYPE_REGISTRY,
+        detect_agenda_type,
+        get_agenda_type_spec,
+    )
+    from domain.meeting.tasks.agenda_minutes.prompts import build_single_item_prompt
+
+    assert len(AGENDA_TYPE_REGISTRY) == 9
+    expected_types = [
+        "decision_approval",
+        "review_selection",
+        "planning_strategy",
+        "alignment_consensus",
+        "info_sync",
+        "retrospective",
+        "brainstorming",
+        "release_broadcast",
+        "knowledge_share",
+    ]
+    for tid in expected_types:
+        spec = get_agenda_type_spec(tid)
+        assert spec.type_id == tid
+        assert spec.type_name
+        assert spec.core_purpose
+        assert spec.core_output
+        assert len(spec.pillars) == 5
+        guidance = spec.format_prompt_guidance()
+        assert spec.type_name in guidance
+        assert "1. 目标与对象" in guidance
+        assert "5. 行动与效果" in guidance
+
+    # 测试未知类型安全降级
+    fallback_spec = get_agenda_type_spec("non_existent_type")
+    assert fallback_spec.type_id == "decision_approval"
+
+    # 测试 build_single_item_prompt 动态拼接
+    prompt = build_single_item_prompt(fallback_spec)
+    assert "决策审批型" in prompt
+    assert "target_and_audience" in prompt
+    assert "action_items" in prompt
+
+
+def test_detect_agenda_type_all_categories():
+    """测试基于会议主题与上下文的 9 大类型智能路由器。"""
+    from domain.meeting.tasks.agenda_minutes.types import detect_agenda_type
+
+    # 1. 决策审批型
+    assert detect_agenda_type("智慧域商用发布评审").type_id == "decision_approval"
+    assert detect_agenda_type("关于2026年项目立项与预算审批会").type_id == "decision_approval"
+
+    # 2. 评审选型型
+    assert detect_agenda_type("向量数据库技术方案选型评审会").type_id == "review_selection"
+    assert detect_agenda_type("大模型基础设施架构评审与供应商评选").type_id == "review_selection"
+
+    # 3. 规划策略型
+    assert detect_agenda_type("2026年Q3业务战略与路线图规划会").type_id == "planning_strategy"
+    assert detect_agenda_type("年度研发优先级排序与资源规划研讨").type_id == "planning_strategy"
+
+    # 4. 对齐共识型
+    assert detect_agenda_type("前后端系统接口契约对齐与联调拉通会").type_id == "alignment_consensus"
+    assert detect_agenda_type("跨部门协作职责边界敲定会").type_id == "alignment_consensus"
+
+    # 5. 信息同步型
+    assert detect_agenda_type("开发团队周例会及阻塞项同步").type_id == "info_sync"
+    assert detect_agenda_type("敏捷迭代每日站会").type_id == "info_sync"
+
+    # 6. 复盘归因型
+    assert detect_agenda_type("0618线上突发故障根因分析与复盘会").type_id == "retrospective"
+    assert detect_agenda_type("端午大促项目复盘总结会").type_id == "retrospective"
+
+    # 7. 创意发散型
+    assert detect_agenda_type("AI原生产品创新头脑风暴工作坊").type_id == "brainstorming"
+    assert detect_agenda_type("增长黑客发散创意研讨会").type_id == "brainstorming"
+
+    # 8. 发布传播型
+    assert detect_agenda_type("智能终端新一代操作系统全网发布宣贯会").type_id == "release_broadcast"
+    assert detect_agenda_type("对外公告与媒体答疑口径统一会").type_id == "release_broadcast"
+
+    # 9. 知识分享型
+    assert detect_agenda_type("Agent架构底层原理解析与技术沙龙").type_id == "knowledge_share"
+    assert detect_agenda_type("新员工代码规范培训与知识分享").type_id == "knowledge_share"
+
+    # 10. 兜底测试
+    assert detect_agenda_type("常规会议讨论").type_id == "decision_approval"
+
+
+def test_single_agenda_item_model_bi_directional_compat():
+    """测试 SingleAgendaItemModel 在 1~5 纯干货字段与老字段之间的双向平滑兼容。"""
+    from domain.meeting.tasks.agenda_minutes.steps.agenda_minutes_agent import SingleAgendaItemModel
+
+    # 1. 传入全新 1~5 字段
+    new_data = {
+        "presenter": "刘畅",
+        "status_tag": "[原则同意]",
+        "target_and_audience": ["申请商用准入许可", "面向评委会"],
+        "content_and_evidence": ["双机房热备部署", "时延降至 85ms"],
+        "process_and_interaction": ["评委质询故障逃逸，出具演练日志释疑"],
+        "conclusion_and_status": "原则同意发布，灰度比例10%内",
+        "action_items": [{"owner": "刘畅", "task": "签署核查单", "deadline": "9月30日"}],
+    }
+    model1 = SingleAgendaItemModel.validate(new_data)
+    assert model1.target_and_audience == ["申请商用准入许可", "面向评委会"]
+    assert model1.content_and_evidence == ["双机房热备部署", "时延降至 85ms"]
+    assert model1.process_and_interaction == ["评委质询故障逃逸，出具演练日志释疑"]
+    assert model1.conclusion_and_status == "原则同意发布，灰度比例10%内"
+    assert len(model1.action_items) == 1
+    # 验证老字段被完全向上兼容填充
+    assert model1.proposal_highlights == model1.target_and_audience
+    assert model1.deliberation_details["key_metrics"] == model1.content_and_evidence
+    assert model1.deliberation_details["feedback_concerns"] == model1.process_and_interaction
+    assert model1.resolution == model1.conclusion_and_status
+    assert model1.action_commitments == model1.action_items
+
+    # 2. 传入老字段数据，验证自动映射至 1~5 字段
+    legacy_data = {
+        "presenter": "沙彬斌",
+        "status_tag": "[审议通过]",
+        "proposal_highlights": ["升级微服务架构"],
+        "deliberation_details": {
+            "key_metrics": ["吞吐量提升 30%"],
+            "feedback_concerns": ["关注内存增长风险"],
+        },
+        "resolution": "方案通过，按计划上线",
+        "action_commitments": [{"owner": "沙彬斌", "task": "压测", "deadline": "下周"}],
+    }
+    model2 = SingleAgendaItemModel.validate(legacy_data)
+    assert model2.target_and_audience == ["升级微服务架构"]
+    assert model2.content_and_evidence == ["吞吐量提升 30%"]
+    assert model2.process_and_interaction == ["关注内存增长风险"]
+    assert model2.conclusion_and_status == "方案通过，按计划上线"
+    assert len(model2.action_items) == 1
+    assert model2.action_items[0]["owner"] == "沙彬斌"
+
 
 
 

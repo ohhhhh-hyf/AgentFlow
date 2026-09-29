@@ -27,7 +27,7 @@ from tools.schema.fallback_rules import FallbackRules, Lines, Raw
 
 
 class AgendaMinutesGenerationContract(GenerationContract):
-    """议程驱动型会议纪要生成契约（通用全景四要素架构）。"""
+    """议程驱动型会议纪要生成契约（通用全景五要素架构）。"""
 
     fields = [
         ObjField(
@@ -47,27 +47,41 @@ class AgendaMinutesGenerationContract(GenerationContract):
                 StrField("agenda_seq", "原议题序号（如 01, 02）"),
                 StrField("agenda_title", "既定议程议题全称（严格以会前议程单 txt 为准，保持字面完全一致）"),
                 StrField("presenter", "汇报人与责任团队/部门"),
-                StrField("status_tag", "议题结论状态标签（如 [审议通过]、[附条件通过]、[技术认可/建议预研]、[本次未讨论] 等）"),
-                StrListField("proposal_highlights", "1. 方案背景与核心诉求（版本需求、功能范围、技术演进或业务痛点）"),
+                StrField("status_tag", "议题结论状态标签（如 原则同意、审议通过、待补充、本次未讨论 等）"),
+                StrListField("target_and_audience", "1. 目标与对象（为什么开、面向谁、期望发生什么变化、验收标准）"),
+                StrListField("content_and_evidence", "2. 内容与依据（改动点、量化指标、方案事实）"),
+                StrListField("process_and_interaction", "3. 过程与互动（争议焦点、评委质询、释疑论据）"),
+                StrField("conclusion_and_status", "4. 结论与状态（自然语言陈述最终口径、生效约束红线、未决卡点）"),
+                ObjListField(
+                    "action_items",
+                    [
+                        StrField("owner", "跟进责任人/单位"),
+                        StrField("task", "具体执行事项、闭环动作或验证探索"),
+                        StrField("deadline", "完成时限节点或排期安排"),
+                    ],
+                    desc="5. 行动与效果",
+                ),
+                StrField("discussion_state", "讨论真实性标记：discussed=现场充分讨论；skipped=本次未讨论/录音未见提及"),
+                # 兼容旧字段别名
+                StrListField("proposal_highlights", "兼容旧字段：方案背景与核心诉求"),
                 ObjField(
                     "deliberation_details",
                     [
-                        StrListField("key_metrics", "硬核论据与量化指标（时延对比、通过率、压测及评测数据）"),
-                        StrListField("feedback_concerns", "讨论交锋与各方反馈（评审把关质询、专家顾虑或解答，保留真实姓名）"),
+                        StrListField("key_metrics", "硬核论据与量化指标"),
+                        StrListField("feedback_concerns", "讨论交锋与各方反馈"),
                     ],
-                    desc="2. 研讨过程与关键论据",
+                    desc="兼容旧字段：研讨过程与关键论据",
                 ),
-                StrField("resolution", "3. 最终定调与决议共识（拍板口径、前置约束条件或技术演进共识）"),
+                StrField("resolution", "兼容旧字段：最终定调与决议共识"),
                 ObjListField(
                     "action_commitments",
                     [
                         StrField("owner", "跟进责任人/单位"),
-                        StrField("task", "具体执行事项或探索方向"),
-                        StrField("deadline", "完成时限节点或排期安排"),
+                        StrField("task", "具体执行事项"),
+                        StrField("deadline", "完成时限节点"),
                     ],
-                    desc="4. 后续行动与跟进责任",
+                    desc="兼容旧字段：后续行动与跟进责任",
                 ),
-                StrField("discussion_state", "讨论真实性标记：discussed=现场充分讨论；skipped=本次未讨论/录音未见提及"),
             ],
             desc="既定议程逐项审议与研讨详情列表（按议程单序号严格逐项对齐）",
         ),
@@ -103,13 +117,11 @@ AGENDA_MINUTES_SUPERVISOR_OUTPUT_CONTRACT = AgendaMinutesSupervisorContract.to_o
 SINGLE_AGENDA_ITEM_OUTPUT_CONTRACT = """{
   "presenter": "",
   "status_tag": "",
-  "proposal_highlights": [],
-  "deliberation_details": {
-    "key_metrics": [],
-    "feedback_concerns": []
-  },
-  "resolution": "",
-  "action_commitments": [
+  "target_and_audience": [],
+  "content_and_evidence": [],
+  "process_and_interaction": [],
+  "conclusion_and_status": "",
+  "action_items": [
     {
       "owner": "",
       "task": "",
@@ -120,16 +132,15 @@ SINGLE_AGENDA_ITEM_OUTPUT_CONTRACT = """{
 
 字段说明：
 - presenter：实际现场汇报人（如现场由某专家实际汇报则填写其真实姓名，若为主讲人则填法定汇报人）
-- status_tag：议题结论状态标签（如 [审议通过]、[附条件通过]、[技术共识]、[延期再议]、[暂停评审] 等）
-- proposal_highlights：1. 方案背景与核心诉求（版本需求、功能范围、技术演进或业务痛点）
-- deliberation_details：2. 研讨过程与关键论据
-- deliberation_details.key_metrics：硬核论据与量化指标（时延对比、通过率、压测及评测数据）
-- deliberation_details.feedback_concerns：讨论交锋与各方反馈（评审把关质询、专家顾虑或解答，保留真实姓名）
-- resolution：3. 最终定调与决议共识（拍板口径、前置约束条件或技术演进共识）
-- action_commitments：4. 后续行动与跟进责任
-- action_commitments[].owner：跟进责任人/单位
-- action_commitments[].task：具体执行事项或探索方向
-- action_commitments[].deadline：完成时限节点或排期安排"""
+- status_tag：议题结论状态标签（如 原则同意、审议通过、技术共识、待补充材料、本次未讨论 等）
+- target_and_audience：1. 目标与对象（为什么开、面向受众、明确排除项）
+- content_and_evidence：2. 内容与依据（改动点、量化指标、方案事实）
+- process_and_interaction：3. 过程与互动（争议焦点、评委质询、释疑论据，指名道姓保留真实发言人）
+- conclusion_and_status：4. 结论与状态（自然语言陈述最终口径、生效约束红线、未决卡点）
+- action_items：5. 行动与效果
+- action_items[].owner：跟进责任人/单位
+- action_items[].task：具体执行事项、闭环动作或交付物
+- action_items[].deadline：完成时限节点或排期安排"""
 
 
 class AgendaMinutesFallbackRules(FallbackRules):
