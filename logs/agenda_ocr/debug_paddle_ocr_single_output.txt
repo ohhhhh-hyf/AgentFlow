@@ -1,0 +1,72 @@
+图片: D:\study\demo\data\1\agenda\test1\商评1.png
+尺寸: 2020 x 1151
+原生检测框数: 72, 最终保留行数: 67
+
+=== 最终输出给 LLM 的文本 ===
+√接受 ？暂定▼×谢绝建议新时间照日历.
+2026/6/15 (周一) 15:52
+更新议题//【会议通知】智慧域商用发布评审，时间：2026/6/15（周一）16:00-18:00（UTC+08:00)Bejing
+OXufeng 00563595; Suoxunfei(suoxunfei,HarmonyOS Dept);  Wuyouguo; OWanghao(QA,Celia Business Dept); Huangjiang (River); OZuofei; Hexuan (He Xuan); OLiuduanliang Yuan, Yuan); OZhanghua (Hary); O chenqimeng; Gaoxiong (Richard); Oshenjakun; fangsimiao; litengfei (R); Zhengbenling;
+che
+可选
+OJiayongli; Zhangdonghao; OTudandan; O Sihongjie; Haozhiming Thmas); Xieyi(Al); OWuzhipeng (Chaos, CBG); OHongsibao (Al); OZhuchangfeng; OFulingyun (Kirin Fu); O Jiarongrong;  Baiyi (A); Zhangjiang; OJiafuru; Xieguangsheng; O Huhanwen A); OLjianping (Kevin); OWyi; Zhaowei Wiiam);
+oling,Harm
+在日历中找不到此会议。可能已被移动或删除。
+时间2026年6月15日星期—16:00-18:00
+16
+17
+会议空间 WeMeeting
+议题(Agendas) 材料(Materials)
+会议主题
+智慧域商用发布评审
+Subject
+会议时间
+2026/06/15(周—)16:00-18:00(UTC+08:00)Bejing
+Time
+视频会议
+加入会议(Guest) Meeting ID: 95055766
+Video Meeting
+主持会议(Host)
+与会人
+全程与会人：徐锋：索勋飞(委托高雄);吴友国;王昊;黄江;何瑄：左飞
+Attendees
+分段与会人：申家坤;方思邈;李腾飞; 郑本令; 沙彬斌;陈启错;陶强;乔登龙; 刘志强;唐晓东;张月;陆敬怡;林宇珂;赖朝辉;王旭; 耿安峰; 李雯雯;孙思聪;李文洁;肖龙帅;徐玥;陶汝帅;佟江阳;刘畅;陈坤;赵磊;陈冬阳
+编号
+议题名称
+时长
+起止时间
+汇报人
+纪要人
+议题参与人
+No.
+Topic
+Duration
+Time
+Reporter
+Recorder
+Members
+1
+小艺慧记CeliaMinutesService 1.4.5.500版本发布商用版本 15min
+16:00-16:15
+申家坤
+申家坤
+方思邈;李腾飞;郑本令
+会议议题
+Agenda
+翻译海外 HiTranslationService 21.1.1.300 商用版本发布
+15min
+16:15-16:30
+刘畅
+刘畅
+陈坤;赵磊;陈冬阳
+HAG 3.6.5.300版本商用发布评审
+15min
+16:30-16:45
+沙彬斌；陈错
+陈锴
+陶强;乔登龙; 刘志强; 唐晓东;张月
+SpeechASR 1.4.5.302 商用版本评审
+15min
+16:45-17:00
+陆敬怡;林宇珂;赖朝辉王旭
+耿安峰;李雯雪;孙思聪;李文洁;肖龙帅;徐玥;陶汝帅;佟泸阳
