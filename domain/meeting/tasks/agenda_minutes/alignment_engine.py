@@ -78,6 +78,52 @@ _SPEAKER_TS_PATTERN = re.compile(
     re.M,
 )
 
+# ── 语义意图模式库（涵盖转折、串场、致谢消歧、设备闲聊） ───────────────────────
+
+# 1. 主持人/评委串场交接（Host Handover Roadsign）
+_HOST_HANDOVER_VERB_PATTERN = re.compile(
+    r"(?:有请|交给|由|切到|听下|换到)\s*([^\s,，。:：]{2,6})\s*(?:来|给大家)?(?:汇报|分享|讲讲)?",
+    re.IGNORECASE,
+)
+_HOST_DIRECT_INVITE_PATTERN = re.compile(
+    r"(?:下一个|下一项|下一位|接下来的议题|下一议题)(?:\s*(?:是|由|有请|让))?\s*([^\s,，。:：]{2,15})?",
+    re.IGNORECASE,
+)
+_HOST_NEXT_PHRASE_PATTERN = re.compile(
+    r"(?:接下来|下面)\s*(?:有请|由|切到|听下|让|请)\s*([^\s,，。:：]{2,15})",
+    re.IGNORECASE,
+)
+_HOST_GENERIC_PATTERN = re.compile(r"有请下一位", re.IGNORECASE)
+
+# 2. 真实收尾信号（Closing Signals）
+_CLOSING_PATTERNS = [
+    re.compile(r"(?:谢谢|感谢|多谢)(?:各位|大家|评委|领导|各位老师|大家的时间)"),
+    re.compile(r"(?:好[，,、]?\s*拜|好的拜|拜拜|先下了|我先下|你们先下|可以先下|先撤|先退了|退会了)"),
+    re.compile(r"(?:先这样[吧了]|那就先这样|今天就[到这|这几个]|我就汇报这么多|以上是我的汇报|汇报完毕)"),
+    re.compile(r"(?:走评审电子流|闭环之后再发|那就先散会|散会)"),
+    re.compile(r"(?:整体|本次)?结论是\s*(?:go|通过|同意|通过评审)", re.IGNORECASE),
+]
+
+# 答辩/抗辩/反馈排除模式（语义消歧：谢谢评委指出的问题 -> 这是答辩，绝非收尾！）
+_CLOSING_EXCLUSION_PATTERN = re.compile(
+    r"(?:谢谢|感谢)(?:评委|老师|各位领导)?(?:提醒|指出|建议|提问|提的意见|指正|反馈|，我再|，我解释|，后续)"
+)
+
+# 3. 开场与宣讲就绪信号（Opening Signals）
+_OPENING_PATTERNS = [
+    re.compile(r"(?:我来共享|我共享|我抢一下桌面|能看到桌面|能看到屏幕|各位评委好|各位评委晚上好)"),
+    re.compile(r"(?:这次版本主要|本次版本主要|看下一个|切到下一个|下面由我汇报)"),
+    re.compile(r"(?:单框架补丁|我来介绍|大家看本次|大家看一下|各位好|开始汇报|我先共享|我来汇报|我就开始汇报|我快速过一下|今天我主要分享)"),
+    re.compile(r"(?:我先|我来)\s*(?:共享|汇报|投屏|介绍)"),
+]
+
+# 4. 设备调试与过场闲聊（Equipment & Chitchat Noise）
+_EQUIPMENT_CHITCHAT_PATTERNS = [
+    re.compile(r"(?:喂喂|能听到吗|听得到吗|听得见吗|声音清晰|声音小|声音大|声音有点|麦克风|掉线|断网|卡了)"),
+    re.compile(r"(?:能看到桌面吗|能看到屏幕吗|屏幕共享|投屏|抢一下桌面|稍等一下我共享|连一下线)"),
+    re.compile(r"(?:去趟洗手间|倒杯水|喝口水|休息两分钟|稍等两分钟|点个外卖|打个电话)"),
+]
+
 _GENERIC_TOKENS = {
     # 英文泛词
     "for", "and", "the", "with", "from", "service", "cloud", "version", "review",
@@ -97,10 +143,99 @@ _CLOSING_MARKERS = {
 
 _OPENING_MARKERS = {
     "我来共享", "我共享", "我抢一下桌面", "能看到桌面", "能看到屏幕", "各位评委好",
-    "各位评委晚上好", "这次版本主要", "本次版本主要", "整体结论是go", "结论是go",
+    "各位评委晚上好", "这次版本主要", "本次版本主要",
     "看下一个", "切到下一个", "下面由我汇报", "单框架补丁", "我来介绍", "在不在",
     "大家看本次", "大家看一下", "各位好", "开始汇报", "我先共享", "我来汇报"
 }
+
+
+def _is_session_closing(content: str) -> bool:
+    """判定是否为议题实质收尾信号，带上下文语义消歧（排除答辩抗辩致谢）。"""
+    if not content:
+        return False
+    # 优先消歧：如果紧跟"指出/建议/我再解释"，属于答辩抗辩，绝非收尾
+    if _CLOSING_EXCLUSION_PATTERN.search(content):
+        return False
+    if any(pat.search(content) for pat in _CLOSING_PATTERNS):
+        return True
+    return any(m in content for m in _CLOSING_MARKERS)
+
+
+def _is_opening_signal(content: str) -> bool:
+    """判定是否为新议题开场/共享桌面/就绪宣讲信号。"""
+    if not content:
+        return False
+    if any(pat.search(content) for pat in _OPENING_PATTERNS):
+        return True
+    return any(m in content for m in _OPENING_MARKERS)
+
+
+def _is_equipment_or_chitchat(content: str) -> bool:
+    """判定是否为纯设备试音或过场闲聊（且无实质长篇内容）。"""
+    if not content or len(content) > 50:
+        return False
+    return any(pat.search(content) for pat in _EQUIPMENT_CHITCHAT_PATTERNS)
+
+
+def _detect_host_roadsign(
+    speaker: str,
+    content: str,
+    plan: AgendaPlan,
+    hub_speakers: set[str],
+) -> tuple[str | None, bool]:
+    """检测主持人/枢纽人员的串场交接信号（交通警察路标）。
+
+    Returns:
+        (target_seq, is_generic_handover)
+        - target_seq: 若明确呼叫了某议题的主讲人或议题专名，返回对应 seq；
+        - is_generic_handover: 若为泛指串场（如"有请下一位"、"接下来看下一项"），返回 True。
+    """
+    if not content:
+        return None, False
+
+    is_hub = speaker in hub_speakers or not speaker or speaker == "现场发言人"
+    if not is_hub:
+        return None, False
+
+    # 提取交接触发动词之后的子串，排除前半句致谢客套（如"辛苦刘工，下面有请林工"）
+    target_snippet = ""
+    for pat in [_HOST_NEXT_PHRASE_PATTERN, _HOST_HANDOVER_VERB_PATTERN, _HOST_DIRECT_INVITE_PATTERN]:
+        m = pat.search(content)
+        if m:
+            target_snippet = content[m.start():]
+            break
+
+    has_handover_intent = bool(target_snippet or _HOST_GENERIC_PATTERN.search(content))
+    if not has_handover_intent:
+        return None, False
+
+    search_scope = target_snippet if target_snippet else content
+
+    # 1. 尝试匹配明确的目标议程人选或关键词
+    for it in plan.items:
+        all_team = list(it.presenters)
+        if hasattr(it, "recorders"):
+            all_team.extend(it.recorders)
+        if hasattr(it, "members"):
+            all_team.extend(it.members)
+
+        for p in all_team:
+            if not p:
+                continue
+            if p in search_scope:
+                return it.seq, False
+            if len(p) >= 2:
+                surname = p[0]
+                if re.search(rf"{re.escape(surname)}(?:工|老师|总|经理|博士|专家)", search_scope):
+                    return it.seq, False
+
+        tokens = extract_distinctive_tokens(it.title)
+        for tok in tokens:
+            if _match_token_in_text(tok, search_scope):
+                return it.seq, False
+
+    # 2. 如果包含串场意图但未提取出具体人选（如"有请下一位"、"下面切到下一项"）
+    return None, True
 
 
 def extract_distinctive_tokens(text: str) -> list[str]:
@@ -183,20 +318,32 @@ def _identify_hub_speakers(plan: AgendaPlan, blocks: list[DiscussionBlock]) -> s
     """识别全会主持人、评委等中立枢纽人员（高雄、徐锋、索勋飞等）。"""
     hubs: set[str] = set()
     if plan.meta and plan.meta.attendees:
-        m = re.search(r"全程与会人\s*[:：]?\s*([^;\n]+(?:;[^;\n]+)*)", plan.meta.attendees)
-        if m:
-            from .agenda_parser import clean_presenter_names
-            for name in clean_presenter_names(m.group(1)):
-                hubs.add(name)
+        from .agenda_parser import clean_presenter_names
+        for role_prefix in ["全程与会人", "主持人", "会议主持", "评委", "评审组长", "主席", "评委组"]:
+            m = re.search(rf"{role_prefix}\s*[:：]?\s*([^;\n]+(?:;[^;\n]+)*)", plan.meta.attendees)
+            if m:
+                for name in clean_presenter_names(m.group(1)):
+                    hubs.add(name)
 
     speaker_counts: dict[str, int] = {}
     for b in blocks:
         if b.speaker:
             speaker_counts[b.speaker] = speaker_counts.get(b.speaker, 0) + 1
-    all_presenters = set(p for it in plan.items for p in it.presenters)
+
+    all_team: set[str] = set()
+    for it in plan.items:
+        all_team.update(it.presenters)
+        if hasattr(it, "recorders"):
+            all_team.update(it.recorders)
+        if hasattr(it, "members"):
+            all_team.update(it.members)
+
     for sp, cnt in speaker_counts.items():
-        if cnt >= 25 and sp not in all_presenters:
+        if cnt >= 25 and not any(p in sp or sp in p for p in all_team if p):
             hubs.add(sp)
+
+    if "现场发言人" in hubs:
+        hubs.remove("现场发言人")
     return hubs
 
 
@@ -206,31 +353,41 @@ def _score_block_for_item(
     tokens: list[str],
     hub_speakers: set[str],
     is_opening: bool,
+    roadsign_seq: str | None = None,
 ) -> float:
     score = 0.0
     sp = b.speaker.strip()
     content = b.content
 
+    # 0. 主持人路标强力引导分（Roadsign Boost）
+    if roadsign_seq and roadsign_seq == it.seq:
+        score += 4.5
+
     # 1. 汇报人与团队身份匹配
     if sp and sp not in hub_speakers:
-        if any(p in sp or sp in p for p in it.presenters):
+        if any(p in sp or sp in p for p in it.presenters if p):
             if len(content) >= 50 or is_opening:
                 score += 5.0
             else:
                 score += 3.0
-        elif hasattr(it, "recorders") and any(r in sp for r in it.recorders):
+        elif hasattr(it, "recorders") and any(r in sp for r in it.recorders if r):
             score += 2.5
-        elif hasattr(it, "members") and any(m in sp for m in it.members):
+        elif hasattr(it, "members") and any(m in sp for m in it.members if m):
             score += 2.5
 
-    # 2. 正文点名该议题人员
+    # 2. 正文点名该议题人员（支持全名及 姓氏+工/老师/总）
     all_team = list(it.presenters)
     if hasattr(it, "recorders"):
         all_team.extend(it.recorders)
     if hasattr(it, "members"):
         all_team.extend(it.members)
     for name in all_team:
-        if name and name in content:
+        if not name:
+            continue
+        if name in content and name != sp:
+            score += 2.0
+            break
+        if len(name) >= 2 and re.search(rf"{re.escape(name[0])}(?:工|老师|总|经理|博士|专家)", content):
             score += 2.0
             break
 
@@ -255,7 +412,8 @@ def align_agenda_with_transcript(
     1. 真实转录中无任何议题标题行的问题；
     2. 会议现场换序（Permutations）或议题未讨论（Skips）问题；
     3. 全会高管评委在各议题穿插质询的精准归属；
-    4. 最终纪要时序遵循现场研讨时间轴流淌。
+    4. 最终纪要时序遵循现场研讨时间轴流淌；
+    5. 主持人串场路标识别与转场闲聊/设备噪声隔离（三态状态机）。
     """
     blocks = group_transcript_blocks(transcript, plan=plan)
     all_speakers = set(b.speaker for b in blocks if b.speaker)
@@ -263,51 +421,85 @@ def align_agenda_with_transcript(
     item_tokens = {it.seq: extract_distinctive_tokens(it.title) for it in plan.items}
     hub_speakers = _identify_hub_speakers(plan, blocks)
 
-    # ── 阶段 1：多维特征感知与主讲人交接状态机 ───────────────────────────
+    # ── 阶段 1：多维特征感知与三态会话状态机 ───────────────────────────
     assigned: dict[int, str | None] = {}
     active_seq: str | None = None
-    session_closing: bool = False
+    in_transition: bool = False
+    pending_roadsign: str | None = None
 
     for b in blocks:
-        is_closing = any(m in b.content for m in _CLOSING_MARKERS)
-        is_opening = any(m in b.content for m in _OPENING_MARKERS)
+        is_closing = _is_session_closing(b.content)
+        is_opening = _is_opening_signal(b.content)
+        is_noise = _is_equipment_or_chitchat(b.content)
+
+        roadsign_target, is_generic_handover = _detect_host_roadsign(
+            b.speaker, b.content, plan, hub_speakers
+        )
+
+        if roadsign_target:
+            pending_roadsign = roadsign_target
+            in_transition = True
+        elif is_generic_handover:
+            in_transition = True
+
+        if is_closing:
+            in_transition = True
 
         scores = {
-            it.seq: _score_block_for_item(b, it, item_tokens[it.seq], hub_speakers, is_opening)
+            it.seq: _score_block_for_item(
+                b, it, item_tokens[it.seq], hub_speakers, is_opening, roadsign_seq=pending_roadsign
+            )
             for it in plan.items
         }
         best_seq, best_score = max(scores.items(), key=lambda x: x[1])
 
-        if is_closing:
-            session_closing = True
-
+        # 状态机换轨决策
         if best_score >= 3.0:
             if best_seq != active_seq:
                 if (
                     active_seq is None
-                    or session_closing
+                    or in_transition
+                    or pending_roadsign == best_seq
                     or best_score >= 4.5
                     or (best_score >= scores.get(active_seq, 0) + 2.0)
                 ):
                     active_seq = best_seq
-                    session_closing = False
+                    in_transition = False
+                    pending_roadsign = None
             assigned[b.index] = active_seq
         else:
-            if active_seq is not None:
-                has_conflict = False
-                for seq, kws in item_tokens.items():
-                    if seq != active_seq and scores.get(seq, 0) >= 2.5:
-                        has_conflict = True
-                        break
-                if not has_conflict:
-                    assigned[b.index] = active_seq
+            # 得分 < 3.0 的发言块处理（评委插话、简短回应、过场闲聊或设备调试）
+            if in_transition:
+                # 处于转场缓冲期（Transition Buffer）
+                # 若为纯设备调试/杂音/或主持人过渡客套，进行隔离，绝不贪婪污染上一议题！
+                if is_noise or b.speaker in hub_speakers or len(b.content) < 30:
+                    assigned[b.index] = None
+                else:
+                    # 检查是否仍然在对 active_seq 进行有实质意义的补充或质询
+                    has_conflict = any(seq != active_seq and scores.get(seq, 0) >= 2.0 for seq in item_tokens)
+                    if not has_conflict and active_seq is not None and scores.get(active_seq, 0) >= 1.0:
+                        assigned[b.index] = active_seq
+                        in_transition = False
+                    else:
+                        assigned[b.index] = None
+            else:
+                # 处于研讨态（IN_AGENDA）：无冲突时正常承接评委或团队短插话
+                if active_seq is not None:
+                    has_conflict = False
+                    for seq in item_tokens:
+                        if seq != active_seq and scores.get(seq, 0) >= 2.5:
+                            has_conflict = True
+                            break
+                    if not has_conflict:
+                        assigned[b.index] = active_seq
+                    else:
+                        assigned[b.index] = None
                 else:
                     assigned[b.index] = None
-            else:
-                assigned[b.index] = None
 
-        if is_opening and best_score >= 2.0:
-            session_closing = False
+        if is_opening and not is_closing and best_score >= 2.0:
+            in_transition = False
+            pending_roadsign = None
 
     # ── 阶段 2：程序化确定性核验（缺项与有效讨论门禁判定）──────────────────
     alignments: list[AgendaAlignment] = []

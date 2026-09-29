@@ -8,6 +8,8 @@
 5. 对 discussed 议题调用大模型提炼全景四要素；
 6. Agenda-as-Anchor 绝对骨架后置硬校验：100% 覆盖议程单全部序号与法定全称。
 """
+from __future__ import annotations
+
 import asyncio
 import json
 import logging
@@ -227,18 +229,11 @@ class AgendaMinutesAgent:
                 ),
             },
             "agenda_items": list(extracted_map.values()),
-            "adhoc_items": self._extract_adhoc_items(alignment_res.adhoc_blocks),
+            "adhoc_items": [],
         }
 
         # 5. 后置硬约束锁定（议程序号与标题100%忠实原案，未讨论要素强制留空）
         enforced = self._enforce_agenda_invariants(raw_draft, alignment_res)
-
-        # 6. 生成全景一句话总体评价（短轻量调用，耗时<1秒）
-        overview_headline = await self._generate_overview_headline(
-            enforced["meeting_meta"].get("theme") or "",
-            enforced["agenda_items"],
-        )
-        enforced["meeting_meta"]["overview_headline"] = overview_headline
 
         return AgendaMinutes.validate(enforced)
 
@@ -247,50 +242,14 @@ class AgendaMinutesAgent:
         theme: str,
         items: list[dict[str, Any]],
     ) -> str:
-        """基于各议题决议与定调，生成1句话全会推进总体评价。"""
-        lines = []
-        for it in items:
-            state = it.get("discussion_state") or "discussed"
-            tag = it.get("status_tag") or ""
-            res = it.get("resolution") or ""
-            res_short = res.splitlines()[0] if res else ("未形成决议" if state == "discussed" else "未讨论")
-            lines.append(f"- 议题 {it.get('agenda_seq')} {it.get('agenda_title')}：{tag} | {res_short[:50]}")
-        user_prompt = f"会议主题：{theme}\n议题审议概况：\n" + "\n".join(lines[:12])
-        sys_prompt = (
-            "你是一位高管秘书。请根据会议各议题审议结论概况，用一句话（30~60字）精炼概括全会议程推进总体评价与核心结论"
-            "（例如：各核心版本总体审议通过，现网安全与灰度策略按前置约束从严落实，未讨论议题顺延下期）。"
-            "直接输出这句评价文字，不要包含任何前缀、解释或标点符号外的多余字符。"
-        )
-        try:
-            res = await self.client.text(
-                sys_prompt,
-                user_prompt,
-                label="agenda_minutes/overview_headline",
-                max_tokens=200,
-            )
-            clean = res.strip().strip('"').strip("'")
-            if clean and len(clean) >= 10:
-                return clean
-        except Exception as e:
-            logger.warning("overview_headline generation fallback: %s", e)
-        return "全场议程推进平稳，核心技术与版本审议达成阶段共识。"
+        """已弃用总体评价生成逻辑。"""
+        return ""
 
     def _extract_adhoc_items(
         self, adhoc_blocks: list[Any]
     ) -> list[dict[str, Any]]:
-        """从未归属的长发言块中提取高管全局指示。"""
-        if not adhoc_blocks:
-            return []
-        items = []
-        for b in adhoc_blocks[:3]:
-            if len(b.content) > 50:
-                items.append({
-                    "title": f"全局重要指示与要求（{b.speaker}）",
-                    "speaker": b.speaker,
-                    "content": b.content.strip()[:300],
-                    "action": "请各模块负责人会后排查并跟踪落实。",
-                })
-        return items
+        """纯议题纪要不再输出临时追加议题。"""
+        return []
 
     def _enforce_agenda_invariants(
         self,
@@ -379,10 +338,8 @@ class AgendaMinutesAgent:
 
             enforced_agenda_items.append(enforced_item)
 
-        adhoc_items = list(data.get("adhoc_items") or [])
-
         return {
             "meeting_meta": meeting_meta,
             "agenda_items": enforced_agenda_items,
-            "adhoc_items": adhoc_items,
+            "adhoc_items": [],
         }

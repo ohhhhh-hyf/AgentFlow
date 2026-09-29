@@ -372,24 +372,37 @@ def test_markdown_and_html_render():
     # 1. 验证 Markdown 格式
     md_output = format_agenda_minutes_markdown(draft)
     assert "# 智慧域商用发布评审 · 议程全景纪要" in md_output
-    assert "## 第一部分：议题完成情况一览表" in md_output
-    assert "| **议题 01** | 翻译海外HiTranslationService 21.1.1.300商用版本发布 | 刘畅 | `[审议通过]` |" in md_output
-    assert "| **议题 02** | HAG 3.6.5.300版本商用发布评审 | 沙彬斌、陈啟锴 | `[本次未讨论]` |" in md_output
+    assert "## 议题总览" in md_output
+    assert "第一部分" not in md_output
+    assert "| 翻译海外HiTranslationService 21.1.1.300商用版本发布 | 刘畅 | `[审议通过]` |" in md_output
+    assert "| HAG 3.6.5.300版本商用发布评审 | 沙彬斌、陈啟锴 | `[本次未讨论]` |" in md_output
+    assert "## 议题分析" in md_output
+    assert "第二部分" not in md_output
     assert "### 议题 01 · 翻译海外HiTranslationService 21.1.1.300商用版本发布" in md_output
     assert "#### 1. 方案背景与核心诉求" in md_output
     assert "#### 2. 研讨过程与关键论据" in md_output
     assert "#### 3. 最终定调与决议共识" in md_output
     assert "#### 4. 后续行动与跟进责任" in md_output
-    assert "## 第三部分：临时追加议题与重要定调" in md_output
+    assert "总体评价" not in md_output
+    assert "第三部分" not in md_output
+    assert "临时追加议题" not in md_output
 
-    # 2. 验证 HTML 格式
+    # 2. 验证 HTML 格式（LaTeX Paper 风格，无 emoji）
     html_output = render_agenda_minutes_html("智慧域商用发布评审", md_output, draft)
     assert "<!DOCTYPE html>" in html_output
     assert "智慧域商用发布评审 · 议程全景纪要" in html_output
+    assert "ck-doc" in html_output
+    assert "议题总览" in html_output
+    assert "议题分析" in html_output
+    assert "col-seq" not in html_output
+    assert "总体评价与导向" not in html_output
     assert "badge-approved" in html_output
     assert "badge-skipped" in html_output
     assert "card-skipped" in html_output
-    assert "临时追加议题与重要定调" in html_output
+    assert "临时追加议题" not in html_output
+    # 验证去除 AI 味：彻底清除 emoji 符号
+    for emoji in ["📅", "📊", "👥", "📋", "📑", "💬", "📌", "ℹ️"]:
+        assert emoji not in html_output
 
     # 3. 验证 Render 类的 render_draft 与 extract_structure
     state = {"lines": {"agenda_minutes": {"draft": draft}}}
@@ -567,7 +580,103 @@ SpeechASR 模型完成通用测试集验证，虽然劣化 40ms 但现网表现�
     assert items[2]["status_tag"] == "[本次未讨论]"
     assert items[2]["proposal_highlights"] == []
 
-    # 4. 验证全局 headline 正常生成
-    assert "顺利通过" in res.meeting_meta.get("overview_headline", "")
+    # 4. 验证总体评价已去除
+    assert not res.meeting_meta.get("overview_headline")
+
+
+def test_enhanced_state_machine_roadsign_and_buffer_isolation():
+    """验证泛化性增强特性：
+    1. 致谢语义消歧（答辩抗辩 vs. 真实收尾）；
+    2. 主持人串场路标（精确人名/称谓/泛指）；
+    3. 设备闲聊识别；
+    4. 转场缓冲带隔离（闲聊与调麦不污染上一议题）。
+    """
+    from domain.meeting.tasks.agenda_minutes.alignment_engine import (
+        _is_session_closing,
+        _is_opening_signal,
+        _is_equipment_or_chitchat,
+        _detect_host_roadsign,
+        align_agenda_with_transcript,
+    )
+
+    # 1. 致谢消歧
+    assert _is_session_closing("整体结论是go，闭环之后再发，谢谢各位评委，好，拜拜") is True
+    assert _is_session_closing("那我先下了，拜拜") is True
+    assert _is_session_closing("谢谢评委提醒，我再解释一下原因") is False
+    assert _is_session_closing("感谢老师提出的建议，我们后续版本会纳入考虑") is False
+
+    # 2. 开场与设备闲聊
+    assert _is_opening_signal("各位评委好，我来共享一下屏幕，开始汇报") is True
+    assert _is_opening_signal("下面由我汇报本次版本") is True
+    assert _is_equipment_or_chitchat("喂喂喂，能听到我声音吗？") is True
+    assert _is_equipment_or_chitchat("大家稍等两分钟，我先倒杯水") is True
+    assert _is_equipment_or_chitchat("这次版本主要优化了SpeechASR在离线长语音场景下的性能时延") is False
+
+    # 3. 主持人交通警察路标
+    plan = AgendaPlan(
+        items=[
+            AgendaItemParsed(seq="01", title="小艺慧记版本发布", presenters=["申家坤"]),
+            AgendaItemParsed(seq="02", title="翻译海外需求评审", presenters=["刘畅"]),
+            AgendaItemParsed(seq="03", title="SpeechASR评测", presenters=["陆敬怡", "林宇珂"]),
+        ]
+    )
+    hubs = {"高雄", "徐锋"}
+
+    # 主持人精准呼叫称谓（"林工"）
+    seq, is_gen = _detect_host_roadsign("高雄", "辛苦刘工，下面有请林工汇报下一个议题", plan, hubs)
+    assert seq == "03"
+    assert is_gen is False
+
+    # 主持人呼叫议题专名（"小艺慧记"）
+    seq, is_gen = _detect_host_roadsign("高雄", "好的，我们切到下一个，小艺慧记", plan, hubs)
+    assert seq == "01"
+    assert is_gen is False
+
+    # 主持人泛指串场
+    seq, is_gen = _detect_host_roadsign("徐锋", "好的那有请下一位", plan, hubs)
+    assert seq is None
+    assert is_gen is True
+
+    # 非主持人讨论内容不误报（如汇报人描述幻灯片布局"下面这个区域"）
+    seq, is_gen = _detect_host_roadsign("刘畅", "然后小艺下面这个区域是配置项", plan, hubs)
+    assert seq is None
+    assert is_gen is False
+
+    # 4. 转场缓冲带隔离测试：会间闲聊调设备不污染议题
+    synthetic_transcript = """
+刘畅 00:10:00
+各位评委好，我来汇报翻译海外需求。本次核心是俄罗斯节点迁移与时延优化。
+高雄 00:11:00
+这个迁移会影响现网吗？
+刘畅 00:11:20
+不会，双机房热备，结论是go，闭环后发邮件，谢谢各位评委，好，拜拜。
+高雄 00:12:00
+好的辛苦刘畅。
+李四 00:12:10
+喂喂喂，能听到吗？大家稍微等两分钟，我去倒杯水。
+高雄 00:14:00
+下面有请林工汇报 SpeechASR。
+林宇珂 00:14:20
+各位评委晚上好，我来共享一下桌面，本次 SpeechASR 主要是 4.300 补丁版本。
+高雄 00:15:00
+时延指标怎么样？
+林宇珂 00:15:20
+时延下降 15%，整体结论是go，多谢大家拜拜。
+"""
+    res = align_agenda_with_transcript(plan, synthetic_transcript)
+    assert res.discussed_count == 2
+    a2 = [a for a in res.alignments if a.item.seq == "02"][0]
+    a3 = [a for a in res.alignments if a.item.seq == "03"][0]
+
+    # 验证议题 02 与 03 都被正常匹配且包含对应主讲人
+    assert "刘畅" in a2.matched_speakers
+    assert "林宇珂" in a3.matched_speakers
+
+    # 核心验证：转场期间李四的倒水和调麦闲聊没有被贪婪污染到议题 02 的证据中！
+    a2_evidence = a2.evidence_text
+    assert "我去倒杯水" not in a2_evidence
+    assert "喂喂喂" not in a2_evidence
+    assert "俄罗斯节点" in a2_evidence
+
 
 
