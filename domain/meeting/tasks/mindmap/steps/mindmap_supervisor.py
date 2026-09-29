@@ -1,28 +1,16 @@
 from __future__ import annotations
 
-from domain._shared import GlobalSupervisor
+from domain._shared import StructuredDomainSupervisor
 
-from tools.llm import LLMClient
 from ....models import MindmapSupervisorReview
 from ..contracts import MINDMAP_SUPERVISOR_OUTPUT_CONTRACT
 from ..prompts import MINDMAP_SUPERVISOR_DOMAIN_PROMPT
 
 
-class MindmapSupervisor:
+class MindmapSupervisor(StructuredDomainSupervisor):
     """Review the 思维导图 draft."""
 
-    def __init__(self, client: LLMClient) -> None:
-        self.client = client
-        self._system_prompt = GlobalSupervisor.build_prompt(
-            MINDMAP_SUPERVISOR_DOMAIN_PROMPT
-        )
-
-    async def review(self, context: str) -> MindmapSupervisorReview:
-        return await self.client.structured(
-            self._system_prompt,
-            context,
-            MindmapSupervisorReview,
-            MINDMAP_SUPERVISOR_OUTPUT_CONTRACT,
-            label="mindmap/supervisor",
-        )
-
+    domain_prompt = MINDMAP_SUPERVISOR_DOMAIN_PROMPT
+    review_model = MindmapSupervisorReview
+    output_contract = MINDMAP_SUPERVISOR_OUTPUT_CONTRACT
+    label = "mindmap/supervisor"

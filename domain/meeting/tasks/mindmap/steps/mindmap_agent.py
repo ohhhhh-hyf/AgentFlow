@@ -1,24 +1,16 @@
 from __future__ import annotations
 
-from tools.llm import LLMClient
+from domain._shared import StructuredGenerationAgent
 
 from ....models import Mindmap
 from ..contracts import MINDMAP_GENERATION_OUTPUT_CONTRACT
 from ..prompts import MINDMAP_GENERATION_SYSTEM_PROMPT
 
 
-class MindmapAgent:
+class MindmapAgent(StructuredGenerationAgent):
     """Generate the structured 思维导图 draft."""
 
-    def __init__(self, client: LLMClient) -> None:
-        self.client = client
-
-    async def run(self, shared_context: str) -> Mindmap:
-        return await self.client.structured(
-            MINDMAP_GENERATION_SYSTEM_PROMPT,
-            shared_context,
-            Mindmap,
-            MINDMAP_GENERATION_OUTPUT_CONTRACT,
-            label="mindmap/agent",
-        )
-
+    system_prompt = MINDMAP_GENERATION_SYSTEM_PROMPT
+    output_model = Mindmap
+    output_contract = MINDMAP_GENERATION_OUTPUT_CONTRACT
+    label = "mindmap/agent"

@@ -1,27 +1,17 @@
 from __future__ import annotations
 
-from domain._shared import GlobalSupervisor
+from domain._shared import StructuredDomainSupervisor
 
-from tools.llm import LLMClient
 from ....models import RiskSupervisorReview
 from ..contracts import RISK_SUPERVISOR_OUTPUT_CONTRACT
 from ..prompts import RISK_SUPERVISOR_DOMAIN_PROMPT
 
 
-class RiskSupervisor:
+class RiskSupervisor(StructuredDomainSupervisor):
     """风险分析任务的领域监督者。"""
 
-    def __init__(self, client: LLMClient) -> None:
-        self.client = client
-        self._system_prompt = GlobalSupervisor.build_prompt(
-            RISK_SUPERVISOR_DOMAIN_PROMPT
-        )
-
-    async def review(self, context: str) -> RiskSupervisorReview:
-        return await self.client.structured(
-            self._system_prompt,
-            context,
-            RiskSupervisorReview,
-            RISK_SUPERVISOR_OUTPUT_CONTRACT,
-            label="risk/supervisor",
-        )
+    domain_prompt = RISK_SUPERVISOR_DOMAIN_PROMPT
+    review_model = RiskSupervisorReview
+    output_contract = RISK_SUPERVISOR_OUTPUT_CONTRACT
+    # 注意：label 是 risk/ 而不是 risks/（历史拼写，改名会变监控口径）
+    label = "risk/supervisor"

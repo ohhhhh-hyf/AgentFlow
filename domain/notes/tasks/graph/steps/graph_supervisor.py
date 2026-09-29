@@ -1,29 +1,17 @@
 from __future__ import annotations
 
-from domain._shared import GlobalSupervisor
+from domain._shared import StructuredDomainSupervisor
 
-from tools.llm import LLMClient
 from ....models import KnowledgeGraphSupervisorReview
 from ..contracts import KNOWLEDGE_GRAPH_SUPERVISOR_OUTPUT_CONTRACT
 from ..prompts import KNOWLEDGE_GRAPH_SUPERVISOR_DOMAIN_PROMPT
 
 
-class KnowledgeGraphSupervisor:
+class KnowledgeGraphSupervisor(StructuredDomainSupervisor):
     """Review the 知识图谱 draft."""
 
-    def __init__(self, client: LLMClient) -> None:
-        self.client = client
-        self._system_prompt = GlobalSupervisor.build_prompt(
-            KNOWLEDGE_GRAPH_SUPERVISOR_DOMAIN_PROMPT
-        )
-
-    async def review(self, context: str) -> KnowledgeGraphSupervisorReview:
-        return await self.client.structured(
-            self._system_prompt,
-            context,
-            KnowledgeGraphSupervisorReview,
-            KNOWLEDGE_GRAPH_SUPERVISOR_OUTPUT_CONTRACT,
-            temperature=0.0,
-            label='graph/supervisor',
-        )
-
+    domain_prompt = KNOWLEDGE_GRAPH_SUPERVISOR_DOMAIN_PROMPT
+    review_model = KnowledgeGraphSupervisorReview
+    output_contract = KNOWLEDGE_GRAPH_SUPERVISOR_OUTPUT_CONTRACT
+    label = "graph/supervisor"
+    extra_kwargs = {"temperature": 0.0}

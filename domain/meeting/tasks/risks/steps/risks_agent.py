@@ -1,24 +1,17 @@
 from __future__ import annotations
 
-from tools.llm import LLMClient
+from domain._shared import StructuredGenerationAgent
 
 from ....models import Risk
 from ..contracts import RISK_GENERATION_OUTPUT_CONTRACT
 from ..prompts import RISK_GENERATION_SYSTEM_PROMPT
 
 
-class RiskAgent:
+class RiskAgent(StructuredGenerationAgent):
     """从会议中提取风险、阻碍和隐患。"""
 
-    def __init__(self, client: LLMClient) -> None:
-        self.client = client
-
-    async def run(self, shared_context: str) -> Risk:
-        return await self.client.structured(
-            RISK_GENERATION_SYSTEM_PROMPT,
-            shared_context,
-            Risk,
-            RISK_GENERATION_OUTPUT_CONTRACT,
-            label="risk/agent",
-        )
-
+    system_prompt = RISK_GENERATION_SYSTEM_PROMPT
+    output_model = Risk
+    output_contract = RISK_GENERATION_OUTPUT_CONTRACT
+    # 注意：label 是 risk/ 而不是 risks/（历史拼写，改名会变监控口径）
+    label = "risk/agent"

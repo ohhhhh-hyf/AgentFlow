@@ -1,26 +1,16 @@
 from __future__ import annotations
 
-from domain._shared import GlobalSupervisor
+from domain._shared import StructuredDomainSupervisor
 
-from tools.llm import LLMClient
 from ....models import ReviewSupervisorReview
 from ..contracts import REVIEW_SUPERVISOR_OUTPUT_CONTRACT
 from ..prompts import REVIEW_SUPERVISOR_DOMAIN_PROMPT
 
 
-class ReviewSupervisor:
+class ReviewSupervisor(StructuredDomainSupervisor):
     """审核笔记审查草稿：quote 必须能对上原文。"""
 
-    def __init__(self, client: LLMClient) -> None:
-        self.client = client
-        self._system_prompt = GlobalSupervisor.build_prompt(
-            REVIEW_SUPERVISOR_DOMAIN_PROMPT
-        )
-
-    async def review(self, context: str) -> ReviewSupervisorReview:
-        return await self.client.structured(
-            self._system_prompt,
-            context,
-            ReviewSupervisorReview,
-            REVIEW_SUPERVISOR_OUTPUT_CONTRACT, label='review/supervisor')
-
+    domain_prompt = REVIEW_SUPERVISOR_DOMAIN_PROMPT
+    review_model = ReviewSupervisorReview
+    output_contract = REVIEW_SUPERVISOR_OUTPUT_CONTRACT
+    label = "review/supervisor"

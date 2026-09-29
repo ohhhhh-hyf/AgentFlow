@@ -1140,6 +1140,63 @@ def find_lines(tasks_dir: Path | None = None) -> list[str]:
     )
 
 
+# ── steps 四件套的必要结构（校验侧唯一来源）────────────────────
+#
+# 这里原本有两份**各自演化**的同一套规则：``_task_readiness_issues`` 与
+# ``check_task_skels`` 各写一遍 agent/supervisor/render 的必要结构，改一处忘一处
+# 就会「readiness 放行、skels 拦住」。统一到本函数，两个入口都调它。
+#
+# needle 三型：
+#   1. 正则（必须匹配）
+#   2. 字面量 str（必须出现）
+#   3. (字面量, 基类名) —— 出现该字面量，**或**文件中有类显式继承该基类。
+#      样板链的 agent/supervisor 已提成 ``domain/_shared/steps.py`` 的基类，
+#      run/review 由基类提供，文件里只剩声明（2026-09-29）。
+_STEP_ROLE_BASES = {
+    "async def run": "StructuredGenerationAgent",
+    "async def review": "StructuredDomainSupervisor",
+}
+
+
+def _step_role_missing(text: str, needles: tuple) -> list[str]:
+    """返回 ``needles`` 里未满足的项（描述串列表，空表示全部满足）。"""
+    missing: list[str] = []
+    for needle in needles:
+        if hasattr(needle, "search"):
+            if not needle.search(text):
+                missing.append(needle.pattern)
+            continue
+        literal = needle[0] if isinstance(needle, tuple) else needle
+        base = needle[1] if isinstance(needle, tuple) else None
+        if literal in text:
+            continue
+        if base and re.search(
+            rf"^\s*class\s+\w+\([^)]*\b{re.escape(base)}\b", text, re.M
+        ):
+            continue
+        missing.append(literal)
+    return missing
+
+
+def _step_file_specs(line: str) -> dict[str, tuple]:
+    """该任务线 steps 三件套的必要结构（类名 + 角色方法）。"""
+    return {
+        f"{line}_agent.py": (
+            re.compile(r"class \w*Agent\b"),
+            ("async def run", _STEP_ROLE_BASES["async def run"]),
+        ),
+        f"{line}_supervisor.py": (
+            re.compile(r"class \w*Supervisor\b"),
+            ("async def review", _STEP_ROLE_BASES["async def review"]),
+        ),
+        f"{line}_render.py": (
+            re.compile(r"class \w*Render\b"),
+            "async def run",
+            "async def stream",
+        ),
+    }
+
+
 # steps 类名与线名推导不一致的历史手写特例（readiness 的类名检查已放宽，
 # 装配/导入生成必须用同款映射，否则 --write 会把手写类名打回推导名）。
 # 新增任务线请遵循 {Pascal(线名)}Agent 命名，无需登记。
@@ -1287,23 +1344,14 @@ def _task_readiness_issues(line: str) -> list[str]:
             if name not in text:
                 issues.append(f"{prompts_path.relative_to(ROOT)} 还没有 {name}")
 
-    # 步骤类名按「线名 + 角色」惯例生成（{cls}Agent 等），但手写区允许
-    # 其它命名（如 KnowledgeGraphAgent）——类名检查放宽为「存在该类角色即可」。
-    step_specs = {
-        f"{line}_agent.py": (re.compile(r"^\s*class \w+Agent\b", re.M), "async def run"),
-        f"{line}_supervisor.py": (re.compile(r"^\s*class \w+Supervisor\b", re.M), "async def review"),
-        f"{line}_render.py": (re.compile(r"^\s*class \w+Render\b", re.M), "async def run", "async def stream"),
-    }
-    for fname, needles in step_specs.items():
+    # 结构规则来自 _step_file_specs（与 check_task_skels 同一来源，避免两份规则漂移）
+    for fname, needles in _step_file_specs(line).items():
         path = task_dir / "steps" / fname
         if not path.exists():
             issues.append(f"缺少 {path.relative_to(ROOT)}")
             continue
         text = path.read_text(encoding="utf-8-sig")
-        missing = [
-            needle for needle in needles
-            if not (needle.search(text) if hasattr(needle, "search") else needle in text)
-        ]
+        missing = _step_role_missing(text, needles)
         if missing:
             issues.append(
                 f"{path.relative_to(ROOT)} 还没有必要结构：{', '.join(missing)}"
@@ -1526,26 +1574,13 @@ def check_task_skels(lines: list[str]) -> int:
     for line in lines:
         d = CURRENT.tasks_dir / line
         steps = d / "steps"
-        required = {
-            f"{line}_agent.py": (
-                re.compile(r"class \w*Agent\b"),
-                "async def run",
-            ),
-            f"{line}_supervisor.py": (
-                re.compile(r"class \w*Supervisor\b"),
-                "async def review",
-            ),
-            f"{line}_render.py": (
-                re.compile(r"class \w*Render\b"),
-                "async def run",
-                "async def stream",
-            ),
-            "__init__.py": (
-                re.compile(r"\b\w*Agent\b"),
-                re.compile(r"\b\w*Render\b"),
-                re.compile(r"\b\w*Supervisor\b"),
-            ),
-        }
+        # 三件套的结构规则来自 _step_file_specs（与 readiness 同一来源）
+        required = dict(_step_file_specs(line))
+        required["__init__.py"] = (
+            re.compile(r"\b\w*Agent\b"),
+            re.compile(r"\b\w*Render\b"),
+            re.compile(r"\b\w*Supervisor\b"),
+        )
         for fname, needles in required.items():
             path = (steps if fname != "__init__.py" else d) / fname
             if not path.exists():
@@ -1553,10 +1588,7 @@ def check_task_skels(lines: list[str]) -> int:
                 rc = 1
                 continue
             text = path.read_text(encoding="utf-8")
-            missing = [
-                n for n in needles
-                if not (n.search(text) if hasattr(n, "search") else n in text)
-            ]
+            missing = _step_role_missing(text, needles)
             if missing:
                 _log(f"{path.relative_to(CURRENT.dir)} 缺少必要结构：{missing}", file=sys.stderr)
                 rc = 1

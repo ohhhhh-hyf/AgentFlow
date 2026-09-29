@@ -1,25 +1,16 @@
 from __future__ import annotations
 
-from tools.llm import LLMClient
+from domain._shared import StructuredGenerationAgent
+
 from ....models import ActionItems
-from ..prompts import (
-    ACTION_ITEMS_GENERATION_SYSTEM_PROMPT,
-)
 from ..contracts import ACTION_ITEMS_GENERATION_OUTPUT_CONTRACT
+from ..prompts import ACTION_ITEMS_GENERATION_SYSTEM_PROMPT
 
 
-class ActionItemsAgent:
+class ActionItemsAgent(StructuredGenerationAgent):
     """提取待办：个人模式筛本人待办；客观模式覆盖各方待办。"""
 
-    def __init__(self, client: LLMClient) -> None:
-        self.client = client
-
-    async def run(self, shared_context: str) -> ActionItems:
-        return await self.client.structured(
-            ACTION_ITEMS_GENERATION_SYSTEM_PROMPT,
-            shared_context,
-            ActionItems,
-            ACTION_ITEMS_GENERATION_OUTPUT_CONTRACT,
-            label="actions/agent",
-        )
-
+    system_prompt = ACTION_ITEMS_GENERATION_SYSTEM_PROMPT
+    output_model = ActionItems
+    output_contract = ACTION_ITEMS_GENERATION_OUTPUT_CONTRACT
+    label = "actions/agent"
