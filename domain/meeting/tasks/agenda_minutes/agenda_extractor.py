@@ -7,7 +7,6 @@
 4. 广义角色归一化：将“组织主席”、“大会主席”、“执行主席”、“会议主持”、“评委”、“Session Chair”等归一化为全程与会人/主持人。
 5. 姓名清洗：自动剥离教授、研究员、博士、主任、专家、老师等职称尊称头衔。
 6. 版面感知预处理：识别侧边栏装饰，水平聚类保留列间距，杜绝单元格粘连。
-7. 确定性 Guardrail 兜底自检：以 OCR 文本中的时间段和技术主题为锚点，自愈补齐遗漏末尾行。
 """
 from __future__ import annotations
 
@@ -163,140 +162,6 @@ def prepare_agenda_ocr_prompt_text(
     return "\n".join(formatted_lines).strip()
 
 
-def _normalize_cmp(s: str) -> str:
-    """去除空白与常见标点以便进行模糊子串匹配。"""
-    return re.sub(r"[\s\-_:：·.,，。/|]+", "", s or "").lower()
-
-
-def apply_agenda_completeness_guardrail(
-    reconstructed_md: str,
-    ocr_content: str,
-    candidate_speakers: list[str] | set[str] | None = None,
-) -> str:
-    """后置确定性 Guardrail 兜底自检：校验技术审议/产品发布主题词与时间段，自愈补齐遗漏末尾行。"""
-    if not reconstructed_md or not ocr_content:
-        return reconstructed_md
-
-    # 1. 扫描 OCR 文本中的高频版本/评审词锚点
-    TOPIC_LINE_RE = re.compile(
-        r"([A-Za-z0-9_.\-]+\s*[\d.]+\s*(?:商用)?版本(?:发布|评审)?)"
-    )
-    detected_topics = TOPIC_LINE_RE.findall(ocr_content)
-    if not detected_topics:
-        return reconstructed_md
-
-    # 去重且排除会议主题主标题
-    unique_topics: list[str] = []
-    seen = set()
-    for top in detected_topics:
-        norm_t = _normalize_cmp(top)
-        if norm_t not in seen and "智慧域" not in norm_t:
-            seen.add(norm_t)
-            unique_topics.append(top.strip())
-
-    if not unique_topics:
-        return reconstructed_md
-
-    # 2. 比对生成的 Markdown 表格是否遗漏了某些议题
-    norm_md = _normalize_cmp(reconstructed_md)
-    missing_topics: list[str] = []
-    for top in unique_topics:
-        # 取核心词（前 10 个字符）比对
-        norm_key = _normalize_cmp(top[:10])
-        if norm_key not in norm_md:
-            missing_topics.append(top)
-
-    if not missing_topics:
-        return reconstructed_md
-
-    logger.warning(
-        "[AGENDA_GUARDRAIL] 检测到 LLM 生成的议程表格遗漏议题: %s，启动确定性自愈补全",
-        missing_topics,
-    )
-
-    # 3. 解析当前表格已有数据行以获取下一序号
-    md_lines = reconstructed_md.splitlines()
-    table_rows = []
-    last_table_line_idx = -1
-    for idx, line in enumerate(md_lines):
-        line_s = line.strip()
-        if line_s.startswith("|") and not re.match(r"^\|\s*:?-+:?\s*\|", line_s):
-            # 排除表头行
-            if not any(k in line_s for k in ("序号", "议题名称", "汇报人", "预计时长")):
-                table_rows.append(line_s)
-                last_table_line_idx = idx
-
-    current_seq_num = len(table_rows)
-
-    # 4. 从 OCR 文本中定位遗漏议题片段并提取信息
-    ocr_lines = [l.strip() for l in ocr_content.splitlines() if l.strip()]
-    inserted_rows: list[str] = []
-
-    for miss in missing_topics:
-        current_seq_num += 1
-        seq_str = f"{current_seq_num:02d}"
-
-        # 在 OCR 文本中找到包含 miss 的行
-        match_idx = -1
-        for i, l in enumerate(ocr_lines):
-            if miss in l:
-                match_idx = i
-                break
-
-        title = miss
-        dur = "15min"
-        presenter = ""
-
-        if match_idx != -1:
-            # 查看该行以及后续 5 行的周边片段
-            surrounding = ocr_lines[match_idx : min(len(ocr_lines), match_idx + 6)]
-            for frag in surrounding:
-                # 提取时长或时间段
-                time_m = re.search(r"(\d{1,2}:\d{2}\s*-\s*\d{1,2}:\d{2})", frag)
-                if time_m:
-                    dur = time_m.group(1).replace(" ", "")
-                elif "min" in frag.lower() and not re.search(r"[\u4e00-\u9fff]", frag):
-                    dur = frag.strip()
-
-                # 提取汇报人人名（若有分号或为常见汇报人）
-                if (";" in frag or "；" in frag) and not presenter:
-                    cand_names = [p.strip() for p in re.split(r"[;；\s]+", frag) if p.strip()]
-                    cleaned = clean_presenter_names("；".join(cand_names[:3]))
-                    if cleaned:
-                        presenter = "；".join(cleaned)
-
-        if not presenter and candidate_speakers:
-            known_matches = [
-                s for s in candidate_speakers if any(k in s for k in ("陆敬怡", "林宇珂", "赖朝辉"))
-            ]
-            if known_matches:
-                presenter = "；".join(known_matches[:3])
-
-        if not presenter:
-            presenter = "-"
-
-        new_row = f"| {seq_str} | {title} | {presenter} | {dur} |"
-        inserted_rows.append(new_row)
-        logger.info("[AGENDA_GUARDRAIL] 成功构建补全行: %s", new_row)
-
-    # 5. 将补全行安全插入到 Markdown 表格末尾
-    if inserted_rows:
-        if last_table_line_idx != -1:
-            for r in reversed(inserted_rows):
-                md_lines.insert(last_table_line_idx + 1, r)
-        else:
-            header = [
-                "| 序号 | 议题名称 | 汇报人/主讲人 | 预计时长 |",
-                "| :--- | :--- | :--- | :--- |",
-            ]
-            md_lines = header + inserted_rows + [""] + md_lines
-
-        repaired_md = "\n".join(md_lines)
-        return repaired_md
-
-    return reconstructed_md
-
-
 def reconstruct_agenda_markdown(
     lines: list[dict[str, Any]],
     raw_text: str = "",
@@ -322,7 +187,7 @@ def reconstruct_agenda_markdown(
         if cand_list:
             speaker_list_str = "、".join(cand_list[:60])
             system_prompt += (
-                f"\n\n【参考与会/发言人名单（用于校验和校对 OCR 容易识别错误的形似字/错别字，例如：'陈啟错' 应校正为 '陈啟锴'）】：\n"
+                f"\n\n【参考与会/发言人名单（用于校验和校对 OCR 识别文本中的形似错别字、异体字）】：\n"
                 f"{speaker_list_str}\n"
                 f"★ 请在输出的议程表格「汇报人/主讲人」及「全程与会人/主持人」中，优先以本参考名单中的准确姓名对 OCR 识别文本中的形似错别字、异体字进行校正对齐！"
             )
@@ -349,14 +214,8 @@ def reconstruct_agenda_markdown(
 
         cleaned = _clean_md_fences(result)
         if cleaned:
-            # Layer 3: 确定性 Guardrail 兜底自检，确保不漏检任何末尾或技术议题
-            final_md = apply_agenda_completeness_guardrail(
-                cleaned,
-                user_content,
-                candidate_speakers=candidate_speakers,
-            )
-            logger.info("reconstruct_agenda_markdown succeeded, length=%d", len(final_md))
-            return final_md
+            logger.info("reconstruct_agenda_markdown succeeded, length=%d", len(cleaned))
+            return cleaned
     except Exception as exc:  # noqa: BLE001
         logger.warning("reconstruct_agenda_markdown failed: %s, fallback to raw lines", exc)
 
@@ -365,7 +224,6 @@ def reconstruct_agenda_markdown(
 
 __all__ = [
     "AGENDA_RECONSTRUCT_SYSTEM_PROMPT",
-    "apply_agenda_completeness_guardrail",
     "extract_speakers_from_transcript",
     "prepare_agenda_ocr_prompt_text",
     "reconstruct_agenda_markdown",

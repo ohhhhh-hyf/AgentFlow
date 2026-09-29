@@ -185,10 +185,10 @@ def clean_presenter_names(raw: str) -> list[str]:
     """从原始单元格中提取干净的汇报人姓名列表。
 
     处理诸如：
-    - '汇报人: 赵鑫岳 00585440' -> ['赵鑫岳']
-    - '沙彬斌; 陈啟锴' -> ['沙彬斌', '陈啟锴']
-    - '陆敬怡; 林宇珂; 赖朝辉' -> ['陆敬怡', '林宇珂', '赖朝辉']
-    - '汇报人: 林宇珂 00939670 陆敬怡 00841266' -> ['林宇珂', '陆敬怡']
+    - '汇报人: 张三 00585440' -> ['张三']
+    - '张三; 李四' -> ['张三', '李四']
+    - '张三; 李四; 王五' -> ['张三', '李四', '王五']
+    - '汇报人: 李四 00939670 张三 00841266' -> ['李四', '张三']
     - '张三、李四' -> ['张三', '李四']
     """
     if not raw or not raw.strip():
@@ -197,7 +197,7 @@ def clean_presenter_names(raw: str) -> list[str]:
     text = re.sub(r"^(?:汇报人|主讲人|报告人|分享人|责任人|发言人)\s*[:：]\s*", "", raw.strip(), flags=re.I)
     # 剥离 5~8 位连续数字工号
     text = re.sub(r"\b\d{5,8}\b", "", text)
-    # 剔除括号及其内工号或备注，如 (委托高雄)
+    # 剔除括号及其内工号或备注，如 (委托张三)
     text = re.sub(r"\([^)]*\)|（[^）]*）", "", text)
     # 按常见分隔符拆分（包含顿号、分号、斜杠、逗号、空格）
     names = re.split(r"[;；,/，\s、]+", text)
@@ -300,7 +300,7 @@ def reconcile_presenter_names(
     transcript: str = "",
     candidate_speakers: set[str] | list[str] | None = None,
 ) -> AgendaPlan:
-    """根据真实转写出场人名单，对议程计划中的 OCR 误识/异体字人名（如 陈啟错 -> 陈啟锴）进行自动校对。"""
+    """根据真实转写出场人名单，对议程计划中的 OCR 误识/异体字人名（如形似错别字、异体字）进行自动校对。"""
     cands: list[str] = []
     if candidate_speakers:
         cands.extend(candidate_speakers)
