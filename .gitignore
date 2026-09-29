@@ -21,10 +21,8 @@ __pycache__/
 # 保留 data/{user_id}/docs 等输入夹具；只忽略产物/记忆/知识库
 data/*/memory/
 data/*/knowledge/
-data/*/output/
-data/output/
-logs/
-log/
-/api_test/meeting
+
+
+
 
 
