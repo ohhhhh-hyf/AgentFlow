@@ -275,14 +275,14 @@ def _ocr_docs(user_id: str, docs: list[str]) -> str:
 
 
 def _ocr_single_agenda_doc(user_id: str, docs: list[str]) -> str:
-    """议程单专用轻量 OCR：单线程直调，单图单实例，无嵌套线程池与跨页去噪开销。"""
+    """议程单专用轻量 OCR：单线程直调，单图单实例，禁用上下边缘去噪裁剪，走专用议程提纯 Prompt。"""
     names = [name for name in (docs or []) if _is_image_name(name)]
     if not names:
         return ""
+    from domain.meeting.tasks.agenda_minutes.agenda_extractor import reconstruct_agenda_markdown
     from tools.ocr.engines import ocr_engine_label
     from tools.ocr.layout import ocr_image_lines
     from tools.ocr.levels.light import ocr_log
-    from tools.ocr.reconstruct import reconstruct_markdown
 
     engine = ocr_engine_label()
     total = len(names)
@@ -291,11 +291,11 @@ def _ocr_single_agenda_doc(user_id: str, docs: list[str]) -> str:
     for idx, name in enumerate(names, 1):
         path = _input_file(user_id, "docs", name)
         try:
-            lines = ocr_image_lines(str(path)) or []
+            # 议程单图片：显式禁用页面边缘去噪（enable_page_chrome=False），防止底部最后一行议题被误删
+            lines = ocr_image_lines(str(path), enable_page_chrome=False) or []
             ocr_log(f"agenda_ocr item ok {idx}/{total} lines={len(lines)} file={name}")
             if lines:
-                clean_lines = [l for l in lines if str(l.get("role_hint") or "") != "boilerplate"]
-                md = reconstruct_markdown(clean_lines).strip()
+                md = reconstruct_agenda_markdown(lines).strip()
                 if md:
                     parts.append(md)
         except Exception as exc:  # noqa: BLE001

@@ -825,5 +825,124 @@ def test_single_agenda_item_model_bi_directional_compat():
     assert model2.action_items[0]["owner"] == "沙彬斌"
 
 
+def test_shangping1_ocr_alignment_discussed_and_skipped():
+    """验证从 OCR 识别出的商评1议程单在对齐引擎中的表现。
+    
+    核心目标：
+    - 议题 02（刘畅）：必须 discussed，且刘畅绝不能被误判为 Hub Speaker；
+    - 议题 04（SpeechASR）：必须 discussed；
+    - 议题 01 与 03：skipped。
+    """
+    ocr_shangping = """
+**会议主题**：智慧域商用发布评审
+**会议时间**：2026/06/15（周一）16:00-18:00（UTC+08:00）Beijing
+- **全程与会人/主持人**：徐锋；索勋飞；吴友国；王昊；黄江；何瑄；左飞
+- **分段列席人**：申家坤；方思邈；李腾飞；郑本令；沙彬斌；陈锴；刘畅；陈坤
+
+| 序号 | 议题名称 | 汇报人/主讲人 | 预计时长 |
+| :--- | :--- | :--- | :--- |
+| 01 | 小艺慧记 CeliaMinutesService 1.4.5.500 版本发布商用版本 | 申家坤 | 15min |
+| 02 | 翻译海外 HiTranslationService 21.1.1.300 商用版本发布 | 刘畅 | 15min |
+| 03 | HAG 3.6.5.300 版本商用发布评审 | 沙彬斌；陈锴 | 15min |
+| 04 | SpeechASR 1.4.5.302 商用版本评审 | 陆敬怡；林宇珂；赖朝辉 | 15min |
+"""
+    docx_path = AGENDA_DIR / "test1" / "商评1.docx"
+    if not docx_path.is_file():
+        pytest.skip("商评1.docx not found")
+
+    doc = docx.Document(str(docx_path))
+    transcript = "\n".join(p.text for p in doc.paragraphs if p.text.strip())
+    plan = parse_agenda_text(ocr_shangping)
+
+    res = align_agenda_with_transcript(plan, transcript)
+    assert res.discussed_count == 2
+    assert res.skipped_count == 2
+
+    # 验证议题 02 成功对齐刘畅
+    a2 = res.alignments[1]
+    assert a2.item.seq == "02"
+    assert a2.status == "discussed"
+    assert "刘畅" in a2.matched_speakers
+    assert len(a2.matched_blocks) >= 50
+
+    # 验证议题 04 成功对齐陆敬怡
+    a4 = res.alignments[3]
+    assert a4.item.seq == "04"
+    assert a4.status == "discussed"
+    assert "陆敬怡" in a4.matched_speakers
+
+
+def test_test5_academic_forum_dual_identity_and_multiline():
+    """验证 test5 西工大（学术论坛模式）：
+    - 组织主席张晓雷兼任议题04主讲人（双重身份仲裁）；
+    - 转写中连续空行与多段发言顺利切块；
+    - 4 项特邀报告全部有效对齐讨论。
+    """
+    docx_path = AGENDA_DIR / "test5" / "西工大会议.docx"
+    if not docx_path.is_file():
+        pytest.skip("西工大会议.docx not found")
+
+    ocr_test5 = """
+**会议名称**：CCF语音专委“走进高校”系列活动 第三站：西北工业大学
+- **时间**：2022年11月05日 09:30-11:30
+- **全程与会人/主持人**：张晓雷
+
+| 序号 | 议题名称 | 汇报人/主讲人 | 预计时长 |
+| :--- | :--- | :--- | :--- |
+| 01 | 面向智能声学与临境通信应用的多通道声信号感知、处理与重构 | 陈景东 | 09:30-10:00 |
+| 02 | 智能语音技术的新进展——NPU-ASLP Lab视角 | 谢磊 | 10:00-10:30 |
+| 03 | 软硬联合优化的声学前端探索 | 付中华 | 10:30-11:00 |
+| 04 | 鲁棒语音处理与安全 | 张晓雷 | 11:00-11:30 |
+"""
+    doc = docx.Document(str(docx_path))
+    transcript = "\n".join(p.text for p in doc.paragraphs if p.text.strip())
+    plan = parse_agenda_text(ocr_test5)
+
+    res = align_agenda_with_transcript(plan, transcript)
+    assert res.discussed_count == 4
+    assert res.skipped_count == 0
+
+    assert "陈景东" in res.alignments[0].matched_speakers
+    assert "谢磊" in res.alignments[1].matched_speakers
+    assert "付中华" in res.alignments[2].matched_speakers
+    assert "张晓雷" in res.alignments[3].matched_speakers
+
+
+def test_test6_annual_summit_native_host_and_keynotes():
+    """验证 test6 学术年会（年会模式）：
+    - 文本端自省发言人“主持人”并隔离串场；
+    - 5 项特邀报告全部有效对齐讨论。
+    """
+    docx_path = AGENDA_DIR / "test6" / "学术年会.docx"
+    if not docx_path.is_file():
+        pytest.skip("学术年会.docx not found")
+
+    ocr_test6 = """
+- **全程与会人/主持人**：俞凯；高虹
+
+| 序号 | 议题名称 | 汇报人/主讲人 | 预计时长 |
+| :--- | :--- | :--- | :--- |
+| 01 | 语音模仿与鉴别 | 陶建华 | 09:30-10:15 |
+| 02 | 声学所语音识别最新进展及应用 | 颜永红 | 10:30-11:15 |
+| 03 | 百度语音在建模技术、多模态和芯片方面的最新进展 | 贾磊 | 11:15-12:00 |
+| 04 | 声纹识别应用的技术挑战 | 郑方 | 13:00-13:45 |
+| 05 | 语音合成中的自然韵律多样性建模 | 俞凯 | 13:45-14:30 |
+"""
+    doc = docx.Document(str(docx_path))
+    transcript = "\n".join(p.text for p in doc.paragraphs if p.text.strip())
+    plan = parse_agenda_text(ocr_test6)
+
+    res = align_agenda_with_transcript(plan, transcript)
+    assert res.discussed_count == 5
+    assert res.skipped_count == 0
+
+    assert "陶建华" in res.alignments[0].matched_speakers
+    assert "颜永红" in res.alignments[1].matched_speakers
+    assert "贾磊" in res.alignments[2].matched_speakers
+    assert "郑方" in res.alignments[3].matched_speakers
+    assert "俞凯" in res.alignments[4].matched_speakers
+
+
+
 
 

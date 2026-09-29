@@ -182,6 +182,7 @@ def _detect_host_roadsign(
     content: str,
     plan: AgendaPlan,
     hub_speakers: set[str],
+    dual_speakers: set[str] | None = None,
 ) -> tuple[str | None, bool]:
     """检测主持人/枢纽人员的串场交接信号（交通警察路标）。
 
@@ -193,7 +194,14 @@ def _detect_host_roadsign(
     if not content:
         return None, False
 
-    is_hub = speaker in hub_speakers or not speaker or speaker == "现场发言人"
+    is_native_role = any(r in speaker for r in ["主持人", "会议主持", "执行主席", "大会主席", "评委", "MC", "会务"])
+    is_hub = (
+        speaker in hub_speakers
+        or (dual_speakers and speaker in dual_speakers)
+        or is_native_role
+        or not speaker
+        or speaker == "现场发言人"
+    )
     if not is_hub:
         return None, False
 
@@ -280,13 +288,29 @@ def group_transcript_blocks(
         return []
 
     text = raw_text.replace("\r\n", "\n").replace("\r", "\n")
+    # 归一化连续多个空行（防止多空行打断切块）
+    text = re.sub(r"\n{3,}", "\n\n", text)
     matches = list(_SPEAKER_TS_PATTERN.finditer(text))
+
+    # 兼容非标准时间戳格式（如纯发言人冒号：张三： 或 【张三】）
+    is_colon_mode = False
+    if not matches:
+        _SPEAKER_COLON_PATTERN = re.compile(
+            r"^(?:【([^】\n]{2,16})】|([^\n\d:：]{2,16})\s*[:：])\s*",
+            re.M,
+        )
+        matches = list(_SPEAKER_COLON_PATTERN.finditer(text))
+        is_colon_mode = bool(matches)
 
     blocks: list[DiscussionBlock] = []
     if matches:
         for idx, m in enumerate(matches):
-            sp = m.group(1).strip()
-            ts = m.group(2).strip()
+            if is_colon_mode:
+                sp = (m.group(1) or m.group(2) or "").strip()
+                ts = ""
+            else:
+                sp = m.group(1).strip()
+                ts = m.group(2).strip()
             next_start = matches[idx + 1].start() if idx + 1 < len(matches) else len(text)
             body = text[m.end():next_start].strip()
             blocks.append(
@@ -314,16 +338,25 @@ def group_transcript_blocks(
     return blocks
 
 
-def _identify_hub_speakers(plan: AgendaPlan, blocks: list[DiscussionBlock]) -> set[str]:
-    """识别全会主持人、评委等中立枢纽人员（高雄、徐锋、索勋飞等）。"""
-    hubs: set[str] = set()
+def _identify_hub_speakers(plan: AgendaPlan, blocks: list[DiscussionBlock]) -> tuple[set[str], set[str]]:
+    """识别全会主持人、评委等中立枢纽人员（高雄、徐锋、索勋飞等），并检出双重身份人员。"""
+    raw_hubs: set[str] = set()
     if plan.meta and plan.meta.attendees:
         from .agenda_parser import clean_presenter_names
-        for role_prefix in ["全程与会人", "主持人", "会议主持", "评委", "评审组长", "主席", "评委组"]:
-            m = re.search(rf"{role_prefix}\s*[:：]?\s*([^;\n]+(?:;[^;\n]+)*)", plan.meta.attendees)
+        for role_prefix in [
+            "全程与会人", "主持人", "会议主持", "评委", "评审组长", "主席", "评委组",
+            "组织主席", "大会主席", "执行主席", "召集人", "Session Chair"
+        ]:
+            # 强化边界：匹配到换行、分段与会人/列席人标签、连字符、破折号时立即终止，防止单行穿透抓取汇报人
+            m = re.search(rf"{role_prefix}\s*[:：]?\s*([^;\n\r—\-]+(?:[;；][^;\n\r—\-]+)*)", plan.meta.attendees)
             if m:
                 for name in clean_presenter_names(m.group(1)):
-                    hubs.add(name)
+                    raw_hubs.add(name)
+
+    # 文本原生角色嗅探：转写文本中发言人若直接命名为“主持人/主席/评委”等，自动纳入枢纽池
+    for b in blocks:
+        if b.speaker and any(r in b.speaker for r in ["主持人", "会议主持", "执行主席", "大会主席", "评委", "MC", "会务"]):
+            raw_hubs.add(b.speaker)
 
     speaker_counts: dict[str, int] = {}
     for b in blocks:
@@ -340,11 +373,18 @@ def _identify_hub_speakers(plan: AgendaPlan, blocks: list[DiscussionBlock]) -> s
 
     for sp, cnt in speaker_counts.items():
         if cnt >= 25 and not any(p in sp or sp in p for p in all_team if p):
-            hubs.add(sp)
+            raw_hubs.add(sp)
 
-    if "现场发言人" in hubs:
-        hubs.remove("现场发言人")
-    return hubs
+    if "现场发言人" in raw_hubs:
+        raw_hubs.remove("现场发言人")
+
+    # 汇报人身份互斥保护（核心免疫）：
+    # 检出双重身份人员（如张晓雷既是组织主席，又是议题04主讲人）
+    dual_speakers = raw_hubs.intersection(all_team)
+    # 凡是既定议题的汇报人/团队成员，绝不作为纯中立主持人（防止加分被彻底抹平）
+    hub_speakers = raw_hubs.difference(all_team)
+
+    return hub_speakers, dual_speakers
 
 
 def _score_block_for_item(
@@ -354,6 +394,7 @@ def _score_block_for_item(
     hub_speakers: set[str],
     is_opening: bool,
     roadsign_seq: str | None = None,
+    dual_speakers: set[str] | None = None,
 ) -> float:
     score = 0.0
     sp = b.speaker.strip()
@@ -364,12 +405,22 @@ def _score_block_for_item(
         score += 4.5
 
     # 1. 汇报人与团队身份匹配
-    if sp and sp not in hub_speakers:
-        if any(p in sp or sp in p for p in it.presenters if p):
-            if len(content) >= 50 or is_opening:
-                score += 5.0
+    is_presenter = any(p in sp or sp in p for p in it.presenters if p)
+    is_dual = bool(dual_speakers and sp in dual_speakers)
+
+    if sp and (sp not in hub_speakers or is_dual):
+        if is_presenter:
+            if is_dual:
+                # 双重身份（如张晓雷既是主席又是议题主讲人）：
+                # 若发言过短且未命中该议题专有词，说明正在履行主持职责，不加主讲人分
+                is_short_intro = len(content) < 100 and not any(_match_token_in_text(tok, content) for tok in tokens)
+                if not is_short_intro:
+                    score += 5.0
             else:
-                score += 3.0
+                if len(content) >= 50 or is_opening:
+                    score += 5.0
+                else:
+                    score += 3.0
         elif hasattr(it, "recorders") and any(r in sp for r in it.recorders if r):
             score += 2.5
         elif hasattr(it, "members") and any(m in sp for m in it.members if m):
@@ -419,7 +470,12 @@ def align_agenda_with_transcript(
     all_speakers = set(b.speaker for b in blocks if b.speaker)
 
     item_tokens = {it.seq: extract_distinctive_tokens(it.title) for it in plan.items}
-    hub_speakers = _identify_hub_speakers(plan, blocks)
+    hub_speakers, dual_speakers = _identify_hub_speakers(plan, blocks)
+    logger.info(
+        "[AGENDA_ALIGNMENT] 枢纽与主持人名单: %s | 双重身份(主持兼汇报人): %s",
+        sorted(list(hub_speakers)),
+        sorted(list(dual_speakers)),
+    )
 
     # ── 阶段 1：多维特征感知与三态会话状态机 ───────────────────────────
     assigned: dict[int, str | None] = {}
@@ -433,7 +489,7 @@ def align_agenda_with_transcript(
         is_noise = _is_equipment_or_chitchat(b.content)
 
         roadsign_target, is_generic_handover = _detect_host_roadsign(
-            b.speaker, b.content, plan, hub_speakers
+            b.speaker, b.content, plan, hub_speakers, dual_speakers=dual_speakers
         )
 
         if roadsign_target:
@@ -447,7 +503,13 @@ def align_agenda_with_transcript(
 
         scores = {
             it.seq: _score_block_for_item(
-                b, it, item_tokens[it.seq], hub_speakers, is_opening, roadsign_seq=pending_roadsign
+                b,
+                it,
+                item_tokens[it.seq],
+                hub_speakers,
+                is_opening,
+                roadsign_seq=pending_roadsign,
+                dual_speakers=dual_speakers,
             )
             for it in plan.items
         }
@@ -472,7 +534,8 @@ def align_agenda_with_transcript(
             if in_transition:
                 # 处于转场缓冲期（Transition Buffer）
                 # 若为纯设备调试/杂音/或主持人过渡客套，进行隔离，绝不贪婪污染上一议题！
-                if is_noise or b.speaker in hub_speakers or len(b.content) < 30:
+                is_host_or_dual = b.speaker in hub_speakers or (dual_speakers and b.speaker in dual_speakers and len(b.content) < 100)
+                if is_noise or is_host_or_dual or len(b.content) < 30:
                     assigned[b.index] = None
                 else:
                     # 检查是否仍然在对 active_seq 进行有实质意义的补充或质询

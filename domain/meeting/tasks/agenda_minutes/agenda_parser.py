@@ -239,12 +239,10 @@ def parse_agenda_text(text: str) -> AgendaPlan:
         if any(h in line for h in ("会议时间", "Time")) and not any(k in line for k in ("起止时间", "时长", "编号", "序号", "|")):
             meta.date_time = re.sub(r"^(?:会议时间|Time)\s*[:：]?\s*", "", line, flags=re.I).strip()
             continue
-        if any(h in line for h in ("与会人", "Attendees")) and not any(k in line for k in ("参与人", "|")):
-            val = re.sub(r"^(?:与会人|Attendees)\s*[:：]?\s*", "", line, flags=re.I).strip()
-            meta.attendees = (meta.attendees + " " + val).strip() if meta.attendees else val
-            continue
-        if line.startswith(("全程与会人", "分段与会人")):
-            meta.attendees = (meta.attendees + " " + line).strip() if meta.attendees else line
+        # 人员元数据识别（支持 全程与会人/主持人/组织主席/分段列席 等多种格式）
+        line_clean = re.sub(r"^[#\*\s\-]+", "", line).strip()
+        if any(h in line_clean for h in ("与会人", "Attendees", "主持人", "组织主席", "会议主席", "执行主席", "评委", "主席")) and not any(k in line_clean for k in ("参与人", "|")):
+            meta.attendees = (meta.attendees + "\n" + line_clean).strip() if meta.attendees else line_clean
             continue
 
         # 表格行识别
@@ -382,6 +380,10 @@ def parse_agenda_text(text: str) -> AgendaPlan:
             cat_str = f" [{it.category}]" if it.category else ""
             lines_summary.append(f"  -> 议题 {it.seq}: 《{it.title}》 | 演讲人/汇报人: {pres_str}{dur_str}{cat_str}")
         logger.info("\n".join(lines_summary))
+        try:
+            print("\n".join(lines_summary))
+        except Exception:  # noqa: BLE001
+            pass
     else:
         logger.warning(
             "[AGENDA_PARSER] ⚠ 未能从输入文本中识别出任何既定议程项！原始输入预览 (前300字): %s",

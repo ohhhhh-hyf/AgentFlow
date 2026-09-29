@@ -550,7 +550,7 @@ def merge_fragment_lines(lines: list[dict]) -> list[dict]:
     return merged
 
 
-def ocr_image_lines(image_path: str) -> list[dict]:
+def ocr_image_lines(image_path: str, enable_page_chrome: bool | None = None) -> list[dict]:
     """整图识别 → 行列表；引擎返回的 ``formula`` 字段原样透传。
 
     serverocr / paddleocr / rapidocr 均主进程直调（后两者复用实例）。失败时返回空列表。
@@ -593,7 +593,8 @@ def ocr_image_lines(image_path: str) -> list[dict]:
             # 合并后重推版面推断，保证每条"逻辑行"的角色/标题特征一致
             lines = _infer_layout_hints(merged, image_size)
     # 页眉页脚：按本图中位行高自适应判定，标 role_hint=boilerplate（下游跳过）
-    dropped = _mark_page_chrome(lines) if _page_chrome_enabled() else 0
+    should_chrome = _page_chrome_enabled() if enable_page_chrome is None else bool(enable_page_chrome)
+    dropped = _mark_page_chrome(lines) if should_chrome else 0
     if dropped:
         logger.info(
             "page chrome: %d/%d lines dropped as header/footer (%s)",
