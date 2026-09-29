@@ -1076,6 +1076,146 @@ def test_agenda_minutes_table_full_conclusion_no_truncation():
     assert '<ul class="res-box-list">' in clean_html
 
 
+def test_agenda_parser_test7_table_without_presenter():
+    """验证 test7 议程解析：
+    1. 适配表头为 | 序号 | 时间 | 环节 | 内容说明 | 的表结构；
+    2. 无汇报人列时正常解析为 5 项，title 为环节，description 为内容说明；
+    3. 完整保留何刚总致辞、互动交流、任务令签署与授予、全体合影等核心议程。
+    """
+    ocr_test7 = """
+会议日程表
+会议主题：何刚总北研所交流会
+会议时间：2026年09月23日9:00—11:00
+会议地点：北研所Q1-A031
+
+| 序号 | 时间 | 环节 | 内容说明 |
+| :--- | :--- | :--- | :--- |
+| 01 | 09:00-09:10 | 视频观看 | 活动开场视频播放 |
+| 02 | 09:10-09:30 | 何刚总致辞 | 领导致辞 |
+| 03 | 09:30-10:30 | 互动交流 | 现场问答、自由交流与讨论 |
+| 04 | 10:30-10:40 | 任务令签署与授予 | 任务令签署仪式及授予环节 |
+| 05 | 10:40-10:50 | 全体合影 | 全体参会人员合影留念 |
+"""
+    plan = parse_agenda_text(ocr_test7)
+    assert plan.meta.theme == "何刚总北研所交流会"
+    assert len(plan.items) == 5
+
+    assert plan.items[0].seq == "01"
+    assert plan.items[0].title == "视频观看"
+    assert plan.items[0].description == "活动开场视频播放"
+    assert plan.items[0].presenters == []
+
+    assert plan.items[1].seq == "02"
+    assert plan.items[1].title == "何刚总致辞"
+    assert plan.items[1].description == "领导致辞"
+
+    assert plan.items[2].seq == "03"
+    assert plan.items[2].title == "互动交流"
+    assert plan.items[2].description == "现场问答、自由交流与讨论"
+
+    assert plan.items[3].seq == "04"
+    assert plan.items[3].title == "任务令签署与授予"
+    assert plan.items[3].description == "任务令签署仪式及授予环节"
+
+    assert plan.items[4].seq == "05"
+    assert plan.items[4].title == "全体合影"
+    assert plan.items[4].description == "全体参会人员合影留念"
+
+
+def test_alignment_engine_test7_anonymous_speaker_logs():
+    """验证 test7 匿名说话人日志（Track B: Content & Roadsign Alignment）：
+    1. group_transcript_blocks 成功解析 '发言者 1 00:00:03' 等全部 488 个发言块；
+    2. 自适应路由嗅探识别出 Track B (CONTENT)；
+    3. 状态机精准锚定 4 项已讨论议题与 1 项未讨论议题（01视频观看因未录制跳过）；
+    4. 骨架后置强约束生成正确的时序重构与区间（00:00 ~ 00:18, 00:18 ~ 01:18 等）。
+    """
+    docx_path = AGENDA_DIR / "test7" / "说话人日志.docx"
+    if not docx_path.is_file():
+        pytest.skip("说话人日志.docx not found")
+
+    import docx
+    doc = docx.Document(docx_path)
+    transcript = "\n".join(p.text for p in doc.paragraphs if p.text.strip())
+
+    blocks = group_transcript_blocks(transcript)
+    assert len(blocks) == 488
+    assert blocks[0].speaker == "发言者 1"
+    assert blocks[0].timestamp == "00:00:03"
+
+    ocr_test7 = """
+会议主题：何刚总北研所交流会
+会议时间：2026年09月23日9:00—11:00
+
+| 序号 | 时间 | 环节 | 内容说明 |
+| :--- | :--- | :--- | :--- |
+| 01 | 09:00-09:10 | 视频观看 | 活动开场视频播放 |
+| 02 | 09:10-09:30 | 何刚总致辞 | 领导致辞 |
+| 03 | 09:30-10:30 | 互动交流 | 现场问答、自由交流与讨论 |
+| 04 | 10:30-10:40 | 任务令签署与授予 | 任务令签署仪式及授予环节 |
+| 05 | 10:40-10:50 | 全体合影 | 全体参会人员合影留念 |
+"""
+    plan = parse_agenda_text(ocr_test7)
+    res = align_agenda_with_transcript(plan, transcript)
+
+    # 4 项讨论，1 项跳过
+    assert res.discussed_count == 4
+    assert res.skipped_count == 1
+
+    align_map = {a.item.seq: a for a in res.alignments}
+
+    # 01 视频观看 未播放，确定性置空
+    assert align_map["01"].status == "skipped"
+    assert len(align_map["01"].matched_blocks) == 0
+
+    # 02 何刚总致辞 命中致辞路标
+    assert align_map["02"].status == "discussed"
+    assert len(align_map["02"].matched_blocks) > 30
+    assert align_map["02"].start_index == 0
+
+    # 03 互动交流 命中团队交流路标
+    assert align_map["03"].status == "discussed"
+    assert len(align_map["03"].matched_blocks) > 300
+
+    # 04 任务令签署与授予 命中任务令签发仪式路标
+    assert align_map["04"].status == "discussed"
+    assert len(align_map["04"].matched_blocks) > 10
+
+    # 05 全体合影 命中尾声合影留念路标
+    assert align_map["05"].status == "discussed"
+    assert len(align_map["05"].matched_blocks) >= 2
+
+    # 验证时序重构与骨架锁定
+    class DummyClient:
+        pass
+
+    agent = AgendaMinutesAgent(DummyClient())
+    enforced = agent._enforce_agenda_invariants({}, res)
+    items = enforced["agenda_items"]
+
+    # 讨论过的按现场研讨先后排列，未讨论的置于末尾
+    assert [it["agenda_seq"] for it in items] == ["02", "03", "04", "05", "01"]
+    assert items[0]["agenda_title"] == "何刚总致辞"
+    assert items[0]["time_range"] == "00:00 ~ 00:18"
+    assert items[0]["discussion_state"] == "discussed"
+
+    assert items[1]["agenda_title"] == "互动交流"
+    assert items[1]["time_range"] == "00:18 ~ 01:18"
+    assert items[1]["discussion_state"] == "discussed"
+
+    assert items[2]["agenda_title"] == "任务令签署与授予"
+    assert items[2]["time_range"] == "01:18 ~ 01:21"
+    assert items[2]["discussion_state"] == "discussed"
+
+    assert items[3]["agenda_title"] == "全体合影"
+    assert items[3]["time_range"] == "01:22"
+    assert items[3]["discussion_state"] == "discussed"
+
+    assert items[4]["agenda_title"] == "视频观看"
+    assert items[4]["time_range"] == "—"
+    assert items[4]["discussion_state"] == "skipped"
+
+
+
 
 
 

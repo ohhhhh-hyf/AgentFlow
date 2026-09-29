@@ -78,8 +78,14 @@ class AlignmentResult:
         return discussed + skipped
 
 
+_SPEAKER_LABEL_PATTERN = r"(?:[^\n:：\d]{1,16}|(?:发言者|说话人|发言人|主讲人|参会人|与会人|Speaker|User|Participant)\s*[\-_#]?\s*\d{1,4})"
+
 _SPEAKER_TS_PATTERN = re.compile(
-    r"^([^\n\d:]{2,16})\s+(\d{1,2}:\d{2}(?::\d{2})?)",
+    rf"^(?:"
+    rf"(?:\[?(\d{{1,2}}:\d{{2}}(?::\d{{2}})?(?:\.\d+)?)]?\s+({_SPEAKER_LABEL_PATTERN}))"
+    rf"|"
+    rf"(?:({_SPEAKER_LABEL_PATTERN})\s*(?:[:：])?\s+\[?(\d{{1,2}}:\d{{2}}(?::\d{{2}})?(?:\.\d+)?)\]?)"
+    rf")(?:\s*[:：]|\s*$|\s+(?=\S))",
     re.M,
 )
 
@@ -316,8 +322,12 @@ def group_transcript_blocks(
                 sp = (m.group(1) or m.group(2) or "").strip()
                 ts = ""
             else:
-                sp = m.group(1).strip()
-                ts = m.group(2).strip()
+                if m.group(1):
+                    ts = m.group(1).strip()
+                    sp = m.group(2).strip()
+                else:
+                    sp = (m.group(3) or "").strip()
+                    ts = (m.group(4) or "").strip()
             next_start = matches[idx + 1].start() if idx + 1 < len(matches) else len(text)
             body = text[m.end():next_start].strip()
             blocks.append(
@@ -473,6 +483,205 @@ def _score_block_for_item(
     return score
 
 
+def _is_anonymous_speaker(speaker: str) -> bool:
+    """判定发言人是否为匿名/数字代号发言人（如 发言者 1、说话人 2、Speaker 1、现场发言人 等）。"""
+    s = (speaker or "").strip()
+    if not s or s in {"现场发言人", "主持人", "评委", "MC", "会务"}:
+        return True
+    return bool(
+        re.match(
+            r"^(?:发言者|说话人|发言人|主讲人|参会人|与会人|Speaker|User|Participant)\s*[\-_#]?\s*\d+$",
+            s,
+            re.I,
+        )
+    )
+
+
+def _detect_alignment_track(plan: AgendaPlan, blocks: list[DiscussionBlock]) -> str:
+    """自适应判定对齐策略：
+    - Track A (NAMED): 既定议程中包含明确的汇报人姓名，且发言人列表中包含非匿名真实人名；
+    - Track B (CONTENT): 议程单无主讲人，或者实录发言人中绝大多数（>=80%）为匿名代号。
+    """
+    has_plan_presenters = any(bool(it.presenters) for it in plan.items)
+    if not has_plan_presenters:
+        return "CONTENT"
+
+    total_blocks = len(blocks)
+    if total_blocks == 0:
+        return "NAMED"
+
+    anon_count = sum(1 for b in blocks if _is_anonymous_speaker(b.speaker))
+    if anon_count / total_blocks >= 0.8:
+        return "CONTENT"
+
+    return "NAMED"
+
+
+def _build_item_signals_for_content_track(it: AgendaItemParsed) -> list[str]:
+    """为无主讲人模式（Track B）构建每个议题的高敏路标与核心语义特征词集。"""
+    title = it.title or ""
+    desc = getattr(it, "description", "") or ""
+    signals: list[str] = []
+    if title:
+        signals.append(title.strip())
+    if desc:
+        signals.append(desc.strip())
+
+    tokens = extract_distinctive_tokens(title) + (extract_distinctive_tokens(desc) if desc else [])
+    for tok in tokens:
+        if len(tok) >= 2:
+            signals.append(tok)
+
+    combined = f"{title} {desc}"
+
+    # 角色与尊称提取（如 何刚总 -> 何刚总, 何刚, 何总）
+    m_role = re.search(r"([\u4e00-\u9fa5]{1,4})(?:总|工|老师|主任|院长|博士|专家|主席)", combined)
+    if m_role:
+        leader_name = m_role.group(1)
+        role_type = combined[m_role.end() - 1]
+        signals.append(m_role.group(0))
+        signals.append(leader_name)
+        if len(leader_name) >= 2:
+            surname = leader_name[0]
+            signals.append(f"{surname}{role_type}")
+
+    # 环节与领域关键词泛化
+    if any(k in combined for k in ("致辞", "讲话", "开幕")):
+        signals.extend(["致辞", "讲话"])
+        if m_role:
+            signals.append(f"{m_role.group(0)}致辞")
+            if len(leader_name) >= 2:
+                signals.append(f"{leader_name[0]}总致辞")
+    if any(k in combined for k in ("交流", "问答", "答疑", "互动", "讨论")):
+        signals.extend(["团队交流", "互动交流", "现场问答", "自由交流", "互动答疑", "提问环节"])
+    if any(k in combined for k in ("签署", "签发", "签约", "授予", "任务令")):
+        signals.extend(["任务令", "签署仪式", "签发仪式", "签约仪式", "签署与授予"])
+    if any(k in combined for k in ("合影", "拍照", "留念")):
+        if any(k in combined for k in ("全体", "全员")):
+            signals.extend(["全体合影", "全员合影", "全体参会人员", "全体与会人员", "移步进行", "移步"])
+        else:
+            signals.extend(["合影留念", "合影"])
+    if any(k in combined for k in ("视频", "开场", "观看", "播放")):
+        signals.extend(["视频观看", "开场视频", "视频播放"])
+
+    return list(dict.fromkeys(s for s in signals if s and len(s) >= 2))
+
+
+_TRANSITION_ROADSIGN_PATTERN = re.compile(
+    r"(?:接下来|下面|现在|进入|进行|开启|有请|开始|议程|环节|仪式|请.*?移步|移步|尾声)"
+)
+
+_HIGH_CONFIDENCE_SIGNALS = {
+    "全体合影", "全员合影", "任务令签署", "任务令签发", "签发仪式", "签署与授予",
+    "团队交流", "互动交流", "领导致辞", "何刚总致辞"
+}
+
+
+def _align_by_topics_and_roadsigns(
+    plan: AgendaPlan,
+    blocks: list[DiscussionBlock],
+    all_speakers: set[str],
+) -> AlignmentResult:
+    """Track B: 基于主持人路标、语义特征词密度与单向流动的匿名实录对齐引擎。"""
+    items = plan.items
+    if not items or not blocks:
+        alignments = [
+            AgendaAlignment(
+                item=it,
+                status="skipped",
+                matched_speakers=[],
+                matched_blocks=[],
+                evidence_text="",
+                start_index=-1,
+                end_index=-1,
+            )
+            for it in items
+        ]
+        return AlignmentResult(plan=plan, alignments=alignments, all_speakers=all_speakers, adhoc_blocks=[])
+
+    item_signals = {it.seq: _build_item_signals_for_content_track(it) for it in items}
+
+    def _find_transition_candidate(b: DiscussionBlock, from_idx: int) -> tuple[str, int, str] | None:
+        content = b.content
+        has_trans_pattern = bool(_TRANSITION_ROADSIGN_PATTERN.search(content))
+        # 优先从高序号向下扫描到当前序号，匹配最具体的新议题（单向流）
+        for idx in range(len(items) - 1, from_idx - 1, -1):
+            seq = items[idx].seq
+            signals = item_signals[seq]
+            for sig in signals:
+                if sig in content:
+                    if has_trans_pattern or sig in _HIGH_CONFIDENCE_SIGNALS:
+                        return (seq, idx, sig)
+        return None
+
+    current_seq: str | None = None
+    current_idx = 0
+    assigned: dict[int, str | None] = {}
+
+    for b in blocks:
+        cand = _find_transition_candidate(b, current_idx)
+        if cand:
+            seq, idx, sig = cand
+            if seq != current_seq:
+                logger.info(
+                    "[TRACK_B_ALIGNMENT] 发现路标切换: 块 %d [%s %s] 命中信号 '%s' -> 切换至议题 %s",
+                    b.index,
+                    b.speaker,
+                    b.timestamp,
+                    sig,
+                    seq,
+                )
+                current_seq = seq
+                current_idx = idx + 1
+        assigned[b.index] = current_seq
+
+    alignments: list[AgendaAlignment] = []
+    used_indices: set[int] = set()
+
+    for it in items:
+        it_blocks = [b for b in blocks if assigned.get(b.index) == it.seq]
+        if it_blocks and len(it_blocks) >= 1:
+            used_indices.update(b.index for b in it_blocks)
+            matched_sp = list(dict.fromkeys(b.speaker for b in it_blocks if b.speaker))
+            lines_buf = [f"{b.speaker} {b.timestamp}\n{b.content.strip()}" for b in it_blocks]
+            evidence_text = "\n\n".join(lines_buf)
+            s_idx = it_blocks[0].index
+            e_idx = it_blocks[-1].index + 1
+
+            alignments.append(
+                AgendaAlignment(
+                    item=it,
+                    status="discussed",
+                    matched_speakers=matched_sp,
+                    matched_blocks=it_blocks,
+                    evidence_text=evidence_text,
+                    start_index=s_idx,
+                    end_index=e_idx,
+                )
+            )
+        else:
+            alignments.append(
+                AgendaAlignment(
+                    item=it,
+                    status="skipped",
+                    matched_speakers=[],
+                    matched_blocks=[],
+                    evidence_text="",
+                    start_index=-1,
+                    end_index=-1,
+                )
+            )
+
+    adhoc_blocks = [b for b in blocks if b.index not in used_indices and len(b.content) > 40]
+
+    return AlignmentResult(
+        plan=plan,
+        alignments=alignments,
+        all_speakers=all_speakers,
+        adhoc_blocks=adhoc_blocks,
+    )
+
+
 def align_agenda_with_transcript(
     plan: AgendaPlan,
     transcript: str,
@@ -489,6 +698,16 @@ def align_agenda_with_transcript(
     reconcile_presenter_names(plan, transcript=transcript)
     blocks = group_transcript_blocks(transcript, plan=plan)
     all_speakers = set(b.speaker for b in blocks if b.speaker)
+
+    track = _detect_alignment_track(plan, blocks)
+    logger.info(
+        "[AGENDA_ALIGNMENT] 启动对齐引擎，检测到策略轨迹: %s (总发言块: %d, 发言人总数: %d)",
+        track,
+        len(blocks),
+        len(all_speakers),
+    )
+    if track == "CONTENT":
+        return _align_by_topics_and_roadsigns(plan, blocks, all_speakers)
 
     item_tokens = {it.seq: extract_distinctive_tokens(it.title) for it in plan.items}
     hub_speakers, dual_speakers = _identify_hub_speakers(plan, blocks)

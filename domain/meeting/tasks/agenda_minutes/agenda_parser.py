@@ -32,6 +32,7 @@ class AgendaItemParsed:
     duration: str = ""
     time_range: str = ""
     category: str = ""
+    description: str = ""
 
 
 @dataclass
@@ -64,6 +65,7 @@ class AgendaPlan:
                     "presenters": it.presenters,
                     "duration": it.duration,
                     "time_range": it.time_range,
+                    "description": it.description,
                 }
                 for it in self.items
             ],
@@ -107,6 +109,7 @@ def _resolve_columns(header_cells: list[str]) -> dict[str, int]:
     time_idx = -1
     dur_idx = -1
     cat_idx = -1
+    desc_idx = -1
 
     for idx, raw in enumerate(header_cells):
         name = raw.strip().lower()
@@ -140,8 +143,12 @@ def _resolve_columns(header_cells: list[str]) -> dict[str, int]:
         if any(k in name for k in ("参与人", "成员", "members", "attendees", "列席人", "与会人", "参会人员")):
             mem_idx = idx
             continue
-        # 议题名称（优先匹配含「名称」「全称」「主题」的列）
-        if any(k in name for k in ("议题名称", "topic name", "议题全称", "主题", "topic", "讨论事项", "审议事项", "汇报内容", "议题内容")):
+        # 内容说明 / 描述 / 备注
+        if any(k in name for k in ("内容说明", "具体内容", "内容介绍", "说明", "备注", "描述", "议题描述")):
+            desc_idx = idx
+            continue
+        # 议题名称（优先匹配含「名称」「全称」「主题」的列，以及「环节」「活动环节」「议程」）
+        if any(k in name for k in ("议题名称", "topic name", "议题全称", "主题", "topic", "讨论事项", "审议事项", "汇报内容", "议题内容", "环节", "活动环节", "议程", "议程环节")):
             if not any(k in name for k in ("类型", "材料", "参与人", "成员", "人员", "category", "material", "member", "recorder", "纪要", "时长")):
                 title_idx = idx
                 continue
@@ -150,7 +157,7 @@ def _resolve_columns(header_cells: list[str]) -> dict[str, int]:
             title_idx = idx
             continue
         # 兜底：含「事项」「内容」
-        if any(k in name for k in ("事项", "内容", "项目")) and not any(k in name for k in ("类型", "材料", "参与人", "成员", "人员", "category", "material", "member", "recorder", "纪要", "时长")):
+        if any(k in name for k in ("事项", "内容", "项目")) and not any(k in name for k in ("说明", "备注", "描述", "类型", "材料", "参与人", "成员", "人员", "category", "material", "member", "recorder", "纪要", "时长")):
             if title_idx == -1:
                 title_idx = idx
                 continue
@@ -168,6 +175,7 @@ def _resolve_columns(header_cells: list[str]) -> dict[str, int]:
         "time": time_idx,
         "duration": dur_idx,
         "category": cat_idx,
+        "description": desc_idx,
     }
     logger.info("agenda_parser: resolved table columns -> %s", cols)
     return cols
@@ -227,8 +235,14 @@ _COMMON_VARIANTS: dict[str, str] = {
     "华": "华", "華": "华",
 }
 
+_SPEAKER_LABEL_PATTERN = r"(?:[^\n:：\d]{1,16}|(?:发言者|说话人|发言人|主讲人|参会人|与会人|Speaker|User|Participant)\s*[\-_#]?\s*\d{1,4})"
+
 _SPEAKER_TS_PATTERN = re.compile(
-    r"^([^\n\d:]{2,16})\s+(\d{1,2}:\d{2}(?::\d{2})?)",
+    rf"^(?:"
+    rf"(?:\[?(\d{{1,2}}:\d{{2}}(?::\d{{2}})?(?:\.\d+)?)]?\s+({_SPEAKER_LABEL_PATTERN}))"
+    rf"|"
+    rf"(?:({_SPEAKER_LABEL_PATTERN})\s*(?:[:：])?\s+\[?(\d{{1,2}}:\d{{2}}(?::\d{{2}})?(?:\.\d+)?)\]?)"
+    rf")(?:\s*[:：]|\s*$|\s+(?=\S))",
     re.M,
 )
 _SPEAKER_COLON_PATTERN = re.compile(
@@ -265,7 +279,10 @@ def extract_speakers_from_transcript(transcript: str) -> list[str]:
         matches = list(_SPEAKER_COLON_PATTERN.finditer(text))
         raw_speakers = [(m.group(1) or m.group(2) or "").strip() for m in matches]
     else:
-        raw_speakers = [m.group(1).strip() for m in matches]
+        raw_speakers = [
+            (m.group(2) if m.group(1) else m.group(3) or "").strip()
+            for m in matches
+        ]
 
     seen = set()
     speakers: list[str] = []
@@ -384,7 +401,7 @@ def parse_agenda_text(
     for i, line in enumerate(table_lines):
         if "|" in line and not re.match(r"^[\s\+\-\|:]+$", line):
             cells = _split_table_row(line)
-            has_topic = any("议题" in c or "topic" in c.lower() or "主题" in c or "事项" in c for c in cells)
+            has_topic = any("议题" in c or "topic" in c.lower() or "主题" in c or "事项" in c or "环节" in c or "议程" in c for c in cells)
             has_seq_and_role = any("序号" in c or "编号" in c or "no" in c.lower() for c in cells) and any(
                 "汇报" in c or "主讲" in c or "报告" in c or "时长" in c or "内容" in c for c in cells
             )
@@ -446,6 +463,9 @@ def parse_agenda_text(
             cat_col = cols["category"]
             cat_val = cells[cat_col].strip() if cat_col != -1 and cat_col < len(cells) else ""
 
+            desc_col = cols.get("description", -1)
+            desc_val = cells[desc_col].strip() if desc_col != -1 and desc_col < len(cells) else ""
+
             items.append(
                 AgendaItemParsed(
                     seq=seq,
@@ -457,6 +477,7 @@ def parse_agenda_text(
                     duration=dur,
                     time_range=time_val,
                     category=cat_val,
+                    description=desc_val,
                 )
             )
         logger.info("agenda_parser: table mode extracted %d items", len(items))
