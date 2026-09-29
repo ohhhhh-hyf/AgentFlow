@@ -11,7 +11,6 @@
 from __future__ import annotations
 
 import asyncio
-import json
 import logging
 import os
 import re
@@ -24,8 +23,6 @@ from tools.schema.validation import OutputValidationError
 from ....models import AgendaMinutes
 from ....models_base import ModelMixin
 from ..agenda_parser import (
-    AgendaItemParsed,
-    AgendaPlan,
     match_presenter_name,
     parse_agenda_text,
 )
@@ -36,13 +33,10 @@ from ..alignment_engine import (
     align_agenda_with_transcript,
 )
 from ..contracts import (
-    AGENDA_MINUTES_GENERATION_OUTPUT_CONTRACT,
     SINGLE_AGENDA_ITEM_OUTPUT_CONTRACT,
     normalize_status_tag,
 )
 from ..prompts import (
-    AGENDA_MINUTES_GENERATION_SYSTEM_PROMPT,
-    SINGLE_AGENDA_ITEM_SYSTEM_PROMPT,
     build_single_item_prompt,
 )
 from ..types import detect_agenda_type

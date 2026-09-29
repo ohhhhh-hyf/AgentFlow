@@ -188,7 +188,7 @@ def test_view_directive() -> None:
 def test_action_groups_block() -> None:
     """分栏分组骨架：把"要出现哪些组名行"变成可照抄的清单（模型只复制、不重排）。"""
     from perspective import render_action_groups_block
-    from perspective.preferences import SELF_GROUP_NAME, SELF_GROUP_ROW
+    from perspective.preferences import SELF_GROUP_ROW
 
     user = {"name": "申家坤", "name_aliases": ["家坤"]}
     understanding = {

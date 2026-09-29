@@ -791,7 +791,7 @@ async def modify_template(
             user = ctx + "\n" + user
         revision = ""
         last = ""
-        for attempt in range(2):
+        for _ in range(2):
             compiled = (
                 await _client_text(
                     client,

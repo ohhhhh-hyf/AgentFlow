@@ -7,7 +7,6 @@ docs 里的 .txt 作为「老师重点」读取，其余按资料处理；无输
 产物：目录数据 json 写在 data/{user_id}/knowledge/catalogs/{学科拼音}/（data.file_name 为文件名），
 data.text 为目录树 Markdown，同时落盘 result.md；下一行 checklist 的 docs 填的就是这个 json 文件名。
 """
-import json
 import uuid
 
 import requests

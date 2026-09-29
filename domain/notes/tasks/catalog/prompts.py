@@ -141,13 +141,6 @@ CATALOG_SUPERVISOR_DOMAIN_PROMPT = """## 领域审核规则：知识目录
 个别 importance 偏差、个别关联漏填 → approve。"""
 
 
-# 任务线完备性协议符号（sync_domain readiness 按名称存在性判定）：
-# catalog_render 为程序化渲染（build_catalog_markdown），不进入 LLM 调用。
-CATALOG_RENDER_PROMPT = """把已批准知识目录草稿渲染为 Markdown 目录树（程序化渲染，无 LLM）。"""
-
-CATALOG_RENDER_TEMPLATE_PROMPT = """按模板输出知识目录，只替换占位。"""
-
-
 __all__ = [
     "CATALOG_GENERATION_SYSTEM_PROMPT",
     "CATALOG_SUPERVISOR_DOMAIN_PROMPT",

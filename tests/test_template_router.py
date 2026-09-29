@@ -4545,7 +4545,8 @@ def test_column_extraction_robustness_and_timeout() -> None:
     tpl_heavy = "# 政府工作\n\n# [重点工作]\n[写重点工作]\n"
     plan_heavy = plan_placeholder_fill(tpl_heavy)
     cap_client = _CaptureStreamClient()
-    res = asyncio.run(fill_placeholder_by_columns(cap_client, "context", tpl_heavy, plan_heavy))
+    # 只取副作用（填充 cap_client.calls），返回值本身不用
+    asyncio.run(fill_placeholder_by_columns(cap_client, "context", tpl_heavy, plan_heavy))
     check("重点工作首轮调用自动配置 presence_penalty=0.15",
           len(cap_client.calls) > 0 and cap_client.calls[0].get("presence_penalty") == 0.15,
           f"{cap_client.calls}")
@@ -4558,7 +4559,8 @@ def test_column_extraction_robustness_and_timeout() -> None:
     captured_req = []
     with patch("urllib.request.urlopen", side_effect=lambda req, timeout=None: (captured_req.append(req), mock_resp)[1]):
         llm = LLMClient(api_key="sk-test", base_url="http://fake.api", model="test-model", provider="openai")
-        chunks = list(llm._stream_sync([{"role": "user", "content": "hi"}], presence_penalty=0.2, frequency_penalty=0.1))
+        # 只取副作用（消费生成器以触发 urlopen 并填充 captured_req）
+        list(llm._stream_sync([{"role": "user", "content": "hi"}], presence_penalty=0.2, frequency_penalty=0.1))
         import json
         req_body = json.loads(captured_req[0].data.decode("utf-8"))
         check("LLMClient 请求体包含 presence_penalty 与 frequency_penalty",

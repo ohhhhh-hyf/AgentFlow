@@ -1,11 +1,10 @@
 from __future__ import annotations
 
-import json
 from collections.abc import AsyncIterator
+from typing import Any
 
 from tools.llm import LLMClient
 
-from ....models import NotesState
 from ..report import build_library_markdown
 from tools.core.domain_engine_text import scrape_draft
 

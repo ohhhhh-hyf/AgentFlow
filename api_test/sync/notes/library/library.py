@@ -7,7 +7,6 @@ docs 里的文件名须已存在于**服务端** data/{USER_ID}/docs/ 下（本�
 入库后资料进入该用户该学科的知识库（向量索引），供检索与带出处问答。
 无落盘产物：结果文本与统计只在 data.text 返回，data.file_name 为空串。
 """
-import json
 import uuid
 
 import requests

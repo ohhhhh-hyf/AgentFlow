@@ -1,8 +1,8 @@
 from __future__ import annotations
 
 from collections.abc import AsyncIterator
+from typing import Any
 
-import json
 
 from tools.llm import LLMClient
 from tools.exports.html.knowledge_graph import build_learning_map

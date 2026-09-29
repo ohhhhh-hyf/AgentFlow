@@ -3,7 +3,6 @@
 结果接口与状态接口返回同一份"任务快照"，只是成功时会带上 text（正文）与 file_name。
 任务未完成或失败同样返回 200 + 该快照（status=queued/running/failed），不再是 409。
 """
-import json
 import os
 
 import requests

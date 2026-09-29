@@ -8,7 +8,6 @@ docs 也支持图片/其它文档：图片会先走「OCR + LLM 整理审校」�
 extra.subject 用于按用户+学科做图谱增量合并（空则视为新学科重建）。
 产物：交互式 graph.html（Cytoscape.js 自包含单文件；无 md 落盘，正文在 data.text）。
 """
-import json
 import uuid
 
 import requests

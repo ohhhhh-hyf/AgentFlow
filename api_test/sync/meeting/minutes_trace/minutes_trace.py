@@ -6,9 +6,7 @@
   1) 在下方 TRANSCRIPT / KEYPOINTS / NOTES 三个三引号内填入内容;
   2) python minutes_trace.py
 """
-import json
 import uuid
-from pathlib import Path
 
 import requests
 

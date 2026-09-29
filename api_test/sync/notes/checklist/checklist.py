@@ -6,7 +6,6 @@ checklist 必填：X-User-Id + extra.subject + docs——docs 里**必须包含�
 （上一步 catalog 响应里的 data.file_name），可再追加一个老师重点 .txt。
 data.text 为精简摘要（统计 + 卡片列表，不含卡片正文）；完整 Markdown 落盘 result.md，页面版 checklist.html。
 """
-import json
 import uuid
 
 import requests

@@ -11,9 +11,6 @@ import html
 import json
 import logging
 import re
-import shutil
-import subprocess
-import sys
 from collections import OrderedDict
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -26,12 +23,6 @@ _MARKMAP_VIEW_CDN = (
     f"https://cdn.jsdelivr.net/npm/markmap-view@{_MARKMAP_CLI_VERSION}/dist/browser/index.js"
 )
 _D3_CDN = "https://cdn.jsdelivr.net/npm/d3@7.9.0/dist/d3.min.js"
-_RENDER_TIMEOUT_SECONDS = 120
-
-
-def markmap_available() -> bool:
-    """纯静态 HTML 生成，零外部依赖（无需 npx/node）。"""
-    return True
 
 
 def mindmap_png_available() -> bool:
@@ -41,36 +32,6 @@ def mindmap_png_available() -> bool:
         return True
     except ImportError:
         return False
-
-
-def _npx_command(npx: str, args: list[str]) -> list[str]:
-    """组装实际启动 npx 的命令。
-
-    Windows 上 npx 通常是 ``npx.cmd``（CreateProcess 无法直接启动
-    ``.cmd/.bat``），需经 ``cmd.exe /c``（shell=True）执行；
-    Linux/macOS 上直接调用 npx 可执行文件。
-    """
-    if npx.lower().endswith((".cmd", ".bat")):
-        return ["cmd.exe", "/c", subprocess.list2cmdline([npx, *args])]
-    return [npx, *args]
-
-
-def _native_path(path: Path) -> str:
-    """把路径转成实际执行 node 的进程能访问的形式。
-
-    仅当 Python 跑在 WSL（linux）而 npx 是 Windows 程序（如
-    ``C:\\...\\npx.cmd``，WSL 内通过 PATH 可见）时，把 ``/mnt/d/x``
-    转成 ``D:\\x``；Windows 原生环境原样返回。
-    """
-    s = str(path)
-    if sys.platform.startswith("linux"):
-        m = re.match(r"^/mnt/([a-zA-Z])/(.+)$", s)
-        if m:
-            # 反斜杠移出 f-string 表达式，兼容 Python < 3.12
-            drive = m.group(1).upper()
-            rest = m.group(2).replace("/", "\\")
-            return f"{drive}:\\{rest}"
-    return s
 
 
 _TABLE_SEP_RE = re.compile(r"^\s*\|?\s*:?-{2,}:?\s*(\|\s*:?-{2,}:?\s*)+\|?\s*$")
@@ -1176,7 +1137,6 @@ def build_editable_mindmap_embed(
 __all__ = [
     "build_editable_mindmap_embed",
     "generate_static_mindmap_html",
-    "markmap_available",
     "mindmap_png_available",
     "outline_to_markmap_data",
     "sanitize_mindmap_outline",

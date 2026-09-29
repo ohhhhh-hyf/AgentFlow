@@ -526,7 +526,7 @@ def _extract_pptx(path: str) -> List[TextChunk]:
     chunks = []
     prs = Presentation(path)
     slides_parts: list[list[str]] = []
-    for i, slide in enumerate(prs.slides):
+    for slide in prs.slides:
         parts = []
         for shape in _iter_shapes(slide.shapes):
             if shape.shape_type == MSO_SHAPE_TYPE.PICTURE:

@@ -834,10 +834,6 @@ def _is_section_line(line: str, level: int = 1) -> bool:
     return s.startswith(prefix) and not s.startswith(next_prefix)
 
 
-def _is_h1_line(line: str) -> bool:
-    return _is_section_line(line, 1)
-
-
 def _section_heading_level(lines: list[str]) -> int:
     has_h2 = sum(1 for ln in lines if _is_section_line(ln, 2))
     has_h1 = sum(1 for ln in lines if _is_section_line(ln, 1))

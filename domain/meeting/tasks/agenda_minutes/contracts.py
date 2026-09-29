@@ -23,7 +23,7 @@ from tools.schema.contracts import (
     StrListField,
     SupervisorContract,
 )
-from tools.schema.fallback_rules import FallbackRules, Lines, Raw
+from tools.schema.fallback_rules import FallbackRules
 
 
 class AgendaMinutesGenerationContract(GenerationContract):

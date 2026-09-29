@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-import json
 from collections.abc import AsyncIterator
+from typing import Any
 
 from tools.llm import LLMClient
 from tools.core.prompt_utils import build_render_prompt

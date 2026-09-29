@@ -1,7 +1,6 @@
 """checklist 展示：复习重点分布、导图、关系图、卡片、行动清单。"""
 from __future__ import annotations
 
-import json
 import re
 from html import escape
 from typing import Any
@@ -1683,7 +1682,7 @@ def build_checklist_html(draft: dict[str, Any], *, has_teacher: bool | None = No
         else:
             body.append("<p>本次激活点之间没有可画的关系图。</p>")
         body.append("<h2>二、知识点</h2>")
-        for i, card in enumerate(focus, start=1):
+        for card in focus:
             body.append(_card_html(card))
         if brief:
             body.append('<div class="ck-brief"><h3>简要过一下</h3><ul>')

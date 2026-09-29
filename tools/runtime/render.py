@@ -7,6 +7,7 @@ from __future__ import annotations
 import asyncio
 import inspect
 import logging
+from typing import Any
 
 from tools.core.domain_engine_text import line, line_cn, line_template
 from tools.core.domain_hooks import hooks_for

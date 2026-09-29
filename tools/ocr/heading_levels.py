@@ -95,7 +95,7 @@ def _demote_continuation_spans(heads: list[dict]) -> int:
     for idx, head in enumerate(heads):
         positions[head["key"]].append(idx)
     moved = 0
-    for key, idxs in positions.items():
+    for idxs in positions.values():
         if len(idxs) < 2:
             continue
         base_level = heads[idxs[0]]["level"]

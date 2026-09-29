@@ -13,7 +13,6 @@ import re
 from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
-from typing import Any
 
 logger = logging.getLogger("agentflow.agenda_parser")
 
@@ -50,26 +49,6 @@ class AgendaPlan:
 
     meta: AgendaMeta = field(default_factory=AgendaMeta)
     items: list[AgendaItemParsed] = field(default_factory=list)
-
-    def to_dict(self) -> dict[str, Any]:
-        return {
-            "meta": {
-                "theme": self.meta.theme,
-                "date_time": self.meta.date_time,
-                "attendees": self.meta.attendees,
-            },
-            "items": [
-                {
-                    "seq": it.seq,
-                    "title": it.title,
-                    "presenters": it.presenters,
-                    "duration": it.duration,
-                    "time_range": it.time_range,
-                    "description": it.description,
-                }
-                for it in self.items
-            ],
-        }
 
 
 def _log_parser_record(text: str, plan: AgendaPlan, mode: str, cols: dict | None = None) -> None:
@@ -508,7 +487,6 @@ def parse_agenda_text(
                 line,
             )
             if m:
-                raw_seq = m.group(1) or m.group(2) or str(seq_counter)
                 body = (m.group(3) or "").strip()
                 # 检查 body 中是否含汇报人
                 pres_match = re.search(r"(?:汇报人|主讲人|报告人|分享人|责任人|发言人)\s*[:：]\s*([^\s;；,，]+)", body)

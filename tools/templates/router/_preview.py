@@ -9,11 +9,8 @@
 from __future__ import annotations
 import logging
 import re
-from typing import Any
 
 from ._base import _split_aspect_connectors, _strip_heading_number, iter_placeholders
-from ._detect import detect_template_kind
-from ._placeholder import preview_to_template, template_to_preview
 
 logger = logging.getLogger(__name__)
 

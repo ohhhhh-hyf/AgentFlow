@@ -16,7 +16,7 @@ import re
 from typing import Any
 
 from tools.ocr.engines import get_llm_client
-from .agenda_parser import clean_presenter_names, extract_speakers_from_transcript
+from .agenda_parser import extract_speakers_from_transcript
 
 logger = logging.getLogger("agentflow.agenda_extractor")
 

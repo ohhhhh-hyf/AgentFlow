@@ -16,7 +16,6 @@ from pathlib import Path
 
 from tools.exports.html.knowledge_graph import render_graph_bundle
 from tools.exports.html.mindmap import (
-    markmap_available,
     mindmap_png_available,
     render_mindmap_html,
     render_mindmap_png,
@@ -264,11 +263,6 @@ def save_all_reports(
 
 
 # ── 图类任务导出 ───────────────────────────────────────────────
-
-def _stamp() -> str:
-    """毫秒级时间戳（同秒多次运行不互相覆盖产物）。"""
-    return datetime.now().strftime("%Y%m%d_%H%M%S_%f")[:-3]
-
 
 def export_mindmap_md(reports: dict, out_dir: Path) -> Path | None:
     mindmap_report = reports.get("mindmap")

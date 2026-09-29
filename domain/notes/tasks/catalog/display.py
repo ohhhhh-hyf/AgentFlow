@@ -1,7 +1,6 @@
 """catalog 展示：简要说明 + 保存复习清单要用的目录 JSON。"""
 from __future__ import annotations
 
-import json
 import re
 from typing import Any
 

@@ -6,7 +6,6 @@ from tools.llm import LLMClient
 from tools.core.prompt_utils import build_render_prompt
 from tools.exports.html.agenda_minutes import format_agenda_minutes_markdown
 
-from ....models import MeetingState
 from ..prompts import AGENDA_MINUTES_RENDER_PROMPT, AGENDA_MINUTES_RENDER_TEMPLATE_PROMPT
 
 

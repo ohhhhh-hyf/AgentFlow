@@ -19,7 +19,7 @@ from difflib import SequenceMatcher
 
 import re
 from dataclasses import asdict, dataclass, field
-from typing import Any
+from typing import Any, Sequence
 
 from .preferences import address_aliases
 

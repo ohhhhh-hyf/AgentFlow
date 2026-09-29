@@ -270,54 +270,6 @@ def _status_class(status: str, is_skipped: bool = False) -> tuple[str, str]:
     return "badge-approved", tag
 
 
-def _format_action_items_text(
-    action_items: list[Any] | None,
-    is_skipped: bool = False,
-    is_html: bool = False,
-) -> str:
-    """格式化议题总览表格中的「待办与要求」列：
-    - 不加序号，每个待办末尾加分号；
-    - 若包含 deadline 则拼接为 '{task} 时限：{deadline}；'，若无则直接 '{task}；'；
-    - 多项待办逐行呈现（Markdown 使用 <br>，HTML 使用 div）；
-    - 若讨论闭环无待办则显示 '现场闭环（无遗留待办）'；
-    - 若未讨论则显示 '—'。
-    """
-    if is_skipped:
-        return "—"
-
-    raw_list = action_items or []
-    lines: list[str] = []
-    for item in raw_list:
-        if isinstance(item, dict):
-            task = str(item.get("task") or "").strip()
-            deadline = str(item.get("deadline") or "").strip()
-        elif isinstance(item, str):
-            task = item.strip()
-            deadline = ""
-        else:
-            continue
-
-        task = re.sub(r"[；;。，,\s]+$", "", task).strip()
-        deadline = re.sub(r"[；;。，,\s]+$", "", deadline).strip()
-        if not task:
-            continue
-
-        if deadline:
-            line_str = f"{task} 时限：{deadline}；"
-        else:
-            line_str = f"{task}；"
-        lines.append(line_str)
-
-    if not lines:
-        return "现场闭环（无遗留待办）"
-
-    if is_html:
-        item_divs = "".join(f'<div class="action-item-line">{_md_inline(l)}</div>' for l in lines)
-        return f'<div class="summary-actions-wrap">{item_divs}</div>'
-    else:
-        return "<br>".join(lines).replace("|", r"\|")
-
-
 def render_agenda_minutes_html(
     title: str,
     text: str,
@@ -329,7 +281,6 @@ def render_agenda_minutes_html(
     items = draft.get("agenda_items") or []
 
     date_time = meta.get("date_time") or "2026年度会议"
-    stats = meta.get("agenda_stats") or f"共 {len(items)} 项议题"
 
     total_cnt = len(items)
     discussed_cnt = sum(

@@ -9,7 +9,6 @@
 """
 from __future__ import annotations
 
-import os
 from pathlib import Path
 
 import pytest
@@ -27,7 +26,6 @@ from domain.meeting.tasks.agenda_minutes.alignment_engine import (
 )
 from domain.meeting.tasks.agenda_minutes.steps.agenda_minutes_agent import (
     AgendaMinutesAgent,
-    _extract_agenda_and_transcript,
 )
 from domain.meeting.tasks.agenda_minutes.steps.agenda_minutes_render import (
     AgendaMinutesRender,
@@ -704,7 +702,6 @@ def test_agenda_types_registry_and_specs():
     """测试 9 大会议类型注册表与 Spec 规范定义。"""
     from domain.meeting.tasks.agenda_minutes.types import (
         AGENDA_TYPE_REGISTRY,
-        detect_agenda_type,
         get_agenda_type_spec,
     )
     from domain.meeting.tasks.agenda_minutes.prompts import build_single_item_prompt
