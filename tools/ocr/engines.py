@@ -72,12 +72,18 @@ def _log_ocr_failure(image_path: str, detail: str) -> None:
         logger.warning("save ocr fail sample failed: %s", exc)
 
 
-def run_ocr_subprocess(image_path: str) -> dict:
+def run_ocr_subprocess(image_path: str, for_agenda: bool = False) -> dict:
     """识别一张图：按 ``OCR_ENGINE`` 分派到对应引擎模块，统一 3 次重试。
 
     返回 ``{"engine": 展示名, "lines": [...]}``；三次失败 / 引擎名未知 →
     失败样本落盘并返回空 lines，不抛异常（超时由各引擎自身的环境变量控制：SERVER_OCR_TIMEOUT / PADDLE_OCR_*）。
     如果配置为 serverocr 且重试失败，则按 .env 约定自动降级兜底至 RapidOCR。
+
+    Parameters
+    ----------
+    for_agenda : bool
+        True 时使用 ``ocr_image_agenda``（禁用文档方向预处理），防止 PP-OCRv5
+        底部边缘裁切导致末尾议题丢失。
     """
     alias = os.environ.get("OCR_ENGINE", "serverocr").strip().lower() or "serverocr"
     module_name = _ENGINE_ALIASES.get(alias)
@@ -90,9 +96,15 @@ def run_ocr_subprocess(image_path: str) -> dict:
     engine = module_name.replace("_", "")  # 展示名：serverocr / paddleocr / rapidocr
     module = importlib.import_module(f"tools.ocr.{module_name}")
     errors: list[str] = []
+    # 议程专用：优先使用 ocr_image_agenda（禁用 doc_orientation），若不存在则退回 ocr_image
+    _ocr_fn = (
+        getattr(module, "ocr_image_agenda", module.ocr_image)
+        if for_agenda
+        else module.ocr_image
+    )
     for attempt in range(1, 4):
         try:
-            payload = module.ocr_image(image_path)
+            payload = _ocr_fn(image_path)
             if payload.get("lines"):
                 return payload
             errors.append(f"[attempt {attempt}] {engine} 返回空结果")

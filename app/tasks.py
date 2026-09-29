@@ -6,6 +6,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import os
 import tempfile
 import time
 from concurrent.futures import ThreadPoolExecutor
@@ -274,15 +275,52 @@ def _ocr_docs(user_id: str, docs: list[str]) -> str:
     return "\n\n".join(part for part in parts if part).strip()
 
 
+def _pad_image_bottom(image_path: str, pad_px: int = 100) -> str | None:
+    """在图片底部添加白色填充，防止 OCR 检测模型边缘截断导致末尾行丢失。
+
+    返回填充后图片的临时路径。失败时返回 None（调用方退回原图）。
+    """
+    try:
+        from PIL import Image
+
+        with Image.open(image_path) as img:
+            w, h = img.size
+            # RGBA → RGB（避免 PNG 透明通道在白色填充时颜色错乱）
+            if img.mode == "RGBA":
+                bg = Image.new("RGB", img.size, (255, 255, 255))
+                bg.paste(img, mask=img.split()[3])
+                img = bg
+            elif img.mode != "RGB":
+                img = img.convert("RGB")
+            new_img = Image.new("RGB", (w, h + pad_px), (255, 255, 255))
+            new_img.paste(img, (0, 0))
+            import tempfile as _tf
+
+            fd, tmp_path = _tf.mkstemp(suffix=".png")
+            os.close(fd)
+            new_img.save(tmp_path)
+            return tmp_path
+    except Exception as exc:  # noqa: BLE001
+        logging.getLogger(__name__).warning("pad_image_bottom failed: %s", exc)
+        return None
+
+
 def _ocr_single_agenda_doc(
     user_id: str,
     docs: list[str],
     candidate_speakers: list[str] | set[str] | None = None,
 ) -> str:
-    """议程单专用轻量 OCR：单线程直调，单图单实例，禁用上下边缘去噪裁剪，走专用议程提纯 Prompt。"""
+    """议程单专用轻量 OCR：单线程直调，单图单实例，禁用上下边缘去噪裁剪，走专用议程提纯 Prompt。
+
+    优化措施：
+    - 方案 A：底部预填充 100px 白色边距，将末尾议题从图片边缘 3% 移至安全区域
+    - 方案 B：for_agenda=True → 使用禁用 doc_orientation_classify 的专用引擎
+    """
     names = [name for name in (docs or []) if _is_image_name(name)]
     if not names:
         return ""
+    import os as _os
+
     from domain.meeting.tasks.agenda_minutes.agenda_extractor import reconstruct_agenda_markdown
     from tools.ocr.engines import ocr_engine_label
     from tools.ocr.layout import ocr_image_lines
@@ -294,10 +332,14 @@ def _ocr_single_agenda_doc(
     parts: list[str] = []
     for idx, name in enumerate(names, 1):
         path = _input_file(user_id, "docs", name)
+        padded_path: str | None = None
         try:
-            # 议程单图片：显式禁用页面边缘去噪（enable_page_chrome=False），防止底部最后一行议题被误删
-            lines = ocr_image_lines(str(path), enable_page_chrome=False) or []
-            ocr_log(f"agenda_ocr item ok {idx}/{total} lines={len(lines)} file={name}")
+            # 方案 A：底部预填充 100px 白色边距，防止 PP-OCRv5 检测模型底部边缘截断
+            padded_path = _pad_image_bottom(str(path), pad_px=100)
+            actual_path = padded_path or str(path)
+            # 方案 B：for_agenda=True → 使用议程专用引擎（禁用 doc_orientation_classify）
+            lines = ocr_image_lines(actual_path, enable_page_chrome=False, for_agenda=True) or []
+            ocr_log(f"agenda_ocr item ok {idx}/{total} lines={len(lines)} file={name} padded={padded_path is not None}")
             if lines:
                 md = reconstruct_agenda_markdown(lines, candidate_speakers=candidate_speakers).strip()
                 if md:
@@ -305,6 +347,13 @@ def _ocr_single_agenda_doc(
         except Exception as exc:  # noqa: BLE001
             ocr_log(f"agenda_ocr item fail {idx}/{total} file={name} err={exc}")
             parts.append(f"（议程单图片 {name} OCR 失败：{exc}）")
+        finally:
+            # 清理临时填充图片
+            if padded_path:
+                try:
+                    _os.unlink(padded_path)
+                except OSError:
+                    pass
 
     result = "\n\n".join(part for part in parts if part).strip()
     ocr_log(f"agenda_ocr done total={total} chars={len(result)}")

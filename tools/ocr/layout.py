@@ -550,15 +550,21 @@ def merge_fragment_lines(lines: list[dict]) -> list[dict]:
     return merged
 
 
-def ocr_image_lines(image_path: str, enable_page_chrome: bool | None = None) -> list[dict]:
+def ocr_image_lines(image_path: str, enable_page_chrome: bool | None = None, for_agenda: bool = False) -> list[dict]:
     """整图识别 → 行列表；引擎返回的 ``formula`` 字段原样透传。
 
     serverocr / paddleocr / rapidocr 均主进程直调（后两者复用实例）。失败时返回空列表。
+
+    Parameters
+    ----------
+    for_agenda : bool
+        True 时使用议程专用引擎（禁用文档方向预处理），防止 PP-OCRv5
+        底部边缘裁切导致末尾议题丢失。
     """
     from .engines import run_ocr_subprocess
 
     try:
-        payload = run_ocr_subprocess(image_path)
+        payload = run_ocr_subprocess(image_path, for_agenda=for_agenda)
     except Exception as exc:  # noqa: BLE001
         logger.warning("ocr failed: %s", exc)
         return []

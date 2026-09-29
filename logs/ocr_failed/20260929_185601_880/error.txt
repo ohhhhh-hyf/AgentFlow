@@ -1,3 +1,0 @@
-[attempt 1] HTTPError: 502 Server Error: Bad Gateway for url: http://127.0.0.1:59999/nonexistent
-[attempt 2] HTTPError: 502 Server Error: Bad Gateway for url: http://127.0.0.1:59999/nonexistent
-[attempt 3] HTTPError: 502 Server Error: Bad Gateway for url: http://127.0.0.1:59999/nonexistent

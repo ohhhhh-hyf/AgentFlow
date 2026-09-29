@@ -32,6 +32,10 @@ _TLS = threading.local()
 _CREATED = 0
 _POOL: ThreadPoolExecutor | None = None
 
+# 议程专用引擎：禁用 doc_orientation_classify 防止底部边缘裁切
+_TLS_AGENDA = threading.local()
+_AGENDA_CREATED = 0
+
 
 def _device() -> str:
     return os.getenv("PADDLE_OCR_DEVICE", "cpu").strip() or "cpu"
@@ -484,4 +488,94 @@ def ocr_image(path: str) -> dict:
     return _worker_pool().submit(_ocr_on_worker, path).result()
 
 
-__all__ = ["extract_paddle_lines", "ocr_image", "paddle_concurrency", "warmup_engines"]
+# ---------------------------------------------------------------------------
+# 议程专用 OCR：禁用 use_doc_orientation_classify，防止 PP-OCRv5
+# 的文档预处理器裁切图片底部边缘导致末尾议题丢失
+# ---------------------------------------------------------------------------
+
+def _build_engine_agenda():
+    """构建议程专用引擎：与默认引擎相同，但 use_doc_orientation_classify=False。"""
+    cuda = os.getenv("PADDLE_OCR_CUDA_VISIBLE_DEVICES", "").strip()
+    if cuda:
+        os.environ["CUDA_VISIBLE_DEVICES"] = cuda
+    from paddleocr import PaddleOCR
+
+    device = _device()
+    det = os.getenv("PADDLE_OCR_DET_MODEL", "PP-OCRv5_server_det").strip()
+    rec = os.getenv("PADDLE_OCR_REC_MODEL", "PP-OCRv5_server_rec").strip()
+    kwargs: dict[str, Any] = {
+        "text_detection_model_name": det,
+        "text_recognition_model_name": rec,
+        "device": device,
+    }
+    try:
+        return PaddleOCR(
+            **kwargs,
+            use_doc_orientation_classify=False,  # 议程专用：禁用文档方向预处理
+            use_textline_orientation=True,
+        )
+    except TypeError:
+        logger.warning("paddleocr: PP-OCRv5 params unsupported, fallback lang=ch (agenda)")
+        return PaddleOCR(lang="ch")
+
+
+def _thread_engine_agenda():
+    """议程专用引擎绑定当前线程（与主引擎分开缓存）。"""
+    global _AGENDA_CREATED
+    engine = getattr(_TLS_AGENDA, "engine", None)
+    if engine is not None:
+        return engine
+    with _CREATE_LOCK:
+        engine = getattr(_TLS_AGENDA, "engine", None)
+        if engine is not None:
+            return engine
+        idx = _AGENDA_CREATED + 1
+        logger.info("paddleocr init agenda engine %s (doc_orient=False) device=%s", idx, _device())
+        engine = _build_engine_agenda()
+        _AGENDA_CREATED += 1
+        _TLS_AGENDA.engine = engine
+        logger.info("paddleocr agenda engine %s ready", idx)
+        return engine
+
+
+def _ocr_predict_agenda(path: str) -> dict:
+    """议程专用 predict：使用 _thread_engine_agenda 引擎。"""
+    image_size = None
+    try:
+        from PIL import Image
+
+        with Image.open(path) as img:
+            image_size = img.size
+    except Exception:  # noqa: BLE001
+        image_size = None
+    engine = _thread_engine_agenda()
+    t0 = time.monotonic()
+    result = engine.predict(path)
+    lines = extract_paddle_lines(result, image_size=image_size)
+    dur = time.monotonic() - t0
+    logger.info(
+        "paddleocr agenda done file=%s dur=%.2fs lines=%d (image_size=%s)",
+        os.path.basename(path),
+        dur,
+        len(lines),
+        image_size,
+    )
+    return {"engine": "paddleocr", "lines": lines}
+
+
+def _ocr_on_worker_agenda(path: str) -> dict:
+    _TLS.worker = True
+    return _ocr_predict_agenda(path)
+
+
+def ocr_image_agenda(path: str) -> dict:
+    """议程专用 OCR：禁用文档方向预处理，防止 PP-OCRv5 底部边缘裁切导致末尾议题丢失。
+
+    与 ocr_image() 完全等价，仅引擎配置不同（use_doc_orientation_classify=False）。
+    """
+    if getattr(_TLS, "worker", False):
+        return _ocr_predict_agenda(path)
+    return _worker_pool().submit(_ocr_on_worker_agenda, path).result()
+
+
+__all__ = ["extract_paddle_lines", "ocr_image", "ocr_image_agenda", "paddle_concurrency", "warmup_engines"]
