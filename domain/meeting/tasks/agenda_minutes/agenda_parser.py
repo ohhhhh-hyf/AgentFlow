@@ -213,8 +213,138 @@ def _split_table_row(line: str) -> list[str]:
     return cells
 
 
-def parse_agenda_text(text: str) -> AgendaPlan:
-    """从文本或 OCR 字符串中提取 AgendaPlan。"""
+_COMMON_VARIANTS: dict[str, str] = {
+    # 形似与 OCR 易混字符
+    "错": "锴", "锴": "锴",
+    "九": "旭", "旭": "旭",
+    "倍": "培", "培": "培",
+    # 繁简与同音异体字
+    "啟": "启", "啓": "启",
+    "鋒": "锋", "峰": "锋",
+    "恒": "恒", "恆": "恒",
+    "强": "强", "強": "强",
+    "伟": "伟", "偉": "伟",
+    "华": "华", "華": "华",
+}
+
+_SPEAKER_TS_PATTERN = re.compile(
+    r"^([^\n\d:]{2,16})\s+(\d{1,2}:\d{2}(?::\d{2})?)",
+    re.M,
+)
+_SPEAKER_COLON_PATTERN = re.compile(
+    r"^(?:【([^】\n]{2,16})】|([^\n\d:：]{2,16})\s*[:：])\s*",
+    re.M,
+)
+
+
+def match_presenter_name(p: str, sp: str) -> float:
+    """计算议程汇报人与实际发言人的匹配相似度（支持繁简异体、单字符 OCR 误识与变体归一化）。"""
+    if not p or not sp:
+        return 0.0
+    p_strip = p.strip()
+    sp_strip = sp.strip()
+    if p_strip == sp_strip or p_strip in sp_strip or sp_strip in p_strip:
+        return 1.0
+
+    # 变体汉字归一化（如 啟 -> 启，锴 -> 错）
+    p_norm = "".join(_COMMON_VARIANTS.get(c, c) for c in p_strip)
+    sp_norm = "".join(_COMMON_VARIANTS.get(c, c) for c in sp_strip)
+    if p_norm == sp_norm or p_norm in sp_norm or sp_norm in p_norm:
+        return 0.95
+
+    return 0.0
+
+
+def extract_speakers_from_transcript(transcript: str) -> list[str]:
+    """从会议转写文本中提取出所有出场的发言人姓名列表（保序且去重）。"""
+    if not transcript or not transcript.strip():
+        return []
+    text = transcript.replace("\r\n", "\n").replace("\r", "\n")
+    matches = list(_SPEAKER_TS_PATTERN.finditer(text))
+    if not matches:
+        matches = list(_SPEAKER_COLON_PATTERN.finditer(text))
+        raw_speakers = [(m.group(1) or m.group(2) or "").strip() for m in matches]
+    else:
+        raw_speakers = [m.group(1).strip() for m in matches]
+
+    seen = set()
+    speakers: list[str] = []
+    for s in raw_speakers:
+        s_clean = re.sub(r"\b\d{5,8}\b", "", s).strip()
+        if s_clean and s_clean not in seen and 2 <= len(s_clean) <= 12:
+            if s_clean not in {"主持人", "评委", "现场发言人"}:
+                seen.add(s_clean)
+                speakers.append(s_clean)
+    return speakers
+
+
+def reconcile_presenter_names(
+    plan: AgendaPlan,
+    transcript: str = "",
+    candidate_speakers: set[str] | list[str] | None = None,
+) -> AgendaPlan:
+    """根据真实转写出场人名单，对议程计划中的 OCR 误识/异体字人名（如 陈啟错 -> 陈啟锴）进行自动校对。"""
+    cands: list[str] = []
+    if candidate_speakers:
+        cands.extend(candidate_speakers)
+    if transcript:
+        cands.extend(extract_speakers_from_transcript(transcript))
+
+    cand_set = set()
+    cleaned_cands: list[str] = []
+    for c in cands:
+        c_str = str(c).strip()
+        if c_str and c_str not in cand_set:
+            cand_set.add(c_str)
+            cleaned_cands.append(c_str)
+
+    if not cleaned_cands:
+        return plan
+
+    def _best_cand(name: str) -> str:
+        if not name or name in cand_set:
+            return name
+        best_score = 0.0
+        best_match = name
+        for cand in cleaned_cands:
+            score = match_presenter_name(name, cand)
+            if score > best_score:
+                best_score = score
+                best_match = cand
+        if best_score >= 0.8:
+            logger.info(
+                "reconcile_presenter_names: reconciled '%s' -> '%s' (score=%.2f)",
+                name,
+                best_match,
+                best_score,
+            )
+            return best_match
+        return name
+
+    for item in plan.items:
+        if item.presenters:
+            item.presenters = [_best_cand(p) for p in item.presenters]
+        if item.recorders:
+            item.recorders = [_best_cand(r) for r in item.recorders]
+        if item.members:
+            item.members = [_best_cand(m) for m in item.members]
+
+    if plan.meta.attendees:
+        for cand in cleaned_cands:
+            for p in re.findall(r"[\u4e00-\u9fa5]{2,6}", plan.meta.attendees):
+                if p not in cand_set and match_presenter_name(p, cand) >= 0.8:
+                    logger.info("reconcile_presenter_names (meta): reconciled '%s' -> '%s'", p, cand)
+                    plan.meta.attendees = plan.meta.attendees.replace(p, cand)
+
+    return plan
+
+
+def parse_agenda_text(
+    text: str,
+    transcript: str = "",
+    candidate_speakers: set[str] | list[str] | None = None,
+) -> AgendaPlan:
+    """从文本或 OCR 字符串中提取 AgendaPlan，可结合 transcript 自动校对形似错别字人名。"""
     normalized_text = (text or "").strip()
     # 制表符分隔的多行文本自动转为管道表格
     if "\t" in normalized_text and "|" not in normalized_text:
@@ -391,6 +521,24 @@ def parse_agenda_text(text: str) -> AgendaPlan:
         )
 
     plan = AgendaPlan(meta=meta, items=items)
+    if transcript or candidate_speakers:
+        plan = reconcile_presenter_names(
+            plan,
+            transcript=transcript,
+            candidate_speakers=candidate_speakers,
+        )
     _log_parser_record(normalized_text, plan, mode, used_cols)
     return plan
+
+
+__all__ = [
+    "AgendaItemParsed",
+    "AgendaMeta",
+    "AgendaPlan",
+    "clean_presenter_names",
+    "extract_speakers_from_transcript",
+    "match_presenter_name",
+    "parse_agenda_text",
+    "reconcile_presenter_names",
+]
 

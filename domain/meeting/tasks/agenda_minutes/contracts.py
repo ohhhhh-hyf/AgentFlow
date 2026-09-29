@@ -47,7 +47,8 @@ class AgendaMinutesGenerationContract(GenerationContract):
                 StrField("agenda_seq", "原议题序号（如 01, 02）"),
                 StrField("agenda_title", "既定议程议题全称（严格以会前议程单 txt 为准，保持字面完全一致）"),
                 StrField("presenter", "汇报人与责任团队/部门"),
-                StrField("status_tag", "议题结论状态标签（如 原则同意、审议通过、待补充、本次未讨论 等）"),
+                StrField("status_tag", "议题结论定调（严格四态之一：审议通过、有条件通过、未通过、本次未讨论）"),
+                StrField("time_range", "议题原声时间戳区间/时长（如 00:10 ~ 00:24，未讨论为 —）"),
                 StrListField("target_and_audience", "1. 目标与对象（为什么开、面向谁、期望发生什么变化、验收标准）"),
                 StrListField("content_and_evidence", "2. 内容与依据（改动点、量化指标、方案事实）"),
                 StrListField("process_and_interaction", "3. 过程与互动（争议焦点、评委质询、释疑论据）"),
@@ -132,15 +133,51 @@ SINGLE_AGENDA_ITEM_OUTPUT_CONTRACT = """{
 
 字段说明：
 - presenter：实际现场汇报人（如现场由某专家实际汇报则填写其真实姓名，若为主讲人则填法定汇报人）
-- status_tag：议题结论状态标签（如 原则同意、审议通过、技术共识、待补充材料、本次未讨论 等）
+- status_tag：议题结论定调，严格限定为以下四项之一：["审议通过", "有条件通过", "未通过", "本次未讨论"]
 - target_and_audience：1. 目标与对象（为什么开、面向受众、明确排除项）
 - content_and_evidence：2. 内容与依据（改动点、量化指标、方案事实）
 - process_and_interaction：3. 过程与互动（争议焦点、评委质询、释疑论据，指名道姓保留真实发言人）
-- conclusion_and_status：4. 结论与状态（自然语言陈述最终口径、生效约束红线、未决卡点）
+- conclusion_and_status：4. 结论与状态（自然语言陈述最终口径、生效约束红线、未决卡点；若有多个决策点/前置条件，可为字符串列表或分点文本）
 - action_items：5. 行动与效果
 - action_items[].owner：跟进责任人/单位
 - action_items[].task：具体执行事项、闭环动作或交付物
 - action_items[].deadline：完成时限节点或排期安排"""
+
+import re
+from typing import Any
+
+STATUS_TAG_APPROVED = "审议通过"
+STATUS_TAG_CONDITIONAL = "有条件通过"
+STATUS_TAG_REJECTED = "未通过"
+STATUS_TAG_SKIPPED = "本次未讨论"
+
+STANDARD_STATUS_TAGS = [
+    STATUS_TAG_APPROVED,
+    STATUS_TAG_CONDITIONAL,
+    STATUS_TAG_REJECTED,
+    STATUS_TAG_SKIPPED,
+]
+
+
+def normalize_status_tag(tag: Any, is_skipped: bool = False) -> str:
+    """归一化结论定调为标准四态体系：[审议通过, 有条件通过, 未通过, 本次未讨论]。"""
+    if is_skipped:
+        return STATUS_TAG_SKIPPED
+    if not tag:
+        return STATUS_TAG_APPROVED
+    s = str(tag).strip()
+    s_clean = re.sub(r"^[\[【（(]\s*|\s*[\]】）)]$", "", s).strip()
+    if not s_clean:
+        return STATUS_TAG_APPROVED
+    if "未讨论" in s_clean or "跳过" in s_clean or "skipped" in s_clean.lower():
+        return STATUS_TAG_SKIPPED
+    if any(k in s_clean for k in ("未通过", "待补充", "补充材料", "材料", "延期", "再议", "否决", "不通过", "打回", "暂停")):
+        return STATUS_TAG_REJECTED
+    if any(k in s_clean for k in ("条件", "原则", "共识", "认可", "建议", "预研")):
+        return STATUS_TAG_CONDITIONAL
+    if any(k in s_clean for k in ("通过", "放行", "同意", "采纳", "批准")):
+        return STATUS_TAG_APPROVED
+    return STATUS_TAG_APPROVED
 
 
 class AgendaMinutesFallbackRules(FallbackRules):
@@ -158,4 +195,10 @@ __all__ = [
     "AGENDA_MINUTES_SUPERVISOR_OUTPUT_CONTRACT",
     "SINGLE_AGENDA_ITEM_OUTPUT_CONTRACT",
     "AGENDA_MINUTES_FALLBACK_RULES",
+    "STATUS_TAG_APPROVED",
+    "STATUS_TAG_CONDITIONAL",
+    "STATUS_TAG_REJECTED",
+    "STATUS_TAG_SKIPPED",
+    "STANDARD_STATUS_TAGS",
+    "normalize_status_tag",
 ]

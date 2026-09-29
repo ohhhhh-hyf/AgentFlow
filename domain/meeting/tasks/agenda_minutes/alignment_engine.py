@@ -18,7 +18,12 @@ import re
 from dataclasses import dataclass, field
 from typing import Any
 
-from .agenda_parser import AgendaItemParsed, AgendaPlan
+from .agenda_parser import (
+    AgendaItemParsed,
+    AgendaPlan,
+    match_presenter_name,
+    reconcile_presenter_names,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -172,9 +177,11 @@ def _is_opening_signal(content: str) -> bool:
 
 def _is_equipment_or_chitchat(content: str) -> bool:
     """判定是否为纯设备试音或过场闲聊（且无实质长篇内容）。"""
-    if not content or len(content) > 50:
+    if not content or len(content) > 120:
         return False
     return any(pat.search(content) for pat in _EQUIPMENT_CHITCHAT_PATTERNS)
+
+
 
 
 def _detect_host_roadsign(
@@ -230,7 +237,7 @@ def _detect_host_roadsign(
         for p in all_team:
             if not p:
                 continue
-            if p in search_scope:
+            if p in search_scope or match_presenter_name(p, search_scope) >= 0.8:
                 return it.seq, False
             if len(p) >= 2:
                 surname = p[0]
@@ -372,17 +379,18 @@ def _identify_hub_speakers(plan: AgendaPlan, blocks: list[DiscussionBlock]) -> t
             all_team.update(it.members)
 
     for sp, cnt in speaker_counts.items():
-        if cnt >= 25 and not any(p in sp or sp in p for p in all_team if p):
+        if cnt >= 25 and not any(match_presenter_name(p, sp) >= 0.8 for p in all_team if p):
             raw_hubs.add(sp)
 
     if "现场发言人" in raw_hubs:
         raw_hubs.remove("现场发言人")
 
-    # 汇报人身份互斥保护（核心免疫）：
+    # 汇报人身份互斥保护（核心免疫，支持模糊容错）：
     # 检出双重身份人员（如张晓雷既是组织主席，又是议题04主讲人）
-    dual_speakers = raw_hubs.intersection(all_team)
+    team_in_hubs = {h for h in raw_hubs if any(match_presenter_name(p, h) >= 0.8 for p in all_team if p)}
+    dual_speakers = team_in_hubs
     # 凡是既定议题的汇报人/团队成员，绝不作为纯中立主持人（防止加分被彻底抹平）
-    hub_speakers = raw_hubs.difference(all_team)
+    hub_speakers = raw_hubs.difference(team_in_hubs)
 
     return hub_speakers, dual_speakers
 
@@ -405,8 +413,20 @@ def _score_block_for_item(
         score += 4.5
 
     # 1. 汇报人与团队身份匹配
-    is_presenter = any(p in sp or sp in p for p in it.presenters if p)
-    is_dual = bool(dual_speakers and sp in dual_speakers)
+    is_presenter = False
+    presenter_score = 0.0
+    for p in it.presenters:
+        if not p:
+            continue
+        sim = match_presenter_name(p, sp)
+        if sim >= 1.0:
+            is_presenter = True
+            presenter_score = max(presenter_score, 5.0)
+        elif sim >= 0.8:
+            is_presenter = True
+            presenter_score = max(presenter_score, 4.5)
+
+    is_dual = bool(dual_speakers and any(match_presenter_name(d, sp) >= 0.8 for d in dual_speakers))
 
     if sp and (sp not in hub_speakers or is_dual):
         if is_presenter:
@@ -415,18 +435,18 @@ def _score_block_for_item(
                 # 若发言过短且未命中该议题专有词，说明正在履行主持职责，不加主讲人分
                 is_short_intro = len(content) < 100 and not any(_match_token_in_text(tok, content) for tok in tokens)
                 if not is_short_intro:
-                    score += 5.0
+                    score += presenter_score
             else:
                 if len(content) >= 50 or is_opening:
-                    score += 5.0
+                    score += presenter_score
                 else:
-                    score += 3.0
+                    score += max(3.0, presenter_score - 1.0)
         elif hasattr(it, "recorders") and any(r in sp for r in it.recorders if r):
             score += 2.5
         elif hasattr(it, "members") and any(m in sp for m in it.members if m):
             score += 2.5
 
-    # 2. 正文点名该议题人员（支持全名及 姓氏+工/老师/总）
+    # 2. 正文点名该议题人员（支持全名、模糊形似名及 姓氏+工/老师/总）
     all_team = list(it.presenters)
     if hasattr(it, "recorders"):
         all_team.extend(it.recorders)
@@ -435,7 +455,7 @@ def _score_block_for_item(
     for name in all_team:
         if not name:
             continue
-        if name in content and name != sp:
+        if (name in content or match_presenter_name(name, content) >= 0.8) and name != sp:
             score += 2.0
             break
         if len(name) >= 2 and re.search(rf"{re.escape(name[0])}(?:工|老师|总|经理|博士|专家)", content):
@@ -466,6 +486,7 @@ def align_agenda_with_transcript(
     4. 最终纪要时序遵循现场研讨时间轴流淌；
     5. 主持人串场路标识别与转场闲聊/设备噪声隔离（三态状态机）。
     """
+    reconcile_presenter_names(plan, transcript=transcript)
     blocks = group_transcript_blocks(transcript, plan=plan)
     all_speakers = set(b.speaker for b in blocks if b.speaker)
 

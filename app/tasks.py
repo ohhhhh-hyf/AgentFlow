@@ -274,7 +274,11 @@ def _ocr_docs(user_id: str, docs: list[str]) -> str:
     return "\n\n".join(part for part in parts if part).strip()
 
 
-def _ocr_single_agenda_doc(user_id: str, docs: list[str]) -> str:
+def _ocr_single_agenda_doc(
+    user_id: str,
+    docs: list[str],
+    candidate_speakers: list[str] | set[str] | None = None,
+) -> str:
     """议程单专用轻量 OCR：单线程直调，单图单实例，禁用上下边缘去噪裁剪，走专用议程提纯 Prompt。"""
     names = [name for name in (docs or []) if _is_image_name(name)]
     if not names:
@@ -295,7 +299,7 @@ def _ocr_single_agenda_doc(user_id: str, docs: list[str]) -> str:
             lines = ocr_image_lines(str(path), enable_page_chrome=False) or []
             ocr_log(f"agenda_ocr item ok {idx}/{total} lines={len(lines)} file={name}")
             if lines:
-                md = reconstruct_agenda_markdown(lines).strip()
+                md = reconstruct_agenda_markdown(lines, candidate_speakers=candidate_speakers).strip()
                 if md:
                     parts.append(md)
         except Exception as exc:  # noqa: BLE001
@@ -556,7 +560,12 @@ def _prepare(domain: str, task: str, req: TaskRequest, user_id: str) -> _Prepare
             image_docs = [n for n in req.docs if _is_image_name(n)]
             text_docs = [n for n in req.docs if not _is_image_name(n)]
             if image_docs:
-                ocr_text = _ocr_single_agenda_doc(user_id, image_docs)
+                candidate_spk = []
+                if transcript:
+                    from domain.meeting.tasks.agenda_minutes.agenda_parser import extract_speakers_from_transcript
+
+                    candidate_spk = extract_speakers_from_transcript(transcript)
+                ocr_text = _ocr_single_agenda_doc(user_id, image_docs, candidate_speakers=candidate_spk)
                 if ocr_text:
                     agenda_parts.append(ocr_text)
                     try:

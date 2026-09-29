@@ -249,12 +249,16 @@ def test_agenda_minutes_agent_chronological_ordering():
     assert [it["agenda_seq"] for it in items] == ["02", "04", "01", "03"]
     assert items[0]["agenda_title"] == "议程原案B：翻译海外发布"
     assert items[0]["discussion_state"] == "discussed"
+    assert items[0]["time_range"] == "00:20"
     assert items[1]["agenda_title"] == "议程原案D：SpeechASR评审"
     assert items[1]["discussion_state"] == "discussed"
+    assert items[1]["time_range"] == "00:40"
     assert items[2]["agenda_title"] == "议程原案A：小艺慧记发布"
     assert items[2]["discussion_state"] == "skipped"
+    assert items[2]["time_range"] == "—"
     assert items[3]["agenda_title"] == "议程原案C：HAG商用评审"
     assert items[3]["discussion_state"] == "skipped"
+    assert items[3]["time_range"] == "—"
 
 
 def test_agenda_minutes_agent_enforce_invariants():
@@ -313,7 +317,7 @@ def test_agenda_minutes_agent_enforce_invariants():
     # 议题 2：未讨论议题的脑补事实被 100% 确定性清空置空
     assert items[1]["agenda_seq"] == "02"
     assert items[1]["agenda_title"] == "官方议题B：关于音频降噪的架构审议"
-    assert items[1]["status_tag"] == "[本次未讨论]"
+    assert items[1]["status_tag"] == "本次未讨论"
     assert items[1]["discussion_state"] == "skipped"
     assert items[1]["proposal_highlights"] == []
     assert items[1]["deliberation_details"]["key_metrics"] == []
@@ -335,6 +339,7 @@ def test_markdown_and_html_render():
                 "agenda_seq": "01",
                 "agenda_title": "翻译海外HiTranslationService 21.1.1.300商用版本发布",
                 "presenter": "刘畅",
+                "time_range": "00:20 ~ 00:34",
                 "status_tag": "[审议通过]",
                 "proposal_highlights": ["推进俄罗斯首站存储与新加坡集群部署。"],
                 "deliberation_details": {
@@ -371,11 +376,12 @@ def test_markdown_and_html_render():
 
     # 1. 验证 Markdown 格式
     md_output = format_agenda_minutes_markdown(draft)
-    assert "# 智慧域商用发布评审 · 议程全景纪要" in md_output
+    assert "# 议程纪要" in md_output
+    assert "与会人员" not in md_output
     assert "## 议题总览" in md_output
     assert "第一部分" not in md_output
-    assert "| 翻译海外HiTranslationService 21.1.1.300商用版本发布 | 刘畅 | `[审议通过]` |" in md_output
-    assert "| HAG 3.6.5.300版本商用发布评审 | 沙彬斌、陈啟锴 | `[本次未讨论]` |" in md_output
+    assert "| 翻译海外HiTranslationService 21.1.1.300商用版本发布 | 刘畅 | 00:20 ~ 00:34 | `审议通过` |" in md_output
+    assert "| HAG 3.6.5.300版本商用发布评审 | 沙彬斌、陈啟锴 | — | `本次未讨论` |" in md_output
     assert "## 议题分析" in md_output
     assert "第二部分" not in md_output
     assert "### 议题 01 · 翻译海外HiTranslationService 21.1.1.300商用版本发布" in md_output
@@ -391,9 +397,15 @@ def test_markdown_and_html_render():
     # 2. 验证 HTML 格式（LaTeX Paper 风格，无 emoji）
     html_output = render_agenda_minutes_html("智慧域商用发布评审", md_output, draft)
     assert "<!DOCTYPE html>" in html_output
-    assert "智慧域商用发布评审 · 议程全景纪要" in html_output
+    assert "<title>议程纪要</title>" in html_output
+    assert "<h1>议程纪要</h1>" in html_output
+    assert "与会人员" not in html_output
     assert "ck-doc" in html_output
     assert "议题总览" in html_output
+    assert '<th class="col-time">议题时长</th>' in html_output
+    assert '<th class="col-status">结论定调</th>' in html_output
+    assert "col-actions" not in html_output
+    assert "待办与要求" not in html_output
     assert "议题分析" in html_output
     assert "目标与对象" in html_output
     assert "内容与依据" in html_output
@@ -416,7 +428,7 @@ def test_markdown_and_html_render():
 
     # 3. 验证 Render 类的 render_draft 与 extract_structure
     state = {"lines": {"agenda_minutes": {"draft": draft}}}
-    assert AgendaMinutesRender.render_draft(state).startswith("# 智慧域商用发布评审 · 议程全景纪要")
+    assert AgendaMinutesRender.render_draft(state).startswith("# 议程纪要")
     extracted = AgendaMinutesRender.extract_structure(state)
     assert len(extracted) == 2
     assert extracted[0]["agenda_seq"] == "01"
@@ -503,8 +515,7 @@ async def test_agenda_minutes_fallback_in_orchestrator():
     assert line_out["degraded"] is True
     rendered_text = line_out["rendered"]
     # 验证降级产物是完整的 Markdown 而非 str(dict)
-    assert not rendered_text.startswith("{'theme'")
-    assert "# 降级测试例会 · 议程全景纪要" in rendered_text
+    assert "# 议程纪要" in rendered_text
     assert "### 议题 01 · 测试议题一" in rendered_text
     assert len(line_out["structure"]) == 1
 
@@ -587,7 +598,7 @@ SpeechASR 模型完成通用测试集验证，虽然劣化 40ms 但现网表现�
     # 3. 验证未讨论的 03 确定性置空
     assert items[2]["agenda_seq"] == "03"
     assert items[2]["discussion_state"] == "skipped"
-    assert items[2]["status_tag"] == "[本次未讨论]"
+    assert items[2]["status_tag"] == "本次未讨论"
     assert items[2]["proposal_highlights"] == []
 
     # 4. 验证总体评价已去除
@@ -941,6 +952,130 @@ def test_test6_annual_summit_native_host_and_keynotes():
     assert "贾磊" in res.alignments[2].matched_speakers
     assert "郑方" in res.alignments[3].matched_speakers
     assert "俞凯" in res.alignments[4].matched_speakers
+
+
+def test_shangping2_typo_chenqicuo_reconciled():
+    """验证 商评2 中 OCR 识别错字（陈啟错）的自动纠错与对齐：
+    1. match_presenter_name 识别 错 与 锴 的 OCR 易混变体，打分达 0.95；
+    2. parse_agenda_text 传入 transcript 时自动校准为真实发言人 陈啟锴；
+    3. align_agenda_with_transcript 将第 5 项（HAG）成功判定为 discussed，不再沦为 [本次未讨论]。
+    """
+    from domain.meeting.tasks.agenda_minutes.agenda_parser import (
+        match_presenter_name,
+        parse_agenda_text,
+    )
+    from domain.meeting.tasks.agenda_minutes.alignment_engine import align_agenda_with_transcript
+
+    # 1. 变体与形似容错打分
+    assert match_presenter_name("陈啟错", "陈啟锴") >= 0.9
+    assert match_presenter_name("陈启蒙", "陈啟锴") == 0.0  # 杜绝异人同姓字辈误伤
+
+    docx_path = AGENDA_DIR / "test2" / "商评2.docx"
+    txt_path = AGENDA_DIR / "test2" / "商评2.txt"
+    if not docx_path.is_file() or not txt_path.is_file():
+        pytest.skip("Test 2 files not found")
+
+    doc = docx.Document(str(docx_path))
+    transcript = "\n".join(p.text for p in doc.paragraphs if p.text.strip())
+    # 模拟 OCR 出现错别字 陈啟错
+    agenda_with_typo = txt_path.read_text(encoding="utf-8").replace("陈啟锴", "陈啟错")
+    assert "陈啟错" in agenda_with_typo
+
+    plan = parse_agenda_text(agenda_with_typo, transcript=transcript)
+    hag_item = next(it for it in plan.items if "HAG" in it.title)
+    assert "陈啟锴" in hag_item.presenters
+
+    res = align_agenda_with_transcript(plan, transcript)
+    hag_align = next(a for a in res.alignments if "HAG" in a.item.title)
+    assert hag_align.status == "discussed"
+    assert len(hag_align.matched_blocks) > 0
+    assert res.discussed_count == 9
+    assert res.skipped_count == 0
+
+
+def test_agenda_minutes_table_full_conclusion_no_truncation():
+    """验证总览表格核心结论优化：
+    1. 表头列名由 '核心结论与后续安排' 简化为 '核心结论'；
+    2. HTML 与 Markdown 输出均不产生 [:80] / [:57] 机械截断；
+    3. 列表型结论自动平铺为分号拼接的干净正文，杜绝 Python repr 形如 ['...'] 的括号引号污染。
+    """
+    from tools.exports.html.agenda_minutes import (
+        format_agenda_minutes_markdown,
+        render_agenda_minutes_html,
+    )
+
+    long_conclusion_list = [
+        "本次评审未直接通过，定调为待补充材料。现场处置结论：晚上单独组织会议对齐时延和效果问题，由领导决策版本是否带风险上线。",
+        "发布前置条件：第一，将时延劣化数据及回归测试报告补充至工作台；第二，闭环海外商用状态风险并完成法务归档。",
+    ]
+
+    mock_draft = {
+        "meeting_meta": {
+            "theme": "商用发布评审会",
+            "date_time": "2026/06/15",
+            "attendees_summary": "全体评委",
+        },
+        "agenda_items": [
+            {
+                "agenda_seq": "01",
+                "agenda_title": "测试长文本议题",
+                "presenter": "张三",
+                "time_range": "00:10 ~ 00:25",
+                "status_tag": "待补充材料",
+                "conclusion_and_status": long_conclusion_list,
+                "discussion_state": "discussed",
+            }
+        ],
+    }
+
+    # 1. 验证 Markdown 输出
+    md = format_agenda_minutes_markdown(mock_draft)
+    assert "| 议题时长 | 结论定调 |" in md
+    assert "核心结论与后续安排" not in md
+    assert "| 核心结论 |" not in md
+    assert "| 待办与要求 |" not in md
+    # 验证完整文本保留，未被截断
+    assert "闭环海外商用状态风险并完成法务归档" in md
+    # 验证无 Python list repr 符号
+    assert "['" not in md
+    # 验证 Markdown 正文结论以分点形式罗列
+    assert "> - " in md
+
+    # 2. 验证 HTML 输出
+    html = render_agenda_minutes_html("商用发布评审会", md, data=mock_draft)
+    assert '<th class="col-time">议题时长</th>' in html
+    assert '<th class="col-status">结论定调</th>' in html
+    assert "col-actions" not in html
+    assert "待办与要求" not in html
+    assert "核心结论与后续安排" not in html
+    assert "badge-rejected" in html  # 待补充材料自动归一化为 未通过 (badge-rejected)
+    # 验证完整文本保留，未被 [:80] 截断
+    assert "闭环海外商用状态风险并完成法务归档" in html
+    assert "['" not in html
+    # 验证卡片正文结论使用分点列表
+    assert '<ul class="res-box-list">' in html
+
+    # 3. 验证历史遗留/极端受污染的字符串形式 "['条目1', '条目2']" 自动清洗恢复
+    polluted_string = (
+        "['车机时延问题延期单独评审：索勋飞明确...', "
+        "'其余问题要求补充材料后跟进：ASR效果问题...']"
+    )
+    mock_draft_polluted = {
+        "agenda_items": [
+            {
+                "agenda_seq": "01",
+                "agenda_title": "测试清洗议题",
+                "presenter": "李四",
+                "conclusion_and_status": polluted_string,
+            }
+        ]
+    }
+    clean_html = render_agenda_minutes_html("测试", "", data=mock_draft_polluted)
+    assert "['" not in clean_html
+    assert "', '" not in clean_html
+    assert '<ul class="res-box-list">' in clean_html
+
+
 
 
 

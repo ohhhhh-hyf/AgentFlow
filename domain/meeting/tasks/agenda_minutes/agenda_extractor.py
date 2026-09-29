@@ -15,6 +15,7 @@ import re
 from typing import Any
 
 from tools.ocr.engines import get_llm_client
+from .agenda_parser import extract_speakers_from_transcript
 
 logger = logging.getLogger("agentflow.agenda_extractor")
 
@@ -70,7 +71,11 @@ def _clean_md_fences(text: str) -> str:
     return raw.strip()
 
 
-def reconstruct_agenda_markdown(lines: list[dict[str, Any]], raw_text: str = "") -> str:
+def reconstruct_agenda_markdown(
+    lines: list[dict[str, Any]],
+    raw_text: str = "",
+    candidate_speakers: list[str] | set[str] | None = None,
+) -> str:
     """同步入口：调用 LLM 将 OCR 识别行结构化重构为标准化 Markdown 议程单。"""
     if not lines and not raw_text:
         return ""
@@ -89,9 +94,20 @@ def reconstruct_agenda_markdown(lines: list[dict[str, Any]], raw_text: str = "")
         logger.warning("LLM client 不可用，降级直接拼接 OCR 文本")
         return user_content
 
+    system_prompt = AGENDA_RECONSTRUCT_SYSTEM_PROMPT
+    if candidate_speakers:
+        cand_list = [str(s).strip() for s in candidate_speakers if str(s).strip()]
+        if cand_list:
+            speaker_list_str = "、".join(cand_list[:60])
+            system_prompt += (
+                f"\n\n【参考与会/发言人名单（用于校验和校对 OCR 容易识别错误的形似字/错别字，例如：'陈啟错' 应校正为 '陈啟锴'）】：\n"
+                f"{speaker_list_str}\n"
+                f"★ 请在输出的议程表格「汇报人/主讲人」及「全程与会人/主持人」中，优先以本参考名单中的准确姓名对 OCR 识别文本中的形似错别字、异体字进行校正对齐！"
+            )
+
     async def _call() -> str:
         return await client.text(
-            AGENDA_RECONSTRUCT_SYSTEM_PROMPT,
+            system_prompt,
             user_content,
             label="agenda_minutes/ocr_reconstruct",
             max_tokens=2500,
@@ -119,4 +135,9 @@ def reconstruct_agenda_markdown(lines: list[dict[str, Any]], raw_text: str = "")
     return user_content
 
 
-__all__ = ["AGENDA_RECONSTRUCT_SYSTEM_PROMPT", "reconstruct_agenda_markdown"]
+__all__ = [
+    "AGENDA_RECONSTRUCT_SYSTEM_PROMPT",
+    "extract_speakers_from_transcript",
+    "reconstruct_agenda_markdown",
+]
+

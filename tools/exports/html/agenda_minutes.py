@@ -13,9 +13,73 @@ from typing import Any
 from tools.exports.html.paper_css import latex_paper_css as _latex_paper_css
 
 
+def _normalize_conclusion_points(val: Any) -> list[str]:
+    """统一规范化结论与状态字段为干净的条目列表，剔除 Python repr 符号与多余空行。"""
+    if val is None or val is False:
+        return []
+    if isinstance(val, (list, tuple, set)):
+        res = []
+        for x in val:
+            res.extend(_normalize_conclusion_points(x))
+        return [r for r in res if r]
+
+    s = str(val).strip()
+    if not s:
+        return []
+
+    # 1. 修复历史上因 str(list) 产生的 "['item1', 'item2']" 字符串
+    if s.startswith("[") and s.endswith("]") and ("'," in s or '",' in s or "','" in s or '","' in s):
+        import ast
+
+        try:
+            parsed = ast.literal_eval(s)
+            if isinstance(parsed, (list, tuple)):
+                return _normalize_conclusion_points(parsed)
+        except Exception:
+            pass
+        inner = s[1:-1].strip()
+        parts = re.split(r"'\s*,\s*'|\"\s*,\s*\"", inner)
+        cleaned = [p.strip().strip("'\"").strip() for p in parts if p.strip().strip("'\"").strip()]
+        if len(cleaned) > 1:
+            return _normalize_conclusion_points(cleaned)
+
+    # 2. 预处理：解耦定调语句与前置约束标题（如 '...通过。生效前置约束：1）...' -> '...通过。\n1）...'）
+    s = re.sub(r'^\s*(?:发布前置条件|生效前置约束|前置条件|前置约束|附带条件|后续要求|主要关注项|注意事项)[：:]\s*', '', s)
+    s = re.sub(r'([。；;\n])?\s*(?:发布前置条件|生效前置约束|前置条件|前置约束|附带条件|后续要求|主要关注项|注意事项)[：:]\s*', lambda m: (m.group(1) or '。') + '\n', s)
+    s = re.sub(r'([。；;\n])?\s*(?:现场未决卡点|现场卡点|未决卡点|遗留卡点)[：:]\s*', lambda m: (m.group(1) or '。') + '\n', s)
+
+    # 3. 标号前置断行：在 1） 2） 1. (1) ① 一是 等标记前切开
+    num_pattern = re.compile(r'(?<=[^0-9\n])(?=(?:[1-9]\d*[\.、）\)]|[(（][1-9]\d*[)）]|[①-⑩]|(?:一是|二是|三是|四是|五是)|(?:第一[，,、]|第二[，,、]|第三[，,、])))')
+    s = num_pattern.sub('\n', s)
+
+    # 4. 按行切分
+    lines = [line.strip() for line in s.splitlines() if line.strip()]
+
+    # 5. 若未成功分行，但包含 2 个及以上分号，按分号切分
+    if len(lines) == 1 and (lines[0].count('；') >= 2 or lines[0].count(';') >= 2):
+        lines = [p.strip() for p in re.split(r'[；;]\s*', lines[0]) if p.strip()]
+
+    # 6. 清洗每条开头的数字标号与冗余前缀（如“生效前置约束 1：”等，实现一点一行干货直出）
+    cleaned = []
+    for it in lines:
+        it = re.sub(r'^(?:[-*•·\s]+|(?:[1-9]\d*[\.、）\)]|[(（][1-9]\d*[)）]|[①-⑩]|(?:一是|二是|三是|四是|五是)|(?:第一[，,、]|第二[，,、]|第三[，,、])))\s*', '', it).strip()
+        it = re.sub(r'^(?:发布前置条件|生效前置约束|前置条件|前置约束|附带条件|现场未决卡点|现场卡点|未决卡点|遗留卡点)\s*\d*\s*[：:]\s*', '', it).strip()
+        if re.search(r'^(?:现场)?无(?:其他)?(?:阻塞|卡点|遗留|风险|问题)', it):
+            continue
+        if it:
+            cleaned.append(it)
+
+    return cleaned or [s]
+
+
 def _safe_str(val: Any) -> str:
     if val is None or val is False:
         return ""
+    pts = _normalize_conclusion_points(val)
+    if len(pts) > 1:
+        return "；".join(pts)
+    if pts:
+        return pts[0]
     return str(val).strip()
 
 
@@ -34,36 +98,33 @@ def format_agenda_minutes_markdown(draft: dict[str, Any], title: str = "") -> st
     meta = draft.get("meeting_meta") or {}
     items = draft.get("agenda_items") or []
 
-    theme = meta.get("theme") or title or "会议审议与技术研讨"
     date_time = meta.get("date_time") or "2026年度会议"
-    attendees = meta.get("attendees_summary") or "全体与会人"
     stats = meta.get("agenda_stats") or f"既定议题共 {len(items)} 项"
 
     lines = [
-        f"# {theme} · 议程全景纪要",
+        "# 议程纪要",
         "",
         f"> **会议时间**：{date_time}  ",
-        f"> **与会人员**：{attendees}  ",
         f"> **议程进展总览**：{stats}",
         "",
         "---",
         "",
         "## 议题总览",
         "",
-        "| 议题名称 | 汇报人 | 结论/定调状态 | 核心结论与后续安排 |",
-        "| :--- | :---: | :---: | :--- |",
+        "| 议题名称 | 汇报人 | 议题时长 | 结论定调 |",
+        "| :--- | :---: | :---: | :---: |",
     ]
 
     for it in items:
         it_title = it.get("agenda_title") or "议题"
         pres = it.get("presenter") or "未记录"
         state = it.get("discussion_state") or "discussed"
-        status = it.get("status_tag") or ("[本次未讨论]" if state == "skipped" else "[审议通过]")
-        res = it.get("conclusion_and_status") or it.get("resolution") or ""
-        res_summary = res.splitlines()[0] if res else ("—" if state == "skipped" else "（本次未形成明确决议）")
-        if len(res_summary) > 60:
-            res_summary = res_summary[:57] + "..."
-        lines.append(f"| {it_title} | {pres} | `{status}` | {res_summary} |")
+        raw_status = it.get("status_tag") or ("本次未讨论" if state == "skipped" else "审议通过")
+        tag = _normalize_status_tag(raw_status, is_skipped=(state == "skipped"))
+        time_range = str(it.get("time_range") or "—").strip() or "—"
+        if state == "skipped" or tag == "本次未讨论":
+            time_range = "—"
+        lines.append(f"| {it_title} | {pres} | {time_range} | `{tag}` |")
 
     lines.extend([
         "",
@@ -78,17 +139,18 @@ def format_agenda_minutes_markdown(draft: dict[str, Any], title: str = "") -> st
         it_title = it.get("agenda_title") or "议题"
         pres = it.get("presenter") or "未记录"
         state = it.get("discussion_state") or "discussed"
-        status = it.get("status_tag") or ("[本次未讨论]" if state == "skipped" else "[审议通过]")
+        raw_status = it.get("status_tag") or ("本次未讨论" if state == "skipped" else "审议通过")
+        tag = _normalize_status_tag(raw_status, is_skipped=(state == "skipped"))
 
         lines.extend([
             f"### 议题 {seq} · {it_title}",
             "",
             f"- **汇报人/责任单位**：{pres}",
-            f"- **结论定调**：`{status}`",
+            f"- **结论定调**：`{tag}`",
             "",
         ])
 
-        if state == "skipped" or "[本次未讨论]" in status:
+        if state == "skipped" or tag == "本次未讨论":
             lines.extend([
                 "> （本次会议录音转写未见本议题汇报或讨论记录）",
                 "",
@@ -142,12 +204,13 @@ def format_agenda_minutes_markdown(draft: dict[str, Any], title: str = "") -> st
         lines.append("")
 
         # 4. 结论与状态
-        conclusion = str(it.get("conclusion_and_status") or it.get("resolution") or "").strip()
+        conclusion_raw = it.get("conclusion_and_status") or it.get("resolution") or ""
+        pts = _normalize_conclusion_points(conclusion_raw)
         lines.append("#### 4. 结论与状态")
-        if conclusion:
-            lines.extend([f"> {conclusion}", ""])
-        else:
+        if not pts:
             lines.extend(["> （本次会议未记录到明确决议）", ""])
+        else:
+            lines.extend([f"> - {p}" for p in pts] + [""])
 
         # 5. 行动与效果
         actions = it.get("action_items") or it.get("action_commitments") or []
@@ -169,18 +232,85 @@ def format_agenda_minutes_markdown(draft: dict[str, Any], title: str = "") -> st
     return "\n".join(lines).strip() + "\n"
 
 
-def _status_class(status: str) -> tuple[str, str]:
+def _normalize_status_tag(tag: Any, is_skipped: bool = False) -> str:
+    """归一化结论定调为标准四态体系：[审议通过, 有条件通过, 未通过, 本次未讨论]。"""
+    if is_skipped:
+        return "本次未讨论"
+    if not tag:
+        return "审议通过"
+    s = str(tag).strip()
+    s_clean = re.sub(r"^[\[【（(]\s*|\s*[\]】）)]$", "", s).strip()
+    if not s_clean:
+        return "审议通过"
+    if "未讨论" in s_clean or "跳过" in s_clean or "skipped" in s_clean.lower():
+        return "本次未讨论"
+    if any(k in s_clean for k in ("未通过", "待补充", "补充材料", "材料", "延期", "再议", "否决", "不通过", "打回", "暂停")):
+        return "未通过"
+    if any(k in s_clean for k in ("条件", "原则", "共识", "认可", "建议", "预研")):
+        return "有条件通过"
+    if any(k in s_clean for k in ("通过", "放行", "同意", "采纳", "批准")):
+        return "审议通过"
+    return "审议通过"
+
+
+def _status_class(status: str, is_skipped: bool = False) -> tuple[str, str]:
     """返回 (badge_class, display_text)。"""
-    s = status.strip()
-    if "[本次未讨论]" in s or "未讨论" in s:
-        return "badge-skipped", s
-    if "附条件" in s or "条件通过" in s:
-        return "badge-conditional", s
-    if "通过" in s:
-        return "badge-approved", s
-    if "共识" in s or "认可" in s or "建议" in s:
-        return "badge-consensus", s
-    return "badge-default", s
+    tag = _normalize_status_tag(status, is_skipped=is_skipped)
+    if tag == "本次未讨论":
+        return "badge-skipped", tag
+    if tag == "未通过":
+        return "badge-rejected", tag
+    if tag == "有条件通过":
+        return "badge-conditional", tag
+    return "badge-approved", tag
+
+
+def _format_action_items_text(
+    action_items: list[Any] | None,
+    is_skipped: bool = False,
+    is_html: bool = False,
+) -> str:
+    """格式化议题总览表格中的「待办与要求」列：
+    - 不加序号，每个待办末尾加分号；
+    - 若包含 deadline 则拼接为 '{task} 时限：{deadline}；'，若无则直接 '{task}；'；
+    - 多项待办逐行呈现（Markdown 使用 <br>，HTML 使用 div）；
+    - 若讨论闭环无待办则显示 '现场闭环（无遗留待办）'；
+    - 若未讨论则显示 '—'。
+    """
+    if is_skipped:
+        return "—"
+
+    raw_list = action_items or []
+    lines: list[str] = []
+    for item in raw_list:
+        if isinstance(item, dict):
+            task = str(item.get("task") or "").strip()
+            deadline = str(item.get("deadline") or "").strip()
+        elif isinstance(item, str):
+            task = item.strip()
+            deadline = ""
+        else:
+            continue
+
+        task = re.sub(r"[；;。，,\s]+$", "", task).strip()
+        deadline = re.sub(r"[；;。，,\s]+$", "", deadline).strip()
+        if not task:
+            continue
+
+        if deadline:
+            line_str = f"{task} 时限：{deadline}；"
+        else:
+            line_str = f"{task}；"
+        lines.append(line_str)
+
+    if not lines:
+        return "现场闭环（无遗留待办）"
+
+    if is_html:
+        item_divs = "".join(f'<div class="action-item-line">{_md_inline(l)}</div>' for l in lines)
+        return f'<div class="summary-actions-wrap">{item_divs}</div>'
+    else:
+        return "<br>".join(lines).replace("|", r"\|")
 
 
 def render_agenda_minutes_html(
@@ -193,34 +323,35 @@ def render_agenda_minutes_html(
     meta = draft.get("meeting_meta") or {}
     items = draft.get("agenda_items") or []
 
-    theme = meta.get("theme") or title or "议程全景纪要"
     date_time = meta.get("date_time") or "2026年度会议"
-    attendees = meta.get("attendees_summary") or "全体参会人"
     stats = meta.get("agenda_stats") or f"共 {len(items)} 项议题"
 
     total_cnt = len(items)
     discussed_cnt = sum(
         1 for it in items
-        if it.get("discussion_state") != "skipped" and "[本次未讨论]" not in str(it.get("status_tag") or "")
+        if it.get("discussion_state") != "skipped" and _normalize_status_tag(it.get("status_tag")) != "本次未讨论"
     )
     skipped_cnt = total_cnt - discussed_cnt
 
-    # 构建议题总览表格行（已移除序号列）
+    # 构建议题总览表格行
     table_rows = []
     for it in items:
         seq = _safe_str(it.get("agenda_seq") or "01")
         it_title = _safe_str(it.get("agenda_title") or "议题")
         pres = _safe_str(it.get("presenter") or "未记录")
-        status = _safe_str(it.get("status_tag") or "[审议通过]")
-        res = _safe_str(it.get("conclusion_and_status") or it.get("resolution") or "")
-        badge_cls, badge_text = _status_class(status)
+        raw_status = _safe_str(it.get("status_tag") or "审议通过")
+        state = _safe_str(it.get("discussion_state") or "discussed")
+        badge_cls, badge_text = _status_class(raw_status, is_skipped=(state == "skipped"))
+        time_range = _safe_str(it.get("time_range") or "—")
+        if state == "skipped" or badge_text == "本次未讨论":
+            time_range = "—"
 
         table_rows.append(f"""
         <tr>
             <td class="col-title"><a href="#topic-{seq}">{escape(it_title)}</a></td>
             <td class="col-pres">{escape(pres)}</td>
+            <td class="col-time">{escape(time_range)}</td>
             <td class="col-status"><span class="badge {badge_cls}">{escape(badge_text)}</span></td>
-            <td class="col-res">{_md_inline(res[:80])}</td>
         </tr>
         """)
 
@@ -230,11 +361,11 @@ def render_agenda_minutes_html(
         seq = _safe_str(it.get("agenda_seq") or "01")
         it_title = _safe_str(it.get("agenda_title") or "议题")
         pres = _safe_str(it.get("presenter") or "未记录")
-        status = _safe_str(it.get("status_tag") or "[审议通过]")
+        raw_status = _safe_str(it.get("status_tag") or "审议通过")
         state = _safe_str(it.get("discussion_state") or "discussed")
-        badge_cls, badge_text = _status_class(status)
+        badge_cls, badge_text = _status_class(raw_status, is_skipped=(state == "skipped"))
 
-        if state == "skipped" or "[本次未讨论]" in status:
+        if state == "skipped" or badge_text == "本次未讨论":
             card_html = f"""
             <div class="agenda-card card-skipped" id="topic-{seq}">
                 <div class="card-header">
@@ -282,8 +413,13 @@ def render_agenda_minutes_html(
         process_li = "".join(f"<li>{_md_inline(c)}</li>" for c in process_list) if process_list else "<li>现场就方案细节与落地风险展开了充分质询与沟通。</li>"
 
         # 4. 结论与状态
-        conclusion = _safe_str(it.get("conclusion_and_status") or it.get("resolution") or "")
-        conclusion_content = _md_inline(conclusion) if conclusion else "（本次会议未形成明确决议）"
+        conclusion_raw = it.get("conclusion_and_status") or it.get("resolution") or ""
+        pts = _normalize_conclusion_points(conclusion_raw)
+        if not pts:
+            conclusion_content = '<span class="no-res">（本次会议未形成明确决议）</span>'
+        else:
+            items_html = "".join(f"<li>{_md_inline(p)}</li>" for p in pts)
+            conclusion_content = f'<ul class="res-box-list">{items_html}</ul>'
 
         # 5. 行动与效果
         actions = it.get("action_items") or it.get("action_commitments") or []
@@ -356,7 +492,6 @@ def render_agenda_minutes_html(
         """
         cards.append(card_html)
 
-    attendees_brief = attendees[:80] + ("..." if len(attendees) > 80 else "")
 
     custom_css = """
     .ck-doc-meta {
@@ -389,15 +524,21 @@ def render_agenda_minutes_html(
       text-decoration-color: #111111;
     }
     .col-pres {
-      width: 130px;
+      width: 120px;
+      text-align: center;
       white-space: nowrap;
+    }
+    .col-time {
+      width: 130px;
+      text-align: center;
+      white-space: nowrap;
+      color: #555555;
+      font-variant-numeric: tabular-nums;
     }
     .col-status {
-      width: 120px;
+      width: 110px;
+      text-align: center;
       white-space: nowrap;
-    }
-    .col-res {
-      color: #333333;
     }
 
     .badge {
@@ -419,6 +560,11 @@ def render_agenda_minutes_html(
       background: #fff8e1;
       color: #825300;
       border: 1px solid #ffe082;
+    }
+    .badge-rejected {
+      background: #fdecea;
+      color: #b71c1c;
+      border: 1px solid #ffcdd2;
     }
     .badge-consensus {
       background: #e8f4fd;
@@ -563,10 +709,34 @@ def render_agenda_minutes_html(
       border: 1px solid #d4e6d4;
       border-left: 3px solid #2e7d32;
       border-radius: 3px;
-      padding: 8px 12px;
+      padding: 8px 14px;
       font-size: var(--ck-fs);
       color: #1b4d1d;
       line-height: 1.6;
+    }
+    .res-box-list {
+      margin: 0;
+      padding-left: 1.35em;
+      list-style-type: disc;
+    }
+    .res-box-list li {
+      margin: 4px 0;
+      line-height: 1.6;
+    }
+    .res-single {
+      margin: 0;
+    }
+    .summary-res-list {
+      margin: 0;
+      padding-left: 1.25em;
+      line-height: 1.5;
+    }
+    .summary-res-list li {
+      margin: 3px 0;
+    }
+    .no-res {
+      color: #666666;
+      font-style: italic;
     }
 
     .skipped-banner {
@@ -627,7 +797,7 @@ def render_agenda_minutes_html(
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>{escape(theme)} · 议程全景纪要</title>
+    <title>议程纪要</title>
     <style>
 {_latex_paper_css()}
 {custom_css}
@@ -637,11 +807,10 @@ def render_agenda_minutes_html(
     <main class="page">
         <div class="ck-doc">
             <header class="ck-doc-header">
-                <h1>{escape(theme)} · 议程全景纪要</h1>
+                <h1>议程纪要</h1>
                 <div class="ck-doc-meta">
                     <span>会议时间：{escape(date_time)}</span> &nbsp;|&nbsp;
-                    <span>议程进展：共 {total_cnt} 项（有效审议 {discussed_cnt} 项，本次未讨论 {skipped_cnt} 项）</span> &nbsp;|&nbsp;
-                    <span>与会人员：{escape(attendees_brief)}</span>
+                    <span>议程进展：共 {total_cnt} 项（有效审议 {discussed_cnt} 项，本次未讨论 {skipped_cnt} 项）</span>
                 </div>
             </header>
 
@@ -651,9 +820,9 @@ def render_agenda_minutes_html(
                     <thead>
                         <tr>
                             <th class="col-title">议题名称</th>
-                            <th class="col-pres">汇报人/单位</th>
+                            <th class="col-pres">汇报人</th>
+                            <th class="col-time">议题时长</th>
                             <th class="col-status">结论定调</th>
-                            <th class="col-res">核心结论与后续安排</th>
                         </tr>
                     </thead>
                     <tbody>

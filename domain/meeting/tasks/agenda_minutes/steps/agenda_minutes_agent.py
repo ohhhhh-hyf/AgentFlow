@@ -23,11 +23,17 @@ from tools.schema.validation import OutputValidationError
 
 from ....models import AgendaMinutes
 from ....models_base import ModelMixin
-from ..agenda_parser import AgendaItemParsed, AgendaPlan, parse_agenda_text
+from ..agenda_parser import (
+    AgendaItemParsed,
+    AgendaPlan,
+    match_presenter_name,
+    parse_agenda_text,
+)
 from ..alignment_engine import AgendaAlignment, AlignmentResult, align_agenda_with_transcript
 from ..contracts import (
     AGENDA_MINUTES_GENERATION_OUTPUT_CONTRACT,
     SINGLE_AGENDA_ITEM_OUTPUT_CONTRACT,
+    normalize_status_tag,
 )
 from ..prompts import (
     AGENDA_MINUTES_GENERATION_SYSTEM_PROMPT,
@@ -39,22 +45,111 @@ from ..types import detect_agenda_type
 logger = logging.getLogger(__name__)
 
 
+def _normalize_conclusion_points(val: Any) -> list[str]:
+    """统一规范化结论与状态字段为干净的条目列表，彻底支持一点一行拆解。"""
+    if val is None or val is False:
+        return []
+    if isinstance(val, (list, tuple, set)):
+        res = []
+        for x in val:
+            res.extend(_normalize_conclusion_points(x))
+        return [r for r in res if r]
+
+    s = str(val).strip()
+    if not s:
+        return []
+
+    # 1. 修复历史上因 str(list) 产生的 "['item1', 'item2']" 字符串
+    if s.startswith("[") and s.endswith("]") and ("'," in s or '",' in s or "','" in s or '","' in s):
+        import ast
+
+        try:
+            parsed = ast.literal_eval(s)
+            if isinstance(parsed, (list, tuple)):
+                return _normalize_conclusion_points(parsed)
+        except Exception:
+            pass
+        inner = s[1:-1].strip()
+        parts = re.split(r"'\s*,\s*'|\"\s*,\s*\"", inner)
+        cleaned = [p.strip().strip("'\"").strip() for p in parts if p.strip().strip("'\"").strip()]
+        if len(cleaned) > 1:
+            return _normalize_conclusion_points(cleaned)
+
+    # 2. 预处理：解耦定调语句与前置约束标题（如 '...通过。生效前置约束：1）...' -> '...通过。\n1）...'）
+    s = re.sub(r'^\s*(?:发布前置条件|生效前置约束|前置条件|前置约束|附带条件|后续要求|主要关注项|注意事项)[：:]\s*', '', s)
+    s = re.sub(r'([。；;\n])?\s*(?:发布前置条件|生效前置约束|前置条件|前置约束|附带条件|后续要求|主要关注项|注意事项)[：:]\s*', lambda m: (m.group(1) or '。') + '\n', s)
+    s = re.sub(r'([。；;\n])?\s*(?:现场未决卡点|现场卡点|未决卡点|遗留卡点)[：:]\s*', lambda m: (m.group(1) or '。') + '\n', s)
+
+    # 3. 标号前置断行：在 1） 2） 1. (1) ① 一是 等标记前切开
+    num_pattern = re.compile(r'(?<=[^0-9\n])(?=(?:[1-9]\d*[\.、）\)]|[(（][1-9]\d*[)）]|[①-⑩]|(?:一是|二是|三是|四是|五是)|(?:第一[，,、]|第二[，,、]|第三[，,、])))')
+    s = num_pattern.sub('\n', s)
+
+    # 4. 按行切分
+    lines = [line.strip() for line in s.splitlines() if line.strip()]
+
+    # 5. 若未成功分行，但包含 2 个及以上分号，按分号切分
+    if len(lines) == 1 and (lines[0].count('；') >= 2 or lines[0].count(';') >= 2):
+        lines = [p.strip() for p in re.split(r'[；;]\s*', lines[0]) if p.strip()]
+
+    # 6. 清洗每条开头的数字标号与冗余前缀（如“生效前置约束 1：”等，实现一点一行干货直出）
+    cleaned = []
+    for it in lines:
+        it = re.sub(r'^(?:[-*•·\s]+|(?:[1-9]\d*[\.、）\)]|[(（][1-9]\d*[)）]|[①-⑩]|(?:一是|二是|三是|四是|五是)|(?:第一[，,、]|第二[，,、]|第三[，,、])))\s*', '', it).strip()
+        it = re.sub(r'^(?:发布前置条件|生效前置约束|前置条件|前置约束|附带条件|现场未决卡点|现场卡点|未决卡点|遗留卡点)\s*\d*\s*[：:]\s*', '', it).strip()
+        if re.search(r'^(?:现场)?无(?:其他)?(?:阻塞|卡点|遗留|风险|问题)', it):
+            continue
+        if it:
+            cleaned.append(it)
+
+    return cleaned or [s]
+
+
+def _clean_timestamp(ts: str) -> str:
+    """清洗时间戳为 HH:MM 或 MM:SS（去掉末尾秒数，若格式为 HH:MM:SS 则保留前两位 HH:MM）。"""
+    ts = (ts or "").strip()
+    if not ts:
+        return ""
+    parts = ts.split(":")
+    if len(parts) == 3:
+        return f"{parts[0].zfill(2)}:{parts[1].zfill(2)}"
+    elif len(parts) == 2:
+        return f"{parts[0].zfill(2)}:{parts[1].zfill(2)}"
+    return ts
+
+
+def _format_time_range(blocks: list[Any] | None) -> str:
+    """根据发言块提取起止时间戳区间，如 '00:10 ~ 00:24'；无有效时间戳或未讨论则返回 '—'。"""
+    if not blocks:
+        return "—"
+    valid_ts = [_clean_timestamp(getattr(b, "timestamp", "")) for b in blocks if getattr(b, "timestamp", None)]
+    valid_ts = [t for t in valid_ts if t]
+    if not valid_ts:
+        return "—"
+    start_ts = valid_ts[0]
+    end_ts = valid_ts[-1]
+    if start_ts == end_ts:
+        return start_ts
+    return f"{start_ts} ~ {end_ts}"
+
+
+
 @dataclass
 class SingleAgendaItemModel(ModelMixin):
     """单议题结构化输出数据模型（1~5 栏纯干货直出，向上兼容旧字段）。"""
 
     presenter: str = ""
-    status_tag: str = "[审议通过]"
+    status_tag: str = "审议通过"
+    time_range: str = "—"
     # 1~5 纯干货字段
     target_and_audience: list[str] = field(default_factory=list)
     content_and_evidence: list[str] = field(default_factory=list)
     process_and_interaction: list[str] = field(default_factory=list)
-    conclusion_and_status: str = ""
+    conclusion_and_status: str | list[str] = ""
     action_items: list[dict[str, Any]] = field(default_factory=list)
     # 兼容旧字段
     proposal_highlights: list[str] = field(default_factory=list)
     deliberation_details: dict[str, Any] = field(default_factory=dict)
-    resolution: str = ""
+    resolution: str | list[str] = ""
     action_commitments: list[dict[str, Any]] = field(default_factory=list)
 
     def __post_init__(self) -> None:
@@ -119,8 +214,15 @@ class SingleAgendaItemModel(ModelMixin):
             delib_raw = data.get("deliberation_details") or {}
             process = list(delib_raw.get("feedback_concerns") or []) if isinstance(delib_raw, dict) else []
 
-        # 4. 结论与状态
-        conclusion = str(data.get("conclusion_and_status") or data.get("resolution") or "").strip()
+        # 4. 结论与状态（支持多点结构化与单条自然语言）
+        conclusion_raw = data.get("conclusion_and_status") or data.get("resolution") or ""
+        conclusion_pts = _normalize_conclusion_points(conclusion_raw)
+        if len(conclusion_pts) > 1:
+            conclusion: str | list[str] = conclusion_pts
+        elif len(conclusion_pts) == 1:
+            conclusion = conclusion_pts[0]
+        else:
+            conclusion = ""
 
         # 5. 行动与效果
         actions = list(data.get("action_items") or data.get("action_commitments") or [])
@@ -128,7 +230,8 @@ class SingleAgendaItemModel(ModelMixin):
         # 双向映射兼容
         return cls(
             presenter=str(data.get("presenter") or "").strip(),
-            status_tag=str(data.get("status_tag") or "[审议通过]").strip(),
+            status_tag=normalize_status_tag(data.get("status_tag"), is_skipped=False),
+            time_range=str(data.get("time_range") or "—").strip(),
             target_and_audience=target,
             content_and_evidence=content,
             process_and_interaction=process,
@@ -197,8 +300,14 @@ def _extract_budgeted_evidence(
     blocks = align.matched_blocks
     presenters = set(align.item.presenters)
     # 优先抽取汇报人自己的发言
-    pres_blocks = [b for b in blocks if any(p in b.speaker for p in presenters)]
-    other_blocks = [b for b in blocks if not any(p in b.speaker for p in presenters)]
+    pres_blocks = [
+        b for b in blocks
+        if any(match_presenter_name(p, b.speaker) >= 0.8 for p in presenters)
+    ]
+    other_blocks = [
+        b for b in blocks
+        if not any(match_presenter_name(p, b.speaker) >= 0.8 for p in presenters)
+    ]
 
     selected: list[Any] = list(pres_blocks)
     current_len = sum(len(b.content) for b in selected)
@@ -224,8 +333,8 @@ class AgendaMinutesAgent:
     async def run(self, shared_context: str) -> AgendaMinutes:
         agenda_raw, transcript = _extract_agenda_and_transcript(shared_context)
 
-        # 1. 议程大盘解析：Fail-Fast 坚决不反向扫描转写
-        plan = parse_agenda_text(agenda_raw)
+        # 1. 议程大盘解析：Fail-Fast 坚决不反向扫描转写（支持 transcript 人名校对）
+        plan = parse_agenda_text(agenda_raw, transcript=transcript)
         if not plan.items:
             raise ValueError(
                 "未能从输入文档中解析出会前既定议程单（请提供包含序号和议题名称的标准文档或清晰图片）。"
@@ -290,7 +399,7 @@ class AgendaMinutesAgent:
                     logger.warning("议题 %s 并发抽取异常，使用保底降级: %s", it.seq, exc)
                     extracted = {
                         "presenter": pres_str,
-                        "status_tag": "[审议通过]",
+                        "status_tag": "审议通过",
                         "target_and_audience": [f"既定议题审议：{it.title}"],
                         "content_and_evidence": [],
                         "process_and_interaction": [],
@@ -303,6 +412,7 @@ class AgendaMinutesAgent:
                     }
                 extracted["agenda_seq"] = it.seq
                 extracted["agenda_title"] = it.title
+                extracted["time_range"] = _format_time_range(align.matched_blocks)
                 extracted["discussion_state"] = "discussed"
                 return extracted
 
@@ -396,7 +506,8 @@ class AgendaMinutesAgent:
                     "agenda_seq": seq,
                     "agenda_title": it.title,  # 100% 遵从 txt 法定原案
                     "presenter": pres_str,
-                    "status_tag": "[本次未讨论]",
+                    "status_tag": "本次未讨论",
+                    "time_range": "—",
                     # 1~5 栏纯干货直出
                     "target_and_audience": [],
                     "content_and_evidence": [],
@@ -419,13 +530,17 @@ class AgendaMinutesAgent:
                 if not isinstance(delib, dict):
                     delib = {"key_metrics": [], "feedback_concerns": []}
 
-                status_tag = str(raw_match.get("status_tag") or "").strip()
-                if not status_tag or status_tag == "[本次未讨论]":
-                    status_tag = "[审议通过]"
+                status_tag = normalize_status_tag(raw_match.get("status_tag"), is_skipped=False)
+                if not status_tag or status_tag == "本次未讨论":
+                    status_tag = "审议通过"
 
                 actual_pres = str(raw_match.get("presenter") or "").strip()
                 if not actual_pres or actual_pres == "未记录":
                     actual_pres = pres_str
+
+                time_range = _format_time_range(align.matched_blocks)
+                if time_range == "—" and raw_match.get("time_range"):
+                    time_range = str(raw_match["time_range"]).strip() or "—"
 
                 # 1. 目标与对象
                 target = list(
@@ -471,6 +586,7 @@ class AgendaMinutesAgent:
                     "agenda_title": it.title,  # 100% 遵从 txt 法定原案
                     "presenter": actual_pres,
                     "status_tag": status_tag,
+                    "time_range": time_range,
                     # 1~5 栏纯干货直出
                     "target_and_audience": target,
                     "content_and_evidence": content,
