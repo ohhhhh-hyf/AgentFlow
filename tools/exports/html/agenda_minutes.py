@@ -137,7 +137,7 @@ def format_agenda_minutes_markdown(draft: dict[str, Any], title: str = "") -> st
             ])
             for act in actions:
                 owner = act.get("owner") or "待定"
-                task = act.get("task") or "后续闭环"
+                task = act.get("task") or "后续跟进"
                 deadline = act.get("deadline") or "近期"
                 lines.append(f"| {owner} | {task} | {deadline} |")
         else:
@@ -287,7 +287,7 @@ def render_agenda_minutes_html(
             </div>
             """
         else:
-            action_table = "<p class='no-action'>暂无额外闭环待办，由主讲团队按常规流程推进。</p>"
+            action_table = "<p class='no-action'>暂无额外待办，由主讲团队按常规流程推进。</p>"
 
         res_content = _md_inline(res) if res else "（本次会议未形成明确决议）"
 

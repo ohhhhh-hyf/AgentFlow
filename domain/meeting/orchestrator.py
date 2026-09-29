@@ -882,7 +882,7 @@ class _Nodes(DomainNodes):
         if self._mode_label(state) != "personal" or line_name not in PREFERENCE_LINES:
             return ""
         template = str((state.get("templates") or {}).get(line_name) or "")
-        if any(marker in template for marker in ("本场概况与承接目标", "本场概况与本人定调", "会议全貌与本人定调", "全局局势与承接目标", "重点关注与业务进展", "行动项与协同依赖", "待确认事项与风险卡点", "待确认与风险卡点")):
+        if any(marker in template for marker in ("本场概况与承接目标", "本场概况与本人定调", "会议全貌与本人定调", "全局局势与承接目标", "重点关注与业务进展", "行动项与协同依赖", "待确认事项与潜在风险", "待确认事项与风险", "待确认与风险", "待确认事项与风险卡点", "待确认与风险卡点")):
             return PERSONAL_TEMPLATE_VIEW_DIRECTIVE
         return PERSONAL_VIEW_DIRECTIVE
 
