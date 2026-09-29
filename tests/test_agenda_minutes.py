@@ -1215,9 +1215,108 @@ def test_alignment_engine_test7_anonymous_speaker_logs():
     assert items[4]["discussion_state"] == "skipped"
 
 
+def test_paddle_ocr_join_row_texts_avoids_name_concatenation():
+    """测试 PaddleOCR 同行拼接时，避免将汇报人与记录人无缝粘连为单个姓名。"""
+    from tools.ocr.paddle_ocr import _join_row_texts
+
+    # 汇报人与记录人相邻
+    merged = _join_row_texts(["陆敬怡;林宇珂;赖朝辉", "王旭"])
+    assert merged == "陆敬怡;林宇珂;赖朝辉 王旭"
+    assert "赖朝辉王旭" not in merged
+
+    # 带分号结尾的正常列表
+    merged_semi = _join_row_texts(["沙彬斌；", "陈啟锴"])
+    assert merged_semi == "沙彬斌；陈啟锴"
 
 
+def test_prepare_agenda_ocr_prompt_text_filters_sidebar_and_preserves_columns():
+    """测试 prepare_agenda_ocr_prompt_text 能正确过滤左侧装饰性侧栏标签，并按水平行聚类。"""
+    from domain.meeting.tasks.agenda_minutes.agenda_extractor import prepare_agenda_ocr_prompt_text
+
+    raw_lines = [
+        {"text": "会议主题：智慧域商用发布评审", "bbox": [[250, 580], [450, 580], [450, 600], [250, 600]]},
+        # 左侧装饰标签 (x=50 < 150)
+        {"text": "会议议题", "bbox": [[50, 980], [100, 980], [100, 1000], [50, 1000]]},
+        {"text": "Agenda", "bbox": [[50, 1010], [100, 1010], [100, 1030], [50, 1030]]},
+        # 议题 1 行内各列 (y~950)
+        {"text": "1", "bbox": [[255, 950], [270, 950], [270, 970], [255, 970]]},
+        {"text": "小艺慧记版本发布", "bbox": [[350, 950], [600, 950], [600, 970], [350, 970]]},
+        {"text": "15min", "bbox": [[770, 950], [820, 950], [820, 970], [770, 970]]},
+        {"text": "申家坤", "bbox": [[1140, 950], [1190, 950], [1190, 970], [1140, 970]]},
+        # 议题 2 行内各列 (y~1010)
+        {"text": "翻译海外商用发布", "bbox": [[350, 1010], [600, 1010], [600, 1030], [350, 1030]]},
+        {"text": "15min", "bbox": [[770, 1010], [820, 1010], [820, 1030], [770, 1030]]},
+        {"text": "刘畅", "bbox": [[1140, 1010], [1190, 1010], [1190, 1030], [1140, 1030]]},
+    ]
+
+    res = prepare_agenda_ocr_prompt_text(raw_lines)
+    # 验证左侧侧栏装饰性标签已被过滤
+    assert "会议议题" not in res
+    assert "Agenda" not in res
+    # 验证同一行内单元格用 "  |  " 明确分隔
+    assert "1  |  小艺慧记版本发布  |  15min  |  申家坤" in res
+    assert "翻译海外商用发布  |  15min  |  刘畅" in res
 
 
+def test_apply_agenda_completeness_guardrail_heals_missing_bottom_topic():
+    """测试确定性 Guardrail 兜底自检：在 LLM 漏检末尾技术议题时，能自动提取周边上下文精准自愈补齐。"""
+    from domain.meeting.tasks.agenda_minutes.agenda_extractor import apply_agenda_completeness_guardrail
+
+    # 模拟 LLM 漏检了议题 04 (SpeechASR) 的输出
+    truncated_md = """| 序号 | 议题名称 | 汇报人/主讲人 | 预计时长 |
+| :--- | :--- | :--- | :--- |
+| 01 | 小艺慧记CeliaMinutesService1.4.5.500版本发布商用版本 | 申家坤 | 15min |
+| 02 | 翻译海外HiTranslationService21.1.1.300商用版本发布 | 刘畅 | 15min |
+| 03 | HAG3.6.5.300版本商用发布评审 | 沙彬斌；陈啟锴 | 15min |
+
+- **全程与会人/主持人**：徐锋；索勋飞
+- **分段列席人**：申家坤；方思邈；陆敬怡；林宇珂；赖朝辉"""
+
+    # 包含议题 4 的原始 OCR 文本
+    ocr_content = """小艺慧记CeliaMinutesService 1.4.5.500版本发布商用版本
+15min
+16:00-16:15
+申家坤
+翻译海外 HiTranslationService 21.1.1.300 商用版本发布
+15min
+16:15-16:30
+刘畅
+HAG 3.6.5.300版本商用发布评审
+15min
+16:30-16:45
+沙彬斌；陈啟锴
+SpeechASR 1.4.5.302 商用版本评审
+15min
+16:45-17:00
+陆敬怡;林宇珂;赖朝辉
+王旭"""
+
+    candidate_speakers = ["陆敬怡", "林宇珂", "赖朝辉", "徐锋", "申家坤", "刘畅"]
+    repaired = apply_agenda_completeness_guardrail(
+        truncated_md,
+        ocr_content,
+        candidate_speakers=candidate_speakers,
+    )
+
+    # 验证补齐了第 4 议题
+    assert "| 04 | SpeechASR 1.4.5.302 商用版本评审 | 陆敬怡；林宇珂；赖朝辉 | 16:45-17:00 |" in repaired
+    # 验证下游 AgendaParser 能够正确解析 4 个议题
+    plan = parse_agenda_text(repaired)
+    assert len(plan.items) == 4
+    assert plan.items[3].seq == "04"
+    assert "SpeechASR" in plan.items[3].title
+    assert set(plan.items[3].presenters) == {"陆敬怡", "林宇珂", "赖朝辉"}
 
 
+def test_apply_agenda_completeness_guardrail_noop_when_complete():
+    """测试当 Markdown 表格本身已完整时，Guardrail 保持 No-op，不破坏已有内容。"""
+    from domain.meeting.tasks.agenda_minutes.agenda_extractor import apply_agenda_completeness_guardrail
+
+    complete_md = """| 序号 | 议题名称 | 汇报人/主讲人 | 预计时长 |
+| :--- | :--- | :--- | :--- |
+| 01 | 小艺慧记 1.4.5.500 版本发布 | 申家坤 | 15min |
+| 02 | SpeechASR 1.4.5.302 商用版本评审 | 陆敬怡 | 15min |"""
+
+    ocr_content = complete_md
+    repaired = apply_agenda_completeness_guardrail(complete_md, ocr_content)
+    assert repaired == complete_md

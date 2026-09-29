@@ -224,8 +224,11 @@ def _join_row_texts(texts: list[str]) -> str:
         return ""
     out = texts[0]
     for piece in texts[1:]:
-        if _CJK_RE.search(out[-1:]) and _CJK_RE.search(piece[:1]):
+        if out.endswith((";", "；", ",", "，", "、", "/", "／", "|", "：", ":")):
             out += piece
+        elif _CJK_RE.search(out[-1:]) and _CJK_RE.search(piece[:1]):
+            # 若均为汉字，加空格分隔，防止表格独立列/姓名被粘连
+            out += " " + piece
         else:
             out += " " + piece
     return out.strip()
@@ -280,7 +283,7 @@ def _merge_same_row(lines: list[dict]) -> list[dict]:
             prev_bbox = _bbox_rect(clusters[-1][-1]["bbox"])
             curr_bbox = _bbox_rect(part["bbox"])
             gap = curr_bbox[0] - prev_bbox[2]
-            max_gap = max(median * 2.0, 32.0)
+            max_gap = max(median * 1.0, 24.0)
             if gap <= max_gap:
                 clusters[-1].append(part)
             else:

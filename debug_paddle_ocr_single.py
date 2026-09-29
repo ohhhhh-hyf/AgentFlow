@@ -4,9 +4,9 @@
 用于独立复现和查看 PaddleOCR 对单张议程图片的完整识别流程与返回内容。
 包含：
 1. PaddleOCR 引擎原生识别（raw_texts / raw_polys）
-2. 行提取与同水平行合并（_merge_same_row）
+2. 行提取与同水平行合并（_merge_same_row，来自 tools.ocr.paddle_ocr）
 3. 边缘去噪与页眉页脚过滤（_is_paddle_chrome）
-4. 版面与碎片合并后保留的有效文本行（retained lines）
+4. 版面分列排版（prepare_agenda_ocr_prompt_text，过滤左侧装饰侧栏，保留水平列间距）
 5. 组装输入给 LLM 结构化提取器（ocr_reconstruct）的最终 Prompt 文本
 6. 底部议题（如 SpeechASR 等）坐标、置信度与留存状态专项目检
 """
@@ -37,170 +37,20 @@ sys.path.insert(0, str(ROOT))
 # 默认测试图片路径
 DEFAULT_IMAGE = ROOT / "data" / "1" / "agenda" / "test1" / "商评1.png"
 
-
-# =========================================================================
-# 1. 精确复刻/复用 tools/ocr/paddle_ocr.py 核心参数与清洗规则
-# =========================================================================
-_HEADER_RE = re.compile(
-    r"(UNIVERSITY|COLLEGE|INSTITUTE"
-    r"|Tel[:：.]|电话|传真"
-    r"| \d{5,6} "
-    r"|P\.?\s?R\.?\s?China|中国·"
-    r"|[一-鿿]{2,10}(?:大学|学院))",
-    re.I,
+from tools.ocr.paddle_ocr import (
+    _bbox_rect,
+    _is_paddle_chrome,
+    _join_row_texts,
+    _merge_same_row,
+    _poly_to_bbox,
+    _MIN_CONF,
 )
-_FOOTER_RE = re.compile(r"(印刷|第\s*页|^页$)")
-_CJK_RE = re.compile(r"[\u4e00-\u9fff]")
-_MIN_CONF = 0.25
-_HEADER_Y = 0.08
-_FOOTER_Y = 0.92
+from domain.meeting.tasks.agenda_minutes.agenda_extractor import (
+    prepare_agenda_ocr_prompt_text,
+    apply_agenda_completeness_guardrail,
+)
 
 
-def _bbox_rect(bbox: list[list[float]]) -> tuple[float, float, float, float]:
-    xs = [float(p[0]) for p in bbox]
-    ys = [float(p[1]) for p in bbox]
-    return min(xs), min(ys), max(xs), max(ys)
-
-
-def _latin_ratio(text: str) -> float:
-    compact = re.sub(r"\s+", "", text or "")
-    if not compact:
-        return 0.0
-    letters = sum(1 for c in compact if c.isalpha() and ord(c) < 128)
-    return letters / len(compact)
-
-
-def _is_paddle_chrome(
-    text: str,
-    bbox: list[list[float]] | None,
-    image_size: tuple[int, int] | None,
-) -> tuple[bool, str]:
-    """判断是否被视为页面页眉/页脚噪点，并返回具体过滤理由。"""
-    if not bbox or not image_size:
-        return False, "无 bbox 或无图尺寸"
-    _left, top, _right, bottom = _bbox_rect(bbox)
-    _width, height = image_size
-    if height <= 1:
-        return False, "高度异常"
-    compact = re.sub(r"\s+", "", text or "")
-    y0, y1 = top / height, bottom / height
-    if y0 <= _HEADER_Y and (
-        _HEADER_RE.search(compact)
-        or (_latin_ratio(compact) >= 0.7 and not _CJK_RE.search(compact))
-    ):
-        return True, f"命中顶端页眉区(y0={y0:.3f}<={_HEADER_Y})"
-    if y1 >= _FOOTER_Y and (
-        _FOOTER_RE.search(compact) or re.fullmatch(r"\d{6,}", compact) is not None
-    ):
-        return True, f"命中底端页脚区(y1={y1:.3f}>={_FOOTER_Y}) 且命中页码/邮编"
-    return False, "正常保留"
-
-
-def _poly_to_bbox(poly: Any) -> list[list[float]] | None:
-    if hasattr(poly, "tolist"):
-        poly = poly.tolist()
-    if not poly:
-        return None
-    if isinstance(poly, (list, tuple)) and poly and isinstance(poly[0], (int, float)):
-        if len(poly) >= 4:
-            left, top, right, bottom = [float(v) for v in poly[:4]]
-            return [[left, top], [right, top], [right, bottom], [left, bottom]]
-        return None
-    parsed: list[list[float]] = []
-    for pt in poly:
-        if hasattr(pt, "tolist"):
-            pt = pt.tolist()
-        if isinstance(pt, dict):
-            x, y = pt.get("x"), pt.get("y")
-            if x is not None and y is not None:
-                parsed.append([float(x), float(y)])
-        elif isinstance(pt, (list, tuple)) and len(pt) >= 2:
-            parsed.append([float(pt[0]), float(pt[1])])
-    if len(parsed) < 4:
-        return None
-    return parsed[:4]
-
-
-def _join_row_texts(texts: list[str]) -> str:
-    if not texts:
-        return ""
-    out = texts[0]
-    for piece in texts[1:]:
-        if _CJK_RE.search(out[-1:]) and _CJK_RE.search(piece[:1]):
-            out += piece
-        else:
-            out += " " + piece
-    return out.strip()
-
-
-def _union_bbox(boxes: list[list[list[float]]]) -> list[list[float]]:
-    xs, ys = [], []
-    for b in boxes:
-        l, t, r, bot = _bbox_rect(b)
-        xs.extend([l, r])
-        ys.extend([t, bot])
-    return [[min(xs), min(ys)], [max(xs), min(ys)], [max(xs), max(ys)], [min(xs), max(ys)]]
-
-
-def _merge_same_row(lines: list[dict]) -> list[dict]:
-    usable = [item for item in lines if item.get("bbox")]
-    orphans = [item for item in lines if not item.get("bbox")]
-    if len(usable) < 2:
-        return lines
-    heights = [_bbox_rect(item["bbox"])[3] - _bbox_rect(item["bbox"])[1] for item in usable]
-    heights.sort()
-    median = heights[len(heights) // 2] or 1.0
-    ordered = sorted(
-        usable,
-        key=lambda item: (
-            (_bbox_rect(item["bbox"])[1] + _bbox_rect(item["bbox"])[3]) / 2,
-            _bbox_rect(item["bbox"])[0],
-        ),
-    )
-    rows: list[list[dict]] = []
-    for item in ordered:
-        center = (_bbox_rect(item["bbox"])[1] + _bbox_rect(item["bbox"])[3]) / 2
-        if rows:
-            prev = rows[-1][-1]
-            prev_center = (_bbox_rect(prev["bbox"])[1] + _bbox_rect(prev["bbox"])[3]) / 2
-            if abs(center - prev_center) <= median * 0.55:
-                rows[-1].append(item)
-                continue
-        rows.append([item])
-    merged: list[dict] = []
-    for row in rows:
-        row.sort(key=lambda item: _bbox_rect(item["bbox"])[0])
-        if len(row) == 1:
-            merged.append(row[0])
-            continue
-        clusters: list[list[dict]] = [[row[0]]]
-        for part in row[1:]:
-            prev_bbox = _bbox_rect(clusters[-1][-1]["bbox"])
-            curr_bbox = _bbox_rect(part["bbox"])
-            gap = curr_bbox[0] - prev_bbox[2]
-            max_gap = max(median * 2.0, 32.0)
-            if gap <= max_gap:
-                clusters[-1].append(part)
-            else:
-                clusters.append([part])
-        for cluster in clusters:
-            if len(cluster) == 1:
-                merged.append(cluster[0])
-                continue
-            confs = [float(item["conf"]) for item in cluster if item.get("conf") is not None]
-            item_merged: dict[str, Any] = {
-                "text": _join_row_texts([str(part["text"]) for part in cluster]),
-                "bbox": _union_bbox([part["bbox"] for part in cluster]),
-            }
-            if confs:
-                item_merged["conf"] = round(sum(confs) / len(confs), 4)
-            merged.append(item_merged)
-    return merged + orphans
-
-
-# =========================================================================
-# 2. 调用 PaddleOCR 并提取
-# =========================================================================
 def run_paddle_ocr_diagnostic(image_path: str):
     path_obj = Path(image_path).resolve()
     if not path_obj.exists():
@@ -327,29 +177,29 @@ def run_paddle_ocr_diagnostic(image_path: str):
     retained_lines = []
     dropped_lines = []
     for item in merged_lines:
-        is_chrome, reason = _is_paddle_chrome(item["text"], item.get("bbox"), image_size)
+        is_chrome = _is_paddle_chrome(item["text"], item.get("bbox"), image_size)
         if is_chrome:
-            dropped_lines.append((item, reason))
+            dropped_lines.append(item)
         else:
             retained_lines.append(item)
 
     if dropped_lines:
         print(f" -> 共有 {len(dropped_lines)} 行被判定为噪点并丢弃:")
-        for item, reason in dropped_lines:
-            print(f"    [丢弃] 原因: {reason} | 文本: {item['text']}")
+        for item in dropped_lines:
+            print(f"    [丢弃] 文本: {item['text']}")
     else:
         print(f" -> 没有行被 _is_paddle_chrome 丢弃 (0/len(merged_lines))")
 
     print(f" -> 最终 PaddleOCR 返回保留行数: {len(retained_lines)} 行 (与线上 retained={len(retained_lines)} 对应)")
 
     # =========================================================================
-    # [6] 组装给下游 LLM 的纯文本内容 (user_content)
+    # [6] 优化版面排版结构 (prepare_agenda_ocr_prompt_text)
     # =========================================================================
-    user_content = "\n".join(item["text"] for item in retained_lines if item.get("text"))
+    structured_prompt_text = prepare_agenda_ocr_prompt_text(retained_lines)
     print("\n" + "=" * 80)
-    print(f"【送入下游 LLM (reconstruct_agenda_markdown) 的完整文本 (共 {len(retained_lines)} 行)】:")
+    print(f"【前置版面优化后的结构化提示词文本 (过滤侧栏噪点，按水平行分列)】:")
     print("=" * 80)
-    for i, line_text in enumerate(user_content.split("\n"), 1):
+    for i, line_text in enumerate(structured_prompt_text.split("\n"), 1):
         print(f"{i:02d}: {line_text}")
 
     # =========================================================================
@@ -387,8 +237,8 @@ def run_paddle_ocr_diagnostic(image_path: str):
         f.write(f"图片: {path_obj}\n")
         f.write(f"尺寸: {img_width} x {img_height}\n")
         f.write(f"原生检测框数: {total_raw}, 最终保留行数: {len(retained_lines)}\n\n")
-        f.write("=== 最终输出给 LLM 的文本 ===\n")
-        f.write(user_content + "\n")
+        f.write("=== 前置版面优化后的结构化文本 ===\n")
+        f.write(structured_prompt_text + "\n")
     print(f"\n[8] 完整诊断报告与提取文本已落盘至:\n    {out_file.resolve()}\n")
 
 
