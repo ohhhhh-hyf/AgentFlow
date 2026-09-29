@@ -1,0 +1,1167 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>议程纪要</title>
+    <style>
+
+    body {
+      margin: 0;
+      padding: 14px 12px;
+      background: #f6f5f0;
+      color: #1a1a1a;
+      font-family: "Latin Modern Roman", "Computer Modern Roman", "CMU Serif", "Times New Roman", Times, "Songti SC", "SimSun", "STSong", serif;
+      -webkit-font-smoothing: antialiased;
+    }
+    .page { max-width: 1140px; margin: 0 auto; }
+    .ck-doc {
+      background: #ffffff;
+      border: 1px solid #d4d0c7;
+      border-radius: 4px;
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.05), 0 1px 3px rgba(0,0,0,0.03);
+      padding: 18px 22px;
+      line-height: 1.6;
+      font-size: 0.84rem;      /* 正文基准：左右两栏共用 --ck-fs */
+      --ck-fs: 0.84rem;
+    }
+    .ck-doc h1 {
+      margin: 0 0 6px;
+      font-size: 1.05rem;      /* 文档标题：只比正文略大一点 */
+      font-weight: 700;
+      text-align: center;
+      color: #111111;
+    }
+    .ck-doc-header {
+      margin-bottom: 10px;
+      padding-bottom: 8px;
+      border-bottom: 1px solid #111111;
+      text-align: center;
+    }
+    .ck-doc-meta {
+      font-size: 0.78rem;
+      color: #555555;
+      font-style: italic;
+    }
+    /* 层级标题一律"加粗 + 与右栏同级字号"，不加字号、不加下划线，前后留白压到最小 */
+    .ck-doc-content h1, .ck-doc-content .ck-doc-h1,
+    .ck-doc h2, .ck-doc-h2,
+    .ck-doc h3, .ck-doc-h3,
+    .ck-doc h4, .ck-doc-h4 {
+      font-size: var(--ck-fs);
+      font-weight: 700;
+      color: #111111;
+      border-bottom: 0;
+      padding-bottom: 0;
+      letter-spacing: 0;
+      font-variant: normal;
+      text-align: left;
+    }
+    .ck-doc-content h1, .ck-doc-content .ck-doc-h1, .ck-doc h2, .ck-doc-h2 {
+      margin: 12px 0 4px;
+    }
+    .ck-doc h3, .ck-doc-h3, .ck-doc h4, .ck-doc-h4 {
+      margin: 9px 0 3px;
+    }
+    .ck-doc p {
+      margin: 5px 0;
+      line-height: 1.6;
+      text-align: justify;
+    }
+    .ck-doc ul, .ck-doc ol {
+      margin: 4px 0 6px;
+      padding-left: 1.25em;
+      line-height: 1.6;
+    }
+    .ck-doc li {
+      margin: 2px 0;
+    }
+    .ck-doc blockquote, .ck-quote {
+      margin: 6px 0 8px;
+      padding: 5px 10px;
+      background: #faf9f6;
+      border-left: 3px solid #222222;
+      border-radius: 2px;
+      color: #222222;
+      font-size: var(--ck-fs);
+      font-style: italic;
+    }
+    .ck-doc code {
+      background: #f3f0e8;
+      border: 1px solid #e2ddd3;
+      border-radius: 3px;
+      padding: 1px 6px;
+      font-family: "Latin Modern Mono", Consolas, monospace;
+      font-size: 0.88em;
+    }
+    .ck-doc table, .ck-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: var(--ck-fs);
+      margin: 8px 0;
+      background: #ffffff;
+      border-top: 2px solid #222222;
+      border-bottom: 2px solid #222222;
+    }
+    .ck-doc table th, .ck-doc table td, .ck-table th, .ck-table td {
+      padding: 5px 8px;
+      text-align: left;
+      vertical-align: middle;
+      border-bottom: 1px solid #ede9e1;
+    }
+    .ck-doc table th, .ck-table th {
+      background: #fbfaf7;
+      border-bottom: 1.2px solid #222222;
+      font-weight: 700;
+      color: #111111;
+      letter-spacing: 0.3px;
+    }
+
+    /* Roomy & Spacious Academic Risk Table */
+    .ck-risk-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 18px 0 28px;
+      background: #ffffff;
+      border-top: 2.2px solid #111111;
+      border-bottom: 2.2px solid #111111;
+      font-size: 0.93rem;
+      line-height: 1.72;
+    }
+    .ck-risk-table th {
+      background: #faf8f5;
+      border-bottom: 1.5px solid #111111;
+      padding: 15px 16px;
+      font-weight: 700;
+      color: #111111;
+      letter-spacing: 0.3px;
+      text-align: left;
+      vertical-align: middle;
+    }
+    .ck-risk-table td {
+      padding: 16px 16px;
+      border-bottom: 1px solid #ede8e0;
+      vertical-align: top;
+      color: #1a1a1a;
+      word-break: break-word;
+    }
+    .ck-risk-table tr:nth-child(even) td {
+      background: #fdfcfb;
+    }
+    .ck-risk-table tr:hover td {
+      background: #f6f3eb;
+    }
+
+    /* Review Grid */
+    .ck-review {
+      display: grid;
+      grid-template-columns: minmax(0, 1.35fr) 1px minmax(260px, 0.95fr);
+      border: 1px solid #d4d0c7;
+      border-radius: 4px;
+      overflow: hidden;
+      margin: 8px 0 10px;
+      background: #ffffff;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.03);
+    }
+    .ck-review-left {
+      padding: 14px 16px;
+      background: #ffffff;
+      line-height: 1.6;
+      font-size: var(--ck-fs);
+    }
+    .ck-review-rule { background: #dcd8cf; }
+    .ck-review-right {
+      padding: 12px 14px;
+      background: #faf9f6;
+      box-sizing: border-box;
+      display: flex;
+      flex-direction: column;
+    }
+    .ck-ev-list {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    /* Entity Highlight in LaTeX Paper Style */
+    .ck-cite-entity {
+      background: #fff8db;
+      border-bottom: 1.5px solid #b86a04;
+      padding: 1px 4px;
+      border-radius: 2px;
+      cursor: pointer;
+      transition: all 0.18s ease;
+      color: #111111;
+      font-weight: 600;
+    }
+    .ck-cite-entity:hover {
+      background: #ffe58f;
+      color: #000000;
+    }
+    .ck-cite-entity.is-on {
+      background: #ffd54a;
+      border-bottom-color: #0047ab;
+      box-shadow: 0 0 0 2px rgba(0,71,171,0.25);
+    }
+
+    /* Blue Hyperref Citations [1], [2] */
+    .ck-cite-ref {
+      color: #0047ab;
+      font-weight: 600;
+      font-family: "Latin Modern Roman", "Computer Modern Roman", "Times New Roman", serif;
+      text-decoration: none;
+      cursor: pointer;
+      padding: 0 2px;
+      margin: 0 2px;
+      border-radius: 2px;
+      transition: all 0.15s ease;
+      font-size: 0.92em;
+      vertical-align: baseline;
+      user-select: none;
+    }
+    .ck-cite-ref:hover {
+      text-decoration: underline;
+      background: #e8f0fe;
+      color: #003380;
+    }
+    .ck-cite-ref.is-active {
+      background: #d2e3fc;
+      color: #002266;
+      font-weight: 700;
+      box-shadow: 0 0 0 1px #0047ab;
+    }
+
+    /* Right Memory Cards in LaTeX Paper Style */
+    .ck-provenance-head {
+      font-size: 0.82rem;
+      font-weight: 700;
+      color: #222222;
+      margin: 0 0 12px;
+      padding-bottom: 6px;
+      border-bottom: 1px solid #e0dcd4;
+      letter-spacing: 0.3px;
+      text-transform: uppercase;
+    }
+    .ck-ref-icon { color: #0047ab; margin-right: 4px; }
+    .ck-ev {
+      display: block;
+      margin: 0;
+      padding: 10px 12px;
+      border: 1px solid #dedad2;
+      border-left: 3.5px solid #0047ab;
+      border-radius: 2px;
+      background: #ffffff;
+      font-size: 0.82rem;
+      line-height: 1.55;
+      transition: all 0.2s ease;
+      cursor: pointer;
+    }
+    .ck-ev:hover { border-color: #b5b0a5; }
+    .ck-ev.is-on, .ck-ev.is-highlighted {
+      border-color: #0047ab;
+      box-shadow: 0 0 0 2px #0047ab, 0 3px 8px rgba(0,71,171,0.15);
+      background: #f0f5ff;
+    }
+    @keyframes citePulse {
+      0% { background: #dbeafe; box-shadow: 0 0 0 3px #0047ab; }
+      50% { background: #bfdbfe; box-shadow: 0 0 0 4px #0047ab; }
+      100% { background: #f0f5ff; box-shadow: 0 0 0 2px #0047ab; }
+    }
+    .ck-ev-k {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 0.75rem;
+      color: #444444;
+      margin-bottom: 5px;
+      font-weight: 700;
+    }
+    .ck-ev-cite-tag {
+      color: #0047ab;
+      font-weight: 700;
+      font-family: "Latin Modern Roman", serif;
+      text-decoration: none;
+    }
+    .ck-ev-kind-badge {
+      display: inline-block;
+      padding: 1px 6px;
+      border-radius: 2px;
+      font-size: 0.72rem;
+      font-weight: 600;
+      letter-spacing: 0.2px;
+    }
+    .ck-badge-keypoint {
+      border: 1px solid #0047ab;
+      color: #0047ab;
+      background: #f0f5ff;
+    }
+    .ck-badge-note {
+      border: 1px solid #b86a04;
+      color: #b86a04;
+      background: #fff8eb;
+    }
+    .ck-mem-title {
+      font-weight: 700;
+      color: #111111;
+      font-size: var(--ck-fs);
+      margin-bottom: 4px;
+      line-height: 1.5;
+    }
+    .ck-ev-quote {
+      color: #222222;
+      font-style: normal;
+      font-family: inherit;
+      margin: 4px 0 6px;
+      padding: 0;
+      background: transparent;
+      border: none;
+      line-height: 1.6;
+      font-size: var(--ck-fs);
+    }
+    .ck-ev-meta { font-size: 0.76rem; color: #666666; margin-top: 4px; }
+    .ck-ev-more {
+      margin-top: 2px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+    .ck-ev-more[open] { margin-top: 4px; }
+    .ck-ev-more summary { margin-bottom: 6px; }
+    .ck-proof-toggle {
+      cursor: pointer;
+      font-size: 0.82rem;
+      color: #0047ab;
+      user-select: none;
+      font-family: inherit;
+      padding: 2px 0;
+    }
+    .ck-proof-toggle:hover { text-decoration: underline; }
+    /* 右栏下段"状态演进"：无行内锚点，与上方证据卡视觉区分（灰底 + 徽章，无 [n]） */
+    .ck-ledger {
+      margin-top: 10px;
+      padding-top: 8px;
+      border-top: 1px dashed #d4d0c7;
+    }
+    .ck-ledger > summary { list-style: none; }
+    .ck-ledger > summary::-webkit-details-marker { display: none; }
+    .ck-ledger > summary::after { content: " ▾"; }
+    .ck-ledger:not([open]) > summary::after { content: " ▸"; }
+    /* 每类一张小灰卡：卡头类别 + 条数，卡内按 1. 2. 3. 编号 */
+    .ck-ledger-card {
+      background: #faf9f5;
+      border: 1px solid #e6e2d8;
+      border-left: 3px solid #bdb6a6;
+      border-radius: 4px;
+      padding: 7px 9px;
+      margin-bottom: 6px;
+    }
+    .ck-ledger-k {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 6px;
+      font-size: 0.72rem;
+      margin-bottom: 5px;
+    }
+    .ck-ledger-badge {
+      background: #efece4;
+      color: #6b6559;
+      border-radius: 3px;
+      padding: 1px 6px;
+      font-weight: 600;
+    }
+    .ck-ledger-count { color: #8a8578; }
+    .ck-ledger-list {
+      margin: 0;
+      padding-left: 1.35em;
+      font-size: var(--ck-fs);
+      line-height: 1.6;
+      color: #3b3a37;
+    }
+    .ck-ledger-list > li { margin: 2px 0; }
+    /* Personal Perspective Interactive Task Lists & Semantic Blocks */
+    .ck-self-block {
+      background: #f4f8fe;
+      border: 1px solid #d4e2f5;
+      border-left: 3.5px solid #0047ab;
+      border-radius: 4px;
+      padding: 9px 13px;
+      margin: 10px 0 12px;
+    }
+    .ck-self-title {
+      margin: 0 0 6px;
+      color: #003380;
+      font-weight: 700;
+      font-size: var(--ck-fs);
+      display: flex;
+      align-items: center;
+      gap: 5px;
+    }
+    .ck-self-badge {
+      display: inline-block;
+      background: #0047ab;
+      color: #ffffff;
+      font-size: 0.68rem;
+      padding: 1px 5px;
+      border-radius: 2px;
+      font-weight: 600;
+      letter-spacing: 0.2px;
+      margin-left: 4px;
+    }
+
+    .ck-dep-block {
+      background: #fefcf7;
+      border: 1px solid #f2e7cc;
+      border-left: 3.5px solid #b86a04;
+      border-radius: 4px;
+      padding: 9px 13px;
+      margin: 10px 0 12px;
+    }
+    .ck-dep-title {
+      margin: 0 0 6px;
+      color: #7a4502;
+      font-weight: 700;
+      font-size: var(--ck-fs);
+      display: flex;
+      align-items: center;
+      gap: 5px;
+    }
+    .ck-dep-badge {
+      display: inline-block;
+      background: #b86a04;
+      color: #ffffff;
+      font-size: 0.68rem;
+      padding: 1px 5px;
+      border-radius: 2px;
+      font-weight: 600;
+      letter-spacing: 0.2px;
+      margin-left: 4px;
+    }
+
+    .ck-risk-block {
+      background: #fff8f8;
+      border: 1px solid #fedcdc;
+      border-left: 3.5px solid #cf222e;
+      border-radius: 4px;
+      padding: 9px 13px;
+      margin: 10px 0 12px;
+    }
+    .ck-risk-title {
+      margin: 0 0 6px;
+      color: #a40e26;
+      font-weight: 700;
+      font-size: var(--ck-fs);
+      display: flex;
+      align-items: center;
+      gap: 5px;
+    }
+    .ck-risk-badge {
+      display: inline-block;
+      background: #cf222e;
+      color: #ffffff;
+      font-size: 0.68rem;
+      padding: 1px 5px;
+      border-radius: 2px;
+      font-weight: 600;
+      letter-spacing: 0.2px;
+      margin-left: 4px;
+    }
+
+    .ck-self-block ul, .ck-self-block ol,
+    .ck-dep-block ul, .ck-dep-block ol,
+    .ck-risk-block ul, .ck-risk-block ol {
+      margin: 2px 0 2px;
+      padding-left: 1.25em;
+    }
+    .ck-self-block li, .ck-dep-block li, .ck-risk-block li {
+      margin: 2px 0;
+      color: #1a1a1a;
+    }
+
+    /* Person Group Heading */
+    .ck-person-group {
+      margin: 8px 0 3px;
+      font-weight: 700;
+      color: #111111;
+    }
+
+    /* GFM Task List Checkboxes */
+    .ck-task-list {
+      list-style: none;
+      padding-left: 0 !important;
+      margin: 4px 0 6px !important;
+    }
+    .ck-task-item {
+      display: flex;
+      align-items: flex-start;
+      margin: 4px 0;
+      line-height: 1.6;
+    }
+    .ck-task-label {
+      display: inline-flex;
+      align-items: flex-start;
+      gap: 8px;
+      cursor: pointer;
+      width: 100%;
+    }
+    .ck-task-checkbox {
+      margin-top: 4px;
+      cursor: pointer;
+      accent-color: #0047ab;
+      width: 15px;
+      height: 15px;
+      flex-shrink: 0;
+    }
+    .ck-task-checkbox:checked + .ck-task-text {
+      color: #8c8c8c;
+      text-decoration: line-through;
+    }
+    .ck-task-text {
+      flex: 1;
+      color: #1a1a1a;
+    }
+
+    /* Status Badges & Pills */
+    .ck-tag-blocker {
+      display: inline-block;
+      background: #ffebe9;
+      color: #cf222e;
+      border: 1px solid rgba(255, 129, 130, 0.45);
+      font-size: 0.72rem;
+      font-weight: 700;
+      padding: 0 5px;
+      border-radius: 3px;
+      margin-right: 4px;
+      line-height: 1.5;
+      vertical-align: 1px;
+    }
+    .ck-tag-risk {
+      display: inline-block;
+      background: #fff8eb;
+      color: #b86a04;
+      border: 1px solid rgba(212, 167, 44, 0.45);
+      font-size: 0.72rem;
+      font-weight: 700;
+      padding: 0 5px;
+      border-radius: 3px;
+      margin-right: 4px;
+      line-height: 1.5;
+      vertical-align: 1px;
+    }
+    .ck-tag-warn {
+      display: inline-block;
+      background: #f0f4ff;
+      color: #0969da;
+      border: 1px solid rgba(84, 174, 255, 0.45);
+      font-size: 0.72rem;
+      font-weight: 700;
+      padding: 0 5px;
+      border-radius: 3px;
+      margin-right: 4px;
+      line-height: 1.5;
+      vertical-align: 1px;
+    }
+    .ck-tag-dep {
+      display: inline-block;
+      background: #eff6ff;
+      color: #1d4ed8;
+      border: 1px solid #bfdbfe;
+      font-size: 0.72rem;
+      font-weight: 600;
+      padding: 0 5px;
+      border-radius: 3px;
+      margin-right: 4px;
+      line-height: 1.5;
+      vertical-align: 1px;
+    }
+    .ck-param-capsule {
+      display: inline-block;
+      font-size: 0.82rem;
+      color: #57606a;
+      background: #f6f8fa;
+      border: 1px solid #eaeef2;
+      padding: 0 6px;
+      border-radius: 10px;
+      margin-left: 4px;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      letter-spacing: 0.2px;
+    }
+
+    @media(max-width: 860px) {
+      .ck-doc { padding: 22px 18px; }
+      .ck-review { grid-template-columns: 1fr; }
+      .ck-review-rule { display: none; }
+    }
+
+
+    .ck-doc-meta {
+      font-style: normal;
+      color: #555555;
+      font-size: 0.8rem;
+    }
+    .ck-doc blockquote, .ck-quote {
+      font-style: normal;
+    }
+    .summary-table {
+      margin: 10px 0 24px;
+    }
+    .summary-table th {
+      font-size: 0.82rem;
+      white-space: nowrap;
+    }
+    .summary-table td {
+      font-size: 0.82rem;
+    }
+    .col-title a {
+      color: #111111;
+      text-decoration: underline;
+      text-underline-offset: 3px;
+      text-decoration-color: #888888;
+      font-weight: 600;
+    }
+    .col-title a:hover {
+      color: #000000;
+      text-decoration-color: #111111;
+    }
+    .col-pres {
+      width: 120px;
+      text-align: center;
+      white-space: nowrap;
+    }
+    .col-time {
+      width: 130px;
+      text-align: center;
+      white-space: nowrap;
+      color: #555555;
+      font-variant-numeric: tabular-nums;
+    }
+    .col-status {
+      width: 110px;
+      text-align: center;
+      white-space: nowrap;
+    }
+
+    .badge {
+      display: inline-block;
+      padding: 2px 7px;
+      border-radius: 3px;
+      font-size: 0.76rem;
+      font-weight: 600;
+      line-height: 1.35;
+      letter-spacing: 0.02em;
+      white-space: nowrap;
+    }
+    .badge-approved {
+      background: #edf7ed;
+      color: #1e4620;
+      border: 1px solid #c8e6c9;
+    }
+    .badge-conditional {
+      background: #fff8e1;
+      color: #825300;
+      border: 1px solid #ffe082;
+    }
+    .badge-rejected {
+      background: #fdecea;
+      color: #b71c1c;
+      border: 1px solid #ffcdd2;
+    }
+    .badge-consensus {
+      background: #e8f4fd;
+      color: #0d47a1;
+      border: 1px solid #bbdefb;
+    }
+    .badge-skipped {
+      background: #f5f5f5;
+      color: #616161;
+      border: 1px solid #e0e0e0;
+    }
+    .badge-default {
+      background: #f5f5f5;
+      color: #333333;
+      border: 1px solid #d4d0c7;
+    }
+
+    .agenda-cards-wrap {
+      margin-top: 12px;
+    }
+    .agenda-card {
+      background: #ffffff;
+      border: 1px solid #d4d0c7;
+      border-radius: 4px;
+      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.03);
+      padding: 16px 20px;
+      margin-bottom: 20px;
+    }
+    .card-skipped {
+      background: #faf9f6;
+      border-style: dashed;
+      border-color: #c4bfb6;
+      padding: 8px 14px;
+      margin-bottom: 10px;
+    }
+    .card-skipped .card-header {
+      margin-bottom: 4px;
+      padding-bottom: 4px;
+      border-bottom: 1px dashed #ede9e1;
+    }
+    .card-skipped-body {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+    .card-skipped .card-meta {
+      font-size: 0.78rem;
+      color: #666666;
+      margin-bottom: 0;
+      font-style: normal;
+    }
+
+    .card-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+      margin-bottom: 8px;
+      padding-bottom: 8px;
+      border-bottom: 1px solid #ede9e1;
+      gap: 12px;
+    }
+    .card-title-group {
+      display: flex;
+      align-items: baseline;
+      gap: 8px;
+    }
+    .topic-index {
+      font-size: 0.8rem;
+      font-weight: 700;
+      color: #222222;
+      background: #f0ece1;
+      padding: 1px 6px;
+      border-radius: 2px;
+      white-space: nowrap;
+    }
+    .topic-name {
+      font-size: 0.95rem;
+      font-weight: 700;
+      margin: 0;
+      color: #111111;
+    }
+    .card-meta {
+      font-size: 0.8rem;
+      color: #555555;
+      margin-bottom: 12px;
+      font-style: normal;
+    }
+
+    .pillar-section {
+      margin-bottom: 14px;
+    }
+    .pillar-label {
+      font-size: var(--ck-fs);
+      font-weight: 700;
+      color: #111111;
+      margin-bottom: 6px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .pillar-num {
+      background: #ede9e1;
+      color: #333333;
+      font-size: 0.72rem;
+      width: 17px;
+      height: 17px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 50%;
+      font-weight: 700;
+    }
+    .bullet-list {
+      margin: 3px 0 6px;
+      padding-left: 1.4em;
+      font-size: var(--ck-fs);
+      color: #222222;
+      line-height: 1.6;
+    }
+    .bullet-list li {
+      margin: 2px 0;
+    }
+
+    .sub-block {
+      background: #fbfaf7;
+      border-radius: 3px;
+      padding: 8px 12px;
+      margin-bottom: 8px;
+      border: 1px solid #ece8df;
+    }
+    .sub-block-title {
+      font-size: 0.8rem;
+      font-weight: 700;
+      color: #333333;
+      margin-bottom: 4px;
+    }
+
+    .resolution-box {
+      background: #f7faf7;
+      border: 1px solid #d4e6d4;
+      border-left: 3px solid #2e7d32;
+      border-radius: 3px;
+      padding: 8px 14px;
+      font-size: var(--ck-fs);
+      color: #1b4d1d;
+      line-height: 1.6;
+    }
+    .res-box-list {
+      margin: 0;
+      padding-left: 1.35em;
+      list-style-type: disc;
+    }
+    .res-box-list li {
+      margin: 4px 0;
+      line-height: 1.6;
+    }
+    .res-single {
+      margin: 0;
+    }
+    .summary-res-list {
+      margin: 0;
+      padding-left: 1.25em;
+      line-height: 1.5;
+    }
+    .summary-res-list li {
+      margin: 3px 0;
+    }
+    .no-res {
+      color: #666666;
+      font-style: italic;
+    }
+
+    .skipped-banner {
+      background: #f2efe8;
+      border-radius: 2px;
+      padding: 2px 8px;
+      font-size: 0.78rem;
+      color: #666666;
+      font-style: normal;
+      line-height: 1.4;
+      display: inline-block;
+      margin: 0;
+    }
+
+    .action-table-wrap {
+      overflow-x: auto;
+      margin-top: 4px;
+    }
+    .action-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.82rem;
+      border-top: 1.5px solid #222222;
+      border-bottom: 1.5px solid #222222;
+    }
+    .action-table th {
+      background: #fbfaf7;
+      padding: 6px 10px;
+      color: #111111;
+      font-weight: 700;
+      border-bottom: 1px solid #222222;
+      text-align: left;
+    }
+    .action-table td {
+      padding: 6px 10px;
+      border-bottom: 1px solid #ede9e1;
+      vertical-align: middle;
+      color: #222222;
+    }
+    .deadline-tag {
+      background: #f0ece1;
+      padding: 1px 6px;
+      border-radius: 2px;
+      font-size: 0.76rem;
+      color: #444444;
+      white-space: nowrap;
+    }
+    .no-action {
+      font-size: 0.82rem;
+      color: #666666;
+      font-style: normal;
+      margin: 4px 0 0 0;
+    }
+    
+    </style>
+</head>
+<body>
+    <main class="page">
+        <div class="ck-doc">
+            <header class="ck-doc-header">
+                <h1>议程纪要</h1>
+                <div class="ck-doc-meta">
+                    <span>会议时间：2026年度会议</span> &nbsp;|&nbsp;
+                    <span>议程进展：共 5 项（有效审议 4 项，本次未讨论 1 项）</span>
+                </div>
+            </header>
+
+            <div class="ck-doc-content">
+                <h2 class="ck-doc-h2" style="margin-top: 20px;">议题总览</h2>
+                <table class="ck-table summary-table">
+                    <thead>
+                        <tr>
+                            <th class="col-title">议题名称</th>
+                            <th class="col-pres">汇报人</th>
+                            <th class="col-time">议题时长</th>
+                            <th class="col-status">结论定调</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        
+        <tr>
+            <td class="col-title"><a href="#topic-02">何刚总致辞（领导致辞）</a></td>
+            <td class="col-pres">何刚</td>
+            <td class="col-time">00:00 ~ 00:18</td>
+            <td class="col-status"><span class="badge badge-approved">审议通过</span></td>
+        </tr>
+        
+        <tr>
+            <td class="col-title"><a href="#topic-03">互动交流（现场问答、自由交流与讨论）</a></td>
+            <td class="col-pres">发言者 5</td>
+            <td class="col-time">00:18 ~ 01:18</td>
+            <td class="col-status"><span class="badge badge-approved">审议通过</span></td>
+        </tr>
+        
+        <tr>
+            <td class="col-title"><a href="#topic-04">任务令签署与授予（任务令签署仪式及授予环节）</a></td>
+            <td class="col-pres">发言者 1</td>
+            <td class="col-time">01:18 ~ 01:21</td>
+            <td class="col-status"><span class="badge badge-approved">审议通过</span></td>
+        </tr>
+        
+        <tr>
+            <td class="col-title"><a href="#topic-05">全体合影（全体参会人员合影留念）</a></td>
+            <td class="col-pres">发言者 20</td>
+            <td class="col-time">01:22</td>
+            <td class="col-status"><span class="badge badge-approved">审议通过</span></td>
+        </tr>
+        
+        <tr>
+            <td class="col-title"><a href="#topic-01">活动开场视频播放</a></td>
+            <td class="col-pres">-</td>
+            <td class="col-time">—</td>
+            <td class="col-status"><span class="badge badge-skipped">本次未讨论</span></td>
+        </tr>
+        
+                    </tbody>
+                </table>
+
+                <h2 class="ck-doc-h2" style="margin-top: 28px;">议题分析</h2>
+                <div class="agenda-cards-wrap">
+                    
+        <div class="agenda-card" id="topic-02">
+            <div class="card-header">
+                <div class="card-title-group">
+                    <span class="topic-index">议题 02</span>
+                    <h3 class="topic-name">何刚总致辞（领导致辞）</h3>
+                </div>
+                <span class="badge badge-approved">审议通过</span>
+            </div>
+            <div class="card-meta">
+                <span>汇报人/责任单位：何刚</span>
+            </div>
+
+            <div class="pillar-section">
+                <div class="pillar-label"><span class="pillar-num">1</span> 目标与对象</div>
+                <ul class="bullet-list"><li>何刚总面向北京研究所及远程接入的终端业务团队致辞，回顾北京业务历史，明确未来将加强北京团队建设与产品布局，利用北京人才优势支撑终端长期发展。</li><li>本次为领导致辞，非决策审批类议题，不涉及具体方案审议、资源批复或准入许可。</li></ul>
+            </div>
+
+            <div class="pillar-section">
+                <div class="pillar-label"><span class="pillar-num">2</span> 内容与依据</div>
+                <ul class="bullet-list"><li>何刚回顾荣耀出售后北京业务变化，指出当前北京仍有近千名员工，且已形成一支强大的小艺队伍，小艺大脑主要放在北京。</li><li>何刚提出未来可能围绕AI、小艺持续发展及具身智能在北京进行布局，但仅为初步考虑，需后续认真讨论。</li><li>何刚强调华为AI优势在于与硬件协同，目标是将小艺打造为统一智能体，未来具身机器人进家也默认叫小艺，并强调记忆能力带来的用户粘性。</li><li>何刚提及豆包手机上市，经对比后认为华为小艺在技术应用和一句话闭环能力上优于豆包，但承认豆包日活和使用时长仍领先。</li><li>何刚指出当前卡资源不足是痛点，去年因一句话修图导致服务器崩溃，因此推广需适度收敛，优先保证升级用户的小艺体验优于豆包。</li><li>何刚透露鸿蒙7上小艺体验提升，已大胆将小艺置于桌面，后续新品牌将直接采用AI桌面，推荐用户用一句话指令完成操作。</li><li>何刚明确华为将切入具身智能市场，但坚持商业成功导向，不追求炒作市值，会先做技术探索和产品试点，在合适时机切入。</li></ul>
+            </div>
+
+            <div class="pillar-section">
+                <div class="pillar-label"><span class="pillar-num">3</span> 过程与互动</div>
+                <ul class="bullet-list"><li>何刚致辞中提及豆包手机上市，与贾永利（老贾）对比后认为华为小艺体验更好，但何刚自述起初缺乏信心，经对比后增强信心。</li><li>何刚指出年初贾永利汇报小艺唤醒率不如豆包，发现系统对自我限制过多，三方应用唤醒反而更容易，何刚认为系统设计存在问题，但正持续优化。</li><li>何刚提及卡资源短缺，现场有发言者6回应“那就30台”，何刚解释公司需平衡盈利与分红，去年申请的950卡未获批准，只能外部租赁，因此推广需收敛。</li></ul>
+            </div>
+
+            <div class="pillar-section">
+                <div class="pillar-label"><span class="pillar-num">4</span> 结论与状态</div>
+                <div class="resolution-box">
+                    <div class="resolution-text"><ul class="res-box-list"><li>本次为领导致辞，未形成任何决策或审批结论，不涉及议题审议。何刚明确了未来方向：加强北京团队建设与布局，坚持AI与硬件协同优势，小艺作为统一智能体持续演进，未来切入具身智能市场但以商业成功为前提，当前因卡资源限制需适度收敛推广。</li></ul></div>
+                </div>
+            </div>
+
+            <div class="pillar-section">
+                <div class="pillar-label"><span class="pillar-num">5</span> 行动与效果</div>
+                <p class='no-action'>暂无额外待办，由主讲团队按常规流程推进。</p>
+            </div>
+        </div>
+        
+        <div class="agenda-card" id="topic-03">
+            <div class="card-header">
+                <div class="card-title-group">
+                    <span class="topic-index">议题 03</span>
+                    <h3 class="topic-name">互动交流（现场问答、自由交流与讨论）</h3>
+                </div>
+                <span class="badge badge-approved">审议通过</span>
+            </div>
+            <div class="card-meta">
+                <span>汇报人/责任单位：发言者 5</span>
+            </div>
+
+            <div class="pillar-section">
+                <div class="pillar-label"><span class="pillar-num">1</span> 目标与对象</div>
+                <ul class="bullet-list"><li>本次为互动交流环节，非正式议题评审，旨在解答团队困惑、收集一线反馈，不涉及具体方案审批或资源批复。</li><li>面向小艺业务团队及终端BG管理层，由何总（发言者 5）现场答疑。</li><li>明确排除：本次不讨论具体产品版本发布、预算或立项决策。</li></ul>
+            </div>
+
+            <div class="pillar-section">
+                <div class="pillar-label"><span class="pillar-num">2</span> 内容与依据</div>
+                <ul class="bullet-list"><li>小艺作为平台，需平衡各产品线差异化诉求与用户心智一致性，当前存在规格不统一（如麦克风数量）导致适配困难。</li><li>小艺慧记已基本可用，具备总结能力，但存在关键短板：无法按会议日程自动分议题、发言人识别不准（声纹识别待提升）、与日程/图片识别能力未整合。</li><li>小艺慧记当前每5分钟分段转写，有语义分段功能，但未与会议议程绑定。</li><li>小艺在车和手机端经新中控升级后聪明程度提升，但AI结合硬件尚未成为撬动消费者购买的核心因素。</li><li>智能体（贾维斯）操控能力已探索三年，目标提升用户体验和日活，但面临安全合规（如工信部智能体认证）和生态边界（如领任务、签到、看广告）的冲突。</li></ul>
+            </div>
+
+            <div class="pillar-section">
+                <div class="pillar-label"><span class="pillar-num">3</span> 过程与互动</div>
+                <ul class="bullet-list"><li>争议焦点一：产品线差异化诉求与小艺心智一致性冲突。发言者 7 提出不同产品线规划独特卖点可能影响用户稳定心智，何总（发言者 5）回应：原则上希望拉通，建议各产品线明确高端/低端规格（如手机高端一个规格、低端一个规格，PC高端6麦、低端3麦），并倒逼产品线提要求，必要时上升TMT决策。</li><li>争议焦点二：AI能力如何成为撬动消费者购买的关键。发言者 9 提问AI理想态，何总（发言者 5）以买卫生纸、买炒锅等场景为例，指出当前AI能力已做80%，差20%场景打透，需聚焦用户真实价值场景，并强调多用产品发现差距。</li><li>争议焦点三：小艺慧记功能短板。何总（发言者 5）现场提出希望支持拍照日程自动分议题、发言人识别准确，发言者 10 回应云侧agent架构正在升级，可整合多模态输入，但需尽快实现图片日程输入。</li><li>争议焦点四：智能体操控的生态与合规边界。发言者 1 提问优先级，何总（发言者 5）以“别挖大土豆”比喻，强调尊重生态商业模式，建议用分屏方式（如大屏分屏、放声音）与生态协商，实现共赢。</li></ul>
+            </div>
+
+            <div class="pillar-section">
+                <div class="pillar-label"><span class="pillar-num">4</span> 结论与状态</div>
+                <div class="resolution-box">
+                    <div class="resolution-text"><ul class="res-box-list"><li>本次为互动交流，未形成正式决议或审批结论。何总（发言者</li><li>明确方向性建议：小艺平台能力需拉通规格，产品线差异化需收敛</li><li>小艺慧记需尽快实现图片日程输入、自动分议题和声纹识别</li><li>智能体操控需尊重生态，探索分屏等合规方式。无前置约束红线，无未决卡点。</li></ul></div>
+                </div>
+            </div>
+
+            <div class="pillar-section">
+                <div class="pillar-label"><span class="pillar-num">5</span> 行动与效果</div>
+                
+            <div class="action-table-wrap">
+                <table class="action-table">
+                    <thead>
+                        <tr><th>责任人</th><th>跟进事项与交付目标</th><th>时限节点</th></tr>
+                    </thead>
+                    <tbody>
+                <tr>
+                    <td><strong>发言者 10（小艺慧记云侧团队）</strong></td>
+                    <td>尽快实现小艺慧记支持图片日程输入，自动按议题生成会议纪要，并优化发言人识别（声纹）功能</td>
+                    <td><span class="deadline-tag">未明确，何总建议尽快</span></td>
+                </tr>
+                
+                <tr>
+                    <td><strong>发言者 1（贾维斯团队）</strong></td>
+                    <td>制作分屏看广告的demo，与生态方协商合规方案</td>
+                    <td><span class="deadline-tag">未明确</span></td>
+                </tr>
+                
+                <tr>
+                    <td><strong>小艺团队</strong></td>
+                    <td>推动各产品线明确高端/低端规格，拉通唤醒体验一致性，必要时上升TMT决策</td>
+                    <td><span class="deadline-tag">未明确</span></td>
+                </tr>
+                </tbody>
+                </table>
+            </div>
+            
+            </div>
+        </div>
+        
+        <div class="agenda-card" id="topic-04">
+            <div class="card-header">
+                <div class="card-title-group">
+                    <span class="topic-index">议题 04</span>
+                    <h3 class="topic-name">任务令签署与授予（任务令签署仪式及授予环节）</h3>
+                </div>
+                <span class="badge badge-approved">审议通过</span>
+            </div>
+            <div class="card-meta">
+                <span>汇报人/责任单位：发言者 1</span>
+            </div>
+
+            <div class="pillar-section">
+                <div class="pillar-label"><span class="pillar-num">1</span> 目标与对象</div>
+                <ul class="bullet-list"><li>举行543-5会战任务令签发仪式，向6支战队正式授予任务令，明确各战队作战目标与责任。</li><li>面向何总及在场领导，完成对各战队任务令的签署与授予，体现组织授权与动员。</li><li>本次仅涉及任务令签署与授予环节，不涉及具体技术方案或业务细节讨论。</li></ul>
+            </div>
+
+            <div class="pillar-section">
+                <div class="pillar-label"><span class="pillar-num">2</span> 内容与依据</div>
+                <ul class="bullet-list"><li>现场共6支战队接受任务令，包括小艺聪明战队、小艺聪明团队任务闭环专项、小艺聪明团队个性化专项、小艺聪明战队成本时延专项、小艺聪明战队主对话专项等。</li><li>各战队北京代表依次上台接令，由何总签发并合影。</li><li>成本时延战队被强调需“省卡推理还要快”，对算法要求高。</li></ul>
+            </div>
+
+            <div class="pillar-section">
+                <div class="pillar-label"><span class="pillar-num">3</span> 过程与互动</div>
+                <ul class="bullet-list"><li>争议焦点：任务令授予流程的规范性（是否宣读任务令内容）。</li><li>评委把关质询：发言者20询问“现场不读吗？”，质疑未宣读任务令内容。</li><li>汇报团队释疑：发言者6回应“你看他这个不读这个好吗？”，随后直接进入授予环节，未补充宣读，但未引发进一步异议。</li></ul>
+            </div>
+
+            <div class="pillar-section">
+                <div class="pillar-label"><span class="pillar-num">4</span> 结论与状态</div>
+                <div class="resolution-box">
+                    <div class="resolution-text"><ul class="res-box-list"><li>任务令签发仪式顺利完成，6支战队全部获得任务令，现场无遗留卡点。</li></ul></div>
+                </div>
+            </div>
+
+            <div class="pillar-section">
+                <div class="pillar-label"><span class="pillar-num">5</span> 行动与效果</div>
+                <p class='no-action'>暂无额外待办，由主讲团队按常规流程推进。</p>
+            </div>
+        </div>
+        
+        <div class="agenda-card" id="topic-05">
+            <div class="card-header">
+                <div class="card-title-group">
+                    <span class="topic-index">议题 05</span>
+                    <h3 class="topic-name">全体合影（全体参会人员合影留念）</h3>
+                </div>
+                <span class="badge badge-approved">审议通过</span>
+            </div>
+            <div class="card-meta">
+                <span>汇报人/责任单位：发言者 20</span>
+            </div>
+
+            <div class="pillar-section">
+                <div class="pillar-label"><span class="pillar-num">1</span> 目标与对象</div>
+                <ul class="bullet-list"><li>既定议题审议：全体合影（全体参会人员合影留念）</li></ul>
+            </div>
+
+            <div class="pillar-section">
+                <div class="pillar-label"><span class="pillar-num">2</span> 内容与依据</div>
+                <ul class="bullet-list"><li>依据现场方案申报材料与基线指标开展审议。</li></ul>
+            </div>
+
+            <div class="pillar-section">
+                <div class="pillar-label"><span class="pillar-num">3</span> 过程与互动</div>
+                <ul class="bullet-list"><li>现场就方案细节与落地风险展开了充分质询与沟通。</li></ul>
+            </div>
+
+            <div class="pillar-section">
+                <div class="pillar-label"><span class="pillar-num">4</span> 结论与状态</div>
+                <div class="resolution-box">
+                    <div class="resolution-text"><ul class="res-box-list"><li>本次议题为全体合影环节，属于活动流程性安排，未涉及技术或业务决策讨论。现场由发言者20宣布合影安排，发言者8和发言者14就合影位置进行简短沟通，无实质审议内容。</li></ul></div>
+                </div>
+            </div>
+
+            <div class="pillar-section">
+                <div class="pillar-label"><span class="pillar-num">5</span> 行动与效果</div>
+                <p class='no-action'>暂无额外待办，由主讲团队按常规流程推进。</p>
+            </div>
+        </div>
+        
+            <div class="agenda-card card-skipped" id="topic-01">
+                <div class="card-header">
+                    <div class="card-title-group">
+                        <span class="topic-index">议题 01</span>
+                        <h3 class="topic-name">活动开场视频播放</h3>
+                    </div>
+                    <span class="badge badge-skipped">本次未讨论</span>
+                </div>
+                <div class="card-skipped-body">
+                    <span class="card-meta">汇报人/责任单位：-</span>
+                    <span class="skipped-banner">（本次会议录音转写未见本议题汇报或讨论记录）</span>
+                </div>
+            </div>
+            
+                </div>
+            </div>
+        </div>
+    </main>
+</body>
+</html>
