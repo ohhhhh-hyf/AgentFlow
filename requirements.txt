@@ -1,33 +1,62 @@
-# 编排内核
+# AgentFlow 依赖清单
+#
+# Python 下限：**3.9**
+#   实测 3.9.13 下全仓 334 个 .py 编译零语法错误、全套自测可跑。代码未用 3.10+
+#   专有语法（match / dataclass(slots=True) / zip(strict=) / 运行时 X | Y），
+#   所以不需要 3.10；3.9 及以上均可。
+#
+# 本文件 = README「快速开始」所述完整功能所需的依赖（meeting + notes 两个域、
+# 默认 OCR 引擎 serverocr）：
+#
+#   pip install -r requirements.txt
+#
+# 可选组件（PNG 导出、备选 OCR 引擎）见 requirements-optional.txt；
+# 开发/自测额外依赖见 requirements-dev.txt。
+
+# ── 编排内核 ────────────────────────────────────────────────
 langgraph>=0.6.0,<2
 
-# FastAPI 后端接口（app/ 包；启动 uvicorn app.main:app）
+# ── FastAPI 后端接口（app/ 包；启动 uvicorn app.main:app）────
 fastapi>=0.110
 uvicorn>=0.29
+# app/schemas.py 直接 import pydantic；fastapi 会带上它，但直接依赖必须声明
+pydantic>=2.0
+
+# ── 异步任务接口（/api/v1/tasks 系列）────────────────────────
+# 同步接口不需要 redis；仅异步任务用它存状态/事件流/队列
 redis>=5.0
 
-# 学科目录拼音化（catalog 按 subject 分目录：数学 → shuxue）
-pypinyin>=0.5
-
-# WebSocket LLM 后端（tools/llm/llmclient.py；LLM_BACKEND=websocket 时需要）
+# ── LLM 后端 ────────────────────────────────────────────────
+# HTTP（DeepSeek）与 vLLM 走标准库 urllib，无需额外包；
+# 仅 LLM_BACKEND=websocket 时需要 websockets。
 websockets>=12.0
 
-# 可选：思维导图 PNG 导出（markmap HTML 截图）需要浏览器内核。
-# 安装 Python 包后还需执行：python -m playwright install chromium
-# 未安装时导图导出自动降级（仅 HTML 或跳过 PNG），不影响其他功能。
-playwright>=1.40
+# ── 学科目录拼音化（catalog 按 subject 分目录：数学 → shuxue）──
+pypinyin>=0.5
 
-# 知识库（tools.knowledge）：PPT/PDF/docx/xlsx 入库 + 向量检索 + 出处
+# ── 笔记域知识库（library / catalog / checklist / graph）─────
+# chromadb 缺失时 open_knowledge 返回 None，知识增强自动降级（见
+# domain/notes/knowledge/cite.py），故严格来说只有 notes 域需要它；
+# 这里默认安装，以支持 README 描述的完整功能。
 chromadb>=0.5.0
+# tools/knowledge/vector_store.py 的 embedding 客户端用 httpx
+httpx>=0.27
 openai>=1.0.0
+
+# ── 文档解析（library 入库：PPT / PDF / docx / xlsx）─────────
 pdfplumber>=0.11.0
 python-docx>=1.1.0
 python-pptx>=0.6.23
 openpyxl>=3.1.0
 
-# 自测（tests/）：零 LLM 断言套件，运行 python -m tests（自带 runner，不依赖 pytest）
-pytest>=7.0
+# ── OCR（docs 传图片时使用）─────────────────────────────────
+# 默认引擎是 serverocr（OCR_ENGINE 缺省值），这两项在
+# tools/ocr/server_ocr.py 顶部是模块级 import，缺了会在加载引擎时报错。
+# 改用 PaddleOCR / RapidOCR 引擎的话，依赖见 requirements-optional.txt。
+requests>=2.31
+Pillow>=10.0
 
 # 系统依赖不由 pip 安装：
 # - 知识图谱 HTML：使用 Cytoscape.js CDN，联网打开效果最佳。
 # - 思维导图 HTML：需要 Node.js/npx，npx 会按需拉取 markmap-cli。
+# - 思维导图 PNG：需要 playwright + 浏览器内核，见 requirements-optional.txt。

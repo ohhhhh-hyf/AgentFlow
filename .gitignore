@@ -22,7 +22,11 @@ __pycache__/
 data/*/memory/
 data/*/knowledge/
 
+# 任务产物（data/{user_id}/output/{request_id}/：result.md / *.html）
+data/*/output/
 
+# 服务日志（logs/agentflow.log、logs/diag.log、logs/ocr_failed/、logs/agenda_ocr/；按大小轮转）
+logs/
 
-
-
+# ZCode CLI 工作目录
+.zcode/

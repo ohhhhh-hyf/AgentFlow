@@ -66,6 +66,9 @@ tools/
 tests/                        # 零 LLM 自测套件（见「自测」一节；python -m tests）
 assets/profiles/              # 画像注册表（客观全员 + 6 个职业模板），运行时直接读 *.json
 template/                     # 模板注册表（运行时直接读 *.md）：当前 31 类模板
+requirements.txt              # 必装依赖（两个域 + 默认 OCR 引擎）
+requirements-optional.txt     # 可选依赖（PNG 导出、备选 OCR 引擎）
+requirements-dev.txt          # 开发依赖（pytest，只有 agenda_minutes 那套需要）
 ```
 
 ## 快速开始
@@ -73,11 +76,38 @@ template/                     # 模板注册表（运行时直接读 *.md）：�
 ### 1. 环境准备
 
 ```bash
-# Python >= 3.10，安装依赖
+# Python >= 3.9，安装依赖
 pip install -r requirements.txt
 ```
 
-> 开发/测试请优先使用 **Python 3.10** 环境（项目部分语法在 ≤3.11 下才能被完整校验）。
+> **Python 下限是 3.9，不是 3.10。** 全仓 334 个 `.py` 在 3.9.13 下编译零语法错误，
+> 自测套件也可全跑；代码未使用 3.10+ 专有语法（`match`、`dataclass(slots=True)`、
+> `zip(strict=)`、运行时 `X | Y`）。3.9 及以上均可。
+
+依赖分成三份，按需安装：
+
+| 文件 | 内容 | 何时需要 |
+|---|---|---|
+| `requirements.txt` | 两个域 + 默认 OCR 引擎所需的全部依赖 | 必装 |
+| `requirements-optional.txt` | 思维导图 PNG 导出（playwright）、备选 OCR 引擎（paddleocr / rapidocr-onnxruntime） | 用到才装 |
+| `requirements-dev.txt` | pytest（仅 `tests/test_agenda_minutes.py` 需要） | 跑那一个套件才装 |
+
+```bash
+pip install -r requirements.txt                 # 服务本体
+pip install -r requirements-optional.txt        # 可选：PNG 导出 / 换 OCR 引擎
+pip install -r requirements-dev.txt             # 可选：pytest 风格的议程纪要套件
+```
+
+几处容易踩的点：
+
+- **`requests` + `Pillow` 是默认 OCR 引擎（`serverocr`）的必需项**，二者在
+  [tools/ocr/server_ocr.py](tools/ocr/server_ocr.py) 顶部是模块级 import，缺了会在加载
+  该引擎时报错。换 PaddleOCR / RapidOCR 才不需要它们。
+- **`chromadb` 只在 notes 域（知识库/检索）用得上**，缺失时 `open_knowledge` 返回
+  `None`、知识增强自动降级（日志会打印 `memory vector index init failed, fallback to
+  rules`），服务照常起。只要 meeting 域的话可以不装。
+- **`pytest` 不再是核心依赖**：7 个零 LLM 套件用自带 runner（`python -m tests`），
+  不依赖 pytest；只有 `tests/test_agenda_minutes.py` 是 pytest 风格。
 
 Linux 推荐配置：
 
@@ -91,7 +121,7 @@ Linux 推荐配置：
 
 ```bash
 # 思维导图 HTML 导出需要 Node.js（npx 首次自动下载 markmap-cli，无需全局安装）
-# 思维导图 PNG 导出还需要浏览器内核：
+# 思维导图 PNG 导出还需要浏览器内核（playwright 本身在 requirements-optional.txt）：
 python -m playwright install chromium
 ```
 
@@ -285,13 +315,14 @@ pip install "numpy<2" onnxruntime==1.16.3 rapidocr_onnxruntime==1.4.4
 
 ## 自测（零 LLM，秒级、不花钱）
 
-`tests/` 下的六个套件只覆盖"程序说了算"的部分——契约不变量、硬执行规则、模板解析与
+`tests/` 下的七个套件只覆盖"程序说了算"的部分——契约不变量、硬执行规则、模板解析与
 门禁方向、画像选档、记忆状态机，以及"某条纪律必须出现在发给模型的文本里"这类提示词断言；
 凡是需要模型判断的一律不测（所以都叫"零 LLM"）。提示词断言是刻意的：防止有人把纪律误删或改漂。
 
 ```bash
 python -m tests                        # 全部套件：逐个打印 pass/fail + 汇总一行，失败退出码 1
 python -m tests.test_template_router   # 单跑一个套件（排查问题时更省事）
+python -m pytest tests/test_agenda_minutes.py   # 另有一套 pytest 风格的（见下）
 ```
 
 | 套件 | 覆盖 |
@@ -302,6 +333,31 @@ python -m tests.test_template_router   # 单跑一个套件（排查问题时更
 | `tests/test_perspective.py` | 视角建模：偏好块 / 称呼表 / 命中表 / 原文按人裁剪 / 人名口径 |
 | `tests/test_draft_scrape.py` | 草稿/原文抽取：各线 `*_from_context` 与共享实现的 marker 一致性 |
 | `tests/test_engine_smoke.py` | 引擎/app 层冒烟（桩系统、零 LLM）：prepare_run → run → 落盘 → 记忆钩子 |
+| `tests/test_agenda_coercion.py` | 议程纪要字段规范化特征测试（新旧 schema 兼容现状）+ 判定阈值取值守卫 |
+
+`tests/test_agenda_minutes.py` 是**另一套风格的**：pytest 风格、356 条真 `assert`、
+用 `data/1/agenda/**` 真实夹具并 `import docx`，所以**不在** `python -m tests` 里
+（那个 runner 零依赖，不带 pytest）。要跑它得先 `pip install -r requirements-dev.txt`。
+
+### 当前状态（实测，请以本节为准）
+
+`python -m tests` 合计 **7 个套件 / 1305 项断言，当前 1236 通过、69 失败**：
+
+| 套件 | 通过 | 失败 |
+|---|---|---|
+| `test_core` | 134 | 0 |
+| `test_template_router` | 763 | **67** |
+| `test_meeting_memory` | 94 | 0 |
+| `test_perspective` | 171 | **2** |
+| `test_draft_scrape` | 33 | 0 |
+| `test_engine_smoke` | 13 | 0 |
+| `test_agenda_coercion` | 28 | 0 |
+
+失败集中在**提示词/模板断言**（`test_template_router` 里多为"某口径必须出现在
+system prompt 里"这类检查）、`test_perspective` 2 条（人名口径、去 AI 味纪律）——
+都是提示词改过之后断言没跟着更新，属**已知欠账**，不是运行期故障。仓库目前没有 CI，
+所以这类红是没有门禁拦的；要当门禁用请自行接 `python -m tests`
++ `sync_domain --check`（下方命令）。
 
 改完代码至少跑 `python -m tests`；动到生成区（contracts、TASK_LINES）再加
 `python tools/codegen/sync_domain.py --domain meeting --check`（notes 域同理）。
@@ -711,6 +767,13 @@ curl -X POST http://127.0.0.1:8000/api/agent/v1 \
 
 > 路由声明是**唯一来源**：`app/tasklines.py` 之外不要再写任务线清单（`app/tasks.py` 的 `LINE_NAMES`、
 > `app/routes/agent.py` 与 `app/routes/tasks.py` 共用的 `resolve_line` 域校验都从它派生）。
+
+## 变更记录
+
+> **读法说明**：以下各条是**改动当时**的状态快照，里边的「N 套件 M 项断言全过」按当时实测填写，
+> 不随后续改动回填——所以不同条目之间的数字会不一致（断言有增有删），也不代表现在仍然全过。
+> **当前套件数、断言数与通过/失败数，一律以「[自测](#自测零-llm秒级不花钱)」一节为准。**
+> 仓库目前没有 CI，这些条目里的"全过"只是那一刻的记录，不构成当前的通过承诺。
 
 ## 变更记录 · 纪要形态（2026-09-22）
 
