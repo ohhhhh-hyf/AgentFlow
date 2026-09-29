@@ -29,7 +29,12 @@ from ..agenda_parser import (
     match_presenter_name,
     parse_agenda_text,
 )
-from ..alignment_engine import AgendaAlignment, AlignmentResult, align_agenda_with_transcript
+from ..alignment_engine import (
+    NAME_MATCH_ACCEPT,
+    AgendaAlignment,
+    AlignmentResult,
+    align_agenda_with_transcript,
+)
 from ..contracts import (
     AGENDA_MINUTES_GENERATION_OUTPUT_CONTRACT,
     SINGLE_AGENDA_ITEM_OUTPUT_CONTRACT,
@@ -43,6 +48,25 @@ from ..prompts import (
 from ..types import detect_agenda_type
 
 logger = logging.getLogger(__name__)
+
+
+# ── 预算与并发（2026-09-29 抽出命名；**取值一律未改**）──────────────────
+#
+# 原先这些数字散在函数体与默认参数里，看不出彼此关系。抽成具名常量只为可读；
+# 调整它们等于改变证据覆盖与生成长度，需要拿真实夹具重新评估。
+
+# 单议题送模型的实录字符预算（超预算按「汇报人优先」截取，见 _extract_budgeted_evidence）
+_EVIDENCE_CHAR_BUDGET = 12000
+
+# 会议类型判定只看转写开头这一段（够识别类型即可，不必全文）
+_TYPE_DETECT_TRANSCRIPT_CHARS = 5000
+
+# 单议题结构化输出的 max_tokens 上限
+_ITEM_MAX_TOKENS = 2000
+
+# Map 阶段并发度（同名环境变量可覆盖）
+_CONCURRENCY_ENV = "AGENDA_MINUTES_CONCURRENCY"
+_DEFAULT_CONCURRENCY = "4"
 
 
 def _normalize_conclusion_points(val: Any) -> list[str]:
@@ -291,7 +315,7 @@ def _extract_agenda_and_transcript(shared_context: str) -> tuple[str, str]:
 
 def _extract_budgeted_evidence(
     align: AgendaAlignment,
-    max_chars: int = 12000,
+    max_chars: int = _EVIDENCE_CHAR_BUDGET,
 ) -> str:
     """按预算截取议题证据，优先确保官方汇报人的发言100%保留。"""
     if len(align.evidence_text) <= max_chars:
@@ -302,11 +326,11 @@ def _extract_budgeted_evidence(
     # 优先抽取汇报人自己的发言
     pres_blocks = [
         b for b in blocks
-        if any(match_presenter_name(p, b.speaker) >= 0.8 for p in presenters)
+        if any(match_presenter_name(p, b.speaker) >= NAME_MATCH_ACCEPT for p in presenters)
     ]
     other_blocks = [
         b for b in blocks
-        if not any(match_presenter_name(p, b.speaker) >= 0.8 for p in presenters)
+        if not any(match_presenter_name(p, b.speaker) >= NAME_MATCH_ACCEPT for p in presenters)
     ]
 
     selected: list[Any] = list(pres_blocks)
@@ -358,7 +382,7 @@ class AgendaMinutesAgent:
         # 3. 动态检测会议类型（退居幕后的 9 大类型导师）并装配单议题 Prompt
         type_spec = detect_agenda_type(
             theme=plan.meta.theme or "",
-            context=transcript[:5000],
+            context=transcript[:_TYPE_DETECT_TRANSCRIPT_CHARS],
         )
         logger.info(
             "agenda_minutes detected meeting type: %s (%s)",
@@ -368,14 +392,14 @@ class AgendaMinutesAgent:
         item_system_prompt = build_single_item_prompt(type_spec)
 
         # 4. Map 阶段：受控并发抽取每个讨论过的议题（彻底打破单次 64K 上下文限制）
-        concurrency = int(os.getenv("AGENDA_MINUTES_CONCURRENCY", "4"))
+        concurrency = int(os.getenv(_CONCURRENCY_ENV, _DEFAULT_CONCURRENCY))
         semaphore = asyncio.Semaphore(concurrency)
 
         async def _extract_single_item(align: AgendaAlignment) -> dict[str, Any]:
             it = align.item
             pres_str = "、".join(it.presenters) if it.presenters else (it.raw_presenter or "未指定")
             async with semaphore:
-                budgeted_evidence = _extract_budgeted_evidence(align, max_chars=12000)
+                budgeted_evidence = _extract_budgeted_evidence(align, max_chars=_EVIDENCE_CHAR_BUDGET)
                 user_prompt = (
                     f"【既定议题基本信息】：\n"
                     f"- 议程序号：{it.seq}\n"
@@ -392,7 +416,7 @@ class AgendaMinutesAgent:
                         SingleAgendaItemModel,
                         SINGLE_AGENDA_ITEM_OUTPUT_CONTRACT,
                         label=f"agenda_minutes/item_{it.seq}",
-                        max_tokens=2000,
+                        max_tokens=_ITEM_MAX_TOKENS,
                     )
                     extracted = res.__dict__ if hasattr(res, "__dict__") else dict(res)
                 except Exception as exc:

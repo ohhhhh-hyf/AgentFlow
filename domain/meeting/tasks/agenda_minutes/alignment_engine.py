@@ -80,6 +80,45 @@ class AlignmentResult:
 
 _SPEAKER_LABEL_PATTERN = r"(?:[^\n:：\d]{1,16}|(?:发言者|说话人|发言人|主讲人|参会人|与会人|Speaker|User|Participant)\s*[\-_#]?\s*\d{1,4})"
 
+
+# ── 判定阈值（2026-09-29 抽出命名；**取值一律未改**，仅把语义写清楚）──────
+#
+# 原先这些数字散落在 895 行的启发式里，同一数值在不同位置含义并不相同，
+# 机械替换极易张冠李戴。这里按**语义**分别命名，即使取值碰巧相同也各自独立——
+# 例如 0.8 既是「人名字符串算同一个人」的相似度下限，也是「匿名发言人占比」
+# 的分轨门槛，两者无关，绝不能合并成一个常量。
+#
+# 改动这些值等于改动对齐行为，需要拿真实夹具重新评估，不要顺手调参。
+
+# 人名字符串相似度下限：match_presenter_name 返回 1.0=精确/包含、0.95=异体归一，
+# 再往下是拼音同音与模糊匹配；≥ 本值即认定"指的是同一个人"。
+# 公开（无下划线）：agenda_minutes_agent 的证据预算也按同一口径判定汇报人。
+NAME_MATCH_ACCEPT = 0.8
+
+# 人名字符串**精确**匹配下限（match_presenter_name 认定为精确/包含时的返回值）。
+# 与 NAME_MATCH_ACCEPT 是两档不同语义：这一档用于"确认就是本人"的强判定。
+NAME_MATCH_EXACT = 1.0
+
+# 匿名发言人占比门槛：≥ 本值说明转写基本没有可用人名，改用 CONTENT 轨（词面匹配）
+# 而非 NAMED 轨（人名匹配）。与 NAME_MATCH_ACCEPT 同值但语义无关。
+_ANON_RATIO_FOR_CONTENT_TRACK = 0.8
+
+# 高频发言人（主持人/评委）判定：单人发言块数 ≥ 本值且不属于议程团队 → 视为中立枢纽。
+_HUB_SPEAKER_BLOCK_MIN = 25
+
+# 会话状态机阈值（换轨决策）
+_SWITCH_ENTER_SCORE = 3.0    # 议题得分达到此值才进入换轨判断
+_SWITCH_FORCE_SCORE = 4.5    # 得分达到此值无条件切换过去
+_SWITCH_MARGIN = 2.0         # 超出当前活跃议题此分差即切换
+_CONFLICT_SCORE = 2.0        # 转场期：其他议题得分 ≥ 此值视为存在竞争，不承接
+_SUSTAIN_SCORE = 1.0         # 转场期：活跃议题得分 ≥ 此值视为仍在被实质性补充
+_IN_AGENDA_CONFLICT_SCORE = 2.5  # 研讨态：其他议题得分 ≥ 此值视为存在竞争（比转场期严）
+_RESUME_SCORE = 2.0          # 开场信号 + 得分 ≥ 此值则恢复承接
+
+# 发言块内容长度门槛（字符数）
+_DUAL_SPEAKER_SHORT_CHARS = 100  # 双重身份者发言短于此视为客套过渡，不当主题承接
+_NOISE_SHORT_CHARS = 30          # 短于此视为纯噪声/设备调试，直接隔离
+
 _SPEAKER_TS_PATTERN = re.compile(
     rf"^(?:"
     rf"(?:\[?(\d{{1,2}}:\d{{2}}(?::\d{{2}})?(?:\.\d+)?)]?\s+({_SPEAKER_LABEL_PATTERN}))"
@@ -245,7 +284,7 @@ def _detect_host_roadsign(
         for p in all_team:
             if not p:
                 continue
-            if p in search_scope or match_presenter_name(p, search_scope) >= 0.8:
+            if p in search_scope or match_presenter_name(p, search_scope) >= NAME_MATCH_ACCEPT:
                 return it.seq, False
             if len(p) >= 2:
                 surname = p[0]
@@ -403,7 +442,7 @@ def _identify_hub_speakers(plan: AgendaPlan, blocks: list[DiscussionBlock]) -> t
             all_team.update(it.members)
 
     for sp, cnt in speaker_counts.items():
-        if cnt >= 25 and not any(match_presenter_name(p, sp) >= 0.8 for p in all_team if p):
+        if cnt >= _HUB_SPEAKER_BLOCK_MIN and not any(match_presenter_name(p, sp) >= NAME_MATCH_ACCEPT for p in all_team if p):
             raw_hubs.add(sp)
 
     if "现场发言人" in raw_hubs:
@@ -411,7 +450,7 @@ def _identify_hub_speakers(plan: AgendaPlan, blocks: list[DiscussionBlock]) -> t
 
     # 汇报人身份互斥保护（核心免疫，支持模糊容错）：
     # 检出双重身份人员（既是会议主持/组织人员，又是某议题法定主讲人）
-    team_in_hubs = {h for h in raw_hubs if any(match_presenter_name(p, h) >= 0.8 for p in all_team if p)}
+    team_in_hubs = {h for h in raw_hubs if any(match_presenter_name(p, h) >= NAME_MATCH_ACCEPT for p in all_team if p)}
     dual_speakers = team_in_hubs
     # 凡是既定议题的汇报人/团队成员，绝不作为纯中立主持人（防止加分被彻底抹平）
     hub_speakers = raw_hubs.difference(team_in_hubs)
@@ -444,14 +483,14 @@ def _score_block_for_item(
         if not p:
             continue
         sim = match_presenter_name(p, sp)
-        if sim >= 1.0:
+        if sim >= NAME_MATCH_EXACT:
             is_presenter = True
             presenter_score = max(presenter_score, 5.0)
-        elif sim >= 0.8:
+        elif sim >= NAME_MATCH_ACCEPT:
             is_presenter = True
             presenter_score = max(presenter_score, 4.5)
 
-    is_dual = bool(dual_speakers and any(match_presenter_name(d, sp) >= 0.8 for d in dual_speakers))
+    is_dual = bool(dual_speakers and any(match_presenter_name(d, sp) >= NAME_MATCH_ACCEPT for d in dual_speakers))
 
     if sp and (sp not in hub_speakers or is_dual):
         if is_presenter:
@@ -484,7 +523,7 @@ def _score_block_for_item(
     for name in all_team:
         if not name:
             continue
-        if (name in content or match_presenter_name(name, content) >= 0.8) and name != sp:
+        if (name in content or match_presenter_name(name, content) >= NAME_MATCH_ACCEPT) and name != sp:
             score += 2.0
             break
         if len(name) >= 2 and re.search(rf"{re.escape(name[0])}(?:工|老师|总|经理|博士|专家)", content):
@@ -530,7 +569,7 @@ def _detect_alignment_track(plan: AgendaPlan, blocks: list[DiscussionBlock]) -> 
         return "NAMED"
 
     anon_count = sum(1 for b in blocks if _is_anonymous_speaker(b.speaker))
-    if anon_count / total_blocks >= 0.8:
+    if anon_count / total_blocks >= _ANON_RATIO_FOR_CONTENT_TRACK:
         return "CONTENT"
 
     return "NAMED"
@@ -780,31 +819,31 @@ def align_agenda_with_transcript(
         best_seq, best_score = max(scores.items(), key=lambda x: x[1])
 
         # 状态机换轨决策
-        if best_score >= 3.0:
+        if best_score >= _SWITCH_ENTER_SCORE:
             if best_seq != active_seq:
                 if (
                     active_seq is None
                     or in_transition
                     or pending_roadsign == best_seq
-                    or best_score >= 4.5
-                    or (best_score >= scores.get(active_seq, 0) + 2.0)
+                    or best_score >= _SWITCH_FORCE_SCORE
+                    or (best_score >= scores.get(active_seq, 0) + _SWITCH_MARGIN)
                 ):
                     active_seq = best_seq
                     in_transition = False
                     pending_roadsign = None
             assigned[b.index] = active_seq
         else:
-            # 得分 < 3.0 的发言块处理（评委插话、简短回应、过场闲聊或设备调试）
+            # 得分 < _SWITCH_ENTER_SCORE 的发言块处理（评委插话、简短回应、过场闲聊或设备调试）
             if in_transition:
                 # 处于转场缓冲期（Transition Buffer）
                 # 若为纯设备调试/杂音/或主持人过渡客套，进行隔离，绝不贪婪污染上一议题！
-                is_host_or_dual = b.speaker in hub_speakers or (dual_speakers and b.speaker in dual_speakers and len(b.content) < 100)
-                if is_noise or is_host_or_dual or len(b.content) < 30:
+                is_host_or_dual = b.speaker in hub_speakers or (dual_speakers and b.speaker in dual_speakers and len(b.content) < _DUAL_SPEAKER_SHORT_CHARS)
+                if is_noise or is_host_or_dual or len(b.content) < _NOISE_SHORT_CHARS:
                     assigned[b.index] = None
                 else:
                     # 检查是否仍然在对 active_seq 进行有实质意义的补充或质询
-                    has_conflict = any(seq != active_seq and scores.get(seq, 0) >= 2.0 for seq in item_tokens)
-                    if not has_conflict and active_seq is not None and scores.get(active_seq, 0) >= 1.0:
+                    has_conflict = any(seq != active_seq and scores.get(seq, 0) >= _CONFLICT_SCORE for seq in item_tokens)
+                    if not has_conflict and active_seq is not None and scores.get(active_seq, 0) >= _SUSTAIN_SCORE:
                         assigned[b.index] = active_seq
                         in_transition = False
                     else:
@@ -814,7 +853,7 @@ def align_agenda_with_transcript(
                 if active_seq is not None:
                     has_conflict = False
                     for seq in item_tokens:
-                        if seq != active_seq and scores.get(seq, 0) >= 2.5:
+                        if seq != active_seq and scores.get(seq, 0) >= _IN_AGENDA_CONFLICT_SCORE:
                             has_conflict = True
                             break
                     if not has_conflict:
@@ -824,7 +863,7 @@ def align_agenda_with_transcript(
                 else:
                     assigned[b.index] = None
 
-        if is_opening and not is_closing and best_score >= 2.0:
+        if is_opening and not is_closing and best_score >= _RESUME_SCORE:
             in_transition = False
             pending_roadsign = None
 
