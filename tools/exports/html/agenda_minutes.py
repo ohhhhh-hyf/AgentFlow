@@ -13,6 +13,69 @@ from typing import Any
 from tools.exports.html.paper_css import latex_paper_css as _latex_paper_css
 
 
+def _is_nested_bullet_block(s: str) -> bool:
+    """判断字符串是否为【加粗主题 + 二级列表项】的嵌套结构。"""
+    lines = [ln.strip() for ln in s.splitlines() if ln.strip()]
+    if len(lines) <= 1:
+        return False
+    if not (lines[0].startswith("**") and "**" in lines[0][2:]):
+        return False
+    for ln in lines[1:]:
+        if not re.match(r"^[-*•·]\s+", ln):
+            return False
+    return True
+
+
+def auto_structure_bullet(text: str) -> str:
+    """智能将单段式大段内容重构成 一级加粗主题 + 二级自然列表。
+
+    若文本已经是多行结构，或主体较短，则保持原样；
+    若包含“主题：长文本（多个句号分号）”，自动提炼加粗主题并拆出二级子列表。
+    """
+    s = str(text).strip()
+    if not s:
+        return ""
+    if "\n" in s:
+        return s
+
+    # 匹配加粗或未加粗主题：如 **主题**： 或 主题：
+    m = re.match(r"^(\*\*[^*]+?\*\*|[^\n：:]{2,20})[：:]\s*(.+)$", s)
+    if not m:
+        return s
+
+    title, body = m.group(1).strip(), m.group(2).strip()
+    if not title.startswith("**"):
+        title = f"**{title}**"
+
+    # 若主体文本较短或断句不足，保持原样
+    if len(body) < 60 or (body.count("。") + body.count("；")) < 2:
+        return f"{title}：{body}"
+
+    # 按句号/分号切分句子
+    raw_parts = re.split(r"([。；])", body)
+    sentences = []
+    curr = ""
+    for p in raw_parts:
+        curr += p
+        if p in ("。", "；") and len(curr.strip()) >= 15:
+            sentences.append(curr.strip())
+            curr = ""
+    if curr.strip():
+        if sentences and len(curr.strip()) < 15:
+            sentences[-1] += curr.strip()
+        else:
+            sentences.append(curr.strip())
+
+    if len(sentences) >= 2:
+        sub_bullets = "\n".join(
+            f"- {sent.rstrip('；。')}；" if i < len(sentences) - 1 else f"- {sent.rstrip('；。')}。"
+            for i, sent in enumerate(sentences)
+        )
+        return f"{title}：\n{sub_bullets}"
+
+    return f"{title}：{body}"
+
+
 def _normalize_conclusion_points(val: Any) -> list[str]:
     """统一规范化结论与状态字段为干净的条目列表，剔除 Python repr 符号与多余空行。"""
     if val is None or val is False:
@@ -43,6 +106,16 @@ def _normalize_conclusion_points(val: Any) -> list[str]:
         if len(cleaned) > 1:
             return _normalize_conclusion_points(cleaned)
 
+    # 如果是多行二级嵌套结构（加粗标题 + 子列表），整块保留为一个条目
+    if _is_nested_bullet_block(s):
+        lines = [ln.strip() for ln in s.splitlines() if ln.strip()]
+        first = lines[0]
+        subs = [re.sub(r"^[-*•·]\s*", "", ln).strip() for ln in lines[1:]]
+        subs = [sub for sub in subs if sub]
+        if subs:
+            return [first + "\n" + "\n".join(f"- {sub}" for sub in subs)]
+        return [first]
+
     # 2. 预处理：解耦定调语句与前置约束标题（如 '...通过。生效前置约束：1）...' -> '...通过。\n1）...'）
     s = re.sub(r'^\s*(?:发布前置条件|生效前置约束|前置条件|前置约束|附带条件|后续要求|主要关注项|注意事项)[：:]\s*', '', s)
     s = re.sub(r'([。；;\n])?\s*(?:发布前置条件|生效前置约束|前置条件|前置约束|附带条件|后续要求|主要关注项|注意事项)[：:]\s*', lambda m: (m.group(1) or '。') + '\n', s)
@@ -59,10 +132,10 @@ def _normalize_conclusion_points(val: Any) -> list[str]:
     if len(lines) == 1 and (lines[0].count('；') >= 2 or lines[0].count(';') >= 2):
         lines = [p.strip() for p in re.split(r'[；;]\s*', lines[0]) if p.strip()]
 
-    # 6. 清洗每条开头的数字标号与冗余前缀（如“生效前置约束 1：”等，实现一点一行干货直出）
+    # 6. 清洗每条开头的数字标号与冗余前缀（保留 ** 加粗标记）
     cleaned = []
     for it in lines:
-        it = re.sub(r'^(?:[-*•·\s]+|(?:[1-9]\d*[\.、）\)]|[(（][1-9]\d*[)）]|[①-⑩]|(?:一是|二是|三是|四是|五是)|(?:第一[，,、]|第二[，,、]|第三[，,、])))\s*', '', it).strip()
+        it = re.sub(r'^(?:[-•·]\s*|\*(?!\*)\s*|\s+|(?:[1-9]\d*[\.、）\)]|[(（][1-9]\d*[)）]|[①-⑩]|(?:一是|二是|三是|四是|五是)|(?:第一[，,、]|第二[，,、]|第三[，,、])))\s*', '', it).strip()
         it = re.sub(r'^(?:发布前置条件|生效前置约束|前置条件|前置约束|附带条件|现场未决卡点|现场卡点|未决卡点|遗留卡点)\s*\d*\s*[：:]\s*', '', it).strip()
         if re.search(r'^(?:现场)?无(?:其他)?(?:阻塞|卡点|遗留|风险|问题)', it):
             continue
@@ -91,6 +164,80 @@ def _md_inline(text: str) -> str:
     escaped = re.sub(r"\*\*(.+?)\*\*", r"<strong>\1</strong>", escaped)
     escaped = re.sub(r"`(.+?)`", r"<code>\1</code>", escaped)
     return escaped
+
+
+def _format_markdown_bullet(text: str) -> str:
+    """把单个内容条目格式化为带层级的 Markdown 列表，支持二级子列表。"""
+    s = auto_structure_bullet(text)
+    lines = [ln.strip() for ln in s.splitlines() if ln.strip()]
+    if not lines:
+        return ""
+    first = re.sub(r"^[-•·]\s*|^\*(?!\*)\s*", "", lines[0]).strip()
+    res = [f"- {first}"]
+    for ln in lines[1:]:
+        sub = re.sub(r"^[-•·]\s*|^\*(?!\*)\s*", "", ln).strip()
+        if sub:
+            res.append(f"  - {sub}")
+    return "\n".join(res)
+
+
+def _format_markdown_quote_bullet(text: str) -> str:
+    """把单个认知条目格式化为引用块中的 Markdown 列表，支持二级子列表。"""
+    s = auto_structure_bullet(text)
+    lines = [ln.strip() for ln in s.splitlines() if ln.strip()]
+    if not lines:
+        return ""
+    first = re.sub(r"^[-•·]\s*|^\*(?!\*)\s*", "", lines[0]).strip()
+    res = [f"> - {first}"]
+    for ln in lines[1:]:
+        sub = re.sub(r"^[-•·]\s*|^\*(?!\*)\s*", "", ln).strip()
+        if sub:
+            res.append(f">   - {sub}")
+    return "\n".join(res)
+
+
+def _render_content_li(item: str) -> str:
+    """把单个内容条目渲染为 HTML <li>，支持二级子列表。"""
+    s = auto_structure_bullet(item)
+    lines = [ln.strip() for ln in s.splitlines() if ln.strip()]
+    if not lines:
+        return ""
+    if len(lines) == 1:
+        return f"<li>{_md_inline(lines[0])}</li>"
+
+    first = re.sub(r"^[-•·]\s*|^\*(?!\*)\s*", "", lines[0]).strip()
+    sub_lis = []
+    for sub in lines[1:]:
+        clean_sub = re.sub(r"^[-•·]\s*|^\*(?!\*)\s*", "", sub).strip()
+        if clean_sub:
+            sub_lis.append(f"<li>{_md_inline(clean_sub)}</li>")
+
+    if sub_lis:
+        sub_ul = f'<ul class="sub-bullet-list">{"".join(sub_lis)}</ul>'
+        return f'<li class="content-group"><span class="content-topic-title">{_md_inline(first)}</span>{sub_ul}</li>'
+    return f"<li>{_md_inline(first)}</li>"
+
+
+def _render_insight_li(item: str) -> str:
+    """把单个核心认知条目渲染为 HTML <li>，支持二级子列表。"""
+    s = auto_structure_bullet(item)
+    lines = [ln.strip() for ln in s.splitlines() if ln.strip()]
+    if not lines:
+        return ""
+    if len(lines) == 1:
+        return f"<li>{_md_inline(lines[0])}</li>"
+
+    first = re.sub(r"^[-•·]\s*|^\*(?!\*)\s*", "", lines[0]).strip()
+    sub_lis = []
+    for sub in lines[1:]:
+        clean_sub = re.sub(r"^[-•·]\s*|^\*(?!\*)\s*", "", sub).strip()
+        if clean_sub:
+            sub_lis.append(f"<li>{_md_inline(clean_sub)}</li>")
+
+    if sub_lis:
+        sub_ul = f'<ul class="sub-bullet-list">{"".join(sub_lis)}</ul>'
+        return f'<li class="insight-group"><span class="insight-topic-title">{_md_inline(first)}</span>{sub_ul}</li>'
+    return f"<li>{_md_inline(first)}</li>"
 
 
 def format_agenda_minutes_markdown(draft: dict[str, Any]) -> str:
@@ -252,7 +399,9 @@ def format_agenda_minutes_markdown(draft: dict[str, Any]) -> str:
         lines.append("#### 2. 核心内容")
         if content_list:
             for m in content_list:
-                lines.append(f"- {m}")
+                formatted = _format_markdown_bullet(m)
+                if formatted:
+                    lines.append(formatted)
         else:
             lines.append("- 依据现场方案申报材料与基线指标开展审议。")
         lines.append("")
@@ -264,7 +413,11 @@ def format_agenda_minutes_markdown(draft: dict[str, Any]) -> str:
         if not pts:
             lines.extend(["> （本次会议未记录到特别沉淀内容）", ""])
         else:
-            lines.extend([f"> - {p}" for p in pts] + [""])
+            for p in pts:
+                formatted_quote = _format_markdown_quote_bullet(p)
+                if formatted_quote:
+                    lines.append(formatted_quote)
+            lines.append("")
 
         # 4. 后续行动 (仅当存在实际 action_items 时输出，否则彻底不渲染)
         actions = it.get("action_items") or it.get("action_commitments") or []
@@ -496,7 +649,7 @@ def render_agenda_minutes_html(
 
             content_list = c_list + p_list
 
-        content_li = "".join(f"<li>{_md_inline(m)}</li>" for m in content_list) if content_list else "<li>依据现场方案申报材料与基线指标开展审议。</li>"
+        content_li = "".join(_render_content_li(m) for m in content_list) if content_list else "<li>依据现场方案申报材料与基线指标开展审议。</li>"
 
         # 3. 核心认知
         conclusion_raw = it.get("core_insights") or it.get("conclusion_and_status") or it.get("resolution") or ""
@@ -504,7 +657,7 @@ def render_agenda_minutes_html(
         if not pts:
             conclusion_content = '<span class="no-res">（本次会议未记录到特别沉淀内容）</span>'
         else:
-            items_html = "".join(f"<li>{_md_inline(p)}</li>" for p in pts)
+            items_html = "".join(_render_insight_li(p) for p in pts)
             conclusion_content = f'<ul class="res-box-list">{items_html}</ul>'
 
         # 4. 后续行动 (仅当存在实际 action_items 时输出，否则彻底不渲染)
@@ -774,6 +927,25 @@ def render_agenda_minutes_html(
     .bullet-list li {
       margin: 2px 0;
     }
+    .bullet-list .content-group {
+      margin: 6px 0;
+    }
+    .bullet-list .content-topic-title, .res-box-list .insight-topic-title {
+      display: block;
+      margin-bottom: 2px;
+      color: #111111;
+      font-weight: 600;
+    }
+    .sub-bullet-list {
+      margin: 4px 0 6px 0;
+      padding-left: 1.25em;
+      list-style-type: circle;
+      color: #333333;
+    }
+    .sub-bullet-list li {
+      margin: 3px 0;
+      line-height: 1.55;
+    }
 
     .sub-block {
       background: #fbfaf7;
@@ -807,6 +979,16 @@ def render_agenda_minutes_html(
     .res-box-list li {
       margin: 4px 0;
       line-height: 1.6;
+    }
+    .res-box-list .insight-group {
+      margin: 6px 0;
+    }
+    .res-box-list .sub-bullet-list {
+      color: #1b4d1d;
+      list-style-type: circle;
+    }
+    .res-box-list .insight-topic-title {
+      color: #1b4d1d;
     }
     .res-single {
       margin: 0;

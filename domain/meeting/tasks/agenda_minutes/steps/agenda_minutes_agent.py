@@ -64,6 +64,69 @@ _CONCURRENCY_ENV = "AGENDA_MINUTES_CONCURRENCY"
 _DEFAULT_CONCURRENCY = "4"
 
 
+def _is_nested_bullet_block(s: str) -> bool:
+    """判断字符串是否为【加粗主题 + 二级列表项】的嵌套结构。"""
+    lines = [ln.strip() for ln in s.splitlines() if ln.strip()]
+    if len(lines) <= 1:
+        return False
+    if not (lines[0].startswith("**") and "**" in lines[0][2:]):
+        return False
+    for ln in lines[1:]:
+        if not re.match(r"^[-*•·]\s+", ln):
+            return False
+    return True
+
+
+def auto_structure_bullet(text: str) -> str:
+    """智能将单段式大段内容重构成 一级加粗主题 + 二级自然列表。
+
+    若文本已经是多行结构，或主体较短，则保持原样；
+    若包含“主题：长文本（多个句号分号）”，自动提炼加粗主题并拆出二级子列表。
+    """
+    s = str(text).strip()
+    if not s:
+        return ""
+    if "\n" in s:
+        return s
+
+    # 匹配加粗或未加粗主题：如 **主题**： 或 主题：
+    m = re.match(r"^(\*\*[^*]+?\*\*|[^\n：:]{2,20})[：:]\s*(.+)$", s)
+    if not m:
+        return s
+
+    title, body = m.group(1).strip(), m.group(2).strip()
+    if not title.startswith("**"):
+        title = f"**{title}**"
+
+    # 若主体文本较短或断句不足，保持原样
+    if len(body) < 60 or (body.count("。") + body.count("；")) < 2:
+        return f"{title}：{body}"
+
+    # 按句号/分号切分句子
+    raw_parts = re.split(r"([。；])", body)
+    sentences = []
+    curr = ""
+    for p in raw_parts:
+        curr += p
+        if p in ("。", "；") and len(curr.strip()) >= 15:
+            sentences.append(curr.strip())
+            curr = ""
+    if curr.strip():
+        if sentences and len(curr.strip()) < 15:
+            sentences[-1] += curr.strip()
+        else:
+            sentences.append(curr.strip())
+
+    if len(sentences) >= 2:
+        sub_bullets = "\n".join(
+            f"- {sent.rstrip('；。')}；" if i < len(sentences) - 1 else f"- {sent.rstrip('；。')}。"
+            for i, sent in enumerate(sentences)
+        )
+        return f"{title}：\n{sub_bullets}"
+
+    return f"{title}：{body}"
+
+
 def _normalize_conclusion_points(val: Any) -> list[str]:
     """统一规范化结论与状态字段为干净的条目列表，彻底支持一点一行拆解。"""
     if val is None or val is False:
@@ -94,6 +157,16 @@ def _normalize_conclusion_points(val: Any) -> list[str]:
         if len(cleaned) > 1:
             return _normalize_conclusion_points(cleaned)
 
+    # 如果是多行二级嵌套结构（加粗标题 + 子列表），整块保留为一个条目
+    if _is_nested_bullet_block(s):
+        lines = [ln.strip() for ln in s.splitlines() if ln.strip()]
+        first = lines[0]
+        subs = [re.sub(r"^[-*•·]\s*", "", ln).strip() for ln in lines[1:]]
+        subs = [sub for sub in subs if sub]
+        if subs:
+            return [first + "\n" + "\n".join(f"- {sub}" for sub in subs)]
+        return [first]
+
     # 2. 预处理：解耦定调语句与前置约束标题（如 '...通过。生效前置约束：1）...' -> '...通过。\n1）...'）
     s = re.sub(r'^\s*(?:发布前置条件|生效前置约束|前置条件|前置约束|附带条件|后续要求|主要关注项|注意事项)[：:]\s*', '', s)
     s = re.sub(r'([。；;\n])?\s*(?:发布前置条件|生效前置约束|前置条件|前置约束|附带条件|后续要求|主要关注项|注意事项)[：:]\s*', lambda m: (m.group(1) or '。') + '\n', s)
@@ -110,10 +183,10 @@ def _normalize_conclusion_points(val: Any) -> list[str]:
     if len(lines) == 1 and (lines[0].count('；') >= 2 or lines[0].count(';') >= 2):
         lines = [p.strip() for p in re.split(r'[；;]\s*', lines[0]) if p.strip()]
 
-    # 6. 清洗每条开头的数字标号与冗余前缀（如“生效前置约束 1：”等，实现一点一行干货直出）
+    # 6. 清洗每条开头的数字标号与冗余前缀（保留 ** 加粗标记）
     cleaned = []
     for it in lines:
-        it = re.sub(r'^(?:[-*•·\s]+|(?:[1-9]\d*[\.、）\)]|[(（][1-9]\d*[)）]|[①-⑩]|(?:一是|二是|三是|四是|五是)|(?:第一[，,、]|第二[，,、]|第三[，,、])))\s*', '', it).strip()
+        it = re.sub(r'^(?:[-•·]\s*|\*(?!\*)\s*|\s+|(?:[1-9]\d*[\.、）\)]|[(（][1-9]\d*[)）]|[①-⑩]|(?:一是|二是|三是|四是|五是)|(?:第一[，,、]|第二[，,、]|第三[，,、])))\s*', '', it).strip()
         it = re.sub(r'^(?:发布前置条件|生效前置约束|前置条件|前置约束|附带条件|现场未决卡点|现场卡点|未决卡点|遗留卡点)\s*\d*\s*[：:]\s*', '', it).strip()
         if re.search(r'^(?:现场)?无(?:其他)?(?:阻塞|卡点|遗留|风险|问题)', it):
             continue
@@ -284,8 +357,8 @@ class SingleAgendaItemModel(ModelMixin):
         # 2. 核心内容
         raw_core = data.get("core_content")
         if isinstance(raw_core, list) and raw_core:
-            core_content = list(raw_core)
-            content = list(raw_core)
+            core_content = [auto_structure_bullet(c) for c in raw_core if c]
+            content = list(core_content)
             process = list(data.get("process_and_interaction") or [])
         else:
             content_raw = data.get("content_and_evidence")
@@ -306,7 +379,7 @@ class SingleAgendaItemModel(ModelMixin):
                 delib_raw = data.get("deliberation_details") or {}
                 process = list(delib_raw.get("feedback_concerns") or []) if isinstance(delib_raw, dict) else []
 
-            core_content = list(content) + list(process)
+            core_content = [auto_structure_bullet(c) for c in (content + process) if c]
 
         # 3. 核心认知（支持多点结构化与单条自然语言）
         raw_insights = data.get("core_insights") or data.get("conclusion_and_status") or data.get("resolution") or ""

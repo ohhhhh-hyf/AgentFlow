@@ -1480,3 +1480,71 @@ def test_prepare_agenda_ocr_prompt_text_filters_sidebar_and_preserves_columns():
     # 验证同一行内单元格用 "  |  " 明确分隔
     assert "1  |  小艺慧记版本发布  |  15min  |  申家坤" in res
     assert "翻译海外商用发布  |  15min  |  刘畅" in res
+
+
+def test_auto_structure_and_render_sub_bullets():
+    """测试核心内容与核心认知自动分组分点结构化（加粗主题 + 二级子列表）。"""
+    from tools.exports.html.agenda_minutes import (
+        auto_structure_bullet,
+        format_agenda_minutes_markdown,
+        render_agenda_minutes_html,
+    )
+
+    sample_dense = (
+        "ASR效果问题：存在多个上下文能力、热词误闯、垂域误闯等问题单，但仅对两个问题做了根因分析。"
+        "评审质疑未分析的问题如何评估，王旭解释上下文能力分多个单子，部分已分析，部分需持续分析。"
+        "耿安峰说明整体指标：通用测试集4.0较现网下降0.7个百分点，主要受热词影响，如“温度开到18°”被识别为热词“18°”，导致结果错误；"
+        "分类测试集除快语速、车控等专项外均有提升。评审要求明确现网与测试环境数据对比，并补充问题影响描述。"
+    )
+
+    # 1. 验证 auto_structure_bullet 单独拆分
+    structured = auto_structure_bullet(sample_dense)
+    assert "**ASR效果问题**：" in structured
+    assert "\n- 存在多个上下文能力" in structured
+    assert "\n- 耿安峰说明整体指标" in structured
+    # 杜绝机械序号
+    assert "1." not in structured and "1）" not in structured
+
+    # 2. 验证 Markdown 渲染输出（一级 - 加粗主题，二级 2 空格缩进 - ）
+    mock_draft = {
+        "meeting_meta": {
+            "date_time": "2026-09-30",
+            "agenda_stats": "既定议题 1 项",
+        },
+        "agenda_items": [
+            {
+                "agenda_seq": "01",
+                "agenda_title": "智慧语音算法版本评审",
+                "presenter": "王旭",
+                "agenda_category": "approval",
+                "status_tag": "审议通过",
+                "time_range": "00:10 ~ 00:40",
+                "background_and_goals": "按计划评审 ASR 4.0 算法版本商用就绪度。",
+                "core_content": [sample_dense],
+                "core_insights": (
+                    "**算法发布原则与策略**：\n"
+                    "- 准入红线：通用测试集指标必须收敛至现网基线以上；\n"
+                    "- 专项验收：车控与车载高噪场景需补充专项闭环评测。"
+                ),
+                "action_items": [],
+                "discussion_state": "discussed",
+            }
+        ],
+    }
+
+    md_out = format_agenda_minutes_markdown(mock_draft)
+    assert "- **ASR效果问题**：" in md_out
+    assert "  - 存在多个上下文能力" in md_out
+    assert "  - 耿安峰说明整体指标" in md_out
+    assert "> - **算法发布原则与策略**：" in md_out
+    assert ">   - 准入红线：" in md_out
+
+    # 3. 验证 HTML 渲染输出（包含 sub-bullet-list 与 content-group）
+    html_out = render_agenda_minutes_html("智慧语音算法版本评审", md_out, mock_draft)
+    assert 'class="content-group"' in html_out
+    assert 'class="content-topic-title"' in html_out
+    assert 'class="sub-bullet-list"' in html_out
+    assert "<strong>ASR效果问题</strong>：" in html_out
+    assert 'class="insight-group"' in html_out
+    assert "<strong>算法发布原则与策略</strong>：" in html_out
+
