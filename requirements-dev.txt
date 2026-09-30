@@ -1,8 +1,0 @@
-# 开发与自测的额外依赖；运行服务本身不需要。
-#
-#   pip install -r requirements-dev.txt
-
-# pytest 只被 tests/test_agenda_minutes.py 需要——那是 pytest 风格的 356 条断言，
-# 用真实 data/1/agenda/** 夹具（并 import python-docx）。
-# 其余 7 个套件是自带 runner 的零 LLM 套件，用 python -m tests 跑，不依赖 pytest。
-pytest>=7.0
