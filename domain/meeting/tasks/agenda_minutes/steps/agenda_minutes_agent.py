@@ -156,6 +156,7 @@ class SingleAgendaItemModel(ModelMixin):
     """单议题结构化输出数据模型（1~5 栏纯干货直出，向上兼容旧字段）。"""
 
     presenter: str = ""
+    agenda_category: str = "approval"
     status_tag: str = "审议通过"
     time_range: str = "—"
     # 1~5 纯干货字段
@@ -209,6 +210,23 @@ class SingleAgendaItemModel(ModelMixin):
         if not isinstance(data, dict):
             raise OutputValidationError("SingleAgendaItemModel 必须是对象")
 
+        # 0. 议题类别自适应
+        raw_cat = str(data.get("agenda_category") or "").strip().lower()
+        if raw_cat in ("approval", "share", "consensus"):
+            agenda_category = raw_cat
+        elif any(k in raw_cat for k in ("分享", "讲座", "报告", "学术", "培训", "share")):
+            agenda_category = "share"
+        elif any(k in raw_cat for k in ("协同", "拉通", "对齐", "排期", "consensus")):
+            agenda_category = "consensus"
+        else:
+            raw_tag = str(data.get("status_tag") or "")
+            if any(k in raw_tag for k in ("共识", "分歧")):
+                agenda_category = "consensus"
+            elif raw_tag in ("", "留空", "无", "—", "-"):
+                agenda_category = "share"
+            else:
+                agenda_category = "approval"
+
         # 1. 目标与对象
         target = list(data.get("target_and_audience") or data.get("proposal_highlights") or [])
 
@@ -248,7 +266,8 @@ class SingleAgendaItemModel(ModelMixin):
         # 双向映射兼容
         return cls(
             presenter=str(data.get("presenter") or "").strip(),
-            status_tag=normalize_status_tag(data.get("status_tag"), is_skipped=False),
+            agenda_category=agenda_category,
+            status_tag=normalize_status_tag(data.get("status_tag"), category=agenda_category, is_skipped=False),
             time_range=str(data.get("time_range") or "—").strip(),
             target_and_audience=target,
             content_and_evidence=content,
@@ -417,6 +436,7 @@ class AgendaMinutesAgent:
                     logger.warning("议题 %s 并发抽取异常，使用保底降级: %s", it.seq, exc)
                     extracted = {
                         "presenter": pres_str,
+                        "agenda_category": "approval",
                         "status_tag": "审议通过",
                         "target_and_audience": [f"既定议题审议：{it.title}"],
                         "content_and_evidence": [],
@@ -430,6 +450,7 @@ class AgendaMinutesAgent:
                     }
                 extracted["agenda_seq"] = it.seq
                 extracted["agenda_title"] = it.title
+                extracted["agenda_category"] = extracted.get("agenda_category") or "approval"
                 extracted["time_range"] = _format_time_range(align.matched_blocks)
                 extracted["discussion_state"] = "discussed"
                 return extracted
@@ -510,6 +531,7 @@ class AgendaMinutesAgent:
                     "agenda_seq": seq,
                     "agenda_title": it.title,  # 100% 遵从 txt 法定原案
                     "presenter": pres_str,
+                    "agenda_category": raw_match.get("agenda_category") or "approval",
                     "status_tag": "本次未讨论",
                     "time_range": "—",
                     # 1~5 栏纯干货直出
@@ -534,8 +556,16 @@ class AgendaMinutesAgent:
                 if not isinstance(delib, dict):
                     delib = {"key_metrics": [], "feedback_concerns": []}
 
-                status_tag = normalize_status_tag(raw_match.get("status_tag"), is_skipped=False)
-                if not status_tag or status_tag == "本次未讨论":
+                category = str(raw_match.get("agenda_category") or "approval").strip().lower()
+                if category not in ("approval", "share", "consensus"):
+                    category = "approval"
+
+                status_tag = normalize_status_tag(
+                    raw_match.get("status_tag"),
+                    category=category,
+                    is_skipped=False,
+                )
+                if not status_tag and category != "share":
                     status_tag = "审议通过"
 
                 actual_pres = str(raw_match.get("presenter") or "").strip()
@@ -589,6 +619,7 @@ class AgendaMinutesAgent:
                     "agenda_seq": seq,
                     "agenda_title": it.title,  # 100% 遵从 txt 法定原案
                     "presenter": actual_pres,
+                    "agenda_category": category,
                     "status_tag": status_tag,
                     "time_range": time_range,
                     # 1~5 栏纯干货直出

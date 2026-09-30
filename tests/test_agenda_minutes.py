@@ -432,6 +432,151 @@ def test_markdown_and_html_render():
     assert extracted[0]["agenda_seq"] == "01"
 
 
+def test_agenda_minutes_categories_rendering():
+    """测试评审类(approval)、分享类(share)、协同类(consensus)的三大类状态定调与差异化排版。"""
+    from domain.meeting.tasks.agenda_minutes.contracts import (
+        normalize_status_tag,
+        STATUS_TAG_APPROVED,
+        STATUS_TAG_CONDITIONAL,
+        STATUS_TAG_REJECTED,
+        STATUS_TAG_CONSENSUS,
+        STATUS_TAG_DIVERGENCE,
+        STATUS_TAG_SKIPPED,
+        STATUS_TAG_EMPTY,
+    )
+    from domain.meeting.tasks.agenda_minutes.steps.agenda_minutes_agent import SingleAgendaItemModel
+
+    # 1. 验证归一化逻辑
+    assert normalize_status_tag("通过", category="approval") == STATUS_TAG_APPROVED
+    assert normalize_status_tag("材料不齐待补充", category="approval") == STATUS_TAG_REJECTED
+    assert normalize_status_tag("原则同意", category="approval") == STATUS_TAG_CONDITIONAL
+    assert normalize_status_tag("任何状态", category="share") == STATUS_TAG_EMPTY
+    assert normalize_status_tag("达成一致", category="consensus") == STATUS_TAG_CONSENSUS
+    assert normalize_status_tag("存在技术分歧待拉通", category="consensus") == STATUS_TAG_DIVERGENCE
+    assert normalize_status_tag("通过", category="share", is_skipped=True) == STATUS_TAG_SKIPPED
+
+    # 2. 验证 SingleAgendaItemModel validate 行为
+    item_share = SingleAgendaItemModel.validate({
+        "agenda_category": "share",
+        "presenter": "陈景东",
+        "status_tag": "审议通过",  # 分享类输入审批状态被自动清空
+        "target_and_audience": ["多通道声信号感知前沿技术分享"],
+        "content_and_evidence": ["提出阵列声学感知新范式"],
+        "process_and_interaction": ["评委针对近远场模型提出探讨"],
+        "conclusion_and_status": "沉淀了智能声学与临境通信的处理范式",
+    })
+    assert item_share.agenda_category == "share"
+    assert item_share.status_tag == ""
+
+    item_consensus = SingleAgendaItemModel.validate({
+        "agenda_category": "consensus",
+        "presenter": "张工",
+        "status_tag": "方案存在分歧待拉通",
+        "conclusion_and_status": "排期尚未对齐，待各模块下周一前复核",
+    })
+    assert item_consensus.agenda_category == "consensus"
+    assert item_consensus.status_tag == "存在分歧"
+
+    # 3. 验证 Markdown 格式渲染差异化
+    multi_draft = {
+        "meeting_meta": {
+            "theme": "综合技术研讨与评审例会",
+            "date_time": "2026/09/30 09:30-12:00",
+            "agenda_stats": "既定议题共 4 项（有效审议 3 项 · 本次未讨论 1 项）",
+        },
+        "agenda_items": [
+            {
+                "agenda_seq": "01",
+                "agenda_title": "智慧域核心版本发布评审",
+                "presenter": "赵工",
+                "agenda_category": "approval",
+                "status_tag": "审议通过",
+                "time_range": "09:30 ~ 10:00",
+                "target_and_audience": ["版本发布放行审查"],
+                "content_and_evidence": ["各项压测与自动化用例 100% 达标"],
+                "process_and_interaction": ["安全评委确认无现网遗留风险"],
+                "conclusion_and_status": "准予放行商用发布。",
+                "action_items": [],
+                "discussion_state": "discussed",
+            },
+            {
+                "agenda_seq": "02",
+                "agenda_title": "智能声学感知与重构技术前沿分享",
+                "presenter": "陈教授",
+                "agenda_category": "share",
+                "status_tag": "",
+                "time_range": "10:00 ~ 10:45",
+                "target_and_audience": ["学术与工业界前沿知识同步"],
+                "content_and_evidence": ["多通道声信号麦克风阵列处理算法演进"],
+                "process_and_interaction": ["针对混响环境鲁棒性展开学术研讨"],
+                "conclusion_and_status": "建立了基于物理声学与数据驱动联合建模的长期技术路线认知。",
+                "action_items": [],
+                "discussion_state": "discussed",
+            },
+            {
+                "agenda_seq": "03",
+                "agenda_title": "多模块端到端时延优化协同对齐",
+                "presenter": "李工",
+                "agenda_category": "consensus",
+                "status_tag": "存在分歧",
+                "time_range": "10:45 ~ 11:30",
+                "target_and_audience": ["跨团队拉通降低端到端耗时"],
+                "content_and_evidence": ["当前链路总耗时 180ms，目标压减至 120ms"],
+                "process_and_interaction": ["算法团队与客户端团队对资源开销归属存在不同看法"],
+                "conclusion_and_status": "双方对责任分工存在分歧，责成下周专项拉通磋商。",
+                "action_items": [{"owner": "李工", "task": "组织端到端耗时拆解专项会", "deadline": "周五"}],
+                "discussion_state": "discussed",
+            },
+            {
+                "agenda_seq": "04",
+                "agenda_title": "轻量化离线识别预研规划",
+                "presenter": "王工",
+                "agenda_category": "approval",
+                "status_tag": "本次未讨论",
+                "time_range": "—",
+                "discussion_state": "skipped",
+            },
+        ],
+    }
+
+    md_out = format_agenda_minutes_markdown(multi_draft)
+    # 验证议题总览表格中定调列
+    assert "| 智慧域核心版本发布评审 | 赵工 | 09:30 ~ 10:00 | `审议通过` |" in md_out
+    assert "| 智能声学感知与重构技术前沿分享 | 陈教授 | 10:00 ~ 10:45 | — |" in md_out  # 分享类显示破折号
+    assert "| 多模块端到端时延优化协同对齐 | 李工 | 10:45 ~ 11:30 | `存在分歧` |" in md_out
+    assert "| 轻量化离线识别预研规划 | 王工 | — | `本次未讨论` |" in md_out
+
+    # 验证议题详情正文
+    # 议题 01：评审类
+    assert "### 议题 01 · 智慧域核心版本发布评审" in md_out
+    assert "- **结论定调**：`审议通过`" in md_out
+    assert "#### 4. 结论与状态" in md_out
+
+    # 议题 02：分享类（留空，无结论定调，第4栏为 Takeaways）
+    assert "### 议题 02 · 智能声学感知与重构技术前沿分享" in md_out
+    assert "### 议题 02 · 智能声学感知与重构技术前沿分享\n\n- **汇报人/责任单位**：陈教授\n\n#### 1. 目标与对象" in md_out
+    assert "#### 4. 核心认知与沉淀（Takeaways）" in md_out
+
+    # 议题 03：协同类
+    assert "### 议题 03 · 多模块端到端时延优化协同对齐" in md_out
+    assert "- **结论定调**：`存在分歧`" in md_out
+
+    # 4. 验证 HTML 渲染差异化
+    html_out = render_agenda_minutes_html("综合技术研讨与评审例会", md_out, multi_draft)
+    # 评审类徽标
+    assert "badge-approved" in html_out
+    assert "✅ 审议通过" in html_out
+    # 协同类分歧徽标
+    assert "badge-divergence" in html_out
+    assert "⚡ 存在分歧" in html_out
+    # 跳过项徽标
+    assert "badge-skipped" in html_out
+    # 分享类在卡片标题旁留空（无 badge）
+    assert '<div class="agenda-card" id="topic-02">\n            <div class="card-header">\n                <div class="card-title-group">\n                    <span class="topic-index">议题 02</span>\n                    <h3 class="topic-name">智能声学感知与重构技术前沿分享</h3>\n                </div>\n                \n            </div>' in html_out
+    # 分享类第 4 栏展示核心认知与沉淀
+    assert '<div class="pillar-label"><span class="pillar-num">4</span> 核心认知与沉淀（Takeaways）</div>' in html_out
+
+
 def test_agenda_parser_markdown_table_and_tabs():
     """测试标准 Markdown 表格与 Tab 制表符文本的高保真解析。"""
     md_table = """

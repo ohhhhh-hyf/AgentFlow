@@ -124,12 +124,18 @@ def format_agenda_minutes_markdown(draft: dict[str, Any]) -> str:
         it_title = it.get("agenda_title") or "议题"
         pres = it.get("presenter") or "未记录"
         state = it.get("discussion_state") or "discussed"
-        raw_status = it.get("status_tag") or ("本次未讨论" if state == "skipped" else "审议通过")
-        tag = _normalize_status_tag(raw_status, is_skipped=(state == "skipped"))
+        cat = str(it.get("agenda_category") or "approval").strip().lower()
+        raw_status = it.get("status_tag") or ("本次未讨论" if state == "skipped" else ("" if cat == "share" else "审议通过"))
+        tag = _normalize_status_tag(raw_status, category=cat, is_skipped=(state == "skipped"))
         time_range = str(it.get("time_range") or "—").strip() or "—"
         if state == "skipped" or tag == "本次未讨论":
             time_range = "—"
-        lines.append(f"| {it_title} | {pres} | {time_range} | `{tag}` |")
+            status_cell = "`本次未讨论`"
+        elif cat == "share" or not tag:
+            status_cell = "—"
+        else:
+            status_cell = f"`{tag}`"
+        lines.append(f"| {it_title} | {pres} | {time_range} | {status_cell} |")
 
     lines.extend([
         "",
@@ -144,16 +150,21 @@ def format_agenda_minutes_markdown(draft: dict[str, Any]) -> str:
         it_title = it.get("agenda_title") or "议题"
         pres = it.get("presenter") or "未记录"
         state = it.get("discussion_state") or "discussed"
-        raw_status = it.get("status_tag") or ("本次未讨论" if state == "skipped" else "审议通过")
-        tag = _normalize_status_tag(raw_status, is_skipped=(state == "skipped"))
+        cat = str(it.get("agenda_category") or "approval").strip().lower()
+        raw_status = it.get("status_tag") or ("本次未讨论" if state == "skipped" else ("" if cat == "share" else "审议通过"))
+        tag = _normalize_status_tag(raw_status, category=cat, is_skipped=(state == "skipped"))
 
-        lines.extend([
+        item_header_lines = [
             f"### 议题 {seq} · {it_title}",
             "",
             f"- **汇报人/责任单位**：{pres}",
-            f"- **结论定调**：`{tag}`",
-            "",
-        ])
+        ]
+        if state == "skipped" or tag == "本次未讨论":
+            item_header_lines.append("- **结论定调**：`本次未讨论`")
+        elif cat != "share" and tag:
+            item_header_lines.append(f"- **结论定调**：`{tag}`")
+        item_header_lines.append("")
+        lines.extend(item_header_lines)
 
         if state == "skipped" or tag == "本次未讨论":
             lines.extend([
@@ -208,14 +219,21 @@ def format_agenda_minutes_markdown(draft: dict[str, Any]) -> str:
             lines.append("- 现场就方案细节与落地风险展开了充分质询与沟通。")
         lines.append("")
 
-        # 4. 结论与状态
+        # 4. 结论与状态 / 核心认知与沉淀（Takeaways）
         conclusion_raw = it.get("conclusion_and_status") or it.get("resolution") or ""
         pts = _normalize_conclusion_points(conclusion_raw)
-        lines.append("#### 4. 结论与状态")
-        if not pts:
-            lines.extend(["> （本次会议未记录到明确决议）", ""])
+        if cat == "share":
+            lines.append("#### 4. 核心认知与沉淀（Takeaways）")
+            if not pts:
+                lines.extend(["> （本次会议未记录到特别沉淀内容）", ""])
+            else:
+                lines.extend([f"> - {p}" for p in pts] + [""])
         else:
-            lines.extend([f"> - {p}" for p in pts] + [""])
+            lines.append("#### 4. 结论与状态")
+            if not pts:
+                lines.extend(["> （本次会议未记录到明确决议）", ""])
+            else:
+                lines.extend([f"> - {p}" for p in pts] + [""])
 
         # 5. 行动与效果
         actions = it.get("action_items") or it.get("action_commitments") or []
@@ -237,18 +255,43 @@ def format_agenda_minutes_markdown(draft: dict[str, Any]) -> str:
     return "\n".join(lines).strip() + "\n"
 
 
-def _normalize_status_tag(tag: Any, is_skipped: bool = False) -> str:
-    """归一化结论定调为标准四态体系：[审议通过, 有条件通过, 未通过, 本次未讨论]。"""
+def _normalize_status_tag(tag: Any, category: str = "approval", is_skipped: bool = False) -> str:
+    """归一化结论定调为标准状态体系。"""
     if is_skipped:
         return "本次未讨论"
+
+    cat = str(category or "approval").strip().lower()
+    if cat not in ("approval", "share", "consensus"):
+        cat = "approval"
+
+    if cat == "share":
+        if not tag:
+            return ""
+        s_raw = str(tag).strip()
+        if any(k in s_raw for k in ("未讨论", "跳过", "skipped")):
+            return "本次未讨论"
+        return ""
+
     if not tag:
+        if cat == "consensus":
+            return "达成共识"
         return "审议通过"
+
     s = str(tag).strip()
     s_clean = re.sub(r"^[\[【（(]\s*|\s*[\]】）)]$", "", s).strip()
     if not s_clean:
+        if cat == "consensus":
+            return "达成共识"
         return "审议通过"
+
     if "未讨论" in s_clean or "跳过" in s_clean or "skipped" in s_clean.lower():
         return "本次未讨论"
+
+    if cat == "consensus":
+        if any(k in s_clean for k in ("分歧", "争议", "未达成", "未对齐", "再议", "待拉通", "未通过", "否决")):
+            return "存在分歧"
+        return "达成共识"
+
     if any(k in s_clean for k in ("未通过", "待补充", "补充材料", "材料", "延期", "再议", "否决", "不通过", "打回", "暂停")):
         return "未通过"
     if any(k in s_clean for k in ("条件", "原则", "共识", "认可", "建议", "预研")):
@@ -258,16 +301,29 @@ def _normalize_status_tag(tag: Any, is_skipped: bool = False) -> str:
     return "审议通过"
 
 
-def _status_class(status: str, is_skipped: bool = False) -> tuple[str, str]:
-    """返回 (badge_class, display_text)。"""
-    tag = _normalize_status_tag(status, is_skipped=is_skipped)
-    if tag == "本次未讨论":
-        return "badge-skipped", tag
+def _status_class(status: str, category: str = "approval", is_skipped: bool = False) -> tuple[str, str]:
+    """返回 (badge_class, display_text)。
+
+    展示徽标：
+    - 评审类：【✅ 审议通过】 / 【⚠️ 有条件通过】 / 【❌ 未通过】
+    - 分享类：直接留空 ("", "")
+    - 协同类：【🤝 达成共识】 / 【⚡ 存在分歧】
+    - 跳过项：【本次未讨论】
+    """
+    tag = _normalize_status_tag(status, category=category, is_skipped=is_skipped)
+    if is_skipped or tag == "本次未讨论":
+        return "badge-skipped", "本次未讨论"
+    if category == "share" or not tag:
+        return "", ""
+    if tag == "达成共识":
+        return "badge-consensus", "🤝 达成共识"
+    if tag == "存在分歧":
+        return "badge-divergence", "⚡ 存在分歧"
     if tag == "未通过":
-        return "badge-rejected", tag
+        return "badge-rejected", "❌ 未通过"
     if tag == "有条件通过":
-        return "badge-conditional", tag
-    return "badge-approved", tag
+        return "badge-conditional", "⚠️ 有条件通过"
+    return "badge-approved", "✅ 审议通过"
 
 
 def render_agenda_minutes_html(
@@ -295,19 +351,22 @@ def render_agenda_minutes_html(
         seq = _safe_str(it.get("agenda_seq") or "01")
         it_title = _safe_str(it.get("agenda_title") or "议题")
         pres = _safe_str(it.get("presenter") or "未记录")
-        raw_status = _safe_str(it.get("status_tag") or "审议通过")
+        cat = str(it.get("agenda_category") or "approval").strip().lower()
         state = _safe_str(it.get("discussion_state") or "discussed")
-        badge_cls, badge_text = _status_class(raw_status, is_skipped=(state == "skipped"))
+        raw_status = _safe_str(it.get("status_tag") or ("本次未讨论" if state == "skipped" else ("" if cat == "share" else "审议通过")))
+        badge_cls, badge_text = _status_class(raw_status, category=cat, is_skipped=(state == "skipped"))
         time_range = _safe_str(it.get("time_range") or "—")
         if state == "skipped" or badge_text == "本次未讨论":
             time_range = "—"
+
+        status_td = f'<span class="badge {badge_cls}">{escape(badge_text)}</span>' if badge_text else '<span style="color:#888;">—</span>'
 
         table_rows.append(f"""
         <tr>
             <td class="col-title"><a href="#topic-{seq}">{escape(it_title)}</a></td>
             <td class="col-pres">{escape(pres)}</td>
             <td class="col-time">{escape(time_range)}</td>
-            <td class="col-status"><span class="badge {badge_cls}">{escape(badge_text)}</span></td>
+            <td class="col-status">{status_td}</td>
         </tr>
         """)
 
@@ -317,9 +376,11 @@ def render_agenda_minutes_html(
         seq = _safe_str(it.get("agenda_seq") or "01")
         it_title = _safe_str(it.get("agenda_title") or "议题")
         pres = _safe_str(it.get("presenter") or "未记录")
-        raw_status = _safe_str(it.get("status_tag") or "审议通过")
+        cat = str(it.get("agenda_category") or "approval").strip().lower()
         state = _safe_str(it.get("discussion_state") or "discussed")
-        badge_cls, badge_text = _status_class(raw_status, is_skipped=(state == "skipped"))
+        raw_status = _safe_str(it.get("status_tag") or ("本次未讨论" if state == "skipped" else ("" if cat == "share" else "审议通过")))
+        badge_cls, badge_text = _status_class(raw_status, category=cat, is_skipped=(state == "skipped"))
+        badge_html = f'<span class="badge {badge_cls}">{escape(badge_text)}</span>' if badge_text else ""
 
         if state == "skipped" or badge_text == "本次未讨论":
             card_html = f"""
@@ -329,7 +390,7 @@ def render_agenda_minutes_html(
                         <span class="topic-index">议题 {seq}</span>
                         <h3 class="topic-name">{escape(it_title)}</h3>
                     </div>
-                    <span class="badge {badge_cls}">{escape(badge_text)}</span>
+                    {badge_html}
                 </div>
                 <div class="card-skipped-body">
                     <span class="card-meta">汇报人/责任单位：{escape(pres)}</span>
@@ -368,11 +429,13 @@ def render_agenda_minutes_html(
 
         process_li = "".join(f"<li>{_md_inline(c)}</li>" for c in process_list) if process_list else "<li>现场就方案细节与落地风险展开了充分质询与沟通。</li>"
 
-        # 4. 结论与状态
+        # 4. 结论与状态 / 核心认知与沉淀（Takeaways）
         conclusion_raw = it.get("conclusion_and_status") or it.get("resolution") or ""
         pts = _normalize_conclusion_points(conclusion_raw)
+        pillar_4_label = "核心认知与沉淀（Takeaways）" if cat == "share" else "结论与状态"
         if not pts:
-            conclusion_content = '<span class="no-res">（本次会议未形成明确决议）</span>'
+            no_res_msg = "（本次会议未记录到特别沉淀内容）" if cat == "share" else "（本次会议未形成明确决议）"
+            conclusion_content = f'<span class="no-res">{no_res_msg}</span>'
         else:
             items_html = "".join(f"<li>{_md_inline(p)}</li>" for p in pts)
             conclusion_content = f'<ul class="res-box-list">{items_html}</ul>'
@@ -412,7 +475,7 @@ def render_agenda_minutes_html(
                     <span class="topic-index">议题 {seq}</span>
                     <h3 class="topic-name">{escape(it_title)}</h3>
                 </div>
-                <span class="badge {badge_cls}">{escape(badge_text)}</span>
+                {badge_html}
             </div>
             <div class="card-meta">
                 <span>汇报人/责任单位：{escape(pres)}</span>
@@ -434,7 +497,7 @@ def render_agenda_minutes_html(
             </div>
 
             <div class="pillar-section">
-                <div class="pillar-label"><span class="pillar-num">4</span> 结论与状态</div>
+                <div class="pillar-label"><span class="pillar-num">4</span> {pillar_4_label}</div>
                 <div class="resolution-box">
                     <div class="resolution-text">{conclusion_content}</div>
                 </div>
@@ -526,6 +589,11 @@ def render_agenda_minutes_html(
       background: #e8f4fd;
       color: #0d47a1;
       border: 1px solid #bbdefb;
+    }
+    .badge-divergence {
+      background: #fbe9e7;
+      color: #bf360c;
+      border: 1px solid #ffccbc;
     }
     .badge-skipped {
       background: #f5f5f5;
