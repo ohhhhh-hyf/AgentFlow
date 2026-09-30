@@ -157,8 +157,8 @@ class SingleAgendaItemModel(ModelMixin):
     """单议题结构化输出数据模型（4 栏骨架纯干货直出，向上兼容旧字段）。"""
 
     presenter: str = ""
-    agenda_category: str = "approval"
-    status_tag: str = "审议通过"
+    agenda_category: str = ""
+    status_tag: str = ""
     is_substantive_agenda: bool = True
     time_range: str = "—"
 
@@ -426,6 +426,46 @@ def _extract_budgeted_evidence(
     return "\n\n".join(lines_buf)
 
 
+def _is_interactive_discussion_topic(title: str) -> bool:
+    """判断是否属于双向互动交流/研讨/问答环节。"""
+    t = (title or "").strip()
+    keywords = ["互动交流", "自由交流", "现场问答", "自由讨论", "交流答疑", "分组讨论", "提问交流", "全员交流"]
+    return any(k in t for k in keywords)
+
+
+def _resolve_interactive_presenter(
+    it_title: str,
+    raw_pres: str,
+    plan: AgendaPlan,
+    prior_items: list[dict[str, Any]],
+) -> str:
+    """为互动研讨环节装配符合公文规范的汇报人/责任单位（方案 A：标准公文风）。"""
+    # 1. 如果已有非常具体的实名且包含团队描述（如包含“现场”、“团队”、“全体”、“答疑嘉宾”），予以保留
+    if raw_pres and any(k in raw_pres for k in ("参会团队", "与会人员", "全体", "答疑嘉宾")):
+        return raw_pres
+
+    # 2. 如果原文本只是单个匿名代号（如 "发言者 5"）或空，必须清洗替换
+    lead_speaker = ""
+    for prev in reversed(prior_items):
+        p = str(prev.get("presenter") or "").strip()
+        if p and not re.match(r"^发言者\s*\d+$", p) and p != "未记录":
+            cleaned = re.sub(r"[\(（].*?[\)）]", "", p).strip()
+            cleaned = re.sub(r"(?:总|院长|书记|专家|老师|主任)$", "", cleaned).strip()
+            if cleaned:
+                lead_speaker = cleaned
+                break
+
+    if not lead_speaker:
+        theme = str(plan.meta.theme or "")
+        match = re.search(r"([^\x00-\x7f]{2,4})(?:总|院长|书记|专家|老师|主任)", theme)
+        if match:
+            lead_speaker = match.group(1).strip()
+
+    if lead_speaker:
+        return f"{lead_speaker}（答疑嘉宾）及现场参会团队"
+    return "现场参会团队（全员互动研讨）"
+
+
 class AgendaMinutesAgent:
     """议程驱动型会议纪要 Agent（免分类通用四要素与绝对骨架锁定）。"""
 
@@ -460,6 +500,7 @@ class AgendaMinutesAgent:
         # 3. 动态检测会议类型（退居幕后的 9 大类型导师）并装配单议题 Prompt
         type_spec = detect_agenda_type(
             theme=plan.meta.theme or "",
+            titles=[it.title for it in plan.items],
             context=transcript[:_TYPE_DETECT_TRANSCRIPT_CHARS],
         )
         logger.info(
@@ -582,6 +623,18 @@ class AgendaMinutesAgent:
                     seq_key = f"{int(seq_key):02d}"
                 raw_items_map[seq_key] = item
 
+        # 会议顶层大类与审批属性判定：顶层一票否决
+        theme_str = str(meeting_meta.get("theme") or plan.meta.theme or "").lower()
+        titles_str = " ".join(it.title for it in plan.items).lower()
+        approval_signals = ("评审", "放行", "准入", "审批", "商评", "过会", "审议")
+        has_approval_signal = any(s in theme_str for s in approval_signals) or any(s in titles_str for s in approval_signals)
+
+        detected_type = detect_agenda_type(
+            theme=theme_str,
+            titles=[it.title for it in plan.items],
+        )
+        is_approval_meeting = (detected_type.type_id in ("decision_approval", "review_selection")) or has_approval_signal
+
         # 建立严格按现场讨论时序（先讨论在前，未讨论置底）的议程输出列表
         enforced_agenda_items: list[dict[str, Any]] = []
 
@@ -607,7 +660,7 @@ class AgendaMinutesAgent:
                     "agenda_seq": seq,
                     "agenda_title": it.title,  # 100% 遵从 txt 法定原案
                     "presenter": pres_str,
-                    "agenda_category": raw_match.get("agenda_category") or "approval",
+                    "agenda_category": "approval" if is_approval_meeting else "share",
                     "status_tag": "本次未讨论",
                     "time_range": "—",
                     # 4 栏标准字段
@@ -636,21 +689,43 @@ class AgendaMinutesAgent:
                 if not isinstance(delib, dict):
                     delib = {"key_metrics": [], "feedback_concerns": []}
 
-                category = str(raw_match.get("agenda_category") or "approval").strip().lower()
-                if category not in ("approval", "share", "consensus"):
-                    category = "approval"
+                if not is_approval_meeting:
+                    # 纯非审批会议：强制剥离审批属性，status_tag 坚决置空
+                    category = "share" if detected_type.type_id == "knowledge_share" else (
+                        "consensus" if detected_type.type_id == "alignment_consensus" else "share"
+                    )
+                    status_tag = ""
+                else:
+                    category = str(raw_match.get("agenda_category") or "approval").strip().lower()
+                    if category not in ("approval", "share", "consensus"):
+                        category = "approval"
 
-                status_tag = normalize_status_tag(
-                    raw_match.get("status_tag"),
-                    category=category,
-                    is_skipped=False,
-                )
-                if not status_tag and category == "approval":
-                    status_tag = "审议通过"
+                    status_tag = normalize_status_tag(
+                        raw_match.get("status_tag"),
+                        category=category,
+                        is_skipped=False,
+                    )
+                    if not status_tag and category == "approval":
+                        status_tag = "审议通过"
 
                 actual_pres = str(raw_match.get("presenter") or "").strip()
                 if not actual_pres or actual_pres == "未记录":
                     actual_pres = pres_str
+
+                # 若未指定汇报人，尝试从议题标题中提取领导致辞/主讲人（如“何刚总致辞” -> “何刚”）
+                if not actual_pres or actual_pres == "未记录":
+                    m_speech = re.search(r"^([^\x00-\x7f]{2,4}?)(?:总|院长|书记|专家|老师|主任)?(?:致辞|演讲|主题报告|特邀报告|发言)", it.title)
+                    if m_speech:
+                        actual_pres = re.sub(r"(?:总|院长|书记|专家|老师|主任)$", "", m_speech.group(1)).strip()
+
+                # 研讨/问答环节特殊处理（方案 A：标准公文风）
+                if _is_interactive_discussion_topic(it.title):
+                    actual_pres = _resolve_interactive_presenter(it.title, actual_pres, plan, enforced_agenda_items)
+                elif re.match(r"^发言者\s*\d+$", actual_pres):
+                    if pres_str and not re.match(r"^发言者\s*\d+$", pres_str):
+                        actual_pres = pres_str
+                    else:
+                        actual_pres = "未记录"
 
                 time_range = _format_time_range(align.matched_blocks)
                 if time_range == "—" and raw_match.get("time_range"):

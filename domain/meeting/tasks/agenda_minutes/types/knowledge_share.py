@@ -23,6 +23,15 @@ class KnowledgeShareTypeSpec(BaseAgendaTypeSpec):
         "研读会",
         "业务分享",
         "最佳实践",
+        "交流会",
+        "座谈会",
+        "年会",
+        "学术年会",
+        "交流研讨",
+        "前沿讲座",
+        "专家论坛",
+        "致辞",
+        "特邀报告",
     )
 
     guide = PillarGuide(

@@ -27,6 +27,11 @@ class AlignmentConsensusTypeSpec(BaseAgendaTypeSpec):
         "业务对齐",
         "契约",
         "联合会议",
+        "互动交流",
+        "现场问答",
+        "自由讨论",
+        "交流答疑",
+        "座谈",
     )
 
     guide = PillarGuide(

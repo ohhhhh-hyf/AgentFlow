@@ -183,7 +183,7 @@ def format_agenda_minutes_markdown(draft: dict[str, Any]) -> str:
         tag = _normalize_status_tag(raw_status, category=cat, is_skipped=(state == "skipped"))
 
         item_header_lines = [
-            f"### 议题 {seq} · {it_title}",
+            f"### {it_title}",
             "",
             f"- **汇报人/责任单位**：{pres}",
         ]
@@ -438,7 +438,6 @@ def render_agenda_minutes_html(
             <div class="agenda-card card-skipped" id="topic-{seq}">
                 <div class="card-header">
                     <div class="card-title-group">
-                        <span class="topic-index">议题 {seq}</span>
                         <h3 class="topic-name">{escape(it_title)}</h3>
                     </div>
                     {badge_html}
@@ -543,7 +542,6 @@ def render_agenda_minutes_html(
         <div class="agenda-card" id="topic-{seq}">
             <div class="card-header">
                 <div class="card-title-group">
-                    <span class="topic-index">议题 {seq}</span>
                     <h3 class="topic-name">{escape(it_title)}</h3>
                 </div>
                 {badge_html}

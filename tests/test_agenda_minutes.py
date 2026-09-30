@@ -382,7 +382,7 @@ def test_markdown_and_html_render():
     assert "| HAG 3.6.5.300版本商用发布评审 | 沙彬斌、陈啟锴 | — | `本次未讨论` |" in md_output
     assert "## 议题分析" in md_output
     assert "第二部分" not in md_output
-    assert "### 议题 01 · 翻译海外HiTranslationService 21.1.1.300商用版本发布" in md_output
+    assert "### 翻译海外HiTranslationService 21.1.1.300商用版本发布" in md_output
     assert "#### 1. 背景与目标" in md_output
     assert "#### 2. 核心内容" in md_output
     assert "#### 3. 核心认知" in md_output
@@ -544,25 +544,25 @@ def test_agenda_minutes_categories_rendering():
 
     # 验证议题详情正文
     # 议题 01：评审类
-    assert "### 议题 01 · 智慧域核心版本发布评审" in md_out
+    assert "### 智慧域核心版本发布评审" in md_out
     assert "- **结论定调**：`审议通过`" in md_out
     assert "#### 1. 背景与目标" in md_out
     assert "#### 2. 核心内容" in md_out
     assert "#### 3. 核心认知" in md_out
     # 议题 01 action_items 为空，自适应不渲染第四栏
-    assert "#### 4. 后续行动" not in md_out.split("### 议题 01 · 智慧域核心版本发布评审")[1].split("### 议题 02")[0]
+    assert "#### 4. 后续行动" not in md_out.split("### 智慧域核心版本发布评审")[1].split("### 智能声学感知与重构技术前沿分享")[0]
 
     # 议题 02：分享类（无结论定调，无后续行动，自适应 3 栏闭环）
-    assert "### 议题 02 · 智能声学感知与重构技术前沿分享" in md_out
-    assert "### 议题 02 · 智能声学感知与重构技术前沿分享\n\n- **汇报人/责任单位**：陈教授\n\n#### 1. 背景与目标" in md_out
+    assert "### 智能声学感知与重构技术前沿分享" in md_out
+    assert "### 智能声学感知与重构技术前沿分享\n\n- **汇报人/责任单位**：陈教授\n\n#### 1. 背景与目标" in md_out
     assert "#### 3. 核心认知" in md_out
-    assert "#### 4. 后续行动" not in md_out.split("### 议题 02 · 智能声学感知与重构技术前沿分享")[1].split("### 议题 03")[0]
+    assert "#### 4. 后续行动" not in md_out.split("### 智能声学感知与重构技术前沿分享")[1].split("### 多模块端到端时延优化协同对齐")[0]
 
     # 议题 03：协同类（非审批类，无结论定调，但有行动项，呈现第4栏）
-    assert "### 议题 03 · 多模块端到端时延优化协同对齐" in md_out
-    assert "### 议题 03 · 多模块端到端时延优化协同对齐\n\n- **汇报人/责任单位**：李工\n\n#### 1. 背景与目标" in md_out
+    assert "### 多模块端到端时延优化协同对齐" in md_out
+    assert "### 多模块端到端时延优化协同对齐\n\n- **汇报人/责任单位**：李工\n\n#### 1. 背景与目标" in md_out
     assert "#### 3. 核心认知" in md_out
-    assert "#### 4. 后续行动" in md_out.split("### 议题 03 · 多模块端到端时延优化协同对齐")[1]
+    assert "#### 4. 后续行动" in md_out.split("### 多模块端到端时延优化协同对齐")[1]
 
     # 4. 验证 HTML 渲染差异化
     html_out = render_agenda_minutes_html("综合技术研讨与评审例会", md_out, multi_draft)
@@ -571,9 +571,9 @@ def test_agenda_minutes_categories_rendering():
     assert "✅ 审议通过" in html_out
     # 跳过项徽标
     assert "badge-skipped" in html_out
-    # 分享类与协同类在卡片标题旁留空（无 badge）
-    assert '<div class="agenda-card" id="topic-02">\n            <div class="card-header">\n                <div class="card-title-group">\n                    <span class="topic-index">议题 02</span>\n                    <h3 class="topic-name">智能声学感知与重构技术前沿分享</h3>\n                </div>\n                \n            </div>' in html_out
-    assert '<div class="agenda-card" id="topic-03">\n            <div class="card-header">\n                <div class="card-title-group">\n                    <span class="topic-index">议题 03</span>\n                    <h3 class="topic-name">多模块端到端时延优化协同对齐</h3>\n                </div>\n                \n            </div>' in html_out
+    # 分享类与协同类在卡片标题旁留空（无 badge，且彻底去除机械序号徽标）
+    assert '<div class="agenda-card" id="topic-02">\n            <div class="card-header">\n                <div class="card-title-group">\n                    <h3 class="topic-name">智能声学感知与重构技术前沿分享</h3>\n                </div>\n                \n            </div>' in html_out
+    assert '<div class="agenda-card" id="topic-03">\n            <div class="card-header">\n                <div class="card-title-group">\n                    <h3 class="topic-name">多模块端到端时延优化协同对齐</h3>\n                </div>\n                \n            </div>' in html_out
     # 核心认知第 3 栏展示
     assert '<div class="pillar-label"><span class="pillar-num">3</span> 核心认知</div>' in html_out
 
@@ -660,7 +660,7 @@ async def test_agenda_minutes_fallback_in_orchestrator():
     rendered_text = line_out["rendered"]
     # 验证降级产物是完整的 Markdown 而非 str(dict)
     assert "# 议程纪要" in rendered_text
-    assert "### 议题 01 · 测试议题一" in rendered_text
+    assert "### 测试议题一" in rendered_text
     assert len(line_out["structure"]) == 1
 
 
@@ -1340,10 +1340,13 @@ def test_alignment_engine_test7_anonymous_speaker_logs():
     assert items[0]["agenda_title"] == "何刚总致辞"
     assert items[0]["time_range"] == "00:00 ~ 00:18"
     assert items[0]["discussion_state"] == "discussed"
+    assert items[0]["status_tag"] == ""  # 非审批交流会，清空审批状态
 
     assert items[1]["agenda_title"] == "互动交流"
     assert items[1]["time_range"] == "00:18 ~ 01:18"
     assert items[1]["discussion_state"] == "discussed"
+    assert items[1]["presenter"] == "何刚（答疑嘉宾）及现场参会团队"  # 方案 A：标准公文风
+    assert items[1]["status_tag"] == ""
 
     assert items[2]["agenda_title"] == "任务令签署与授予"
     assert items[2]["time_range"] == "01:18 ~ 01:21"
@@ -1351,6 +1354,17 @@ def test_alignment_engine_test7_anonymous_speaker_logs():
 
     # 大盘统计动态同步更新为剔除过场后的实际议题数
     assert enforced["meeting_meta"]["agenda_stats"] == "既定议题共 3 项（有效审议 3 项 · 本次未讨论 0 项）"
+
+    # 验证 Markdown 渲染：非审批交流会表格 100% 折叠为 3 列，且正文无「议题 02 · 」等生硬前缀
+    md_out = format_agenda_minutes_markdown(enforced)
+    assert "| 议题名称 | 汇报人 | 议题时长 |" in md_out
+    assert "结论定调" not in md_out
+    assert "| 何刚总致辞 | 何刚 | 00:00 ~ 00:18 |" in md_out
+    assert "| 互动交流 | 何刚（答疑嘉宾）及现场参会团队 | 00:18 ~ 01:18 |" in md_out
+    assert "### 何刚总致辞" in md_out
+    assert "### 互动交流" in md_out
+    assert "议题 02" not in md_out
+    assert "议题 03" not in md_out
 
 
 def test_ceremonial_and_non_agenda_filtering():
