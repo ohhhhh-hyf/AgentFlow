@@ -118,6 +118,7 @@ AGENDA_MINUTES_SUPERVISOR_OUTPUT_CONTRACT = AgendaMinutesSupervisorContract.to_o
 
 SINGLE_AGENDA_ITEM_OUTPUT_CONTRACT = """{
   "agenda_category": "approval",
+  "is_substantive_agenda": true,
   "presenter": "",
   "status_tag": "",
   "target_and_audience": [],
@@ -138,6 +139,9 @@ SINGLE_AGENDA_ITEM_OUTPUT_CONTRACT = """{
   * "approval"：评审审批类（版本发布、准入、验收、立项审查等需过会表决定调的议题）
   * "share"：知识分享与学术研讨类（学术报告、前沿分享、技术讲座、调研洞察等纯知识同步无需表决的议题）
   * "consensus"：协同拉通与排期对齐类（跨团队协同、接口对齐、排期协商、分歧磋商等拉通共识的议题）
+- is_substantive_agenda：该议题实录切片是否构成具备记录价值的实质性研讨/汇报/致辞议题（布尔值）：
+  * 若现场切片仅为拍照合影站位、设备调试、闲聊寒暄、催促入场等无实质研讨/决策内容的纯会务过场，填 false；
+  * 包含实质性业务汇报、技术研讨、决策拍板、高管致辞或问答互动的，填 true。
 - presenter：实际现场汇报人（如现场由某专家实际汇报则填写其真实姓名，若为主讲人则填法定汇报人）
 - status_tag：议题结论定调：
   * 若 agenda_category 为 "approval"：严格限定为 ["审议通过", "有条件通过", "未通过", "本次未讨论"] 之一

@@ -1326,7 +1326,7 @@ def test_alignment_engine_test7_anonymous_speaker_logs():
     assert align_map["05"].status == "discussed"
     assert len(align_map["05"].matched_blocks) >= 2
 
-    # 验证时序重构与骨架锁定
+    # 验证时序重构与骨架锁定（纯会务动线与合影过场仪式已被程序化与智能过滤剔除）
     class DummyClient:
         pass
 
@@ -1334,8 +1334,8 @@ def test_alignment_engine_test7_anonymous_speaker_logs():
     enforced = agent._enforce_agenda_invariants({}, res)
     items = enforced["agenda_items"]
 
-    # 讨论过的按现场研讨先后排列，未讨论的置于末尾
-    assert [it["agenda_seq"] for it in items] == ["02", "03", "04", "05", "01"]
+    # 01 视频观看（0证据会务）与 05 全体合影（3块过场吆喝）已被干净剔除，保留3项实质研讨议题
+    assert [it["agenda_seq"] for it in items] == ["02", "03", "04"]
     assert items[0]["agenda_title"] == "何刚总致辞"
     assert items[0]["time_range"] == "00:00 ~ 00:18"
     assert items[0]["discussion_state"] == "discussed"
@@ -1348,13 +1348,80 @@ def test_alignment_engine_test7_anonymous_speaker_logs():
     assert items[2]["time_range"] == "01:18 ~ 01:21"
     assert items[2]["discussion_state"] == "discussed"
 
-    assert items[3]["agenda_title"] == "全体合影"
-    assert items[3]["time_range"] == "01:22"
-    assert items[3]["discussion_state"] == "discussed"
+    # 大盘统计动态同步更新为剔除过场后的实际议题数
+    assert enforced["meeting_meta"]["agenda_stats"] == "既定议题共 3 项（有效审议 3 项 · 本次未讨论 0 项）"
 
-    assert items[4]["agenda_title"] == "视频观看"
-    assert items[4]["time_range"] == "—"
-    assert items[4]["discussion_state"] == "skipped"
+
+def test_ceremonial_and_non_agenda_filtering():
+    """测试纯会务动线、作息日程、低密度合影过场的双轨过滤机制，同时确保严肃未讨论技术议题绝不误删。"""
+    from domain.meeting.tasks.agenda_minutes.alignment_engine import (
+        AgendaAlignment,
+        AlignmentResult,
+        DiscussionBlock,
+        is_trivial_ceremonial_item,
+    )
+    from domain.meeting.tasks.agenda_minutes.agenda_parser import AgendaItemParsed, AgendaPlan
+
+    # 1. 纯物理动线与生活作息：直接剔除
+    item_bus = AgendaItemParsed(seq="01", title="乘车至大学城", presenters=[])
+    align_bus = AgendaAlignment(item=item_bus, status="skipped")
+    assert is_trivial_ceremonial_item(align_bus) is True
+
+    item_walk = AgendaItemParsed(seq="02", title="漫步大学城", presenters=[])
+    align_walk = AgendaAlignment(item=item_walk, status="skipped")
+    assert is_trivial_ceremonial_item(align_walk) is True
+
+    item_visit = AgendaItemParsed(seq="03", title="走进北科瑞声", presenters=[])
+    align_visit = AgendaAlignment(item=item_visit, status="skipped")
+    assert is_trivial_ceremonial_item(align_visit) is True
+
+    item_lunch = AgendaItemParsed(seq="04", title="工作午餐", presenters=[])
+    align_lunch = AgendaAlignment(item=item_lunch, status="discussed", matched_blocks=[
+        DiscussionBlock(speaker="主持", timestamp="12:00", content="大家去餐厅就餐。")
+    ])
+    assert is_trivial_ceremonial_item(align_lunch) is True
+
+    # 2. 零证据仪式（视频观看）：直接剔除，严禁显示为“本次未讨论”
+    item_video = AgendaItemParsed(seq="05", title="开场短片观看", presenters=[])
+    align_video = AgendaAlignment(item=item_video, status="skipped", matched_blocks=[])
+    assert is_trivial_ceremonial_item(align_video) is True
+
+    # 3. 低密度拍照过场（<=3块且<120字）：直接剔除
+    item_photo = AgendaItemParsed(seq="06", title="全体合影", presenters=[])
+    align_photo = AgendaAlignment(item=item_photo, status="discussed", matched_blocks=[
+        DiscussionBlock(speaker="会务", timestamp="17:00", content="大家往前排站一下，看镜头。"),
+        DiscussionBlock(speaker="主持", timestamp="17:01", content="好的三二一茄子。"),
+    ])
+    assert is_trivial_ceremonial_item(align_photo) is True
+
+    # 4. 严肃技术/评审类议题即使未讨论（skipped），也坚决保留并标记为“本次未讨论”
+    item_tech = AgendaItemParsed(seq="07", title="离线翻译模型轻量化算法评审", presenters=["刘畅"])
+    align_tech = AgendaAlignment(item=item_tech, status="skipped", matched_blocks=[])
+    assert is_trivial_ceremonial_item(align_tech) is False
+
+    item_hag = AgendaItemParsed(seq="08", title="HAG 3.6.5.300版本商用发布评审", presenters=["沙彬斌"])
+    align_hag = AgendaAlignment(item=item_hag, status="skipped", matched_blocks=[])
+    assert is_trivial_ceremonial_item(align_hag) is False
+
+    # 5. 验证管线在 _enforce_agenda_invariants 中完整剔除与跳过处理
+    plan = AgendaPlan(items=[item_walk, item_photo, item_tech])
+    res = AlignmentResult(
+        plan=plan,
+        alignments=[align_walk, align_photo, align_tech],
+    )
+    class DummyClient:
+        pass
+    agent = AgendaMinutesAgent(DummyClient())
+    enforced = agent._enforce_agenda_invariants({}, res)
+    enforced_items = enforced["agenda_items"]
+
+    # 漫步大学城 与 全体合影 被过滤，仅保留 离线翻译模型轻量化算法评审
+    assert len(enforced_items) == 1
+    assert enforced_items[0]["agenda_seq"] == "07"
+    assert enforced_items[0]["agenda_title"] == "离线翻译模型轻量化算法评审"
+    assert enforced_items[0]["status_tag"] == "本次未讨论"
+    assert enforced_items[0]["discussion_state"] == "skipped"
+    assert enforced["meeting_meta"]["agenda_stats"] == "既定议题共 1 项（有效审议 0 项 · 本次未讨论 1 项）"
 
 
 def test_paddle_ocr_join_row_texts_avoids_name_concatenation():

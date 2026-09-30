@@ -931,3 +931,91 @@ def align_agenda_with_transcript(
         all_speakers=all_speakers,
         adhoc_blocks=adhoc_blocks,
     )
+
+
+_CEREMONIAL_ITEM_PATTERN = re.compile(
+    r"(?:"
+    r"合影|拍照|留念|留影|"
+    r"视频观看|开场视频|视频播放|播放视频|暖场视频|宣传片|短片观看|"
+    r"午餐|晚餐|工作餐|就餐|用餐|茶歇|中歇|休息|自由活动|"
+    r"乘车|漫步|步行|参访|参观|走进|集合|签到|领取资料|返程|签退"
+    r")",
+    re.I,
+)
+
+_SUBSTANTIVE_KEYWORDS = (
+    "评审", "发布", "架构", "优化", "演进", "算法", "模型", "系统", "洞察",
+    "研讨", "答辩", "方案", "技术", "代码", "指标", "时延", "版本", "立项", "排期",
+    "致辞", "讲话", "报告", "演讲", "分享", "互动", "交流", "问答", "签署", "授予",
+    "设计", "规划", "总结", "推进", "进展", "对齐", "拉通", "测试", "部署", "商用",
+)
+
+
+def is_trivial_ceremonial_item(align: AgendaAlignment) -> bool:
+    """判定一个议程对齐项是否为纯会务动线、作息日程或极低密度的过场仪式（非实质性研讨议题）。
+
+    过滤判据：
+    1. 纯物理动线或餐饮作息（乘车、漫步、参观、茶歇、午餐等）且无独立技术汇报人：直接剔除；
+    2. 零证据（未录制/未讨论）：若是会务仪式（如视频观看、合影、参观等），直接剔除，杜绝展示为滑稽的“本次未讨论”；
+    3. 低密度过场仪式：发言块 <= 3 且总字数 < 120 字（仅为“大家合个影/看屏幕”等过场吆喝），直接剔除；
+    4. 严肃业务/技术/评审议题（包含评审、发布、架构、演进、算法、致辞、交流等）：坚决保留，不予剔除。
+    """
+    it = align.item
+    title = (it.title or "").strip()
+    desc = (it.description or "").strip()
+    combined = f"{title} {desc}"
+
+    # 1. 纯会务行程与生活作息特征
+    has_ceremonial = bool(_CEREMONIAL_ITEM_PATTERN.search(combined))
+
+    # 2. 强业务/技术特征词（若标题明确包含技术/评审/方案/模型等，坚决不误伤）
+    has_substantive = any(k in combined for k in _SUBSTANTIVE_KEYWORDS)
+
+    # 统计现场发言支撑
+    blocks = align.matched_blocks
+    block_count = len(blocks)
+    total_chars = sum(len(b.content) for b in blocks)
+
+    # 情况 A：命中了会务动线/作息/过场关键词
+    if has_ceremonial:
+        # A1: 纯物理动线或餐饮作息（乘车、漫步、参观、茶歇、午餐等）且无独立技术汇报人
+        pure_logistics = any(k in combined for k in (
+            "乘车", "漫步", "步行", "参访", "参观", "走进", "集合", "签到", "领取资料", "返程", "签退",
+            "午餐", "晚餐", "工作餐", "就餐", "茶歇", "中歇", "休息", "自由活动",
+        ))
+        if pure_logistics and not any(k in combined for k in ("技术", "评审", "报告", "演进", "算法")):
+            return True
+
+        # A2: 零证据（未录制/未讨论）：如视频观看、合影等，直接剔除，严禁显示为“本次未讨论”
+        if align.status == "skipped" or block_count == 0:
+            return True
+
+        # A3: 有极少量命中，但发言块 <= 3 且总字数 < 120 字（仅为“大家合个影/看屏幕”等过场吆喝）
+        if block_count <= 3 and total_chars < 120:
+            return True
+
+        # A4: 若有实质性致辞/研讨（如开幕致辞 > 120 字且包含致辞/报告），且未命中纯动线，则保留
+        if has_substantive and total_chars >= 120:
+            return False
+
+        # 其他情况若字数偏少，仍视为过场
+        if total_chars < 150:
+            return True
+
+    # 情况 B：仅针对现场有微弱讨论的杂音块（1~2 块且 < 60 字），且无主讲人、无实质技术词汇
+    if align.status == "discussed" and not it.presenters and not has_substantive and block_count <= 2 and total_chars < 60:
+        return True
+
+    return False
+
+
+__all__ = [
+    "DiscussionBlock",
+    "AgendaAlignment",
+    "AlignmentResult",
+    "align_agenda_with_transcript",
+    "group_transcript_blocks",
+    "is_trivial_ceremonial_item",
+    "NAME_MATCH_ACCEPT",
+    "NAME_MATCH_EXACT",
+]

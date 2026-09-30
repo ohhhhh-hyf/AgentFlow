@@ -31,6 +31,7 @@ from ..alignment_engine import (
     AgendaAlignment,
     AlignmentResult,
     align_agenda_with_transcript,
+    is_trivial_ceremonial_item,
 )
 from ..contracts import (
     SINGLE_AGENDA_ITEM_OUTPUT_CONTRACT,
@@ -158,6 +159,7 @@ class SingleAgendaItemModel(ModelMixin):
     presenter: str = ""
     agenda_category: str = "approval"
     status_tag: str = "审议通过"
+    is_substantive_agenda: bool = True
     time_range: str = "—"
     # 1~5 纯干货字段
     target_and_audience: list[str] = field(default_factory=list)
@@ -227,6 +229,15 @@ class SingleAgendaItemModel(ModelMixin):
             else:
                 agenda_category = "approval"
 
+        # 实质性议题标识（布尔值）
+        raw_substantive = data.get("is_substantive_agenda")
+        is_substantive_agenda = True
+        if raw_substantive is not None:
+            if isinstance(raw_substantive, bool):
+                is_substantive_agenda = raw_substantive
+            elif isinstance(raw_substantive, str):
+                is_substantive_agenda = raw_substantive.strip().lower() not in ("false", "0", "否", "no")
+
         # 1. 目标与对象
         target = list(data.get("target_and_audience") or data.get("proposal_highlights") or [])
 
@@ -268,6 +279,7 @@ class SingleAgendaItemModel(ModelMixin):
             presenter=str(data.get("presenter") or "").strip(),
             agenda_category=agenda_category,
             status_tag=normalize_status_tag(data.get("status_tag"), category=agenda_category, is_skipped=False),
+            is_substantive_agenda=is_substantive_agenda,
             time_range=str(data.get("time_range") or "—").strip(),
             target_and_audience=target,
             content_and_evidence=content,
@@ -451,12 +463,16 @@ class AgendaMinutesAgent:
                 extracted["agenda_seq"] = it.seq
                 extracted["agenda_title"] = it.title
                 extracted["agenda_category"] = extracted.get("agenda_category") or "approval"
+                extracted["is_substantive_agenda"] = extracted.get("is_substantive_agenda", True) is not False
                 extracted["time_range"] = _format_time_range(align.matched_blocks)
                 extracted["discussion_state"] = "discussed"
                 return extracted
 
-        # 并发抽取所有 discussed 项，严格遵从现场讨论时序（skipped 项由状态机判定，零 Token 调用）
-        discussed_alignments = [a for a in alignment_res.chronological_alignments if a.status == "discussed"]
+        # 并发抽取所有 discussed 项，严格遵从现场讨论时序（过滤纯会务动线与过场仪式，skipped 项由状态机判定，零 Token 调用）
+        discussed_alignments = [
+            a for a in alignment_res.chronological_alignments
+            if a.status == "discussed" and not is_trivial_ceremonial_item(a)
+        ]
         extracted_map: dict[str, dict[str, Any]] = {}
         if discussed_alignments:
             results = await asyncio.gather(*[_extract_single_item(a) for a in discussed_alignments])
@@ -472,10 +488,7 @@ class AgendaMinutesAgent:
                 "theme": plan.meta.theme or "商用发布与关键技术议题审议会",
                 "date_time": plan.meta.date_time or "2026年度会议",
                 "attendees_summary": plan.meta.attendees or "全体与会人",
-                "agenda_stats": (
-                    f"既定议题共 {len(plan.items)} 项（有效审议 {alignment_res.discussed_count} 项 · "
-                    f"本次未讨论 {alignment_res.skipped_count} 项）"
-                ),
+                "agenda_stats": "",
             },
             "agenda_items": list(extracted_map.values()),
             "adhoc_items": [],
@@ -524,6 +537,16 @@ class AgendaMinutesAgent:
             seq = it.seq
             raw_match = raw_items_map.get(seq) or {}
             pres_str = "、".join(it.presenters) if it.presenters else (it.raw_presenter or "")
+
+            # 1. 过滤纯物理动线、生活作息日程以及过场仪式（如拍照合影、开场视频播放、漫步大学城、茶歇等）
+            if is_trivial_ceremonial_item(align):
+                logger.info("议题 %s 《%s》判定为会务过场/低密度仪式，直接予以剔除", seq, it.title)
+                continue
+
+            # 2. 结合 LLM 的实质性研讨判据：若抽取模型明确识别为非实质研讨过场，剔除
+            if raw_match.get("is_substantive_agenda") is False:
+                logger.info("议题 %s 《%s》经 LLM 判定为非实质性研讨议题，直接予以剔除", seq, it.title)
+                continue
 
             if align.status == "skipped":
                 # 零证据确定性置空：不写要点、不写决议、不写「建议顺延」，要素彻底留空
@@ -640,6 +663,16 @@ class AgendaMinutesAgent:
                 }
 
             enforced_agenda_items.append(enforced_item)
+
+        # 重新动态精准统计剔除过场后的有效议题大盘数据
+        total_count = len(enforced_agenda_items)
+        discussed_count = sum(1 for it in enforced_agenda_items if it.get("discussion_state") == "discussed")
+        skipped_count = sum(1 for it in enforced_agenda_items if it.get("discussion_state") == "skipped")
+        if not meeting_meta.get("agenda_stats") or total_count != len(plan.items):
+            meeting_meta["agenda_stats"] = (
+                f"既定议题共 {total_count} 项（有效审议 {discussed_count} 项 · "
+                f"本次未讨论 {skipped_count} 项）"
+            )
 
         return {
             "meeting_meta": meeting_meta,
