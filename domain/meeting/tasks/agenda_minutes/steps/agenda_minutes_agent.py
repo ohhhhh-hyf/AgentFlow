@@ -154,54 +154,85 @@ def _format_time_range(blocks: list[Any] | None) -> str:
 
 @dataclass
 class SingleAgendaItemModel(ModelMixin):
-    """单议题结构化输出数据模型（1~5 栏纯干货直出，向上兼容旧字段）。"""
+    """单议题结构化输出数据模型（4 栏骨架纯干货直出，向上兼容旧字段）。"""
 
     presenter: str = ""
     agenda_category: str = "approval"
     status_tag: str = "审议通过"
     is_substantive_agenda: bool = True
     time_range: str = "—"
-    # 1~5 纯干货字段
+
+    # 4 栏标准骨架字段
+    background_and_goals: str | list[str] = ""
+    core_content: list[str] = field(default_factory=list)
+    core_insights: str | list[str] = ""
+    action_items: list[dict[str, Any]] = field(default_factory=list)
+
+    # 兼容 5 栏旧字段
     target_and_audience: list[str] = field(default_factory=list)
     content_and_evidence: list[str] = field(default_factory=list)
     process_and_interaction: list[str] = field(default_factory=list)
     conclusion_and_status: str | list[str] = ""
-    action_items: list[dict[str, Any]] = field(default_factory=list)
-    # 兼容旧字段
+
+    # 兼容早期旧字段
     proposal_highlights: list[str] = field(default_factory=list)
     deliberation_details: dict[str, Any] = field(default_factory=dict)
     resolution: str | list[str] = ""
     action_commitments: list[dict[str, Any]] = field(default_factory=list)
 
     def __post_init__(self) -> None:
-        if not self.target_and_audience and self.proposal_highlights:
-            self.target_and_audience = list(self.proposal_highlights)
-        elif not self.proposal_highlights and self.target_and_audience:
+        # 1. 背景与目标 同步
+        if not self.background_and_goals:
+            if self.target_and_audience:
+                self.background_and_goals = list(self.target_and_audience)
+            elif self.proposal_highlights:
+                self.background_and_goals = list(self.proposal_highlights)
+        if not self.target_and_audience:
+            if isinstance(self.background_and_goals, list):
+                self.target_and_audience = list(self.background_and_goals)
+            elif self.background_and_goals:
+                self.target_and_audience = [str(self.background_and_goals).strip()]
+        if not self.proposal_highlights and self.target_and_audience:
             self.proposal_highlights = list(self.target_and_audience)
+        elif not self.target_and_audience and self.proposal_highlights:
+            self.target_and_audience = list(self.proposal_highlights)
 
+        # 2. 核心内容 同步
         delib = self.deliberation_details if isinstance(self.deliberation_details, dict) else {}
         delib_metrics = list(delib.get("key_metrics") or [])
         delib_concerns = list(delib.get("feedback_concerns") or [])
 
-        if not self.content_and_evidence and delib_metrics:
-            self.content_and_evidence = list(delib_metrics)
-        elif not delib_metrics and self.content_and_evidence:
-            if not isinstance(self.deliberation_details, dict):
-                self.deliberation_details = {}
-            self.deliberation_details["key_metrics"] = list(self.content_and_evidence)
+        if not self.core_content:
+            combined = list(self.content_and_evidence) + list(self.process_and_interaction)
+            if combined:
+                self.core_content = combined
+            elif delib_metrics or delib_concerns:
+                self.core_content = delib_metrics + delib_concerns
 
-        if not self.process_and_interaction and delib_concerns:
-            self.process_and_interaction = list(delib_concerns)
-        elif not delib_concerns and self.process_and_interaction:
-            if not isinstance(self.deliberation_details, dict):
-                self.deliberation_details = {}
+        if not self.content_and_evidence and self.core_content:
+            self.content_and_evidence = list(self.core_content)
+        elif not self.core_content and self.content_and_evidence:
+            self.core_content = list(self.content_and_evidence) + list(self.process_and_interaction)
+
+        if not isinstance(self.deliberation_details, dict):
+            self.deliberation_details = {}
+        if not delib_metrics and self.content_and_evidence:
+            self.deliberation_details["key_metrics"] = list(self.content_and_evidence)
+        if not delib_concerns and self.process_and_interaction:
             self.deliberation_details["feedback_concerns"] = list(self.process_and_interaction)
 
-        if not self.conclusion_and_status and self.resolution:
-            self.conclusion_and_status = self.resolution
-        elif not self.resolution and self.conclusion_and_status:
+        # 3. 核心认知 同步
+        if not self.core_insights:
+            if self.conclusion_and_status:
+                self.core_insights = self.conclusion_and_status
+            elif self.resolution:
+                self.core_insights = self.resolution
+        if not self.conclusion_and_status and self.core_insights:
+            self.conclusion_and_status = self.core_insights
+        if not self.resolution and self.conclusion_and_status:
             self.resolution = self.conclusion_and_status
 
+        # 4. 后续行动 同步
         if not self.action_items and self.action_commitments:
             self.action_items = list(self.action_commitments)
         elif not self.action_commitments and self.action_items:
@@ -238,40 +269,57 @@ class SingleAgendaItemModel(ModelMixin):
             elif isinstance(raw_substantive, str):
                 is_substantive_agenda = raw_substantive.strip().lower() not in ("false", "0", "否", "no")
 
-        # 1. 目标与对象
-        target = list(data.get("target_and_audience") or data.get("proposal_highlights") or [])
-
-        # 2. 内容与依据
-        content_raw = data.get("content_and_evidence")
-        if isinstance(content_raw, list):
-            content = list(content_raw)
-        elif isinstance(content_raw, dict):
-            content = list(content_raw.get("key_metrics") or []) + list(content_raw.get("facts_and_options") or [])
+        # 1. 背景与目标
+        raw_bg = data.get("background_and_goals")
+        if raw_bg is None or raw_bg == "":
+            target = list(data.get("target_and_audience") or data.get("proposal_highlights") or [])
+            background_and_goals = target if len(target) > 1 else (target[0] if target else "")
+        elif isinstance(raw_bg, list):
+            target = list(raw_bg)
+            background_and_goals = list(raw_bg)
         else:
-            delib_raw = data.get("deliberation_details") or {}
-            content = list(delib_raw.get("key_metrics") or []) if isinstance(delib_raw, dict) else []
+            target = [str(raw_bg).strip()] if str(raw_bg).strip() else []
+            background_and_goals = str(raw_bg).strip()
 
-        # 3. 过程与互动
-        process_raw = data.get("process_and_interaction")
-        if isinstance(process_raw, list):
-            process = list(process_raw)
-        elif isinstance(process_raw, dict):
-            process = list(process_raw.get("feedback_concerns") or []) + list(process_raw.get("focus_debates") or [])
+        # 2. 核心内容
+        raw_core = data.get("core_content")
+        if isinstance(raw_core, list) and raw_core:
+            core_content = list(raw_core)
+            content = list(raw_core)
+            process = list(data.get("process_and_interaction") or [])
         else:
-            delib_raw = data.get("deliberation_details") or {}
-            process = list(delib_raw.get("feedback_concerns") or []) if isinstance(delib_raw, dict) else []
+            content_raw = data.get("content_and_evidence")
+            if isinstance(content_raw, list):
+                content = list(content_raw)
+            elif isinstance(content_raw, dict):
+                content = list(content_raw.get("key_metrics") or []) + list(content_raw.get("facts_and_options") or [])
+            else:
+                delib_raw = data.get("deliberation_details") or {}
+                content = list(delib_raw.get("key_metrics") or []) if isinstance(delib_raw, dict) else []
 
-        # 4. 结论与状态（支持多点结构化与单条自然语言）
-        conclusion_raw = data.get("conclusion_and_status") or data.get("resolution") or ""
-        conclusion_pts = _normalize_conclusion_points(conclusion_raw)
+            process_raw = data.get("process_and_interaction")
+            if isinstance(process_raw, list):
+                process = list(process_raw)
+            elif isinstance(process_raw, dict):
+                process = list(process_raw.get("feedback_concerns") or []) + list(process_raw.get("focus_debates") or [])
+            else:
+                delib_raw = data.get("deliberation_details") or {}
+                process = list(delib_raw.get("feedback_concerns") or []) if isinstance(delib_raw, dict) else []
+
+            core_content = list(content) + list(process)
+
+        # 3. 核心认知（支持多点结构化与单条自然语言）
+        raw_insights = data.get("core_insights") or data.get("conclusion_and_status") or data.get("resolution") or ""
+        conclusion_pts = _normalize_conclusion_points(raw_insights)
         if len(conclusion_pts) > 1:
             conclusion: str | list[str] = conclusion_pts
         elif len(conclusion_pts) == 1:
             conclusion = conclusion_pts[0]
         else:
             conclusion = ""
+        core_insights = conclusion
 
-        # 5. 行动与效果
+        # 4. 后续行动
         actions = list(data.get("action_items") or data.get("action_commitments") or [])
 
         # 双向映射兼容
@@ -281,12 +329,17 @@ class SingleAgendaItemModel(ModelMixin):
             status_tag=normalize_status_tag(data.get("status_tag"), category=agenda_category, is_skipped=False),
             is_substantive_agenda=is_substantive_agenda,
             time_range=str(data.get("time_range") or "—").strip(),
+            # 4 栏标准
+            background_and_goals=background_and_goals,
+            core_content=core_content,
+            core_insights=core_insights,
+            action_items=actions,
+            # 兼容 5 栏旧字段
             target_and_audience=target,
             content_and_evidence=content,
             process_and_interaction=process,
             conclusion_and_status=conclusion,
-            action_items=actions,
-            # 兼容旧字段
+            # 兼容更早旧字段
             proposal_highlights=target,
             deliberation_details={
                 "key_metrics": content,
@@ -557,13 +610,17 @@ class AgendaMinutesAgent:
                     "agenda_category": raw_match.get("agenda_category") or "approval",
                     "status_tag": "本次未讨论",
                     "time_range": "—",
-                    # 1~5 栏纯干货直出
+                    # 4 栏标准字段
+                    "background_and_goals": "",
+                    "core_content": [],
+                    "core_insights": "",
+                    "action_items": [],
+                    # 兼容 5 栏旧字段
                     "target_and_audience": [],
                     "content_and_evidence": [],
                     "process_and_interaction": [],
                     "conclusion_and_status": "",
-                    "action_items": [],
-                    # 向上兼容旧字段
+                    # 向上兼容早期旧字段
                     "proposal_highlights": [],
                     "deliberation_details": {
                         "key_metrics": [],
@@ -588,7 +645,7 @@ class AgendaMinutesAgent:
                     category=category,
                     is_skipped=False,
                 )
-                if not status_tag and category != "share":
+                if not status_tag and category == "approval":
                     status_tag = "审议通过"
 
                 actual_pres = str(raw_match.get("presenter") or "").strip()
@@ -599,39 +656,56 @@ class AgendaMinutesAgent:
                 if time_range == "—" and raw_match.get("time_range"):
                     time_range = str(raw_match["time_range"]).strip() or "—"
 
-                # 1. 目标与对象
-                target = list(
-                    raw_match.get("target_and_audience")
-                    or raw_match.get("proposal_highlights")
-                    or [f"既定议题审议：{it.title}"]
-                )
-
-                # 2. 内容与依据
-                content_raw = raw_match.get("content_and_evidence")
-                if isinstance(content_raw, list) and content_raw:
-                    content = list(content_raw)
-                elif isinstance(content_raw, dict):
-                    content = list(content_raw.get("key_metrics") or []) + list(content_raw.get("facts_and_options") or [])
+                # 1. 背景与目标
+                raw_bg = raw_match.get("background_and_goals")
+                if raw_bg is None or raw_bg == "":
+                    target = list(
+                        raw_match.get("target_and_audience")
+                        or raw_match.get("proposal_highlights")
+                        or [f"既定议题审议：{it.title}"]
+                    )
+                    background_and_goals = target if len(target) > 1 else (target[0] if target else "")
+                elif isinstance(raw_bg, list):
+                    target = list(raw_bg)
+                    background_and_goals = list(raw_bg)
                 else:
-                    content = list(delib.get("key_metrics") or [])
+                    target = [str(raw_bg).strip()] if str(raw_bg).strip() else []
+                    background_and_goals = str(raw_bg).strip()
 
-                # 3. 过程与互动
-                process_raw = raw_match.get("process_and_interaction")
-                if isinstance(process_raw, list) and process_raw:
-                    process = list(process_raw)
-                elif isinstance(process_raw, dict):
-                    process = list(process_raw.get("feedback_concerns") or []) + list(process_raw.get("focus_debates") or [])
+                # 2. 核心内容
+                raw_core = raw_match.get("core_content")
+                if isinstance(raw_core, list) and raw_core:
+                    core_content = list(raw_core)
+                    content = list(raw_core)
+                    process = list(raw_match.get("process_and_interaction") or [])
                 else:
-                    process = list(delib.get("feedback_concerns") or [])
+                    content_raw = raw_match.get("content_and_evidence")
+                    if isinstance(content_raw, list) and content_raw:
+                        content = list(content_raw)
+                    elif isinstance(content_raw, dict):
+                        content = list(content_raw.get("key_metrics") or []) + list(content_raw.get("facts_and_options") or [])
+                    else:
+                        content = list(delib.get("key_metrics") or [])
 
-                # 4. 结论与状态
+                    process_raw = raw_match.get("process_and_interaction")
+                    if isinstance(process_raw, list) and process_raw:
+                        process = list(process_raw)
+                    elif isinstance(process_raw, dict):
+                        process = list(process_raw.get("feedback_concerns") or []) + list(process_raw.get("focus_debates") or [])
+                    else:
+                        process = list(delib.get("feedback_concerns") or [])
+
+                    core_content = list(content) + list(process)
+
+                # 3. 核心认知
                 conclusion = str(
-                    raw_match.get("conclusion_and_status")
+                    raw_match.get("core_insights")
+                    or raw_match.get("conclusion_and_status")
                     or raw_match.get("resolution")
                     or ""
                 ).strip()
 
-                # 5. 行动与效果
+                # 4. 后续行动
                 actions = list(
                     raw_match.get("action_items")
                     or raw_match.get("action_commitments")
@@ -645,13 +719,17 @@ class AgendaMinutesAgent:
                     "agenda_category": category,
                     "status_tag": status_tag,
                     "time_range": time_range,
-                    # 1~5 栏纯干货直出
+                    # 4 栏标准
+                    "background_and_goals": background_and_goals,
+                    "core_content": core_content,
+                    "core_insights": conclusion,
+                    "action_items": actions,
+                    # 兼容 5 栏旧字段
                     "target_and_audience": target,
                     "content_and_evidence": content,
                     "process_and_interaction": process,
                     "conclusion_and_status": conclusion,
-                    "action_items": actions,
-                    # 向上兼容旧字段
+                    # 向上兼容早期旧字段
                     "proposal_highlights": target,
                     "deliberation_details": {
                         "key_metrics": content,

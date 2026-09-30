@@ -383,11 +383,10 @@ def test_markdown_and_html_render():
     assert "## 议题分析" in md_output
     assert "第二部分" not in md_output
     assert "### 议题 01 · 翻译海外HiTranslationService 21.1.1.300商用版本发布" in md_output
-    assert "#### 1. 目标与对象" in md_output
-    assert "#### 2. 内容与依据" in md_output
-    assert "#### 3. 过程与互动" in md_output
-    assert "#### 4. 结论与状态" in md_output
-    assert "#### 5. 行动与效果" in md_output
+    assert "#### 1. 背景与目标" in md_output
+    assert "#### 2. 核心内容" in md_output
+    assert "#### 3. 核心认知" in md_output
+    assert "#### 4. 后续行动" in md_output
     assert "总体评价" not in md_output
     assert "第三部分" not in md_output
     assert "临时追加议题" not in md_output
@@ -405,11 +404,10 @@ def test_markdown_and_html_render():
     assert "col-actions" not in html_output
     assert "待办与要求" not in html_output
     assert "议题分析" in html_output
-    assert "目标与对象" in html_output
-    assert "内容与依据" in html_output
-    assert "过程与互动" in html_output
-    assert "结论与状态" in html_output
-    assert "行动与效果" in html_output
+    assert "背景与目标" in html_output
+    assert "核心内容" in html_output
+    assert "核心认知" in html_output
+    assert "后续行动" in html_output
     assert "col-seq" not in html_output
     assert "总体评价与导向" not in html_output
     assert "badge-approved" in html_output
@@ -433,14 +431,12 @@ def test_markdown_and_html_render():
 
 
 def test_agenda_minutes_categories_rendering():
-    """测试评审类(approval)、分享类(share)、协同类(consensus)的三大类状态定调与差异化排版。"""
+    """测试评审类(approval)、非审批类(share/consensus)的状态定调与差异化排版。"""
     from domain.meeting.tasks.agenda_minutes.contracts import (
         normalize_status_tag,
         STATUS_TAG_APPROVED,
         STATUS_TAG_CONDITIONAL,
         STATUS_TAG_REJECTED,
-        STATUS_TAG_CONSENSUS,
-        STATUS_TAG_DIVERGENCE,
         STATUS_TAG_SKIPPED,
         STATUS_TAG_EMPTY,
     )
@@ -451,8 +447,8 @@ def test_agenda_minutes_categories_rendering():
     assert normalize_status_tag("材料不齐待补充", category="approval") == STATUS_TAG_REJECTED
     assert normalize_status_tag("原则同意", category="approval") == STATUS_TAG_CONDITIONAL
     assert normalize_status_tag("任何状态", category="share") == STATUS_TAG_EMPTY
-    assert normalize_status_tag("达成一致", category="consensus") == STATUS_TAG_CONSENSUS
-    assert normalize_status_tag("存在技术分歧待拉通", category="consensus") == STATUS_TAG_DIVERGENCE
+    assert normalize_status_tag("达成一致", category="consensus") == STATUS_TAG_EMPTY
+    assert normalize_status_tag("存在技术分歧待拉通", category="consensus") == STATUS_TAG_EMPTY
     assert normalize_status_tag("通过", category="share", is_skipped=True) == STATUS_TAG_SKIPPED
 
     # 2. 验证 SingleAgendaItemModel validate 行为
@@ -475,7 +471,7 @@ def test_agenda_minutes_categories_rendering():
         "conclusion_and_status": "排期尚未对齐，待各模块下周一前复核",
     })
     assert item_consensus.agenda_category == "consensus"
-    assert item_consensus.status_tag == "存在分歧"
+    assert item_consensus.status_tag == ""
 
     # 3. 验证 Markdown 格式渲染差异化
     multi_draft = {
@@ -543,38 +539,43 @@ def test_agenda_minutes_categories_rendering():
     # 验证议题总览表格中定调列
     assert "| 智慧域核心版本发布评审 | 赵工 | 09:30 ~ 10:00 | `审议通过` |" in md_out
     assert "| 智能声学感知与重构技术前沿分享 | 陈教授 | 10:00 ~ 10:45 | — |" in md_out  # 分享类显示破折号
-    assert "| 多模块端到端时延优化协同对齐 | 李工 | 10:45 ~ 11:30 | `存在分歧` |" in md_out
+    assert "| 多模块端到端时延优化协同对齐 | 李工 | 10:45 ~ 11:30 | — |" in md_out  # 协同类亦为非审批，不设审批定调标签，显示破折号
     assert "| 轻量化离线识别预研规划 | 王工 | — | `本次未讨论` |" in md_out
 
     # 验证议题详情正文
     # 议题 01：评审类
     assert "### 议题 01 · 智慧域核心版本发布评审" in md_out
     assert "- **结论定调**：`审议通过`" in md_out
-    assert "#### 4. 结论与状态" in md_out
+    assert "#### 1. 背景与目标" in md_out
+    assert "#### 2. 核心内容" in md_out
+    assert "#### 3. 核心认知" in md_out
+    # 议题 01 action_items 为空，自适应不渲染第四栏
+    assert "#### 4. 后续行动" not in md_out.split("### 议题 01 · 智慧域核心版本发布评审")[1].split("### 议题 02")[0]
 
-    # 议题 02：分享类（留空，无结论定调，第4栏为 Takeaways）
+    # 议题 02：分享类（无结论定调，无后续行动，自适应 3 栏闭环）
     assert "### 议题 02 · 智能声学感知与重构技术前沿分享" in md_out
-    assert "### 议题 02 · 智能声学感知与重构技术前沿分享\n\n- **汇报人/责任单位**：陈教授\n\n#### 1. 目标与对象" in md_out
-    assert "#### 4. 核心认知与沉淀（Takeaways）" in md_out
+    assert "### 议题 02 · 智能声学感知与重构技术前沿分享\n\n- **汇报人/责任单位**：陈教授\n\n#### 1. 背景与目标" in md_out
+    assert "#### 3. 核心认知" in md_out
+    assert "#### 4. 后续行动" not in md_out.split("### 议题 02 · 智能声学感知与重构技术前沿分享")[1].split("### 议题 03")[0]
 
-    # 议题 03：协同类
+    # 议题 03：协同类（非审批类，无结论定调，但有行动项，呈现第4栏）
     assert "### 议题 03 · 多模块端到端时延优化协同对齐" in md_out
-    assert "- **结论定调**：`存在分歧`" in md_out
+    assert "### 议题 03 · 多模块端到端时延优化协同对齐\n\n- **汇报人/责任单位**：李工\n\n#### 1. 背景与目标" in md_out
+    assert "#### 3. 核心认知" in md_out
+    assert "#### 4. 后续行动" in md_out.split("### 议题 03 · 多模块端到端时延优化协同对齐")[1]
 
     # 4. 验证 HTML 渲染差异化
     html_out = render_agenda_minutes_html("综合技术研讨与评审例会", md_out, multi_draft)
     # 评审类徽标
     assert "badge-approved" in html_out
     assert "✅ 审议通过" in html_out
-    # 协同类分歧徽标
-    assert "badge-divergence" in html_out
-    assert "⚡ 存在分歧" in html_out
     # 跳过项徽标
     assert "badge-skipped" in html_out
-    # 分享类在卡片标题旁留空（无 badge）
+    # 分享类与协同类在卡片标题旁留空（无 badge）
     assert '<div class="agenda-card" id="topic-02">\n            <div class="card-header">\n                <div class="card-title-group">\n                    <span class="topic-index">议题 02</span>\n                    <h3 class="topic-name">智能声学感知与重构技术前沿分享</h3>\n                </div>\n                \n            </div>' in html_out
-    # 分享类第 4 栏展示核心认知与沉淀
-    assert '<div class="pillar-label"><span class="pillar-num">4</span> 核心认知与沉淀（Takeaways）</div>' in html_out
+    assert '<div class="agenda-card" id="topic-03">\n            <div class="card-header">\n                <div class="card-title-group">\n                    <span class="topic-index">议题 03</span>\n                    <h3 class="topic-name">多模块端到端时延优化协同对齐</h3>\n                </div>\n                \n            </div>' in html_out
+    # 核心认知第 3 栏展示
+    assert '<div class="pillar-label"><span class="pillar-num">3</span> 核心认知</div>' in html_out
 
 
 def test_agenda_parser_markdown_table_and_tabs():
@@ -869,11 +870,11 @@ def test_agenda_types_registry_and_specs():
         assert spec.type_name
         assert spec.core_purpose
         assert spec.core_output
-        assert len(spec.pillars) == 5
+        assert len(spec.pillars) == 4
         guidance = spec.format_prompt_guidance()
         assert spec.type_name in guidance
-        assert "1. 目标与对象" in guidance
-        assert "5. 行动与效果" in guidance
+        assert "1. 背景与目标" in guidance
+        assert "4. 后续行动" in guidance
 
     # 测试未知类型安全降级
     fallback_spec = get_agenda_type_spec("non_existent_type")
@@ -882,7 +883,7 @@ def test_agenda_types_registry_and_specs():
     # 测试 build_single_item_prompt 动态拼接
     prompt = build_single_item_prompt(fallback_spec)
     assert "决策审批型" in prompt
-    assert "target_and_audience" in prompt
+    assert "background_and_goals" in prompt
     assert "action_items" in prompt
 
 

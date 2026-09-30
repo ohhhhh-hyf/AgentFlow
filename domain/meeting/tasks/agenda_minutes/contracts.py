@@ -12,6 +12,9 @@ Optional fallback:
 """
 from __future__ import annotations
 
+import re
+from typing import Any
+
 from tools.schema.contracts import (
     Check,
     Decision,
@@ -27,7 +30,7 @@ from tools.schema.fallback_rules import FallbackRules
 
 
 class AgendaMinutesGenerationContract(GenerationContract):
-    """议程驱动型会议纪要生成契约（通用全景五要素架构）。"""
+    """议程驱动型会议纪要生成契约（四栏骨架自适应架构）。"""
 
     fields = [
         ObjField(
@@ -37,7 +40,7 @@ class AgendaMinutesGenerationContract(GenerationContract):
                 StrField("date_time", "会议起止时间与主持人"),
                 StrField("attendees_summary", "与会人员概况（包含全程参与人与分段参与人）"),
                 StrField("overview_headline", "全会议程推进总体评价与核心结论摘要"),
-                StrField("agenda_stats", "议题完成度统计（如：既定议题共4项，已审议2项，未讨论2项，临时追加1项）"),
+                StrField("agenda_stats", "议题完成度统计（如：既定议题共4项，有效审议2项，未讨论2项）"),
             ],
             desc="全会基本信息与议程大盘总览",
         ),
@@ -48,12 +51,12 @@ class AgendaMinutesGenerationContract(GenerationContract):
                 StrField("agenda_title", "既定议程议题全称（严格以会前议程单 txt 为准，保持字面完全一致）"),
                 StrField("presenter", "汇报人与责任团队/部门"),
                 StrField("agenda_category", "议题属性分类：approval=评审审批类；share=知识分享与技术研讨类；consensus=协同拉通与排期对齐类"),
-                StrField("status_tag", "议题结论定调（评审类：审议通过、有条件通过、未通过；协同类：达成共识、存在分歧；分享类：直接留空；未讨论统一为：本次未讨论）"),
+                StrField("status_tag", "议题结论定调（仅限评审审批类填写：审议通过、有条件通过、未通过；非审批类直接留空；未讨论统一为：本次未讨论）"),
                 StrField("time_range", "议题原声时间戳区间/时长（如 00:10 ~ 00:24，未讨论为 —）"),
-                StrListField("target_and_audience", "1. 目标与对象（为什么开、面向谁、期望发生什么变化、验收标准）"),
-                StrListField("content_and_evidence", "2. 内容与依据（改动点、量化指标、方案事实）"),
-                StrListField("process_and_interaction", "3. 过程与互动（争议焦点、评委质询、释疑论据）"),
-                StrField("conclusion_and_status", "4. 结论与状态（自然语言陈述最终口径、生效约束红线、未决卡点）"),
+                # 四栏骨架字段
+                StrField("background_and_goals", "1. 背景与目标（1~2 句话直述为什么开/汇报、预期目标与排除项）"),
+                StrListField("core_content", "2. 核心内容（方案细节、量化数据、现场提问与解答，分点列表）"),
+                StrField("core_insights", "3. 核心认知（2~3 条高价值启发、技术经验、或审批决议与生效约束）"),
                 ObjListField(
                     "action_items",
                     [
@@ -61,10 +64,14 @@ class AgendaMinutesGenerationContract(GenerationContract):
                         StrField("task", "具体执行事项、闭环动作或验证探索"),
                         StrField("deadline", "完成时限节点或排期安排"),
                     ],
-                    desc="5. 行动与效果",
+                    desc="4. 后续行动（有则输出，无则为空列表）",
                 ),
                 StrField("discussion_state", "讨论真实性标记：discussed=现场充分讨论；skipped=本次未讨论/录音未见提及"),
                 # 兼容旧字段别名
+                StrListField("target_and_audience", "兼容旧字段：1. 目标与对象"),
+                StrListField("content_and_evidence", "兼容旧字段：2. 内容与依据"),
+                StrListField("process_and_interaction", "兼容旧字段：3. 过程与互动"),
+                StrField("conclusion_and_status", "兼容旧字段：4. 结论与状态"),
                 StrListField("proposal_highlights", "兼容旧字段：方案背景与核心诉求"),
                 ObjField(
                     "deliberation_details",
@@ -121,10 +128,9 @@ SINGLE_AGENDA_ITEM_OUTPUT_CONTRACT = """{
   "is_substantive_agenda": true,
   "presenter": "",
   "status_tag": "",
-  "target_and_audience": [],
-  "content_and_evidence": [],
-  "process_and_interaction": [],
-  "conclusion_and_status": "",
+  "background_and_goals": "",
+  "core_content": [],
+  "core_insights": "",
   "action_items": [
     {
       "owner": "",
@@ -143,27 +149,22 @@ SINGLE_AGENDA_ITEM_OUTPUT_CONTRACT = """{
   * 若现场切片仅为拍照合影站位、设备调试、闲聊寒暄、催促入场等无实质研讨/决策内容的纯会务过场，填 false；
   * 包含实质性业务汇报、技术研讨、决策拍板、高管致辞或问答互动的，填 true。
 - presenter：实际现场汇报人（如现场由某专家实际汇报则填写其真实姓名，若为主讲人则填法定汇报人）
-- status_tag：议题结论定调：
+- status_tag：议题结论定调（仅限评审审批类议题填写）：
   * 若 agenda_category 为 "approval"：严格限定为 ["审议通过", "有条件通过", "未通过", "本次未讨论"] 之一
-  * 若 agenda_category 为 "consensus"：严格限定为 ["达成共识", "存在分歧", "本次未讨论"] 之一
-  * 若 agenda_category 为 "share"：直接填空字符串 ""（无需审批状态，不盖章；若整场未讨论则填 "本次未讨论"）
-- target_and_audience：1. 目标与对象（为什么开、面向受众、明确排除项）
-- content_and_evidence：2. 内容与依据（改动点、量化指标、方案事实）
-- process_and_interaction：3. 过程与互动（争议焦点、评委质询、释疑论据，指名道姓保留真实发言人）
-- conclusion_and_status：4. 结论与状态 / 核心认知与沉淀（若为分享类重点提炼核心认知与经验沉淀 Takeaways；若为评审/协同类陈述最终口径、约束红线或共识卡点）
-- action_items：5. 行动与效果
+  * 若 agenda_category 为非审批类 ("share", "consensus" 等)：直接填空字符串 ""（非审批放行议题无需审批状态，不盖章；若整场未讨论则填 "本次未讨论"）
+- background_and_goals：1. 背景与目标（用 1~2 句话直接讲清为什么开/汇报、要达成什么目的或展示什么内容，有排除项顺带说明，不用生硬小标题）
+- core_content：2. 核心内容（分点叙述现场汇报的方案细节、量化数据以及现场提问与解答，拒绝空话）
+- core_insights：3. 核心认知（提炼 2~3 条关键启发、技术经验、避坑注意点、或审批决议与生效前置约束，大白话讲透本质）
+- action_items：4. 后续行动（有明确待办时填写责任人、交付物、时限；若现场已闭环无会后待办则给空列表 []）
 - action_items[].owner：跟进责任人/单位
 - action_items[].task：具体执行事项、闭环动作或交付物
-- action_items[].deadline：完成时限节点或排期安排"""
+- action_items[].deadline：完成时限节点或排期安排
+（注：同时兼容旧字段 target_and_audience、content_and_evidence、process_and_interaction、conclusion_and_status）"""
 
-import re
-from typing import Any
 
 STATUS_TAG_APPROVED = "审议通过"
 STATUS_TAG_CONDITIONAL = "有条件通过"
 STATUS_TAG_REJECTED = "未通过"
-STATUS_TAG_CONSENSUS = "达成共识"
-STATUS_TAG_DIVERGENCE = "存在分歧"
 STATUS_TAG_SKIPPED = "本次未讨论"
 STATUS_TAG_EMPTY = ""
 
@@ -171,8 +172,6 @@ STANDARD_STATUS_TAGS = [
     STATUS_TAG_APPROVED,
     STATUS_TAG_CONDITIONAL,
     STATUS_TAG_REJECTED,
-    STATUS_TAG_CONSENSUS,
-    STATUS_TAG_DIVERGENCE,
     STATUS_TAG_SKIPPED,
     STATUS_TAG_EMPTY,
 ]
@@ -181,11 +180,11 @@ STANDARD_STATUS_TAGS = [
 def normalize_status_tag(tag: Any, category: str = "approval", is_skipped: bool = False) -> str:
     """归一化结论定调。
 
-    根据议题类别 (approval / share / consensus) 与现场讨论状态，归一化定调标签：
+    原则：仅限评审审批类 (approval) 保留【审议通过 / 有条件通过 / 未通过】结论定调；
+    所有非审批类议题（分享、协同、研讨等）一律留空不盖章，杜绝生造共识黑话标签：
     - is_skipped=True: 恒为 "本次未讨论"
-    - share (分享类): 恒为 "" (空字符串，留空不盖章；未讨论为 "本次未讨论")
-    - consensus (协同类): ["达成共识", "存在分歧"]
-    - approval (评审类) 及兜底: ["审议通过", "有条件通过", "未通过"]
+    - 非审批类 (share, consensus, discussion 等): 恒为 "" (空字符串，留空不盖章；未讨论为 "本次未讨论")
+    - approval (评审类): ["审议通过", "有条件通过", "未通过"]
     """
     if is_skipped:
         return STATUS_TAG_SKIPPED
@@ -194,7 +193,8 @@ def normalize_status_tag(tag: Any, category: str = "approval", is_skipped: bool 
     if cat not in ("approval", "share", "consensus"):
         cat = "approval"
 
-    if cat == "share":
+    # 非审批类（知识分享、协同对齐、交流研讨等）：彻底不设定调标签，留空不盖章
+    if cat != "approval":
         if not tag:
             return STATUS_TAG_EMPTY
         s_raw = str(tag).strip()
@@ -203,26 +203,17 @@ def normalize_status_tag(tag: Any, category: str = "approval", is_skipped: bool 
         return STATUS_TAG_EMPTY
 
     if not tag:
-        if cat == "consensus":
-            return STATUS_TAG_CONSENSUS
         return STATUS_TAG_APPROVED
 
     s = str(tag).strip()
     s_clean = re.sub(r"^[\[【（(]\s*|\s*[\]】）)]$", "", s).strip()
     if not s_clean:
-        if cat == "consensus":
-            return STATUS_TAG_CONSENSUS
         return STATUS_TAG_APPROVED
 
     if "未讨论" in s_clean or "跳过" in s_clean or "skipped" in s_clean.lower():
         return STATUS_TAG_SKIPPED
 
-    if cat == "consensus":
-        if any(k in s_clean for k in ("分歧", "争议", "未达成", "未对齐", "再议", "待拉通", "未通过", "否决")):
-            return STATUS_TAG_DIVERGENCE
-        return STATUS_TAG_CONSENSUS
-
-    # 评审类 (approval) 及默认
+    # 评审类 (approval)
     if any(k in s_clean for k in ("未通过", "待补充", "补充材料", "材料", "延期", "再议", "否决", "不通过", "打回", "暂停")):
         return STATUS_TAG_REJECTED
     if any(k in s_clean for k in ("条件", "原则", "共识", "认可", "建议", "预研")):
@@ -250,8 +241,6 @@ __all__ = [
     "STATUS_TAG_APPROVED",
     "STATUS_TAG_CONDITIONAL",
     "STATUS_TAG_REJECTED",
-    "STATUS_TAG_CONSENSUS",
-    "STATUS_TAG_DIVERGENCE",
     "STATUS_TAG_SKIPPED",
     "STATUS_TAG_EMPTY",
     "STANDARD_STATUS_TAGS",

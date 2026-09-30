@@ -96,15 +96,25 @@ def _md_inline(text: str) -> str:
 def format_agenda_minutes_markdown(draft: dict[str, Any]) -> str:
     """把结构化草稿排版为标准 Markdown 纪要（result.md）。
 
-    标题恒为「# 议程纪要」（H1 硬编码）。历史上这里收过一个 ``title`` 形参，
-    但函数体从未引用它，调用方（编排无模板分支、Render.render_draft）传进来的
-    计算值一直被丢弃——是未完成的接线而非可用开关，故删参以免误导。
+    标题恒为「# 议程纪要」（H1 硬编码）。
+    自适应规则：
+    1. 宏观总览表格：若全场无审批类议题，折叠为 3 列精炼表；若有审批类议题，展示 4 列标准表；
+    2. 微观议题详情：基础三栏（背景与目标、核心内容、核心认知）；仅当存在实际会后待办时输出第四栏（后续行动），否则自然圆满闭环。
     """
     meta = draft.get("meeting_meta") or {}
     items = draft.get("agenda_items") or []
 
     date_time = meta.get("date_time") or "2026年度会议"
     stats = meta.get("agenda_stats") or f"既定议题共 {len(items)} 项"
+
+    has_approval = any(
+        str(it.get("agenda_category") or "").strip().lower() == "approval"
+        or (
+            it.get("agenda_category") is None
+            and _normalize_status_tag(it.get("status_tag"), category="approval") in {"审议通过", "原则同意", "待补充材料", "未通过"}
+        )
+        for it in items
+    )
 
     lines = [
         "# 议程纪要",
@@ -116,26 +126,44 @@ def format_agenda_minutes_markdown(draft: dict[str, Any]) -> str:
         "",
         "## 议题总览",
         "",
-        "| 议题名称 | 汇报人 | 议题时长 | 结论定调 |",
-        "| :--- | :---: | :---: | :---: |",
     ]
 
-    for it in items:
-        it_title = it.get("agenda_title") or "议题"
-        pres = it.get("presenter") or "未记录"
-        state = it.get("discussion_state") or "discussed"
-        cat = str(it.get("agenda_category") or "approval").strip().lower()
-        raw_status = it.get("status_tag") or ("本次未讨论" if state == "skipped" else ("" if cat == "share" else "审议通过"))
-        tag = _normalize_status_tag(raw_status, category=cat, is_skipped=(state == "skipped"))
-        time_range = str(it.get("time_range") or "—").strip() or "—"
-        if state == "skipped" or tag == "本次未讨论":
-            time_range = "—"
-            status_cell = "`本次未讨论`"
-        elif cat == "share" or not tag:
-            status_cell = "—"
-        else:
-            status_cell = f"`{tag}`"
-        lines.append(f"| {it_title} | {pres} | {time_range} | {status_cell} |")
+    if not has_approval:
+        lines.extend([
+            "| 议题名称 | 汇报人 | 议题时长 |",
+            "| :--- | :---: | :---: |",
+        ])
+        for it in items:
+            it_title = it.get("agenda_title") or "议题"
+            pres = it.get("presenter") or "未记录"
+            state = it.get("discussion_state") or "discussed"
+            tag = _normalize_status_tag(it.get("status_tag"), category="share", is_skipped=(state == "skipped"))
+            time_range = str(it.get("time_range") or "—").strip() or "—"
+            if state == "skipped" or tag == "本次未讨论":
+                time_range = "—"
+                it_title = f"{it_title} `(本次未讨论)`"
+            lines.append(f"| {it_title} | {pres} | {time_range} |")
+    else:
+        lines.extend([
+            "| 议题名称 | 汇报人 | 议题时长 | 结论定调 |",
+            "| :--- | :---: | :---: | :---: |",
+        ])
+        for it in items:
+            it_title = it.get("agenda_title") or "议题"
+            pres = it.get("presenter") or "未记录"
+            state = it.get("discussion_state") or "discussed"
+            cat = str(it.get("agenda_category") or "approval").strip().lower()
+            raw_status = it.get("status_tag") or ("本次未讨论" if state == "skipped" else ("" if cat != "approval" else "审议通过"))
+            tag = _normalize_status_tag(raw_status, category=cat, is_skipped=(state == "skipped"))
+            time_range = str(it.get("time_range") or "—").strip() or "—"
+            if state == "skipped" or tag == "本次未讨论":
+                time_range = "—"
+                status_cell = "`本次未讨论`"
+            elif cat != "approval" or not tag:
+                status_cell = "—"
+            else:
+                status_cell = f"`{tag}`"
+            lines.append(f"| {it_title} | {pres} | {time_range} | {status_cell} |")
 
     lines.extend([
         "",
@@ -151,7 +179,7 @@ def format_agenda_minutes_markdown(draft: dict[str, Any]) -> str:
         pres = it.get("presenter") or "未记录"
         state = it.get("discussion_state") or "discussed"
         cat = str(it.get("agenda_category") or "approval").strip().lower()
-        raw_status = it.get("status_tag") or ("本次未讨论" if state == "skipped" else ("" if cat == "share" else "审议通过"))
+        raw_status = it.get("status_tag") or ("本次未讨论" if state == "skipped" else ("" if cat != "approval" else "审议通过"))
         tag = _normalize_status_tag(raw_status, category=cat, is_skipped=(state == "skipped"))
 
         item_header_lines = [
@@ -161,7 +189,7 @@ def format_agenda_minutes_markdown(draft: dict[str, Any]) -> str:
         ]
         if state == "skipped" or tag == "本次未讨论":
             item_header_lines.append("- **结论定调**：`本次未讨论`")
-        elif cat != "share" and tag:
+        elif cat == "approval" and tag:
             item_header_lines.append(f"- **结论定调**：`{tag}`")
         item_header_lines.append("")
         lines.extend(item_header_lines)
@@ -173,27 +201,55 @@ def format_agenda_minutes_markdown(draft: dict[str, Any]) -> str:
             ])
             continue
 
-        # 1. 目标与对象
-        target = it.get("target_and_audience") or it.get("proposal_highlights") or []
-        lines.append("#### 1. 目标与对象")
-        if target:
-            for p in target:
+        # 1. 背景与目标
+        lines.append("#### 1. 背景与目标")
+        bg_val = it.get("background_and_goals")
+        if not bg_val:
+            target_list = it.get("target_and_audience") or it.get("proposal_highlights") or []
+            if target_list:
+                if len(target_list) == 1:
+                    bg_val = target_list[0]
+                else:
+                    bg_val = " ".join(target_list)
+            else:
+                bg_val = "按既定方案申报，明确核心诉求与预期目标。"
+        if isinstance(bg_val, list):
+            for p in bg_val:
                 lines.append(f"- {p}")
         else:
-            lines.append("- 按既定方案申报，明确核心诉求与预期目标。")
+            lines.append(str(bg_val).strip())
         lines.append("")
 
-        # 2. 内容与依据
-        content_raw = it.get("content_and_evidence")
-        if isinstance(content_raw, list):
-            content_list = list(content_raw)
-        elif isinstance(content_raw, dict):
-            content_list = list(content_raw.get("key_metrics") or []) + list(content_raw.get("facts_and_options") or [])
-        else:
-            delib = it.get("deliberation_details") or {}
-            content_list = list(delib.get("key_metrics") or []) if isinstance(delib, dict) else []
+        # 2. 核心内容
+        content_list = it.get("core_content")
+        if not content_list:
+            content_raw = it.get("content_and_evidence")
+            c_list = []
+            if isinstance(content_raw, list):
+                c_list.extend(content_raw)
+            elif isinstance(content_raw, dict):
+                c_list.extend(content_raw.get("key_metrics") or [])
+                c_list.extend(content_raw.get("facts_and_options") or [])
+            else:
+                delib = it.get("deliberation_details") or {}
+                if isinstance(delib, dict):
+                    c_list.extend(delib.get("key_metrics") or [])
 
-        lines.append("#### 2. 内容与依据")
+            process_raw = it.get("process_and_interaction")
+            p_list = []
+            if isinstance(process_raw, list):
+                p_list.extend(process_raw)
+            elif isinstance(process_raw, dict):
+                p_list.extend(process_raw.get("feedback_concerns") or [])
+                p_list.extend(process_raw.get("focus_debates") or [])
+            else:
+                delib = it.get("deliberation_details") or {}
+                if isinstance(delib, dict):
+                    p_list.extend(delib.get("feedback_concerns") or [])
+
+            content_list = c_list + p_list
+
+        lines.append("#### 2. 核心内容")
         if content_list:
             for m in content_list:
                 lines.append(f"- {m}")
@@ -201,44 +257,19 @@ def format_agenda_minutes_markdown(draft: dict[str, Any]) -> str:
             lines.append("- 依据现场方案申报材料与基线指标开展审议。")
         lines.append("")
 
-        # 3. 过程与互动
-        process_raw = it.get("process_and_interaction")
-        if isinstance(process_raw, list):
-            process_list = list(process_raw)
-        elif isinstance(process_raw, dict):
-            process_list = list(process_raw.get("feedback_concerns") or []) + list(process_raw.get("focus_debates") or [])
+        # 3. 核心认知
+        insights_raw = it.get("core_insights") or it.get("conclusion_and_status") or it.get("resolution") or ""
+        pts = _normalize_conclusion_points(insights_raw)
+        lines.append("#### 3. 核心认知")
+        if not pts:
+            lines.extend(["> （本次会议未记录到特别沉淀内容）", ""])
         else:
-            delib = it.get("deliberation_details") or {}
-            process_list = list(delib.get("feedback_concerns") or []) if isinstance(delib, dict) else []
+            lines.extend([f"> - {p}" for p in pts] + [""])
 
-        lines.append("#### 3. 过程与互动")
-        if process_list:
-            for c in process_list:
-                lines.append(f"- {c}")
-        else:
-            lines.append("- 现场就方案细节与落地风险展开了充分质询与沟通。")
-        lines.append("")
-
-        # 4. 结论与状态 / 核心认知与沉淀（Takeaways）
-        conclusion_raw = it.get("conclusion_and_status") or it.get("resolution") or ""
-        pts = _normalize_conclusion_points(conclusion_raw)
-        if cat == "share":
-            lines.append("#### 4. 核心认知与沉淀（Takeaways）")
-            if not pts:
-                lines.extend(["> （本次会议未记录到特别沉淀内容）", ""])
-            else:
-                lines.extend([f"> - {p}" for p in pts] + [""])
-        else:
-            lines.append("#### 4. 结论与状态")
-            if not pts:
-                lines.extend(["> （本次会议未记录到明确决议）", ""])
-            else:
-                lines.extend([f"> - {p}" for p in pts] + [""])
-
-        # 5. 行动与效果
+        # 4. 后续行动 (仅当存在实际 action_items 时输出，否则彻底不渲染)
         actions = it.get("action_items") or it.get("action_commitments") or []
-        lines.append("#### 5. 行动与效果")
         if actions:
+            lines.append("#### 4. 后续行动")
             lines.extend([
                 "| 责任人 | 跟进事项与交付目标 | 时限节点 |",
                 "| :--- | :--- | :--- |",
@@ -248,9 +279,7 @@ def format_agenda_minutes_markdown(draft: dict[str, Any]) -> str:
                 task = act.get("task") or "后续跟进"
                 deadline = act.get("deadline") or "近期"
                 lines.append(f"| {owner} | {task} | {deadline} |")
-        else:
-            lines.append("- 暂无额外待办，由主讲团队按常规流程推进。")
-        lines.append("")
+            lines.append("")
 
     return "\n".join(lines).strip() + "\n"
 
@@ -264,7 +293,7 @@ def _normalize_status_tag(tag: Any, category: str = "approval", is_skipped: bool
     if cat not in ("approval", "share", "consensus"):
         cat = "approval"
 
-    if cat == "share":
+    if cat != "approval":
         if not tag:
             return ""
         s_raw = str(tag).strip()
@@ -273,24 +302,15 @@ def _normalize_status_tag(tag: Any, category: str = "approval", is_skipped: bool
         return ""
 
     if not tag:
-        if cat == "consensus":
-            return "达成共识"
         return "审议通过"
 
     s = str(tag).strip()
     s_clean = re.sub(r"^[\[【（(]\s*|\s*[\]】）)]$", "", s).strip()
     if not s_clean:
-        if cat == "consensus":
-            return "达成共识"
         return "审议通过"
 
     if "未讨论" in s_clean or "跳过" in s_clean or "skipped" in s_clean.lower():
         return "本次未讨论"
-
-    if cat == "consensus":
-        if any(k in s_clean for k in ("分歧", "争议", "未达成", "未对齐", "再议", "待拉通", "未通过", "否决")):
-            return "存在分歧"
-        return "达成共识"
 
     if any(k in s_clean for k in ("未通过", "待补充", "补充材料", "材料", "延期", "再议", "否决", "不通过", "打回", "暂停")):
         return "未通过"
@@ -306,19 +326,14 @@ def _status_class(status: str, category: str = "approval", is_skipped: bool = Fa
 
     展示徽标：
     - 评审类：【✅ 审议通过】 / 【⚠️ 有条件通过】 / 【❌ 未通过】
-    - 分享类：直接留空 ("", "")
-    - 协同类：【🤝 达成共识】 / 【⚡ 存在分歧】
+    - 非评审类（分享、研讨、协同等）：直接留空 ("", "")
     - 跳过项：【本次未讨论】
     """
     tag = _normalize_status_tag(status, category=category, is_skipped=is_skipped)
     if is_skipped or tag == "本次未讨论":
         return "badge-skipped", "本次未讨论"
-    if category == "share" or not tag:
+    if category != "approval" or not tag:
         return "", ""
-    if tag == "达成共识":
-        return "badge-consensus", "🤝 达成共识"
-    if tag == "存在分歧":
-        return "badge-divergence", "⚡ 存在分歧"
     if tag == "未通过":
         return "badge-rejected", "❌ 未通过"
     if tag == "有条件通过":
@@ -345,6 +360,15 @@ def render_agenda_minutes_html(
     )
     skipped_cnt = total_cnt - discussed_cnt
 
+    has_approval = any(
+        str(it.get("agenda_category") or "").strip().lower() == "approval"
+        or (
+            it.get("agenda_category") is None
+            and _normalize_status_tag(it.get("status_tag"), category="approval") in {"审议通过", "原则同意", "待补充材料", "未通过"}
+        )
+        for it in items
+    )
+
     # 构建议题总览表格行
     table_rows = []
     for it in items:
@@ -353,22 +377,49 @@ def render_agenda_minutes_html(
         pres = _safe_str(it.get("presenter") or "未记录")
         cat = str(it.get("agenda_category") or "approval").strip().lower()
         state = _safe_str(it.get("discussion_state") or "discussed")
-        raw_status = _safe_str(it.get("status_tag") or ("本次未讨论" if state == "skipped" else ("" if cat == "share" else "审议通过")))
+        raw_status = _safe_str(it.get("status_tag") or ("本次未讨论" if state == "skipped" else ("" if cat != "approval" else "审议通过")))
         badge_cls, badge_text = _status_class(raw_status, category=cat, is_skipped=(state == "skipped"))
         time_range = _safe_str(it.get("time_range") or "—")
         if state == "skipped" or badge_text == "本次未讨论":
             time_range = "—"
 
-        status_td = f'<span class="badge {badge_cls}">{escape(badge_text)}</span>' if badge_text else '<span style="color:#888;">—</span>'
+        if not has_approval:
+            skipped_note = ' <span style="font-size:0.8rem;color:#888;">(本次未讨论)</span>' if (state == "skipped" or badge_text == "本次未讨论") else ""
+            table_rows.append(f"""
+            <tr>
+                <td class="col-title"><a href="#topic-{seq}">{escape(it_title)}</a>{skipped_note}</td>
+                <td class="col-pres">{escape(pres)}</td>
+                <td class="col-time">{escape(time_range)}</td>
+            </tr>
+            """)
+        else:
+            status_td = f'<span class="badge {badge_cls}">{escape(badge_text)}</span>' if badge_text else '<span style="color:#888;">—</span>'
+            table_rows.append(f"""
+            <tr>
+                <td class="col-title"><a href="#topic-{seq}">{escape(it_title)}</a></td>
+                <td class="col-pres">{escape(pres)}</td>
+                <td class="col-time">{escape(time_range)}</td>
+                <td class="col-status">{status_td}</td>
+            </tr>
+            """)
 
-        table_rows.append(f"""
-        <tr>
-            <td class="col-title"><a href="#topic-{seq}">{escape(it_title)}</a></td>
-            <td class="col-pres">{escape(pres)}</td>
-            <td class="col-time">{escape(time_range)}</td>
-            <td class="col-status">{status_td}</td>
-        </tr>
-        """)
+    if not has_approval:
+        table_head_html = """<thead>
+                        <tr>
+                            <th class="col-title">议题名称</th>
+                            <th class="col-pres">汇报人</th>
+                            <th class="col-time">议题时长</th>
+                        </tr>
+                    </thead>"""
+    else:
+        table_head_html = """<thead>
+                        <tr>
+                            <th class="col-title">议题名称</th>
+                            <th class="col-pres">汇报人</th>
+                            <th class="col-time">议题时长</th>
+                            <th class="col-status">结论定调</th>
+                        </tr>
+                    </thead>"""
 
     # 构建议题卡片
     cards = []
@@ -378,9 +429,9 @@ def render_agenda_minutes_html(
         pres = _safe_str(it.get("presenter") or "未记录")
         cat = str(it.get("agenda_category") or "approval").strip().lower()
         state = _safe_str(it.get("discussion_state") or "discussed")
-        raw_status = _safe_str(it.get("status_tag") or ("本次未讨论" if state == "skipped" else ("" if cat == "share" else "审议通过")))
+        raw_status = _safe_str(it.get("status_tag") or ("本次未讨论" if state == "skipped" else ("" if cat != "approval" else "审议通过")))
         badge_cls, badge_text = _status_class(raw_status, category=cat, is_skipped=(state == "skipped"))
-        badge_html = f'<span class="badge {badge_cls}">{escape(badge_text)}</span>' if badge_text else ""
+        badge_html = f'<span class="badge {badge_cls}">{escape(badge_text)}</span>' if (badge_text and (cat == "approval" or state == "skipped")) else ""
 
         if state == "skipped" or badge_text == "本次未讨论":
             card_html = f"""
@@ -401,46 +452,63 @@ def render_agenda_minutes_html(
             cards.append(card_html)
             continue
 
-        # 1. 目标与对象
-        target = it.get("target_and_audience") or it.get("proposal_highlights") or []
-        target_li = "".join(f"<li>{_md_inline(p)}</li>" for p in target) if target else "<li>按既定方案申报，明确核心诉求与预期目标。</li>"
-
-        # 2. 内容与依据
-        content_raw = it.get("content_and_evidence")
-        if isinstance(content_raw, list):
-            content_list = list(content_raw)
-        elif isinstance(content_raw, dict):
-            content_list = list(content_raw.get("key_metrics") or []) + list(content_raw.get("facts_and_options") or [])
+        # 1. 背景与目标
+        bg_val = it.get("background_and_goals")
+        if not bg_val:
+            target = it.get("target_and_audience") or it.get("proposal_highlights") or []
+            if target:
+                if len(target) == 1:
+                    bg_val = target[0]
+                else:
+                    bg_val = list(target)
+            else:
+                bg_val = "按既定方案申报，明确核心诉求与预期目标。"
+        if isinstance(bg_val, list):
+            bg_html = f'<ul class="bullet-list">{"".join(f"<li>{_md_inline(p)}</li>" for p in bg_val)}</ul>'
         else:
-            delib = it.get("deliberation_details") or {}
-            content_list = list(delib.get("key_metrics") or []) if isinstance(delib, dict) else []
+            bg_html = f'<p class="pillar-desc">{_md_inline(str(bg_val))}</p>'
+
+        # 2. 核心内容
+        content_list = it.get("core_content")
+        if not content_list:
+            content_raw = it.get("content_and_evidence")
+            c_list = []
+            if isinstance(content_raw, list):
+                c_list.extend(content_raw)
+            elif isinstance(content_raw, dict):
+                c_list.extend(content_raw.get("key_metrics") or [])
+                c_list.extend(content_raw.get("facts_and_options") or [])
+            else:
+                delib = it.get("deliberation_details") or {}
+                if isinstance(delib, dict):
+                    c_list.extend(delib.get("key_metrics") or [])
+
+            process_raw = it.get("process_and_interaction")
+            p_list = []
+            if isinstance(process_raw, list):
+                p_list.extend(process_raw)
+            elif isinstance(process_raw, dict):
+                p_list.extend(process_raw.get("feedback_concerns") or [])
+                p_list.extend(process_raw.get("focus_debates") or [])
+            else:
+                delib = it.get("deliberation_details") or {}
+                if isinstance(delib, dict):
+                    p_list.extend(delib.get("feedback_concerns") or [])
+
+            content_list = c_list + p_list
 
         content_li = "".join(f"<li>{_md_inline(m)}</li>" for m in content_list) if content_list else "<li>依据现场方案申报材料与基线指标开展审议。</li>"
 
-        # 3. 过程与互动
-        process_raw = it.get("process_and_interaction")
-        if isinstance(process_raw, list):
-            process_list = list(process_raw)
-        elif isinstance(process_raw, dict):
-            process_list = list(process_raw.get("feedback_concerns") or []) + list(process_raw.get("focus_debates") or [])
-        else:
-            delib = it.get("deliberation_details") or {}
-            process_list = list(delib.get("feedback_concerns") or []) if isinstance(delib, dict) else []
-
-        process_li = "".join(f"<li>{_md_inline(c)}</li>" for c in process_list) if process_list else "<li>现场就方案细节与落地风险展开了充分质询与沟通。</li>"
-
-        # 4. 结论与状态 / 核心认知与沉淀（Takeaways）
-        conclusion_raw = it.get("conclusion_and_status") or it.get("resolution") or ""
+        # 3. 核心认知
+        conclusion_raw = it.get("core_insights") or it.get("conclusion_and_status") or it.get("resolution") or ""
         pts = _normalize_conclusion_points(conclusion_raw)
-        pillar_4_label = "核心认知与沉淀（Takeaways）" if cat == "share" else "结论与状态"
         if not pts:
-            no_res_msg = "（本次会议未记录到特别沉淀内容）" if cat == "share" else "（本次会议未形成明确决议）"
-            conclusion_content = f'<span class="no-res">{no_res_msg}</span>'
+            conclusion_content = '<span class="no-res">（本次会议未记录到特别沉淀内容）</span>'
         else:
             items_html = "".join(f"<li>{_md_inline(p)}</li>" for p in pts)
             conclusion_content = f'<ul class="res-box-list">{items_html}</ul>'
 
-        # 5. 行动与效果
+        # 4. 后续行动 (仅当存在实际 action_items 时输出，否则彻底不渲染)
         actions = it.get("action_items") or it.get("action_commitments") or []
         if actions:
             act_rows = []
@@ -455,18 +523,21 @@ def render_agenda_minutes_html(
                     <td><span class="deadline-tag">{escape(deadline)}</span></td>
                 </tr>
                 """)
-            action_table = f"""
-            <div class="action-table-wrap">
-                <table class="action-table">
-                    <thead>
-                        <tr><th>责任人</th><th>跟进事项与交付目标</th><th>时限节点</th></tr>
-                    </thead>
-                    <tbody>{''.join(act_rows)}</tbody>
-                </table>
+            action_section_html = f"""
+            <div class="pillar-section">
+                <div class="pillar-label"><span class="pillar-num">4</span> 后续行动</div>
+                <div class="action-table-wrap">
+                    <table class="action-table">
+                        <thead>
+                            <tr><th>责任人</th><th>跟进事项与交付目标</th><th>时限节点</th></tr>
+                        </thead>
+                        <tbody>{''.join(act_rows)}</tbody>
+                    </table>
+                </div>
             </div>
             """
         else:
-            action_table = "<p class='no-action'>暂无额外待办，由主讲团队按常规流程推进。</p>"
+            action_section_html = ""
 
         card_html = f"""
         <div class="agenda-card" id="topic-{seq}">
@@ -482,31 +553,23 @@ def render_agenda_minutes_html(
             </div>
 
             <div class="pillar-section">
-                <div class="pillar-label"><span class="pillar-num">1</span> 目标与对象</div>
-                <ul class="bullet-list">{target_li}</ul>
+                <div class="pillar-label"><span class="pillar-num">1</span> 背景与目标</div>
+                {bg_html}
             </div>
 
             <div class="pillar-section">
-                <div class="pillar-label"><span class="pillar-num">2</span> 内容与依据</div>
+                <div class="pillar-label"><span class="pillar-num">2</span> 核心内容</div>
                 <ul class="bullet-list">{content_li}</ul>
             </div>
 
             <div class="pillar-section">
-                <div class="pillar-label"><span class="pillar-num">3</span> 过程与互动</div>
-                <ul class="bullet-list">{process_li}</ul>
-            </div>
-
-            <div class="pillar-section">
-                <div class="pillar-label"><span class="pillar-num">4</span> {pillar_4_label}</div>
+                <div class="pillar-label"><span class="pillar-num">3</span> 核心认知</div>
                 <div class="resolution-box">
                     <div class="resolution-text">{conclusion_content}</div>
                 </div>
             </div>
 
-            <div class="pillar-section">
-                <div class="pillar-label"><span class="pillar-num">5</span> 行动与效果</div>
-                {action_table}
-            </div>
+            {action_section_html}
         </div>
         """
         cards.append(card_html)
@@ -841,14 +904,7 @@ def render_agenda_minutes_html(
             <div class="ck-doc-content">
                 <h2 class="ck-doc-h2" style="margin-top: 20px;">议题总览</h2>
                 <table class="ck-table summary-table">
-                    <thead>
-                        <tr>
-                            <th class="col-title">议题名称</th>
-                            <th class="col-pres">汇报人</th>
-                            <th class="col-time">议题时长</th>
-                            <th class="col-status">结论定调</th>
-                        </tr>
-                    </thead>
+                    {table_head_html}
                     <tbody>
                         {''.join(table_rows)}
                     </tbody>
