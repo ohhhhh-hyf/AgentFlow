@@ -316,22 +316,30 @@ class SingleAgendaItemModel(ModelMixin):
         if not isinstance(data, dict):
             raise OutputValidationError("SingleAgendaItemModel 必须是对象")
 
-        # 0. 议题类别自适应
+        # 0. 议题类别自适应（零术语兜底：常规议题缺省恒为 share，非显式审批绝不私设 approval）
         raw_cat = str(data.get("agenda_category") or "").strip().lower()
-        if raw_cat in ("approval", "share", "consensus"):
-            agenda_category = raw_cat
-        elif any(k in raw_cat for k in ("分享", "讲座", "报告", "学术", "培训", "share")):
-            agenda_category = "share"
-        elif any(k in raw_cat for k in ("协同", "拉通", "对齐", "排期", "consensus")):
+        raw_tag = str(data.get("status_tag") or "").strip()
+        title_s = str(data.get("agenda_title") or "").strip().lower()
+
+        approval_kws = ("评审", "放行", "准入", "审批", "商评", "过会", "审查", "验收表决")
+        has_approval_kw = any(k in raw_cat for k in approval_kws) or any(k in title_s for k in approval_kws)
+        has_explicit_decision = any(k in raw_tag for k in ("通过", "放行", "同意", "采纳", "批准", "未通过", "待补充", "条件"))
+
+        if has_approval_kw:
+            agenda_category = "approval"
+        elif raw_cat == "approval" and has_explicit_decision:
+            agenda_category = "approval"
+        elif any(k in raw_cat for k in ("协同", "拉通", "对齐", "排期", "磋商", "consensus")) or any(k in raw_tag for k in ("共识", "分歧")):
             agenda_category = "consensus"
+        elif raw_cat == "consensus":
+            agenda_category = "consensus"
+        elif any(k in raw_cat for k in ("分享", "讲座", "报告", "学术", "培训", "致辞", "演讲", "share")):
+            agenda_category = "share"
+        elif raw_cat == "share":
+            agenda_category = "share"
         else:
-            raw_tag = str(data.get("status_tag") or "")
-            if any(k in raw_tag for k in ("共识", "分歧")):
-                agenda_category = "consensus"
-            elif raw_tag in ("", "留空", "无", "—", "-"):
-                agenda_category = "share"
-            else:
-                agenda_category = "approval"
+            # 零术语兜底：缺省恒为 share（常规研讨/分享/仪式/签署），绝不私设 approval！
+            agenda_category = "share"
 
         # 实质性议题标识（布尔值）
         raw_substantive = data.get("is_substantive_agenda")
@@ -615,21 +623,21 @@ class AgendaMinutesAgent:
                     logger.warning("议题 %s 并发抽取异常，使用保底降级: %s", it.seq, exc)
                     extracted = {
                         "presenter": pres_str,
-                        "agenda_category": "approval",
-                        "status_tag": "审议通过",
-                        "target_and_audience": [f"既定议题审议：{it.title}"],
+                        "agenda_category": "share",
+                        "status_tag": "",
+                        "target_and_audience": [f"既定议题：{it.title}"],
                         "content_and_evidence": [],
                         "process_and_interaction": [],
                         "conclusion_and_status": "",
                         "action_items": [],
-                        "proposal_highlights": [f"既定议题审议：{it.title}"],
+                        "proposal_highlights": [f"既定议题：{it.title}"],
                         "deliberation_details": {"key_metrics": [], "feedback_concerns": []},
                         "resolution": "",
                         "action_commitments": [],
                     }
                 extracted["agenda_seq"] = it.seq
                 extracted["agenda_title"] = it.title
-                extracted["agenda_category"] = extracted.get("agenda_category") or "approval"
+                extracted["agenda_category"] = extracted.get("agenda_category") or "share"
                 extracted["is_substantive_agenda"] = extracted.get("is_substantive_agenda", True) is not False
                 extracted["time_range"] = _format_time_range(align.matched_blocks)
                 extracted["discussion_state"] = "discussed"
@@ -652,7 +660,7 @@ class AgendaMinutesAgent:
         # 5. Reduce 阶段：组装并强制锁定议题骨架与现场时序
         raw_draft = {
             "meeting_meta": {
-                "theme": plan.meta.theme or "商用发布与关键技术议题审议会",
+                "theme": plan.meta.theme or "会议纪要",
                 "date_time": plan.meta.date_time or "2026年度会议",
                 "attendees_summary": plan.meta.attendees or "全体与会人",
                 "agenda_stats": "",
@@ -677,7 +685,7 @@ class AgendaMinutesAgent:
 
         meeting_meta = dict(data.get("meeting_meta") or {})
         if not meeting_meta.get("theme"):
-            meeting_meta["theme"] = plan.meta.theme or "商用发布与关键技术议题审议会"
+            meeting_meta["theme"] = plan.meta.theme or "会议纪要"
         if not meeting_meta.get("date_time"):
             meeting_meta["date_time"] = plan.meta.date_time or "2026年度会议"
         if not meeting_meta.get("attendees_summary") and plan.meta.attendees:
@@ -697,7 +705,11 @@ class AgendaMinutesAgent:
                 raw_items_map[seq_key] = item
 
         # 会议顶层大类与审批属性判定：顶层一票否决
-        theme_str = str(meeting_meta.get("theme") or plan.meta.theme or "").lower()
+        # 仅对真实存在的有效主题进行审批词扫描，绝不依赖兜底词
+        real_theme = str(plan.meta.theme or (data.get("meeting_meta") or {}).get("theme") or "").strip()
+        if real_theme in ("会议纪要", "商用发布与关键技术议题审议会"):
+            real_theme = ""
+        theme_str = real_theme.lower()
         titles_str = " ".join(it.title for it in plan.items).lower()
         approval_signals = ("评审", "放行", "准入", "审批", "商评", "过会", "审议")
         has_approval_signal = any(s in theme_str for s in approval_signals) or any(s in titles_str for s in approval_signals)
@@ -722,9 +734,14 @@ class AgendaMinutesAgent:
                 logger.info("议题 %s 《%s》判定为会务过场/低密度仪式，直接予以剔除", seq, it.title)
                 continue
 
-            # 2. 结合 LLM 的实质性研讨判据：若抽取模型明确识别为非实质研讨过场，剔除
-            if raw_match.get("is_substantive_agenda") is False:
-                logger.info("议题 %s 《%s》经 LLM 判定为非实质性研讨议题，直接予以剔除", seq, it.title)
+            # 2. 结合 LLM 的实质性研讨判据 + 高证据密度反向保活机制（Fail-Safe Mechanism）
+            matched_blocks = align.matched_blocks
+            block_count = len(matched_blocks)
+            total_chars = sum(len(b.content) for b in matched_blocks)
+            is_high_density = (block_count >= 5 and total_chars >= 150)
+
+            if raw_match.get("is_substantive_agenda") is False and not is_high_density:
+                logger.info("议题 %s 《%s》经 LLM 判定为无实质内容过场，直接予以剔除", seq, it.title)
                 continue
 
             if align.status == "skipped":
@@ -769,17 +786,15 @@ class AgendaMinutesAgent:
                     )
                     status_tag = ""
                 else:
-                    category = str(raw_match.get("agenda_category") or "approval").strip().lower()
+                    category = str(raw_match.get("agenda_category") or "share").strip().lower()
                     if category not in ("approval", "share", "consensus"):
-                        category = "approval"
+                        category = "share"
 
                     status_tag = normalize_status_tag(
                         raw_match.get("status_tag"),
                         category=category,
                         is_skipped=False,
                     )
-                    if not status_tag and category == "approval":
-                        status_tag = "审议通过"
 
                 actual_pres = str(raw_match.get("presenter") or "").strip()
                 if not actual_pres or actual_pres == "未记录":

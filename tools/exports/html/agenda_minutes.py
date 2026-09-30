@@ -300,7 +300,7 @@ def format_agenda_minutes_markdown(draft: dict[str, Any]) -> str:
             pres = it.get("presenter") or "未记录"
             state = it.get("discussion_state") or "discussed"
             cat = str(it.get("agenda_category") or "approval").strip().lower()
-            raw_status = it.get("status_tag") or ("本次未讨论" if state == "skipped" else ("" if cat != "approval" else "审议通过"))
+            raw_status = it.get("status_tag") or ("本次未讨论" if state == "skipped" else "")
             tag = _normalize_status_tag(raw_status, category=cat, is_skipped=(state == "skipped"))
             time_range = str(it.get("time_range") or "—").strip() or "—"
             if state == "skipped" or tag == "本次未讨论":
@@ -326,7 +326,7 @@ def format_agenda_minutes_markdown(draft: dict[str, Any]) -> str:
         pres = it.get("presenter") or "未记录"
         state = it.get("discussion_state") or "discussed"
         cat = str(it.get("agenda_category") or "approval").strip().lower()
-        raw_status = it.get("status_tag") or ("本次未讨论" if state == "skipped" else ("" if cat != "approval" else "审议通过"))
+        raw_status = it.get("status_tag") or ("本次未讨论" if state == "skipped" else "")
         tag = _normalize_status_tag(raw_status, category=cat, is_skipped=(state == "skipped"))
 
         item_header_lines = [
@@ -455,12 +455,12 @@ def _normalize_status_tag(tag: Any, category: str = "approval", is_skipped: bool
         return ""
 
     if not tag:
-        return "审议通过"
+        return ""
 
     s = str(tag).strip()
     s_clean = re.sub(r"^[\[【（(]\s*|\s*[\]】）)]$", "", s).strip()
-    if not s_clean:
-        return "审议通过"
+    if not s_clean or s_clean in ("—", "-", "无", "留空", "无表决", "无需表决", "未记录", "null", "none"):
+        return ""
 
     if "未讨论" in s_clean or "跳过" in s_clean or "skipped" in s_clean.lower():
         return "本次未讨论"
@@ -471,7 +471,7 @@ def _normalize_status_tag(tag: Any, category: str = "approval", is_skipped: bool
         return "有条件通过"
     if any(k in s_clean for k in ("通过", "放行", "同意", "采纳", "批准")):
         return "审议通过"
-    return "审议通过"
+    return ""
 
 
 def _status_class(status: str, category: str = "approval", is_skipped: bool = False) -> tuple[str, str]:
@@ -530,7 +530,7 @@ def render_agenda_minutes_html(
         pres = _safe_str(it.get("presenter") or "未记录")
         cat = str(it.get("agenda_category") or "approval").strip().lower()
         state = _safe_str(it.get("discussion_state") or "discussed")
-        raw_status = _safe_str(it.get("status_tag") or ("本次未讨论" if state == "skipped" else ("" if cat != "approval" else "审议通过")))
+        raw_status = _safe_str(it.get("status_tag") or ("本次未讨论" if state == "skipped" else ""))
         badge_cls, badge_text = _status_class(raw_status, category=cat, is_skipped=(state == "skipped"))
         time_range = _safe_str(it.get("time_range") or "—")
         if state == "skipped" or badge_text == "本次未讨论":
@@ -582,7 +582,7 @@ def render_agenda_minutes_html(
         pres = _safe_str(it.get("presenter") or "未记录")
         cat = str(it.get("agenda_category") or "approval").strip().lower()
         state = _safe_str(it.get("discussion_state") or "discussed")
-        raw_status = _safe_str(it.get("status_tag") or ("本次未讨论" if state == "skipped" else ("" if cat != "approval" else "审议通过")))
+        raw_status = _safe_str(it.get("status_tag") or ("本次未讨论" if state == "skipped" else ""))
         badge_cls, badge_text = _status_class(raw_status, category=cat, is_skipped=(state == "skipped"))
         badge_html = f'<span class="badge {badge_cls}">{escape(badge_text)}</span>' if (badge_text and (cat == "approval" or state == "skipped")) else ""
 

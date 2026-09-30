@@ -124,7 +124,7 @@ AGENDA_MINUTES_SUPERVISOR_OUTPUT_CONTRACT = AgendaMinutesSupervisorContract.to_o
 
 
 SINGLE_AGENDA_ITEM_OUTPUT_CONTRACT = """{
-  "agenda_category": "approval",
+  "agenda_category": "share",
   "is_substantive_agenda": true,
   "presenter": "",
   "status_tag": "",
@@ -142,15 +142,15 @@ SINGLE_AGENDA_ITEM_OUTPUT_CONTRACT = """{
 
 字段说明：
 - agenda_category：议题属性分类，必须为以下三项之一：
-  * "approval"：评审审批类（版本发布、准入、验收、立项审查等需过会表决定调的议题）
-  * "share"：知识分享与学术研讨类（学术报告、前沿分享、技术讲座、调研洞察等纯知识同步无需表决的议题）
+  * "share"：常规研讨、知识分享、领导致辞/宣讲、仪式动员、任务令签署与授予（常规议题默认项，无需表决，无审批定调标签）
+  * "approval"：严格的评审审批放行类（版本发布、准入、验收、立项审查等确需过会表决放行的门禁议题）
   * "consensus"：协同拉通与排期对齐类（跨团队协同、接口对齐、排期协商、分歧磋商等拉通共识的议题）
-- is_substantive_agenda：该议题实录切片是否构成具备记录价值的实质性研讨/汇报/致辞议题（布尔值）：
-  * 若现场切片仅为拍照合影站位、设备调试、闲聊寒暄、催促入场等无实质研讨/决策内容的纯会务过场，填 false；
-  * 包含实质性业务汇报、技术研讨、决策拍板、高管致辞或问答互动的，填 true。
+- is_substantive_agenda：该议题实录切片是否构成具备记录价值的实质性研讨/汇报/致辞/动员议题（布尔值）：
+  * 坚决保留 (true)：方案汇报、技术研讨、决策拍板、高管致辞、问答互动，以及战队任务令签署、军令状誓师、组织动员、责任目标压实等具备严肃管理与落地意义的议题；
+  * 严格剔除 (false)：仅限于纯物理站位拍照合影（“大家看镜头，一二三茄子”）、现场设备与网络调试、催促就座、作息动线等无实质业务与决策信息的纯会务噪音。
 - presenter：实际现场汇报人（如现场由某专家实际汇报则填写其真实姓名，若为主讲人则填法定汇报人）
 - status_tag：议题结论定调（仅限评审审批类议题填写）：
-  * 若 agenda_category 为 "approval"：严格限定为 ["审议通过", "有条件通过", "未通过", "本次未讨论"] 之一
+  * 若 agenda_category 为 "approval" 且现场有明确结论：严格限定为 ["审议通过", "有条件通过", "未通过", "本次未讨论"] 之一；现场无需表决或未形成定调的填空字符串 ""
   * 若 agenda_category 为非审批类 ("share", "consensus" 等)：直接填空字符串 ""（非审批放行议题无需审批状态，不盖章；若整场未讨论则填 "本次未讨论"）
 - background_and_goals：1. 背景与目标（用 1~2 句话直接讲清为什么开/汇报、要达成什么目的或展示什么内容，有排除项顺带说明，不用生硬小标题）
 - core_content：2. 核心内容（分点叙述现场汇报的方案细节、量化数据以及现场提问与解答，拒绝空话）
@@ -181,10 +181,13 @@ def normalize_status_tag(tag: Any, category: str = "approval", is_skipped: bool 
     """归一化结论定调。
 
     原则：仅限评审审批类 (approval) 保留【审议通过 / 有条件通过 / 未通过】结论定调；
-    所有非审批类议题（分享、协同、研讨等）一律留空不盖章，杜绝生造共识黑话标签：
+    所有非审批类议题（分享、协同、研讨等）一律留空不盖章，杜绝生造共识黑话标签；
+    【零术语兜底】：现场没有明确表决通过/否决，或者标签为空/占位符，坚决返回空字符串 ""，绝不脑补“审议通过”！
     - is_skipped=True: 恒为 "本次未讨论"
     - 非审批类 (share, consensus, discussion 等): 恒为 "" (空字符串，留空不盖章；未讨论为 "本次未讨论")
-    - approval (评审类): ["审议通过", "有条件通过", "未通过"]
+    - approval (评审类):
+        * 空值 / 占位符 / 无表决: 恒为 "" (STATUS_TAG_EMPTY)
+        * 命中明确表决: ["审议通过", "有条件通过", "未通过"]
     """
     if is_skipped:
         return STATUS_TAG_SKIPPED
@@ -203,12 +206,12 @@ def normalize_status_tag(tag: Any, category: str = "approval", is_skipped: bool 
         return STATUS_TAG_EMPTY
 
     if not tag:
-        return STATUS_TAG_APPROVED
+        return STATUS_TAG_EMPTY
 
     s = str(tag).strip()
     s_clean = re.sub(r"^[\[【（(]\s*|\s*[\]】）)]$", "", s).strip()
-    if not s_clean:
-        return STATUS_TAG_APPROVED
+    if not s_clean or s_clean in ("—", "-", "无", "留空", "无表决", "无需表决", "未记录", "null", "none"):
+        return STATUS_TAG_EMPTY
 
     if "未讨论" in s_clean or "跳过" in s_clean or "skipped" in s_clean.lower():
         return STATUS_TAG_SKIPPED
@@ -220,7 +223,7 @@ def normalize_status_tag(tag: Any, category: str = "approval", is_skipped: bool 
         return STATUS_TAG_CONDITIONAL
     if any(k in s_clean for k in ("通过", "放行", "同意", "采纳", "批准")):
         return STATUS_TAG_APPROVED
-    return STATUS_TAG_APPROVED
+    return STATUS_TAG_EMPTY
 
 
 class AgendaMinutesFallbackRules(FallbackRules):
