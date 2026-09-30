@@ -72,7 +72,7 @@ class AlignmentResult:
     def chronological_alignments(self) -> list[AgendaAlignment]:
         """已讨论议题按现场实际发言先后时序排列，未讨论议题置于末尾。"""
         discussed = [a for a in self.alignments if a.status == "discussed"]
-        discussed.sort(key=lambda a: (a.start_index if a.start_index >= 0 else 999999))
+        discussed.sort(key=lambda a: (a.start_index if a.start_index >= 0 else 999999, a.end_index))
         skipped = [a for a in self.alignments if a.status == "skipped"]
         return discussed + skipped
 
@@ -131,18 +131,18 @@ _SPEAKER_TS_PATTERN = re.compile(
 
 # 1. 主持人/评委串场交接（Host Handover Roadsign）
 _HOST_HANDOVER_VERB_PATTERN = re.compile(
-    r"(?:有请|交给|由|切到|听下|换到)\s*([^\s,，。:：]{2,6})\s*(?:来|给大家)?(?:汇报|分享|讲讲)?",
+    r"(?:(?<![自理经借因])由|有请|交由|交给|切到|听下|换到|转到|邀请)\s*([^\s,，。:：的]{2,6})\s*(?:来|给大家)?(?:汇报|分享|讲讲|做报告|作报告)?",
     re.IGNORECASE,
 )
 _HOST_DIRECT_INVITE_PATTERN = re.compile(
-    r"(?:下一个|下一项|下一位|接下来的议题|下一议题)(?:\s*(?:是|由|有请|让))?\s*([^\s,，。:：]{2,15})?",
+    r"(?:下一个|下一项|下一位|接下来的议题|下一议题|第[一二三四五六七八九十\d]+个(?:议题|议程|报告|特邀报告|分享|环节|项目|主题))(?:\s*(?:是|由|有请|让))?\s*([^\s,，。:：]{2,15})?",
     re.IGNORECASE,
 )
 _HOST_NEXT_PHRASE_PATTERN = re.compile(
-    r"(?:接下来|下面|然后)\s*(?:就)?\s*(?:有请|由|切到|听下|让|请)\s*(?:那个|这位)?\s*([^\s,，。:：]{2,15})",
+    r"(?:接下来|下面|然后)\s*(?:就)?\s*(?:有请|由|切到|听下|让|请|邀请)\s*(?:那个|这位)?\s*([^\s,，。:：]{2,15})",
     re.IGNORECASE,
 )
-_HOST_GENERIC_PATTERN = re.compile(r"有请下一位", re.IGNORECASE)
+_HOST_GENERIC_PATTERN = re.compile(r"(?:有请下一位|下一个特邀报告|下一项议程|下一个议题|切到下一个)", re.IGNORECASE)
 
 # 2. 真实收尾信号（Closing Signals）
 _CLOSING_PATTERNS = [
@@ -236,6 +236,8 @@ def _detect_host_roadsign(
     plan: AgendaPlan,
     hub_speakers: set[str],
     dual_speakers: set[str] | None = None,
+    active_seq: str | None = None,
+    unique_tokens_map: dict[str, list[str]] | None = None,
 ) -> tuple[str | None, bool]:
     """检测主持人/枢纽人员的串场交接信号（交通警察路标）。
 
@@ -272,8 +274,17 @@ def _detect_host_roadsign(
 
     search_scope = target_snippet if target_snippet else content
 
+    # 优先按时间轴向后匹配候选议题（从当前活跃议题起顺流核查，防止跨时空倒退激活历史同名发言人议题）
+    item_indices = {it.seq: idx for idx, it in enumerate(plan.items)}
+    items_by_seq = {it.seq: it for it in plan.items}
+    active_idx = item_indices.get(active_seq, 0) if active_seq else 0
+    candidate_items = sorted(
+        plan.items,
+        key=lambda it: (0 if item_indices[it.seq] >= active_idx else 1, item_indices[it.seq]),
+    )
+
     # 1. 尝试匹配明确的目标议程人选或关键词
-    for it in plan.items:
+    for it in candidate_items:
         all_team = list(it.presenters)
         if hasattr(it, "recorders"):
             all_team.extend(it.recorders)
@@ -283,14 +294,22 @@ def _detect_host_roadsign(
         for p in all_team:
             if not p:
                 continue
-            if p in search_scope or match_presenter_name(p, search_scope) >= NAME_MATCH_ACCEPT:
+            # 若当前活跃议题本身即包含该主讲人，主持人称呼该主讲人属于议题内互动/总结，绝不倒流切换
+            if it.seq != active_seq and active_seq and any(match_presenter_name(p, p_act) >= NAME_MATCH_ACCEPT for p_act in items_by_seq[active_seq].presenters):
+                continue
+            # 精确匹配与滑动窗口模糊音形匹配（如语音转写的严永红与颜永红）
+            if p in search_scope:
                 return it.seq, False
+            for i in range(len(search_scope) - len(p) + 1):
+                if match_presenter_name(p, search_scope[i:i+len(p)]) >= NAME_MATCH_ACCEPT:
+                    return it.seq, False
             if len(p) >= 2:
                 surname = p[0]
                 if re.search(rf"{re.escape(surname)}(?:工|老师|总|经理|博士|专家)", search_scope):
                     return it.seq, False
 
-        tokens = extract_distinctive_tokens(it.title)
+        # 仅唯一区分性专名词汇可作为特定议题路标（多议题共有的词如“特邀报告”、“评审”等只触发泛指串场）
+        tokens = unique_tokens_map.get(it.seq, []) if unique_tokens_map else extract_distinctive_tokens(it.title)
         for tok in tokens:
             if _match_token_in_text(tok, search_scope):
                 return it.seq, False
@@ -771,6 +790,15 @@ def align_agenda_with_transcript(
         return _align_by_topics_and_roadsigns(plan, blocks, all_speakers)
 
     item_tokens = {it.seq: extract_distinctive_tokens(it.title) for it in plan.items}
+    all_tok_counts: dict[str, int] = {}
+    for toks in item_tokens.values():
+        for t in set(toks):
+            all_tok_counts[t] = all_tok_counts.get(t, 0) + 1
+    unique_item_tokens = {
+        seq: [t for t in toks if all_tok_counts.get(t, 0) == 1]
+        for seq, toks in item_tokens.items()
+    }
+    items_by_seq = {it.seq: it for it in plan.items}
     hub_speakers, dual_speakers = _identify_hub_speakers(plan, blocks)
     logger.info(
         "[AGENDA_ALIGNMENT] 枢纽与主持人名单: %s | 双重身份(主持兼汇报人): %s",
@@ -790,7 +818,13 @@ def align_agenda_with_transcript(
         is_noise = _is_equipment_or_chitchat(b.content)
 
         roadsign_target, is_generic_handover = _detect_host_roadsign(
-            b.speaker, b.content, plan, hub_speakers, dual_speakers=dual_speakers
+            b.speaker,
+            b.content,
+            plan,
+            hub_speakers,
+            dual_speakers=dual_speakers,
+            active_seq=active_seq,
+            unique_tokens_map=unique_item_tokens,
         )
 
         if roadsign_target:
@@ -817,8 +851,34 @@ def align_agenda_with_transcript(
         }
         best_seq, best_score = max(scores.items(), key=lambda x: x[1])
 
+        # 换轨主权门禁（Switch Authority Gate）：
+        # 杜绝非主讲人在自己发言中随口提及其他议题专名时发生越权强行换轨。
+        # 切换到与当前活跃议题不同的新议题 best_seq 必须满足合法换轨主权之一：
+        # 1. 明确的主持人路标指引（pending_roadsign 或当前发言命中路标）
+        # 2. 发言人本身即为该新议题的主讲人/团队成员
+        # 3. 会议刚开场（active_seq 为 None）时允许主持人开启计划的首个议题
+        target_item = items_by_seq[best_seq]
+        all_target_team = list(target_item.presenters)
+        if hasattr(target_item, "recorders"):
+            all_target_team.extend(target_item.recorders)
+        if hasattr(target_item, "members"):
+            all_target_team.extend(target_item.members)
+
+        is_presenter_or_team = any(match_presenter_name(p, b.speaker) >= NAME_MATCH_ACCEPT for p in all_target_team)
+        has_roadsign = (pending_roadsign == best_seq) or (roadsign_target == best_seq)
+
+        can_switch = False
+        if best_seq == active_seq:
+            can_switch = True
+        elif has_roadsign:
+            can_switch = True
+        elif is_presenter_or_team:
+            can_switch = True
+        elif active_seq is None and best_seq == plan.items[0].seq:
+            can_switch = True
+
         # 状态机换轨决策
-        if best_score >= _SWITCH_ENTER_SCORE:
+        if best_score >= _SWITCH_ENTER_SCORE and can_switch:
             if best_seq != active_seq:
                 if (
                     active_seq is None
