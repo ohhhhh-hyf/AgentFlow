@@ -1,0 +1,48 @@
+[2026-09-30 15:02:35] Mode: table, Total Items: 8
+  Meta: theme='', time='', attendees='全程与会人/主持人**：俞凯；高虹；陶建华；颜永红；贾磊；郑方'
+  Resolved Columns: {'seq': 0, 'title': 1, 'presenter': 2, 'recorder': -1, 'members': -1, 'time': -1, 'duration': 3, 'category': -1, 'description': -1}
+  - Item [01] 开幕式：领导致辞&合影 | Presenter: ['俞凯', '高虹'] (raw: '俞凯；高虹') | Dur: 09:00-09:30 | Time:  | Cat: 
+  - Item [02] 特邀报告1：语音模仿与鉴别 | Presenter: ['陶建华'] (raw: '陶建华') | Dur: 09:30-10:15 | Time:  | Cat: 
+  - Item [03] 特邀报告2：声学所语音识别最新进展及应用 | Presenter: ['颜永红'] (raw: '颜永红') | Dur: 10:30-11:15 | Time:  | Cat: 
+  - Item [04] 特邀报告3：百度语音在建模技术、多模态和芯片方面的最新进展 | Presenter: ['贾磊'] (raw: '贾磊') | Dur: 11:15-12:00 | Time:  | Cat: 
+  - Item [05] 特邀报告4：声纹识别应用的技术挑战 | Presenter: ['郑方'] (raw: '郑方') | Dur: 13:00-13:45 | Time:  | Cat: 
+  - Item [06] 特邀报告5：语音合成中的自然韵律多样性建模 | Presenter: ['俞凯'] (raw: '俞凯') | Dur: 13:45-14:30 | Time:  | Cat: 
+  - Item [07] 参观清华大学深圳国际研究生院、北京大学深圳研究生院（步行） | Presenter: [] (raw: '-') | Dur: 14:30-15:15 | Time:  | Cat: 
+  - Item [08] 走进北科瑞声 | Presenter: [] (raw: '-') | Dur: 16:00-17:00 | Time:  | Cat: 
+----------------------------------------------------------------------
+[2026-09-30 15:08:54] Mode: table, Total Items: 5
+  Meta: theme='', time='', attendees='全程与会人/主持人**：何刚'
+  Resolved Columns: {'seq': 0, 'title': 1, 'presenter': 2, 'recorder': -1, 'members': -1, 'time': -1, 'duration': 3, 'category': -1, 'description': -1}
+  - Item [01] 活动开场视频播放 | Presenter: [] (raw: '-') | Dur: 09:00-09:10 | Time:  | Cat: 
+  - Item [02] 何刚总致辞 | Presenter: ['何刚'] (raw: '何刚') | Dur: 09:10-09:30 | Time:  | Cat: 
+  - Item [03] 互动交流（现场问答、自由交流与讨论） | Presenter: [] (raw: '-') | Dur: 09:30-10:30 | Time:  | Cat: 
+  - Item [04] 任务令签署与授予 | Presenter: [] (raw: '-') | Dur: 10:30-10:40 | Time:  | Cat: 
+  - Item [05] 全体合影 | Presenter: [] (raw: '-') | Dur: 10:40-10:50 | Time:  | Cat: 
+----------------------------------------------------------------------
+[2026-09-30 15:09:19] Mode: table, Total Items: 5
+  Meta: theme='', time='', attendees='全程与会人/主持人**：何刚'
+  Resolved Columns: {'seq': 0, 'title': 1, 'presenter': 2, 'recorder': -1, 'members': -1, 'time': -1, 'duration': 3, 'category': -1, 'description': -1}
+  - Item [01] 活动开场视频播放 | Presenter: [] (raw: '-') | Dur: 09:00-09:10 | Time:  | Cat: 
+  - Item [02] 何刚总致辞 | Presenter: ['何刚'] (raw: '何刚') | Dur: 09:10-09:30 | Time:  | Cat: 
+  - Item [03] 互动交流（现场问答、自由交流与讨论） | Presenter: [] (raw: '-') | Dur: 09:30-10:30 | Time:  | Cat: 
+  - Item [04] 任务令签署与授予 | Presenter: [] (raw: '-') | Dur: 10:30-10:40 | Time:  | Cat: 
+  - Item [05] 全体合影 | Presenter: [] (raw: '-') | Dur: 10:40-10:50 | Time:  | Cat: 
+----------------------------------------------------------------------
+[2026-09-30 16:03:41] Mode: table, Total Items: 5
+  Meta: theme='', time='', attendees='全程与会人/主持人**：何刚'
+  Resolved Columns: {'seq': 0, 'title': 1, 'presenter': 2, 'recorder': -1, 'members': -1, 'time': -1, 'duration': 3, 'category': -1, 'description': -1}
+  - Item [01] 活动开场视频播放 | Presenter: [] (raw: '-') | Dur: 09:00-09:10 | Time:  | Cat: 
+  - Item [02] 何刚总致辞 | Presenter: ['何刚'] (raw: '何刚') | Dur: 09:10-09:30 | Time:  | Cat: 
+  - Item [03] 互动交流（现场问答、自由交流与讨论） | Presenter: [] (raw: '-') | Dur: 09:30-10:30 | Time:  | Cat: 
+  - Item [04] 任务令签署与授予 | Presenter: [] (raw: '-') | Dur: 10:30-10:40 | Time:  | Cat: 
+  - Item [05] 全体合影 | Presenter: [] (raw: '-') | Dur: 10:40-10:50 | Time:  | Cat: 
+----------------------------------------------------------------------
+[2026-09-30 16:04:10] Mode: table, Total Items: 5
+  Meta: theme='', time='', attendees='全程与会人/主持人**：何刚'
+  Resolved Columns: {'seq': 0, 'title': 1, 'presenter': 2, 'recorder': -1, 'members': -1, 'time': -1, 'duration': 3, 'category': -1, 'description': -1}
+  - Item [01] 活动开场视频播放 | Presenter: [] (raw: '-') | Dur: 09:00-09:10 | Time:  | Cat: 
+  - Item [02] 何刚总致辞 | Presenter: ['何刚'] (raw: '何刚') | Dur: 09:10-09:30 | Time:  | Cat: 
+  - Item [03] 互动交流（现场问答、自由交流与讨论） | Presenter: [] (raw: '-') | Dur: 09:30-10:30 | Time:  | Cat: 
+  - Item [04] 任务令签署与授予 | Presenter: [] (raw: '-') | Dur: 10:30-10:40 | Time:  | Cat: 
+  - Item [05] 全体合影 | Presenter: [] (raw: '-') | Dur: 10:40-10:50 | Time:  | Cat: 
+----------------------------------------------------------------------
