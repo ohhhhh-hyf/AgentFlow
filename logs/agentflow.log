@@ -1,0 +1,102 @@
+2026-09-30 17:13:29,813 INFO uvicorn.error Application startup complete.
+2026-09-30 17:13:29,814 INFO uvicorn.error Uvicorn running on http://0.0.0.0:8004 (Press CTRL+C to quit)
+2026-09-30 17:13:54,281 INFO agentflow agenda_ocr start engine=paddleocr images=1 mode=single_stream
+2026-09-30 17:13:54,372 INFO tools.ocr.paddle_ocr paddleocr init agenda engine 1 (doc_orient=False) device=gpu:0
+2026-09-30 17:13:59,553 INFO tools.ocr.paddle_ocr paddleocr agenda engine 1 ready
+2026-09-30 17:14:00,440 INFO tools.ocr.paddle_ocr paddleocr extract: raw_texts=29, retained=28, angle=359
+2026-09-30 17:14:00,440 INFO tools.ocr.paddle_ocr paddleocr agenda done file=tmpld1i4om1.png dur=0.89s lines=28 (image_size=(646, 705))
+2026-09-30 17:14:00,444 INFO agentflow agenda_ocr item ok 1/1 lines=28 file=说话人日志.png padded=True
+2026-09-30 17:14:00,445 INFO tools.llm.llmclient llm client backend=vllm model=deepseek-v4-flash-0731 base_url=http://127.0.0.1:8000/v1 ctx=65536 max_tokens=50000 timeout=600.0 retries=2 temperature=0.2 sampling_sent=False
+2026-09-30 17:14:00,445 INFO tools.llm.llmclient llm call label=agenda_minutes/ocr_reconstruct mode=text
+2026-09-30 17:14:02,039 INFO tools.llm.llmclient llm resp label=agenda_minutes/ocr_reconstruct model=deepseek-v4-flash-0731 finish=stop in=1319 out=157 json_mode=False chars=264
+2026-09-30 17:14:02,040 INFO agentflow.agenda_extractor reconstruct_agenda_markdown succeeded, length=264
+2026-09-30 17:14:02,041 INFO agentflow agenda_ocr done total=1 chars=264
+2026-09-30 17:14:02,041 INFO agentflow Saved agenda OCR snapshot to logs/agenda_ocr/latest_agenda_ocr.md (264 chars)
+2026-09-30 17:14:02,300 INFO tools.llm.llmclient llm client backend=vllm model=deepseek-v4-flash-0731 base_url=http://127.0.0.1:8000/v1 ctx=65536 max_tokens=50000 timeout=600.0 retries=2 temperature=0.2 sampling_sent=False
+2026-09-30 17:14:02,314 INFO agentflow pipeline start lines=agenda_minutes
+2026-09-30 17:14:02,318 INFO agentflow agent start meeting_understanding
+2026-09-30 17:14:02,318 INFO tools.llm.llmclient llm call label=core/meeting_understanding mode=structured
+2026-09-30 17:14:02,322 INFO tools.llm.llmclient llm fit max_tokens 50000->30979 ctx=65536 input~34301
+2026-09-30 17:15:10,665 INFO tools.llm.llmclient llm resp label=core/meeting_understanding model=deepseek-v4-flash-0731 finish=stop in=23345 out=4497 json_mode=True chars=10351
+2026-09-30 17:15:10,666 INFO agentflow agent done meeting_understanding
+2026-09-30 17:15:10,669 INFO agentflow node done meeting_understanding
+2026-09-30 17:15:10,669 INFO agentflow skip perspective (objective)
+2026-09-30 17:15:10,669 INFO agentflow node done perspective_modeling
+2026-09-30 17:15:10,670 INFO agentflow agent start gen line=agenda_minutes
+2026-09-30 17:15:10,670 INFO agentflow.agenda_parser agenda_parser: parsing agenda text (264 chars, 8 lines)
+2026-09-30 17:15:10,670 INFO agentflow.agenda_parser agenda_parser: resolved table columns -> {'seq': 0, 'title': 1, 'presenter': 2, 'recorder': -1, 'members': -1, 'time': -1, 'duration': 3, 'category': -1, 'description': -1}
+2026-09-30 17:15:10,671 INFO agentflow.agenda_parser agenda_parser: matched table header at line 0: ['序号', '议题名称', '汇报人/主讲人', '预计时长']
+2026-09-30 17:15:10,671 INFO agentflow.agenda_parser agenda_parser: table mode extracted 5 items
+2026-09-30 17:15:10,672 INFO agentflow.agenda_parser [AGENDA_PARSER] 既定议程单识别成功 (来源: table, 共 5 项):
+  -> 议题 01: 《活动开场视频播放》 | 演讲人/汇报人: (未指定或未识别到演讲人) [预计时长: 09:00-09:10]
+  -> 议题 02: 《何刚总致辞》 | 演讲人/汇报人: 何刚 [预计时长: 09:10-09:30]
+  -> 议题 03: 《互动交流（现场问答、自由交流与讨论）》 | 演讲人/汇报人: (未指定或未识别到演讲人) [预计时长: 09:30-10:30]
+  -> 议题 04: 《任务令签署与授予》 | 演讲人/汇报人: (未指定或未识别到演讲人) [预计时长: 10:30-10:40]
+  -> 议题 05: 《全体合影》 | 演讲人/汇报人: (未指定或未识别到演讲人) [预计时长: 10:40-10:50]
+2026-09-30 17:15:10,844 INFO domain.meeting.tasks.agenda_minutes.alignment_engine [AGENDA_ALIGNMENT] 启动对齐引擎，检测到策略轨迹: CONTENT (总发言块: 267, 发言人总数: 19)
+2026-09-30 17:15:10,847 INFO domain.meeting.tasks.agenda_minutes.alignment_engine [TRACK_B_ALIGNMENT] 发现路标切换: 块 0 [发言者 1 00:00:03] 命中信号 '何总致辞' -> 切换至议题 02
+2026-09-30 17:15:10,847 INFO domain.meeting.tasks.agenda_minutes.alignment_engine [TRACK_B_ALIGNMENT] 发现路标切换: 块 28 [发言者 1 00:18:32] 命中信号 '团队交流' -> 切换至议题 03
+2026-09-30 17:15:10,848 INFO domain.meeting.tasks.agenda_minutes.alignment_engine [TRACK_B_ALIGNMENT] 发现路标切换: 块 230 [发言者 1 01:18:53] 命中信号 '签发仪式' -> 切换至议题 04
+2026-09-30 17:15:10,848 INFO domain.meeting.tasks.agenda_minutes.alignment_engine [TRACK_B_ALIGNMENT] 发现路标切换: 块 264 [发言者 20 01:22:02] 命中信号 '全体与会人员' -> 切换至议题 05
+2026-09-30 17:15:10,849 INFO domain.meeting.tasks.agenda_minutes.steps.agenda_minutes_agent [AGENDA_ALIGNMENT] 现场研讨对齐结果汇总 (有效讨论: 4, 未讨论/跳过: 1):
+  【未讨论/跳过】 议题 01 《活动开场视频播放》 | 既定汇报人: [无] | 现场发言人: [无匹配发言] (命中讨论块: 0)
+  【有效讨论】 议题 02 《何刚总致辞》 | 既定汇报人: [何刚] | 现场发言人: [发言者 1, 发言者 2, 发言者 3, 发言者 5, 发言者 4, 发言者 6] (命中讨论块: 28)
+  【有效讨论】 议题 03 《互动交流（现场问答、自由交流与讨论）》 | 既定汇报人: [无] | 现场发言人: [发言者 1, 发言者 5, 发言者 6, 发言者 8, 发言者 4, 发言者 7, 发言者 9, 发言者 2, 发言者 10, 发言者 11, 发言者 12, 发言者 15, 发言者 14, 发言者 18, 发言者 13, 发言者 19] (命中讨论块: 202)
+  【有效讨论】 议题 04 《任务令签署与授予》 | 既定汇报人: [无] | 现场发言人: [发言者 1, 发言者 6, 发言者 20, 发言者 8, 发言者 5, 发言者 17, 发言者 14, 发言者 2, 发言者 13, 发言者 11] (命中讨论块: 34)
+  【有效讨论】 议题 05 《全体合影》 | 既定汇报人: [无] | 现场发言人: [发言者 20, 发言者 8, 发言者 14] (命中讨论块: 3)
+2026-09-30 17:15:10,849 INFO domain.meeting.tasks.agenda_minutes.types 会议类型探测：综合得分命中【对齐共识型】(alignment_consensus, score=24)
+2026-09-30 17:15:10,849 INFO domain.meeting.tasks.agenda_minutes.steps.agenda_minutes_agent agenda_minutes detected meeting type: 对齐共识型 (alignment_consensus)
+2026-09-30 17:15:10,850 INFO tools.llm.llmclient llm call label=agenda_minutes/item_02 mode=structured
+2026-09-30 17:15:10,850 INFO tools.llm.llmclient llm call label=agenda_minutes/item_03 mode=structured
+2026-09-30 17:15:10,854 INFO tools.llm.llmclient llm call label=agenda_minutes/item_04 mode=structured
+2026-09-30 17:15:10,855 INFO tools.llm.llmclient llm call label=agenda_minutes/item_05 mode=structured
+2026-09-30 17:15:13,414 INFO tools.llm.llmclient llm resp label=agenda_minutes/item_05 model=deepseek-v4-flash-0731 finish=stop in=2579 out=66 json_mode=True chars=206
+2026-09-30 17:15:16,931 INFO tools.llm.llmclient llm resp label=agenda_minutes/item_04 model=deepseek-v4-flash-0731 finish=stop in=3199 out=269 json_mode=True chars=507
+2026-09-30 17:15:24,856 INFO tools.llm.llmclient llm resp label=agenda_minutes/item_02 model=deepseek-v4-flash-0731 finish=stop in=6021 out=641 json_mode=True chars=1124
+2026-09-30 17:15:31,708 INFO tools.llm.llmclient llm resp label=agenda_minutes/item_03 model=deepseek-v4-flash-0731 finish=stop in=10431 out=989 json_mode=True chars=1768
+2026-09-30 17:15:31,709 INFO domain.meeting.tasks.agenda_minutes.types 会议类型探测：综合得分命中【对齐共识型】(alignment_consensus, score=24)
+2026-09-30 17:15:31,709 INFO domain.meeting.tasks.agenda_minutes.steps.agenda_minutes_agent 议题 05 《全体合影》经 LLM 判定为非实质性研讨议题，直接予以剔除
+2026-09-30 17:15:31,710 INFO domain.meeting.tasks.agenda_minutes.steps.agenda_minutes_agent 议题 01 《活动开场视频播放》判定为会务过场/低密度仪式，直接予以剔除
+2026-09-30 17:15:31,710 INFO agentflow agent done gen line=agenda_minutes
+2026-09-30 17:15:31,711 INFO agentflow node done agenda_minutes_agent
+2026-09-30 17:15:31,711 INFO agentflow agent start review line=agenda_minutes
+2026-09-30 17:15:31,732 INFO tools.llm.llmclient llm call label=agenda_minutes/supervisor mode=structured
+2026-09-30 17:15:34,216 INFO tools.llm.llmclient llm resp label=agenda_minutes/supervisor model=deepseek-v4-flash-0731 finish=stop in=15065 out=87 json_mode=True chars=272
+2026-09-30 17:15:34,216 INFO agentflow agent done review line=agenda_minutes decision=approve
+2026-09-30 17:15:34,217 INFO tools.core.domain_engine route line=agenda_minutes decision=approve revision=0/1 -> __end__
+2026-09-30 17:15:34,217 INFO agentflow node done agenda_minutes_supervisor
+2026-09-30 17:15:34,218 INFO agentflow render start line=agenda_minutes
+2026-09-30 17:15:34,228 INFO tools.core.runner saved html line=agenda_minutes path=/root/h00984725/test/data/1/output/e49336c365de4a5f98539681204600c0/agenda_minutes.html
+2026-09-30 17:15:34,228 INFO tools.core.runner saved text line=agenda_minutes path=/root/h00984725/test/data/1/output/e49336c365de4a5f98539681204600c0/result.md
+2026-09-30 17:15:34,229 INFO uvicorn.access 10.30.60.116:62624 - "POST /api/agent/v1 HTTP/1.1" 200
+2026-09-30 17:16:28,002 INFO uvicorn.error Shutting down
+2026-09-30 17:16:28,103 INFO uvicorn.error Finished server process [10530]
+2026-09-30 17:16:28,104 ERROR uvicorn.error Traceback (most recent call last):
+  File "/opt/huawei/conda/envs/AgentFlow/lib/python3.10/site-packages/uvicorn/_compat.py", line 60, in asyncio_run
+    return loop.run_until_complete(main)
+  File "uvloop/loop.pyx", line 1512, in uvloop.loop.Loop.run_until_complete
+  File "uvloop/loop.pyx", line 1505, in uvloop.loop.Loop.run_until_complete
+  File "uvloop/loop.pyx", line 1379, in uvloop.loop.Loop.run_forever
+  File "uvloop/loop.pyx", line 557, in uvloop.loop.Loop._run
+  File "uvloop/loop.pyx", line 476, in uvloop.loop.Loop._on_idle
+  File "uvloop/cbhandles.pyx", line 83, in uvloop.loop.Handle._run
+  File "uvloop/cbhandles.pyx", line 63, in uvloop.loop.Handle._run
+  File "/opt/huawei/conda/envs/AgentFlow/lib/python3.10/site-packages/uvicorn/server.py", line 80, in serve
+    with self.capture_signals():
+  File "/opt/huawei/conda/envs/AgentFlow/lib/python3.10/contextlib.py", line 142, in __exit__
+    next(self.gen)
+  File "/opt/huawei/conda/envs/AgentFlow/lib/python3.10/site-packages/uvicorn/server.py", line 340, in capture_signals
+    signal.raise_signal(captured_signal)
+KeyboardInterrupt
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/opt/huawei/conda/envs/AgentFlow/lib/python3.10/site-packages/starlette/routing.py", line 655, in lifespan
+    await receive()
+  File "/opt/huawei/conda/envs/AgentFlow/lib/python3.10/site-packages/uvicorn/lifespan/on.py", line 137, in receive
+    return await self.receive_queue.get()
+  File "/opt/huawei/conda/envs/AgentFlow/lib/python3.10/asyncio/queues.py", line 159, in get
+    await getter
+asyncio.exceptions.CancelledError
+
