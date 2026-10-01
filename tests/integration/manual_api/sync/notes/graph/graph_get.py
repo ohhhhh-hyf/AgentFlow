@@ -8,8 +8,6 @@
 
 响应带 Content-Disposition: attachment（强制下载），文件存到本目录 downloads/ 下。
 graph 没有 md 落盘（正文在响应 data.text 里），换成 result.md 会 404。
-想在浏览器里直接看页面版（不落盘），用预览端点（唯一保留域/线名的形态）：
-    GET /api/v1/notes/graph/preview?request_id=…&user_id=…
 
 用法：python graph_get.py
 """

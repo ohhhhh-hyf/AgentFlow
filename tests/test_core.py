@@ -380,8 +380,7 @@ def test_tasklines_registration() -> None:
     check("FastAPI 注册了 S2 /api/agent/v1/stream", "/api/agent/v1/stream" in routes, str(routes))
     check("FastAPI 注册了 S3 /api/agent/v1/file/{request_id}/{file_name}", "/api/agent/v1/file/{request_id}/{file_name}" in routes, str(routes))
     check("meeting 域不再注册 preview 路由", not any(r.startswith("/api/v1/meeting") for r in routes), str(routes))
-    check("FastAPI 注册了 /api/v1/notes/review/preview", "/api/v1/notes/review/preview" in routes, str(routes))
-    check("FastAPI 注册了 /api/v1/notes/quiz/preview", "/api/v1/notes/quiz/preview" in routes, str(routes))
+    check("notes 域不再注册 preview 路由", not any(r.startswith("/api/v1/notes") for r in routes), str(routes))
 
 
 def test_notes_review_and_quiz_tasklines() -> None:
@@ -415,15 +414,15 @@ def test_notes_review_and_quiz_tasklines() -> None:
     prep_quiz = _prepare("notes", "quiz", quiz_req, "u123")
     check("line 正确解析为 quiz", prep_quiz.line == "quiz", "")
     check("quiz 用户输入文件正常生成", prep_quiz.input_files is not None and prep_quiz.input_files.is_file(), "")
-    # 3. HTTP 端点实际调用验证 (预览端点正确匹配与寻址)
+    # 3. HTTP 端点实际调用验证 (S3 产物下载端点正确寻址与响应)
     from fastapi.testclient import TestClient
     from app.main import app
 
     client = TestClient(app)
-    r_rev = client.get("/api/v1/notes/review/preview?request_id=not_found&user_id=u123")
-    check("review 预览端点正常响应404（寻址正确定位 review.html）", r_rev.status_code == 404 and "review.html" in r_rev.text, str(r_rev.json()))
-    r_quiz = client.get("/api/v1/notes/quiz/preview?request_id=not_found&user_id=u123")
-    check("quiz 预览端点正常响应404（寻址正确定位 quiz.html）", r_quiz.status_code == 404 and "quiz.html" in r_quiz.text, str(r_quiz.json()))
+    r_rev = client.get("/api/agent/v1/file/not_found/review.html?user_id=u123")
+    check("review 下载端点正常响应404（寻址正确定位 output/not_found/review.html）", r_rev.status_code == 404 and "review.html" in r_rev.text, str(r_rev.json()))
+    r_quiz = client.get("/api/agent/v1/file/not_found/quiz.html?user_id=u123")
+    check("quiz 下载端点正常响应404（寻址正确定位 output/not_found/quiz.html）", r_quiz.status_code == 404 and "quiz.html" in r_quiz.text, str(r_quiz.json()))
 
 
 def test_action_items_render() -> None:

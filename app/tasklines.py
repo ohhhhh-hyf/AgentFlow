@@ -9,21 +9,19 @@
 字段含义：
 - ``line``：代码线名，同时是 ``task`` 取值（**中文名不在这里**：运行时用的中文名以各域
   ``domain_config.LINE_CN_NAMES`` 为准，避免同一份清单维护两遍）
-- ``files``：是否注册产物端点。会议域 meeting 仅保留统一端点，不再注册任何 preview 页面路由。
-  仅 notes 域部分线注册 preview 路由。
+- ``files``：是否注册产物端点（已全量收敛至 /api/agent/v1，默认均为 False）。
 
 对外端点：
-- 会议域 meeting 仅保留三大统一端点（无 /api/v1/meeting/* 预览路由）：
+- 全域统一仅保留三大同步端点（无 /{domain}/* 预览路由）：
   S1: POST /api/agent/v1                                同步阻塞返回 TaskResponse
   S2: POST /api/agent/v1/stream                         流式返回 NDJSON 事件流
   S3: GET  /api/agent/v1/file/{request_id}/{file_name}  产物下载（直接下载 output 文件）
-- 笔记域 notes 页面预览端点（仅 ``files=True``）：
-  GET  /api/v1/notes/{line}/preview?request_id=&user_id=
 
 已移除的端点形态（2026-09 精简，勿再加回）：
 - 路径带 ``{domain}/{task}`` 的同步 / 流式 / 下载三类端点（``POST /api/v1/{domain}/{line}``、
   ``POST /api/v1/{domain}/{line}/stream``、``GET /api/v1/{domain}/{line}/file/{request_id}/{file_name}``）：
   能力被 ``/api/agent/v1`` 三条统一端点覆盖，域与线名改由请求体传；
+- 各域预览端点 ``GET /api/v1/{domain}/{line}/preview``：全量收敛，不再注册预览路由；
 - 便捷下载 ``GET /file?request_id=&user_id=``（文件名自动回退）：能力被
   ``GET /file/{request_id}/{file_name}`` 覆盖，后者无回退歧义、且能指定取 ``.md``；
 - 同义 URL ``/consensus``、``/decision``：规范名 ``consensus_decision`` 已足够。
@@ -53,12 +51,12 @@ DOMAINS: dict[str, tuple[TaskLine, ...]] = {
         TaskLine("agenda_minutes"),
     ),
     "notes": (
-        TaskLine("graph", files=True),
+        TaskLine("graph"),
         TaskLine("library"),  # 无落盘产物
         TaskLine("catalog"),  # file_name 指向知识目录 JSON，不在 output 目录
-        TaskLine("checklist", files=True),
-        TaskLine("review", files=True),
-        TaskLine("quiz", files=True),
+        TaskLine("checklist"),
+        TaskLine("review"),
+        TaskLine("quiz"),
     ),
 }
 

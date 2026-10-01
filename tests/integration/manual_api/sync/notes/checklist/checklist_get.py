@@ -8,8 +8,6 @@
 
 响应带 Content-Disposition: attachment（强制下载），文件存到本目录 downloads/ 下。
 同一产物目录里还有 result.md（完整 Markdown；响应 data.text 只是精简摘要，不含卡片正文）。
-想在浏览器里直接看页面版（不落盘），用预览端点（唯一保留域/线名的形态）：
-    GET /api/v1/notes/checklist/preview?request_id=…&user_id=…
 
 用法：python checklist_get.py
 """

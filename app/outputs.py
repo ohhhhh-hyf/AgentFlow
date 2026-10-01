@@ -55,8 +55,7 @@ def save_task_outputs(
 ) -> dict[str, Path | None]:
     """把 run(collect_reports=True) 返回的 saved 收拢到按请求隔离的目录。
 
-    saved 结构：{线名: {"text": Path, "html": Path, ...}}（含 graph 的
-    {"svg", "html", "text"}、mindmap 的 {"html", "png"}）。
+    saved 结构：{线名: {"text": Path, "html": Path, ...}}（如 graph 与 mindmap 的 {"html"}）。
     返回 {"dir", "md", "html"}：md/html 为固定名文件，缺失为 None。
     """
     out = output_dir(user_id, request_id)

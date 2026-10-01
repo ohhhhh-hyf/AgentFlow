@@ -4,7 +4,7 @@
 统一负责"最终输出落盘"：
 
 - 报告类任务：``save_all_reports`` 写入 data/{user_id}/output/ 下的文本产物
-- 图类任务：``export_mindmap_*`` / ``export_graph`` 导出 HTML/PNG（脑图）或 SVG/HTML（图谱）
+- 图类任务：``export_mindmap_*`` / ``export_graph`` 导出 HTML（脑图/图谱）
 """
 from __future__ import annotations
 
