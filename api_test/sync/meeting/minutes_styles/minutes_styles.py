@@ -161,7 +161,6 @@ resp = requests.post(
     json={
         "domain": "meeting",
         "task": "minutes_styles",
-        "time": "",
         "texts": {
             "transcript": TRANSCRIPT,
             "keypoints": "",
@@ -170,12 +169,12 @@ resp = requests.post(
         "docs": [],
         "memory": False,
         "extra": {
+            "time": "",
             "template": "",
             "profile": "",
             "project": "",
             "subject": "",
             "style": "time",
-            "memory": False,
         },
     },
     headers={"X-Request-Id": uuid.uuid4().hex, "X-User-Id": USER_ID},

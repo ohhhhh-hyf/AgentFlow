@@ -33,7 +33,6 @@ resp = requests.post(
     json={
         "domain": "meeting",
         "task": "minutes",
-        "time": "2026-09-01",
         "texts": {
             "transcript": TRANSCRIPT,
             "keypoints": "",
@@ -42,12 +41,12 @@ resp = requests.post(
         "docs": [],
         "memory": True,
         "extra": {
+            "time": "2026-09-01",
             "template": "",
             "profile": "",
             "project": "",
             "subject": "",
             "style": "",
-            "memory": True,
         },
     },
     headers={"X-User-Id": USER_ID},

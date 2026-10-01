@@ -98,17 +98,16 @@ def build_payload(transcript: str, template: str, date: str) -> dict:
     return {
         "domain": "meeting",
         "task": "minutes",
-        "time": date,
         "texts": {"transcript": transcript, "keypoints": "", "notes": ""},
         "docs": [],
         "memory": False,
         "extra": {
+            "time": date,
             "template": template,
             "profile": "",
             "project": "",
             "subject": "",
             "style": "",
-            "memory": False,
         },
     }
 

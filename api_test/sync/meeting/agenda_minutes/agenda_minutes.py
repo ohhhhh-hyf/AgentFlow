@@ -1012,7 +1012,6 @@ resp = requests.post(
     json={
         "domain": "meeting",
         "task": "agenda_minutes",
-        "time": "2026-06-15",
         "texts": {
             "transcript": TRANSCRIPT,
             "keypoints": "",
@@ -1021,13 +1020,13 @@ resp = requests.post(
         "docs": ["商评1.txt"],
         "memory": False,
         "extra": {
+            "time": "2026-06-15",
             "agenda_txt": "",
             "template": "",
             "profile": "",
             "project": "",
             "subject": "",
             "style": "",
-            "memory": False,
         },
     },
     headers={"X-Request-Id": uuid.uuid4().hex, "X-User-Id": USER_ID},

@@ -23,7 +23,6 @@ resp = requests.post(
     json={
         "domain": "notes",
         "task": "catalog",
-        "time": "",
         "texts": {
             "transcript": "",
             "keypoints": "",
@@ -37,7 +36,6 @@ resp = requests.post(
             "project": "",
             "subject": SUBJECT,
             "style": "",
-            "memory": False,
         },
     },
     headers={"X-Request-Id": uuid.uuid4().hex, "X-User-Id": USER_ID},
