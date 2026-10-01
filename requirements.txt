@@ -58,5 +58,4 @@ Pillow>=10.0
 
 # 系统依赖不由 pip 安装：
 # - 知识图谱 HTML：使用 Cytoscape.js CDN，联网打开效果最佳。
-# - 思维导图 HTML：需要 Node.js/npx，npx 会按需拉取 markmap-cli。
-# - 思维导图 PNG：需要 playwright + 浏览器内核，见 requirements-optional.txt。
+# - 思维导图 HTML：使用 Markmap + d3，纯静态 HTML 生成。

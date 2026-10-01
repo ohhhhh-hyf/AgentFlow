@@ -376,7 +376,10 @@ def test_tasklines_registration() -> None:
     check("resolve_line 支持 notes + review", resolve_line("notes", "review") == ("notes", "review"), "")
     check("resolve_line 支持 notes + quiz", resolve_line("notes", "quiz") == ("notes", "quiz"), "")
     routes = {r.path for r in app.routes}
-    check("FastAPI 注册了 /api/v1/meeting/mindmap/preview", "/api/v1/meeting/mindmap/preview" in routes, str(routes))
+    check("FastAPI 注册了 S1 /api/agent/v1", "/api/agent/v1" in routes, str(routes))
+    check("FastAPI 注册了 S2 /api/agent/v1/stream", "/api/agent/v1/stream" in routes, str(routes))
+    check("FastAPI 注册了 S3 /api/agent/v1/file/{request_id}/{file_name}", "/api/agent/v1/file/{request_id}/{file_name}" in routes, str(routes))
+    check("meeting 域不再注册 preview 路由", not any(r.startswith("/api/v1/meeting") for r in routes), str(routes))
     check("FastAPI 注册了 /api/v1/notes/review/preview", "/api/v1/notes/review/preview" in routes, str(routes))
     check("FastAPI 注册了 /api/v1/notes/quiz/preview", "/api/v1/notes/quiz/preview" in routes, str(routes))
 

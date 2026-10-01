@@ -26,12 +26,8 @@ _D3_CDN = "https://cdn.jsdelivr.net/npm/d3@7.9.0/dist/d3.min.js"
 
 
 def mindmap_png_available() -> bool:
-    """Playwright（PNG 截图依赖）是否可导入。"""
-    try:
-        import playwright  # noqa: F401
-        return True
-    except ImportError:
-        return False
+    """Mindmap 不再依赖 Playwright 导出 PNG。"""
+    return False
 
 
 _TABLE_SEP_RE = re.compile(r"^\s*\|?\s*:?-{2,}:?\s*(\|\s*:?-{2,}:?\s*)+\|?\s*$")
@@ -857,15 +853,7 @@ async def render_mindmap_png(
         （``async_playwright``）；Sync API 会报
         "Sync API inside the asyncio loop" 错误。
     """
-    outline = sanitize_mindmap_outline(outline or "")
-    if not outline:
-        logger.warning("mindmap outline empty, skip png")
-        return None
-    try:
-        from playwright.async_api import async_playwright
-    except ImportError:
-        logger.warning("playwright missing, skip png export")
-        return None
+    return None
 
     out_dir = Path(out_dir)
     html: Path | None = None

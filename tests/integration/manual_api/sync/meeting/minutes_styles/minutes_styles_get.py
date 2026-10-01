@@ -7,8 +7,6 @@
 - user_id   ：URL 参数 ?user_id= 或 X-User-Id 头，二者取一
 
 响应带 Content-Disposition: attachment（强制下载），文件存到本目录 downloads/ 下。
-想在浏览器里直接看页面版（不落盘），用预览端点（唯一保留域/线名的形态）：
-    GET /api/v1/meeting/minutes_styles/preview?request_id=…&user_id=…
 想取 Markdown 正文：把 FILE_NAME 换成 minutes_styles.md。
 
 用法：python minutes_styles_get.py

@@ -34,7 +34,6 @@ try:
         export_graph,
         export_mindmap_html,
         export_mindmap_md,
-        export_mindmap_png,
         report_to_dict,
         save_all_reports,
         task_output_dir,
@@ -44,7 +43,6 @@ except ImportError:
         export_graph,
         export_mindmap_html,
         export_mindmap_md,
-        export_mindmap_png,
         report_to_dict,
         save_all_reports,
         task_output_dir,
@@ -555,15 +553,9 @@ async def _handle_done(
             html_path = export_mindmap_html(reports, mindmap_dir)
             if html_path:
                 logger.info("mindmap html saved path=%s", html_path)
-            png_path = await export_mindmap_png(
-                reports, mindmap_dir, html_path=html_path
-            )
-            if png_path:
-                logger.info("mindmap png saved path=%s", png_path)
             saved["mindmap"] = {
                 "text": md_path,
                 "html": html_path,
-                "png": png_path,
             }
         except Exception:  # noqa: BLE001 - 单类导出失败不中断主流程
             logger.error("mindmap export failed", exc_info=True)

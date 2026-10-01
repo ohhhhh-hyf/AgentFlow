@@ -7,8 +7,6 @@
 - user_id   ：URL 参数 ?user_id= 或 X-User-Id 头，二者取一
 
 响应带 Content-Disposition: attachment（强制下载），文件存到本目录 downloads/ 下。
-想在浏览器里直接看页面版（不落盘），用预览端点：
-    GET /api/v1/meeting/agenda_minutes/preview?request_id=…&user_id=…
 想取 Markdown 正文：把 FILE_NAME 换成 result.md（agenda_minutes 线的 md 产物名就是 result.md）。
 
 用法：python agenda_minutes_get.py

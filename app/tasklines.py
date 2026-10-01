@@ -1,26 +1,24 @@
 """接口任务线声明：**域 → 任务线** 的唯一来源。
 
 新增 / 调整一条对外任务线时只改这里，下列位置全部从这份声明派生，避免多处清单不同步：
-- 路由注册：``app/routes/_registry.py``（预览端点）
-- 统一入口校验：``app/routes/agent.py``（同步 / 流式）与 ``app/routes/tasks.py``（异步）
+- 路由注册：``app/api/routes/_registry.py``（预览端点）
+- 统一入口校验：``app/api/routes/agent.py``（同步 / 流式）与 ``app/api/routes/tasks.py``（异步）
   —— 两处都调本模块的 ``resolve_line``
 - 同步接口校验：``app/tasks.py`` 的 ``LINE_NAMES``（task 取值 → 代码线名）
 
 字段含义：
 - ``line``：代码线名，同时是 ``task`` 取值（**中文名不在这里**：运行时用的中文名以各域
   ``domain_config.LINE_CN_NAMES`` 为准，避免同一份清单维护两遍）
-- ``files``：是否注册产物端点。无落盘产物（library）或产物不在 output 目录
-  （catalog，file_name 指向知识目录 JSON）的任务线不注册。
+- ``files``：是否注册产物端点。会议域 meeting 仅保留统一端点，不再注册任何 preview 页面路由。
+  仅 notes 域部分线注册 preview 路由。
 
-对外端点（2026-09 收敛：前三类统一到 ``/api/agent/v1``，域与线名改为请求体字段）::
-
-    POST /api/agent/v1                                同步（请求体带 domain / task）
-    POST /api/agent/v1/stream                         流式（NDJSON 事件流）
-    GET  /api/agent/v1/file/{request_id}/{file_name}  下载产物
-    GET  /api/v1/{domain}/{line}/preview?request_id=&user_id=
-                                                      预览（仅 ``files=True``；唯一
-                                                      仍需路径里带域与线名的端点，
-                                                      因为它靠 ``{line}.html`` 命名约定定位产物）
+对外端点：
+- 会议域 meeting 仅保留三大统一端点（无 /api/v1/meeting/* 预览路由）：
+  S1: POST /api/agent/v1                                同步阻塞返回 TaskResponse
+  S2: POST /api/agent/v1/stream                         流式返回 NDJSON 事件流
+  S3: GET  /api/agent/v1/file/{request_id}/{file_name}  产物下载（直接下载 output 文件）
+- 笔记域 notes 页面预览端点（仅 ``files=True``）：
+  GET  /api/v1/notes/{line}/preview?request_id=&user_id=
 
 已移除的端点形态（2026-09 精简，勿再加回）：
 - 路径带 ``{domain}/{task}`` 的同步 / 流式 / 下载三类端点（``POST /api/v1/{domain}/{line}``、
@@ -45,14 +43,14 @@ class TaskLine:
 
 DOMAINS: dict[str, tuple[TaskLine, ...]] = {
     "meeting": (
-        TaskLine("minutes", files=True),
-        TaskLine("actions", files=True),
-        TaskLine("risks", files=True),
-        TaskLine("mindmap", files=True),
-        TaskLine("minutes_styles", files=True),
-        TaskLine("minutes_trace", files=True),
-        TaskLine("consensus_decision", files=True),
-        TaskLine("agenda_minutes", files=True),
+        TaskLine("minutes"),
+        TaskLine("actions"),
+        TaskLine("risks"),
+        TaskLine("mindmap"),
+        TaskLine("minutes_styles"),
+        TaskLine("minutes_trace"),
+        TaskLine("consensus_decision"),
+        TaskLine("agenda_minutes"),
     ),
     "notes": (
         TaskLine("graph", files=True),

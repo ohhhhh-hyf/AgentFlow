@@ -16,18 +16,10 @@ from pathlib import Path
 
 try:
     from infra.exporters.html.knowledge_graph import render_graph_bundle
-    from infra.exporters.html.mindmap import (
-        mindmap_png_available,
-        render_mindmap_html,
-        render_mindmap_png,
-    )
+    from infra.exporters.html.mindmap import render_mindmap_html
 except ImportError:
     from infra.exporters.html.knowledge_graph import render_graph_bundle
-    from infra.exporters.html.mindmap import (
-        mindmap_png_available,
-        render_mindmap_html,
-        render_mindmap_png,
-    )
+    from infra.exporters.html.mindmap import render_mindmap_html
 
 try:
     from core.runner.hooks import hooks_for
@@ -239,13 +231,6 @@ def save_report_artifacts(
             encoding="utf-8",
         )
         paths["review"] = payload_path
-    if gate_ok is False:
-        # 门禁失败也留一份备查副本（便于复盘"门禁到底看到了什么"）；
-        # 正式 result.md 照写（门禁失败也写），质量信号由 API 的 quality_warning 承担。
-        rej = out_dir / "result_rejected.md"
-        rej.write_text(text, encoding="utf-8")
-        paths["rejected"] = rej
-        logger.warning("gate failed, kept a rejected copy for review: %s", rej)
     return paths
 
 
@@ -304,15 +289,8 @@ def export_mindmap_html(reports: dict, out_dir: Path) -> Path | None:
 async def export_mindmap_png(
     reports: dict, out_dir: Path, html_path: Path | None = None
 ) -> Path | None:
-    mindmap_report = reports.get("mindmap")
-    outline = getattr(mindmap_report, "outline", None) if mindmap_report else None
-    if not outline or not outline.strip():
-        return None
-    if not mindmap_png_available():
-        logger.warning("playwright missing, skip mindmap png")
-        return None
-    filename = "mindmap.png"
-    return await render_mindmap_png(outline, out_dir, filename, html_path=html_path)
+    """Mindmap PNG 导出已停用（不再依赖 Playwright）。"""
+    return None
 
 
 def export_graph(reports: dict, out_dir: Path) -> dict[str, Path]:
