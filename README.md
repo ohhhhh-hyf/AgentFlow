@@ -149,7 +149,6 @@ DEEPSEEK_TEMPERATURE=0.0
 REDIS_URL=redis://127.0.0.1:6379/0
 # 任务运行模式：inline（单进程内跑）或 queue（Redis 队列由独立 Worker 消费）
 AGENTFLOW_RUN_MODE=inline
-AGENTFLOW_JOB_TTL_SECONDS=604800
 
 # ── OCR 驱动引擎配置（支持 serverocr / paddleocr / rapidocr）
 OCR_ENGINE=serverocr
