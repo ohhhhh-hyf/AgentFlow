@@ -15,7 +15,7 @@ USER_ID = "1"
 if not JOB_ID:
     raise SystemExit("请先把 minutes_async_submit.py 返回的 job_id 填到 JOB_ID")
 
-URL = f"{BASE_URL}/api/v1/tasks/{JOB_ID}/result"
+URL = f"{BASE_URL}/api/agent/v1/async/{JOB_ID}/result"
 
 resp = requests.get(URL, timeout=60)
 

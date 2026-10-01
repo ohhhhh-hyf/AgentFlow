@@ -436,6 +436,7 @@ def build_catalog_html(draft: dict[str, Any]) -> str:
         '    }',
         '  </style>',
         '  <div class="cat-meta-bar">',
+        f'    <span class="cat-badge" style="font-weight: 600; color: #0f172a;">{escape(course)}</span>',
         f'    <span class="cat-badge cat-badge-primary">版本: v{escape(str(version))}</span>',
         f'    <span class="cat-badge cat-badge-success">{escape(mode_text)}</span>',
         f'    <span class="cat-badge cat-badge-stat">{len(visible_chapters)} 章节 · {total_topics} 主题 · {total_kps} 知识点</span>',

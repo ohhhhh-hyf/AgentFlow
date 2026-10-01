@@ -883,6 +883,148 @@ def test_general_minutes_title_fixed() -> None:
             check("强制补充时未被动态 headline 覆盖", "# 关于音视频与长文本优化的研讨" not in saved_md_no_h1, saved_md_no_h1[:50])
 
 
+def test_async_api_routes() -> None:
+    """验证统一异步接口 /api/agent/v1/async（提交、状态、流式、结果）及历史 /api/v1/tasks 兼容。"""
+    import time
+    from unittest.mock import patch
+    from fastapi.testclient import TestClient
+    from app.api.main import app
+
+    class _FakeJobStore:
+        def __init__(self):
+            self.jobs = {}
+            self.events = {}
+            self.payloads = {}
+            self.queue = []
+            self._next_id = 1000
+
+        def ping(self):
+            pass
+
+        def new_job_id(self):
+            self._next_id += 1
+            return f"job_{self._next_id}"
+
+        def create_job(self, *, job_id, request_id, user_id, domain, task):
+            now = time.time()
+            payload = {
+                "job_id": job_id,
+                "request_id": request_id,
+                "user_id": user_id,
+                "domain": domain,
+                "task": task,
+                "status": "queued",
+                "phase": "",
+                "message": "queued",
+                "error": "",
+                "attempts": 0,
+                "worker_id": "",
+                "heartbeat_at": "",
+                "created_at": now,
+                "updated_at": now,
+                "started_at": "",
+                "finished_at": "",
+                "cost_time": 0.0,
+                "token_usage": 0,
+                "cache_hit": 0,
+                "file_name": "",
+                "result": "",
+            }
+            self.jobs[job_id] = payload
+            self.events[job_id] = [{"type": "queued", "job_id": job_id, "request_id": request_id, "ts": now}]
+            return payload
+
+        def get_job(self, job_id):
+            return self.jobs.get(job_id)
+
+        def update_job(self, job_id, **fields):
+            if job_id in self.jobs:
+                self.jobs[job_id].update(fields)
+
+        def append_event(self, job_id, event):
+            ev = dict(event or {})
+            ev.setdefault("ts", time.time())
+            self.events.setdefault(job_id, []).append(ev)
+
+        def events_since(self, job_id, cursor):
+            return self.events.get(job_id, [])[cursor:]
+
+        def set_payload(self, job_id, payload):
+            self.payloads[job_id] = payload
+
+        def get_payload(self, job_id):
+            return self.payloads.get(job_id)
+
+        def enqueue(self, job_id):
+            self.queue.append(job_id)
+
+    fake_store = _FakeJobStore()
+    with patch("app.api.routes.tasks.job_store", return_value=fake_store), patch("app.api.routes.tasks.run_mode", return_value="queue"):
+        client = TestClient(app)
+
+        # 1. POST /api/agent/v1/async
+        payload = {
+            "domain": "meeting",
+            "task": "minutes",
+            "texts": {"transcript": "周宁：复盘开发进展。"},
+            "memory": True,
+            "extra": {"time": "2026-09-01"},
+        }
+        res_post = client.post("/api/agent/v1/async", json=payload, headers={"X-User-Id": "u_test", "X-Request-Id": "req_async_1"})
+        check("POST /api/agent/v1/async 状态码 200", res_post.status_code == 200, str(res_post.status_code))
+        data_post = res_post.json()
+        job_id = data_post.get("job_id", "")
+        check("异步提交返回合法 job_id", bool(job_id), str(data_post))
+        check("异步提交初始状态为 queued", data_post.get("status") == "queued", str(data_post))
+        check("异步任务已入队", job_id in fake_store.queue, str(fake_store.queue))
+
+        # 2. GET /api/agent/v1/async/{job_id} 状态轮询
+        res_status = client.get(f"/api/agent/v1/async/{job_id}")
+        check("GET /api/agent/v1/async/{job_id} 状态码 200", res_status.status_code == 200, str(res_status.status_code))
+        data_status = res_status.json()
+        check("状态查询 text 恒为 None", data_status.get("text") is None, str(data_status))
+        check("状态查询 job_id 一致", data_status.get("job_id") == job_id, str(data_status))
+
+        # 3. GET /api/agent/v1/async/{job_id}/result (未完成时返回快照)
+        res_res_queued = client.get(f"/api/agent/v1/async/{job_id}/result")
+        check("结果查询未完成时不报错 200", res_res_queued.status_code == 200, str(res_res_queued.status_code))
+        check("结果查询未完成时 text 为 None", res_res_queued.json().get("text") is None, str(res_res_queued.json()))
+
+        # 模拟任务完成
+        fake_store.update_job(
+            job_id,
+            status="succeeded",
+            message="success",
+            result={"data": {"text": "# 纪要内容", "file_name": "minutes.html"}, "monitor": {"token_usage": 120, "cost_time": 1.5}},
+        )
+        fake_store.append_event(job_id, {"type": "done", "job_id": job_id, "data": {"text": "# 纪要内容", "file_name": "minutes.html"}})
+
+        # 4. GET /api/agent/v1/async/{job_id}/result (完成后返回正文与文件名)
+        res_res_done = client.get(f"/api/agent/v1/async/{job_id}/result")
+        check("结果查询已完成状态码 200", res_res_done.status_code == 200, str(res_res_done.status_code))
+        data_res_done = res_res_done.json()
+        check("结果查询返回正文", data_res_done.get("text") == "# 纪要内容", str(data_res_done))
+        check("结果查询返回产物文件名", data_res_done.get("file_name") == "minutes.html", str(data_res_done))
+
+        # 5. GET /api/agent/v1/async/{job_id}/stream 事件流
+        res_stream = client.get(f"/api/agent/v1/async/{job_id}/stream?cursor=0")
+        check("事件流状态码 200", res_stream.status_code == 200, str(res_stream.status_code))
+        check("事件流包含 queued 与 done 事件", "queued" in res_stream.text and "done" in res_stream.text, res_stream.text)
+
+        # 6. 兼容老路径 /api/v1/tasks
+        res_leg_post = client.post("/api/v1/tasks", json=payload, headers={"X-User-Id": "u_test"})
+        check("兼容老路径 POST /api/v1/tasks 状态码 200", res_leg_post.status_code == 200, str(res_leg_post.status_code))
+        leg_job_id = res_leg_post.json().get("job_id", "")
+        res_leg_get = client.get(f"/api/v1/tasks/{leg_job_id}")
+        check("兼容老路径 GET /api/v1/tasks/{job_id} 状态码 200", res_leg_get.status_code == 200, str(res_leg_get.status_code))
+        res_leg_res = client.get(f"/api/v1/tasks/{leg_job_id}/result")
+        check("兼容老路径 GET /api/v1/tasks/{job_id}/result 状态码 200", res_leg_res.status_code == 200, str(res_leg_res.status_code))
+
+        # 7. 不存在 job_id 返回 404
+        res_404 = client.get("/api/agent/v1/async/nonexistent_job_12345")
+        check("不存在的任务返回 404", res_404.status_code == 404, str(res_404.status_code))
+        check("404 错误体统一为 code 与 message", res_404.json().get("code") == 404, str(res_404.json()))
+
 
 def main() -> int:
     with tempfile.TemporaryDirectory() as raw:
@@ -900,6 +1042,7 @@ def main() -> int:
     test_action_items_render()
     test_risk_items_render()
     test_general_minutes_title_fixed()
+    test_async_api_routes()
     print(f"pass {len(PASS)}  fail {len(FAIL)}")
     for name in FAIL:
         print("FAIL", name)

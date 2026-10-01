@@ -49,7 +49,8 @@ app = FastAPI(
 )
 
 app.include_router(agent.router)          # 统一入口 /api/agent/v1（普通同步 / 流式同步 / 产物下载）
-app.include_router(async_tasks.router)    # 异步任务 /api/v1/tasks
+app.include_router(async_tasks.router)    # 统一异步入口 /api/agent/v1/async
+app.include_router(async_tasks.legacy_router)  # 兼容历史异步路径 /api/v1/tasks
 
 
 # html 产物预览（可选）：data/{user_id}/output/{request_id}/{task}.html

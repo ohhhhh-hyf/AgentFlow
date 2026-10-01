@@ -32,7 +32,8 @@ from app.job_store import JobStoreError, job_store
 from app.schemas import DomainTaskRequest, Extra, TaskRequest, ndjson_line as _ndjson
 from app.tasklines import TaskLineNotFound, resolve_line
 
-router = APIRouter(prefix="/api/v1/tasks", tags=["tasks"])
+router = APIRouter(prefix="/api/agent/v1/async", tags=["async"])
+legacy_router = APIRouter(prefix="/api/v1/tasks", include_in_schema=False)
 
 
 class AsyncApiError(Exception):
@@ -155,6 +156,7 @@ def _event_view(job_id: str, event: dict[str, Any]) -> dict[str, Any]:
 
 
 @router.post("")
+@legacy_router.post("")
 async def submit_task(
     req: AsyncTaskRequest,
     background_tasks: BackgroundTasks,
@@ -215,6 +217,7 @@ async def submit_task(
 
 
 @router.get("/{job_id}")
+@legacy_router.get("/{job_id}")
 async def get_task(job_id: str) -> dict:
     """查询任务状态：返回统一快照（不含正文，轮询体量小）。"""
     store = _store()
@@ -225,6 +228,7 @@ async def get_task(job_id: str) -> dict:
 
 
 @router.get("/{job_id}/result")
+@legacy_router.get("/{job_id}/result")
 async def get_task_result(job_id: str) -> dict:
     """获取任务结果：仍是统一快照，成功的任务会带上 ``text`` / ``file_name``。
 
@@ -239,6 +243,7 @@ async def get_task_result(job_id: str) -> dict:
 
 
 @router.get("/{job_id}/stream")
+@legacy_router.get("/{job_id}/stream")
 async def stream_task_events(job_id: str, cursor: int = 0) -> StreamingResponse:
     """订阅任务事件流（NDJSON，每行多一个 ``type``；``done`` 与结果接口逐字一致）。"""
     store = _store()
@@ -261,4 +266,4 @@ async def stream_task_events(job_id: str, cursor: int = 0) -> StreamingResponse:
     return StreamingResponse(events(), media_type="application/x-ndjson")
 
 
-__all__ = ["AsyncApiError", "router"]
+__all__ = ["AsyncApiError", "legacy_router", "router"]

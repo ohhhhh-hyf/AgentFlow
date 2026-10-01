@@ -180,42 +180,92 @@ python -m app.worker.main --concurrency 4 --grace 300
 
 ## 四、统一 API 接入与异步 Worker 架构
 
-系统向外统一暴露两组标准化 API 接入路径：
+系统向外统一暴露两组标准化 API 接入路径，所有接口均支持多租户物理沙箱隔离与强类型数据契约校验：
 
 ### 1. 统一实时作业接口 (`/api/agent/v1`)
 所有垂直领域和具体任务线均通过统一的入口交互，由请求体中的 `domain` 和 `task` 进行动态分发：
 
-* **同步执行**：`POST /api/agent/v1`（阻塞等待直至全部流程完成，返回最终结构化结果）；
-* **流式执行**：`POST /api/agent/v1/stream`（基于 `application/x-ndjson` 实时返回阶段切换与文本输出）；
-* **产物下载**：`GET /api/agent/v1/file/{request_id}/{file_name}`（直接获取本次作业生成的 HTML、Markdown 或图片产物）。
+* **同步执行**：`POST /api/agent/v1`（阻塞等待直至全部流程完成，返回统一快照结果）；
+* **流式执行**：`POST /api/agent/v1/stream`（基于 `application/x-ndjson` 实时逐行下发阶段切换事件、流式正文分块与完成事件）；
+* **产物下载**：`GET /api/agent/v1/file/{request_id}/{file_name}`（直接获取本次作业生成的单文件 HTML 网页、`result.md` 源码或导图文件）。
 
-#### 同步调用示例
-```bash
-curl -X POST http://127.0.0.1:8000/api/agent/v1 \
-  -H "Content-Type: application/json" \
-  -H "X-User-Id: tenant_001" \
-  -d '{
-    "domain": "meeting",
-    "task": "minutes",
-    "texts": {
-      "transcript": "张三：本次会议讨论下一阶段技术架构演进方案。李四：建议采用事件驱动与多租户物理沙箱隔离……"
-    },
-    "extra": {
-      "template": "general_minutes",
-      "profile": "objective"
-    }
-  }'
+### 2. 生产统一异步任务接口 (`/api/agent/v1/async`)
+专为长耗时作业（如包含多张高精度图片 OCR、多级大模型推理研判）设计的标准异步控制面，支持分布式 Worker 消费与断网重连续传：
+
+| 方法与路径 | 功能定位 | 核心特性与说明 |
+|---|---|---|
+| `POST /api/agent/v1/async` | 异步任务提交 | 提交任务入参，立即返回 `job_id` 与 `request_id`（状态为 `queued`），不阻塞长耗时推理 |
+| `GET  /api/agent/v1/async/{job_id}` | 状态与进度轮询 | 查询当前任务状态（`queued` / `running` / `succeeded` / `failed`）及当前执行阶段，响应体量极小（`text` 恒为 `null`），专供前端高频轮询 |
+| `GET  /api/agent/v1/async/{job_id}/stream?cursor=0` | 增量事件流追溯 | 基于 NDJSON 订阅任务生命周期事件，支持 `cursor` 断点续传与网络闪断重连 |
+| `GET  /api/agent/v1/async/{job_id}/result` | 最终全量结果获取 | 任务达到终态后获取完整 Markdown 正文（`text`）与产物文件名（`file_name`）；未完成时返回 200 快照而不报错 409 |
+
+> [!NOTE]
+> 为保障老版本客户端平滑过渡，系统同时提供 `/api/v1/tasks` 系列路径的静默兼容支持。
+
+### 3. 标准化请求体结构 (`DomainTaskRequest`)
+同步提交与异步提交共用同一套强类型入参契约：
+
+```json
+{
+  "domain": "meeting",
+  "task": "minutes",
+  "memory": true,
+  "texts": {
+    "transcript": "周宁：今天主要复盘开发进展。林夏：算法侧纪要生成主流程已经稳定……",
+    "keypoints": "",
+    "notes": ""
+  },
+  "docs": [],
+  "extra": {
+    "time": "2026-09-01",
+    "template": "",
+    "profile": "user",
+    "catalog": "",
+    "project": "小艺慧记Agent",
+    "subject": "",
+    "style": ""
+  }
+}
 ```
 
-### 2. 生产异步任务接口 (`/api/v1/tasks`)
-专为长耗时作业（如包含多张高精度图片 OCR、多级大模型推理研判）设计的标准异步控制面：
+* **HTTP Header 请求头要求**：
+  * `X-User-Id: <user_id>`（**必需**）：租户唯一身份标识，驱动后端多租户目录隔离；
+  * `X-Request-Id: <request_id>`（*可选*）：全链路调用追踪号，未传时由系统自增生成。
+* **核心字段说明**：
+  * `domain`（字符串，**必填**）：垂直业务领域（如 `"meeting"` 会议领域、`"notes"` 笔记领域）；
+  * `task`（字符串，**必填**）：具体任务线代码（如 `"minutes"` 纪要、`"actions"` 待办、`"risks"` 风险、`"catalog"` 目录、`"checklist"` 清单等）；
+  * `memory`（布尔值，*可选*）：顶层记忆增强开关，开启后自动检索并写回跨场次事实与图谱记忆；
+  * `texts`（键值对，*可选*）：原始文本集合，受白名单保护（支持 `transcript` 会议文本、`keypoints` 关键点、`notes` 用户速记）；
+  * `docs`（文件名数组，*可选*）：需引用的原始文档名列表（存放于 `data/{user_id}/docs/`）；
+  * `extra.time`（字符串，*可选*）：会议日期或时间（如 `"2026-09-01"`），统一收拢至 `extra` 命名空间；
+  * `extra.catalog`（字符串，*可选*）：笔记领域指定引用的课程知识目录文件名（如 `"高中物理.json"` 或 `"catalog.html"`）；
+  * `extra.profile`（字符串，*可选*）：视角档案模式（`"user"` 个人视角、`"developer"` 技术角色、`"objective"` 客观全员）；
+  * `extra.template`（字符串，*可选*）：显式指定的模板标识，留空时系统根据 `profile` 自动分发；
+  * `extra.project`（字符串，*可选*）：项目名称，用于跨场次长期记忆归集。
 
-| 方法与路径 | 说明 |
-|---|---|
-| `POST /api/v1/tasks` | 提交异步作业，立即返回 `job_id` 与 `request_id` |
-| `GET /api/v1/tasks/{job_id}` | 轮询查询当前作业状态、阶段、耗时与结果摘要 |
-| `GET /api/v1/tasks/{job_id}/stream?cursor=0` | 支持断点续传的事件流追溯接口（支持断网重连） |
-| `GET /api/v1/tasks/{job_id}/result` | 作业完成后获取全量结构化产物报表 |
+### 4. 标准化统一响应快照
+无论是同步接口还是异步接口，均返回一致的 8 字段结构化快照：
+
+```json
+{
+  "code": 0,
+  "job_id": "job_637547664132538372",
+  "request_id": "req_20260901_001",
+  "status": "succeeded",
+  "message": "success",
+  "text": "# 会议纪要\n\n## 全文摘要\n本场会议主要复盘小艺慧记开发进展……",
+  "file_name": "minutes.html",
+  "monitor": {
+    "token_usage": 1580,
+    "cache_hit": 1,
+    "cost_time": 3.85
+  }
+}
+```
+
+* `status`：生命周期状态（`"queued"` 排队中 -> `"running"` 执行中 -> `"succeeded"` 成功 / `"failed"` 失败）；
+* `text`：Markdown 格式正文（状态轮询接口中恒为 `null` 以降低网络载荷，结果接口在成功时完整返回）；
+* `file_name`：产物文件名。针对配备专属网页渲染的任务（如 `minutes.html`, `catalog.html`, `checklist.html`）返回对应的 HTML 文件名，纯文本任务返回 `result.md`，无产物时为空串。
 
 ---
 
@@ -225,8 +275,8 @@ curl -X POST http://127.0.0.1:8000/api/agent/v1 \
 
 ### 1. 会议领域（Meeting Domain - `domains/meeting/`）
 涵盖商务研讨、项目推进与技术评审等全流程场景：
-- **`minutes`（会议纪要）**：基于事实提纯的高保真多板块纪要，自动按议程归纳要点与决议；
-- **`actions`（待办提取）**：四要素结构化提取（事项、责任人、截止时间、验收标准）；
+- **`minutes`（会议纪要）**：基于事实提纯的高保真多板块纪要，产出 `minutes.html` 交互网页与 `result.md` 正文；
+- **`actions`（待办提取）**：四要素结构化提取（事项、责任人、截止时间、验收标准），支持卡片式自适应呈现；
 - **`risks`（风险识别）**：深度研判潜在阻碍、依赖项与红线问题，评定风险等级与规避对策；
 - **`agenda_minutes`（议程纪要）**：议程单图片 OCR 智能锚定与时序对齐，锁定讨论进度与决策结论；
 - **`consensus_decision`（共识决策）**：针对争议性议题梳理共识演进过程与最终拍板决议；
@@ -236,8 +286,8 @@ curl -X POST http://127.0.0.1:8000/api/agent/v1 \
 
 ### 2. 笔记与知识领域（Notes Domain - `domains/notes/`）
 面向知识库工程、学习分析与文档资产化：
-- **`catalog`（知识目录编排）**：基于原文 Markdown 骨架树逐级提纯章、主题与知识点；
-- **`checklist`（复习清单卡片）**：动态预算驱动的分批并行精细化知识点解析；
+- **`catalog`（知识目录编排）**：基于原文 Markdown 骨架树逐级提纯章节、主题与知识点卡片，**同步输出 Markdown 层级树与可视化交互网页 `catalog.html`**，保存在 `output/{request_id}/`，`file_name` 对应返回 `catalog.html`；
+- **`checklist`（复习清单卡片）**：动态预算驱动的分批并行精细化知识点解析，产出 `checklist.html`；
 - **`graph`（知识图谱构建）**：实体与关系抽取，生成基于 Cytoscape.js 的交互式学习地图；
 - **`library`（资料智能入库）**：支持 PPT、PDF、Word 文档与笔记图片的版面分析、公式纠错与向量化存储；
 - **`quiz`（自测题目生成）**：结合领域题库与教学大纲生成匹配测试题；
@@ -246,7 +296,7 @@ curl -X POST http://127.0.0.1:8000/api/agent/v1 \
 ### 3. 通用视角建模（Perspective Modeling - `domains/shared/perspective/`）
 支持两种核心视角的无缝切换：
 - **客观视角（Objective）**：站在绝对中立第三方角度梳理事实脉络；
-- **个人视角（Personal）**：基于 `data/{user_id}/user.json` 中的画像配置，智能识别发言人命中，自动完成人称代词置换（“我/你”），将结论与行动项按「与我相关」分块归集。
+- **个人视角（Personal - `extra.profile="user"`）**：直接套用个人专属四栏工作台模板（`personal_minutes.md`：我的待办、重点关注、项目进展、我提出的未决），智能匹配发言人并完成第一人称归集，不再采用历史的通用模板裁剪模式。
 
 ---
 
@@ -258,9 +308,9 @@ curl -X POST http://127.0.0.1:8000/api/agent/v1 \
 data/
 └── {user_id}/                    # 严格按用户唯一 ID 物理隔离
     ├── docs/                     # 用户上传的待处理素材（文档、图片、音频文字稿）
-    ├── output/{request_id}/      # 每次调用的隔离生成产物
+    ├── output/{request_id}/      # 每次调用的隔离生成产物目录
     │   ├── result.md             # 最终生成的标准化 Markdown 文本
-    │   ├── {task}.html           # 针对各任务线定制的专属交互式单文件 HTML
+    │   ├── {task}.html           # 针对各任务线定制的专属交互式单文件 HTML（如 minutes.html / catalog.html）
     │   └── {task}.png            # 渲染图表（如有）
     ├── knowledge/
     │   ├── chromadb/             # 该租户专享的向量检索库文件
@@ -269,6 +319,10 @@ data/
     └── profile/
         └── user.json             # 租户专属个性化画像档案（偏好、职责、习惯）
 ```
+
+用户可通过统一产物下载端点直接获取产物：
+- 获取精美交互网页：`GET /api/agent/v1/file/{request_id}/{file_name}?user_id={user_id}`
+- 获取 Markdown 源码正文：`GET /api/agent/v1/file/{request_id}/result.md?user_id={user_id}`
 
 ---
 

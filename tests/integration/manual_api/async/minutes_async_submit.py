@@ -25,7 +25,7 @@ TRANSCRIPT = """
 风险方面，当前最大风险是记忆能力已经可用，但可解释性还不够像用户产品。如果用户看不到“用了哪次历史会议”，会误以为系统在凭空补充。另一个风险是 minutes_trace 的证据挂载如果太少，会削弱用户对溯源纪要的信任。未决事项是：是否在内测版默认开启记忆引用下划线展示，还是先作为实验开关提供。
 """
 
-URL = f"{BASE_URL}/api/v1/tasks"
+URL = f"{BASE_URL}/api/agent/v1/async"
 USER_ID = "1"
 
 resp = requests.post(
@@ -33,7 +33,7 @@ resp = requests.post(
     json={
         "domain": "meeting",
         "task": "minutes",
-        "time": "2026-09-01",
+        "memory": True,
         "texts": {
             "transcript": TRANSCRIPT,
             "keypoints": "",
@@ -41,12 +41,12 @@ resp = requests.post(
         },
         "docs": [],
         "extra": {
+            "time": "2026-09-01",
             "template": "",
             "profile": "",
             "project": "",
             "subject": "",
             "style": "",
-            "memory": True,
         },
     },
     headers={"X-User-Id": USER_ID},
