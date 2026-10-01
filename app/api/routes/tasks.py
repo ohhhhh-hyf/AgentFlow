@@ -185,6 +185,7 @@ async def submit_task(
     task_req = TaskRequest(
         texts=req.texts,
         docs=req.docs,
+        memory=req.memory,
         extra=req.extra if isinstance(req.extra, Extra) else Extra.model_validate(req.extra),
         time=req.time,
     )

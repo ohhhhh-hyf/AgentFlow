@@ -36,10 +36,14 @@ class Extra(BaseModel):
     memory: bool = False
     # 既定议程纯文本内容（用于 agenda_minutes 任务，可直接传纯文本，支持与 docs 附件议程自动合并）
     agenda_txt: str = ""
+    # 会议召开时间（如 "2026-06-15 10:00"，用于会议记忆与溯源展示）
+    time: str = ""
+    # 知识目录版本文件名（用于 checklist 任务定位基准目录，如 "20261001_100000.json"；为空则自动取最新）
+    catalog: str = ""
 
     @model_validator(mode="before")
     @classmethod
-    def _compat_agenda(cls, data: Any) -> Any:
+    def _compat_extra(cls, data: Any) -> Any:
         if isinstance(data, dict):
             if "agenda" in data and "agenda_txt" not in data:
                 data["agenda_txt"] = data.pop("agenda")
@@ -48,19 +52,57 @@ class Extra(BaseModel):
 
 class TaskRequest(BaseModel):
     """通用请求体（不含 domain/task，见 ``DomainTaskRequest``）。
-    texts 为 {三类 key: 文本内容} 对象；docs 为文件名列表
-    （.json 为 catalog 目录文件；catalog/checklist 的 .txt 为老师重点文件；其余按扩展名分派）。
-
-    纯 ``TaskRequest`` 的形态只用于任务层内部（runner / executor / worker 之间传参）；
-    对外接口一律用 ``DomainTaskRequest``：域与任务名是请求体字段（历史形态是 URL 路径，
-    2026-09 收敛为统一入口 ``/api/agent/v1``，见 API.md 2.5）。
+    texts 为 {三类 key: 文本内容} 对象；docs 为物理材料文件名列表。
     """
 
     texts: dict[str, str] = Field(default_factory=dict)
     docs: list[str] = Field(default_factory=list)
+    # 🔥 系统级长记忆能力开关
+    memory: bool = False
     extra: Extra = Field(default_factory=Extra)
-    # 任务时间（会议开始或转录完成时刻），可为空；非空时写入会议记忆并在溯源卡片展示
+    # 任务时间（下沉至 extra.time，顶层字段保留以 100% 兼容老客户端）
     time: str = ""
+
+    @model_validator(mode="before")
+    @classmethod
+    def _compat_task_request(cls, data: Any) -> Any:
+        if isinstance(data, dict):
+            extra = data.get("extra")
+            if extra is None:
+                extra = {}
+                data["extra"] = extra
+            if isinstance(extra, dict):
+                # 1. 兼容老客户端把 memory 放在 extra 内部的情况：自动提升到顶层
+                if extra.get("memory") and not data.get("memory"):
+                    data["memory"] = extra["memory"]
+                elif data.get("memory") and not extra.get("memory"):
+                    extra["memory"] = data["memory"]
+                # 2. 兼容老客户端把 time 传在顶层的情况：自动同步到 extra.time
+                if data.get("time") and not extra.get("time"):
+                    extra["time"] = data.get("time", "")
+                elif extra.get("time") and not data.get("time"):
+                    data["time"] = extra.get("time", "")
+                # 3. 兼容老客户端把 catalog.json 放在 docs 里的情况：自动填入 extra.catalog
+                if not extra.get("catalog") and data.get("docs"):
+                    jsons = [f for f in data["docs"] if str(f).lower().endswith(".json")]
+                    if jsons:
+                        extra["catalog"] = jsons[0]
+                        data["docs"] = [f for f in data["docs"] if not str(f).lower().endswith(".json")]
+            elif isinstance(extra, BaseModel):
+                if getattr(extra, "memory", False) and not data.get("memory"):
+                    data["memory"] = extra.memory
+                elif data.get("memory") and not getattr(extra, "memory", False):
+                    extra.memory = data.get("memory")
+                if data.get("time") and not getattr(extra, "time", ""):
+                    extra.time = data.get("time", "")
+                elif getattr(extra, "time", "") and not data.get("time"):
+                    data["time"] = extra.time
+                if not getattr(extra, "catalog", "") and data.get("docs"):
+                    jsons = [f for f in data["docs"] if str(f).lower().endswith(".json")]
+                    if jsons:
+                        extra.catalog = jsons[0]
+                        data["docs"] = [f for f in data["docs"] if not str(f).lower().endswith(".json")]
+        return data
 
     @field_validator("texts")
     @classmethod

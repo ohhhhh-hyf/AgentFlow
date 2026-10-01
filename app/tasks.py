@@ -135,7 +135,7 @@ def _fake_heading_chunk_count(user_id: str, subject: str) -> int:
 
 
 def _catalog_input_file(user_id: str, subject: str, name: str) -> Path:
-    """checklist 的 docs：catalog 文件名 → data/{user_id}/knowledge/catalogs/{subject}/{name}。"""
+    """checklist 的 extra.catalog：catalog 文件名 → data/{user_id}/knowledge/catalogs/{subject}/{name}。"""
     from domains.notes.tasks.catalog.store import _subject_filename
 
     uid = (user_id or "").strip()
@@ -436,26 +436,23 @@ def _prepare_input_dir(transcript: str) -> Path | None:
 
 
 def _validate(req: TaskRequest, task: str, user_id: str) -> str:
-    """基础校验，返回代码线名；失败抛 ApiError。domain/task 由 URL 路径表达。"""
+    """基础校验，返回代码线名；失败抛 ApiError。"""
     if task not in LINE_NAMES:
         raise ApiError(404, f"任务线不存在：{task}")
     line = task  # 线名即 task 取值（见 app/tasklines.lines_for）
 
-    if not (user_id or "").strip():
-        raise ApiError(400, f"{task} 需要 X-User-Id（用户标识：数据目录和知识库按用户隔离）")
-    if line in {"library", "catalog", "checklist"} and not (req.extra.subject or "").strip():
-        raise ApiError(400, f"{task} 需要 extra.subject")
+    # 门禁 2：必传字段表校验（前置收集全部缺失项，一次性秒回 400）
+    from .requirements import check_required
+
+    missing = check_required(line, req, user_id)
+    if missing:
+        raise ApiError(400, f"{task} 缺少必填项：" + "、".join(missing))
+
+    # 门禁 3：业务参数合法性校验
     if line == "minutes_styles" and (req.extra.style or "").strip():
         style = req.extra.style.strip().lower()
         if style not in STYLE_CHOICES:
             raise ApiError(400, f"extra.style 非法：{style}（可选：{'/'.join(sorted(STYLE_CHOICES))}）")
-    if line not in {"catalog", "checklist"}:
-        has_input = (
-            bool(any((v or "").strip() for v in (req.texts or {}).values()))
-            or bool(req.docs)
-        )
-        if not has_input:
-            raise ApiError(400, "texts / docs 至少提供一个")
     return line
 
 
@@ -570,33 +567,28 @@ def _prepare(domain: str, task: str, req: TaskRequest, user_id: str) -> _Prepare
     line = _validate(req, task, user_id)
     extra = req.extra
 
-    # 必填字段前置校验：一次性列出全部缺失项，秒回 400
-    from .requirements import check_required
-
-    missing = check_required(line, req, user_id)
-    if missing:
-        raise ApiError(400, f"{task} 缺少必填项：" + "、".join(missing))
-
     transcript, keypoints, notes = _collect_texts(req)
     if not transcript and notes:
         transcript = notes
-    catalog_files: list[str] = []
     teacher_docs: list[str] = []
     material_docs: list[str] = []
     agenda_from_docs: str = ""
     if line != "library" and req.docs:
         if line == "checklist":
-            # checklist 的 docs：.json 为 catalog 目录文件，.txt 为老师重点文件，其余拒绝
+            # checklist 的 docs：仅支持老师重点文件（.txt），目录文件统一由 extra.catalog 传参
             for name in req.docs:
-                if _is_catalog_json_name(name):
-                    _catalog_input_file(user_id, extra.subject, name)
-                    catalog_files.append(name.strip())
-                elif _is_teacher_txt_name(name):
+                if _is_teacher_txt_name(name):
                     teacher_docs.append(name.strip())
+                elif _is_catalog_json_name(name):
+                    # 容错：若未在 pydantic 阶段被移入 extra.catalog，在此做兼容填充
+                    if not (extra.catalog or "").strip():
+                        extra.catalog = name.strip()
+                    else:
+                        raise ApiError(400, f"checklist 目录文件已在 extra.catalog 指定，docs 中不可重复传 .json：{name}")
                 else:
                     raise ApiError(
                         400,
-                        f"checklist 的 docs 应为 catalog 文件名（.json）或老师重点文件（.txt）：{name}",
+                        f"checklist 的 docs 仅支持老师重点文件（.txt）：{name}",
                     )
         elif line == "catalog":
             # catalog 的 docs：.txt 为老师重点文件，其余按资料处理（OCR/解析并入主文本）
@@ -691,8 +683,9 @@ def _prepare(domain: str, task: str, req: TaskRequest, user_id: str) -> _Prepare
         trace_text = _trace_extra(keypoints, notes)
         if trace_text:
             extra_line_inputs["minutes_trace"] = trace_text
-    if line == "checklist" and catalog_files:
-        extra_line_inputs["checklist"] = "【目录文件】" + catalog_files[0]
+    if line == "checklist" and (extra.catalog or "").strip():
+        _catalog_input_file(user_id, extra.subject, extra.catalog.strip())
+        extra_line_inputs["checklist"] = "【目录文件】" + extra.catalog.strip()
     if line in {"catalog", "checklist"} and teacher_docs:
         teacher_block = _load_teacher_texts(user_id, teacher_docs)
         if teacher_block:
@@ -724,8 +717,8 @@ def _prepare(domain: str, task: str, req: TaskRequest, user_id: str) -> _Prepare
         user_id=(user_id or "").strip(),
         project=(extra.project or "").strip(),
         subject=_subject_pinyin(extra.subject),
-        memory=bool(extra.memory),
-        time=(req.time or "").strip(),
+        memory=bool(req.memory or extra.memory),
+        time=(extra.time or req.time or "").strip(),
     )
 
 

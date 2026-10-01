@@ -447,6 +447,108 @@ def test_agenda_minutes_input_assembly() -> None:
     check("extra_line_inputs 注入了 agenda_txt 文本", "1. 议题一：大模型发布" in agenda_input, agenda_input)
 
 
+def test_request_schema_and_validation() -> None:
+    """验证请求体字段重构（memory 顶层、extra.time、extra.catalog）与 14 任务前置校验。"""
+    from app.config import PROJECT_ROOT
+    from app.requirements import REQUIRED_FIELDS, check_required
+    from app.schemas import Extra, TaskRequest
+    from app.tasks import ApiError, _prepare
+
+    # 1. 验证 TaskRequest 数据模型及向下兼容 Auto-Lifting
+    # 1.1 memory 顶层字段与 extra.memory 自动互通
+    r1 = TaskRequest(memory=True)
+    check("TaskRequest 顶层支持 memory=True", r1.memory is True, "")
+    check("TaskRequest memory 自动同步到 extra.memory", r1.extra.memory is True, "")
+
+    r2 = TaskRequest.model_validate({"extra": {"memory": True}})
+    check("老格式 extra.memory 自动提升到顶层 memory", r2.memory is True, "")
+
+    # 1.2 time 下沉至 extra.time 与双向同步
+    r3 = TaskRequest(time="2026-06-15 10:00")
+    check("顶层 time 自动同步到 extra.time", r3.extra.time == "2026-06-15 10:00", "")
+
+    r4 = TaskRequest.model_validate({"extra": {"time": "2026-06-15 10:00"}})
+    check("extra.time 自动同步到顶层 time", r4.time == "2026-06-15 10:00", "")
+
+    # 1.3 extra.catalog 显式指定及 docs 兼容提取
+    r5 = TaskRequest(extra=Extra(catalog="20261001_100000.json"))
+    check("Extra 支持 catalog 字段", r5.extra.catalog == "20261001_100000.json", "")
+
+    r6 = TaskRequest.model_validate({"docs": ["phy_8b4dccc8.json", "teacher.txt"]})
+    check("docs 中的 .json 自动移入 extra.catalog", r6.extra.catalog == "phy_8b4dccc8.json", "")
+    check("docs 剥离 .json 仅保留真实附件", r6.docs == ["teacher.txt"], str(r6.docs))
+
+    # 2. 验证 14 任务必填校验矩阵 (check_required)
+    check("REQUIRED_FIELDS 包含全量 14 个任务", len(REQUIRED_FIELDS) == 14, str(len(REQUIRED_FIELDS)))
+
+    # 2.1 mindmap 必传 transcript 与 user_id
+    m_mindmap_empty = check_required("mindmap", TaskRequest(), "")
+    check("mindmap 缺参时拦截 user_id 与 transcript", len(m_mindmap_empty) == 2, str(m_mindmap_empty))
+    m_mindmap_ok = check_required("mindmap", TaskRequest(texts={"transcript": "会议记录"}), "u1")
+    check("mindmap 传参完整时通过校验", len(m_mindmap_ok) == 0, str(m_mindmap_ok))
+
+    # 2.2 graph 仅需 texts 或 docs 之一
+    m_graph_empty = check_required("graph", TaskRequest(), "u1")
+    check("graph 无输入时拦截 texts_or_docs", len(m_graph_empty) == 1, str(m_graph_empty))
+    m_graph_text = check_required("graph", TaskRequest(texts={"notes": "概念A->概念B"}), "u1")
+    check("graph 仅传 notes 文本时通过校验", len(m_graph_text) == 0, str(m_graph_text))
+    m_graph_docs = check_required("graph", TaskRequest(docs=["notes.txt"]), "u1")
+    check("graph 仅传 docs 文件时通过校验", len(m_graph_docs) == 0, str(m_graph_docs))
+
+    # 2.3 checklist 仅需 extra.subject（docs 与 catalog 均为可选）
+    m_chk_empty = check_required("checklist", TaskRequest(), "u1")
+    check("checklist 缺 subject 时拦截", len(m_chk_empty) == 1 and "subject" in m_chk_empty[0], str(m_chk_empty))
+    m_chk_ok = check_required("checklist", TaskRequest(extra=Extra(subject="physics")), "u1")
+    check("checklist 仅传 subject 时即可通过必填校验", len(m_chk_ok) == 0, str(m_chk_ok))
+
+    # 3. 验证 _prepare 中 extra.catalog 与 extra.time / memory 的组装
+    # 构造测试用的 catalog 文件
+    from domains.notes.tasks.catalog.store import _subject_filename
+
+    sub_dir = _subject_filename("physics")
+    cat_dir = PROJECT_ROOT / "data" / "u_test_schema" / "knowledge" / "catalogs" / sub_dir
+    cat_dir.mkdir(parents=True, exist_ok=True)
+    cat_file = cat_dir / "20261001_100000.json"
+    cat_file.write_text('{"course": "物理", "version": "v1"}', encoding="utf-8")
+
+    # 3.1 显式 extra.catalog
+    req_chk = TaskRequest(extra=Extra(subject="physics", catalog="20261001_100000.json"))
+    prep_chk = _prepare("notes", "checklist", req_chk, "u_test_schema")
+    chk_input = prep_chk.extra_line_inputs.get("checklist", "")
+    check("checklist 正确注入 extra.catalog", "【目录文件】20261001_100000.json" in chk_input, chk_input)
+
+    # 3.2 兼容老客户端 docs 传入 catalog.json
+    req_chk_legacy = TaskRequest.model_validate({
+        "docs": ["20261001_100000.json"],
+        "extra": {"subject": "physics"},
+    })
+    prep_chk_legacy = _prepare("notes", "checklist", req_chk_legacy, "u_test_schema")
+    chk_input_legacy = prep_chk_legacy.extra_line_inputs.get("checklist", "")
+    check("checklist 兼容老入参 docs 注入 catalog", "【目录文件】20261001_100000.json" in chk_input_legacy, chk_input_legacy)
+
+    # 3.3 不存在的 catalog 报 404
+    req_chk_notfound = TaskRequest(extra=Extra(subject="physics", catalog="not_exist.json"))
+    try:
+        _prepare("notes", "checklist", req_chk_notfound, "u_test_schema")
+        check("不存在的 catalog 抛 404", False, "未抛出异常")
+    except ApiError as exc:
+        check("不存在的 catalog 抛 404", exc.status == 404 and "not_exist.json" in exc.message, exc.message)
+
+    # 3.4 memory 与 time 正确传递到 _Prepared
+    req_minutes = TaskRequest(
+        texts={"transcript": "发言者1：开会讨论技术架构。"},
+        memory=True,
+        extra=Extra(time="2026-06-15 10:00", project="proj_alpha"),
+    )
+    prep_min = _prepare("meeting", "minutes", req_minutes, "u_test_schema")
+    check("prep.memory 正确获取顶层 memory 开关", prep_min.memory is True, "")
+    check("prep.time 正确获取 extra.time", prep_min.time == "2026-06-15 10:00", prep_min.time)
+
+    # 清理测试目录
+    import shutil
+    shutil.rmtree(PROJECT_ROOT / "data" / "u_test_schema", ignore_errors=True)
+
+
 def test_action_items_render() -> None:
     """验证待办事项卡片式清单（4个核心维度、自适应输出、无原句）及降级拼装。"""
     from domains.meeting.tasks.actions.steps.actions_render import ActionItemsRender
@@ -699,6 +801,7 @@ def main() -> int:
     test_role_mapping()
     test_domain_hooks_registry()
     test_tasklines_registration()
+    test_request_schema_and_validation()
     test_action_items_render()
     test_risk_items_render()
     test_general_minutes_title_fixed()

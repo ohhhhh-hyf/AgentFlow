@@ -18,6 +18,7 @@ from .schemas import TaskRequest
 #   "docs"              docs 数组非空
 #   "docs_any"          docs 数组非空（至少一个文件）
 REQUIRED_FIELDS: dict[str, dict[str, str]] = {
+    # ── 会议领域（Meeting Domain · 8 个任务）──
     "minutes": {
         "user_id": "X-User-Id",
         "texts.transcript": "texts 中 transcript（会议转写文本）",
@@ -27,6 +28,10 @@ REQUIRED_FIELDS: dict[str, dict[str, str]] = {
         "texts.transcript": "texts 中 transcript（会议转写文本）",
     },
     "risks": {
+        "user_id": "X-User-Id",
+        "texts.transcript": "texts 中 transcript（会议转写文本）",
+    },
+    "mindmap": {
         "user_id": "X-User-Id",
         "texts.transcript": "texts 中 transcript（会议转写文本）",
     },
@@ -49,10 +54,7 @@ REQUIRED_FIELDS: dict[str, dict[str, str]] = {
         "texts.keypoints": "texts 中 keypoints（用户重点文本）",
         "texts.notes": "texts 中 notes（用户笔记文本）",
     },
-    "graph": {
-        "user_id": "X-User-Id",
-        "docs": "docs（笔记 .txt/.md 文件）",
-    },
+    # ── 笔记领域（Notes Domain · 6 个任务）──
     "library": {
         "user_id": "X-User-Id",
         "extra.subject": "extra.subject（学科）",
@@ -65,7 +67,10 @@ REQUIRED_FIELDS: dict[str, dict[str, str]] = {
     "checklist": {
         "user_id": "X-User-Id",
         "extra.subject": "extra.subject（学科）",
-        "docs": "docs（catalog 文件名，如 phy_8b4dccc8.json）",
+    },
+    "graph": {
+        "user_id": "X-User-Id",
+        "texts_or_docs": "texts（notes 或 transcript）或 docs（笔记材料）",
     },
     "review": {
         "user_id": "X-User-Id",
