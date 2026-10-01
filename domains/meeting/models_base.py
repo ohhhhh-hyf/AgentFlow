@@ -7,7 +7,11 @@ from typing import Any
 
 class ModelMixin:
     def model_dump(self) -> dict[str, Any]:
-        return asdict(self)
+        res = asdict(self)
+        for k, v in getattr(self, "__dict__", {}).items():
+            if k not in res:
+                res[k] = v
+        return res
 
 
 @dataclass

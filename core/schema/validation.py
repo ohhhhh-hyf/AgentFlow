@@ -32,10 +32,32 @@ def _string(value: object, path: str, nullable: bool = False) -> None:
 
 
 def _string_list(value: object, path: str) -> None:
-    if not isinstance(value, list) or any(
-        not isinstance(item, str) for item in value
-    ):
-        raise OutputValidationError(f"{path} 必须是字符串数组")
+    if not isinstance(value, list):
+        raise OutputValidationError(f"{path} 必须是数组")
+    # 容错归一：若大模型在数组里给出了 dict (如 {"risk": "...", ...}) 或非字符串项，
+    # 自动提取主要文本字段或转为字符串，绝对不因顶层 dict 格式打回重试
+    for i, item in enumerate(value):
+        if isinstance(item, str):
+            continue
+        if isinstance(item, dict):
+            cand = (
+                item.get("risk")
+                or item.get("decision")
+                or item.get("task")
+                or item.get("action")
+                or item.get("text")
+                or item.get("content")
+                or item.get("question")
+                or item.get("issue")
+            )
+            if cand and isinstance(cand, str):
+                value[i] = cand
+                continue
+            value[i] = str(item)
+        elif item is not None:
+            value[i] = str(item)
+        else:
+            value[i] = ""
 
 
 def _choice(value: object, choices: set, path: str) -> None:

@@ -59,11 +59,11 @@ _DECISION_LEAD_RE = re.compile(r"^(m_[A-Za-z0-9_-]+)：(.+)$")
 _MEM_SECTION_RE = re.compile(r"\n(?:-{3,}\s*\n+)*## " + re.escape(SECTION_TITLE) + r"\b.*\Z", re.S)
 COMPARISON_TITLE = "历史对照"
 _COMPARISON_SECTION_RE = re.compile(
-    r"\n(?:-{3,}\s*\n+)*## " + re.escape(COMPARISON_TITLE) + r"\b.*?(?=\n#{1,2} |\Z)", re.S
+    r"\n(?:-{3,}\s*\n+)*## (?:历史对照|状态演进)\b.*?(?=\n#{1,2} |\Z)", re.S
 )
 # 台账行：- 类别（主题｜场次说明）：内容 / - 类别（场次说明）：内容 / - 类别：内容
 _LEDGER_LINE_RE = re.compile(
-    r"^(新增决策|延续事项|已闭环|风险演变)(?:[（(]([^）)]*)[)）])?：(.*)$"
+    r"^(新增决策|延续事项|已闭环|风险演变)(?:[（(]([^）)]*)[)）])?[:：]\s*(.*)$"
 )
 _TAG_RE = re.compile(
     r"(?:<sup>)?\[记忆\d+\]\(#memory-\d+\)(?:</sup>)?|class=\"memory-link\"|\[[^\]]+\]\(#memory-\d+\)"
@@ -1115,8 +1115,12 @@ def _parse_comparison_ledger(markdown: str) -> tuple[list[dict[str, str]], str]:
     新增决策可能没有主题（``- 新增决策：…``），此时只有类别。
     """
     raw = markdown or ""
-    marker = f"## {COMPARISON_TITLE}"
-    if marker not in raw:
+    marker = None
+    for m in (f"## {COMPARISON_TITLE}", "## 状态演进"):
+        if m in raw:
+            marker = m
+            break
+    if not marker:
         return [], ""
     chunk = raw.split(marker, 1)[1]
     chunk = re.split(r"\n#{1,2} ", chunk)[0]
@@ -1193,28 +1197,41 @@ def _ledger_cards_html(rows: list[dict[str, str]]) -> str:
     )
 
 
-def memory_review_html(markdown: str, title: str = "") -> str:
-    """把带记忆链接的纪要渲染为与 checklist 一致的 LaTeX Paper 风格 HTML。
+def memory_review_html(markdown: str, title: str = "", data: dict | None = None) -> str:
+    """把带记忆链接或历史状态演进的纪要渲染为 LaTeX Paper 风格双栏审阅 HTML。
 
     左侧：纪要正文排版，命中记忆的实体高亮并在后面附加蓝色 [1], [2] 序号标签。
-    右侧：历史记忆溯源卡片，带有连续序号 [1], [2] 与来源会议/摘录/时间。
+    右侧：历史记忆溯源卡片与状态演进卡片区。
     交互：点击左侧实体或蓝色序号可点亮对应右侧记忆卡片并带光晕脉冲动画；右侧超出左侧高度时自适应折叠。
     
-    若未命中记忆（无记忆链接），自动平滑降级为纯净单栏 LaTeX Paper 风格 HTML（无右侧卡片区）。
+    若未命中记忆且无状态演进，自动平滑降级为纯净单栏 LaTeX Paper 风格 HTML（无右侧卡片区）。
     """
     text = markdown or ""
-    if "](#" not in text:
-        return render_markdown_page_html(title or "会议纪要", text)
+    if hasattr(data, "model_dump"):
+        data = data.model_dump()
 
+    # 分割正文与附录（历史记忆引用）
     splits = re.split(r"\n## " + re.escape(SECTION_TITLE) + r"\b", text, maxsplit=1)
     main = splits[0]
     sources = _parse_memory_sources(text)
-    if not sources:
-        return render_markdown_page_html(title or "会议纪要", main)
 
     # 「历史对照」在双栏页里改由右栏「状态演进」呈现（正文不再重复同一份清单）
     ledger_rows, _summary = _parse_comparison_ledger(text)
+    if not ledger_rows and data and isinstance(data.get("history_comparison"), list):
+        hist_lines = [
+            f"- {line}" if not str(line).strip().startswith("- ") else str(line).strip()
+            for line in data["history_comparison"]
+            if str(line).strip()
+        ]
+        if hist_lines:
+            fake_chunk = f"## {COMPARISON_TITLE}\n" + "\n".join(hist_lines)
+            ledger_rows, _summary = _parse_comparison_ledger(fake_chunk)
+
     main = _COMPARISON_SECTION_RE.sub("", main).strip()
+
+    # 如果既没有记忆引用源，也没有状态演进台账，则直接平滑降级为普通单栏页面
+    if not sources and not ledger_rows:
+        return render_markdown_page_html(title or "会议纪要", main or text)
 
     # 提取所有出现的 ref_id，按正文首次出现顺序赋予连续编号 [1], [2], [3]...
     ref_id_to_num: dict[str, int] = {}
@@ -1601,14 +1618,16 @@ def render_markdown_page_html(title: str, markdown: str) -> str:
     return page_html
 
 
-def render_minutes_html(title: str, text: str) -> str:
+def render_minutes_html(title: str, text: str, data: dict | None = None) -> str:
     """渲染会议纪要 HTML：
-    - 若命中记忆（包含记忆链接及来源），渲染为带右侧溯源卡片区的 LaTeX Paper 双栏审阅样式；
-    - 若未命中或未开启记忆，渲染为与风险分析、待办提取一致的纯净单栏 LaTeX Paper 学术纸张样式（无右侧溯源区域）。
+    - 若命中记忆（包含记忆链接及来源），渲染为带右侧溯源与状态演进卡片区的 LaTeX Paper 双栏审阅样式；
+    - 若未命中或未开启记忆，渲染为与风险分析、待办提取一致的纯净单栏 LaTeX Paper 学术纸张样式（保留正文历史对照小节）。
     """
     clean_text = str(text or "").strip()
-    if "](#" in clean_text:
-        return memory_review_html(clean_text, title=title)
+    if hasattr(data, "model_dump"):
+        data = data.model_dump()
+    if "](#" in clean_text or f"## {SECTION_TITLE}" in clean_text:
+        return memory_review_html(clean_text, title=title, data=data)
     return render_markdown_page_html(title or "会议纪要", clean_text)
 
 
@@ -1784,13 +1803,15 @@ def render_risks_html(title: str, text: str, data: dict | None = None) -> str:
     
     包含列：序号、风险描述、风险程度、潜在影响、应对方案、责任主体。
     """
+    if hasattr(data, "model_dump"):
+        data = data.model_dump()
     raw_risks = (data or {}).get("risks")
     if isinstance(raw_risks, list) and raw_risks and isinstance(raw_risks[0], dict):
         risks = raw_risks
     else:
         risks = _parse_risks_from_text(text)
 
-    display_title = "风险分析"
+    display_title = title or "风险分析"
 
     sev_map = {
         "high": ("高", "ck-s"),
@@ -1866,13 +1887,6 @@ def render_risks_html(title: str, text: str, data: dict | None = None) -> str:
         </table>
       </div>
     </div>
-          </thead>
-          <tbody>
-            {table_body}
-          </tbody>
-        </table>
-      </div>
-    </div>
   </main>
 </body>
 </html>
@@ -1920,6 +1934,15 @@ def _parse_actions_from_text(text: str) -> list[dict[str, Any]]:
                 continue
             if re.match(r"^(?:前置依赖|依赖)[:：]", clean_sub):
                 actions[-1]["dependency"] = re.sub(r"^(?:前置依赖|依赖)[:：]\s*", "", clean_sub)
+                continue
+            if re.match(r"^(?:优先级|级别|优先程度)[:：]", clean_sub):
+                p_val = re.sub(r"^(?:优先级|级别|优先程度)[:：]\s*", "", clean_sub)
+                if "高" in p_val:
+                    actions[-1]["priority"] = "high"
+                elif "低" in p_val:
+                    actions[-1]["priority"] = "low"
+                else:
+                    actions[-1]["priority"] = "medium"
                 continue
             if line_s.startswith(("- 原文依据：", "原文依据：", ">", "》")) and any(q in line_s for q in ('"', "'", '“', '”')):
                 if "原文依据：" in line_s:
@@ -2040,17 +2063,33 @@ def render_actions_html(title: str, text: str, data: dict | None = None) -> str:
     包含列：序号、待办事项、优先级、负责人、截止时间。
     支持在待办事项下方清晰呈现交付成果与前置依赖。
     """
+    if hasattr(data, "model_dump"):
+        data = data.model_dump()
     raw_actions = (data or {}).get("actions")
+    if not (isinstance(raw_actions, list) and raw_actions):
+        combined = []
+        if isinstance(data, dict):
+            for k in ("my_actions", "delegated_actions", "unassigned_actions"):
+                val = data.get(k)
+                if isinstance(val, list):
+                    combined.extend(val)
+        if combined:
+            raw_actions = combined
+
     if isinstance(raw_actions, list) and raw_actions and isinstance(raw_actions[0], dict):
         actions = raw_actions
     else:
         actions = _parse_actions_from_text(text)
 
-    display_title = "待办事项清单"
+    display_title = title or "待办事项清单"
     prio_map = {
         "high": ("高优先", "ck-s"),
         "高优先": ("高优先", "ck-s"),
         "高": ("高优先", "ck-s"),
+        "medium": ("中优先", "ck-a"),
+        "中优先": ("中优先", "ck-a"),
+        "中": ("中优先", "ck-a"),
+        "normal": ("中优先", "ck-a"),
         "low": ("低优先", "ck-b"),
         "低优先": ("低优先", "ck-b"),
         "低": ("低优先", "ck-b"),
@@ -2066,7 +2105,7 @@ def render_actions_html(title: str, text: str, data: dict | None = None) -> str:
         dependency = escape(str(item.get("dependency") or "").strip(), quote=False)
         evidence = escape(str(item.get("evidence") or "").strip().strip("“”\"'"), quote=False)
         prio_key = str(item.get("priority") or "medium").lower().strip()
-        prio_cn, prio_cls = prio_map.get(prio_key, ("—", ""))
+        prio_cn, prio_cls = prio_map.get(prio_key, ("中优先", "ck-a"))
 
         owner_display = f'<div style="text-align: center; font-weight: 500;">{owner}</div>' if (owner and owner not in ("未分配", "null", "None", "无", "-", "待定", "待确认")) else '<div style="text-align: center; color: #888;">—</div>'
         if owner and ("待定" in owner or "待确认" in owner or "待认领" in owner):

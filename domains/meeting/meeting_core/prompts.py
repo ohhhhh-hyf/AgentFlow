@@ -41,20 +41,9 @@ topics：核心业务议题树，一个独立议题一个对象。
 - risks：挂载在本议题下的风险与隐患清单（risk 隐患描述、severity high/medium/low、impact 潜在后果、mitigation 应对措施、owner、evidence 依据）；
 - open_issues：本议题尚未达成一致或需后续跟进的敞口事项（无则 []）。
 
-decisions：已拍板决议全局汇总；无或已在 topics 中详填时可给 []。
-
-open_questions：未确认或需跟进问题全局汇总；无或已在 topics 中详填时可给 []。
-
-risks：风险信号全局汇总；无或已在 topics 中详填时可给 []。
-
-action_hints：待办候选线索汇总（若填写每条含 action, owner, timing, condition, topic, kind, evidence；无或已在 topics 详填可给 []）。
-
-risk_hints：风险候选线索汇总（若填写每条含 risk, topic, signal_type, severity_evidence, impact, mitigation, owner, evidence；无或已在 topics 详填可给 []）。
-
-dependencies：原文明确的前置依赖或「等 X 后才能 Y」关系；无则 []。
-
 ## 输出纪律
 
-- 事实内聚优先：每个议题的争辩、决策、动作、隐患优先完整组织在 topics 对应节点中。
+- 事实内聚优先：每个议题的争辩、决策、动作、隐患必须完整组织在 topics 对应节点中。
+- actions 与 risks 全量深挖：凡原文有明确动作线索（谁/做什么/时限/成果物/前置），必须详尽收录在对应议题的 actions 中；凡原文有隐患/卡点/担忧/制约，必须逐条收录在对应议题的 risks 中。
 - evidence 必须来自原文。没有证据，不要输出该动作或风险。
 - 输出前自检：议题是否覆盖主线；决策/待办/风险/未决是否按规则区分；actions 与 risks 是否都有 evidence。"""

@@ -367,10 +367,6 @@ _LINES_FORMATTERS: dict[str, object] = {
 UNDERSTANDING_SKIP_FIELDS: dict[str, frozenset[str]] = {
     "actions": frozenset({"topics", "risks", "open_questions", "risk_hints"}),
     "risks": frozenset({"topics", "action_hints"}),
-    # minutes 线只消费 pack 里的 brief/purpose/scene/topics/decisions/risks/open_questions：
-    # action_hints / risk_hints / dependencies（待办线与风险线的线索）它从不使用；
-    # risks / open_questions 是否再跳由模板栏位决定——模板没有风险/未决栏就没有落点，
-    # 见 understanding_skip.py（发布会/课堂/讲座/访谈类都不带这两栏）。
     "minutes": frozenset({"risk_hints", "action_hints", "dependencies"}),
 }
 

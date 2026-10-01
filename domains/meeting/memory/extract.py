@@ -243,7 +243,18 @@ def _topic_conclusions(understanding: dict[str, Any]) -> list[str]:
 def _action_items(understanding: dict[str, Any]) -> list[dict[str, str]]:
     rows: list[dict[str, str]] = []
     seen: set[str] = set()
-    for item in understanding.get("action_hints") or []:
+    source = list(understanding.get("action_hints") or [])
+    if not source:
+        for t in (understanding.get("topics") or []):
+            if isinstance(t, dict):
+                for a in (t.get("actions") or []):
+                    if isinstance(a, dict):
+                        source.append({
+                            "action": a.get("task") or a.get("action") or "",
+                            "owner": a.get("owner") or "",
+                            "timing": a.get("deadline") or a.get("timing") or "",
+                        })
+    for item in source:
         if isinstance(item, dict):
             text = _clean(item.get("action") or item.get("text"))
             owner = _clean(item.get("owner"))
@@ -339,9 +350,33 @@ def extract_meeting_fact(
     time: str = "",
 ) -> MeetingFact:
     data = understanding if isinstance(understanding, dict) else {}
+    topics = data.get("topics") or []
     decisions = _str_list(data.get("decisions"))
+    if not decisions and isinstance(topics, list):
+        for t in topics:
+            if isinstance(t, dict):
+                for d in (t.get("decisions") or []):
+                    if d and str(d).strip() and str(d).strip() not in decisions:
+                        decisions.append(str(d).strip())
+
     opens = _str_list(data.get("open_questions"))
+    if not opens and isinstance(topics, list):
+        for t in topics:
+            if isinstance(t, dict):
+                for o in (t.get("open_issues") or []):
+                    if o and str(o).strip() and str(o).strip() not in opens:
+                        opens.append(str(o).strip())
+
     risks = _str_list(data.get("risks"))
+    if not risks and isinstance(topics, list):
+        for t in topics:
+            if isinstance(t, dict):
+                for r in (t.get("risks") or []):
+                    if isinstance(r, dict) and r.get("risk"):
+                        r_text = str(r["risk"]).strip()
+                        if r_text and r_text not in risks:
+                            risks.append(r_text)
+
     actions = _action_items(data)
     closed = _closed_items(data, actions)
     title = _meeting_title(data, transcript)

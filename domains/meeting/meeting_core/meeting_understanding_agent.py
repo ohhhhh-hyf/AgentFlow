@@ -83,16 +83,24 @@ def _ensure_derived_fields(result: MeetingUnderstanding) -> None:
             if o and str(o).strip():
                 derived_open.append(str(o).strip())
 
-    if not result.action_hints and derived_actions:
+    derived_dependencies: list[str] = []
+    for a in derived_actions:
+        cond = a.get("condition")
+        if cond and str(cond).strip() and str(cond).strip() not in derived_dependencies:
+            derived_dependencies.append(str(cond).strip())
+
+    if getattr(result, "action_hints", None) is None:
         result.action_hints = derived_actions
-    if not result.risk_hints and derived_risks:
+    if getattr(result, "risk_hints", None) is None:
         result.risk_hints = derived_risks
-    if not result.decisions and derived_decisions:
+    if getattr(result, "decisions", None) is None:
         result.decisions = derived_decisions
-    if not result.risks and derived_risks:
+    if getattr(result, "risks", None) is None:
         result.risks = [r["risk"] for r in derived_risks if r.get("risk")]
-    if not result.open_questions and derived_open:
+    if getattr(result, "open_questions", None) is None:
         result.open_questions = derived_open
+    if getattr(result, "dependencies", None) is None:
+        result.dependencies = derived_dependencies
 
 
 class MeetingUnderstandingAgent:
