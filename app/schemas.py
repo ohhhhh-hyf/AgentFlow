@@ -7,11 +7,11 @@ catalog / checklist 会读取其内容作为「老师重点」。
 """
 from __future__ import annotations
 
-from typing import Optional
+from typing import Any, Optional
 
 import json
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 
 
 def ndjson_line(payload: dict) -> str:
@@ -34,7 +34,16 @@ class Extra(BaseModel):
     subject: str = ""
     style: str = ""
     memory: bool = False
-    agenda: str = ""
+    # 既定议程纯文本内容（用于 agenda_minutes 任务，可直接传纯文本，支持与 docs 附件议程自动合并）
+    agenda_txt: str = ""
+
+    @model_validator(mode="before")
+    @classmethod
+    def _compat_agenda(cls, data: Any) -> Any:
+        if isinstance(data, dict):
+            if "agenda" in data and "agenda_txt" not in data:
+                data["agenda_txt"] = data.pop("agenda")
+        return data
 
 
 class TaskRequest(BaseModel):

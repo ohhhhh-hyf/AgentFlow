@@ -699,7 +699,9 @@ def _prepare(domain: str, task: str, req: TaskRequest, user_id: str) -> _Prepare
             prev = extra_line_inputs.get(line) or ""
             extra_line_inputs[line] = f"{prev}\n\n{teacher_block}".strip()
     if line == "agenda_minutes":
-        agenda_val = (extra.agenda or "").strip() or agenda_from_docs
+        # 既定议程单汇聚：支持 docs（图片OCR/文档文本）与 extra.agenda_txt（纯文本补充）智能拼接合并
+        parts = [p for p in [agenda_from_docs, (extra.agenda_txt or "").strip()] if p]
+        agenda_val = "\n\n".join(parts).strip()
         if agenda_val:
             extra_line_inputs["agenda_minutes"] = agenda_val
     if line in {"review", "quiz"}:
