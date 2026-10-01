@@ -20,6 +20,7 @@ from infra.storage.document_processor import IMAGE_EXTS
 
 from .config import (
     DEFAULT_MINUTES_TEMPLATE,
+    DEFAULT_PERSONAL_MINUTES_TEMPLATE,
     PROJECT_ROOT,
     load_domain,
     load_env,
@@ -452,18 +453,20 @@ def _template_file(
 
     **纪要线留空 → 自动套用默认模板**：
     - 客观模式（profile 为空或 objective）：始终套用「通用纪要」（``DEFAULT_MINUTES_TEMPLATE``）；
-    - 真人模式（profile="user"）：由 ``personal_minutes_template()`` 决定，默认套用「个人视角纪要」
-      （``personal_minutes``），可通过 .env 的 AGENTFLOW_PERSONAL_MINUTES_TEMPLATE 切换回通用纪要。
+    - 真人模式（profile="user"）：直接套用「个人视角纪要」（``DEFAULT_PERSONAL_MINUTES_TEMPLATE``，即 ``personal_minutes``），不再走历史通用模板剪裁模式。
     """
     value = (template_value or "").strip()
     auto_default = False
-    if not value:
-        if domain == "meeting" and line == "minutes":
-            is_personal = (profile_value or "").strip().lower() == "user"
-            value = personal_minutes_template() if is_personal else DEFAULT_MINUTES_TEMPLATE
+    if domain == "meeting" and line == "minutes":
+        is_personal = (profile_value or "").strip().lower() == "user"
+        if not value:
+            value = DEFAULT_PERSONAL_MINUTES_TEMPLATE if is_personal else DEFAULT_MINUTES_TEMPLATE
             auto_default = True
-        else:
-            return None
+        elif is_personal and value in {"general_minutes", "通用纪要"}:
+            # 个人视角不再走历史通用模板剪裁模式，直接走专属个人视角纪要模板
+            value = DEFAULT_PERSONAL_MINUTES_TEMPLATE
+    elif not value:
+        return None
     fmt = resolve_template_format(value)
     if not fmt:
         if auto_default:
