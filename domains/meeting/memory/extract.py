@@ -233,6 +233,10 @@ def _topic_conclusions(understanding: dict[str, Any]) -> list[str]:
             p = _clean(point)
             if p:
                 rows.append(p)
+        for dec in topic.get("decisions") or []:
+            d = _clean(dec)
+            if d:
+                rows.append(d)
     return rows
 
 

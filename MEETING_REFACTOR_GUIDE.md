@@ -34,6 +34,12 @@
 - [x] **Step 5: 全量回归测试与端到端跑通终验**
   - [x] 5.1 运行全域单元测试（`pytest tests/ -q`：181 passed, 1 skipped，100% 绿灯无回归）
   - [x] 5.2 契约与运行时生成区一致性检查（`sync_domain.py --check`：SUCCESS）
+- [x] **Step 6: 全任务提示词与模板协同调优 (Prompt & Template Synergy Tuning)**
+  - [x] 6.1 `meeting_understanding/prompts.py` 结构化议题树提示词适配（强化 context_and_debate、key_metrics、decisions/actions/risks 内聚）
+  - [x] 6.2 `minutes/prompts.py` 上游议题树映射与展开策略调优（以议题树为骨架、会议原文为血肉展开叙述）
+  - [x] 6.3 `actions/prompts.py`、`risks/prompts.py`、`consensus_decision/prompts.py`、`mindmap/prompts.py`、`agenda_minutes/prompts.py`、`minutes_styles/prompts.py`、`minutes_trace/prompts.py` 完整审计与业务契约对齐
+  - [x] 6.4 `resources/templates/` 核心模板 Markdown（general_minutes, personal_minutes, team_meeting）槽位与格式规范审计对齐
+  - [x] 6.5 强化 `memory/extract.py` 对统一议题树 decisions 的解析支持
 
 ---
 

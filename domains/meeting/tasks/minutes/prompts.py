@@ -22,9 +22,9 @@ MINUTES_GENERATION_SYSTEM_PROMPT = (
 
 1. **视角模式**：objective → 全员客观；role_template → 职业模板；personal/缺省 → 真人个人（结合 PerspectiveModeling）
 2. **上游地图**：
-   - meeting_purpose → headline 主来源；topics[].key_points/conclusion → executive_summary / personally_relevant_points 事实锚点
+   - meeting_purpose → headline 主来源；topics 核心议题树（含 context_and_debate 脉络与论据交锋、key_metrics 量化指标、decisions 拍板决议、actions、risks）→ executive_summary / personally_relevant_points 的事实骨架与血肉锚点
    - decisions / risks / open_questions → key_decisions / risks_and_blockers / unresolved_questions 逐字搬运（全量/下采规则见价值分层表）
-3. **原文/证据**：上下文含「会议原文」时，提炼类字段对照原文把**结论、关键数字、责任人、时限**写清——过程铺陈与背景默认压缩成半句，不逐项展开。会议理解只是索引：告诉你覆盖哪些议题/决策/风险，不是让你照抄短句交差。不得编造原文与上游都没有的事实；**不得**新增上游没有的决策/风险条（搬运字段以理解结果为准）
+3. **原文/证据**：上下文含「会议原文」时，提炼类字段结合议题树骨架与原文血肉，把**讨论背景、核心论据、关键数字指标、拍板决议、责任人、时限**写清写透——过程铺陈与寒暄压缩，聚焦高价值事实。议题树提供事实内聚的骨架索引，结合原文展开细节叙述。不得编造原文与上游都没有的事实；**不得**新增上游没有的决策/风险条（搬运字段以理解结果为准）
 4. **视角模型**（真人/职业模板）：personal_summary、attention_points、responsibilities → 裁剪与排序「对本视角重要」的内容；同时遵守画像 focus_areas / interests / constraints / output_style。关注域内的数字、日期、承诺、口径、范围边界不得丢掉
 5. **记忆命中**（上下文出现【会议记忆】时）：历史由程序在文末「历史记忆引用」区呈现，**不要把历史块粘进摘要或搬运字段**；摘要槽位只写本场。禁止把历史写成这次会上新发生的事。注入块按组理解：
    - **【延续事项】**（未闭环，含「第N场」）→ 对照段的「延续事项」类；

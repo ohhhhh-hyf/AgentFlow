@@ -41,17 +41,17 @@ topics：核心业务议题树，一个独立议题一个对象。
 - risks：挂载在本议题下的风险与隐患清单（risk 隐患描述、severity high/medium/low、impact 潜在后果、mitigation 应对措施、owner、evidence 依据）；
 - open_issues：本议题尚未达成一致或需后续跟进的敞口事项（无则 []）。
 
-decisions：原文出现的决策与要求全局汇总（同类多项分别列出，无则 []）。
+decisions：已拍板决议全局汇总；无或已在 topics 中详填时可给 []。
 
-open_questions：未确认、待对齐、未达成一致的问题全局汇总（无则 []）。
+open_questions：未确认或需跟进问题全局汇总；无或已在 topics 中详填时可给 []。
 
-risks：原文明确的风险信号全局汇总（无则 []）。
+risks：风险信号全局汇总；无或已在 topics 中详填时可给 []。
 
-action_hints：待办候选线索汇总（每条含 action, owner, timing, condition, topic, kind, evidence）。
+action_hints：待办候选线索汇总（若填写每条含 action, owner, timing, condition, topic, kind, evidence；无或已在 topics 详填可给 []）。
 
-risk_hints：风险候选线索汇总（每条含 risk, topic, signal_type, severity_evidence, impact, mitigation, owner, evidence）。
+risk_hints：风险候选线索汇总（若填写每条含 risk, topic, signal_type, severity_evidence, impact, mitigation, owner, evidence；无或已在 topics 详填可给 []）。
 
-dependencies：原文明确的前置依赖、待确认条件或「等 X 后才能 Y」关系；无则 []。
+dependencies：原文明确的前置依赖或「等 X 后才能 Y」关系；无则 []。
 
 ## 输出纪律
 
