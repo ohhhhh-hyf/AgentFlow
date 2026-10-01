@@ -207,7 +207,6 @@ _REJECT_CHECKLIST_REVIEW = {
     "feedback": ["LLM 调用失败，未完成审核，转降级输出"],
 }
 
-
 # ── 拒绝审核常量生成区结束 ──
 
 # ── 任务线注册生成区：由 tools/codegen/sync_domain.py 生成，勿手改 ──

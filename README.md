@@ -65,6 +65,10 @@ AgentFlow/
 ├── data/                         # 【多租户数据持久化根】严格按 {user_id} 物理隔离的沙箱
 │   └── {user_id}/                # 租户独立命名空间（docs 原始素材、output 产物、knowledge 索引）
 │
+├── tools/                        # 【离线研发运维工具集】代码生成脚手架与排查运维（生产严禁反向依赖）
+│   ├── codegen/                  # 领域/任务线代码生成（register_domain, register_task, sync_domain）
+│   └── devtools/                 # 离线数据排查与维护（check_user_profile, purge_kb_source）
+│
 └── tests/                        # 【自动化测试中心】零 LLM 单元测试与集成测试套件
     ├── test_core.py              # 画像选档、角色合并与基础不变量测试
     ├── test_engine_smoke.py      # DAG 拓扑图与纯事件流调度冒烟测试
@@ -290,13 +294,29 @@ python -m pytest tests/test_template_router.py  # 模板判型、占位填充与
 
 ## 八、领域与任务线标准扩展指南
 
-系统遵循开放封闭原则（Open-Closed Principle），扩展全新的垂直领域或在现有领域下新增任务线，零侵入核心编排引擎：
+系统遵循开放封闭原则（Open-Closed Principle）。通过内置的脚手架工具集（`tools/codegen/`），新增业务领域与任务线可实现开箱即用的自动化装配：
 
-1. **定义契约**：在 `domains/<domain>/tasks/<task>/contracts.py` 中声明 Pydantic 输出模型契约与字段规则；
-2. **定义 Prompt**：在 `domains/<domain>/tasks/<task>/prompts.py` 中编写包含明确结构化规范的 Prompt 模板；
-3. **编排步骤**：在 `domains/<domain>/tasks/<task>/steps/` 中实现对应 Agent 的生成节点与审核节点；
-4. **挂载生命周期**：在 `domains/<domain>/hooks.py` 中声明专有渲染逻辑（`html_for`）或预处理逻辑（`prepare_task_input`）；
-5. **注册任务白名单**：在 `app/tasklines.py` 的白名单配置中登记新任务线。系统将自动为其挂载 HTTP 接入端点与监控报表。
+### 1. 新建垂直领域
+```bash
+python tools/codegen/register_domain.py --domain notes --name "笔记"
+```
+自动生成统一目录规范、工厂、配置和内置的视角建模（Perspective）。
+
+### 2. 新建任务线骨架
+```bash
+python tools/codegen/register_task.py --domain notes --task digest --name "摘要" --with-report
+```
+1. 自动生成契约模板（`contracts.py`）、提示词模板（`prompts.py`）、步骤实现（`steps/`）与最终报表模型（`reports.py`）；
+2. 根据业务在 `contracts.py` 中定义结构化字段与审核规则，在 `prompts.py` 中编写精准提示词；
+3. 一键同步代码生成区并执行静态一致性校验：
+   ```bash
+   # 同步并写入全量生成区
+   python tools/codegen/sync_domain.py --domain notes
+
+   # CI 级别一致性严格校验
+   python tools/codegen/sync_domain.py --domain notes --check
+   ```
+4. 在 `domains/<domain>/hooks.py` 挂载专有 HTML 导出器（如有），并在 `app/tasklines.py` 声明该任务线。系统将自动为其挂载 HTTP 接入端点与监控报表。
 
 ---
 
