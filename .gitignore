@@ -6,7 +6,6 @@ __pycache__/
 .idea/
 
 # 只忽略仓库根目录的记忆落盘，不要误伤 tools/memory 源码包
-/memory/
 .claude/
 .reasonix/
 
@@ -16,5 +15,4 @@ __pycache__/
 .codegraph/
 .cac/
 .vscode/
-/logs/
 

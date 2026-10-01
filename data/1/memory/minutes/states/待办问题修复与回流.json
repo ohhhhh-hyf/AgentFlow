@@ -1,0 +1,854 @@
+{
+  "project_id": "待办问题修复与回流",
+  "name": "待办问题修复与回流",
+  "anchors": [
+    "待办问题修复与回流",
+    "并确认ASR模型优化",
+    "demo搭建及资源规划等事项",
+    "会议围绕ASR模型优化",
+    "端到端demo搭建及资源规划展开",
+    "demo集成与链路打通",
+    "网页demo集成会议摘要和非实时转写功能",
+    "ASR指标评测结果未出",
+    "人测试集confusion差距待改善",
+    "平板端到端demo依赖多个团队",
+    "confusion",
+    "Java侧问题处理",
+    "会议围绕Java侧问题",
+    "ASR效果",
+    "ASR模型效果评估",
+    "demo阶段直接走翻译云",
+    "WeLink打标进度慢"
+  ],
+  "decisions": [
+    {
+      "item_id": "d1",
+      "text": "待办问题已修复，包括端侧未显示和大模型返回多引号问题。",
+      "status": "active",
+      "meeting_id": "m_0bb210689d8e4a19b9a87cc03741d816",
+      "last_seen": "m_0bb210689d8e4a19b9a87cc03741d816",
+      "meeting_title": "ASR模型优化与端到端demo推进例会",
+      "time": "2026-09-01",
+      "time_source": "user",
+      "quote": "武思华 02:02:11 第二就是那个什么就是那个大模型返回的时候多多引号，这个我已经改的测试环境，测试环境已经固上了。"
+    },
+    {
+      "item_id": "d2",
+      "text": "先借资源部署测试版本，效果认可后再申请资源。",
+      "status": "active",
+      "meeting_id": "m_0bb210689d8e4a19b9a87cc03741d816",
+      "last_seen": "m_0bb210689d8e4a19b9a87cc03741d816",
+      "meeting_title": "ASR模型优化与端到端demo推进例会",
+      "time": "2026-09-01",
+      "time_source": "user",
+      "quote": "产品那边的认可，然后我们确定能上之后再去申请资源，但是我估计一次性也申请不到特别多。"
+    },
+    {
+      "item_id": "d3",
+      "text": "网页demo集成会议摘要和非实时转写功能。",
+      "status": "active",
+      "meeting_id": "m_0bb210689d8e4a19b9a87cc03741d816",
+      "last_seen": "m_0bb210689d8e4a19b9a87cc03741d816",
+      "meeting_title": "ASR模型优化与端到端demo推进例会",
+      "time": "2026-09-01",
+      "time_source": "user",
+      "quote": "需要演示，我们有个网页demo先能呈现，对吧？"
+    },
+    {
+      "item_id": "d4",
+      "text": "主干侧主动锻炼不统计成功率。",
+      "status": "active",
+      "meeting_id": "m_fed350b409624b5b81d4b1448118bfb1",
+      "last_seen": "m_fed350b409624b5b81d4b1448118bfb1",
+      "meeting_title": "多模块进展同步与930节点冲刺例会",
+      "time": "2026-09-08",
+      "time_source": "user",
+      "quote": "武思华 00:36:46 这个我觉得就是咱们这边做一下处理就完了，就是主干侧主动锻炼，咱就不统计成功率了。"
+    },
+    {
+      "item_id": "d5",
+      "text": "930前至少实现单卡四路并发，效果持平4.0。",
+      "status": "active",
+      "meeting_id": "m_fed350b409624b5b81d4b1448118bfb1",
+      "last_seen": "m_fed350b409624b5b81d4b1448118bfb1",
+      "meeting_title": "多模块进展同步与930节点冲刺例会",
+      "time": "2026-09-08",
+      "time_source": "user",
+      "quote": "徐玥 01:15:51 对，效果是我理解至少应该持平4.0。"
+    },
+    {
+      "item_id": "d6",
+      "text": "集中人力做并发提升，不并行做两个方案。",
+      "status": "active",
+      "meeting_id": "m_fed350b409624b5b81d4b1448118bfb1",
+      "last_seen": "m_fed350b409624b5b81d4b1448118bfb1",
+      "meeting_title": "多模块进展同步与930节点冲刺例会",
+      "time": "2026-09-08",
+      "time_source": "user",
+      "quote": "这种方案是一个相对改动比较小的这么一个方案。"
+    },
+    {
+      "item_id": "d7",
+      "text": "demo阶段直接走翻译云。",
+      "status": "active",
+      "meeting_id": "m_fed350b409624b5b81d4b1448118bfb1",
+      "last_seen": "m_fed350b409624b5b81d4b1448118bfb1",
+      "meeting_title": "多模块进展同步与930节点冲刺例会",
+      "time": "2026-09-08",
+      "time_source": "user",
+      "quote": "徐玥 01:04:14 我建议你demo阶段直接做翻译云。"
+    }
+  ],
+  "open_items": [
+    {
+      "item_id": "o1",
+      "text": "端侧版本修复时间未确认。",
+      "status": "open",
+      "since": "m_0bb210689d8e4a19b9a87cc03741d816",
+      "last_seen": "m_0bb210689d8e4a19b9a87cc03741d816",
+      "meeting_title": "ASR模型优化与端到端demo推进例会",
+      "time": "2026-09-01",
+      "time_source": "user",
+      "quote": "",
+      "kind": "open",
+      "owner": "武思华",
+      "timing": ""
+    },
+    {
+      "item_id": "o2",
+      "text": "ASR指标评测结果未出。",
+      "status": "open",
+      "since": "m_0bb210689d8e4a19b9a87cc03741d816",
+      "last_seen": "m_0bb210689d8e4a19b9a87cc03741d816",
+      "meeting_title": "ASR模型优化与端到端demo推进例会",
+      "time": "2026-09-01",
+      "time_source": "user",
+      "quote": "",
+      "kind": "open",
+      "owner": "郭慧敏",
+      "timing": ""
+    },
+    {
+      "item_id": "o3",
+      "text": "现网流量数据口径待确认。",
+      "status": "open",
+      "since": "m_0bb210689d8e4a19b9a87cc03741d816",
+      "last_seen": "m_0bb210689d8e4a19b9a87cc03741d816",
+      "meeting_title": "ASR模型优化与端到端demo推进例会",
+      "time": "2026-09-01",
+      "time_source": "user",
+      "quote": "然后另外一个就是上周那个崔辉，你这边不是说让我们查一下那个现网流量。",
+      "kind": "open",
+      "owner": "范炳杰",
+      "timing": ""
+    },
+    {
+      "item_id": "o4",
+      "text": "0-6人测试集confusion差距待改善。",
+      "status": "open",
+      "since": "m_0bb210689d8e4a19b9a87cc03741d816",
+      "last_seen": "m_0bb210689d8e4a19b9a87cc03741d816",
+      "meeting_title": "ASR模型优化与端到端demo推进例会",
+      "time": "2026-09-01",
+      "time_source": "user",
+      "quote": "盛晋珲 02:42:12 就是confusion还是提升比较大。",
+      "kind": "open",
+      "owner": "",
+      "timing": ""
+    },
+    {
+      "item_id": "o5",
+      "text": "刘师测试报告未确认。",
+      "status": "open",
+      "since": "m_fed350b409624b5b81d4b1448118bfb1",
+      "last_seen": "m_fed350b409624b5b81d4b1448118bfb1",
+      "meeting_title": "多模块进展同步与930节点冲刺例会",
+      "time": "2026-09-08",
+      "time_source": "user",
+      "quote": "申家坤 00:35:58 那测试报告都能出来？",
+      "kind": "open",
+      "owner": "武思华",
+      "timing": ""
+    },
+    {
+      "item_id": "o6",
+      "text": "长文本优化方案待定。",
+      "status": "open",
+      "since": "m_fed350b409624b5b81d4b1448118bfb1",
+      "last_seen": "m_fed350b409624b5b81d4b1448118bfb1",
+      "meeting_title": "多模块进展同步与930节点冲刺例会",
+      "time": "2026-09-08",
+      "time_source": "user",
+      "quote": "",
+      "kind": "open",
+      "owner": "",
+      "timing": ""
+    },
+    {
+      "item_id": "o7",
+      "text": "链路方案待杨老师确认。",
+      "status": "open",
+      "since": "m_fed350b409624b5b81d4b1448118bfb1",
+      "last_seen": "m_fed350b409624b5b81d4b1448118bfb1",
+      "meeting_title": "多模块进展同步与930节点冲刺例会",
+      "time": "2026-09-08",
+      "time_source": "user",
+      "quote": "",
+      "kind": "open",
+      "owner": "",
+      "timing": ""
+    }
+  ],
+  "actions": [
+    {
+      "item_id": "a1",
+      "text": "让华山加数据表以便查询",
+      "status": "open",
+      "since": "m_0bb210689d8e4a19b9a87cc03741d816",
+      "last_seen": "m_0bb210689d8e4a19b9a87cc03741d816",
+      "meeting_title": "ASR模型优化与端到端demo推进例会",
+      "time": "2026-09-01",
+      "time_source": "user",
+      "quote": "",
+      "kind": "action",
+      "owner": "武思华",
+      "timing": ""
+    },
+    {
+      "item_id": "a2",
+      "text": "爬取特定领域术语数据",
+      "status": "open",
+      "since": "m_0bb210689d8e4a19b9a87cc03741d816",
+      "last_seen": "m_0bb210689d8e4a19b9a87cc03741d816",
+      "meeting_title": "ASR模型优化与端到端demo推进例会",
+      "time": "2026-09-01",
+      "time_source": "user",
+      "quote": "",
+      "kind": "action",
+      "owner": "徐玥",
+      "timing": ""
+    },
+    {
+      "item_id": "a3",
+      "text": "申请测试环境资源",
+      "status": "open",
+      "since": "m_0bb210689d8e4a19b9a87cc03741d816",
+      "last_seen": "m_0bb210689d8e4a19b9a87cc03741d816",
+      "meeting_title": "ASR模型优化与端到端demo推进例会",
+      "time": "2026-09-01",
+      "time_source": "user",
+      "quote": "武思华 02:02:11 第二就是那个什么就是那个大模型返回的时候多多引号，这个我已经改的测试环境，测试环境已经固上了。",
+      "kind": "action",
+      "owner": "徐玥",
+      "timing": ""
+    },
+    {
+      "item_id": "a4",
+      "text": "审查文德标注数据",
+      "status": "open",
+      "since": "m_0bb210689d8e4a19b9a87cc03741d816",
+      "last_seen": "m_0bb210689d8e4a19b9a87cc03741d816",
+      "meeting_title": "ASR模型优化与端到端demo推进例会",
+      "time": "2026-09-01",
+      "time_source": "user",
+      "quote": "",
+      "kind": "action",
+      "owner": "姜彪",
+      "timing": "本周"
+    },
+    {
+      "item_id": "a5",
+      "text": "呼吁大家参与标注",
+      "status": "open",
+      "since": "m_0bb210689d8e4a19b9a87cc03741d816",
+      "last_seen": "m_0bb210689d8e4a19b9a87cc03741d816",
+      "meeting_title": "ASR模型优化与端到端demo推进例会",
+      "time": "2026-09-01",
+      "time_source": "user",
+      "quote": "",
+      "kind": "action",
+      "owner": "姜彪",
+      "timing": ""
+    },
+    {
+      "item_id": "a6",
+      "text": "集成非实时转写功能到网页demo",
+      "status": "open",
+      "since": "m_0bb210689d8e4a19b9a87cc03741d816",
+      "last_seen": "m_0bb210689d8e4a19b9a87cc03741d816",
+      "meeting_title": "ASR模型优化与端到端demo推进例会",
+      "time": "2026-09-01",
+      "time_source": "user",
+      "quote": "",
+      "kind": "action",
+      "owner": "范炳杰",
+      "timing": ""
+    },
+    {
+      "item_id": "a7",
+      "text": "修复麦克风与内录双信号问题",
+      "status": "open",
+      "since": "m_0bb210689d8e4a19b9a87cc03741d816",
+      "last_seen": "m_0bb210689d8e4a19b9a87cc03741d816",
+      "meeting_title": "ASR模型优化与端到端demo推进例会",
+      "time": "2026-09-01",
+      "time_source": "user",
+      "quote": "",
+      "kind": "action",
+      "owner": "范炳杰",
+      "timing": "本周"
+    },
+    {
+      "item_id": "a8",
+      "text": "加入新数据再测试流式续写",
+      "status": "open",
+      "since": "m_0bb210689d8e4a19b9a87cc03741d816",
+      "last_seen": "m_0bb210689d8e4a19b9a87cc03741d816",
+      "meeting_title": "ASR模型优化与端到端demo推进例会",
+      "time": "2026-09-01",
+      "time_source": "user",
+      "quote": "",
+      "kind": "action",
+      "owner": "李梦甜",
+      "timing": ""
+    },
+    {
+      "item_id": "a9",
+      "text": "反馈产品端侧修改需求",
+      "status": "open",
+      "since": "m_fed350b409624b5b81d4b1448118bfb1",
+      "last_seen": "m_fed350b409624b5b81d4b1448118bfb1",
+      "meeting_title": "多模块进展同步与930节点冲刺例会",
+      "time": "2026-09-08",
+      "time_source": "user",
+      "quote": "",
+      "kind": "action",
+      "owner": "申家坤",
+      "timing": ""
+    },
+    {
+      "item_id": "a10",
+      "text": "测竞品长文本时延",
+      "status": "open",
+      "since": "m_fed350b409624b5b81d4b1448118bfb1",
+      "last_seen": "m_fed350b409624b5b81d4b1448118bfb1",
+      "meeting_title": "多模块进展同步与930节点冲刺例会",
+      "time": "2026-09-08",
+      "time_source": "user",
+      "quote": "",
+      "kind": "action",
+      "owner": "申家坤",
+      "timing": ""
+    },
+    {
+      "item_id": "a11",
+      "text": "询问推理优化方式",
+      "status": "open",
+      "since": "m_fed350b409624b5b81d4b1448118bfb1",
+      "last_seen": "m_fed350b409624b5b81d4b1448118bfb1",
+      "meeting_title": "多模块进展同步与930节点冲刺例会",
+      "time": "2026-09-08",
+      "time_source": "user",
+      "quote": "",
+      "kind": "action",
+      "owner": "申家坤",
+      "timing": ""
+    },
+    {
+      "item_id": "a12",
+      "text": "研究引擎并发优化",
+      "status": "open",
+      "since": "m_fed350b409624b5b81d4b1448118bfb1",
+      "last_seen": "m_fed350b409624b5b81d4b1448118bfb1",
+      "meeting_title": "多模块进展同步与930节点冲刺例会",
+      "time": "2026-09-08",
+      "time_source": "user",
+      "quote": "",
+      "kind": "action",
+      "owner": "范炳杰",
+      "timing": "930"
+    },
+    {
+      "item_id": "a13",
+      "text": "排人力，集中做并发",
+      "status": "open",
+      "since": "m_fed350b409624b5b81d4b1448118bfb1",
+      "last_seen": "m_fed350b409624b5b81d4b1448118bfb1",
+      "meeting_title": "多模块进展同步与930节点冲刺例会",
+      "time": "2026-09-08",
+      "time_source": "user",
+      "quote": "",
+      "kind": "action",
+      "owner": "盛晋珲",
+      "timing": ""
+    },
+    {
+      "item_id": "a14",
+      "text": "导出模型到demo测试",
+      "status": "open",
+      "since": "m_fed350b409624b5b81d4b1448118bfb1",
+      "last_seen": "m_fed350b409624b5b81d4b1448118bfb1",
+      "meeting_title": "多模块进展同步与930节点冲刺例会",
+      "time": "2026-09-08",
+      "time_source": "user",
+      "quote": "",
+      "kind": "action",
+      "owner": "郭慧敏",
+      "timing": ""
+    },
+    {
+      "item_id": "a15",
+      "text": "优化说话人错误率指标",
+      "status": "open",
+      "since": "m_fed350b409624b5b81d4b1448118bfb1",
+      "last_seen": "m_fed350b409624b5b81d4b1448118bfb1",
+      "meeting_title": "多模块进展同步与930节点冲刺例会",
+      "time": "2026-09-08",
+      "time_source": "user",
+      "quote": "",
+      "kind": "action",
+      "owner": "申家坤",
+      "timing": ""
+    },
+    {
+      "item_id": "a16",
+      "text": "加快WeLink打标进度",
+      "status": "open",
+      "since": "m_fed350b409624b5b81d4b1448118bfb1",
+      "last_seen": "m_fed350b409624b5b81d4b1448118bfb1",
+      "meeting_title": "多模块进展同步与930节点冲刺例会",
+      "time": "2026-09-08",
+      "time_source": "user",
+      "quote": "",
+      "kind": "action",
+      "owner": "姜彪",
+      "timing": ""
+    },
+    {
+      "item_id": "a17",
+      "text": "研究翻译云方案",
+      "status": "open",
+      "since": "m_fed350b409624b5b81d4b1448118bfb1",
+      "last_seen": "m_fed350b409624b5b81d4b1448118bfb1",
+      "meeting_title": "多模块进展同步与930节点冲刺例会",
+      "time": "2026-09-08",
+      "time_source": "user",
+      "quote": "",
+      "kind": "action",
+      "owner": "范炳杰",
+      "timing": ""
+    },
+    {
+      "item_id": "a18",
+      "text": "询问杨老师链路方案",
+      "status": "open",
+      "since": "m_fed350b409624b5b81d4b1448118bfb1",
+      "last_seen": "m_fed350b409624b5b81d4b1448118bfb1",
+      "meeting_title": "多模块进展同步与930节点冲刺例会",
+      "time": "2026-09-08",
+      "time_source": "user",
+      "quote": "",
+      "kind": "action",
+      "owner": "徐玥",
+      "timing": ""
+    }
+  ],
+  "recent_meetings": [
+    "m_0bb210689d8e4a19b9a87cc03741d816",
+    "m_fed350b409624b5b81d4b1448118bfb1"
+  ],
+  "risks": [
+    {
+      "item_id": "r1",
+      "text": "现网流量数据口径不一致，影响资源规划准确性。",
+      "status": "active",
+      "since": "m_0bb210689d8e4a19b9a87cc03741d816",
+      "last_seen": "m_0bb210689d8e4a19b9a87cc03741d816",
+      "meeting_title": "ASR模型优化与端到端demo推进例会",
+      "time": "2026-09-01",
+      "time_source": "user",
+      "quote": "然后另外一个就是上周那个崔辉，你这边不是说让我们查一下那个现网流量。"
+    },
+    {
+      "item_id": "r2",
+      "text": "推理性能未优化，并发受限，资源需求大。",
+      "status": "active",
+      "since": "m_0bb210689d8e4a19b9a87cc03741d816",
+      "last_seen": "m_0bb210689d8e4a19b9a87cc03741d816",
+      "meeting_title": "ASR模型优化与端到端demo推进例会",
+      "time": "2026-09-01",
+      "time_source": "user",
+      "quote": ""
+    },
+    {
+      "item_id": "r3",
+      "text": "内部标注进度慢，影响验证集构建。",
+      "status": "active",
+      "since": "m_0bb210689d8e4a19b9a87cc03741d816",
+      "last_seen": "m_fed350b409624b5b81d4b1448118bfb1",
+      "meeting_title": "多模块进展同步与930节点冲刺例会",
+      "time": "2026-09-08",
+      "time_source": "user",
+      "quote": "后就是咱们内部的WeLink打标是有一点进步分的，大家还是在标。"
+    },
+    {
+      "item_id": "r4",
+      "text": "平板端到端demo依赖多个团队，链路打通困难。",
+      "status": "active",
+      "since": "m_0bb210689d8e4a19b9a87cc03741d816",
+      "last_seen": "m_0bb210689d8e4a19b9a87cc03741d816",
+      "meeting_title": "ASR模型优化与端到端demo推进例会",
+      "time": "2026-09-01",
+      "time_source": "user",
+      "quote": "梳理链路，梳理链路，还有为大家端到端demo做了一些。"
+    },
+    {
+      "item_id": "r5",
+      "text": "长文本推理时延高，可能超时。",
+      "status": "active",
+      "since": "m_fed350b409624b5b81d4b1448118bfb1",
+      "last_seen": "m_fed350b409624b5b81d4b1448118bfb1",
+      "meeting_title": "多模块进展同步与930节点冲刺例会",
+      "time": "2026-09-08",
+      "time_source": "user",
+      "quote": ""
+    },
+    {
+      "item_id": "r6",
+      "text": "并发提升可能无法在930前完成。",
+      "status": "active",
+      "since": "m_fed350b409624b5b81d4b1448118bfb1",
+      "last_seen": "m_fed350b409624b5b81d4b1448118bfb1",
+      "meeting_title": "多模块进展同步与930节点冲刺例会",
+      "time": "2026-09-08",
+      "time_source": "user",
+      "quote": "徐玥 01:12:34 你不需要在930打通全量的，你只需要在930之后的那第一个周五我们云测做完转测看行不行？"
+    },
+    {
+      "item_id": "r7",
+      "text": "链路依赖外部团队，可能无法配合。",
+      "status": "active",
+      "since": "m_fed350b409624b5b81d4b1448118bfb1",
+      "last_seen": "m_fed350b409624b5b81d4b1448118bfb1",
+      "meeting_title": "多模块进展同步与930节点冲刺例会",
+      "time": "2026-09-08",
+      "time_source": "user",
+      "quote": ""
+    }
+  ],
+  "summary": "同步各模块进展，明确后续工作安排与关键决策。 议题：Java侧问题处理；长文本与推理优化；引擎并发优化；ASR模型效果评估；数据标注进度 决策：主干侧主动锻炼不统计成功率。；930前至少实现单卡四路并发，效果持平4.0。；集中人力做并发提升，不并行做两个方案。 未决：端侧版本修复时间未确认。；ASR指标评测结果未出。；现网流量数据口径待确认。；0-6人测试集confusion差距待改善。；刘师测试报告未确认。 风险：现网流量数据口径不一致，影响资源规划准确性。；推理性能未优化，并发受限，资源需求大。；内部标注进度慢，影响验证集构建。；平板端到端demo依赖多个团队，链路打通困难。",
+  "events": [
+    {
+      "type": "decision_added",
+      "item_id": "d1",
+      "kind": "decision",
+      "text": "待办问题已修复，包括端侧未显示和大模型返回多引号问题。",
+      "meeting_id": "m_0bb210689d8e4a19b9a87cc03741d816",
+      "time": "2026-09-01"
+    },
+    {
+      "type": "decision_added",
+      "item_id": "d2",
+      "kind": "decision",
+      "text": "先借资源部署测试版本，效果认可后再申请资源。",
+      "meeting_id": "m_0bb210689d8e4a19b9a87cc03741d816",
+      "time": "2026-09-01"
+    },
+    {
+      "type": "decision_added",
+      "item_id": "d3",
+      "kind": "decision",
+      "text": "网页demo集成会议摘要和非实时转写功能。",
+      "meeting_id": "m_0bb210689d8e4a19b9a87cc03741d816",
+      "time": "2026-09-01"
+    },
+    {
+      "type": "added",
+      "item_id": "o1",
+      "kind": "open",
+      "text": "端侧版本修复时间未确认。",
+      "meeting_id": "m_0bb210689d8e4a19b9a87cc03741d816",
+      "time": "2026-09-01"
+    },
+    {
+      "type": "added",
+      "item_id": "o2",
+      "kind": "open",
+      "text": "ASR指标评测结果未出。",
+      "meeting_id": "m_0bb210689d8e4a19b9a87cc03741d816",
+      "time": "2026-09-01"
+    },
+    {
+      "type": "added",
+      "item_id": "o3",
+      "kind": "open",
+      "text": "现网流量数据口径待确认。",
+      "meeting_id": "m_0bb210689d8e4a19b9a87cc03741d816",
+      "time": "2026-09-01"
+    },
+    {
+      "type": "added",
+      "item_id": "o4",
+      "kind": "open",
+      "text": "0-6人测试集confusion差距待改善。",
+      "meeting_id": "m_0bb210689d8e4a19b9a87cc03741d816",
+      "time": "2026-09-01"
+    },
+    {
+      "type": "added",
+      "item_id": "a1",
+      "kind": "action",
+      "text": "让华山加数据表以便查询",
+      "meeting_id": "m_0bb210689d8e4a19b9a87cc03741d816",
+      "time": "2026-09-01"
+    },
+    {
+      "type": "added",
+      "item_id": "a2",
+      "kind": "action",
+      "text": "爬取特定领域术语数据",
+      "meeting_id": "m_0bb210689d8e4a19b9a87cc03741d816",
+      "time": "2026-09-01"
+    },
+    {
+      "type": "added",
+      "item_id": "a3",
+      "kind": "action",
+      "text": "申请测试环境资源",
+      "meeting_id": "m_0bb210689d8e4a19b9a87cc03741d816",
+      "time": "2026-09-01"
+    },
+    {
+      "type": "added",
+      "item_id": "a4",
+      "kind": "action",
+      "text": "审查文德标注数据",
+      "meeting_id": "m_0bb210689d8e4a19b9a87cc03741d816",
+      "time": "2026-09-01"
+    },
+    {
+      "type": "added",
+      "item_id": "a5",
+      "kind": "action",
+      "text": "呼吁大家参与标注",
+      "meeting_id": "m_0bb210689d8e4a19b9a87cc03741d816",
+      "time": "2026-09-01"
+    },
+    {
+      "type": "added",
+      "item_id": "a6",
+      "kind": "action",
+      "text": "集成非实时转写功能到网页demo",
+      "meeting_id": "m_0bb210689d8e4a19b9a87cc03741d816",
+      "time": "2026-09-01"
+    },
+    {
+      "type": "added",
+      "item_id": "a7",
+      "kind": "action",
+      "text": "修复麦克风与内录双信号问题",
+      "meeting_id": "m_0bb210689d8e4a19b9a87cc03741d816",
+      "time": "2026-09-01"
+    },
+    {
+      "type": "added",
+      "item_id": "a8",
+      "kind": "action",
+      "text": "加入新数据再测试流式续写",
+      "meeting_id": "m_0bb210689d8e4a19b9a87cc03741d816",
+      "time": "2026-09-01"
+    },
+    {
+      "type": "risk_added",
+      "item_id": "r1",
+      "kind": "risk",
+      "text": "现网流量数据口径不一致，影响资源规划准确性。",
+      "meeting_id": "m_0bb210689d8e4a19b9a87cc03741d816",
+      "time": "2026-09-01"
+    },
+    {
+      "type": "risk_added",
+      "item_id": "r2",
+      "kind": "risk",
+      "text": "推理性能未优化，并发受限，资源需求大。",
+      "meeting_id": "m_0bb210689d8e4a19b9a87cc03741d816",
+      "time": "2026-09-01"
+    },
+    {
+      "type": "risk_added",
+      "item_id": "r3",
+      "kind": "risk",
+      "text": "内部标注进度慢，影响验证集构建。",
+      "meeting_id": "m_0bb210689d8e4a19b9a87cc03741d816",
+      "time": "2026-09-01"
+    },
+    {
+      "type": "risk_added",
+      "item_id": "r4",
+      "kind": "risk",
+      "text": "平板端到端demo依赖多个团队，链路打通困难。",
+      "meeting_id": "m_0bb210689d8e4a19b9a87cc03741d816",
+      "time": "2026-09-01"
+    },
+    {
+      "type": "decision_added",
+      "item_id": "d4",
+      "kind": "decision",
+      "text": "主干侧主动锻炼不统计成功率。",
+      "meeting_id": "m_fed350b409624b5b81d4b1448118bfb1",
+      "time": "2026-09-08"
+    },
+    {
+      "type": "decision_added",
+      "item_id": "d5",
+      "kind": "decision",
+      "text": "930前至少实现单卡四路并发，效果持平4.0。",
+      "meeting_id": "m_fed350b409624b5b81d4b1448118bfb1",
+      "time": "2026-09-08"
+    },
+    {
+      "type": "decision_added",
+      "item_id": "d6",
+      "kind": "decision",
+      "text": "集中人力做并发提升，不并行做两个方案。",
+      "meeting_id": "m_fed350b409624b5b81d4b1448118bfb1",
+      "time": "2026-09-08"
+    },
+    {
+      "type": "decision_added",
+      "item_id": "d7",
+      "kind": "decision",
+      "text": "demo阶段直接走翻译云。",
+      "meeting_id": "m_fed350b409624b5b81d4b1448118bfb1",
+      "time": "2026-09-08"
+    },
+    {
+      "type": "added",
+      "item_id": "o5",
+      "kind": "open",
+      "text": "刘师测试报告未确认。",
+      "meeting_id": "m_fed350b409624b5b81d4b1448118bfb1",
+      "time": "2026-09-08"
+    },
+    {
+      "type": "added",
+      "item_id": "o6",
+      "kind": "open",
+      "text": "长文本优化方案待定。",
+      "meeting_id": "m_fed350b409624b5b81d4b1448118bfb1",
+      "time": "2026-09-08"
+    },
+    {
+      "type": "added",
+      "item_id": "o7",
+      "kind": "open",
+      "text": "链路方案待杨老师确认。",
+      "meeting_id": "m_fed350b409624b5b81d4b1448118bfb1",
+      "time": "2026-09-08"
+    },
+    {
+      "type": "added",
+      "item_id": "a9",
+      "kind": "action",
+      "text": "反馈产品端侧修改需求",
+      "meeting_id": "m_fed350b409624b5b81d4b1448118bfb1",
+      "time": "2026-09-08"
+    },
+    {
+      "type": "added",
+      "item_id": "a10",
+      "kind": "action",
+      "text": "测竞品长文本时延",
+      "meeting_id": "m_fed350b409624b5b81d4b1448118bfb1",
+      "time": "2026-09-08"
+    },
+    {
+      "type": "added",
+      "item_id": "a11",
+      "kind": "action",
+      "text": "询问推理优化方式",
+      "meeting_id": "m_fed350b409624b5b81d4b1448118bfb1",
+      "time": "2026-09-08"
+    },
+    {
+      "type": "added",
+      "item_id": "a12",
+      "kind": "action",
+      "text": "研究引擎并发优化",
+      "meeting_id": "m_fed350b409624b5b81d4b1448118bfb1",
+      "time": "2026-09-08"
+    },
+    {
+      "type": "added",
+      "item_id": "a13",
+      "kind": "action",
+      "text": "排人力，集中做并发",
+      "meeting_id": "m_fed350b409624b5b81d4b1448118bfb1",
+      "time": "2026-09-08"
+    },
+    {
+      "type": "added",
+      "item_id": "a14",
+      "kind": "action",
+      "text": "导出模型到demo测试",
+      "meeting_id": "m_fed350b409624b5b81d4b1448118bfb1",
+      "time": "2026-09-08"
+    },
+    {
+      "type": "added",
+      "item_id": "a15",
+      "kind": "action",
+      "text": "优化说话人错误率指标",
+      "meeting_id": "m_fed350b409624b5b81d4b1448118bfb1",
+      "time": "2026-09-08"
+    },
+    {
+      "type": "added",
+      "item_id": "a16",
+      "kind": "action",
+      "text": "加快WeLink打标进度",
+      "meeting_id": "m_fed350b409624b5b81d4b1448118bfb1",
+      "time": "2026-09-08"
+    },
+    {
+      "type": "added",
+      "item_id": "a17",
+      "kind": "action",
+      "text": "研究翻译云方案",
+      "meeting_id": "m_fed350b409624b5b81d4b1448118bfb1",
+      "time": "2026-09-08"
+    },
+    {
+      "type": "added",
+      "item_id": "a18",
+      "kind": "action",
+      "text": "询问杨老师链路方案",
+      "meeting_id": "m_fed350b409624b5b81d4b1448118bfb1",
+      "time": "2026-09-08"
+    },
+    {
+      "type": "risk_added",
+      "item_id": "r5",
+      "kind": "risk",
+      "text": "长文本推理时延高，可能超时。",
+      "meeting_id": "m_fed350b409624b5b81d4b1448118bfb1",
+      "time": "2026-09-08"
+    },
+    {
+      "type": "risk_added",
+      "item_id": "r6",
+      "kind": "risk",
+      "text": "并发提升可能无法在930前完成。",
+      "meeting_id": "m_fed350b409624b5b81d4b1448118bfb1",
+      "time": "2026-09-08"
+    },
+    {
+      "type": "risk_added",
+      "item_id": "r7",
+      "kind": "risk",
+      "text": "链路依赖外部团队，可能无法配合。",
+      "meeting_id": "m_fed350b409624b5b81d4b1448118bfb1",
+      "time": "2026-09-08"
+    }
+  ]
+}
