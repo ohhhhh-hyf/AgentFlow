@@ -61,17 +61,21 @@ def load_env() -> None:
     global _env_loaded
     if _env_loaded:
         return
-    from tools.llm.config import load_env as _load_env
+    try:
+        from infra.llm.config import load_env as _load_env
+    except ImportError:
+        from infra.llm.config import load_env as _load_env
 
     _load_env(PROJECT_ROOT / ".env")
     _env_loaded = True
 
 
-# ── 模板源目录（固定为 template）───────────────────────────────
+# ── 模板源目录（优先 resources/templates，回退 template）─────────
 
 def template_dir() -> Path:
-    """当前生效的模板源目录（固定为 template/）。"""
-    path = TEMPLATE_DIR
+    """当前生效的模板源目录（优先 resources/templates/，回退 template/）。"""
+    res_dir = PROJECT_ROOT / "resources" / "templates"
+    path = res_dir if res_dir.is_dir() else (PROJECT_ROOT / "template")
     if path.name not in _template_dir_logged:
         _template_dir_logged.add(path.name)
         logger.info("模板源目录：%s", path)
@@ -156,7 +160,10 @@ def heartbeat_seconds() -> int:
 
 
 def load_domain(name: str):
-    from tools.core.runtime_context import load_domain as _load_domain
+    try:
+        from core.runner.context import load_domain as _load_domain
+    except ImportError:
+        from core.runner.context import load_domain as _load_domain
 
     return _load_domain(name, PROJECT_ROOT)
 
@@ -229,7 +236,10 @@ def _parse_template_md(path: Path) -> dict[str, object] | None:
     与下游 ``wrap_template_requirement`` / ``split_template_meta`` 的分工保持一致。
     """
     try:
-        from tools.templates.router._base import split_template_meta
+        try:
+            from core.templates.router._base import split_template_meta
+        except ImportError:
+            from core.templates.router._base import split_template_meta
 
         raw = path.read_text(encoding="utf-8")
     except Exception:  # noqa: BLE001 - 单文件读失败不影响其它模板
@@ -322,27 +332,32 @@ def resolve_template_format(template_value: str) -> str:
     req = str(item.get("requirement") or "").strip()
     if not fmt:
         return ""
-    from tools.templates.router._base import wrap_template_requirement
+    try:
+        from core.templates.router._base import wrap_template_requirement
+    except ImportError:
+        from core.templates.router._base import wrap_template_requirement
 
     return wrap_template_requirement(fmt, req)
 
 
-# ── 视角注册表（assets/profiles 平铺）────────────────────
-
-PROFILE_DIR = PROJECT_ROOT / "assets" / "profiles"
+RESOURCES_PROFILE_DIR = PROJECT_ROOT / "resources" / "profiles"
+PROFILE_DIR = RESOURCES_PROFILE_DIR if RESOURCES_PROFILE_DIR.is_dir() else (PROJECT_ROOT / "assets" / "profiles")
 
 
 def profile_path(domain: str, profile_value: str, user_id: str = "") -> Path:
-    """extra.profile 值 → 画像文件路径（实现见 ``tools.core.profiles.resolve_profile_file``）。
+    """extra.profile 值 → 画像文件路径（实现见 ``core.runner.profiles.resolve_profile_file``）。
 
     空/缺省 → **默认档：客观全员**（2026-09-21 起不再自动发现 user.json；纪要线再由
     ``extra.template`` 留空自动套「通用纪要」）；``user`` = 真人档案
     ``data/{X-User-Id}/user.json``（缺档案 → 空 Path 由调用方 400）；
     ``objective`` / ``object`` = 客观全员（与空值同档，留作显式表达）；
-    其余按职业模板名查 ``assets/profiles/{name}.json``，
+    其余按职业模板名查 ``resources/profiles/{name}.json``，
     不存在返回空 Path（调用方判 400）。
     """
-    from tools.core.profiles import resolve_profile_file
+    try:
+        from core.runner.profiles import resolve_profile_file
+    except ImportError:
+        from core.runner.profiles import resolve_profile_file
 
     return resolve_profile_file(profile_value, domain=domain, user_id=user_id)
 

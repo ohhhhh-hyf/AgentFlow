@@ -18,10 +18,10 @@ import re
 import sys
 from pathlib import Path
 
-from tools.templates.router._base import iter_placeholders, split_template_meta
-from tools.templates.router._detect import parse_placeholder_template
-from tools.templates.router._gate import scan_fixed_bracket_literals, validate_rendered_output
-from tools.templates.router._placeholder import plan_placeholder_fill
+from core.templates.router._base import iter_placeholders, split_template_meta
+from core.templates.router._detect import parse_placeholder_template
+from core.templates.router._gate import scan_fixed_bracket_literals, validate_rendered_output
+from core.templates.router._placeholder import plan_placeholder_fill
 
 PASS: list[str] = []
 FAIL: list[str] = []
@@ -89,7 +89,7 @@ def test_iter_placeholders() -> None:
 
 def test_line_placeholders_filters_noise() -> None:
     """`_line_placeholders` 仍过滤掉不像占位符的括号（JSON/链接残留）。"""
-    from tools.templates.router._placeholder import _line_placeholders
+    from core.templates.router._placeholder import _line_placeholders
 
     check("不像占位符的整行括号被过滤（如 `[x]`）", _line_placeholders("[x]") == [], "")
     check("像占位符的说明行被保留", len(_line_placeholders("[一段话概括会议主要内容与结论]")) == 1, "")
@@ -115,7 +115,7 @@ def test_prompt_allows_sub_headings() -> None:
     "不要写 Markdown 标题（# / ##）"一刀切挡住 → 拼装路径不产出小标题、自由渲染路径产出，
     同一模板两条路径样式漂移。改成"只禁同级 `#`、允许 `##`/`###`"后两边口径一致。
     """
-    from tools.templates.router._base import _PLACEHOLDER_FILL_SYSTEM as prompt
+    from core.templates.router._base import _PLACEHOLDER_FILL_SYSTEM as prompt
 
     check("填充 prompt 允许栏内用下级标题（提到 `##` 分组的许可）",
           "允许" in prompt and "##" in prompt and "栏内自行分组" in prompt, "")
@@ -151,7 +151,7 @@ def test_gate_direction_and_warning(caplog) -> None:  # type: ignore[no-untyped-
         hits = scan_fixed_bracket_literals(odd)
         check(f"固定段含方括号字面被扫出（{label}）", bool(hits), f"{hits[:1]}")
         caplog.records.clear()
-        with caplog.at_level(logging.WARNING, logger="tools.templates.router._gate"):
+        with caplog.at_level(logging.WARNING, logger="core.templates.router._gate"):
             validate_rendered_output("# 标题\n占位一 见 附件\n", odd)
         check(f"并打出 WARNING（{label}，不再静默逼出复述）",
               any("固定段含方括号字面" in r.getMessage() for r in caplog.records),
@@ -221,7 +221,7 @@ def test_gate_flags_bare_heading() -> None:
     打印，模型漏给字段/留空时就产出「只有栏目标题、正文空着」的半截文档（观感像被截断）；
     自由渲染路径模型自己也会写光杆标题。父标题只带子标题不算空栏，「未提及」算有正文。
     """
-    from tools.execution.hard_execution import empty_section_issues, gate_render_output
+    from core.execution.gate import empty_section_issues, gate_render_output
 
     tpl = (
         "# [沟通概况]\n[一段话概括沟通双方与主题]\n\n"
@@ -249,7 +249,7 @@ def test_missing_field_guard() -> None:
     """漏填兜底：字段缺失 → 点名缺栏重试；三轮仍缺 → 补缺省词保结构（不再退回 freeform）。"""
     import asyncio
 
-    from tools.templates.router._placeholder import fill_placeholder_template
+    from core.templates.router._placeholder import fill_placeholder_template
 
     class _FakeFillClient:
         def __init__(self, payloads: list[str]) -> None:
@@ -300,7 +300,7 @@ def test_table_carried_column_allows_blank() -> None:
     """
     import asyncio
 
-    from tools.templates.router._placeholder import fill_placeholder_template
+    from core.templates.router._placeholder import fill_placeholder_template
 
     tpl = (
         "# [候选人概况]\n[一段话概括候选人]\n\n"
@@ -332,8 +332,8 @@ def test_table_carried_column_allows_blank() -> None:
 
 def test_fill_prompt_requires_all_keys() -> None:
     """提示层：输出约定与字段清单都点明「键必须齐全」（缺键＝漏填）。"""
-    from tools.templates.router._base import _PLACEHOLDER_FILL_SYSTEM as system
-    from tools.templates.router._placeholder import build_placeholder_fill_user
+    from core.templates.router._base import _PLACEHOLDER_FILL_SYSTEM as system
+    from core.templates.router._placeholder import build_placeholder_fill_user
 
     user = build_placeholder_fill_user("内容来源：略。", FILL_TPL)
     check("系统提示要求 fields 覆盖全部编号", "必须给出清单里的全部编号" in system, "")
@@ -364,8 +364,8 @@ def test_table_caption_not_a_field() -> None:
     模型把明细全写进表格后只能填「未提及」→ 产出「标题 + 未提及 + 九行表格」的自相矛盾形态
     （项目进度会的进度追踪/风险预警、面试报告的能力评估）；庭审记录则把诉辩表改写成散文。
     """
-    from tools.templates.router._base import is_table_caption, table_caption_lines
-    from tools.templates.router._placeholder import assemble_placeholder_output, plan_placeholder_fill
+    from core.templates.router._base import is_table_caption, table_caption_lines
+    from core.templates.router._placeholder import assemble_placeholder_output, plan_placeholder_fill
 
     plan = plan_placeholder_fill(CAPTION_TPL)
     hints = [str(s.get("hint") or "") for s in plan["scalars"]]
@@ -397,10 +397,10 @@ def test_shape_rules_in_prompts() -> None:
     （团队例会 `**参数修改**：✅ 已完成，修改了参数。`）。两条路径共用同一套规则后，
     同一模板不再因走哪条路径而漂移。
     """
-    from tools.templates.template_prompt import PLACEHOLDER_RULES
+    from core.templates.template_prompt import PLACEHOLDER_RULES
 
-    from tools.templates.router._base import _PLACEHOLDER_FILL_SYSTEM as fill_system
-    from tools.templates.router._placeholder import build_placeholder_fill_user
+    from core.templates.router._base import _PLACEHOLDER_FILL_SYSTEM as fill_system
+    from core.templates.router._placeholder import build_placeholder_fill_user
 
     user = build_placeholder_fill_user("内容来源：略。", FILL_TPL)
     for label, text in (
@@ -510,7 +510,7 @@ def test_template_shape_instructions() -> None:
 
 def test_advisory_checks() -> None:
     """咨询级检查：超长条/超长段/缺失说明句被抓出来，且不影响 gate_ok（不触发返工）。"""
-    from tools.execution.hard_execution import (
+    from core.execution.gate import (
         advisory_issues,
         gate_render_output,
         overlong_items,
@@ -553,7 +553,7 @@ def test_supervisor_unavailable_flow() -> None:
     """
     import asyncio
 
-    from tools.core.domain_engine import DomainNodes
+    from core.graph.nodes import DomainNodes
 
     class _Boom:
         async def review(self, context: str):  # noqa: ANN001
@@ -602,17 +602,17 @@ def test_minutes_chain_consistency() -> None:
     与装配侧冲突——"每栏至少 2 个分类标签"正是标签复用（行20「盖章互动」×4）的成因；
     ③审核"无锚点空条/关键遗漏"会把合规的合并段判成空条，是剩余降级路径。
     """
-    from domain.meeting.tasks.minutes.contracts import MINUTES_GENERATION_OUTPUT_CONTRACT as gen_contract
-    from domain.meeting.tasks.minutes.prompts import (
+    from domains.meeting.tasks.minutes.contracts import MINUTES_GENERATION_OUTPUT_CONTRACT as gen_contract
+    from domains.meeting.tasks.minutes.prompts import (
         MINUTES_GENERATION_SYSTEM_PROMPT as draft,
         MINUTES_RENDER_PROMPT as render,
         MINUTES_SUPERVISOR_DOMAIN_PROMPT as supervisor,
     )
-    from tools.templates.body_rules import BODY_FORMAT_RULES
-    from tools.templates.template_prompt import PLACEHOLDER_RULES
+    from core.templates.body_rules import BODY_FORMAT_RULES
+    from core.templates.template_prompt import PLACEHOLDER_RULES
 
-    from tools.templates.router._base import _PLACEHOLDER_FILL_SYSTEM as fill_system
-    from tools.templates.router._placeholder import build_placeholder_fill_user
+    from core.templates.router._base import _PLACEHOLDER_FILL_SYSTEM as fill_system
+    from core.templates.router._placeholder import build_placeholder_fill_user
 
     user = build_placeholder_fill_user("内容来源：略。", FILL_TPL)
     # ③ 形态单点化：五处逐字包含同一份规则
@@ -646,7 +646,7 @@ def test_minutes_chain_consistency() -> None:
 
     # ④ 篇幅口径三层同源（2026-09-22）：要求线（进 prompt）→ 拆分线（×1.2）→ 检查线（×1.5）
     # 兜底（重写/按句界截断）在动作层，不再有硬编码的 320/200。
-    from tools.execution.hard_execution import (
+    from core.execution.gate import (
         _CHECK_RATIO,
         _ITEM_CHECK_HAN,
         _ITEM_REQUIRE_HAN,
@@ -666,7 +666,7 @@ def test_minutes_chain_consistency() -> None:
     check("prompt 里的要求线与代码常量一致（单一来源，必须同时改）",
           f"不超过约 {_PARA_REQUIRE_HAN} 字" in BODY_FORMAT_RULES
           and f"单条不超过约 {_ITEM_REQUIRE_HAN} 字" in BODY_FORMAT_RULES, "")
-    from tools.execution.hard_execution import advisory_issues as _adv
+    from core.execution.gate import advisory_issues as _adv
     check("advisory 阈值取自派生常量（默认值不再硬编码）",
           _adv.__kwdefaults__.get("para_han") == _PARA_CHECK_HAN
           and _adv.__kwdefaults__.get("long_han") == _ITEM_CHECK_HAN, "")
@@ -696,10 +696,10 @@ def test_understanding_trim_lists() -> None:
     """
     from dataclasses import fields as dc_fields
 
-    from domain.meeting.meeting_core.meeting_understanding_agent import (
+    from domains.meeting.meeting_core.meeting_understanding_agent import (
         _trim_instruction,
     )
-    from domain.meeting.models import MeetingUnderstanding
+    from domains.meeting.models import MeetingUnderstanding
 
     order = [f.name for f in dc_fields(MeetingUnderstanding)]
     cases = (
@@ -735,13 +735,13 @@ def test_overview_cap_and_column_scope() -> None:
     对策：字段清单里逐栏给"最多 3 段、每段不超过 400 字"+「本栏不复述」，
     栏位自己声明了尺寸的以模板为准；规则层加「一栏只写自己的事」。
     """
-    from tools.templates.router._base import _describe_field
-    from tools.templates.body_rules import BODY_FORMAT_RULES
-    from tools.templates.template_prompt import PLACEHOLDER_RULES
+    from core.templates.router._base import _describe_field
+    from core.templates.body_rules import BODY_FORMAT_RULES
+    from core.templates.template_prompt import PLACEHOLDER_RULES
 
-    from tools.templates.router._base import _PLACEHOLDER_FILL_SYSTEM as fill_system
-    from tools.templates.router._detect import _parse_field
-    from tools.templates.router._placeholder import build_placeholder_fill_user
+    from core.templates.router._base import _PLACEHOLDER_FILL_SYSTEM as fill_system
+    from core.templates.router._detect import _parse_field
+    from core.templates.router._placeholder import build_placeholder_fill_user
 
     # ① 未声明尺寸的概括栏：拿到默认上限 + 边界
     plain = _describe_field(1, _parse_field("一段话概括参与方、沟通主题与目的、达成的结果"))
@@ -805,7 +805,7 @@ def test_first_column_min() -> None:
     回归背景（2026-09 now.xlsx 实测 56 条）：首栏汉字中位数约 150（最薄 88），
     而通用兜底只给了上限（≤3 段/≤400 字）——上限治不了薄；下限只给第 1 栏，明细栏不逼。
     """
-    from tools.templates.length_budget import budget_line, first_column_min
+    from core.templates.length_budget import budget_line, first_column_min
 
     check("首栏下限：<3k 档取地板 180", first_column_min(2999) == 180, f"{first_column_min(2999)}")
     check("首栏下限：3k–8k 档＝tier 下限 ×22%", first_column_min(5000) == 238, f"{first_column_min(5000)}")
@@ -829,7 +829,7 @@ def test_section_char_budget_scope() -> None:
     拿到「本节」，_overlong_issue 的标题匹配永不命中（模板声明的上限静默失效）；
     而只修标题又会让「每条 30–100 字」被当成整节 100 字上限（合规的 5 条会被判超限返工）。
     """
-    from tools.templates.template_eval import parse_section_char_budgets
+    from core.templates.template_eval import parse_section_char_budgets
 
     para_tpl = "# [概况]\n[只写 3–6 句概览；**单段不超过约 200 字**，信息多就拆段]\n"
     item_tpl = "# [要点]\n[每个维度一行；每条 30–100 字，信息多就拆条]\n"
@@ -858,12 +858,12 @@ def test_default_word_precedence() -> None:
     回归背景：通用层曾写死「责任人列无则「未明确」」，与项目进度会模板要求的
     「缺项直接写「无」」冲突——同一行里同时出现「未明确」和「无」两种缺省词。
     """
-    from domain.meeting.tasks.minutes.prompts import MINUTES_RENDER_TEMPLATE_PROMPT
-    from tools.templates.body_rules import BODY_FORMAT_RULES
-    from tools.templates.template_prompt import PLACEHOLDER_RULES
+    from domains.meeting.tasks.minutes.prompts import MINUTES_RENDER_TEMPLATE_PROMPT
+    from core.templates.body_rules import BODY_FORMAT_RULES
+    from core.templates.template_prompt import PLACEHOLDER_RULES
 
-    from tools.templates.router._base import _PLACEHOLDER_FILL_SYSTEM as fill_system
-    from tools.templates.router._placeholder import build_placeholder_fill_user
+    from core.templates.router._base import _PLACEHOLDER_FILL_SYSTEM as fill_system
+    from core.templates.router._placeholder import build_placeholder_fill_user
 
     user = build_placeholder_fill_user("内容来源：略。", FILL_TPL)
     for label, text in (
@@ -884,12 +884,12 @@ def test_default_word_precedence() -> None:
 
 def test_general_minutes_speedread() -> None:
     """通用纪要：精简为摘要与要点双栏结构（移除冗余的分段速览）。"""
-    from tools.templates.router._base import (
+    from core.templates.router._base import (
         split_template_meta,
         wrap_template_requirement,
     )
-    from tools.templates.router._placeholder import plan_placeholder_fill
-    from tools.templates.template_eval import parse_section_char_budgets
+    from core.templates.router._placeholder import plan_placeholder_fill
+    from core.templates.template_eval import parse_section_char_budgets
 
     raw = (_active_dir() / "general_minutes.md").read_text(encoding="utf-8")
     body, req = split_template_meta(raw)
@@ -922,7 +922,7 @@ def test_general_minutes_speedread() -> None:
     check("通用纪要：摘要为一段 250–400（节级）",
           any(b["title"] == "全文摘要" and b["lo"] == 250 and b["hi"] == 400 and b["scope"] == "section" for b in budgets),
           f"{budgets}")
-    from tools.execution.hard_execution import split_overlong_paragraphs
+    from core.execution.gate import split_overlong_paragraphs
 
     long_seg = "这是一段要点梳理文字。" * 55  # ≈440 汉字
     fixed_seg, seg_notes = split_overlong_paragraphs(
@@ -948,12 +948,12 @@ def test_document_budget_not_misread() -> None:
     「超出全文上限 400 字」：触发压缩返工（多一次整篇 LLM 调用），freeform 路径还会按句界
     截断到 ~420 字（既慢又丢内容）。
     """
-    from tools.templates.template_eval import (
+    from core.templates.template_eval import (
         parse_document_char_budget,
         parse_section_char_budgets,
     )
 
-    from tools.templates.router._base import split_template_meta, wrap_template_requirement
+    from core.templates.router._base import split_template_meta, wrap_template_requirement
 
     def runtime_tpl(text: str) -> str:
         body, req = split_template_meta(text)
@@ -994,15 +994,15 @@ def test_document_budget_not_misread() -> None:
 
 def test_paragraph_split() -> None:
     """段落字数超限：按句界确定性拆段（零 LLM 调用），拆完不再报「超出段落字数上限」。"""
-    from tools.execution.hard_execution import (
+    from core.execution.gate import (
         enforce_render_output,
         gate_render_output,
         split_overlong_paragraphs,
         split_overlong_paragraphs_except_first,
     )
-    from tools.templates.template_eval import parse_section_char_budgets
+    from core.templates.template_eval import parse_section_char_budgets
 
-    from tools.templates.router._base import split_template_meta, wrap_template_requirement
+    from core.templates.router._base import split_template_meta, wrap_template_requirement
 
     body, req = split_template_meta(
         "# 甲\n\n<!-- requirement\n客观记录\n-->\n\n"
@@ -1109,7 +1109,7 @@ def test_qa_speaker_labels() -> None:
     check("问答模板都要求称呼行加粗（与旧 **问**/**答** 形式一致）",
           not no_bold, f"缺={no_bold}")
 
-    from tools.templates.body_rules import BODY_FORMAT_RULES
+    from core.templates.body_rules import BODY_FORMAT_RULES
 
     check("共用形态规则为对话称呼开了加粗例外",
           "问答/对话的称呼行按模板要求每轮加粗" in BODY_FORMAT_RULES, "")
@@ -1132,7 +1132,7 @@ def test_progress_table_rows() -> None:
         check(f"项目进度会：含「{need}」", need in text, "")
     check("项目进度会：不夹带示例式软引导（如「应拆成 … 五行」）",
           "应拆成" not in text and "五行" not in text, "")
-    from tools.templates.body_rules import BODY_FORMAT_RULES
+    from core.templates.body_rules import BODY_FORMAT_RULES
 
     check("共用形态规则的状态集同步四态",
           "⏸未开始" in BODY_FORMAT_RULES, "")
@@ -1302,7 +1302,7 @@ def test_home_school_feedback_groups() -> None:
 
 def test_home_school_content_groups() -> None:
     """家校沟通 [沟通内容]：两大板块归组展开（表现亮点与需关注问题独立成条，严禁分号并入单条）。"""
-    p = Path("template") / "home_school_liaison.md"
+    p = Path("resources/templates") / "home_school_liaison.md"
     text = p.read_text(encoding="utf-8")
     h_prefix = "###"
     check("template 家校沟通：[沟通内容] 包含表现亮点与良好风貌小节",
@@ -1363,7 +1363,7 @@ def test_clinical_history_column() -> None:
           and "原文提到的药品、中成药与补充剂可进表" in text
           and "仅作为对比或举例提到、并非该患者用药的不进表" in text, "")
     # 尺寸：带表格的栏（[治疗方案与医嘱]）解析不出节级预算（parser 行为），写进文本即可。
-    from tools.templates.template_eval import parse_section_char_budgets
+    from core.templates.template_eval import parse_section_char_budgets
 
     got = [(b["title"], b["lo"], b["hi"]) for b in parse_section_char_budgets(text)]
     check("就医咨询：四栏尺寸口径（概况 250–400 / 病史 250–450 / 诊断 250–500 / 复诊 100–250）",
@@ -1415,7 +1415,7 @@ def test_overview_specs_have_scope() -> None:
           and "[工作进展]" in team and "[协作需求]" in team, "")
     check("团队例会：概况栏声明下限口径（低于 250 字＝没交代清）",
           "低于 250 字说明没交代清" in team, "")
-    from tools.templates.template_eval import parse_section_char_budgets
+    from core.templates.template_eval import parse_section_char_budgets
 
     ov = [b for b in parse_section_char_budgets(team) if b["title"] == "例会概况"]
     check("团队例会：概况栏仍解析为节级 250–400（尺寸口径未漂）",
@@ -1444,7 +1444,7 @@ def test_overview_specs_have_scope() -> None:
           and "不要在栏内再写一个与栏名同名的" in team, "")
     check("团队例会：协作需求与两个新栏都有尺寸",
           "约 150–300 字" in team and "约 150–350 字" in team and "约 100–250 字" in team, "")
-    from tools.templates.template_eval import parse_section_char_budgets as _pscb
+    from core.templates.template_eval import parse_section_char_budgets as _pscb
 
     tm_budgets = [(b["title"], b["hi"]) for b in _pscb(team)]
     check("团队例会：五栏尺寸都被解析（概况 400 / 进展 900 / 决定 350 / 协作 300 / 未决 250）",
@@ -1600,7 +1600,7 @@ def test_reject_hardening() -> None:
     返工没改（草稿 579→584 字）→ 二轮 reject（feedback 按契约为空，日志 findings=null）→
     整线降级成拼接文本，而那段降级文本里恰好又包含这些"无依据"的细节。
     """
-    from tools.schema.validation import soften_unreasoned_reject
+    from core.schema.validation import soften_unreasoned_reject
 
     # ① 有理由的 reject 原样保留
     reasoned = {
@@ -1631,7 +1631,7 @@ def test_reject_hardening() -> None:
         check(f"{decision} 不被本兜底改动", out["decision"] == decision and note is None, f"{out}")
 
     # ④ 文案：审核侧必须被明确告知"未覆盖 ≠ 捏造"与"reject 要写理由"
-    from domain.meeting.tasks.minutes import prompts as minutes_prompts
+    from domains.meeting.tasks.minutes import prompts as minutes_prompts
 
     domain_prompt = minutes_prompts.MINUTES_SUPERVISOR_DOMAIN_PROMPT
     check("审核领域提示词：无理由 reject 会被按 approve 处理",
@@ -1639,7 +1639,7 @@ def test_reject_hardening() -> None:
     check("审核领域提示词：核对不了按未覆盖处理（不是捏造）",
           "写「未能核对：X」并 approve" in domain_prompt, "")
     engine_src = (
-        __import__("pathlib").Path("tools/core/domain_engine.py").read_text(encoding="utf-8")
+        __import__("pathlib").Path("core/graph/nodes.py").read_text(encoding="utf-8")
     )
     check("审核证据包：明文写「摘录未覆盖 ≠ 无依据」",
           "摘录未覆盖 ≠ 无依据" in engine_src and "不得据此 revise 或 reject" in engine_src, "")
@@ -1647,7 +1647,7 @@ def test_reject_hardening() -> None:
           "soften_unreasoned_reject(payload)" in engine_src
           and "reject_downgraded" in engine_src, "")
     schema_src = (
-        __import__("pathlib").Path("tools/schema/contracts.py").read_text(encoding="utf-8")
+        __import__("pathlib").Path("core/schema/contracts.py").read_text(encoding="utf-8")
     )
     check("审核契约说明：reject 需写明具体理由",
           "该检查项的 findings 要写明具体理由" in schema_src, "")
@@ -1728,8 +1728,8 @@ def test_qa_precision_rules() -> None:
     提问是间接表述的那场 3 条全部写成「主持人周琦提问，…？」这种引导式转述（既不是原文问句、
     也不是纯疑问句），答话还有 230 字的讲稿式搬运。五个问答模板此前都没有"什么算问答"的判据。
     """
-    from tools.templates.router._placeholder import plan_placeholder_fill
-    from tools.templates.body_rules import BODY_FORMAT_RULES
+    from core.templates.router._placeholder import plan_placeholder_fill
+    from core.templates.body_rules import BODY_FORMAT_RULES
 
     for need in (
         "问答栏只收真问答",
@@ -1748,7 +1748,7 @@ def test_qa_precision_rules() -> None:
 
     qa_templates = ("media_briefing", "media_qa_session", "admission_briefing", "special_lecture", "class_transcript")
     retired = ("覆盖所有重要提问", "答话可归并但不得改口径", "内容相似的合并成一条")
-    from tools.templates.template_eval import parse_section_char_budgets
+    from core.templates.template_eval import parse_section_char_budgets
 
     for stem in qa_templates:
         text = (_active_dir() / f"{stem}.md").read_text(encoding="utf-8")
@@ -1790,7 +1790,7 @@ def test_qa_precision_rules() -> None:
                   and "答话超过约 400 字必须分点" not in text, "")
 
     # 一问一答各占一段：称呼行（对话轮次）不参与段落拆分，普通散文段照旧会被拆
-    from tools.execution.hard_execution import split_overlong_paragraphs
+    from core.execution.gate import split_overlong_paragraphs
 
     tpl = (_active_dir() / "media_qa_session.md").read_text(encoding="utf-8")
     long_ans = "这是一段很长的答话。" * 80
@@ -1842,7 +1842,7 @@ def test_project_progress_overview() -> None:
           and "无对象的套话" in plan, "")
     check("项目进度会：[后续计划] 旧口径（要素清单式叙述）已清除",
           "从概况与原文提取下一步" not in plan and "验收标准、关键时间节点" not in text, "")
-    from tools.templates.template_eval import parse_section_char_budgets
+    from core.templates.template_eval import parse_section_char_budgets
 
     caps = [b for b in parse_section_char_budgets(text) if b["title"] == "项目概况"]
     check("项目进度会：概况栏预算为节级 250–350（首栏只写一段）",
@@ -1857,8 +1857,8 @@ def test_paragraph_cap_from_explicit_per_para() -> None:
     修法：① 栏说明补「单段不超过 300 字」；② 「单段/每段」旁的数成为段落上限
     （区间会盖过它）；③ 节级预算的栏，单段超过整节上限也拆。
     """
-    from tools.execution.hard_execution import split_overlong_paragraphs
-    from tools.templates.template_eval import parse_section_char_budgets
+    from core.execution.gate import split_overlong_paragraphs
+    from core.templates.template_eval import parse_section_char_budgets
 
     han = lambda t: len([c for c in t if "\u4e00" <= c <= "\u9fff"])
     interview = (_active_dir() / "interview_transcript.md").read_text(encoding="utf-8")
@@ -1928,7 +1928,7 @@ def test_paragraph_cap_from_explicit_per_para() -> None:
           f"{notes4}")
 
     # ④ 单句超长（句界拆不动）→ 仍必须报「超出段落字数上限」，不能静默
-    from tools.execution.hard_execution import _overlong_issue
+    from core.execution.gate import _overlong_issue
 
     gm = (_active_dir() / "general_minutes.md").read_text(encoding="utf-8")
     one = "这是一句没有任何句号的超长段落" + "持续延伸内容" * 80 + "。"
@@ -1946,7 +1946,7 @@ def test_strip_default_only_content() -> None:
     `- **过敏史**：未提及。` 与 4 处"整栏只有未提及"。用户口径：这类内容不展示，
     但"整栏都没有"要保留一行缺省词（"没有"本身是信息）。
     """
-    from tools.execution.hard_execution import (
+    from core.execution.gate import (
         _item_default_only,
         _row_nonempty,
         apply_table_row_limits,
@@ -2023,7 +2023,7 @@ def test_enum_normalize_fallback() -> None:
     """
     from dataclasses import fields as dc_fields
 
-    from tools.schema.validation import _choice_or_default
+    from core.schema.validation import _choice_or_default
 
     check("_choice_or_default：合法值原样返回",
           _choice_or_default("专项讨论会", {"通用", "专项讨论会"}, "通用") == "专项讨论会", "")
@@ -2031,12 +2031,12 @@ def test_enum_normalize_fallback() -> None:
           _choice_or_default("产品发布", {"通用", "专项讨论会"}, "通用") == "通用", "")
 
     # 生成契约确实用了归一路径（而不是 _choice）
-    gen = Path("domain/meeting/models_generated.py").read_text(encoding="utf-8")
+    gen = Path("domains/meeting/models_generated.py").read_text(encoding="utf-8")
     check("生成契约：scene 走 _choice_or_default（不再抛错重试）",
           'data["scene"] = _choice_or_default(' in gen and "_choice_or_default," in gen, "")
 
     # 运行期：非法 scene 被归一，不再异常
-    from domain.meeting.models_generated import MeetingUnderstanding
+    from domains.meeting.models_generated import MeetingUnderstanding
 
     payload: dict = {}
     for f in dc_fields(MeetingUnderstanding):
@@ -2052,7 +2052,7 @@ def test_enum_normalize_fallback() -> None:
     check("理解层：非法场景「产品发布」→ 归一为「通用」（不抛错）", inst.scene == "通用", f"{inst.scene}")
 
     # 理解 prompt 把话说死
-    from domain.meeting.meeting_core import prompts as core_prompts
+    from domains.meeting.meeting_core import prompts as core_prompts
 
     text = "\n".join(
         str(getattr(core_prompts, name))
@@ -2070,12 +2070,12 @@ def test_scene_hint_from_template() -> None:
     回归背景（2026-09-18 15:24 实测）：理解层 scene 只有 7 类，模型对产品发布会填「产品发布」
     → 校验失败白跑一轮；归一后只能落到「通用」骨架（启发式词表里没有"发布/宣讲/路演"）。
     """
-    from domain.meeting.scene_hint import (
+    from domains.meeting.scene_hint import (
         TEMPLATE_SCENE_HINTS,
         scene_hint_for_template,
         scene_hint_for_templates,
     )
-    from domain.meeting.tasks.minutes_trace.scene import GENERIC_SCENE, SCENE_LABELS
+    from domains.meeting.tasks.minutes_trace.scene import GENERIC_SCENE, SCENE_LABELS
 
     allowed = set(SCENE_LABELS) | {GENERIC_SCENE}
     check("映射表的标签都在 7 类形态内",
@@ -2111,7 +2111,7 @@ def test_scene_hint_from_template() -> None:
           scene_hint_for_templates({"trace": "", "actions": tm}) == "团队例会", "")
 
     # 理解节点确实用程序映射覆盖模型自选值
-    src = Path("domain/meeting/orchestrator.py").read_text(encoding="utf-8")
+    src = Path("domains/meeting/orchestrator.py").read_text(encoding="utf-8")
     check("理解节点：用模板映射覆盖 scene（程序优先、模型兜底）",
           "scene_hint_for_templates(state.get(\"templates\"))" in src
           and 'data["scene"] = hint' in src, "")
@@ -2127,11 +2127,11 @@ def test_allow_missing_on_trimmed_fields() -> None:
     import json
     from dataclasses import fields as dc_fields
 
-    from tools.llm.llmclient import LLMClient
-    from domain.meeting.meeting_core.meeting_understanding_agent import (
+    from infra.llm.client import LLMClient
+    from domains.meeting.meeting_core.meeting_understanding_agent import (
         _trim_instruction,
     )
-    from domain.meeting.models_generated import MeetingUnderstanding
+    from domains.meeting.models_generated import MeetingUnderstanding
 
     base = {
         f.name: ("一段话" if "list" not in str(f.type) else [])
@@ -2164,7 +2164,7 @@ def test_allow_missing_on_trimmed_fields() -> None:
     check("裁剪指令写明「键名必须保留、值给空数组 []」",
           "键名必须保留" in trim and "不要省略键名" in trim, trim[:80])
 
-    src = Path("domain/meeting/meeting_core/meeting_understanding_agent.py").read_text(encoding="utf-8")
+    src = Path("domains/meeting/meeting_core/meeting_understanding_agent.py").read_text(encoding="utf-8")
     check("理解 agent：把裁剪集合 + speakers 传给 allow_missing",
           "allow_missing=missable" in src and 'missable = skipped | {"speakers"}' in src, "")
 
@@ -2216,12 +2216,12 @@ def test_understanding_skip_never_retries() -> None:
     import json
     from dataclasses import fields as dc_fields
 
-    from tools.llm.llmclient import LLMClient
-    from domain.meeting.meeting_core.meeting_understanding_agent import (
+    from infra.llm.client import LLMClient
+    from domains.meeting.meeting_core.meeting_understanding_agent import (
         MeetingUnderstandingAgent,
     )
-    from domain.meeting.models_generated import MeetingUnderstanding
-    from domain.meeting.orchestrator import UNDERSTANDING_SKIP_FIELDS
+    from domains.meeting.models_generated import MeetingUnderstanding
+    from domains.meeting.orchestrator import UNDERSTANDING_SKIP_FIELDS
 
     class _FakeUnderstandingClient:
         """只回一份"省略了裁剪字段"的 JSON；按 structured 的 allow_missing 语义校验。"""
@@ -2257,11 +2257,11 @@ def test_understanding_skip_never_retries() -> None:
     check("裁剪集合覆盖 minutes/actions/risks 三条线",
           set(UNDERSTANDING_SKIP_FIELDS) == {"minutes", "actions", "risks"}, "")
 
-    src = Path("domain/meeting/meeting_core/meeting_understanding_agent.py").read_text(encoding="utf-8")
+    src = Path("domains/meeting/meeting_core/meeting_understanding_agent.py").read_text(encoding="utf-8")
     check("理解 agent：同一裁剪集合既写进指令也传给 allow_missing（speakers 常空、缺键不算错）",
           "allow_missing=missable" in src and "键名必须保留" in src
           and 'missable = skipped | {"speakers"}' in src, "")
-    node_src = Path("domain/meeting/orchestrator.py").read_text(encoding="utf-8")
+    node_src = Path("domains/meeting/orchestrator.py").read_text(encoding="utf-8")
     check("理解裁剪按选线 + 模板栏位（发布会类不抽用不到的字段）",
           "skip_fields_for_template(template)" in node_src
           and "skip_fields=skip" in node_src, "")
@@ -2277,8 +2277,8 @@ def test_template_aware_understanding_skip() -> None:
     装配每一次调用的上下文（实测一篇 6000 字发布会实录抽了 6.2k token / 1.3 万字符）。
     发布会四栏、讲座四栏、课堂四栏、访谈三栏都用不到这两栏，属于纯浪费。
     """
-    from domain.meeting.orchestrator import UNDERSTANDING_SKIP_FIELDS, _Nodes
-    from domain.meeting.understanding_skip import skip_fields_for_template
+    from domains.meeting.orchestrator import UNDERSTANDING_SKIP_FIELDS, _Nodes
+    from domains.meeting.understanding_skip import skip_fields_for_template
 
     base = set(UNDERSTANDING_SKIP_FIELDS["minutes"])
     check("minutes 基础裁剪带走 action_hints/risk_hints/dependencies",
@@ -2348,7 +2348,7 @@ def test_template_aware_understanding_skip() -> None:
     check("其它线不受模板影响（actions 线模板不给也不改集合）",
           skip_of(["actions"], mb) == UNDERSTANDING_SKIP_FIELDS["actions"], "")
 
-    from domain.meeting.meeting_core.meeting_understanding_agent import (
+    from domains.meeting.meeting_core.meeting_understanding_agent import (
         _trim_instruction,
     )
 
@@ -2417,7 +2417,7 @@ def test_long_generation_output_cap() -> None:
     回归背景（2026-09-18 实测）：装配退化成"写不完"——49,074 token / 86,447 字符 / 551 秒，
     被 max_tokens 截断后 JSON 不可解析 → 四栏全空 → 整篇重填，一条纪要跑满 10 分钟。
     """
-    from tools.templates.length_budget import (
+    from core.templates.length_budget import (
         OUTPUT_CAP_MAX,
         OUTPUT_CAP_MIN,
         effective_doc_budget,
@@ -2440,7 +2440,7 @@ def test_long_generation_output_cap() -> None:
     # 模板说明里的「短语 20 字内」曾被解析成 hi=20 的小节上限（讲座 [核心观点与论证]，
     # 2026-09-19 实测）：每跑一次都报软提示，且该栏一旦出现散文段会被切成 20 字碎块。
     # 这里钉住"不存在可疑的小节预算"（正常栏级尺寸都在 80 字以上），防止同类写法再犯。
-    from tools.templates.template_eval import parse_section_char_budgets as _psb
+    from core.templates.template_eval import parse_section_char_budgets as _psb
 
     suspicious = []
     for md in sorted(_active_dir().glob("*.md")):
@@ -2450,11 +2450,11 @@ def test_long_generation_output_cap() -> None:
     check("没有 <80 字的「可疑小节预算」（数字+字 的说明性写法已清除）",
           not suspicious, f"{suspicious}")
 
-    placeholder_src = Path("tools/templates/router/_placeholder.py").read_text(encoding="utf-8")
+    placeholder_src = Path("core/templates/router/_placeholder.py").read_text(encoding="utf-8")
     check("装配：max_tokens 来自目标字数换算并写进两个路径",
           "max_tokens=cap" in placeholder_src
           and "output_token_cap(source_han, template)" in placeholder_src, "")
-    render_src = Path("tools/runtime/render.py").read_text(encoding="utf-8")
+    render_src = Path("core/runtime/render.py").read_text(encoding="utf-8")
     check("渲染/压缩/展开/返工四处都经 _render_run 带上限",
           render_src.count("_render_run(") >= 5
           and "source_han=_doc_han(state)" in render_src, "")
@@ -2465,11 +2465,11 @@ def test_long_generation_output_cap() -> None:
           and "han < int(lo_i * 0.85)" in render_src
           and "_EXPAND_REVISION.format(han=han, lo=lo_i, hi=hi_i)" in render_src, "")
     minutes_src = Path(
-        "domain/meeting/tasks/minutes/steps/minutes_render.py"
+        "domains/meeting/tasks/minutes/steps/minutes_render.py"
     ).read_text(encoding="utf-8")
     check("纪要渲染步接受并透传 max_tokens",
           "max_tokens=max_tokens" in minutes_src and "max_tokens: int | None = None" in minutes_src, "")
-    budget_src = Path("tools/templates/length_budget.py").read_text(encoding="utf-8")
+    budget_src = Path("core/templates/length_budget.py").read_text(encoding="utf-8")
     check("【篇幅预算】写明超上限会被截断", "超过上限的输出会被截断" in budget_src, "")
 
 
@@ -2483,7 +2483,7 @@ def test_column_fill_concurrency_and_early_stop() -> None:
     import asyncio
     import re as _re
 
-    from tools.templates.router._placeholder import (
+    from core.templates.router._placeholder import (
         _degenerate_reason,
         fill_placeholder_by_columns,
         plan_placeholder_fill,
@@ -2605,8 +2605,8 @@ def test_column_fill_overlong_item_rewrite() -> None:
     import asyncio
     import re as _re
 
-    from tools.execution.hard_execution import overlong_items
-    from tools.templates.router._placeholder import (
+    from core.execution.gate import overlong_items
+    from core.templates.router._placeholder import (
         fill_placeholder_by_columns,
         plan_placeholder_fill,
     )
@@ -2662,7 +2662,7 @@ def test_column_fill_overlong_minutes_strategies() -> None:
     """
     import asyncio
     import re as _re
-    from tools.templates.router._placeholder import (
+    from core.templates.router._placeholder import (
         fill_placeholder_by_columns,
         plan_placeholder_fill,
     )
@@ -2773,7 +2773,7 @@ def test_column_fill_high_density_exemption() -> None:
     """
     import asyncio
     import re as _re
-    from tools.templates.router._placeholder import (
+    from core.templates.router._placeholder import (
         fill_placeholder_by_columns,
         plan_placeholder_fill,
     )
@@ -2851,7 +2851,7 @@ def test_column_fill_high_density_exemption() -> None:
 
 def test_personal_risk_attribution_in_pack() -> None:
     """真人模式：分钟线 pack 的风险/未决按原文补出归属（「姓名：」前缀）；客观零外溢。"""
-    from domain.meeting.orchestrator import MeetingAgentSystem
+    from domains.meeting.orchestrator import MeetingAgentSystem
 
     transcript = (
         "申家坤 00:00:05\n今天过长文本线。\n"
@@ -2897,8 +2897,8 @@ def test_media_overview_scope() -> None:
     与 [核心信息] 栏 4-gram 重合 82%——因为它 ① 没有可解析尺寸（程序不拆段不报超限）
     ② 要素里写着"核心信息"，与下面那栏同名（引导复述）。
     """
-    from tools.execution.hard_execution import split_overlong_paragraphs
-    from tools.templates.template_eval import parse_section_char_budgets
+    from core.execution.gate import split_overlong_paragraphs
+    from core.templates.template_eval import parse_section_char_budgets
 
     text = (_active_dir() / "media_briefing.md").read_text(encoding="utf-8")
     spec = next(l.strip() for l in text.splitlines() if l.strip().startswith("[一段话概括发布会"))
@@ -2945,7 +2945,7 @@ def test_class_transcript_task_groups() -> None:
     再挂二级标签的第二种结构；类目名重复 10+ 次、两套结构并存，读起来是标签堆而不是清单。
     改成 `## 类目` + `- ` 条目后，类目只说一次、条目只写内容。
     """
-    from tools.templates.template_eval import parse_section_char_budgets
+    from core.templates.template_eval import parse_section_char_budgets
 
     text = (_active_dir() / "class_transcript.md").read_text(encoding="utf-8")
     spec = next(l for l in text.splitlines() if "按类目分组" in l)
@@ -2982,7 +2982,7 @@ def test_quote_columns_have_background() -> None:
     用户口径（2026-09-18）：金句下面要加一句"当前金句的出现背景"，一句话即可——
     引语没有背景就读不出分量，也无法核对它是否被断章取义。
     """
-    from tools.templates.router._placeholder import plan_placeholder_fill
+    from core.templates.router._placeholder import plan_placeholder_fill
 
     expectations = {
         "special_lecture": ("金句总结", ("讲到哪个话题/论证到哪一步", "`- 背景：未提及`")),
@@ -3019,7 +3019,7 @@ def test_ellipsis_table_row_template_recognized() -> None:
     extract_template_table_constraints 只认 `[...]` 占位 → constraints=[] →
     「表格无有效数据行」对这类模板永不触发，空表静默落盘。
     """
-    from tools.templates.template_eval import (
+    from core.templates.template_eval import (
         evaluate_output_against_template,
         extract_template_table_constraints,
     )
@@ -3042,7 +3042,7 @@ def test_ellipsis_table_row_template_recognized() -> None:
           f"{evaluate_output_against_template(advisory, art)}")
 
     # 顺带钉住 row-hint 的两个误判源（会把"形态/泛指"读成行数上限）
-    from tools.templates.template_eval import parse_row_hint
+    from core.templates.template_eval import parse_row_hint
 
     check("「不要用连续多行独占一行的…」不是 1 行上限",
           parse_row_hint("不要用连续多行独占一行的 `**类别**：` 段落代替分点") is None, "")
@@ -3073,7 +3073,7 @@ def test_lecture_evidence_cap() -> None:
     回归背景（2026-09-19 实测）：陈廷敬讲座场该栏 2277 字（5 论点 × 29 条论据），
     每个论点下 6–8 条论据角度重复——"都要落进对应条目"只有下量没有取舍。
     """
-    from tools.templates.template_eval import parse_section_char_budgets
+    from core.templates.template_eval import parse_section_char_budgets
 
     text = (_active_dir() / "special_lecture.md").read_text(encoding="utf-8")
     spec = next(l for l in text.splitlines() if "两级结构" in l and "## 论点" in l)
@@ -3098,8 +3098,8 @@ def test_court_claims_table_both_sides() -> None:
     "全表最多 1 行"——装配截断 + 模型侧双通道都指向一行，二审场（上诉人国开行 vs 被上诉人
     东源等）被告行整行消失，而概况栏明明写全了当事人。
     """
-    from tools.execution.hard_execution import apply_table_row_limits
-    from tools.templates.template_eval import (
+    from core.execution.gate import apply_table_row_limits
+    from core.templates.template_eval import (
         extract_template_table_constraints,
         parse_row_hint,
     )
@@ -3140,19 +3140,19 @@ def test_output_volume_and_hierarchy() -> None:
     """
     import pathlib
 
-    from tools.templates.length_budget import capped_budget
+    from core.templates.length_budget import capped_budget
 
     check("天花板：原文 ×70% 与档位取小（3500 字原文 → 上限 2450）",
           capped_budget(3500) == (1080, 2450), f"{capped_budget(3500)}")
     check("天花板：30000 字原文仍受档位上限约束（8000）",
           capped_budget(30000) == (2400, 8000), f"{capped_budget(30000)}")
-    bl = __import__("tools.templates.length_budget", fromlist=["budget_line"]).budget_line(3500)
+    bl = __import__("core.templates.length_budget", fromlist=["budget_line"]).budget_line(3500)
     check("【篇幅预算】写明不超过原文 70%",
           "任何情况下不超过原文的 70%" in bl, bl[:120])
     check("【篇幅预算】下限口径收窄（补关键事实，不扩写寒暄与过程）",
           "不扩写寒暄与过程铺陈" in bl, "")
 
-    u = pathlib.Path("domain/meeting/meeting_core/prompts.py").read_text(encoding="utf-8")
+    u = pathlib.Path("domains/meeting/meeting_core/prompts.py").read_text(encoding="utf-8")
     check("理解层：key_points 每议题 ≤8 条、全篇 ≤30 条（按支撑力取舍）",
           "每议题最多 8 条、全篇最多 30 条" in u, "")
     check("理解层：寒暄/程序性发言不进索引",
@@ -3160,10 +3160,10 @@ def test_output_volume_and_hierarchy() -> None:
     check("理解层：同一事实重复表述只留信息最全的一条",
           "同一事实的多次重复表述只留信息最全的一条" in u, "")
 
-    br = pathlib.Path("tools/templates/body_rules.py").read_text(encoding="utf-8")
+    br = pathlib.Path("core/templates/body_rules.py").read_text(encoding="utf-8")
     check("层级标准：栏内条目超 6 条必须归组（每组 2–5 条）",
           "超过 6 条时必须归组" in br and "每组 2–5 条" in br, "")
-    mp = pathlib.Path("domain/meeting/tasks/minutes/prompts.py").read_text(encoding="utf-8")
+    mp = pathlib.Path("domains/meeting/tasks/minutes/prompts.py").read_text(encoding="utf-8")
     check("渲染：两级结构是默认形态（旧的分组禁令已反转）",
           "两级结构是默认形态" in mp and "纪要正文一律不用" not in mp, "")
     check("渲染：写清结论/关键数字/责任人/时限（过程铺陈压缩）",
@@ -3240,7 +3240,7 @@ def test_media_briefing_evidence_and_depth() -> None:
     单指标粒度上。改法：分两层（`## 板块名` 分组 + 每组 3–5 条）、条目单位上提（一条一个
     主题、同类合并）、覆盖度口径从"条"上移到"板块/主题"；依据/口径/时间表要求保持不变。
     """
-    from tools.templates.template_eval import parse_section_char_budgets
+    from core.templates.template_eval import parse_section_char_budgets
 
     text = (_active_dir() / "media_briefing.md").read_text(encoding="utf-8")
     core = next(l for l in text.splitlines() if l.strip().startswith("[提炼官方发布"))
@@ -3326,12 +3326,12 @@ def test_understanding_speakers_field() -> None:
     """
     from dataclasses import fields as dc_fields
 
-    from domain.meeting.meeting_core.contracts import (
+    from domains.meeting.meeting_core.contracts import (
         MeetingUnderstandingGenerationContract,
     )
-    from domain.meeting.meeting_core.prompts import MEETING_UNDERSTANDING_SYSTEM_PROMPT
-    from domain.meeting.models_generated import MeetingUnderstanding
-    from domain.meeting.orchestrator import (
+    from domains.meeting.meeting_core.prompts import MEETING_UNDERSTANDING_SYSTEM_PROMPT
+    from domains.meeting.models_generated import MeetingUnderstanding
+    from domains.meeting.orchestrator import (
         _EMPTY_MEETING_UNDERSTANDING,
         UNDERSTANDING_SKIP_FIELDS,
         _Nodes,
@@ -3342,7 +3342,7 @@ def test_understanding_speakers_field() -> None:
           "speakers" in spec and all(k in spec for k in ("name", "role", "org")), spec[:60])
     check("生成模型有 speakers 且按数组校验",
           "speakers" in {f.name for f in dc_fields(MeetingUnderstanding)}
-          and "speakers 必须是数组" in Path("domain/meeting/models_generated.py").read_text(encoding="utf-8"),
+          and "speakers 必须是数组" in Path("domains/meeting/models_generated.py").read_text(encoding="utf-8"),
           "")
     check("空结构常量带 speakers（降级路径不炸）", _EMPTY_MEETING_UNDERSTANDING.get("speakers") == [], "")
 
@@ -3372,7 +3372,7 @@ def test_understanding_speakers_field() -> None:
         names = [s.get("name") for s in pack.get("speakers") or []]
         check(f"{line} 的 pack 带 speakers（{names}）", names == ["王毅"], f"{pack.get('speakers')}")
 
-    draft_prompt = Path("domain/meeting/tasks/minutes/prompts.py").read_text(encoding="utf-8")
+    draft_prompt = Path("domains/meeting/tasks/minutes/prompts.py").read_text(encoding="utf-8")
     check("草稿 prompt 指明人名绑定看 speakers、不猜姓名",
           "`speakers` 字段" in draft_prompt and "不要凭称号猜姓名" in draft_prompt, "")
 
@@ -3421,7 +3421,7 @@ def test_qa_name_priority() -> None:
               and "`**主持人**：…` 换行" not in spec
               and "`**记者**：…` 换行" not in spec, "")
 
-    from tools.templates.body_rules import BODY_FORMAT_RULES
+    from core.templates.body_rules import BODY_FORMAT_RULES
 
     rule = next(l for l in BODY_FORMAT_RULES.splitlines() if "成员称呼" in l)
     check("全局称呼规则：文中出现过姓名就用姓名（已知姓名不得退回角色）",
@@ -3448,7 +3448,7 @@ def test_qa_name_priority() -> None:
           and "外文/音译人名没把握写全就用职务或角色称呼" in asr
           and "禁止造名" in asr and "对称联想" in asr, asr[-160:])
 
-    understanding = Path("domain/meeting/meeting_core/prompts.py").read_text(encoding="utf-8")
+    understanding = Path("domains/meeting/meeting_core/prompts.py").read_text(encoding="utf-8")
     check("理解层：原文出现姓名时统一用姓名、不推断不编造",
           "原文任何位置出现姓名就统一用姓名" in understanding
           and "不推断、不编造" in understanding, "")
@@ -3575,7 +3575,7 @@ def test_domain_specific_accuracy_rules() -> None:
           "`- **争议焦点**：…`" not in court and "`- **法院查明**：…`" not in court
           and "`- **合议庭认定**：…`" not in court and "`- **裁判/调解结果**：…`" not in court
           and "`- **未决事项**：…`" not in court, "")
-    understanding = Path("domain/meeting/meeting_core/prompts.py").read_text(encoding="utf-8")
+    understanding = Path("domains/meeting/meeting_core/prompts.py").read_text(encoding="utf-8")
     check("会议理解：有立场的陈述必须保留归属，不升级成事实",
           "陈述归属不得丢" in understanding and "不得把一方说法改写成客观事实" in understanding
           and "才能写成已认定事实" in understanding, "")
@@ -3583,8 +3583,8 @@ def test_domain_specific_accuracy_rules() -> None:
 
 def test_fallback_text_dedupe() -> None:
     """降级拼装：headline 与文档标题重复时不再重复输出；「；」连接不再出现「。；」。"""
-    from domain.meeting.tasks.minutes.contracts import MinutesFallbackRules
-    from tools.core.domain_engine_text import fallback_text
+    from domains.meeting.tasks.minutes.contracts import MinutesFallbackRules
+    from core.graph.engine_text import fallback_text
 
     headline = "闲聊出门必带物品与个人习惯"
     state = {
@@ -3612,11 +3612,11 @@ def test_first_column_single_paragraph_merge() -> None:
     补记（2026-09-21 通用纪要实测）：规则按"位置"认总述栏会认错——首栏按规范只写一段
     时定位滑到下一栏（[分段速览]）并把它合并、`##` 子标题一起删；⑤⑥⑦ 就是这次的口径。
     """
-    from tools.execution.hard_execution import (
+    from core.execution.gate import (
         _merge_first_column_paragraphs,
         enforce_render_output,
     )
-    from tools.templates.template_eval import parse_section_char_budgets
+    from core.templates.template_eval import parse_section_char_budgets
 
     d = _active_dir()
     # ① 三个此前无尺寸的模板现在可解析出节级预算
@@ -3728,9 +3728,9 @@ def test_first_column_single_paragraph_merge() -> None:
 
 def test_supervisor_contract_and_unavailable() -> None:
     """审核契约必填/联动说明 + 审核调用失败时的保守放行取值。"""
-    from domain.meeting.tasks.minutes.contracts import MINUTES_SUPERVISOR_OUTPUT_CONTRACT as contract
-    from domain.meeting.tasks.minutes.contracts import MinutesSupervisorContract
-    from tools.core.domain_engine import DomainNodes
+    from domains.meeting.tasks.minutes.contracts import MINUTES_SUPERVISOR_OUTPUT_CONTRACT as contract
+    from domains.meeting.tasks.minutes.contracts import MinutesSupervisorContract
+    from core.graph.nodes import DomainNodes
 
     check("契约说明含「所有字段与检查项都必须出现」", "所有字段与检查项都必须出现" in contract, "")
     check("契约说明含 decision 联动规则",
@@ -3763,11 +3763,11 @@ def test_understanding_user_channel() -> None:
     """
     import asyncio
 
-    from domain.meeting.meeting_core.meeting_understanding_agent import (
+    from domains.meeting.meeting_core.meeting_understanding_agent import (
         MeetingUnderstandingAgent,
     )
-    from domain.meeting.meeting_core.prompts import MEETING_UNDERSTANDING_SYSTEM_PROMPT
-    from perspective import build_user_channel
+    from domains.meeting.meeting_core.prompts import MEETING_UNDERSTANDING_SYSTEM_PROMPT
+    from domains.shared.perspective import build_user_channel
 
     prompt = MEETING_UNDERSTANDING_SYSTEM_PROMPT
     check("理解 prompt：称呼表把别称归全称、编号发言人不绑",
@@ -3828,8 +3828,8 @@ def test_perspective_skip_for_personal() -> None:
     """
     import asyncio
 
-    from domain.meeting.orchestrator import _Nodes
-    from perspective import PerspectiveModeling
+    from domains.meeting.orchestrator import _Nodes
+    from domains.shared.perspective import PerspectiveModeling
 
     class _Spy:
         def __init__(self, behave: str = "raise") -> None:
@@ -3943,7 +3943,7 @@ def test_personal_no_full_fallback() -> None:
     但程序 ``subset_upstream_items`` 会把**全员条目**塞回他的视角——"赵衡视角"输出
     全员待办就是这么来的。职业模板保留回退（它更容易整类漏），真人必须选空即空。
     """
-    from tools.execution.hard_execution import enforce_minutes_draft, subset_upstream_items
+    from core.execution.gate import enforce_minutes_draft, subset_upstream_items
 
     upstream = ["接口联调周五前给测试", "端侧版本下周带上", "数据标注这周归档"]
     check("真人：选空 → 空（不再回退全量）",
@@ -3979,7 +3979,7 @@ def test_personal_no_full_fallback() -> None:
           objective["key_decisions"] == ["引擎并发先借资源"] and len(objective["risks_and_blockers"]) == 1, "")
 
     # P2-F：审核上下文带命中块 + 审核提示词三条
-    from domain.meeting.tasks.minutes.prompts import MINUTES_SUPERVISOR_DOMAIN_PROMPT as MINUTES_SUPERVISOR_PROMPT
+    from domains.meeting.tasks.minutes.prompts import MINUTES_SUPERVISOR_DOMAIN_PROMPT as MINUTES_SUPERVISOR_PROMPT
 
     # 注：提示词里有 ** 加粗标记，断言别跨标记取串
     check("审核提示词含命中表三条检查",
@@ -4002,7 +4002,7 @@ def test_person_reference_rules() -> None:
     ③ 现在按"中文允许省主语"的口径——叙述本人动作省主语，他人动作写名，只在需要点明
     归属时用「你」。审校三条都同步：允许省主语、拦他人动作缺主语、拦同句混用。
     """
-    from domain.meeting.tasks.minutes.prompts import (
+    from domains.meeting.tasks.minutes.prompts import (
         MINUTES_GENERATION_SYSTEM_PROMPT as GEN,
         MINUTES_RENDER_PROMPT as RENDER,
         MINUTES_SUPERVISOR_DOMAIN_PROMPT as REVIEW,
@@ -4040,8 +4040,8 @@ def test_assignment_scope_rules() -> None:
     ① 契约字段说明 ② 提示词字段小节 ③ 草稿真人视角段 ④ 审核一条（渲染后没有审核环节，
     那一侧只能靠纪律，见 test_render_view_directive）。
     """
-    from domain.meeting.tasks.minutes.contracts import MINUTES_GENERATION_OUTPUT_CONTRACT
-    from domain.meeting.tasks.minutes.prompts import (
+    from domains.meeting.tasks.minutes.contracts import MINUTES_GENERATION_OUTPUT_CONTRACT
+    from domains.meeting.tasks.minutes.prompts import (
         MINUTES_GENERATION_SYSTEM_PROMPT as GEN,
         MINUTES_SUPERVISOR_DOMAIN_PROMPT as REVIEW,
     )
@@ -4068,11 +4068,11 @@ def test_assignment_scope_rules() -> None:
     stale_group = [
         str(path)
         for path in (
-            Path("domain/meeting/tasks/minutes/contracts.py"),
-            Path("domain/meeting/tasks/minutes/prompts.py"),
-            Path("perspective/preferences.py"),
-            Path("perspective/hits.py"),
-            Path("tools/templates/body_rules.py"),
+            Path("domains/meeting/tasks/minutes/contracts.py"),
+            Path("domains/meeting/tasks/minutes/prompts.py"),
+            Path("domains/shared/perspective/preferences.py"),
+            Path("domains/shared/perspective/hits.py"),
+            Path("core/templates/body_rules.py"),
         )
         if "我的事项" in path.read_text(encoding="utf-8")
     ]
@@ -4120,8 +4120,8 @@ def test_render_context_personal_injection() -> None:
     的地方）**没有——它看不到"他是谁、他关心什么"，于是把个人视角摊回整场，读起来与
     客观没区别。这里锁住：命中块进所有非客观线、偏好块只进纪要线；渲染提示词写明聚焦口径。
     """
-    from domain.meeting.orchestrator import _Nodes
-    from domain.meeting.tasks.minutes.prompts import MINUTES_RENDER_PROMPT
+    from domains.meeting.orchestrator import _Nodes
+    from domains.meeting.tasks.minutes.prompts import MINUTES_RENDER_PROMPT
 
     class _Host(_Nodes):
         """只借方法；用真实 _render_context，其余依赖最小化。"""
@@ -4188,10 +4188,10 @@ def test_render_view_directive() -> None:
     """
     import asyncio
 
-    from domain.meeting.orchestrator import _Nodes
-    from perspective import PERSONAL_VIEW_DIRECTIVE, VIEW_DIRECTIVE_TITLE
-    from tools.templates.router import fill_placeholder_template
-    from tools.templates.router._placeholder import _column_fill_user
+    from domains.meeting.orchestrator import _Nodes
+    from domains.shared.perspective import PERSONAL_VIEW_DIRECTIVE, VIEW_DIRECTIVE_TITLE
+    from core.templates.router import fill_placeholder_template
+    from core.templates.router._placeholder import _column_fill_user
 
     template = "# 通用纪要\n\n# [全文摘要]\n[一段话概括]\n\n# [要点梳理]\n[分点列具体事实]\n"
     mark = f"【{VIEW_DIRECTIVE_TITLE}】"
@@ -4239,7 +4239,7 @@ def test_render_view_directive() -> None:
           ) == "",
           "")
 
-    from perspective import PERSONAL_TEMPLATE_VIEW_DIRECTIVE
+    from domains.shared.perspective import PERSONAL_TEMPLATE_VIEW_DIRECTIVE
     personal_custom = {
         "user": {"name": "申家坤"},
         "templates": {"minutes": "# [本场概况与本人定调]\n[说明]\n"},
@@ -4301,7 +4301,7 @@ def test_render_context_person_transcript() -> None:
     真人模式照样输出整场（提及他的段落只占 12%、正文 9082 字）。裁掉别人的发言后同一份输入
     降到 6266 字，全文摘要出现「与你直接相关的是…」，且 930 节点/单卡四路等全局结论仍在。
     """
-    from domain.meeting.orchestrator import _Nodes
+    from domains.meeting.orchestrator import _Nodes
 
     transcript = (
         "项目会\n"
@@ -4365,7 +4365,7 @@ def test_render_context_person_transcript() -> None:
           "")
     # 状态通道守护（2026-09-22 真链路事故）：LangGraph 只传 MeetingState 里声明过的 key，
     # 未声明的写入被静默丢掉——骨架块写了，草稿/审核/渲染全程收不到（单元测试注入 dict 掩盖了）。
-    from domain.meeting.models import MeetingState
+    from domains.meeting.models import MeetingState
 
     check("状态通道：视角节点写的块都在 MeetingState 里声明（否则被 LangGraph 丢掉）",
           "user_action_groups_block" in MeetingState.__annotations__
@@ -4373,9 +4373,9 @@ def test_render_context_person_transcript() -> None:
           and "user_radar_block" in MeetingState.__annotations__,
           "")
     check("状态通道：视角节点确实写入骨架 key 与雷达 key",
-          "user_action_groups_block" in Path("domain/meeting/orchestrator.py").read_text(
+          "user_action_groups_block" in Path("domains/meeting/orchestrator.py").read_text(
               encoding="utf-8"
-          ) and "user_radar_block" in Path("domain/meeting/orchestrator.py").read_text(
+          ) and "user_radar_block" in Path("domains/meeting/orchestrator.py").read_text(
               encoding="utf-8"
           ),
           "")
@@ -4453,12 +4453,12 @@ def test_column_extraction_robustness_and_timeout() -> None:
     6. _stream_column 能够透传 timeout 参数给底层 stream_text
     """
     import asyncio
-    from tools.templates.router._placeholder import (
+    from core.templates.router._placeholder import (
         _strip_redundant_column_heading,
         assemble_placeholder_output,
         _stream_column,
     )
-    from tools.execution.hard_execution import (
+    from core.execution.gate import (
         clean_template_render_text,
         empty_section_issues,
     )
@@ -4528,7 +4528,7 @@ def test_column_extraction_robustness_and_timeout() -> None:
           f"{client.passed_kwargs}")
 
     # 7. 清单/重点工作栏目前置注入【要点纪律】，普通栏目不注入
-    from tools.templates.router._placeholder import _column_fill_user, plan_placeholder_fill, fill_placeholder_by_columns
+    from core.templates.router._placeholder import _column_fill_user, plan_placeholder_fill, fill_placeholder_by_columns
     u_work = _column_fill_user("context", "# [重点工作]\n[写工作]", index=1, total=1, hint="", title="重点工作", others=[])
     check("重点工作栏目提示词前置注入要点纪律", "【要点纪律】" in u_work and "严禁循环复述" in u_work, f"{u_work}")
     u_time = _column_fill_user("context", "# [会议时间]\n[写时间]", index=1, total=1, hint="", title="会议时间", others=[])
@@ -4552,7 +4552,7 @@ def test_column_extraction_robustness_and_timeout() -> None:
           f"{cap_client.calls}")
 
     # 9. LLMClient._stream_sync 序列化 presence_penalty 与 frequency_penalty
-    from tools.llm.llmclient import LLMClient
+    from infra.llm.client import LLMClient
     from unittest.mock import patch, MagicMock
     mock_resp = MagicMock()
     mock_resp.__enter__.return_value = [b'data: {"choices":[{"delta":{"content":"ok"}}]}\n\n', b'data: [DONE]\n\n']
@@ -4570,11 +4570,11 @@ def test_column_extraction_robustness_and_timeout() -> None:
 
 def test_general_minutes_gate_and_minutes_styles_html() -> None:
     """验证通用纪要粗体决策标签不被门禁误判为占位符，且 minutes_styles 生成有效 HTML。"""
-    from tools.templates.router._gate import validate_rendered_output
-    from domain.meeting.hooks import HOOKS
+    from core.templates.router._gate import validate_rendered_output
+    from domains.meeting.hooks import HOOKS
     from pathlib import Path
 
-    tpl_path = Path(__file__).resolve().parents[1] / "template" / "general_minutes.md"
+    tpl_path = Path(__file__).resolve().parents[1] / "resources" / "templates" / "general_minutes.md"
     tpl = tpl_path.read_text(encoding="utf-8")
 
     good_text = (
@@ -4604,8 +4604,8 @@ def test_render_context_trim_and_supervisor_soften_and_expand_skip() -> None:
     2. 渲染上下文裁剪：纪要线原文 >8000 字时智能切片，原文 <=8000 字时保持完整。
     3. 渲染扩写短文跳过：原文 <5000 字时，避免无效强制 expand。
     """
-    from tools.schema.validation import soften_unsubstantial_revise
-    from domain.meeting.orchestrator import _Nodes
+    from core.schema.validation import soften_unsubstantial_revise
+    from domains.meeting.orchestrator import _Nodes
 
     # 1. 审核快速放行验证
     all_pass_revise = {
@@ -4669,7 +4669,7 @@ def test_render_context_trim_and_supervisor_soften_and_expand_skip() -> None:
     check("长原文客观纪要：裁剪后体积大幅缩减（远小于原长文本）", len(ctx_long) < len(long_raw) * 0.7, f"{len(ctx_long)} vs {len(long_raw)}")
 
     # 3. 渲染短文本不强制 expand
-    from tools.runtime.render import _doc_han
+    from core.runtime.render import _doc_han
     check("短文本原文统计字数正确识别", _doc_han({"transcript": "短会议原文" * 100}) < 5000, "")
 
 
@@ -4678,13 +4678,13 @@ def test_court_transcript_template_and_concurrent_fill():
     import asyncio
     import json
     from pathlib import Path
-    from tools.templates.router._placeholder import (
+    from core.templates.router._placeholder import (
         fill_placeholder_template,
         plan_placeholder_fill,
         _scalar_titles,
     )
 
-    court_tpl = Path("template/court_transcript.md").read_text(encoding="utf-8")
+    court_tpl = Path("resources/templates/court_transcript.md").read_text(encoding="utf-8")
     check("庭审记录模板包含证明目的与质证细化规则", "证明目的" in court_tpl and "对方质证意见" in court_tpl, "")
     check("庭审记录模板包含反压缩纪律声明", "不得精简或合并" in court_tpl and "不设字数上限" in court_tpl, "")
 
@@ -4732,8 +4732,8 @@ def test_court_transcript_template_and_concurrent_fill():
 
 def test_table_isolation_and_deduplication() -> None:
     """支柱 1 与支柱 3 验证：形态 A 纯表格栏识别、形态 B 复合栏表格隔离纪律、标量去表与表头行数据去重。"""
-    from tools.templates.router._base import is_table_caption
-    from tools.templates.router._placeholder import (
+    from core.templates.router._base import is_table_caption
+    from core.templates.router._placeholder import (
         _strip_markdown_tables,
         _section_has_table,
         _column_fill_user,
@@ -4817,7 +4817,7 @@ def test_table_isolation_and_deduplication() -> None:
           is_table_caption(court_caption),
           f"{is_table_caption(court_caption)}")
 
-    with open("template/hiring_report.md", "r", encoding="utf-8") as f:
+    with open("resources/templates/hiring_report.md", "r", encoding="utf-8") as f:
         hiring_tpl = f.read()
     hiring_plan = plan_placeholder_fill(hiring_tpl)
     check("防线1：面试报告能力评估在计划层彻底剔除纯表格标量（仅3个标量，不调模型）",
@@ -4826,7 +4826,7 @@ def test_table_isolation_and_deduplication() -> None:
           f"{[s.get('hint')[:20] for s in hiring_plan['scalars']]}")
 
     # 4. 支柱 1 形态 B：复合栏表格隔离纪律注入
-    with open("template/clinical_advisory.md", "r", encoding="utf-8") as f:
+    with open("resources/templates/clinical_advisory.md", "r", encoding="utf-8") as f:
         clinical_tpl = f.read()
     check("临床咨询的「治疗方案与医嘱」被识别为复合表格栏",
           _section_has_table(clinical_tpl, "治疗方案与医嘱"),
@@ -4903,8 +4903,8 @@ def main() -> int:
             caplog_records.append(record)
 
     handler = _Collect()
-    logging.getLogger("tools.templates.router._gate").addHandler(handler)
-    logging.getLogger("tools.templates.router._gate").setLevel(logging.WARNING)
+    logging.getLogger("core.templates.router._gate").addHandler(handler)
+    logging.getLogger("core.templates.router._gate").setLevel(logging.WARNING)
 
     class _Cap:
         records = caplog_records
@@ -5006,7 +5006,7 @@ def main() -> int:
         test_court_transcript_template_and_concurrent_fill()
         test_table_isolation_and_deduplication()
     finally:
-        logging.getLogger("tools.templates.router._gate").removeHandler(handler)
+        logging.getLogger("core.templates.router._gate").removeHandler(handler)
 
     print("\n" + "=" * 60)
     print(f"通过 {len(PASS)} 项，失败 {len(FAIL)} 项")

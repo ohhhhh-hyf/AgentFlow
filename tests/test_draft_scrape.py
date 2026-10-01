@@ -16,7 +16,7 @@ import importlib
 import inspect
 import sys
 
-from tools.core.domain_engine_text import scrape_draft, scrape_original
+from core.graph.engine_text import scrape_draft, scrape_original
 
 PASS: list[str] = []
 FAIL: list[str] = []
@@ -31,18 +31,18 @@ def check(name: str, ok: bool, detail: str = "") -> None:
 
 # (模块, 函数名, marker 数量) —— 与各线渲染/组装步骤里的委托调用一一对应
 DRAFT_SITES = (
-    ("domain.meeting.tasks.minutes_styles.steps.minutes_styles_render", "_draft_from_context", 1),
-    ("domain.meeting.tasks.minutes_trace.steps.minutes_trace_render", "_draft_from_context", 1),
-    ("domain.notes.tasks.catalog.display", "draft_from_context", 2),
-    ("domain.notes.tasks.checklist.display", "draft_from_context", 2),
-    ("domain.notes.tasks.quiz.display", "draft_from_context", 2),
-    ("domain.notes.tasks.review.display", "draft_from_context", 2),
-    ("domain.notes.tasks.graph.steps.graph_render", "_draft_from_context", 1),
-    ("domain.notes.tasks.library.steps.library_render", "_draft_from_context", 2),
+    ("domains.meeting.tasks.minutes_styles.steps.minutes_styles_render", "_draft_from_context", 1),
+    ("domains.meeting.tasks.minutes_trace.steps.minutes_trace_render", "_draft_from_context", 1),
+    ("domains.notes.tasks.catalog.display", "draft_from_context", 2),
+    ("domains.notes.tasks.checklist.display", "draft_from_context", 2),
+    ("domains.notes.tasks.quiz.display", "draft_from_context", 2),
+    ("domains.notes.tasks.review.display", "draft_from_context", 2),
+    ("domains.notes.tasks.graph.steps.graph_render", "_draft_from_context", 1),
+    ("domains.notes.tasks.library.steps.library_render", "_draft_from_context", 2),
 )
 ORIG_SITES = (
-    ("domain.notes.tasks.review.display", "original_from_context"),
-    ("domain.notes.tasks.quiz.display", "original_from_context"),
+    ("domains.notes.tasks.review.display", "original_from_context"),
+    ("domains.notes.tasks.quiz.display", "original_from_context"),
 )
 
 

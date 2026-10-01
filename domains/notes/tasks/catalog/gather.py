@@ -1,0 +1,1845 @@
+"""从知识库抽出候选目录标题与重点上下文，拼给 catalog agent。"""
+from __future__ import annotations
+
+import json
+import logging
+import os
+import re
+from collections import defaultdict
+from pathlib import Path
+from typing import Any
+
+from domains.notes.knowledge.cite import open_knowledge
+from infra.storage.config import PROJECT_ROOT
+from infra.storage.source_role import (
+    ROLE_MATERIAL,
+    ROLE_NOTES,
+    ROLE_TEACHER,
+    ROLE_UNKNOWN,
+    classify_source_role,
+    is_ocr_notes_file,
+)
+from .store import load_catalog, load_catalog_metas
+
+logger = logging.getLogger(__name__)
+
+# briefing 中标题候选采用动态预算：资料越短越收紧，避免 OCR 短标题诱导过度建 KP。
+_MIN_BRIEF_TITLES = 60
+_MAX_BRIEF_TITLES = 220
+_TITLES_PER_PAGE = 6
+_TITLES_PER_FILE = 30
+_MIDDLE_TITLES_PER_FILE = 24
+_MIDDLE_TITLES_PER_PAGE = 5
+_DETAIL_POOL_LIMIT = 80
+_DETAIL_POOL_PER_FILE = 24
+_DETAIL_POOL_PER_PAGE = 6
+# 内容词表集中一处（catalog/taxonomy.py，可配置）；此处按旧用法取成模块常量，行为不变
+from .taxonomy import (
+    body_like_endings as _body_like_endings,
+    item_marks as _item_marks,
+    noise_short_titles as _noise_short_titles,
+    noise_title_re as _noise_title_re,
+    title_marks as _title_marks,
+)
+
+_TITLE_KEYWORDS = _title_marks()
+_ITEM_ONLY_KEYWORDS = _item_marks()
+_BODY_LIKE_ENDINGS = _body_like_endings()
+_NOISE_SHORT_TITLES = _noise_short_titles()
+_NOISE_TITLE_RE = _noise_title_re()
+# 页框/署名/联系信息形态、短噪声标题、句末标点等都在 taxonomy.py 里集中定义：
+# - 联系与出版信息：tel、电话、印刷      - 网址
+# - 页码/页框：第X页、page N、独立「页」  - 机构类别后缀（…大学/学院/university 等，锚定结尾）
+_NUMBERED_TITLE_RE = re.compile(
+    r"^(?:第[一二三四五六七八九十百零0-9]+[章节]|[一二三四五六七八九十]+、|\d+(?:\.\d+){0,3})"
+)
+
+
+def subject_from_context(text: str) -> str:
+    m = re.search(r"【学科/课程】\s*([^【】\n]+)", text or "")
+    return m.group(1).strip() if m else ""
+
+
+def user_id_from_context(text: str) -> str:
+    m = re.search(r"【用户ID】\s*([^【】\n]+)", text or "")
+    return m.group(1).strip() if m else ""
+
+
+def _is_ocr_note_source(source: str, user_id: str = "", subject: str = "") -> bool:
+    if is_ocr_notes_file(source):
+        return True
+    stem = Path(source or "").stem
+    if not stem or not (user_id or "").strip() or not (subject or "").strip():
+        return False
+    from core.runner.ids import safe_id
+
+    path = (
+        PROJECT_ROOT
+        / "data"
+        / safe_id(user_id)
+        / "ocr"
+        / safe_id(subject)
+        / f"{stem}.md"
+    )
+    return path.is_file()
+
+
+def _chunk_role(meta: dict[str, Any], source: str, user_id: str = "", subject: str = "") -> str:
+    if _is_ocr_note_source(source, user_id, subject):
+        return ROLE_NOTES
+    role = str(meta.get("role") or "").strip()
+    if role in {ROLE_MATERIAL, ROLE_NOTES, ROLE_TEACHER, ROLE_UNKNOWN}:
+        return role
+    return classify_source_role(source)
+
+
+def _brief_chunks(
+    kb: Any, user_id: str = "", subject: str = ""
+) -> dict[str, list[dict[str, str]]]:
+    grouped: dict[str, list[dict[str, str]]] = {
+        ROLE_MATERIAL: [],
+        ROLE_NOTES: [],
+        ROLE_TEACHER: [],
+        ROLE_UNKNOWN: [],
+    }
+    # briefing 只消费标题/评分/标签等元字段，正文不进内存（with_text=False）
+    try:
+        chunks = kb.list_chunks(user_id=user_id, subject=subject, with_text=False) or []
+    except Exception:
+        return grouped
+    seen: set[tuple[str, str, str]] = set()
+    for chunk in chunks:
+        if not isinstance(chunk, dict):
+            continue
+        meta = chunk.get("metadata") or {}
+        source = str(meta.get("source") or "")
+        role = _chunk_role(meta, source, user_id, subject)
+        chapter = str(meta.get("chapter") or "")
+        topic = str(meta.get("topic") or "")
+        heading = str(meta.get("heading") or "")
+        page = str(meta.get("page") or "")
+        key = (source, chapter, heading or topic, page)
+        if key in seen:
+            continue
+        seen.add(key)
+        grouped.setdefault(role, []).append(
+            {
+                "source": source,
+                "role": role,
+                "chapter": chapter,
+                "topic": topic,
+                "heading": heading,
+                "heading_path_text": str(meta.get("heading_path_text") or ""),
+                "heading_score": str(meta.get("heading_score") or ""),
+                "heading_kind": str(meta.get("heading_kind") or ""),
+                "page": page,
+                "chunk_index": str(meta.get("chunk_index") or ""),
+                "content_tags": str(meta.get("content_tags") or ""),
+                "contains_formula": str(meta.get("contains_formula") or ""),
+            }
+        )
+    # 确定性排序：按"文件 → 原文位置"排，让 briefing 的顺序 = 资料原文顺序。
+    # 之前按 (source, chapter, heading) 字典序，虽然恒定，但顺序轴变成了名称排序，
+    # 目录会出现"原文靠前的章节排到后面"（用户可见的困惑），所以改用位置轴。
+    for role in grouped:
+        grouped[role].sort(
+            key=lambda r: (
+                str(r.get("source") or ""),
+                _position_key(r),
+                str(r.get("heading") or r.get("topic") or ""),
+            )
+        )
+    return grouped
+
+
+_PAGE_DIGITS_RE = re.compile(r"\d+")
+
+
+def _position_key(row: dict[str, Any]) -> tuple[int, int, int]:
+    """原文位置键：page → chunk_index（形如 "3-2" 表示第 3 块第 2 段）。
+
+    解析不出的给大值（排到该文件末尾），保证排序恒定、不抛错。
+    """
+    page_nums = [int(x) for x in _PAGE_DIGITS_RE.findall(str(row.get("page") or ""))]
+    ci_nums = [int(x) for x in _PAGE_DIGITS_RE.findall(str(row.get("chunk_index") or ""))]
+    page = page_nums[0] if page_nums else 10**9
+    ci_major = ci_nums[0] if ci_nums else 10**9
+    ci_minor = ci_nums[1] if len(ci_nums) > 1 else 0
+    return page, ci_major, ci_minor
+
+
+def _norm_name(name: object) -> str:
+    """目录节点名归一化：去空白，便于与候选标题的名字对齐。"""
+    return re.sub(r"\s+", "", str(name or ""))
+
+
+def build_catalog_position_map(shared_context: str) -> dict[str, int]:
+    """名字 → 原文位置序号（越小越靠前），供目录生成后的确定性保序使用。
+
+    位置来源是候选标题的顺序（``_title_candidates`` 的 seq：按 role + 文件 + 原文位置），
+    候选路径的每一级（章 / 主题 / 知识点名）都登记"最早出现的位置"。
+    知识库不可用或没有候选时返回空表（调用方应视为"不做保序"）。
+    """
+    user_id = user_id_from_context(shared_context)
+    subject = subject_from_context(shared_context)
+    try:
+        kb = open_knowledge(user_id=user_id)
+        if kb is None:
+            return {}
+        grouped = _brief_chunks(kb, user_id, subject)
+        rows = _title_candidates(grouped)
+    except Exception:  # noqa: BLE001 - 位置映射失败不影响目录生成
+        return {}
+    out: dict[str, int] = {}
+    for row in rows:
+        seq = int(row.get("seq") or 0)
+        names = [row.get(k) for k in ("chapter", "topic", "heading")]
+        names += str(row.get("path") or "").split("/")
+        for name in names:
+            key = _norm_name(name)
+            if key and seq < out.get(key, 10**9):
+                out[key] = seq
+    return out
+
+
+_HEADING_PREFIX_RE = re.compile(
+    r"^(?:"
+    r"[一二三四五六七八九十百]+[、.．:：\s]\s*"
+    r"|[（(][一二三四五六七八九十百\d]+[）)][、.．:：\s]*"
+    r"|\d+(?:\.\d+)*[、.．:：\s]\s*"
+    r"|[IVXLCDMivxlcdm]+[、.．:：\s]\s*"
+    r"|第[0-9一二三四五六七八九十百]+[章节部分讲课项点步阶段周单元][、.．:：\s]*"
+    r")"
+)
+
+
+def strip_heading_prefix(text: object) -> str:
+    """剔除章节/主题/知识点名称中的序号前缀（如：'四、xxxxx'、'（五）xxxx'、'1. xxxx'、'第3节 xxxx'）。"""
+    raw = " ".join(str(text or "").split()).strip()
+    if not raw:
+        return ""
+    cleaned = raw
+    while True:
+        m = _HEADING_PREFIX_RE.match(cleaned)
+        if m:
+            remainder = cleaned[m.end():].strip()
+            if remainder:
+                cleaned = remainder
+                continue
+        break
+    return cleaned or raw
+
+
+def _clean_title(text: str) -> str:
+    return strip_heading_prefix(text)
+
+
+def _title_path(row: dict[str, str]) -> list[str]:
+    path_text = _clean_title(row.get("heading_path_text") or "")
+    if path_text:
+        return _dedupe_path([p.strip() for p in path_text.split("/") if p.strip()])
+    parts: list[str] = []
+    for key in ("chapter", "topic", "heading"):
+        title = _clean_title(row.get(key) or "")
+        if title and title not in parts:
+            parts.append(title)
+    return _dedupe_path(parts)
+
+
+def _dedupe_path(parts: list[str]) -> list[str]:
+    out: list[str] = []
+    for part in parts:
+        if out and _compact_title(out[-1]) == _compact_title(part):
+            continue
+        out.append(part)
+    return out
+
+
+def _compact_title(text: str) -> str:
+    return re.sub(r"[\s:：,，。；;、（）()\[\]【】《》“”\"'·\-—_]+", "", str(text or "").lower())
+
+
+def _titles_related(left: str, right: str, *, min_len: int = 4) -> bool:
+    """KP 名与笔记标题不必整句相同：包含或共享连续 4+ 字即可。"""
+    a = _compact_title(left)
+    b = _compact_title(right)
+    if not a or not b:
+        return False
+    if a == b or a in b or b in a:
+        return True
+    limit = min(len(a), len(b))
+    if limit < min_len:
+        return False
+    for size in range(min(10, limit), min_len - 1, -1):
+        for i in range(0, len(a) - size + 1):
+            if a[i : i + size] in b:
+                return True
+    return False
+
+
+def _score_title_candidate(row: dict[str, str]) -> tuple[int, list[str]]:
+    """标题候选评分：来源角色只作证据标签，主要看结构清晰度和学习价值。"""
+    path = _title_path(row)
+    title = path[-1] if path else ""
+    if _is_noise_title(title, row):
+        return 0, ["页眉页脚/OCR噪声"]
+    raw_score = str(row.get("heading_score") or "").strip()
+    if raw_score.isdigit():
+        score = int(raw_score)
+        reasons = ["入库标题评分"]
+        kind = str(row.get("heading_kind") or "").strip()
+        tags = str(row.get("content_tags") or "").strip()
+        if _item_only_title(title, row):
+            score = min(score, 4)
+            reasons.append("细碎标题仅作条目材料")
+        if kind:
+            reasons.append(f"kind={kind}")
+        if tags:
+            reasons.append(f"tags={tags}")
+        return score, reasons
+    score = 0
+    reasons: list[str] = []
+    if not title:
+        return score, reasons
+    if row.get("chapter"):
+        score += 4
+        reasons.append("有章级标题")
+    if row.get("topic"):
+        score += 3
+        reasons.append("有主题层级")
+    if row.get("heading"):
+        score += 2
+        reasons.append("有标题")
+    if _NUMBERED_TITLE_RE.match(title):
+        score += 2
+        reasons.append("编号/章节格式")
+    if any(word in title for word in _TITLE_KEYWORDS):
+        score += 2
+        reasons.append("知识点关键词")
+    if _item_only_title(title, row):
+        score = min(score, 4)
+        reasons.append("细碎标题仅作条目材料")
+    if 2 <= len(title) <= 28:
+        score += 1
+        reasons.append("短标题")
+    if len(title) > 45:
+        score -= 3
+        reasons.append("过长像正文")
+    if title.endswith(_BODY_LIKE_ENDINGS):
+        score -= 3
+        reasons.append("句子结尾")
+    return score, reasons
+
+
+def _is_noise_title(title: str, row: dict[str, str] | None = None) -> bool:
+    text = _clean_title(title)
+    compact = _compact_title(text)
+    if not text:
+        return True
+    if compact in {_compact_title(item) for item in _NOISE_SHORT_TITLES}:
+        return True
+    if _NOISE_TITLE_RE.search(text):
+        return True
+    row = row or {}
+    path_text = " / ".join(_title_path(row)) if row else text
+    if _NOISE_TITLE_RE.search(path_text):
+        return True
+    return False
+
+
+def _item_only_title(title: str, row: dict[str, str]) -> bool:
+    text = _clean_title(title)
+    if any(word in text for word in _ITEM_ONLY_KEYWORDS):
+        return True
+    tags = str(row.get("content_tags") or "")
+    kind = str(row.get("heading_kind") or "")
+    return kind == "knowledge_point" and any(tag in tags for tag in ("example", "mistake"))
+
+
+def _candidate_budget(candidates: list[dict[str, Any]]) -> int:
+    sources = {
+        str(row.get("source") or "").strip()
+        for row in candidates
+        if str(row.get("source") or "").strip()
+    }
+    pages = {
+        (str(row.get("source") or ""), str(row.get("page") or ""))
+        for row in candidates
+        if str(row.get("page") or "").strip()
+    }
+    if pages:
+        raw = len(pages) * _TITLES_PER_PAGE
+    else:
+        raw = len(sources or {"_"}) * _TITLES_PER_FILE
+    return max(_MIN_BRIEF_TITLES, min(_MAX_BRIEF_TITLES, raw))
+
+
+def _title_candidates(grouped: dict[str, list[dict[str, str]]]) -> list[dict[str, Any]]:
+    candidates: list[dict[str, Any]] = []
+    seq = 0
+    for role in (ROLE_MATERIAL, ROLE_NOTES, ROLE_UNKNOWN):
+        for row in grouped.get(role) or []:
+            path = _title_path(row)
+            if not path:
+                continue
+            score, reasons = _score_title_candidate(row)
+            if score <= 0:
+                continue
+            item = dict(row)
+            item["path"] = path
+            item["score"] = score
+            item["reasons"] = reasons
+            item["seq"] = seq
+            candidates.append(item)
+            seq += 1
+    # 顺序 = 原文出现顺序（seq 由上面的 role + 组内位置序决定）。
+    # score 只用于后续筛选/骨架分层，不再参与排序 —— 否则"证据多/公式密"的章节
+    # 会被提前，目录顺序与资料原文顺序不一致（用户会困惑）。
+    candidates.sort(key=lambda r: int(r.get("seq") or 0))
+    return candidates
+
+
+def _limited_middle_candidates(
+    rows: list[dict[str, Any]],
+    *,
+    total_limit: int,
+) -> list[dict[str, Any]]:
+    """中可信标题只按文件/页抽样，避免 OCR 密集短标题挤占 prompt。"""
+    if total_limit <= 0:
+        return []
+    selected: list[dict[str, Any]] = []
+    file_counts: dict[str, int] = defaultdict(int)
+    page_counts: dict[tuple[str, str], int] = defaultdict(int)
+    seen_paths: set[tuple[str, str]] = set()
+    for row in rows:
+        source = str(row.get("source") or "")
+        page = str(row.get("page") or "")
+        path = " / ".join(row.get("path") or [])
+        if not path:
+            continue
+        key = (source, path)
+        if key in seen_paths:
+            continue
+        if file_counts[source] >= _MIDDLE_TITLES_PER_FILE:
+            continue
+        page_key = (source, page)
+        if page and page_counts[page_key] >= _MIDDLE_TITLES_PER_PAGE:
+            continue
+        selected.append(row)
+        seen_paths.add(key)
+        file_counts[source] += 1
+        if page:
+            page_counts[page_key] += 1
+        if len(selected) >= total_limit:
+            break
+    return selected
+
+
+def _detail_pool_candidates(
+    rows: list[dict[str, Any]],
+    *,
+    total_limit: int = _DETAIL_POOL_LIMIT,
+) -> list[dict[str, Any]]:
+    if total_limit <= 0:
+        return []
+    selected: list[dict[str, Any]] = []
+    file_counts: dict[str, int] = defaultdict(int)
+    page_counts: dict[tuple[str, str], int] = defaultdict(int)
+    seen: set[tuple[str, str]] = set()
+    for row in rows:
+        source = str(row.get("source") or "")
+        page = str(row.get("page") or "")
+        path = " / ".join(row.get("path") or [])
+        if not path:
+            continue
+        key = (source, path)
+        if key in seen:
+            continue
+        if file_counts[source] >= _DETAIL_POOL_PER_FILE:
+            continue
+        page_key = (source, page)
+        if page and page_counts[page_key] >= _DETAIL_POOL_PER_PAGE:
+            continue
+        selected.append(row)
+        seen.add(key)
+        file_counts[source] += 1
+        if page:
+            page_counts[page_key] += 1
+        if len(selected) >= total_limit:
+            break
+    return selected
+
+
+def _point_sources(point: dict[str, Any]) -> set[str]:
+    return {
+        str(name).strip()
+        for name in point.get("source_documents") or []
+        if str(name).strip()
+    }
+
+
+def _point_missing_required_fields(point: dict[str, Any]) -> list[str]:
+    return [
+        field
+        for field in ("practice_type", "completion_criteria", "learning_role", "risk_tags")
+        if not (point.get(field) or [])
+    ]
+
+
+def _compact_existing(
+    catalog: dict[str, Any],
+    *,
+    detailed_sources: set[str] | None = None,
+) -> str:
+    detailed_sources = detailed_sources or set()
+    lines = [
+        f"课程：{catalog.get('course') or ''}",
+        f"版本：{catalog.get('version') or '1'}",
+    ]
+    for chapter in catalog.get("chapters") or []:
+        if not isinstance(chapter, dict):
+            continue
+        lines.append(f"- [{chapter.get('id') or ''}] 章 {chapter.get('name') or ''}")
+        for topic in chapter.get("topics") or []:
+            if not isinstance(topic, dict):
+                continue
+            lines.append(f"  - [{topic.get('id') or ''}] 主题 {topic.get('name') or ''}")
+            points = [
+                point
+                for point in topic.get("knowledge_points") or []
+                if isinstance(point, dict)
+            ]
+            compact_names: list[str] = []
+            expanded = 0
+            for point in points:
+                if not isinstance(point, dict):
+                    continue
+                missing = _point_missing_required_fields(point)
+                relevant = bool(_point_sources(point) & detailed_sources)
+                if missing or relevant:
+                    mark = f"（缺字段：{'、'.join(missing)}）" if missing else "（与新资料相关）"
+                    lines.append(
+                        f"      - [{point.get('id') or ''}] {point.get('name') or ''}{mark}"
+                    )
+                    expanded += 1
+                else:
+                    compact_names.append(f"[{point.get('id') or ''}] {point.get('name') or ''}")
+            if compact_names:
+                shown = "、".join(compact_names[:8])
+                rest = len(compact_names) - 8
+                tail = f" 等剩余 {rest} 个" if rest > 0 else ""
+                lines.append(f"      - 已有KP摘要：{shown}{tail}")
+            if expanded and compact_names:
+                lines.append("      - 其余已有 KP 只按摘要匹配；不要重写。")
+    return "\n".join(lines)
+
+
+def _sources_from_grouped(grouped: dict[str, list[dict[str, str]]] | None) -> set[str]:
+    if not grouped:
+        return set()
+    return {
+        str(row.get("source") or "").strip()
+        for rows in grouped.values()
+        for row in rows
+        if str(row.get("source") or "").strip()
+    }
+
+
+def known_source_documents(catalog: dict[str, Any]) -> set[str]:
+    found: set[str] = set()
+    for chapter in catalog.get("chapters") or []:
+        if not isinstance(chapter, dict):
+            continue
+        for name in chapter.get("source_documents") or []:
+            if str(name).strip():
+                found.add(str(name).strip())
+        for topic in chapter.get("topics") or []:
+            if not isinstance(topic, dict):
+                continue
+            for point in topic.get("knowledge_points") or []:
+                if not isinstance(point, dict):
+                    continue
+                for name in point.get("source_documents") or []:
+                    if str(name).strip():
+                        found.add(str(name).strip())
+    return found
+
+
+def _compact_standard_metas(metas: list[dict[str, Any]]) -> str:
+    if not metas:
+        return ""
+    allowed = {"catalog_hints", "knowledge_points"}
+    compacted: list[dict[str, Any]] = []
+    for meta in metas:
+        if not isinstance(meta, dict):
+            continue
+        item = {key: meta.get(key) or [] for key in allowed}
+        source = str(meta.get("source") or "").strip()
+        if source:
+            item["source"] = source
+        compacted.append(item)
+    return json.dumps(compacted, ensure_ascii=False)[:10000]
+
+
+def _existing_kp_count(catalog: dict[str, Any] | None) -> int:
+    """统计已有目录的 KP 总数(空壳检测用)。"""
+    if not isinstance(catalog, dict):
+        return 0
+    count = 0
+    for chapter in catalog.get("chapters") or []:
+        if not isinstance(chapter, dict):
+            continue
+        for topic in chapter.get("topics") or []:
+            if not isinstance(topic, dict):
+                continue
+            count += len(topic.get("knowledge_points") or [])
+    return count
+
+
+def _candidates_count(grouped: dict[str, list[dict[str, Any]]] | None) -> int:
+    """候选标题总数(空壳检测用：候选充足才强制重建)。"""
+    if not grouped:
+        return 0
+    return len(_title_candidates(grouped))
+
+
+def build_catalog_briefing(shared_context: str) -> str:
+    """给 LLM 的压缩输入：历史目录 + 骨架标题 + 老师原文。"""
+    user_id = user_id_from_context(shared_context)
+    subject = subject_from_context(shared_context)
+    existing = load_catalog(user_id=user_id, subject=subject)
+    mode = "incremental_update" if existing else "build"
+    kb = open_knowledge(user_id=user_id)
+    grouped = _brief_chunks(kb, user_id, subject) if kb is not None else None
+    incoming_sources = _sources_from_grouped(grouped)
+    parts = [
+        "【任务】生成或增量更新课程知识目录，不要写复习建议。",
+        f"【学科/课程】{subject or '未标注'}",
+        f"【知识库集合】{user_id or ''}__{subject or ''}",
+        f"【mode】{mode}",
+    ]
+    if existing:
+        # 空壳检测：已有目录近乎为空且候选充足 → 强制重建，避免空壳增量固化
+        if _existing_kp_count(existing) <= 3 and _candidates_count(grouped) >= 5:
+            parts.append(
+                "【空壳目录】检测到已有目录近乎为空（不足 3 个知识点），"
+                "请基于下方候选标题**完整重建**知识树："
+                "按候选的 score 与层级组织章节/主题/知识点，"
+                "不要保留空壳节点（course 可沿用）；每个主题至少 2 个知识点。"
+            )
+        else:
+            parts.append("【已有目录】必须复用下列 ID，禁止重建旧章。缺 role/practice/criteria/risk 的 KP 只补这四个字段。")
+            parts.append(_compact_existing(existing, detailed_sources=incoming_sources))
+        known = known_source_documents(existing)
+        if known:
+            parts.append("【已入库并已编目的文件】" + "、".join(sorted(known)))
+    else:
+        parts.append("【已有目录】无，按首次 build 生成完整树。")
+    standard_metas = load_catalog_metas(user_id=user_id, subject=subject)
+    meta_text = _compact_standard_metas(standard_metas)
+    if meta_text:
+        parts.append(
+            "【OCR Standard Meta 增强信号】\n"
+            "以下 meta 只说明怎么切目录：章节顺序、可学的 KP、公式 items、重要性。"
+            "source 对应同名审校 Markdown，来源是学生笔记。"
+            "不要用小节标题当该节唯一 KP；公式进 knowledge_items；笔记没有的不要编。"
+            "每个主题都要有 KP，名额按主题分配，不要切丢后面的节。"
+            "例题/旁注/页眉页脚不要升成章或 KP。强调只提高已有点的 importance。"
+            "不要让 meta 发明关系网或练习题。\n"
+            + meta_text
+        )
+    if kb is None:
+        parts.append("【知识库】当前不可用，只根据下面老师文本建目录。")
+    else:
+        grouped = grouped or {}
+        ocr_notes = sorted(
+            {
+                str(row.get("source") or "").strip()
+                for rows in grouped.values()
+                for row in rows
+                if row.get("role") == ROLE_NOTES and str(row.get("source") or "").strip()
+            }
+        )
+        if ocr_notes:
+            parts.append(
+                "【OCR 学生笔记文件】"
+                + "、".join(ocr_notes)
+                + "。这些文件来自 OCR 入库，sources 写「学生笔记」，"
+                "覆盖到的 KP 用 detailed/mentioned，不要标 none。"
+            )
+        # 来源骨架：Md 最强；没有 Md 时回退知识库 metadata 虚拟骨架。
+        skeleton_topics = []
+        try:
+            from .skeleton import build_source_skeleton, skeleton_prompt_block
+
+            skeleton = build_source_skeleton(shared_context)
+            skeleton_topics = skeleton.get("topics") or []
+            block = skeleton_prompt_block(skeleton)
+            if block:
+                parts.append(block)
+        except Exception:  # noqa: BLE001 - 骨架失败不阻断目录生成（回退候选池）
+            logger.warning("catalog skeleton build failed, fallback to candidates", exc_info=True)
+        candidates = _title_candidates(grouped)
+        if candidates:
+            topic_count = _topic_count_from_candidates(candidates)
+            kp_budget = (
+                max(8, min(60, topic_count * 4))
+                if topic_count
+                else _max_kp_budget(shared_context)
+            )
+            parts.append(
+                f"【KP 预算】本目录预计约 {kp_budget} 个知识点（按资料结构动态计算）。"
+                "按重要性取舍：次要内容并入父知识点的 knowledge_items，"
+                "不要为凑数建点；不足就少建。"
+            )
+            if skeleton_topics:
+                # 骨架已给"名字 + 顺序 + 覆盖"，候选池降级为**增强证据**：
+                # 分数/类型/标签用来判重要性、归纳 items、补前置依赖，不再决定骨架。
+                parts.append(
+                    "【结构提示（增强用）】下面是入库时算出的标题分数/类型/标签，"
+                    "**只作判 importance、写 knowledge_items、补 prerequisites/risk_tags 的证据**；"
+                    "目录骨架与顺序一律以《原文骨架》为准，不要因为这里的分数高低增删节点。"
+                )
+            else:
+                parts.append(
+                    "【候选目录标题】以下标题来自 material/notes/unknown 的统一候选池；"
+                    "role 只表示来源类型，不决定优先级。请优先使用 score 高、层级连续、路径稳定的标题建树；"
+                    "notes 与 material 同等重要，OCR 笔记结构清晰时可以作为主骨架。"
+                    "heading_kind=knowledge_point 只表示候选知识点，不等于必须新建 KP；"
+                    "例题/易错/注意/步骤/题型/小结类标题只能并入父 KP 的 knowledge_items。"
+                )
+            budget = _candidate_budget(candidates)
+            high = [row for row in candidates if int(row.get("score") or 0) >= 6]
+            middle = [row for row in candidates if 4 <= int(row.get("score") or 0) < 6]
+            low = [row for row in candidates if int(row.get("score") or 0) < 5]
+            limited_middle = _limited_middle_candidates(middle, total_limit=min(90, budget))
+            detail_pool = _detail_pool_candidates(middle + low)
+            if high:
+                parts.append("【高可信骨架】（优先形成章/主题；若多来源重复，合并为同一节点）")
+            else:
+                parts.append("【高可信骨架】未发现高分标题，请从下面的知识点标题中保守归纳章节。")
+            by_file: dict[str, list[dict[str, Any]]] = defaultdict(list)
+            for row in high or limited_middle:
+                by_file[str(row.get("source") or "")].append(row)
+            known = known_source_documents(existing) if existing else set()
+            emitted = 0
+            emitted_paths: set[tuple[str, str]] = set()
+            for fname, rows in list(by_file.items())[:20]:
+                if emitted >= budget:
+                    break
+                tag = "（已在目录中）" if fname in known else "（新资料/待匹配）"
+                parts.append(f"- 文件 {fname} {tag}")
+                seen_paths: set[str] = set()
+                for row in rows[:40]:
+                    if emitted >= budget:
+                        break
+                    path = " / ".join(row.get("path") or [])
+                    if path and path not in seen_paths:
+                        seen_paths.add(path)
+                        emitted_paths.add((fname, path))
+                        reason = "、".join(row.get("reasons") or [])
+                        parts.append(
+                            f"  · [score={row.get('score')}; role={row.get('role')}; {reason}] {path}"
+                        )
+                        emitted += 1
+            if emitted >= budget:
+                parts.append(f"  · …（候选标题过多，已按资料规模截断到 {budget} 条）")
+            remaining_middle = [
+                row
+                for row in limited_middle
+                if (str(row.get("source") or ""), " / ".join(row.get("path") or []))
+                not in emitted_paths
+            ]
+            if high and remaining_middle and not skeleton_topics:
+                parts.append("【知识点标题】（仅为候选：定义/公式/方法可考虑作 KP；例题/易错/注意/步骤/题型/小结只能并入 knowledge_items 条目）")
+                remaining = max(0, budget - emitted)
+                middle_budget = min(60, remaining)
+                for row in remaining_middle[:middle_budget]:
+                    parts.append(
+                        f"- [score={row.get('score')}; role={row.get('role')}; source={row.get('source')}] "
+                        + " / ".join(row.get("path") or [])
+                    )
+            if low and not skeleton_topics:
+                # 低分只说明"标题层级浅 / 结构信号弱"，不等于"不是小节"。以前只报数量、
+                # 名字全不给，整节内容于是凭空消失（用户看到的"笔记前几页没了"），
+                # 所以列出名字并明确可用性。有骨架时这些名字已在骨架里，不必重复。
+                parts.append(
+                    f"【低可信标题】共 {len(low)} 条：标题层级浅或结构信号弱，但**仍是原文里的标题**。"
+                    "其中若是正经小节名（不是例题/易错/注意/步骤/题型/小结类），照常建主题或 KP；"
+                    "只有明显是正文行、OCR 残片或细碎条目时才并入父节点的 knowledge_items。"
+                )
+                for row in low[:20]:
+                    parts.append(
+                        f"- [score={row.get('score')}; role={row.get('role')}; source={row.get('source')}] "
+                        + " / ".join(row.get("path") or [])
+                    )
+                if len(low) > 20:
+                    parts.append(f"  · …（低可信标题共 {len(low)} 条，此处列出前 20 条）")
+            if detail_pool:
+                parts.append(
+                    "【细节池】以下内容只能用于补充已有/新建 KP 的 knowledge_items、"
+                    "prerequisites、risk_tags、completion_criteria；"
+                    "禁止把这里的条目升成 chapter/topic/KP。"
+                )
+                for row in detail_pool:
+                    reason = "、".join(row.get("reasons") or [])
+                    tags = str(row.get("content_tags") or "").strip()
+                    meta = f"score={row.get('score')}; role={row.get('role')}"
+                    if tags:
+                        meta += f"; tags={tags}"
+                    if reason:
+                        meta += f"; {reason}"
+                    parts.append(
+                        f"- [{meta}; source={row.get('source')}; page={row.get('page')}] "
+                        + " / ".join(row.get("path") or [])
+                    )
+        else:
+            parts.append("【候选目录标题】知识库里还没有可用标题，请尽量从老师文本归纳，但不要编资料里没有的章名。")
+
+    teacher = _teacher_text(shared_context)
+    if teacher:
+        parts.append("【老师划重点原文】")
+        parts.append(teacher[:6000])
+    else:
+        parts.append("【老师划重点原文】无。teacher_emphasis 全部填 0，不要假装老师点过。")
+    return "\n".join(parts)
+
+
+def _teacher_text(shared_context: str) -> str:
+    raw = shared_context or ""
+    # 老师重点文件（docs 传入的 .txt）注入的专用块优先
+    if "【老师重点】" in raw:
+        body = raw.split("【老师重点】", 1)[1]
+        for stop in ("\n\n【", "\n\n用户画像：", "\n\n已审核", "\n\n原文"):
+            if stop in body:
+                body = body.split(stop, 1)[0]
+        return body.strip()
+    for marker in ("原文（最高事实来源）：", "原文："):
+        if marker in raw:
+            body = raw.split(marker, 1)[1]
+            for stop in ("\n\n用户画像：", "\n\n已审核", "\n\n【"):
+                if stop in body:
+                    body = body.split(stop, 1)[0]
+            return body.strip()
+    # 共享上下文里若只是任务说明 + 老师文本，去掉标记行
+    lines = []
+    for line in raw.splitlines():
+        if line.startswith("【") and line.endswith("】"):
+            continue
+        if line.startswith("【用户ID】") or line.startswith("【学科/课程】"):
+            continue
+        lines.append(line)
+    text = "\n".join(lines).strip()
+    if text.startswith("根据已入库资料生成知识目录"):
+        return ""
+    return text
+
+
+# ── 输出侧覆盖度补缺(零 LLM)────────────────────────────────────
+
+def _title_key(text: str) -> str:
+    """标题归一化键(覆盖度比对用):去空白/编号前缀/常见后缀。"""
+    blob = re.sub(r"\s+", "", (text or ""))
+    blob = re.sub(
+        r"^(?:第?[0-9一二三四五六七八九十百]+[节章部分讲课]?[.、．]?\s*|\d+\s*[.、．]\s*)",
+        "", blob,
+    )
+    for suffix in ("的定义", "的概念", "的性质", "详解", "总结", "小结"):
+        if blob.endswith(suffix) and len(blob) > len(suffix):
+            blob = blob[: -len(suffix)]
+    return blob
+
+
+def _catalog_kp_names(draft: dict[str, Any]) -> list[str]:
+    """目录中已有的 KP 名列表(归一化比对用)。"""
+    names: list[str] = []
+    for chapter in draft.get("chapters") or []:
+        if not isinstance(chapter, dict):
+            continue
+        for topic in chapter.get("topics") or []:
+            if not isinstance(topic, dict):
+                continue
+            for kp in topic.get("knowledge_points") or []:
+                if isinstance(kp, dict) and _clean_title(str(kp.get("name") or "")):
+                    names.append(str(kp.get("name") or ""))
+    return names
+
+
+def _catalog_node_names(draft: dict[str, Any]) -> set[str]:
+    """目录中**所有层级**节点名的归一化键（章/主题/KP）。
+
+    覆盖判断用它：某个名字已经以任何层级出现在目录里就算"已覆盖"，
+    不该再补一个同名 KP（否则会出现"章 X / KP X"这类同名重复）。
+    """
+    keys: set[str] = set()
+    for chapter in draft.get("chapters") or []:
+        if not isinstance(chapter, dict):
+            continue
+        for name in (chapter.get("name"),):
+            key = _title_key(str(name or ""))
+            if key:
+                keys.add(key)
+        for topic in chapter.get("topics") or []:
+            if not isinstance(topic, dict):
+                continue
+            key = _title_key(str(topic.get("name") or ""))
+            if key:
+                keys.add(key)
+            for kp in topic.get("knowledge_points") or []:
+                if not isinstance(kp, dict):
+                    continue
+                key = _title_key(str(kp.get("name") or ""))
+                if key:
+                    keys.add(key)
+    return keys
+
+
+def _next_kp_id(draft: dict[str, Any]) -> int:
+    max_no = 0
+    for chapter in draft.get("chapters") or []:
+        if not isinstance(chapter, dict):
+            continue
+        for topic in chapter.get("topics") or []:
+            if not isinstance(topic, dict):
+                continue
+            for kp in topic.get("knowledge_points") or []:
+                if not isinstance(kp, dict):
+                    continue
+                m = re.search(r"kp_(\d+)", str(kp.get("id") or ""))
+                if m:
+                    max_no = max(max_no, int(m.group(1)))
+    return max_no + 1
+
+
+def _next_node_no(draft: dict[str, Any], prefix: str) -> int:
+    """下一个 ``ch_/tp_`` 编号（补缺新建节点时用，避免与既有 ID 撞号）。"""
+    pattern = re.compile(rf"{prefix}_(\d+)")
+    max_no = 0
+    for chapter in draft.get("chapters") or []:
+        if not isinstance(chapter, dict):
+            continue
+        m = pattern.search(str(chapter.get("id") or ""))
+        if m:
+            max_no = max(max_no, int(m.group(1)))
+        for topic in chapter.get("topics") or []:
+            if not isinstance(topic, dict):
+                continue
+            m = pattern.search(str(topic.get("id") or ""))
+            if m:
+                max_no = max(max_no, int(m.group(1)))
+    return max_no + 1
+
+
+def order_catalog_by_source(draft: dict[str, Any], shared_context: str) -> dict[str, Any]:
+    """按资料原文位置给目录保序（补缺/规模合并之后调用；位置表为空则原样返回）。
+
+    位置表**优先取自原文骨架**（P2：md 直接解析，精确），没有骨架时回退入库元数据
+    （P1 的 ``page``/``chunk_index``）。两层都比"按标题字符串排序"正确。
+    """
+    position: dict[str, int] = {}
+    try:
+        from .skeleton import build_source_skeleton, skeleton_position_map
+
+        position = skeleton_position_map(build_source_skeleton(shared_context))
+    except Exception:  # noqa: BLE001 - 骨架不可用则回退
+        position = {}
+    if not position:
+        position = build_catalog_position_map(shared_context)
+    if not position:
+        return draft
+    from .steps.catalog_agent import _reorder_by_source_order
+
+    try:
+        return _reorder_by_source_order(draft, position)
+    except Exception:  # noqa: BLE001 - 保序失败不影响目录生成
+        logger.warning("catalog reorder failed, keep order", exc_info=True)
+        return draft
+
+
+# 补缺上限：一次补缺最多新增多少节点（防低分标题过多时目录被灌爆）
+_COMPLEMENT_MAX = int(os.getenv("CATALOG_COMPLEMENT_MAX", "60") or "60")
+
+
+def _fillable_title(cand: dict[str, Any]) -> bool:
+    """补缺候选：原文里的小节标题都算（含低分），只排除细碎条目/噪声/文件名退化项。
+
+    以前这里要求 ``score >= 5 且 kind != evidence``，于是"标题层级浅"的整节
+    （如 OCR 合并稿里用三级标题写的某个节）既进不了 LLM 的骨架、也补不回来。
+    """
+    path = list(cand.get("path") or [])
+    title = _clean_title(path[-1] if path else "")
+    if not title or len(title) > 40:
+        return False
+    if _item_only_title(title, cand) or _is_noise_title(title, cand):
+        return False
+    source = _norm_name(str(cand.get("source") or ""))
+    if source and _norm_name(title) == source:
+        return False  # 无标题文件会退化成"文件名当标题"，不该当 KP
+    return True
+
+
+def complement_catalog_coverage(
+    draft: dict[str, Any],
+    shared_context: str,
+) -> dict[str, Any]:
+    """输出侧覆盖度校验：候选池里未进目录的小节标题 → 程序补缺（零 LLM）。
+
+    **有骨架时直接跳过**：覆盖由 `restore_from_skeleton` 按骨架保证，这一路（用知识库
+    候选池）只服务"没有骨架"的旧数据；否则会把骨架外的名字（例如被误判成章级标题的
+    正文行）补进目录，和"骨架权威"冲突。
+
+    补缺节点标记 ``node_status=program_complement``、``change_type=added``；
+    归属规则：候选自带章/主题名在目录里有同名节点就挂上去，**没有就按候选自己的名字新建**。
+    **不再使用 `核心知识点` 这类占位名**：名字一律来自候选，取不到就跳过并计数。
+    """
+    out = dict(draft)
+    try:
+        from .skeleton import build_source_skeleton
+
+        # 统一骨架入口（真 Md 优先，无 Md 时回退 metadata 虚拟骨架）：只要有骨架，
+        # 覆盖就由骨架侧的 restore 负责，这一路（候选池补缺）不再参与——
+        # 否则会把骨架外的名字（例如被误判成章级标题的正文行）补进目录。
+        if build_source_skeleton(shared_context).get("topics"):
+            logger.info("catalog complement skipped (skeleton is authoritative)")
+            return out
+    except Exception:  # noqa: BLE001 - 骨架不可用则走旧的候选池补缺
+        logger.warning("catalog skeleton check failed in complement", exc_info=True)
+    user_id = user_id_from_context(shared_context)
+    subject = subject_from_context(shared_context)
+    kb = open_knowledge(user_id=user_id)
+    grouped = _brief_chunks(kb, user_id, subject) if kb is not None else None
+    candidates = _title_candidates(grouped) if grouped else []
+    fillable = [c for c in candidates if _fillable_title(c)]
+    chapters = out.get("chapters") or []
+    if not fillable or not chapters:
+        return out
+    existing = _catalog_kp_names(out)
+    covered = _catalog_node_names(out)
+    next_no = _next_kp_id(out)
+    next_ch_no = _next_node_no(out, "ch")
+    next_tp_no = _next_node_no(out, "tp")
+    added = 0
+    skipped = 0
+    for cand in fillable:
+        if added >= _COMPLEMENT_MAX:
+            logger.info("catalog complement capped at %d", _COMPLEMENT_MAX)
+            break
+        path = [_clean_title(p) for p in (cand.get("path") or []) if _clean_title(p)]
+        if not path:
+            continue
+        title = path[-1]
+        key = _title_key(title)
+        if not key or key in covered:
+            continue
+        if len(path) == 1:
+            # 章级候选：要建就得给章配一个"与章不同名"的主题，而那只能是占位名 ✗
+            # 结构修复器会用真名回退补点，所以这里**跳过并计数**，不造容器名
+            skipped += 1
+            continue
+        # 层级归属（与候选路径长度对齐，避免 KP 名和主题名撞车）：
+        #   2 段「章 / 主题」    → 章=path[0]，主题=path[1]，KP 名也用 path[1]
+        #   3 段「章 / 主题 / 点」→ 章=path[0]，主题=path[1]，KP=path[2]
+        chapter_name = path[0]
+        topic_name = path[1]
+        target_chapter = next(
+            (
+                chapter
+                for chapter in chapters
+                if isinstance(chapter, dict)
+                and _title_key(chapter_name) == _title_key(str(chapter.get("name") or ""))
+            ),
+            None,
+        )
+        if target_chapter is None:
+            # 整节缺失时，按候选自带的章名新建章——挂到 chapters[0] 会把内容放错章
+            target_chapter = {
+                "id": f"ch_{next_ch_no:03d}",
+                "name": chapter_name,
+                "change_type": "added",
+                "node_status": "program_complement",
+                "topics": [],
+            }
+            chapters.append(target_chapter)
+            next_ch_no += 1
+            covered.add(_title_key(chapter_name))
+        topics = [t for t in (target_chapter.get("topics") or []) if isinstance(t, dict)]
+        target_topic = next(
+            (
+                t
+                for t in topics
+                if _title_key(topic_name) == _title_key(str(t.get("name") or ""))
+            ),
+            None,
+        )
+        if target_topic is None:
+            target_topic = {
+                "id": f"tp_{next_tp_no:03d}",
+                "name": topic_name,
+                "change_type": "added",
+                "node_status": "program_complement",
+                "knowledge_points": [],
+            }
+            target_chapter.setdefault("topics", []).append(target_topic)
+            next_tp_no += 1
+        kp_list = target_topic.setdefault("knowledge_points", [])
+        kp = {
+            "id": f"kp_{next_no:03d}",
+            "name": title,
+            "aliases": [],
+            "knowledge_type": "concept",
+            "knowledge_items": [],
+            "importance": 3,
+            "difficulty": 3,
+            "teacher_emphasis": 0,
+            "change_type": "added",
+            "node_status": "program_complement",
+            "sources": [str(cand.get("source") or "")],
+            "prerequisites": [],
+            "related_points": [],
+            "risk_tags": [],
+            "completion_criteria": [],
+            "exam_signal": "none",
+            "topic": str(target_topic.get("name") or ""),
+            "chapter": str(target_chapter.get("name") or ""),
+        }
+        kp_list.append(kp)
+        existing.append(title)
+        covered.add(key)
+        next_no += 1
+        added += 1
+    # 章级候选（path 只有 1 段）一律跳过：要给它配"与章不同名"的主题就只能造占位名，
+    # 而结构修复器会用真名回退补点。跳过数进日志，便于发现"候选池噪声"。
+    if added or skipped:
+        logger.info(
+            "catalog fill missing kp=%d (skipped chapter-level candidates=%d)", added, skipped
+        )
+    return out
+
+
+def _topic_count_from_candidates(candidates: list[dict[str, Any]]) -> int:
+    """去重候选主题数：(章, 主题) 对去重——预算跟随树形状的动态参照。
+
+    候选 path 第一级是章、第二级是主题（与 prompt 层级映射一致），
+    去重后的主题数即 LLM 即将建树规模的最直接信号。
+    """
+    topics: set[tuple[str, str]] = set()
+    for row in candidates:
+        path = row.get("path") or []
+        if len(path) >= 2:
+            chapter = _clean_title(path[0])
+            topic = _clean_title(path[1])
+            if topic:
+                topics.add((chapter, topic))
+    return len(topics)
+
+
+def _max_kp_budget(shared_context: str) -> int:
+    """目录规模上限：动态跟随候选树形状，不写死。
+
+    预算 = 去重候选主题数 × 4（每主题 KP 密度中值，对齐 prompt 的 2–6 个/主题），
+    clamp(8, 60)。无候选主题（纯老师文本建目录）时回退页数/文件估算（旧行为）。
+    """
+    user_id = user_id_from_context(shared_context)
+    subject = subject_from_context(shared_context)
+    kb = open_knowledge(user_id=user_id)
+    grouped = _brief_chunks(kb, user_id, subject) if kb is not None else None
+    candidates = _title_candidates(grouped) if grouped else []
+    topic_count = _topic_count_from_candidates(candidates)
+    if topic_count > 0:
+        return max(8, min(60, topic_count * 4))
+    pages = {
+        (str(row.get("source") or ""), str(row.get("page") or ""))
+        for rows in (grouped or {}).values()
+        for row in rows
+        if str(row.get("page") or "").strip()
+    }
+    no_page_sources = {
+        str(row.get("source") or "")
+        for rows in (grouped or {}).values()
+        for row in rows
+        if str(row.get("source") or "").strip()
+        and not str(row.get("page") or "").strip()
+    }
+    raw = len(pages) * 1.2 + len(no_page_sources) * 3
+    return max(6, min(40, int(round(raw))))
+
+
+def trim_catalog_scale(
+    draft: dict[str, Any],
+    shared_context: str,
+) -> dict[str, Any]:
+    """规模上限校验：KP 数 > max → 程序合并最弱 KP 进父 topic 的 items（零 LLM）。
+
+    合并顺序：importance 低优先 → program_complement 优先 → 名称长优先；
+    每个 topic 至少保留 1 个 KP。
+    """
+    out = dict(draft)
+    max_kp = _max_kp_budget(shared_context)
+    rows: list[tuple[dict[str, Any], dict[str, Any], dict[str, Any]]] = []
+    for chapter in out.get("chapters") or []:
+        if not isinstance(chapter, dict):
+            continue
+        for topic in chapter.get("topics") or []:
+            if not isinstance(topic, dict):
+                continue
+            for kp in topic.get("knowledge_points") or []:
+                if isinstance(kp, dict) and _clean_title(str(kp.get("name") or "")):
+                    rows.append((chapter, topic, kp))
+    if len(rows) <= max_kp:
+        return out
+
+    def _weakness(kp: dict[str, Any]) -> tuple[int, int, int]:
+        try:
+            imp = int(str(kp.get("importance") or 3) or 3)
+        except (TypeError, ValueError):
+            imp = 3
+        comp = 1 if str(kp.get("node_status") or "") == "program_complement" else 0
+        return (imp, comp, -len(str(kp.get("name") or "")))
+
+    # 每个 topic 至少留 1 个 KP
+    topic_counts: dict[int, int] = {}
+    for _ch, topic, _kp in rows:
+        topic_counts[id(topic)] = topic_counts.get(id(topic), 0) + 1
+    rows.sort(key=lambda x: _weakness(x[2]))
+    overflow = rows[max_kp:]
+    merged = 0
+    for chapter, topic, kp in overflow:
+        if topic_counts.get(id(topic), 0) <= 1:
+            continue
+        name = str(kp.get("name") or "").strip()
+        items = topic.setdefault("knowledge_items", [])
+        if name and name not in items:
+            items.append(name)
+        kp_list = topic.get("knowledge_points") or []
+        if kp in kp_list:
+            kp_list.remove(kp)
+        topic_counts[id(topic)] = topic_counts.get(id(topic), 0) - 1
+        chapter["change_type"] = "updated"
+        topic["change_type"] = "updated"
+        merged += 1
+    if merged:
+        logger.info(
+            "目录规模上限校验：合并 %d 个最弱 KP 进父 topic items（上限 %d）",
+            merged,
+            max_kp,
+        )
+    return out
+
+
+# ── 重要性 / 复习权重程序计算(零 LLM)───────────────────────────
+
+def _catalog_kp_index(draft: dict[str, Any]) -> tuple[list[dict[str, Any]], dict[str, int]]:
+    """目录 KP 索引 + 被引用计数（prerequisites/related_points 中出现次数）。"""
+    kps: list[dict[str, Any]] = []
+    ref_count: dict[str, int] = {}
+    for chapter in draft.get("chapters") or []:
+        if not isinstance(chapter, dict):
+            continue
+        for topic in chapter.get("topics") or []:
+            if not isinstance(topic, dict):
+                continue
+            for kp in topic.get("knowledge_points") or []:
+                if not isinstance(kp, dict):
+                    continue
+                kps.append(kp)
+                for ref in list(kp.get("prerequisites") or []) + list(kp.get("related_points") or []):
+                    if isinstance(ref, str):
+                        ref_name = _clean_title(ref)
+                    elif isinstance(ref, dict):
+                        ref_name = _clean_title(str(ref.get("name") or ""))
+                    else:
+                        ref_name = ""
+                    if ref_name:
+                        ref_count[ref_name] = ref_count.get(ref_name, 0) + 1
+    return kps, ref_count
+
+
+def _knowledge_type_weight(ktype: str) -> int:
+    return {"theorem": 5, "formula": 5, "concept": 4, "method": 3, "application": 2}.get(
+        str(ktype or ""), 3
+    )
+
+
+def compute_kp_importance(
+    kp: dict[str, Any],
+    ref_count: dict[str, int],
+    *,
+    context: dict[str, dict[str, Any]] | None = None,
+) -> int:
+    """程序计算 importance = 0.4×结构 + 0.3×内容 + 0.3×老师，clamp 1-5。
+
+    结构分用**多信号**（关系密度 + 是否在学习路径上 + 同节并列量 + 公式/定理形态）而不是
+    只看引用数：只看引用数时，关系一空结构分就恒为 1，会让整份目录的 importance 塌成常量
+    （实测 96% 都是 3），下游 checklist 分档随之全挤进 S 档。
+
+    边界修正：老师明确强调（teacher_emphasis≥2）且与程序分差 ≥2 → 保留 LLM 值。
+    """
+    name = _clean_title(str(kp.get("name") or ""))
+    refs = ref_count.get(name, 0)
+    meta = (context or {}).get(name) or {}
+    structure = _structure_score(
+        refs,
+        bool(kp.get("prerequisites")),
+        int(meta.get("siblings") or 0),
+        _is_formula_point(kp),
+    )
+    ktype = _knowledge_type_weight(str(kp.get("knowledge_type") or ""))
+    items = len(kp.get("knowledge_items") or [])
+    content = min(ktype + (0 if items == 0 else 1 if items <= 2 else 2), 5)
+    try:
+        emph = int(str(kp.get("teacher_emphasis") or 0) or 0)
+    except (TypeError, ValueError):
+        emph = 0
+    teacher = min(emph * 2, 5) if emph else 0
+    computed = round(0.4 * structure + 0.3 * content + 0.3 * teacher)
+    computed = max(1, min(5, computed))
+    # 校准边界（对齐 prompt 规则）：内容充实的 KP 不应被结构/老师分压得过低；
+    # 空占位不高评
+    if items >= 3 and computed < 3:
+        computed = 3
+    if items == 0 and computed > 2:
+        computed = 2
+    try:
+        llm_imp = int(str(kp.get("importance") or 0) or 0)
+    except (TypeError, ValueError):
+        llm_imp = 0
+    if emph >= 2 and llm_imp and abs(llm_imp - computed) >= 2:
+        return max(1, min(5, llm_imp))
+    return computed
+
+
+def compute_review_weight(
+    kp: dict[str, Any],
+    ref_count: dict[str, int],
+) -> float:
+    """复习权重(0-1) = 0.5×importance + 0.2×difficulty + 0.2×考试信号 + 0.1×前置依赖。"""
+    try:
+        importance = int(str(kp.get("importance") or 3) or 3)
+    except (TypeError, ValueError):
+        importance = 3
+    try:
+        difficulty = int(str(kp.get("difficulty") or 3) or 3)
+    except (TypeError, ValueError):
+        difficulty = 3
+    exam = 0.2 if str(kp.get("exam_signal") or "none").strip() not in ("", "none") else 0.0
+    refs = ref_count.get(_clean_title(str(kp.get("name") or "")), 0)
+    prereq = min(refs, 3) / 3 * 0.1
+    w = 0.5 * importance / 5 + 0.2 * difficulty / 5 + 0.2 * exam + prereq
+    return round(max(0.0, min(1.0, w)), 3)
+
+
+def compute_catalog_signals(draft: dict[str, Any]) -> dict[str, Any]:
+    """对目录每个 KP 计算 importance / review_weight 并写回（零 LLM）。
+
+    importance 的"结构分"依赖关系密度，所以本函数必须在关系回填之后调用；
+    算完再做一次**分布护栏**：单值占比过高（结构信号塌陷）时按结构分给上下三等分
+    微调 ±1 —— 实测曾出现 importance 96% 都是 3，直接导致下游分档全挤进 S 档。
+    """
+    kps, ref_count = _catalog_kp_index(draft)
+    context = _kp_structure_context(draft)
+    for kp in kps:
+        kp["importance"] = compute_kp_importance(kp, ref_count, context=context)
+        kp["review_weight"] = compute_review_weight(kp, ref_count)
+    _spread_uniform_importance(kps, ref_count, context, logger)
+    return draft
+
+
+def _kp_structure_context(draft: dict[str, Any]) -> dict[str, dict[str, Any]]:
+    """每个 KP 的结构上下文（零 LLM）：同主题兄弟数 / 主题内序号 / 章内主题序号。"""
+    context: dict[str, dict[str, Any]] = {}
+    for chapter in draft.get("chapters") or []:
+        if not isinstance(chapter, dict):
+            continue
+        for topic_index, topic in enumerate(chapter.get("topics") or []):
+            if not isinstance(topic, dict):
+                continue
+            points = [p for p in (topic.get("knowledge_points") or []) if isinstance(p, dict)]
+            for index, kp in enumerate(points):
+                key = _clean_title(str(kp.get("name") or ""))
+                if not key:
+                    continue
+                context[key] = {
+                    "siblings": len(points),
+                    "index_in_topic": index,
+                    "topic_index": topic_index,
+                    "topics_in_chapter": len(chapter.get("topics") or []),
+                }
+    return context
+
+
+def _is_formula_point(kp: dict[str, Any]) -> bool:
+    flag = str(kp.get("contains_formula") or "").strip().lower()
+    if flag in {"1", "true", "yes"}:
+        return True
+    if str(kp.get("knowledge_type") or "").strip() in {"formula", "theorem"}:
+        return True
+    return False
+
+
+def _structure_score(refs: int, prereq: bool, siblings: int, formula: bool) -> int:
+    """结构分 1-5（零 LLM，可解释）：关系密度 + 是否在学习路径上 + 同节并列量 + 公式/定理形态。"""
+    score = 1
+    score += 2 if refs >= 3 else (1 if refs else 0)
+    score += 1 if prereq else 0
+    score += 1 if 2 <= siblings <= 6 else 0
+    score += 1 if formula else 0
+    return max(1, min(5, score))
+
+
+def _spread_uniform_importance(
+    kps: list[dict[str, Any]],
+    ref_count: dict[str, int],
+    context: dict[str, dict[str, Any]],
+    logger: Any,
+    *,
+    threshold: float = 0.6,
+) -> int:
+    """分布护栏：单值占比 > 阈值时按结构分上下三等分微调 ±1。
+
+    只做 ±1，且不越过既有边界规则（items ≥3 不低于 3、items == 0 不高于 2），
+    保证"内容不实的点不被抬高、充实的点不被压低"的既有口径不变。
+    """
+    if len(kps) < 5:
+        return 0
+    counts: dict[str, int] = {}
+    for kp in kps:
+        value = str(kp.get("importance") or "")
+        counts[value] = counts.get(value, 0) + 1
+    top_share = max(counts.values()) / len(kps)
+    if top_share <= threshold:
+        return 0
+
+    def struct_of(kp: dict[str, Any]) -> int:
+        key = _clean_title(str(kp.get("name") or ""))
+        return _structure_score(
+            ref_count.get(key, 0),
+            bool(kp.get("prerequisites")),
+            int((context.get(key) or {}).get("siblings") or 0),
+            _is_formula_point(kp),
+        )
+
+    ranked = sorted(kps, key=lambda kp: (-struct_of(kp), _clean_title(str(kp.get("name") or ""))))
+    third = max(1, len(ranked) // 3)
+    adjusted = 0
+    for position, kp in enumerate(ranked):
+        items_n = len([i for i in (kp.get("knowledge_items") or []) if _clean_title(str(i))])
+        try:
+            current = int(str(kp.get("importance") or "3") or "3")
+        except (TypeError, ValueError):
+            current = 3
+        target = current
+        if position < third:
+            target = min(5, current + 1)
+        elif position >= len(ranked) - third:
+            target = max(1, current - 1)
+        if items_n >= 3:
+            target = max(3, target)
+        if items_n == 0:
+            target = min(2, target)
+        if target != current:
+            kp["importance"] = str(target)
+            adjusted += 1
+    if adjusted:
+        logger.info(
+            "catalog importance spread: adjusted=%d (max single share was %.0f%%)",
+            adjusted,
+            top_share * 100,
+        )
+    return adjusted
+
+
+# ── 目录内关联的程序保底（A：零 LLM，P6）──────────────────────
+#
+# 为什么必须由程序保底：关系是**下游知识图谱的边**，也是 importance"结构分"的来源。
+# 完全依赖模型自愿输出时，强约束下很容易全空（实测 related/prereq 0/48）→
+# 图谱退化成散点、importance 塌成常量 → checklist 分档全挤进 S 档、卡量暴涨。
+# 这里的三条规则都只连"目录里真实存在的 KP"，确定性、可审计、无词表：
+#   ① 同主题内 KP 两两 used_with（同节共现，最强结构信号）
+#   ② 章内相邻主题：上一主题首个 KP → 下一主题首个 KP 的 prerequisites（原文顺序链）
+#   ③ 术语共现：入库时已写好的 term_cooccurrence 元数据，术语跨 ≥2 个标题出现 → 相关 KP 连 used_with
+
+_RELATIONS_PER_KP = 4      # 每个 KP 的 related_points 上限（防噪声与膨胀）
+_PREREQ_PER_KP = 2         # 每个 KP 的 prerequisites 上限
+
+
+def _kp_host_index(draft: dict[str, Any]) -> dict[str, dict[str, Any]]:
+    """目录内 KP 索引：归一键 → KP 引用（找宿主用）。"""
+    index: dict[str, dict[str, Any]] = {}
+    for chapter in draft.get("chapters") or []:
+        if not isinstance(chapter, dict):
+            continue
+        for topic in chapter.get("topics") or []:
+            if not isinstance(topic, dict):
+                continue
+            for kp in topic.get("knowledge_points") or []:
+                if not isinstance(kp, dict):
+                    continue
+                name = " ".join(str(kp.get("name") or "").split()).strip()
+                key = _title_key(name)
+                if name and key and key not in index:
+                    index[key] = {"kp": kp, "name": name, "chapter": chapter, "topic": topic}
+    return index
+
+
+def _link_related(left: dict[str, Any], right_name: str, relation: str) -> bool:
+    """给 left 的 related_points 追加一条（去重、去自指、限上限）。"""
+    own = _clean_title(str(left.get("name") or ""))
+    if not own or _title_key(own) == _title_key(right_name):
+        return False
+    items = [i for i in (left.get("related_points") or []) if isinstance(i, dict)]
+    if any(_title_key(str(i.get("name") or "")) == _title_key(right_name) for i in items):
+        return False
+    if len(items) >= _RELATIONS_PER_KP:
+        return False
+    items.append({"name": right_name, "relation": relation, "origin": "program"})
+    left["related_points"] = items
+    return True
+
+
+def _link_prereq(left: dict[str, Any], right_name: str) -> bool:
+    """给 left 的 prerequisites 追加一条（去重、去自指、限上限）。"""
+    own = _clean_title(str(left.get("name") or ""))
+    if not own or _title_key(own) == _title_key(right_name):
+        return False
+    items = [i for i in (left.get("prerequisites") or []) if _clean_title(str(i))]
+    if any(_title_key(str(i)) == _title_key(right_name) for i in items):
+        return False
+    if len(items) >= _PREREQ_PER_KP:
+        return False
+    items.append(right_name)
+    left["prerequisites"] = items
+    return True
+
+
+def _term_cooccurrence_edges(
+    draft: dict[str, Any], index: dict[str, dict[str, Any]], shared_context: str
+) -> int:
+    """术语共现边（零 LLM）：读入库时写好的 ``term_cooccurrence``，术语跨标题出现即连边。"""
+    user_id = user_id_from_context(shared_context)
+    subject = subject_from_context(shared_context)
+    kb = open_knowledge(user_id=user_id)
+    if kb is None:
+        return 0
+    try:
+        chunks = kb.list_chunks(user_id=user_id, subject=subject, with_text=False) or []
+    except Exception:  # noqa: BLE001 - 共现边拿不到就少一类关系，不影响主流程
+        return 0
+    terms: dict[str, set[str]] = {}
+    for chunk in chunks:
+        meta = chunk.get("metadata") or {}
+        heading = _clean_title(str(meta.get("heading") or ""))
+        if not heading:
+            continue
+        raw = str(meta.get("term_cooccurrence") or "").strip()
+        if not raw:
+            continue
+        try:
+            pairs = json.loads(raw)
+        except (TypeError, ValueError):
+            continue
+        if not isinstance(pairs, dict):
+            continue
+        for term in list(pairs.keys())[:12]:
+            key = _clean_title(str(term))[:40]
+            if len(key) < 2:
+                continue
+            terms.setdefault(key, set()).add(heading)
+    added = 0
+    for _term, headings in terms.items():
+        if len(headings) < 2:
+            continue
+        hosts = [index.get(_title_key(h)) for h in headings]
+        hosts = [h for h in hosts if h]
+        for i, left in enumerate(hosts):
+            for right in hosts[i + 1 :]:
+                if left["chapter"] is not right["chapter"]:
+                    continue  # 只连同章，避免跨章节乱连
+                if _link_related(left["kp"], right["name"], "used_with"):
+                    added += 1
+    return added
+
+
+def backfill_catalog_relations(
+    draft: dict[str, Any], shared_context: str
+) -> tuple[dict[str, Any], dict[str, int]]:
+    """程序侧关系保底（零 LLM）：补齐 related_points / prerequisites，让图谱有边、结构分有区分度。
+
+    三条规则见模块注释；只连真实存在的 KP，related_points 条目带 ``origin=program``
+    便于与模型给的关系区分审计。返回 (draft, stats)。
+    """
+    stats = {"same_topic": 0, "topic_chain": 0, "cooccurrence": 0}
+    index = _kp_host_index(draft)
+    if not index:
+        return draft, stats
+
+    # ① 同主题内两两 used_with
+    for chapter in draft.get("chapters") or []:
+        if not isinstance(chapter, dict):
+            continue
+        for topic in chapter.get("topics") or []:
+            if not isinstance(topic, dict):
+                continue
+            points = [p for p in (topic.get("knowledge_points") or []) if isinstance(p, dict)]
+            for i, left in enumerate(points):
+                for right in points[i + 1 :]:
+                    right_name = _clean_title(str(right.get("name") or ""))
+                    left_name = _clean_title(str(left.get("name") or ""))
+                    if _link_related(left, right_name, "used_with"):
+                        stats["same_topic"] += 1
+                    if _link_related(right, left_name, "used_with"):
+                        stats["same_topic"] += 1
+        # ② 章内相邻主题：上一主题首个 KP → 下一主题首个 KP
+        topics = [t for t in (chapter.get("topics") or []) if isinstance(t, dict)]
+        for prev, current in zip(topics, topics[1:]):
+            prev_points = [p for p in (prev.get("knowledge_points") or []) if isinstance(p, dict)]
+            next_points = [p for p in (current.get("knowledge_points") or []) if isinstance(p, dict)]
+            if not prev_points or not next_points:
+                continue
+            if _link_prereq(prev_points[0], _clean_title(str(next_points[0].get("name") or ""))):
+                stats["topic_chain"] += 1
+
+    # ③ 术语共现（同章内）
+    try:
+        stats["cooccurrence"] = _term_cooccurrence_edges(draft, index, shared_context)
+    except Exception:  # noqa: BLE001 - 共现失败不影响前两类关系
+        logger.warning("term cooccurrence edges failed", exc_info=True)
+
+    if any(stats.values()):
+        logger.info(
+            "catalog relations backfilled: same_topic=%d topic_chain=%d cooccurrence=%d",
+            stats["same_topic"], stats["topic_chain"], stats["cooccurrence"],
+        )
+    return draft, stats
+
+
+# ── 溯源 / 老师重点程序回填(零 LLM)────────────────────────────
+
+def _teacher_emphasis_level(hit_sentences: list[str]) -> int:
+    """老师重点分级:0 未提及 / 1 提及 / 2 明确强调 / 3 反复强调(多句+强词)。"""
+    strong = ("必考", "重点", "掌握", "一定", "反复", "务必", "重要")
+    blob = "".join(hit_sentences)
+    n = len(hit_sentences)
+    has_strong = any(w in blob for w in strong)
+    if n >= 2 and has_strong:
+        return 3
+    if n >= 1 and has_strong:
+        return 2
+    if n >= 1:
+        return 1
+    return 0
+
+
+def _teacher_match(kp: dict[str, Any], teacher: str) -> list[str]:
+    """老师文本命中该 KP 的句子：键 = name + aliases + knowledge_items（归一化匹配）。"""
+    keys = [str(kp.get("name") or "")]
+    keys.extend(str(a) for a in (kp.get("aliases") or []) if isinstance(a, str))
+    keys.extend(str(i) for i in (kp.get("knowledge_items") or []) if isinstance(i, str))
+    norm_keys = [_compact_title(k) for k in keys if _compact_title(k)]
+    hits: list[str] = []
+    for sent in re.split(r"[。！？；\n]+", teacher or ""):
+        s = sent.strip()
+        if not s:
+            continue
+        blob = _compact_title(s)
+        if any(nk and (nk in blob or blob in nk) for nk in norm_keys):
+            hits.append(s)
+            if len(hits) >= 3:
+                break
+    return hits
+
+
+def backfill_catalog_trace(
+    draft: dict[str, Any],
+    shared_context: str,
+) -> dict[str, Any]:
+    """溯源 / 老师重点程序回填（零 LLM）。
+
+    溯源（两类通用）：sources / source_chunk_ids / evidence 从知识库 chunk
+    按名称/内容匹配回填（chunk 标识 = source#heading）。
+
+    老师重点：
+    - 不传老师文本：teacher_emphasis 保持 0，不生成 teacher_focus_items / teacher_evidence；
+    - 传老师文本：程序按 KP 名/items 匹配老师句子 → teacher_emphasis 分级（0-3，取较大值）
+      + teacher_focus_items / teacher_evidence（依据句）。
+    """
+    user_id = user_id_from_context(shared_context)
+    subject = subject_from_context(shared_context)
+    kb = open_knowledge(user_id=user_id)
+    # 溯源回填需按老师重点句扫描块正文（body 命中），保留 text
+    chunks = (
+        list(kb.list_chunks(user_id=user_id, subject=subject) or [])
+        if kb is not None
+        else []
+    )
+    teacher = _teacher_text(shared_context) or ""
+    out = dict(draft)
+    for chapter in out.get("chapters") or []:
+        if not isinstance(chapter, dict):
+            continue
+        for topic in chapter.get("topics") or []:
+            if not isinstance(topic, dict):
+                continue
+            for kp in topic.get("knowledge_points") or []:
+                if not isinstance(kp, dict):
+                    continue
+                name = _clean_title(str(kp.get("name") or ""))
+                key = _compact_title(name)
+                aliases = [
+                    _clean_title(str(a))
+                    for a in (kp.get("aliases") or [])
+                    if str(a or "").strip()
+                ]
+                # ── 溯源回填（重建：程序匹配优先，覆盖历史/LLM 编造值）──
+                hits: list[dict[str, Any]] = []
+                for c in chunks:
+                    meta = c.get("metadata") or {}
+                    heading = _clean_title(str(meta.get("heading") or ""))
+                    text_key = _compact_title(str(c.get("text") or ""))
+                    heading_hit = bool(heading) and (
+                        _titles_related(name, heading)
+                        or any(_titles_related(alias, heading) for alias in aliases)
+                    )
+                    body_hit = bool(key) and len(key) >= 4 and key in text_key
+                    if heading_hit or body_hit:
+                        hits.append(c)
+                if hits:
+                    sources: list[str] = []
+                    cids: list[str] = []
+                    evs: list[str] = []
+                    for h in hits[:3]:
+                        meta = h.get("metadata") or {}
+                        src = str(meta.get("source") or "")
+                        heading = str(meta.get("heading") or "")
+                        cid = f"{src}#{heading}" if src and heading else src
+                        if src and src not in sources:
+                            sources.append(src)
+                        if cid and cid not in cids:
+                            cids.append(cid)
+                        # 依据片段只留最短可核对锚点（无下游展示消费，控制目录体积）
+                        ev = " ".join(str(h.get("text") or "").split())[:80]
+                        if ev and len(evs) < 1 and ev not in evs:
+                            evs.append(ev)
+                    kp["sources"] = sources
+                    kp["source_chunk_ids"] = cids
+                    kp["evidence"] = evs
+                    # 内容指纹随溯源回填（checklist 卡片 briefing 用，不重读全文）
+                    fp = str((hits[0].get("metadata") or {}).get("content_fingerprint") or "")
+                    if fp:
+                        kp["content_fingerprint"] = fp
+                # ── 老师重点回填（重建：依据句 = 本轮老师文本命中，覆盖历史）──
+                if teacher.strip():
+                    hit_sents = _teacher_match(kp, teacher)
+                    if hit_sents:
+                        kp["teacher_emphasis"] = _teacher_emphasis_level(hit_sents)
+                        kp["teacher_focus_items"] = hit_sents[:3]
+                        kp["teacher_evidence"] = hit_sents[:3]
+    return out
+
+
+# ── 目录内关联的存在性校准（策略二，零 LLM）────────────────────
+def _kp_relation_index(draft: dict[str, Any]) -> dict[str, str]:
+    """KP 名索引：``_title_key(名) → 树序第一个正式名``（同名异写归一到同一键）。"""
+    index: dict[str, str] = {}
+    for chapter in draft.get("chapters") or []:
+        if not isinstance(chapter, dict):
+            continue
+        for topic in chapter.get("topics") or []:
+            if not isinstance(topic, dict):
+                continue
+            for point in topic.get("knowledge_points") or []:
+                if not isinstance(point, dict):
+                    continue
+                name = " ".join(str(point.get("name") or "").split()).strip()
+                key = _title_key(name)
+                if name and key and key not in index:
+                    index[key] = name
+    return index
+
+
+def _resolve_relation_target(
+    name: str, own_key: str, index: dict[str, str]
+) -> str | None:
+    """引用名 → 目录内真实 KP 名。
+
+    - 归一键精确命中 → 正式名（消除同义异写）；
+    - 未命中 → _titles_related（包含/共享 4+ 字）唯一最接近的真实 KP；
+    - 零候选或多候选 → None（删除，宁可丢关联也不留空链接）。"""
+    key = _title_key(name)
+    if key and key in index:
+        if key == own_key:
+            return None  # 自指无意义
+        return index[key]
+    hits = [
+        formal
+        for key, formal in index.items()
+        if key != own_key and _titles_related(name, formal)
+    ]
+    return hits[0] if len(hits) == 1 else None
+
+
+def calibrate_catalog_relations(draft: dict[str, Any]) -> dict[str, Any]:
+    """校准目录内关联（related_points / prerequisites）：只允许指向真实存在的 KP。
+
+    LLM 会编造不存在的 KP 名；悬空引用会直通 checklist（prerequisites 直接出卡、
+    related_points 直接渲染"相关复习"）。校准规则（零 LLM、无词表）：
+    - 归一键精确命中 → 统一改写为正式名（消除同义异写）；
+    - 未命中 → 包含/共享 4+ 字的唯一最接近真实 KP → 改写（保留关联意图）；
+    - 零候选 / 多候选并列 / 自指 → 删除。
+    改写与删除计数打日志；不改动 change_type（程序整理不计入"本次变更"）。"""
+    index = _kp_relation_index(draft)
+    if not index:
+        return draft
+    rewritten = 0
+    dropped = 0
+    for chapter in draft.get("chapters") or []:
+        if not isinstance(chapter, dict):
+            continue
+        for topic in chapter.get("topics") or []:
+            if not isinstance(topic, dict):
+                continue
+            for point in topic.get("knowledge_points") or []:
+                if not isinstance(point, dict):
+                    continue
+                own_name = " ".join(str(point.get("name") or "").split()).strip()
+                own_key = _title_key(own_name)
+
+                rels = point.get("related_points")
+                if isinstance(rels, list):
+                    new_rels: list[dict[str, str]] = []
+                    for item in rels:
+                        if not isinstance(item, dict):
+                            dropped += 1
+                            continue
+                        name = " ".join(str(item.get("name") or "").split()).strip()
+                        relation = str(item.get("relation") or "used_with")
+                        if not name:
+                            dropped += 1
+                            continue
+                        target = _resolve_relation_target(name, own_key, index)
+                        if target is None:
+                            dropped += 1
+                            continue
+                        if target != name:
+                            rewritten += 1
+                        new_rels.append({"name": target, "relation": relation})
+                    point["related_points"] = new_rels
+
+                prereqs = point.get("prerequisites")
+                if isinstance(prereqs, list):
+                    new_prereqs: list[str] = []
+                    for name in prereqs:
+                        name = " ".join(str(name or "").split()).strip()
+                        if not name:
+                            dropped += 1
+                            continue
+                        target = _resolve_relation_target(name, own_key, index)
+                        if target is None:
+                            dropped += 1
+                            continue
+                        if target != name:
+                            rewritten += 1
+                        new_prereqs.append(target)
+                    point["prerequisites"] = new_prereqs
+    if rewritten or dropped:
+        logger.info("catalog relations fixed=%d dropped=%d", rewritten, dropped)
+    return draft

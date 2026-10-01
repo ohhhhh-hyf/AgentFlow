@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import sys
 
-from perspective.preferences import BLOCK_TITLE, PREFERENCE_LINES, build_preference_block
+from domains.shared.perspective.preferences import BLOCK_TITLE, PREFERENCE_LINES, build_preference_block
 
 PASS: list[str] = []
 FAIL: list[str] = []
@@ -131,7 +131,7 @@ def test_injection_scope() -> None:
         set(PREFERENCE_LINES) == {"minutes", "minutes_styles"},
         str(sorted(PREFERENCE_LINES)),
     )
-    from domain.meeting.orchestrator import MeetingAgentSystem  # noqa: F401 - 只验证可导入且条件用同一常量
+    from domains.meeting.orchestrator import MeetingAgentSystem  # noqa: F401 - 只验证可导入且条件用同一常量
 
     user = {"name": "赵衡", "preferences": ["先写我的待办"]}
     check("纪要线拿到非空块", bool(build_preference_block(user)), "")
@@ -144,7 +144,7 @@ def test_injection_scope() -> None:
 
 def test_view_directive() -> None:
     """本视角纪律：装配那一轮（逐栏填充）的取舍口径，独立于渲染提示词。"""
-    from perspective.preferences import (
+    from domains.shared.perspective.preferences import (
         PERSONAL_VIEW_DIRECTIVE,
         SELF_GROUP_NAME,
         SELF_GROUP_ROW,
@@ -187,8 +187,8 @@ def test_view_directive() -> None:
 
 def test_action_groups_block() -> None:
     """分栏分组骨架：把"要出现哪些组名行"变成可照抄的清单（模型只复制、不重排）。"""
-    from perspective import render_action_groups_block
-    from perspective.preferences import SELF_GROUP_ROW
+    from domains.shared.perspective import render_action_groups_block
+    from domains.shared.perspective.preferences import SELF_GROUP_ROW
 
     user = {"name": "申家坤", "name_aliases": ["家坤"]}
     understanding = {
@@ -232,7 +232,7 @@ def test_action_groups_block() -> None:
 
 def test_speaker_attribution() -> None:
     """发言行切块 + 条目归属判定（A2：把「这条是谁的」变成可照抄的事实，不让模型推理）。"""
-    from perspective import attribute_to_speaker, speaker_blocks
+    from domains.shared.perspective import attribute_to_speaker, speaker_blocks
 
     transcript = (
         "申家坤 00:00:05\n今天过长文本线。\n"
@@ -259,7 +259,7 @@ def test_speaker_attribution() -> None:
 
 def test_user_channel_block() -> None:
     """本用户称呼表：别称去噪与上限、无别称的措辞、不注入的四种情形。"""
-    from perspective.preferences import CHANNEL_TITLE, address_aliases, build_user_channel
+    from domains.shared.perspective.preferences import CHANNEL_TITLE, address_aliases, build_user_channel
 
     aliases = address_aliases(
         {
@@ -302,7 +302,7 @@ def test_user_channel_block() -> None:
 
 def test_hit_table() -> None:
     """命中表：强/弱命中、全称无边界 vs 别称要边界、编号不绑、带依据。"""
-    from perspective.hits import build_hit_table
+    from domains.shared.perspective.hits import build_hit_table
 
     user = {"name": "赵衡", "name_aliases": ["小赵", "赵工"], "role": "后端工程师"}
     understanding = {
@@ -372,7 +372,7 @@ def test_hit_table() -> None:
 
 def test_transcript_slice() -> None:
     """按人裁原文：他发言/被点名的段留下，别人的折叠；裁不动或裁太少就退回整篇。"""
-    from perspective.hits import slice_transcript_for_person
+    from domains.shared.perspective.hits import slice_transcript_for_person
 
     t = (
         "项目会\n"
@@ -414,7 +414,7 @@ def test_transcript_slice() -> None:
 
 def test_foreign_only() -> None:
     """素材裁判断据：别人为主语、且完全没提到他 → True（真人装配轮用它裁理解条目）。"""
-    from perspective.hits import foreign_only
+    from domains.shared.perspective.hits import foreign_only
 
     addrs, others = ["赵衡", "小赵"], ["武思华", "徐玥"]
     check("点名到他 → 不是别人的（即使同时点了别人名）",
@@ -434,9 +434,9 @@ def test_foreign_only() -> None:
 
 def test_skip_and_synthesize() -> None:
     """跳过判定（保守口径）+ 合成：schema 一致性与六种画像形态。"""
-    from perspective.hits import build_hit_table
-    from perspective.models import PerspectiveModeling
-    from perspective.synth import skip_reason, synthesize_perspective_profile
+    from domains.shared.perspective.hits import build_hit_table
+    from domains.shared.perspective.models import PerspectiveModeling
+    from domains.shared.perspective.synth import skip_reason, synthesize_perspective_profile
 
     # 极简画像：只有姓名/别称/角色，没给任何关注域 → agent 对它只能"标记姓名"（命中表的活）
     lean = {"name": "赵衡", "name_aliases": ["小赵", "赵工"], "role": "后端工程师"}
@@ -496,7 +496,7 @@ def test_tolerant_field_forms() -> None:
     为什么容错：手写 JSON 时很容易把"一串短句"写成单字符串；旧实现会按字符迭代
     （"家坤" → ['家','坤'] 全被短于 2 字丢掉）或 str(list) 成 "['务实', …]"（脏但碰巧命中）。
     """
-    from perspective.preferences import address_aliases, as_text_list, build_preference_block
+    from domains.shared.perspective.preferences import address_aliases, as_text_list, build_preference_block
 
     check("as_text_list：None → 空", as_text_list(None, cap=6) == [], "")
     check("as_text_list：单字符串 → 单元素", as_text_list("家坤", cap=6) == ["家坤"], "")
@@ -523,9 +523,9 @@ def test_tolerant_field_forms() -> None:
 
 def test_personal_grouping_and_normalization() -> None:
     """测试真人视角建模的分组保留、上级感知与确定性格式化。"""
-    from perspective.preferences import extract_supervisors
-    from perspective.hits import normalize_personal_sections, render_action_groups_block
-    from tools.execution.hard_execution import subset_upstream_items
+    from domains.shared.perspective.preferences import extract_supervisors
+    from domains.shared.perspective.hits import normalize_personal_sections, render_action_groups_block
+    from core.execution.gate import subset_upstream_items
 
     # 1. extract_supervisors
     u1 = {
@@ -593,7 +593,7 @@ def test_personal_grouping_and_normalization() -> None:
 
 def test_personal_template_view_directive() -> None:
     """专属个人模板纪律：契合个人工作台原生契约，无通用模板对抗指令。"""
-    from perspective import (
+    from domains.shared.perspective import (
         PERSONAL_TEMPLATE_VIEW_DIRECTIVE,
         VIEW_DIRECTIVE_TITLE,
     )
@@ -672,14 +672,14 @@ def test_personal_template_config_and_task_routing() -> None:
 
 def test_personal_enhancement_focus_radar() -> None:
     """测试 6 字段驱动的个人视角增强：三维切片、素材白名单、程序合成与关注雷达。"""
-    from perspective.hits import (
+    from domains.shared.perspective.hits import (
         build_hit_table,
         foreign_only,
         render_radar_block,
         slice_transcript_for_person,
     )
-    from perspective.synth import skip_reason, synthesize_perspective_profile
-    from tools.core.profiles import read_user_profile
+    from domains.shared.perspective.synth import skip_reason, synthesize_perspective_profile
+    from core.runner.profiles import read_user_profile
 
     # 1. 三维白名单切片测试
     t = (
@@ -755,7 +755,7 @@ def test_personal_enhancement_focus_radar() -> None:
 
     # 5. 读取 data/1/user.json 真实文件端到端测试
     from pathlib import Path
-    from tools.core.profiles import resolve_role_template
+    from core.runner.profiles import resolve_role_template
     raw_user = read_user_profile(Path("data/1/user.json"))
     check("真实 user.json：读取 name 正常", raw_user is not None and raw_user.get("name") == "申家坤", str(raw_user))
     loaded_user = resolve_role_template(raw_user)
@@ -767,7 +767,7 @@ def test_personal_enhancement_focus_radar() -> None:
 
 def test_supervisor_slice_enhancement() -> None:
     """测试审核切片增强：全量放行通道、英文缩写与人名识别、优先保留个人视角硬事实。"""
-    from tools.runtime.supervisor_slice import (
+    from core.runtime.supervisor_slice import (
         _is_useful_needle,
         collect_needles,
         slice_transcript,
@@ -811,7 +811,7 @@ def test_supervisor_slice_enhancement() -> None:
     check("超长会议切片：后半段个人优先项 李家豪 100% 成功保留", "李家豪" in excerpt_long, excerpt_long[-500:])
 
     # 5. 草稿送审保真测试（无假截断与无省略）
-    from tools.runtime.supervisor_slice import compact_draft_for_review
+    from core.runtime.supervisor_slice import compact_draft_for_review
     long_desc = "长文本性能结论：本次针对小艺慧记长文本进行了大规模并发压测，实测在 60000 多字输入下系统运行还行，但达到 8~9 万字时出现性能瓶颈，修改相关配置后 token 处理速度变慢，prefill 耗费较多时间，目前手头测到的最大耗时达到 40 多秒，后续需针对超长上下文进行专项工程优化。" * 2
     full_draft = {
         "executive_summary": [long_desc],
@@ -823,9 +823,9 @@ def test_supervisor_slice_enhancement() -> None:
 
 
 def test_personal_perspective_modeling_pruning_and_projection() -> None:
-    from perspective.synth import synthesize_perspective_profile
-    from perspective.hits import build_hit_table
-    from tools.templates.router._placeholder import _prune_context_for_column, project_column_from_draft
+    from domains.shared.perspective.synth import synthesize_perspective_profile
+    from domains.shared.perspective.hits import build_hit_table
+    from core.templates.router._placeholder import _prune_context_for_column, project_column_from_draft
 
     # 1. 建模层产出验证：高管任务简报范式，彻底消除系统内部日志腔
     table = build_hit_table({"name": "申家坤"}, {"decisions": ["申家坤负责压测报告"]})
@@ -835,7 +835,7 @@ def test_personal_perspective_modeling_pruning_and_projection() -> None:
     check("建模层产出：彻底消灭内部机器日志腔", "本场与申家坤直接相关" not in summary, summary)
 
     # 2. 指令层范式验证
-    from perspective import PERSONAL_TEMPLATE_VIEW_DIRECTIVE
+    from domains.shared.perspective import PERSONAL_TEMPLATE_VIEW_DIRECTIVE
     check("指令层：注入高管任务简报规范与去我化约束",
           "高管任务简报文风" in PERSONAL_TEMPLATE_VIEW_DIRECTIVE and "去“我”化" in PERSONAL_TEMPLATE_VIEW_DIRECTIVE, "")
 

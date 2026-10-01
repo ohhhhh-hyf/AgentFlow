@@ -26,24 +26,24 @@ vs 匿名占比）刻意保留为两个独立常量，也在此断言不被合�
 """
 from __future__ import annotations
 
-from domain.meeting.tasks.agenda_minutes import alignment_engine
-from domain.meeting.tasks.agenda_minutes.agenda_parser import (
+from domains.meeting.tasks.agenda_minutes import alignment_engine
+from domains.meeting.tasks.agenda_minutes.agenda_parser import (
     AgendaItemParsed,
     AgendaPlan,
 )
-from domain.meeting.tasks.agenda_minutes.alignment_engine import (
+from domains.meeting.tasks.agenda_minutes.alignment_engine import (
     AgendaAlignment,
     AlignmentResult,
 )
-from domain.meeting.tasks.agenda_minutes.steps import agenda_minutes_agent as agent_mod
-from domain.meeting.tasks.agenda_minutes.steps.agenda_minutes_agent import (
+from domains.meeting.tasks.agenda_minutes.steps import agenda_minutes_agent as agent_mod
+from domains.meeting.tasks.agenda_minutes.steps.agenda_minutes_agent import (
     AgendaMinutesAgent,
     SingleAgendaItemModel,
 )
-from domain.meeting.tasks.agenda_minutes.steps.agenda_minutes_agent import (
+from domains.meeting.tasks.agenda_minutes.steps.agenda_minutes_agent import (
     _normalize_conclusion_points as ncp_agent,
 )
-from tools.exports.html.agenda_minutes import _normalize_conclusion_points as ncp_exports
+from infra.exporters.html.agenda_minutes import _normalize_conclusion_points as ncp_exports
 
 PASS: list[str] = []
 FAIL: list[str] = []

@@ -14,23 +14,23 @@ from pathlib import Path
 import pytest
 import docx
 
-from domain.meeting.tasks.agenda_minutes.agenda_parser import (
+from domains.meeting.tasks.agenda_minutes.agenda_parser import (
     AgendaItemParsed,
     AgendaPlan,
     clean_presenter_names,
     parse_agenda_text,
 )
-from domain.meeting.tasks.agenda_minutes.alignment_engine import (
+from domains.meeting.tasks.agenda_minutes.alignment_engine import (
     align_agenda_with_transcript,
     group_transcript_blocks,
 )
-from domain.meeting.tasks.agenda_minutes.steps.agenda_minutes_agent import (
+from domains.meeting.tasks.agenda_minutes.steps.agenda_minutes_agent import (
     AgendaMinutesAgent,
 )
-from domain.meeting.tasks.agenda_minutes.steps.agenda_minutes_render import (
+from domains.meeting.tasks.agenda_minutes.steps.agenda_minutes_render import (
     AgendaMinutesRender,
 )
-from tools.exports.html.agenda_minutes import (
+from infra.exporters.html.agenda_minutes import (
     format_agenda_minutes_markdown,
     render_agenda_minutes_html,
 )
@@ -432,7 +432,7 @@ def test_markdown_and_html_render():
 
 def test_agenda_minutes_categories_rendering():
     """测试评审类(approval)、非审批类(share/consensus)的状态定调与差异化排版。"""
-    from domain.meeting.tasks.agenda_minutes.contracts import (
+    from domains.meeting.tasks.agenda_minutes.contracts import (
         normalize_status_tag,
         STATUS_TAG_APPROVED,
         STATUS_TAG_CONDITIONAL,
@@ -440,7 +440,7 @@ def test_agenda_minutes_categories_rendering():
         STATUS_TAG_SKIPPED,
         STATUS_TAG_EMPTY,
     )
-    from domain.meeting.tasks.agenda_minutes.steps.agenda_minutes_agent import SingleAgendaItemModel
+    from domains.meeting.tasks.agenda_minutes.steps.agenda_minutes_agent import SingleAgendaItemModel
 
     # 1. 验证归一化逻辑
     assert normalize_status_tag("通过", category="approval") == STATUS_TAG_APPROVED
@@ -611,7 +611,12 @@ def test_agenda_parser_markdown_table_and_tabs():
 
 def test_ocr_serverocr_fallback_to_rapidocr(monkeypatch):
     """测试 .env 中配置 serverocr 时，服务器不可用自动降级兜底至 RapidOCR。"""
-    from tools.ocr.engines import run_ocr_subprocess
+    try:
+        import rapidocr_onnxruntime  # noqa: F401
+    except ImportError:
+        pytest.skip("rapidocr_onnxruntime not installed")
+
+    from infra.ocr.engines import run_ocr_subprocess
 
     monkeypatch.setenv("OCR_ENGINE", "serverocr")
     monkeypatch.setenv("SERVER_OCR_URL", "http://127.0.0.1:59999/nonexistent")
@@ -625,60 +630,70 @@ def test_ocr_serverocr_fallback_to_rapidocr(monkeypatch):
     assert len(res.get("lines", [])) > 0
 
 
-@pytest.mark.asyncio
-async def test_agenda_minutes_fallback_in_orchestrator():
+def test_agenda_minutes_fallback_in_orchestrator():
     """测试当 Supervisor 驳回降级时，Orchestrator 产出完整的 Markdown 纪要而非裸字典。"""
-    from domain.meeting.orchestrator import MeetingAgentSystem
-    class DummyClient:
-        pass
-    orch = MeetingAgentSystem(client=DummyClient())
+    import asyncio
 
-    draft = {
-        "meeting_meta": {"theme": "降级测试例会", "date_time": "2026/09/28"},
-        "agenda_items": [
-            {
-                "agenda_seq": "01",
-                "agenda_title": "测试议题一",
-                "presenter": "张工",
-                "status_tag": "[审议通过]",
-                "proposal_highlights": ["方案陈述"],
-                "resolution": "同意",
-                "discussion_state": "discussed",
-            }
-        ],
-    }
-    state = {
-        "lines": {"agenda_minutes": {"draft": draft}},
-        "title": "降级测试例会",
-    }
+    async def _run():
+        from domains.meeting.orchestrator import MeetingAgentSystem
+        class DummyClient:
+            pass
+        orch = MeetingAgentSystem(client=DummyClient())
 
-    fallback_node = orch._make_fallback_node("agenda_minutes")
-    out = await fallback_node(state)
+        draft = {
+            "meeting_meta": {"theme": "降级测试例会", "date_time": "2026/09/28"},
+            "agenda_items": [
+                {
+                    "agenda_seq": "01",
+                    "agenda_title": "测试议题一",
+                    "presenter": "张工",
+                    "status_tag": "[审议通过]",
+                    "proposal_highlights": ["方案陈述"],
+                    "resolution": "同意",
+                    "discussion_state": "discussed",
+                }
+            ],
+        }
+        state = {
+            "lines": {"agenda_minutes": {"draft": draft}},
+            "title": "降级测试例会",
+        }
 
-    line_out = out["lines"]["agenda_minutes"]
-    assert line_out["degraded"] is True
-    rendered_text = line_out["rendered"]
-    # 验证降级产物是完整的 Markdown 而非 str(dict)
-    assert "# 议程纪要" in rendered_text
-    assert "### 测试议题一" in rendered_text
-    assert len(line_out["structure"]) == 1
+        fallback_node = orch._make_fallback_node("agenda_minutes")
+        out = await fallback_node(state)
+
+        line_out = out["lines"]["agenda_minutes"]
+        assert line_out["degraded"] is True
+        rendered_text = line_out["rendered"]
+        # 验证降级产物是完整的 Markdown 而非 str(dict)
+        assert "# 议程纪要" in rendered_text
+        assert "### 测试议题一" in rendered_text
+        assert len(line_out["structure"]) == 1
+
+    asyncio.run(_run())
 
 
-@pytest.mark.asyncio
-async def test_fail_fast_when_agenda_empty():
+def test_fail_fast_when_agenda_empty():
     """测试若未能从输入提取出会前议程单，Agent 立即 Fail-Fast，绝不反向解析转写污染骨架。"""
-    class DummyClient:
-        pass
+    import asyncio
 
-    agent = AgendaMinutesAgent(DummyClient())
-    with pytest.raises(ValueError, match="未能从输入文档中解析出会前既定议程单"):
-        await agent.run("这里只有会议转写，没有议程表格也没有任何议程序号...")
+    async def _run():
+        class DummyClient:
+            pass
+
+        agent = AgendaMinutesAgent(DummyClient())
+        with pytest.raises(ValueError, match="未能从输入文档中解析出会前既定议程单"):
+            await agent.run("这里只有会议转写，没有议程表格也没有任何议程序号...")
+
+    asyncio.run(_run())
 
 
-@pytest.mark.asyncio
-async def test_agenda_minutes_agent_map_reduce_concurrency():
+def test_agenda_minutes_agent_map_reduce_concurrency():
     """验证 Map-Reduce 并发抽取架构：多议题并发提取且跳过项零 Token 调用。"""
-    shared_context = """【既定议程单】
+    import asyncio
+
+    async def _run():
+        shared_context = """【既定议程单】
 | 编号 | 议题名称 | 汇报人 |
 | --- | --- | --- |
 | 1 | 议题A：输入法引擎优化 | 赵鑫岳 |
@@ -692,61 +707,63 @@ async def test_agenda_minutes_agent_map_reduce_concurrency():
 陆敬怡 00:30:00
 SpeechASR 模型完成通用测试集验证，虽然劣化 40ms 但现网表现可控，整体结论 go。
 """
-    called_labels: list[str] = []
+        called_labels: list[str] = []
 
-    class MockClient:
-        async def structured(self, sys, user, model_cls, contract, label="", max_tokens=None):
-            called_labels.append(label)
-            if "item_01" in label:
-                return model_cls(
-                    presenter="赵鑫岳",
-                    status_tag="[审议通过]",
-                    proposal_highlights=["输入法引擎全链路重构"],
-                    deliberation_details={"key_metrics": ["时延 85ms"], "feedback_concerns": []},
-                    resolution="同意商用发布",
-                    action_commitments=[],
-                )
-            elif "item_02" in label:
-                return model_cls(
-                    presenter="陆敬怡",
-                    status_tag="[审议通过]",
-                    proposal_highlights=["SpeechASR 模型测试"],
-                    deliberation_details={"key_metrics": ["劣化 40ms"], "feedback_concerns": []},
-                    resolution="整体结论 go",
-                    action_commitments=[],
-                )
-            raise ValueError(f"Unexpected label {label}")
+        class MockClient:
+            async def structured(self, sys, user, model_cls, contract, label="", max_tokens=None):
+                called_labels.append(label)
+                if "item_01" in label:
+                    return model_cls(
+                        presenter="赵鑫岳",
+                        status_tag="[审议通过]",
+                        proposal_highlights=["输入法引擎全链路重构"],
+                        deliberation_details={"key_metrics": ["时延 85ms"], "feedback_concerns": []},
+                        resolution="同意商用发布",
+                        action_commitments=[],
+                    )
+                elif "item_02" in label:
+                    return model_cls(
+                        presenter="陆敬怡",
+                        status_tag="[审议通过]",
+                        proposal_highlights=["SpeechASR 模型测试"],
+                        deliberation_details={"key_metrics": ["劣化 40ms"], "feedback_concerns": []},
+                        resolution="整体结论 go",
+                        action_commitments=[],
+                    )
+                raise ValueError(f"Unexpected label {label}")
 
-        async def text(self, sys, user, label="", max_tokens=None):
-            return "输入法与语音识别评审顺利通过，未参会议题顺延。"
+            async def text(self, sys, user, label="", max_tokens=None):
+                return "输入法与语音识别评审顺利通过，未参会议题顺延。"
 
-    agent = AgendaMinutesAgent(MockClient())
-    res = await agent.run(shared_context)
+        agent = AgendaMinutesAgent(MockClient())
+        res = await agent.run(shared_context)
 
-    # 1. 验证仅讨论过的 01 和 02 调用了单议题抽取 LLM，03 未调用
-    assert "agenda_minutes/item_01" in called_labels
-    assert "agenda_minutes/item_02" in called_labels
-    assert not any("item_03" in lbl for lbl in called_labels)
+        # 1. 验证仅讨论过的 01 和 02 调用了单议题抽取 LLM，03 未调用
+        assert "agenda_minutes/item_01" in called_labels
+        assert "agenda_minutes/item_02" in called_labels
+        assert not any("item_03" in lbl for lbl in called_labels)
 
-    # 2. 验证结果包含完整的 3 个议题且骨架锁定
-    items = res.agenda_items
-    assert len(items) == 3
-    assert items[0]["agenda_seq"] == "01"
-    assert items[0]["discussion_state"] == "discussed"
-    assert "85ms" in items[0]["deliberation_details"]["key_metrics"][0]
+        # 2. 验证结果包含完整的 3 个议题且骨架锁定
+        items = res.agenda_items
+        assert len(items) == 3
+        assert items[0]["agenda_seq"] == "01"
+        assert items[0]["discussion_state"] == "discussed"
+        assert "85ms" in items[0]["deliberation_details"]["key_metrics"][0]
 
-    assert items[1]["agenda_seq"] == "02"
-    assert items[1]["discussion_state"] == "discussed"
-    assert items[1]["resolution"] == "整体结论 go"
+        assert items[1]["agenda_seq"] == "02"
+        assert items[1]["discussion_state"] == "discussed"
+        assert items[1]["resolution"] == "整体结论 go"
 
-    # 3. 验证未讨论的 03 确定性置空
-    assert items[2]["agenda_seq"] == "03"
-    assert items[2]["discussion_state"] == "skipped"
-    assert items[2]["status_tag"] == "本次未讨论"
-    assert items[2]["proposal_highlights"] == []
+        # 3. 验证未讨论的 03 确定性置空
+        assert items[2]["agenda_seq"] == "03"
+        assert items[2]["discussion_state"] == "skipped"
+        assert items[2]["status_tag"] == "本次未讨论"
+        assert items[2]["proposal_highlights"] == []
 
-    # 4. 验证总体评价已去除
-    assert not res.meeting_meta.get("overview_headline")
+        # 4. 验证总体评价已去除
+        assert not res.meeting_meta.get("overview_headline")
+
+    asyncio.run(_run())
 
 
 def test_enhanced_state_machine_roadsign_and_buffer_isolation():
@@ -756,7 +773,7 @@ def test_enhanced_state_machine_roadsign_and_buffer_isolation():
     3. 设备闲聊识别；
     4. 转场缓冲带隔离（闲聊与调麦不污染上一议题）。
     """
-    from domain.meeting.tasks.agenda_minutes.alignment_engine import (
+    from domains.meeting.tasks.agenda_minutes.alignment_engine import (
         _is_session_closing,
         _is_opening_signal,
         _is_equipment_or_chitchat,
@@ -846,11 +863,11 @@ def test_enhanced_state_machine_roadsign_and_buffer_isolation():
 
 def test_agenda_types_registry_and_specs():
     """测试 9 大会议类型注册表与 Spec 规范定义。"""
-    from domain.meeting.tasks.agenda_minutes.types import (
+    from domains.meeting.tasks.agenda_minutes.types import (
         AGENDA_TYPE_REGISTRY,
         get_agenda_type_spec,
     )
-    from domain.meeting.tasks.agenda_minutes.prompts import build_single_item_prompt
+    from domains.meeting.tasks.agenda_minutes.prompts import build_single_item_prompt
 
     assert len(AGENDA_TYPE_REGISTRY) == 9
     expected_types = [
@@ -889,7 +906,7 @@ def test_agenda_types_registry_and_specs():
 
 def test_detect_agenda_type_all_categories():
     """测试基于会议主题与上下文的 9 大类型智能路由器。"""
-    from domain.meeting.tasks.agenda_minutes.types import detect_agenda_type
+    from domains.meeting.tasks.agenda_minutes.types import detect_agenda_type
 
     # 1. 决策审批型
     assert detect_agenda_type("智慧域商用发布评审").type_id == "decision_approval"
@@ -933,7 +950,7 @@ def test_detect_agenda_type_all_categories():
 
 def test_single_agenda_item_model_bi_directional_compat():
     """测试 SingleAgendaItemModel 在 1~5 纯干货字段与老字段之间的双向平滑兼容。"""
-    from domain.meeting.tasks.agenda_minutes.steps.agenda_minutes_agent import SingleAgendaItemModel
+    from domains.meeting.tasks.agenda_minutes.steps.agenda_minutes_agent import SingleAgendaItemModel
 
     # 1. 传入全新 1~5 字段
     new_data = {
@@ -1103,11 +1120,11 @@ def test_shangping2_typo_chenqicuo_reconciled():
     2. parse_agenda_text 传入 transcript 时自动校准为真实发言人 陈啟锴；
     3. align_agenda_with_transcript 将第 5 项（HAG）成功判定为 discussed，不再沦为 [本次未讨论]。
     """
-    from domain.meeting.tasks.agenda_minutes.agenda_parser import (
+    from domains.meeting.tasks.agenda_minutes.agenda_parser import (
         match_presenter_name,
         parse_agenda_text,
     )
-    from domain.meeting.tasks.agenda_minutes.alignment_engine import align_agenda_with_transcript
+    from domains.meeting.tasks.agenda_minutes.alignment_engine import align_agenda_with_transcript
 
     # 1. 变体与形似容错打分
     assert match_presenter_name("陈啟错", "陈啟锴") >= 0.9
@@ -1142,7 +1159,7 @@ def test_agenda_minutes_table_full_conclusion_no_truncation():
     2. HTML 与 Markdown 输出均不产生 [:80] / [:57] 机械截断；
     3. 列表型结论自动平铺为分号拼接的干净正文，杜绝 Python repr 形如 ['...'] 的括号引号污染。
     """
-    from tools.exports.html.agenda_minutes import (
+    from infra.exporters.html.agenda_minutes import (
         format_agenda_minutes_markdown,
         render_agenda_minutes_html,
     )
@@ -1369,13 +1386,13 @@ def test_alignment_engine_test7_anonymous_speaker_logs():
 
 def test_ceremonial_and_non_agenda_filtering():
     """测试纯会务动线、作息日程、低密度合影过场的双轨过滤机制，同时确保严肃未讨论技术议题绝不误删。"""
-    from domain.meeting.tasks.agenda_minutes.alignment_engine import (
+    from domains.meeting.tasks.agenda_minutes.alignment_engine import (
         AgendaAlignment,
         AlignmentResult,
         DiscussionBlock,
         is_trivial_ceremonial_item,
     )
-    from domain.meeting.tasks.agenda_minutes.agenda_parser import AgendaItemParsed, AgendaPlan
+    from domains.meeting.tasks.agenda_minutes.agenda_parser import AgendaItemParsed, AgendaPlan
 
     # 1. 纯物理动线与生活作息：直接剔除
     item_bus = AgendaItemParsed(seq="01", title="乘车至大学城", presenters=[])
@@ -1441,7 +1458,7 @@ def test_ceremonial_and_non_agenda_filtering():
 
 def test_paddle_ocr_join_row_texts_avoids_name_concatenation():
     """测试 PaddleOCR 同行拼接时，避免将汇报人与记录人无缝粘连为单个姓名。"""
-    from tools.ocr.paddle_ocr import _join_row_texts
+    from infra.ocr.paddle_ocr import _join_row_texts
 
     # 汇报人与记录人相邻
     merged = _join_row_texts(["陆敬怡;林宇珂;赖朝辉", "王旭"])
@@ -1455,7 +1472,7 @@ def test_paddle_ocr_join_row_texts_avoids_name_concatenation():
 
 def test_prepare_agenda_ocr_prompt_text_filters_sidebar_and_preserves_columns():
     """测试 prepare_agenda_ocr_prompt_text 能正确过滤左侧装饰性侧栏标签，并按水平行聚类。"""
-    from domain.meeting.tasks.agenda_minutes.agenda_extractor import prepare_agenda_ocr_prompt_text
+    from domains.meeting.tasks.agenda_minutes.agenda_extractor import prepare_agenda_ocr_prompt_text
 
     raw_lines = [
         {"text": "会议主题：智慧域商用发布评审", "bbox": [[250, 580], [450, 580], [450, 600], [250, 600]]},
@@ -1484,7 +1501,7 @@ def test_prepare_agenda_ocr_prompt_text_filters_sidebar_and_preserves_columns():
 
 def test_auto_structure_and_render_sub_bullets():
     """测试核心内容与核心认知自动分组分点结构化（加粗主题 + 二级子列表）。"""
-    from tools.exports.html.agenda_minutes import (
+    from infra.exporters.html.agenda_minutes import (
         auto_structure_bullet,
         format_agenda_minutes_markdown,
         render_agenda_minutes_html,
@@ -1560,13 +1577,13 @@ def test_zero_terminology_and_substantive_fail_safe() -> None:
     3. 高证据密度反向保活机制（Fail-Safe）：
        - 即使 LLM 误标 is_substantive_agenda=False，事实密度充实（>=5块且>=150字）强制保活。
     """
-    from domain.meeting.tasks.agenda_minutes.agenda_parser import AgendaItemParsed, AgendaPlan
-    from domain.meeting.tasks.agenda_minutes.alignment_engine import (
+    from domains.meeting.tasks.agenda_minutes.agenda_parser import AgendaItemParsed, AgendaPlan
+    from domains.meeting.tasks.agenda_minutes.alignment_engine import (
         AgendaAlignment,
         AlignmentResult,
         DiscussionBlock,
     )
-    from domain.meeting.tasks.agenda_minutes.steps.agenda_minutes_agent import (
+    from domains.meeting.tasks.agenda_minutes.steps.agenda_minutes_agent import (
         AgendaMinutesAgent,
         SingleAgendaItemModel,
     )

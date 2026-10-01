@@ -1,0 +1,156 @@
+"""OCR 引擎分派：按 ``OCR_ENGINE`` 选择引擎，主进程直调，统一重试与失败落盘。
+
+三种引擎各自成文件（``tools/ocr/{server_ocr,paddle_ocr,rapid_ocr}.py``），
+本模块只做分派，不含任何引擎实现：
+
+- ``serverocr``（别名 server / remote）：远程 OCR 服务 HTTP 直调，失败按 .env 约定自动降级兜底至 RapidOCR
+- ``paddleocr``（别名 paddle）：PaddleOCR 3.x / PP-OCRv5，模型懒加载
+- ``rapidocr``（别名 rapid）：RapidOCR（CPU 本地，onnxruntime）
+
+引擎不可用或重试失败 → 失败样本落盘 ``logs/ocr_failed/`` 并返回空结果，不阻断主流程。
+"""
+from __future__ import annotations
+
+import importlib
+import logging
+import os
+import shutil
+import time
+from datetime import datetime
+from pathlib import Path
+
+logger = logging.getLogger(__name__)
+
+ROOT = Path(__file__).resolve().parents[2]
+_OCR_FAILURE_DIR = ROOT / "logs" / "ocr_failed"
+
+# OCR_ENGINE 取值别名 → 引擎模块名（tools/ocr/{module}.py）
+_ENGINE_ALIASES: dict[str, str] = {
+    "server": "server_ocr",
+    "serverocr": "server_ocr",
+    "remote": "server_ocr",
+    "paddle": "paddle_ocr",
+    "paddleocr": "paddle_ocr",
+    "rapid": "rapid_ocr",
+    "rapidocr": "rapid_ocr",
+}
+
+
+def ocr_engine_label() -> str:
+    """当前 OCR 引擎展示名：serverocr / paddleocr / rapidocr。"""
+    alias = os.environ.get("OCR_ENGINE", "serverocr").strip().lower() or "serverocr"
+    module_name = _ENGINE_ALIASES.get(alias)
+    if not module_name:
+        return alias
+    return module_name.replace("_", "")
+
+
+def ocr_concurrency() -> int:
+    """当前引擎实际可并行路数；Paddle 由实例池大小决定，默认 4 路。"""
+    label = ocr_engine_label()
+    if label == "paddleocr":
+        from infra.ocr.paddle_ocr import paddle_concurrency
+
+        return paddle_concurrency()
+    raw = os.getenv("OCR_PARALLEL", "4").strip() or "4"
+    try:
+        return max(1, min(8, int(raw)))
+    except ValueError:
+        return 4
+
+
+def _log_ocr_failure(image_path: str, detail: str) -> None:
+    try:
+        src = Path(image_path)
+        stamp = datetime.now().strftime("%Y%m%d_%H%M%S_%f")[:-3]
+        folder = _OCR_FAILURE_DIR / stamp
+        folder.mkdir(parents=True, exist_ok=True)
+        if src.is_file():
+            shutil.copy2(src, folder / src.name)
+        (folder / "error.txt").write_text(detail, encoding="utf-8", errors="replace")
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("save ocr fail sample failed: %s", exc)
+
+
+def run_ocr_subprocess(image_path: str, for_agenda: bool = False) -> dict:
+    """识别一张图：按 ``OCR_ENGINE`` 分派到对应引擎模块，统一 3 次重试。
+
+    返回 ``{"engine": 展示名, "lines": [...]}``；三次失败 / 引擎名未知 →
+    失败样本落盘并返回空 lines，不抛异常（超时由各引擎自身的环境变量控制：SERVER_OCR_TIMEOUT / PADDLE_OCR_*）。
+    如果配置为 serverocr 且重试失败，则按 .env 约定自动降级兜底至 RapidOCR。
+
+    Parameters
+    ----------
+    for_agenda : bool
+        True 时使用 ``ocr_image_agenda``（禁用文档方向预处理），防止 PP-OCRv5
+        底部边缘裁切导致末尾议题丢失。
+    """
+    alias = os.environ.get("OCR_ENGINE", "serverocr").strip().lower() or "serverocr"
+    module_name = _ENGINE_ALIASES.get(alias)
+    if module_name is None:
+        detail = f"未知 OCR_ENGINE={alias!r}（可选：serverocr / paddleocr / rapidocr）"
+        logger.warning(detail)
+        _log_ocr_failure(image_path, detail)
+        return {"engine": alias or "unknown", "lines": []}
+
+    engine = module_name.replace("_", "")  # 展示名：serverocr / paddleocr / rapidocr
+    module = importlib.import_module(f"tools.ocr.{module_name}")
+    errors: list[str] = []
+    # 议程专用：优先使用 ocr_image_agenda（禁用 doc_orientation），若不存在则退回 ocr_image
+    _ocr_fn = (
+        getattr(module, "ocr_image_agenda", module.ocr_image)
+        if for_agenda
+        else module.ocr_image
+    )
+    for attempt in range(1, 4):
+        try:
+            payload = _ocr_fn(image_path)
+            if payload.get("lines"):
+                return payload
+            errors.append(f"[attempt {attempt}] {engine} 返回空结果")
+            logger.warning("%s attempt %s returned empty", engine, attempt)
+        except TimeoutError:
+            errors.append(f"[attempt {attempt}] 超时，不再重试")
+            break
+        except Exception as exc:  # noqa: BLE001 - 引擎异常降级为重试
+            errors.append(f"[attempt {attempt}] {type(exc).__name__}: {exc}")
+            logger.warning("%s attempt %s failed: %s", engine, attempt, exc)
+        if attempt < 3:
+            time.sleep(0.6 * attempt)
+    detail = "\n".join(errors)[-4000:]
+    _log_ocr_failure(image_path, detail)
+
+    # 按照 .env 约定：serverocr=服务器优先并兜底 RapidOCR
+    if engine == "serverocr":
+        logger.warning(
+            "serverocr failed (%s), falling back to rapidocr as configured in .env",
+            errors[-1] if errors else "empty result",
+        )
+        try:
+            from infra.ocr.rapid_ocr import ocr_image as rapid_ocr_image
+
+            fb_payload = rapid_ocr_image(image_path)
+            if fb_payload.get("lines"):
+                logger.info("fallback to rapidocr succeeded, got %d lines", len(fb_payload["lines"]))
+                return fb_payload
+        except Exception as fb_exc:  # noqa: BLE001
+            logger.warning("fallback to rapidocr also failed: %s", fb_exc)
+
+    logger.warning("%s failed 3x, return empty", engine)
+    return {"engine": engine, "lines": []}
+
+
+def get_llm_client():
+    """项目现有 LLM 客户端（DeepSeek）——重构用。失败返回 None。"""
+    try:
+        from infra.llm import LLMClient
+        from infra.llm.config import load_env
+
+        load_env(ROOT / ".env")
+        return LLMClient()
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("llm client unavailable (%s), ocr returns raw text", exc)
+        return None
+
+
+__all__ = ["get_llm_client", "ocr_concurrency", "ocr_engine_label", "run_ocr_subprocess"]

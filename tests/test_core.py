@@ -11,7 +11,7 @@ import sys
 import tempfile
 from pathlib import Path
 
-from tools.core.profiles import (
+from core.runner.profiles import (
     classify_profile,
     filter_identity_fields,
     is_user_profile_file,
@@ -178,14 +178,15 @@ def test_sanitize_and_merge(tmp_path: Path) -> None:
     check("自己写了 focus_areas → 整段替换（不拼接模板）",
           merged2.get("focus_areas") == ["接口契约与依赖"], str(merged2.get("focus_areas")))
     # 职业文件本身不受清洗影响
-    dev_raw = json.loads((root / "assets" / "profiles" / "developer.json").read_text(encoding="utf-8"))
+    prof_dir = (root / "resources" / "profiles") if (root / "resources" / "profiles").is_dir() else (root / "assets" / "profiles")
+    dev_raw = json.loads((prof_dir / "developer.json").read_text(encoding="utf-8"))
     check("职业文件仍按职业模板分类（清洗只作用 user.json）",
-          classify_profile(resolve_role_template(dev_raw, root / "assets" / "profiles")) == "role_template", "")
+          classify_profile(resolve_role_template(dev_raw, prof_dir)) == "role_template", "")
     check("is_user_profile_file 只认 user.json",
-          is_user_profile_file(ui) and not is_user_profile_file(root / "assets" / "profiles" / "developer.json"), "")
+          is_user_profile_file(ui) and not is_user_profile_file(prof_dir / "developer.json"), "")
 
     # 画像字段必须真的被 UserIdentity 承载（不在 dataclass 里的键会被 filter_identity_fields 静默丢掉）
-    from domain.meeting.models_base import UserIdentity as MeetingIdentity
+    from domains.meeting.models_base import UserIdentity as MeetingIdentity
 
     identity = MeetingIdentity(**filter_identity_fields(merged, MeetingIdentity))
     check("UserIdentity 承载 name_aliases/personality/preferences",
@@ -196,14 +197,14 @@ def test_sanitize_and_merge(tmp_path: Path) -> None:
           str(identity))
 
     # 选档的最终后果：模式判定（personal 会跑视角建模；objective 跳过）
-    from tools.core.domain_engine import DomainNodes
+    from core.graph.nodes import DomainNodes
 
     mode = DomainNodes._mode_label(
         {"user": identity.model_dump(), "objective_perspective": False}
     )
     check("有 user.json（真人）→ 视角模式 personal", mode == "personal", mode)
     obj_identity = MeetingIdentity(**filter_identity_fields(
-        json.loads((root / "assets" / "profiles" / "object.json").read_text(encoding="utf-8")),
+        json.loads((prof_dir / "object.json").read_text(encoding="utf-8")),
         MeetingIdentity,
     ))
     check("无 user.json（客观）→ 视角模式 objective（跳过视角建模）",
@@ -280,8 +281,8 @@ def test_domain_hooks_registry() -> None:
     域包（跨层反向依赖），现改为**域自注册 + 引擎按域名取**。这里锁住协议面：
     空域名/未知域不炸、注册可覆盖、域包自注册、域名从模块路径推导、clear 可复位。
     """
-    from tools.core.domain_engine import DomainNodes
-    from tools.core.domain_hooks import DomainHooks, clear, hooks_for, register, registered
+    from core.graph.nodes import DomainNodes
+    from core.runner.hooks import DomainHooks, clear, hooks_for, register, registered
 
     class _Stub(DomainNodes):
         """测试桩：不在 domain.* 包内 ⇒ 域名推导为空串。"""
@@ -325,15 +326,15 @@ def test_domain_hooks_registry() -> None:
           and hooks.html_for("minutes_trace", "t", "正文", {}) is not None
           and hooks.html_for("mindmap", "t", "正文", {}) is None,
           "")
-    from domain.meeting.tasks.minutes.steps.minutes_render import compact_untemplated_minutes
+    from domains.meeting.tasks.minutes.steps.minutes_render import compact_untemplated_minutes
 
     check("压缩钩子：纪要类线走域内压缩，其它线原样返回",
           hooks.compact_plain("minutes", "a\n\n\nb") == compact_untemplated_minutes("a\n\n\nb")
           and hooks.compact_plain("actions", "a\n\n\nb") == "a\n\n\nb",
           repr(hooks.compact_plain("minutes", "a\n\n\nb")))
 
-    from domain.meeting.orchestrator import MeetingAgentSystem
-    from domain.notes.orchestrator import NotesAgentSystem
+    from domains.meeting.orchestrator import MeetingAgentSystem
+    from domains.notes.orchestrator import NotesAgentSystem
 
     check("域名推导：domain.meeting.orchestrator → meeting",
           object.__new__(MeetingAgentSystem).domain_name == "meeting", "")
@@ -354,10 +355,10 @@ def test_domain_hooks_registry() -> None:
     import sys
 
     for domain_name in ("meeting", "notes"):
-        module = sys.modules.get(f"domain.{domain_name}.hooks")
+        module = sys.modules.get(f"domains.{domain_name}.hooks")
         if module is None:
-            importlib.import_module(f"domain.{domain_name}.hooks")
-            module = sys.modules[f"domain.{domain_name}.hooks"]
+            importlib.import_module(f"domains.{domain_name}.hooks")
+            module = sys.modules[f"domains.{domain_name}.hooks"]
         register(domain_name, importlib.reload(module).HOOKS)
     check("测试收尾：两域钩子已复位（避免影响同进程其它套件）",
           set(registered()) >= {"meeting", "notes"}, str(sorted(registered())))
@@ -376,8 +377,8 @@ def test_tasklines_registration() -> None:
 
 def test_action_items_render() -> None:
     """验证待办事项卡片式清单（4个核心维度、自适应输出、无原句）及降级拼装。"""
-    from domain.meeting.tasks.actions.steps.actions_render import ActionItemsRender
-    from domain.meeting.memory.render import _parse_actions_from_text, render_actions_html
+    from domains.meeting.tasks.actions.steps.actions_render import ActionItemsRender
+    from domains.meeting.memory.render import _parse_actions_from_text, render_actions_html
 
     # 1. 结构化草稿测试（含具象短语话题多事项聚合）
     state = {
@@ -459,7 +460,7 @@ def test_action_items_render() -> None:
 
 
     # 4. ActionItemsReport 校验测试（确保多余 category, deliverable, dependency 不报错）
-    from domain.meeting.reports import ActionItemsReport
+    from domains.meeting.reports import ActionItemsReport
     report_data = {
         "actions": [
             {
@@ -484,8 +485,8 @@ def test_action_items_render() -> None:
 
 def test_risk_items_render() -> None:
     """验证风险分析卡片式清单（4个核心维度、自适应输出、无原句）及降级拼装。"""
-    from domain.meeting.tasks.risks.steps.risks_render import RiskRender
-    from domain.meeting.memory.render import _parse_risks_from_text, render_risks_html
+    from domains.meeting.tasks.risks.steps.risks_render import RiskRender
+    from domains.meeting.memory.render import _parse_risks_from_text, render_risks_html
 
     # 1. 结构化草稿测试（含具象短语话题多风险聚合）
     state = {
@@ -571,9 +572,9 @@ def test_risk_items_render() -> None:
 def test_general_minutes_title_fixed() -> None:
     """通用纪要：模板与产物落盘顶部强制固定为 # 通用纪要，不被动态 headline 覆盖。"""
     from app.config import resolve_template_format, template_registry
-    from domain.meeting.reports import MinutesReport
-    from tools.core.runtime_context import load_domain
-    from tools.exports.outputs import save_report_artifacts
+    from domains.meeting.reports import MinutesReport
+    from core.runner.context import load_domain
+    from infra.exporters.outputs import save_report_artifacts
 
     # 1. 模板注册表 format 保留 # 通用纪要
     item = template_registry().get("daily_journal_general_minutes")

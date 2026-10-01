@@ -1,0 +1,1077 @@
+"""领域无关的多 Agent 编排引擎（meeting / notes 共享内核）。
+
+背景
+----
+meeting 与 notes 两个域的 orchestrator 曾经是同一内核的复制（约 80% 行重复），
+并已发生多处行为漂移（supervisor 审核键名、revision 节点、路由判断、图异常兜底、
+降级检查、produce 特判）。本模块把共享内核抽到一处，两域 orchestrator 只保留：
+
+- 生成区（模型 / TASK_LINES / 工厂挂载 / Report 组装器；不再生成 render/fallback 方法）
+- 领域专属 core 节点（会议理解 / 笔记理解）
+- 少量钩子覆写（见 ``DomainNodes`` 的"领域钩子"注释）
+
+模块提供：
+
+- 纯函数在 ``domain_engine_text``（本模块再导出，领域别名 import 不变）
+- ``DomainNodes`` mixin：同构图节点、流式生产者、图构建与 ``run_streaming``
+
+设计约定
+--------
+- sync_domain.py 生成的代码引用模块级名字（``_line`` / ``_json`` / ``_fallback_text``
+  等）。领域 orchestrator 通过别名 import 保持这些名字可用，
+  生成区内容不变，``sync_domain.py --check`` 依然通过。
+- 领域类继承 ``DomainNodes`` 后通过覆写钩子定制领域行为；引擎方法一律经
+  ``self.xxx`` 读取领域数据（``_task_lines`` / ``_line_cn_names`` / ``_state_class``
+  / ``_quality_warning`` / ``_fallback_rules`` / ``_report_assemblers``），
+  这些实例属性由领域 __init__ 设置。
+"""
+from __future__ import annotations
+
+import asyncio
+import logging
+from collections.abc import AsyncIterator, Iterable
+
+from langgraph.graph import END, START, StateGraph
+
+try:
+    from domains.shared.perspective import EMPTY_PERSPECTIVE_MODELING
+except ImportError:
+    from domains.shared.perspective import EMPTY_PERSPECTIVE_MODELING
+
+try:
+    from core.runner.hooks import hooks_for
+except ImportError:
+    from core.runner.hooks import hooks_for
+
+from .engine_text import (
+    assemble_report,
+    fallback_text,
+    field_values,
+    format_graph_node,
+    format_risk_item,
+    json_dumps,
+    line,
+    line_cn,
+    line_draft_title,
+    line_has_structure,
+    line_template,
+    make_fallback_text,
+    normalize_templates,
+    normalize_transcript,
+    pick_label,
+    sec_attr,
+)
+from core.runner.progress import progress
+from core.schema.validation import validate_payload
+
+logger = logging.getLogger(__name__)
+
+# 以下纯函数定义于 domain_engine_text，本模块在编排逻辑中直接复用；调用方按需直连对应模块。
+
+# ── DomainNodes：图节点 mixin（领域无关内核）──────────────────
+
+class DomainNodes:
+    """LangGraph 图节点 mixin（领域无关内核）。
+
+    领域类继承本类，并确保：
+    - 实例属性（领域 __init__ 设置）：``_task_lines`` / ``_line_cn_names`` /
+      ``_state_class`` / ``_quality_warning``（后三者之外的 ``_fallback_rules`` /
+      ``_report_assemblers`` 由 sync_domain 生成区写入）
+    - 可选覆写钩子：``_compute_title`` / ``_line_title`` / ``_shared_context`` /
+      ``_line_shared_context`` /
+      ``_supervisor_context`` / ``_render_directives`` / ``_build_core`` /
+      ``_pre_render_hook`` / ``_post_render_hook`` / ``_empty_purpose`` /
+      ``_understanding_key`` / ``_understanding_label`` / ``_transcript_label``
+    """
+
+    MAX_REVISIONS = 1
+
+    # 领域钩子：默认值（领域按需覆写为类属性）
+    _fallback_formatters: dict[str, object] = {}
+    _quality_disclaimer = "（生成可能有误）"
+    _understanding_key = ""
+    _understanding_label = "已审核理解"
+    _transcript_label = "原文"
+
+    # ── 辅助方法 ──────────────────────────────────────────────
+
+    @staticmethod
+    def _mode_label(state: dict) -> str:
+        if state.get("objective_perspective"):
+            return "objective"
+        user = state.get("user") or {}
+        if str(user.get("persona_type") or "").strip().lower() == "role_template":
+            return "role_template"
+        return "personal"
+
+    @property
+    def domain_name(self) -> str:
+        """域名（从类所在模块推导：``domain.<name>.orchestrator`` → ``<name>``）。
+
+        引擎层不 import 具体域，改按域名取钩子（``tools/core/domain_hooks.py``）；
+        测试桩类不在 ``domain.*`` 下 ⇒ 返回空串 ⇒ 空钩子，不会误触域逻辑。
+        """
+        parts = type(self).__module__.split(".")
+        return parts[1] if len(parts) > 1 and parts[0] in ("domain", "domains") else ""
+
+    def _render_directives(self, state: dict, line_name: str) -> str:
+        """逐栏填充（装配）那一轮的本栏写作纪律；默认无。
+
+        带模板时正文由 ``tools.templates.router`` 的通用填充器逐栏写，system 里没有领域渲染
+        提示词——领域的取舍口径（如个人模式的聚焦）只能从这里下发，否则模型只能照着模板
+        栏名写。领域按需覆写（见 meeting orchestrator）。
+        """
+        return ""
+
+    @staticmethod
+    def _revision_context(context: str, feedback: list[str], label: str) -> str:
+        if not feedback:
+            return context
+        return f"{context}\n\nSupervisor {label}：\n{json_dumps(feedback)}"
+
+    # ── 领域钩子：默认实现（领域按需覆写）──────────────────────
+
+    def _compute_title(self, state: dict) -> str:
+        """视角标题（通用规则：客观 → 客观输出；个人 → 姓名视角输出）。"""
+        if bool(state.get("objective_perspective")):
+            return "客观输出"
+        user = state.get("user") or {}
+        return f"{user.get('name', '用户')}视角输出"
+
+    def _line_title(self, state: dict, line_name: str) -> str:
+        """线 → 展示标题（通用默认；领域可覆写加线名特判）。"""
+        return f"{line_cn(line_name, self._line_cn_names)}输出"
+
+    def _shared_context(self, state: dict) -> str:
+        """agent 共享上下文（视角模式 + 画像 + 视角模型 + 原文）。
+
+        视角模式语义由各线 system prompt 承担（system 固定、会话级读一次），
+        用户消息只保留模式标签，避免每次调用重复约 400 字的模式说明。
+        领域专属上下文（如核心理解结果）在此追加。
+        """
+        mode = self._mode_label(state)
+        return (
+            f"视角模式：{mode}\n\n"
+            f"用户画像：\n{json_dumps(state['user'])}\n\n"
+            f"用户视角模型：\n{json_dumps(state.get('perspective_profile'))}\n\n"
+            f"原文：\n{state['transcript']}"
+        )
+
+    def _understanding_needle_fields(self, line_name: str) -> set[str] | None:
+        """审核摘录时,理解层参与 needle 的字段白名单。
+
+        返回 None = 全部字段参与;返回字段集合 = 只收集这些字段的 needle
+        （该线不消费的字段不进原文摘录,命中点从遍布全文收敛到相关段落）。
+        """
+        del line_name
+        return None
+
+    def _supervisor_source_pack(self, state: dict, line_name: str) -> str:
+        """审核用原文：按草稿事实点摘录，短文仍给全文。"""
+        from core.runtime.supervisor_slice import (
+            collect_needles,
+            compact_perspective,
+            compact_profile,
+            slice_transcript,
+            summarize_understanding,
+        )
+
+        sub = line(state, line_name)
+        draft = sub.get("draft") or {}
+        understanding = self._understanding(state)
+        keep = self._understanding_needle_fields(line_name)
+        if keep is not None and isinstance(understanding, dict):
+            # 白名单外字段只保留 evidence 子字段（原文逐字锚点），
+            # 概述性内容（如 action_hints 的 action/owner）不进 needle
+            understanding_for_needles = {}
+            for key, value in understanding.items():
+                if key in keep:
+                    understanding_for_needles[key] = value
+                elif isinstance(value, list) and any(
+                    isinstance(item, dict) and (item.get("evidence") or "")
+                    for item in value
+                ):
+                    understanding_for_needles[key] = [
+                        {"evidence": item["evidence"]}
+                        for item in value
+                        if isinstance(item, dict) and (item.get("evidence") or "")
+                    ]
+        else:
+            understanding_for_needles = understanding
+        needles = collect_needles(draft) + collect_needles(
+            understanding_for_needles
+        )
+        priority_needles: list[str] = []
+        user = state.get("user") or {}
+        if isinstance(user, dict):
+            for fp in user.get("focus_person") or []:
+                if isinstance(fp, str) and len(fp.strip()) >= 2:
+                    priority_needles.append(fp.strip())
+            for ft in user.get("focus_thing") or []:
+                if isinstance(ft, str) and len(ft.strip()) >= 2:
+                    priority_needles.append(ft.strip())
+            name = str(user.get("name") or "").strip()
+            if name:
+                priority_needles.append(name)
+            for alias in user.get("name_aliases") or []:
+                if isinstance(alias, str) and len(alias.strip()) >= 2:
+                    priority_needles.append(alias.strip())
+        if isinstance(draft, dict):
+            for key in ("personally_relevant_points", "my_actions", "my_tasks"):
+                val = draft.get(key)
+                if val:
+                    priority_needles.extend(collect_needles(val))
+
+        raw = state.get("transcript") or ""
+        excerpt, hits, used = slice_transcript(raw, needles, priority_needles=priority_needles)
+        if not excerpt.strip():
+            excerpt = raw.strip()
+            used = len(raw)
+        is_full = used >= len(raw)
+        if is_full:
+            source_note = "原文（最高事实来源）："
+            excerpt = raw
+        else:
+            source_note = (
+                "以下原文按草稿事实点摘录，仍是最高事实来源。"
+                f"已覆盖草稿中 {hits} 处可定位表述。"
+                "**摘录未覆盖 ≠ 无依据**：只有摘录中出现与之相反的内容、或上方理解摘要里"
+                "也没有该事实，才能判捏造或矛盾；未覆盖时**不得据此 revise 或 reject**——"
+                "可在 feedback 里写「未能核对：X」并照常 approve（程序会记录待核对项）。"
+                "草稿中从理解层逐字搬运/引用的字段（如决策、风险、未决问题），"
+                "请对照下方理解摘要核对「没改没漏」；原文摘录重点核对提炼字段与理解层本身。"
+            )
+        parts = [f"{source_note}\n{excerpt}"]
+        summary = summarize_understanding(understanding)
+        if summary:
+            parts.append(f"{self._understanding_label}（摘要）：\n{summary}")
+        profile = compact_profile(state.get("user") or {})
+        if profile:
+            parts.append(f"用户画像：\n{profile}")
+        perspective = compact_perspective(state.get("perspective_profile"))
+        if perspective:
+            parts.append(f"用户视角模型：\n{perspective}")
+        return "\n\n".join(parts)
+
+    def _line_shared_context(self, state: dict, line_name: str) -> str:
+        """某任务线的共享上下文；默认全线条共用一份，领域按需覆写。
+
+        为什么需要这个钩子（2026-09-22）：meeting / notes 各自覆写了 `_make_agent_node`
+        只为把"一刀切上下文"换成"按线裁剪上下文"，其余 ~45 行与引擎逐字相同。现在引擎
+        调本方法，两域只需覆写这里。
+        """
+        return self._shared_context(state)
+
+    def _revision_instruction(self, state: dict, line_name: str) -> str:
+        """审核上下文的三行表头：视角模式 / 返工次数 / 本轮可选动作。
+
+        为什么抽出来（2026-09-22）：meeting 与 notes 的 ``_supervisor_context`` 各抄了一份
+        逐字相同的表头，而引擎自己那份又因两域都覆写而**不可达**——三处漂移风险收成一处。
+        """
+        revision_count = line(state, line_name).get("revision_count", 0)
+        allowed = (
+            "本轮可以选择 approve、revise 或 reject。"
+            if revision_count < self.MAX_REVISIONS
+            else "返工次数已用完，本轮只能选择 approve 或 reject。"
+        )
+        return (
+            f"视角模式：{self._mode_label(state)}\n"
+            f"{line_cn(line_name, self._line_cn_names)}返工次数：{revision_count}/{self.MAX_REVISIONS}\n"
+            f"{allowed}"
+        )
+
+    def _supervisor_context(self, state: dict, line_name: str) -> str:
+        from core.runtime.supervisor_slice import compact_draft_for_review
+
+        sub = line(state, line_name)
+        revision_count = sub.get("revision_count", 0)
+        mode = self._mode_label(state)
+        cn = line_cn(line_name, self._line_cn_names)
+        allowed = (
+            "本轮可以选择 approve、revise 或 reject"
+            "（选 revise 必须给出具体可执行、有原文依据的返工点；给不出就 approve）。"
+            if revision_count < self.MAX_REVISIONS
+            else "返工次数已用完：**本轮默认 approve**；仅当上一轮 feedback 指出的问题仍未修复，"
+            "或命中领域规则里的「reject 可判定条件」时才 reject。"
+        )
+        return (
+            f"视角模式：{mode}\n"
+            f"{cn}返工次数：{revision_count}/{self.MAX_REVISIONS}\n"
+            f"{allowed}\n\n"
+            f"{self._supervisor_source_pack(state, line_name)}\n\n"
+            f"{line_draft_title(line_name, self._line_cn_names)}：\n"
+            f"{json_dumps(compact_draft_for_review(sub['draft']))}"
+        )
+
+    def _empty_purpose(self, state: dict) -> str:
+        """empty_purpose 兜底时的「目的」文案（领域有核心理解时覆写）。"""
+        return ""
+
+    def _understanding(self, state: dict) -> dict:
+        """读取本领域核心理解；key 由 ``_understanding_key`` 声明。"""
+        from core.runtime.context import understanding_of
+
+        return understanding_of(state, self._understanding_key)
+
+    def _render_context_blocks(
+        self, state: dict
+    ) -> list[tuple[str, object, str]]:
+        """渲染上下文里「已批准草稿」之前的块。领域只改三个钩子即可。"""
+        blocks: list[tuple[str, object, str]] = [
+            (self._transcript_label, state.get("transcript") or "", "raw"),
+            ("用户画像", state.get("user") or {}, "json"),
+        ]
+        if self._understanding_key:
+            blocks.append(
+                (
+                    self._understanding_label,
+                    state.get(self._understanding_key),
+                    "json",
+                )
+            )
+        if state.get("perspective_profile"):
+            blocks.append(
+                ("已审核用户视角", state.get("perspective_profile"), "json")
+            )
+        return blocks
+
+    def _render_context(self, state: dict, line_name: str) -> str:
+        """运行时拼装渲染上下文；不再生成 ``_{line}_render_context``。"""
+        from core.runtime.context import build_render_context
+
+        sub = line(state, line_name)
+        extra = (state.get("line_extra") or {}).get(line_name) or ""
+        return build_render_context(
+            mode=self._mode_label(state),
+            objective=bool(state.get("objective_perspective")),
+            blocks=self._render_context_blocks(state),
+            draft=sub.get("draft"),
+            review=sub.get("review") or {},
+            line_cn=line_cn(line_name, self._line_cn_names),
+            extra=extra,
+        )
+
+    def _make_fallback_node(self, line_name: str):
+        """生成某任务线的降级节点（与历史生成区函数体同构）。"""
+
+        async def node(state: dict) -> dict:
+            text, structure = self._domain_fallback_text(
+                state, line_name, self._fallback_rules[line_name]
+            )
+            line_dict = {"rendered": text, "degraded": True}
+            if structure is not None:
+                line_dict["structure"] = structure
+            return {
+                "lines": {line_name: line_dict},
+                "quality_degraded": True,
+            }
+
+        return node
+
+    def _domain_fallback_text(self, state: dict, line_name: str, rules):
+        """领域降级文本拼装：绑定领域 formatters / empty_purpose / disclaimer。
+
+        传入 ``title``（= 文档标题，outputs 层会另加 ``# {title}``）：降级文本里与
+        标题重名的 headline 行会被跳过，避免"标题 + 同名首行"重复两遍。
+        """
+        try:
+            title = self._compute_title(state)
+        except Exception:  # noqa: BLE001 - 取标题失败不影响拼装
+            title = ""
+        return fallback_text(
+            state,
+            line_name,
+            rules,
+            self._fallback_formatters,
+            self._empty_purpose,
+            self._quality_disclaimer,
+            title=title,
+        )
+
+    def _build_core(self, builder, line_names: list[str] | None = None) -> list[str]:
+        """构建 core 层节点，返回 core 节点名列表（任务线汇合点）。
+
+        默认只有 perspective 公共组件；领域可追加自己的 core 节点：
+        ``builder.add_node("xxx", self._xxx_node)`` / ``builder.add_edge(START, "xxx")``
+        """
+        del line_names
+        builder.add_node("perspective_modeling", self._perspective_modeling_node)
+        builder.add_edge(START, "perspective_modeling")
+        return ["perspective_modeling"]
+
+    def _line_policy(self, line_name: str):
+        """读本线种类策略；未声明时按 llm_document 兜底（测试桩可用）。"""
+        from core.runtime.kinds import LLM_DOCUMENT, policy_for
+
+        policies = getattr(self, "_line_policies", None) or {}
+        if line_name in policies:
+            return policies[line_name]
+        return policy_for(LLM_DOCUMENT)
+
+    def _pre_render_hook(self, state: dict, line_name: str) -> bool:
+        """render 前钩子：返回 True 表示已自行产出 rendered（跳过 render 调用）。"""
+        return False
+
+    def _post_render_hook(self, state: dict, line_name: str) -> None:
+        """按种类抽结构：pipeline 不抽；extract 抽列表；document 仅当 Report 声明 structure。"""
+        from core.runtime.kinds import DETERMINISTIC_PIPELINE
+
+        policy = self._line_policy(line_name)
+        if policy.kind == DETERMINISTIC_PIPELINE:
+            return
+        render = getattr(self, f"{line_name}_render", None)
+        extractor = getattr(render, "extract_structure", None) or getattr(
+            render, "extract_actions", None
+        )
+        if extractor:
+            line(state, line_name)["structure"] = extractor(state)
+            return
+        report_cls = (getattr(self, "_report_assemblers", None) or {}).get(line_name)
+        if not policy.extracts_structure and not (
+            report_cls and line_has_structure(report_cls)
+        ):
+            return
+        draft = line(state, line_name).get("draft") or {}
+        structure = draft.get(line_name)
+        if structure is None:
+            lists = [value for value in draft.values() if isinstance(value, list)]
+            structure = lists[0] if len(lists) == 1 else []
+        line(state, line_name)["structure"] = structure
+
+    # ── 共享节点：占位入口 + 视角建模（perspective 公共组件）──────
+
+    async def _noop_core_node(self, state: dict) -> dict:
+        """core 层空时的占位入口节点。
+
+        当某次运行的全部任务线都被领域按线跳过 core（如 notes 的
+        library/catalog/checklist 不跑视角建模与笔记理解）时，
+        图仍需一个从 START 出发的入口，直接透传 state。
+        """
+        return {}
+
+    async def _perspective_modeling_node(self, state: dict) -> dict:
+        """把用户画像映射到本次输入（所有领域共用）。"""
+        progress("agent start perspective")
+        try:
+            result = await self.perspective_modeling_agent.run(
+                self._perspective_input_context(state),
+                json_dumps(state["user"]),
+            )
+        except Exception:  # noqa: BLE001 - 有意的降级设计
+            logger.warning("perspective failed, continue with empty", exc_info=True)
+            return {
+                "perspective_profile": EMPTY_PERSPECTIVE_MODELING,
+                "quality_degraded": True,
+            }
+        progress("agent done perspective")
+        return {"perspective_profile": result.model_dump()}
+
+    def _perspective_input_context(self, state: dict) -> str:
+        """视角建模输入：优先使用领域理解摘要，避免重复发送全文。"""
+        understanding = self._understanding(state)
+        if understanding:
+            return (
+                f"{self._understanding_label}：\n"
+                f"{json_dumps(understanding)}"
+            )
+        return state.get("transcript") or ""
+
+    # ── 同构节点工厂（由 TASK_LINES 注册表生成）───────────────
+
+    def _make_agent_node(self, line_name: str):
+        """生成某任务线的「生成/提取」节点（agent → 草稿）。"""
+        cfg = self._task_lines[line_name]
+        cn = line_cn(line_name, self._line_cn_names)
+
+        async def node(state: dict) -> dict:
+            progress("agent start gen line=%s", line_name)
+            agent = getattr(self, cfg["agent_attr"])
+            # 每线可选参数：组织模式 / 附加上下文（state["line_modes"] / ["line_extra"]）
+            context = self._line_shared_context(state, line_name)
+            mode = (state.get("line_modes") or {}).get(line_name)
+            if mode and self._line_policy(line_name).cli_mode:
+                context = f"组织模式：{mode}\n\n{context}"
+            # 记忆注入：域钩子决定（会议记忆的 meta 协议 / notes 的归属注入都在域侧）
+            injected = None
+            hooks = hooks_for(self.domain_name)
+            if hooks.inject_line_extra is not None:
+                try:
+                    injected = hooks.inject_line_extra(
+                        state, line_name, line_extra=state.get("line_extra") or {}
+                    )
+                except Exception:  # noqa: BLE001 - 注入失败不阻断生成（记录后继续）
+                    logger.warning("line memory inject failed line=%s", line_name, exc_info=True)
+            memory_extra = str(getattr(injected, "context", "") or "")
+            memory_warning = str(getattr(injected, "warning", "") or "")
+            bind_obj = getattr(injected, "bind", None)
+            memory_bind = bind_obj.as_dict() if hasattr(bind_obj, "as_dict") else (bind_obj or {})
+            memory_comparison = list(getattr(injected, "comparison", None) or [])
+            extra = (state.get("line_extra") or {}).get(line_name)
+            if memory_extra:
+                extra = f"{extra}\n\n{memory_extra}".strip() if extra else memory_extra
+            if extra:
+                context = f"{context}\n\n{extra}"
+            try:
+                result = await agent.run(
+                    self._revision_context(
+                        context,
+                        line(state, line_name).get("revision_feedback", []),
+                        f"{cn}返工意见",
+                    )
+                )
+            except Exception:  # noqa: BLE001 - 有意的降级设计
+                logger.warning(f"gen failed, empty draft line={cn}", exc_info=True)
+                return {
+                    "lines": {
+                        line_name: {
+                            "draft": cfg["empty_draft"],
+                            "degraded": True,
+                        }
+                    },
+                    "quality_degraded": True,
+                }
+            # 显式写 degraded=False：返工成功后清除此前失败标记
+            progress("agent done gen line=%s", line_name)
+            draft = result.model_dump()
+            # 历史对照（域钩子给的跨场对比）：只落在声明了该字段的草稿上，不新增键
+            if memory_comparison and "history_comparison" in draft:
+                draft["history_comparison"] = memory_comparison
+            return {
+                "lines": {
+                    line_name: {
+                        "draft": draft,
+                        "degraded": False,
+                        "memory_context": memory_extra,
+                        "memory_bind": memory_bind,
+                        "memory_warning": memory_warning,
+                    }
+                }
+            }
+
+        return node
+
+    @staticmethod
+    def _conservative_review(cfg: dict) -> dict:
+        """审核调用失败时的保守结论：等价 approve（检查项全 pass、feedback 空）。
+
+        只用于"审核不可用"：让本线照常渲染，质量信号由 ``review_unavailable``
+        （per-line quality_warning / monitor）承担，避免把审核故障放大成降级文本。
+        """
+        out: dict = {"decision": "approve", "feedback": []}
+        for key, value in dict(cfg.get("reject_review") or {}).items():
+            if isinstance(value, dict) and "status" in value:
+                out[key] = {"status": "pass", "findings": []}
+        return out
+
+    def _make_supervisor_node(self, line_name: str):
+        """生成某任务线的「审核」节点（supervisor → review，键统一为 ``review``）。
+
+        ``revision_feedback`` 不再由 supervisor 写入：返工节点会从 review
+        取 feedback 显式传给 agent，避免两域键名/写入时机漂移。
+        """
+        cfg = self._task_lines[line_name]
+
+        async def node(state: dict) -> dict:
+            progress("agent start review line=%s", line_name)
+            supervisor = getattr(self, cfg["supervisor_attr"])
+            try:
+                review = await supervisor.review(
+                    self._supervisor_context(state, line_name)
+                )
+            except Exception as exc:  # noqa: BLE001 - 有意的降级设计
+                # 审核**调用失败** ≠ 内容不合格：不再当成 reject 直接降级成确定性拼装文本，
+                # 而是保守放行（等价 approve）并打质量警告 —— 交付正常渲染的正文，
+                # 同时把"未做质量把关"如实告知用户（quality_warning / monitor）。
+                # 背景（2026-09 实测）：低结构化闲聊型输入上，审核的严格 JSON 契约
+                # （字段必须齐全 + 语义联动）容易连败，旧行为把"审核器故障"放大成
+                # "用户拿到一段拼装文本"。
+                summary = f"{type(exc).__name__}: {str(exc)[:160]}"
+                logger.warning(
+                    "review unavailable, conservative approve line=%s err=%s",
+                    line_name,
+                    summary,
+                    exc_info=True,
+                )
+                return {
+                    "lines": {
+                        line_name: {
+                            "review": self._conservative_review(cfg),
+                            "degraded": False,
+                            "review_unavailable": summary,
+                        }
+                    },
+                    "quality_degraded": True,
+                }
+            payload = review.model_dump() if hasattr(review, "model_dump") else dict(review)
+            # 无理由的 reject 会直接把整线打成降级（替代品是拼接文本，代价更大）：
+            # 只有写明具体理由的 reject 才生效，其余按 approve 处理并记 reject_downgraded。
+            from core.schema.validation import soften_unreasoned_reject, soften_unsubstantial_revise
+
+            payload, softened = soften_unreasoned_reject(payload)
+            if softened:
+                logger.warning("review reject softened line=%s: %s", line_name, softened)
+            payload, softened_revise = soften_unsubstantial_revise(payload)
+            if softened_revise:
+                logger.info("review revise softened line=%s: %s", line_name, softened_revise)
+            progress("agent done review line=%s decision=%s", line_name, payload.get("decision") or "returned")
+            # 降级排查：非 approve 时把审核给的理由（feedback/失败检查项的 findings）一起落日志
+            if str(payload.get("decision") or "").strip().lower() in {"revise", "reject"}:
+                failed = {
+                    str(key): value.get("findings")
+                    for key, value in payload.items()
+                    if isinstance(value, dict)
+                    and str(value.get("status") or "").strip().lower() == "fail"
+                }
+                logger.info(
+                    "review reason line=%s decision=%s feedback=%s failed_checks=%s",
+                    line_name,
+                    payload.get("decision"),
+                    json_dumps(payload.get("feedback"))[:800],
+                    json_dumps(failed)[:800],
+                )
+            return {
+                "lines": {
+                    line_name: {
+                        "review": payload,
+                        "degraded": False,
+                    }
+                }
+            }
+
+        return node
+
+    def _make_revision_node(self, line_name: str, agent_node):
+        """生成某任务线的「返工」节点（revise → 带反馈重跑 agent）。
+
+        显式从 review 取 feedback 构造 patched_state 传给 agent，
+        并把 feedback / revision_count 持久化回 state。
+        """
+        async def node(state: dict) -> dict:
+            progress("agent start rework line=%s", line_name)
+            review = line(state, line_name).get("review") or {}
+            feedback = review.get("feedback", []) or []
+            sub = line(state, line_name)
+            revision_count = sub.get("revision_count", 0) + 1
+            patched_state = dict(state)
+            patched_lines = dict(state.get("lines") or {})
+            patched_line = dict(patched_lines.get(line_name) or {})
+            patched_line["revision_feedback"] = feedback
+            patched_lines[line_name] = patched_line
+            patched_state["lines"] = patched_lines
+            updates = await agent_node(patched_state)
+            line_patch = updates.setdefault("lines", {}).setdefault(line_name, {})
+            line_patch["revision_feedback"] = feedback
+            line_patch["revision_count"] = revision_count
+            return updates
+
+        return node
+
+    def _make_route(self, line_name: str):
+        """生成某任务线的条件路由（approve→结束 / reject或超限→fallback / 否则返工）。
+
+        渲染节点已移除：approve 后文本渲染由 run_streaming 的 ``_produce``
+        接管，路由返回哨兵 ``"__end__"`` 映射到 END。
+        """
+
+        def route(state: dict) -> str:
+            decision = line(state, line_name)["review"]["decision"]
+            revisions = line(state, line_name).get("revision_count", 0)
+            if decision == "approve":
+                dest = "__end__"
+            elif decision == "reject" or revisions >= self.MAX_REVISIONS:
+                dest = f"{line_name}_fallback"
+            else:
+                dest = f"{line_name}_revision"
+            # 一句话看清"为什么走到降级"：reject，或返工次数用完且仍非 approve
+            logger.info(
+                "route line=%s decision=%s revision=%s/%s -> %s",
+                line_name,
+                decision,
+                revisions,
+                self.MAX_REVISIONS,
+                dest,
+            )
+            return dest
+
+        return route
+
+    # ── 流式生产者 ────────────────────────────────────────────
+
+    async def _produce(
+        self,
+        line_name: str,
+        state: dict,
+        queue: asyncio.Queue,
+    ) -> None:
+        """委托给 ``tools.runtime.render``：图外渲染不属于节点 mixin。"""
+        try:
+            from core.runtime.render import produce_line
+
+            await produce_line(self, line_name, state, queue)
+        except Exception as exc:  # 防御：producer 异常必须可见，否则主循环静默等待永不结束
+            logger.error(
+                "render failed line=%s err=%s", line_name, exc, exc_info=True
+            )
+            queue.put_nowait(exc)
+            queue.put_nowait(None)  # 该线终止，避免 run_streaming 永久等待
+
+    # ── 图异常 / 校验失败兜底 ─────────────────────────────────
+
+    def _fallback_reports(
+        self, state: dict, line_names: list[str]
+    ) -> dict:
+        """图异常/校验失败时的确定性 Report（按线声明式拼装，零线级特判）。"""
+        lines = state.setdefault("lines", {})
+        for line_name in line_names:
+            rules = self._fallback_rules[line_name]
+            text, structure = self._domain_fallback_text(state, line_name, rules)
+            line_dict = lines.setdefault(line_name, {})
+            line_dict["rendered"] = text
+            if structure is not None:
+                line_dict["structure"] = structure
+        return {
+            line_name: assemble_report(
+                state,
+                self._quality_warning,
+                self._report_assemblers[line_name],
+                line_name,
+                self._compute_title,
+            )
+            for line_name in line_names
+        }
+
+    # ── 图构建与流式运行 ──────────────────────────────────────
+
+    def _normalize_lines(
+        self, lines: Iterable[str] | None
+    ) -> list[str]:
+        """规范化 lines 参数：None → 全部任务线；校验未知/空值。"""
+        if lines is None:
+            return list(self._task_lines)
+        result = list(lines)
+        unknown = [name for name in result if name not in self._task_lines]
+        if unknown:
+            raise ValueError(
+                f"未知任务线 {unknown}，可用：{list(self._task_lines)}"
+            )
+        if not result:
+            raise ValueError("lines 不能为空，至少指定一条任务线")
+        return result
+
+    def _build_graph(
+        self, line_names: Iterable[str] | None = None
+    ) -> object:
+        """构建 LangGraph：core（领域核心理解 + 视角建模）+ 指定任务线。
+
+        ``line_names`` 为 None 时构建全部任务线；否则只构建选中的线
+        （core 始终构建——任何任务线都需要 core）。
+        """
+        line_names = self._normalize_lines(line_names)
+        builder = StateGraph(self._state_class)
+
+        # 核心层：领域钩子（默认 perspective 公共组件；领域可追加）
+        core = self._build_core(builder, line_names)
+
+        # 任务线：由注册表生成同构节点（agent / supervisor / revision / route）
+        for line_name in line_names:
+            agent_node = self._make_agent_node(line_name)
+            supervisor_node = self._make_supervisor_node(line_name)
+            revision_node = self._make_revision_node(line_name, agent_node)
+            route = self._make_route(line_name)
+
+            builder.add_node(f"{line_name}_agent", agent_node)
+            builder.add_node(f"{line_name}_supervisor", supervisor_node)
+            builder.add_node(f"{line_name}_revision", revision_node)
+            custom = getattr(self, "_fallback_nodes", None) or {}
+            fallback = custom.get(line_name) or self._make_fallback_node(
+                line_name
+            )
+            builder.add_node(f"{line_name}_fallback", fallback)
+
+            # 核心层汇合 → 本线 agent → supervisor → 条件路由
+            builder.add_edge(core, f"{line_name}_agent")
+            builder.add_edge(f"{line_name}_agent", f"{line_name}_supervisor")
+            builder.add_conditional_edges(
+                f"{line_name}_supervisor",
+                route,
+                {
+                    "__end__": END,
+                    f"{line_name}_revision": f"{line_name}_revision",
+                    f"{line_name}_fallback": f"{line_name}_fallback",
+                },
+            )
+            builder.add_edge(f"{line_name}_revision", f"{line_name}_supervisor")
+            builder.add_edge(f"{line_name}_fallback", END)
+
+        return builder.compile()
+
+    async def run_streaming(
+        self,
+        transcript: str,
+        user=None,
+        template: str = "",
+        item_template: str = "",
+        templates: dict[str, str] | None = None,
+        lines: Iterable[str] | None = None,
+        line_modes: dict[str, str] | None = None,
+        line_extra: dict[str, str] | None = None,
+    ) -> AsyncIterator[dict]:
+        """流式输出：各任务线文本并行逐块推送，按线携带展示标题。
+
+        ``lines`` 指定要执行的任务线（默认全部）：只传部分线名时，
+        未选中的线不构建节点、不调用 LLM，也不会产出对应事件。
+
+        事件协议（async generator，按产出顺序 yield dict）：
+
+        - ``{"type": "phase", "node": str}``
+          图内某节点完成（node = 节点名，如 meeting_understanding / minutes_agent /
+          minutes_supervisor）；供流式接口感知阶段进度，同步消费方可直接忽略
+        - ``{"type": "chunk", "line": str, "title": str, "text": str}``
+          某条线的文本流式块（line = 线名；title = 展示标题）；逐块追加即为完整输出
+        - ``{"type": "done", "quality_warning": str | None, "reports": dict}``
+          结束标记；quality_warning 非空表示输出降级，需提示核对；
+          reports = {线名: Report}，流式消费后可从此取最终结构化结果
+        """
+        if not transcript.strip():
+            raise ValueError("输入文本不能为空")
+
+        # 前置阶段：归一化 → 图执行（分析 + 各线审核 + 返工）
+        transcript = normalize_transcript(transcript)
+        template = template or ""
+        item_template = item_template or ""
+        if user is None:
+            user_data: dict = {}
+            objective_mode = False
+        else:
+            user_data = (
+                user.model_dump() if hasattr(user, "model_dump") else dict(user)
+            )
+            objective_mode = (
+                str(user_data.get("perspective") or "").strip().lower()
+                == "objective"
+            )
+        if objective_mode and not user_data.get("perspective"):
+            user_data["perspective"] = "objective"
+        # lines 校验（提前到模板分发前，供按线分派使用；非法线名直接抛给调用方）
+        line_names = self._normalize_lines(lines)
+        # 模板按线统一收纳（须在 initial_state 前）：templates 优先，便捷参数兜底
+        templates = normalize_templates(
+            template,
+            item_template,
+            templates,
+            line_names,
+            self._report_assemblers,
+        )
+
+        initial_state: dict = {
+            "transcript": transcript,
+            "user": user_data,
+            "objective_perspective": objective_mode,
+            "templates": templates,
+            "line_modes": dict(line_modes or {}),
+            "line_extra": dict(line_extra or {}),
+        }
+        # 图执行失败时 state 不会被赋值；先绑定 initial_state，
+        # 保证兜底分支引用 state 不抛 NameError（最后防线自身不崩溃）
+        state = initial_state
+        try:
+            graph = self._build_graph(line_names)
+            progress(
+                "pipeline start lines=%s",
+                ",".join(line_names),
+            )
+            # 流式图执行：每完成一个节点即推送 phase 事件（API 流式接口感知进度用），
+            # values 模式的最后一个 chunk 即最终 state（与 ainvoke 等价）。
+            async for mode, chunk in graph.astream(
+                initial_state, stream_mode=["updates", "values"]
+            ):
+                if mode == "updates":
+                    for node_name in chunk:
+                        progress("node done %s", node_name)
+                        yield {"type": "phase", "node": node_name}
+                else:
+                    state = chunk
+        except Exception:  # noqa: BLE001 - 最后防线：图内异常不崩溃，走确定性兜底
+            logger.warning("graph run failed, fallback to deterministic output", exc_info=True)
+            fb = self._fallback_reports(initial_state, line_names)
+            for line_name in line_names:
+                if line_name in fb:
+                    yield {
+                        "type": "chunk",
+                        "line": line_name,
+                        "title": self._line_title(initial_state, line_name),
+                        "text": line(initial_state, line_name).get("rendered")
+                        or "",
+                    }
+            yield {
+                "type": "done",
+                "quality_warning": self._quality_warning,
+                "reports": fb,
+                "gate_by_line": {},
+                "pipeline": self._pipeline_by_line(state, line_names),
+                "understanding": self._understanding(state),
+            }
+            return
+
+        # 并行启动各线事件源，通过队列合并：一条线流式生成期间其他线已可交付
+        queue: asyncio.Queue = asyncio.Queue()
+        producers = [
+            asyncio.create_task(self._produce(line_name, state, queue))
+            for line_name in line_names
+        ]
+        remaining = len(producers)
+        try:
+            while remaining:
+                event = await queue.get()
+                if event is None:
+                    remaining -= 1
+                    continue
+                if isinstance(event, Exception):  # 防御：producer 异常不应冒泡中断
+                    logger.warning("stream event error: %s", event)
+                    continue
+                yield event
+        finally:
+            # 取消未完成的 producer task，避免事件循环关闭时悬挂任务与线程（问题 #4）
+            for task in producers:
+                task.cancel()
+            await asyncio.gather(*producers, return_exceptions=True)
+
+        # 任意线降级（含渲染失败降级）→ 全局质量警告；审核调用失败时把原因一并告知
+        any_line_degraded = any(
+            bool(line(state, name).get("degraded")) for name in self._task_lines
+        )
+        unavailable = [
+            f"{line_cn(name, self._line_cn_names)}：{line(state, name).get('review_unavailable')}"
+            for name in line_names
+            if str(line(state, name).get("review_unavailable") or "").strip()
+        ]
+        quality_warning = None
+        if any_line_degraded or bool(state.get("quality_degraded")) or unavailable:
+            quality_warning = self._quality_warning
+            if unavailable:
+                quality_warning = (
+                    f"{quality_warning} 审核服务调用失败（未做质量把关）："
+                    + "；".join(unavailable)
+                )
+        mem_warns = [
+            str(line(state, name).get("memory_warning") or "").strip()
+            for name in line_names
+        ]
+        mem_warns = [w for w in mem_warns if w]
+        if mem_warns:
+            extra = "；".join(dict.fromkeys(mem_warns))
+            quality_warning = f"{quality_warning} {extra}".strip() if quality_warning else extra
+        memory_bind = None
+        for name in line_names:
+            bind = line(state, name).get("memory_bind")
+            if bind:
+                memory_bind = bind
+                break
+        gate_by_line = {
+            name: line(state, name).get("render_gate_ok")
+            for name in line_names
+        }
+        yield {
+            "type": "done",
+            "quality_warning": quality_warning,
+            "reports": self._final_reports(state, line_names, quality_warning),
+            "gate_by_line": gate_by_line,
+            "pipeline": self._pipeline_by_line(state, line_names),
+            "understanding": state.get("meeting_understanding")
+            or state.get("notes_understanding")
+            or {},
+            "memory_bind": memory_bind,
+        }
+
+    def _pipeline_by_line(self, state: dict, line_names: list[str]) -> dict:
+        """各线审核结论 / 返工次数 / 是否降级，供任务监控采集。"""
+        out: dict[str, dict] = {}
+        for name in line_names:
+            sub = line(state, name) or {}
+            review = sub.get("review") or {}
+            if not isinstance(review, dict):
+                review = {}
+            decision = str(review.get("decision") or "").strip()
+            degraded = bool(sub.get("degraded"))
+            try:
+                revisions = int(sub.get("revision_count") or 0)
+            except (TypeError, ValueError):
+                revisions = 0
+            review_unavailable = str(sub.get("review_unavailable") or "").strip()
+            out[name] = {
+                "decision": decision,
+                "revision_count": revisions,
+                "degraded": degraded,
+                "reject_downgraded": bool(review.get("reject_downgraded")),
+                "revise_downgraded": bool(review.get("revise_downgraded")),
+                "review_unavailable": review_unavailable,
+                "fallback": degraded or decision == "reject",
+            }
+            if out[name]["fallback"] or review_unavailable:
+                # 降级汇总一行：审核调用是否失败（degraded）+ 最终 decision + 返工次数 + 审核意见
+                logger.warning(
+                    "degraded line=%s decision=%s revisions=%s/%s review_call_failed=%s "
+                    "review_unavailable=%s feedback=%s",
+                    name,
+                    decision or "(none)",
+                    revisions,
+                    self.MAX_REVISIONS,
+                    degraded,
+                    review_unavailable or "-",
+                    json_dumps(review.get("feedback"))[:600],
+                )
+        return out
+
+    def _final_reports(
+        self,
+        state: dict,
+        line_names: list[str],
+        warning: str | None,
+    ) -> dict:
+        """图执行成功后按线组装最终 Report（单线校验失败只降级该线）。
+
+        reports 键 = 线名（与 chunk 事件的 ``line`` 一致），消费端按线名取。
+        逐线校验：某条线 Report 校验失败时仅该线退回确定性兜底，
+        不再连累其它正常线的结果（旧实现一条线失败全部线一起降级）。
+        """
+        reports: dict = {}
+        for line_name in line_names:
+            report_cls = self._report_assemblers[line_name]
+            reports[line_name] = assemble_report(
+                state, warning, report_cls, line_name, self._compute_title
+            )
+        final: dict = {}
+        for key, report in reports.items():
+            try:
+                final[key] = validate_payload(
+                    type(report), report.model_dump()
+                )
+            except Exception:  # noqa: BLE001 - 单线校验失败，仅该线退回确定性兜底
+                logger.warning(
+                    "output validation failed (%s), fallback to deterministic",
+                    key,
+                    exc_info=True,
+                )
+                final[key] = self._fallback_reports(state, [key])[key]
+        return final
+
+
+__all__ = [
+    "DomainNodes",
+    "assemble_report",
+    "fallback_text",
+    "field_values",
+    "format_graph_node",
+    "format_risk_item",
+    "json_dumps",
+    "line",
+    "line_cn",
+    "line_draft_title",
+    "line_has_structure",
+    "line_template",
+    "make_fallback_text",
+    "normalize_templates",
+    "normalize_transcript",
+    "pick_label",
+    "sec_attr",
+]

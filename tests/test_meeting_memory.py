@@ -10,19 +10,19 @@ import sys
 import tempfile
 from pathlib import Path
 
-from domain.meeting.memory.bind import (
+from domains.meeting.memory.bind import (
     bind_meeting,
     is_strong_anchor,
     is_weak_project_name,
     pick_project_name,
     project_core,
 )
-from domain.meeting.memory.extract import MeetingFact, extract_meeting_fact
-from domain.meeting.memory.inject import build_memory_context, preview_comparison
-from domain.meeting.memory.render import parse_memory_items
-from domain.meeting.memory.runtime import persist_after_run, resolve_bind
-from domain.meeting.memory.state import rebuild_state, session_index, session_label, update_state
-from domain.meeting.memory.store import list_meetings, load_registry, load_state
+from domains.meeting.memory.extract import MeetingFact, extract_meeting_fact
+from domains.meeting.memory.inject import build_memory_context, preview_comparison
+from domains.meeting.memory.render import parse_memory_items
+from domains.meeting.memory.runtime import persist_after_run, resolve_bind
+from domains.meeting.memory.state import rebuild_state, session_index, session_label, update_state
+from domains.meeting.memory.store import list_meetings, load_registry, load_state
 
 PASS: list[str] = []
 FAIL: list[str] = []
@@ -327,7 +327,7 @@ def test_empty_time_sessions() -> None:
 
 
 def test_understanding_skip_memory() -> None:
-    from domain.meeting.orchestrator import UNDERSTANDING_SKIP_FIELDS, _Nodes
+    from domains.meeting.orchestrator import UNDERSTANDING_SKIP_FIELDS, _Nodes
 
     skip = _Nodes._understanding_skip(object(), ["minutes"], "", True)
     check(
@@ -350,7 +350,7 @@ def test_meta_protocol_round_trip() -> None:
     render 的 ``（[^）]*）$`` 剥不掉 → 15/15 条条目正文混进内部 meta，卡片上出现
     「…（第1场（2026-09-01）起，最近第1场」。这里锁住两侧的协议。
     """
-    from domain.meeting.memory.render import apply_memory_citations
+    from domains.meeting.memory.render import apply_memory_citations
 
     f1 = _fact(meeting_id="m1", time="2026-09-01")
     st = update_state({}, f1, "p1", "小艺慧记Agent")
@@ -386,7 +386,7 @@ def test_meta_protocol_round_trip() -> None:
 
 def test_history_comparison_section() -> None:
     """历史对照小节：程序算好的对照无条件落地，零锚点也要可见。"""
-    from domain.meeting.memory.render import COMPARISON_TITLE, apply_memory_citations
+    from domains.meeting.memory.render import COMPARISON_TITLE, apply_memory_citations
 
     body = "# 纪要\n本次会议只讨论了别的议题，与历史条目没有词面重合。\n"
     ctx = "【会议记忆】\n项目：X\n\n【延续事项】\n- 补齐记忆引用来源字段（第1场·2026-09-01起，最近第1场·2026-09-01，状态 open）\n"
@@ -403,7 +403,7 @@ def test_history_comparison_section() -> None:
 
 def test_anchor_guards() -> None:
     """锚点守卫 + 4 字放宽：泛化短语/单位词/满篇 token 不锚；4 字重合能锚且显示完整短语。"""
-    from domain.meeting.memory.render import MemoryItem, _best_span, _NeedleStats
+    from domains.meeting.memory.render import MemoryItem, _best_span, _NeedleStats
 
     generic = MemoryItem(kind="open", text="范炳杰下来找他们拆现网流量数据")
     line = "微服务接口当前由腾意去测，下来找他们对一下；"
@@ -433,7 +433,7 @@ def test_anchor_guards() -> None:
 
 def test_comparison_topic_labels() -> None:
     """对照行要说清"是哪个东西的延续/风险"：主题词取自场次议题名或条目自带专名。"""
-    from domain.meeting.memory.inject import _topic_label
+    from domains.meeting.memory.inject import _topic_label
 
     anchors = ["端侧待办与现网拨测问题", "现网流量", "控件链路", "数据表", "端侧待办", "OCR"]
     check("议题名逐字出现 → 用议题名",
@@ -508,7 +508,7 @@ def test_comparison_richness() -> None:
 
 def test_selection_relevance_and_recency() -> None:
     """选材：相关度可算 + 全 0 时按最近场次保底（不是取数组最旧的）。"""
-    from domain.meeting.memory.inject import _relevance
+    from domains.meeting.memory.inject import _relevance
 
     f = _fact(
         title="小艺慧记Agent周会",
@@ -556,7 +556,7 @@ def test_selection_relevance_and_recency() -> None:
 
 def test_state_lifecycle_consistency() -> None:
     """状态一致性：风险吃 closed_items、双轨不重复存、events 跨场保留。"""
-    from domain.meeting.memory.state import similar
+    from domains.meeting.memory.state import similar
 
     st = update_state({}, _fact(meeting_id="m1", time="2026-09-01"), "p1", "小艺慧记Agent")
     f2 = _fact(
@@ -602,7 +602,7 @@ def test_review_panel_ledger_group() -> None:
 
     零锚点时退回单栏页，台账留在正文小节（那是记忆唯一的可见通道）。
     """
-    from domain.meeting.memory.render import render_minutes_html
+    from domains.meeting.memory.render import render_minutes_html
 
     body = "# 纪要\n会上过了长文本时延。内部WeLink打标完成201、还差300多。\n"
     ledger = (
@@ -653,7 +653,7 @@ def test_review_panel_ledger_group() -> None:
 
 
 def test_personal_minutes_html_rendering() -> None:
-    from domain.meeting.memory.render import render_minutes_html
+    from domains.meeting.memory.render import render_minutes_html
 
     md = (
         "# 个人视角纪要\n\n"

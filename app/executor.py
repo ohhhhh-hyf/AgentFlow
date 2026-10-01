@@ -16,7 +16,7 @@ from typing import Any, AsyncIterator
 
 from .job_store import job_store
 from .schemas import Extra, TaskRequest
-from .tasks import ApiError, stream_task
+from .tasks import ApiError, iter_task_events, stream_task
 
 
 @dataclass
@@ -126,7 +126,7 @@ async def execute_job(
     store = job_store()
     start = time.time()
     try:
-        response = await stream_task(domain, task, req, user_id=user_id, request_id=request_id)
+        event_gen = iter_task_events(domain, task, req, user_id=user_id, request_id=request_id)
     except ApiError as exc:
         # 校验/输入类错误：直接给出终态结论，不重试
         store.append_event(
@@ -139,7 +139,7 @@ async def execute_job(
         return JobOutcome(False, True, message, round(time.time() - start, 1))
 
     try:
-        async for event in _iter_events(response):
+        async for event in event_gen:
             etype = event.get("type")
             if etype == "phase" or etype == "chunk":
                 # 进度写状态字段，事件仍进事件流：/stream 要能回放增量文本（断线重连也不丢）

@@ -1,0 +1,70 @@
+"""actions 的契约定义（prompt 文本见 prompts.py）。
+
+本模块只放"结构化规范"：
+- 生成契约类 ActionItemsGenerationContract → to_json_template() 生成生成契约 prompt
+- 审阅契约类 ActionItemsSupervisorContract → to_json_template() 生成审阅契约 prompt
+"""
+from __future__ import annotations
+
+from core.schema.contracts import (
+    Check, Decision, EnumField, Feedback, GenerationContract, ObjListField,
+    StrField, SupervisorContract,
+)
+from core.schema.fallback_rules import FallbackRules, Lines
+
+
+class ActionItemsGenerationContract(GenerationContract):
+    """待办提取输出契约。"""
+
+    fields = [
+        ObjListField("my_actions", [
+            StrField("category", "该待办所属的具体业务议题或专项主题短语，通常4–12字，带具体客体或业务场景，如混凝土路面裂纹整改、音视频推流SDK适配、三个厂区资料组卷归档"),
+            StrField("task", "以动词开头的具体任务描述，条件型任务写清触发条件"),
+            StrField("owner", "原文明示的负责人姓名，未明示为null"),
+            StrField("deadline", "原文明示的截止时间，未明示为null"),
+            StrField("deliverable", "原文明示的特定交付成果物（如报告、方案、代码）；无特定实体成果为null"),
+            StrField("dependency", "原文明示的前置依赖动作或输入；无明确前后依赖为null"),
+            EnumField("priority", ["high", "medium", "low"]),
+            EnumField("status", ["explicit", "inferred"]),
+            StrField("evidence", "原文中支撑此待办的具体语句（可直接定位）"),
+            EnumField("confidence", ["high", "medium", "low"]),
+        ]),
+        ObjListField("delegated_actions"),
+        ObjListField("unassigned_actions"),
+    ]
+
+
+class ActionItemsSupervisorContract(SupervisorContract):
+    """待办审核契约。"""
+
+    decision = Decision()
+    feedback = Feedback("decision=revise 时必填（具体、可执行、有原文依据）；approve/reject 时给空数组 []——字段必须出现，不可省略")
+    checks = [
+        Check("actions_check", "仅记录严重问题"),
+    ]
+
+
+ACTION_ITEMS_GENERATION_OUTPUT_CONTRACT = ActionItemsGenerationContract.to_output_contract()
+ACTION_ITEMS_SUPERVISOR_OUTPUT_CONTRACT = ActionItemsSupervisorContract.to_output_contract()
+
+# 降级拼装规则（声明式类）：fallback 节点由 sync_domain.py 检测子类后生成
+class ActionItemsFallbackRules(FallbackRules):
+    """待办降级拼装：客观合并后逐行格式化 + 结构化 items。"""
+
+    sections = [
+        Lines(
+            "my_actions",
+            merge=["my_actions", "unassigned_actions"],
+        ),
+    ]
+    empty_text = "暂无明确待办事项"
+    structured = {"merge": ["my_actions", "unassigned_actions"]}
+
+
+ACTION_ITEMS_FALLBACK_RULES = ActionItemsFallbackRules()
+
+__all__ = [
+    "ACTION_ITEMS_GENERATION_OUTPUT_CONTRACT",
+    "ACTION_ITEMS_SUPERVISOR_OUTPUT_CONTRACT",
+    "ACTION_ITEMS_FALLBACK_RULES",
+]

@@ -12,10 +12,11 @@ import time
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 from pathlib import Path
+from typing import AsyncIterator
 
 from fastapi.responses import StreamingResponse
 
-from tools.knowledge.document_processor import IMAGE_EXTS
+from infra.storage.document_processor import IMAGE_EXTS
 
 from .config import (
     DEFAULT_MINUTES_TEMPLATE,
@@ -82,11 +83,11 @@ def _catalog_quality_monitor(line: str, user_id: str, subject: str) -> dict:
     if line != "catalog":
         return {}
     try:
-        from domain.notes.tasks.catalog.skeleton import (
+        from domains.notes.tasks.catalog.skeleton import (
             build_source_skeleton,
             catalog_quality_report,
         )
-        from domain.notes.tasks.catalog.store import load_catalog
+        from domains.notes.tasks.catalog.store import load_catalog
 
         draft = load_catalog(user_id=user_id, subject=subject)
         if not draft:
@@ -117,7 +118,7 @@ def _fake_heading_chunk_count(user_id: str, subject: str) -> int:
     `③ …` 经 NFKC 变 `3 …` 后曾被当成章级标题，顺着候选池长成目录里的假章节。
     """
     try:
-        from domain.notes.tasks.catalog.gather import open_knowledge
+        from domains.notes.tasks.catalog.gather import open_knowledge
 
         kb = open_knowledge(user_id=user_id)
         if kb is None:
@@ -135,7 +136,7 @@ def _fake_heading_chunk_count(user_id: str, subject: str) -> int:
 
 def _catalog_input_file(user_id: str, subject: str, name: str) -> Path:
     """checklist 的 docs：catalog 文件名 → data/{user_id}/knowledge/catalogs/{subject}/{name}。"""
-    from domain.notes.tasks.catalog.store import _subject_filename
+    from domains.notes.tasks.catalog.store import _subject_filename
 
     uid = (user_id or "").strip()
     if not uid:
@@ -217,8 +218,8 @@ def _ocr_docs(user_id: str, docs: list[str]) -> str:
     names = [name for name in (docs or []) if _is_image_name(name)]
     if not names:
         return ""
-    from tools.ocr.engines import ocr_concurrency, ocr_engine_label
-    from tools.ocr.levels.light import concat_page_lines, ocr_log
+    from infra.ocr.engines import ocr_concurrency, ocr_engine_label
+    from infra.ocr.levels.light import concat_page_lines, ocr_log
 
     engine = ocr_engine_label()
     total = len(names)
@@ -230,7 +231,7 @@ def _ocr_docs(user_id: str, docs: list[str]) -> str:
         # 文件不存在时与原实现一致：ApiError 往上抛（任务以 404 结束）
         path = _input_file(user_id, "docs", name)
         try:
-            from tools.ocr.layout import ocr_image_lines
+            from infra.ocr.layout import ocr_image_lines
 
             lines = ocr_image_lines(str(path)) or []
             ocr_log(f"ocr item ok {index}/{total} lines={len(lines)} file={name}")
@@ -262,7 +263,7 @@ def _ocr_docs(user_id: str, docs: list[str]) -> str:
             return index, f"（图片 {name} OCR 失败：{errors[index]}）"
         lines = by_page.get(str(index - 1), [])
         try:
-            from tools.ocr.reconstruct import reconstruct_markdown
+            from infra.ocr.formatters.reconstruct import reconstruct_markdown
 
             return index, reconstruct_markdown(lines).strip()
         except Exception as exc:  # noqa: BLE001 - 单张重构失败不阻断其余图片
@@ -321,10 +322,10 @@ def _ocr_single_agenda_doc(
         return ""
     import os as _os
 
-    from domain.meeting.tasks.agenda_minutes.agenda_extractor import reconstruct_agenda_markdown
-    from tools.ocr.engines import ocr_engine_label
-    from tools.ocr.layout import ocr_image_lines
-    from tools.ocr.levels.light import ocr_log
+    from domains.meeting.tasks.agenda_minutes.agenda_extractor import reconstruct_agenda_markdown
+    from infra.ocr.engines import ocr_engine_label
+    from infra.ocr.layout import ocr_image_lines
+    from infra.ocr.levels.light import ocr_log
 
     engine = ocr_engine_label()
     total = len(names)
@@ -369,7 +370,7 @@ def _doc_previews(user_id: str, docs: list[str]) -> str:
             continue
         path = _input_file(user_id, "docs", name)
         try:
-            from tools.core.io import knowledge_text_preview
+            from core.runner.io import knowledge_text_preview
 
             body = knowledge_text_preview(path).strip()
             if body:
@@ -384,7 +385,7 @@ def _catalog_file_name(line: str, user_id: str, subject: str) -> str:
     if line != "catalog" or not (subject or "").strip():
         return ""
     try:
-        from domain.notes.tasks.catalog.store import latest_catalog_path
+        from domains.notes.tasks.catalog.store import latest_catalog_path
 
         path = latest_catalog_path(user_id=user_id, subject=subject)
         return path.name if path else ""
@@ -515,7 +516,7 @@ def _profile_file(domain: str, profile_value: str, user_id: str = "") -> Path:
 
 def _subject_pinyin(subject: str) -> str:
     """学科统一转拼音（物理 → wuli），与知识库 subject / catalog 目录一致；空值原样。"""
-    from tools.knowledge.config import subject_to_pinyin
+    from infra.storage.config import subject_to_pinyin
 
     return subject_to_pinyin(subject)
 
@@ -611,7 +612,7 @@ def _prepare(domain: str, task: str, req: TaskRequest, user_id: str) -> _Prepare
             if image_docs:
                 candidate_spk = []
                 if transcript:
-                    from domain.meeting.tasks.agenda_minutes.agenda_parser import extract_speakers_from_transcript
+                    from domains.meeting.tasks.agenda_minutes.agenda_parser import extract_speakers_from_transcript
 
                     candidate_spk = extract_speakers_from_transcript(transcript)
                 ocr_text = _ocr_single_agenda_doc(user_id, image_docs, candidate_speakers=candidate_spk)
@@ -648,7 +649,7 @@ def _prepare(domain: str, task: str, req: TaskRequest, user_id: str) -> _Prepare
             image_docs = [n for n in material_docs if _is_image_name(n)]
             other_docs = [n for n in material_docs if not _is_image_name(n)]
             if image_docs:
-                from tools.ocr.levels.light import images_to_reviewed_markdown
+                from infra.ocr.levels.light import images_to_reviewed_markdown
 
                 image_paths = [_input_file(user_id, "docs", n) for n in image_docs]
                 md_text = images_to_reviewed_markdown(image_paths)
@@ -742,7 +743,7 @@ async def _run_task_impl(
     # 产物直接写入本次请求目录（data/{user_id}/output/{request_id}/），不再走根目录 output/ 归档
     p.ctx.output_dir = output_dir(user_id, request_id)
 
-    from tools.core.runner import run
+    from core.runner.runner import run
 
     try:
         result = await run(p.ctx, **_runner_args(p))
@@ -760,7 +761,7 @@ async def _run_task_impl(
     if p.line == "checklist" and p.line in reports:
         # checklist 以 HTML 交互页为主：data.text 返回精简摘要（统计 + 卡片列表），
         # 全量 Markdown 仍落盘 result.md 存档
-        from domain.notes.tasks.checklist.display import build_checklist_summary
+        from domains.notes.tasks.checklist.display import build_checklist_summary
 
         _report = reports[p.line]
         _cards = (
@@ -783,7 +784,7 @@ async def _run_task_impl(
     if not md_text and saved_paths.get("md"):
         md_text = Path(saved_paths["md"]).read_text(encoding="utf-8")
     if not md_text and p.line in reports:
-        from tools.exports.outputs import report_text
+        from infra.exporters.outputs import report_text
 
         md_text = report_text(reports[p.line])
     from .schemas import Monitor, ResponseData
@@ -832,6 +833,147 @@ async def stream_task(
     return await _stream_task_impl(domain, task, req, user_id, request_id)
 
 
+async def iter_task_events(
+    domain: str,
+    task: str,
+    req: TaskRequest,
+    *,
+    user_id: str = "",
+    request_id: str = "",
+) -> AsyncIterator[dict]:
+    """核心事件流生成器：纯 Python 字典事件流，不依赖任何 HTTP/Web 响应对象。"""
+    request_id = (request_id or "").strip() or next_request_id()
+    p = await asyncio.to_thread(_prepare, domain, task, req, user_id)
+    # 产物直接写入本次请求目录（data/{user_id}/output/{request_id}/），不再走根目录 output/ 归档
+    p.ctx.output_dir = output_dir(user_id, request_id)
+
+    from core.runner.runner import _handle_done, prepare_run
+
+    _start_time = time.time()
+    try:
+        prep = await prepare_run(p.ctx, **_runner_args(p))
+    except ApiError as exc:
+        # 输入类错误（缺必填/文件不存在）：带上真实状态码，异步端据此不重试
+        yield {"type": "error", "code": exc.status, "message": exc.message}
+        return
+    except Exception as exc:  # noqa: BLE001 - 准备失败推 error 事件
+        yield {"type": "error", "code": 500, "message": f"任务准备失败：{exc}"}
+        return
+
+    system = prep.system
+    last_done = None
+    try:
+        async for event in system.run_streaming(
+            prep.transcript,
+            prep.user,
+            templates=prep.template_texts,
+            lines=prep.line_names,
+            line_modes=p.modes,
+            line_extra=prep.line_extra,
+        ):
+            if event["type"] == "phase":
+                yield {"type": "phase", "node": event["node"]}
+            elif event["type"] == "chunk":
+                yield {
+                    "type": "chunk",
+                    "line": event["line"],
+                    "title": event["title"],
+                    "text": event["text"],
+                }
+            elif event["type"] == "done":
+                last_done = event
+                saved = await _handle_done(
+                    prep.ctx,
+                    event,
+                    memory_on=bool((prep.line_extra or {}).get("__meeting_memory__")),
+                ) or {}
+                saved_paths = save_task_outputs(user_id, request_id, saved)
+                md_text = ""
+                if saved_paths.get("md"):
+                    md_text = Path(saved_paths["md"]).read_text(encoding="utf-8")
+                if p.line == "checklist" and p.line in (event.get("reports") or {}):
+                    from domains.notes.tasks.checklist.display import build_checklist_summary
+                    from infra.exporters.outputs import report_to_dict
+
+                    _report = report_to_dict((event.get("reports") or {})[p.line])
+                    _cards = _report.get("cards") or []
+                    if _cards:
+                        md_text = build_checklist_summary(
+                            course=str(_report.get("course") or ""),
+                            catalog_version=str(_report.get("catalog_version") or ""),
+                            cards=_cards,
+                        )
+                if not md_text and p.line in (event.get("reports") or {}):
+                    from infra.exporters.outputs import report_text, report_to_dict
+
+                    md_text = report_text(
+                        report_to_dict((event.get("reports") or {})[p.line])
+                    )
+                meeting_meta = (prep.line_extra or {}).get("__meeting_memory__")
+                if meeting_meta:
+                    from domains.meeting.memory.runtime import persist_after_run
+
+                    persist_after_run(
+                        prep.ctx.project_root,
+                        user_id,
+                        p.project or "",
+                        request_id,
+                        prep.transcript,
+                        event.get("reports") or {},
+                        event.get("understanding") or {},
+                        meeting_time=p.time,
+                        bind=event.get("memory_bind"),
+                    )
+                elif prep.memory_enabled and prep.memory_bind is not None:
+                    from domains.notes.memory.runtime import persist
+
+                    persist(
+                        prep.ctx.project_root,
+                        prep.ctx.name,
+                        user_id,
+                        prep.memory_bind,
+                        event.get("reports") or {},
+                        event.get("understanding") or {},
+                        prep.transcript,
+                        prep.subject,
+                    )
+                snap = system.client.monitor_snapshot().get("usage_totals") or {}
+                usage = {
+                    key: int(snap.get(key, 0)) - int(prep.usage_before.get(key, 0))
+                    for key in ("total_tokens", "cache_hit_tokens")
+                }
+                yield {
+                    "type": "done",
+                    "code": 0,
+                    "request_id": request_id,
+                    "message": "success",
+                    "quality_warning": event.get("quality_warning"),
+                    "monitor": {
+                        "token_usage": int(usage.get("total_tokens", 0) or 0),
+                        "cache_hit": int(usage.get("cache_hit_tokens", 0) or 0),
+                        "cost_time": round((time.time() - _start_time), 1),
+                        **_catalog_quality_monitor(p.line, user_id, p.subject),
+                    },
+                    "data": {
+                        "text": md_text,
+                        "file_name": _output_file_name(p.line, user_id, p.subject, saved_paths),
+                    },
+                }
+    except ApiError as exc:
+        yield {"type": "error", "code": exc.status, "message": exc.message}
+    except Exception as exc:  # noqa: BLE001 - 运行失败推 error 事件
+        yield {"type": "error", "code": 500, "message": f"任务运行失败：{exc}"}
+    finally:
+        if prep.task_monitor is not None:
+            try:
+                prep.task_monitor.finish(
+                    done_event=last_done,
+                    extra={"ok": last_done is not None, "error": ""},
+                )
+            except Exception:  # noqa: BLE001 - 监控落盘失败不影响主流程
+                pass
+
+
 async def _stream_task_impl(
     domain: str,
     task: str,
@@ -839,138 +981,13 @@ async def _stream_task_impl(
     user_id: str,
     request_id: str,
 ) -> StreamingResponse:
-    p = await asyncio.to_thread(_prepare, domain, task, req, user_id)
-    # 产物直接写入本次请求目录（data/{user_id}/output/{request_id}/），不再走根目录 output/ 归档
-    p.ctx.output_dir = output_dir(user_id, request_id)
-
     async def event_stream():
-        from tools.core.runner import _handle_done, prepare_run
-
-        _start_time = time.time()
-        try:
-            prep = await prepare_run(p.ctx, **_runner_args(p))
-        except ApiError as exc:
-            # 输入类错误（缺必填/文件不存在）：带上真实状态码，异步端据此不重试
-            yield _ndjson({"type": "error", "code": exc.status, "message": exc.message})
-            return
-        except Exception as exc:  # noqa: BLE001 - 准备失败推 error 事件
-            yield _ndjson({"type": "error", "code": 500, "message": f"任务准备失败：{exc}"})
-            return
-
-        system = prep.system
-        last_done = None
-        try:
-            async for event in system.run_streaming(
-                prep.transcript,
-                prep.user,
-                templates=prep.template_texts,
-                lines=prep.line_names,
-                line_modes=p.modes,
-                line_extra=prep.line_extra,
-            ):
-                if event["type"] == "phase":
-                    yield _ndjson({"type": "phase", "node": event["node"]})
-                elif event["type"] == "chunk":
-                    yield _ndjson({
-                        "type": "chunk",
-                        "line": event["line"],
-                        "title": event["title"],
-                        "text": event["text"],
-                    })
-                elif event["type"] == "done":
-                    last_done = event
-                    saved = await _handle_done(
-                        prep.ctx,
-                        event,
-                        memory_on=bool((prep.line_extra or {}).get("__meeting_memory__")),
-                    ) or {}
-                    saved_paths = save_task_outputs(user_id, request_id, saved)
-                    md_text = ""
-                    if saved_paths.get("md"):
-                        md_text = Path(saved_paths["md"]).read_text(encoding="utf-8")
-                    if p.line == "checklist" and p.line in (event.get("reports") or {}):
-                        from domain.notes.tasks.checklist.display import build_checklist_summary
-                        from tools.exports.outputs import report_to_dict
-
-                        _report = report_to_dict((event.get("reports") or {})[p.line])
-                        _cards = _report.get("cards") or []
-                        if _cards:
-                            md_text = build_checklist_summary(
-                                course=str(_report.get("course") or ""),
-                                catalog_version=str(_report.get("catalog_version") or ""),
-                                cards=_cards,
-                            )
-                    if not md_text and p.line in (event.get("reports") or {}):
-                        from tools.exports.outputs import report_text, report_to_dict
-
-                        md_text = report_text(
-                            report_to_dict((event.get("reports") or {})[p.line])
-                        )
-                    meeting_meta = (prep.line_extra or {}).get("__meeting_memory__")
-                    if meeting_meta:
-                        from domain.meeting.memory.runtime import persist_after_run
-
-                        persist_after_run(
-                            prep.ctx.project_root,
-                            user_id,
-                            p.project or "",
-                            request_id,
-                            prep.transcript,
-                            event.get("reports") or {},
-                            event.get("understanding") or {},
-                            meeting_time=p.time,
-                            bind=event.get("memory_bind"),
-                        )
-                    elif prep.memory_enabled and prep.memory_bind is not None:
-                        from domain.notes.memory.runtime import persist
-
-                        persist(
-                            prep.ctx.project_root,
-                            prep.ctx.name,
-                            user_id,
-                            prep.memory_bind,
-                            event.get("reports") or {},
-                            event.get("understanding") or {},
-                            prep.transcript,
-                            prep.subject,
-                        )
-                    snap = system.client.monitor_snapshot().get("usage_totals") or {}
-                    usage = {
-                        key: int(snap.get(key, 0)) - int(prep.usage_before.get(key, 0))
-                        for key in ("total_tokens", "cache_hit_tokens")
-                    }
-                    yield _ndjson({
-                        "type": "done",
-                        "code": 0,
-                        "request_id": request_id,
-                        "message": "success",
-                        "quality_warning": event.get("quality_warning"),
-                        "monitor": {
-                            "token_usage": int(usage.get("total_tokens", 0) or 0),
-                            "cache_hit": int(usage.get("cache_hit_tokens", 0) or 0),
-                            "cost_time": round((time.time() - _start_time), 1),
-                            **_catalog_quality_monitor(p.line, user_id, p.subject),
-                        },
-                        "data": {
-                            "text": md_text,
-                            "file_name": _output_file_name(p.line, user_id, p.subject, saved_paths),
-                        },
-                    })
-        except ApiError as exc:
-            yield _ndjson({"type": "error", "code": exc.status, "message": exc.message})
-        except Exception as exc:  # noqa: BLE001 - 运行失败推 error 事件
-            yield _ndjson({"type": "error", "code": 500, "message": f"任务运行失败：{exc}"})
-        finally:
-            if prep.task_monitor is not None:
-                try:
-                    prep.task_monitor.finish(
-                        done_event=last_done,
-                        extra={"ok": last_done is not None, "error": ""},
-                    )
-                except Exception:  # noqa: BLE001 - 监控落盘失败不影响主流程
-                    pass
+        async for event in iter_task_events(
+            domain, task, req, user_id=user_id, request_id=request_id
+        ):
+            yield _ndjson(event)
 
     return StreamingResponse(event_stream(), media_type="application/x-ndjson")
 
 
-__all__ = ["ApiError", "LINE_NAMES", "run_task", "stream_task"]
+__all__ = ["ApiError", "LINE_NAMES", "iter_task_events", "run_task", "stream_task"]

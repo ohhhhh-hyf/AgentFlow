@@ -36,10 +36,10 @@ pypinyin>=0.5
 
 # ── 笔记域知识库（library / catalog / checklist / graph）─────
 # chromadb 缺失时 open_knowledge 返回 None，知识增强自动降级（见
-# domain/notes/knowledge/cite.py），故严格来说只有 notes 域需要它；
+# domains/notes/knowledge/cite.py），故严格来说只有 notes 域需要它；
 # 这里默认安装，以支持 README 描述的完整功能。
 chromadb>=0.5.0
-# tools/knowledge/vector_store.py 的 embedding 客户端用 httpx
+# infra/storage/vector_store.py 的 embedding 客户端用 httpx
 httpx>=0.27
 openai>=1.0.0
 
@@ -51,7 +51,7 @@ openpyxl>=3.1.0
 
 # ── OCR（docs 传图片时使用）─────────────────────────────────
 # 默认引擎是 serverocr（OCR_ENGINE 缺省值），这两项在
-# tools/ocr/server_ocr.py 顶部是模块级 import，缺了会在加载引擎时报错。
+# infra/ocr/engines/server_ocr.py 顶部是模块级 import，缺了会在加载引擎时报错。
 # 改用 PaddleOCR / RapidOCR 引擎的话，依赖见 requirements-optional.txt。
 requests>=2.31
 Pillow>=10.0

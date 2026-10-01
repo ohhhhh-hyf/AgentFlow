@@ -17,9 +17,9 @@ import tempfile
 from dataclasses import replace
 from pathlib import Path
 
-from tools.core import runner
-from tools.core.domain_hooks import hooks_for, register
-from tools.core.runtime_context import load_domain
+from core.runner import runner
+from core.runner.hooks import hooks_for, register
+from core.runner.context import load_domain
 
 PASS: list[str] = []
 FAIL: list[str] = []
@@ -146,9 +146,11 @@ def test_engine_smoke() -> None:
             return None
 
         register("meeting", replace(hooks, prepare_memory=spy_prepare, persist_memory=spy_persist))
+        dev_prof = (PROJECT_ROOT / "resources" / "profiles" / "developer.json") if (PROJECT_ROOT / "resources" / "profiles").is_dir() else (PROJECT_ROOT / "assets" / "profiles" / "developer.json")
+        obj_prof = (PROJECT_ROOT / "resources" / "profiles" / "object.json") if (PROJECT_ROOT / "resources" / "profiles").is_dir() else (PROJECT_ROOT / "assets" / "profiles" / "object.json")
         try:
             collected, system, prep = asyncio.run(
-                _drive(tmp, memory=True, profile=PROJECT_ROOT / "assets" / "profiles" / "developer.json", spy=calls)
+                _drive(tmp, memory=True, profile=dev_prof, spy=calls)
             )
         finally:
             register("meeting", hooks)
@@ -180,7 +182,7 @@ def test_engine_smoke() -> None:
         register("meeting", replace(hooks, prepare_memory=spy_prepare, persist_memory=spy_persist))
         try:
             collected2, _, prep2 = asyncio.run(
-                _drive(tmp, memory=False, profile=PROJECT_ROOT / "assets" / "profiles" / "object.json", spy=calls)
+                _drive(tmp, memory=False, profile=obj_prof, spy=calls)
             )
         finally:
             register("meeting", hooks)
@@ -234,9 +236,9 @@ def test_engine_agent_node() -> None:
     """
     from dataclasses import replace as _replace
 
-    from domain.meeting.orchestrator import MeetingAgentSystem
-    from domain.notes.orchestrator import NotesAgentSystem
-    from tools.core.domain_hooks import hooks_for, register
+    from domains.meeting.orchestrator import MeetingAgentSystem
+    from domains.notes.orchestrator import NotesAgentSystem
+    from core.runner.hooks import hooks_for, register
 
     # meeting：记忆线 → 注入钩子应给出 memory_context（engine 写回 line state）
     hooks = hooks_for("meeting")

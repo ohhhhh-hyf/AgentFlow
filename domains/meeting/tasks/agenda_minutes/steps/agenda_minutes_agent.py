@@ -1,0 +1,922 @@
+"""agenda_minutes_agent.py -- 议程驱动型会议纪要生成 Agent。
+
+流程：
+1. 从 shared_context 中提取既定议程单与会议录音转写；
+2. parse_agenda_text 解析既定议程大盘 AgendaPlan；
+3. align_agenda_with_transcript 执行发言人真名双向锚定与实录切片；
+4. 对 skipped 议题执行 Zero-Evidence 截断（杜绝虚构脑补）；
+5. 对 discussed 议题调用大模型提炼全景四要素；
+6. Agenda-as-Anchor 绝对骨架后置硬校验：100% 覆盖议程单全部序号与法定全称。
+"""
+from __future__ import annotations
+
+import asyncio
+import logging
+import os
+import re
+from dataclasses import dataclass, field
+from typing import Any
+
+from infra.llm import LLMClient
+from core.schema.validation import OutputValidationError
+
+from ....models import AgendaMinutes
+from ....models_base import ModelMixin
+from ..agenda_parser import (
+    match_presenter_name,
+    parse_agenda_text,
+)
+from ..alignment_engine import (
+    NAME_MATCH_ACCEPT,
+    AgendaAlignment,
+    AlignmentResult,
+    align_agenda_with_transcript,
+    is_trivial_ceremonial_item,
+)
+from ..contracts import (
+    SINGLE_AGENDA_ITEM_OUTPUT_CONTRACT,
+    normalize_status_tag,
+)
+from ..prompts import (
+    build_single_item_prompt,
+)
+from ..types import detect_agenda_type
+
+logger = logging.getLogger(__name__)
+
+
+# ── 预算与并发（2026-09-29 抽出命名；**取值一律未改**）──────────────────
+#
+# 原先这些数字散在函数体与默认参数里，看不出彼此关系。抽成具名常量只为可读；
+# 调整它们等于改变证据覆盖与生成长度，需要拿真实夹具重新评估。
+
+# 单议题送模型的实录字符预算（超预算按「汇报人优先」截取，见 _extract_budgeted_evidence）
+_EVIDENCE_CHAR_BUDGET = 12000
+
+# 会议类型判定只看转写开头这一段（够识别类型即可，不必全文）
+_TYPE_DETECT_TRANSCRIPT_CHARS = 5000
+
+# 单议题结构化输出的 max_tokens 上限
+_ITEM_MAX_TOKENS = 2000
+
+# Map 阶段并发度（同名环境变量可覆盖）
+_CONCURRENCY_ENV = "AGENDA_MINUTES_CONCURRENCY"
+_DEFAULT_CONCURRENCY = "4"
+
+
+def _is_nested_bullet_block(s: str) -> bool:
+    """判断字符串是否为【加粗主题 + 二级列表项】的嵌套结构。"""
+    lines = [ln.strip() for ln in s.splitlines() if ln.strip()]
+    if len(lines) <= 1:
+        return False
+    if not (lines[0].startswith("**") and "**" in lines[0][2:]):
+        return False
+    for ln in lines[1:]:
+        if not re.match(r"^[-*•·]\s+", ln):
+            return False
+    return True
+
+
+def auto_structure_bullet(text: str) -> str:
+    """智能将单段式大段内容重构成 一级加粗主题 + 二级自然列表。
+
+    若文本已经是多行结构，或主体较短，则保持原样；
+    若包含“主题：长文本（多个句号分号）”，自动提炼加粗主题并拆出二级子列表。
+    """
+    s = str(text).strip()
+    if not s:
+        return ""
+    if "\n" in s:
+        return s
+
+    # 匹配加粗或未加粗主题：如 **主题**： 或 主题：
+    m = re.match(r"^(\*\*[^*]+?\*\*|[^\n：:]{2,20})[：:]\s*(.+)$", s)
+    if not m:
+        return s
+
+    title, body = m.group(1).strip(), m.group(2).strip()
+    if not title.startswith("**"):
+        title = f"**{title}**"
+
+    # 若主体文本较短或断句不足，保持原样
+    if len(body) < 60 or (body.count("。") + body.count("；")) < 2:
+        return f"{title}：{body}"
+
+    # 按句号/分号切分句子
+    raw_parts = re.split(r"([。；])", body)
+    sentences = []
+    curr = ""
+    for p in raw_parts:
+        curr += p
+        if p in ("。", "；") and len(curr.strip()) >= 15:
+            sentences.append(curr.strip())
+            curr = ""
+    if curr.strip():
+        if sentences and len(curr.strip()) < 15:
+            sentences[-1] += curr.strip()
+        else:
+            sentences.append(curr.strip())
+
+    if len(sentences) >= 2:
+        sub_bullets = "\n".join(
+            f"- {sent.rstrip('；。')}；" if i < len(sentences) - 1 else f"- {sent.rstrip('；。')}。"
+            for i, sent in enumerate(sentences)
+        )
+        return f"{title}：\n{sub_bullets}"
+
+    return f"{title}：{body}"
+
+
+def _normalize_conclusion_points(val: Any) -> list[str]:
+    """统一规范化结论与状态字段为干净的条目列表，彻底支持一点一行拆解。"""
+    if val is None or val is False:
+        return []
+    if isinstance(val, (list, tuple, set)):
+        res = []
+        for x in val:
+            res.extend(_normalize_conclusion_points(x))
+        return [r for r in res if r]
+
+    s = str(val).strip()
+    if not s:
+        return []
+
+    # 1. 修复历史上因 str(list) 产生的 "['item1', 'item2']" 字符串
+    if s.startswith("[") and s.endswith("]") and ("'," in s or '",' in s or "','" in s or '","' in s):
+        import ast
+
+        try:
+            parsed = ast.literal_eval(s)
+            if isinstance(parsed, (list, tuple)):
+                return _normalize_conclusion_points(parsed)
+        except Exception:
+            pass
+        inner = s[1:-1].strip()
+        parts = re.split(r"'\s*,\s*'|\"\s*,\s*\"", inner)
+        cleaned = [p.strip().strip("'\"").strip() for p in parts if p.strip().strip("'\"").strip()]
+        if len(cleaned) > 1:
+            return _normalize_conclusion_points(cleaned)
+
+    # 如果是多行二级嵌套结构（加粗标题 + 子列表），整块保留为一个条目
+    if _is_nested_bullet_block(s):
+        lines = [ln.strip() for ln in s.splitlines() if ln.strip()]
+        first = lines[0]
+        subs = [re.sub(r"^[-*•·]\s*", "", ln).strip() for ln in lines[1:]]
+        subs = [sub for sub in subs if sub]
+        if subs:
+            return [first + "\n" + "\n".join(f"- {sub}" for sub in subs)]
+        return [first]
+
+    # 2. 预处理：解耦定调语句与前置约束标题（如 '...通过。生效前置约束：1）...' -> '...通过。\n1）...'）
+    s = re.sub(r'^\s*(?:发布前置条件|生效前置约束|前置条件|前置约束|附带条件|后续要求|主要关注项|注意事项)[：:]\s*', '', s)
+    s = re.sub(r'([。；;\n])?\s*(?:发布前置条件|生效前置约束|前置条件|前置约束|附带条件|后续要求|主要关注项|注意事项)[：:]\s*', lambda m: (m.group(1) or '。') + '\n', s)
+    s = re.sub(r'([。；;\n])?\s*(?:现场未决卡点|现场卡点|未决卡点|遗留卡点)[：:]\s*', lambda m: (m.group(1) or '。') + '\n', s)
+
+    # 3. 标号前置断行：在 1） 2） 1. (1) ① 一是 等标记前切开
+    num_pattern = re.compile(r'(?<=[^0-9\n])(?=(?:[1-9]\d*[\.、）\)]|[(（][1-9]\d*[)）]|[①-⑩]|(?:一是|二是|三是|四是|五是)|(?:第一[，,、]|第二[，,、]|第三[，,、])))')
+    s = num_pattern.sub('\n', s)
+
+    # 4. 按行切分
+    lines = [line.strip() for line in s.splitlines() if line.strip()]
+
+    # 5. 若未成功分行，但包含 2 个及以上分号，按分号切分
+    if len(lines) == 1 and (lines[0].count('；') >= 2 or lines[0].count(';') >= 2):
+        lines = [p.strip() for p in re.split(r'[；;]\s*', lines[0]) if p.strip()]
+
+    # 6. 清洗每条开头的数字标号与冗余前缀（保留 ** 加粗标记）
+    cleaned = []
+    for it in lines:
+        it = re.sub(r'^(?:[-•·]\s*|\*(?!\*)\s*|\s+|(?:[1-9]\d*[\.、）\)]|[(（][1-9]\d*[)）]|[①-⑩]|(?:一是|二是|三是|四是|五是)|(?:第一[，,、]|第二[，,、]|第三[，,、])))\s*', '', it).strip()
+        it = re.sub(r'^(?:发布前置条件|生效前置约束|前置条件|前置约束|附带条件|现场未决卡点|现场卡点|未决卡点|遗留卡点)\s*\d*\s*[：:]\s*', '', it).strip()
+        if re.search(r'^(?:现场)?无(?:其他)?(?:阻塞|卡点|遗留|风险|问题)', it):
+            continue
+        if it:
+            cleaned.append(it)
+
+    return cleaned or [s]
+
+
+def _clean_timestamp(ts: str) -> str:
+    """清洗时间戳为 HH:MM 或 MM:SS（去掉末尾秒数，若格式为 HH:MM:SS 则保留前两位 HH:MM）。"""
+    ts = (ts or "").strip()
+    if not ts:
+        return ""
+    parts = ts.split(":")
+    if len(parts) == 3:
+        return f"{parts[0].zfill(2)}:{parts[1].zfill(2)}"
+    elif len(parts) == 2:
+        return f"{parts[0].zfill(2)}:{parts[1].zfill(2)}"
+    return ts
+
+
+def _format_time_range(blocks: list[Any] | None) -> str:
+    """根据发言块提取起止时间戳区间，如 '00:10 ~ 00:24'；无有效时间戳或未讨论则返回 '—'。"""
+    if not blocks:
+        return "—"
+    valid_ts = [_clean_timestamp(getattr(b, "timestamp", "")) for b in blocks if getattr(b, "timestamp", None)]
+    valid_ts = [t for t in valid_ts if t]
+    if not valid_ts:
+        return "—"
+    start_ts = valid_ts[0]
+    end_ts = valid_ts[-1]
+    if start_ts == end_ts:
+        return start_ts
+    return f"{start_ts} ~ {end_ts}"
+
+
+
+@dataclass
+class SingleAgendaItemModel(ModelMixin):
+    """单议题结构化输出数据模型（4 栏骨架纯干货直出，向上兼容旧字段）。"""
+
+    presenter: str = ""
+    agenda_category: str = ""
+    status_tag: str = ""
+    is_substantive_agenda: bool = True
+    time_range: str = "—"
+
+    # 4 栏标准骨架字段
+    background_and_goals: str | list[str] = ""
+    core_content: list[str] = field(default_factory=list)
+    core_insights: str | list[str] = ""
+    action_items: list[dict[str, Any]] = field(default_factory=list)
+
+    # 兼容 5 栏旧字段
+    target_and_audience: list[str] = field(default_factory=list)
+    content_and_evidence: list[str] = field(default_factory=list)
+    process_and_interaction: list[str] = field(default_factory=list)
+    conclusion_and_status: str | list[str] = ""
+
+    # 兼容早期旧字段
+    proposal_highlights: list[str] = field(default_factory=list)
+    deliberation_details: dict[str, Any] = field(default_factory=dict)
+    resolution: str | list[str] = ""
+    action_commitments: list[dict[str, Any]] = field(default_factory=list)
+
+    def __post_init__(self) -> None:
+        # 1. 背景与目标 同步
+        if not self.background_and_goals:
+            if self.target_and_audience:
+                self.background_and_goals = list(self.target_and_audience)
+            elif self.proposal_highlights:
+                self.background_and_goals = list(self.proposal_highlights)
+        if not self.target_and_audience:
+            if isinstance(self.background_and_goals, list):
+                self.target_and_audience = list(self.background_and_goals)
+            elif self.background_and_goals:
+                self.target_and_audience = [str(self.background_and_goals).strip()]
+        if not self.proposal_highlights and self.target_and_audience:
+            self.proposal_highlights = list(self.target_and_audience)
+        elif not self.target_and_audience and self.proposal_highlights:
+            self.target_and_audience = list(self.proposal_highlights)
+
+        # 2. 核心内容 同步
+        delib = self.deliberation_details if isinstance(self.deliberation_details, dict) else {}
+        delib_metrics = list(delib.get("key_metrics") or [])
+        delib_concerns = list(delib.get("feedback_concerns") or [])
+
+        if not self.core_content:
+            combined = list(self.content_and_evidence) + list(self.process_and_interaction)
+            if combined:
+                self.core_content = combined
+            elif delib_metrics or delib_concerns:
+                self.core_content = delib_metrics + delib_concerns
+
+        if not self.content_and_evidence and self.core_content:
+            self.content_and_evidence = list(self.core_content)
+        elif not self.core_content and self.content_and_evidence:
+            self.core_content = list(self.content_and_evidence) + list(self.process_and_interaction)
+
+        if not isinstance(self.deliberation_details, dict):
+            self.deliberation_details = {}
+        if not delib_metrics and self.content_and_evidence:
+            self.deliberation_details["key_metrics"] = list(self.content_and_evidence)
+        if not delib_concerns and self.process_and_interaction:
+            self.deliberation_details["feedback_concerns"] = list(self.process_and_interaction)
+
+        # 3. 核心认知 同步
+        if not self.core_insights:
+            if self.conclusion_and_status:
+                self.core_insights = self.conclusion_and_status
+            elif self.resolution:
+                self.core_insights = self.resolution
+        if not self.conclusion_and_status and self.core_insights:
+            self.conclusion_and_status = self.core_insights
+        if not self.resolution and self.conclusion_and_status:
+            self.resolution = self.conclusion_and_status
+
+        # 4. 后续行动 同步
+        if not self.action_items and self.action_commitments:
+            self.action_items = list(self.action_commitments)
+        elif not self.action_commitments and self.action_items:
+            self.action_commitments = list(self.action_items)
+
+    @classmethod
+    def validate(cls, data: dict) -> "SingleAgendaItemModel":
+        if not isinstance(data, dict):
+            raise OutputValidationError("SingleAgendaItemModel 必须是对象")
+
+        # 0. 议题类别自适应（零术语兜底：常规议题缺省恒为 share，非显式审批绝不私设 approval）
+        raw_cat = str(data.get("agenda_category") or "").strip().lower()
+        raw_tag = str(data.get("status_tag") or "").strip()
+        title_s = str(data.get("agenda_title") or "").strip().lower()
+
+        approval_kws = ("评审", "放行", "准入", "审批", "商评", "过会", "审查", "验收表决")
+        has_approval_kw = any(k in raw_cat for k in approval_kws) or any(k in title_s for k in approval_kws)
+        has_explicit_decision = any(k in raw_tag for k in ("通过", "放行", "同意", "采纳", "批准", "未通过", "待补充", "条件"))
+
+        if has_approval_kw:
+            agenda_category = "approval"
+        elif raw_cat == "approval" and has_explicit_decision:
+            agenda_category = "approval"
+        elif any(k in raw_cat for k in ("协同", "拉通", "对齐", "排期", "磋商", "consensus")) or any(k in raw_tag for k in ("共识", "分歧")):
+            agenda_category = "consensus"
+        elif raw_cat == "consensus":
+            agenda_category = "consensus"
+        elif any(k in raw_cat for k in ("分享", "讲座", "报告", "学术", "培训", "致辞", "演讲", "share")):
+            agenda_category = "share"
+        elif raw_cat == "share":
+            agenda_category = "share"
+        else:
+            # 零术语兜底：缺省恒为 share（常规研讨/分享/仪式/签署），绝不私设 approval！
+            agenda_category = "share"
+
+        # 实质性议题标识（布尔值）
+        raw_substantive = data.get("is_substantive_agenda")
+        is_substantive_agenda = True
+        if raw_substantive is not None:
+            if isinstance(raw_substantive, bool):
+                is_substantive_agenda = raw_substantive
+            elif isinstance(raw_substantive, str):
+                is_substantive_agenda = raw_substantive.strip().lower() not in ("false", "0", "否", "no")
+
+        # 1. 背景与目标
+        raw_bg = data.get("background_and_goals")
+        if raw_bg is None or raw_bg == "":
+            target = list(data.get("target_and_audience") or data.get("proposal_highlights") or [])
+            background_and_goals = target if len(target) > 1 else (target[0] if target else "")
+        elif isinstance(raw_bg, list):
+            target = list(raw_bg)
+            background_and_goals = list(raw_bg)
+        else:
+            target = [str(raw_bg).strip()] if str(raw_bg).strip() else []
+            background_and_goals = str(raw_bg).strip()
+
+        # 2. 核心内容
+        raw_core = data.get("core_content")
+        if isinstance(raw_core, list) and raw_core:
+            core_content = [auto_structure_bullet(c) for c in raw_core if c]
+            content = list(core_content)
+            process = list(data.get("process_and_interaction") or [])
+        else:
+            content_raw = data.get("content_and_evidence")
+            if isinstance(content_raw, list):
+                content = list(content_raw)
+            elif isinstance(content_raw, dict):
+                content = list(content_raw.get("key_metrics") or []) + list(content_raw.get("facts_and_options") or [])
+            else:
+                delib_raw = data.get("deliberation_details") or {}
+                content = list(delib_raw.get("key_metrics") or []) if isinstance(delib_raw, dict) else []
+
+            process_raw = data.get("process_and_interaction")
+            if isinstance(process_raw, list):
+                process = list(process_raw)
+            elif isinstance(process_raw, dict):
+                process = list(process_raw.get("feedback_concerns") or []) + list(process_raw.get("focus_debates") or [])
+            else:
+                delib_raw = data.get("deliberation_details") or {}
+                process = list(delib_raw.get("feedback_concerns") or []) if isinstance(delib_raw, dict) else []
+
+            core_content = [auto_structure_bullet(c) for c in (content + process) if c]
+
+        # 3. 核心认知（支持多点结构化与单条自然语言）
+        raw_insights = data.get("core_insights") or data.get("conclusion_and_status") or data.get("resolution") or ""
+        conclusion_pts = _normalize_conclusion_points(raw_insights)
+        if len(conclusion_pts) > 1:
+            conclusion: str | list[str] = conclusion_pts
+        elif len(conclusion_pts) == 1:
+            conclusion = conclusion_pts[0]
+        else:
+            conclusion = ""
+        core_insights = conclusion
+
+        # 4. 后续行动
+        actions = list(data.get("action_items") or data.get("action_commitments") or [])
+
+        # 双向映射兼容
+        return cls(
+            presenter=str(data.get("presenter") or "").strip(),
+            agenda_category=agenda_category,
+            status_tag=normalize_status_tag(data.get("status_tag"), category=agenda_category, is_skipped=False),
+            is_substantive_agenda=is_substantive_agenda,
+            time_range=str(data.get("time_range") or "—").strip(),
+            # 4 栏标准
+            background_and_goals=background_and_goals,
+            core_content=core_content,
+            core_insights=core_insights,
+            action_items=actions,
+            # 兼容 5 栏旧字段
+            target_and_audience=target,
+            content_and_evidence=content,
+            process_and_interaction=process,
+            conclusion_and_status=conclusion,
+            # 兼容更早旧字段
+            proposal_highlights=target,
+            deliberation_details={
+                "key_metrics": content,
+                "feedback_concerns": process,
+            },
+            resolution=conclusion,
+            action_commitments=actions,
+        )
+
+
+def _extract_agenda_and_transcript(shared_context: str) -> tuple[str, str]:
+    """从上下文抽屉中解析出既定议程单文本与会议实录正文。"""
+    agenda_text = ""
+    transcript_text = ""
+
+    # 1. 优先从特定标记提取
+    if "【既定议程单】" in shared_context or "【既定议程】" in shared_context or "【议程】" in shared_context:
+        marker = "【既定议程单】" if "【既定议程单】" in shared_context else ("【既定议程】" if "【既定议程】" in shared_context else "【议程】")
+        parts = shared_context.split(marker, 1)
+        rest = parts[1]
+        if "【会议原文】" in rest:
+            agenda_part, transcript_part = rest.split("【会议原文】", 1)
+            agenda_text = agenda_part.strip()
+            transcript_text = transcript_part.strip()
+        elif "【会议转写】" in rest:
+            agenda_part, transcript_part = rest.split("【会议转写】", 1)
+            agenda_text = agenda_part.strip()
+            transcript_text = transcript_part.strip()
+        else:
+            agenda_text = rest.strip()
+
+    if not transcript_text and "【会议原文】" in shared_context:
+        transcript_text = shared_context.split("【会议原文】", 1)[1].strip()
+
+    # 2. 兜底提取
+    if not agenda_text and ("编号" in shared_context or "序号" in shared_context) and "|" in shared_context:
+        # 尝试查找包含表格的一段
+        lines = shared_context.splitlines()
+        tbl = []
+        for line in lines:
+            if "|" in line or line.startswith(("+", "-")) or any(h in line for h in ("会议主题", "Subject", "与会人")):
+                tbl.append(line)
+        if tbl:
+            agenda_text = "\n".join(tbl)
+
+    if not transcript_text:
+        transcript_text = shared_context.strip()
+
+    return agenda_text, transcript_text
+
+
+def _extract_budgeted_evidence(
+    align: AgendaAlignment,
+    max_chars: int = _EVIDENCE_CHAR_BUDGET,
+) -> str:
+    """按预算截取议题证据，优先确保官方汇报人的发言100%保留。"""
+    if len(align.evidence_text) <= max_chars:
+        return align.evidence_text
+
+    blocks = align.matched_blocks
+    presenters = set(align.item.presenters)
+    # 优先抽取汇报人自己的发言
+    pres_blocks = [
+        b for b in blocks
+        if any(match_presenter_name(p, b.speaker) >= NAME_MATCH_ACCEPT for p in presenters)
+    ]
+    other_blocks = [
+        b for b in blocks
+        if not any(match_presenter_name(p, b.speaker) >= NAME_MATCH_ACCEPT for p in presenters)
+    ]
+
+    selected: list[Any] = list(pres_blocks)
+    current_len = sum(len(b.content) for b in selected)
+
+    # 填充其他重要讨论块（问答、决议）
+    for b in other_blocks:
+        if current_len + len(b.content) > max_chars:
+            break
+        selected.append(b)
+        current_len += len(b.content)
+
+    selected.sort(key=lambda b: b.index)
+    lines_buf = [f"{b.speaker} {b.timestamp}\n{b.content.strip()}" for b in selected]
+    return "\n\n".join(lines_buf)
+
+
+def _is_interactive_discussion_topic(title: str) -> bool:
+    """判断是否属于双向互动交流/研讨/问答环节。"""
+    t = (title or "").strip()
+    keywords = ["互动交流", "自由交流", "现场问答", "自由讨论", "交流答疑", "分组讨论", "提问交流", "全员交流"]
+    return any(k in t for k in keywords)
+
+
+def _resolve_interactive_presenter(
+    it_title: str,
+    raw_pres: str,
+    plan: AgendaPlan,
+    prior_items: list[dict[str, Any]],
+) -> str:
+    """为互动研讨环节装配符合公文规范的汇报人/责任单位（方案 A：标准公文风）。"""
+    # 1. 如果已有非常具体的实名且包含团队描述（如包含“现场”、“团队”、“全体”、“答疑嘉宾”），予以保留
+    if raw_pres and any(k in raw_pres for k in ("参会团队", "与会人员", "全体", "答疑嘉宾")):
+        return raw_pres
+
+    # 2. 如果原文本只是单个匿名代号（如 "发言者 1"）或空，必须清洗替换
+    lead_speaker = ""
+    for prev in reversed(prior_items):
+        p = str(prev.get("presenter") or "").strip()
+        if p and not re.match(r"^发言者\s*\d+$", p) and p != "未记录":
+            cleaned = re.sub(r"[\(（].*?[\)）]", "", p).strip()
+            cleaned = re.sub(r"(?:总|院长|书记|专家|老师|主任)$", "", cleaned).strip()
+            if cleaned:
+                lead_speaker = cleaned
+                break
+
+    if not lead_speaker:
+        theme = str(plan.meta.theme or "")
+        match = re.search(r"([^\x00-\x7f]{2,4})(?:总|院长|书记|专家|老师|主任)", theme)
+        if match:
+            lead_speaker = match.group(1).strip()
+
+    if lead_speaker:
+        return f"{lead_speaker}（答疑嘉宾）及现场参会团队"
+    return "现场参会团队（全员互动研讨）"
+
+
+class AgendaMinutesAgent:
+    """议程驱动型会议纪要 Agent（免分类通用四要素与绝对骨架锁定）。"""
+
+    def __init__(self, client: LLMClient) -> None:
+        self.client = client
+
+    async def run(self, shared_context: str) -> AgendaMinutes:
+        agenda_raw, transcript = _extract_agenda_and_transcript(shared_context)
+
+        # 1. 议程大盘解析：Fail-Fast 坚决不反向扫描转写（支持 transcript 人名校对）
+        plan = parse_agenda_text(agenda_raw, transcript=transcript)
+        if not plan.items:
+            raise ValueError(
+                "未能从输入文档中解析出会前既定议程单（请提供包含序号和议题名称的标准文档或清晰图片）。"
+            )
+
+        # 2. 发言人双向锚定对齐
+        alignment_res = align_agenda_with_transcript(plan, transcript)
+        align_log = [
+            f"[AGENDA_ALIGNMENT] 现场研讨对齐结果汇总 (有效讨论: {alignment_res.discussed_count}, 未讨论/跳过: {alignment_res.skipped_count}):"
+        ]
+        for align in alignment_res.alignments:
+            status_tag = "【有效讨论】" if align.status == "discussed" else "【未讨论/跳过】"
+            speakers = ", ".join(align.matched_speakers) if align.matched_speakers else "无匹配发言"
+            pres_str = ", ".join(align.item.presenters) if align.item.presenters else "无"
+            align_log.append(
+                f"  {status_tag} 议题 {align.item.seq} 《{align.item.title}》 | 既定汇报人: [{pres_str}] | 现场发言人: [{speakers}] (命中讨论块: {len(align.matched_blocks)})"
+            )
+        logger.info("\n".join(align_log))
+
+
+        # 3. 动态检测会议类型（退居幕后的 9 大类型导师）并装配单议题 Prompt
+        type_spec = detect_agenda_type(
+            theme=plan.meta.theme or "",
+            titles=[it.title for it in plan.items],
+            context=transcript[:_TYPE_DETECT_TRANSCRIPT_CHARS],
+        )
+        logger.info(
+            "agenda_minutes detected meeting type: %s (%s)",
+            type_spec.type_name,
+            type_spec.type_id,
+        )
+        item_system_prompt = build_single_item_prompt(type_spec)
+
+        # 4. Map 阶段：受控并发抽取每个讨论过的议题（彻底打破单次 64K 上下文限制）
+        concurrency = int(os.getenv(_CONCURRENCY_ENV, _DEFAULT_CONCURRENCY))
+        semaphore = asyncio.Semaphore(concurrency)
+
+        async def _extract_single_item(align: AgendaAlignment) -> dict[str, Any]:
+            it = align.item
+            pres_str = "、".join(it.presenters) if it.presenters else (it.raw_presenter or "未指定")
+            async with semaphore:
+                budgeted_evidence = _extract_budgeted_evidence(align, max_chars=_EVIDENCE_CHAR_BUDGET)
+                user_prompt = (
+                    f"【既定议题基本信息】：\n"
+                    f"- 议程序号：{it.seq}\n"
+                    f"- 法定议题全称：{it.title}\n"
+                    f"- 议程指定汇报人：{pres_str}\n"
+                    f"- 现场出场发言人：{', '.join(align.matched_speakers[:8])}\n\n"
+                    f"【现场实录切片（真实发言原声）】：\n"
+                    f"{budgeted_evidence}"
+                )
+                try:
+                    res = await self.client.structured(
+                        item_system_prompt,
+                        user_prompt,
+                        SingleAgendaItemModel,
+                        SINGLE_AGENDA_ITEM_OUTPUT_CONTRACT,
+                        label=f"agenda_minutes/item_{it.seq}",
+                        max_tokens=_ITEM_MAX_TOKENS,
+                    )
+                    extracted = res.__dict__ if hasattr(res, "__dict__") else dict(res)
+                except Exception as exc:
+                    logger.warning("议题 %s 并发抽取异常，使用保底降级: %s", it.seq, exc)
+                    extracted = {
+                        "presenter": pres_str,
+                        "agenda_category": "share",
+                        "status_tag": "",
+                        "target_and_audience": [f"既定议题：{it.title}"],
+                        "content_and_evidence": [],
+                        "process_and_interaction": [],
+                        "conclusion_and_status": "",
+                        "action_items": [],
+                        "proposal_highlights": [f"既定议题：{it.title}"],
+                        "deliberation_details": {"key_metrics": [], "feedback_concerns": []},
+                        "resolution": "",
+                        "action_commitments": [],
+                    }
+                extracted["agenda_seq"] = it.seq
+                extracted["agenda_title"] = it.title
+                extracted["agenda_category"] = extracted.get("agenda_category") or "share"
+                extracted["is_substantive_agenda"] = extracted.get("is_substantive_agenda", True) is not False
+                extracted["time_range"] = _format_time_range(align.matched_blocks)
+                extracted["discussion_state"] = "discussed"
+                return extracted
+
+        # 并发抽取所有 discussed 项，严格遵从现场讨论时序（过滤纯会务动线与过场仪式，skipped 项由状态机判定，零 Token 调用）
+        discussed_alignments = [
+            a for a in alignment_res.chronological_alignments
+            if a.status == "discussed" and not is_trivial_ceremonial_item(a)
+        ]
+        extracted_map: dict[str, dict[str, Any]] = {}
+        if discussed_alignments:
+            results = await asyncio.gather(*[_extract_single_item(a) for a in discussed_alignments])
+            for r in results:
+                seq_key = str(r.get("agenda_seq") or "").strip()
+                if seq_key.isdigit():
+                    seq_key = f"{int(seq_key):02d}"
+                extracted_map[seq_key] = r
+
+        # 5. Reduce 阶段：组装并强制锁定议题骨架与现场时序
+        raw_draft = {
+            "meeting_meta": {
+                "theme": plan.meta.theme or "会议纪要",
+                "date_time": plan.meta.date_time or "2026年度会议",
+                "attendees_summary": plan.meta.attendees or "全体与会人",
+                "agenda_stats": "",
+            },
+            "agenda_items": list(extracted_map.values()),
+            "adhoc_items": [],
+        }
+
+        # 6. 后置硬约束锁定（议程序号与标题100%忠实原案，未讨论要素强制留空）
+        enforced = self._enforce_agenda_invariants(raw_draft, alignment_res)
+
+        return AgendaMinutes.validate(enforced)
+
+    def _enforce_agenda_invariants(
+        self,
+        raw: AgendaMinutes | dict,
+        alignment_res: AlignmentResult,
+    ) -> dict[str, Any]:
+        """后置强约束：议题序号、标题与跳过状态 100% 遵从会前议程单与对齐引擎判定。"""
+        data = raw if isinstance(raw, dict) else (raw.__dict__ if hasattr(raw, "__dict__") else {})
+        plan = alignment_res.plan
+
+        meeting_meta = dict(data.get("meeting_meta") or {})
+        if not meeting_meta.get("theme"):
+            meeting_meta["theme"] = plan.meta.theme or "会议纪要"
+        if not meeting_meta.get("date_time"):
+            meeting_meta["date_time"] = plan.meta.date_time or "2026年度会议"
+        if not meeting_meta.get("attendees_summary") and plan.meta.attendees:
+            meeting_meta["attendees_summary"] = plan.meta.attendees
+        if not meeting_meta.get("agenda_stats"):
+            meeting_meta["agenda_stats"] = (
+                f"既定议题共 {len(plan.items)} 项（有效审议 {alignment_res.discussed_count} 项 · "
+                f"本次未讨论 {alignment_res.skipped_count} 项）"
+            )
+
+        raw_items_map = {}
+        for item in (data.get("agenda_items") or []):
+            if isinstance(item, dict):
+                seq_key = str(item.get("agenda_seq") or "").strip()
+                if seq_key.isdigit():
+                    seq_key = f"{int(seq_key):02d}"
+                raw_items_map[seq_key] = item
+
+        # 会议顶层大类与审批属性判定：顶层一票否决
+        # 仅对真实存在的有效主题进行审批词扫描，绝不依赖兜底词
+        real_theme = str(plan.meta.theme or (data.get("meeting_meta") or {}).get("theme") or "").strip()
+        if real_theme in ("会议纪要", "商用发布与关键技术议题审议会"):
+            real_theme = ""
+        theme_str = real_theme.lower()
+        titles_str = " ".join(it.title for it in plan.items).lower()
+        approval_signals = ("评审", "放行", "准入", "审批", "商评", "过会", "审议")
+        has_approval_signal = any(s in theme_str for s in approval_signals) or any(s in titles_str for s in approval_signals)
+
+        detected_type = detect_agenda_type(
+            theme=theme_str,
+            titles=[it.title for it in plan.items],
+        )
+        is_approval_meeting = (detected_type.type_id in ("decision_approval", "review_selection")) or has_approval_signal
+
+        # 建立严格按现场讨论时序（先讨论在前，未讨论置底）的议程输出列表
+        enforced_agenda_items: list[dict[str, Any]] = []
+
+        for align in alignment_res.chronological_alignments:
+            it = align.item
+            seq = it.seq
+            raw_match = raw_items_map.get(seq) or {}
+            pres_str = "、".join(it.presenters) if it.presenters else (it.raw_presenter or "")
+
+            # 1. 过滤纯物理动线、生活作息日程以及过场仪式（如拍照合影、开场视频播放、漫步大学城、茶歇等）
+            if is_trivial_ceremonial_item(align):
+                logger.info("议题 %s 《%s》判定为会务过场/低密度仪式，直接予以剔除", seq, it.title)
+                continue
+
+            # 2. 结合 LLM 的实质性研讨判据 + 高证据密度反向保活机制（Fail-Safe Mechanism）
+            matched_blocks = align.matched_blocks
+            block_count = len(matched_blocks)
+            total_chars = sum(len(b.content) for b in matched_blocks)
+            is_high_density = (block_count >= 5 and total_chars >= 150)
+
+            if raw_match.get("is_substantive_agenda") is False and not is_high_density:
+                logger.info("议题 %s 《%s》经 LLM 判定为无实质内容过场，直接予以剔除", seq, it.title)
+                continue
+
+            if align.status == "skipped":
+                # 零证据确定性置空：不写要点、不写决议、不写「建议顺延」，要素彻底留空
+                enforced_item = {
+                    "agenda_seq": seq,
+                    "agenda_title": it.title,  # 100% 遵从 txt 法定原案
+                    "presenter": pres_str,
+                    "agenda_category": "approval" if is_approval_meeting else "share",
+                    "status_tag": "本次未讨论",
+                    "time_range": "—",
+                    # 4 栏标准字段
+                    "background_and_goals": "",
+                    "core_content": [],
+                    "core_insights": "",
+                    "action_items": [],
+                    # 兼容 5 栏旧字段
+                    "target_and_audience": [],
+                    "content_and_evidence": [],
+                    "process_and_interaction": [],
+                    "conclusion_and_status": "",
+                    # 向上兼容早期旧字段
+                    "proposal_highlights": [],
+                    "deliberation_details": {
+                        "key_metrics": [],
+                        "feedback_concerns": [],
+                    },
+                    "resolution": "",
+                    "action_commitments": [],
+                    "discussion_state": "skipped",
+                }
+            else:
+                # 讨论过：血肉遵从实录提炼，骨架锁定 txt 标题
+                delib = raw_match.get("deliberation_details") or {}
+                if not isinstance(delib, dict):
+                    delib = {"key_metrics": [], "feedback_concerns": []}
+
+                if not is_approval_meeting:
+                    # 纯非审批会议：强制剥离审批属性，status_tag 坚决置空
+                    category = "share" if detected_type.type_id == "knowledge_share" else (
+                        "consensus" if detected_type.type_id == "alignment_consensus" else "share"
+                    )
+                    status_tag = ""
+                else:
+                    category = str(raw_match.get("agenda_category") or "share").strip().lower()
+                    if category not in ("approval", "share", "consensus"):
+                        category = "share"
+
+                    status_tag = normalize_status_tag(
+                        raw_match.get("status_tag"),
+                        category=category,
+                        is_skipped=False,
+                    )
+
+                actual_pres = str(raw_match.get("presenter") or "").strip()
+                if not actual_pres or actual_pres == "未记录":
+                    actual_pres = pres_str
+
+                # 若未指定汇报人，尝试从议题标题中提取领导致辞/主讲人（如“张总致辞” -> “张总”或“张三”）
+                if not actual_pres or actual_pres == "未记录":
+                    m_speech = re.search(r"^([^\x00-\x7f]{2,4}?)(?:总|院长|书记|专家|老师|主任)?(?:致辞|演讲|主题报告|特邀报告|发言)", it.title)
+                    if m_speech:
+                        actual_pres = re.sub(r"(?:总|院长|书记|专家|老师|主任)$", "", m_speech.group(1)).strip()
+
+                # 研讨/问答环节特殊处理（方案 A：标准公文风）
+                if _is_interactive_discussion_topic(it.title):
+                    actual_pres = _resolve_interactive_presenter(it.title, actual_pres, plan, enforced_agenda_items)
+                elif re.match(r"^发言者\s*\d+$", actual_pres):
+                    if pres_str and not re.match(r"^发言者\s*\d+$", pres_str):
+                        actual_pres = pres_str
+                    else:
+                        actual_pres = "未记录"
+
+                time_range = _format_time_range(align.matched_blocks)
+                if time_range == "—" and raw_match.get("time_range"):
+                    time_range = str(raw_match["time_range"]).strip() or "—"
+
+                # 1. 背景与目标
+                raw_bg = raw_match.get("background_and_goals")
+                if raw_bg is None or raw_bg == "":
+                    target = list(
+                        raw_match.get("target_and_audience")
+                        or raw_match.get("proposal_highlights")
+                        or [f"既定议题审议：{it.title}"]
+                    )
+                    background_and_goals = target if len(target) > 1 else (target[0] if target else "")
+                elif isinstance(raw_bg, list):
+                    target = list(raw_bg)
+                    background_and_goals = list(raw_bg)
+                else:
+                    target = [str(raw_bg).strip()] if str(raw_bg).strip() else []
+                    background_and_goals = str(raw_bg).strip()
+
+                # 2. 核心内容
+                raw_core = raw_match.get("core_content")
+                if isinstance(raw_core, list) and raw_core:
+                    core_content = list(raw_core)
+                    content = list(raw_core)
+                    process = list(raw_match.get("process_and_interaction") or [])
+                else:
+                    content_raw = raw_match.get("content_and_evidence")
+                    if isinstance(content_raw, list) and content_raw:
+                        content = list(content_raw)
+                    elif isinstance(content_raw, dict):
+                        content = list(content_raw.get("key_metrics") or []) + list(content_raw.get("facts_and_options") or [])
+                    else:
+                        content = list(delib.get("key_metrics") or [])
+
+                    process_raw = raw_match.get("process_and_interaction")
+                    if isinstance(process_raw, list) and process_raw:
+                        process = list(process_raw)
+                    elif isinstance(process_raw, dict):
+                        process = list(process_raw.get("feedback_concerns") or []) + list(process_raw.get("focus_debates") or [])
+                    else:
+                        process = list(delib.get("feedback_concerns") or [])
+
+                    core_content = list(content) + list(process)
+
+                # 3. 核心认知
+                conclusion = str(
+                    raw_match.get("core_insights")
+                    or raw_match.get("conclusion_and_status")
+                    or raw_match.get("resolution")
+                    or ""
+                ).strip()
+
+                # 4. 后续行动
+                actions = list(
+                    raw_match.get("action_items")
+                    or raw_match.get("action_commitments")
+                    or []
+                )
+
+                enforced_item = {
+                    "agenda_seq": seq,
+                    "agenda_title": it.title,  # 100% 遵从 txt 法定原案
+                    "presenter": actual_pres,
+                    "agenda_category": category,
+                    "status_tag": status_tag,
+                    "time_range": time_range,
+                    # 4 栏标准
+                    "background_and_goals": background_and_goals,
+                    "core_content": core_content,
+                    "core_insights": conclusion,
+                    "action_items": actions,
+                    # 兼容 5 栏旧字段
+                    "target_and_audience": target,
+                    "content_and_evidence": content,
+                    "process_and_interaction": process,
+                    "conclusion_and_status": conclusion,
+                    # 向上兼容早期旧字段
+                    "proposal_highlights": target,
+                    "deliberation_details": {
+                        "key_metrics": content,
+                        "feedback_concerns": process,
+                    },
+                    "resolution": conclusion,
+                    "action_commitments": actions,
+                    "discussion_state": "discussed",
+                }
+
+            enforced_agenda_items.append(enforced_item)
+
+        # 重新动态精准统计剔除过场后的有效议题大盘数据
+        total_count = len(enforced_agenda_items)
+        discussed_count = sum(1 for it in enforced_agenda_items if it.get("discussion_state") == "discussed")
+        skipped_count = sum(1 for it in enforced_agenda_items if it.get("discussion_state") == "skipped")
+        if not meeting_meta.get("agenda_stats") or total_count != len(plan.items):
+            meeting_meta["agenda_stats"] = (
+                f"既定议题共 {total_count} 项（有效审议 {discussed_count} 项 · "
+                f"本次未讨论 {skipped_count} 项）"
+            )
+
+        return {
+            "meeting_meta": meeting_meta,
+            "agenda_items": enforced_agenda_items,
+            "adhoc_items": [],
+        }

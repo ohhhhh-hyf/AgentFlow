@@ -16,3 +16,6 @@ __pycache__/
 .codegraph/
 .cac/
 .vscode/
+
+# runtime logs
+logs/

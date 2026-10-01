@@ -1,0 +1,322 @@
+"""会议/笔记画像分类：客观全员、真人、职业模板。
+
+职业模板（``*.json``）与客观画像一起平铺在跨域公共目录
+``assets/profiles/``（文件名不含 ``_profile`` 后缀）；
+域名下仍可保留自己的客观/真人画像（``samples/{domain}/profile/``）。
+"""
+from __future__ import annotations
+
+import json
+import logging
+import re
+from dataclasses import fields
+from pathlib import Path
+from typing import Any
+
+logger = logging.getLogger(__name__)
+
+# 跨域公共画像目录：客观画像与职业模板平铺在同一目录
+PROJECT_ROOT = Path(__file__).resolve().parents[2]
+RESOURCES_PROFILE_DIR = PROJECT_ROOT / "resources" / "profiles"
+SHARED_PROFILE_DIR = RESOURCES_PROFILE_DIR if RESOURCES_PROFILE_DIR.is_dir() else (PROJECT_ROOT / "assets" / "profiles")
+RESOURCES_DIR = PROJECT_ROOT / "resources"
+ASSETS_DIR = RESOURCES_DIR if RESOURCES_DIR.is_dir() else (PROJECT_ROOT / "assets")
+ROLE_MAPPING_FILENAME = "role_mapping.json"
+
+KIND_OBJECTIVE = "objective"
+KIND_PERSON = "person"
+KIND_ROLE = "role_template"
+
+
+# 用户自建真人档案：``data/{X-User-Id}/user.json``（不改仓库；``extra.profile=user`` 时读取）
+USER_PROFILE_FILENAME = "user.json"
+# extra.profile 里强制客观/强制真人的取值（与「空值自动选档」区分开）
+_OBJECTIVE_ALIASES = frozenset({"objective", "object"})
+_USER_ALIAS = "user"
+
+
+def _role_template_candidates(profile_dir: Path, key: str) -> list[Path]:
+    """职业模板候选：先同目录（domain 自带的模板优先），再公共 profiles 目录。"""
+    return [
+        profile_dir / f"{key}.json",
+        SHARED_PROFILE_DIR / f"{key}.json",
+    ]
+
+
+def load_role_mapping(assets_dir: Path | None = None) -> dict[str, str]:
+    """读取 assets/role_mapping.json 并构建反向索引表 (别名小写 -> 模板文件名 key)。"""
+    candidates: list[Path] = []
+    if assets_dir:
+        candidates.extend([
+            assets_dir / ROLE_MAPPING_FILENAME,
+            assets_dir / "profiles" / ROLE_MAPPING_FILENAME,
+            assets_dir / "assets" / ROLE_MAPPING_FILENAME,
+        ])
+    candidates.extend([
+        ASSETS_DIR / ROLE_MAPPING_FILENAME,
+        ASSETS_DIR / "profiles" / ROLE_MAPPING_FILENAME,
+        SHARED_PROFILE_DIR / ROLE_MAPPING_FILENAME,
+    ])
+    path = next((p for p in candidates if p.is_file()), None)
+    if path is None:
+        return {}
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except Exception:
+        logger.warning("职业映射表读取失败：%s", path, exc_info=True)
+        return {}
+    if not isinstance(data, dict):
+        return {}
+
+    mapping: dict[str, str] = {}
+    for template_key, aliases in data.items():
+        t_key = str(template_key or "").strip()
+        if not t_key:
+            continue
+        mapping[t_key.lower()] = t_key
+        mapping[t_key.lower().replace("_", "-")] = t_key
+        mapping[t_key.lower().replace("-", "_")] = t_key
+        if isinstance(aliases, (list, tuple, set)):
+            for alias in aliases:
+                a_str = str(alias or "").strip()
+                if a_str:
+                    mapping[a_str.lower()] = t_key
+                    mapping[a_str.lower().replace("_", "-")] = t_key
+                    mapping[a_str.lower().replace("-", "_")] = t_key
+        elif isinstance(aliases, str) and aliases.strip():
+            mapping[aliases.strip().lower()] = t_key
+    return mapping
+
+
+def resolve_role_to_template_key(
+    role: str, profile_dir: Path | None = None, assets_dir: Path | None = None
+) -> str | None:
+    """根据 role 文本解析对应的职业模板 key（若无匹配则返回 None）。"""
+    clean_role = str(role or "").strip()
+    if not clean_role:
+        return None
+
+    mapping = load_role_mapping(assets_dir)
+    r_lower = clean_role.lower()
+    if r_lower in mapping:
+        return mapping[r_lower]
+
+    # 直接匹配模板文件（如传入的是 algorithm_engineer 或 developer）
+    cands = _role_template_candidates(profile_dir or SHARED_PROFILE_DIR, clean_role)
+    if any(p.is_file() for p in cands):
+        return clean_role
+
+    # 归一化下划线/连字符再查
+    alt1 = r_lower.replace("_", "-")
+    if alt1 in mapping:
+        return mapping[alt1]
+    alt2 = r_lower.replace("-", "_")
+    if alt2 in mapping:
+        return mapping[alt2]
+
+    return None
+
+
+def classify_profile(data: dict[str, Any] | None) -> str:
+    blob = data or {}
+    if str(blob.get("perspective") or "").strip().lower() == KIND_OBJECTIVE:
+        return KIND_OBJECTIVE
+    if str(blob.get("persona_type") or "").strip().lower() == KIND_ROLE:
+        return KIND_ROLE
+    return KIND_PERSON
+
+
+def resolve_role_template(data: dict[str, Any], profile_dir: Path | None = None) -> dict[str, Any]:
+    """真人画像引用职业模板：返回合并后的 dict（真人字段覆盖模板字段）。
+
+    - ``data["role_template"]`` 显式指定模板名（如 "developer" → 公共目录 ``assets/profiles/developer.json``）
+    - 若未指定 ``role_template``，但指定了 ``role``（如 "算法工程师"），自动通过 ``role_mapping.json`` 映射为模板
+    - 模板字段作基底，真人**显式写且值非 None** 的字段覆盖模板
+    - 模板自身不允许再嵌套 ``role_template``（防递归）
+    - 真人未显式写 ``persona_type`` 时重置为空（引用模板的真人仍是真人身份）
+    - 显式写了 role_template 但找不到模板抛 ``ValueError``；仅写 role 未映射到模板则直接返回原数据
+    """
+    if profile_dir is None:
+        profile_dir = SHARED_PROFILE_DIR
+    explicit_template = bool(str(data.get("role_template") or "").strip())
+    key = str(data.get("role_template") or "").strip()
+    if not key:
+        role = str(data.get("role") or "").strip()
+        if role:
+            resolved = resolve_role_to_template_key(
+                role, profile_dir=profile_dir, assets_dir=profile_dir.parent if profile_dir else None
+            )
+            if resolved:
+                key = resolved
+    if not key:
+        return data
+    # 安全：模板名只允许字母/数字/下划线/连字符，禁止路径穿越（../、绝对路径）
+    if not re.fullmatch(r"[\w-]+", key):
+        if explicit_template:
+            raise ValueError(
+                f"role_template 只能由字母/数字/下划线/连字符组成：{key!r}"
+            )
+        return data
+    path = next((p for p in _role_template_candidates(profile_dir, key) if p.is_file()), None)
+    if path is None:
+        if explicit_template:
+            raise ValueError(
+                f"role_template 指向的画像不存在：{key}"
+                f"（在 {profile_dir} 或公共目录 {SHARED_PROFILE_DIR} 下查找 {key}.json）"
+            )
+        return data
+    template = json.loads(path.read_text(encoding="utf-8"))
+    if not isinstance(template, dict):
+        raise ValueError(f"职业模板必须是 JSON 对象：{path}")
+    merged = dict(template)
+    merged.pop("role_template", None)  # 防递归嵌套
+    merged.update({k: v for k, v in (data or {}).items() if v is not None})
+    # persona_type 一律以真人为准：显式写了（含 null）用真人的，没写则重置为真人身份
+    merged["persona_type"] = (data or {}).get("persona_type")
+    merged["role_template"] = key  # 保留引用来源，供追溯与显示
+    return merged
+
+
+def filter_identity_fields(data: dict[str, Any], identity_cls: type) -> dict[str, Any]:
+    allowed = {item.name for item in fields(identity_cls)}
+    return {key: value for key, value in (data or {}).items() if key in allowed}
+
+
+# ── 用户自建真人档案 user.json ──────────────────────────────────
+# 打通方式：用户把档案放在自己的数据目录 data/{X-User-Id}/user.json，
+# **``extra.profile`` 传 ``user`` 才注入**。2026-09-21 改口径：以前"传空即自动发现"，
+# 结果是"放了个文件就悄悄换档"——调用方拿不到稳定默认，事后也说不清某次输出是按哪个
+# 视角跑的。现在传空一律走默认档（客观全员），纪要线再由 template 留空自动套「通用纪要」。
+
+
+def user_profile_path(user_id: str, project_root: Path | None = None) -> Path:
+    """``data/{safe_id(user_id)}/user.json``；user_id 为空返回空 Path。
+
+    目录段与记忆/产物同源（``safe_id``），杜绝 ``../`` 之类的路径穿越。
+    """
+    if not str(user_id or "").strip():
+        return Path("")
+    from core.runner.ids import safe_id
+
+    root = project_root or PROJECT_ROOT
+    return root / "data" / safe_id(user_id) / USER_PROFILE_FILENAME
+
+
+def read_user_profile(path: Path) -> dict[str, Any] | None:
+    """读 user.json：必须是 JSON 对象且 ``name`` 非空，否则当"没有档案"（记一条 warning）。
+
+    为什么要 name：没有姓名就无法按人点名，后续命中表/裁剪全落空——
+    与其带着半残档案跑，不如退回客观。
+    """
+    if not path or not path.is_file():
+        return None
+    try:
+        raw_text = path.read_text(encoding="utf-8")
+        data = json.loads(raw_text)
+    except json.JSONDecodeError:
+        # 容错：允许手工编辑 JSON 时的尾随逗号 (trailing commas)
+        cleaned_text = re.sub(r",\s*([\]}])", r"\1", raw_text)
+        try:
+            data = json.loads(cleaned_text)
+        except Exception:
+            logger.warning("user.json 读取失败，按无档案处理：%s", path)
+            return None
+    except OSError:
+        logger.warning("user.json 读取失败，按无档案处理：%s", path)
+        return None
+    if not isinstance(data, dict):
+        logger.warning("user.json 必须是 JSON 对象，按无档案处理：%s", path)
+        return None
+    if not str(data.get("name") or "").strip():
+        logger.warning("user.json 缺少 name，按无档案处理：%s", path)
+        return None
+    return data
+
+
+def sanitize_user_profile(data: dict[str, Any]) -> dict[str, Any]:
+    """user.json 专属清洗：``perspective`` 一律忽略（有档案就是真人）、``persona_type`` 强制置空。
+
+    只能在 user.json 这一侧做：职业文件正是靠 ``persona_type=role_template``
+    才被认成职业模板（``classify_profile``），客观文件靠 ``perspective=objective``；
+    统一清洗会把它们改坏。persona_type 若留着用户误写的 role_template，
+    姓名会被当成职业通称（prompt 第三类画像的判定依据）。
+    """
+    out = dict(data or {})
+    out.pop("perspective", None)
+    out["persona_type"] = None
+    return out
+
+
+def is_user_profile_file(path: Path | None) -> bool:
+    """该画像文件是否来自 user.json（只有 ``extra.profile=user`` 这一档会指向它）。"""
+    return bool(path) and Path(path).name == USER_PROFILE_FILENAME
+
+
+def _objective_path(domain: str, project_root: Path) -> Path:
+    """客观全员画像：域名 samples 优先，否则公共 object.json。"""
+    root = project_root or PROJECT_ROOT
+    domain_obj = root / "samples" / domain / "profile" / "object_profile.json"
+    if domain_obj.is_file():
+        return domain_obj
+    shared_obj = root / "assets" / "profiles" / "object.json"
+    return shared_obj if shared_obj.is_file() else Path("")
+
+
+def resolve_profile_file(
+    profile_value: str,
+    *,
+    domain: str,
+    user_id: str = "",
+    project_root: Path | None = None,
+) -> Path:
+    """``extra.profile`` → 画像文件路径（API 与 CLI 共用的唯一入口）。
+
+    | extra.profile | 行为 |
+    |---|---|
+    | ``""``（空） | **默认档：客观全员**（不读 user.json；纪要线再由 template 留空套「通用纪要」） |
+    | ``"user"`` | 真人档案 ``data/{uid}/user.json``（缺失/非法 → 空 Path，由调用方 400） |
+    | ``"objective"`` / ``"object"`` | 客观全员（与空值同档，留作显式表达） |
+    | 职业模板名 | 该职业模板（``assets/profiles/{名}.json``），忽略 user.json |
+
+    返回空 Path 表示"取值非法"，调用方负责报 400。
+    """
+    name = str(profile_value or "").strip()
+    root = project_root or PROJECT_ROOT
+    if not name:
+        return _objective_path(domain, root)
+    if name == _USER_ALIAS:
+        user_path = user_profile_path(user_id, root)
+        return user_path if read_user_profile(user_path) is not None else Path("")
+    if name.lower() in _OBJECTIVE_ALIASES:
+        return _objective_path(domain, root)
+    # 职业模板：只读共享/域内 profiles，不碰 user.json
+    candidate = SHARED_PROFILE_DIR / f"{name}.json"
+    if candidate.is_file():
+        return candidate
+    mapped_key = resolve_role_to_template_key(name, assets_dir=root / "assets")
+    if mapped_key:
+        mapped_cand = SHARED_PROFILE_DIR / f"{mapped_key}.json"
+        if mapped_cand.is_file():
+            return mapped_cand
+    return Path("")
+
+
+__all__ = [
+    "ASSETS_DIR",
+    "KIND_OBJECTIVE",
+    "KIND_PERSON",
+    "KIND_ROLE",
+    "ROLE_MAPPING_FILENAME",
+    "SHARED_PROFILE_DIR",
+    "USER_PROFILE_FILENAME",
+    "classify_profile",
+    "filter_identity_fields",
+    "is_user_profile_file",
+    "load_role_mapping",
+    "read_user_profile",
+    "resolve_profile_file",
+    "resolve_role_template",
+    "resolve_role_to_template_key",
+    "sanitize_user_profile",
+    "user_profile_path",
+]
