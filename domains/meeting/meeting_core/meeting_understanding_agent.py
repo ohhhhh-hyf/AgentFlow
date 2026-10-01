@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from collections.abc import Iterable
 from dataclasses import fields as dc_fields
+from typing import Any
 
 from infra.llm import LLMClient
 from ..models import MeetingUnderstanding
@@ -35,6 +36,65 @@ def _trim_instruction(focus_line: str, skip_fields: Iterable[str]) -> str:
     )
 
 
+def _ensure_derived_fields(result: MeetingUnderstanding) -> None:
+    """若大模型仅在 topics 议题树中内聚输出了事实，自动由树派生出平铺视图，确保下游 100% 兼容。"""
+    if not isinstance(result, MeetingUnderstanding):
+        return
+    topics = result.topics or []
+    if not isinstance(topics, list):
+        return
+
+    derived_actions: list[dict[str, Any]] = []
+    derived_risks: list[dict[str, Any]] = []
+    derived_decisions: list[str] = []
+    derived_open: list[str] = []
+
+    for t in topics:
+        if not isinstance(t, dict):
+            continue
+        topic_title = str(t.get("title") or "").strip()
+        for a in (t.get("actions") or []):
+            if isinstance(a, dict):
+                derived_actions.append({
+                    "action": a.get("task") or "",
+                    "owner": a.get("owner"),
+                    "timing": a.get("deadline"),
+                    "condition": a.get("dependency"),
+                    "topic": topic_title,
+                    "kind": "directive" if a.get("priority") == "high" else "assignment",
+                    "evidence": a.get("evidence") or "",
+                })
+        for r in (t.get("risks") or []):
+            if isinstance(r, dict):
+                derived_risks.append({
+                    "risk": r.get("risk") or "",
+                    "topic": topic_title,
+                    "signal_type": "quality",
+                    "severity_evidence": r.get("evidence") or "",
+                    "impact": r.get("impact"),
+                    "mitigation": r.get("mitigation"),
+                    "owner": r.get("owner"),
+                    "evidence": r.get("evidence") or "",
+                })
+        for d in (t.get("decisions") or []):
+            if d and str(d).strip():
+                derived_decisions.append(str(d).strip())
+        for o in (t.get("open_issues") or []):
+            if o and str(o).strip():
+                derived_open.append(str(o).strip())
+
+    if not result.action_hints and derived_actions:
+        result.action_hints = derived_actions
+    if not result.risk_hints and derived_risks:
+        result.risk_hints = derived_risks
+    if not result.decisions and derived_decisions:
+        result.decisions = derived_decisions
+    if not result.risks and derived_risks:
+        result.risks = [r["risk"] for r in derived_risks if r.get("risk")]
+    if not result.open_questions and derived_open:
+        result.open_questions = derived_open
+
+
 class MeetingUnderstandingAgent:
     """从会议原文中提取议题、决策、风险和未决问题。"""
 
@@ -49,14 +109,8 @@ class MeetingUnderstandingAgent:
         skip_fields: Iterable[str] = (),
         user_channel: str = "",
     ) -> MeetingUnderstanding:
-        """``user_channel``：本用户称呼表（全称 + 会上别称），由画像生成、注入在原文之前。
-
-        为什么放在理解层：下游（视角裁剪、待办 owner、跨场记忆、审核）只认理解层写下的
-        那个名字字符串，而视角建模那轮连原文都看不到、帮不上"这个人是谁"。这里只要求
-        「把原文已有的称呼统一成一个写法」，不新增事实（提示词里写死不许猜编号发言人）。
-        """
+        """``user_channel``：本用户称呼表（全称 + 会上别称），由画像生成、注入在原文之前。"""
         if len(transcript) > 45000:
-            # 针对超长会议文本执行首尾兼顾的安全采样，防止输入挤占模型输出空间导致 JSON 截断
             sampled_text = (
                 transcript[:26000]
                 + "\n\n...[超长会议中段讨论，此处略去部分细节发言]...\n\n"
@@ -65,7 +119,6 @@ class MeetingUnderstandingAgent:
             user = f"会议原文：\n{sampled_text}"
         else:
             user = f"会议原文：\n{transcript}"
-        # 称呼表先拼在原文之前；裁剪指令最后拼到最前，保持"指令先于原文"的既有约定
         if (user_channel or "").strip():
             user = f"{user_channel.strip()}\n\n{user}"
         instruction = _trim_instruction(focus_line, skip_fields)
@@ -74,17 +127,15 @@ class MeetingUnderstandingAgent:
         skipped = {
             str(field).strip() for field in skip_fields if str(field).strip()
         }
-        # speakers 常年为空（原文本来就没有姓名）→ 缺键不该触发重试：提示词仍要求它照常输出，
-        # 但校验侧允许缺键补 []（与裁剪字段同一条经验：2026-09-18 实测 risk_hints，缺键 +20s）。
-        missable = skipped | {"speakers"}
-        return await self.client.structured(
+        missable = skipped | {"speakers", "action_hints", "risk_hints", "dependencies", "decisions", "risks", "open_questions"}
+        result = await self.client.structured(
             MEETING_UNDERSTANDING_SYSTEM_PROMPT,
             user,
             MeetingUnderstanding,
             MEETING_UNDERSTANDING_GENERATION_OUTPUT_CONTRACT,
             label="core/meeting_understanding",
-            # 裁剪字段允许缺键：模型常把"输出 []"理解成"整个键不用写"，缺键会让严格校验
-            # 失败并白跑一次针对性重试（2026-09-18 实测 risk_hints，+20s）
             allow_missing=missable,
         )
+        _ensure_derived_fields(result)
+        return result
 

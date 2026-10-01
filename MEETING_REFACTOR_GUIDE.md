@@ -8,6 +8,35 @@
 
 ---
 
+## 🚀 实时重构进度追踪看板 (Live Progress Dashboard)
+
+> **当前状态**：`[已全部打通]` 核心底座与 8 大任务 Agent 结构化适配完成，181 套全域测试 100% PASS！
+
+- [x] **Step 1: 底座 Core Agent 结构化重构与契约同步**
+  - [x] 1.1 修改 `domains/meeting/meeting_core/contracts.py`（定义 `UnifiedMeetingTree` 契约，内聚 actions/risks/decisions）
+  - [x] 1.2 修改 `domains/meeting/meeting_core/prompts.py`（更新结构树提取提示词，以议题为单元组织事实）
+  - [x] 1.3 运行 `sync_domain.py --domain meeting --write`（自动更新模型与空结构常量）
+  - [x] 1.4 适配 `domains/meeting/orchestrator.py`（更新 `_meeting_pack` 树状与衍生要素数据分发）
+  - [x] 1.5 验证底座单测跑通（181 测试全量 PASS）
+- [x] **Step 2: 专科任务 Agent 原生对接事实树**
+  - [x] 2.1 改造 `ActionItemsAgent` 数据供给（原生直通树 actions + user 画像权责仲裁）
+  - [x] 2.2 改造 `RiskAgent` 数据供给（原生直通树 risks + 影响定级要素）
+  - [x] 2.3 改造 `ConsensusDecisionAgent` 数据供给（直通树 decisions/debate + 原文交锋）
+  - [x] 2.4 改造 `MindmapAgent` 数据供给（纯树层级大纲直通）
+  - [x] 2.5 验证 `AgendaMinutesAgent`（36 套独立专线单测全部 PASS）
+- [x] **Step 3: 模板纪要主线与方案 B 门禁接入**
+  - [x] 3.1 改造 `MinutesGenerationAgent` 数据供给（直通 UnifiedMeetingTree 骨干 + 原文血肉）
+  - [x] 3.2 接入 `hard_execution.py`（方案 B 0.02s 内存硬门禁与结构约束，86 套模板门禁测试全量 PASS）
+- [x] **Step 4: 多样式、溯源纪要与跨场记忆适配**
+  - [x] 4.1 适配 `MinutesStylesAgent`（5 种透镜模式直通议题树）
+  - [x] 4.2 适配 `MinutesTraceAgent`（句级行号双栏对齐直通议题树）
+  - [x] 4.3 适配 `memory/extract.py`（跨场项目记忆 19 套测试全部 PASS）
+- [x] **Step 5: 全量回归测试与端到端跑通终验**
+  - [x] 5.1 运行全域单元测试（`pytest tests/ -q`：181 passed, 1 skipped，100% 绿灯无回归）
+  - [x] 5.2 契约与运行时生成区一致性检查（`sync_domain.py --check`：SUCCESS）
+
+---
+
 ## 目录
 
 1. [架构总览：全系统信息流与四大输入源](#一架构总览全系统信息流与四大输入源)

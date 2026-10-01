@@ -29,21 +29,32 @@ scene：**只能填这 7 个值之一、照抄不要改写**：通用、团队�
 
 speakers：**发言人与角色对照，一条一人**——name 填该人的统一显示称呼，严格按「姓名 > 原文明确角色 > 原始编号」取值；role 照原文（发言人/主持人/记者/听众/嘉宾/主讲人…，判断不出填 null）；org 写机构/单位/媒体名（没有填 null）。只有编号时保留原始编号，不猜姓名、不新编编号；完全没有任何可区分称呼时不输出该人；同一人在全篇只填一条。
 
-topics：一个独立议题一个 topic；**同一议题多次出现合并成一条，但同一议题下的不同子事项、子话题分别保留**；title 可作分支名；**key_points 是该议题的事实锚点，每议题最多 8 条、全篇最多 30 条，按对结论与后续行动的支撑力取舍**（一条一个事实，关键数字与指标、金额、日期与时限、范围边界、分歧、结论线索优先；同一事实的多次重复表述只留信息最全的一条；过程性叙述、寒暄、程序性发言不收）；**每条要点要能核对**：数字带单位、对照带基准（如「从 89% 提升至 94%」）、时间保留原文写法、尽量带主体（谁提出/谁负责），核不上的概括不要写；discussion 写该议题的讨论经过（谁提出、怎么讨论、分歧在哪，两三句即可，不复述 key_points）；conclusion 有明确结论才填，否则 null；participants 只写真实名。
+topics：核心业务议题树，一个独立议题一个对象。
+- topic_id：议题编号（如 T1, T2）；
+- module：所属业务模块/领域（如'基础架构与中间件'、'海外数据合规'）；
+- title：核心议题标题（4~12字）；
+- context_and_debate：该议题讨论经过与争论脉络（谁提出、论据交锋、为什么分歧，100~200字自然连贯叙事，带论据细节与背景）；
+- key_metrics：本议题量化指标与参数（如并发数、时延、预算、排期等；无则 []）；
+- decisions：本议题明确拍板决议（含生效前提与约束；无则 []）；
+- rejected_proposals：现场讨论并明确否决的方案及原因（无则 []）；
+- actions：挂载在本议题下的具体待办动作清单（task 以动词开头的具体任务、owner 原文真实姓名或null、deadline、deliverable、dependency、priority high/medium/low、evidence 原文证据句）；
+- risks：挂载在本议题下的风险与隐患清单（risk 隐患描述、severity high/medium/low、impact 潜在后果、mitigation 应对措施、owner、evidence 依据）；
+- open_issues：本议题尚未达成一致或需后续跟进的敞口事项（无则 []）。
 
-decisions：**原文出现的决策与要求逐条列出**（同类多项分别列出，但同一决策的重复表述合并成一条）；每条保留原文中的负责人、时间、条件和关键数字；无则 []。
+decisions：原文出现的决策与要求全局汇总（同类多项分别列出，无则 []）。
 
-open_questions：未确认、待对齐、未达成一致的问题逐条列出（同一问题的多轮讨论合并成一条）；已有结论不得写入；无则 []。
+open_questions：未确认、待对齐、未达成一致的问题全局汇总（无则 []）。
 
-risks：原文明确的风险信号逐条列出（同一风险对象的多次提及合并成一条）；保留局部质量问题、交通/天气/资料依据不足、设备运行隐患等信号；无则 []。
+risks：原文明确的风险信号全局汇总（无则 []）。
 
-action_hints：行动候选，不是最终待办；每条须含 evidence（原文支撑句）；kind 取 commitment / assignment / directive / rectification / followup。
+action_hints：待办候选线索汇总（每条含 action, owner, timing, condition, topic, kind, evidence）。
 
-risk_hints：风险候选，不是最终风险报告；同一证据句包含多个风险对象时分别建候选；severity_evidence 没有则 null，不自行判断；每条须含 evidence。
+risk_hints：风险候选线索汇总（每条含 risk, topic, signal_type, severity_evidence, impact, mitigation, owner, evidence）。
 
 dependencies：原文明确的前置依赖、待确认条件或「等 X 后才能 Y」关系；无则 []。
 
 ## 输出纪律
 
-- evidence 必须来自原文。没有证据，不要输出该候选。
-- 输出前自检：议题是否覆盖主线；决策/待办/风险/未决是否按规则区分；action_hints 与 risk_hints 是否都有 evidence。"""
+- 事实内聚优先：每个议题的争辩、决策、动作、隐患优先完整组织在 topics 对应节点中。
+- evidence 必须来自原文。没有证据，不要输出该动作或风险。
+- 输出前自检：议题是否覆盖主线；决策/待办/风险/未决是否按规则区分；actions 与 risks 是否都有 evidence。"""
