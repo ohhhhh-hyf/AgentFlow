@@ -365,14 +365,62 @@ def test_domain_hooks_registry() -> None:
 
 
 def test_tasklines_registration() -> None:
-    """验证 meeting.mindmap 注册生效：白名单解析通过，且 FastAPI 预览端点挂载成功。"""
+    """验证 meeting.mindmap 及 notes.review / notes.quiz 注册生效：白名单解析通过，且 FastAPI 预览端点挂载成功。"""
     from app.main import app
     from app.tasklines import lines_for, resolve_line
 
     check("meeting 域包含 mindmap 任务线", "mindmap" in lines_for("meeting"), "")
     check("resolve_line 支持 meeting + mindmap", resolve_line("meeting", "mindmap") == ("meeting", "mindmap"), "")
+    check("notes 域包含 review 任务线", "review" in lines_for("notes"), "")
+    check("notes 域包含 quiz 任务线", "quiz" in lines_for("notes"), "")
+    check("resolve_line 支持 notes + review", resolve_line("notes", "review") == ("notes", "review"), "")
+    check("resolve_line 支持 notes + quiz", resolve_line("notes", "quiz") == ("notes", "quiz"), "")
     routes = {r.path for r in app.routes}
     check("FastAPI 注册了 /api/v1/meeting/mindmap/preview", "/api/v1/meeting/mindmap/preview" in routes, str(routes))
+    check("FastAPI 注册了 /api/v1/notes/review/preview", "/api/v1/notes/review/preview" in routes, str(routes))
+    check("FastAPI 注册了 /api/v1/notes/quiz/preview", "/api/v1/notes/quiz/preview" in routes, str(routes))
+
+
+def test_notes_review_and_quiz_tasklines() -> None:
+    """验证 notes 域 review 和 quiz 真正作为对外任务线：入参校验与输入装配。"""
+    from app.requirements import check_required
+    from app.schemas import Extra, TaskRequest
+    from app.tasks import _prepare
+
+    # 1. 校验规则 (check_required)
+    empty_req = TaskRequest()
+    missing_rev = check_required("review", empty_req, "")
+    check("缺 user_id 与材料时提示缺失", len(missing_rev) == 2, str(missing_rev))
+
+    text_req = TaskRequest(
+        texts={"notes": "光电效应是光子与金属中电子相互作用的现象。"},
+        extra=Extra(subject="physics"),
+    )
+    missing_ok = check_required("review", text_req, "u123")
+    check("传入 notes 文本与 user_id 时校验通过", len(missing_ok) == 0, str(missing_ok))
+
+    # 2. _prepare 输入准备与 scope 注入
+    prep_rev = _prepare("notes", "review", text_req, "u123")
+    check("line 正确解析为 review", prep_rev.line == "review", "")
+    check("用户输入文件正常生成", prep_rev.input_files is not None and prep_rev.input_files.is_file(), "")
+    check("extra_line_inputs 注入了 scope", "【用户ID】u123" in (prep_rev.extra_line_inputs.get("review") or ""), "")
+
+    quiz_req = TaskRequest(
+        texts={"transcript": "牛顿第二定律公式为 F=ma，其中 m 为质量，a 为加速度。"},
+        extra=Extra(subject="physics"),
+    )
+    prep_quiz = _prepare("notes", "quiz", quiz_req, "u123")
+    check("line 正确解析为 quiz", prep_quiz.line == "quiz", "")
+    check("quiz 用户输入文件正常生成", prep_quiz.input_files is not None and prep_quiz.input_files.is_file(), "")
+    # 3. HTTP 端点实际调用验证 (预览端点正确匹配与寻址)
+    from fastapi.testclient import TestClient
+    from app.main import app
+
+    client = TestClient(app)
+    r_rev = client.get("/api/v1/notes/review/preview?request_id=not_found&user_id=u123")
+    check("review 预览端点正常响应404（寻址正确定位 review.html）", r_rev.status_code == 404 and "review.html" in r_rev.text, str(r_rev.json()))
+    r_quiz = client.get("/api/v1/notes/quiz/preview?request_id=not_found&user_id=u123")
+    check("quiz 预览端点正常响应404（寻址正确定位 quiz.html）", r_quiz.status_code == 404 and "quiz.html" in r_quiz.text, str(r_quiz.json()))
 
 
 def test_action_items_render() -> None:

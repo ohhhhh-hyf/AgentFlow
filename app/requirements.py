@@ -67,6 +67,14 @@ REQUIRED_FIELDS: dict[str, dict[str, str]] = {
         "extra.subject": "extra.subject（学科）",
         "docs": "docs（catalog 文件名，如 phy_8b4dccc8.json）",
     },
+    "review": {
+        "user_id": "X-User-Id",
+        "texts_or_docs": "texts（notes 或 transcript）或 docs（笔记材料）",
+    },
+    "quiz": {
+        "user_id": "X-User-Id",
+        "texts_or_docs": "texts（notes 或 transcript）或 docs（笔记材料）",
+    },
 }
 
 
@@ -91,6 +99,11 @@ def check_required(task: str, req: TaskRequest, user_id: str) -> list[str]:
         elif key in {"docs", "docs_any"}:
             # docs_any 与 docs 同义（都是"docs 数组非空"）；别名保留以兼容既有声明表
             if not (req.docs or []):
+                missing.append(label)
+        elif key == "texts_or_docs":
+            has_text = _has_text_type(req, "transcript") or _has_text_type(req, "notes")
+            has_docs = bool(req.docs or [])
+            if not (has_text or has_docs):
                 missing.append(label)
         elif key.startswith("texts."):
             if not _has_text_type(req, key.split(".", 1)[1]):

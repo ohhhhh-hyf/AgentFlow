@@ -59,6 +59,8 @@ DOMAINS: dict[str, tuple[TaskLine, ...]] = {
         TaskLine("library"),  # 无落盘产物
         TaskLine("catalog"),  # file_name 指向知识目录 JSON，不在 output 目录
         TaskLine("checklist", files=True),
+        TaskLine("review", files=True),
+        TaskLine("quiz", files=True),
     ),
 }
 

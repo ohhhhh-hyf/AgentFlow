@@ -258,6 +258,9 @@ def _objective_path(domain: str, project_root: Path) -> Path:
     domain_obj = root / "samples" / domain / "profile" / "object_profile.json"
     if domain_obj.is_file():
         return domain_obj
+    res_obj = root / "resources" / "profiles" / "object.json"
+    if res_obj.is_file():
+        return res_obj
     shared_obj = root / "assets" / "profiles" / "object.json"
     return shared_obj if shared_obj.is_file() else Path("")
 
@@ -293,7 +296,8 @@ def resolve_profile_file(
     candidate = SHARED_PROFILE_DIR / f"{name}.json"
     if candidate.is_file():
         return candidate
-    mapped_key = resolve_role_to_template_key(name, assets_dir=root / "assets")
+    assets_dir = (root / "resources") if (root / "resources").is_dir() else (root / "assets")
+    mapped_key = resolve_role_to_template_key(name, assets_dir=assets_dir)
     if mapped_key:
         mapped_cand = SHARED_PROFILE_DIR / f"{mapped_key}.json"
         if mapped_cand.is_file():

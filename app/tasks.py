@@ -578,6 +578,8 @@ def _prepare(domain: str, task: str, req: TaskRequest, user_id: str) -> _Prepare
         raise ApiError(400, f"{task} 缺少必填项：" + "、".join(missing))
 
     transcript, keypoints, notes = _collect_texts(req)
+    if not transcript and notes:
+        transcript = notes
     catalog_files: list[str] = []
     teacher_docs: list[str] = []
     material_docs: list[str] = []
@@ -700,6 +702,14 @@ def _prepare(domain: str, task: str, req: TaskRequest, user_id: str) -> _Prepare
         agenda_val = (extra.agenda or "").strip() or agenda_from_docs
         if agenda_val:
             extra_line_inputs["agenda_minutes"] = agenda_val
+    if line in {"review", "quiz"}:
+        scope_parts = []
+        if (user_id or "").strip():
+            scope_parts.append(f"【用户ID】{(user_id or '').strip()}")
+        if (extra.subject or "").strip():
+            scope_parts.append(f"【学科/课程】{(extra.subject or '').strip()}")
+        if scope_parts:
+            extra_line_inputs[line] = "\n".join(scope_parts)
 
     return _Prepared(
         line=line,
