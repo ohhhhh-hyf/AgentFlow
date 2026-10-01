@@ -263,7 +263,7 @@ def _ocr_docs(user_id: str, docs: list[str]) -> str:
             return index, f"（图片 {name} OCR 失败：{errors[index]}）"
         lines = by_page.get(str(index - 1), [])
         try:
-            from infra.ocr.formatters.reconstruct import reconstruct_markdown
+            from infra.ocr.reconstruct import reconstruct_markdown
 
             return index, reconstruct_markdown(lines).strip()
         except Exception as exc:  # noqa: BLE001 - 单张重构失败不阻断其余图片

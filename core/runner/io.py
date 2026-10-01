@@ -4,7 +4,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from .runtime_context import DomainContext
+from .context import DomainContext
 
 
 def resolve_path(ctx: DomainContext, path: Path) -> Path:

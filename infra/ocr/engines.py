@@ -1,6 +1,6 @@
 """OCR 引擎分派：按 ``OCR_ENGINE`` 选择引擎，主进程直调，统一重试与失败落盘。
 
-三种引擎各自成文件（``tools/ocr/{server_ocr,paddle_ocr,rapid_ocr}.py``），
+三种引擎各自成文件（``infra/ocr/{server_ocr,paddle_ocr,rapid_ocr}.py``），
 本模块只做分派，不含任何引擎实现：
 
 - ``serverocr``（别名 server / remote）：远程 OCR 服务 HTTP 直调，失败按 .env 约定自动降级兜底至 RapidOCR
@@ -24,7 +24,7 @@ logger = logging.getLogger(__name__)
 ROOT = Path(__file__).resolve().parents[2]
 _OCR_FAILURE_DIR = ROOT / "logs" / "ocr_failed"
 
-# OCR_ENGINE 取值别名 → 引擎模块名（tools/ocr/{module}.py）
+# OCR_ENGINE 取值别名 → 引擎模块名（infra/ocr/{module}.py）
 _ENGINE_ALIASES: dict[str, str] = {
     "server": "server_ocr",
     "serverocr": "server_ocr",
@@ -94,7 +94,7 @@ def run_ocr_subprocess(image_path: str, for_agenda: bool = False) -> dict:
         return {"engine": alias or "unknown", "lines": []}
 
     engine = module_name.replace("_", "")  # 展示名：serverocr / paddleocr / rapidocr
-    module = importlib.import_module(f"tools.ocr.{module_name}")
+    module = importlib.import_module(f"infra.ocr.{module_name}")
     errors: list[str] = []
     # 议程专用：优先使用 ocr_image_agenda（禁用 doc_orientation），若不存在则退回 ocr_image
     _ocr_fn = (
