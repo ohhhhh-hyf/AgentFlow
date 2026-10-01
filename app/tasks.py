@@ -24,7 +24,6 @@ from .config import (
     PROJECT_ROOT,
     load_domain,
     load_env,
-    personal_minutes_template,
     profile_path,
     resolve_template_format,
 )
@@ -33,7 +32,7 @@ from .outputs import output_dir, save_task_outputs
 from .schemas import TaskRequest, TaskResponse, ndjson_line as _ndjson
 from .tasklines import all_lines
 
-logger = logging.getLogger("agentflow")
+logger = logging.getLogger("app.tasks")
 
 # task 取值 → 代码线名。清单声明在 app/tasklines.py，
 # 路由注册与异步接口校验都从同一份声明派生，避免多处清单不同步。
@@ -737,11 +736,27 @@ async def _run_task_impl(
 
     from core.runner.runner import run
 
+    logger.info(
+        "[task:start] domain=%s task=%s request_id=%s user_id=%s memory=%s",
+        domain,
+        task,
+        request_id,
+        user_id,
+        bool(req.memory or (req.extra and getattr(req.extra, "memory", False))),
+    )
+
     try:
         result = await run(p.ctx, **_runner_args(p))
     except ApiError:
         raise
     except Exception as exc:  # noqa: BLE001 - 运行失败统一转 500
+        logger.exception(
+            "[task:failed] domain=%s task=%s request_id=%s error=%s",
+            domain,
+            task,
+            request_id,
+            exc,
+        )
         raise ApiError(500, f"任务运行失败：{exc}") from exc
 
     saved = (result or {}).get("saved") or {}
@@ -800,6 +815,15 @@ async def _run_task_impl(
     warning = str((result or {}).get("quality_warning") or "").strip()
     if warning:
         response.quality_warning = warning
+    logger.info(
+        "[task:finish] domain=%s task=%s request_id=%s cost=%.2fs tokens=%d file=%s",
+        domain,
+        task,
+        request_id,
+        response.monitor.cost_time,
+        response.monitor.token_usage,
+        response.data.file_name,
+    )
     return response
 
 
@@ -835,6 +859,13 @@ async def iter_task_events(
 ) -> AsyncIterator[dict]:
     """核心事件流生成器：纯 Python 字典事件流，不依赖任何 HTTP/Web 响应对象。"""
     request_id = (request_id or "").strip() or next_request_id()
+    logger.info(
+        "[stream:start] domain=%s task=%s request_id=%s user_id=%s",
+        domain,
+        task,
+        request_id,
+        user_id,
+    )
     p = await asyncio.to_thread(_prepare, domain, task, req, user_id)
     # 产物直接写入本次请求目录（data/{user_id}/output/{request_id}/），不再走根目录 output/ 归档
     p.ctx.output_dir = output_dir(user_id, request_id)
@@ -846,9 +877,24 @@ async def iter_task_events(
         prep = await prepare_run(p.ctx, **_runner_args(p))
     except ApiError as exc:
         # 输入类错误（缺必填/文件不存在）：带上真实状态码，异步端据此不重试
+        logger.warning(
+            "[stream:error] domain=%s task=%s request_id=%s code=%s message=%s",
+            domain,
+            task,
+            request_id,
+            exc.status,
+            exc.message,
+        )
         yield {"type": "error", "code": exc.status, "message": exc.message}
         return
     except Exception as exc:  # noqa: BLE001 - 准备失败推 error 事件
+        logger.exception(
+            "[stream:failed] domain=%s task=%s request_id=%s error=%s",
+            domain,
+            task,
+            request_id,
+            exc,
+        )
         yield {"type": "error", "code": 500, "message": f"任务准备失败：{exc}"}
         return
 
@@ -934,6 +980,18 @@ async def iter_task_events(
                     key: int(snap.get(key, 0)) - int(prep.usage_before.get(key, 0))
                     for key in ("total_tokens", "cache_hit_tokens")
                 }
+                out_file = _output_file_name(p.line, user_id, p.subject, saved_paths)
+                cost_seconds = round((time.time() - _start_time), 1)
+                tokens = int(usage.get("total_tokens", 0) or 0)
+                logger.info(
+                    "[stream:done] domain=%s task=%s request_id=%s cost=%.2fs tokens=%d file=%s",
+                    domain,
+                    task,
+                    request_id,
+                    cost_seconds,
+                    tokens,
+                    out_file,
+                )
                 yield {
                     "type": "done",
                     "code": 0,
@@ -941,19 +999,34 @@ async def iter_task_events(
                     "message": "success",
                     "quality_warning": event.get("quality_warning"),
                     "monitor": {
-                        "token_usage": int(usage.get("total_tokens", 0) or 0),
+                        "token_usage": tokens,
                         "cache_hit": int(usage.get("cache_hit_tokens", 0) or 0),
-                        "cost_time": round((time.time() - _start_time), 1),
+                        "cost_time": cost_seconds,
                         **_catalog_quality_monitor(p.line, user_id, p.subject),
                     },
                     "data": {
                         "text": md_text,
-                        "file_name": _output_file_name(p.line, user_id, p.subject, saved_paths),
+                        "file_name": out_file,
                     },
                 }
     except ApiError as exc:
+        logger.warning(
+            "[stream:error] domain=%s task=%s request_id=%s code=%s message=%s",
+            domain,
+            task,
+            request_id,
+            exc.status,
+            exc.message,
+        )
         yield {"type": "error", "code": exc.status, "message": exc.message}
     except Exception as exc:  # noqa: BLE001 - 运行失败推 error 事件
+        logger.exception(
+            "[stream:failed] domain=%s task=%s request_id=%s error=%s",
+            domain,
+            task,
+            request_id,
+            exc,
+        )
         yield {"type": "error", "code": 500, "message": f"任务运行失败：{exc}"}
     finally:
         if prep.task_monitor is not None:

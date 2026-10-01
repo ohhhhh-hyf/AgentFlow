@@ -23,6 +23,7 @@ from core.schema.validation import OutputValidationError
 from ....models import AgendaMinutes
 from ....models_base import ModelMixin
 from ..agenda_parser import (
+    AgendaPlan,
     match_presenter_name,
     parse_agenda_text,
 )

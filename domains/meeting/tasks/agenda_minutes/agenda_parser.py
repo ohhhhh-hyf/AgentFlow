@@ -523,10 +523,6 @@ def parse_agenda_text(
             cat_str = f" [{it.category}]" if it.category else ""
             lines_summary.append(f"  -> 议题 {it.seq}: 《{it.title}》 | 演讲人/汇报人: {pres_str}{dur_str}{cat_str}")
         logger.info("\n".join(lines_summary))
-        try:
-            print("\n".join(lines_summary))
-        except Exception:  # noqa: BLE001
-            pass
     else:
         logger.warning(
             "[AGENDA_PARSER] ⚠ 未能从输入文本中识别出任何既定议程项！原始输入预览 (前300字): %s",

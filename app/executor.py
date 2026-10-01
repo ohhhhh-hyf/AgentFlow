@@ -9,14 +9,16 @@ worker 有重试与租约，inline 则失败即终态。
 """
 from __future__ import annotations
 
-import json
+import logging
 import time
 from dataclasses import dataclass, field
-from typing import Any, AsyncIterator
+from typing import Any
 
 from .job_store import job_store
 from .schemas import Extra, TaskRequest
-from .tasks import ApiError, iter_task_events, stream_task
+from .tasks import ApiError, iter_task_events
+
+logger = logging.getLogger("app.executor")
 
 
 @dataclass
@@ -73,21 +75,6 @@ def request_from_payload(payload: dict[str, Any]) -> tuple[str, str, TaskRequest
     return domain, task, req, str(data.get("user_id") or ""), str(data.get("request_id") or "")
 
 
-async def _iter_events(response: Any) -> AsyncIterator[dict[str, Any]]:
-    """把 stream_task 的 NDJSON 响应体拆成事件字典（非 JSON 行跳过）。"""
-    async for raw in response.body_iterator:
-        text = raw.decode("utf-8") if isinstance(raw, bytes) else str(raw)
-        for line in text.splitlines():
-            if not line.strip():
-                continue
-            try:
-                event = json.loads(line)
-            except json.JSONDecodeError:
-                continue
-            if isinstance(event, dict):
-                yield event
-
-
 def _touch_progress(store, job_id: str, event: dict[str, Any], start: float) -> None:
     """phase / chunk 事件只更新进度字段，不改状态机。"""
     etype = event.get("type")
@@ -127,15 +114,36 @@ async def execute_job(
     """
     store = job_store()
     start = time.time()
+    logger.info(
+        "[async:execute] job_id=%s domain=%s task=%s request_id=%s user_id=%s",
+        job_id,
+        domain,
+        task,
+        request_id,
+        user_id,
+    )
     try:
         event_gen = iter_task_events(domain, task, req, user_id=user_id, request_id=request_id)
     except ApiError as exc:
         # 校验/输入类错误：直接给出终态结论，不重试
+        logger.warning(
+            "[async:error] job_id=%s request_id=%s code=%d message=%s",
+            job_id,
+            request_id,
+            exc.status,
+            exc.message,
+        )
         store.append_event(
             job_id, {"type": "error", "code": exc.status, "message": exc.message}
         )
         return JobOutcome(False, False, exc.message, round(time.time() - start, 1))
     except Exception as exc:  # noqa: BLE001 - 准备阶段异常算可重试的运行错误
+        logger.exception(
+            "[async:failed] job_id=%s request_id=%s error=%s",
+            job_id,
+            request_id,
+            exc,
+        )
         message = f"任务准备失败：{exc}"
         store.append_event(job_id, {"type": "error", "code": 500, "message": message})
         return JobOutcome(False, True, message, round(time.time() - start, 1))
@@ -154,6 +162,11 @@ async def execute_job(
                 store.append_event(job_id, event)
                 monitor = event.get("monitor") or {}
                 data = event.get("data") or {}
+                cost = float(
+                    (monitor or {}).get("cost_time") or round(time.time() - start, 1)
+                )
+                tokens = int((monitor or {}).get("token_usage") or 0)
+                file_name = str((data or {}).get("file_name") or "")
                 store.update_job(
                     job_id,
                     status="succeeded",
@@ -161,27 +174,52 @@ async def execute_job(
                     message="success",
                     error="",
                     finished_at=time.time(),
-                    cost_time=float(
-                        (monitor or {}).get("cost_time") or round(time.time() - start, 1)
-                    ),
-                    token_usage=int((monitor or {}).get("token_usage") or 0),
+                    cost_time=cost,
+                    token_usage=tokens,
                     cache_hit=int((monitor or {}).get("cache_hit") or 0),
-                    file_name=str((data or {}).get("file_name") or ""),
+                    file_name=file_name,
                     result=event,
+                )
+                logger.info(
+                    "[async:succeeded] job_id=%s request_id=%s cost=%.2fs tokens=%d file=%s",
+                    job_id,
+                    request_id,
+                    cost,
+                    tokens,
+                    file_name,
                 )
                 return JobOutcome(True, False, "", round(time.time() - start, 1))
             if etype == "error":
                 message = str(event.get("message") or "任务运行失败")
                 code = int(event.get("code") or 500)
+                logger.warning(
+                    "[async:error] job_id=%s request_id=%s code=%d message=%s",
+                    job_id,
+                    request_id,
+                    code,
+                    message,
+                )
                 # 事件先落盘（保留完整错误信息与错误码），终态由调用方写
                 store.append_event(job_id, event)
                 return JobOutcome(False, code >= 500, message, round(time.time() - start, 1))
     except Exception as exc:  # noqa: BLE001 - 迭代中断（含 worker 取消）视为可重试
+        logger.exception(
+            "[async:failed] job_id=%s request_id=%s error=%s",
+            job_id,
+            request_id,
+            exc,
+        )
         message = f"任务运行失败：{exc}"
         store.append_event(job_id, {"type": "error", "code": 500, "message": message})
         return JobOutcome(False, True, message, round(time.time() - start, 1))
 
     message = "任务未返回结果（事件流提前结束）"
+    logger.warning(
+        "[async:aborted] job_id=%s request_id=%s message=%s",
+        job_id,
+        request_id,
+        message,
+    )
     store.append_event(job_id, {"type": "error", "code": 500, "message": message})
     return JobOutcome(False, True, message, round(time.time() - start, 1))
 
@@ -195,9 +233,23 @@ async def run_inline(
     request_id: str,
 ) -> None:
     """inline 模式：API 进程内执行一次，失败即终态（没有 worker 兜底，不重试）。"""
+    logger.info(
+        "[async:inline_start] job_id=%s domain=%s task=%s request_id=%s",
+        job_id,
+        domain,
+        task,
+        request_id,
+    )
     store = job_store()
     store.claim(job_id, "inline", lease=False)
     outcome = await execute_job(job_id, domain, task, req, user_id, request_id)
+    logger.info(
+        "[async:inline_done] job_id=%s ok=%s cost=%.2fs message=%s",
+        job_id,
+        outcome.ok,
+        outcome.cost_time,
+        outcome.message or "success",
+    )
     if outcome.ok:
         return
     store.mark_failed(

@@ -10,12 +10,15 @@ user_id 支持 URL 参数 ?user_id= 或 X-User-Id 请求头（二者取一，都
 """
 from __future__ import annotations
 
+import logging
 from typing import Optional
 
 from fastapi import Header, HTTPException, Query
 from fastapi.responses import FileResponse
 
 from app.outputs import resolve_output_file
+
+logger = logging.getLogger("app.api.routes.file")
 
 
 def _user_id(user_id: Optional[str], x_user_id: Optional[str]) -> str:
@@ -33,8 +36,20 @@ async def download(
 ):
     """指定文件名下载：GET /file/{request_id}/{file_name}，附件形式返回（强制下载）。"""
     uid = _user_id(user_id, x_user_id)
+    logger.info(
+        "[api:download] request_id=%s file_name=%s user_id=%s",
+        request_id,
+        file_name,
+        uid,
+    )
     path = resolve_output_file(uid, request_id, file_name)
     if path is None:
+        logger.warning(
+            "[api:download:not_found] request_id=%s file_name=%s user_id=%s",
+            request_id,
+            file_name,
+            uid,
+        )
         raise HTTPException(
             status_code=404,
             detail=f"产物文件不存在：output/{request_id}/{file_name}",

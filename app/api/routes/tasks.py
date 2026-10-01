@@ -20,6 +20,7 @@
 from __future__ import annotations
 
 import asyncio
+import logging
 from typing import Any, Optional
 
 from fastapi import APIRouter, BackgroundTasks, Header
@@ -31,6 +32,8 @@ from app.id_worker import next_request_id
 from app.job_store import JobStoreError, job_store
 from app.schemas import DomainTaskRequest, Extra, TaskRequest, ndjson_line as _ndjson
 from app.tasklines import TaskLineNotFound, resolve_line
+
+logger = logging.getLogger("app.api.routes.tasks")
 
 router = APIRouter(prefix="/api/agent/v1/async", tags=["async"])
 legacy_router = APIRouter(prefix="/api/v1/tasks", include_in_schema=False)
@@ -191,7 +194,17 @@ async def submit_task(
         extra=req.extra if isinstance(req.extra, Extra) else Extra.model_validate(req.extra),
         time=req.time,
     )
-    if run_mode() == "queue":
+    mode = run_mode()
+    logger.info(
+        "[async:submit] domain=%s task=%s job_id=%s request_id=%s user_id=%s mode=%s",
+        domain,
+        line,
+        job_id,
+        request_id,
+        user_id,
+        mode,
+    )
+    if mode == "queue":
         try:
             store.set_payload(
                 job_id,

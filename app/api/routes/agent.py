@@ -17,6 +17,7 @@
 """
 from __future__ import annotations
 
+import logging
 from typing import Optional
 
 from fastapi import APIRouter, Header
@@ -26,6 +27,8 @@ from app.schemas import DomainTaskRequest, TaskResponse
 from app.tasklines import TaskLineNotFound, resolve_line
 from app.tasks import ApiError, run_task, stream_task
 from ._file_endpoints import download
+
+logger = logging.getLogger("app.api.routes.agent")
 
 router = APIRouter(prefix="/api/agent/v1", tags=["agent"])
 
@@ -54,6 +57,13 @@ async def run_agent(
     """同步执行一条任务线：阻塞到出结果（请求体带 domain / task，见 API.md 2.5.1）。"""
     domain, line = _line(req)
     request_id, user_id = _headers(x_request_id, x_user_id)
+    logger.info(
+        "[api:agent] domain=%s task=%s request_id=%s user_id=%s",
+        domain,
+        line,
+        request_id,
+        user_id,
+    )
     return await run_task(domain, line, req, user_id=user_id, request_id=request_id)
 
 
@@ -66,6 +76,13 @@ async def stream_agent(
     """流式执行一条任务线：NDJSON 事件流，请求体与同步接口一致（见 API.md 2.5.2）。"""
     domain, line = _line(req)
     request_id, user_id = _headers(x_request_id, x_user_id)
+    logger.info(
+        "[api:stream] domain=%s task=%s request_id=%s user_id=%s",
+        domain,
+        line,
+        request_id,
+        user_id,
+    )
     return await stream_task(domain, line, req, user_id=user_id, request_id=request_id)
 
 

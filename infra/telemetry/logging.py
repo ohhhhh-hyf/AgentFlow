@@ -30,21 +30,33 @@ PROJECT_ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_LOG_FILE = "logs/agentflow.log"
 DEFAULT_DIAG_FILE = "logs/diag.log"
 
-_FORMAT = "%(asctime)s %(levelname)s %(name)s %(message)s"
+_FORMAT = "%(asctime)s [%(levelname)s] [%(name)s] %(message)s"
+_DATE_FMT = "%Y-%m-%d %H:%M:%S"
 
-# 诊断日志的 logger 白名单：与"为什么降级"直接相关的模块
+# 诊断日志的 logger 白名单：与 LLM 调用、编排调度、异步任务及降级直接相关的模块
 _DIAG_LOGGERS = (
-    "tools.llm.llmclient",      # 请求/响应/finish_reason/HTTP 错误/空正文/解析失败
-    "tools.core.domain_engine",  # 审核结论、路由去向、降级汇总
-    "tools.core.runner",     # ⚠ 生成可能有误
-    "agentflow",             # 流水线节点进度（start/done）
+    "infra.llm.llmclient",       # LLM 请求/响应/finish_reason/退避重试/HTTP 错误
+    "core.graph.engine",         # 审核结论、路由去向、降级汇总
+    "core.runner.runner",        # 任务执行器进度与产物落盘
+    "core.execution",            # 执行门禁拦截与篇幅预算
+    "app.tasks",                 # 任务执行生命周期（start/finish/failed）
+    "app.executor",              # 异步任务执行与重试
+    "app.worker",                # Worker 队列消费与租约
+    "app.api",                   # API 路由请求与生命周期
+    "domains.meeting.memory",    # 会议长期记忆检索与写回
+    "domains.notes.memory",      # 笔记图谱记忆
+    "agentflow",                 # 流水线节点进度（start/done）
+    # 兼容历史名称
+    "tools.llm.llmclient",
+    "tools.core.domain_engine",
+    "tools.core.runner",
 )
 
 
 class _DiagFilter(logging.Filter):
     """只放行诊断相关记录：白名单 logger，或任何 WARNING 及以上。"""
 
-    def filter(self, record: logging.LogRecord) -> bool:  # noqa: A003 - stdlib 接口
+    def filter(self, record: logging.LogRecord) -> bool:
         if record.levelno >= logging.WARNING:
             return True
         return any(record.name == n or record.name.startswith(n + ".") for n in _DIAG_LOGGERS)
@@ -67,7 +79,7 @@ def _rotating_handler(path: Path, level: int, *, filt: logging.Filter | None = N
         logging.getLogger(__name__).warning("file logging disabled (%s): %s", path, exc)
         return None
     handler.setLevel(level)
-    handler.setFormatter(logging.Formatter(_FORMAT))
+    handler.setFormatter(logging.Formatter(_FORMAT, datefmt=_DATE_FMT))
     if filt is not None:
         handler.addFilter(filt)
     return handler
@@ -87,7 +99,7 @@ def setup_logging(level: int | None = None) -> None:
 
     console = logging.StreamHandler(sys.stdout)
     console.setLevel(lvl)
-    console.setFormatter(logging.Formatter(_FORMAT))
+    console.setFormatter(logging.Formatter(_FORMAT, datefmt=_DATE_FMT))
     root.addHandler(console)
 
     log_file = (os.getenv("AGENTFLOW_LOG_FILE") or DEFAULT_LOG_FILE).strip()
@@ -102,7 +114,7 @@ def setup_logging(level: int | None = None) -> None:
         if handler is not None:
             root.addHandler(handler)
 
-    root._agentflow_configured = True  # type: ignore[attr-defined]
+    root._agentflow_configured = True
 
 
 def unify_uvicorn_loggers() -> None:

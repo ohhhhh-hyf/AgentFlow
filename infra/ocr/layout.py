@@ -546,7 +546,7 @@ def merge_fragment_lines(lines: list[dict]) -> list[dict]:
             idx += 1
         merged.append(acc)
     if len(merged) != len(items):
-        logger.info("merge fragments %d -> %d lines", len(items), len(merged))
+        logger.debug("merge fragments %d -> %d lines", len(items), len(merged))
     return merged
 
 

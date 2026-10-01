@@ -343,11 +343,6 @@ def ingest_library(
     ocr_error = ""
     with ThreadPoolExecutor(max_workers=1) as pool:
         if doc_paths and image_paths:
-            print(
-                f"[资料入库] 并行处理：{len(doc_paths)} 份非图片资料直接入库，"
-                f"{len(image_paths)} 张图片先 OCR 成 Markdown 后入库。",
-                flush=True,
-            )
             logger.info(
                 "library ingest docs=%d images=%d (ocr first)",
                 len(doc_paths),
@@ -373,7 +368,6 @@ def ingest_library(
                 [str(path) for path in doc_paths], user_id=user_id, subject=subject
             )
             for path, stat in zip(doc_paths, results):
-                print(f"[资料入库] 非图片/Markdown 入库：{path.name}", flush=True)
                 logger.info("library ingest raw file: %s", path.name)
                 _record_file(path.name, stat)
         if ocr_future is not None:
@@ -386,7 +380,6 @@ def ingest_library(
                 logger.warning("library ingest ocr failed: %s", ocr_error, exc_info=True)
 
     if ocr_path is not None:
-        print(f"[资料入库] 非图片/Markdown 入库：{ocr_path.name}", flush=True)
         logger.info("library ingest raw file: %s", ocr_path.name)
         project_root = Path(__file__).resolve().parents[4]
         _dedup_against_history(
