@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import re
+from html import escape
 from typing import Any
 
 from .gather import _is_noise_title, strip_heading_prefix
@@ -244,6 +245,290 @@ def build_catalog_markdown(draft: dict[str, Any]) -> str:
     return "\n".join(lines).strip() + "\n"
 
 
+def _as_int(value: object, default: int = 0) -> int:
+    try:
+        return int(float(str(value or "")))
+    except (TypeError, ValueError):
+        return default
+
+
+def build_catalog_html(draft: dict[str, Any]) -> str:
+    draft = normalize_catalog_draft(draft)
+    course = _clean(draft.get("course")) or "课程知识目录"
+    version = _clean(draft.get("version")) or "1"
+    mode = _clean(draft.get("mode"))
+    mode_text = "增量更新" if mode == "incremental_update" else "全量构建"
+
+    chapters = draft.get("chapters") or []
+    visible_chapters = [
+        c
+        for c in chapters
+        if isinstance(c, dict)
+        and _clean(c.get("name"))
+        and not _is_noise_title(_clean(c.get("name")))
+    ]
+    total_topics = 0
+    total_kps = 0
+    for ch in visible_chapters:
+        for tp in ch.get("topics") or []:
+            if not isinstance(tp, dict):
+                continue
+            tname = _clean(tp.get("name"))
+            if tname and not _is_noise_title(tname):
+                total_topics += 1
+            for kp in tp.get("knowledge_points") or []:
+                if (
+                    isinstance(kp, dict)
+                    and _clean(kp.get("name"))
+                    and not _is_noise_title(_clean(kp.get("name")))
+                ):
+                    total_kps += 1
+
+    lines = [
+        '<div class="cat-doc">',
+        '  <style>',
+        '    .cat-doc {',
+        '      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;',
+        '      color: #1e293b;',
+        '      line-height: 1.5;',
+        '    }',
+        '    .cat-meta-bar {',
+        '      display: flex;',
+        '      flex-wrap: wrap;',
+        '      gap: 8px;',
+        '      align-items: center;',
+        '      margin: 10px 0 16px 0;',
+        '      padding-bottom: 12px;',
+        '      border-bottom: 1px solid #e2e8f0;',
+        '    }',
+        '    .cat-badge {',
+        '      display: inline-flex;',
+        '      align-items: center;',
+        '      padding: 2px 10px;',
+        '      font-size: 0.78rem;',
+        '      font-weight: 500;',
+        '      border-radius: 9999px;',
+        '      background: #f1f5f9;',
+        '      color: #475569;',
+        '    }',
+        '    .cat-badge-primary { background: #eff6ff; color: #1d4ed8; border: 1px solid #dbeafe; }',
+        '    .cat-badge-success { background: #f0fdf4; color: #15803d; border: 1px solid #dcfce7; }',
+        '    .cat-badge-stat { background: #f8fafc; color: #334155; border: 1px solid #e2e8f0; }',
+        '    .cat-changes-box {',
+        '      background: #eff6ff;',
+        '      border-left: 4px solid #3b82f6;',
+        '      padding: 10px 14px;',
+        '      margin-bottom: 18px;',
+        '      border-radius: 0 4px 4px 0;',
+        '    }',
+        '    .cat-changes-title {',
+        '      font-weight: 600;',
+        '      font-size: 0.85rem;',
+        '      color: #1e40af;',
+        '      margin-bottom: 4px;',
+        '    }',
+        '    .cat-changes-list {',
+        '      margin: 0;',
+        '      padding-left: 18px;',
+        '      font-size: 0.82rem;',
+        '      color: #1e3a8a;',
+        '    }',
+        '    .cat-section-header {',
+        '      font-size: 0.95rem;',
+        '      font-weight: 700;',
+        '      color: #0f172a;',
+        '      margin: 18px 0 8px 0;',
+        '      display: flex;',
+        '      align-items: center;',
+        '      gap: 6px;',
+        '    }',
+        '    .cat-tree-view {',
+        '      background: #f8fafc;',
+        '      border: 1px solid #e2e8f0;',
+        '      border-radius: 6px;',
+        '      padding: 12px 16px;',
+        '      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;',
+        '      font-size: 0.82rem;',
+        '      line-height: 1.6;',
+        '      color: #334155;',
+        '      white-space: pre-wrap;',
+        '      overflow-x: auto;',
+        '      margin-bottom: 20px;',
+        '    }',
+        '    .cat-chapter-card {',
+        '      border: 1px solid #e2e8f0;',
+        '      border-radius: 6px;',
+        '      margin-bottom: 12px;',
+        '      background: #ffffff;',
+        '      overflow: hidden;',
+        '    }',
+        '    .cat-chapter-header {',
+        '      background: #f8fafc;',
+        '      padding: 8px 14px;',
+        '      font-weight: 600;',
+        '      font-size: 0.9rem;',
+        '      color: #0f172a;',
+        '      border-bottom: 1px solid #e2e8f0;',
+        '    }',
+        '    .cat-topic-group {',
+        '      padding: 10px 14px;',
+        '      border-bottom: 1px dashed #e2e8f0;',
+        '    }',
+        '    .cat-topic-group:last-child {',
+        '      border-bottom: none;',
+        '    }',
+        '    .cat-topic-title {',
+        '      font-weight: 600;',
+        '      font-size: 0.84rem;',
+        '      color: #334155;',
+        '      margin-bottom: 6px;',
+        '    }',
+        '    .cat-kp-grid {',
+        '      display: flex;',
+        '      flex-direction: column;',
+        '      gap: 6px;',
+        '    }',
+        '    .cat-kp-item {',
+        '      padding: 6px 10px;',
+        '      background: #f8fafc;',
+        '      border: 1px solid #f1f5f9;',
+        '      border-radius: 4px;',
+        '      font-size: 0.8rem;',
+        '    }',
+        '    .cat-kp-main {',
+        '      display: flex;',
+        '      align-items: baseline;',
+        '      justify-content: space-between;',
+        '      gap: 8px;',
+        '    }',
+        '    .cat-kp-name {',
+        '      font-weight: 500;',
+        '      color: #0f172a;',
+        '    }',
+        '    .cat-kp-stars {',
+        '      color: #eab308;',
+        '      font-size: 0.75rem;',
+        '      letter-spacing: 1px;',
+        '    }',
+        '    .cat-kp-tags {',
+        '      display: flex;',
+        '      flex-wrap: wrap;',
+        '      gap: 4px;',
+        '      margin-top: 4px;',
+        '    }',
+        '    .cat-tag {',
+        '      display: inline-block;',
+        '      font-size: 0.7rem;',
+        '      padding: 1px 6px;',
+        '      border-radius: 3px;',
+        '    }',
+        '    .cat-tag-id { background: #f1f5f9; color: #64748b; font-family: monospace; }',
+        '    .cat-tag-role { background: #e0f2fe; color: #0284c7; }',
+        '    .cat-tag-risk { background: #fee2e2; color: #dc2626; }',
+        '    .cat-tag-practice { background: #fef3c7; color: #d97706; }',
+        '    .cat-tag-criteria { background: #dcfce7; color: #16a34a; }',
+        '    .cat-tag-rel { background: #f3e8ff; color: #9333ea; }',
+        '    .cat-empty {',
+        '      color: #64748b;',
+        '      font-style: italic;',
+        '      padding: 16px;',
+        '      text-align: center;',
+        '    }',
+        '  </style>',
+        '  <div class="cat-meta-bar">',
+        f'    <span class="cat-badge cat-badge-primary">版本: v{escape(str(version))}</span>',
+        f'    <span class="cat-badge cat-badge-success">{escape(mode_text)}</span>',
+        f'    <span class="cat-badge cat-badge-stat">{len(visible_chapters)} 章节 · {total_topics} 主题 · {total_kps} 知识点</span>',
+        '  </div>',
+    ]
+
+    changes = _change_lines(draft)
+    if changes:
+        lines.append('  <div class="cat-changes-box">')
+        lines.append('    <div class="cat-changes-title">本次变更说明</div>')
+        lines.append('    <ul class="cat-changes-list">')
+        for c_item in changes:
+            lines.append(f'      <li>{escape(c_item)}</li>')
+        lines.append('    </ul>')
+        lines.append('  </div>')
+
+    if not visible_chapters:
+        lines.append('  <div class="cat-empty">这次没有整理出可用目录，已有目录文件不会被空结果覆盖。</div>')
+        lines.append('</div>')
+        return "\n".join(lines)
+
+    tree_rows = _tree_rows(draft)
+    if tree_rows:
+        lines.append('  <div class="cat-section-header">📁 目录层级树</div>')
+        lines.append(f'  <pre class="cat-tree-view">{escape(chr(10).join(tree_rows))}</pre>')
+
+    lines.append('  <div class="cat-section-header">📚 知识点详情卡片</div>')
+    for ch in visible_chapters:
+        cname = _clean(ch.get("name"))
+        topics_html: list[str] = []
+        for tp in ch.get("topics") or []:
+            if not isinstance(tp, dict):
+                continue
+            tname = _clean(tp.get("name"))
+            if _is_noise_title(tname):
+                tname = ""
+            kps_html: list[str] = []
+            for kp in tp.get("knowledge_points") or []:
+                if not isinstance(kp, dict):
+                    continue
+                kname = _clean(kp.get("name"))
+                if not kname or _is_noise_title(kname):
+                    continue
+                kid = _clean(kp.get("id"))
+                imp = max(1, min(5, _as_int(kp.get("importance"), 3)))
+                stars = "★" * imp + "☆" * (5 - imp)
+
+                tags: list[str] = []
+                if kid:
+                    tags.append(f'<span class="cat-tag cat-tag-id">{escape(kid)}</span>')
+                role = str(kp.get("learning_role") or "").strip()
+                if role in _ROLE:
+                    tags.append(f'<span class="cat-tag cat-tag-role">{escape(_ROLE[role])}</span>')
+                for pt in _as_list(kp.get("practice_type")):
+                    if pt in _PRACTICE:
+                        tags.append(f'<span class="cat-tag cat-tag-practice">{escape(_PRACTICE[pt])}</span>')
+                for cr in _as_list(kp.get("completion_criteria")):
+                    if cr in _CRITERIA:
+                        tags.append(f'<span class="cat-tag cat-tag-criteria">{escape(_CRITERIA[cr])}</span>')
+                for rt in _as_list(kp.get("risk_tags")):
+                    if rt in _RISK:
+                        tags.append(f'<span class="cat-tag cat-tag-risk">{escape(_RISK[rt])}</span>')
+                for rel in kp.get("related_points") or []:
+                    if isinstance(rel, dict) and _clean(rel.get("name")):
+                        r_lbl = _RELATION.get(rel.get("relation"), "关联")
+                        tags.append(f'<span class="cat-tag cat-tag-rel">{escape(r_lbl)}: {escape(_clean(rel.get("name")))}</span>')
+
+                tags_markup = "".join(tags)
+                kps_html.append(
+                    f'        <div class="cat-kp-item">\n'
+                    f'          <div class="cat-kp-main">\n'
+                    f'            <span class="cat-kp-name">{escape(kname)}</span>\n'
+                    f'            <span class="cat-kp-stars" title="重要性 {imp}/5">{stars}</span>\n'
+                    f'          </div>\n'
+                    + (f'          <div class="cat-kp-tags">{tags_markup}</div>\n' if tags_markup else "")
+                    + f'        </div>'
+                )
+            if not tname and not kps_html:
+                continue
+            topic_header = f'      <div class="cat-topic-title">{escape(tname)}</div>\n' if tname else ""
+            kps_grid = f'      <div class="cat-kp-grid">\n{"".join(kps_html)}\n      </div>\n' if kps_html else ""
+            topics_html.append(f'    <div class="cat-topic-group">\n{topic_header}{kps_grid}    </div>')
+
+        if topics_html:
+            lines.append('  <div class="cat-chapter-card">')
+            lines.append(f'    <div class="cat-chapter-header">{escape(cname)}</div>')
+            lines.extend(topics_html)
+            lines.append('  </div>')
+
+    lines.append('</div>')
+    return "\n".join(lines)
+
+
 def attach_catalog_artifacts(state: dict[str, Any]) -> None:
     from core.graph.engine_text import line
 
@@ -291,6 +576,8 @@ def attach_catalog_artifacts(state: dict[str, Any]) -> None:
         subject=subject_from_context(context),
         draft=draft,
     )
+    draft["catalog_html"] = build_catalog_html(draft)
+    sub["catalog_html"] = draft["catalog_html"]
     sub["rendered"] = build_catalog_markdown(draft)
     sub["draft"] = draft
     sub["structure"] = draft.get("chapters") or []

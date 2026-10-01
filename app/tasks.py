@@ -380,30 +380,14 @@ def _doc_previews(user_id: str, docs: list[str]) -> str:
     return "\n\n".join(parts).strip()
 
 
-def _catalog_file_name(line: str, user_id: str, subject: str) -> str:
-    """catalog 接口返回生成的目录文件名（如 20260827_221500_123.json）；其他接口返回空串。"""
-    if line != "catalog" or not (subject or "").strip():
-        return ""
-    try:
-        from domains.notes.tasks.catalog.store import latest_catalog_path
-
-        path = latest_catalog_path(user_id=user_id, subject=subject)
-        return path.name if path else ""
-    except Exception:  # noqa: BLE001 - 取不到文件名不影响主流程
-        return ""
-
-
 def _output_file_name(
     line: str,
     user_id: str,
     subject: str,
     saved_paths: dict[str, Path | None],
 ) -> str:
-    """产物文件名：catalog 返回目录文件名；有页面版返回 {task}.html；
+    """产物文件名：有页面版返回 {task}.html；
     只有文本产物（actions/risks/minutes_styles/minutes_trace）返回 {task}.md；无产物返回空串。"""
-    name = _catalog_file_name(line, user_id, subject)
-    if name:
-        return name
     if saved_paths.get("html"):
         return f"{line}.html"
     if saved_paths.get("md"):

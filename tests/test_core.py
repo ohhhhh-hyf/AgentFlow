@@ -549,6 +549,100 @@ def test_request_schema_and_validation() -> None:
     shutil.rmtree(PROJECT_ROOT / "data" / "u_test_schema", ignore_errors=True)
 
 
+def test_catalog_output_artifacts_and_download() -> None:
+    """验证 catalog 任务产物：生成 catalog.html + result.md，file_name 返回 catalog.html 且支持下载。"""
+    import shutil
+    from app.config import PROJECT_ROOT
+    from app.outputs import resolve_output_file, save_task_outputs
+    from app.tasks import _output_file_name
+    from domains.notes.reports import CatalogReport
+    from domains.notes.tasks.catalog.display import (
+        build_catalog_html,
+        build_catalog_markdown,
+    )
+    from infra.exporters.outputs import save_report_artifacts
+
+    user_id = "u_cat_test"
+    req_id = "req_cat_123"
+
+    draft = {
+        "course": "高中物理",
+        "version": "1",
+        "mode": "build",
+        "chapters": [
+            {
+                "name": "第一章 运动的描述",
+                "topics": [
+                    {
+                        "name": "质点与参考系",
+                        "knowledge_points": [
+                            {
+                                "id": "kp_001",
+                                "name": "参考系的选择",
+                                "learning_role": "core_concept",
+                                "importance": 4,
+                                "practice_type": ["distinguish", "recall"],
+                                "completion_criteria": ["can_explain"],
+                                "risk_tags": ["concept_confusion"],
+                                "related_points": [{"name": "坐标系", "relation": "used_with"}],
+                            }
+                        ],
+                    }
+                ],
+            }
+        ],
+    }
+
+    # 1. 验证 build_catalog_html 生成包含 cat-doc 的页面
+    html = build_catalog_html(draft)
+    check("catalog HTML 包含根容器 cat-doc", "cat-doc" in html, "")
+    check("catalog HTML 包含课程名", "高中物理" in html, "")
+    check("catalog HTML 包含目录层级树", "目录层级树" in html, "")
+    check("catalog HTML 包含知识点卡片与标签", "参考系的选择" in html and "核心概念" in html, "")
+    check("catalog HTML 包含星级评分", "★★★★☆" in html, "")
+
+    # 验证空 draft
+    empty_html = build_catalog_html({})
+    check("空 catalog HTML 仍包含 cat-doc 容器", "cat-doc" in empty_html, "")
+    check("空 catalog HTML 包含空提示", "没有整理出可用目录" in empty_html, "")
+
+    # 2. 验证 save_report_artifacts 落盘 result.md 与 catalog.html
+    rendered_md = build_catalog_markdown(draft)
+    report = CatalogReport(
+        course="高中物理",
+        version="1",
+        catalog_html=html,
+        personalized_text=rendered_md,
+    )
+    from core.runner.context import load_domain
+
+    ctx = load_domain("notes", PROJECT_ROOT)
+    ctx.user_id = user_id
+    saved = save_report_artifacts(ctx, "catalog", report)
+    check("save_report_artifacts 成功产出 text (result.md)", "text" in saved and saved["text"].name == "result.md", str(saved))
+    check("save_report_artifacts 成功产出 html (catalog.html)", "html" in saved and saved["html"].name == "catalog.html", str(saved))
+
+    # 3. 验证 save_task_outputs 收拢到 output/{request_id}/
+    collected = save_task_outputs(user_id, req_id, {"catalog": saved})
+    check("collected 包含 md (result.md)", collected.get("md") is not None and collected["md"].name == "result.md", str(collected))
+    check("collected 包含 html (catalog.html)", collected.get("html") is not None and collected["html"].name == "catalog.html", str(collected))
+    check("catalog.html 实际存在", collected["html"].is_file(), "")
+    check("result.md 实际存在", collected["md"].is_file(), "")
+
+    # 4. 验证 _output_file_name 返回 catalog.html
+    out_name = _output_file_name("catalog", user_id, "高中物理", collected)
+    check("_output_file_name 返回 catalog.html", out_name == "catalog.html", out_name)
+
+    # 5. 验证 resolve_output_file 可下载 catalog.html 与 result.md
+    dl_html = resolve_output_file(user_id, req_id, "catalog.html")
+    check("resolve_output_file 成功定位 catalog.html", dl_html is not None and dl_html.name == "catalog.html", str(dl_html))
+    dl_md = resolve_output_file(user_id, req_id, "result.md")
+    check("resolve_output_file 成功定位 result.md", dl_md is not None and dl_md.name == "result.md", str(dl_md))
+
+    # 清理测试目录
+    shutil.rmtree(PROJECT_ROOT / "data" / user_id, ignore_errors=True)
+
+
 def test_action_items_render() -> None:
     """验证待办事项卡片式清单（4个核心维度、自适应输出、无原句）及降级拼装。"""
     from domains.meeting.tasks.actions.steps.actions_render import ActionItemsRender
@@ -802,6 +896,7 @@ def main() -> int:
     test_domain_hooks_registry()
     test_tasklines_registration()
     test_request_schema_and_validation()
+    test_catalog_output_artifacts_and_download()
     test_action_items_render()
     test_risk_items_render()
     test_general_minutes_title_fixed()
