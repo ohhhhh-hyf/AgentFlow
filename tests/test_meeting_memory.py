@@ -661,6 +661,7 @@ def test_personal_minutes_html_rendering() -> None:
         "本场讨论了模型压测与demo落地。\n\n"
         "## [重点关注与业务进展]\n"
         "1. **【demo落地】进展与方案**（本周内 ｜ 联调 ｜ 压测通过）\n"
+        "2. **【占位符防护】测试项**(交付时限 ｜ 核心交付物/状态)\n"
         "  - 完成第一轮测试；\n\n"
         "## [行动项与协同依赖]\n"
         "### 与我相关行动项\n"
@@ -689,6 +690,7 @@ def test_personal_minutes_html_rendering() -> None:
     check("个人模式生成阻塞状态徽章 ck-tag-blocker", "ck-tag-blocker" in content, "")
     check("个人模式生成依赖标签 ck-tag-dep", "ck-tag-dep" in content, "")
     check("个人模式生成参数胶囊 ck-param-capsule", "ck-param-capsule" in content, "")
+    check("个人模式过滤占位符泄漏", "核心交付物" not in content and "交付时限" not in content, "")
     check("个人模式标题方括号剔除", "[本场概况与本人定调]" not in content and "本场概况与本人定调" in content, "")
 
 

@@ -646,6 +646,12 @@ _TASK_ITEM_RE = re.compile(r"^\s*[-*]\s+\[([ xX])\]\s*(.*)$")
 
 def _format_inline_tags(text: str) -> str:
     """格式化纪要中的状态徽章、依赖标签与参数胶囊。"""
+    # 彻底过滤大模型字面照抄的 Prompt 占位符泄漏（如 "(交付时限 ｜ 核心交付物/状态)"）
+    text = re.sub(
+        r"[（\(]\s*(?:交付时限|核心交付物|验收标准|状态)\s*(?:[｜|/]\s*(?:交付时限|核心交付物|验收标准|状态))+\s*[）\)]",
+        "",
+        text,
+    )
     text = re.sub(r"[\[【](?:阻塞|阻碍)[\]】]", r'<span class="ck-tag-blocker">阻塞</span>', text)
     text = re.sub(r"[\[【](高风险|中风险|低风险)[\]】]", r'<span class="ck-tag-risk">\1</span>', text)
     text = re.sub(r"[\[【](?:待确认|待决)[\]】]", r'<span class="ck-tag-warn">待确认</span>', text)
