@@ -1,0 +1,592 @@
+[2026-10-02 10:54:15] Mode: table, Total Items: 4
+  Meta: theme='Subject      智慧域商用发布评审', time='Time         2026/06/15(周一) 16:00-18:00(UTC+08:00)Beijing', attendees='与会人 Attendees      全程与会人：徐锋; 索勋飞(委托高雄); 吴友国; 王昊; 黄江; 何瑄; 左飞\n分段与会人：申家坤; 方思邈; 李腾飞; 郑本令; 沙彬斌; 陈啟锴; 陶强; 乔登龙;'
+  Resolved Columns: {'seq': 0, 'title': 1, 'presenter': 4, 'recorder': 5, 'members': 6, 'time': 3, 'duration': 2, 'category': -1, 'description': -1}
+  - Item [01] 小艺慧记CeliaMinutesService 1.4.5.500版本发布商用版本 | Presenter: ['申家坤'] (raw: '申家坤') | Dur: 15min | Time: 16:00-16:15 | Cat: 
+  - Item [02] 翻译海外HiTranslationService 21.1.1.300商用版本发布 | Presenter: ['刘畅'] (raw: '刘畅') | Dur: 15min | Time: 16:15-16:30 | Cat: 
+  - Item [03] HAG 3.6.5.300版本商用发布评审 | Presenter: ['沙彬斌', '陈啟锴'] (raw: '沙彬斌; 陈啟锴') | Dur: 15min | Time: 16:30-16:45 | Cat: 
+  - Item [04] SpeechASR 1.4.5.302商用版本评审 | Presenter: ['陆敬怡', '林宇珂', '赖朝辉'] (raw: '陆敬怡; 林宇珂; 赖朝辉') | Dur: 15min | Time: 16:45-17:00 | Cat: 
+----------------------------------------------------------------------
+[2026-10-02 10:54:15] Mode: table, Total Items: 9
+  Meta: theme='', time='', attendees=''
+  Resolved Columns: {'seq': 0, 'title': 1, 'presenter': 6, 'recorder': -1, 'members': 6, 'time': 4, 'duration': 3, 'category': 2, 'description': -1}
+  - Item [01] 小艺输入法CeliaKeyboardHM 1.2.2.420补丁版本评审 | Presenter: ['赵鑫岳'] (raw: '汇报人: 赵鑫岳 00585440') | Dur: 15 分钟 | Time: 19:00~19:15 | Cat: 汇报类
+  - Item [02] 小艺输入法云CeliaKeyboardService 1.4.3.300商用版本评审 | Presenter: ['於在稳'] (raw: '汇报人: 於在稳 30035890') | Dur: 15 分钟 | Time: 19:15~19:30 | Cat: 汇报类
+  - Item [03] 小艺慧记CeliaMinutesService 1.4.3.300版本发布商用版本 | Presenter: ['武思华'] (raw: '汇报人: 武思华 30032852') | Dur: 15 分钟 | Time: 19:30~19:45 | Cat: 汇报类
+  - Item [04] IDS 3.6.4.300版本商用发布评审 | Presenter: ['郑爽'] (raw: '汇报人: 郑爽 30076442') | Dur: 15 分钟 | Time: 19:45~20:00 | Cat: 汇报类
+  - Item [05] HAG 3.6.4.300版本商用发布评审 | Presenter: ['陈啟锴'] (raw: '汇报人: 陈啟锴 30014215') | Dur: 15 分钟 | Time: 20:00~20:15 | Cat: 汇报类
+  - Item [06] SpeechASR 1.4.4.300商用版本评审 | Presenter: ['林宇珂', '陆敬怡'] (raw: '汇报人: 林宇珂 00939670 陆敬怡 00841266') | Dur: 15 分钟 | Time: 20:15~20:30 | Cat: 汇报类
+  - Item [07] SpeechTTS 1.4.4.300 & SpeechTTS 1.4.4.301版本商用评审 | Presenter: ['孙鹤鸣'] (raw: '汇报人: 孙鹤鸣 00893109') | Dur: 15 分钟 | Time: 20:30~20:45 | Cat: 汇报类
+  - Item [08] HiTranslationService 1.4.3.301版本商用发布评审 | Presenter: ['张昊辰'] (raw: '汇报人: 张昊辰 30075593') | Dur: 15 分钟 | Time: 20:45~21:00 | Cat: 汇报类
+  - Item [09] 【HiVisionCloud 3.2.4.310.1】补丁版本，乾坤台需要放开风控和流控，针对风控场景为乾坤台增加开关 | Presenter: ['贺威'] (raw: '汇报人: 贺威 00911698') | Dur: 15 分钟 | Time: 21:00~21:15 | Cat: 汇报类
+----------------------------------------------------------------------
+[2026-10-02 10:54:15] Mode: table, Total Items: 4
+  Meta: theme='', time='', attendees=''
+  Resolved Columns: {'seq': 0, 'title': 1, 'presenter': 6, 'recorder': -1, 'members': 6, 'time': 4, 'duration': 3, 'category': 2, 'description': -1}
+  - Item [01] 语音大模型中的RL技术洞察 | Presenter: ['周径'] (raw: '汇报人: 周径 00619785') | Dur: 25 分钟 | Time: 14:15~14:40 | Cat: 汇报类
+  - Item [02] Sommelier: Scalable Open Multi-turn Audio Pre-processing for Full-duplex Speech | Presenter: ['张子晗'] (raw: '汇报人: 张子晗 00933247') | Dur: 25 分钟 | Time: 14:40~15:05 | Cat: 汇报类
+  - Item [03] Thinking in cocktail party: Chain-of-Thought and reinforcement learning for TS-ASR | Presenter: ['孙天驰'] (raw: '汇报人: 孙天驰 00957091') | Dur: 25 分钟 | Time: 15:05~15:30 | Cat: 汇报类
+  - Item [04] Fish Audio S2 | Presenter: ['卢凌峰'] (raw: '汇报人: 卢凌峰 00911688') | Dur: 25 分钟 | Time: 15:30~15:55 | Cat: 汇报类
+----------------------------------------------------------------------
+[2026-10-02 10:54:15] Mode: table, Total Items: 3
+  Meta: theme='', time='', attendees=''
+  Resolved Columns: {'seq': 0, 'title': 1, 'presenter': 5, 'recorder': -1, 'members': -1, 'time': 4, 'duration': 3, 'category': 2, 'description': -1}
+  - Item [01] Agent长期记忆与用户个性化 | Presenter: ['王海涛'] (raw: '王海涛') | Dur: 30min | Time: 10:00-10:30 | Cat: 汇报类
+  - Item [02] 智能跃迁：智能体RSI递归自我演进技术洞察 | Presenter: ['刘雨桉'] (raw: '刘雨桉') | Dur: 30min | Time: 10:30-11:00 | Cat: 汇报类
+  - Item [03] AI infra优化实践 | Presenter: ['朱启源'] (raw: '朱启源') | Dur: 30min | Time: 11:00-11:30 | Cat: 汇报类
+----------------------------------------------------------------------
+[2026-10-02 10:54:15] Mode: line_scan, Total Items: 3
+  Meta: theme='技术前沿研讨例会', time='', attendees=''
+  - Item [01] 具身智能世界模型前沿洞察 | Presenter: ['李博士'] (raw: '汇报人：李博士') | Dur:  | Time:  | Cat: 
+  - Item [02] 多模态长序列端侧推理优化 | Presenter: ['王工'] (raw: '汇报人：王工') | Dur:  | Time:  | Cat: 
+  - Item [03] 强化学习在声学降噪中的实践 | Presenter: ['张研究员'] (raw: '汇报人：张研究员') | Dur:  | Time:  | Cat: 
+----------------------------------------------------------------------
+[2026-10-02 10:54:15] Mode: table, Total Items: 4
+  Meta: theme='Subject      智慧域商用发布评审', time='Time         2026/06/15(周一) 16:00-18:00(UTC+08:00)Beijing', attendees='与会人 Attendees      全程与会人：徐锋; 索勋飞(委托高雄); 吴友国; 王昊; 黄江; 何瑄; 左飞\n分段与会人：申家坤; 方思邈; 李腾飞; 郑本令; 沙彬斌; 陈啟锴; 陶强; 乔登龙;'
+  Resolved Columns: {'seq': 0, 'title': 1, 'presenter': 4, 'recorder': 5, 'members': 6, 'time': 3, 'duration': 2, 'category': -1, 'description': -1}
+  - Item [01] 小艺慧记CeliaMinutesService 1.4.5.500版本发布商用版本 | Presenter: ['申家坤'] (raw: '申家坤') | Dur: 15min | Time: 16:00-16:15 | Cat: 
+  - Item [02] 翻译海外HiTranslationService 21.1.1.300商用版本发布 | Presenter: ['刘畅'] (raw: '刘畅') | Dur: 15min | Time: 16:15-16:30 | Cat: 
+  - Item [03] HAG 3.6.5.300版本商用发布评审 | Presenter: ['沙彬斌', '陈啟锴'] (raw: '沙彬斌; 陈啟锴') | Dur: 15min | Time: 16:30-16:45 | Cat: 
+  - Item [04] SpeechASR 1.4.5.302商用版本评审 | Presenter: ['陆敬怡', '林宇珂', '赖朝辉'] (raw: '陆敬怡; 林宇珂; 赖朝辉') | Dur: 15min | Time: 16:45-17:00 | Cat: 
+----------------------------------------------------------------------
+[2026-10-02 10:54:19] Mode: table, Total Items: 9
+  Meta: theme='', time='', attendees=''
+  Resolved Columns: {'seq': 0, 'title': 1, 'presenter': 6, 'recorder': -1, 'members': 6, 'time': 4, 'duration': 3, 'category': 2, 'description': -1}
+  - Item [01] 小艺输入法CeliaKeyboardHM 1.2.2.420补丁版本评审 | Presenter: ['赵鑫岳'] (raw: '汇报人: 赵鑫岳 00585440') | Dur: 15 分钟 | Time: 19:00~19:15 | Cat: 汇报类
+  - Item [02] 小艺输入法云CeliaKeyboardService 1.4.3.300商用版本评审 | Presenter: ['於在稳'] (raw: '汇报人: 於在稳 30035890') | Dur: 15 分钟 | Time: 19:15~19:30 | Cat: 汇报类
+  - Item [03] 小艺慧记CeliaMinutesService 1.4.3.300版本发布商用版本 | Presenter: ['武思华'] (raw: '汇报人: 武思华 30032852') | Dur: 15 分钟 | Time: 19:30~19:45 | Cat: 汇报类
+  - Item [04] IDS 3.6.4.300版本商用发布评审 | Presenter: ['郑爽'] (raw: '汇报人: 郑爽 30076442') | Dur: 15 分钟 | Time: 19:45~20:00 | Cat: 汇报类
+  - Item [05] HAG 3.6.4.300版本商用发布评审 | Presenter: ['陈啟锴'] (raw: '汇报人: 陈啟锴 30014215') | Dur: 15 分钟 | Time: 20:00~20:15 | Cat: 汇报类
+  - Item [06] SpeechASR 1.4.4.300商用版本评审 | Presenter: ['林宇珂', '陆敬怡'] (raw: '汇报人: 林宇珂 00939670 陆敬怡 00841266') | Dur: 15 分钟 | Time: 20:15~20:30 | Cat: 汇报类
+  - Item [07] SpeechTTS 1.4.4.300 & SpeechTTS 1.4.4.301版本商用评审 | Presenter: ['孙鹤鸣'] (raw: '汇报人: 孙鹤鸣 00893109') | Dur: 15 分钟 | Time: 20:30~20:45 | Cat: 汇报类
+  - Item [08] HiTranslationService 1.4.3.301版本商用发布评审 | Presenter: ['张昊辰'] (raw: '汇报人: 张昊辰 30075593') | Dur: 15 分钟 | Time: 20:45~21:00 | Cat: 汇报类
+  - Item [09] 【HiVisionCloud 3.2.4.310.1】补丁版本，乾坤台需要放开风控和流控，针对风控场景为乾坤台增加开关 | Presenter: ['贺威'] (raw: '汇报人: 贺威 00911698') | Dur: 15 分钟 | Time: 21:00~21:15 | Cat: 汇报类
+----------------------------------------------------------------------
+[2026-10-02 10:54:30] Mode: table, Total Items: 2
+  Meta: theme='', time='', attendees=''
+  Resolved Columns: {'seq': 0, 'title': 1, 'presenter': 4, 'recorder': 5, 'members': 6, 'time': 3, 'duration': 2, 'category': -1, 'description': -1}
+  - Item [01] 小艺慧记 CeliaMinutesService 1.4.5.500 版本发布商用版本 | Presenter: ['申家坤'] (raw: '申家坤') | Dur: 15min | Time: 16:00-16:15 | Cat: 
+  - Item [02] 翻译海外 HiTranslationService 21.1.1.300 商用版本发布 | Presenter: ['刘畅'] (raw: '刘畅') | Dur: 15min | Time: 16:15-16:30 | Cat: 
+----------------------------------------------------------------------
+[2026-10-02 10:54:30] Mode: table, Total Items: 2
+  Meta: theme='', time='', attendees=''
+  Resolved Columns: {'seq': 0, 'title': 1, 'presenter': 3, 'recorder': -1, 'members': -1, 'time': -1, 'duration': 2, 'category': -1, 'description': -1}
+  - Item [01] 大模型推理优化 | Presenter: ['张三'] (raw: '张三') | Dur: 30分钟 | Time:  | Cat: 
+  - Item [02] Agent长期记忆 | Presenter: ['李四'] (raw: '李四') | Dur: 30分钟 | Time:  | Cat: 
+----------------------------------------------------------------------
+[2026-10-02 10:54:30] Mode: line_scan, Total Items: 2
+  Meta: theme='', time='', attendees=''
+  - Item [01] 智能跃迁：智能体RSI递归自我演进技术洞察 | Presenter: ['刘雨桉'] (raw: '汇报人：刘雨桉') | Dur:  | Time:  | Cat: 
+  - Item [02] AI infra优化实践 | Presenter: ['朱启源'] (raw: '汇报人：朱启源') | Dur:  | Time:  | Cat: 
+----------------------------------------------------------------------
+[2026-10-02 10:54:30] Mode: line_scan, Total Items: 0
+  Meta: theme='', time='', attendees=''
+  [WARNING] No items parsed! Raw text preview (first 300 chars):
+  
+----------------------------------------------------------------------
+[2026-10-02 10:54:30] Mode: table, Total Items: 3
+  Meta: theme='', time='', attendees=''
+  Resolved Columns: {'seq': 0, 'title': 1, 'presenter': 2, 'recorder': -1, 'members': -1, 'time': -1, 'duration': -1, 'category': -1, 'description': -1}
+  - Item [01] 议题A：输入法引擎优化 | Presenter: ['赵鑫岳'] (raw: '赵鑫岳') | Dur:  | Time:  | Cat: 
+  - Item [02] 议题B：语音识别模型评审 | Presenter: ['陆敬怡'] (raw: '陆敬怡') | Dur:  | Time:  | Cat: 
+  - Item [03] 议题C：离线翻译轻量化 | Presenter: ['张三'] (raw: '张三（未出席）') | Dur:  | Time:  | Cat: 
+----------------------------------------------------------------------
+[2026-10-02 10:54:30] Mode: table, Total Items: 4
+  Meta: theme='**会议主题**：智慧域商用发布评审', time='**会议时间**：2026/06/15（周一）16:00-18:00（UTC+08:00）Beijing', attendees='全程与会人/主持人**：徐锋；索勋飞；吴友国；王昊；黄江；何瑄；左飞'
+  Resolved Columns: {'seq': 0, 'title': 1, 'presenter': 2, 'recorder': -1, 'members': -1, 'time': -1, 'duration': 3, 'category': -1, 'description': -1}
+  - Item [01] 小艺慧记 CeliaMinutesService 1.4.5.500 版本发布商用版本 | Presenter: ['申家坤'] (raw: '申家坤') | Dur: 15min | Time:  | Cat: 
+  - Item [02] 翻译海外 HiTranslationService 21.1.1.300 商用版本发布 | Presenter: ['刘畅'] (raw: '刘畅') | Dur: 15min | Time:  | Cat: 
+  - Item [03] HAG 3.6.5.300 版本商用发布评审 | Presenter: ['沙彬斌', '陈锴'] (raw: '沙彬斌；陈锴') | Dur: 15min | Time:  | Cat: 
+  - Item [04] SpeechASR 1.4.5.302 商用版本评审 | Presenter: ['陆敬怡', '林宇珂', '赖朝辉'] (raw: '陆敬怡；林宇珂；赖朝辉') | Dur: 15min | Time:  | Cat: 
+----------------------------------------------------------------------
+[2026-10-02 10:54:32] Mode: table, Total Items: 4
+  Meta: theme='', time='', attendees='全程与会人/主持人**：张晓雷'
+  Resolved Columns: {'seq': 0, 'title': 1, 'presenter': 2, 'recorder': -1, 'members': -1, 'time': -1, 'duration': 3, 'category': -1, 'description': -1}
+  - Item [01] 面向智能声学与临境通信应用的多通道声信号感知、处理与重构 | Presenter: ['陈景东'] (raw: '陈景东') | Dur: 09:30-10:00 | Time:  | Cat: 
+  - Item [02] 智能语音技术的新进展——NPU-ASLP Lab视角 | Presenter: ['谢磊'] (raw: '谢磊') | Dur: 10:00-10:30 | Time:  | Cat: 
+  - Item [03] 软硬联合优化的声学前端探索 | Presenter: ['付中华'] (raw: '付中华') | Dur: 10:30-11:00 | Time:  | Cat: 
+  - Item [04] 鲁棒语音处理与安全 | Presenter: ['张晓雷'] (raw: '张晓雷') | Dur: 11:00-11:30 | Time:  | Cat: 
+----------------------------------------------------------------------
+[2026-10-02 10:54:34] Mode: table, Total Items: 5
+  Meta: theme='', time='', attendees='全程与会人/主持人**：俞凯；高虹'
+  Resolved Columns: {'seq': 0, 'title': 1, 'presenter': 2, 'recorder': -1, 'members': -1, 'time': -1, 'duration': 3, 'category': -1, 'description': -1}
+  - Item [01] 语音模仿与鉴别 | Presenter: ['陶建华'] (raw: '陶建华') | Dur: 09:30-10:15 | Time:  | Cat: 
+  - Item [02] 声学所语音识别最新进展及应用 | Presenter: ['颜永红'] (raw: '颜永红') | Dur: 10:30-11:15 | Time:  | Cat: 
+  - Item [03] 百度语音在建模技术、多模态和芯片方面的最新进展 | Presenter: ['贾磊'] (raw: '贾磊') | Dur: 11:15-12:00 | Time:  | Cat: 
+  - Item [04] 声纹识别应用的技术挑战 | Presenter: ['郑方'] (raw: '郑方') | Dur: 13:00-13:45 | Time:  | Cat: 
+  - Item [05] 语音合成中的自然韵律多样性建模 | Presenter: ['俞凯'] (raw: '俞凯') | Dur: 13:45-14:30 | Time:  | Cat: 
+----------------------------------------------------------------------
+[2026-10-02 10:54:39] Mode: table, Total Items: 9
+  Meta: theme='', time='', attendees=''
+  Resolved Columns: {'seq': 0, 'title': 1, 'presenter': 6, 'recorder': -1, 'members': 6, 'time': 4, 'duration': 3, 'category': 2, 'description': -1}
+  - Item [01] 小艺输入法CeliaKeyboardHM 1.2.2.420补丁版本评审 | Presenter: ['赵鑫岳'] (raw: '汇报人: 赵鑫岳 00585440') | Dur: 15 分钟 | Time: 19:00~19:15 | Cat: 汇报类
+  - Item [02] 小艺输入法云CeliaKeyboardService 1.4.3.300商用版本评审 | Presenter: ['於在稳'] (raw: '汇报人: 於在稳 30035890') | Dur: 15 分钟 | Time: 19:15~19:30 | Cat: 汇报类
+  - Item [03] 小艺慧记CeliaMinutesService 1.4.3.300版本发布商用版本 | Presenter: ['武思华'] (raw: '汇报人: 武思华 30032852') | Dur: 15 分钟 | Time: 19:30~19:45 | Cat: 汇报类
+  - Item [04] IDS 3.6.4.300版本商用发布评审 | Presenter: ['郑爽'] (raw: '汇报人: 郑爽 30076442') | Dur: 15 分钟 | Time: 19:45~20:00 | Cat: 汇报类
+  - Item [05] HAG 3.6.4.300版本商用发布评审 | Presenter: ['陈啟锴'] (raw: '汇报人: 陈啟错 30014215') | Dur: 15 分钟 | Time: 20:00~20:15 | Cat: 汇报类
+  - Item [06] SpeechASR 1.4.4.300商用版本评审 | Presenter: ['林宇珂', '陆敬怡'] (raw: '汇报人: 林宇珂 00939670 陆敬怡 00841266') | Dur: 15 分钟 | Time: 20:15~20:30 | Cat: 汇报类
+  - Item [07] SpeechTTS 1.4.4.300 & SpeechTTS 1.4.4.301版本商用评审 | Presenter: ['孙鹤鸣'] (raw: '汇报人: 孙鹤鸣 00893109') | Dur: 15 分钟 | Time: 20:30~20:45 | Cat: 汇报类
+  - Item [08] HiTranslationService 1.4.3.301版本商用发布评审 | Presenter: ['张昊辰'] (raw: '汇报人: 张昊辰 30075593') | Dur: 15 分钟 | Time: 20:45~21:00 | Cat: 汇报类
+  - Item [09] 【HiVisionCloud 3.2.4.310.1】补丁版本，乾坤台需要放开风控和流控，针对风控场景为乾坤台增加开关 | Presenter: ['贺威'] (raw: '汇报人: 贺威 00911698') | Dur: 15 分钟 | Time: 21:00~21:15 | Cat: 汇报类
+----------------------------------------------------------------------
+[2026-10-02 10:54:49] Mode: table, Total Items: 5
+  Meta: theme='何刚总北研所交流会', time='2026年09月23日9:00—11:00', attendees=''
+  Resolved Columns: {'seq': 0, 'title': 2, 'presenter': -1, 'recorder': -1, 'members': -1, 'time': 1, 'duration': -1, 'category': -1, 'description': 3}
+  - Item [01] 视频观看 | Presenter: [] (raw: '') | Dur:  | Time: 09:00-09:10 | Cat: 
+  - Item [02] 何刚总致辞 | Presenter: [] (raw: '') | Dur:  | Time: 09:10-09:30 | Cat: 
+  - Item [03] 互动交流 | Presenter: [] (raw: '') | Dur:  | Time: 09:30-10:30 | Cat: 
+  - Item [04] 任务令签署与授予 | Presenter: [] (raw: '') | Dur:  | Time: 10:30-10:40 | Cat: 
+  - Item [05] 全体合影 | Presenter: [] (raw: '') | Dur:  | Time: 10:40-10:50 | Cat: 
+----------------------------------------------------------------------
+[2026-10-02 10:54:49] Mode: table, Total Items: 5
+  Meta: theme='何刚总北研所交流会', time='2026年09月23日9:00—11:00', attendees=''
+  Resolved Columns: {'seq': 0, 'title': 2, 'presenter': -1, 'recorder': -1, 'members': -1, 'time': 1, 'duration': -1, 'category': -1, 'description': 3}
+  - Item [01] 视频观看 | Presenter: [] (raw: '') | Dur:  | Time: 09:00-09:10 | Cat: 
+  - Item [02] 何刚总致辞 | Presenter: [] (raw: '') | Dur:  | Time: 09:10-09:30 | Cat: 
+  - Item [03] 互动交流 | Presenter: [] (raw: '') | Dur:  | Time: 09:30-10:30 | Cat: 
+  - Item [04] 任务令签署与授予 | Presenter: [] (raw: '') | Dur:  | Time: 10:30-10:40 | Cat: 
+  - Item [05] 全体合影 | Presenter: [] (raw: '') | Dur:  | Time: 10:40-10:50 | Cat: 
+----------------------------------------------------------------------
+[2026-10-02 11:01:43] Mode: table, Total Items: 4
+  Meta: theme='Subject      智慧域商用发布评审', time='Time         2026/06/15(周一) 16:00-18:00(UTC+08:00)Beijing', attendees='与会人 Attendees      全程与会人：徐锋; 索勋飞(委托高雄); 吴友国; 王昊; 黄江; 何瑄; 左飞\n分段与会人：申家坤; 方思邈; 李腾飞; 郑本令; 沙彬斌; 陈啟锴; 陶强; 乔登龙;'
+  Resolved Columns: {'seq': 0, 'title': 1, 'presenter': 4, 'recorder': 5, 'members': 6, 'time': 3, 'duration': 2, 'category': -1, 'description': -1}
+  - Item [01] 小艺慧记CeliaMinutesService 1.4.5.500版本发布商用版本 | Presenter: ['申家坤'] (raw: '申家坤') | Dur: 15min | Time: 16:00-16:15 | Cat: 
+  - Item [02] 翻译海外HiTranslationService 21.1.1.300商用版本发布 | Presenter: ['刘畅'] (raw: '刘畅') | Dur: 15min | Time: 16:15-16:30 | Cat: 
+  - Item [03] HAG 3.6.5.300版本商用发布评审 | Presenter: ['沙彬斌', '陈啟锴'] (raw: '沙彬斌; 陈啟锴') | Dur: 15min | Time: 16:30-16:45 | Cat: 
+  - Item [04] SpeechASR 1.4.5.302商用版本评审 | Presenter: ['陆敬怡', '林宇珂', '赖朝辉'] (raw: '陆敬怡; 林宇珂; 赖朝辉') | Dur: 15min | Time: 16:45-17:00 | Cat: 
+----------------------------------------------------------------------
+[2026-10-02 11:01:43] Mode: table, Total Items: 9
+  Meta: theme='', time='', attendees=''
+  Resolved Columns: {'seq': 0, 'title': 1, 'presenter': 6, 'recorder': -1, 'members': 6, 'time': 4, 'duration': 3, 'category': 2, 'description': -1}
+  - Item [01] 小艺输入法CeliaKeyboardHM 1.2.2.420补丁版本评审 | Presenter: ['赵鑫岳'] (raw: '汇报人: 赵鑫岳 00585440') | Dur: 15 分钟 | Time: 19:00~19:15 | Cat: 汇报类
+  - Item [02] 小艺输入法云CeliaKeyboardService 1.4.3.300商用版本评审 | Presenter: ['於在稳'] (raw: '汇报人: 於在稳 30035890') | Dur: 15 分钟 | Time: 19:15~19:30 | Cat: 汇报类
+  - Item [03] 小艺慧记CeliaMinutesService 1.4.3.300版本发布商用版本 | Presenter: ['武思华'] (raw: '汇报人: 武思华 30032852') | Dur: 15 分钟 | Time: 19:30~19:45 | Cat: 汇报类
+  - Item [04] IDS 3.6.4.300版本商用发布评审 | Presenter: ['郑爽'] (raw: '汇报人: 郑爽 30076442') | Dur: 15 分钟 | Time: 19:45~20:00 | Cat: 汇报类
+  - Item [05] HAG 3.6.4.300版本商用发布评审 | Presenter: ['陈啟锴'] (raw: '汇报人: 陈啟锴 30014215') | Dur: 15 分钟 | Time: 20:00~20:15 | Cat: 汇报类
+  - Item [06] SpeechASR 1.4.4.300商用版本评审 | Presenter: ['林宇珂', '陆敬怡'] (raw: '汇报人: 林宇珂 00939670 陆敬怡 00841266') | Dur: 15 分钟 | Time: 20:15~20:30 | Cat: 汇报类
+  - Item [07] SpeechTTS 1.4.4.300 & SpeechTTS 1.4.4.301版本商用评审 | Presenter: ['孙鹤鸣'] (raw: '汇报人: 孙鹤鸣 00893109') | Dur: 15 分钟 | Time: 20:30~20:45 | Cat: 汇报类
+  - Item [08] HiTranslationService 1.4.3.301版本商用发布评审 | Presenter: ['张昊辰'] (raw: '汇报人: 张昊辰 30075593') | Dur: 15 分钟 | Time: 20:45~21:00 | Cat: 汇报类
+  - Item [09] 【HiVisionCloud 3.2.4.310.1】补丁版本，乾坤台需要放开风控和流控，针对风控场景为乾坤台增加开关 | Presenter: ['贺威'] (raw: '汇报人: 贺威 00911698') | Dur: 15 分钟 | Time: 21:00~21:15 | Cat: 汇报类
+----------------------------------------------------------------------
+[2026-10-02 11:01:43] Mode: table, Total Items: 4
+  Meta: theme='', time='', attendees=''
+  Resolved Columns: {'seq': 0, 'title': 1, 'presenter': 6, 'recorder': -1, 'members': 6, 'time': 4, 'duration': 3, 'category': 2, 'description': -1}
+  - Item [01] 语音大模型中的RL技术洞察 | Presenter: ['周径'] (raw: '汇报人: 周径 00619785') | Dur: 25 分钟 | Time: 14:15~14:40 | Cat: 汇报类
+  - Item [02] Sommelier: Scalable Open Multi-turn Audio Pre-processing for Full-duplex Speech | Presenter: ['张子晗'] (raw: '汇报人: 张子晗 00933247') | Dur: 25 分钟 | Time: 14:40~15:05 | Cat: 汇报类
+  - Item [03] Thinking in cocktail party: Chain-of-Thought and reinforcement learning for TS-ASR | Presenter: ['孙天驰'] (raw: '汇报人: 孙天驰 00957091') | Dur: 25 分钟 | Time: 15:05~15:30 | Cat: 汇报类
+  - Item [04] Fish Audio S2 | Presenter: ['卢凌峰'] (raw: '汇报人: 卢凌峰 00911688') | Dur: 25 分钟 | Time: 15:30~15:55 | Cat: 汇报类
+----------------------------------------------------------------------
+[2026-10-02 11:01:43] Mode: table, Total Items: 3
+  Meta: theme='', time='', attendees=''
+  Resolved Columns: {'seq': 0, 'title': 1, 'presenter': 5, 'recorder': -1, 'members': -1, 'time': 4, 'duration': 3, 'category': 2, 'description': -1}
+  - Item [01] Agent长期记忆与用户个性化 | Presenter: ['王海涛'] (raw: '王海涛') | Dur: 30min | Time: 10:00-10:30 | Cat: 汇报类
+  - Item [02] 智能跃迁：智能体RSI递归自我演进技术洞察 | Presenter: ['刘雨桉'] (raw: '刘雨桉') | Dur: 30min | Time: 10:30-11:00 | Cat: 汇报类
+  - Item [03] AI infra优化实践 | Presenter: ['朱启源'] (raw: '朱启源') | Dur: 30min | Time: 11:00-11:30 | Cat: 汇报类
+----------------------------------------------------------------------
+[2026-10-02 11:01:43] Mode: line_scan, Total Items: 3
+  Meta: theme='技术前沿研讨例会', time='', attendees=''
+  - Item [01] 具身智能世界模型前沿洞察 | Presenter: ['李博士'] (raw: '汇报人：李博士') | Dur:  | Time:  | Cat: 
+  - Item [02] 多模态长序列端侧推理优化 | Presenter: ['王工'] (raw: '汇报人：王工') | Dur:  | Time:  | Cat: 
+  - Item [03] 强化学习在声学降噪中的实践 | Presenter: ['张研究员'] (raw: '汇报人：张研究员') | Dur:  | Time:  | Cat: 
+----------------------------------------------------------------------
+[2026-10-02 11:01:43] Mode: table, Total Items: 4
+  Meta: theme='Subject      智慧域商用发布评审', time='Time         2026/06/15(周一) 16:00-18:00(UTC+08:00)Beijing', attendees='与会人 Attendees      全程与会人：徐锋; 索勋飞(委托高雄); 吴友国; 王昊; 黄江; 何瑄; 左飞\n分段与会人：申家坤; 方思邈; 李腾飞; 郑本令; 沙彬斌; 陈啟锴; 陶强; 乔登龙;'
+  Resolved Columns: {'seq': 0, 'title': 1, 'presenter': 4, 'recorder': 5, 'members': 6, 'time': 3, 'duration': 2, 'category': -1, 'description': -1}
+  - Item [01] 小艺慧记CeliaMinutesService 1.4.5.500版本发布商用版本 | Presenter: ['申家坤'] (raw: '申家坤') | Dur: 15min | Time: 16:00-16:15 | Cat: 
+  - Item [02] 翻译海外HiTranslationService 21.1.1.300商用版本发布 | Presenter: ['刘畅'] (raw: '刘畅') | Dur: 15min | Time: 16:15-16:30 | Cat: 
+  - Item [03] HAG 3.6.5.300版本商用发布评审 | Presenter: ['沙彬斌', '陈啟锴'] (raw: '沙彬斌; 陈啟锴') | Dur: 15min | Time: 16:30-16:45 | Cat: 
+  - Item [04] SpeechASR 1.4.5.302商用版本评审 | Presenter: ['陆敬怡', '林宇珂', '赖朝辉'] (raw: '陆敬怡; 林宇珂; 赖朝辉') | Dur: 15min | Time: 16:45-17:00 | Cat: 
+----------------------------------------------------------------------
+[2026-10-02 11:01:47] Mode: table, Total Items: 9
+  Meta: theme='', time='', attendees=''
+  Resolved Columns: {'seq': 0, 'title': 1, 'presenter': 6, 'recorder': -1, 'members': 6, 'time': 4, 'duration': 3, 'category': 2, 'description': -1}
+  - Item [01] 小艺输入法CeliaKeyboardHM 1.2.2.420补丁版本评审 | Presenter: ['赵鑫岳'] (raw: '汇报人: 赵鑫岳 00585440') | Dur: 15 分钟 | Time: 19:00~19:15 | Cat: 汇报类
+  - Item [02] 小艺输入法云CeliaKeyboardService 1.4.3.300商用版本评审 | Presenter: ['於在稳'] (raw: '汇报人: 於在稳 30035890') | Dur: 15 分钟 | Time: 19:15~19:30 | Cat: 汇报类
+  - Item [03] 小艺慧记CeliaMinutesService 1.4.3.300版本发布商用版本 | Presenter: ['武思华'] (raw: '汇报人: 武思华 30032852') | Dur: 15 分钟 | Time: 19:30~19:45 | Cat: 汇报类
+  - Item [04] IDS 3.6.4.300版本商用发布评审 | Presenter: ['郑爽'] (raw: '汇报人: 郑爽 30076442') | Dur: 15 分钟 | Time: 19:45~20:00 | Cat: 汇报类
+  - Item [05] HAG 3.6.4.300版本商用发布评审 | Presenter: ['陈啟锴'] (raw: '汇报人: 陈啟锴 30014215') | Dur: 15 分钟 | Time: 20:00~20:15 | Cat: 汇报类
+  - Item [06] SpeechASR 1.4.4.300商用版本评审 | Presenter: ['林宇珂', '陆敬怡'] (raw: '汇报人: 林宇珂 00939670 陆敬怡 00841266') | Dur: 15 分钟 | Time: 20:15~20:30 | Cat: 汇报类
+  - Item [07] SpeechTTS 1.4.4.300 & SpeechTTS 1.4.4.301版本商用评审 | Presenter: ['孙鹤鸣'] (raw: '汇报人: 孙鹤鸣 00893109') | Dur: 15 分钟 | Time: 20:30~20:45 | Cat: 汇报类
+  - Item [08] HiTranslationService 1.4.3.301版本商用发布评审 | Presenter: ['张昊辰'] (raw: '汇报人: 张昊辰 30075593') | Dur: 15 分钟 | Time: 20:45~21:00 | Cat: 汇报类
+  - Item [09] 【HiVisionCloud 3.2.4.310.1】补丁版本，乾坤台需要放开风控和流控，针对风控场景为乾坤台增加开关 | Presenter: ['贺威'] (raw: '汇报人: 贺威 00911698') | Dur: 15 分钟 | Time: 21:00~21:15 | Cat: 汇报类
+----------------------------------------------------------------------
+[2026-10-02 11:01:58] Mode: table, Total Items: 2
+  Meta: theme='', time='', attendees=''
+  Resolved Columns: {'seq': 0, 'title': 1, 'presenter': 4, 'recorder': 5, 'members': 6, 'time': 3, 'duration': 2, 'category': -1, 'description': -1}
+  - Item [01] 小艺慧记 CeliaMinutesService 1.4.5.500 版本发布商用版本 | Presenter: ['申家坤'] (raw: '申家坤') | Dur: 15min | Time: 16:00-16:15 | Cat: 
+  - Item [02] 翻译海外 HiTranslationService 21.1.1.300 商用版本发布 | Presenter: ['刘畅'] (raw: '刘畅') | Dur: 15min | Time: 16:15-16:30 | Cat: 
+----------------------------------------------------------------------
+[2026-10-02 11:01:58] Mode: table, Total Items: 2
+  Meta: theme='', time='', attendees=''
+  Resolved Columns: {'seq': 0, 'title': 1, 'presenter': 3, 'recorder': -1, 'members': -1, 'time': -1, 'duration': 2, 'category': -1, 'description': -1}
+  - Item [01] 大模型推理优化 | Presenter: ['张三'] (raw: '张三') | Dur: 30分钟 | Time:  | Cat: 
+  - Item [02] Agent长期记忆 | Presenter: ['李四'] (raw: '李四') | Dur: 30分钟 | Time:  | Cat: 
+----------------------------------------------------------------------
+[2026-10-02 11:01:58] Mode: line_scan, Total Items: 2
+  Meta: theme='', time='', attendees=''
+  - Item [01] 智能跃迁：智能体RSI递归自我演进技术洞察 | Presenter: ['刘雨桉'] (raw: '汇报人：刘雨桉') | Dur:  | Time:  | Cat: 
+  - Item [02] AI infra优化实践 | Presenter: ['朱启源'] (raw: '汇报人：朱启源') | Dur:  | Time:  | Cat: 
+----------------------------------------------------------------------
+[2026-10-02 11:01:58] Mode: line_scan, Total Items: 0
+  Meta: theme='', time='', attendees=''
+  [WARNING] No items parsed! Raw text preview (first 300 chars):
+  
+----------------------------------------------------------------------
+[2026-10-02 11:01:58] Mode: table, Total Items: 3
+  Meta: theme='', time='', attendees=''
+  Resolved Columns: {'seq': 0, 'title': 1, 'presenter': 2, 'recorder': -1, 'members': -1, 'time': -1, 'duration': -1, 'category': -1, 'description': -1}
+  - Item [01] 议题A：输入法引擎优化 | Presenter: ['赵鑫岳'] (raw: '赵鑫岳') | Dur:  | Time:  | Cat: 
+  - Item [02] 议题B：语音识别模型评审 | Presenter: ['陆敬怡'] (raw: '陆敬怡') | Dur:  | Time:  | Cat: 
+  - Item [03] 议题C：离线翻译轻量化 | Presenter: ['张三'] (raw: '张三（未出席）') | Dur:  | Time:  | Cat: 
+----------------------------------------------------------------------
+[2026-10-02 11:01:58] Mode: table, Total Items: 4
+  Meta: theme='**会议主题**：智慧域商用发布评审', time='**会议时间**：2026/06/15（周一）16:00-18:00（UTC+08:00）Beijing', attendees='全程与会人/主持人**：徐锋；索勋飞；吴友国；王昊；黄江；何瑄；左飞'
+  Resolved Columns: {'seq': 0, 'title': 1, 'presenter': 2, 'recorder': -1, 'members': -1, 'time': -1, 'duration': 3, 'category': -1, 'description': -1}
+  - Item [01] 小艺慧记 CeliaMinutesService 1.4.5.500 版本发布商用版本 | Presenter: ['申家坤'] (raw: '申家坤') | Dur: 15min | Time:  | Cat: 
+  - Item [02] 翻译海外 HiTranslationService 21.1.1.300 商用版本发布 | Presenter: ['刘畅'] (raw: '刘畅') | Dur: 15min | Time:  | Cat: 
+  - Item [03] HAG 3.6.5.300 版本商用发布评审 | Presenter: ['沙彬斌', '陈锴'] (raw: '沙彬斌；陈锴') | Dur: 15min | Time:  | Cat: 
+  - Item [04] SpeechASR 1.4.5.302 商用版本评审 | Presenter: ['陆敬怡', '林宇珂', '赖朝辉'] (raw: '陆敬怡；林宇珂；赖朝辉') | Dur: 15min | Time:  | Cat: 
+----------------------------------------------------------------------
+[2026-10-02 11:01:59] Mode: table, Total Items: 4
+  Meta: theme='', time='', attendees='全程与会人/主持人**：张晓雷'
+  Resolved Columns: {'seq': 0, 'title': 1, 'presenter': 2, 'recorder': -1, 'members': -1, 'time': -1, 'duration': 3, 'category': -1, 'description': -1}
+  - Item [01] 面向智能声学与临境通信应用的多通道声信号感知、处理与重构 | Presenter: ['陈景东'] (raw: '陈景东') | Dur: 09:30-10:00 | Time:  | Cat: 
+  - Item [02] 智能语音技术的新进展——NPU-ASLP Lab视角 | Presenter: ['谢磊'] (raw: '谢磊') | Dur: 10:00-10:30 | Time:  | Cat: 
+  - Item [03] 软硬联合优化的声学前端探索 | Presenter: ['付中华'] (raw: '付中华') | Dur: 10:30-11:00 | Time:  | Cat: 
+  - Item [04] 鲁棒语音处理与安全 | Presenter: ['张晓雷'] (raw: '张晓雷') | Dur: 11:00-11:30 | Time:  | Cat: 
+----------------------------------------------------------------------
+[2026-10-02 11:02:01] Mode: table, Total Items: 5
+  Meta: theme='', time='', attendees='全程与会人/主持人**：俞凯；高虹'
+  Resolved Columns: {'seq': 0, 'title': 1, 'presenter': 2, 'recorder': -1, 'members': -1, 'time': -1, 'duration': 3, 'category': -1, 'description': -1}
+  - Item [01] 语音模仿与鉴别 | Presenter: ['陶建华'] (raw: '陶建华') | Dur: 09:30-10:15 | Time:  | Cat: 
+  - Item [02] 声学所语音识别最新进展及应用 | Presenter: ['颜永红'] (raw: '颜永红') | Dur: 10:30-11:15 | Time:  | Cat: 
+  - Item [03] 百度语音在建模技术、多模态和芯片方面的最新进展 | Presenter: ['贾磊'] (raw: '贾磊') | Dur: 11:15-12:00 | Time:  | Cat: 
+  - Item [04] 声纹识别应用的技术挑战 | Presenter: ['郑方'] (raw: '郑方') | Dur: 13:00-13:45 | Time:  | Cat: 
+  - Item [05] 语音合成中的自然韵律多样性建模 | Presenter: ['俞凯'] (raw: '俞凯') | Dur: 13:45-14:30 | Time:  | Cat: 
+----------------------------------------------------------------------
+[2026-10-02 11:02:06] Mode: table, Total Items: 9
+  Meta: theme='', time='', attendees=''
+  Resolved Columns: {'seq': 0, 'title': 1, 'presenter': 6, 'recorder': -1, 'members': 6, 'time': 4, 'duration': 3, 'category': 2, 'description': -1}
+  - Item [01] 小艺输入法CeliaKeyboardHM 1.2.2.420补丁版本评审 | Presenter: ['赵鑫岳'] (raw: '汇报人: 赵鑫岳 00585440') | Dur: 15 分钟 | Time: 19:00~19:15 | Cat: 汇报类
+  - Item [02] 小艺输入法云CeliaKeyboardService 1.4.3.300商用版本评审 | Presenter: ['於在稳'] (raw: '汇报人: 於在稳 30035890') | Dur: 15 分钟 | Time: 19:15~19:30 | Cat: 汇报类
+  - Item [03] 小艺慧记CeliaMinutesService 1.4.3.300版本发布商用版本 | Presenter: ['武思华'] (raw: '汇报人: 武思华 30032852') | Dur: 15 分钟 | Time: 19:30~19:45 | Cat: 汇报类
+  - Item [04] IDS 3.6.4.300版本商用发布评审 | Presenter: ['郑爽'] (raw: '汇报人: 郑爽 30076442') | Dur: 15 分钟 | Time: 19:45~20:00 | Cat: 汇报类
+  - Item [05] HAG 3.6.4.300版本商用发布评审 | Presenter: ['陈啟锴'] (raw: '汇报人: 陈啟错 30014215') | Dur: 15 分钟 | Time: 20:00~20:15 | Cat: 汇报类
+  - Item [06] SpeechASR 1.4.4.300商用版本评审 | Presenter: ['林宇珂', '陆敬怡'] (raw: '汇报人: 林宇珂 00939670 陆敬怡 00841266') | Dur: 15 分钟 | Time: 20:15~20:30 | Cat: 汇报类
+  - Item [07] SpeechTTS 1.4.4.300 & SpeechTTS 1.4.4.301版本商用评审 | Presenter: ['孙鹤鸣'] (raw: '汇报人: 孙鹤鸣 00893109') | Dur: 15 分钟 | Time: 20:30~20:45 | Cat: 汇报类
+  - Item [08] HiTranslationService 1.4.3.301版本商用发布评审 | Presenter: ['张昊辰'] (raw: '汇报人: 张昊辰 30075593') | Dur: 15 分钟 | Time: 20:45~21:00 | Cat: 汇报类
+  - Item [09] 【HiVisionCloud 3.2.4.310.1】补丁版本，乾坤台需要放开风控和流控，针对风控场景为乾坤台增加开关 | Presenter: ['贺威'] (raw: '汇报人: 贺威 00911698') | Dur: 15 分钟 | Time: 21:00~21:15 | Cat: 汇报类
+----------------------------------------------------------------------
+[2026-10-02 11:02:16] Mode: table, Total Items: 5
+  Meta: theme='何刚总北研所交流会', time='2026年09月23日9:00—11:00', attendees=''
+  Resolved Columns: {'seq': 0, 'title': 2, 'presenter': -1, 'recorder': -1, 'members': -1, 'time': 1, 'duration': -1, 'category': -1, 'description': 3}
+  - Item [01] 视频观看 | Presenter: [] (raw: '') | Dur:  | Time: 09:00-09:10 | Cat: 
+  - Item [02] 何刚总致辞 | Presenter: [] (raw: '') | Dur:  | Time: 09:10-09:30 | Cat: 
+  - Item [03] 互动交流 | Presenter: [] (raw: '') | Dur:  | Time: 09:30-10:30 | Cat: 
+  - Item [04] 任务令签署与授予 | Presenter: [] (raw: '') | Dur:  | Time: 10:30-10:40 | Cat: 
+  - Item [05] 全体合影 | Presenter: [] (raw: '') | Dur:  | Time: 10:40-10:50 | Cat: 
+----------------------------------------------------------------------
+[2026-10-02 11:02:16] Mode: table, Total Items: 5
+  Meta: theme='何刚总北研所交流会', time='2026年09月23日9:00—11:00', attendees=''
+  Resolved Columns: {'seq': 0, 'title': 2, 'presenter': -1, 'recorder': -1, 'members': -1, 'time': 1, 'duration': -1, 'category': -1, 'description': 3}
+  - Item [01] 视频观看 | Presenter: [] (raw: '') | Dur:  | Time: 09:00-09:10 | Cat: 
+  - Item [02] 何刚总致辞 | Presenter: [] (raw: '') | Dur:  | Time: 09:10-09:30 | Cat: 
+  - Item [03] 互动交流 | Presenter: [] (raw: '') | Dur:  | Time: 09:30-10:30 | Cat: 
+  - Item [04] 任务令签署与授予 | Presenter: [] (raw: '') | Dur:  | Time: 10:30-10:40 | Cat: 
+  - Item [05] 全体合影 | Presenter: [] (raw: '') | Dur:  | Time: 10:40-10:50 | Cat: 
+----------------------------------------------------------------------
+[2026-10-02 11:10:47] Mode: table, Total Items: 4
+  Meta: theme='Subject      智慧域商用发布评审', time='Time         2026/06/15(周一) 16:00-18:00(UTC+08:00)Beijing', attendees='与会人 Attendees      全程与会人：徐锋; 索勋飞(委托高雄); 吴友国; 王昊; 黄江; 何瑄; 左飞\n分段与会人：申家坤; 方思邈; 李腾飞; 郑本令; 沙彬斌; 陈啟锴; 陶强; 乔登龙;'
+  Resolved Columns: {'seq': 0, 'title': 1, 'presenter': 4, 'recorder': 5, 'members': 6, 'time': 3, 'duration': 2, 'category': -1, 'description': -1}
+  - Item [01] 小艺慧记CeliaMinutesService 1.4.5.500版本发布商用版本 | Presenter: ['申家坤'] (raw: '申家坤') | Dur: 15min | Time: 16:00-16:15 | Cat: 
+  - Item [02] 翻译海外HiTranslationService 21.1.1.300商用版本发布 | Presenter: ['刘畅'] (raw: '刘畅') | Dur: 15min | Time: 16:15-16:30 | Cat: 
+  - Item [03] HAG 3.6.5.300版本商用发布评审 | Presenter: ['沙彬斌', '陈啟锴'] (raw: '沙彬斌; 陈啟锴') | Dur: 15min | Time: 16:30-16:45 | Cat: 
+  - Item [04] SpeechASR 1.4.5.302商用版本评审 | Presenter: ['陆敬怡', '林宇珂', '赖朝辉'] (raw: '陆敬怡; 林宇珂; 赖朝辉') | Dur: 15min | Time: 16:45-17:00 | Cat: 
+----------------------------------------------------------------------
+[2026-10-02 11:10:47] Mode: table, Total Items: 9
+  Meta: theme='', time='', attendees=''
+  Resolved Columns: {'seq': 0, 'title': 1, 'presenter': 6, 'recorder': -1, 'members': 6, 'time': 4, 'duration': 3, 'category': 2, 'description': -1}
+  - Item [01] 小艺输入法CeliaKeyboardHM 1.2.2.420补丁版本评审 | Presenter: ['赵鑫岳'] (raw: '汇报人: 赵鑫岳 00585440') | Dur: 15 分钟 | Time: 19:00~19:15 | Cat: 汇报类
+  - Item [02] 小艺输入法云CeliaKeyboardService 1.4.3.300商用版本评审 | Presenter: ['於在稳'] (raw: '汇报人: 於在稳 30035890') | Dur: 15 分钟 | Time: 19:15~19:30 | Cat: 汇报类
+  - Item [03] 小艺慧记CeliaMinutesService 1.4.3.300版本发布商用版本 | Presenter: ['武思华'] (raw: '汇报人: 武思华 30032852') | Dur: 15 分钟 | Time: 19:30~19:45 | Cat: 汇报类
+  - Item [04] IDS 3.6.4.300版本商用发布评审 | Presenter: ['郑爽'] (raw: '汇报人: 郑爽 30076442') | Dur: 15 分钟 | Time: 19:45~20:00 | Cat: 汇报类
+  - Item [05] HAG 3.6.4.300版本商用发布评审 | Presenter: ['陈啟锴'] (raw: '汇报人: 陈啟锴 30014215') | Dur: 15 分钟 | Time: 20:00~20:15 | Cat: 汇报类
+  - Item [06] SpeechASR 1.4.4.300商用版本评审 | Presenter: ['林宇珂', '陆敬怡'] (raw: '汇报人: 林宇珂 00939670 陆敬怡 00841266') | Dur: 15 分钟 | Time: 20:15~20:30 | Cat: 汇报类
+  - Item [07] SpeechTTS 1.4.4.300 & SpeechTTS 1.4.4.301版本商用评审 | Presenter: ['孙鹤鸣'] (raw: '汇报人: 孙鹤鸣 00893109') | Dur: 15 分钟 | Time: 20:30~20:45 | Cat: 汇报类
+  - Item [08] HiTranslationService 1.4.3.301版本商用发布评审 | Presenter: ['张昊辰'] (raw: '汇报人: 张昊辰 30075593') | Dur: 15 分钟 | Time: 20:45~21:00 | Cat: 汇报类
+  - Item [09] 【HiVisionCloud 3.2.4.310.1】补丁版本，乾坤台需要放开风控和流控，针对风控场景为乾坤台增加开关 | Presenter: ['贺威'] (raw: '汇报人: 贺威 00911698') | Dur: 15 分钟 | Time: 21:00~21:15 | Cat: 汇报类
+----------------------------------------------------------------------
+[2026-10-02 11:10:47] Mode: table, Total Items: 4
+  Meta: theme='', time='', attendees=''
+  Resolved Columns: {'seq': 0, 'title': 1, 'presenter': 6, 'recorder': -1, 'members': 6, 'time': 4, 'duration': 3, 'category': 2, 'description': -1}
+  - Item [01] 语音大模型中的RL技术洞察 | Presenter: ['周径'] (raw: '汇报人: 周径 00619785') | Dur: 25 分钟 | Time: 14:15~14:40 | Cat: 汇报类
+  - Item [02] Sommelier: Scalable Open Multi-turn Audio Pre-processing for Full-duplex Speech | Presenter: ['张子晗'] (raw: '汇报人: 张子晗 00933247') | Dur: 25 分钟 | Time: 14:40~15:05 | Cat: 汇报类
+  - Item [03] Thinking in cocktail party: Chain-of-Thought and reinforcement learning for TS-ASR | Presenter: ['孙天驰'] (raw: '汇报人: 孙天驰 00957091') | Dur: 25 分钟 | Time: 15:05~15:30 | Cat: 汇报类
+  - Item [04] Fish Audio S2 | Presenter: ['卢凌峰'] (raw: '汇报人: 卢凌峰 00911688') | Dur: 25 分钟 | Time: 15:30~15:55 | Cat: 汇报类
+----------------------------------------------------------------------
+[2026-10-02 11:10:47] Mode: table, Total Items: 3
+  Meta: theme='', time='', attendees=''
+  Resolved Columns: {'seq': 0, 'title': 1, 'presenter': 5, 'recorder': -1, 'members': -1, 'time': 4, 'duration': 3, 'category': 2, 'description': -1}
+  - Item [01] Agent长期记忆与用户个性化 | Presenter: ['王海涛'] (raw: '王海涛') | Dur: 30min | Time: 10:00-10:30 | Cat: 汇报类
+  - Item [02] 智能跃迁：智能体RSI递归自我演进技术洞察 | Presenter: ['刘雨桉'] (raw: '刘雨桉') | Dur: 30min | Time: 10:30-11:00 | Cat: 汇报类
+  - Item [03] AI infra优化实践 | Presenter: ['朱启源'] (raw: '朱启源') | Dur: 30min | Time: 11:00-11:30 | Cat: 汇报类
+----------------------------------------------------------------------
+[2026-10-02 11:10:47] Mode: line_scan, Total Items: 3
+  Meta: theme='技术前沿研讨例会', time='', attendees=''
+  - Item [01] 具身智能世界模型前沿洞察 | Presenter: ['李博士'] (raw: '汇报人：李博士') | Dur:  | Time:  | Cat: 
+  - Item [02] 多模态长序列端侧推理优化 | Presenter: ['王工'] (raw: '汇报人：王工') | Dur:  | Time:  | Cat: 
+  - Item [03] 强化学习在声学降噪中的实践 | Presenter: ['张研究员'] (raw: '汇报人：张研究员') | Dur:  | Time:  | Cat: 
+----------------------------------------------------------------------
+[2026-10-02 11:10:47] Mode: table, Total Items: 4
+  Meta: theme='Subject      智慧域商用发布评审', time='Time         2026/06/15(周一) 16:00-18:00(UTC+08:00)Beijing', attendees='与会人 Attendees      全程与会人：徐锋; 索勋飞(委托高雄); 吴友国; 王昊; 黄江; 何瑄; 左飞\n分段与会人：申家坤; 方思邈; 李腾飞; 郑本令; 沙彬斌; 陈啟锴; 陶强; 乔登龙;'
+  Resolved Columns: {'seq': 0, 'title': 1, 'presenter': 4, 'recorder': 5, 'members': 6, 'time': 3, 'duration': 2, 'category': -1, 'description': -1}
+  - Item [01] 小艺慧记CeliaMinutesService 1.4.5.500版本发布商用版本 | Presenter: ['申家坤'] (raw: '申家坤') | Dur: 15min | Time: 16:00-16:15 | Cat: 
+  - Item [02] 翻译海外HiTranslationService 21.1.1.300商用版本发布 | Presenter: ['刘畅'] (raw: '刘畅') | Dur: 15min | Time: 16:15-16:30 | Cat: 
+  - Item [03] HAG 3.6.5.300版本商用发布评审 | Presenter: ['沙彬斌', '陈啟锴'] (raw: '沙彬斌; 陈啟锴') | Dur: 15min | Time: 16:30-16:45 | Cat: 
+  - Item [04] SpeechASR 1.4.5.302商用版本评审 | Presenter: ['陆敬怡', '林宇珂', '赖朝辉'] (raw: '陆敬怡; 林宇珂; 赖朝辉') | Dur: 15min | Time: 16:45-17:00 | Cat: 
+----------------------------------------------------------------------
+[2026-10-02 11:10:51] Mode: table, Total Items: 9
+  Meta: theme='', time='', attendees=''
+  Resolved Columns: {'seq': 0, 'title': 1, 'presenter': 6, 'recorder': -1, 'members': 6, 'time': 4, 'duration': 3, 'category': 2, 'description': -1}
+  - Item [01] 小艺输入法CeliaKeyboardHM 1.2.2.420补丁版本评审 | Presenter: ['赵鑫岳'] (raw: '汇报人: 赵鑫岳 00585440') | Dur: 15 分钟 | Time: 19:00~19:15 | Cat: 汇报类
+  - Item [02] 小艺输入法云CeliaKeyboardService 1.4.3.300商用版本评审 | Presenter: ['於在稳'] (raw: '汇报人: 於在稳 30035890') | Dur: 15 分钟 | Time: 19:15~19:30 | Cat: 汇报类
+  - Item [03] 小艺慧记CeliaMinutesService 1.4.3.300版本发布商用版本 | Presenter: ['武思华'] (raw: '汇报人: 武思华 30032852') | Dur: 15 分钟 | Time: 19:30~19:45 | Cat: 汇报类
+  - Item [04] IDS 3.6.4.300版本商用发布评审 | Presenter: ['郑爽'] (raw: '汇报人: 郑爽 30076442') | Dur: 15 分钟 | Time: 19:45~20:00 | Cat: 汇报类
+  - Item [05] HAG 3.6.4.300版本商用发布评审 | Presenter: ['陈啟锴'] (raw: '汇报人: 陈啟锴 30014215') | Dur: 15 分钟 | Time: 20:00~20:15 | Cat: 汇报类
+  - Item [06] SpeechASR 1.4.4.300商用版本评审 | Presenter: ['林宇珂', '陆敬怡'] (raw: '汇报人: 林宇珂 00939670 陆敬怡 00841266') | Dur: 15 分钟 | Time: 20:15~20:30 | Cat: 汇报类
+  - Item [07] SpeechTTS 1.4.4.300 & SpeechTTS 1.4.4.301版本商用评审 | Presenter: ['孙鹤鸣'] (raw: '汇报人: 孙鹤鸣 00893109') | Dur: 15 分钟 | Time: 20:30~20:45 | Cat: 汇报类
+  - Item [08] HiTranslationService 1.4.3.301版本商用发布评审 | Presenter: ['张昊辰'] (raw: '汇报人: 张昊辰 30075593') | Dur: 15 分钟 | Time: 20:45~21:00 | Cat: 汇报类
+  - Item [09] 【HiVisionCloud 3.2.4.310.1】补丁版本，乾坤台需要放开风控和流控，针对风控场景为乾坤台增加开关 | Presenter: ['贺威'] (raw: '汇报人: 贺威 00911698') | Dur: 15 分钟 | Time: 21:00~21:15 | Cat: 汇报类
+----------------------------------------------------------------------
+[2026-10-02 11:11:01] Mode: table, Total Items: 2
+  Meta: theme='', time='', attendees=''
+  Resolved Columns: {'seq': 0, 'title': 1, 'presenter': 4, 'recorder': 5, 'members': 6, 'time': 3, 'duration': 2, 'category': -1, 'description': -1}
+  - Item [01] 小艺慧记 CeliaMinutesService 1.4.5.500 版本发布商用版本 | Presenter: ['申家坤'] (raw: '申家坤') | Dur: 15min | Time: 16:00-16:15 | Cat: 
+  - Item [02] 翻译海外 HiTranslationService 21.1.1.300 商用版本发布 | Presenter: ['刘畅'] (raw: '刘畅') | Dur: 15min | Time: 16:15-16:30 | Cat: 
+----------------------------------------------------------------------
+[2026-10-02 11:11:01] Mode: table, Total Items: 2
+  Meta: theme='', time='', attendees=''
+  Resolved Columns: {'seq': 0, 'title': 1, 'presenter': 3, 'recorder': -1, 'members': -1, 'time': -1, 'duration': 2, 'category': -1, 'description': -1}
+  - Item [01] 大模型推理优化 | Presenter: ['张三'] (raw: '张三') | Dur: 30分钟 | Time:  | Cat: 
+  - Item [02] Agent长期记忆 | Presenter: ['李四'] (raw: '李四') | Dur: 30分钟 | Time:  | Cat: 
+----------------------------------------------------------------------
+[2026-10-02 11:11:01] Mode: line_scan, Total Items: 2
+  Meta: theme='', time='', attendees=''
+  - Item [01] 智能跃迁：智能体RSI递归自我演进技术洞察 | Presenter: ['刘雨桉'] (raw: '汇报人：刘雨桉') | Dur:  | Time:  | Cat: 
+  - Item [02] AI infra优化实践 | Presenter: ['朱启源'] (raw: '汇报人：朱启源') | Dur:  | Time:  | Cat: 
+----------------------------------------------------------------------
+[2026-10-02 11:11:01] Mode: line_scan, Total Items: 0
+  Meta: theme='', time='', attendees=''
+  [WARNING] No items parsed! Raw text preview (first 300 chars):
+  
+----------------------------------------------------------------------
+[2026-10-02 11:11:01] Mode: table, Total Items: 3
+  Meta: theme='', time='', attendees=''
+  Resolved Columns: {'seq': 0, 'title': 1, 'presenter': 2, 'recorder': -1, 'members': -1, 'time': -1, 'duration': -1, 'category': -1, 'description': -1}
+  - Item [01] 议题A：输入法引擎优化 | Presenter: ['赵鑫岳'] (raw: '赵鑫岳') | Dur:  | Time:  | Cat: 
+  - Item [02] 议题B：语音识别模型评审 | Presenter: ['陆敬怡'] (raw: '陆敬怡') | Dur:  | Time:  | Cat: 
+  - Item [03] 议题C：离线翻译轻量化 | Presenter: ['张三'] (raw: '张三（未出席）') | Dur:  | Time:  | Cat: 
+----------------------------------------------------------------------
+[2026-10-02 11:11:02] Mode: table, Total Items: 4
+  Meta: theme='**会议主题**：智慧域商用发布评审', time='**会议时间**：2026/06/15（周一）16:00-18:00（UTC+08:00）Beijing', attendees='全程与会人/主持人**：徐锋；索勋飞；吴友国；王昊；黄江；何瑄；左飞'
+  Resolved Columns: {'seq': 0, 'title': 1, 'presenter': 2, 'recorder': -1, 'members': -1, 'time': -1, 'duration': 3, 'category': -1, 'description': -1}
+  - Item [01] 小艺慧记 CeliaMinutesService 1.4.5.500 版本发布商用版本 | Presenter: ['申家坤'] (raw: '申家坤') | Dur: 15min | Time:  | Cat: 
+  - Item [02] 翻译海外 HiTranslationService 21.1.1.300 商用版本发布 | Presenter: ['刘畅'] (raw: '刘畅') | Dur: 15min | Time:  | Cat: 
+  - Item [03] HAG 3.6.5.300 版本商用发布评审 | Presenter: ['沙彬斌', '陈锴'] (raw: '沙彬斌；陈锴') | Dur: 15min | Time:  | Cat: 
+  - Item [04] SpeechASR 1.4.5.302 商用版本评审 | Presenter: ['陆敬怡', '林宇珂', '赖朝辉'] (raw: '陆敬怡；林宇珂；赖朝辉') | Dur: 15min | Time:  | Cat: 
+----------------------------------------------------------------------
+[2026-10-02 11:11:03] Mode: table, Total Items: 4
+  Meta: theme='', time='', attendees='全程与会人/主持人**：张晓雷'
+  Resolved Columns: {'seq': 0, 'title': 1, 'presenter': 2, 'recorder': -1, 'members': -1, 'time': -1, 'duration': 3, 'category': -1, 'description': -1}
+  - Item [01] 面向智能声学与临境通信应用的多通道声信号感知、处理与重构 | Presenter: ['陈景东'] (raw: '陈景东') | Dur: 09:30-10:00 | Time:  | Cat: 
+  - Item [02] 智能语音技术的新进展——NPU-ASLP Lab视角 | Presenter: ['谢磊'] (raw: '谢磊') | Dur: 10:00-10:30 | Time:  | Cat: 
+  - Item [03] 软硬联合优化的声学前端探索 | Presenter: ['付中华'] (raw: '付中华') | Dur: 10:30-11:00 | Time:  | Cat: 
+  - Item [04] 鲁棒语音处理与安全 | Presenter: ['张晓雷'] (raw: '张晓雷') | Dur: 11:00-11:30 | Time:  | Cat: 
+----------------------------------------------------------------------
+[2026-10-02 11:11:05] Mode: table, Total Items: 5
+  Meta: theme='', time='', attendees='全程与会人/主持人**：俞凯；高虹'
+  Resolved Columns: {'seq': 0, 'title': 1, 'presenter': 2, 'recorder': -1, 'members': -1, 'time': -1, 'duration': 3, 'category': -1, 'description': -1}
+  - Item [01] 语音模仿与鉴别 | Presenter: ['陶建华'] (raw: '陶建华') | Dur: 09:30-10:15 | Time:  | Cat: 
+  - Item [02] 声学所语音识别最新进展及应用 | Presenter: ['颜永红'] (raw: '颜永红') | Dur: 10:30-11:15 | Time:  | Cat: 
+  - Item [03] 百度语音在建模技术、多模态和芯片方面的最新进展 | Presenter: ['贾磊'] (raw: '贾磊') | Dur: 11:15-12:00 | Time:  | Cat: 
+  - Item [04] 声纹识别应用的技术挑战 | Presenter: ['郑方'] (raw: '郑方') | Dur: 13:00-13:45 | Time:  | Cat: 
+  - Item [05] 语音合成中的自然韵律多样性建模 | Presenter: ['俞凯'] (raw: '俞凯') | Dur: 13:45-14:30 | Time:  | Cat: 
+----------------------------------------------------------------------
+[2026-10-02 11:11:09] Mode: table, Total Items: 9
+  Meta: theme='', time='', attendees=''
+  Resolved Columns: {'seq': 0, 'title': 1, 'presenter': 6, 'recorder': -1, 'members': 6, 'time': 4, 'duration': 3, 'category': 2, 'description': -1}
+  - Item [01] 小艺输入法CeliaKeyboardHM 1.2.2.420补丁版本评审 | Presenter: ['赵鑫岳'] (raw: '汇报人: 赵鑫岳 00585440') | Dur: 15 分钟 | Time: 19:00~19:15 | Cat: 汇报类
+  - Item [02] 小艺输入法云CeliaKeyboardService 1.4.3.300商用版本评审 | Presenter: ['於在稳'] (raw: '汇报人: 於在稳 30035890') | Dur: 15 分钟 | Time: 19:15~19:30 | Cat: 汇报类
+  - Item [03] 小艺慧记CeliaMinutesService 1.4.3.300版本发布商用版本 | Presenter: ['武思华'] (raw: '汇报人: 武思华 30032852') | Dur: 15 分钟 | Time: 19:30~19:45 | Cat: 汇报类
+  - Item [04] IDS 3.6.4.300版本商用发布评审 | Presenter: ['郑爽'] (raw: '汇报人: 郑爽 30076442') | Dur: 15 分钟 | Time: 19:45~20:00 | Cat: 汇报类
+  - Item [05] HAG 3.6.4.300版本商用发布评审 | Presenter: ['陈啟锴'] (raw: '汇报人: 陈啟错 30014215') | Dur: 15 分钟 | Time: 20:00~20:15 | Cat: 汇报类
+  - Item [06] SpeechASR 1.4.4.300商用版本评审 | Presenter: ['林宇珂', '陆敬怡'] (raw: '汇报人: 林宇珂 00939670 陆敬怡 00841266') | Dur: 15 分钟 | Time: 20:15~20:30 | Cat: 汇报类
+  - Item [07] SpeechTTS 1.4.4.300 & SpeechTTS 1.4.4.301版本商用评审 | Presenter: ['孙鹤鸣'] (raw: '汇报人: 孙鹤鸣 00893109') | Dur: 15 分钟 | Time: 20:30~20:45 | Cat: 汇报类
+  - Item [08] HiTranslationService 1.4.3.301版本商用发布评审 | Presenter: ['张昊辰'] (raw: '汇报人: 张昊辰 30075593') | Dur: 15 分钟 | Time: 20:45~21:00 | Cat: 汇报类
+  - Item [09] 【HiVisionCloud 3.2.4.310.1】补丁版本，乾坤台需要放开风控和流控，针对风控场景为乾坤台增加开关 | Presenter: ['贺威'] (raw: '汇报人: 贺威 00911698') | Dur: 15 分钟 | Time: 21:00~21:15 | Cat: 汇报类
+----------------------------------------------------------------------
+[2026-10-02 11:11:19] Mode: table, Total Items: 5
+  Meta: theme='何刚总北研所交流会', time='2026年09月23日9:00—11:00', attendees=''
+  Resolved Columns: {'seq': 0, 'title': 2, 'presenter': -1, 'recorder': -1, 'members': -1, 'time': 1, 'duration': -1, 'category': -1, 'description': 3}
+  - Item [01] 视频观看 | Presenter: [] (raw: '') | Dur:  | Time: 09:00-09:10 | Cat: 
+  - Item [02] 何刚总致辞 | Presenter: [] (raw: '') | Dur:  | Time: 09:10-09:30 | Cat: 
+  - Item [03] 互动交流 | Presenter: [] (raw: '') | Dur:  | Time: 09:30-10:30 | Cat: 
+  - Item [04] 任务令签署与授予 | Presenter: [] (raw: '') | Dur:  | Time: 10:30-10:40 | Cat: 
+  - Item [05] 全体合影 | Presenter: [] (raw: '') | Dur:  | Time: 10:40-10:50 | Cat: 
+----------------------------------------------------------------------
+[2026-10-02 11:11:20] Mode: table, Total Items: 5
+  Meta: theme='何刚总北研所交流会', time='2026年09月23日9:00—11:00', attendees=''
+  Resolved Columns: {'seq': 0, 'title': 2, 'presenter': -1, 'recorder': -1, 'members': -1, 'time': 1, 'duration': -1, 'category': -1, 'description': 3}
+  - Item [01] 视频观看 | Presenter: [] (raw: '') | Dur:  | Time: 09:00-09:10 | Cat: 
+  - Item [02] 何刚总致辞 | Presenter: [] (raw: '') | Dur:  | Time: 09:10-09:30 | Cat: 
+  - Item [03] 互动交流 | Presenter: [] (raw: '') | Dur:  | Time: 09:30-10:30 | Cat: 
+  - Item [04] 任务令签署与授予 | Presenter: [] (raw: '') | Dur:  | Time: 10:30-10:40 | Cat: 
+  - Item [05] 全体合影 | Presenter: [] (raw: '') | Dur:  | Time: 10:40-10:50 | Cat: 
+----------------------------------------------------------------------
+[2026-10-02 11:12:41] Mode: table, Total Items: 4
+  Meta: theme='Subject      智慧域商用发布评审', time='Time         2026/06/15(周一) 16:00-18:00(UTC+08:00)Beijing', attendees='与会人 Attendees      全程与会人：徐锋; 索勋飞(委托高雄); 吴友国; 王昊; 黄江; 何瑄; 左飞\n分段与会人：申家坤; 方思邈; 李腾飞; 郑本令; 沙彬斌; 陈啟锴; 陶强; 乔登龙;'
+  Resolved Columns: {'seq': 0, 'title': 1, 'presenter': 4, 'recorder': 5, 'members': 6, 'time': 3, 'duration': 2, 'category': -1, 'description': -1}
+  - Item [01] 小艺慧记CeliaMinutesService 1.4.5.500版本发布商用版本 | Presenter: ['申家坤'] (raw: '申家坤') | Dur: 15min | Time: 16:00-16:15 | Cat: 
+  - Item [02] 翻译海外HiTranslationService 21.1.1.300商用版本发布 | Presenter: ['刘畅'] (raw: '刘畅') | Dur: 15min | Time: 16:15-16:30 | Cat: 
+  - Item [03] HAG 3.6.5.300版本商用发布评审 | Presenter: ['沙彬斌', '陈啟锴'] (raw: '沙彬斌; 陈啟锴') | Dur: 15min | Time: 16:30-16:45 | Cat: 
+  - Item [04] SpeechASR 1.4.5.302商用版本评审 | Presenter: ['陆敬怡', '林宇珂', '赖朝辉'] (raw: '陆敬怡; 林宇珂; 赖朝辉') | Dur: 15min | Time: 16:45-17:00 | Cat: 
+----------------------------------------------------------------------
+[2026-10-02 11:12:41] Mode: table, Total Items: 9
+  Meta: theme='', time='', attendees=''
+  Resolved Columns: {'seq': 0, 'title': 1, 'presenter': 6, 'recorder': -1, 'members': 6, 'time': 4, 'duration': 3, 'category': 2, 'description': -1}
+  - Item [01] 小艺输入法CeliaKeyboardHM 1.2.2.420补丁版本评审 | Presenter: ['赵鑫岳'] (raw: '汇报人: 赵鑫岳 00585440') | Dur: 15 分钟 | Time: 19:00~19:15 | Cat: 汇报类
+  - Item [02] 小艺输入法云CeliaKeyboardService 1.4.3.300商用版本评审 | Presenter: ['於在稳'] (raw: '汇报人: 於在稳 30035890') | Dur: 15 分钟 | Time: 19:15~19:30 | Cat: 汇报类
+  - Item [03] 小艺慧记CeliaMinutesService 1.4.3.300版本发布商用版本 | Presenter: ['武思华'] (raw: '汇报人: 武思华 30032852') | Dur: 15 分钟 | Time: 19:30~19:45 | Cat: 汇报类
+  - Item [04] IDS 3.6.4.300版本商用发布评审 | Presenter: ['郑爽'] (raw: '汇报人: 郑爽 30076442') | Dur: 15 分钟 | Time: 19:45~20:00 | Cat: 汇报类
+  - Item [05] HAG 3.6.4.300版本商用发布评审 | Presenter: ['陈啟锴'] (raw: '汇报人: 陈啟锴 30014215') | Dur: 15 分钟 | Time: 20:00~20:15 | Cat: 汇报类
+  - Item [06] SpeechASR 1.4.4.300商用版本评审 | Presenter: ['林宇珂', '陆敬怡'] (raw: '汇报人: 林宇珂 00939670 陆敬怡 00841266') | Dur: 15 分钟 | Time: 20:15~20:30 | Cat: 汇报类
+  - Item [07] SpeechTTS 1.4.4.300 & SpeechTTS 1.4.4.301版本商用评审 | Presenter: ['孙鹤鸣'] (raw: '汇报人: 孙鹤鸣 00893109') | Dur: 15 分钟 | Time: 20:30~20:45 | Cat: 汇报类
+  - Item [08] HiTranslationService 1.4.3.301版本商用发布评审 | Presenter: ['张昊辰'] (raw: '汇报人: 张昊辰 30075593') | Dur: 15 分钟 | Time: 20:45~21:00 | Cat: 汇报类
+  - Item [09] 【HiVisionCloud 3.2.4.310.1】补丁版本，乾坤台需要放开风控和流控，针对风控场景为乾坤台增加开关 | Presenter: ['贺威'] (raw: '汇报人: 贺威 00911698') | Dur: 15 分钟 | Time: 21:00~21:15 | Cat: 汇报类
+----------------------------------------------------------------------
+[2026-10-02 11:12:41] Mode: table, Total Items: 4
+  Meta: theme='', time='', attendees=''
+  Resolved Columns: {'seq': 0, 'title': 1, 'presenter': 6, 'recorder': -1, 'members': 6, 'time': 4, 'duration': 3, 'category': 2, 'description': -1}
+  - Item [01] 语音大模型中的RL技术洞察 | Presenter: ['周径'] (raw: '汇报人: 周径 00619785') | Dur: 25 分钟 | Time: 14:15~14:40 | Cat: 汇报类
+  - Item [02] Sommelier: Scalable Open Multi-turn Audio Pre-processing for Full-duplex Speech | Presenter: ['张子晗'] (raw: '汇报人: 张子晗 00933247') | Dur: 25 分钟 | Time: 14:40~15:05 | Cat: 汇报类
+  - Item [03] Thinking in cocktail party: Chain-of-Thought and reinforcement learning for TS-ASR | Presenter: ['孙天驰'] (raw: '汇报人: 孙天驰 00957091') | Dur: 25 分钟 | Time: 15:05~15:30 | Cat: 汇报类
+  - Item [04] Fish Audio S2 | Presenter: ['卢凌峰'] (raw: '汇报人: 卢凌峰 00911688') | Dur: 25 分钟 | Time: 15:30~15:55 | Cat: 汇报类
+----------------------------------------------------------------------
+[2026-10-02 11:12:41] Mode: table, Total Items: 3
+  Meta: theme='', time='', attendees=''
+  Resolved Columns: {'seq': 0, 'title': 1, 'presenter': 5, 'recorder': -1, 'members': -1, 'time': 4, 'duration': 3, 'category': 2, 'description': -1}
+  - Item [01] Agent长期记忆与用户个性化 | Presenter: ['王海涛'] (raw: '王海涛') | Dur: 30min | Time: 10:00-10:30 | Cat: 汇报类
+  - Item [02] 智能跃迁：智能体RSI递归自我演进技术洞察 | Presenter: ['刘雨桉'] (raw: '刘雨桉') | Dur: 30min | Time: 10:30-11:00 | Cat: 汇报类
+  - Item [03] AI infra优化实践 | Presenter: ['朱启源'] (raw: '朱启源') | Dur: 30min | Time: 11:00-11:30 | Cat: 汇报类
+----------------------------------------------------------------------
+[2026-10-02 11:12:41] Mode: line_scan, Total Items: 3
+  Meta: theme='技术前沿研讨例会', time='', attendees=''
+  - Item [01] 具身智能世界模型前沿洞察 | Presenter: ['李博士'] (raw: '汇报人：李博士') | Dur:  | Time:  | Cat: 
+  - Item [02] 多模态长序列端侧推理优化 | Presenter: ['王工'] (raw: '汇报人：王工') | Dur:  | Time:  | Cat: 
+  - Item [03] 强化学习在声学降噪中的实践 | Presenter: ['张研究员'] (raw: '汇报人：张研究员') | Dur:  | Time:  | Cat: 
+----------------------------------------------------------------------
+[2026-10-02 11:12:41] Mode: table, Total Items: 4
+  Meta: theme='Subject      智慧域商用发布评审', time='Time         2026/06/15(周一) 16:00-18:00(UTC+08:00)Beijing', attendees='与会人 Attendees      全程与会人：徐锋; 索勋飞(委托高雄); 吴友国; 王昊; 黄江; 何瑄; 左飞\n分段与会人：申家坤; 方思邈; 李腾飞; 郑本令; 沙彬斌; 陈啟锴; 陶强; 乔登龙;'
+  Resolved Columns: {'seq': 0, 'title': 1, 'presenter': 4, 'recorder': 5, 'members': 6, 'time': 3, 'duration': 2, 'category': -1, 'description': -1}
+  - Item [01] 小艺慧记CeliaMinutesService 1.4.5.500版本发布商用版本 | Presenter: ['申家坤'] (raw: '申家坤') | Dur: 15min | Time: 16:00-16:15 | Cat: 
+  - Item [02] 翻译海外HiTranslationService 21.1.1.300商用版本发布 | Presenter: ['刘畅'] (raw: '刘畅') | Dur: 15min | Time: 16:15-16:30 | Cat: 
+  - Item [03] HAG 3.6.5.300版本商用发布评审 | Presenter: ['沙彬斌', '陈啟锴'] (raw: '沙彬斌; 陈啟锴') | Dur: 15min | Time: 16:30-16:45 | Cat: 
+  - Item [04] SpeechASR 1.4.5.302商用版本评审 | Presenter: ['陆敬怡', '林宇珂', '赖朝辉'] (raw: '陆敬怡; 林宇珂; 赖朝辉') | Dur: 15min | Time: 16:45-17:00 | Cat: 
+----------------------------------------------------------------------
+[2026-10-02 11:12:45] Mode: table, Total Items: 9
+  Meta: theme='', time='', attendees=''
+  Resolved Columns: {'seq': 0, 'title': 1, 'presenter': 6, 'recorder': -1, 'members': 6, 'time': 4, 'duration': 3, 'category': 2, 'description': -1}
+  - Item [01] 小艺输入法CeliaKeyboardHM 1.2.2.420补丁版本评审 | Presenter: ['赵鑫岳'] (raw: '汇报人: 赵鑫岳 00585440') | Dur: 15 分钟 | Time: 19:00~19:15 | Cat: 汇报类
+  - Item [02] 小艺输入法云CeliaKeyboardService 1.4.3.300商用版本评审 | Presenter: ['於在稳'] (raw: '汇报人: 於在稳 30035890') | Dur: 15 分钟 | Time: 19:15~19:30 | Cat: 汇报类
+  - Item [03] 小艺慧记CeliaMinutesService 1.4.3.300版本发布商用版本 | Presenter: ['武思华'] (raw: '汇报人: 武思华 30032852') | Dur: 15 分钟 | Time: 19:30~19:45 | Cat: 汇报类
+  - Item [04] IDS 3.6.4.300版本商用发布评审 | Presenter: ['郑爽'] (raw: '汇报人: 郑爽 30076442') | Dur: 15 分钟 | Time: 19:45~20:00 | Cat: 汇报类
+  - Item [05] HAG 3.6.4.300版本商用发布评审 | Presenter: ['陈啟锴'] (raw: '汇报人: 陈啟锴 30014215') | Dur: 15 分钟 | Time: 20:00~20:15 | Cat: 汇报类
+  - Item [06] SpeechASR 1.4.4.300商用版本评审 | Presenter: ['林宇珂', '陆敬怡'] (raw: '汇报人: 林宇珂 00939670 陆敬怡 00841266') | Dur: 15 分钟 | Time: 20:15~20:30 | Cat: 汇报类
+  - Item [07] SpeechTTS 1.4.4.300 & SpeechTTS 1.4.4.301版本商用评审 | Presenter: ['孙鹤鸣'] (raw: '汇报人: 孙鹤鸣 00893109') | Dur: 15 分钟 | Time: 20:30~20:45 | Cat: 汇报类
+  - Item [08] HiTranslationService 1.4.3.301版本商用发布评审 | Presenter: ['张昊辰'] (raw: '汇报人: 张昊辰 30075593') | Dur: 15 分钟 | Time: 20:45~21:00 | Cat: 汇报类
+  - Item [09] 【HiVisionCloud 3.2.4.310.1】补丁版本，乾坤台需要放开风控和流控，针对风控场景为乾坤台增加开关 | Presenter: ['贺威'] (raw: '汇报人: 贺威 00911698') | Dur: 15 分钟 | Time: 21:00~21:15 | Cat: 汇报类
+----------------------------------------------------------------------
+[2026-10-02 11:12:56] Mode: table, Total Items: 2
+  Meta: theme='', time='', attendees=''
+  Resolved Columns: {'seq': 0, 'title': 1, 'presenter': 4, 'recorder': 5, 'members': 6, 'time': 3, 'duration': 2, 'category': -1, 'description': -1}
+  - Item [01] 小艺慧记 CeliaMinutesService 1.4.5.500 版本发布商用版本 | Presenter: ['申家坤'] (raw: '申家坤') | Dur: 15min | Time: 16:00-16:15 | Cat: 
+  - Item [02] 翻译海外 HiTranslationService 21.1.1.300 商用版本发布 | Presenter: ['刘畅'] (raw: '刘畅') | Dur: 15min | Time: 16:15-16:30 | Cat: 
+----------------------------------------------------------------------
+[2026-10-02 11:12:56] Mode: table, Total Items: 2
+  Meta: theme='', time='', attendees=''
+  Resolved Columns: {'seq': 0, 'title': 1, 'presenter': 3, 'recorder': -1, 'members': -1, 'time': -1, 'duration': 2, 'category': -1, 'description': -1}
+  - Item [01] 大模型推理优化 | Presenter: ['张三'] (raw: '张三') | Dur: 30分钟 | Time:  | Cat: 
+  - Item [02] Agent长期记忆 | Presenter: ['李四'] (raw: '李四') | Dur: 30分钟 | Time:  | Cat: 
+----------------------------------------------------------------------
+[2026-10-02 11:12:56] Mode: line_scan, Total Items: 2
+  Meta: theme='', time='', attendees=''
+  - Item [01] 智能跃迁：智能体RSI递归自我演进技术洞察 | Presenter: ['刘雨桉'] (raw: '汇报人：刘雨桉') | Dur:  | Time:  | Cat: 
+  - Item [02] AI infra优化实践 | Presenter: ['朱启源'] (raw: '汇报人：朱启源') | Dur:  | Time:  | Cat: 
+----------------------------------------------------------------------
+[2026-10-02 11:12:56] Mode: line_scan, Total Items: 0
+  Meta: theme='', time='', attendees=''
+  [WARNING] No items parsed! Raw text preview (first 300 chars):
+  
+----------------------------------------------------------------------
+[2026-10-02 11:12:56] Mode: table, Total Items: 3
+  Meta: theme='', time='', attendees=''
+  Resolved Columns: {'seq': 0, 'title': 1, 'presenter': 2, 'recorder': -1, 'members': -1, 'time': -1, 'duration': -1, 'category': -1, 'description': -1}
+  - Item [01] 议题A：输入法引擎优化 | Presenter: ['赵鑫岳'] (raw: '赵鑫岳') | Dur:  | Time:  | Cat: 
+  - Item [02] 议题B：语音识别模型评审 | Presenter: ['陆敬怡'] (raw: '陆敬怡') | Dur:  | Time:  | Cat: 
+  - Item [03] 议题C：离线翻译轻量化 | Presenter: ['张三'] (raw: '张三（未出席）') | Dur:  | Time:  | Cat: 
+----------------------------------------------------------------------
+[2026-10-02 11:12:57] Mode: table, Total Items: 4
+  Meta: theme='**会议主题**：智慧域商用发布评审', time='**会议时间**：2026/06/15（周一）16:00-18:00（UTC+08:00）Beijing', attendees='全程与会人/主持人**：徐锋；索勋飞；吴友国；王昊；黄江；何瑄；左飞'
+  Resolved Columns: {'seq': 0, 'title': 1, 'presenter': 2, 'recorder': -1, 'members': -1, 'time': -1, 'duration': 3, 'category': -1, 'description': -1}
+  - Item [01] 小艺慧记 CeliaMinutesService 1.4.5.500 版本发布商用版本 | Presenter: ['申家坤'] (raw: '申家坤') | Dur: 15min | Time:  | Cat: 
+  - Item [02] 翻译海外 HiTranslationService 21.1.1.300 商用版本发布 | Presenter: ['刘畅'] (raw: '刘畅') | Dur: 15min | Time:  | Cat: 
+  - Item [03] HAG 3.6.5.300 版本商用发布评审 | Presenter: ['沙彬斌', '陈锴'] (raw: '沙彬斌；陈锴') | Dur: 15min | Time:  | Cat: 
+  - Item [04] SpeechASR 1.4.5.302 商用版本评审 | Presenter: ['陆敬怡', '林宇珂', '赖朝辉'] (raw: '陆敬怡；林宇珂；赖朝辉') | Dur: 15min | Time:  | Cat: 
+----------------------------------------------------------------------
+[2026-10-02 11:12:58] Mode: table, Total Items: 4
+  Meta: theme='', time='', attendees='全程与会人/主持人**：张晓雷'
+  Resolved Columns: {'seq': 0, 'title': 1, 'presenter': 2, 'recorder': -1, 'members': -1, 'time': -1, 'duration': 3, 'category': -1, 'description': -1}
+  - Item [01] 面向智能声学与临境通信应用的多通道声信号感知、处理与重构 | Presenter: ['陈景东'] (raw: '陈景东') | Dur: 09:30-10:00 | Time:  | Cat: 
+  - Item [02] 智能语音技术的新进展——NPU-ASLP Lab视角 | Presenter: ['谢磊'] (raw: '谢磊') | Dur: 10:00-10:30 | Time:  | Cat: 
+  - Item [03] 软硬联合优化的声学前端探索 | Presenter: ['付中华'] (raw: '付中华') | Dur: 10:30-11:00 | Time:  | Cat: 
+  - Item [04] 鲁棒语音处理与安全 | Presenter: ['张晓雷'] (raw: '张晓雷') | Dur: 11:00-11:30 | Time:  | Cat: 
+----------------------------------------------------------------------
+[2026-10-02 11:13:00] Mode: table, Total Items: 5
+  Meta: theme='', time='', attendees='全程与会人/主持人**：俞凯；高虹'
+  Resolved Columns: {'seq': 0, 'title': 1, 'presenter': 2, 'recorder': -1, 'members': -1, 'time': -1, 'duration': 3, 'category': -1, 'description': -1}
+  - Item [01] 语音模仿与鉴别 | Presenter: ['陶建华'] (raw: '陶建华') | Dur: 09:30-10:15 | Time:  | Cat: 
+  - Item [02] 声学所语音识别最新进展及应用 | Presenter: ['颜永红'] (raw: '颜永红') | Dur: 10:30-11:15 | Time:  | Cat: 
+  - Item [03] 百度语音在建模技术、多模态和芯片方面的最新进展 | Presenter: ['贾磊'] (raw: '贾磊') | Dur: 11:15-12:00 | Time:  | Cat: 
+  - Item [04] 声纹识别应用的技术挑战 | Presenter: ['郑方'] (raw: '郑方') | Dur: 13:00-13:45 | Time:  | Cat: 
+  - Item [05] 语音合成中的自然韵律多样性建模 | Presenter: ['俞凯'] (raw: '俞凯') | Dur: 13:45-14:30 | Time:  | Cat: 
+----------------------------------------------------------------------
+[2026-10-02 11:13:05] Mode: table, Total Items: 9
+  Meta: theme='', time='', attendees=''
+  Resolved Columns: {'seq': 0, 'title': 1, 'presenter': 6, 'recorder': -1, 'members': 6, 'time': 4, 'duration': 3, 'category': 2, 'description': -1}
+  - Item [01] 小艺输入法CeliaKeyboardHM 1.2.2.420补丁版本评审 | Presenter: ['赵鑫岳'] (raw: '汇报人: 赵鑫岳 00585440') | Dur: 15 分钟 | Time: 19:00~19:15 | Cat: 汇报类
+  - Item [02] 小艺输入法云CeliaKeyboardService 1.4.3.300商用版本评审 | Presenter: ['於在稳'] (raw: '汇报人: 於在稳 30035890') | Dur: 15 分钟 | Time: 19:15~19:30 | Cat: 汇报类
+  - Item [03] 小艺慧记CeliaMinutesService 1.4.3.300版本发布商用版本 | Presenter: ['武思华'] (raw: '汇报人: 武思华 30032852') | Dur: 15 分钟 | Time: 19:30~19:45 | Cat: 汇报类
+  - Item [04] IDS 3.6.4.300版本商用发布评审 | Presenter: ['郑爽'] (raw: '汇报人: 郑爽 30076442') | Dur: 15 分钟 | Time: 19:45~20:00 | Cat: 汇报类
+  - Item [05] HAG 3.6.4.300版本商用发布评审 | Presenter: ['陈啟锴'] (raw: '汇报人: 陈啟错 30014215') | Dur: 15 分钟 | Time: 20:00~20:15 | Cat: 汇报类
+  - Item [06] SpeechASR 1.4.4.300商用版本评审 | Presenter: ['林宇珂', '陆敬怡'] (raw: '汇报人: 林宇珂 00939670 陆敬怡 00841266') | Dur: 15 分钟 | Time: 20:15~20:30 | Cat: 汇报类
+  - Item [07] SpeechTTS 1.4.4.300 & SpeechTTS 1.4.4.301版本商用评审 | Presenter: ['孙鹤鸣'] (raw: '汇报人: 孙鹤鸣 00893109') | Dur: 15 分钟 | Time: 20:30~20:45 | Cat: 汇报类
+  - Item [08] HiTranslationService 1.4.3.301版本商用发布评审 | Presenter: ['张昊辰'] (raw: '汇报人: 张昊辰 30075593') | Dur: 15 分钟 | Time: 20:45~21:00 | Cat: 汇报类
+  - Item [09] 【HiVisionCloud 3.2.4.310.1】补丁版本，乾坤台需要放开风控和流控，针对风控场景为乾坤台增加开关 | Presenter: ['贺威'] (raw: '汇报人: 贺威 00911698') | Dur: 15 分钟 | Time: 21:00~21:15 | Cat: 汇报类
+----------------------------------------------------------------------
+[2026-10-02 11:13:15] Mode: table, Total Items: 5
+  Meta: theme='何刚总北研所交流会', time='2026年09月23日9:00—11:00', attendees=''
+  Resolved Columns: {'seq': 0, 'title': 2, 'presenter': -1, 'recorder': -1, 'members': -1, 'time': 1, 'duration': -1, 'category': -1, 'description': 3}
+  - Item [01] 视频观看 | Presenter: [] (raw: '') | Dur:  | Time: 09:00-09:10 | Cat: 
+  - Item [02] 何刚总致辞 | Presenter: [] (raw: '') | Dur:  | Time: 09:10-09:30 | Cat: 
+  - Item [03] 互动交流 | Presenter: [] (raw: '') | Dur:  | Time: 09:30-10:30 | Cat: 
+  - Item [04] 任务令签署与授予 | Presenter: [] (raw: '') | Dur:  | Time: 10:30-10:40 | Cat: 
+  - Item [05] 全体合影 | Presenter: [] (raw: '') | Dur:  | Time: 10:40-10:50 | Cat: 
+----------------------------------------------------------------------
+[2026-10-02 11:13:15] Mode: table, Total Items: 5
+  Meta: theme='何刚总北研所交流会', time='2026年09月23日9:00—11:00', attendees=''
+  Resolved Columns: {'seq': 0, 'title': 2, 'presenter': -1, 'recorder': -1, 'members': -1, 'time': 1, 'duration': -1, 'category': -1, 'description': 3}
+  - Item [01] 视频观看 | Presenter: [] (raw: '') | Dur:  | Time: 09:00-09:10 | Cat: 
+  - Item [02] 何刚总致辞 | Presenter: [] (raw: '') | Dur:  | Time: 09:10-09:30 | Cat: 
+  - Item [03] 互动交流 | Presenter: [] (raw: '') | Dur:  | Time: 09:30-10:30 | Cat: 
+  - Item [04] 任务令签署与授予 | Presenter: [] (raw: '') | Dur:  | Time: 10:30-10:40 | Cat: 
+  - Item [05] 全体合影 | Presenter: [] (raw: '') | Dur:  | Time: 10:40-10:50 | Cat: 
+----------------------------------------------------------------------

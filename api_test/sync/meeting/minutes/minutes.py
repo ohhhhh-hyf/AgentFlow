@@ -666,7 +666,7 @@ Ok可以。这个耿杰，到时候你们就得试一下。宇翔这边专业词
 盛晋珲 01:50:03
 Ok行，这个可能。我们再对一下，我现在就定不下来。那还有别的问题？没有，那今天先这样。感谢大家，拜。
 """
-BASE_URL = os.getenv("AGENTFLOW_BASE_URL", "http://127.0.0.1:8000").rstrip("/")
+BASE_URL = os.getenv("AGENTFLOW_BASE_URL", "http://127.0.0.1:8888").rstrip("/")
 URL = f"{BASE_URL}/api/agent/v1"
 USER_ID = "1"
 

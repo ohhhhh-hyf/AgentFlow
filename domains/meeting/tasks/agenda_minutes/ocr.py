@@ -43,19 +43,10 @@ def ocr_agenda_images(
     if not image_paths:
         return ""
 
-    try:
-        from domains.meeting.tasks.agenda_minutes.agenda_extractor import reconstruct_agenda_markdown
-    except ImportError:
-        from domains.meeting.tasks.agenda_minutes.agenda_extractor import reconstruct_agenda_markdown
-
-    try:
-        from infra.ocr.engines import ocr_engine_label
-        from infra.ocr.layout import ocr_image_lines
-        from infra.ocr.levels.light import ocr_log
-    except ImportError:
-        from infra.ocr.engines import ocr_engine_label
-        from infra.ocr.layout import ocr_image_lines
-        from infra.ocr.levels.light import ocr_log
+    from domains.meeting.tasks.agenda_minutes.agenda_extractor import reconstruct_agenda_markdown
+    from infra.ocr.engines import ocr_engine_label
+    from infra.ocr.layout import ocr_image_lines
+    from infra.ocr.levels.light import ocr_log
 
     engine = ocr_engine_label()
     total = len(image_paths)

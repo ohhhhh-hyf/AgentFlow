@@ -66,7 +66,7 @@ class MeetingUnderstandingGenerationContract(GenerationContract):
         ]),
         ObjListField("topics", [
             StrField("topic_id", "议题编号（如 T1, T2）"),
-            StrField("module", "所属业务模块/领域（如'基础架构与中间件'、'海外数据合规'）"),
+            StrField("module", "所属业务模块/业务领域（精炼概括归属领域）"),
             StrField("title", "核心议题标题（4~12字）"),
             StrField("context_and_debate", "该议题讨论经过与争论脉络（谁提出、论据交锋、为什么分歧，100~200字自然叙事）"),
             StrListField("key_metrics", "量化指标与参数（如并发数、时延、预算、排期等；无则[]）"),

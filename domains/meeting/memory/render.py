@@ -73,7 +73,7 @@ _LATIN_TERM = re.compile(r"[A-Za-z][A-Za-z0-9_\-]{2,}")
 _DATE_TERM = re.compile(r"\d{1,4}月\d{1,2}日")
 _MIN_ANCHOR = 5
 _MAX_ANCHOR = 22
-# 数字/单位与高位数：会场里"400min""930""8~9万字"这类锚点精度最高，允许短到 3 字
+# 数字/单位与高位数：会场里"400min""1024""8~9万字"这类锚点精度最高，允许短到 3 字
 _NUM_UNIT_RE = re.compile(
     r"\d+(?:\.\d+)?(?:min|ms|h|w|s|%|万|字|卡|路|场|小时|分钟|天|周|月|年|多)"
 )
@@ -186,7 +186,7 @@ def parse_memory_items(context: str) -> list[MemoryItem]:
     """从【会议记忆】块解析出可溯源条目。
 
     兼容两种形态：
-    - 新协议 ``- 文本（第2场·2026-09-08起，最近第2场·2026-09-08，状态 open，负责人 武思华）``
+    - 新协议 ``- 文本（第2场·2026-09-08起，最近第2场·2026-09-08，状态 open，负责人 责任人）``
     - 旧协议 ``- 文本（自 X，最近 Y）`` / ``- m_xxx：文本``（历史块兼容）
 
     ``status/owner/timing`` 一并解析出来：状态机在 state 里维护齐全，但过去没有承载字段，
@@ -376,7 +376,7 @@ def _needles(text: str) -> list[str]:
 class _NeedleStats:
     """锚点文本的正文行频：出现太多行说明是个泛词（满篇的 demo），不是证据。
 
-    阈值随篇幅放大——126 行的纪要里 "WeLink" 出现 7 次仍是有意义的共同话题，
+    阈值随篇幅放大——126 行的纪要里某核心技术词出现 7 次仍是有意义的共同话题，
     固定 3 行会把这类真锚点一起误杀。
     """
 
@@ -520,7 +520,7 @@ def history_comparison_section(lines: list[str]) -> str:
 
 
 def _status_line(item: MemoryItem) -> str:
-    """卡片上的状态行：``状态：未闭环（负责人 武思华，时限 8月19日前）``。"""
+    """卡片上的状态行：``状态：未闭环（负责人 责任人，时限 8月19日前）``。"""
     status = (item.status or "").strip()
     bits: list[str] = []
     if item.owner:
@@ -2010,7 +2010,7 @@ def _parse_actions_from_text(text: str) -> list[dict[str, Any]]:
             current_category = cat_m.group(2).strip()
             continue
 
-        # 3. 识别列表待办项（如 - 事项描述（高优先 · 龚总） 或 - 事项描述（龚总））
+        # 3. 识别列表待办项（如 - 事项描述（高优先 · 责任人） 或 - 事项描述（责任人））
         bullet_m = re.match(r"^[-*•]\s+(.+)$", line_s)
         if bullet_m:
             content = bullet_m.group(1).strip()

@@ -1,0 +1,28 @@
+2026-10-02 10:48:23 [INFO] [app.api.routes.agent] [api:agent] domain=meeting task=minutes request_id=e602fefad49f42859e0b814bc706fc60 user_id=1
+2026-10-02 10:48:25 [INFO] [app.tasks] [task:start] domain=meeting task=minutes request_id=e602fefad49f42859e0b814bc706fc60 user_id=1 memory=False
+2026-10-02 10:48:25 [INFO] [infra.llm.llmclient] llm client backend=http model=deepseek-chat base_url=https://api.deepseek.com ctx=65536 max_tokens=50000 timeout=120.0 retries=2 temperature=0.2 sampling_sent=False
+2026-10-02 10:48:25 [INFO] [agentflow] pipeline start lines=minutes
+2026-10-02 10:48:25 [INFO] [agentflow] agent start meeting_understanding
+2026-10-02 10:48:25 [INFO] [infra.llm.llmclient] llm call label=core/meeting_understanding mode=structured
+2026-10-02 10:48:25 [INFO] [infra.llm.llmclient] llm fit max_tokens 50000->42022 ctx=65536 input~23258
+2026-10-02 10:48:51 [INFO] [infra.llm.llmclient] llm resp label=core/meeting_understanding model=deepseek-chat finish=stop in=16448 out=7008 json_mode=True chars=18375
+2026-10-02 10:48:51 [INFO] [agentflow] agent done meeting_understanding
+2026-10-02 10:48:51 [INFO] [agentflow] node done meeting_understanding
+2026-10-02 10:48:51 [INFO] [agentflow] skip perspective (程序合成(关注雷达)) hits=2
+2026-10-02 10:48:51 [INFO] [agentflow] node done perspective_modeling
+2026-10-02 10:48:51 [INFO] [agentflow] agent start gen line=minutes
+2026-10-02 10:48:51 [INFO] [infra.llm.llmclient] llm call label=minutes/agent mode=structured
+2026-10-02 10:48:51 [INFO] [infra.llm.llmclient] llm fit max_tokens 50000->23268 ctx=65536 input~42012
+2026-10-02 10:49:01 [INFO] [infra.llm.llmclient] llm resp label=minutes/agent model=deepseek-chat finish=stop in=29903 out=2418 json_mode=True chars=4040
+2026-10-02 10:49:01 [INFO] [agentflow] agent done gen line=minutes
+2026-10-02 10:49:01 [INFO] [agentflow] node done minutes_agent
+2026-10-02 10:49:01 [INFO] [agentflow] agent start review line=minutes
+2026-10-02 10:49:01 [INFO] [infra.llm.llmclient] llm call label=minutes/supervisor mode=structured
+2026-10-02 10:49:02 [INFO] [infra.llm.llmclient] llm resp label=minutes/supervisor model=deepseek-chat finish=stop in=20209 out=51 json_mode=True chars=186
+2026-10-02 10:49:02 [INFO] [agentflow] agent done review line=minutes decision=approve
+2026-10-02 10:49:02 [INFO] [agentflow] node done minutes_supervisor
+2026-10-02 10:49:02 [INFO] [agentflow] render start line=minutes
+2026-10-02 10:49:10 [INFO] [agentflow] render done line=minutes
+2026-10-02 10:49:10 [INFO] [core.runner.runner] saved html line=minutes path=D:\study\demo\data\1\output\e602fefad49f42859e0b814bc706fc60\minutes.html
+2026-10-02 10:49:10 [INFO] [core.runner.runner] saved text line=minutes path=D:\study\demo\data\1\output\e602fefad49f42859e0b814bc706fc60\result.md
+2026-10-02 10:49:10 [INFO] [app.tasks] [task:finish] domain=meeting task=minutes request_id=e602fefad49f42859e0b814bc706fc60 cost=46.60s tokens=125942 file=minutes.html
