@@ -590,107 +590,130 @@ def latex_paper_css() -> str:
       letter-spacing: 0.2px;
     }
 
-    /* 呼吸感公文流（Actions & Risks 共用） */
-    .ck-flow-section {
-      display: flex;
-      align-items: center;
-      margin: 28px 0 14px 0;
-    }
-    .ck-flow-section:first-child {
-      margin-top: 6px;
-    }
-    .ck-flow-section-title {
-      font-weight: 700;
-      font-size: 0.95rem;
-      color: #111111;
-      white-space: nowrap;
-    }
-    .ck-flow-section-line {
-      flex: 1;
-      border-top: 1px solid #d4d0c7;
-      margin: 0 14px;
-    }
-    .ck-flow-section-count {
-      font-size: 0.78rem;
-      color: #777777;
-      white-space: nowrap;
-    }
-    .ck-flow-item {
-      margin-bottom: 18px;
+    /* 现代独立轻量工单卡片（形态 A：Actions & Risks 独立轻卡片） */
+    .ck-card {
+      background: #ffffff;
+      border: 1px solid #e2e8f0;
+      border-radius: 8px;
+      padding: 14px 18px;
+      margin-bottom: 12px;
+      box-shadow: 0 1px 2px rgba(0, 0, 0, 0.03);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+      transition: border-color 0.15s ease, box-shadow 0.15s ease;
       line-height: 1.6;
     }
-    .ck-flow-main {
-      display: flex;
-      justify-content: space-between;
-      align-items: baseline;
-      flex-wrap: wrap;
-      gap: 8px;
+    .ck-card:hover {
+      border-color: #cbd5e1;
+      box-shadow: 0 2px 5px rgba(0, 0, 0, 0.05);
     }
-    .ck-flow-title {
-      font-size: 0.88rem;
-      font-weight: 700;
-      color: #111111;
-      line-height: 1.5;
-      flex: 1 1 65%;
-      min-width: 260px;
-    }
-    .ck-flow-meta {
-      font-size: 0.78rem;
-      color: #555555;
+    .ck-card-category {
       display: inline-flex;
       align-items: center;
       gap: 6px;
-      flex-shrink: 0;
-      white-space: nowrap;
+      margin-bottom: 6px;
     }
-    .ck-flow-dot {
-      color: #999999;
+    .ck-card-accent {
+      width: 3px;
+      height: 12px;
+      border-radius: 2px;
+      background: #2563eb;
+    }
+    .ck-card-accent-risk {
+      background: #dc2626;
+    }
+    .ck-card-accent-risk-med {
+      background: #d97706;
+    }
+    .ck-card-accent-risk-low {
+      background: #2563eb;
+    }
+    .ck-card-category-text {
+      font-size: 0.78rem;
+      font-weight: 700;
+      color: #475569;
+      letter-spacing: 0.2px;
+    }
+    .ck-card-title {
+      font-size: 0.95rem;
+      font-weight: 700;
+      color: #0f172a;
+      line-height: 1.5;
+      margin-bottom: 8px;
+    }
+    .ck-card-meta {
+      display: flex;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 6px;
+      font-size: 0.78rem;
+      color: #475569;
+      line-height: 1.5;
+    }
+    .ck-card-dot {
+      color: #94a3b8;
       margin: 0 1px;
     }
-    .ck-flow-high {
-      color: #b91c1c;
-      font-weight: 700;
+    .ck-pill {
+      display: inline-block;
+      padding: 1.5px 7px;
+      border-radius: 4px;
+      font-size: 0.72rem;
+      font-weight: 600;
+      line-height: 1.4;
+      white-space: nowrap;
     }
-    .ck-flow-medium {
-      color: #b45309;
-      font-weight: 700;
+    .ck-pill-high, .ck-flow-high {
+      background: #fee2e2;
+      color: #991b1b;
+      border: 1px solid #fecaca;
     }
-    .ck-flow-low {
-      color: #1d4ed8;
-      font-weight: 700;
+    .ck-pill-medium, .ck-flow-medium {
+      background: #fef3c7;
+      color: #92400e;
+      border: 1px solid #fde68a;
     }
-    .ck-flow-drawer {
-      margin-top: 6px;
-      margin-left: 18px;
-      padding-left: 12px;
-      border-left: 2px solid #cbd5e1;
+    .ck-pill-low, .ck-flow-low {
+      background: #eff6ff;
+      color: #1e40af;
+      border: 1px solid #bfdbfe;
+    }
+    .ck-card-drawer {
+      margin-top: 10px;
+      background: #f8fafc;
+      border: 1px solid #f1f5f9;
+      border-radius: 6px;
+      padding: 9px 12px;
       font-size: 0.8rem;
-      color: #334155;
+      color: #1e293b;
       line-height: 1.6;
     }
-    .ck-flow-drawer-high {
-      border-left-color: #fca5a5;
+    .ck-card-drawer-high {
+      border-left: 3px solid #ef4444;
     }
-    .ck-flow-row {
-      margin-top: 3px;
+    .ck-card-drawer-med {
+      border-left: 3px solid #f59e0b;
     }
-    .ck-flow-row:first-child {
+    .ck-card-row {
+      margin-top: 4px;
+    }
+    .ck-card-row:first-child {
       margin-top: 0;
     }
-    .ck-flow-label {
-      font-weight: 700;
-      color: #111111;
+    .ck-card-label {
+      font-weight: 600;
+      color: #334155;
     }
-    .ck-flow-empty {
+    .ck-card-empty, .ck-flow-empty {
       text-align: center;
-      color: #888888;
-      padding: 32px 0;
-      font-style: italic;
+      color: #94a3b8;
+      padding: 36px 0;
+      font-size: 0.9rem;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
     }
 
     @media print {
+      .ck-card { break-inside: avoid; }
       .ck-flow-item { break-inside: avoid; }
-      .ck-flow-section { break-inside: avoid; }
     }
 
     @media(max-width: 860px) {

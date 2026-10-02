@@ -1822,78 +1822,69 @@ def render_risks_html(title: str, text: str, data: dict | None = None) -> str:
         groups.setdefault(cat, []).append(item)
 
     sev_map = {
-        "high": ("高风险", "ck-flow-high", "ck-flow-drawer-high"),
-        "高": ("高风险", "ck-flow-high", "ck-flow-drawer-high"),
-        "高风险": ("高风险", "ck-flow-high", "ck-flow-drawer-high"),
-        "medium": ("中风险", "ck-flow-medium", ""),
-        "中": ("中风险", "ck-flow-medium", ""),
-        "中风险": ("中风险", "ck-flow-medium", ""),
-        "low": ("低风险", "ck-flow-low", ""),
-        "低": ("低风险", "ck-flow-low", ""),
-        "低风险": ("低风险", "ck-flow-low", ""),
+        "high": ("高风险", "ck-pill-high", "ck-card-drawer-high", "ck-card-accent-risk"),
+        "高": ("高风险", "ck-pill-high", "ck-card-drawer-high", "ck-card-accent-risk"),
+        "高风险": ("高风险", "ck-pill-high", "ck-card-drawer-high", "ck-card-accent-risk"),
+        "medium": ("中风险", "ck-pill-medium", "ck-card-drawer-med", "ck-card-accent-risk-med"),
+        "中": ("中风险", "ck-pill-medium", "ck-card-drawer-med", "ck-card-accent-risk-med"),
+        "中风险": ("中风险", "ck-pill-medium", "ck-card-drawer-med", "ck-card-accent-risk-med"),
+        "low": ("低风险", "ck-pill-low", "", "ck-card-accent-risk-low"),
+        "低": ("低风险", "ck-pill-low", "", "ck-card-accent-risk-low"),
+        "低风险": ("低风险", "ck-pill-low", "", "ck-card-accent-risk-low"),
     }
 
-    sections_html = []
-    global_idx = 1
+    cards_html = []
     for cat_name, cat_items in groups.items():
-        items_html = []
         for item in cat_items:
             risk_desc = escape(str(item.get("risk") or "").strip().strip("*"), quote=False)
             if not risk_desc:
                 continue
             sev_key = str(item.get("severity") or "medium").lower().strip()
-            sev_cn, sev_cls, drawer_extra = sev_map.get(sev_key, ("中风险", "ck-flow-medium", ""))
+            sev_cn, sev_cls, drawer_extra, accent_cls = sev_map.get(
+                sev_key, ("中风险", "ck-pill-medium", "ck-card-drawer-med", "ck-card-accent-risk-med")
+            )
             owner = escape(str(item.get("owner") or "").strip(), quote=False)
             impact = escape(str(item.get("impact") or "").strip(), quote=False)
             mitigation = escape(str(item.get("mitigation") or "").strip(), quote=False)
 
-            meta_parts = [f'<span class="{sev_cls}">{sev_cn}</span>']
+            meta_parts = [f'<span class="ck-pill {sev_cls}">{sev_cn}</span>']
             if owner and owner.lower() not in ("null", "none", "无", "-", "未提及", "未明确", "待定", "待认领", "未分配", "待确认"):
                 meta_parts.append(f"<span>跟进人: {owner}</span>")
-            meta_html = ' <span class="ck-flow-dot">·</span> '.join(meta_parts)
+            meta_html = ' <span class="ck-card-dot">·</span> '.join(meta_parts)
 
             drawer_rows = []
             if impact and impact.lower() not in ("null", "none", "无", "-", "未提及", "未明确"):
                 drawer_rows.append(
-                    f'<div class="ck-flow-row"><span class="ck-flow-label">潜在危害：</span>{impact}</div>'
+                    f'<div class="ck-card-row"><span class="ck-card-label">潜在危害：</span>{impact}</div>'
                 )
             if mitigation and mitigation.lower() not in ("null", "none", "无", "-"):
                 if "未定" in mitigation or "未提及" in mitigation:
                     drawer_rows.append(
-                        f'<div class="ck-flow-row"><span class="ck-flow-label">应对措施：</span><span style="color: #888888;">{mitigation}</span></div>'
+                        f'<div class="ck-card-row"><span class="ck-card-label">应对措施：</span><span style="color: #64748b;">{mitigation}</span></div>'
                     )
                 else:
                     drawer_rows.append(
-                        f'<div class="ck-flow-row"><span class="ck-flow-label">应对措施：</span>{mitigation}</div>'
+                        f'<div class="ck-card-row"><span class="ck-card-label">应对措施：</span>{mitigation}</div>'
                     )
 
             drawer_html = (
-                f'<div class="ck-flow-drawer {drawer_extra}">{"".join(drawer_rows)}</div>'
+                f'<div class="ck-card-drawer {drawer_extra}">{"".join(drawer_rows)}</div>'
                 if drawer_rows else ""
             )
 
-            items_html.append(
-                f'<div class="ck-flow-item">'
-                f'  <div class="ck-flow-main">'
-                f'    <div class="ck-flow-title">{global_idx}. {risk_desc}</div>'
-                f'    <div class="ck-flow-meta">{meta_html}</div>'
+            cards_html.append(
+                f'<div class="ck-card ck-flow-item">'
+                f'  <div class="ck-card-category">'
+                f'    <span class="ck-card-accent {accent_cls}"></span>'
+                f'    <span class="ck-card-category-text">{escape(cat_name, quote=False)}</span>'
                 f'  </div>'
+                f'  <div class="ck-card-title">{risk_desc}</div>'
+                f'  <div class="ck-card-meta">{meta_html}</div>'
                 f'  {drawer_html}'
                 f'</div>'
             )
-            global_idx += 1
 
-        if items_html:
-            sections_html.append(
-                f'<div class="ck-flow-section">'
-                f'  <span class="ck-flow-section-title">{escape(cat_name, quote=False)}</span>'
-                f'  <div class="ck-flow-section-line"></div>'
-                f'  <span class="ck-flow-section-count">{len(items_html)} 项风险</span>'
-                f'</div>'
-                f'{"".join(items_html)}'
-            )
-
-    content_body = "".join(sections_html) if sections_html else '<div class="ck-flow-empty">暂无明确风险事项</div>'
+    content_body = "".join(cards_html) if cards_html else '<div class="ck-card-empty ck-flow-empty">暂无明确风险事项</div>'
     doc_title = escape(display_title, quote=False)
 
     page_html = f"""<!doctype html>
@@ -2139,22 +2130,20 @@ def render_actions_html(title: str, text: str, data: dict | None = None) -> str:
         groups.setdefault(cat, []).append(item)
 
     prio_map = {
-        "high": ("高优先", "ck-flow-high"),
-        "高优先": ("高优先", "ck-flow-high"),
-        "高": ("高优先", "ck-flow-high"),
-        "medium": ("中优先", "ck-flow-medium"),
-        "中优先": ("中优先", "ck-flow-medium"),
-        "中": ("中优先", "ck-flow-medium"),
-        "normal": ("中优先", "ck-flow-medium"),
-        "low": ("低优先", "ck-flow-low"),
-        "低优先": ("低优先", "ck-flow-low"),
-        "低": ("低优先", "ck-flow-low"),
+        "high": ("高优先", "ck-pill-high"),
+        "高优先": ("高优先", "ck-pill-high"),
+        "高": ("高优先", "ck-pill-high"),
+        "medium": ("中优先", "ck-pill-medium"),
+        "中优先": ("中优先", "ck-pill-medium"),
+        "中": ("中优先", "ck-pill-medium"),
+        "normal": ("中优先", "ck-pill-medium"),
+        "low": ("低优先", "ck-pill-low"),
+        "低优先": ("低优先", "ck-pill-low"),
+        "低": ("低优先", "ck-pill-low"),
     }
 
-    sections_html = []
-    global_idx = 1
+    cards_html = []
     for cat_name, cat_items in groups.items():
-        items_html = []
         for item in cat_items:
             task_desc = escape(str(item.get("task") or "").strip().strip("*"), quote=False)
             if not task_desc:
@@ -2164,51 +2153,42 @@ def render_actions_html(title: str, text: str, data: dict | None = None) -> str:
             deliverable = escape(str(item.get("deliverable") or "").strip(), quote=False)
             dependency = escape(str(item.get("dependency") or "").strip(), quote=False)
             prio_key = str(item.get("priority") or "medium").lower().strip()
-            prio_cn, prio_cls = prio_map.get(prio_key, ("中优先", "ck-flow-medium"))
-            meta_parts = [f'<span class="{prio_cls}">{prio_cn}</span>']
+            prio_cn, prio_cls = prio_map.get(prio_key, ("中优先", "ck-pill-medium"))
+            meta_parts = [f'<span class="ck-pill {prio_cls}">{prio_cn}</span>']
             if owner and owner.lower() not in ("未分配", "null", "none", "无", "-", "待定", "待确认", "待认领", "未提及", "未明确"):
                 meta_parts.append(f"<span>责任人: {owner}</span>")
             if deadline and deadline.lower() not in ("待排期", "未指定", "null", "none", "无", "-", "待定", "未明确"):
                 meta_parts.append(f"<span>完成时限: {deadline}</span>")
-            meta_html = ' <span class="ck-flow-dot">·</span> '.join(meta_parts)
+            meta_html = ' <span class="ck-card-dot">·</span> '.join(meta_parts)
 
             drawer_rows = []
             if deliverable and deliverable.lower() not in ("null", "none", "无", "未提及", "未明确", "-"):
                 drawer_rows.append(
-                    f'<div class="ck-flow-row"><span class="ck-flow-label">交付标准：</span>{deliverable}</div>'
+                    f'<div class="ck-card-row"><span class="ck-card-label">交付标准：</span>{deliverable}</div>'
                 )
             if dependency and dependency.lower() not in ("null", "none", "无", "未提及", "未明确", "-"):
                 drawer_rows.append(
-                    f'<div class="ck-flow-row"><span class="ck-flow-label">前置条件：</span>{dependency}</div>'
+                    f'<div class="ck-card-row"><span class="ck-card-label">前置条件：</span>{dependency}</div>'
                 )
 
             drawer_html = (
-                f'<div class="ck-flow-drawer">{"".join(drawer_rows)}</div>'
+                f'<div class="ck-card-drawer">{"".join(drawer_rows)}</div>'
                 if drawer_rows else ""
             )
 
-            items_html.append(
-                f'<div class="ck-flow-item">'
-                f'  <div class="ck-flow-main">'
-                f'    <div class="ck-flow-title">{global_idx}. {task_desc}</div>'
-                f'    <div class="ck-flow-meta">{meta_html}</div>'
+            cards_html.append(
+                f'<div class="ck-card ck-flow-item">'
+                f'  <div class="ck-card-category">'
+                f'    <span class="ck-card-accent"></span>'
+                f'    <span class="ck-card-category-text">{escape(cat_name, quote=False)}</span>'
                 f'  </div>'
+                f'  <div class="ck-card-title">{task_desc}</div>'
+                f'  <div class="ck-card-meta">{meta_html}</div>'
                 f'  {drawer_html}'
                 f'</div>'
             )
-            global_idx += 1
 
-        if items_html:
-            sections_html.append(
-                f'<div class="ck-flow-section">'
-                f'  <span class="ck-flow-section-title">{escape(cat_name, quote=False)}</span>'
-                f'  <div class="ck-flow-section-line"></div>'
-                f'  <span class="ck-flow-section-count">{len(items_html)} 项待办</span>'
-                f'</div>'
-                f'{"".join(items_html)}'
-            )
-
-    content_body = "".join(sections_html) if sections_html else '<div class="ck-flow-empty">暂无明确待办事项</div>'
+    content_body = "".join(cards_html) if cards_html else '<div class="ck-card-empty ck-flow-empty">暂无明确待办事项</div>'
     doc_title = escape(display_title, quote=False)
 
     page_html = f"""<!doctype html>

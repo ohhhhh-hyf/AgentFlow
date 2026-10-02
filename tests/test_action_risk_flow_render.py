@@ -1,4 +1,5 @@
 """测试待办与风险的公文流文本生成与HTML渲染。"""
+import re
 import pytest
 from core.graph.engine_text import render_risk_items
 from domains.meeting.memory.render import (
@@ -99,23 +100,24 @@ def test_action_html_flow_render():
     ]
 
     html = render_actions_html("待办清单测试", "", data={"actions": items})
-    # 验证公文流基础结构
-    assert "ck-flow-section" in html
+    # 验证独立轻卡片基础结构
+    assert "ck-card" in html
     assert "核心网关压测流控" in html
-    assert "2 项待办" in html
-    assert "1. 交付音视频推流 SDK 适配补丁" in html
-    assert "ck-flow-high" in html
+    assert "交付音视频推流 SDK 适配补丁" in html
+    assert "ck-pill-high" in html
     assert "高优先" in html
     assert "责任人: 张伟" in html
     assert "完成时限: 周五 18:00 前" in html
-    assert "ck-flow-drawer" in html
+    assert "ck-card-drawer" in html
     assert "交付标准：" in html
     assert "压测报告与 API 文档" in html
     assert "前置条件：" in html
     assert "基础架构组签发临时 Token" in html
 
-    # 验证极简项（无抽屉，未分配责任人彻底隐去，绝不显示待认领）
-    assert "2. 申请预发布独立集群机器配额" in html
+    # 验证极简项（无抽屉，未分配责任人彻底隐去，绝不显示待认领，无 1. 2. 序号与条数统计）
+    assert "申请预发布独立集群机器配额" in html
+    assert not re.search(r'class="ck-card-title">\s*\d+[\.、]', html)
+    assert "项待办" not in html
     assert "责任人: 待认领" not in html
     assert "待认领" not in html
 
@@ -126,7 +128,7 @@ def test_action_html_flow_render():
 
 
 def test_risk_html_flow_render():
-    """测试风险 HTML 呼吸感公文流排版。"""
+    """测试风险 HTML 现代轻量工单卡片排版（形态 A）。"""
     items = [
         {
             "category": "核心网关高并发",
@@ -147,11 +149,10 @@ def test_risk_html_flow_render():
     ]
 
     html = render_risks_html("风险分析测试", "", data={"risks": items})
-    assert "ck-flow-section" in html
+    assert "ck-card" in html
     assert "核心网关高并发" in html
-    assert "1 项风险" in html
-    assert "1. 核心路由压测超过 2000 QPS 频繁断流" in html
-    assert "ck-flow-high" in html
+    assert "核心路由压测超过 2000 QPS 频繁断流" in html
+    assert "ck-pill-high" in html
     assert "高风险" in html
     assert "跟进人: 架构组" in html
     assert "潜在危害：" in html
@@ -160,9 +161,11 @@ def test_risk_html_flow_render():
     assert "临时扩容 4 台网关前置限流" in html
 
     assert "提升泵防汛隐患" in html
-    assert "ck-flow-medium" in html
+    assert "ck-pill-medium" in html
     assert "中风险" in html
-    # 未指定跟进人彻底隐去，绝不显示待认领
+    # 未指定跟进人彻底隐去，绝不显示待认领，无 1. 2. 序号与条数统计
+    assert not re.search(r'class="ck-card-title">\s*\d+[\.、]', html)
+    assert "项风险" not in html
     assert "跟进人: 待认领" not in html
     assert "待认领" not in html
     assert "现场未定（待现场勘测后补充预案）" in html
