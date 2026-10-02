@@ -1855,10 +1855,10 @@ def render_risks_html(title: str, text: str, data: dict | None = None) -> str:
             impact = escape(str(item.get("impact") or "").strip(), quote=False)
             mitigation = escape(str(item.get("mitigation") or "").strip(), quote=False)
 
-            meta_parts = [f'<span class="ck-pill {sev_cls}">{sev_cn}</span>']
+            meta_spans = [f'<span class="ck-pill {sev_cls}">{sev_cn}</span>']
             if owner and owner.lower() not in ("null", "none", "无", "-", "未提及", "未明确", "待定", "待认领", "未分配", "待确认") and not re.match(r"^发言[者人]\s*\d*$", owner):
-                meta_parts.append(f"<span>跟进人: {owner}</span>")
-            meta_html = ' <span class="ck-card-dot">·</span> '.join(meta_parts)
+                meta_spans.append(f'<span class="ck-item-meta">跟进人: {owner}</span>')
+            meta_html = " ".join(meta_spans)
 
             drawer_rows = []
             if impact and impact.lower() not in ("null", "none", "无", "-", "未提及", "未明确"):
@@ -1882,8 +1882,11 @@ def render_risks_html(title: str, text: str, data: dict | None = None) -> str:
 
             items_html.append(
                 f'<div class="ck-flow-item">'
-                f'  <div class="ck-card-title">{risk_desc}</div>'
-                f'  <div class="ck-card-meta">{meta_html}</div>'
+                f'  <div class="ck-item-header">'
+                f'    <span class="ck-item-bullet">•</span>'
+                f'    <span class="ck-card-title">{risk_desc}</span>'
+                f'    {meta_html}'
+                f'  </div>'
                 f'  {drawer_html}'
                 f'</div>'
             )
@@ -2177,12 +2180,12 @@ def render_actions_html(title: str, text: str, data: dict | None = None) -> str:
             dependency = escape(str(item.get("dependency") or item.get("prerequisite") or "").strip(), quote=False)
             prio_key = str(item.get("priority") or "medium").lower().strip()
             prio_cn, prio_cls = prio_map.get(prio_key, ("中优先", "ck-pill-medium"))
-            meta_parts = [f'<span class="ck-pill {prio_cls}">{prio_cn}</span>']
+            meta_spans = [f'<span class="ck-pill {prio_cls}">{prio_cn}</span>']
             if owner and owner.lower() not in ("未分配", "null", "none", "无", "-", "待定", "待确认", "待认领", "未提及", "未明确") and not re.match(r"^发言[者人]\s*\d*$", owner):
-                meta_parts.append(f"<span>责任人: {owner}</span>")
+                meta_spans.append(f'<span class="ck-item-meta">责任人: {owner}</span>')
             if deadline and deadline.lower() not in ("待排期", "未指定", "null", "none", "无", "-", "待定", "未明确"):
-                meta_parts.append(f"<span>完成时限: {deadline}</span>")
-            meta_html = ' <span class="ck-card-dot">·</span> '.join(meta_parts)
+                meta_spans.append(f'<span class="ck-item-meta">完成时限: {deadline}</span>')
+            meta_html = " ".join(meta_spans)
 
             drawer_rows = []
             if deliverable and deliverable.lower() not in ("null", "none", "无", "未提及", "未明确", "-"):
@@ -2201,8 +2204,11 @@ def render_actions_html(title: str, text: str, data: dict | None = None) -> str:
 
             items_html.append(
                 f'<div class="ck-flow-item">'
-                f'  <div class="ck-card-title">{task_desc}</div>'
-                f'  <div class="ck-card-meta">{meta_html}</div>'
+                f'  <div class="ck-item-header">'
+                f'    <span class="ck-item-bullet">•</span>'
+                f'    <span class="ck-card-title">{task_desc}</span>'
+                f'    {meta_html}'
+                f'  </div>'
                 f'  {drawer_html}'
                 f'</div>'
             )

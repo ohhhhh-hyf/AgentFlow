@@ -51,7 +51,7 @@ objective 客观全员；personal / role_template 按用户画像裁剪，只删
 | category | 具体业务领域或风险场景短语，通常4–12字，带具体客体或业务场景（如「核心网关压测与断流」「室外混凝土路面收缩开裂」「海外数据跨境合规审查」），严禁使用「现场施工」「工程质量」等过于宽泛空洞的词汇 |
 | risk | 一句话，**逐字沿用原文**（可截取含信号片段） |
 | source | 议题名或可定位证据句；**须含支撑 severity 的原文措辞** |
-| severity | **优先消费 risk_hints.severity_evidence**（原文强度措辞原句）：含严重/高风险/重大/紧急/必须尽快/较大等 → high；原文明确影响不大/小问题/不急 → low；**无 severity_evidence 或强度不明 → 一律 medium** |
+| severity | **综合评估强度信号与业务实质影响**：① 原文含严重/高风险/重大/紧急/必须尽快等强词，**或**实质威胁验收交付生死线（直接导致验收不过/推迟交付/无法闭环）、人身安全、核心系统瘫痪资损、法律合规红线 → **high**；② 需专项整改/协调、有一定质量/进度影响但处于可控范围 → **medium**（常规默认）；③ 原文明确影响不大/小问题/不急、次要提示 → **low** |
 | impact | **潜在危害**：如果风险发生可能造成的不良业务后果；risk_hints.impact 全量带入，未提及为 null |
 | mitigation | **应对措施**：单一大字段一体化陈述；现场提了应对对策完整带入，未讨论对策为 null，严禁编造 |
 | owner | 仅原文明示姓名或团队；未指定为 null（无确定责任人则彻底隐去，绝不强加待认领） |
@@ -71,7 +71,7 @@ objective 客观全员；personal / role_template 按用户画像裁剪，只删
 
 ## 四、稳定性自检
 
-1. risk/source/severity/owner 是否原文可支撑（severity 无证据默认 medium，high 须强信号）？impact/mitigation 是否未推断？
+1. risk/source/severity/owner 是否原文可支撑（high 须有强词或严重业务危害影响）？impact/mitigation 是否未推断？
 2. 顺序是否原文序？risk_hints 有依据的是否已覆盖、多对象是否拆条？复跑集合与措辞稳定？"""
 
 
@@ -83,7 +83,7 @@ objective 客观全员；personal / role_template 按画像只删不改。
 
 ### 拦截标准
 
-- 编造风险；severity=high 无强信号；risk 明显改写原文；source 撑不住 risk
+- 编造风险；severity=high 既无原文信号亦无严重业务危害（属于无据夸大）；risk 明显改写原文；source 撑不住 risk
 - mitigation/owner 推断；遗漏原文明确严重风险
 
 - **覆盖不足 → revise**：risk_hints 条数与草稿条数相差超过 40% 且未逐条说明理由——revise 要求按 hints 补全（仍须原文锚定，禁止编造）；确有依据的排除（已解决/纯常识）不算覆盖不足

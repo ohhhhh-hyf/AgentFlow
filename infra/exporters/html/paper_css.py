@@ -590,34 +590,28 @@ def latex_paper_css() -> str:
       letter-spacing: 0.2px;
     }
 
-    /* 现代独立轻量工单卡片（形态 A：业务大点聚合卡片） */
-    .ck-card {
-      background: #ffffff;
-      border: 1px solid #e2e8f0;
-      border-radius: 8px;
-      padding: 14px 18px;
-      margin-bottom: 16px;
-      box-shadow: 0 1px 2px rgba(0, 0, 0, 0.03);
+    /* 现代极简公文流排版（简单、重点突出、彻底告别厚重卡片与底托） */
+    .ck-card, .ck-flow-group {
+      margin-bottom: 24px;
+      background: transparent;
+      border: none;
+      box-shadow: none;
+      padding: 0;
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
-      transition: border-color 0.15s ease, box-shadow 0.15s ease;
       line-height: 1.6;
-    }
-    .ck-card:hover {
-      border-color: #cbd5e1;
-      box-shadow: 0 2px 6px rgba(0, 0, 0, 0.05);
     }
     .ck-card-category {
       display: flex;
       align-items: center;
-      gap: 7px;
+      gap: 8px;
       margin-bottom: 12px;
-      padding-bottom: 8px;
-      border-bottom: 1px solid #f1f5f9;
+      padding-bottom: 6px;
+      border-bottom: 1.5px solid #e2e8f0;
       width: 100%;
     }
     .ck-card-accent {
       width: 3.5px;
-      height: 14px;
+      height: 15px;
       border-radius: 2px;
       background: #2563eb;
       flex-shrink: 0;
@@ -632,50 +626,48 @@ def latex_paper_css() -> str:
       background: #2563eb;
     }
     .ck-card-category-text {
-      font-size: 0.88rem;
+      font-size: 0.98rem;
       font-weight: 700;
-      color: #334155;
-      letter-spacing: 0.2px;
+      color: #0f172a;
+      letter-spacing: 0.3px;
     }
     .ck-flow-items {
       display: flex;
       flex-direction: column;
+      gap: 10px;
     }
     .ck-flow-item {
-      padding: 2px 0;
+      padding: 0;
+      margin: 0;
+      border: none;
     }
-    .ck-flow-item + .ck-flow-item {
-      margin-top: 14px;
-      padding-top: 14px;
-      border-top: 1px solid #f1f5f9;
+    .ck-item-header {
+      font-size: 0.93rem;
+      line-height: 1.65;
+      color: #1e293b;
+    }
+    .ck-item-bullet {
+      color: #94a3b8;
+      font-size: 0.95rem;
+      margin-right: 5px;
+      display: inline-block;
+      user-select: none;
     }
     .ck-card-title {
-      font-size: 0.95rem;
-      font-weight: 700;
+      font-weight: 600;
       color: #0f172a;
-      line-height: 1.5;
-      margin-bottom: 6px;
-    }
-    .ck-card-meta {
-      display: flex;
-      align-items: center;
-      flex-wrap: wrap;
-      gap: 6px;
-      font-size: 0.78rem;
-      color: #475569;
-      line-height: 1.5;
-    }
-    .ck-card-dot {
-      color: #94a3b8;
-      margin: 0 1px;
+      margin-right: 6px;
+      display: inline;
     }
     .ck-pill {
       display: inline-block;
-      padding: 1.5px 7px;
-      border-radius: 4px;
+      padding: 1px 6px;
+      border-radius: 3px;
       font-size: 0.72rem;
       font-weight: 600;
       line-height: 1.4;
+      vertical-align: 1px;
+      margin-right: 6px;
       white-space: nowrap;
     }
     .ck-pill-high, .ck-flow-high {
@@ -693,24 +685,34 @@ def latex_paper_css() -> str:
       color: #1e40af;
       border: 1px solid #bfdbfe;
     }
+    .ck-item-meta {
+      display: inline-block;
+      font-size: 0.78rem;
+      color: #64748b;
+      margin-right: 6px;
+      white-space: nowrap;
+    }
     .ck-card-drawer {
-      margin-top: 10px;
-      background: #f8fafc;
-      border: 1px solid #f1f5f9;
-      border-radius: 6px;
-      padding: 9px 12px;
-      font-size: 0.8rem;
-      color: #1e293b;
+      margin: 3px 0 0 14px;
+      padding: 2px 0 2px 8px;
+      border-left: 2px solid #e2e8f0;
+      background: transparent;
+      border-radius: 0;
+      border-top: none;
+      border-right: none;
+      border-bottom: none;
+      font-size: 0.82rem;
+      color: #475569;
       line-height: 1.6;
     }
     .ck-card-drawer-high {
-      border-left: 3px solid #ef4444;
+      border-left: 2.5px solid #ef4444;
     }
     .ck-card-drawer-med {
-      border-left: 3px solid #f59e0b;
+      border-left: 2.5px solid #f59e0b;
     }
     .ck-card-row {
-      margin-top: 4px;
+      margin: 1px 0;
     }
     .ck-card-row:first-child {
       margin-top: 0;
