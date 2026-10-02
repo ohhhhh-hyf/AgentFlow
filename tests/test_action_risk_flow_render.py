@@ -202,3 +202,28 @@ def test_text_to_html_roundtrip():
     assert "完成时限: 周五前" in html
     assert "交付标准：" in html
     assert "前置条件：" in html
+
+
+def test_category_grouping_multi_items():
+    """测试一个大点（业务板块）下聚拢多条事项，大点作为一张卡片，其内部聚合多条事项。"""
+    action_text = """
+1. **[现场实体整改]**
+   - 细化检查验收组提出的问题并编制方案(中优先 · 田组长)
+     > 交付标准：处理方案
+   - 编制现场实体整改方案并逐一整改(中优先 · 龚总)
+     > 交付标准：整改方案
+   - 局部损伤修补与卫生打扫(中优先)
+     > 完成时限：正式交付之前
+
+2. **[内业资料]**
+   - 汇总三个厂区资料于卢萨卡(中优先 · 龚总)
+"""
+    html = render_actions_html("多事项聚合测试", action_text)
+    # 应只有 2 个卡片（2 个大点板块），而不是 4 个卡片
+    assert html.count('class="ck-card ck-flow-group"') == 2
+    # 事项总数为 4 条
+    assert html.count('class="ck-flow-item"') == 4
+    # 大点标题在卡片头部只出现一次
+    assert html.count('<span class="ck-card-category-text">现场实体整改</span>') == 1
+    assert html.count('<span class="ck-card-category-text">内业资料</span>') == 1
+

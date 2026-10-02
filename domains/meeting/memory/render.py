@@ -1835,6 +1835,9 @@ def render_risks_html(title: str, text: str, data: dict | None = None) -> str:
 
     cards_html = []
     for cat_name, cat_items in groups.items():
+        items_html = []
+        has_high = False
+        has_med = False
         for item in cat_items:
             risk_desc = escape(str(item.get("risk") or item.get("title") or "").strip().strip("*"), quote=False)
             if not risk_desc:
@@ -1843,12 +1846,17 @@ def render_risks_html(title: str, text: str, data: dict | None = None) -> str:
             sev_cn, sev_cls, drawer_extra, accent_cls = sev_map.get(
                 sev_key, ("中风险", "ck-pill-medium", "ck-card-drawer-med", "ck-card-accent-risk-med")
             )
+            if sev_key in ("high", "高", "高风险"):
+                has_high = True
+            elif sev_key in ("medium", "中", "中风险"):
+                has_med = True
+
             owner = escape(str(item.get("owner") or "").strip(), quote=False)
             impact = escape(str(item.get("impact") or "").strip(), quote=False)
             mitigation = escape(str(item.get("mitigation") or "").strip(), quote=False)
 
             meta_parts = [f'<span class="ck-pill {sev_cls}">{sev_cn}</span>']
-            if owner and owner.lower() not in ("null", "none", "无", "-", "未提及", "未明确", "待定", "待认领", "未分配", "待确认"):
+            if owner and owner.lower() not in ("null", "none", "无", "-", "未提及", "未明确", "待定", "待认领", "未分配", "待确认") and not re.match(r"^发言[者人]\s*\d*$", owner):
                 meta_parts.append(f"<span>跟进人: {owner}</span>")
             meta_html = ' <span class="ck-card-dot">·</span> '.join(meta_parts)
 
@@ -1872,17 +1880,31 @@ def render_risks_html(title: str, text: str, data: dict | None = None) -> str:
                 if drawer_rows else ""
             )
 
-            cards_html.append(
-                f'<div class="ck-card ck-flow-item">'
-                f'  <div class="ck-card-category">'
-                f'    <span class="ck-card-accent {accent_cls}"></span>'
-                f'    <span class="ck-card-category-text">{escape(cat_name, quote=False)}</span>'
-                f'  </div>'
+            items_html.append(
+                f'<div class="ck-flow-item">'
                 f'  <div class="ck-card-title">{risk_desc}</div>'
                 f'  <div class="ck-card-meta">{meta_html}</div>'
                 f'  {drawer_html}'
                 f'</div>'
             )
+
+        if not items_html:
+            continue
+
+        cat_accent_cls = "ck-card-accent-risk" if has_high else ("ck-card-accent-risk-med" if has_med else "ck-card-accent-risk-low")
+        category_header = (
+            f'<div class="ck-card-category">'
+            f'  <span class="ck-card-accent {cat_accent_cls}"></span>'
+            f'  <span class="ck-card-category-text">{escape(cat_name, quote=False)}</span>'
+            f'</div>'
+        )
+
+        cards_html.append(
+            f'<div class="ck-card ck-flow-group">'
+            f'  {category_header}'
+            f'  <div class="ck-flow-items">{"".join(items_html)}</div>'
+            f'</div>'
+        )
 
     content_body = "".join(cards_html) if cards_html else '<div class="ck-card-empty ck-flow-empty">暂无明确风险事项</div>'
     doc_title = escape(display_title, quote=False)
@@ -2144,6 +2166,7 @@ def render_actions_html(title: str, text: str, data: dict | None = None) -> str:
 
     cards_html = []
     for cat_name, cat_items in groups.items():
+        items_html = []
         for item in cat_items:
             task_desc = escape(str(item.get("task") or item.get("title") or "").strip().strip("*"), quote=False)
             if not task_desc:
@@ -2155,7 +2178,7 @@ def render_actions_html(title: str, text: str, data: dict | None = None) -> str:
             prio_key = str(item.get("priority") or "medium").lower().strip()
             prio_cn, prio_cls = prio_map.get(prio_key, ("中优先", "ck-pill-medium"))
             meta_parts = [f'<span class="ck-pill {prio_cls}">{prio_cn}</span>']
-            if owner and owner.lower() not in ("未分配", "null", "none", "无", "-", "待定", "待确认", "待认领", "未提及", "未明确"):
+            if owner and owner.lower() not in ("未分配", "null", "none", "无", "-", "待定", "待确认", "待认领", "未提及", "未明确") and not re.match(r"^发言[者人]\s*\d*$", owner):
                 meta_parts.append(f"<span>责任人: {owner}</span>")
             if deadline and deadline.lower() not in ("待排期", "未指定", "null", "none", "无", "-", "待定", "未明确"):
                 meta_parts.append(f"<span>完成时限: {deadline}</span>")
@@ -2176,17 +2199,30 @@ def render_actions_html(title: str, text: str, data: dict | None = None) -> str:
                 if drawer_rows else ""
             )
 
-            cards_html.append(
-                f'<div class="ck-card ck-flow-item">'
-                f'  <div class="ck-card-category">'
-                f'    <span class="ck-card-accent"></span>'
-                f'    <span class="ck-card-category-text">{escape(cat_name, quote=False)}</span>'
-                f'  </div>'
+            items_html.append(
+                f'<div class="ck-flow-item">'
                 f'  <div class="ck-card-title">{task_desc}</div>'
                 f'  <div class="ck-card-meta">{meta_html}</div>'
                 f'  {drawer_html}'
                 f'</div>'
             )
+
+        if not items_html:
+            continue
+
+        category_header = (
+            f'<div class="ck-card-category">'
+            f'  <span class="ck-card-accent"></span>'
+            f'  <span class="ck-card-category-text">{escape(cat_name, quote=False)}</span>'
+            f'</div>'
+        )
+
+        cards_html.append(
+            f'<div class="ck-card ck-flow-group">'
+            f'  {category_header}'
+            f'  <div class="ck-flow-items">{"".join(items_html)}</div>'
+            f'</div>'
+        )
 
     content_body = "".join(cards_html) if cards_html else '<div class="ck-card-empty ck-flow-empty">暂无明确待办事项</div>'
     doc_title = escape(display_title, quote=False)

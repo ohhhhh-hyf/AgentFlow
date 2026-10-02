@@ -590,13 +590,13 @@ def latex_paper_css() -> str:
       letter-spacing: 0.2px;
     }
 
-    /* 现代独立轻量工单卡片（形态 A：Actions & Risks 独立轻卡片） */
+    /* 现代独立轻量工单卡片（形态 A：业务大点聚合卡片） */
     .ck-card {
       background: #ffffff;
       border: 1px solid #e2e8f0;
       border-radius: 8px;
       padding: 14px 18px;
-      margin-bottom: 12px;
+      margin-bottom: 16px;
       box-shadow: 0 1px 2px rgba(0, 0, 0, 0.03);
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
       transition: border-color 0.15s ease, box-shadow 0.15s ease;
@@ -604,19 +604,23 @@ def latex_paper_css() -> str:
     }
     .ck-card:hover {
       border-color: #cbd5e1;
-      box-shadow: 0 2px 5px rgba(0, 0, 0, 0.05);
+      box-shadow: 0 2px 6px rgba(0, 0, 0, 0.05);
     }
     .ck-card-category {
-      display: inline-flex;
+      display: flex;
       align-items: center;
-      gap: 6px;
-      margin-bottom: 6px;
+      gap: 7px;
+      margin-bottom: 12px;
+      padding-bottom: 8px;
+      border-bottom: 1px solid #f1f5f9;
+      width: 100%;
     }
     .ck-card-accent {
-      width: 3px;
-      height: 12px;
+      width: 3.5px;
+      height: 14px;
       border-radius: 2px;
       background: #2563eb;
+      flex-shrink: 0;
     }
     .ck-card-accent-risk {
       background: #dc2626;
@@ -628,17 +632,29 @@ def latex_paper_css() -> str:
       background: #2563eb;
     }
     .ck-card-category-text {
-      font-size: 0.78rem;
+      font-size: 0.88rem;
       font-weight: 700;
-      color: #475569;
+      color: #334155;
       letter-spacing: 0.2px;
+    }
+    .ck-flow-items {
+      display: flex;
+      flex-direction: column;
+    }
+    .ck-flow-item {
+      padding: 2px 0;
+    }
+    .ck-flow-item + .ck-flow-item {
+      margin-top: 14px;
+      padding-top: 14px;
+      border-top: 1px solid #f1f5f9;
     }
     .ck-card-title {
       font-size: 0.95rem;
       font-weight: 700;
       color: #0f172a;
       line-height: 1.5;
-      margin-bottom: 8px;
+      margin-bottom: 6px;
     }
     .ck-card-meta {
       display: flex;
