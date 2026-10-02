@@ -216,7 +216,7 @@ def render_risk_items(items: list[dict]) -> str:
     if not items:
         return "暂无明确风险事项"
 
-    _invalid = {"null", "none", "无", "未提及", "未明确", "待排期", "待指定", "-"}
+    _invalid = {"null", "none", "无", "未提及", "未明确", "待排期", "待指定", "-", "待认领", "未分配", "待定", "待确认"}
     _sev_map = {
         "high": "高风险", "medium": "中风险", "low": "低风险",
         "高": "高风险", "中": "中风险", "低": "低风险",
@@ -266,8 +266,10 @@ def render_risk_items(items: list[dict]) -> str:
             impact = str(item.get("impact") or "").strip()
             mitigation = str(item.get("mitigation") or "").strip()
 
-            owner_display = owner if (owner and owner.lower() not in _invalid) else "待认领"
-            meta_display = f"{sev} · {owner_display}"
+            if owner and owner.lower() not in _invalid:
+                meta_display = f"{sev} · {owner}"
+            else:
+                meta_display = f"{sev}"
 
             topic_lines.append(f"   - {risk}({meta_display})")
 

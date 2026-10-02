@@ -1774,6 +1774,9 @@ def _parse_risks_from_text(text: str) -> list[dict[str, Any]]:
                         if not owner:
                             owner = seg
 
+            if owner and owner.lower() in ("待认领", "未分配", "待定", "待确认", "未提及", "未明确", "无", "null", "none", "-"):
+                owner = ""
+
             risks.append({
                 "category": category,
                 "risk": raw_risk,
@@ -1844,10 +1847,10 @@ def render_risks_html(title: str, text: str, data: dict | None = None) -> str:
             impact = escape(str(item.get("impact") or "").strip(), quote=False)
             mitigation = escape(str(item.get("mitigation") or "").strip(), quote=False)
 
-            if not owner or owner.lower() in ("null", "none", "无", "-", "未提及", "未明确", "待定", "待认领"):
-                owner_str = '<span style="color: #b45309;">跟进人: 待认领</span>'
-            else:
-                owner_str = f"<span>跟进人: {owner}</span>"
+            meta_parts = [f'<span class="{sev_cls}">{sev_cn}</span>']
+            if owner and owner.lower() not in ("null", "none", "无", "-", "未提及", "未明确", "待定", "待认领", "未分配", "待确认"):
+                meta_parts.append(f"<span>跟进人: {owner}</span>")
+            meta_html = ' <span class="ck-flow-dot">·</span> '.join(meta_parts)
 
             drawer_rows = []
             if impact and impact.lower() not in ("null", "none", "无", "-", "未提及", "未明确"):
@@ -1873,11 +1876,7 @@ def render_risks_html(title: str, text: str, data: dict | None = None) -> str:
                 f'<div class="ck-flow-item">'
                 f'  <div class="ck-flow-main">'
                 f'    <div class="ck-flow-title">{global_idx}. {risk_desc}</div>'
-                f'    <div class="ck-flow-meta">'
-                f'      <span class="{sev_cls}">{sev_cn}</span>'
-                f'      <span class="ck-flow-dot">·</span>'
-                f'      {owner_str}'
-                f'    </div>'
+                f'    <div class="ck-flow-meta">{meta_html}</div>'
                 f'  </div>'
                 f'  {drawer_html}'
                 f'</div>'
@@ -2016,6 +2015,9 @@ def _parse_actions_from_text(text: str) -> list[dict[str, Any]]:
             else:
                 raw_task = content.strip("*").strip()
 
+            if owner and owner.lower() in ("待认领", "未分配", "待定", "待确认", "未提及", "未明确", "无", "null", "none", "-"):
+                owner = ""
+
             category = current_category
             if (raw_task.startswith("【") and "】" in raw_task) or (raw_task.startswith("[") and "]" in raw_task):
                 m_c = re.match(r"^[\[【](.*?)[\]】](.*)$", raw_task)
@@ -2076,6 +2078,9 @@ def _parse_actions_from_text(text: str) -> list[dict[str, Any]]:
                             deadline = seg
                         elif not deliverable:
                             deliverable = seg
+
+            if owner and owner.lower() in ("待认领", "未分配", "待定", "待确认", "未提及", "未明确", "无", "null", "none", "-"):
+                owner = ""
 
             actions.append({
                 "category": category,
@@ -2160,15 +2165,12 @@ def render_actions_html(title: str, text: str, data: dict | None = None) -> str:
             dependency = escape(str(item.get("dependency") or "").strip(), quote=False)
             prio_key = str(item.get("priority") or "medium").lower().strip()
             prio_cn, prio_cls = prio_map.get(prio_key, ("中优先", "ck-flow-medium"))
-
-            if not owner or owner.lower() in ("未分配", "null", "none", "无", "-", "待定", "待确认", "待认领"):
-                owner_str = '<span style="color: #b45309;">责任人: 待认领</span>'
-            else:
-                owner_str = f"<span>责任人: {owner}</span>"
-
-            deadline_str = ""
-            if deadline and deadline.lower() not in ("待排期", "未指定", "null", "none", "无", "-", "待定"):
-                deadline_str = f'<span class="ck-flow-dot">·</span><span>完成时限: {deadline}</span>'
+            meta_parts = [f'<span class="{prio_cls}">{prio_cn}</span>']
+            if owner and owner.lower() not in ("未分配", "null", "none", "无", "-", "待定", "待确认", "待认领", "未提及", "未明确"):
+                meta_parts.append(f"<span>责任人: {owner}</span>")
+            if deadline and deadline.lower() not in ("待排期", "未指定", "null", "none", "无", "-", "待定", "未明确"):
+                meta_parts.append(f"<span>完成时限: {deadline}</span>")
+            meta_html = ' <span class="ck-flow-dot">·</span> '.join(meta_parts)
 
             drawer_rows = []
             if deliverable and deliverable.lower() not in ("null", "none", "无", "未提及", "未明确", "-"):
@@ -2189,12 +2191,7 @@ def render_actions_html(title: str, text: str, data: dict | None = None) -> str:
                 f'<div class="ck-flow-item">'
                 f'  <div class="ck-flow-main">'
                 f'    <div class="ck-flow-title">{global_idx}. {task_desc}</div>'
-                f'    <div class="ck-flow-meta">'
-                f'      <span class="{prio_cls}">{prio_cn}</span>'
-                f'      <span class="ck-flow-dot">·</span>'
-                f'      {owner_str}'
-                f'      {deadline_str}'
-                f'    </div>'
+                f'    <div class="ck-flow-meta">{meta_html}</div>'
                 f'  </div>'
                 f'  {drawer_html}'
                 f'</div>'

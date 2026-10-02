@@ -39,7 +39,8 @@ def test_action_items_text_render():
     assert "> 完成时限：周五 18:00 前" in text
     assert "> 交付标准：压测报告与 API 文档" in text
     assert "> 前置条件：基础架构组签发临时 Token" in text
-    assert "- 申请预发布集群机器配额(中优先 · 待认领)" in text
+    assert "- 申请预发布集群机器配额(中优先)" in text
+    assert "待认领" not in text
     # 极简项不应出现未明确占位符
     assert "完成时限：无" not in text
     assert "交付标准：无" not in text
@@ -72,7 +73,8 @@ def test_risk_items_text_render():
     assert "- 压测 QPS 超过 2000 时网关频繁断流(高风险 · 架构组)" in text
     assert "> 潜在危害：交易链路雪崩并造成资损" in text
     assert "> 应对措施：临时扩容 4 台网关，本周内完成异步化改造" in text
-    assert "- 鉴权网关跨机房调用单点超时抖动(中风险 · 待认领)" in text
+    assert "- 鉴权网关跨机房调用单点超时抖动(中风险)" in text
+    assert "待认领" not in text
     assert "应对措施：无" not in text
 
 
@@ -112,9 +114,10 @@ def test_action_html_flow_render():
     assert "前置条件：" in html
     assert "基础架构组签发临时 Token" in html
 
-    # 验证极简项（无抽屉）
+    # 验证极简项（无抽屉，未分配责任人彻底隐去，绝不显示待认领）
     assert "2. 申请预发布独立集群机器配额" in html
-    assert "责任人: 待认领" in html
+    assert "责任人: 待认领" not in html
+    assert "待认领" not in html
 
     # 验证无 emoji 和无伪复选框
     assert "[ ]" not in html
@@ -159,7 +162,9 @@ def test_risk_html_flow_render():
     assert "提升泵防汛隐患" in html
     assert "ck-flow-medium" in html
     assert "中风险" in html
-    assert "跟进人: 待认领" in html
+    # 未指定跟进人彻底隐去，绝不显示待认领
+    assert "跟进人: 待认领" not in html
+    assert "待认领" not in html
     assert "现场未定（待现场勘测后补充预案）" in html
 
     # 验证无 emoji

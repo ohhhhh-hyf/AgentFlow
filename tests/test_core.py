@@ -696,16 +696,16 @@ def test_action_items_render() -> None:
     }
     draft_text = ActionItemsRender.render_draft(state)
     check("待办草稿包含[音视频SDK推流适配]业务板块主行", "1. **[音视频SDK推流适配]**" in draft_text, draft_text)
-    check("包含具体任务及括号责任主体张伟", "完成音视频推流协议适配与压测(张伟)" in draft_text, draft_text)
-    check("同板块事项聚拢在[音视频SDK推流适配]下", "与基础架构团队联调鉴权网关(张伟)" in draft_text, draft_text)
+    check("包含具体任务及括号责任主体张伟", "完成音视频推流协议适配与压测(高优先 · 张伟)" in draft_text, draft_text)
+    check("同板块事项聚拢在[音视频SDK推流适配]下", "与基础架构团队联调鉴权网关(中优先 · 张伟)" in draft_text, draft_text)
     check("包含[数据看表口径梳理]业务板块主行", "2. **[数据看表口径梳理]**" in draft_text, draft_text)
     check("包含[预发布环境压测机申请]业务板块主行", "3. **[预发布环境压测机申请]**" in draft_text, draft_text)
-    check("未分配待办括号内为待认领", "申请预发布压测机器(待认领)" in draft_text, draft_text)
+    check("未分配待办括号内仅为优先级无待认领", "申请预发布压测机器(中优先)" in draft_text and "待认领" not in draft_text, draft_text)
     check("不再单列责任主体行", "> 责任主体：" not in draft_text, draft_text)
-    check("包含交付时限：周五前", "> 交付时限：周五前" in draft_text, draft_text)
-    check("包含交付成果：压测报告及文档", "> 交付成果：压测报告及文档" in draft_text, draft_text)
-    check("包含前置依赖：需后端先提供鉴权Token", "> 前置依赖：需后端先提供鉴权Token" in draft_text, draft_text)
-    check("包含交付成果：机器分配就绪", "> 交付成果：机器分配就绪" in draft_text, draft_text)
+    check("包含交付时限：周五前", "> 完成时限：周五前" in draft_text, draft_text)
+    check("包含交付标准：压测报告及文档", "> 交付标准：压测报告及文档" in draft_text, draft_text)
+    check("包含前置条件：需后端先提供鉴权Token", "> 前置条件：需后端先提供鉴权Token" in draft_text, draft_text)
+    check("包含交付标准：机器分配就绪", "> 交付标准：机器分配就绪" in draft_text, draft_text)
     check("彻底去除原句引用", '张伟周五前把推流适配好' not in draft_text, draft_text)
     check("无大标题分组", "## 一、重点待办" not in draft_text and "## 二、待分配" not in draft_text, draft_text)
 
@@ -722,9 +722,9 @@ def test_action_items_render() -> None:
     check("解析项 1 包含交付物", parsed[0].get("deliverable") == "压测报告及文档", str(parsed[0]))
     check("解析项 1 包含依赖", parsed[0].get("dependency") == "需后端先提供鉴权Token", str(parsed[0]))
     check("解析项 2 同属音视频推流适配", parsed[1].get("category") == "音视频SDK推流适配", str(parsed[1]))
-    check("解析项 4 责任人为待认领", parsed[3].get("owner") == "待认领", str(parsed[3]))
+    check("解析项 4 无未确定责任人", not parsed[3].get("owner"), str(parsed[3]))
     html = render_actions_html("待办事项清单", draft_text)
-    check("HTML 表格渲染成功包含 tr", "<tr>" in html, html[:200])
+    check("HTML 公文流渲染成功包含 ck-flow-item", "ck-flow-item" in html, html[:200])
 
 
     # 4. ActionItemsReport 校验测试（确保多余 category, deliverable, dependency 不报错）
@@ -806,13 +806,13 @@ def test_risk_items_render() -> None:
     check("包含具体隐患及内联评级与责任人周工", "核心路由在压测 QPS 超过 2000 时出现频繁断流(高风险 · 周工)" in draft_text, draft_text)
     check("同板块事项聚拢在[核心网关压测流控与断流]下", "鉴权网关跨机房调用存在单点超时抖动(中风险 · 周工)" in draft_text, draft_text)
     check("包含[跨团队基础鉴权Token审批]业务板块主行", "2. **[跨团队基础鉴权Token审批]**" in draft_text, draft_text)
-    check("未指定责任人时标注待认领", "跨团队联调所需的基础鉴权 Token 审批流程过长(高风险 · 待认领)" in draft_text, draft_text)
+    check("未指定责任人时不输出待认领", "跨团队联调所需的基础鉴权 Token 审批流程过长(高风险)" in draft_text and "待认领" not in draft_text, draft_text)
     check("包含[老旧机型暗黑模式对比度]业务板块主行", "3. **[老旧机型暗黑模式对比度]**" in draft_text, draft_text)
     check("不再单列风险级别行", "> 风险级别：" not in draft_text, draft_text)
     check("不再单列责任主体行", "> 责任主体：" not in draft_text, draft_text)
-    check("包含潜在影响：大促峰值期间接入层存在服务雪崩风险", "> 潜在影响：大促峰值期间接入层存在服务雪崩风险" in draft_text, draft_text)
-    check("包含应对方案：周工本周内完成异步队列削峰改造并组织复测", "> 应对方案：周工本周内完成异步队列削峰改造并组织复测" in draft_text, draft_text)
-    check("无应对方案时自适应隐去整行", "应对方案：无" not in draft_text and "应对方案：未提及" not in draft_text, draft_text)
+    check("包含潜在危害：大促峰值期间接入层存在服务雪崩风险", "> 潜在危害：大促峰值期间接入层存在服务雪崩风险" in draft_text, draft_text)
+    check("包含应对措施：周工本周内完成异步队列削峰改造并组织复测", "> 应对措施：周工本周内完成异步队列削峰改造并组织复测" in draft_text, draft_text)
+    check("无应对措施时自适应隐去整行", "应对措施：无" not in draft_text and "应对措施：未提及" not in draft_text, draft_text)
     check("彻底去除原句引用", "张工说QPS一上两千就断流" not in draft_text, draft_text)
     check("无大标题分组", "## 一、高风险" not in draft_text and "## 二、中低风险" not in draft_text, draft_text)
 
@@ -829,12 +829,12 @@ def test_risk_items_render() -> None:
     check("解析项 1 责任人为周工", parsed[0].get("owner") == "周工", str(parsed[0]))
     check("解析项 1 包含应对方案", "削峰改造" in str(parsed[0].get("mitigation")), str(parsed[0]))
     check("解析项 2 同属网关架构", parsed[1].get("category") == "核心网关压测流控与断流", str(parsed[1]))
-    check("解析项 3 责任人为待认领", parsed[2].get("owner") == "待认领", str(parsed[2]))
+    check("解析项 3 无责任人", not parsed[2].get("owner"), str(parsed[2]))
     check("解析项 4 严重程度为 low", parsed[3].get("severity") == "low", str(parsed[3]))
     html = render_risks_html("风险分析", draft_text)
 
-    check("HTML 表格渲染成功包含 tr", "<tr>" in html, html[:200])
-    check("HTML 表格包含责任主体列", "责任主体" in html, html[:200])
+    check("HTML 公文流渲染成功包含 ck-flow-item", "ck-flow-item" in html, html[:200])
+    check("HTML 公文流不包含待认领", "待认领" not in html, html[:200])
 
 
 def test_general_minutes_title_fixed() -> None:

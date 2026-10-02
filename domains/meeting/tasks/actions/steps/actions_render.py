@@ -94,7 +94,7 @@ class ActionItemsRender:
         if not items:
             return "暂无明确待办事项"
 
-        _invalid = {"null", "none", "无", "未提及", "未明确", "待排期", "待指定", "-"}
+        _invalid = {"null", "none", "无", "未提及", "未明确", "待排期", "待指定", "-", "待认领", "未分配", "待定", "待确认"}
 
         # 1. 话题归类聚合（保持初次出现的先后顺序）
         groups: dict[str, list[dict]] = {}
@@ -144,8 +144,10 @@ class ActionItemsRender:
                     "高优先": "高优先", "中优先": "中优先", "低优先": "低优先",
                 }
                 prio_display = prio_map.get(prio_key, "中优先")
-                owner_display = owner if (owner and owner.lower() not in _invalid) else "待认领"
-                meta_display = f"{prio_display} · {owner_display}"
+                if owner and owner.lower() not in _invalid:
+                    meta_display = f"{prio_display} · {owner}"
+                else:
+                    meta_display = f"{prio_display}"
 
                 topic_lines.append(f"   - {task}({meta_display})")
 

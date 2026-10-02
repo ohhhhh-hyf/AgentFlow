@@ -150,7 +150,7 @@ TRANSCRIPT = """
 • 发言者 6 44:08
 唉行。
 """
-BASE_URL = os.getenv("AGENTFLOW_BASE_URL", "http://127.0.0.1:8000").rstrip("/")
+BASE_URL = os.getenv("AGENTFLOW_BASE_URL", "http://127.0.0.1:8888").rstrip("/")
 URL = f"{BASE_URL}/api/agent/v1"
 USER_ID = "1"
 
