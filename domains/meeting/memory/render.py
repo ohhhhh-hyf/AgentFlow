@@ -1836,7 +1836,7 @@ def render_risks_html(title: str, text: str, data: dict | None = None) -> str:
     cards_html = []
     for cat_name, cat_items in groups.items():
         for item in cat_items:
-            risk_desc = escape(str(item.get("risk") or "").strip().strip("*"), quote=False)
+            risk_desc = escape(str(item.get("risk") or item.get("title") or "").strip().strip("*"), quote=False)
             if not risk_desc:
                 continue
             sev_key = str(item.get("severity") or "medium").lower().strip()
@@ -2145,13 +2145,13 @@ def render_actions_html(title: str, text: str, data: dict | None = None) -> str:
     cards_html = []
     for cat_name, cat_items in groups.items():
         for item in cat_items:
-            task_desc = escape(str(item.get("task") or "").strip().strip("*"), quote=False)
+            task_desc = escape(str(item.get("task") or item.get("title") or "").strip().strip("*"), quote=False)
             if not task_desc:
                 continue
             owner = escape(str(item.get("owner") or "").strip(), quote=False)
             deadline = escape(str(item.get("deadline") or "").strip(), quote=False)
             deliverable = escape(str(item.get("deliverable") or "").strip(), quote=False)
-            dependency = escape(str(item.get("dependency") or "").strip(), quote=False)
+            dependency = escape(str(item.get("dependency") or item.get("prerequisite") or "").strip(), quote=False)
             prio_key = str(item.get("priority") or "medium").lower().strip()
             prio_cn, prio_cls = prio_map.get(prio_key, ("中优先", "ck-pill-medium"))
             meta_parts = [f'<span class="ck-pill {prio_cls}">{prio_cn}</span>']
