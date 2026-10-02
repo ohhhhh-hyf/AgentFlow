@@ -17,9 +17,9 @@ class RiskGenerationContract(GenerationContract):
             StrField("risk", "风险描述，必须来自会议原文或会议理解结果"),
             StrField("source", "风险来源：原文依据或相关议题"),
             EnumField("severity", ["high", "medium", "low"]),
-            StrField("impact", "如果风险发生，可能造成的影响"),
-            StrField("mitigation", "原文中已有的应对措施；没有则为null"),
-            StrField("owner", "原文明示的负责人；没有则为null"),
+            StrField("impact", "如果风险发生，可能造成的潜在危害或不良业务后果；原文未提及为null"),
+            StrField("mitigation", "原文中明确商讨的应对措施（单一大字段一体化陈述）；现场未讨论则为null"),
+            StrField("owner", "原文明示的跟踪责任人或团队；未指派则为null"),
         ]),
     ]
 

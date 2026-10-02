@@ -271,12 +271,12 @@ def render_risk_items(items: list[dict]) -> str:
 
             topic_lines.append(f"   - {risk}({meta_display})")
 
-            # 潜在影响（必出）
+            # 潜在危害（条件输出）
             if impact and impact.lower() not in _invalid:
-                topic_lines.append(f"     > 潜在影响：{impact}")
-            # 应对方案（条件输出）
+                topic_lines.append(f"     > 潜在危害：{impact}")
+            # 应对措施（条件输出）
             if mitigation and mitigation.lower() not in _invalid:
-                topic_lines.append(f"     > 应对方案：{mitigation}")
+                topic_lines.append(f"     > 应对措施：{mitigation}")
 
         topic_blocks.append("\n".join(topic_lines))
 

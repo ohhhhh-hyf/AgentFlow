@@ -590,6 +590,109 @@ def latex_paper_css() -> str:
       letter-spacing: 0.2px;
     }
 
+    /* 呼吸感公文流（Actions & Risks 共用） */
+    .ck-flow-section {
+      display: flex;
+      align-items: center;
+      margin: 28px 0 14px 0;
+    }
+    .ck-flow-section:first-child {
+      margin-top: 6px;
+    }
+    .ck-flow-section-title {
+      font-weight: 700;
+      font-size: 0.95rem;
+      color: #111111;
+      white-space: nowrap;
+    }
+    .ck-flow-section-line {
+      flex: 1;
+      border-top: 1px solid #d4d0c7;
+      margin: 0 14px;
+    }
+    .ck-flow-section-count {
+      font-size: 0.78rem;
+      color: #777777;
+      white-space: nowrap;
+    }
+    .ck-flow-item {
+      margin-bottom: 18px;
+      line-height: 1.6;
+    }
+    .ck-flow-main {
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+    .ck-flow-title {
+      font-size: 0.88rem;
+      font-weight: 700;
+      color: #111111;
+      line-height: 1.5;
+      flex: 1 1 65%;
+      min-width: 260px;
+    }
+    .ck-flow-meta {
+      font-size: 0.78rem;
+      color: #555555;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      flex-shrink: 0;
+      white-space: nowrap;
+    }
+    .ck-flow-dot {
+      color: #999999;
+      margin: 0 1px;
+    }
+    .ck-flow-high {
+      color: #b91c1c;
+      font-weight: 700;
+    }
+    .ck-flow-medium {
+      color: #b45309;
+      font-weight: 700;
+    }
+    .ck-flow-low {
+      color: #1d4ed8;
+      font-weight: 700;
+    }
+    .ck-flow-drawer {
+      margin-top: 6px;
+      margin-left: 18px;
+      padding-left: 12px;
+      border-left: 2px solid #cbd5e1;
+      font-size: 0.8rem;
+      color: #334155;
+      line-height: 1.6;
+    }
+    .ck-flow-drawer-high {
+      border-left-color: #fca5a5;
+    }
+    .ck-flow-row {
+      margin-top: 3px;
+    }
+    .ck-flow-row:first-child {
+      margin-top: 0;
+    }
+    .ck-flow-label {
+      font-weight: 700;
+      color: #111111;
+    }
+    .ck-flow-empty {
+      text-align: center;
+      color: #888888;
+      padding: 32px 0;
+      font-style: italic;
+    }
+
+    @media print {
+      .ck-flow-item { break-inside: avoid; }
+      .ck-flow-section { break-inside: avoid; }
+    }
+
     @media(max-width: 860px) {
       .ck-doc { padding: 22px 18px; }
       .ck-review { grid-template-columns: 1fr; }

@@ -137,16 +137,25 @@ class ActionItemsRender:
                 deliverable = str(item.get("deliverable") or "").strip()
                 dependency = str(item.get("dependency") or "").strip()
 
+                prio_key = str(item.get("priority") or "medium").lower().strip()
+                prio_map = {
+                    "high": "高优先", "medium": "中优先", "low": "低优先",
+                    "高": "高优先", "中": "中优先", "低": "低优先",
+                    "高优先": "高优先", "中优先": "中优先", "低优先": "低优先",
+                }
+                prio_display = prio_map.get(prio_key, "中优先")
                 owner_display = owner if (owner and owner.lower() not in _invalid) else "待认领"
-                topic_lines.append(f"   - {task}({owner_display})")
+                meta_display = f"{prio_display} · {owner_display}"
 
-                # 条件输出卡片属性
+                topic_lines.append(f"   - {task}({meta_display})")
+
+                # 条件输出属性块
                 if deadline and deadline.lower() not in _invalid:
-                    topic_lines.append(f"     > 交付时限：{deadline}")
+                    topic_lines.append(f"     > 完成时限：{deadline}")
                 if deliverable and deliverable.lower() not in _invalid:
-                    topic_lines.append(f"     > 交付成果：{deliverable}")
+                    topic_lines.append(f"     > 交付标准：{deliverable}")
                 if dependency and dependency.lower() not in _invalid:
-                    topic_lines.append(f"     > 前置依赖：{dependency}")
+                    topic_lines.append(f"     > 前置条件：{dependency}")
 
             topic_blocks.append("\n".join(topic_lines))
 
