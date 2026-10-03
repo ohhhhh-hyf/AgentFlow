@@ -61,6 +61,10 @@ from .engine_text import (
     pick_label,
     sec_attr,
 )
+from core.execution.guardrails import (
+    guardrail_fast_path_enabled,
+    quick_facts_guardrail,
+)
 from core.runner.progress import progress
 from core.schema.validation import validate_payload
 
@@ -92,6 +96,14 @@ class DomainNodes:
     _understanding_key = ""
     _understanding_label = "已审核理解"
     _transcript_label = "原文"
+
+    # ── 审核短路（SUPERVISOR_AND_UNDERSTANDING 优化方案）─────────────
+    # 短会快速放行阈值（正文字符数）：低于该值直接确定性 Approve（0 延迟 / 0 Token）。
+    # 0 = 关闭（默认）；meeting 域在 domain_config 覆写启用。
+    _supervisor_fast_path_chars = 0
+    # 规则门禁激进放行区间（字符数，含两端）：区间内且确定性预检全过 → 直接 Approve。
+    # (0, 0) = 关闭（默认）；meeting 域覆写为 (2000, 5000)。
+    _supervisor_guardrail_range: tuple[int, int] = (0, 0)
 
     # ── 辅助方法 ──────────────────────────────────────────────
 
@@ -317,6 +329,28 @@ class DomainNodes:
         from core.runtime.context import understanding_of
 
         return understanding_of(state, self._understanding_key)
+
+    def _few_party_reason(self, state: dict) -> str:
+        """极简会议判定：议题 ≤2 且发言人 ≤2（"没有多方交锋"的确定性代理）。
+
+        用于 supervisor 快速短路（方案 2.1 的第二触发门槛）。发言人清单缺失时不判定
+        （拿不准就照常送审）；返回非空字符串表示命中，同时作为短路原因标记。
+        """
+        understanding = self._understanding(state)
+        if not isinstance(understanding, dict):
+            return ""
+        topics = [
+            t for t in (understanding.get("topics") or []) if isinstance(t, dict)
+        ]
+        speakers = [
+            s for s in (understanding.get("speakers") or [])
+            if isinstance(s, dict) and str(s.get("name") or "").strip()
+        ]
+        if not topics or len(topics) > 2:
+            return ""
+        if not speakers or len(speakers) > 2:
+            return ""
+        return f"few_topics:{len(topics)}_speakers:{len(speakers)}"
 
     def _render_context_blocks(
         self, state: dict
@@ -576,10 +610,77 @@ class DomainNodes:
 
         ``revision_feedback`` 不再由 supervisor 写入：返工节点会从 review
         取 feedback 显式传给 agent，避免两域键名/写入时机漂移。
+
+        审核短路（SUPERVISOR_AND_UNDERSTANDING 优化方案，2026-10）：
+        - 短会（原文 < ``_supervisor_fast_path_chars``）与极简输入（议题 ≤2 且
+          发言人 ≤2，且篇幅不超过门禁区间上限）直接确定性 Approve，省 1 次 LLM 调用
+          （4~8 秒 + 整包 Token）；
+        - 原文落在 ``_supervisor_guardrail_range`` 区间且规则门禁（人名在册 /
+          数字忠实）全过时按开关放行；命中红线照常送 LLM 深度判定。
+        短路走 ``review_bypassed`` 标记（≠ ``review_unavailable``：不触发
+        "审核失败"质量告警）；草稿已降级时不短路——留一轮审核+返工的自愈机会。
         """
         cfg = self._task_lines[line_name]
 
         async def node(state: dict) -> dict:
+            sub = line(state, line_name)
+            transcript = str(state.get("transcript") or "").strip()
+            degraded = bool(sub.get("degraded"))
+            band = self._supervisor_guardrail_range
+            # ── 快速短路（Fast-Path Skip）：短会 / 极简输入 ──────────────
+            bypass = ""
+            limit = self._supervisor_fast_path_chars
+            if not degraded and limit:
+                if len(transcript) < limit:
+                    bypass = f"short_meeting:{len(transcript)}chars"
+                elif not band[1] or len(transcript) <= band[1]:
+                    # 极简输入（议题 ≤2 且发言人 ≤2，无多方交锋的确定性代理）：
+                    # 限定在门禁区间上限以内——长会（> 区间上限）始终送 LLM
+                    # 深度判定（方案步骤五："仅将长会……送交 LLM"）。
+                    bypass = self._few_party_reason(state)
+            # ── 规则门禁（Rule-Based Guardrails）：确定性预检全过 → 放行 ──
+            if (
+                not bypass
+                and not degraded
+                and band[0] and band[0] <= len(transcript) <= band[1]
+                and guardrail_fast_path_enabled()
+            ):
+                understanding = self._understanding(state)
+                try:
+                    ok, findings = quick_facts_guardrail(
+                        sub.get("draft") or {},
+                        (understanding or {}).get("speakers") or [],
+                        transcript,
+                        # 记忆未注入（无 memory_context）时 history_comparison 必须为空，
+                        # 凭空产出的"历史对照"按捏造拦截（确定性契约检查）。
+                        memory_on=bool(str(sub.get("memory_context") or "").strip()),
+                    )
+                except Exception:  # noqa: BLE001 - 规则故障按"未通过"处理，照常送审
+                    logger.warning(
+                        "guardrail failed, fall through to LLM review line=%s",
+                        line_name,
+                        exc_info=True,
+                    )
+                    ok, findings = False, ["guardrail 执行异常"]
+                if ok:
+                    bypass = "rule_guardrail_pass"
+                else:
+                    progress(
+                        "guardrail findings line=%s: %s",
+                        line_name,
+                        "；".join(findings[:3]),
+                    )
+            if bypass:
+                progress("skip supervisor (fast-path: %s) line=%s", bypass, line_name)
+                return {
+                    "lines": {
+                        line_name: {
+                            "review": self._conservative_review(cfg),
+                            "degraded": False,
+                            "review_bypassed": bypass,
+                        }
+                    }
+                }
             progress("agent start review line=%s", line_name)
             supervisor = getattr(self, cfg["supervisor_attr"])
             try:
@@ -1015,6 +1116,8 @@ class DomainNodes:
                 "reject_downgraded": bool(review.get("reject_downgraded")),
                 "revise_downgraded": bool(review.get("revise_downgraded")),
                 "review_unavailable": review_unavailable,
+                # 审核短路（短会/极简输入/规则门禁放行）：监控口径可见，不算失败
+                "review_bypassed": str(sub.get("review_bypassed") or "").strip(),
                 "fallback": degraded or decision == "reject",
             }
             if out[name]["fallback"] or review_unavailable:

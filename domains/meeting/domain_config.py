@@ -37,3 +37,10 @@ LINE_KINDS: dict[str, object] = {
     "consensus_decision": {"kind": LLM_EXTRACT, "llm_render": "if_template"},
     "agenda_minutes": {"kind": LLM_EXTRACT, "llm_render": "if_template"},
 }
+
+# ── 审核短路阈值（SUPERVISOR_AND_UNDERSTANDING 优化方案 · 步骤三/五）──────
+# 短会快速放行：原文 < 该阈值（字符数）或议题 ≤2 且发言人 ≤2 → 跳过 LLM 审核直接
+# 确定性 Approve；规则门禁区间：原文落在区间内且人名在册/数字忠实预检全过 →
+# 按 SUPERVISOR_GUARDRAIL 开关放行（长会始终走 LLM）。
+SUPERVISOR_FAST_PATH_CHARS = 2000
+SUPERVISOR_GUARDRAIL_RANGE = (2000, 5000)

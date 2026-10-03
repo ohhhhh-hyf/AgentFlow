@@ -41,7 +41,9 @@ class MeetingUnderstandingGenerationContract(GenerationContract):
             StrField("topic_id", "议题编号（如 T1, T2）"),
             StrField("module", "所属业务模块/业务领域（精炼概括归属领域）"),
             StrField("title", "核心议题标题（4~12字）"),
-            StrField("context_and_debate", "该议题讨论经过与争论脉络（谁提出、论据交锋、为什么分歧，100~200字自然叙事）"),
+            # 2026-10 瘦身（SUPERVISOR_AND_UNDERSTANDING 方案步骤一）：100~200字自然叙事
+            # 与纪要层 executive_summary 职责重叠；收敛为"分歧焦点骨架"，叙事交给纪要层。
+            StrField("context_and_debate", "该议题讨论脉络与核心分歧焦点（30~60字精炼要点，严禁长篇流水账叙事）"),
             StrListField("key_metrics", "量化指标与参数（如并发数、时延、预算、排期等；无则[]）"),
             StrListField("decisions", "本议题拍板决议（含生效前提与约束；无则[]）"),
             StrListField("rejected_proposals", "现场讨论并明确否决的方案及原因；无则[]"),

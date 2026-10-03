@@ -516,10 +516,14 @@ _REVIEW_KEEP_ALL_LIST_KEYS = frozenset({
 })
 
 
-def _review_compact(node: object, *, key: str = "") -> object:
+def _review_compact(
+    node: object, *, key: str = "", drop_keys: frozenset[str] = frozenset()
+) -> object:
     """把草稿递归压成「审核用骨架」。
 
     规则（通用，不依赖具体字段名）：
+    - ``drop_keys`` 命中的键整键剔除（调用方声明"程序已对齐、免审"的字段，
+      如 minutes 的搬运三项——见 ``compact_draft_for_review``）；
     - dict 元素列表（结构型如 chapters/topics/cards，条目型如 actions/risks 的
       task/owner 条目）→ 保留全部元素，内部继续压缩——条目必须可见，
       否则「覆盖不足/是否编造」这类核对在条目层面无法执行；
@@ -532,20 +536,26 @@ def _review_compact(node: object, *, key: str = "") -> object:
     """
     if isinstance(node, dict):
         return {
-            k: _review_compact(v, key=str(k))
+            k: _review_compact(v, key=str(k), drop_keys=drop_keys)
             for k, v in node.items()
-            if k not in _REVIEW_DROP_KEYS
+            if k not in _REVIEW_DROP_KEYS and str(k) not in drop_keys
         }
     if isinstance(node, list):
         if not node:
             return node
         if isinstance(node[0], dict) or key in _REVIEW_KEEP_ALL_LIST_KEYS:
-            return [_review_compact(x, key=key) for x in node]
+            return [_review_compact(x, key=key, drop_keys=drop_keys) for x in node]
         if len(node) <= _REVIEW_LARGE_LIST:
-            return [_review_compact(x, key=key) for x in node]
+            return [_review_compact(x, key=key, drop_keys=drop_keys) for x in node]
         omitted = len(node) - _REVIEW_HEAD_ITEMS - _REVIEW_TAIL_ITEMS
-        head = [_review_compact(x, key=key) for x in node[:_REVIEW_HEAD_ITEMS]]
-        tail = [_review_compact(x, key=key) for x in node[-_REVIEW_TAIL_ITEMS:]]
+        head = [
+            _review_compact(x, key=key, drop_keys=drop_keys)
+            for x in node[:_REVIEW_HEAD_ITEMS]
+        ]
+        tail = [
+            _review_compact(x, key=key, drop_keys=drop_keys)
+            for x in node[-_REVIEW_TAIL_ITEMS:]
+        ]
         return head + [f"...（中间 {omitted} 条已省略，共 {len(node)} 条）"] + tail
     if isinstance(node, str):
         if len(node) <= _REVIEW_LONG_TEXT:
@@ -554,10 +564,18 @@ def _review_compact(node: object, *, key: str = "") -> object:
     return node
 
 
-def compact_draft_for_review(draft: object) -> object:
+def compact_draft_for_review(
+    draft: object, *, drop_keys: frozenset[str] | None = None
+) -> object:
     """supervisor 审核用草稿摘要：保留结构骨架与短字段，
-    压缩大文本/大列表，显著降低审核输入 token 且不丢核对要素。"""
-    return _review_compact(draft)
+    压缩大文本/大列表，显著降低审核输入 token 且不丢核对要素。
+
+    ``drop_keys``：整键剔除的字段集合（值为这些键的条目不会出现在送审稿里）。
+    minutes 线用它剔除 key_decisions / risks_and_blockers / unresolved_questions——
+    这三项已由 ``enforce_minutes_draft`` 与上游逐字对齐（程序 100% 保证一致性），
+    送审属于无效内耗（见 SUPERVISOR_AND_UNDERSTANDING 方案步骤四）。
+    """
+    return _review_compact(draft, drop_keys=drop_keys or frozenset())
 
 
 __all__ = [

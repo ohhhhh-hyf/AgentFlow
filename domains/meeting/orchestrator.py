@@ -29,7 +29,12 @@ from domains.shared.perspective import (
 )
 from .meeting_factory import MeetingAgentFactory
 from .meeting_core import MeetingUnderstandingAgent
-from .domain_config import LINE_CN_NAMES, LINE_KINDS
+from .domain_config import (
+    LINE_CN_NAMES,
+    LINE_KINDS,
+    SUPERVISOR_FAST_PATH_CHARS,
+    SUPERVISOR_GUARDRAIL_RANGE,
+)
 from .scene_hint import scene_hint_for_templates
 from .understanding_skip import skip_fields_for_template
 
@@ -312,6 +317,12 @@ def _line_cn(line_name: str) -> str:
     """线名 → 中文名（查共享注册表，未注册则回退英文线名）。"""
     return _engine_line_cn(line_name, LINE_CN_NAMES)
 
+# 送审免审键（方案步骤四）：minutes 的搬运三字段已由 ``enforce_minutes_draft``
+# 与上游逐字对齐（程序 100% 保证一致性），逐字送审是无效内耗——不再进审核上下文。
+_SUPERVISOR_CARRY_DROP = frozenset({
+    "key_decisions", "risks_and_blockers", "unresolved_questions",
+})
+
 def _line_draft_title(line_name: str) -> str:
     """线名 → 草稿标题（自动推导为「中文名草稿」）。"""
     return _engine_line_draft_title(line_name, LINE_CN_NAMES)
@@ -412,6 +423,9 @@ class _Nodes(DomainNodes):
     _transcript_label = "会议原文"
     _line_cn_names = LINE_CN_NAMES
     _line_policies = resolve_line_policies(LINE_KINDS)
+    # 审核短路（方案步骤三/五）：短会/极简输入直接放行；规则门禁区间内全过按开关放行
+    _supervisor_fast_path_chars = SUPERVISOR_FAST_PATH_CHARS
+    _supervisor_guardrail_range = SUPERVISOR_GUARDRAIL_RANGE
 
     # 理解层参与审核摘录的字段白名单（线名 → 保留字段）。
     _understanding_needle_keep: dict[str, frozenset[str]] = {
@@ -693,7 +707,7 @@ class _Nodes(DomainNodes):
             blocks.append(budget)
         blocks.append(
             f"{_line_draft_title(line_name)}：\n"
-            f"{_json(compact_draft_for_review(sub['draft']))}"
+            f"{_json(compact_draft_for_review(sub['draft'], drop_keys=_SUPERVISOR_CARRY_DROP if line_name == 'minutes' else None))}"
         )
         return f"{self._revision_instruction(state, line_name)}\n\n" + "\n\n".join(blocks)
 

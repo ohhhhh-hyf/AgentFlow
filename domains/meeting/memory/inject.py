@@ -6,13 +6,7 @@ from typing import Any
 
 from .state import session_index, session_label, similar
 
-# 主题词提取用的专名/数字样式（与 render 的锚点口径一致，这里只取"叫什么"）
-_LATIN_TERM = re.compile(r"[A-Za-z][A-Za-z0-9_\-]{2,}")
-_NUM_UNIT_RE = re.compile(
-    r"\d+(?:\.\d+)?(?:min|ms|h|w|s|%|万|字|卡|路|场|小时|分钟|天|周|月|年|多)"
-)
 from core.runner.text import clean_text as _clean
-_NUM_LONG_RE = re.compile(r"\d{3,}")
 
 
 def _compact(text: str) -> str:
@@ -91,6 +85,10 @@ def _append_item(
     if not text:
         return
     parts.append(f"- {text}（{meta}）")
+    scope = _topic_label_v2(item)
+    if scope:
+        # 原生作用域子行：渲染侧据此把历史证据限定到对应议题章节（不再全局盲扫）。
+        parts.append(f"  主题：{scope}")
     quote = _clean(item.get("quote"))
     if quote:
         parts.append(f"  原文摘录：{quote}")
@@ -144,64 +142,52 @@ def _decision_meta(item: dict[str, Any], seq_map: dict[str, dict[str, Any]]) -> 
     return f"{first}已决策，状态 {status}"
 
 
-def _topic_label(text: str, anchors: list[str]) -> str:
-    """条目的主题词：让对照行说清"这是哪个东西的延续/风险"。
+def _topic_label_v2(item: dict[str, Any]) -> str:
+    """条目主题名：直接读原生 ``module`` / ``topic_title``，不再从文本猜词。
 
-    取法（确定性，零额外调用）：
-    ① 议题名逐字出现在条目里（3–12 字，取最长）——议题名本来就是这场会的板块名；
-    ② 否则抓专名：拉丁词/数字带紧邻 2 字（如 ``内部专项标注还差400min`` → ``专项标注``）；
-    ③ 再退到"议题名前 2 字重合"的**最短**议题名（``端侧大概什么时候带上版本`` → ``端侧待办``，
-       不取 ``端侧待办与现网拨测问题`` 这种整条项目名当标签）；
-    ④ 都没有就返回空串，该行保持原格式（不硬凑主题）。
+    为什么废弃正则猜词（2026-10 记忆 v2 改造）：旧实现从条目文本逆向猜主题名，
+    会猜出「400min」「端侧」这类畸形标签（"内部专项标注还差400min" → "400min"）。
+    原生字段由 state 写入端从议题树回查获得（``state._find_topic_for_item``）。
+    旧数据没有原生字段 → 返回空串，该行保持原格式（不硬凑主题）。
     """
-    body = _clean(text)
-    if not body:
-        return ""
-    hits = [name for name in anchors if 3 <= len(name) <= 12 and name in body]
-    if hits:
-        return max(hits, key=len)
-    token = _LATIN_TERM.search(body)
-    tail_mode = "han"
-    if token is None:
-        token = _NUM_UNIT_RE.search(body) or _NUM_LONG_RE.search(body)
-        tail_mode = "alnum"  # 数值专名只续字母数字（910c），不把后面的汉字吞进来
-    if token:
-        tail = ""
-        for char in body[token.end() : token.end() + 2]:
-            is_han = "\u4e00" <= char <= "\u9fff"
-            # 注意：汉字的 str.isalnum() 也是 True，必须显式先判汉字
-            if is_han:
-                if tail_mode != "han":
-                    break
-            elif not char.isalnum():
-                break
-            tail += char
-        return (token.group(0) + tail)[:12]
-    shorts = [name for name in anchors if 3 <= len(name) <= 6 and name[:2] in body]
-    if shorts:
-        return min(shorts, key=len)
-    return ""
+    module = _clean(item.get("module"))
+    title = _clean(item.get("topic_title") or item.get("title"))
+    if module and title:
+        return f"{module}·{title}"
+    return module or title or ""
 
 
-def _meeting_topics(meetings: list[dict[str, Any]] | None) -> dict[str, list[str]]:
-    """meeting_id → 该场议题名（anchors，长的在前）。"""
-    out: dict[str, list[str]] = {}
-    for row in meetings or []:
-        if not isinstance(row, dict):
+def _fact_scope_index(fact: Any) -> list[tuple[str, str]]:
+    """本场议题树 → [(条目文本, module·title)]。
+
+    本场字符串条目（新增决策 / 已闭环）还没有 state 记录、拿不到原生字段，
+    用本场议题树反查它们的主题（条目与议题同源，精确相等为主）。
+    """
+    index: list[tuple[str, str]] = []
+    for topic in getattr(fact, "topics", None) or []:
+        if not isinstance(topic, dict):
             continue
-        mid = _clean(row.get("meeting_id"))
-        if not mid:
+        label = _topic_label_v2(topic)
+        if not label:
             continue
-        names = {_clean(x) for x in (row.get("anchors") or []) if _clean(x)}
-        out[mid] = sorted(names, key=len, reverse=True)
-    return out
+        texts = list(topic.get("decisions") or [])
+        texts += [
+            (item.get("text") if isinstance(item, dict) else "")
+            for item in (topic.get("actions") or [])
+        ]
+        texts += list(topic.get("risks") or [])
+        texts += list(topic.get("open_issues") or [])
+        for value in texts:
+            text = _clean(value)
+            if text:
+                index.append((text, label))
+    return index
 
 
 def preview_comparison(
     state: dict[str, Any],
     fact: Any,
     seq_map: dict[str, dict[str, Any]],
-    meeting_topics: dict[str, list[str]] | None = None,
 ) -> list[str]:
     """程序拼的历史对照（不依赖词面重合，正文锚点挂不上时它是唯一可见溯源）。
 
@@ -209,35 +195,24 @@ def preview_comparison(
     而状态里其实有 19 条未决、若干闭环与风险演变可说。顺序固定：
     新增决策 / 延续事项 / 已闭环 / 风险演变，末尾追加一行计数汇总。
 
-    每条都带**主题词**（``延续事项（现网流量｜自第1场·2026-09-01）``）：只写"延续事项"
-    读者不知道延续的是哪个东西；主题取自条目所属场次的议题名或条目自带专名。
+    每条都带**主题词**（``延续事项（网关核心架构·鉴权方案｜自第1场）``）：主题取自
+    条目原生 module/topic_title（写入端从议题树回查，见 ``state._find_topic_for_item``），
+    不再从文本正则猜；本场字符串条目（新增决策/已闭环）用本场议题树反查。
+    旧条目没有原生字段 → 不写主题，保持原格式（不硬凑）。
     """
     lines: list[str] = []
-    # 主题词候选：项目累计议题名 + 本场议题名（本场词汇对"这条历史在讲什么"最贴切）
-    state_anchors = [_clean(x) for x in (state.get("anchors") or []) if _clean(x)]
-    state_anchors += [
-        _clean(x) for x in (getattr(fact, "anchors", None) or []) if _clean(x)
-    ]
-    state_anchors = list(dict.fromkeys(state_anchors))
-    state_anchors.sort(key=len, reverse=True)
+    fact_scope_index = _fact_scope_index(fact)
 
     def label_for(item: dict[str, Any] | str) -> str:
         if isinstance(item, dict):
-            text = _clean(item.get("text"))
-            mid = _clean(
-                item.get("last_seen")
-                or item.get("meeting_id")
-                or item.get("closed_at")
-                or item.get("since")
-            )
-        else:
-            text, mid = _clean(item), ""
-        # 条目所属场次的议题名 + 项目累计议题名（同一个主题后来又叫别的名字时也能命中）
-        anchors = list(
-            dict.fromkeys((meeting_topics or {}).get(mid, []) + state_anchors)
-        )
-        anchors.sort(key=len, reverse=True)
-        return _topic_label(text, anchors)
+            return _topic_label_v2(item)
+        text = _clean(item)
+        if not text:
+            return ""
+        for candidate, label in fact_scope_index:
+            if label and (candidate == text or similar(candidate, text)):
+                return label
+        return ""
 
     def head(topic: str, tail: str = "") -> str:
         """括号里的拼接：有主题和场次说明就 ``（主题｜说明）``，只有一个就只写那个，都没有就空。"""
@@ -417,9 +392,7 @@ def build_memory_context(
 
     comparison: list[str] = []
     if current_fact is not None:
-        comparison = preview_comparison(
-            state, current_fact, seq_map, meeting_topics=_meeting_topics(meetings)
-        )
+        comparison = preview_comparison(state, current_fact, seq_map)
         if comparison:
             parts.append("\n【历史对照素材】")
             for line in comparison:

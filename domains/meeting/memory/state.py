@@ -98,6 +98,99 @@ def _find_similar(rows: list[dict[str, Any]], text: str) -> dict[str, Any] | Non
     return next((r for r in rows if similar(str(r.get("text") or ""), text)), None)
 
 
+# module 匹配阈值。为什么是 0.2 而不是方案文档伪代码写的 0.4：文档的设计示例要求
+# “网关核心架构”与“网关鉴权优化”不被隔离，而按 _module_overlap 的覆盖率口径两者只
+# 共享“网关”一个 2-gram（1/5 = 0.2）——0.4 会把文档点名要保留的场景判成隔离。
+# 0.2 同时保住隔离性：“日志模块” vs “网关鉴权”交集为空，仍为 0。
+_MODULE_MATCH_MIN = 0.2
+
+
+def _module_overlap(a: str, b: str, n: int = 2) -> float:
+    """两个 module 名的 n-gram 重合率（交集 / 较短一侧的 gram 数）。
+
+    不用精确相等：跨场次议题 module 命名会漂移（"网关核心架构" vs "网关鉴权优化"），
+    精确相等会把同一项目的条目误判成新条目、重复建档。覆盖率口径让"一长一短、
+    短的被长的包含"（如 "基础架构" ⊂ "基础架构与中间件"）得 1.0。
+    """
+    if not a or not b:
+        return 0.0
+    ga = {a[i:i + n] for i in range(len(a) - n + 1)} if len(a) >= n else {a}
+    gb = {b[i:i + n] for i in range(len(b) - n + 1)} if len(b) >= n else {b}
+    if not ga or not gb:
+        return 0.0
+    return len(ga & gb) / min(len(ga), len(gb))
+
+
+def _find_topic_for_item(
+    text: str, topics: list[dict[str, Any]] | None
+) -> tuple[str, str]:
+    """从议题树找到包含该条目的议题，返回 (module, topic_title)。
+
+    条目本来就由提取层从议题树拍平而来（同源），精确相等命中绝大多数；
+    措辞微差用 ``similar`` 兜底。找不到返回空串 → 条目不写作用域，
+    后续匹配走全局（与改造前行为一致）。
+    """
+    query = _clean(text)
+    if not query:
+        return "", ""
+    for topic in topics or []:
+        if not isinstance(topic, dict):
+            continue
+        texts = list(topic.get("decisions") or [])
+        texts += [
+            (item.get("text") if isinstance(item, dict) else "")
+            for item in (topic.get("actions") or [])
+        ]
+        texts += list(topic.get("risks") or [])
+        texts += list(topic.get("open_issues") or [])
+        # key_points / conclusion 也要收：闭环池（_closed_items）包含这两类字段，
+        # 归属回查必须与闭环池同源，否则闭环的作用域门拿不到 module，只能放行。
+        key_points = topic.get("key_points")
+        if isinstance(key_points, list):
+            texts += [_clean(x) for x in key_points]
+        texts.append(topic.get("conclusion") or "")
+        for value in texts:
+            candidate = _clean(value)
+            if not candidate:
+                continue
+            if candidate == query or similar(query, candidate):
+                return _clean(topic.get("module")), _clean(topic.get("title"))
+    return "", ""
+
+
+def _scoped_hit(
+    pool: list[dict[str, Any]],
+    text: str,
+    module: str,
+) -> dict[str, Any] | None:
+    """作用域优先的条目匹配（议题内延续 / 跨议题隔离）。
+
+    1. 条目有 module：先在同 module（2-gram 重合 ≥ ``_MODULE_MATCH_MIN``）的旧条目里找；
+    2. 同域内确无同项时**不跨 module 匹配**——不同议题的同名条目各归各（验收：不误配）；
+    3. 无 module 的旧条目（升级前建档）仍参与匹配：旧数据行为不变，且升级边界上
+       同一件事再出现不会重复建档。
+    """
+    if not module:
+        return _find_similar(pool, text)
+    scoped = [
+        row for row in pool
+        if _module_overlap(module, _clean(row.get("module"))) >= _MODULE_MATCH_MIN
+    ]
+    if scoped:
+        hit = _find_similar(scoped, text)
+        if hit is not None:
+            return hit
+    legacy = [row for row in pool if not _clean(row.get("module"))]
+    return _find_similar(legacy, text) if legacy else None
+
+
+def _fill_scope(row: dict[str, Any], module: str, title: str) -> None:
+    """给升级前建档的旧条目补原生作用域（只补空值，不覆盖已有归属）。"""
+    if module and not _clean(row.get("module")):
+        row["module"] = module
+        row["topic_title"] = title or _clean(row.get("topic_title"))
+
+
 _MITIGATED_RE = re.compile(r"(已解决|已缓解|已消除|风险解除|不再存在|完成整改)")
 _DORMANT_AFTER = 2
 
@@ -128,7 +221,10 @@ def _upsert_open(
         text = _clean(value)
         if not text:
             continue
-        hit = _find_similar(pool, text)
+        module, topic_title = _find_topic_for_item(
+            text, getattr(fact, "topics", None) or []
+        )
+        hit = _scoped_hit(pool, text, module)
         meta = extra_by_text.get(text) or {}
         if hit is None:
             item_id = _next_id(out, "a" if kind == "action" else "o")
@@ -142,6 +238,8 @@ def _upsert_open(
                     "kind": kind,
                     "owner": _clean(meta.get("owner")),
                     "timing": _clean(meta.get("timing")),
+                    "module": module,
+                    "topic_title": topic_title,
                 },
             )
             out.append(row)
@@ -157,6 +255,7 @@ def _upsert_open(
         else:
             prev = hit.get("status") or "open"
             _touch(hit, fact, quote_kind=kind, text=text)
+            _fill_scope(hit, module, topic_title)
             if meta.get("owner"):
                 hit["owner"] = _clean(meta.get("owner"))
             if meta.get("timing"):
@@ -175,6 +274,19 @@ def _upsert_open(
     return out[:40], events
 
 
+def _scope_allows(row_module: str, event_module: str) -> bool:
+    """事件（闭环/缓解）的作用域门：两侧都有原生 module 且不同域 → 不匹配。
+
+    为什么闭环也要隔离（2026-10 验收：不同 module 的同名条目不会误配）：
+    `similar` 是 4 字重合即命中的宽口径，「补充测试用例」这类同名条目在不同议题里
+    会被主闭环文本连带关闭。任一侧没有原生作用域（旧数据 / 无法归属的闭环表述）
+    → 放行，保持旧行为（宁可暂时留一条已完成的旧条目，不错关别的议题的同名条目）。
+    """
+    if not event_module or not row_module:
+        return True
+    return _module_overlap(event_module, row_module) >= _MODULE_MATCH_MIN
+
+
 def _close_items(
     rows: list[dict[str, Any]],
     closed: list[str],
@@ -191,23 +303,35 @@ def _close_items(
     """
     if not closed:
         return rows, []
+    closed_scoped = [
+        (text, _find_topic_for_item(text, getattr(fact, "topics", None) or [])[0])
+        for text in (_clean(c) for c in closed)
+        if text
+    ]
+    if not closed_scoped:
+        return rows, []
     events: list[dict[str, Any]] = []
     for row in rows:
         text = _clean(row.get("text"))
         if not text or (row.get("status") == done_status):
             continue
-        if any(similar(text, c) for c in closed):
-            row["status"] = done_status
-            row["closed_at"] = fact.meeting_id
-            _touch(row, fact, quote_kind="closed", text=text)
-            events.append({
-                "type": event_type,
-                "item_id": row.get("item_id"),
-                "kind": row.get("kind") or "open",
-                "text": text,
-                "meeting_id": fact.meeting_id,
-                "time": _clean(getattr(fact, "time", "")),
-            })
+        row_module = _clean(row.get("module"))
+        if not any(
+            similar(text, closed_text) and _scope_allows(row_module, closed_module)
+            for closed_text, closed_module in closed_scoped
+        ):
+            continue
+        row["status"] = done_status
+        row["closed_at"] = fact.meeting_id
+        _touch(row, fact, quote_kind="closed", text=text)
+        events.append({
+            "type": event_type,
+            "item_id": row.get("item_id"),
+            "kind": row.get("kind") or "open",
+            "text": text,
+            "meeting_id": fact.meeting_id,
+            "time": _clean(getattr(fact, "time", "")),
+        })
     return rows, events
 
 
@@ -223,7 +347,10 @@ def _upsert_risks(
         if not text:
             continue
         status = "mitigated" if _MITIGATED_RE.search(text) else "active"
-        hit = _find_similar(out, text)
+        module, topic_title = _find_topic_for_item(
+            text, getattr(fact, "topics", None) or []
+        )
+        hit = _scoped_hit(out, text, module)
         if hit is None:
             item_id = _next_id(out, "r")
             out.append(_new_item(
@@ -232,6 +359,7 @@ def _upsert_risks(
                 text=text,
                 status=status,
                 quote_kind="risk",
+                extra={"module": module, "topic_title": topic_title},
             ))
             events.append({
                 "type": "risk_added" if status == "active" else "mitigated",
@@ -244,6 +372,7 @@ def _upsert_risks(
         else:
             prev = hit.get("status") or "active"
             _touch(hit, fact, quote_kind="risk", text=text)
+            _fill_scope(hit, module, topic_title)
             hit["status"] = status
             if prev != status:
                 events.append({
@@ -296,7 +425,10 @@ def _upsert_decisions(
         text = _clean(value)
         if not text:
             continue
-        hit = _find_similar(out, text)
+        module, topic_title = _find_topic_for_item(
+            text, getattr(fact, "topics", None) or []
+        )
+        hit = _scoped_hit(out, text, module)
         if hit is None:
             item_id = _next_id(out, "d")
             out.append({
@@ -309,6 +441,8 @@ def _upsert_decisions(
                 "time": _clean(getattr(fact, "time", "")),
                 "time_source": getattr(fact, "time_source", "") or "unknown",
                 "quote": _quote(fact, "decision", text),
+                "module": module,
+                "topic_title": topic_title,
             })
             events.append({
                 "type": "decision_added",
@@ -321,6 +455,7 @@ def _upsert_decisions(
             continue
         prev_text = _clean(hit.get("text"))
         _touch(hit, fact, quote_kind="decision", text=text)
+        _fill_scope(hit, module, topic_title)
         if hit.get("status") == "superseded":
             continue
         if prev_text == text or prev_text in _compact(text) or _compact(text) in prev_text:
@@ -349,6 +484,8 @@ def _upsert_decisions(
                 "time_source": getattr(fact, "time_source", "") or "unknown",
                 "quote": _quote(fact, "decision", text),
                 "supersedes": old_id,
+                "module": module,
+                "topic_title": topic_title,
             }
             hit["superseded_by"] = item_id
             out.append(new)

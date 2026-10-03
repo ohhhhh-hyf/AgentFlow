@@ -6,6 +6,7 @@
 """
 from __future__ import annotations
 
+import json
 import sys
 import tempfile
 from pathlib import Path
@@ -432,25 +433,43 @@ def test_anchor_guards() -> None:
 
 
 def test_comparison_topic_labels() -> None:
-    """对照行要说清"是哪个东西的延续/风险"：主题词取自场次议题名或条目自带专名。"""
-    from domains.meeting.memory.inject import _topic_label
+    """对照行主题词：读条目原生 module/topic_title（不再正则猜词，消灭畸形标签）。"""
+    from domains.meeting.memory.inject import _topic_label_v2
 
-    anchors = ["端侧待办与现网拨测问题", "现网流量", "控件链路", "数据表", "端侧待办", "OCR"]
-    check("议题名逐字出现 → 用议题名",
-          _topic_label("范炳杰下来找他们拆现网流量数据", anchors) == "现网流量", "")
-    check("议题名前缀重合 → 取最短的那个议题名（不拿整条项目名当标签）",
-          _topic_label("端侧大概什么时候带上版本", anchors) == "端侧待办", "")
-    check("专名 + 紧邻汉字 → WeLink标注",
-          _topic_label("内部WeLink标注还差400min，数据都是打断的", anchors) == "WeLink标注", "")
-    check("数字专名 → 910c",
-          _topic_label("910c机器是模型的问题还是机器的问题待验证", anchors) == "910c", "")
-    check("没主题就不硬凑", _topic_label("今天下午茶喝了咖啡", anchors) == "", "")
+    check("module+title 拼 module·title",
+          _topic_label_v2({"module": "网关核心架构", "topic_title": "鉴权方案选型"}) == "网关核心架构·鉴权方案选型", "")
+    check("只有 module 也输出", _topic_label_v2({"module": "现网流量"}) == "现网流量", "")
+    check("fact 议题形状（title 键）同样识别",
+          _topic_label_v2({"module": "引擎并发", "title": "现网流量拆解"}) == "引擎并发·现网流量拆解", "")
+    check("无原生字段返回空串（旧数据不硬凑）",
+          _topic_label_v2({"text": "内部WeLink标注还差400min"}) == "", "")
+    check("不再从数字/专名猜词（400min/端侧 畸形标签消失）",
+          _topic_label_v2({"text": "内部专项标注还差400min"}) == ""
+          and _topic_label_v2({"text": "端侧大概什么时候带上版本"}) == "", "")
 
     f1 = _fact(
         meeting_id="m1",
         time="2026-09-01",
         anchors=["现网流量", "控件链路"],
         open_items=["范炳杰下来找他们拆现网流量数据", "内部WeLink标注还差400min，数据都是打断的"],
+        decisions=["加固控件链路稳定性"],
+        action_items=[],
+        topics=[
+            {
+                "module": "引擎并发", "title": "现网流量拆解",
+                "decisions": [], "actions": [], "risks": [],
+                "open_issues": ["范炳杰下来找他们拆现网流量数据"],
+            },
+            {
+                "module": "标注链路", "title": "内部标注缺口",
+                "decisions": [], "actions": [], "risks": [],
+                "open_issues": ["内部WeLink标注还差400min，数据都是打断的"],
+            },
+            {
+                "module": "控件链路", "title": "控件稳定性",
+                "decisions": ["加固控件链路稳定性"], "actions": [], "risks": [], "open_issues": [],
+            },
+        ],
     )
     st_pre = update_state({}, f1, "p1", "小艺慧记Agent")
     f2 = _fact(
@@ -458,10 +477,16 @@ def test_comparison_topic_labels() -> None:
         time="2026-09-07",
         title="推进会",
         anchors=["引擎并发"],
-        decisions=[],
+        decisions=["本场新增一条"],
         risks=[],
         open_items=[],
         action_items=[],
+        topics=[
+            {
+                "module": "引擎并发", "title": "并发压测",
+                "decisions": ["本场新增一条"], "actions": [], "risks": [], "open_issues": [],
+            },
+        ],
     )
     meetings = [f1.as_dict(), f2.as_dict()]
     for row in meetings:
@@ -474,10 +499,324 @@ def test_comparison_topic_labels() -> None:
         meetings=meetings,
         current_fact=f2,
     )
-    check("对照行带主题词", any("（现网流量｜" in line for line in comparison), str(comparison))
-    check("对照行带专名主题", any("（WeLink标注｜" in line for line in comparison), str(comparison))
+    check("条目对照行带原生主题",
+          any("（引擎并发·现网流量拆解｜" in line for line in comparison), str(comparison))
+    check("不同议题的条目各带自己的主题",
+          any("（标注链路·内部标注缺口｜" in line for line in comparison), str(comparison))
+    check("本场字符串条目（新增决策）用本场议题反查主题",
+          any("新增决策（引擎并发·并发压测）" in line for line in comparison), str(comparison))
+    check("旧版猜词标签不再出现",
+          not any("（WeLink标注" in line or "（400min" in line for line in comparison), str(comparison))
     check("素材块与对照同格式（模型照抄）",
-          any("（现网流量｜" in line for line in ctx.splitlines()), ctx[-400:])
+          any("（引擎并发·现网流量拆解｜" in line for line in ctx.splitlines()), ctx[-400:])
+
+
+def test_extract_topics_roundtrip() -> None:
+    """阶段一：extract 保留议题结构；flat 字段照旧；存储往返无损。"""
+    understanding = {
+        "meeting_purpose": "网关鉴权改造评审",
+        "meeting_brief": "评审鉴权方案",
+        "topics": [{
+            "topic_id": "T1",
+            "module": "网关核心架构",
+            "title": "鉴权方案选型与延迟优化",
+            "context_and_debate": "李工主张二级缓存，张工顾虑一致性。",
+            "key_metrics": ["P99 200ms"],
+            "decisions": ["采用二级缓存方案"],
+            "rejected_proposals": ["全量迁移"],
+            "actions": [{
+                "task": "完成缓存保护设计", "owner": "李工",
+                "deadline": "10-10", "deliverable": "设计文档",
+            }],
+            "risks": [{"risk": "多实例缓存不一致", "severity": "high"}],
+            "open_issues": ["主从切换降级策略未定"],
+        }],
+    }
+    fact = extract_meeting_fact(
+        understanding, "李工：采用二级缓存方案。", request_id="r1", time="2026-09-01"
+    )
+    check("fact.topics 保留议题结构",
+          bool(fact.topics) and fact.topics[0]["topic_id"] == "T1"
+          and fact.topics[0]["module"] == "网关核心架构"
+          and fact.topics[0]["title"] == "鉴权方案选型与延迟优化", str(fact.topics))
+    check("topics 动作条目归一（text/owner/timing/deliverable）",
+          fact.topics[0]["actions"][0] == {
+              "text": "完成缓存保护设计", "owner": "李工",
+              "timing": "10-10", "deliverable": "设计文档",
+          },
+          str(fact.topics[0]["actions"]))
+    check("topics 风险归一为文本",
+          fact.topics[0]["risks"] == ["多实例缓存不一致"], str(fact.topics[0]["risks"]))
+    check("flat 字段照旧产出（零回归）",
+          fact.decisions == ["采用二级缓存方案"]
+          and "多实例缓存不一致" in fact.risks
+          and any(a["text"] == "完成缓存保护设计" for a in fact.action_items)
+          and fact.open_items == ["主从切换降级策略未定"], "")
+    again = MeetingFact.from_dict(fact.as_dict())
+    check("as_dict/from_dict 往返保持 topics", again.topics == fact.topics, str(again.topics))
+    empty = MeetingFact.from_dict({"meeting_id": "m_old"})
+    check("旧数据无 topics → 默认空列表", empty.topics == [], str(empty.topics))
+
+
+def test_state_scope_isolation() -> None:
+    """阶段三：同 module 跨场延续；不同 module 的同名条目不误配；升级边界不重复建档。"""
+    f1 = _fact(
+        meeting_id="m1", time="2026-09-01",
+        open_items=["补充鉴权测试用例"],
+        risks=["鉴权接口偶发超时"],
+        decisions=["鉴权走二级缓存"],
+        action_items=[],
+        topics=[{
+            "module": "鉴权网关", "title": "鉴权方案选型",
+            "decisions": ["鉴权走二级缓存"], "actions": [],
+            "risks": ["鉴权接口偶发超时"],
+            "open_issues": ["补充鉴权测试用例"],
+        }],
+    )
+    st = update_state({}, f1, "p1", "P")
+    opens = st.get("open_items") or []
+    check("新条目带原生作用域",
+          bool(opens) and opens[0].get("module") == "鉴权网关"
+          and opens[0].get("topic_title") == "鉴权方案选型", str(opens))
+    check("风险/决策同样带作用域",
+          all(i.get("module") == "鉴权网关" for i in st.get("risks") or [])
+          and all(i.get("module") == "鉴权网关" for i in st.get("decisions") or []),
+          str(st.get("risks")) + str(st.get("decisions")))
+
+    f2 = _fact(
+        meeting_id="m2", time="2026-09-02", title="推进会",
+        open_items=["补充鉴权测试用例"], risks=[], decisions=[], action_items=[],
+        topics=[{
+            "module": "日志模块", "title": "日志排查",
+            "decisions": [], "actions": [], "risks": [],
+            "open_issues": ["补充鉴权测试用例"],
+        }],
+    )
+    st = update_state(st, f2, "p1", "P")
+    opens = st.get("open_items") or []
+    check("不同 module 的同名条目不误配（各存一份）",
+          len(opens) == 2 and {i.get("module") for i in opens} == {"鉴权网关", "日志模块"},
+          str(opens))
+
+    f3 = _fact(
+        meeting_id="m3", time="2026-09-03", title="推进会",
+        open_items=["补充鉴权测试用例"], risks=[], decisions=[], action_items=[],
+        topics=[{
+            "module": "鉴权网关", "title": "鉴权压测复盘",
+            "decisions": [], "actions": [], "risks": [],
+            "open_issues": ["补充鉴权测试用例"],
+        }],
+    )
+    st = update_state(st, f3, "p1", "P")
+    opens = st.get("open_items") or []
+    auth_rows = [i for i in opens if i.get("module") == "鉴权网关"]
+    check("同 module 跨场匹配延续（不重复建档）",
+          len(opens) == 2 and len(auth_rows) == 1
+          and auth_rows[0].get("last_seen") == "m3", str(opens))
+
+    # 升级边界：旧条目（无 module）再出现时按同一件事匹配，并补上原生作用域
+    legacy = update_state(
+        {}, _fact(meeting_id="m1", time="2026-09-01", open_items=["补齐来源字段"],
+                  risks=[], decisions=[], action_items=[]),
+        "p1", "P",
+    )
+    check("旧数据（无 topics）条目无作用域",
+          (legacy.get("open_items") or [{}])[0].get("module") in (None, ""),
+          str(legacy.get("open_items")))
+    f2b = _fact(
+        meeting_id="m2", time="2026-09-02", title="推进会",
+        open_items=["补齐来源字段"], risks=[], decisions=[], action_items=[],
+        topics=[{
+            "module": "记忆体系", "title": "来源字段",
+            "decisions": [], "actions": [], "risks": [],
+            "open_issues": ["补齐来源字段"],
+        }],
+    )
+    st2 = update_state(legacy, f2b, "p1", "P")
+    rows = st2.get("open_items") or []
+    check("升级边界：旧条目按同一件事匹配并补上作用域",
+          len(rows) == 1 and rows[0].get("module") == "记忆体系"
+          and rows[0].get("last_seen") == "m2", str(rows))
+
+    # 闭环作用域门：同域闭环改状态；不同域同名条目不被连带关闭
+    f_close = _fact(
+        meeting_id="m4", time="2026-09-04", title="收口",
+        open_items=[], risks=[], action_items=[],
+        decisions=["补充鉴权测试用例已完成"],
+        closed_items=["补充鉴权测试用例已完成"],
+        topics=[{
+            "module": "鉴权网关", "title": "鉴权收口",
+            "decisions": ["补充鉴权测试用例已完成"], "actions": [], "risks": [],
+            "open_issues": [],
+        }],
+    )
+    st = update_state(st, f_close, "p1", "P")
+    opens = st.get("open_items") or []
+    auth_row = next(i for i in opens if i.get("module") == "鉴权网关")
+    log_row = next(i for i in opens if i.get("module") == "日志模块")
+    check("同域闭环改状态（closed_at 落场次）",
+          auth_row.get("status") == "done" and auth_row.get("closed_at") == "m4", str(auth_row))
+    check("不同域同名条目不被连带关闭", log_row.get("status") == "open", str(log_row))
+
+
+def test_closed_announcement_in_open_issues() -> None:
+    """完成宣告只出现在 open_issues 时也能闭环（此前必漏）；未完成表述不得误判。"""
+    u1 = {
+        "meeting_purpose": "前端白屏排查",
+        "topics": [{
+            "topic_id": "T1", "module": "前端渲染", "title": "白屏排查",
+            "decisions": [], "actions": [], "risks": [],
+            "open_issues": ["补充日志采样用例"],
+        }],
+    }
+    f1 = extract_meeting_fact(
+        u1, "李工：白屏排查，补充日志采样用例待补。", request_id="r1", time="2026-09-01"
+    )
+    check("未完成表述不进闭句清单", f1.closed_items == [], str(f1.closed_items))
+    st = update_state({}, f1, "p1", "P")
+
+    u2 = {
+        "meeting_purpose": "前端白屏收口",
+        "topics": [{
+            "topic_id": "T1", "module": "前端渲染", "title": "白屏排查",
+            "decisions": [], "actions": [], "risks": [],
+            "open_issues": ["补充日志采样用例已完成", "关闭策略待定", "解决方案未确认"],
+        }],
+    }
+    f2 = extract_meeting_fact(
+        u2, "李工：补充日志采样用例已完成；关闭策略待定。", request_id="r2", time="2026-09-02"
+    )
+    check("open_issues 完成宣告进闭句清单",
+          "补充日志采样用例已完成" in f2.closed_items, str(f2.closed_items))
+    check("裸词「关闭/解决」不误判（强完成标记口径）",
+          "关闭策略待定" not in f2.closed_items
+          and "解决方案未确认" not in f2.closed_items, str(f2.closed_items))
+    st = update_state(st, f2, "p1", "P")
+    rows = [i for i in st.get("open_items") or [] if i.get("text") == "补充日志采样用例"]
+    check("只出现在 open_issues 的完成宣告把条目标成 done",
+          bool(rows) and rows[0].get("status") == "done"
+          and rows[0].get("closed_at") == "m_r2", str(rows))
+    check("敞口表述仍保持 open",
+          all(
+              i.get("status") == "open"
+              for i in (st.get("open_items") or [])
+              if i.get("text") in {"关闭策略待定", "解决方案未确认"}
+          ),
+          str(st.get("open_items")))
+
+    # 作用域门：另一 module 的相近完成宣告不得跨域关闭
+    st_iso = update_state({}, f1, "p1", "P")
+    u2b = {
+        "meeting_purpose": "日志排查",
+        "topics": [{
+            "topic_id": "T1", "module": "日志模块", "title": "日志排查",
+            "decisions": [], "actions": [], "risks": [],
+            "open_issues": ["补充日志采样用例已完成"],
+        }],
+    }
+    f2b = extract_meeting_fact(
+        u2b, "王工：补充日志采样用例已完成。", request_id="r4", time="2026-09-04"
+    )
+    st_iso = update_state(st_iso, f2b, "p1", "P")
+    rows = [i for i in st_iso.get("open_items") or [] if i.get("text") == "补充日志采样用例"]
+    check("不同 module 的完成宣告不跨域关闭（作用域门）",
+          bool(rows) and rows[0].get("status") == "open", str(rows))
+
+
+def test_scoped_citations() -> None:
+    """阶段四：历史条目只挂进主题重合的章节（消灭跨议题张冠李戴）。"""
+    from domains.meeting.memory.render import apply_memory_citations
+
+    ctx = (
+        "【会议记忆】\n项目：P\n\n"
+        "【延续事项】\n"
+        "- 网关时延指标要压到200ms以内（第1场·2026-09-01起，最近第1场·2026-09-01，状态 open）\n"
+        "  主题：网关核心架构·鉴权方案\n"
+        "- 前端渲染白屏排查收尾（第1场·2026-09-01起，最近第1场·2026-09-01，状态 open）\n"
+        "  主题：前端渲染·白屏排查\n"
+    )
+    body = (
+        "# 纪要\n"
+        "## 鉴权方案选型与延迟优化\n"
+        "本场确认鉴权链路基线，时延指标要压到200ms以内。\n"
+        "## 前端渲染改造\n"
+        "前端渲染白屏排查收尾，渲染链路时延指标也顺带看了一眼。\n"
+    )
+    out = apply_memory_citations(body, ctx)
+    auth, render_sec = out.split("## 前端渲染改造", 1)
+    check("同议题章节内正常锚定", "(#memory-1)" in auth, auth)
+    check("跨议题不误锚（鉴权条目不进前端渲染章节）",
+          "(#memory-1)" not in render_sec, render_sec)
+    check("另一议题条目只进自己的章节",
+          "(#memory-2)" in render_sec and "(#memory-2)" not in auth, out)
+    check("锚点仍按完整条目表编号（溯源卡片对得上）",
+          "#### 溯源 memory-1" in out and "#### 溯源 memory-2" in out, out[-300:])
+    # 幂等：重复调用不再叠加
+    again = apply_memory_citations(out, ctx)
+    check("重复调用不重复标注",
+          again.count("(#memory-1)") == 1 and again.count("## 历史记忆引用") == 1, again)
+
+    # 旧数据（无原生作用域）保持全局匹配：零回归
+    ctx_legacy = (
+        "【会议记忆】\n项目：P\n\n"
+        "【延续事项】\n"
+        "- 历史遗留的对接口径（第1场·2026-09-01起，最近第1场·2026-09-01，状态 open）\n"
+    )
+    body_legacy = (
+        "# 纪要\n## 前端渲染改造\n"
+        "前端渲染白屏排查收尾，历史遗留的对接口径顺带过了一遍。\n"
+    )
+    out2 = apply_memory_citations(body_legacy, ctx_legacy)
+    check("旧数据（无作用域）仍全局锚定（零回归）", "(#memory-1)" in out2, out2)
+
+    # 固定栏名正文（minutes_styles 形态）不触发作用域切池：保持全局
+    styles_body = (
+        "# 多样式纪要\n"
+        "## 会议性质\n"
+        "网关时延指标要压到200ms以内这事在鉴权链路里说了。\n"
+        "## 总体结论\n"
+        "前端渲染白屏排查收尾，整体顺利。\n"
+    )
+    out3 = apply_memory_citations(styles_body, ctx)
+    check("固定栏名正文不触发作用域切池（保留全局匹配）",
+          "(#memory-1)" in out3 and "(#memory-2)" in out3, out3)
+
+
+def test_registry_module_binding(tmp: Path) -> None:
+    """阶段五：议题 module 并入 registry anchors / _fact_blob；同 module 可命中 topic 级信号。"""
+    from domains.meeting.memory.bind import _fact_blob, _project_hits
+
+    u = {
+        "meeting_purpose": "网关鉴权改造评审",
+        "meeting_brief": "评审鉴权方案",
+        "topics": [
+            {"topic_id": "T1", "module": "网关核心架构", "title": "鉴权方案选型",
+             "decisions": [], "actions": [], "risks": [], "open_issues": []},
+            {"topic_id": "T2", "module": "会议纪要", "title": "泛词模块",
+             "decisions": [], "actions": [], "risks": [], "open_issues": []},
+        ],
+    }
+    t = "李工：网关鉴权改造评审，主从切换降级策略未定。"
+    persist_after_run(
+        tmp, "u9", "", "req_m", t,
+        {"minutes": {"headline": "网关鉴权改造评审"}}, u,
+        meeting_time="2026-09-01",
+    )
+    rows = list_meetings(tmp, "u9")
+    check("meetings.jsonl 行带 topics", bool(rows and rows[-1].get("topics")), str(rows[-1].keys()) if rows else "")
+    reg = load_registry(tmp, "u9")
+    project = next(iter((reg.get("projects") or {}).values()))
+    anchors = project.get("anchors") or []
+    check("议题 module 并入 registry anchors", "网关核心架构" in anchors, str(anchors))
+    check("泛词 module 不并入", "会议纪要" not in anchors, str(anchors))
+
+    fact = extract_meeting_fact(u, t, request_id="req_n", time="2026-09-07")
+    blob = _fact_blob(fact)
+    check("_fact_blob 纳入议题 module", "网关核心架构" in blob, blob)
+    hits = _project_hits(project, fact)
+    check("module 作为 topic 级信号命中（不冒充强锚点）",
+          "网关核心架构" in hits["topic_anchors"]
+          and "网关核心架构" not in hits["strong_anchors"], str(hits))
 
 
 def test_comparison_richness() -> None:
@@ -694,6 +1033,54 @@ def test_personal_minutes_html_rendering() -> None:
     check("个人模式标题方括号剔除", "[本场概况与本人定调]" not in content and "本场概况与本人定调" in content, "")
 
 
+def test_persist_scope_roundtrip(tmp: Path) -> None:
+    """落盘→重放：module 命名漂移仍同域延续；rebuild 与落盘 state 一致（含 topics/scope）。"""
+    u1 = {
+        "meeting_purpose": "小艺慧记Agent网关鉴权评审",
+        "topics": [{
+            "topic_id": "T1", "module": "网关核心架构", "title": "鉴权方案选型",
+            "decisions": [],
+            "actions": [{"task": "完成缓存保护设计", "owner": "李工", "deadline": "10-10"}],
+            "risks": [], "open_issues": ["主从切换降级策略未定"],
+        }],
+    }
+    t1 = "李工：小艺慧记Agent网关鉴权评审，完成缓存保护设计。"
+    persist_after_run(
+        tmp, "u4", "小艺慧记Agent", "r1", t1,
+        {"minutes": {"headline": "小艺慧记Agent网关鉴权评审"}}, u1,
+        meeting_time="2026-09-01",
+    )
+    u2 = {
+        "meeting_purpose": "小艺慧记Agent鉴权推进会",
+        "topics": [{
+            "topic_id": "T1", "module": "网关鉴权优化", "title": "鉴权压测复盘",
+            "decisions": [],
+            "actions": [{"task": "完成缓存保护设计", "owner": "李工", "deadline": "10-20"}],
+            "risks": [], "open_issues": ["主从切换降级策略未定"],
+        }],
+    }
+    t2 = "李工：小艺慧记Agent鉴权推进，主从切换降级策略未定，缓存保护设计继续。"
+    persist_after_run(
+        tmp, "u4", "小艺慧记Agent", "r2", t2,
+        {"minutes": {"headline": "小艺慧记Agent鉴权推进会"}}, u2,
+        meeting_time="2026-09-07",
+    )
+    reg = load_registry(tmp, "u4")
+    pid = next(iter(reg["projects"]))
+    st = load_state(tmp, "u4", pid)
+    actions = [i for i in st.get("actions") or [] if i.get("text") == "完成缓存保护设计"]
+    check("命名漂移仍同域延续（落盘链路）",
+          len(actions) == 1 and actions[0].get("last_seen") == "m_r2"
+          and actions[0].get("module") == "网关核心架构", str(actions))
+    meetings = list_meetings(tmp, "u4")
+    rebuilt = rebuild_state(
+        meetings, pid, project_name=str(reg["projects"][pid].get("name") or pid)
+    )
+    check("rebuild 与落盘 state 一致（含 topics/scope）",
+          json.dumps(rebuilt, ensure_ascii=False, sort_keys=True)
+          == json.dumps(st, ensure_ascii=False, sort_keys=True), "")
+
+
 def main() -> int:
     test_identity_helpers()
     test_bind_explicit_warning()
@@ -707,6 +1094,10 @@ def main() -> int:
     test_history_comparison_section()
     test_anchor_guards()
     test_comparison_topic_labels()
+    test_extract_topics_roundtrip()
+    test_state_scope_isolation()
+    test_closed_announcement_in_open_issues()
+    test_scoped_citations()
     test_comparison_richness()
     test_review_panel_ledger_group()
     test_selection_relevance_and_recency()
@@ -716,6 +1107,8 @@ def main() -> int:
         tmp = Path(raw)
         test_persist_no_project_and_headline(tmp)
         test_pending_two_projects(tmp)
+        test_registry_module_binding(tmp)
+        test_persist_scope_roundtrip(tmp)
     print(f"pass {len(PASS)}  fail {len(FAIL)}")
     for name in FAIL:
         print("FAIL", name)

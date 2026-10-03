@@ -29,6 +29,10 @@ class MeetingFact:
     risks: list[str] = field(default_factory=list)
     closed_items: list[str] = field(default_factory=list)
     quotes: list[dict[str, str]] = field(default_factory=list)
+    # 议题树快照（module/title/decisions/actions/risks/open_issues）：
+    # 记忆 v2 的作用域来源——条目自带 module/topic_title，不再靠正则从文本反猜主题。
+    # 旧数据无此字段 → 默认 []，所有消费方按"无作用域"处理（行为与改造前一致）。
+    topics: list[dict[str, Any]] = field(default_factory=list)
 
     def as_dict(self) -> dict[str, Any]:
         return {
@@ -47,6 +51,7 @@ class MeetingFact:
             "risks": self.risks,
             "closed_items": self.closed_items,
             "quotes": self.quotes,
+            "topics": self.topics,
         }
 
     @classmethod
@@ -88,6 +93,7 @@ class MeetingFact:
                 item for item in (raw.get("quotes") or [])
                 if isinstance(item, dict)
             ],
+            topics=_normalize_topics(raw.get("topics")),
         )
 
 
@@ -99,6 +105,51 @@ def _str_list(value: object) -> list[str]:
         text = _clean(item)
         if text and text not in out:
             out.append(text)
+    return out
+
+
+def _normalize_topics(raw_topics: object) -> list[dict[str, Any]]:
+    """议题树归一化：理解层输出与存储行共用同一形状。
+
+    形状（memory 自己的词汇，与 MeetingFact.action_items 对齐）::
+
+        {topic_id, module, title, decisions[], actions[{text,owner,timing,deliverable}],
+         risks[], open_issues[]}
+
+    理解层 actions 的键是 task/deadline，存储行是 text/timing——两种来源都收，
+    幂等（归一化结果再归一化不变），as_dict → from_dict 往返无损。
+    """
+    out: list[dict[str, Any]] = []
+    for topic in raw_topics or []:
+        if not isinstance(topic, dict):
+            continue
+        actions: list[dict[str, str]] = []
+        for item in topic.get("actions") or []:
+            if not isinstance(item, dict):
+                continue
+            text = _clean(item.get("text") or item.get("task"))
+            if not text:
+                continue
+            actions.append({
+                "text": text,
+                "owner": _clean(item.get("owner")),
+                "timing": _clean(item.get("timing") or item.get("deadline")),
+                "deliverable": _clean(item.get("deliverable")),
+            })
+        risks: list[str] = []
+        for item in topic.get("risks") or []:
+            text = _clean(item.get("risk")) if isinstance(item, dict) else _clean(item)
+            if text and text not in risks:
+                risks.append(text)
+        out.append({
+            "topic_id": _clean(topic.get("topic_id")),
+            "module": _clean(topic.get("module")),
+            "title": _clean(topic.get("title")),
+            "decisions": _str_list(topic.get("decisions")),
+            "actions": actions,
+            "risks": risks,
+            "open_issues": _str_list(topic.get("open_issues")),
+        })
     return out
 
 
@@ -219,6 +270,11 @@ def _anchor_candidates(understanding: dict[str, Any], transcript: str) -> list[s
 
 
 _DONE_RE = re.compile(r"(已完成|已解决|已闭环|已整改|完成整改|已关闭|关闭|解决|已落实)")
+# open_issues 专用的强完成标记：去掉裸词「关闭/解决」——open_issues 是"没谈拢的
+# 敞口事项"聚集地，「关闭策略待定」「解决方案未确认」这类未完成表述在裸词口径下
+# 会被误判成闭环。2026-10 修：完成宣告只出现在 open_issues 时闭环池扫不到，
+# 条目永远挂在【延续事项】里（实测 last_seen 更新、status 仍是 open）。
+_DONE_STRONG_RE = re.compile(r"(已完成|已解决|已闭环|已整改|完成整改|已关闭|已落实)")
 
 
 def _topic_conclusions(understanding: dict[str, Any]) -> list[str]:
@@ -237,6 +293,24 @@ def _topic_conclusions(understanding: dict[str, Any]) -> list[str]:
             d = _clean(dec)
             if d:
                 rows.append(d)
+    return rows
+
+
+def _topic_closed_issues(understanding: dict[str, Any]) -> list[str]:
+    """议题 open_issues 里的完成宣告（强完成标记口径，``_DONE_STRONG_RE``）。
+
+    闭环池原本只扫 decisions/open_questions/actions/conclusion/key_points，
+    模型把「X 已完成」记进 open_issues 时进不了池子，闭环整条不发生；
+    这里单独收编，且用强完成标记避免把「关闭策略待定」这类敞口表述误判成闭环。
+    """
+    rows: list[str] = []
+    for topic in understanding.get("topics") or []:
+        if not isinstance(topic, dict):
+            continue
+        for issue in topic.get("open_issues") or []:
+            text = _clean(issue)
+            if text and _DONE_STRONG_RE.search(text) and text not in rows:
+                rows.append(text)
     return rows
 
 
@@ -281,6 +355,11 @@ def _closed_items(understanding: dict[str, Any], actions: list[dict[str, str]]) 
     rows: list[str] = []
     for text in pool:
         if _DONE_RE.search(text) and text not in rows:
+            rows.append(text)
+    # open_issues 的完成宣告：强完成标记口径单独收编（与上面的宽松口径分开，
+    # 避免把敞口表述误判成闭环；详见 _topic_closed_issues）。
+    for text in _topic_closed_issues(understanding):
+        if text not in rows:
             rows.append(text)
     return rows[:12]
 
@@ -397,6 +476,9 @@ def extract_meeting_fact(
         risks=risks,
         closed_items=closed,
         quotes=_quotes(transcript, decisions, opens, risks, closed, actions),
+        # 结构化议题与 flat 列表并行产出：flat 逻辑（含 fields 回退）一字不动，
+        # topics 只作记忆作用域/对照标签的原生来源。
+        topics=_normalize_topics(topics),
     )
 
 

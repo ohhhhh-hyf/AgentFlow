@@ -18,6 +18,8 @@ SUITES = (
     "tests.test_engine_smoke",
     # agenda_minutes 字段规范化的特征测试（新旧 schema 兼容 + 两副本漂移哨兵）
     "tests.test_agenda_coercion",
+    # 审核短路与理解瘦身（快速门禁 / 规则守卫 / 送审瘦身 / 契约口径）
+    "tests.test_supervisor_optimization",
 )
 
 

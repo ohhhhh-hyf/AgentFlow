@@ -16,6 +16,10 @@ from .bind import (
     pick_project_name,
     project_core,
 )
+
+# 私有判定（同包共用）：module 并入 registry anchors 前的泛词/畸形过滤，
+# 与绑定侧锚点分类同源，避免把"会议""复盘"这类泛词写进项目锚点。
+from .bind import _is_generic_anchor, _looks_malformed_anchor
 from .extract import MeetingFact, extract_meeting_fact
 from .inject import build_memory_context
 from .state import backfill_meeting_titles, rebuild_state, sort_project_meetings
@@ -310,6 +314,19 @@ def _merge_registry_project(project: dict[str, Any], fact: MeetingFact, stamp: s
         core = project_core(anchor) or anchor
         if core and is_strong_anchor(core) and core not in anchors:
             anchors.append(core)
+    # 议题树的 module 并入项目 anchors（去重、剔泛词）：下一场会议的议题树出现相同
+    # module 时，_fact_blob 里的 module 直接命中本项目的 topic 级锚点，实现
+    # "相同 module 毫秒级自动绑定"。只作 topic 级信号（不冒充强锚点），单靠它
+    # 不足以触发 high 绑定，绑定口径不被放宽。
+    for topic in getattr(fact, "topics", None) or []:
+        if not isinstance(topic, dict):
+            continue
+        module = str(topic.get("module") or "").strip()
+        if not module or len(module) < 3 or len(module) > 24:
+            continue
+        if module in anchors or _is_generic_anchor(module) or _looks_malformed_anchor(module):
+            continue
+        anchors.append(module)
     project["anchors"] = anchors[:24]
     aliases = [str(x) for x in (project.get("aliases") or []) if str(x).strip()]
     title = (fact.title or "").strip()

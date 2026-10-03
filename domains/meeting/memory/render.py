@@ -14,6 +14,8 @@ from dataclasses import dataclass
 from html import escape
 from typing import Any
 
+from .state import _module_overlap
+
 SECTION_TITLE = "历史记忆引用"
 
 # 记忆块总是追加在（生成/渲染）上下文末尾；贪婪到文末，小节头不参与块边界。
@@ -29,6 +31,9 @@ _ITEM_RE = re.compile(r"^(?:[-*]|\d+[.)、])\s+(.+)$")
 _QUOTE_RE = re.compile(r"^\s*原文摘录：(.+)$")
 _SOURCE_RE = re.compile(r"^\s*来源会议：(.+)$")
 _TIME_RE = re.compile(r"^\s*会议时间：(.+)$")
+# 原生作用域子行（inject._append_item 写入）：``  主题：module·title``，
+# 作用域锚定据此把历史条目限定到对应议题章节。
+_SCOPE_RE = re.compile(r"^\s*主题：(.+)$")
 # 新 meta 协议（inject._open_meta 等）：括号内不再嵌套括号，字段词形固定，
 # 这样 （[^（）()]*）$ 一定剥得掉——旧格式「（第1场（2026-09-01）起…）」嵌套括号
 # 剥不掉，实测 15/15 条条目的正文混进内部 meta，卡片上出现「…（第1场（2026-09-01）起，最近第1场」。
@@ -116,6 +121,8 @@ class MemoryItem:
     status: str = ""  # open / done / active / mitigated / dormant / reaffirmed …
     owner: str = ""  # 待办负责人（有则展示）
     timing: str = ""  # 时限（有则展示）
+    module: str = ""  # 原生议题作用域（business module）
+    topic_title: str = ""  # 原生议题标题
 
 
 def _split_meta(body: str) -> tuple[str, str]:
@@ -230,6 +237,17 @@ def parse_memory_items(context: str) -> list[MemoryItem]:
         if time_match:
             if pending is not None and not pending.meeting_time:
                 pending.meeting_time = _clean(time_match.group(1))
+            continue
+        scope_match = _SCOPE_RE.match(line)
+        if scope_match:
+            if pending is not None and not pending.module and not pending.topic_title:
+                scope = _clean(scope_match.group(1))
+                if "·" in scope:
+                    module, _, title = scope.partition("·")
+                    pending.module = _clean(module)
+                    pending.topic_title = _clean(title)
+                else:
+                    pending.module = scope
             continue
         item_match = _ITEM_RE.match(stripped)
         if item_match:
@@ -457,6 +475,7 @@ def _append_markers(
     items: list[MemoryItem],
     seen: list[MemoryItem] | None = None,
     stats: _NeedleStats | None = None,
+    ref_items: list[MemoryItem] | None = None,
 ) -> tuple[str, list[MemoryItem]]:
     if not items or _TAG_RE.search(line):
         return line, []
@@ -493,10 +512,13 @@ def _append_markers(
     out: list[str] = []
     pos = 0
     used: list[MemoryItem] = []
+    # ref_items：锚点编号必须按**完整条目表**取（作用域过滤只收窄候选，
+    # 不能改变 memory-N 与文末溯源卡片的对应关系）。
+    index_items = ref_items if ref_items is not None else items
     for start, end, item in spans:
         out.append(escape(line[pos:start], quote=False))
         label = escape(line[start:end], quote=False)
-        ref_id = f"memory-{items.index(item) + 1}"
+        ref_id = f"memory-{index_items.index(item) + 1}"
         out.append(f"[{label}](#{ref_id})")
         used.append(item)
         pos = end
@@ -536,6 +558,84 @@ def _status_line(item: MemoryItem) -> str:
     return f"状态：{label}{tail}"
 
 
+# 作用域锚定阈值：章节标题与 module/topic_title 的 2-gram 覆盖率下限。
+# 议题名逐字做章节标题（minutes_trace 形态）或"标题 ⊃ 议题名"时覆盖率可达 1.0；
+# 无关议题（"鉴权方案" vs "前端渲染改造"）交集为空 → 0，被正确隔离。
+_MIN_SCOPE_OVERLAP = 0.3
+
+
+def _split_by_sections(markdown: str) -> list[tuple[str, str]]:
+    """按 ``## `` 标题拆分 markdown，返回 [(section_title, section_content), ...]。
+
+    纯确定性分段（不猜）：minutes_trace 正文严格按 ``## [议题名称]`` 分章，
+    这段拆分是作用域锚定"章节 → 候选条目池"的边界来源。
+    首个章节标题可能为空串（标题之前的正文），调用方按"无标题段落"处理。
+    """
+    sections: list[tuple[str, str]] = []
+    current_title, current_lines = "", []
+    for line in markdown.splitlines():
+        if line.startswith("## "):
+            if current_title or current_lines:
+                sections.append((current_title, "\n".join(current_lines)))
+            current_title = line[3:].strip()
+            current_lines = []
+        else:
+            current_lines.append(line)
+    if current_title or current_lines:
+        sections.append((current_title, "\n".join(current_lines)))
+    return sections
+
+
+def _item_in_scope(item: MemoryItem, section_title: str) -> bool:
+    """条目是否允许锚进该章节。
+
+    - 条目没有原生作用域（旧数据）→ 总是候选，行为与改造前一致；
+    - 章节没有标题（前言 / 无章节正文）→ 总是候选；
+    - 有作用域、有章节标题 → module 或 topic_title 与该标题有主题重合才候选，
+      不同议题的历史条目在别的议题章节里一律不参与锚定（消灭张冠李戴）。
+    """
+    if not item.module and not item.topic_title:
+        return True
+    title = _clean(section_title)
+    if not title:
+        return True
+    return (
+        _module_overlap(item.module, title) > _MIN_SCOPE_OVERLAP
+        or _module_overlap(item.topic_title, title) > _MIN_SCOPE_OVERLAP
+    )
+
+
+def _scope_signaled(sections: list[tuple[str, str]], items: list[MemoryItem]) -> bool:
+    """正文是否呈"议题章节"结构（决定这次要不要启用作用域锚定）。
+
+    只有章节标题与某条目的原生主题确有重合时才启用——避免把 minutes_styles 的
+    固定栏名（会议性质/总体结论）和自由纪要的无章节正文误按议题切池
+    （文档风险表：作用域锚定先在结构化正文上做，其他线暂保留全局匹配）。
+    """
+    scoped = [item for item in items if item.module or item.topic_title]
+    if not scoped:
+        return False
+    titles = [title for title, _ in sections if _clean(title)]
+    if not titles:
+        return False
+    return any(
+        _module_overlap(item.module, title) > _MIN_SCOPE_OVERLAP
+        or _module_overlap(item.topic_title, title) > _MIN_SCOPE_OVERLAP
+        for item in scoped
+        for title in titles
+    )
+
+
+def _collect_ref_ids(text: str) -> list[str]:
+    """正文里已有的 memory-N 锚点（按出现顺序去重）。"""
+    out: list[str] = []
+    for match in re.finditer(r"\(#(memory-\d+)\)", text or ""):
+        ref = match.group(1)
+        if ref not in out:
+            out.append(ref)
+    return out
+
+
 def apply_memory_citations(
     markdown: str,
     context: str,
@@ -546,6 +646,11 @@ def apply_memory_citations(
     保守锚定、不改事实措辞、只追加标记；上下文无【会议记忆】块时原样返回。
     ``comparison``：程序算好的历史对照（build_memory_context 的第二个返回值），
     无条件写成固定小节——它是零锚点时的唯一可见溯源。
+
+    作用域锚定（2026-10 记忆 v2）：正文按 ``## `` 章节拆分后，带原生
+    module/topic_title 的历史条目只允许锚进主题重合的章节——消灭"第 1 场鉴权
+    时延指标因 4 字重合被挂到第 2 场前端渲染段落"这类张冠李戴；无章节结构
+    （自由纪要）或条目无原生作用域（旧数据）时保持全局匹配，零回归。
     """
     body = markdown or ""
     comparison_section = history_comparison_section(list(comparison or []))
@@ -564,9 +669,20 @@ def apply_memory_citations(
     used: list[MemoryItem] = []
     seen: list[MemoryItem] = []
     lines: list[str] = []
+    scoped = _scope_signaled(_split_by_sections(body), items)
+    section_title = ""
     for line in body.splitlines():
+        if line.startswith("## "):
+            section_title = line[3:].strip()
         if _is_citeable_line(line):
-            line, found = _append_markers(line, items, seen, stats)
+            candidates = (
+                [item for item in items if _item_in_scope(item, section_title)]
+                if scoped
+                else items
+            )
+            line, found = _append_markers(
+                line, candidates, seen, stats, ref_items=items
+            )
             for item in found:
                 if item not in seen:
                     seen.append(item)
@@ -576,7 +692,13 @@ def apply_memory_citations(
     # 正文没有任何可精确锚定的行时，不伪造溯源入口：既不声明命中，也不生成
     # 「历史记忆引用」区（宁可无引用，也不在正文插入「记忆命中」这类系统表达）。
     if not used:
-        return "\n".join(lines) + comparison_section
+        # 重复调用（正文已带锚点、本次全部跳过）：按正文里实际引用的编号重建溯源区，
+        # 否则会留下"标签还在、卡片被摘掉"的悬空链接。
+        existing = _collect_ref_ids("\n".join(lines))
+        by_ref = {f"memory-{index + 1}": item for index, item in enumerate(items)}
+        used = [by_ref[ref] for ref in existing if ref in by_ref]
+        if not used:
+            return "\n".join(lines) + comparison_section
 
     appendix = ["", f"## {SECTION_TITLE}", ""]
     for item in used:

@@ -202,6 +202,13 @@ def _fact_blob(fact: Any) -> str:
             _clean(x.get("text") if isinstance(x, dict) else x)
             for x in (getattr(fact, "action_items", None) or [])
         ),
+        # 议题树 module：与 registry 侧并入的 module 锚点对撞，实现"相同 module
+        # 自动绑定"；只进 topic 级信号（_project_hits 分类），不冒充强锚点。
+        " ".join(
+            _clean(topic.get("module"))
+            for topic in (getattr(fact, "topics", None) or [])
+            if isinstance(topic, dict)
+        ),
     ])
 
 
