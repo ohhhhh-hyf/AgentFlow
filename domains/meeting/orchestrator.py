@@ -155,12 +155,6 @@ _EMPTY_MEETING_UNDERSTANDING = {
     "scene": "通用",
     "speakers": [],
     "topics": [],
-    "decisions": [],
-    "open_questions": [],
-    "risks": [],
-    "action_hints": [],
-    "risk_hints": [],
-    "dependencies": [],
 }
 
 _EMPTY_MINDMAP = {
@@ -363,11 +357,10 @@ _LINES_FORMATTERS: dict[str, object] = {
 }
 
 # 理解层按线裁剪：单线运行时跳过的字段（输出 []，字段契约与下游读取不变）。
-# 多线并行共享理解时保持全量，裁剪只在单线场景生效（避免一条线白付其它线字段）。
 UNDERSTANDING_SKIP_FIELDS: dict[str, frozenset[str]] = {
-    "actions": frozenset({"topics", "risks", "open_questions", "risk_hints"}),
-    "risks": frozenset({"topics", "action_hints"}),
-    "minutes": frozenset({"risk_hints", "action_hints", "dependencies"}),
+    "actions": frozenset({"decisions", "risk_hints", "open_questions", "dependencies"}),
+    "risks": frozenset({"decisions", "action_hints", "dependencies"}),
+    "minutes": frozenset({"action_hints", "risk_hints", "dependencies"}),
 }
 
 def _empty_purpose(state) -> str:
@@ -421,25 +414,11 @@ class _Nodes(DomainNodes):
     _line_policies = resolve_line_policies(LINE_KINDS)
 
     # 理解层参与审核摘录的字段白名单（线名 → 保留字段）。
-    # 该线不消费的字段不进原文摘录，命中点从遍布全文收敛到相关段落；
-    # 未列出的线（minutes_styles / mindmap 等）走默认全字段。
     _understanding_needle_keep: dict[str, frozenset[str]] = {
-        "actions": frozenset({
-            "meeting_brief", "meeting_purpose", "scene", "decisions",
-            "action_hints", "dependencies",
-        }),
-        "risks": frozenset({
-            "meeting_brief", "meeting_purpose", "scene", "risks",
-            "open_questions", "risk_hints", "dependencies",
-        }),
-        "minutes": frozenset({
-            "meeting_brief", "meeting_purpose", "scene", "speakers",
-            "topics", "decisions", "risks", "open_questions", "dependencies",
-        }),
-        "minutes_trace": frozenset({
-            "meeting_brief", "meeting_purpose", "scene", "speakers",
-            "topics", "decisions", "risks", "open_questions", "dependencies",
-        }),
+        "actions": frozenset({"meeting_brief", "meeting_purpose", "scene", "speakers", "topics"}),
+        "risks": frozenset({"meeting_brief", "meeting_purpose", "scene", "speakers", "topics"}),
+        "minutes": frozenset({"meeting_brief", "meeting_purpose", "scene", "speakers", "topics"}),
+        "minutes_trace": frozenset({"meeting_brief", "meeting_purpose", "scene", "speakers", "topics"}),
     }
 
     def _understanding_needle_fields(self, line_name: str) -> set[str] | None:
@@ -551,98 +530,65 @@ class _Nodes(DomainNodes):
             "speakers": u.get("speakers") or [],
         }
 
-        # 从议题树中提取衍生要素（兼顾树状原生与平铺兼容）
-        tree_actions: list[dict] = []
-        tree_risks: list[dict] = []
-        tree_decisions: list[str] = list(u.get("decisions") or [])
-        tree_open_issues: list[str] = list(u.get("open_questions") or [])
+        if line_name == "actions":
+            return {
+                **base,
+                "topics": topics,
+            }
+        if line_name == "risks":
+            return {
+                **base,
+                "topics": topics,
+            }
+
+        # 为无模板的纪要线提取决议与风险汇总（纯树提取，零冗余；兼容旧 mock 顶层字段）
+        top_risks = [
+            r if isinstance(r, str) else (r.get("risk") or "")
+            for r in (u.get("risks") or [])
+            if (isinstance(r, str) and r.strip()) or (isinstance(r, dict) and r.get("risk"))
+        ]
+        top_decisions = [str(d).strip() for d in (u.get("decisions") or []) if d and str(d).strip()]
+        top_open_issues = [str(o).strip() for o in (u.get("open_questions") or []) if o and str(o).strip()]
+
+        tree_decisions: list[str] = list(top_decisions)
+        tree_risks: list[str] = list(top_risks)
+        tree_open_issues: list[str] = list(top_open_issues)
         for t in raw_topics:
             if not isinstance(t, dict):
                 continue
-            t_title = str(t.get("title") or "").strip()
-            for a in (t.get("actions") or []):
-                if isinstance(a, dict):
-                    tree_actions.append({
-                        "action": a.get("task") or a.get("action") or "",
-                        "owner": a.get("owner"),
-                        "timing": a.get("deadline"),
-                        "condition": a.get("dependency"),
-                        "topic": t_title,
-                        "kind": "directive" if a.get("priority") == "high" else "assignment",
-                        "evidence": a.get("evidence") or "",
-                    })
-            for r in (t.get("risks") or []):
-                if isinstance(r, dict):
-                    tree_risks.append({
-                        "risk": r.get("risk") or "",
-                        "topic": t_title,
-                        "signal_type": "quality",
-                        "severity_evidence": r.get("evidence") or "",
-                        "impact": r.get("impact"),
-                        "mitigation": r.get("mitigation"),
-                        "owner": r.get("owner"),
-                        "evidence": r.get("evidence") or "",
-                    })
             for d in (t.get("decisions") or []):
                 if d and str(d).strip() not in tree_decisions:
                     tree_decisions.append(str(d).strip())
+            for r in (t.get("risks") or []):
+                val = r.get("risk") if isinstance(r, dict) else str(r)
+                if val and val.strip() and val.strip() not in tree_risks:
+                    tree_risks.append(val.strip())
             for o in (t.get("open_issues") or []):
                 if o and str(o).strip() not in tree_open_issues:
                     tree_open_issues.append(str(o).strip())
 
-        dependencies = u.get("dependencies") or u.get("global_dependencies") or []
-
-        if line_name == "actions":
-            action_hints = u.get("action_hints") or tree_actions
-            directive_decisions = [
-                item for item in tree_decisions
-                if any(word in str(item) for word in ("要求", "必须", "务必", "请", "需", "整改", "落实"))
-            ]
-            return {
-                **base,
-                "action_hints": action_hints,
-                "directive_decisions": directive_decisions,
-                "dependencies": dependencies,
-            }
-        if line_name == "risks":
-            risk_hints = u.get("risk_hints") or tree_risks
-            all_risks = list(u.get("risks") or [])
-            for r in tree_risks:
-                if r.get("risk") and r["risk"] not in all_risks:
-                    all_risks.append(r["risk"])
-            return {
-                **base,
-                "risk_hints": risk_hints,
-                "risks": all_risks,
-                "dependencies": dependencies,
-                "risk_related_open_questions": tree_open_issues,
-            }
         if line_name in {"minutes_trace", "minutes_styles"}:
             return {
                 **base,
                 "topics": topics,
                 "decisions": tree_decisions,
-                "risks": u.get("risks") or [r["risk"] for r in tree_risks if r.get("risk")],
+                "risks": tree_risks,
                 "open_questions": tree_open_issues,
-                "dependencies": dependencies,
             }
         if line_name == "minutes":
             return {
                 **base,
                 "topics": topics,
                 "decisions": _attribute_person_items(state, tree_decisions),
-                "risks": _attribute_person_items(state, u.get("risks") or [r["risk"] for r in tree_risks if r.get("risk")]),
+                "risks": _attribute_person_items(state, tree_risks),
                 "open_questions": _attribute_person_items(state, tree_open_issues),
             }
         return {
             **base,
             "topics": topics,
             "decisions": tree_decisions,
-            "risks": u.get("risks") or [r["risk"] for r in tree_risks if r.get("risk")],
+            "risks": tree_risks,
             "open_questions": tree_open_issues,
-            "action_hints": u.get("action_hints") or tree_actions,
-            "risk_hints": u.get("risk_hints") or tree_risks,
-            "dependencies": dependencies,
         }
 
     def _line_shared_context(self, state: dict, line_name: str) -> str:
@@ -906,7 +852,7 @@ class _Nodes(DomainNodes):
         if self._mode_label(state) != "personal" or line_name not in PREFERENCE_LINES:
             return ""
         template = str((state.get("templates") or {}).get(line_name) or "")
-        if any(marker in template for marker in ("本场概况与承接目标", "本场概况与本人定调", "会议全貌与本人定调", "全局局势与承接目标", "重点关注与业务进展", "行动项与协同依赖", "待确认事项与潜在风险", "待确认事项与风险", "待确认与风险", "待确认事项与风险卡点", "待确认与风险卡点")):
+        if any(marker in template for marker in ("会议概况", "业务进展", "相关行动", "相关风险", "本场概况与承接目标", "本场概况与本人定调", "会议全貌与本人定调", "全局局势与承接目标", "重点关注与业务进展", "行动项与协同依赖", "待确认事项与潜在风险", "待确认事项与风险", "待确认与风险", "待确认事项与风险卡点", "待确认与风险卡点")):
             return PERSONAL_TEMPLATE_VIEW_DIRECTIVE
         return PERSONAL_VIEW_DIRECTIVE
 
@@ -1115,11 +1061,14 @@ class _Nodes(DomainNodes):
                 synthesize_perspective_profile,
             )
 
-            if bool(state.get("objective_perspective")):
+            user = state.get("user") or {}
+            name = str(user.get("name") or "").strip()
+            persona_type = str(user.get("persona_type") or "").strip().lower()
+            has_identity = bool(name or persona_type == "role_template")
+
+            if bool(state.get("objective_perspective")) or not has_identity:
                 progress("skip perspective (objective)")
                 return {"perspective_profile": EMPTY_PERSPECTIVE_MODELING}
-
-            user = state.get("user") or {}
             table = build_hit_table(user, self._understanding(state) or {})
             extra = {
                 "user_hits": table.as_dict(),
@@ -1153,10 +1102,12 @@ class _Nodes(DomainNodes):
     ) -> frozenset[str]:
         """单线运行时的理解输出裁剪集合；多线 / 未注册线保持全量。
 
-        minutes 线在基础集合之外再按**模板栏位**裁一次：模板没有风险/未决栏时，
-        risks / open_questions 也不进理解输出（省下的输出 token 会随 pack 影响后续每一次调用）。
+        minutes 线在基础集合之外再按模板栏位裁一次：模板没有风险/未决栏时，
+        risks / open_questions 也不进理解输出。
         开启会议记忆时保留 action_hints / risks / open_questions，供跨场状态机使用。
         """
+        from .understanding_skip import skip_fields_for_template
+
         selected = [name for name in (line_names or []) if name]
         if len(selected) != 1 or selected[0] not in UNDERSTANDING_SKIP_FIELDS:
             return frozenset()

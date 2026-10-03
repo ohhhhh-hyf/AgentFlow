@@ -20,7 +20,25 @@ _NOTE_SEP = " **用户批注** "
 
 _TRACE_SCRIPT = """<script>
 (function () {
-  function alignTraceCards() {
+  function getActualContentHeight(el) {
+    const children = Array.from(el.children);
+    if (!children.length) return el.offsetHeight || el.scrollHeight;
+    let top = Infinity;
+    let bottom = -Infinity;
+    children.forEach((child) => {
+      const rect = child.getBoundingClientRect();
+      if (rect.height > 0) {
+        if (rect.top < top) top = rect.top;
+        if (rect.bottom > bottom) bottom = rect.bottom;
+      }
+    });
+    if (bottom > top && top !== Infinity) {
+      return bottom - top;
+    }
+    return el.offsetHeight || el.scrollHeight;
+  }
+
+  function adjustTraceFolding() {
     const isDesktop = window.innerWidth > 860;
     document.querySelectorAll('.ck-review').forEach((review) => {
       const leftEl = review.querySelector('.ck-review-left');
@@ -28,69 +46,62 @@ _TRACE_SCRIPT = """<script>
       const listEl = review.querySelector('.ck-ev-list');
       if (!leftEl || !rightEl || !listEl) return;
 
-      const cards = Array.from(listEl.querySelectorAll('.ck-ev'));
-      if (!cards.length) return;
-
-      if (!isDesktop) {
-        cards.forEach((c) => {
-          c.style.position = '';
-          c.style.top = '';
-          c.style.width = '';
-        });
-        rightEl.style.minHeight = '';
-        listEl.style.minHeight = '';
-        return;
+      // 还原之前已折叠的元素，重新获取自然高度
+      const existingDetails = listEl.querySelector('.ck-ev-more');
+      let wasOpen = false;
+      if (existingDetails) {
+        wasOpen = existingDetails.open;
+        const itemsInside = Array.from(existingDetails.querySelectorAll('.ck-ev'));
+        itemsInside.forEach((ev) => existingDetails.before(ev));
+        existingDetails.remove();
       }
 
-      // 桌面端：右侧卡片精确对齐左侧首次出现的位置，同时防重叠向下推
-      cards.forEach((c) => {
-        c.style.position = 'absolute';
-        c.style.width = '100%';
-        c.style.boxSizing = 'border-box';
-      });
+      const allEvs = Array.from(listEl.querySelectorAll(':scope > .ck-ev'));
+      if (allEvs.length <= 1) return;
 
-      const leftRect = leftEl.getBoundingClientRect();
-      let lastBottom = 0;
-      const gap = 10;
+      const leftContentHeight = getActualContentHeight(leftEl);
+      let totalHeight = 0;
+      const itemsToFold = [];
 
-      cards.forEach((card) => {
-        const traceId = card.getAttribute('data-trace');
-        const targetEntity = leftEl.querySelector(`.ck-cite-ref[data-target-trace="${traceId}"]`)
-                          || leftEl.querySelector(`.ck-cite-entity[data-trace~="${traceId}"]`);
-
-        let targetTop = 0;
-        if (targetEntity) {
-          const entRect = targetEntity.getBoundingClientRect();
-          targetTop = entRect.top - leftRect.top;
-        } else {
-          targetTop = lastBottom > 0 ? lastBottom + gap : 0;
+      allEvs.forEach((ev, idx) => {
+        if (!isDesktop) {
+          if (idx >= 3) itemsToFold.push(ev);
+          return;
         }
-
-        // 避免与上一张卡片重叠
-        const placedTop = Math.max(targetTop, lastBottom > 0 ? lastBottom + gap : 0);
-        card.style.top = `${placedTop}px`;
-
-        const cardHeight = card.offsetHeight || 75;
-        lastBottom = placedTop + cardHeight;
+        const evHeight = ev.offsetHeight + 10;
+        // 右侧卡片顶在最上侧排列；累积高度超过左侧正文高度且至少保留 1 张卡片时，折叠多余卡片
+        if (totalHeight + evHeight > leftContentHeight && idx >= 1) {
+          itemsToFold.push(ev);
+        } else {
+          totalHeight += evHeight;
+        }
       });
 
-      const minHeight = Math.max(leftEl.offsetHeight, lastBottom + 16);
-      rightEl.style.minHeight = `${minHeight}px`;
-      listEl.style.minHeight = `${minHeight}px`;
+      if (itemsToFold.length > 0) {
+        const details = document.createElement('details');
+        details.className = 'ck-ev-more';
+        if (wasOpen) details.open = true;
+        const summary = document.createElement('summary');
+        summary.className = 'ck-proof-toggle';
+        summary.innerHTML = `查看更多溯源材料 (${itemsToFold.length}) ▾`;
+        details.appendChild(summary);
+
+        itemsToFold[0].before(details);
+        itemsToFold.forEach((ev) => details.appendChild(ev));
+      }
     });
   }
 
-  window.__alignTraceCards = alignTraceCards;
+  window.__adjustTraceFolding = adjustTraceFolding;
 
   document.querySelectorAll('.ck-review').forEach((row) => {
     const cites = row.querySelectorAll('.ck-cite-ref');
     const entities = row.querySelectorAll('.ck-cite-entity');
-    const cards = row.querySelectorAll('.ck-ev');
 
     const clearHighlights = () => {
-      entities.forEach((el) => el.classList.remove('is-on'));
-      cards.forEach((el) => el.classList.remove('is-on', 'is-highlighted'));
-      cites.forEach((c) => c.classList.remove('is-active'));
+      row.querySelectorAll('.ck-cite-entity').forEach((el) => el.classList.remove('is-on'));
+      row.querySelectorAll('.ck-ev').forEach((el) => el.classList.remove('is-on', 'is-highlighted'));
+      row.querySelectorAll('.ck-cite-ref').forEach((c) => c.classList.remove('is-active'));
     };
 
     const highlightTrace = (targetTraceId) => {
@@ -99,19 +110,21 @@ _TRACE_SCRIPT = """<script>
       row.querySelectorAll('.ck-ev').forEach((card) => {
         if (card.getAttribute('data-trace') === targetTraceId) {
           targetCard = card;
+          const parentDetails = card.closest('details');
+          if (parentDetails) parentDetails.open = true;
           card.classList.add('is-on', 'is-highlighted');
           card.style.animation = 'none';
           void card.offsetHeight;
           card.style.animation = 'citePulse 1.2s ease';
         }
       });
-      entities.forEach((ent) => {
+      row.querySelectorAll('.ck-cite-entity').forEach((ent) => {
         const traces = (ent.getAttribute('data-trace') || '').split(' ');
         if (traces.includes(targetTraceId)) {
           ent.classList.add('is-on');
         }
       });
-      cites.forEach((c) => {
+      row.querySelectorAll('.ck-cite-ref').forEach((c) => {
         if (c.getAttribute('data-target-trace') === targetTraceId) {
           c.classList.add('is-active');
         }
@@ -148,12 +161,12 @@ _TRACE_SCRIPT = """<script>
     });
   });
 
-  alignTraceCards();
-  window.addEventListener('load', alignTraceCards);
+  adjustTraceFolding();
+  window.addEventListener('load', adjustTraceFolding);
   let resizeTimer = null;
   window.addEventListener('resize', () => {
     clearTimeout(resizeTimer);
-    resizeTimer = setTimeout(alignTraceCards, 80);
+    resizeTimer = setTimeout(adjustTraceFolding, 80);
   });
 })();
 </script>"""
@@ -331,17 +344,16 @@ def _format_trace_minutes_html(
 def trace_review_html(markdown: str, title: str = "") -> str:
     """把带溯源钉的 minutes_trace 渲染为与 checklist / minutes 一致的 LaTeX Paper 风格 HTML。
 
+    文档标题固定为「会议溯源」，如有具体会议主题则作为副标题展示。
     左侧：纪要正文排版（宽行紧凑），命中溯源材料的句子高亮并在后面附加蓝色 [1], [2] 序号标签。
-    右侧：命中的 keypoints 和 notes 证据卡片，与左侧首次出现的句子水平对齐。
-          重复命中的材料复用相同的编号与卡片。
-          - 随文批注（notes）：含用户批注，徽标为「随文批注」（赭石徽章）
-          - 要点归纳（keypoints）：提炼核心重点，徽标为「要点归纳」（蓝色徽章）
-    交互：点击左侧实体或蓝色序号点亮对应右侧卡片并带光晕脉冲动画；点击右侧卡片点亮左侧对应语句。
+    右侧：命中的 keypoints 和 notes 证据卡片，默认顶在最上侧自然堆叠；
+          当卡片累积高度超出左侧正文高度时，超出部分自动折叠进「查看更多溯源材料」，
+          点击正文高亮或序号时自动展开并定位。
     """
     text = markdown or ""
     if "###[【" not in text:
         from domains.meeting.memory.render import render_markdown_page_html
-        return render_markdown_page_html(title or "会议纪要", text)
+        return render_markdown_page_html("会议溯源", text)
 
     # 第一遍扫描：收集按首次出现顺序排序的唯一材料条目，去重并分配全局连续序号 [1], [2], [3]...
     source_map: dict[tuple[str, str, str], dict[str, Any]] = {}
@@ -365,8 +377,7 @@ def trace_review_html(markdown: str, title: str = "") -> str:
             source_map[key] = info
             ordered_sources.append(info)
 
-    doc_header_title, left_html = _format_trace_minutes_html(text, source_map)
-    display_title = title or doc_header_title or "会议纪要"
+    _doc_header_title, left_html = _format_trace_minutes_html(text, source_map)
 
     # 渲染右侧证据卡片
     cards_html: list[str] = []
@@ -395,7 +406,7 @@ def trace_review_html(markdown: str, title: str = "") -> str:
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>{escape(display_title, quote=False)}</title>
+  <title>会议溯源</title>
   <style>
 {_latex_paper_css()}
 
@@ -447,6 +458,9 @@ def trace_review_html(markdown: str, title: str = "") -> str:
       position: relative;
     }}
     .ck-ev-list {{
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
       position: relative;
       width: 100%;
     }}
@@ -455,13 +469,37 @@ def trace_review_html(markdown: str, title: str = "") -> str:
       font-size: 0.82rem;
       line-height: 1.5;
     }}
+    .ck-ev-more {{
+      margin-top: 4px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }}
+    .ck-ev-more[open] {{
+      margin-top: 6px;
+    }}
+    .ck-ev-more summary {{
+      margin-bottom: 8px;
+    }}
+    .ck-proof-toggle {{
+      cursor: pointer;
+      font-size: 0.82rem;
+      color: #0047ab;
+      user-select: none;
+      font-family: inherit;
+      padding: 4px 0;
+      font-weight: 600;
+    }}
+    .ck-proof-toggle:hover {{
+      text-decoration: underline;
+    }}
   </style>
 </head>
 <body>
   <main class="page">
     <div class="ck-doc">
       <header class="ck-doc-header">
-        <h1>{escape(display_title, quote=False)}</h1>
+        <h1>会议溯源</h1>
       </header>
       <div class="ck-review">
         <div class="ck-review-left">

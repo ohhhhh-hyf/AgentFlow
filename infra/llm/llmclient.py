@@ -736,7 +736,7 @@ class LLMClient:
         filled = dict(data)
         type_hints = getattr(response_model, "__annotations__", {}) or {}
         for key in allow_missing:
-            if key in filled:
+            if key not in type_hints or key in filled:
                 continue
             hint = str(type_hints.get(key, ""))
             if "list" in hint:

@@ -146,6 +146,9 @@ def synthesize_perspective_profile(user: dict[str, Any] | None, table: HitTable)
             "responsibilities": _intersect(profile.get("responsibilities"), hit_texts),
             "possible_actions": actions,
             "attention_points": all_attention,
+            "relevant_topics": table.my_topics[:6],
+            "concerns": table.my_risks[:6],
+            "conclusions": table.my_decisions[:6],
             "evidence": table.evidence()[:8],
         }
     )

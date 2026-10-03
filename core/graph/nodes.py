@@ -100,8 +100,13 @@ class DomainNodes:
         if state.get("objective_perspective"):
             return "objective"
         user = state.get("user") or {}
+        if str(user.get("perspective") or "").strip().lower() == "objective":
+            return "objective"
         if str(user.get("persona_type") or "").strip().lower() == "role_template":
             return "role_template"
+        name = str(user.get("name") or "").strip()
+        if not name:
+            return "objective"
         return "personal"
 
     @property
@@ -451,6 +456,9 @@ class DomainNodes:
 
     async def _perspective_modeling_node(self, state: dict) -> dict:
         """把用户画像映射到本次输入（所有领域共用）。"""
+        if self._mode_label(state) == "objective":
+            progress("skip perspective (objective)")
+            return {"perspective_profile": EMPTY_PERSPECTIVE_MODELING}
         progress("agent start perspective")
         try:
             result = await self.perspective_modeling_agent.run(
@@ -841,15 +849,17 @@ class DomainNodes:
         item_template = item_template or ""
         if user is None:
             user_data: dict = {}
-            objective_mode = False
+            objective_mode = True
         else:
             user_data = (
                 user.model_dump() if hasattr(user, "model_dump") else dict(user)
             )
-            objective_mode = (
-                str(user_data.get("perspective") or "").strip().lower()
-                == "objective"
+            has_identity = bool(
+                str(user_data.get("name") or "").strip()
+                or str(user_data.get("persona_type") or "").strip().lower() == "role_template"
             )
+            perspective = str(user_data.get("perspective") or "").strip().lower()
+            objective_mode = perspective == "objective" or not has_identity
         if objective_mode and not user_data.get("perspective"):
             user_data["perspective"] = "objective"
         # lines 校验（提前到模板分发前，供按线分派使用；非法线名直接抛给调用方）

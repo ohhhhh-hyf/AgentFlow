@@ -1129,8 +1129,12 @@ def _prune_context_for_column(
                 )
                 paras = [p.strip() for p in body.splitlines() if p.strip()]
                 clue_paras = [p for p in paras if any(kw in p for kw in _CLUES)]
+                if key_needles:
+                    needle_clues = [p for p in clue_paras if any(n in p for n in key_needles)]
+                    if needle_clues:
+                        clue_paras = needle_clues
                 if clue_paras:
-                    out_parts.append("发言实录（分工与依赖线索）：\n" + "\n".join(clue_paras[:120]))
+                    out_parts.append("发言实录（分工与依赖线索）：\n" + "\n".join(clue_paras[:60]))
                 continue
             if "会议理解" in label:
                 try:
@@ -1139,17 +1143,82 @@ def _prune_context_for_column(
                     for field in ("decisions", "action_hints", "risks", "meeting_purpose", "meeting_brief", "open_questions"):
                         if field in und and und[field]:
                             compact_und[field] = und[field]
-                    if "topics" in und and isinstance(und["topics"], list):
-                        compact_und["topics"] = [
-                            {"topic": t.get("topic") or t.get("title") or t.get("name") or "议题", "key_points": t.get("key_points", [])}
-                            for t in und["topics"] if isinstance(t, dict)
+                    if key_needles and "action_hints" in compact_und:
+                        compact_und["action_hints"] = [
+                            a for a in compact_und["action_hints"]
+                            if any(n in json.dumps(a, ensure_ascii=False) for n in key_needles)
                         ]
+                    if key_needles and "risks" in compact_und:
+                        compact_und["risks"] = [
+                            r for r in compact_und["risks"]
+                            if any(n in json.dumps(r, ensure_ascii=False) for n in key_needles)
+                        ]
+                    if "topics" in und and isinstance(und["topics"], list):
+                        compact_topics = []
+                        for t in und["topics"]:
+                            if not isinstance(t, dict):
+                                continue
+                            c_t: dict[str, Any] = {
+                                "title": t.get("title") or t.get("topic") or t.get("name") or "议题",
+                                "module": t.get("module") or "",
+                                "actions": t.get("actions") or [],
+                                "risks": t.get("risks") or [],
+                                "decisions": t.get("decisions") or [],
+                            }
+                            if "key_points" in t:
+                                c_t["key_points"] = t["key_points"]
+                            compact_topics.append(c_t)
+                        compact_und["topics"] = compact_topics
                     out_parts.append(f"{label}\n{json.dumps(compact_und, ensure_ascii=False)}")
                     continue
                 except Exception:
                     pass
+            if "已批准" in label and "草稿" in label and (user_name or focus_persons):
+                try:
+                    draft_obj = json.loads(body)
+                    if isinstance(draft_obj, dict):
+                        if is_action_col and "personally_relevant_points" in draft_obj:
+                            fmt_act = _format_action_items_projection(
+                                draft_obj["personally_relevant_points"],
+                                user_name=user_name,
+                                focus_persons=focus_persons,
+                                focus_things=focus_things,
+                            )
+                            if fmt_act:
+                                draft_obj["personally_relevant_points"] = fmt_act.splitlines()
+                        if is_risk_col and "risks_and_blockers" in draft_obj:
+                            fmt_risk = _format_risks_projection(
+                                draft_obj["risks_and_blockers"],
+                                user_name=user_name,
+                                focus_persons=focus_persons,
+                                focus_things=focus_things,
+                            )
+                            if fmt_risk:
+                                draft_obj["risks_and_blockers"] = fmt_risk.splitlines()
+                        out_parts.append(f"{label}\n{json.dumps(draft_obj, ensure_ascii=False)}")
+                        continue
+                except Exception:
+                    pass
             out_parts.append(f"{label}\n{body}")
-        out_parts.extend(extra_blocks)
+        filtered_extra = []
+        for blk in extra_blocks:
+            if "分栏分组骨架" in blk and (user_name or focus_persons):
+                allowed_heads = {"**与我相关**："}
+                if user_name:
+                    allowed_heads.add(f"**{user_name}**：")
+                for fp in focus_persons:
+                    allowed_heads.add(f"**{fp}**：")
+                g_lines = []
+                for ln in blk.splitlines():
+                    if ln.startswith("**") and "：" in ln:
+                        if ln in allowed_heads or any(fp in ln for fp in focus_persons):
+                            g_lines.append(ln)
+                    else:
+                        g_lines.append(ln)
+                filtered_extra.append("\n".join(g_lines))
+            else:
+                filtered_extra.append(blk)
+        out_parts.extend(filtered_extra)
         return "\n\n".join(out_parts)
 
     # 2. 业务决策栏：保留所有核心业务与技术议题切片，剔除明确无关的行政流程
@@ -1172,12 +1241,37 @@ def _prune_context_for_column(
                             is_admin_noise = any(noise in t_str for noise in _ADMIN_TOPIC_KEYWORDS) and not is_key_topic
                             if is_admin_noise:
                                 continue
-                            new_topic = {
-                                "topic": t.get("topic") or t.get("title") or t.get("name") or "议题",
-                                "key_points": t.get("key_points") or [],
+
+                            is_tier1 = any(ft in t_str for ft in focus_things) or (user_name and user_name in t_str)
+                            is_tier2 = not is_tier1 and any(fp in t_str for fp in focus_persons)
+                            tier_level = 1 if is_tier1 else (2 if is_tier2 else 3)
+
+                            title_val = t.get("title") or t.get("topic") or t.get("name") or "议题"
+                            discussion_val = t.get("context_and_debate") or t.get("discussion") or ""
+
+                            new_topic: dict[str, Any] = {
+                                "title": title_val,
+                                "module": t.get("module") or "",
+                                "tier": f"Tier {tier_level}",
+                                "decisions": t.get("decisions") or [],
+                                "key_metrics": t.get("key_metrics") or [],
                             }
-                            if "discussion" in t and t["discussion"]:
-                                new_topic["discussion"] = t["discussion"]
+                            if "key_points" in t:
+                                new_topic["key_points"] = t["key_points"]
+                            if discussion_val:
+                                if tier_level <= 2 or len(discussion_val) <= 200:
+                                    new_topic["discussion"] = discussion_val
+                                    new_topic["context_and_debate"] = discussion_val
+                                else:
+                                    short_d = discussion_val[:200] + "..."
+                                    new_topic["discussion"] = short_d
+                                    new_topic["context_and_debate"] = short_d
+
+                            if t.get("actions"):
+                                new_topic["actions"] = t["actions"]
+                            if t.get("risks"):
+                                new_topic["risks"] = t["risks"]
+
                             new_topics.append(new_topic)
                         und["topics"] = new_topics
                         out_parts.append(f"{label}\n{json.dumps(und, ensure_ascii=False)}")
@@ -1193,20 +1287,49 @@ def _prune_context_for_column(
                         continue
                     kept_paras.append(p)
                 if kept_paras:
-                    out_parts.append(f"{label}（重点关注与业务进展切片）：\n" + "\n".join(kept_paras))
+                    out_parts.append(f"{label}（业务进展切片）：\n" + "\n".join(kept_paras))
                     continue
             out_parts.append(f"{label}\n{body}")
         out_parts.extend(extra_blocks)
         return "\n\n".join(out_parts)
 
-    # 3. 概况局势栏：若原文过长，裁剪原文仅保留开篇背景
+    # 3. 概况局势栏：若原文过长，裁剪原文仅保留开篇背景；精简理解与草稿，防止流水账与报菜名
     if is_overview_col:
         out_parts = []
         if head_block:
             out_parts.append(head_block)
         for label, body in sections.items():
+            if "会议理解" in label:
+                try:
+                    und = json.loads(body)
+                    compact_und: dict[str, Any] = {}
+                    for field in ("meeting_purpose", "meeting_brief", "scene"):
+                        if field in und and und[field]:
+                            compact_und[field] = und[field]
+                    if "topics" in und and isinstance(und["topics"], list):
+                        compact_und["topics"] = [
+                            {"module": t.get("module") or "", "title": t.get("title") or t.get("topic") or ""}
+                            for t in und["topics"] if isinstance(t, dict)
+                        ]
+                    out_parts.append(f"{label}\n{json.dumps(compact_und, ensure_ascii=False)}")
+                    continue
+                except Exception:
+                    pass
+            if "已批准" in label and "草稿" in label:
+                try:
+                    draft_obj = json.loads(body)
+                    if isinstance(draft_obj, dict):
+                        compact_draft = {
+                            "headline": draft_obj.get("headline") or "",
+                            "executive_summary": draft_obj.get("executive_summary") or [],
+                            "key_decisions": draft_obj.get("key_decisions") or [],
+                        }
+                        out_parts.append(f"{label}\n{json.dumps(compact_draft, ensure_ascii=False)}")
+                        continue
+                except Exception:
+                    pass
             if "会议原文" in label and len(body) > 3000:
-                short_body = body[:1500].rsplit("\n", 1)[0] + "\n...(后文讨论略，宏观结论见【已批准纪要草稿】与【会议理解】)"
+                short_body = body[:1500].rsplit("\n", 1)[0] + "\n...(后文各模块细节讨论略，宏观结论见【会议理解】与【已批准纪要草稿】)"
                 out_parts.append(f"{label}（开篇背景摘要）：\n{short_body}")
                 continue
             out_parts.append(f"{label}\n{body}")
@@ -1216,17 +1339,27 @@ def _prune_context_for_column(
     return context
 
 
-def _format_action_items_projection(points: list[str]) -> str | None:
+def _format_action_items_projection(
+    points: list[str],
+    *,
+    user_name: str = "",
+    focus_persons: list[str] | None = None,
+    focus_things: list[str] | None = None,
+) -> str | None:
     if not isinstance(points, list):
         return None
     if not points:
-        return "**与我相关**：\n- 暂无本人直接待办"
+        return "**本人相关**：\n- 暂无本人直接待办"
+
+    fps = set(focus_persons or [])
+    fts = set(focus_things or [])
 
     lines: list[str] = []
     group_re = re.compile(r"^(?:###\s*|\*\*)[^*:\n]+(?:\*\*|)[：:]?\s*$")
     current_group: str | None = None
     has_self_group = False
     self_items_count = 0
+    group_allowed = True
 
     for raw in points:
         item = str(raw or "").strip()
@@ -1235,58 +1368,94 @@ def _format_action_items_projection(points: list[str]) -> str | None:
 
         if group_re.match(item):
             clean_g = re.sub(r"^(?:###\s*|\*\*)\s*|\s*(?:\*\*|)[：:]?\s*$", "", item)
-            current_group = clean_g
-            if lines and lines[-1] != "":
-                lines.append("")
-            lines.append(f"**{clean_g}**：")
-            if "与我相关" in clean_g:
+            is_self = "与我相关" in clean_g or "本人" in clean_g or (bool(user_name) and user_name in clean_g)
+            is_dep = any(k in clean_g for k in ("重点关注", "重点协同", "协同输入", "前置依赖", "外部依赖", "关注人定调"))
+            is_focus_p = bool(fps and any(fp in clean_g for fp in fps))
+            is_focus_t = bool(fts and any(ft in clean_g for ft in fts))
+
+            # 过滤全员非关注人分工大组及非关注人个人组
+            if any(k in clean_g for k in ("协同人员主要分工", "全员分工", "其他人员分工")):
+                group_allowed = False
+                continue
+
+            if not is_self and not is_dep and not is_focus_p and not is_focus_t:
+                group_allowed = False
+                continue
+
+            group_allowed = True
+            norm_g = "本人相关" if is_self else "重点关注"
+            current_group = norm_g
+            header = f"**{norm_g}**："
+            if header not in lines:
+                if lines and lines[-1] != "":
+                    lines.append("")
+                lines.append(header)
+            if is_self:
                 has_self_group = True
             continue
 
-        if current_group is None:
-            current_group = "与我相关"
-            has_self_group = True
-            lines.append("**与我相关**：")
+        if not group_allowed:
+            continue
 
-        if "与我相关" in current_group:
+        if current_group is None:
+            current_group = "本人相关"
+            has_self_group = True
+            lines.append("**本人相关**：")
+
+        if current_group == "本人相关":
             self_items_count += 1
 
+        has_checkbox = bool(re.match(r"^\s*[-*]\s*\[[ xX]\]", item))
+        prefix = "- [ ] " if (has_checkbox and current_group == "本人相关") else "- "
+
         cleaned = re.sub(r"^\s*(?:[-•+]|\*(?!\*)|\d+\.|\([0-9]+\)\.?)\s*(?:\[[ xX]?\]\s*)?", "", item).strip()
+        cleaned = re.sub(r"[\[【](?:高风险|中风险|低风险|阻塞|阻碍)[\]】]", "", cleaned).strip()
+
         if cleaned.startswith("**"):
-            task_line = f"- {cleaned}"
+            task_line = f"{prefix}{cleaned}"
         elif "：" in cleaned:
             parts = cleaned.split("：", 1)
-            task_line = f"- **{parts[0].strip()}**：{parts[1].strip()}"
+            task_line = f"{prefix}**{parts[0].strip()}**：{parts[1].strip()}"
         elif ":" in cleaned:
             parts = cleaned.split(":", 1)
-            task_line = f"- **{parts[0].strip()}**：{parts[1].strip()}"
+            task_line = f"{prefix}**{parts[0].strip()}**：{parts[1].strip()}"
         else:
             m_paren = re.match(r"^([^（(]+)[（(](.*)[）)]$", cleaned)
             if m_paren:
                 task_name = m_paren.group(1).strip()
                 task_args = m_paren.group(2).strip()
-                task_line = f"- **{task_name}**（{task_args}）"
+                task_line = f"{prefix}**{task_name}**（{task_args}）"
             else:
-                task_line = f"- {cleaned}"
+                task_line = f"{prefix}{cleaned}"
 
         lines.append(task_line)
 
     if has_self_group and self_items_count == 0:
-        idx = lines.index("**与我相关**：")
+        idx = lines.index("**本人相关**：")
         lines.insert(idx + 1, "- 暂无本人直接待办")
 
     return "\n".join(lines).strip() or None
 
 
-def _format_risks_projection(risks: list[str]) -> str | None:
+def _format_risks_projection(
+    risks: list[str],
+    *,
+    user_name: str = "",
+    focus_persons: list[str] | None = None,
+    focus_things: list[str] | None = None,
+) -> str | None:
     if not isinstance(risks, list):
         return None
     if not risks:
-        return "**与我相关**：\n- 暂无直接风险与阻塞\n\n**全局风险与未决**：\n- 全局暂无重大未决争议"
+        return "**本人相关**：\n- 暂无直接风险\n\n**重点关注**：\n- 暂无重点关注风险"
+
+    fps = set(focus_persons or [])
+    fts = set(focus_things or [])
 
     lines: list[str] = []
     group_re = re.compile(r"^(?:###\s*|\*\*)[^*:\n]+(?:\*\*|)[：:]?\s*$")
     current_group: str | None = None
+    group_allowed = True
 
     for raw in risks:
         item = str(raw or "").strip()
@@ -1295,33 +1464,67 @@ def _format_risks_projection(risks: list[str]) -> str | None:
 
         if group_re.match(item):
             clean_g = re.sub(r"^(?:###\s*|\*\*)\s*|\s*(?:\*\*|)[：:]?\s*$", "", item)
+            # 待确认事项分组彻底去掉，不再渲染
+            if "待确认" in clean_g:
+                group_allowed = False
+                current_group = "待确认"
+                continue
+
             current_group = clean_g
-            if lines and lines[-1] != "":
-                lines.append("")
-            lines.append(f"**{clean_g}**：")
+
+            is_self = "与我相关" in clean_g or "本人" in clean_g or (bool(user_name) and user_name in clean_g)
+            is_focus_risk = any(k in clean_g for k in ("重点关注", "关注人", "全局风险与未决", "全局风险", "全局重大风险"))
+            is_focus_p = bool(fps and any(fp in clean_g for fp in fps))
+            is_focus_t = bool(fts and any(ft in clean_g for ft in fts))
+
+            # 过滤非本人、非重点协同/重点关注人及非关注事项的风险分组
+            if not is_self and not is_focus_risk and not is_focus_p and not is_focus_t:
+                group_allowed = False
+                continue
+
+            group_allowed = True
+            norm_g = "本人相关" if is_self else "重点关注"
+            current_group = norm_g
+            header = f"**{norm_g}**："
+            if header not in lines:
+                if lines and lines[-1] != "":
+                    lines.append("")
+                lines.append(header)
+            continue
+
+        if not group_allowed or current_group == "待确认":
             continue
 
         if current_group is None:
-            current_group = "与我相关"
-            lines.append("**与我相关**：")
+            current_group = "本人相关"
+            lines.append("**本人相关**：")
+
+        # 如果在全局风险组下，且指定了重点关注，过滤掉与本人及重点关注完全无关的外围噪音
+        if current_group and any(k in current_group for k in ("全局", "未决")):
+            needles = [user_name] + list(fps) + list(fts) if (user_name or fps or fts) else []
+            if needles and not any(n in item for n in needles if len(n) >= 2):
+                continue
+
+        has_checkbox = bool(re.match(r"^\s*[-*]\s*\[[ xX]\]", item))
+        prefix = "- [ ] " if (has_checkbox and current_group == "本人相关") else "- "
 
         cleaned = re.sub(r"^\s*(?:[-•+]|\*(?!\*)|\d+\.|\([0-9]+\)\.?)\s*(?:\[[ xX]?\]\s*)?", "", item).strip()
+        # 标记的高风险、阻塞等内容都去掉
+        cleaned = re.sub(r"[\[【](?:高风险|中风险|低风险|阻塞|阻碍)[\]】]", "", cleaned).strip()
+
         if cleaned.startswith("**"):
-            task_line = f"- {cleaned}"
+            cleaned = re.sub(r"[\[【](?:高风险|中风险|低风险|阻塞|阻碍)[\]】]", "", cleaned).strip()
+            task_line = f"{prefix}{cleaned}"
         elif "：" in cleaned:
             parts = cleaned.split("：", 1)
-            task_line = f"- **{parts[0].strip()}**：{parts[1].strip()}"
+            title_p = re.sub(r"[\[【](?:高风险|中风险|低风险|阻塞|阻碍)[\]】]", "", parts[0]).strip()
+            task_line = f"{prefix}**{title_p}**：{parts[1].strip()}"
         elif ":" in cleaned:
             parts = cleaned.split(":", 1)
-            task_line = f"- **{parts[0].strip()}**：{parts[1].strip()}"
-        elif cleaned.startswith("【"):
-            m_tag = re.match(r"^(【[^】]+】)(.*)", cleaned)
-            if m_tag:
-                task_line = f"- **{m_tag.group(1)}{m_tag.group(2).strip()}**"
-            else:
-                task_line = f"- **{cleaned}**"
+            title_p = re.sub(r"[\[【](?:高风险|中风险|低风险|阻塞|阻碍)[\]】]", "", parts[0]).strip()
+            task_line = f"{prefix}**{title_p}**：{parts[1].strip()}"
         else:
-            task_line = f"- {cleaned}"
+            task_line = f"{prefix}{cleaned}"
 
         lines.append(task_line)
 
@@ -1347,6 +1550,9 @@ def project_column_from_draft(
     is_personal = (
         "视角模式：personal" in context
         or "personal_minutes.md" in template
+        or "会议概况" in template
+        or "相关行动" in template
+        or "相关风险" in template
         or "本场概况与承接目标" in template
         or "本场概况与本人定调" in template
         or "【本视角纪律】" in directives
@@ -1354,8 +1560,8 @@ def project_column_from_draft(
     if not is_personal:
         return None
 
-    is_action_col = any(kw in title for kw in ("行动项", "待办", "分工", "任务")) and not any(kw in title for kw in ("议题", "讨论", "决议", "方案"))
-    is_risk_col = any(kw in title for kw in ("风险", "卡点", "待确认", "未决", "阻塞", "障碍")) and not any(kw in title for kw in ("议题", "讨论", "决议", "方案"))
+    is_action_col = any(kw in title for kw in ("相关行动", "行动项", "待办", "分工", "任务")) and not any(kw in title for kw in ("议题", "讨论", "决议", "方案"))
+    is_risk_col = any(kw in title for kw in ("相关风险", "风险", "卡点", "待确认", "未决", "阻塞", "障碍")) and not any(kw in title for kw in ("议题", "讨论", "决议", "方案"))
 
     if not is_action_col and not is_risk_col:
         return None
@@ -1368,17 +1574,38 @@ def project_column_from_draft(
     except Exception:
         return None
 
+    user_data: dict[str, Any] = {}
+    m_user = re.search(r"用户画像：\s*\n(\{.*?\})(?=\n\n|\Z)", context, re.DOTALL)
+    if m_user:
+        try:
+            user_data = json.loads(m_user.group(1))
+        except Exception:
+            pass
+    user_name = str(user_data.get("name") or "").strip()
+    focus_persons = [str(x).strip() for x in (user_data.get("focus_person") or []) if str(x).strip()]
+    focus_things = [str(x).strip() for x in (user_data.get("focus_thing") or []) if str(x).strip()]
+
     if is_action_col:
         points = draft.get("personally_relevant_points")
         if not isinstance(points, list):
             return None
-        return _format_action_items_projection(points)
+        return _format_action_items_projection(
+            points,
+            user_name=user_name,
+            focus_persons=focus_persons,
+            focus_things=focus_things,
+        )
 
     if is_risk_col:
         risks = draft.get("risks_and_blockers")
         if not isinstance(risks, list):
             return None
-        return _format_risks_projection(risks)
+        return _format_risks_projection(
+            risks,
+            user_name=user_name,
+            focus_persons=focus_persons,
+            focus_things=focus_things,
+        )
 
     return None
 
@@ -1421,11 +1648,38 @@ def _column_fill_user(
         *_char_budget_lines(template),
     ])
     lines.append(
-        "【要点完整与依据充分】充分挖掘【内容来源】中的所有事实、议题、技术参数、指标数据、分工待办与潜在风险，宁多不漏；"
-        "围绕业务主线构建完整事实脉络（背景与问题 ➔ 各方技术方案考量与参数对比 ➔ 落地共识与后续规划），讲透来龙去脉与具体支撑依据；"
-        "采用树状两级结构清晰呈现，主干条目精准给出结论与定调，次级展开（2 空格 `  - `）充分展现技术参数、上下游约束与验收标准，杜绝空洞简略与以概括代替具体事实；"
-        "业务进展栏全面覆盖核心技术与业务模块；行动项看板写全本人待办、前置依赖与全员明确分工；风险栏写全各人反映的客观瓶颈并附带【待确认】清单。"
+        "【要点完整与依据充分】按实有事实充分呈现技术参数、指标数据、分工待办与潜在卡点；"
+        "业务进展栏按业务模块客观分组分条（独占一行写「**模块名称**：」，坚决禁止添加「背景与问题：」「方案考量：」「落地共识：」等任何机械前缀标签）；"
+        "相关行动看板仅收录本人待办与重点关注协同（分为「**本人相关**：」与「**重点关注**：」，彻底过滤全场无关人员杂项分工）；"
+        "相关风险栏仅收录本人卡点与重点关注风险（分为「**本人相关**：」与「**重点关注**：」，彻底过滤外围无关风险，严禁出现待确认事项，严禁标注高风险、阻塞等级别标签）。"
     )
+    if any(kw in title for kw in ("会议概况", "概况", "大盘")):
+        lines.append(
+            "【会议概况写作纪律】单段写完（约 100–200 字，严禁拆分成多段），客观交代会议主旨背景、全局核心决议、版本上线窗口与战略总里程碑；"
+            "严禁按各业务模块逐一流水账式罗列具体细节（具体模块进展下沉至下一栏承载），严禁在正文中以第一人称「我」或「本人」自称，严禁使用第三人称「某某同志/其」，动作直接以动词开头自然陈述。"
+        )
+    if any(kw in title for kw in ("业务进展", "进展", "重点关注")):
+        lines.append(
+            "【业务进展写作纪律】定位为全场客观业务与技术大盘，纯客观呈现，不掺杂个人主观视角与“重点关注”标签：\n"
+            "依照会议研讨的核心业务模块或议题，独占一行建立模块大组标题（如「**模块名称**：」）；\n"
+            "同一模块下的议题自然聚合，组内使用 `- ` 简洁客观列出核心技术进展、关键量化指标与拍板决策；\n"
+            "坚决禁止添加「背景与问题：」「方案考量：」「落地共识：」「现状：」「结论：」等任何机械前缀标签；严禁使用任何 emoji 表情符号；没有内容的组不出现。"
+        )
+    if any(kw in title for kw in ("相关行动", "行动")):
+        lines.append(
+            "【相关行动写作纪律】仅聚焦个人行动与重点关注协同，彻底过滤全场无关人员杂项分工；"
+            "严禁为除本人及重点关注人（focus_person）之外的任何其他与会人员单独建组（如不得出现武思华、范炳杰、张宇翔等无关人员组名）；"
+            "第一组写「**本人相关**：」，列出本人直接负责的事项，以动词开头省略主语，融合时间与交付物；"
+            "第二组写「**重点关注**：」，仅列出推进本人工作所必需的外部交付，以及与 focus_person 和 focus_thing 相关的核心交付承诺，标明责任人真名与承诺节点；没有内容的组不出现。"
+        )
+    if any(kw in title for kw in ("相关风险", "风险")):
+        lines.append(
+            "【相关风险写作纪律】仅聚焦个人卡点与重点关注风险，彻底过滤外围无关风险；"
+            "严禁为除本人及重点关注人（focus_person）之外的任何其他与会人员单独建组；"
+            "第一组写「**本人相关**：」，列出直接阻碍本人推进的风险卡点；"
+            "第二组写「**重点关注**：」，仅列出 focus_person 关注的重大定调隐患或影响 focus_thing 交付的关键技术卡点；"
+            "严禁标注【高风险】、【阻塞】等任何形式的级别标签；严禁出现待确认事项分组或内容；没有内容的组不出现。"
+        )
     # 针对清单与重点工作类栏目：前置注入领域结构化锚点与句式多样性纪律，防止自回归死循环
     _LISTING_KEYWORDS = ("工作", "政策", "措施", "要点", "清单", "建议", "议题", "事项", "内容", "实录", "记录")
     if any(kw in title for kw in _LISTING_KEYWORDS):
@@ -1655,18 +1909,13 @@ async def fill_placeholder_by_columns(
         others = [t for i, t in enumerate(titles) if i != index and t]
 
         # 草稿直出快线（Direct Projection）：
-        # 仅当上游草稿已包含充分展开的高密度清单（≥16 条有效项且 ≥500 字，说明已完整录入全量待办/风险与各人分工）时才直出；
-        # 骨架级草稿（少于 16 项）绝不短路，必须交给 LLM 深度挖掘全量事实、上下游依赖与各人分工，保障达到基线丰富度
+        # 个人视角或个人模板直出：直接提取经过严格过滤的本人待办与重点协同（focus_person/focus_thing），跳过大模型调用；
+        # 既保障 100% 过滤外围无关杂项人员，又避免大模型幻觉与并发耗时
         if not revision:
             projected = project_column_from_draft(
                 context, template, title=title, hint=hint, directives=directives
             )
-            is_exhaustive_projection = (
-                projected
-                and len([ln for ln in projected.splitlines() if ln.strip() and not ln.strip().startswith("**")]) >= 16
-                and len(projected) >= 500
-            )
-            if is_exhaustive_projection and not _is_column_overlong(projected, index):
+            if projected and not _is_column_overlong(projected, index):
                 projected = _strip_redundant_column_heading(projected, title)
                 if _section_has_table(template, title):
                     projected = _strip_markdown_tables(projected)

@@ -13,7 +13,7 @@ class RiskGenerationContract(GenerationContract):
 
     fields = [
         ObjListField("risks", [
-            StrField("category", "该风险所属的具体业务领域或隐患场景短语，通常4–12字，带具体客体或业务场景"),
+            StrField("category", "该风险所属的宏观业务领域/风险大类组标题（直接沿用所属议题的module或title，全场会议聚拢为3~5个宏观组标题，如'核心系统稳定性'、'防汛与排水隐患'，严禁针对单条风险提取微小标题，同议题隐患必须共用相同组标题）"),
             StrField("risk", "风险描述，必须来自会议原文或会议理解结果"),
             StrField("source", "风险来源：原文依据或相关议题"),
             EnumField("severity", ["high", "medium", "low"]),

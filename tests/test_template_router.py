@@ -2138,12 +2138,12 @@ def test_allow_missing_on_trimmed_fields() -> None:
         for f in dc_fields(MeetingUnderstanding)
     }
     base["scene"] = "通用"
-    trimmed = {k: v for k, v in base.items() if k != "risk_hints"}
+    trimmed = {k: v for k, v in base.items() if k != "speakers"}
 
     out = LLMClient._parse_and_validate(
-        json.dumps(trimmed), MeetingUnderstanding, frozenset({"risk_hints"})
+        json.dumps(trimmed), MeetingUnderstanding, frozenset({"speakers"})
     )
-    check("裁剪字段缺键时补默认 []（不再抛错重试）", out.risk_hints == [], f"{out.risk_hints}")
+    check("裁剪字段缺键时补默认 []（不再抛错重试）", out.speakers == [], f"{out.speakers}")
     try:
         LLMClient._parse_and_validate(json.dumps(trimmed), MeetingUnderstanding)
         failed = False
@@ -2153,14 +2153,14 @@ def test_allow_missing_on_trimmed_fields() -> None:
     unkept = {k: v for k, v in base.items() if k != "topics"}
     try:
         LLMClient._parse_and_validate(
-            json.dumps(unkept), MeetingUnderstanding, frozenset({"risk_hints"})
+            json.dumps(unkept), MeetingUnderstanding, frozenset({"speakers"})
         )
         failed2 = False
     except Exception:  # noqa: BLE001
         failed2 = True
     check("非裁剪字段缺键仍报错（只在裁剪集合内放宽）", failed2, "")
 
-    trim = _trim_instruction("minutes", ("risk_hints",))
+    trim = _trim_instruction("minutes", ("speakers",))
     check("裁剪指令写明「键名必须保留、值给空数组 []」",
           "键名必须保留" in trim and "不要省略键名" in trim, trim[:80])
 

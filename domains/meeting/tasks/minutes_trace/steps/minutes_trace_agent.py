@@ -9,17 +9,9 @@ from core.execution.hard_execution import extract_labeled_json
 from ....models import MinutesTrace
 from ..contracts import MINUTES_TRACE_GENERATION_OUTPUT_CONTRACT
 from ..extras import parse_trace_extras
-from ..prompts import (
-    MINUTES_TRACE_GENERATION_SYSTEM_PROMPT,
-    MINUTES_TRACE_REORG_PROMPT,
-)
-from ..scene import detect_scene, scene_spec
-from ..structure import (
-    bulletize_minutes,
-    collect_people,
-    mechanical_closings,
-    person_chapter_headings,
-)
+from ..prompts import MINUTES_TRACE_GENERATION_SYSTEM_PROMPT
+from ..scene import detect_scene
+from ..structure import bulletize_minutes, collect_people
 
 
 def _dump(obj: object) -> dict:
@@ -53,8 +45,8 @@ def _focus_guide(extras: dict[str, object]) -> str:
         lines = [
             "【关键点覆盖要求】",
             f"本次会议有 {len(keypoints)} 条用户关键点，逐条列出如下。",
-            "每条关键点对应的会议内容，必须在纪要正文的相应议题中至少有一条完整、通顺的正文句承载：",
-            "可在该议题的「问题与事实 / 讨论观点 / 建议与方案 / 议题小结」下与其它内容合并改写，不必逐字复述；",
+            "每条关键点对应的会议内容，必须在纪要正文相应议题中至少有一条完整、通顺的「- 」正文事实句承载：",
+            "在对应议题的事实条目中与相关事实自然合并改写，不必逐字复述；",
             "这条承载句将作为该关键点的溯源与定位位置。任一条关键点在正文找不到对应内容，视为本次生成的缺陷。",
             "正文句要保留可辨认的专名、数字、动作与范围，便于与会议原文核对；会议原文没有的内容不要补充。",
             "不要为覆盖而把同一条内容重复堆叠成多句；同义内容自然出现在多处属正常。",
@@ -70,7 +62,6 @@ def _focus_guide(extras: dict[str, object]) -> str:
             "- 批注文字一律不得写入正文；\n"
             "- 笔记指向的会议事实若属实质内容，按正常纪要写作在对应议题中体现即可；不为挂载而注水、不整句照抄口语原文。"
         )
-    # 不重复输出议题标题提示：topics 标题已随「会议理解」JSON 完整发给 LLM。
     return "\n\n".join(parts)
 
 
@@ -108,20 +99,8 @@ def _extract_transcript(shared_context: str, understanding: dict) -> str:
     return transcript
 
 
-def _needs_reorg(minutes_md: str, people: list[str]) -> list[str]:
-    reasons: list[str] = []
-    headed = person_chapter_headings(minutes_md, people)
-    if headed:
-        reasons.append("按人成章的议题标题：" + "；".join(headed))
-    if mechanical_closings(minutes_md):
-        reasons.append("议题小结变成同一句状态套话，缺少分题依据")
-    return reasons
-
-
 # trace 实际消费的理解字段：程序（topics/meeting_purpose）+ LLM
 # （scene/meeting_brief/topics/decisions/risks/open_questions）。
-# action_hints / risk_hints / dependencies / perspective_profile 等
-# 是 actions/risks 线的候选池，trace 用不到——user 侧只发消费字段，省输入 token。
 _TRACE_UNDERSTANDING_KEYS = (
     "scene",
     "meeting_brief",
@@ -140,8 +119,6 @@ def _trace_understanding(understanding: dict) -> dict:
         for key, value in (understanding or {}).items()
         if key in _TRACE_UNDERSTANDING_KEYS
     }
-    # meeting 域打包时 meeting_brief 会以 meeting_purpose 兜底，两字段同文时
-    # 只发一份（brief 保留），避免同一段目的文字发给 LLM 两次。
     brief = " ".join(str(data.get("meeting_brief") or "").split()).strip()
     purpose = " ".join(str(data.get("meeting_purpose") or "").split()).strip()
     if brief and purpose == brief:
@@ -150,27 +127,22 @@ def _trace_understanding(understanding: dict) -> dict:
 
 
 class MinutesTraceAgent:
-    """按通用模板写纪要 + 对齐草稿；门禁在返回前执行。"""
+    """按议题树写客观平实纪要 + 对齐草稿；门禁在返回前执行。"""
 
     def __init__(self, client: LLMClient) -> None:
         self.client = client
 
     async def run(self, shared_context: str) -> MinutesTrace:
         extras = parse_trace_extras(shared_context)
-        pack = extras["pack"] if isinstance(extras["pack"], dict) else {}
         understanding = extract_labeled_json(shared_context, "会议理解") or {}
         if not isinstance(understanding, dict):
             understanding = {}
         focus = _focus_guide(extras)
         transcript = _extract_transcript(shared_context, understanding)
-        # 场景判定：理解/原文启发式，判不出回「通用」；按场景取骨架
         scene = detect_scene(understanding, transcript)
-        requirement, fmt = scene_spec(pack, scene)
         people = collect_people(understanding, transcript)
         banned = "、".join(people) if people else "人名、职务称呼、发言者编号"
 
-        # 裁剪输入：只拼 trace 需要的块（原文/会议理解/溯源材料/写作要求/格式），
-        # 去掉对 trace 线无用的 视角模式/用户画像/视角模型（省输入 token、减首 token 延迟）
         parts: list[str] = []
         if transcript:
             parts.append(f"会议原文：\n{transcript}")
@@ -179,13 +151,32 @@ class MinutesTraceAgent:
             parts.append(
                 f"会议理解：\n{json.dumps(llm_understanding, ensure_ascii=False, indent=2)}"
             )
-        # 用户笔记原文（左句 -> 批注）在此保留原文块；用户关键点不再重复裸注入——
-        # 其全量清单已带编号逐条列在 focus 的【关键点覆盖要求】中（内容等价）。
+
+        topics = understanding.get("topics") or []
+        topic_titles = [
+            str(t.get("title") or "").strip()
+            for t in topics
+            if isinstance(t, dict) and str(t.get("title") or "").strip()
+        ]
+        if topic_titles:
+            topic_list = "\n".join(f"{i}. {title}" for i, title in enumerate(topic_titles, 1))
+            parts.append(f"【议题清单（纪要正文二级标题必须严格按此展开）】\n{topic_list}")
+
+        fmt_spec = (
+            "【纪要结构要求】\n"
+            "# 会议纪要：[会议全局主题]\n\n"
+            "## 会议概况\n"
+            "1 段连贯文字（约 100-150 字），概述全场背景、核心主旨与大盘决议，禁止列表符号与序号。\n\n"
+            "## [议题名称]\n"
+            "- 各议题标题必须且只能取自上述「议题清单」。\n"
+            "- 使用「- 」分点，一行陈述一个完整客观事实，组内严禁任何加粗机械前缀（如禁止写“**讨论**：/ **决议**：”等）。\n"
+            "- 自然涵盖核心讨论与指标、确定的方案决议、分工责任人与交付要求、潜在卡点（无相应内容的维度直接不写）。"
+        )
+        parts.append(fmt_spec)
+
         note_raw = str(extras.get("note_raw") or "").strip()
         if note_raw:
             parts.append(f"【用户笔记】\n{note_raw}")
-        parts.append(f"【写作要求】\n{requirement}")
-        parts.append(f"【输出格式】\n{fmt}")
         if focus:
             parts.append(focus)
         parts.append(f"【不得作为议题标题的称呼】{banned}")
@@ -204,28 +195,7 @@ class MinutesTraceAgent:
                 _normalize_markdown(str(data.get("minutes_md") or ""))
             )
         )
-        reasons = _needs_reorg(minutes_md, people)
-        if reasons:
-            reorg_user = (
-                f"{MINUTES_TRACE_REORG_PROMPT}\n\n"
-                f"【返工原因】\n"
-                + "\n".join(f"- {item}" for item in reasons)
-                + f"\n\n【不得作为议题标题的称呼】{banned}\n\n"
-                f"【当前草稿】\n{minutes_md}\n"
-            )
-            repaired = await self.client.structured(
-                MINUTES_TRACE_GENERATION_SYSTEM_PROMPT,
-                reorg_user,
-                MinutesTrace,
-                MINUTES_TRACE_GENERATION_OUTPUT_CONTRACT,
-                label="minutes_trace/agent",
-            )
-            repaired_data = _dump(repaired)
-            new_md = _normalize_markdown(str(repaired_data.get("minutes_md") or ""))
-            if new_md:
-                minutes_md = bulletize_minutes(_remove_speaker_placeholders(new_md))
 
-        # alignments 由审核通过后的单独步骤生成（render 阶段），此处草稿不携带
         data["scene"] = scene
         data["minutes_md"] = minutes_md
         data["alignments"] = []

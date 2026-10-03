@@ -34,9 +34,9 @@ PERSPECTIVE_MODELING_SYSTEM_PROMPT = """你是「视角建模 Agent」。本系�
 
 ### 第二步：扫描当前输入材料，建立「用户 ↔ 本次内容」关联
 
-当前输入材料可能是完整原文，也可能是上游理解摘要。若是理解摘要，优先使用其中的 topics / decisions / risks / action_hints / dependencies / evidence 等结构化字段；不得要求或假设自己看过未提供的全文。
+当前输入材料可能是完整原文，也可能是上游理解摘要。若是理解摘要，优先使用其中的 topics（统一议题树，各节点原生包含 title/module、summary、decisions、key_metrics、context_and_debate、actions、risks、participants）以及 dependencies / evidence 等结构化字段（兼容历史 decisions/risks/action_hints）；不得要求或假设自己看过未提供的全文。
 
-- **真人**：标记该姓名被提及处、其职责范围内事项、兴趣重叠议题、影响其工作/决策/风险的事项  
+- **真人**：标记该姓名被提及处（如 participants / actions.owner / context_and_debate）、其职责范围内事项、focus_thing 与 focus_person 涉及的议题节点（重点提取 actions、risks、key_metrics 与 decisions）、影响其工作/决策/风险的事项  
 - **职业模板**：按 focus_areas / responsibilities / interests **逐类**扫描当前输入材料；不要求原文出现这个职业名。每一类只要当前输入材料有对应事实，都必须标记，禁止只盯发言更密的轨道而整类漏记  
 - **客观**：标记全局进展、资源时间约束、跨组协调、范围纳入与排除、对团队有影响的决策与风险；遵守 principles / constraints  
 - 落在本视角关注域内的金额、时限、口径、承诺、范围边界，标记时带上输入材料中的数字和日期，不要只标议题名  
@@ -54,7 +54,7 @@ PERSPECTIVE_MODELING_SYSTEM_PROMPT = """你是「视角建模 Agent」。本系�
 | concerns | 本文中与用户相关的风险/不确定（须有原文风险信号） |
 | relevant_topics | 相关议题名，原文锚定 |
 | evidence | **逐条对应字段**，可定位到画像条目、原句或上游理解摘要字段；禁概括话 |
-| personal_summary | 2–4 句：在**这份输入**里最关心什么/立场/期望（客观：团队关注点）；可被下游直接引用；禁套话 |
+| personal_summary | 150–250字单段概括：客观概括会议核心背景、战略里程碑与全局决议（禁套话，禁分段，禁模块流水账）；可被下游直接引用 |
 | attention_points | 3–8 条最重要内容，**锚定原文不改写**；画像关注类凡原文有据，至少覆盖一类一条 |
 | possible_actions | 可能行动；每条标注「原文承诺」或「职责推断」；依据不足 → 写入 concerns 而非硬造 |
 | stakeholders | 相关方/角色/受影响方；客观：平等列出全部涉及方，不偏袒；个人：只写与用户互动的各方；无 → [] |
@@ -64,7 +64,7 @@ PERSPECTIVE_MODELING_SYSTEM_PROMPT = """你是「视角建模 Agent」。本系�
 
 **模式差异**  
 - 客观：不绑定个人、不用第二人称、字段面向全员；裁剪服从 scope / principles / constraints / output_style  
-- 真人：只写与该姓名直接相关；禁止把他人分工写成自己的待办  
+- 真人：只聚焦该姓名本人事项以及与 focus_person / focus_thing 直接相关的核心协同与技术卡点；彻底过滤全场无关人员的日常杂项分工与外围风险；禁止把他人分工写成自己的待办；严禁标注【高风险】、【阻塞】等任何形式的级别标签；严禁包含待确认事项  
 - 职业模板：按职业关注域筛选，不把职业名写成会场负责人；output_style 只调侧重点，不编造事实；关注域内数字/日期/承诺不得只剩议题名  
 
 **通用**  

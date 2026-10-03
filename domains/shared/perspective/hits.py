@@ -198,25 +198,35 @@ def build_hit_table(user: dict[str, Any] | None, understanding: dict[str, Any] |
     fts = [t for t in (profile.get("focus_thing") or []) if isinstance(t, str) and t.strip()]
     table = HitTable(name=name, addresses=addresses, focus_persons=fps, focus_things=fts)
 
+    # 1. 待办事项命中：遍历 topics 议题树（兼顾 action_hints 历史入参）
+    action_items: list[tuple[str, dict]] = []
+    for t_idx, topic in enumerate(data.get("topics") or []):
+        if isinstance(topic, dict):
+            for a_idx, act in enumerate(topic.get("actions") or []):
+                if isinstance(act, dict):
+                    action_items.append((f"topics[{t_idx}].actions[{a_idx}].owner", act))
     for index, item in enumerate(data.get("action_hints") or []):
-        if not isinstance(item, dict):
-            continue
-        snippet = _clean(item.get("text"))
+        if isinstance(item, dict):
+            action_items.append((f"action_hints[{index}].owner", item))
+
+    for loc, item in action_items:
+        snippet = _clean(item.get("task") or item.get("action") or item.get("text"))
         owner = _clean(item.get("owner"))
-        timing = _clean(item.get("timing"))
+        timing = _clean(item.get("deadline") or item.get("timing"))
         action_desc = f"{snippet}（{timing}）" if snippet and timing else (snippet or owner)
         if _equals(owner, addresses):
-            table.hits.append(Hit(f"action_hints[{index}].owner", snippet or owner, STRONG, owner))
-            table.my_actions.append(action_desc)
-            # 挂在他条目上的风险也算他的：risks 是全场字符串列表，只有 action_hints 这侧带 owner，
-            # 不在这里收，个人纪要的"他的风险"就只能靠风险文本里恰好写了他名字。
+            table.hits.append(Hit(loc, snippet or owner, STRONG, owner))
+            if action_desc and action_desc not in table.my_actions:
+                table.my_actions.append(action_desc)
+            # 挂在他条目上的风险也算他的
             risk_text = _item_text(item.get("risk"))
             if risk_text and risk_text not in table.my_risks:
                 table.my_risks.append(risk_text)
             continue
         matched = _mentions(snippet, addresses, name)
         if matched:
-            table.hits.append(Hit(f"action_hints[{index}]", snippet, WEAK, matched))
+            weak_loc = loc.replace(".owner", "")
+            table.hits.append(Hit(weak_loc, snippet, WEAK, matched))
         for p in fps:
             if _equals(owner, [p]) or (p in snippet):
                 stmt = f"{owner}负责：{action_desc}" if owner else action_desc
@@ -226,6 +236,31 @@ def build_hit_table(user: dict[str, Any] | None, understanding: dict[str, Any] |
             if t in snippet:
                 if action_desc not in table.focus_thing_mentions:
                     table.focus_thing_mentions.append(action_desc)
+
+    # 1.5 议题树风险项中的责任人命中
+    for t_idx, topic in enumerate(data.get("topics") or []):
+        if isinstance(topic, dict):
+            for r_idx, r in enumerate(topic.get("risks") or []):
+                if isinstance(r, dict):
+                    risk_desc = _clean(r.get("risk") or r.get("text") or r.get("point"))
+                    r_owner = _clean(r.get("owner"))
+                    if _equals(r_owner, addresses):
+                        table.hits.append(Hit(f"topics[{t_idx}].risks[{r_idx}].owner", risk_desc or r_owner, STRONG, r_owner))
+                        if risk_desc and risk_desc not in table.my_risks:
+                            table.my_risks.append(risk_desc)
+                    elif _mentions(risk_desc, addresses, name):
+                        table.hits.append(Hit(f"topics[{t_idx}].risks[{r_idx}]", risk_desc, WEAK, name))
+                        if risk_desc and risk_desc not in table.my_risks:
+                            table.my_risks.append(risk_desc)
+                    for p in fps:
+                        if (p and risk_desc and p in risk_desc) or _equals(r_owner, [p]):
+                            stmt = f"{p}风险：{risk_desc}" if risk_desc else p
+                            if stmt not in table.focus_person_statements:
+                                table.focus_person_statements.append(stmt)
+                    for t in fts:
+                        if t and risk_desc and t in risk_desc:
+                            if risk_desc not in table.focus_thing_mentions:
+                                table.focus_thing_mentions.append(risk_desc)
 
     for index, speaker in enumerate(data.get("speakers") or []):
         if not isinstance(speaker, dict):
@@ -258,24 +293,65 @@ def build_hit_table(user: dict[str, Any] | None, understanding: dict[str, Any] |
         if not isinstance(topic, dict):
             continue
         title = _clean(topic.get("title"))
-        matched = _mentions(title, addresses, name)
+        module = _clean(topic.get("module"))
         participants = topic.get("participants") or []
-        for person in participants:
+        decisions = topic.get("decisions") or []
+        metrics = topic.get("key_metrics") or []
+        debate = _clean(topic.get("context_and_debate"))
+        summary = _clean(topic.get("summary"))
+
+        matched = _mentions(title, addresses, name)
+        for p_idx, person in enumerate(participants):
             if _equals(person, addresses):
                 matched = matched or _clean(person)
+                table.hits.append(Hit(f"topics[{index}].participants[{p_idx}]", _clean(person), STRONG, _clean(person)))
         if matched:
             title_clean = _clean(topic.get("title"))
             table.hits.append(Hit(f"topics[{index}]", title_clean or matched, WEAK, matched))
-            if title_clean:
+            if title_clean and title_clean not in table.my_topics:
                 table.my_topics.append(title_clean)
+
+        # 遍历议题内原生决策
+        for d_idx, dec in enumerate(decisions):
+            d_text = _clean(dec)
+            if not d_text:
+                continue
+            d_matched = _mentions(d_text, addresses, name)
+            if d_matched:
+                table.hits.append(Hit(f"topics[{index}].decisions[{d_idx}]", d_text, WEAK, d_matched))
+                if d_text not in table.my_decisions:
+                    table.my_decisions.append(d_text)
+            for p in fps:
+                if p in d_text and d_text not in table.focus_person_statements:
+                    table.focus_person_statements.append(d_text)
+            for t in fts:
+                if t in d_text and d_text not in table.focus_thing_mentions:
+                    table.focus_thing_mentions.append(d_text)
+
+        # 遍历议题内原生量化指标
+        for m_idx, m_val in enumerate(metrics):
+            m_text = _clean(m_val)
+            if not m_text:
+                continue
+            for t in fts:
+                if t in m_text and m_text not in table.focus_thing_mentions:
+                    table.focus_thing_mentions.append(m_text)
+            for p in fps:
+                if p in m_text and m_text not in table.focus_person_statements:
+                    table.focus_person_statements.append(m_text)
+
         for p in fps:
-            if any(_equals(person, [p]) for person in participants) or (title and p in title):
-                if title and title not in table.focus_person_statements:
-                    table.focus_person_statements.append(f"【{p}参与议题】{title}")
+            if any(_equals(person, [p]) for person in participants) or (title and p in title) or (debate and p in debate):
+                if title:
+                    stmt = f"【{p}参与议题】{title}"
+                    if stmt not in table.focus_person_statements:
+                        table.focus_person_statements.append(stmt)
         for t in fts:
-            if title and t in title:
-                if title not in table.focus_thing_mentions:
-                    table.focus_thing_mentions.append(f"【议题】{title}")
+            if (title and t in title) or (module and t in module) or (summary and t in summary) or (debate and t in debate):
+                if title:
+                    mention = f"【议题】{title}"
+                    if mention not in table.focus_thing_mentions:
+                        table.focus_thing_mentions.append(mention)
     return table
 
 
@@ -420,6 +496,16 @@ def render_action_groups_block(
     # 他人组名 = 待办 owner ∪ 与会发言人：三栏共用一份骨架，而结论/风险里的条目可能挂在
     # 任何一位发言人名下（不只是有待办的人）。多出的行使"没有内容的组不出现"兜住，不会硬凑。
     others: list[str] = []
+    for topic in pack.get("topics") or []:
+        if not isinstance(topic, dict):
+            continue
+        for row in topic.get("actions") or []:
+            if not isinstance(row, dict):
+                continue
+            owner = _clean(row.get("owner"))
+            if not owner or _is_self(owner) or owner in others:
+                continue
+            others.append(owner)
     for row in pack.get("action_hints") or []:
         if not isinstance(row, dict):
             continue
@@ -441,12 +527,22 @@ def render_action_groups_block(
     for p in focus_persons:
         if p not in priority_persons:
             priority_persons.append(p)
-    for sup in reversed(priority_persons):
-        if sup in others:
-            others.remove(sup)
-            others.insert(0, sup)
-        elif any(sup in str(row.get("name") if isinstance(row, dict) else row) for row in (pack.get("speakers") or [])):
-            others.insert(0, sup)
+    if focus_persons:
+        # 当显式声明重点关注人时，他人组名严格仅保留重点关注人与上级，严禁全场无关发言人入选骨架
+        filtered_others: list[str] = []
+        for p in priority_persons:
+            if p in others:
+                filtered_others.append(p)
+            elif any(p in str(row.get("name") if isinstance(row, dict) else row) for row in (pack.get("speakers") or [])):
+                filtered_others.append(p)
+        others = filtered_others
+    else:
+        for sup in reversed(priority_persons):
+            if sup in others:
+                others.remove(sup)
+                others.insert(0, sup)
+            elif any(sup in str(row.get("name") if isinstance(row, dict) else row) for row in (pack.get("speakers") or [])):
+                others.insert(0, sup)
 
     lines = [
         f"【{_GROUPS_TITLE}（程序判定；末尾三栏「结论与决定」「行动项与分工」「待确认与风险」"

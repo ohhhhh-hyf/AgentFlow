@@ -590,29 +590,32 @@ def latex_paper_css() -> str:
       letter-spacing: 0.2px;
     }
 
-    /* 现代极简公文流排版（简单、重点突出、彻底告别厚重卡片与底托） */
+    /* 现代极简公文流排版（高信息密度、紧凑精练、无冗余卡片留白） */
     .ck-card, .ck-flow-group {
-      margin-bottom: 24px;
+      margin-bottom: 14px;
       background: transparent;
       border: none;
       box-shadow: none;
       padding: 0;
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
-      line-height: 1.6;
+      line-height: 1.55;
+    }
+    .ck-card:last-child, .ck-flow-group:last-child {
+      margin-bottom: 0;
     }
     .ck-card-category {
       display: flex;
       align-items: center;
-      gap: 8px;
-      margin-bottom: 12px;
-      padding-bottom: 6px;
-      border-bottom: 1.5px solid #e2e8f0;
+      gap: 6px;
+      margin-bottom: 6px;
+      padding-bottom: 4px;
+      border-bottom: 1px solid #e2e8f0;
       width: 100%;
     }
     .ck-card-accent {
-      width: 3.5px;
-      height: 15px;
-      border-radius: 2px;
+      width: 3px;
+      height: 13px;
+      border-radius: 1.5px;
       background: #2563eb;
       flex-shrink: 0;
     }
@@ -626,15 +629,15 @@ def latex_paper_css() -> str:
       background: #2563eb;
     }
     .ck-card-category-text {
-      font-size: 0.98rem;
+      font-size: 0.92rem;
       font-weight: 700;
       color: #0f172a;
-      letter-spacing: 0.3px;
+      letter-spacing: 0.2px;
     }
     .ck-flow-items {
       display: flex;
       flex-direction: column;
-      gap: 10px;
+      gap: 5px;
     }
     .ck-flow-item {
       padding: 0;
@@ -642,14 +645,14 @@ def latex_paper_css() -> str:
       border: none;
     }
     .ck-item-header {
-      font-size: 0.93rem;
-      line-height: 1.65;
+      font-size: 0.88rem;
+      line-height: 1.55;
       color: #1e293b;
     }
     .ck-item-bullet {
       color: #94a3b8;
-      font-size: 0.95rem;
-      margin-right: 5px;
+      font-size: 0.88rem;
+      margin-right: 4px;
       display: inline-block;
       user-select: none;
     }
@@ -661,13 +664,13 @@ def latex_paper_css() -> str:
     }
     .ck-pill {
       display: inline-block;
-      padding: 1px 6px;
+      padding: 0 5px;
       border-radius: 3px;
-      font-size: 0.72rem;
+      font-size: 0.7rem;
       font-weight: 600;
-      line-height: 1.4;
+      line-height: 1.35;
       vertical-align: 1px;
-      margin-right: 6px;
+      margin-right: 5px;
       white-space: nowrap;
     }
     .ck-pill-high, .ck-flow-high {
@@ -693,23 +696,23 @@ def latex_paper_css() -> str:
       white-space: nowrap;
     }
     .ck-card-drawer {
-      margin: 3px 0 0 14px;
-      padding: 2px 0 2px 8px;
+      margin: 2px 0 0 12px;
+      padding: 1px 0 1px 8px;
       border-left: 2px solid #e2e8f0;
       background: transparent;
       border-radius: 0;
       border-top: none;
       border-right: none;
       border-bottom: none;
-      font-size: 0.82rem;
+      font-size: 0.8rem;
       color: #475569;
-      line-height: 1.6;
+      line-height: 1.45;
     }
     .ck-card-drawer-high {
-      border-left: 2.5px solid #ef4444;
+      border-left: 2px solid #ef4444;
     }
     .ck-card-drawer-med {
-      border-left: 2.5px solid #f59e0b;
+      border-left: 2px solid #f59e0b;
     }
     .ck-card-row {
       margin: 1px 0;
@@ -724,8 +727,8 @@ def latex_paper_css() -> str:
     .ck-card-empty, .ck-flow-empty {
       text-align: center;
       color: #94a3b8;
-      padding: 36px 0;
-      font-size: 0.9rem;
+      padding: 28px 0;
+      font-size: 0.88rem;
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
     }
 

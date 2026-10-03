@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 import re
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any
 
 _ARROW = re.compile(r"\s*->\s*")
@@ -91,6 +91,7 @@ class TraceIndex:
     sentence_sections: dict[str, str]
     topic_titles: list[str]
     understanding_pool: list[str]
+    topic_details: dict[str, list[str]] = field(default_factory=dict)
 
 
 def _han_only(text: str) -> str:
@@ -630,7 +631,7 @@ def _has_evidence(transcript: str, evidence: str) -> bool:
 
 
 def _understanding_pool(understanding: dict | None) -> list[str]:
-    """会议理解中的规范化条目（决策/风险/未决/议题标题）作证据池：
+    """会议理解中的规范化条目（决策/风险/未决/议题标题/议题子项）作证据池：
     用户关键点是概括、与原文不逐字时，用这些提炼条目做同指桥。"""
     if not isinstance(understanding, dict):
         return []
@@ -645,7 +646,70 @@ def _understanding_pool(understanding: dict | None) -> list[str]:
             t = " ".join(str(topic.get("title") or "").split()).strip()
             if t and t not in out:
                 out.append(t)
-    return out[:40]
+            for d in topic.get("decisions") or []:
+                dt = " ".join(str(d or "").split()).strip()
+                if dt and dt not in out:
+                    out.append(dt)
+            for r in topic.get("risks") or []:
+                rt = r.get("risk") if isinstance(r, dict) else str(r or "")
+                rt = " ".join(str(rt or "").split()).strip()
+                if rt and rt not in out:
+                    out.append(rt)
+            for a in topic.get("actions") or []:
+                if isinstance(a, dict):
+                    task = str(a.get("task") or "").strip()
+                    assignee = str(a.get("assignee") or "").strip()
+                    at = f"{assignee} {task}".strip() if assignee else task
+                else:
+                    at = str(a or "").strip()
+                at = " ".join(at.split()).strip()
+                if at and at not in out:
+                    out.append(at)
+    return out[:60]
+
+
+def _build_topic_details(understanding: dict | None) -> dict[str, list[str]]:
+    """抽取各议题下的关键事实（决议、行动、风险、讨论片段），建立 标题 -> 关键事实列表 映射。"""
+    if not isinstance(understanding, dict):
+        return {}
+    out: dict[str, list[str]] = {}
+    for topic in understanding.get("topics") or []:
+        if not isinstance(topic, dict):
+            continue
+        title = str(topic.get("title") or "").strip()
+        if not title:
+            continue
+        items: list[str] = [title]
+        for d in topic.get("decisions") or []:
+            dt = str(d or "").strip()
+            if dt and dt not in items:
+                items.append(dt)
+        for r in topic.get("risks") or []:
+            rt = r.get("risk") if isinstance(r, dict) else str(r or "")
+            rt = str(rt or "").strip()
+            if rt and rt not in items:
+                items.append(rt)
+        for a in topic.get("actions") or []:
+            if isinstance(a, dict):
+                task = str(a.get("task") or "").strip()
+                assignee = str(a.get("assignee") or "").strip()
+                deadline = str(a.get("deadline") or "").strip()
+                parts = [p for p in (assignee, task, deadline) if p]
+                at = " ".join(parts).strip()
+            else:
+                at = str(a or "").strip()
+            if at and at not in items:
+                items.append(at)
+        disc = topic.get("context_and_debate") or topic.get("discussion")
+        if isinstance(disc, list):
+            for it in disc:
+                it_s = str(it or "").strip()
+                if it_s and len(it_s) <= 100 and it_s not in items:
+                    items.append(it_s)
+        elif isinstance(disc, str) and disc.strip():
+            items.append(disc.strip()[:100])
+        out[title] = items
+    return out
 
 
 def _resolve_keypoint_evidence(
@@ -903,6 +967,7 @@ def gate_alignments(
     segments = segment_minutes(minutes_md) if topic_titles else []
     titles = list(topic_titles or [])
     pool = _understanding_pool(understanding)
+    topic_details = _build_topic_details(understanding)
     for raw in alignments or []:
         if not isinstance(raw, dict):
             continue
@@ -920,7 +985,7 @@ def gate_alignments(
                 continue
             if not _related(sentence, key, df=df, n_docs=n_docs):
                 continue
-            if titles and not _same_topic(sentence, key, segments, titles):
+            if titles and not _same_topic(sentence, key, segments, titles, topic_details):
                 continue
             stamp = key
             kind = "keypoint"
@@ -945,7 +1010,7 @@ def gate_alignments(
                 bridge=_supporting_transcript_sentence(left, transcript),
             ):
                 continue
-            if titles and not _same_topic(sentence, left, segments, titles):
+            if titles and not _same_topic(sentence, left, segments, titles, topic_details):
                 continue
             stamp = f"{left} **用户批注** {right}"
             kind = "note"
@@ -1069,20 +1134,18 @@ def _segment_of(sentence: str, segments: list[tuple[str, list[str]]]) -> str:
     return ""
 
 
-def _topic_score(source: str, heading: str, topic_titles: list[str]) -> int:
-    """来源与段落标题的主题相关度：直接 2-gram 重叠 + 议题标题桥接重叠。
-
-    主题桥：仅当来源与某议题标题（meeting_core topics.title）**直接匹配**
-    （≥1 个 2-gram 重叠，如「验收」「排期」）时，才允许该标题与段落标题
-    的重叠加分——否则桥接会因"来源同时弱匹配多个标题"把无关段落抬高。
-
-    用 2-gram 而非 3-gram：标题/关键点措辞差异大时 3-gram 太脆
-    （「验收计划」vs「验收时间」零重叠），2-gram 的「验收」即可命中。
-    """
+def _topic_score(
+    source: str,
+    heading: str,
+    topic_titles: list[str],
+    topic_details: dict[str, list[str]] | None = None,
+) -> int:
+    """来源与段落标题的主题相关度：直接 2-gram 重叠 + 议题标题桥接重叠 + 议题内涵事实加权。"""
     if not heading:
         return 0
     src_grams = _han_ngrams(source, size=2)
-    best = len(src_grams & _han_ngrams(heading, size=2))
+    h_clean = re.sub(r"^\d+[\.、．]\s*", "", heading).strip()
+    best = len(src_grams & _han_ngrams(h_clean, size=2))
     for title in topic_titles or []:
         t = (title or "").strip()
         if not t:
@@ -1091,10 +1154,19 @@ def _topic_score(source: str, heading: str, topic_titles: list[str]) -> int:
         if src_title < 1:
             continue  # 来源与该议题标题不直接相关，不做桥接
         bridge = src_title + len(
-            _han_ngrams(t, size=2) & _han_ngrams(heading, size=2)
+            _han_ngrams(t, size=2) & _han_ngrams(h_clean, size=2)
         )
         if bridge > best:
             best = bridge
+
+    # 议题内涵业务事实加权：若当前段落标题对应某议题，且来源命中了该议题的决议、行动、风险或讨论
+    if topic_details and h_clean in topic_details:
+        for fact in topic_details[h_clean]:
+            fact_overlap = len(src_grams & _han_ngrams(fact, size=2))
+            if fact_overlap >= 1:
+                boost = 1 + fact_overlap
+                if boost > best:
+                    best = boost
     return best
 
 
@@ -1102,6 +1174,7 @@ def _best_segment(
     source: str,
     segments: list[tuple[str, list[str]]],
     topic_titles: list[str],
+    topic_details: dict[str, list[str]] | None = None,
 ) -> list[str] | None:
     """找与来源同主题的段落句子列表。
 
@@ -1112,7 +1185,7 @@ def _best_segment(
     for heading, sentences in segments:
         if not heading:
             continue
-        score = _topic_score(source, heading, topic_titles)
+        score = _topic_score(source, heading, topic_titles, topic_details)
         if score > 0:
             scored.append((score, sentences))
     if not scored:
@@ -1131,6 +1204,7 @@ def _same_topic(
     source: str,
     segments: list[tuple[str, list[str]]],
     topic_titles: list[str],
+    topic_details: dict[str, list[str]] | None = None,
 ) -> bool:
     """主题闸只拦「明确跨主题且主张也不强」的情况。
 
@@ -1146,7 +1220,7 @@ def _same_topic(
         (
             (score, h)
             for h, _ in segments
-            if h and (score := _topic_score(source, h, topic_titles)) > 0
+            if h and (score := _topic_score(source, h, topic_titles, topic_details)) > 0
         ),
         key=lambda item: -item[0],
     )
@@ -1218,12 +1292,14 @@ def backfill_alignments(
     kept = gate_alignments(
         alignments, minutes_md, transcript, keypoints, notes, topic_titles, understanding
     )
+    topic_details = _build_topic_details(understanding)
     index = TraceIndex(
         minutes_sentences=_minutes_sentences(minutes_md),
         segments=segment_minutes(minutes_md),
         sentence_sections={},
         topic_titles=list(topic_titles or []),
         understanding_pool=_understanding_pool(understanding),
+        topic_details=topic_details,
     )
     for sent in index.minutes_sentences:
         index.sentence_sections[sent] = _segment_of(sent, index.segments)
@@ -1269,7 +1345,7 @@ def backfill_alignments(
             )
             search_pool = candidates
             if segments:
-                same_topic = _best_segment(keypoint, segments, titles)
+                same_topic = _best_segment(keypoint, segments, titles, topic_details)
                 if same_topic:
                     search_pool = list(dict.fromkeys([*same_topic, *candidates]))
             related = _best_sentences(
@@ -1337,6 +1413,10 @@ def backfill_alignments(
             scan = strong_verbatim
         else:
             scan = candidates
+            if segments:
+                same_topic = _best_segment(left, segments, titles, topic_details)
+                if same_topic:
+                    scan = list(dict.fromkeys([*same_topic, *candidates]))
         bridge = _supporting_transcript_sentence(left, transcript)
         targets_pool = _note_targets_pool(left, pool)
         scored: list[tuple[int, float, int, str]] = []

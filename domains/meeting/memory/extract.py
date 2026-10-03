@@ -243,17 +243,18 @@ def _topic_conclusions(understanding: dict[str, Any]) -> list[str]:
 def _action_items(understanding: dict[str, Any]) -> list[dict[str, str]]:
     rows: list[dict[str, str]] = []
     seen: set[str] = set()
-    source = list(understanding.get("action_hints") or [])
+    source: list[dict[str, Any]] = []
+    for t in (understanding.get("topics") or []):
+        if isinstance(t, dict):
+            for a in (t.get("actions") or []):
+                if isinstance(a, dict):
+                    source.append({
+                        "action": a.get("task") or a.get("action") or "",
+                        "owner": a.get("owner") or "",
+                        "timing": a.get("deadline") or a.get("timing") or "",
+                    })
     if not source:
-        for t in (understanding.get("topics") or []):
-            if isinstance(t, dict):
-                for a in (t.get("actions") or []):
-                    if isinstance(a, dict):
-                        source.append({
-                            "action": a.get("task") or a.get("action") or "",
-                            "owner": a.get("owner") or "",
-                            "timing": a.get("deadline") or a.get("timing") or "",
-                        })
+        source = list(understanding.get("action_hints") or [])
     for item in source:
         if isinstance(item, dict):
             text = _clean(item.get("action") or item.get("text"))

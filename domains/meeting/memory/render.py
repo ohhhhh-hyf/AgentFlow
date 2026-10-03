@@ -1661,7 +1661,9 @@ def _parse_risks_from_text(text: str) -> list[dict[str, Any]]:
         line_s = line.strip()
         if not line_s:
             continue
-        if line_s.startswith(("#", "```", "---")):
+        if line_s.startswith(("# ", "```", "---")):
+            continue
+        if re.match(r"^#{1,3}\s+.*(?:风险|分析|报告)", line_s):
             continue
 
         # 1. 处理副行属性：风险级别 / 潜在影响 / 应对方案 / 责任主体 / 来源
@@ -1689,11 +1691,17 @@ def _parse_risks_from_text(text: str) -> list[dict[str, Any]]:
                 risks[-1]["source"] = re.sub(r"^(?:来源|依据)[:：]\s*", "", clean_sub)
                 continue
 
-        # 2. 识别板块/话题标题行（如 1. **【网关架构】** 或 1. **[网关架构]**）
-        cat_m = re.match(r"^(?:#{1,4}\s*)?(\d+[\.、\s]+)?\*{0,2}[\[【](.*?)[\]】]\*{0,2}\s*$", line_s)
+        # 2. 识别板块/话题标题行（如 1. **【网关架构】** 或 1. **[网关架构]** 或 1. **网关架构** 或 ## 网关架构）
+        cat_m = re.match(r"^(?:#{2,4}\s*)?(?:(\d+)[\.、\s]+)?\*{0,2}[\[【](.*?)[\]】]\*{0,2}\s*$", line_s)
         if cat_m:
             current_category = cat_m.group(2).strip()
             continue
+        cat_m_plain = re.match(r"^(?:#{2,4}\s+|(\d+)[\.、\s]+)\*{0,2}([^\*\n]+?)\*{0,2}\s*$", line_s)
+        if cat_m_plain and not line_s.startswith(("-", "*", "•", ">")):
+            cand = cat_m_plain.group(2).strip()
+            if cand and len(cand) <= 25 and not any(p in cand for p in ("：", ":", "，", ",", "。")) and not re.search(r"高风险|中风险|低风险", cand):
+                current_category = cand
+                continue
 
         # 3. 识别列表风险项（如 - 核心路由压测断流（高风险 · 架构组））
         bullet_m = re.match(r"^[-*•]\s+(.+)$", line_s)
@@ -1812,10 +1820,13 @@ def render_risks_html(title: str, text: str, data: dict | None = None) -> str:
     if hasattr(data, "model_dump"):
         data = data.model_dump()
     raw_risks = (data or {}).get("risks")
-    if isinstance(raw_risks, list) and raw_risks and isinstance(raw_risks[0], dict):
+    parsed_risks = _parse_risks_from_text(text) if (text and text.strip()) else []
+    if parsed_risks:
+        risks = parsed_risks
+    elif isinstance(raw_risks, list) and raw_risks and isinstance(raw_risks[0], dict):
         risks = raw_risks
     else:
-        risks = _parse_risks_from_text(text)
+        risks = []
 
     display_title = title or "风险分析报告"
 
@@ -1900,13 +1911,16 @@ def render_risks_html(title: str, text: str, data: dict | None = None) -> str:
         if not items_html:
             continue
 
-        cat_accent_cls = "ck-card-accent-risk" if has_high else ("ck-card-accent-risk-med" if has_med else "ck-card-accent-risk-low")
-        category_header = (
-            f'<div class="ck-card-category">'
-            f'  <span class="ck-card-accent {cat_accent_cls}"></span>'
-            f'  <span class="ck-card-category-text">{escape(cat_name, quote=False)}</span>'
-            f'</div>'
-        )
+        if cat_name in ("综合风险", "风险事项", "未分类", ""):
+            category_header = ""
+        else:
+            cat_accent_cls = "ck-card-accent-risk" if has_high else ("ck-card-accent-risk-med" if has_med else "ck-card-accent-risk-low")
+            category_header = (
+                f'<div class="ck-card-category">'
+                f'  <span class="ck-card-accent {cat_accent_cls}"></span>'
+                f'  <span class="ck-card-category-text">{escape(cat_name, quote=False)}</span>'
+                f'</div>'
+            )
 
         cards_html.append(
             f'<div class="ck-card ck-flow-group">'
@@ -1968,7 +1982,9 @@ def _parse_actions_from_text(text: str) -> list[dict[str, Any]]:
         line_s = line.strip()
         if not line_s:
             continue
-        if line_s.startswith(("#", "```", "---")):
+        if line_s.startswith(("# ", "```", "---")):
+            continue
+        if re.match(r"^#{1,3}\s+.*(?:待办|事项|清单)", line_s):
             continue
 
         # 1. 处理副行属性：责任主体 / 交付时限 / 交付成果 / 前置依赖 / 原文依据
@@ -2004,11 +2020,17 @@ def _parse_actions_from_text(text: str) -> list[dict[str, Any]]:
                 actions[-1]["evidence"] = ev
                 continue
 
-        # 2. 识别板块/话题标题行（如 1. **【现场整改】** 或 1. **[现场整改]**）
-        cat_m = re.match(r"^(?:#{1,4}\s*)?(\d+[\.、\s]+)?\*{0,2}[\[【](.*?)[\]】]\*{0,2}\s*$", line_s)
+        # 2. 识别板块/话题标题行（如 1. **【现场整改】** 或 1. **[现场整改]** 或 1. **现场整改** 或 ## 现场整改）
+        cat_m = re.match(r"^(?:#{2,4}\s*)?(?:(\d+)[\.、\s]+)?\*{0,2}[\[【](.*?)[\]】]\*{0,2}\s*$", line_s)
         if cat_m:
             current_category = cat_m.group(2).strip()
             continue
+        cat_m_plain = re.match(r"^(?:#{2,4}\s+|(\d+)[\.、\s]+)\*{0,2}([^\*\n]+?)\*{0,2}\s*$", line_s)
+        if cat_m_plain and not line_s.startswith(("-", "*", "•", ">")):
+            cand = cat_m_plain.group(2).strip()
+            if cand and len(cand) <= 25 and not any(p in cand for p in ("：", ":", "，", ",", "。")) and not re.search(r"高优先|中优先|低优先", cand):
+                current_category = cand
+                continue
 
         # 3. 识别列表待办项（如 - 事项描述（高优先 · 责任人） 或 - 事项描述（责任人））
         bullet_m = re.match(r"^[-*•]\s+(.+)$", line_s)
@@ -2145,10 +2167,13 @@ def render_actions_html(title: str, text: str, data: dict | None = None) -> str:
         if combined:
             raw_actions = combined
 
-    if isinstance(raw_actions, list) and raw_actions and isinstance(raw_actions[0], dict):
+    parsed_actions = _parse_actions_from_text(text) if (text and text.strip()) else []
+    if parsed_actions:
+        actions = parsed_actions
+    elif isinstance(raw_actions, list) and raw_actions and isinstance(raw_actions[0], dict):
         actions = raw_actions
     else:
-        actions = _parse_actions_from_text(text)
+        actions = []
 
     display_title = title or "待办事项清单"
 
@@ -2222,12 +2247,15 @@ def render_actions_html(title: str, text: str, data: dict | None = None) -> str:
         if not items_html:
             continue
 
-        category_header = (
-            f'<div class="ck-card-category">'
-            f'  <span class="ck-card-accent"></span>'
-            f'  <span class="ck-card-category-text">{escape(cat_name, quote=False)}</span>'
-            f'</div>'
-        )
+        if cat_name in ("综合待办", "综合事项", "待办事项", "未分类", ""):
+            category_header = ""
+        else:
+            category_header = (
+                f'<div class="ck-card-category">'
+                f'  <span class="ck-card-accent"></span>'
+                f'  <span class="ck-card-category-text">{escape(cat_name, quote=False)}</span>'
+                f'</div>'
+            )
 
         cards_html.append(
             f'<div class="ck-card ck-flow-group">'

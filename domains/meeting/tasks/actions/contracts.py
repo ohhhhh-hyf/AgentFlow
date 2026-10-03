@@ -18,7 +18,7 @@ class ActionItemsGenerationContract(GenerationContract):
 
     fields = [
         ObjListField("my_actions", [
-            StrField("category", "该待办所属的具体业务议题或专项主题短语，通常4–12字，带具体客体或业务场景"),
+            StrField("category", "该待办所属的宏观业务大类/组标题（全场会议聚拢为3~5个宏观组标题，如'人员履约与资料闭环'、'现场实体整改'，严禁针对单条动作提取动作级微小标题，同类待办必须共用相同组标题）"),
             StrField("task", "以动词开头的具体任务描述，条件型任务写清触发条件"),
             StrField("owner", "原文明示的负责人姓名，未明示为null"),
             StrField("deadline", "原文明示的截止时间，未明示为null"),

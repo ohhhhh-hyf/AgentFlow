@@ -24,33 +24,6 @@ SCENE_CHOICES = [
     "采访/对话",
 ]
 
-# ── 行动线索类型枚举（公共底座，待办线消费）─────────────────────
-# commitment=承诺表态（我来做/我们负责）；assignment=明确分配（由 YY 负责）；
-# directive=指令要求（要求/必须/务必…落实）；rectification=整改项（验收/检查提出的整改）；
-# followup=后续跟进（会后要跟踪/确认/再议）。对应待办线的信号清单。
-ACTION_HINT_KINDS = [
-    "commitment",
-    "assignment",
-    "directive",
-    "rectification",
-    "followup",
-]
-
-# ── 风险信号类型枚举（公共底座，风险线消费）─────────────────────
-# time=时间/期限；resource=资源/预算；staffing=人员/人力；quality=质量/标准；
-# dependency=依赖未确认；external=外部条件（政策/疫情/供货方等）；scope=范围边界；
-# other=其它明确风险信号。用于风险线的 severity/source 定位与归类。
-RISK_SIGNAL_TYPES = [
-    "time",
-    "resource",
-    "staffing",
-    "quality",
-    "dependency",
-    "external",
-    "scope",
-    "other",
-]
-
 
 class MeetingUnderstandingGenerationContract(GenerationContract):
     """统一议题树会议理解输出契约。"""
@@ -91,29 +64,6 @@ class MeetingUnderstandingGenerationContract(GenerationContract):
             ]),
             StrListField("open_issues", "尚未达成一致或需后续确认的事项；无则[]"),
         ]),
-        StrListField("decisions", "已明确拍板/达成共识的结论（逐条列出；同类多项分别列出；无则[]）"),
-        StrListField("open_questions", "尚未达成一致或需后续确认的事项（逐条列出；无则[]）"),
-        StrListField("risks", "原文明确提到的风险/隐患/阻碍（逐条列出；无则[]）"),
-        ObjListField("action_hints", [
-            StrField("action", "原文动作短语（谁+做什么）"),
-            StrField("owner", "负责人姓名；无为null"),
-            StrField("timing", "时间约束；无为null"),
-            StrField("condition", "触发条件；无为null"),
-            StrField("topic", "所属议题标题；无为null"),
-            EnumField("kind", ACTION_HINT_KINDS),
-            StrField("evidence", "支撑一句话"),
-        ]),
-        ObjListField("risk_hints", [
-            StrField("risk", "原文风险表述"),
-            StrField("topic", "所属议题标题；无为null"),
-            EnumField("signal_type", RISK_SIGNAL_TYPES),
-            StrField("severity_evidence", "强度原句；无为null"),
-            StrField("impact", "影响后果；无为null"),
-            StrField("mitigation", "应对措施；无为null"),
-            StrField("owner", "负责人姓名；无为null"),
-            StrField("evidence", "支撑一句话"),
-        ]),
-        StrListField("dependencies", "原文明确的未确认前置/依赖；无则[]"),
     ]
 
 
@@ -123,7 +73,5 @@ MEETING_UNDERSTANDING_GENERATION_OUTPUT_CONTRACT = (
 
 __all__ = [
     "SCENE_CHOICES",
-    "ACTION_HINT_KINDS",
-    "RISK_SIGNAL_TYPES",
     "MEETING_UNDERSTANDING_GENERATION_OUTPUT_CONTRACT",
 ]

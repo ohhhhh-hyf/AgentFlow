@@ -40,19 +40,29 @@ def collect_people(understanding: Any, transcript: str = "") -> list[str]:
 
 def topic_headings(minutes_md: str) -> list[str]:
     headings: list[str] = []
-    in_topics = False
-    for raw in (minutes_md or "").splitlines():
+    lines = (minutes_md or "").splitlines()
+    has_legacy_topics = any(line.strip().startswith("# ") and "主要议题" in line for line in lines)
+    in_legacy_topics = False
+
+    for raw in lines:
         line = raw.strip()
-        if line.startswith("# ") and "主要议题" in line:
-            in_topics = True
-            continue
-        if in_topics and line.startswith("# ") and "主要议题" not in line:
-            break
-        if in_topics and line.startswith("## "):
-            title = line[3:].strip()
-            title = re.sub(r"^\d+[\.、．]\s*", "", title)
-            if title:
-                headings.append(title)
+        if has_legacy_topics:
+            if line.startswith("# ") and "主要议题" in line:
+                in_legacy_topics = True
+                continue
+            if in_legacy_topics and line.startswith("# ") and "主要议题" not in line:
+                break
+            if in_legacy_topics and line.startswith("## "):
+                title = line[3:].strip()
+                title = re.sub(r"^\d+[\.、．]\s*", "", title)
+                if title:
+                    headings.append(title)
+        else:
+            if line.startswith("## "):
+                title = line[3:].strip()
+                title = re.sub(r"^\d+[\.、．]\s*", "", title)
+                if title and not any(k in title for k in ("会议概况", "会议概述", "内容总结", "关键决策", "行动项", "会议结论")):
+                    headings.append(title)
     return headings
 
 
@@ -103,7 +113,7 @@ def _split_points(text: str) -> list[str]:
 def bulletize_minutes(minutes_md: str) -> str:
     """把粘在一起的正文拆成 Markdown 列表，不改事实、不动表格和标题。
 
-    内容总结区除外：其正文保持成段文字（段落按行原样保留，不拆句、不加列表符）。
+    会议概况 / 内容总结区除外：其正文保持成段文字（段落按行原样保留，不拆句、不加列表符）。
     """
     out: list[str] = []
     in_table = False
@@ -122,7 +132,8 @@ def bulletize_minutes(minutes_md: str) -> str:
                 out.append(raw.rstrip())
             continue
         if stripped.startswith("#"):
-            in_summary = stripped.lstrip("#").strip() == "内容总结"
+            sec_name = stripped.lstrip("#").strip()
+            in_summary = any(k in sec_name for k in ("内容总结", "会议概况", "会议概述", "全景概览"))
             out.append(raw.rstrip())
             continue
         if (
@@ -133,7 +144,7 @@ def bulletize_minutes(minutes_md: str) -> str:
             out.append(raw.rstrip())
             continue
         if in_summary:
-            # 内容总结段落：原样保留，不按句号拆行，不加列表符号
+            # 会议概况/内容总结段落：原样保留，不按句号拆行，不加列表符号
             out.append(raw.rstrip())
             continue
         points = _split_points(stripped)

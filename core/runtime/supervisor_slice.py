@@ -395,13 +395,22 @@ def summarize_understanding(understanding: object) -> str:
             if cleaned:
                 lines.append(f"{label}：" + "；".join(cleaned))
 
-    hints = understanding.get("action_hints") or []
+    hints = list(understanding.get("action_hints") or [])
+    if not hints:
+        for t in (understanding.get("topics") or []):
+            if isinstance(t, dict):
+                for a in (t.get("actions") or []):
+                    if isinstance(a, dict):
+                        hints.append({
+                            "action": a.get("task") or a.get("action") or "",
+                            "owner": a.get("owner") or "",
+                        })
     if isinstance(hints, list):
         bits = []
         for item in hints[:16]:
             if not isinstance(item, dict):
                 continue
-            action = _clean(item.get("action"))
+            action = _clean(item.get("action") or item.get("task"))
             if not action:
                 continue
             owner = _clean(item.get("owner"))
@@ -409,7 +418,15 @@ def summarize_understanding(understanding: object) -> str:
         if bits:
             lines.append("行动线索：" + "；".join(bits))
 
-    risks = understanding.get("risk_hints") or []
+    risks = list(understanding.get("risk_hints") or [])
+    if not risks:
+        for t in (understanding.get("topics") or []):
+            if isinstance(t, dict):
+                for r in (t.get("risks") or []):
+                    if isinstance(r, dict):
+                        risks.append(r)
+                    elif isinstance(r, str) and r.strip():
+                        risks.append({"risk": r.strip()})
     if isinstance(risks, list):
         bits = []
         for item in risks[:12]:
@@ -417,6 +434,8 @@ def summarize_understanding(understanding: object) -> str:
                 risk = _clean(item.get("risk"))
                 if risk:
                     bits.append(risk)
+            elif isinstance(item, str) and item.strip():
+                bits.append(item.strip())
         if bits:
             lines.append("风险线索：" + "；".join(bits))
     return "\n".join(lines)

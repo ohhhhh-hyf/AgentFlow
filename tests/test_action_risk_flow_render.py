@@ -227,3 +227,38 @@ def test_category_grouping_multi_items():
     assert html.count('<span class="ck-card-category-text">现场实体整改</span>') == 1
     assert html.count('<span class="ck-card-category-text">内业资料</span>') == 1
 
+
+def test_text_priority_over_raw_data_and_generic_cat_suppression():
+    """测试当同时传入 text 与 data 时，优先采用已聚类归纳的 text，避免逐条割裂与重复标题。"""
+    raw_draft_items = [
+        {"category": "人员统计数量完善", "task": "完善人员统计数量，将厂家服务人员等计入团队人员", "priority": "medium"},
+        {"category": "特种人员证件更新", "task": "与国内人力资源对接，完善特种人员证件有效期更新", "priority": "medium"},
+    ]
+    grouped_text = """
+2. **[人员履约和合同履约]**
+   - 完善人员统计数量，将厂家服务人员等计入团队人员(中优先)
+   - 与国内人力资源对接，完善特种人员证件有效期更新(中优先)
+"""
+    # 模拟 save_report_artifacts 同时把 text 与 data 传入
+    html = render_actions_html("待办清单", grouped_text, data={"actions": raw_draft_items})
+
+    # 1. 应当聚拢在宏观主题「人员履约和合同履约」下，只有 1 个卡片
+    assert html.count('class="ck-card ck-flow-group"') == 1
+    assert '<span class="ck-card-category-text">人员履约和合同履约</span>' in html
+    # 2. 绝不应该出现草稿阶段细碎的临时标题作为独立卡片
+    assert "人员统计数量完善" not in html
+    assert "特种人员证件更新" not in html
+    # 3. 事项都在该卡片内紧凑罗列
+    assert html.count('class="ck-flow-item"') == 2
+
+    # 测试通用分类无意义标题栏抑制
+    generic_text = """
+- 检查机房应急供电设备(高优先)
+- 备份数据库配置文件(中优先)
+"""
+    html_gen = render_actions_html("待办清单", generic_text)
+    assert '<span class="ck-card-category-text">综合待办</span>' not in html_gen
+    assert '<span class="ck-card-category-text">综合事项</span>' not in html_gen
+    assert html_gen.count('class="ck-flow-item"') == 2
+
+

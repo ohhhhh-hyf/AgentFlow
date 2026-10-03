@@ -22,85 +22,20 @@ def _trim_instruction(focus_line: str, skip_fields: Iterable[str]) -> str:
     """
     order = [field.name for field in dc_fields(MeetingUnderstanding)]
     skipped = {str(field).strip() for field in skip_fields if str(field).strip()}
-    blank = [name for name in order if name in skipped]
-    keep = [name for name in order if name not in skipped]
-    if not blank:
+    if not skipped:
         return ""
+    blank = [name for name in order if name in skipped]
+    extra_blank = [name for name in sorted(skipped) if name not in blank]
+    all_blank = blank + extra_blank
+    keep = [name for name in order if name not in skipped]
     return (
         "【本次输出裁剪】\n"
         f"本次会议理解仅供 {focus_line or '本任务'} 线使用。"
-        f"以下字段**键名必须保留、值给空数组 []**：{'、'.join(blank)}（不要省略键名）。\n"
+        f"以下字段**键名必须保留、值给空数组 []**：{'、'.join(all_blank)}（不要省略键名）。\n"
         f"除上述字段外，其余字段（{'、'.join(keep)}）必须照常按会议原文完整、准确输出，"
         "不得省略、不得清空。\n"
         "裁剪字段输出 [] 是预期行为，不要为了完整性自检把它们填回内容。"
     )
-
-
-def _ensure_derived_fields(result: MeetingUnderstanding) -> None:
-    """若大模型仅在 topics 议题树中内聚输出了事实，自动由树派生出平铺视图，确保下游 100% 兼容。"""
-    if not isinstance(result, MeetingUnderstanding):
-        return
-    topics = result.topics or []
-    if not isinstance(topics, list):
-        return
-
-    derived_actions: list[dict[str, Any]] = []
-    derived_risks: list[dict[str, Any]] = []
-    derived_decisions: list[str] = []
-    derived_open: list[str] = []
-
-    for t in topics:
-        if not isinstance(t, dict):
-            continue
-        topic_title = str(t.get("title") or "").strip()
-        for a in (t.get("actions") or []):
-            if isinstance(a, dict):
-                derived_actions.append({
-                    "action": a.get("task") or "",
-                    "owner": a.get("owner"),
-                    "timing": a.get("deadline"),
-                    "condition": a.get("dependency"),
-                    "topic": topic_title,
-                    "kind": "directive" if a.get("priority") == "high" else "assignment",
-                    "evidence": a.get("evidence") or "",
-                })
-        for r in (t.get("risks") or []):
-            if isinstance(r, dict):
-                derived_risks.append({
-                    "risk": r.get("risk") or "",
-                    "topic": topic_title,
-                    "signal_type": "quality",
-                    "severity_evidence": r.get("evidence") or "",
-                    "impact": r.get("impact"),
-                    "mitigation": r.get("mitigation"),
-                    "owner": r.get("owner"),
-                    "evidence": r.get("evidence") or "",
-                })
-        for d in (t.get("decisions") or []):
-            if d and str(d).strip():
-                derived_decisions.append(str(d).strip())
-        for o in (t.get("open_issues") or []):
-            if o and str(o).strip():
-                derived_open.append(str(o).strip())
-
-    derived_dependencies: list[str] = []
-    for a in derived_actions:
-        cond = a.get("condition")
-        if cond and str(cond).strip() and str(cond).strip() not in derived_dependencies:
-            derived_dependencies.append(str(cond).strip())
-
-    if getattr(result, "action_hints", None) is None:
-        result.action_hints = derived_actions
-    if getattr(result, "risk_hints", None) is None:
-        result.risk_hints = derived_risks
-    if getattr(result, "decisions", None) is None:
-        result.decisions = derived_decisions
-    if getattr(result, "risks", None) is None:
-        result.risks = [r["risk"] for r in derived_risks if r.get("risk")]
-    if getattr(result, "open_questions", None) is None:
-        result.open_questions = derived_open
-    if getattr(result, "dependencies", None) is None:
-        result.dependencies = derived_dependencies
 
 
 class MeetingUnderstandingAgent:
@@ -135,7 +70,7 @@ class MeetingUnderstandingAgent:
         skipped = {
             str(field).strip() for field in skip_fields if str(field).strip()
         }
-        missable = skipped | {"speakers", "action_hints", "risk_hints", "dependencies", "decisions", "risks", "open_questions"}
+        missable = skipped | {"speakers"}
         result = await self.client.structured(
             MEETING_UNDERSTANDING_SYSTEM_PROMPT,
             user,
@@ -144,6 +79,5 @@ class MeetingUnderstandingAgent:
             label="core/meeting_understanding",
             allow_missing=missable,
         )
-        _ensure_derived_fields(result)
         return result
 

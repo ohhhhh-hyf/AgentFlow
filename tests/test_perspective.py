@@ -228,6 +228,12 @@ def test_action_groups_block() -> None:
           "**武思华**：" in fallback and "**家坤**：" not in fallback, fallback)
     check("分组骨架：无姓名（客观/无档案）不注入",
           render_action_groups_block({}, understanding) == "", "")
+    # 当显式指定 focus_person 时，过滤掉无关发言人
+    user_with_focus = {"name": "申家坤", "focus_person": ["徐玥"]}
+    focused_block = render_action_groups_block(user_with_focus, understanding)
+    check("分组骨架：显式 focus_person 时仅保留重点关注人，彻底过滤外围人员",
+          "**与我相关**：" in focused_block and "**徐玥**：" in focused_block and "**武思华**：" not in focused_block,
+          focused_block)
 
 
 def test_speaker_attribution() -> None:
@@ -605,15 +611,18 @@ def test_personal_template_view_directive() -> None:
     check("专属纪律：人名口径包含本人省主语与他人写真名",
           "本人动作省主语" in PERSONAL_TEMPLATE_VIEW_DIRECTIVE
           and "他人动作写真名" in PERSONAL_TEMPLATE_VIEW_DIRECTIVE, "")
-    check("专属纪律：分栏组名包含与我相关和前置依赖",
-          "与我相关" in PERSONAL_TEMPLATE_VIEW_DIRECTIVE
-          and "前置依赖" in PERSONAL_TEMPLATE_VIEW_DIRECTIVE, "")
+    check("专属纪律：分栏组名包含本人相关和重点关注",
+          "本人相关" in PERSONAL_TEMPLATE_VIEW_DIRECTIVE
+          and "重点关注" in PERSONAL_TEMPLATE_VIEW_DIRECTIVE, "")
     check("专属纪律：无通用模板栏名对抗修正（没有「全文摘要」「分段速览」等对抗词）",
           "全文摘要" not in PERSONAL_TEMPLATE_VIEW_DIRECTIVE
           and "分段速览" not in PERSONAL_TEMPLATE_VIEW_DIRECTIVE, "")
     check("专属纪律：严格禁止使用任何 emoji 表情符号与机械占位符（去AI味）",
           "严禁使用任何 emoji 表情符号" in PERSONAL_TEMPLATE_VIEW_DIRECTIVE
           and "去AI味" in PERSONAL_TEMPLATE_VIEW_DIRECTIVE, "")
+    check("专属纪律：业务进展模块化大盘包含业务进展",
+          "业务进展模块化大盘" in PERSONAL_TEMPLATE_VIEW_DIRECTIVE
+          and "业务进展" in PERSONAL_TEMPLATE_VIEW_DIRECTIVE, "")
 
 
 def test_personal_template_config_and_task_routing() -> None:
@@ -629,30 +638,30 @@ def test_personal_template_config_and_task_routing() -> None:
     obj_tpl_path = _template_file("meeting", "minutes", "", profile_value="")
     obj_content = obj_tpl_path.read_text(encoding="utf-8") if obj_tpl_path else ""
     check("路由：客观模式（profile为空）100% 保持 general_minutes",
-          "全文摘要" in obj_content and ("本场概况与承接目标" not in obj_content and "本场概况与本人定调" not in obj_content), obj_content[:60])
+          "全文摘要" in obj_content and ("会议概况" not in obj_content and "本场概况与承接目标" not in obj_content and "本场概况与本人定调" not in obj_content), obj_content[:60])
 
     obj_explicit_path = _template_file("meeting", "minutes", "", profile_value="objective")
     obj_exp_content = obj_explicit_path.read_text(encoding="utf-8") if obj_explicit_path else ""
     check("路由：客观模式（profile=objective）100% 保持 general_minutes",
-          "全文摘要" in obj_exp_content and ("本场概况与承接目标" not in obj_exp_content and "本场概况与本人定调" not in obj_exp_content), obj_exp_content[:60])
+          "全文摘要" in obj_exp_content and ("会议概况" not in obj_exp_content and "本场概况与承接目标" not in obj_exp_content and "本场概况与本人定调" not in obj_exp_content), obj_exp_content[:60])
 
     # 3. 路由测试：个人模式（profile="user"）默认直接走 personal_minutes
     user_tpl_path = _template_file("meeting", "minutes", "", profile_value="user")
     user_content = user_tpl_path.read_text(encoding="utf-8") if user_tpl_path else ""
     check("路由：个人模式（profile=user）默认走 personal_minutes",
-          ("本场概况与承接目标" in user_content or "本场概况与本人定调" in user_content) and "行动项与协同依赖" in user_content, user_content[:60])
+          ("会议概况" in user_content or "本场概况与承接目标" in user_content or "本场概况与本人定调" in user_content) and ("相关行动" in user_content or "行动项与协同依赖" in user_content), user_content[:60])
 
     # 4. 路由测试：个人模式不再走历史通用模板剪裁模式，即使用户/老入参传 general_minutes 也直接走 personal_minutes
     explicit_gen_path = _template_file("meeting", "minutes", "general_minutes", profile_value="user")
     explicit_gen_content = explicit_gen_path.read_text(encoding="utf-8") if explicit_gen_path else ""
     check("路由：个人模式传 general_minutes 不再走剪裁，直接走 personal_minutes",
-          ("本场概况与承接目标" in explicit_gen_content or "本场概况与本人定调" in explicit_gen_content) and "行动项与协同依赖" in explicit_gen_content, explicit_gen_content[:60])
+          ("会议概况" in explicit_gen_content or "本场概况与承接目标" in explicit_gen_content or "本场概况与本人定调" in explicit_gen_content) and ("相关行动" in explicit_gen_content or "行动项与协同依赖" in explicit_gen_content), explicit_gen_content[:60])
 
     # 5. 路由测试：个人模式显式指定其他具体场景模板（如 project_progress）时，尊重该具体模板
     explicit_proj_path = _template_file("meeting", "minutes", "project_progress", profile_value="user")
     explicit_proj_content = explicit_proj_path.read_text(encoding="utf-8") if explicit_proj_path else ""
     check("路由：个人模式指定项目进度会时尊重具体场景模板",
-          "项目进度" in explicit_proj_content or "项目全称与背景" in explicit_proj_content, explicit_proj_content[:60])
+          "项目概况" in explicit_proj_content or "进度追踪" in explicit_proj_content or "项目全称与背景" in explicit_proj_content, explicit_proj_content[:60])
 
 
 def test_personal_enhancement_focus_radar() -> None:
@@ -847,7 +856,7 @@ def test_personal_perspective_modeling_pruning_and_projection() -> None:
     )
 
     # 待办栏瘦身：切除长篇会议原文，保留 action_hints 与 decisions
-    act_pruned = _prune_context_for_column(context, "", title="行动项与协同依赖", hint="")
+    act_pruned = _prune_context_for_column(context, "", title="相关行动", hint="")
     check("待办栏瘦身：切除会议原文", "会议原文" not in act_pruned, act_pruned[:100])
     check("待办栏瘦身：保留action_hints与decisions", "action_hints" in act_pruned and "decisions" in act_pruned, act_pruned[:100])
     check("待办栏瘦身：剔除长篇topics讨论", "财务详细汇报" not in act_pruned, act_pruned)
@@ -858,18 +867,128 @@ def test_personal_perspective_modeling_pruning_and_projection() -> None:
     check("业务决策栏瘦身：剔除无关议题讨论", "财务详细汇报了发票流程" not in biz_pruned, biz_pruned)
 
     # 4. 草稿直出快线验证（Direct Projection）
-    proj_act = project_column_from_draft(context, "personal_minutes.md", title="行动项与协同依赖", hint="")
+    proj_act = project_column_from_draft(context, "personal_minutes.md", title="相关行动", hint="")
     check("草稿直出：行动项直出成功", bool(proj_act), str(proj_act))
     check("草稿直出：格式标准化为看板与清单", "**与我相关**：" in (proj_act or "") and "- **完成demo落地压测**（周五前 ｜ 报告 ｜ P99<50ms）" in (proj_act or ""), str(proj_act))
     check("草稿直出：协同输入分组保留", "**协同输入**：" in (proj_act or "") and "- **张工**：明天就绪测试环境（明天下午）" in (proj_act or ""), str(proj_act))
 
-    proj_risk = project_column_from_draft(context, "personal_minutes.md", title="待确认事项与风险卡点", hint="")
-    check("草稿直出：风险卡点直出成功", bool(proj_risk) and "**与我相关**：" in (proj_risk or "") and "【阻塞】" in (proj_risk or ""), str(proj_risk))
+    proj_risk = project_column_from_draft(context, "personal_minutes.md", title="相关风险", hint="")
+    check("草稿直出：风险卡点直出成功", bool(proj_risk) and "**与我相关**：" in (proj_risk or ""), str(proj_risk))
 
     # 非个人模式平滑回退
     obj_context = context.replace("视角模式：personal", "视角模式：objective")
     proj_obj = project_column_from_draft(obj_context, "general_minutes.md", title="行动项与分工", hint="")
     check("草稿直出：客观模式平滑回退None走LLM", proj_obj is None, str(proj_obj))
+
+
+def test_unified_meeting_tree_perspective_modeling() -> None:
+    """测试统一议题树 (UnifiedMeetingTree) 原生结构在个人视角建模中的全流程：
+    1. build_hit_table 深度扫描 decisions / key_metrics / actions / risks / participants / debate
+    2. synthesize_perspective_profile 结构化投影与关键指标填充
+    3. _prune_context_for_column 三档梯次剪裁 (Tier 1 深潜, Tier 2 协同, Tier 3 大局高密结论)
+    4. 待办与风险栏上下文剪裁保留 topics 内原生 actions 与 risks
+    5. project_column_from_draft 方案 A 复选框格式对齐
+    """
+    import json
+    from domains.shared.perspective.hits import build_hit_table
+    from domains.shared.perspective.synth import synthesize_perspective_profile
+    from core.templates.router._placeholder import _prune_context_for_column, project_column_from_draft
+
+    user = {
+        "name": "申家坤",
+        "name_aliases": ["家坤"],
+        "role": "算法工程师",
+        "focus_thing": ["demo落地"],
+        "focus_person": ["徐玥"],
+        "preferences": ["先写我负责的待办", "关键数字与口径优先保留"],
+    }
+    understanding = {
+        "topics": [
+            {
+                "title": "demo落地推进与性能压测",
+                "module": "算法工程",
+                "summary": "推进demo落地与显存优化",
+                "decisions": ["申家坤周四前输出压测报告"],
+                "key_metrics": ["P99≤50ms", "显存≤4.5GB"],
+                "context_and_debate": "张工与申家坤讨论了显存限制",
+                "actions": [
+                    {"owner": "申家坤", "text": "完成demo落地模型压测", "timing": "周四18:00前"}
+                ],
+                "risks": [
+                    {"owner": "申家坤", "text": "压测机器GPU显存受限", "level": "阻塞"}
+                ],
+                "participants": ["申家坤", "徐玥", "张工"]
+            },
+            {
+                "title": "风控引擎沙箱对接",
+                "module": "安全合规",
+                "summary": "风控接口联调",
+                "decisions": ["徐玥确认周五下班前提供沙箱测试用例"],
+                "actions": [
+                    {"owner": "徐玥", "text": "提供风控引擎测试用例", "timing": "周五前"}
+                ],
+                "participants": ["徐玥"]
+            },
+            {
+                "title": "市场部首批公测推广",
+                "module": "市场运营",
+                "summary": "下月启动首批公测",
+                "decisions": ["确认下月启动首批公测"],
+                "actions": [],
+                "participants": ["市场"]
+            }
+        ]
+    }
+
+    # 1. 深度扫描验证
+    table = build_hit_table(user, understanding)
+    check("统一议题树命中：命中本人待办", any("topics[0].actions[0].owner" in h.where for h in table.hits), str(table.hits))
+    check("统一议题树命中：命中参会人", any("topics[0].participants" in h.where for h in table.hits), str(table.hits))
+    check("统一议题树命中：命中focus_thing", any("demo落地" in s for s in table.focus_thing_mentions), str(table.focus_thing_mentions))
+    check("统一议题树命中：命中focus_person", any("徐玥" in s for s in table.focus_person_statements), str(table.focus_person_statements))
+
+    # 2. 合成 Profile 验证
+    profile = synthesize_perspective_profile(user, table)
+    check("Profile合成：提取相关议题", "demo落地推进与性能压测" in profile.get("relevant_topics", []), str(profile.get("relevant_topics")))
+    check("Profile合成：提取本人风险关注点", any("显存" in c for c in profile.get("concerns", [])), str(profile.get("concerns")))
+    check("Profile合成：提取拍板决议", any("输出压测报告" in c for c in profile.get("conclusions", [])), str(profile.get("conclusions")))
+
+    # 3. 三档梯次剪裁验证
+    context = (
+        "视角模式：personal\n"
+        "objective_perspective：False\n\n"
+        f"用户画像：\n{json.dumps(user, ensure_ascii=False)}\n\n"
+        f"会议理解：\n{json.dumps(understanding, ensure_ascii=False)}\n\n"
+        f"已审核用户视角：\n{json.dumps(profile, ensure_ascii=False)}\n\n"
+        "已批准纪要草稿：\n"
+        '{"headline": "技术对齐会", "executive_summary": ["本场讨论了demo落地。"], "key_decisions": ["拍板周四前输出压测报告"], "personally_relevant_points": ["### 与我相关行动项", "- [ ] **完成demo落地模型压测**：于周四18:00前输出报告，确保P99≤50ms", "### 关注人定调与协同输入", "- [ ] **徐玥**：于周五前提供沙箱测试用例"], "risks_and_blockers": ["### 本人关注的风险与阻碍", "- [ ] **【阻塞】压测机器GPU显存受限**：当前单卡无法模拟50并发", "### 待确认事项汇总", "- 商品版本测试报告待确认"]}\n\n'
+        "纪要审核结论：\n"
+        '{"decision": "approve"}\n'
+    )
+
+    # 业务进展栏 (决策/进展)
+    pruned_biz = _prune_context_for_column(context, "", title="业务进展", hint="")
+    check("三档剪裁：Tier 1 保留讨论与关键量化指标", "张工与申家坤讨论了显存限制" in pruned_biz and "P99≤50ms" in pruned_biz, pruned_biz)
+    check("三档剪裁：Tier 2 保留关注人决议", "徐玥确认周五下班前提供沙箱测试用例" in pruned_biz, pruned_biz)
+    check("三档剪裁：Tier 3 外围议题仅保留标题与决议", "市场部首批公测推广" in pruned_biz and "确认下月启动首批公测" in pruned_biz, pruned_biz)
+
+    # 会议概况栏（宏观背景剪裁）
+    pruned_ov = _prune_context_for_column(context, "", title="会议概况", hint="")
+    check("会议概况剪裁：精简topics讨论细节", "张工与申家坤讨论了显存限制" not in pruned_ov and "本场讨论了demo落地" in pruned_ov, pruned_ov)
+
+    # 行动项栏（相关行动）
+    pruned_act = _prune_context_for_column(context, "", title="相关行动", hint="")
+    check("待办栏剪裁：保留topics原生actions", "完成demo落地模型压测" in pruned_act and "提供风控引擎测试用例" in pruned_act, pruned_act)
+
+    # 4. 方案 A 草稿直出验证
+    proj_act = project_column_from_draft(context, "personal_minutes.md", title="相关行动", hint="")
+    check("草稿直出：组名规范为本人相关与重点关注", "**本人相关**：" in (proj_act or "") and "**重点关注**：" in (proj_act or ""), str(proj_act))
+    check("草稿直出：自然句式流保留复选框", "- [ ] **完成demo落地模型压测**" in (proj_act or ""), str(proj_act))
+    check("草稿直出：关注人输入保留", "**徐玥**" in (proj_act or "") and "沙箱测试用例" in (proj_act or ""), str(proj_act))
+
+    proj_risk = project_column_from_draft(context, "personal_minutes.md", title="相关风险", hint="")
+    check("草稿直出：风险组名规范为本人相关", "**本人相关**：" in (proj_risk or ""), str(proj_risk))
+    check("草稿直出：风险剔除级别标签且剔除待确认事项", "- [ ] **压测机器GPU显存受限**" in (proj_risk or "") and "【阻塞】" not in (proj_risk or "") and "待确认" not in (proj_risk or ""), str(proj_risk))
 
 
 def main() -> int:
@@ -893,6 +1012,7 @@ def main() -> int:
     test_personal_enhancement_focus_radar()
     test_supervisor_slice_enhancement()
     test_personal_perspective_modeling_pruning_and_projection()
+    test_unified_meeting_tree_perspective_modeling()
     print(f"pass {len(PASS)}  fail {len(FAIL)}")
     for name in FAIL:
         print("FAIL", name)
@@ -901,3 +1021,4 @@ def main() -> int:
 
 if __name__ == "__main__":
     sys.exit(main())
+
