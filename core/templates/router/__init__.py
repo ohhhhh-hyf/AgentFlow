@@ -33,10 +33,8 @@ from ._detect import (
 )
 from ._placeholder import (
     assemble_placeholder_output,
-    build_placeholder_fill_user,
     fill_placeholder_template,
     normalize_fill_tables,
-    parse_fill_response,
     plan_placeholder_fill,
     preview_to_template,
     template_to_preview,
@@ -69,7 +67,6 @@ LINE_SCHEMA_HINTS: dict[str, str] = {
 __all__ = [
     "LINE_SCHEMA_HINTS",
     "assemble_placeholder_output",
-    "build_placeholder_fill_user",
     "check_compile_fidelity",
     "clear_compile_caches",
     "detect_template_kind",
@@ -81,7 +78,6 @@ __all__ = [
     "merge_preview_fill",
     "modify_template",
     "normalize_fill_tables",
-    "parse_fill_response",
     "parse_placeholder_template",
     "plan_placeholder_fill",
     "preview_to_template",

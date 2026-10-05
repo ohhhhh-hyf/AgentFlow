@@ -43,27 +43,9 @@ class PerspectiveModelingGenerationContract(GenerationContract):
             "team-wide actions",
         ),
         StrListField(
-            "stakeholders",
-            "Parties, roles, or groups involved in or affected by this input "
-            "(objective mode: all involved parties without favoritism; "
-            "personal mode: those interacting with the user); "
-            "empty if none",
-        ),
-        StrListField(
             "conclusions",
             "Key conclusions or decisions stated in the input, each anchored "
             "to source text (paraphrase-free); empty if the input states none",
-        ),
-        StrListField(
-            "open_questions",
-            "Questions left unanswered, unresolved items, or points needing "
-            "follow-up in the input; empty if none",
-        ),
-        StrListField(
-            "data_gaps",
-            "Information missing, incomplete, or ambiguous in the input that "
-            "matters to the view (e.g. missing owner, deadline, evidence, "
-            "context); empty if none",
         ),
     ]
 

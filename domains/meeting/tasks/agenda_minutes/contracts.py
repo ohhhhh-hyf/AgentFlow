@@ -67,30 +67,6 @@ class AgendaMinutesGenerationContract(GenerationContract):
                     desc="4. 后续行动（有则输出，无则为空列表）",
                 ),
                 StrField("discussion_state", "讨论真实性标记：discussed=现场充分讨论；skipped=本次未讨论/录音未见提及"),
-                # 兼容旧字段别名
-                StrListField("target_and_audience", "兼容旧字段：1. 目标与对象"),
-                StrListField("content_and_evidence", "兼容旧字段：2. 内容与依据"),
-                StrListField("process_and_interaction", "兼容旧字段：3. 过程与互动"),
-                StrField("conclusion_and_status", "兼容旧字段：4. 结论与状态"),
-                StrListField("proposal_highlights", "兼容旧字段：方案背景与核心诉求"),
-                ObjField(
-                    "deliberation_details",
-                    [
-                        StrListField("key_metrics", "硬核论据与量化指标"),
-                        StrListField("feedback_concerns", "讨论交锋与各方反馈"),
-                    ],
-                    desc="兼容旧字段：研讨过程与关键论据",
-                ),
-                StrField("resolution", "兼容旧字段：最终定调与决议共识"),
-                ObjListField(
-                    "action_commitments",
-                    [
-                        StrField("owner", "跟进责任人/单位"),
-                        StrField("task", "具体执行事项"),
-                        StrField("deadline", "完成时限节点"),
-                    ],
-                    desc="兼容旧字段：后续行动与跟进责任",
-                ),
             ],
             desc="既定议程逐项审议与研讨详情列表（按议程单序号严格逐项对齐）",
         ),

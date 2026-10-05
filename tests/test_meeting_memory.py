@@ -782,8 +782,9 @@ def test_scoped_citations() -> None:
           "(#memory-1)" in out3 and "(#memory-2)" in out3, out3)
 
 
-def test_registry_module_binding(tmp: Path) -> None:
+def test_registry_module_binding(tmp_path: Path) -> None:
     """阶段五：议题 module 并入 registry anchors / _fact_blob；同 module 可命中 topic 级信号。"""
+    tmp = tmp_path
     from domains.meeting.memory.bind import _fact_blob, _project_hits
 
     u = {
@@ -1033,8 +1034,9 @@ def test_personal_minutes_html_rendering() -> None:
     check("个人模式标题方括号剔除", "[本场概况与本人定调]" not in content and "本场概况与本人定调" in content, "")
 
 
-def test_persist_scope_roundtrip(tmp: Path) -> None:
+def test_persist_scope_roundtrip(tmp_path: Path) -> None:
     """落盘→重放：module 命名漂移仍同域延续；rebuild 与落盘 state 一致（含 topics/scope）。"""
+    tmp = tmp_path
     u1 = {
         "meeting_purpose": "小艺慧记Agent网关鉴权评审",
         "topics": [{

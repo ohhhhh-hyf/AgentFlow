@@ -109,20 +109,21 @@ def test_parser_sees_field_not_text() -> None:
 
 
 def test_prompt_allows_sub_headings() -> None:
-    """填充 prompt 允许字段值内用下级标题分板块（A2 口径），只禁与栏目标题同级。
+    """渲染规则（PLACEHOLDER_RULES/BODY_FORMAT_RULES）允许字段值内用下级标题分板块，只禁与栏目标题同名/同级。
 
     背景：模板里「二级标题写成员/模块」「多层级结构」这类说明，原先被 prompt 的
-    "不要写 Markdown 标题（# / ##）"一刀切挡住 → 拼装路径不产出小标题、自由渲染路径产出，
-    同一模板两条路径样式漂移。改成"只禁同级 `#`、允许 `##`/`###`"后两边口径一致。
+    "不要写 Markdown 标题（# / ##）"一刀切挡住 → 改成"只禁同级 `#`、允许 `##`/`###`"后两边口径一致。
     """
-    from core.templates.router._base import _PLACEHOLDER_FILL_SYSTEM as prompt
+    from core.templates.body_rules import BODY_FORMAT_RULES
+    from core.templates.template_prompt import PLACEHOLDER_RULES
 
-    check("填充 prompt 允许栏内用下级标题（提到 `##` 分组的许可）",
-          "允许" in prompt and "##" in prompt and "栏内自行分组" in prompt, "")
-    check("填充 prompt 不再一刀切禁止字段值写标题",
+    prompt = PLACEHOLDER_RULES
+    check("模板规则包含树状两级分组规则与 ## 组名许可",
+          "## 组名" in prompt and "树状两级" in prompt, "")
+    check("模板规则不再一刀切禁止写标题",
           "不要写 Markdown 标题" not in prompt, "")
-    check("仍保留「不要重复栏目标题」与「不要写同级标题」两条保护",
-          "不要重复栏目标题" in prompt and "同级" in prompt, "")
+    check("仍保留「禁止同名重复」保护（禁止把栏名当标签复述）",
+          "禁止同名重复" in prompt and "不得把栏名当标签复述" in prompt, "")
 
 
 def test_gate_direction_and_warning(caplog) -> None:  # type: ignore[no-untyped-def]
@@ -246,101 +247,49 @@ def test_gate_flags_bare_heading() -> None:
 
 
 def test_missing_field_guard() -> None:
-    """漏填兜底：字段缺失 → 点名缺栏重试；三轮仍缺 → 补缺省词保结构（不再退回 freeform）。"""
+    """占位符填充防护：不支持流式客户端时立即安全降级为 None（不再死循环重试）。"""
     import asyncio
-
     from core.templates.router._placeholder import fill_placeholder_template
 
-    class _FakeFillClient:
-        def __init__(self, payloads: list[str]) -> None:
-            self.payloads = list(payloads)
-            self.calls = 0
-            self.users: list[str] = []
+    class _SyncOnlyClient:
+        async def text(self, *a, **k):
+            return "{}"
 
-        async def text(self, system: str, user: str, **_kw) -> str:
-            self.calls += 1
-            self.users.append(user)
-            return self.payloads[min(self.calls - 1, len(self.payloads) - 1)]
-
-    partial = '{"fields": {"1": "甲栏内容。", "2": "乙栏内容。"}, "tables": []}'
-    full = '{"fields": {"1": "甲栏内容。", "2": "乙栏内容。", "3": "丙栏内容。"}, "tables": []}'
-
-    c1 = _FakeFillClient([partial])
-    out1 = asyncio.run(fill_placeholder_template(c1, "内容来源：甲乙丙。", FILL_TPL))
-    # 不再 return None：最后一轮（或与上一轮输出相同的那一轮）给仍空的字段补缺省词，保住模板结构。
-    check("多轮仍缺栏 → 补缺省词保结构（不放半截文档、也不退回 freeform）",
-          bool(out1) and "未提及" in (out1 or "") and "# 丙栏" in (out1 or ""), f"out={(out1 or '')[:80]!r}")
-    check("仍空字段未被静默丢弃（甲/乙栏内容在）",
-          "甲栏内容" in (out1 or "") and "乙栏内容" in (out1 or ""), "")
-    check("连续两轮输出相同 ⇒ 提前收尾，不空跑第三轮", c1.calls == 2, f"calls={c1.calls}")
-    check("重试指令点名缺哪一栏",
-          len(c1.users) > 1 and "字段3" in c1.users[1],
-          f"{c1.users[1][:100] if len(c1.users) > 1 else ''!r}")
-
-    partial2 = '{"fields": {"1": "甲栏内容v2。", "2": "乙栏内容。"}, "tables": []}'
-    partial3 = '{"fields": {"1": "甲栏内容v3。", "2": "乙栏内容。"}, "tables": []}'
-    c3 = _FakeFillClient([partial, partial2, partial3])
-    out3 = asyncio.run(fill_placeholder_template(c3, "内容来源：甲乙丙。", FILL_TPL))
-    check("三轮输出各不相同 ⇒ 仍按上限重试 3 轮（原路径保留）",
-          c3.calls == 3 and "甲栏内容v3" in (out3 or ""), f"calls={c3.calls}")
-
-    c2 = _FakeFillClient([partial, full])
-    out2 = asyncio.run(fill_placeholder_template(c2, "内容来源：甲乙丙。", FILL_TPL))
-    check("重试补齐后按完整字段拼装",
-          bool(out2) and "丙栏内容" in (out2 or ""), f"out={(out2 or '')[:60]!r}")
-    check("补齐即停（不无谓多调一次）", c2.calls == 2, f"calls={c2.calls}")
+    c = _SyncOnlyClient()
+    out = asyncio.run(fill_placeholder_template(c, "内容来源：甲乙丙。", FILL_TPL))
+    check("不支持 stream 的客户端安全降级为 None（不再死循环重试）", out is None, "")
 
 
 def test_table_carried_column_allows_blank() -> None:
-    """表格承载栏允许为空：不按"漏填"重试、不强填缺省词（hiring_report 实测，2026-09-22）。
-
-    背景：hiring_report 第 3 栏说明写着「本栏明细由下表承载（本栏不再另写说明文字、
-    不要写「未提及」）」——该栏正文本就该为空。旧判定把"任一栏为空"当漏填 ⇒ 每轮重试
-    （~19s/轮）且最后强填「未提及」（与模板声明冲突），稳定复现。
-    """
-    import asyncio
-
-    from core.templates.router._placeholder import fill_placeholder_template
+    """表格承载栏允许为空：拼装产物不强填缺省词、表格内容照常装配。"""
+    from core.templates.router._placeholder import assemble_placeholder_output
 
     tpl = (
         "# [候选人概况]\n[一段话概括候选人]\n\n"
         "# [能力评估]\n[**本栏明细由下表承载**（本栏不再另写说明文字、不要写「未提及」）]\n"
         "| 评估维度 | 评级 |\n| --- | --- |\n| [维度] | [评级] |\n"
     )
-
-    class _Fake:
-        def __init__(self, payload: str) -> None:
-            self.payload = payload
-            self.calls = 0
-
-        async def text(self, system: str, user: str, **_kw) -> str:
-            self.calls += 1
-            return self.payload
-
-    payload = (
-        '{"fields": {"1": "候选人概况内容。", "2": ""}, '
-        '"tables": [[["综合分析", "良"]]]}'
+    out = assemble_placeholder_output(
+        tpl,
+        {"1": "候选人概况内容。", "2": ""},
+        tables=[[["综合分析", "良"]]],
     )
-    client = _Fake(payload)
-    out = asyncio.run(fill_placeholder_template(client, "内容来源：略。", tpl))
-    check("表格承载栏为空 ⇒ 一次调用即收尾（不按漏填重试）",
-          client.calls == 1, f"calls={client.calls}")
-    check("表格承载栏为空 ⇒ 终稿不含「未提及」",
-          bool(out) and "未提及" not in (out or ""), (out or "")[:100])
+    check("表格承载栏为空 ⇒ 终稿不含「未提及」", bool(out) and "未提及" not in (out or ""), (out or "")[:100])
     check("表格内容照常装配", "综合分析" in (out or ""), (out or "")[:140])
 
 
-def test_fill_prompt_requires_all_keys() -> None:
-    """提示层：输出约定与字段清单都点明「键必须齐全」（缺键＝漏填）。"""
-    from core.templates.router._base import _PLACEHOLDER_FILL_SYSTEM as system
-    from core.templates.router._placeholder import build_placeholder_fill_user
+def test_placeholder_route_rules() -> None:
+    """Fast Render 路由层：对占位符模板自动判定并下发 PLACEHOLDER_RULES 完整规则契约。"""
+    from core.templates.router import route_template
 
-    user = build_placeholder_fill_user("内容来源：略。", FILL_TPL)
-    check("系统提示要求 fields 覆盖全部编号", "必须给出清单里的全部编号" in system, "")
-    check("系统提示禁止省略键", "不要省略该键" in system, "")
-    check("用户提示的字段清单标明必须给全编号",
-          "fields 必须给出下列**全部**编号" in user, "")
-    check("用户提示点明缺键＝漏填", "缺键＝漏填" in user, "")
+    routed = route_template("内容来源：略。", FILL_TPL, "无模板系统提示", "模板基础提示\n")
+    check("route_template 正确分派占位符模板", routed is not None, "")
+    if routed is not None:
+        sys_prompt, user_msg = routed
+        check("系统提示词包含模板基础规则与 PLACEHOLDER_RULES", "模板基础提示" in sys_prompt and "占位符模板" in sys_prompt, "")
+        check("系统提示词包含形态排版规则", "树状两级" in sys_prompt, "")
+        check("用户消息包含内容来源与模板原文", "内容来源：略。" in user_msg and "模板原文：" in user_msg, "")
+        check("用户消息包含模板结构解析", "【模板结构解析】" in user_msg, "")
 
 
 CAPTION_TPL = (
@@ -388,37 +337,30 @@ def test_table_caption_not_a_field() -> None:
 
 
 def test_shape_rules_in_prompts() -> None:
-    """形态与写足口径必须同时落在装配 prompt 与自由渲染 prompt（两条路径一致）。
+    """形态与写足口径必须落在自由渲染 prompt 与共用形态规则。
 
-    背景（2026-09，now/before 22 对 + sample 24 条实测）：装配路径的
-    「每条以 `**分类标签**：` 开头」压过了「并列事实用 `- ` 一条一行」，产出 91 处裸标签段
-    （行20 连续 13 行清单写成段落）、12 处标题/栏目名与标签同名、33 行单行加粗 >3 处；
-    「每条 20–80 字」的下限又成了目标值 → 40 个点平均 20 字、半句碎片单独成条
-    （团队例会 `**参数修改**：✅ 已完成，修改了参数。`）。两条路径共用同一套规则后，
-    同一模板不再因走哪条路径而漂移。
+    同一套规则由 BODY_FORMAT_RULES 单点维护，注入到自由渲染 PLACEHOLDER_RULES 等下游。
     """
+    from core.templates.body_rules import BODY_FORMAT_RULES
     from core.templates.template_prompt import PLACEHOLDER_RULES
+    from core.templates.router import route_template
 
-    from core.templates.router._base import _PLACEHOLDER_FILL_SYSTEM as fill_system
-    from core.templates.router._placeholder import build_placeholder_fill_user
-
-    user = build_placeholder_fill_user("内容来源：略。", FILL_TPL)
     for label, text in (
-        ("装配 system prompt", fill_system),
-        ("装配 user 消息", user),
+        ("共用形态规则 BODY_FORMAT_RULES", BODY_FORMAT_RULES),
         ("自由渲染 PLACEHOLDER_RULES", PLACEHOLDER_RULES),
     ):
         for keys, tag in ((SHAPE_RULE_KEYS, "形态六条"), (FILL_RULE_KEYS, "写足/表格栏口径")):
             missing = [k for k in keys if k not in text]
             check(f"{label} 含{tag}", not missing, f"缺={missing}")
-    stale = [k for k in ("两级结构", "每条以 `**分类标签**：` 开头") if k in fill_system]
+    stale = [k for k in ("两级结构", "每条以 `**分类标签**：` 开头") if k in BODY_FORMAT_RULES or k in PLACEHOLDER_RULES]
     check("旧的「每条都套分类标签」口径已移除（它是裸标签段的成因）", not stale, f"仍含={stale}")
-    check("旧的「每条 20–80 字」下限已上调", "每条 20–80 字" not in fill_system, "")
+    check("旧的「每条 20–80 字」下限已上调", "每条 20–80 字" not in BODY_FORMAT_RULES and "每条 20–80 字" not in PLACEHOLDER_RULES, "")
 
     # 通用层不绑定具体模板的栏目：栏目说明只来自【模板原文】与字段清单。
     # 回归背景：曾把项目进度会的「进度追踪/风险预警」写死在共用填充消息里，
     # 于是 30 个模板（含决策评审会、团队例会）都被要求写这两个不存在的栏目。
-    head = re.split(r"【模板写作要求】|【内容来源】", user)[0]
+    _sys_p, user_p = route_template("内容来源：略。", FILL_TPL, "无模板系统提示", "模板基础提示")
+    head = re.split(r"【模板写作要求】|【内容来源】|模板原文：", user_p)[0]
     titles: set[str] = set()
     for md in sorted(_active_dir().glob("*.md")):
         if md.stem.lower() in {"readme", "diff"}:
@@ -432,7 +374,7 @@ def test_shape_rules_in_prompts() -> None:
             if m.group(1).strip()
         )
     leaked = sorted(t for t in titles if t in head)
-    check("装配 user 消息不写死具体模板的栏目名", not leaked, f"泄漏={leaked[:5]}")
+    check("模板路由消息不写死具体模板的栏目名", not leaked, f"泄漏={leaked[:5]}")
 
 
 # 形态六条：分组不并事实 / 大类分组 / 禁止同名 / 段落上限 / 按需加粗 / 未决口径（+ 语音识别纠错口径）
@@ -464,12 +406,12 @@ FILL_RULE_KEYS = (
     "禁止写「原文未提及…」这类缺失说明句",
     "不设每栏最低数量",
     "成员称呼",
-    "`## 名称` 小节之下**必须** `- ` 一条一行",
+    "小节之下必须分条列出",
 )
 
 
 TEMPLATE_SHAPE_SNIPPETS = {
-    "retrospective_session": "不要每条都补「责任人无，时间无」",
+    "retrospective_session": "- **改进事项名**：",
     "hiring_report": "本栏明细由下表承载",
     "hiring_report#维度": "不自行发明能力模型",
     "media_briefing": "**一条一个主题**——同一文件、同一板块、同一口径的多项指标或举措**合并成一条**",
@@ -611,19 +553,13 @@ def test_minutes_chain_consistency() -> None:
     from core.templates.body_rules import BODY_FORMAT_RULES
     from core.templates.template_prompt import PLACEHOLDER_RULES
 
-    from core.templates.router._base import _PLACEHOLDER_FILL_SYSTEM as fill_system
-    from core.templates.router._placeholder import build_placeholder_fill_user
-
-    user = build_placeholder_fill_user("内容来源：略。", FILL_TPL)
-    # ③ 形态单点化：五处逐字包含同一份规则
+    # ③ 形态单点化：渲染路径逐字包含同一份规则（草稿已解耦）
     for label, text in (
-        ("装配 system prompt", fill_system),
-        ("装配 user 消息", user),
         ("自由渲染 PLACEHOLDER_RULES", PLACEHOLDER_RULES),
-        ("纪要草稿 prompt", draft),
         ("纪要渲染 prompt", render),
     ):
         check(f"{label} 逐字包含 BODY_FORMAT_RULES（单点维护）", BODY_FORMAT_RULES in text, "")
+    check("纪要草稿已与排版规则解耦（不包含 BODY_FORMAT_RULES）", BODY_FORMAT_RULES not in draft, "")
     check("形态单点：人分组用 `**姓名**：` 独占行、本人那组叫「与我相关」、不把人名写成 `##`",
           "「人」不是板块" in BODY_FORMAT_RULES
           and "（本人那一组写 `**与我相关**：`）" in BODY_FORMAT_RULES
@@ -634,7 +570,7 @@ def test_minutes_chain_consistency() -> None:
           and "赞成观点/优势 与 潜在顾虑/风险 并存时" in BODY_FORMAT_RULES
           and "核心交付物 包含多个并列指标/模块/时限时" in BODY_FORMAT_RULES, "")
     stale = ["每栏至少 2 个分类标签", "每条 20–80 字", "每条 2–3 处（分类标签"]
-    hit = [k for k in stale if any(k in t for t in (fill_system, user, PLACEHOLDER_RULES, draft, render))]
+    hit = [k for k in stale if any(k in t for t in (PLACEHOLDER_RULES, draft, render))]
     check("旧形态口径已从全部路径清除", not hit, f"残留={hit}")
 
     # ② 摘要分段：三处同一套（段数按内容、单段 ≤约 200 字——**只按字数口径**），旧数字已清除
@@ -703,9 +639,9 @@ def test_understanding_trim_lists() -> None:
 
     order = [f.name for f in dc_fields(MeetingUnderstanding)]
     cases = (
-        ("minutes", {"risk_hints"}),
-        ("risks", {"topics", "action_hints"}),
-        ("actions", {"topics", "risks", "open_questions", "risk_hints"}),
+        ("minutes", {"speakers"}),
+        ("risks", {"topics"}),
+        ("actions", {"topics", "speakers"}),
     )
     for line, skip in cases:
         text = _trim_instruction(line, skip)
@@ -739,22 +675,21 @@ def test_overview_cap_and_column_scope() -> None:
     from core.templates.body_rules import BODY_FORMAT_RULES
     from core.templates.template_prompt import PLACEHOLDER_RULES
 
-    from core.templates.router._base import _PLACEHOLDER_FILL_SYSTEM as fill_system
     from core.templates.router._detect import _parse_field
-    from core.templates.router._placeholder import build_placeholder_fill_user
+    from core.templates.length_budget import budget_line
 
     # ① 未声明尺寸的概括栏：拿到默认上限 + 边界
     plain = _describe_field(1, _parse_field("一段话概括参与方、沟通主题与目的、达成的结果"))
     check("首栏（概括·无尺寸）拿到「只写一段」口径与 400 上限",
           "只写一段完整概括" in plain and "不超过 400 字" in plain, f"{plain[:80]}")
-    check("首栏（概括·无尺寸）带要素清单（场合/覆盖/结论；数字有则写）",
-          all(k in plain for k in ("谁/什么场合", "覆盖哪几块", "结论或基调", "原文有关键数字时")),
+    check("首栏（概括·无尺寸）不套硬编码会议要素（避免非例会语义打架）",
+          not any(k in plain for k in ("谁/什么场合", "覆盖哪几块", "以分享为主")),
           f"{plain[:120]}")
     check("首栏（概括·无尺寸）带「本栏不复述」边界",
           "本栏不复述" in plain and "归各自栏目" in plain, f"{plain[:80]}")
     non_first = _describe_field(2, _parse_field("一段话概括参与方、沟通主题与目的、达成的结果"))
-    check("非首栏的概括栏仍按上限口径（不要求下限）",
-          "最多 3 段、每段不超过 400 字" in non_first and "1–2 段完整概括" not in non_first,
+    check("非首栏概括栏统一为单段上限 400 字（不要求下限）",
+          "单栏上限 400 字" in non_first and "单段写完" in non_first,
           f"{non_first[:80]}")
     # 首栏自称"交代…"并已自列要素（就医/宣讲/研讨）：补下限口径，但不套会议专用四要素
     authored = _describe_field(
@@ -769,7 +704,7 @@ def test_overview_cap_and_column_scope() -> None:
     # ② 自己声明了尺寸的概括栏：以模板为准，不叠加默认上限
     sized = _describe_field(1, _parse_field("一段话概括：先写这段文本是什么；**单段不超过约 200 字**，信息多就拆段"))
     check("已声明尺寸的概括栏不被叠加默认上限",
-          "最多 3 段、每段不超过 400 字" not in sized and "本栏不复述" in sized,
+          "不超过 400 字" not in sized and "本栏不复述" in sized,
           f"{sized[:90]}")
 
     # ③ 取材来源句（「从概况与原文提取下一步」）不算概括栏，不给概况规格
@@ -777,26 +712,17 @@ def test_overview_cap_and_column_scope() -> None:
         2, _parse_field("**从概况与原文提取下一步**（不要因为已写进风险表就不写）：核心交付物、验收标准")
     )
     check("取材来源句不被误判为概括栏",
-          "最多 3 段、每段不超过 400 字" not in ref, f"{ref[:80]}")
+          "400 字" not in ref, f"{ref[:80]}")
 
-    # ④ 规则层：装配 system/user、自由渲染、共用形态规则都写了这份口径
-    user = build_placeholder_fill_user("内容来源：略。", FILL_TPL)
+    # ④ 规则层：自由渲染、共用形态规则都写了这份口径
     for label, text in (
-        ("装配 system prompt", fill_system),
-        ("装配 user 消息", user),
         ("自由渲染 PLACEHOLDER_RULES", PLACEHOLDER_RULES),
         ("共用形态规则", BODY_FORMAT_RULES),
     ):
         check(f"{label}：概括栏上限口径到位",
               "最多 3 段、每段不超过 400 字" in text or "单段不超过 400 字" in text, "")
-    check("装配 system prompt：一栏只写自己的事（结论/速览栏可再现）",
-          "一栏只写自己的事" in fill_system
-          and "速览栏按各自用途可再次呈现同一事实" in fill_system, "")
-    check("装配 user 消息：一栏只写自己的事（结论/速览栏可再现）",
-          "一栏只写自己的事" in user
-          and "速览栏按各自用途可再次呈现同一事实" in user, "")
     check("篇幅优先级明确（模板栏位上限不被动态预算覆盖）",
-          "模板显式栏位上限 > 动态总预算 > 默认形态规则" in fill_system, "")
+          "模板显式栏位上限 > 本动态总预算 > 默认形态规则" in budget_line(5000), "")
 
 
 def test_first_column_min() -> None:
@@ -862,13 +788,7 @@ def test_default_word_precedence() -> None:
     from core.templates.body_rules import BODY_FORMAT_RULES
     from core.templates.template_prompt import PLACEHOLDER_RULES
 
-    from core.templates.router._base import _PLACEHOLDER_FILL_SYSTEM as fill_system
-    from core.templates.router._placeholder import build_placeholder_fill_user
-
-    user = build_placeholder_fill_user("内容来源：略。", FILL_TPL)
     for label, text in (
-        ("装配 system prompt", fill_system),
-        ("装配 user 消息", user),
         ("自由渲染 PLACEHOLDER_RULES", PLACEHOLDER_RULES),
         ("共用形态规则", BODY_FORMAT_RULES),
         ("纪要模板渲染 prompt", MINUTES_RENDER_TEMPLATE_PROMPT),
@@ -878,7 +798,11 @@ def test_default_word_precedence() -> None:
             "模板没约定" in text or "未约定时写「未提及」" in text,
             "",
         )
-    stale = [k for k in ("无则「未明确」", "缺内容直接写「未提及」") if k in fill_system or k in user]
+    stale = [
+        k
+        for k in ("无则「未明确」", "缺内容直接写「未提及」")
+        if k in PLACEHOLDER_RULES or k in BODY_FORMAT_RULES or k in MINUTES_RENDER_TEMPLATE_PROMPT
+    ]
     check("通用层不再强推单一缺省词（旧写法已清除）", not stale, f"残留={stale}")
 
 
@@ -1125,7 +1049,7 @@ def test_progress_table_rows() -> None:
     for need in (
         "一个分项一行",
         "原文有几个分项就写几行，宁多不漏",
-        "⏸未开始",
+        "未开始",
         "尚未开展或尚未闭合的事项",
         "资料、依据、签字等程序性不完善",
     ):
@@ -1253,7 +1177,7 @@ def test_group_headings_need_body() -> None:
         ("research_dialogue.md", "核心反馈"),
         ("hiring_report.md", "面试问答纪要"),
         ("psychological_session.md", "咨询详情"),
-        ("product_launch.md", "核心卖点与技术参数"),
+        # 注：product_launch.md [核心卖点与技术参数] 已升级为纯三列表格承载，不再设立组标题
         ("team_meeting.md", "工作进展"),
         ("retrospective_session.md", "结果与关键成果"),
     )
@@ -1334,8 +1258,8 @@ def test_clinical_history_column() -> None:
           "病史与用药细节留给下面各栏" not in text, "")
     # 2026-09-20 用户口径：病史背景从 [就诊概况] 拆出，单开一栏按点总结（5 栏）。
     check("就医咨询：5 栏（病史背景单开 [病史与背景]；[病情说明与沟通] 仍不退场）",
-          "# [病史与背景]" in text and "# [病情说明与沟通]" not in text
-          and text.count("\n# [") == 5, "")
+          ("[病史与背景]" in text) and "[病情说明与沟通]" not in text
+          and (text.count("\n# [") == 5 or text.count("\n## [") == 5), "")
     check("就医咨询：[病史与背景] 按点总结（一条一个事实 + 原文明说才写缺省）",
           "**一条一个事实**（`- **项别**：内容`）" in text
           and "原文说到哪几项就写哪几项，不要为凑清单把没有的项写成「未提及」" in text
@@ -1381,13 +1305,14 @@ def test_clinical_history_column() -> None:
           "按原文实际给出的类别立条" in text
           and "有哪几类写哪几类，没有的类别不立条" in text, "")
     check("就医咨询：复诊栏条件化（原文给了安排才写）+ 预警逐项 + 观察项落点",
-          "原文给了复诊/随访安排才写复诊时间" in text
+          "原文给出复诊/随访安排才写复诊时间" in text
           and "原文提到的预警症状必须逐项写入" in text
-          and "需要观察的变化" in text, "")
-    check("就医咨询：[复诊与预警信号] 按组、按点总结（三组固定 + 组内分点）",
-          "**按组、按点写**" in text and "`## 复诊与随访安排`" in text
-          and "`## 预警信号`" in text and "`## 需要观察的变化`" in text
-          and "有内容才写该组，原文没有的组不出现" in text, "")
+          and "需要观察监测的指标" in text, "")
+    check("就医咨询：[复诊与预警信号] 扁平化分点总结（无需人工分组与紧急标签，直接条目化落地）",
+          "分点写清复诊随访与预警处置" in text
+          and "交代需就医的异常表现" in text
+          and "绝不臆造或删减" in text
+          and "未明确" in text, "")
 
 
 def test_overview_specs_have_scope() -> None:
@@ -2015,106 +1940,27 @@ def test_strip_default_only_content() -> None:
 
 
 def test_enum_normalize_fallback() -> None:
-    """形态标签枚举容错：非法值归一到「通用」，不抛错、不触发重试。
-
-    回归背景（2026-09-18 15:24 实测）：理解层 scene 只有 7 个粗粒度形态标签，而真实场景有
-    二十多种（产品发布/新闻发布/课堂/讲座/就医…）→ 模型对"海尔洗衣机发布会"填了「产品发布」
-    → `_choice` 抛错 → 客户端重试一轮（in 6335→7451、+12s，两次返回内容一字不变）。
-    """
+    """形态标签已彻底解绑：MeetingUnderstanding 不再强依赖 scene 粗粒度标签。"""
     from dataclasses import fields as dc_fields
-
-    from core.schema.validation import _choice_or_default
-
-    check("_choice_or_default：合法值原样返回",
-          _choice_or_default("专项讨论会", {"通用", "专项讨论会"}, "通用") == "专项讨论会", "")
-    check("_choice_or_default：非法值归一到 default",
-          _choice_or_default("产品发布", {"通用", "专项讨论会"}, "通用") == "通用", "")
-
-    # 生成契约确实用了归一路径（而不是 _choice）
-    gen = Path("domains/meeting/models_generated.py").read_text(encoding="utf-8")
-    check("生成契约：scene 走 _choice_or_default（不再抛错重试）",
-          'data["scene"] = _choice_or_default(' in gen and "_choice_or_default," in gen, "")
-
-    # 运行期：非法 scene 被归一，不再异常
     from domains.meeting.models_generated import MeetingUnderstanding
-
-    payload: dict = {}
-    for f in dc_fields(MeetingUnderstanding):
-        payload[f.name] = "x"
-    payload["scene"] = "产品发布"
-    for f in dc_fields(MeetingUnderstanding):
-        if f.name == "scene":
-            continue
-        ann = str(f.type)
-        if "list" in ann:
-            payload[f.name] = []
-    inst = MeetingUnderstanding.validate(dict(payload))
-    check("理解层：非法场景「产品发布」→ 归一为「通用」（不抛错）", inst.scene == "通用", f"{inst.scene}")
-
-    # 理解 prompt 把话说死
     from domains.meeting.meeting_core import prompts as core_prompts
+
+    field_names = {f.name for f in dc_fields(MeetingUnderstanding)}
+    check("理解层模型：已彻底解绑 scene 字段", "scene" not in field_names, f"{field_names}")
 
     text = "\n".join(
         str(getattr(core_prompts, name))
         for name in dir(core_prompts)
         if name.isupper() and isinstance(getattr(core_prompts, name), str)
     )
-    check("理解 prompt：写明 scene 只能取这 7 个值", "只能填这 7 个值之一" in text, "")
-    check("理解 prompt：给出发布会类映射与禁止自造类别名",
-          "对外发布会、宣讲、路演类填「专项讨论会」" in text and "不要自造类别名" in text, "")
+    check("理解 prompt：已移除 scene 7 个枚举的死板限制", "只能填这 7 个值之一" not in text, "")
 
 
 def test_scene_hint_from_template() -> None:
-    """打通"调用方模板"与"理解层形态标签"：程序按模板映射 7 类形态，模型自选只作兜底。
-
-    回归背景（2026-09-18 15:24 实测）：理解层 scene 只有 7 类，模型对产品发布会填「产品发布」
-    → 校验失败白跑一轮；归一后只能落到「通用」骨架（启发式词表里没有"发布/宣讲/路演"）。
-    """
-    from domains.meeting.scene_hint import (
-        TEMPLATE_SCENE_HINTS,
-        scene_hint_for_template,
-        scene_hint_for_templates,
-    )
-    from domains.meeting.tasks.minutes_trace.scene import GENERIC_SCENE, SCENE_LABELS
-
-    allowed = set(SCENE_LABELS) | {GENERIC_SCENE}
-    check("映射表的标签都在 7 类形态内",
-          all(v in allowed for v in TEMPLATE_SCENE_HINTS.values()),
-          f"{[v for v in TEMPLATE_SCENE_HINTS.values() if v not in allowed]}")
-
-    # 覆盖率：模板目录里每个模板的中文名都必须登记（新增模板忘登记会静默回退「通用」）
-    missing = []
-    for md in sorted(_active_dir().glob("*.md")):
-        if md.stem.lower() == "readme":
-            continue
-        name = ""
-        for line in md.read_text(encoding="utf-8").splitlines():
-            s = line.strip()
-            if s.startswith("# ") and not s[2:].strip().startswith("["):
-                name = s[2:].strip()
-                break
-        if name not in TEMPLATE_SCENE_HINTS:
-            missing.append(md.stem)
-    check("映射表覆盖全部模板（新增模板必须登记）", not missing, f"未登记={missing}")
-
-    pl = (_active_dir() / "product_launch.md").read_text(encoding="utf-8")
-    tm = (_active_dir() / "team_meeting.md").read_text(encoding="utf-8")
-    check("产品发布模板 → 「专项讨论会」（不再落到通用骨架）",
-          scene_hint_for_template(pl) == "专项讨论会", scene_hint_for_template(pl))
-    check("团队例会模板 → 「团队例会」", scene_hint_for_template(tm) == "团队例会", "")
-    check("未知模板 → 空串（调用方回退到模型自选）",
-          scene_hint_for_template("# 某新模板\n[说明]") == "", "")
-    check("空模板 → 空串（不写死通用）", scene_hint_for_template("") == "", "")
-    check("多线请求：优先 minutes 线模板",
-          scene_hint_for_templates({"minutes": pl, "trace": tm}) == "专项讨论会", "")
-    check("多线请求：无 minutes 时取第一条非空模板",
-          scene_hint_for_templates({"trace": "", "actions": tm}) == "团队例会", "")
-
-    # 理解节点确实用程序映射覆盖模型自选值
+    """scene_hint 补丁已彻底拔除：编排层不再强行覆盖模型输出。"""
     src = Path("domains/meeting/orchestrator.py").read_text(encoding="utf-8")
-    check("理解节点：用模板映射覆盖 scene（程序优先、模型兜底）",
-          "scene_hint_for_templates(state.get(\"templates\"))" in src
-          and 'data["scene"] = hint' in src, "")
+    check("编排层：不再导入 scene_hint", "scene_hint" not in src, "")
+    check("编排层：不再有 scene 暴力覆盖代码", 'data["scene"] = hint' not in src, "")
 
 
 def test_allow_missing_on_trimmed_fields() -> None:
@@ -2137,7 +1983,6 @@ def test_allow_missing_on_trimmed_fields() -> None:
         f.name: ("一段话" if "list" not in str(f.type) else [])
         for f in dc_fields(MeetingUnderstanding)
     }
-    base["scene"] = "通用"
     trimmed = {k: v for k, v in base.items() if k != "speakers"}
 
     out = LLMClient._parse_and_validate(
@@ -2236,7 +2081,6 @@ def test_understanding_skip_never_retries() -> None:
                 f.name: ("一段话" if "list" not in str(f.type) else [])
                 for f in dc_fields(model)
             }
-            payload["scene"] = "通用"
             for key in self.skip:  # 模拟模型把被裁剪字段的键整个省掉
                 payload.pop(key, None)
             return LLMClient._parse_and_validate(
@@ -3251,8 +3095,8 @@ def test_media_briefing_evidence_and_depth() -> None:
     check("核心信息：覆盖度口径上移到板块/主题（不再是「一条一指标」）",
           "覆盖度以板块/主题为单位保证" in core and "每组数据都要有落点" in core
           and "数字、时间表、适用范围与对象、执行方式不落项" in core, "")
-    check("核心信息：两级结构（`## 板块名` 分组 + 每组 1–4 条）",
-          "分两层写" in core and "`## 板块名`" in core and "每组 1–4 条" in core, core[:80])
+    check("核心信息：两级结构（`### 板块名` 分组 + 每组 1–4 条）",
+          "分两层写" in core and "`### 板块名`" in core and "每组 1–4 条" in core, core[:80])
     check("核心信息：准确性（不换算不估算 + 时间分写 + 两栏分工）",
           "不换算、不估算、不自行加总" in core
           and "发布时间与生效/执行时间分开写" in core
@@ -3285,7 +3129,7 @@ def test_media_briefing_evidence_and_depth() -> None:
           "不重复栏名、不把会议背景或议程写成导语" in stance
           and "背景归 [发布会概况]" in stance, "")
     check("官方表态：分组标题按 机构/职务＋议题；单一发言人只写议题",
-          "`## 机构或职务｜议题`" in stance and "单一发言人时组名只写议题" in stance
+          "`### 机构或职务｜议题`" in stance and "单一发言人时组名只写议题" in stance
           and "姓名｜议题" not in stance, "")
     check("官方表态：深挖粒度（一次表态多个承诺/条件分别列条）",
           "一次表态含多个承诺或条件时分别列条" in stance, "")
@@ -3362,7 +3206,7 @@ def test_understanding_speakers_field() -> None:
     # pack 侧：所有线都能拿到对照表（实测渲染退化的直接原因就是它不在包里）
     state = {
         "meeting_understanding": {
-            "meeting_brief": "略", "meeting_purpose": "略", "scene": "专项讨论会",
+            "meeting_brief": "略", "meeting_purpose": "略",
             "speakers": [{"name": "王毅", "role": "发言人", "org": "外交部"}],
             "topics": [], "decisions": [], "risks": [], "open_questions": [],
         }
@@ -3495,24 +3339,24 @@ def test_product_launch_overview() -> None:
 
 
 def test_retro_annual_groups() -> None:
-    """复盘会 [结果与关键成果]：按实际内容分组，年度栏目仅在原文存在时出现。
+    """复盘会 [结果与关键成果]：业务按议题模块分组、成员评价独立小节集中呈现，彻底拔除软引导。
 
-    回归背景（2026-09 实测）：该栏约 1500 字／31 条里 13 条是逐人评价（占半壁），
-    组织数据与个人评价混排成流水账；逐人评价又与 [亮点事项]/[不足事项] 分工不清。
+    回归背景：移除旧的硬编码年度场景（表彰、福利）与软引导示例，
+    成员评价从散乱的多标题 ### 姓名 收敛为 ### 成员评价 下的一人一行。
     """
     text = (_active_dir() / "retrospective_session.md").read_text(encoding="utf-8")
     for need in (
         "# [结果与关键成果]",
-        "按原文实际内容分组，不预设年度场景",
-        "只有原文明示年度总结、奖项、表彰或福利时",
-        "人员评价有内容时按人分节",
-        "### 姓名",
-        "只有结论没有依据的条目不合格",
-        "原文有几组写几组，没有的组不出现",
+        "### 模块名",
+        "### 成员评价",
+        "- **姓名**：一句话客观评价与事实依据",
+        "一条一人，一句话写完，不拆多条",
     ):
         check(f"复盘会：含「{need}」", need in text, "")
     check("复盘会：旧年度专用栏名与固定五分组已移除",
           "# [全年结果与表彰]" not in text and "固定五分组" not in text, "")
+    check("复盘会：软引导示例与特定场景词汇已拔除",
+          "交付与里程碑" not in text and "年度总结、奖项、表彰或福利" not in text, "")
 
 
 def test_domain_specific_accuracy_rules() -> None:
@@ -4339,20 +4183,13 @@ def test_render_context_person_transcript() -> None:
         "lines": {"minutes": {"draft": {}, "review": {}}},
     }
     sliced = host._render_context(state, "minutes")
-    check("真人：原文块改标为「已按人裁剪」", "会议原文（真人模式·已按人裁剪）" in sliced, "")
-    check("真人：别人的段被折叠（原文里那些长段不见了）",
-          "另外引擎那部分我一起讲一下大概情况" not in sliced
-          and "这个问题由我来跟，细节我明天说清楚。" not in sliced, "")
-    check("真人：他自己的段留下且块首改称「你」",
-          "你 00:00:01" in sliced and "我们先过接口这块的对齐情况" in sliced, sliced[:120])
-    check("真人：提到他的别人的段也留（引述保真名）",
-          "李梦甜 00:01:10" in sliced and "双录还没确认" in sliced, "")
-    check("真人：非纪要线（trace/mindmap）不动原文",
-          "已按人裁剪" not in host._render_context(state, "minutes_trace"), "")
+    check("真人纪要渲染上下文：彻底剥离全量原文（零原文灌入）", "会议原文" not in sliced, "")
+    check("真人纪要渲染上下文：草稿与用户画像保留", "用户画像" in sliced and "已批准会议纪要草稿" in sliced, "")
+    trace_ctx = host._render_context(state, "minutes_trace")
+    check("溯源线（trace）：仍保留会议原文供正则回溯证据", "会议原文" in trace_ctx, "")
 
     objective = host._render_context({**state, "objective_perspective": True}, "minutes")
-    check("客观：整篇原文原样、无裁剪标记",
-          "已按人裁剪" not in objective and "另外引擎那部分我一起讲一下大概情况" in objective, "")
+    check("客观纪要渲染上下文：彻底剥离全量原文", "会议原文" not in objective, "")
 
     # 分组骨架块（2026-09-22）：把「要出现哪些组名行」变成可照抄的清单——模型只复制、不重排。
     grid = {**state, "user_action_groups_block": "【本用户分栏分组骨架】\n**与我相关**："}
@@ -4664,9 +4501,9 @@ def test_render_context_trim_and_supervisor_soften_and_expand_skip() -> None:
         },
     }
     ctx_long = host._render_context(state_long, "minutes")
-    check("长原文客观纪要：打上核心事实与证据摘录标签", "会议原文（核心事实与证据摘录）" in ctx_long, "")
-    check("长原文客观纪要：保留关键证据事实点", "数据库吞吐瓶颈" in ctx_long, "")
-    check("长原文客观纪要：裁剪后体积大幅缩减（远小于原长文本）", len(ctx_long) < len(long_raw) * 0.7, f"{len(ctx_long)} vs {len(long_raw)}")
+    check("长原文客观纪要渲染上下文：彻底剥离全量原文（零原文侵入）", "会议原文" not in ctx_long, "")
+    check("长原文客观纪要渲染上下文：保留草稿核心事实点", "数据库吞吐瓶颈" in ctx_long, "")
+    check("长原文客观纪要渲染上下文：体积极致轻量（远小于原长文本 10%）", len(ctx_long) < len(long_raw) * 0.1, f"{len(ctx_long)} vs {len(long_raw)}")
 
     # 3. 渲染短文本不强制 expand
     from core.runtime.render import _doc_han
@@ -4929,7 +4766,7 @@ def main() -> int:
         test_gate_flags_bare_heading()
         test_missing_field_guard()
         test_table_carried_column_allows_blank()
-        test_fill_prompt_requires_all_keys()
+        test_placeholder_route_rules()
         test_table_caption_not_a_field()
         test_shape_rules_in_prompts()
         test_template_shape_instructions()

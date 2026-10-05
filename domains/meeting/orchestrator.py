@@ -12,6 +12,7 @@ MeetingAgentSystem 负责：组装 Agent 依赖、构建多线并行 DAG、条�
 from __future__ import annotations
 
 import logging
+import re
 
 from langgraph.graph import START
 
@@ -35,7 +36,6 @@ from .domain_config import (
     SUPERVISOR_FAST_PATH_CHARS,
     SUPERVISOR_GUARDRAIL_RANGE,
 )
-from .scene_hint import scene_hint_for_templates
 from .understanding_skip import skip_fields_for_template
 
 # 共享编排内核（领域无关）：纯函数 + DomainNodes 图节点 mixin
@@ -157,7 +157,6 @@ _EMPTY_CONSENSUS_DECISION = {
 _EMPTY_MEETING_UNDERSTANDING = {
     "meeting_brief": "",
     "meeting_purpose": "",
-    "scene": "通用",
     "speakers": [],
     "topics": [],
 }
@@ -178,9 +177,7 @@ _EMPTY_MINUTES = {
 }
 
 _EMPTY_MINUTES_TRACE = {
-    "scene": "通用",
     "minutes_md": "",
-    "alignments": [],
 }
 
 _EMPTY_MULTI_STYLES = {
@@ -357,6 +354,7 @@ def _format_consensus_decision_issue(index: int, item: dict) -> str:
     if caveat and caveat.lower() not in ("none", "null", "无", "无保留条件", "无附加保留条件"):
         lines.append(f"   - 保留条件：{caveat}")
     return "\n".join(lines)
+ 
 
 # Lines 段逐条格式化器注册表（线名 → 格式化函数(index, item) -> str）
 # actions / risks / minutes_styles 的降级输出格式与各自 LLM 渲染 prompt 保持一致
@@ -429,10 +427,10 @@ class _Nodes(DomainNodes):
 
     # 理解层参与审核摘录的字段白名单（线名 → 保留字段）。
     _understanding_needle_keep: dict[str, frozenset[str]] = {
-        "actions": frozenset({"meeting_brief", "meeting_purpose", "scene", "speakers", "topics"}),
-        "risks": frozenset({"meeting_brief", "meeting_purpose", "scene", "speakers", "topics"}),
-        "minutes": frozenset({"meeting_brief", "meeting_purpose", "scene", "speakers", "topics"}),
-        "minutes_trace": frozenset({"meeting_brief", "meeting_purpose", "scene", "speakers", "topics"}),
+        "actions": frozenset({"meeting_brief", "meeting_purpose", "speakers", "topics"}),
+        "risks": frozenset({"meeting_brief", "meeting_purpose", "speakers", "topics"}),
+        "minutes": frozenset({"meeting_brief", "meeting_purpose", "speakers", "topics"}),
+        "minutes_trace": frozenset({"meeting_brief", "meeting_purpose", "speakers", "topics"}),
     }
 
     def _understanding_needle_fields(self, line_name: str) -> set[str] | None:
@@ -540,7 +538,6 @@ class _Nodes(DomainNodes):
         base = {
             "meeting_brief": u.get("meeting_brief") or u.get("meeting_purpose") or "",
             "meeting_purpose": u.get("meeting_purpose") or "",
-            "scene": u.get("scene") or "通用",
             "speakers": u.get("speakers") or [],
         }
 
@@ -627,9 +624,9 @@ class _Nodes(DomainNodes):
         mode = self._mode_label(state)
         if line_name == "minutes":
             fact_note = (
-                "说明：会议理解是议题/决策/风险索引；写摘要与分工时必须对照会议原文"
-                "把细节展开成自然段。不得编造原文没有的事实，也不得只把索引短句原样输出交差。"
-                "裁剪视角时参考用户画像和用户视角模型。"
+                "说明：会议理解议题树是你的主事实源与导航索引，已包含全场决议、量化指标、落地行动与风险隐患。"
+                "撰写段落时，以议题树各节点的指标、决策与分歧脉络为事实骨架，对照会议原文定向补充具体论据细节与发言人表态。"
+                "不得脱离议题树自由漫游原文流水账。裁剪视角时严格参考用户画像、命中表和用户视角模型。"
             )
         else:
             fact_note = (
@@ -733,7 +730,7 @@ class _Nodes(DomainNodes):
         return budget_line(han_count(transcript), columns=columns)
 
     def _render_context(self, state: dict, line_name: str) -> str:
-        """会议域渲染上下文。纪要/溯源/多样式/导图带会议原文以便成段写开；其它线不带全文。"""
+        """会议域渲染上下文。纪要/多样式以草稿和理解为唯一事实源（不传原文）；溯源/导图保留原文。"""
         from core.runtime.context import build_render_context
 
         sub = _line(state, line_name)
@@ -748,13 +745,10 @@ class _Nodes(DomainNodes):
         perspective = self._compact_perspective(state.get("perspective_profile") or {})
         if perspective:
             blocks.append(("已审核用户视角", perspective, "json"))
-        if line_name in {"minutes", "minutes_trace", "minutes_styles", "mindmap", "consensus_decision"}:
+        # 溯源线/导图/共识决策仍保留原文；纪要（minutes 与 minutes_styles）彻底解耦原文，以草稿与理解为唯一事实源
+        if line_name in {"minutes_trace", "mindmap", "consensus_decision"}:
             label, transcript = "会议原文", state.get("transcript") or ""
-            sliced = self._person_transcript(state) if line_name in PREFERENCE_LINES else ""
-            if sliced:
-                label = "会议原文（真人模式·已按人裁剪）"
-                transcript = sliced
-            elif line_name in {"minutes", "minutes_styles", "consensus_decision"} and len(transcript) > 8000:
+            if line_name == "consensus_decision" and len(transcript) > 8000:
                 from core.runtime.supervisor_slice import collect_needles, slice_transcript
 
                 user = state.get("user") or {}
@@ -1169,13 +1163,6 @@ class _Nodes(DomainNodes):
                 }
             progress("agent done meeting_understanding")
             data = result.model_dump()
-            # 形态标签程序优先：调用方已选模板 → 单点映射到 7 类形态（见 scene_hint.py）。
-            # 模型自选的 scene 只作没有模板时的兜底——它只有 7 类可填，遇到发布会/课堂/就医
-            # 这类细粒度场景会自造类别（曾致校验失败白跑一轮），归一后也只能落到「通用」骨架。
-            hint = scene_hint_for_templates(state.get("templates"))
-            if hint and data.get("scene") != hint:
-                logger.info("scene hint from template: %s -> %s", data.get("scene"), hint)
-                data["scene"] = hint
             return {"meeting_understanding": data}
 
         return node

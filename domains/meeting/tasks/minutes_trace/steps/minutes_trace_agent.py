@@ -10,7 +10,6 @@ from ....models import MinutesTrace
 from ..contracts import MINUTES_TRACE_GENERATION_OUTPUT_CONTRACT
 from ..extras import parse_trace_extras
 from ..prompts import MINUTES_TRACE_GENERATION_SYSTEM_PROMPT
-from ..scene import detect_scene
 from ..structure import bulletize_minutes, collect_people
 
 
@@ -100,9 +99,8 @@ def _extract_transcript(shared_context: str, understanding: dict) -> str:
 
 
 # trace 实际消费的理解字段：程序（topics/meeting_purpose）+ LLM
-# （scene/meeting_brief/topics/decisions/risks/open_questions）。
+# （meeting_brief/topics/decisions/risks/open_questions）。
 _TRACE_UNDERSTANDING_KEYS = (
-    "scene",
     "meeting_brief",
     "topics",
     "decisions",
@@ -139,7 +137,6 @@ class MinutesTraceAgent:
             understanding = {}
         focus = _focus_guide(extras)
         transcript = _extract_transcript(shared_context, understanding)
-        scene = detect_scene(understanding, transcript)
         people = collect_people(understanding, transcript)
         banned = "、".join(people) if people else "人名、职务称呼、发言者编号"
 
@@ -196,8 +193,6 @@ class MinutesTraceAgent:
             )
         )
 
-        data["scene"] = scene
         data["minutes_md"] = minutes_md
-        data["alignments"] = []
         return MinutesTrace.validate(data)
 

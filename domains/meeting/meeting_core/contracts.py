@@ -11,27 +11,12 @@ from core.schema.contracts import (
 )
 
 
-# ── 会议场景枚举（公共底座，下游共享）───────────────────────────
-# minutes_trace 等下游按场景取不同组织侧重；理解 agent 结构化输出，
-# 下游 detect_scene 优先消费该字段，启发式只作兜底。
-SCENE_CHOICES = [
-    "通用",
-    "团队例会",
-    "脑暴/讨论",
-    "项目决策与评审",
-    "专项讨论会",
-    "研讨会",
-    "采访/对话",
-]
-
-
 class MeetingUnderstandingGenerationContract(GenerationContract):
     """统一议题树会议理解输出契约。"""
 
     fields = [
         StrField("meeting_brief", "80字以内概括整场会议主线"),
         StrField("meeting_purpose", "一句话概括会议目的"),
-        EnumField("scene", SCENE_CHOICES, normalize="通用"),
         ObjListField("speakers", [
             StrField("name", "统一显示称呼：姓名优先，其次角色/编号；不推断、不编造"),
             StrField("role", "角色/职务（照原文；无为null）"),
@@ -41,12 +26,11 @@ class MeetingUnderstandingGenerationContract(GenerationContract):
             StrField("topic_id", "议题编号（如 T1, T2）"),
             StrField("module", "所属业务模块/业务领域（精炼概括归属领域）"),
             StrField("title", "核心议题标题（4~12字）"),
-            # 2026-10 瘦身（SUPERVISOR_AND_UNDERSTANDING 方案步骤一）：100~200字自然叙事
-            # 与纪要层 executive_summary 职责重叠；收敛为"分歧焦点骨架"，叙事交给纪要层。
-            StrField("context_and_debate", "该议题讨论脉络与核心分歧焦点（30~60字精炼要点，严禁长篇流水账叙事）"),
+            # 恢复为 80~150 字精炼脉络（MINUTES_TEMPLATE_OPTIMIZATION_STRATEGY 方案）：
+            # 记录核心讨论背景、方案对比考量与分歧妥协依据，作为全息事实底座锚点。
+            StrField("context_and_debate", "该议题讨论脉络与核心分歧焦点（80~150字，概括：背景痛点、方案考量、各方分歧与妥协前提，严禁空泛套话）"),
             StrListField("key_metrics", "量化指标与参数（如并发数、时延、预算、排期等；无则[]）"),
             StrListField("decisions", "本议题拍板决议（含生效前提与约束；无则[]）"),
-            StrListField("rejected_proposals", "现场讨论并明确否决的方案及原因；无则[]"),
             ObjListField("actions", [
                 StrField("task", "具体行动描述（以动词开头的具体任务描述）"),
                 StrField("owner", "原文明示的负责人真实姓名；未明示为null"),
@@ -74,6 +58,5 @@ MEETING_UNDERSTANDING_GENERATION_OUTPUT_CONTRACT = (
 )
 
 __all__ = [
-    "SCENE_CHOICES",
     "MEETING_UNDERSTANDING_GENERATION_OUTPUT_CONTRACT",
 ]

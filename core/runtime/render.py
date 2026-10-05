@@ -1,4 +1,4 @@
-"""图外渲染运行时：模板 assemble / 篇幅修订 / 门禁 / 流式产出。
+"""图外渲染运行时：模板 Fast Render / 篇幅修订 / 门禁 / 流式产出。
 
 从 DomainNodes mixin 拆出，避免图节点类同时承担产品渲染管线。
 """
@@ -7,6 +7,7 @@ from __future__ import annotations
 import asyncio
 import inspect
 import logging
+import os
 from typing import Any
 
 try:
@@ -224,20 +225,17 @@ async def produce_line(
             from core.execution.hard_execution import gate_render_output
             from core.templates.router import (
                 detect_template_kind,
-                fill_placeholder_template,
                 is_router_enabled,
             )
         except ImportError:
             from core.execution.hard_execution import gate_render_output
             from core.templates.router import (
                 detect_template_kind,
-                fill_placeholder_template,
                 is_router_enabled,
             )
 
         context = engine._render_context(state, line_name)
-        # 本栏写作纪律（领域钩子，默认空）：逐栏填充的 system 里没有领域渲染提示词，
-        # 取舍口径（如真人聚焦）只能随用户消息下发，见 DomainNodes._render_directives。
+        # 本栏写作纪律（领域钩子，默认空）：取舍口径（如真人聚焦）随用户消息下发
         directives = str(engine._render_directives(state, line_name) or "")
         full_text = ""
         fill_mode = "none"
@@ -247,30 +245,6 @@ async def produce_line(
         streamed = False
         kind = detect_template_kind(template) if template else ""
         cap = _render_cap(state, template) if template else None
-
-        if template and is_router_enabled() and kind == "placeholder":
-            client = getattr(render, "client", None)
-            if client is not None:
-                try:
-                    kw: dict[str, Any] = {}
-                    if line_name in {"minutes", "minutes_styles"}:
-                        kw = {"overlong_han": 280, "overlong_min_count": 2}
-                    filled = await fill_placeholder_template(
-                        client,
-                        context,
-                        template,
-                        source_han=_doc_han(state),
-                        directives=directives,
-                        **kw,
-                    )
-                except Exception:  # noqa: BLE001
-                    logger.warning(
-                        "assemble failed (%s)", line_name, exc_info=True
-                    )
-                    filled = None
-                if filled:
-                    full_text = filled
-                    fill_mode = "assemble"
 
         if fill_mode == "none":
             use_block = bool(
@@ -376,63 +350,6 @@ async def produce_line(
                                 )
                                 continue
                         break
-
-        # 装配路径的下限兑现（2026-09-19 实测：一批 55 次运行全是 fill_mode=assemble，
-        # "低于下限" 6 次全部静默通过——上面的篇幅分支只对 freeform/repair 生效，
-        # 装配稿薄不薄没人管）。这里补**一轮**扩写：只在明显偏薄（低于下限 15%）时触发，
-        # 扩写稿更长且无硬伤才采用，不收敛就保留原稿（一次调用，不追加轮次）。
-        if (
-            template
-            and full_text
-            and fill_mode == "assemble"
-            and is_router_enabled()
-            and hasattr(render, "run")
-        ):
-            try:
-                try:
-                    from core.templates.router import _body_han_count
-                    from core.templates.length_budget import effective_doc_budget
-                except ImportError:
-                    from core.templates.router import _body_han_count
-                    from core.templates.length_budget import effective_doc_budget
-            except Exception:  # noqa: BLE001
-                effective_doc_budget = None  # type: ignore[assignment]
-                _body_han_count = None  # type: ignore[assignment]
-            span = (
-                effective_doc_budget(_doc_han(state), template)
-                if effective_doc_budget
-                else None
-            )
-            if span and _body_han_count:
-                lo_i, hi_i = int(span[0]), int(span[1])
-                han = _body_han_count(full_text)
-                if lo_i and han < int(lo_i * 0.85) and _doc_han(state) >= 5000:
-                    try:
-                        expanded = await _render_run(
-                            render,
-                            f"{context}\n\n"
-                            f"{_EXPAND_REVISION.format(han=han, lo=lo_i, hi=hi_i)}\n\n"
-                            f"【当前正文】\n{full_text}",
-                            template,
-                            cap,
-                        )
-                    except Exception:  # noqa: BLE001
-                        expanded = ""
-                    if expanded and expanded.strip():
-                        gate_x = gate_render_output(template, expanded)
-                        hard_x = list(gate_x.get("hard_issues") or [])
-                        if not hard_x and _body_han_count(gate_x["text"]) > han:
-                            full_text = gate_x["text"]
-                            enforce_notes = list(gate_x.get("notes") or [])
-                            gate_issues = list(gate_x.get("issues") or [])
-                            gate_ok = bool(gate_x.get("gate_ok"))
-                            fill_mode = "repair"
-                            logger.info(
-                                "assemble too short (%s<%s), expand once (%s)",
-                                han,
-                                lo_i,
-                                line_name,
-                            )
 
         if template and full_text and is_router_enabled():
             gate = gate_render_output(template, full_text)
@@ -571,35 +488,6 @@ async def produce_line(
                             gate_ok = bool(gate2.get("gate_ok"))
                             fill_mode = "repair"
 
-            if (
-                not gate_ok
-                and kind == "placeholder"
-                and fill_mode != "assemble"
-                and getattr(render, "client", None) is not None
-            ):
-                try:
-                    kw2: dict[str, Any] = {}
-                    if line_name in {"minutes", "minutes_styles"}:
-                        kw2 = {"overlong_han": 280, "overlong_min_count": 2}
-                    filled2 = await fill_placeholder_template(
-                        render.client,
-                        context,
-                        template,
-                        source_han=_doc_han(state),
-                        directives=directives,
-                        **kw2,
-                    )
-                except Exception:  # noqa: BLE001
-                    filled2 = None
-                if filled2:
-                    gate3 = gate_render_output(template, filled2)
-                    hard3 = list(gate3.get("hard_issues") or [])
-                    if gate3["gate_ok"] or len(hard3) < len(hard0):
-                        full_text = gate3["text"]
-                        enforce_notes = list(gate3.get("notes") or [])
-                        gate_issues = list(gate3.get("issues") or [])
-                        gate_ok = bool(gate3.get("gate_ok"))
-                        fill_mode = "assemble"
 
         cite_fn = hooks_for(engine.domain_name).apply_citations
         if full_text and cite_fn is not None and line_name in {"minutes", "minutes_styles"}:

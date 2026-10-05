@@ -783,6 +783,9 @@ def split_overlong_paragraphs(text: str, template: str) -> tuple[str, list[str]]
                     (v for k, v in limits.items() if k and (k in top or top in k)), None
                 )
         cap, ratio = rule if rule else (None, 1.0)
+        # 概括栏特异性保护：未显式声明尺寸的概括栏，按全局概括基准 400 字 × 1.2 = 480 字拆段
+        if cap is None and re.search(r"概括|概况|概览|综述|摘要", cur or top):
+            cap, ratio = _OVERVIEW_REQUIRE_HAN, _SPLIT_RATIO
         if (
             cap
             and body
@@ -1098,14 +1101,17 @@ def gate_render_output(
 #   （改这里必须同步改那段文案；tests/test_template_router.py 有断言把两边钉在一起）。
 _PARA_REQUIRE_HAN = 300  # 一般叙述单段（body_rules：「不超过约 300 字」）
 _ITEM_REQUIRE_HAN = 150  # `- ` 条目（body_rules：「单条不超过约 150 字」）
+_OVERVIEW_REQUIRE_HAN = 400  # 概括类单段（body_rules：「单段不超过 400 字」）
 # 拆分线 = 要求线 × 1.2：确定性按句界拆段（只加换行、零 LLM 调用），贴着要求线
 _SPLIT_RATIO = 1.2
 _PARA_SPLIT_HAN = int(_PARA_REQUIRE_HAN * _SPLIT_RATIO)  # 360
+_OVERVIEW_SPLIT_HAN = int(_OVERVIEW_REQUIRE_HAN * _SPLIT_RATIO)  # 480
 # 检查线 = 要求线 × 1.5：拆分没治好才算异常，进 advisory 记账（只记录、不返工）。
 # 条目维度没有「拆分」层（不能程序拆句），所以检查线即兜底线（触发只重写那一栏）。
 _CHECK_RATIO = 1.5
 _PARA_CHECK_HAN = int(_PARA_REQUIRE_HAN * _CHECK_RATIO)  # 450
 _ITEM_CHECK_HAN = int(_ITEM_REQUIRE_HAN * _CHECK_RATIO)  # 225
+_OVERVIEW_CHECK_HAN = int(_OVERVIEW_REQUIRE_HAN * _CHECK_RATIO)  # 600
 _META_SENTENCE_RE = re.compile(
     r"原文(?:中|里)?\s*(?:未|没有|无)\s*(?:明确|提及|说明|给出|写)"
 )

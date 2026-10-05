@@ -10,7 +10,6 @@ from typing import Any
 from core.templates.body_rules import BODY_FORMAT_RULES
 
 from ._base import (
-    _PLACEHOLDER_FILL_SYSTEM,
     _TABLE_SEP_RE,
     _body_han_count,
     _char_budget_lines,
@@ -812,96 +811,9 @@ def preview_to_template(
     return "\n".join(out_lines).strip()
 
 
-def build_placeholder_fill_user(
-    context: str,
-    template: str,
-    *,
-    revision_notes: str = "",
-    target_line: str = "",
-    directives: str = "",
-) -> str:
-    """构造字段 JSON 填充的用户消息（``directives`` = 领域给的本栏写作纪律）。"""
-    template, requirement = split_template_meta(template)
-    plan = plan_placeholder_fill(template)
-    lines = [
-        "根据内容来源填充模板，只输出 JSON。",
-        "形如 `# [栏名]` 的标题行由程序生成，不要填进 fields；你只填标题下方正文占位。",
-    ]
-    if directives.strip():
-        lines.append(directives.strip())
-    if target_line.strip():
-        lines.append(target_line.strip())
-    lines.extend([
-        "固定表头由模板保留；`| … |` 样例行必须换成原文事实，禁止整行照抄省略号。",
-        "字段值里不要写 #/## 标题，不要重复栏目标题作前缀。",
-        "标量字段只填写纯文字或分点列表，严禁在标量字段中自行绘制 Markdown 表格；表格由 tables 数组独立承载。",
-        "有据才写；缺内容写该栏约定的缺省词（模板没约定时写「未提及」）；**键必须齐全**：fields 要给出清单里全部编号，缺键＝漏填。",
-        "字段值与表格里不得复述、解释或引用模板要求（如「以上均未明确…填写『无』」）；缺内容只写约定的缺省词。",
-        "勿照抄「如：」示例；勿张冠李戴；勿改数字；勿用百科补履历；勿虚构原文没有的内容。",
-        "各栏按主题分别写清；「与/和/及」并列主题勿揉成一句糊涂话。",
-        BODY_FORMAT_RULES,
-        "**来源优先级：内容来源（原文/材料）> 已批准要点（草稿）> 索引类摘要**；引话、专名、过程、评价类细节回内容来源取，结论、数字口径与归属以已批准要点为准。",
-        "简洁/粗略≠空洞：每栏写清该栏主要事实与要点，可多句。",
-        "「一段话概括」不是一句空话：**最多 3 段、每段不超过 400 字；总述栏（首栏）只写一段、不超过 400 字**；只写该栏主题的概括（背景、目的、结论口径），原文有关键数字时可带 1–2 个作锚点，没有则不强求；明细归各自栏目，本栏不复述。",
-        "**一栏只写自己的事**：概括/背景栏只交代背景、目的、结论口径，不复述明细栏的内容；明细归各自栏目；**结论栏、速览栏按各自用途可再次呈现同一事实（不算重复）**。",
-        "未声明栏位字数上限时，服从上下文【篇幅预算】；没有动态预算时按事实量自然展开，不按原文比例机械扩写；压缩只删套话、铺垫和重复表达，不丢原文事实。",
-        *_char_budget_lines(template),
-        "语句完整通顺，无半截句；严禁输出「约N字」等字数元说明。",
-    ])
-    if requirement.strip():
-        lines.extend(["", "【模板写作要求】（必须遵守，不要写进 JSON）", requirement.strip()])
-    lines.extend([
-        "",
-        "【内容来源】",
-        context,
-        "",
-        "【模板原文】",
-        template,
-        "",
-        "【标量字段清单】（不含表格行内字段；fields 必须给出下列**全部**编号）",
-    ])
-    if not plan["scalars"]:
-        lines.append("（无标量字段）")
-    for i, seg in enumerate(plan["scalars"], start=1):
-        lines.append(f"- {_describe_field(i, seg)}")
-    lines.append("")
-    lines.append("【表格行模板】→ tables[0], tables[1], ...")
-    if plan["row_templates"]:
-        for ti, rt in enumerate(plan["row_templates"]):
-            limit = _row_limit_for_template(rt)
-            suffix = f"（最多 {limit} 行；候选多时按置信度/重要性取舍）" if limit else ""
-            lines.append(f"- tables[{ti}] 行样例{suffix}：{rt['line'].rstrip()}")
-            for i, seg in enumerate(rt["fields"], start=1):
-                lines.append(f"  - 列{i}（{seg['hint']}）")
-        lines.append(
-            "各表独立填充；遵守模板原文对体量/条数的要求；"
-            "候选多时优先保留证据明确、信息完整、对结论/执行影响更大的行；"
-            "候选少时不要编造凑数；节与表之间不要串内容。"
-            "有「等级」列须填 高/中/低 或模板给出的评级符号；有「责任人」列须填原文明示的人，无则写该栏约定的缺省词（模板没约定时写「未提及」）。"
-        )
-    else:
-        lines.append("（无表格行模板，tables 必须为 []）")
-    if revision_notes.strip():
-        lines.append("")
-        lines.append("【上次输出未通过校验，请修正】")
-        lines.append(revision_notes.strip())
-    return "\n".join(lines)
-
-
-def parse_fill_response(
-    raw: str,
-) -> tuple[dict[str, str], list[list[str]], list[list[list[str]]]]:
-    """解析填充 JSON → (fields, rows兼容, tables)。"""
+def _parse_tables_json_response(raw: str) -> list[list[list[str]]]:
+    """解析表格抽取 JSON → tables（专供 extract_tables 使用）。"""
     data = _extract_json_object(raw) or {}
-    fields_raw = data.get("fields") or data.get("values") or {}
-    fields: dict[str, str] = {}
-    if isinstance(fields_raw, dict):
-        for k, v in fields_raw.items():
-            fields[str(k)] = "" if v is None else str(v)
-    elif isinstance(fields_raw, list):
-        for i, v in enumerate(fields_raw, start=1):
-            fields[str(i)] = "" if v is None else str(v)
-
     tables: list[list[list[str]]] = []
     tables_raw = data.get("tables")
     if isinstance(tables_raw, list) and tables_raw:
@@ -910,7 +822,7 @@ def parse_fill_response(
     rows = _parse_row_list(data.get("rows") or [])
     if not tables and rows:
         tables = [rows]
-    return fields, rows, tables
+    return tables
 
 
 # ── 逐栏填充（可并发 + 流式早停）─────────────────────────────
@@ -973,47 +885,6 @@ _EXEMPT_INTENT_KEYWORDS = (
 )
 
 _SHORT_ITEM_LIMIT_RE = re.compile(r"每条\s*\d+[-–~至]\d+\s*字")
-
-
-# ── 表格承载栏 / 栏内自声明的缺省词（模板声明优先，程序只做确定性识别）────────
-# 「本栏明细由下表承载（本栏不再另写说明文字、不要写「未提及」）」是 body_rules 已列明的
-# 模板写法：这类栏位的正文本就该为空（内容在表里）⇒ 不得按"漏填"重试、也不得强填缺省词。
-# 实测（2026-09-22 hiring_report）：该模板第 3 栏如此声明，模型正确留空，而旧判定把
-# "任一栏为空"当漏填 ⇒ 重试 3 轮（每轮 ~19s）、最后还把该栏强填「未提及」。
-_TABLE_CARRIED_RE = re.compile(r"明细由下表承载|本栏不再另写|只用下表|不写「未提及」")
-# 栏位自己声明的缺省词（如「没有就写「未明确」」）；找不到才回落「未提及」。
-_DEFAULT_WORD_RE = re.compile(r"(?:没有就写|无则写|缺省词|无内容时写|没有则写)\s*「([^」]+)」")
-_DEFAULT_WORD = "未提及"
-
-
-def _table_carried_indexes(plan: dict[str, Any]) -> set[int]:
-    """1 基下标集合：说明里声明「明细由下表承载」的标量栏（允许为空）。
-
-    只在模板确实带表时才算——没表的模板不存在"表格承载栏"。
-    """
-    if not (plan.get("row_templates") or []):
-        return set()
-    out: set[int] = set()
-    for i, scalar in enumerate(plan.get("scalars") or [], start=1):
-        text = f"{scalar.get('hint') or ''}{scalar.get('raw') or ''}"
-        if _TABLE_CARRIED_RE.search(text):
-            out.add(i)
-    return out
-
-
-def _declared_default_word(plan: dict[str, Any], index: int) -> str:
-    """第 index 栏（1 基）声明的缺省词；没声明回落「未提及」。"""
-    scalars = plan.get("scalars") or []
-    if 1 <= index <= len(scalars):
-        scalar = scalars[index - 1]
-        text = f"{scalar.get('hint') or ''}{scalar.get('raw') or ''}"
-        match = _DEFAULT_WORD_RE.search(text)
-        if match:
-            word = match.group(1).strip()
-            if word:
-                return word
-    return _DEFAULT_WORD
-
 
 def _scalar_titles(template: str) -> list[str]:
     """标量字段所属栏名（与 ``plan_placeholder_fill`` 同序）：`# [栏名]` 之下的取栏名。
@@ -1140,14 +1011,9 @@ def _prune_context_for_column(
                 try:
                     und = json.loads(body)
                     compact_und: dict[str, Any] = {}
-                    for field in ("decisions", "action_hints", "risks", "meeting_purpose", "meeting_brief", "open_questions"):
+                    for field in ("decisions", "risks", "meeting_purpose", "meeting_brief", "open_questions"):
                         if field in und and und[field]:
                             compact_und[field] = und[field]
-                    if key_needles and "action_hints" in compact_und:
-                        compact_und["action_hints"] = [
-                            a for a in compact_und["action_hints"]
-                            if any(n in json.dumps(a, ensure_ascii=False) for n in key_needles)
-                        ]
                     if key_needles and "risks" in compact_und:
                         compact_und["risks"] = [
                             r for r in compact_und["risks"]
@@ -1303,7 +1169,7 @@ def _prune_context_for_column(
                 try:
                     und = json.loads(body)
                     compact_und: dict[str, Any] = {}
-                    for field in ("meeting_purpose", "meeting_brief", "scene"):
+                    for field in ("meeting_purpose", "meeting_brief"):
                         if field in und and und[field]:
                             compact_und[field] = und[field]
                     if "topics" in und and isinstance(und["topics"], list):
@@ -1891,7 +1757,7 @@ async def fill_placeholder_by_columns(
                 max_tokens=2000,
                 label="template/fill_tables",
             )
-            _, _, tbls = parse_fill_response(raw)
+            tbls = _parse_tables_json_response(raw)
             while len(tbls) < len(row_templates):
                 tbls.append([])
             return normalize_fill_tables(tbls, row_templates)
@@ -2064,18 +1930,7 @@ async def fill_placeholder_template(
     if not plan["scalars"] and not plan["row_templates"]:
         return None
 
-    try:
-        from core.templates.length_budget import output_token_cap
-        from core.templates.template_eval import parse_document_char_budget
-    except Exception:  # noqa: BLE001
-        parse_document_char_budget = None  # type: ignore[assignment]
-        output_token_cap = None  # type: ignore[assignment]
-    budget = (
-        parse_document_char_budget(template) if parse_document_char_budget else {}
-    )
-    cap = output_token_cap(source_han, template) if output_token_cap else None
-
-    by_column = await fill_placeholder_by_columns(
+    return await fill_placeholder_by_columns(
         client,
         context,
         template,
@@ -2085,163 +1940,6 @@ async def fill_placeholder_template(
         overlong_han=overlong_han,
         overlong_min_count=overlong_min_count,
     )
-    if by_column:
-        return by_column
 
-    revision = ""
-    carried = _table_carried_indexes(plan)  # 表格承载栏：允许为空
-    prev_raw = ""
-    try:
-        for attempt in range(3):
-            raw = await _client_text(
-                client,
-                _PLACEHOLDER_FILL_SYSTEM,
-                build_placeholder_fill_user(
-                    context,
-                    template,
-                    revision_notes=revision,
-                    target_line=_target_line(source_han, template),
-                    directives=directives,
-                ),
-                json_mode=True,
-                temperature=0.0 if attempt == 0 else 0.2,
-                max_tokens=cap,
-                label="template/fill",
-            )
-            # ③ 与上一轮逐字相同（temperature=0 下几乎必然）：再重试没有新信息，直接收尾。
-            repeated = bool(attempt) and (raw or "").strip() == prev_raw
-            if repeated:
-                logger.info(
-                    "placeholder fill 输出与上一轮相同（attempt=%s）：跳过剩余重试，直接收尾",
-                    attempt + 1,
-                )
-            prev_raw = (raw or "").strip()
-            last_round = attempt >= 2 or repeated  # 本轮即最后一轮（重试无新信息的那些轮）
-            fields, rows, tables = parse_fill_response(raw)
-            if not tables and rows:
-                tables = [rows]
-            while len(tables) < len(plan["row_templates"]):
-                tables.append([])
-            tables = normalize_fill_tables(tables, plan["row_templates"])
-            # 字段值内若误写字数元说明 / 代码围栏，先剥掉再拼装
-            fields = {
-                k: strip_char_budget_meta(strip_outer_markdown_fence(v)).strip()
-                if isinstance(v, str)
-                else v
-                for k, v in fields.items()
-            }
-            assembled = assemble_placeholder_output(
-                template,
-                fields,
-                tables=tables,
-            )
-            assembled = strip_outer_markdown_fence(assembled)
-            assembled = strip_char_budget_meta(assembled)
-            # 漏填兜底（只拦「缺 / 空 / 解析失败」，不拦「偏短」）：
-            # 拼装按位置填充、栏目标题由程序打印，所以字段缺失或空白时产出的是
-            # 「只有栏目标题、正文空着」的半截文档（观感像被截断）。
-            # 旧判定只在「所有字段 + 所有表都空」时才拦，缺一两栏会静默通过。
-            blank = [
-                i
-                for i, _seg in enumerate(plan["scalars"], start=1)
-                if i not in carried and not str(fields.get(str(i), "")).strip()
-            ]
-            no_rows = not any(tables[i] for i in range(len(plan["row_templates"])))
-            all_empty = no_rows and not any(str(v).strip() for v in fields.values())
-            if blank or all_empty:
-                logger.warning(
-                    "placeholder fill incomplete (attempt=%s)：blank=%s all_empty=%s raw[:160]=%r",
-                    attempt + 1,
-                    blank,
-                    all_empty,
-                    (raw or "")[:160].replace("\n", " "),
-                )
-                if attempt < 2 and not repeated:
-                    named = "、".join(f"字段{i}" for i in blank) or "全部标量字段"
-                    revision = (
-                        f"上次输出漏填或留空了这些栏目：{named}。"
-                        "fields 必须给出清单里的全部编号（缺键＝漏填），"
-                        "每一栏都要有内容；内容来源里确实没有依据的按该栏约定缺省词填写（模板没约定时写「未提及」）。"
-                        "若某栏的说明已声明「明细由下表承载／本栏不再另写文字」，该栏可以留空。"
-                        "请只输出 JSON：{\"fields\": {\"1\": \"…\"}, \"tables\": []}，"
-                        "每个字段按占位说明写原文要点，不得留空、不得只留标题。"
-                    )
-                    continue
-                # 多轮仍缺栏（或输出与上一轮相同）：不再 return None（整篇退回 freeform 会丢模板结构），
-                # 改为给仍空的字段补该栏声明的缺省词继续走完校验——漏填已有多次机会，
-                # 最终宁可让该栏显式写缺省词，也不放半截文档或丢结构。
-                # ② 按该栏自己声明的缺省词填（如「未明确」），没声明才回落「未提及」。
-                for i in blank:
-                    fields[str(i)] = _declared_default_word(plan, i)
-                assembled = assemble_placeholder_output(template, fields, tables=tables)
-                logger.warning(
-                    "placeholder blanks filled with default word (attempt=%s)：%s",
-                    attempt + 1,
-                    blank,
-                )
-            # 篇幅自检：只在模板声明了字数约束时才修订（偏短扩写、偏长压缩，不写进用户正文）。
-            # 未声明约束时不因「偏短」打回——篇幅以原文为上限，信息少就写少，避免逼出注水。
-            logger.debug("placeholder fill attempt=%s han=%s", attempt + 1, _body_han_count(assembled))
-            lo = budget.get("lo") if isinstance(budget, dict) else None
-            hi = budget.get("hi") if isinstance(budget, dict) else None
-            if (lo or hi) and not last_round:
-                han = _body_han_count(assembled)
-                lo_i = int(lo or 0)
-                hi_i = int(hi or 0)
-                if lo_i and han < int(lo_i * 0.85):
-                    revision = (
-                        f"当前各字段合计约 {han} 字，少于模板约 {lo_i}–{hi_i or lo_i} 字。"
-                        "请在保持结构与忠实原文的前提下整体扩写："
-                        "只扩充原文已经出现或能由上下文直接支持的事实、推进、原因、影响与结论，"
-                        "把过短的句子解释清楚、合并相关上下文；"
-                        "绝对不要新增原文没有的人名、数字、期限、评价或因果。"
-                        "使合计接近区间中位；勿空话注水、勿截断半句、勿写字数说明。"
-                    )
-                    logger.info(
-                        "placeholder too short (%s<%s), attempt=%s expand",
-                        han,
-                        lo_i,
-                        attempt + 1,
-                    )
-                    continue
-                if hi_i and han > hi_i:
-                    target = (lo_i + hi_i) // 2 if lo_i else max(hi_i - 40, hi_i * 4 // 5)
-                    revision = (
-                        f"当前各字段合计约 {han} 字，超过模板上界 {hi_i} 字。"
-                        f"请整体压缩改写到约 {target}–{hi_i} 字（不是截断半句）："
-                        "每节改短句，删除寒暄、重复、背景铺垫、低确定性猜测和不影响结论的枝节，"
-                        "优先保留关键结论、数字、责任人、期限、风险影响与应对；"
-                        "压缩后语句仍须完整通顺；勿改结构、勿虚构。"
-                    )
-                    logger.info(
-                        "placeholder too long (%s>%s), attempt=%s compress",
-                        han,
-                        hi_i,
-                        attempt + 1,
-                    )
-                    continue
-            # 强执行：截断/去粘连/空表占位后再验收
-            from core.execution.hard_execution import gate_render_output
-
-            gate = gate_render_output(template, assembled)
-            assembled = gate["text"]
-            issues = list(gate.get("issues") or [])
-            if gate.get("gate_ok"):
-                return assembled
-            revision = "\n".join(f"- {x}" for x in issues)
-            logger.info(
-                "placeholder gate failed (attempt=%s): %s",
-                attempt + 1,
-                "；".join(issues),
-            )
-            if attempt >= 1 or last_round:
-                # 多轮后仍无硬伤则接受当前拼装，交给上层 freeform/repair 的情况仅在硬伤时
-                hard = list(gate.get("hard_issues") or [])
-                if not hard:
-                    return assembled
-        return None
-    except Exception:  # noqa: BLE001
-        logger.warning("placeholder json fill failed, fallback to free render", exc_info=True)
-        return None
 
 

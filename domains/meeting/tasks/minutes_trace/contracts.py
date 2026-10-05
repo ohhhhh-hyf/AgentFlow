@@ -13,35 +13,11 @@ from core.schema.contracts import (
 )
 from core.schema.fallback_rules import FallbackRules, Raw
 
-# 会议场景枚举：与 meeting_core/contracts.py 的 SCENE_CHOICES 保持同值
-# （sync_domain 按文件路径加载 contracts.py，不能用包间相对导入）
-SCENE_CHOICES = [
-    "通用",
-    "团队例会",
-    "脑暴/讨论",
-    "项目决策与评审",
-    "专项讨论会",
-    "研讨会",
-    "采访/对话",
-]
-
-
 class MinutesTraceGenerationContract(GenerationContract):
-    """溯源纪要草稿：场景 + 正文 + 对齐草稿。"""
+    """溯源纪要草稿：正文。"""
 
     fields = [
-        EnumField("scene", SCENE_CHOICES, normalize="通用", desc="会议场景由程序判定，输出固定值「通用」，无需猜测"),
-        StrField("minutes_md", "按所选场景骨架写出的正文，句末不要带溯源钉"),
-        ObjListField(
-            "alignments",
-            [
-                StrField("sentence", "纪要正文中的原句（须能在 minutes_md 中找到）"),
-                StrField("kind", "keypoint 或 note"),
-                StrField("source", "关键点整行，或笔记的原文片段"),
-                StrField("evidence", "能对上会议原文的一句依据"),
-            ],
-            desc="本阶段必须输出该字段，值为空数组 []（不得省略）；对齐在审核通过后由单独步骤生成",
-        ),
+        StrField("minutes_md", "按议题树写出的正文，句末不要带溯源钉"),
     ]
 
 
