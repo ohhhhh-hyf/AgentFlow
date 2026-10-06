@@ -33,7 +33,7 @@ SCALAR_BASELINE_BY_DIR: dict[str, dict[str, int]] = {
     # 统一使用 template
     "template": {
         "class_transcript": 4, "clinical_advisory": 5, "contract_vetting": 4,
-        "conversation_transcript": 5, "court_transcript": 3, "debate_forum": 5,
+        "conversation_transcript": 5, "court_transcript": 3, "debate_forum": 4,
         "decision_review": 4, "exchange_forum": 5, "general_minutes": 3,
         "personal_minutes": 4,
         "government_bulletin": 3, "group_seminar": 4, "hiring_report": 3,
@@ -1171,7 +1171,7 @@ def test_group_headings_need_body() -> None:
         ("media_briefing.md", "核心信息"),
         ("media_briefing.md", "官方表态"),
         ("exchange_forum.md", "核心信息与数据"),
-        ("debate_forum.md", "环节交锋"),
+        ("debate_forum.md", "核心争议与攻防"),
         ("government_bulletin.md", "重点工作"),
         ("knowledge_memo.md", "核心概念"),
         ("research_dialogue.md", "核心反馈"),
@@ -1389,39 +1389,27 @@ def test_debate_rounds_and_rows() -> None:
     质询与总结的内容无家可归；表格要求"一行一方" → 论点与论据被压成两行标签串。
     """
     debate = (_active_dir() / "debate_forum.md").read_text(encoding="utf-8")
-    check("辩论会：交锋栏改为按原文环节分组（[环节交锋]）",
-          "# [环节交锋]" in debate and "# [自由辩论环节]" not in debate, "")
-    check("辩论会：交锋栏要求分组并写清攻守",
-          "原文实际出现的环节" in debate and "谁攻谁守" in debate, "")
-    check("辩论会：无环节线索时不硬分组",
-          "不要硬分组" in debate, "")
+    for col in (
+        "# [辩论概况]",
+        "# [各方立论体系]",
+        "# [核心争议与攻防]",
+        "# [结辩与裁决]",
+    ):
+        check(f"辩论会：4 栏骨架存在 {col}", col in debate, "")
+    check("辩论会：旧 5 栏碎片化栏目已退场",
+          "# [核心论点]" not in debate and "# [争议焦点]" not in debate
+          and "# [环节交锋]" not in debate and "# [结辩与评委点评]" not in debate, "")
+    check("辩论会：交锋与焦点合并为 [核心争议与攻防] 并按议题成对对答",
+          "按核心分歧点设立小节" in debate and "一条一方，一方一句话" in debate
+          and "针锋相对" in debate, "")
     check("辩论会：归因兜底（判不准写「一方」）",
           "判不准就写「一方」" in debate, "")
-    check("辩论会：每个交锋点尽量带原话引用（可只引不署名）",
-          "每个交锋点尽量带 1 句原文引用" in debate and "只引原话、不署名" in debate, "")
-    check("辩论会：论点表按原文出现顺序排列、正反交错（不归堆）",
-          "按原文出现顺序排列（同一环节内正反交替）" in debate
-          and "不要把一方的论点归堆写完再写另一方" in debate, "")
-    check("辩论会：论点表行数＝论点数、不要求两方对称",
-          "行数＝论点数" in debate and "每方通常 2–4 行" in debate
-          and "不要一方一行" in debate and "也不要求两方行数对称" in debate
-          and "（一行一方）" not in debate, "")
-    check("辩论会：论点表样例行交错示范（正方→反方→正方，4 列无时间列）",
-          "| 正方 | … | … | … |" in debate
-          and debate.index("| 正方 | …") < debate.index("| 反方 | …")
-          and debate.count("| 正方 | … | … | … |") == 2
-          and "时间" not in debate.split("# [核心论点]", 1)[1].split("# [环节交锋]", 1)[0], "")
-    # 新增承载位（2026-09-19 now.xlsx 行25）：一场 10284 汉字的辩论只出 956 汉字（低于下限
-    # 1680）——现有四栏全是"按论点/按环节"维度，缺"按议题"的分歧归纳，质询与总结也无落点。
-    check("辩论会：新增 [争议焦点]（按议题归纳双方分歧）",
-          "# [争议焦点]" in debate and "按**议题**归纳双方真正的分歧" in debate
-          and "3–5 条，原文出现过的焦点都要有" in debate, "")
-    check("辩论会：争议焦点只归纳立场不做输赢判断、且不与论点表逐字重复",
-          "不做输赢、高下" in debate and "不要与 [核心论点] 的表述逐字重复" in debate, "")
-    check("辩论会：requirement 覆盖争议焦点",
-          "核心争议焦点" in debate, "")
-    check("辩论会：概述栏的反向引用已改名",
-          "[核心论点] / [环节交锋]" in debate, "")
+    check("辩论会：攻防原声引用规范（只引原话、不盲猜署名）",
+          "只引原话、不盲猜署名" in debate, "")
+    check("辩论会：各方立论体系去碎表格、结构化条目呈现",
+          "呈现各持论阵营的初始立论基础" in debate and "核心论点" in debate, "")
+    check("辩论会：结辩与胜负裁决规范（原文明示才标注）",
+          "原文明示获胜方时才标注" in debate and "未明示不写" in debate, "")
 
 
 def test_exchange_forum_structure() -> None:
