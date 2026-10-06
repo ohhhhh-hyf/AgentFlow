@@ -106,18 +106,25 @@ def latex_paper_css() -> str:
       border-top: 2px solid #222222;
       border-bottom: 2px solid #222222;
     }
-    .ck-doc table th, .ck-doc table td, .ck-table th, .ck-table td {
-      padding: 5px 8px;
+    .ck-doc table th, .ck-table th {
+      padding: 6px 10px;
       text-align: left;
       vertical-align: middle;
-      border-bottom: 1px solid #ede9e1;
-    }
-    .ck-doc table th, .ck-table th {
       background: #fbfaf7;
       border-bottom: 1.2px solid #222222;
       font-weight: 700;
       color: #111111;
       letter-spacing: 0.3px;
+    }
+    .ck-doc table td, .ck-table td {
+      padding: 6px 10px;
+      text-align: left;
+      vertical-align: top;
+      border-bottom: 1px solid #ede9e1;
+    }
+    .ck-doc table td:first-child, .ck-table td:first-child {
+      font-weight: 600;
+      color: #111111;
     }
 
     /* Roomy & Spacious Academic Risk Table */
