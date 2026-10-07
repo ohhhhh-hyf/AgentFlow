@@ -131,11 +131,11 @@ def output_token_cap(
 
 # 纪要相对原文的硬天花板：口语转写里寒暄/程序性发言占比高，纪要超过原文
 # 只可能是复述或注水（2026-09-19 用户实测：有的纪要比原文还长）
-SOURCE_CAP_RATIO = 0.7
+SOURCE_CAP_RATIO = 0.8
 
 
 def capped_budget(source_han: int, *, kind: str = "record") -> tuple[int, int] | None:
-    """档位预算与原文天花板（原文 × 70%）取小者；过短原文返回 None。"""
+    """档位预算与原文天花板（原文 × 80%）取小者；过短原文返回 None。"""
     span = length_budget(source_han, kind=kind)
     if not span:
         return None
@@ -159,7 +159,7 @@ def budget_line(source_han: int, *, columns: int = 0) -> str:
     )
     return (
         f"【篇幅预算】原文约 {source_han} 汉字{cols} → 正文总量参考 {lo}–{hi} 汉字"
-        f"（原文的 {pct_lo}%–{pct_hi}%；任何情况下不超过原文的 70%）{first_col}。"
+        f"（原文的 {pct_lo}%–{pct_hi}%；任何情况下不超过原文的 80%）{first_col}。"
         "达到下限说明基本事实具备；低于下限说明遗漏关键事实（回原文深入挖掘补齐事实，不扩写寒暄与过程铺陈）；高于上限说明有重复注水。"
         "优先级：模板显式栏位上限 > 本动态总预算 > 默认形态规则。"
     )

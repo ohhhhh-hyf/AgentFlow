@@ -33,7 +33,7 @@ SCALAR_BASELINE_BY_DIR: dict[str, dict[str, int]] = {
     # 统一使用 template
     "template": {
         "class_transcript": 4, "clinical_advisory": 5, "contract_vetting": 4,
-        "conversation_transcript": 5, "court_transcript": 3, "debate_forum": 4,
+        "conversation_transcript": 4, "court_transcript": 3, "debate_forum": 4,
         "decision_review": 4, "exchange_forum": 5, "general_minutes": 3,
         "personal_minutes": 4,
         "government_bulletin": 3, "group_seminar": 4, "hiring_report": 3,
@@ -41,9 +41,9 @@ SCALAR_BASELINE_BY_DIR: dict[str, dict[str, int]] = {
         "knowledge_memo": 3, "legal_advisory": 4, "media_briefing": 4,
         "media_qa_session": 4, "personal_memo": 4, "product_launch": 4,
         "admission_briefing": 5,
-        "project_progress": 2, "psychological_session": 3, "research_dialogue": 3,
+        "project_progress": 2, "psychological_session": 3, "research_dialogue": 4,
         "retrospective_session": 5, "site_visit_tour": 4, "special_lecture": 4,
-        "team_meeting": 5, "workshop_session": 4,
+        "team_meeting": 4, "workshop_session": 4,
     },
 }
 
@@ -1011,7 +1011,6 @@ def test_qa_speaker_labels() -> None:
         "media_qa_session": "核心提问与回应",
         "admission_briefing": "Q&A 环节",
         "special_lecture": "Q&A 环节",
-        "class_transcript": "课堂互动与答疑",
     }
     missing: list[str] = []
     old_mandate: list[str] = []
@@ -1021,7 +1020,7 @@ def test_qa_speaker_labels() -> None:
             missing.append(stem)
         if _re.search(r"[，：]写成「\*\*问\*\*：…」换行", text):  # 旧强制句式；新文是「才写成…」
             old_mandate.append(stem)
-    check("5 个问答模板都写清「称呼优先、问/答兜底」", not missing, f"缺={missing}")
+    check("4 个问答模板都写清「称呼优先、问/答兜底」", not missing, f"缺={missing}")
     check("旧的「一律写成 问/答」口径已清除", not old_mandate, f"残留={old_mandate}")
     check("问答模板都禁止双重标注（「xx提问」式说明）",
           all("这类重复说明" in (_active_dir() / f"{s}.md").read_text(encoding="utf-8")
@@ -1093,7 +1092,7 @@ def test_knowledge_memo_groups() -> None:
     同时"适用条件/前提/边界"这类普遍存在的内容此前被埋进"易混淆点"。
     """
     text = (_active_dir() / "knowledge_memo.md").read_text(encoding="utf-8")
-    for need in ("## 核心结论", "## 易混点与适用边界", "## 待澄清问题",
+    for need in ("## 关键判断与结论", "## 易混点与适用边界", "## 待澄清问题",
                  "整组没内容就不出现该组", "不要写「原文未提及…」这类说明句"):
         check(f"知识笔记：含「{need}」", need in text, "")
     check("知识笔记：仍保留输出契约的栏名 [核心结论]",
@@ -1159,12 +1158,11 @@ def test_group_headings_need_body() -> None:
 
     回归背景：讲座那条 199.6s 的请求在渲染阶段「只重写 [核心观点与论证]」→ 单栏重写后仍不过
     → 整篇回退重填（46s + 63s + 49s）。最可能的硬伤是「只有标题没有正文（空栏）」——
-    模型只写了 `## 论点` 而没落 `- ` 条目。故在各组标题型栏目统一声明「标题必带正文」。
     """
-    clause = "**标题下必须至少一条正文（`- ` 条目或一段），不得只有标题"
+    clause = "**标题下必须至少一条正文"
     cols = (
         ("special_lecture.md", "核心观点与论证"),
-        ("class_transcript.md", "核心知识点梳理"),
+        ("class_transcript.md", "核心知识点"),
         ("group_seminar.md", "发言要点"),
         ("interview_transcript.md", "访谈详细记录"),
         ("general_minutes.md", "要点梳理"),
@@ -1201,38 +1199,32 @@ def test_group_headings_need_body() -> None:
 
 
 def test_home_school_feedback_groups() -> None:
-    """家校沟通 [家长反馈]：按组按点（两组固定名）+ 原话组带背景行（2026-09-20 用户口径）。
-
-    回归背景：原说明把「原话用 `> ` 引用」与「问题与关注点用 `- ` 列表」并列，没写从属关系 →
-    实测产物出现「2 条条目 + 3 条裸引用 + 4 条缩进子条」，子条挂到最后一条引用下面（层级错位）。
-    """
+    """家校沟通 [家校探讨]：双分支呈现（对仗子条 / 融合陈述）+ 原话点睛 + 与 [沟通内容] 不重复。"""
     text = (_active_dir() / "home_school_liaison.md").read_text(encoding="utf-8")
-    check("家校沟通：[家长反馈] 按组、按点写（两组固定名，有内容才出现）",
-          "**按组、按点写**" in text and ("`## 家长关注的问题与诉求`" in text or "`### 家长关注的问题与诉求`" in text)
-          and ("`## 家长原话`" in text or "`### 家长原话`" in text) and "有内容才写该组，原文没有的组不出现" in text, "")
-    check("家校沟通：[家长反馈] 原话组带背景行（与全库引语栏一致，最多 2–3 条）",
-          "**最多 2–3 条**" in text and "逐字引用、不省字、不改写" in text
-          and ("金句行 `> “……”`、背景行 `- 背景：……`" in text or "金句采用连续归属卡片排版" in text)
-          and ("原文没线索就写 `- 背景：未提及`，不编" in text or "两组都没有就写「未提及」" in text), "")
-    check("家校沟通：[家长反馈] 两组都没有才写缺省 + 与 [沟通内容] 不重复",
-          "两组都没有就写「未提及」" in text
-          and "**本栏与 [沟通内容] 不重复（同一件事只在一栏写）**" in text, "")
+    check("家校沟通：[家校探讨] 包含探讨议题项规范",
+          "- **探讨议题**：" in text, "")
+    check("家校沟通：[家校探讨] 包含校方引导与家长心声双分支子条规范",
+          "**校方引导**" in text and "**家长心声**" in text, "")
+    check("家校沟通：[家校探讨] 包含典型原话引号点睛规范",
+          "在句末以双引号真实引用点睛" in text, "")
+    check("家校沟通：[家校探讨] 无实质探讨写「未提及」 + 与 [沟通内容] 不重复",
+          "全场无实质教育探讨写「未提及」" in text
+          and "本栏与 [沟通内容] 不重复" in text, "")
     # 只在本栏范围内查示例（避免误伤其它栏的正当措辞）
-    spec = next(l for l in text.splitlines() if l.startswith("[") and "家长原话" in l)
-    check("家校沟通：[家长反馈] 不再出现示例式软引导（项别名与示范清单已清除）",
+    spec = next(l for l in text.splitlines() if l.startswith("[") and ("家校探讨" in l or "探讨议题" in l))
+    check("家校沟通：[家校探讨] 不再出现示例式软引导（项别名与示范清单已清除）",
           "如费用" not in spec and "如手机" not in spec and "例如" not in spec
           and "（照原文）" not in spec, spec[:60])
 
 
 def test_home_school_content_groups() -> None:
-    """家校沟通 [沟通内容]：两大板块归组展开（表现亮点与需关注问题独立成条，严禁分号并入单条）。"""
+    """家校沟通 [沟通内容]：自适应组织（涵盖班情/规章/通报，严禁分号并入单条）。"""
     p = Path("resources/templates") / "home_school_liaison.md"
     text = p.read_text(encoding="utf-8")
-    h_prefix = "###"
-    check("template 家校沟通：[沟通内容] 包含表现亮点与良好风貌小节",
-          f"`{h_prefix} 表现亮点与良好风貌`" in text, "dir=template")
-    check("template 家校沟通：[沟通内容] 包含需关注问题与在校表现小节",
-          f"`{h_prefix} 需关注问题与在校表现`" in text, "dir=template")
+    check("template 家校沟通：[沟通内容] 自适应组织且严禁机械套用预设分组",
+          "根据实际沟通内容自适应组织" in text and "严禁机械套用预设分组" in text, "dir=template")
+    check("template 家校沟通：[沟通内容] 包含观察维度/通报事项条目规范",
+          "- **观察维度/通报事项**：客观事实陈述与校内举措" in text, "dir=template")
     check("template 家校沟通：[沟通内容] 包含严禁分号并入同一条指令",
           "严令禁止将多个学生表现用分号并入同一条" in text, "dir=template")
     plan = plan_placeholder_fill(text)
@@ -1325,56 +1317,50 @@ def test_overview_specs_have_scope() -> None:
     team = (_active_dir() / "team_meeting.md").read_text(encoding="utf-8")
     debate = (_active_dir() / "debate_forum.md").read_text(encoding="utf-8")
     for text, name, size in (
-        (team, "团队例会", "约 250–400 字"),
+        (team, "团队例会", "约 250–350 字"),
         (debate, "辩论会", "约 250–400 字"),
     ):
         check(f"{name}：概况栏声明尺寸（{size}）", size in text, "")
-    check("团队例会：概况栏写明六要素（谁/为什么开/议题及程度/态势/结论/数字锚点）",
+    check("团队例会：概况栏写明六要素（谁/为什么开/议题及程度/态势/结论）",
           all(k in team for k in (
-              "参会成员或部门", "为什么开这次会", "主线议题",
-              "已定 / 待定 / 仅同步", "整体态势", "结论与下一步方向",
-              "关键数字或时间节点", "原文没有则不强求、不补写",
+              "参会成员或部门", "为什么开这次会", "涵盖的主线议题", "整体态势", "结论",
           )), "")
     check("团队例会：概况栏用归位式边界（只到议题级主线 + 态势，不写任务级明细）",
           "本栏只到「议题级主线 + 态势」" in team and "不写任务级明细" in team
-          and "[工作进展]" in team and "[协作需求]" in team, "")
+          and "[工作进展]" in team and "[落实安排]" in team, "")
     check("团队例会：概况栏声明下限口径（低于 250 字＝没交代清）",
           "低于 250 字说明没交代清" in team, "")
     from core.templates.template_eval import parse_section_char_budgets
 
     ov = [b for b in parse_section_char_budgets(team) if b["title"] == "例会概况"]
-    check("团队例会：概况栏仍解析为节级 250–400（尺寸口径未漂）",
-          bool(ov) and ov[0]["scope"] == "section" and ov[0]["lo"] == 250 and ov[0]["hi"] == 400,
+    check("团队例会：概况栏仍解析为节级 250–350（尺寸口径未漂）",
+          bool(ov) and ov[0]["scope"] == "section" and ov[0]["lo"] == 250 and ov[0]["hi"] == 350,
           f"{ov}")
     check("辩论会：概况栏写明边界（不展开什么、归哪栏）", "不展开" in debate, "")
-    check("团队例会：[工作进展] 声明容量引导（并列任务各占一条 + 缩进子条）",
-          "并列的多个任务各占一条" in team and "缩进子条" in team, "")
-    check("团队例会：[协作需求] 声明去重口径（不复述进展 + 跨人依赖一条不落）",
-          "已在 [工作进展] 写过的进展不复述" in team and "跨人依赖一条不落" in team, "")
-    # 新增承载位（2026-09-19 now.xlsx 行22）：例会只有 进展/协作 两栏，决定、待办与未决
-    # 全挤进 [工作进展]（15 条里混着"下周去洛阳"“招聘20位师傅”“方向可能偏了”）→ 一栏流水账。
-    check("团队例会：新增 [决定与待办]（决议 + 行动项：谁/何时前/做什么）",
-          "# [决定与待办]" in team and "谁、何时前、做什么" in team
-          and "已在 [工作进展] 条目里写过的" in team, "")
-    check("团队例会：新增 [待确认与风险]（未决/分歧/阻塞延期 + 不替团队预判）",
-          "# [待确认与风险]" in team and "尚未议定或需要再确认的事项" in team
+    check("团队例会：[工作进展] 声明容量引导（并列任务各占一条）",
+          "同一模块/成员下并列的多个任务各占一条" in team, "")
+    check("团队例会：设立 [落实安排]（行动项 + 跨组协作看板）",
+          "# [落实安排]" in team and "交代具体做什么、交付要求/产出形态与时限责任" in team
+          and "展开具体执行动作与交付细节" in team, "")
+    check("团队例会：设立 [未决风险]（未决/分歧/阻塞延期 + 不替团队预判）",
+          "# [未决风险]" in team and "尚未议定或需要再确认的事项" in team
           and "不替团队预判" in team, "")
-    check("团队例会：[工作进展] 声明栏间分工（进展 vs 决定与待办不重复）",
-          "本栏只写\"已经做了什么、到什么程度\"" in team and "归 [决定与待办]，两栏不重复" in team, "")
+    check("团队例会：[工作进展] 声明栏间分工（进展 vs 落实安排不重复）",
+          "本栏只写\"已经做了什么、到什么程度\"" in team and "统一归 [落实安排]，两栏不重复" in team, "")
     check("团队例会：requirement 覆盖新栏（决议与待办 / 待确认事项）",
           "决议与待办事项" in team and "待确认事项" in team, "")
-    # 尺寸口径（2026-09-19 now.xlsx 行22：全篇 1090，工作进展只有 530 且 15 条平铺）
-    check("团队例会：工作进展给尺寸与分组（500–900 字 / 每组 2–5 条 / 不写同名标题）",
-          "约 500–900 字" in team and "每组 2–5 条" in team
+    # 尺寸口径
+    check("团队例会：工作进展给尺寸与分组（400–800 字 / 每组 2–5 条 / 不写同名标题）",
+          "约 400–800 字" in team and "每组 2–5 条" in team
           and "不要在栏内再写一个与栏名同名的" in team, "")
-    check("团队例会：协作需求与两个新栏都有尺寸",
-          "约 150–300 字" in team and "约 150–350 字" in team and "约 100–250 字" in team, "")
+    check("团队例会：落实安排和未决风险栏都有尺寸",
+          "约 300–500 字" in team and "约 100–250 字" in team, "")
     from core.templates.template_eval import parse_section_char_budgets as _pscb
 
     tm_budgets = [(b["title"], b["hi"]) for b in _pscb(team)]
-    check("团队例会：五栏尺寸都被解析（概况 400 / 进展 900 / 决定 350 / 协作 300 / 未决 250）",
-          tm_budgets == [("例会概况", 400), ("工作进展", 900), ("决定与待办", 350),
-                         ("协作需求", 300), ("待确认与风险", 250)], f"{tm_budgets}")
+    check("团队例会：四栏尺寸都被解析（概况 350 / 进展 800 / 落实安排 500 / 未决风险 250）",
+          tm_budgets == [("例会概况", 350), ("工作进展", 800), ("落实安排", 500),
+                         ("未决风险", 250)], f"{tm_budgets}")
     check("辩论会：结辩栏分三条写",
           "**正方结辩**" in debate and "**反方结辩**" in debate and "**评委点评**" in debate, "")
     check("辩论会：结辩栏给每条尺寸", "每条 60–150 字" in debate, "")
@@ -1481,9 +1467,9 @@ def test_interview_and_lecture_overview() -> None:
     check("采访记录：结论要素写明粒度（一句话点题 + 可带数字/事例依据）",
           "每条一句话点题，可带原文的关键数字或事例作依据" in interview, "")
     check("采访记录：概况栏边界（不展开论据细节，归 [访谈详细记录]）",
-          "不展开受访者的论据与细节（那是 [访谈详细记录] 的事）" in interview, "")
+          "不展开受访者的论据与细节" in interview, "")
     check("专题讲座：概况栏边界（论证与论据清单归 [核心观点与论证]）",
-          "论证过程与论据清单归 [核心观点与论证]" in lecture and "不逐条复述论点" in lecture, "")
+          "论证过程与论据清单归" in lecture and "核心观点与论证" in lecture and "不逐条复述论点" in lecture, "")
     check("专题讲座：概况栏补落点要素（问题意识/由头 + 对听众的意义）",
           "为什么讲这个、面向谁" in lecture and "对听众的意义或适用对象" in lecture, "")
     check("专题讲座：锚点要求解开（原文有则选，案例可作锚点但不展开）",
@@ -1584,32 +1570,29 @@ def test_conversation_and_seminar_enrichment() -> None:
         check(f"{name}：首栏要素含锚点要求", anchor in text, "")
         check(f"{name}：首栏带防越栏边界", bound in text, "")
 
-    check("对话记录：新增 [关键原话] 栏（最多 8 句、逐字、`> “……”` 金句 / `- 背景：`）",
-          "# [关键原话]" in conv and "最多 8 句" in conv and "不改字、不合并" in conv
-          and "背景行 `- 背景：……`" in conv, "")
-    check("对话记录：新栏声明缺省词（空栏不成硬伤）",
-          "原文确实没有可摘的原话就写「未提及」" in conv, "")
-    check("对话记录：[交流内容] 不再夹引用（原话归 [关键原话]）",
-          "本栏不夹引用" in conv and "原话统一放 [关键原话]" in conv, "")
     check("对话记录：[交流内容] 要求细节落地（不只写主张）",
           "都要落进对应条目，不要只写主张" in conv, "")
     check("对话记录：[交流内容] 每位发言人各占一条缩进子条（合并只限同一次发言）",
           "每位发言人的说法各占一条缩进子条" in conv and "同一次发言的碎片合并成一条" in conv
           and "不要把多位发言人塞进同一条" in conv, "")
-    check("对话记录：[共识与分歧] 补尺寸（约 150–300 字）与理由",
-          "约 150–300 字" in conv and "各方立场与理由" in conv, "")
-    check("对话记录：[共识与分歧] 改为判断层（一致性/分歧性质/倾向与依据）",
+    check("对话记录：[共识与分歧] 分组分点严禁写成连续段落（约 150–300 字）",
+          "约 150–300 字" in conv and "严禁写成连续段落" in conv and "各方立场与理由" in conv, "")
+    check("对话记录：[共识与分歧] 包含判断层（分歧性质/本场的倾向与依据）",
           "由事实得出的判断" in conv and "分歧的性质" in conv and "本场的倾向与依据" in conv, "")
     check("对话记录：[共识与分歧] 禁止复述各人事实（明细归 [交流内容]）",
           "不要复述各人分别带什么、认为什么（事实明细归 [交流内容]）" in conv, "")
+    check("对话记录：[延伸话题与后续] 扁平自适应清单（约 100–250 字，严禁大段叙述）",
+          "约 100–250 字" in conv and "严禁写成大段叙述" in conv and "- **焦点/事项**" in conv, "")
+    check("对话记录：[延伸话题与后续] 缺省声明全场皆无写「未提及」",
+          "全场无任何延伸与后续写「未提及」" in conv, "")
     check("对话记录：[对话概况] 场合关系只取原文明示，不推断",
           "只写原文明示的角色或关系" in conv and "原文没有身份线索就不补关系、不作推断" in conv
           and "为什么聊起这个话题、话题走向" in conv, "")
     check("对话记录：[对话概况] 差异对照 + 数字/事例 + 不逐条复述",
           "倾向与差异对照" in conv and "值得记的数字或具体事例" in conv
-          and "不逐条复述各方发言（明细归 [交流内容]，原话归 [关键原话]）" in conv, "")
-    check("小组讨论：[讨论议题与背景] ④ 降级为点题、明细归 [共识形成]（治六成以上重复）",
-          "一致与分歧的明细归 [共识形成]，本栏不复述" in semi, "")
+          and "不逐条复述各方发言（明细归 [交流内容]）" in conv, "")
+    check("小组讨论：[讨论议题与背景] ④ 降级为点题、明细归 [共识与分歧]（治六成以上重复）",
+          ("一致与分歧的明细归 [共识与分歧]，本栏不复述" in semi or "一致与分歧的明细归 [共识形成]，本栏不复述" in semi), "")
     check("小组讨论：[讨论议题与背景] 新增「为什么现在讨论这个」与「讨论怎么推进的」",
           "为什么现在讨论这个" in semi and "讨论怎么推进的" in semi, "")
     check("小组讨论：[共识形成] 扩为双侧（一致意见 + 倾向性认识/主要分歧）",
@@ -1656,7 +1639,7 @@ def test_qa_precision_rules() -> None:
           "问答/对话的一轮" in BODY_FORMAT_RULES and "再长也不拆段" in BODY_FORMAT_RULES
           and "长答话按要点压缩" in BODY_FORMAT_RULES, "")
 
-    qa_templates = ("media_briefing", "media_qa_session", "admission_briefing", "special_lecture", "class_transcript")
+    qa_templates = ("media_briefing", "media_qa_session", "admission_briefing", "special_lecture")
     retired = ("覆盖所有重要提问", "答话可归并但不得改口径", "内容相似的合并成一条")
     from core.templates.template_eval import parse_section_char_budgets
 
@@ -1671,33 +1654,14 @@ def test_qa_precision_rules() -> None:
         check(f"{stem}：问答栏 missing=True（留空自动补「未提及」）",
               bool(qa) and qa[0].get("missing") is True,
               f"{[s.get('missing') for s in qa]}")
-        # 问答长度口径：各模板保留可解析的「每段上限」提示（media_briefing 于 2026-09-22 有意收紧到 350）；
-        # 课堂答疑（2026-09-18 用户口径）改为**按重要程度收**，全栏不带任何字数门禁
+        # 问答长度口径：各模板保留可解析的「每段上限」提示（media_briefing 于 2026-09-22 有意收紧到 350）
         para = [b for b in parse_section_char_budgets(text) if b.get("scope") == "paragraph"]
-        if stem == "class_transcript":
-            check("class_transcript：问答栏不带字数门禁（不会触发压缩/返工）",
-                  not para, f"{para}")
-            check("class_transcript：按重要程度收（读完知识点仍会问 / 澄清纠正限定 / 无损失不收）",
-                  all(k in text for k in (
-                      "只收「看完知识点栏之后仍会问」的问答",
-                      "复述已讲内容的不收",
-                      "发生了澄清、纠正或限定的才收",
-                      "去掉它对理解有没有损失",
-                  )), "")
-            check("class_transcript：按知识点配平 + 同题只留一组（数量由内容决定）",
-                  "按知识点配平" in text and "同一问题只留信息最全的一组" in text
-                  and "最多 8 组" not in text, "")
-            check("class_transcript：保留条级字数（问 20–50 / 答 40–150）",
-                  "每条 20–50 字" in text and "每条 40–150 字" in text, "")
-            check("class_transcript：答话写在同一段里（不分段、不分点）",
-                  "写在同一段里" in text and "不分段、不分点" in text, "")
-        else:
-            expect_hi = 350 if stem == "media_briefing" else 400
-            check(f"{stem}：问答栏保留可解析的长度口径（{expect_hi}/段，作提示）",
-                  any(int(b["hi"]) == expect_hi for b in para), f"{para}")
-            check(f"{stem}：问答栏写明答话可压缩、仍按单段连着写（不拆段）",
-                  "答话可压缩、不必逐句照抄" in text and "仍**单段**连着写" in text
-                  and "答话超过约 400 字必须分点" not in text, "")
+        expect_hi = 350 if stem == "media_briefing" else 400
+        check(f"{stem}：问答栏保留可解析的长度口径（{expect_hi}/段，作提示）",
+              any(int(b["hi"]) == expect_hi for b in para), f"{para}")
+        check(f"{stem}：问答栏写明答话可压缩、仍按单段连着写（不拆段）",
+              "答话可压缩、不必逐句照抄" in text and "仍**单段**连着写" in text
+              and "答话超过约 400 字必须分点" not in text, "")
 
     # 一问一答各占一段：称呼行（对话轮次）不参与段落拆分，普通散文段照旧会被拆
     from core.execution.gate import split_overlong_paragraphs
@@ -2767,42 +2731,57 @@ def test_media_overview_scope() -> None:
 
 
 def test_class_transcript_task_groups() -> None:
-    """课堂记录 [课后任务与学习建议]：类目做小标题、其下分点（条内不再重复类目名）。
+    """课堂记录：模块化知识梳理、疑难澄清与易错辨析、课后任务与学习建议。
 
-    回归背景（2026-09-18 实测）：该栏把类目写进每一条的前缀——「- **课堂练习**：完成讲义第20题…」
-    连着 5 条、「- **复习重点**：…」「- **学习建议**：…」各若干条，还混着「**建议**：」单独一行
-    再挂二级标签的第二种结构；类目名重复 10+ 次、两套结构并存，读起来是标签堆而不是清单。
-    改成 `## 类目` + `- ` 条目后，类目只说一次、条目只写内容。
+    结构优化：
+    1. 摒弃一问一答对话剧本，升级为「疑难澄清与易错辨析」高密度干货清单；
+    2. 核心知识点按模块分组，支持缩进子条展开公式推导，严禁空标题；
+    3. 课后任务与学习建议自然陈述，全场无课后安排写「未提及」；
+    4. 4 个栏目均带合理字数预算。
     """
     from core.templates.template_eval import parse_section_char_budgets
 
     text = (_active_dir() / "class_transcript.md").read_text(encoding="utf-8")
-    spec = next(l for l in text.splitlines() if "按类目分组" in l)
 
-    check("三个类目小标题齐全（课堂练习/复习重点/学习建议）",
-          all(k in spec for k in ("`## 课堂练习`", "`## 复习重点`", "`## 学习建议`")), spec[:80])
-    check("类目有内容才出现、其下 `- ` 一条一行、条内不重复类目名",
-          "有内容才出现" in spec and "`- ` 一条一行" in spec
-          and "条内不再以类目名开头" in spec, "")
-    check("每类写什么有口径（题号/考点、概念/定律、做法/器材）",
-          "题号＋考点/方法＋结论要点" in spec and "概念/定律/结论＋适用条件" in spec
-          and "可操作做法（器材、步骤）" in spec, "")
-    check("保留条级尺寸与并列不合并（每条 30–120 字）",
-          "每条 30–120 字" in spec and "各占一条" in spec, "")
-    # 2026-09-19 实测：[核心知识点梳理] 1413 字（5 知识点 × 26 条）——优先收束重复表达，但不删关键事实
-    kn = next(l for l in text.splitlines() if "按教学逻辑分层" in l)
-    check("知识点梳理：优先 3–4 条，关键事实超出时继续保留",
-          "每个知识点优先用 3–4 条" in kn and "关键事实超过 4 项时继续逐条保留" in kn, kn[:90])
-    check("旧的行内标签形态已清除（不再每条挂「**任务**：」）",
-          "**任务**：" not in text and "分别成条" not in text, "")
+    # 栏目完整性
+    for col in ("课程概况", "核心知识点", "疑难辨析", "课后任务"):
+        check(f"课堂记录包含 [{col}] 栏目", f"[{col}]" in text, "")
 
-    seg = next(s for s in plan_placeholder_fill(text)["scalars"] if "按类目分组" in (s.get("hint") or ""))
-    check("该栏保留缺省词语义（原文没布置作业 → 「未提及」）", seg.get("missing") is True, "")
+    # 核心知识点要求
+    kn = next(l for l in text.splitlines() if "按教学逻辑或章节模块分组" in l)
+    check("核心知识点：要求标题下至少一条正文且不得只有标题",
+          "标题下必须至少一条正文" in kn and "不得只有标题" in kn, "")
+    check("核心知识点：较复杂推导下挂缩进子条展开",
+          "下挂缩进子条" in kn and "严禁将多步推导强行压缩为孤立结论" in kn, "")
+
+    # 疑难辨析要求
+    qa = next(l for l in text.splitlines() if "清单化记录课堂互动中产生" in l)
+    check("疑难辨析：摒弃一问一答对话剧本，按焦点概念/易错命题列出",
+          "摒弃冗长的一问一答对话剧本" in qa and "焦点概念/易错命题" in qa, "")
+    check("疑难辨析：要求展开完整思维纠偏链条与单条尺寸（80–150 字）",
+          "展开完整思维纠偏链条" in qa and "每条 80–150 字" in qa, "")
+    check("疑难辨析：支持点睛式原话口诀锚点但禁车轱辘话",
+          "关键原句" in qa and "记忆锚点" in qa and "严禁为凑引用而摘录口语碎屑" in qa, "")
+    check("疑难辨析：保留保真口径（取自明确说出的内容，无互动写未提及）",
+          "学生的话与教师的点评必须取自原文明确说出的内容" in qa and "全场无互动疑难写「未提及」" in qa, "")
+
+    # 课后任务要求
+    task = next(l for l in text.splitlines() if "清单化记录课后执行动作" in l)
+    check("课后任务：涵盖课后作业与复习重点，严禁补写原文没有的作业",
+          "课后作业与实践" in task and "复习重点与备考提示" in task and "严禁补写原文没有的作业" in task, "")
+    scalars = plan_placeholder_fill(text)["scalars"]
+    check("课后任务保留缺省词语义（全场无课后安排 → 「未提及」）", scalars[3].get("missing") is True, "")
+    check("疑难辨析保留缺省词语义（全场无互动疑难 → 「未提及」）", scalars[2].get("missing") is True, "")
+
+    # 预算检查：4 栏全覆盖
     budgets = [(b["title"], b["hi"], b["scope"]) for b in parse_section_char_budgets(text)]
-    # 2026-09-19：首栏补了「一段写完，约 250–400 字」→ 课程概况成为该模板唯一预算（节级）；
-    # 问答栏仍不带字数门禁（按重要程度收）
-    check("课堂记录：只有首栏预算（课程概况 400/节），问答栏无字数门禁",
-          budgets == [("课程概况", 400, "section")], f"{budgets}")
+    check("课堂记录：4 栏均带合理预算",
+          budgets == [
+              ("课程概况", 400, "section"),
+              ("核心知识点", 1000, "section"),
+              ("疑难辨析", 500, "section"),
+              ("课后任务", 300, "section"),
+          ], f"{budgets}")
 
 
 def test_quote_columns_have_background() -> None:
@@ -2814,31 +2793,31 @@ def test_quote_columns_have_background() -> None:
     from core.templates.router._placeholder import plan_placeholder_fill
 
     expectations = {
-        "special_lecture": ("金句总结", ("讲到哪个话题/论证到哪一步", "`- 背景：未提及`")),
-        "interview_transcript": ("关键引语与金句", ("回应什么问题/谈到什么话题", "`- 背景：未提及`")),
-        "conversation_transcript": ("关键原话", ("谁对谁说的", "`- 背景：未提及`")),
+        "special_lecture": ("金句总结", ("讲到哪个话题/论证到哪一步", "无明确背景则写未提及")),
+        "interview_transcript": ("金句总结", ("回应什么问题/谈到什么话题", "无明确线索则写未提及")),
     }
     for stem, (col, needles) in expectations.items():
         text = (_active_dir() / f"{stem}.md").read_text(encoding="utf-8")
         lines = text.splitlines()
-        head_idx = next(i for i, l in enumerate(lines) if f"# [{col}]" in l)
+        head_idx = next(i for i, l in enumerate(lines) if f"[{col}]" in l)
         spec = lines[head_idx + 1]  # 栏名下的说明行
         for k in needles:
             check(f"{stem} [{col}]：背景说明口径（{k[:14]}…）", k in spec, spec[:80])
-        # 2026-09-19 用户口径：金句行要加引号（`> “……”`）、背景行加 `背景：` 前缀
-        check(f"{stem} [{col}]：格式固定（金句行 `> “……”`、背景行 `- 背景：……`）",
-              "金句行用 `>` 引用并加引号" in spec and '`> “……”`' in spec
-              and "背景行 `- 背景：……`" in spec, spec[:90])
+        check(f"{stem} [{col}]：一体化出版级引用卡片（首行引号引用 + 次行署名语境）",
+              '`> “……”`' in spec and ("> —— **受访者姓名**" in spec or "> —— **主讲人" in spec), spec[:90])
         check(f"{stem} [{col}]：旧写法（无引号 / 背景行只写 `-`）已清除",
               "背景行用 `-`" not in spec and "「- 背景未提及」" not in spec, "")
-        check(f"{stem} [{col}]：无 3 句下限（最多 8 句、有几句写几句，不硬凑）",
-              "最多 8 句" in spec and "有几句写几句" in spec and "3–8 句" not in spec, "")
+        check(f"{stem} [{col}]：无 3 句下限（有几句写几句，不硬凑）",
+              ("最多 8 句" in spec or "最多 6 句" in spec) and "有几句写几句" in spec and "3–8 句" not in spec, "")
         check(f"{stem} [{col}]：背景限定一句话（不展开复述）",
               "一句话即可" in spec, "")
         quote_fields = [s for s in plan_placeholder_fill(text)["scalars"] if "逐字" in (s.get("hint") or "")]
         check(f"{stem} [{col}]：保留缺省词语义",
               bool(quote_fields) and quote_fields[0].get("missing") is True,
               f"{[s.get('missing') for s in quote_fields]}")
+    conv_text = (_active_dir() / "conversation_transcript.md").read_text(encoding="utf-8")
+    check("conversation_transcript 已移除独立 [关键原话] 栏",
+          "[关键原话]" not in conv_text, "")
 
 
 def test_ellipsis_table_row_template_recognized() -> None:
@@ -2908,12 +2887,14 @@ def test_lecture_evidence_cap() -> None:
     spec = next(l for l in text.splitlines() if "两级结构" in l and "## 论点" in l)
     check("讲座：两级结构 + 论点标题短语化（20 个汉字内，不写成会解析成预算的「20 字」）",
           "两级结构" in spec and "20 个汉字内" in spec and "20 字内" not in spec, spec[:80])
-    check("讲座：同一论点优先 3–4 条，关键论据超出时继续保留",
-          "同一论点优先用 3–4 条" in spec and "关键论据超过 4 项时继续逐条保留" in spec, spec[:80])
+    check("讲座：论点数量设控（至多 8 个核心论点，严禁碎片化立项）",
+          "至多 8 个核心论点" in spec and "严禁碎片化立项" in spec, spec[:80])
+    check("讲座：精选 2–4 条核心论据，与 Q&A 筑起边界",
+          "精选 2–4 条核心论据" in spec and "统一下沉至 [Q&A 环节]" in spec, spec[:80])
     check("讲座：直接数据/典型事例优先、重复表达可合并",
           "直接数据或典型事例" in spec and "重复表达可以合并" in spec, "")
-    check("讲座：条级尺寸与下量口径保留（每条 30–120 字、细节落进条目）",
-          "每条 30–120 字" in spec and "都要落进对应条目" in spec, "")
+    check("讲座：条级尺寸与聚合口径保留（每条 30–100 字、次要铺垫适度聚合）",
+          "每条 30–100 字" in spec and "适度聚合" in spec, "")
     got = [(b["title"], b["hi"], b["scope"]) for b in parse_section_char_budgets(text)]
     check("讲座：预算未漂（概况/问答照旧）",
           ("讲座概况", 400, "section") in got and ("Q&A 环节", 400, "paragraph") in got, f"{got}")
@@ -2971,13 +2952,13 @@ def test_output_volume_and_hierarchy() -> None:
 
     from core.templates.length_budget import capped_budget
 
-    check("天花板：原文 ×70% 与档位取小（3500 字原文 → 上限 2450）",
-          capped_budget(3500) == (1080, 2450), f"{capped_budget(3500)}")
+    check("天花板：原文 ×80% 与档位取小（3500 字原文 → 上限 2800）",
+          capped_budget(3500) == (1080, 2800), f"{capped_budget(3500)}")
     check("天花板：30000 字原文仍受档位上限约束（8000）",
           capped_budget(30000) == (2400, 8000), f"{capped_budget(30000)}")
     bl = __import__("core.templates.length_budget", fromlist=["budget_line"]).budget_line(3500)
-    check("【篇幅预算】写明不超过原文 70%",
-          "任何情况下不超过原文的 70%" in bl, bl[:120])
+    check("【篇幅预算】写明不超过原文 80%",
+          "任何情况下不超过原文的 80%" in bl, bl[:120])
     check("【篇幅预算】下限口径收窄（补关键事实，不扩写寒暄与过程）",
           "不扩写寒暄与过程铺陈" in bl, "")
 
@@ -3375,14 +3356,14 @@ def test_domain_specific_accuracy_rules() -> None:
         "尚未裁判",
     ):
         check(f"庭审记录：含事实归属规则「{need}」", need in court, "")
-    # 2026-09-19 now.xlsx 行6 实测：该场没有证人/鉴定，[举证与法庭调查] 里出现
-    # `## 证人/鉴定陈述` → 「未提及」的空标题；部分名也太窄，第三方材料无处安放。
-    check("庭审记录：第三方陈述部分改为通用口径（证人、鉴定与其他来源陈述）",
-          "## 证人、鉴定与其他来源陈述" in court
-          and "凡不是当事人/代理人自己作出的陈述都归这里" in court
+    # 庭审记录重构：法庭调查彻底移除预设组名，按事实要点自适应以清单项平铺展开
+    check("庭审记录：法庭调查彻底移除预设组名，改为自适应事项清单",
+          "不设预设大类" in court
+          and "证人证言、鉴定意见或第三方材料明确标明陈述人或来源" in court
+          and "## 证人、鉴定与其他来源陈述" not in court
           and "## 证人/鉴定陈述" not in court, "")
-    check("庭审记录：没有记载的部分整段不出现（不再逐部分写「未提及」）",
-          "没有记载的部分整段不出现" in court and "四个部分都没有才写「未提及」" in court, "")
+    check("庭审记录：法庭调查按案情推进写全（全场无记录才写未提及）",
+          "全场无调查与举证写「未提及」" in court, "")
     # 2026-09-20 本批 8 份庭审产物实测：[庭审结果] 8/8 都是单段、204–310 汉字，
     # 段内 5–8 个「；」把 6–9 项内容压在一起（争议焦点/调解结果/金额权利安排/履行期限），
     # 关键金额埋在长句里；该栏是模板里**唯一没有声明形态、也没有尺寸**的栏

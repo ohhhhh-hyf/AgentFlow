@@ -158,7 +158,7 @@ resp = requests.post(
     URL,
     json={
         "domain": "meeting",
-        "task": "mindmap",
+        "task": "actions",
         "texts": {
             "transcript": TRANSCRIPT,
             "keypoints": "",
