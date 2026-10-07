@@ -373,3 +373,10 @@ def test_parse_and_render_unbolded_variants():
     assert "施工部和管理组完善相关资料" in html
 
 
+if __name__ == "__main__":
+    import sys
+    import pytest
+
+    sys.exit(pytest.main([__file__]))
+
+

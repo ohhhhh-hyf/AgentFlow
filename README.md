@@ -69,8 +69,9 @@ AgentFlow/
 ├── tools/                        # 【离线研发运维工具集】代码生成脚手架与排查运维（生产严禁反向依赖）
 │   ├── codegen/                  # 领域/任务线代码生成（register_domain, register_task, sync_domain）
 │   └── devtools/                 # 离线数据排查与维护（check_user_profile, purge_kb_source）
-│
-└── tests/                        # 【自动化测试中心】零 LLM 单元测试与集成测试套件（13 个套件，233+ 测试项）
+├── tests/                        # 【自动化测试中心】零 LLM 确定性测试中心（13 个套件，233+ 测试项）
+│   ├── core/                     # 编排内核、执行门禁、模板路由、视角建模与监督优化测试
+│   └── meeting/                  # 会议领域 8 大任务线与跨场次长期记忆引擎专项测试
 ```
 
 ---
@@ -332,33 +333,44 @@ data/
 
 ## 七、质量保障与全套自动化测试
 
-AgentFlow 内置了严密的**零 LLM 确定性回归测试套件**，总计拥有 **13 个专项测试套件，233+ 测试用例**，能在秒级内快速完成核心业务逻辑、契约不变量与语法规则的验证，无需消耗外部模型 Token：
+AgentFlow 内置了严密的**零 LLM 确定性回归测试套件**，总计拥有 **13 个专项测试套件，233+ 测试用例**，分为「核心内核与模板层（`tests/core/`）」与「会议领域任务层（`tests/meeting/`）」，秒级内快速完成核心业务逻辑、契约不变量与语法规则的验证，无需消耗外部模型 Token：
+
+#### 1. 核心内核与模板层（`tests/core/`）
 
 | 测试模块文件 | 测试定位与主要断言覆盖 | 用例数 |
 |---|---|---|
-| `test_consensus_decision_refactor.py` | 验证 `consensus_decision` 模板驱动解析、门禁白名单、鲁棒标题归一化与 HTML 卡片渲染 | 9 |
-| `test_minutes_styles_refactor.py` | 验证 5 大样式模板规范、250-300 字首栏预算、API 门禁校验、Supervisor 契约与 HTML 导出 | 8 |
-| `test_supervisor_optimization.py` | 验证审核短路（<2000 字符快速放行）、事实守卫（人名/数字门禁）、送审稿精简瘦身与契约口径 | 9 |
-| `test_action_risk_flow_render.py` | 验证待办与风险的 Form A 工单/票据流 Markdown 渲染与 HTML 响应式卡片导出 | 8 |
-| `test_minutes_trace_refactor.py` | 验证溯源纪要两级平实结构、议题内涵加权（Jaccard）切片算法、时间戳锚点与 HTML 定位高亮 | 4 |
-| `test_template_router.py` | 验证 32 套垂直场景模板自动判型、占位符清洗、栏目字数预算自适应截断与门禁验收 | 86 |
-| `test_perspective.py` | 验证个人视角工作台模板路由、第一人称代词替换、动作归属、发言切片与雷达图计算 | 22 |
-| `test_agenda_coercion.py` | 验证议程类型强制转换（Agenda Coercion）阈值守卫与边界行为 | 11 |
-| `test_agenda_minutes.py` | 验证议程纪要端到端全链路行为与 OCR 锚定集成 | 32 |
-| `test_meeting_memory.py` | 验证跨场次长期记忆状态机、向量索引与事实溯源回写 | 25 |
-| `test_core.py` | 验证画像选档、角色合并、契约校验与基础不变式 | 13 |
-| `test_engine_smoke.py` | 验证 LangGraph DAG 拓扑调度流转与纯 TaskEvent 事件流驱动 | 5 |
-| `test_draft_scrape.py` | 验证草稿与上下文抽取标记的一致性解析 | 1 |
+| `tests/core/test_core.py` | 验证画像选档、角色合并、契约校验与基础不变式 | 13 |
+| `tests/core/test_engine_smoke.py` | 验证 LangGraph DAG 拓扑调度流转与纯 TaskEvent 事件流驱动 | 5 |
+| `tests/core/test_template_router.py` | 验证 32 套垂直场景模板自动判型、占位符清洗、栏目字数预算自适应截断与门禁验收 | 86 |
+| `tests/core/test_perspective.py` | 验证个人视角工作台模板路由、第一人称代词替换、动作归属、发言切片与雷达图计算 | 22 |
+| `tests/core/test_supervisor_optimization.py` | 验证审核短路（<2000 字符快速放行）、事实守卫（人名/数字门禁）、送审稿精简瘦身与契约口径 | 9 |
+| `tests/core/test_draft_scrape.py` | 验证草稿与上下文抽取标记的一致性解析 | 1 |
+
+#### 2. 会议领域各任务线与记忆引擎（`tests/meeting/`）
+
+| 测试模块文件 | 测试定位与主要断言覆盖 | 用例数 |
+|---|---|---|
+| `tests/meeting/test_consensus_decision.py` | 验证 `consensus_decision` 模板驱动解析、门禁白名单、鲁棒小节识别与响应式 HTML 卡片 | 9 |
+| `tests/meeting/test_minutes_styles.py` | 验证 5 大黄金样式规范、250-300 字首栏预算、API 强门禁校验、Supervisor 契约与 HTML 导出 | 11 |
+| `tests/meeting/test_minutes_trace.py` | 验证溯源纪要两级平实结构、议题内涵加权（Jaccard）切片算法、时间戳锚点与 HTML 定位高亮 | 4 |
+| `tests/meeting/test_actions_risks.py` | 验证待办与风险的 Form A 现代工单/票据流 Markdown 渲染与 HTML 响应式卡片导出 | 8 |
+| `tests/meeting/test_agenda_minutes.py` | 验证议程纪要端到端全链路行为与 OCR 锚定集成 | 32 |
+| `tests/meeting/test_agenda_coercion.py` | 验证议程类型强制转换（Agenda Coercion）阈值守卫与边界行为 | 11 |
+| `tests/meeting/test_meeting_memory.py` | 验证跨场次长期记忆状态机、向量索引与事实溯源回写 | 25 |
 
 ```bash
-# 运行全套自动化测试套件
-python -m pytest tests/
+# 1. 运行全套自动化测试套件（支持 pytest 选项透传）
+pytest tests/
+python -m tests
 
-# 单独运行重构核心模块测试套件
-pytest tests/test_consensus_decision_refactor.py -v
-pytest tests/test_minutes_styles_refactor.py -v
-pytest tests/test_supervisor_optimization.py -v
-pytest tests/test_template_router.py -q
+# 2. 分层运行测试套件
+pytest tests/core/                         # 仅运行核心内核与模板层测试
+pytest tests/meeting/                      # 仅运行会议领域各任务线测试
+
+# 3. 单独运行特定任务线测试
+pytest tests/meeting/test_consensus_decision.py -v
+pytest tests/meeting/test_minutes_styles.py -v
+pytest tests/core/test_supervisor_optimization.py -v
 ```
 
 ---

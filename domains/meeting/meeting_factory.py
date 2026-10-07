@@ -1,6 +1,6 @@
 """Agent 工厂 —— 组装全部 Agent 依赖。
 
-统一创建核心 Agent（meeting_core）与全部任务线（tasks，当前 7 条）的组件，
+统一创建核心 Agent（meeting_core）与全部任务线（tasks，当前 8 条）的组件，
 供 MeetingAgentSystem（orchestrator.py）注入使用。
 """
 from __future__ import annotations

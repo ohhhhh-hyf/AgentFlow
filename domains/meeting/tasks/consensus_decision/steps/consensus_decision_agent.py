@@ -8,7 +8,7 @@ from ..prompts import CONSENSUS_DECISION_GENERATION_SYSTEM_PROMPT
 
 
 class ConsensusDecisionAgent(StructuredGenerationAgent):
-    """基于会议理解和会议原文提炼共识成色与因果决策推演草稿。"""
+    """基于会议理解和会议原文提炼共识决策草稿。"""
 
     system_prompt = CONSENSUS_DECISION_GENERATION_SYSTEM_PROMPT
     output_model = ConsensusDecision

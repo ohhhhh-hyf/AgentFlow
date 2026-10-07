@@ -67,7 +67,7 @@ class MeetingState(TypedDict, total=False):
     quality_degraded: Annotated[bool, _merge_degraded]
     # 可选：各任务线的输出模板（线名 → 模板文本；占位符 [描述] 将被填充）
     templates: dict[str, str]
-    # 可选：各任务线的组织参数（线名 → 如 minutes_styles 的 time/logic/causal/party/urgency）
+    # 可选：各任务线的组织参数（线名 → 如 minutes_styles 的 brief/topic/review/retro/alignment）
     line_modes: dict[str, str]
     # 可选：各任务线附加上下文（线名 → 如记忆注入）
     line_extra: dict[str, str]

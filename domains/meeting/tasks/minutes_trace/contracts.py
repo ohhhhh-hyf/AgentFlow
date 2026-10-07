@@ -4,10 +4,8 @@ from __future__ import annotations
 from core.schema.contracts import (
     Check,
     Decision,
-    EnumField,
     Feedback,
     GenerationContract,
-    ObjListField,
     StrField,
     SupervisorContract,
 )

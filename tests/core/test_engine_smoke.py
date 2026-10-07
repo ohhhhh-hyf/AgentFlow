@@ -32,7 +32,7 @@ def check(name: str, ok: bool, detail: str = "") -> None:
     FAIL.append(name if not detail else f"{name} :: {detail}")
 
 
-PROJECT_ROOT = Path(__file__).resolve().parents[1]
+PROJECT_ROOT = Path(__file__).resolve().parents[2]
 TEMPLATE = """# 通用纪要
 
 # [纪要正文]

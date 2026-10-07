@@ -368,3 +368,10 @@ def test_produce_line_brief_length_exemption() -> None:
 
     asyncio.run(_run())
 
+
+if __name__ == "__main__":
+    import sys
+    import pytest
+
+    sys.exit(pytest.main([__file__]))
+

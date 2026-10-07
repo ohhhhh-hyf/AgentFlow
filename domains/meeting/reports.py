@@ -99,7 +99,7 @@ class MindmapReport(ModelMixin, MindmapReportValidation):
 
 @dataclass
 class MultiStylesReport(ModelMixin, MultiStylesReportValidation):
-    """多样式纪要输出（时间线 / 逻辑总分 / 因果推导 / 主体责权 / 决策时效）。
+    """多样式纪要输出（极简速报 / 议题专报 / 深度研讨 / 敏捷复盘 / 战略对齐）。
 
     mode / title / summary / sections 取自草稿（draft.* 与 structure）；
     personalized_text 为渲染正文。
@@ -120,7 +120,7 @@ class MultiStylesReport(ModelMixin, MultiStylesReportValidation):
 
 @dataclass
 class ConsensusDecisionReport(ModelMixin, ConsensusDecisionReportValidation):
-    """共识成色与因果决策推演最终产出报告。"""
+    """共识决策最终产出报告。"""
 
     issues: list[dict[str, Any]] = field(
         default_factory=list,

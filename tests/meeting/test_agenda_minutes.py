@@ -35,7 +35,7 @@ from infra.exporters.html.agenda_minutes import (
     render_agenda_minutes_html,
 )
 
-PROJECT_ROOT = Path(__file__).resolve().parents[1]
+PROJECT_ROOT = Path(__file__).resolve().parents[2]
 AGENDA_DIR = (
     PROJECT_ROOT / "data" / "1" / "agenda"
     if (PROJECT_ROOT / "data" / "1" / "agenda").exists()
@@ -1727,5 +1727,12 @@ def test_zero_terminology_and_substantive_fail_safe() -> None:
     assert "### 何刚总致辞" in md_out
     assert "### 议题02" not in md_out
     assert "- **结论定调**：" not in md_out
+
+
+if __name__ == "__main__":
+    import sys
+    import pytest
+
+    sys.exit(pytest.main([__file__]))
 
 

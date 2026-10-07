@@ -262,3 +262,10 @@ def test_text_priority_over_raw_data_and_generic_cat_suppression():
     assert html_gen.count('class="ck-flow-item"') == 2
 
 
+if __name__ == "__main__":
+    import sys
+    import pytest
+
+    sys.exit(pytest.main([__file__]))
+
+

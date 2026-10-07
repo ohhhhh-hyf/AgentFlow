@@ -177,3 +177,10 @@ def test_trace_review_html_without_pins() -> None:
     html = trace_review_html(SAMPLE_NEW_MINUTES)
     assert "<title>会议溯源</title>" in html
 
+
+if __name__ == "__main__":
+    import sys
+    import pytest
+
+    sys.exit(pytest.main([__file__]))
+

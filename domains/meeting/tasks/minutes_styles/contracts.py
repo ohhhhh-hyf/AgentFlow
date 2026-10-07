@@ -1,8 +1,7 @@
 """minutes_styles contract definitions.
 
-「多样式纪要」任务线：同一场会议，按时间线 / 逻辑总分 / 因果推导 / 主体责权 / 决策时效
-五种组织模式分别成稿。契约采用统一的 sections 结构承载不同组织段落，
-模式由 mode 字段标明（time / logic / causal / party / urgency）。
+「多样式纪要」任务线：同一场会议，按 5 大黄金模式分别成稿（brief / topic / review / retro / alignment）。
+契约采用统一的 sections 结构承载不同组织段落。
 
 Required by tools/codegen/sync_domain.py:
 - class MultiStylesGenerationContract(GenerationContract)

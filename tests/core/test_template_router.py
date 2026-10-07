@@ -4377,7 +4377,7 @@ def test_general_minutes_gate_and_minutes_styles_html() -> None:
     from domains.meeting.hooks import HOOKS
     from pathlib import Path
 
-    tpl_path = Path(__file__).resolve().parents[1] / "resources" / "templates" / "general_minutes.md"
+    tpl_path = Path(__file__).resolve().parents[2] / "resources" / "templates" / "general_minutes.md"
     tpl = tpl_path.read_text(encoding="utf-8")
 
     good_text = (
