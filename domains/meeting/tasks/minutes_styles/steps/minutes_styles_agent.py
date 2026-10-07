@@ -8,27 +8,28 @@ from ....models import MultiStyles
 from ..contracts import MULTI_STYLES_GENERATION_OUTPUT_CONTRACT
 from ..prompts import (
     MULTI_STYLES_GENERATION_SYSTEM_PROMPT,
-    MODE_CAUSAL_RULES,
-    MODE_LOGIC_RULES,
-    MODE_PARTY_RULES,
-    MODE_TIME_RULES,
-    MODE_URGENCY_RULES,
+    MODE_ALIGNMENT_RULES,
+    MODE_BRIEF_RULES,
+    MODE_RETRO_RULES,
+    MODE_REVIEW_RULES,
+    MODE_TOPIC_RULES,
 )
 
 # 组织模式 → 对应规则块（运行时按模式选择，LLM 只执行当前模式规则）
 _MODE_RULES = {
-    "time": MODE_TIME_RULES,
-    "logic": MODE_LOGIC_RULES,
-    "causal": MODE_CAUSAL_RULES,
-    "party": MODE_PARTY_RULES,
-    "urgency": MODE_URGENCY_RULES,
+    "brief": MODE_BRIEF_RULES,
+    "topic": MODE_TOPIC_RULES,
+    "review": MODE_REVIEW_RULES,
+    "retro": MODE_RETRO_RULES,
+    "alignment": MODE_ALIGNMENT_RULES,
 }
 
 
 def _extract_mode(shared_context: str) -> str:
-    """从上下文读取「组织模式」行（time / logic / causal / party / urgency）。"""
+    """从上下文读取「组织模式」行（brief / topic / review / retro / alignment）。"""
     m = re.search(r"组织模式[:：]\s*([a-zA-Z]+)", shared_context or "")
-    return m.group(1).lower() if m else ""
+    mode = m.group(1).lower() if m else ""
+    return mode if mode in _MODE_RULES else "topic"
 
 
 class MultiStylesAgent:
@@ -39,7 +40,7 @@ class MultiStylesAgent:
 
     async def run(self, shared_context: str) -> MultiStyles:
         mode = _extract_mode(shared_context)
-        rules = _MODE_RULES.get(mode, MODE_LOGIC_RULES)  # 缺省逻辑顺序
+        rules = _MODE_RULES.get(mode, MODE_TOPIC_RULES)  # 缺省业务归类
         system = MULTI_STYLES_GENERATION_SYSTEM_PROMPT + "\n" + rules
         return await self.client.structured(
             system,
@@ -48,4 +49,3 @@ class MultiStylesAgent:
             MULTI_STYLES_GENERATION_OUTPUT_CONTRACT,
             label="minutes_styles/agent",
         )
-

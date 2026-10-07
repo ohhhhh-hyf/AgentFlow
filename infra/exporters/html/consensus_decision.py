@@ -1,8 +1,8 @@
-"""Consensus Spectrum & Causal Decision export module.
+"""Consensus Decision export module.
 
 Generates:
-1. Professional Markdown Report (McKinsey/Bain decision memo style)
-2. Interactive Dialectic Decision Spine HTML Report (reusing tools.exports.html.paper_css)
+1. Two-section, zero-emoji Markdown Report (Overview Table + Details)
+2. Clean Executive Memo HTML Report (Status Pills, Decision Cards)
 """
 from __future__ import annotations
 
@@ -12,12 +12,11 @@ from typing import Any
 
 from infra.exporters.html.paper_css import latex_paper_css as _latex_paper_css
 
-
 GRADE_MAP = {
     "hard_alignment": ("一致赞成", "一致赞成", "grade-hard", "dot-hard"),
-    "conditional_concession": ("附带前提同意", "附带前提同意", "grade-conditional", "dot-conditional"),
-    "unresolved_concern": ("保留意见", "保留意见", "grade-unresolved", "dot-unresolved"),
-    "active_disagreement": ("悬而未决分歧", "悬而未决分歧", "grade-disagreement", "dot-disagreement"),
+    "conditional_concession": ("附带前提", "附带前提", "grade-conditional", "dot-conditional"),
+    "unresolved_concern": ("争执未决", "争执未决", "grade-unresolved", "dot-unresolved"),
+    "active_disagreement": ("争执未决", "争执未决", "grade-disagreement", "dot-disagreement"),
 }
 
 ARCHETYPE_MAP = {
@@ -27,1158 +26,750 @@ ARCHETYPE_MAP = {
     "consensus": "讨论一致",
 }
 
+_EMOJI_RE = re.compile(
+    r"[\U00010000-\U0010ffff\u2600-\u26ff\u2700-\u27bf\ufe0f\u200d]|[\u2300-\u23ff]|[\u2b50\u2b55]"
+)
+
+
+def _remove_emoji(text: str) -> str:
+    """去除所有 emoji 符号。"""
+    if not text:
+        return ""
+    return _EMOJI_RE.sub("", text).strip()
+
 
 def _safe_str(val: Any) -> str:
     if val is None or val is False:
         return ""
-    return str(val).strip()
+    return _remove_emoji(str(val).strip())
 
 
-def _md_to_html_inline(text: str) -> str:
-    """把内联 Markdown 简单安全转为 HTML 标签（如 **加粗** 转 <strong>）。"""
+def _normalize_grade(raw_grade: str) -> tuple[str, str]:
+    """返回 (规范中文标签, css_suffix)。
+    成色严格限定为三类：一致赞成 / 附带前提 / 争执未决。
+    """
+    g = (raw_grade or "").strip().replace("[", "").replace("]", "").replace("`", "")
+    if any(k in g for k in ("一致", "hard", "赞成", "通过", "hard_alignment")):
+        return "一致赞成", "hard"
+    if any(k in g for k in ("附带", "前提", "条件", "conditional", "concession")):
+        return "附带前提", "conditional"
+    if any(k in g for k in ("争执", "未决", "分歧", "保留", "disagreement", "unresolved")):
+        return "争执未决", "disagreement"
+    return "一致赞成", "hard"
+
+
+def _single_sentence(text: str) -> str:
+    """提取单句核心陈述，去除首尾标点冗余与多余换行。"""
     if not text:
         return ""
-    escaped = escape(text, quote=False)
-    escaped = re.sub(r"\*\*(.+?)\*\*", r"<strong>\1</strong>", escaped)
-    escaped = re.sub(r"`(.+?)`", r"<code>\1</code>", escaped)
-    return escaped
+    s = re.sub(r"\s+", " ", text).strip()
+    return s
 
 
-def _get_speaker_initial(name_or_list: Any) -> str:
-    """提取参会人姓名缩写/姓氏用于中轴线头像圆点展示。"""
-    if isinstance(name_or_list, (list, tuple)):
-        names = [str(n).strip() for n in name_or_list if str(n).strip()]
-    else:
-        raw = str(name_or_list or "").strip()
-        names = [s.strip() for s in re.split(r"[、,，/]", raw) if s.strip()]
-
-    if not names:
-        return "论"
-
-    if len(names) == 1:
-        single = names[0]
-        if re.search(r"[\u4e00-\u9fff]", single):
-            return single[0]
-        return single[:2].upper()
-
-    initials = []
-    for n in names[:2]:
-        if re.search(r"[\u4e00-\u9fff]", n):
-            initials.append(n[0])
-        else:
-            initials.append(n[:1].upper())
-    return "·".join(initials)
+def _brief_accord(accord: str) -> str:
+    """提取表格中展示的极简动作定调（15-25字以内一句话讲清核心动作）。"""
+    if not accord:
+        return "按会议共识推进执行。"
+    s = _single_sentence(_remove_emoji(accord))
+    if len(s) <= 25:
+        return s
+    # 优先在常见断句标点处截取第一分句
+    parts = re.split(r"[，,；;。]", s)
+    first = parts[0].strip()
+    if 8 <= len(first) <= 25:
+        return first + "。" if not first.endswith("。") else first
+    if len(parts) > 1:
+        second = parts[1].strip()
+        combined = f"{first}，{second}"
+        if len(combined) <= 25:
+            return combined + "。" if not combined.endswith("。") else combined
+    # 兜底截断
+    return s[:22].rstrip("，,；;。") + "…"
 
 
-def parse_consensus_decision_markdown(md: str) -> dict[str, Any]:
-    """从 Markdown 文本容错解析出结构化草稿（确保在仅有 md 文本时依然能渲染出完整的脊柱流）。"""
-    summary: dict[str, Any] = {}
-    headline_m = re.search(r">\s*(?:🧭\s*)?【(?:执行健康度总评|执行评估|整体评估)】\s*\\?\n>\s*([^\n]+(?:\n>[^\n]+)*)", md)
-    if headline_m:
-        summary["health_headline"] = headline_m.group(1).replace("\n>", " ").strip()
-
-    issues: list[dict[str, Any]] = []
-    blocks = re.split(r"\n(?=###\s*议题\s*)", md)
-    for b in blocks[1:]:
-        lines = b.strip().splitlines()
-        first_line = lines[0]
-        m_head = re.search(r"###\s*议题\s*([A-Za-z0-9_-]+)\s*[·:]\s*(.+)", first_line)
-        issue_id = m_head.group(1).strip() if m_head else "ISS-XX"
-        topic = m_head.group(2).strip() if m_head else first_line.replace("###", "").strip()
-
-        trigger = ""
-        m_trig = re.search(r"-\s*\*\*议题起因(?:\s*\(Trigger\))?\*\*[：:]\s*([^\n]+)", b)
-        if m_trig:
-            trigger = m_trig.group(1).strip()
-
-        grade = "hard_alignment"
-        if any(k in b for k in ("附带前提同意", "带保留条件的妥协", "带保留妥协", "conditional_concession")):
-            grade = "conditional_concession"
-        elif any(k in b for k in ("保留意见", "未被采纳", "保留关切", "存在保留关切", "unresolved_concern")):
-            grade = "unresolved_concern"
-        elif any(k in b for k in ("悬而未决", "待决分歧", "active_disagreement")):
-            grade = "active_disagreement"
-        elif any(k in b for k in ("一致赞成", "充分坚实共识", "hard_alignment")):
-            grade = "hard_alignment"
-
-        archetype = "consensus"
-        if any(k in b for k in ("最终拍板", "权威定夺", "权威", "authority_fiat")):
-            archetype = "authority_fiat"
-        elif any(k in b for k in ("数据驱动", "数据/标准驱动", "标准驱动", "data_driven")):
-            archetype = "data_driven"
-        elif any(k in b for k in ("协同交换", "对等协同交换", "妥协交换", "quid_pro_quo")):
-            archetype = "quid_pro_quo"
-        elif any(k in b for k in ("讨论一致", "充分研讨共识", "consensus")):
-            archetype = "consensus"
-
-        # Pro side
-        pro_speakers: list[str] = []
-        pro_stance = ""
-        pro_args: list[str] = []
-        pro_quote = ""
-        m_pro = re.search(
-            r"-\s*\*\*(?:\[|【)?(?:主张方|主张/提案方|主张/汇报方|提案方)(?:\]|】)?\s*([^：:\*]+)\*\*[：:]\s*\n\s*-\s*\*\*核心立场\*\*[：:]\s*([^\n]+)",
-            b,
-        )
-        if m_pro:
-            pro_speakers = [s.strip() for s in m_pro.group(1).split("、") if s.strip()]
-            pro_stance = m_pro.group(2).strip()
-
-        m_pro_block = re.search(
-            r"(?:\[|【)?(?:主张方|主张/提案方|主张/汇报方|提案方)(?:\]|】)?[\s\S]*?(?=(?:\[|【)?(?:提出顾虑方|关切方|关切/质询方|关切/审议方|质询/关切方|质询方|审议方)(?:\]|】)?|####\s*2\.)",
-            b,
-        )
-        if m_pro_block:
-            pro_text = m_pro_block.group(0)
-            in_args = False
-            for line in pro_text.splitlines():
-                ls = line.strip()
-                m_arg = re.search(r"^[-*]\s*\*\*(?:主要论据|支撑论据|核心论据|论据)\*\*[：:]\s*(.+)", ls)
-                if m_arg:
-                    arg_val = m_arg.group(1).strip()
-                    if arg_val:
-                        pro_args.append(arg_val)
-                    continue
-                if any(k in ls for k in ("主要论据", "支撑论据", "核心论据", "论据")):
-                    in_args = True
-                    continue
-                if in_args and (ls.startswith("-") or ls.startswith("*")):
-                    if any(k in ls for k in ("原文引句", "核心立场")):
-                        in_args = False
-                    else:
-                        clean_arg = re.sub(r"^[-*]\s*", "", ls).strip()
-                        if clean_arg:
-                            pro_args.append(clean_arg)
-            m_pq = re.search(r"-\s*\*\*原文引句\*\*[：:]\s*[“\"]([^”\"]+)[”\"]", pro_text)
-            if m_pq:
-                pro_quote = m_pq.group(1).strip()
-
-        # Con side
-        con_speakers: list[str] = []
-        con_stance = ""
-        con_args: list[str] = []
-        con_quote = ""
-        m_con = re.search(
-            r"-\s*\*\*(?:\[|【)?(?:提出顾虑方|关切方|关切/质询方|关切/审议方|质询/关切方|质询方|审议方)(?:\]|】)?\s*([^：:\*]+)\*\*[：:]\s*\n\s*-\s*\*\*核心立场\*\*[：:]\s*([^\n]+)",
-            b,
-        )
-        if m_con:
-            con_speakers = [s.strip() for s in m_con.group(1).split("、") if s.strip()]
-            con_stance = m_con.group(2).strip()
-
-        m_con_block = re.search(
-            r"(?:\[|【)?(?:提出顾虑方|关切方|关切/质询方|关切/审议方|质询/关切方|质询方|审议方)(?:\]|】)?[\s\S]*?(?=####\s*2\.)",
-            b,
-        )
-        if m_con_block:
-            con_text = m_con_block.group(0)
-            in_args = False
-            for line in con_text.splitlines():
-                ls = line.strip()
-                m_carg = re.search(r"^[-*]\s*\*\*(?:顾虑|质疑理由|质询理由|主要论据|隐忧|核心关切|关切理由|确认要点|关切)\*\*[：:]\s*(.+)", ls)
-                if m_carg:
-                    carg_val = m_carg.group(1).strip()
-                    if carg_val:
-                        con_args.append(carg_val)
-                    continue
-                if any(k in ls for k in ("顾虑", "质疑理由", "质询理由", "主要论据", "隐忧", "核心关切", "关切理由", "确认要点", "关切")):
-                    in_args = True
-                    continue
-                if in_args and (ls.startswith("-") or ls.startswith("*")):
-                    if any(k in ls for k in ("原文引句", "核心立场")):
-                        in_args = False
-                    else:
-                        clean_arg = re.sub(r"^[-*]\s*", "", ls).strip()
-                        if clean_arg:
-                            con_args.append(clean_arg)
-            m_cq = re.search(r"-\s*\*\*原文引句\*\*[：:]\s*[“\"]([^”\"]+)[”\"]", con_text)
-            if m_cq:
-                con_quote = m_cq.group(1).strip()
-
-        # Accord
-        accord = ""
-        m_acc = re.search(
-            r"####\s*2\.\s*(?:达成决议|达成决议与共识结论|达成决议与共识公约|达成决议与破局公约|破局妥协公约|破局决议与终局公约|达成决议与终局公约|共识决议)\s*(?:\([^\)]+\))?[\s\S]*?>\s*([^\n]+(?:\n>[^\n]+)*)",
-            b,
-        )
-        if m_acc:
-            accord = m_acc.group(1).replace("\n>", " ").strip()
-
-        # Caveat
-        caveat = ""
-        m_cav = re.search(r"####\s*3\.\s*(?:⚠️\s*)?(?:附带前提与预警|附加保留条件与防范预警|附加前提与预警|附加条件|保留条件)\s*(?:\([^\)]+\))?[\s\S]*?>\s*([^\n]+(?:\n>[^\n]+)*)", b)
-        if m_cav:
-            caveat = m_cav.group(1).replace("\n>", " ").strip()
-            for prefix in ("**附带前提**：", "**保留前提与预警**：", "**前提与预警**："):
-                if caveat.startswith(prefix):
-                    caveat = caveat[len(prefix):].strip()
-
-        # Trade off
-        gain = ""
-        sacrifice = ""
-        m_gain = re.search(r"-\s*\*\*(?:▲\s*)?(?:获取的好处|换取的核心价值)(?:\s*\(Gain\))?\*\*[：:]\s*([^\n]+)", b)
-        m_sac = re.search(
-            r"-\s*\*\*(?:▼\s*)?(?:付出的代价|承受的主动代价|承受的主动代价与成本|承受的代价与承诺|付出的代价与成本)(?:\s*\(Sacrifice\))?\*\*[：:]\s*([^\n]+)",
-            b,
-        )
-        if m_gain:
-            gain = m_gain.group(1).strip()
-        if m_sac:
-            sacrifice = m_sac.group(1).strip()
-
-        # Rollback
-        rollback = ""
-        m_roll = re.search(
-            r"####\s*5\.\s*(?:底线|重议触发红线与复核机制|重议红线与复核机制|方案重议红线与复核机制|翻盘红线与复核机制|翻盘回滚红线)\s*(?:\([^\)]+\))?[\s\S]*?>\s*([^\n]+(?:\n>[^\n]+)*)",
-            b,
-        )
-        if m_roll:
-            rollback = m_roll.group(1).replace("\n>", " ").strip()
-
-        # Key quote
-        key_quote = ""
-        m_kq = re.search(r"-\s*\*\*(?:现场原话|现场关键发言|现场关键(?:定调|决策)?(?:原句|引句))\*\*[：:]\s*[“\"]([^”\"]+)[”\"]", b)
-        if m_kq:
-            key_quote = m_kq.group(1).strip()
-
-        issues.append({
-            "issue_id": issue_id,
-            "topic": topic,
-            "trigger": trigger,
-            "consensus_grade": grade,
-            "archetype": archetype,
-            "pro_side": {
-                "speakers": pro_speakers,
-                "stance": pro_stance,
-                "arguments": pro_args,
-                "quote": pro_quote,
-            },
-            "con_side": {
-                "speakers": con_speakers,
-                "stance": con_stance,
-                "arguments": con_args,
-                "quote": con_quote,
-            },
-            "accord": accord,
-            "caveat": caveat,
-            "trade_off": {
-                "gain": gain,
-                "sacrifice": sacrifice,
-            },
-            "rollback_trigger": rollback,
-            "key_quote": key_quote,
-        })
-    return {"summary": summary, "issues": issues}
-
-
-def format_consensus_decision_markdown(draft: dict[str, Any], title: str = "决策分析与共识报告") -> str:
-    """把结构化草稿格式化为通俗、清晰的决策概览与议题决定过程 Markdown 文档。"""
+def format_consensus_decision_markdown(draft: dict[str, Any], title: str = "共识决策") -> str:
+    """把结构化草稿格式化为两栏、零 emoji 的决策备忘录 Markdown。
+    表格中输出极简动作定调；第二栏决策细节严格按【背景 ➔ 讨论要点 ➔ 得失权衡 ➔ 最终决议】展开。
+    """
     issues = draft.get("issues") or []
-    summary = draft.get("summary") or {}
-    health_headline = _safe_str(summary.get("health_headline"))
 
-    total_issues = len(issues)
-    hard_count = sum(1 for it in issues if it.get("consensus_grade") == "hard_alignment")
-    conditional_count = sum(1 for it in issues if it.get("consensus_grade") == "conditional_concession")
-    unresolved_count = sum(1 for it in issues if it.get("consensus_grade") in ("unresolved_concern", "active_disagreement"))
+    display_title = _safe_str(title) or "共识决策"
+    if not any(display_title.endswith(s) for s in ("决策", "共识", "决议", "报告")):
+        display_title = f"{display_title} · 共识决策"
 
-    all_speakers: list[str] = []
-    for it in issues:
-        pro = it.get("pro_side") or {}
-        con = it.get("con_side") or {}
-        for spk in (pro.get("speakers") or []):
-            if spk and spk not in all_speakers:
-                all_speakers.append(spk)
-        for spk in (con.get("speakers") or []):
-            if spk and spk not in all_speakers:
-                all_speakers.append(spk)
+    md_lines: list[str] = [f"# {display_title}\n"]
 
-    speaker_text = "、".join(all_speakers) if all_speakers else "全体参会人员"
-
-    md_lines: list[str] = []
-    display_title = title if title else "决策分析与共识报告"
-    if not display_title.endswith("报告") and not display_title.endswith("推演") and not display_title.endswith("决议"):
-        display_title = f"{display_title} · 决策分析与共识报告"
-
-    md_lines.append(f"# {display_title}\n")
-    md_lines.append(f"> **研讨议题数**：{total_issues} 项关键决议 | **共识分布**：{hard_count} 项一致赞成 · {conditional_count} 项附带前提同意 · {unresolved_count} 项未决分歧  ")
-    md_lines.append(f"> **核心研讨成员**：{speaker_text}\n")
-    md_lines.append("---\n")
-
-    md_lines.append("## 第一部分：决策概览\n")
-    md_lines.append("| 统计指标 | 数量 | 实际情况 |")
+    # 第一栏：决策总览（首屏30秒速览看板）
+    md_lines.append("## 决策总览\n")
+    md_lines.append("| 议题 | 共识成色 | 最终决议 |")
     md_lines.append("| :--- | :---: | :--- |")
-    md_lines.append(f"| **深度研讨议题** | **{total_issues} 项** | 核心实质性议题 |")
-    md_lines.append(f"| **一致赞成** | **{hard_count} 项** | 各方充分认可，无附加条件 |")
-    md_lines.append(f"| **附带前提同意** | **{conditional_count} 项** | 表面达成一致，但附带前提或限制要求 |")
-    md_lines.append(f"| **悬而未决的待决分歧** | **{unresolved_count} 项** | 未达成一致，需后续跟进 |")
+
+    if not issues:
+        md_lines.append("| 本次会议暂无重大共识分歧或决策妥协 | [一致赞成] | 各项议题均按常规流程平稳推进 |")
+    else:
+        for it in issues:
+            topic = _safe_str(it.get("topic")) or "核心议题"
+            grade_key = _safe_str(it.get("consensus_grade"))
+            grade_label, _ = _normalize_grade(grade_key)
+            full_accord = _safe_str(it.get("accord")) or "按会议共识推进执行。"
+            short_accord = _brief_accord(full_accord)
+            md_lines.append(f"| **{topic}** | [{grade_label}] | {short_accord} |")
+
     md_lines.append("")
 
-    headline_text = health_headline if health_headline else ("本次会议共识整体收敛，执行风险可控。" if conditional_count == 0 else "需重点关注附带前提的议题，做好后续跟进。")
-    md_lines.append(f"> **【执行健康度总评】**  \n> {headline_text}\n")
-    md_lines.append("---\n")
-
-    md_lines.append("## 第二部分：议题决定过程\n")
-
+    # 第二栏：决策细节（严格按 背景 -> 讨论要点 -> 得失权衡 -> 最终决议 顺序压轴呈现）
+    md_lines.append("## 决策细节\n")
     if not issues:
         md_lines.append("本次会议未识别出重大分歧或妥协决议事项，各项议题均以常规流程平稳推进。\n")
         return "\n".join(md_lines)
 
     for idx, item in enumerate(issues, start=1):
-        issue_id = _safe_str(item.get("issue_id")) or f"ISS-{idx:02d}"
         topic = _safe_str(item.get("topic")) or f"议题 #{idx}"
-        trigger = _safe_str(item.get("trigger")) or "议题现状痛点研讨"
+        trigger = _safe_str(item.get("trigger")) or "议题现状痛点研讨与目标对齐。"
+        full_accord = _safe_str(item.get("accord")) or "按会议共识推进执行。"
 
-        grade_key = _safe_str(item.get("consensus_grade"))
-        grade_label = GRADE_MAP.get(grade_key, (grade_key or "一致赞成", "", "", ""))[0]
+        md_lines.append(f"### {idx}. {topic}")
 
-        archetype_key = _safe_str(item.get("archetype"))
-        archetype_label = ARCHETYPE_MAP.get(archetype_key, archetype_key or "讨论一致")
+        # 1. 决策背景
+        md_lines.append("- **决策背景**：")
+        md_lines.append(f"  - {_single_sentence(trigger)}")
 
-        md_lines.append(f"### 议题 {issue_id} · {topic}\n")
-        md_lines.append(f"- **议题起因**：{trigger}")
-        md_lines.append(f"- **共识分级**：`[{grade_label}]`")
-        md_lines.append(f"- **决定方式**：`[{archetype_label}]`\n")
-
-        # 各方观点
+        # 2. 讨论要点（弹性输出，多项独立成点）
+        key_quote = _safe_str(item.get("key_quote"))
         pro = item.get("pro_side") or {}
         con = item.get("con_side") or {}
-        pro_speakers = "、".join(pro.get("speakers") or []) or "主张方"
-        con_speakers = "、".join(con.get("speakers") or []) or "提出顾虑方"
-        pro_stance = _safe_str(pro.get("stance")) or "推进实施"
-        con_stance = _safe_str(con.get("stance")) or "审慎评估"
-        pro_quote = _safe_str(pro.get("quote"))
-        con_quote = _safe_str(con.get("quote"))
+        pro_stance = _safe_str(pro.get("stance"))
+        con_stance = _safe_str(con.get("stance"))
+        pro_speakers = "、".join(pro.get("speakers") or [])
+        con_speakers = "、".join(con.get("speakers") or [])
 
-        md_lines.append("#### 1. 各方观点与讨论")
-        md_lines.append(f"- **[主张/提案方] {pro_speakers}**：")
-        md_lines.append(f"  - **核心立场**：{pro_stance}")
-        for arg in (pro.get("arguments") or []):
-            if _safe_str(arg):
-                md_lines.append(f"  - **论据**：{arg}")
-        if pro_quote:
-            md_lines.append(f"  - **原文引句**：“{pro_quote}”")
+        disc_points: list[str] = []
+        if pro_stance:
+            p_label = f"{pro_speakers}主张{pro_stance}" if pro_speakers else f"主张推进：{pro_stance}"
+            disc_points.append(p_label)
+        if con_stance and con_stance != pro_stance:
+            c_label = f"{con_speakers}关注{con_stance}" if con_speakers else f"重点考量：{con_stance}"
+            disc_points.append(c_label)
+        if key_quote and not disc_points:
+            disc_points.append(f"现场定调：“{key_quote}”")
 
-        md_lines.append(f"- **[提出顾虑方] {con_speakers}**：")
-        md_lines.append(f"  - **核心立场**：{con_stance}")
-        for arg in (con.get("arguments") or []):
-            if _safe_str(arg):
-                md_lines.append(f"  - **顾虑**：{arg}")
-        if con_quote:
-            md_lines.append(f"  - **原文引句**：“{con_quote}”")
-        md_lines.append("")
+        if disc_points:
+            md_lines.append("- **讨论要点**：")
+            for pt in disc_points:
+                md_lines.append(f"  - {_single_sentence(pt)}")
 
-        # 达成决议与共识结论
-        accord = _safe_str(item.get("accord")) or "各方达成共识，按既定决议推进。"
-        md_lines.append("#### 2. 达成决议")
-        md_lines.append(f"> {accord}\n")
-
-        # 保留条件 Caveat
-        caveat = _safe_str(item.get("caveat"))
-        if caveat and caveat.lower() not in ("null", "none", "无", "无保留条件", "无附加保留条件", "无附加前提", "无附加前提条件"):
-            md_lines.append("#### 3. 附带前提与预警")
-            md_lines.append(f"> **附带前提**：{caveat}\n")
-        else:
-            md_lines.append("#### 3. 附带前提与预警")
-            md_lines.append("> 无附加前提，各方一致赞成。\n")
-
-        # 权衡取舍与成本代价
+        # 3. 得失权衡（弹性输出，收益与代价独立成点）
         tradeoff = item.get("trade_off") or {}
-        gain = _safe_str(tradeoff.get("gain")) or "换取业务推进确定性与执行节奏"
-        sacrifice = _safe_str(tradeoff.get("sacrifice")) or "承担部分灵活性损失或过渡成本"
+        gain = _safe_str(tradeoff.get("gain"))
+        sacrifice = _safe_str(tradeoff.get("sacrifice"))
         gain = re.sub(r"^[▲▼\s\-\:：]+", "", gain).strip()
         sacrifice = re.sub(r"^[▲▼\s\-\:：]+", "", sacrifice).strip()
-        md_lines.append("#### 4. 权衡取舍")
-        md_lines.append(f"- **获取的好处**：{gain}")
-        md_lines.append(f"- **付出的代价**：{sacrifice}\n")
 
-        # 重议触发红线与复核机制
-        rollback = _safe_str(item.get("rollback_trigger")) or "无明确底线，按里程碑复核推进。"
-        md_lines.append("#### 5. 底线")
-        md_lines.append(f"> {rollback}\n")
+        trade_points: list[str] = []
+        if gain and "无" not in gain:
+            trade_points.append(f"收益：{_single_sentence(gain)}")
+        if sacrifice and "无" not in sacrifice:
+            trade_points.append(f"代价：{_single_sentence(sacrifice)}")
 
-        # 关键引句
-        key_quote = _safe_str(item.get("key_quote"))
-        if key_quote:
-            md_lines.append(f"- **现场原话**：“{key_quote}”\n")
+        if trade_points:
+            md_lines.append("- **得失权衡**：")
+            for pt in trade_points:
+                md_lines.append(f"  - {pt}")
 
-        md_lines.append("---\n")
+        # 4. 最终决议（压轴呈现完整落地决议）
+        md_lines.append("- **最终决议**：")
+        md_lines.append(f"  - {_single_sentence(full_accord)}")
 
-    return "\n".join(md_lines)
+        md_lines.append("")
+
+    return "\n".join(md_lines).strip() + "\n"
+
+
+def _match_group_heading(line: str) -> tuple[str | None, str]:
+    """识别行是否为四组之一的标题行，返回 (组名, 行内剩余文本)。
+    支持 - **决策背景**：、决策背景：、**决策背景**：、#### 决策背景、- 决策背景： 等全部自然产出形态。
+    """
+    clean = line.strip()
+    # 先剥离行首的 Markdown 标记：如 -、*、#、数字序号
+    core = re.sub(r"^[-*•#\s\d\.\(\)（）]+", "", clean).strip()
+    # 剥除可能包裹的加粗或括号，如 **决策背景** 或 【决策背景】
+    core = re.sub(r"^[\*\[【]+", "", core).strip()
+
+    group_keywords = [
+        ("决策背景", "background"),
+        ("讨论要点", "discussion"),
+        ("研讨要点", "discussion"),
+        ("得失权衡", "tradeoff"),
+        ("权衡取舍", "tradeoff"),
+        ("最终决议", "accord"),
+    ]
+    for key, group_name in group_keywords:
+        if core.startswith(key):
+            rest = core[len(key):].strip()
+            # 剥除可能残留的收尾符号，如 **、】、]、：、:
+            rest = re.sub(r"^[\*\]】]+", "", rest).strip()
+            rest = re.sub(r"^[：:\s]+", "", rest).strip()
+            return group_name, rest
+    return None, ""
+
+
+def parse_consensus_decision_markdown(md: str) -> dict[str, Any]:
+    """从 Markdown 文本解析出决策总览与决策细节结构化数据。
+    同时支持子列表（  - ）、单行内联、未加粗文本小标题以及历史格式。
+    """
+    cleaned_md = _remove_emoji(md)
+    lines = cleaned_md.splitlines()
+
+    title = "共识决策"
+    for line in lines:
+        m_title = re.match(r"^#\s+(.+)$", line)
+        if m_title:
+            title = m_title.group(1).strip()
+            break
+
+    # 解析表格（决策总览）
+    overview_items: list[dict[str, str]] = []
+    in_table = False
+    for line in lines:
+        s = line.strip()
+        if not s:
+            continue
+        if s.startswith("|") and s.endswith("|"):
+            parts = [p.strip() for p in s[1:-1].split("|")]
+            if len(parts) >= 3:
+                col0, col1, col2 = parts[0], parts[1], parts[2]
+                if "议题" in col0 or "---" in col0 or ":---" in col0:
+                    in_table = True
+                    continue
+                if in_table:
+                    clean_topic = re.sub(r"^\*+|\*+$", "", col0).strip()
+                    clean_grade, _ = _normalize_grade(col1)
+                    clean_brief_accord = col2.strip()
+                    overview_items.append({
+                        "topic": clean_topic,
+                        "grade": clean_grade,
+                        "brief_accord": clean_brief_accord,
+                    })
+        elif in_table and not s.startswith("|"):
+            in_table = False
+
+    # 解析细节条目（决策细节）
+    issues: list[dict[str, Any]] = []
+    detail_blocks = re.split(r"\n(?=###\s+)", cleaned_md)
+
+    for block in detail_blocks:
+        b_lines = block.strip().splitlines()
+        if not b_lines or not b_lines[0].startswith("###"):
+            continue
+        first_line = b_lines[0].replace("###", "").strip()
+        # 去除序号：1. 网关架构自研 -> 网关架构自研
+        topic_match = re.search(r"^(?:ISS-\d+\s*[·:]\s*|\d+[.、]\s*)(.+)$", first_line)
+        topic_name = topic_match.group(1).strip() if topic_match else first_line
+
+        bg_items: list[str] = []
+        disc_items: list[str] = []
+        trade_items: list[str] = []
+        accord_items: list[str] = []
+        cur_group: str | None = None
+
+        for b_line in b_lines[1:]:
+            bl = b_line.strip()
+            if not bl:
+                continue
+
+            # 组头识别（兼容加粗、未加粗、列表符、标题符等多种自然变体）
+            group_name, inline_text = _match_group_heading(bl)
+            if group_name is not None:
+                cur_group = group_name
+                if inline_text:
+                    if cur_group == "background":
+                        bg_items.append(inline_text)
+                    elif cur_group == "discussion":
+                        disc_items.append(inline_text)
+                    elif cur_group == "tradeoff":
+                        trade_items.append(inline_text)
+                    elif cur_group == "accord":
+                        accord_items.append(inline_text)
+                continue
+
+            # 子列表或正文行捕获
+            m_sub = re.search(r"^[-*•]\s+(.*)$", bl)
+            sub_content = m_sub.group(1).strip() if m_sub else bl
+
+            if cur_group == "background":
+                bg_items.append(sub_content)
+            elif cur_group == "discussion":
+                disc_items.append(sub_content)
+            elif cur_group == "tradeoff":
+                trade_items.append(sub_content)
+            elif cur_group == "accord":
+                accord_items.append(sub_content)
+
+        # 匹配对应总览中的成色与极简决议
+        matched_grade = "一致赞成"
+        brief_accord = ""
+        for ov in overview_items:
+            if ov["topic"] in topic_name or topic_name in ov["topic"]:
+                matched_grade = ov["grade"]
+                brief_accord = ov.get("brief_accord", "")
+                break
+
+        full_accord = " ".join(accord_items).strip() if accord_items else brief_accord
+
+        issues.append({
+            "topic": topic_name,
+            "grade": matched_grade,
+            "brief_accord": brief_accord,
+            "accord": full_accord,
+            "accord_items": accord_items,
+            "background_items": bg_items,
+            "background": " ".join(bg_items).strip(),
+            "tradeoff_items": trade_items,
+            "tradeoff": "；".join(trade_items).strip(),
+            "discussion_items": disc_items,
+            "discussion": "；".join(disc_items).strip(),
+        })
+
+    # 若未成功切分出细节块，但有总览表格，按总览表格兜底生成基础细节
+    if not issues and overview_items:
+        for ov in overview_items:
+            issues.append({
+                "topic": ov["topic"],
+                "grade": ov["grade"],
+                "brief_accord": ov.get("brief_accord", ""),
+                "accord": ov.get("brief_accord", ""),
+                "accord_items": [ov.get("brief_accord", "")],
+                "background_items": [],
+                "background": "",
+                "tradeoff_items": [],
+                "tradeoff": "",
+                "discussion_items": [],
+                "discussion": "",
+            })
+
+    return {
+        "title": title,
+        "overview": overview_items,
+        "issues": issues,
+    }
 
 
 def _custom_decision_css() -> str:
-    """辩证因果脊柱流（The Dialectic Decision Spine）专属排版样式，极简学术高级感。"""
+    """企业级高管决策备忘录排版样式（极简现代、专业内敛、自适应）。"""
     return """
-    html {
-      scroll-behavior: smooth;
+    /* ── 共识决策现代高管备忘录排版 ── */
+    .cd-section-title {
+      font-size: 1.15rem;
+      font-weight: 700;
+      color: #0f172a;
+      margin: 28px 0 14px;
+      padding-bottom: 8px;
+      border-bottom: 1.5px solid #e2e8f0;
+    }
+    .cd-table-wrap {
+      width: 100%;
+      overflow-x: auto;
+      margin-bottom: 28px;
+      border: 1px solid #e2e8f0;
+      border-radius: 8px;
+      background: #ffffff;
+      box-shadow: 0 1px 2px rgba(0, 0, 0, 0.02);
+    }
+    .cd-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 14px;
+      line-height: 1.6;
+    }
+    .cd-table th {
+      background: #f8fafc;
+      color: #334155;
+      font-weight: 600;
+      text-align: left;
+      padding: 12px 16px;
+      border-bottom: 1px solid #e2e8f0;
+    }
+    .cd-table td {
+      padding: 12px 16px;
+      border-bottom: 1px solid #f1f5f9;
+      vertical-align: middle;
+      color: #1e293b;
+    }
+    .cd-table tr:last-child td {
+      border-bottom: none;
+    }
+    .cd-table tr:hover td {
+      background: #f8fafc;
     }
 
-    /* ── 全局共识罗盘与健康度 ── */
-    .executive-compass {
-      background: #ffffff;
-      border: 1px solid #e4e4e7;
-      border-radius: 4px;
-      padding: 24px 28px;
-      margin: 20px 0 32px;
-      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.02);
-    }
-    .compass-score-deck {
-      display: grid;
-      grid-template-columns: repeat(4, 1fr);
-      gap: 20px;
-      padding-bottom: 20px;
-      border-bottom: 1px solid #f4f4f5;
-    }
-    @media (max-width: 700px) {
-      .compass-score-deck {
-        grid-template-columns: repeat(2, 1fr);
-      }
-    }
-    .score-card {
-      display: flex;
-      flex-direction: column;
-    }
-    .score-num {
-      font-size: 2rem;
-      font-weight: 700;
-      font-family: "Latin Modern Roman", Georgia, serif;
-      line-height: 1;
-      color: #18181b;
-    }
-    .score-card.score-hard .score-num { color: #18181b; }
-    .score-card.score-conditional .score-num { color: #27272a; }
-    .score-card.score-unresolved .score-num { color: #3f3f46; }
-    .score-label {
-      font-size: 0.72rem;
-      color: #71717a;
-      margin-top: 6px;
-      letter-spacing: 0.5px;
-      text-transform: uppercase;
-    }
-    .compass-nav-rail {
-      display: flex;
-      flex-wrap: wrap;
-      align-items: center;
-      gap: 8px;
-      padding: 14px 0;
-      border-bottom: 1px solid #f4f4f5;
-    }
-    .nav-rail-title {
-      font-size: 0.75rem;
-      font-weight: 700;
-      color: #71717a;
-      letter-spacing: 0.4px;
-      margin-right: 4px;
-    }
-    .nav-rail-item {
+    /* 状态微胶囊 (Status Pills) - 零 Emoji，内敛专业 */
+    .cd-pill {
       display: inline-flex;
       align-items: center;
       gap: 6px;
-      padding: 4px 10px;
-      background: #fafafa;
-      border: 1px solid #e4e4e7;
-      border-radius: 3px;
-      font-size: 0.76rem;
-      color: #27272a;
-      text-decoration: none;
-      transition: all 0.15s ease;
-    }
-    .nav-rail-item:hover {
-      background: #f4f4f5;
-      border-color: #18181b;
-      color: #18181b;
-    }
-    .compass-diagnosis {
-      margin-top: 14px;
-      font-size: 0.88rem;
-      color: #3f3f46;
-      line-height: 1.65;
-    }
-    .compass-diagnosis strong {
-      color: #18181b;
-    }
-
-    /* ── 辩证因果脊柱流 (The Dialectic Decision Stream) ── */
-    .stream-section {
-      position: relative;
-      margin: 40px 0 54px;
-      padding-bottom: 24px;
-      border-bottom: 1px solid #e4e4e7;
-    }
-    .stream-section:last-child {
-      border-bottom: none;
-    }
-    .stream-header {
-      display: flex;
-      align-items: flex-start;
-      gap: 16px;
-      margin-bottom: 24px;
-      padding-bottom: 12px;
-      border-bottom: 1.5px solid #18181b;
-    }
-    .stream-seq {
-      font-family: "Latin Modern Roman", Georgia, serif;
-      font-size: 2rem;
-      font-weight: 700;
-      line-height: 1;
-      color: #18181b;
-      opacity: 0.85;
-      min-width: 36px;
-    }
-    .stream-header-info {
-      flex: 1;
-    }
-    .stream-meta-line {
-      display: flex;
-      flex-wrap: wrap;
-      align-items: center;
-      gap: 8px;
-      margin-bottom: 6px;
-    }
-    .stream-id {
-      font-size: 0.72rem;
-      font-weight: 700;
-      letter-spacing: 0.5px;
-      color: #71717a;
-      font-family: "Latin Modern Mono", Consolas, monospace;
-    }
-    .stream-topic {
-      margin: 0;
-      font-size: 1.28rem;
-      font-weight: 700;
-      color: #18181b;
-      line-height: 1.35;
-      letter-spacing: 0.2px;
-    }
-
-    /* 状态徽章 */
-    .badge-capsule {
-      display: inline-flex;
-      align-items: center;
-      gap: 5px;
-      font-size: 0.72rem;
+      padding: 3px 10px;
+      border-radius: 9999px;
+      font-size: 12px;
       font-weight: 600;
-      padding: 2px 8px;
-      border-radius: 3px;
-      border: 1px solid transparent;
-      letter-spacing: 0.2px;
+      line-height: 1.4;
+      white-space: nowrap;
     }
-    .badge-dot {
+    .cd-pill-dot {
       width: 6px;
       height: 6px;
       border-radius: 50%;
-      display: inline-block;
+      flex-shrink: 0;
     }
-    .grade-hard { background: #f4f4f5; color: #18181b; border-color: #e4e4e7; }
-    .dot-hard { background: #18181b; }
-    .grade-conditional { background: #fafaf9; color: #44403c; border-color: #e7e5e4; }
-    .dot-conditional { background: #78716c; }
-    .grade-unresolved { background: #f8fafc; color: #334155; border-color: #cbd5e1; }
-    .dot-unresolved { background: #64748b; }
-    .grade-disagreement { background: #f4f4f5; color: #09090b; border-color: #a1a1aa; }
-    .dot-disagreement { background: #09090b; }
-    .badge-archetype { background: #fafafa; color: #52525b; border-color: #e4e4e7; }
+    /* 一致赞成：深绿沉稳胶囊 */
+    .cd-pill-hard {
+      background: #ecfdf5;
+      color: #065f46;
+      border: 1px solid #a7f3d0;
+    }
+    .cd-pill-hard .cd-pill-dot {
+      background: #10b981;
+    }
+    /* 附带前提：暖琥珀胶囊 */
+    .cd-pill-conditional {
+      background: #fffbeb;
+      color: #92400e;
+      border: 1px solid #fde68a;
+    }
+    .cd-pill-conditional .cd-pill-dot {
+      background: #f59e0b;
+    }
+    /* 争执未决：玫瑰砖红胶囊 */
+    .cd-pill-disagreement {
+      background: #fff1f2;
+      color: #9f1239;
+      border: 1px solid #fecdd3;
+    }
+    .cd-pill-disagreement .cd-pill-dot {
+      background: #f43f5e;
+    }
 
-    /* ── 中轴脊柱线与节点 ── */
-    .stream-spine {
-      position: relative;
-      padding-left: 52px;
-      margin-top: 18px;
+    /* ── 逐项决策细节卡片 ── */
+    .cd-details-wrap {
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+      margin-bottom: 32px;
     }
-    /* 纵贯中轴线 */
-    .stream-spine::before {
-      content: "";
-      position: absolute;
-      top: 14px;
-      bottom: 24px;
-      left: 18px;
-      width: 2px;
-      background: #e4e4e7;
+    .cd-card {
+      border: 1px solid #e2e8f0;
+      border-radius: 8px;
+      background: #ffffff;
+      padding: 18px 20px;
+      box-shadow: 0 1px 2px rgba(0, 0, 0, 0.03);
+      transition: border-color 0.15s ease;
     }
-
-    .spine-node {
-      position: relative;
-      margin-bottom: 24px;
+    .cd-card:hover {
+      border-color: #cbd5e1;
     }
-    .spine-node:last-child {
+    .cd-card-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 14px;
+      padding-bottom: 10px;
+      border-bottom: 1px solid #f1f5f9;
+    }
+    .cd-card-title-wrap {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .cd-card-num {
+      font-size: 13px;
+      font-weight: 700;
+      color: #64748b;
+      background: #f1f5f9;
+      padding: 2px 8px;
+      border-radius: 4px;
+    }
+    .cd-card-title {
+      font-size: 15px;
+      font-weight: 700;
+      color: #0f172a;
+    }
+    .cd-card-body {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+    .cd-row {
+      display: flex;
+      font-size: 14px;
+      line-height: 1.6;
+    }
+    .cd-label {
+      font-weight: 600;
+      color: #475569;
+      flex-shrink: 0;
+      width: 84px;
+    }
+    .cd-val {
+      color: #1e293b;
+      flex: 1;
+    }
+    .cd-val-list {
+      flex: 1;
+    }
+    .cd-val-list ul {
+      margin: 0;
+      padding-left: 18px;
+      list-style-type: disc;
+    }
+    .cd-val-list li {
+      margin-bottom: 4px;
+      line-height: 1.5;
+      color: #1e293b;
+    }
+    .cd-val-list li:last-child {
       margin-bottom: 0;
     }
-
-    /* 竖线上的锚点圆圈 / 徽章 */
-    .spine-marker {
-      position: absolute;
-      left: -52px;
-      top: 2px;
-      width: 38px;
-      height: 38px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      z-index: 2;
+    /* 最终决议压轴高亮卡槽 */
+    .cd-row-accord {
+      background: #f8fafc;
+      padding: 10px 14px;
+      border-radius: 6px;
+      border-left: 3px solid #3b82f6;
+      margin-top: 4px;
     }
-
-    /* 节点 1：议题源起圆点 */
-    .marker-origin-dot {
-      width: 12px;
-      height: 12px;
-      border-radius: 50%;
-      background: #ffffff;
-      border: 2.5px solid #18181b;
-      box-shadow: 0 0 0 3px #ffffff;
-    }
-    .origin-card {
-      background: #fafaf9;
-      border-left: 3px solid #18181b;
-      padding: 10px 16px;
-      border-radius: 2px;
-    }
-    .origin-eyebrow {
-      font-size: 0.72rem;
+    .cd-row-accord .cd-label {
+      color: #1d4ed8;
       font-weight: 700;
-      color: #18181b;
-      text-transform: uppercase;
-      letter-spacing: 0.5px;
-      margin-bottom: 3px;
     }
-    .origin-narrative {
-      font-size: 0.86rem;
-      color: #3f3f46;
-      line-height: 1.6;
-    }
-
-    /* 节点 2 & 3：发言人观点圆点与卡片 */
-    .speaker-avatar-circle {
-      width: 30px;
-      height: 30px;
-      border-radius: 50%;
-      background: #ffffff;
-      border: 1.5px solid #18181b;
-      color: #18181b;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-size: 0.8rem;
-      font-weight: 700;
-      font-family: "Songti SC", "SimSun", serif;
-      box-shadow: 0 0 0 3px #ffffff;
-    }
-    .speaker-avatar-circle.avatar-con {
-      border-color: #71717a;
-      color: #52525b;
-    }
-    .stance-card {
-      background: #ffffff;
-      border: 1px solid #e4e4e7;
-      border-radius: 3px;
-      padding: 14px 18px;
-    }
-    .node-pro .stance-card {
-      border-left: 3px solid #18181b;
-    }
-    .node-con .stance-card {
-      border-left: 3px solid #71717a;
-    }
-    .stance-card-header {
-      display: flex;
-      align-items: baseline;
-      justify-content: space-between;
-      flex-wrap: wrap;
-      gap: 8px;
-      margin-bottom: 8px;
-    }
-    .speaker-title-wrap {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-    }
-    .speaker-name-strong {
-      font-size: 0.95rem;
-      font-weight: 700;
-      color: #18181b;
-    }
-    .stance-role-tag {
-      font-size: 0.70rem;
-      padding: 1px 6px;
-      border-radius: 2px;
-      font-weight: 600;
-    }
-    .role-pro { background: #f4f4f5; color: #18181b; border: 1px solid #e4e4e7; }
-    .role-con { background: #fafafa; color: #52525b; border: 1px solid #e4e4e7; }
-    .stance-thesis {
-      font-size: 0.88rem;
-      font-weight: 600;
-      color: #18181b;
-      line-height: 1.55;
-      margin-bottom: 6px;
-    }
-    .argument-trail {
-      margin: 6px 0 8px;
-      padding-left: 18px;
-      font-size: 0.84rem;
-      color: #3f3f46;
-      line-height: 1.6;
-    }
-    .argument-trail li {
-      margin-bottom: 4px;
-    }
-    .verbatim-pullquote {
-      position: relative;
-      background: #fafaf9;
-      border-left: 2px solid #a1a1aa;
-      padding: 8px 12px;
-      margin-top: 8px;
-      font-size: 0.81rem;
-      color: #52525b;
-      font-style: italic;
-      line-height: 1.55;
-      border-radius: 0 2px 2px 0;
-    }
-
-    /* 节点 4：最终解决破局公约 (Convergence Hub) */
-    .marker-seal-circle {
-      width: 30px;
-      height: 30px;
-      border-radius: 50%;
-      background: #18181b;
-      border: 1.5px solid #18181b;
-      color: #ffffff;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-size: 0.78rem;
-      font-weight: 700;
-      letter-spacing: 0.5px;
-      box-shadow: 0 0 0 3px #ffffff;
-    }
-    .accord-resolution-dossier {
-      background: #fafaf9;
-      border: 1px solid #e4e4e7;
-      border-left: 3.5px solid #18181b;
-      border-radius: 3px;
-      padding: 16px 20px;
-    }
-    .accord-top-eyebrow {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      flex-wrap: wrap;
-      gap: 8px;
-      margin-bottom: 8px;
-      padding-bottom: 6px;
-      border-bottom: 1px solid #e4e4e7;
-    }
-    .accord-label-headline {
-      font-size: 0.76rem;
-      font-weight: 700;
-      color: #18181b;
-      letter-spacing: 0.5px;
-      text-transform: uppercase;
-    }
-    .accord-archetype-tag {
-      font-size: 0.72rem;
-      color: #71717a;
-      font-style: italic;
-    }
-    .accord-core-text {
-      font-size: 0.90rem;
-      color: #18181b;
-      line-height: 1.68;
+    .cd-row-accord .cd-val {
       font-weight: 500;
+      color: #0f172a;
     }
-    .ruling-quote-ribbon {
-      margin-top: 10px;
-      padding: 8px 12px;
-      background: #ffffff;
-      border: 1px solid #e4e4e7;
-      border-left: 2.5px solid #18181b;
-      font-size: 0.81rem;
-      color: #3f3f46;
-      line-height: 1.5;
-    }
-    .ruling-tag {
-      font-weight: 700;
-      color: #18181b;
-      margin-right: 6px;
-    }
-
-    /* 节点 5：防线、天平与红线 */
-    .marker-terminal-anchor {
-      width: 10px;
-      height: 10px;
-      background: #71717a;
-      border-radius: 2px;
-      box-shadow: 0 0 0 3px #ffffff, 0 0 0 4px #e4e4e7;
-    }
-    .safeguards-container {
-      background: #ffffff;
-      border: 1px solid #e4e4e7;
-      border-radius: 3px;
-      padding: 14px 18px;
-    }
-
-    /* 保留条件 */
-    .caveat-warning-strip {
-      background: #fafaf9;
-      border: 1px solid #e7e5e4;
-      border-left: 3px solid #78716c;
-      border-radius: 2px;
-      padding: 8px 12px;
-      margin-bottom: 12px;
-      font-size: 0.83rem;
-      color: #292524;
-      line-height: 1.55;
-    }
-    .caveat-warning-strip strong {
-      color: #1c1917;
-    }
-    .caveat-clean-strip {
-      background: #fafaf9;
-      border: 1px solid #e7e5e4;
-      border-radius: 2px;
-      padding: 6px 12px;
-      margin-bottom: 12px;
-      font-size: 0.81rem;
-      color: #52525b;
-    }
-
-    /* 得失天平双拼卡 */
-    .balance-scale-grid {
-      display: grid;
-      grid-template-columns: 1fr auto 1fr;
-      gap: 12px;
-      align-items: stretch;
-      margin: 10px 0;
-    }
-    @media (max-width: 650px) {
-      .balance-scale-grid {
-        grid-template-columns: 1fr;
+    @media (max-width: 640px) {
+      .cd-row {
+        flex-direction: column;
+        gap: 2px;
       }
-      .scale-pivot-cell {
-        display: none;
+      .cd-label {
+        width: auto;
       }
-    }
-    .scale-card-gain {
-      background: #fafaf9;
-      border: 1px solid #e4e4e7;
-      border-top: 2px solid #18181b;
-      border-radius: 2px;
-      padding: 10px 14px;
-    }
-    .scale-card-sacrifice {
-      background: #fafaf9;
-      border: 1px solid #e4e4e7;
-      border-top: 2px solid #71717a;
-      border-radius: 2px;
-      padding: 10px 14px;
-    }
-    .scale-pivot-cell {
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-size: 0.78rem;
-      font-family: "Latin Modern Roman", Georgia, serif;
-      font-style: italic;
-      color: #a1a1aa;
-      padding: 0 4px;
-    }
-    .scale-head-label {
-      font-size: 0.72rem;
-      font-weight: 700;
-      letter-spacing: 0.4px;
-      margin-bottom: 4px;
-      text-transform: uppercase;
-    }
-    .scale-card-gain .scale-head-label { color: #18181b; }
-    .scale-card-sacrifice .scale-head-label { color: #52525b; }
-    .scale-body-text {
-      font-size: 0.83rem;
-      color: #3f3f46;
-      line-height: 1.55;
-    }
-
-    /* 翻盘红线 */
-    .rollback-tripwire-bar {
-      margin-top: 10px;
-      padding: 8px 12px;
-      background: #fafaf9;
-      border: 1px solid #e4e4e7;
-      border-left: 2.5px solid #52525b;
-      border-radius: 2px;
-      font-size: 0.81rem;
-      color: #3f3f46;
-      line-height: 1.5;
-    }
-    .tripwire-label {
-      font-weight: 700;
-      color: #18181b;
-      margin-right: 6px;
     }
     """
 
 
-def render_consensus_decision_html(title: str, text: str, data: dict | None = None) -> str:
-    """渲染共识成色与因果决策推演为中轴脊柱流（The Dialectic Decision Spine）沉浸式学术页面。"""
-    draft = data if (isinstance(data, dict) and ("issues" in data or "summary" in data)) else {}
-    if not draft and isinstance(data, dict):
-        draft = data.get("draft") or {}
-    if not draft and text:
-        draft = parse_consensus_decision_markdown(text)
+def render_consensus_decision_html(
+    title: str,
+    text: str,
+    data: dict[str, Any] | None = None,
+) -> str:
+    """渲染共识决策为现代高管备忘录 HTML（两栏结构、状态微胶囊、自适应卡片、决议压轴）。"""
+    parsed = parse_consensus_decision_markdown(text) if (text and text.strip()) else {}
+    doc_title = _safe_str(title) or parsed.get("title") or "共识决策"
+    if not any(doc_title.endswith(s) for s in ("决策", "共识", "决议", "报告")):
+        doc_title = f"{doc_title} · 共识决策"
 
-    issues = draft.get("issues") or []
-    summary = draft.get("summary") or {}
-    health_headline = _safe_str(summary.get("health_headline"))
+    issues = parsed.get("issues") or []
 
-    total_issues = len(issues)
-    hard_count = sum(1 for it in issues if it.get("consensus_grade") == "hard_alignment")
-    conditional_count = sum(1 for it in issues if it.get("consensus_grade") == "conditional_concession")
-    unresolved_count = sum(1 for it in issues if it.get("consensus_grade") in ("unresolved_concern", "active_disagreement"))
+    # 兜底：若解析无议题但 data 存在 draft/issues
+    if not issues and data:
+        draft = data.get("draft") or data
+        raw_issues = draft.get("issues") or []
+        for it in raw_issues:
+            grade_key = _safe_str(it.get("consensus_grade"))
+            grade_label, _ = _normalize_grade(grade_key)
+            trigger = _safe_str(it.get("trigger"))
+            full_accord = _safe_str(it.get("accord"))
+            brief_accord = _brief_accord(full_accord)
 
-    display_title = title if title else "共识分析与决策推演报告"
-    doc_title = escape(display_title, quote=False)
+            tradeoff = it.get("trade_off") or {}
+            gain = _safe_str(tradeoff.get("gain"))
+            sacrifice = _safe_str(tradeoff.get("sacrifice"))
+            td_items: list[str] = []
+            if gain and "无" not in gain:
+                td_items.append(f"收益：{gain}")
+            if sacrifice and "无" not in sacrifice:
+                td_items.append(f"代价：{sacrifice}")
 
-    headline_text = health_headline if health_headline else ("本次会议共识整体收敛，执行意志明确，各项议题均形成阶段性决议。" if conditional_count == 0 else "本次会议存在关键妥协项带有明确免责前提，需重点监控后续兑现与重议风险。")
+            disc_items: list[str] = []
+            quote = _safe_str(it.get("key_quote"))
+            if quote:
+                disc_items.append(f"现场定调：“{quote}”")
 
-    # 顶部快速导航导轨
-    nav_items_html = []
-    for idx, it in enumerate(issues, start=1):
-        issue_id = _safe_str(it.get("issue_id")) or f"ISS-{idx:02d}"
-        topic = _safe_str(it.get("topic")) or f"议题 #{idx}"
-        short_topic = topic[:12] + "…" if len(topic) > 12 else topic
-        grade_key = _safe_str(it.get("consensus_grade"))
-        grade_info = GRADE_MAP.get(grade_key, ("共识", "", "grade-hard", "dot-hard"))
-        dot_cls = grade_info[3]
-        nav_items_html.append(
-            f'<a class="nav-rail-item" href="#stream-{issue_id}">'
-            f'<span class="badge-dot {dot_cls}"></span>'
-            f'<span>{issue_id} · {escape(short_topic, quote=False)}</span>'
-            f'</a>'
+            issues.append({
+                "topic": _safe_str(it.get("topic")),
+                "grade": grade_label,
+                "brief_accord": brief_accord,
+                "accord": full_accord,
+                "background": trigger,
+                "tradeoff_items": td_items,
+                "tradeoff": "；".join(td_items),
+                "discussion_items": disc_items,
+                "discussion": "；".join(disc_items),
+            })
+
+    # 构建决策总览表格行（首屏速览，展示 brief_accord）
+    table_rows_html = []
+    for it in issues:
+        topic_esc = escape(it.get("topic") or "核心议题")
+        grade_text, css_suffix = _normalize_grade(it.get("grade") or "")
+        short_accord = it.get("brief_accord") or _brief_accord(it.get("accord") or "")
+        accord_esc = escape(short_accord)
+
+        pill_html = (
+            f'<span class="cd-pill cd-pill-{css_suffix}">'
+            f'<span class="cd-pill-dot"></span>{grade_text}</span>'
         )
-    nav_rail_html = "".join(nav_items_html) if nav_items_html else '<span style="font-size:0.78rem;color:#888;">常规平稳议题</span>'
+        table_rows_html.append(
+            f'<tr>\n'
+            f'  <td><strong>{topic_esc}</strong></td>\n'
+            f'  <td style="text-align: center;">{pill_html}</td>\n'
+            f'  <td>{accord_esc}</td>\n'
+            f'</tr>'
+        )
 
-    compass_html = f"""
-    <div class="executive-compass compass-container">
-      <div class="compass-score-deck">
-        <div class="score-card">
-          <div class="score-num">{total_issues}</div>
-          <div class="score-label">研讨议题</div>
-        </div>
-        <div class="score-card score-hard">
-          <div class="score-num">{hard_count}</div>
-          <div class="score-label">一致赞成</div>
-        </div>
-        <div class="score-card score-conditional">
-          <div class="score-num">{conditional_count}</div>
-          <div class="score-label">附带前提同意</div>
-        </div>
-        <div class="score-card score-unresolved">
-          <div class="score-num">{unresolved_count}</div>
-          <div class="score-label">待决分歧</div>
-        </div>
-      </div>
-      <div class="compass-nav-rail">
-        <span class="nav-rail-title">议题导轨：</span>
-        {nav_rail_html}
-      </div>
-      <div class="compass-diagnosis">
-        <strong>实际情况：</strong>{_md_to_html_inline(headline_text)}
-      </div>
-    </div>
-    """
+    if not table_rows_html:
+        table_rows_content = (
+            '<tr><td colspan="3" style="text-align:center; color:#94a3b8; padding: 24px;">'
+            '本次会议未识别出重大共识分歧或决策事项</td></tr>'
+        )
+    else:
+        table_rows_content = "\n".join(table_rows_html)
 
-    # 渲染每一个议题的因果脊柱流 (Dialectic Decision Stream)
-    streams_html = []
-    for idx, item in enumerate(issues, start=1):
-        issue_id = escape(_safe_str(item.get("issue_id")) or f"ISS-{idx:02d}", quote=False)
-        topic = escape(_safe_str(item.get("topic")) or f"议题 #{idx}", quote=False)
-        trigger = _md_to_html_inline(_safe_str(item.get("trigger")) or "议题现状痛点与方案讨论")
+    # 构建决策细节卡片（按 背景 ➔ 讨论要点 ➔ 得失权衡 ➔ 最终决议 顺序排版）
+    cards_html = []
+    for idx, it in enumerate(issues, start=1):
+        topic_esc = escape(it.get("topic") or f"议题 #{idx}")
+        grade_text, css_suffix = _normalize_grade(it.get("grade") or "")
+        pill_html = (
+            f'<span class="cd-pill cd-pill-{css_suffix}">'
+            f'<span class="cd-pill-dot"></span>{grade_text}</span>'
+        )
 
-        grade_key = _safe_str(item.get("consensus_grade"))
-        grade_info = GRADE_MAP.get(grade_key, (grade_key or "一致赞成", "", "grade-hard", "dot-hard"))
-        grade_label = escape(grade_info[0], quote=False)
-        grade_capsule_cls = grade_info[2]
-        grade_dot_cls = grade_info[3]
+        rows = []
 
-        archetype_key = _safe_str(item.get("archetype"))
-        archetype_label = escape(ARCHETYPE_MAP.get(archetype_key, archetype_key or "讨论一致"), quote=False)
+        # 1. 决策背景
+        bg_items = it.get("background_items") or []
+        if bg_items:
+            if len(bg_items) > 1:
+                lis = "".join(f"<li>{escape(pt)}</li>" for pt in bg_items)
+                rows.append(
+                    f'<div class="cd-row">'
+                    f'<span class="cd-label">决策背景</span>'
+                    f'<div class="cd-val-list"><ul>{lis}</ul></div>'
+                    f'</div>'
+                )
+            else:
+                rows.append(
+                    f'<div class="cd-row">'
+                    f'<span class="cd-label">决策背景</span>'
+                    f'<span class="cd-val">{escape(bg_items[0])}</span>'
+                    f'</div>'
+                )
+        elif it.get("background"):
+            rows.append(
+                f'<div class="cd-row">'
+                f'<span class="cd-label">决策背景</span>'
+                f'<span class="cd-val">{escape(it["background"])}</span>'
+                f'</div>'
+            )
 
-        # Pro side
-        pro = item.get("pro_side") or {}
-        pro_speakers = pro.get("speakers") or []
-        pro_speaker_text = escape("、".join(pro_speakers) or "主张方", quote=False)
-        pro_initial = _get_speaker_initial(pro_speakers) if pro_speakers else "主"
-        pro_stance = _md_to_html_inline(_safe_str(pro.get("stance")) or "推进方案")
-        pro_quote = escape(_safe_str(pro.get("quote")), quote=False)
-        pro_args = [_md_to_html_inline(_safe_str(a)) for a in (pro.get("arguments") or []) if _safe_str(a)]
-        pro_args_li = "".join(f"<li>{a}</li>" for a in pro_args) if pro_args else "<li>推进既定方案落地实施</li>"
-        pro_quote_html = f'<div class="verbatim-pullquote">“{pro_quote}”</div>' if pro_quote else ""
+        # 2. 讨论要点
+        disc_items = it.get("discussion_items") or []
+        if disc_items:
+            lis = "".join(f"<li>{escape(pt)}</li>" for pt in disc_items)
+            rows.append(
+                f'<div class="cd-row">'
+                f'<span class="cd-label">讨论要点</span>'
+                f'<div class="cd-val-list"><ul>{lis}</ul></div>'
+                f'</div>'
+            )
+        elif it.get("discussion"):
+            rows.append(
+                f'<div class="cd-row">'
+                f'<span class="cd-label">讨论要点</span>'
+                f'<span class="cd-val">{escape(it["discussion"])}</span>'
+                f'</div>'
+            )
 
-        # Con side
-        con = item.get("con_side") or {}
-        con_speakers = con.get("speakers") or []
-        con_speaker_text = escape("、".join(con_speakers) or "提出顾虑方", quote=False)
-        con_initial = _get_speaker_initial(con_speakers) if con_speakers else "审"
-        con_stance = _md_to_html_inline(_safe_str(con.get("stance")) or "提出顾虑")
-        con_quote = escape(_safe_str(con.get("quote")), quote=False)
-        con_args = [_md_to_html_inline(_safe_str(a)) for a in (con.get("arguments") or []) if _safe_str(a)]
-        con_args_li = "".join(f"<li>{a}</li>" for a in con_args) if con_args else "<li>充分评估执行风险与隐患</li>"
-        con_quote_html = f'<div class="verbatim-pullquote">“{con_quote}”</div>' if con_quote else ""
+        # 3. 得失权衡
+        td_items = it.get("tradeoff_items") or []
+        if td_items:
+            lis = "".join(f"<li>{escape(pt)}</li>" for pt in td_items)
+            rows.append(
+                f'<div class="cd-row">'
+                f'<span class="cd-label">得失权衡</span>'
+                f'<div class="cd-val-list"><ul>{lis}</ul></div>'
+                f'</div>'
+            )
+        elif it.get("tradeoff"):
+            rows.append(
+                f'<div class="cd-row">'
+                f'<span class="cd-label">得失权衡</span>'
+                f'<span class="cd-val">{escape(it["tradeoff"])}</span>'
+                f'</div>'
+            )
 
-        # Accord (最终解决)
-        accord = _md_to_html_inline(_safe_str(item.get("accord")) or "各方达成共识，按既定决议推进。")
-
-        # Caveat
-        caveat = _safe_str(item.get("caveat"))
-        if caveat and caveat.lower() not in ("null", "none", "无", "无保留条件", "无附加保留条件", "无附加前提", "无附加前提条件"):
-            caveat_html = f"""
-            <div class="caveat-warning-strip">
-              <strong>附带前提：</strong>{_md_to_html_inline(caveat)}
-            </div>
-            """
+        # 4. 最终决议（压轴高亮呈现）
+        accord_items = it.get("accord_items") or []
+        if accord_items:
+            if len(accord_items) > 1:
+                lis = "".join(f"<li>{escape(pt)}</li>" for pt in accord_items)
+                rows.append(
+                    f'<div class="cd-row cd-row-accord">'
+                    f'<span class="cd-label">最终决议</span>'
+                    f'<div class="cd-val-list"><ul>{lis}</ul></div>'
+                    f'</div>'
+                )
+            else:
+                rows.append(
+                    f'<div class="cd-row cd-row-accord">'
+                    f'<span class="cd-label">最终决议</span>'
+                    f'<span class="cd-val">{escape(accord_items[0])}</span>'
+                    f'</div>'
+                )
         else:
-            caveat_html = """
-            <div class="caveat-clean-strip">
-              无附加前提，各方一致赞成
+            accord = it.get("accord") or it.get("brief_accord") or ""
+            if accord:
+                rows.append(
+                    f'<div class="cd-row cd-row-accord">'
+                    f'<span class="cd-label">最终决议</span>'
+                    f'<span class="cd-val">{escape(accord)}</span>'
+                    f'</div>'
+                )
+
+        body_content = "\n".join(rows) if rows else '<div class="cd-val" style="color:#94a3b8;">常规流程平稳推进</div>'
+
+        card = f"""
+        <div class="cd-card">
+          <div class="cd-card-header">
+            <div class="cd-card-title-wrap">
+              <span class="cd-card-num">{idx}</span>
+              <span class="cd-card-title">{topic_esc}</span>
             </div>
-            """
-
-        # Trade off
-        tradeoff = item.get("trade_off") or {}
-        raw_gain = re.sub(r"^[▲▼\s\-\:：]+", "", _safe_str(tradeoff.get("gain"))).strip()
-        raw_sacrifice = re.sub(r"^[▲▼\s\-\:：]+", "", _safe_str(tradeoff.get("sacrifice"))).strip()
-        gain = _md_to_html_inline(raw_gain or "换取业务推进确定性与执行节奏")
-        sacrifice = _md_to_html_inline(raw_sacrifice or "承担部分灵活性损失或过渡成本")
-
-        # Rollback & Key quote
-        rollback = _md_to_html_inline(_safe_str(item.get("rollback_trigger")) or "无明确底线，按里程碑复核推进。")
-        key_quote = escape(_safe_str(item.get("key_quote")), quote=False)
-        ruling_quote_html = f'<div class="ruling-quote-ribbon"><span class="ruling-tag">现场原话：</span>“{key_quote}”</div>' if key_quote else ""
-
-        stream_item_html = f"""
-        <section class="stream-section" id="stream-{issue_id}">
-          <div class="stream-header">
-            <div class="stream-seq">{idx:02d}</div>
-            <div class="stream-header-info">
-              <div class="stream-meta-line">
-                <span class="stream-id">{issue_id}</span>
-                <span class="badge-capsule {grade_capsule_cls}">
-                  <span class="badge-dot {grade_dot_cls}"></span>
-                  {grade_label}
-                </span>
-                <span class="badge-capsule badge-archetype">{archetype_label}</span>
-              </div>
-              <h3 class="stream-topic">{topic}</h3>
-            </div>
+            {pill_html}
           </div>
-
-          <!-- 纵贯因果脊柱线 (The Dialectic Spine) -->
-          <div class="stream-spine duel-grid">
-
-            <!-- Node 1: 议题源起 -->
-            <div class="spine-node node-trigger">
-              <div class="spine-marker">
-                <div class="marker-origin-dot" title="议题起因"></div>
-              </div>
-              <div class="origin-card">
-                <div class="origin-eyebrow">议题起因</div>
-                <div class="origin-narrative">{trigger}</div>
-              </div>
-            </div>
-
-            <!-- Node 2: 主张方观点 -->
-            <div class="spine-node node-pro">
-              <div class="spine-marker">
-                <div class="speaker-avatar-circle" title="主张方: {pro_speaker_text}">{pro_initial}</div>
-              </div>
-              <div class="stance-card">
-                <div class="stance-card-header">
-                  <div class="speaker-title-wrap">
-                    <span class="speaker-name-strong">{pro_speaker_text}</span>
-                    <span class="stance-role-tag role-pro">主张方</span>
-                  </div>
-                </div>
-                <div class="stance-thesis">{pro_stance}</div>
-                <ul class="argument-trail">
-                  {pro_args_li}
-                </ul>
-                {pro_quote_html}
-              </div>
-            </div>
-
-            <!-- Node 3: 提出顾虑方观点 -->
-            <div class="spine-node node-con">
-              <div class="spine-marker">
-                <div class="speaker-avatar-circle avatar-con" title="提出顾虑方: {con_speaker_text}">{con_initial}</div>
-              </div>
-              <div class="stance-card">
-                <div class="stance-card-header">
-                  <div class="speaker-title-wrap">
-                    <span class="speaker-name-strong">{con_speaker_text}</span>
-                    <span class="stance-role-tag role-con">提出顾虑方</span>
-                  </div>
-                </div>
-                <div class="stance-thesis">{con_stance}</div>
-                <ul class="argument-trail">
-                  {con_args_li}
-                </ul>
-                {con_quote_html}
-              </div>
-            </div>
-
-            <!-- Node 4: 达成决议 -->
-            <div class="spine-node node-accord">
-              <div class="spine-marker">
-                <div class="marker-seal-circle" title="决议结论">决</div>
-              </div>
-              <div class="accord-resolution-dossier">
-                <div class="accord-top-eyebrow">
-                  <div class="accord-label-headline">
-                    达成决议
-                  </div>
-                  <div class="accord-archetype-tag">{archetype_label}</div>
-                </div>
-                <div class="accord-core-text">{accord}</div>
-                {ruling_quote_html}
-              </div>
-            </div>
-
-            <!-- Node 5: 附带前提、权衡取舍与底线 -->
-            <div class="spine-node node-safeguards">
-              <div class="spine-marker">
-                <div class="marker-terminal-anchor" title="底线与保障"></div>
-              </div>
-              <div class="safeguards-container">
-                {caveat_html}
-                <div class="balance-scale-grid tradeoff-deck">
-                  <div class="scale-card-gain">
-                    <div class="scale-head-label">获取的好处</div>
-                    <div class="scale-body-text">{gain}</div>
-                  </div>
-                  <div class="scale-pivot-cell">VS</div>
-                  <div class="scale-card-sacrifice">
-                    <div class="scale-head-label">付出的代价</div>
-                    <div class="scale-body-text">{sacrifice}</div>
-                  </div>
-                </div>
-                <div class="rollback-tripwire-bar">
-                  <span class="tripwire-label">底线：</span>{rollback}
-                </div>
-              </div>
-            </div>
-
+          <div class="cd-card-body">
+            {body_content}
           </div>
-        </section>
+        </div>
         """
-        streams_html.append(stream_item_html)
+        cards_html.append(card.strip())
 
-    streams_content = "\n".join(streams_html) if streams_html else "<p style='text-align:center; color:#888; padding:32px;'>本次会议未识别出重大待决争议或关键决策。</p>"
+    if not cards_html:
+        cards_content = (
+            '<div style="text-align:center; color:#94a3b8; padding: 32px; '
+            'background:#f8fafc; border-radius:8px; border:1px dashed #e2e8f0;">'
+            '本次会议未识别出重大分歧或妥协决议事项，各项议题均以常规流程平稳推进。</div>'
+        )
+    else:
+        cards_content = "\n".join(cards_html)
 
+    doc_title_esc = escape(doc_title)
     html = f"""<!doctype html>
 <html lang="zh-CN">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>{doc_title}</title>
+  <title>{doc_title_esc}</title>
   <style>
 {_latex_paper_css()}
 {_custom_decision_css()}
@@ -1188,15 +779,30 @@ def render_consensus_decision_html(title: str, text: str, data: dict | None = No
   <main class="page">
     <div class="ck-doc">
       <header class="ck-doc-header">
-        <h1>{doc_title}</h1>
-        <div class="ck-doc-meta">关键议题决策概览与共识分析</div>
+        <h1>{doc_title_esc}</h1>
+        <div class="ck-doc-meta">关键议题决策总览与共识分析</div>
       </header>
       <div class="ck-doc-content">
-        {compass_html}
-        <h2 style="margin: 32px 0 20px; border-bottom: 2px solid #111111; padding-bottom: 6px;">
-          议题决定过程
-        </h2>
-        {streams_content}
+        <h2 class="cd-section-title">决策总览</h2>
+        <div class="cd-table-wrap">
+          <table class="cd-table">
+            <thead>
+              <tr>
+                <th style="width: 28%;">议题</th>
+                <th style="width: 18%; text-align: center;">共识成色</th>
+                <th style="width: 54%;">最终决议</th>
+              </tr>
+            </thead>
+            <tbody>
+              {table_rows_content}
+            </tbody>
+          </table>
+        </div>
+
+        <h2 class="cd-section-title">决策细节</h2>
+        <div class="cd-details-wrap">
+          {cards_content}
+        </div>
       </div>
     </div>
   </main>

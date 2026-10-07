@@ -46,6 +46,25 @@ def _render_cap(state: dict, template: str) -> int | None:
         return None
 
 
+def _is_brief_style(line_name: str, state: dict, template: str) -> bool:
+    """是否为 minutes_styles 的高管速览（brief）模式。
+
+    高管速览定位核心拍板结论与重大阻断，文风高度精炼（800–1200 字即可交付完整信息），
+    对长会原文不应按通用档位（如 1680 字）强制扩写返工或打出下限咨询告警。
+    """
+    if line_name != "minutes_styles":
+        return False
+    mode = str(
+        (state.get("line_modes") or state.get("modes") or {}).get("minutes_styles")
+        or ""
+    ).strip().lower()
+    if mode == "brief":
+        return True
+    if "高管速览" in (template or ""):
+        return True
+    return False
+
+
 _MAX_TOKENS_SUPPORT: dict = {}
 
 
@@ -271,6 +290,7 @@ async def produce_line(
                 full_text = "".join(parts)
                 fill_mode = "freeform" if template else "none"
 
+        is_brief = _is_brief_style(line_name, state, template)
         if (
             template
             and full_text
@@ -326,7 +346,12 @@ async def produce_line(
                                     line_name,
                                 )
                                 continue
-                        elif lo_i and han < int(lo_i * 0.85) and _doc_han(state) >= 5000:
+                        elif (
+                            lo_i
+                            and han < int(lo_i * 0.85)
+                            and _doc_han(state) >= 5000
+                            and not is_brief
+                        ):
                             try:
                                 expanded = await _render_run(
                                     render,
@@ -377,7 +402,7 @@ async def produce_line(
                     advisory.append(
                         f"正文约 {han_now} 字，超过本篇参考上限 {hi2} 字（档位）"
                     )
-                elif lo2 and han_now < int(lo2 * 0.85):
+                elif lo2 and han_now < int(lo2 * 0.85) and not is_brief:
                     advisory.append(
                         f"正文约 {han_now} 字，低于本篇参考下限 {lo2} 字（档位）"
                     )

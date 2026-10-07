@@ -90,6 +90,10 @@ def _html_for(line_name: str, title: str, text: str, data: dict[str, Any] | None
         from infra.exporters.html.agenda_minutes import render_agenda_minutes_html
 
         return render_agenda_minutes_html(title, text, data)
+    if line_name == "consensus_decision":
+        from infra.exporters.html.consensus_decision import render_consensus_decision_html
+
+        return render_consensus_decision_html(title, text, data)
     return None
 
 

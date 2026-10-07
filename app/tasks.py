@@ -19,6 +19,7 @@ from fastapi.responses import StreamingResponse
 from infra.storage.document_processor import IMAGE_EXTS
 
 from .config import (
+    DEFAULT_CONSENSUS_DECISION_TEMPLATE,
     DEFAULT_MINUTES_TEMPLATE,
     DEFAULT_PERSONAL_MINUTES_TEMPLATE,
     PROJECT_ROOT,
@@ -26,6 +27,7 @@ from .config import (
     load_env,
     profile_path,
     resolve_template_format,
+    style_template_path,
 )
 from .id_worker import next_request_id
 from .outputs import output_dir, save_task_outputs
@@ -38,7 +40,8 @@ logger = logging.getLogger("app.tasks")
 # 路由注册与异步接口校验都从同一份声明派生，避免多处清单不同步。
 LINE_NAMES = all_lines()
 
-STYLE_CHOICES = {"time", "logic", "causal", "party", "urgency"}
+# 多样式纪要严格限定的 5 大黄金模式
+STYLE_CHOICES = {"brief", "topic", "review", "retro", "alignment"}
 class ApiError(Exception):
     """API 业务错误：status 即业务码（HTTP 状态码）。"""
 
@@ -445,6 +448,7 @@ def _template_file(
     line: str,
     template_value: str,
     profile_value: str = "",
+    style_value: str = "",
 ) -> Path | None:
     """extra.template → 临时模板文件；非法抛 400。
 
@@ -453,10 +457,16 @@ def _template_file(
     **纪要线留空 → 自动套用默认模板**：
     - 客观模式（profile 为空或 objective）：始终套用「通用纪要」（``DEFAULT_MINUTES_TEMPLATE``）；
     - 真人模式（profile="user"）：直接套用「个人视角纪要」（``DEFAULT_PERSONAL_MINUTES_TEMPLATE``，即 ``personal_minutes``），不再走历史通用模板剪裁模式。
+    - 多样式纪要线（meeting/minutes_styles）：留空时自动套用对应 style 模板（resources/styles/{style}.md）。
     """
     value = (template_value or "").strip()
     auto_default = False
-    if domain == "meeting" and line == "minutes":
+    if domain == "meeting" and line == "minutes_styles":
+        if not value:
+            # 当请求未指定 template 时，根据 extra.style 自动查找 resources/styles/ 下的对应模板
+            style_mode = (style_value or "topic").strip().lower()
+            return style_template_path(style_mode)
+    elif domain == "meeting" and line == "minutes":
         is_personal = (profile_value or "").strip().lower() == "user"
         if not value:
             value = DEFAULT_PERSONAL_MINUTES_TEMPLATE if is_personal else DEFAULT_MINUTES_TEMPLATE
@@ -464,6 +474,10 @@ def _template_file(
         elif is_personal and value in {"general_minutes", "通用纪要"}:
             # 个人视角不再走历史通用模板剪裁模式，直接走专属个人视角纪要模板
             value = DEFAULT_PERSONAL_MINUTES_TEMPLATE
+    elif domain == "meeting" and line == "consensus_decision":
+        if not value:
+            value = DEFAULT_CONSENSUS_DECISION_TEMPLATE
+            auto_default = True
     elif not value:
         return None
     fmt = resolve_template_format(value)
@@ -645,7 +659,13 @@ def _prepare(domain: str, task: str, req: TaskRequest, user_id: str) -> _Prepare
 
     ctx = load_domain(domain)
     profile_file = _profile_file(domain, extra.profile, (user_id or "").strip())
-    template_path = _template_file(domain, line, extra.template, profile_value=extra.profile)
+    template_path = _template_file(
+        domain,
+        line,
+        extra.template,
+        profile_value=extra.profile,
+        style_value=extra.style,
+    )
 
     # 输入文件：library 传原文件路径列表（docs 图片+文档全量入库）；其余传临时文件/目录
     input_files: list[Path] | Path | None

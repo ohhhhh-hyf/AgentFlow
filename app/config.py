@@ -27,10 +27,31 @@ DEFAULT_MINUTES_TEMPLATE = "general_minutes"
 # 统一走专属 personal_minutes.md，不再支持历史通用模板剪裁模式。
 DEFAULT_PERSONAL_MINUTES_TEMPLATE = "personal_minutes"
 
+# 共识决策线的默认模板：extra.template 留空时自动套用「共识决策」（consensus_decision）。
+DEFAULT_CONSENSUS_DECISION_TEMPLATE = "consensus_decision"
+
 
 def personal_minutes_template() -> str:
     """真人模式（profile=user）默认套用的纪要模板名（固定 personal_minutes）。"""
     return DEFAULT_PERSONAL_MINUTES_TEMPLATE
+
+
+# 多样式纪要 5 大黄金模式
+STYLE_NAMES = frozenset({"brief", "topic", "review", "retro", "alignment"})
+
+# 多样式纪要模板目录：resources/styles/
+RESOURCES_STYLES_DIR = PROJECT_ROOT / "resources" / "styles"
+
+
+def style_template_path(style_name: str) -> Path | None:
+    """查找 resources/styles/{style_name}.md 模板文件（严格限制为 5 大模式：brief/topic/review/retro/alignment）。"""
+    name = (style_name or "").strip().lower()
+    if not name:
+        name = "topic"
+    if name not in STYLE_NAMES:
+        return None
+    tpl_file = RESOURCES_STYLES_DIR / f"{name}.md"
+    return tpl_file if tpl_file.is_file() else None
 
 
 # 每个取值只打一次日志（template_dir() 会被频繁调用），避免配置写错时逐请求刷屏
@@ -206,6 +227,7 @@ TEMPLATE_SCENARIO = {
     "media_qa_session": "press_conference",
     "admission_briefing": "meeting_minutes",
     "personal_minutes": "meeting_minutes",
+    "consensus_decision": "meeting_minutes",
     "general_minutes": "daily_journal",
     "personal_memo": "daily_journal",
     "conversation_transcript": "daily_journal",
@@ -363,11 +385,15 @@ __all__ = [
     "DEFAULT_LEASE_SECONDS",
     "DEFAULT_MINUTES_TEMPLATE",
     "DEFAULT_PERSONAL_MINUTES_TEMPLATE",
+    "DEFAULT_CONSENSUS_DECISION_TEMPLATE",
     "personal_minutes_template",
     "DEFAULT_REDIS_URL",
     "DEFAULT_RUN_MODE",
     "PROFILE_DIR",
     "PROJECT_ROOT",
+    "RESOURCES_STYLES_DIR",
+    "STYLE_NAMES",
+    "style_template_path",
     "heartbeat_seconds",
     "job_max_attempts",
     "job_ttl_seconds",

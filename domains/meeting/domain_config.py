@@ -34,7 +34,7 @@ LINE_KINDS: dict[str, object] = {
     "mindmap": LLM_DOCUMENT,
     "minutes_styles": {"kind": LLM_DOCUMENT, "cli_mode": True},
     "minutes_trace": {"kind": DETERMINISTIC_PIPELINE, "sidecar": True},
-    "consensus_decision": {"kind": LLM_EXTRACT, "llm_render": "if_template"},
+    "consensus_decision": LLM_DOCUMENT,
     "agenda_minutes": {"kind": LLM_EXTRACT, "llm_render": "if_template"},
 }
 

@@ -174,7 +174,7 @@ resp = requests.post(
             "profile": "",
             "project": "",
             "subject": "",
-            "style": "time",
+            "style": "brief",
         },
     },
     headers={"X-Request-Id": uuid.uuid4().hex, "X-User-Id": USER_ID},

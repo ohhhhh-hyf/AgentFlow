@@ -3,7 +3,6 @@ from __future__ import annotations
 from collections.abc import AsyncIterator
 
 from infra.llm import LLMClient
-from infra.exporters.html.consensus_decision import format_consensus_decision_markdown
 from core.runner.prompt_utils import build_render_prompt
 
 from ....models import MeetingState
@@ -38,17 +37,6 @@ class ConsensusDecisionRender:
         except TypeError:
             return await self.client.text(prompt, user, label="consensus_decision/render")
 
-    @staticmethod
-    def render_draft(state: dict) -> str:
-        """无模板时按草稿字段直接排版麦肯锡决策备忘录质感的 Markdown，不调 LLM。"""
-        draft = (
-            (state.get("lines") or {})
-            .get("consensus_decision", {})
-            .get("draft")
-            or {}
-        )
-        title = str(state.get("title") or "").strip()
-        return format_consensus_decision_markdown(draft, title=title)
 
     async def stream(
         self, approved_context: str, template: str = ""

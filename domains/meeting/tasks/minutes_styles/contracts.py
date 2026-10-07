@@ -82,23 +82,21 @@ class MultiStylesGenerationContract(GenerationContract):
     """多样式纪要生成契约（五模式共用统一结构）。
 
     sections 为有序组织段落，五种模式的标题集合互斥：
-    - time    （时间线 / 叙事节奏）：会前准备与召开 / 会议展开 / 问题提出 / 各方回应 / 结论与指示 / 散会与后续
-    - logic   （逻辑总分 / 归纳分类）：会议性质 / 总体结论 / 分类议题 / 会议要求 / 后续安排
-    - causal  （因果推导 / 风险与动因）：起因 / 现状 / 隐患 / 对策
-    - party   （主体责权 / 立场与博弈）：标题直接用主体命名，可带立场标签（如「运营部反馈」），一方一段
-    - urgency （决策时效 / 执行倒计时）：立即办理 / 限期完成 / 近期推进 / 下次议定 / 长期监测；content 为清单体
+    - brief     （高管速览）：核心结论 / 关键决策 / 重大风险
+    - topic     （业务归类）：总体概括 / 分类议题 / 后续安排
+    - review    （方案权衡）：评审结论 / 方案对比 / 遗留事项
+    - retro     （复盘攻坚）：现状说明 / 原因分析 / 改进措施
+    - alignment （多方对齐）：对齐共识 / 各方责任 / 接口约定
     """
 
     fields = [
-        EnumField("mode", ["time", "logic", "causal", "party", "urgency"]),
+        EnumField("mode", ["brief", "topic", "review", "retro", "alignment"]),
         StrField("title", "纪要标题（一句话，优先沿用会议理解的 meeting_purpose）"),
         ObjListField("sections", [
-            StrField("title", "本段标题（必须取自当前模式的标题集合，见契约说明）"),
+            StrField("title", "本段标题（对应当前模式模板中的栏目名）"),
             StrField(
                 "content",
-                "非空字符串，禁止用数组代替；"
-                "time/logic/causal/party 写书面完整句；"
-                "urgency 用换行分隔的「动作名：谁+做什么+原文时限」，行首不要重复段标题",
+                "非空字符串，按模板指令排版的内容文本，包含 ### 议题小节与 - 列表项，禁止用数组代替",
             ),
         ]),
         StrField("summary", "一段话总摘要（30-60 字，用当前模式口吻概括，不复述 title）"),
@@ -106,24 +104,22 @@ class MultiStylesGenerationContract(GenerationContract):
 
 
 class MultiStylesSupervisorContract(SupervisorContract):
-    """多样式纪要审核契约：组织逻辑正确 + 事实忠诚。"""
+    """多样式纪要审核契约：议题覆盖度 + 模式对齐 + 格式排版规范。"""
 
     decision = Decision()
     feedback = Feedback("Required when decision=revise; use [] for approve/reject — the field must always appear")
     checks = [
         Check(
-            "mode_check",
-            "仅拦截整篇完全串成另一种模式（如 time 全文按立即办理分桶、party 标题全是起因/现状）。"
-            "段内用了「方面」、起因夹带现状、urgency 分桶偏松，一律通过",
+            "topic_coverage_check",
+            "仅拦截上游议题树的核心业务议题在当前纪要中严重遗漏的情况；次要细节未提及不拦截",
         ),
         Check(
-            "facts_check",
-            "仅拦截明显编造或张冠李戴；小幅整理措辞、遗漏次要细节不拦截",
+            "mode_alignment_check",
+            "仅拦截整篇完全偏离当前模式定位（如 brief 写成长篇争辩/流水账；retro 缺失诱因或对策；review 缺失方案对比与妥协代价；alignment 未按主体聚合）。小幅偏差一律通过",
         ),
         Check(
-            "consistency_check",
-            "仅拦截 sections 完全空或标题与内容明显对不上；"
-            "重复、残句、清单形态不完美不拦截",
+            "formatting_quality_check",
+            "仅拦截 sections 完全为空、标题与内容明显错位、或堆砌成未分节大段文本墙；清单格式微瑕、标点不规范不拦截",
         ),
     ]
 

@@ -181,7 +181,7 @@ _EMPTY_MINUTES_TRACE = {
 }
 
 _EMPTY_MULTI_STYLES = {
-    "mode": "time",
+    "mode": "brief",
     "title": "",
     "sections": [],
     "summary": "",
@@ -223,9 +223,9 @@ _REJECT_MINDMAP_REVIEW = {
 
 _REJECT_MULTI_STYLES_REVIEW = {
     "decision": "reject",
-    "mode_check": {"status": "fail", "findings": ["LLM 调用失败，未完成审核"]},
-    "facts_check": {"status": "fail", "findings": ["LLM 调用失败，未完成审核"]},
-    "consistency_check": {"status": "fail", "findings": ["LLM 调用失败，未完成审核"]},
+    "topic_coverage_check": {"status": "fail", "findings": ["LLM 调用失败，未完成审核"]},
+    "mode_alignment_check": {"status": "fail", "findings": ["LLM 调用失败，未完成审核"]},
+    "formatting_quality_check": {"status": "fail", "findings": ["LLM 调用失败，未完成审核"]},
     "feedback": ["LLM 调用失败，未完成审核，转降级输出"],
 }
 
@@ -354,7 +354,6 @@ def _format_consensus_decision_issue(index: int, item: dict) -> str:
     if caveat and caveat.lower() not in ("none", "null", "无", "无保留条件", "无附加保留条件"):
         lines.append(f"   - 保留条件：{caveat}")
     return "\n".join(lines)
- 
 
 # Lines 段逐条格式化器注册表（线名 → 格式化函数(index, item) -> str）
 # actions / risks / minutes_styles 的降级输出格式与各自 LLM 渲染 prompt 保持一致

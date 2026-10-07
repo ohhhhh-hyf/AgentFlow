@@ -148,7 +148,7 @@ class MinutesTrace(ModelMixin):
 class MultiStyles(ModelMixin):
     """MultiStyles输出（浅校验：仅校验第一层键与类型，嵌套不校验）。"""
 
-    mode: Literal["time", "logic", "causal", "party", "urgency"]
+    mode: Literal["brief", "topic", "review", "retro", "alignment"]
     title: str
     summary: str
     sections: list[dict[str, Any]] = field(default_factory=list)
@@ -156,7 +156,7 @@ class MultiStyles(ModelMixin):
     @classmethod
     def validate(cls, data: dict) -> "MultiStyles":
         _exact_fields(data, [f.name for f in fields(cls)], cls.__name__)
-        _choice(data["mode"], {"time", "logic", "causal", "party", "urgency"}, "mode")
+        _choice(data["mode"], {"brief", "topic", "review", "retro", "alignment"}, "mode")
         _string(data["title"], "title")
         _string(data["summary"], "summary")
         if not isinstance(data["sections"], list):
@@ -287,13 +287,13 @@ class MultiStylesSupervisorReview(ModelMixin):
     """多样式纪要任务线的领域审核结果。"""
 
     decision: Literal["approve", "revise", "reject"]
-    mode_check: dict[str, Any]
-    facts_check: dict[str, Any]
-    consistency_check: dict[str, Any]
+    topic_coverage_check: dict[str, Any]
+    mode_alignment_check: dict[str, Any]
+    formatting_quality_check: dict[str, Any]
     feedback: list[str] = field(default_factory=list)
 
     # 本模型的全部检查项（供结构校验与公共语义校验使用）
-    CHECK_KEYS = ("mode_check", "facts_check", "consistency_check")
+    CHECK_KEYS = ("topic_coverage_check", "mode_alignment_check", "formatting_quality_check")
 
     @classmethod
     def validate(cls, data: dict) -> "MultiStylesSupervisorReview":

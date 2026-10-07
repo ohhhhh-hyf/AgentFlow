@@ -78,6 +78,7 @@ def validate_rendered_output(
                 "高风险", "中风险", "低风险", "通过", "否决", "未决",
                 "已完成", "进行中", "已对齐", "待对接", "待改", "性能受限",
                 "改进项", "难点", "阻塞 / 高风险 / 待定论",
+                "一致赞成", "附带前提", "附带前提同意", "争执未决", "保留意见",
             }
             if inner in _KNOWN_TAGS or inner.startswith("待确认") or inner.startswith("待定"):
                 return False

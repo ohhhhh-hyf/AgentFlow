@@ -199,16 +199,9 @@ def save_report_artifacts(
                 )
             paths["html"] = html_path
         elif domain_html:
-            # 域专属渲染器（纪要 / 风险 / 待办 / 溯源）：见 domain/<name>/hooks.py
+            # 域专属渲染器（纪要 / 风险 / 待办 / 溯源 / 共识决策）：见 domain/<name>/hooks.py
             html_path = out_dir / f"{line_name}.html"
             html_path.write_text(domain_html, encoding="utf-8")
-            paths["html"] = html_path
-        elif line_name == "consensus_decision":
-            from infra.exporters.html.consensus_decision import render_consensus_decision_html
-
-            html_doc = render_consensus_decision_html(html_title, text, data)
-            html_path = out_dir / f"{line_name}.html"
-            html_path.write_text(html_doc, encoding="utf-8")
             paths["html"] = html_path
     if line_name == "review":
         import json
