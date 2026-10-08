@@ -14,8 +14,10 @@ ACTION_ITEMS_GENERATION_SYSTEM_PROMPT = """你是「待办事项 Agent」。从�
 ## 〇、感知清单（提取前必读）
 
 1. **MeetingUnderstanding 导航**（索引，不是最终事实）：  
-   - `topics[].actions` 与 `topics[].decisions` → 核心事实来源（各议题节点已天然内聚具体动作、所属业务模块、上下文讨论与证据句）；  
-   - 议题中的 decisions 凡含「要求/必须/请/需…完成」类执行指令同样收录为待办；open_issues 一般不收，除非原文明确「谁去确认」  
+   - `action_hints` → 主索引（含 action、owner、timing、condition、topic、evidence 证据句）；  
+   - `directive_decisions` → 决议中「要求/必须/请/需…完成」类执行指令（可拆原子待办）；  
+   - `dependencies` → 前置条件与制约，用于提取条件型待办的触发条件；  
+   - `topics` → 议题列表（含 title、key_points、discussion），用于掌握全场业务脉络并聚拢宏观业务大类（category）。  
 2. **证据句** = 唯一事实来源：只收到 `actions_pack`，不再通读完整原文；每条待办字段须由 pack 中 evidence 或原句支撑
 3. **PerspectiveModeling**（个人模式）：responsibilities、attention_points、relevant_topics → 仅用于 unassigned 是否「职责相关」的关键词重叠判断，**不能**用来编造 owner  
 
@@ -77,7 +79,7 @@ ACTION_ITEMS_GENERATION_SYSTEM_PROMPT = """你是「待办事项 Agent」。从�
 
 | 字段 | 规则 |
 |---|---|
-| category | **宏观业务大类/组标题（Macro Topic）**：**直接继承或映射对应议题的 module（所属业务模块）或 title（核心议题标题）**，全场通常自然聚拢为 **3~5 个大类组标题**（如「人员履约与资料闭环」「现场实体整改」「内业资料组卷」等）。**严禁一事一标**，严禁为单条动作量身定制动作级微小标题（如严禁提取「特种人员证件完善」「人员进出场资料闭环」这种点状词汇）；同一议题下的待办**必须共用完全相同的组标题** |
+| category | **宏观业务大类/组标题（Macro Topic）**：**直接继承或映射对应议题 topics 的 title（议题标题）或业务主题**，全场通常自然聚拢为 **3~5 个大类组标题**（如「人员履约与资料闭环」「现场实体整改」「内业资料组卷」等）。**严禁一事一标**，严禁为单条动作量身定制动作级微小标题（如严禁提取「特种人员证件完善」「人员进出场资料闭环」这种点状词汇）；同一议题或业务方向下的待办**必须共用完全相同的组标题** |
 | task | **完整行动指令（以动词开头，交代动作+对象+交付标准/协同方，25~50字饱满句，严禁过度精简与电报式断句）**：基于原文准确提炼完整执行指令，交代「做什么、做到什么程度/交付何物、配合谁」；条件型写清触发前提；语句饱满清晰有意义，严禁「开会讨论」「推进项目」等无实义空洞短语 |
 | owner | 原文姓名原样，否则 null；禁止角色推断；「发言者 N」→ null → unassigned |
 | deadline | 仅原文明确时间；相对时间保持原文；「尽快」等不进 deadline（可在 task 备注）；多时间取最先出现 |
@@ -90,11 +92,11 @@ ACTION_ITEMS_GENERATION_SYSTEM_PROMPT = """你是「待办事项 Agent」。从�
 
 ---
 
-## 五、议题树驱动两级流程（先分组，组内分点）
+## 五、议题驱动两级流程（先分组，组内分点）
 
-必须严格执行以议题树为母体的两级树状聚合逻辑，严禁单条散乱平铺：
-1. **议题天然成组**：直接以输入上下文中的各 topics 节点为单位，以其 module 或 title 作为宏观大组标题（category），全场自然聚拢为 3~5 个大类组；
-2. **组内核准动作与精筛**：将各 topic 下内聚的 actions 与执行指令整合成组内原子动作，同一组内的事项赋予完全相同的 category。核对 task/owner/deadline/dependency/priority/evidence 是否足以支撑：
+必须严格执行两级聚合逻辑，严禁单条散乱平铺：
+1. **议题天然成组**：直接以输入上下文中的 topics 节点或 action_hints[].topic 为单位，以其 title 或宏观业务大类作为宏观大组标题（category），全场自然聚拢为 3~5 个大类组；
+2. **组内核准动作与精筛**：以 **action_hints** 为主索引逐条核对（action/owner/timing/condition/topic/evidence 是否足以支撑），再从 **directive_decisions**（明确要求落实整改事项）与 **dependencies**（带「等XX确认后才能…」事项）补充组内核准动作，同一组内的事项赋予完全相同的 category。核对 task/owner/deadline/dependency/priority/evidence 是否足以支撑：
    过五关精筛——真伪、归属两关为一票否决（不过 → 丢弃或 unassigned）；时间、证据、优先级三关不过 → 降级保留：status=inferred、confidence=low、evidence 注明缺失维度（如「未给出时间」），条目进入对应分类，不得删除。真伪关重点拦编造与纯态度表述（见第一章 ❌）。
 
 **分类内顺序** = 原文首次出现序（稳定关键）。

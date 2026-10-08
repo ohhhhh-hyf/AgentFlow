@@ -156,8 +156,15 @@ _EMPTY_CONSENSUS_DECISION = {
 _EMPTY_MEETING_UNDERSTANDING = {
     "meeting_brief": "",
     "meeting_purpose": "",
+    "scene": "通用",
     "speakers": [],
     "topics": [],
+    "decisions": [],
+    "open_questions": [],
+    "risks": [],
+    "action_hints": [],
+    "risk_hints": [],
+    "dependencies": [],
 }
 
 _EMPTY_MINDMAP = {
@@ -425,10 +432,22 @@ class _Nodes(DomainNodes):
 
     # 理解层参与审核摘录的字段白名单（线名 → 保留字段）。
     _understanding_needle_keep: dict[str, frozenset[str]] = {
-        "actions": frozenset({"meeting_brief", "meeting_purpose", "speakers", "topics"}),
-        "risks": frozenset({"meeting_brief", "meeting_purpose", "speakers", "topics"}),
-        "minutes": frozenset({"meeting_brief", "meeting_purpose", "speakers", "topics"}),
-        "minutes_trace": frozenset({"meeting_brief", "meeting_purpose", "speakers", "topics"}),
+        "actions": frozenset({
+            "meeting_brief", "meeting_purpose", "scene", "topics", "decisions",
+            "action_hints", "dependencies",
+        }),
+        "risks": frozenset({
+            "meeting_brief", "meeting_purpose", "scene", "topics", "risks",
+            "open_questions", "risk_hints", "dependencies",
+        }),
+        "minutes": frozenset({
+            "meeting_brief", "meeting_purpose", "scene", "speakers",
+            "topics", "decisions", "risks", "open_questions", "dependencies",
+        }),
+        "minutes_trace": frozenset({
+            "meeting_brief", "meeting_purpose", "scene", "speakers",
+            "topics", "decisions", "risks", "open_questions", "dependencies",
+        }),
     }
 
     def _understanding_needle_fields(self, line_name: str) -> set[str] | None:
@@ -502,27 +521,22 @@ class _Nodes(DomainNodes):
     @staticmethod
     def _topic_brief(topic: dict) -> dict:
         title = str(topic.get("title") or "").strip()
-        decisions = topic.get("decisions") or []
-        conclusion = topic.get("conclusion") or (decisions[0] if decisions else None)
+        conclusion = topic.get("conclusion")
         discussion = str(topic.get("context_and_debate") or topic.get("discussion") or "").strip()
-        key_points = topic.get("key_metrics") or topic.get("key_points") or []
+        key_points = topic.get("key_points")
         if not isinstance(key_points, list):
-            key_points = [discussion[:2000]] if discussion else []
+            key_points = topic.get("key_metrics") or []
+        if not isinstance(key_points, list):
+            key_points = []
+        if discussion and not key_points:
+            key_points = [discussion[:2000]]
         return {
-            "topic_id": topic.get("topic_id") or "",
-            "module": topic.get("module") or "",
             "title": title,
-            "context_and_debate": discussion,
             "discussion": discussion,
-            "discussion_points": topic.get("discussion_points") or [],
+            "context_and_debate": discussion,
             "key_points": [str(p) for p in key_points][:12],
-            "key_metrics": topic.get("key_metrics") or [],
-            "decisions": decisions,
             "conclusion": conclusion,
             "participants": topic.get("participants") or [],
-            "actions": topic.get("actions") or [],
-            "risks": topic.get("risks") or [],
-            "open_issues": topic.get("open_issues") or [],
         }
 
     def _meeting_pack(self, state: dict, line_name: str) -> dict:
@@ -537,68 +551,106 @@ class _Nodes(DomainNodes):
         base = {
             "meeting_brief": u.get("meeting_brief") or u.get("meeting_purpose") or "",
             "meeting_purpose": u.get("meeting_purpose") or "",
+            "scene": u.get("scene") or "通用",
             "speakers": u.get("speakers") or [],
         }
 
-        if line_name == "actions":
-            return {
-                **base,
-                "topics": topics,
-            }
-        if line_name == "risks":
-            return {
-                **base,
-                "topics": topics,
-            }
-
-        # 为无模板的纪要线提取决议与风险汇总（纯树提取，零冗余；兼容旧 mock 顶层字段）
+        # 决议、风险、未决事项提取（优先直接消费平铺顶级列表，兼顾从 topics 兜底提取）
+        top_decisions = [str(d).strip() for d in (u.get("decisions") or []) if d and str(d).strip()]
         top_risks = [
             r if isinstance(r, str) else (r.get("risk") or "")
             for r in (u.get("risks") or [])
             if (isinstance(r, str) and r.strip()) or (isinstance(r, dict) and r.get("risk"))
         ]
-        top_decisions = [str(d).strip() for d in (u.get("decisions") or []) if d and str(d).strip()]
-        top_open_issues = [str(o).strip() for o in (u.get("open_questions") or []) if o and str(o).strip()]
+        top_open_questions = [str(o).strip() for o in (u.get("open_questions") or []) if o and str(o).strip()]
 
-        tree_decisions: list[str] = list(top_decisions)
-        tree_risks: list[str] = list(top_risks)
-        tree_open_issues: list[str] = list(top_open_issues)
         for t in raw_topics:
             if not isinstance(t, dict):
                 continue
             for d in (t.get("decisions") or []):
-                if d and str(d).strip() not in tree_decisions:
-                    tree_decisions.append(str(d).strip())
+                if d and str(d).strip() not in top_decisions:
+                    top_decisions.append(str(d).strip())
             for r in (t.get("risks") or []):
                 val = r.get("risk") if isinstance(r, dict) else str(r)
-                if val and val.strip() and val.strip() not in tree_risks:
-                    tree_risks.append(val.strip())
+                if val and val.strip() and val.strip() not in top_risks:
+                    top_risks.append(val.strip())
             for o in (t.get("open_issues") or []):
-                if o and str(o).strip() not in tree_open_issues:
-                    tree_open_issues.append(str(o).strip())
+                if o and str(o).strip() not in top_open_questions:
+                    top_open_questions.append(str(o).strip())
 
+        if line_name == "actions":
+            directive_decisions = [
+                item for item in top_decisions
+                if any(word in str(item) for word in ("要求", "必须", "务必", "请", "需", "整改", "落实"))
+            ]
+            return {
+                **base,
+                "topics": topics,
+                "action_hints": u.get("action_hints") or [],
+                "directive_decisions": directive_decisions,
+                "dependencies": u.get("dependencies") or [],
+            }
+        if line_name == "risks":
+            return {
+                **base,
+                "topics": topics,
+                "risk_hints": u.get("risk_hints") or [],
+                "risks": top_risks,
+                "dependencies": u.get("dependencies") or [],
+                "risk_related_open_questions": top_open_questions,
+            }
         if line_name in {"minutes_trace", "minutes_styles"}:
             return {
                 **base,
                 "topics": topics,
-                "decisions": tree_decisions,
-                "risks": tree_risks,
-                "open_questions": tree_open_issues,
+                "decisions": top_decisions,
+                "risks": top_risks,
+                "open_questions": top_open_questions,
+                "dependencies": u.get("dependencies") or [],
             }
-        if line_name == "minutes":
+        if line_name == "consensus_decision":
             return {
                 **base,
                 "topics": topics,
-                "decisions": _attribute_person_items(state, tree_decisions),
-                "risks": _attribute_person_items(state, tree_risks),
-                "open_questions": _attribute_person_items(state, tree_open_issues),
+                "decisions": top_decisions,
+                "risks": top_risks,
+                "open_questions": top_open_questions,
+            }
+        if line_name == "minutes":
+            full_topics = []
+            for item in raw_topics:
+                if not isinstance(item, dict):
+                    continue
+                discussion = str(item.get("context_and_debate") or item.get("discussion") or "").strip()
+                key_points = item.get("key_points")
+                if not isinstance(key_points, list):
+                    key_points = item.get("key_metrics") or []
+                if not isinstance(key_points, list):
+                    key_points = [discussion] if discussion else []
+                full_topics.append({
+                    "title": str(item.get("title") or "").strip(),
+                    "key_points": [str(p).strip() for p in key_points if str(p).strip()][:12],
+                    "discussion": discussion,
+                    "context_and_debate": discussion,
+                    "conclusion": item.get("conclusion"),
+                    "participants": item.get("participants") or [],
+                })
+            return {
+                **base,
+                "topics": full_topics or topics,
+                "decisions": _attribute_person_items(state, top_decisions),
+                "risks": _attribute_person_items(state, top_risks),
+                "open_questions": _attribute_person_items(state, top_open_questions),
             }
         return {
             **base,
             "topics": topics,
-            "decisions": tree_decisions,
-            "risks": tree_risks,
-            "open_questions": tree_open_issues,
+            "decisions": top_decisions,
+            "risks": top_risks,
+            "open_questions": top_open_questions,
+            "action_hints": u.get("action_hints") or [],
+            "risk_hints": u.get("risk_hints") or [],
+            "dependencies": u.get("dependencies") or [],
         }
 
     def _line_shared_context(self, state: dict, line_name: str) -> str:

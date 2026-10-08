@@ -11,49 +11,93 @@ from core.schema.contracts import (
 )
 
 
+# ── 会议场景枚举（公共底座，下游共享）───────────────────────────
+# minutes_trace 等下游按场景取不同组织侧重；理解 agent 结构化输出，
+# 下游 detect_scene 优先消费该字段，启发式只作兜底。
+SCENE_CHOICES = [
+    "通用",
+    "团队例会",
+    "脑暴/讨论",
+    "项目决策与评审",
+    "专项讨论会",
+    "研讨会",
+    "采访/对话",
+]
+
+# ── 行动线索类型枚举（公共底座，待办线消费）─────────────────────
+# commitment=承诺表态（我来做/我们负责）；assignment=明确分配（由 YY 负责）；
+# directive=指令要求（要求/必须/务必…落实）；rectification=整改项（验收/检查提出的整改）；
+# followup=后续跟进（会后要跟踪/确认/再议）。对应待办线的信号清单。
+ACTION_HINT_KINDS = [
+    "commitment",
+    "assignment",
+    "directive",
+    "rectification",
+    "followup",
+]
+
+# ── 风险信号类型枚举（公共底座，风险线消费）─────────────────────
+# time=时间/期限；resource=资源/预算；staffing=人员/人力；quality=质量/标准；
+# dependency=依赖未确认；external=外部条件（政策/疫情/供货方等）；scope=范围边界；
+# other=其它明确风险信号。用于风险线的 severity/source 定位与归类。
+RISK_SIGNAL_TYPES = [
+    "time",
+    "resource",
+    "staffing",
+    "quality",
+    "dependency",
+    "external",
+    "scope",
+    "other",
+]
+
+
 class MeetingUnderstandingGenerationContract(GenerationContract):
-    """统一议题树会议理解输出契约。"""
+    """会议理解输出契约（平铺事实底座）。"""
 
     fields = [
         StrField("meeting_brief", "80字以内概括整场会议主线"),
         StrField("meeting_purpose", "一句话概括会议目的"),
+        # 形态标签类枚举：真实场景有二十多种，7 类覆盖不到 → 非法值归一「通用」，不抛错重试
+        EnumField("scene", SCENE_CHOICES, normalize="通用"),
+        # 发言人与角色对照（统一显示称呼↔角色的单点落点）：下游 Q&A/表态/概况栏直接消费，不必每栏
+        # 从长原文里重新推"这段是谁在说"（实测会退化成「答」「主持人（机构名）」）。
         ObjListField("speakers", [
-            StrField("name", "统一显示称呼：姓名优先，其次角色/编号；不推断、不编造"),
-            StrField("role", "角色/职务（照原文；无为null）"),
-            StrField("org", "机构/单位/部门名（照原文；无为null）"),
+            StrField("name", "统一显示称呼：姓名优先，其次原文角色，再次原始编号；不推断、不编造"),
+            StrField("role", "角色（发言人/主持人/记者/听众/嘉宾/主讲人…，照原文；判断不出为null）"),
+            StrField("org", "机构/单位/媒体名（照原文；没有为null）"),
         ]),
         ObjListField("topics", [
-            StrField("topic_id", "议题编号（如 T1, T2）"),
-            StrField("module", "所属业务模块/业务领域（精炼概括归属领域）"),
-            StrField("title", "核心议题标题（4~12字）"),
-            # 恢复为 80~150 字精炼脉络（MINUTES_TEMPLATE_OPTIMIZATION_STRATEGY 方案）：
-            StrField("context_and_debate", "该议题讨论脉络与核心分歧焦点（充分展开交代：背景痛点、各方主张与论据、分歧争论焦点、妥协前提与拍板定调依据，严禁空泛套话）"),
-            ObjListField("discussion_points", [
-                StrField("point", "核心研讨要点/分歧争议主题（8~20字）"),
-                StrField("detail", "该要点的具体研讨细节、各方立场与依据（50~100字饱满复合句）"),
-                StrListField("evidence_quotes", "原文关键发言人表态或数据支撑（无则[]）"),
-            ]),
-            StrListField("key_metrics", "量化指标与参数（如并发数、时延、预算、排期等；无则[]）"),
-            StrListField("decisions", "本议题拍板决议（含生效前提与约束；无则[]）"),
-            ObjListField("actions", [
-                StrField("task", "具体行动描述（以动词开头的具体任务描述）"),
-                StrField("owner", "原文明示的负责人真实姓名；未明示为null"),
-                StrField("deadline", "原文明示的截止时间；未明示为null"),
-                StrField("deliverable", "明确交付成果物（如报告、方案、代码PR；无为null）"),
-                StrField("dependency", "原文明示的前置依赖动作或输入；无为null"),
-                EnumField("priority", ["high", "medium", "low"]),
-                StrField("evidence", "原文中支撑此行动的一句话证据"),
-            ]),
-            ObjListField("risks", [
-                StrField("risk", "风险/隐患客观描述"),
-                EnumField("severity", ["high", "medium", "low"]),
-                StrField("impact", "潜在影响后果；无明确为null"),
-                StrField("mitigation", "现场已有的应对措施；未提为null"),
-                StrField("owner", "跟进责任人；未明示为null"),
-                StrField("evidence", "原文中支撑此风险的一句话证据"),
-            ]),
-            StrListField("open_issues", "尚未达成一致或需后续确认的事项；无则[]"),
+            StrField("title", "议题名称"),
+            StrField("discussion", "该议题的讨论经过与核心分歧脉络（context_and_debate）：谁提出、怎么讨论、分歧与结论线索，连贯写清（不复述 key_points 的事实）"),
+            StrListField("key_points", "该议题的事实要点，按信息点逐条列出（一条一个事实）——数字与指标、对照取值、金额、日期与时限、人名、范围边界、分歧、结论线索、推进状态都要写进来；同类事项分别列出，不要压成一句"),
+            StrField("conclusion", "该议题的结论，无结论时为null"),
+            StrListField("participants", "原文中明确出现的发言人姓名"),
         ]),
+        StrListField("decisions", "已明确拍板/达成共识的结论（逐条列出、不遗漏；同类多项分别列出）"),
+        StrListField("open_questions", "尚未达成一致或需后续确认的事项（逐条列出、不遗漏）"),
+        StrListField("risks", "原文明确提到的风险/隐患/阻碍（逐条列出、不遗漏；同一句含多个风险对象时拆成多条）"),
+        # ── 下游线索字段（供待办/风险线直接消费，只做定位与锚定，不做业务判断）──
+        ObjListField("action_hints", [
+            StrField("action", "原文动作短语（谁+做什么，逐字可截取，可清语气词）"),
+            StrField("owner", "原文明示的负责人/承诺人姓名；无明确负责人时为null"),
+            StrField("timing", "原文时间约束（如「XX前完成」「会后」「尽快」），保留原文表达；无时为null"),
+            StrField("condition", "触发条件（如「若XX未确认」「等XX到位」），保留原文；无时为null"),
+            StrField("topic", "所属议题标题（对应topics[].title）；无对应时为null"),
+            EnumField("kind", ACTION_HINT_KINDS),
+            StrField("evidence", "原文中支撑此行动线索的一句话"),
+        ]),
+        ObjListField("risk_hints", [
+            StrField("risk", "原文风险表述（可截取含信号片段），与risks列表条目可对应"),
+            StrField("topic", "所属议题标题；无对应时为null"),
+            EnumField("signal_type", RISK_SIGNAL_TYPES),
+            StrField("severity_evidence", "原文强度措辞原句（如「必须尽快」「影响较大」「小问题」）；无时为null"),
+            StrField("impact", "原文明确的影响后果；无时为null"),
+            StrField("mitigation", "原文已有的应对措施；未提为null"),
+            StrField("owner", "原文明示的负责人姓名；无或为占位符时为null"),
+            StrField("evidence", "原文中支撑此风险线索的一句话"),
+        ]),
+        StrListField("dependencies", "原文明确的未确认前置/依赖（如「等XX确认」「取决于XX」「XX到位后才能YY」）"),
     ]
 
 
@@ -62,5 +106,8 @@ MEETING_UNDERSTANDING_GENERATION_OUTPUT_CONTRACT = (
 )
 
 __all__ = [
+    "SCENE_CHOICES",
+    "ACTION_HINT_KINDS",
+    "RISK_SIGNAL_TYPES",
     "MEETING_UNDERSTANDING_GENERATION_OUTPUT_CONTRACT",
 ]
