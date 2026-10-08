@@ -530,11 +530,13 @@ class _Nodes(DomainNodes):
             key_points = []
         if discussion and not key_points:
             key_points = [discussion[:2000]]
+        debates = topic.get("debates") or []
         return {
             "title": title,
             "discussion": discussion,
             "context_and_debate": discussion,
             "key_points": [str(p) for p in key_points][:12],
+            "debates": debates if isinstance(debates, list) else [],
             "conclusion": conclusion,
             "participants": topic.get("participants") or [],
         }
@@ -627,11 +629,13 @@ class _Nodes(DomainNodes):
                     key_points = item.get("key_metrics") or []
                 if not isinstance(key_points, list):
                     key_points = [discussion] if discussion else []
+                debates = item.get("debates") or []
                 full_topics.append({
                     "title": str(item.get("title") or "").strip(),
                     "key_points": [str(p).strip() for p in key_points if str(p).strip()][:12],
                     "discussion": discussion,
                     "context_and_debate": discussion,
+                    "debates": debates if isinstance(debates, list) else [],
                     "conclusion": item.get("conclusion"),
                     "participants": item.get("participants") or [],
                 })
