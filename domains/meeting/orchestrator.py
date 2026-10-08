@@ -514,6 +514,7 @@ class _Nodes(DomainNodes):
             "title": title,
             "context_and_debate": discussion,
             "discussion": discussion,
+            "discussion_points": topic.get("discussion_points") or [],
             "key_points": [str(p) for p in key_points][:12],
             "key_metrics": topic.get("key_metrics") or [],
             "decisions": decisions,
@@ -743,10 +744,14 @@ class _Nodes(DomainNodes):
         perspective = self._compact_perspective(state.get("perspective_profile") or {})
         if perspective:
             blocks.append(("已审核用户视角", perspective, "json"))
-        # 溯源线/导图/共识决策仍保留原文；纪要（minutes 与 minutes_styles）彻底解耦原文，以草稿与理解为唯一事实源
-        if line_name in {"minutes_trace", "mindmap", "consensus_decision"}:
+        # 纪要/多样式/溯源/导图/共识决策保留原文切片：真人模式按人裁剪，客观长会议按针尖核心事实摘录（4k~6k字），打破信息物理断供
+        if line_name in {"minutes", "minutes_styles", "minutes_trace", "mindmap", "consensus_decision"}:
             label, transcript = "会议原文", state.get("transcript") or ""
-            if line_name == "consensus_decision" and len(transcript) > 8000:
+            sliced = self._person_transcript(state) if line_name in PREFERENCE_LINES else ""
+            if sliced:
+                label = "会议原文（真人模式·已按人裁剪）"
+                transcript = sliced
+            elif line_name in {"minutes", "minutes_styles", "consensus_decision"} and len(transcript) > 6000:
                 from core.runtime.supervisor_slice import collect_needles, slice_transcript
 
                 user = state.get("user") or {}
@@ -766,8 +771,8 @@ class _Nodes(DomainNodes):
                     transcript,
                     needles,
                     priority_needles=priority_needles,
-                    full_limit=8000,
-                    max_chars=8000,
+                    full_limit=6000,
+                    max_chars=6000,
                 )
                 if excerpt and used < len(transcript):
                     label = "会议原文（核心事实与证据摘录）"
