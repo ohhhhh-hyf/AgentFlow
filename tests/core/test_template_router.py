@@ -1958,6 +1958,26 @@ def test_allow_missing_on_trimmed_fields() -> None:
     check("裁剪指令写明「键名必须保留、值给空数组 []」",
           "键名必须保留" in trim and "不要省略键名" in trim, trim[:80])
 
+    with_extra = dict(base)
+    with_extra["action_hints"] = []
+    with_extra["dependencies"] = []
+    with_extra["risk_hints"] = []
+    out_extra = LLMClient._parse_and_validate(json.dumps(with_extra), MeetingUnderstanding)
+    check("模型输出多余顶层字段时自动清洗放行（不抛错重试）",
+          isinstance(out_extra, MeetingUnderstanding) and not hasattr(out_extra, "action_hints"), "")
+
+    from core.execution.hard_execution import enforce_upstream_carry, MINUTES_CARRY_MAP
+
+    degraded_draft = {
+        "headline": "进展同步",
+        "key_decisions": ["自研模型按期上线"],
+        "risks_and_blockers": ["显存不足需要切分"],
+    }
+    preserved = enforce_upstream_carry(degraded_draft, {}, MINUTES_CARRY_MAP)
+    check("上游理解为空时保留草稿已有决议与风险（不暴力抹除）",
+          preserved["key_decisions"] == ["自研模型按期上线"]
+          and preserved["risks_and_blockers"] == ["显存不足需要切分"], "")
+
     src = Path("domains/meeting/meeting_core/meeting_understanding_agent.py").read_text(encoding="utf-8")
     check("理解 agent：把裁剪集合 + speakers 传给 allow_missing",
           "allow_missing=missable" in src and 'missable = skipped | {"speakers"}' in src, "")

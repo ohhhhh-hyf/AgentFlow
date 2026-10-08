@@ -1121,7 +1121,7 @@ class _Nodes(DomainNodes):
         if selected[0] == "minutes":
             skip |= skip_fields_for_template(template)
             if memory_on:
-                skip -= {"action_hints", "risks", "open_questions"}
+                skip -= {"action_hints", "risk_hints", "risks", "open_questions"}
         return frozenset(skip)
 
     def _make_meeting_understanding_node(self, line_names):

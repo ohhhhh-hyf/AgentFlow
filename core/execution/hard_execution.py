@@ -299,9 +299,12 @@ def enforce_upstream_carry(
         headline_field / purpose_field: 若 headline 为空，用 purpose 填充
     """
     out = dict(draft or {})
-    upstream = upstream or {}
+    if not upstream or not any(upstream.values()):
+        # 降级保护：上游理解为空或缺失时，不得暴力抹除草稿自身生成的内容
+        return out
     for dst, src in field_map.items():
-        out[dst] = _as_str_list(upstream.get(src))
+        if src in upstream:
+            out[dst] = _as_str_list(upstream.get(src))
     if headline_field and purpose_field:
         hl = str(out.get(headline_field) or "").strip()
         if not hl:
@@ -342,6 +345,9 @@ def enforce_minutes_draft(
         headline_field="headline",
         purpose_field="meeting_purpose",
     )
+    if not understanding or not any(understanding.values()):
+        # 降级保护：上游理解为空或不可用时，不走下采覆写，保留已有草稿
+        return out
     mode_key = (mode or "objective").strip().lower()
     if mode_key not in _SUBSET_MODES:
         return out

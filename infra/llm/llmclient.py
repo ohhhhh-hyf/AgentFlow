@@ -758,6 +758,11 @@ class LLMClient:
             raise OutputValidationError(f"不是合法 JSON：{exc}") from exc
         if isinstance(data, dict):
             data = LLMClient._fill_missing_defaults(data, response_model, allow_missing)
+            type_hints = getattr(response_model, "__annotations__", {}) or {}
+            if type_hints:
+                # 防御性清洗：剥离模型输出的未声明顶层键（如裁剪指令残留或模型幻觉产生的冗余键），
+                # 防止因无害的顶层多余键导致严格契约校验脆断崩溃
+                data = {k: v for k, v in data.items() if k in type_hints}
         return validate_payload(response_model, data)
 
     @staticmethod
