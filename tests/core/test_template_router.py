@@ -1349,18 +1349,12 @@ def test_overview_specs_have_scope() -> None:
           "本栏只写\"已经做了什么、到什么程度\"" in team and "统一归 [落实安排]，两栏不重复" in team, "")
     check("团队例会：requirement 覆盖新栏（决议与待办 / 待确认事项）",
           "决议与待办事项" in team and "待确认事项" in team, "")
-    # 尺寸口径
-    check("团队例会：工作进展给尺寸与分组（400–800 字 / 每组 2–5 条 / 不写同名标题）",
-          "约 400–800 字" in team and "每组 2–5 条" in team
-          and "不要在栏内再写一个与栏名同名的" in team, "")
-    check("团队例会：落实安排和未决风险栏都有尺寸",
-          "约 300–500 字" in team and "约 100–250 字" in team, "")
+    # 尺寸口径：仅首栏例会概况设节级预算（250–350 字），明细与安排等栏目由事实密度驱动
     from core.templates.template_eval import parse_section_char_budgets as _pscb
 
     tm_budgets = [(b["title"], b["hi"]) for b in _pscb(team)]
-    check("团队例会：四栏尺寸都被解析（概况 350 / 进展 800 / 落实安排 500 / 未决风险 250）",
-          tm_budgets == [("例会概况", 350), ("工作进展", 800), ("落实安排", 500),
-                         ("未决风险", 250)], f"{tm_budgets}")
+    check("团队例会：仅首栏概况设节级预算（350），后续栏目不设机械限字",
+          tm_budgets == [("例会概况", 350)], f"{tm_budgets}")
     check("辩论会：结辩栏分三条写",
           "**正方结辩**" in debate and "**反方结辩**" in debate and "**评委点评**" in debate, "")
     check("辩论会：结辩栏给每条尺寸", "每条 60–150 字" in debate, "")
@@ -1698,18 +1692,18 @@ def test_project_progress_overview() -> None:
           "一段写完，约 250–350 字" in overview, f"{overview[:60]}")
     check("项目进度会：旧的句数口径已删除（3–6 句不再出现）",
           "3–6 句" not in text and "句概览" not in text, "")
-    check("项目进度会：边界写成可执行的「只写进某两栏 + 本栏不复述」",
-          "只写进 [进度追踪] / [风险预警] / [后续计划] 三栏" in overview
-          and "本栏不复述" in overview, "")
+    check("项目进度会：边界写成可执行的下沉明细栏且无方括号字面",
+          "下沉至「进度追踪」、「风险预警」与「后续计划」等明细栏" in overview
+          and "本栏不复述" in overview
+          and "[" not in overview.replace("[一段话概览", "").replace("]", ""), "")
     # [后续计划] 原来是全模板唯一没有格式要求的栏（其余两栏走表、概况走一段话）→ 实测 4 份
     # 产物里 3 份写成 221–242 汉字的单段、零分点，而源里明明有 6–8 件后续事项。
     plan = next((s for s in specs if "按事项分点写" in s), "")
     check("项目进度会：[后续计划] 要求按事项分点（一条一件事、一条一行）",
           "按事项分点写" in plan and "一条一件事、一条一行" in plan
           and "`- **事项**：做什么 + 责任方 + 时间节点`" in plan, f"{plan[:80]}")
-    check("项目进度会：[后续计划] 给分组与条级尺寸（每组 2–5 条 / 每条 40–120 字）",
-          "每组 2–5 条" in plan and "每条 40–120 字" in plan
-          and "不写与栏名同名的标题" in plan, "")
+    check("项目进度会：[后续计划] 规范分组，松绑条级机械限字",
+          "每组 2–5 条" in plan and "不写与栏名同名的标题" in plan, "")
     check("项目进度会：[后续计划] 保留交付物/依赖提示与套话禁令",
           "核心交付物用 **具体内容** 强调" in plan
           and "依赖前提用 *具体内容* 提示" in plan
@@ -1810,6 +1804,25 @@ def test_paragraph_cap_from_explicit_per_para() -> None:
     over = _overlong_issue(gm, doc3) or ""
     check("通用纪要：摘要栏单句超长仍报超限（不再静默）",
           "超出段落字数上限" in over and "全文摘要" in over, over[:80])
+
+    # ⑤ 自适应切分：产物以 ## 划分各栏时，后序栏目不被误吞进首栏
+    from core.execution.hard_execution import _top_level_sections
+
+    prog_text = (_active_dir() / "project_progress.md").read_text(encoding="utf-8")
+    doc_h2 = (
+        "## 项目概况\n\n本阶段项目整体按期推进，关键接口已完成联调，核心风险处于可控状态。\n\n"
+        "## 进度追踪\n\n| 模块 | 进展 | 状态 |\n| 认证 | 已上线 | 正常 |\n\n"
+        "## 风险预警\n\n| 风险/瓶颈 | 等级 | 影响 | 责任人 | 应对计划 |\n| 压测延期 | 中 | 延迟 | 张三 | 增加资源 |\n\n"
+        "## 后续计划\n\n- **联调验收**：完成端到端联调 + 测试组 + 下周三\n"
+    )
+    secs = _top_level_sections(doc_h2)
+    sec_names = [s[0].strip("# ").strip() for s in secs]
+    check("H2 产物能正确切分各栏目（不吞进首栏）",
+          "项目概况" in sec_names and "进度追踪" in sec_names and "后续计划" in sec_names,
+          f"{sec_names}")
+    budget_err = _overlong_issue(prog_text, doc_h2)
+    check("H2 产物各栏目独立核算字数（首栏不误报超限）", budget_err is None, f"{budget_err}")
+
 
 
 def test_strip_default_only_content() -> None:
@@ -2768,14 +2781,14 @@ def test_class_transcript_task_groups() -> None:
         check(f"课堂记录包含 [{col}] 栏目", f"[{col}]" in text, "")
 
     # 核心知识点要求
-    kn = next(l for l in text.splitlines() if "按教学逻辑或章节模块分组" in l)
+    kn = next(l for l in text.splitlines() if "章节模块分组" in l)
     check("核心知识点：要求标题下至少一条正文且不得只有标题",
           "标题下必须至少一条正文" in kn and "不得只有标题" in kn, "")
     check("核心知识点：较复杂推导下挂缩进子条展开",
           "下挂缩进子条" in kn and "严禁将多步推导强行压缩为孤立结论" in kn, "")
 
     # 疑难辨析要求
-    qa = next(l for l in text.splitlines() if "清单化记录课堂互动中产生" in l)
+    qa = next(l for l in text.splitlines() if "课堂互动中产生" in l)
     check("疑难辨析：摒弃一问一答对话剧本，按焦点概念/易错命题列出",
           "摒弃冗长的一问一答对话剧本" in qa and "焦点概念/易错命题" in qa, "")
     check("疑难辨析：要求展开完整思维纠偏链条与单条尺寸（80–150 字）",
@@ -2907,17 +2920,13 @@ def test_lecture_evidence_cap() -> None:
     spec = next(l for l in text.splitlines() if "两级结构" in l and "## 论点" in l)
     check("讲座：两级结构 + 论点标题短语化（20 个汉字内，不写成会解析成预算的「20 字」）",
           "两级结构" in spec and "20 个汉字内" in spec and "20 字内" not in spec, spec[:80])
-    check("讲座：论点数量设控（至多 8 个核心论点，严禁碎片化立项）",
-          "至多 8 个核心论点" in spec and "严禁碎片化立项" in spec, spec[:80])
-    check("讲座：精选 2–4 条核心论据，与 Q&A 筑起边界",
-          "精选 2–4 条核心论据" in spec and "统一下沉至 [Q&A 环节]" in spec, spec[:80])
-    check("讲座：直接数据/典型事例优先、重复表达可合并",
-          "直接数据或典型事例" in spec and "重复表达可以合并" in spec, "")
-    check("讲座：条级尺寸与聚合口径保留（每条 30–100 字、次要铺垫适度聚合）",
-          "每条 30–100 字" in spec and "适度聚合" in spec, "")
+    check("讲座：论点标题短语化与边界（20 个汉字内，互动统一下沉至 Q&A）",
+          "20 个汉字内" in spec and "统一下沉至 [Q&A 环节]" in spec, spec[:80])
+    check("讲座：直接数据/典型事例优先、细碎铺垫适度聚合",
+          "直接数据或典型事例" in spec and "适度聚合" in spec, "")
     got = [(b["title"], b["hi"], b["scope"]) for b in parse_section_char_budgets(text)]
-    check("讲座：预算未漂（概况/问答照旧）",
-          ("讲座概况", 400, "section") in got and ("Q&A 环节", 400, "paragraph") in got, f"{got}")
+    check("讲座：仅概况保留节级预算（400），中间论点论据由事实密度驱动",
+          ("讲座概况", 400, "section") in got, f"{got}")
 
 
 
@@ -3073,8 +3082,8 @@ def test_media_briefing_evidence_and_depth() -> None:
     from core.templates.template_eval import parse_section_char_budgets
 
     text = (_active_dir() / "media_briefing.md").read_text(encoding="utf-8")
-    core = next(l for l in text.splitlines() if l.strip().startswith("[提炼官方发布"))
-    stance = next(l for l in text.splitlines() if l.strip().startswith("[只写发言人"))
+    core = next(l for l in text.splitlines() if l.strip().startswith(("[提炼官方发布", "[展示官方发布")))
+    stance = next(l for l in text.splitlines() if l.strip().startswith(("[只写发言人", "[按每组一行")))
 
     check("核心信息：依据三样（依据/口径与范围/时间表）",
           all(k in core for k in ("依据", "口径与范围", "时间表")), core[:60])

@@ -809,33 +809,6 @@ def split_overlong_paragraphs(text: str, template: str) -> tuple[str, list[str]]
     return "\n".join(out), notes
 
 
-def _top_level_sections(text: str) -> list[tuple[str, str]]:
-    """按**一级标题**归并节：子标题（`##`/`###`）并入其父节正文。
-
-    为什么（2026-09-18 实测）：`split_markdown_sections` 按任意级标题切分，
-    `## 子标题` 会把栏目的内容切成一个个无名小节 → 父节的字数预算
-    查不到任何正文 → 该栏的段落上限检查整体失效（823 字单段原样通过）。
-    """
-    try:
-        from core.templates.template_eval import split_markdown_sections
-    except Exception:  # noqa: BLE001
-        return []
-    merged: list[tuple[str, list[str]]] = []
-    for title, body in split_markdown_sections(text or ""):
-        first = next((ln for ln in body.splitlines() if ln.strip()), "")
-        if first.strip().startswith("# ") or not merged:
-            merged.append((title, [body]))
-        else:
-            merged[-1][1].append(body)
-    return [(title, "\n".join(parts)) for title, parts in merged]
-
-
-# 「一段写完，约 N–M 字」：总述栏单段口径——模型写成多段时由程序合并成一段
-_FIRST_COL_PARA_RE = re.compile(
-    r"[（(]一段写完[，,]?\s*约?\s*\d+\s*[–—-]\s*\d+\s*字[)）]"
-)
-
-
 def _is_section_line(line: str, level: int = 1) -> bool:
     s = line.strip()
     prefix = "#" * level + " "
@@ -849,6 +822,42 @@ def _section_heading_level(lines: list[str]) -> int:
     if has_h2 >= 2 and has_h1 <= 1:
         return 2
     return 1
+
+
+def _top_level_sections(text: str) -> list[tuple[str, str]]:
+    """按**栏目标题层级**归并节：子标题并入其父栏目正文。
+
+    自适应感知栏目标题层级（H1 还是 H2）：
+    - 若文档栏目主体采用 H2（`## `，如绝大多数规范模板），则以 `## ` 及以上级别为边界切分各栏目，
+      其下的 `### ` 子标题并入父栏目正文；
+    - 若文档栏目主体采用 H1（`# `），则以 `# ` 为边界切分栏目。
+    避免当文档没有一级 `# 标题` 且栏目全为 `## ` 时，后续所有栏目被误合并进第一个栏目导致字数超限误报。
+    """
+    try:
+        from core.templates.template_eval import split_markdown_sections
+    except Exception:  # noqa: BLE001
+        return []
+    raw = text or ""
+    if not raw.strip():
+        return []
+    lines = raw.splitlines()
+    sec_level = _section_heading_level(lines)
+    merged: list[tuple[str, list[str]]] = []
+    for title, body in split_markdown_sections(raw):
+        first = next((ln for ln in body.splitlines() if ln.strip()), "")
+        m = re.match(r"^(#{1,6})\s+", first.strip())
+        cur_level = len(m.group(1)) if m else 1
+        if cur_level <= sec_level or not merged:
+            merged.append((title, [body]))
+        else:
+            merged[-1][1].append(body)
+    return [(title, "\n".join(parts)) for title, parts in merged]
+
+
+# 「一段写完，约 N–M 字」：总述栏单段口径——模型写成多段时由程序合并成一段
+_FIRST_COL_PARA_RE = re.compile(
+    r"[（(]一段写完[，,]?\s*约?\s*\d+\s*[–—-]\s*\d+\s*字[)）]"
+)
 
 
 def _h1_indexes(lines: list[str]) -> list[int]:
