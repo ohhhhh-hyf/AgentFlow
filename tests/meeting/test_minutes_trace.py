@@ -18,6 +18,7 @@ from domains.meeting.tasks.minutes_trace.align import (
 from domains.meeting.tasks.minutes_trace.html import trace_review_html
 from domains.meeting.tasks.minutes_trace.structure import (
     bulletize_minutes,
+    collect_people,
     topic_headings,
 )
 
@@ -178,9 +179,151 @@ def test_trace_review_html_without_pins() -> None:
     assert "<title>会议溯源</title>" in html
 
 
+SAMPLE_FLAT_UNDERSTANDING = {
+    "meeting_brief": "618大促前网关稳定性及订单履约改造方案评审会",
+    "meeting_purpose": "对齐大促稳定性技术方案与排期",
+    "speakers": [
+        {"name": "张三", "role": "架构师", "org": "架构组"},
+        {"name": "李四", "role": "开发负责人", "org": "履约组"},
+        {"name": "李总", "role": "负责人", "org": "技术部"},
+        {"name": "王五", "role": "营销负责人", "org": "营销组"},
+    ],
+    "topics": [
+        {
+            "module": "核心网关架构优化",
+            "title": "网关鉴权改造与缓存选型",
+            "discussion": "网关在压测时 QPS 达到 5000 之后 CPU 抖动达到 15%，主要是 JWT 本地缓存穿透",
+            "key_points": [
+                "网关高峰期 QPS 超过 5000 时 CPU 抖动达 15%",
+                "排查确认为 JWT 本地缓存穿透导致的重复解密",
+                "架构组确认采用 Redis 二级缓存替代 Guava 缓存",
+                "本次大促暂不进行机器物理扩容",
+            ],
+            "conclusion": "采用 Redis 二级缓存方案，张三负责 4 月 10 日前完成",
+            "participants": ["张三", "李总", "王五"],
+        },
+        {
+            "module": "交易履约改造",
+            "title": "订单履约状态机异步化",
+            "discussion": "履约状态更新目前为同步事务调用，高峰期死锁率约为 0.3%，改成 MQ 异步削峰",
+            "key_points": [
+                "履约状态同步调用死锁率 0.3%",
+                "一致同意引入消息队列削峰解耦，履约状态机做最终一致性校验",
+                "李四负责消息队列重试机制设计并提测",
+            ],
+            "conclusion": "引入 MQ 异步削峰，李四 4 月 15 日前提测",
+            "participants": ["李四"],
+        },
+    ],
+    "decisions": [
+        "采用 Redis 二级缓存替代 Guava 缓存，暂不扩机器",
+        "订单履约引入消息队列削峰解耦",
+    ],
+    "risks": [
+        "营销服务未接入新 SDK 影响联调切流",
+    ],
+    "action_hints": [
+        {
+            "action": "完成二级缓存改造并在预发完成压测与降级预案",
+            "owner": "张三",
+            "timing": "4月10日前",
+            "condition": None,
+            "topic": "网关鉴权改造与缓存选型",
+            "kind": "assignment",
+            "evidence": "张三你在 4 月 10 日前完成。",
+        },
+        {
+            "action": "消息队列消费重试机制设计并提测",
+            "owner": "李四",
+            "timing": "4月15日前",
+            "condition": None,
+            "topic": "订单履约状态机异步化",
+            "kind": "assignment",
+            "evidence": "我 4 月 15 日前提测。",
+        },
+    ],
+    "risk_hints": [
+        {
+            "risk": "营销服务未接入新 SDK 影响大促联调切流",
+            "topic": "网关鉴权改造与缓存选型",
+            "signal_type": "dependency",
+            "severity_evidence": "联调要是拖了会影响切流",
+            "impact": "影响大促切流",
+            "mitigation": None,
+            "owner": "王五",
+            "evidence": "营销服务还没接新 SDK，联调要是拖了会影响切流。",
+        }
+    ],
+    "dependencies": [
+        "营销服务接入新 SDK 是切流的前置依赖",
+    ],
+}
+
+
+def test_flat_structure_build_topic_details() -> None:
+    details = _build_topic_details(SAMPLE_FLAT_UNDERSTANDING)
+    assert "网关鉴权改造与缓存选型" in details
+    assert "订单履约状态机异步化" in details
+
+    gw_items = details["网关鉴权改造与缓存选型"]
+    # key_points 命中
+    assert any("Redis" in it for it in gw_items)
+    # action_hints 命中
+    assert any("张三" in it for it in gw_items)
+    # risk_hints 命中
+    assert any("营销服务" in it for it in gw_items)
+
+
+def test_flat_structure_topic_score_and_routing() -> None:
+    details = _build_topic_details(SAMPLE_FLAT_UNDERSTANDING)
+    titles = ["网关鉴权改造与缓存选型", "订单履约状态机异步化"]
+    segments = segment_minutes(SAMPLE_NEW_MINUTES)
+
+    # 包含平铺 action_hints 中人名与时限
+    score_gw = _topic_score("张三负责4月10日前交付", "网关鉴权改造与缓存选型", titles, details)
+    score_order = _topic_score("张三负责4月10日前交付", "订单履约状态机异步化", titles, details)
+    assert score_gw > score_order
+
+    # best_segment 精准寻段
+    best_pool = _best_segment("李四负责4月15日MQ重试机制提测", segments, titles, details)
+    assert best_pool is not None
+    assert any("李四" in sent for sent in best_pool)
+
+
+def test_flat_structure_backfill_and_stamp() -> None:
+    keypoints = [
+        "网关QPS超过5000时CPU抖动15%",
+        "张三负责4月10日前完成改造",
+    ]
+    notes = [
+        ("营销服务未接入新SDK", "必须尽快推动"),
+    ]
+    alignments = backfill_alignments(
+        [],
+        SAMPLE_NEW_MINUTES,
+        SAMPLE_TRANSCRIPT,
+        keypoints,
+        notes,
+        topic_titles=["网关鉴权改造与缓存选型", "订单履约状态机异步化"],
+        understanding=SAMPLE_FLAT_UNDERSTANDING,
+    )
+    assert len(alignments) >= 2
+    stamped = stamp_minutes(SAMPLE_NEW_MINUTES, alignments)
+    assert "###[【" in stamped
+    assert "- 当前鉴权网关在高峰期 QPS 超过 5000" in stamped
+
+
+def test_flat_structure_collect_people() -> None:
+    people = collect_people(SAMPLE_FLAT_UNDERSTANDING, SAMPLE_TRANSCRIPT)
+    assert "张三" in people
+    assert "李四" in people
+    assert "王五" in people
+
+
 if __name__ == "__main__":
     import sys
     import pytest
 
     sys.exit(pytest.main([__file__]))
+
 

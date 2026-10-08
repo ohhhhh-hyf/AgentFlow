@@ -38,6 +38,108 @@ class MinutesGenerationRender:
         self.client = client
 
     @staticmethod
+    def _format_list_items(items: list[str]) -> list[str]:
+        """格式化列表项，支持个人视角的独占加粗组名（如 **与我相关**：、**姓名**：）。"""
+        lines: list[str] = []
+        for it in items:
+            s = str(it or "").strip()
+            if not s:
+                continue
+            # 独占组名行（如 **与我相关**：、**重点协同**：、**姓名**：）
+            if s.startswith("**") and (s.endswith("：") or s.endswith(":")):
+                if lines and lines[-1] != "":
+                    lines.append("")
+                lines.append(s)
+            else:
+                if not s.startswith(("- ", "* ", "1.", "2.", "3.", "4.", "5.", "6.", "7.", "8.", "9.")):
+                    lines.append(f"- {s}")
+                else:
+                    lines.append(s)
+        return lines
+
+    @staticmethod
+    def render_draft(state: dict) -> str:
+        """把已批准的纪要草稿纯 Python 确定性组装为规范 Markdown 正文（零 LLM 调用）。"""
+        minutes_state = (state.get("lines") or {}).get("minutes") or {}
+        draft = minutes_state.get("draft") or {}
+        if not draft:
+            return "请直接参考会议原文。"
+
+        objective = bool(state.get("objective_perspective"))
+        user = state.get("user") or {}
+        name = str(user.get("name") or "").strip()
+        is_personal = (
+            (not objective)
+            and bool(name)
+            and str(user.get("perspective") or "").strip().lower() != "objective"
+        )
+
+        headline = str(draft.get("headline") or "").strip()
+        if headline:
+            title = headline
+        elif is_personal:
+            title = f"{name}视角会议纪要"
+        elif objective:
+            title = "客观会议纪要"
+        else:
+            title = "会议纪要"
+
+        blocks: list[str] = []
+
+        # 1. executive_summary -> 全文摘要
+        exec_sum = list(draft.get("executive_summary") or [])
+        if exec_sum:
+            summary_paras = [str(p).strip() for p in exec_sum if str(p).strip()]
+            if summary_paras:
+                blocks.append("## 全文摘要\n\n" + "\n\n".join(summary_paras))
+
+        # 2. key_decisions -> 关键决策
+        decisions = list(draft.get("key_decisions") or [])
+        if decisions:
+            formatted_decisions = MinutesGenerationRender._format_list_items(decisions)
+            if formatted_decisions:
+                blocks.append("## 关键决策\n\n" + "\n".join(formatted_decisions))
+
+        # 3. personally_relevant_points -> 执行要点
+        points = list(draft.get("personally_relevant_points") or [])
+        if points:
+            formatted_points = MinutesGenerationRender._format_list_items(points)
+            if formatted_points:
+                sec_title = "## 职责相关事项" if is_personal else "## 全员执行要点"
+                blocks.append(f"{sec_title}\n\n" + "\n".join(formatted_points))
+
+        # 4. risks_and_blockers -> 风险与阻塞
+        risks = list(draft.get("risks_and_blockers") or [])
+        if risks:
+            formatted_risks = MinutesGenerationRender._format_list_items(risks)
+            if formatted_risks:
+                blocks.append("## 风险与阻塞\n\n" + "\n".join(formatted_risks))
+
+        # 5. unresolved_questions -> 未决问题
+        questions = list(draft.get("unresolved_questions") or [])
+        if questions:
+            formatted_questions = MinutesGenerationRender._format_list_items(questions)
+            if formatted_questions:
+                blocks.append("## 未决问题\n\n" + "\n".join(formatted_questions))
+
+        # 6. history_comparison -> 与历史对比
+        comparison = list(draft.get("history_comparison") or [])
+        has_memory = bool(minutes_state.get("memory_context"))
+        if comparison and not has_memory:
+            formatted_comp = [
+                f"- {str(c).strip()}" if not str(c).strip().startswith(("- ", "* ")) else str(c).strip()
+                for c in comparison
+                if str(c).strip()
+            ]
+            if formatted_comp:
+                blocks.append("## 与历史对比\n\n" + "\n".join(formatted_comp))
+
+        if not blocks:
+            return f"# {title}\n\n请直接参考会议原文。"
+
+        return f"# {title}\n\n" + "\n\n".join(blocks)
+
+    @staticmethod
     def _prompt_and_user(context: str, template: str) -> tuple[str, str]:
         """组装渲染 prompt 与用户消息（普通与流式共用）。
 

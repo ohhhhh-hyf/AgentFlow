@@ -51,13 +51,25 @@ class LinePolicy:
     llm_render: str = "always"
     extracts_structure: bool = False
 
-    def uses_llm_render(self, has_template: bool) -> bool:
+    def uses_llm_render(self, template: object = False) -> bool:
         if self.llm_render == "always":
             return True
         if self.llm_render == "never":
             return False
         if self.llm_render == "if_template":
-            return bool(has_template)
+            if not template:
+                return False
+            if isinstance(template, str):
+                s = template.strip()
+                # 通用纪要与个人视角纪要是系统的默认基线模板，字段 1:1 映射，由 render_draft 纯 Python 零延迟装配，不调 LLM
+                if (
+                    not s
+                    or s in {"general_minutes", "personal_minutes", "通用纪要", "个人视角纪要"}
+                    or s.startswith("# 通用纪要")
+                    or s.startswith("# 个人视角纪要")
+                ):
+                    return False
+            return bool(template)
         raise ValueError(f"未知 llm_render：{self.llm_render}")
 
 

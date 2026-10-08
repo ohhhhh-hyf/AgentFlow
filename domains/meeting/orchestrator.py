@@ -446,7 +446,8 @@ class _Nodes(DomainNodes):
         }),
         "minutes_trace": frozenset({
             "meeting_brief", "meeting_purpose", "scene", "speakers",
-            "topics", "decisions", "risks", "open_questions", "dependencies",
+            "topics", "decisions", "risks", "open_questions",
+            "action_hints", "risk_hints", "dependencies",
         }),
     }
 
@@ -610,6 +611,8 @@ class _Nodes(DomainNodes):
                 "decisions": top_decisions,
                 "risks": top_risks,
                 "open_questions": top_open_questions,
+                "action_hints": u.get("action_hints") or [],
+                "risk_hints": u.get("risk_hints") or [],
                 "dependencies": u.get("dependencies") or [],
             }
         if line_name == "consensus_decision":
@@ -682,9 +685,9 @@ class _Nodes(DomainNodes):
         mode = self._mode_label(state)
         if line_name == "minutes":
             fact_note = (
-                "说明：会议理解议题树是你的主事实源与导航索引，已包含全场决议、量化指标、落地行动与风险隐患。"
-                "撰写段落时，以议题树各节点的指标、决策与分歧脉络为事实骨架，对照会议原文定向补充具体论据细节与发言人表态。"
-                "不得脱离议题树自由漫游原文流水账。裁剪视角时严格参考用户画像、命中表和用户视角模型。"
+                "说明：会议理解平铺议题列表是你的主事实源与导航索引，已包含全场决议、量化指标、落地行动与风险隐患。"
+                "撰写段落时，以各议题节点的指标、决策与分歧脉络为事实骨架，对照会议原文定向补充具体论据细节与发言人表态。"
+                "不得脱离平铺议题自由漫游原文流水账。裁剪视角时严格参考用户画像、命中表和用户视角模型。"
             )
         else:
             fact_note = (
@@ -726,6 +729,13 @@ class _Nodes(DomainNodes):
             budget = self._length_budget_line(state, line_name)
             if budget:
                 parts.append(budget)
+        if line_name == "minutes":
+            tpl = (state.get("templates") or {}).get("minutes") or ""
+            tpl_str = str(tpl).strip()
+            if tpl_str and not (
+                tpl_str.startswith("# 通用纪要") or tpl_str.startswith("# 个人视角纪要")
+            ):
+                parts.append(f"【目标样式模板】\n{tpl_str}")
         return "\n\n".join(parts)
 
     def _supervisor_context(self, state, line_name: str) -> str:

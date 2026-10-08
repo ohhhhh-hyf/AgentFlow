@@ -28,6 +28,14 @@ def collect_people(understanding: Any, transcript: str = "") -> list[str]:
             names.append(text)
 
     if isinstance(understanding, dict):
+        for sp in understanding.get("speakers") or []:
+            if isinstance(sp, dict):
+                _add(sp.get("name"))
+            else:
+                _add(sp)
+        for hint in understanding.get("action_hints") or []:
+            if isinstance(hint, dict):
+                _add(hint.get("owner"))
         for topic in understanding.get("topics") or []:
             if not isinstance(topic, dict):
                 continue

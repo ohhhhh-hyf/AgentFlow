@@ -99,7 +99,7 @@ def _extract_transcript(shared_context: str, understanding: dict) -> str:
 
 
 # trace 实际消费的理解字段：程序（topics/meeting_purpose）+ LLM
-# （meeting_brief/topics/decisions/risks/open_questions）。
+# （meeting_brief/topics/decisions/risks/open_questions/action_hints/risk_hints/dependencies）。
 _TRACE_UNDERSTANDING_KEYS = (
     "meeting_brief",
     "topics",
@@ -107,6 +107,9 @@ _TRACE_UNDERSTANDING_KEYS = (
     "risks",
     "open_questions",
     "meeting_purpose",
+    "action_hints",
+    "risk_hints",
+    "dependencies",
 )
 
 
@@ -167,7 +170,7 @@ class MinutesTraceAgent:
             "## [议题名称]\n"
             "- 各议题标题必须且只能取自上述「议题清单」。\n"
             "- 使用「- 」分点，一行陈述一个完整客观事实，组内严禁任何加粗机械前缀（如禁止写“**讨论**：/ **决议**：”等）。\n"
-            "- 自然涵盖核心讨论与指标、确定的方案决议、分工责任人与交付要求、潜在卡点（无相应内容的维度直接不写）。"
+            "- 事实饱满度要求：每个议题下充分结合 topics[].key_points、discussion，以及对应的 decisions、action_hints（分工动作/排期节点）和 risk_hints，写出包含明确责任人、时限、技术指标与交付标准的完整事实句（3~6 条），为专名、参数及后续溯源落钉提供充足承载句（无相应内容的维度直接不写）。"
         )
         parts.append(fmt_spec)
 

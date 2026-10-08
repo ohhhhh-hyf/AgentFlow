@@ -227,15 +227,17 @@ async def produce_line(
             return
 
         policy = engine._line_policy(line_name)
-        if not policy.uses_llm_render(bool(template)):
-            context = engine._render_context(state, line_name)
+        if not policy.uses_llm_render(template):
             render_draft = getattr(render, "render_draft", None)
             materialize = getattr(render, "materialize", None)
+            context = ""
             if callable(render_draft):
                 full_text = render_draft(state)
             elif materialize is not None:
+                context = engine._render_context(state, line_name)
                 full_text = await materialize(context, template)
             elif policy.llm_render == "never" and hasattr(render, "run"):
+                context = engine._render_context(state, line_name)
                 full_text = await render.run(context, template)
             else:
                 draft = line(state, line_name).get("draft") or {}
@@ -246,9 +248,14 @@ async def produce_line(
             if full_text and cite is not None:
                 try:
                     citation_context = (
-                        line(state, line_name).get("memory_context") or context
+                        line(state, line_name).get("memory_context") or context or ""
                     )
-                    full_text = cite(full_text, citation_context)
+                    comparison = (
+                        line(state, line_name).get("draft") or {}
+                    ).get("history_comparison") or []
+                    full_text = cite(
+                        full_text, citation_context, comparison=comparison
+                    )
                 except Exception:  # noqa: BLE001
                     logger.warning("memory citation failed line=%s", line_name, exc_info=True)
             line_state = line(state, line_name)

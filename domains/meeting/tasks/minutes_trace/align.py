@@ -631,21 +631,54 @@ def _has_evidence(transcript: str, evidence: str) -> bool:
 
 
 def _understanding_pool(understanding: dict | None) -> list[str]:
-    """会议理解中的规范化条目（决策/风险/未决/议题标题/议题子项）作证据池：
+    """会议理解中的规范化条目（决策/风险/未决/依赖/议题标题/要点/线索）作证据池：
     用户关键点是概括、与原文不逐字时，用这些提炼条目做同指桥。"""
     if not isinstance(understanding, dict):
         return []
     out: list[str] = []
-    for key in ("decisions", "risks", "open_questions"):
+    # 1. 全局决议、风险、未决事项、依赖关系
+    for key in ("decisions", "risks", "open_questions", "dependencies"):
         for text in understanding.get(key) or []:
             t = " ".join(str(text or "").split()).strip()
             if t and t not in out:
                 out.append(t)
+    # 2. 平铺行动线索（action_hints）
+    for hint in understanding.get("action_hints") or []:
+        if isinstance(hint, dict):
+            act = str(hint.get("action") or "").strip()
+            owner = str(hint.get("owner") or "").strip()
+            timing = str(hint.get("timing") or "").strip()
+            combo = f"{owner} {act} {timing}".strip()
+            if combo and combo not in out:
+                out.append(combo)
+            ev = str(hint.get("evidence") or "").strip()
+            if ev and ev not in out:
+                out.append(ev)
+    # 3. 平铺风险线索（risk_hints）
+    for hint in understanding.get("risk_hints") or []:
+        if isinstance(hint, dict):
+            rk = str(hint.get("risk") or "").strip()
+            if rk and rk not in out:
+                out.append(rk)
+            ev = str(hint.get("evidence") or "").strip()
+            if ev and ev not in out:
+                out.append(ev)
+    # 4. 各议题的要点、结论、讨论与老树字段
     for topic in understanding.get("topics") or []:
         if isinstance(topic, dict):
             t = " ".join(str(topic.get("title") or "").split()).strip()
             if t and t not in out:
                 out.append(t)
+            # 平铺事实要点 key_points
+            for kp in topic.get("key_points") or []:
+                kpt = " ".join(str(kp or "").split()).strip()
+                if kpt and kpt not in out:
+                    out.append(kpt)
+            # 平铺结论 conclusion
+            conc = str(topic.get("conclusion") or "").strip()
+            if conc and conc not in out:
+                out.append(conc)
+            # 兼容老树 decisions/risks/actions
             for d in topic.get("decisions") or []:
                 dt = " ".join(str(d or "").split()).strip()
                 if dt and dt not in out:
@@ -665,14 +698,17 @@ def _understanding_pool(understanding: dict | None) -> list[str]:
                 at = " ".join(at.split()).strip()
                 if at and at not in out:
                     out.append(at)
-    return out[:60]
+    return out[:120]
 
 
 def _build_topic_details(understanding: dict | None) -> dict[str, list[str]]:
-    """抽取各议题下的关键事实（决议、行动、风险、讨论片段），建立 标题 -> 关键事实列表 映射。"""
+    """抽取各议题下的关键事实（要点、决议、行动、风险、讨论片段），建立 标题 -> 关键事实列表 映射。"""
     if not isinstance(understanding, dict):
         return {}
     out: dict[str, list[str]] = {}
+    action_hints = understanding.get("action_hints") or []
+    risk_hints = understanding.get("risk_hints") or []
+
     for topic in understanding.get("topics") or []:
         if not isinstance(topic, dict):
             continue
@@ -680,6 +716,44 @@ def _build_topic_details(understanding: dict | None) -> dict[str, list[str]]:
         if not title:
             continue
         items: list[str] = [title]
+        # 1. 平铺事实要点 key_points
+        for kp in topic.get("key_points") or []:
+            kps = str(kp or "").strip()
+            if kps and kps not in items:
+                items.append(kps)
+        # 2. 平铺结论 conclusion
+        conc = str(topic.get("conclusion") or "").strip()
+        if conc and conc not in items:
+            items.append(conc)
+        # 3. 关联平铺顶级 action_hints（按 topic 标题匹配）
+        for a in action_hints:
+            if not isinstance(a, dict):
+                continue
+            a_topic = str(a.get("topic") or "").strip()
+            if a_topic and (a_topic == title or a_topic in title or title in a_topic):
+                task = str(a.get("action") or "").strip()
+                assignee = str(a.get("owner") or "").strip()
+                deadline = str(a.get("timing") or "").strip()
+                parts = [p for p in (assignee, task, deadline) if p]
+                at = " ".join(parts).strip()
+                if at and at not in items:
+                    items.append(at)
+                ev = str(a.get("evidence") or "").strip()
+                if ev and ev not in items:
+                    items.append(ev)
+        # 4. 关联平铺顶级 risk_hints（按 topic 标题匹配）
+        for r in risk_hints:
+            if not isinstance(r, dict):
+                continue
+            r_topic = str(r.get("topic") or "").strip()
+            if r_topic and (r_topic == title or r_topic in title or title in r_topic):
+                rt = str(r.get("risk") or "").strip()
+                if rt and rt not in items:
+                    items.append(rt)
+                impact = str(r.get("impact") or "").strip()
+                if impact and impact not in items:
+                    items.append(impact)
+        # 5. 兼容老树 decisions/risks/actions
         for d in topic.get("decisions") or []:
             dt = str(d or "").strip()
             if dt and dt not in items:
@@ -700,6 +774,7 @@ def _build_topic_details(understanding: dict | None) -> dict[str, list[str]]:
                 at = str(a or "").strip()
             if at and at not in items:
                 items.append(at)
+        # 6. 讨论片段
         disc = topic.get("context_and_debate") or topic.get("discussion")
         if isinstance(disc, list):
             for it in disc:
