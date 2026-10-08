@@ -1,0 +1,199 @@
+2026-10-08 09:42:50 [INFO] [uvicorn.error] Application startup complete.
+2026-10-08 09:42:50 [INFO] [uvicorn.error] Uvicorn running on http://0.0.0.0:8004 (Press CTRL+C to quit)
+2026-10-08 09:43:01 [INFO] [app.api.routes.agent] [api:agent] domain=meeting task=minutes request_id=cd76981091d04cb497f4fd7e392a15cf user_id=test
+2026-10-08 09:43:02 [INFO] [app.config] 模板源目录：/root/h00984725/try/resources/templates
+2026-10-08 09:43:02 [INFO] [app.tasks] [task:start] domain=meeting task=minutes request_id=cd76981091d04cb497f4fd7e392a15cf user_id=test memory=False
+2026-10-08 09:43:02 [INFO] [infra.llm.llmclient] llm client backend=vllm model=deepseek-v4-flash-0731 base_url=http://127.0.0.1:8000/v1 ctx=65536 max_tokens=50000 timeout=600.0 retries=2 temperature=0.2 sampling_sent=False
+2026-10-08 09:43:02 [INFO] [agentflow] pipeline start lines=minutes
+2026-10-08 09:43:02 [INFO] [agentflow] agent start meeting_understanding
+2026-10-08 09:43:02 [INFO] [infra.llm.llmclient] llm call label=core/meeting_understanding mode=structured
+2026-10-08 09:43:18 [INFO] [infra.llm.llmclient] llm resp label=core/meeting_understanding model=deepseek-v4-flash-0731 finish=stop in=5176 out=1121 json_mode=True chars=2801
+2026-10-08 09:43:18 [WARNING] [infra.llm.llmclient] structured invalid label=core/meeting_understanding attempt=1 err=MeetingUnderstanding 字段不一致：缺失=[]，多余=['action_hints', 'dependencies', 'risk_hints'] raw_head='{\n  "meeting_brief": "王毅在慕安会发表演讲阐述中国对多极世界的立场，提出平等有序的多极化主张，并回应主持人关于国际秩序、乌克兰危机及中美关系的提问。",\n  "meeting_purpose": "阐述中国对多极世界的立场与主张，回应国际关切。",\n  "speakers": [\n    {\n      "name": "王毅",\n      "role": "发言者1",\n'
+2026-10-08 09:43:18 [INFO] [infra.llm.llmclient] llm call label=core/meeting_understanding mode=structured 第2次
+2026-10-08 09:43:33 [INFO] [infra.llm.llmclient] llm resp label=core/meeting_understanding model=deepseek-v4-flash-0731 finish=stop in=5674 out=1154 json_mode=True chars=2876
+2026-10-08 09:43:33 [WARNING] [infra.llm.llmclient] structured invalid label=core/meeting_understanding attempt=2 err=MeetingUnderstanding 字段不一致：缺失=[]，多余=['action_hints', 'dependencies', 'risk_hints'] raw_head='{\n  "meeting_brief": "王毅在慕安会发表演讲阐述中国对多极世界的立场，提出平等有序的多极化主张，并回应主持人关于国际秩序、乌克兰危机及中美关系的提问。",\n  "meeting_purpose": "阐述中国对多极世界的立场与主张，回应国际关切。",\n  "speakers": [\n    {\n      "name": "王毅",\n      "role": "发言者1",\n'
+2026-10-08 09:43:33 [WARNING] [domains.meeting.orchestrator] meeting understanding failed, continue with empty
+Traceback (most recent call last):
+  File "/root/h00984725/try/domains/meeting/orchestrator.py", line 1150, in node
+    result = await self.meeting_understanding_agent.run(
+  File "/root/h00984725/try/domains/meeting/meeting_core/meeting_understanding_agent.py", line 74, in run
+    result = await self.client.structured(
+  File "/root/h00984725/try/infra/llm/llmclient.py", line 952, in structured
+    raise RuntimeError(
+RuntimeError: MeetingUnderstanding 输出无法满足结构契约：MeetingUnderstanding 字段不一致：缺失=[]，多余=['action_hints', 'dependencies', 'risk_hints']
+2026-10-08 09:43:33 [INFO] [agentflow] node done meeting_understanding
+2026-10-08 09:43:33 [INFO] [agentflow] skip perspective (objective)
+2026-10-08 09:43:33 [INFO] [agentflow] node done perspective_modeling
+2026-10-08 09:43:33 [INFO] [agentflow] agent start gen line=minutes
+2026-10-08 09:43:33 [INFO] [infra.llm.llmclient] llm call label=minutes/agent mode=structured
+2026-10-08 09:43:42 [INFO] [infra.llm.llmclient] llm resp label=minutes/agent model=deepseek-v4-flash-0731 finish=stop in=6125 out=516 json_mode=True chars=958
+2026-10-08 09:43:42 [INFO] [agentflow] agent done gen line=minutes
+2026-10-08 09:43:42 [INFO] [agentflow] node done minutes_agent
+2026-10-08 09:43:42 [INFO] [agentflow] agent start review line=minutes
+2026-10-08 09:43:42 [INFO] [infra.llm.llmclient] llm call label=minutes/supervisor mode=structured
+2026-10-08 09:43:43 [INFO] [infra.llm.llmclient] llm resp label=minutes/supervisor model=deepseek-v4-flash-0731 finish=stop in=6134 out=81 json_mode=True chars=252
+2026-10-08 09:43:43 [INFO] [agentflow] agent done review line=minutes decision=approve
+2026-10-08 09:43:43 [INFO] [core.graph.nodes] route line=minutes decision=approve revision=0/1 -> __end__
+2026-10-08 09:43:43 [INFO] [agentflow] node done minutes_supervisor
+2026-10-08 09:43:43 [INFO] [agentflow] render start line=minutes
+2026-10-08 09:43:43 [INFO] [infra.llm.llmclient] llm call label=minutes/render mode=text
+2026-10-08 09:43:55 [INFO] [infra.llm.llmclient] llm resp label=minutes/render model=deepseek-v4-flash-0731 finish=stop in=7088 out=827 json_mode=False chars=1465
+2026-10-08 09:43:55 [INFO] [core.runtime.render] render line=minutes fill_mode=freeform gate=pass directives=0
+2026-10-08 09:43:55 [INFO] [agentflow] render done line=minutes
+2026-10-08 09:43:55 [WARNING] [core.runner.runner] ⚠ 生成可能有误，请结合会议原文核对。
+2026-10-08 09:43:55 [INFO] [core.runner.runner] saved html line=minutes path=/root/h00984725/try/data/test/output/cd76981091d04cb497f4fd7e392a15cf/minutes.html
+2026-10-08 09:43:55 [INFO] [core.runner.runner] saved text line=minutes path=/root/h00984725/try/data/test/output/cd76981091d04cb497f4fd7e392a15cf/result.md
+2026-10-08 09:43:55 [INFO] [app.tasks] [task:finish] domain=meeting task=minutes request_id=cd76981091d04cb497f4fd7e392a15cf cost=53.80s tokens=33896 file=minutes.html
+2026-10-08 09:43:55 [INFO] [uvicorn.access] 10.33.240.226:33638 - "POST /api/agent/v1 HTTP/1.1" 200
+2026-10-08 09:43:55 [INFO] [app.api.routes.agent] [api:agent] domain=meeting task=minutes request_id=b9c3d4130c904c909ad4e7ba5385d66d user_id=test
+2026-10-08 09:43:55 [INFO] [app.tasks] [task:start] domain=meeting task=minutes request_id=b9c3d4130c904c909ad4e7ba5385d66d user_id=test memory=False
+2026-10-08 09:43:55 [INFO] [infra.llm.llmclient] llm client backend=vllm model=deepseek-v4-flash-0731 base_url=http://127.0.0.1:8000/v1 ctx=65536 max_tokens=50000 timeout=600.0 retries=2 temperature=0.2 sampling_sent=False
+2026-10-08 09:43:55 [INFO] [agentflow] pipeline start lines=minutes
+2026-10-08 09:43:55 [INFO] [agentflow] agent start meeting_understanding
+2026-10-08 09:43:55 [INFO] [infra.llm.llmclient] llm call label=core/meeting_understanding mode=structured
+2026-10-08 09:43:55 [INFO] [infra.llm.llmclient] llm fit max_tokens 50000->49340 ctx=65536 input~15940
+2026-10-08 09:44:16 [INFO] [infra.llm.llmclient] llm resp label=core/meeting_understanding model=deepseek-v4-flash-0731 finish=stop in=9804 out=1580 json_mode=True chars=3948
+2026-10-08 09:44:16 [WARNING] [infra.llm.llmclient] structured invalid label=core/meeting_understanding attempt=1 err=MeetingUnderstanding 字段不一致：缺失=[]，多余=['action_hints', 'dependencies', 'risk_hints'] raw_head='{\n  "meeting_brief": "电子科技大学电子科学与工程学院招生宣讲会，介绍学院历史、师资、科研平台及电子材料、电磁场与微波、物理电子学等方向，学生代表分享择校经验，并解答夏令营等招生问题。",\n  "meeting_purpose": "向考生和家长介绍电子科学与工程学院的整体情况、各研究方向及人才培养成果，吸引优秀生源报考。",\n  "speakers": [\n    {\n   '
+2026-10-08 09:44:16 [INFO] [infra.llm.llmclient] llm call label=core/meeting_understanding mode=structured 第2次
+2026-10-08 09:44:16 [INFO] [infra.llm.llmclient] llm fit max_tokens 50000->48555 ctx=65536 input~16725
+2026-10-08 09:44:36 [INFO] [infra.llm.llmclient] llm resp label=core/meeting_understanding model=deepseek-v4-flash-0731 finish=stop in=10285 out=1554 json_mode=True chars=3831
+2026-10-08 09:44:36 [WARNING] [infra.llm.llmclient] structured invalid label=core/meeting_understanding attempt=2 err=MeetingUnderstanding 字段不一致：缺失=[]，多余=['action_hints', 'dependencies', 'risk_hints'] raw_head='{\n  "meeting_brief": "电子科技大学电子科学与工程学院招生宣讲会，介绍学院历史、师资、科研平台及电子材料、电磁场与微波、物理电子学等方向，学生代表分享择校经验，并解答夏令营等招生问题。",\n  "meeting_purpose": "向考生和家长介绍电子科学与工程学院的整体情况、各研究方向及人才培养成果，吸引优秀生源报考。",\n  "speakers": [\n    {\n   '
+2026-10-08 09:44:36 [WARNING] [domains.meeting.orchestrator] meeting understanding failed, continue with empty
+Traceback (most recent call last):
+  File "/root/h00984725/try/domains/meeting/orchestrator.py", line 1150, in node
+    result = await self.meeting_understanding_agent.run(
+  File "/root/h00984725/try/domains/meeting/meeting_core/meeting_understanding_agent.py", line 74, in run
+    result = await self.client.structured(
+  File "/root/h00984725/try/infra/llm/llmclient.py", line 952, in structured
+    raise RuntimeError(
+RuntimeError: MeetingUnderstanding 输出无法满足结构契约：MeetingUnderstanding 字段不一致：缺失=[]，多余=['action_hints', 'dependencies', 'risk_hints']
+2026-10-08 09:44:36 [INFO] [agentflow] node done meeting_understanding
+2026-10-08 09:44:36 [INFO] [agentflow] skip perspective (objective)
+2026-10-08 09:44:36 [INFO] [agentflow] node done perspective_modeling
+2026-10-08 09:44:36 [INFO] [agentflow] agent start gen line=minutes
+2026-10-08 09:44:36 [INFO] [infra.llm.llmclient] llm call label=minutes/agent mode=structured
+2026-10-08 09:44:36 [INFO] [infra.llm.llmclient] llm fit max_tokens 50000->48003 ctx=65536 input~17277
+2026-10-08 09:44:43 [INFO] [uvicorn.error] Shutting down
+2026-10-08 09:44:43 [INFO] [uvicorn.error] Waiting for connections to close. (CTRL+C to force quit)
+2026-10-08 09:44:43 [INFO] [uvicorn.error] Finished server process [17194]
+2026-10-08 09:44:43 [ERROR] [uvicorn.error] Traceback (most recent call last):
+  File "/opt/huawei/conda/envs/AgentFlow/lib/python3.10/site-packages/uvicorn/_compat.py", line 60, in asyncio_run
+    return loop.run_until_complete(main)
+  File "uvloop/loop.pyx", line 1512, in uvloop.loop.Loop.run_until_complete
+  File "uvloop/loop.pyx", line 1505, in uvloop.loop.Loop.run_until_complete
+  File "uvloop/loop.pyx", line 1379, in uvloop.loop.Loop.run_forever
+  File "uvloop/loop.pyx", line 557, in uvloop.loop.Loop._run
+  File "uvloop/loop.pyx", line 476, in uvloop.loop.Loop._on_idle
+  File "uvloop/cbhandles.pyx", line 83, in uvloop.loop.Handle._run
+  File "uvloop/cbhandles.pyx", line 63, in uvloop.loop.Handle._run
+  File "/opt/huawei/conda/envs/AgentFlow/lib/python3.10/site-packages/uvicorn/server.py", line 80, in serve
+    with self.capture_signals():
+  File "/opt/huawei/conda/envs/AgentFlow/lib/python3.10/contextlib.py", line 142, in __exit__
+    next(self.gen)
+  File "/opt/huawei/conda/envs/AgentFlow/lib/python3.10/site-packages/uvicorn/server.py", line 340, in capture_signals
+    signal.raise_signal(captured_signal)
+KeyboardInterrupt
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/opt/huawei/conda/envs/AgentFlow/lib/python3.10/site-packages/starlette/routing.py", line 655, in lifespan
+    await receive()
+  File "/opt/huawei/conda/envs/AgentFlow/lib/python3.10/site-packages/uvicorn/lifespan/on.py", line 137, in receive
+    return await self.receive_queue.get()
+  File "/opt/huawei/conda/envs/AgentFlow/lib/python3.10/asyncio/queues.py", line 159, in get
+    await getter
+asyncio.exceptions.CancelledError
+
+2026-10-08 09:44:43 [ERROR] [uvicorn.error] Exception in ASGI application
+Traceback (most recent call last):
+  File "/opt/huawei/conda/envs/AgentFlow/lib/python3.10/site-packages/uvicorn/_compat.py", line 60, in asyncio_run
+    return loop.run_until_complete(main)
+  File "uvloop/loop.pyx", line 1512, in uvloop.loop.Loop.run_until_complete
+  File "uvloop/loop.pyx", line 1505, in uvloop.loop.Loop.run_until_complete
+  File "uvloop/loop.pyx", line 1379, in uvloop.loop.Loop.run_forever
+  File "uvloop/loop.pyx", line 557, in uvloop.loop.Loop._run
+  File "uvloop/loop.pyx", line 476, in uvloop.loop.Loop._on_idle
+  File "uvloop/cbhandles.pyx", line 83, in uvloop.loop.Handle._run
+  File "uvloop/cbhandles.pyx", line 63, in uvloop.loop.Handle._run
+  File "/opt/huawei/conda/envs/AgentFlow/lib/python3.10/site-packages/uvicorn/server.py", line 80, in serve
+    with self.capture_signals():
+  File "/opt/huawei/conda/envs/AgentFlow/lib/python3.10/contextlib.py", line 142, in __exit__
+    next(self.gen)
+  File "/opt/huawei/conda/envs/AgentFlow/lib/python3.10/site-packages/uvicorn/server.py", line 340, in capture_signals
+    signal.raise_signal(captured_signal)
+KeyboardInterrupt
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/opt/huawei/conda/envs/AgentFlow/lib/python3.10/site-packages/uvicorn/protocols/http/httptools_impl.py", line 422, in run_asgi
+    result = await app(  # type: ignore[func-returns-value]
+  File "/opt/huawei/conda/envs/AgentFlow/lib/python3.10/site-packages/uvicorn/middleware/proxy_headers.py", line 63, in __call__
+    return await self.app(scope, receive, send)
+  File "/opt/huawei/conda/envs/AgentFlow/lib/python3.10/site-packages/fastapi/applications.py", line 1163, in __call__
+    await super().__call__(scope, receive, send)
+  File "/opt/huawei/conda/envs/AgentFlow/lib/python3.10/site-packages/starlette/applications.py", line 96, in __call__
+    await self.middleware_stack(scope, receive, send)
+  File "/opt/huawei/conda/envs/AgentFlow/lib/python3.10/site-packages/starlette/middleware/errors.py", line 164, in __call__
+    await self.app(scope, receive, _send)
+  File "/opt/huawei/conda/envs/AgentFlow/lib/python3.10/site-packages/starlette/middleware/exceptions.py", line 63, in __call__
+    await wrap_app_handling_exceptions(self.app, conn)(scope, receive, send)
+  File "/opt/huawei/conda/envs/AgentFlow/lib/python3.10/site-packages/starlette/_exception_handler.py", line 42, in wrapped_app
+    await app(scope, receive, sender)
+  File "/opt/huawei/conda/envs/AgentFlow/lib/python3.10/site-packages/fastapi/middleware/asyncexitstack.py", line 18, in __call__
+    await self.app(scope, receive, send)
+  File "/opt/huawei/conda/envs/AgentFlow/lib/python3.10/site-packages/starlette/routing.py", line 670, in __call__
+    await self.middleware_stack(scope, receive, send)
+  File "/opt/huawei/conda/envs/AgentFlow/lib/python3.10/site-packages/fastapi/routing.py", line 2734, in app
+    await route.handle(scope, receive, send)
+  File "/opt/huawei/conda/envs/AgentFlow/lib/python3.10/site-packages/fastapi/routing.py", line 1780, in handle
+    await self.original_router.handle(scope, receive, send)
+  File "/opt/huawei/conda/envs/AgentFlow/lib/python3.10/site-packages/fastapi/routing.py", line 2789, in handle
+    await included_router._handle_selected(scope, receive, send)
+  File "/opt/huawei/conda/envs/AgentFlow/lib/python3.10/site-packages/fastapi/routing.py", line 1800, in _handle_selected
+    await original_route.handle(scope, receive, send)
+  File "/opt/huawei/conda/envs/AgentFlow/lib/python3.10/site-packages/fastapi/routing.py", line 1279, in handle
+    await app(scope, receive, send)
+  File "/opt/huawei/conda/envs/AgentFlow/lib/python3.10/site-packages/fastapi/routing.py", line 158, in app
+    await wrap_app_handling_exceptions(app, request)(scope, receive, send)
+  File "/opt/huawei/conda/envs/AgentFlow/lib/python3.10/site-packages/starlette/_exception_handler.py", line 42, in wrapped_app
+    await app(scope, receive, sender)
+  File "/opt/huawei/conda/envs/AgentFlow/lib/python3.10/site-packages/fastapi/routing.py", line 144, in app
+    response = await f(request)
+  File "/opt/huawei/conda/envs/AgentFlow/lib/python3.10/site-packages/fastapi/routing.py", line 706, in app
+    raw_response = await run_endpoint_function(
+  File "/opt/huawei/conda/envs/AgentFlow/lib/python3.10/site-packages/fastapi/routing.py", line 352, in run_endpoint_function
+    return await dependant.call(**values)
+  File "/root/h00984725/try/app/api/routes/agent.py", line 67, in run_agent
+    return await run_task(domain, line, req, user_id=user_id, request_id=request_id)
+  File "/root/h00984725/try/app/tasks.py", line 742, in run_task
+    return await _run_task_impl(domain, task, req, user_id, request_id, _start_time)
+  File "/root/h00984725/try/app/tasks.py", line 769, in _run_task_impl
+    result = await run(p.ctx, **_runner_args(p))
+  File "/root/h00984725/try/core/runner/runner.py", line 435, in run
+    async for event in system.run_streaming(
+  File "/root/h00984725/try/core/graph/nodes.py", line 996, in run_streaming
+    async for mode, chunk in graph.astream(
+  File "/opt/huawei/conda/envs/AgentFlow/lib/python3.10/site-packages/langgraph/pregel/main.py", line 3440, in astream
+    async for _ in runner.atick(
+  File "/opt/huawei/conda/envs/AgentFlow/lib/python3.10/site-packages/langgraph/pregel/_runner.py", line 396, in atick
+    await arun_with_retry(
+  File "/opt/huawei/conda/envs/AgentFlow/lib/python3.10/site-packages/langgraph/pregel/_retry.py", line 744, in arun_with_retry
+    return await task.proc.ainvoke(task.input, config)
+  File "/opt/huawei/conda/envs/AgentFlow/lib/python3.10/site-packages/langgraph/_internal/_runnable.py", line 737, in ainvoke
+    input = await step.ainvoke(input, config, **kwargs)
+  File "/opt/huawei/conda/envs/AgentFlow/lib/python3.10/site-packages/langgraph/_internal/_runnable.py", line 501, in ainvoke
+    ret = await self.afunc(*args, **kwargs)
+  File "/root/h00984725/try/core/graph/nodes.py", line 557, in node
+    result = await agent.run(
+  File "/root/h00984725/try/domains/meeting/tasks/minutes/steps/minutes_agent.py", line 28, in run
+    raw = await self.client.structured(
+  File "/root/h00984725/try/infra/llm/llmclient.py", line 875, in structured
+    last_content = await self._in_thread(
+  File "/root/h00984725/try/infra/llm/llmclient.py", line 237, in _in_thread
+    return await asyncio.to_thread(runner)
+  File "/opt/huawei/conda/envs/AgentFlow/lib/python3.10/asyncio/threads.py", line 25, in to_thread
+    return await loop.run_in_executor(None, func_call)
+asyncio.exceptions.CancelledError
+2026-10-08 09:44:43 [INFO] [uvicorn.access] 10.33.240.226:33680 - "POST /api/agent/v1 HTTP/1.1" 500
