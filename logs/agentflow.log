@@ -358,3 +358,63 @@ Traceback (most recent call last):
     return await loop.run_in_executor(None, func_call)
 asyncio.exceptions.CancelledError
 2026-10-08 10:47:29 [INFO] [uvicorn.access] 10.33.240.226:35788 - "POST /api/agent/v1 HTTP/1.1" 500
+2026-10-08 10:48:20 [INFO] [uvicorn.error] Application startup complete.
+2026-10-08 10:48:20 [INFO] [uvicorn.error] Uvicorn running on http://0.0.0.0:8004 (Press CTRL+C to quit)
+2026-10-08 10:48:25 [INFO] [app.api.routes.agent] [api:agent] domain=meeting task=risks request_id=6af1fd0efb7b4a23b08cebb2ad45c5ce user_id=1
+2026-10-08 10:48:26 [INFO] [app.tasks] [task:start] domain=meeting task=risks request_id=6af1fd0efb7b4a23b08cebb2ad45c5ce user_id=1 memory=False
+2026-10-08 10:48:26 [INFO] [infra.llm.llmclient] llm client backend=vllm model=deepseek-v4-flash-0731 base_url=http://127.0.0.1:8000/v1 ctx=65536 max_tokens=50000 timeout=600.0 retries=2 temperature=0.2 sampling_sent=False
+2026-10-08 10:48:26 [INFO] [agentflow] pipeline start lines=risks
+2026-10-08 10:48:26 [INFO] [agentflow] agent start meeting_understanding
+2026-10-08 10:48:26 [INFO] [infra.llm.llmclient] llm call label=core/meeting_understanding mode=structured
+2026-10-08 10:48:41 [INFO] [infra.llm.llmclient] llm resp label=core/meeting_understanding model=deepseek-v4-flash-0731 finish=stop in=8327 out=1057 json_mode=True chars=2549
+2026-10-08 10:48:41 [INFO] [agentflow] agent done meeting_understanding
+2026-10-08 10:48:41 [INFO] [agentflow] node done meeting_understanding
+2026-10-08 10:48:41 [INFO] [agentflow] skip perspective (objective)
+2026-10-08 10:48:41 [INFO] [agentflow] node done perspective_modeling
+2026-10-08 10:48:41 [INFO] [agentflow] agent start gen line=risks
+2026-10-08 10:48:41 [INFO] [infra.llm.llmclient] llm call label=risk/agent mode=structured
+2026-10-08 10:48:52 [INFO] [infra.llm.llmclient] llm resp label=risk/agent model=deepseek-v4-flash-0731 finish=stop in=3368 out=896 json_mode=True chars=2347
+2026-10-08 10:48:52 [INFO] [agentflow] agent done gen line=risks
+2026-10-08 10:48:52 [INFO] [agentflow] node done risks_agent
+2026-10-08 10:48:52 [INFO] [agentflow] agent start review line=risks
+2026-10-08 10:48:52 [INFO] [infra.llm.llmclient] llm call label=risk/supervisor mode=structured
+2026-10-08 10:48:54 [INFO] [infra.llm.llmclient] llm resp label=risk/supervisor model=deepseek-v4-flash-0731 finish=stop in=8794 out=37 json_mode=True chars=109
+2026-10-08 10:48:54 [INFO] [agentflow] agent done review line=risks decision=approve
+2026-10-08 10:48:54 [INFO] [core.graph.nodes] route line=risks decision=approve revision=0/1 -> __end__
+2026-10-08 10:48:54 [INFO] [agentflow] node done risks_supervisor
+2026-10-08 10:48:54 [INFO] [agentflow] render start line=risks
+2026-10-08 10:48:54 [INFO] [core.runner.runner] saved html line=risks path=/root/h00984725/try/data/1/output/6af1fd0efb7b4a23b08cebb2ad45c5ce/risks.html
+2026-10-08 10:48:54 [INFO] [core.runner.runner] saved text line=risks path=/root/h00984725/try/data/1/output/6af1fd0efb7b4a23b08cebb2ad45c5ce/risks.md
+2026-10-08 10:48:54 [INFO] [app.tasks] [task:finish] domain=meeting task=risks request_id=6af1fd0efb7b4a23b08cebb2ad45c5ce cost=28.50s tokens=22479 file=risks.html
+2026-10-08 10:48:54 [INFO] [uvicorn.access] 10.30.80.217:57519 - "POST /api/agent/v1 HTTP/1.1" 200
+2026-10-08 10:49:23 [INFO] [app.api.routes.agent] [api:agent] domain=meeting task=actions request_id=cbc929460609496282bbf5beceab1f73 user_id=1
+2026-10-08 10:49:23 [INFO] [app.tasks] [task:start] domain=meeting task=actions request_id=cbc929460609496282bbf5beceab1f73 user_id=1 memory=False
+2026-10-08 10:49:23 [INFO] [infra.llm.llmclient] llm client backend=vllm model=deepseek-v4-flash-0731 base_url=http://127.0.0.1:8000/v1 ctx=65536 max_tokens=50000 timeout=600.0 retries=2 temperature=0.2 sampling_sent=False
+2026-10-08 10:49:23 [INFO] [agentflow] pipeline start lines=actions
+2026-10-08 10:49:23 [INFO] [agentflow] agent start meeting_understanding
+2026-10-08 10:49:23 [INFO] [infra.llm.llmclient] llm call label=core/meeting_understanding mode=structured
+2026-10-08 10:49:44 [INFO] [infra.llm.llmclient] llm resp label=core/meeting_understanding model=deepseek-v4-flash-0731 finish=stop in=8331 out=1535 json_mode=True chars=4106
+2026-10-08 10:49:44 [INFO] [agentflow] agent done meeting_understanding
+2026-10-08 10:49:44 [INFO] [agentflow] node done meeting_understanding
+2026-10-08 10:49:44 [INFO] [agentflow] skip perspective (objective)
+2026-10-08 10:49:44 [INFO] [agentflow] node done perspective_modeling
+2026-10-08 10:49:44 [INFO] [agentflow] agent start gen line=actions
+2026-10-08 10:49:44 [INFO] [infra.llm.llmclient] llm call label=actions/agent mode=structured
+2026-10-08 10:49:52 [INFO] [infra.llm.llmclient] llm resp label=actions/agent model=deepseek-v4-flash-0731 finish=stop in=4141 out=797 json_mode=True chars=2211
+2026-10-08 10:49:52 [INFO] [agentflow] agent done gen line=actions
+2026-10-08 10:49:52 [INFO] [agentflow] node done actions_agent
+2026-10-08 10:49:52 [INFO] [agentflow] agent start review line=actions
+2026-10-08 10:49:52 [INFO] [infra.llm.llmclient] llm call label=actions/supervisor mode=structured
+2026-10-08 10:49:53 [INFO] [infra.llm.llmclient] llm resp label=actions/supervisor model=deepseek-v4-flash-0731 finish=stop in=8945 out=37 json_mode=True chars=112
+2026-10-08 10:49:53 [INFO] [agentflow] agent done review line=actions decision=approve
+2026-10-08 10:49:53 [INFO] [core.graph.nodes] route line=actions decision=approve revision=0/1 -> __end__
+2026-10-08 10:49:53 [INFO] [agentflow] node done actions_supervisor
+2026-10-08 10:49:53 [INFO] [agentflow] render start line=actions
+2026-10-08 10:49:53 [INFO] [core.runner.runner] saved html line=actions path=/root/h00984725/try/data/1/output/cbc929460609496282bbf5beceab1f73/actions.html
+2026-10-08 10:49:53 [INFO] [core.runner.runner] saved text line=actions path=/root/h00984725/try/data/1/output/cbc929460609496282bbf5beceab1f73/actions.md
+2026-10-08 10:49:53 [INFO] [app.tasks] [task:finish] domain=meeting task=actions request_id=cbc929460609496282bbf5beceab1f73 cost=30.20s tokens=23786 file=actions.html
+2026-10-08 10:49:53 [INFO] [uvicorn.access] 10.30.80.217:58351 - "POST /api/agent/v1 HTTP/1.1" 200
+2026-10-08 10:50:21 [INFO] [uvicorn.error] Shutting down
+2026-10-08 10:50:21 [INFO] [uvicorn.error] Waiting for application shutdown.
+2026-10-08 10:50:21 [INFO] [uvicorn.error] Application shutdown complete.
+2026-10-08 10:50:21 [INFO] [uvicorn.error] Finished server process [15905]
