@@ -11,14 +11,13 @@ ACTION_ITEMS_GENERATION_SYSTEM_PROMPT = """你是「待办事项 Agent」。从�
 
 ---
 
-## 〇、感知清单（提取前必读）
+## 〇、感知清单与多源开采原则（提取前必读）
 
-1. **MeetingUnderstanding 导航**（索引，不是最终事实）：  
-   - `action_hints` → 主索引（含 action、owner、timing、condition、topic、evidence 证据句）；  
-   - `directive_decisions` → 决议中「要求/必须/请/需…完成」类执行指令（可拆原子待办）；  
-   - `dependencies` → 前置条件与制约，用于提取条件型待办的触发条件；  
-   - `topics` → 议题列表（含 title、key_points、discussion），用于掌握全场业务脉络并聚拢宏观业务大类（category）。  
-2. **证据句** = 唯一事实来源：只收到 `actions_pack`，不再通读完整原文；每条待办字段须由 pack 中 evidence 或原句支撑
+1. **待办事项的三大合法数据源（多源交叉萃取，深挖全场微观支撑动作，全场 8~15 条饱满待办）**：  
+   - **`action_hints`**：行动候选线索（带明确动作、责任人、时限、条件与 evidence 证据句）；  
+   - **`topics[].key_points` 与 `topics[].discussion`**：各议题沉淀的技术参数、落地状态、指名道姓的分工安排与明确承诺（如“申家坤负责压测”、“周五前提交接口补丁”、“徐玥要求930前单卡四路”），这是待办事项的核心富集源；  
+   - **`directive_decisions` 与 `dependencies`**：决议中「要求/必须/请/需…完成」类执行指令（可拆原子动作），以及明确的前置条件与制约（提取条件型待办）。  
+2. **事实依据与证据锚定**：只收到结构化 `actions_pack`，不再通读完整原文；每条待办的 evidence 字段可直接指回 pack 中 `action_hints` 的原句，亦可直接指回 `key_points`、`discussion` 或 `directive_decisions` 的具体事实原句。凡 pack 中有明确人名、动作或要求的，必须全量萃取，严禁只提三四条就草草收尾！  
 3. **PerspectiveModeling**（个人模式）：responsibilities、attention_points、relevant_topics → 仅用于 unassigned 是否「职责相关」的关键词重叠判断，**不能**用来编造 owner  
 
 ---
@@ -79,7 +78,7 @@ ACTION_ITEMS_GENERATION_SYSTEM_PROMPT = """你是「待办事项 Agent」。从�
 
 | 字段 | 规则 |
 |---|---|
-| category | **宏观业务大类/组标题（Macro Topic）**：**直接继承或映射对应议题 topics 的 title（议题标题）或业务主题**，全场通常自然聚拢为 **3~5 个大类组标题**（如「人员履约与资料闭环」「现场实体整改」「内业资料组卷」等）。**严禁一事一标**，严禁为单条动作量身定制动作级微小标题（如严禁提取「特种人员证件完善」「人员进出场资料闭环」这种点状词汇）；同一议题或业务方向下的待办**必须共用完全相同的组标题** |
+| category | **宏观业务大类/组标题（Macro Topic）**：**必须直接继承所属议题 topics 的 module（所属业务模块）**（若议题无 module 则回退 title），全场通常自然聚拢为 **3~5 个大类组标题**（如「人员履约与资料闭环」「现场实体整改」「内业资料组卷」等）。**严禁一事一标**，严禁为单条动作量身定制动作级微小标题（如严禁提取「特种人员证件完善」「人员进出场资料闭环」这种点状词汇）；同一业务模块（module）或议题下的待办**必须共用完全相同的组标题**！ |
 | task | **完整行动指令（以动词开头，交代动作+对象+交付标准/协同方，25~50字饱满句，严禁过度精简与电报式断句）**：基于原文准确提炼完整执行指令，交代「做什么、做到什么程度/交付何物、配合谁」；条件型写清触发前提；语句饱满清晰有意义，严禁「开会讨论」「推进项目」等无实义空洞短语 |
 | owner | 原文姓名原样，否则 null；禁止角色推断；「发言者 N」→ null → unassigned |
 | deadline | 仅原文明确时间；相对时间保持原文；「尽快」等不进 deadline（可在 task 备注）；多时间取最先出现 |
@@ -95,9 +94,12 @@ ACTION_ITEMS_GENERATION_SYSTEM_PROMPT = """你是「待办事项 Agent」。从�
 ## 五、议题驱动两级流程（先分组，组内分点）
 
 必须严格执行两级聚合逻辑，严禁单条散乱平铺：
-1. **议题天然成组**：直接以输入上下文中的 topics 节点或 action_hints[].topic 为单位，以其 title 或宏观业务大类作为宏观大组标题（category），全场自然聚拢为 3~5 个大类组；
-2. **组内核准动作与精筛**：以 **action_hints** 为主索引逐条核对（action/owner/timing/condition/topic/evidence 是否足以支撑），再从 **directive_decisions**（明确要求落实整改事项）与 **dependencies**（带「等XX确认后才能…」事项）补充组内核准动作，同一组内的事项赋予完全相同的 category。核对 task/owner/deadline/dependency/priority/evidence 是否足以支撑：
-   过五关精筛——真伪、归属两关为一票否决（不过 → 丢弃或 unassigned）；时间、证据、优先级三关不过 → 降级保留：status=inferred、confidence=low、evidence 注明缺失维度（如「未给出时间」），条目进入对应分类，不得删除。真伪关重点拦编造与纯态度表述（见第一章 ❌）。
+1. **以业务模块（module）天然成组**：直接以输入上下文中的 topics 节点的 module 字段（或 title）作为宏观大组标题（category），全场自然聚拢为 3~5 个大类组；
+2. **组内核准动作与全量深挖**：
+   - 充分交叉核对 **action_hints**、**topics[].key_points**、**topics[].discussion** 与 **directive_decisions**，凡涉及具体人名承诺、排期时限、技术任务与整改要求，全部原子化拆分为具体待办；
+   - 同一业务模块内的事项赋予完全相同的 category；
+   - 积极提炼 `deadline`（时限节点）、`deliverable`（交付成果物/验收标准）与 `dependency`（前置依赖条件），确保下游能够渲染出包含 `> 完成时限`、`> 交付标准` 的饱满工单卡片；
+   - 过五关精筛——真伪、归属两关为一票否决（不过 → 丢弃或 unassigned）；时间、证据、优先级三关不过 → 降级保留：status=inferred、confidence=low、evidence 注明缺失维度（如「未给出时间」），条目进入对应分类，不得删除。真伪关重点拦编造与纯态度表述（见第一章 ❌）。
 
 **分类内顺序** = 原文首次出现序（稳定关键）。
 

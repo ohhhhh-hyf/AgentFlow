@@ -68,6 +68,7 @@ class MeetingUnderstandingGenerationContract(GenerationContract):
             StrField("org", "机构/单位/媒体名（照原文；没有为null）"),
         ]),
         ObjListField("topics", [
+            StrField("module", "所属宏观业务领域/模块（如'核心架构优化'、'现场实体整改'、'交付与验收'，全场收敛为3~5个）"),
             StrField("title", "议题名称/核心命题"),
             StrField("discussion", "该议题的讨论经过、分歧脉络与定调依据（context_and_debate）：谁提出、怎么讨论、分歧在哪、定调依据为何，连贯饱满陈述（不复述 key_points 的事实）"),
             StrListField("key_points", "该议题的核心要点（逐条列出，覆盖两类）：1. 硬核指标（数字/时限/金额/范围）；2. 核心论据与案例（立论依据/论证事实/反驳证据/典型案例）；不遗漏关键支撑事实"),

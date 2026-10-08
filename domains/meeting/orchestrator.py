@@ -521,6 +521,7 @@ class _Nodes(DomainNodes):
     @staticmethod
     def _topic_brief(topic: dict) -> dict:
         title = str(topic.get("title") or "").strip()
+        module = str(topic.get("module") or title or "").strip()
         conclusion = topic.get("conclusion")
         discussion = str(topic.get("context_and_debate") or topic.get("discussion") or "").strip()
         key_points = topic.get("key_points")
@@ -532,6 +533,7 @@ class _Nodes(DomainNodes):
             key_points = [discussion[:2000]]
         debates = topic.get("debates") or []
         return {
+            "module": module,
             "title": title,
             "discussion": discussion,
             "context_and_debate": discussion,
@@ -631,6 +633,7 @@ class _Nodes(DomainNodes):
                     key_points = [discussion] if discussion else []
                 debates = item.get("debates") or []
                 full_topics.append({
+                    "module": str(item.get("module") or item.get("title") or "").strip(),
                     "title": str(item.get("title") or "").strip(),
                     "key_points": [str(p).strip() for p in key_points if str(p).strip()][:12],
                     "discussion": discussion,
