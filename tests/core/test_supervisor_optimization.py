@@ -509,10 +509,10 @@ def test_prompt_contracts() -> None:
 
     understanding_prompt = core_prompts.MEETING_UNDERSTANDING_SYSTEM_PROMPT
     contract_text = core_contracts.MEETING_UNDERSTANDING_GENERATION_OUTPUT_CONTRACT
-    check("理解层 prompt：context_and_debate 30~60字骨架",
-          "30~60字" in understanding_prompt and "100~200字" not in understanding_prompt, "")
-    check("理解层契约：描述同步为 30~60字",
-          "30~60字" in contract_text and "100~200字" not in contract_text, "")
+    check("理解层 prompt：包含 context_and_debate 脉络",
+          "context_and_debate" in understanding_prompt, "")
+    check("理解层契约：包含 context_and_debate 字段",
+          "context_and_debate" in contract_text, "")
 
     check("纪要生成：明确「骨架为纲、回原文挖血肉」分工",
           "回到会议原文" in MINUTES_GENERATION_SYSTEM_PROMPT

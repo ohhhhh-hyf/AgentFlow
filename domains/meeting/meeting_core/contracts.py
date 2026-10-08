@@ -28,7 +28,7 @@ class MeetingUnderstandingGenerationContract(GenerationContract):
             StrField("title", "核心议题标题（4~12字）"),
             # 恢复为 80~150 字精炼脉络（MINUTES_TEMPLATE_OPTIMIZATION_STRATEGY 方案）：
             # 记录核心讨论背景、方案对比考量与分歧妥协依据，作为全息事实底座锚点。
-            StrField("context_and_debate", "该议题讨论脉络与核心分歧焦点（80~150字，概括：背景痛点、方案考量、各方分歧与妥协前提，严禁空泛套话）"),
+            StrField("context_and_debate", "该议题讨论脉络与核心分歧焦点（充分展开交代：背景痛点、各方主张与论据、分歧争论焦点、妥协前提与拍板定调依据，严禁空泛套话）"),
             StrListField("key_metrics", "量化指标与参数（如并发数、时延、预算、排期等；无则[]）"),
             StrListField("decisions", "本议题拍板决议（含生效前提与约束；无则[]）"),
             ObjListField("actions", [

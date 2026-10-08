@@ -57,6 +57,7 @@ class MinutesGenerationRender:
         template: str = "",
         *,
         max_tokens: int | None = None,
+        temperature: float | None = None,
     ) -> str:
         """整段渲染纪要正文（纯文本）。有模板时用低温度稳住结构。
 
@@ -65,7 +66,7 @@ class MinutesGenerationRender:
         """
         prompt, user = self._prompt_and_user(approved_context, template)
         has_template = bool((template or "").strip())
-        temp = 0.0 if has_template else None
+        temp = temperature if temperature is not None else (0.0 if has_template else None)
         # 这里过去用 try/except TypeError 兜「老客户端没有 max_tokens」：但 LLMClient.text
         # 本来就接受 temperature/max_tokens/label，那个 except 分支撑不到签名不匹配，
         # 只会在 text() 内部真抛 TypeError 时静默**再打一次 LLM**（重复计费）。已删除。

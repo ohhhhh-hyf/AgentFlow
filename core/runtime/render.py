@@ -89,18 +89,40 @@ def _accepts_max_tokens(func) -> bool:
     return cached
 
 
-async def _render_run(render, context: str, template: str, cap: int | None):
-    """调用渲染步；支持 ``max_tokens`` 就带上（按签名预判，不拿异常兜底）。
+_TEMPERATURE_SUPPORT: dict = {}
 
-    历史上这里是 ``try: run(..., max_tokens=cap) / except TypeError: run(...)``。
-    14 个渲染步里只有 minutes_render 真的接受 ``max_tokens``，其余 13 个每次渲染
-    都靠抛 TypeError 走兜底；更糟的是 ``run()`` 内部**真**抛 TypeError 时会被当成
-    "老签名"，静默再跑一次整段渲染（重复 LLM 调用）。签名是静态事实，预先查一次
-    即可——对每个类的分支选择与旧行为逐字一致。
-    """
+
+def _accepts_temperature(func) -> bool:
+    """``func`` 是否接受 ``temperature=`` 关键字。"""
+    key = getattr(func, "__func__", func)
+    cached = _TEMPERATURE_SUPPORT.get(key)
+    if cached is None:
+        try:
+            params = inspect.signature(func).parameters
+        except (TypeError, ValueError):
+            cached = False
+        else:
+            cached = "temperature" in params or any(
+                p.kind is inspect.Parameter.VAR_KEYWORD for p in params.values()
+            )
+        _TEMPERATURE_SUPPORT[key] = cached
+    return cached
+
+
+async def _render_run(
+    render,
+    context: str,
+    template: str,
+    cap: int | None,
+    temperature: float | None = None,
+):
+    """调用渲染步；支持 ``max_tokens`` 与 ``temperature`` 就带上（按签名预判）。"""
+    kwargs: dict[str, Any] = {}
     if cap and _accepts_max_tokens(render.run):
-        return await render.run(context, template, max_tokens=cap)
-    return await render.run(context, template)
+        kwargs["max_tokens"] = cap
+    if temperature is not None and _accepts_temperature(render.run):
+        kwargs["temperature"] = temperature
+    return await render.run(context, template, **kwargs)
 
 # ── 渲染修订指令（从 produce_line 抽出，独立便于调整；函数内 format 插值）──
 
@@ -115,11 +137,14 @@ _COMPRESS_REVISION = (
 )
 
 _EXPAND_REVISION = (
-    "【篇幅修订·扩写】当前正文汉字约 {han}，"
+    "【篇幅不足·深度扩写要求】当前正文汉字约 {han}，"
     "少于模板约 {lo}–{hi} 字。"
-    "请在忠实原文前提下**整体扩写**："
-    "补原文已有的具体事实与推进，使合计接近区间中位；"
-    "语句完整通顺；勿空话注水、勿截断、勿写字数说明。"
+    "请在严格忠实原文前提下从以下 4 个维度回溯原文补充细节展开：\n"
+    "1. 补充各议题讨论的具体背景痛点、起因脉络与现状矛盾；\n"
+    "2. 展开各方在现场提出的具体事实论据、对比数据、账目金额与技术指标参数；\n"
+    "3. 补充关键发言人的原话表态、立场倾向、顾虑焦点与探讨细节；\n"
+    "4. 细化后续决议与行动措施的具体落地步骤、责任主体与协同配合对象。\n\n"
+    "要求：结构严格贴合模板点名栏目；语句完整通顺；严禁凭空编造事实，严禁在正文中输出字数说明或元解释。"
 )
 
 _GATE_REPAIR = (
@@ -360,6 +385,7 @@ async def produce_line(
                                     f"【当前正文】\n{full_text}",
                                     template,
                                     cap,
+                                    temperature=0.35,
                                 )
                             except Exception:  # noqa: BLE001
                                 expanded = ""
