@@ -351,7 +351,7 @@ def test_produce_line_brief_length_exemption() -> None:
             f"brief 模式不应打出低于下限咨询告警：{advisories_brief}"
         )
 
-        # 2. 对照测试 topic 模式：必须正常执行下限扩写（call_count > 1）
+        # 2. 对照测试 topic 模式：偏短正文彻底解除重试拦截，直接放行（call_count == 1），但保留 advisory 记录
         render_topic = MockRender(short_rendered_output)
         engine_topic = MockEngine(render_topic)
         state_topic = {
@@ -363,8 +363,12 @@ def test_produce_line_brief_length_exemption() -> None:
         queue_topic = asyncio.Queue()
         await produce_line(engine_topic, "minutes_styles", state_topic, queue_topic)
 
-        # topic 模式未受豁免，短文本必须触发 expand 修订（总调用次数 > 1）
-        assert render_topic.call_count > 1, f"topic 模式应该触发扩写，但 call_count={render_topic.call_count}"
+        # 偏短正文直接放行，零次额外扩写调用（call_count == 1）
+        assert render_topic.call_count == 1, f"偏短正文应直接放行，但触发了额外扩写调用：{render_topic.call_count}"
+        advisories_topic = state_topic["lines"]["minutes_styles"].get("render_advisory_issues") or []
+        assert any("低于本篇参考下限" in str(x) for x in advisories_topic), (
+            f"topic 模式应记录低于下限 advisory 供监控观察：{advisories_topic}"
+        )
 
     asyncio.run(_run())
 

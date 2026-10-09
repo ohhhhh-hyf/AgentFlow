@@ -128,6 +128,10 @@ _CLEAN_DRAFT = {
 # ── 步骤五：guardrail 单元 ────────────────────────────────────
 
 def test_guardrail_names() -> None:
+    """验证人名门禁已彻底剥离粗暴正则比对，人名与归属忠实度由 Prompt 与 LLM Supervisor 深度把关。
+
+    公文角色代称（主讲人/提问者/讲师）、称谓与结构标签不再因机械正则产生假阳性阻断。
+    """
     transcript = "张工：缓存保护设计下周完成。李总：时延指标压到200ms以内。"
     okay = quick_facts_guardrail(
         {
@@ -140,31 +144,28 @@ def test_guardrail_names() -> None:
         [{"name": "张工"}],
         transcript,
     )
-    check("组名行标签与在册人名都不误报", okay == (True, []), str(okay))
+    check("组名行标签与在册人名顺利放行", okay == (True, []), str(okay))
 
-    unknown = quick_facts_guardrail(
+    lecture_roles = quick_facts_guardrail(
+        {
+            "executive_summary": [
+                "**主讲人**：负责架构方案演进与长尾性能收敛。",
+                "**提问者**：针对压测时延提出质询。",
+            ]
+        },
+        [{"name": "张工"}],
+        transcript,
+    )
+    check("公文角色（主讲人/提问者）不再被机械正则误伤，顺利放行",
+          lecture_roles == (True, []), str(lecture_roles))
+
+    other_names = quick_facts_guardrail(
         {"executive_summary": ["**王强**：负责联调。", "赵敏提出下周一评审。"]},
         [{"name": "张工"}],
         transcript,
     )
-    check("陌生组名行人名被拦",
-          not unknown[0] and any("王强" in item for item in unknown[1]), str(unknown))
-    check("陌生「姓名+动词」人名被拦",
-          any("赵敏" in item for item in unknown[1]), str(unknown))
-
-    alias = quick_facts_guardrail(
-        {"personally_relevant_points": ["**赵衡**：完成来源字段补齐。"]},
-        [{"name": "赵衡"}],
-        "小赵：我来补齐来源字段。",
-    )
-    check("别名归一（全称在 speakers 里）不算陌生", alias[0], str(alias))
-
-    stopword = quick_facts_guardrail(
-        {"executive_summary": ["本场确认了基线，会议明确了下周排期。"]},
-        [{"name": "张工"}],
-        transcript,
-    )
-    check("结构词（本场/会议）不误报为陌生名", stopword[0], str(stopword))
+    check("非在册人名亦不再受粗暴正则阻断（交由生成约束与 Supervisor 复核）",
+          other_names == (True, []), str(other_names))
 
 
 def test_guardrail_numbers() -> None:
@@ -329,10 +330,11 @@ def test_guardrail_band() -> None:
               stub.calls == 0 and sub.get("review_bypassed") == "rule_guardrail_pass",
               f"calls={stub.calls} bypass={sub.get('review_bypassed')}")
 
-        # 命中红线（数字未落地）→ 照常送审
+        # 命中红线（无记忆注入却产出历史对照契约违规）→ 照常送审
         bad_draft = {
             "headline": "缓存保护设计评审",
-            "executive_summary": ["张工确认 QPS 提升到50000，时延压到200ms以内。"],
+            "executive_summary": ["张工确认缓存保护设计下周完成，时延指标压到200ms以内。"],
+            "history_comparison": ["延续事项：李工负责缓存保护设计。"],
         }
         stub2 = _StubSupervisor()
         system2 = _make_system(stub2)
@@ -346,7 +348,7 @@ def test_guardrail_band() -> None:
                 )
             )
         )
-        check("命中红线（幻觉数字）→ 送 LLM 复核", stub2.calls == 1, f"calls={stub2.calls}")
+        check("命中红线（契约违规）→ 送 LLM 复核", stub2.calls == 1, f"calls={stub2.calls}")
 
     with patch.dict(os.environ, {"SUPERVISOR_GUARDRAIL": "off"}):
         stub3 = _StubSupervisor()

@@ -378,55 +378,7 @@ async def produce_line(
                                     line_name,
                                 )
                                 continue
-                        elif (
-                            lo_i
-                            and han < int(lo_i * 0.85)
-                            and _doc_han(state) >= 5000
-                            and not is_brief
-                        ):
-                            # 若各栏目结构完备且字数已达到下限的 72% 且议题数较少（<=3），放行避免无效扩写
-                            u_topics = (state.get("meeting_understanding") or {}).get("topics") or []
-                            if isinstance(u_topics, list) and 0 < len(u_topics) <= 3 and han >= int(lo_i * 0.72):
-                                logger.info(
-                                    "document structure complete with %d topics and %d chars (>=72%% of %d), skipping futile expand",
-                                    len(u_topics),
-                                    han,
-                                    lo_i,
-                                )
-                                break
-                            try:
-                                expanded = await _render_run(
-                                    render,
-                                    f"{context}\n\n"
-                                    f"{_EXPAND_REVISION.format(han=han, lo=lo_i, hi=hi_i)}\n\n"
-                                    f"【当前正文】\n{full_text}",
-                                    template,
-                                    cap,
-                                    temperature=0.35,
-                                )
-                            except Exception:  # noqa: BLE001
-                                expanded = ""
-                            if expanded and expanded.strip():
-                                prev_han = han
-                                full_text = expanded
-                                fill_mode = "repair"
-                                logger.info(
-                                    "freeform too short (%s<%s), expand rev#%s (%s)",
-                                    han,
-                                    lo_i,
-                                    _rev + 1,
-                                    line_name,
-                                )
-                                new_han = _body_han_count(full_text)
-                                # 扩写增量极微（增长不足 30 字或不足 5%）说明模型输出已饱和，终止盲目重试，杜绝 30~50s 白白空转
-                                if new_han <= prev_han or (new_han - prev_han) < max(30, int(prev_han * 0.05)):
-                                    logger.info(
-                                        "expand produced negligible change (%s -> %s), stopping futile retry",
-                                        prev_han,
-                                        new_han,
-                                    )
-                                    break
-                                continue
+                        # 字数未超上限（包括低于下限）直接放行，避免无效扩写与幻觉；偏短由下方 advisory 记录监控
                         break
 
         if template and full_text and is_router_enabled():

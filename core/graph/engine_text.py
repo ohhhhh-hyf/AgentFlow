@@ -51,8 +51,13 @@ def scrape_original(context: str, markers: tuple[str, ...], stops: tuple[str, ..
     return ""
 
 def line(state: dict, line_name: str) -> dict:
-    """读取某条任务线的子空间（未初始化时返回空 dict）。"""
-    return (state.get("lines") or {}).get(line_name) or {}
+    """读取某条任务线的子空间（未初始化时返回/补齐 dict）。"""
+    lines = state.setdefault("lines", {})
+    sub = lines.get(line_name)
+    if sub is None or not isinstance(sub, dict):
+        sub = {}
+        lines[line_name] = sub
+    return sub
 
 
 def line_cn(line_name: str, cn_names: dict[str, str]) -> str:

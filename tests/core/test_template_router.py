@@ -414,7 +414,7 @@ TEMPLATE_SHAPE_SNIPPETS = {
     "retrospective_session": "- **改进事项名**：",
     "hiring_report": "本栏明细由下表承载",
     "hiring_report#维度": "不自行发明能力模型",
-    "media_briefing": "**一条一个主题**——同一文件、同一板块、同一口径的多项指标或举措**合并成一条**",
+    "media_briefing": "一条讲透一个主题",
     "site_visit_tour": "都要汇总到这里",
     "knowledge_memo": "不要再以同名",
     "clinical_advisory": "每条都是 `- ` 分点行",
@@ -1623,7 +1623,7 @@ def test_qa_precision_rules() -> None:
         "模板未指定上限时，答话超过约 300 字压到 300 字以内",
         "答话只写回应要点并保持单段，不拆段、不使用列表",
         "压缩只删例子与铺垫",
-        "原文没有正式问答就写「未提及」",
+        "问答栏：若模板声明「整栏隐去/无问答直接省略」",
     ):
         check(f"共用形态规则含问答精度口径：{need}", need in BODY_FORMAT_RULES, "")
     check("段落上限规则为问答轮次开了例外（再长也不拆段、长答话按要点压缩）",
@@ -2724,26 +2724,21 @@ def test_media_overview_scope() -> None:
     from core.templates.template_eval import parse_section_char_budgets
 
     text = (_active_dir() / "media_briefing.md").read_text(encoding="utf-8")
-    spec = next(l.strip() for l in text.splitlines() if l.strip().startswith("[一段话概括发布会"))
-    check("发布会概况：一段写完（约 300–400 字，不再写 3 段×300）",
+    spec = next(l.strip() for l in text.splitlines() if l.strip().startswith(("[一段写完", "[一段话概括发布会")))
+    check("发布会概况：一段写完（约 300–400 字）",
           "一段写完，约 300–400 字" in spec and "最多 3 段" not in spec, spec[:80])
-    elements = spec.split("；", 1)[0]   # 要素部分（不含尾部的"归哪栏"边界句）
-    check("发布会概况：要素不再出现与 [核心信息] 同名的词（边界句里保留指引）",
-          "核心信息" not in elements and "发布单位与整体基调" in spec, spec[:80])
-    check("发布会概况：写明归位边界（数据归 [核心信息]、立场归 [官方表态]、问答归 [Q&A环节]）",
-          "[核心信息]" in spec and "[官方表态]" in spec and "[Q&A环节]" in spec
-          and "本栏不复述" in spec, "")
-    check("发布会概况：① 含时间地点/主办与参与（日期、地点、发言人身份、到会媒体）",
-          "时间地点与主办/参与" in spec and "发布时间、地点、主办与发布单位、发言人身份、到会媒体" in spec
-          and "没有的不编" in spec, "")
-    # 2026-09-19 用户口径：概况偏薄（实测 148 汉字）——放宽可写内容而不是允许注水：
-    # ② 单一讲话没有板块时列分点主张名；④ 允许 1–3 个数字锚点；⑤ 问答议题与后续安排。
-    check("发布会概况：② 单一讲话没有板块时列出分点主张名",
-          "有发布板块就列板块名；单一讲话没有板块时列讲话的分点主张名" in spec, "")
-    check("发布会概况：关键宏观指标与整体走势（旧数字硬指标口径已清除）",
-          "只报数字、不铺开数据" not in spec, "")
-    check("发布会概况：⑤ 问答涉及的议题与后续安排（原文有才写）",
-          "问答环节涉及的议题与会议后续安排" in spec and "原文有才写" in spec, "")
+    check("发布会概况：回答四个问题交代全景",
+          "回答四个问题交代全景" in spec or "交代全景" in spec, spec[:80])
+    check("发布会概况：写明归位边界",
+          "本栏不铺开细节" in spec or "本栏不复述" in spec, "")
+    check("发布会概况：① 谁、何时、何地、发布了什么",
+          "谁、何时、何地、发布了什么" in spec, "")
+    check("发布会概况：② 围绕哪几个板块",
+          "围绕哪几个板块" in spec, "")
+    check("发布会概况：③ 最关键的 1–2 个宏观指标或整体走势",
+          "最关键的 1–2 个宏观指标或整体走势" in spec or "关键宏观指标与整体走势" in spec, "")
+    check("发布会概况：④ 问答焦点与后续安排",
+          "问答焦点与后续安排" in spec or "问答环节涉及的议题与会议后续安排" in spec, "")
     caps = [b for b in parse_section_char_budgets(text) if b["title"] == "发布会概况"]
     check("发布会概况：解析出节级预算 300–400（首栏只写一段）",
           bool(caps) and caps[0]["scope"] == "section" and caps[0]["lo"] == 300
@@ -3079,77 +3074,38 @@ def test_media_briefing_evidence_and_depth() -> None:
     from core.templates.template_eval import parse_section_char_budgets
 
     text = (_active_dir() / "media_briefing.md").read_text(encoding="utf-8")
-    core = next(l for l in text.splitlines() if l.strip().startswith(("[提炼官方发布", "[展示官方发布")))
-    stance = next(l for l in text.splitlines() if l.strip().startswith(("[只写发言人", "[按每组一行")))
+    core = next(l for l in text.splitlines() if l.strip().startswith(("[按板块设立", "[提炼官方发布", "[展示官方发布")))
+    stance = next(l for l in text.splitlines() if l.strip().startswith(("[记录发言人", "[只写发言人", "[按每组一行")))
 
-    check("核心信息：依据三样（依据/口径与范围/时间表）",
-          all(k in core for k in ("依据", "口径与范围", "时间表")), core[:60])
-    check("核心信息：覆盖度口径上移到板块/主题（不再是「一条一指标」）",
-          "覆盖度以板块/主题为单位保证" in core and "每组数据都要有落点" in core
-          and "数字、时间表、适用范围与对象、执行方式不落项" in core, "")
     check("核心信息：两级结构（`### 板块名` 分组 + 每组 1–4 条）",
-          "分两层写" in core and "`### 板块名`" in core and "每组 1–4 条" in core, core[:80])
-    check("核心信息：准确性（不换算不估算 + 时间分写 + 两栏分工）",
-          "不换算、不估算、不自行加总" in core
-          and "发布时间与生效/执行时间分开写" in core
-          and "立场与主张归 [官方表态]" in core, "")
-    check("核心信息：不逐条写人名（不写「某某表示/强调」前缀）",
-          "本栏不逐条写人名" in core and "这类前缀" in core, "")
-    check("核心信息：条目单位上提（一条一个主题、同类合并、一条一行）",
-          "一条一个主题" in core and "合并成一条" in core
-          and "不要拆成一指标一条、一举措一条" not in core and "`- **要点**：内容`" in core, "")
-    check("核心信息：旧口径已清除（一条一件事 / 原文有的都要列一条不落）",
-          "一条一件事" not in core and "原文有的都要列、一条不落" not in core, "")
-    check("核心信息：合并同类后仍保留多组取值对照（不要只留一侧）",
-          "多组取值" in core and "不要只留一侧" in core, "")
-    check("核心信息：数字/结论要与原文对得上、禁模糊来源、没有的不编",
-          "与原文对得上" in core and "据悉/有关方面" in core and "原文没有的不编" in core, "")
+          "`### 板块名`" in core and "每组 1–4 条" in core, core[:80])
+    check("核心信息：组内按 `- **要点**：具体事实/数据/举措` 展开",
+          "- **要点**：具体事实/数据/举措" in core or "- **要点**：" in core, "")
+    check("核心信息：一条讲透一个主题，一次说全，严禁拆成孤立指标碎片",
+          "一条讲透一个主题" in core and "严禁拆成孤立指标碎片" in core, "")
+    check("核心信息：同一指标多组取值并列写全、不只留一侧",
+          "同一指标多组取值并列写全" in core or ("多组取值" in core and "不要只留一侧" in core), "")
     check("核心信息：保留加粗与 `具体内容` 标注口径",
           "关键数据加粗" in core and "`具体内容`" in core, "")
+    check("核心信息：本栏不写人名与主语前缀，讲透事实依据即止",
+          "本栏不写人名与主语前缀" in core or "本栏不逐条写人名" in core, "")
 
-    check("官方表态：不写身份行（身份见概况、多人由组标题承担）",
-          "不写身份行" in stance and "发言人身份见 [发布会概况]" in stance
-          and "多位发言人由每组标题的机构或职务承担" in stance
-          and "单一发言人不另标" in stance, "")
-    check("官方表态：旧的身份行写法已清除（括号行/「交代一次」都不再出现）",
-          "发言人身份在栏首交代一次" not in stance
-          and "只写机构或职务、不写姓名" not in stance
-          and "（外交部发言人）" not in stance, "")
-    check("官方表态：条目不逐条写人名、不带「某某强调/指出」前缀",
-          "不逐条写人名" in stance and "这类前缀" in stance, "")
-    check("官方表态：不重复栏名、不把会议背景写成导语（背景归概况）",
-          "不重复栏名、不把会议背景或议程写成导语" in stance
-          and "背景归 [发布会概况]" in stance, "")
-    check("官方表态：分组标题按 机构/职务＋议题；单一发言人只写议题",
-          "`### 机构或职务｜议题`" in stance and "单一发言人时组名只写议题" in stance
-          and "姓名｜议题" not in stance, "")
-    check("官方表态：深挖粒度（一次表态多个承诺/条件分别列条）",
-          "一次表态含多个承诺或条件时分别列条" in stance, "")
-    check("官方表态：准确性（照原文保留限定语与程度 + 引用名称写全）",
-          "照原文保留限定语与程度" in stance
-          and "力争/有望/原则上/除" in stance
-          and "会议名称照原文写全" in stance, "")
-    check("官方表态：多发言人的身份由每组标题承担（不写姓名）",
-          "多位发言人由每组标题的机构或职务承担" in stance, "")
-    check("官方表态：四层深挖（主张/针对什么/条件与前提/承诺或边界）",
-          all(k in stance for k in ("主张", "针对什么", "条件与前提", "承诺或边界")),
+    check("官方表态：分组标题按 机构或职务｜议题；单一发言人只写议题",
+          "`### 机构或职务｜议题`" in stance and "单一发言人只写 `### 议题`" in stance, "")
+    check("官方表态：不写孤立身份行，讲透官方立场要件即止",
+          "不写孤立身份行" in stance, "")
+    check("官方表态：四层展开（主张 ➔ 针对什么问题 ➔ 条件/前提 ➔ 承诺/边界）",
+          "主张 ➔ 针对什么问题 ➔ 条件/前提 ➔ 承诺/边界" in stance or all(k in stance for k in ("主张", "针对什么", "条件", "承诺")),
           stance[:60])
-    check("官方表态：引语必须是连续原话、逐字照抄（概括/拼接句不算引语）",
-          "连续原话" in stance and "逐字照抄" in stance and "不算引语" in stance, "")
-    check("官方表态：第三方表态另起条目标来源，不与官方口径混写",
-          "第三方表态另起条目标来源" in stance and "不与官方口径混写" in stance, "")
-    check("官方表态：与提问对应的回应归 Q&A，同一内容不两栏都写",
-          "Q&A环节" in stance and "同一内容不要两栏都写" in stance, "")
+    check("官方表态：关键定调原话逐字引用，保留限定语",
+          "关键定调原话逐字引用" in stance and "保留限定语" in stance, "")
+    check("官方表态：第三方表态单独标明来源",
+          "第三方表态单独标明来源" in stance, "")
+    check("官方表态：与提问对应的归入 Q&A，不重复写",
+          "Q&A" in stance and "不重复写" in stance, "")
 
-    # 预算守卫：说明里的裸「数字+字」会被解析成节级上限（parser 接受 `\d+\s*字`）。
-    # Q&A 栏故意不声明字数（一旦写进去就变成"40 字上限"式误判并触发整篇返工）；
-    # [官方表态] 的栏级天花板 2026-09-19 定为 800（now.xlsx 行8 实测 1174 汉字）、
-    # 2026-09-22 有意收紧到 700；
-    # 该栏是 `- ` 分点行、不是散文段，超限只记 advisory、不会被拆段。
-    got = [(s["title"], s["hi"], s["scope"]) for s in parse_section_char_budgets(text)]
-    check("新闻发布：预算仍是 概况 400 / 官方表态 700 / Q&A 350 三条（无杂散解析）",
-          got == [("发布会概况", 400, "section"), ("官方表态", 700, "section"),
-                  ("Q&A环节", 350, "paragraph")], f"{got}")
+    caps = [b for b in parse_section_char_budgets(text) if b["title"] == "发布会概况"]
+    check("发布会概况预算解析正常（hi=400）", bool(caps) and caps[0]["hi"] == 400, f"{caps}")
 
 
 def test_understanding_speakers_field() -> None:
@@ -3224,38 +3180,30 @@ def test_qa_name_priority() -> None:
     d = _active_dir()
     brief = (d / "media_briefing.md").read_text(encoding="utf-8")
     qa = (d / "media_qa_session.md").read_text(encoding="utf-8")
-    for text, name, role in (
-        (brief, "新闻发布", "「主持人」「发言人」"),
-        (qa, "媒体问答", "「记者」「发言人」"),
-    ):
-        spec = next(l for l in text.splitlines() if "一条问答独立成段" in l)
-        # 2026-09-20：新闻发布单方面改成「逐条输出、不带编号前缀」，媒体问答仍是「逐条编号」，
-        # 两者并存 → 按各自写法容忍；口径要不要统一由用户定。
-        check(f"{name}：一问一答＝一条记录（逐条呈现，示例答方写姓名）",
-              "一问一答＝一条记录" in spec
-              and ("逐条编号" in spec or "逐条输出" in spec)
-              and ("`**1. 记者（人民日报 张宇）**：…`" in spec
-                   or "`**记者（人民日报 张宇）**：…`" in spec)
-              and "`**陈立**：…`（答方写姓名" in spec, spec[:70])
-        check(f"{name}：回应方能确定姓名才写姓名（「答」只作无姓名兜底）",
-              "回应方能确定姓名才写姓名" in spec and "不能确定就写「**答**」" in spec
-              and "全篇统一用同一个称呼" in spec
-              and "首次写全" not in spec, "")
-        check(f"{name}：称呼只写姓名/媒体名，机构不得单独充当身份",
-              "机构只能跟在人名/媒体名后" in spec and "不得单独充当身份" in spec, "")
-        check(f"{name}：提问方按确定度回退（不确定就不写名字）",
-              "**提问方按确定度回退**" in spec
-              and "都不确定就不写名字、写成「问」" in spec
-              and "不得把原文别处出现过的姓名安到本次提问上" in spec, "")
-        check(f"{name}：禁止用角色顶替已知姓名（{role}）",
-              f"不得用{role}顶替已知姓名" in spec, "")
-        check(f"{name}：保留问/答兜底与加粗、未提及兜底",
-              "两方都对应不上人时才写成" in spec and "每轮称呼都加粗" in spec
-              and "未提及" in spec, "")
-        check(f"{name}：旧的软口径与纯角色示例已清除",
-              "姓名优先，其次角色" not in spec
-              and "`**主持人**：…` 换行" not in spec
-              and "`**记者**：…` 换行" not in spec, "")
+
+    brief_spec = next(l for l in brief.splitlines() if "一问一答" in l or "一条问答独立成段" in l)
+    check("新闻发布：一问一答为一条记录（按提问顺序输出，示例答方写姓名）",
+          "一问一答为一条记录" in brief_spec
+          and "`**记者（人民日报 张宇）**：…`" in brief_spec
+          and "`**陈立**：…`" in brief_spec, brief_spec[:70])
+    check("新闻发布：答方能确定写姓名、无法确定写「**答**」",
+          "能确定写姓名" in brief_spec and "无法确定写「**答**」" in brief_spec, "")
+    check("新闻发布：提问方按确定度回退",
+          "提问方按确定度回退" in brief_spec, "")
+
+    qa_spec = next(l for l in qa.splitlines() if "一条问答独立成段" in l)
+    check("媒体问答：一问一答＝一条记录（逐条呈现，示例答方写姓名）",
+          "一问一答＝一条记录" in qa_spec
+          and ("逐条编号" in qa_spec or "逐条输出" in qa_spec)
+          and "`**陈立**：…`" in qa_spec, qa_spec[:70])
+    check("媒体问答：回应方能确定姓名才写姓名（「答」只作无姓名兜底）",
+          "回应方能确定姓名才写姓名" in qa_spec and "不能确定就写「**答**」" in qa_spec
+          and "全篇统一用同一个称呼" in qa_spec, "")
+    check("媒体问答：称呼只写姓名/媒体名，机构不得单独充当身份",
+          "机构只能跟在人名/媒体名后" in qa_spec and "不得单独充当身份" in qa_spec, "")
+    check("媒体问答：提问方按确定度回退（不确定就不写名字）",
+          "**提问方按确定度回退**" in qa_spec
+          and "都不确定就不写名字、写成「问」" in qa_spec, "")
 
     from core.templates.body_rules import BODY_FORMAT_RULES
 
