@@ -2740,8 +2740,8 @@ def test_media_overview_scope() -> None:
     # ② 单一讲话没有板块时列分点主张名；④ 允许 1–3 个数字锚点；⑤ 问答议题与后续安排。
     check("发布会概况：② 单一讲话没有板块时列出分点主张名",
           "有发布板块就列板块名；单一讲话没有板块时列讲话的分点主张名" in spec, "")
-    check("发布会概况：④ 允许 1–3 个关键数字锚点（只报数字、不铺开数据）",
-          "关键数字锚点 1–3 个" in spec and "只报数字、不铺开数据" in spec, "")
+    check("发布会概况：关键宏观指标与整体走势（旧数字硬指标口径已清除）",
+          "只报数字、不铺开数据" not in spec, "")
     check("发布会概况：⑤ 问答涉及的议题与后续安排（原文有才写）",
           "问答环节涉及的议题与会议后续安排" in spec and "原文有才写" in spec, "")
     caps = [b for b in parse_section_char_budgets(text) if b["title"] == "发布会概况"]
@@ -3097,7 +3097,7 @@ def test_media_briefing_evidence_and_depth() -> None:
           "本栏不逐条写人名" in core and "这类前缀" in core, "")
     check("核心信息：条目单位上提（一条一个主题、同类合并、一条一行）",
           "一条一个主题" in core and "合并成一条" in core
-          and "不要拆成一指标一条、一举措一条" in core and "`- **要点**：内容`" in core, "")
+          and "不要拆成一指标一条、一举措一条" not in core and "`- **要点**：内容`" in core, "")
     check("核心信息：旧口径已清除（一条一件事 / 原文有的都要列一条不落）",
           "一条一件事" not in core and "原文有的都要列、一条不落" not in core, "")
     check("核心信息：合并同类后仍保留多组取值对照（不要只留一侧）",
