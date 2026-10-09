@@ -1,20 +1,20 @@
-"""确定性事实门禁：毫秒级预检草稿中的陌生人名与数字指标（零 LLM）。
+"""确定性事实门禁：毫秒级预检草稿中的陌生人名与历史记忆契约（零 LLM）。
 
 定位（SUPERVISOR_AND_UNDERSTANDING_OPTIMIZATION_PLAN · 步骤五）：
 
 - **人名在册**：草稿结构位出现的人名（``**姓名**：`` 组名行、``X工/X总/X老师``
   称谓、``姓名+动作动词``）必须落在 ``meeting_understanding.speakers`` 或原文里，
   出现未注册的陌生名字即上报；
-- **数字忠实**：草稿中的数字（含单位）必须能在原文中定位——杜绝"5000 QPS 记成
-  50000""延期 3 天写成 3 周"这类幻觉；
+- **数字忠实**：数字与指标忠实度交由生成端 Prompt 强约束与长文本 LLM Supervisor 深度把关，
+  不再采用粗粒度正则机械比对，避免中文数词与排版序号造成高频假阳性误报；
 - **对照契约**：记忆未注入（``memory_on=False``）时 ``history_comparison`` 必须为空，
   凭空产出的"历史对照"按捏造拦截。
 
 规则全过是"免审放行"的依据（激进模式：原文 2000~5000 字区间内直接 Approve，
 开关 ``SUPERVISOR_GUARDRAIL``，默认开启）；命中红线的草稿照常送 LLM 复核。
 
-边界（刻意如此）：本模块只覆盖"形"（名字 / 数字），**虚构业务结论类幻觉无法
-程序化验证**，由 LLM 审核兜底——因此激进模式只在中等篇幅区间启用，长会（>5000
+边界（刻意如此）：本模块只覆盖确定性"形"（在册名字 / 记忆契约），业务结论与深度数值分析
+由生成端 Prompt 约束与 LLM 审核兜底——因此激进模式只在中等篇幅区间启用，长会（>5000
 字符）始终走 LLM 审核；短会另有 <2000 字的无条件快速通道（见
 ``DomainNodes._make_supervisor_node``）。
 """
@@ -62,11 +62,6 @@ _SUBJECT_STOP = frozenset({
     "会议", "需求", "方案", "结论", "风险", "问题", "工作", "计划", "要求",
     "目标", "结果", "后续", "相关", "有关", "当前", "目前", "本周", "下周", "下一步",
 })
-# 数字（含千分位/小数）+ 可选单位：单位命中长词优先（分钟 先于 分）
-_NUMBER_RE = re.compile(
-    r"(\d{1,3}(?:,\d{3})+(?:\.\d+)?|\d+(?:\.\d+)?)"
-    r"([A-Za-z%]{1,6}|小时|分钟|个月|万元|万|亿|千|百|秒|分|周|天|年|月|日|号|人|次|条|项|份|个|台|套|元|块|页|字|卡|路|场|倍|多)?"
-)
 _MAX_FINDINGS = 12
 
 _FULLWIDTH = str.maketrans("０１２３４５６７８９％", "0123456789%")
@@ -138,31 +133,6 @@ def _name_findings(
     return findings
 
 
-def _number_findings(text: str, transcript: str) -> list[str]:
-    compact_transcript = _compact(transcript)
-    # 原文的数字运行集：纯数字按"完整数字串"比对，避免 12 撞进 …1123… 这种子串误判
-    transcript_runs = set(re.findall(r"\d+(?:\.\d+)?", str(transcript or "")))
-    findings: list[str] = []
-    for match in _NUMBER_RE.finditer(text or ""):
-        digits = _compact(match.group(1))
-        unit = match.group(2) or ""
-        if not digits:
-            continue
-        if unit:
-            # 有单位：要求"数字+单位"整体在原文出现（"延期3天写成3周"要拦）
-            if _compact(digits + unit) in compact_transcript:
-                continue
-            findings.append(f"数字未落地：「{digits}{unit}」未在原文中找到")
-        else:
-            head = digits.split(".")[0]
-            if digits in transcript_runs or (head and head in transcript_runs):
-                continue
-            findings.append(f"数字未落地：「{digits}」未在原文中找到")
-        if len(findings) >= _MAX_FINDINGS:
-            break
-    return findings
-
-
 def quick_facts_guardrail(
     draft: object,
     speakers: list[dict[str, Any]] | None,
@@ -170,7 +140,7 @@ def quick_facts_guardrail(
     *,
     memory_on: bool = True,
 ) -> tuple[bool, list[str]]:
-    """毫秒级确定性事实核查：陌生人名与关键数字指标。
+    """毫秒级确定性事实核查：陌生人名与历史记忆契约。
 
     返回 ``(是否全过, findings)``；``findings`` 为空表示可免审放行。
     ``history_comparison``（程序注入的跨场对照）不参与"原文落地"校验；
@@ -180,7 +150,6 @@ def quick_facts_guardrail(
     """
     text = " ".join(_iter_strings(draft))
     findings = _name_findings(text, list(speakers or []), transcript)
-    findings.extend(_number_findings(text, transcript))
     if not memory_on and isinstance(draft, dict):
         comparison = draft.get("history_comparison")
         if isinstance(comparison, list) and any(str(x).strip() for x in comparison):

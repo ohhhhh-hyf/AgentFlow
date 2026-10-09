@@ -616,7 +616,7 @@ class DomainNodes:
           发言人 ≤2，且篇幅不超过门禁区间上限）直接确定性 Approve，省 1 次 LLM 调用
           （4~8 秒 + 整包 Token）；
         - 原文落在 ``_supervisor_guardrail_range`` 区间且规则门禁（人名在册 /
-          数字忠实）全过时按开关放行；命中红线照常送 LLM 深度判定。
+          记忆契约）全过时按开关放行；命中红线照常送 LLM 深度判定。
         短路走 ``review_bypassed`` 标记（≠ ``review_unavailable``：不触发
         "审核失败"质量告警）；草稿已降级时不短路——留一轮审核+返工的自愈机会。
         """

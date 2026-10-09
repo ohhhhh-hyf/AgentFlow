@@ -168,38 +168,25 @@ def test_guardrail_names() -> None:
 
 
 def test_guardrail_numbers() -> None:
-    transcript = "张工：QPS 从 5000 提升到 8000，接口时延 200ms，延期3天。"
+    """验证数字门禁已彻底剥离粗暴正则比对，数字忠实度由 Prompt 与 LLM Supervisor 深度把关。
+
+    中文数词（两周）、阿拉伯数字（2周）、排版编号（1. 方案）等不再因粗暴正则产生假阳性误报。
+    """
+    transcript = "张工：QPS 从 5000 提升到 8000，接口时延 200ms，延期两周。"
 
     good = quick_facts_guardrail(
-        {"executive_summary": ["QPS 从5000提升到8000，时延压到200ms以内，延期3天。"]},
+        {"executive_summary": ["QPS 从5000提升到8000，时延压到200ms以内，延期2周。"]},
         [],
         transcript,
     )
-    check("原文可定位的数字放行", good == (True, []), str(good))
+    check("草稿正常表述不产生数字未落地误报，顺利放行", good == (True, []), str(good))
 
-    inflated = quick_facts_guardrail(
-        {"executive_summary": ["QPS 从5000提升到50000。"]}, [], transcript
+    mixed = quick_facts_guardrail(
+        {"executive_summary": ["### 1. 架构方案", "接口时延 200ms，延期 3 个自然日。"]},
+        [],
+        transcript,
     )
-    check("数字放大（5000→50000）被拦",
-          not inflated[0] and any("50000" in item for item in inflated[1]), str(inflated))
-
-    unit = quick_facts_guardrail(
-        {"executive_summary": ["相关事项延期3周。"]}, [], transcript
-    )
-    check("单位篡改（3天→3周）被拦",
-          not unit[0] and any("3周" in item for item in unit[1]), str(unit))
-
-    decoy = quick_facts_guardrail(
-        {"executive_summary": ["并发量 1200。"]}, [], "张工：并发 1200 已确认。"
-    )
-    check("完整数字串比对（1200 不撞 12000 的子串）",
-          decoy[0], str(decoy))
-    real = quick_facts_guardrail(
-        {"executive_summary": ["并发量 120。"]}, [], "张工：并发 1200 已确认。"
-    )
-    check("120 不等于 1200（不因子串放行）",
-          not real[0] and any("120" in item and "1200" not in item for item in real[1]),
-          str(real))
+    check("排版序号与虚词表述均不被误报为数字未落地", mixed == (True, []), str(mixed))
 
 
 def test_guardrail_skip_keys_and_env() -> None:
