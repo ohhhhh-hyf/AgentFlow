@@ -153,7 +153,6 @@ def build_core_contract_for_tasks(
             frozenset(),
         )
 
-    chosen_fields = list(CORE_BASE_FIELDS)
     selected_set = set(selected)
 
     need_decisions = bool(
@@ -164,7 +163,6 @@ def build_core_contract_for_tasks(
                 "minutes",
                 "minutes_styles",
                 "minutes_trace",
-                "actions",
                 "consensus_decision",
                 "mindmap",
             )
@@ -197,7 +195,7 @@ def build_core_contract_for_tasks(
     )
     need_action_hints = bool(memory_on or ("actions" in selected_set))
     need_risk_hints = bool(memory_on or ("risks" in selected_set))
-    need_dependencies = bool(memory_on or bool({"actions", "risks"} & selected_set))
+    need_dependencies = bool(memory_on)
 
     # 针对 minutes 单线且给定模板时的按需裁剪：若模板完全不包含风险/未决词汇，则跳过
     if selected == ["minutes"] and template_text.strip() and not memory_on:
@@ -208,6 +206,57 @@ def build_core_contract_for_tasks(
             need_risks = False
         if "open_questions" in tpl_skips:
             need_open_questions = False
+
+    # 动态裁剪 topics 子字段：决策类/全量纪要类需要 debates，轻量执行类（待办/导图/溯源/纯风险）可跳过 debates
+    need_debates = bool(
+        memory_on
+        or any(
+            t in selected_set
+            for t in (
+                "consensus_decision",
+                "minutes",
+                "minutes_styles",
+            )
+        )
+    )
+
+    is_minimal_topics = (selected_set <= {"actions", "mindmap"}) and not memory_on
+    topic_discussion_desc = (
+        "该议题的讨论经过、分歧脉络与定调依据（context_and_debate，50字以内简述）"
+        if is_minimal_topics
+        else "该议题的讨论经过、分歧脉络与定调依据（context_and_debate）：交代因果背景、主张理由与定调考量，连贯陈述；具体数据指标、金额、时限统一收纳于 key_points，避免冗余重复"
+    )
+
+    topic_fields: list[Field] = [
+        StrField("module", "所属宏观业务领域/模块（如'核心架构优化'、'现场实体整改'、'交付与验收'，全场收敛为3~5个）"),
+        StrField("title", "议题名称/核心命题"),
+        StrField("discussion", topic_discussion_desc),
+        StrListField("key_points", "该议题的核心要点（逐条列出，覆盖两类）：1. 硬核指标（数字/时限/金额/范围）；2. 核心论据与案例（立论依据/论证事实/反驳证据/典型案例）；不遗漏关键支撑事实"),
+    ]
+    if need_debates:
+        topic_fields.append(
+            ObjListField("debates", [
+                StrField("speaker", "发言人/阵营"),
+                StrField("stance", "核心主张与观点立场"),
+                StrField("argument", "支撑论据或反驳理由"),
+            ], desc="该议题的观点交锋与论辩列表（学术研讨/辩论/思想争鸣时重点记录；企业例会无分歧可为[]）")
+        )
+    topic_fields.extend([
+        StrField("conclusion", "该议题的结论或共识，无明确结论时为null"),
+        StrListField("participants", "原文中明确出现的发言人姓名列表"),
+    ])
+
+    chosen_fields: list[Field] = [
+        StrField("meeting_brief", "80~200字概括整场会议主线全貌与核心态势"),
+        StrField("meeting_purpose", "一句话概括会议目的"),
+        EnumField("scene", SCENE_CHOICES, normalize="通用"),
+        ObjListField("speakers", [
+            StrField("name", "统一显示称呼：姓名优先，其次原文角色，再次原始编号；不推断、不编造"),
+            StrField("role", "角色（发言人/主持人/记者/听众/嘉宾/主讲人…，照原文；判断不出为null）"),
+            StrField("org", "机构/单位/媒体名（照原文；没有为null）"),
+        ]),
+        ObjListField("topics", topic_fields),
+    ]
 
     if need_decisions:
         chosen_fields.append(DECISIONS_FIELD)

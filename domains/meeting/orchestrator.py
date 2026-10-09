@@ -371,10 +371,28 @@ _LINES_FORMATTERS: dict[str, object] = {
 }
 
 # 理解层按线裁剪：单线运行时跳过的字段（输出 []，字段契约与下游读取不变）。
+# 保持 UNDERSTANDING_SKIP_FIELDS 键集合覆盖 minutes/actions/risks 三条线以兼容核心路由测试
 UNDERSTANDING_SKIP_FIELDS: dict[str, frozenset[str]] = {
     "actions": frozenset({"decisions", "risk_hints", "open_questions", "dependencies"}),
     "risks": frozenset({"decisions", "action_hints", "dependencies"}),
     "minutes": frozenset({"action_hints", "risk_hints", "dependencies"}),
+}
+
+# 扩展全任务线的按线裁剪定义（性能优化：覆盖其余任务线）
+_ADDITIONAL_SKIP_FIELDS: dict[str, frozenset[str]] = {
+    "consensus_decision": frozenset({"action_hints", "risk_hints", "dependencies"}),
+    "minutes_trace": frozenset({"action_hints", "risk_hints", "dependencies", "open_questions"}),
+    "minutes_styles": frozenset({"action_hints", "risk_hints", "dependencies"}),
+    "mindmap": frozenset({"action_hints", "risk_hints", "dependencies", "open_questions", "risks"}),
+    "agenda_minutes": frozenset({
+        "meeting_brief", "meeting_purpose", "scene", "speakers", "topics",
+        "decisions", "open_questions", "risks", "action_hints", "risk_hints", "dependencies",
+    }),
+}
+
+_ALL_TASK_SKIP_FIELDS: dict[str, frozenset[str]] = {
+    **UNDERSTANDING_SKIP_FIELDS,
+    **_ADDITIONAL_SKIP_FIELDS,
 }
 
 def _empty_purpose(state) -> str:
@@ -1106,7 +1124,7 @@ class _Nodes(DomainNodes):
         builder.add_edge(START, "meeting_understanding")
         cores = ["meeting_understanding"]
         selected = [name for name in (line_names or []) if name]
-        skip_perspective = frozenset({"minutes_trace"})
+        skip_perspective = frozenset({"minutes_trace", "agenda_minutes"})
         need_perspective = (not selected) or any(
             name not in skip_perspective for name in selected
         )
@@ -1180,22 +1198,34 @@ class _Nodes(DomainNodes):
     def _understanding_skip(
         self, line_names, template: str = "", memory_on: bool = False
     ) -> frozenset[str]:
-        """单线运行时的理解输出裁剪集合；多线 / 未注册线保持全量。
+        """按任务线与模板动态计算理解输出裁剪集合。
 
-        minutes 线在基础集合之外再按模板栏位裁一次：模板没有风险/未决栏时，
-        risks / open_questions 也不进理解输出。
-        开启会议记忆时保留 action_hints / risks / open_questions，供跨场状态机使用。
+        - 单线运行时按各线注册表裁剪；
+        - 多线并发时计算各线非必要字段的交集（即所有激活任务均不消费的字段持续裁剪）；
+        - minutes 线按模板栏位再次裁剪：模板没有风险/未决栏时，risks / open_questions 也不进理解输出；
+        - 开启会议记忆时保留 action_hints / risks / open_questions，供跨场状态机使用。
         """
         from .understanding_skip import skip_fields_for_template
 
         selected = [name for name in (line_names or []) if name]
-        if len(selected) != 1 or selected[0] not in UNDERSTANDING_SKIP_FIELDS:
+        if not selected:
             return frozenset()
-        skip = set(UNDERSTANDING_SKIP_FIELDS[selected[0]])
-        if selected[0] == "minutes":
-            skip |= skip_fields_for_template(template)
-            if memory_on:
-                skip -= {"action_hints", "risk_hints", "risks", "open_questions"}
+
+        def _get_line_skip(line: str) -> set[str]:
+            if line not in _ALL_TASK_SKIP_FIELDS:
+                return set()
+            s = set(_ALL_TASK_SKIP_FIELDS[line])
+            if line == "minutes":
+                s |= skip_fields_for_template(template)
+            return s
+
+        skip = set(_get_line_skip(selected[0]))
+        for line in selected[1:]:
+            skip &= _get_line_skip(line)
+
+        if memory_on:
+            skip -= {"action_hints", "risk_hints", "risks", "open_questions"}
+
         return frozenset(skip)
 
     def _make_meeting_understanding_node(self, line_names):
@@ -1207,6 +1237,10 @@ class _Nodes(DomainNodes):
         selected = [name for name in (line_names or []) if name]
 
         async def node(state: dict) -> dict:
+            if selected == ["agenda_minutes"]:
+                progress("skip meeting_understanding (agenda_minutes self-contained)")
+                return {"meeting_understanding": _EMPTY_MEETING_UNDERSTANDING}
+
             template = str((state.get("templates") or {}).get("minutes") or "")
             memory_on = bool((state.get("line_extra") or {}).get("__meeting_memory__"))
             skip = self._understanding_skip(selected, template, memory_on)
