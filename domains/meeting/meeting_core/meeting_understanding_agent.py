@@ -2,14 +2,16 @@ from __future__ import annotations
 
 from collections.abc import Iterable
 from dataclasses import fields as dc_fields
-from typing import Any
 
 from infra.llm import LLMClient
 from ..models import MeetingUnderstanding
 from .prompts import (
     MEETING_UNDERSTANDING_SYSTEM_PROMPT,
 )
-from .contracts import MEETING_UNDERSTANDING_GENERATION_OUTPUT_CONTRACT
+from .contracts import (
+    MEETING_UNDERSTANDING_GENERATION_OUTPUT_CONTRACT,
+    build_core_contract_for_tasks,
+)
 
 
 def _trim_instruction(focus_line: str, skip_fields: Iterable[str]) -> str:
@@ -48,11 +50,26 @@ class MeetingUnderstandingAgent:
         self,
         transcript: str,
         *,
+        active_tasks: Iterable[str] | None = None,
+        template_text: str = "",
+        memory_on: bool = False,
         focus_line: str = "",
         skip_fields: Iterable[str] = (),
         user_channel: str = "",
     ) -> MeetingUnderstanding:
-        """``user_channel``：本用户称呼表（全称 + 会上别称），由画像生成、注入在原文之前。"""
+        """运行会议理解抽取。
+
+        根据 active_tasks 动态组装输出契约，不抽取的字段由底层自动补齐默认空值，
+        避免强制模型生成冗余空数组带来的输出延时与 Token 消耗。
+        """
+        tasks = list(active_tasks) if active_tasks is not None else ([focus_line] if focus_line else None)
+        contract_str, omitted = build_core_contract_for_tasks(
+            tasks,
+            template_text=template_text,
+            memory_on=memory_on,
+        )
+
+        # 组织用户消息：原文及裁剪指令、用户信道
         if len(transcript) > 45000:
             sampled_text = (
                 transcript[:26000]
@@ -62,22 +79,31 @@ class MeetingUnderstandingAgent:
             user = f"会议原文：\n{sampled_text}"
         else:
             user = f"会议原文：\n{transcript}"
+
         if (user_channel or "").strip():
             user = f"{user_channel.strip()}\n\n{user}"
+
         instruction = _trim_instruction(focus_line, skip_fields)
         if instruction:
             user = f"{instruction}\n\n{user}"
+
         skipped = {
             str(field).strip() for field in skip_fields if str(field).strip()
         }
         missable = skipped | {"speakers"}
+        if omitted:
+            missable = missable | omitted
+
+        target_contract = contract_str if active_tasks is not None else (
+            contract_str if omitted else MEETING_UNDERSTANDING_GENERATION_OUTPUT_CONTRACT
+        )
+
         result = await self.client.structured(
             MEETING_UNDERSTANDING_SYSTEM_PROMPT,
             user,
             MeetingUnderstanding,
-            MEETING_UNDERSTANDING_GENERATION_OUTPUT_CONTRACT,
+            target_contract,
             label="core/meeting_understanding",
             allow_missing=missable,
         )
         return result
-

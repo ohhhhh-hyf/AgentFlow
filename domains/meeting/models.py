@@ -86,3 +86,18 @@ def _validate_minutes_styles_strict(cls, data: dict) -> "MultiStyles":
 
 
 MultiStyles.validate = _validate_minutes_styles_strict
+
+from dataclasses import fields as _dc_fields
+
+_orig_meeting_understanding_validate = MeetingUnderstanding.validate.__func__
+
+
+@classmethod
+def _validate_meeting_understanding_dynamic(cls, data: dict) -> "MeetingUnderstanding":
+    for f in _dc_fields(cls):
+        if f.name not in data and f.default_factory is list:
+            data[f.name] = []
+    return _orig_meeting_understanding_validate(cls, data)
+
+
+MeetingUnderstanding.validate = _validate_meeting_understanding_dynamic

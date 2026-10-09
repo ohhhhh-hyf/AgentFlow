@@ -1207,26 +1207,31 @@ class _Nodes(DomainNodes):
         selected = [name for name in (line_names or []) if name]
 
         async def node(state: dict) -> dict:
-            # 裁剪集合随模板变化（模板栏位决定 risks/open_questions 是否要抽），
-            # 所以在节点内、拿到 state 之后再算。
-            skip = self._understanding_skip(
-                line_names,
-                str((state.get("templates") or {}).get("minutes") or ""),
-                memory_on=bool((state.get("line_extra") or {}).get("__meeting_memory__")),
-            )
-            focus = selected[0] if (skip and selected) else ""
+            template = str((state.get("templates") or {}).get("minutes") or "")
+            memory_on = bool((state.get("line_extra") or {}).get("__meeting_memory__"))
+            skip = self._understanding_skip(selected, template, memory_on)
             progress("agent start meeting_understanding")
             try:
                 # 本用户称呼表：把"赵工/小赵"这类原文称呼统一成真名，供下游裁剪与 owner 使用
                 # （客观/职业模板/无姓名 → 空串，不注入）
                 from domains.shared.perspective import build_user_channel
+                import inspect
+                kwargs = {
+                    "focus_line": selected[0] if len(selected) == 1 and skip else "",
+                    "skip_fields": skip,
+                    "user_channel": build_user_channel(state.get("user") or {}),
+                }
+                sig = inspect.signature(self.meeting_understanding_agent.run)
+                if "active_tasks" in sig.parameters:
+                    kwargs["active_tasks"] = selected
+                    kwargs["template_text"] = template
+                    kwargs["memory_on"] = memory_on
 
                 result = await self.meeting_understanding_agent.run(
                     state["transcript"],
-                    focus_line=focus,
-                    skip_fields=skip,
-                    user_channel=build_user_channel(state.get("user") or {}),
+                    **kwargs,
                 )
+
             except Exception:
                 logger.warning("meeting understanding failed, continue with empty", exc_info=True)
                 return {

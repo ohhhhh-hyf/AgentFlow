@@ -169,10 +169,11 @@ class LLMClient:
             usage.get("completion_tokens") or usage.get("output_tokens") or 0
         )
         total = int(usage.get("total_tokens") or (prompt + completion))
-        # 服务端上下文缓存（DeepSeek 官方 prompt_cache_hit_tokens；兼容 cached_tokens）
+        # 服务端上下文缓存（DeepSeek 官方 prompt_cache_hit_tokens；兼容 OpenAI prompt_tokens_details.cached_tokens）
         cache_hit = int(
             usage.get("prompt_cache_hit_tokens")
             or usage.get("cached_tokens")
+            or (usage.get("prompt_tokens_details") or {}).get("cached_tokens")
             or 0
         )
         with self._monitor_lock:

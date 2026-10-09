@@ -831,17 +831,14 @@ def test_general_minutes_speedread() -> None:
           not any("分段速览" in h for h in hints), f"{hints}")
     check("通用纪要：包含独立的「结论与决定」栏",
           any("结论与决定" in h or "拍板" in h for h in hints), f"{hints}")
-    # 摘要数字口径：原文有时总量 3–5 个，不是逐板块配额（2026-09-19 实测联播场：摘要 655 字
-    # 带 48 个数字、与要点梳理 4-gram 重合 65%——"至少带 1–3 个"被执行成每板块 1–3 个）
+    # 摘要定位：立足全局宏观概览与战略定调，细节与论据下沉至 [要点梳理]
     abstract = hints[0]
-    check("通用纪要：原文有数字时全段选 3–5 个，没有则不强求",
-          "原文有关键数字时选 3–5 个" in abstract and "没有则不强求、不补写" in abstract
-          and "不是每个板块都配数字" in abstract and "其余数字归 [要点梳理]" in abstract, abstract[:90])
-    check("通用纪要：旧配额口径已清除（至少带 1–3 个 / 一条数字都没有＝不合格）",
-          "至少带 1–3 个" not in abstract and "一条数字都没有＝不合格" not in abstract, "")
-    check("通用纪要：板块多时按主题打包 + 每板块一句话 ≤40 字",
-          "按主题打包概括" in abstract and "每个板块最多一句话" in abstract
-          and "单句不超 40 字" in abstract and "禁止逐板块展开数字" in abstract, abstract[:90])
+    check("通用纪要：摘要立足宏观概览与全局决议，细节下沉要点梳理",
+          "全面概述会议背景" in abstract and "主要参会方" in abstract
+          and "拍板定夺的最关键决议" in abstract and "具体研讨细节" in abstract, abstract[:90])
+    check("通用纪要：旧数字配额口径已彻底清除（不再要求每板块数字或限制几条数字）",
+          "至少带 1–3 个" not in abstract and "一条数字都没有＝不合格" not in abstract
+          and "选 3–5 个" not in abstract and "禁止逐板块展开数字" not in abstract, "")
     budgets = parse_section_char_budgets(tpl)
     check("通用纪要：摘要为一段 250–400（节级）",
           any(b["title"] == "全文摘要" and b["lo"] == 250 and b["hi"] == 400 and b["scope"] == "section" for b in budgets),
