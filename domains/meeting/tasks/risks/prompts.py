@@ -20,9 +20,9 @@ objective 客观全员；personal / role_template 个人视角按用户画像聚
 
 1. **多源交叉萃取（全面发掘潜在风险与阻碍）**：  
    - **`risk_hints` 与 `risks` 列表**：上游识别的明确风险信号（含信号类型、危害佐证、影响面与对策）；  
-   - **`topics[].key_points` 与 `topics[].discussion`**：讨论中暴露的技术瓶颈、方案不确定性、外部依赖风险、排期与交付压力；  
+   - **`session_segments` 与 `topics`**：讨论中暴露的技术瓶颈、方案不确定性、外部依赖风险、排期与交付压力；  
    - **`dependencies` 与 `risk_related_open_questions`**：未确认的前置条件、未冻结的方案接口，以及会上悬而未决的争议点。  
-2. **证据锚定**：每条风险的 source 字段指回 pack 中的 evidence 证据句、`topics[].key_points` 条目或原句。  
+2. **证据锚定**：每条风险的 source 字段指回 pack 中的 evidence 证据句、`session_segments`、`key_points` 条目或原句。  
 
 ---
 
@@ -50,7 +50,7 @@ objective 客观全员；personal / role_template 个人视角按用户画像聚
 
 | 字段 | 规则与要求 |
 |---|---|
-| category | **宏观风险大类（Macro Topic）**：直接继承所属议题的业务模块（module），若议题无 module 则使用其标题（title）。同一业务模块下的隐患统一归入相同大类标题，形成清晰的两级聚合结构。 |
+| category | **宏观风险大类（Macro Topic）**：直接继承所属研讨阶段的业务标的（segment_title）或议题模块（module/title）。同一研讨阶段或业务模块下的隐患统一归入相同大类标题，形成清晰的两级聚合结构。 |
 | risk | **隐患客观深度描述**：清晰交代“风险主体、面临何种瓶颈或障碍、潜在诱因与可能造成的业务影响”（建议 25~50 字），形成表述充实的分析陈述。 |
 | source | 对应的议题名称或可定位的事实依据原句。 |
 | severity | **客观评估严重程度**：<br>① **high**：可能直接导致业务中断、严重交付延期、重大事故，或属于缺乏有效兜底预案的关键卡点；<br>② **medium**：会造成局部影响但范围相对可控，或现场已有明确应对措施（默认基准）；<br>③ **low**：发生概率低、影响较小或属于善意提醒事项。 |
@@ -64,8 +64,8 @@ objective 客观全员；personal / role_template 个人视角按用户画像聚
 
 ## 三、组级聚合与表述规范
 
-- **以业务模块为单元成组**：直接承接所属议题的业务模块（module）或标题（title），实现同类聚合，同一模块下的具体隐患归入同一组展示；
-- **全量多点开采**：充分结合 risk_hints、topics[].key_points、discussion 与 dependencies 展开梳理；
+- **以业务模块为单元成组**：直接承接所属研讨阶段的业务标的（segment_title）或议题模块（module/title），实现同类聚合，同一模块下的具体隐患归入同一组展示；
+- **全量多点开采**：充分结合 risk_hints、session_segments、topics[].key_points 与 dependencies 展开梳理；
 - **属性充实与条件输出**：如实提取 impact（潜在危害）与 mitigation（应对举措或注明现场未定），为下游卡片渲染提供完整信息输入；
 - **risk 句意完整**：以风险对象与现象为主体直接陈述，表达充实通畅；
 - **severity 真实判定**：依据隐患危害程度与现场预案客观评定 high/medium/low，忠实反映现场实际。"""

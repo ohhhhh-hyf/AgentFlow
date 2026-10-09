@@ -106,4 +106,44 @@ class MeetingUnderstandingAgent:
             label="core/meeting_understanding",
             allow_missing=missable,
         )
+
+        # 双向兼容投影：时序分段与旧版议题相互保真映射
+        if hasattr(result, "session_segments") and hasattr(result, "topics"):
+            if result.session_segments and not result.topics:
+                result.topics = [
+                    {
+                        "module": str(seg.get("segment_title") or "").strip(),
+                        "title": str(seg.get("segment_title") or "").strip(),
+                        "discussion": str(seg.get("context_and_reasoning") or "").strip(),
+                        "context_and_debate": str(seg.get("context_and_reasoning") or "").strip(),
+                        "key_points": [str(f) for f in (seg.get("key_facts") or []) if str(f).strip()],
+                        "debates": [],
+                        "conclusion": "",
+                        "participants": [],
+                    }
+                    for seg in result.session_segments
+                    if isinstance(seg, dict)
+                ]
+            elif result.topics and not result.session_segments:
+                result.session_segments = [
+                    {
+                        "segment_title": str(top.get("module") or top.get("title") or "").strip(),
+                        "context_and_reasoning": str(top.get("context_and_debate") or top.get("discussion") or "").strip(),
+                        "key_facts": [str(p) for p in (top.get("key_points") or top.get("key_metrics") or []) if str(p).strip()],
+                    }
+                    for top in result.topics
+                    if isinstance(top, dict)
+                ]
+
+            # 辩论/争议交锋双向兼容
+            if hasattr(result, "debates") and not result.debates and result.topics:
+                top_debates = []
+                for t in result.topics:
+                    if isinstance(t, dict):
+                        for d in (t.get("debates") or []):
+                            if isinstance(d, dict) and d not in top_debates:
+                                top_debates.append(d)
+                if top_debates:
+                    result.debates = top_debates
+
         return result

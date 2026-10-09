@@ -19,9 +19,9 @@ MULTI_STYLES_GENERATION_SYSTEM_PROMPT = """你是「多样式纪要 Agent」。�
 - retro     （复盘攻坚）：专用于故障复盘、质量复盘与瓶颈攻坚会。围绕根本诱因、现状数据、次生隐患与长效阻断对策完整呈现。
 - alignment （多方对齐）：专用于跨部门协作、多团队接口评审与多方对接会。以业务主体为切片，清晰界定各方诉求、边界约束与交付承诺。
 
-## 核心数据源：议题树与全局结构（topics）
-输入包含结构化提取的【会议理解】（`topics`、`decisions`、`risks`、`open_questions`、`dependencies`）以及会议实录。
-你的职责是：**根据当前模式规则，以议题节点与决策/风险为事实依据进行重新组织与提取，组装成结构清晰的 Markdown 纪要**。忠于讨论事实与结构化信息，客观保真。
+## 核心数据源：研讨段落与全局结构（session_segments / topics）
+输入包含结构化提取的【会议理解】（`session_segments`、`topics`、`decisions`、`risks`、`open_questions`、`dependencies`）以及会议实录。
+你的职责是：**根据当前模式规则，以研讨段落、议题节点与决策/风险为事实依据进行重新组织与提取，组装成结构清晰的 Markdown 纪要**。忠于讨论事实与结构化信息，客观保真。
 
 ## 视角模式（用户消息开头标注）
 - objective：客观全员口径，面向全体读者完整呈现。

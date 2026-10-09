@@ -73,204 +73,20 @@ USER_OK = {
 }
 
 
-def test_user_profile_path_safety() -> None:
-    root = Path("/repo")
-    check("路径固定为 data/{safe_id}/user.json",
-          user_profile_path("1", root) == root / "data" / "1" / "user.json",
-          str(user_profile_path("1", root)))
-    check("user_id 空 → 空 Path", user_profile_path("", root) == Path(""), "")
-    traversal = user_profile_path("../../etc", root)
-    check("user_id 不能穿越目录",
-          ".." not in traversal.parts and traversal.parent.parent.name == "data",
-          str(traversal))
+from tests.unit.core.profiles.test_user_profile import (
+    test_user_profile_path_safety as _test_user_profile_path_safety,
+    test_selection_matrix as _test_selection_matrix,
+    test_broken_user_profile as _test_broken_user_profile,
+    test_sanitize_and_merge as _test_sanitize_and_merge,
+)
+from tests.unit.core.profiles.test_role_mapping import (
+    test_missing_role_template as _test_missing_role_template,
+    test_role_mapping as _test_role_mapping,
+)
 
 
-def test_selection_matrix(tmp_path: Path) -> None:
-    """extra.profile 选档：空=默认档（客观，不读 user.json）；user=真人；职业名/显式客观各自独立。"""
-    tmp = tmp_path
-    root = _root(tmp)
-    ui = root / "data" / "1" / "user.json"
-
-    # ① 无档案 + 空值 → 客观
-    obj = resolve_profile_file("", domain="meeting", user_id="1", project_root=root)
-    check("空值 + 无 user.json → 客观全员", obj.name == "object.json", str(obj))
-
-    # ② 有档案 + 空值 → 仍是客观（2026-09-21 改口径：真人要显式 profile=user）
-    _write(ui, USER_OK)
-    still_obj = resolve_profile_file("", domain="meeting", user_id="1", project_root=root)
-    check("空值 + 有 user.json → 不再自动发现，仍走默认档",
-          still_obj.name == "object.json", str(still_obj))
-
-    # ③ profile="user" → 真人档案
-    check("profile=user → user.json",
-          resolve_profile_file("user", domain="meeting", user_id="1", project_root=root) == ui, "")
-
-    # ④ 显式客观（与空值同档）
-    for value in ("objective", "object"):
-        path = resolve_profile_file(value, domain="meeting", user_id="1", project_root=root)
-        check(f"profile={value} → 客观全员", path.name == "object.json", str(path))
-
-    # ⑤ 职业模板
-    dev = resolve_profile_file("developer", domain="meeting", user_id="1", project_root=root)
-    check("profile=developer → 职业模板", dev.name == "developer.json", str(dev))
-
-    # ⑥ 未知职业名 → 空 Path（调用方 400）
-    check("未知职业名 → 空 Path（400）",
-          resolve_profile_file("nope", domain="meeting", user_id="1", project_root=root) == Path(""), "")
-
-    # ⑦ 无档案时 profile=user → 空 Path（400），不静默降级
-    ui.unlink()
-    check("无档案 + profile=user → 空 Path（400）",
-          resolve_profile_file("user", domain="meeting", user_id="1", project_root=root) == Path(""), "")
-    check("无档案 + 空值 → 客观",
-          resolve_profile_file("", domain="meeting", user_id="1", project_root=root).name == "object.json", "")
-
-    # ⑧ 其它用户的档案互不可见（profile=user 只看自己那份）
-    _write(root / "data" / "2" / "user.json", USER_OK)
-    check("按 user_id 隔离：1 号用户无档案 → profile=user 报 400",
-          resolve_profile_file("user", domain="meeting", user_id="1", project_root=root) == Path(""), "")
-    check("2 号用户 profile=user → 认自己那份",
-          resolve_profile_file("user", domain="meeting", user_id="2", project_root=root)
-          == root / "data" / "2" / "user.json", "")
 
 
-def test_broken_user_profile(tmp_path: Path) -> None:
-    """坏档案（非对象 / 缺 name / 坏 JSON）→ 当没有档案，不阻断请求。"""
-    tmp = tmp_path
-    root = _root(tmp)
-    ui = root / "data" / "1" / "user.json"
-    cases = {
-        "缺 name": {"name_aliases": ["小赵"]},
-        "name 全空白": {"name": "   "},
-        "坏 JSON": "{not json",
-        "不是对象": ["赵衡"],
-    }
-    for label, payload in cases.items():
-        _write(ui, payload)
-        check(f"user.json {label} → 按无档案处理", read_user_profile(ui) is None, "")
-        check(f"user.json {label} → profile=user 报 400（不静默降级）",
-              resolve_profile_file("user", domain="meeting", user_id="1", project_root=root) == Path(""), "")
-        check(f"user.json {label} → 空值仍走默认档（客观）",
-              resolve_profile_file("", domain="meeting", user_id="1", project_root=root).name == "object.json", "")
-    _write(ui, USER_OK)
-    check("合法档案可读且必填项非空", (read_user_profile(ui) or {}).get("name") == "赵衡", "")
-
-
-def test_sanitize_and_merge(tmp_path: Path) -> None:
-    """清洗 + 挂职业底：perspective 忽略、persona_type 置空、模板作底、真人字段覆盖。"""
-    tmp = tmp_path
-    root = _root(tmp)
-    ui = _write(root / "data" / "1" / "user.json", dict(USER_OK, perspective="objective", persona_type="role_template"))
-    raw = read_user_profile(ui) or {}
-    cleaned = sanitize_user_profile(raw)
-    check("清洗后忽略 perspective（有档案即真人）", "perspective" not in cleaned, str(cleaned))
-    check("清洗后 persona_type 强制为空（姓名不被当职业通称）", cleaned.get("persona_type") is None, str(cleaned))
-
-    merged = resolve_role_template(cleaned, ui.parent)
-    check("挂职业底：name 用真名（不是模板的「开发人员」）", merged.get("name") == "赵衡", str(merged.get("name")))
-    check("挂职业底：未写的 focus_areas 继承模板", bool(merged.get("focus_areas")), str(merged.get("focus_areas")))
-    check("挂职业底：merged 仍是真人身份", merged.get("persona_type") is None, str(merged.get("persona_type")))
-    check("挂职业底：保留引用来源 role_template=developer", merged.get("role_template") == "developer", "")
-    check("分类：清洗后按真人（不是职业）", classify_profile(merged) == "person", classify_profile(merged))
-    # 自写字段整段替换（列表不拼接）
-    cleaned2 = dict(cleaned, focus_areas=["接口契约与依赖"])
-    merged2 = resolve_role_template(cleaned2, ui.parent)
-    check("自己写了 focus_areas → 整段替换（不拼接模板）",
-          merged2.get("focus_areas") == ["接口契约与依赖"], str(merged2.get("focus_areas")))
-    # 职业文件本身不受清洗影响
-    prof_dir = (root / "resources" / "profiles") if (root / "resources" / "profiles").is_dir() else (root / "assets" / "profiles")
-    dev_raw = json.loads((prof_dir / "developer.json").read_text(encoding="utf-8"))
-    check("职业文件仍按职业模板分类（清洗只作用 user.json）",
-          classify_profile(resolve_role_template(dev_raw, prof_dir)) == "role_template", "")
-    check("is_user_profile_file 只认 user.json",
-          is_user_profile_file(ui) and not is_user_profile_file(prof_dir / "developer.json"), "")
-
-    # 画像字段必须真的被 UserIdentity 承载（不在 dataclass 里的键会被 filter_identity_fields 静默丢掉）
-    from domains.meeting.models_base import UserIdentity as MeetingIdentity
-
-    identity = MeetingIdentity(**filter_identity_fields(merged, MeetingIdentity))
-    check("UserIdentity 承载 name_aliases/personality/preferences",
-          identity.name == "赵衡"
-          and identity.name_aliases == ["小赵", "赵工"]
-          and identity.personality == "务实，讨厌含糊的截止日期"
-          and identity.preferences == ["先写我的待办和接口依赖"],
-          str(identity))
-
-    # 选档的最终后果：模式判定（personal 会跑视角建模；objective 跳过）
-    from core.graph.nodes import DomainNodes
-
-    mode = DomainNodes._mode_label(
-        {"user": identity.model_dump(), "objective_perspective": False}
-    )
-    check("有 user.json（真人）→ 视角模式 personal", mode == "personal", mode)
-    obj_identity = MeetingIdentity(**filter_identity_fields(
-        json.loads((prof_dir / "object.json").read_text(encoding="utf-8")),
-        MeetingIdentity,
-    ))
-    check("无 user.json（客观）→ 视角模式 objective（跳过视角建模）",
-          DomainNodes._mode_label(
-              {"user": obj_identity.model_dump(),
-               "objective_perspective": obj_identity.perspective == "objective"}
-          )
-          == "objective",
-          "")
-
-
-def test_missing_role_template(tmp_path: Path) -> None:
-    """role_template 指向不存在的职业 → 明确报错（不静默降级成无底真人）。"""
-    tmp = tmp_path
-    root = _root(tmp)
-    ui = _write(root / "data" / "1" / "user.json", dict(USER_OK, role_template="nobody"))
-    cleaned = sanitize_user_profile(read_user_profile(ui) or {})
-    try:
-        resolve_role_template(cleaned, ui.parent)
-        check("role_template 不存在 → 抛错", False, "没有抛错")
-    except ValueError as exc:
-        check("role_template 不存在 → 抛错并指名 key", "nobody" in str(exc), str(exc))
-    # 名字写坏（含路径穿越）同样拒绝
-    for bad in ("../developer", "a/b"):
-        try:
-            resolve_role_template(dict(cleaned, role_template=bad), ui.parent)
-            check(f"role_template={bad!r} → 拒绝", False, "没有抛错")
-        except ValueError:
-            check(f"role_template={bad!r} → 拒绝", True, "")
-
-
-def test_role_mapping() -> None:
-    """验证 role 字段映射到已有的职业 profile（算法、开发、测试等）。"""
-    mapping = load_role_mapping()
-    check("映射表成功加载且条目非空", bool(mapping) and len(mapping) > 10, str(len(mapping)))
-
-    # 1. 算法工程师同义词与英文测试
-    algorithm_aliases = ["算法", "算法人员", "算法工程师", "algorithm_engineer", "algorithm", "algo"]
-    for alias in algorithm_aliases:
-        mapped = resolve_role_to_template_key(alias)
-        check(f"role映射：{alias!r} → algorithm_engineer", mapped == "algorithm_engineer", str(mapped))
-
-    # 2. 其它常见职业映射
-    check("role映射：开发 → developer", resolve_role_to_template_key("开发") == "developer", "")
-    check("role映射：测试工程师 → tester", resolve_role_to_template_key("测试工程师") == "tester", "")
-    check("role映射：产品经理 → product_manager", resolve_role_to_template_key("产品经理") == "product_manager", "")
-
-    # 3. 未知职业返回 None（不报错）
-    check("role映射：未知职业返回 None", resolve_role_to_template_key("未知职业") is None, "")
-
-    # 4. resolve_role_template 真实合并验证
-    raw_user = {
-        "name": "申家坤",
-        "name_aliases": ["小申", "申工"],
-        "role": "算法工程师",
-        "focus_person": ["徐玥", "张工", "李总"],
-        "focus_thing": ["风控决策引擎", "端到端P99时延", "Q3交付排期"],
-        "preferences": ["先写我的待办", "结论先行"],
-    }
-    merged = resolve_role_template(raw_user, Path("assets/profiles"))
-    check("合并后保留本人角色名称 role=算法工程师", merged.get("role") == "算法工程师", str(merged.get("role")))
-    check("合并后标记职业模板来源 role_template=algorithm_engineer", merged.get("role_template") == "algorithm_engineer", str(merged.get("role_template")))
-    check("合并后成功继承职责 responsibilities", len(merged.get("responsibilities", [])) >= 4, str(merged.get("responsibilities")))
-    check("合并后成功继承关注领域 focus_areas", len(merged.get("focus_areas", [])) >= 5, str(merged.get("focus_areas")))
-    check("合并后保留 focus_person 列表", merged.get("focus_person") == ["徐玥", "张工", "李总"], str(merged.get("focus_person")))
-    check("合并后保留 focus_thing 列表", merged.get("focus_thing") == ["风控决策引擎", "端到端P99时延", "Q3交付排期"], str(merged.get("focus_thing")))
 
 
 
@@ -425,26 +241,9 @@ def test_notes_review_and_quiz_tasklines() -> None:
     check("quiz 下载端点正常响应404（寻址正确定位 output/not_found/quiz.html）", r_quiz.status_code == 404 and "quiz.html" in r_quiz.text, str(r_quiz.json()))
 
 
-def test_agenda_minutes_input_assembly() -> None:
-    """验证 agenda_minutes 支持 extra.agenda_txt 纯文本传参，并兼容老字段 agenda。"""
-    from app.schemas import Extra, TaskRequest
-    from app.tasks import _prepare
-
-    # 1. 验证 Extra 模型解析
-    e1 = Extra(agenda_txt="1. 汇报A\n2. 汇报B")
-    check("Extra 支持 agenda_txt", e1.agenda_txt == "1. 汇报A\n2. 汇报B", "")
-    e2 = Extra.model_validate({"agenda": "1. 汇报A\n2. 汇报B"})
-    check("Extra 兼容老入参 agenda 自动映射到 agenda_txt", e2.agenda_txt == "1. 汇报A\n2. 汇报B", "")
-
-    # 2. 验证 _prepare 提取 extra.agenda_txt
-    req = TaskRequest(
-        texts={"transcript": "发言者1：大家早上好，开始今天的会议。"},
-        extra=Extra(agenda_txt="1. 议题一：大模型发布\n2. 议题二：算法压测"),
-    )
-    prep = _prepare("meeting", "agenda_minutes", req, "u123")
-    check("line 为 agenda_minutes", prep.line == "agenda_minutes", "")
-    agenda_input = prep.extra_line_inputs.get("agenda_minutes", "")
-    check("extra_line_inputs 注入了 agenda_txt 文本", "1. 议题一：大模型发布" in agenda_input, agenda_input)
+from tests.unit.meeting.test_agenda_assembly import (
+    test_agenda_minutes_input_assembly as _test_agenda_minutes_input_assembly,
+)
 
 
 def test_request_schema_and_validation() -> None:
@@ -883,170 +682,35 @@ def test_general_minutes_title_fixed() -> None:
             check("强制补充时未被动态 headline 覆盖", "# 关于音视频与长文本优化的研讨" not in saved_md_no_h1, saved_md_no_h1[:50])
 
 
-def test_async_api_routes() -> None:
-    """验证统一异步接口 /api/agent/v1/async（提交、状态、流式、结果）及历史 /api/v1/tasks 兼容。"""
-    import time
-    from unittest.mock import patch
-    from fastapi.testclient import TestClient
-    from app.api.main import app
-
-    class _FakeJobStore:
-        def __init__(self):
-            self.jobs = {}
-            self.events = {}
-            self.payloads = {}
-            self.queue = []
-            self._next_id = 1000
-
-        def ping(self):
-            pass
-
-        def new_job_id(self):
-            self._next_id += 1
-            return f"job_{self._next_id}"
-
-        def create_job(self, *, job_id, request_id, user_id, domain, task):
-            now = time.time()
-            payload = {
-                "job_id": job_id,
-                "request_id": request_id,
-                "user_id": user_id,
-                "domain": domain,
-                "task": task,
-                "status": "queued",
-                "phase": "",
-                "message": "queued",
-                "error": "",
-                "attempts": 0,
-                "worker_id": "",
-                "heartbeat_at": "",
-                "created_at": now,
-                "updated_at": now,
-                "started_at": "",
-                "finished_at": "",
-                "cost_time": 0.0,
-                "token_usage": 0,
-                "cache_hit": 0,
-                "file_name": "",
-                "result": "",
-            }
-            self.jobs[job_id] = payload
-            self.events[job_id] = [{"type": "queued", "job_id": job_id, "request_id": request_id, "ts": now}]
-            return payload
-
-        def get_job(self, job_id):
-            return self.jobs.get(job_id)
-
-        def update_job(self, job_id, **fields):
-            if job_id in self.jobs:
-                self.jobs[job_id].update(fields)
-
-        def append_event(self, job_id, event):
-            ev = dict(event or {})
-            ev.setdefault("ts", time.time())
-            self.events.setdefault(job_id, []).append(ev)
-
-        def events_since(self, job_id, cursor):
-            return self.events.get(job_id, [])[cursor:]
-
-        def set_payload(self, job_id, payload):
-            self.payloads[job_id] = payload
-
-        def get_payload(self, job_id):
-            return self.payloads.get(job_id)
-
-        def enqueue(self, job_id):
-            self.queue.append(job_id)
-
-    fake_store = _FakeJobStore()
-    with patch("app.api.routes.tasks.job_store", return_value=fake_store), patch("app.api.routes.tasks.run_mode", return_value="queue"):
-        client = TestClient(app)
-
-        # 1. POST /api/agent/v1/async
-        payload = {
-            "domain": "meeting",
-            "task": "minutes",
-            "texts": {"transcript": "周宁：复盘开发进展。"},
-            "memory": True,
-            "extra": {"time": "2026-09-01"},
-        }
-        res_post = client.post("/api/agent/v1/async", json=payload, headers={"X-User-Id": "u_test", "X-Request-Id": "req_async_1"})
-        check("POST /api/agent/v1/async 状态码 200", res_post.status_code == 200, str(res_post.status_code))
-        data_post = res_post.json()
-        job_id = data_post.get("job_id", "")
-        check("异步提交返回合法 job_id", bool(job_id), str(data_post))
-        check("异步提交初始状态为 queued", data_post.get("status") == "queued", str(data_post))
-        check("异步任务已入队", job_id in fake_store.queue, str(fake_store.queue))
-
-        # 2. GET /api/agent/v1/async/{job_id} 状态轮询
-        res_status = client.get(f"/api/agent/v1/async/{job_id}")
-        check("GET /api/agent/v1/async/{job_id} 状态码 200", res_status.status_code == 200, str(res_status.status_code))
-        data_status = res_status.json()
-        check("状态查询 text 恒为 None", data_status.get("text") is None, str(data_status))
-        check("状态查询 job_id 一致", data_status.get("job_id") == job_id, str(data_status))
-
-        # 3. GET /api/agent/v1/async/{job_id}/result (未完成时返回快照)
-        res_res_queued = client.get(f"/api/agent/v1/async/{job_id}/result")
-        check("结果查询未完成时不报错 200", res_res_queued.status_code == 200, str(res_res_queued.status_code))
-        check("结果查询未完成时 text 为 None", res_res_queued.json().get("text") is None, str(res_res_queued.json()))
-
-        # 模拟任务完成
-        fake_store.update_job(
-            job_id,
-            status="succeeded",
-            message="success",
-            result={"data": {"text": "# 纪要内容", "file_name": "minutes.html"}, "monitor": {"token_usage": 120, "cost_time": 1.5}},
-        )
-        fake_store.append_event(job_id, {"type": "done", "job_id": job_id, "data": {"text": "# 纪要内容", "file_name": "minutes.html"}})
-
-        # 4. GET /api/agent/v1/async/{job_id}/result (完成后返回正文与文件名)
-        res_res_done = client.get(f"/api/agent/v1/async/{job_id}/result")
-        check("结果查询已完成状态码 200", res_res_done.status_code == 200, str(res_res_done.status_code))
-        data_res_done = res_res_done.json()
-        check("结果查询返回正文", data_res_done.get("text") == "# 纪要内容", str(data_res_done))
-        check("结果查询返回产物文件名", data_res_done.get("file_name") == "minutes.html", str(data_res_done))
-
-        # 5. GET /api/agent/v1/async/{job_id}/stream 事件流
-        res_stream = client.get(f"/api/agent/v1/async/{job_id}/stream?cursor=0")
-        check("事件流状态码 200", res_stream.status_code == 200, str(res_stream.status_code))
-        check("事件流包含 queued 与 done 事件", "queued" in res_stream.text and "done" in res_stream.text, res_stream.text)
-
-        # 6. 兼容老路径 /api/v1/tasks
-        res_leg_post = client.post("/api/v1/tasks", json=payload, headers={"X-User-Id": "u_test"})
-        check("兼容老路径 POST /api/v1/tasks 状态码 200", res_leg_post.status_code == 200, str(res_leg_post.status_code))
-        leg_job_id = res_leg_post.json().get("job_id", "")
-        res_leg_get = client.get(f"/api/v1/tasks/{leg_job_id}")
-        check("兼容老路径 GET /api/v1/tasks/{job_id} 状态码 200", res_leg_get.status_code == 200, str(res_leg_get.status_code))
-        res_leg_res = client.get(f"/api/v1/tasks/{leg_job_id}/result")
-        check("兼容老路径 GET /api/v1/tasks/{job_id}/result 状态码 200", res_leg_res.status_code == 200, str(res_leg_res.status_code))
-
-        # 7. 不存在 job_id 返回 404
-        res_404 = client.get("/api/agent/v1/async/nonexistent_job_12345")
-        check("不存在的任务返回 404", res_404.status_code == 404, str(res_404.status_code))
-        check("404 错误体统一为 code 与 message", res_404.json().get("code") == 404, str(res_404.json()))
+from tests.integration.core.test_api_routes import (
+    test_async_api_routes as _test_async_api_routes,
+)
 
 
 def main() -> int:
     with tempfile.TemporaryDirectory() as raw:
         tmp = Path(raw)
-        test_user_profile_path_safety()
-        test_selection_matrix(tmp)
-        test_broken_user_profile(tmp)
-        test_sanitize_and_merge(tmp)
-        test_missing_role_template(tmp)
-    test_role_mapping()
+        _test_user_profile_path_safety()
+        _test_selection_matrix(tmp)
+        _test_broken_user_profile(tmp)
+        _test_sanitize_and_merge(tmp)
+        _test_missing_role_template(tmp)
+    _test_role_mapping()
     test_domain_hooks_registry()
     test_tasklines_registration()
+    test_notes_review_and_quiz_tasklines()
+    _test_agenda_minutes_input_assembly()
     test_request_schema_and_validation()
     test_catalog_output_artifacts_and_download()
     test_action_items_render()
     test_risk_items_render()
     test_general_minutes_title_fixed()
-    test_async_api_routes()
+    _test_async_api_routes()
     print(f"pass {len(PASS)}  fail {len(FAIL)}")
     for name in FAIL:
         print("FAIL", name)
     return 1 if FAIL else 0
+
 
 
 if __name__ == "__main__":

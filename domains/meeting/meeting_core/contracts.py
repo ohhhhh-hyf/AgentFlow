@@ -50,6 +50,27 @@ RISK_SIGNAL_TYPES = [
 
 # ── 基础与可选字段定义 ──────────────────────────────────────────
 
+SESSION_SEGMENTS_FIELD = ObjListField(
+    "session_segments",
+    [
+        StrField("segment_title", "该研讨阶段的议题或业务标的名称（顺应会议推进时序划分3~6个自然阶段）"),
+        StrField("context_and_reasoning", "该阶段的讨论脉络、争议焦点与定调依据（连贯陈述，保留论辩与决策动因）"),
+        StrListField("key_facts", "该阶段提出的硬核指标（数字/时限/金额/范围）、交付成果与推进动作（逐条真实记录）"),
+    ],
+    desc="顺应会议推进时序的自然研讨阶段列表（承载议题脉络与量化事实血肉）",
+)
+
+DEBATES_FIELD = ObjListField(
+    "debates",
+    [
+        StrField("speaker", "发言人/阵营"),
+        StrField("stance", "核心主张与观点立场"),
+        StrField("argument", "支撑论据或反驳理由"),
+        StrField("evidence_quote", "会议原文最具代表性的一句发言原句"),
+    ],
+    desc="观点交锋与论辩列表（学术研讨/方案比选/争议焦点时记录）",
+)
+
 CORE_BASE_FIELDS: list[Field] = [
     StrField("meeting_brief", "80~200字概括整场会议主线全貌与核心态势"),
     StrField("meeting_purpose", "一句话概括会议目的"),
@@ -59,6 +80,7 @@ CORE_BASE_FIELDS: list[Field] = [
         StrField("role", "角色（发言人/主持人/记者/听众/嘉宾/主讲人…，照原文；判断不出为null）"),
         StrField("org", "机构/单位/媒体名（照原文；没有为null）"),
     ]),
+    SESSION_SEGMENTS_FIELD,
     ObjListField("topics", [
         StrField("module", "所属宏观业务领域/模块（如'核心架构优化'、'现场实体整改'、'交付与验收'，全场收敛为3~5个）"),
         StrField("title", "议题名称/核心命题"),
@@ -106,12 +128,14 @@ ALL_CORE_FIELD_NAMES: frozenset[str] = frozenset({
     "meeting_purpose",
     "scene",
     "speakers",
+    "session_segments",
     "topics",
     "decisions",
     "open_questions",
     "risks",
     "action_hints",
     "risk_hints",
+    "debates",
     "dependencies",
 })
 
@@ -126,6 +150,7 @@ class MeetingUnderstandingGenerationContract(GenerationContract):
         RISKS_FIELD,
         ACTION_HINTS_FIELD,
         RISK_HINTS_FIELD,
+        DEBATES_FIELD,
         DEPENDENCIES_FIELD,
     ]
 
@@ -207,7 +232,6 @@ def build_core_contract_for_tasks(
         if "open_questions" in tpl_skips:
             need_open_questions = False
 
-    # 动态裁剪 topics 子字段：决策类/全量纪要类需要 debates，轻量执行类（待办/导图/溯源/纯风险）可跳过 debates
     need_debates = bool(
         memory_on
         or any(
@@ -220,31 +244,19 @@ def build_core_contract_for_tasks(
         )
     )
 
-    is_minimal_topics = (selected_set <= {"actions", "mindmap"}) and not memory_on
-    topic_discussion_desc = (
-        "该议题的讨论经过、分歧脉络与定调依据（context_and_debate，50字以内简述）"
-        if is_minimal_topics
-        else "该议题的讨论经过、分歧脉络与定调依据（context_and_debate）：交代因果背景、主张理由与定调考量，连贯陈述；具体数据指标、金额、时限统一收纳于 key_points，避免冗余重复"
-    )
-
-    topic_fields: list[Field] = [
-        StrField("module", "所属宏观业务领域/模块（如'核心架构优化'、'现场实体整改'、'交付与验收'，全场收敛为3~5个）"),
-        StrField("title", "议题名称/核心命题"),
-        StrField("discussion", topic_discussion_desc),
-        StrListField("key_points", "该议题的核心要点（逐条列出，覆盖两类）：1. 硬核指标（数字/时限/金额/范围）；2. 核心论据与案例（立论依据/论证事实/反驳证据/典型案例）；不遗漏关键支撑事实"),
-    ]
-    if need_debates:
-        topic_fields.append(
-            ObjListField("debates", [
-                StrField("speaker", "发言人/阵营"),
-                StrField("stance", "核心主张与观点立场"),
-                StrField("argument", "支撑论据或反驳理由"),
-            ], desc="该议题的观点交锋与论辩列表（学术研讨/辩论/思想争鸣时重点记录；企业例会无分歧可为[]）")
+    need_segments = bool(
+        memory_on
+        or any(
+            t in selected_set
+            for t in (
+                "minutes",
+                "minutes_styles",
+                "minutes_trace",
+                "consensus_decision",
+                "mindmap",
+            )
         )
-    topic_fields.extend([
-        StrField("conclusion", "该议题的结论或共识，无明确结论时为null"),
-        StrListField("participants", "原文中明确出现的发言人姓名列表"),
-    ])
+    )
 
     chosen_fields: list[Field] = [
         StrField("meeting_brief", "80~200字概括整场会议主线全貌与核心态势"),
@@ -255,9 +267,9 @@ def build_core_contract_for_tasks(
             StrField("role", "角色（发言人/主持人/记者/听众/嘉宾/主讲人…，照原文；判断不出为null）"),
             StrField("org", "机构/单位/媒体名（照原文；没有为null）"),
         ]),
-        ObjListField("topics", topic_fields),
     ]
-
+    if need_segments:
+        chosen_fields.append(SESSION_SEGMENTS_FIELD)
     if need_decisions:
         chosen_fields.append(DECISIONS_FIELD)
     if need_open_questions:
@@ -268,6 +280,8 @@ def build_core_contract_for_tasks(
         chosen_fields.append(ACTION_HINTS_FIELD)
     if need_risk_hints:
         chosen_fields.append(RISK_HINTS_FIELD)
+    if need_debates:
+        chosen_fields.append(DEBATES_FIELD)
     if need_dependencies:
         chosen_fields.append(DEPENDENCIES_FIELD)
 

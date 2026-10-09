@@ -158,12 +158,14 @@ _EMPTY_MEETING_UNDERSTANDING = {
     "meeting_purpose": "",
     "scene": "通用",
     "speakers": [],
+    "session_segments": [],
     "topics": [],
     "decisions": [],
     "open_questions": [],
     "risks": [],
     "action_hints": [],
     "risk_hints": [],
+    "debates": [],
     "dependencies": [],
 }
 
@@ -452,20 +454,25 @@ class _Nodes(DomainNodes):
     _understanding_needle_keep: dict[str, frozenset[str]] = {
         "actions": frozenset({
             "meeting_brief", "meeting_purpose", "scene", "topics", "decisions",
-            "action_hints", "dependencies",
+            "action_hints", "dependencies", "session_segments",
         }),
         "risks": frozenset({
             "meeting_brief", "meeting_purpose", "scene", "topics", "risks",
-            "open_questions", "risk_hints", "dependencies",
+            "open_questions", "risk_hints", "dependencies", "session_segments",
         }),
         "minutes": frozenset({
             "meeting_brief", "meeting_purpose", "scene", "speakers",
             "topics", "decisions", "risks", "open_questions", "dependencies",
+            "session_segments",
         }),
         "minutes_trace": frozenset({
             "meeting_brief", "meeting_purpose", "scene", "speakers",
             "topics", "decisions", "risks", "open_questions",
-            "action_hints", "risk_hints", "dependencies",
+            "action_hints", "risk_hints", "dependencies", "session_segments",
+        }),
+        "consensus_decision": frozenset({
+            "meeting_brief", "meeting_purpose", "scene", "speakers",
+            "topics", "decisions", "debates", "open_questions", "session_segments",
         }),
     }
 
@@ -565,7 +572,44 @@ class _Nodes(DomainNodes):
     def _meeting_pack(self, state: dict, line_name: str) -> dict:
         """为每条任务线构造最小必要会议理解包，减少重复上下文。"""
         u = state.get("meeting_understanding") or {}
+        raw_segments = u.get("session_segments") or []
         raw_topics = u.get("topics") or []
+
+        # 双向兼容推导：段落与旧版 topics 相互映射
+        if raw_segments and not raw_topics:
+            raw_topics = [
+                {
+                    "module": str(item.get("segment_title") or "").strip(),
+                    "title": str(item.get("segment_title") or "").strip(),
+                    "discussion": str(item.get("context_and_reasoning") or "").strip(),
+                    "context_and_debate": str(item.get("context_and_reasoning") or "").strip(),
+                    "key_points": [str(p).strip() for p in (item.get("key_facts") or []) if str(p).strip()],
+                    "debates": [],
+                    "conclusion": "",
+                    "participants": [],
+                }
+                for item in raw_segments
+                if isinstance(item, dict)
+            ]
+        elif raw_topics and not raw_segments:
+            raw_segments = [
+                {
+                    "segment_title": str(item.get("module") or item.get("title") or "").strip(),
+                    "context_and_reasoning": str(item.get("context_and_debate") or item.get("discussion") or "").strip(),
+                    "key_facts": [str(p).strip() for p in (item.get("key_points") or item.get("key_metrics") or []) if str(p).strip()],
+                }
+                for item in raw_topics
+                if isinstance(item, dict)
+            ]
+
+        raw_debates = u.get("debates") or []
+        if not raw_debates and raw_topics:
+            for item in raw_topics:
+                if isinstance(item, dict):
+                    for d in (item.get("debates") or []):
+                        if isinstance(d, dict) and d not in raw_debates:
+                            raw_debates.append(d)
+
         topics = [
             self._topic_brief(item)
             for item in raw_topics
@@ -576,6 +620,8 @@ class _Nodes(DomainNodes):
             "meeting_purpose": u.get("meeting_purpose") or "",
             "scene": u.get("scene") or "通用",
             "speakers": u.get("speakers") or [],
+            "session_segments": raw_segments,
+            "debates": raw_debates,
         }
 
         # 决议、风险、未决事项提取（优先直接消费平铺顶级列表，兼顾从 topics 兜底提取）
@@ -609,6 +655,7 @@ class _Nodes(DomainNodes):
             return {
                 **base,
                 "topics": topics,
+                "session_segments": raw_segments,
                 "action_hints": u.get("action_hints") or [],
                 "directive_decisions": directive_decisions,
                 "dependencies": u.get("dependencies") or [],
@@ -617,6 +664,7 @@ class _Nodes(DomainNodes):
             return {
                 **base,
                 "topics": topics,
+                "session_segments": raw_segments,
                 "risk_hints": u.get("risk_hints") or [],
                 "risks": top_risks,
                 "dependencies": u.get("dependencies") or [],
@@ -626,6 +674,7 @@ class _Nodes(DomainNodes):
             return {
                 **base,
                 "topics": topics,
+                "session_segments": raw_segments,
                 "decisions": top_decisions,
                 "risks": top_risks,
                 "open_questions": top_open_questions,
@@ -637,6 +686,8 @@ class _Nodes(DomainNodes):
             return {
                 **base,
                 "topics": topics,
+                "session_segments": raw_segments,
+                "debates": raw_debates,
                 "decisions": top_decisions,
                 "risks": top_risks,
                 "open_questions": top_open_questions,
@@ -649,7 +700,8 @@ class _Nodes(DomainNodes):
                 discussion = str(item.get("context_and_debate") or item.get("discussion") or "").strip()
                 key_points = item.get("key_points")
                 if not isinstance(key_points, list):
-                    key_points = item.get("key_metrics") or []
+                    key_metrics = item.get("key_metrics")
+                    key_points = key_metrics if isinstance(key_metrics, list) else []
                 if not isinstance(key_points, list):
                     key_points = [discussion] if discussion else []
                 debates = item.get("debates") or []
@@ -665,6 +717,7 @@ class _Nodes(DomainNodes):
                 })
             return {
                 **base,
+                "session_segments": raw_segments,
                 "topics": full_topics or topics,
                 "decisions": _attribute_person_items(state, top_decisions),
                 "risks": _attribute_person_items(state, top_risks),
@@ -703,9 +756,9 @@ class _Nodes(DomainNodes):
         mode = self._mode_label(state)
         if line_name == "minutes":
             fact_note = (
-                "说明：会议理解平铺议题列表是你的主事实源与导航索引，已包含全场决议、量化指标、落地行动与风险隐患。"
-                "撰写段落时，以各议题节点的指标、决策与分歧脉络为事实骨架，对照会议原文定向补充具体论据细节与发言人表态。"
-                "不得脱离平铺议题自由漫游原文流水账。裁剪视角时严格参考用户画像、命中表和用户视角模型。"
+                "说明：会议理解平铺议题与时序研讨段落是你的主事实源与导航索引，已包含全场决议、量化指标、落地行动与风险隐患。"
+                "撰写段落时，以各阶段议题节点的指标、决策与分歧脉络为事实骨架，对照会议原文定向补充具体论据细节与发言人表态。"
+                "顺应业务研讨推进脉络成段展开。裁剪视角时严格参考用户画像、命中表和用户视角模型。"
             )
         else:
             fact_note = (
@@ -980,56 +1033,92 @@ class _Nodes(DomainNodes):
         ]
         others = [who for who in speakers if who and who not in addresses]
         topics = pack.get("topics")
-        if not addresses or not others or not topics:
+        segments = pack.get("session_segments")
+        if not addresses or not others or (not topics and not segments):
             return pack
-        kept: list[dict] = []
-        dropped = 0
-        dropped_discussions = 0
-        for topic in topics:
-            points = topic.get("key_points") or []
-            keep_points = [
-                point for point in points
-                if not foreign_only(
-                    point,
-                    addresses,
-                    others,
-                    full_name=name,
-                    focus_persons=focus_persons,
-                    focus_things=focus_things,
+        res = dict(pack)
+        if topics:
+            kept: list[dict] = []
+            dropped = 0
+            dropped_discussions = 0
+            for topic in topics:
+                points = topic.get("key_points") or []
+                keep_points = [
+                    point for point in points
+                    if not foreign_only(
+                        point,
+                        addresses,
+                        others,
+                        full_name=name,
+                        focus_persons=focus_persons,
+                        focus_things=focus_things,
+                    )
+                ]
+                dropped += len(points) - len(keep_points)
+                entry = {**topic, "key_points": keep_points}
+                if "discussion" in topic:  # 讨论经过：同一套判定，命中置空（键保留、形状不变）
+                    discussion = str(topic.get("discussion") or "")
+                    if discussion.strip() and foreign_only(
+                        discussion,
+                        addresses,
+                        others,
+                        full_name=name,
+                        focus_persons=focus_persons,
+                        focus_things=focus_things,
+                    ):
+                        entry["discussion"] = ""
+                        dropped_discussions += 1
+                kept.append(entry)
+            res["topics"] = kept
+            if dropped:
+                logger.info(
+                    "personal pack trim: 去掉别人为主的条目 %d/%d",
+                    dropped,
+                    sum(len(topic.get("key_points") or []) for topic in topics),
                 )
-            ]
-            dropped += len(points) - len(keep_points)
-            entry = {**topic, "key_points": keep_points}
-            if "discussion" in topic:  # 讨论经过：同一套判定，命中置空（键保留、形状不变）
-                discussion = str(topic.get("discussion") or "")
-                if discussion.strip() and foreign_only(
-                    discussion,
+            if dropped_discussions:
+                logger.info(
+                    "personal pack trim: 去掉别人为主的议题讨论经过 %d/%d",
+                    dropped_discussions,
+                    sum(
+                        1
+                        for topic in topics
+                        if str(topic.get("discussion") or "").strip()
+                    ),
+                )
+
+        if segments and isinstance(segments, list):
+            kept_segs: list[dict] = []
+            for seg in segments:
+                if not isinstance(seg, dict):
+                    continue
+                facts = seg.get("key_facts") or []
+                keep_facts = [
+                    fact for fact in facts
+                    if not foreign_only(
+                        fact,
+                        addresses,
+                        others,
+                        full_name=name,
+                        focus_persons=focus_persons,
+                        focus_things=focus_things,
+                    )
+                ]
+                seg_entry = {**seg, "key_facts": keep_facts}
+                reasoning = str(seg.get("context_and_reasoning") or "")
+                if reasoning.strip() and foreign_only(
+                    reasoning,
                     addresses,
                     others,
                     full_name=name,
                     focus_persons=focus_persons,
                     focus_things=focus_things,
                 ):
-                    entry["discussion"] = ""
-                    dropped_discussions += 1
-            kept.append(entry)
-        if dropped:
-            logger.info(
-                "personal pack trim: 去掉别人为主的条目 %d/%d",
-                dropped,
-                sum(len(topic.get("key_points") or []) for topic in topics),
-            )
-        if dropped_discussions:
-            logger.info(
-                "personal pack trim: 去掉别人为主的议题讨论经过 %d/%d",
-                dropped_discussions,
-                sum(
-                    1
-                    for topic in topics
-                    if str(topic.get("discussion") or "").strip()
-                ),
-            )
-        return {**pack, "topics": kept}
+                    seg_entry["context_and_reasoning"] = ""
+                kept_segs.append(seg_entry)
+            res["session_segments"] = kept_segs
+
+        return res
 
     def _make_fallback_node(self, line_name: str):
         """生成任务线降级节点：共识决策若已产出 issues 草稿，按确定性 Markdown 模板排版，严禁回退为空白占位符。"""

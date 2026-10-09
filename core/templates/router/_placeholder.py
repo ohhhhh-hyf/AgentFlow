@@ -244,8 +244,15 @@ def _replace_placeholders_in_line(
     for i, m in enumerate(body_phs):
         parts.append(body[cursor : m.start()])
         val = values[i] if i < len(values) else ""
-        if not val and fields and i < len(fields) and fields[i].get("missing"):
-            val = "未提及"
+        if not val and fields and i < len(fields):
+            f_hint = str(fields[i].get("hint") or "")
+            if any(k in f_hint for k in ("隐去", "省略", "不输出", "不出现", "若无", "无则", "没有内容")):
+                val = ""
+            elif fields[i].get("missing"):
+                if "写无" in f_hint or f_hint.endswith("无"):
+                    val = "无"
+                else:
+                    val = "未提及"
         parts.append(str(val))
         cursor = m.end()
     parts.append(body[cursor:])
@@ -399,19 +406,58 @@ def _strip_markdown_tables(text: str) -> str:
     return res
 
 
+def _should_prune_section(sec: dict[str, Any], template: str = "") -> bool:
+    """带 SectionPruner 智能栏目修剪：判定栏目是否全空或仅含缺省词，应物理抹除标题行。"""
+    raw_body = "".join(sec["body_lines"])
+    body_text = raw_body.strip()
+
+    # 1. 表格栏空数据修剪：含表格但无数据行，且无非表格正文，允许自适应隐去
+    if sec.get("has_table") and not sec.get("has_table_data"):
+        non_table_text = "".join(
+            ln for ln in sec["body_lines"] if not ln.strip().startswith("|")
+        ).strip()
+        hints_text = " ".join(sec.get("hints", []))
+        allows_omission = (
+            any(k in hints_text for k in ("隐去", "省略", "不输出", "不出现", "若无", "无则", "如无", "无实质", "没有内容"))
+            or any(k in sec["title"] for k in ("相关风险", "相关行动", "待办", "分工", "结论与决定"))
+        )
+        if not non_table_text and allows_omission:
+            return True
+
+    # 2. 物理全空判定：去除非换行/空白后完全无正文
+    if not body_text:
+        return True
+
+    # 3. 只有空白符、换行符或纯标点
+    norm = re.sub(r"[#*_\s\[\]【】:：。、—\-\n\r\t]", "", body_text)
+    if not norm:
+        return True
+
+    # 4. 缺省词/占位词自适应隐去判定：
+    # 当正文纯粹是 "未提及" / "无" / "暂无" / "未明确"，且栏目提示或模板允许省略时修剪
+    hints_text = " ".join(sec.get("hints", []))
+    allows_omission = (
+        any(k in hints_text for k in ("隐去", "省略", "不输出", "不出现", "若无", "无则", "如无", "无实质", "没有内容"))
+        or any(k in sec["title"] for k in ("相关风险", "相关行动", "待办", "分工", "结论与决定"))
+        or "personal_minutes.md" in template
+    )
+    if norm in {"未提及", "无", "暂无", "未明确"} and allows_omission:
+        return True
+
+    return False
+
+
 def assemble_placeholder_output(
     template: str,
     field_values: dict[str, str] | list[str],
     table_rows: list[list[str]] | None = None,
     tables: list[list[list[str]]] | None = None,
 ) -> str:
-    """把字段值写回占位符模板（确定性拼装，不调 LLM）。
+    """带 SectionPruner 智能栏目修剪的占位符拼装器。
 
-    Args:
-        template: 占位符模板原文。
-        field_values: 标量字段，按出现顺序；支持 ``{"1":..,"2":..}`` 或 list。
-        table_rows: 兼容参数 = 第 0 张表的多行数据。
-        tables: 多张表 ``[table0_rows, table1_rows, ...]``；优先于 table_rows。
+    状态感知与动态回溯修剪：
+    - 逐节收集正文，若某栏目正文经解析后物理全空或仅含缺省词（且模板允许隐去），
+      物理剔除该栏前置 # 标题行，根除光杆标题与多余占位词。
     """
     template, _ = split_template_meta(template)
     if isinstance(field_values, list):
@@ -440,7 +486,10 @@ def assemble_placeholder_output(
 
     scalar_i = 0
     current_title = ""
-    out_lines: list[str] = []
+    pre_lines: list[str] = []
+    sections: list[dict[str, Any]] = []
+    current_section: dict[str, Any] | None = None
+
     # 行模板按**行号**定位（同表多行样例会重复出现同样文本，不能按文本匹配）；
     # 每个模板只在它的首行展开一次，其余样例行跳过
     head_idx_to_row: dict[int, int] = {
@@ -459,34 +508,55 @@ def assemble_placeholder_output(
         if title_m:
             hashes, title = title_m.group(1), title_m.group(2).strip()
             current_title = title
-            rendered = f"{hashes} {title}"
-            out_lines.append(rendered + ("\n" if line.endswith("\n") else ""))
+            rendered = f"{hashes} {title}" + ("\n" if line.endswith("\n") else "")
+            current_section = {
+                "heading": rendered,
+                "title": title,
+                "body_lines": [],
+                "hints": [],
+                "has_table": False,
+                "has_table_data": False,
+            }
+            sections.append(current_section)
             continue
+
+        target_lines = current_section["body_lines"] if current_section is not None else pre_lines
+
         phs = _line_placeholders(line)
         row_idx = head_idx_to_row.get(line_idx)
         if row_idx is None and not phs:
-            out_lines.append(line)
+            target_lines.append(line)
             continue
 
         if row_idx is not None:
+            if current_section is not None:
+                current_section["has_table"] = True
             rt = row_templates[row_idx]
             n_cols = max(len(rt["fields"]), 1)
             use_rows = list(tables[row_idx]) if tables[row_idx] else []
-            # 无数据时一行占位，避免多行空白表（通用，无业务语义）
-            # 缺省词固定「未提及」：程序读不到模板声明的词，模板声明优先由模型侧保证
-            if not use_rows:
-                use_rows = [["未提及"] + ["—"] * (n_cols - 1)]
+            if use_rows:
+                if current_section is not None:
+                    current_section["has_table_data"] = True
+            else:
+                # 检查当前栏是否允许整栏隐去；若允许隐去，则不填充默认行，交由 SectionPruner 整体修剪
+                hints_text = " ".join(current_section["hints"]) if current_section else ""
+                allows_omission = (
+                    any(k in hints_text for k in ("隐去", "省略", "不输出", "不出现", "若无", "无则", "如无", "无实质", "没有内容"))
+                    or (current_section and any(k in current_section["title"] for k in ("相关风险", "相关行动", "待办", "分工", "结论与决定")))
+                )
+                if not allows_omission:
+                    use_rows = [["未提及"] + ["—"] * (n_cols - 1)]
             for row in use_rows:
                 rendered = _render_table_data_row(line, list(row), rt["fields"])
                 # 多行展开时每行必须独立成行；模板末行常无尾换行，
                 # 若只在 line.endswith("\n") 时补换行，会把多行糊成一行（|| 粘连）
                 if not rendered.endswith("\n"):
                     rendered += "\n"
-                out_lines.append(rendered)
+                target_lines.append(rendered)
             continue
 
         if not phs:
-            out_lines.append(line)
+            target_lines.append(line)
             continue
 
         # 标量行：按全局标量顺序取下一段 values
@@ -502,8 +572,19 @@ def assemble_placeholder_output(
         ):
             chunk = [_strip_markdown_tables(c) for c in chunk]
         fields = [_parse_field(m.group(1)) for m in phs]
-        out_lines.append(_replace_placeholders_in_line(line, chunk, fields))
+        if current_section is not None:
+            for f in fields:
+                current_section["hints"].append(str(f.get("hint") or ""))
+        target_lines.append(_replace_placeholders_in_line(line, chunk, fields))
         scalar_i += n
+
+    out_lines: list[str] = list(pre_lines)
+    for sec in sections:
+        if _should_prune_section(sec, template):
+            logger.info("SectionPruner: 物理修剪空栏目 [%s]", sec["title"])
+            continue
+        out_lines.append(sec["heading"])
+        out_lines.extend(sec["body_lines"])
 
     return "".join(out_lines)
 
@@ -832,8 +913,8 @@ def _parse_tables_json_response(raw: str) -> list[list[list[str]]]:
 # "一栏几百字"：每栏一次调用、输出纯文本（没有 JSON 转义风险）、失败只重试该栏、栏间可并发。
 _COLUMN_FILL_SYSTEM = (
     "你只写「本栏」的正文。用户消息给出【内容来源】【模板原文】与【本栏说明】。\n"
-    "只输出这一栏的 Markdown 正文：不要写栏目标题、不要写 JSON、不要解释、不要重复。\n"
-    "有据才写；来源里没有依据时只写该栏约定的缺省词（模板没约定时写「未提及」）。写完即停。"
+    "只输出这一栏的 Markdown 正文，直接陈述事实，不输出标题或说明。\n"
+    "依据充分则完整写清事实；若来源无依据且模板允许省略，直接保持空内容触发修剪；模板没约定时写「未提及」（确需占位时按模板指定词）。写完即停。"
 )
 _DEGEN_REPEAT_MIN_LEN = 24  # 退化判据：同一段（≥24 字）…
 _DEGEN_REPEAT_TIMES = 3  # …重复到第 3 次即中止
@@ -1215,17 +1296,15 @@ def _format_action_items_projection(
     if not isinstance(points, list):
         return None
     if not points:
-        return "**本人相关**：\n- 暂无本人直接待办"
+        return ""
 
     fps = set(focus_persons or [])
     fts = set(focus_things or [])
 
-    lines: list[str] = []
     group_re = re.compile(r"^(?:###\s*|\*\*)[^*:\n]+(?:\*\*|)[：:]?\s*$")
     current_group: str | None = None
-    has_self_group = False
-    self_items_count = 0
     group_allowed = True
+    grouped_tasks: dict[str, list[str]] = {}
 
     for raw in points:
         item = str(raw or "").strip()
@@ -1249,15 +1328,10 @@ def _format_action_items_projection(
                 continue
 
             group_allowed = True
-            norm_g = "本人相关" if is_self else "重点关注"
+            norm_g = clean_g if clean_g in ("与我相关", "协同输入", "本人相关", "重点协同") else ("本人相关" if is_self else "重点关注")
             current_group = norm_g
-            header = f"**{norm_g}**："
-            if header not in lines:
-                if lines and lines[-1] != "":
-                    lines.append("")
-                lines.append(header)
-            if is_self:
-                has_self_group = True
+            if current_group not in grouped_tasks:
+                grouped_tasks[current_group] = []
             continue
 
         if not group_allowed:
@@ -1265,14 +1339,11 @@ def _format_action_items_projection(
 
         if current_group is None:
             current_group = "本人相关"
-            has_self_group = True
-            lines.append("**本人相关**：")
-
-        if current_group == "本人相关":
-            self_items_count += 1
+            if current_group not in grouped_tasks:
+                grouped_tasks[current_group] = []
 
         has_checkbox = bool(re.match(r"^\s*[-*]\s*\[[ xX]\]", item))
-        prefix = "- [ ] " if (has_checkbox and current_group == "本人相关") else "- "
+        prefix = "- [ ] " if (has_checkbox and current_group in ("本人相关", "与我相关")) else "- "
 
         cleaned = re.sub(r"^\s*(?:[-•+]|\*(?!\*)|\d+\.|\([0-9]+\)\.?)\s*(?:\[[ xX]?\]\s*)?", "", item).strip()
         cleaned = re.sub(r"[\[【](?:高风险|中风险|低风险|阻塞|阻碍)[\]】]", "", cleaned).strip()
@@ -1294,13 +1365,18 @@ def _format_action_items_projection(
             else:
                 task_line = f"{prefix}{cleaned}"
 
-        lines.append(task_line)
+        grouped_tasks[current_group].append(task_line)
 
-    if has_self_group and self_items_count == 0:
-        idx = lines.index("**本人相关**：")
-        lines.insert(idx + 1, "- 暂无本人直接待办")
+    lines: list[str] = []
+    for g_name, items in grouped_tasks.items():
+        if not items:
+            continue
+        if lines:
+            lines.append("")
+        lines.append(f"**{g_name}**：")
+        lines.extend(items)
 
-    return "\n".join(lines).strip() or None
+    return "\n".join(lines).strip()
 
 
 def _format_risks_projection(
@@ -1313,15 +1389,15 @@ def _format_risks_projection(
     if not isinstance(risks, list):
         return None
     if not risks:
-        return "**本人相关**：\n- 暂无直接风险\n\n**重点关注**：\n- 暂无重点关注风险"
+        return ""
 
     fps = set(focus_persons or [])
     fts = set(focus_things or [])
 
-    lines: list[str] = []
     group_re = re.compile(r"^(?:###\s*|\*\*)[^*:\n]+(?:\*\*|)[：:]?\s*$")
     current_group: str | None = None
     group_allowed = True
+    grouped_risks: dict[str, list[str]] = {}
 
     for raw in risks:
         item = str(raw or "").strip()
@@ -1336,8 +1412,6 @@ def _format_risks_projection(
                 current_group = "待确认"
                 continue
 
-            current_group = clean_g
-
             is_self = "与我相关" in clean_g or "本人" in clean_g or (bool(user_name) and user_name in clean_g)
             is_focus_risk = any(k in clean_g for k in ("重点关注", "关注人", "全局风险与未决", "全局风险", "全局重大风险"))
             is_focus_p = bool(fps and any(fp in clean_g for fp in fps))
@@ -1349,13 +1423,10 @@ def _format_risks_projection(
                 continue
 
             group_allowed = True
-            norm_g = "本人相关" if is_self else "重点关注"
+            norm_g = clean_g if clean_g in ("与我相关", "本人相关") else ("本人相关" if is_self else "重点关注")
             current_group = norm_g
-            header = f"**{norm_g}**："
-            if header not in lines:
-                if lines and lines[-1] != "":
-                    lines.append("")
-                lines.append(header)
+            if current_group not in grouped_risks:
+                grouped_risks[current_group] = []
             continue
 
         if not group_allowed or current_group == "待确认":
@@ -1363,7 +1434,8 @@ def _format_risks_projection(
 
         if current_group is None:
             current_group = "本人相关"
-            lines.append("**本人相关**：")
+            if current_group not in grouped_risks:
+                grouped_risks[current_group] = []
 
         # 如果在全局风险组下，且指定了重点关注，过滤掉与本人及重点关注完全无关的外围噪音
         if current_group and any(k in current_group for k in ("全局", "未决")):
@@ -1372,7 +1444,7 @@ def _format_risks_projection(
                 continue
 
         has_checkbox = bool(re.match(r"^\s*[-*]\s*\[[ xX]\]", item))
-        prefix = "- [ ] " if (has_checkbox and current_group == "本人相关") else "- "
+        prefix = "- [ ] " if (has_checkbox and current_group in ("本人相关", "与我相关")) else "- "
 
         cleaned = re.sub(r"^\s*(?:[-•+]|\*(?!\*)|\d+\.|\([0-9]+\)\.?)\s*(?:\[[ xX]?\]\s*)?", "", item).strip()
         # 标记的高风险、阻塞等内容都去掉
@@ -1392,9 +1464,18 @@ def _format_risks_projection(
         else:
             task_line = f"{prefix}{cleaned}"
 
-        lines.append(task_line)
+        grouped_risks[current_group].append(task_line)
 
-    return "\n".join(lines).strip() or None
+    lines: list[str] = []
+    for g_name, items in grouped_risks.items():
+        if not items:
+            continue
+        if lines:
+            lines.append("")
+        lines.append(f"**{g_name}**：")
+        lines.extend(items)
+
+    return "\n".join(lines).strip()
 
 
 def project_column_from_draft(
@@ -1508,8 +1589,8 @@ def _column_fill_user(
     if target_line.strip():
         lines.append(target_line.strip())
     lines.extend([
-        "只输出这一栏的正文：不要写栏目标题、不要写 JSON、不要解释、不要重复。",
-        "有据才写；来源里没有依据时只写该栏约定的缺省词（模板没约定时写「未提及」）。",
+        "只输出这一栏的正文，直接陈述事实，不输出栏目标题或元解释。",
+        "依据充分则完整写清事实；若来源无依据且模板允许省略，直接留空；模板没约定时写「未提及」（确需占位时按模板指定词）。",
     ])
     is_personal_template = (
         "personal_minutes.md" in template
@@ -1788,13 +1869,17 @@ async def fill_placeholder_by_columns(
             projected = project_column_from_draft(
                 context, template, title=title, hint=hint, directives=directives
             )
-            if projected and not _is_column_overlong(projected, index):
-                projected = _strip_redundant_column_heading(projected, title)
-                if _section_has_table(template, title):
-                    projected = _strip_markdown_tables(projected)
-                if projected.strip():
-                    logger.info("column fill direct projection hit for column [%s]", title)
-                    return projected
+            if projected is not None:
+                if projected == "":
+                    logger.info("column fill direct projection pruned empty column [%s]", title)
+                    return ""
+                if not _is_column_overlong(projected, index):
+                    projected = _strip_redundant_column_heading(projected, title)
+                    if _section_has_table(template, title):
+                        projected = _strip_markdown_tables(projected)
+                    if projected.strip():
+                        logger.info("column fill direct projection hit for column [%s]", title)
+                        return projected
 
         # 自适应单栏超时：基础超时以 client.timeout 为底（至少 60s），对超重长栏目适度放宽
         raw_to = getattr(client, "timeout", None)

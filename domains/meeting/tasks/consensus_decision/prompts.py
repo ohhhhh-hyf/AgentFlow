@@ -22,7 +22,7 @@ CONSENSUS_DECISION_GENERATION_SYSTEM_PROMPT = """你是「会议共识与决策�
 输入包含：
 1. **会议原文（transcript）**：提取真实发言人、发言引言（quote）与讨论细节的事实依据；
 2. **会议理解（meeting_understanding）**：
-   - `topics`：核心候选议题来源；
+   - `debates` 与 `session_segments` / `topics`：核心候选议题与观点交锋线索；
    - `decisions`：已达成的结论基线；
    - `risks` 与 `open_questions`：提炼资源投入与执行前提的关键参考。
 
