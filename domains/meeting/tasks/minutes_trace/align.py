@@ -1128,9 +1128,9 @@ def _sentences(markdown: str) -> list[str]:
 
 
 def _minutes_sentences(minutes_md: str) -> list[str]:
-    """正文挂载候选句：按行取，跳过标题与「内容总结」段落区。
+    """正文挂载候选句：按行取，跳过标题与「内容总结」/「会议概况」段落区。
 
-    内容总结是概况综述（成段文字），不作为溯源挂载目标——挂载只发生在
+    内容总结/会议概况是概况综述（成段文字），不作为溯源挂载目标——挂载只发生在
     议题正文与动态章节的具体句子上。行内含多个分句时整行保留（不按句号再拆），
     避免把一条完整事实拆碎。
     """
@@ -1141,7 +1141,8 @@ def _minutes_sentences(minutes_md: str) -> list[str]:
         if not line:
             continue
         if line.startswith("#"):
-            in_summary = line.lstrip("#").strip() == "内容总结"
+            section_title = line.lstrip("#").strip()
+            in_summary = any(k in section_title for k in ("内容总结", "会议概况", "会议概述"))
             continue
         if in_summary:
             continue
@@ -1163,26 +1164,38 @@ def _clip(text: str, limit: int = 120) -> str:
     return text[: limit - 1] + "…"
 
 def segment_minutes(minutes_md: str) -> list[tuple[str, list[str]]]:
-    """把纪要正文按 `## ` 议题标题分段：[(标题, [句子...]), ...]。
+    """把纪要正文按议题标题（`## ` / `### `）分段：[(标题, [句子...]), ...]。
 
-    一级标题（`# `）与表格/分隔行不计入段落；无标题的内容（如内容总结）
-    归入空标题段。返回顺序与正文一致。
+    一级标题（`# `）与表格/分隔行不计入段落；无标题的内容（如内容总结、会议概况）
+    归入空标题段。三级标题（`### `）支持层级感知，避免把标题字眼当成待溯源正文事实句。
+    返回顺序与正文一致。
     """
     segments: list[tuple[str, list[str]]] = []
+    parent_heading = ""
     heading = ""
     lines: list[str] = []
     for raw in (minutes_md or "").splitlines():
         stripped = raw.strip()
-        if stripped.startswith("## "):
+        if stripped.startswith("### "):
             if heading or lines:
                 segments.append((heading, lines))
-            heading = stripped[3:].strip()
+            sub = stripped[4:].strip()
+            heading = f"{parent_heading} - {sub}" if parent_heading else sub
+            lines = []
+        elif stripped.startswith("## "):
+            if heading or lines:
+                segments.append((heading, lines))
+            parent_heading = stripped[3:].strip()
+            heading = parent_heading
             lines = []
         elif stripped.startswith("# "):
             if heading or lines:
                 segments.append((heading, lines))
+            parent_heading = ""
             heading = ""
             lines = []
+        elif stripped.startswith("#"):
+            continue
         elif stripped and not stripped.startswith("|"):
             for part in _SENTENCE_SPLIT.split(stripped):
                 part = re.sub(r"^[-*+]\s*", "", part).strip()
@@ -1235,13 +1248,15 @@ def _topic_score(
             best = bridge
 
     # 议题内涵业务事实加权：若当前段落标题对应某议题，且来源命中了该议题的决议、行动、风险或讨论
-    if topic_details and h_clean in topic_details:
-        for fact in topic_details[h_clean]:
-            fact_overlap = len(src_grams & _han_ngrams(fact, size=2))
-            if fact_overlap >= 1:
-                boost = 1 + fact_overlap
-                if boost > best:
-                    best = boost
+    if topic_details:
+        for topic_name, facts in topic_details.items():
+            if topic_name and (topic_name == h_clean or topic_name in h_clean):
+                for fact in facts:
+                    fact_overlap = len(src_grams & _han_ngrams(fact, size=2))
+                    if fact_overlap >= 1:
+                        boost = 1 + fact_overlap
+                        if boost > best:
+                            best = boost
     return best
 
 

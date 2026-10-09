@@ -2780,11 +2780,11 @@ def test_class_transcript_task_groups() -> None:
           "下挂缩进子条" in kn and "严禁将多步推导强行压缩为孤立结论" in kn, "")
 
     # 课堂问答要求
-    qa = next(l for l in text.splitlines() if "课堂现场的提问与解答" in l)
-    check("课堂问答：按 - **问题**：学生疑问要点；教师解答与要点说明 逐条列出",
-          "- **问题**" in qa and "学生疑问要点" in qa and "教师解答" in qa, "")
+    qa = next(l for l in text.splitlines() if "课堂互动中的关键疑问与教师解答" in l or "课堂现场的提问与解答" in l)
+    check("课堂问答：按 - **问：[具体疑问或困惑焦点]** 次行缩进给出 - **答** 逐条列出",
+          "- **问" in qa and "- **答**" in qa, "")
     check("课堂问答：提炼实质与结论，过滤口语碎屑，无问答整栏隐去",
-          "提炼问题实质与回答结论" in qa and "过滤口语碎屑" in qa and "无现场问答则整栏隐去" in qa, "")
+          "过滤口语碎屑" in qa and "整栏隐去" in qa, "")
 
     # 课后任务要求
     task = next(l for l in text.splitlines() if "清单化记录课后执行动作" in l)

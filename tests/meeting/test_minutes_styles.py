@@ -373,6 +373,25 @@ def test_produce_line_brief_length_exemption() -> None:
     asyncio.run(_run())
 
 
+def test_positive_guidance_and_clean_topic_rules() -> None:
+    """验证 minutes_styles 提示词全面消除严禁负向恐吓，且 topic 规则破除前缀锁与同名套娃。"""
+    # 1. 验证基础系统提示词无消极严禁
+    assert "严禁" not in MULTI_STYLES_GENERATION_SYSTEM_PROMPT
+    assert "禁止" not in MULTI_STYLES_GENERATION_SYSTEM_PROMPT
+    assert "杜绝" not in MULTI_STYLES_GENERATION_SYSTEM_PROMPT
+
+    # 2. 验证 topic 规则不再强推 **模块名称**： 或 无量化指标 占位符
+    assert "**模块名称**：" not in MODE_TOPIC_RULES
+    assert "无量化指标" not in MODE_TOPIC_RULES
+    assert "严禁" not in MODE_TOPIC_RULES
+    assert "禁止" not in MODE_TOPIC_RULES
+
+    # 3. 验证 review, retro, alignment 规则无消极严禁
+    assert "严禁" not in MODE_REVIEW_RULES
+    assert "严禁" not in MODE_RETRO_RULES
+    assert "严禁" not in MODE_ALIGNMENT_RULES
+
+
 if __name__ == "__main__":
     import sys
     import pytest

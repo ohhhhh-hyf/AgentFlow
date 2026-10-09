@@ -66,8 +66,8 @@ def topic_headings(minutes_md: str) -> list[str]:
                 if title:
                     headings.append(title)
         else:
-            if line.startswith("## "):
-                title = line[3:].strip()
+            if line.startswith(("## ", "### ")):
+                title = line.lstrip("#").strip()
                 title = re.sub(r"^\d+[\.、．]\s*", "", title)
                 if title and not any(k in title for k in ("会议概况", "会议概述", "内容总结", "关键决策", "行动项", "会议结论")):
                     headings.append(title)
@@ -155,10 +155,10 @@ def bulletize_minutes(minutes_md: str) -> str:
             # 会议概况/内容总结段落：原样保留，不按句号拆行，不加列表符号
             out.append(raw.rstrip())
             continue
-        points = _split_points(stripped)
-        if len(points) == 1 and stripped.startswith(("-", "*", "+")):
-            out.append(f"- {points[0]}")
+        if stripped.startswith(("-", "*", "+")):
+            out.append(stripped)
             continue
+        points = _split_points(stripped)
         for point in points:
             out.append(f"- {point}")
     text = "\n".join(out)

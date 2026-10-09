@@ -320,6 +320,77 @@ def test_flat_structure_collect_people() -> None:
     assert "王五" in people
 
 
+def test_remove_speaker_placeholders() -> None:
+    from domains.meeting.tasks.minutes_trace.steps.minutes_trace_agent import (
+        _remove_speaker_placeholders,
+    )
+
+    text = (
+        "- 相关发言计划利用地图标记项目位置，形成区位框架。\n"
+        "- 发言者1提出流程分类处理，优先审批紧急流程。\n"
+        "- 会上发言建议多思考工作目的，避免为填表而填表。\n"
+        "- 发言人指出汇报应务实，避免务虚。"
+    )
+    cleaned = _remove_speaker_placeholders(text)
+    assert "- 利用地图标记项目位置，形成区位框架。" in cleaned
+    assert "- 流程分类处理，优先审批紧急流程。" in cleaned
+    assert "- 多思考工作目的，避免为填表而填表。" in cleaned
+    assert "- 汇报应务实，避免务虚。" in cleaned
+    assert "相关发言" not in cleaned
+    assert "发言者1" not in cleaned
+
+
+def test_bulletize_preserves_compound_bullets() -> None:
+    text = (
+        "## 下半年重点工作\n"
+        "- **城市调研**：9-11月完成9个城市24个自有项目调研；访谈不少于50次，竞品调研不少于60次。\n"
+        "- **项目定价**：年底前独立输出项目定价报告并汇报，覆盖佛山大沥等重点项目。\n"
+    )
+    bulletized = bulletize_minutes(text)
+    # 复合事实句保持单条独立完整，不按分号或句号被拆碎为孤立条目
+    assert "- **城市调研**：9-11月完成9个城市24个自有项目调研；访谈不少于50次，竞品调研不少于60次。" in bulletized
+    assert "- **项目定价**：年底前独立输出项目定价报告并汇报，覆盖佛山大沥等重点项目。" in bulletized
+
+
+def test_segment_minutes_with_subsections() -> None:
+    text = (
+        "# 会议纪要：2024业务推进会\n\n"
+        "## 会议概况\n"
+        "会议研讨了各区域业务推进策略，明确了下半年目标。\n\n"
+        "## 市场拓展与调研\n"
+        "### 华南区域\n"
+        "- 调研广州、佛山等重点在售项目，形成区位框架。\n"
+        "### 华东区域\n"
+        "- 推进杭州、南京竞品数据采集，保证数据准确性。\n"
+    )
+    segments = segment_minutes(text)
+    # 标题行不能被误作为正文事实句
+    all_sentences = [sent for _, sents in segments for sent in sents]
+    assert not any(s.startswith("###") for s in all_sentences)
+    assert not any(s.startswith("##") for s in all_sentences)
+    assert any("广州、佛山" in s for s in all_sentences)
+    assert any("杭州、南京" in s for s in all_sentences)
+
+
+def test_minutes_sentences_skips_overview() -> None:
+    from domains.meeting.tasks.minutes_trace.align import _minutes_sentences
+
+    text = (
+        "# 会议纪要：下半年工作研讨会\n\n"
+        "## 会议概况\n"
+        "全场聚焦下半年业务重心与流程优化，定调说一是一、务实推进。\n\n"
+        "## 业务目标与举措\n"
+        "- 优先审批紧急重要流程，如4-6小时内的合同新签。\n"
+        "- 年底前独立输出项目定价报告并汇报。\n"
+    )
+    sentences = _minutes_sentences(text)
+    # 概况综述文字不进入溯源挂载池
+    assert "全场聚焦下半年业务重心与流程优化，定调说一是一、务实推进。" not in sentences
+    # 议题事实条目正常进入挂载池
+    assert "优先审批紧急重要流程，如4-6小时内的合同新签。" in sentences
+    assert "年底前独立输出项目定价报告并汇报。" in sentences
+
+
 if __name__ == "__main__":
     import sys
     import pytest

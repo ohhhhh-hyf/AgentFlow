@@ -59,30 +59,30 @@ class ConsensusDecisionGenerationContract(GenerationContract):
             StrField("health_headline", "全会议题决策概览与执行风险总评（客观提炼全局共识与关键执行关注项）"),
         ], desc="全会议题决策概览"),
         ObjListField("issues", [
-            StrField("issue_id", "议题编号，如 ISS-01, ISS-02"),
+            StrField("issue_id", "议题编号标识，如 ISS-01, ISS-02"),
             StrField("topic", "核心讨论议题名称，精炼概括（如「某方案的取舍结论」「某事项的标准确认」）"),
             StrField("trigger", "议题起因：讨论该议题的业务/技术背景、目标要求或现状痛点"),
             ObjField("pro_side", [
-                StrListField("speakers", "主张/提案/汇报方发言人列表"),
+                StrListField("speakers", "方案推进与提案主张方发言人列表"),
                 StrField("stance", "核心立场或主张概要（15字以内）"),
                 StrListField("arguments", "支撑该主张的事实论据、专业逻辑、标准规范或验证结果（1~3条）"),
                 StrField("quote", "主张方最具代表性的一句发言原句"),
-            ], desc="主张/提案/汇报方观点与论据"),
+            ], desc="方案推进与提案主张方观点与依据"),
             ObjField("con_side", [
-                StrListField("speakers", "提出顾虑/质询/协作审议方发言人列表（若全员赞同，填写协同确认方或审议代表）"),
-                StrField("stance", "顾虑考量、质询意见或协同确认概要（15字以内）"),
-                StrListField("arguments", "提出的顾虑、约束考量、协同要求或确认要点（1~3条）"),
+                StrListField("speakers", "协同审议与边界关注方发言人列表（若全员赞同，填写协同确认方或审议代表）"),
+                StrField("stance", "协同关注、约束考量或确认概要（15字以内）"),
+                StrListField("arguments", "提出的考量要点、协同约束、要求或确认要点（1~3条）"),
                 StrField("quote", "提出顾虑方最具代表性的一句发言原句"),
-            ], desc="提出顾虑方观点与考量"),
+            ], desc="协同审议与边界关注方考量"),
             EnumField("archetype", DECISION_ARCHETYPES, desc="决定方式"),
             StrField("accord", "达成决议：各方最终达成的共识结论、执行口径或协同方案"),
             EnumField("consensus_grade", CONSENSUS_GRADES, desc="共识分级"),
             StrField("caveat", "附带前提与预警（若全员一致赞成无附加前提，填 null 或无）"),
             ObjField("trade_off", [
-                StrField("gain", "获取的好处：核心价值、业务收益或确定性（得到什么好处）"),
-                StrField("sacrifice", "付出的代价：资源成本、承担的妥协/操作代价或放弃的备选方案（付出或放弃什么代价）"),
-            ], desc="本项决议的权衡取舍与成本代价"),
-            StrField("rollback_trigger", "底线：触发方案重新讨论或调整的底线条件与复核机制（若会上未提及填「无明确底线，按里程碑复核」或「无明确底线」）"),
+                StrField("gain", "预期收益：方案带来的核心价值、业务收益或确定性（得到什么好处）"),
+                StrField("sacrifice", "资源投入与约束代价：落地所需付出的工期成本、人力投入或管理流程约束"),
+            ], desc="本项决议的预期收益与资源投入代价"),
+            StrField("rollback_trigger", "复核机制与调整阈值：方案落地的复核里程碑或触发重新对齐的边界条件（若未特别提及填「常规推进，按里程碑复核」或「无特定调整阈值，按里程碑复核」）"),
             StrField("key_quote", "整场研讨中最具代表性或定调决策的现场原话"),
         ], desc="议题决定过程条目列表（通常 1~4 项关键议题）"),
     ]
@@ -95,8 +95,8 @@ class ConsensusDecisionSupervisorContract(SupervisorContract):
     feedback = Feedback("decision=revise 时必填（具体、可执行、有原文依据）；approve/reject 时给空数组 []——字段必须出现，不可省略")
     checks = [
         Check("concession_check", "审查共识分级定级是否准确（若发言人明确表达保留意见、免责前提或待补齐事项，定级为 conditional_concession 并提炼 caveat；若全员一致赞成无附带条件，允许定级为 hard_alignment）"),
-        Check("tradeoff_check", "审查权衡取舍（获取的好处 gain 与 付出的代价 sacrifice）是否具备实质内容，反映真实的收益与成本/资源投入/妥协代价，严禁空泛套话"),
-        Check("evidence_check", "核验所有发言人及引用原句（quote / key_quote）在会议原文中是否真实存在，严禁捏造虚构"),
+        Check("tradeoff_check", "审查预期收益 gain 与 资源投入 sacrifice 是否具备实质内容，反映真实的收益与成本投入"),
+        Check("evidence_check", "核验所有发言人及引用原句（quote / key_quote）在会议原文中真实存在"),
     ]
 
 

@@ -373,6 +373,31 @@ def test_parse_and_render_unbolded_variants():
     assert "施工部和管理组完善相关资料" in html
 
 
+def test_positive_guidance_and_elevated_semantics() -> None:
+    """验证 consensus_decision 提示词全面消除严禁负向词，并具有正向建设性指引。"""
+    from domains.meeting.tasks.consensus_decision.prompts import (
+        CONSENSUS_DECISION_GENERATION_SYSTEM_PROMPT,
+        CONSENSUS_DECISION_SUPERVISOR_DOMAIN_PROMPT,
+        CONSENSUS_DECISION_RENDER_PROMPT,
+    )
+
+    # 1. 生成提示词无消极严禁
+    assert "严禁" not in CONSENSUS_DECISION_GENERATION_SYSTEM_PROMPT
+    assert "禁止" not in CONSENSUS_DECISION_GENERATION_SYSTEM_PROMPT
+    assert "杜绝" not in CONSENSUS_DECISION_GENERATION_SYSTEM_PROMPT
+
+    # 2. 审核提示词无消极严禁
+    assert "严禁" not in CONSENSUS_DECISION_SUPERVISOR_DOMAIN_PROMPT
+
+    # 3. 渲染提示词无消极严禁
+    assert "严禁" not in CONSENSUS_DECISION_RENDER_PROMPT
+    assert "严格禁止" not in CONSENSUS_DECISION_RENDER_PROMPT
+
+    # 4. 语义升华指引覆盖方案推进与协同审议
+    assert "方案推进" in CONSENSUS_DECISION_GENERATION_SYSTEM_PROMPT
+    assert "协同审议" in CONSENSUS_DECISION_GENERATION_SYSTEM_PROMPT
+
+
 if __name__ == "__main__":
     import sys
     import pytest

@@ -78,12 +78,18 @@ def _normalize_markdown(text: str) -> str:
     return "\n".join(lines).strip()
 
 
+_SPEAKER_PREFIX = re.compile(
+    r"(^|\n)([-*]\s*)?(?:发言者\s*\d+|相关发言|会上发言|发言人)[：:，,、\s]*(?:计划|提出|表示|建议|指出|强调)?\s*"
+)
 _SPEAKER_REF = re.compile(r"发言者\s*\d+")
 
 
 def _remove_speaker_placeholders(text: str) -> str:
-    """转写占位符不是真实人名，正文侧统一改成中性来源。"""
-    return _SPEAKER_REF.sub("相关发言", text or "")
+    """转写占位符不是真实人名：剥离句首口语转述前缀，行中残留转为中性表述。"""
+    if not text:
+        return ""
+    cleaned = _SPEAKER_PREFIX.sub(r"\1\2", text)
+    return _SPEAKER_REF.sub("会上发言", cleaned)
 
 
 def _extract_transcript(shared_context: str, understanding: dict) -> str:
@@ -160,17 +166,21 @@ class MinutesTraceAgent:
         ]
         if topic_titles:
             topic_list = "\n".join(f"{i}. {title}" for i, title in enumerate(topic_titles, 1))
-            parts.append(f"【议题清单（纪要正文二级标题必须严格按此展开）】\n{topic_list}")
+            parts.append(
+                f"【核心讨论主题参考】\n{topic_list}\n"
+                "（二级标题可参考或归纳自上述主题，根据会议实际业务模块展开清晰层级）"
+            )
 
         fmt_spec = (
             "【纪要结构要求】\n"
             "# 会议纪要：[会议全局主题]\n\n"
             "## 会议概况\n"
-            "1 段连贯文字（约 100-150 字），概述全场背景、核心主旨与大盘决议，禁止列表符号与序号。\n\n"
-            "## [议题名称]\n"
-            "- 各议题标题必须且只能取自上述「议题清单」。\n"
-            "- 使用「- 」分点，一行陈述一个完整客观事实，组内严禁任何加粗机械前缀（如禁止写“**讨论**：/ **决议**：”等）。\n"
-            "- 事实饱满度要求：每个议题下充分结合 topics[].key_points、discussion，以及对应的 decisions、action_hints（分工动作/排期节点）和 risk_hints，写出包含明确责任人、时限、技术指标与交付标准的完整事实句（3~6 条），为专名、参数及后续溯源落钉提供充足承载句（无相应内容的维度直接不写）。"
+            "1 段连贯文字（约 100-150 字），概述全场背景、核心主旨与大盘决议，采用纯文本段落（不使用列表符号）。\n\n"
+            "## [业务议题]\n"
+            "（若议题包含多个独立业务方向，可按业务逻辑拆分子板块 `### 业务子方向`）\n"
+            "- 使用「- 」分点，每条为动词起笔的独立事实陈述，自然涵盖方案举措、责任分工、交付节点与核心指标。\n"
+            "- 针对特定具体事项，可使用精练主题词引导（如 `- **事项名称**：推进要点与结论...`），保持每条内容信息饱满独立，避免机械套用相同主语或重复发言前缀。\n"
+            "- 每个板块或议题下充分结合 topics[].key_points、discussion，以及对应的 decisions、action_hints 与 risk_hints，写出包含明确责任人、时限、技术指标与交付标准的完整事实句（3~6 条），为专名、参数及后续溯源落钉提供充足承载句（无相应内容的维度直接不写）。"
         )
         parts.append(fmt_spec)
 
@@ -179,7 +189,7 @@ class MinutesTraceAgent:
             parts.append(f"【用户笔记】\n{note_raw}")
         if focus:
             parts.append(focus)
-        parts.append(f"【不得作为议题标题的称呼】{banned}")
+        parts.append(f"【议题标题规范】请使用业务事项或研讨主题作为标题，避免使用个人姓名或发言人编号（如：{banned}）作为标题。")
         user = "\n\n".join(parts)
         raw = await self.client.structured(
             MINUTES_TRACE_GENERATION_SYSTEM_PROMPT,

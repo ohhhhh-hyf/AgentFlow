@@ -262,6 +262,73 @@ def test_text_priority_over_raw_data_and_generic_cat_suppression():
     assert html_gen.count('class="ck-flow-item"') == 2
 
 
+
+def test_actions_prompts_and_contracts_positive_hygiene():
+    """验证待办提示词与契约已实现全正向引导，零禁止性恐吓词，零测试人名与工程泄漏。"""
+    from domains.meeting.tasks.actions.prompts import (
+        ACTION_ITEMS_GENERATION_SYSTEM_PROMPT,
+        ACTION_ITEMS_SUPERVISOR_DOMAIN_PROMPT,
+        ACTION_ITEMS_RENDER_PROMPT,
+    )
+    from domains.meeting.tasks.actions.contracts import (
+        ActionItemsGenerationContract,
+        ActionItemsSupervisorContract,
+    )
+
+    combined = (
+        ACTION_ITEMS_GENERATION_SYSTEM_PROMPT
+        + ACTION_ITEMS_SUPERVISOR_DOMAIN_PROMPT
+        + ACTION_ITEMS_RENDER_PROMPT
+        + str(ActionItemsGenerationContract.to_output_contract())
+        + str(ActionItemsSupervisorContract.to_output_contract())
+    )
+
+    # 1. 验证负向禁止性字眼清零
+    for forbidden_word in ["严禁", "禁止", "杜绝", "草草收尾"]:
+        assert forbidden_word not in combined, f"待办提示词或契约中仍包含负向禁止词: {forbidden_word}"
+
+    # 2. 验证私有测试人名与领域泄漏项清零
+    for leaked_term in ["申家坤", "徐玥", "930", "特种人员", "人员进出场资料闭环"]:
+        assert leaked_term not in combined, f"待办提示词或契约中仍包含泄漏词汇: {leaked_term}"
+
+    # 3. 验证评级梯队与分类打架内耗已消除
+    assert "全选中优先" not in combined
+    assert "未拉开梯度" not in combined
+
+
+def test_risks_prompts_and_contracts_positive_hygiene():
+    """验证风险提示词与契约已实现全正向引导，零禁止性恐吓词，零特定领域泄漏。"""
+    from domains.meeting.tasks.risks.prompts import (
+        RISK_GENERATION_SYSTEM_PROMPT,
+        RISK_SUPERVISOR_DOMAIN_PROMPT,
+        RISK_RENDER_PROMPT,
+    )
+    from domains.meeting.tasks.risks.contracts import (
+        RiskGenerationContract,
+        RiskSupervisorContract,
+    )
+
+    combined = (
+        RISK_GENERATION_SYSTEM_PROMPT
+        + RISK_SUPERVISOR_DOMAIN_PROMPT
+        + RISK_RENDER_PROMPT
+        + str(RiskGenerationContract.to_output_contract())
+        + str(RiskSupervisorContract.to_output_contract())
+    )
+
+    # 1. 验证负向禁止性字眼清零
+    for forbidden_word in ["严禁", "禁止", "杜绝", "绝不"]:
+        assert forbidden_word not in combined, f"风险提示词或契约中仍包含负向禁止词: {forbidden_word}"
+
+    # 2. 验证特定场景词汇软引导清零
+    for leaked_term in ["会翻车", "防汛与排水隐患", "现场实体质量隐患"]:
+        assert leaked_term not in combined, f"风险提示词或契约中仍包含泄漏词汇: {leaked_term}"
+
+    # 3. 验证评级梯队内耗已消除
+    assert "全选中风险" not in combined
+    assert "扎堆中风险" not in combined
+
+
 if __name__ == "__main__":
     import sys
     import pytest
