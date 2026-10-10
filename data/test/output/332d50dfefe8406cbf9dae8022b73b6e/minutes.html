@@ -1,0 +1,764 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>《电气工程基础》第一章导学：电力系统发展史与基本概念</title>
+  <style>
+
+    body {
+      margin: 0;
+      padding: 14px 12px;
+      background: #f6f5f0;
+      color: #1a1a1a;
+      font-family: "Latin Modern Roman", "Computer Modern Roman", "CMU Serif", "Times New Roman", Times, "Songti SC", "SimSun", "STSong", serif;
+      -webkit-font-smoothing: antialiased;
+    }
+    .page { max-width: 1140px; margin: 0 auto; }
+    .ck-doc {
+      background: #ffffff;
+      border: 1px solid #d4d0c7;
+      border-radius: 4px;
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.05), 0 1px 3px rgba(0,0,0,0.03);
+      padding: 18px 22px;
+      line-height: 1.6;
+      font-size: 0.84rem;      /* 正文基准：左右两栏共用 --ck-fs */
+      --ck-fs: 0.84rem;
+    }
+    .ck-doc h1 {
+      margin: 0 0 6px;
+      font-size: 1.05rem;      /* 文档标题：只比正文略大一点 */
+      font-weight: 700;
+      text-align: center;
+      color: #111111;
+    }
+    .ck-doc-header {
+      margin-bottom: 10px;
+      padding-bottom: 8px;
+      border-bottom: 1px solid #111111;
+      text-align: center;
+    }
+    .ck-doc-meta {
+      font-size: 0.78rem;
+      color: #555555;
+      font-style: italic;
+    }
+    /* 层级标题一律"加粗 + 与右栏同级字号"，不加字号、不加下划线，前后留白压到最小 */
+    .ck-doc-content h1, .ck-doc-content .ck-doc-h1,
+    .ck-doc h2, .ck-doc-h2,
+    .ck-doc h3, .ck-doc-h3,
+    .ck-doc h4, .ck-doc-h4 {
+      font-size: var(--ck-fs);
+      font-weight: 700;
+      color: #111111;
+      border-bottom: 0;
+      padding-bottom: 0;
+      letter-spacing: 0;
+      font-variant: normal;
+      text-align: left;
+    }
+    .ck-doc-content h1, .ck-doc-content .ck-doc-h1, .ck-doc h2, .ck-doc-h2 {
+      margin: 12px 0 4px;
+    }
+    .ck-doc h3, .ck-doc-h3, .ck-doc h4, .ck-doc-h4 {
+      margin: 9px 0 3px;
+    }
+    .ck-doc p {
+      margin: 5px 0;
+      line-height: 1.6;
+      text-align: justify;
+    }
+    .ck-doc ul, .ck-doc ol {
+      margin: 4px 0 6px;
+      padding-left: 1.25em;
+      line-height: 1.6;
+    }
+    .ck-doc li {
+      margin: 2px 0;
+    }
+    .ck-doc blockquote, .ck-quote {
+      margin: 6px 0 8px;
+      padding: 5px 10px;
+      background: #faf9f6;
+      border-left: 3px solid #222222;
+      border-radius: 2px;
+      color: #222222;
+      font-size: var(--ck-fs);
+      font-style: italic;
+    }
+    .ck-doc code {
+      background: #f3f0e8;
+      border: 1px solid #e2ddd3;
+      border-radius: 3px;
+      padding: 1px 6px;
+      font-family: "Latin Modern Mono", Consolas, monospace;
+      font-size: 0.88em;
+    }
+    .ck-doc table, .ck-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: var(--ck-fs);
+      margin: 8px 0;
+      background: #ffffff;
+      border-top: 2px solid #222222;
+      border-bottom: 2px solid #222222;
+    }
+    .ck-doc table th, .ck-table th {
+      padding: 6px 10px;
+      text-align: left;
+      vertical-align: middle;
+      background: #fbfaf7;
+      border-bottom: 1.2px solid #222222;
+      font-weight: 700;
+      color: #111111;
+      letter-spacing: 0.3px;
+    }
+    .ck-doc table td, .ck-table td {
+      padding: 6px 10px;
+      text-align: left;
+      vertical-align: top;
+      border-bottom: 1px solid #ede9e1;
+    }
+    .ck-doc table td:first-child, .ck-table td:first-child {
+      font-weight: 600;
+      color: #111111;
+    }
+
+    /* Roomy & Spacious Academic Risk Table */
+    .ck-risk-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 18px 0 28px;
+      background: #ffffff;
+      border-top: 2.2px solid #111111;
+      border-bottom: 2.2px solid #111111;
+      font-size: 0.93rem;
+      line-height: 1.72;
+    }
+    .ck-risk-table th {
+      background: #faf8f5;
+      border-bottom: 1.5px solid #111111;
+      padding: 15px 16px;
+      font-weight: 700;
+      color: #111111;
+      letter-spacing: 0.3px;
+      text-align: left;
+      vertical-align: middle;
+    }
+    .ck-risk-table td {
+      padding: 16px 16px;
+      border-bottom: 1px solid #ede8e0;
+      vertical-align: top;
+      color: #1a1a1a;
+      word-break: break-word;
+    }
+    .ck-risk-table tr:nth-child(even) td {
+      background: #fdfcfb;
+    }
+    .ck-risk-table tr:hover td {
+      background: #f6f3eb;
+    }
+
+    /* Review Grid */
+    .ck-review {
+      display: grid;
+      grid-template-columns: minmax(0, 1.35fr) 1px minmax(260px, 0.95fr);
+      border: 1px solid #d4d0c7;
+      border-radius: 4px;
+      overflow: hidden;
+      margin: 8px 0 10px;
+      background: #ffffff;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.03);
+    }
+    .ck-review-left {
+      padding: 14px 16px;
+      background: #ffffff;
+      line-height: 1.6;
+      font-size: var(--ck-fs);
+    }
+    .ck-review-rule { background: #dcd8cf; }
+    .ck-review-right {
+      padding: 12px 14px;
+      background: #faf9f6;
+      box-sizing: border-box;
+      display: flex;
+      flex-direction: column;
+    }
+    .ck-ev-list {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    /* Entity Highlight in LaTeX Paper Style */
+    .ck-cite-entity {
+      background: #fff8db;
+      border-bottom: 1.5px solid #b86a04;
+      padding: 1px 4px;
+      border-radius: 2px;
+      cursor: pointer;
+      transition: all 0.18s ease;
+      color: #111111;
+      font-weight: 600;
+    }
+    .ck-cite-entity:hover {
+      background: #ffe58f;
+      color: #000000;
+    }
+    .ck-cite-entity.is-on {
+      background: #ffd54a;
+      border-bottom-color: #0047ab;
+      box-shadow: 0 0 0 2px rgba(0,71,171,0.25);
+    }
+
+    /* Blue Hyperref Citations [1], [2] */
+    .ck-cite-ref {
+      color: #0047ab;
+      font-weight: 600;
+      font-family: "Latin Modern Roman", "Computer Modern Roman", "Times New Roman", serif;
+      text-decoration: none;
+      cursor: pointer;
+      padding: 0 2px;
+      margin: 0 2px;
+      border-radius: 2px;
+      transition: all 0.15s ease;
+      font-size: 0.92em;
+      vertical-align: baseline;
+      user-select: none;
+    }
+    .ck-cite-ref:hover {
+      text-decoration: underline;
+      background: #e8f0fe;
+      color: #003380;
+    }
+    .ck-cite-ref.is-active {
+      background: #d2e3fc;
+      color: #002266;
+      font-weight: 700;
+      box-shadow: 0 0 0 1px #0047ab;
+    }
+
+    /* Right Memory Cards in LaTeX Paper Style */
+    .ck-provenance-head {
+      font-size: 0.82rem;
+      font-weight: 700;
+      color: #222222;
+      margin: 0 0 12px;
+      padding-bottom: 6px;
+      border-bottom: 1px solid #e0dcd4;
+      letter-spacing: 0.3px;
+      text-transform: uppercase;
+    }
+    .ck-ref-icon { color: #0047ab; margin-right: 4px; }
+    .ck-ev {
+      display: block;
+      margin: 0;
+      padding: 10px 12px;
+      border: 1px solid #dedad2;
+      border-left: 3.5px solid #0047ab;
+      border-radius: 2px;
+      background: #ffffff;
+      font-size: 0.82rem;
+      line-height: 1.55;
+      transition: all 0.2s ease;
+      cursor: pointer;
+    }
+    .ck-ev:hover { border-color: #b5b0a5; }
+    .ck-ev.is-on, .ck-ev.is-highlighted {
+      border-color: #0047ab;
+      box-shadow: 0 0 0 2px #0047ab, 0 3px 8px rgba(0,71,171,0.15);
+      background: #f0f5ff;
+    }
+    @keyframes citePulse {
+      0% { background: #dbeafe; box-shadow: 0 0 0 3px #0047ab; }
+      50% { background: #bfdbfe; box-shadow: 0 0 0 4px #0047ab; }
+      100% { background: #f0f5ff; box-shadow: 0 0 0 2px #0047ab; }
+    }
+    .ck-ev-k {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 0.75rem;
+      color: #444444;
+      margin-bottom: 5px;
+      font-weight: 700;
+    }
+    .ck-ev-cite-tag {
+      color: #0047ab;
+      font-weight: 700;
+      font-family: "Latin Modern Roman", serif;
+      text-decoration: none;
+    }
+    .ck-ev-kind-badge {
+      display: inline-block;
+      padding: 1px 6px;
+      border-radius: 2px;
+      font-size: 0.72rem;
+      font-weight: 600;
+      letter-spacing: 0.2px;
+    }
+    .ck-badge-keypoint {
+      border: 1px solid #0047ab;
+      color: #0047ab;
+      background: #f0f5ff;
+    }
+    .ck-badge-note {
+      border: 1px solid #b86a04;
+      color: #b86a04;
+      background: #fff8eb;
+    }
+    .ck-mem-title {
+      font-weight: 700;
+      color: #111111;
+      font-size: var(--ck-fs);
+      margin-bottom: 4px;
+      line-height: 1.5;
+    }
+    .ck-ev-quote {
+      color: #222222;
+      font-style: normal;
+      font-family: inherit;
+      margin: 4px 0 6px;
+      padding: 0;
+      background: transparent;
+      border: none;
+      line-height: 1.6;
+      font-size: var(--ck-fs);
+    }
+    .ck-ev-meta { font-size: 0.76rem; color: #666666; margin-top: 4px; }
+    .ck-ev-more {
+      margin-top: 2px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+    .ck-ev-more[open] { margin-top: 4px; }
+    .ck-ev-more summary { margin-bottom: 6px; }
+    .ck-proof-toggle {
+      cursor: pointer;
+      font-size: 0.82rem;
+      color: #0047ab;
+      user-select: none;
+      font-family: inherit;
+      padding: 2px 0;
+    }
+    .ck-proof-toggle:hover { text-decoration: underline; }
+    /* 右栏下段"状态演进"：无行内锚点，与上方证据卡视觉区分（灰底 + 徽章，无 [n]） */
+    .ck-ledger {
+      margin-top: 10px;
+      padding-top: 8px;
+      border-top: 1px dashed #d4d0c7;
+    }
+    .ck-ledger > summary { list-style: none; }
+    .ck-ledger > summary::-webkit-details-marker { display: none; }
+    .ck-ledger > summary::after { content: " ▾"; }
+    .ck-ledger:not([open]) > summary::after { content: " ▸"; }
+    /* 每类一张小灰卡：卡头类别 + 条数，卡内按 1. 2. 3. 编号 */
+    .ck-ledger-card {
+      background: #faf9f5;
+      border: 1px solid #e6e2d8;
+      border-left: 3px solid #bdb6a6;
+      border-radius: 4px;
+      padding: 7px 9px;
+      margin-bottom: 6px;
+    }
+    .ck-ledger-k {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 6px;
+      font-size: 0.72rem;
+      margin-bottom: 5px;
+    }
+    .ck-ledger-badge {
+      background: #efece4;
+      color: #6b6559;
+      border-radius: 3px;
+      padding: 1px 6px;
+      font-weight: 600;
+    }
+    .ck-ledger-count { color: #8a8578; }
+    .ck-ledger-list {
+      margin: 0;
+      padding-left: 1.35em;
+      font-size: var(--ck-fs);
+      line-height: 1.6;
+      color: #3b3a37;
+    }
+    .ck-ledger-list > li { margin: 2px 0; }
+    /* Personal Perspective Interactive Task Lists & Semantic Blocks */
+    .ck-self-block {
+      background: #f4f8fe;
+      border: 1px solid #d4e2f5;
+      border-left: 3.5px solid #0047ab;
+      border-radius: 4px;
+      padding: 9px 13px;
+      margin: 10px 0 12px;
+    }
+    .ck-self-title {
+      margin: 0 0 6px;
+      color: #003380;
+      font-weight: 700;
+      font-size: var(--ck-fs);
+      display: flex;
+      align-items: center;
+      gap: 5px;
+    }
+    .ck-self-badge {
+      display: inline-block;
+      background: #0047ab;
+      color: #ffffff;
+      font-size: 0.68rem;
+      padding: 1px 5px;
+      border-radius: 2px;
+      font-weight: 600;
+      letter-spacing: 0.2px;
+      margin-left: 4px;
+    }
+
+    .ck-dep-block {
+      background: #fefcf7;
+      border: 1px solid #f2e7cc;
+      border-left: 3.5px solid #b86a04;
+      border-radius: 4px;
+      padding: 9px 13px;
+      margin: 10px 0 12px;
+    }
+    .ck-dep-title {
+      margin: 0 0 6px;
+      color: #7a4502;
+      font-weight: 700;
+      font-size: var(--ck-fs);
+      display: flex;
+      align-items: center;
+      gap: 5px;
+    }
+    .ck-dep-badge {
+      display: inline-block;
+      background: #b86a04;
+      color: #ffffff;
+      font-size: 0.68rem;
+      padding: 1px 5px;
+      border-radius: 2px;
+      font-weight: 600;
+      letter-spacing: 0.2px;
+      margin-left: 4px;
+    }
+
+    .ck-risk-block {
+      background: #fff8f8;
+      border: 1px solid #fedcdc;
+      border-left: 3.5px solid #cf222e;
+      border-radius: 4px;
+      padding: 9px 13px;
+      margin: 10px 0 12px;
+    }
+    .ck-risk-title {
+      margin: 0 0 6px;
+      color: #a40e26;
+      font-weight: 700;
+      font-size: var(--ck-fs);
+      display: flex;
+      align-items: center;
+      gap: 5px;
+    }
+    .ck-risk-badge {
+      display: inline-block;
+      background: #cf222e;
+      color: #ffffff;
+      font-size: 0.68rem;
+      padding: 1px 5px;
+      border-radius: 2px;
+      font-weight: 600;
+      letter-spacing: 0.2px;
+      margin-left: 4px;
+    }
+
+    .ck-self-block ul, .ck-self-block ol,
+    .ck-dep-block ul, .ck-dep-block ol,
+    .ck-risk-block ul, .ck-risk-block ol {
+      margin: 2px 0 2px;
+      padding-left: 1.25em;
+    }
+    .ck-self-block li, .ck-dep-block li, .ck-risk-block li {
+      margin: 2px 0;
+      color: #1a1a1a;
+    }
+
+    /* Person Group Heading */
+    .ck-person-group {
+      margin: 8px 0 3px;
+      font-weight: 700;
+      color: #111111;
+    }
+
+    /* GFM Task List Checkboxes */
+    .ck-task-list {
+      list-style: none;
+      padding-left: 0 !important;
+      margin: 4px 0 6px !important;
+    }
+    .ck-task-item {
+      display: flex;
+      align-items: flex-start;
+      margin: 4px 0;
+      line-height: 1.6;
+    }
+    .ck-task-label {
+      display: inline-flex;
+      align-items: flex-start;
+      gap: 8px;
+      cursor: pointer;
+      width: 100%;
+    }
+    .ck-task-checkbox {
+      margin-top: 4px;
+      cursor: pointer;
+      accent-color: #0047ab;
+      width: 15px;
+      height: 15px;
+      flex-shrink: 0;
+    }
+    .ck-task-checkbox:checked + .ck-task-text {
+      color: #8c8c8c;
+      text-decoration: line-through;
+    }
+    .ck-task-text {
+      flex: 1;
+      color: #1a1a1a;
+    }
+
+    /* Status Badges & Pills */
+    .ck-tag-blocker {
+      display: inline-block;
+      background: #ffebe9;
+      color: #cf222e;
+      border: 1px solid rgba(255, 129, 130, 0.45);
+      font-size: 0.72rem;
+      font-weight: 700;
+      padding: 0 5px;
+      border-radius: 3px;
+      margin-right: 4px;
+      line-height: 1.5;
+      vertical-align: 1px;
+    }
+    .ck-tag-risk {
+      display: inline-block;
+      background: #fff8eb;
+      color: #b86a04;
+      border: 1px solid rgba(212, 167, 44, 0.45);
+      font-size: 0.72rem;
+      font-weight: 700;
+      padding: 0 5px;
+      border-radius: 3px;
+      margin-right: 4px;
+      line-height: 1.5;
+      vertical-align: 1px;
+    }
+    .ck-tag-warn {
+      display: inline-block;
+      background: #f0f4ff;
+      color: #0969da;
+      border: 1px solid rgba(84, 174, 255, 0.45);
+      font-size: 0.72rem;
+      font-weight: 700;
+      padding: 0 5px;
+      border-radius: 3px;
+      margin-right: 4px;
+      line-height: 1.5;
+      vertical-align: 1px;
+    }
+    .ck-tag-dep {
+      display: inline-block;
+      background: #eff6ff;
+      color: #1d4ed8;
+      border: 1px solid #bfdbfe;
+      font-size: 0.72rem;
+      font-weight: 600;
+      padding: 0 5px;
+      border-radius: 3px;
+      margin-right: 4px;
+      line-height: 1.5;
+      vertical-align: 1px;
+    }
+    .ck-param-capsule {
+      display: inline-block;
+      font-size: 0.82rem;
+      color: #57606a;
+      background: #f6f8fa;
+      border: 1px solid #eaeef2;
+      padding: 0 6px;
+      border-radius: 10px;
+      margin-left: 4px;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      letter-spacing: 0.2px;
+    }
+
+    /* 现代极简公文流排版（高信息密度、紧凑精练、无冗余卡片留白） */
+    .ck-card, .ck-flow-group {
+      margin-bottom: 14px;
+      background: transparent;
+      border: none;
+      box-shadow: none;
+      padding: 0;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+      line-height: 1.55;
+    }
+    .ck-card:last-child, .ck-flow-group:last-child {
+      margin-bottom: 0;
+    }
+    .ck-card-category {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      margin-bottom: 6px;
+      padding-bottom: 4px;
+      border-bottom: 1px solid #e2e8f0;
+      width: 100%;
+    }
+    .ck-card-accent {
+      width: 3px;
+      height: 13px;
+      border-radius: 1.5px;
+      background: #2563eb;
+      flex-shrink: 0;
+    }
+    .ck-card-accent-risk {
+      background: #dc2626;
+    }
+    .ck-card-accent-risk-med {
+      background: #d97706;
+    }
+    .ck-card-accent-risk-low {
+      background: #2563eb;
+    }
+    .ck-card-category-text {
+      font-size: 0.92rem;
+      font-weight: 700;
+      color: #0f172a;
+      letter-spacing: 0.2px;
+    }
+    .ck-flow-items {
+      display: flex;
+      flex-direction: column;
+      gap: 5px;
+    }
+    .ck-flow-item {
+      padding: 0;
+      margin: 0;
+      border: none;
+    }
+    .ck-item-header {
+      font-size: 0.88rem;
+      line-height: 1.55;
+      color: #1e293b;
+    }
+    .ck-item-bullet {
+      color: #94a3b8;
+      font-size: 0.88rem;
+      margin-right: 4px;
+      display: inline-block;
+      user-select: none;
+    }
+    .ck-card-title {
+      font-weight: 600;
+      color: #0f172a;
+      margin-right: 6px;
+      display: inline;
+    }
+    .ck-pill {
+      display: inline-block;
+      padding: 0 5px;
+      border-radius: 3px;
+      font-size: 0.7rem;
+      font-weight: 600;
+      line-height: 1.35;
+      vertical-align: 1px;
+      margin-right: 5px;
+      white-space: nowrap;
+    }
+    .ck-pill-high, .ck-flow-high {
+      background: #fee2e2;
+      color: #991b1b;
+      border: 1px solid #fecaca;
+    }
+    .ck-pill-medium, .ck-flow-medium {
+      background: #fef3c7;
+      color: #92400e;
+      border: 1px solid #fde68a;
+    }
+    .ck-pill-low, .ck-flow-low {
+      background: #eff6ff;
+      color: #1e40af;
+      border: 1px solid #bfdbfe;
+    }
+    .ck-item-meta {
+      display: inline-block;
+      font-size: 0.78rem;
+      color: #64748b;
+      margin-right: 6px;
+      white-space: nowrap;
+    }
+    .ck-card-drawer {
+      margin: 2px 0 0 12px;
+      padding: 1px 0 1px 8px;
+      border-left: 2px solid #e2e8f0;
+      background: transparent;
+      border-radius: 0;
+      border-top: none;
+      border-right: none;
+      border-bottom: none;
+      font-size: 0.8rem;
+      color: #475569;
+      line-height: 1.45;
+    }
+    .ck-card-drawer-high {
+      border-left: 2px solid #ef4444;
+    }
+    .ck-card-drawer-med {
+      border-left: 2px solid #f59e0b;
+    }
+    .ck-card-row {
+      margin: 1px 0;
+    }
+    .ck-card-row:first-child {
+      margin-top: 0;
+    }
+    .ck-card-label {
+      font-weight: 600;
+      color: #334155;
+    }
+    .ck-card-empty, .ck-flow-empty {
+      text-align: center;
+      color: #94a3b8;
+      padding: 28px 0;
+      font-size: 0.88rem;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    }
+
+    @media print {
+      .ck-card { break-inside: avoid; }
+      .ck-flow-item { break-inside: avoid; }
+    }
+
+    @media(max-width: 860px) {
+      .ck-doc { padding: 22px 18px; }
+      .ck-review { grid-template-columns: 1fr; }
+      .ck-review-rule { display: none; }
+    }
+
+  </style>
+</head>
+<body>
+  <main class="page">
+    <div class="ck-doc">
+      <header class="ck-doc-header">
+        <h1>《电气工程基础》第一章导学：电力系统发展史与基本概念</h1>
+      </header>
+      <div class="ck-doc-content">
+        <h2 class="ck-doc-h2">课程概况</h2><p>本次课程为《电气工程基础》第一章导学，由主讲人讲授，核心主题为电力系统发展史与基本概念。课程明确两大教学目的：掌握电力系统发电、输电、配电、用电四个典型环节的构成、工作原理及其与整体的关系，建立电力系统整体概念；掌握电力系统在分析、设计、运行、管理方面的基础理论、基本技术与计算方法。课程要求前修电路理论与电机学知识，后续衔接电力系统分析、电力系统机电保护、电力系统自动化、高电压技术四门课程。讲授进展从直流输电的早期探索讲起，历经交流输电兴起与交直流之争、电压等级演进与直流输电复兴，进而分析三相三线制交流输电的优势，最后给出电力系统、电力网、动力系统的定义及电网分类。第一章为概念最多、最重要的章节，主讲人指出三大难点：电能不能大量储存决定的有功与无功功率动态平衡、额定电压的繁杂规定、各种中性点接地方式及其对后续章节的影响。</p><h2 class="ck-doc-h2">核心知识点</h2><h3 class="ck-doc-h3">课程教学目标与学习要求</h3><ul><li><strong>教学目的</strong>：掌握电力系统发电、输电、配电、用电四个典型环节的构成、工作原理及与整体的关系；掌握电力系统分析、设计、运行、管理的基础理论、基本技术与计算方法。</li><li><strong>课程衔接</strong>：前修电路理论和电机学知识，特别是变压器和同步电机；后续课程为电力系统分析、电力系统机电保护、电力系统自动化、高电压技术。</li><li><strong>第一章学习内容</strong>：电力系统若干基本概念（电力系统、电力网、动力系统、变电站）、电力系统的特点及引起的基础理论、对电力系统的要求、电能质量指标（国家标准规定范围）、常用接地方式（工作接地/中性点接地方式）。</li><li><strong>三个难点</strong>：电能不能大量储存决定的有功功率和无功功率动态平衡问题；电力系统额定电压的繁杂规定；各种中性点接地方式及其对后续章节的影响。</li></ul><h3 class="ck-doc-h3">电力发展简史：直流输电的早期探索</h3><ul><li><strong>早期实验</strong>：福泰勒使用2000米导线连接瓦斯发电机，拖动直流发电机、电动机和带水泵的电动机，证明直流输电可行。</li><li><strong>标志性线路</strong>：1874年俄国工程师在彼得堡建成4.5公里长直流输电线路，传输功率4.5千瓦；1882年法国德普勒架设首条57公里直流试验线路，采用电报线传输，首端电压343伏、末端850伏、输送功率200瓦、损耗78%；1883年14公里试验输送功率1.1千瓦，56公里损耗55%。</li><li><strong>直流三线制系统</strong>：1882年10月英国科学家发明，外线与中线间电压110伏、两外线间电压220伏，后扩展至5根线形成直流无限制系统。</li><li><strong>技术突破</strong>：19世纪末法国方剑串联多台直流发电机提高电压，将75千瓦电力输送75千米；20世纪初瑞典科学家在串联直流发电机上安装短路器，实现任意发电机不停电投切，此后20多年建成15条直流输电线路。</li><li><strong>最大直流线路</strong>：1906年投运的法国慕尼黑水电厂到里昂180公里、57千伏、4700千瓦线路；1927年改建为260公里、125千伏、19000千瓦，接入两座水电站。</li><li><strong>直流输电局限</strong>：电压等级低导致损耗大、电压降落快，且制造大容量高压直流发电机困难，限制远距离大容量输电。</li></ul><h3 class="ck-doc-h3">交流输电的兴起与交直流之争</h3><ul><li><strong>技术基础</strong>：1876年俄国科学家发明单相变压器（主要用于照明）；1883年美国特斯拉制造出感应电机；1885年匈牙利科学家设计多台变压器并联运行方式。</li><li><strong>交直流之争</strong>：爱迪生与凯尔文主张推行直流电，理由是直流电效率高、交流电有危险性，曾购买威斯汀豪斯公司的交流发电机卖给监狱用于死刑犯执行死刑以证明交流电危险；威斯汀豪斯和特斯拉主张交流电，因交流电易用变压器升压降压、减少电能损失。</li><li><strong>交流输电示范</strong>：1886年威斯汀豪斯在美国麻省进行1000伏、1.2千米、30千伏交流输电示范，并在意大利建成17英里、2千伏高压输电线路；同年俄国科学家发明三相交流电、三相交流输电和三相异步电动机。</li><li><strong>第一条交流输电线路</strong>：从法国到德国，采用三相发电机和升压变压器，在法兰克福建两座降压变电站，一座供展览会照明，另一座供100马力三相异步电动机驱动人工瀑布离心泵。</li></ul><h3 class="ck-doc-h3">交流输电电压等级演进与直流输电复兴</h3><ul><li><strong>电压等级演进（国外）</strong>：1898年发明真实绝缘子，美国加利福尼亚电压等级提高至33千伏；1906年发明悬式绝缘子，建成110千伏线路；1912年发现电晕临界电压与导线直径成比例增加，铝线和刚性铝绞线开始应用，建成154千伏线路；1923年均压阀技术应用，建成220千伏线路；1936年美国287千伏线路投运；1952年瑞典建成380千伏线路，首次采用分裂导线；1956年苏联400千伏双回线路投运；1965年加拿大建成735千伏系统；1969年美国765千伏线路并入电网；1985年苏联1150千伏特高压线路投运，后降压至500千伏运行。</li><li><strong>电压等级演进（国内）</strong>：220千伏1941年投运，330千伏1972年投运，500千伏1981年投运，1000千伏2009年投运（交流特高压首次）。</li><li><strong>直流输电复兴</strong>：交流大电网稳定问题突出后，直流在联网中的优势显现。1954年瑞典本土与哥特兰岛建成世界第一个工业采用海底电缆的直流工程，100千伏、96公里，采用汞弧阀；1970年扩建50千伏、1万千瓦晶闸管换流阀试验工程；1972年世界第一个晶闸管换流阀背靠背直流工程在加拿大投运。</li><li><strong>中国直流输电工程</strong>：第一个直流输电工程连接舟山群岛与浙江定海电网；1989年葛上直流（葛洲坝电厂到上海）±500千伏投运；今年6月投运云广直流±800千伏特高压直流工程。</li></ul><h3 class="ck-doc-h3">三相三线制交流输电的优势分析</h3><ul><li><strong>三大优点</strong>：易于产生旋转磁场，使三相电动机易做驱动；瞬时功率恒定，不随时间变化；输电线路导线量（金属消耗量）最少。</li><li><strong>应用范围</strong>：除室内配电等小功率供电采用单相交流外，其它场合基本采用三相交流；国内电力系统大多数高压、超高压、特高压输电均采用三相交流输电方式，仅在联网过程中采用直流联网。</li><li><strong>效率与金属消耗</strong>：三相三线制传输效率在直流和其他交流传输方式中最高；在同等功率和功率因数下，三相三线制金属消耗量最小。</li></ul><h3 class="ck-doc-h3">电力系统的形成与核心概念定义</h3><ul><li><strong>电力系统形成过程</strong>：从单机向附近负荷供电，到多台发电机并联提高可靠性，再到升压输电扩大供电范围。</li><li><strong>输电线路参数</strong>：电阻和电抗两个重要参数，传输功率时产生电压损耗和功率损耗；电压升高后，传输相同功率时电流减小，有功功率损耗I²R和电压降落IZ均减小，输电距离可延长。</li><li><strong>电力系统定义</strong>：由发电机、变压器、输电线路和用电设备构成的整体，完成电能的生产、输送、分配和消耗四个职能。</li><li><strong>电力网定义</strong>：电力系统中去除发电机和用电设备的部分，即变压器和输电线路构成的网络。</li><li><strong>动力系统定义</strong>：在电力系统基础上加上发电厂动力部分（火电厂的锅炉汽机煤炭处理系统、水电厂的水轮机水坝水库等）。</li><li><strong>电网分类</strong>：地方电力网（电压等级110千伏及以下，供电半径20~50公里）；区域电力网（电压等级110、220千伏和少量500千伏，供电半径超过50公里）；超高压远距离输送网络（电压等级500千伏或1000千伏，东北有330千伏，跨省跨地区）。</li><li><strong>分类实例</strong>：武汉电网属于地方电力网，主要供电电压110千伏和35千伏，少数220千伏；华中电网是典型区域网；葛上直流、三峡到上海输电线路属于超高压远距离输电网络。</li><li><strong>变电站分类</strong>：按最高电压等级分类（如10千伏变电站、220千伏变电站、500千伏变电站）；按主要功率流向分类，大部分功率从高压侧流向低压侧为降压变电站，从低压侧流向高压侧为升压变电站。</li></ul><h2 class="ck-doc-h2">问答记录</h2><ul><li><strong>直流输电为何早期难以远距离大容量输电</strong>：电压等级低导致损耗大、电压降落快，且制造大容量高压直流发电机困难，限制了输电距离与容量。</li><li><strong>交流输电为何最终占据主导地位</strong>：交流电易用变压器升压降压，可在电压提高状态下减少电能损失；三相三线制具有易于产生旋转磁场、瞬时功率恒定、金属消耗量最少三大优点，传输效率最高。</li><li><strong>为何国内高压、超高压、特高压输电均采用三相交流</strong>：三相三线制在同等功率和功率因数下传输效率最高、金属消耗量最小；仅在联网过程中采用直流联网。</li></ul><h2 class="ck-doc-h2">课后任务</h2><ul><li><strong>课后阅读</strong>：阅读主讲人推荐的三本电力发展史书籍，了解电力发展基本史实。</li><li><strong>复习重点</strong>：掌握电力系统、电力网、动力系统的定义及区别；理解电网分类（地方、区域、超高压远距离输送网络）及变电站两种分类方法；重点攻克三个难点——有功与无功功率动态平衡、额定电压规定、中性点接地方式。</li><li><strong>预习要求</strong>：深入学习电力系统额定电压的具体规定细节，以及各种中性点接地方式的特点及其对后续章节的影响。</li></ul>
+      </div>
+    </div>
+  </main>
+</body>
+</html>
