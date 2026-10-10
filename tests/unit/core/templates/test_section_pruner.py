@@ -721,7 +721,7 @@ def test_class_transcript_task_groups() -> None:
     text = (_active_dir() / "class_transcript.md").read_text(encoding="utf-8")
 
     # 栏目完整性
-    for col in ("课程概况", "核心知识点", "课堂问答", "课后任务"):
+    for col in ("课程概况", "核心知识点", "问答记录", "课后任务"):
         check(f"课堂记录包含 [{col}] 栏目", f"[{col}]" in text, "")
 
     # 核心知识点要求
@@ -731,12 +731,12 @@ def test_class_transcript_task_groups() -> None:
     check("核心知识点：较复杂推导下挂缩进子条展开",
           "下挂缩进子条" in kn and "严禁将多步推导强行压缩为孤立结论" in kn, "")
 
-    # 课堂问答要求
-    qa = next(l for l in text.splitlines() if "课堂互动中的关键疑问与教师解答" in l or "课堂现场的提问与解答" in l)
-    check("课堂问答：按 - **问：[具体疑问或困惑焦点]** 次行缩进给出 - **答** 逐条列出",
-          "- **问" in qa and "- **答**" in qa, "")
-    check("课堂问答：提炼实质与结论，过滤口语碎屑，无问答整栏隐去",
-          "过滤口语碎屑" in qa and "整栏隐去" in qa, "")
+    # 问答记录要求
+    qa = next(l for l in text.splitlines() if "提炼课堂互动涉及的核心疑问与确定性答案" in l or "按“问题焦点：直接答案”逐条呈现" in l)
+    check("问答记录：按 - **[总结的核心问题]**：[直接陈述对应的事实答案] 逐条列出",
+          "- **[" in qa and "直接陈述对应的事实答案" in qa, "")
+    check("问答记录：提炼实质与结论，去转述前缀，无问答整栏隐去",
+          "严禁出现“学生询问" in qa and "整栏自适应隐去" in qa, "")
 
     # 课后任务要求
     task = next(l for l in text.splitlines() if "清单化记录课后执行动作" in l)
@@ -744,7 +744,7 @@ def test_class_transcript_task_groups() -> None:
           "课后作业与实践" in task and "复习重点与备考提示" in task and "严禁补写原文没有的作业" in task, "")
     scalars = plan_placeholder_fill(text)["scalars"]
     check("课后任务保留缺省词语义（全场无课后安排 → 「未提及」）", scalars[3].get("missing") is True, "")
-    check("课堂问答声明整栏隐去", "无现场问答则整栏隐去" in text, "")
+    check("问答记录声明整栏隐去", "无现场互动则整栏自适应隐去" in text, "")
 
     # 预算检查：4 栏全覆盖
     budgets = [(b["title"], b["hi"], b["scope"]) for b in parse_section_char_budgets(text)]
