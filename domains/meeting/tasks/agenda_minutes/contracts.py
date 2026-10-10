@@ -105,7 +105,9 @@ SINGLE_AGENDA_ITEM_OUTPUT_CONTRACT = """{
   "presenter": "",
   "status_tag": "",
   "background_and_goals": "",
-  "core_content": [],
+  "core_content": [
+    "**焦点议题名称**：\n- 事实暴露与现场交锋\n- 深度原因/论据与关键参数\n- 评审定调与破局打法"
+  ],
   "core_insights": "",
   "action_items": [
     {
@@ -129,7 +131,7 @@ SINGLE_AGENDA_ITEM_OUTPUT_CONTRACT = """{
   * 若 agenda_category 为 "approval" 且现场有明确结论：严格限定为 ["审议通过", "有条件通过", "未通过", "本次未讨论"] 之一；现场无需表决或未形成定调的填空字符串 ""
   * 若 agenda_category 为非审批类 ("share", "consensus" 等)：直接填空字符串 ""（非审批放行议题无需审批状态，不盖章；若整场未讨论则填 "本次未讨论"）
 - background_and_goals：1. 背景与目标（用 1~2 句话直接讲清为什么开/汇报、要达成什么目的或展示什么内容，有排除项顺带说明，不用生硬小标题）
-- core_content：2. 核心内容（分点叙述现场汇报的方案细节、量化数据以及现场提问与解答，拒绝空话）
+- core_content：2. 核心内容（字符串数组形态，每项为一个完整的字符串：加粗主题首行 + 同字符串内内部换行 \n 二级列表 - ；严禁输出嵌套字典/对象）
 - core_insights：3. 核心认知（提炼 2~3 条关键启发、技术经验、避坑注意点、或审批决议与生效前置约束，大白话讲透本质）
 - action_items：4. 后续行动（有明确待办时填写责任人、交付物、时限；若现场已闭环无会后待办则给空列表 []）
 - action_items[].owner：跟进责任人/单位

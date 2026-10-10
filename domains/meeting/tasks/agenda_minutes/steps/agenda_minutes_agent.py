@@ -78,20 +78,171 @@ def _is_nested_bullet_block(s: str) -> bool:
     return True
 
 
-def auto_structure_bullet(text: str) -> str:
+def coerce_bullet_entry(val: Any) -> str:
+    """将单条条目统一规范化为标准 Markdown 格式（一级加粗主题 + 二级自然列表）。
+
+    支持多态输入：
+    1. 字典格式：如 {"topic": "...", "points": [...]} 或 {"title": "...", "content": [...]}
+    2. Python dict 字符串：如 "{'topic': '...', 'points': [...]}"
+    3. JSON 字符串：如 '{"topic": "...", "points": [...]}'
+    4. 纯文本字符串：保持原样或委托给 auto_structure_bullet
+    """
+    if val is None or val is False:
+        return ""
+
+    if isinstance(val, dict):
+        topic_val = ""
+        topic_keys = ("topic", "title", "theme", "focus", "header", "name", "subject", "point")
+        matched_tkey = None
+        for k in topic_keys:
+            if k in val and val[k]:
+                topic_val = str(val[k]).strip()
+                matched_tkey = k
+                break
+
+        points_val = None
+        points_keys = ("points", "key_points", "sub_points", "subpoints", "items", "bullets", "content", "details", "facts", "notes")
+        for k in points_keys:
+            if k in val and val[k]:
+                points_val = val[k]
+                break
+
+        # 若未找到明确的 topic_keys，但字典只有 1 个键值对（例如 {"跨产品线拉通": [...]}）
+        if not topic_val and len(val) == 1:
+            k, v = next(iter(val.items()))
+            topic_val = str(k).strip()
+            points_val = v
+            matched_tkey = k
+
+        # 规范化主题文本（去除尾部冒号，补齐 ** 加粗）
+        if topic_val:
+            clean_topic = re.sub(r"[：:]\s*$", "", topic_val).strip()
+            clean_topic = clean_topic.strip("{}'\"")
+            if clean_topic:
+                if not (clean_topic.startswith("**") and clean_topic.endswith("**")):
+                    clean_topic = f"**{clean_topic.strip('*')}**"
+                topic_val = clean_topic
+
+        # 规范化子点列表
+        sub_bullets: list[str] = []
+        if points_val is not None:
+            if isinstance(points_val, (list, tuple, set)):
+                for p in points_val:
+                    if isinstance(p, dict):
+                        p_str = coerce_bullet_entry(p)
+                    else:
+                        p_str = str(p).strip()
+                    for line in p_str.splitlines():
+                        c_line = line.strip()
+                        if c_line:
+                            clean_line = re.sub(r"^[-*•·]\s*", "", c_line).strip()
+                            if clean_line:
+                                sub_bullets.append(f"- {clean_line}")
+            elif isinstance(points_val, str):
+                p_str = points_val.strip()
+                for line in p_str.splitlines():
+                    c_line = line.strip()
+                    if c_line:
+                        clean_line = re.sub(r"^[-*•·]\s*", "", c_line).strip()
+                        if clean_line:
+                            sub_bullets.append(f"- {clean_line}")
+            elif isinstance(points_val, dict):
+                p_str = coerce_bullet_entry(points_val)
+                for line in p_str.splitlines():
+                    c_line = line.strip()
+                    if c_line:
+                        clean_line = re.sub(r"^[-*•·]\s*", "", c_line).strip()
+                        if clean_line:
+                            sub_bullets.append(f"- {clean_line}")
+
+        # 若提取到了 topic_val，但没有 points_val，且字典还有其他字段
+        if topic_val and not sub_bullets and matched_tkey:
+            remaining_vals = [v for k, v in val.items() if k != matched_tkey and v]
+            if remaining_vals:
+                for rv in remaining_vals:
+                    if isinstance(rv, (list, tuple, set)):
+                        for x in rv:
+                            clean_line = re.sub(r"^[-*•·]\s*", "", str(x)).strip()
+                            if clean_line:
+                                sub_bullets.append(f"- {clean_line}")
+                    else:
+                        clean_line = re.sub(r"^[-*•·]\s*", "", str(rv)).strip()
+                        if clean_line:
+                            sub_bullets.append(f"- {clean_line}")
+
+        # 若既没有 topic_val 也没有 sub_bullets，按字典 values 兜底展平
+        if not topic_val and not sub_bullets:
+            flat_items = []
+            for v in val.values():
+                if isinstance(v, (list, tuple, set)):
+                    flat_items.extend([str(x).strip() for x in v if str(x).strip()])
+                elif v:
+                    flat_items.append(str(v).strip())
+            flat_lines = []
+            for x in flat_items:
+                if x:
+                    clean_x = re.sub(r"^[-*•·]\s*", "", x).strip()
+                    if clean_x:
+                        flat_lines.append(f"- {clean_x}")
+            return "\n".join(flat_lines)
+
+        if topic_val and sub_bullets:
+            return f"{topic_val}：\n" + "\n".join(sub_bullets)
+        if topic_val:
+            return f"{topic_val}："
+        if sub_bullets:
+            return "\n".join(sub_bullets)
+        return ""
+
+    s = str(val).strip()
+    if not s:
+        return ""
+
+    # 若为字典字面量字符串（如 "{'topic': ...}" 或 '{"topic": ...}'）
+    if (s.startswith("{") and s.endswith("}")) or (s.startswith("dict(") and s.endswith(")")):
+        import ast
+        import json
+        parsed = None
+        try:
+            parsed = json.loads(s)
+        except Exception:
+            try:
+                parsed = ast.literal_eval(s)
+            except Exception:
+                pass
+        if isinstance(parsed, dict):
+            return coerce_bullet_entry(parsed)
+
+    return s
+
+
+def auto_structure_bullet(text: Any) -> str:
     """智能将单段式大段内容重构成 一级加粗主题 + 二级自然列表。
 
     若文本已经是多行结构，或主体较短，则保持原样；
     若包含“主题：长文本（多个句号分号）”，自动提炼加粗主题并拆出二级子列表。
     """
+    if text is None or text is False:
+        return ""
+    if isinstance(text, dict):
+        return coerce_bullet_entry(text)
+
     s = str(text).strip()
     if not s:
         return ""
+
+    # 若为字典字面量字符串，提前拦截还原为结构化多行文本
+    if (s.startswith("{") and s.endswith("}")) or (s.startswith("dict(") and s.endswith(")")):
+        coerced = coerce_bullet_entry(s)
+        if coerced != s:
+            return coerced
+
     if "\n" in s:
         return s
 
     # 匹配加粗或未加粗主题：如 **主题**： 或 主题：
-    m = re.match(r"^(\*\*[^*]+?\*\*|[^\n：:]{2,20})[：:]\s*(.+)$", s)
+    # 严格排除开头带有字典或列表符号（{}[]'"）的串，防止误将键名作为标题
+    m = re.match(r"^(\*\*[^*]+?\*\*|[^\n：:{}\[\]\'\"]{2,20})[：:]\s*(.+)$", s)
     if not m:
         return s
 
@@ -137,10 +288,21 @@ def _normalize_conclusion_points(val: Any) -> list[str]:
         for x in val:
             res.extend(_normalize_conclusion_points(x))
         return [r for r in res if r]
+    if isinstance(val, dict):
+        coerced = coerce_bullet_entry(val)
+        if coerced:
+            return [coerced]
+        return []
 
     s = str(val).strip()
     if not s:
         return []
+
+    # 0. 修复字典字面量字符串（如 "{'topic': ...}"）
+    if (s.startswith("{") and s.endswith("}")) or (s.startswith("dict(") and s.endswith(")")):
+        coerced = coerce_bullet_entry(s)
+        if coerced != s:
+            return [coerced]
 
     # 1. 修复历史上因 str(list) 产生的 "['item1', 'item2']" 字符串
     if s.startswith("[") and s.endswith("]") and ("'," in s or '",' in s or "','" in s or '","' in s):
@@ -359,12 +521,21 @@ class SingleAgendaItemModel(ModelMixin):
         elif isinstance(raw_bg, list):
             target = list(raw_bg)
             background_and_goals = list(raw_bg)
+        elif isinstance(raw_bg, dict):
+            bg_coerced = coerce_bullet_entry(raw_bg)
+            target = [bg_coerced] if bg_coerced else []
+            background_and_goals = bg_coerced
         else:
             target = [str(raw_bg).strip()] if str(raw_bg).strip() else []
             background_and_goals = str(raw_bg).strip()
 
         # 2. 核心内容
         raw_core = data.get("core_content")
+        if isinstance(raw_core, dict):
+            raw_core = [raw_core]
+        elif isinstance(raw_core, str) and raw_core.strip():
+            raw_core = [raw_core]
+
         if isinstance(raw_core, list) and raw_core:
             core_content = [auto_structure_bullet(c) for c in raw_core if c]
             content = list(core_content)
@@ -832,15 +1003,24 @@ class AgendaMinutesAgent:
                 elif isinstance(raw_bg, list):
                     target = list(raw_bg)
                     background_and_goals = list(raw_bg)
+                elif isinstance(raw_bg, dict):
+                    bg_coerced = coerce_bullet_entry(raw_bg)
+                    target = [bg_coerced] if bg_coerced else []
+                    background_and_goals = bg_coerced
                 else:
                     target = [str(raw_bg).strip()] if str(raw_bg).strip() else []
                     background_and_goals = str(raw_bg).strip()
 
                 # 2. 核心内容
                 raw_core = raw_match.get("core_content")
+                if isinstance(raw_core, dict):
+                    raw_core = [raw_core]
+                elif isinstance(raw_core, str) and raw_core.strip():
+                    raw_core = [raw_core]
+
                 if isinstance(raw_core, list) and raw_core:
-                    core_content = list(raw_core)
-                    content = list(raw_core)
+                    core_content = [auto_structure_bullet(c) for c in raw_core if c]
+                    content = list(core_content)
                     process = list(raw_match.get("process_and_interaction") or [])
                 else:
                     content_raw = raw_match.get("content_and_evidence")

@@ -834,3 +834,113 @@ def test_zero_terminology_and_substantive_fail_safe() -> None:
     assert "### 议题02" not in md_out
     assert "- **结论定调**：" not in md_out
 
+
+def test_agenda_minutes_dict_shape_coercion_no_leakage() -> None:
+    """验证当 LLM 将核心内容输出为字典或字典字符串时，系统自动反序列化与多态解构，杜绝内存字典泄露。"""
+    from infra.exporters.html.agenda_minutes import (
+        auto_structure_bullet,
+        coerce_bullet_entry,
+        format_agenda_minutes_markdown,
+        render_agenda_minutes_html,
+    )
+    from domains.meeting.tasks.agenda_minutes.steps.agenda_minutes_agent import SingleAgendaItemModel
+
+    # 1. 现场真实抓包：模型输出的 {"topic": ..., "points": [...]} 字典
+    sample_topic_dict = {
+        "topic": "**跨产品线规格统一与平台能力拉通**：",
+        "points": [
+            "- 小艺团队反馈不同产品线有独特卖点诉求，导致规格频繁变化，影响用户心智稳定，如高端与低端机型在麦克风配置上不统一；",
+            "- 何刚明确原则是拉通，建议各产品线收敛为高端、低端两档规格，平台能力持续构建，产品线自行排序需求，资源有限需聚焦；",
+            "- 若拉通有困难，可上升至TMT决策，提出明确诉求以保障唤醒体验一致性。",
+        ],
+    }
+
+    # 测试 coerce_bullet_entry 与 auto_structure_bullet
+    bullet_from_dict = auto_structure_bullet(sample_topic_dict)
+    assert "**跨产品线规格统一与平台能力拉通**：" in bullet_from_dict
+    assert "- 小艺团队反馈不同产品线有独特卖点诉求" in bullet_from_dict
+    assert "{'topic'" not in bullet_from_dict
+    assert "'points':" not in bullet_from_dict
+
+    # 2. 字典字符串形态（如历史上因 str(dict) 漏出的字符串）
+    dict_str = (
+        "{'topic': '**AI能力撬动消费者购买的理想态探讨**：', "
+        "'points': ['- 现场提出AI结合硬件虽提升明显，但尚未成为消费者购买决策的关键因素；', "
+        "'- 何刚认为需经历量变到质变，当前消费者心智仍停留在语音助手阶段；']}"
+    )
+    bullet_from_str = auto_structure_bullet(dict_str)
+    assert "**AI能力撬动消费者购买的理想态探讨**：" in bullet_from_str
+    assert "- 现场提出AI结合硬件虽提升明显" in bullet_from_str
+    assert "{'topic'" not in bullet_from_str
+    assert "**{'topic'**" not in bullet_from_str
+
+    # 3. 经过 SingleAgendaItemModel.validate 校验
+    raw_data = {
+        "presenter": "何刚",
+        "agenda_category": "share",
+        "status_tag": "",
+        "background_and_goals": {"background": "探讨小艺AI能力与产品线拉通规格。"},
+        "core_content": [
+            sample_topic_dict,
+            {
+                "topic": "小艺慧记功能优化与内部工具提效",
+                "points": ["- 何刚反馈小艺慧记总结能力基本可用，但无法按会议议题分段。"],
+            },
+        ],
+        "core_insights": {
+            "topic": "战略共识",
+            "points": ["尊重生态商业模式，探索无绝对边界的创新路径。"],
+        },
+        "action_items": [],
+    }
+
+    item = SingleAgendaItemModel.validate(raw_data)
+    for c in item.core_content:
+        assert isinstance(c, str)
+        assert "{'topic'" not in c
+
+    # 4. 组装成完整草稿并渲染 Markdown 与 HTML
+    draft = {
+        "meeting_meta": {
+            "theme": "智能语音战略例会",
+            "date_time": "2026-10-10",
+            "agenda_stats": "既定议题 1 项",
+        },
+        "agenda_items": [
+            {
+                "agenda_seq": "01",
+                "agenda_title": "小艺平台定位与各产品线诉求对齐",
+                "presenter": "何刚",
+                "agenda_category": "share",
+                "status_tag": "",
+                "time_range": "00:10 ~ 00:50",
+                "background_and_goals": item.background_and_goals,
+                "core_content": item.core_content,
+                "core_insights": item.core_insights,
+                "action_items": [],
+            }
+        ],
+    }
+
+    md_out = format_agenda_minutes_markdown(draft)
+    # 绝对杜绝任何字典键名碎骨架
+    assert "{'topic'" not in md_out
+    assert "**{'topic'**" not in md_out
+    assert "'points':" not in md_out
+    assert "']}。" not in md_out
+
+    # 验证标准一级 - 加粗主题，二级 2 空格缩进 -
+    assert "- **跨产品线规格统一与平台能力拉通**：" in md_out
+    assert "  - 小艺团队反馈不同产品线有独特卖点诉求" in md_out
+    assert "  - 何刚明确原则是拉通" in md_out
+    assert "- **小艺慧记功能优化与内部工具提效**：" in md_out
+    assert "  - 何刚反馈小艺慧记总结能力基本可用" in md_out
+
+    # 5. 验证 HTML 渲染
+    html_out = render_agenda_minutes_html("智能语音战略例会", md_out, draft)
+    assert "{'topic'" not in html_out
+    assert "<strong>{'topic'</strong>" not in html_out
+    assert 'class="content-topic-title"' in html_out
+    assert "跨产品线规格统一与平台能力拉通" in html_out
+
+
