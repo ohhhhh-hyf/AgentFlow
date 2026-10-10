@@ -15,7 +15,7 @@ MEETING_UNDERSTANDING_SYSTEM_PROMPT = """你是会议理解助手。你的任务
 - session_segments：顺应会议讨论推进时序划分自然研讨阶段，每个阶段包含：
   - segment_title：该阶段议题/标的名称；
   - context_and_reasoning：因果背景、争论焦点与定调依据（context_and_debate 讨论经过与决策动因，连贯陈述）；
-  - key_facts：该阶段提出的所有硬核指标、论据案例与执行节点列表（无数量上限，优先高信息密度事实）。
+  - key_facts：提炼该阶段提出的核心量化指标、关键事实论据与落地执行节点（去重提炼，优先高信息密度事实，同一事实多次提及只保留最全的一条）。
 - decisions：现场明确拍板并达成共识的结论列表。
 - open_questions：尚未达成一致或明确会后另行确认的事项列表。
 - action_hints / risk_hints：若本次契约包含，提取包含动作/风险、责任人、时限及原文证据原句的线索。
