@@ -604,6 +604,73 @@ def apply_table_row_limits(text: str, template: str) -> tuple[str, list[str]]:
     return "".join(lines), notes
 
 
+_OMISSION_LEAK_PATTERN = re.compile(
+    r"(?:本栏|整栏|本小节|本节|该栏)(?:自适应)?(?:隐去|省略|不予呈现|不呈现)|"
+    r"(?:无|未|暂无)[^。\n]*?(?:隐去|省略|不予呈现)"
+)
+
+
+def _is_section_meta_omission_leak(lines: list[str]) -> bool:
+    """判定整个小节的正文是否仅为照抄的提示词指令（如'无现场问答互动，本栏隐去。'）。"""
+    text = "".join(lines).strip()
+    cleaned = re.sub(r"[#*_\s\[\]【】:：。、—\-\n\r\t]", "", text)
+    if not cleaned:
+        return False
+    if len(cleaned) <= 40 and _OMISSION_LEAK_PATTERN.search(text):
+        return True
+    return False
+
+
+def _prune_omission_leak_sections(lines: list[str]) -> tuple[list[str], list[str]]:
+    """扫描并物理剥离包含提示词元指令（如'无现场问答互动，本栏隐去。'）的残留栏目及正文行。"""
+    notes: list[str] = []
+    sections: list[dict[str, Any]] = []
+    current_sec: dict[str, Any] = {"heading": None, "heading_title": "", "lines": []}
+
+    for line in lines:
+        m = re.match(r"^(#{1,6})\s+(.+?)\s*$", line)
+        if m:
+            sections.append(current_sec)
+            current_sec = {"heading": line, "heading_title": m.group(2).strip(), "lines": []}
+        else:
+            current_sec["lines"].append(line)
+    sections.append(current_sec)
+
+    out_lines: list[str] = []
+    is_first_heading = True
+    for sec in sections:
+        heading = sec["heading"]
+        sec_lines = sec["lines"]
+        if heading is None:
+            out_lines.extend(sec_lines)
+            continue
+
+        if is_first_heading:
+            is_first_heading = False
+            out_lines.append(heading)
+            out_lines.extend(sec_lines)
+            continue
+
+        # 检查该小节正文是否纯粹是元指令泄漏（连同标题一并剥离）
+        if _is_section_meta_omission_leak(sec_lines):
+            notes.append(f"已物理剥离包含提示词元指令的「{sec['heading_title']}」栏目")
+            continue
+
+        # 若包含其他有效正文，剔除个别混在正文里的元指令行
+        cleaned_body = []
+        for ln in sec_lines:
+            s_clean = re.sub(r"\s+", "", ln)
+            if s_clean and len(s_clean) <= 40 and _OMISSION_LEAK_PATTERN.search(ln):
+                notes.append(f"已清理正文中残留的提示词元指令行（{sec['heading_title']}）")
+                continue
+            cleaned_body.append(ln)
+
+        out_lines.append(heading)
+        out_lines.extend(cleaned_body)
+
+    return out_lines, notes
+
+
 def clean_template_render_text(text: str) -> tuple[str, list[str]]:
     """Clean harmless template-render artifacts without changing factual content."""
     if not text:
@@ -651,7 +718,15 @@ def clean_template_render_text(text: str) -> tuple[str, list[str]]:
         notes.append("已清理模板输出中的单独反斜杠行")
     if removed_dup:
         notes.append("已清理标题占位误填导致的相邻重复段落")
-    return "\n".join(cleaned).strip(), notes
+
+    # 结构级扫描：物理剥离包含提示词元指令（如「无现场问答互动，本栏隐去」）的残留栏目及正文行
+    pruned_lines, prune_notes = _prune_omission_leak_sections(cleaned)
+    if prune_notes:
+        notes.extend(prune_notes)
+
+    res = "\n".join(pruned_lines).strip()
+    res = re.sub(r"\n{3,}", "\n\n", res)
+    return res, notes
 
 
 def classify_issues(issues: list[str]) -> tuple[list[str], list[str]]:

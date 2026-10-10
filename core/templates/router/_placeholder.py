@@ -246,7 +246,7 @@ def _replace_placeholders_in_line(
         val = values[i] if i < len(values) else ""
         if not val and fields and i < len(fields):
             f_hint = str(fields[i].get("hint") or "")
-            if any(k in f_hint for k in ("隐去", "省略", "不输出", "不出现", "若无", "无则", "没有内容")):
+            if any(k in f_hint for k in ("不予呈现", "不呈现", "隐去", "省略", "不输出", "不出现", "若无", "无则", "没有内容")):
                 val = ""
             elif fields[i].get("missing"):
                 if "写无" in f_hint or f_hint.endswith("无"):
@@ -406,8 +406,27 @@ def _strip_markdown_tables(text: str) -> str:
     return res
 
 
+_OMISSION_LEAK_PATTERN = re.compile(
+    r"(?:本栏|整栏|本小节|本节|该栏)(?:自适应)?(?:隐去|省略|不予呈现|不呈现)|"
+    r"(?:无|未|暂无)[^。\n]*?(?:隐去|省略|不予呈现)"
+)
+
+
+def _is_meta_omission_statement(text: str) -> bool:
+    """判定文本是否属于模型照抄的提示词指令（如'无现场问答互动，本栏隐去。'）。"""
+    cleaned = re.sub(r"[#*_\s\[\]【】:：。、—\-\n\r\t]", "", text)
+    if not cleaned:
+        return True
+    if cleaned in {"未提及", "无", "暂无", "未明确"}:
+        return True
+    # 命中黑话特征，且长度较短（属于说明句而非真实业务长段）
+    if len(cleaned) <= 35 and _OMISSION_LEAK_PATTERN.search(text):
+        return True
+    return False
+
+
 def _should_prune_section(sec: dict[str, Any], template: str = "") -> bool:
-    """带 SectionPruner 智能栏目修剪：判定栏目是否全空或仅含缺省词，应物理抹除标题行。"""
+    """带 SectionPruner 智能栏目修剪：判定栏目是否全空或仅含缺省词/元指令，应物理抹除标题行。"""
     raw_body = "".join(sec["body_lines"])
     body_text = raw_body.strip()
 
@@ -418,7 +437,7 @@ def _should_prune_section(sec: dict[str, Any], template: str = "") -> bool:
         ).strip()
         hints_text = " ".join(sec.get("hints", []))
         allows_omission = (
-            any(k in hints_text for k in ("隐去", "省略", "不输出", "不出现", "若无", "无则", "如无", "无实质", "没有内容"))
+            any(k in hints_text for k in ("不予呈现", "不呈现", "隐去", "省略", "不输出", "不出现", "若无", "无则", "如无", "无实质", "没有内容"))
             or any(k in sec["title"] for k in ("相关风险", "相关行动", "待办", "分工", "结论与决定"))
         )
         if not non_table_text and allows_omission:
@@ -433,15 +452,14 @@ def _should_prune_section(sec: dict[str, Any], template: str = "") -> bool:
     if not norm:
         return True
 
-    # 4. 缺省词/占位词自适应隐去判定：
-    # 当正文纯粹是 "未提及" / "无" / "暂无" / "未明确"，且栏目提示或模板允许省略时修剪
+    # 4. 缺省词/占位词/元指令泄漏自适应修剪：
     hints_text = " ".join(sec.get("hints", []))
     allows_omission = (
-        any(k in hints_text for k in ("隐去", "省略", "不输出", "不出现", "若无", "无则", "如无", "无实质", "没有内容"))
-        or any(k in sec["title"] for k in ("相关风险", "相关行动", "待办", "分工", "结论与决定"))
+        any(k in hints_text for k in ("不予呈现", "不呈现", "隐去", "省略", "不输出", "不出现", "若无", "无则", "如无", "无实质", "没有内容"))
+        or any(k in sec["title"] for k in ("Q&A", "问答", "答疑", "相关风险", "相关行动", "待办", "分工", "结论与决定"))
         or "personal_minutes.md" in template
     )
-    if norm in {"未提及", "无", "暂无", "未明确"} and allows_omission:
+    if _is_meta_omission_statement(body_text) and (allows_omission or _OMISSION_LEAK_PATTERN.search(body_text)):
         return True
 
     return False
@@ -541,7 +559,7 @@ def assemble_placeholder_output(
                 # 检查当前栏是否允许整栏隐去；若允许隐去，则不填充默认行，交由 SectionPruner 整体修剪
                 hints_text = " ".join(current_section["hints"]) if current_section else ""
                 allows_omission = (
-                    any(k in hints_text for k in ("隐去", "省略", "不输出", "不出现", "若无", "无则", "如无", "无实质", "没有内容"))
+                    any(k in hints_text for k in ("不予呈现", "不呈现", "隐去", "省略", "不输出", "不出现", "若无", "无则", "如无", "无实质", "没有内容"))
                     or (current_section and any(k in current_section["title"] for k in ("相关风险", "相关行动", "待办", "分工", "结论与决定")))
                 )
                 if not allows_omission:

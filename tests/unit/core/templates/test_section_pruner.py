@@ -1380,3 +1380,54 @@ def test_section_pruner_adaptive_omission() -> None:
           "**本人相关**：" not in (act_focus_only or "") and "暂无本人直接待办" not in (act_focus_only or ""),
           repr(act_focus_only))
 
+
+def test_meta_omission_leak_pruning() -> None:
+    """测试防止'本栏隐去'等提示词黑话泄漏：SectionPruner 与 clean_template_render_text 物理剥离整节。"""
+    from core.templates.router._placeholder import assemble_placeholder_output
+    from core.execution.hard_execution import clean_template_render_text
+    from core.execution.gate import gate_render_output
+
+    tpl = (
+        "# 专题讲座\n\n"
+        "## [讲座概况]\n[概况描述]\n\n"
+        "## [Q&A 环节]\n[(现场有互动问答才呈现，若全场无问答互动则本栏整体不予呈现) 一问一答]\n"
+    )
+
+    # 1. 占位装配层（SectionPruner）：模型给出了"无现场问答互动，本栏隐去。"
+    assembled = assemble_placeholder_output(
+        tpl,
+        {"1": "本次讲座系统解析了微服务架构演进。", "2": "无现场问答互动，本栏隐去。"},
+    )
+    check("SectionPruner：元指令泄漏句栏目被物理剔除标题行",
+          "## Q&A 环节" not in assembled and "本栏隐去" not in assembled,
+          assembled)
+    check("SectionPruner：保留正常概况栏目",
+          "## 讲座概况" in assembled and "本次讲座系统解析了微服务架构演进" in assembled,
+          assembled)
+
+    # 2. 渲染后处理层（clean_template_render_text）：自由渲染路径直接输出了残留
+    raw_leak = (
+        "# 专题讲座\n\n"
+        "## 讲座概况\n本次讲座系统解析了微服务架构演进。\n\n"
+        "## Q&A 环节\n无现场问答互动，本栏隐去。\n"
+    )
+    cleaned, notes = clean_template_render_text(raw_leak)
+    check("clean_template_render_text：整栏物理剥离（含标题行）",
+          "## Q&A 环节" not in cleaned and "本栏隐去" not in cleaned,
+          cleaned)
+    check("clean_template_render_text：门禁放行且无光杆标题硬伤",
+          gate_render_output(tpl, cleaned)["gate_ok"],
+          f"{gate_render_output(tpl, cleaned)}")
+
+    # 3. 若正文是自然业务语言，则正常保留
+    natural = (
+        "# 专题讲座\n\n"
+        "## 讲座概况\n本次讲座系统解析了微服务架构演进。\n\n"
+        "## Q&A 环节\n本次讲座以主旨观点分享为主，现场未设置问答互动环节。\n"
+    )
+    cleaned_nat, _ = clean_template_render_text(natural)
+    check("自然业务语言正文予以正常保留",
+          "## Q&A 环节" in cleaned_nat and "现场未设置问答互动环节" in cleaned_nat,
+          cleaned_nat)
+
+
