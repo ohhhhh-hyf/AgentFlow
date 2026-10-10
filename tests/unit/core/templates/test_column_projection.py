@@ -1762,25 +1762,23 @@ def test_render_context_person_transcript() -> None:
         "line_extra": {},
         "lines": {"minutes": {"draft": {}, "review": {}}},
     }
-    sliced = host._render_context(state, "minutes")
-    check("真人：原文块改标为「已按人裁剪」", "会议原文（真人模式·已按人裁剪）" in sliced, "")
+    person_text = host._person_transcript(state)
     check("真人：别人的段被折叠（原文里那些长段不见了）",
-          "另外引擎那部分我一起讲一下大概情况" not in sliced
-          and "这个问题由我来跟，细节我明天说清楚。" not in sliced, "")
+          "另外引擎那部分我一起讲一下大概情况" not in person_text
+          and "这个问题由我来跟，细节我明天说清楚。" not in person_text, "")
     check("真人：他自己的段留下且块首改称「你」",
-          "你 00:00:01" in sliced and "我们先过接口这块的对齐情况" in sliced, sliced[:120])
+          "你 00:00:01" in person_text and "我们先过接口这块的对齐情况" in person_text, person_text[:120])
     check("真人：提到他的别人的段也留（引述保真名）",
-          "李梦甜 00:01:10" in sliced and "双录还没确认" in sliced, "")
-    check("真人：非纪要线（trace/mindmap）不动原文",
-          "已按人裁剪" not in host._render_context(state, "minutes_trace"), "")
+          "李梦甜 00:01:10" in person_text and "双录还没确认" in person_text, "")
+
+    sliced = host._render_context(state, "minutes")
+    check("真人纪要渲染上下文：已脱水（不注入会议原文）", "会议原文" not in sliced, "")
     check("真人纪要渲染上下文：草稿与用户画像保留", "用户画像" in sliced and "已批准会议纪要草稿" in sliced, "")
     trace_ctx = host._render_context(state, "minutes_trace")
     check("溯源线（trace）：仍保留会议原文供正则回溯证据", "会议原文" in trace_ctx, "")
 
     objective = host._render_context({**state, "objective_perspective": True}, "minutes")
-    check("客观：整篇原文原样、无裁剪标记",
-          "已按人裁剪" not in objective and "另外引擎那部分我一起讲一下大概情况" in objective, "")
-    check("客观纪要渲染上下文：保留会议原文", "会议原文" in objective, "")
+    check("客观纪要渲染上下文：已脱水（不注入会议原文）", "会议原文" not in objective, "")
 
     # 分组骨架块（2026-09-22）：把「要出现哪些组名行」变成可照抄的清单——模型只复制、不重排。
     grid = {**state, "user_action_groups_block": "【本用户分栏分组骨架】\n**与我相关**："}
@@ -2060,9 +2058,9 @@ def test_render_context_trim_and_supervisor_soften_and_expand_skip() -> None:
         },
     }
     ctx_long = host._render_context(state_long, "minutes")
-    check("长原文客观纪要：打上核心事实与证据摘录标签", "会议原文（核心事实与证据摘录）" in ctx_long, "")
-    check("长原文客观纪要：保留草稿核心事实点", "数据库吞吐瓶颈" in ctx_long, "")
-    check("长原文客观纪要：裁剪后体积大幅缩减（远小于原长文本）", len(ctx_long) < len(long_raw) * 0.7, f"{len(ctx_long)} vs {len(long_raw)}")
+    check("长原文客观纪要渲染上下文：脱水后不含原文切片", "会议原文" not in ctx_long, "")
+    check("长原文客观纪要渲染上下文：保留草稿核心事实点", "数据库吞吐瓶颈" in ctx_long, "")
+    check("长原文客观纪要渲染上下文：脱水后体积大幅缩减（远小于原长文本）", len(ctx_long) < len(long_raw) * 0.7, f"{len(ctx_long)} vs {len(long_raw)}")
 
     # 3. 渲染短文本不强制 expand
     from core.runtime.render import _doc_han

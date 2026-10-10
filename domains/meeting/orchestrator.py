@@ -869,7 +869,7 @@ class _Nodes(DomainNodes):
         return budget_line(han_count(transcript), columns=columns)
 
     def _render_context(self, state: dict, line_name: str) -> str:
-        """会议域渲染上下文。纪要/多样式以草稿和理解为唯一事实源（不传原文）；溯源/导图保留原文。"""
+        """会议域渲染上下文。仅溯源线（minutes_trace）保留原文供本地时间戳对齐；其余各线以草稿和理解为唯一事实源（不传原文）。"""
         from core.runtime.context import build_render_context
 
         sub = _line(state, line_name)
@@ -884,39 +884,10 @@ class _Nodes(DomainNodes):
         perspective = self._compact_perspective(state.get("perspective_profile") or {})
         if perspective:
             blocks.append(("已审核用户视角", perspective, "json"))
-        # 纪要/多样式/溯源/导图/共识决策保留原文切片：真人模式按人裁剪，客观长会议按针尖核心事实摘录（4k~6k字），打破信息物理断供
-        if line_name in {"minutes", "minutes_styles", "minutes_trace", "mindmap", "consensus_decision"}:
+        # 会议域渲染层全局脱水：纪要正文、多样式、思维导图、共识决策等一律以已审核草稿和会议理解为事实源；
+        # 整个会议域中，仅溯源线（minutes_trace）保留会议原文供本地 align.py 进行正则证据回溯与时间戳对齐。
+        if line_name == "minutes_trace":
             label, transcript = "会议原文", state.get("transcript") or ""
-            sliced = self._person_transcript(state) if line_name in PREFERENCE_LINES else ""
-            if sliced:
-                label = "会议原文（真人模式·已按人裁剪）"
-                transcript = sliced
-            elif line_name in {"minutes", "minutes_styles", "consensus_decision"} and len(transcript) > 6000:
-                from core.runtime.supervisor_slice import collect_needles, slice_transcript
-
-                user = state.get("user") or {}
-                priority_needles: list[str] = []
-                if isinstance(user, dict):
-                    name = str(user.get("name") or "").strip()
-                    if name:
-                        priority_needles.append(name)
-                    for fp in user.get("focus_person") or []:
-                        if isinstance(fp, str) and len(fp.strip()) >= 2:
-                            priority_needles.append(fp.strip())
-                    for ft in user.get("focus_thing") or []:
-                        if isinstance(ft, str) and len(ft.strip()) >= 2:
-                            priority_needles.append(ft.strip())
-                needles = collect_needles(sub.get("draft") or {}) + collect_needles(pack or {})
-                excerpt, hits, used = slice_transcript(
-                    transcript,
-                    needles,
-                    priority_needles=priority_needles,
-                    full_limit=6000,
-                    max_chars=6000,
-                )
-                if excerpt and used < len(transcript):
-                    label = "会议原文（核心事实与证据摘录）"
-                    transcript = excerpt
             blocks.insert(0, (label, transcript, "raw"))
         budget = self._length_budget_line(state, line_name)
         if budget:
