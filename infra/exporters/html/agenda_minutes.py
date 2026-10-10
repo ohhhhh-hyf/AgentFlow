@@ -594,10 +594,13 @@ def format_agenda_minutes_markdown(draft: dict[str, Any]) -> str:
                 "| :--- | :--- | :--- |",
             ])
             for act in actions:
-                owner = act.get("owner") or "待定"
-                task = act.get("task") or "后续跟进"
-                deadline = act.get("deadline") or "近期"
-                lines.append(f"| {owner} | {task} | {deadline} |")
+                if isinstance(act, dict):
+                    owner = str(act.get("owner") or act.get("responsible") or "待定").strip()
+                    task = str(act.get("task") or act.get("action") or act.get("content") or "后续跟进").strip()
+                    deadline = str(act.get("deadline") or act.get("time") or act.get("due_date") or "近期").strip()
+                    lines.append(f"| {owner} | {task} | {deadline} |")
+                elif isinstance(act, str) and act.strip():
+                    lines.append(f"| 待定 | {act.strip()} | 近期 |")
             lines.append("")
 
     return "\n".join(lines).strip() + "\n"
@@ -835,9 +838,16 @@ def render_agenda_minutes_html(
         if actions:
             act_rows = []
             for a in actions:
-                owner = _safe_str(a.get("owner") or "待定")
-                task = _safe_str(a.get("task") or "后续推进")
-                deadline = _safe_str(a.get("deadline") or "近期")
+                if isinstance(a, dict):
+                    owner = _safe_str(a.get("owner") or a.get("responsible") or "待定")
+                    task = _safe_str(a.get("task") or a.get("action") or a.get("content") or "后续推进")
+                    deadline = _safe_str(a.get("deadline") or a.get("time") or a.get("due_date") or "近期")
+                elif isinstance(a, str) and a.strip():
+                    owner = "待定"
+                    task = _safe_str(a.strip())
+                    deadline = "近期"
+                else:
+                    continue
                 act_rows.append(f"""
                 <tr>
                     <td><strong>{escape(owner)}</strong></td>

@@ -573,7 +573,15 @@ class SingleAgendaItemModel(ModelMixin):
         core_insights = conclusion
 
         # 4. 后续行动
-        actions = list(data.get("action_items") or data.get("action_commitments") or [])
+        raw_actions = data.get("action_items") or data.get("action_commitments") or []
+        if isinstance(raw_actions, dict):
+            actions = [raw_actions]
+        elif isinstance(raw_actions, list):
+            actions = list(raw_actions)
+        elif isinstance(raw_actions, str) and raw_actions.strip():
+            actions = [{"owner": "待定", "task": raw_actions.strip(), "deadline": "近期"}]
+        else:
+            actions = []
 
         # 双向映射兼容
         return cls(
@@ -1050,11 +1058,19 @@ class AgendaMinutesAgent:
                 ).strip()
 
                 # 4. 后续行动
-                actions = list(
+                raw_actions = (
                     raw_match.get("action_items")
                     or raw_match.get("action_commitments")
                     or []
                 )
+                if isinstance(raw_actions, dict):
+                    actions = [raw_actions]
+                elif isinstance(raw_actions, list):
+                    actions = list(raw_actions)
+                elif isinstance(raw_actions, str) and raw_actions.strip():
+                    actions = [{"owner": "待定", "task": raw_actions.strip(), "deadline": "近期"}]
+                else:
+                    actions = []
 
                 enforced_item = {
                     "agenda_seq": seq,

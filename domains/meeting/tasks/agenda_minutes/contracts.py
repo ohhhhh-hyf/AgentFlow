@@ -133,10 +133,10 @@ SINGLE_AGENDA_ITEM_OUTPUT_CONTRACT = """{
 - background_and_goals：1. 背景与目标（用 1~2 句话直接讲清为什么开/汇报、要达成什么目的或展示什么内容，有排除项顺带说明，不用生硬小标题）
 - core_content：2. 核心内容（字符串数组形态，每项为一个完整的字符串：加粗主题首行 + 同字符串内内部换行 \n 二级列表 - ；严禁输出嵌套字典/对象）
 - core_insights：3. 核心认知（提炼 2~3 条关键启发、技术经验、避坑注意点、或审批决议与生效前置约束，大白话讲透本质）
-- action_items：4. 后续行动（有明确待办时填写责任人、交付物、时限；若现场已闭环无会后待办则给空列表 []）
-- action_items[].owner：跟进责任人/单位
-- action_items[].task：具体执行事项、闭环动作或交付物
-- action_items[].deadline：完成时限节点或排期安排
+- action_items：4. 后续行动（弹性字段：若现场明确提出规格拉通、体验/算法攻坚、方案验证或具体待办安排，填写责任人、交付物、时限；无明确具体日期可填“近期”、“尽快”或“待定”；纯分享交流无会后安排则给空列表 []）
+- action_items[].owner：跟进责任人/责任团队
+- action_items[].task：具体执行事项、规格拉通或闭环交付物
+- action_items[].deadline：完成时限节点或排期安排（如：近期、尽快、待定或具体日期）
 （注：同时兼容旧字段 target_and_audience、content_and_evidence、process_and_interaction、conclusion_and_status）"""
 
 

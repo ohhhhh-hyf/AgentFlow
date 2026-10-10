@@ -18,6 +18,7 @@ from domains.meeting.tasks.agenda_minutes.alignment_engine import (
 )
 from domains.meeting.tasks.agenda_minutes.steps.agenda_minutes_agent import (
     AgendaMinutesAgent,
+    SingleAgendaItemModel,
 )
 from domains.meeting.tasks.agenda_minutes.steps.agenda_minutes_render import (
     AgendaMinutesRender,
@@ -942,5 +943,100 @@ def test_agenda_minutes_dict_shape_coercion_no_leakage() -> None:
     assert "<strong>{'topic'</strong>" not in html_out
     assert 'class="content-topic-title"' in html_out
     assert "跨产品线规格统一与平台能力拉通" in html_out
+
+
+def test_agenda_minutes_action_items_flexible_rendering() -> None:
+    """验证后续行动表格的弹性输出：有待办出表格，无待办彻底隐去，支持异构条目容错。"""
+    raw_data_with_actions = {
+        "presenter": "何刚（答疑嘉宾）及现场研讨团队",
+        "agenda_category": "share",
+        "status_tag": "",
+        "background_and_goals": "围绕小艺跨产品线协同与体验优化拉齐认知。",
+        "core_content": [
+            "**跨产品线规格统一**：\n- 建议产品线收敛为高端、低端两档规格；\n- 平台能力持续构建。"
+        ],
+        "core_insights": "平台能力需统一，规格收敛避免碎片化。",
+        "action_items": [
+            {
+                "owner": "小艺团队",
+                "task": "向产品线提出规格统一要求，推动高端/低端两档拉通",
+                "deadline": "待定",
+            },
+            {
+                "owner": "小艺慧记团队",
+                "task": "实现图片输入日程、按议题分段生成纪要并优化声纹识别",
+                "deadline": "尽快",
+            },
+            "贾维斯团队：制作分屏看广告的demo并与生态探讨可行性",
+        ],
+    }
+
+    # 1. 验证 SingleAgendaItemModel 解析
+    item = SingleAgendaItemModel.validate(raw_data_with_actions)
+    assert len(item.action_items) == 3
+    assert item.action_items[0]["owner"] == "小艺团队"
+    assert item.action_items[0]["deadline"] == "待定"
+    assert item.action_items[1]["owner"] == "小艺慧记团队"
+    assert item.action_items[1]["deadline"] == "尽快"
+
+    # 2. 组装多议题草稿：议题 01 有待办，议题 02 无待办
+    draft = {
+        "meeting_meta": {
+            "theme": "战略交流会",
+            "date_time": "2026-10-10",
+            "agenda_stats": "既定议题 2 项",
+        },
+        "agenda_items": [
+            {
+                "agenda_seq": "01",
+                "agenda_title": "互动交流",
+                "presenter": item.presenter,
+                "agenda_category": "share",
+                "status_tag": "",
+                "time_range": "00:18 ~ 01:18",
+                "background_and_goals": item.background_and_goals,
+                "core_content": item.core_content,
+                "core_insights": item.core_insights,
+                "action_items": item.action_items,
+            },
+            {
+                "agenda_seq": "02",
+                "agenda_title": "何刚总致辞",
+                "presenter": "何刚",
+                "agenda_category": "share",
+                "status_tag": "",
+                "time_range": "00:00 ~ 00:18",
+                "background_and_goals": "回顾北京业务历程并鼓励创新。",
+                "core_content": ["**战略定位**：\n- 强调华为AI优势在于与硬件协同。"],
+                "core_insights": "做硬件公司需长期主义。",
+                "action_items": [],
+            },
+        ],
+    }
+
+    md_out = format_agenda_minutes_markdown(draft)
+
+    # 议题 01 必须渲染第 4 栏表格
+    assert "### 互动交流" in md_out
+    assert "#### 4. 后续行动" in md_out
+    assert "| 责任人 | 跟进事项与交付目标 | 时限节点 |" in md_out
+    assert "| 小艺团队 | 向产品线提出规格统一要求，推动高端/低端两档拉通 | 待定 |" in md_out
+    assert "| 小艺慧记团队 | 实现图片输入日程、按议题分段生成纪要并优化声纹识别 | 尽快 |" in md_out
+
+    # 议题 02 必须彻底不出现第 4 栏
+    parts = md_out.split("### 何刚总致辞")
+    assert len(parts) == 2
+    speech_part = parts[1]
+    assert "#### 4. 后续行动" not in speech_part
+    assert "| 责任人 | 跟进事项与交付目标 | 时限节点 |" not in speech_part
+
+    # 3. 验证 HTML 渲染
+    html_out = render_agenda_minutes_html("战略交流会", md_out, draft)
+    assert '4</span> 后续行动' in html_out
+    assert "小艺团队" in html_out
+    assert "小艺慧记团队" in html_out
+    assert '<span class="deadline-tag">待定</span>' in html_out
+    assert '<span class="deadline-tag">尽快</span>' in html_out
+
 
 

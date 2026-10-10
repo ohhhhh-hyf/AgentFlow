@@ -1,9 +1,0 @@
-[2026-10-10 09:46:03] Mode: table, Total Items: 5
-  Meta: theme='', time='', attendees='全程与会人/主持人**：何刚'
-  Resolved Columns: {'seq': 0, 'title': 1, 'presenter': 2, 'recorder': -1, 'members': -1, 'time': -1, 'duration': 3, 'category': -1, 'description': -1}
-  - Item [01] 活动开场视频播放 | Presenter: [] (raw: '-') | Dur: 09:00-09:10 | Time:  | Cat: 
-  - Item [02] 何刚总致辞 | Presenter: ['何刚'] (raw: '何刚') | Dur: 09:10-09:30 | Time:  | Cat: 
-  - Item [03] 互动交流（现场问答、自由交流与讨论） | Presenter: [] (raw: '-') | Dur: 09:30-10:30 | Time:  | Cat: 
-  - Item [04] 任务令签署与授予 | Presenter: [] (raw: '-') | Dur: 10:30-10:40 | Time:  | Cat: 
-  - Item [05] 全体合影 | Presenter: [] (raw: '-') | Dur: 10:40-10:50 | Time:  | Cat: 
-----------------------------------------------------------------------
