@@ -51,9 +51,16 @@ def build_render_prompt(
         return routed
     # 判型失败 / 路由关闭 / 自然语言编译失败：类型未知，
     # 追加两类型简述让 LLM 自行判断（兜底，与旧行为等价）
+    fallback_user = (
+        f"模板原文：\n{template}\n\n"
+        "========================================\n\n"
+        f"【待处理业务素材】\n{context}\n\n"
+        "【交付执行令】\n"
+        "请严格按上述输出模板规范提炼素材，直接输出最终 Markdown 正文。"
+    )
     return (
         template_prompt + FALLBACK_TEMPLATE_RULES,
-        f"{context}\n\n{template}",
+        fallback_user,
     )
 
 

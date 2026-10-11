@@ -290,7 +290,12 @@ def strip_char_budget_meta(text: str) -> str:
     return result.rstrip() + ("\n" if text.endswith("\n") else "")
 
 
-def _build_placeholder_user(context: str, template: str, segments: list[dict]) -> str:
+def _build_placeholder_user(
+    context: str,
+    template: str,
+    segments: list[dict],
+    requirement: str = "",
+) -> str:
     lines = [
         "类型：占位符模板。保留固定文字与表结构，只替换 [占位]。",
         "有据才写；无依据「未提及」；禁止照抄「如：」示范；禁止编造原文没有的环节/数字/履历。",
@@ -328,7 +333,25 @@ def _build_placeholder_user(context: str, template: str, segments: list[dict]) -
         else:
             field_no += 1
             lines.append(f"- {_describe_field(field_no, seg)}")
-    return f"{context}\n\n模板原文：\n{template}\n\n【模板结构解析】\n" + "\n".join(lines)
+
+    # === 静态契约前置区 (vLLM Prefix Cache Invariant Prefix: Token 0 连续复用) ===
+    contract_blocks = [
+        f"模板原文：\n{template}",
+        "【模板结构解析】\n" + "\n".join(lines),
+    ]
+    if requirement.strip():
+        contract_blocks.append(f"【模板写作要求】\n{requirement.strip()}")
+    contract_prefix = "\n\n".join(contract_blocks)
+
+    # === 动态业务素材与触发尾缀 (Dynamic Context Tail) ===
+    return (
+        f"{contract_prefix}\n\n"
+        "========================================\n\n"
+        "【待处理业务素材】\n"
+        f"{context}\n\n"
+        "【交付执行令】\n"
+        "请严格遵循上述【模板原文】与【模板结构解析】的栏目规范与排版契约，严格依据上述【待处理业务素材】进行提炼填充，直接输出最终 Markdown 正文。"
+    )
 
 
 def split_spec_template(template: str) -> tuple[str, str]:
@@ -354,14 +377,23 @@ def _build_spec_user(
     instruction: str,
     example: str,
 ) -> str:
-    return (
-        f"{context}\n\n"
+    # === 静态契约前置区 (vLLM Prefix Cache Invariant Prefix) ===
+    contract_prefix = (
         "本模板已判定为【类型二：格式规范模板】：示例仅演示格式，"
         "禁止照抄示例中的输入内容；严格按下方【格式指令】规定的字段结构与格式输出。\n\n"
         "【格式指令】\n"
         f"{instruction}\n\n"
         "【示例（仅演示格式）】\n"
         f"{example}"
+    )
+    # === 动态业务素材与触发尾缀 (Dynamic Context Tail) ===
+    return (
+        f"{contract_prefix}\n\n"
+        "========================================\n\n"
+        "【待处理业务素材】\n"
+        f"{context}\n\n"
+        "【交付执行令】\n"
+        "请严格按上述【格式指令】要求，依据上述【待处理业务素材】提炼生成最终 Markdown 正文。"
     )
 
 
@@ -391,14 +423,14 @@ def route_template(
             segments = parse_placeholder_template(template)
             if not any(s["kind"] == "field" for s in segments):
                 return None
-            user = _build_placeholder_user(context, template, segments)
-            if requirement.strip():
-                user = f"{user}\n\n【模板写作要求】\n{requirement.strip()}"
+            user = _build_placeholder_user(context, template, segments, requirement=requirement)
             return template_prompt + PLACEHOLDER_RULES, user
         if kind == "spec":
             instruction, example = split_spec_template(template)
             if not example:
                 return None
+            if requirement.strip():
+                instruction = f"{instruction}\n\n【模板写作要求】\n{requirement.strip()}"
             return template_prompt + SPEC_RULES, _build_spec_user(
                 context, template, instruction, example
             )

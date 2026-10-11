@@ -590,3 +590,49 @@ def test_domain_specific_accuracy_rules() -> None:
           "陈述归属不得丢" in understanding and "不得把一方说法改写成客观事实" in understanding
           and "才能写成已认定事实" in understanding, "")
 
+
+def test_prefix_caching_invariant_layout() -> None:
+    """验证 vLLM Prefix Caching 前缀布局：静态契约绝对置顶，动态素材后置，尾部附执行令。"""
+    from core.templates.router import route_template
+    from core.runner.prompt_utils import build_render_prompt
+
+    # 1. 占位符路由：不同会议素材必须共享 100% 相同的前缀
+    context_a = "这是第一场关于预算审批的会议材料，包含财务报表与人员汇报。"
+    context_b = "这是第二场关于架构重构的技术研讨，包含系统设计与集群规划。"
+
+    routed_a = route_template(context_a, FILL_TPL, "无模板提示", "模板系统提示")
+    routed_b = route_template(context_b, FILL_TPL, "无模板提示", "模板系统提示")
+
+    assert routed_a is not None and routed_b is not None
+    sys_a, user_a = routed_a
+    sys_b, user_b = routed_b
+
+    # 系统提示词完全一致
+    assert sys_a == sys_b
+    assert "模板系统提示" in sys_a
+
+    # 用户消息中：静态模板原文与结构解析必须置顶
+    assert user_a.startswith("模板原文：\n")
+    assert "【模板结构解析】" in user_a
+
+    # 静态契约前缀必须在动态上下文之前
+    idx_template_a = user_a.index("模板原文：")
+    idx_parse_a = user_a.index("【模板结构解析】")
+    idx_ctx_a = user_a.index("【待处理业务素材】")
+    idx_action_a = user_a.index("【交付执行令】")
+    assert idx_template_a < idx_parse_a < idx_ctx_a < idx_action_a
+
+    # 提取两请求在动态素材之前的共同前缀
+    prefix_a = user_a[:idx_ctx_a]
+    prefix_b = user_b[:idx_ctx_a]
+    assert prefix_a == prefix_b, "相同模板的不同会议请求，在【待处理业务素材】前的静态前缀必须字节级完全一致！"
+
+    # 执行令位于最末尾
+    assert user_a.strip().endswith("直接输出最终 Markdown 正文。")
+    assert user_b.strip().endswith("直接输出最终 Markdown 正文。")
+
+    # 2. 兜底渲染链路同样遵循静态前置规范
+    fb_sys, fb_user = build_render_prompt(context_a, "# 固定简单模板\n内容", "无模板提示", "模板系统提示")
+    assert fb_user.startswith("模板原文：\n# 固定简单模板")
+    assert fb_user.index("模板原文：") < fb_user.index("【待处理业务素材】") < fb_user.index("【交付执行令】")
+
