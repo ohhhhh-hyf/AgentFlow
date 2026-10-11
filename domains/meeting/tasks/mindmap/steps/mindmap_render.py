@@ -2,10 +2,52 @@ from __future__ import annotations
 
 from collections.abc import AsyncIterator
 
+import re
 from infra.llm import LLMClient
 from core.runner.prompt_utils import build_render_prompt
 
 from ..prompts import MINDMAP_RENDER_PROMPT, MINDMAP_RENDER_TEMPLATE_PROMPT
+
+
+def normalize_mindmap_outline(text: str) -> str:
+    """确定性思维导图大纲拓扑门禁与清洗器。
+
+    1. 去除 Markdown 代码块包裹（```markdown / ```）；
+    2. 剔除 Markdown 表格语法行（包含 |---| 或首尾以 | 闭合的表格行）；
+    3. 深度拓扑降级：将 5 级及以上标题（^#{5,}\s+(.*)）平铺降级为 4 级叶子 `    - \1`；
+    4. 超长节点截断：叶子行内容若超过 35 字，智能截断至 32 字 + '...';
+    """
+    if not text or not text.strip():
+        return text or ""
+    lines = text.strip().splitlines()
+    cleaned_lines: list[str] = []
+    in_code_block = False
+    for line in lines:
+        s = line.strip()
+        if s.startswith("```"):
+            in_code_block = not in_code_block
+            continue
+        # 过滤表格行
+        if s.startswith("|") and s.endswith("|"):
+            continue
+        if re.match(r"^\|?[\s\-:]+\|[\s\-:|]+$", s):
+            continue
+        # 5 级及以上标题降级为 4 级列表项
+        m_deep = re.match(r"^#{5,}\s*(.*)$", s)
+        if m_deep:
+            heading_text = m_deep.group(1).strip()
+            line = f"    - {heading_text}"
+            s = line.strip()
+        # 超长叶子截断
+        m_bullet = re.match(r"^(\s*[-*•]\s+)(.*)$", line)
+        if m_bullet:
+            prefix = m_bullet.group(1)
+            content = m_bullet.group(2).strip()
+            if len(content) > 35:
+                content = content[:32] + "..."
+            line = f"{prefix}{content}"
+        cleaned_lines.append(line)
+    return "\n".join(cleaned_lines)
 
 
 class MindmapRender:
@@ -27,9 +69,10 @@ class MindmapRender:
         prompt, user = self._prompt_and_user(approved_context, template)
         temp = 0.0 if (template or "").strip() else None
         try:
-            return await self.client.text(prompt, user, temperature=temp, label="mindmap/render")
+            raw = await self.client.text(prompt, user, temperature=temp, label="mindmap/render")
         except TypeError:
-            return await self.client.text(prompt, user, label="mindmap/render")
+            raw = await self.client.text(prompt, user, label="mindmap/render")
+        return normalize_mindmap_outline(raw)
 
     async def stream(
         self, approved_context: str, template: str = ""

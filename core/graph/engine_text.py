@@ -213,20 +213,17 @@ def render_risk_items(items: list[dict]) -> str:
 
     格式规范：
     1. 板块主行：{板块序号}. **[{业务板块}]**
-    2. 列表风险项：   - {风险核心隐患描述}({风险级别} · {责任主体})
+    2. 列表风险项：   - {风险核心隐患描述} ({责任主体})
     3. 卡片属性块（条件输出，缩进 5 空格接 > ）：
-       - 潜在影响：{客观陈述后果或连锁反应}（必出）
-       - 应对方案：{预案动作或整改措施}（条件输出）
+       - 触发诱因：{爆发前提/触发条件}
+       - 潜在危害：{客观陈述后果或连锁反应}
+       - 现场对策：{预案动作或整改措施}
     """
     if not items:
         return "暂无明确风险事项"
 
     _invalid = {"null", "none", "无", "未提及", "未明确", "待排期", "待指定", "-", "待认领", "未分配", "待定", "待确认"}
-    _sev_map = {
-        "high": "高风险", "medium": "中风险", "low": "低风险",
-        "高": "高风险", "中": "中风险", "低": "低风险",
-        "高风险": "高风险", "中风险": "中风险", "低风险": "低风险",
-    }
+    _placeholder_risks = {"有风险", "存在风险", "风险隐患", "暂无风险", "存在隐患", "潜在风险", "风险", "无风险", "待评估", "风险较大", "有一定风险"}
 
     # 1. 话题归类聚合（保持初次出现的先后顺序）
     groups: dict[str, list[dict]] = {}
@@ -234,7 +231,7 @@ def render_risk_items(items: list[dict]) -> str:
         if not isinstance(item, dict):
             continue
         risk_raw = str(item.get("risk") or "").strip()
-        if not risk_raw:
+        if not risk_raw or len(risk_raw) < 4 or risk_raw.lower() in _invalid or risk_raw in _placeholder_risks:
             continue
         cat = str(item.get("category") or "").strip()
         if not cat and (risk_raw.startswith("【") or risk_raw.startswith("[")):
@@ -264,26 +261,25 @@ def render_risk_items(items: list[dict]) -> str:
             else:
                 risk = risk_raw
 
-            sev_key = str(item.get("severity") or "medium").lower().strip()
-            sev = _sev_map.get(sev_key, "中风险")
-
             owner = str(item.get("owner") or "").strip()
+            trigger = str(item.get("trigger_condition") or "").strip()
             impact = str(item.get("impact") or "").strip()
             mitigation = str(item.get("mitigation") or "").strip()
 
             if owner and owner.lower() not in _invalid:
-                meta_display = f"{sev} · {owner}"
+                topic_lines.append(f"   - {risk} ({owner})")
             else:
-                meta_display = f"{sev}"
+                topic_lines.append(f"   - {risk}")
 
-            topic_lines.append(f"   - {risk}({meta_display})")
-
+            # 触发诱因（条件输出）
+            if trigger and trigger.lower() not in _invalid:
+                topic_lines.append(f"     > 触发诱因：{trigger}")
             # 潜在危害（条件输出）
             if impact and impact.lower() not in _invalid:
                 topic_lines.append(f"     > 潜在危害：{impact}")
-            # 应对措施（条件输出）
+            # 现场对策（条件输出）
             if mitigation and mitigation.lower() not in _invalid:
-                topic_lines.append(f"     > 应对措施：{mitigation}")
+                topic_lines.append(f"     > 现场对策：{mitigation}")
 
         topic_blocks.append("\n".join(topic_lines))
 

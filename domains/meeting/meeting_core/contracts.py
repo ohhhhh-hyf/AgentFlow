@@ -105,16 +105,16 @@ ACTION_HINTS_FIELD = ObjListField("action_hints", [
     StrField("owner", "原文明示的负责人/承诺人姓名；无明确负责人时为null"),
     StrField("timing", "原文时间约束（如「XX前完成」「会后」「尽快」），保留原文表达；无时为null"),
     StrField("condition", "触发条件（如「若XX未确认」「等XX到位」），保留原文；无时为null"),
+    StrField("collaborators", "原文明示的协同对象/配合方；无明确协同方为null"),
+    StrField("acceptance", "原文明示的交付标准或验收判定；无明确标准为null"),
     StrField("topic", "所属议题标题（对应topics[].title）；无对应时为null"),
-    EnumField("kind", ACTION_HINT_KINDS),
     StrField("evidence", "原文中支撑此行动线索的一句话"),
 ])
 
 RISK_HINTS_FIELD = ObjListField("risk_hints", [
     StrField("risk", "原文风险表述（可截取含信号片段），与risks列表条目可对应"),
     StrField("topic", "所属议题标题；无对应时为null"),
-    EnumField("signal_type", RISK_SIGNAL_TYPES),
-    StrField("severity_evidence", "原文强度措辞原句（如「必须尽快」「影响较大」「小问题」）；无时为null"),
+    StrField("trigger", "原文明确提及的爆发前提/触发诱因；未提及为null"),
     StrField("impact", "原文明确的影响后果；无时为null"),
     StrField("mitigation", "原文已有的应对措施；未提为null"),
     StrField("owner", "原文明示的负责人姓名；无或为占位符时为null"),

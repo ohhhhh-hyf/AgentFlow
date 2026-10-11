@@ -19,6 +19,25 @@ def _empty_render_text(draft: dict) -> str:
     return f"{title}\n\n暂无结构化段落"
 
 
+def clamp_brief_minutes(text: str, max_chars: int = 600) -> str:
+    """brief 模式字数熔断门禁：限制正文在 max_chars 以内，保持高管速览极度精炼。"""
+    if not text or len(text) <= max_chars:
+        return text or ""
+
+    cutoff = min(len(text), max_chars - 35)
+    last_nl = text.rfind("\n", 0, cutoff)
+    if last_nl > 250:
+        truncated = text[:last_nl].rstrip()
+    else:
+        last_period = text.rfind("。", 0, cutoff)
+        if last_period > 250:
+            truncated = text[:last_period + 1].rstrip()
+        else:
+            truncated = text[:cutoff].rstrip()
+
+    return truncated + "\n\n> 💡 *(速览模式字数熔断：正文已自动脱水收敛至骨架)*"
+
+
 class MultiStylesRender:
     """Render the approved 多样式纪要 result."""
 
@@ -48,7 +67,12 @@ class MultiStylesRender:
         if blocked is not None:
             return blocked
         prompt, user = self._prompt_and_user(approved_context, template)
-        return await self.client.text(prompt, user, label="minutes_styles/render")
+        rendered = await self.client.text(prompt, user, label="minutes_styles/render")
+        draft = _draft_from_context(approved_context)
+        mode = str(draft.get("mode") or "").strip().lower()
+        if mode == "brief":
+            rendered = clamp_brief_minutes(rendered, max_chars=600)
+        return rendered
 
     async def stream(
         self, approved_context: str, template: str = ""

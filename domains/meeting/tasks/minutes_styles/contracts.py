@@ -58,6 +58,74 @@ def _strip_repeated_title(title: str, content: str) -> str:
     return text
 
 
+LEGAL_SECTION_TITLES: dict[str, list[str]] = {
+    "brief": ["核心结论", "关键决策", "重大风险"],
+    "topic": ["总体概括", "分类议题", "后续安排"],
+    "review": ["评审结论", "方案对比", "遗留事项"],
+    "retro": ["现状说明", "原因分析", "改进措施"],
+    "alignment": ["对齐共识", "各方责任", "接口约定"],
+}
+
+TITLE_MAPPINGS: dict[str, dict[str, str]] = {
+    "brief": {
+        "结论": "核心结论", "核心成果": "核心结论", "会议总结": "核心结论",
+        "决策": "关键决策", "定调决议": "关键决策", "决议": "关键决策",
+        "风险": "重大风险", "潜在风险": "重大风险", "隐患": "重大风险",
+    },
+    "topic": {
+        "概况": "总体概括", "背景": "总体概括", "概述": "总体概括", "综合概述": "总体概括",
+        "议题": "分类议题", "讨论事项": "分类议题", "专项议题": "分类议题",
+        "安排": "后续安排", "后续行动": "后续安排", "待办事项": "后续安排", "后续计划": "后续安排",
+    },
+    "review": {
+        "结论": "评审结论", "评审结果": "评审结论", "定调": "评审结论",
+        "对比": "方案对比", "方案权衡": "方案对比", "方案选型": "方案对比",
+        "遗留": "遗留事项", "遗留问题": "遗留事项", "待跟进": "遗留事项",
+    },
+    "retro": {
+        "现状": "现状说明", "背景与现状": "现状说明", "问题现状": "现状说明",
+        "原因": "原因分析", "根因分析": "原因分析", "问题根因": "原因分析",
+        "措施": "改进措施", "整改措施": "改进措施", "行动对策": "改进措施", "后续改进": "改进措施",
+    },
+    "alignment": {
+        "共识": "对齐共识", "达成共识": "对齐共识", "对齐事项": "对齐共识",
+        "责任": "各方责任", "责任分工": "各方责任", "分工明确": "各方责任",
+        "约定": "接口约定", "协作约定": "接口约定", "接口规范": "接口约定",
+    },
+}
+
+
+def normalize_minutes_styles_sections(data: dict) -> dict:
+    """校验草稿 sections 中的 title 是否属于当前模式对应的法定标题集合，若出现异类栏目自动重命名映射。"""
+    mode = str(data.get("mode") or "").strip().lower()
+    sections = data.get("sections")
+    if not isinstance(sections, list) or not mode or mode not in LEGAL_SECTION_TITLES:
+        return data
+
+    legal = LEGAL_SECTION_TITLES[mode]
+    synonyms = TITLE_MAPPINGS.get(mode, {})
+
+    for idx, sec in enumerate(sections):
+        if not isinstance(sec, dict):
+            continue
+        cur_title = str(sec.get("title") or "").strip()
+        if cur_title in legal:
+            continue
+
+        mapped = None
+        for keyword, legal_title in synonyms.items():
+            if keyword in cur_title:
+                mapped = legal_title
+                break
+
+        if not mapped:
+            mapped = legal[idx] if idx < len(legal) else legal[-1]
+
+        sec["title"] = mapped
+
+    return data
+
+
 def enforce_minutes_styles_sections(data: dict) -> None:
     """只挡住完全空稿；能收口的段落就留下，不因个别段形态否掉整份输出。"""
     sections = data.get("sections")
@@ -75,6 +143,7 @@ def enforce_minutes_styles_sections(data: dict) -> None:
     if not cleaned:
         raise OutputValidationError("sections 不能为空")
     data["sections"] = cleaned
+    normalize_minutes_styles_sections(data)
 
 
 class MultiStylesGenerationContract(GenerationContract):

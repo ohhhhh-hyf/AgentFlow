@@ -13,6 +13,32 @@ from ..prompts import (
 )
 
 
+def validate_action_roster(items: list[dict], roster: set[str]) -> list[dict]:
+    """比对 owner 与在册参会人员名单，清洗幻觉人名与占位符。"""
+    if not items:
+        return []
+    _invalid = {"null", "none", "待认领", "未分配", "待定", "待确认", "未提及", "未明确", "无", "-"}
+    out: list[dict] = []
+    for item in items:
+        if not isinstance(item, dict):
+            continue
+        it = dict(item)
+        owner = str(it.get("owner") or "").strip()
+        if not owner or owner.lower() in _invalid:
+            it["owner"] = ""
+        elif roster:
+            # 允许在册人名、包含在册人名、或者带有“组/团队/部门/项目组/中台/专家组/架构/PMO/QA/DBA”等组织角色词
+            is_valid = (
+                owner in roster
+                or any(p in owner for p in roster)
+                or any(kw in owner for kw in ("组", "团队", "部门", "中台", "委员会", "室", "中心", "PMO", "QA", "DBA", "架构", "专班"))
+            )
+            if not is_valid:
+                it["owner"] = ""
+        out.append(it)
+    return out
+
+
 class ActionItemsRender:
     """把已批准的待办提取结果渲染为最终输出（与纪要渲染对称）。
 
@@ -61,7 +87,7 @@ class ActionItemsRender:
 
     @staticmethod
     def extract_actions(state: MeetingState) -> list[dict]:
-        """从 state 中提取最终待办列表（降级兜底用，不调 LLM）。
+        """从 state 中提取最终待办列表（降级兜底用，不调 LLM，比对在册名单校验责任人）。
 
         客观视角：全员已分配待办 + 未分配待办；
         个人视角：仅用户本人待办。
@@ -77,7 +103,20 @@ class ActionItemsRender:
             items.extend(actions.get("unassigned_actions") or [])
         else:
             items = list(actions.get("my_actions") or [])
-        return items
+
+        roster: set[str] = set()
+        mu = state.get("meeting_understanding") or {}
+        if isinstance(mu, dict):
+            for p in mu.get("participants") or []:
+                if isinstance(p, str) and p.strip():
+                    roster.add(p.strip())
+                elif isinstance(p, dict) and p.get("name"):
+                    roster.add(str(p["name"]).strip())
+        user_name = (state.get("user") or {}).get("name")
+        if user_name and str(user_name).strip():
+            roster.add(str(user_name).strip())
+
+        return validate_action_roster(items, roster)
 
     @staticmethod
     def render_items(items: list[dict]) -> str:
@@ -85,10 +124,11 @@ class ActionItemsRender:
 
         格式规范：
         1. 板块主行：{板块序号}. **[{业务板块}]**
-        2. 待办列表项：   - {动词开头的具体事项}({责任主体})
+        2. 待办列表项：   - {动词开头的具体事项} (责任人：{责任主体})
         3. 卡片属性块（条件输出）：
-           - 交付时限：{截止节点}
-           - 交付成果：{交付产物}
+           - 时间节点：{时间锚点/截止节点}
+           - 协同配合：{协同对象/配合方}
+           - 交付验收：{验收标准/交付产物}
            - 前置依赖：{前置条件}
         """
         if not items:
@@ -133,31 +173,25 @@ class ActionItemsRender:
                     task = task_raw
 
                 owner = str(item.get("owner") or "").strip()
-                deadline = str(item.get("deadline") or "").strip()
-                deliverable = str(item.get("deliverable") or "").strip()
+                timing = str(item.get("timing_anchor") or item.get("deadline") or "").strip()
+                collab = str(item.get("collaborators") or "").strip()
+                acceptance = str(item.get("acceptance_criteria") or item.get("deliverable") or "").strip()
                 dependency = str(item.get("dependency") or "").strip()
 
-                prio_key = str(item.get("priority") or "medium").lower().strip()
-                prio_map = {
-                    "high": "高优先", "medium": "中优先", "low": "低优先",
-                    "高": "高优先", "中": "中优先", "低": "低优先",
-                    "高优先": "高优先", "中优先": "中优先", "低优先": "低优先",
-                }
-                prio_display = prio_map.get(prio_key, "中优先")
                 if owner and owner.lower() not in _invalid:
-                    meta_display = f"{prio_display} · {owner}"
+                    topic_lines.append(f"   - {task} (责任人：{owner})")
                 else:
-                    meta_display = f"{prio_display}"
+                    topic_lines.append(f"   - {task}")
 
-                topic_lines.append(f"   - {task}({meta_display})")
-
-                # 条件输出属性块
-                if deadline and deadline.lower() not in _invalid:
-                    topic_lines.append(f"     > 完成时限：{deadline}")
-                if deliverable and deliverable.lower() not in _invalid:
-                    topic_lines.append(f"     > 交付标准：{deliverable}")
+                # 条件输出属性块（有内容才输出，无内容整行隐去）
+                if timing and timing.lower() not in _invalid:
+                    topic_lines.append(f"     > 时间节点：{timing}")
+                if collab and collab.lower() not in _invalid:
+                    topic_lines.append(f"     > 协同配合：{collab}")
+                if acceptance and acceptance.lower() not in _invalid:
+                    topic_lines.append(f"     > 交付验收：{acceptance}")
                 if dependency and dependency.lower() not in _invalid:
-                    topic_lines.append(f"     > 前置条件：{dependency}")
+                    topic_lines.append(f"     > 前置依赖：{dependency}")
 
             topic_blocks.append("\n".join(topic_lines))
 

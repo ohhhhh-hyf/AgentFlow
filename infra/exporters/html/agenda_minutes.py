@@ -586,20 +586,29 @@ def format_agenda_minutes_markdown(draft: dict[str, Any]) -> str:
             lines.append("")
 
         # 4. 后续行动 (仅当存在实际 action_items 时输出，否则彻底不渲染)
-        actions = it.get("action_items") or it.get("action_commitments") or []
-        if actions:
+        raw_actions = it.get("action_items") or it.get("action_commitments") or []
+        valid_actions: list[Any] = []
+        for act in raw_actions:
+            if isinstance(act, dict):
+                task = str(act.get("task") or act.get("action") or act.get("content") or "").strip()
+                if task and task not in ("暂无", "无", "null", "none", "-", "待定"):
+                    valid_actions.append(act)
+            elif isinstance(act, str) and act.strip() and act.strip() not in ("暂无", "无", "null", "none", "-", "待定"):
+                valid_actions.append(act.strip())
+
+        if valid_actions:
             lines.append("#### 4. 后续行动")
             lines.extend([
                 "| 责任人 | 跟进事项与交付目标 | 时限节点 |",
                 "| :--- | :--- | :--- |",
             ])
-            for act in actions:
+            for act in valid_actions:
                 if isinstance(act, dict):
                     owner = str(act.get("owner") or act.get("responsible") or "待定").strip()
                     task = str(act.get("task") or act.get("action") or act.get("content") or "后续跟进").strip()
                     deadline = str(act.get("deadline") or act.get("time") or act.get("due_date") or "近期").strip()
                     lines.append(f"| {owner} | {task} | {deadline} |")
-                elif isinstance(act, str) and act.strip():
+                elif isinstance(act, str):
                     lines.append(f"| 待定 | {act.strip()} | 近期 |")
             lines.append("")
 
@@ -834,27 +843,29 @@ def render_agenda_minutes_html(
             conclusion_content = f'<ul class="res-box-list">{items_html}</ul>'
 
         # 4. 后续行动 (仅当存在实际 action_items 时输出，否则彻底不渲染)
-        actions = it.get("action_items") or it.get("action_commitments") or []
-        if actions:
-            act_rows = []
-            for a in actions:
-                if isinstance(a, dict):
-                    owner = _safe_str(a.get("owner") or a.get("responsible") or "待定")
-                    task = _safe_str(a.get("task") or a.get("action") or a.get("content") or "后续推进")
-                    deadline = _safe_str(a.get("deadline") or a.get("time") or a.get("due_date") or "近期")
-                elif isinstance(a, str) and a.strip():
-                    owner = "待定"
-                    task = _safe_str(a.strip())
-                    deadline = "近期"
-                else:
+        raw_actions = it.get("action_items") or it.get("action_commitments") or []
+        act_rows = []
+        for a in raw_actions:
+            if isinstance(a, dict):
+                task = _safe_str(a.get("task") or a.get("action") or a.get("content") or "")
+                if not task or task in ("暂无", "无", "null", "none", "-", "待定"):
                     continue
-                act_rows.append(f"""
-                <tr>
-                    <td><strong>{escape(owner)}</strong></td>
-                    <td>{_md_inline(task)}</td>
-                    <td><span class="deadline-tag">{escape(deadline)}</span></td>
-                </tr>
-                """)
+                owner = _safe_str(a.get("owner") or a.get("responsible") or "待定")
+                deadline = _safe_str(a.get("deadline") or a.get("time") or a.get("due_date") or "近期")
+            elif isinstance(a, str) and a.strip() and a.strip() not in ("暂无", "无", "null", "none", "-", "待定"):
+                owner = "待定"
+                task = _safe_str(a.strip())
+                deadline = "近期"
+            else:
+                continue
+            act_rows.append(f"""
+            <tr>
+                <td><strong>{escape(owner)}</strong></td>
+                <td>{_md_inline(task)}</td>
+                <td><span class="deadline-tag">{escape(deadline)}</span></td>
+            </tr>
+            """)
+        if act_rows:
             action_section_html = f"""
             <div class="pillar-section">
                 <div class="pillar-label"><span class="pillar-num">4</span> 后续行动</div>

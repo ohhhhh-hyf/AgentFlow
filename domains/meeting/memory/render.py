@@ -1800,11 +1800,14 @@ def _parse_risks_from_text(text: str) -> list[dict[str, Any]]:
                 else:
                     risks[-1]["severity"] = "medium"
                 continue
+            if re.match(r"^(?:触发诱因|触发条件|诱因)[:：]", clean_sub):
+                risks[-1]["trigger_condition"] = re.sub(r"^(?:触发诱因|触发条件|诱因)[:：]\s*", "", clean_sub)
+                continue
             if re.match(r"^(?:潜在危害|潜在影响|危害|影响)[:：]", clean_sub):
                 risks[-1]["impact"] = re.sub(r"^(?:潜在危害|潜在影响|危害|影响)[:：]\s*", "", clean_sub)
                 continue
-            if re.match(r"^(?:应对方案|应对措施|整改方案|整改措施|应对)[:：]", clean_sub):
-                risks[-1]["mitigation"] = re.sub(r"^(?:应对方案|应对措施|整改方案|整改措施|应对)[:：]\s*", "", clean_sub)
+            if re.match(r"^(?:现场对策|应对方案|应对措施|整改方案|整改措施|应对)[:：]", clean_sub):
+                risks[-1]["mitigation"] = re.sub(r"^(?:现场对策|应对方案|应对措施|整改方案|整改措施|应对)[:：]\s*", "", clean_sub)
                 continue
             if re.match(r"^(?:责任主体|责任人|负责人|排查人|跟进人)[:：]", clean_sub):
                 risks[-1]["owner"] = re.sub(r"^(?:责任主体|责任人|负责人|排查人|跟进人)[:：]\s*", "", clean_sub)
@@ -1864,6 +1867,7 @@ def _parse_risks_from_text(text: str) -> list[dict[str, Any]]:
                     "risk": raw_risk,
                     "severity": sev,
                     "source": "",
+                    "trigger_condition": "",
                     "impact": "",
                     "mitigation": "",
                     "owner": owner,
@@ -2115,14 +2119,21 @@ def _parse_actions_from_text(text: str) -> list[dict[str, Any]]:
             if re.match(r"^(?:责任主体|负责人|责任人|执行人)[:：]", clean_sub):
                 actions[-1]["owner"] = re.sub(r"^(?:责任主体|负责人|责任人|执行人)[:：]\s*", "", clean_sub)
                 continue
-            if re.match(r"^(?:完成时限|交付时限|截止时间|截止|交付时间)[:：]", clean_sub):
-                actions[-1]["deadline"] = re.sub(r"^(?:完成时限|交付时限|截止时间|截止|交付时间)[:：]\s*", "", clean_sub)
+            if re.match(r"^(?:时间节点|完成时限|交付时限|截止时间|截止|交付时间)[:：]", clean_sub):
+                dl = re.sub(r"^(?:时间节点|完成时限|交付时限|截止时间|截止|交付时间)[:：]\s*", "", clean_sub)
+                actions[-1]["deadline"] = dl
+                actions[-1]["timing_anchor"] = dl
                 continue
-            if re.match(r"^(?:交付标准|交付成果|交付产物|交付物|成果|产出)[:：]", clean_sub):
-                actions[-1]["deliverable"] = re.sub(r"^(?:交付标准|交付成果|交付产物|交付物|成果|产出)[:：]\s*", "", clean_sub)
+            if re.match(r"^(?:协同配合|协同对象|协同团队|配合方|协同)[:：]", clean_sub):
+                actions[-1]["collaborators"] = re.sub(r"^(?:协同配合|协同对象|协同团队|配合方|协同)[:：]\s*", "", clean_sub)
                 continue
-            if re.match(r"^(?:前置条件|前置依赖|依赖)[:：]", clean_sub):
-                actions[-1]["dependency"] = re.sub(r"^(?:前置条件|前置依赖|依赖)[:：]\s*", "", clean_sub)
+            if re.match(r"^(?:交付验收|验收标准|交付标准|交付成果|交付产物|交付物|成果|产出)[:：]", clean_sub):
+                deliv = re.sub(r"^(?:交付验收|验收标准|交付标准|交付成果|交付产物|交付物|成果|产出)[:：]\s*", "", clean_sub)
+                actions[-1]["deliverable"] = deliv
+                actions[-1]["acceptance_criteria"] = deliv
+                continue
+            if re.match(r"^(?:前置依赖|前置条件|依赖)[:：]", clean_sub):
+                actions[-1]["dependency"] = re.sub(r"^(?:前置依赖|前置条件|依赖)[:：]\s*", "", clean_sub)
                 continue
             if re.match(r"^(?:优先级|级别|优先程度)[:：]", clean_sub):
                 p_val = re.sub(r"^(?:优先级|级别|优先程度)[:：]\s*", "", clean_sub)
@@ -2197,7 +2208,10 @@ def _parse_actions_from_text(text: str) -> list[dict[str, Any]]:
                     "task": raw_task,
                     "owner": owner,
                     "deadline": "",
+                    "timing_anchor": "",
+                    "collaborators": "",
                     "deliverable": "",
+                    "acceptance_criteria": "",
                     "priority": prio,
                     "dependency": "",
                     "evidence": "",

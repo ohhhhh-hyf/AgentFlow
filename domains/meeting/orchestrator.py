@@ -789,6 +789,11 @@ class _Nodes(DomainNodes):
                 radar_block = render_radar_block(state.get("user") or {})
             if radar_block:
                 parts.append(radar_block)
+        elif line_name in {"actions", "risks"}:
+            # actions/risks 线同样注入程序判定的命中表，提供本人被点名/指派的确定性证据硬约束
+            hit_block = str(state.get("user_hits_block") or "").strip()
+            if hit_block:
+                parts.append(hit_block)
         parts.append(f"会议理解：\n{_json(pack)}")
         perspective = self._compact_perspective(state.get("perspective_profile") or {})
         if perspective:

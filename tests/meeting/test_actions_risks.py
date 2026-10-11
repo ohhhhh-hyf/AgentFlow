@@ -18,34 +18,32 @@ def test_action_items_text_render():
             "category": "网关压测流控",
             "task": "完成 SDK 适配补丁并进行 2000 QPS 压测",
             "owner": "张伟",
-            "priority": "high",
-            "deadline": "周五 18:00 前",
-            "deliverable": "压测报告与 API 文档",
+            "timing_anchor": "周五 18:00 前",
+            "acceptance_criteria": "压测报告与 API 文档",
             "dependency": "基础架构组签发临时 Token",
         },
         {
             "category": "网关压测流控",
             "task": "申请预发布集群机器配额",
             "owner": "待认领",
-            "priority": "medium",
-            "deadline": None,
-            "deliverable": None,
+            "timing_anchor": None,
+            "acceptance_criteria": None,
             "dependency": None,
         },
     ]
 
     text = ActionItemsRender.render_items(items)
     assert "1. **[网关压测流控]**" in text
-    assert "- 完成 SDK 适配补丁并进行 2000 QPS 压测(高优先 · 张伟)" in text
-    assert "> 完成时限：周五 18:00 前" in text
-    assert "> 交付标准：压测报告与 API 文档" in text
-    assert "> 前置条件：基础架构组签发临时 Token" in text
-    assert "- 申请预发布集群机器配额(中优先)" in text
+    assert "- 完成 SDK 适配补丁并进行 2000 QPS 压测 (责任人：张伟)" in text
+    assert "> 时间节点：周五 18:00 前" in text
+    assert "> 交付验收：压测报告与 API 文档" in text
+    assert "> 前置依赖：基础架构组签发临时 Token" in text
+    assert "- 申请预发布集群机器配额" in text
     assert "待认领" not in text
     # 极简项不应出现未明确占位符
-    assert "完成时限：无" not in text
-    assert "交付标准：无" not in text
-    assert "前置条件：无" not in text
+    assert "时间节点：无" not in text
+    assert "交付验收：无" not in text
+    assert "前置依赖：无" not in text
 
 
 def test_risk_items_text_render():
@@ -54,15 +52,14 @@ def test_risk_items_text_render():
         {
             "category": "核心系统稳定性",
             "risk": "压测 QPS 超过 2000 时网关频繁断流",
-            "severity": "high",
             "owner": "架构组",
+            "trigger_condition": "单机房并发流量突增 > 2000 QPS",
             "impact": "交易链路雪崩并造成资损",
             "mitigation": "临时扩容 4 台网关，本周内完成异步化改造",
         },
         {
             "category": "核心系统稳定性",
             "risk": "鉴权网关跨机房调用单点超时抖动",
-            "severity": "medium",
             "owner": "待认领",
             "impact": "高峰期引发重试风暴",
             "mitigation": None,
@@ -71,12 +68,15 @@ def test_risk_items_text_render():
 
     text = render_risk_items(items)
     assert "1. **[核心系统稳定性]**" in text
-    assert "- 压测 QPS 超过 2000 时网关频繁断流(高风险 · 架构组)" in text
+    assert "- 压测 QPS 超过 2000 时网关频繁断流 (架构组)" in text
+    assert "> 触发诱因：单机房并发流量突增 > 2000 QPS" in text
     assert "> 潜在危害：交易链路雪崩并造成资损" in text
-    assert "> 应对措施：临时扩容 4 台网关，本周内完成异步化改造" in text
-    assert "- 鉴权网关跨机房调用单点超时抖动(中风险)" in text
+    assert "> 现场对策：临时扩容 4 台网关，本周内完成异步化改造" in text
+    assert "- 鉴权网关跨机房调用单点超时抖动" in text
     assert "待认领" not in text
-    assert "应对措施：无" not in text
+    assert "现场对策：无" not in text
+    assert "高风险" not in text
+    assert "中风险" not in text
 
 
 def test_action_html_flow_render():

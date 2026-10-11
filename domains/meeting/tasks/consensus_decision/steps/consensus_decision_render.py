@@ -54,11 +54,14 @@ class ConsensusDecisionRender:
 
     @staticmethod
     def extract_issues(state: MeetingState) -> list[dict]:
-        """从 state 中提取最终议题列表（结构化产出）。"""
+        """从 state 中提取最终议题列表（结构化产出并经过确定性门禁修复）。"""
+        from .consensus_decision_gate import validate_and_repair_consensus_issues
+
         draft = (
             (state.get("lines") or {})
             .get("consensus_decision", {})
             .get("draft")
             or {}
         )
-        return list(draft.get("issues") or [])
+        raw_issues = list(draft.get("issues") or [])
+        return validate_and_repair_consensus_issues(raw_issues)

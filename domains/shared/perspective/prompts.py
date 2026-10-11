@@ -39,7 +39,10 @@ PERSPECTIVE_MODELING_SYSTEM_PROMPT = """你是「视角建模 Agent」。本系�
 - **真人**：标记该姓名被提及处（如 participants / actions.owner / context_and_debate）、其职责范围内事项、focus_thing 与 focus_person 涉及的议题节点（重点提取 actions、risks、key_metrics 与 decisions）、影响其工作/决策/风险的事项  
 - **职业模板**：按 focus_areas / responsibilities / interests **逐类**扫描当前输入材料；不要求原文出现这个职业名。每一类只要当前输入材料有对应事实，都必须标记，禁止只盯发言更密的轨道而整类漏记  
 - **客观**：标记全局进展、资源时间约束、跨组协调、范围纳入与排除、对团队有影响的决策与风险；遵守 principles / constraints  
-- 落在本视角关注域内的金额、时限、口径、承诺、范围边界，标记时带上输入材料中的数字和日期，不要只标议题名  
+- **权责边界三级契约（明确分级，严格归口）**：
+  1. **直接责任（My Action）**：原文明确点名/本人认领/被指派负责 → 记入 possible_actions 并标注「原文承诺」；
+  2. **协同关注（Stakeholder）**：作为协同方、配合人或参与研讨但未直接承揽 → 记入 attention_points 或 stakeholders，不可提升为直接责任待办；
+  3. **背景环境（Context）**：未提及本人或仅属于宏观背景/他组专属事项 → 仅记入 relevant_topics，不得进入 possible_actions。
 - **未标记内容不得进入任何字段**
 
 ### 第三步：逐字段产出

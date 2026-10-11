@@ -887,6 +887,52 @@ def _sentence_candidates(
     return out
 
 
+def _classify_keypoint_hit_level(
+    source: str,
+    sentence: str,
+    evidence: str,
+    df: dict[str, int] | None = None,
+    n_docs: int = 0,
+) -> str | None:
+    """在编辑距离 + 滑动 n-gram + 语义特征融合阶段，区分「强溯源」与「弱溯源」。
+
+    - "strong"：高置信度同指，直接落钉；
+    - "weak"：中置信度弱关联，加注 weak 标记避免粗暴丢弃；
+    - None：存在主张冲突或未达到关联阈值。
+    """
+    if not evidence or _claim_incompatible(source, sentence):
+        return None
+    if _claim_incompatible(source, evidence):
+        return None
+    if _claim_incompatible(evidence, sentence):
+        return None
+
+    ratio, span, grams = _claim_score(source, sentence, df, n_docs)
+    ev_ratio, ev_span, ev_grams = _claim_score(source, evidence)
+
+    # 1. 强溯源判定（逐字/近字高重合，或三方语义强关联）
+    if span >= 6:
+        return "strong"
+    if ratio >= 0.35 and grams >= 3 and ev_ratio >= 0.20 and ev_grams >= 2:
+        return "strong"
+    if _related_strong(source, sentence, df=df, n_docs=n_docs) and (
+        _related(source, evidence) or _related_strong(source, evidence)
+    ):
+        return "strong"
+
+    # 2. 弱溯源判定（中等重合，同指弱关联，保留并打上 weak 标记）
+    if span >= 4 and (ev_ratio >= 0.15 or _related(source, evidence)):
+        return "weak"
+    if ratio >= 0.25 and grams >= 2 and ev_ratio >= 0.15:
+        return "weak"
+    if _related(source, sentence, df=df, n_docs=n_docs) and (
+        _related(source, evidence) or _related_strong(source, evidence)
+    ):
+        return "weak"
+
+    return None
+
+
 def _high_confidence_keypoint_hit(
     source: str,
     sentence: str,
@@ -895,26 +941,7 @@ def _high_confidence_keypoint_hit(
     n_docs: int = 0,
 ) -> bool:
     """关键点落钉只收高置信：来源、正文句、原文证据三者需同指。"""
-    if not evidence or _claim_incompatible(source, sentence):
-        return False
-    if _claim_incompatible(source, evidence):
-        return False
-    if _claim_incompatible(evidence, sentence):
-        return False
-    ratio, span, grams = _claim_score(source, sentence, df, n_docs)
-    ev_ratio, ev_span, ev_grams = _claim_score(source, evidence)
-    # 链式同指：evidence 是按 source 从原文定位出的依据（source↔evidence 有据），
-    # 三对冲突均已查过。故正文句只要逐字/近字承载 source（span≥6）即可置信，
-    # 不再苛求 evidence↔正文句的字面 tie——正文常是口语原文的复合改写，字面会稀释。
-    if span >= 6:
-        return True
-    if ratio >= 0.35 and grams >= 3 and ev_ratio >= 0.20 and ev_grams >= 2:
-        return True
-    if _related_strong(source, sentence, df=df, n_docs=n_docs) and (
-        _related(source, evidence) or _related_strong(source, evidence)
-    ):
-        return True
-    return False
+    return _classify_keypoint_hit_level(source, sentence, evidence, df=df, n_docs=n_docs) == "strong"
 
 
 def _cap_similar_keypoint_pins(
@@ -1454,9 +1481,10 @@ def backfill_alignments(
         for sentence in hits:
             if pinned_here >= total_cap:
                 break
-            if not _high_confidence_keypoint_hit(
+            hit_level = _classify_keypoint_hit_level(
                 keypoint, sentence, evidence, df=df, n_docs=n_docs
-            ):
+            )
+            if not hit_level:
                 continue
             sec = index.sentence_sections.get(sentence, "")
             if sec and section_counts.get(sec, 0) >= section_cap:
@@ -1467,13 +1495,16 @@ def backfill_alignments(
             seen.add(marker)
             section_counts[sec] = section_counts.get(sec, 0) + 1
             pinned_here += 1
+            conf = _evidence_mode(keypoint, evidence, transcript)
+            if hit_level == "weak":
+                conf = f"weak_{conf}" if conf else "weak"
             kept.append(
                 {
                     "sentence": sentence,
                     "kind": "keypoint",
                     "source": keypoint,
                     "evidence": evidence,
-                    "confidence": _evidence_mode(keypoint, evidence, transcript),
+                    "confidence": conf,
                 }
             )
         kp_pinned += pinned_here

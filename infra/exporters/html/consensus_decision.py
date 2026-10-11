@@ -91,7 +91,10 @@ def format_consensus_decision_markdown(draft: dict[str, Any], title: str = "共�
     """把结构化草稿格式化为两栏、零 emoji 的决策备忘录 Markdown。
     表格中输出极简动作定调；第二栏决策细节严格按【背景 ➔ 讨论要点 ➔ 得失权衡 ➔ 最终决议】展开。
     """
-    issues = draft.get("issues") or []
+    from domains.meeting.tasks.consensus_decision.steps.consensus_decision_gate import (
+        validate_and_repair_consensus_issues,
+    )
+    issues = validate_and_repair_consensus_issues(draft.get("issues") or [])
 
     display_title = _safe_str(title) or "共识决策"
     if not any(display_title.endswith(s) for s in ("决策", "共识", "决议", "报告")):
