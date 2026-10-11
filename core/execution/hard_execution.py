@@ -929,9 +929,9 @@ def _top_level_sections(text: str) -> list[tuple[str, str]]:
     return [(title, "\n".join(parts)) for title, parts in merged]
 
 
-# 「一段写完，约 N–M 字」：总述栏单段口径——模型写成多段时由程序合并成一段
+# 兼容中括号 []、圆括号 ()，覆盖「单段概括」「单段交代」「一段写完」「一段话概括」「一段话概览」等全库 32 个模板
 _FIRST_COL_PARA_RE = re.compile(
-    r"[（(]一段写完[，,]?\s*约?\s*\d+\s*[–—-]\s*\d+\s*字[)）]"
+    r"[\[（(]?(?:单段(?:概括|交代)|一段(?:写完|话概括[^()（）\[\]]*|话概览[^()（）\[\]]*)?)[，,]?\s*[（(]?\s*约?\s*\d+\s*[–—-]\s*\d+\s*字"
 )
 
 

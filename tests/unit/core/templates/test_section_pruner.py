@@ -1431,3 +1431,76 @@ def test_meta_omission_leak_pruning() -> None:
           cleaned_nat)
 
 
+def test_first_column_single_paragraph_synergy() -> None:
+    """首栏单段控制与 Prefix Caching 协同优化完整闭环验证：
+    1. 安全气囊正则：_FIRST_COL_PARA_RE 覆盖全库 31 个散文单段总述模板（100% 覆盖）；
+    2. 契约生成层：总述类栏位统一生成【形态要求：必须且只写一段完整概括，严禁换行分段】；
+    3. 后处理折叠：模拟 LLM 输出 4 段式长篇概览，物理合并为恰好 1 个自然段。
+    """
+    from core.execution.gate import (
+        _FIRST_COL_PARA_RE,
+        _merge_first_column_paragraphs,
+    )
+    from core.templates.router._base import _describe_field
+    from core.templates.router._detect import parse_placeholder_template, split_template_meta
+
+    d = _active_dir()
+    templates = list(d.glob("*.md"))
+    assert len(templates) >= 30, f"模板数量不足: {len(templates)}"
+
+    # 1. 验证全库模板正则覆盖率
+    matched = []
+    unmatched = []
+    for tpl_file in templates:
+        content = tpl_file.read_text(encoding="utf-8")
+        if _FIRST_COL_PARA_RE.search(content):
+            matched.append(tpl_file.name)
+        else:
+            unmatched.append(tpl_file.name)
+
+    # 唯有 consensus_decision 首栏为表格说明行（非散文单段），其余全部命中
+    check(
+        "安全气囊正则覆盖全部 31 个散文单段总述模板",
+        len(matched) == len(templates) - 1 and "consensus_decision.md" in unmatched,
+        f"matched={len(matched)}, unmatched={unmatched}",
+    )
+
+    # 2. 验证典型模板的首栏契约生成
+    gm_path = d / "general_minutes.md"
+    clean, req = split_template_meta(gm_path.read_text(encoding="utf-8"))
+    segs = parse_placeholder_template(clean)
+    fields = [s for s in segs if s.get("kind") == "field"]
+    assert fields, "通用纪要字段解析失败"
+    desc1 = _describe_field(1, fields[0])
+    check(
+        "通用纪要首栏生成显式单段契约",
+        "【形态要求】：必须且只写一段完整概括，严禁换行分段" in desc1
+        and "约 250–350 字" in desc1,
+        desc1,
+    )
+
+    # 3. 验证典型多段输出的物理级合并折叠
+    multi_summary = (
+        "## 全文摘要\n\n"
+        "本次例会围绕数字化平台升级开展研讨，第一阶段由技术组汇报架构演进。\n\n"
+        "第二阶段针对高并发场景下的链路可用性进行重点评估，各方就降级方案达成一致。\n\n"
+        "第三阶段讨论了跨部门协同机制，明确了下周一启动联合联调测试。\n\n"
+        "第四阶段由管理层总结定调，强调按既定里程碑推进交付，确保按时上线。\n\n"
+        "## 要点梳理\n\n"
+        "- **议题一**：架构升级细节。\n"
+        "- **议题二**：可用性评估。\n"
+    )
+    merged, note = _merge_first_column_paragraphs(multi_summary, clean)
+    check("多段摘要被成功检测并记录合并 note", note is not None and "全文摘要" in note, f"{note}")
+
+    summary_part = merged.split("## 全文摘要")[1].split("## 要点梳理")[0].strip()
+    paras = [p for p in summary_part.split("\n\n") if p.strip()]
+    check("多段摘要被确定性合并为恰好 1 个自然段", len(paras) == 1, f"paras={len(paras)}")
+    check(
+        "合并后正文字符完整无丢失",
+        all(k in summary_part for k in ["第一阶段", "第二阶段", "第三阶段", "第四阶段"]),
+        summary_part,
+    )
+
+
+

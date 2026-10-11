@@ -365,30 +365,37 @@ def _describe_field(index: int, seg: dict) -> str:
     # 概况判定只看**首个分句**：避免 hint 里顺带提到"摘要/与…对应"（指别的栏目）被误判成本栏要写成概况段；
     # 以「从/由/根据…」开头的句子说的是取材来源（如「从概况与原文提取下一步」），不是本栏要写成概况。
     lead = re.split(r"[。；;，,]", hint, maxsplit=1)[0][:24]
+    is_single_para_explicit = bool(re.search(r"单段|一段|一段话", hint))
+    is_overview = (
+        bool(re.search(r"概括|概况|概览|综述|摘要|交代", lead))
+        and not re.match(r"[\s*]*(?:从|由|根据|依据|参考|结合)", lead)
+    )
     if seg.get("heading"):
         # 标题行上的占位（如 `## [自主概括的议程模块名称]`）：值 = 标题文字，不是正文段落
         desc += "：只写该栏标题文字（短语；不要 # 前缀、不要句号、不要写成段落）"
-    elif re.search(r"概括|概况|概览|综述|摘要", lead) and not re.match(
-        r"[\s*]*(?:从|由|根据|依据|参考|结合)", lead
+    elif is_single_para_explicit or is_overview or (
+        index == 1 and not re.search(r"表|表格|按下表|由下表|按清单|列表|逐条|一行一项|###", hint)
     ):
-        # 概括/背景类栏位是最容易被灌满的位置，逐栏给出默认上限与边界；栏位自己声明了尺寸的以模板为准。
-        if _HAS_SIZE_SPEC_RE.search(hint):
-            desc += "：按模板说明编写（明细归各自栏目，本栏不复述）；禁止单句空话"
-        elif index == 1:
+        # 概括/背景类栏位是最容易被灌满的位置，无论是否声明尺寸，必须强化【形态要求：单段交付、严禁换行分段】
+        size_hint = ""
+        m_size = re.search(r"(?:约\s*)?\d+\s*[–—-]\s*\d+\s*字|\d+\s*字以内", hint)
+        if m_size:
+            size_hint = f"（严格控制在 {m_size.group(0)} 以内）"
+        elif _HAS_SIZE_SPEC_RE.search(hint):
+            size_hint = "（严格服从模板字数上限）"
+        else:
+            size_hint = "（不超过 400 字）"
+
+        if index == 1:
             desc += (
-                "：**只写一段完整概括，不超过 400 字**（服从上下文【篇幅预算】第 1 栏参考下限）；"
-                "明细内容归各自栏目，本栏不复述；禁止单句空话"
+                f"：**【形态要求】：必须且只写一段完整概括，严禁换行分段**{size_hint}；"
+                "按本栏说明把要素交代完整；明细内容归各自栏目，本栏不复述；禁止单句空话"
             )
         else:
             desc += (
-                "：**单栏上限 400 字（单段写完）**；只写该栏主题概括，"
+                f"：**【形态要求】：单栏上限 400 字（单段写完，严禁分段）**{size_hint}；只写该栏主题概括，"
                 "明细归各自栏目，本栏不复述；禁止单句空话"
             )
-    elif index == 1 and not _HAS_SIZE_SPEC_RE.search(hint):
-        desc += (
-            "：**只写一段完整概括，不超过 400 字**（服从上下文【篇幅预算】第 1 栏参考下限）；"
-            "按本栏说明把要素交代完整；明细内容归各自栏目，本栏不复述；禁止单句空话"
-        )
     if re.search(r"如[:：]", hint):
         desc += "【注意：hint 中「如：」后仅为写法示例，禁止原样照抄，须按内容来源重写】"
     return desc
