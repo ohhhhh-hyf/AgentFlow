@@ -1110,7 +1110,7 @@ def _prune_context_for_column(
                 try:
                     und = json.loads(body)
                     compact_und: dict[str, Any] = {}
-                    for field in ("decisions", "risks", "meeting_purpose", "meeting_brief", "open_questions"):
+                    for field in ("decisions", "risks", "action_hints", "meeting_purpose", "meeting_brief", "open_questions"):
                         if field in und and und[field]:
                             compact_und[field] = und[field]
                     if key_needles and "risks" in compact_und:

@@ -1,17 +1,23 @@
 from __future__ import annotations
 
-from domains.shared.supervisor import StructuredDomainSupervisor
+from core.execution.hard_execution import parse_perspective_mode
+from domains.shared.supervisor import GlobalSupervisor, StructuredDomainSupervisor
 
 from ....models import MinutesSupervisorReview
 from ..contracts import MINUTES_SUPERVISOR_OUTPUT_CONTRACT
-from ..prompts import MINUTES_SUPERVISOR_DOMAIN_PROMPT
+from ..prompts import (
+    MINUTES_OBJECTIVE_SUPERVISOR_PROMPT,
+    MINUTES_PERSONAL_SUPERVISOR_PROMPT,
+    MINUTES_SUPERVISOR_DOMAIN_PROMPT,
+)
 
 
 class MinutesGenerationSupervisor(StructuredDomainSupervisor):
     """纪要生成任务的领域监督者。
 
-    prompt = 全局整体标准（注入） + 纪要领域审核规则，
-    一次 LLM 调用完成双重评判，决定 approve / revise / reject。
+    双轨分流架构：
+    - 客观模式：挂载 MINUTES_OBJECTIVE_SUPERVISOR_PROMPT，聚焦全员覆盖度与公文体放行；
+    - 个人模式：挂载 MINUTES_PERSONAL_SUPERVISOR_PROMPT，聚焦个人动作省主语、看板合流与自适应降噪放行。
     """
 
     domain_prompt = MINUTES_SUPERVISOR_DOMAIN_PROMPT
@@ -19,3 +25,20 @@ class MinutesGenerationSupervisor(StructuredDomainSupervisor):
     output_contract = MINUTES_SUPERVISOR_OUTPUT_CONTRACT
     label = "minutes/supervisor"
     extra_kwargs = {"max_tokens": 3000}
+
+    async def review(self, context: str) -> MinutesSupervisorReview:
+        mode = parse_perspective_mode(context)
+        domain_prompt = (
+            MINUTES_PERSONAL_SUPERVISOR_PROMPT
+            if mode == "personal"
+            else MINUTES_OBJECTIVE_SUPERVISOR_PROMPT
+        )
+        system_prompt = GlobalSupervisor.build_prompt(domain_prompt)
+        return await self.client.structured(
+            system_prompt,
+            context,
+            self.review_model,
+            self.output_contract,
+            label=f"minutes/supervisor/{mode}",
+            **self.extra_kwargs,
+        )

@@ -141,15 +141,15 @@ def synthesize_perspective_profile(user: dict[str, Any] | None, table: HitTable)
         {
             "confidence": "high" if table.confidence == "high" else "medium",
             "name": name,
-            "inferred_role": role or "未提及",
             "personal_summary": summary,
-            "responsibilities": _intersect(profile.get("responsibilities"), hit_texts),
-            "possible_actions": actions,
             "attention_points": all_attention,
-            "relevant_topics": table.my_topics[:6],
+            "possible_actions": actions,
             "concerns": table.my_risks[:6],
-            "conclusions": table.my_decisions[:6],
             "evidence": table.evidence()[:8],
+            "responsibilities": _intersect(profile.get("responsibilities"), hit_texts),
+            "relevant_topics": table.my_topics[:6],
+            "open_questions": getattr(table, "my_open_questions", [])[:6],
+            "data_gaps": [],
         }
     )
     return profile_out

@@ -321,16 +321,37 @@ MINUTES_CARRY_MAP: dict[str, str] = {
 }
 
 
+_MINUTES_CONTRACT_KEYS = (
+    "headline",
+    "executive_summary",
+    "key_decisions",
+    "personally_relevant_points",
+    "risks_and_blockers",
+    "unresolved_questions",
+    "history_comparison",
+)
+
+
+def _ensure_all_minutes_keys(d: dict[str, Any]) -> dict[str, Any]:
+    for key in _MINUTES_CONTRACT_KEYS:
+        if key not in d:
+            d[key] = "" if key == "headline" else []
+    return d
+
+
 def enforce_minutes_draft(
     draft: dict[str, Any] | Any,
     understanding: dict[str, Any] | None,
     *,
     mode: str = "objective",
+    perspective: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """纪要草稿硬对齐：搬运字段措辞以会议理解为准。
 
     客观：三项全量拷贝。职业模板：按草稿下采（只删不改），对不上则回退全量。
     **真人：同样下采，但选空就是空**（不回退全量，见 ``subset_upstream_items``）。
+    真人模式下，允许结合视角模型中的 data_gaps 作为 risks_and_blockers 的合法来源，保护外部卡点。
+    返回字典严格闭环保证 7 个契约键完整无缺。
     """
     if hasattr(draft, "model_dump"):
         data = draft.model_dump()
@@ -347,11 +368,21 @@ def enforce_minutes_draft(
     )
     if not understanding or not any(understanding.values()):
         # 降级保护：上游理解为空或不可用时，不走下采覆写，保留已有草稿
-        return out
+        return _ensure_all_minutes_keys(out)
     mode_key = (mode or "objective").strip().lower()
     if mode_key not in _SUBSET_MODES:
-        return out
-    upstream = understanding or {}
+        return _ensure_all_minutes_keys(out)
+    upstream = dict(understanding or {})
+    # 个人模式安全守卫：允许 perspective 中的 data_gaps 作为合法卡点源，避免被清洗
+    if mode_key == "personal" and isinstance(perspective, dict):
+        gaps = [str(g).strip() for g in (perspective.get("data_gaps") or []) if str(g).strip()]
+        if gaps:
+            existing_risks = list(upstream.get("risks") or [])
+            for gap in gaps:
+                if gap not in existing_risks:
+                    existing_risks.append(gap)
+            upstream["risks"] = existing_risks
+
     for dst, src in MINUTES_CARRY_MAP.items():
         out[dst] = subset_upstream_items(
             upstream.get(src),
@@ -359,7 +390,7 @@ def enforce_minutes_draft(
             fallback_full=(mode_key != "personal"),
             preserve_groups=(mode_key == "personal"),
         )
-    return out
+    return _ensure_all_minutes_keys(out)
 
 
 _EMPTY_CELLS = frozenset(

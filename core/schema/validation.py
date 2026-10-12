@@ -85,10 +85,14 @@ def _review_check(value: dict, path: str) -> None:
 
 def _action(item: dict, path: str) -> None:
     required = {
+        "task",
+    }
+    allowed = {
         "task", "owner", "deadline", "priority",
         "status", "evidence", "confidence",
+        "category", "deliverable", "dependency",
+        "timing_anchor", "collaborators", "acceptance_criteria",
     }
-    allowed = required | {"category", "deliverable", "dependency"}
     if not isinstance(item, dict):
         raise OutputValidationError(f"{path} 必须是 JSON 对象")
     actual = set(item)
@@ -100,18 +104,30 @@ def _action(item: dict, path: str) -> None:
             f"多余={sorted(extra)}"
         )
     _string(item["task"], f"{path}.task")
-    _string(item["owner"], f"{path}.owner", nullable=True)
-    _string(item["deadline"], f"{path}.deadline", nullable=True)
-    _choice(item["priority"], {"high", "medium", "low"}, f"{path}.priority")
-    _choice(item["status"], {"explicit", "inferred"}, f"{path}.status")
-    _string(item["evidence"], f"{path}.evidence")
-    _choice(item["confidence"], {"high", "medium", "low"}, f"{path}.confidence")
+    if "owner" in item:
+        _string(item["owner"], f"{path}.owner", nullable=True)
+    if "deadline" in item:
+        _string(item["deadline"], f"{path}.deadline", nullable=True)
+    if "priority" in item and item["priority"] is not None:
+        _choice(item["priority"], {"high", "medium", "low"}, f"{path}.priority")
+    if "status" in item and item["status"] is not None:
+        _choice(item["status"], {"explicit", "inferred"}, f"{path}.status")
+    if "evidence" in item and item["evidence"] is not None:
+        _string(item["evidence"], f"{path}.evidence")
+    if "confidence" in item and item["confidence"] is not None:
+        _choice(item["confidence"], {"high", "medium", "low"}, f"{path}.confidence")
     if "category" in item:
         _string(item["category"], f"{path}.category", nullable=True)
     if "deliverable" in item:
         _string(item["deliverable"], f"{path}.deliverable", nullable=True)
     if "dependency" in item:
         _string(item["dependency"], f"{path}.dependency", nullable=True)
+    if "timing_anchor" in item:
+        _string(item["timing_anchor"], f"{path}.timing_anchor", nullable=True)
+    if "collaborators" in item:
+        _string(item["collaborators"], f"{path}.collaborators", nullable=True)
+    if "acceptance_criteria" in item:
+        _string(item["acceptance_criteria"], f"{path}.acceptance_criteria", nullable=True)
 
 
 def validate_supervisor_semantics(

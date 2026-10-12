@@ -467,13 +467,15 @@ def compact_perspective(profile: object) -> str:
         return ""
     keep = (
         "name",
-        "inferred_role",
         "personal_summary",
         "attention_points",
         "responsibilities",
         "possible_actions",
         "concerns",
         "relevant_topics",
+        "open_questions",
+        "data_gaps",
+        "evidence",
     )
     slim = {key: profile.get(key) for key in keep if profile.get(key) not in (None, "", [])}
     if not slim:

@@ -3,10 +3,16 @@ from __future__ import annotations
 import re
 from collections.abc import AsyncIterator
 
+from core.execution.hard_execution import parse_perspective_mode
 from core.runner.prompt_utils import build_render_prompt
 
 from infra.llm import LLMClient
-from ..prompts import MINUTES_RENDER_PROMPT, MINUTES_RENDER_TEMPLATE_PROMPT
+from ..prompts import (
+    MINUTES_OBJECTIVE_RENDER_PROMPT,
+    MINUTES_PERSONAL_RENDER_PROMPT,
+    MINUTES_RENDER_PROMPT,
+    MINUTES_RENDER_TEMPLATE_PROMPT,
+)
 
 
 def compact_untemplated_minutes(text: str) -> str:
@@ -145,11 +151,18 @@ class MinutesGenerationRender:
 
         模板分支逻辑由 tools.core.prompt_utils.build_render_prompt 提供：
         有模板时模板原样拼进用户消息（LLM 只替换占位符，其余逐字符保留）。
+        无模板时，根据视角模式动态分发客观或个人渲染提示词。
         """
+        mode = parse_perspective_mode(context)
+        untemplated_prompt = (
+            MINUTES_PERSONAL_RENDER_PROMPT
+            if mode == "personal"
+            else MINUTES_OBJECTIVE_RENDER_PROMPT
+        )
         return build_render_prompt(
             context,
             template,
-            MINUTES_RENDER_PROMPT,
+            untemplated_prompt,
             MINUTES_RENDER_TEMPLATE_PROMPT,
         )
 

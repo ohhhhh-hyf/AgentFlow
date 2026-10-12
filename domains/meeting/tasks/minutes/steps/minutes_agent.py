@@ -8,7 +8,8 @@ from core.execution.hard_execution import (
 )
 from ....models import Minutes
 from ..prompts import (
-    MINUTES_GENERATION_SYSTEM_PROMPT,
+    MINUTES_OBJECTIVE_GENERATION_PROMPT,
+    MINUTES_PERSONAL_GENERATION_PROMPT,
 )
 from ..contracts import MINUTES_GENERATION_OUTPUT_CONTRACT
 
@@ -16,24 +17,29 @@ from ..contracts import MINUTES_GENERATION_OUTPUT_CONTRACT
 class MinutesGenerationAgent:
     """基于会议理解和视角模型生成纪要草稿（个人视角或客观全员视角）。
 
-    强执行：搬运字段措辞对齐会议理解。客观全量拷贝；职业模板按下采
-    （只删不改，对不上则回退全量）；真人同样下采但**不回退全量**（选空即空，
-    否则"命中块让他只留自己的条"会被程序的全量回退抹掉）。杜绝改写与臆造。
+    双轨分流架构：
+    - 客观模式：挂载 MINUTES_OBJECTIVE_GENERATION_PROMPT，纯粹第三人称公文体；
+    - 个人模式：挂载 MINUTES_PERSONAL_GENERATION_PROMPT，作战秘书看板体。
     """
 
     def __init__(self, client: LLMClient) -> None:
         self.client = client
 
     async def run(self, shared_context: str) -> Minutes:
+        mode = parse_perspective_mode(shared_context)
+        system_prompt = (
+            MINUTES_PERSONAL_GENERATION_PROMPT
+            if mode == "personal"
+            else MINUTES_OBJECTIVE_GENERATION_PROMPT
+        )
         raw = await self.client.structured(
-            MINUTES_GENERATION_SYSTEM_PROMPT,
+            system_prompt,
             shared_context,
             Minutes,
             MINUTES_GENERATION_OUTPUT_CONTRACT,
-            label="minutes/agent",
+            label=f"minutes/agent/{mode}",
         )
         understanding = extract_labeled_json(shared_context, "会议理解")
-        mode = parse_perspective_mode(shared_context)
-        enforced = enforce_minutes_draft(raw, understanding, mode=mode)
+        perspective = extract_labeled_json(shared_context, "用户视角模型")
+        enforced = enforce_minutes_draft(raw, understanding, mode=mode, perspective=perspective)
         return Minutes.validate(enforced)
-

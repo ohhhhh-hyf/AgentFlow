@@ -18,34 +18,29 @@ class PerspectiveModelingGenerationContract(GenerationContract):
     fields = [
         EnumField("confidence", ["high", "medium", "low"]),
         StrField("name", "User name; empty when unavailable or objective mode"),
-        StrField("inferred_role", "Role inferred from source evidence"),
-        StrListField("responsibilities", "Responsibilities relevant to this input"),
-        StrListField("goals", "Goals relevant to this input"),
-        StrListField("concerns", "Risks, uncertainties, or concerns to track"),
-        StrListField("relevant_topics", "Topics directly relevant to the user or objective view"),
-        StrListField("evidence", "Specific source evidence supporting the model"),
         StrField(
             "personal_summary",
-            "2-4 sentence summary of what matters most to the user "
-            "(or to the whole team in objective mode) in this input; "
-            "an anchor downstream agents can quote directly",
+            "100-150字作战概览：立足核心承接事项与上下游协同卡点，紧凑具体，可被下游直接引用",
         ),
         StrListField(
             "attention_points",
-            "3-8 concrete items in this input most important to the user, "
-            "each anchored to source text (paraphrase-free); cover each "
-            "profile focus class that has source evidence",
+            "3-8 concrete items in this input most important to the user, anchored to source text",
         ),
         StrListField(
             "possible_actions",
-            "Actions the user may need or be expected to take, inferred from "
-            "profile + source; each item states its basis; objective mode: "
-            "team-wide actions",
+            "Actions the user needs or is expected to take, marked with 「原文承诺」 or inferred basis",
+        ),
+        StrListField("concerns", "Risks, uncertainties, or personal concerns to track"),
+        StrListField("evidence", "Specific source evidence supporting the model"),
+        StrListField("responsibilities", "Responsibilities relevant to this input"),
+        StrListField("relevant_topics", "Topics directly relevant to the user"),
+        StrListField(
+            "open_questions",
+            "Unresolved questions or alignment items the user needs to follow up after meeting",
         ),
         StrListField(
-            "conclusions",
-            "Key conclusions or decisions stated in the input, each anchored "
-            "to source text (paraphrase-free); empty if the input states none",
+            "data_gaps",
+            "External dependencies or missing materials blocking the user delivery",
         ),
     ]
 

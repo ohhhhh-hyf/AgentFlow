@@ -412,17 +412,19 @@ def attribute_to_speaker(
 ) -> dict[str, str]:
     """给每条文本找它在原文里出自哪位发言人 → ``{条目原文: 称谓}``（对不上就不出现）。
 
-    用途：把"这条风险/未决是谁提出、谁在跟"变成**可照抄的事实**，而不是让模型去推理
-    （2026-09-22 实测：契约要求按人分组，但上游 risks 无归属、模型又受"措辞用上游原文"
-    约束，三轮真链路都没分组）。只在**能对上**时才给：条目按去标点归一化后被某个发言块
-    包含、或与之的最长公共连续子串达到 ``_MIN_MATCH_CHARS`` 且覆盖条目
-    ``_MATCH_NUM/_MATCH_DEN`` 以上）才返回该块首称呼；对不上一律不给（调用方按
-    "看不出归属"处理）。块首属于 ``self_addresses``（全称/别称）时统一返回 ``self_name``。
+    三级极速漏斗：
+    - Level 0: probe in block 极速短路（覆盖多数原文包含情况，微秒级响应）；
+    - Level 1: 预缓存 set(block) 字符集，交集率 < 35% 瞬间排除，剔除无关段落；
+    - Level 2: 仅对 Top-2 候选段落执行最长公共连续子串精确比对。
     """
     blocks = speaker_blocks(transcript)
     if not blocks or not items:
         return {}
-    norm = [(speaker, _compact_for_match(block)) for speaker, block in blocks]
+    # 预计算归一化块与字符集合（避免在双重循环内重复构造 set(block)）
+    norm = [
+        (speaker, _compact_for_match(block), set(_compact_for_match(block)))
+        for speaker, block in blocks
+    ]
     addresses = [a for a in (self_addresses or []) if a]
 
     def _canonical(speaker: str) -> str:
@@ -436,25 +438,43 @@ def attribute_to_speaker(
         probe = _compact_for_match(key)
         if not probe:
             continue
-        hit = ""
         probe_chars = set(probe)
-        best = 0
-        for speaker, block in norm:
-            if probe in block:  # 完全包含：直接命中（短条目也能算，只需过 _MIN_EXACT_CHARS）
-                hit, best = speaker, len(probe)
+        probe_len = len(probe)
+
+        # Level 0: 完全包含快速短路
+        level0_hit = ""
+        for speaker, block_text, _ in norm:
+            if probe in block_text:
+                level0_hit = speaker
                 break
-            if len(probe_chars & set(block)) * 2 < len(probe_chars):
-                continue  # 字符重合太低，不可能有长公共片段（省掉昂贵的比对）
-            size = _longest_common_run(probe, block)
+        if level0_hit:
+            if probe_len >= _MIN_EXACT_CHARS:
+                out[key] = _canonical(level0_hit)
+            continue
+
+        # Level 1: 字符交集位运算快速初筛
+        min_overlap = max(1, int(len(probe_chars) * 0.35))
+        candidates: list[tuple[int, str, str]] = []
+        for speaker, block_text, block_set in norm:
+            overlap = len(probe_chars & block_set)
+            if overlap >= min_overlap:
+                candidates.append((overlap, speaker, block_text))
+
+        if not candidates:
+            continue
+
+        # Level 2: 仅对 Top-2 候选进行精密比对
+        candidates.sort(key=lambda x: x[0], reverse=True)
+        best = 0
+        hit = ""
+        for _, speaker, block_text in candidates[:2]:
+            size = _longest_common_run(probe, block_text)
             if size > best:
                 hit, best = speaker, size
+
         if not hit:
             continue
-        if best == len(probe):  # 完全包含
-            if best >= _MIN_EXACT_CHARS:
-                out[key] = _canonical(hit)
-            continue
-        if best >= _MIN_MATCH_CHARS and best * _MATCH_DEN >= len(probe) * _MATCH_NUM:
+        if best >= _MIN_MATCH_CHARS and best * _MATCH_DEN >= probe_len * _MATCH_NUM:
             out[key] = _canonical(hit)
     return out
 

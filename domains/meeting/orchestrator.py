@@ -530,16 +530,19 @@ class _Nodes(DomainNodes):
 
     @staticmethod
     def _compact_perspective(profile: dict | None) -> dict:
-        """视角模型瘦身：保留与任务相关性判断有关的字段。"""
+        """视角模型瘦身：保留与任务相关性判断有关的 11 核心字段。"""
         if not isinstance(profile, dict):
             return {}
         keys = (
+            "name",
             "personal_summary",
             "attention_points",
             "responsibilities",
-            "goals",
+            "possible_actions",
             "concerns",
             "relevant_topics",
+            "open_questions",
+            "data_gaps",
             "evidence",
         )
         return {key: profile.get(key) for key in keys if profile.get(key)}
@@ -755,11 +758,18 @@ class _Nodes(DomainNodes):
             return "\n\n".join(parts)
         mode = self._mode_label(state)
         if line_name == "minutes":
-            fact_note = (
-                "说明：会议理解平铺议题与时序研讨段落是你的主事实源与导航索引，已包含全场决议、量化指标、落地行动与风险隐患。"
-                "撰写段落时，以各阶段议题节点的指标、决策与分歧脉络为事实骨架，对照会议原文定向补充具体论据细节与发言人表态。"
-                "顺应业务研讨推进脉络成段展开。裁剪视角时严格参考用户画像、命中表和用户视角模型。"
-            )
+            if mode == "personal":
+                fact_note = (
+                    "说明：会议理解平铺议题与时序研讨段落是你的主事实源与导航索引，已包含全场决议、量化指标、落地行动与风险隐患。"
+                    "撰写段落时，以各阶段议题节点的指标、决策与分歧脉络为事实骨架，对照会议原文定向补充具体论据细节与发言人表态。"
+                    "顺应业务研讨推进脉络成段展开。裁剪视角时严格参考用户画像、命中表和用户视角模型。"
+                )
+            else:
+                fact_note = (
+                    "说明：会议理解平铺议题与时序研讨段落是你的主事实源与导航索引，已包含全场决议、量化指标、落地行动与风险隐患。"
+                    "撰写段落时，以各阶段议题节点的指标、决策与分歧脉络为事实骨架，对照会议原文定向补充具体论据细节与发言人表态。"
+                    "顺应业务研讨推进脉络成段展开，客观全面呈现全场事实与全员分工。"
+                )
         else:
             fact_note = (
                 "说明：仅使用本任务上下文包中的事实；需要裁剪视角时参考用户画像和用户视角模型。"
@@ -768,36 +778,42 @@ class _Nodes(DomainNodes):
         parts = [
             f"视角模式：{mode}",
             fact_note,
-            f"用户画像：\n{_json(self._compact_user(state.get('user') or {}))}",
         ]
-        # 偏好直接编成指令进纪要线（不走视角建模）：只调顺序与详略，事实口径不变。
-        # 客观视角返回空串（object.json 本来也没有个人偏好）。
-        if line_name in PREFERENCE_LINES:
-            preference_block = build_preference_block(state.get("user") or {})
-            if preference_block:
-                parts.append(preference_block)
-            # 命中表（程序判定，非模型推断）：他是谁、哪些待办是他的、依据在哪。
-            # 跳过视角建模时它是唯一的"按人裁剪"依据；跑建模时也用它复核。
-            hit_block = str(state.get("user_hits_block") or "").strip()
-            if hit_block:
-                parts.append(hit_block)
-            groups_block = str(state.get("user_action_groups_block") or "").strip()
-            if groups_block:
-                parts.append(groups_block)
-            radar_block = str(state.get("user_radar_block") or "").strip()
-            if not radar_block and line_name in PREFERENCE_LINES:
-                radar_block = render_radar_block(state.get("user") or {})
-            if radar_block:
-                parts.append(radar_block)
-        elif line_name in {"actions", "risks"}:
-            # actions/risks 线同样注入程序判定的命中表，提供本人被点名/指派的确定性证据硬约束
-            hit_block = str(state.get("user_hits_block") or "").strip()
-            if hit_block:
-                parts.append(hit_block)
+        if mode == "personal":
+            # 个人模式：注入画像、偏好、命中表、分组骨架、重点关注雷达
+            parts.append(f"用户画像：\n{_json(self._compact_user(state.get('user') or {}))}")
+            if line_name in PREFERENCE_LINES:
+                preference_block = build_preference_block(state.get("user") or {})
+                if preference_block:
+                    parts.append(preference_block)
+                hit_block = str(state.get("user_hits_block") or "").strip()
+                if hit_block:
+                    parts.append(hit_block)
+                groups_block = str(state.get("user_action_groups_block") or "").strip()
+                if groups_block:
+                    parts.append(groups_block)
+                radar_block = str(state.get("user_radar_block") or "").strip()
+                if not radar_block and line_name in PREFERENCE_LINES:
+                    radar_block = render_radar_block(state.get("user") or {})
+                if radar_block:
+                    parts.append(radar_block)
+            elif line_name in {"actions", "risks"}:
+                hit_block = str(state.get("user_hits_block") or "").strip()
+                if hit_block:
+                    parts.append(hit_block)
+        elif mode == "role_template":
+            parts.append(f"用户画像：\n{_json(self._compact_user(state.get('user') or {}))}")
+            if line_name in {"actions", "risks"}:
+                hit_block = str(state.get("user_hits_block") or "").strip()
+                if hit_block:
+                    parts.append(hit_block)
+
         parts.append(f"会议理解：\n{_json(pack)}")
-        perspective = self._compact_perspective(state.get("perspective_profile") or {})
-        if perspective:
-            parts.append(f"用户视角模型：\n{_json(perspective)}")
+
+        if mode != "objective":
+            perspective = self._compact_perspective(state.get("perspective_profile") or {})
+            if perspective:
+                parts.append(f"用户视角模型：\n{_json(perspective)}")
         # 纪要成段需要原文细节；溯源/多样式/导图/共识决策同样需要原文。其它线优先依赖 evidence。
         if line_name in {"minutes", "minutes_trace", "minutes_styles", "mindmap", "consensus_decision"}:
             parts.append(f"会议原文：\n{state.get('transcript') or ''}")

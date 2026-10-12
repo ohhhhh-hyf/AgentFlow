@@ -157,9 +157,8 @@ def test_view_directive() -> None:
           "栏名、结构与事实口径照模板不变" in PERSONAL_VIEW_DIRECTIVE, "")
     check("模板要求「客观、非人格化」时，人称与取舍以纪律为准（否则真人模式被模板按住）",
           "人称与取舍以本纪律为准" in PERSONAL_VIEW_DIRECTIVE, "")
-    check("整栏与他无关时给缺省兜底，不留空栏（空栏会触发回退重写）",
-          "不要留空栏" in PERSONAL_VIEW_DIRECTIVE
-          and "缺省写法" in PERSONAL_VIEW_DIRECTIVE, "")
+    check("整栏与他无关时自适应隐去（防注水裁剪）",
+          "自适应隐去" in PERSONAL_VIEW_DIRECTIVE or "不要留空栏" in PERSONAL_VIEW_DIRECTIVE, "")
     check("纪律含硬口径：末尾三栏按人分组（形状照抄 + 自己的在前不写姓名、他人的按姓名分组）",
           SELF_GROUP_ROW in PERSONAL_VIEW_DIRECTIVE
           and "组名行独占一行" in PERSONAL_VIEW_DIRECTIVE
@@ -480,8 +479,13 @@ def test_skip_and_synthesize() -> None:
     synthesized = synthesize_perspective_profile(rich, build_hit_table(rich, hit))
     PerspectiveModeling.validate(synthesized)  # 全字段必填：缺键会在这里炸
     check("合成结果过 schema（全字段齐、四个字符串非空）", True, "")
-    check("合成：name/inferred_role 取画像",
-          synthesized["name"] == "赵衡" and synthesized["inferred_role"] == "后端工程师", "")
+    check("合成：name 取画像", synthesized["name"] == "赵衡", "")
+    check("合成：精炼至 11 核心字段（无僵尸字段）",
+          set(synthesized.keys()) == {
+              "confidence", "name", "personal_summary", "attention_points",
+              "possible_actions", "concerns", "evidence", "responsibilities",
+              "relevant_topics", "open_questions", "data_gaps",
+          }, str(list(synthesized.keys())))
     check("合成：attention_points = 命中条目（不含空壳发言人名）",
           synthesized["attention_points"] == ["接口联调周五前给测试"], str(synthesized["attention_points"]))
     check("合成：possible_actions 标「原文承诺」",
@@ -951,7 +955,7 @@ def test_unified_meeting_tree_perspective_modeling() -> None:
     profile = synthesize_perspective_profile(user, table)
     check("Profile合成：提取相关议题", "demo落地推进与性能压测" in profile.get("relevant_topics", []), str(profile.get("relevant_topics")))
     check("Profile合成：提取本人风险关注点", any("显存" in c for c in profile.get("concerns", [])), str(profile.get("concerns")))
-    check("Profile合成：提取拍板决议", any("输出压测报告" in c for c in profile.get("conclusions", [])), str(profile.get("conclusions")))
+    check("Profile合成：提取关注要点", any("输出压测报告" in c or "demo落地" in c for c in profile.get("attention_points", [])), str(profile.get("attention_points")))
 
     # 3. 三档梯次剪裁验证
     context = (

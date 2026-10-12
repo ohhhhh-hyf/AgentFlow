@@ -329,6 +329,59 @@ def test_risks_prompts_and_contracts_positive_hygiene():
     assert "扎堆中风险" not in combined
 
 
+def test_action_items_report_validation_new_schema():
+    """验证待办报告校验器（ActionItemsReport）完全兼容无 priority 及包含 timing_anchor/collaborators/acceptance_criteria 的新契约。"""
+    from domains.meeting.reports import ActionItemsReport
+
+    # 1. 纯新契约（无 priority，含时间节点、协同配合、交付验收）
+    payload = {
+        "actions": [
+            {
+                "category": "外业检查情况",
+                "task": "检查并处理卢萨卡点提升桶位置雨水倒灌问题，通过技术措施解决",
+                "owner": "施工组",
+                "deadline": "会后",
+                "timing_anchor": "会后",
+                "collaborators": "运维团队",
+                "acceptance_criteria": "通过技术措施解决雨水倒灌问题",
+                "deliverable": "整改方案与复测记录",
+                "dependency": "现场脚手架搭建就绪",
+                "status": "explicit",
+                "evidence": "检查并处理卢萨卡点提升桶位置雨水倒灌问题",
+                "confidence": "high",
+            }
+        ],
+        "quality_warning": None,
+        "personalized_text": "### 外业检查情况\n- 检查并处理卢萨卡点提升桶位置雨水倒灌问题",
+    }
+    report = ActionItemsReport.validate(payload)
+    assert len(report.actions) == 1
+    act = report.actions[0]
+    assert act["task"].startswith("检查并处理卢萨卡点")
+    assert act["owner"] == "施工组"
+    assert act["timing_anchor"] == "会后"
+    assert act["acceptance_criteria"] == "通过技术措施解决雨水倒灌问题"
+    assert "priority" not in act
+
+    # 2. 遗留数据兼容（含 legacy priority）
+    payload_legacy = {
+        "actions": [
+            {
+                "task": "临时修复防汛板",
+                "owner": "施工组",
+                "deadline": "今天",
+                "priority": "high",
+                "status": "explicit",
+                "evidence": "今天先把防汛板立起来",
+                "confidence": "high",
+            }
+        ]
+    }
+    report_legacy = ActionItemsReport.validate(payload_legacy)
+    assert len(report_legacy.actions) == 1
+    assert report_legacy.actions[0]["priority"] == "high"
+
+
 if __name__ == "__main__":
     import sys
     import pytest

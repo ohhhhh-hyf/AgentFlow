@@ -29,48 +29,45 @@ class PerspectiveModeling(ModelMixin):
 
     confidence: Literal["high", "medium", "low"]
     name: str
-    inferred_role: str
     personal_summary: str
-    responsibilities: list[str] = field(default_factory=list)
-    goals: list[str] = field(default_factory=list)
-    concerns: list[str] = field(default_factory=list)
-    relevant_topics: list[str] = field(default_factory=list)
-    evidence: list[str] = field(default_factory=list)
     attention_points: list[str] = field(default_factory=list)
     possible_actions: list[str] = field(default_factory=list)
-    conclusions: list[str] = field(default_factory=list)
+    concerns: list[str] = field(default_factory=list)
+    evidence: list[str] = field(default_factory=list)
+    responsibilities: list[str] = field(default_factory=list)
+    relevant_topics: list[str] = field(default_factory=list)
+    open_questions: list[str] = field(default_factory=list)
+    data_gaps: list[str] = field(default_factory=list)
 
     @classmethod
     def validate(cls, data: dict) -> "PerspectiveModeling":
         _exact_fields(data, [f.name for f in fields(cls)], cls.__name__)
         _choice(data["confidence"], {"high", "medium", "low"}, "confidence")
         _string(data["name"], "name")
-        _string(data["inferred_role"], "inferred_role")
         _string(data["personal_summary"], "personal_summary")
-        _string_list(data["responsibilities"], "responsibilities")
-        _string_list(data["goals"], "goals")
-        _string_list(data["concerns"], "concerns")
-        _string_list(data["relevant_topics"], "relevant_topics")
-        _string_list(data["evidence"], "evidence")
         _string_list(data["attention_points"], "attention_points")
         _string_list(data["possible_actions"], "possible_actions")
-        _string_list(data["conclusions"], "conclusions")
+        _string_list(data["concerns"], "concerns")
+        _string_list(data["evidence"], "evidence")
+        _string_list(data["responsibilities"], "responsibilities")
+        _string_list(data["relevant_topics"], "relevant_topics")
+        _string_list(data["open_questions"], "open_questions")
+        _string_list(data["data_gaps"], "data_gaps")
         return cls(**data)
 
 
 EMPTY_PERSPECTIVE_MODELING = {
     "confidence": "high",
     "name": "",
-    "inferred_role": "",
-    "responsibilities": [],
-    "goals": [],
-    "concerns": [],
-    "relevant_topics": [],
-    "evidence": [],
     "personal_summary": "",
     "attention_points": [],
     "possible_actions": [],
-    "conclusions": [],
+    "concerns": [],
+    "evidence": [],
+    "responsibilities": [],
+    "relevant_topics": [],
+    "open_questions": [],
+    "data_gaps": [],
 }
 
 
