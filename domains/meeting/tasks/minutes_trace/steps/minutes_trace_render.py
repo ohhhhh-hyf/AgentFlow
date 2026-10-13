@@ -48,6 +48,12 @@ def _topic_titles_from_context(context: str) -> list[str]:
     if not isinstance(understanding, dict):
         return []
     titles: list[str] = []
+    for seg in understanding.get("session_segments") or []:
+        if not isinstance(seg, dict):
+            continue
+        title = str(seg.get("segment_title") or "").strip()
+        if title and title not in titles:
+            titles.append(title)
     for topic in understanding.get("topics") or []:
         if not isinstance(topic, dict):
             continue

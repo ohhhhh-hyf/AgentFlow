@@ -663,7 +663,19 @@ def _understanding_pool(understanding: dict | None) -> list[str]:
             ev = str(hint.get("evidence") or "").strip()
             if ev and ev not in out:
                 out.append(ev)
-    # 4. 各议题的要点、结论、讨论与老树字段
+    # 4. 各研讨段落/议题的要点、结论、讨论与老树字段
+    for seg in understanding.get("session_segments") or []:
+        if isinstance(seg, dict):
+            t = " ".join(str(seg.get("segment_title") or "").split()).strip()
+            if t and t not in out:
+                out.append(t)
+            for kf in seg.get("key_facts") or []:
+                kft = " ".join(str(kf or "").split()).strip()
+                if kft and kft not in out:
+                    out.append(kft)
+            ctx = " ".join(str(seg.get("context_and_reasoning") or "").split()).strip()
+            if ctx and ctx not in out:
+                out.append(ctx)
     for topic in understanding.get("topics") or []:
         if isinstance(topic, dict):
             t = " ".join(str(topic.get("title") or "").split()).strip()
@@ -702,18 +714,62 @@ def _understanding_pool(understanding: dict | None) -> list[str]:
 
 
 def _build_topic_details(understanding: dict | None) -> dict[str, list[str]]:
-    """抽取各议题下的关键事实（要点、决议、行动、风险、讨论片段），建立 标题 -> 关键事实列表 映射。"""
+    """抽取各研讨段落/议题下的关键事实（要点、决议、行动、风险、讨论片段），建立 标题 -> 关键事实列表 映射。"""
     if not isinstance(understanding, dict):
         return {}
     out: dict[str, list[str]] = {}
     action_hints = understanding.get("action_hints") or []
     risk_hints = understanding.get("risk_hints") or []
 
+    # 1. 研讨时序段落 session_segments
+    for seg in understanding.get("session_segments") or []:
+        if not isinstance(seg, dict):
+            continue
+        title = str(seg.get("segment_title") or "").strip()
+        if not title:
+            continue
+        items: list[str] = [title]
+        for kf in seg.get("key_facts") or []:
+            kfs = str(kf or "").strip()
+            if kfs and kfs not in items:
+                items.append(kfs)
+        ctx = str(seg.get("context_and_reasoning") or "").strip()
+        if ctx and ctx not in items:
+            items.append(ctx)
+        for a in action_hints:
+            if not isinstance(a, dict):
+                continue
+            a_topic = str(a.get("topic") or "").strip()
+            if a_topic and (a_topic == title or a_topic in title or title in a_topic):
+                task = str(a.get("action") or "").strip()
+                assignee = str(a.get("owner") or "").strip()
+                deadline = str(a.get("timing") or "").strip()
+                parts = [p for p in (assignee, task, deadline) if p]
+                at = " ".join(parts).strip()
+                if at and at not in items:
+                    items.append(at)
+                ev = str(a.get("evidence") or "").strip()
+                if ev and ev not in items:
+                    items.append(ev)
+        for r in risk_hints:
+            if not isinstance(r, dict):
+                continue
+            r_topic = str(r.get("topic") or "").strip()
+            if r_topic and (r_topic == title or r_topic in title or title in r_topic):
+                rt = str(r.get("risk") or "").strip()
+                if rt and rt not in items:
+                    items.append(rt)
+                impact = str(r.get("impact") or "").strip()
+                if impact and impact not in items:
+                    items.append(impact)
+        out[title] = items
+
+    # 2. 兼容老数据结构 topics
     for topic in understanding.get("topics") or []:
         if not isinstance(topic, dict):
             continue
         title = str(topic.get("title") or "").strip()
-        if not title:
+        if not title or title in out:
             continue
         items: list[str] = [title]
         # 1. 平铺事实要点 key_points

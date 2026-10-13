@@ -289,6 +289,23 @@ def build_hit_table(user: dict[str, Any] | None, understanding: dict[str, Any] |
                     if item not in table.focus_thing_mentions:
                         table.focus_thing_mentions.append(item)
 
+    # 2. 研讨时序段落 (session_segments) 阶段命中
+    for index, seg in enumerate(data.get("session_segments") or []):
+        if not isinstance(seg, dict):
+            continue
+        title = _clean(seg.get("segment_title"))
+        matched = _mentions(title, addresses, name)
+        if matched:
+            table.hits.append(Hit(f"session_segments[{index}]", title or matched, WEAK, matched))
+            if title and title not in table.my_topics:
+                table.my_topics.append(title)
+        for p in fps:
+            if p in title and title not in table.focus_person_statements:
+                table.focus_person_statements.append(title)
+        for t in fts:
+            if t in title and title not in table.focus_thing_mentions:
+                table.focus_thing_mentions.append(title)
+
     for index, topic in enumerate(data.get("topics") or []):
         if not isinstance(topic, dict):
             continue

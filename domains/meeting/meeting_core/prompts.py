@@ -20,7 +20,6 @@ MEETING_UNDERSTANDING_SYSTEM_PROMPT = """你是会议理解助手。你的任务
 - open_questions：尚未达成一致或明确会后另行确认的事项列表。
 - action_hints / risk_hints：若本次契约包含，提取包含动作/风险、责任人、时限及原文证据原句的线索。
 - debates：若本次契约包含，提取各方争议立场、论据与原句线索。
-- topics：若本次契约包含 topics，按议题模块提炼讨论脉络与要点。
 
 请严格按照指定的 JSON Schema 格式输出。"""
 

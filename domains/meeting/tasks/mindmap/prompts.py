@@ -14,7 +14,7 @@ MINDMAP_GENERATION_SYSTEM_PROMPT = """你是「会议思维导图大纲 Agent」
 
 1. **MeetingUnderstanding**：  
    - meeting_purpose → 根标题首选  
-   - session_segments / topics → 主分支候选（研讨阶段/议题直接对应一分支或叶子）  
+   - session_segments → 主分支候选（研讨阶段直接对应一分支或叶子）  
    - decisions / risks / open_questions → 独立分支或挂到对应议题下  
 2. **视角模型**：个人模式优先保留与用户相关要点，但**关键全局决策不可省**  
 3. **原文**：核对数字/人名/结论；禁止新增事实  

@@ -81,19 +81,6 @@ CORE_BASE_FIELDS: list[Field] = [
         StrField("org", "机构/单位/媒体名（照原文；没有为null）"),
     ]),
     SESSION_SEGMENTS_FIELD,
-    ObjListField("topics", [
-        StrField("module", "所属宏观业务领域/模块（如'核心架构优化'、'现场实体整改'、'交付与验收'，全场收敛为3~5个）"),
-        StrField("title", "议题名称/核心命题"),
-        StrField("discussion", "该议题的讨论经过、分歧脉络与定调依据（context_and_debate）：谁提出、怎么讨论、分歧在哪、定调依据为何，连贯饱满陈述（不复述 key_points 的事实）"),
-        StrListField("key_points", "该议题的核心要点（逐条列出，覆盖两类）：1. 硬核指标（数字/时限/金额/范围）；2. 核心论据与案例（立论依据/论证事实/反驳证据/典型案例）；不遗漏关键支撑事实"),
-        ObjListField("debates", [
-            StrField("speaker", "发言人/阵营"),
-            StrField("stance", "核心主张与观点立场"),
-            StrField("argument", "支撑论据或反驳理由"),
-        ], desc="该议题的观点交锋与论辩列表（学术研讨/辩论/思想争鸣时重点记录；企业例会无分歧可为[]）"),
-        StrField("conclusion", "该议题的结论或共识，无明确结论时为null"),
-        StrListField("participants", "原文中明确出现的发言人姓名列表"),
-    ]),
 ]
 
 DECISIONS_FIELD = StrListField("decisions", "已明确拍板/达成共识的结论（逐条列出、不遗漏；同类多项分别列出）")
@@ -107,13 +94,13 @@ ACTION_HINTS_FIELD = ObjListField("action_hints", [
     StrField("condition", "触发条件（如「若XX未确认」「等XX到位」），保留原文；无时为null"),
     StrField("collaborators", "原文明示的协同对象/配合方；无明确协同方为null"),
     StrField("acceptance", "原文明示的交付标准或验收判定；无明确标准为null"),
-    StrField("topic", "所属议题标题（对应topics[].title）；无对应时为null"),
+    StrField("topic", "所属研讨阶段或议题标题（对应session_segments[].segment_title）；无对应时为null"),
     StrField("evidence", "原文中支撑此行动线索的一句话"),
 ])
 
 RISK_HINTS_FIELD = ObjListField("risk_hints", [
     StrField("risk", "原文风险表述（可截取含信号片段），与risks列表条目可对应"),
-    StrField("topic", "所属议题标题；无对应时为null"),
+    StrField("topic", "所属研讨阶段或议题标题（对应session_segments[].segment_title）；无对应时为null"),
     StrField("trigger", "原文明确提及的爆发前提/触发诱因；未提及为null"),
     StrField("impact", "原文明确的影响后果；无时为null"),
     StrField("mitigation", "原文已有的应对措施；未提为null"),
@@ -129,7 +116,6 @@ ALL_CORE_FIELD_NAMES: frozenset[str] = frozenset({
     "scene",
     "speakers",
     "session_segments",
-    "topics",
     "decisions",
     "open_questions",
     "risks",
@@ -254,6 +240,8 @@ def build_core_contract_for_tasks(
                 "minutes_trace",
                 "consensus_decision",
                 "mindmap",
+                "actions",
+                "risks",
             )
         )
     )

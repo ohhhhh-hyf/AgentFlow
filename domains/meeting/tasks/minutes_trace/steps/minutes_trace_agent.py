@@ -104,10 +104,11 @@ def _extract_transcript(shared_context: str, understanding: dict) -> str:
     return transcript
 
 
-# trace 实际消费的理解字段：程序（topics/meeting_purpose）+ LLM
-# （meeting_brief/topics/decisions/risks/open_questions/action_hints/risk_hints/dependencies）。
+# trace 实际消费的理解字段：程序（session_segments/topics/meeting_purpose）+ LLM
+# （meeting_brief/session_segments/topics/decisions/risks/open_questions/action_hints/risk_hints/dependencies）。
 _TRACE_UNDERSTANDING_KEYS = (
     "meeting_brief",
+    "session_segments",
     "topics",
     "decisions",
     "risks",
@@ -134,7 +135,7 @@ def _trace_understanding(understanding: dict) -> dict:
 
 
 class MinutesTraceAgent:
-    """按议题树写客观平实纪要 + 对齐草稿；门禁在返回前执行。"""
+    """按研讨时序段落/议题写客观平实纪要 + 对齐草稿；门禁在返回前执行。"""
 
     def __init__(self, client: LLMClient) -> None:
         self.client = client
@@ -158,14 +159,21 @@ class MinutesTraceAgent:
                 f"会议理解：\n{json.dumps(llm_understanding, ensure_ascii=False, indent=2)}"
             )
 
-        topics = understanding.get("topics") or []
-        topic_titles = [
-            str(t.get("title") or "").strip()
-            for t in topics
-            if isinstance(t, dict) and str(t.get("title") or "").strip()
+        segments = understanding.get("session_segments") or []
+        segment_titles = [
+            str(s.get("segment_title") or "").strip()
+            for s in segments
+            if isinstance(s, dict) and str(s.get("segment_title") or "").strip()
         ]
-        if topic_titles:
-            topic_list = "\n".join(f"{i}. {title}" for i, title in enumerate(topic_titles, 1))
+        if not segment_titles:
+            topics = understanding.get("topics") or []
+            segment_titles = [
+                str(t.get("title") or "").strip()
+                for t in topics
+                if isinstance(t, dict) and str(t.get("title") or "").strip()
+            ]
+        if segment_titles:
+            topic_list = "\n".join(f"{i}. {title}" for i, title in enumerate(segment_titles, 1))
             parts.append(
                 f"【核心讨论主题参考】\n{topic_list}\n"
                 "（二级标题可参考或归纳自上述主题，根据会议实际业务模块展开清晰层级）"
@@ -180,7 +188,7 @@ class MinutesTraceAgent:
             "（若议题包含多个独立业务方向，可按业务逻辑拆分子板块 `### 业务子方向`）\n"
             "- 使用「- 」分点，每条为动词起笔的独立事实陈述，自然涵盖方案举措、责任分工、交付节点与核心指标。\n"
             "- 针对特定具体事项，可使用精练主题词引导（如 `- **事项名称**：推进要点与结论...`），保持每条内容信息饱满独立，避免机械套用相同主语或重复发言前缀。\n"
-            "- 每个板块或议题下充分结合 topics[].key_points、discussion，以及对应的 decisions、action_hints 与 risk_hints，写出包含明确责任人、时限、技术指标与交付标准的完整事实句（3~6 条），为专名、参数及后续溯源落钉提供充足承载句（无相应内容的维度直接不写）。"
+            "- 每个板块或议题下充分结合 session_segments[].key_facts、context_and_reasoning，以及对应的 decisions、action_hints 与 risk_hints，写出包含明确责任人、时限、技术指标与交付标准的完整事实句（3~6 条），为专名、参数及后续溯源落钉提供充足承载句（无相应内容的维度直接不写）。"
         )
         parts.append(fmt_spec)
 

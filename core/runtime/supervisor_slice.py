@@ -369,19 +369,24 @@ def summarize_understanding(understanding: object) -> str:
     if scene:
         lines.append(f"场景：{scene}")
 
-    topics = understanding.get("topics") or understanding.get("sections") or []
+    topics = (
+        understanding.get("session_segments")
+        or understanding.get("topics")
+        or understanding.get("sections")
+        or []
+    )
     if isinstance(topics, list):
         titles: list[str] = []
         for item in topics[:16]:
             if not isinstance(item, dict):
                 continue
-            title = _clean(item.get("title"))
+            title = _clean(item.get("segment_title") or item.get("title"))
             if not title:
                 continue
             conclusion = _clean(item.get("conclusion") or item.get("summary"))
             titles.append(f"{title}（{conclusion}）" if conclusion else title)
         if titles:
-            lines.append("议题/章节：" + "；".join(titles))
+            lines.append("研讨阶段/议题：" + "；".join(titles))
 
     for label, key in (
         ("结论", "decisions"),

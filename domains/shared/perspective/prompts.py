@@ -24,8 +24,8 @@ PERSPECTIVE_MODELING_SYSTEM_PROMPT = """你是「视角建模 Agent」。本系�
 - **职业模板**（persona_type = role_template）：name 是职业名（如后端工程师、产品经理），按其职责与关注域筛选内容，不把职业名当成会场发言人。
 
 ### 2. 扫描输入材料
-优先使用统一议题树 topics（包含 title/module、summary、decisions、key_metrics、context_and_debate、actions、risks、participants）以及 dependencies / evidence 结构化字段；对照会议原文定向印证细节。
-- 标记该姓名被提及处、其职责范围内事项、focus_thing 与 focus_person 涉及的议题节点（重点提取 actions、risks、key_metrics 与 decisions）；
+优先使用研讨时序段落 session_segments（包含 segment_title、context_and_reasoning、key_facts）以及 decisions / risks / action_hints / dependencies 结构化字段；对照会议原文定向印证细节。
+- 标记该姓名被提及处、其职责范围内事项、focus_thing 与 focus_person 涉及的研讨节点（重点提取 actions、risks、key_facts 与 decisions）；
 - 严格遵循权责三级口径，未标记或无依据内容不进入任何字段。
 
 ---
