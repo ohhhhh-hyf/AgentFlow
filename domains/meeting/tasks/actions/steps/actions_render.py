@@ -98,11 +98,11 @@ class ActionItemsRender:
             .get("draft")
             or {}
         )
+        assigned = list(actions.get("assigned_actions") or actions.get("my_actions") or [])
         if state.get("objective_perspective"):
-            items = list(actions.get("my_actions") or [])
-            items.extend(actions.get("unassigned_actions") or [])
+            items = assigned + list(actions.get("unassigned_actions") or [])
         else:
-            items = list(actions.get("my_actions") or [])
+            items = assigned
 
         roster: set[str] = set()
         mu = state.get("meeting_understanding") or {}
@@ -203,11 +203,11 @@ class ActionItemsRender:
         actions = (
             (state.get("lines") or {}).get("actions", {}).get("draft") or {}
         )
-        my_items = list(actions.get("my_actions") or [])
+        assigned_items = list(actions.get("assigned_actions") or actions.get("my_actions") or [])
         delegated_items = list(actions.get("delegated_actions") or [])
         unassigned_items = list(actions.get("unassigned_actions") or [])
 
-        all_items = my_items + delegated_items + unassigned_items
+        all_items = assigned_items + delegated_items + unassigned_items
         return ActionItemsRender.render_items(all_items)
 
     @staticmethod

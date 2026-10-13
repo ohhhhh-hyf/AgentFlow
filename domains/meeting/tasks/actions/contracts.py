@@ -13,27 +13,43 @@ from core.schema.contracts import (
 from core.schema.fallback_rules import FallbackRules, Lines
 
 
-class ActionItemsGenerationContract(GenerationContract):
-    """待办提取输出契约。"""
+ACTION_ITEM_FIELDS = [
+    StrField("category", "该待办所属的业务大类（直接继承所属议题的业务模块module或标题title，同一模块下的待办共用相同大类标题）"),
+    StrField("task", "以动词开头的具体任务描述，条件型任务写清触发条件"),
+    StrField("owner", "原文明示的负责人姓名，未明示为null"),
+    StrField("deadline", "原文明示的截止时间，未明示为null"),
+    StrField("timing_anchor", "原文中与此待办关联的时间锚点原句（如「周五下班前封板」）；未提及为null"),
+    StrField("collaborators", "原文提到的协同对象/配合方（如「风控团队、QA联调组」）；未提及为null"),
+    StrField("acceptance_criteria", "原文明示的验收标准或完成判定（如「完成接口评审并签字」）；未提及为null"),
+    StrField("deliverable", "原文明示的交付标准或特定成果物（如报告、方案、代码PR、验收签字）；无特定实体成果为null"),
+    StrField("dependency", "原文明示的前置条件或前置动作（如等XX确认后才能YY）；无明确前后制约为null"),
+    EnumField("status", ["explicit", "inferred"]),
+    StrField("evidence", "原文中支撑此待办的具体语句（可直接定位）"),
+    EnumField("confidence", ["high", "medium", "low"]),
+]
+
+
+class ObjectiveActionItemsGenerationContract(GenerationContract):
+    """客观视角待办输出契约：直接面向全员分配待办与未分配待办。"""
 
     fields = [
-        ObjListField("my_actions", [
-            StrField("category", "该待办所属的业务大类（直接继承所属议题的业务模块module或标题title，同一模块下的待办共用相同大类标题）"),
-            StrField("task", "以动词开头的具体任务描述，条件型任务写清触发条件"),
-            StrField("owner", "原文明示的负责人姓名，未明示为null"),
-            StrField("deadline", "原文明示的截止时间，未明示为null"),
-            StrField("timing_anchor", "原文中与此待办关联的时间锚点原句（如「周五下班前封板」）；未提及为null"),
-            StrField("collaborators", "原文提到的协同对象/配合方（如「风控团队、QA联调组」）；未提及为null"),
-            StrField("acceptance_criteria", "原文明示的验收标准或完成判定（如「完成接口评审并签字」）；未提及为null"),
-            StrField("deliverable", "原文明示的交付标准或特定成果物（如报告、方案、代码PR、验收签字）；无特定实体成果为null"),
-            StrField("dependency", "原文明示的前置条件或前置动作（如等XX确认后才能YY）；无明确前后制约为null"),
-            EnumField("status", ["explicit", "inferred"]),
-            StrField("evidence", "原文中支撑此待办的具体语句（可直接定位）"),
-            EnumField("confidence", ["high", "medium", "low"]),
-        ]),
-        ObjListField("delegated_actions"),
-        ObjListField("unassigned_actions"),
+        ObjListField("assigned_actions", ACTION_ITEM_FIELDS),
+        ObjListField("unassigned_actions", ACTION_ITEM_FIELDS),
     ]
+
+
+class PersonalActionItemsGenerationContract(GenerationContract):
+    """个人视角待办输出契约：面向本人待办、交办待办与关注未分配待办。"""
+
+    fields = [
+        ObjListField("my_actions", ACTION_ITEM_FIELDS),
+        ObjListField("delegated_actions", ACTION_ITEM_FIELDS),
+        ObjListField("unassigned_actions", ACTION_ITEM_FIELDS),
+    ]
+
+
+class ActionItemsGenerationContract(PersonalActionItemsGenerationContract):
+    """待办提取通用输出契约（向后兼容）。"""
 
 
 class ActionItemsSupervisorContract(SupervisorContract):
@@ -46,7 +62,15 @@ class ActionItemsSupervisorContract(SupervisorContract):
     ]
 
 
-ACTION_ITEMS_GENERATION_OUTPUT_CONTRACT = ActionItemsGenerationContract.to_output_contract()
+ACTION_ITEMS_OBJECTIVE_GENERATION_OUTPUT_CONTRACT = (
+    ObjectiveActionItemsGenerationContract.to_output_contract()
+)
+ACTION_ITEMS_PERSONAL_GENERATION_OUTPUT_CONTRACT = (
+    PersonalActionItemsGenerationContract.to_output_contract()
+)
+ACTION_ITEMS_GENERATION_OUTPUT_CONTRACT = (
+    ActionItemsGenerationContract.to_output_contract()
+)
 ACTION_ITEMS_SUPERVISOR_OUTPUT_CONTRACT = ActionItemsSupervisorContract.to_output_contract()
 
 # 降级拼装规则（声明式类）：fallback 节点由 sync_domain.py 检测子类后生成
@@ -56,16 +80,22 @@ class ActionItemsFallbackRules(FallbackRules):
     sections = [
         Lines(
             "my_actions",
-            merge=["my_actions", "unassigned_actions"],
+            merge=["assigned_actions", "my_actions", "unassigned_actions"],
         ),
     ]
     empty_text = "暂无明确待办事项"
-    structured = {"merge": ["my_actions", "unassigned_actions"]}
+    structured = {"merge": ["assigned_actions", "my_actions", "unassigned_actions"]}
 
 
 ACTION_ITEMS_FALLBACK_RULES = ActionItemsFallbackRules()
 
 __all__ = [
+    "ACTION_ITEM_FIELDS",
+    "ObjectiveActionItemsGenerationContract",
+    "PersonalActionItemsGenerationContract",
+    "ActionItemsGenerationContract",
+    "ACTION_ITEMS_OBJECTIVE_GENERATION_OUTPUT_CONTRACT",
+    "ACTION_ITEMS_PERSONAL_GENERATION_OUTPUT_CONTRACT",
     "ACTION_ITEMS_GENERATION_OUTPUT_CONTRACT",
     "ACTION_ITEMS_SUPERVISOR_OUTPUT_CONTRACT",
     "ACTION_ITEMS_FALLBACK_RULES",

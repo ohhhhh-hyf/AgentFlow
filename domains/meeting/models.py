@@ -101,3 +101,27 @@ def _validate_meeting_understanding_dynamic(cls, data: dict) -> "MeetingUndersta
 
 
 MeetingUnderstanding.validate = _validate_meeting_understanding_dynamic
+
+_orig_action_items_validate = ActionItems.validate.__func__
+
+
+@classmethod
+def _validate_action_items_compat(cls, data: dict) -> "ActionItems":
+    d = dict(data)
+    if "assigned_actions" in d and "my_actions" not in d:
+        d["my_actions"] = d["assigned_actions"]
+    if "my_actions" in d and "assigned_actions" not in d:
+        d["assigned_actions"] = d["my_actions"]
+    if "delegated_actions" not in d:
+        d["delegated_actions"] = []
+    if "unassigned_actions" not in d:
+        d["unassigned_actions"] = []
+    orig_keys = {f.name for f in _dc_fields(cls)}
+    sub_data = {k: v for k, v in d.items() if k in orig_keys}
+    inst = _orig_action_items_validate(cls, sub_data)
+    if "assigned_actions" in d:
+        setattr(inst, "assigned_actions", d["assigned_actions"])
+    return inst
+
+
+ActionItems.validate = _validate_action_items_compat

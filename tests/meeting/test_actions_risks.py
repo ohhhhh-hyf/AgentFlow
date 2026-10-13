@@ -382,6 +382,67 @@ def test_action_items_report_validation_new_schema():
     assert report_legacy.actions[0]["priority"] == "high"
 
 
+def test_action_items_assigned_actions_compatibility() -> None:
+    """验证客观全员待办契约（assigned_actions）的校验器兼容性与渲染链路."""
+    from domains.meeting.models import ActionItems
+    from domains.meeting.tasks.actions.steps.actions_render import ActionItemsRender
+
+    payload_assigned = {
+        "assigned_actions": [
+            {
+                "category": "架构改造",
+                "task": "完成新旧契约解耦与单测编写",
+                "owner": "核心团队",
+                "deadline": "周五",
+                "timing_anchor": "周五前",
+                "collaborators": "测试组",
+                "acceptance_criteria": "全量单测通过",
+                "deliverable": "PR",
+                "dependency": "无",
+                "status": "explicit",
+                "evidence": "周五前完成解耦",
+                "confidence": "high",
+            }
+        ],
+        "unassigned_actions": [
+            {
+                "category": "日常维护",
+                "task": "跟进线上告警指标监控",
+                "owner": None,
+                "deadline": None,
+                "timing_anchor": None,
+                "collaborators": None,
+                "acceptance_criteria": None,
+                "deliverable": None,
+                "dependency": None,
+                "status": "inferred",
+                "evidence": "后续多关注监控",
+                "confidence": "medium",
+            }
+        ],
+    }
+
+    # 1. ActionItems validate 校验器能够自动映射兼容
+    inst = ActionItems.validate(payload_assigned)
+    assert len(inst.my_actions) == 1
+    assert inst.my_actions[0]["task"] == "完成新旧契约解耦与单测编写"
+    assert len(inst.unassigned_actions) == 1
+    assert hasattr(inst, "assigned_actions")
+    assert inst.assigned_actions[0]["owner"] == "核心团队"
+
+    # 2. 渲染器能够双键兼容读取并正确渲染清单
+    state = {
+        "objective_perspective": True,
+        "lines": {"actions": {"draft": payload_assigned}},
+    }
+    extracted = ActionItemsRender.extract_actions(state)
+    assert len(extracted) == 2
+    rendered_text = ActionItemsRender.render_draft(state)
+    assert "完成新旧契约解耦与单测编写" in rendered_text
+    assert "核心团队" in rendered_text
+    assert "跟进线上告警指标监控" in rendered_text
+
+
 if __name__ == "__main__":
     import sys
     import pytest

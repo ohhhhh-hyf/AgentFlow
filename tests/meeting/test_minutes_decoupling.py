@@ -109,8 +109,8 @@ def test_minutes_generation_prompts_decoupling():
     for p in (MINUTES_OBJECTIVE_GENERATION_PROMPT, MINUTES_PERSONAL_GENERATION_PROMPT):
         assert "回到会议原文" in p
         assert "理解层是骨架" in p
-        assert "时效优先法典" in p
-        assert "尾部记忆核验令" in p
+        assert "历史记忆边界" in p
+        assert "history_comparison" in p
 
     # 3.2 客观提示词纯净化断言
     assert "通篇统一使用第三人称" in MINUTES_OBJECTIVE_GENERATION_PROMPT

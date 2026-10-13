@@ -111,8 +111,8 @@ CONSENSUS_DECISION_SUPERVISOR_DOMAIN_PROMPT = """## 领域审核规则：共识�
 - 结论明确、拿不准时优先 approve。
 
 ### 决策指南：
-- **approve（首选，拿不准就选它）**：只要事实无颠倒、引句无伪造，一律 approve。
-- **revise**：仅当存在确凿的共识颠倒、虚构引语，且能给出具体修改意见和原文依据时才允许 revise；否则一律 approve。"""
+- **approve（通过）**：事实准确、引句真实，判定为 approve。
+- **revise**：仅当存在确凿的共识颠倒、虚构引语，且能给出具体修改意见和原文依据时才允许 revise；否则予以 approve。"""
 
 
 CONSENSUS_DECISION_RENDER_PROMPT = """你是「共识与决策渲染器」。

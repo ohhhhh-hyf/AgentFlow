@@ -1083,6 +1083,39 @@ def test_persist_scope_roundtrip(tmp_path: Path) -> None:
           == json.dumps(st, ensure_ascii=False, sort_keys=True), "")
 
 
+def test_purge_stale_memory_from_decisions():
+    from core.execution.hard_execution import purge_stale_memory_from_decisions, enforce_minutes_draft
+
+    draft_decisions = [
+        "本次新增决议：上线GPU集群",
+        "8月18日前优化 minutes_trace",  # Stale memory from past meeting, not in transcript
+    ]
+    memory_texts = ["8月18日前优化 minutes_trace", "历史已决策事项B"]
+    transcript = "今天我们核心讨论了本次新增决议：上线GPU集群，全员一致同意。"
+
+    valids, migrated = purge_stale_memory_from_decisions(draft_decisions, memory_texts, transcript)
+    check("有效决议仅保留本次实录讨论项", valids == ["本次新增决议：上线GPU集群"], str(valids))
+    check("未重申历史记忆被自动迁移至往期沿革", any("8月18日前优化 minutes_trace" in m for m in migrated), str(migrated))
+
+    raw_draft = {
+        "headline": "测试例会",
+        "executive_summary": ["总结"],
+        "key_decisions": ["本次新增决议：上线GPU集群", "8月18日前优化 minutes_trace"],
+        "personally_relevant_points": ["推进GPU集群上线"],
+        "risks_and_blockers": [],
+        "unresolved_questions": [],
+    }
+    enforced = enforce_minutes_draft(
+        raw_draft,
+        {"decisions": ["本次新增决议：上线GPU集群", "8月18日前优化 minutes_trace"]},
+        mode="objective",
+        memory_texts=memory_texts,
+        transcript=transcript,
+    )
+    check("enforce_minutes_draft key_decisions 纯净无历史污染", enforced["key_decisions"] == ["本次新增决议：上线GPU集群"], str(enforced["key_decisions"]))
+    check("enforce_minutes_draft history_comparison 承接往期沿革", any("8月18日前优化 minutes_trace" in h for h in enforced["history_comparison"]), str(enforced["history_comparison"]))
+
+
 def main() -> int:
     test_identity_helpers()
     test_bind_explicit_warning()
@@ -1105,6 +1138,7 @@ def main() -> int:
     test_selection_relevance_and_recency()
     test_state_lifecycle_consistency()
     test_personal_minutes_html_rendering()
+    test_purge_stale_memory_from_decisions()
     with tempfile.TemporaryDirectory() as raw:
         tmp = Path(raw)
         test_persist_no_project_and_headline(tmp)

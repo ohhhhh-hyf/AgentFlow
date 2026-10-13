@@ -339,12 +339,41 @@ def _ensure_all_minutes_keys(d: dict[str, Any]) -> dict[str, Any]:
     return d
 
 
+def purge_stale_memory_from_decisions(
+    draft_decisions: list[str],
+    memory_texts: list[str],
+    transcript: str,
+) -> tuple[list[str], list[str]]:
+    """若某决策在原文中零出现、却完全命中历史记忆，Python 自动剪切并转移至 history_comparison."""
+    from difflib import SequenceMatcher
+
+    valid_decisions = []
+    migrated_to_history = []
+    for dec in draft_decisions:
+        dec_str = str(dec).strip()
+        if not dec_str:
+            continue
+        is_in_transcript = bool(transcript and (dec_str in transcript))
+        hit_mem = any(
+            SequenceMatcher(None, dec_str, str(mem).strip()).ratio() > 0.85
+            for mem in (memory_texts or [])
+            if str(mem).strip()
+        )
+        if not is_in_transcript and hit_mem:
+            migrated_to_history.append(f"往期沿革（本次未重申）：{dec_str}")
+        else:
+            valid_decisions.append(dec_str)
+    return valid_decisions, migrated_to_history
+
+
 def enforce_minutes_draft(
     draft: dict[str, Any] | Any,
     understanding: dict[str, Any] | None,
     *,
     mode: str = "objective",
     perspective: dict[str, Any] | None = None,
+    memory_texts: list[str] | None = None,
+    transcript: str | None = None,
 ) -> dict[str, Any]:
     """纪要草稿硬对齐：搬运字段措辞以会议理解为准。
 
@@ -368,10 +397,26 @@ def enforce_minutes_draft(
     )
     if not understanding or not any(understanding.values()):
         # 降级保护：上游理解为空或不可用时，不走下采覆写，保留已有草稿
-        return _ensure_all_minutes_keys(out)
+        res = _ensure_all_minutes_keys(out)
+        if memory_texts and transcript and "key_decisions" in res:
+            valids, migrated = purge_stale_memory_from_decisions(
+                res["key_decisions"], memory_texts, transcript
+            )
+            res["key_decisions"] = valids
+            if migrated:
+                res["history_comparison"] = list(res.get("history_comparison") or []) + migrated
+        return res
     mode_key = (mode or "objective").strip().lower()
     if mode_key not in _SUBSET_MODES:
-        return _ensure_all_minutes_keys(out)
+        res = _ensure_all_minutes_keys(out)
+        if memory_texts and transcript and "key_decisions" in res:
+            valids, migrated = purge_stale_memory_from_decisions(
+                res["key_decisions"], memory_texts, transcript
+            )
+            res["key_decisions"] = valids
+            if migrated:
+                res["history_comparison"] = list(res.get("history_comparison") or []) + migrated
+        return res
     upstream = dict(understanding or {})
     # 个人模式安全守卫：允许 perspective 中的 data_gaps 作为合法卡点源，避免被清洗
     if mode_key == "personal" and isinstance(perspective, dict):
@@ -390,7 +435,15 @@ def enforce_minutes_draft(
             fallback_full=(mode_key != "personal"),
             preserve_groups=(mode_key == "personal"),
         )
-    return _ensure_all_minutes_keys(out)
+    res = _ensure_all_minutes_keys(out)
+    if memory_texts and transcript and "key_decisions" in res:
+        valids, migrated = purge_stale_memory_from_decisions(
+            res["key_decisions"], memory_texts, transcript
+        )
+        res["key_decisions"] = valids
+        if migrated:
+            res["history_comparison"] = list(res.get("history_comparison") or []) + migrated
+    return res
 
 
 _EMPTY_CELLS = frozenset(
@@ -1524,6 +1577,7 @@ __all__ = [
     "empty_section_issues",
     "fix_bare_headings",
     "enforce_minutes_draft",
+    "purge_stale_memory_from_decisions",
     "enforce_render_output",
     "enforce_upstream_carry",
     "extract_labeled_json",

@@ -332,6 +332,9 @@ def build_memory_context(
     seq_map = session_index(meetings or [], project_id)
     evidence = getattr(bind, "evidence", []) or []
     parts = [
+        "══════════════════════════════════════════════════════════════",
+        "【只读参考附录：跨场次历史演进脉络】",
+        "（注：仅作为 history_comparison 的演变参照，严禁并入本次 executive_summary 与 key_decisions）",
         "【会议记忆】",
         f"项目：{_clean(project.get('name')) or _clean(state.get('name')) or project_id}",
     ]
@@ -398,6 +401,7 @@ def build_memory_context(
             for line in comparison:
                 parts.append(f"- {line}")
 
+    parts.append("══════════════════════════════════════════════════════════════")
     return "\n".join(parts).strip(), comparison
 
 
