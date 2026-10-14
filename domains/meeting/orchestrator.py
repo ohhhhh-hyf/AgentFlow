@@ -897,12 +897,14 @@ class _Nodes(DomainNodes):
             self_label="你",
             focus_persons=focus_persons,
             focus_things=focus_things,
+            user_profile=user,
         )
         if stats.get("fallback"):
             logger.info("personal transcript slice skipped: %s", stats)
             return ""
         logger.info(
-            "personal transcript slice kept=%s dropped=%s chars=%s->%s",
+            "personal transcript slice track=%s kept=%s dropped=%s chars=%s->%s",
+            stats.get("track"),
             stats.get("kept"),
             stats.get("dropped"),
             stats.get("chars"),
@@ -1238,10 +1240,14 @@ class _Nodes(DomainNodes):
                 # （客观/职业模板/无姓名 → 空串，不注入）
                 from domains.shared.perspective import build_user_channel
                 import inspect
+                user_obj = state.get("user") or {}
                 kwargs = {
                     "focus_line": selected[0] if len(selected) == 1 and skip else "",
                     "skip_fields": skip,
-                    "user_channel": build_user_channel(state.get("user") or {}),
+                    "user_channel": build_user_channel(
+                        user_obj,
+                        transcript=state.get("transcript") or "" if self._mode_label(state) == "personal" else "",
+                    ),
                 }
                 sig = inspect.signature(self.meeting_understanding_agent.run)
                 if "active_tasks" in sig.parameters:

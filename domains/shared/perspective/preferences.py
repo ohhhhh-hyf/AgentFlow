@@ -223,8 +223,13 @@ def address_aliases(user: dict[str, Any] | None) -> list[str]:
     return out
 
 
-def build_user_channel(user: dict[str, Any] | None) -> str:
-    """理解层的「本用户称呼」块：统一人名写法，但不许猜编号发言人。
+def build_user_channel(
+    user: dict[str, Any] | None,
+    *,
+    track: str = "",
+    transcript: str = "",
+) -> str:
+    """理解层的「本用户称呼」块：统一人名写法，引导 Track A/B 双轨理解。
 
     三种情况不注入（返回空串）：
     - 客观视角：不针对任何人；
@@ -241,6 +246,23 @@ def build_user_channel(user: dict[str, Any] | None) -> str:
     if not name:
         return ""
     aliases = address_aliases(profile)
+
+    current_track = track
+    if not current_track and transcript:
+        from .hits import detect_personal_perspective_track
+        current_track = detect_personal_perspective_track(transcript, user_profile=profile)
+
+    if current_track == "CONTENT":
+        alias_str = "；别称：" + "、".join(aliases) if aliases else ""
+        return "\n".join([
+            f"【{CHANNEL_TITLE}与代号指引 (Track B 模式)】",
+            f"- 目标用户：{name}（全称）{alias_str}。",
+            "- 识别规则：由于原文发言人冒号前包含较多匿名代号（如发言人1/2/Speaker 1），请特别注意发言正文：",
+            f"  1. 若正文中出现“我是{name}”或通过上下文点名确定某发言人为{name}，其陈述直接作为{name}的事实与承诺记录；",
+            f"  2. 提取 action_hints 与 risks 时，凡正文点名要求{name}落实的事项，责任人如实记为「{name}」；",
+            f"  3. 严禁凭空将所有发言人1机械推断为{name}，必须有正文点名或应答依据。",
+        ])
+
     head = f"【{CHANNEL_TITLE}】{name}（全称）"
     if aliases:
         head += "；别称：" + "、".join(aliases)

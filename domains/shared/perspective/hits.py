@@ -372,25 +372,137 @@ def build_hit_table(user: dict[str, Any] | None, understanding: dict[str, Any] |
     return table
 
 
-_SPEAKER_LINE_RE = re.compile(r"^\s*([^\s]{1,12})[ \t]+(\d{1,2}:\d{2}(?::\d{2})?)\s*$")
+@dataclass
+class DialogueBlock:
+    speaker: str
+    timestamp: str = ""
+    header: str = ""
+    text: str = ""
+    full_block: str = ""
+    index: int = 0
+
+
+_ANON_RATIO_THRESHOLD = 0.8
+
+_ANONYMOUS_SPEAKER_RE = re.compile(
+    r"^(?:现场发言人|未知发言人|发言人|发言者|参会人|与会人|参会者|说话人|主讲人|用户|人员|嘉宾|成员|代号|"
+    r"Speaker|Participant|User|Person|Attendee)\s*[-_—#\d]*[a-zA-Z0-9]?$",
+    re.I,
+)
+
+
+def is_anonymous_speaker(speaker: str) -> bool:
+    """判定发言人是否为匿名/数字代号发言人（如 发言人 1、发言者 A、Speaker 2 等）。"""
+    s = (speaker or "").strip()
+    if not s or s in {"现场发言人", "未知发言人"}:
+        return True
+    return bool(_ANONYMOUS_SPEAKER_RE.match(s))
+
+
+_SPEAKER_LABEL_PATTERN = (
+    r"(?:现场发言人|未知发言人|"
+    r"(?:发言者|说话人|发言人|主讲人|参会人|与会人|参会者|嘉宾|成员|代号|Speaker|Participant|User|Person|Attendee)\s*[-_—#\d]*[a-zA-Z0-9]?|"
+    r"[^\s:：\d]{1,16})"
+)
+_SPEAKER_LINE_RE = re.compile(
+    rf"^\s*({_SPEAKER_LABEL_PATTERN})[ \t]+(\d{{1,2}}:\d{{2}}(?::\d{{2}})?)\s*$"
+)
+_TS_SPEAKER_LINE_RE = re.compile(
+    rf"^\s*\[?(\d{{1,2}}:\d{{2}}(?::\d{{2}})?)]?[ \t]+({_SPEAKER_LABEL_PATTERN})\s*$"
+)
+_SPEAKER_COLON_LINE_RE = re.compile(
+    rf"^\s*(?:【({_SPEAKER_LABEL_PATTERN})】|({_SPEAKER_LABEL_PATTERN})\s*[:：])\s*(.*)$"
+)
 _OMIT_TEMPLATE = "……（此处省略 {n} 段与本人及关注标的无关的发言）"
 
 
-def speaker_blocks(transcript: str) -> list[tuple[str, str]]:
-    """按「姓名 HH:MM:SS」发言行把原文切成块 → ``[(发言人称谓, 块文本)]``。
+def parse_speaker_dialogue_blocks(transcript: str) -> tuple[list[DialogueBlock], list[str]]:
+    """解析转录文本中的发言块与前置题头。
 
-    与 :func:`slice_transcript_for_person` 共用同一发言行正则（``_SPEAKER_LINE_RE``）；
+    兼容主流 ASR 格式：
+    1. 时间戳分行格式（姓名 HH:MM:SS\\n内容）
+    2. 冒号格式（姓名: 内容 或 姓名：\\n内容）
+    3. 前置时间戳格式（[HH:MM:SS] 姓名\\n内容）
+    """
+    text = transcript or ""
+    lines = text.splitlines()
+    if not lines:
+        return [], []
+
+    # 1. 尝试基于时间戳行的匹配（发言人 + 时间戳，或 时间戳 + 发言人）
+    ts_matches = [
+        i for i, line in enumerate(lines)
+        if _SPEAKER_LINE_RE.match(line) or _TS_SPEAKER_LINE_RE.match(line)
+    ]
+    if len(ts_matches) >= 2:
+        blocks: list[DialogueBlock] = []
+        head = lines[:ts_matches[0]]
+        for idx, line_idx in enumerate(ts_matches):
+            line = lines[line_idx]
+            m1 = _SPEAKER_LINE_RE.match(line)
+            if m1:
+                sp, ts = m1.group(1).strip(), m1.group(2).strip()
+            else:
+                m2 = _TS_SPEAKER_LINE_RE.match(line)
+                sp, ts = (m2.group(2).strip(), m2.group(1).strip()) if m2 else ("", "")
+            next_line_idx = ts_matches[idx + 1] if idx + 1 < len(ts_matches) else len(lines)
+            body_lines = lines[line_idx + 1:next_line_idx]
+            body_text = "\n".join(body_lines).strip()
+            full_block = "\n".join([line] + body_lines)
+            blocks.append(
+                DialogueBlock(
+                    speaker=sp,
+                    timestamp=ts,
+                    header=line,
+                    text=body_text,
+                    full_block=full_block,
+                    index=idx,
+                )
+            )
+        return blocks, head
+
+    # 2. 尝试基于冒号行的匹配（用于无时间戳的对白实录）
+    colon_matches = [
+        i for i, line in enumerate(lines)
+        if _SPEAKER_COLON_LINE_RE.match(line)
+    ]
+    if len(colon_matches) >= 2:
+        blocks = []
+        head = lines[:colon_matches[0]]
+        for idx, line_idx in enumerate(colon_matches):
+            line = lines[line_idx]
+            m = _SPEAKER_COLON_LINE_RE.match(line)
+            sp = (m.group(1) or m.group(2) or "").strip() if m else ""
+            remainder = m.group(3).strip() if (m and m.group(3)) else ""
+            next_line_idx = colon_matches[idx + 1] if idx + 1 < len(colon_matches) else len(lines)
+            following_lines = lines[line_idx + 1:next_line_idx]
+            all_content = ([remainder] if remainder else []) + following_lines
+            body_text = "\n".join(all_content).strip()
+            header = line[:len(line) - len(remainder)].rstrip() if remainder else line.rstrip()
+            full_block = "\n".join([line] + following_lines)
+            blocks.append(
+                DialogueBlock(
+                    speaker=sp,
+                    timestamp="",
+                    header=header,
+                    text=body_text,
+                    full_block=full_block,
+                    index=idx,
+                )
+            )
+        return blocks, head
+
+    return [], lines
+
+
+def speaker_blocks(transcript: str) -> list[tuple[str, str]]:
+    """按发言行把原文切成块 → ``[(发言人称谓, 块文本)]``。
+
     题头（首个发言行之前）不返回，没有发言行结构时返回空表。
     """
-    blocks: list[list[str]] = []
-    for line in (transcript or "").splitlines():
-        match = _SPEAKER_LINE_RE.match(line)
-        if match:
-            blocks.append([match.group(1), line])
-            continue
-        if blocks:
-            blocks[-1][1] = f"{blocks[-1][1]}\n{line}"
-    return [(speaker, block) for speaker, block in blocks]
+    blocks, _ = parse_speaker_dialogue_blocks(transcript)
+    return [(b.speaker, b.full_block) for b in blocks]
+
 
 
 _NORM_DROP_RE = re.compile(r"\W")  # 去掉所有非单词字符（空白/中英标点/符号/emoji）
@@ -591,6 +703,237 @@ def render_action_groups_block(
     return "\n".join(lines)
 
 
+def detect_personal_perspective_track(
+    transcript: str,
+    addresses: Sequence[str] | None = None,
+    *,
+    user_profile: dict[str, Any] | None = None,
+) -> str:
+    """自适应判定个人视角切片与建模策略。
+
+    返回:
+      - "NAMED": Track A (带真实发言人姓名)
+      - "CONTENT": Track B (无真实发言人姓名 / 正文穿透模式)
+    """
+    blocks, _ = parse_speaker_dialogue_blocks(transcript)
+    total_blocks = len(blocks)
+    if total_blocks == 0:
+        return "NAMED"
+
+    # 1. 统计冒号前发言人名字中，属于匿名机器代号的比例
+    anon_count = sum(1 for b in blocks if is_anonymous_speaker(b.speaker))
+    anon_ratio = anon_count / total_blocks
+
+    # 2. 检查冒号前的名字中是否直接包含本人全称或合法别称
+    self_names: set[str] = set()
+    if addresses:
+        self_names.update(str(a).strip() for a in addresses if str(a).strip())
+    if user_profile and isinstance(user_profile, dict):
+        name = user_profile.get("name")
+        if name and str(name).strip():
+            self_names.add(str(name).strip())
+        for a in user_profile.get("name_aliases") or []:
+            if a and str(a).strip():
+                self_names.add(str(a).strip())
+    self_names.discard("")
+
+    speaker_has_self = any(
+        b.speaker.strip() in self_names
+        or (b.speaker.strip().lower() in {n.lower() for n in self_names if n.isascii()})
+        for b in blocks
+    )
+
+    # 3. 双轨分流准则：
+    # 只要冒号前匿名率 >= 80%，或者冒号前发言人完全没有本人姓名（且已指定本人），立即进入 Track B！
+    if anon_ratio >= _ANON_RATIO_THRESHOLD or (bool(self_names) and not speaker_has_self):
+        return "CONTENT"
+
+    return "NAMED"
+
+
+def resolve_anonymous_speakers_by_handshake(
+    blocks: list[DialogueBlock],
+    self_names: Sequence[str],
+    *,
+    focus_persons: Sequence[str] = (),
+    canonical_self: str = "",
+) -> dict[str, str]:
+    """通过正文自报家门与点名应答时序握手反向解析匿名发言人身份。"""
+    mapping: dict[str, str] = {}
+    clean_self_names = [n for n in self_names if n and n.strip()]
+    canonical_name = canonical_self or (clean_self_names[0] if clean_self_names else "")
+    clean_fps = [p for p in focus_persons if p and p.strip()]
+
+    # 构造姓名匹配正则（优先长词匹配）
+    self_pat = "|".join(re.escape(n) for n in sorted(clean_self_names, key=len, reverse=True)) if clean_self_names else ""
+    fp_pat = "|".join(re.escape(p) for p in sorted(clean_fps, key=len, reverse=True)) if clean_fps else ""
+
+    self_id_re = re.compile(
+        rf"(?:我(?:就是|是|本人是)|技术部|中台)\s*({self_pat})\b|"
+        rf"我\s*({self_pat})\s*(?:负责|来负责|领这个|来跟|这边|来同步|来汇报|说两句)",
+        re.I,
+    ) if self_pat else None
+
+    fp_id_re = re.compile(
+        rf"(?:我(?:就是|是|本人是))\s*({fp_pat})\b",
+        re.I,
+    ) if fp_pat else None
+
+    # 点名交接/呼叫模式（呼叫下一个人发言）
+    self_handover_re = re.compile(
+        rf"(?:(?<=[，,。！!？?\s])|^)({self_pat})\s*(?:你来|你说|你讲|你同步|你看|你汇报|怎么看|负责的|介绍一下|讲讲|在不在|在吗|先讲|来汇报|来说)|"
+        rf"(?:下面有请|有请|交给|交由|切到|听下)\s*({self_pat})\s*(?:来|给大家)?(?:汇报|分享|讲讲|做报告|作报告|同步)?",
+        re.I,
+    ) if self_pat else None
+
+    fp_handover_re = re.compile(
+        rf"(?:(?<=[，,。！!？?\s])|^)({fp_pat})\s*(?:你来|你说|你讲|你同步|你看|你汇报|怎么看|介绍一下|讲讲|在不在|在吗|先讲|来汇报|来说)|"
+        rf"(?:下面有请|有请|交给|交由|切到|听下)\s*({fp_pat})\s*(?:来|给大家)?(?:汇报|分享|讲讲|做报告|作报告|同步)?",
+        re.I,
+    ) if fp_pat else None
+
+    for idx, b in enumerate(blocks):
+        content = b.text or ""
+
+        # 模式 1: 自报家门
+        if self_id_re and self_id_re.search(content):
+            if is_anonymous_speaker(b.speaker) or b.speaker not in clean_self_names:
+                mapping[b.speaker] = canonical_name
+
+        if fp_id_re:
+            m = fp_id_re.search(content)
+            if m:
+                target_fp = m.group(1)
+                if is_anonymous_speaker(b.speaker) and target_fp:
+                    mapping[b.speaker] = target_fp
+
+        # 模式 2: 点名应答握手（寻找紧邻的下一发言块）
+        if self_handover_re and self_handover_re.search(content):
+            if idx + 1 < len(blocks):
+                next_b = blocks[idx + 1]
+                if next_b.speaker != b.speaker and is_anonymous_speaker(next_b.speaker):
+                    mapping[next_b.speaker] = canonical_name
+
+        if fp_handover_re:
+            m = fp_handover_re.search(content)
+            if m:
+                target_fp = m.group(1) or m.group(2)
+                if target_fp and idx + 1 < len(blocks):
+                    next_b = blocks[idx + 1]
+                    if next_b.speaker != b.speaker and is_anonymous_speaker(next_b.speaker):
+                        mapping[next_b.speaker] = target_fp
+
+    return mapping
+
+
+def _slice_track_b(
+    blocks: list[DialogueBlock],
+    head: list[str],
+    addresses: list[str],
+    *,
+    full_name: str = "",
+    min_keep_chars: int = 200,
+    self_label: str = "",
+    focus_persons: Sequence[str] = (),
+    focus_things: Sequence[str] = (),
+    full_transcript: str = "",
+) -> tuple[str, dict[str, Any]]:
+    """Track B 专有正文穿透切片：基于正文点名、时序握手与标的共振保留讨论块。"""
+    stats: dict[str, Any] = {
+        "kept": 0,
+        "dropped": 0,
+        "fallback": False,
+        "chars": len(full_transcript),
+        "track": "CONTENT",
+    }
+    self_names = set(addresses)
+    if full_name:
+        self_names.add(full_name)
+    self_names.discard("")
+
+    clean_fps = [p for p in (focus_persons or ()) if p and p.strip()]
+    clean_fts = [t for t in (focus_things or ()) if t and t.strip()]
+    canonical_self = full_name or (addresses[0] if addresses else "")
+
+    # 步骤 1: 扫描全场，建立匿名代号映射表 (如 {'发言人 2': '赵衡'})
+    anonymous_mapping = resolve_anonymous_speakers_by_handshake(
+        blocks,
+        list(self_names),
+        focus_persons=clean_fps,
+        canonical_self=canonical_self,
+    )
+
+    def is_adjacent_to_self(idx: int) -> bool:
+        if idx > 0 and anonymous_mapping.get(blocks[idx - 1].speaker) in self_names:
+            return True
+        if idx + 1 < len(blocks) and anonymous_mapping.get(blocks[idx + 1].speaker) in self_names:
+            return True
+        return False
+
+    out: list[str] = list(head)
+    pending = 0
+    kept_chars = 0
+
+    for idx, b in enumerate(blocks):
+        keep_reason = None
+
+        # 1. 命中反向绑定的本人发言
+        if anonymous_mapping.get(b.speaker) in self_names:
+            keep_reason = "identified_self"
+        # 2. 正文点名提到本人全称/别称（含被动任务指派）
+        elif any(name in b.full_block for name in self_names):
+            keep_reason = "mentioned_self"
+        # 3. 紧邻“本人发言块”的前后一轮对话（捕获领导提问与协同方承诺）
+        elif is_adjacent_to_self(idx):
+            keep_reason = "adjacent_collaboration"
+        # 4. 包含用户重点关注人物或标的
+        elif (
+            anonymous_mapping.get(b.speaker) in clean_fps
+            or any(p in b.full_block for p in clean_fps)
+            or any(t in b.full_block for t in clean_fts)
+        ):
+            keep_reason = "focus_target"
+
+        if keep_reason:
+            if pending:
+                out.append(_OMIT_TEMPLATE.format(n=pending))
+                pending = 0
+
+            # 身份标签规范化：若确认为本人发言，且指定了 self_label（如「你」），规范替换块首
+            block_text = b.full_block
+            if keep_reason == "identified_self" and self_label:
+                head_line, sep, rest = block_text.partition("\n")
+                if b.speaker in head_line:
+                    idx_sp = head_line.find(b.speaker)
+                    new_head = head_line[:idx_sp] + self_label + head_line[idx_sp + len(b.speaker):]
+                    block_text = f"{new_head}{sep}{rest}"
+            elif b.speaker in anonymous_mapping:
+                mapped_name = anonymous_mapping[b.speaker]
+                head_line, sep, rest = block_text.partition("\n")
+                if b.speaker in head_line:
+                    idx_sp = head_line.find(b.speaker)
+                    new_head = head_line[:idx_sp] + mapped_name + head_line[idx_sp + len(b.speaker):]
+                    block_text = f"{new_head}{sep}{rest}"
+
+            out.append(block_text)
+            kept_chars += len(block_text)
+            stats["kept"] += 1
+        else:
+            pending += 1
+            stats["dropped"] += 1
+
+    if pending:
+        out.append(_OMIT_TEMPLATE.format(n=pending))
+
+    if not stats["kept"] or kept_chars < min_keep_chars:
+        stats["fallback"] = True
+        return full_transcript, stats
+
+    res_text = "\n".join(out)
+    stats["chars"] = len(res_text)
+    return res_text, stats
+
+
 def slice_transcript_for_person(
     transcript: str,
     addresses: list[str],
@@ -600,8 +943,9 @@ def slice_transcript_for_person(
     self_label: str = "",
     focus_persons: Sequence[str] = (),
     focus_things: Sequence[str] = (),
+    user_profile: dict[str, Any] | None = None,
 ) -> tuple[str, dict[str, Any]]:
-    """按人裁原文：只留**他发言的段**、**提到他的段**、以及**提到重点关注人/标的的段**，其余折叠成一行省略说明。
+    """按人裁原文：自适应双轨制（Track A 真实姓名精确匹配 / Track B 匿名代号正文穿透）。
 
     为什么要在原文这一层动手（2026-09-21 实测两轮）：模板路径的正文由通用填充器逐栏写，
     【内容来源】里放着整场原文，模板栏名又是「全文摘要 / 分段速览」——写作纪律写在消息
@@ -615,34 +959,46 @@ def slice_transcript_for_person(
     返回 ``(文本, 统计)``；``统计["fallback"]`` 为真表示"裁不了/裁完太少"，调用方应退回整篇。
     """
     text = transcript or ""
-    stats: dict[str, Any] = {"kept": 0, "dropped": 0, "fallback": False, "chars": len(text)}
+    stats: dict[str, Any] = {"kept": 0, "dropped": 0, "fallback": False, "chars": len(text), "track": "NAMED"}
     addresses = [a for a in (addresses or []) if a]
-    if not text.strip() or not addresses:
+    if not text.strip() or (not addresses and not (user_profile and user_profile.get("name"))):
         stats["fallback"] = True
         return text, stats
 
-    clean_fps = [p for p in (focus_persons or ()) if p]
-    clean_fts = [t for t in (focus_things or ()) if t]
-
-    blocks: list[list[str]] = []  # [块首称呼, 整块文本]
-    head: list[str] = []          # 首个发言行之前的题头
-    for line in text.splitlines():
-        match = _SPEAKER_LINE_RE.match(line)
-        if match:
-            blocks.append([match.group(1), line])
-            continue
-        if blocks:
-            blocks[-1][1] = f"{blocks[-1][1]}\n{line}"
-        else:
-            head.append(line)
+    blocks, head = parse_speaker_dialogue_blocks(text)
     if len(blocks) < 2:  # 没有稳定的发言行结构，裁不动
         stats["fallback"] = True
         return text, stats
 
+    track = detect_personal_perspective_track(
+        text,
+        addresses,
+        user_profile=user_profile,
+    )
+    stats["track"] = track
+
+    if track == "CONTENT":
+        return _slice_track_b(
+            blocks=blocks,
+            head=head,
+            addresses=addresses,
+            full_name=full_name,
+            min_keep_chars=min_keep_chars,
+            self_label=self_label,
+            focus_persons=focus_persons,
+            focus_things=focus_things,
+            full_transcript=text,
+        )
+
+    # Track A: NAMED 强人名锚定模式
+    clean_fps = [p for p in (focus_persons or ()) if p]
+    clean_fts = [t for t in (focus_things or ()) if t]
+
     out: list[str] = list(head)
     pending = 0  # 连续被丢掉的块数
     kept_chars = 0
-    for speaker, block in blocks:
+    for b in blocks:
+        speaker, block = b.speaker, b.full_block
         is_self = _equals(speaker, addresses) or bool(
             _mentions(block, addresses, full_name or addresses[0])
         )
@@ -657,7 +1013,12 @@ def slice_transcript_for_person(
                 pending = 0
             if self_label and _equals(speaker, addresses):
                 head_line, sep, rest = block.partition("\n")
-                block = f"{self_label}{head_line[len(speaker):]}{sep}{rest}"
+                if speaker in head_line:
+                    idx_sp = head_line.find(speaker)
+                    head_line = head_line[:idx_sp] + self_label + head_line[idx_sp + len(speaker):]
+                    block = f"{head_line}{sep}{rest}"
+                else:
+                    block = f"{self_label}{head_line[len(speaker):]}{sep}{rest}"
             out.append(block)
             kept_chars += len(block)
             stats["kept"] += 1
@@ -853,6 +1214,12 @@ def _normalize_section_body(
                         content = content[len(addr) + 1:].strip()
                     elif content.startswith(f"{addr} "):
                         content = content[len(addr) + 1:].strip()
+                # 终稿公文化包装：清洗本人相关的机器代号与第一人称冗余代词（如 发言人2：/ 发言人1：/ 你：/ 本人：）
+                content = re.sub(
+                    r"^(?:你|本人|我|(?:发言人|发言者|说话人|参会人|Speaker|User)\s*[\-_#\d]*)\s*[:：]\s*",
+                    "",
+                    content,
+                ).strip()
             groups[current_group].append(f"- {content}")
         else:
             matched_who = None
@@ -865,6 +1232,11 @@ def _normalize_section_body(
                     matched_who = "self"
                     content = re.sub(rf"^{re.escape(addr)}[：:\s]+", "", raw_content)
                     break
+            if not matched_who:
+                m_anon_self = re.match(r"^(?:你|本人)\s*[:：]\s*(.*)$", raw_content)
+                if m_anon_self:
+                    matched_who = "self"
+                    content = m_anon_self.group(1).strip()
             if not matched_who and active_supervisors:
                 for sup in active_supervisors:
                     if (
@@ -961,17 +1333,22 @@ def normalize_personal_sections(
 
 
 __all__ = [
+    "DialogueBlock",
     "Hit",
     "HitTable",
     "STRONG",
     "WEAK",
     "attribute_to_speaker",
     "build_hit_table",
+    "detect_personal_perspective_track",
     "foreign_only",
+    "is_anonymous_speaker",
     "normalize_personal_sections",
+    "parse_speaker_dialogue_blocks",
     "render_action_groups_block",
     "render_hit_block",
     "render_radar_block",
+    "resolve_anonymous_speakers_by_handshake",
     "slice_transcript_for_person",
     "speaker_blocks",
 ]

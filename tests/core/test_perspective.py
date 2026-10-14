@@ -995,6 +995,151 @@ def test_unified_meeting_tree_perspective_modeling() -> None:
     check("草稿直出：风险剔除级别标签且剔除待确认事项", "- [ ] **压测机器GPU显存受限**" in (proj_risk or "") and "【阻塞】" not in (proj_risk or "") and "待确认" not in (proj_risk or ""), str(proj_risk))
 
 
+def test_personal_perspective_dual_track() -> None:
+    """个人视角纪要双轨制落地验证（借鉴 agenda_minutes 架构设计）。
+
+    涵盖 personal_minutes_dual_track_guide.md 规范的全部核心用例：
+    - TC-TRK-01: 经典理想场景（Track A 强人名锚定）
+    - TC-TRK-02: 全场匿名+点名应答握手（Track B 正文穿透反向声纹绑定）
+    - TC-TRK-03: 全场匿名+自报家门（Track B 正文自报家门绑定与代号清洗）
+    - TC-TRK-04: 全场匿名+无点名纯阵地（Track B 业务标的/阵地共振）
+    - TC-TRK-05: 格式完全崩塌（极端容错回退 fallback=True）
+    - Channel 模式感知：Track B 理解层提示词注入
+    - 终稿公文化包装：清洗匿名编号与第一人称冗余代词
+    """
+    from domains.shared.perspective import (
+        detect_personal_perspective_track,
+        resolve_anonymous_speakers_by_handshake,
+        slice_transcript_for_person,
+        build_user_channel,
+        is_anonymous_speaker,
+        DialogueBlock,
+    )
+    from domains.shared.perspective.hits import normalize_personal_sections
+
+    user = {
+        "name": "赵衡",
+        "name_aliases": ["小赵", "赵工"],
+        "focus_thing": ["支付网关", "字典表"],
+        "focus_person": ["徐玥"],
+    }
+
+    # 1. 匿名代号探测函数验证
+    check("匿名探测：发言人 1 是匿名", is_anonymous_speaker("发言人 1"), "")
+    check("匿名探测：发言者 A 是匿名", is_anonymous_speaker("发言者 A"), "")
+    check("匿名探测：Speaker 3 是匿名", is_anonymous_speaker("Speaker 3"), "")
+    check("匿名探测：现场发言人 是匿名", is_anonymous_speaker("现场发言人"), "")
+    check("匿名探测：赵衡 不是匿名", not is_anonymous_speaker("赵衡"), "")
+    check("匿名探测：张总 不是匿名", not is_anonymous_speaker("张总"), "")
+
+    # TC-TRK-01: 经典理想场景（Track A 强人名锚定）
+    t_trk_01 = (
+        "赵衡 00:00:01\n我们先过一下网关接口。\n"
+        "张总 00:00:15\n好的，周五前务必封板。\n"
+        "李工 00:00:30\n测试用例已准备完毕。\n"
+    )
+    track_01 = detect_personal_perspective_track(t_trk_01, addresses=["赵衡", "小赵", "赵工"], user_profile=user)
+    check("TC-TRK-01: 经典理想场景命中 Track A (NAMED)", track_01 == "NAMED", track_01)
+    sliced_01, stats_01 = slice_transcript_for_person(
+        t_trk_01,
+        ["赵衡", "小赵", "赵工"],
+        full_name="赵衡",
+        self_label="你",
+        user_profile=user,
+        min_keep_chars=20,
+    )
+    check("TC-TRK-01: Track A 执行成功且无 fallback", not stats_01["fallback"] and stats_01.get("track") == "NAMED", str(stats_01))
+    check("TC-TRK-01: 本人块首重标为「你」", "你 00:00:01" in sliced_01, sliced_01)
+
+    # TC-TRK-02: 全场匿名+点名应答握手（Track B 正文穿透反向声纹绑定）
+    t_trk_02 = (
+        "发言人 1 00:00:01\n赵工你汇报一下网关改造的进展。\n"
+        "发言人 2 00:00:10\n网关已提测，周五18点前完成接口封板。\n"
+        "发言人 3 00:00:30\n下周团建活动安排在周六，大家按时提交报名表。\n"
+    )
+    track_02 = detect_personal_perspective_track(t_trk_02, addresses=["赵衡", "小赵", "赵工"], user_profile=user)
+    check("TC-TRK-02: 全场匿名代号命中 Track B (CONTENT)", track_02 == "CONTENT", track_02)
+    sliced_02, stats_02 = slice_transcript_for_person(
+        t_trk_02,
+        ["赵衡", "小赵", "赵工"],
+        full_name="赵衡",
+        self_label="你",
+        user_profile=user,
+        min_keep_chars=20,
+    )
+    check("TC-TRK-02: Track B 成功切片", not stats_02["fallback"] and stats_02.get("track") == "CONTENT", str(stats_02))
+    check("TC-TRK-02: 发言人2 通过时序握手反向绑定为本人并标为「你」", "你 00:00:10" in sliced_02 and "网关已提测" in sliced_02, sliced_02)
+    check("TC-TRK-02: 发言人1 点名发言块作为协同上下文予以保留", "发言人 1 00:00:01" in sliced_02 and "赵工你汇报一下" in sliced_02, sliced_02)
+    check("TC-TRK-02: 发言人3 无关团建发言被成功折叠剔除", "团建" not in sliced_02 and "省略 1 段" in sliced_02, sliced_02)
+
+    # TC-TRK-03: 全场匿名+自报家门（Track B 正文自报家门绑定与代号清洗）
+    t_trk_03 = (
+        "Speaker 3 00:00:05\n我是赵衡，我说两句。支付网关核心模块已全量上线。\n"
+        "Speaker 1 00:00:25\n收到，辛苦小赵。\n"
+        "Speaker 2 00:00:50\n另外行政部门下周升级门禁系统，记得带工卡。\n"
+    )
+    track_03 = detect_personal_perspective_track(t_trk_03, addresses=["赵衡", "小赵", "赵工"], user_profile=user)
+    check("TC-TRK-03: 命中 Track B (CONTENT)", track_03 == "CONTENT", track_03)
+    sliced_03, stats_03 = slice_transcript_for_person(
+        t_trk_03,
+        ["赵衡", "小赵", "赵工"],
+        full_name="赵衡",
+        self_label="你",
+        user_profile=user,
+        min_keep_chars=20,
+    )
+    check("TC-TRK-03: 自报家门成功绑定并重标为「你」", "你 00:00:05" in sliced_03 and "我是赵衡" in sliced_03, sliced_03)
+    check("TC-TRK-03: 原文 Speaker 3 代号已被清洗替换", "Speaker 3" not in sliced_03, sliced_03)
+    check("TC-TRK-03: 紧邻协同确认留存，无关门禁通知被剔除", "收到，辛苦小赵" in sliced_03 and "门禁系统" not in sliced_03, sliced_03)
+
+    # TC-TRK-04: 全场匿名+无点名纯阵地（Track B 业务标的/阵地共振）
+    t_trk_04 = (
+        "发言人 1 00:00:01\n支付网关本周进行高并发压测，确保核心链路高可用。\n"
+        "发言人 2 00:00:20\n字典表重构工作已完成初审，周三同步DDL。\n"
+        "发言人 4 00:00:40\n园区食堂下月增加夜宵供应，注意用餐纪律。\n"
+    )
+    track_04 = detect_personal_perspective_track(t_trk_04, addresses=["赵衡", "小赵", "赵工"], user_profile=user)
+    check("TC-TRK-04: 无人名全场匿名命中 Track B", track_04 == "CONTENT", track_04)
+    sliced_04, stats_04 = slice_transcript_for_person(
+        t_trk_04,
+        ["赵衡", "小赵", "赵工"],
+        full_name="赵衡",
+        self_label="你",
+        focus_things=["支付网关", "字典表"],
+        user_profile=user,
+        min_keep_chars=20,
+    )
+    check("TC-TRK-04: 标的共振保留支付网关与字典表", "支付网关本周进行高并发压测" in sliced_04 and "字典表重构工作" in sliced_04, sliced_04)
+    check("TC-TRK-04: 无关食堂讨论被剔除", "食堂" not in sliced_04 and "省略 1 段" in sliced_04, sliced_04)
+
+    # TC-TRK-05: 格式完全崩塌（极端容错回退 fallback=True）
+    t_trk_05 = "这是一段没有任何发言行结构也没有冒号的纯散文，记录了技术会议的若干讨论内容，模型不应报错崩盘。"
+    sliced_05, stats_05 = slice_transcript_for_person(
+        t_trk_05,
+        ["赵衡"],
+        full_name="赵衡",
+        user_profile=user,
+    )
+    check("TC-TRK-05: 格式完全崩塌触发 fallback=True 且安全回退", stats_05["fallback"] and sliced_05 == t_trk_05, str(stats_05))
+
+    # 验证 build_user_channel 在 Track B 模式下的感知
+    channel_track_b = build_user_channel(user, track="CONTENT")
+    check("Channel Track B: 包含代号指引与正文解密规则", "Track B 模式" in channel_track_b and "我是赵衡" in channel_track_b, channel_track_b)
+    check("Channel Track B: 严禁凭空推断发言人1", "严禁凭空将所有发言人1机械推断为赵衡" in channel_track_b, channel_track_b)
+
+    # 验证 normalize_personal_sections 对匿名代号与本人代词的清洗
+    dirty_doc = (
+        "## 行动项与分工\n"
+        "**与我相关**：\n"
+        "- 发言人2：完成支付网关改造，周五18:00前完成封板。\n"
+        "- 你：提交接口联调文档。\n"
+        "- **徐玥**：\n"
+        "- 发言人3：提供沙箱测试用例。\n"
+    )
+    norm_doc = normalize_personal_sections(dirty_doc, addresses=["赵衡", "小赵", "赵工"], self_name="赵衡", supervisors=["徐玥"])
+    check("公文化清洗：抹去发言人2与你前缀", "- 完成支付网关改造" in norm_doc and "发言人2：" not in norm_doc and "- 提交接口联调文档" in norm_doc, norm_doc)
+
+
 def main() -> int:
     test_empty_cases()
     test_whitelist_mapping()
@@ -1017,6 +1162,7 @@ def main() -> int:
     test_supervisor_slice_enhancement()
     test_personal_perspective_modeling_pruning_and_projection()
     test_unified_meeting_tree_perspective_modeling()
+    test_personal_perspective_dual_track()
     print(f"pass {len(PASS)}  fail {len(FAIL)}")
     for name in FAIL:
         print("FAIL", name)
