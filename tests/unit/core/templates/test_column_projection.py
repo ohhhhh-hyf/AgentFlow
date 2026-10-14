@@ -163,42 +163,37 @@ def test_minutes_chain_consistency() -> None:
           f"不拦截={supervisor.count('不拦截：')} 要拦截={supervisor.count('要拦截：')}")
 
 def test_understanding_trim_lists() -> None:
-    """理解裁剪：可空名单与必须写全名单不许重叠，两名单并集 = 契约全部字段。
-
-    回归背景：两张名单各写一份（后者写死在 agent 里），曾出现 risk_hints
-    同时被列为「可空」和「必须写全」，且必须写全名单漏掉 topics/risks/open_questions。
-    """
-    from dataclasses import fields as dc_fields
-
-    from domains.meeting.meeting_core.meeting_understanding_agent import (
-        _trim_instruction,
+    """理解裁剪：动态契约的 omitted 字段与保留字段互斥，未激活字段物理剔除。"""
+    from domains.meeting.meeting_core.contracts import (
+        ALL_CORE_FIELD_NAMES,
+        build_core_contract_for_tasks,
     )
-    from domains.meeting.models import MeetingUnderstanding
 
-    order = [f.name for f in dc_fields(MeetingUnderstanding)]
     cases = (
-        ("minutes", {"speakers"}),
-        ("risks", {"topics"}),
-        ("actions", {"topics", "speakers"}),
+        ("minutes", {"action_hints", "risk_hints", "dependencies"}),
+        ("risks", {"action_hints", "debates"}),
+        ("actions", {"risk_hints", "debates", "open_questions", "risks"}),
     )
-    for line, skip in cases:
-        text = _trim_instruction(line, skip)
-        blank_line = next(l for l in text.splitlines() if "键名必须保留、值给空数组" in l)
-        keep_line = next(l for l in text.splitlines() if "必须照常" in l)
-        # 只取名单本体：「仅供 X 线使用」里的线名可能恰好等于字段名（risks）
-        blank_part = blank_line.split("空数组 []**：", 1)[-1]
-        keep_part = keep_line.split("（", 1)[-1].split("）", 1)[0]
-        blank_fields = {f for f in order if f in blank_part}
-        keep_fields = {f for f in order if f in keep_part}
-        check(f"裁剪名单-{line}：可空与必须写全不重叠",
-              not (blank_fields & keep_fields),
-              f"重叠={sorted(blank_fields & keep_fields)}")
-        check(f"裁剪名单-{line}：两名单并集 = 契约全部字段",
-              blank_fields | keep_fields == set(order),
-              f"缺={sorted(set(order) - (blank_fields | keep_fields))}")
-        check(f"裁剪名单-{line}：可空名单与本线裁剪一致",
-              blank_fields == skip, f"实际={sorted(blank_fields)}")
-    check("无可裁剪字段时不拼裁剪指令", _trim_instruction("", set()) == "", "")
+    for line, expected_omitted_subset in cases:
+        contract_str, omitted = build_core_contract_for_tasks([line])
+        for field in omitted:
+            check(
+                f"动态契约-{line}：被裁剪字段 {field} 物理不存在于契约定义中",
+                f'"{field}"' not in contract_str,
+                f"field={field} 出现在 contract 中",
+            )
+        check(
+            f"动态契约-{line}：omitted 字段符合预期",
+            expected_omitted_subset.issubset(omitted),
+            f"omitted={sorted(omitted)}",
+        )
+        check(
+            f"动态契约-{line}：omitted 属于 ALL_CORE_FIELD_NAMES",
+            omitted.issubset(ALL_CORE_FIELD_NAMES),
+            f"extra={sorted(omitted - ALL_CORE_FIELD_NAMES)}",
+        )
+    contract_full, omitted_empty = build_core_contract_for_tasks([])
+    check("全量契约时 omitted 为空", omitted_empty == frozenset(), str(omitted_empty))
 
 def test_overview_cap_and_column_scope() -> None:
     """概括/背景栏：逐栏给出上限与边界，且不许跨栏复述。
@@ -294,9 +289,6 @@ def test_allow_missing_on_trimmed_fields() -> None:
     from dataclasses import fields as dc_fields
 
     from infra.llm.client import LLMClient
-    from domains.meeting.meeting_core.meeting_understanding_agent import (
-        _trim_instruction,
-    )
     from domains.meeting.models_generated import MeetingUnderstanding
 
     base = {
@@ -315,7 +307,7 @@ def test_allow_missing_on_trimmed_fields() -> None:
     except Exception:  # noqa: BLE001
         failed = True
     check("未声明 allow_missing 时缺键仍严格报错（不放松其它字段）", failed, "")
-    unkept = {k: v for k, v in base.items() if k != "topics"}
+    unkept = {k: v for k, v in base.items() if k != "session_segments"}
     try:
         LLMClient._parse_and_validate(
             json.dumps(unkept), MeetingUnderstanding, frozenset({"speakers"})
@@ -324,10 +316,6 @@ def test_allow_missing_on_trimmed_fields() -> None:
     except Exception:  # noqa: BLE001
         failed2 = True
     check("非裁剪字段缺键仍报错（只在裁剪集合内放宽）", failed2, "")
-
-    trim = _trim_instruction("minutes", ("speakers",))
-    check("裁剪指令写明「键名必须保留、值给空数组 []」",
-          "键名必须保留" in trim and "不要省略键名" in trim, trim[:80])
 
     with_extra = dict(base)
     with_extra["action_hints"] = []
@@ -495,15 +483,17 @@ def test_template_aware_understanding_skip() -> None:
     check("其它线不受模板影响（actions 线模板不给也不改集合）",
           skip_of(["actions"], mb) == UNDERSTANDING_SKIP_FIELDS["actions"], "")
 
-    from domains.meeting.meeting_core.meeting_understanding_agent import (
-        _trim_instruction,
+    from domains.meeting.meeting_core.contracts import (
+        build_core_contract_for_tasks,
     )
 
-    trim = _trim_instruction("minutes", sorted(merged))
-    check("裁剪指令把五项都列进「值给空数组 []」",
-          "键名必须保留" in trim and all(k in trim for k in merged), trim[:120])
-    check("裁剪指令的「必须照常输出」名单里不含被裁字段",
-          all(k not in trim.split("其余字段")[1].split("必须照常")[0] for k in merged), "")
+    contract_mb, omitted_mb = build_core_contract_for_tasks(["minutes"], template_text=mb)
+    check("动态契约把模板未包含项列进 omitted",
+          all(k in omitted_mb for k in ("risks", "open_questions")),
+          f"{sorted(omitted_mb)}")
+    check("动态契约物理剔除未包含字段",
+          all(f'"{k}"' not in contract_mb for k in ("risks", "open_questions")),
+          "")
 
     # 节点侧：裁剪集合确实随 state 里的模板变化（不是建节点时定死）
     import asyncio
@@ -1239,10 +1229,9 @@ def test_understanding_user_channel() -> None:
             user_channel=block,
         )
     )
-    check("称呼表拼在裁剪指令之后、会议原文之前",
-          stub.user.index("【本次输出裁剪】")
-          < stub.user.index("本用户称呼")
-          < stub.user.index("会议原文："),
+    check("称呼表拼在会议原文之前，且无裁剪指令",
+          "【本次输出裁剪】" not in stub.user
+          and stub.user.index("本用户称呼") < stub.user.index("会议原文："),
           stub.user[:120])
     asyncio.run(agent.run("原文", user_channel=""))
     check("无称呼表时不注入空块（用户消息仍以会议原文开头）",
