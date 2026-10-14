@@ -51,16 +51,15 @@ def _relevance(item: dict[str, Any], fact: Any | None) -> int:
 def _rank(
     items: list[dict[str, Any]],
     fact: Any | None,
-    cap: int,
+    cap: int = 10,
     recent: list[str] | None = None,
 ) -> list[dict[str, Any]]:
-    """取相关性最高的 cap 条；相关度全 0 时按**最近提及**（而不是数组顺序）保底。
+    """按事实命中门禁 + 弹性安全天花板 (cap，默认 10) 筛选待办。
 
-    2026-09-21 修：原保底是 `scored[:cap]`＝数组最前面＝**最早**那批条目。相关度
-    门禁失效（见 ``_relevance``）时，区块就被最旧的一批老事项填满（实测第二场注入的
-    6 条未决全是第一场最早的 action 唠叨），而"最旧"恰好是从未被后续会议验证/关闭的
-    僵尸条目。``recent`` 是状态的 recent_meetings（末尾最新）：越靠后越优先；
-    同场次再让带负责人/时限的条目先上（更可执行）。
+    1. 信噪比质量门禁：计算 item 与 fact 的相关度。若存在相关度 > 0 的实质命中项，
+       仅保留相关度 > 0 的实质命中项，杜绝零分无关项滥竽充数；
+    2. 若所有待办相关度全为 0（如新业务讨论或测试环境），按最近提及（recent）与责任人排序保底；
+    3. 弹性天花板：最多取 cap 条（默认 10 条），绝不超过上限。
     """
     order = {mid: i for i, mid in enumerate(recent or [])}
 
@@ -70,8 +69,40 @@ def _rank(
         has_owner = bool(_clean(item.get("owner")) or _clean(item.get("timing")))
         return (-score, -order.get(mid, -1), 0 if has_owner else 1)
 
-    scored = sorted(((_relevance(i, fact), i) for i in items), key=key)
-    return [i for _, i in scored[:cap]]
+    scored = [(_relevance(i, fact), i) for i in items if isinstance(i, dict) and _clean(i.get("text"))]
+    positive = [p for p in scored if p[0] > 0]
+    candidates = positive if positive else scored
+    candidates.sort(key=key)
+    return [i for _, i in candidates[:cap]]
+
+
+def _append_h_item(
+    parts: list[str],
+    tag: str,
+    item: dict[str, Any],
+    *,
+    seq_map: dict[str, dict[str, Any]],
+    meta: str,
+) -> None:
+    text = _clean(item.get("text"))
+    if not text:
+        return
+    scope = _topic_label_v2(item)
+    scope_str = f"（{scope}）" if scope else ""
+    parts.append(f"- [{tag}] {text}{scope_str}（{meta}）")
+    if scope:
+        parts.append(f"  主题：{scope}")
+    quote = _clean(item.get("quote"))
+    if quote:
+        parts.append(f"  原文摘录：{quote}")
+    title = _clean(item.get("meeting_title"))
+    if title:
+        parts.append(f"  来源会议：{title}")
+    mid = _clean(item.get("last_seen") or item.get("meeting_id") or item.get("closed_at") or item.get("since"))
+    info = seq_map.get(mid) or {}
+    time_val = _clean(item.get("time")) or _clean(info.get("time"))
+    if time_val:
+        parts.append(f"  会议时间：{time_val}")
 
 
 def _append_item(
@@ -280,38 +311,11 @@ def preview_comparison(
         shown_closed.add(text)
         lines.append(f"已闭环{head(label_for(text))}：{text}")
 
-    hist_risks = [i for i in (state.get("risks") or []) if isinstance(i, dict) and _clean(i.get("text"))]
-    fact_risks = [_clean(r) for r in (getattr(fact, "risks", None) or []) if _clean(r)]
-    evolved: list[str] = []
-    for hist in hist_risks:
-        if hist.get("status") == "dormant":
-            continue  # 已沉寂的风险不能写成"持续"（只有 active/mitigated 才谈演变）
-        for cur in fact_risks:
-            if not similar(_clean(hist.get("text")), cur):
-                continue
-            last = session_label(seq_map, _clean(hist.get("last_seen")))
-            topic = label_for(hist)
-            if re.search(r"(已解决|已缓解|已消除|风险解除|不再存在|完成整改)", cur):
-                evolved.append(f"风险演变{head(topic, f'缓解，{last}')}：{cur}")
-            elif hist.get("status") == "mitigated":
-                evolved.append(f"风险演变{head(topic, '再发，本场')}：{cur}")
-            else:
-                evolved.append(f"风险演变{head(topic, f'持续，{last}')}：{_clean(hist.get('text'))}")
-            break
-    if not evolved:
-        for item in _rank([i for i in hist_risks if i.get("status") == "active"], fact, 2):
-            last = session_label(seq_map, _clean(item.get("last_seen")))
-            evolved.append(
-                f"风险演变{head(label_for(item), f'持续，{last}')}：{_clean(item.get('text'))}"
-            )
-    lines.extend(evolved[:2])
-
     if lines:
         counts = {
             "新增决策": sum(1 for x in lines if x.startswith("新增决策")),
             "延续未决": len(seen_open),
             "已闭环": len(shown_closed),
-            "风险演变": len(evolved[:2]),
         }
         summary = "、".join(f"{k} {v} 条" for k, v in counts.items() if v)
         lines.append(f"本场历史对照合计：{summary}")
@@ -333,8 +337,8 @@ def build_memory_context(
     evidence = getattr(bind, "evidence", []) or []
     parts = [
         "══════════════════════════════════════════════════════════════",
-        "【只读参考附录：跨场次历史演进脉络】",
-        "（注：仅作为 history_comparison 的演变参照，严禁并入本次 executive_summary 与 key_decisions）",
+        "【历史事项代号表】（仅供在正文陈述涉及相关事项时引用代号，严禁捏造）",
+        "（注：若正文陈述涉及下列历史事项，请紧随对应句子附带其代号如 [H1]；未涉及切勿强行提及）",
         "【会议记忆】",
         f"项目：{_clean(project.get('name')) or _clean(state.get('name')) or project_id}",
     ]
@@ -345,53 +349,23 @@ def build_memory_context(
         i for i in list(state.get("actions") or []) + list(state.get("open_items") or [])
         if isinstance(i, dict) and (i.get("status") or "open") == "open"
     ]
-    closed = [
-        i for i in list(state.get("actions") or []) + list(state.get("open_items") or [])
-        if isinstance(i, dict) and i.get("status") == "done"
-    ]
     risks = [
         i for i in (state.get("risks") or [])
         if isinstance(i, dict) and i.get("status") in {"active", "mitigated", "dormant"}
     ]
-    active_risks = [i for i in risks if i.get("status") == "active"]
-    mitigated = [i for i in risks if i.get("status") == "mitigated"]
     dormant = [i for i in risks if i.get("status") == "dormant"]
-    decisions = [
-        i for i in (state.get("decisions") or [])
-        if isinstance(i, dict) and i.get("status") != "superseded"
-    ]
 
     recent = [str(x) for x in (state.get("recent_meetings") or []) if str(x).strip()]
-    ranked_open = _rank(opens, current_fact, 6, recent)
-    ranked_closed = _rank(closed, current_fact, 4, recent)
-    # 名额分开算：过去是 active 5 条 + mitigated 2 条再 [:5] 截断，
-    # 只要 active 满额，「已缓解」永远不出现（风险演变只有坏消息、没有闭环）。
-    ranked_risks = _rank(active_risks, current_fact, 5, recent)
-    ranked_mitigated = _rank(mitigated, current_fact, 2, recent)
-    # 沉寂风险不再静默丢弃：给一格让模型知道"这事没人提了"，别当成现状写。
-    ranked_dormant = _rank(dormant, current_fact, 1, recent)
-    ranked_decisions = _rank(decisions[-8:], current_fact, 6, recent)
+    ranked_open = _rank(opens, current_fact, cap=10, recent=recent)
 
     if ranked_open:
-        parts.append("\n【延续事项】")
-        for item in ranked_open:
-            _append_item(parts, item, seq_map=seq_map, meta=_open_meta(item, seq_map))
-    if ranked_closed:
-        parts.append("\n【已闭环】")
-        for item in ranked_closed:
-            _append_item(parts, item, seq_map=seq_map, meta=_closed_meta(item, seq_map))
-    if ranked_risks or ranked_mitigated or ranked_dormant:
+        for idx, item in enumerate(ranked_open, 1):
+            tag = f"H{idx}"
+            _append_h_item(parts, tag, item, seq_map=seq_map, meta=_open_meta(item, seq_map))
+    elif dormant:
         parts.append("\n【风险演变】")
-        for item in ranked_risks:
+        for item in _rank(dormant, current_fact, 1, recent):
             _append_item(parts, item, seq_map=seq_map, meta=_risk_meta(item, seq_map))
-        for item in ranked_mitigated:
-            _append_item(parts, item, seq_map=seq_map, meta=_risk_meta(item, seq_map))
-        for item in ranked_dormant:
-            _append_item(parts, item, seq_map=seq_map, meta=_risk_meta(item, seq_map))
-    if ranked_decisions:
-        parts.append("\n【历史决策】")
-        for item in ranked_decisions:
-            _append_item(parts, item, seq_map=seq_map, meta=_decision_meta(item, seq_map))
 
     comparison: list[str] = []
     if current_fact is not None:

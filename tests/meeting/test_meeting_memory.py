@@ -1116,6 +1116,87 @@ def test_purge_stale_memory_from_decisions():
     check("enforce_minutes_draft history_comparison 承接往期沿革", any("8月18日前优化 minutes_trace" in h for h in enforced["history_comparison"]), str(enforced["history_comparison"]))
 
 
+def test_h_tag_mechanism_and_dynamic_gating() -> None:
+    """TC-H-01~07: 动态事实门禁、弹性天花板(N<=10)、[Hn]白名单替换、容错与HTML适配。"""
+    from domains.meeting.memory.inject import _rank, build_memory_context
+    from domains.meeting.memory.render import apply_memory_citations, parse_memory_items, memory_review_html
+
+    # 1. 动态信噪比门禁：有相关度的入选，0分无关项不凑数
+    fact = _fact(
+        title="网关鉴权改造评审会",
+        summary="讨论鉴权接口与Token缓存",
+        decisions=["通过Token方案"],
+        open_items=["网关鉴权接口联调"],
+        risks=[],
+    )
+    items = [
+        {"item_id": "a1", "text": "完成网关鉴权接口编写", "status": "open", "since": "m1"},
+        {"item_id": "a2", "text": "优化Token缓存策略", "status": "open", "since": "m1"},
+        {"item_id": "a3", "text": "完全不相干的前端CSS样式重构", "status": "open", "since": "m1"},
+        {"item_id": "a4", "text": "人事招聘进度同步", "status": "open", "since": "m1"},
+    ]
+    ranked = _rank(items, fact, cap=10)
+    check("TC-H-01: 仅命中事实的待办入选 (2条)", len(ranked) == 2, str(ranked))
+    check("TC-H-01: 无关0分项不滥竽充数", all("前端" not in r["text"] and "招聘" not in r["text"] for r in ranked), str(ranked))
+
+    # 2. 弹性安全天花板：超过 10 条时严格截断至 10 条
+    many_items = [
+        {"item_id": f"a{i}", "text": f"网关鉴权任务{i}", "status": "open", "since": "m1", "owner": "小张"}
+        for i in range(15)
+    ]
+    ranked_10 = _rank(many_items, fact, cap=10)
+    check("TC-H-02: 超过10条时熔断至天花板10条", len(ranked_10) == 10, str(len(ranked_10)))
+
+    # 3. [H1] 注入代号表生成与映射解析
+    state = {"open_items": items[:2], "actions": [], "recent_meetings": ["m1"]}
+    ctx, comp = build_memory_context(
+        project_id="p1",
+        project={"name": "网关项目"},
+        state=state,
+        bind=type("B", (), {"evidence": []})(),
+        meetings=[],
+        current_fact=fact,
+    )
+    check("TC-H-03: 注入块含【历史事项代号表】", "【历史事项代号表】" in ctx, ctx)
+    check("TC-H-03: 包含 [H1] 代号", "- [H1]" in ctx, ctx)
+    parsed = parse_memory_items(ctx)
+    check("TC-H-03: parse_memory_items 正确解析 tag", len(parsed) == 2 and parsed[0].tag == "H1", str(parsed))
+
+    # 4. [H1] 确定性替换与文末溯源卡片生成
+    body = (
+        "# 纪要\n"
+        "团队针对核心模块进行复盘，网关鉴权接口已全量完成联调 [H1]，后续将继续推进 [H2]。\n"
+    )
+    out = apply_memory_citations(body, ctx, comparison=comp)
+    check("TC-H-04: 正文 [H1] 替换为链接", "[完成网关鉴权接口编写](#memory-1)" in out, out)
+    check("TC-H-04: 正文 [H2] 替换为链接", "[优化Token缓存策略](#memory-2)" in out, out)
+    check("TC-H-04: 文末生成对应数量的溯源卡片", "#### 溯源 memory-1" in out and "#### 溯源 memory-2" in out, out)
+
+    # 5. 白名单过滤幻觉代号
+    body_hallucinated = (
+        "# 纪要\n"
+        "现场讨论了未提及的外部模块 [H99] 以及正常待办 [H1]。\n"
+    )
+    out_hallucinated = apply_memory_citations(body_hallucinated, ctx)
+    check("TC-H-05: 幻觉代号 [H99] 被直接剔除", "[H99]" not in out_hallucinated and "memory-99" not in out_hallucinated, out_hallucinated)
+    check("TC-H-05: 合法代号正常挂载", "[完成网关鉴权接口编写](#memory-1)" in out_hallucinated, out_hallucinated)
+
+    # 6. 大小写与括号容错 (h1), 【H1】
+    body_flexible = (
+        "# 纪要\n"
+        "接口已完成联调 (H1)，Token策略已对齐 【h2】。\n"
+    )
+    out_flexible = apply_memory_citations(body_flexible, ctx)
+    check("TC-H-06: 圆括号与小写 (H1) 容错命中", "(#memory-1)" in out_flexible, out_flexible)
+    check("TC-H-06: 中文括号与小写 【h2】 容错命中", "(#memory-2)" in out_flexible, out_flexible)
+
+    # 7. HTML 渲染兼容性：带记忆链接渲染为双栏 review HTML
+    html = memory_review_html(out, title="网关会议纪要")
+    check("TC-H-07: HTML 生成带高亮实体 ck-cite-entity", 'class="ck-cite-entity"' in html, html[:500])
+    check("TC-H-07: HTML 生成右侧卡片 ck-mem-card", 'class="ck-ev ck-mem-card"' in html, html[:500])
+    check("TC-H-07: HTML 生成状态演进看板", 'class="ck-ledger"' in html or '状态演进' in html, html[:500])
+
+
 def main() -> int:
     test_identity_helpers()
     test_bind_explicit_warning()
@@ -1139,6 +1220,7 @@ def main() -> int:
     test_state_lifecycle_consistency()
     test_personal_minutes_html_rendering()
     test_purge_stale_memory_from_decisions()
+    test_h_tag_mechanism_and_dynamic_gating()
     with tempfile.TemporaryDirectory() as raw:
         tmp = Path(raw)
         test_persist_no_project_and_headline(tmp)

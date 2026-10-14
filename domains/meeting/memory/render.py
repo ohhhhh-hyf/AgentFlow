@@ -20,8 +20,9 @@ SECTION_TITLE = "历史记忆引用"
 
 # 记忆块总是追加在（生成/渲染）上下文末尾；贪婪到文末，小节头不参与块边界。
 _MEMORY_BLOCK_RE = re.compile(r"【会议记忆】(.*)\Z", re.S)
-_SECTION_RE = re.compile(r"【(延续事项|已闭环|风险演变|历史决策|历史对照素材)】")
+_SECTION_RE = re.compile(r"【(历史事项代号表|延续事项|已闭环|风险演变|历史决策|历史对照素材)】")
 _KIND_BY_SECTION = {
+    "历史事项代号表": "open",
     "延续事项": "open",
     "已闭环": "closed",
     "风险演变": "risk",
@@ -66,6 +67,7 @@ COMPARISON_TITLE = "历史对照"
 _COMPARISON_SECTION_RE = re.compile(
     r"\n(?:-{3,}\s*\n+)*## (?:历史对照|状态演进)\b.*?(?=\n#{1,2} |\Z)", re.S
 )
+_H_TAG_RE = re.compile(r"[\[(【](H\d+)[\])】]", re.IGNORECASE)
 # 台账行：- 类别（主题｜场次说明）：内容 / - 类别（场次说明）：内容 / - 类别：内容
 _LEDGER_LINE_RE = re.compile(
     r"^(新增决策|延续事项|已闭环|风险演变)(?:[（(]([^）)]*)[)）])?[:：]\s*(.*)$"
@@ -123,6 +125,7 @@ class MemoryItem:
     timing: str = ""  # 时限（有则展示）
     module: str = ""  # 原生议题作用域（business module）
     topic_title: str = ""  # 原生议题标题
+    tag: str = ""  # H1, H2... 占位符代号
 
 
 def _split_meta(body: str) -> tuple[str, str]:
@@ -255,6 +258,11 @@ def parse_memory_items(context: str) -> list[MemoryItem]:
             if section == "历史对照素材":
                 continue
             body = _clean(item_match.group(1))
+            tag = ""
+            tag_m = re.match(r"^\[([Hh]\d+)\]\s*(.+)$", body)
+            if tag_m:
+                tag = tag_m.group(1).upper()
+                body = _clean(tag_m.group(2))
             meeting_id = ""
             lead = _DECISION_LEAD_RE.match(body)
             if lead:
@@ -272,6 +280,7 @@ def parse_memory_items(context: str) -> list[MemoryItem]:
                 status=fields.get("status") or "",
                 owner=fields.get("owner") or "",
                 timing=fields.get("timing") or "",
+                tag=tag,
             )
     _flush()
     return items
@@ -663,6 +672,51 @@ def apply_memory_citations(
     items = parse_memory_items(context)
     if not items:
         return body + comparison_section
+
+    # 优先检查 [H1] 机制：若正文存在 [Hn] 占位符，走 100% 确定性替换分支
+    h_mapping = {item.tag.upper(): item for item in items if item.tag}
+    if _H_TAG_RE.search(body) and h_mapping:
+        used_items: list[MemoryItem] = []
+        seen_tags: set[str] = set()
+
+        def _replace_tag(match: re.Match) -> str:
+            tag = match.group(1).upper()
+            if tag not in h_mapping:
+                # 白名单拦截：大模型捏造的非法代号直接剔除，不在正文展示脏标签
+                return ""
+            item = h_mapping[tag]
+            if tag not in seen_tags:
+                seen_tags.add(tag)
+                used_items.append(item)
+            ref_idx = items.index(item) + 1
+            return f"[{item.text}](#memory-{ref_idx})"
+
+        replaced_body = _H_TAG_RE.sub(_replace_tag, body)
+        if not used_items:
+            existing = _collect_ref_ids(replaced_body)
+            by_ref = {f"memory-{index + 1}": item for index, item in enumerate(items)}
+            used_items = [by_ref[ref] for ref in existing if ref in by_ref]
+
+        if not used_items:
+            return f"{replaced_body.strip()}{comparison_section}"
+
+        appendix = ["", f"## {SECTION_TITLE}", ""]
+        for item in used_items:
+            ref_id = f"memory-{items.index(item) + 1}"
+            source = item.meeting_title or item.meeting_id or "历史会议"
+            quote = item.quote or item.text
+            rows = [
+                f"#### 溯源 {ref_id}",
+                f"> {quote}",
+            ]
+            status_line = _status_line(item)
+            if status_line:
+                rows.append(status_line)
+            rows.append(f"来源会议：{source}")
+            if item.meeting_time:
+                rows.append(f"会议时间：{item.meeting_time}")
+            appendix.extend(rows)
+        return f"{replaced_body.strip()}{comparison_section}\n" + "\n".join(row for row in appendix if row)
 
     citable = [line for line in body.splitlines() if _is_citeable_line(line)]
     stats = _NeedleStats(citable)
