@@ -1196,6 +1196,17 @@ def test_h_tag_mechanism_and_dynamic_gating() -> None:
     check("TC-H-07: HTML 生成右侧卡片 ck-mem-card", 'class="ck-ev ck-mem-card"' in html, html[:500])
     check("TC-H-07: HTML 生成状态演进看板", 'class="ck-ledger"' in html or '状态演进' in html, html[:500])
 
+    # 8. 双轨融合：显式 [H1] 与隐式算法兜底共存（不再单标签早退）
+    body_hybrid = (
+        "# 纪要\n"
+        "现场确认网关鉴权接口已全量完成联调 [H1]。\n"
+        "关于优化Token缓存策略，团队将在下周展开针对性技术攻坚。\n"
+    )
+    out_hybrid = apply_memory_citations(body_hybrid, ctx)
+    check("TC-H-08: 显式代号 [H1] 成功替换", "[完成网关鉴权接口编写](#memory-1)" in out_hybrid, out_hybrid)
+    check("TC-H-08: 未打标签的第二条被算法兜底捞回", "(#memory-2)" in out_hybrid, out_hybrid)
+    check("TC-H-08: 双轨融合卡片全量生成", "#### 溯源 memory-1" in out_hybrid and "#### 溯源 memory-2" in out_hybrid, out_hybrid)
+
 
 def main() -> int:
     test_identity_helpers()

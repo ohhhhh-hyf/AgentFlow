@@ -40,12 +40,19 @@ def _relevance(item: dict[str, Any], fact: Any | None) -> int:
         return 0
     if text in blob or blob in text:
         return 10000
+    score = 0
     for size in range(min(8, len(text)), 3, -1):
         grams = [text[i : i + size] for i in range(len(text) - size + 1)]
         hits = sum(1 for g in grams if g in blob)
         if hits:
-            return size * 100 + hits
-    return 0
+            score = size * 100 + hits
+            break
+    if not score:
+        return 0
+    title_text = _compact(_clean(getattr(fact, "title", "")))
+    if title_text and any(text[i : i + 4] in title_text for i in range(len(text) - 3)):
+        score += 500
+    return score
 
 
 def _rank(
@@ -344,8 +351,7 @@ def build_memory_context(
         parts.append("命中依据：" + "、".join(str(x) for x in evidence[:8]))
     parts.extend([
         "",
-        "【历史事项代号表】（仅供在正文陈述涉及相关事项时引用代号，严禁捏造）",
-        "（注：若正文陈述涉及下列历史事项，请紧随对应句子附带其代号如 [H1]；未涉及切勿强行提及）",
+        "【历史事项代号表】（跨场会议演进追踪：凡正文讨论涉及下列历史事项的最新进展、闭环、延期或变更，请在句末标注对应代号如 [H1]）",
     ])
 
     opens = [

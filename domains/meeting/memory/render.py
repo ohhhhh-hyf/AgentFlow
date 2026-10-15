@@ -675,12 +675,12 @@ def apply_memory_citations(
     if not items:
         return body + comparison_section
 
-    # 优先检查 [H1] 机制：若正文存在 [Hn] 占位符，走 100% 确定性替换分支
+    used_items: list[MemoryItem] = []
+    seen_tags: set[str] = set()
     h_mapping = {item.tag.upper(): item for item in items if item.tag}
-    if _H_TAG_RE.search(body) and h_mapping:
-        used_items: list[MemoryItem] = []
-        seen_tags: set[str] = set()
 
+    # Phase 1: 显式 [H1]~[Hn] 标签解析与精准替换
+    if _H_TAG_RE.search(body) and h_mapping:
         def _replace_tag(match: re.Match) -> str:
             tag = match.group(1).upper()
             if tag not in h_mapping:
@@ -689,75 +689,55 @@ def apply_memory_citations(
             item = h_mapping[tag]
             if tag not in seen_tags:
                 seen_tags.add(tag)
-                used_items.append(item)
+                if item not in used_items:
+                    used_items.append(item)
             ref_idx = items.index(item) + 1
             return f"[{item.text}](#memory-{ref_idx})"
 
-        replaced_body = _H_TAG_RE.sub(_replace_tag, body)
-        if not used_items:
-            existing = _collect_ref_ids(replaced_body)
-            by_ref = {f"memory-{index + 1}": item for index, item in enumerate(items)}
-            used_items = [by_ref[ref] for ref in existing if ref in by_ref]
+        body = _H_TAG_RE.sub(_replace_tag, body)
 
-        if not used_items:
-            return f"{replaced_body.strip()}{comparison_section}"
+    # 收集已有的 memory-N 引用（支持幂等或非 [Hn] 的预先标注）
+    existing = _collect_ref_ids(body)
+    by_ref = {f"memory-{index + 1}": item for index, item in enumerate(items)}
+    for ref in existing:
+        if ref in by_ref and by_ref[ref] not in used_items:
+            used_items.append(by_ref[ref])
 
-        appendix = ["", f"## {SECTION_TITLE}", ""]
-        for item in used_items:
-            ref_id = f"memory-{items.index(item) + 1}"
-            source = item.meeting_title or item.meeting_id or "历史会议"
-            quote = item.quote or item.text
-            rows = [
-                f"#### 溯源 {ref_id}",
-                f"> {quote}",
-            ]
-            status_line = _status_line(item)
-            if status_line:
-                rows.append(status_line)
-            rows.append(f"来源会议：{source}")
-            if item.meeting_time:
-                rows.append(f"会议时间：{item.meeting_time}")
-            appendix.extend(rows)
-        return f"{replaced_body.strip()}{comparison_section}\n" + "\n".join(row for row in appendix if row)
+    # Phase 2: 对尚未引用的剩余条目走算法兜底匹配
+    uncited_items = [item for item in items if item not in used_items]
+    if uncited_items:
+        citable = [line for line in body.splitlines() if _is_citeable_line(line)]
+        stats = _NeedleStats(citable)
+        seen = list(used_items)
+        lines: list[str] = []
+        scoped = _scope_signaled(_split_by_sections(body), items)
+        section_title = ""
+        for line in body.splitlines():
+            if line.startswith("## "):
+                section_title = line[3:].strip()
+            if _is_citeable_line(line):
+                candidates = (
+                    [item for item in uncited_items if _item_in_scope(item, section_title)]
+                    if scoped
+                    else uncited_items
+                )
+                line, found = _append_markers(
+                    line, candidates, seen, stats, ref_items=items
+                )
+                for item in found:
+                    if item not in used_items:
+                        used_items.append(item)
+                        seen.append(item)
+            lines.append(line)
+        body = "\n".join(lines)
 
-    citable = [line for line in body.splitlines() if _is_citeable_line(line)]
-    stats = _NeedleStats(citable)
-    used: list[MemoryItem] = []
-    seen: list[MemoryItem] = []
-    lines: list[str] = []
-    scoped = _scope_signaled(_split_by_sections(body), items)
-    section_title = ""
-    for line in body.splitlines():
-        if line.startswith("## "):
-            section_title = line[3:].strip()
-        if _is_citeable_line(line):
-            candidates = (
-                [item for item in items if _item_in_scope(item, section_title)]
-                if scoped
-                else items
-            )
-            line, found = _append_markers(
-                line, candidates, seen, stats, ref_items=items
-            )
-            for item in found:
-                if item not in seen:
-                    seen.append(item)
-                    used.append(item)
-        lines.append(line)
-
-    # 正文没有任何可精确锚定的行时，不伪造溯源入口：既不声明命中，也不生成
-    # 「历史记忆引用」区（宁可无引用，也不在正文插入「记忆命中」这类系统表达）。
-    if not used:
-        # 重复调用（正文已带锚点、本次全部跳过）：按正文里实际引用的编号重建溯源区，
-        # 否则会留下"标签还在、卡片被摘掉"的悬空链接。
-        existing = _collect_ref_ids("\n".join(lines))
-        by_ref = {f"memory-{index + 1}": item for index, item in enumerate(items)}
-        used = [by_ref[ref] for ref in existing if ref in by_ref]
-        if not used:
-            return "\n".join(lines) + comparison_section
+    if not used_items:
+        return f"{body.strip()}{comparison_section}"
 
     appendix = ["", f"## {SECTION_TITLE}", ""]
-    for item in used:
+    # 按在 items 中的顺序稳定排序，保证卡片从 1 到 N 顺序呈现
+    used_items.sort(key=lambda item: items.index(item))
+    for item in used_items:
         ref_id = f"memory-{items.index(item) + 1}"
         source = item.meeting_title or item.meeting_id or "历史会议"
         quote = item.quote or item.text
@@ -772,7 +752,7 @@ def apply_memory_citations(
         if item.meeting_time:
             rows.append(f"会议时间：{item.meeting_time}")
         appendix.extend(rows)
-    return "\n".join(lines) + comparison_section + "\n" + "\n".join(appendix)
+    return f"{body.strip()}{comparison_section}\n" + "\n".join(row for row in appendix if row)
 
 
 from infra.exporters.html.paper_css import latex_paper_css as _latex_paper_css
@@ -1778,14 +1758,11 @@ def render_minutes_html(title: str, text: str, data: dict | None = None) -> str:
     clean_text = str(text or "").strip()
     if hasattr(data, "model_dump"):
         data = data.model_dump()
-    if (
+    has_anchors = (
         "](#" in clean_text
         or f"## {SECTION_TITLE}" in clean_text
-        or f"## {COMPARISON_TITLE}" in clean_text
-        or "## 历史对照" in clean_text
-        or "## 状态演进" in clean_text
-        or bool(data and data.get("history_comparison"))
-    ):
+    )
+    if has_anchors:
         return memory_review_html(clean_text, title=title, data=data)
     return render_markdown_page_html(title or "会议纪要", clean_text)
 
