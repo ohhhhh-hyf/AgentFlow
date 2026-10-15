@@ -1,0 +1,362 @@
+2026-10-15 13:46:37 [INFO] [app.api.routes.agent] [api:agent] domain=meeting task=agenda_minutes request_id=5fb5d339f0c749758dee11b435401e59 user_id=1
+2026-10-15 13:46:37 [INFO] [agentflow] agenda_ocr start engine=paddleocr images=1 mode=single_stream
+2026-10-15 13:46:44 [INFO] [agentflow] agenda_ocr item ok 1/1 lines=28 file=说话人日志.png padded=True
+2026-10-15 13:46:44 [INFO] [infra.llm.llmclient] llm client backend=vllm model=deepseek-v4-flash-0731 base_url=http://127.0.0.1:8000/v1 ctx=65536 max_tokens=50000 timeout=600.0 retries=2 temperature=0.2 sampling_sent=False
+2026-10-15 13:46:44 [INFO] [infra.llm.llmclient] llm call label=agenda_minutes/ocr_reconstruct mode=text
+2026-10-15 13:46:45 [INFO] [infra.llm.llmclient] llm resp label=agenda_minutes/ocr_reconstruct model=deepseek-v4-flash-0731 finish=stop in=1319 out=161 json_mode=False chars=272
+2026-10-15 13:46:45 [INFO] [agentflow.agenda_extractor] reconstruct_agenda_markdown succeeded, length=272
+2026-10-15 13:46:45 [INFO] [agentflow] agenda_ocr done total=1 chars=272
+2026-10-15 13:46:45 [INFO] [app.tasks] Saved agenda OCR snapshot to logs/agenda_ocr/latest_agenda_ocr.md (272 chars)
+2026-10-15 13:46:46 [INFO] [app.tasks] [task:start] domain=meeting task=agenda_minutes request_id=5fb5d339f0c749758dee11b435401e59 user_id=1 memory=False
+2026-10-15 13:46:46 [INFO] [infra.llm.llmclient] llm client backend=vllm model=deepseek-v4-flash-0731 base_url=http://127.0.0.1:8000/v1 ctx=65536 max_tokens=50000 timeout=600.0 retries=2 temperature=0.2 sampling_sent=False
+2026-10-15 13:46:46 [INFO] [agentflow] pipeline start lines=agenda_minutes
+2026-10-15 13:46:46 [INFO] [agentflow] skip meeting_understanding (agenda_minutes self-contained)
+2026-10-15 13:46:46 [INFO] [agentflow] node done meeting_understanding
+2026-10-15 13:46:46 [INFO] [agentflow] agent start gen line=agenda_minutes
+2026-10-15 13:46:46 [INFO] [agentflow.agenda_parser] agenda_parser: parsing agenda text (272 chars, 8 lines)
+2026-10-15 13:46:46 [INFO] [agentflow.agenda_parser] agenda_parser: resolved table columns -> {'seq': 0, 'title': 1, 'presenter': 2, 'recorder': -1, 'members': -1, 'time': -1, 'duration': 3, 'category': -1, 'description': -1}
+2026-10-15 13:46:46 [INFO] [agentflow.agenda_parser] agenda_parser: matched table header at line 0: ['序号', '议题名称', '汇报人/主讲人', '预计时长']
+2026-10-15 13:46:46 [INFO] [agentflow.agenda_parser] agenda_parser: table mode extracted 5 items
+2026-10-15 13:46:46 [INFO] [agentflow.agenda_parser] [AGENDA_PARSER] 既定议程单识别成功 (来源: table, 共 5 项):
+  -> 议题 01: 《活动开场视频播放》 | 演讲人/汇报人: (未指定或未识别到演讲人) [预计时长: 09:00-09:10]
+  -> 议题 02: 《何刚总致辞》 | 演讲人/汇报人: 何刚 [预计时长: 09:10-09:30]
+  -> 议题 03: 《互动交流（现场问答、自由交流与讨论）》 | 演讲人/汇报人: (未指定或未识别到演讲人) [预计时长: 09:30-10:30]
+  -> 议题 04: 《任务令签署与授予仪式》 | 演讲人/汇报人: (未指定或未识别到演讲人) [预计时长: 10:30-10:40]
+  -> 议题 05: 《全体参会人员合影留念》 | 演讲人/汇报人: (未指定或未识别到演讲人) [预计时长: 10:40-10:50]
+2026-10-15 13:46:46 [INFO] [infra.llm.llmclient] llm call label=agenda_minutes/item_02 mode=structured
+2026-10-15 13:46:46 [INFO] [infra.llm.llmclient] llm call label=agenda_minutes/item_03 mode=structured
+2026-10-15 13:46:46 [INFO] [infra.llm.llmclient] llm call label=agenda_minutes/item_04 mode=structured
+2026-10-15 13:46:46 [INFO] [infra.llm.llmclient] llm call label=agenda_minutes/item_05 mode=structured
+2026-10-15 13:46:48 [INFO] [infra.llm.llmclient] llm resp label=agenda_minutes/item_05 model=deepseek-v4-flash-0731 finish=stop in=2781 out=65 json_mode=True chars=202
+2026-10-15 13:46:53 [INFO] [infra.llm.llmclient] llm resp label=agenda_minutes/item_04 model=deepseek-v4-flash-0731 finish=stop in=3395 out=293 json_mode=True chars=543
+2026-10-15 13:47:04 [INFO] [infra.llm.llmclient] llm resp label=agenda_minutes/item_02 model=deepseek-v4-flash-0731 finish=stop in=6216 out=875 json_mode=True chars=1590
+2026-10-15 13:47:05 [INFO] [infra.llm.llmclient] llm resp label=agenda_minutes/item_03 model=deepseek-v4-flash-0731 finish=stop in=10626 out=784 json_mode=True chars=1320
+2026-10-15 13:47:05 [INFO] [agentflow] agent done gen line=agenda_minutes
+2026-10-15 13:47:05 [INFO] [agentflow] node done agenda_minutes_agent
+2026-10-15 13:47:05 [INFO] [agentflow] agent start review line=agenda_minutes
+2026-10-15 13:47:05 [INFO] [infra.llm.llmclient] llm call label=agenda_minutes/supervisor mode=structured
+2026-10-15 13:47:07 [INFO] [infra.llm.llmclient] llm resp label=agenda_minutes/supervisor model=deepseek-v4-flash-0731 finish=stop in=10711 out=87 json_mode=True chars=272
+2026-10-15 13:47:07 [INFO] [agentflow] agent done review line=agenda_minutes decision=approve
+2026-10-15 13:47:07 [INFO] [agentflow] node done agenda_minutes_supervisor
+2026-10-15 13:47:07 [INFO] [agentflow] render start line=agenda_minutes
+2026-10-15 13:47:07 [INFO] [core.runner.runner] saved html line=agenda_minutes path=/root/h00984725/TRY/data/1/output/5fb5d339f0c749758dee11b435401e59/agenda_minutes.html
+2026-10-15 13:47:07 [INFO] [core.runner.runner] saved text line=agenda_minutes path=/root/h00984725/TRY/data/1/output/5fb5d339f0c749758dee11b435401e59/result.md
+2026-10-15 13:47:07 [INFO] [app.tasks] [task:finish] domain=meeting task=agenda_minutes request_id=5fb5d339f0c749758dee11b435401e59 cost=30.30s tokens=35833 file=agenda_minutes.html
+2026-10-15 13:48:10 [INFO] [app.api.routes.agent] [api:agent] domain=meeting task=agenda_minutes request_id=4efd75cd052b40adbd0bb0ebaed6a3f9 user_id=1
+2026-10-15 13:48:10 [INFO] [agentflow] agenda_ocr start engine=paddleocr images=1 mode=single_stream
+2026-10-15 13:48:11 [INFO] [agentflow] agenda_ocr item ok 1/1 lines=28 file=说话人日志.png padded=True
+2026-10-15 13:48:11 [INFO] [infra.llm.llmclient] llm client backend=vllm model=deepseek-v4-flash-0731 base_url=http://127.0.0.1:8000/v1 ctx=65536 max_tokens=50000 timeout=600.0 retries=2 temperature=0.2 sampling_sent=False
+2026-10-15 13:48:11 [INFO] [infra.llm.llmclient] llm call label=agenda_minutes/ocr_reconstruct mode=text
+2026-10-15 13:48:12 [INFO] [infra.llm.llmclient] llm resp label=agenda_minutes/ocr_reconstruct model=deepseek-v4-flash-0731 finish=stop in=1319 out=157 json_mode=False chars=264
+2026-10-15 13:48:12 [INFO] [agentflow.agenda_extractor] reconstruct_agenda_markdown succeeded, length=264
+2026-10-15 13:48:12 [INFO] [agentflow] agenda_ocr done total=1 chars=264
+2026-10-15 13:48:12 [INFO] [app.tasks] Saved agenda OCR snapshot to logs/agenda_ocr/latest_agenda_ocr.md (264 chars)
+2026-10-15 13:48:12 [INFO] [app.tasks] [task:start] domain=meeting task=agenda_minutes request_id=4efd75cd052b40adbd0bb0ebaed6a3f9 user_id=1 memory=False
+2026-10-15 13:48:12 [INFO] [infra.llm.llmclient] llm client backend=vllm model=deepseek-v4-flash-0731 base_url=http://127.0.0.1:8000/v1 ctx=65536 max_tokens=50000 timeout=600.0 retries=2 temperature=0.2 sampling_sent=False
+2026-10-15 13:48:12 [INFO] [agentflow] pipeline start lines=agenda_minutes
+2026-10-15 13:48:12 [INFO] [agentflow] skip meeting_understanding (agenda_minutes self-contained)
+2026-10-15 13:48:12 [INFO] [agentflow] node done meeting_understanding
+2026-10-15 13:48:12 [INFO] [agentflow] agent start gen line=agenda_minutes
+2026-10-15 13:48:12 [INFO] [agentflow.agenda_parser] agenda_parser: parsing agenda text (264 chars, 8 lines)
+2026-10-15 13:48:12 [INFO] [agentflow.agenda_parser] agenda_parser: resolved table columns -> {'seq': 0, 'title': 1, 'presenter': 2, 'recorder': -1, 'members': -1, 'time': -1, 'duration': 3, 'category': -1, 'description': -1}
+2026-10-15 13:48:12 [INFO] [agentflow.agenda_parser] agenda_parser: matched table header at line 0: ['序号', '议题名称', '汇报人/主讲人', '预计时长']
+2026-10-15 13:48:12 [INFO] [agentflow.agenda_parser] agenda_parser: table mode extracted 5 items
+2026-10-15 13:48:12 [INFO] [agentflow.agenda_parser] [AGENDA_PARSER] 既定议程单识别成功 (来源: table, 共 5 项):
+  -> 议题 01: 《活动开场视频播放》 | 演讲人/汇报人: (未指定或未识别到演讲人) [预计时长: 09:00-09:10]
+  -> 议题 02: 《何刚总致辞》 | 演讲人/汇报人: 何刚 [预计时长: 09:10-09:30]
+  -> 议题 03: 《互动交流（现场问答、自由交流与讨论）》 | 演讲人/汇报人: (未指定或未识别到演讲人) [预计时长: 09:30-10:30]
+  -> 议题 04: 《任务令签署与授予》 | 演讲人/汇报人: (未指定或未识别到演讲人) [预计时长: 10:30-10:40]
+  -> 议题 05: 《全体合影》 | 演讲人/汇报人: (未指定或未识别到演讲人) [预计时长: 10:40-10:50]
+2026-10-15 13:48:12 [INFO] [infra.llm.llmclient] llm call label=agenda_minutes/item_02 mode=structured
+2026-10-15 13:48:12 [INFO] [infra.llm.llmclient] llm call label=agenda_minutes/item_03 mode=structured
+2026-10-15 13:48:12 [INFO] [infra.llm.llmclient] llm call label=agenda_minutes/item_04 mode=structured
+2026-10-15 13:48:12 [INFO] [infra.llm.llmclient] llm call label=agenda_minutes/item_05 mode=structured
+2026-10-15 13:48:13 [INFO] [infra.llm.llmclient] llm resp label=agenda_minutes/item_05 model=deepseek-v4-flash-0731 finish=stop in=2774 out=65 json_mode=True chars=202
+2026-10-15 13:48:20 [INFO] [infra.llm.llmclient] llm resp label=agenda_minutes/item_04 model=deepseek-v4-flash-0731 finish=stop in=3394 out=399 json_mode=True chars=720
+2026-10-15 13:48:25 [INFO] [infra.llm.llmclient] llm resp label=agenda_minutes/item_02 model=deepseek-v4-flash-0731 finish=stop in=6216 out=690 json_mode=True chars=1292
+2026-10-15 13:48:32 [INFO] [infra.llm.llmclient] llm resp label=agenda_minutes/item_03 model=deepseek-v4-flash-0731 finish=stop in=10626 out=1041 json_mode=True chars=1888
+2026-10-15 13:48:32 [INFO] [agentflow] agent done gen line=agenda_minutes
+2026-10-15 13:48:32 [INFO] [agentflow] node done agenda_minutes_agent
+2026-10-15 13:48:32 [INFO] [agentflow] agent start review line=agenda_minutes
+2026-10-15 13:48:32 [INFO] [infra.llm.llmclient] llm call label=agenda_minutes/supervisor mode=structured
+2026-10-15 13:48:34 [INFO] [infra.llm.llmclient] llm resp label=agenda_minutes/supervisor model=deepseek-v4-flash-0731 finish=stop in=11301 out=87 json_mode=True chars=272
+2026-10-15 13:48:34 [INFO] [agentflow] agent done review line=agenda_minutes decision=approve
+2026-10-15 13:48:34 [INFO] [agentflow] node done agenda_minutes_supervisor
+2026-10-15 13:48:34 [INFO] [agentflow] render start line=agenda_minutes
+2026-10-15 13:48:34 [INFO] [core.runner.runner] saved html line=agenda_minutes path=/root/h00984725/TRY/data/1/output/4efd75cd052b40adbd0bb0ebaed6a3f9/agenda_minutes.html
+2026-10-15 13:48:34 [INFO] [core.runner.runner] saved text line=agenda_minutes path=/root/h00984725/TRY/data/1/output/4efd75cd052b40adbd0bb0ebaed6a3f9/result.md
+2026-10-15 13:48:34 [INFO] [app.tasks] [task:finish] domain=meeting task=agenda_minutes request_id=4efd75cd052b40adbd0bb0ebaed6a3f9 cost=24.10s tokens=36593 file=agenda_minutes.html
+2026-10-15 13:49:13 [INFO] [app.api.routes.agent] [api:agent] domain=meeting task=risks request_id=a8eff601a1d040899b6998c5d4c2d0b6 user_id=1
+2026-10-15 13:49:13 [INFO] [app.tasks] [task:start] domain=meeting task=risks request_id=a8eff601a1d040899b6998c5d4c2d0b6 user_id=1 memory=False
+2026-10-15 13:49:13 [INFO] [infra.llm.llmclient] llm client backend=vllm model=deepseek-v4-flash-0731 base_url=http://127.0.0.1:8000/v1 ctx=65536 max_tokens=50000 timeout=600.0 retries=2 temperature=0.2 sampling_sent=False
+2026-10-15 13:49:13 [INFO] [agentflow] pipeline start lines=risks
+2026-10-15 13:49:13 [INFO] [agentflow] agent start meeting_understanding
+2026-10-15 13:49:13 [INFO] [infra.llm.llmclient] llm call label=core/meeting_understanding mode=structured
+2026-10-15 13:49:50 [INFO] [infra.llm.llmclient] llm resp label=core/meeting_understanding model=deepseek-v4-flash-0731 finish=stop in=7394 out=2478 json_mode=True chars=5589
+2026-10-15 13:49:50 [INFO] [agentflow] agent done meeting_understanding
+2026-10-15 13:49:50 [INFO] [agentflow] node done meeting_understanding
+2026-10-15 13:49:50 [INFO] [agentflow] skip perspective (objective)
+2026-10-15 13:49:50 [INFO] [agentflow] node done perspective_modeling
+2026-10-15 13:49:50 [INFO] [agentflow] agent start gen line=risks
+2026-10-15 13:49:50 [INFO] [infra.llm.llmclient] llm call label=risk/agent mode=structured
+2026-10-15 13:50:01 [INFO] [infra.llm.llmclient] llm resp label=risk/agent model=deepseek-v4-flash-0731 finish=stop in=3442 out=938 json_mode=True chars=2343
+2026-10-15 13:50:01 [INFO] [agentflow] agent done gen line=risks
+2026-10-15 13:50:01 [INFO] [agentflow] node done risks_agent
+2026-10-15 13:50:01 [INFO] [agentflow] agent start review line=risks
+2026-10-15 13:50:01 [INFO] [infra.llm.llmclient] llm call label=risk/supervisor mode=structured
+2026-10-15 13:50:02 [INFO] [infra.llm.llmclient] llm resp label=risk/supervisor model=deepseek-v4-flash-0731 finish=stop in=8907 out=37 json_mode=True chars=109
+2026-10-15 13:50:02 [INFO] [agentflow] agent done review line=risks decision=approve
+2026-10-15 13:50:02 [INFO] [agentflow] node done risks_supervisor
+2026-10-15 13:50:02 [INFO] [agentflow] render start line=risks
+2026-10-15 13:50:02 [INFO] [core.runner.runner] saved html line=risks path=/root/h00984725/TRY/data/1/output/a8eff601a1d040899b6998c5d4c2d0b6/risks.html
+2026-10-15 13:50:02 [INFO] [core.runner.runner] saved text line=risks path=/root/h00984725/TRY/data/1/output/a8eff601a1d040899b6998c5d4c2d0b6/risks.md
+2026-10-15 13:50:02 [INFO] [app.tasks] [task:finish] domain=meeting task=risks request_id=a8eff601a1d040899b6998c5d4c2d0b6 cost=49.30s tokens=23196 file=risks.html
+2026-10-15 13:50:13 [INFO] [app.api.routes.agent] [api:agent] domain=meeting task=actions request_id=5c63de718aaf4e46b6ba2da199dcc00b user_id=1
+2026-10-15 13:50:13 [INFO] [app.tasks] [task:start] domain=meeting task=actions request_id=5c63de718aaf4e46b6ba2da199dcc00b user_id=1 memory=False
+2026-10-15 13:50:13 [INFO] [infra.llm.llmclient] llm client backend=vllm model=deepseek-v4-flash-0731 base_url=http://127.0.0.1:8000/v1 ctx=65536 max_tokens=50000 timeout=600.0 retries=2 temperature=0.2 sampling_sent=False
+2026-10-15 13:50:13 [INFO] [agentflow] pipeline start lines=actions
+2026-10-15 13:50:13 [INFO] [agentflow] agent start meeting_understanding
+2026-10-15 13:50:13 [INFO] [infra.llm.llmclient] llm call label=core/meeting_understanding mode=structured
+2026-10-15 13:50:53 [INFO] [infra.llm.llmclient] llm resp label=core/meeting_understanding model=deepseek-v4-flash-0731 finish=stop in=7392 out=2766 json_mode=True chars=6129
+2026-10-15 13:50:53 [INFO] [agentflow] agent done meeting_understanding
+2026-10-15 13:50:53 [INFO] [agentflow] node done meeting_understanding
+2026-10-15 13:50:53 [INFO] [agentflow] skip perspective (objective)
+2026-10-15 13:50:53 [INFO] [agentflow] node done perspective_modeling
+2026-10-15 13:50:53 [INFO] [agentflow] agent start gen line=actions
+2026-10-15 13:50:53 [INFO] [infra.llm.llmclient] llm call label=actions/agent/objective mode=structured
+2026-10-15 13:51:11 [INFO] [infra.llm.llmclient] llm resp label=actions/agent/objective model=deepseek-v4-flash-0731 finish=stop in=4767 out=1635 json_mode=True chars=4324
+2026-10-15 13:51:11 [WARNING] [infra.llm.llmclient] structured invalid label=actions/agent/objective attempt=1 err=ActionItems 字段不一致：缺失=['my_actions']，多余=[] raw_head='{\n  "assigned_actions": [\n    {\n      "category": "整改项提出与参建单位回应",\n      "task": "会后与技术组一起细化验收组提出的问题，通过方案处理解决",\n      "owner": "管理组田组长",\n      "deadline": null,\n      "timing_anchor": "会后",\n      "coll'
+2026-10-15 13:51:11 [INFO] [infra.llm.llmclient] llm call label=actions/agent/objective mode=structured 第2次
+2026-10-15 13:51:28 [INFO] [infra.llm.llmclient] llm resp label=actions/agent/objective model=deepseek-v4-flash-0731 finish=stop in=5208 out=1641 json_mode=True chars=4332
+2026-10-15 13:51:28 [WARNING] [infra.llm.llmclient] structured invalid label=actions/agent/objective attempt=2 err=ActionItems 字段不一致：缺失=['my_actions']，多余=[] raw_head='{\n  "assigned_actions": [\n    {\n      "category": "整改项提出与参建单位回应",\n      "task": "会后与技术组一起细化验收组提出的问题，通过方案处理解决",\n      "owner": "管理组田组长",\n      "deadline": null,\n      "timing_anchor": "会后",\n      "coll'
+2026-10-15 13:51:28 [WARNING] [core.graph.nodes] gen failed, empty draft line=待办
+Traceback (most recent call last):
+  File "/root/h00984725/TRY/core/graph/nodes.py", line 557, in node
+    result = await agent.run(
+  File "/root/h00984725/TRY/domains/meeting/tasks/actions/steps/actions_agent.py", line 36, in run
+    return await self.client.structured(
+  File "/root/h00984725/TRY/infra/llm/llmclient.py", line 958, in structured
+    raise RuntimeError(
+RuntimeError: ActionItems 输出无法满足结构契约：ActionItems 字段不一致：缺失=['my_actions']，多余=[]
+2026-10-15 13:51:28 [INFO] [agentflow] node done actions_agent
+2026-10-15 13:51:28 [INFO] [agentflow] agent start review line=actions
+2026-10-15 13:51:28 [INFO] [infra.llm.llmclient] llm call label=actions/supervisor mode=structured
+2026-10-15 13:51:29 [INFO] [infra.llm.llmclient] llm resp label=actions/supervisor model=deepseek-v4-flash-0731 finish=stop in=8200 out=37 json_mode=True chars=112
+2026-10-15 13:51:29 [INFO] [agentflow] agent done review line=actions decision=approve
+2026-10-15 13:51:29 [INFO] [agentflow] node done actions_supervisor
+2026-10-15 13:51:29 [INFO] [agentflow] render start line=actions
+2026-10-15 13:51:29 [WARNING] [core.runner.runner] ⚠ 生成可能有误，请结合会议原文核对。
+2026-10-15 13:51:29 [INFO] [core.runner.runner] saved html line=actions path=/root/h00984725/TRY/data/1/output/5c63de718aaf4e46b6ba2da199dcc00b/actions.html
+2026-10-15 13:51:29 [INFO] [core.runner.runner] saved text line=actions path=/root/h00984725/TRY/data/1/output/5c63de718aaf4e46b6ba2da199dcc00b/actions.md
+2026-10-15 13:51:29 [INFO] [app.tasks] [task:finish] domain=meeting task=actions request_id=5c63de718aaf4e46b6ba2da199dcc00b cost=75.50s tokens=31646 file=actions.html
+2026-10-15 13:52:07 [INFO] [app.api.routes.agent] [api:agent] domain=meeting task=minutes_trace request_id=f6ac412565dd4e9585c04450130d5767 user_id=1
+2026-10-15 13:52:07 [INFO] [app.tasks] [task:start] domain=meeting task=minutes_trace request_id=f6ac412565dd4e9585c04450130d5767 user_id=1 memory=False
+2026-10-15 13:52:07 [INFO] [infra.llm.llmclient] llm client backend=vllm model=deepseek-v4-flash-0731 base_url=http://127.0.0.1:8000/v1 ctx=65536 max_tokens=50000 timeout=600.0 retries=2 temperature=0.2 sampling_sent=False
+2026-10-15 13:52:07 [INFO] [agentflow] pipeline start lines=minutes_trace
+2026-10-15 13:52:07 [INFO] [agentflow] agent start meeting_understanding
+2026-10-15 13:52:07 [INFO] [infra.llm.llmclient] llm call label=core/meeting_understanding mode=structured
+2026-10-15 13:52:29 [INFO] [infra.llm.llmclient] llm resp label=core/meeting_understanding model=deepseek-v4-flash-0731 finish=stop in=7625 out=1441 json_mode=True chars=3144
+2026-10-15 13:52:29 [INFO] [agentflow] agent done meeting_understanding
+2026-10-15 13:52:29 [INFO] [agentflow] node done meeting_understanding
+2026-10-15 13:52:29 [INFO] [agentflow] agent start gen line=minutes_trace
+2026-10-15 13:52:29 [INFO] [infra.llm.llmclient] llm call label=minutes_trace/agent mode=structured
+2026-10-15 13:52:45 [INFO] [infra.llm.llmclient] llm resp label=minutes_trace/agent model=deepseek-v4-flash-0731 finish=stop in=9731 out=956 json_mode=True chars=1581
+2026-10-15 13:52:45 [INFO] [agentflow] agent done gen line=minutes_trace
+2026-10-15 13:52:45 [INFO] [agentflow] node done minutes_trace_agent
+2026-10-15 13:52:45 [INFO] [agentflow] agent start review line=minutes_trace
+2026-10-15 13:52:45 [INFO] [infra.llm.llmclient] llm call label=minutes_trace/supervisor mode=structured
+2026-10-15 13:52:47 [INFO] [infra.llm.llmclient] llm resp label=minutes_trace/supervisor model=deepseek-v4-flash-0731 finish=stop in=8653 out=79 json_mode=True chars=243
+2026-10-15 13:52:47 [INFO] [agentflow] agent done review line=minutes_trace decision=approve
+2026-10-15 13:52:47 [INFO] [agentflow] node done minutes_trace_supervisor
+2026-10-15 13:52:47 [INFO] [agentflow] render start line=minutes_trace
+2026-10-15 13:52:47 [INFO] [core.runner.runner] saved html line=minutes_trace path=/root/h00984725/TRY/data/1/output/f6ac412565dd4e9585c04450130d5767/minutes_trace.html
+2026-10-15 13:52:47 [INFO] [core.runner.runner] saved text line=minutes_trace path=/root/h00984725/TRY/data/1/output/f6ac412565dd4e9585c04450130d5767/minutes_trace.md
+2026-10-15 13:52:47 [INFO] [app.tasks] [task:finish] domain=meeting task=minutes_trace request_id=f6ac412565dd4e9585c04450130d5767 cost=40.40s tokens=28485 file=minutes_trace.html
+2026-10-15 13:53:36 [INFO] [app.api.routes.agent] [api:agent] domain=meeting task=minutes request_id=a4ec2bf1483e46f1b004104838922c64 user_id=1
+2026-10-15 13:53:36 [INFO] [app.tasks] [task:start] domain=meeting task=minutes request_id=a4ec2bf1483e46f1b004104838922c64 user_id=1 memory=False
+2026-10-15 13:53:36 [INFO] [infra.llm.llmclient] llm client backend=vllm model=deepseek-v4-flash-0731 base_url=http://127.0.0.1:8000/v1 ctx=65536 max_tokens=50000 timeout=600.0 retries=2 temperature=0.2 sampling_sent=False
+2026-10-15 13:53:36 [INFO] [agentflow] pipeline start lines=minutes
+2026-10-15 13:53:36 [INFO] [agentflow] agent start meeting_understanding
+2026-10-15 13:53:36 [INFO] [infra.llm.llmclient] llm call label=core/meeting_understanding mode=structured
+2026-10-15 13:53:36 [INFO] [infra.llm.llmclient] llm fit max_tokens 50000->44394 ctx=65536 input~20886
+2026-10-15 13:54:05 [INFO] [infra.llm.llmclient] llm resp label=core/meeting_understanding model=deepseek-v4-flash-0731 finish=stop in=15079 out=1938 json_mode=True chars=4205
+2026-10-15 13:54:05 [INFO] [agentflow] agent done meeting_understanding
+2026-10-15 13:54:05 [INFO] [agentflow] node done meeting_understanding
+2026-10-15 13:54:05 [INFO] [agentflow] skip perspective (程序合成(关注雷达)) hits=1
+2026-10-15 13:54:05 [INFO] [agentflow] node done perspective_modeling
+2026-10-15 13:54:05 [INFO] [agentflow] agent start gen line=minutes
+2026-10-15 13:54:05 [INFO] [infra.llm.llmclient] llm call label=minutes/agent/personal mode=structured
+2026-10-15 13:54:05 [INFO] [infra.llm.llmclient] llm fit max_tokens 50000->38505 ctx=65536 input~26775
+2026-10-15 13:54:21 [INFO] [infra.llm.llmclient] llm resp label=minutes/agent/personal model=deepseek-v4-flash-0731 finish=stop in=19090 out=873 json_mode=True chars=1536
+2026-10-15 13:54:21 [INFO] [agentflow] agent done gen line=minutes
+2026-10-15 13:54:21 [INFO] [agentflow] node done minutes_agent
+2026-10-15 13:54:21 [INFO] [agentflow] agent start review line=minutes
+2026-10-15 13:54:21 [INFO] [infra.llm.llmclient] llm call label=minutes/supervisor/personal mode=structured
+2026-10-15 13:54:24 [INFO] [infra.llm.llmclient] llm resp label=minutes/supervisor/personal model=deepseek-v4-flash-0731 finish=stop in=16836 out=81 json_mode=True chars=252
+2026-10-15 13:54:24 [INFO] [agentflow] agent done review line=minutes decision=approve
+2026-10-15 13:54:24 [INFO] [agentflow] node done minutes_supervisor
+2026-10-15 13:54:24 [INFO] [agentflow] render start line=minutes
+2026-10-15 13:54:24 [INFO] [infra.llm.llmclient] llm call label=minutes/render mode=text
+2026-10-15 13:54:43 [INFO] [infra.llm.llmclient] llm resp label=minutes/render model=deepseek-v4-flash-0731 finish=stop in=8001 out=1334 json_mode=False chars=2089
+2026-10-15 13:54:43 [INFO] [agentflow] render done line=minutes
+2026-10-15 13:54:43 [INFO] [core.runner.runner] saved html line=minutes path=/root/h00984725/TRY/data/1/output/a4ec2bf1483e46f1b004104838922c64/minutes.html
+2026-10-15 13:54:43 [INFO] [core.runner.runner] saved text line=minutes path=/root/h00984725/TRY/data/1/output/a4ec2bf1483e46f1b004104838922c64/result.md
+2026-10-15 13:54:43 [INFO] [app.tasks] [task:finish] domain=meeting task=minutes request_id=a4ec2bf1483e46f1b004104838922c64 cost=67.60s tokens=63232 file=minutes.html
+2026-10-15 13:56:02 [INFO] [app.api.routes.agent] [api:agent] domain=meeting task=minutes_trace request_id=d9c953cbbe2d4814bb6a008e06b26dde user_id=1
+2026-10-15 13:56:02 [INFO] [app.tasks] [task:start] domain=meeting task=minutes_trace request_id=d9c953cbbe2d4814bb6a008e06b26dde user_id=1 memory=False
+2026-10-15 13:56:02 [INFO] [infra.llm.llmclient] llm client backend=vllm model=deepseek-v4-flash-0731 base_url=http://127.0.0.1:8000/v1 ctx=65536 max_tokens=50000 timeout=600.0 retries=2 temperature=0.2 sampling_sent=False
+2026-10-15 13:56:02 [INFO] [agentflow] pipeline start lines=minutes_trace
+2026-10-15 13:56:02 [INFO] [agentflow] agent start meeting_understanding
+2026-10-15 13:56:02 [INFO] [infra.llm.llmclient] llm call label=core/meeting_understanding mode=structured
+2026-10-15 13:56:22 [INFO] [infra.llm.llmclient] llm resp label=core/meeting_understanding model=deepseek-v4-flash-0731 finish=stop in=7625 out=1303 json_mode=True chars=2869
+2026-10-15 13:56:22 [INFO] [agentflow] agent done meeting_understanding
+2026-10-15 13:56:22 [INFO] [agentflow] node done meeting_understanding
+2026-10-15 13:56:22 [INFO] [agentflow] agent start gen line=minutes_trace
+2026-10-15 13:56:22 [INFO] [infra.llm.llmclient] llm call label=minutes_trace/agent mode=structured
+2026-10-15 13:56:44 [INFO] [infra.llm.llmclient] llm resp label=minutes_trace/agent model=deepseek-v4-flash-0731 finish=stop in=9591 out=1318 json_mode=True chars=2148
+2026-10-15 13:56:44 [INFO] [agentflow] agent done gen line=minutes_trace
+2026-10-15 13:56:44 [INFO] [agentflow] node done minutes_trace_agent
+2026-10-15 13:56:44 [INFO] [agentflow] agent start review line=minutes_trace
+2026-10-15 13:56:44 [INFO] [infra.llm.llmclient] llm call label=minutes_trace/supervisor mode=structured
+2026-10-15 13:56:44 [INFO] [infra.llm.llmclient] llm fit max_tokens 50000->48983 ctx=65536 input~16297
+2026-10-15 13:56:46 [INFO] [infra.llm.llmclient] llm resp label=minutes_trace/supervisor model=deepseek-v4-flash-0731 finish=stop in=9906 out=79 json_mode=True chars=243
+2026-10-15 13:56:46 [INFO] [agentflow] agent done review line=minutes_trace decision=approve
+2026-10-15 13:56:46 [INFO] [agentflow] node done minutes_trace_supervisor
+2026-10-15 13:56:46 [INFO] [agentflow] render start line=minutes_trace
+2026-10-15 13:56:52 [INFO] [agentflow] trace align items=20 missing_keypoints=1 missing_notes=5 to_judge=4
+2026-10-15 13:56:52 [INFO] [infra.llm.llmclient] llm call label=minutes_trace/verdict mode=text
+2026-10-15 13:56:55 [INFO] [infra.llm.llmclient] llm resp label=minutes_trace/verdict model=deepseek-v4-flash-0731 finish=stop in=1564 out=278 json_mode=False chars=721
+2026-10-15 13:56:55 [INFO] [agentflow] trace judge keep=4
+2026-10-15 13:56:57 [INFO] [core.runner.runner] saved html line=minutes_trace path=/root/h00984725/TRY/data/1/output/d9c953cbbe2d4814bb6a008e06b26dde/minutes_trace.html
+2026-10-15 13:56:57 [INFO] [core.runner.runner] saved text line=minutes_trace path=/root/h00984725/TRY/data/1/output/d9c953cbbe2d4814bb6a008e06b26dde/minutes_trace.md
+2026-10-15 13:56:57 [INFO] [app.tasks] [task:finish] domain=meeting task=minutes_trace request_id=d9c953cbbe2d4814bb6a008e06b26dde cost=54.60s tokens=31664 file=minutes_trace.html
+2026-10-15 13:59:17 [INFO] [app.api.routes.agent] [api:agent] domain=meeting task=consensus_decision request_id=e516c6c4ec7a416db43e60915029266c user_id=1
+2026-10-15 13:59:17 [INFO] [app.tasks] [task:start] domain=meeting task=consensus_decision request_id=e516c6c4ec7a416db43e60915029266c user_id=1 memory=False
+2026-10-15 13:59:17 [INFO] [infra.llm.llmclient] llm client backend=vllm model=deepseek-v4-flash-0731 base_url=http://127.0.0.1:8000/v1 ctx=65536 max_tokens=50000 timeout=600.0 retries=2 temperature=0.2 sampling_sent=False
+2026-10-15 13:59:17 [INFO] [agentflow] pipeline start lines=consensus_decision
+2026-10-15 13:59:17 [INFO] [agentflow] agent start meeting_understanding
+2026-10-15 13:59:17 [INFO] [infra.llm.llmclient] llm call label=core/meeting_understanding mode=structured
+2026-10-15 13:59:48 [INFO] [infra.llm.llmclient] llm resp label=core/meeting_understanding model=deepseek-v4-flash-0731 finish=stop in=7319 out=1853 json_mode=True chars=3875
+2026-10-15 13:59:48 [INFO] [agentflow] agent done meeting_understanding
+2026-10-15 13:59:48 [INFO] [agentflow] node done meeting_understanding
+2026-10-15 13:59:48 [INFO] [agentflow] skip perspective (objective)
+2026-10-15 13:59:48 [INFO] [agentflow] node done perspective_modeling
+2026-10-15 13:59:48 [INFO] [agentflow] agent start gen line=consensus_decision
+2026-10-15 13:59:48 [INFO] [infra.llm.llmclient] llm call label=consensus_decision/agent mode=structured
+2026-10-15 13:59:48 [INFO] [infra.llm.llmclient] llm fit max_tokens 50000->49163 ctx=65536 input~16117
+2026-10-15 14:00:19 [INFO] [infra.llm.llmclient] llm resp label=consensus_decision/agent model=deepseek-v4-flash-0731 finish=stop in=10004 out=2141 json_mode=True chars=5027
+2026-10-15 14:00:19 [INFO] [agentflow] agent done gen line=consensus_decision
+2026-10-15 14:00:19 [INFO] [agentflow] node done consensus_decision_agent
+2026-10-15 14:00:19 [INFO] [agentflow] agent start review line=consensus_decision
+2026-10-15 14:00:19 [INFO] [infra.llm.llmclient] llm call label=consensus_decision/supervisor mode=structured
+2026-10-15 14:00:19 [INFO] [infra.llm.llmclient] llm fit max_tokens 50000->48453 ctx=65536 input~16827
+2026-10-15 14:00:21 [INFO] [infra.llm.llmclient] llm resp label=consensus_decision/supervisor model=deepseek-v4-flash-0731 finish=stop in=10350 out=81 json_mode=True chars=251
+2026-10-15 14:00:21 [INFO] [agentflow] agent done review line=consensus_decision decision=approve
+2026-10-15 14:00:21 [INFO] [agentflow] node done consensus_decision_supervisor
+2026-10-15 14:00:21 [INFO] [agentflow] render start line=consensus_decision
+2026-10-15 14:00:21 [INFO] [infra.llm.llmclient] llm call label=consensus_decision/render mode=text
+2026-10-15 14:00:34 [INFO] [infra.llm.llmclient] llm resp label=consensus_decision/render model=deepseek-v4-flash-0731 finish=stop in=8251 out=1092 json_mode=False chars=1874
+2026-10-15 14:00:34 [INFO] [agentflow] render done line=consensus_decision
+2026-10-15 14:00:34 [INFO] [core.runner.runner] saved html line=consensus_decision path=/root/h00984725/TRY/data/1/output/e516c6c4ec7a416db43e60915029266c/consensus_decision.html
+2026-10-15 14:00:34 [INFO] [core.runner.runner] saved text line=consensus_decision path=/root/h00984725/TRY/data/1/output/e516c6c4ec7a416db43e60915029266c/consensus_decision.md
+2026-10-15 14:00:34 [INFO] [app.tasks] [task:finish] domain=meeting task=consensus_decision request_id=e516c6c4ec7a416db43e60915029266c cost=78.00s tokens=41091 file=consensus_decision.html
+2026-10-15 14:01:14 [INFO] [app.api.routes.agent] [api:agent] domain=meeting task=actions request_id=5177518889aa490485c67b3bfd4dabc8 user_id=1
+2026-10-15 14:01:14 [INFO] [app.tasks] [task:start] domain=meeting task=actions request_id=5177518889aa490485c67b3bfd4dabc8 user_id=1 memory=False
+2026-10-15 14:01:14 [INFO] [infra.llm.llmclient] llm client backend=vllm model=deepseek-v4-flash-0731 base_url=http://127.0.0.1:8000/v1 ctx=65536 max_tokens=50000 timeout=600.0 retries=2 temperature=0.2 sampling_sent=False
+2026-10-15 14:01:14 [INFO] [agentflow] pipeline start lines=actions
+2026-10-15 14:01:14 [INFO] [agentflow] agent start meeting_understanding
+2026-10-15 14:01:14 [INFO] [infra.llm.llmclient] llm call label=core/meeting_understanding mode=structured
+2026-10-15 14:01:47 [INFO] [infra.llm.llmclient] llm resp label=core/meeting_understanding model=deepseek-v4-flash-0731 finish=stop in=7392 out=2265 json_mode=True chars=5254
+2026-10-15 14:01:47 [INFO] [agentflow] agent done meeting_understanding
+2026-10-15 14:01:47 [INFO] [agentflow] node done meeting_understanding
+2026-10-15 14:01:47 [INFO] [agentflow] skip perspective (objective)
+2026-10-15 14:01:47 [INFO] [agentflow] node done perspective_modeling
+2026-10-15 14:01:47 [INFO] [agentflow] agent start gen line=actions
+2026-10-15 14:01:47 [INFO] [infra.llm.llmclient] llm call label=actions/agent/objective mode=structured
+2026-10-15 14:02:11 [INFO] [infra.llm.llmclient] llm resp label=actions/agent/objective model=deepseek-v4-flash-0731 finish=stop in=4295 out=2171 json_mode=True chars=6087
+2026-10-15 14:02:11 [WARNING] [infra.llm.llmclient] structured invalid label=actions/agent/objective attempt=1 err=ActionItems 字段不一致：缺失=['my_actions']，多余=[] raw_head='{\n  "assigned_actions": [\n    {\n      "category": "整改项与现场问题通报",\n      "task": "会后与技术组一起细化验收组提出的问题，制定方案处理并确保问题圆满解决",\n      "owner": "田组长",\n      "deadline": null,\n      "timing_anchor": "会后",\n      "co'
+2026-10-15 14:02:11 [INFO] [infra.llm.llmclient] llm call label=actions/agent/objective mode=structured 第2次
+2026-10-15 14:02:33 [INFO] [infra.llm.llmclient] llm resp label=actions/agent/objective model=deepseek-v4-flash-0731 finish=stop in=4733 out=2181 json_mode=True chars=6087
+2026-10-15 14:02:33 [WARNING] [infra.llm.llmclient] structured invalid label=actions/agent/objective attempt=2 err=ActionItems 字段不一致：缺失=['my_actions']，多余=[] raw_head='{\n  "assigned_actions": [\n    {\n      "category": "整改项与现场问题通报",\n      "task": "会后与技术组一起细化验收组提出的问题，制定方案处理并确保问题圆满解决",\n      "owner": "田组长",\n      "deadline": null,\n      "timing_anchor": "会后",\n      "co'
+2026-10-15 14:02:33 [WARNING] [core.graph.nodes] gen failed, empty draft line=待办
+Traceback (most recent call last):
+  File "/root/h00984725/TRY/core/graph/nodes.py", line 557, in node
+    result = await agent.run(
+  File "/root/h00984725/TRY/domains/meeting/tasks/actions/steps/actions_agent.py", line 36, in run
+    return await self.client.structured(
+  File "/root/h00984725/TRY/infra/llm/llmclient.py", line 958, in structured
+    raise RuntimeError(
+RuntimeError: ActionItems 输出无法满足结构契约：ActionItems 字段不一致：缺失=['my_actions']，多余=[]
+2026-10-15 14:02:33 [INFO] [agentflow] node done actions_agent
+2026-10-15 14:02:33 [INFO] [agentflow] agent start review line=actions
+2026-10-15 14:02:33 [INFO] [infra.llm.llmclient] llm call label=actions/supervisor mode=structured
+2026-10-15 14:02:34 [INFO] [infra.llm.llmclient] llm resp label=actions/supervisor model=deepseek-v4-flash-0731 finish=stop in=8095 out=37 json_mode=True chars=112
+2026-10-15 14:02:34 [INFO] [agentflow] agent done review line=actions decision=approve
+2026-10-15 14:02:34 [INFO] [agentflow] node done actions_supervisor
+2026-10-15 14:02:34 [INFO] [agentflow] render start line=actions
+2026-10-15 14:02:34 [WARNING] [core.runner.runner] ⚠ 生成可能有误，请结合会议原文核对。
+2026-10-15 14:02:34 [INFO] [core.runner.runner] saved html line=actions path=/root/h00984725/TRY/data/1/output/5177518889aa490485c67b3bfd4dabc8/actions.html
+2026-10-15 14:02:34 [INFO] [core.runner.runner] saved text line=actions path=/root/h00984725/TRY/data/1/output/5177518889aa490485c67b3bfd4dabc8/actions.md
+2026-10-15 14:02:34 [INFO] [app.tasks] [task:finish] domain=meeting task=actions request_id=5177518889aa490485c67b3bfd4dabc8 cost=80.10s tokens=31169 file=actions.html
+2026-10-15 14:03:05 [INFO] [app.api.routes.agent] [api:agent] domain=meeting task=minutes request_id=65c3c894f46c46d0b4c357d406fb6f5d user_id=1
+2026-10-15 14:03:05 [INFO] [app.tasks] [task:start] domain=meeting task=minutes request_id=65c3c894f46c46d0b4c357d406fb6f5d user_id=1 memory=True
+2026-10-15 14:03:05 [INFO] [infra.llm.llmclient] llm client backend=vllm model=deepseek-v4-flash-0731 base_url=http://127.0.0.1:8000/v1 ctx=65536 max_tokens=50000 timeout=600.0 retries=2 temperature=0.2 sampling_sent=False
+2026-10-15 14:03:05 [INFO] [agentflow] pipeline start lines=minutes
+2026-10-15 14:03:05 [INFO] [agentflow] agent start meeting_understanding
+2026-10-15 14:03:05 [INFO] [infra.llm.llmclient] llm call label=core/meeting_understanding mode=structured
+2026-10-15 14:03:05 [INFO] [infra.llm.llmclient] llm fit max_tokens 50000->47004 ctx=65536 input~18276
+2026-10-15 14:03:52 [INFO] [infra.llm.llmclient] llm resp label=core/meeting_understanding model=deepseek-v4-flash-0731 finish=stop in=13414 out=3216 json_mode=True chars=7403
+2026-10-15 14:03:52 [INFO] [agentflow] agent done meeting_understanding
+2026-10-15 14:03:52 [INFO] [agentflow] node done meeting_understanding
+2026-10-15 14:03:52 [INFO] [agentflow] skip perspective (objective)
+2026-10-15 14:03:52 [INFO] [agentflow] node done perspective_modeling
+2026-10-15 14:03:52 [INFO] [agentflow] agent start gen line=minutes
+2026-10-15 14:03:55 [INFO] [infra.llm.llmclient] llm call label=minutes/agent/objective mode=structured
+2026-10-15 14:03:55 [INFO] [infra.llm.llmclient] llm fit max_tokens 50000->43241 ctx=65536 input~22039
+2026-10-15 14:04:12 [INFO] [infra.llm.llmclient] llm resp label=minutes/agent/objective model=deepseek-v4-flash-0731 finish=stop in=16054 out=1104 json_mode=True chars=1888
+2026-10-15 14:04:12 [INFO] [agentflow] agent done gen line=minutes
+2026-10-15 14:04:12 [INFO] [agentflow] node done minutes_agent
+2026-10-15 14:04:12 [INFO] [agentflow] agent start review line=minutes
+2026-10-15 14:04:12 [INFO] [infra.llm.llmclient] llm call label=minutes/supervisor/objective mode=structured
+2026-10-15 14:04:15 [INFO] [infra.llm.llmclient] llm resp label=minutes/supervisor/objective model=deepseek-v4-flash-0731 finish=stop in=14947 out=81 json_mode=True chars=252
+2026-10-15 14:04:15 [INFO] [agentflow] agent done review line=minutes decision=approve
+2026-10-15 14:04:15 [INFO] [agentflow] node done minutes_supervisor
+2026-10-15 14:04:15 [INFO] [agentflow] render start line=minutes
+2026-10-15 14:04:15 [INFO] [infra.llm.llmclient] llm call label=minutes/render mode=text
+2026-10-15 14:04:33 [INFO] [infra.llm.llmclient] llm resp label=minutes/render model=deepseek-v4-flash-0731 finish=stop in=8030 out=1440 json_mode=False chars=2301
+2026-10-15 14:04:33 [INFO] [agentflow] render done line=minutes
+2026-10-15 14:04:33 [INFO] [core.runner.runner] saved html line=minutes path=/root/h00984725/TRY/data/1/output/65c3c894f46c46d0b4c357d406fb6f5d/minutes.html
+2026-10-15 14:04:33 [INFO] [core.runner.runner] saved text line=minutes path=/root/h00984725/TRY/data/1/output/65c3c894f46c46d0b4c357d406fb6f5d/result.md
+2026-10-15 14:04:33 [INFO] [domains.meeting.memory.runtime] meeting memory vectors synced project=同步各模块进展_明确待办问题修复_模型优化_数据标注_dem
+2026-10-15 14:04:33 [INFO] [app.tasks] [task:finish] domain=meeting task=minutes request_id=65c3c894f46c46d0b4c357d406fb6f5d cost=88.50s tokens=58286 file=minutes.html
+2026-10-15 14:04:50 [INFO] [app.api.routes.agent] [api:agent] domain=meeting task=minutes request_id=088a9dbbb20f4e5f95bc4bdc187f4a95 user_id=1
+2026-10-15 14:04:50 [INFO] [app.tasks] [task:start] domain=meeting task=minutes request_id=088a9dbbb20f4e5f95bc4bdc187f4a95 user_id=1 memory=True
+2026-10-15 14:04:50 [INFO] [infra.llm.llmclient] llm client backend=vllm model=deepseek-v4-flash-0731 base_url=http://127.0.0.1:8000/v1 ctx=65536 max_tokens=50000 timeout=600.0 retries=2 temperature=0.2 sampling_sent=False
+2026-10-15 14:04:50 [INFO] [agentflow] pipeline start lines=minutes
+2026-10-15 14:04:50 [INFO] [agentflow] agent start meeting_understanding
+2026-10-15 14:04:50 [INFO] [infra.llm.llmclient] llm call label=core/meeting_understanding mode=structured
+2026-10-15 14:04:50 [INFO] [infra.llm.llmclient] llm fit max_tokens 50000->43635 ctx=65536 input~21645
+2026-10-15 14:05:49 [INFO] [infra.llm.llmclient] llm resp label=core/meeting_understanding model=deepseek-v4-flash-0731 finish=stop in=15556 out=4220 json_mode=True chars=9473
+2026-10-15 14:05:49 [INFO] [agentflow] agent done meeting_understanding
+2026-10-15 14:05:49 [INFO] [agentflow] node done meeting_understanding
+2026-10-15 14:05:49 [INFO] [agentflow] skip perspective (objective)
+2026-10-15 14:05:49 [INFO] [agentflow] node done perspective_modeling
+2026-10-15 14:05:49 [INFO] [agentflow] agent start gen line=minutes
+2026-10-15 14:05:49 [INFO] [infra.llm.llmclient] llm call label=minutes/agent/objective mode=structured
+2026-10-15 14:05:49 [INFO] [infra.llm.llmclient] llm fit max_tokens 50000->38036 ctx=65536 input~27244
+2026-10-15 14:06:14 [INFO] [infra.llm.llmclient] llm resp label=minutes/agent/objective model=deepseek-v4-flash-0731 finish=stop in=19715 out=1513 json_mode=True chars=2480
+2026-10-15 14:06:14 [INFO] [agentflow] agent done gen line=minutes
+2026-10-15 14:06:14 [INFO] [agentflow] node done minutes_agent
+2026-10-15 14:06:14 [INFO] [agentflow] agent start review line=minutes
+2026-10-15 14:06:14 [INFO] [infra.llm.llmclient] llm call label=minutes/supervisor/objective mode=structured
+2026-10-15 14:06:17 [INFO] [infra.llm.llmclient] llm resp label=minutes/supervisor/objective model=deepseek-v4-flash-0731 finish=stop in=18845 out=81 json_mode=True chars=252
+2026-10-15 14:06:17 [INFO] [agentflow] agent done review line=minutes decision=approve
+2026-10-15 14:06:17 [INFO] [agentflow] node done minutes_supervisor
+2026-10-15 14:06:17 [INFO] [agentflow] render start line=minutes
+2026-10-15 14:06:17 [INFO] [infra.llm.llmclient] llm call label=minutes/render mode=text
+2026-10-15 14:06:31 [INFO] [infra.llm.llmclient] llm resp label=minutes/render model=deepseek-v4-flash-0731 finish=stop in=8958 out=1069 json_mode=False chars=1704
+2026-10-15 14:06:31 [INFO] [agentflow] render done line=minutes
+2026-10-15 14:06:31 [INFO] [core.runner.runner] saved html line=minutes path=/root/h00984725/TRY/data/1/output/088a9dbbb20f4e5f95bc4bdc187f4a95/minutes.html
+2026-10-15 14:06:31 [INFO] [core.runner.runner] saved text line=minutes path=/root/h00984725/TRY/data/1/output/088a9dbbb20f4e5f95bc4bdc187f4a95/result.md
+2026-10-15 14:06:32 [INFO] [domains.meeting.memory.runtime] meeting memory vectors synced project=同步各模块进展_明确待办问题修复_模型优化_数据标注_dem
+2026-10-15 14:06:32 [INFO] [app.tasks] [task:finish] domain=meeting task=minutes request_id=088a9dbbb20f4e5f95bc4bdc187f4a95 cost=102.20s tokens=69957 file=minutes.html

@@ -1,0 +1,764 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>通用纪要</title>
+  <style>
+
+    body {
+      margin: 0;
+      padding: 14px 12px;
+      background: #f6f5f0;
+      color: #1a1a1a;
+      font-family: "Latin Modern Roman", "Computer Modern Roman", "CMU Serif", "Times New Roman", Times, "Songti SC", "SimSun", "STSong", serif;
+      -webkit-font-smoothing: antialiased;
+    }
+    .page { max-width: 1140px; margin: 0 auto; }
+    .ck-doc {
+      background: #ffffff;
+      border: 1px solid #d4d0c7;
+      border-radius: 4px;
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.05), 0 1px 3px rgba(0,0,0,0.03);
+      padding: 18px 22px;
+      line-height: 1.6;
+      font-size: 0.84rem;      /* 正文基准：左右两栏共用 --ck-fs */
+      --ck-fs: 0.84rem;
+    }
+    .ck-doc h1 {
+      margin: 0 0 6px;
+      font-size: 1.05rem;      /* 文档标题：只比正文略大一点 */
+      font-weight: 700;
+      text-align: center;
+      color: #111111;
+    }
+    .ck-doc-header {
+      margin-bottom: 10px;
+      padding-bottom: 8px;
+      border-bottom: 1px solid #111111;
+      text-align: center;
+    }
+    .ck-doc-meta {
+      font-size: 0.78rem;
+      color: #555555;
+      font-style: italic;
+    }
+    /* 层级标题一律"加粗 + 与右栏同级字号"，不加字号、不加下划线，前后留白压到最小 */
+    .ck-doc-content h1, .ck-doc-content .ck-doc-h1,
+    .ck-doc h2, .ck-doc-h2,
+    .ck-doc h3, .ck-doc-h3,
+    .ck-doc h4, .ck-doc-h4 {
+      font-size: var(--ck-fs);
+      font-weight: 700;
+      color: #111111;
+      border-bottom: 0;
+      padding-bottom: 0;
+      letter-spacing: 0;
+      font-variant: normal;
+      text-align: left;
+    }
+    .ck-doc-content h1, .ck-doc-content .ck-doc-h1, .ck-doc h2, .ck-doc-h2 {
+      margin: 12px 0 4px;
+    }
+    .ck-doc h3, .ck-doc-h3, .ck-doc h4, .ck-doc-h4 {
+      margin: 9px 0 3px;
+    }
+    .ck-doc p {
+      margin: 5px 0;
+      line-height: 1.6;
+      text-align: justify;
+    }
+    .ck-doc ul, .ck-doc ol {
+      margin: 4px 0 6px;
+      padding-left: 1.25em;
+      line-height: 1.6;
+    }
+    .ck-doc li {
+      margin: 2px 0;
+    }
+    .ck-doc blockquote, .ck-quote {
+      margin: 6px 0 8px;
+      padding: 5px 10px;
+      background: #faf9f6;
+      border-left: 3px solid #222222;
+      border-radius: 2px;
+      color: #222222;
+      font-size: var(--ck-fs);
+      font-style: italic;
+    }
+    .ck-doc code {
+      background: #f3f0e8;
+      border: 1px solid #e2ddd3;
+      border-radius: 3px;
+      padding: 1px 6px;
+      font-family: "Latin Modern Mono", Consolas, monospace;
+      font-size: 0.88em;
+    }
+    .ck-doc table, .ck-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: var(--ck-fs);
+      margin: 8px 0;
+      background: #ffffff;
+      border-top: 2px solid #222222;
+      border-bottom: 2px solid #222222;
+    }
+    .ck-doc table th, .ck-table th {
+      padding: 6px 10px;
+      text-align: left;
+      vertical-align: middle;
+      background: #fbfaf7;
+      border-bottom: 1.2px solid #222222;
+      font-weight: 700;
+      color: #111111;
+      letter-spacing: 0.3px;
+    }
+    .ck-doc table td, .ck-table td {
+      padding: 6px 10px;
+      text-align: left;
+      vertical-align: top;
+      border-bottom: 1px solid #ede9e1;
+    }
+    .ck-doc table td:first-child, .ck-table td:first-child {
+      font-weight: 600;
+      color: #111111;
+    }
+
+    /* Roomy & Spacious Academic Risk Table */
+    .ck-risk-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 18px 0 28px;
+      background: #ffffff;
+      border-top: 2.2px solid #111111;
+      border-bottom: 2.2px solid #111111;
+      font-size: 0.93rem;
+      line-height: 1.72;
+    }
+    .ck-risk-table th {
+      background: #faf8f5;
+      border-bottom: 1.5px solid #111111;
+      padding: 15px 16px;
+      font-weight: 700;
+      color: #111111;
+      letter-spacing: 0.3px;
+      text-align: left;
+      vertical-align: middle;
+    }
+    .ck-risk-table td {
+      padding: 16px 16px;
+      border-bottom: 1px solid #ede8e0;
+      vertical-align: top;
+      color: #1a1a1a;
+      word-break: break-word;
+    }
+    .ck-risk-table tr:nth-child(even) td {
+      background: #fdfcfb;
+    }
+    .ck-risk-table tr:hover td {
+      background: #f6f3eb;
+    }
+
+    /* Review Grid */
+    .ck-review {
+      display: grid;
+      grid-template-columns: minmax(0, 1.35fr) 1px minmax(260px, 0.95fr);
+      border: 1px solid #d4d0c7;
+      border-radius: 4px;
+      overflow: hidden;
+      margin: 8px 0 10px;
+      background: #ffffff;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.03);
+    }
+    .ck-review-left {
+      padding: 14px 16px;
+      background: #ffffff;
+      line-height: 1.6;
+      font-size: var(--ck-fs);
+    }
+    .ck-review-rule { background: #dcd8cf; }
+    .ck-review-right {
+      padding: 12px 14px;
+      background: #faf9f6;
+      box-sizing: border-box;
+      display: flex;
+      flex-direction: column;
+    }
+    .ck-ev-list {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    /* Entity Highlight in LaTeX Paper Style */
+    .ck-cite-entity {
+      background: #fff8db;
+      border-bottom: 1.5px solid #b86a04;
+      padding: 1px 4px;
+      border-radius: 2px;
+      cursor: pointer;
+      transition: all 0.18s ease;
+      color: #111111;
+      font-weight: 600;
+    }
+    .ck-cite-entity:hover {
+      background: #ffe58f;
+      color: #000000;
+    }
+    .ck-cite-entity.is-on {
+      background: #ffd54a;
+      border-bottom-color: #0047ab;
+      box-shadow: 0 0 0 2px rgba(0,71,171,0.25);
+    }
+
+    /* Blue Hyperref Citations [1], [2] */
+    .ck-cite-ref {
+      color: #0047ab;
+      font-weight: 600;
+      font-family: "Latin Modern Roman", "Computer Modern Roman", "Times New Roman", serif;
+      text-decoration: none;
+      cursor: pointer;
+      padding: 0 2px;
+      margin: 0 2px;
+      border-radius: 2px;
+      transition: all 0.15s ease;
+      font-size: 0.92em;
+      vertical-align: baseline;
+      user-select: none;
+    }
+    .ck-cite-ref:hover {
+      text-decoration: underline;
+      background: #e8f0fe;
+      color: #003380;
+    }
+    .ck-cite-ref.is-active {
+      background: #d2e3fc;
+      color: #002266;
+      font-weight: 700;
+      box-shadow: 0 0 0 1px #0047ab;
+    }
+
+    /* Right Memory Cards in LaTeX Paper Style */
+    .ck-provenance-head {
+      font-size: 0.82rem;
+      font-weight: 700;
+      color: #222222;
+      margin: 0 0 12px;
+      padding-bottom: 6px;
+      border-bottom: 1px solid #e0dcd4;
+      letter-spacing: 0.3px;
+      text-transform: uppercase;
+    }
+    .ck-ref-icon { color: #0047ab; margin-right: 4px; }
+    .ck-ev {
+      display: block;
+      margin: 0;
+      padding: 10px 12px;
+      border: 1px solid #dedad2;
+      border-left: 3.5px solid #0047ab;
+      border-radius: 2px;
+      background: #ffffff;
+      font-size: 0.82rem;
+      line-height: 1.55;
+      transition: all 0.2s ease;
+      cursor: pointer;
+    }
+    .ck-ev:hover { border-color: #b5b0a5; }
+    .ck-ev.is-on, .ck-ev.is-highlighted {
+      border-color: #0047ab;
+      box-shadow: 0 0 0 2px #0047ab, 0 3px 8px rgba(0,71,171,0.15);
+      background: #f0f5ff;
+    }
+    @keyframes citePulse {
+      0% { background: #dbeafe; box-shadow: 0 0 0 3px #0047ab; }
+      50% { background: #bfdbfe; box-shadow: 0 0 0 4px #0047ab; }
+      100% { background: #f0f5ff; box-shadow: 0 0 0 2px #0047ab; }
+    }
+    .ck-ev-k {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 0.75rem;
+      color: #444444;
+      margin-bottom: 5px;
+      font-weight: 700;
+    }
+    .ck-ev-cite-tag {
+      color: #0047ab;
+      font-weight: 700;
+      font-family: "Latin Modern Roman", serif;
+      text-decoration: none;
+    }
+    .ck-ev-kind-badge {
+      display: inline-block;
+      padding: 1px 6px;
+      border-radius: 2px;
+      font-size: 0.72rem;
+      font-weight: 600;
+      letter-spacing: 0.2px;
+    }
+    .ck-badge-keypoint {
+      border: 1px solid #0047ab;
+      color: #0047ab;
+      background: #f0f5ff;
+    }
+    .ck-badge-note {
+      border: 1px solid #b86a04;
+      color: #b86a04;
+      background: #fff8eb;
+    }
+    .ck-mem-title {
+      font-weight: 700;
+      color: #111111;
+      font-size: var(--ck-fs);
+      margin-bottom: 4px;
+      line-height: 1.5;
+    }
+    .ck-ev-quote {
+      color: #222222;
+      font-style: normal;
+      font-family: inherit;
+      margin: 4px 0 6px;
+      padding: 0;
+      background: transparent;
+      border: none;
+      line-height: 1.6;
+      font-size: var(--ck-fs);
+    }
+    .ck-ev-meta { font-size: 0.76rem; color: #666666; margin-top: 4px; }
+    .ck-ev-more {
+      margin-top: 2px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+    .ck-ev-more[open] { margin-top: 4px; }
+    .ck-ev-more summary { margin-bottom: 6px; }
+    .ck-proof-toggle {
+      cursor: pointer;
+      font-size: 0.82rem;
+      color: #0047ab;
+      user-select: none;
+      font-family: inherit;
+      padding: 2px 0;
+    }
+    .ck-proof-toggle:hover { text-decoration: underline; }
+    /* 右栏下段"状态演进"：无行内锚点，与上方证据卡视觉区分（灰底 + 徽章，无 [n]） */
+    .ck-ledger {
+      margin-top: 10px;
+      padding-top: 8px;
+      border-top: 1px dashed #d4d0c7;
+    }
+    .ck-ledger > summary { list-style: none; }
+    .ck-ledger > summary::-webkit-details-marker { display: none; }
+    .ck-ledger > summary::after { content: " ▾"; }
+    .ck-ledger:not([open]) > summary::after { content: " ▸"; }
+    /* 每类一张小灰卡：卡头类别 + 条数，卡内按 1. 2. 3. 编号 */
+    .ck-ledger-card {
+      background: #faf9f5;
+      border: 1px solid #e6e2d8;
+      border-left: 3px solid #bdb6a6;
+      border-radius: 4px;
+      padding: 7px 9px;
+      margin-bottom: 6px;
+    }
+    .ck-ledger-k {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 6px;
+      font-size: 0.72rem;
+      margin-bottom: 5px;
+    }
+    .ck-ledger-badge {
+      background: #efece4;
+      color: #6b6559;
+      border-radius: 3px;
+      padding: 1px 6px;
+      font-weight: 600;
+    }
+    .ck-ledger-count { color: #8a8578; }
+    .ck-ledger-list {
+      margin: 0;
+      padding-left: 1.35em;
+      font-size: var(--ck-fs);
+      line-height: 1.6;
+      color: #3b3a37;
+    }
+    .ck-ledger-list > li { margin: 2px 0; }
+    /* Personal Perspective Interactive Task Lists & Semantic Blocks */
+    .ck-self-block {
+      background: #f4f8fe;
+      border: 1px solid #d4e2f5;
+      border-left: 3.5px solid #0047ab;
+      border-radius: 4px;
+      padding: 9px 13px;
+      margin: 10px 0 12px;
+    }
+    .ck-self-title {
+      margin: 0 0 6px;
+      color: #003380;
+      font-weight: 700;
+      font-size: var(--ck-fs);
+      display: flex;
+      align-items: center;
+      gap: 5px;
+    }
+    .ck-self-badge {
+      display: inline-block;
+      background: #0047ab;
+      color: #ffffff;
+      font-size: 0.68rem;
+      padding: 1px 5px;
+      border-radius: 2px;
+      font-weight: 600;
+      letter-spacing: 0.2px;
+      margin-left: 4px;
+    }
+
+    .ck-dep-block {
+      background: #fefcf7;
+      border: 1px solid #f2e7cc;
+      border-left: 3.5px solid #b86a04;
+      border-radius: 4px;
+      padding: 9px 13px;
+      margin: 10px 0 12px;
+    }
+    .ck-dep-title {
+      margin: 0 0 6px;
+      color: #7a4502;
+      font-weight: 700;
+      font-size: var(--ck-fs);
+      display: flex;
+      align-items: center;
+      gap: 5px;
+    }
+    .ck-dep-badge {
+      display: inline-block;
+      background: #b86a04;
+      color: #ffffff;
+      font-size: 0.68rem;
+      padding: 1px 5px;
+      border-radius: 2px;
+      font-weight: 600;
+      letter-spacing: 0.2px;
+      margin-left: 4px;
+    }
+
+    .ck-risk-block {
+      background: #fff8f8;
+      border: 1px solid #fedcdc;
+      border-left: 3.5px solid #cf222e;
+      border-radius: 4px;
+      padding: 9px 13px;
+      margin: 10px 0 12px;
+    }
+    .ck-risk-title {
+      margin: 0 0 6px;
+      color: #a40e26;
+      font-weight: 700;
+      font-size: var(--ck-fs);
+      display: flex;
+      align-items: center;
+      gap: 5px;
+    }
+    .ck-risk-badge {
+      display: inline-block;
+      background: #cf222e;
+      color: #ffffff;
+      font-size: 0.68rem;
+      padding: 1px 5px;
+      border-radius: 2px;
+      font-weight: 600;
+      letter-spacing: 0.2px;
+      margin-left: 4px;
+    }
+
+    .ck-self-block ul, .ck-self-block ol,
+    .ck-dep-block ul, .ck-dep-block ol,
+    .ck-risk-block ul, .ck-risk-block ol {
+      margin: 2px 0 2px;
+      padding-left: 1.25em;
+    }
+    .ck-self-block li, .ck-dep-block li, .ck-risk-block li {
+      margin: 2px 0;
+      color: #1a1a1a;
+    }
+
+    /* Person Group Heading */
+    .ck-person-group {
+      margin: 8px 0 3px;
+      font-weight: 700;
+      color: #111111;
+    }
+
+    /* GFM Task List Checkboxes */
+    .ck-task-list {
+      list-style: none;
+      padding-left: 0 !important;
+      margin: 4px 0 6px !important;
+    }
+    .ck-task-item {
+      display: flex;
+      align-items: flex-start;
+      margin: 4px 0;
+      line-height: 1.6;
+    }
+    .ck-task-label {
+      display: inline-flex;
+      align-items: flex-start;
+      gap: 8px;
+      cursor: pointer;
+      width: 100%;
+    }
+    .ck-task-checkbox {
+      margin-top: 4px;
+      cursor: pointer;
+      accent-color: #0047ab;
+      width: 15px;
+      height: 15px;
+      flex-shrink: 0;
+    }
+    .ck-task-checkbox:checked + .ck-task-text {
+      color: #8c8c8c;
+      text-decoration: line-through;
+    }
+    .ck-task-text {
+      flex: 1;
+      color: #1a1a1a;
+    }
+
+    /* Status Badges & Pills */
+    .ck-tag-blocker {
+      display: inline-block;
+      background: #ffebe9;
+      color: #cf222e;
+      border: 1px solid rgba(255, 129, 130, 0.45);
+      font-size: 0.72rem;
+      font-weight: 700;
+      padding: 0 5px;
+      border-radius: 3px;
+      margin-right: 4px;
+      line-height: 1.5;
+      vertical-align: 1px;
+    }
+    .ck-tag-risk {
+      display: inline-block;
+      background: #fff8eb;
+      color: #b86a04;
+      border: 1px solid rgba(212, 167, 44, 0.45);
+      font-size: 0.72rem;
+      font-weight: 700;
+      padding: 0 5px;
+      border-radius: 3px;
+      margin-right: 4px;
+      line-height: 1.5;
+      vertical-align: 1px;
+    }
+    .ck-tag-warn {
+      display: inline-block;
+      background: #f0f4ff;
+      color: #0969da;
+      border: 1px solid rgba(84, 174, 255, 0.45);
+      font-size: 0.72rem;
+      font-weight: 700;
+      padding: 0 5px;
+      border-radius: 3px;
+      margin-right: 4px;
+      line-height: 1.5;
+      vertical-align: 1px;
+    }
+    .ck-tag-dep {
+      display: inline-block;
+      background: #eff6ff;
+      color: #1d4ed8;
+      border: 1px solid #bfdbfe;
+      font-size: 0.72rem;
+      font-weight: 600;
+      padding: 0 5px;
+      border-radius: 3px;
+      margin-right: 4px;
+      line-height: 1.5;
+      vertical-align: 1px;
+    }
+    .ck-param-capsule {
+      display: inline-block;
+      font-size: 0.82rem;
+      color: #57606a;
+      background: #f6f8fa;
+      border: 1px solid #eaeef2;
+      padding: 0 6px;
+      border-radius: 10px;
+      margin-left: 4px;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      letter-spacing: 0.2px;
+    }
+
+    /* 现代极简公文流排版（高信息密度、紧凑精练、无冗余卡片留白） */
+    .ck-card, .ck-flow-group {
+      margin-bottom: 14px;
+      background: transparent;
+      border: none;
+      box-shadow: none;
+      padding: 0;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+      line-height: 1.55;
+    }
+    .ck-card:last-child, .ck-flow-group:last-child {
+      margin-bottom: 0;
+    }
+    .ck-card-category {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      margin-bottom: 6px;
+      padding-bottom: 4px;
+      border-bottom: 1px solid #e2e8f0;
+      width: 100%;
+    }
+    .ck-card-accent {
+      width: 3px;
+      height: 13px;
+      border-radius: 1.5px;
+      background: #2563eb;
+      flex-shrink: 0;
+    }
+    .ck-card-accent-risk {
+      background: #dc2626;
+    }
+    .ck-card-accent-risk-med {
+      background: #d97706;
+    }
+    .ck-card-accent-risk-low {
+      background: #2563eb;
+    }
+    .ck-card-category-text {
+      font-size: 0.92rem;
+      font-weight: 700;
+      color: #0f172a;
+      letter-spacing: 0.2px;
+    }
+    .ck-flow-items {
+      display: flex;
+      flex-direction: column;
+      gap: 5px;
+    }
+    .ck-flow-item {
+      padding: 0;
+      margin: 0;
+      border: none;
+    }
+    .ck-item-header {
+      font-size: 0.88rem;
+      line-height: 1.55;
+      color: #1e293b;
+    }
+    .ck-item-bullet {
+      color: #94a3b8;
+      font-size: 0.88rem;
+      margin-right: 4px;
+      display: inline-block;
+      user-select: none;
+    }
+    .ck-card-title {
+      font-weight: 600;
+      color: #0f172a;
+      margin-right: 6px;
+      display: inline;
+    }
+    .ck-pill {
+      display: inline-block;
+      padding: 0 5px;
+      border-radius: 3px;
+      font-size: 0.7rem;
+      font-weight: 600;
+      line-height: 1.35;
+      vertical-align: 1px;
+      margin-right: 5px;
+      white-space: nowrap;
+    }
+    .ck-pill-high, .ck-flow-high {
+      background: #fee2e2;
+      color: #991b1b;
+      border: 1px solid #fecaca;
+    }
+    .ck-pill-medium, .ck-flow-medium {
+      background: #fef3c7;
+      color: #92400e;
+      border: 1px solid #fde68a;
+    }
+    .ck-pill-low, .ck-flow-low {
+      background: #eff6ff;
+      color: #1e40af;
+      border: 1px solid #bfdbfe;
+    }
+    .ck-item-meta {
+      display: inline-block;
+      font-size: 0.78rem;
+      color: #64748b;
+      margin-right: 6px;
+      white-space: nowrap;
+    }
+    .ck-card-drawer {
+      margin: 2px 0 0 12px;
+      padding: 1px 0 1px 8px;
+      border-left: 2px solid #e2e8f0;
+      background: transparent;
+      border-radius: 0;
+      border-top: none;
+      border-right: none;
+      border-bottom: none;
+      font-size: 0.8rem;
+      color: #475569;
+      line-height: 1.45;
+    }
+    .ck-card-drawer-high {
+      border-left: 2px solid #ef4444;
+    }
+    .ck-card-drawer-med {
+      border-left: 2px solid #f59e0b;
+    }
+    .ck-card-row {
+      margin: 1px 0;
+    }
+    .ck-card-row:first-child {
+      margin-top: 0;
+    }
+    .ck-card-label {
+      font-weight: 600;
+      color: #334155;
+    }
+    .ck-card-empty, .ck-flow-empty {
+      text-align: center;
+      color: #94a3b8;
+      padding: 28px 0;
+      font-size: 0.88rem;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    }
+
+    @media print {
+      .ck-card { break-inside: avoid; }
+      .ck-flow-item { break-inside: avoid; }
+    }
+
+    @media(max-width: 860px) {
+      .ck-doc { padding: 22px 18px; }
+      .ck-review { grid-template-columns: 1fr; }
+      .ck-review-rule { display: none; }
+    }
+
+  </style>
+</head>
+<body>
+  <main class="page">
+    <div class="ck-doc">
+      <header class="ck-doc-header">
+        <h1>通用纪要</h1>
+      </header>
+      <div class="ck-doc-content">
+        <h2 class="ck-doc-h2">全文摘要</h2><p>本次团队例会由申家坤与盛晋珲先后主持，围绕Java侧问题梳理、引擎并发优化、ASR模型效果及数据标注进度展开。会议明确了本周转政策、下周转线、再下周商品的推进节奏，并就商品版本需求、测试报告、模型接口、录音机控件、流失格式等事项确认了多项后续动作。Java侧环节确认了锻炼场景主干侧主动锻炼不统计成功率、流失格式已与晋明对过等事项；长文本性能讨论中，方思邈建议测竞品，申家坤同意测并问推理优化。后半段聚焦930节点，范炳杰汇报引擎峰值并发约650、单卡一路的现状，徐玥提出至少单卡四并发、效果持平4.0的目标，并建议优先推进确定性工程任务，暂缓非实时方案。ASR模型方面，郭慧敏、申家坤分别汇报优化效果，姜彪、李家豪、郭镨岳等汇报数据标注进度。会议未做最终决策，多项事项待会后确认。</p><h2 class="ck-doc-h2">要点梳理</h2><h3 class="ck-doc-h3">Java侧问题梳理与任务分配</h3><ul><li><strong>推进节奏</strong>：本周转政策，下周转线，再下周商品。</li><li><strong>商品版本需求</strong>：包括录音机命名字数、仿写流失、数据汇流。</li><li><strong>测试报告</strong>：后两个能否出来待确认，刘师和腾坤测微服务未回。</li><li><strong>锻炼场景</strong>：主干侧主动锻炼不统计成功率，做处理即可。</li><li><strong>重复和标点问题</strong>：让端侧和这边改。</li><li><strong>蓝色回流权限</strong>：未批，需申请。</li><li><strong>流失格式</strong>：已与晋明对过，已改。</li></ul><h3 class="ck-doc-h3">长文本性能与模型优化讨论</h3><ul><li><strong>长文本性能</strong>：支持长文本但8~9万字不行，改配置后token慢，prefill费时，手头最大40多秒。</li><li><strong>竞品测试</strong>：方思邈建议测竞品，申家坤同意测并问推理优化。</li><li><strong>标题报告</strong>：明天出。</li><li><strong>字幕摘要需求</strong>：待排，主要通用摘要模板、流失输出、一词做领域检测。</li></ul><h3 class="ck-doc-h3">Agent相关与微服务接口调整</h3><ul><li><strong>接口测试</strong>：范炳杰试了4~5个接口，今晚试，可集成到网页版。</li><li><strong>微服务统一接口</strong>：需改，python调mep通过bid调fm1p模型，需改成根据部署的bid调，先调千问码通流程，效果按ds模型看。</li><li><strong>录音机控件</strong>：与杰哥、月姐对过，等汇报完再看。</li><li><strong>910c机器密码</strong>：需申请，本周下周初验证。</li></ul><h3 class="ck-doc-h3">问题单与中测准备</h3><ul><li><strong>问题单</strong>：单贝塔单转过来的标题、自理模板、场景时延。</li><li><strong>可改项</strong>：短输出标题、关键词、场景检测、内容过滤。</li><li><strong>长文本问题</strong>：去掉时间和发言人，效果影响不大。</li><li><strong>中测准备</strong>：问题单中测时带上中测版本。</li></ul><h3 class="ck-doc-h3">引擎并发与转测目标讨论</h3><ul><li><strong>并发现状</strong>：引擎峰值并发约650，平均300~400，工作时间常态。</li><li><strong>单卡一路</strong>：需650张卡。</li><li><strong>930节点目标</strong>：至少单卡四并发，效果持平4.0。</li><li><strong>转测范围</strong>：待定，需与月姐讨论。</li></ul><h3 class="ck-doc-h3">ASR模型效果与数据标注进度</h3><ul><li><strong>郭慧敏ASR模型</strong>：调整数据配比和噪声数据，效果稳定，说话人认知有改善。</li><li><strong>申家坤GRPO优化</strong>：关键词槽准和WER可以，但领域关键词槽准低1%点几，说话人错误率低较多。</li><li><strong>姜彪数据标注</strong>：法本290小时月底交付，文德330小时月底交付，fp 230小时已做完审核中，第二批250小时月中下旬。</li><li><strong>李家豪现网数据</strong>：第四批0~30min打完，30~60min在打，超长数据慢。</li><li><strong>郭镨岳博客数据</strong>：15000h已打完，用秦万三中达标，预计三天。</li><li><strong>李梦甜实时方案</strong>：在0~6人、WeLink和hl比现网好。</li><li><strong>鄢书畅非实时方案</strong>：需加重混响训练。</li></ul><h2 class="ck-doc-h2">结论与决定</h2><ul><li><strong>锻炼场景</strong>：主干侧主动锻炼不统计成功率，做处理即可。</li><li><strong>流失格式</strong>：已与晋明对过，已改。</li><li><strong>长文本问题</strong>：去掉时间和发言人，效果影响不大。</li><li><strong>中测准备</strong>：问题单中测时带上中测版本。</li><li><strong>930节点目标</strong>：至少单卡四并发，效果持平4.0。</li><li><strong>推进策略</strong>：优先推进确定性工程任务，暂缓非实时方案。</li></ul><h2 class="ck-doc-h2">历史对照</h2><ul><li>新增决策：锻炼场景主干侧主动锻炼不统计成功率，做处理即可。</li><li>新增决策：流失格式已与晋明对过，已改。</li><li>延续事项（自第1场·2026-09-08）：跟进丁俊加数据表</li><li>延续事项（自第1场·2026-09-08）：与晓华确认风控提示文本中英文描述</li><li>延续事项（自第1场·2026-09-08）：更新版本修复双录信号问题</li><li>已闭环：鄢书畅合解决方案给范炳杰新版本</li><li>本场历史对照合计：新增决策 2 条、延续未决 3 条、已闭环 1 条</li></ul>
+      </div>
+    </div>
+  </main>
+</body>
+</html>
