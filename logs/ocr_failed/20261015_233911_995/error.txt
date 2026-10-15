@@ -1,5 +1,0 @@
-[attempt 1] error: OpenCV(4.10.0) /io/opencv/modules/imgcodecs/src/loadsave.cpp:813: error: (-215:Assertion failed) !buf.empty() in function 'imdecode_'
-
-[attempt 2] error: OpenCV(4.10.0) /io/opencv/modules/imgcodecs/src/loadsave.cpp:813: error: (-215:Assertion failed) !buf.empty() in function 'imdecode_'
-
-[attempt 3] error: OpenCV(4.10.0) /io/opencv/modules/imgcodecs/src/loadsave.cpp:813: error: (-215:Assertion failed) !buf.empty() in function 'imdecode_'

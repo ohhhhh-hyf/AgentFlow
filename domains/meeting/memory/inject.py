@@ -263,7 +263,7 @@ def preview_comparison(
             if isinstance(i, dict) and i.get("status") == "open" and _clean(i.get("text"))
         ],
         fact,
-        3,
+        10,
         [str(x) for x in (state.get("recent_meetings") or [])],
     )
 
@@ -275,7 +275,7 @@ def preview_comparison(
         d for d in (getattr(fact, "decisions", None) or [])
         if _clean(d) and not any(similar(d, _clean(h.get("text"))) for h in hist_decisions)
     ]
-    for decision in new_decisions[:2]:
+    for decision in new_decisions[:5]:
         topic = label_for(decision)
         prefix = f"（{topic}）" if topic else ""
         lines.append(f"新增决策{prefix}：{_clean(decision)}")
@@ -299,7 +299,7 @@ def preview_comparison(
         )
     ]
     shown_closed: set[str] = set()
-    for item in closed_hist[:2]:
+    for item in closed_hist[:5]:
         text = _clean(item.get("text"))
         if text in shown_closed:
             continue
@@ -312,7 +312,7 @@ def preview_comparison(
             else ""
         )
         lines.append(f"已闭环{head(label_for(item), when)}：{text}")
-    for text in closed_now[:2]:
+    for text in closed_now[:5]:
         if any(text in shown for shown in shown_closed):
             continue
         shown_closed.add(text)
@@ -326,7 +326,7 @@ def preview_comparison(
         }
         summary = "、".join(f"{k} {v} 条" for k, v in counts.items() if v)
         lines.append(f"本场历史对照合计：{summary}")
-    return lines[:10]
+    return lines[:25]
 
 
 def build_memory_context(
@@ -351,7 +351,7 @@ def build_memory_context(
         parts.append("命中依据：" + "、".join(str(x) for x in evidence[:8]))
     parts.extend([
         "",
-        "【历史事项代号表】（跨场会议演进追踪：凡正文讨论涉及下列历史事项的最新进展、闭环、延期或变更，请在句末标注对应代号如 [H1]）",
+        "【历史事项代号表】（项目推进背景：跨场会议演进追踪，供参考）",
     ])
 
     opens = [
@@ -365,7 +365,7 @@ def build_memory_context(
     dormant = [i for i in risks if i.get("status") == "dormant"]
 
     recent = [str(x) for x in (state.get("recent_meetings") or []) if str(x).strip()]
-    ranked_open = _rank(opens, current_fact, cap=10, recent=recent)
+    ranked_open = _rank(opens, current_fact, cap=30, recent=recent)
 
     if ranked_open:
         for idx, item in enumerate(ranked_open, 1):

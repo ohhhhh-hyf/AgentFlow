@@ -19,9 +19,10 @@ from .state import _module_overlap
 SECTION_TITLE = "历史记忆引用"
 
 # 记忆块总是追加在（生成/渲染）上下文末尾；贪婪到文末，小节头不参与块边界。
-_MEMORY_BLOCK_RE = re.compile(r"【(?:会议记忆|历史事项代号表)】(.*)\Z", re.S)
-_SECTION_RE = re.compile(r"【(历史事项代号表|延续事项|已闭环|风险演变|历史决策|历史对照素材)】")
+_MEMORY_BLOCK_RE = re.compile(r"【(?:会议记忆|项目推进背景|历史事项代号表)】(.*)\Z", re.S)
+_SECTION_RE = re.compile(r"【(项目推进背景|历史事项代号表|延续事项|已闭环|风险演变|历史决策|历史对照素材)】")
 _KIND_BY_SECTION = {
+    "项目推进背景": "open",
     "历史事项代号表": "open",
     "延续事项": "open",
     "已闭环": "closed",
@@ -78,24 +79,25 @@ _TAG_RE = re.compile(
 _HAN = re.compile(r"[\u4e00-\u9fff]+")
 _LATIN_TERM = re.compile(r"[A-Za-z][A-Za-z0-9_\-]{2,}")
 _DATE_TERM = re.compile(r"\d{1,4}月\d{1,2}日")
-_MIN_ANCHOR = 5
+_MIN_ANCHOR = 3
 _MAX_ANCHOR = 22
 # 数字/单位与高位数：会场里"400min""1024""8~9万字"这类锚点精度最高，允许短到 3 字
 _NUM_UNIT_RE = re.compile(
     r"\d+(?:\.\d+)?(?:min|ms|h|w|s|%|万|字|卡|路|场|小时|分钟|天|周|月|年|多)"
 )
 _NUM_LONG_RE = re.compile(r"\d{3,}")
-_MIN_SCAN = 4  # 汉字词组锚点下限（整词，按标点分句切出来的）
-_MIN_GRIND = 4  # 汉字公共子串兜底下限（放宽到 4：跨场复述本来就只剩 3–4 字重合，
-#               5 字门槛实测把 13/15 条全挡在门外；命中片段会扩到句读边界再显示）
-_MIN_TOKEN = 3  # 数字/拉丁 token 下限
-# 泛化过程短语：本身及其任意子串都不能当锚点。2026-09-21 实测：
-# 「下来找他们」把"现网流量数据"条目挂到了本场"微服务测试"那句上（挂错比挂不上更差）。
+_MIN_SCAN = 3  # 汉字词组锚点下限（整词，按标点分句切出来的）
+_MIN_GRIND = 3  # 汉字公共子串兜底下限（放宽到 3：支持录音机、数据表等核心3字业务名词）
+_MIN_TOKEN = 2  # 数字/拉丁 token 下限（支持 ASR、UI、IP 等高价值2字符专名）
+# 泛化过程短语：本身及其任意子串都不能当锚点。
 _GENERIC_NEEDLES = (
     "下来找他们", "下来再", "下来找", "对一下", "看一下", "再看一下", "问一下", "再问",
     "再对", "找他们", "找个", "群里", "这边", "那边", "这块", "后续", "待确认", "需确认",
     "再确认", "什么时候", "这个", "那个", "可以", "应该", "可能", "需要", "还没", "再看",
     "下来", "拉人", "一下", "以及", "同时", "另外",
+    "完成了", "已完成", "进行了", "讨论了", "确认了", "推进了", "跟进了", "整理了",
+    "排查了", "修复了", "对接了", "对齐了", "评估了", "检查了", "提出了", "处理了",
+    "准备好", "同步给", "沟通了", "汇报了", "去处理", "去跟进",
 )
 from core.runner.text import clean_text as _clean
 _MAX_NEEDLE_LINES = 3  # 同一锚点文本的行频上限（还会按篇幅放大：长文里 5 次不算泛）
@@ -291,7 +293,7 @@ def parse_memory_items(context: str) -> list[MemoryItem]:
 # ── Markdown 引用标注 ────────────────────────────────────────
 
 
-def _han_ngrams(text: str, size: int = 6) -> set[str]:
+def _han_ngrams(text: str, size: int = 3) -> set[str]:
     chars = "".join(ch for ch in (text or "") if "\u4e00" <= ch <= "\u9fff")
     if len(chars) < size:
         return {chars} if chars else set()
@@ -299,12 +301,7 @@ def _han_ngrams(text: str, size: int = 6) -> set[str]:
 
 
 def _related(line: str, item: MemoryItem) -> bool:
-    """正文行与记忆条目是否可能相关（预筛，宁漏勿滥）。
-
-    信号分级：整句互相包含（≥4 字）、共享拉丁专名或日期 token（强实体信号，
-    如 minutes_trace / Gradio / 8月20日）、长分句互相包含（≥5 字）、
-    共享 ≥4 字连续汉字片段。
-    """
+    """正文行与记忆条目是否可能相关（预筛，宁漏勿滥）。"""
     a, b = _clean(line), _clean(item.text)
     if not a or not b:
         return False
@@ -314,11 +311,16 @@ def _related(line: str, item: MemoryItem) -> bool:
     b_tokens = set(_LATIN_TERM.findall(b)) | set(_DATE_TERM.findall(b))
     if a_tokens & b_tokens:
         return True
+    owner = _clean(item.owner)
+    if owner and len(owner) >= 2 and owner in a:
+        b_chars = "".join(ch for ch in b if "\u4e00" <= ch <= "\u9fff")
+        if any(b_chars[i : i + 2] in a for i in range(len(b_chars) - 1)):
+            return True
     a_terms = [x for x in re.split(r"[，。；;、\s]+", a) if len(x) >= _MIN_ANCHOR]
     b_terms = [x for x in re.split(r"[，。；;、\s]+", b) if len(x) >= _MIN_ANCHOR]
     if any(x in b or y in a for x in a_terms for y in b_terms):
         return True
-    return bool(_han_ngrams(a, size=4) & _han_ngrams(b, size=4))
+    return bool(_han_ngrams(a, size=3) & _han_ngrams(b, size=3))
 
 
 def _clip_anchor(text: str) -> str:
