@@ -65,6 +65,49 @@ def _is_brief_style(line_name: str, state: dict, template: str) -> bool:
     return False
 
 
+def _is_transient_error(exc: BaseException) -> bool:
+    """判定是否为可局部重试的瞬时网络或服务故障（超时、连接断开、5xx 等）。"""
+    if isinstance(exc, (asyncio.TimeoutError, TimeoutError, ConnectionError)):
+        return True
+
+    name = type(exc).__name__.lower()
+    msg = str(exc).lower()
+
+    # 硬性非瞬时错误直接熔断，不浪费时间重试
+    non_transient = ("401", "403", "unauthorized", "forbidden", "context_length_exceeded")
+    if any(k in msg for k in non_transient):
+        return False
+
+    transient_indicators = (
+        "timeout",
+        "timed out",
+        "time out",
+        "connection reset",
+        "connection refused",
+        "remote disconnected",
+        "remotedisconnected",
+        "disconnected",
+        "broken pipe",
+        "network",
+        "econnreset",
+        "econnrefused",
+        "etimedout",
+        "500",
+        "502",
+        "503",
+        "504",
+        "gateway timeout",
+        "bad gateway",
+        "service unavailable",
+        "internal server error",
+        "server disconnected",
+        "stream disconnected",
+    )
+    if any(k in name for k in ("timeout", "connect", "reset")):
+        return True
+    return any(indicator in msg for indicator in transient_indicators)
+
+
 _MAX_TOKENS_SUPPORT: dict = {}
 
 
@@ -303,24 +346,54 @@ async def produce_line(
                 and hasattr(render, "run")
                 and kind in {"placeholder", "spec"}
             )
-            if use_block:
-                full_text = await _render_run(render, context, template, cap)
-                fill_mode = "freeform"
-            else:
-                parts: list[str] = []
-                async for chunk in render.stream(context, template):
-                    parts.append(chunk)
-                    await queue.put(
-                        {
-                            "type": "chunk",
-                            "line": line_name,
-                            "title": title,
-                            "text": chunk,
-                        }
-                    )
-                    streamed = True
-                full_text = "".join(parts)
-                fill_mode = "freeform" if template else "none"
+            max_render_retries = 1
+            retry_delay = 1.0
+
+            for attempt in range(max_render_retries + 1):
+                try:
+                    if attempt > 0:
+                        logger.info(
+                            "局部渲染重试触发 line=%s attempt=%d", line_name, attempt
+                        )
+                        await asyncio.sleep(retry_delay)
+
+                    if use_block:
+                        full_text = await _render_run(render, context, template, cap)
+                        fill_mode = "freeform"
+                    else:
+                        parts: list[str] = []
+                        async for chunk in render.stream(context, template):
+                            parts.append(chunk)
+                            await queue.put(
+                                {
+                                    "type": "chunk",
+                                    "line": line_name,
+                                    "title": title,
+                                    "text": chunk,
+                                }
+                            )
+                            streamed = True
+                        full_text = "".join(parts)
+                        fill_mode = "freeform" if template else "none"
+
+                    if full_text and full_text.strip():
+                        if attempt > 0:
+                            fill_mode = "retry_success"
+                        break
+                except Exception as render_exc:
+                    if (
+                        attempt < max_render_retries
+                        and not streamed
+                        and _is_transient_error(render_exc)
+                    ):
+                        logger.warning(
+                            "render attempt %d failed (transient), will retry line=%s err=%s",
+                            attempt + 1,
+                            line_name,
+                            render_exc,
+                        )
+                        continue
+                    raise
 
         is_brief = _is_brief_style(line_name, state, template)
         if (
@@ -595,27 +668,82 @@ async def produce_line(
             )
         progress("render done line=%s", line_name)
         engine._post_render_hook(state, line_name)
-    except Exception:  # noqa: BLE001 - 单线渲染失败不拖垮整条流水线
+    except Exception as exc:  # noqa: BLE001 - 单线渲染失败不拖垮整条流水线
         logger.warning(
-            "render failed, fallback to deterministic line=%s",
+            "render failed, fallback to deterministic line=%s: %s",
             line_name,
+            exc,
             exc_info=True,
         )
-        line(state, line_name)["degraded"] = True
-        fb_text, fb_structure = engine._domain_fallback_text(
-            state, line_name, engine._fallback_rules[line_name]
-        )
-        line(state, line_name)["rendered"] = fb_text
+        line_state = line(state, line_name)
+        line_state["degraded"] = True
+        line_state["quality_warning"] = "（服务瞬时繁忙，已启用高保真结构化呈现）"
+        state["quality_degraded"] = True
+
+        draft = line_state.get("draft") or {}
+        render_draft_fn = getattr(render, "render_draft", None)
+        fb_text = ""
+        fb_structure = None
+
+        # 1. 优先调用本任务线专属的高保真纯代码渲染器
+        if callable(render_draft_fn) and draft:
+            try:
+                fb_text = render_draft_fn(state)
+                line_state["fill_mode"] = "deterministic_draft"
+            except Exception:
+                logger.exception("render_draft failed line=%s", line_name)
+                fb_text = ""
+
+        # 2. 次级文本草稿直出（思维导图 outline / 溯源正文 minutes_md）
+        if not fb_text and draft:
+            if "outline" in draft and draft["outline"]:
+                fb_text = str(draft["outline"])
+                line_state["fill_mode"] = "draft_outline"
+            elif "minutes_md" in draft and draft["minutes_md"]:
+                fb_text = str(draft["minutes_md"])
+                line_state["fill_mode"] = "draft_minutes_md"
+
+        # 3. 历史对照/记忆引用追加（若存在）
+        cite_fn = hooks_for(engine.domain_name).apply_citations
+        if fb_text and cite_fn is not None and line_name in {"minutes", "minutes_styles"}:
+            try:
+                citation_context = (
+                    line_state.get("memory_context")
+                    or locals().get("context")
+                    or ""
+                )
+                comparison = draft.get("history_comparison") or []
+                fb_text = cite_fn(
+                    fb_text, citation_context, comparison=comparison
+                )
+            except Exception:
+                logger.warning("memory citation failed line=%s", line_name, exc_info=True)
+
+        # 4. 兜底中的兜底：沿用通用 FallbackRules 规则
+        if not fb_text:
+            fb_text, fb_structure = engine._domain_fallback_text(
+                state, line_name, engine._fallback_rules[line_name]
+            )
+            line_state["fill_mode"] = "legacy_fallback"
+
+        line_state["rendered"] = fb_text
         if fb_structure is not None:
-            line(state, line_name)["structure"] = fb_structure
-        await queue.put(
-            {
-                "type": "chunk",
-                "line": line_name,
-                "title": title,
-                "text": fb_text,
-            }
-        )
+            line_state["structure"] = fb_structure
+        else:
+            try:
+                engine._post_render_hook(state, line_name)
+            except Exception:
+                logger.exception("post_render_hook after fallback failed line=%s", line_name)
+
+        if not streamed:
+            await queue.put(
+                {
+                    "type": "chunk",
+                    "line": line_name,
+                    "title": title,
+                    "text": fb_text,
+                }
+            )
     finally:
         await queue.put(None)
 

@@ -19,7 +19,7 @@ from .state import _module_overlap
 SECTION_TITLE = "历史记忆引用"
 
 # 记忆块总是追加在（生成/渲染）上下文末尾；贪婪到文末，小节头不参与块边界。
-_MEMORY_BLOCK_RE = re.compile(r"【会议记忆】(.*)\Z", re.S)
+_MEMORY_BLOCK_RE = re.compile(r"【(?:会议记忆|历史事项代号表)】(.*)\Z", re.S)
 _SECTION_RE = re.compile(r"【(历史事项代号表|延续事项|已闭环|风险演变|历史决策|历史对照素材)】")
 _KIND_BY_SECTION = {
     "历史事项代号表": "open",
@@ -224,6 +224,8 @@ def parse_memory_items(context: str) -> list[MemoryItem]:
             _flush()
             section = section_match.group(1)
             continue
+        if not section and _ITEM_RE.match(stripped):
+            section = "历史事项代号表"
         if not section:
             continue
         quote_match = _QUOTE_RE.match(line)
@@ -1132,42 +1134,16 @@ _MEMORY_SCRIPT = """<script>
 
       const allEvs = Array.from(listEl.querySelectorAll(':scope > .ck-ev'));
       const ledger = listEl.querySelector('.ck-ledger');
-      const ledgerUser = ledger ? (ledger.dataset.user || '') : '';
-      const setLedgerOpen = (next) => {
-        if (!ledger || ledger.open === next) return;
-        // details 的 toggle 事件是异步派发的，busy 标志到那时已被清掉——用"程序意图"对比：
-        // 收到与意图一致的 toggle 就认作程序所为，否则才算用户手动选择。
-        ledger.dataset.prog = next ? 'open' : 'closed';
-        ledger.open = next;
-        ledger.dataset.auto = next ? '' : '1';
-      };
-      // 量高度前先展开「状态演进」（除非用户自己折了）；用户手动展开的一律尊重，不再自动折
-      if (ledger && ledgerUser !== 'closed' && !ledger.open) setLedgerOpen(true);
-
       if (allEvs.length === 0 && !ledger) return;
 
       const leftContentHeight = getActualContentHeight(leftEl);
-      const measure = (el) => {
-        const r = el.getBoundingClientRect();
-        return ((r && r.height > 0) ? r.height : el.offsetHeight) + 10;
-      };
-
-      if (ledger && isDesktop) {
-        // 判据：对照**明显**比左栏还长才折（留 15% 容差，避免刚好擦边就折叠）；
-        // 证据卡（带行内锚点）永远优先留可见，证据自己超高时由下面"查看更多"兜底。
-        const ledgerHeight = ledger.getBoundingClientRect().height;
-        const tooTall = ledgerHeight > leftContentHeight * 1.15;
-        if (tooTall && ledgerUser !== 'open') {
-          setLedgerOpen(false);
-        } else if (!tooTall && ledger.dataset.auto === '1' && ledgerUser !== 'closed') {
-          setLedgerOpen(true);           // 空间恢复（如放大窗口）再展开
-        }
-      }
 
       if (allEvs.length <= 1) return;
 
       let totalHeight = 0;
       const itemsToFold = [];
+      const ledgerHeight = (ledger && ledger.open) ? (ledger.getBoundingClientRect().height || ledger.offsetHeight || 0) : 0;
+      const availableHeight = Math.max(leftContentHeight - ledgerHeight - 16, 200);
 
       allEvs.forEach((ev, idx) => {
         if (!isDesktop) {
@@ -1176,8 +1152,7 @@ _MEMORY_SCRIPT = """<script>
         }
         const evRect = ev.getBoundingClientRect();
         const evHeight = (evRect && evRect.height > 0) ? evRect.height + 10 : ev.offsetHeight + 10;
-        // 「状态演进」已让位后仍超出，才折证据卡（最后手段）
-        if (totalHeight + evHeight > leftContentHeight && idx >= 1) {
+        if (totalHeight + evHeight > availableHeight && idx >= 1) {
           itemsToFold.push(ev);
         } else {
           totalHeight += evHeight;
@@ -1267,15 +1242,10 @@ _MEMORY_SCRIPT = """<script>
     });
   });
 
-  // 「状态演进」的展开/折叠：记下"用户手动选择"，自动折叠不覆盖它
+  // 「状态演进」的展开/折叠：用户手动切换后，重新计算证据卡片展示空间
   document.querySelectorAll('.ck-ledger').forEach((el) => {
     el.addEventListener('toggle', () => {
-      const intent = el.dataset.prog || '';
-      el.dataset.prog = '';
-      const programmatic =
-        (intent === 'open' && el.open) || (intent === 'closed' && !el.open);
-      if (programmatic) return;
-      el.dataset.user = el.open ? 'open' : 'closed';
+      adjustMemoryFolding();
     });
   });
 
@@ -1808,7 +1778,14 @@ def render_minutes_html(title: str, text: str, data: dict | None = None) -> str:
     clean_text = str(text or "").strip()
     if hasattr(data, "model_dump"):
         data = data.model_dump()
-    if "](#" in clean_text or f"## {SECTION_TITLE}" in clean_text:
+    if (
+        "](#" in clean_text
+        or f"## {SECTION_TITLE}" in clean_text
+        or f"## {COMPARISON_TITLE}" in clean_text
+        or "## 历史对照" in clean_text
+        or "## 状态演进" in clean_text
+        or bool(data and data.get("history_comparison"))
+    ):
         return memory_review_html(clean_text, title=title, data=data)
     return render_markdown_page_html(title or "会议纪要", clean_text)
 

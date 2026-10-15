@@ -257,6 +257,18 @@ class MinutesTraceRender:
     def __init__(self, client: LLMClient) -> None:
         self.client = client
 
+    @staticmethod
+    def render_draft(state: dict) -> str:
+        """把已批准的溯源纪要草稿纯 Python 确定性组装为规范 Markdown 正文（零 LLM 调用）。"""
+        draft = (
+            (state.get("lines") or {})
+            .get("minutes_trace", {})
+            .get("draft")
+            or {}
+        )
+        body = str(draft.get("minutes_md") or "").strip()
+        return body or "请直接参考会议原文。"
+
     async def materialize(self, approved_context: str, template: str = "") -> str:
         """deterministic_pipeline 入口：审核通过后生成对齐 → 程序落钉，不调 LLM 改正文。"""
         return await self.run(approved_context, template)

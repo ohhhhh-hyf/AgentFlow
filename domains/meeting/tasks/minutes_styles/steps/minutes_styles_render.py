@@ -45,6 +45,35 @@ class MultiStylesRender:
         self.client = client
 
     @staticmethod
+    def render_draft(state: dict) -> str:
+        """把已批准的多样式纪要草稿纯 Python 确定性组装为规范 Markdown 正文（零 LLM 调用）。"""
+        draft = (
+            (state.get("lines") or {})
+            .get("minutes_styles", {})
+            .get("draft")
+            or {}
+        )
+        if not draft:
+            return "暂无多样式纪要"
+        title = str(draft.get("title") or "").strip() or "多样式纪要"
+        summary = str(draft.get("summary") or "").strip()
+        sections = list(draft.get("sections") or [])
+
+        blocks: list[str] = [f"# {title}"]
+        if summary:
+            blocks.append(f"> **速览摘要**：{summary}")
+
+        for sec in sections:
+            if not isinstance(sec, dict):
+                continue
+            sec_title = str(sec.get("title") or "").strip() or "要点"
+            sec_content = str(sec.get("content") or "").strip()
+            if sec_content:
+                blocks.append(f"## {sec_title}\n\n{sec_content}")
+
+        return "\n\n".join(blocks) if len(blocks) > 1 else f"# {title}\n\n暂无结构化段落"
+
+    @staticmethod
     def _prompt_and_user(context: str, template: str) -> tuple[str, str]:
         return build_render_prompt(
             context,

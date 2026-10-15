@@ -337,13 +337,16 @@ def build_memory_context(
     evidence = getattr(bind, "evidence", []) or []
     parts = [
         "══════════════════════════════════════════════════════════════",
-        "【历史事项代号表】（仅供在正文陈述涉及相关事项时引用代号，严禁捏造）",
-        "（注：若正文陈述涉及下列历史事项，请紧随对应句子附带其代号如 [H1]；未涉及切勿强行提及）",
         "【会议记忆】",
         f"项目：{_clean(project.get('name')) or _clean(state.get('name')) or project_id}",
     ]
     if evidence:
         parts.append("命中依据：" + "、".join(str(x) for x in evidence[:8]))
+    parts.extend([
+        "",
+        "【历史事项代号表】（仅供在正文陈述涉及相关事项时引用代号，严禁捏造）",
+        "（注：若正文陈述涉及下列历史事项，请紧随对应句子附带其代号如 [H1]；未涉及切勿强行提及）",
+    ])
 
     opens = [
         i for i in list(state.get("actions") or []) + list(state.get("open_items") or [])

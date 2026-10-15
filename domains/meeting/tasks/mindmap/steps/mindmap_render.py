@@ -57,6 +57,16 @@ class MindmapRender:
         self.client = client
 
     @staticmethod
+    def render_draft(state: dict) -> str:
+        """把已批准的思维导图草稿纯 Python 确定性组装为规范 Markdown 大纲（零 LLM 调用）。"""
+        draft = (state.get("lines") or {}).get("mindmap", {}).get("draft") or {}
+        outline = str(draft.get("outline") or "").strip()
+        if outline:
+            return normalize_mindmap_outline(outline)
+        title = str(draft.get("title") or "").strip() or "思维导图"
+        return f"# {title}\n\n- 暂无思维导图大纲"
+
+    @staticmethod
     def _prompt_and_user(context: str, template: str) -> tuple[str, str]:
         return build_render_prompt(
             context,

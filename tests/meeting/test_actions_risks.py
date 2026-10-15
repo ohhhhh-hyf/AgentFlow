@@ -441,6 +441,19 @@ def test_action_items_assigned_actions_compatibility() -> None:
     assert "完成新旧契约解耦与单测编写" in rendered_text
     assert "核心团队" in rendered_text
     assert "跟进线上告警指标监控" in rendered_text
+    # 3. 验证经过 LLMClient 结构化解析器时不会被剥离 assigned_actions
+    import json
+    from infra.llm.llmclient import LLMClient
+    raw_json = json.dumps(payload_assigned)
+    parsed = LLMClient._parse_and_validate(
+        raw_json,
+        ActionItems,
+        allow_missing=frozenset({"my_actions", "delegated_actions"}),
+    )
+    assert len(parsed.assigned_actions) == 1
+    assert len(parsed.my_actions) == 1
+    assert parsed.assigned_actions[0]["task"] == "完成新旧契约解耦与单测编写"
+    assert parsed.my_actions[0]["task"] == "完成新旧契约解耦与单测编写"
 
 
 if __name__ == "__main__":

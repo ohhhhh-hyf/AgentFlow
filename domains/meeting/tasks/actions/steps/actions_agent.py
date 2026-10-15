@@ -29,9 +29,11 @@ class ActionItemsAgent(StructuredGenerationAgent):
         if mode in ("personal", "role_template"):
             prompt = ACTION_ITEMS_PERSONAL_GENERATION_PROMPT
             contract = ACTION_ITEMS_PERSONAL_GENERATION_OUTPUT_CONTRACT
+            allow_missing = frozenset({"assigned_actions"})
         else:
             prompt = ACTION_ITEMS_OBJECTIVE_GENERATION_PROMPT
             contract = ACTION_ITEMS_OBJECTIVE_GENERATION_OUTPUT_CONTRACT
+            allow_missing = frozenset({"my_actions", "delegated_actions"})
 
         return await self.client.structured(
             prompt,
@@ -39,5 +41,6 @@ class ActionItemsAgent(StructuredGenerationAgent):
             self.output_model,
             contract,
             label=f"actions/agent/{mode}",
+            allow_missing=allow_missing,
             **self.extra_kwargs,
         )

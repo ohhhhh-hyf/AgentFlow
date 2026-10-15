@@ -27,17 +27,32 @@ class ActionItems(ModelMixin):
     my_actions: list[dict[str, Any]] = field(default_factory=list)
     delegated_actions: list[dict[str, Any]] = field(default_factory=list)
     unassigned_actions: list[dict[str, Any]] = field(default_factory=list)
+    assigned_actions: list[dict[str, Any]] = field(default_factory=list)
 
     @classmethod
     def validate(cls, data: dict) -> "ActionItems":
-        _exact_fields(data, [f.name for f in fields(cls)], cls.__name__)
-        if not isinstance(data["my_actions"], list):
-            raise OutputValidationError("my_actions 必须是数组")
-        if not isinstance(data["delegated_actions"], list):
-            raise OutputValidationError("delegated_actions 必须是数组")
-        if not isinstance(data["unassigned_actions"], list):
-            raise OutputValidationError("unassigned_actions 必须是数组")
-        return cls(**data)
+        d = dict(data)
+        if "assigned_actions" in d and not d.get("my_actions"):
+            d["my_actions"] = d["assigned_actions"]
+        if "my_actions" in d and not d.get("assigned_actions"):
+            d["assigned_actions"] = d["my_actions"]
+        if "delegated_actions" not in d:
+            d["delegated_actions"] = []
+        if "unassigned_actions" not in d:
+            d["unassigned_actions"] = []
+        if "assigned_actions" not in d:
+            d["assigned_actions"] = []
+        if "my_actions" not in d:
+            d["my_actions"] = []
+        for key in ("my_actions", "delegated_actions", "unassigned_actions", "assigned_actions"):
+            if not isinstance(d.get(key), list):
+                raise OutputValidationError(f"{key} 必须是数组")
+        return cls(
+            my_actions=d["my_actions"],
+            delegated_actions=d["delegated_actions"],
+            unassigned_actions=d["unassigned_actions"],
+            assigned_actions=d["assigned_actions"],
+        )
 
 @dataclass
 class AgendaMinutes(ModelMixin):
