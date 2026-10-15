@@ -28,7 +28,14 @@ from core.graph.engine_text import scrape_draft
 
 def _draft_from_context(approved_context: str) -> dict[str, Any]:
     """从渲染上下文里抽出已批准草稿（实现见 domain_engine_text.scrape_draft）。"""
-    return scrape_draft(approved_context, ('已批准溯源纪要草稿：',))
+    return scrape_draft(approved_context, (
+        '已批准溯源纪要草稿：',
+        '已批准溯源纪要草稿:',
+        '已批准纪要草稿：',
+        '已批准纪要草稿:',
+        '已批准草稿：',
+        '已批准草稿:',
+    ))
 
 
 def _transcript_from_context(context: str) -> str:
@@ -276,7 +283,7 @@ class MinutesTraceRender:
     async def run(self, approved_context: str, template: str = "") -> str:
         del template
         draft = _draft_from_context(approved_context)
-        body = str(draft.get("minutes_md") or "").strip()
+        body = str(draft.get("minutes_md") or draft.get("minutes") or "").strip()
         if not body:
             return "请直接参考会议原文。"
         alignments, _audit = await _align_alignments(

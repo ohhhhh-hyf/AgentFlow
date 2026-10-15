@@ -6,10 +6,12 @@ from infra.llm import LLMClient
 from ..models import MeetingUnderstanding
 from .prompts import (
     MEETING_UNDERSTANDING_SYSTEM_PROMPT,
+    MEETING_UNDERSTANDING_LIGHTWEIGHT_SYSTEM_PROMPT,
 )
 from .contracts import (
     MEETING_UNDERSTANDING_GENERATION_OUTPUT_CONTRACT,
     build_core_contract_for_tasks,
+    is_actions_risks_only_tasks,
 )
 
 
@@ -64,8 +66,15 @@ class MeetingUnderstandingAgent:
             contract_str if omitted else MEETING_UNDERSTANDING_GENERATION_OUTPUT_CONTRACT
         )
 
+        is_lightweight = is_actions_risks_only_tasks(tasks, memory_on=memory_on)
+        system_prompt = (
+            MEETING_UNDERSTANDING_LIGHTWEIGHT_SYSTEM_PROMPT
+            if is_lightweight
+            else MEETING_UNDERSTANDING_SYSTEM_PROMPT
+        )
+
         result = await self.client.structured(
-            MEETING_UNDERSTANDING_SYSTEM_PROMPT,
+            system_prompt,
             user,
             MeetingUnderstanding,
             target_contract,

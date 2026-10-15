@@ -237,6 +237,7 @@ async def produce_line(
     title = engine._line_title(state, line_name)
     degraded = bool(line(state, line_name).get("degraded"))
     template = line_template(state, line_name)
+    streamed = False
     try:
         try:
             from core.runner.progress import progress
@@ -271,24 +272,29 @@ async def produce_line(
 
         policy = engine._line_policy(line_name)
         if not policy.uses_llm_render(template):
-            render_draft = getattr(render, "render_draft", None)
             materialize = getattr(render, "materialize", None)
+            render_draft = getattr(render, "render_draft", None)
             context = ""
-            if callable(render_draft):
-                full_text = render_draft(state)
-            elif materialize is not None:
+            fill_mode = "draft"
+            if materialize is not None:
                 context = engine._render_context(state, line_name)
                 full_text = await materialize(context, template)
+                fill_mode = "materialize"
+            elif callable(render_draft):
+                full_text = render_draft(state)
+                fill_mode = "draft"
             elif policy.llm_render == "never" and hasattr(render, "run"):
                 context = engine._render_context(state, line_name)
                 full_text = await render.run(context, template)
+                fill_mode = "run"
             else:
                 draft = line(state, line_name).get("draft") or {}
                 full_text = (
                     f"# {draft.get('title') or line_cn(line_name, engine._line_cn_names)}"
                 )
+                fill_mode = "fallback_title"
             cite = hooks_for(engine.domain_name).apply_citations
-            if full_text and cite is not None:
+            if full_text and cite is not None and line_name in {"minutes", "minutes_styles"}:
                 try:
                     citation_context = (
                         line(state, line_name).get("memory_context") or context or ""
@@ -301,9 +307,12 @@ async def produce_line(
                     )
                 except Exception:  # noqa: BLE001
                     logger.warning("memory citation failed line=%s", line_name, exc_info=True)
+            compact = hooks_for(engine.domain_name).compact_plain
+            if full_text and not template and compact is not None:
+                full_text = compact(line_name, full_text)
             line_state = line(state, line_name)
             line_state["rendered"] = full_text
-            line_state["fill_mode"] = "draft"
+            line_state["fill_mode"] = fill_mode
             await queue.put(
                 {
                     "type": "chunk",

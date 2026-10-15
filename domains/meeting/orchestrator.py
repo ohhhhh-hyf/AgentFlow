@@ -608,12 +608,13 @@ class _Nodes(DomainNodes):
         if line_name == "actions":
             directive_decisions = [
                 item for item in top_decisions
-                if any(word in str(item) for word in ("要求", "必须", "务必", "请", "需", "整改", "落实"))
+                if any(word in str(item) for word in ("要求", "必须", "务必", "请", "需", "整改", "落实", "牵头", "负责", "推进", "上线", "完成", "对齐", "排查", "闭环"))
             ]
             return {
                 **base,
                 "session_segments": raw_segments,
                 "action_hints": u.get("action_hints") or [],
+                "decisions": top_decisions,
                 "directive_decisions": directive_decisions,
                 "dependencies": u.get("dependencies") or [],
             }
@@ -698,6 +699,12 @@ class _Nodes(DomainNodes):
                     "撰写段落时，以各阶段议题节点的指标、决策与分歧脉络为事实骨架，对照会议原文定向补充具体论据细节与发言人表态。"
                     "顺应业务研讨推进脉络成段展开，客观全面呈现全场事实与全员分工。"
                 )
+        elif line_name in {"actions", "risks"}:
+            fact_note = (
+                "说明：以会议理解中的线索（action_hints / risk_hints / 决议）为导航索引，"
+                "深度结合【会议原文】全面穷尽挖掘所有具体承诺、分工指派、排期时限、技术整改与潜在隐患。"
+                "顺着线索与讨论脉络定向补充具体责任人、量化参数、前置依赖与验收标准，保持事实保真。"
+            )
         else:
             fact_note = (
                 "说明：仅使用本任务上下文包中的事实；需要裁剪视角时参考用户画像和用户视角模型。"
@@ -742,8 +749,8 @@ class _Nodes(DomainNodes):
             perspective = self._compact_perspective(state.get("perspective_profile") or {})
             if perspective:
                 parts.append(f"用户视角模型：\n{_json(perspective)}")
-        # 纪要成段需要原文细节；溯源/多样式/导图/共识决策同样需要原文。其它线优先依赖 evidence。
-        if line_name in {"minutes", "minutes_trace", "minutes_styles", "mindmap", "consensus_decision"}:
+        # 纪要成段需要原文细节；溯源/多样式/导图/共识决策以及待办/风险深挖同样需要原文。其它线优先依赖 evidence。
+        if line_name in {"minutes", "minutes_trace", "minutes_styles", "mindmap", "consensus_decision", "actions", "risks"}:
             parts.append(f"会议原文：\n{state.get('transcript') or ''}")
         if line_name in {"minutes", "minutes_styles"}:
             budget = self._length_budget_line(state, line_name)

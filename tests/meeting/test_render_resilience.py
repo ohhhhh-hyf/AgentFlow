@@ -127,11 +127,17 @@ def test_consensus_decision_render_draft() -> None:
 
 class DummyEngine:
     domain_name = "meeting"
-    _line_cn_names = {"minutes": "会议纪要", "consensus_decision": "共识决策", "minutes_styles": "多样式纪要"}
+    _line_cn_names = {
+        "minutes": "会议纪要",
+        "consensus_decision": "共识决策",
+        "minutes_styles": "多样式纪要",
+        "minutes_trace": "溯源纪要",
+    }
     _fallback_rules = {
         "minutes": MinutesGenerationRender,
         "consensus_decision": ConsensusDecisionRender,
         "minutes_styles": MultiStylesRender,
+        "minutes_trace": MinutesTraceRender,
     }
 
     def __init__(self, render_obj, line_name: str = "minutes") -> None:
@@ -142,9 +148,12 @@ class DummyEngine:
 
     def _line_policy(self, line_name: str):
         class DummyPolicy:
-            kind = "llm_document"
+            kind = "deterministic_pipeline" if line_name == "minutes_trace" else "llm_document"
+            llm_render = "never" if line_name == "minutes_trace" else "always"
             extracts_structure = True
             def uses_llm_render(self, template: str) -> bool:
+                if line_name == "minutes_trace":
+                    return False
                 return True
         return DummyPolicy()
 
@@ -340,4 +349,74 @@ async def test_produce_line_consensus_decision_zero_llm_fallback() -> None:
     assert line_st["degraded"] is True
     assert line_st["quality_warning"] == "（服务瞬时繁忙，已启用高保真结构化呈现）"
     assert line_st["fill_mode"] == "deterministic_draft"
+
+
+@pytest.mark.anyio
+async def test_produce_line_minutes_trace_prioritizes_materialize() -> None:
+    """验证溯源纪要正常执行时优先走 materialize 对齐与落钉，而不是被 render_draft 短路。"""
+    class TraceRenderWithBoth:
+        async def materialize(self, approved_context: str, template: str = "") -> str:
+            return "# 溯源纪要\n- 关键决策已落实###[【keypoint: 重点事项】]"
+
+        @staticmethod
+        def render_draft(state: dict) -> str:
+            return MinutesTraceRender.render_draft(state)
+
+    render_obj = TraceRenderWithBoth()
+    engine = DummyEngine(render_obj, "minutes_trace")
+    state = {
+        "lines": {
+            "minutes_trace": {
+                "draft": {
+                    "minutes_md": "# 溯源纪要\n- 关键决策已落实",
+                }
+            }
+        },
+        "templates": {"minutes_trace": ""},
+    }
+    queue = asyncio.Queue()
+
+    await produce_line(engine, "minutes_trace", state, queue)
+
+    item = await queue.get()
+    assert item["type"] == "chunk"
+    assert "###[【keypoint: 重点事项】]" in item["text"]
+    assert state["lines"]["minutes_trace"]["fill_mode"] == "materialize"
+    assert state["lines"]["minutes_trace"].get("degraded") is not True
+
+
+@pytest.mark.anyio
+async def test_produce_line_minutes_trace_fallback_when_materialize_fails() -> None:
+    """验证溯源纪要当 materialize 发生不可恢复异常时，平滑降级为 render_draft 纯代码出稿。"""
+    class FailingTraceRender:
+        async def materialize(self, approved_context: str, template: str = "") -> str:
+            raise RuntimeError("Corrupted alignment metadata")
+
+        @staticmethod
+        def render_draft(state: dict) -> str:
+            return MinutesTraceRender.render_draft(state)
+
+    render_obj = FailingTraceRender()
+    engine = DummyEngine(render_obj, "minutes_trace")
+    state = {
+        "lines": {
+            "minutes_trace": {
+                "draft": {
+                    "minutes_md": "# 溯源纪要\n- 关键决策已落实",
+                }
+            }
+        },
+        "templates": {"minutes_trace": ""},
+    }
+    queue = asyncio.Queue()
+
+    await produce_line(engine, "minutes_trace", state, queue)
+
+    item = await queue.get()
+    assert item["type"] == "chunk"
+    assert item["text"] == "# 溯源纪要\n- 关键决策已落实"
+    assert state["lines"]["minutes_trace"]["degraded"] is True
+    assert state["lines"]["minutes_trace"]["quality_warning"] == "（服务瞬时繁忙，已启用高保真结构化呈现）"
+    assert state["lines"]["minutes_trace"]["fill_mode"] == "deterministic_draft"
+
 

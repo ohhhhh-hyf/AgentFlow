@@ -38,11 +38,13 @@ _ACTION_COMMON_RULES = """
 ## 五、议题驱动两级流程（先分组，组内分点）
 
 1. **以业务模块天然成组**：直接以输入上下文中的 session_segments 的 segment_title 作为宏观大组标题（category）；
-2. **组内充分核准与萃取动作**：
-   - 充分交叉核对 action_hints、session_segments 与 directive_decisions，提取明确的分工、时限、技术任务与整改要求；
+2. **组内充分核准与深度萃取**：
+   - 充分交叉核对 action_hints、directive_decisions、decisions 与【会议原文】，全面提炼明确的分工、时限、技术任务与整改要求；
+   - 深入回溯会议原文，穷尽发掘各方在讨论过程中达成的口头承诺、技术改造点、方案联调、配置修改、文档产出与指标验收等具体动作；
+   - 保持细颗粒度独立陈述，一场常规会议通常沉淀 15~30 项原子化执行动作，全面覆盖全员承诺与管理落地要求；
    - 同一业务模块内的事项赋予相同的 category；
-   - 积极提炼 deadline（时限节点）、timing_anchor（时间锚点）、collaborators（协同方）、acceptance_criteria（验收判定）与 dependency（前置依赖条件），为后续工单流提供充实的信息输入；
-   - 属性缺省时如实保留为空（null），关键属性欠缺时降级标记（status=inferred、confidence=low），不随意舍弃明确的执行动作。
+   - 积极提炼 deadline（时限节点）、timing_anchor（时间锚点）、collaborators（协同方）、acceptance_criteria（验收判定）与 dependency（前置依赖条件），依托原文上下文补齐属性，为后续工单流提供充实的信息输入；
+   - 属性缺省时如实保留为空（null），关键属性欠缺时降级标记（status=inferred、confidence=low），如实收录明确的执行动作。
 
 ---
 
@@ -64,10 +66,11 @@ _ACTION_OBJECTIVE_HEADER = """你是「全员待办事项 Agent」。从会议�
 ## 〇、数据源与萃取指引
 
 1. **多源交叉萃取（充分发掘现场明确的执行意图）**：  
-   - **`action_hints`**：行动候选线索（包含动作、负责人、时限、条件及证据原句）；  
-   - **`session_segments`**：讨论中沉淀的分工安排、口头承诺、技术实现任务与整改要求；  
-   - **`directive_decisions` 与 `dependencies`**：决议中明确要求的执行指令（可拆解为原子动作），以及明确的前置条件（提炼为条件型待办）。  
-2. **证据锚定**：每条待办的 evidence 字段直接关联 `action_hints`、`session_segments` 或决议的具体事实原句。凡讨论中达成明确共识、指派或承诺的具体工作，均完整萃取。  
+   - **`action_hints`**：行动候选线索罗盘（包含动作、负责人、时限、条件及证据原句）；  
+   - **`directive_decisions` 与 `decisions`**：领导明确拍板的执行指令与重要决议，全面拆解为独立执行项；  
+   - **`session_segments`**：顺应会议时序的议题标的分类（segment_title 作为分组归类依据）；  
+   - **`会议原文`**：深挖宝库。顺应 action_hints 与决议线索，深度遍历会议原文讨论脉络，顺藤摸瓜补充具体负责人、量化参数、排期死线与验收标准，全面提炼全员口头承诺与技术落地动作。  
+2. **证据锚定与应收尽收**：每条待办的 evidence 字段直接关联原文具体佐证原句。凡讨论中达成明确共识、指派或承诺的具体工作，均完整萃取，做到全员分工全面覆盖。
 
 ---
 
@@ -109,10 +112,11 @@ _ACTION_PERSONAL_HEADER = """你是「个人作战待办 Agent」。结合用户
 ## 〇、数据源与萃取指引
 
 1. **多源交叉萃取（充分发掘现场明确的执行意图）**：  
-   - **`action_hints`**：行动候选线索（包含动作、负责人、时限、条件及证据原句）；  
-   - **`session_segments`**：讨论中沉淀的分工安排、口头承诺、技术实现任务与整改要求；  
-   - **`directive_decisions` 与 `dependencies`**：决议中明确要求的执行指令（可拆解为原子动作），以及明确的前置条件（提炼为条件型待办）。  
-2. **证据锚定**：每条待办的 evidence 字段直接关联 `action_hints`、`session_segments` 或决议的具体事实原句。结合用户职责关键词与视角模型进行匹配，不推断或捏造未提及的责任人。  
+   - **`action_hints`**：行动候选线索罗盘（包含动作、负责人、时限、条件及证据原句）；  
+   - **`directive_decisions` 与 `decisions`**：领导明确拍板的执行指令与重要决议；  
+   - **`session_segments`**：顺应会议时序的议题标的分类（segment_title 作为分组归类依据）；  
+   - **`会议原文`**：深挖宝库。结合用户角色画像、视角模型与命中表，深度遍历会议原文讨论脉络，全面提炼与用户切身相关的执行待办与协同分工。  
+2. **证据锚定与精准提炼**：每条待办的 evidence 字段直接关联原文具体佐证原句。结合用户职责关键词与视角模型进行匹配，不推断或捏造未提及的责任人。
 
 ---
 

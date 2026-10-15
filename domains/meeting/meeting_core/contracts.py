@@ -60,6 +60,14 @@ SESSION_SEGMENTS_FIELD = ObjListField(
     desc="顺应会议推进时序的自然研讨阶段列表（承载议题脉络与量化事实血肉）",
 )
 
+SESSION_SEGMENTS_LIGHT_FIELD = ObjListField(
+    "session_segments",
+    [
+        StrField("segment_title", "该研讨阶段的议题或业务标的名称（顺应会议推进时序划分3~6个自然阶段，作为宏观分类标题）"),
+    ],
+    desc="顺应会议推进时序的议题标的分类列表（仅提取议题标题供下游模块成组分类，不展开大段叙事）",
+)
+
 DEBATES_FIELD = ObjListField(
     "debates",
     [
@@ -176,6 +184,7 @@ def build_core_contract_for_tasks(
                 "minutes_trace",
                 "consensus_decision",
                 "mindmap",
+                "actions",
             )
         )
     )
@@ -246,6 +255,12 @@ def build_core_contract_for_tasks(
         )
     )
 
+    is_actions_risks_only = bool(
+        selected_set
+        and selected_set.issubset({"actions", "risks"})
+        and not memory_on
+    )
+
     chosen_fields: list[Field] = [
         StrField("meeting_brief", "80~200字概括整场会议主线全貌与核心态势"),
         StrField("meeting_purpose", "一句话概括会议目的"),
@@ -257,7 +272,10 @@ def build_core_contract_for_tasks(
         ]),
     ]
     if need_segments:
-        chosen_fields.append(SESSION_SEGMENTS_FIELD)
+        if is_actions_risks_only:
+            chosen_fields.append(SESSION_SEGMENTS_LIGHT_FIELD)
+        else:
+            chosen_fields.append(SESSION_SEGMENTS_FIELD)
     if need_decisions:
         chosen_fields.append(DECISIONS_FIELD)
     if need_open_questions:
@@ -282,6 +300,14 @@ def build_core_contract_for_tasks(
     return contract_str, omitted
 
 
+def is_actions_risks_only_tasks(active_tasks: Iterable[str] | None, memory_on: bool = False) -> bool:
+    """判定当前激活的任务是否仅属于 actions / risks 且未开启跨会记忆。"""
+    if memory_on or not active_tasks:
+        return False
+    selected = {str(t).strip() for t in active_tasks if str(t).strip()}
+    return bool(selected and selected.issubset({"actions", "risks"}))
+
+
 __all__ = [
     "SCENE_CHOICES",
     "ACTION_HINT_KINDS",
@@ -289,5 +315,7 @@ __all__ = [
     "ALL_CORE_FIELD_NAMES",
     "MeetingUnderstandingGenerationContract",
     "MEETING_UNDERSTANDING_GENERATION_OUTPUT_CONTRACT",
+    "SESSION_SEGMENTS_LIGHT_FIELD",
     "build_core_contract_for_tasks",
+    "is_actions_risks_only_tasks",
 ]
