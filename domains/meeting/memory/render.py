@@ -14,16 +14,15 @@ from dataclasses import dataclass
 from html import escape
 from typing import Any
 
-from .state import _module_overlap
+from .state import _DOMAIN_ENTITIES, _module_overlap
 
 SECTION_TITLE = "历史记忆引用"
 
 # 记忆块总是追加在（生成/渲染）上下文末尾；贪婪到文末，小节头不参与块边界。
-_MEMORY_BLOCK_RE = re.compile(r"【(?:会议记忆|项目推进背景|历史事项代号表)】(.*)\Z", re.S)
-_SECTION_RE = re.compile(r"【(项目推进背景|历史事项代号表|延续事项|已闭环|风险演变|历史决策|历史对照素材)】")
+_MEMORY_BLOCK_RE = re.compile(r"【(?:会议记忆|项目推进背景)】(.*)\Z", re.S)
+_SECTION_RE = re.compile(r"【(项目推进背景|延续事项|已闭环|风险演变|历史决策|历史对照素材)】")
 _KIND_BY_SECTION = {
     "项目推进背景": "open",
-    "历史事项代号表": "open",
     "延续事项": "open",
     "已闭环": "closed",
     "风险演变": "risk",
@@ -66,9 +65,10 @@ _DECISION_LEAD_RE = re.compile(r"^(m_[A-Za-z0-9_-]+)：(.+)$")
 _MEM_SECTION_RE = re.compile(r"\n(?:-{3,}\s*\n+)*## " + re.escape(SECTION_TITLE) + r"\b.*\Z", re.S)
 COMPARISON_TITLE = "历史对照"
 _COMPARISON_SECTION_RE = re.compile(
-    r"\n(?:-{3,}\s*\n+)*## (?:历史对照|状态演进)\b.*?(?=\n#{1,2} |\Z)", re.S
+    r"\n(?:-{3,}\s*\n+)*## (?:历史对照|状态演进|与历史对比)\b.*?(?=\n#{1,2} |\Z)", re.S
 )
-_H_TAG_RE = re.compile(r"[\[(【](H\d+)[\])】]", re.IGNORECASE)
+_H_TAG_RE = re.compile(r"[\[(【]\s*H\d+\s*[\])】]", re.IGNORECASE)
+_ITEM_TAG_PREFIX_RE = re.compile(r"^\[H\d+\]\s*", re.IGNORECASE)
 # 台账行：- 类别（主题｜场次说明）：内容 / - 类别（场次说明）：内容 / - 类别：内容
 _LEDGER_LINE_RE = re.compile(
     r"^(新增决策|延续事项|已闭环|风险演变)(?:[（(]([^）)]*)[)）])?[:：]\s*(.*)$"
@@ -127,7 +127,6 @@ class MemoryItem:
     timing: str = ""  # 时限（有则展示）
     module: str = ""  # 原生议题作用域（business module）
     topic_title: str = ""  # 原生议题标题
-    tag: str = ""  # H1, H2... 占位符代号
 
 
 def _split_meta(body: str) -> tuple[str, str]:
@@ -227,7 +226,7 @@ def parse_memory_items(context: str) -> list[MemoryItem]:
             section = section_match.group(1)
             continue
         if not section and _ITEM_RE.match(stripped):
-            section = "历史事项代号表"
+            section = "项目推进背景"
         if not section:
             continue
         quote_match = _QUOTE_RE.match(line)
@@ -261,12 +260,7 @@ def parse_memory_items(context: str) -> list[MemoryItem]:
             _flush()
             if section == "历史对照素材":
                 continue
-            body = _clean(item_match.group(1))
-            tag = ""
-            tag_m = re.match(r"^\[([Hh]\d+)\]\s*(.+)$", body)
-            if tag_m:
-                tag = tag_m.group(1).upper()
-                body = _clean(tag_m.group(2))
+            body = _ITEM_TAG_PREFIX_RE.sub("", _clean(item_match.group(1)))
             meeting_id = ""
             lead = _DECISION_LEAD_RE.match(body)
             if lead:
@@ -284,7 +278,6 @@ def parse_memory_items(context: str) -> list[MemoryItem]:
                 status=fields.get("status") or "",
                 owner=fields.get("owner") or "",
                 timing=fields.get("timing") or "",
-                tag=tag,
             )
     _flush()
     return items
@@ -316,11 +309,22 @@ def _related(line: str, item: MemoryItem) -> bool:
         b_chars = "".join(ch for ch in b if "\u4e00" <= ch <= "\u9fff")
         if any(b_chars[i : i + 2] in a for i in range(len(b_chars) - 1)):
             return True
-    a_terms = [x for x in re.split(r"[，。；;、\s]+", a) if len(x) >= _MIN_ANCHOR]
-    b_terms = [x for x in re.split(r"[，。；;、\s]+", b) if len(x) >= _MIN_ANCHOR]
+    a_terms = [x for x in re.split(r"[，。；;、\s]+", a) if len(x) >= _MIN_ANCHOR and not _is_generic(x)]
+    b_terms = [x for x in re.split(r"[，。；;、\s]+", b) if len(x) >= _MIN_ANCHOR and not _is_generic(x)]
     if any(x in b or y in a for x in a_terms for y in b_terms):
         return True
-    return bool(_han_ngrams(a, size=3) & _han_ngrams(b, size=3))
+
+    # 废除无条件的纯 3 字汉字滑动：
+    # 仅当句子中包含历史条目的专用词（专名、日期、参数）或责任人时，才允许基于 3 字词组确定匹配
+    has_specific_signal = bool(
+        (owner and owner in a)
+        or (a_tokens & b_tokens)
+        or any(e in a and e in b for e in _DOMAIN_ENTITIES)
+    )
+    if has_specific_signal:
+        return bool(_han_ngrams(a, size=3) & _han_ngrams(b, size=3))
+    # 无专用信号时，必须至少有 4 字不含泛词的连续子串
+    return bool(_han_ngrams(a, size=4) & _han_ngrams(b, size=4))
 
 
 def _clip_anchor(text: str) -> str:
@@ -639,6 +643,17 @@ def _scope_signaled(sections: list[tuple[str, str]], items: list[MemoryItem]) ->
     )
 
 
+def _strip_h_markers(text: str) -> str:
+    """删掉模型照抄的 ``[H1]`` / ``(H1)`` / ``【H1】``。代号不是引用协议。"""
+    out: list[str] = []
+    for line in (text or "").splitlines():
+        cleaned = _H_TAG_RE.sub("", line)
+        cleaned = re.sub(r"[ \t]{2,}", " ", cleaned)
+        cleaned = re.sub(r" +([，。；、])", r"\1", cleaned)
+        out.append(cleaned.rstrip())
+    return "\n".join(out)
+
+
 def _collect_ref_ids(text: str) -> list[str]:
     """正文里已有的 memory-N 锚点（按出现顺序去重）。"""
     out: list[str] = []
@@ -653,10 +668,11 @@ def apply_memory_citations(
     markdown: str,
     context: str,
     comparison: list[str] | None = None,
+    candidate_items: list[MemoryItem] | list[dict[str, Any]] | None = None,
 ) -> str:
     """给渲染后的纪要加记忆引用标注 + 「历史对照」小节 + 文末「历史记忆引用」区。
 
-    保守锚定、不改事实措辞、只追加标记；上下文无【会议记忆】块时原样返回。
+    正文锚点只来自写完后的字面重合，不认 ``[H1]``。模型若仍打出代号，先整段删掉。
     ``comparison``：程序算好的历史对照（build_memory_context 的第二个返回值），
     无条件写成固定小节——它是零锚点时的唯一可见溯源。
 
@@ -670,42 +686,53 @@ def apply_memory_citations(
     # 幂等：先摘掉已有的对照/溯源小节（重复调用不再叠加）
     body = _COMPARISON_SECTION_RE.sub("", body)
     body = _MEM_SECTION_RE.sub("", body).strip()
+    body = _strip_h_markers(body)
     if not body:
         return markdown or ""
 
-    items = parse_memory_items(context)
+    items: list[MemoryItem] = []
+    if candidate_items:
+        for it in candidate_items:
+            if isinstance(it, MemoryItem):
+                items.append(it)
+            elif isinstance(it, dict):
+                text = _clean(it.get("text") or it.get("description") or it.get("name"))
+                if not text:
+                    continue
+                kind = str(it.get("kind") or ("risk" if "level" in it or it.get("status") in {"active", "mitigated", "dormant"} else ("decision" if "decided" in it else "open")))
+                mid = _clean(it.get("last_seen") or it.get("meeting_id") or it.get("closed_at") or it.get("since"))
+                since = _clean(it.get("since") or it.get("first_seen"))
+                items.append(
+                    MemoryItem(
+                        kind=kind,
+                        text=text,
+                        quote=_clean(it.get("quote")),
+                        meeting_id=mid,
+                        since=since,
+                        meeting_title=_clean(it.get("meeting_title")),
+                        meeting_time=_clean(it.get("time")),
+                        status=_clean(it.get("status")) or "open",
+                        owner=_clean(it.get("owner")),
+                        timing=_clean(it.get("timing")),
+                        module=_clean(it.get("module")),
+                        topic_title=_clean(it.get("topic_title") or it.get("title")),
+                    )
+                )
+    if not items:
+        items = parse_memory_items(context)
     if not items:
         return body + comparison_section
 
     used_items: list[MemoryItem] = []
-    seen_tags: set[str] = set()
-    h_mapping = {item.tag.upper(): item for item in items if item.tag}
 
-    # Phase 1: 显式 [H1]~[Hn] 标签解析与精准替换
-    if _H_TAG_RE.search(body) and h_mapping:
-        def _replace_tag(match: re.Match) -> str:
-            tag = match.group(1).upper()
-            if tag not in h_mapping:
-                # 白名单拦截：大模型捏造的非法代号直接剔除，不在正文展示脏标签
-                return ""
-            item = h_mapping[tag]
-            if tag not in seen_tags:
-                seen_tags.add(tag)
-                if item not in used_items:
-                    used_items.append(item)
-            ref_idx = items.index(item) + 1
-            return f"[{item.text}](#memory-{ref_idx})"
-
-        body = _H_TAG_RE.sub(_replace_tag, body)
-
-    # 收集已有的 memory-N 引用（支持幂等或非 [Hn] 的预先标注）
+    # 收集已有的 memory-N 引用（重复渲染时保持幂等）
     existing = _collect_ref_ids(body)
     by_ref = {f"memory-{index + 1}": item for index, item in enumerate(items)}
     for ref in existing:
         if ref in by_ref and by_ref[ref] not in used_items:
             used_items.append(by_ref[ref])
 
-    # Phase 2: 对尚未引用的剩余条目走算法兜底匹配
+    # 正文挂载：只按写完后的字面重合，不认代号
     uncited_items = [item for item in items if item not in used_items]
     if uncited_items:
         citable = [line for line in body.splitlines() if _is_citeable_line(line)]
@@ -718,10 +745,11 @@ def apply_memory_citations(
             if line.startswith("## "):
                 section_title = line[3:].strip()
             if _is_citeable_line(line):
+                available = [item for item in uncited_items if item not in seen]
                 candidates = (
-                    [item for item in uncited_items if _item_in_scope(item, section_title)]
+                    [item for item in available if _item_in_scope(item, section_title)]
                     if scoped
-                    else uncited_items
+                    else available
                 )
                 line, found = _append_markers(
                     line, candidates, seen, stats, ref_items=items
@@ -729,6 +757,7 @@ def apply_memory_citations(
                 for item in found:
                     if item not in used_items:
                         used_items.append(item)
+                    if item not in seen:
                         seen.append(item)
             lines.append(line)
         body = "\n".join(lines)
@@ -1843,7 +1872,7 @@ def _parse_risks_from_text(text: str) -> list[dict[str, Any]]:
         if bullet_m:
             content = bullet_m.group(1).strip()
             meta_m = re.search(r"[（\(]([^（\()]+)[）\)]\s*$", content)
-            sev = "medium"
+            sev = ""
             owner = ""
             if meta_m:
                 raw_risk = content[:meta_m.start()].strip().strip("*").strip()
@@ -1896,7 +1925,7 @@ def _parse_risks_from_text(text: str) -> list[dict[str, Any]]:
                     category = cat_m2.group(1).strip()
                     raw_risk = cat_m2.group(2).strip()
 
-            sev = "medium"
+            sev = ""
             impact = ""
             mitigation = ""
             owner = ""
@@ -1942,7 +1971,7 @@ def _parse_risks_from_text(text: str) -> list[dict[str, Any]]:
                 risks.append({
                     "category": current_category,
                     "risk": clean_desc,
-                    "severity": "medium",
+                    "severity": "",
                     "source": "",
                     "impact": "",
                     "mitigation": "",
@@ -1995,10 +2024,13 @@ def render_risks_html(title: str, text: str, data: dict | None = None) -> str:
             risk_desc = escape(str(item.get("risk") or item.get("title") or "").strip().strip("*"), quote=False)
             if not risk_desc:
                 continue
-            sev_key = str(item.get("severity") or "medium").lower().strip()
-            sev_cn, sev_cls, drawer_extra, accent_cls = sev_map.get(
-                sev_key, ("中风险", "ck-pill-medium", "ck-card-drawer-med", "ck-card-accent-risk-med")
-            )
+            sev_key = str(item.get("severity") or "").lower().strip()
+            sev_info = sev_map.get(sev_key)
+            if sev_info:
+                sev_cn, sev_cls, drawer_extra, accent_cls = sev_info
+            else:
+                sev_cn, sev_cls, drawer_extra, accent_cls = "", "", "", "ck-card-accent-risk-med"
+
             if sev_key in ("high", "高", "高风险"):
                 has_high = True
             elif sev_key in ("medium", "中", "中风险"):
@@ -2008,10 +2040,12 @@ def render_risks_html(title: str, text: str, data: dict | None = None) -> str:
             impact = escape(str(item.get("impact") or "").strip(), quote=False)
             mitigation = escape(str(item.get("mitigation") or "").strip(), quote=False)
 
-            meta_spans = [f'<span class="ck-pill {sev_cls}">{sev_cn}</span>']
+            meta_spans = []
+            if sev_cn:
+                meta_spans.append(f'<span class="ck-pill {sev_cls}">{sev_cn}</span>')
             if owner and owner.lower() not in ("null", "none", "无", "-", "未提及", "未明确", "待定", "待认领", "未分配", "待确认") and not re.match(r"^发言[者人]\s*\d*$", owner):
                 meta_spans.append(f'<span class="ck-item-meta">跟进人: {owner}</span>')
-            meta_html = " ".join(meta_spans)
+            meta_html = f" {' '.join(meta_spans)}" if meta_spans else ""
 
             drawer_rows = []
             if impact and impact.lower() not in ("null", "none", "无", "-", "未提及", "未明确"):
@@ -2181,7 +2215,7 @@ def _parse_actions_from_text(text: str) -> list[dict[str, Any]]:
             content = bullet_m.group(1).strip()
             owner_m = re.search(r"[（\(]([^（\()]+)[）\)]\s*$", content)
             owner = ""
-            prio = "medium"
+            prio = ""
             if owner_m:
                 raw_task = content[:owner_m.start()].strip().strip("*").strip()
                 owner_cand = owner_m.group(1).strip()
@@ -2243,7 +2277,7 @@ def _parse_actions_from_text(text: str) -> list[dict[str, Any]]:
             owner = ""
             deadline = ""
             deliverable = ""
-            prio = "medium"
+            prio = ""
 
             if meta_str:
                 segs = [s.strip() for s in re.split(r"[；;｜|]", meta_str) if s.strip()]
@@ -2260,6 +2294,8 @@ def _parse_actions_from_text(text: str) -> list[dict[str, Any]]:
                         prio = "high"
                     elif re.search(r"低优先|低\b|low", seg, re.I):
                         prio = "low"
+                    elif re.search(r"中优先|中\b|medium", seg, re.I):
+                        prio = "medium"
                     else:
                         # 无标签自然元数据
                         if not owner and not any(k in seg for k in ("周", "月", "日", "前", "内", "期", "即", "点", "202")):
@@ -2291,7 +2327,7 @@ def _parse_actions_from_text(text: str) -> list[dict[str, Any]]:
                     "owner": "",
                     "deadline": "",
                     "deliverable": "",
-                    "priority": "medium",
+                    "priority": "",
                     "dependency": "",
                     "evidence": "",
                 })
@@ -2355,14 +2391,17 @@ def render_actions_html(title: str, text: str, data: dict | None = None) -> str:
             deadline = escape(str(item.get("deadline") or "").strip(), quote=False)
             deliverable = escape(str(item.get("deliverable") or "").strip(), quote=False)
             dependency = escape(str(item.get("dependency") or item.get("prerequisite") or "").strip(), quote=False)
-            prio_key = str(item.get("priority") or "medium").lower().strip()
-            prio_cn, prio_cls = prio_map.get(prio_key, ("中优先", "ck-pill-medium"))
-            meta_spans = [f'<span class="ck-pill {prio_cls}">{prio_cn}</span>']
+            prio_key = str(item.get("priority") or "").lower().strip()
+            prio_info = prio_map.get(prio_key)
+            meta_spans = []
+            if prio_info:
+                prio_cn, prio_cls = prio_info
+                meta_spans.append(f'<span class="ck-pill {prio_cls}">{prio_cn}</span>')
             if owner and owner.lower() not in ("未分配", "null", "none", "无", "-", "待定", "待确认", "待认领", "未提及", "未明确") and not re.match(r"^发言[者人]\s*\d*$", owner):
                 meta_spans.append(f'<span class="ck-item-meta">责任人: {owner}</span>')
             if deadline and deadline.lower() not in ("待排期", "未指定", "null", "none", "无", "-", "待定", "未明确"):
                 meta_spans.append(f'<span class="ck-item-meta">完成时限: {deadline}</span>')
-            meta_html = " ".join(meta_spans)
+            meta_html = f" {' '.join(meta_spans)}" if meta_spans else ""
 
             drawer_rows = []
             if deliverable and deliverable.lower() not in ("null", "none", "无", "未提及", "未明确", "-"):

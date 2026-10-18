@@ -349,21 +349,31 @@ def purge_stale_memory_from_decisions(
 
     valid_decisions = []
     migrated_to_history = []
+    clean_transcript = re.sub(r"\s+", "", transcript or "")
     for dec in draft_decisions:
         dec_str = str(dec).strip()
         if not dec_str:
             continue
-        is_in_transcript = bool(transcript and (dec_str in transcript))
-        hit_mem = any(
-            SequenceMatcher(None, dec_str, str(mem).strip()).ratio() > 0.85
-            for mem in (memory_texts or [])
-            if str(mem).strip()
-        )
+        clean_dec = re.sub(r"\s+", "", dec_str)
+        is_in_transcript = bool(clean_transcript and (clean_dec in clean_transcript))
+        hit_mem = False
+        for mem in (memory_texts or []):
+            m = str(mem).strip()
+            if not m:
+                continue
+            clean_m = re.sub(r"\s+", "", m)
+            if clean_dec and clean_m and (clean_dec == clean_m or (len(clean_m) >= 6 and (clean_dec in clean_m or clean_m in clean_dec))):
+                hit_mem = True
+                break
+            if SequenceMatcher(None, dec_str, m).ratio() > 0.80:
+                hit_mem = True
+                break
         if not is_in_transcript and hit_mem:
             migrated_to_history.append(f"往期沿革（本次未重申）：{dec_str}")
         else:
             valid_decisions.append(dec_str)
     return valid_decisions, migrated_to_history
+
 
 
 def enforce_minutes_draft(

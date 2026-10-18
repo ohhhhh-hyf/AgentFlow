@@ -300,6 +300,16 @@ def test_request_schema_and_validation() -> None:
     m_chk_ok = check_required("checklist", TaskRequest(extra=Extra(subject="physics")), "u1")
     check("checklist 仅传 subject 时即可通过必填校验", len(m_chk_ok) == 0, str(m_chk_ok))
 
+    # 2.4 agenda_minutes 必传 user_id, transcript 与 docs（或 extra.agenda_txt 纯文本）
+    m_agenda_empty = check_required("agenda_minutes", TaskRequest(), "")
+    check("agenda_minutes 缺参时拦截 user_id、transcript 与 docs", len(m_agenda_empty) == 3, str(m_agenda_empty))
+    m_agenda_no_docs = check_required("agenda_minutes", TaskRequest(texts={"transcript": "会议记录"}), "u1")
+    check("agenda_minutes 缺少 docs 时拦截", len(m_agenda_no_docs) == 1 and "docs" in m_agenda_no_docs[0], str(m_agenda_no_docs))
+    m_agenda_docs_ok = check_required("agenda_minutes", TaskRequest(texts={"transcript": "会议记录"}, docs=["agenda.txt"]), "u1")
+    check("agenda_minutes 传 docs 时通过校验", len(m_agenda_docs_ok) == 0, str(m_agenda_docs_ok))
+    m_agenda_txt_ok = check_required("agenda_minutes", TaskRequest(texts={"transcript": "会议记录"}, extra=Extra(agenda_txt="1. 议题A")), "u1")
+    check("agenda_minutes 传 extra.agenda_txt 时通过校验", len(m_agenda_txt_ok) == 0, str(m_agenda_txt_ok))
+
     # 3. 验证 _prepare 中 extra.catalog 与 extra.time / memory 的组装
     # 构造测试用的 catalog 文件
     from domains.notes.tasks.catalog.store import _subject_filename

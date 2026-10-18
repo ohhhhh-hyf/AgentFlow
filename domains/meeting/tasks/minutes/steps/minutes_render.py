@@ -130,8 +130,7 @@ class MinutesGenerationRender:
 
         # 6. history_comparison -> 与历史对比
         comparison = list(draft.get("history_comparison") or [])
-        has_memory = bool(minutes_state.get("memory_context"))
-        if comparison and not has_memory:
+        if comparison:
             formatted_comp = [
                 f"- {str(c).strip()}" if not str(c).strip().startswith(("- ", "* ")) else str(c).strip()
                 for c in comparison

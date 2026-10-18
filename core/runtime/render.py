@@ -302,9 +302,20 @@ async def produce_line(
                     comparison = (
                         line(state, line_name).get("draft") or {}
                     ).get("history_comparison") or []
-                    full_text = cite(
-                        full_text, citation_context, comparison=comparison
-                    )
+                    candidate_items = line(state, line_name).get("memory_items")
+                    try:
+                        full_text = cite(
+                            full_text,
+                            citation_context,
+                            comparison=comparison,
+                            candidate_items=candidate_items,
+                        )
+                    except TypeError:
+                        full_text = cite(
+                            full_text,
+                            citation_context,
+                            comparison=comparison,
+                        )
                 except Exception:  # noqa: BLE001
                     logger.warning("memory citation failed line=%s", line_name, exc_info=True)
             compact = hooks_for(engine.domain_name).compact_plain
@@ -610,12 +621,20 @@ async def produce_line(
                 # 程序算好的历史对照（gen 节点写进草稿的 history_comparison）：
                 # 模型被要求"历史不写进正文"，词面锚点在跨场复述下命中率很低
                 # （实测 15 条只挂 2 条且都在泛词上），对照小节是零锚点时的可见溯源。
-                comparison = (
-                    line(state, line_name).get("draft") or {}
-                ).get("history_comparison") or []
-                full_text = cite_fn(
-                    full_text, citation_context, comparison=comparison
-                )
+                candidate_items = line(state, line_name).get("memory_items")
+                try:
+                    full_text = cite_fn(
+                        full_text,
+                        citation_context,
+                        comparison=comparison,
+                        candidate_items=candidate_items,
+                    )
+                except TypeError:
+                    full_text = cite_fn(
+                        full_text,
+                        citation_context,
+                        comparison=comparison,
+                    )
             except Exception:  # noqa: BLE001
                 logger.warning("memory citation failed line=%s", line_name, exc_info=True)
         # 无模板正文的收尾压缩：哪条线要压由域钩子决定（引擎不再点名线名）
@@ -722,9 +741,20 @@ async def produce_line(
                     or ""
                 )
                 comparison = draft.get("history_comparison") or []
-                fb_text = cite_fn(
-                    fb_text, citation_context, comparison=comparison
-                )
+                candidate_items = line_state.get("memory_items")
+                try:
+                    fb_text = cite_fn(
+                        fb_text,
+                        citation_context,
+                        comparison=comparison,
+                        candidate_items=candidate_items,
+                    )
+                except TypeError:
+                    fb_text = cite_fn(
+                        fb_text,
+                        citation_context,
+                        comparison=comparison,
+                    )
             except Exception:
                 logger.warning("memory citation failed line=%s", line_name, exc_info=True)
 

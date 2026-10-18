@@ -229,7 +229,7 @@ python -m app.worker.main --concurrency 4 --grace 300
   * `task`（字符串，**必填**）：具体任务线代码（如 `"minutes"`、`"actions"`、`"risks"`、`"consensus_decision"`、`"minutes_styles"` 等）；
   * `memory`（布尔值，*可选*）：顶层记忆增强开关，开启后自动检索并写回跨场次事实与图谱记忆；
   * `texts`（键值对，*可选*）：原始文本集合（`transcript` 会议文本、`keypoints` 关键点、`notes` 用户速记）；
-  * `docs`（文件名数组，*可选*）：需引用的原始文档名列表（存放于 `data/{user_id}/docs/`）；
+  * `docs`（文件名数组，*条件必填*）：需引用的原始文档名列表（存放于 `data/{user_id}/docs/`；**`agenda_minutes` 任务线强校验必填**，必须提供会前既定议程单图片或文档，或通过 `extra.agenda_txt` 传入纯文本，防止无议程底座空跑）；
   * `extra.time`（字符串，*可选*）：会议日期或时间（如 `"2026-09-01"`）；
   * `extra.style`（字符串，*可选*）：用于 `minutes_styles` 任务，严格限传 5 类（`"brief"`, `"topic"`, `"review"`, `"retro"`, `"alignment"`），非法值秒判 400；
   * `extra.profile`（字符串，*可选*）：视角档案模式（`"user"` 个人工作台视角、`"objective"` 客观全员）；
@@ -289,7 +289,7 @@ python -m app.worker.main --concurrency 4 --grace 300
 | **`actions`** | 待办提取 | `LLM_EXTRACT` | `actions.html`<br>`result.md` | **Form A 现代工单票据卡片流**：事项按业务分类（Category）聚类归集，事项名称、优先级（高/中/低）、责任人、截止时间、交付标准、前置条件弹性展开，无则优雅省略，拒绝冗余占位符。 |
 | **`risks`** | 风险分析 | `LLM_EXTRACT` | `risks.html`<br>`result.md` | **Form A 风险票据流**：按风险分类归集，红黄绿三级严重度预警，结构化提取责任归属、潜在影响与规避对策，输出交互式风险看板。 |
 | **`minutes_trace`** | 溯源纪要 | `DETERMINISTIC_PIPELINE`<br>(Sidecar) | `minutes_trace.html`<br>`result.md` | **平实两级溯源结构**：摒弃生硬特殊标记，采用「会议概况 + 议题名称」两级平实排版；采用议题内涵加权（Jaccard + 词频）切片匹配原声，点击纪要要点一键定位高亮发言气泡与时间戳。 |
-| **`agenda_minutes`** | 议程纪要 | `LLM_EXTRACT` | `agenda_minutes.html`<br>`result.md` | **议程 OCR 锚定与对齐**：支持议程单图片识别，通过议程类型强制转换（Agenda Coercion）阈值守卫将讨论内容按序锚定至议程看板。 |
+| **`agenda_minutes`** | 议程纪要 | `LLM_EXTRACT` | `agenda_minutes.html`<br>`result.md` | **议程 OCR 锚定与严格前置门禁**：API 层设置硬门禁拦截（必须提供 `docs` 议程单图片/文档或 `extra.agenda_txt`，杜绝无底座空跑）；支持议程单 OCR 高精解析与未讨论议题截断（Zero-Evidence），通过议程类型强制转换（Agenda Coercion）阈值守卫将讨论内容按序锚定至议程看板。 |
 | **`mindmap`** | 思维导图 | `LLM_DOCUMENT` | `mindmap.html`<br>`mindmap.png` | **交互式拓扑大纲**：自动提炼多层级思维导图 Markdown 拓扑，基于 Markmap 渲染交互式 HTML 页面与高清图片。 |
 
 ---

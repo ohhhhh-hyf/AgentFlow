@@ -122,7 +122,7 @@ _SUPERVISOR_COMMON_BASE = """## 领域审核规则：纪要生成
 - **搬运项免审原则**：
   • 客观模式：key_decisions / risks_and_blockers / unresolved_questions 均为搬运项，由底层 enforce_minutes_draft 与上游逐字对齐，微小字句差异直接放行（搬运项免审）；
   • 个人模式：key_decisions 为搬运项直接放行；risks_and_blockers 涉及卡点合流与看板分组，按个人专项规则审查。
-- **历史记忆隔离审查**：若某条结论仅见于历史记忆而在本次未讨论，应录入 history_comparison 反映演变，避免将其作为本场新决议。
+- **历史记忆隔离审查**：模型在草稿生成阶段无需编写 history_comparison（统一交空列表 []），底层系统会在后置校验中自动识别并将未重申的旧决策归入往期沿革。审查时重点关注 key_decisions 是否混入了本次未讨论的历史拍板事项，若存在则提示修订。
 - **核心质量底线（未发现严重缺陷时予以 approve）**：
   1. 关键事实/结论与原文相悖（数字、归属或方向性判断写反）；
   2. 凭空捏造原文没有的人名、数字或虚假拍板；

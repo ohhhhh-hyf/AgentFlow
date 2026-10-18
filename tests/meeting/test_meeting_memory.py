@@ -1116,8 +1116,49 @@ def test_purge_stale_memory_from_decisions():
     check("enforce_minutes_draft history_comparison 承接往期沿革", any("8月18日前优化 minutes_trace" in h for h in enforced["history_comparison"]), str(enforced["history_comparison"]))
 
 
+def test_minutes_agent_stale_purge_integration():
+    import asyncio
+    from domains.meeting.tasks.minutes.steps.minutes_agent import (
+        MinutesGenerationAgent,
+        _extract_transcript,
+        _extract_memory_texts,
+    )
+    from domains.meeting.models import Minutes
+
+    shared_ctx = (
+        "会议理解：\n{\"key_decisions\": [\"上线GPU集群\", \"8月18日前优化 minutes_trace\"]}\n\n"
+        "会议原文：\n今天我们核心讨论了本次新增决议：上线GPU集群，全员一致同意。\n\n"
+        "══════════════════════════════════════════════════════════════\n"
+        "【项目推进背景】\n"
+        "- 8月18日前优化 minutes_trace（第1场已决策）\n"
+        "══════════════════════════════════════════════════════════════"
+    )
+    tr = _extract_transcript(shared_ctx)
+    check("agent helper: transcript 正确提取", "上线GPU集群" in tr, tr)
+    mem_texts = _extract_memory_texts(shared_ctx)
+    check("agent helper: memory_texts 正确提取", "8月18日前优化 minutes_trace" in mem_texts, str(mem_texts))
+
+    class MockClient:
+        async def structured(self, *args, **kwargs):
+            return Minutes(
+                headline="测试例会",
+                executive_summary=["总结"],
+                key_decisions=["上线GPU集群", "8月18日前优化 minutes_trace"],
+                personally_relevant_points=["推进GPU集群上线"],
+                risks_and_blockers=[],
+                unresolved_questions=[],
+                history_comparison=[],
+            )
+
+    agent = MinutesGenerationAgent(MockClient())
+    res = asyncio.run(agent.run(shared_ctx))
+    check("agent.run 自动剥离未重申旧决议", res.key_decisions == ["上线GPU集群"], str(res.key_decisions))
+    check("agent.run 自动将旧决议归入往期沿革", any("8月18日前优化 minutes_trace" in h for h in res.history_comparison), str(res.history_comparison))
+
+
+
 def test_h_tag_mechanism_and_dynamic_gating() -> None:
-    """TC-H-01~07: 动态事实门禁、弹性天花板(N<=10)、[Hn]白名单替换、容错与HTML适配。"""
+    """相关度门禁、注入不带代号、正文 [Hn] 只删除、字面重合才挂载。"""
     from domains.meeting.memory.inject import _rank, build_memory_context
     from domains.meeting.memory.render import apply_memory_citations, parse_memory_items, memory_review_html
 
@@ -1147,7 +1188,7 @@ def test_h_tag_mechanism_and_dynamic_gating() -> None:
     ranked_10 = _rank(many_items, fact, cap=10)
     check("TC-H-02: 超过10条时熔断至天花板10条", len(ranked_10) == 10, str(len(ranked_10)))
 
-    # 3. [H1] 注入代号表生成与映射解析
+    # 3. 注入是自然语言背景，不带代号
     state = {"open_items": items[:2], "actions": [], "recent_meetings": ["m1"]}
     ctx, comp = build_memory_context(
         project_id="p1",
@@ -1157,55 +1198,61 @@ def test_h_tag_mechanism_and_dynamic_gating() -> None:
         meetings=[],
         current_fact=fact,
     )
-    check("TC-H-03: 注入块含【历史事项代号表】", "【历史事项代号表】" in ctx, ctx)
-    check("TC-H-03: 包含 [H1] 代号", "- [H1]" in ctx, ctx)
+    check("TC-H-03: 注入块是【项目推进背景】", "【项目推进背景】" in ctx, ctx)
+    check("TC-H-03: 注入不含代号表与 [H1]", "历史事项代号表" not in ctx and "[H1]" not in ctx and "[H2]" not in ctx, ctx)
     parsed = parse_memory_items(ctx)
-    check("TC-H-03: parse_memory_items 正确解析 tag", len(parsed) == 2 and parsed[0].tag == "H1", str(parsed))
+    check(
+        "TC-H-03: 解析出条目且不带代号",
+        len(parsed) == 2 and parsed[0].text.startswith("完成网关鉴权") and not hasattr(parsed[0], "tag"),
+        str(parsed),
+    )
 
-    # 4. [H1] 确定性替换与文末溯源卡片生成
+    # 4. 正文不写代号，字面重合才挂链接
     body = (
         "# 纪要\n"
-        "团队针对核心模块进行复盘，网关鉴权接口已全量完成联调 [H1]，后续将继续推进 [H2]。\n"
+        "团队针对核心模块进行复盘，网关鉴权接口已全量完成联调，后续继续优化Token缓存策略。\n"
     )
     out = apply_memory_citations(body, ctx, comparison=comp)
-    check("TC-H-04: 正文 [H1] 替换为链接", "[完成网关鉴权接口编写](#memory-1)" in out, out)
-    check("TC-H-04: 正文 [H2] 替换为链接", "[优化Token缓存策略](#memory-2)" in out, out)
+    check("TC-H-04: 网关鉴权接口挂上第一条", "(#memory-1)" in out, out)
+    check("TC-H-04: Token缓存策略挂上第二条", "(#memory-2)" in out, out)
     check("TC-H-04: 文末生成对应数量的溯源卡片", "#### 溯源 memory-1" in out and "#### 溯源 memory-2" in out, out)
+    check("TC-H-04: 挂载不靠 [Hn]", "[H1]" not in out and "[H2]" not in out, out)
 
-    # 5. 白名单过滤幻觉代号
+    # 5. 模型打出的代号只删除，不换成链接
     body_hallucinated = (
         "# 纪要\n"
         "现场讨论了未提及的外部模块 [H99] 以及正常待办 [H1]。\n"
     )
     out_hallucinated = apply_memory_citations(body_hallucinated, ctx)
-    check("TC-H-05: 幻觉代号 [H99] 被直接剔除", "[H99]" not in out_hallucinated and "memory-99" not in out_hallucinated, out_hallucinated)
-    check("TC-H-05: 合法代号正常挂载", "[完成网关鉴权接口编写](#memory-1)" in out_hallucinated, out_hallucinated)
+    check("TC-H-05: [H99] 与 [H1] 都被删除", "[H99]" not in out_hallucinated and "[H1]" not in out_hallucinated, out_hallucinated)
+    check("TC-H-05: 代号本身不产生溯源链接", "(#memory-" not in out_hallucinated, out_hallucinated)
 
-    # 6. 大小写与括号容错 (h1), 【H1】
+    # 6. 圆括号与中文括号里的代号同样删除
     body_flexible = (
         "# 纪要\n"
         "接口已完成联调 (H1)，Token策略已对齐 【h2】。\n"
     )
     out_flexible = apply_memory_citations(body_flexible, ctx)
-    check("TC-H-06: 圆括号与小写 (H1) 容错命中", "(#memory-1)" in out_flexible, out_flexible)
-    check("TC-H-06: 中文括号与小写 【h2】 容错命中", "(#memory-2)" in out_flexible, out_flexible)
+    check("TC-H-06: (H1) 与 【h2】 被删除", "(H1)" not in out_flexible and "【h2】" not in out_flexible and "【H2】" not in out_flexible, out_flexible)
+    check("TC-H-06: Token 字面仍可挂上第二条", "(#memory-2)" in out_flexible, out_flexible)
+    check("TC-H-06: 没有 Token 以外的代号链接", out_flexible.count("(#memory-") == 1, out_flexible)
 
-    # 7. HTML 渲染兼容性：带记忆链接渲染为双栏 review HTML
+    # 7. HTML 渲染：字面挂载后仍是双栏 review HTML
     html = memory_review_html(out, title="网关会议纪要")
     check("TC-H-07: HTML 生成带高亮实体 ck-cite-entity", 'class="ck-cite-entity"' in html, html[:500])
     check("TC-H-07: HTML 生成右侧卡片 ck-mem-card", 'class="ck-ev ck-mem-card"' in html, html[:500])
     check("TC-H-07: HTML 生成状态演进看板", 'class="ck-ledger"' in html or '状态演进' in html, html[:500])
 
-    # 8. 双轨融合：显式 [H1] 与隐式算法兜底共存（不再单标签早退）
+    # 8. 句子里夹了代号也不走代号通道；没写到的条目不硬挂
     body_hybrid = (
         "# 纪要\n"
         "现场确认网关鉴权接口已全量完成联调 [H1]。\n"
-        "关于优化Token缓存策略，团队将在下周展开针对性技术攻坚。\n"
+        "关于下周排期，团队将再开一次会。\n"
     )
     out_hybrid = apply_memory_citations(body_hybrid, ctx)
-    check("TC-H-08: 显式代号 [H1] 成功替换", "[完成网关鉴权接口编写](#memory-1)" in out_hybrid, out_hybrid)
-    check("TC-H-08: 未打标签的第二条被算法兜底捞回", "(#memory-2)" in out_hybrid, out_hybrid)
-    check("TC-H-08: 双轨融合卡片全量生成", "#### 溯源 memory-1" in out_hybrid and "#### 溯源 memory-2" in out_hybrid, out_hybrid)
+    check("TC-H-08: 正文代号被删除", "[H1]" not in out_hybrid, out_hybrid)
+    check("TC-H-08: 网关鉴权接口按字面挂上", "(#memory-1)" in out_hybrid, out_hybrid)
+    check("TC-H-08: 未讨论的 Token 条目不硬挂", "(#memory-2)" not in out_hybrid, out_hybrid)
 
 
 def main() -> int:
@@ -1231,6 +1278,7 @@ def main() -> int:
     test_state_lifecycle_consistency()
     test_personal_minutes_html_rendering()
     test_purge_stale_memory_from_decisions()
+    test_minutes_agent_stale_purge_integration()
     test_h_tag_mechanism_and_dynamic_gating()
     with tempfile.TemporaryDirectory() as raw:
         tmp = Path(raw)

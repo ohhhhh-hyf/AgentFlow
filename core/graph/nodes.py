@@ -586,6 +586,7 @@ class DomainNodes:
                         "memory_context": memory_extra,
                         "memory_bind": memory_bind,
                         "memory_warning": memory_warning,
+                        "memory_items": getattr(injected, "full_items", []) or [],
                     }
                 }
             }

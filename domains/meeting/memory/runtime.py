@@ -43,6 +43,7 @@ class InjectResult:
     bind: BindResult = field(default_factory=BindResult)
     comparison: list[str] = field(default_factory=list)
     warning: str = ""
+    full_items: list[dict[str, Any]] = field(default_factory=list)
 
 
 def _semantic_bind_fallback(fact: MeetingFact, user_id: str) -> BindResult | None:
@@ -379,6 +380,8 @@ def build_line_extra(
     if not state_doc:
         return InjectResult(bind=bind, warning=warning)
     state_doc = backfill_meeting_titles(state_doc, meetings)
+    user = state.get("user") or {}
+    mode = (state.get("line_modes") or {}).get(line_name) or "objective"
     context, comparison = build_memory_context(
         project_id=bind.project_id,
         project=project,
@@ -386,12 +389,31 @@ def build_line_extra(
         bind=bind,
         meetings=meetings,
         current_fact=fact,
+        user=user,
+        perspective_mode=mode,
     )
+    full_items: list[dict[str, Any]] = []
+    seen_keys: set[str] = set()
+    for item in (
+        list(state_doc.get("actions") or [])
+        + list(state_doc.get("open_items") or [])
+        + list(state_doc.get("risks") or [])
+        + list(state_doc.get("decisions") or [])
+    ):
+        if isinstance(item, dict):
+            key = str(item.get("item_id") or item.get("text") or "")
+            if key and key in seen_keys:
+                continue
+            if key:
+                seen_keys.add(key)
+            full_items.append(dict(item))
+
     return InjectResult(
         context=context,
         bind=bind,
         comparison=comparison,
         warning=warning,
+        full_items=full_items,
     )
 
 

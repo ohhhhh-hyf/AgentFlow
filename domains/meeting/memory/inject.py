@@ -4,7 +4,7 @@ from __future__ import annotations
 import re
 from typing import Any
 
-from .state import session_index, session_label, similar
+from .state import _DOMAIN_ENTITIES, session_index, session_label, similar
 
 from core.runner.text import clean_text as _clean
 
@@ -25,6 +25,10 @@ def _relevance(item: dict[str, Any], fact: Any | None) -> int:
     """
     if fact is None:
         return 1
+    action_texts = [
+        _clean(a.get("text") if isinstance(a, dict) else a)
+        for a in (getattr(fact, "action_items", None) or [])
+    ]
     blob = _compact(
         " ".join([
             _clean(getattr(fact, "title", "")),
@@ -33,6 +37,8 @@ def _relevance(item: dict[str, Any], fact: Any | None) -> int:
             " ".join(getattr(fact, "decisions", []) or []),
             " ".join(getattr(fact, "open_items", []) or []),
             " ".join(getattr(fact, "risks", []) or []),
+            " ".join(action_texts),
+            " ".join(getattr(fact, "closed_items", []) or []),
         ])
     )
     text = _compact(_clean(item.get("text")))
@@ -81,35 +87,6 @@ def _rank(
     candidates = positive if positive else scored
     candidates.sort(key=key)
     return [i for _, i in candidates[:cap]]
-
-
-def _append_h_item(
-    parts: list[str],
-    tag: str,
-    item: dict[str, Any],
-    *,
-    seq_map: dict[str, dict[str, Any]],
-    meta: str,
-) -> None:
-    text = _clean(item.get("text"))
-    if not text:
-        return
-    scope = _topic_label_v2(item)
-    scope_str = f"（{scope}）" if scope else ""
-    parts.append(f"- [{tag}] {text}{scope_str}（{meta}）")
-    if scope:
-        parts.append(f"  主题：{scope}")
-    quote = _clean(item.get("quote"))
-    if quote:
-        parts.append(f"  原文摘录：{quote}")
-    title = _clean(item.get("meeting_title"))
-    if title:
-        parts.append(f"  来源会议：{title}")
-    mid = _clean(item.get("last_seen") or item.get("meeting_id") or item.get("closed_at") or item.get("since"))
-    info = seq_map.get(mid) or {}
-    time_val = _clean(item.get("time")) or _clean(info.get("time"))
-    if time_val:
-        parts.append(f"  会议时间：{time_val}")
 
 
 def _append_item(
@@ -222,6 +199,59 @@ def _fact_scope_index(fact: Any) -> list[tuple[str, str]]:
     return index
 
 
+def _item_matches_text(
+    item: dict[str, Any],
+    target_text: str,
+    fact_scope_index: list[tuple[str, str]] | None = None,
+) -> bool:
+    item_text = _clean(item.get("text"))
+    target = _clean(target_text)
+    if not item_text or not target:
+        return False
+    if similar(item_text, target):
+        return True
+    owner = _clean(item.get("owner"))
+    has_same_owner = bool(owner and len(owner) >= 2 and owner in target)
+
+    item_mod = _clean(item.get("module"))
+    item_top = _clean(item.get("topic_title"))
+    same_scope = False
+    if fact_scope_index and (item_mod or item_top):
+        for cand_text, label in fact_scope_index:
+            if cand_text == target or target in cand_text or cand_text in target:
+                if item_mod and item_mod in label:
+                    same_scope = True
+                    break
+                if item_top and item_top in label:
+                    same_scope = True
+                    break
+
+    entities_item = {e.lower() for e in _DOMAIN_ENTITIES if e.lower() in item_text.lower()}
+    entities_target = {e.lower() for e in _DOMAIN_ENTITIES if e.lower() in target.lower()}
+    shared_entities = entities_item & entities_target
+
+    latin_item = {t.upper() for t in re.findall(r"[A-Za-z][A-Za-z0-9_\-]{1,}", item_text)}
+    latin_target = {t.upper() for t in re.findall(r"[A-Za-z][A-Za-z0-9_\-]{1,}", target)}
+    shared_latin = latin_item & latin_target
+
+    if len(shared_entities) + len(shared_latin) >= 2:
+        return True
+    if has_same_owner and (len(shared_entities) + len(shared_latin) >= 1):
+        return True
+    if same_scope and len(shared_entities) >= 1:
+        return True
+    c_item = "".join(ch for ch in item_text if "\u4e00" <= ch <= "\u9fff")
+    c_target = "".join(ch for ch in target if "\u4e00" <= ch <= "\u9fff")
+    if len(c_item) >= 4 and len(c_target) >= 4:
+        for i in range(len(c_item) - 3):
+            sub = c_item[i : i + 4]
+            if sub in c_target and not any(
+                g in sub for g in ("完成了", "已完成", "进行了", "讨论了", "优化了", "推进了")
+            ):
+                return True
+    return False
+
+
 def preview_comparison(
     state: dict[str, Any],
     fact: Any,
@@ -257,11 +287,15 @@ def preview_comparison(
         bits = [bit for bit in (topic, tail) if bit]
         return f"（{'｜'.join(bits)}）" if bits else ""
 
+    closed_now = [_clean(x) for x in (getattr(fact, "closed_items", None) or []) if _clean(x)]
+
+    open_candidates = [
+        i for i in list(state.get("actions") or []) + list(state.get("open_items") or [])
+        if isinstance(i, dict) and i.get("status") == "open" and _clean(i.get("text"))
+        and not any(_item_matches_text(i, c, fact_scope_index) for c in closed_now)
+    ]
     ranked_open = _rank(
-        [
-            i for i in list(state.get("actions") or []) + list(state.get("open_items") or [])
-            if isinstance(i, dict) and i.get("status") == "open" and _clean(i.get("text"))
-        ],
+        open_candidates,
         fact,
         10,
         [str(x) for x in (state.get("recent_meetings") or [])],
@@ -289,13 +323,12 @@ def preview_comparison(
         seen_open.add(text)
         lines.append(f"延续事项{head(label_for(item), f'自{since}')}：{text}")
 
-    closed_now = [_clean(x) for x in (getattr(fact, "closed_items", None) or []) if _clean(x)]
     closed_hist = [
         i for i in list(state.get("actions") or []) + list(state.get("open_items") or [])
         if isinstance(i, dict) and _clean(i.get("text"))
         and (
             i.get("status") == "done"
-            or any(similar(_clean(i.get("text")), c) for c in closed_now)
+            or any(_item_matches_text(i, c, fact_scope_index) for c in closed_now)
         )
     ]
     shown_closed: set[str] = set()
@@ -305,7 +338,6 @@ def preview_comparison(
             continue
         shown_closed.add(text)
         closed_mid = _clean(item.get("closed_at"))
-        # "本场"不带信息量（对照本来就是相对本场），直接省掉
         when = (
             session_label(seq_map, closed_mid)
             if item.get("status") == "done" and closed_mid in seq_map
@@ -337,6 +369,9 @@ def build_memory_context(
     bind: Any,
     meetings: list[dict[str, Any]] | None = None,
     current_fact: Any | None = None,
+    user: dict[str, Any] | None = None,
+    perspective_mode: str = "objective",
+    cap: int = 10,
 ) -> tuple[str, list[str]]:
     if not project_id or not state:
         return "", []
@@ -351,7 +386,7 @@ def build_memory_context(
         parts.append("命中依据：" + "、".join(str(x) for x in evidence[:8]))
     parts.extend([
         "",
-        "【历史事项代号表】（项目推进背景：跨场会议演进追踪，供参考）",
+        "【项目推进背景】",
     ])
 
     opens = [
@@ -365,12 +400,73 @@ def build_memory_context(
     dormant = [i for i in risks if i.get("status") == "dormant"]
 
     recent = [str(x) for x in (state.get("recent_meetings") or []) if str(x).strip()]
-    ranked_open = _rank(opens, current_fact, cap=30, recent=recent)
+
+    ranked_open: list[dict[str, Any]] = []
+    mode_str = (perspective_mode or "objective").strip().lower()
+    if mode_str == "personal" and isinstance(user, dict) and user:
+        # 阶段三：个人视角多维收窄展示
+        name = _clean(user.get("name"))
+        raw_aliases = user.get("aliases") or []
+        if isinstance(raw_aliases, str):
+            raw_aliases = [raw_aliases]
+        aliases = {name} | {_clean(a) for a in raw_aliases if _clean(a)}
+        aliases.discard("")
+
+        fps = user.get("focus_person") or user.get("focus_persons") or []
+        if isinstance(fps, str):
+            fps = [fps]
+        focus_persons = {_clean(p) for p in fps if _clean(p)}
+
+        fts = (
+            list(user.get("focus_thing") or user.get("focus_things") or [])
+            + list(user.get("attention_points") or [])
+        )
+        if isinstance(fts, str):
+            fts = [fts]
+        focus_things = {_clean(t) for t in fts if _clean(t)}
+
+        def is_self(it: dict[str, Any]) -> bool:
+            owner = _clean(it.get("owner"))
+            return bool(owner and any(a in owner or owner in a for a in aliases))
+
+        def is_focus_p(it: dict[str, Any]) -> bool:
+            owner = _clean(it.get("owner"))
+            return bool(owner and any(p in owner or owner in p for p in focus_persons))
+
+        def is_focus_t(it: dict[str, Any]) -> bool:
+            t = _clean(it.get("text"))
+            m = _clean(it.get("module"))
+            top = _clean(it.get("topic_title"))
+            blob = f"{m} {top} {t}"
+            return bool(focus_things and any(ft in blob for ft in focus_things))
+
+        group_self = [i for i in opens if is_self(i)]
+        group_focus_p = [i for i in opens if not is_self(i) and is_focus_p(i)]
+        group_focus_t = [i for i in opens if not is_self(i) and not is_focus_p(i) and is_focus_t(i)]
+
+        filtered = (
+            _rank(group_self, current_fact, cap=6, recent=recent)
+            + _rank(group_focus_p, current_fact, cap=4, recent=recent)
+            + _rank(group_focus_t, current_fact, cap=4, recent=recent)
+        )
+        seen_items: set[str] = set()
+        deduped_personal: list[dict[str, Any]] = []
+        for it in filtered:
+            key = str(it.get("item_id") or it.get("text"))
+            if key not in seen_items:
+                seen_items.add(key)
+                deduped_personal.append(it)
+        if deduped_personal:
+            ranked_open = deduped_personal[:6]
+        else:
+            ranked_open = _rank(opens, current_fact, cap=2, recent=recent)
+    else:
+        # 客观模式安全截断至 Top-8~10 (默认 cap=10)
+        ranked_open = _rank(opens, current_fact, cap=cap, recent=recent)
 
     if ranked_open:
-        for idx, item in enumerate(ranked_open, 1):
-            tag = f"H{idx}"
-            _append_h_item(parts, tag, item, seq_map=seq_map, meta=_open_meta(item, seq_map))
+        for item in ranked_open:
+            _append_item(parts, item, seq_map=seq_map, meta=_open_meta(item, seq_map))
     elif dormant:
         parts.append("\n【风险演变】")
         for item in _rank(dormant, current_fact, 1, recent):
@@ -379,13 +475,10 @@ def build_memory_context(
     comparison: list[str] = []
     if current_fact is not None:
         comparison = preview_comparison(state, current_fact, seq_map)
-        if comparison:
-            parts.append("\n【历史对照素材】")
-            for line in comparison:
-                parts.append(f"- {line}")
 
     parts.append("══════════════════════════════════════════════════════════════")
     return "\n".join(parts).strip(), comparison
 
 
 __all__ = ["build_memory_context", "preview_comparison"]
+

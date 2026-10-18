@@ -275,6 +275,7 @@ _DONE_RE = re.compile(r"(已完成|已解决|已闭环|已整改|完成整改|�
 # 会被误判成闭环。2026-10 修：完成宣告只出现在 open_issues 时闭环池扫不到，
 # 条目永远挂在【延续事项】里（实测 last_seen 更新、status 仍是 open）。
 _DONE_STRONG_RE = re.compile(r"(已完成|已解决|已闭环|已整改|完成整改|已关闭|已落实)")
+_STILL_OPEN_RE = re.compile(r"(尚需|待定|待接入|待联调|待测试|待确认|待评估|待完成|延期|进行中|排查中|卡顿|受阻)")
 
 
 def _topic_conclusions(understanding: dict[str, Any]) -> list[str]:
@@ -302,6 +303,7 @@ def _topic_closed_issues(understanding: dict[str, Any]) -> list[str]:
     闭环池原本只扫 decisions/open_questions/actions/conclusion/key_points，
     模型把「X 已完成」记进 open_issues 时进不了池子，闭环整条不发生；
     这里单独收编，且用强完成标记避免把「关闭策略待定」这类敞口表述误判成闭环。
+    若同时包含「尚需/待定/延期/进行中」等敞口信号，则仍为进行中，不作闭环。
     """
     rows: list[str] = []
     for topic in understanding.get("topics") or []:
@@ -309,7 +311,12 @@ def _topic_closed_issues(understanding: dict[str, Any]) -> list[str]:
             continue
         for issue in topic.get("open_issues") or []:
             text = _clean(issue)
-            if text and _DONE_STRONG_RE.search(text) and text not in rows:
+            if (
+                text
+                and _DONE_STRONG_RE.search(text)
+                and not _STILL_OPEN_RE.search(text)
+                and text not in rows
+            ):
                 rows.append(text)
     return rows
 
@@ -346,15 +353,17 @@ def _action_items(understanding: dict[str, Any]) -> list[dict[str, str]]:
 
 
 def _closed_items(understanding: dict[str, Any], actions: list[dict[str, str]]) -> list[str]:
+    explicit_closed = _str_list(understanding.get("closed_items"))
     pool = (
-        _str_list(understanding.get("decisions"))
+        explicit_closed
+        + _str_list(understanding.get("decisions"))
         + _str_list(understanding.get("open_questions"))
         + [a["text"] for a in actions]
         + _topic_conclusions(understanding)
     )
-    rows: list[str] = []
+    rows: list[str] = list(explicit_closed)
     for text in pool:
-        if _DONE_RE.search(text) and text not in rows:
+        if _DONE_RE.search(text) and not _STILL_OPEN_RE.search(text) and text not in rows:
             rows.append(text)
     # open_issues 的完成宣告：强完成标记口径单独收编（与上面的宽松口径分开，
     # 避免把敞口表述误判成闭环；详见 _topic_closed_issues）。

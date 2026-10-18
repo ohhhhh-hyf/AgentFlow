@@ -8,6 +8,15 @@ from .extract import MeetingFact
 from core.runner.text import clean_text as _clean
 
 
+_DOMAIN_ENTITIES = frozenset({
+    "网关", "压测", "断流", "Token", "token", "鉴权", "推流", "SDK", "sdk",
+    "分库", "分表", "缓存", "限流", "熔断", "降级", "ASR", "asr", "GPU", "gpu",
+    "白屏", "采样", "集群", "数据库", "一致性", "高并发", "时延", "基线", "联调",
+    "接口", "路由", "主从", "心跳", "重试", "雪崩", "穿透", "死锁", "告警", "回滚",
+    "负载均衡", "连接池", "热点", "哨兵", "容灾",
+})
+
+
 def _compact(text: str) -> str:
     return re.sub(r"\s+", "", text or "")
 
@@ -671,6 +680,7 @@ def rebuild_state(
 
 
 __all__ = [
+    "_DOMAIN_ENTITIES",
     "backfill_meeting_titles",
     "rebuild_state",
     "session_index",

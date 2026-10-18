@@ -262,6 +262,47 @@ def test_text_priority_over_raw_data_and_generic_cat_suppression():
     assert html_gen.count('class="ck-flow-item"') == 2
 
 
+def test_actions_risks_no_default_medium_fallback():
+    """验证当待办与风险未显式指定级别时，HTML 渲染不默认兜底输出「中优先」或「中风险」，优雅留白。"""
+    # 1. 待办纯净文本：无优先级标记
+    clean_action_text = """
+1. **[网关架构优化]**
+   - 完成推流 SDK 适配补丁 (责任人：张伟)
+     > 完成时限：周五 18:00 前
+   - 申请预发布独立集群机器配额
+"""
+    actions = _parse_actions_from_text(clean_action_text)
+    assert len(actions) == 2
+    assert actions[0]["priority"] == ""
+    assert actions[1]["priority"] == ""
+
+    html_actions = render_actions_html("待办测试", clean_action_text)
+    assert "中优先" not in html_actions
+    assert "高优先" not in html_actions
+    assert "低优先" not in html_actions
+    assert "责任人: 张伟" in html_actions
+
+    # 2. 风险纯净文本：无严重等级标记
+    clean_risk_text = """
+1. **[高并发系统治理]**
+   - 核心路由压测超过 2000 QPS 频繁断流 (架构组)
+     > 潜在危害：大促交易中断
+   - 鉴权网关跨机房调用存在单点超时抖动
+"""
+    risks = _parse_risks_from_text(clean_risk_text)
+    assert len(risks) == 2
+    assert risks[0]["severity"] == ""
+    assert risks[1]["severity"] == ""
+
+    html_risks = render_risks_html("风险测试", clean_risk_text)
+    assert "中风险" not in html_risks
+    assert "高风险" not in html_risks
+    assert "低风险" not in html_risks
+    assert "跟进人: 架构组" in html_risks
+    assert "大促交易中断" in html_risks
+
+
+
 
 def test_actions_prompts_and_contracts_positive_hygiene():
     """验证待办提示词与契约已实现全正向引导，零禁止性恐吓词，零测试人名与工程泄漏。"""
