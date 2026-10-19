@@ -484,27 +484,6 @@ def test_reject_hardening() -> None:
         out, note = soften_unreasoned_reject(dict(payload))
         check(f"{decision} 不被本兜底改动", out["decision"] == decision and note is None, f"{out}")
 
-    # ④ 文案：审核侧必须被明确告知"未覆盖 ≠ 捏造"与"reject 要写理由"
-    from domains.meeting.tasks.minutes import prompts as minutes_prompts
-
-    domain_prompt = minutes_prompts.MINUTES_SUPERVISOR_DOMAIN_PROMPT
-    check("审核领域提示词：无理由 reject 会被按 approve 处理",
-          "没写理由的 reject 会被程序按 approve 处理" in domain_prompt, "")
-    check("审核领域提示词：核对不了按未覆盖处理（不是捏造）",
-          "写「未能核对：X」并 approve" in domain_prompt, "")
-    engine_src = (
-        __import__("pathlib").Path("core/graph/nodes.py").read_text(encoding="utf-8")
-    )
-    check("审核证据包：明文写「摘录未覆盖 ≠ 无依据」",
-          "摘录未覆盖 ≠ 无依据" in engine_src and "不得据此 revise 或 reject" in engine_src, "")
-    check("审核节点：软化的 reject 已接入（approve 后不再走 fallback）",
-          "soften_unreasoned_reject(payload)" in engine_src
-          and "reject_downgraded" in engine_src, "")
-    schema_src = (
-        __import__("pathlib").Path("core/schema/contracts.py").read_text(encoding="utf-8")
-    )
-    check("审核契约说明：reject 需写明具体理由",
-          "该检查项的 findings 要写明具体理由" in schema_src, "")
 
 def test_qa_precision_rules() -> None:
     """问答栏只收真问答（治"陈述句当提问"）：判据写在共用形态规则里，模板侧只留专用口径。

@@ -73,16 +73,6 @@ USER_OK = {
 }
 
 
-from tests.unit.core.profiles.test_user_profile import (
-    test_user_profile_path_safety as _test_user_profile_path_safety,
-    test_selection_matrix as _test_selection_matrix,
-    test_broken_user_profile as _test_broken_user_profile,
-    test_sanitize_and_merge as _test_sanitize_and_merge,
-)
-from tests.unit.core.profiles.test_role_mapping import (
-    test_missing_role_template as _test_missing_role_template,
-    test_role_mapping as _test_role_mapping,
-)
 
 
 
@@ -241,9 +231,6 @@ def test_notes_review_and_quiz_tasklines() -> None:
     check("quiz 下载端点正常响应404（寻址正确定位 output/not_found/quiz.html）", r_quiz.status_code == 404 and "quiz.html" in r_quiz.text, str(r_quiz.json()))
 
 
-from tests.unit.meeting.test_agenda_assembly import (
-    test_agenda_minutes_input_assembly as _test_agenda_minutes_input_assembly,
-)
 
 
 def test_request_schema_and_validation() -> None:
@@ -690,30 +677,15 @@ def test_general_minutes_title_fixed() -> None:
             check("强制补充时未被动态 headline 覆盖", "# 关于音视频与长文本优化的研讨" not in saved_md_no_h1, saved_md_no_h1[:50])
 
 
-from tests.integration.core.test_api_routes import (
-    test_async_api_routes as _test_async_api_routes,
-)
-
-
 def main() -> int:
-    with tempfile.TemporaryDirectory() as raw:
-        tmp = Path(raw)
-        _test_user_profile_path_safety()
-        _test_selection_matrix(tmp)
-        _test_broken_user_profile(tmp)
-        _test_sanitize_and_merge(tmp)
-        _test_missing_role_template(tmp)
-    _test_role_mapping()
     test_domain_hooks_registry()
     test_tasklines_registration()
     test_notes_review_and_quiz_tasklines()
-    _test_agenda_minutes_input_assembly()
     test_request_schema_and_validation()
     test_catalog_output_artifacts_and_download()
     test_action_items_render()
     test_risk_items_render()
     test_general_minutes_title_fixed()
-    _test_async_api_routes()
     print(f"pass {len(PASS)}  fail {len(FAIL)}")
     for name in FAIL:
         print("FAIL", name)

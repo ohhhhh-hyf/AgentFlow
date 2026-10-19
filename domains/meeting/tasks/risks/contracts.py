@@ -16,7 +16,7 @@ class RiskGenerationContract(GenerationContract):
             StrField("category", "该风险所属的业务大类（直接沿用所属议题的业务模块module或标题title，同一模块下的隐患共用相同大类标题）"),
             StrField("risk", "风险描述，必须来自会议原文或会议理解结果"),
             StrField("source", "风险来源：原文依据或相关议题"),
-            StrField("trigger_condition", "原文中明确提及的爆发前提/触发诱因/触发条件（如单机房并发突增>12000 QPS）；未提及为null"),
+            StrField("trigger_condition", "原文中明确提及的爆发前提/触发诱因/触发条件（如原文明确的业务量峰值、环境异常、资源临界或特定触发前提）；未提及为null"),
             StrField("impact", "如果风险发生，可能造成的潜在危害或不良业务后果；原文未提及为null"),
             StrField("mitigation", "原文中明确商讨的应对措施（单一大字段一体化陈述）；现场未讨论则为null"),
             StrField("owner", "原文明示的跟踪责任人或团队；未指派则为null"),
