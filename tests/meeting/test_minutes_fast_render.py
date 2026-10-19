@@ -203,3 +203,188 @@ def test_produce_line_minutes_fast_path_zero_llm() -> None:
             dh.hooks_for = orig_hooks_for
 
     asyncio.run(_run())
+
+
+def test_produce_line_template_with_memory_citations(caplog) -> None:
+    """验证 produce_line 在自定义模板模式下，LLM 渲染后能正确追加历史对照与记忆引用且无任何异常 warning。"""
+    class MockMinutesRender:
+        def __init__(self) -> None:
+            self.stream_called = 0
+
+        async def stream(self, context: str, template: str = "", **kwargs):
+            self.stream_called += 1
+            # 模拟 LLM 流式输出自定义模板正文
+            yield "### 自定义专项纪要\n\n- 重点议题已达成共识并落实排期。"
+
+    mock_render = MockMinutesRender()
+    received_args = {}
+
+    def mock_apply_citations(text: str, context: str, *, comparison=None, candidate_items=None) -> str:
+        received_args["text"] = text
+        received_args["context"] = context
+        received_args["comparison"] = list(comparison or [])
+        received_args["candidate_items"] = candidate_items
+        out = text
+        if comparison:
+            out += "\n\n## 往期沿革\n" + "\n".join(f"- {c}" for c in comparison)
+        return out
+
+    class MockHooks:
+        apply_citations = staticmethod(mock_apply_citations)
+        compact_plain = None
+
+    class MockEngine:
+        domain_name = "meeting"
+
+        def __init__(self) -> None:
+            self.minutes_render = mock_render
+            self._line_cn_names = {"minutes": "纪要"}
+
+        def _line_policy(self, line_name: str) -> LinePolicy:
+            return LinePolicy(kind="llm_document", llm_render="if_template")
+
+        def _pre_render_hook(self, state: dict, line_name: str) -> bool:
+            return False
+
+        def _post_render_hook(self, state: dict, line_name: str) -> None:
+            pass
+
+        def _line_title(self, state: dict, line_name: str) -> str:
+            return "纪要"
+
+        def _render_context(self, state: dict, line_name: str) -> str:
+            return "这是会议上下文正文。"
+
+        def _render_directives(self, state: dict, line_name: str) -> str:
+            return ""
+
+    async def _run() -> None:
+        import core.runtime.render as render_mod
+        orig_hooks_for = render_mod.hooks_for
+        render_mod.hooks_for = lambda domain: MockHooks()
+
+        try:
+            engine = MockEngine()
+            # 自定义模板触发 uses_llm_render=True
+            custom_template = "### 自定义专项纪要\n\n{{body}}"
+            state = {
+                "objective_perspective": True,
+                "templates": {"minutes": custom_template},
+                "lines": {
+                    "minutes": {
+                        "draft": {
+                            "headline": "专项评审会",
+                            "history_comparison": ["往期议题：鉴权改造方案已在第1场确认"],
+                        },
+                        "memory_context": "【会议记忆】\n- 记忆条目 (id=1)",
+                        "memory_items": [{"id": 1, "text": "鉴权改造"}],
+                    }
+                },
+            }
+            queue = asyncio.Queue()
+            import logging
+            with caplog.at_level(logging.WARNING):
+                await produce_line(engine, "minutes", state, queue)
+
+            # 1. 验证 LLM 流式被正常调用
+            assert mock_render.stream_called == 1
+
+            # 2. 验证 apply_citations 接收到了正确的 comparison 与 candidate_items
+            assert received_args.get("comparison") == ["往期议题：鉴权改造方案已在第1场确认"]
+            assert received_args.get("candidate_items") == [{"id": 1, "text": "鉴权改造"}]
+            assert "【会议记忆】" in received_args.get("context", "")
+
+            # 3. 验证渲染产物及队列事件成功包含历史对照
+            line_st = state["lines"]["minutes"]
+            rendered_text = line_st["rendered"]
+            assert "### 自定义专项纪要" in rendered_text
+            assert "## 往期沿革" in rendered_text
+            assert "往期议题：鉴权改造方案已在第1场确认" in rendered_text
+
+            # 4. 验证没有任何 memory citation failed 警告
+            citation_warnings = [
+                rec.message for rec in caplog.records
+                if "memory citation failed" in rec.message
+            ]
+            assert len(citation_warnings) == 0, f"发现意外告警: {citation_warnings}"
+
+        finally:
+            render_mod.hooks_for = orig_hooks_for
+
+    asyncio.run(_run())
+
+
+def test_produce_line_template_with_real_meeting_hooks(caplog) -> None:
+    """验证真实 apply_citations 钩子在自定义模板模式下无缝挂载历史对照且零 warning。"""
+    class MockMinutesRender:
+        def __init__(self) -> None:
+            self.stream_called = 0
+
+        async def stream(self, context: str, template: str = "", **kwargs):
+            self.stream_called += 1
+            yield "### 模板纪要正文\n\n- 鉴权改造模块已完成评审并合入主干。"
+
+    mock_render = MockMinutesRender()
+
+    class MockEngine:
+        domain_name = "meeting"
+
+        def __init__(self) -> None:
+            self.minutes_render = mock_render
+            self._line_cn_names = {"minutes": "纪要"}
+
+        def _line_policy(self, line_name: str) -> LinePolicy:
+            return LinePolicy(kind="llm_document", llm_render="if_template")
+
+        def _pre_render_hook(self, state: dict, line_name: str) -> bool:
+            return False
+
+        def _post_render_hook(self, state: dict, line_name: str) -> None:
+            pass
+
+        def _line_title(self, state: dict, line_name: str) -> str:
+            return "纪要"
+
+        def _render_context(self, state: dict, line_name: str) -> str:
+            return "这是会议上下文正文。"
+
+        def _render_directives(self, state: dict, line_name: str) -> str:
+            return ""
+
+    async def _run() -> None:
+        engine = MockEngine()
+        custom_template = "### 模板纪要正文\n\n{{body}}"
+        state = {
+            "objective_perspective": True,
+            "templates": {"minutes": custom_template},
+            "lines": {
+                "minutes": {
+                    "draft": {
+                        "headline": "架构升级会",
+                        "history_comparison": ["架构决策（自第1场）：统一采用Token网关鉴权"],
+                    },
+                    "memory_context": "【会议记忆】\n【历史决策】\n- 架构决策 (meeting_id=1)",
+                }
+            },
+        }
+        queue = asyncio.Queue()
+        import logging
+        with caplog.at_level(logging.WARNING):
+            await produce_line(engine, "minutes", state, queue)
+
+        assert mock_render.stream_called == 1
+        line_st = state["lines"]["minutes"]
+        rendered_text = line_st["rendered"]
+        assert "### 模板纪要正文" in rendered_text
+        # 真实 meeting hooks 会生成 ## 历史对照
+        assert "## 历史对照" in rendered_text
+        assert "- 架构决策（自第1场）：统一采用Token网关鉴权" in rendered_text
+
+        citation_warnings = [
+            rec.message for rec in caplog.records
+            if "memory citation failed" in rec.message
+        ]
+        assert len(citation_warnings) == 0, f"发现意外告警: {citation_warnings}"
+
+    asyncio.run(_run())
+

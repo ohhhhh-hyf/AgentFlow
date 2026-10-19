@@ -219,6 +219,47 @@ _KEEP_COMPRESSING = (
 )
 
 
+def _apply_memory_citations(
+    engine,
+    state: dict,
+    line_name: str,
+    full_text: str,
+    fallback_context: str = "",
+) -> str:
+    """给渲染后的纪要加记忆引用标注与历史对照（若存在）。"""
+    cite_fn = hooks_for(engine.domain_name).apply_citations
+    if not full_text or cite_fn is None or line_name not in {"minutes", "minutes_styles"}:
+        return full_text
+    try:
+        line_st = line(state, line_name)
+        citation_context = (
+            line_st.get("memory_context") or fallback_context or ""
+        )
+        # 程序算好的历史对照（gen 节点写进草稿的 history_comparison）：
+        # 模型被要求"历史不写进正文"，词面锚点在跨场复述下命中率很低
+        # （实测 15 条只挂 2 条且都在泛词上），对照小节是零锚点时的可见溯源。
+        comparison = (
+            line_st.get("draft") or {}
+        ).get("history_comparison") or []
+        candidate_items = line_st.get("memory_items")
+        try:
+            return cite_fn(
+                full_text,
+                citation_context,
+                comparison=comparison,
+                candidate_items=candidate_items,
+            )
+        except TypeError:
+            return cite_fn(
+                full_text,
+                citation_context,
+                comparison=comparison,
+            )
+    except Exception:
+        logger.warning("memory citation failed line=%s", line_name, exc_info=True)
+        return full_text
+
+
 async def produce_line(
     engine,
     line_name: str,
@@ -238,6 +279,7 @@ async def produce_line(
     degraded = bool(line(state, line_name).get("degraded"))
     template = line_template(state, line_name)
     streamed = False
+    context = ""
     try:
         try:
             from core.runner.progress import progress
@@ -293,31 +335,9 @@ async def produce_line(
                     f"# {draft.get('title') or line_cn(line_name, engine._line_cn_names)}"
                 )
                 fill_mode = "fallback_title"
-            cite = hooks_for(engine.domain_name).apply_citations
-            if full_text and cite is not None and line_name in {"minutes", "minutes_styles"}:
-                try:
-                    citation_context = (
-                        line(state, line_name).get("memory_context") or context or ""
-                    )
-                    comparison = (
-                        line(state, line_name).get("draft") or {}
-                    ).get("history_comparison") or []
-                    candidate_items = line(state, line_name).get("memory_items")
-                    try:
-                        full_text = cite(
-                            full_text,
-                            citation_context,
-                            comparison=comparison,
-                            candidate_items=candidate_items,
-                        )
-                    except TypeError:
-                        full_text = cite(
-                            full_text,
-                            citation_context,
-                            comparison=comparison,
-                        )
-                except Exception:  # noqa: BLE001
-                    logger.warning("memory citation failed line=%s", line_name, exc_info=True)
+            full_text = _apply_memory_citations(
+                engine, state, line_name, full_text, fallback_context=context
+            )
             compact = hooks_for(engine.domain_name).compact_plain
             if full_text and not template and compact is not None:
                 full_text = compact(line_name, full_text)
@@ -612,31 +632,9 @@ async def produce_line(
                             fill_mode = "repair"
 
 
-        cite_fn = hooks_for(engine.domain_name).apply_citations
-        if full_text and cite_fn is not None and line_name in {"minutes", "minutes_styles"}:
-            try:
-                citation_context = (
-                    line(state, line_name).get("memory_context") or context
-                )
-                # 程序算好的历史对照（gen 节点写进草稿的 history_comparison）：
-                # 模型被要求"历史不写进正文"，词面锚点在跨场复述下命中率很低
-                # （实测 15 条只挂 2 条且都在泛词上），对照小节是零锚点时的可见溯源。
-                candidate_items = line(state, line_name).get("memory_items")
-                try:
-                    full_text = cite_fn(
-                        full_text,
-                        citation_context,
-                        comparison=comparison,
-                        candidate_items=candidate_items,
-                    )
-                except TypeError:
-                    full_text = cite_fn(
-                        full_text,
-                        citation_context,
-                        comparison=comparison,
-                    )
-            except Exception:  # noqa: BLE001
-                logger.warning("memory citation failed line=%s", line_name, exc_info=True)
+        full_text = _apply_memory_citations(
+            engine, state, line_name, full_text, fallback_context=context
+        )
         # 无模板正文的收尾压缩：哪条线要压由域钩子决定（引擎不再点名线名）
         compact = hooks_for(engine.domain_name).compact_plain
         if full_text and not template and compact is not None:
@@ -732,31 +730,9 @@ async def produce_line(
                 line_state["fill_mode"] = "draft_minutes_md"
 
         # 3. 历史对照/记忆引用追加（若存在）
-        cite_fn = hooks_for(engine.domain_name).apply_citations
-        if fb_text and cite_fn is not None and line_name in {"minutes", "minutes_styles"}:
-            try:
-                citation_context = (
-                    line_state.get("memory_context")
-                    or locals().get("context")
-                    or ""
-                )
-                comparison = draft.get("history_comparison") or []
-                candidate_items = line_state.get("memory_items")
-                try:
-                    fb_text = cite_fn(
-                        fb_text,
-                        citation_context,
-                        comparison=comparison,
-                        candidate_items=candidate_items,
-                    )
-                except TypeError:
-                    fb_text = cite_fn(
-                        fb_text,
-                        citation_context,
-                        comparison=comparison,
-                    )
-            except Exception:
-                logger.warning("memory citation failed line=%s", line_name, exc_info=True)
+        fb_text = _apply_memory_citations(
+            engine, state, line_name, fb_text, fallback_context=context
+        )
 
         # 4. 兜底中的兜底：沿用通用 FallbackRules 规则
         if not fb_text:
