@@ -1034,6 +1034,66 @@ def test_personal_minutes_html_rendering() -> None:
     check("个人模式标题方括号剔除", "[本场概况与本人定调]" not in content and "本场概况与本人定调" in content, "")
 
 
+def test_personal_minutes_v2_template_rendering() -> None:
+    """验证 personal_minutes.md 标准四栏看板在 HTML 渲染中的卡片语义、徽章与单行紧凑排版。"""
+    from domains.meeting.memory.render import render_minutes_html, memory_review_html
+
+    md = (
+        "# 个人视角纪要\n\n"
+        "## [会议概况]\n"
+        "本次会议围绕网关鉴权改造和Token缓存保护展开讨论，明确本周五前完成上线。\n\n"
+        "## [业务进展]\n"
+        "**网关鉴权模块**：\n"
+        "- 完成第一轮接口压测，P99延迟稳定在15ms以内；\n"
+        "- 技术选型拍板采用Redis集群作为缓存介质。\n\n"
+        "## [相关行动]\n"
+        "**本人相关**：\n"
+        "- 完成网关鉴权改造压测（周三前 ｜ 报告 ｜ P99<50ms）\n"
+        "- 修复现网缓存击穿Bug（周四前 ｜ 补丁）\n"
+        "**重点协同**：\n"
+        "- 张工：周五前完成鉴权SDK交付\n"
+        "- 李工：周四前开通测试环境权限\n\n"
+        "## [相关风险]\n"
+        "**本人相关**：\n"
+        "- [阻塞] 压测环境显存压力较大，需协调GPU资源\n"
+        "**重点关注**：\n"
+        "- [高风险] 跨团队联调进度滞后，可能导致周五发版延期\n"
+    )
+
+    html = render_minutes_html("个人视角纪要", md)
+    content = html.split('<div class="ck-doc-content">')[1].split('</div>\n    </div>')[0]
+
+    # 1. 行动栏验证：本人待办卡 (蓝) 与 重点协同卡 (琥珀)
+    check("V2个人模板生成本人待办卡 ck-self-block", "ck-self-block" in content, "")
+    check("V2个人模板包含本人徽章", '<span class="ck-self-badge">本人</span>' in content, "")
+    check("V2个人模板生成协同卡 ck-dep-block", "ck-dep-block" in content, "")
+    check("V2个人模板包含重点协同徽章", '<span class="ck-dep-badge">重点协同</span>' in content, "")
+    dep_content = content.split("重点协同")[1].split("相关风险")[0]
+    check("V2协同事项单行内嵌不产生人名断行", "ck-person-group" not in dep_content, dep_content)
+    check("V2协同事项包含张工条目", "张工：周五前完成鉴权SDK交付" in dep_content, dep_content)
+    check("V2协同事项包含李工条目", "李工：周四前开通测试环境权限" in dep_content, dep_content)
+
+    # 2. 风险栏验证：本人卡点 (红卡) 与 重点关注 (红卡)，绝对不可错套蓝色待办卡
+    risk_section = content.split("相关风险")[1]
+    check("V2风险栏不包含任何蓝色待办卡", "ck-self-block" not in risk_section, risk_section)
+    check("V2风险栏包含本人卡点红色徽章", '<span class="ck-risk-badge">本人卡点</span>' in risk_section, risk_section)
+    check("V2风险栏包含重点关注红色徽章", '<span class="ck-risk-badge">重点关注</span>' in risk_section, risk_section)
+
+    # 3. 业务进展验证：模块大盘独立呈现，不产生待办卡
+    progress_section = content.split("业务进展")[1].split("相关行动")[0]
+    check("V2业务进展不产生待办卡", "ck-self-block" not in progress_section and "ck-dep-block" not in progress_section, progress_section)
+    check("V2业务进展包含模块标题", "网关鉴权模块" in progress_section, progress_section)
+
+    # 4. 双栏 review HTML 同样验证
+    rev_html = memory_review_html(md, title="个人视角纪要")
+    check("V2双栏HTML生成协同卡", "ck-dep-block" in rev_html, "")
+    check("V2双栏HTML协同包含重点协同徽章", '<span class="ck-dep-badge">重点协同</span>' in rev_html, "")
+    rev_risk_part = rev_html.split("相关风险")[1]
+    check("V2双栏HTML风险栏无蓝色待办卡", "ck-self-block" not in rev_risk_part, "")
+    check("V2双栏HTML风险栏本人卡点红徽章", '<span class="ck-risk-badge">本人卡点</span>' in rev_risk_part, "")
+    check("V2双栏HTML风险栏重点关注红徽章", '<span class="ck-risk-badge">重点关注</span>' in rev_risk_part, "")
+
+
 def test_persist_scope_roundtrip(tmp_path: Path) -> None:
     """落盘→重放：module 命名漂移仍同域延续；rebuild 与落盘 state 一致（含 topics/scope）。"""
     tmp = tmp_path
@@ -1277,6 +1337,7 @@ def main() -> int:
     test_selection_relevance_and_recency()
     test_state_lifecycle_consistency()
     test_personal_minutes_html_rendering()
+    test_personal_minutes_v2_template_rendering()
     test_purge_stale_memory_from_decisions()
     test_minutes_agent_stale_purge_integration()
     test_h_tag_mechanism_and_dynamic_gating()

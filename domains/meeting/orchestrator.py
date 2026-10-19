@@ -724,9 +724,6 @@ class _Nodes(DomainNodes):
                 hit_block = str(state.get("user_hits_block") or "").strip()
                 if hit_block:
                     parts.append(hit_block)
-                groups_block = str(state.get("user_action_groups_block") or "").strip()
-                if groups_block:
-                    parts.append(groups_block)
                 radar_block = str(state.get("user_radar_block") or "").strip()
                 if not radar_block and line_name in PREFERENCE_LINES:
                     radar_block = render_radar_block(state.get("user") or {})
@@ -786,9 +783,6 @@ class _Nodes(DomainNodes):
         hits = str(state.get("user_hits_block") or "").strip()
         if hits and mode != "objective":
             blocks.append(hits)
-        groups = str(state.get("user_action_groups_block") or "").strip()
-        if groups and mode != "objective":
-            blocks.append(groups)
         radar = str(state.get("user_radar_block") or "").strip()
         if not radar and mode != "objective" and line_name in PREFERENCE_LINES:
             radar = render_radar_block(state.get("user") or {})
@@ -856,9 +850,6 @@ class _Nodes(DomainNodes):
             hits = str(state.get("user_hits_block") or "").strip()
             if hits:
                 extra_parts.append(hits)
-            groups = str(state.get("user_action_groups_block") or "").strip()
-            if groups:
-                extra_parts.append(groups)
             radar = str(state.get("user_radar_block") or "").strip()
             if not radar and line_name in PREFERENCE_LINES:
                 radar = render_radar_block(state.get("user") or {})
@@ -1168,10 +1159,8 @@ class _Nodes(DomainNodes):
             extra = {
                 "user_hits": table.as_dict(),
                 "user_hits_block": render_hit_block(table),
-                # 分组骨架：把"要出现哪些组名行"变成可照抄的清单（模型只复制、不重排）
-                "user_action_groups_block": render_action_groups_block(
-                    user, self._understanding(state) or {}
-                ),
+                # 个人视角废弃无模板分组骨架（改由 personal_minutes.md 契约建组，置空保留键兼容单测）
+                "user_action_groups_block": "",
                 "user_radar_block": render_radar_block(user),
             }
             reason = skip_reason(user, table, line_names)

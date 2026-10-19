@@ -823,11 +823,11 @@ def _parse_memory_sources(markdown: str) -> dict[str, dict[str, str]]:
 _SELF_HEAD_RE = re.compile(r"^###\s+(?:\[|\()?.*(?:与我相关|本人|待我攻坚|待我解决)")
 _SELF_GROUP_RE = re.compile(r"^\s*(?:-\s*)?\*\*(?:与我相关[^*]*|本人[^*]*|待我[^*]*)\*\*[：:]?\s*$")
 
-_DEP_HEAD_RE = re.compile(r"^###\s+(?:\[|\()?.*(?:协同输入|关注人定调|前置依赖|外部依赖)")
-_DEP_GROUP_RE = re.compile(r"^\s*(?:-\s*)?\*\*(?:协同输入[^*]*|关注人定调[^*]*|前置依赖[^*]*|外部依赖[^*]*)\*\*[：:]?\s*$")
+_DEP_HEAD_RE = re.compile(r"^###\s+(?:\[|\()?.*(?:重点协同|协同输入|关注人定调|前置依赖|外部依赖)")
+_DEP_GROUP_RE = re.compile(r"^\s*(?:-\s*)?\*\*(?:重点协同[^*]*|协同输入[^*]*|关注人定调[^*]*|前置依赖[^*]*|外部依赖[^*]*)\*\*[：:]?\s*$")
 
-_RISK_HEAD_RE = re.compile(r"^###\s+(?:\[|\()?.*(?:全局重大风险|全局风险|未决争议|外部阻塞)")
-_RISK_GROUP_RE = re.compile(r"^\s*(?:-\s*)?\*\*(?:全局风险与未决[^*]*|全局重大风险[^*]*|外部阻塞[^*]*|未决争议[^*]*)\*\*[：:]?\s*$")
+_RISK_HEAD_RE = re.compile(r"^###\s+(?:\[|\()?.*(?:重点关注|全局重大风险|全局风险|未决争议|外部阻塞)")
+_RISK_GROUP_RE = re.compile(r"^\s*(?:-\s*)?\*\*(?:重点关注[^*]*|全局风险与未决[^*]*|全局重大风险[^*]*|外部阻塞[^*]*|未决争议[^*]*)\*\*[：:]?\s*$")
 
 _OTHER_GROUP_RE = re.compile(r"^\s*(?:-\s*)?\*\*([^*:\n]{1,20})\*\*[：:]?\s*$")
 _TASK_ITEM_RE = re.compile(r"^\s*[-*]\s+\[([ xX])\]\s*(.*)$")
@@ -867,6 +867,7 @@ def _format_minutes_html(
     list_buf: list[str] = []
     ol_buf: list[str] = []
     active_block: str | None = None
+    current_section: str = ""
 
     def flush_tasks() -> None:
         if task_buf:
@@ -973,22 +974,28 @@ def _format_minutes_html(
             if _SELF_HEAD_RE.match(stripped):
                 close_active_block()
                 flush_list()
-                active_block = "self"
-                out.append(f'<div class="ck-self-block"><div class="ck-self-title"><strong>{inline_format(h_text)}</strong><span class="ck-self-badge">本人</span></div>')
+                if current_section == "risks":
+                    active_block = "risk"
+                    out.append(f'<div class="ck-risk-block"><div class="ck-risk-title"><strong>{inline_format(h_text)}</strong><span class="ck-risk-badge">本人卡点</span></div>')
+                else:
+                    active_block = "self"
+                    out.append(f'<div class="ck-self-block"><div class="ck-self-title"><strong>{inline_format(h_text)}</strong><span class="ck-self-badge">本人</span></div>')
                 i += 1
                 continue
             if _DEP_HEAD_RE.match(stripped):
                 close_active_block()
                 flush_list()
                 active_block = "dep"
-                out.append(f'<div class="ck-dep-block"><div class="ck-dep-title"><strong>{inline_format(h_text)}</strong><span class="ck-dep-badge">协同依赖</span></div>')
+                badge_text = "重点协同" if "重点协同" in h_text else "协同依赖"
+                out.append(f'<div class="ck-dep-block"><div class="ck-dep-title"><strong>{inline_format(h_text)}</strong><span class="ck-dep-badge">{badge_text}</span></div>')
                 i += 1
                 continue
             if _RISK_HEAD_RE.match(stripped):
                 close_active_block()
                 flush_list()
                 active_block = "risk"
-                out.append(f'<div class="ck-risk-block"><div class="ck-risk-title"><strong>{inline_format(h_text)}</strong><span class="ck-risk-badge">全局风险</span></div>')
+                badge_text = "重点关注" if "重点关注" in h_text else "全局风险"
+                out.append(f'<div class="ck-risk-block"><div class="ck-risk-title"><strong>{inline_format(h_text)}</strong><span class="ck-risk-badge">{badge_text}</span></div>')
                 i += 1
                 continue
 
@@ -1004,6 +1011,15 @@ def _format_minutes_html(
             h_text = stripped[3:].strip()
             if h_text.startswith("[") and h_text.endswith("]"):
                 h_text = h_text[1:-1].strip()
+            sec_clean = h_text.strip("[]【】 ")
+            if any(k in sec_clean for k in ("行动", "待办", "分工")):
+                current_section = "actions"
+            elif any(k in sec_clean for k in ("风险", "卡点", "隐患", "未决")):
+                current_section = "risks"
+            elif any(k in sec_clean for k in ("进展", "业务")):
+                current_section = "progress"
+            else:
+                current_section = ""
             out.append(f'<h2 class="ck-doc-h2">{inline_format(h_text)}</h2>')
             i += 1
             continue
@@ -1011,6 +1027,7 @@ def _format_minutes_html(
         if stripped.startswith("# "):
             close_active_block()
             flush_list()
+            current_section = ""
             h_text = stripped[2:].strip()
             if h_text.startswith("[") and h_text.endswith("]"):
                 h_text = h_text[1:-1].strip()
@@ -1021,10 +1038,14 @@ def _format_minutes_html(
         if _SELF_GROUP_RE.match(stripped):
             close_active_block()
             flush_list()
-            active_block = "self"
             m_g = re.match(r"^\s*(?:-\s*)?\*\*([^*:\n]+)\*\*[：:]?\s*$", stripped)
-            g_title = m_g.group(1).strip() if m_g else "与我相关"
-            out.append(f'<div class="ck-self-block"><div class="ck-self-title"><strong>{inline_format(g_title)}</strong><span class="ck-self-badge">本人</span></div>')
+            g_title = m_g.group(1).strip() if m_g else "本人相关"
+            if current_section == "risks":
+                active_block = "risk"
+                out.append(f'<div class="ck-risk-block"><div class="ck-risk-title"><strong>{inline_format(g_title)}</strong><span class="ck-risk-badge">本人卡点</span></div>')
+            else:
+                active_block = "self"
+                out.append(f'<div class="ck-self-block"><div class="ck-self-title"><strong>{inline_format(g_title)}</strong><span class="ck-self-badge">本人</span></div>')
             i += 1
             continue
 
@@ -1033,8 +1054,9 @@ def _format_minutes_html(
             flush_list()
             active_block = "dep"
             m_g = re.match(r"^\s*(?:-\s*)?\*\*([^*:\n]+)\*\*[：:]?\s*$", stripped)
-            g_title = m_g.group(1).strip() if m_g else "协同输入"
-            out.append(f'<div class="ck-dep-block"><div class="ck-dep-title"><strong>{inline_format(g_title)}</strong><span class="ck-dep-badge">协同依赖</span></div>')
+            g_title = m_g.group(1).strip() if m_g else "重点协同"
+            badge_text = "重点协同" if "重点协同" in g_title else "协同依赖"
+            out.append(f'<div class="ck-dep-block"><div class="ck-dep-title"><strong>{inline_format(g_title)}</strong><span class="ck-dep-badge">{badge_text}</span></div>')
             i += 1
             continue
 
@@ -1043,12 +1065,18 @@ def _format_minutes_html(
             flush_list()
             active_block = "risk"
             m_g = re.match(r"^\s*(?:-\s*)?\*\*([^*:\n]+)\*\*[：:]?\s*$", stripped)
-            g_title = m_g.group(1).strip() if m_g else "全局风险与未决"
-            out.append(f'<div class="ck-risk-block"><div class="ck-risk-title"><strong>{inline_format(g_title)}</strong><span class="ck-risk-badge">全局风险</span></div>')
+            g_title = m_g.group(1).strip() if m_g else "重点关注"
+            badge_text = "重点关注" if "重点关注" in g_title else "全局风险"
+            out.append(f'<div class="ck-risk-block"><div class="ck-risk-title"><strong>{inline_format(g_title)}</strong><span class="ck-risk-badge">{badge_text}</span></div>')
             i += 1
             continue
 
         if _OTHER_GROUP_RE.match(stripped):
+            if active_block is not None:
+                item_text = re.sub(r"^\s*[-*]\s+", "", stripped)
+                list_buf.append({"text": inline_format(item_text), "subs": []})
+                i += 1
+                continue
             close_active_block()
             flush_list()
             out.append(f'<p class="ck-person-group">{inline_format(stripped)}</p>')
@@ -1489,6 +1517,7 @@ def _render_markdown_content(text: str) -> str:
     list_buf: list[str] = []
     ol_buf: list[str] = []
     active_block: str | None = None
+    current_section: str = ""
 
     def flush_tasks() -> None:
         if task_buf:
@@ -1578,26 +1607,44 @@ def _render_markdown_content(text: str) -> str:
             if h_text.startswith("[") and h_text.endswith("]"):
                 h_text = h_text[1:-1].strip()
 
-            if level == 3:
+            if level == 1:
+                current_section = ""
+            elif level == 2:
+                sec_clean = h_text.strip("[]【】 ")
+                if any(k in sec_clean for k in ("行动", "待办", "分工")):
+                    current_section = "actions"
+                elif any(k in sec_clean for k in ("风险", "卡点", "隐患", "未决")):
+                    current_section = "risks"
+                elif any(k in sec_clean for k in ("进展", "业务")):
+                    current_section = "progress"
+                else:
+                    current_section = ""
+            elif level == 3:
                 if _SELF_HEAD_RE.match(stripped):
                     close_active_block()
                     flush_list()
-                    active_block = "self"
-                    out.append(f'<div class="ck-self-block"><div class="ck-self-title"><strong>{inline(h_text)}</strong><span class="ck-self-badge">本人</span></div>')
+                    if current_section == "risks":
+                        active_block = "risk"
+                        out.append(f'<div class="ck-risk-block"><div class="ck-risk-title"><strong>{inline(h_text)}</strong><span class="ck-risk-badge">本人卡点</span></div>')
+                    else:
+                        active_block = "self"
+                        out.append(f'<div class="ck-self-block"><div class="ck-self-title"><strong>{inline(h_text)}</strong><span class="ck-self-badge">本人</span></div>')
                     i += 1
                     continue
                 if _DEP_HEAD_RE.match(stripped):
                     close_active_block()
                     flush_list()
                     active_block = "dep"
-                    out.append(f'<div class="ck-dep-block"><div class="ck-dep-title"><strong>{inline(h_text)}</strong><span class="ck-dep-badge">协同依赖</span></div>')
+                    badge_text = "重点协同" if "重点协同" in h_text else "协同依赖"
+                    out.append(f'<div class="ck-dep-block"><div class="ck-dep-title"><strong>{inline(h_text)}</strong><span class="ck-dep-badge">{badge_text}</span></div>')
                     i += 1
                     continue
                 if _RISK_HEAD_RE.match(stripped):
                     close_active_block()
                     flush_list()
                     active_block = "risk"
-                    out.append(f'<div class="ck-risk-block"><div class="ck-risk-title"><strong>{inline(h_text)}</strong><span class="ck-risk-badge">全局风险</span></div>')
+                    badge_text = "重点关注" if "重点关注" in h_text else "全局风险"
+                    out.append(f'<div class="ck-risk-block"><div class="ck-risk-title"><strong>{inline(h_text)}</strong><span class="ck-risk-badge">{badge_text}</span></div>')
                     i += 1
                     continue
 
@@ -1612,10 +1659,14 @@ def _render_markdown_content(text: str) -> str:
         if _SELF_GROUP_RE.match(stripped):
             close_active_block()
             flush_list()
-            active_block = "self"
             m_g = re.match(r"^\s*(?:-\s*)?\*\*([^*:\n]+)\*\*[：:]?\s*$", stripped)
-            g_title = m_g.group(1).strip() if m_g else "与我相关"
-            out.append(f'<div class="ck-self-block"><div class="ck-self-title"><strong>{inline(g_title)}</strong><span class="ck-self-badge">本人</span></div>')
+            g_title = m_g.group(1).strip() if m_g else "本人相关"
+            if current_section == "risks":
+                active_block = "risk"
+                out.append(f'<div class="ck-risk-block"><div class="ck-risk-title"><strong>{inline(g_title)}</strong><span class="ck-risk-badge">本人卡点</span></div>')
+            else:
+                active_block = "self"
+                out.append(f'<div class="ck-self-block"><div class="ck-self-title"><strong>{inline(g_title)}</strong><span class="ck-self-badge">本人</span></div>')
             i += 1
             continue
 
@@ -1624,8 +1675,9 @@ def _render_markdown_content(text: str) -> str:
             flush_list()
             active_block = "dep"
             m_g = re.match(r"^\s*(?:-\s*)?\*\*([^*:\n]+)\*\*[：:]?\s*$", stripped)
-            g_title = m_g.group(1).strip() if m_g else "协同输入"
-            out.append(f'<div class="ck-dep-block"><div class="ck-dep-title"><strong>{inline(g_title)}</strong><span class="ck-dep-badge">协同依赖</span></div>')
+            g_title = m_g.group(1).strip() if m_g else "重点协同"
+            badge_text = "重点协同" if "重点协同" in g_title else "协同依赖"
+            out.append(f'<div class="ck-dep-block"><div class="ck-dep-title"><strong>{inline(g_title)}</strong><span class="ck-dep-badge">{badge_text}</span></div>')
             i += 1
             continue
 
@@ -1634,12 +1686,18 @@ def _render_markdown_content(text: str) -> str:
             flush_list()
             active_block = "risk"
             m_g = re.match(r"^\s*(?:-\s*)?\*\*([^*:\n]+)\*\*[：:]?\s*$", stripped)
-            g_title = m_g.group(1).strip() if m_g else "全局风险与未决"
-            out.append(f'<div class="ck-risk-block"><div class="ck-risk-title"><strong>{inline(g_title)}</strong><span class="ck-risk-badge">全局风险</span></div>')
+            g_title = m_g.group(1).strip() if m_g else "重点关注"
+            badge_text = "重点关注" if "重点关注" in g_title else "全局风险"
+            out.append(f'<div class="ck-risk-block"><div class="ck-risk-title"><strong>{inline(g_title)}</strong><span class="ck-risk-badge">{badge_text}</span></div>')
             i += 1
             continue
 
         if _OTHER_GROUP_RE.match(stripped):
+            if active_block is not None:
+                item_text = re.sub(r"^\s*[-*]\s+", "", stripped)
+                list_buf.append({"text": inline(item_text), "subs": []})
+                i += 1
+                continue
             close_active_block()
             flush_list()
             out.append(f'<p class="ck-person-group">{inline(stripped)}</p>')

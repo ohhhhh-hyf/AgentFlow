@@ -1346,7 +1346,7 @@ def _format_action_items_projection(
                 continue
 
             group_allowed = True
-            norm_g = clean_g if clean_g in ("与我相关", "协同输入", "本人相关", "重点协同") else ("本人相关" if is_self else "重点关注")
+            norm_g = clean_g if clean_g in ("本人相关", "重点协同") else ("本人相关" if is_self else "重点协同")
             current_group = norm_g
             if current_group not in grouped_tasks:
                 grouped_tasks[current_group] = []
@@ -1441,7 +1441,7 @@ def _format_risks_projection(
                 continue
 
             group_allowed = True
-            norm_g = clean_g if clean_g in ("与我相关", "本人相关") else ("本人相关" if is_self else "重点关注")
+            norm_g = clean_g if clean_g in ("本人相关", "重点关注") else ("本人相关" if is_self else "重点关注")
             current_group = norm_g
             if current_group not in grouped_risks:
                 grouped_risks[current_group] = []
@@ -1631,14 +1631,13 @@ def _column_fill_user(
             lines.append(
                 "【业务进展写作指引】定位为全场客观业务与技术大盘，客观呈现：\n"
                 "依照核心业务模块或议题，独占一行建立模块大组标题（如「**模块名称**：」）；\n"
-                "同一模块下的议题自然聚合，组内使用 `- ` 简洁客观列出核心技术进展、关键量化指标与拍板决策，事实自然交代，无需添加中间层前缀标签；没有内容的组不出现。"
+                "同一模块下的议题自然聚合，组内使用 `- ` 简洁客观列出核心技术进展、关键量化指标与拍板决策，事实自然交代，无需添加中间层前缀标签；不包含人员分工，不设立人名组；没有内容的组不出现。"
             )
         elif any(kw in title for kw in ("相关行动", "行动")):
             lines.append(
-                "【相关行动写作指引】聚焦个人行动与重点协同，过滤外围无关人员杂项分工；"
-                "仅为本人及重点关注人（focus_person）建组："
-                "第一组写「**本人相关**：」，列出本人直接负责的事项，以动词开头省略主语，融合时间与交付物；"
-                "第二组写「**重点关注**：」，列出推进本人工作所必需的外部交付，以及与 focus_person 和 focus_thing 相关的核心交付承诺，标明责任人真名与承诺节点；没有内容的组不出现。"
+                "【相关行动写作指引】二分看板呈现个人行动与外部协同，过滤外围无关人员杂项分工：\n"
+                "第一组写「**本人相关**：」，列出本人直接负责的事项，以动词开头省略主语，融合时间与交付物；\n"
+                "第二组写「**重点协同**：」，收录推进本人工作必需的外部输入与关键交付承诺，统一采用单行列表「- 姓名：交付内容、量化指标与承诺节点」呈现，不为人名单独起组名行；没有内容的组不出现。"
             )
         elif any(kw in title for kw in ("相关风险", "风险")):
             lines.append(
