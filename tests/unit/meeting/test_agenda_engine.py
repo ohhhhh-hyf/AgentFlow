@@ -145,6 +145,34 @@ def test_agenda_parser_cache_and_no_duplicate_logging(caplog):
     res3 = process_agenda_for_minutes(transcript, agenda_text)
     assert res3.has_valid_agenda
 
-    # 关键断言：无论调用多少次，既定议程识别成功信息在 INFO 级别只输出 1 次！
+    # 关键断言：无论调用多少次，既定议程识别成功信息与对齐引擎启动信息在 INFO 级别只输出 1 次！
+    agenda_log_count = caplog.text.count("[AGENDA_PARSER] 既定议程单识别成功")
+    assert agenda_log_count == 1, f"Expected 1 agenda log, got {agenda_log_count}"
+
+    alignment_log_count = caplog.text.count("[AGENDA_ALIGNMENT] 启动对齐引擎")
+    assert alignment_log_count == 1, f"Expected 1 alignment log, got {alignment_log_count}"
+
+
+def test_parser_log_dedup_across_different_transcript_speakers(caplog):
+    """验证即使探针阶段与流水线执行阶段转写格式有细微差别导致发言人集合不完全一致，解析日志依然全局只输出 1 次。"""
+    from domains.meeting.tasks.agenda_minutes.agenda_parser import clear_agenda_parser_cache
+    import logging
+
+    clear_agenda_parser_cache()
+    caplog.set_level(logging.INFO)
+
+    agenda_text = """
+    | 序号 | 议题名称 | 汇报人 |
+    | 1 | 核心算法演进 | 王五 |
+    """
+    transcript1 = "王五 10:00: 各位好，我们现在开始汇报核心算法演进方案，整体指标均已达到预期。\n赵六: 旁听发言。"
+    transcript2 = "王五 10:00: 各位好，我们现在开始汇报核心算法演进方案，整体指标均已达到预期。"  # 少了赵六，发言人列表不同
+
+    valid = probe_valid_agendas(transcript1, agenda_text)
+    assert len(valid) == 1
+
+    res = process_agenda_for_minutes(transcript2, agenda_text)
+    assert res.has_valid_agenda
+
     agenda_log_count = caplog.text.count("[AGENDA_PARSER] 既定议程单识别成功")
     assert agenda_log_count == 1, f"Expected 1 agenda log, got {agenda_log_count}"

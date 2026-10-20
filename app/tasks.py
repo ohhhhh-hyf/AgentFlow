@@ -572,6 +572,10 @@ def _prepare(domain: str, task: str, req: TaskRequest, user_id: str) -> _Prepare
     transcript, keypoints, notes = _collect_texts(req)
     if not transcript and notes:
         transcript = notes
+    if transcript:
+        from core.graph.engine_text import normalize_transcript
+
+        transcript = normalize_transcript(transcript)
     teacher_docs: list[str] = []
     material_docs: list[str] = []
     agenda_from_docs: str = ""

@@ -13,6 +13,7 @@
 """
 from __future__ import annotations
 
+import copy
 import logging
 import re
 from dataclasses import dataclass, field
@@ -772,7 +773,34 @@ def _align_by_topics_and_roadsigns(
     )
 
 
+_ALIGNMENT_CACHE: dict[tuple[int, int, int, str], AlignmentResult] = {}
+
+
+def clear_alignment_cache() -> None:
+    """清空议程与转写对齐缓存（供单测使用）。"""
+    _ALIGNMENT_CACHE.clear()
+
+
 def align_agenda_with_transcript(
+    plan: AgendaPlan,
+    transcript: str,
+) -> AlignmentResult:
+    """基于发言人切换与议程人员网络匹配的通用对齐引擎（带进程内单例缓存与去重）。"""
+    t = (transcript or "").strip()
+    plan_sig = "|".join(f"{it.seq}:{it.title}" for it in plan.items)
+    cache_key = (hash(t), len(t), len(plan.items), plan_sig)
+    if cache_key in _ALIGNMENT_CACHE:
+        logger.debug("[AGENDA_ALIGNMENT] 命中议程与转写对齐结果缓存 (共 %d 项)", len(plan.items))
+        return copy.deepcopy(_ALIGNMENT_CACHE[cache_key])
+
+    res = _align_agenda_with_transcript_impl(plan, transcript)
+    if len(_ALIGNMENT_CACHE) >= 64:
+        _ALIGNMENT_CACHE.pop(next(iter(_ALIGNMENT_CACHE)))
+    _ALIGNMENT_CACHE[cache_key] = copy.deepcopy(res)
+    return res
+
+
+def _align_agenda_with_transcript_impl(
     plan: AgendaPlan,
     transcript: str,
 ) -> AlignmentResult:
@@ -1085,6 +1113,7 @@ __all__ = [
     "AgendaAlignment",
     "AlignmentResult",
     "align_agenda_with_transcript",
+    "clear_alignment_cache",
     "group_transcript_blocks",
     "is_trivial_ceremonial_item",
     "NAME_MATCH_ACCEPT",

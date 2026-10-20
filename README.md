@@ -13,7 +13,7 @@ AgentFlow 是一套专为复杂垂直领域（智能会议分析、知识工程�
 4. [统一 API 接入与异步 Worker 架构](#四统一-api-接入与异步-worker-架构)
 5. [支持的垂直业务领域与任务线（重点：Meeting 领域全面重构）](#五支持的垂直业务领域与任务线)
 6. [多租户数据物理沙箱隔离规范](#六多租户数据物理沙箱隔离规范)
-7. [质量保障与全套自动化测试（233+ 测试项）](#七质量保障与全套自动化测试)
+7. [质量保障与全套自动化测试（290+ 测试项）](#七质量保障与全套自动化测试)
 8. [领域与任务线标准扩展指南](#八领域与任务线标准扩展指南)
 
 ---
@@ -59,6 +59,7 @@ AgentFlow/
 │
 ├── resources/                    # 【业务只读资产库】静态模板、样式规范与标准化画像
 │   ├── templates/                # 32 份垂直场景行业 Markdown 模板（通用纪要、团队周会、共识决策、辩论、法庭等）
+│   ├── agenda_templates/         # 审定议题专属行业 Markdown 模板（以审定议题与子主题层级为主线）
 │   ├── styles/                   # 5 大会议纪要风格规范 Markdown 模板（brief, topic, review, retro, alignment）
 │   ├── profiles/                 # 客观全员与各行业职业角色画像模板（JSON）
 │   └── role_mapping.json         # 角色与职业画像别名映射表
@@ -104,6 +105,12 @@ class TaskEvent:
 - **生成契约**：严格限定每个 Agent 节点输出的 JSON 结构与字段类型；
 - **程序化容错修复**：在 `infra/llm/` 客户端层提供括号栈补全，平滑修复长文本截断导致的 JSON 损坏；
 - **执行硬门禁与白名单**：上游事实硬对齐检查、单栏篇幅预算自适应重写、同名标签防粘连修复、空栏目自动识别，并在模板门禁中设立合法状态白名单，最大程度抑制大模型幻觉与乱序。
+
+### 5. 模板渲染提示词引擎轻量化与 KV Cache 优化（Template Prompt & Prefix Caching）
+终稿渲染阶段全面升级为去臃肿的轻量三层架构：
+- **切除重复解析（节省 300～500 Tokens）**：彻底剔除 User 消息中对模板占位符的二次正则遍历（旧版 `【模板结构解析】`），单次渲染直接节省 300～500 Tokens，User 消息体量降低 50% 以上；
+- **最大化 KV Cache 复用率**：静态前置区仅保留 `模板原文：\n{template}` 与 `【模板写作要求】` 作为 Token 0 连续前缀（Invariant Prefix），在本地与线上推理引擎中实现跨请求的最高缓存复用率，显著降低首字延迟（TTFT）；
+- **正向公文指引与篇幅解耦**：彻底消除“严禁/不得/禁止/切忌”等负向对抗词，全面转换为正向建设性公文指引；剔除死板硬编码的段落字数，由“局部栏位约束优先 > 上下文篇幅预算 > 事实密度自然流淌”单点裁决。
 
 ---
 
@@ -283,13 +290,13 @@ python -m app.worker.main --concurrency 4 --grace 300
 
 | 任务线代码 (`task`) | 中文名称 | 执行模式 (`kind`) | 导出产物 | 核心能力与重构成果 |
 |---|---|---|---|---|
-| **`minutes`** | 会议纪要 | `LLM_DOCUMENT` | `minutes.html`<br>`result.md` | **32 套场景模板动态路由**：覆盖周会、访谈、医疗、法庭、研讨等全场景，极简公文流排版，严禁 emoji 与套话；集成个人专属工作台模板；输出高保真响应式交互网页。 |
+| **`minutes`** | 会议纪要 | `LLM_DOCUMENT` | `minutes.html`<br>`result.md` | **双轨架构分发与 32 套场景模板动态路由**：<br>• **Track A（通用与个人视角）**：处理无外部议程单会议，自然映射业务板块（`### 1. 业务板块`），列表项展开事实论据；个人视角作战看板化呈现；<br>• **Track B（审定议题模板纪要）**：结合会前审定议程单，严格以 `### 议题全称` → `#### 1. 子主题` → `- 论据细节` 三层严整公文骨架展开，并平滑吸收草稿段首标签；<br>• **模板优先分发与自包含扩展**：优先分发 `resources/agenda_templates/` 专属模板（未命中平滑回退至 `resources/templates/`）；用户仅需优化模板 `.md` 文件方括号说明即可驱动大模型按议题输出，零侵入底层代码；<br>• **Template Prompt 极致轻量化**：切除重复结构解析，单次渲染立省 300～500 Tokens，KV Cache 前缀复用率最大化。 |
 | **`consensus_decision`** | 共识决策 | `LLM_DOCUMENT` | `consensus_decision.html`<br>`result.md` | **彻底模板化重构**：由硬编码 Python 拼接升级为由 `resources/templates/consensus_decision.md` 模板驱动的标准大模型渲染。分为「决策总览」（精炼一句话决议矩阵）与「决策细节」（决策背景、讨论要点、得失权衡、最终决议 4 组阶梯展开，压轴决议，多条目独立列点，零 emoji，弹性输出）。模板门禁白名单全面放行共识标记，消除误报修补；配套响应式卡片流 HTML 导出。 |
 | **`minutes_styles`** | 多样式纪要 | `LLM_DOCUMENT` | `minutes_styles.html`<br>`result.md` | **5 大黄金样式规范重构**：独立拆解 5 套标准模板至 `resources/styles/`（`brief` 极简速报、`topic` 议题专报、`review` 深度研讨、`retro` 敏捷复盘、`alignment` 战略对齐）。首栏 250-300 字摘要预算控制；API 强门禁校验非法样式；输出样式定制卡片 HTML。 |
 | **`actions`** | 待办提取 | `LLM_EXTRACT` | `actions.html`<br>`result.md` | **Form A 现代工单票据卡片流**：事项按业务分类（Category）聚类归集，事项名称、优先级（高/中/低）、责任人、截止时间、交付标准、前置条件弹性展开，无则优雅省略，拒绝冗余占位符。 |
 | **`risks`** | 风险分析 | `LLM_EXTRACT` | `risks.html`<br>`result.md` | **Form A 风险票据流**：按风险分类归集，红黄绿三级严重度预警，结构化提取责任归属、潜在影响与规避对策，输出交互式风险看板。 |
 | **`minutes_trace`** | 溯源纪要 | `DETERMINISTIC_PIPELINE`<br>(Sidecar) | `minutes_trace.html`<br>`result.md` | **平实两级溯源结构**：摒弃生硬特殊标记，采用「会议概况 + 议题名称」两级平实排版；采用议题内涵加权（Jaccard + 词频）切片匹配原声，点击纪要要点一键定位高亮发言气泡与时间戳。 |
-| **`agenda_minutes`** | 议程纪要 | `LLM_EXTRACT` | `agenda_minutes.html`<br>`result.md` | **议程 OCR 锚定与严格前置门禁**：API 层设置硬门禁拦截（必须提供 `docs` 议程单图片/文档或 `extra.agenda_txt`，杜绝无底座空跑）；支持议程单 OCR 高精解析与未讨论议题截断（Zero-Evidence），通过议程类型强制转换（Agenda Coercion）阈值守卫将讨论内容按序锚定至议程看板。 |
+| **`agenda_minutes`** | 议程纪要 | `LLM_EXTRACT` | `agenda_minutes.html`<br>`result.md` | **议程 OCR 锚定、对齐引擎与多级缓存优化**：API 层设置硬门禁拦截（必须提供 `docs` 议程单图片/文档或 `extra.agenda_txt`，杜绝无底座空跑）；支持议程单 OCR 高精解析与讨论块智能对齐（`alignment_engine`）；引入进程级缓存与标准化转写文本探测，彻底消除重复解析开销；未讨论议题零证据截断（Zero-Evidence），议程类型强制转换（Agenda Coercion）阈值守卫。 |
 | **`mindmap`** | 思维导图 | `LLM_DOCUMENT` | `mindmap.html`<br>`mindmap.png` | **交互式拓扑大纲**：自动提炼多层级思维导图 Markdown 拓扑，基于 Markmap 渲染交互式 HTML 页面与高清图片。 |
 
 ---
@@ -333,7 +340,7 @@ data/
 
 ## 七、质量保障与全套自动化测试
 
-AgentFlow 内置了严密的**零 LLM 确定性回归测试套件**，总计拥有 **13 个专项测试套件，233+ 测试用例**，分为「核心内核与模板层（`tests/core/`）」与「会议领域任务层（`tests/meeting/`）」，秒级内快速完成核心业务逻辑、契约不变量与语法规则的验证，无需消耗外部模型 Token：
+AgentFlow 内置了严密的**零 LLM 确定性回归测试套件**，总计拥有 **16 个专项测试套件，290+ 测试用例**，分为「核心内核与模板层（`tests/core/`）」、「会议领域任务层（`tests/meeting/`）」以及「单元与集成对齐层（`tests/unit/`）」，秒级内快速完成核心业务逻辑、契约不变量与语法规则的验证，无需消耗外部模型 Token：
 
 #### 1. 核心内核与模板层（`tests/core/`）
 
@@ -358,16 +365,22 @@ AgentFlow 内置了严密的**零 LLM 确定性回归测试套件**，总计拥�
 | `tests/meeting/test_agenda_coercion.py` | 验证议程类型强制转换（Agenda Coercion）阈值守卫与边界行为 | 11 |
 | `tests/meeting/test_meeting_memory.py` | 验证跨场次长期记忆状态机、向量索引与事实溯源回写 | 25 |
 
+#### 3. 单元与集成对齐测试层（`tests/unit/`）
+
+| 测试模块文件 | 测试定位与主要断言覆盖 | 用例数 |
+|---|---|---|
+| `tests/unit/core/templates/` | 验证占位符轻量路由契约、KV Cache 纯净前缀校验、截断与门禁规则 | 90 |
+| `tests/unit/meeting/` | 验证审定议题智能对齐引擎、议程单 OCR 高精解析、多级缓存与全链路装配集成 | 44 |
+| `tests/unit/core/profiles/` | 验证角色与用户画像解析别名映射校验 | 6 |
+
 ```bash
-# 1. 运行全套自动化测试套件（支持 pytest 选项透传）
-pytest tests/
-python -m tests
+# 1. 运行全套自动化测试套件
+pytest tests/unit/                         # 运行单元与集成对齐测试（140 项）
+pytest tests/core/ tests/meeting/          # 运行领域回归与长期记忆测试（155 项）
 
-# 2. 分层运行测试套件
-pytest tests/core/                         # 仅运行核心内核与模板层测试
-pytest tests/meeting/                      # 仅运行会议领域各任务线测试
-
-# 3. 单独运行特定任务线测试
+# 2. 单独运行特定任务线测试
+pytest tests/unit/meeting/test_minutes_agenda_integration.py -v
+pytest tests/unit/core/templates/test_placeholder_parser.py -v
 pytest tests/meeting/test_consensus_decision.py -v
 pytest tests/meeting/test_minutes_styles.py -v
 pytest tests/core/test_supervisor_optimization.py -v

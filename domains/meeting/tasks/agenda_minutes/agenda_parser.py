@@ -18,11 +18,25 @@ from pathlib import Path
 logger = logging.getLogger("agentflow.agenda_parser")
 
 _PARSED_AGENDA_CACHE: dict[tuple[str, tuple[str, ...]], AgendaPlan] = {}
+_PARSED_AGENDA_RAW_CACHE: dict[str, AgendaPlan] = {}
 
 
 def clear_agenda_parser_cache() -> None:
-    """清理议程单解析缓存。"""
+    """清理议程单解析缓存及全链路关联缓存。"""
     _PARSED_AGENDA_CACHE.clear()
+    _PARSED_AGENDA_RAW_CACHE.clear()
+    try:
+        from domains.meeting.tasks.agenda_minutes.alignment_engine import clear_alignment_cache
+
+        clear_alignment_cache()
+    except Exception:
+        pass
+    try:
+        from domains.meeting.agenda_engine import clear_agenda_engine_cache
+
+        clear_agenda_engine_cache()
+    except Exception:
+        pass
 
 
 
@@ -381,6 +395,20 @@ def parse_agenda_text(
         logger.debug("[AGENDA_PARSER] 命中议程单解析缓存 (共 %d 项)", len(cached_plan.items))
         return copy.deepcopy(cached_plan)
 
+    if normalized_text in _PARSED_AGENDA_RAW_CACHE:
+        raw_plan = copy.deepcopy(_PARSED_AGENDA_RAW_CACHE[normalized_text])
+        logger.debug("[AGENDA_PARSER] 命中原始议程单解析缓存 (共 %d 项)", len(raw_plan.items))
+        if transcript or candidate_speakers:
+            raw_plan = reconcile_presenter_names(
+                raw_plan,
+                transcript=transcript,
+                candidate_speakers=candidate_speakers,
+            )
+        if len(_PARSED_AGENDA_CACHE) >= 64:
+            _PARSED_AGENDA_CACHE.pop(next(iter(_PARSED_AGENDA_CACHE)))
+        _PARSED_AGENDA_CACHE[cache_key] = copy.deepcopy(raw_plan)
+        return raw_plan
+
     # 制表符分隔的多行文本自动转为管道表格
     if "\t" in normalized_text and "|" not in normalized_text:
         lines_with_tab = [l for l in normalized_text.splitlines() if "\t" in l]
@@ -554,7 +582,12 @@ def parse_agenda_text(
             normalized_text[:300].replace("\n", " "),
         )
 
-    plan = AgendaPlan(meta=meta, items=items)
+    base_plan = AgendaPlan(meta=meta, items=items)
+    if len(_PARSED_AGENDA_RAW_CACHE) >= 64:
+        _PARSED_AGENDA_RAW_CACHE.pop(next(iter(_PARSED_AGENDA_RAW_CACHE)))
+    _PARSED_AGENDA_RAW_CACHE[normalized_text] = copy.deepcopy(base_plan)
+
+    plan = copy.deepcopy(base_plan)
     if transcript or candidate_speakers:
         plan = reconcile_presenter_names(
             plan,

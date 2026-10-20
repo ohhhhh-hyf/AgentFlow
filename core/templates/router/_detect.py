@@ -293,51 +293,12 @@ def strip_char_budget_meta(text: str) -> str:
 def _build_placeholder_user(
     context: str,
     template: str,
-    segments: list[dict],
+    segments: list[dict] | None = None,
     requirement: str = "",
 ) -> str:
-    lines = [
-        "类型：占位符模板。保留固定文字与表结构，只替换 [占位]。",
-        "有据才写；无依据「未提及」；禁止照抄「如：」示范；禁止编造原文没有的环节/数字/履历。",
-        "谁做了什么、数值日期以原文为准；预计/可能不要写成已定事实。",
-        "模板点名的栏目都要覆盖：从原文提炼与该栏主题相关的信息，勿因「无同名小标题」就空写。",
-        "顿号或「与/和/及」连接的主题分别写清；流程只按原文真实顺序。",
-        "语句完整通顺，无缺字、无半截句。",
-        *_char_budget_lines(template),
-        "模板结构解析：",
-    ]
-    field_no = 0
-    for seg in segments:
-        if seg["kind"] == "text":
-            text = seg["text"]
-            preview = text if len(text) <= 60 else text[:57] + "..."
-            lines.append(f"- 固定文字（原样保留）：{preview!r}")
-        elif seg["kind"] == "title":
-            lines.append(
-                f"- 栏目标题占位：输出标题行（{'#' * seg['level']} {seg['hint']}），"
-                "标题行只放标题文字；本栏正文写在标题下方的正文占位处"
-            )
-        elif seg["kind"] == "table_rows":
-            lines.append(
-                f"- 表格占位数据行（原样照抄将判不合格）：{seg['row']!r}"
-                f" —— 表头 {seg['header']!r}；输出时删除该占位行，"
-                "按表头列序与本栏占位说明生成真实数据行（1..N 行，各占一行）"
-            )
-        elif seg.get("table_caption"):
-            # 表格栏说明：明细由下表承载，本栏没有独立正文位 → 不要为它写「未提及」
-            lines.append(
-                f"- 表格栏说明（不写正文、不占正文位）：{seg.get('raw') or seg.get('hint')!r}"
-                " —— 该栏明细全部写进它的表格数据行；正文不要输出「未提及」等缺省词，"
-                "也不要复述表内内容"
-            )
-        else:
-            field_no += 1
-            lines.append(f"- {_describe_field(field_no, seg)}")
-
     # === 静态契约前置区 (vLLM Prefix Cache Invariant Prefix: Token 0 连续复用) ===
     contract_blocks = [
         f"模板原文：\n{template}",
-        "【模板结构解析】\n" + "\n".join(lines),
     ]
     if requirement.strip():
         contract_blocks.append(f"【模板写作要求】\n{requirement.strip()}")
@@ -352,8 +313,8 @@ def _build_placeholder_user(
         "【交付执行令】\n"
         "请严格依据上述【待处理业务素材】进行内容提炼，生成最终正文。\n"
         "【结构排版纪律】：\n"
-        "1. 严格服从前文【模板结构解析】中各栏目声明的【形态要求】：声明单段交付的栏目必须一气呵成写成 1 个自然段，严禁中途换行分段；声明表格的栏目严禁写散文；\n"
-        "2. 提炼压缩素材，明细事实沉淀至各业务小节，严禁在总述栏罗列分项流水账；\n"
+        "1. 严格服从【模板原文】中各栏目的结构与形态指引：声明单段交付的栏目以连贯自然段呈现，声明表格的栏目以 Markdown 表格交付；\n"
+        "2. 提炼压缩素材，总述概览栏聚焦宏观背景与终局定调，分项方案细节与量化依据集中在后续各小节充分展开；\n"
         "3. 直接输出最终 Markdown 正文。"
     )
 

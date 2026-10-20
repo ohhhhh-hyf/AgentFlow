@@ -117,7 +117,7 @@ def test_placeholder_route_rules() -> None:
         check("系统提示词包含模板基础规则与 PLACEHOLDER_RULES", "模板基础提示" in sys_prompt and "占位符模板" in sys_prompt, "")
         check("系统提示词包含形态排版规则", "树状两级" in sys_prompt, "")
         check("用户消息包含内容来源与模板原文", "内容来源：略。" in user_msg and "模板原文：" in user_msg, "")
-        check("用户消息包含模板结构解析", "【模板结构解析】" in user_msg, "")
+        check("用户消息包含待处理业务素材与交付执行令", "【待处理业务素材】" in user_msg and "【交付执行令】" in user_msg, "")
 
 
 CAPTION_TPL = (
@@ -611,16 +611,14 @@ def test_prefix_caching_invariant_layout() -> None:
     assert sys_a == sys_b
     assert "模板系统提示" in sys_a
 
-    # 用户消息中：静态模板原文与结构解析必须置顶
+    # 用户消息中：静态模板原文置顶（已彻底切除冗余的模板结构解析，直接阅读原文）
     assert user_a.startswith("模板原文：\n")
-    assert "【模板结构解析】" in user_a
 
     # 静态契约前缀必须在动态上下文之前
     idx_template_a = user_a.index("模板原文：")
-    idx_parse_a = user_a.index("【模板结构解析】")
     idx_ctx_a = user_a.index("【待处理业务素材】")
     idx_action_a = user_a.index("【交付执行令】")
-    assert idx_template_a < idx_parse_a < idx_ctx_a < idx_action_a
+    assert idx_template_a < idx_ctx_a < idx_action_a
 
     # 提取两请求在动态素材之前的共同前缀
     prefix_a = user_a[:idx_ctx_a]

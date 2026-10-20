@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import copy
 from dataclasses import dataclass, field
 import logging
 from typing import Any
@@ -132,6 +133,14 @@ def _extract_valid_agendas_from_alignment(alignment_res: Any) -> list[ValidAgend
     return valid_items
 
 
+_PROCESS_AGENDA_CACHE: dict[tuple[int, int, int, int, str, str], AgendaProcessResult] = {}
+
+
+def clear_agenda_engine_cache() -> None:
+    """清空议程综合处理结果缓存（供单测使用）。"""
+    _PROCESS_AGENDA_CACHE.clear()
+
+
 def process_agenda_for_minutes(transcript: str, agenda_text: str) -> AgendaProcessResult:
     """提取有效讨论议题，并生成带头尾保护的打标实录（单次解析与对齐）。"""
     t = (transcript or "").strip()
@@ -143,38 +152,62 @@ def process_agenda_for_minutes(transcript: str, agenda_text: str) -> AgendaProce
             tagged_transcript=transcript or "",
         )
 
+    cache_key = (hash(t), hash(a), len(t), len(a), t[:128], a[:128])
+    if cache_key in _PROCESS_AGENDA_CACHE:
+        logger.debug(
+            "[AGENDA_ENGINE] 命中议程处理综合结果缓存 (有效议题: %d)",
+            len(_PROCESS_AGENDA_CACHE[cache_key].valid_agendas),
+        )
+        return copy.deepcopy(_PROCESS_AGENDA_CACHE[cache_key])
+
     try:
         plan = parse_agenda_text(a, transcript=t)
         if not plan or not plan.items:
-            return AgendaProcessResult(
+            empty_res = AgendaProcessResult(
                 has_valid_agenda=False,
                 valid_agendas=[],
                 tagged_transcript=transcript or "",
             )
+            if len(_PROCESS_AGENDA_CACHE) >= 64:
+                _PROCESS_AGENDA_CACHE.pop(next(iter(_PROCESS_AGENDA_CACHE)))
+            _PROCESS_AGENDA_CACHE[cache_key] = copy.deepcopy(empty_res)
+            return empty_res
 
         alignment_res = align_agenda_with_transcript(plan, t)
         if not alignment_res or not alignment_res.alignments:
-            return AgendaProcessResult(
+            empty_res = AgendaProcessResult(
                 has_valid_agenda=False,
                 valid_agendas=[],
                 tagged_transcript=transcript or "",
             )
+            if len(_PROCESS_AGENDA_CACHE) >= 64:
+                _PROCESS_AGENDA_CACHE.pop(next(iter(_PROCESS_AGENDA_CACHE)))
+            _PROCESS_AGENDA_CACHE[cache_key] = copy.deepcopy(empty_res)
+            return empty_res
 
         valid_agendas = _extract_valid_agendas_from_alignment(alignment_res)
         if not valid_agendas:
-            return AgendaProcessResult(
+            empty_res = AgendaProcessResult(
                 has_valid_agenda=False,
                 valid_agendas=[],
                 tagged_transcript=transcript or "",
             )
+            if len(_PROCESS_AGENDA_CACHE) >= 64:
+                _PROCESS_AGENDA_CACHE.pop(next(iter(_PROCESS_AGENDA_CACHE)))
+            _PROCESS_AGENDA_CACHE[cache_key] = copy.deepcopy(empty_res)
+            return empty_res
 
         all_blocks = group_transcript_blocks(t, plan=plan)
         tagged = build_tagged_transcript_with_head_tail(all_blocks, valid_agendas)
-        return AgendaProcessResult(
+        result = AgendaProcessResult(
             has_valid_agenda=True,
             valid_agendas=valid_agendas,
             tagged_transcript=tagged,
         )
+        if len(_PROCESS_AGENDA_CACHE) >= 64:
+            _PROCESS_AGENDA_CACHE.pop(next(iter(_PROCESS_AGENDA_CACHE)))
+        _PROCESS_AGENDA_CACHE[cache_key] = copy.deepcopy(result)
+        return result
     except Exception as err:
         logger.warning("process_agenda_for_minutes failed unexpectedly: %s", err, exc_info=True)
         return AgendaProcessResult(
