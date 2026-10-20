@@ -71,6 +71,10 @@ class MeetingState(TypedDict, total=False):
     line_modes: dict[str, str]
     # 可选：各任务线附加上下文（线名 → 如记忆注入）
     line_extra: dict[str, str]
+    # 审定议题模式状态字段（用于 minutes 任务在检测到有效议程时跨节点传递）
+    has_valid_agenda: bool
+    valid_agendas: list
+    tagged_transcript: str
 
 
 # 多样式纪要：浅校验放行空 sections，这里补结构门禁，供 schema repair 重出。

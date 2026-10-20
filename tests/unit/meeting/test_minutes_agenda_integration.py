@@ -357,3 +357,67 @@ async def test_agenda_track_b_prompt_routing():
     assert "以审定议题为主线结构规范" in rendered_prompt_tpl
     assert "一级小节标题（### 议题名称）" in rendered_prompt_tpl
 
+def test_meeting_state_declares_agenda_fields():
+    from domains.meeting.models import MeetingState
+    annotations = MeetingState.__annotations__
+    assert "has_valid_agenda" in annotations
+    assert "valid_agendas" in annotations
+    assert "tagged_transcript" in annotations
+
+
+@pytest.mark.anyio
+async def test_langgraph_agenda_state_propagation():
+    from domains.meeting.orchestrator import MeetingAgentSystem
+    from unittest.mock import MagicMock
+    from domains.meeting.models_generated import MeetingUnderstanding, Minutes, MinutesSupervisorReview
+
+    mock_client = MagicMock()
+    called_labels = []
+
+    async def mock_structured(prompt, *args, **kwargs):
+        label = kwargs.get("label", "")
+        called_labels.append(label)
+        if "meeting_understanding" in label:
+            return MeetingUnderstanding(meeting_brief="测试", meeting_purpose="目的", scene="通用")
+        elif "minutes/agent" in label:
+            return Minutes(headline="测试标题", executive_summary=["段落1"])
+        elif "minutes/supervisor" in label:
+            return MinutesSupervisorReview(
+                decision="approve",
+                facts_check={"passed": True, "issues": []},
+                perspective_check={"passed": True, "issues": []},
+                consistency_check={"passed": True, "issues": []},
+                feedback=[],
+            )
+        raise ValueError(f"Unexpected label {label}")
+
+    mock_client.structured.side_effect = mock_structured
+
+    system = MeetingAgentSystem(mock_client)
+    compiled_graph = system._build_graph(["minutes"])
+
+    init_state = {
+        "transcript": "张三 10:00: 自研芯片二期量产良率达到了91.5%",
+        "user": {},
+        "line_extra": {"agenda_text": "1. 自研芯片二期量产 汇报人：张三"},
+        "lines": {"minutes": {"revision_count": 0}},
+    }
+    final_state = await compiled_graph.ainvoke(init_state)
+
+    # 1. 验证 LangGraph 完整传递了审定议题状态通道
+    assert final_state.get("has_valid_agenda") is True
+    assert final_state.get("valid_agendas") is not None
+    assert len(final_state.get("valid_agendas")) == 1
+    assert "【现场审定的有效议题清单】" in final_state.get("tagged_transcript", "")
+
+    # 2. 验证 minutes_agent 真正命中了 agenda 模式，而非 objective 兜底
+    assert "minutes/agent/agenda" in called_labels
+
+    # 3. 验证 supervisor 上下文中具备议题模式
+    sup_ctx = system._supervisor_context(final_state, "minutes")
+    assert is_agenda_enhanced_mode(sup_ctx) is True
+
+    # 4. 验证 render 上下文中具备议题模式与有效议题清单数据块
+    render_ctx = system._render_context(final_state, "minutes")
+    assert is_agenda_enhanced_mode(render_ctx) is True
+    assert "现场审定的有效议题清单" in render_ctx
