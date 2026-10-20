@@ -140,6 +140,30 @@ def parse_perspective_mode(shared_context: str | None) -> str:
     return "objective"
 
 
+_AGENDA_MODE_PREFIXES = ("议题模式：", "议题模式:", "agenda_mode:", "agenda_enhanced:")
+
+
+def is_agenda_enhanced_mode(context: str | None) -> bool:
+    """从上下文前部读取是否为议题增强模式（minutes 且 docs 含有实质有效议题）。"""
+    if not context:
+        return False
+    lines = [raw.strip() for raw in (context or "").splitlines()[:20]]
+    for i, line in enumerate(lines):
+        for prefix in _AGENDA_MODE_PREFIXES:
+            if line.startswith(prefix):
+                val = line[len(prefix) :].strip().lower()
+                if val in {"agenda_enhanced", "true", "1", "yes"}:
+                    return True
+                # 处理换行情况（如 blocks 格式化生成的 "议题模式：\nagenda_enhanced"）
+                if not val and i + 1 < len(lines):
+                    next_line = lines[i + 1].lower()
+                    if next_line in {"agenda_enhanced", "true", "1", "yes"}:
+                        return True
+        if line in {"议题模式：agenda_enhanced", "agenda_enhanced: True", "agenda_enhanced: true", "agenda_enhanced"}:
+            return True
+    return False
+
+
 def _norm_item(text: str) -> str:
     return re.sub(r"\s+", "", str(text or "").strip())
 
@@ -1594,6 +1618,7 @@ __all__ = [
     "fix_glued_column_titles",
     "overlong_items",
     "parse_perspective_mode",
+    "is_agenda_enhanced_mode",
     "split_overlong_paragraphs",
     "subset_upstream_items",
     "gate_render_output",

@@ -4,10 +4,12 @@ from infra.llm import LLMClient
 from core.execution.hard_execution import (
     enforce_minutes_draft,
     extract_labeled_json,
+    is_agenda_enhanced_mode,
     parse_perspective_mode,
 )
 from ....models import Minutes
 from ..prompts import (
+    MINUTES_AGENDA_GENERATION_PROMPT,
     MINUTES_OBJECTIVE_GENERATION_PROMPT,
     MINUTES_PERSONAL_GENERATION_PROMPT,
 )
@@ -77,17 +79,23 @@ class MinutesGenerationAgent:
 
     async def run(self, shared_context: str) -> Minutes:
         mode = parse_perspective_mode(shared_context)
-        system_prompt = (
-            MINUTES_PERSONAL_GENERATION_PROMPT
-            if mode == "personal"
-            else MINUTES_OBJECTIVE_GENERATION_PROMPT
-        )
+        is_agenda = is_agenda_enhanced_mode(shared_context)
+        if is_agenda:
+            system_prompt = MINUTES_AGENDA_GENERATION_PROMPT
+            label_mode = "agenda"
+        elif mode == "personal":
+            system_prompt = MINUTES_PERSONAL_GENERATION_PROMPT
+            label_mode = "personal"
+        else:
+            system_prompt = MINUTES_OBJECTIVE_GENERATION_PROMPT
+            label_mode = "objective"
+
         raw = await self.client.structured(
             system_prompt,
             shared_context,
             Minutes,
             MINUTES_GENERATION_OUTPUT_CONTRACT,
-            label=f"minutes/agent/{mode}",
+            label=f"minutes/agent/{label_mode}",
         )
         understanding = extract_labeled_json(shared_context, "会议理解")
         perspective = extract_labeled_json(shared_context, "用户视角模型")

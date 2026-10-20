@@ -1,3 +1,13 @@
+from core.execution.hard_execution import is_agenda_enhanced_mode
+from domains.meeting.tasks.minutes.prompts import (
+    MINUTES_AGENDA_GENERATION_PROMPT,
+    MINUTES_AGENDA_SUPERVISOR_PROMPT,
+    MINUTES_AGENDA_RENDER_TEMPLATE_PROMPT,
+    MINUTES_AGENDA_RENDER_PROMPT,
+)
+from domains.meeting.meeting_core.prompts import (
+    MEETING_UNDERSTANDING_AGENDA_SYSTEM_PROMPT,
+)
 from pathlib import Path
 from unittest.mock import MagicMock
 import pytest
@@ -26,7 +36,7 @@ def test_orchestrator_line_shared_context_enhanced():
     )
     state_enhanced = {
         "transcript": "张三 10:00: 芯片良率达标",
-        "tagged_transcript": "【议题 1：自研车载芯片二期量产】（汇报人：张三）\n张三 10:00: 芯片良率达标",
+        "tagged_transcript": "【现场审定的有效议题清单】：\n1. 议题：自研车载芯片二期量产（汇报人：张三）\n\n【议题 1：自研车载芯片二期量产】（汇报人：张三）\n张三 10:00: 芯片良率达标",
         "has_valid_agenda": True,
         "valid_agendas": [valid_item],
         "meeting_understanding": {
@@ -38,9 +48,10 @@ def test_orchestrator_line_shared_context_enhanced():
         },
     }
     context = nodes._line_shared_context(state_enhanced, "minutes")
-    assert "【审定议题纪要撰写指引】" in context
+    assert "议题模式：agenda_enhanced" in context
+    assert "本场会议已审定有效议题清单" in context
+    assert is_agenda_enhanced_mode(context) is True
     assert "1. 议题：自研车载芯片二期量产（汇报人：张三）" in context
-    assert "【会议原文】" in context
     assert "【议题 1：自研车载芯片二期量产】" in context
 
 
@@ -78,10 +89,12 @@ def test_orchestrator_render_context():
         "lines": {"minutes": {"draft": {"executive_summary": ["概括"], "key_decisions": []}}},
     }
     render_ctx = nodes._render_context(state_enhanced, "minutes")
-    assert "【现场审定的有效议题清单】" in render_ctx
+    assert "议题模式" in render_ctx
+    assert "现场审定的有效议题清单" in render_ctx
     assert "自研车载芯片二期量产" in render_ctx
-    assert "【议题结构排版指引】" in render_ctx
-    assert "使用清单中的议题全称作为 ### 小节标题" in render_ctx
+    assert is_agenda_enhanced_mode(render_ctx) is True
+    assert "【议题结构排版指引】" not in render_ctx
+    assert "使用清单中的议题全称作为 ### 小节标题" not in render_ctx
 
     state_legacy = {
         "transcript": "张三: 芯片进展",
@@ -91,7 +104,38 @@ def test_orchestrator_render_context():
         "lines": {"minutes": {"draft": {"executive_summary": ["概括"], "key_decisions": []}}},
     }
     render_ctx_legacy = nodes._render_context(state_legacy, "minutes")
-    assert "【现场审定的有效议题清单" not in render_ctx_legacy
+    assert "现场审定的有效议题清单" not in render_ctx_legacy
+    assert is_agenda_enhanced_mode(render_ctx_legacy) is False
+
+
+def test_orchestrator_supervisor_context():
+    nodes = _Nodes()
+    valid_item = ValidAgendaItem(
+        seq="1",
+        title="自研车载芯片二期量产",
+        presenters=["张三"],
+    )
+    state_enhanced = {
+        "transcript": "张三: 芯片进展",
+        "has_valid_agenda": True,
+        "valid_agendas": [valid_item],
+        "meeting_understanding": {"meeting_brief": "测试", "decisions": [], "risks": [], "open_questions": []},
+        "lines": {"minutes": {"draft": {"executive_summary": ["概括"], "key_decisions": []}, "revision_count": 0}},
+    }
+    sup_ctx = nodes._supervisor_context(state_enhanced, "minutes")
+    assert "议题模式：agenda_enhanced" in sup_ctx
+    assert is_agenda_enhanced_mode(sup_ctx) is True
+
+    state_legacy = {
+        "transcript": "张三: 芯片进展",
+        "has_valid_agenda": False,
+        "valid_agendas": [],
+        "meeting_understanding": {"meeting_brief": "测试", "decisions": [], "risks": [], "open_questions": []},
+        "lines": {"minutes": {"draft": {"executive_summary": ["概括"], "key_decisions": []}, "revision_count": 0}},
+    }
+    sup_ctx_legacy = nodes._supervisor_context(state_legacy, "minutes")
+    assert "议题模式：agenda_enhanced" not in sup_ctx_legacy
+    assert is_agenda_enhanced_mode(sup_ctx_legacy) is False
 
 
 def test_orchestrator_non_minutes_task_unaffected():
@@ -246,8 +290,70 @@ def test_meeting_understanding_node_agenda_guidance():
 
     asyncio.run(node_func(state))
 
+    assert captured_kwargs.get("is_agenda_enhanced") is True
     channel = captured_kwargs.get("user_channel", "")
-    assert "【审定议题阶段归集指引】" in channel
-    assert "自研车载芯片二期量产" in channel
-    assert "session_segments 与清单议题一一对应" in channel
+    assert "【审定议题阶段归集指引】" not in channel
+
+
+@pytest.mark.anyio
+async def test_agenda_track_b_prompt_routing():
+    # 1. 理解层 Agent 系统提示词路由
+    from domains.meeting.meeting_core.meeting_understanding_agent import MeetingUnderstandingAgent
+    mock_client = MagicMock()
+
+    async def mock_structured(prompt, *args, **kwargs):
+        from domains.meeting.models_generated import MeetingUnderstanding
+        return MeetingUnderstanding(meeting_brief="b", meeting_purpose="p", scene="s")
+    mock_client.structured.side_effect = mock_structured
+
+    mu_agent = MeetingUnderstandingAgent(mock_client)
+    await mu_agent.run("测试原文", is_agenda_enhanced=True)
+    called_prompt = mock_client.structured.call_args[0][0]
+    assert called_prompt == MEETING_UNDERSTANDING_AGENDA_SYSTEM_PROMPT
+
+    # 2. 纪要草稿 Agent 提示词路由
+    from domains.meeting.tasks.minutes.steps.minutes_agent import MinutesGenerationAgent
+    agent = MinutesGenerationAgent(mock_client)
+    mock_client.structured.reset_mock()
+    async def mock_structured_draft(prompt, *args, **kwargs):
+        from domains.meeting.models_generated import Minutes
+        return Minutes(headline="测试标题", executive_summary=["段落1"])
+    mock_client.structured.side_effect = mock_structured_draft
+
+    await agent.run("议题模式：agenda_enhanced\n视角模式：objective\n\n会议理解：{}")
+    called_prompt = mock_client.structured.call_args[0][0]
+    assert called_prompt == MINUTES_AGENDA_GENERATION_PROMPT
+
+    # 3. 纪要审核 Supervisor 提示词路由
+    from domains.meeting.tasks.minutes.steps.minutes_supervisor import MinutesGenerationSupervisor
+    from domains.shared.supervisor import GlobalSupervisor
+    supervisor = MinutesGenerationSupervisor(mock_client)
+    mock_client.structured.reset_mock()
+    async def mock_structured_review(prompt, *args, **kwargs):
+        from domains.meeting.models_generated import MinutesSupervisorReview
+        return MinutesSupervisorReview(
+            decision="approve",
+            facts_check={"passed": True, "issues": []},
+            perspective_check={"passed": True, "issues": []},
+            consistency_check={"passed": True, "issues": []},
+            feedback=[],
+        )
+    mock_client.structured.side_effect = mock_structured_review
+
+    await supervisor.review("视角模式：objective\n纪要返工次数：0/2\n\n议题模式：agenda_enhanced\n草稿：{}")
+    called_prompt = mock_client.structured.call_args[0][0]
+    expected_prompt = GlobalSupervisor.build_prompt(MINUTES_AGENDA_SUPERVISOR_PROMPT)
+    assert called_prompt == expected_prompt
+
+    # 4. 纪要渲染 Render 提示词路由
+    from domains.meeting.tasks.minutes.steps.minutes_render import MinutesGenerationRender
+    renderer = MinutesGenerationRender(mock_client)
+    # 4a. 无模板模式
+    rendered_prompt, _ = renderer._prompt_and_user("议题模式：agenda_enhanced\n视角模式：objective", "")
+    assert "（审定议题专有模式）" in rendered_prompt
+    assert "### [审定议题一全称]" in rendered_prompt
+    # 4b. 模板模式
+    rendered_prompt_tpl, _ = renderer._prompt_and_user("议题模式：agenda_enhanced\n视角模式：objective", "# 通用纪要模板\n{{scalar:要点梳理}}")
+    assert "以审定议题为主线结构规范" in rendered_prompt_tpl
+    assert "一级小节标题（### 议题名称）" in rendered_prompt_tpl
 

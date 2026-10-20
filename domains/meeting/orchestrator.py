@@ -693,6 +693,10 @@ class _Nodes(DomainNodes):
                     "撰写段落时，以各阶段议题节点的指标、决策与分歧脉络为事实骨架，对照会议原文定向补充具体论据细节与发言人表态。"
                     "顺应业务研讨推进脉络成段展开。裁剪视角时严格参考用户画像、命中表和用户视角模型。"
                 )
+            elif state.get("has_valid_agenda"):
+                fact_note = (
+                    "说明：本场会议已审定有效议题清单，会议原文已完成议题打标。以审定议题为主线骨架，以各议题的因果脉络、核心指标与论辩过程成段展开草稿，确保每段清晰标注所属议题与子主题。"
+                )
             else:
                 fact_note = (
                     "说明：会议理解平铺议题与时序研讨段落是你的主事实源与导航索引，已包含全场决议、量化指标、落地行动与风险隐患。"
@@ -710,10 +714,13 @@ class _Nodes(DomainNodes):
                 "说明：仅使用本任务上下文包中的事实；需要裁剪视角时参考用户画像和用户视角模型。"
                 "不要从未提供的完整原文中补造事实。"
             )
-        parts = [
+        parts = []
+        if line_name == "minutes" and state.get("has_valid_agenda"):
+            parts.append("议题模式：agenda_enhanced")
+        parts.extend([
             f"视角模式：{mode}",
             fact_note,
-        ]
+        ])
         if mode == "personal":
             # 个人模式：注入画像、偏好、命中表、分组骨架、重点关注雷达
             parts.append(f"用户画像：\n{_json(self._compact_user(state.get('user') or {}))}")
@@ -748,25 +755,8 @@ class _Nodes(DomainNodes):
                 parts.append(f"用户视角模型：\n{_json(perspective)}")
         # 纪要成段需要原文细节；溯源/多样式/导图/共识决策以及待办/风险深挖同样需要原文。其它线优先依赖 evidence。
         if line_name in {"minutes", "minutes_trace", "minutes_styles", "mindmap", "consensus_decision", "actions", "risks"}:
-            if line_name == "minutes" and state.get("has_valid_agenda"):
-                agendas = state.get("valid_agendas") or []
-                agenda_checklist = "\n".join(
-                    f"{i+1}. 议题：{a.title}（汇报人：{'、'.join(a.presenters) or '未指定'}）"
-                    for i, a in enumerate(agendas)
-                )
-                parts.append(
-                    f"【审定议题纪要撰写指引】：\n"
-                    f"本次会议已审定以下有效讨论议题：\n{agenda_checklist}\n\n"
-                    "请按以下结构撰写 executive_summary：\n"
-                    "1. 首项（全局概览）：简要概述全场会议背景、核心主线与最关键决议；\n"
-                    "2. 后续各项（议题分节）：严格按审定清单顺序，一项对应一个议题展开成段；\n"
-                    "3. 议题内部分点：对于包含多个讨论方向的议题，在段落内自然呈现各子主题（格式：[子主题名称] 论据与结论），交代完整研讨脉络。"
-                )
-                parts.append(
-                    f"【会议原文】\n{state.get('tagged_transcript') or state.get('transcript') or ''}"
-                )
-            else:
-                parts.append(f"会议原文：\n{state.get('transcript') or ''}")
+            raw_transcript = state.get("tagged_transcript") or state.get("transcript") or ""
+            parts.append(f"会议原文：\n{raw_transcript}")
         if line_name in {"minutes", "minutes_styles"}:
             budget = self._length_budget_line(state, line_name)
             if budget:
@@ -790,21 +780,16 @@ class _Nodes(DomainNodes):
         """
         sub = _line(state, line_name)
         mode = self._mode_label(state)
-        blocks = [self._supervisor_source_pack(state, line_name)]
+        blocks = []
+        if line_name == "minutes" and state.get("has_valid_agenda"):
+            blocks.append("议题模式：agenda_enhanced")
+        blocks.append(self._supervisor_source_pack(state, line_name))
         memory = str(sub.get("memory_context") or "").strip()
         if memory:
             blocks.append(memory)
         agenda_extra = str((state.get("line_extra") or {}).get("agenda_minutes") or "").strip()
         if line_name == "agenda_minutes" and agenda_extra:
             blocks.append(f"【既定议程单原件】\n{agenda_extra}")
-        if line_name == "minutes" and state.get("has_valid_agenda"):
-            agendas = state.get("valid_agendas") or []
-            if agendas:
-                agenda_checklist = "\n".join(
-                    f"{i+1}. 议题：{a.title}（汇报人：{'、'.join(a.presenters) or '未指定'}）"
-                    for i, a in enumerate(agendas)
-                )
-                blocks.append(f"【现场审定的有效议题清单】\n{agenda_checklist}")
         # 命中表（程序判定，带依据）：真人/职业模板下是"谁的事"的唯一硬依据
         hits = str(state.get("user_hits_block") or "").strip()
         if hits and mode != "objective":
@@ -857,6 +842,15 @@ class _Nodes(DomainNodes):
             ("用户画像", self._compact_user(state.get("user") or {}), "json"),
             ("会议理解", pack, "json"),
         ]
+        if line_name == "minutes" and state.get("has_valid_agenda"):
+            blocks.insert(0, ("议题模式", "agenda_enhanced", "raw"))
+            agendas = state.get("valid_agendas") or []
+            if agendas:
+                checklist_lines = [
+                    f"{i+1}. 议题：{a.title}（汇报人：{'、'.join(a.presenters) or '未指定'}）"
+                    for i, a in enumerate(agendas)
+                ]
+                blocks.append(("现场审定的有效议题清单", "\n".join(checklist_lines), "raw"))
         perspective = self._compact_perspective(state.get("perspective_profile") or {})
         if perspective:
             blocks.append(("已审核用户视角", perspective, "json"))
@@ -872,21 +866,6 @@ class _Nodes(DomainNodes):
         # 它看不到"他是谁、他关心什么"就会把个人视角摊回整场（实测观感：与客观没区别）。
         # 命中块对所有非客观线有用（谁的事）；偏好块只进纪要线（它讲的是"怎么写纪要"）。
         extra_parts = [extra] if str(extra or "").strip() else []
-        if line_name == "minutes" and state.get("has_valid_agenda"):
-            agendas = state.get("valid_agendas") or []
-            if agendas:
-                agenda_checklist = "\n".join(
-                    f"{i+1}. 议题：{a.title}（汇报人：{'、'.join(a.presenters) or '未指定'}）"
-                    for i, a in enumerate(agendas)
-                )
-                extra_parts.append(
-                    f"【现场审定的有效议题清单】：\n{agenda_checklist}\n\n"
-                    "【议题结构排版指引】：\n"
-                    "排版 [要点梳理] 栏目时，请遵循以下层级规范：\n"
-                    "1. 一级小节：使用清单中的议题全称作为 ### 小节标题，按清单顺序依次呈现；\n"
-                    "2. 二级子分点：对于包含多个讨论方向的议题，将草稿中对应的讨论点作为子标题展开（推荐使用 #### 1. 子主题名称 或 **1. 子主题名称**：），在子标题下方使用 - 列出具体事实论据；\n"
-                    "3. 事实归属：草稿中记录的各研讨事实，根据其讨论范畴归入对应议题的子主题下，使正文结构层次分明。"
-                )
         if not bool(state.get("objective_perspective")):
             hits = str(state.get("user_hits_block") or "").strip()
             if hits:
@@ -1307,32 +1286,19 @@ class _Nodes(DomainNodes):
                     user_obj,
                     transcript=transcript_input if self._mode_label(state) == "personal" else "",
                 )
-                if state.get("has_valid_agenda"):
-                    agendas = state.get("valid_agendas") or []
-                    checklist = "\n".join(
-                        f"{i+1}. 议题：{a.title}（汇报人：{'、'.join(a.presenters) or '未指定'}）"
-                        for i, a in enumerate(agendas)
-                    )
-                    nav_block = (
-                        f"【审定议题阶段归集指引】：\n"
-                        f"本次会议已审定以下有效讨论议题：\n{checklist}\n\n"
-                        "请按上述清单组织 session_segments：\n"
-                        "1. 阶段对应：session_segments 与清单议题一一对应，segment_title 采用清单中的议题全称；\n"
-                        "2. 议题内部分点：若议题下包含多个讨论方向（如交流环节涵盖多个问答点），"
-                        "请在该阶段的 key_facts 中按子主题分类列出（格式：[子主题名称] 具体事实与论据）。"
-                    )
-                    channel_text = f"{nav_block}\n\n{channel_text}".strip()
-
                 kwargs = {
                     "focus_line": selected[0] if len(selected) == 1 and skip else "",
                     "skip_fields": skip,
                     "user_channel": channel_text,
                 }
                 sig = inspect.signature(self.meeting_understanding_agent.run)
-                if "active_tasks" in sig.parameters:
+                has_var_kw = any(p.kind == inspect.Parameter.VAR_KEYWORD for p in sig.parameters.values())
+                if "active_tasks" in sig.parameters or has_var_kw:
                     kwargs["active_tasks"] = selected
                     kwargs["template_text"] = template
                     kwargs["memory_on"] = memory_on
+                if "is_agenda_enhanced" in sig.parameters or has_var_kw:
+                    kwargs["is_agenda_enhanced"] = bool(state.get("has_valid_agenda"))
 
                 result = await self.meeting_understanding_agent.run(
                     transcript_input,

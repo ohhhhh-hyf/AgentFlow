@@ -110,6 +110,28 @@ _MINUTES_PERSONAL_AGENT_RULES = """## 三、个人视角纪要专有规则（作
 
 MINUTES_PERSONAL_GENERATION_PROMPT = _MINUTES_COMMON_BASE + "\n\n" + _MINUTES_PERSONAL_AGENT_RULES
 
+# ── 议题特化模式生成提示词 ────────────────────────────────────────────────────
+_MINUTES_AGENDA_AGENT_RULES = """## 三、审定议题客观纪要专有规则
+
+### 1. 立场与称谓标准
+- 采用绝对客观中立的第三方公文视角，通篇统一使用第三人称；
+- 行为主体规范标注为真实姓名或客观规范称谓（姓名 > 明确部门/角色 > 原始编号），保持平权客观叙述。
+
+### 2. 各字段客观提炼规则
+- **headline（客观总结标题）**：
+  - 概括会议核心业务主题，8–18 字，具备严谨公文标题风格；直陈核心业务标的与定调，不加任何视角前缀。
+- **executive_summary（审定议题层级分段正文）**：
+  - 首项（全场概览项）：简明客观交代全场会议背景、核心主线议题推进态势与最关键的全局定调决议（约 250–350 字）；
+  - 后续分项（议题分段项）：严格按审定议题顺序，每项成段自然陈述。段落开头统一明确标注【所属议题名称 / 子研讨主题】（例如：`【何刚总致辞 / 开场致辞与北京业务回顾】何刚总回顾北京业务历史...`、`【互动交流 / 唤醒体验与产品线协同】高畅提出小艺作为平台面向不同产品线...`），平衡展现技术方案考量、关键量化指标与讨论定调。
+- **personally_relevant_points（全员落地行动分工）**：
+  - 统一产出面向全场团队的执行要点，明确责任归口至具体个人或专属团队；句式为 `[责任主体] + 核心任务 + 交付成果/验收标准 + 协同对象 + 完成时限`。
+- **key_decisions（全场决策决议）**：
+  - 从 MeetingUnderstanding.decisions 逐字搬运现场拍板结论，全景平铺。
+- **risks_and_blockers / unresolved_questions（全场风险与未决）**：
+  - 从 risks 与 open_questions 逐字搬运，全景平铺反映全场潜在技术隐患与悬而未决的争议事项；全场无风险输出 []。"""
+
+MINUTES_AGENDA_GENERATION_PROMPT = _MINUTES_COMMON_BASE + "\n\n" + _MINUTES_AGENDA_AGENT_RULES
+
 # 兼容别名
 MINUTES_GENERATION_SYSTEM_PROMPT = MINUTES_OBJECTIVE_GENERATION_PROMPT
 
@@ -159,6 +181,19 @@ _PERSONAL_SUPERVISOR_RULES = """### 个人视角审查专项
 
 MINUTES_PERSONAL_SUPERVISOR_PROMPT = _SUPERVISOR_COMMON_BASE + "\n\n" + _PERSONAL_SUPERVISOR_RULES
 
+# ── 议题特化审核提示词 ────────────────────────────────────────────────────────
+_AGENDA_SUPERVISOR_RULES = """### 审定议题模式审查专项
+1. **议题完整性与归属审查**：
+   - 审查草稿 executive_summary 是否全面覆盖本次会议审定的有效讨论议题；
+   - 审查各研讨段落所标注的【所属议题名称 / 子研讨主题】是否准确反映实际研讨范畴，不存在脱幅遗漏；
+   - 只要各审定议题均有对应段落且事实真实，予以放行通过。
+2. **全员覆盖度与格式放行**：
+   - 审查 personally_relevant_points 是否具备明确责任归口；
+   - 段落采用【所属议题名称 / 子研讨主题】标注属于标准规范，予以直接放行通过；
+   - 搬运项（决策、风险、未决问题）由底层程序强对齐，直接免审放行。"""
+
+MINUTES_AGENDA_SUPERVISOR_PROMPT = _SUPERVISOR_COMMON_BASE + "\n\n" + _AGENDA_SUPERVISOR_RULES
+
 # 兼容别名
 MINUTES_SUPERVISOR_DOMAIN_PROMPT = MINUTES_OBJECTIVE_SUPERVISOR_PROMPT
 
@@ -206,6 +241,29 @@ MINUTES_PERSONAL_RENDER_PROMPT = """你是会议纪要渲染器。把通过审�
 1. 本人动作动宾开头省略主语，他人事项保留真实姓名；
 2. 规范保持“**本人相关**：”置顶，复选框 - [ ] 规范呈现。"""
 
+MINUTES_AGENDA_RENDER_PROMPT = """你是会议纪要渲染器（审定议题专有模式）。把通过审核的结构化议题草稿，排版为结构分明、层级严整的全景公文纪要正文。
+
+## 排版层级规范
+# 会议纪要
+## 全文摘要
+（单段概括全场宏观态势与最关键决议）
+## 要点梳理
+### [审定议题一全称]
+#### 1. [子主题名称]
+- 方案考量与具体论据
+### [审定议题二全称]
+...
+## 关键决策
+（逐条陈述现场明确拍板的决议）
+## 全员执行要点
+（按责任人/部门列出落地执行分工）
+## 风险与阻塞
+（全景呈现技术卡点与交付隐患）
+
+## 排版准则
+1. 一级小节必须对齐审定议题全称，二级子主题承接草稿分项；
+2. 保持客观第三方公文体，忠实呈现草稿事实与量化参数。"""
+
 # 兼容保留
 MINUTES_RENDER_PROMPT = MINUTES_OBJECTIVE_RENDER_PROMPT
 
@@ -228,15 +286,38 @@ MINUTES_RENDER_TEMPLATE_PROMPT = build_template_render_prompt(
     ],
 )
 
+MINUTES_AGENDA_RENDER_TEMPLATE_PROMPT = build_template_render_prompt(
+    renderer="会议纪要渲染器",
+    source="已审核草稿（结构化事实基准）",
+    source_rule=(
+        "**以已审核草稿为事实基准，以审定议题为主线结构规范**：排版渲染时，严格按照以下三层规范呈现：\n"
+        "1. 一级小节标题（### 议题名称）：正文 [要点梳理] 栏目必须且仅使用草稿中记录的审定议题全称设立三级小节标题（###），严格保持议题名称逐字对应与原序呈现；\n"
+        "2. 二级子主题（#### 1. 子主题名称）：对于包含多个不同研讨方向的议题，以草稿中的子研讨主题设立四级标题（格式：`#### 1. 子主题名称` 或 `**1. 子主题名称**：`），并在子标题下方使用 - 逐项列出具体方案考量与事实论据；\n"
+        "3. 单一主题议题直接分条：对于研讨内容单一集中的议题，直接在三级标题（###）下方使用 - 逐项列出核心事实与定调；\n"
+        "4. 事实归属保真：草稿中的各项研讨事实，根据其议题与子主题标识归入对应小节，完整保留硬核数据指标与论据细节，无事实遗漏。"
+    ),
+    empty_rule=(
+        "某栏在草稿中对该栏主题无依据且模板允许省略时直接保持空内容自适应隐去；"
+        "模板没约定时优先自适应隐去，确需占位时按模板指定词填写，不使用外部常识补全。"
+    ),
+    extra_rules=[
+        "模板若含写作要求，按该要求客观准确填写",
+    ],
+)
+
 __all__ = [
     "MINUTES_GENERATION_SYSTEM_PROMPT",
     "MINUTES_OBJECTIVE_GENERATION_PROMPT",
     "MINUTES_PERSONAL_GENERATION_PROMPT",
+    "MINUTES_AGENDA_GENERATION_PROMPT",
     "MINUTES_SUPERVISOR_DOMAIN_PROMPT",
     "MINUTES_OBJECTIVE_SUPERVISOR_PROMPT",
     "MINUTES_PERSONAL_SUPERVISOR_PROMPT",
+    "MINUTES_AGENDA_SUPERVISOR_PROMPT",
     "MINUTES_RENDER_PROMPT",
     "MINUTES_OBJECTIVE_RENDER_PROMPT",
     "MINUTES_PERSONAL_RENDER_PROMPT",
+    "MINUTES_AGENDA_RENDER_PROMPT",
     "MINUTES_RENDER_TEMPLATE_PROMPT",
+    "MINUTES_AGENDA_RENDER_TEMPLATE_PROMPT",
 ]

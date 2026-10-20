@@ -7,6 +7,7 @@ from ..models import MeetingUnderstanding
 from .prompts import (
     MEETING_UNDERSTANDING_SYSTEM_PROMPT,
     MEETING_UNDERSTANDING_LIGHTWEIGHT_SYSTEM_PROMPT,
+    MEETING_UNDERSTANDING_AGENDA_SYSTEM_PROMPT,
 )
 from .contracts import (
     MEETING_UNDERSTANDING_GENERATION_OUTPUT_CONTRACT,
@@ -31,6 +32,7 @@ class MeetingUnderstandingAgent:
         focus_line: str = "",
         skip_fields: Iterable[str] = (),
         user_channel: str = "",
+        is_agenda_enhanced: bool = False,
     ) -> MeetingUnderstanding:
         """运行会议理解抽取。
 
@@ -67,11 +69,12 @@ class MeetingUnderstandingAgent:
         )
 
         is_lightweight = is_actions_risks_only_tasks(tasks, memory_on=memory_on)
-        system_prompt = (
-            MEETING_UNDERSTANDING_LIGHTWEIGHT_SYSTEM_PROMPT
-            if is_lightweight
-            else MEETING_UNDERSTANDING_SYSTEM_PROMPT
-        )
+        if is_agenda_enhanced:
+            system_prompt = MEETING_UNDERSTANDING_AGENDA_SYSTEM_PROMPT
+        elif is_lightweight:
+            system_prompt = MEETING_UNDERSTANDING_LIGHTWEIGHT_SYSTEM_PROMPT
+        else:
+            system_prompt = MEETING_UNDERSTANDING_SYSTEM_PROMPT
 
         result = await self.client.structured(
             system_prompt,

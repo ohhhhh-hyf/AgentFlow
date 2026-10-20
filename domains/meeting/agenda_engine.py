@@ -72,6 +72,14 @@ def build_tagged_transcript_with_head_tail(
 
     parts: list[str] = []
 
+    # 0. 现场审定的有效议题清单（纯业务输入数据，供全链路节点作为客观事实基准读取）
+    checklist_lines = [
+        f"{i+1}. 议题：{a.title}（汇报人：{'、'.join(a.presenters) or '未指定'}）"
+        for i, a in enumerate(valid_agendas)
+    ]
+    if checklist_lines:
+        parts.append("【现场审定的有效议题清单】：\n" + "\n".join(checklist_lines))
+
     # 1. 头部保护：首个实质议题前的发言（开场白、背景动线）
     head_blocks = [b for b in all_blocks if b.index < min_start_idx]
     if head_blocks:
