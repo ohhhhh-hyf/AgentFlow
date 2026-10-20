@@ -170,6 +170,8 @@ def test_agenda_template_resolution():
 
     # 1. 议题模式下加载通用纪要：命中 resources/agenda_templates/general_minutes.md
     agenda_fmt = resolve_agenda_template_format("general_minutes")
+    from core.templates.router._gate import scan_fixed_bracket_literals
+    assert scan_fixed_bracket_literals(agenda_fmt) == [], "agenda template must not have unparsed fixed bracket literals"
     assert "以现场审定的有效议题清单为主线展开呈现" in agenda_fmt
     assert "每个审定议题设立三级小节标题" in agenda_fmt
     assert "#### 1. 子主题名称" in agenda_fmt
