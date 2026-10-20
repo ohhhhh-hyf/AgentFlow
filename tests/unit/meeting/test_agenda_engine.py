@@ -1,0 +1,116 @@
+import pytest
+
+from domains.meeting.agenda_engine import (
+    ValidAgendaItem,
+    AgendaProcessResult,
+    probe_valid_agendas,
+    process_agenda_for_minutes,
+    build_tagged_transcript_with_head_tail,
+)
+from domains.meeting.tasks.agenda_minutes.alignment_engine import DiscussionBlock
+
+
+def test_agenda_engine_empty_inputs():
+    assert probe_valid_agendas("", "") == []
+    assert probe_valid_agendas("some transcript", "") == []
+    assert probe_valid_agendas("", "1. 议题一") == []
+
+    res = process_agenda_for_minutes("", "")
+    assert not res.has_valid_agenda
+    assert res.valid_agendas == []
+    assert res.tagged_transcript == ""
+
+
+def test_agenda_engine_non_agenda_document():
+    transcript = """
+    张三: 今天我们讨论一下系统的部署架构。
+    李四: 好的，我建议采用Kubernetes集群方案。
+    """
+    non_agenda_doc = """
+    def calculate_tax(income):
+        return income * 0.2
+    """
+    valid = probe_valid_agendas(transcript, non_agenda_doc)
+    assert valid == []
+
+    res = process_agenda_for_minutes(transcript, non_agenda_doc)
+    assert not res.has_valid_agenda
+    assert res.valid_agendas == []
+    assert res.tagged_transcript == transcript
+
+
+def test_agenda_engine_ceremonial_and_skipped_filtering():
+    agenda_text = """
+    1. 观看公司宣传片（会务组）
+    2. 自研车载芯片二期量产（主讲人：张三）
+    3. 全体合影留念（会务组）
+    4. 智能客服降本方案（主讲人：王五）
+    5. 下半年团建方案（主讲人：赵六）
+    """
+    transcript = """
+    主持人: 各位上午好，请大家先看大屏幕上的宣传片，稍后开始。
+    张三 10:00:
+    各位好，关于自研车载芯片二期量产，目前A样芯片良率已经达到了91.5%，综合功耗超出预期。
+    我们需要追加1200万元流片预算。
+    李四: 我赞同追加预算。
+    主持人: 大家在背景板前合个影，一二三茄子。
+    王五 10:30:
+    接下来由我汇报智能客服降本方案。目前客服月均成本达到80万元，我们计划用AI替代70%常规咨询。
+    下周在华东大区上线试点。
+    主持人: 时间到了，今天的团建方案今天来不及讨论了，改天再对齐。散会！
+    """
+    valid = probe_valid_agendas(transcript, agenda_text)
+    titles = [item.title for item in valid]
+
+    # 验证仪式项（宣传片、合影）被剔除
+    assert not any("宣传片" in t for t in titles)
+    assert not any("合影" in t for t in titles)
+    # 验证未讨论项（团建）被剔除
+    assert not any("团建" in t for t in titles)
+    # 验证实质讨论项被保留
+    assert any("自研车载芯片" in t for t in titles)
+    assert any("智能客服" in t for t in titles)
+
+
+def test_agenda_engine_chronological_reordering():
+    # 议程单原顺序：1. 客服方案 2. 芯片二期
+    agenda_text = """
+    1. 智能客服降本方案（汇报人：王五）
+    2. 自研车载芯片二期量产（汇报人：张三）
+    """
+    # 现场实际先聊了芯片，再聊客服
+    transcript = """
+    张三 09:00:
+    王五临时有事，我先汇报自研车载芯片二期量产。目前良率91.5%，建议追加流片资金。
+    王五 09:30:
+    我赶到了，现在由我汇报智能客服降本方案，计划分流70%咨询。
+    """
+    valid = probe_valid_agendas(transcript, agenda_text)
+    assert len(valid) == 2
+    # 验证重排为现场实际时序
+    assert "芯片" in valid[0].title
+    assert "客服" in valid[1].title
+
+
+def test_agenda_engine_head_and_tail_protection():
+    all_blocks = [
+        DiscussionBlock(speaker="主持人", timestamp="09:00", content="各位领导上午好，今天召开战略决策会，感谢大家准时参会。", index=0),
+        DiscussionBlock(speaker="张三", timestamp="09:10", content="关于芯片二期，我们的核心数据如下，良率91.5%...", index=1),
+        DiscussionBlock(speaker="李总", timestamp="09:50", content="大家讲得很好，最后定下来追加1200万预算，海外合规抓紧办，散会。", index=2),
+    ]
+    valid_item = ValidAgendaItem(
+        seq="1",
+        title="芯片二期进展",
+        presenters=["张三"],
+        start_index=1,
+        end_index=2,
+        matched_blocks=[all_blocks[1]],
+    )
+    tagged = build_tagged_transcript_with_head_tail(all_blocks, [valid_item])
+
+    assert "【会议开场背景与宏观动线】" in tagged
+    assert "今天召开战略决策会" in tagged
+    assert "【议题 1：芯片二期进展】（汇报人：张三）" in tagged
+    assert "良率91.5%" in tagged
+    assert "【会末收尾与全场定调】" in tagged
+    assert "最后定下来追加1200万预算" in tagged

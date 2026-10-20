@@ -748,7 +748,20 @@ class _Nodes(DomainNodes):
                 parts.append(f"用户视角模型：\n{_json(perspective)}")
         # 纪要成段需要原文细节；溯源/多样式/导图/共识决策以及待办/风险深挖同样需要原文。其它线优先依赖 evidence。
         if line_name in {"minutes", "minutes_trace", "minutes_styles", "mindmap", "consensus_decision", "actions", "risks"}:
-            parts.append(f"会议原文：\n{state.get('transcript') or ''}")
+            if line_name == "minutes" and state.get("has_valid_agenda"):
+                agendas = state.get("valid_agendas") or []
+                agenda_checklist = "\n".join(
+                    f"{i+1}. 议题：{a.title}（汇报人：{'、'.join(a.presenters) or '未指定'}）"
+                    for i, a in enumerate(agendas)
+                )
+                parts.append(
+                    f"【现场审定的有效议题清单（正文必须按此议题结构与顺序展开）】：\n{agenda_checklist}"
+                )
+                parts.append(
+                    f"【会议原文】\n{state.get('tagged_transcript') or state.get('transcript') or ''}"
+                )
+            else:
+                parts.append(f"会议原文：\n{state.get('transcript') or ''}")
         if line_name in {"minutes", "minutes_styles"}:
             budget = self._length_budget_line(state, line_name)
             if budget:
@@ -779,6 +792,14 @@ class _Nodes(DomainNodes):
         agenda_extra = str((state.get("line_extra") or {}).get("agenda_minutes") or "").strip()
         if line_name == "agenda_minutes" and agenda_extra:
             blocks.append(f"【既定议程单原件】\n{agenda_extra}")
+        if line_name == "minutes" and state.get("has_valid_agenda"):
+            agendas = state.get("valid_agendas") or []
+            if agendas:
+                agenda_checklist = "\n".join(
+                    f"{i+1}. 议题：{a.title}（汇报人：{'、'.join(a.presenters) or '未指定'}）"
+                    for i, a in enumerate(agendas)
+                )
+                blocks.append(f"【现场审定的有效议题清单】\n{agenda_checklist}")
         # 命中表（程序判定，带依据）：真人/职业模板下是"谁的事"的唯一硬依据
         hits = str(state.get("user_hits_block") or "").strip()
         if hits and mode != "objective":
@@ -846,6 +867,16 @@ class _Nodes(DomainNodes):
         # 它看不到"他是谁、他关心什么"就会把个人视角摊回整场（实测观感：与客观没区别）。
         # 命中块对所有非客观线有用（谁的事）；偏好块只进纪要线（它讲的是"怎么写纪要"）。
         extra_parts = [extra] if str(extra or "").strip() else []
+        if line_name == "minutes" and state.get("has_valid_agenda"):
+            agendas = state.get("valid_agendas") or []
+            if agendas:
+                agenda_checklist = "\n".join(
+                    f"{i+1}. 议题：{a.title}（汇报人：{'、'.join(a.presenters) or '未指定'}）"
+                    for i, a in enumerate(agendas)
+                )
+                extra_parts.append(
+                    f"【现场审定的有效议题清单（正文必须按此议题结构与顺序展开）】：\n{agenda_checklist}"
+                )
         if not bool(state.get("objective_perspective")):
             hits = str(state.get("user_hits_block") or "").strip()
             if hits:
@@ -1230,6 +1261,31 @@ class _Nodes(DomainNodes):
             template = str((state.get("templates") or {}).get("minutes") or "")
             memory_on = bool((state.get("line_extra") or {}).get("__meeting_memory__"))
             skip = self._understanding_skip(selected, template, memory_on)
+
+            agenda_text = str((state.get("line_extra") or {}).get("agenda_text") or "").strip()
+            agenda_update = {}
+            transcript_input = state.get("transcript") or ""
+
+            if "minutes" in selected and agenda_text and transcript_input:
+                from domains.meeting.agenda_engine import process_agenda_for_minutes
+
+                agenda_res = process_agenda_for_minutes(transcript_input, agenda_text)
+                if agenda_res.has_valid_agenda:
+                    state["valid_agendas"] = agenda_res.valid_agendas
+                    state["tagged_transcript"] = agenda_res.tagged_transcript
+                    state["has_valid_agenda"] = True
+                    agenda_update = {
+                        "valid_agendas": agenda_res.valid_agendas,
+                        "tagged_transcript": agenda_res.tagged_transcript,
+                        "has_valid_agenda": True,
+                    }
+                    transcript_input = agenda_res.tagged_transcript
+                else:
+                    state["has_valid_agenda"] = False
+                    agenda_update = {"has_valid_agenda": False}
+            else:
+                state["has_valid_agenda"] = False
+
             progress("agent start meeting_understanding")
             try:
                 # 本用户称呼表：把"赵工/小赵"这类原文称呼统一成真名，供下游裁剪与 owner 使用
@@ -1237,13 +1293,23 @@ class _Nodes(DomainNodes):
                 from domains.shared.perspective import build_user_channel
                 import inspect
                 user_obj = state.get("user") or {}
+                channel_text = build_user_channel(
+                    user_obj,
+                    transcript=transcript_input if self._mode_label(state) == "personal" else "",
+                )
+                if state.get("has_valid_agenda"):
+                    agendas = state.get("valid_agendas") or []
+                    checklist = "\n".join(
+                        f"{i+1}. 议题：{a.title}（汇报人：{'、'.join(a.presenters) or '未指定'}）"
+                        for i, a in enumerate(agendas)
+                    )
+                    nav_block = f"【会前审定议题参考（供阶段划分与研讨归集对齐）】：\n{checklist}"
+                    channel_text = f"{nav_block}\n\n{channel_text}".strip()
+
                 kwargs = {
                     "focus_line": selected[0] if len(selected) == 1 and skip else "",
                     "skip_fields": skip,
-                    "user_channel": build_user_channel(
-                        user_obj,
-                        transcript=state.get("transcript") or "" if self._mode_label(state) == "personal" else "",
-                    ),
+                    "user_channel": channel_text,
                 }
                 sig = inspect.signature(self.meeting_understanding_agent.run)
                 if "active_tasks" in sig.parameters:
@@ -1252,7 +1318,7 @@ class _Nodes(DomainNodes):
                     kwargs["memory_on"] = memory_on
 
                 result = await self.meeting_understanding_agent.run(
-                    state["transcript"],
+                    transcript_input,
                     **kwargs,
                 )
 
@@ -1261,10 +1327,11 @@ class _Nodes(DomainNodes):
                 return {
                     "meeting_understanding": _EMPTY_MEETING_UNDERSTANDING,
                     "quality_degraded": True,
+                    **agenda_update,
                 }
             progress("agent done meeting_understanding")
             data = result.model_dump()
-            return {"meeting_understanding": data}
+            return {"meeting_understanding": data, **agenda_update}
 
         return node
 

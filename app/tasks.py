@@ -635,6 +635,51 @@ def _prepare(domain: str, task: str, req: TaskRequest, user_id: str) -> _Prepare
                 if body:
                     agenda_parts.append(body)
             agenda_from_docs = "\n\n".join(agenda_parts).strip()
+        elif line == "minutes":
+            # minutes 的 docs：优先探测是否为既定议程单（文本或图片）；
+            # 若探测出有效实质议题，则提取为 agenda_text 专供议题结构化，不并入 transcript；
+            # 若未探测出有效议题（传的是参考资料、财务报表、纯代码等，或现场全未讨论），
+            # 必须默认回退！将其纳入 material_docs，正常 OCR/预览并入 transcript，100% 保持 legacy 行为。
+            candidate_parts = []
+            image_docs = [n for n in req.docs if _is_image_name(n)]
+            text_docs = [n for n in req.docs if not _is_image_name(n)]
+            if image_docs:
+                candidate_spk = []
+                if transcript:
+                    from domains.meeting.tasks.agenda_minutes.agenda_parser import extract_speakers_from_transcript
+
+                    candidate_spk = extract_speakers_from_transcript(transcript)
+                ocr_text = _ocr_single_agenda_doc(user_id, image_docs, candidate_speakers=candidate_spk)
+                if ocr_text:
+                    candidate_parts.append(ocr_text)
+            for name in text_docs:
+                path = _input_file(user_id, "docs", name)
+                try:
+                    body = path.read_text(encoding="utf-8").strip()
+                except UnicodeDecodeError:
+                    body = path.read_text(encoding="gbk", errors="replace").strip()
+                if body:
+                    candidate_parts.append(body)
+            candidate_agenda_text = "\n\n".join(candidate_parts).strip()
+
+            from domains.meeting.agenda_engine import probe_valid_agendas
+
+            valid_agendas = (
+                probe_valid_agendas(transcript, candidate_agenda_text)
+                if (candidate_agenda_text and transcript)
+                else []
+            )
+            if valid_agendas:
+                agenda_from_docs = candidate_agenda_text
+                logger.info(
+                    "minutes 任务检测到 docs 包含 %d 个有效讨论议题，激活议题增强流水线",
+                    len(valid_agendas),
+                )
+            else:
+                logger.info(
+                    "minutes 任务 docs 未探测到有效讨论议题，静默回退至常规参考资料流程",
+                )
+                material_docs = [name.strip() for name in req.docs]
         else:
             material_docs = [name.strip() for name in req.docs]
         if material_docs and line == "graph":
@@ -703,6 +748,8 @@ def _prepare(domain: str, task: str, req: TaskRequest, user_id: str) -> _Prepare
         agenda_val = "\n\n".join(parts).strip()
         if agenda_val:
             extra_line_inputs["agenda_minutes"] = agenda_val
+    if line == "minutes" and agenda_from_docs:
+        extra_line_inputs["agenda_text"] = agenda_from_docs
     if line in {"review", "quiz"}:
         scope_parts = []
         if (user_id or "").strip():
