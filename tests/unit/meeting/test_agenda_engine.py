@@ -114,3 +114,37 @@ def test_agenda_engine_head_and_tail_protection():
     assert "良率91.5%" in tagged
     assert "【会末收尾与全场定调】" in tagged
     assert "最后定下来追加1200万预算" in tagged
+
+
+def test_agenda_parser_cache_and_no_duplicate_logging(caplog):
+    """验证多次探测与处理同一议程单时，启用解析缓存且日志绝不重复打印既定议程识别。"""
+    from domains.meeting.tasks.agenda_minutes.agenda_parser import clear_agenda_parser_cache
+    import logging
+
+    clear_agenda_parser_cache()
+    caplog.set_level(logging.INFO)
+
+    agenda_text = """
+    | 序号 | 议题名称 | 汇报人 |
+    | 1 | 议题甲 | 张三 |
+    | 2 | 议题乙 | 李四 |
+    """
+    transcript = """
+    张三: 各位好，我们现在开始汇报议题甲。目前进展顺利。
+    李四: 好的，接下来开始汇报议题乙。各项指标合格。
+    """
+
+    # 模拟实际流程：1次 probe_valid_agendas + 2次 process_agenda_for_minutes
+    valid1 = probe_valid_agendas(transcript, agenda_text)
+    assert len(valid1) == 2
+
+    res2 = process_agenda_for_minutes(transcript, agenda_text)
+    assert res2.has_valid_agenda
+    assert len(res2.valid_agendas) == 2
+
+    res3 = process_agenda_for_minutes(transcript, agenda_text)
+    assert res3.has_valid_agenda
+
+    # 关键断言：无论调用多少次，既定议程识别成功信息在 INFO 级别只输出 1 次！
+    agenda_log_count = caplog.text.count("[AGENDA_PARSER] 既定议程单识别成功")
+    assert agenda_log_count == 1, f"Expected 1 agenda log, got {agenda_log_count}"

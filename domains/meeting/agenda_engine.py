@@ -107,52 +107,36 @@ def build_tagged_transcript_with_head_tail(
     return "\n\n".join(parts)
 
 
-def probe_valid_agendas(transcript: str, agenda_text: str) -> list[ValidAgendaItem]:
-    """快速探测 docs 是否包含与会议转写实质对齐的有效讨论议题（纯 Python，零 LLM 调用）。"""
-    t = (transcript or "").strip()
-    a = (agenda_text or "").strip()
-    if not t or not a:
-        return []
+def _extract_valid_agendas_from_alignment(alignment_res: Any) -> list[ValidAgendaItem]:
+    """从对齐结果中过滤出已讨论、非仪式的有效议题，并按现场时序排列。"""
+    valid_items: list[ValidAgendaItem] = []
+    # 使用 chronological_alignments 确保时序遵循现场真实讨论先后
+    for align in alignment_res.chronological_alignments:
+        if align.status != "discussed":
+            continue
+        if is_trivial_ceremonial_item(align):
+            continue
+        if not align.matched_blocks:
+            continue
 
-    try:
-        plan = parse_agenda_text(a, transcript=t)
-        if not plan or not plan.items:
-            return []
-
-        alignment_res = align_agenda_with_transcript(plan, t)
-        if not alignment_res or not alignment_res.alignments:
-            return []
-
-        valid_items: list[ValidAgendaItem] = []
-        # 使用 chronological_alignments 确保时序遵循现场真实讨论先后
-        for align in alignment_res.chronological_alignments:
-            if align.status != "discussed":
-                continue
-            if is_trivial_ceremonial_item(align):
-                continue
-            if not align.matched_blocks:
-                continue
-
-            valid_items.append(
-                ValidAgendaItem(
-                    seq=align.item.seq,
-                    title=align.item.title,
-                    presenters=list(align.item.presenters or []),
-                    start_index=align.start_index,
-                    end_index=align.end_index,
-                    matched_blocks=align.matched_blocks,
-                )
+        valid_items.append(
+            ValidAgendaItem(
+                seq=align.item.seq,
+                title=align.item.title,
+                presenters=list(align.item.presenters or []),
+                start_index=align.start_index,
+                end_index=align.end_index,
+                matched_blocks=align.matched_blocks,
             )
-        return valid_items
-    except Exception as err:
-        logger.warning("probe_valid_agendas failed unexpectedly: %s", err, exc_info=True)
-        return []
+        )
+    return valid_items
 
 
 def process_agenda_for_minutes(transcript: str, agenda_text: str) -> AgendaProcessResult:
-    """提取有效讨论议题，并生成带头尾保护的打标实录。"""
-    valid_agendas = probe_valid_agendas(transcript, agenda_text)
-    if not valid_agendas:
+    """提取有效讨论议题，并生成带头尾保护的打标实录（单次解析与对齐）。"""
+    t = (transcript or "").strip()
+    a = (agenda_text or "").strip()
+    if not t or not a:
         return AgendaProcessResult(
             has_valid_agenda=False,
             valid_agendas=[],
@@ -160,8 +144,31 @@ def process_agenda_for_minutes(transcript: str, agenda_text: str) -> AgendaProce
         )
 
     try:
-        plan = parse_agenda_text(agenda_text, transcript=transcript)
-        all_blocks = group_transcript_blocks(transcript, plan=plan)
+        plan = parse_agenda_text(a, transcript=t)
+        if not plan or not plan.items:
+            return AgendaProcessResult(
+                has_valid_agenda=False,
+                valid_agendas=[],
+                tagged_transcript=transcript or "",
+            )
+
+        alignment_res = align_agenda_with_transcript(plan, t)
+        if not alignment_res or not alignment_res.alignments:
+            return AgendaProcessResult(
+                has_valid_agenda=False,
+                valid_agendas=[],
+                tagged_transcript=transcript or "",
+            )
+
+        valid_agendas = _extract_valid_agendas_from_alignment(alignment_res)
+        if not valid_agendas:
+            return AgendaProcessResult(
+                has_valid_agenda=False,
+                valid_agendas=[],
+                tagged_transcript=transcript or "",
+            )
+
+        all_blocks = group_transcript_blocks(t, plan=plan)
         tagged = build_tagged_transcript_with_head_tail(all_blocks, valid_agendas)
         return AgendaProcessResult(
             has_valid_agenda=True,
@@ -169,9 +176,15 @@ def process_agenda_for_minutes(transcript: str, agenda_text: str) -> AgendaProce
             tagged_transcript=tagged,
         )
     except Exception as err:
-        logger.warning("process_agenda_for_minutes tagging failed: %s", err, exc_info=True)
+        logger.warning("process_agenda_for_minutes failed unexpectedly: %s", err, exc_info=True)
         return AgendaProcessResult(
             has_valid_agenda=False,
             valid_agendas=[],
             tagged_transcript=transcript or "",
         )
+
+
+def probe_valid_agendas(transcript: str, agenda_text: str) -> list[ValidAgendaItem]:
+    """快速探测 docs 是否包含与会议转写实质对齐的有效讨论议题（纯 Python，零 LLM 调用）。"""
+    res = process_agenda_for_minutes(transcript, agenda_text)
+    return res.valid_agendas if res.has_valid_agenda else []

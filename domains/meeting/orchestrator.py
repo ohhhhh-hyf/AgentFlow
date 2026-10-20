@@ -1269,9 +1269,15 @@ class _Nodes(DomainNodes):
                         "has_valid_agenda": True,
                     }
                     transcript_input = agenda_res.tagged_transcript
+                    logger.info(
+                        "[AGENDA_ENGINE] 议程增强流程就绪: 注入 %d 个有效研讨议题, 打标转写共 %d 字符",
+                        len(agenda_res.valid_agendas),
+                        len(agenda_res.tagged_transcript),
+                    )
                 else:
                     state["has_valid_agenda"] = False
                     agenda_update = {"has_valid_agenda": False}
+                    logger.info("[AGENDA_ENGINE] 未检测到有效研讨议题，回退常规纪要流程")
             else:
                 state["has_valid_agenda"] = False
 

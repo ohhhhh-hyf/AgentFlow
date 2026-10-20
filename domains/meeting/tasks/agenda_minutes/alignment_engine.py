@@ -697,13 +697,14 @@ def _align_by_topics_and_roadsigns(
     current_seq: str | None = None
     current_idx = 0
     assigned: dict[int, str | None] = {}
+    transitions: list[tuple[int, str, str, str, str]] = []
 
     for b in blocks:
         cand = _find_transition_candidate(b, current_idx)
         if cand:
             seq, idx, sig = cand
             if seq != current_seq:
-                logger.info(
+                logger.debug(
                     "[TRACK_B_ALIGNMENT] 发现路标切换: 块 %d [%s %s] 命中信号 '%s' -> 切换至议题 %s",
                     b.index,
                     b.speaker,
@@ -711,9 +712,18 @@ def _align_by_topics_and_roadsigns(
                     sig,
                     seq,
                 )
+                transitions.append((b.index, b.speaker, b.timestamp, sig, seq))
                 current_seq = seq
                 current_idx = idx + 1
         assigned[b.index] = current_seq
+
+    if transitions:
+        trans_summary = " -> ".join(f"议题{t[4]}('{t[3]}')" for t in transitions)
+        logger.info(
+            "[AGENDA_ALIGNMENT] 路标识别完成: 命中 %d 处转场信号 (%s)",
+            len(transitions),
+            trans_summary,
+        )
 
     alignments: list[AgendaAlignment] = []
     used_indices: set[int] = set()

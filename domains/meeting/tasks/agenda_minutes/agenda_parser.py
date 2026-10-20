@@ -8,6 +8,7 @@
 """
 from __future__ import annotations
 
+import copy
 import logging
 import re
 from dataclasses import dataclass, field
@@ -15,6 +16,13 @@ from datetime import datetime
 from pathlib import Path
 
 logger = logging.getLogger("agentflow.agenda_parser")
+
+_PARSED_AGENDA_CACHE: dict[tuple[str, tuple[str, ...]], AgendaPlan] = {}
+
+
+def clear_agenda_parser_cache() -> None:
+    """清理议程单解析缓存。"""
+    _PARSED_AGENDA_CACHE.clear()
 
 
 
@@ -156,7 +164,7 @@ def _resolve_columns(header_cells: list[str]) -> dict[str, int]:
         "category": cat_idx,
         "description": desc_idx,
     }
-    logger.info("agenda_parser: resolved table columns -> %s", cols)
+    logger.debug("agenda_parser: resolved table columns -> %s", cols)
     return cols
 
 
@@ -322,7 +330,7 @@ def reconcile_presenter_names(
                 best_score = score
                 best_match = cand
         if best_score >= 0.8:
-            logger.info(
+            logger.debug(
                 "reconcile_presenter_names: reconciled '%s' -> '%s' (score=%.2f)",
                 name,
                 best_match,
@@ -343,7 +351,7 @@ def reconcile_presenter_names(
         for cand in cleaned_cands:
             for p in re.findall(r"[\u4e00-\u9fa5]{2,6}", plan.meta.attendees):
                 if p not in cand_set and match_presenter_name(p, cand) >= 0.8:
-                    logger.info("reconcile_presenter_names (meta): reconciled '%s' -> '%s'", p, cand)
+                    logger.debug("reconcile_presenter_names (meta): reconciled '%s' -> '%s'", p, cand)
                     plan.meta.attendees = plan.meta.attendees.replace(p, cand)
 
     return plan
@@ -356,6 +364,23 @@ def parse_agenda_text(
 ) -> AgendaPlan:
     """从文本或 OCR 字符串中提取 AgendaPlan，可结合 transcript 自动校对形似错别字人名。"""
     normalized_text = (text or "").strip()
+    if not normalized_text:
+        return AgendaPlan()
+
+    # 提取发言人候选集合用于缓存键判定
+    if candidate_speakers:
+        spk_tuple = tuple(sorted(set(str(s).strip() for s in candidate_speakers if str(s).strip())))
+    elif transcript:
+        spk_tuple = tuple(sorted(set(extract_speakers_from_transcript(transcript))))
+    else:
+        spk_tuple = ()
+
+    cache_key = (normalized_text, spk_tuple)
+    if cache_key in _PARSED_AGENDA_CACHE:
+        cached_plan = _PARSED_AGENDA_CACHE[cache_key]
+        logger.debug("[AGENDA_PARSER] 命中议程单解析缓存 (共 %d 项)", len(cached_plan.items))
+        return copy.deepcopy(cached_plan)
+
     # 制表符分隔的多行文本自动转为管道表格
     if "\t" in normalized_text and "|" not in normalized_text:
         lines_with_tab = [l for l in normalized_text.splitlines() if "\t" in l]
@@ -366,7 +391,7 @@ def parse_agenda_text(
             )
 
     raw_lines = [line.strip() for line in normalized_text.splitlines() if line.strip()]
-    logger.info("agenda_parser: parsing agenda text (%d chars, %d lines)", len(normalized_text), len(raw_lines))
+    logger.debug("agenda_parser: parsing agenda text (%d chars, %d lines)", len(normalized_text), len(raw_lines))
 
     meta = AgendaMeta()
     table_lines: list[str] = []
@@ -411,7 +436,7 @@ def parse_agenda_text(
         headers = _split_table_row(table_lines[header_idx])
         cols = _resolve_columns(headers)
         used_cols = cols
-        logger.info("agenda_parser: matched table header at line %d: %s", header_idx, headers)
+        logger.debug("agenda_parser: matched table header at line %d: %s", header_idx, headers)
 
         for line in table_lines[header_idx + 1:]:
             if re.match(r"^[\s\+\-\|:]+$", line):
@@ -473,12 +498,12 @@ def parse_agenda_text(
                     description=desc_val,
                 )
             )
-        logger.info("agenda_parser: table mode extracted %d items", len(items))
+        logger.debug("agenda_parser: table mode extracted %d items", len(items))
 
     # 模式 B：若无表格或提取为0，回退至行列表扫描（如：1. 议题名称 汇报人：XXX 或 议题一：XXX）
     if not items:
         mode = "line_scan"
-        logger.info("agenda_parser: falling back to line-scan mode")
+        logger.debug("agenda_parser: falling back to line-scan mode")
         seq_counter = 1
         for line in raw_lines:
             # 匹配形如 "1. xxx" 或 "议题一：xxx" 或 "【议题1】xxx" 或 "1 xxx"
@@ -507,7 +532,7 @@ def parse_agenda_text(
                         )
                     )
                     seq_counter += 1
-        logger.info("agenda_parser: line-scan mode extracted %d items", len(items))
+        logger.debug("agenda_parser: line-scan mode extracted %d items", len(items))
 
     if items:
         lines_summary = [
@@ -537,6 +562,12 @@ def parse_agenda_text(
             candidate_speakers=candidate_speakers,
         )
     _log_parser_record(normalized_text, plan, mode, used_cols)
+
+    # 存入缓存（限制最大缓存数量以防止内存泄露）
+    if len(_PARSED_AGENDA_CACHE) >= 64:
+        _PARSED_AGENDA_CACHE.pop(next(iter(_PARSED_AGENDA_CACHE)))
+    _PARSED_AGENDA_CACHE[cache_key] = copy.deepcopy(plan)
+
     return plan
 
 
@@ -545,6 +576,7 @@ __all__ = [
     "AgendaMeta",
     "AgendaPlan",
     "clean_presenter_names",
+    "clear_agenda_parser_cache",
     "extract_speakers_from_transcript",
     "match_presenter_name",
     "parse_agenda_text",
