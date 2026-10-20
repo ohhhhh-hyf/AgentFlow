@@ -80,6 +80,8 @@ def test_orchestrator_render_context():
     render_ctx = nodes._render_context(state_enhanced, "minutes")
     assert "【现场审定的有效议题清单（正文必须按此议题结构与顺序展开）】" in render_ctx
     assert "自研车载芯片二期量产" in render_ctx
+    assert "【排版与小节命名纪律】" in render_ctx
+    assert "正文 [要点梳理] 栏目必须严格以且仅以本清单中的议题全称作为 ### 小节标题" in render_ctx
 
     state_legacy = {
         "transcript": "张三: 芯片进展",
@@ -162,3 +164,45 @@ def test_tasks_prepare_minutes_with_fallback_docs(tmp_path, monkeypatch):
     assert prep.input_files is not None
     transcript_content = prep.input_files.read_text(encoding="utf-8")
     assert "financial_report.txt" in transcript_content or "净利润" in transcript_content
+
+def test_agenda_template_resolution():
+    from app.config import resolve_template_format, resolve_agenda_template_format
+
+    # 1. 议题模式下加载通用纪要：命中 resources/agenda_templates/general_minutes.md
+    agenda_fmt = resolve_agenda_template_format("general_minutes")
+    assert "小节标题必须与清单中的议题全称一字不差对齐" in agenda_fmt
+    assert "采用议题聚类" not in agenda_fmt
+
+    # 2. 常规模式下加载通用纪要：原模板 resources/templates/general_minutes.md 保持不变
+    legacy_fmt = resolve_template_format("general_minutes")
+    assert "采用议题聚类" in legacy_fmt
+    assert "小节标题必须与清单中的议题全称一字不差对齐" not in legacy_fmt
+
+    # 3. 议题模式下加载未单独定制的模板（如 project_progress）：平滑回退普通模板
+    fallback_fmt = resolve_agenda_template_format("project_progress")
+    orig_fmt = resolve_template_format("project_progress")
+    assert fallback_fmt == orig_fmt
+
+
+def test_tasks_prepare_template_selection(tmp_path, monkeypatch):
+    # 场景 A: minutes 任务且 docs 含有有效议题 -> 自动选用 agenda_templates 下的模板
+    doc_path = tmp_path / "agenda.txt"
+    doc_path.write_text("1. 自研芯片二期量产 汇报人：张三", encoding="utf-8")
+
+    monkeypatch.setattr("app.tasks._input_file", lambda uid, kind, name: doc_path)
+
+    req_with_agenda = TaskRequest(
+        texts={"transcript": "张三 10:00: 自研芯片二期量产良率达到了91.5%"},
+        docs=["agenda.txt"],
+    )
+    prep_enhanced = _prepare("meeting", "minutes", req_with_agenda, "u_test_template_1")
+    enhanced_template_text = prep_enhanced.templates["minutes"].read_text(encoding="utf-8")
+    assert "小节标题必须与清单中的议题全称一字不差对齐" in enhanced_template_text
+
+    # 场景 B: minutes 任务无 docs -> 使用 legacy templates
+    req_no_docs = TaskRequest(texts={"transcript": "张三 10:00: 讨论常规事项"})
+    prep_legacy = _prepare("meeting", "minutes", req_no_docs, "u_test_template_2")
+    legacy_template_text = prep_legacy.templates["minutes"].read_text(encoding="utf-8")
+    assert "采用议题聚类" in legacy_template_text
+    assert "小节标题必须与清单中的议题全称一字不差对齐" not in legacy_template_text
+

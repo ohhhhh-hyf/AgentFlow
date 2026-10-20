@@ -357,6 +357,42 @@ def resolve_template_format(template_value: str) -> str:
     return wrap_template_requirement(fmt, req)
 
 
+def agenda_template_dir() -> Path:
+    """按议题输出纪要的专属模板目录（resources/agenda_templates/）。"""
+    return PROJECT_ROOT / "resources" / "agenda_templates"
+
+
+def resolve_agenda_template_format(template_value: str) -> str:
+    """优先从 agenda_templates/ 加载模板；若不存在则自动平滑回退至普通模板目录。"""
+    value = (template_value or "").strip()
+    if not value:
+        return ""
+    t_id = value.replace(".md", "").strip()
+    agenda_dir = agenda_template_dir()
+    candidate_paths = [
+        agenda_dir / f"{t_id}.md",
+    ]
+    t_key = template_key(value)
+    if t_key and "_" in t_key:
+        t_id_from_key = t_key.split("_", 1)[1]
+        candidate_paths.append(agenda_dir / f"{t_id_from_key}.md")
+
+    for path in candidate_paths:
+        if path.is_file():
+            item = _parse_template_md(path)
+            if item:
+                fmt = str(item.get("format") or "").strip()
+                req = str(item.get("requirement") or "").strip()
+                if fmt:
+                    try:
+                        from core.templates.router._base import wrap_template_requirement
+                    except ImportError:
+                        from core.templates.router._base import wrap_template_requirement
+                    return wrap_template_requirement(fmt, req)
+
+    return resolve_template_format(value)
+
+
 RESOURCES_PROFILE_DIR = PROJECT_ROOT / "resources" / "profiles"
 PROFILE_DIR = RESOURCES_PROFILE_DIR if RESOURCES_PROFILE_DIR.is_dir() else (PROJECT_ROOT / "assets" / "profiles")
 

@@ -875,7 +875,10 @@ class _Nodes(DomainNodes):
                     for i, a in enumerate(agendas)
                 )
                 extra_parts.append(
-                    f"【现场审定的有效议题清单（正文必须按此议题结构与顺序展开）】：\n{agenda_checklist}"
+                    f"【现场审定的有效议题清单（正文必须按此议题结构与顺序展开）】：\n{agenda_checklist}\n\n"
+                    "【排版与小节命名纪律】：\n"
+                    "正文 [要点梳理] 栏目必须严格以且仅以本清单中的议题全称作为 ### 小节标题（100% 逐字对应，一字不差），"
+                    "按顺序依次展开，严禁自行合并、缩写或概括生造任何抽象小标题，严禁遗漏任何审定议题！"
                 )
         if not bool(state.get("objective_perspective")):
             hits = str(state.get("user_hits_block") or "").strip()
