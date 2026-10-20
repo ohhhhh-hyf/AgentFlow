@@ -444,3 +444,40 @@ async def test_prepare_run_preserves_agenda_text_in_line_extra(tmp_path, monkeyp
     # 核心守卫：runner.py 绝不可在 prepare_run 中丢弃 agenda_text
     assert "agenda_text" in prep.line_extra
     assert "自研芯片二期量产" in prep.line_extra["agenda_text"]
+
+
+def test_minutes_prompt_matter_oriented_governance():
+    """验证新老逻辑 Prompt 彻底去机械流水账对白，确立就事论事与正向引导准则。"""
+    from domains.meeting.tasks.minutes.prompts import (
+        _MINUTES_COMMON_BASE,
+        MINUTES_OBJECTIVE_GENERATION_PROMPT,
+        MINUTES_AGENDA_GENERATION_PROMPT,
+        MINUTES_OBJECTIVE_SUPERVISOR_PROMPT,
+        MINUTES_AGENDA_SUPERVISOR_PROMPT,
+    )
+    from domains.meeting.meeting_core.prompts import (
+        MEETING_UNDERSTANDING_SYSTEM_PROMPT,
+        MEETING_UNDERSTANDING_LIGHTWEIGHT_SYSTEM_PROMPT,
+        MEETING_UNDERSTANDING_AGENDA_SYSTEM_PROMPT,
+    )
+
+    # 1. 核心诱因根治：验证公共基底彻底废除“主体+动作”句式公式，引入三层主体与就事论事
+    assert "主体 + 核心动作/主张 + 量化指标/定调依据 + 最终结论/后续安排" not in _MINUTES_COMMON_BASE
+    assert "分章节主体表达规范（就事论事原则）" in _MINUTES_COMMON_BASE
+    assert "避免在每句话开头机械堆砌“某某提出/某某认为/某某指出”等发言动词" in _MINUTES_COMMON_BASE
+
+    # 2. 负向对抗字眼治理：验证核心生成 Prompt 不包含杜绝/拒绝等对抗句式
+    for p in [MINUTES_OBJECTIVE_GENERATION_PROMPT, MINUTES_AGENDA_GENERATION_PROMPT]:
+        assert "杜绝凭空编造" not in p
+        assert "拒绝多从句生硬拼接的长难句" not in p
+        assert "剔除铺垫修辞" not in p
+
+    # 3. 理解层决议格式治理：验证老逻辑与新逻辑均要求 decisions 以事项为主干
+    assert "条目以被决定的业务事项为主干" in MEETING_UNDERSTANDING_SYSTEM_PROMPT
+    assert "以被决定的业务事项为主干" in MEETING_UNDERSTANDING_AGENDA_SYSTEM_PROMPT
+    assert "严禁输出长篇背景叙事" not in MEETING_UNDERSTANDING_LIGHTWEIGHT_SYSTEM_PROMPT
+    assert "严禁主观脑补" not in MEETING_UNDERSTANDING_LIGHTWEIGHT_SYSTEM_PROMPT
+
+    # 4. 审核放行规则验证：确保 Supervisor 显式放行公文决议体与脱水表述
+    assert "属于符合公文规范的表述优化，予以充分认可并放行通过" in MINUTES_OBJECTIVE_SUPERVISOR_PROMPT
+    assert "属于符合公文规范的表述优化，予以充分认可并放行通过" in MINUTES_AGENDA_SUPERVISOR_PROMPT
