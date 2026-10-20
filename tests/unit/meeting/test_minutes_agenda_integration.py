@@ -421,3 +421,26 @@ async def test_langgraph_agenda_state_propagation():
     render_ctx = system._render_context(final_state, "minutes")
     assert is_agenda_enhanced_mode(render_ctx) is True
     assert "现场审定的有效议题清单" in render_ctx
+
+@pytest.mark.anyio
+async def test_prepare_run_preserves_agenda_text_in_line_extra(tmp_path, monkeypatch):
+    from app.tasks import _prepare, _runner_args
+    from core.runner.runner import prepare_run
+    from app.schemas import TaskRequest
+
+    doc_path = tmp_path / "agenda.txt"
+    doc_path.write_text("1. 自研芯片二期量产 汇报人：张三", encoding="utf-8")
+    monkeypatch.setattr("app.tasks._input_file", lambda uid, kind, name: doc_path)
+
+    req = TaskRequest(
+        texts={"transcript": "张三 10:00: 自研芯片二期量产良率达到了91.5%"},
+        docs=["agenda.txt"],
+    )
+    p = _prepare("meeting", "minutes", req, "u_test_runner")
+    assert "agenda_text" in p.extra_line_inputs
+
+    args = _runner_args(p)
+    prep = await prepare_run(p.ctx, **args)
+    # 核心守卫：runner.py 绝不可在 prepare_run 中丢弃 agenda_text
+    assert "agenda_text" in prep.line_extra
+    assert "自研芯片二期量产" in prep.line_extra["agenda_text"]

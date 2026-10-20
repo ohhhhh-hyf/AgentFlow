@@ -316,7 +316,7 @@ async def prepare_run(
                 f"{prev}\n\n{extra}".strip() if prev else extra
             )
     for line_name, value in (extra_line_inputs or {}).items():
-        if line_name not in line_names or not (value or "").strip():
+        if (line_name not in line_names and line_name in ctx.task_lines) or not (value or "").strip():
             continue
         prev = line_extra.get(line_name) or ""
         line_extra[line_name] = (
