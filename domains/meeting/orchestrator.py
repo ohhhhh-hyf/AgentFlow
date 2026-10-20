@@ -755,7 +755,12 @@ class _Nodes(DomainNodes):
                     for i, a in enumerate(agendas)
                 )
                 parts.append(
-                    f"【现场审定的有效议题清单（正文必须按此议题结构与顺序展开）】：\n{agenda_checklist}"
+                    f"【审定议题纪要撰写指引】：\n"
+                    f"本次会议已审定以下有效讨论议题：\n{agenda_checklist}\n\n"
+                    "请按以下结构撰写 executive_summary：\n"
+                    "1. 首项（全局概览）：简要概述全场会议背景、核心主线与最关键决议；\n"
+                    "2. 后续各项（议题分节）：严格按审定清单顺序，一项对应一个议题展开成段；\n"
+                    "3. 议题内部分点：对于包含多个讨论方向的议题，在段落内自然呈现各子主题（格式：[子主题名称] 论据与结论），交代完整研讨脉络。"
                 )
                 parts.append(
                     f"【会议原文】\n{state.get('tagged_transcript') or state.get('transcript') or ''}"
@@ -875,10 +880,12 @@ class _Nodes(DomainNodes):
                     for i, a in enumerate(agendas)
                 )
                 extra_parts.append(
-                    f"【现场审定的有效议题清单（正文必须按此议题结构与顺序展开）】：\n{agenda_checklist}\n\n"
-                    "【排版与小节命名纪律】：\n"
-                    "正文 [要点梳理] 栏目必须严格以且仅以本清单中的议题全称作为 ### 小节标题（100% 逐字对应，一字不差），"
-                    "按顺序依次展开，严禁自行合并、缩写或概括生造任何抽象小标题，严禁遗漏任何审定议题！"
+                    f"【现场审定的有效议题清单】：\n{agenda_checklist}\n\n"
+                    "【议题结构排版指引】：\n"
+                    "排版 [要点梳理] 栏目时，请遵循以下层级规范：\n"
+                    "1. 一级小节：使用清单中的议题全称作为 ### 小节标题，按清单顺序依次呈现；\n"
+                    "2. 二级子分点：对于包含多个讨论方向的议题，将草稿中对应的讨论点作为子标题展开（推荐使用 #### 1. 子主题名称 或 **1. 子主题名称**：），在子标题下方使用 - 列出具体事实论据；\n"
+                    "3. 事实归属：草稿中记录的各研讨事实，根据其讨论范畴归入对应议题的子主题下，使正文结构层次分明。"
                 )
         if not bool(state.get("objective_perspective")):
             hits = str(state.get("user_hits_block") or "").strip()
@@ -1306,7 +1313,14 @@ class _Nodes(DomainNodes):
                         f"{i+1}. 议题：{a.title}（汇报人：{'、'.join(a.presenters) or '未指定'}）"
                         for i, a in enumerate(agendas)
                     )
-                    nav_block = f"【会前审定议题参考（供阶段划分与研讨归集对齐）】：\n{checklist}"
+                    nav_block = (
+                        f"【审定议题阶段归集指引】：\n"
+                        f"本次会议已审定以下有效讨论议题：\n{checklist}\n\n"
+                        "请按上述清单组织 session_segments：\n"
+                        "1. 阶段对应：session_segments 与清单议题一一对应，segment_title 采用清单中的议题全称；\n"
+                        "2. 议题内部分点：若议题下包含多个讨论方向（如交流环节涵盖多个问答点），"
+                        "请在该阶段的 key_facts 中按子主题分类列出（格式：[子主题名称] 具体事实与论据）。"
+                    )
                     channel_text = f"{nav_block}\n\n{channel_text}".strip()
 
                 kwargs = {

@@ -38,7 +38,7 @@ def test_orchestrator_line_shared_context_enhanced():
         },
     }
     context = nodes._line_shared_context(state_enhanced, "minutes")
-    assert "【现场审定的有效议题清单（正文必须按此议题结构与顺序展开）】" in context
+    assert "【审定议题纪要撰写指引】" in context
     assert "1. 议题：自研车载芯片二期量产（汇报人：张三）" in context
     assert "【会议原文】" in context
     assert "【议题 1：自研车载芯片二期量产】" in context
@@ -78,10 +78,10 @@ def test_orchestrator_render_context():
         "lines": {"minutes": {"draft": {"executive_summary": ["概括"], "key_decisions": []}}},
     }
     render_ctx = nodes._render_context(state_enhanced, "minutes")
-    assert "【现场审定的有效议题清单（正文必须按此议题结构与顺序展开）】" in render_ctx
+    assert "【现场审定的有效议题清单】" in render_ctx
     assert "自研车载芯片二期量产" in render_ctx
-    assert "【排版与小节命名纪律】" in render_ctx
-    assert "正文 [要点梳理] 栏目必须严格以且仅以本清单中的议题全称作为 ### 小节标题" in render_ctx
+    assert "【议题结构排版指引】" in render_ctx
+    assert "使用清单中的议题全称作为 ### 小节标题" in render_ctx
 
     state_legacy = {
         "transcript": "张三: 芯片进展",
@@ -170,13 +170,15 @@ def test_agenda_template_resolution():
 
     # 1. 议题模式下加载通用纪要：命中 resources/agenda_templates/general_minutes.md
     agenda_fmt = resolve_agenda_template_format("general_minutes")
-    assert "小节标题必须与清单中的议题全称一字不差对齐" in agenda_fmt
+    assert "以现场审定的有效议题清单为主线展开呈现" in agenda_fmt
+    assert "每个审定议题设立三级小节标题" in agenda_fmt
+    assert "#### 1. 子主题名称" in agenda_fmt
     assert "采用议题聚类" not in agenda_fmt
 
     # 2. 常规模式下加载通用纪要：原模板 resources/templates/general_minutes.md 保持不变
     legacy_fmt = resolve_template_format("general_minutes")
     assert "采用议题聚类" in legacy_fmt
-    assert "小节标题必须与清单中的议题全称一字不差对齐" not in legacy_fmt
+    assert "以现场审定的有效议题清单为主线展开呈现" not in legacy_fmt
 
     # 3. 议题模式下加载未单独定制的模板（如 project_progress）：平滑回退普通模板
     fallback_fmt = resolve_agenda_template_format("project_progress")
@@ -197,12 +199,53 @@ def test_tasks_prepare_template_selection(tmp_path, monkeypatch):
     )
     prep_enhanced = _prepare("meeting", "minutes", req_with_agenda, "u_test_template_1")
     enhanced_template_text = prep_enhanced.templates["minutes"].read_text(encoding="utf-8")
-    assert "小节标题必须与清单中的议题全称一字不差对齐" in enhanced_template_text
+    assert "以现场审定的有效议题清单为主线展开呈现" in enhanced_template_text
+    assert "每个审定议题设立三级小节标题" in enhanced_template_text
 
     # 场景 B: minutes 任务无 docs -> 使用 legacy templates
     req_no_docs = TaskRequest(texts={"transcript": "张三 10:00: 讨论常规事项"})
     prep_legacy = _prepare("meeting", "minutes", req_no_docs, "u_test_template_2")
     legacy_template_text = prep_legacy.templates["minutes"].read_text(encoding="utf-8")
     assert "采用议题聚类" in legacy_template_text
-    assert "小节标题必须与清单中的议题全称一字不差对齐" not in legacy_template_text
+    assert "以现场审定的有效议题清单为主线展开呈现" not in legacy_template_text
+
+def test_meeting_understanding_node_agenda_guidance():
+    import asyncio
+    nodes = _Nodes()
+    captured_kwargs = {}
+
+    class MockUnderstandingAgent:
+        async def run(self, transcript, **kwargs):
+            nonlocal captured_kwargs
+            captured_kwargs = kwargs
+            from domains.meeting.models_generated import MeetingUnderstanding
+            return MeetingUnderstanding(
+                meeting_brief="测试",
+                meeting_purpose="目的",
+                scene="通用",
+            )
+
+    nodes.meeting_understanding_agent = MockUnderstandingAgent()
+
+    node_func = nodes._make_meeting_understanding_node(["minutes"])
+
+    valid_item = ValidAgendaItem(
+        seq="1",
+        title="自研车载芯片二期量产",
+        presenters=["张三"],
+    )
+
+    state = {
+        "transcript": "张三 10:00: 进展汇报自研芯片",
+        "has_valid_agenda": True,
+        "valid_agendas": [valid_item],
+        "line_extra": {"agenda_text": "1. 自研车载芯片二期量产 汇报人：张三"},
+    }
+
+    asyncio.run(node_func(state))
+
+    channel = captured_kwargs.get("user_channel", "")
+    assert "【审定议题阶段归集指引】" in channel
+    assert "自研车载芯片二期量产" in channel
+    assert "session_segments 与清单议题一一对应" in channel
 
