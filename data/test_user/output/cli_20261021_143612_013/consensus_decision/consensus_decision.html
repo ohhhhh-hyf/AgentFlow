@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>通用纪要</title>
+  <title>架构决策</title>
   <style>
 
     body {
@@ -747,16 +747,250 @@
       .ck-review-rule { display: none; }
     }
 
+
+    /* ── 共识决策现代高管备忘录排版 ── */
+    .cd-section-title {
+      font-size: 1.15rem;
+      font-weight: 700;
+      color: #0f172a;
+      margin: 28px 0 14px;
+      padding-bottom: 8px;
+      border-bottom: 1.5px solid #e2e8f0;
+    }
+    .cd-table-wrap {
+      width: 100%;
+      overflow-x: auto;
+      margin-bottom: 28px;
+      border: 1px solid #e2e8f0;
+      border-radius: 8px;
+      background: #ffffff;
+      box-shadow: 0 1px 2px rgba(0, 0, 0, 0.02);
+    }
+    .cd-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 14px;
+      line-height: 1.6;
+    }
+    .cd-table th {
+      background: #f8fafc;
+      color: #334155;
+      font-weight: 600;
+      text-align: left;
+      padding: 12px 16px;
+      border-bottom: 1px solid #e2e8f0;
+    }
+    .cd-table td {
+      padding: 12px 16px;
+      border-bottom: 1px solid #f1f5f9;
+      vertical-align: middle;
+      color: #1e293b;
+    }
+    .cd-table tr:last-child td {
+      border-bottom: none;
+    }
+    .cd-table tr:hover td {
+      background: #f8fafc;
+    }
+
+    /* 状态微胶囊 (Status Pills) - 零 Emoji，内敛专业 */
+    .cd-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 3px 10px;
+      border-radius: 9999px;
+      font-size: 12px;
+      font-weight: 600;
+      line-height: 1.4;
+      white-space: nowrap;
+    }
+    .cd-pill-dot {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      flex-shrink: 0;
+    }
+    /* 一致赞成：深绿沉稳胶囊 */
+    .cd-pill-hard {
+      background: #ecfdf5;
+      color: #065f46;
+      border: 1px solid #a7f3d0;
+    }
+    .cd-pill-hard .cd-pill-dot {
+      background: #10b981;
+    }
+    /* 附带前提：暖琥珀胶囊 */
+    .cd-pill-conditional {
+      background: #fffbeb;
+      color: #92400e;
+      border: 1px solid #fde68a;
+    }
+    .cd-pill-conditional .cd-pill-dot {
+      background: #f59e0b;
+    }
+    /* 争执未决：玫瑰砖红胶囊 */
+    .cd-pill-disagreement {
+      background: #fff1f2;
+      color: #9f1239;
+      border: 1px solid #fecdd3;
+    }
+    .cd-pill-disagreement .cd-pill-dot {
+      background: #f43f5e;
+    }
+
+    /* ── 逐项决策细节卡片 ── */
+    .cd-details-wrap {
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+      margin-bottom: 32px;
+    }
+    .cd-card {
+      border: 1px solid #e2e8f0;
+      border-radius: 8px;
+      background: #ffffff;
+      padding: 18px 20px;
+      box-shadow: 0 1px 2px rgba(0, 0, 0, 0.03);
+      transition: border-color 0.15s ease;
+    }
+    .cd-card:hover {
+      border-color: #cbd5e1;
+    }
+    .cd-card-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 14px;
+      padding-bottom: 10px;
+      border-bottom: 1px solid #f1f5f9;
+    }
+    .cd-card-title-wrap {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .cd-card-num {
+      font-size: 13px;
+      font-weight: 700;
+      color: #64748b;
+      background: #f1f5f9;
+      padding: 2px 8px;
+      border-radius: 4px;
+    }
+    .cd-card-title {
+      font-size: 15px;
+      font-weight: 700;
+      color: #0f172a;
+    }
+    .cd-card-body {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+    .cd-row {
+      display: flex;
+      font-size: 14px;
+      line-height: 1.6;
+    }
+    .cd-label {
+      font-weight: 600;
+      color: #475569;
+      flex-shrink: 0;
+      width: 84px;
+    }
+    .cd-val {
+      color: #1e293b;
+      flex: 1;
+    }
+    .cd-val-list {
+      flex: 1;
+    }
+    .cd-val-list ul {
+      margin: 0;
+      padding-left: 18px;
+      list-style-type: disc;
+    }
+    .cd-val-list li {
+      margin-bottom: 4px;
+      line-height: 1.5;
+      color: #1e293b;
+    }
+    .cd-val-list li:last-child {
+      margin-bottom: 0;
+    }
+    /* 最终决议压轴高亮卡槽 */
+    .cd-row-accord {
+      background: #f8fafc;
+      padding: 10px 14px;
+      border-radius: 6px;
+      border-left: 3px solid #3b82f6;
+      margin-top: 4px;
+    }
+    .cd-row-accord .cd-label {
+      color: #1d4ed8;
+      font-weight: 700;
+    }
+    .cd-row-accord .cd-val {
+      font-weight: 500;
+      color: #0f172a;
+    }
+    @media (max-width: 640px) {
+      .cd-row {
+        flex-direction: column;
+        gap: 2px;
+      }
+      .cd-label {
+        width: auto;
+      }
+    }
+    
   </style>
 </head>
 <body>
   <main class="page">
     <div class="ck-doc">
       <header class="ck-doc-header">
-        <h1>通用纪要</h1>
+        <h1>架构决策</h1>
+        <div class="ck-doc-meta">关键议题决策总览与共识分析</div>
       </header>
       <div class="ck-doc-content">
-        <h2 class="ck-doc-h2">全文摘要</h2><p>本次交流会在北京园区召开，何刚总时隔多年重返北京，对北京团队在服务各产品线之余还建立起强大的小艺队伍表示欣喜，并坦言来晚、工作不到位。他明确北京拥有高校与研究机构的人才优势，未来将围绕AI、小艺持续发展乃至具身方向重新思考北京布局，加强团队建设与产品布局，支撑终端业务长期发展。何刚总强调华为在AI领域的优势在于与硬件的协同，应把消费者一句话闭环应用的体验做到极致，并坚持长期主义，以商业成功为目标。他提出小艺在华为手机上的使用量、日活数与使用体验要超过豆包，同时指出当前卡资源不足是痛点，推广需适度收敛，优先保证升级到最新小艺的消费者体验优于豆包。</p><p>互动交流环节，何刚总就小艺唤醒规格统一、AI撬动消费决策、小艺慧记功能完善、生态与安全合规平衡、全模态自然交互、人才与算力困难、终端壁垒构建等问题逐一回应，提出拉通规格、聚焦场景打透、声纹做透、尊重生态商业模式、从体验视角倒推硬件创新等方向。会议最后举行543-5会战任务令签发仪式，何刚总为小艺聪明战队、任务闭环专项、个性化专项、成本时延战队、主对话战队等6支战队签发任务令，各战队北京代表上台接令并合影，期待各战队旗开得胜。</p><h2 class="ck-doc-h2">要点梳理</h2><h3 class="ck-doc-h3">一. 何刚总致辞</h3><ul><li>何刚总时隔多年重返北京，对北京团队在服务各产品线之余还建立起强大的小艺队伍表示欣喜，并坦言来晚、工作不到位。</li><li>北京拥有高校与研究机构的人才优势，未来将围绕AI、小艺持续发展乃至具身方向重新思考北京布局，加强团队建设与产品布局，支撑终端业务长期发展。</li><li>华为在AI领域的优势在于与硬件的协同，应把消费者一句话闭环应用的体验做到极致，并坚持长期主义，以商业成功为目标。</li><li>小艺在华为手机上的使用量、日活数与使用体验要超过豆包。</li><li>当前卡资源不足是痛点，推广需适度收敛，优先保证升级到最新小艺的消费者体验优于豆包。</li></ul><h3 class="ck-doc-h3">二. 互动交流</h3><h4 class="ck-doc-h4">1. 小艺唤醒规格统一</h4><ul><li>向各产品线提出规格收敛要求，明确高端、低端各一个规格，推动拉通。</li><li>如有困难可上升至TMT决策。</li></ul><h4 class="ck-doc-h4">2. AI撬动消费决策</h4><ul><li>聚焦场景打透，从体验视角倒推硬件创新。</li></ul><h4 class="ck-doc-h4">3. 小艺慧记功能完善</h4><ul><li>尽快实现通过图片输入会议日程生成按议题分段的会议纪要。</li><li>把声纹做透，目标在10来人的项目组开会场景，标注三天后不再需要标注，自动识别发言人。</li><li>与媒体院沟通声纹技术。</li><li>基于agent架构的云侧系统，整合多模态输入，针对不同身份用不同agent分析，尽快实现图片日程输入功能。</li></ul><h4 class="ck-doc-h4">4. 生态与安全合规平衡</h4><ul><li>尊重生态商业模式，与生态方探讨合规方式。</li></ul><h4 class="ck-doc-h4">5. 全模态自然交互</h4><ul><li>把小艺通话、小艺慧记、小艺照相馆等自有工具scale化后挂到小艺主对话上，打通能力。</li></ul><h4 class="ck-doc-h4">6. 人才与算力困难</h4><ul><li>针对帮看广告场景，制作分屏demo，与生态方探讨合规方式。</li></ul><h4 class="ck-doc-h4">7. 终端壁垒构建</h4><ul><li>优化运动健康数据分析的表述，增加情感化、有趣的内容，避免千篇一律。</li></ul><h3 class="ck-doc-h3">三. 任务令签署与授予仪式</h3><ul><li>举行543-5会战任务令签发仪式，何刚总为小艺聪明战队、任务闭环专项、个性化专项、成本时延战队、主对话战队等6支战队签发任务令。</li><li>各战队北京代表上台接令并合影，期待各战队旗开得胜。</li></ul><h2 class="ck-doc-h2">结论与决定</h2><ul><li><strong>小艺唤醒规格统一</strong>：向各产品线提出规格收敛要求，明确高端、低端各一个规格，推动拉通；如有困难可上升至TMT决策。</li><li><strong>小艺慧记功能完善</strong>：尽快实现通过图片输入会议日程生成按议题分段的会议纪要；把声纹做透，目标在10来人的项目组开会场景，标注三天后不再需要标注，自动识别发言人；与媒体院沟通声纹技术。</li><li><strong>小艺慧记云侧系统</strong>：基于agent架构整合多模态输入，针对不同身份用不同agent分析，尽快实现图片日程输入功能。</li><li><strong>小艺主对话能力打通</strong>：把小艺通话、小艺慧记、小艺照相馆等自有工具scale化后挂到小艺主对话上，打通能力。</li><li><strong>贾维斯（gy操控）场景探索</strong>：针对帮看广告场景，制作分屏demo，与生态方探讨合规方式。</li><li><strong>小艺health体验优化</strong>：优化运动健康数据分析的表述，增加情感化、有趣的内容，避免千篇一律。</li></ul>
+        <h2 class="cd-section-title">决策总览</h2>
+        <div class="cd-table-wrap">
+          <table class="cd-table">
+            <thead>
+              <tr>
+                <th style="width: 28%;">议题</th>
+                <th style="width: 18%; text-align: center;">共识成色</th>
+                <th style="width: 54%;">最终决议</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+  <td><strong>自研网关</strong></td>
+  <td style="text-align: center;"><span class="cd-pill cd-pill-hard"><span class="cd-pill-dot"></span>一致赞成</span></td>
+  <td>确定自研方案并于10月底落地</td>
+</tr>
+            </tbody>
+          </table>
+        </div>
+
+        <h2 class="cd-section-title">决策细节</h2>
+        <div class="cd-details-wrap">
+          <div class="cd-card">
+          <div class="cd-card-header">
+            <div class="cd-card-title-wrap">
+              <span class="cd-card-num">1</span>
+              <span class="cd-card-title">自研网关</span>
+            </div>
+            <span class="cd-pill cd-pill-hard"><span class="cd-pill-dot"></span>一致赞成</span>
+          </div>
+          <div class="cd-card-body">
+            <div class="cd-row"><span class="cd-label">决策背景</span><span class="cd-val">商业授权到期</span></div>
+<div class="cd-row cd-row-accord"><span class="cd-label">最终决议</span><span class="cd-val">确定自研方案并于10月底落地</span></div>
+          </div>
+        </div>
+        </div>
       </div>
     </div>
   </main>
