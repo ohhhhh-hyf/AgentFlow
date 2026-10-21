@@ -764,9 +764,7 @@ class _Nodes(DomainNodes):
         if line_name == "minutes":
             tpl = (state.get("templates") or {}).get("minutes") or ""
             tpl_str = str(tpl).strip()
-            if tpl_str and not (
-                tpl_str.startswith("# 通用纪要") or tpl_str.startswith("# 个人视角纪要")
-            ):
+            if tpl_str:
                 parts.append(f"【目标样式模板】\n{tpl_str}")
         return "\n\n".join(parts)
 
