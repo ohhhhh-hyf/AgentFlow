@@ -108,7 +108,7 @@ def test_agenda_engine_head_and_tail_protection():
     )
     tagged = build_tagged_transcript_with_head_tail(all_blocks, [valid_item])
 
-    assert "【会议开场背景与宏观动线】" in tagged
+    assert "【会议开场背景与主线脉络】" in tagged
     assert "今天召开战略决策会" in tagged
     assert "【议题 1：芯片二期进展】（汇报人：张三）" in tagged
     assert "良率91.5%" in tagged

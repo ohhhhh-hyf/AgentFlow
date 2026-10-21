@@ -86,7 +86,7 @@ def build_tagged_transcript_with_head_tail(
     if head_blocks:
         head_text = "\n\n".join(_format_block(b) for b in head_blocks).strip()
         if head_text:
-            parts.append(f"【会议开场背景与宏观动线】：\n{head_text}")
+            parts.append(f"【会议开场背景与主线脉络】：\n{head_text}")
 
     # 2. 各实质有效议题切片（按现场实际先后时序排列）
     for a in valid_agendas:
