@@ -108,6 +108,7 @@ class MinutesGenerationAgent:
             perspective=perspective,
             memory_texts=memory_texts,
             transcript=transcript,
+            is_agenda=is_agenda,
         )
         return Minutes.validate(enforced)
 

@@ -328,7 +328,11 @@ def enforce_upstream_carry(
         return out
     for dst, src in field_map.items():
         if src in upstream:
-            out[dst] = _as_str_list(upstream.get(src))
+            up_items = _as_str_list(upstream.get(src))
+            # 只有当上游有实质非空内容时，才允许覆盖草稿对应字段；
+            # 如果上游是空列表（如跳过会议理解，或上游未提取出实质内容），绝不暴力冲掉草稿自身生成的有效内容
+            if up_items or dst not in out or not out[dst]:
+                out[dst] = up_items
     if headline_field and purpose_field:
         hl = str(out.get(headline_field) or "").strip()
         if not hl:
@@ -408,12 +412,14 @@ def enforce_minutes_draft(
     perspective: dict[str, Any] | None = None,
     memory_texts: list[str] | None = None,
     transcript: str | None = None,
+    is_agenda: bool = False,
 ) -> dict[str, Any]:
     """纪要草稿硬对齐：搬运字段措辞以会议理解为准。
 
     客观：三项全量拷贝。职业模板：按草稿下采（只删不改），对不上则回退全量。
     **真人：同样下采，但选空就是空**（不回退全量，见 ``subset_upstream_items``）。
     真人模式下，允许结合视角模型中的 data_gaps 作为 risks_and_blockers 的合法来源，保护外部卡点。
+    议题增强模式下，以草稿自身提炼为准，跳过上游搬运覆盖。
     返回字典严格闭环保证 7 个契约键完整无缺。
     """
     if hasattr(draft, "model_dump"):
@@ -422,6 +428,20 @@ def enforce_minutes_draft(
         data = dict(draft)
     else:
         data = dict(draft)
+
+    is_agenda_mode = bool(is_agenda or is_agenda_enhanced_mode(transcript))
+    if is_agenda_mode:
+        # 议题增强自包含模式：草稿自身即为最高事实源，不走上游会议理解覆写
+        res = _ensure_all_minutes_keys(data)
+        if memory_texts and transcript and "key_decisions" in res:
+            valids, migrated = purge_stale_memory_from_decisions(
+                res["key_decisions"], memory_texts, transcript
+            )
+            res["key_decisions"] = valids
+            if migrated:
+                res["history_comparison"] = list(res.get("history_comparison") or []) + migrated
+        return res
+
     out = enforce_upstream_carry(
         data,
         understanding,
