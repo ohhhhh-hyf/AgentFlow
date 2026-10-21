@@ -273,8 +273,6 @@ def test_meeting_understanding_node_agenda_guidance():
 
     nodes.meeting_understanding_agent = MockUnderstandingAgent()
 
-    node_func = nodes._make_meeting_understanding_node(["minutes"])
-
     valid_item = ValidAgendaItem(
         seq="1",
         title="自研车载芯片二期量产",
@@ -288,8 +286,16 @@ def test_meeting_understanding_node_agenda_guidance():
         "line_extra": {"agenda_text": "1. 自研车载芯片二期量产 汇报人：张三"},
     }
 
-    asyncio.run(node_func(state))
+    # 1. 单任务 minutes 且有效议程：直接短路跳过理解层（方案 A 提速）
+    from domains.meeting.orchestrator import _EMPTY_MEETING_UNDERSTANDING
+    node_func_single = nodes._make_meeting_understanding_node(["minutes"])
+    res_single = asyncio.run(node_func_single(state))
+    assert res_single["meeting_understanding"] == _EMPTY_MEETING_UNDERSTANDING
+    assert captured_kwargs == {}, "单任务 minutes 议题增强必须短路跳过 meeting_understanding 节点"
 
+    # 2. 多任务并行（如 minutes + actions）：不短路，正常调用理解层并传递 is_agenda_enhanced
+    node_func_multi = nodes._make_meeting_understanding_node(["minutes", "actions"])
+    asyncio.run(node_func_multi(state))
     assert captured_kwargs.get("is_agenda_enhanced") is True
     channel = captured_kwargs.get("user_channel", "")
     assert "【审定议题阶段归集指引】" not in channel
@@ -351,11 +357,11 @@ async def test_agenda_track_b_prompt_routing():
     # 4a. 无模板模式
     rendered_prompt, _ = renderer._prompt_and_user("议题模式：agenda_enhanced\n视角模式：objective", "")
     assert "（审定议题专有模式）" in rendered_prompt
-    assert "### [审定议题一全称]" in rendered_prompt
+    assert "### 一. [审定议题一全称]" in rendered_prompt
     # 4b. 模板模式
     rendered_prompt_tpl, _ = renderer._prompt_and_user("议题模式：agenda_enhanced\n视角模式：objective", "# 通用纪要模板\n{{scalar:要点梳理}}")
-    assert "以审定议题为主线结构规范" in rendered_prompt_tpl
-    assert "一级小节标题（### 议题名称）" in rendered_prompt_tpl
+    assert "严格遵循模板栏目规约与公文层级标准完成排版" in rendered_prompt_tpl
+    assert "议题大项（### 一. 议题名称）" in rendered_prompt_tpl
 
 def test_meeting_state_declares_agenda_fields():
     from domains.meeting.models import MeetingState

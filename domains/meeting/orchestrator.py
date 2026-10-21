@@ -1274,6 +1274,14 @@ class _Nodes(DomainNodes):
                         len(agenda_res.valid_agendas),
                         len(agenda_res.tagged_transcript),
                     )
+                    # ──【本次新增短路放行】单任务 minutes 且议题已结构化打标，直接跳过 meeting_understanding ──
+                    if selected == ["minutes"]:
+                        progress("skip meeting_understanding (minutes agenda enhanced self-contained)")
+                        logger.info("[AGENDA_ENGINE] minutes 议题增强自包含，直接放行 meeting_understanding")
+                        return {
+                            "meeting_understanding": _EMPTY_MEETING_UNDERSTANDING,
+                            **agenda_update,
+                        }
                 else:
                     state["has_valid_agenda"] = False
                     agenda_update = {"has_valid_agenda": False}
