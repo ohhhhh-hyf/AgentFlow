@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>通用纪要</title>
+  <title>架构决策</title>
   <style>
 
     body {
@@ -747,16 +747,250 @@
       .ck-review-rule { display: none; }
     }
 
+
+    /* ── 共识决策现代高管备忘录排版 ── */
+    .cd-section-title {
+      font-size: 1.15rem;
+      font-weight: 700;
+      color: #0f172a;
+      margin: 28px 0 14px;
+      padding-bottom: 8px;
+      border-bottom: 1.5px solid #e2e8f0;
+    }
+    .cd-table-wrap {
+      width: 100%;
+      overflow-x: auto;
+      margin-bottom: 28px;
+      border: 1px solid #e2e8f0;
+      border-radius: 8px;
+      background: #ffffff;
+      box-shadow: 0 1px 2px rgba(0, 0, 0, 0.02);
+    }
+    .cd-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 14px;
+      line-height: 1.6;
+    }
+    .cd-table th {
+      background: #f8fafc;
+      color: #334155;
+      font-weight: 600;
+      text-align: left;
+      padding: 12px 16px;
+      border-bottom: 1px solid #e2e8f0;
+    }
+    .cd-table td {
+      padding: 12px 16px;
+      border-bottom: 1px solid #f1f5f9;
+      vertical-align: middle;
+      color: #1e293b;
+    }
+    .cd-table tr:last-child td {
+      border-bottom: none;
+    }
+    .cd-table tr:hover td {
+      background: #f8fafc;
+    }
+
+    /* 状态微胶囊 (Status Pills) - 零 Emoji，内敛专业 */
+    .cd-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 3px 10px;
+      border-radius: 9999px;
+      font-size: 12px;
+      font-weight: 600;
+      line-height: 1.4;
+      white-space: nowrap;
+    }
+    .cd-pill-dot {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      flex-shrink: 0;
+    }
+    /* 一致赞成：深绿沉稳胶囊 */
+    .cd-pill-hard {
+      background: #ecfdf5;
+      color: #065f46;
+      border: 1px solid #a7f3d0;
+    }
+    .cd-pill-hard .cd-pill-dot {
+      background: #10b981;
+    }
+    /* 附带前提：暖琥珀胶囊 */
+    .cd-pill-conditional {
+      background: #fffbeb;
+      color: #92400e;
+      border: 1px solid #fde68a;
+    }
+    .cd-pill-conditional .cd-pill-dot {
+      background: #f59e0b;
+    }
+    /* 争执未决：玫瑰砖红胶囊 */
+    .cd-pill-disagreement {
+      background: #fff1f2;
+      color: #9f1239;
+      border: 1px solid #fecdd3;
+    }
+    .cd-pill-disagreement .cd-pill-dot {
+      background: #f43f5e;
+    }
+
+    /* ── 逐项决策细节卡片 ── */
+    .cd-details-wrap {
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+      margin-bottom: 32px;
+    }
+    .cd-card {
+      border: 1px solid #e2e8f0;
+      border-radius: 8px;
+      background: #ffffff;
+      padding: 18px 20px;
+      box-shadow: 0 1px 2px rgba(0, 0, 0, 0.03);
+      transition: border-color 0.15s ease;
+    }
+    .cd-card:hover {
+      border-color: #cbd5e1;
+    }
+    .cd-card-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 14px;
+      padding-bottom: 10px;
+      border-bottom: 1px solid #f1f5f9;
+    }
+    .cd-card-title-wrap {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .cd-card-num {
+      font-size: 13px;
+      font-weight: 700;
+      color: #64748b;
+      background: #f1f5f9;
+      padding: 2px 8px;
+      border-radius: 4px;
+    }
+    .cd-card-title {
+      font-size: 15px;
+      font-weight: 700;
+      color: #0f172a;
+    }
+    .cd-card-body {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+    .cd-row {
+      display: flex;
+      font-size: 14px;
+      line-height: 1.6;
+    }
+    .cd-label {
+      font-weight: 600;
+      color: #475569;
+      flex-shrink: 0;
+      width: 84px;
+    }
+    .cd-val {
+      color: #1e293b;
+      flex: 1;
+    }
+    .cd-val-list {
+      flex: 1;
+    }
+    .cd-val-list ul {
+      margin: 0;
+      padding-left: 18px;
+      list-style-type: disc;
+    }
+    .cd-val-list li {
+      margin-bottom: 4px;
+      line-height: 1.5;
+      color: #1e293b;
+    }
+    .cd-val-list li:last-child {
+      margin-bottom: 0;
+    }
+    /* 最终决议压轴高亮卡槽 */
+    .cd-row-accord {
+      background: #f8fafc;
+      padding: 10px 14px;
+      border-radius: 6px;
+      border-left: 3px solid #3b82f6;
+      margin-top: 4px;
+    }
+    .cd-row-accord .cd-label {
+      color: #1d4ed8;
+      font-weight: 700;
+    }
+    .cd-row-accord .cd-val {
+      font-weight: 500;
+      color: #0f172a;
+    }
+    @media (max-width: 640px) {
+      .cd-row {
+        flex-direction: column;
+        gap: 2px;
+      }
+      .cd-label {
+        width: auto;
+      }
+    }
+    
   </style>
 </head>
 <body>
   <main class="page">
     <div class="ck-doc">
       <header class="ck-doc-header">
-        <h1>通用纪要</h1>
+        <h1>架构决策</h1>
+        <div class="ck-doc-meta">关键议题决策总览与共识分析</div>
       </header>
       <div class="ck-doc-content">
-        <h2 class="ck-doc-h2">全文摘要</h2><p>本次座谈会在北京园区召开，何刚总时隔多年再次到访北京，与北京现场40余位同事及远程接入的各地同事交流。何总回顾了北京团队自荣耀剥离后的业务变迁，指出北京仍有近千人的技术团队持续服务各产品线，并已形成一支强大的小艺队伍。何总明确表态，北京拥有丰富的高校与研究机构资源，公司将重新思考北京布局，围绕AI、小艺持续发展乃至具身智能探索新的业务方向，利用人才优势支撑终端业务长期发展。会议随后进入互动交流环节，何总与团队就小艺唤醒体验一致性、AI撬动消费决策、小艺慧记能力完善、智能体安全合规与生态平衡、全模态自然交互、人才与算力挑战、终端壁垒构建等议题展开深入讨论，最后举行了543-5会战任务令签发仪式，为六支战队授令。</p><h2 class="ck-doc-h2">要点梳理</h2><h3 class="ck-doc-h3">一. 何刚总致辞</h3><ul><li>何总表达了对北京园区的深厚感情，回顾2020年荣耀剥离后北京业务的变化，指出北京团队从约2500-3000人缩减后仍保留近千人，持续服务各产品线，并已形成强大的小艺队伍。</li><li>何总坦言自己来晚了，但强调北京人才优势突出，公司将重新思考北京布局，围绕AI、小艺发展乃至具身智能探索新方向。</li><li>何总指出，在AI领域，华为的优势在于与硬件的协同，应把消费者一句话闭环应用的体验做到极致，并对比豆包手机，强调华为在技术应用和一句话完成能力上更优。</li><li>何总提出，小艺是公司统一智能体的代表，未来具身进家也默认叫小艺，通过记忆能力积累与消费者建立持续粘性。</li><li>何总强调，AI优势在于与硬件结合，通过1+8+N终端和系统连接，一代代新产品上市不断改善体验，并举例地图业务从百度定制版到Petal Map的坚持发展。</li><li>何总承认在唤醒体验上曾不如豆包，但通过持续优化已越做越好，并给老贾提出要求：在华为手机上小艺的使用量、日活数和体验都要超过豆包。</li><li>何总坦言算力卡不足是长期痛点，因终端盈利有限，公司需平衡盈利与分红，推广需适度收敛，但方向坚持，相信会越做越好。</li><li>何总指出，鸿蒙7上体验越来越好，UX上大胆把小艺摆上桌面，后续新品牌直接是AI桌面，推荐用户用一句话指令，让消费者感受AI手机的样子。</li><li>何总表示，华为将坚定切入具身市场，但以商业成功为目标，不追求炒作市值，会先做好技术探索，再逐步推出产品实现商业闭环。</li><li>何总最后强调，要利用好北京高校和研究机构资源，通过暑期挑战班等吸引优秀人才加入团队。</li></ul><h3 class="ck-doc-h3">二. 互动交流（现场问答、自由交流与讨论）</h3><h4 class="ck-doc-h4">1. 小艺唤醒体验一致性</h4><ul><li>何总建议平台能力持续构建，各产品线需求由产品线自己排序，但原则上希望拉通。</li><li>建议产品线明确高端低端规格，如手机高端一个规格、低端一个规格，PC高端6麦、低端3麦，别频繁变动，否则无法支持。</li><li>何总鼓励小艺团队反向向产品线提要求，如有困难可上升至TMT决策。</li></ul><h4 class="ck-doc-h4">2. AI撬动消费决策</h4><ul><li>何总认为AI能否成为撬动消费者购买硬件的关键因素需要不断探索，存在量变到质变的过程，消费者心智培养需要时间。</li><li>举例买卫生纸、买炒锅等场景，说明AI能力在特定场景下有价值，但还差20%的完善度。</li><li>建议聚焦把日常真正有价值的场景打透，如与京东合作把选品体验做到极致。</li></ul><h4 class="ck-doc-h4">3. 小艺慧记能力完善</h4><ul><li>何总认为小艺慧记总结能力基本可用，但存在议题不分段、发言人识别不准等问题。</li><li>建议尽快实现通过图片输入会议日程，按议题生成纪要。</li><li>强调声纹识别是做好小艺慧记的关键，目标是在10来人的项目组开会，标注三天后即可自动识别发言人。</li><li>建议围绕小艺慧记把华为终端上的录音机、备忘录、华为笔记等能力全部拉通，基础能力统一，UI由各产品线自己做，可在5435上决策。</li></ul><h4 class="ck-doc-h4">4. 智能体安全合规与生态平衡</h4><ul><li>何总表示要一边摸索一边走，与生态达成共识，尊重对方商业模式。</li><li>举例看广告场景可通过分屏方式实现，既提升消费者体验又尊重生态。</li></ul><h4 class="ck-doc-h4">5. 全模态自然交互</h4><ul><li>何总认同团队看法，强调华为有硬件设备和系统优势，应把OS、1+8设备与模型能力有机结合。</li><li>利用多设备传感器（如摄像头、手表生理信号）让AI更好地理解用户意图。</li><li>回顾iPhone第一代从体验视角推动硬件创新的历史，期待大家从消费者体验视角倒推需要什么传感器和硬件。</li></ul><h4 class="ck-doc-h4">6. 人才竞争与算力卡困难</h4><ul><li>何总表示华为坚持长期主义，只能吸引价值观一致的人才，公司已为AI人才提供更多回报方式，但不会通过上市炒作获利。</li><li>对于训练卡问题，何总表示全力以赴搞卡，承认很难但会继续努力。</li></ul><h4 class="ck-doc-h4">7. AI泡沫与行业颠覆论</h4><ul><li>何总认为这是新技术发展的必由之路，类似2000年互联网和移动互联网，资本周期推动，但长期会回到商业本质。</li><li>以宇树为例指出市值过高有炒作成分，最终要看收入和利润。</li></ul><h4 class="ck-doc-h4">8. 终端壁垒构建</h4><ul><li>何总认为所有AI能力最终要终端呈现，手机体验最好。</li><li>初创公司做AI耳机、眼镜等是因为没有手机，端侧一定要有处理器，云游戏不成功就是例证。</li></ul><h4 class="ck-doc-h4">9. 小艺健康功能</h4><ul><li>何总反馈AI分析总是那几句话，建议增加情感化、有趣的内容，像憨憨那样提供情绪价值，让消费者愿意用。</li></ul><h4 class="ck-doc-h4">10. 自主agent边界</h4><ul><li>何总表示没有标准答案，要围绕消费者体验，多用多试，超越消费者期望就是最牛的。</li></ul><h3 class="ck-doc-h3">三. 任务令签署与授予</h3><ul><li>会议最后举行了543-5会战任务令签发仪式，何总为六支战队签发任务令。</li><li>获授战队包括：小艺聪明战队（北京代表肖龙帅、刘作珍、叶涛）、任务闭环专项（北京代表宋凯、玉涛）、个性化专项（北京代表田路超）、成本时延战队（北京代表龙国平、宋明聪）、主对话战队（北京代表肖梦琪、叶涛）等。</li><li>何总与各战队代表合影留念，鼓励各战队旗开得胜。</li></ul><h2 class="ck-doc-h2">结论与决定</h2><ul><li><strong>北京布局</strong>：重新思考北京业务布局，围绕AI、小艺持续发展乃至具身智能探索新方向，利用北京人才优势支撑终端业务长期发展。</li><li><strong>AI优势定位</strong>：坚持AI与硬件协同优势，把消费者一句话闭环应用体验做到极致，在华为手机上小艺的使用量、日活数和体验都要超过豆包。</li><li><strong>小艺唤醒一致性</strong>：原则上拉通各产品线小艺唤醒规格，建议手机高端一个规格、低端一个规格，PC高端6麦、低端3麦，别频繁变动；小艺团队可反向向产品线提要求，如有困难可上升TMT决策。</li><li><strong>小艺慧记能力完善</strong>：尽快实现通过图片输入会议日程，按议题生成纪要；声纹识别目标为在10来人的项目组开会，标注三天后即可自动识别发言人；围绕小艺慧记把华为终端上的录音机、备忘录、华为笔记等能力全部拉通，基础能力统一，UI由各产品线自己做，可在5435上决策。</li><li><strong>智能体生态平衡</strong>：尊重生态商业模式，与生态达成共识，探索分屏等方式实现看广告场景，既提升消费者体验又尊重生态。</li><li><strong>具身智能</strong>：华为将坚定切入具身市场，但以商业成功为目标，不追求炒作市值，先做好技术探索，再逐步推出产品实现商业闭环。</li><li><strong>算力卡</strong>：全力以赴搞卡，承认很难但会继续努力，推广需适度收敛，当卡能力提升时加大宣传。</li><li><strong>小艺健康功能</strong>：增加情感化、有趣的内容，像憨憨那样提供情绪价值，让消费者愿意用。</li></ul>
+        <h2 class="cd-section-title">决策总览</h2>
+        <div class="cd-table-wrap">
+          <table class="cd-table">
+            <thead>
+              <tr>
+                <th style="width: 28%;">议题</th>
+                <th style="width: 18%; text-align: center;">共识成色</th>
+                <th style="width: 54%;">最终决议</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+  <td><strong>自研网关</strong></td>
+  <td style="text-align: center;"><span class="cd-pill cd-pill-hard"><span class="cd-pill-dot"></span>一致赞成</span></td>
+  <td>确定自研方案并于10月底落地</td>
+</tr>
+            </tbody>
+          </table>
+        </div>
+
+        <h2 class="cd-section-title">决策细节</h2>
+        <div class="cd-details-wrap">
+          <div class="cd-card">
+          <div class="cd-card-header">
+            <div class="cd-card-title-wrap">
+              <span class="cd-card-num">1</span>
+              <span class="cd-card-title">自研网关</span>
+            </div>
+            <span class="cd-pill cd-pill-hard"><span class="cd-pill-dot"></span>一致赞成</span>
+          </div>
+          <div class="cd-card-body">
+            <div class="cd-row"><span class="cd-label">决策背景</span><span class="cd-val">商业授权到期</span></div>
+<div class="cd-row cd-row-accord"><span class="cd-label">最终决议</span><span class="cd-val">确定自研方案并于10月底落地</span></div>
+          </div>
+        </div>
+        </div>
       </div>
     </div>
   </main>
