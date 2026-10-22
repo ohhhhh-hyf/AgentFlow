@@ -1458,10 +1458,10 @@ def test_first_column_single_paragraph_synergy() -> None:
         else:
             unmatched.append(tpl_file.name)
 
-    # 唯有 consensus_decision 首栏为表格说明行（非散文单段），其余全部命中
+    # 移出任务专有模板后，全部 30 个场景模板 100% 覆盖首栏单段正则
     check(
-        "安全气囊正则覆盖全部 31 个散文单段总述模板",
-        len(matched) == len(templates) - 1 and "consensus_decision.md" in unmatched,
+        "安全气囊正则覆盖全部 30 个散文单段总述模板",
+        len(matched) == len(templates) == 30 and not unmatched,
         f"matched={len(matched)}, unmatched={unmatched}",
     )
 

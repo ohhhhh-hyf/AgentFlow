@@ -226,8 +226,6 @@ TEMPLATE_SCENARIO = {
     "government_bulletin": "press_conference",
     "media_qa_session": "press_conference",
     "admission_briefing": "meeting_minutes",
-    "personal_minutes": "meeting_minutes",
-    "consensus_decision": "meeting_minutes",
     "general_minutes": "daily_journal",
     "personal_memo": "daily_journal",
     "conversation_transcript": "daily_journal",
@@ -336,6 +334,44 @@ def template_key(template_value: str) -> str:
     return ""
 
 
+def task_template_dir() -> Path:
+    """任务专有模板目录（resources/task/）。"""
+    return PROJECT_ROOT / "resources" / "task"
+
+
+def resolve_task_template_format(template_value: str) -> str:
+    """从 resources/task/ 加载并解析任务专有模板（含 requirement 注释包装）。"""
+    value = (template_value or "").strip()
+    if not value:
+        return ""
+    t_id = value.replace(".md", "").strip()
+    alias_map = {
+        "个人视角纪要": "personal_minutes",
+        "视角纪要": "personal_minutes",
+        "共识决策": "consensus_decision",
+    }
+    t_id = alias_map.get(t_id, t_id)
+    task_file = task_template_dir() / f"{t_id}.md"
+    if not task_file.is_file():
+        return ""
+    try:
+        from core.templates.router._base import split_template_meta, wrap_template_requirement
+    except ImportError:
+        from core.templates.router._base import split_template_meta, wrap_template_requirement
+
+    raw = task_file.read_text(encoding="utf-8")
+    body, requirement = split_template_meta(raw)
+    lines = body.splitlines()
+    for i, line in enumerate(lines):
+        if line.startswith("# "):
+            lines = lines[i + 1 :]
+            break
+    format_text = "\n".join(lines).strip()
+    if not format_text:
+        return ""
+    return wrap_template_requirement(format_text, requirement.strip())
+
+
 def resolve_template_format(template_value: str) -> str:
     """extra.template 值 → 模板 format 文本（含写作要求注释）；非法值返回空串。
 
@@ -344,6 +380,12 @@ def resolve_template_format(template_value: str) -> str:
     value = (template_value or "").strip()
     if not value:
         return ""
+
+    # 向下兼容：若是任务专有模板，平滑分流至 resolve_task_template_format
+    task_res = resolve_task_template_format(value)
+    if task_res:
+        return task_res
+
     item = template_registry().get(template_key(value)) or {}
     fmt = str(item.get("format") or "").strip()
     req = str(item.get("requirement") or "").strip()
@@ -439,6 +481,8 @@ __all__ = [
     "profile_path",
     "redis_url",
     "resolve_template_format",
+    "resolve_task_template_format",
+    "task_template_dir",
     "run_mode",
     "template_key",
     "template_registry",

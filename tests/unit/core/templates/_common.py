@@ -12,7 +12,6 @@ SCALAR_BASELINE_BY_DIR: dict[str, dict[str, int]] = {
         "class_transcript": 4, "clinical_advisory": 5, "contract_vetting": 4,
         "conversation_transcript": 4, "court_transcript": 3, "debate_forum": 4,
         "decision_review": 4, "exchange_forum": 5, "general_minutes": 3,
-        "personal_minutes": 4,
         "government_bulletin": 3, "group_seminar": 4, "hiring_report": 3,
         "home_school_liaison": 4, "interview_debrief": 4, "interview_transcript": 3,
         "knowledge_memo": 3, "legal_advisory": 4, "media_briefing": 4,

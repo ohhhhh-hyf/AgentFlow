@@ -31,7 +31,7 @@ from infra.exporters.html.consensus_decision import (
 
 def test_template_file_and_content():
     """验证 resources/templates/consensus_decision.md 存在且内容合规。"""
-    tpl_path = PROJECT_ROOT / "resources" / "templates" / "consensus_decision.md"
+    tpl_path = PROJECT_ROOT / "resources" / "task" / "consensus_decision.md"
     assert tpl_path.is_file(), f"模板文件不存在: {tpl_path}"
 
     content = tpl_path.read_text(encoding="utf-8")
@@ -296,7 +296,7 @@ def test_outputs_export_integration(tmp_path):
 def test_gate_whitelist_consensus_tags():
     """验证模板门禁 validate_rendered_output 不会将 [一致赞成]、[附带前提]、[争执未决] 误判为残留占位符。"""
     from core.templates.router._gate import validate_rendered_output
-    tpl_path = PROJECT_ROOT / "resources" / "templates" / "consensus_decision.md"
+    tpl_path = PROJECT_ROOT / "resources" / "task" / "consensus_decision.md"
     template = tpl_path.read_text(encoding="utf-8")
 
     sample_output = """# 测试会议 · 共识决策
