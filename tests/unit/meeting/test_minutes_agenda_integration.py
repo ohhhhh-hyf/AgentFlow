@@ -216,15 +216,16 @@ def test_agenda_template_resolution():
     agenda_fmt = resolve_agenda_template_format("general_minutes")
     from core.templates.router._gate import scan_fixed_bracket_literals
     assert scan_fixed_bracket_literals(agenda_fmt) == [], "agenda template must not have unparsed fixed bracket literals"
-    assert "以现场审定的有效议题清单为主线展开呈现" in agenda_fmt
-    assert "每个审定议题设立三级小节标题" in agenda_fmt
-    assert "#### 1. 子主题名称" in agenda_fmt
+    assert "以现场审定的有效议题清单为主线展开" in agenda_fmt
+    assert "每个议题以「### 一. 议题名称」顶格开始" in agenda_fmt
+    assert "**业务子主题**" in agenda_fmt
+    assert "#### 1. 子主题名称" not in agenda_fmt
     assert "采用议题聚类" not in agenda_fmt
 
     # 2. 常规模式下加载通用纪要：原模板 resources/templates/general_minutes.md 保持不变
     legacy_fmt = resolve_template_format("general_minutes")
     assert "采用议题聚类" in legacy_fmt
-    assert "以现场审定的有效议题清单为主线展开呈现" not in legacy_fmt
+    assert "以现场审定的有效议题清单为主线展开" not in legacy_fmt
 
     # 3. 议题模式下加载未单独定制的模板（如 project_progress）：平滑回退普通模板
     fallback_fmt = resolve_agenda_template_format("project_progress")
@@ -245,15 +246,15 @@ def test_tasks_prepare_template_selection(tmp_path, monkeypatch):
     )
     prep_enhanced = _prepare("meeting", "minutes", req_with_agenda, "u_test_template_1")
     enhanced_template_text = prep_enhanced.templates["minutes"].read_text(encoding="utf-8")
-    assert "以现场审定的有效议题清单为主线展开呈现" in enhanced_template_text
-    assert "每个审定议题设立三级小节标题" in enhanced_template_text
+    assert "以现场审定的有效议题清单为主线展开" in enhanced_template_text
+    assert "每个议题以「### 一. 议题名称」顶格开始" in enhanced_template_text
 
     # 场景 B: minutes 任务无 docs -> 使用 legacy templates
     req_no_docs = TaskRequest(texts={"transcript": "张三 10:00: 讨论常规事项"})
     prep_legacy = _prepare("meeting", "minutes", req_no_docs, "u_test_template_2")
     legacy_template_text = prep_legacy.templates["minutes"].read_text(encoding="utf-8")
     assert "采用议题聚类" in legacy_template_text
-    assert "以现场审定的有效议题清单为主线展开呈现" not in legacy_template_text
+    assert "以现场审定的有效议题清单为主线展开" not in legacy_template_text
 
 def test_meeting_understanding_node_agenda_guidance():
     import asyncio
@@ -361,7 +362,7 @@ async def test_agenda_track_b_prompt_routing():
     # 4b. 模板模式
     rendered_prompt_tpl, _ = renderer._prompt_and_user("议题模式：agenda_enhanced\n视角模式：objective", "# 通用纪要模板\n{{scalar:要点梳理}}")
     assert "严格遵循模板栏目规约与公文层级标准完成排版" in rendered_prompt_tpl
-    assert "议题大项（### 一. 议题名称）" in rendered_prompt_tpl
+    assert "大项标题（### 一. 议题名称）" in rendered_prompt_tpl
 
 def test_meeting_state_declares_agenda_fields():
     from domains.meeting.models import MeetingState
@@ -490,7 +491,7 @@ def test_minutes_prompt_matter_oriented_governance():
 
 
 def test_agenda_minutes_quality_and_stability_prompts():
-    """验证议题纪要草稿与渲染提示词中：加粗引导、首行直出、解除字数枷锁、去转述动词。"""
+    """验证议题纪要草稿与渲染提示词中：扁平子主题、列表项就事论事、解除字数枷锁、去转述动词。"""
     from domains.meeting.tasks.minutes.prompts import (
         MINUTES_AGENDA_GENERATION_PROMPT,
         MINUTES_AGENDA_RENDER_TEMPLATE_PROMPT,
@@ -501,24 +502,27 @@ def test_agenda_minutes_quality_and_stability_prompts():
     assert "单条约 40–60 字" not in MINUTES_AGENDA_GENERATION_PROMPT
     assert "提炼 2–5 条核心事实" not in MINUTES_AGENDA_GENERATION_PROMPT
 
-    # 2. 验证生成提示词包含加粗引导规范与首行直出规约
-    assert "- **[事项/方案/方向主题]**：具体事实陈述" in MINUTES_AGENDA_GENERATION_PROMPT
-    assert "项首大项标题（首行顶格直出）" in MINUTES_AGENDA_GENERATION_PROMPT
-    assert "绝对严禁在标题前编写任何导语、前言、背景铺垫或过渡段落" in MINUTES_AGENDA_GENERATION_PROMPT
-    assert "严禁在正文中出现“xxx提出”、“xxx强调”" in MINUTES_AGENDA_GENERATION_PROMPT
-    assert "量化数据精准穷尽" in MINUTES_AGENDA_GENERATION_PROMPT
+    # 2. 验证生成提示词包含扁平子主题与纯净列表项规约
+    assert "- [要点名称]: [具体事实陈述]" in MINUTES_AGENDA_GENERATION_PROMPT
+    assert "**[业务子主题名称]**" in MINUTES_AGENDA_GENERATION_PROMPT
+    assert "不使用四级标题或数字编号" in MINUTES_AGENDA_GENERATION_PROMPT
+    assert "以业务方案、技术机理与推进结果为主干直接陈述" in MINUTES_AGENDA_GENERATION_PROMPT
+    assert "正文只记录事项本身" in MINUTES_AGENDA_GENERATION_PROMPT
+    assert "参数指标、对比基线、排期节点 100% 完整保留" in MINUTES_AGENDA_GENERATION_PROMPT
 
-    # 3. 验证渲染提示词注入【零导语首行直出铁规】并完整保留加粗
-    assert "【零导语首行直出铁规】" in MINUTES_AGENDA_RENDER_TEMPLATE_PROMPT
-    assert "绝对严禁在二级栏目标题与首个三级小标题之间插入任何总结句、过渡句或前言导语" in MINUTES_AGENDA_RENDER_TEMPLATE_PROMPT
-    assert "条目完整保留「- **事项主题**：具体事实陈述」加粗格式" in MINUTES_AGENDA_RENDER_TEMPLATE_PROMPT
+    # 3. 验证渲染提示词对齐扁平子主题与纯净列表项
+    assert "大项标题（### 一. 议题名称）" in MINUTES_AGENDA_RENDER_TEMPLATE_PROMPT
+    assert "加粗子主题（**业务子主题**）" in MINUTES_AGENDA_RENDER_TEMPLATE_PROMPT
+    assert "列表项（- 要点名称: 具体陈述）" in MINUTES_AGENDA_RENDER_TEMPLATE_PROMPT
+    assert "不添加任何前言导语" in MINUTES_AGENDA_RENDER_TEMPLATE_PROMPT
 
-    # 4. 验证非模板渲染也同步对齐加粗格式
-    assert "- **事项主题**：具体事实陈述" in MINUTES_AGENDA_RENDER_PROMPT
+    # 4. 验证非模板渲染也同步对齐扁平子主题与纯净列表项
+    assert "**业务子主题**" in MINUTES_AGENDA_RENDER_PROMPT
+    assert "- 要点名称: 具体陈述" in MINUTES_AGENDA_RENDER_PROMPT
 
 
 def test_orchestrator_line_shared_context_recency_injection():
-    """验证议题模式下长上下文最底端注入最高优先级执行红线（近因效应）。"""
+    """验证议题模式下长上下文最底端注入最高优先级执行准绳（近因效应）。"""
     nodes = _Nodes()
     state_enhanced = {
         "transcript": "张三 10:00: 讨论芯片量产",
@@ -526,25 +530,26 @@ def test_orchestrator_line_shared_context_recency_injection():
         "templates": {"minutes": "# 通用模板\n{{scalar:要点梳理}}"},
     }
     ctx = nodes._line_shared_context(state_enhanced, "minutes")
-    assert "【审定议题草稿生成核心红线（执行前最后确认）】" in ctx
-    assert "1. 格式统一加粗：正文列表项一律严格采用「- **[事项/方案/方向主题]**：具体事实陈述」格式" in ctx
-    assert "2. 彻底剥离转述" in ctx
-    assert "3. 充分充实研讨细节" in ctx
-    assert "4. 结构纯净零前言" in ctx
+    assert "【审定议题草稿生成执行准绳】" in ctx
+    assert "1. 标题直出" in ctx
+    assert "2. 扁平子主题" in ctx
+    assert "3. 纯净列表" in ctx
+    assert "4. 就事论事" in ctx
+    assert "5. 细节充分" in ctx
 
-    # 验证非议题模式下不注入该红线
+    # 验证非议题模式下不注入该准绳
     state_legacy = {
         "transcript": "张三 10:00: 讨论芯片量产",
         "has_valid_agenda": False,
         "templates": {"minutes": "# 通用模板\n{{scalar:要点梳理}}"},
     }
     ctx_legacy = nodes._line_shared_context(state_legacy, "minutes")
-    assert "【审定议题草稿生成核心红线" not in ctx_legacy
+    assert "【审定议题草稿生成执行准绳】" not in ctx_legacy
 
-    # 验证非 minutes 任务线不注入该红线
+    # 验证非 minutes 任务线不注入该准绳
     state_actions = {
         "transcript": "张三 10:00: 讨论芯片量产",
         "has_valid_agenda": True,
     }
     ctx_actions = nodes._line_shared_context(state_actions, "actions")
-    assert "【审定议题草稿生成核心红线" not in ctx_actions
+    assert "【审定议题草稿生成执行准绳】" not in ctx_actions
