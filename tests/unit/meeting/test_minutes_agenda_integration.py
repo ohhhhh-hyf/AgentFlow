@@ -487,3 +487,64 @@ def test_minutes_prompt_matter_oriented_governance():
     # 4. 审核放行规则验证：确保 Supervisor 显式放行公文决议体与脱水表述
     assert "属于符合公文规范的表述优化，予以充分认可并放行通过" in MINUTES_OBJECTIVE_SUPERVISOR_PROMPT
     assert "属于符合公文规范的表述优化，予以充分认可并放行通过" in MINUTES_AGENDA_SUPERVISOR_PROMPT
+
+
+def test_agenda_minutes_quality_and_stability_prompts():
+    """验证议题纪要草稿与渲染提示词中：加粗引导、首行直出、解除字数枷锁、去转述动词。"""
+    from domains.meeting.tasks.minutes.prompts import (
+        MINUTES_AGENDA_GENERATION_PROMPT,
+        MINUTES_AGENDA_RENDER_TEMPLATE_PROMPT,
+        MINUTES_AGENDA_RENDER_PROMPT,
+    )
+
+    # 1. 验证生成提示词彻底移除字数枷锁（不再限制 40-60 字及 2-5 条）
+    assert "单条约 40–60 字" not in MINUTES_AGENDA_GENERATION_PROMPT
+    assert "提炼 2–5 条核心事实" not in MINUTES_AGENDA_GENERATION_PROMPT
+
+    # 2. 验证生成提示词包含加粗引导规范与首行直出规约
+    assert "- **[事项/方案/方向主题]**：具体事实陈述" in MINUTES_AGENDA_GENERATION_PROMPT
+    assert "项首大项标题（首行顶格直出）" in MINUTES_AGENDA_GENERATION_PROMPT
+    assert "绝对严禁在标题前编写任何导语、前言、背景铺垫或过渡段落" in MINUTES_AGENDA_GENERATION_PROMPT
+    assert "严禁在正文中出现“xxx提出”、“xxx强调”" in MINUTES_AGENDA_GENERATION_PROMPT
+    assert "量化数据精准穷尽" in MINUTES_AGENDA_GENERATION_PROMPT
+
+    # 3. 验证渲染提示词注入【零导语首行直出铁规】并完整保留加粗
+    assert "【零导语首行直出铁规】" in MINUTES_AGENDA_RENDER_TEMPLATE_PROMPT
+    assert "绝对严禁在二级栏目标题与首个三级小标题之间插入任何总结句、过渡句或前言导语" in MINUTES_AGENDA_RENDER_TEMPLATE_PROMPT
+    assert "条目完整保留「- **事项主题**：具体事实陈述」加粗格式" in MINUTES_AGENDA_RENDER_TEMPLATE_PROMPT
+
+    # 4. 验证非模板渲染也同步对齐加粗格式
+    assert "- **事项主题**：具体事实陈述" in MINUTES_AGENDA_RENDER_PROMPT
+
+
+def test_orchestrator_line_shared_context_recency_injection():
+    """验证议题模式下长上下文最底端注入最高优先级执行红线（近因效应）。"""
+    nodes = _Nodes()
+    state_enhanced = {
+        "transcript": "张三 10:00: 讨论芯片量产",
+        "has_valid_agenda": True,
+        "templates": {"minutes": "# 通用模板\n{{scalar:要点梳理}}"},
+    }
+    ctx = nodes._line_shared_context(state_enhanced, "minutes")
+    assert "【审定议题草稿生成核心红线（执行前最后确认）】" in ctx
+    assert "1. 格式统一加粗：正文列表项一律严格采用「- **[事项/方案/方向主题]**：具体事实陈述」格式" in ctx
+    assert "2. 彻底剥离转述" in ctx
+    assert "3. 充分充实研讨细节" in ctx
+    assert "4. 结构纯净零前言" in ctx
+
+    # 验证非议题模式下不注入该红线
+    state_legacy = {
+        "transcript": "张三 10:00: 讨论芯片量产",
+        "has_valid_agenda": False,
+        "templates": {"minutes": "# 通用模板\n{{scalar:要点梳理}}"},
+    }
+    ctx_legacy = nodes._line_shared_context(state_legacy, "minutes")
+    assert "【审定议题草稿生成核心红线" not in ctx_legacy
+
+    # 验证非 minutes 任务线不注入该红线
+    state_actions = {
+        "transcript": "张三 10:00: 讨论芯片量产",
+        "has_valid_agenda": True,
+    }
+    ctx_actions = nodes._line_shared_context(state_actions, "actions")
+    assert "【审定议题草稿生成核心红线" not in ctx_actions
