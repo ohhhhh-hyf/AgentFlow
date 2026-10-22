@@ -281,88 +281,33 @@ def _ocr_docs(user_id: str, docs: list[str]) -> str:
 
 
 def _pad_image_bottom(image_path: str, pad_px: int = 100) -> str | None:
-    """在图片底部添加白色填充，防止 OCR 检测模型边缘截断导致末尾行丢失。
+    """在图片底部添加白色填充（委托 domains.meeting.agenda_vision.pad_image_bottom 实现）。"""
+    from domains.meeting.agenda_vision import pad_image_bottom
 
-    返回填充后图片的临时路径。失败时返回 None（调用方退回原图）。
-    """
-    try:
-        from PIL import Image
-
-        with Image.open(image_path) as img:
-            w, h = img.size
-            # RGBA → RGB（避免 PNG 透明通道在白色填充时颜色错乱）
-            if img.mode == "RGBA":
-                bg = Image.new("RGB", img.size, (255, 255, 255))
-                bg.paste(img, mask=img.split()[3])
-                img = bg
-            elif img.mode != "RGB":
-                img = img.convert("RGB")
-            new_img = Image.new("RGB", (w, h + pad_px), (255, 255, 255))
-            new_img.paste(img, (0, 0))
-            import tempfile as _tf
-
-            fd, tmp_path = _tf.mkstemp(suffix=".png")
-            os.close(fd)
-            new_img.save(tmp_path)
-            return tmp_path
-    except Exception as exc:  # noqa: BLE001
-        logging.getLogger(__name__).warning("pad_image_bottom failed: %s", exc)
-        return None
+    return pad_image_bottom(image_path, pad_px=pad_px)
 
 
 def _ocr_single_agenda_doc(
     user_id: str,
     docs: list[str],
     candidate_speakers: list[str] | set[str] | None = None,
+    transcript: str = "",
 ) -> str:
-    """议程单专用轻量 OCR：单线程直调，单图单实例，禁用上下边缘去噪裁剪，走专用议程提纯 Prompt。
-
-    优化措施：
-    - 方案 A：底部预填充 100px 白色边距，将末尾议题从图片边缘 3% 移至安全区域
-    - 方案 B：for_agenda=True → 使用禁用 doc_orientation_classify 的专用引擎
-    """
+    """提取 docs 中的议程图片（统一委托 domains.meeting.agenda_vision.extract_agenda_from_image_docs 调度）。"""
     names = [name for name in (docs or []) if _is_image_name(name)]
     if not names:
         return ""
-    import os as _os
+    from domains.meeting.agenda_vision import extract_agenda_from_image_docs
 
-    from domains.meeting.tasks.agenda_minutes.agenda_extractor import reconstruct_agenda_markdown
-    from infra.ocr.engines import ocr_engine_label
-    from infra.ocr.layout import ocr_image_lines
-    from infra.ocr.levels.light import ocr_log
-
-    engine = ocr_engine_label()
-    total = len(names)
-    ocr_log(f"agenda_ocr start engine={engine} images={total} mode=single_stream")
-    parts: list[str] = []
-    for idx, name in enumerate(names, 1):
-        path = _input_file(user_id, "docs", name)
-        padded_path: str | None = None
-        try:
-            # 方案 A：底部预填充 100px 白色边距，防止 PP-OCRv5 检测模型底部边缘截断
-            padded_path = _pad_image_bottom(str(path), pad_px=100)
-            actual_path = padded_path or str(path)
-            # 方案 B：for_agenda=True → 使用议程专用引擎（禁用 doc_orientation_classify）
-            lines = ocr_image_lines(actual_path, enable_page_chrome=False, for_agenda=True) or []
-            ocr_log(f"agenda_ocr item ok {idx}/{total} lines={len(lines)} file={name} padded={padded_path is not None}")
-            if lines:
-                md = reconstruct_agenda_markdown(lines, candidate_speakers=candidate_speakers).strip()
-                if md:
-                    parts.append(md)
-        except Exception as exc:  # noqa: BLE001
-            ocr_log(f"agenda_ocr item fail {idx}/{total} file={name} err={exc}")
-            parts.append(f"（议程单图片 {name} OCR 失败：{exc}）")
-        finally:
-            # 清理临时填充图片
-            if padded_path:
-                try:
-                    _os.unlink(padded_path)
-                except OSError:
-                    pass
-
-    result = "\n\n".join(part for part in parts if part).strip()
-    ocr_log(f"agenda_ocr done total={total} chars={len(result)}")
-    return result
+    image_paths = [_input_file(user_id, "docs", name) for name in names]
+    _, md_text = extract_agenda_from_image_docs(
+        user_id=user_id,
+        image_docs=names,
+        transcript=transcript,
+        candidate_speakers=candidate_speakers,
+        image_paths=image_paths,
+    )
+    return md_text
 
 
 
@@ -610,28 +555,17 @@ def _prepare(domain: str, task: str, req: TaskRequest, user_id: str) -> _Prepare
             image_docs = [n for n in req.docs if _is_image_name(n)]
             text_docs = [n for n in req.docs if not _is_image_name(n)]
             if image_docs:
-                candidate_spk = []
-                if transcript:
-                    from domains.meeting.tasks.agenda_minutes.agenda_parser import extract_speakers_from_transcript
+                from domains.meeting.agenda_vision import extract_agenda_from_image_docs
 
-                    candidate_spk = extract_speakers_from_transcript(transcript)
-                ocr_text = _ocr_single_agenda_doc(user_id, image_docs, candidate_speakers=candidate_spk)
+                image_paths = [_input_file(user_id, "docs", n) for n in image_docs]
+                _, ocr_text = extract_agenda_from_image_docs(
+                    user_id=user_id,
+                    image_docs=image_docs,
+                    transcript=transcript,
+                    image_paths=image_paths,
+                )
                 if ocr_text:
                     agenda_parts.append(ocr_text)
-                    try:
-                        from datetime import datetime
-
-                        ocr_log_dir = PROJECT_ROOT / "logs" / "agenda_ocr"
-                        ocr_log_dir.mkdir(parents=True, exist_ok=True)
-                        stamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-                        (ocr_log_dir / "latest_agenda_ocr.md").write_text(ocr_text, encoding="utf-8")
-                        (ocr_log_dir / f"agenda_ocr_{stamp}.md").write_text(ocr_text, encoding="utf-8")
-                        logger.info(
-                            "Saved agenda OCR snapshot to logs/agenda_ocr/latest_agenda_ocr.md (%d chars)",
-                            len(ocr_text),
-                        )
-                    except Exception as dump_err:  # noqa: BLE001
-                        logger.warning("Failed to save agenda OCR debug snapshot: %s", dump_err)
             for name in text_docs:
                 path = _input_file(user_id, "docs", name)
                 try:
@@ -650,12 +584,15 @@ def _prepare(domain: str, task: str, req: TaskRequest, user_id: str) -> _Prepare
             image_docs = [n for n in req.docs if _is_image_name(n)]
             text_docs = [n for n in req.docs if not _is_image_name(n)]
             if image_docs:
-                candidate_spk = []
-                if transcript:
-                    from domains.meeting.tasks.agenda_minutes.agenda_parser import extract_speakers_from_transcript
+                from domains.meeting.agenda_vision import extract_agenda_from_image_docs
 
-                    candidate_spk = extract_speakers_from_transcript(transcript)
-                ocr_text = _ocr_single_agenda_doc(user_id, image_docs, candidate_speakers=candidate_spk)
+                image_paths = [_input_file(user_id, "docs", n) for n in image_docs]
+                _, ocr_text = extract_agenda_from_image_docs(
+                    user_id=user_id,
+                    image_docs=image_docs,
+                    transcript=transcript,
+                    image_paths=image_paths,
+                )
                 if ocr_text:
                     candidate_parts.append(ocr_text)
             for name in text_docs:
