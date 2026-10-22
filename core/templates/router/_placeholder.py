@@ -1112,7 +1112,7 @@ def _prune_context_for_column(
                     if isinstance(draft_obj, dict):
                         compact_draft = {
                             "headline": draft_obj.get("headline") or "",
-                            "executive_summary": draft_obj.get("executive_summary") or [],
+                            "executive_summary": (draft_obj.get("executive_summary") or [])[:1],
                             "key_decisions": draft_obj.get("key_decisions") or [],
                         }
                         out_parts.append(f"{label}\n{json.dumps(compact_draft, ensure_ascii=False)}")

@@ -159,6 +159,8 @@ class Minutes(ModelMixin):
 
     @classmethod
     def validate(cls, data: dict) -> "Minutes":
+        if isinstance(data, dict) and "history_comparison" not in data:
+            data["history_comparison"] = []
         _exact_fields(data, [f.name for f in fields(cls)], cls.__name__)
         _string(data["headline"], "headline")
         _string_list(data["executive_summary"], "executive_summary")

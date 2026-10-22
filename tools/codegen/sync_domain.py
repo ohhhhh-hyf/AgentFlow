@@ -314,6 +314,10 @@ def generate_generation_model(cls: str, fields: list[dict]) -> str:
 
     field_lines = "\n".join(_field_declaration(f) for f in ordered)
     check_lines = "\n".join(_validation_line(f) for f in ordered)
+    default_lines = ""
+    for f in ordered:
+        if f.get("name") == "history_comparison":
+            default_lines = '        if isinstance(data, dict) and "history_comparison" not in data:\n            data["history_comparison"] = []\n'
 
     return f"""@dataclass
 class {cls}(ModelMixin):
@@ -323,7 +327,7 @@ class {cls}(ModelMixin):
 
     @classmethod
     def validate(cls, data: dict) -> "{cls}":
-        _exact_fields(data, [f.name for f in fields(cls)], cls.__name__)
+{default_lines}        _exact_fields(data, [f.name for f in fields(cls)], cls.__name__)
 {check_lines}
         return cls(**data)"""
 

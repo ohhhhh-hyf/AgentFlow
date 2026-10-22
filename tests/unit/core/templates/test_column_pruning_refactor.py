@@ -93,3 +93,75 @@ def test_long_transcript_safety_truncation():
     # 验证原文长尾被截断，且带有说明标记
     assert "后文各模块细节讨论略" in pruned
     assert len(pruned) < 3500
+
+def test_overview_column_prunes_executive_summary_to_first_item():
+    """验证总述概览类栏目(is_overview_col)裁剪时，草稿executive_summary被严格截断为仅保留首项宏观概括。"""
+    draft = {
+        "headline": "年度投资理念交流会",
+        "executive_summary": [
+            "第一段：本次讲座为基金经理肖楠面向机构投资者的宏观框架汇报。",
+            "第二段：肖楠介绍了务实派与务虚派的投资理念差异，反对抱团与均值回归。",
+            "第三段：肖楠汇报了互联网、财富管理、新消费和高端制造四大方向的布局。"
+        ],
+        "key_decisions": ["坚持务实投资框架"]
+    }
+    understanding = {
+        "meeting_purpose": "年度投资汇报",
+        "meeting_brief": "投资框架与行业反思",
+        "topics": [{"title": "投资理念", "discussion": "宏观与微观"}]
+    }
+
+    context = (
+        "视角模式：objective\n"
+        "objective_perspective：True\n\n"
+        f"会议理解：\n{json.dumps(understanding, ensure_ascii=False)}\n\n"
+        f"已批准纪要草稿：\n{json.dumps(draft, ensure_ascii=False)}\n\n"
+        "纪要审核结论：\n{\"decision\": \"approve\"}\n"
+    )
+
+    pruned = _prune_context_for_column(context, "", title="讲座概况", hint="单段概括，约 250–350 字")
+
+    # 验证只保留了第一段宏观概括
+    assert "第一段：本次讲座为基金经理肖楠面向机构投资者的宏观框架汇报" in pruned
+    # 验证后续第二段、第三段具体论证已被严格剔除，杜绝输入多段诱导模型输出多段
+    assert "第二段：肖楠介绍了务实派与务虚派" not in pruned
+    assert "第三段：肖楠汇报了互联网" not in pruned
+
+
+def test_minutes_validation_auto_fills_missing_history_comparison():
+    """验证当LLM因无需编写而漏输出history_comparison时，Minutes.validate零报错自动补空列表，避免7秒二次重试。"""
+    from domains.meeting.models_generated import Minutes
+
+    raw_data_without_history_comparison = {
+        "headline": "手机常用APP与音乐偏好交流讨论",
+        "executive_summary": ["本次讨论为多人参与的闲聊式交流，围绕常用APP展开。"],
+        "key_decisions": ["达成共识"],
+        "personally_relevant_points": ["小李跟进"],
+        "risks_and_blockers": [],
+        "unresolved_questions": []
+        # 注意：此处故意缺少 history_comparison 键
+    }
+
+    minutes_obj = Minutes.validate(raw_data_without_history_comparison)
+    assert minutes_obj.headline == "手机常用APP与音乐偏好交流讨论"
+    assert minutes_obj.history_comparison == []
+
+
+def test_prompts_overview_word_budget_and_mapping_rules():
+    """验证Prompt契约中首项字数已对齐250-350字，且普通模板渲染Prompt包含总述栏映射规约。"""
+    from domains.meeting.tasks.minutes.prompts import (
+        MINUTES_OBJECTIVE_GENERATION_PROMPT,
+        MINUTES_AGENDA_GENERATION_PROMPT,
+        MINUTES_RENDER_TEMPLATE_PROMPT,
+    )
+
+    # 1. 验证生成Prompt中首项字数约束已对齐为 250–350 字
+    assert "默认 250–350 字" in MINUTES_OBJECTIVE_GENERATION_PROMPT
+    assert "约 250–350 字" in MINUTES_AGENDA_GENERATION_PROMPT
+
+    # 2. 验证普通模板渲染Prompt中已补齐概括总述类栏目的单段映射规约
+    assert "【栏目语义自适应映射】" in MINUTES_RENDER_TEMPLATE_PROMPT
+    assert "概括总述类栏目" in MINUTES_RENDER_TEMPLATE_PROMPT
+    assert "映射草稿 executive_summary 的首项" in MINUTES_RENDER_TEMPLATE_PROMPT
+    assert "严禁分多段输出" in MINUTES_RENDER_TEMPLATE_PROMPT
+
