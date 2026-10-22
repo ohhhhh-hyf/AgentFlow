@@ -1,32 +1,64 @@
-2026-10-22 17:23:04 [INFO] [app.api.routes.agent] [api:agent] domain=meeting task=minutes request_id=4958c7b64c1740f79ac5a7b4c59be9a8 user_id=1
-2026-10-22 17:23:05 [INFO] [agentflow.meeting.agenda_vision] [AGENDA_VISION] 尝试通过视觉大模型抽取议程: 说话人日志.png
-2026-10-22 17:23:05 [INFO] [agentflow.infra.vlm.agenda] [VLM] 发起议程视觉识别 (尝试 1/3): 说话人日志.png
-2026-10-22 17:23:06 [INFO] [agentflow.infra.vlm.agenda] [VLM] 议程识别成功 (尝试 1/3): 包含 5 项议题
-2026-10-22 17:23:06 [INFO] [agentflow.meeting.agenda_vision] Saved agenda snapshot to logs/agenda_ocr/latest_agenda_ocr.md (276 chars)
-2026-10-22 17:23:06 [INFO] [agentflow.meeting.agenda_vision] [AGENDA_VISION] 视觉大模型抽取成功，共解析 5 项实质议题
-2026-10-22 17:23:06 [INFO] [app.tasks] minutes 任务检测到 docs 包含 3 个有效讨论议题，激活议题增强流水线
-2026-10-22 17:23:07 [INFO] [app.tasks] [task:start] domain=meeting task=minutes request_id=4958c7b64c1740f79ac5a7b4c59be9a8 user_id=1 memory=False
-2026-10-22 17:23:07 [INFO] [infra.llm.llmclient] llm client backend=vllm model=deepseek-v4-flash-0731 base_url=http://127.0.0.1:8000/v1 ctx=65536 max_tokens=50000 timeout=600.0 retries=2 temperature=0.2 sampling_sent=False
-2026-10-22 17:23:07 [INFO] [agentflow] pipeline start lines=minutes
-2026-10-22 17:23:07 [INFO] [agentflow] skip meeting_understanding (minutes agenda enhanced self-contained)
-2026-10-22 17:23:07 [INFO] [agentflow] node done meeting_understanding
-2026-10-22 17:23:07 [INFO] [agentflow] skip perspective (objective)
-2026-10-22 17:23:07 [INFO] [agentflow] node done perspective_modeling
-2026-10-22 17:23:07 [INFO] [agentflow] agent start gen line=minutes
-2026-10-22 17:23:07 [INFO] [infra.llm.llmclient] llm call label=minutes/agent/agenda mode=structured
-2026-10-22 17:23:07 [INFO] [infra.llm.llmclient] llm fit max_tokens 50000->30682 ctx=65536 input~34598
-2026-10-22 17:23:48 [INFO] [infra.llm.llmclient] llm resp label=minutes/agent/agenda model=deepseek-v4-flash-0731 finish=stop in=23494 out=1913 json_mode=True chars=3249
-2026-10-22 17:23:48 [INFO] [agentflow] agent done gen line=minutes
-2026-10-22 17:23:48 [INFO] [agentflow] node done minutes_agent
-2026-10-22 17:23:48 [INFO] [agentflow] agent start review line=minutes
-2026-10-22 17:23:48 [INFO] [infra.llm.llmclient] llm call label=minutes/supervisor/agenda mode=structured
-2026-10-22 17:23:49 [INFO] [infra.llm.llmclient] llm resp label=minutes/supervisor/agenda model=deepseek-v4-flash-0731 finish=stop in=6496 out=81 json_mode=True chars=252
-2026-10-22 17:23:49 [INFO] [agentflow] agent done review line=minutes decision=approve
-2026-10-22 17:23:49 [INFO] [agentflow] node done minutes_supervisor
-2026-10-22 17:23:49 [INFO] [agentflow] render start line=minutes
-2026-10-22 17:23:49 [INFO] [infra.llm.llmclient] llm call label=minutes/render mode=text
-2026-10-22 17:24:06 [INFO] [infra.llm.llmclient] llm resp label=minutes/render model=deepseek-v4-flash-0731 finish=stop in=5523 out=1441 json_mode=False chars=2386
-2026-10-22 17:24:06 [INFO] [agentflow] render done line=minutes
-2026-10-22 17:24:06 [INFO] [core.runner.runner] saved html line=minutes path=/root/h00984725/TRY/data/1/output/4958c7b64c1740f79ac5a7b4c59be9a8/minutes.html
-2026-10-22 17:24:06 [INFO] [core.runner.runner] saved text line=minutes path=/root/h00984725/TRY/data/1/output/4958c7b64c1740f79ac5a7b4c59be9a8/result.md
-2026-10-22 17:24:06 [INFO] [app.tasks] [task:finish] domain=meeting task=minutes request_id=4958c7b64c1740f79ac5a7b4c59be9a8 cost=62.20s tokens=38948 file=minutes.html
+2026-10-22 17:33:09 [INFO] [app.api.routes.agent] [api:agent] domain=meeting task=minutes request_id=3e7d135de0154df5b32636adb6d05d1e user_id=1
+2026-10-22 17:33:10 [INFO] [agentflow.meeting.agenda_vision] [AGENDA_VISION] 尝试通过视觉大模型抽取议程: 说话人日志.png
+2026-10-22 17:33:10 [INFO] [agentflow.infra.vlm.agenda] [VLM] 发起议程视觉识别 (尝试 1/3): 说话人日志.png
+2026-10-22 17:33:11 [INFO] [agentflow.infra.vlm.agenda] [VLM] 议程识别成功 (尝试 1/3): 包含 5 项议题
+2026-10-22 17:33:11 [INFO] [agentflow.meeting.agenda_vision] Saved agenda snapshot to logs/agenda_ocr/latest_agenda_ocr.md (276 chars)
+2026-10-22 17:33:11 [INFO] [agentflow.meeting.agenda_vision] [AGENDA_VISION] 视觉大模型抽取成功，共解析 5 项实质议题
+2026-10-22 17:33:12 [INFO] [app.tasks] minutes 任务检测到 docs 包含 3 个有效讨论议题，激活议题增强流水线
+2026-10-22 17:33:12 [INFO] [app.tasks] [task:start] domain=meeting task=minutes request_id=3e7d135de0154df5b32636adb6d05d1e user_id=1 memory=False
+2026-10-22 17:33:12 [INFO] [infra.llm.llmclient] llm client backend=vllm model=deepseek-v4-flash-0731 base_url=http://127.0.0.1:8000/v1 ctx=65536 max_tokens=50000 timeout=600.0 retries=2 temperature=0.2 sampling_sent=False
+2026-10-22 17:33:12 [INFO] [agentflow] pipeline start lines=minutes
+2026-10-22 17:33:12 [INFO] [agentflow] skip meeting_understanding (minutes agenda enhanced self-contained)
+2026-10-22 17:33:12 [INFO] [agentflow] node done meeting_understanding
+2026-10-22 17:33:12 [INFO] [agentflow] skip perspective (objective)
+2026-10-22 17:33:12 [INFO] [agentflow] node done perspective_modeling
+2026-10-22 17:33:12 [INFO] [agentflow] agent start gen line=minutes
+2026-10-22 17:33:12 [INFO] [infra.llm.llmclient] llm call label=minutes/agent/agenda mode=structured
+2026-10-22 17:33:12 [INFO] [infra.llm.llmclient] llm fit max_tokens 50000->30682 ctx=65536 input~34598
+2026-10-22 17:33:52 [INFO] [infra.llm.llmclient] llm resp label=minutes/agent/agenda model=deepseek-v4-flash-0731 finish=stop in=23494 out=2013 json_mode=True chars=3570
+2026-10-22 17:33:52 [INFO] [agentflow] agent done gen line=minutes
+2026-10-22 17:33:52 [INFO] [agentflow] node done minutes_agent
+2026-10-22 17:33:52 [INFO] [agentflow] agent start review line=minutes
+2026-10-22 17:33:52 [INFO] [infra.llm.llmclient] llm call label=minutes/supervisor/agenda mode=structured
+2026-10-22 17:33:53 [INFO] [infra.llm.llmclient] llm resp label=minutes/supervisor/agenda model=deepseek-v4-flash-0731 finish=stop in=6302 out=81 json_mode=True chars=252
+2026-10-22 17:33:53 [INFO] [agentflow] agent done review line=minutes decision=approve
+2026-10-22 17:33:53 [INFO] [agentflow] node done minutes_supervisor
+2026-10-22 17:33:53 [INFO] [agentflow] render start line=minutes
+2026-10-22 17:33:53 [INFO] [infra.llm.llmclient] llm call label=minutes/render mode=text
+2026-10-22 17:34:10 [INFO] [infra.llm.llmclient] llm resp label=minutes/render model=deepseek-v4-flash-0731 finish=stop in=5584 out=1495 json_mode=False chars=2501
+2026-10-22 17:34:10 [INFO] [agentflow] render done line=minutes
+2026-10-22 17:34:10 [INFO] [core.runner.runner] saved html line=minutes path=/root/h00984725/TRY/data/1/output/3e7d135de0154df5b32636adb6d05d1e/minutes.html
+2026-10-22 17:34:10 [INFO] [core.runner.runner] saved text line=minutes path=/root/h00984725/TRY/data/1/output/3e7d135de0154df5b32636adb6d05d1e/result.md
+2026-10-22 17:34:10 [INFO] [app.tasks] [task:finish] domain=meeting task=minutes request_id=3e7d135de0154df5b32636adb6d05d1e cost=61.30s tokens=38969 file=minutes.html
+2026-10-22 17:35:25 [INFO] [app.api.routes.agent] [api:agent] domain=meeting task=minutes request_id=bd2d050e40584f49a3f3ceb5656f3033 user_id=1
+2026-10-22 17:35:25 [INFO] [agentflow.meeting.agenda_vision] [AGENDA_VISION] 尝试通过视觉大模型抽取议程: 说话人日志.png
+2026-10-22 17:35:25 [INFO] [agentflow.infra.vlm.agenda] [VLM] 发起议程视觉识别 (尝试 1/3): 说话人日志.png
+2026-10-22 17:35:26 [INFO] [agentflow.infra.vlm.agenda] [VLM] 议程识别成功 (尝试 1/3): 包含 5 项议题
+2026-10-22 17:35:26 [INFO] [agentflow.meeting.agenda_vision] Saved agenda snapshot to logs/agenda_ocr/latest_agenda_ocr.md (276 chars)
+2026-10-22 17:35:26 [INFO] [agentflow.meeting.agenda_vision] [AGENDA_VISION] 视觉大模型抽取成功，共解析 5 项实质议题
+2026-10-22 17:35:26 [INFO] [app.tasks] minutes 任务检测到 docs 包含 3 个有效讨论议题，激活议题增强流水线
+2026-10-22 17:35:26 [INFO] [app.tasks] [task:start] domain=meeting task=minutes request_id=bd2d050e40584f49a3f3ceb5656f3033 user_id=1 memory=False
+2026-10-22 17:35:26 [INFO] [infra.llm.llmclient] llm client backend=vllm model=deepseek-v4-flash-0731 base_url=http://127.0.0.1:8000/v1 ctx=65536 max_tokens=50000 timeout=600.0 retries=2 temperature=0.2 sampling_sent=False
+2026-10-22 17:35:26 [INFO] [agentflow] pipeline start lines=minutes
+2026-10-22 17:35:26 [INFO] [agentflow] skip meeting_understanding (minutes agenda enhanced self-contained)
+2026-10-22 17:35:26 [INFO] [agentflow] node done meeting_understanding
+2026-10-22 17:35:26 [INFO] [agentflow] skip perspective (objective)
+2026-10-22 17:35:26 [INFO] [agentflow] node done perspective_modeling
+2026-10-22 17:35:26 [INFO] [agentflow] agent start gen line=minutes
+2026-10-22 17:35:26 [INFO] [infra.llm.llmclient] llm call label=minutes/agent/agenda mode=structured
+2026-10-22 17:35:26 [INFO] [infra.llm.llmclient] llm fit max_tokens 50000->30682 ctx=65536 input~34598
+2026-10-22 17:36:39 [INFO] [infra.llm.llmclient] llm resp label=minutes/agent/agenda model=deepseek-v4-flash-0731 finish=stop in=23494 out=3823 json_mode=True chars=6576
+2026-10-22 17:36:39 [INFO] [agentflow] agent done gen line=minutes
+2026-10-22 17:36:39 [INFO] [agentflow] node done minutes_agent
+2026-10-22 17:36:39 [INFO] [agentflow] agent start review line=minutes
+2026-10-22 17:36:39 [INFO] [infra.llm.llmclient] llm call label=minutes/supervisor/agenda mode=structured
+2026-10-22 17:36:41 [INFO] [infra.llm.llmclient] llm resp label=minutes/supervisor/agenda model=deepseek-v4-flash-0731 finish=stop in=11082 out=81 json_mode=True chars=252
+2026-10-22 17:36:41 [INFO] [agentflow] agent done review line=minutes decision=approve
+2026-10-22 17:36:41 [INFO] [agentflow] node done minutes_supervisor
+2026-10-22 17:36:41 [INFO] [agentflow] render start line=minutes
+2026-10-22 17:36:41 [INFO] [infra.llm.llmclient] llm call label=minutes/render mode=text
+2026-10-22 17:37:16 [INFO] [infra.llm.llmclient] llm resp label=minutes/render model=deepseek-v4-flash-0731 finish=stop in=7371 out=3097 json_mode=False chars=5111
+2026-10-22 17:37:16 [INFO] [agentflow] render done line=minutes
+2026-10-22 17:37:16 [INFO] [core.runner.runner] saved html line=minutes path=/root/h00984725/TRY/data/1/output/bd2d050e40584f49a3f3ceb5656f3033/minutes.html
+2026-10-22 17:37:16 [INFO] [core.runner.runner] saved text line=minutes path=/root/h00984725/TRY/data/1/output/bd2d050e40584f49a3f3ceb5656f3033/result.md
+2026-10-22 17:37:16 [INFO] [app.tasks] [task:finish] domain=meeting task=minutes request_id=bd2d050e40584f49a3f3ceb5656f3033 cost=111.30s tokens=48948 file=minutes.html
