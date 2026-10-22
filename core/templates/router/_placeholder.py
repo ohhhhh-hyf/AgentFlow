@@ -1077,12 +1077,57 @@ def _prune_context_for_column(
     user_name = str(user_data.get("name") or "").strip()
     key_needles = [n for n in ([user_name] + focus_persons + focus_things) if len(n) >= 2]
 
-    is_action_col = any(kw in title for kw in ("行动", "待办", "分工", "任务")) and not any(kw in title for kw in ("议题", "讨论", "决议", "方案"))
-    is_risk_col = any(kw in title for kw in ("风险", "卡点", "待确认", "未决", "争议", "分歧", "探索"))
-    is_overview_col = any(kw in title for kw in ("概况", "局势", "背景", "承接目标", "本人定调", "摘要", "概述", "简述"))
-    is_decision_col = any(kw in title for kw in ("重点关注", "业务进展", "决策", "方案", "进展", "技术", "讨论", "议题"))
+    # 统一小写容错，兼顾 Q&A 等大小写
+    title_lower = (title or "").lower()
 
-    # 1. 待办栏与风险栏：切除长篇非相关议题讨论，注入全量待办/风险/决策并保留关键分工与依赖实录
+    is_action_col = any(kw in title_lower for kw in ("行动", "待办", "分工", "任务", "计划", "安排", "落实", "建议", "措施", "后续", "推进")) and not any(kw in title_lower for kw in ("未决", "风险", "卡点", "争议", "隐患"))
+    is_risk_col = any(kw in title_lower for kw in ("风险", "卡点", "待确认", "未决", "争议", "分歧", "遗留", "预警", "隐患", "不足", "阻碍"))
+    is_overview_col = any(kw in title_lower for kw in ("概况", "局势", "背景", "承接目标", "本人定调", "摘要", "概述", "简述", "简介"))
+
+    # 1. 概况局势栏：若原文过长，裁剪原文仅保留开篇背景；精简理解与草稿，防止流水账与报菜名
+    if is_overview_col:
+        out_parts = []
+        if head_block:
+            out_parts.append(head_block)
+        for label, body in sections.items():
+            if "会议理解" in label:
+                try:
+                    und = json.loads(body)
+                    compact_und: dict[str, Any] = {}
+                    for field in ("meeting_purpose", "meeting_brief"):
+                        if field in und and und[field]:
+                            compact_und[field] = und[field]
+                    if "topics" in und and isinstance(und["topics"], list):
+                        compact_und["topics"] = [
+                            {"module": t.get("module") or "", "title": t.get("title") or t.get("topic") or ""}
+                            for t in und["topics"] if isinstance(t, dict)
+                        ]
+                    out_parts.append(f"{label}\n{json.dumps(compact_und, ensure_ascii=False)}")
+                    continue
+                except Exception:
+                    pass
+            if "已批准" in label and "草稿" in label:
+                try:
+                    draft_obj = json.loads(body)
+                    if isinstance(draft_obj, dict):
+                        compact_draft = {
+                            "headline": draft_obj.get("headline") or "",
+                            "executive_summary": draft_obj.get("executive_summary") or [],
+                            "key_decisions": draft_obj.get("key_decisions") or [],
+                        }
+                        out_parts.append(f"{label}\n{json.dumps(compact_draft, ensure_ascii=False)}")
+                        continue
+                except Exception:
+                    pass
+            if "会议原文" in label and len(body) > 3000:
+                short_body = body[:1500].rsplit("\n", 1)[0] + "\n...(后文各模块细节讨论略，宏观结论见【会议理解】与【已批准纪要草稿】)"
+                out_parts.append(f"{label}（开篇背景摘要）：\n{short_body}")
+                continue
+            out_parts.append(f"{label}\n{body}")
+        out_parts.extend(extra_blocks)
+        return "\n\n".join(out_parts)
+
+    # 2. 待办栏与风险栏：切除长篇非相关议题讨论，注入全量待办/风险/决策并保留关键分工与依赖实录
     if is_action_col or is_risk_col:
         out_parts = []
         if head_block:
@@ -1186,43 +1231,45 @@ def _prune_context_for_column(
         out_parts.extend(filtered_extra)
         return "\n\n".join(out_parts)
 
-    # 2. 业务决策栏：保留所有核心业务与技术议题切片，剔除明确无关的行政流程
-    if is_decision_col and key_needles:
-        out_parts = []
-        if head_block:
-            out_parts.append(head_block)
-        for label, body in sections.items():
-            if "会议理解" in label:
-                try:
-                    und = json.loads(body)
-                    if "topics" in und and isinstance(und["topics"], list):
-                        new_topics = []
-                        _ADMIN_TOPIC_KEYWORDS = ("报销", "发票", "考勤", "行政", "团建", "工卡", "打卡", "贴票")
-                        for t in und["topics"]:
-                            if not isinstance(t, dict):
-                                continue
-                            t_str = json.dumps(t, ensure_ascii=False)
-                            is_key_topic = any(needle in t_str for needle in key_needles)
-                            is_admin_noise = any(noise in t_str for noise in _ADMIN_TOPIC_KEYWORDS) and not is_key_topic
-                            if is_admin_noise:
-                                continue
+    # 3. 全局通用脱水底座（升格兜底，覆盖业务进展、方案陈述、要点梳理、条款、问答以及全部未知新栏目）
+    #    彻底移除 return context 原始长文裸传，将输入严格锁定在 2000~3000 字高浓度安全区间
+    out_parts = []
+    if head_block:
+        out_parts.append(head_block)
 
+    _ADMIN_TOPIC_KEYWORDS = ("报销", "发票", "考勤", "行政", "团建", "工卡", "打卡", "贴票")
+    _ADMIN_PARAS = ("发票", "报销", "行政流程", "贴票", "团建活动", "工卡补办")
+
+    for label, body in sections.items():
+        if "会议理解" in label:
+            try:
+                und = json.loads(body)
+                if "topics" in und and isinstance(und["topics"], list):
+                    new_topics = []
+                    for t in und["topics"]:
+                        if not isinstance(t, dict):
+                            continue
+                        t_str = json.dumps(t, ensure_ascii=False)
+                        is_key_topic = any(needle in t_str for needle in key_needles) if key_needles else False
+                        is_admin_noise = any(noise in t_str for noise in _ADMIN_TOPIC_KEYWORDS) and not is_key_topic
+                        if is_admin_noise:
+                            continue
+
+                        title_val = t.get("title") or t.get("topic") or t.get("name") or "议题"
+                        discussion_val = t.get("context_and_debate") or t.get("discussion") or ""
+
+                        new_topic: dict[str, Any] = {
+                            "title": title_val,
+                            "module": t.get("module") or "",
+                            "decisions": t.get("decisions") or [],
+                            "key_metrics": t.get("key_metrics") or [],
+                        }
+                        if key_needles:
+                            # 个人视角纪要：保持 Tier 1/2/3 个人相关度议题梯次分级
                             is_tier1 = any(ft in t_str for ft in focus_things) or (user_name and user_name in t_str)
                             is_tier2 = not is_tier1 and any(fp in t_str for fp in focus_persons)
                             tier_level = 1 if is_tier1 else (2 if is_tier2 else 3)
-
-                            title_val = t.get("title") or t.get("topic") or t.get("name") or "议题"
-                            discussion_val = t.get("context_and_debate") or t.get("discussion") or ""
-
-                            new_topic: dict[str, Any] = {
-                                "title": title_val,
-                                "module": t.get("module") or "",
-                                "tier": f"Tier {tier_level}",
-                                "decisions": t.get("decisions") or [],
-                                "key_metrics": t.get("key_metrics") or [],
-                            }
-                            if "key_points" in t:
-                                new_topic["key_points"] = t["key_points"]
+                            new_topic["tier"] = f"Tier {tier_level}"
                             if discussion_val:
                                 if tier_level <= 2 or len(discussion_val) <= 200:
                                     new_topic["discussion"] = discussion_val
@@ -1231,77 +1278,45 @@ def _prune_context_for_column(
                                     short_d = discussion_val[:200] + "..."
                                     new_topic["discussion"] = short_d
                                     new_topic["context_and_debate"] = short_d
+                        else:
+                            # 普通客观会议：完整保留讨论事实与论据，不设置 200 字人造截断，确保参数事实饱满
+                            if discussion_val:
+                                new_topic["discussion"] = discussion_val
+                                new_topic["context_and_debate"] = discussion_val
 
-                            if t.get("actions"):
-                                new_topic["actions"] = t["actions"]
-                            if t.get("risks"):
-                                new_topic["risks"] = t["risks"]
+                        if "key_points" in t:
+                            new_topic["key_points"] = t["key_points"]
+                        if t.get("actions"):
+                            new_topic["actions"] = t["actions"]
+                        if t.get("risks"):
+                            new_topic["risks"] = t["risks"]
 
-                            new_topics.append(new_topic)
-                        und["topics"] = new_topics
-                        out_parts.append(f"{label}\n{json.dumps(und, ensure_ascii=False)}")
-                        continue
-                except Exception:
-                    pass
-            elif "会议原文" in label:
-                paragraphs = [p.strip() for p in body.splitlines() if p.strip()]
-                _ADMIN_PARAS = ("发票", "报销", "行政流程", "贴票", "团建活动", "工卡补办")
-                kept_paras = []
-                for p in paragraphs:
-                    if any(noise in p for noise in _ADMIN_PARAS) and not any(needle in p for needle in key_needles):
-                        continue
-                    kept_paras.append(p)
-                if kept_paras:
-                    out_parts.append(f"{label}（业务进展切片）：\n" + "\n".join(kept_paras))
+                        new_topics.append(new_topic)
+                    und["topics"] = new_topics
+                    out_parts.append(f"{label}\n{json.dumps(und, ensure_ascii=False)}")
                     continue
-            out_parts.append(f"{label}\n{body}")
-        out_parts.extend(extra_blocks)
-        return "\n\n".join(out_parts)
-
-    # 3. 概况局势栏：若原文过长，裁剪原文仅保留开篇背景；精简理解与草稿，防止流水账与报菜名
-    if is_overview_col:
-        out_parts = []
-        if head_block:
-            out_parts.append(head_block)
-        for label, body in sections.items():
-            if "会议理解" in label:
-                try:
-                    und = json.loads(body)
-                    compact_und: dict[str, Any] = {}
-                    for field in ("meeting_purpose", "meeting_brief"):
-                        if field in und and und[field]:
-                            compact_und[field] = und[field]
-                    if "topics" in und and isinstance(und["topics"], list):
-                        compact_und["topics"] = [
-                            {"module": t.get("module") or "", "title": t.get("title") or t.get("topic") or ""}
-                            for t in und["topics"] if isinstance(t, dict)
-                        ]
-                    out_parts.append(f"{label}\n{json.dumps(compact_und, ensure_ascii=False)}")
+            except Exception:
+                pass
+        elif "会议原文" in label:
+            paragraphs = [p.strip() for p in body.splitlines() if p.strip()]
+            kept_paras = []
+            for p in paragraphs:
+                if any(noise in p for noise in _ADMIN_PARAS) and not (key_needles and any(needle in p for needle in key_needles)):
                     continue
-                except Exception:
-                    pass
-            if "已批准" in label and "草稿" in label:
-                try:
-                    draft_obj = json.loads(body)
-                    if isinstance(draft_obj, dict):
-                        compact_draft = {
-                            "headline": draft_obj.get("headline") or "",
-                            "executive_summary": draft_obj.get("executive_summary") or [],
-                            "key_decisions": draft_obj.get("key_decisions") or [],
-                        }
-                        out_parts.append(f"{label}\n{json.dumps(compact_draft, ensure_ascii=False)}")
-                        continue
-                except Exception:
-                    pass
-            if "会议原文" in label and len(body) > 3000:
-                short_body = body[:1500].rsplit("\n", 1)[0] + "\n...(后文各模块细节讨论略，宏观结论见【会议理解】与【已批准纪要草稿】)"
-                out_parts.append(f"{label}（开篇背景摘要）：\n{short_body}")
+                kept_paras.append(p)
+            cleaned_body = "\n".join(kept_paras)
+            # 严格防线：如果原文极长 (>3000 字)，仅截取前 1500 字，彻底消灭 3 万字长文泄露
+            if len(cleaned_body) > 3000:
+                cleaned_body = cleaned_body[:1500].rsplit("\n", 1)[0] + "\n...(后文各模块细节讨论略，宏观结论与业务事实见【会议理解】与【已批准纪要草稿】)"
+            if cleaned_body:
+                out_parts.append(f"{label}（业务进展切片）：\n{cleaned_body}")
                 continue
-            out_parts.append(f"{label}\n{body}")
-        out_parts.extend(extra_blocks)
-        return "\n\n".join(out_parts)
 
-    return context
+        # 草稿、审核结论、用户画像等关键事实块 100% 完整保留
+        out_parts.append(f"{label}\n{body}")
+
+    out_parts.extend(extra_blocks)
+    return "\n\n".join(out_parts)
 
 
 def _format_action_items_projection(
