@@ -227,9 +227,93 @@ def test_agenda_template_resolution():
     assert "采用议题聚类" in legacy_fmt
     assert "以现场审定的有效议题清单为主线展开" not in legacy_fmt
 
-    # 3. 议题模式下加载未单独定制的模板（如 project_progress）：平滑回退普通模板
-    fallback_fmt = resolve_agenda_template_format("project_progress")
-    orig_fmt = resolve_template_format("project_progress")
+    # 3. 议题模式下加载已定制的 project_progress：命中 resources/agenda_templates/project_progress.md
+    agenda_proj_fmt = resolve_agenda_template_format("project_progress")
+    assert "以现场审定的有效议题清单为主线展开，每个议题下独立设立一张明细表格" in agenda_proj_fmt
+
+    # 4. 议题模式下加载已定制的 decision_review：命中 resources/agenda_templates/decision_review.md
+    agenda_dec_fmt = resolve_agenda_template_format("decision_review")
+    assert "以现场审定的有效评审议题为主线展开，每个议题下独立设立一张论证明细表格" in agenda_dec_fmt
+
+    # 5. 议题模式下加载已定制的 workshop_session：命中 resources/agenda_templates/workshop_session.md
+    agenda_ws_fmt = resolve_agenda_template_format("workshop_session")
+    assert "以现场审定的有效议题清单为主线展开" in agenda_ws_fmt
+    assert "多方向探讨或观点交锋以独立加粗行「**业务子主题/探讨方向**」划分段落" in agenda_ws_fmt
+
+    # 6. 议题模式下加载已定制的 retrospective_session：命中 resources/agenda_templates/retrospective_session.md
+    agenda_retro_fmt = resolve_agenda_template_format("retrospective_session")
+    assert scan_fixed_bracket_literals(agenda_retro_fmt) == []
+    assert "以现场审定的有效议题清单为主线展开，每个议题顶格以「### 一. 议题名称」开始" in agenda_retro_fmt
+    assert "每条以反映具体交付物或量化指标的实质业务短语起笔" in agenda_retro_fmt
+
+    # 7. 议题模式下加载已定制的 exchange_forum：命中 resources/agenda_templates/exchange_forum.md
+    agenda_ef_fmt = resolve_agenda_template_format("exchange_forum")
+    assert scan_fixed_bracket_literals(agenda_ef_fmt) == []
+    assert "以现场审定的有效议题清单为主线展开，每个议题顶格以「### 一. 议题名称」开始" in agenda_ef_fmt
+    assert "正文统一以反映具体业务实体或事实要点的实质业务短语起笔" in agenda_ef_fmt
+
+    # 8. 议题模式下加载已定制的 class_transcript：命中 resources/agenda_templates/class_transcript.md
+    agenda_ct_fmt = resolve_agenda_template_format("class_transcript")
+    assert scan_fixed_bracket_literals(agenda_ct_fmt) == []
+    assert "以现场审定的有效议题清单为主线展开，每个议题顶格以「### 一. 议题名称」开始" in agenda_ct_fmt
+    assert "正文统一以反映具体概念、定理或推演主题的实质业务短语起笔" in agenda_ct_fmt
+
+    # 9. 议题模式下加载已定制的 special_lecture：命中 resources/agenda_templates/special_lecture.md
+    agenda_sl_fmt = resolve_agenda_template_format("special_lecture")
+    assert scan_fixed_bracket_literals(agenda_sl_fmt) == []
+    assert "以现场审定的有效议题清单为主线展开，每个议题顶格以「### 一. 议题名称」开始" in agenda_sl_fmt
+    assert "正文统一以反映核心观点或论证要素的实质业务短语起笔" in agenda_sl_fmt
+
+    # 10. 议题模式下加载已定制的 group_seminar：命中 resources/agenda_templates/group_seminar.md
+    agenda_gs_fmt = resolve_agenda_template_format("group_seminar")
+    assert scan_fixed_bracket_literals(agenda_gs_fmt) == []
+    assert "以现场审定的有效议题清单为主线展开，每个议题顶格以「### 一. 议题名称」开始" in agenda_gs_fmt
+    assert "正文统一以反映发言人或核心论述的实质业务短语起笔" in agenda_gs_fmt
+
+    # 11. 议题模式下加载已定制的 research_dialogue：命中 resources/agenda_templates/research_dialogue.md
+    agenda_rd_fmt = resolve_agenda_template_format("research_dialogue")
+    assert scan_fixed_bracket_literals(agenda_rd_fmt) == []
+    assert "以现场审定的有效议题清单为主线展开，每个议题顶格以「### 一. 议题名称」开始" in agenda_rd_fmt
+    assert "正文统一以反映具体业务模块或痛点诉求的实质短语起笔" in agenda_rd_fmt
+
+    # 12. 议题模式下加载已定制的 interview_transcript：命中 resources/agenda_templates/interview_transcript.md
+    agenda_it_fmt = resolve_agenda_template_format("interview_transcript")
+    assert scan_fixed_bracket_literals(agenda_it_fmt) == []
+    assert "以现场审定的有效议题清单为主线展开，每个议题顶格以「### 一. 议题名称」开始" in agenda_it_fmt
+    assert "正文统一以反映具体事件、心路历程或核心观点的实质短语起笔" in agenda_it_fmt
+
+    # 13. 议题模式下加载已定制的 knowledge_memo：命中 resources/agenda_templates/knowledge_memo.md
+    agenda_km_fmt = resolve_agenda_template_format("knowledge_memo")
+    assert scan_fixed_bracket_literals(agenda_km_fmt) == []
+    assert "以现场审定的有效议题清单为主线展开，每个议题顶格以「### 一. 议题名称」开始" in agenda_km_fmt
+    assert "正文统一以反映具体概念、理论要素或知识分项的实质短语起笔" in agenda_km_fmt
+
+    # 14. 议题模式下加载已定制的 legal_advisory：命中 resources/agenda_templates/legal_advisory.md
+    agenda_la_fmt = resolve_agenda_template_format("legal_advisory")
+    assert scan_fixed_bracket_literals(agenda_la_fmt) == []
+    assert "以现场审定的有效议题清单为主线展开，每个议题顶格以「### 一. 议题名称」开始" in agenda_la_fmt
+    assert "每项统一以反映关键节点、涉案主体或争议行为的实质短语起笔" in agenda_la_fmt
+    assert "每项统一以「**分析维度**：法规依据与定调结论」起笔" in agenda_la_fmt
+    assert "以列表符「- 」直接列出具体行动事项" in agenda_la_fmt
+
+    # 15. 议题模式下加载已定制的 media_briefing：命中 resources/agenda_templates/media_briefing.md
+    agenda_mb_fmt = resolve_agenda_template_format("media_briefing")
+    assert scan_fixed_bracket_literals(agenda_mb_fmt) == []
+    assert "以现场审定的有效议题清单为主线展开，每个议题顶格以「### 一. 议题名称」开始" in agenda_mb_fmt
+    assert "正文统一以反映具体业务动作或成果的实质短语起笔" in agenda_mb_fmt
+    assert "具体问答交互下沉至「Q&A环节」" in agenda_mb_fmt
+    assert "(现场有互动问答才呈现，若全场无互动问答则本栏整体自适应隐去)" in agenda_mb_fmt
+
+    # 16. 议题模式下加载已定制的 government_bulletin：命中 resources/agenda_templates/government_bulletin.md
+    agenda_gb_fmt = resolve_agenda_template_format("government_bulletin")
+    assert scan_fixed_bracket_literals(agenda_gb_fmt) == []
+    assert "以现场审定的有效议题清单为主线展开，每个议题顶格以「### 一. 议题名称」开始" in agenda_gb_fmt
+    assert "正文统一以反映具体政策或规划的实质短语起笔" in agenda_gb_fmt
+    assert "重要政策法规与核心量化数据自然加粗" in agenda_gb_fmt
+
+    # 17. 议题模式下加载未单独定制的模板（如 media_qa_session）：平滑回退普通模板
+    fallback_fmt = resolve_agenda_template_format("media_qa_session")
+    orig_fmt = resolve_template_format("media_qa_session")
     assert fallback_fmt == orig_fmt
 
 
