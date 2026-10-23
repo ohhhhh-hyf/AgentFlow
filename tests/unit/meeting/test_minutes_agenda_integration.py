@@ -337,8 +337,8 @@ def test_agenda_template_resolution():
     agenda_hsl_fmt = resolve_agenda_template_format("home_school_liaison")
     assert scan_fixed_bracket_literals(agenda_hsl_fmt) == []
     assert "以现场审定的有效议题清单为主线展开，每个议题顶格以「### 一. 议题名称」开始" in agenda_hsl_fmt
-    assert "每项以加粗大项「- **观察维度/表现领域**」独立成行起笔" in agenda_hsl_fmt
-    assert "每项以加粗大项「- **探讨主题/关注焦点**」独立成行起笔" in agenda_hsl_fmt
+    assert "每项以「- **观察维度/表现领域**」独立成行起笔" in agenda_hsl_fmt
+    assert "每项以「- **探讨主题/关注焦点**」独立成行起笔" in agenda_hsl_fmt
 
     # 21. 议题模式下加载未设议题驱动的模板（如 contract_vetting）：平滑回退普通模板
     fallback_fmt = resolve_agenda_template_format("contract_vetting")
