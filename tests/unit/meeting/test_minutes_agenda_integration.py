@@ -311,9 +311,38 @@ def test_agenda_template_resolution():
     assert "正文统一以反映具体政策或规划的实质短语起笔" in agenda_gb_fmt
     assert "重要政策法规与核心量化数据自然加粗" in agenda_gb_fmt
 
-    # 17. 议题模式下加载未单独定制的模板（如 media_qa_session）：平滑回退普通模板
-    fallback_fmt = resolve_agenda_template_format("media_qa_session")
-    orig_fmt = resolve_template_format("media_qa_session")
+    # 17. 议题模式下加载已定制的 media_qa_session：命中 resources/agenda_templates/media_qa_session.md
+    agenda_mq_fmt = resolve_agenda_template_format("media_qa_session")
+    assert scan_fixed_bracket_literals(agenda_mq_fmt) == []
+    assert "以现场审定的有效议题清单为主线展开，每个议题顶格以「### 一. 议题名称」开始" in agenda_mq_fmt
+    assert "提问行「**提问方**：提问核心焦点」紧随回答行「**答复方**：明确结论与政策事实依据」成对展开" in agenda_mq_fmt
+    assert "## [信息澄清与表态]" in agenda_mq_fmt
+
+    # 18. 议题模式下加载已定制的 conversation_transcript：命中 resources/agenda_templates/conversation_transcript.md
+    agenda_ct_fmt = resolve_agenda_template_format("conversation_transcript")
+    assert scan_fixed_bracket_literals(agenda_ct_fmt) == []
+    assert "以现场审定的有效议题清单为主线展开，每个议题顶格以「### 一. 议题名称」开始" in agenda_ct_fmt
+    assert "正文统一以反映发言人或核心观点的实质短语起笔" in agenda_ct_fmt
+    assert "①「### 达成共识」" in agenda_ct_fmt
+    assert "②「### 存有分歧」" in agenda_ct_fmt
+
+    # 19. 议题模式下加载已定制的 site_visit_tour：命中 resources/agenda_templates/site_visit_tour.md
+    agenda_sv_fmt = resolve_agenda_template_format("site_visit_tour")
+    assert scan_fixed_bracket_literals(agenda_sv_fmt) == []
+    assert "以现场审定的有效议题清单为主线展开，每个议题顶格以「### 一. 议题名称」开始" in agenda_sv_fmt
+    assert "按「- **看点名称**：具体解说要点与专业数据」逐条展开" in agenda_sv_fmt
+    assert "清单化提炼参访所获认知增量、实践启示与转化建议" in agenda_sv_fmt
+
+    # 20. 议题模式下加载已定制的 home_school_liaison：命中 resources/agenda_templates/home_school_liaison.md
+    agenda_hsl_fmt = resolve_agenda_template_format("home_school_liaison")
+    assert scan_fixed_bracket_literals(agenda_hsl_fmt) == []
+    assert "以现场审定的有效议题清单为主线展开，每个议题顶格以「### 一. 议题名称」开始" in agenda_hsl_fmt
+    assert "每项以加粗大项「- **观察维度/表现领域**」独立成行起笔" in agenda_hsl_fmt
+    assert "每项以加粗大项「- **探讨主题/关注焦点**」独立成行起笔" in agenda_hsl_fmt
+
+    # 21. 议题模式下加载未设议题驱动的模板（如 contract_vetting）：平滑回退普通模板
+    fallback_fmt = resolve_agenda_template_format("contract_vetting")
+    orig_fmt = resolve_template_format("contract_vetting")
     assert fallback_fmt == orig_fmt
 
 
