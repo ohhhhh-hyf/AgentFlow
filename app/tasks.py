@@ -8,6 +8,7 @@ import asyncio
 import inspect
 import logging
 import os
+import re
 import tempfile
 import time
 from concurrent.futures import ThreadPoolExecutor
@@ -164,13 +165,14 @@ def _catalog_input_file(user_id: str, subject: str, name: str) -> Path:
     )
 
 
-def _collect_texts(req: TaskRequest) -> tuple[str, str, str]:
-    """返回 (主文本, keypoints, notes)。老师重点不再从 texts 获取（经 docs 的 .txt 文件注入）。"""
+def _collect_texts(req: TaskRequest) -> tuple[str, str, str, str]:
+    """返回 (transcript, keypoints, notes, vision_info)。"""
     texts = req.texts or {}
     transcript = (texts.get("transcript") or "").strip()
     keypoints = (texts.get("keypoints") or "").strip()
     notes = (texts.get("notes") or "").strip()
-    return transcript, keypoints, notes
+    vision_info = (texts.get("vision_info") or "").strip()
+    return transcript, keypoints, notes, vision_info
 
 
 def _is_image_name(name: str) -> bool:
@@ -360,6 +362,42 @@ def _trace_extra(keypoints: str, notes: str) -> str:
     )
 
 
+def _parse_notes_items(notes_text: str) -> list[dict[str, str]]:
+    """切分用户笔记。支持 '原话 -> 批注'，清洗前后空格；无箭头整行作为备注。"""
+    items = []
+    arrow_pattern = re.compile(r"\s*->\s*")
+    for line in (notes_text or "").splitlines():
+        raw = line.strip()
+        if not raw:
+            continue
+        if "->" in raw:
+            parts = arrow_pattern.split(raw, maxsplit=1)
+            items.append({"quote": parts[0].strip(), "comment": parts[1].strip()})
+        else:
+            items.append({"quote": "", "comment": raw})
+    return items
+
+
+def _pack_minutes_auxiliary(keypoints: str, notes: str, vision_info: str) -> str:
+    """将非空的辅助材料组装为统一的上下文注入块。"""
+    blocks = []
+    if keypoints.strip():
+        blocks.append(f"【用户核心关键点】\n{keypoints.strip()}")
+    if notes.strip():
+        parsed_notes = _parse_notes_items(notes)
+        note_lines = []
+        for item in parsed_notes:
+            if item["quote"]:
+                note_lines.append(f"- 原话：\"{item['quote']}\" | 备注：{item['comment']}")
+            else:
+                note_lines.append(f"- 笔记：{item['comment']}")
+        if note_lines:
+            blocks.append("【用户划线原话与笔记】\n" + "\n".join(note_lines))
+    if vision_info.strip():
+        blocks.append(f"【视觉信息参考(OCR)】\n{vision_info.strip()}")
+    return "\n\n".join(blocks).strip()
+
+
 def _prepare_input_dir(transcript: str) -> Path | None:
     """非 library 任务的输入准备：只写主文本 input.txt（sidecar 走 line_extra 注入）。"""
     if not transcript.strip():
@@ -518,7 +556,7 @@ def _prepare(domain: str, task: str, req: TaskRequest, user_id: str) -> _Prepare
     line = _validate(req, task, user_id)
     extra = req.extra
 
-    transcript, keypoints, notes = _collect_texts(req)
+    transcript, keypoints, notes, vision_info = _collect_texts(req)
     if not transcript and notes:
         transcript = notes
     if transcript:
@@ -697,8 +735,12 @@ def _prepare(domain: str, task: str, req: TaskRequest, user_id: str) -> _Prepare
         agenda_val = "\n\n".join(parts).strip()
         if agenda_val:
             extra_line_inputs["agenda_minutes"] = agenda_val
-    if line == "minutes" and agenda_from_docs:
-        extra_line_inputs["agenda_text"] = agenda_from_docs
+    if line == "minutes":
+        aux_text = _pack_minutes_auxiliary(keypoints, notes, vision_info)
+        if aux_text:
+            extra_line_inputs["minutes_auxiliary"] = aux_text
+        if agenda_from_docs:
+            extra_line_inputs["agenda_text"] = agenda_from_docs
     if line in {"review", "quiz"}:
         scope_parts = []
         if (user_id or "").strip():

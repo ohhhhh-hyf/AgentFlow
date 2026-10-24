@@ -260,10 +260,36 @@ else:
 
 ### 阶段五：审核层复核增强 (Supervisor Review)
 
-#### 5.1 `domains/meeting/tasks/minutes/steps/minutes_supervisor.py`
-* 审核 Agent 复核要点微调（轻量抽查）：
-  * 抽查笔记中的个人主观吐槽词（如“真的假的”、“扯淡”）是否被误写入正文；
-  * 确认正文中引用的具体数字与专名与关键点/视觉材料基本一致。
+#### 5.1 编排层审核上下文注入 (`domains/meeting/orchestrator.py`)
+* 在 `_supervisor_context(state, "minutes")` 中，向审核上下文 `blocks` 注入辅助参考，使 Supervisor 能对照原件核验：
+  ```python
+  if line_name == "minutes":
+      aux_block = str((state.get("line_extra") or {}).get("minutes_auxiliary") or "").strip()
+      if aux_block:
+          blocks.append(aux_block)
+  ```
+
+#### 5.2 审核规则与质量底线 Prompt 微调 (`domains/meeting/tasks/minutes/prompts.py`)
+在 `_SUPERVISOR_COMMON_BASE`（全模式共享的审核公共基底）中落地硬约束：
+
+1. **核心审查原则区域追加**：
+   ```text
+   - 多源辅助参考审查（输入含对应标签时生效）：
+     1. 拦截主观批注：【用户划线原话与笔记】中的个人批注与主观吐槽严禁进入正文（包括直接引用或改写转述）；
+     2. 数据专名一致：正文引用的【用户核心关键点】与【视觉信息参考(OCR)】中的数字指标、专有名词不得篡改、捏造或方向写反。
+   ```
+
+2. **核心质量底线（判罚 Reject 准绳）区域追加第 4 项**：
+   ```text
+   - 核心质量底线（未发现严重缺陷时予以 approve）：
+     1. 关键事实/结论与原文相悖（数字、归属或方向性判断写反）；
+     2. 凭空捏造原文没有的人名、数字或虚假拍板；
+     3. 将探讨/建议性意见升格为已拍板决议；
+     4. 泄露【用户划线原话与笔记】中的批注或主观吐槽。
+   ```
+
+#### 5.3 审核执行端自适应多语言 (`domains/meeting/tasks/minutes/steps/minutes_supervisor.py`)
+* 无需新增语言分支，自动继承现有的 `if (lang_val or '').strip().lower() == 'en':` 头尾语言红线包裹，零冗余。
 
 ---
 
@@ -285,21 +311,22 @@ else:
 
 ## 四、 实施进度看板 (Execution Checklist)
 
-- [ ] **Phase 1: 协议与接口层支持**
-  - [ ] 在 `app/schemas.py` 的 `TEXT_KEYS` 中添加 `"vision_info"`
-  - [ ] 在 `app/requirements.py` 确保校验保持以 `transcript` 必填，辅助项可选
-- [ ] **Phase 2: 输入预处理与切分打包**
-  - [ ] 在 `app/tasks.py` 扩充 `_collect_texts` 支持 4 元组
-  - [ ] 实现 `_parse_notes_items`（支持 `->` 正则切分）
-  - [ ] 实现 `_pack_minutes_auxiliary` 并注入 `extra_line_inputs["minutes_auxiliary"]`（视觉标签使用 `【视觉信息参考(OCR)】`）
-- [ ] **Phase 3: 编排层透传与会议理解防污染**
-  - [ ] 确保 `domains/meeting/orchestrator.py` 中的 `_make_meeting_understanding_node` 仅消费 `transcript`
-  - [ ] 在 `_line_shared_context` 中挂载 `minutes_auxiliary` 上下文块
-- [ ] **Phase 4: 草稿 Agent 专属 Prompt 实用化微调**
-  - [ ] 实现实用化、单一本源的 Prompt 规则块（`KEYPOINTS_PROMPT_BLOCK`、`NOTES_PROMPT_BLOCK`、`VISION_PROMPT_BLOCK`）
-  - [ ] 在 `MinutesGenerationAgent.run` 中实现独立条件判断与动态装配，无缝继承既有 `lang == "en"` 头尾包裹
-- [ ] **Phase 5: 审核层规范核验**
-  - [ ] 在 `MinutesGenerationSupervisor` 补充辅助材料主观词拦截提示
-- [ ] **Phase 6: 自动化测试与全量回归**
-  - [ ] 新建 `tests/unit/meeting/test_multi_source_minutes.py` 并通过 TC-01 至 TC-07
-  - [ ] 运行会议全量回归测试套件，确保 0 失败、0 回归
+- [x] **Phase 1: 协议与接口层支持**
+  - [x] 在 `app/schemas.py` 的 `TEXT_KEYS` 中添加 `"vision_info"`
+  - [x] 在 `app/requirements.py` 确保校验保持以 `transcript` 必填，辅助项可选
+- [x] **Phase 2: 输入预处理与切分打包**
+  - [x] 在 `app/tasks.py` 扩充 `_collect_texts` 支持 4 元组
+  - [x] 实现 `_parse_notes_items`（支持 `->` 正则切分与单行容错）
+  - [x] 实现 `_pack_minutes_auxiliary` 并注入 `extra_line_inputs["minutes_auxiliary"]`（视觉标签使用 `【视觉信息参考(OCR)】`）
+- [x] **Phase 3: 编排层透传与会议理解防污染**
+  - [x] 确保 `domains/meeting/orchestrator.py` 中的 `_make_meeting_understanding_node` 仅消费 `transcript`
+  - [x] 在 `_line_shared_context` 中挂载 `minutes_auxiliary` 上下文块
+- [x] **Phase 4: 草稿 Agent 专属 Prompt 实用化微调**
+  - [x] 实现实用化、单一本源的 Prompt 规则块（`KEYPOINTS_PROMPT_BLOCK`、`NOTES_PROMPT_BLOCK`、`VISION_PROMPT_BLOCK`）
+  - [x] 在 `MinutesGenerationAgent.run` 中实现独立条件判断与动态装配，无缝继承既有 `lang == "en"` 头尾包裹
+- [x] **Phase 5: 审核层规范核验**
+  - [x] 在 `domains/meeting/orchestrator.py` 的 `_supervisor_context` 挂载 `minutes_auxiliary`
+  - [x] 在 `domains/meeting/tasks/minutes/prompts.py` 的 `_SUPERVISOR_COMMON_BASE` 落地多源审查准则与底线判罚项（精确保留三大标签）
+- [x] **Phase 6: 自动化测试与全量回归**
+  - [x] 新建 `tests/unit/meeting/test_multi_source_minutes.py` 并通过 TC-01 至 TC-09 (12 项用例全过)
+  - [x] 运行会议全量回归测试套件，确保 0 失败、0 回归 (99 项全绿)

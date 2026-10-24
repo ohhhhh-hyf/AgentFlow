@@ -764,6 +764,9 @@ class _Nodes(DomainNodes):
             if budget:
                 parts.append(budget)
         if line_name == "minutes":
+            aux_block = str((state.get("line_extra") or {}).get("minutes_auxiliary") or "").strip()
+            if aux_block:
+                parts.append(f"════════════════════════════════════════\n{aux_block}")
             tpl = (state.get("templates") or {}).get("minutes") or ""
             tpl_str = str(tpl).strip()
             if tpl_str:
@@ -803,6 +806,10 @@ class _Nodes(DomainNodes):
         agenda_extra = str((state.get("line_extra") or {}).get("agenda_minutes") or "").strip()
         if line_name == "agenda_minutes" and agenda_extra:
             blocks.append(f"【既定议程单原件】\n{agenda_extra}")
+        if line_name == "minutes":
+            aux_block = str((state.get("line_extra") or {}).get("minutes_auxiliary") or "").strip()
+            if aux_block:
+                blocks.append(aux_block)
         # 命中表（程序判定，带依据）：真人/职业模板下是"谁的事"的唯一硬依据
         hits = str(state.get("user_hits_block") or "").strip()
         if hits and mode != "objective":

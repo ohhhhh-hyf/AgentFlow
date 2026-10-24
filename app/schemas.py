@@ -22,7 +22,7 @@ def ndjson_line(payload: dict) -> str:
     return json.dumps(payload, ensure_ascii=False) + "\n"
 
 
-TEXT_KEYS = ("transcript", "keypoints", "notes")
+TEXT_KEYS = ("transcript", "keypoints", "notes", "vision_info")
 
 
 class Extra(BaseModel):
@@ -51,7 +51,7 @@ class Extra(BaseModel):
 
 class TaskRequest(BaseModel):
     """通用请求体（不含 domain/task，见 ``DomainTaskRequest``）。
-    texts 为 {三类 key: 文本内容} 对象；docs 为物理材料文件名列表。
+    texts 为 {四类 key: 文本内容} 对象（支持 transcript, keypoints, notes, vision_info）；docs 为物理材料文件名列表。
     """
 
     texts: dict[str, str] = Field(default_factory=dict)

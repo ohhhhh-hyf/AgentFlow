@@ -10,9 +10,12 @@ from core.execution.hard_execution import (
 )
 from ....models import Minutes
 from ..prompts import (
+    KEYPOINTS_PROMPT_BLOCK,
     MINUTES_AGENDA_GENERATION_PROMPT,
     MINUTES_OBJECTIVE_GENERATION_PROMPT,
     MINUTES_PERSONAL_GENERATION_PROMPT,
+    NOTES_PROMPT_BLOCK,
+    VISION_PROMPT_BLOCK,
 )
 from ..contracts import MINUTES_GENERATION_OUTPUT_CONTRACT
 
@@ -90,6 +93,17 @@ class MinutesGenerationAgent:
         else:
             raw_system_prompt = MINUTES_OBJECTIVE_GENERATION_PROMPT
             label_mode = "objective"
+
+        aux_blocks = []
+        if "【用户核心关键点】" in shared_context:
+            aux_blocks.append(KEYPOINTS_PROMPT_BLOCK)
+        if "【用户划线原话与笔记】" in shared_context:
+            aux_blocks.append(NOTES_PROMPT_BLOCK)
+        if "【视觉信息参考(OCR)】" in shared_context:
+            aux_blocks.append(VISION_PROMPT_BLOCK)
+
+        if aux_blocks:
+            raw_system_prompt = raw_system_prompt + "\n\n" + "\n\n".join(aux_blocks)
 
         lang_val = lang or parse_lang_mode(shared_context)
         if (lang_val or "").strip().lower() == "en":
