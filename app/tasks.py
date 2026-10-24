@@ -5,6 +5,7 @@
 from __future__ import annotations
 
 import asyncio
+import inspect
 import logging
 import os
 import tempfile
@@ -917,13 +918,20 @@ async def iter_task_events(
     system = prep.system
     last_done = None
     try:
+        streaming_kwargs = {
+            "templates": prep.template_texts,
+            "lines": prep.line_names,
+            "line_modes": p.modes,
+            "line_extra": prep.line_extra,
+        }
+        sig = inspect.signature(system.run_streaming)
+        if "lang" in sig.parameters or any(param.kind == inspect.Parameter.VAR_KEYWORD for param in sig.parameters.values()):
+            streaming_kwargs["lang"] = prep.lang
+
         async for event in system.run_streaming(
             prep.transcript,
             prep.user,
-            templates=prep.template_texts,
-            lines=prep.line_names,
-            line_modes=p.modes,
-            line_extra=prep.line_extra,
+            **streaming_kwargs,
         ):
             if event["type"] == "phase":
                 yield {"type": "phase", "node": event["node"]}

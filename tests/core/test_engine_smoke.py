@@ -51,13 +51,14 @@ class _StubSystem:
         self.seen: dict = {}
 
     async def run_streaming(
-        self, transcript, user, *, templates=None, lines=None, line_modes=None, line_extra=None
+        self, transcript, user, *, templates=None, lines=None, line_modes=None, line_extra=None, lang="zh", **kwargs
     ):
         self.seen = {
             "transcript": transcript,
             "templates": dict(templates or {}),
             "lines": list(lines or []),
             "line_extra": dict(line_extra or {}),
+            "lang": lang,
         }
         for event in self._events:
             yield event

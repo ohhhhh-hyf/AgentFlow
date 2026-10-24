@@ -6,6 +6,7 @@
 """
 from __future__ import annotations
 
+import inspect
 import logging
 import os
 import sys
@@ -119,6 +120,7 @@ class PreparedRun:
     usage_before: dict
     task_monitor: object | None
     subject: str | None
+    lang: str = "zh"
 
 
 async def prepare_run(
@@ -361,6 +363,7 @@ async def prepare_run(
         usage_before=usage_before,
         task_monitor=_task_monitor,
         subject=subject,
+        lang=lang,
     )
 
 
@@ -434,14 +437,20 @@ async def run(
     }
     any_output = False
     try:
+        streaming_kwargs = {
+            "templates": template_texts,
+            "lines": line_names,
+            "line_modes": modes or {},
+            "line_extra": line_extra,
+        }
+        sig = inspect.signature(system.run_streaming)
+        if "lang" in sig.parameters or any(p.kind == inspect.Parameter.VAR_KEYWORD for p in sig.parameters.values()):
+            streaming_kwargs["lang"] = prep.lang
+
         async for event in system.run_streaming(
             transcript,
             user,
-            templates=template_texts,
-            lines=line_names,
-            line_modes=modes or {},
-            line_extra=line_extra,
-            lang=prep.lang,
+            **streaming_kwargs,
         ):
             etype = event["type"]
             if etype == "chunk":

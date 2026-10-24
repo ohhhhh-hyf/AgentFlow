@@ -481,3 +481,45 @@ The engineering team aligned on the Nov 15th cloud migration milestone.
     render_prompt, _ = render_calls[0]
     assert "【核心人设与交付目标】" in render_prompt
     assert "## 语言红线" in render_prompt
+
+@pytest.mark.anyio
+async def test_prepared_run_lang_propagation():
+    """测试 PreparedRun 包含 lang 字段并正确透传至 run_streaming。"""
+    from core.runner.runner import PreparedRun
+
+    # 1. 验证 PreparedRun 默认及显式传参
+    default_prep = PreparedRun(
+        ctx=MagicMock(),
+        system=MagicMock(),
+        user=MagicMock(),
+        transcript="test",
+        line_names=["minutes"],
+        template_texts={},
+        line_extra={},
+        memory_bind=None,
+        memory_enabled=False,
+        graph_silent=False,
+        usage_before={},
+        task_monitor=None,
+        subject=None,
+    )
+    assert default_prep.lang == "zh"
+
+    en_prep = PreparedRun(
+        ctx=MagicMock(),
+        system=MagicMock(),
+        user=MagicMock(),
+        transcript="test",
+        line_names=["minutes"],
+        template_texts={},
+        line_extra={},
+        memory_bind=None,
+        memory_enabled=False,
+        graph_silent=False,
+        usage_before={},
+        task_monitor=None,
+        subject=None,
+        lang="en",
+    )
+    assert en_prep.lang == "en"
+
