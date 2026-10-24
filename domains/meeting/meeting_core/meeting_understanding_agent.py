@@ -33,6 +33,7 @@ class MeetingUnderstandingAgent:
         skip_fields: Iterable[str] = (),
         user_channel: str = "",
         is_agenda_enhanced: bool = False,
+        lang: str = "zh",
     ) -> MeetingUnderstanding:
         """运行会议理解抽取。
 
@@ -70,11 +71,29 @@ class MeetingUnderstandingAgent:
 
         is_lightweight = is_actions_risks_only_tasks(tasks, memory_on=memory_on)
         if is_agenda_enhanced:
-            system_prompt = MEETING_UNDERSTANDING_AGENDA_SYSTEM_PROMPT
+            raw_system_prompt = MEETING_UNDERSTANDING_AGENDA_SYSTEM_PROMPT
         elif is_lightweight:
-            system_prompt = MEETING_UNDERSTANDING_LIGHTWEIGHT_SYSTEM_PROMPT
+            raw_system_prompt = MEETING_UNDERSTANDING_LIGHTWEIGHT_SYSTEM_PROMPT
         else:
-            system_prompt = MEETING_UNDERSTANDING_SYSTEM_PROMPT
+            raw_system_prompt = MEETING_UNDERSTANDING_SYSTEM_PROMPT
+
+        if (lang or "").strip().lower() == "en":
+            role_prefix = "英文（English）"
+            # 拆出首句，保留主体规则
+            body_prompt = raw_system_prompt
+            first_period = body_prompt.find("。\n")
+            if first_period > 0:
+                body_prompt = body_prompt[first_period + 2 :].strip()
+            system_prompt = (
+                f"【核心人设与交付目标】\n"
+                f"你是专职的【{role_prefix}】会议理解助手，本次任务必须全程直接提取并产出客观、高密度的结构化{role_prefix}事实底座，供下游任务复用。\n\n"
+                f"{body_prompt}\n\n"
+                f"## 语言红线\n"
+                f"1. 所有字段必须严格使用【{role_prefix}】输出，严禁夹杂中文字符；\n"
+                f"2. 专业术语、项目简称、人名保留英文原文写法，不得翻译或脑补。"
+            )
+        else:
+            system_prompt = raw_system_prompt
 
         result = await self.client.structured(
             system_prompt,

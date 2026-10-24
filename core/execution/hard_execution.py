@@ -143,6 +143,27 @@ def parse_perspective_mode(shared_context: str | None) -> str:
 _AGENDA_MODE_PREFIXES = ("议题模式：", "议题模式:", "agenda_mode:", "agenda_enhanced:")
 
 
+
+_LANG_PREFIXES = ("输出语种：", "输出语种要求：", "目标语种：", "语种模式：", "lang:", "target_language:")
+
+
+def parse_lang_mode(context: str | None) -> str:
+    """从上下文前部读取语种模式；读不到则按中文 zh 处理。"""
+    if not context:
+        return "zh"
+    lines = (context or "").splitlines()[:20]
+    for idx, raw in enumerate(lines):
+        line = raw.strip()
+        for prefix in _LANG_PREFIXES:
+            if line.startswith(prefix):
+                val = line[len(prefix) :].strip().lower()
+                if not val and idx + 1 < len(lines):
+                    val = lines[idx + 1].strip().lower()
+                if "en" in val or "english" in val or "英文" in val:
+                    return "en"
+                return "zh"
+    return "zh"
+
 def is_agenda_enhanced_mode(context: str | None) -> bool:
     """从上下文前部读取是否为议题增强模式（minutes 且 docs 含有实质有效议题）。"""
     if not context:
@@ -312,6 +333,7 @@ def enforce_upstream_carry(
     *,
     headline_field: str | None = None,
     purpose_field: str | None = None,
+    lang: str = "zh",
 ) -> dict[str, Any]:
     """把 draft 中的搬运字段强制设为 upstream 对应列表的拷贝。
 
@@ -323,6 +345,12 @@ def enforce_upstream_carry(
         headline_field / purpose_field: 若 headline 为空，用 purpose 填充
     """
     out = dict(draft or {})
+    if headline_field and purpose_field:
+        hl = str(out.get(headline_field) or "").strip()
+        if not hl:
+            purpose = str((upstream or {}).get(purpose_field) or "").strip()
+            def_title = "Meeting Minutes" if str(lang or "").strip().lower() == "en" else "会议纪要"
+            out[headline_field] = purpose or def_title
     if not upstream or not any(upstream.values()):
         # 降级保护：上游理解为空或缺失时，不得暴力抹除草稿自身生成的内容
         return out
@@ -333,11 +361,6 @@ def enforce_upstream_carry(
             # 如果上游是空列表（如跳过会议理解，或上游未提取出实质内容），绝不暴力冲掉草稿自身生成的有效内容
             if up_items or dst not in out or not out[dst]:
                 out[dst] = up_items
-    if headline_field and purpose_field:
-        hl = str(out.get(headline_field) or "").strip()
-        if not hl:
-            purpose = str(upstream.get(purpose_field) or "").strip()
-            out[headline_field] = purpose or "会议纪要"
     return out
 
 
@@ -413,6 +436,7 @@ def enforce_minutes_draft(
     memory_texts: list[str] | None = None,
     transcript: str | None = None,
     is_agenda: bool = False,
+    lang: str = "zh",
 ) -> dict[str, Any]:
     """纪要草稿硬对齐：搬运字段措辞以会议理解为准。
 
@@ -448,6 +472,7 @@ def enforce_minutes_draft(
         MINUTES_CARRY_MAP,
         headline_field="headline",
         purpose_field="meeting_purpose",
+        lang=lang,
     )
     if not understanding or not any(understanding.values()):
         # 降级保护：上游理解为空或不可用时，不走下采覆写，保留已有草稿

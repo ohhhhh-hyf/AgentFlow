@@ -166,8 +166,52 @@ def budget_line(source_han: int, *, columns: int = 0) -> str:
 
 
 
+
+# 英文档位：(原文单词上限, 下限, 上限)
+ENGLISH_TIERS: tuple[tuple[int | None, int, int], ...] = (
+    (1500, 400, 1000),
+    (4000, 600, 1800),
+    (10000, 1000, 3000),
+    (None, 1500, 4500),
+)
+
+
+def word_count(text: str) -> int:
+    """英文单词数统计（按单词边界切分，忽略标点）。"""
+    return len(re.findall(r"\b[a-zA-Z0-9_'\-]+\b", text or ""))
+
+
+def english_length_budget(source_words: int) -> tuple[int, int] | None:
+    """原文英文单词数 → (下限, 上限)；原文过短（<100 词）时返回 None。"""
+    if source_words < 100:
+        return None
+    for ceiling, lo, hi in ENGLISH_TIERS:
+        if ceiling is None or source_words < ceiling:
+            cap = max(200, int(source_words * 0.8))
+            return lo, min(hi, cap)
+    return None
+
+
+def english_budget_line(source_words: int, *, columns: int = 0) -> str:
+    """生成注入 prompt 的英文【篇幅预算】块；原文过短时返回空串。"""
+    span = english_length_budget(source_words)
+    if not span:
+        return ""
+    lo, hi = span
+    cols = f", template has {columns} sections" if columns else ""
+    return (
+        f"【Length Budget】Source text ~{source_words} words{cols} → Target body word count guideline: {lo}–{hi} words "
+        f"(never exceeding 80% of source text). "
+        "Reaching the lower bound ensures essential facts are included; staying below upper bound avoids redundancy. "
+        "Explicit template section constraints take precedence over this dynamic budget."
+    )
+
 __all__ = [
     "DEFAULT_TARGET_HAN",
+    "ENGLISH_TIERS",
+    "word_count",
+    "english_length_budget",
+    "english_budget_line", 
     "FIRST_COL_MAX",
     "FIRST_COL_MIN",
     "FIRST_COL_SHARE",

@@ -721,6 +721,8 @@ class _Nodes(DomainNodes):
             f"视角模式：{mode}",
             fact_note,
         ])
+        if state.get("lang") == "en":
+            parts.append("输出语种要求：英文（English）")
         if mode == "personal":
             # 个人模式：注入画像、偏好、命中表、分组骨架、重点关注雷达
             parts.append(f"用户画像：\n{_json(self._compact_user(state.get('user') or {}))}")
@@ -792,6 +794,8 @@ class _Nodes(DomainNodes):
         blocks = []
         if line_name == "minutes" and state.get("has_valid_agenda"):
             blocks.append("议题模式：agenda_enhanced")
+        if state.get("lang") == "en":
+            blocks.append("输出语种要求：英文（English）")
         blocks.append(self._supervisor_source_pack(state, line_name))
         memory = str(sub.get("memory_context") or "").strip()
         if memory:
@@ -824,8 +828,6 @@ class _Nodes(DomainNodes):
         旧口径「篇幅以原文为参照（同量级）」对纪要既不成立（纪要必然短于原文）也无法自算，
         实测输出/输入比在 4.3%–35% 之间游走；这里把"该写多长"变成可执行的区间。
         """
-        from core.templates.length_budget import budget_line, han_count
-
         transcript = str(state.get("transcript") or "")
         columns = 0
         template = (state.get("templates") or {}).get(line_name) or ""
@@ -836,6 +838,13 @@ class _Nodes(DomainNodes):
                 columns = len(plan_placeholder_fill(template).get("scalars") or [])
             except Exception:  # noqa: BLE001 - 预算只是软提示，算不出栏数就不带
                 columns = 0
+
+        lang = str(state.get("lang") or "zh").strip().lower()
+        if lang == "en":
+            from core.templates.length_budget import english_budget_line, word_count
+            return english_budget_line(word_count(transcript), columns=columns)
+
+        from core.templates.length_budget import budget_line, han_count
         return budget_line(han_count(transcript), columns=columns)
 
     def _render_context(self, state: dict, line_name: str) -> str:
@@ -863,6 +872,8 @@ class _Nodes(DomainNodes):
         perspective = self._compact_perspective(state.get("perspective_profile") or {})
         if perspective:
             blocks.append(("已审核用户视角", perspective, "json"))
+        if state.get("lang") == "en":
+            blocks.insert(0, ("输出语种要求", "英文（English）", "raw"))
         # 会议域渲染层全局脱水：纪要正文、多样式、思维导图、共识决策等一律以已审核草稿和会议理解为事实源；
         # 整个会议域中，仅溯源线（minutes_trace）保留会议原文供本地 align.py 进行正则证据回溯与时间戳对齐。
         if line_name == "minutes_trace":
@@ -1322,6 +1333,8 @@ class _Nodes(DomainNodes):
                     kwargs["memory_on"] = memory_on
                 if "is_agenda_enhanced" in sig.parameters or has_var_kw:
                     kwargs["is_agenda_enhanced"] = bool(state.get("has_valid_agenda"))
+                if "lang" in sig.parameters or has_var_kw:
+                    kwargs["lang"] = state.get("lang", "zh")
 
                 result = await self.meeting_understanding_agent.run(
                     transcript_input,
@@ -1344,7 +1357,10 @@ class _Nodes(DomainNodes):
     async def _meeting_understanding_node(self, state: MeetingState) -> dict:
         """meeting理解：提取主题、结构、术语和待澄清问题。"""
         try:
-            result = await self.meeting_understanding_agent.run(state["transcript"])
+            result = await self.meeting_understanding_agent.run(
+                state["transcript"],
+                lang=state.get("lang", "zh"),
+            )
         except Exception:
             logger.warning("meeting understanding failed, continue with empty", exc_info=True)
             return {

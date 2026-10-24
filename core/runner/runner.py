@@ -441,6 +441,7 @@ async def run(
             lines=line_names,
             line_modes=modes or {},
             line_extra=line_extra,
+            lang=prep.lang,
         ):
             etype = event["type"]
             if etype == "chunk":

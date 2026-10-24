@@ -28,6 +28,7 @@ meeting 与 notes 两个域的 orchestrator 曾经是同一内核的复制（约
 from __future__ import annotations
 
 import asyncio
+import inspect
 import logging
 from collections.abc import AsyncIterator, Iterable
 
@@ -554,12 +555,17 @@ class DomainNodes:
             if extra:
                 context = f"{context}\n\n{extra}"
             try:
+                sig = inspect.signature(agent.run)
+                run_kwargs = {}
+                if "lang" in sig.parameters or any(p.kind == inspect.Parameter.VAR_KEYWORD for p in sig.parameters.values()):
+                    run_kwargs["lang"] = state.get("lang", "zh")
                 result = await agent.run(
                     self._revision_context(
                         context,
                         line(state, line_name).get("revision_feedback", []),
                         f"{cn}返工意见",
-                    )
+                    ),
+                    **run_kwargs,
                 )
             except Exception:  # noqa: BLE001 - 有意的降级设计
                 logger.warning(f"gen failed, empty draft line={cn}", exc_info=True)
@@ -684,9 +690,14 @@ class DomainNodes:
                 }
             progress("agent start review line=%s", line_name)
             supervisor = getattr(self, cfg["supervisor_attr"])
+            sig = inspect.signature(supervisor.review)
+            rev_kwargs = {}
+            if "lang" in sig.parameters or any(p.kind == inspect.Parameter.VAR_KEYWORD for p in sig.parameters.values()):
+                rev_kwargs["lang"] = state.get("lang", "zh")
             try:
                 review = await supervisor.review(
-                    self._supervisor_context(state, line_name)
+                    self._supervisor_context(state, line_name),
+                    **rev_kwargs,
                 )
             except Exception as exc:  # noqa: BLE001 - 有意的降级设计
                 # 审核**调用失败** ≠ 内容不合格：不再当成 reject 直接降级成确定性拼装文本，
@@ -925,6 +936,7 @@ class DomainNodes:
         lines: Iterable[str] | None = None,
         line_modes: dict[str, str] | None = None,
         line_extra: dict[str, str] | None = None,
+        lang: str = "zh",
     ) -> AsyncIterator[dict]:
         """流式输出：各任务线文本并行逐块推送，按线携带展示标题。
 
@@ -982,6 +994,7 @@ class DomainNodes:
             "templates": templates,
             "line_modes": dict(line_modes or {}),
             "line_extra": dict(line_extra or {}),
+            "lang": lang,
         }
         # 图执行失败时 state 不会被赋值；先绑定 initial_state，
         # 保证兜底分支引用 state 不抛 NameError（最后防线自身不崩溃）

@@ -72,15 +72,27 @@ def validate_rendered_output(
             next_c = rendered[m.end() : m.end() + 1]
             if not _looks_like_placeholder(inner, next_char=next_c):
                 return False
-            # 1. 已知业务状态与打标标签
+            # 1. 已知业务状态与打标标签（中英文）
             _KNOWN_TAGS = {
                 "待确认", "待决", "待定", "待定论", "阻塞", "阻碍",
                 "高风险", "中风险", "低风险", "通过", "否决", "未决",
                 "已完成", "进行中", "已对齐", "待对接", "待改", "性能受限",
                 "改进项", "难点", "阻塞 / 高风险 / 待定论",
                 "一致赞成", "附带前提", "附带前提同意", "争执未决", "保留意见",
+                # 英文常见状态标签与打标词
+                "TBD", "PENDING", "PENDING CONFIRMATION", "HIGH RISK", "MEDIUM RISK", "LOW RISK",
+                "BLOCKER", "APPROVED", "PASSED", "REJECTED", "IN PROGRESS", "COMPLETED", "OPEN",
+                "ACTION", "DECISION", "FYI", "N/A", "DONE",
             }
-            if inner in _KNOWN_TAGS or inner.startswith("待确认") or inner.startswith("待定"):
+            inner_norm = inner.upper()
+            if (
+                inner in _KNOWN_TAGS
+                or inner_norm in _KNOWN_TAGS
+                or inner.startswith("待确认")
+                or inner.startswith("待定")
+                or inner_norm.startswith("PENDING")
+                or inner_norm.startswith("TBD")
+            ):
                 return False
             # 2. 问答/访谈序号标签，如 [Q1]、[Q2] 等
             if re.match(r"^Q\d+[\.\s]?", inner, re.I):

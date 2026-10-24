@@ -6,6 +6,7 @@ from core.execution.hard_execution import (
     extract_labeled_json,
     is_agenda_enhanced_mode,
     parse_perspective_mode,
+    parse_lang_mode,
 )
 from ....models import Minutes
 from ..prompts import (
@@ -77,18 +78,38 @@ class MinutesGenerationAgent:
     def __init__(self, client: LLMClient) -> None:
         self.client = client
 
-    async def run(self, shared_context: str) -> Minutes:
+    async def run(self, shared_context: str, *, lang: str | None = None) -> Minutes:
         mode = parse_perspective_mode(shared_context)
         is_agenda = is_agenda_enhanced_mode(shared_context)
         if is_agenda:
-            system_prompt = MINUTES_AGENDA_GENERATION_PROMPT
+            raw_system_prompt = MINUTES_AGENDA_GENERATION_PROMPT
             label_mode = "agenda"
         elif mode == "personal":
-            system_prompt = MINUTES_PERSONAL_GENERATION_PROMPT
+            raw_system_prompt = MINUTES_PERSONAL_GENERATION_PROMPT
             label_mode = "personal"
         else:
-            system_prompt = MINUTES_OBJECTIVE_GENERATION_PROMPT
+            raw_system_prompt = MINUTES_OBJECTIVE_GENERATION_PROMPT
             label_mode = "objective"
+
+        lang_val = lang or parse_lang_mode(shared_context)
+        if (lang_val or "").strip().lower() == "en":
+            role_prefix = "英文（English）"
+            body_prompt = raw_system_prompt
+            first_period = body_prompt.find("。\n")
+            if first_period > 0:
+                body_prompt = body_prompt[first_period + 2 :].strip()
+            system_prompt = (
+                f"【核心人设与交付目标】\n"
+                f"你是专职的【{role_prefix}】会议纪要草稿 Agent，本次任务必须全程直接提炼并输出标准、专业、精炼的商务{role_prefix}结构化草稿。\n\n"
+                f"{body_prompt}\n\n"
+                f"## 语言红线\n"
+                f"1. 所有字段必须严格使用【{role_prefix}】输出，严禁夹杂中文字符与全角标点；\n"
+                f"2. 待定/未决统一使用 [TBD] 或 [Pending Confirmation]，严禁输出 [待确认]；\n"
+                f"3. 专业术语、专有名词与人名保留英文原文写法；\n"
+                f"4. 执行要点统一采用 `[Owner] Action + Deliverable + Deadline` 结构清晰陈述。"
+            )
+        else:
+            system_prompt = raw_system_prompt
 
         raw = await self.client.structured(
             system_prompt,
@@ -109,6 +130,7 @@ class MinutesGenerationAgent:
             memory_texts=memory_texts,
             transcript=transcript,
             is_agenda=is_agenda,
+            lang=lang_val,
         )
         return Minutes.validate(enforced)
 

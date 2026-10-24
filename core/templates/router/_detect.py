@@ -36,6 +36,8 @@ def _looks_like_placeholder(content: str, next_char: str = "") -> bool:
         return True
     if _HINT_WORD_RE.search(content):
         return True
+    if re.search(r"[a-zA-Z]{2,}", content):
+        return True
     return False
 
 
