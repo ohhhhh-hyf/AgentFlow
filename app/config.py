@@ -88,21 +88,32 @@ def load_env() -> None:
 
 # ── 模板源目录（优先 resources/templates，回退 template）─────────
 
-def template_dir() -> Path:
-    """当前生效的模板源目录（优先 resources/templates/，回退 template/）。"""
+def template_dir(lang: str = "zh") -> Path:
+    """当前生效的模板源目录（优先 resources/templates/{lang}/，回退 resources/templates/ 与 template/）。"""
     res_dir = PROJECT_ROOT / "resources" / "templates"
-    path = res_dir if res_dir.is_dir() else (PROJECT_ROOT / "template")
-    if path.name not in _template_dir_logged:
-        _template_dir_logged.add(path.name)
-        logger.info("模板源目录：%s", path)
-    missing = sorted(tid for tid in TEMPLATE_SCENARIO if not (path / f"{tid}.md").is_file())
-    if missing and f"missing:{path.name}" not in _template_dir_logged:
-        _template_dir_logged.add(f"missing:{path.name}")
-        logger.warning(
-            "模板目录 %s 缺少 %d/%d 个模板：%s%s（对应的 extra.template 会 400）",
-            path.name, len(missing), len(TEMPLATE_SCENARIO), "、".join(missing[:8]),
-            "…" if len(missing) > 8 else "",
-        )
+    lang_key = (lang or "zh").strip().lower()
+    target_dir = res_dir / lang_key
+    if target_dir.is_dir():
+        path = target_dir
+    elif res_dir.is_dir():
+        path = res_dir
+    else:
+        path = PROJECT_ROOT / "template"
+
+    log_key = f"{path.name}:{lang_key}"
+    if log_key not in _template_dir_logged:
+        _template_dir_logged.add(log_key)
+        logger.info("模板源目录：%s (lang=%s)", path, lang_key)
+
+    if lang_key == "zh":
+        missing = sorted(tid for tid in TEMPLATE_SCENARIO if not (path / f"{tid}.md").is_file())
+        if missing and f"missing:{log_key}" not in _template_dir_logged:
+            _template_dir_logged.add(f"missing:{log_key}")
+            logger.warning(
+                "模板目录 %s 缺少 %d/%d 个中文模板：%s%s（对应的 extra.template 会 400）",
+                path.name, len(missing), len(TEMPLATE_SCENARIO), "、".join(missing[:8]),
+                "…" if len(missing) > 8 else "",
+            )
     return path
 
 
@@ -225,7 +236,6 @@ TEMPLATE_SCENARIO = {
     "product_launch": "press_conference",
     "government_bulletin": "press_conference",
     "media_qa_session": "press_conference",
-    "admission_briefing": "meeting_minutes",
     "general_minutes": "daily_journal",
     "personal_memo": "daily_journal",
     "conversation_transcript": "daily_journal",
@@ -289,14 +299,12 @@ def _parse_template_md(path: Path) -> dict[str, object] | None:
     }
 
 
-def template_registry() -> dict[str, dict[str, object]]:
-    """返回 {内部契约键: {"format","name","scenario","requirement","template"}}。
+def template_registry(lang: str = "zh") -> dict[str, dict[str, object]]:
+    """返回指定语种的 {内部契约键: {"format","name","scenario","requirement","template"}}。
 
-    **唯一模板源是 ``template_dir()/*.md``（固定为 template/）**。
-    运行时直接读，没有第二兜底源。目录缺失或文件全部不合规时返回空注册表 —— 此时
-    ``extra.template`` 一律 400，不会静默套错模板。
+    按语种严格隔离：lang='en' 时读取 resources/templates/en/，lang='zh' 时读取 resources/templates/zh/。
     """
-    tpl_dir = template_dir()
+    tpl_dir = template_dir(lang=lang)
     if not tpl_dir.is_dir():
         return {}
     out: dict[str, dict[str, object]] = {}
@@ -305,31 +313,33 @@ def template_registry() -> dict[str, dict[str, object]]:
             continue
         item = _parse_template_md(md_path)
         if item:
-            out[f"{TEMPLATE_SCENARIO[md_path.stem]}_{md_path.stem}"] = item
+            scenario_key = TEMPLATE_SCENARIO.get(md_path.stem, "meeting_minutes")
+            out[f"{scenario_key}_{md_path.stem}"] = item
     return out
 
 
-def template_key(template_value: str) -> str:
+def template_key(template_value: str, lang: str = "zh") -> str:
     """extra.template 取值 → 内部契约键 ``{场景ID}_{模板ID}``；无法识别返回空串。
 
     只接受两种写法（英文名大小写不敏感）：
     - 模板 md 英文名：``project_progress`` / ``project_progress.md``
-    - 模板中文名（YAML ``name``）：``项目进度会``
-
-    旧契约值 ``{场景ID}_{模板ID}`` 与其它串一律不识别（调用方按 400 处理）。
-    注册表内每个模板 ID 与中文名各自唯一、且互不冲突，别名不会歧义（数量随模板目录变化）。
+    - 模板中文名/英文名（YAML ``name``）：``项目进度会`` / ``General Minutes``
     """
     raw = (template_value or "").strip()
     if not raw:
         return ""
     stem = raw[:-3] if raw.lower().endswith(".md") else raw
     folded = stem.strip().lower()
-    registry = template_registry()
+    registry = template_registry(lang=lang)
     for key, item in registry.items():
         if str(item.get("template") or "").lower() == folded:
             return key
     for key, item in registry.items():
         if raw == str(item.get("name") or "").strip():
+            return key
+    # 英文标题大小写不敏感匹配（如 "general minutes" 匹配 "General Minutes"）
+    for key, item in registry.items():
+        if folded == str(item.get("name") or "").strip().lower():
             return key
     return ""
 
@@ -372,7 +382,7 @@ def resolve_task_template_format(template_value: str) -> str:
     return wrap_template_requirement(format_text, requirement.strip())
 
 
-def resolve_template_format(template_value: str) -> str:
+def resolve_template_format(template_value: str, lang: str = "zh") -> str:
     """extra.template 值 → 模板 format 文本（含写作要求注释）；非法值返回空串。
 
     取值只两种：模板 md 英文名、模板中文名（见 :func:`template_key`）。
@@ -386,7 +396,7 @@ def resolve_template_format(template_value: str) -> str:
     if task_res:
         return task_res
 
-    item = template_registry().get(template_key(value)) or {}
+    item = template_registry(lang=lang).get(template_key(value, lang=lang)) or {}
     fmt = str(item.get("format") or "").strip()
     req = str(item.get("requirement") or "").strip()
     if not fmt:
@@ -404,7 +414,7 @@ def agenda_template_dir() -> Path:
     return PROJECT_ROOT / "resources" / "agenda_templates"
 
 
-def resolve_agenda_template_format(template_value: str) -> str:
+def resolve_agenda_template_format(template_value: str, lang: str = "zh") -> str:
     """优先从 agenda_templates/ 加载模板；若不存在则自动平滑回退至普通模板目录。"""
     value = (template_value or "").strip()
     if not value:
@@ -414,7 +424,7 @@ def resolve_agenda_template_format(template_value: str) -> str:
     candidate_paths = [
         agenda_dir / f"{t_id}.md",
     ]
-    t_key = template_key(value)
+    t_key = template_key(value, lang=lang)
     if t_key and "_" in t_key:
         t_id_from_key = t_key.split("_", 1)[1]
         candidate_paths.append(agenda_dir / f"{t_id_from_key}.md")
@@ -432,7 +442,7 @@ def resolve_agenda_template_format(template_value: str) -> str:
                         from core.templates.router._base import wrap_template_requirement
                     return wrap_template_requirement(fmt, req)
 
-    return resolve_template_format(value)
+    return resolve_template_format(value, lang=lang)
 
 
 RESOURCES_PROFILE_DIR = PROJECT_ROOT / "resources" / "profiles"

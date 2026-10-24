@@ -350,7 +350,6 @@ def test_qa_speaker_labels() -> None:
     qa_templates = {
         "media_briefing": "Q&A环节",
         "media_qa_session": "核心提问与回应",
-        "admission_briefing": "Q&A 环节",
         "special_lecture": "Q&A 环节",
     }
     missing: list[str] = []
@@ -361,7 +360,7 @@ def test_qa_speaker_labels() -> None:
             missing.append(stem)
         if _re.search(r"[，：]写成「\*\*问\*\*：…」换行", text):  # 旧强制句式；新文是「才写成…」
             old_mandate.append(stem)
-    check("4 个问答模板都写清「称呼优先、问/答兜底」", not missing, f"缺={missing}")
+    check("3 个问答模板都写清「称呼优先、问/答兜底」", not missing, f"缺={missing}")
     check("旧的「一律写成 问/答」口径已清除", not old_mandate, f"残留={old_mandate}")
     check("问答模板都禁止双重标注（「xx提问」式说明）",
           all("这类重复说明" in (_active_dir() / f"{s}.md").read_text(encoding="utf-8")
@@ -510,7 +509,7 @@ def test_qa_precision_rules() -> None:
           "问答/对话的一轮" in BODY_FORMAT_RULES and "再长也不拆段" in BODY_FORMAT_RULES
           and "长答话按要点压缩" in BODY_FORMAT_RULES, "")
 
-    qa_templates = ("media_briefing", "media_qa_session", "admission_briefing", "special_lecture")
+    qa_templates = ("media_briefing", "media_qa_session", "special_lecture")
     retired = ("覆盖所有重要提问", "答话可归并但不得改口径", "内容相似的合并成一条")
     from core.templates.template_eval import parse_section_char_budgets
 
@@ -560,7 +559,7 @@ def test_general_minutes_gate_and_minutes_styles_html() -> None:
     from domains.meeting.hooks import HOOKS
     from pathlib import Path
 
-    tpl_path = Path(__file__).resolve().parents[4] / "resources" / "templates" / "general_minutes.md"
+    tpl_path = Path(__file__).resolve().parents[4] / "resources" / "templates" / "zh" / "general_minutes.md"
     tpl = tpl_path.read_text(encoding="utf-8")
 
     good_text = (

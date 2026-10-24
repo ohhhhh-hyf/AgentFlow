@@ -396,6 +396,7 @@ def _template_file(
     profile_value: str = "",
     style_value: str = "",
     is_agenda_enhanced: bool = False,
+    lang: str = "zh",
 ) -> Path | None:
     """extra.template → 临时模板文件；非法抛 400。
 
@@ -427,7 +428,7 @@ def _template_file(
             auto_default = True
     elif not value:
         return None
-    fmt = resolve_agenda_template_format(value) if is_agenda_enhanced else resolve_template_format(value)
+    fmt = resolve_agenda_template_format(value, lang=lang) if is_agenda_enhanced else resolve_template_format(value, lang=lang)
     if not fmt:
         if auto_default:
             logger.warning(
@@ -481,6 +482,7 @@ class _Prepared:
     subject: str
     memory: bool
     time: str = ""
+    lang: str = "zh"
 
 
 def _runner_args(p: _Prepared) -> dict:
@@ -505,6 +507,7 @@ def _runner_args(p: _Prepared) -> dict:
         "extra_line_inputs": p.extra_line_inputs,
         "memory": p.memory,
         "meeting_time": p.time,
+        "lang": p.lang,
     }
 
 
@@ -654,6 +657,7 @@ def _prepare(domain: str, task: str, req: TaskRequest, user_id: str) -> _Prepare
         profile_value=extra.profile,
         style_value=extra.style,
         is_agenda_enhanced=bool(agenda_from_docs),
+        lang=req.lang,
     )
 
     # 输入文件：library 传原文件路径列表（docs 图片+文档全量入库）；其余传临时文件/目录
@@ -716,6 +720,7 @@ def _prepare(domain: str, task: str, req: TaskRequest, user_id: str) -> _Prepare
         subject=_subject_pinyin(extra.subject),
         memory=bool(req.memory or extra.memory),
         time=(extra.time or req.time or "").strip(),
+        lang=req.lang,
     )
 
 

@@ -62,6 +62,8 @@ class TaskRequest(BaseModel):
     extra: Extra = Field(default_factory=Extra)
     # 任务时间（下沉至 extra.time，顶层字段保留以 100% 兼容老客户端）
     time: str = ""
+    # 语种控制（顶层一等公民：仅支持 zh/en，缺省默认 zh）
+    lang: str = "zh"
 
     @model_validator(mode="before")
     @classmethod
@@ -103,6 +105,16 @@ class TaskRequest(BaseModel):
                         extra.catalog = jsons[0]
                         data["docs"] = [f for f in data["docs"] if not str(f).lower().endswith(".json")]
         return data
+
+    @field_validator("lang")
+    @classmethod
+    def _validate_lang(cls, value: str) -> str:
+        v = (value or "zh").strip().lower()
+        if v in {"en", "english"}:
+            return "en"
+        if v in {"zh", "ch", "cn", "chinese"}:
+            return "zh"
+        raise ValueError(f"lang 仅支持 'zh' 或 'en'，收到未知取值：{value}")
 
     @field_validator("texts")
     @classmethod

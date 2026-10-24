@@ -145,6 +145,7 @@ async def prepare_run(
     extra_line_inputs: dict[str, str] | None = None,
     memory: bool = False,
     meeting_time: str = "",
+    lang: str = "zh",
 ) -> PreparedRun:
     """输入组装 + 注入 + 模板编译（run 与流式接口共用；本函数不执行任务）。"""
     setup_logging()
@@ -386,6 +387,7 @@ async def run(
     extra_line_inputs: dict[str, str] | None = None,
     memory: bool = False,
     meeting_time: str = "",
+    lang: str = "zh",
 ) -> dict | None:
     """Run selected task lines and persist their final artifacts.
 
@@ -404,7 +406,7 @@ async def run(
         project_id, subject, chapter, level, grade, edition, difficulty, qtype,
         compile_natural=compile_natural, monitor=monitor,
         collect_reports=collect_reports, extra_line_inputs=extra_line_inputs,
-        memory=memory, meeting_time=meeting_time,
+        memory=memory, meeting_time=meeting_time, lang=lang,
     )
     system = prep.system
     ctx = prep.ctx

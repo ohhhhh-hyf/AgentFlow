@@ -526,19 +526,8 @@ def test_output_volume_and_hierarchy() -> None:
           "过程铺陈与背景默认压缩成半句" in mp, "")
 
 def test_domain_specific_accuracy_rules() -> None:
-    """医疗、招生、媒体和庭审模板保留各自的事实边界。"""
+    """医疗、媒体和庭审模板保留各自的事实边界。"""
     d = _active_dir()
-
-    admission = (d / "admission_briefing.md").read_text(encoding="utf-8")
-    check("招生宣讲：关键数据栏排除联系方式与行动型时间节点",
-          "联系方式、咨询渠道、报名/材料截止等行动型时间节点不得放入本栏" in admission
-          and "统一归 [后续联系与行动]" in admission, "")
-    check("招生宣讲：联系方式与行动时间集中到后续联系栏",
-          "全部联系方式、咨询渠道和行动型时间节点" in admission
-          and "这些内容不再写入 [关键数据与信息]" in admission, "")
-    key_data = admission.split("# [关键数据与信息]", 1)[1].split("# [Q&A 环节]", 1)[0]
-    check("招生宣讲：关键数据样例表不再含联系方式/关键时间节点行",
-          "| 联系方式 |" not in key_data and "| 关键时间节点 |" not in key_data, key_data[-160:])
 
     media = (d / "media_qa_session.md").read_text(encoding="utf-8")
     check("媒体问答：确定的转写错误可校正，数字/人名须有上下文证据",

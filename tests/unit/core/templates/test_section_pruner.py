@@ -232,7 +232,7 @@ def test_home_school_feedback_groups() -> None:
 
 def test_home_school_content_groups() -> None:
     """家校沟通 [沟通内容]：自适应组织（涵盖班情/规章/通报，严禁分号并入单条）。"""
-    p = Path("resources/templates") / "home_school_liaison.md"
+    p = Path("resources/templates/zh") / "home_school_liaison.md"
     text = p.read_text(encoding="utf-8")
     check("template 家校沟通：[沟通内容] 自适应组织且严禁机械套用预设分组",
           "根据实际沟通内容自适应组织" in text and "严禁机械套用预设分组" in text, "dir=template")
@@ -1237,7 +1237,7 @@ def test_table_isolation_and_deduplication() -> None:
           is_table_caption(court_caption),
           f"{is_table_caption(court_caption)}")
 
-    with open("resources/templates/hiring_report.md", "r", encoding="utf-8") as f:
+    with open("resources/templates/zh/hiring_report.md", "r", encoding="utf-8") as f:
         hiring_tpl = f.read()
     hiring_plan = plan_placeholder_fill(hiring_tpl)
     check("防线1：面试报告能力评估在计划层彻底剔除纯表格标量（仅3个标量，不调模型）",
@@ -1246,7 +1246,7 @@ def test_table_isolation_and_deduplication() -> None:
           f"{[s.get('hint')[:20] for s in hiring_plan['scalars']]}")
 
     # 4. 支柱 1 形态 B：复合栏表格隔离纪律注入
-    with open("resources/templates/clinical_advisory.md", "r", encoding="utf-8") as f:
+    with open("resources/templates/zh/clinical_advisory.md", "r", encoding="utf-8") as f:
         clinical_tpl = f.read()
     check("临床咨询的「治疗方案与医嘱」被识别为复合表格栏",
           _section_has_table(clinical_tpl, "治疗方案与医嘱"),
@@ -1446,7 +1446,7 @@ def test_first_column_single_paragraph_synergy() -> None:
 
     d = _active_dir()
     templates = list(d.glob("*.md"))
-    assert len(templates) >= 30, f"模板数量不足: {len(templates)}"
+    assert len(templates) >= 29, f"模板数量不足: {len(templates)}"
 
     # 1. 验证全库模板正则覆盖率
     matched = []

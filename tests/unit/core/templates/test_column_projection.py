@@ -445,7 +445,6 @@ def test_template_aware_understanding_skip() -> None:
                   "class_transcript",
                   "product_launch",
                   "media_qa_session",
-                  "admission_briefing",
               )
           ),
           "",
@@ -2065,7 +2064,7 @@ def test_court_transcript_template_and_concurrent_fill():
         _scalar_titles,
     )
 
-    court_tpl = Path("resources/templates/court_transcript.md").read_text(encoding="utf-8")
+    court_tpl = Path("resources/templates/zh/court_transcript.md").read_text(encoding="utf-8")
     check("庭审记录模板包含证明目的与质证细化规则", "证明目的" in court_tpl and "对方质证意见" in court_tpl, "")
     check("庭审记录模板包含反压缩纪律声明", "不得精简或合并" in court_tpl and "不设字数上限" in court_tpl, "")
 

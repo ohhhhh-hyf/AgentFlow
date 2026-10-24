@@ -58,11 +58,10 @@ AgentFlow/
 │   └── exporters/                # 统一产物导出器（专业响应式 CSS HTML、Markmap 导图、SVG 拓扑）
 │
 ├── resources/                    # 【业务只读资产库】静态模板、样式规范与标准化画像
-│   ├── templates/                # 32 份垂直场景行业 Markdown 模板（通用纪要、团队周会、共识决策、辩论、法庭等）
+│   ├── templates/                # 垂直场景行业 Markdown 模板库（按语种 zh / en 隔离，含通用纪要等 29 个场景模板）
 │   ├── agenda_templates/         # 审定议题专属行业 Markdown 模板（以审定议题与子主题层级为主线）
 │   ├── styles/                   # 5 大会议纪要风格规范 Markdown 模板（brief, topic, review, retro, alignment）
-│   ├── profiles/                 # 客观全员与各行业职业角色画像模板（JSON）
-│   └── role_mapping.json         # 角色与职业画像别名映射表
+│   └── profiles/                 # 客观全员与各行业职业画像模板（JSON）及 role_mapping.json 角色别名映射表
 │
 ├── data/                         # 【多租户数据持久化根】严格按 {user_id} 物理隔离的沙箱
 │   └── {user_id}/                # 租户独立命名空间（docs 原始素材、output 产物、knowledge 索引）

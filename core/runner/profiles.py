@@ -44,18 +44,18 @@ def _role_template_candidates(profile_dir: Path, key: str) -> list[Path]:
 
 
 def load_role_mapping(assets_dir: Path | None = None) -> dict[str, str]:
-    """读取 assets/role_mapping.json 并构建反向索引表 (别名小写 -> 模板文件名 key)。"""
+    """读取 profiles/role_mapping.json 并构建反向索引表 (别名小写 -> 模板文件名 key)。"""
     candidates: list[Path] = []
     if assets_dir:
         candidates.extend([
-            assets_dir / ROLE_MAPPING_FILENAME,
             assets_dir / "profiles" / ROLE_MAPPING_FILENAME,
+            assets_dir / ROLE_MAPPING_FILENAME,
             assets_dir / "assets" / ROLE_MAPPING_FILENAME,
         ])
     candidates.extend([
-        ASSETS_DIR / ROLE_MAPPING_FILENAME,
-        ASSETS_DIR / "profiles" / ROLE_MAPPING_FILENAME,
         SHARED_PROFILE_DIR / ROLE_MAPPING_FILENAME,
+        ASSETS_DIR / "profiles" / ROLE_MAPPING_FILENAME,
+        ASSETS_DIR / ROLE_MAPPING_FILENAME,
     ])
     path = next((p for p in candidates if p.is_file()), None)
     if path is None:
