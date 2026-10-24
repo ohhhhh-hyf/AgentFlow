@@ -240,21 +240,23 @@ def test_request_schema_and_validation() -> None:
     from app.schemas import Extra, TaskRequest
     from app.tasks import ApiError, _prepare
 
-    # 1. 验证 TaskRequest 数据模型及向下兼容 Auto-Lifting
-    # 1.1 memory 顶层字段与 extra.memory 自动互通
+    # 1. 验证 TaskRequest 数据模型严格层级归位 (memory 仅在顶层，time 仅在 extra)
+    # 1.1 memory 字段归位
     r1 = TaskRequest(memory=True)
     check("TaskRequest 顶层支持 memory=True", r1.memory is True, "")
-    check("TaskRequest memory 自动同步到 extra.memory", r1.extra.memory is True, "")
+    check("Extra 模型中不再包含 memory 字段", "memory" not in Extra.model_fields, "")
 
-    r2 = TaskRequest.model_validate({"extra": {"memory": True}})
-    check("老格式 extra.memory 自动提升到顶层 memory", r2.memory is True, "")
+    # 1.2 time 字段归位
+    r2 = TaskRequest(extra=Extra(time="2026-06-15 10:00"))
+    check("Extra 正确保存 time 字段", r2.extra.time == "2026-06-15 10:00", "")
+    check("TaskRequest 模型中不再包含 time 字段", "time" not in TaskRequest.model_fields, "")
 
-    # 1.2 time 下沉至 extra.time 与双向同步
-    r3 = TaskRequest(time="2026-06-15 10:00")
-    check("顶层 time 自动同步到 extra.time", r3.extra.time == "2026-06-15 10:00", "")
+    # 1.3 验证传错层级不会产生自动拷贝
+    r3 = TaskRequest.model_validate({"extra": {"memory": True}})
+    check("传在 extra 的 memory 不再自动提升", r3.memory is False, "")
 
-    r4 = TaskRequest.model_validate({"extra": {"time": "2026-06-15 10:00"}})
-    check("extra.time 自动同步到顶层 time", r4.time == "2026-06-15 10:00", "")
+    r4 = TaskRequest.model_validate({"time": "2026-06-15 10:00"})
+    check("传在顶层的 time 不再自动同步到 extra", r4.extra.time == "", "")
 
     # 1.3 extra.catalog 显式指定及 docs 兼容提取
     r5 = TaskRequest(extra=Extra(catalog="20261001_100000.json"))

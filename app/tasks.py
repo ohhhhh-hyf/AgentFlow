@@ -719,8 +719,8 @@ def _prepare(domain: str, task: str, req: TaskRequest, user_id: str) -> _Prepare
         user_id=(user_id or "").strip(),
         project=(extra.project or "").strip(),
         subject=_subject_pinyin(extra.subject),
-        memory=bool(req.memory or extra.memory),
-        time=(extra.time or req.time or "").strip(),
+        memory=bool(req.memory),
+        time=(extra.time or "").strip(),
         lang=req.lang,
     )
 
@@ -759,7 +759,7 @@ async def _run_task_impl(
         task,
         request_id,
         user_id,
-        bool(req.memory or (req.extra and getattr(req.extra, "memory", False))),
+        bool(req.memory),
     )
 
     try:

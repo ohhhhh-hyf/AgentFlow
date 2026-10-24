@@ -49,8 +49,7 @@ def payload_from_request(
         "texts": dict(req.texts or {}),
         "docs": list(req.docs or []),
         "extra": req.extra.model_dump(),
-        "time": req.time or "",
-        "memory": req.memory,
+        "memory": bool(req.memory),
     }
 
 
@@ -68,9 +67,8 @@ def request_from_payload(payload: dict[str, Any]) -> tuple[str, str, TaskRequest
     req = TaskRequest(
         texts={k: v for k, v in dict(data.get("texts") or {}).items() if isinstance(v, str)},
         docs=[str(name) for name in list(data.get("docs") or [])],
-        memory=bool(data.get("memory", False) or getattr(extra, "memory", False)),
+        memory=bool(data.get("memory", False)),
         extra=extra,
-        time=str(data.get("time") or getattr(extra, "time", "")),
     )
     return domain, task, req, str(data.get("user_id") or ""), str(data.get("request_id") or "")
 

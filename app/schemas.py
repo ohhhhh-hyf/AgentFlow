@@ -33,7 +33,6 @@ class Extra(BaseModel):
     project: str = ""
     subject: str = ""
     style: str = ""
-    memory: bool = False
     # 既定议程纯文本内容（用于 agenda_minutes 任务，可直接传纯文本，支持与 docs 附件议程自动合并）
     agenda_txt: str = ""
     # 会议召开时间（如 "2026-06-15 10:00"，用于会议记忆与溯源展示）
@@ -60,8 +59,6 @@ class TaskRequest(BaseModel):
     # 🔥 系统级长记忆能力开关
     memory: bool = False
     extra: Extra = Field(default_factory=Extra)
-    # 任务时间（下沉至 extra.time，顶层字段保留以 100% 兼容老客户端）
-    time: str = ""
     # 语种控制（顶层一等公民：仅支持 zh/en，缺省默认 zh）
     lang: str = "zh"
 
@@ -74,31 +71,13 @@ class TaskRequest(BaseModel):
                 extra = {}
                 data["extra"] = extra
             if isinstance(extra, dict):
-                # 1. 兼容老客户端把 memory 放在 extra 内部的情况：自动提升到顶层
-                if extra.get("memory") and not data.get("memory"):
-                    data["memory"] = extra["memory"]
-                elif data.get("memory") and not extra.get("memory"):
-                    extra["memory"] = data["memory"]
-                # 2. 兼容老客户端把 time 传在顶层的情况：自动同步到 extra.time
-                if data.get("time") and not extra.get("time"):
-                    extra["time"] = data.get("time", "")
-                elif extra.get("time") and not data.get("time"):
-                    data["time"] = extra.get("time", "")
-                # 3. 兼容老客户端把 catalog.json 放在 docs 里的情况：自动填入 extra.catalog
+                # 兼容老客户端把 catalog.json 放在 docs 里的情况：自动填入 extra.catalog
                 if not extra.get("catalog") and data.get("docs"):
                     jsons = [f for f in data["docs"] if str(f).lower().endswith(".json")]
                     if jsons:
                         extra["catalog"] = jsons[0]
                         data["docs"] = [f for f in data["docs"] if not str(f).lower().endswith(".json")]
             elif isinstance(extra, BaseModel):
-                if getattr(extra, "memory", False) and not data.get("memory"):
-                    data["memory"] = extra.memory
-                elif data.get("memory") and not getattr(extra, "memory", False):
-                    extra.memory = data.get("memory")
-                if data.get("time") and not getattr(extra, "time", ""):
-                    extra.time = data.get("time", "")
-                elif getattr(extra, "time", "") and not data.get("time"):
-                    data["time"] = extra.time
                 if not getattr(extra, "catalog", "") and data.get("docs"):
                     jsons = [f for f in data["docs"] if str(f).lower().endswith(".json")]
                     if jsons:

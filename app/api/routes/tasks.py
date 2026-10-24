@@ -192,7 +192,6 @@ async def submit_task(
         docs=req.docs,
         memory=req.memory,
         extra=req.extra if isinstance(req.extra, Extra) else Extra.model_validate(req.extra),
-        time=req.time,
     )
     mode = run_mode()
     logger.info(
