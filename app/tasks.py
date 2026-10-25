@@ -398,6 +398,74 @@ def _pack_minutes_auxiliary(keypoints: str, notes: str, vision_info: str) -> str
     return "\n\n".join(blocks).strip()
 
 
+def _log_task_payload(
+    lang: str,
+    transcript: str,
+    keypoints: str,
+    notes: str,
+    vision_info: str,
+    aux_text: str = "",
+    docs: list[str] | None = None,
+) -> None:
+    """按工业级规范输出输入载荷关键指标日志 [task:payload]。"""
+    # 1. transcript
+    if transcript and transcript.strip():
+        n = len(transcript.strip())
+        t_str = f"{n / 1000:.1f}k_chars" if n >= 1000 else f"{n}_chars"
+    else:
+        t_str = "none"
+
+    # 2. keypoints
+    if keypoints and keypoints.strip():
+        kp_lines = [l.strip() for l in keypoints.strip().splitlines() if l.strip()]
+        kp_chars = len(keypoints.strip())
+        kp_str = f"{len(kp_lines)}_items({kp_chars}_chars)"
+    else:
+        kp_str = "none"
+
+    # 3. notes
+    if notes and notes.strip():
+        parsed = _parse_notes_items(notes)
+        q_cnt = sum(1 for it in parsed if it.get("quote"))
+        c_cnt = len(parsed) - q_cnt
+        if q_cnt > 0 and c_cnt > 0:
+            notes_str = f"{q_cnt}_quotes/{c_cnt}_comments"
+        elif q_cnt > 0:
+            notes_str = f"{q_cnt}_quotes"
+        elif c_cnt > 0:
+            notes_str = f"{c_cnt}_comments"
+        else:
+            notes_str = f"{len(notes.strip())}_chars"
+    else:
+        notes_str = "none"
+
+    # 4. vision
+    if vision_info and vision_info.strip():
+        v_chars = len(vision_info.strip())
+        vision_str = f"{v_chars / 1000:.1f}k_chars" if v_chars >= 1000 else f"{v_chars}_chars"
+    else:
+        vision_str = "none"
+
+    # 5. aux
+    if aux_text and aux_text.strip():
+        aux_len = len(aux_text.strip())
+        aux_str = f"injected({aux_len}_chars)"
+    else:
+        aux_str = "none"
+
+    docs_str = f" docs={','.join(docs)}" if docs else ""
+    logger.info(
+        "[task:payload] lang=%s transcript=%s keypoints=%s notes=%s vision=%s aux=%s%s",
+        lang or "zh",
+        t_str,
+        kp_str,
+        notes_str,
+        vision_str,
+        aux_str,
+        docs_str,
+    )
+
+
 def _prepare_input_dir(transcript: str) -> Path | None:
     """非 library 任务的输入准备：只写主文本 input.txt（sidecar 走 line_extra 注入）。"""
     if not transcript.strip():
@@ -717,10 +785,12 @@ def _prepare(domain: str, task: str, req: TaskRequest, user_id: str) -> _Prepare
     if template_path is not None:
         templates[line] = template_path
     extra_line_inputs: dict[str, str] = {}
+    aux_text = ""
     if line == "minutes_trace":
         trace_text = _trace_extra(keypoints, notes)
         if trace_text:
             extra_line_inputs["minutes_trace"] = trace_text
+            aux_text = trace_text
     if line == "checklist" and (extra.catalog or "").strip():
         _catalog_input_file(user_id, extra.subject, extra.catalog.strip())
         extra_line_inputs["checklist"] = "【目录文件】" + extra.catalog.strip()
@@ -749,6 +819,16 @@ def _prepare(domain: str, task: str, req: TaskRequest, user_id: str) -> _Prepare
             scope_parts.append(f"【学科/课程】{(extra.subject or '').strip()}")
         if scope_parts:
             extra_line_inputs[line] = "\n".join(scope_parts)
+
+    _log_task_payload(
+        lang=req.lang,
+        transcript=transcript,
+        keypoints=keypoints,
+        notes=notes,
+        vision_info=vision_info,
+        aux_text=aux_text,
+        docs=req.docs,
+    )
 
     return _Prepared(
         line=line,
@@ -789,31 +869,31 @@ async def _run_task_impl(
     request_id: str,
     _start_time: float,
 ) -> TaskResponse:
+    logger.info(
+        "[task:start] domain=%s task=%s req_id=%s user_id=%s lang=%s memory=%s",
+        domain,
+        task,
+        request_id,
+        user_id,
+        req.lang or "zh",
+        str(bool(req.memory)).lower(),
+    )
     p = await asyncio.to_thread(_prepare, domain, task, req, user_id)
     # 产物直接写入本次请求目录（data/{user_id}/output/{request_id}/），不再走根目录 output/ 归档
     p.ctx.output_dir = output_dir(user_id, request_id)
 
     from core.runner.runner import run
 
-    logger.info(
-        "[task:start] domain=%s task=%s request_id=%s user_id=%s memory=%s",
-        domain,
-        task,
-        request_id,
-        user_id,
-        bool(req.memory),
-    )
-
     try:
         result = await run(p.ctx, **_runner_args(p))
     except ApiError:
         raise
     except Exception as exc:  # noqa: BLE001 - 运行失败统一转 500
+        cost_time = round((time.time() - _start_time), 2)
         logger.exception(
-            "[task:failed] domain=%s task=%s request_id=%s error=%s",
-            domain,
-            task,
+            "[task:failed] req_id=%s dur=%.2fs error=%s status=failed",
             request_id,
+            cost_time,
             exc,
         )
         raise ApiError(500, f"任务运行失败：{exc}") from exc
@@ -875,13 +955,10 @@ async def _run_task_impl(
     if warning:
         response.quality_warning = warning
     logger.info(
-        "[task:finish] domain=%s task=%s request_id=%s cost=%.2fs tokens=%d file=%s",
-        domain,
-        task,
+        "[task:finish] req_id=%s dur=%.2fs total_tokens=%d status=success",
         request_id,
         response.monitor.cost_time,
         response.monitor.token_usage,
-        response.data.file_name,
     )
     return response
 
@@ -919,11 +996,13 @@ async def iter_task_events(
     """核心事件流生成器：纯 Python 字典事件流，不依赖任何 HTTP/Web 响应对象。"""
     request_id = (request_id or "").strip() or next_request_id()
     logger.info(
-        "[stream:start] domain=%s task=%s request_id=%s user_id=%s",
+        "[stream:start] domain=%s task=%s req_id=%s user_id=%s lang=%s memory=%s",
         domain,
         task,
         request_id,
         user_id,
+        req.lang or "zh",
+        str(bool(req.memory)).lower(),
     )
     p = await asyncio.to_thread(_prepare, domain, task, req, user_id)
     # 产物直接写入本次请求目录（data/{user_id}/output/{request_id}/），不再走根目录 output/ 归档
@@ -937,9 +1016,7 @@ async def iter_task_events(
     except ApiError as exc:
         # 输入类错误（缺必填/文件不存在）：带上真实状态码，异步端据此不重试
         logger.warning(
-            "[stream:error] domain=%s task=%s request_id=%s code=%s message=%s",
-            domain,
-            task,
+            "[stream:error] req_id=%s code=%s message=%s",
             request_id,
             exc.status,
             exc.message,
@@ -947,11 +1024,11 @@ async def iter_task_events(
         yield {"type": "error", "code": exc.status, "message": exc.message}
         return
     except Exception as exc:  # noqa: BLE001 - 准备失败推 error 事件
+        cost_time = round((time.time() - _start_time), 2)
         logger.exception(
-            "[stream:failed] domain=%s task=%s request_id=%s error=%s",
-            domain,
-            task,
+            "[stream:failed] req_id=%s dur=%.2fs error=%s status=failed",
             request_id,
+            cost_time,
             exc,
         )
         yield {"type": "error", "code": 500, "message": f"任务准备失败：{exc}"}
@@ -1047,16 +1124,13 @@ async def iter_task_events(
                     for key in ("total_tokens", "cache_hit_tokens")
                 }
                 out_file = _output_file_name(p.line, user_id, p.subject, saved_paths)
-                cost_seconds = round((time.time() - _start_time), 1)
+                cost_seconds = round((time.time() - _start_time), 2)
                 tokens = int(usage.get("total_tokens", 0) or 0)
                 logger.info(
-                    "[stream:done] domain=%s task=%s request_id=%s cost=%.2fs tokens=%d file=%s",
-                    domain,
-                    task,
+                    "[stream:done] req_id=%s dur=%.2fs total_tokens=%d status=success",
                     request_id,
                     cost_seconds,
                     tokens,
-                    out_file,
                 )
                 yield {
                     "type": "done",

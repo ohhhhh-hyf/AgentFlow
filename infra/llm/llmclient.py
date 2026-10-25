@@ -79,7 +79,7 @@ class LLMClient:
         self.max_retries = cfg.max_retries
         self.context_length = int(getattr(cfg, "context_length", 0) or 65536)
         # 生效配置一览：排查"服务器上到底用的什么参数"（不含 api_key）
-        logger.info(
+        logger.debug(
             "llm client backend=%s model=%s base_url=%s ctx=%s max_tokens=%s timeout=%s retries=%s"
             " temperature=%s sampling_sent=%s",
             self.backend or self.provider,
@@ -395,8 +395,10 @@ class LLMClient:
             },
             method="POST",
         )
+        _t0 = time.time()
         with urllib.request.urlopen(request, timeout=to) as response:
             raw = response.read().decode("utf-8")
+            dur = time.time() - _t0
             try:
                 resp = json.loads(raw)
                 self._record_usage(resp.get("usage"), count_call=True, label=label)
@@ -404,16 +406,14 @@ class LLMClient:
                 message = choice.get("message") or {}
                 usage = resp.get("usage") or {}
                 content = self._sanitize_content(message.get("content") or "")
-                # 每次响应一行：finish_reason=length 表示被 max_tokens 截断（JSON 常因此坏掉）
+                prompt_tokens = usage.get("prompt_tokens", 0) or 0
+                completion_tokens = usage.get("completion_tokens", 0) or 0
                 logger.info(
-                    "llm resp label=%s model=%s finish=%s in=%s out=%s json_mode=%s chars=%s",
+                    "[llm:done] label=%s dur=%.2fs prompt_tokens=%d completion_tokens=%d",
                     label,
-                    self.model,
-                    choice.get("finish_reason"),
-                    usage.get("prompt_tokens"),
-                    usage.get("completion_tokens"),
-                    json_mode,
-                    len(content),
+                    dur,
+                    prompt_tokens,
+                    completion_tokens,
                 )
                 if not content.strip():
                     logger.warning(
@@ -877,7 +877,7 @@ class LLMClient:
             try:
                 tag = label or response_model.__name__
                 extra = f" 第{attempt + 1}次" if attempt else ""
-                logger.info("llm call label=%s mode=structured%s", tag, extra)
+                logger.debug("llm call label=%s mode=structured%s", tag, extra)
                 last_content = await self._in_thread(
                     self._post,
                     messages,
@@ -1016,7 +1016,7 @@ class LLMClient:
             try:
                 tag = label or "text"
                 extra = f" 第{attempt + 1}次" if attempt else ""
-                logger.info("llm call label=%s mode=text%s", tag, extra)
+                logger.debug("llm call label=%s mode=text%s", tag, extra)
                 content = await self._in_thread(
                     self._post,
                     messages,

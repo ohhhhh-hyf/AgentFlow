@@ -548,23 +548,57 @@ async def _handle_done(
         logger.error("report save failed", exc_info=True)
         saved_reports = {}
     saved.update(saved_reports)
+    def _rel(p: Path | str) -> str:
+        try:
+            return Path(p).resolve().relative_to(Path.cwd().resolve()).as_posix()
+        except Exception:
+            return str(p).replace("\\", "/")
+
+    def _file_chars(p: Path | str) -> int:
+        try:
+            return len(Path(p).read_text(encoding="utf-8", errors="ignore"))
+        except Exception:
+            return 0
+
     for line_name, paths in saved_reports.items():
         if paths.get("html"):
-            logger.info("saved html line=%s path=%s", line_name, paths["html"])
+            logger.info(
+                "[export:done] line=%s format=html path=%s chars=%d",
+                line_name,
+                _rel(paths["html"]),
+                _file_chars(paths["html"]),
+            )
         if paths.get("text"):
-            logger.info("saved text line=%s path=%s", line_name, paths["text"])
+            logger.info(
+                "[export:done] line=%s format=text path=%s chars=%d",
+                line_name,
+                _rel(paths["text"]),
+                _file_chars(paths["text"]),
+            )
         if paths.get("rejected"):
-            logger.warning("gate rejected line=%s path=%s", line_name, paths["rejected"])
+            logger.warning(
+                "gate rejected line=%s path=%s",
+                line_name,
+                _rel(paths["rejected"]),
+            )
 
     if "mindmap" in reports:
         try:
             mindmap_dir = task_output_dir(ctx, "mindmap")
             md_path = export_mindmap_md(reports, mindmap_dir)
             if md_path:
-                logger.info("mindmap md saved path=%s", md_path)
+                logger.info(
+                    "[export:done] line=mindmap format=text path=%s chars=%d",
+                    _rel(md_path),
+                    _file_chars(md_path),
+                )
             html_path = export_mindmap_html(reports, mindmap_dir)
             if html_path:
-                logger.info("mindmap html saved path=%s", html_path)
+                logger.info(
+                    "[export:done] line=mindmap format=html path=%s chars=%d",
+                    _rel(html_path),
+                    _file_chars(html_path),
+                )
             saved["mindmap"] = {
                 "text": md_path,
                 "html": html_path,
@@ -577,7 +611,11 @@ async def _handle_done(
             kg_dir = task_output_dir(ctx, "graph")
             kg_paths = export_graph(reports, kg_dir)
             if kg_paths.get("html"):
-                logger.info("graph html saved path=%s", kg_paths["html"])
+                logger.info(
+                    "[export:done] line=graph format=html path=%s chars=%d",
+                    _rel(kg_paths["html"]),
+                    _file_chars(kg_paths["html"]),
+                )
             saved["graph"] = kg_paths
         except Exception:  # noqa: BLE001 - 单类导出失败不中断主流程
             logger.error("knowledge graph export failed", exc_info=True)

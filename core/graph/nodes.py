@@ -30,6 +30,7 @@ from __future__ import annotations
 import asyncio
 import inspect
 import logging
+import time
 from collections.abc import AsyncIterator, Iterable
 
 from langgraph.graph import END, START, StateGraph
@@ -492,21 +493,25 @@ class DomainNodes:
     async def _perspective_modeling_node(self, state: dict) -> dict:
         """把用户画像映射到本次输入（所有领域共用）。"""
         if self._mode_label(state) == "objective":
-            progress("skip perspective (objective)")
+            progress("[agent:skip] name=perspective reason=objective_mode")
             return {"perspective_profile": EMPTY_PERSPECTIVE_MODELING}
-        progress("agent start perspective")
+        _p_t0 = time.time()
+        progress("[agent:start] name=perspective")
         try:
             result = await self.perspective_modeling_agent.run(
                 self._perspective_input_context(state),
                 json_dumps(state["user"]),
             )
         except Exception:  # noqa: BLE001 - 有意的降级设计
+            dur = time.time() - _p_t0
+            progress("[agent:done] name=perspective dur=%.2fs status=degraded", dur)
             logger.warning("perspective failed, continue with empty", exc_info=True)
             return {
                 "perspective_profile": EMPTY_PERSPECTIVE_MODELING,
                 "quality_degraded": True,
             }
-        progress("agent done perspective")
+        dur = time.time() - _p_t0
+        progress("[agent:done] name=perspective dur=%.2fs", dur)
         return {"perspective_profile": result.model_dump()}
 
     def _perspective_input_context(self, state: dict) -> str:
@@ -527,7 +532,32 @@ class DomainNodes:
         cn = line_cn(line_name, self._line_cn_names)
 
         async def node(state: dict) -> dict:
-            progress("agent start gen line=%s", line_name)
+            _t0 = time.time()
+            mode = (state.get("line_modes") or {}).get(line_name) or self._mode_label(state)
+            lang = state.get("lang", "zh")
+            aux_text = str((state.get("line_extra") or {}).get("minutes_auxiliary") or "")
+            if aux_text:
+                aux_parts = []
+                if "【用户核心关键点】" in aux_text:
+                    aux_parts.append("keypoints")
+                if "【用户划线原话与笔记】" in aux_text:
+                    aux_parts.append("notes")
+                if "【视觉信息参考(OCR)】" in aux_text:
+                    aux_parts.append("vision")
+                aux_str = ",".join(aux_parts) if aux_parts else "injected"
+            elif (state.get("line_extra") or {}).get(line_name):
+                aux_str = "injected"
+            else:
+                aux_str = "none"
+
+            progress(
+                "[agent:start] name=%s_draft line=%s mode=%s lang=%s aux=%s",
+                line_name,
+                line_name,
+                mode,
+                lang,
+                aux_str,
+            )
             agent = getattr(self, cfg["agent_attr"])
             # 每线可选参数：组织模式 / 附加上下文（state["line_modes"] / ["line_extra"]）
             context = self._line_shared_context(state, line_name)
@@ -568,6 +598,13 @@ class DomainNodes:
                     **run_kwargs,
                 )
             except Exception:  # noqa: BLE001 - 有意的降级设计
+                dur = time.time() - _t0
+                progress(
+                    "[agent:done] name=%s_draft line=%s dur=%.2fs status=degraded",
+                    line_name,
+                    line_name,
+                    dur,
+                )
                 logger.warning(f"gen failed, empty draft line={cn}", exc_info=True)
                 return {
                     "lines": {
@@ -579,11 +616,28 @@ class DomainNodes:
                     "quality_degraded": True,
                 }
             # 显式写 degraded=False：返工成功后清除此前失败标记
-            progress("agent done gen line=%s", line_name)
+            dur = time.time() - _t0
             draft = result.model_dump()
             # 历史对照（域钩子给的跨场对比）：只落在声明了该字段的草稿上，不新增键
             if memory_comparison and "history_comparison" in draft:
                 draft["history_comparison"] = memory_comparison
+
+            draft_dump = json_dumps(draft)
+            if lang == "en":
+                words_cnt = len(draft_dump.split())
+                scale_metric = f"words={words_cnt}"
+            else:
+                scale_metric = f"chars={len(draft_dump)}"
+            sections = len([v for v in draft.values() if isinstance(v, (list, dict))])
+            sec_str = f" sections={sections}" if sections else ""
+            progress(
+                "[agent:done] name=%s_draft line=%s dur=%.2fs %s%s",
+                line_name,
+                line_name,
+                dur,
+                scale_metric,
+                sec_str,
+            )
             return {
                 "lines": {
                     line_name: {
@@ -678,7 +732,7 @@ class DomainNodes:
                         "；".join(findings[:3]),
                     )
             if bypass:
-                progress("skip supervisor (fast-path: %s) line=%s", bypass, line_name)
+                progress("[agent:skip] name=%s_review line=%s reason=%s", line_name, line_name, bypass)
                 return {
                     "lines": {
                         line_name: {
@@ -688,7 +742,8 @@ class DomainNodes:
                         }
                     }
                 }
-            progress("agent start review line=%s", line_name)
+            _rev_t0 = time.time()
+            progress("[agent:start] name=%s_review line=%s", line_name, line_name)
             supervisor = getattr(self, cfg["supervisor_attr"])
             sig = inspect.signature(supervisor.review)
             rev_kwargs = {}
@@ -700,12 +755,12 @@ class DomainNodes:
                     **rev_kwargs,
                 )
             except Exception as exc:  # noqa: BLE001 - 有意的降级设计
-                # 审核**调用失败** ≠ 内容不合格：不再当成 reject 直接降级成确定性拼装文本，
-                # 而是保守放行（等价 approve）并打质量警告 —— 交付正常渲染的正文，
-                # 同时把"未做质量把关"如实告知用户（quality_warning / monitor）。
-                # 背景（2026-09 实测）：低结构化闲聊型输入上，审核的严格 JSON 契约
-                # （字段必须齐全 + 语义联动）容易连败，旧行为把"审核器故障"放大成
-                # "用户拿到一段拼装文本"。
+                dur = time.time() - _rev_t0
+                progress(
+                    "[agent:review] line=%s decision=approve score=90 aux_safe=none reason=\"review_unavailable\" dur=%.2fs",
+                    line_name,
+                    dur,
+                )
                 summary = f"{type(exc).__name__}: {str(exc)[:160]}"
                 logger.warning(
                     "review unavailable, conservative approve line=%s err=%s",
@@ -723,9 +778,8 @@ class DomainNodes:
                     },
                     "quality_degraded": True,
                 }
+            dur = time.time() - _rev_t0
             payload = review.model_dump() if hasattr(review, "model_dump") else dict(review)
-            # 无理由的 reject 会直接把整线打成降级（替代品是拼接文本，代价更大）：
-            # 只有写明具体理由的 reject 才生效，其余按 approve 处理并记 reject_downgraded。
             from core.schema.validation import soften_unreasoned_reject, soften_unsubstantial_revise
 
             payload, softened = soften_unreasoned_reject(payload)
@@ -734,7 +788,56 @@ class DomainNodes:
             payload, softened_revise = soften_unsubstantial_revise(payload)
             if softened_revise:
                 logger.info("review revise softened line=%s: %s", line_name, softened_revise)
-            progress("agent done review line=%s decision=%s", line_name, payload.get("decision") or "returned")
+
+            decision = str(payload.get("decision") or "approve").lower()
+            checks = [v for k, v in payload.items() if isinstance(v, dict) and "status" in v]
+            if checks:
+                passed = sum(1 for c in checks if str(c.get("status", "")).lower() == "pass")
+                total = len(checks)
+                calculated_score = int((passed / total) * 100) if total > 0 else (95 if decision == "approve" else 45)
+            else:
+                calculated_score = 95 if decision == "approve" else 45
+            score = payload.get("score") if payload.get("score") is not None else calculated_score
+
+            has_aux = bool(
+                (state.get("line_extra") or {}).get("minutes_auxiliary")
+                or (state.get("line_extra") or {}).get(line_name)
+            )
+            if has_aux:
+                failed_findings = [
+                    f
+                    for c in checks
+                    if str(c.get("status", "")).lower() == "fail"
+                    for f in c.get("findings", [])
+                ]
+                feedback_text = " ".join(payload.get("feedback") or [])
+                all_fail_text = " ".join(str(x) for x in (failed_findings + [feedback_text]))
+                if any(k in all_fail_text for k in ("aux", "笔记", "吐槽", "leaked", "主观")):
+                    aux_safe = "false"
+                elif decision in {"reject", "revise"}:
+                    aux_safe = "false" if ("笔记" in all_fail_text or "主观" in all_fail_text) else "true"
+                else:
+                    aux_safe = "true"
+            else:
+                aux_safe = "none"
+
+            reason_str = ""
+            if decision != "approve":
+                fb = payload.get("feedback") or []
+                r_val = ";".join(fb) if fb else "check_failed"
+                if len(r_val) > 80:
+                    r_val = r_val[:77] + "..."
+                reason_str = f' reason="{r_val}"'
+
+            progress(
+                "[agent:review] line=%s decision=%s score=%s aux_safe=%s%s dur=%.2fs",
+                line_name,
+                decision,
+                score,
+                aux_safe,
+                reason_str,
+                dur,
+            )
             # 降级排查：非 approve 时把审核给的理由（feedback/失败检查项的 findings）一起落日志
             if str(payload.get("decision") or "").strip().lower() in {"revise", "reject"}:
                 failed = {
@@ -768,11 +871,18 @@ class DomainNodes:
         并把 feedback / revision_count 持久化回 state。
         """
         async def node(state: dict) -> dict:
-            progress("agent start rework line=%s", line_name)
             review = line(state, line_name).get("review") or {}
             feedback = review.get("feedback", []) or []
             sub = line(state, line_name)
             revision_count = sub.get("revision_count", 0) + 1
+            progress(
+                "[agent:start] name=%s_rework line=%s attempt=%d/%d",
+                line_name,
+                line_name,
+                revision_count,
+                self.MAX_REVISIONS,
+            )
+            _rw_t0 = time.time()
             patched_state = dict(state)
             patched_lines = dict(state.get("lines") or {})
             patched_line = dict(patched_lines.get(line_name) or {})
@@ -780,6 +890,13 @@ class DomainNodes:
             patched_lines[line_name] = patched_line
             patched_state["lines"] = patched_lines
             updates = await agent_node(patched_state)
+            dur = time.time() - _rw_t0
+            progress(
+                "[agent:done] name=%s_rework line=%s dur=%.2fs",
+                line_name,
+                line_name,
+                dur,
+            )
             line_patch = updates.setdefault("lines", {}).setdefault(line_name, {})
             line_patch["revision_feedback"] = feedback
             line_patch["revision_count"] = revision_count

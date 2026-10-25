@@ -12,6 +12,7 @@ MeetingAgentSystem 负责：组装 Agent 依赖、构建多线并行 DAG、条�
 from __future__ import annotations
 
 import logging
+import time
 
 from langgraph.graph import START
 
@@ -1200,7 +1201,7 @@ class _Nodes(DomainNodes):
             has_identity = bool(name or persona_type == "role_template")
 
             if bool(state.get("objective_perspective")) or not has_identity:
-                progress("skip perspective (objective)")
+                progress("[agent:skip] name=perspective reason=objective_mode")
                 return {"perspective_profile": EMPTY_PERSPECTIVE_MODELING}
             table = build_hit_table(user, self._understanding(state) or {})
             extra = {
@@ -1223,7 +1224,7 @@ class _Nodes(DomainNodes):
                     "quality_degraded": True,
                     **extra,
                 }
-            progress(f"skip perspective ({reason}) hits={len(table.hits)}")
+            progress("[agent:skip] name=perspective reason=%s hits=%d", reason, len(table.hits))
             return {"perspective_profile": profile, **extra}
 
         return node
@@ -1271,7 +1272,7 @@ class _Nodes(DomainNodes):
 
         async def node(state: dict) -> dict:
             if selected == ["agenda_minutes"]:
-                progress("skip meeting_understanding (agenda_minutes self-contained)")
+                progress("[agent:skip] name=meeting_understanding reason=agenda_minutes_self_contained")
                 return {"meeting_understanding": _EMPTY_MEETING_UNDERSTANDING}
 
             template = str((state.get("templates") or {}).get("minutes") or "")
@@ -1303,7 +1304,7 @@ class _Nodes(DomainNodes):
                     )
                     # ──【本次新增短路放行】单任务 minutes 且议题已结构化打标，直接跳过 meeting_understanding ──
                     if selected == ["minutes"]:
-                        progress("skip meeting_understanding (minutes agenda enhanced self-contained)")
+                        progress("[agent:skip] name=meeting_understanding reason=minutes_agenda_enhanced_self_contained")
                         logger.info("[AGENDA_ENGINE] minutes 议题增强自包含，直接放行 meeting_understanding")
                         return {
                             "meeting_understanding": _EMPTY_MEETING_UNDERSTANDING,
@@ -1316,7 +1317,8 @@ class _Nodes(DomainNodes):
             else:
                 state["has_valid_agenda"] = False
 
-            progress("agent start meeting_understanding")
+            _mu_t0 = time.time()
+            progress("[agent:start] name=meeting_understanding lang=%s", state.get("lang", "zh"))
             try:
                 # 本用户称呼表：把"赵工/小赵"这类原文称呼统一成真名，供下游裁剪与 owner 使用
                 # （客观/职业模板/无姓名 → 空串，不注入）
@@ -1349,14 +1351,26 @@ class _Nodes(DomainNodes):
                 )
 
             except Exception:
+                dur = time.time() - _mu_t0
+                progress("[agent:done] name=meeting_understanding dur=%.2fs status=degraded", dur)
                 logger.warning("meeting understanding failed, continue with empty", exc_info=True)
                 return {
                     "meeting_understanding": _EMPTY_MEETING_UNDERSTANDING,
                     "quality_degraded": True,
                     **agenda_update,
                 }
-            progress("agent done meeting_understanding")
+            dur = time.time() - _mu_t0
             data = result.model_dump()
+            segments = len(data.get("segments") or [])
+            decisions = len(data.get("decisions") or [])
+            open_questions = len(data.get("open_questions") or [])
+            progress(
+                "[agent:done] name=meeting_understanding dur=%.2fs segments=%d decisions=%d open_questions=%d",
+                dur,
+                segments,
+                decisions,
+                open_questions,
+            )
             return {"meeting_understanding": data, **agenda_update}
 
         return node

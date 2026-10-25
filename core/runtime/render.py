@@ -8,6 +8,7 @@ import asyncio
 import inspect
 import logging
 import os
+import time
 from typing import Any
 
 try:
@@ -286,7 +287,8 @@ async def produce_line(
         except ImportError:
             from core.runtime.progress import progress
 
-        progress("render start line=%s", line_name)
+        _render_t0 = time.time()
+        progress("[render:start] line=%s", line_name)
         if degraded:
             try:
                 engine._post_render_hook(state, line_name)
@@ -300,6 +302,8 @@ async def produce_line(
                     "text": line(state, line_name).get("rendered") or "",
                 }
             )
+            dur = time.time() - _render_t0
+            progress("[render:done] line=%s dur=%.2fs", line_name, dur)
             return
         if engine._pre_render_hook(state, line_name):
             await queue.put(
@@ -310,6 +314,8 @@ async def produce_line(
                     "text": line(state, line_name).get("rendered") or "",
                 }
             )
+            dur = time.time() - _render_t0
+            progress("[render:done] line=%s dur=%.2fs", line_name, dur)
             return
 
         policy = engine._line_policy(line_name)
@@ -353,6 +359,8 @@ async def produce_line(
                 }
             )
             engine._post_render_hook(state, line_name)
+            dur = time.time() - _render_t0
+            progress("[render:done] line=%s dur=%.2fs", line_name, dur)
             return
 
         try:
@@ -692,7 +700,8 @@ async def produce_line(
                 line_name,
                 ";".join(gate_issues[:5]),
             )
-        progress("render done line=%s", line_name)
+        dur = time.time() - _render_t0
+        progress("[render:done] line=%s dur=%.2fs", line_name, dur)
         engine._post_render_hook(state, line_name)
     except Exception as exc:  # noqa: BLE001 - 单线渲染失败不拖垮整条流水线
         logger.warning(
@@ -759,6 +768,8 @@ async def produce_line(
                     "text": fb_text,
                 }
             )
+        dur = time.time() - _render_t0
+        progress("[render:done] line=%s dur=%.2fs status=degraded", line_name, dur)
     finally:
         await queue.put(None)
 
