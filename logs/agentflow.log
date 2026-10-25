@@ -1,0 +1,206 @@
+2026-10-25 22:08:47 [INFO] [uvicorn.error] Application startup complete.
+2026-10-25 22:08:47 [INFO] [uvicorn.error] Uvicorn running on http://0.0.0.0:8003 (Press CTRL+C to quit)
+2026-10-25 22:09:25 [INFO] [app.api.routes.agent] [api:agent] domain=meeting task=minutes request_id=87b89fffdd164aed89facd1fc8bd86ef user_id=test
+2026-10-25 22:09:25 [INFO] [app.tasks] [task:start] domain=meeting task=minutes req_id=87b89fffdd164aed89facd1fc8bd86ef user_id=test lang=zh memory=false
+2026-10-25 22:09:26 [INFO] [app.config] 模板源目录：/root/h00984725/test/resources/templates/zh (lang=zh)
+2026-10-25 22:09:26 [INFO] [app.tasks] [task:payload] lang=zh transcript=7.0k_chars keypoints=none notes=none vision=none aux=none
+2026-10-25 22:09:26 [INFO] [agentflow] pipeline start lines=minutes
+2026-10-25 22:09:26 [INFO] [agentflow] [agent:start] name=meeting_understanding lang=zh
+2026-10-25 22:09:47 [INFO] [infra.llm.llmclient] [llm:done] label=core/meeting_understanding dur=21.45s prompt_tokens=4157 completion_tokens=1353
+2026-10-25 22:09:47 [INFO] [agentflow] [agent:done] name=meeting_understanding dur=21.45s segments=0 decisions=5 open_questions=0
+2026-10-25 22:09:47 [INFO] [agentflow] node done meeting_understanding
+2026-10-25 22:09:47 [INFO] [agentflow] [agent:skip] name=perspective reason=objective_mode
+2026-10-25 22:09:47 [INFO] [agentflow] node done perspective_modeling
+2026-10-25 22:09:47 [INFO] [agentflow] [agent:start] name=minutes_draft line=minutes mode=objective lang=zh aux=none
+2026-10-25 22:09:59 [INFO] [infra.llm.llmclient] [llm:done] label=minutes/agent/objective dur=11.52s prompt_tokens=6825 completion_tokens=743
+2026-10-25 22:09:59 [INFO] [agentflow] [agent:done] name=minutes_draft line=minutes dur=11.52s chars=1258 sections=6
+2026-10-25 22:09:59 [INFO] [agentflow] node done minutes_agent
+2026-10-25 22:09:59 [INFO] [agentflow] [agent:start] name=minutes_review line=minutes
+2026-10-25 22:10:00 [INFO] [infra.llm.llmclient] [llm:done] label=minutes/supervisor/objective dur=1.48s prompt_tokens=6000 completion_tokens=81
+2026-10-25 22:10:00 [INFO] [agentflow] [agent:review] line=minutes decision=approve score=100 aux_safe=none dur=1.49s
+2026-10-25 22:10:00 [INFO] [core.graph.nodes] route line=minutes decision=approve revision=0/1 -> __end__
+2026-10-25 22:10:00 [INFO] [agentflow] node done minutes_supervisor
+2026-10-25 22:10:00 [INFO] [agentflow] [render:start] line=minutes
+2026-10-25 22:10:18 [INFO] [infra.llm.llmclient] [llm:done] label=minutes/render dur=17.42s prompt_tokens=5550 completion_tokens=1268
+2026-10-25 22:10:18 [INFO] [core.runtime.render] render line=minutes fill_mode=freeform gate=pass directives=0
+2026-10-25 22:10:18 [INFO] [agentflow] [render:done] line=minutes dur=17.44s
+2026-10-25 22:10:18 [INFO] [core.runner.runner] [export:done] line=minutes format=html path=data/test/output/87b89fffdd164aed89facd1fc8bd86ef/minutes.html chars=21972
+2026-10-25 22:10:18 [INFO] [core.runner.runner] [export:done] line=minutes format=text path=data/test/output/87b89fffdd164aed89facd1fc8bd86ef/result.md chars=2175
+2026-10-25 22:10:18 [INFO] [app.tasks] [task:finish] req_id=87b89fffdd164aed89facd1fc8bd86ef dur=52.80s total_tokens=25977 status=success
+2026-10-25 22:10:18 [INFO] [uvicorn.access] 10.33.240.226:49304 - "POST /api/agent/v1 HTTP/1.1" 200
+2026-10-25 22:10:18 [INFO] [app.api.routes.agent] [api:agent] domain=meeting task=minutes request_id=a47ed5496855471fbc633cccec46233a user_id=test
+2026-10-25 22:10:18 [INFO] [app.tasks] [task:start] domain=meeting task=minutes req_id=a47ed5496855471fbc633cccec46233a user_id=test lang=zh memory=false
+2026-10-25 22:10:18 [INFO] [app.tasks] [task:payload] lang=zh transcript=13.9k_chars keypoints=none notes=none vision=none aux=none
+2026-10-25 22:10:18 [INFO] [agentflow] pipeline start lines=minutes
+2026-10-25 22:10:18 [INFO] [agentflow] [agent:start] name=meeting_understanding lang=zh
+2026-10-25 22:11:01 [INFO] [infra.llm.llmclient] [llm:done] label=core/meeting_understanding dur=43.07s prompt_tokens=8785 completion_tokens=3101
+2026-10-25 22:11:01 [INFO] [agentflow] [agent:done] name=meeting_understanding dur=43.07s segments=0 decisions=3 open_questions=0
+2026-10-25 22:11:01 [INFO] [agentflow] node done meeting_understanding
+2026-10-25 22:11:01 [INFO] [agentflow] [agent:skip] name=perspective reason=objective_mode
+2026-10-25 22:11:01 [INFO] [agentflow] node done perspective_modeling
+2026-10-25 22:11:01 [INFO] [agentflow] [agent:start] name=minutes_draft line=minutes mode=objective lang=zh aux=none
+2026-10-25 22:11:01 [INFO] [infra.llm.llmclient] llm fit max_tokens 50000->44121 ctx=65536 input~21159
+2026-10-25 22:11:32 [INFO] [infra.llm.llmclient] [llm:done] label=minutes/agent/objective dur=31.37s prompt_tokens=13068 completion_tokens=2595
+2026-10-25 22:11:32 [INFO] [agentflow] [agent:done] name=minutes_draft line=minutes dur=31.38s chars=4468 sections=6
+2026-10-25 22:11:32 [INFO] [agentflow] node done minutes_agent
+2026-10-25 22:11:32 [INFO] [agentflow] [agent:start] name=minutes_review line=minutes
+2026-10-25 22:11:35 [INFO] [infra.llm.llmclient] [llm:done] label=minutes/supervisor/objective dur=2.10s prompt_tokens=12485 completion_tokens=81
+2026-10-25 22:11:35 [INFO] [agentflow] [agent:review] line=minutes decision=approve score=100 aux_safe=none dur=2.11s
+2026-10-25 22:11:35 [INFO] [core.graph.nodes] route line=minutes decision=approve revision=0/1 -> __end__
+2026-10-25 22:11:35 [INFO] [agentflow] node done minutes_supervisor
+2026-10-25 22:11:35 [INFO] [agentflow] [render:start] line=minutes
+2026-10-25 22:12:10 [INFO] [infra.llm.llmclient] [llm:done] label=minutes/render dur=35.84s prompt_tokens=9008 completion_tokens=2934
+2026-10-25 22:12:10 [INFO] [core.runtime.render] advisory line=minutes：「**代表性成果**：杨世文教…」一条 325 字，超过 225 字：拆成多条或缩进子条 `  - `
+2026-10-25 22:12:10 [INFO] [core.runtime.render] render line=minutes fill_mode=freeform gate=pass directives=0
+2026-10-25 22:12:10 [INFO] [agentflow] [render:done] line=minutes dur=35.86s
+2026-10-25 22:12:10 [INFO] [core.runner.runner] [export:done] line=minutes format=html path=data/test/output/a47ed5496855471fbc633cccec46233a/minutes.html chars=25174
+2026-10-25 22:12:10 [INFO] [core.runner.runner] [export:done] line=minutes format=text path=data/test/output/a47ed5496855471fbc633cccec46233a/result.md chars=5134
+2026-10-25 22:12:10 [INFO] [app.tasks] [task:finish] req_id=a47ed5496855471fbc633cccec46233a dur=112.50s total_tokens=52057 status=success
+2026-10-25 22:12:10 [INFO] [uvicorn.access] 10.33.240.226:49344 - "POST /api/agent/v1 HTTP/1.1" 200
+2026-10-25 22:12:11 [INFO] [app.api.routes.agent] [api:agent] domain=meeting task=minutes request_id=4463b3b5395d4cf6be6c0a74062229f7 user_id=test
+2026-10-25 22:12:11 [INFO] [app.tasks] [task:start] domain=meeting task=minutes req_id=4463b3b5395d4cf6be6c0a74062229f7 user_id=test lang=zh memory=false
+2026-10-25 22:12:11 [INFO] [app.tasks] [task:payload] lang=zh transcript=24.5k_chars keypoints=none notes=none vision=none aux=none
+2026-10-25 22:12:11 [INFO] [agentflow] pipeline start lines=minutes
+2026-10-25 22:12:11 [INFO] [agentflow] [agent:start] name=meeting_understanding lang=zh
+2026-10-25 22:12:11 [INFO] [infra.llm.llmclient] llm fit max_tokens 50000->41686 ctx=65536 input~23594
+2026-10-25 22:12:51 [INFO] [infra.llm.llmclient] [llm:done] label=core/meeting_understanding dur=40.00s prompt_tokens=15497 completion_tokens=2549
+2026-10-25 22:12:51 [INFO] [agentflow] [agent:done] name=meeting_understanding dur=40.01s segments=0 decisions=7 open_questions=0
+2026-10-25 22:12:51 [INFO] [agentflow] node done meeting_understanding
+2026-10-25 22:12:51 [INFO] [agentflow] [agent:skip] name=perspective reason=objective_mode
+2026-10-25 22:12:51 [INFO] [agentflow] node done perspective_modeling
+2026-10-25 22:12:51 [INFO] [agentflow] [agent:start] name=minutes_draft line=minutes mode=objective lang=zh aux=none
+2026-10-25 22:12:51 [INFO] [infra.llm.llmclient] llm fit max_tokens 50000->36507 ctx=65536 input~28773
+2026-10-25 22:13:16 [INFO] [infra.llm.llmclient] [llm:done] label=minutes/agent/objective dur=24.95s prompt_tokens=19015 completion_tokens=1560
+2026-10-25 22:13:16 [INFO] [agentflow] [agent:done] name=minutes_draft line=minutes dur=24.96s chars=2480 sections=6
+2026-10-25 22:13:16 [INFO] [agentflow] node done minutes_agent
+2026-10-25 22:13:16 [INFO] [agentflow] [agent:start] name=minutes_review line=minutes
+2026-10-25 22:13:18 [INFO] [infra.llm.llmclient] [llm:done] label=minutes/supervisor/objective dur=2.81s prompt_tokens=18075 completion_tokens=81
+2026-10-25 22:13:18 [INFO] [agentflow] [agent:review] line=minutes decision=approve score=100 aux_safe=none dur=2.82s
+2026-10-25 22:13:18 [INFO] [core.graph.nodes] route line=minutes decision=approve revision=0/1 -> __end__
+2026-10-25 22:13:18 [INFO] [agentflow] node done minutes_supervisor
+2026-10-25 22:13:18 [INFO] [agentflow] [render:start] line=minutes
+2026-10-25 22:13:37 [INFO] [infra.llm.llmclient] [llm:done] label=minutes/render dur=18.73s prompt_tokens=7208 completion_tokens=1357
+2026-10-25 22:13:37 [INFO] [core.runtime.render] render line=minutes fill_mode=freeform gate=pass directives=0
+2026-10-25 22:13:37 [INFO] [agentflow] [render:done] line=minutes dur=18.75s
+2026-10-25 22:13:37 [INFO] [core.runner.runner] [export:done] line=minutes format=html path=data/test/output/4463b3b5395d4cf6be6c0a74062229f7/minutes.html chars=22319
+2026-10-25 22:13:37 [INFO] [core.runner.runner] [export:done] line=minutes format=text path=data/test/output/4463b3b5395d4cf6be6c0a74062229f7/result.md chars=2267
+2026-10-25 22:13:37 [INFO] [app.tasks] [task:finish] req_id=4463b3b5395d4cf6be6c0a74062229f7 dur=86.60s total_tokens=65342 status=success
+2026-10-25 22:13:37 [INFO] [uvicorn.access] 10.33.240.226:49392 - "POST /api/agent/v1 HTTP/1.1" 200
+2026-10-25 22:13:37 [INFO] [app.api.routes.agent] [api:agent] domain=meeting task=minutes request_id=6da7da43a2664b1c92b1eb90e2b07cd5 user_id=test
+2026-10-25 22:13:37 [INFO] [app.tasks] [task:start] domain=meeting task=minutes req_id=6da7da43a2664b1c92b1eb90e2b07cd5 user_id=test lang=zh memory=false
+2026-10-25 22:13:37 [INFO] [app.tasks] [task:payload] lang=zh transcript=21.5k_chars keypoints=none notes=none vision=none aux=none
+2026-10-25 22:13:38 [INFO] [agentflow] pipeline start lines=minutes
+2026-10-25 22:13:38 [INFO] [agentflow] [agent:start] name=meeting_understanding lang=zh
+2026-10-25 22:13:38 [INFO] [infra.llm.llmclient] llm fit max_tokens 50000->44540 ctx=65536 input~20740
+2026-10-25 22:14:08 [INFO] [infra.llm.llmclient] [llm:done] label=core/meeting_understanding dur=30.46s prompt_tokens=14149 completion_tokens=1848
+2026-10-25 22:14:08 [INFO] [agentflow] [agent:done] name=meeting_understanding dur=30.46s segments=0 decisions=2 open_questions=0
+2026-10-25 22:14:08 [INFO] [agentflow] node done meeting_understanding
+2026-10-25 22:14:08 [INFO] [agentflow] [agent:skip] name=perspective reason=objective_mode
+2026-10-25 22:14:08 [INFO] [agentflow] node done perspective_modeling
+2026-10-25 22:14:08 [INFO] [agentflow] [agent:start] name=minutes_draft line=minutes mode=objective lang=zh aux=none
+2026-10-25 22:14:08 [INFO] [infra.llm.llmclient] llm fit max_tokens 50000->40224 ctx=65536 input~25056
+2026-10-25 22:14:24 [INFO] [infra.llm.llmclient] [llm:done] label=minutes/agent/objective dur=15.79s prompt_tokens=16997 completion_tokens=815
+2026-10-25 22:14:24 [INFO] [agentflow] [agent:done] name=minutes_draft line=minutes dur=15.80s chars=1366 sections=6
+2026-10-25 22:14:24 [INFO] [agentflow] node done minutes_agent
+2026-10-25 22:14:24 [INFO] [agentflow] [agent:start] name=minutes_review line=minutes
+2026-10-25 22:14:26 [INFO] [infra.llm.llmclient] [llm:done] label=minutes/supervisor/objective dur=2.55s prompt_tokens=16054 completion_tokens=81
+2026-10-25 22:14:26 [INFO] [agentflow] [agent:review] line=minutes decision=approve score=100 aux_safe=none dur=2.56s
+2026-10-25 22:14:26 [INFO] [core.graph.nodes] route line=minutes decision=approve revision=0/1 -> __end__
+2026-10-25 22:14:26 [INFO] [agentflow] node done minutes_supervisor
+2026-10-25 22:14:26 [INFO] [agentflow] [render:start] line=minutes
+2026-10-25 22:14:41 [INFO] [infra.llm.llmclient] [llm:done] label=minutes/render dur=14.16s prompt_tokens=5804 completion_tokens=1018
+2026-10-25 22:14:41 [INFO] [core.runtime.render] advisory line=minutes：正文约 1337 字，低于本篇参考下限 1680 字（档位）
+2026-10-25 22:14:41 [INFO] [core.runtime.render] render line=minutes fill_mode=freeform gate=pass directives=0
+2026-10-25 22:14:41 [INFO] [agentflow] [render:done] line=minutes dur=14.18s
+2026-10-25 22:14:41 [INFO] [core.runner.runner] [export:done] line=minutes format=html path=data/test/output/6da7da43a2664b1c92b1eb90e2b07cd5/minutes.html chars=21227
+2026-10-25 22:14:41 [INFO] [core.runner.runner] [export:done] line=minutes format=text path=data/test/output/6da7da43a2664b1c92b1eb90e2b07cd5/result.md chars=1708
+2026-10-25 22:14:41 [INFO] [app.tasks] [task:finish] req_id=6da7da43a2664b1c92b1eb90e2b07cd5 dur=63.00s total_tokens=56766 status=success
+2026-10-25 22:14:41 [INFO] [uvicorn.access] 10.33.240.226:49458 - "POST /api/agent/v1 HTTP/1.1" 200
+2026-10-25 22:14:41 [INFO] [app.api.routes.agent] [api:agent] domain=meeting task=minutes request_id=3942f02baa1b475d90c7442ac3b9ae72 user_id=test
+2026-10-25 22:14:41 [INFO] [app.tasks] [task:start] domain=meeting task=minutes req_id=3942f02baa1b475d90c7442ac3b9ae72 user_id=test lang=zh memory=false
+2026-10-25 22:14:41 [INFO] [app.tasks] [task:payload] lang=zh transcript=21.5k_chars keypoints=none notes=none vision=none aux=none
+2026-10-25 22:14:41 [INFO] [agentflow] pipeline start lines=minutes
+2026-10-25 22:14:41 [INFO] [agentflow] [agent:start] name=meeting_understanding lang=zh
+2026-10-25 22:14:41 [INFO] [infra.llm.llmclient] llm fit max_tokens 50000->44683 ctx=65536 input~20597
+2026-10-25 22:15:11 [INFO] [infra.llm.llmclient] [llm:done] label=core/meeting_understanding dur=30.06s prompt_tokens=12242 completion_tokens=1953
+2026-10-25 22:15:11 [INFO] [agentflow] [agent:done] name=meeting_understanding dur=30.06s segments=0 decisions=1 open_questions=5
+2026-10-25 22:15:11 [INFO] [agentflow] node done meeting_understanding
+2026-10-25 22:15:11 [INFO] [agentflow] [agent:skip] name=perspective reason=objective_mode
+2026-10-25 22:15:11 [INFO] [agentflow] node done perspective_modeling
+2026-10-25 22:15:11 [INFO] [agentflow] [agent:start] name=minutes_draft line=minutes mode=objective lang=zh aux=none
+2026-10-25 22:15:11 [INFO] [infra.llm.llmclient] llm fit max_tokens 50000->40287 ctx=65536 input~24993
+2026-10-25 22:15:32 [INFO] [infra.llm.llmclient] [llm:done] label=minutes/agent/objective dur=21.04s prompt_tokens=15051 completion_tokens=1175
+2026-10-25 22:15:32 [INFO] [agentflow] [agent:done] name=minutes_draft line=minutes dur=21.05s chars=2011 sections=6
+2026-10-25 22:15:32 [INFO] [agentflow] node done minutes_agent
+2026-10-25 22:15:32 [INFO] [agentflow] [agent:start] name=minutes_review line=minutes
+2026-10-25 22:15:34 [INFO] [infra.llm.llmclient] [llm:done] label=minutes/supervisor/objective dur=2.39s prompt_tokens=14420 completion_tokens=81
+2026-10-25 22:15:34 [INFO] [agentflow] [agent:review] line=minutes decision=approve score=100 aux_safe=none dur=2.39s
+2026-10-25 22:15:34 [INFO] [core.graph.nodes] route line=minutes decision=approve revision=0/1 -> __end__
+2026-10-25 22:15:34 [INFO] [agentflow] node done minutes_supervisor
+2026-10-25 22:15:34 [INFO] [agentflow] [render:start] line=minutes
+2026-10-25 22:15:55 [INFO] [infra.llm.llmclient] [llm:done] label=minutes/render dur=20.55s prompt_tokens=6150 completion_tokens=1453
+2026-10-25 22:15:55 [INFO] [core.runtime.render] render line=minutes fill_mode=freeform gate=pass directives=0
+2026-10-25 22:15:55 [INFO] [agentflow] [render:done] line=minutes dur=20.57s
+2026-10-25 22:15:55 [INFO] [core.runner.runner] [export:done] line=minutes format=html path=data/test/output/3942f02baa1b475d90c7442ac3b9ae72/minutes.html chars=22374
+2026-10-25 22:15:55 [INFO] [core.runner.runner] [export:done] line=minutes format=text path=data/test/output/3942f02baa1b475d90c7442ac3b9ae72/result.md chars=2657
+2026-10-25 22:15:55 [INFO] [app.tasks] [task:finish] req_id=3942f02baa1b475d90c7442ac3b9ae72 dur=74.10s total_tokens=52525 status=success
+2026-10-25 22:15:55 [INFO] [uvicorn.access] 10.33.240.226:49500 - "POST /api/agent/v1 HTTP/1.1" 200
+2026-10-25 22:15:55 [INFO] [app.api.routes.agent] [api:agent] domain=meeting task=minutes request_id=86f4a4c9783141ac93a1a07e0861d4ea user_id=test
+2026-10-25 22:15:55 [INFO] [app.tasks] [task:start] domain=meeting task=minutes req_id=86f4a4c9783141ac93a1a07e0861d4ea user_id=test lang=zh memory=false
+2026-10-25 22:15:55 [INFO] [app.tasks] [task:payload] lang=zh transcript=28.5k_chars keypoints=none notes=none vision=none aux=none
+2026-10-25 22:15:55 [INFO] [agentflow] pipeline start lines=minutes
+2026-10-25 22:15:55 [INFO] [agentflow] [agent:start] name=meeting_understanding lang=zh
+2026-10-25 22:15:55 [INFO] [infra.llm.llmclient] llm fit max_tokens 50000->37785 ctx=65536 input~27495
+2026-10-25 22:16:37 [INFO] [infra.llm.llmclient] [llm:done] label=core/meeting_understanding dur=42.22s prompt_tokens=17443 completion_tokens=3051
+2026-10-25 22:16:37 [INFO] [agentflow] [agent:done] name=meeting_understanding dur=42.22s segments=0 decisions=12 open_questions=0
+2026-10-25 22:16:37 [INFO] [agentflow] node done meeting_understanding
+2026-10-25 22:16:37 [INFO] [agentflow] [agent:skip] name=perspective reason=objective_mode
+2026-10-25 22:16:37 [INFO] [agentflow] node done perspective_modeling
+2026-10-25 22:16:37 [INFO] [agentflow] [agent:start] name=minutes_draft line=minutes mode=objective lang=zh aux=none
+2026-10-25 22:16:37 [INFO] [infra.llm.llmclient] llm fit max_tokens 50000->31968 ctx=65536 input~33312
+2026-10-25 22:17:02 [INFO] [infra.llm.llmclient] [llm:done] label=minutes/agent/objective dur=25.05s prompt_tokens=21424 completion_tokens=1629
+2026-10-25 22:17:02 [INFO] [agentflow] [agent:done] name=minutes_draft line=minutes dur=25.06s chars=2509 sections=6
+2026-10-25 22:17:02 [INFO] [agentflow] node done minutes_agent
+2026-10-25 22:17:02 [INFO] [agentflow] [agent:start] name=minutes_review line=minutes
+2026-10-25 22:17:06 [INFO] [infra.llm.llmclient] [llm:done] label=minutes/supervisor/objective dur=3.07s prompt_tokens=20174 completion_tokens=81
+2026-10-25 22:17:06 [INFO] [agentflow] [agent:review] line=minutes decision=approve score=100 aux_safe=none dur=3.08s
+2026-10-25 22:17:06 [INFO] [core.graph.nodes] route line=minutes decision=approve revision=0/1 -> __end__
+2026-10-25 22:17:06 [INFO] [agentflow] node done minutes_supervisor
+2026-10-25 22:17:06 [INFO] [agentflow] [render:start] line=minutes
+2026-10-25 22:17:26 [INFO] [infra.llm.llmclient] [llm:done] label=minutes/render dur=20.19s prompt_tokens=7728 completion_tokens=1617
+2026-10-25 22:17:26 [INFO] [core.runtime.render] advisory line=minutes：正文约 1909 字，低于本篇参考下限 2400 字（档位）
+2026-10-25 22:17:26 [INFO] [core.runtime.render] render line=minutes fill_mode=freeform gate=pass directives=0
+2026-10-25 22:17:26 [INFO] [agentflow] [render:done] line=minutes dur=20.22s
+2026-10-25 22:17:26 [INFO] [core.runner.runner] [export:done] line=minutes format=html path=data/test/output/86f4a4c9783141ac93a1a07e0861d4ea/minutes.html chars=22014
+2026-10-25 22:17:26 [INFO] [core.runner.runner] [export:done] line=minutes format=text path=data/test/output/86f4a4c9783141ac93a1a07e0861d4ea/result.md chars=2516
+2026-10-25 22:17:26 [INFO] [app.tasks] [task:finish] req_id=86f4a4c9783141ac93a1a07e0861d4ea dur=90.60s total_tokens=73147 status=success
+2026-10-25 22:17:36 [INFO] [app.api.routes.agent] [api:agent] domain=meeting task=minutes request_id=0a034615eac249ed8d7962b41fa6c85b user_id=1
+2026-10-25 22:17:36 [INFO] [app.tasks] [task:start] domain=meeting task=minutes req_id=0a034615eac249ed8d7962b41fa6c85b user_id=1 lang=en memory=false
+2026-10-25 22:17:36 [INFO] [app.config] 模板源目录：/root/h00984725/test/resources/templates/en (lang=en)
+2026-10-25 22:17:36 [INFO] [app.tasks] [task:payload] lang=en transcript=68.8k_chars keypoints=none notes=none vision=none aux=none
+2026-10-25 22:17:36 [INFO] [agentflow] pipeline start lines=minutes
+2026-10-25 22:17:36 [INFO] [agentflow] [agent:start] name=meeting_understanding lang=en
+2026-10-25 22:17:36 [INFO] [infra.llm.llmclient] llm fit max_tokens 50000->41489 ctx=65536 input~23791
+2026-10-25 22:18:13 [INFO] [infra.llm.llmclient] [llm:done] label=core/meeting_understanding dur=36.22s prompt_tokens=12008 completion_tokens=2283
+2026-10-25 22:18:13 [INFO] [agentflow] [agent:done] name=meeting_understanding dur=36.23s segments=0 decisions=4 open_questions=0
+2026-10-25 22:18:13 [INFO] [agentflow] node done meeting_understanding
+2026-10-25 22:18:13 [INFO] [agentflow] [agent:skip] name=perspective reason=objective_mode
+2026-10-25 22:18:13 [INFO] [agentflow] node done perspective_modeling
+2026-10-25 22:18:13 [INFO] [agentflow] [agent:start] name=minutes_draft line=minutes mode=objective lang=en aux=none
+2026-10-25 22:18:13 [INFO] [infra.llm.llmclient] llm fit max_tokens 50000->22081 ctx=65536 input~43199
+2026-10-25 22:18:24 [INFO] [infra.llm.llmclient] [llm:done] label=minutes/agent/objective dur=11.20s prompt_tokens=20923 completion_tokens=511
+2026-10-25 22:18:24 [INFO] [agentflow] [agent:done] name=minutes_draft line=minutes dur=11.21s words=323 sections=6
+2026-10-25 22:18:24 [INFO] [agentflow] node done minutes_agent
+2026-10-25 22:18:24 [INFO] [agentflow] [agent:start] name=minutes_review line=minutes
+2026-10-25 22:18:25 [INFO] [infra.llm.llmclient] [llm:done] label=minutes/supervisor/objective dur=1.44s prompt_tokens=4895 completion_tokens=81
+2026-10-25 22:18:25 [INFO] [agentflow] [agent:review] line=minutes decision=approve score=100 aux_safe=none dur=1.45s
+2026-10-25 22:18:25 [INFO] [core.graph.nodes] route line=minutes decision=approve revision=0/1 -> __end__
+2026-10-25 22:18:25 [INFO] [agentflow] node done minutes_supervisor
+2026-10-25 22:18:25 [INFO] [agentflow] [render:start] line=minutes
+2026-10-25 22:18:44 [INFO] [infra.llm.llmclient] [llm:done] label=minutes/render dur=18.86s prompt_tokens=5959 completion_tokens=1355
+2026-10-25 22:18:44 [INFO] [core.runtime.render] render line=minutes fill_mode=freeform gate=pass directives=0
+2026-10-25 22:18:44 [INFO] [agentflow] [render:done] line=minutes dur=18.88s
+2026-10-25 22:18:44 [INFO] [core.runner.runner] [export:done] line=minutes format=html path=data/1/output/0a034615eac249ed8d7962b41fa6c85b/minutes.html chars=27100
+2026-10-25 22:18:44 [INFO] [core.runner.runner] [export:done] line=minutes format=text path=data/1/output/0a034615eac249ed8d7962b41fa6c85b/result.md chars=7098
+2026-10-25 22:18:44 [INFO] [app.tasks] [task:finish] req_id=0a034615eac249ed8d7962b41fa6c85b dur=67.80s total_tokens=48015 status=success
+2026-10-25 22:18:44 [INFO] [uvicorn.access] 10.30.83.124:56779 - "POST /api/agent/v1 HTTP/1.1" 200
