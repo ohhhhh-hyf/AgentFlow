@@ -1,18 +1,18 @@
 # Exchange Forum
 
 <!-- requirement
-Accurately record core demands and factual points, stances and responses, consensus reached, and items requiring coordination along with follow-up arrangements from all parties, with clear attribution.
-Rigorous and concise formal business style, leading with conclusions; filter out greetings, pleasantries, and inconclusive repetitive back-and-forth remarks, focusing on substantive facts, core positions, and accountable action items.
+Accurately synthesize core facts, key positions, and follow-up consensus from all parties, leading with conclusions and distilling essentials;
+Focus on substantive business facts and actionable commitments, treating each matter in one dedicated place and avoiding repetitive cross-section narratives.
 -->
 
 ## [Context & Background]
-[Single paragraph summary, approx. 150–250 words: State the participating institutions/roles, core motivation and primary purpose of the exchange, overall communication tone, and macro-level outcome assessment; outline the panoramic view without narrating granular details.]
+[Single paragraph summary, approx. 80–120 words: State the participating institutions/roles, motivation, primary purpose, and overall communication tone; lead with conclusions to outline the panoramic view, without narrating granular topic specifics or data details.]
 
 ## [Core Information]
-[Synthesize key facts and objective data synchronized during the meeting: Set up subsections by business theme `### Topic Name`; within each subsection, begin each item with a substantive business phrase reflecting the entity or fact (e.g. "- **Business Entity / Fact Point**: Specific facts and quantitative support"), leading with conclusions, consolidating common elements to highlight key facts, milestones, and metrics.]
+[Synthesize key facts and objective data synchronized during the meeting: Set up subsections by business theme `### Topic Name` (extract 2–4 core topics, omitting trivial items); within each subsection, list items using "- **Business Entity / Fact Point**: Specific facts and quantitative support", highlighting key facts, milestones, and metrics in 40–80 words per item, stating the factual grounds concisely; retain only objective facts here, leaving subjective positions and follow-up resolutions to subsequent sections.]
 
 ## [Parties' Demands & Concerns]
-[Record multi-party interactions and core concerns: List item by item by participating party "- **Participant Institution / Role**: Core demands (closely tied to desired actions and goals) and key concerns (hesitations, difficulties, or prerequisites)", clearly separating stances and responsibilities; address core demands directly, leaving objective data to "Core Information".]
+[Record multi-party core positions and concerns: List item by item by participating party "- **Participant Institution / Role**: Core demands (closely tied to desired actions and goals) and primary concerns (hesitations, difficulties, or prerequisites)", addressing core demands and substantive differences directly; do not repeat background facts and data.]
 
 ## [Outcomes & Alignments]
-[Summarize deterministic conclusions and follow-up arrangements reached through communication, dynamically presented across two dimensions (adaptively omit a dimension if empty): "### Consensus Reached": List items using "- **Consensus Item**: Specific conclusion, guiding principle, and committed proposal", naturally bolding key commitments; "### Items Requiring Coordination": List items using "- **Item Name**: Coordination requirements, rollout steps, responsible owner, and delivery timeline", avoiding vague filler text.]
+[Summarize consensus decisions and follow-up coordination agreed upon on-site, listed according to actual discussions with items naturally expanded: for agreed consensus, list using "- **Consensus Item**: Specific conclusion, guiding principle, or committed proposal"; for follow-up coordination, list using "- **Action Item**: Follow-up requirement, leading owner, and delivery deadline"; state one substantive action per item concisely; adaptively omit either category if no relevant matters were discussed.]
