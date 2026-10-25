@@ -67,12 +67,19 @@ def test_template_dir_and_registry_isolation():
     assert any("general_minutes" in k for k in reg_zh)
     assert any("project_progress" in k for k in reg_zh)
 
-    # 英文注册表首期试点仅包含已英化的 general_minutes
+    # 英文注册表全量对齐 29 套场景模板（29:29 严格对齐）
     reg_en = template_registry("en")
-    assert len(reg_en) >= 1
+    assert len(reg_en) == 29
     assert any("general_minutes" in k for k in reg_en)
-    # 严格隔离：未英化的模板绝对不出现在英文注册表中
-    assert not any("project_progress" in k for k in reg_en)
+    assert any("project_progress" in k for k in reg_en)
+    assert any("class_transcript" in k for k in reg_en)
+    assert any("research_dialogue" in k for k in reg_en)
+    assert any("clinical_advisory" in k for k in reg_en)
+    assert any("contract_vetting" in k for k in reg_en)
+    assert any("media_briefing" in k for k in reg_en)
+    assert any("home_school_liaison" in k for k in reg_en)
+    # 非法或不存在的模板不出现在注册表中
+    assert not any("non_existent_template" in k for k in reg_en)
 
 
 def test_template_format_resolution_by_language():
@@ -100,16 +107,144 @@ def test_template_format_resolution_by_language():
     assert "# 通用纪要" in zh_title_fmt
 
 
-def test_strict_isolation_untranslated_template():
-    """测试严格语种隔离：英文模式请求未英化的模板，绝不回退至中文，返回空。"""
-    # project_progress 尚未英化
-    en_untranslated = resolve_template_format("project_progress", lang="en")
-    assert en_untranslated == ""
+def test_batch1_english_templates_resolution():
+    """测试第一批落地的 6 套英文会议模板解析与格式正确性。"""
+    batch1_templates = [
+        ("project_progress", "Project Progress Meeting", "[Project Overview]", "[Progress Tracking]"),
+        ("team_meeting", "Team Routine Meeting", "[Meeting Overview]", "[Work Progress]"),
+        ("decision_review", "Decision & Review Meeting", "[Review Overview]", "[Final Resolutions]"),
+        ("workshop_session", "Workshop Session", "[Workshop Overview]", "[Core Viewpoints]"),
+        ("retrospective_session", "Retrospective Session", "[Retrospective Overview]", "[Actionable Improvements]"),
+        ("exchange_forum", "Exchange Forum", "[Context & Background]", "[Core Information]"),
+    ]
+    for tid, title, sec1, sec2 in batch1_templates:
+        fmt = resolve_template_format(tid, lang="en")
+        assert fmt, f"模板 {tid} 解析失败"
+        assert sec1 in fmt, f"模板 {tid} 缺失栏目 {sec1}"
+        assert sec2 in fmt, f"模板 {tid} 缺失栏目 {sec2}"
 
-    # 中文模式正常加载
-    zh_translated = resolve_template_format("project_progress", lang="zh")
-    assert len(zh_translated) > 0
-    assert "项目概况" in zh_translated or "进度追踪" in zh_translated
+        # 支持按英文 Title 查找
+        title_fmt = resolve_template_format(title, lang="en")
+        assert title_fmt, f"按英文标题 {title} 查找失败"
+        assert sec1 in title_fmt
+
+
+def test_batch2_english_templates_resolution():
+    """测试第二批落地的 5 套英文学习/学术场景模板解析与格式正确性。"""
+    batch2_templates = [
+        ("class_transcript", "Class Transcript", "[Course Overview]", "[Core Knowledge Points]"),
+        ("special_lecture", "Special Lecture", "[Lecture Overview]", "[Core Viewpoints]"),
+        ("group_seminar", "Group Seminar", "[Discussion Topic]", "[Discussion Highlights]"),
+        ("knowledge_memo", "Knowledge Memo", "[Knowledge Overview]", "[Core Concepts]"),
+        ("debate_forum", "Debate Forum", "[Debate Overview]", "[Parties' Stances]"),
+    ]
+    for tid, title, sec1, sec2 in batch2_templates:
+        fmt = resolve_template_format(tid, lang="en")
+        assert fmt, f"模板 {tid} 解析失败"
+        assert sec1 in fmt, f"模板 {tid} 缺失栏目 {sec1}"
+        assert sec2 in fmt, f"模板 {tid} 缺失栏目 {sec2}"
+
+        # 支持按英文 Title 查找
+        title_fmt = resolve_template_format(title, lang="en")
+        assert title_fmt, f"按英文标题 {title} 查找失败"
+        assert sec1 in title_fmt
+
+
+def test_batch3_english_templates_resolution():
+    """测试第三批落地的 4 套英文访谈/面试场景模板解析与格式正确性。"""
+    batch3_templates = [
+        ("research_dialogue", "Research Dialogue", "[Interview Overview]", "[Core Feedback]"),
+        ("interview_transcript", "Interview Transcript", "[Interview Overview]", "[Interview Details]"),
+        ("hiring_report", "Hiring Report", "[Candidate Profile]", "[Interview Q&A]"),
+        ("interview_debrief", "Interview Debrief", "[Interview Overview]", "[Personal Performance]"),
+    ]
+    for tid, title, sec1, sec2 in batch3_templates:
+        fmt = resolve_template_format(tid, lang="en")
+        assert fmt, f"模板 {tid} 解析失败"
+        assert sec1 in fmt, f"模板 {tid} 缺失栏目 {sec1}"
+        assert sec2 in fmt, f"模板 {tid} 缺失栏目 {sec2}"
+
+        # 支持按英文 Title 查找
+        title_fmt = resolve_template_format(title, lang="en")
+        assert title_fmt, f"按英文标题 {title} 查找失败"
+        assert sec1 in title_fmt
+
+
+def test_batch4_english_templates_resolution():
+    """测试第四批落地的 5 套英文医疗/法律咨询场景模板解析与格式正确性。"""
+    batch4_templates = [
+        ("clinical_advisory", "Clinical Advisory", "[Consultation Overview]", "[Treatment Plan]"),
+        ("psychological_session", "Psychological Session", "[Session Overview]", "[Session Details]"),
+        ("legal_advisory", "Legal Advisory", "[Advisory Overview]", "[Legal Analysis]"),
+        ("court_transcript", "Court Transcript", "[Trial Overview]", "[Claims & Defenses]"),
+        ("contract_vetting", "Contract Vetting", "[Contract Overview]", "[Risk Identification]"),
+    ]
+    for tid, title, sec1, sec2 in batch4_templates:
+        fmt = resolve_template_format(tid, lang="en")
+        assert fmt, f"模板 {tid} 解析失败"
+        assert sec1 in fmt, f"模板 {tid} 缺失栏目 {sec1}"
+        assert sec2 in fmt, f"模板 {tid} 缺失栏目 {sec2}"
+
+        # 支持按英文 Title 查找
+        title_fmt = resolve_template_format(title, lang="en")
+        assert title_fmt, f"按英文标题 {title} 查找失败"
+        assert sec1 in title_fmt
+
+
+def test_batch5_english_templates_resolution():
+    """测试第五批落地的 8 套英文媒体发布/日常记录场景模板解析与格式正确性。"""
+    batch5_templates = [
+        ("media_briefing", "Media Briefing", "[Briefing Overview]", "[Core Information]"),
+        ("product_launch", "Product Launch", "[Product Overview]", "[Market Positioning]"),
+        ("government_bulletin", "Government Bulletin", "[Bulletin Overview]", "[Core Policies]"),
+        ("media_qa_session", "Media Q&A Session", "[Session Overview]", "[Core Q&A]"),
+        ("personal_memo", "Personal Memo", "[Memo Overview]", "[Action Reminders]"),
+        ("conversation_transcript", "Conversation Transcript", "[Conversation Overview]", "[Discussion Contents]"),
+        ("site_visit_tour", "Site Visit Tour", "[Visit Overview]", "[Core Highlights]"),
+        ("home_school_liaison", "Home-School Liaison", "[Liaison Overview]", "[School Performance]"),
+    ]
+    for tid, title, sec1, sec2 in batch5_templates:
+        fmt = resolve_template_format(tid, lang="en")
+        assert fmt, f"模板 {tid} 解析失败"
+        assert sec1 in fmt, f"模板 {tid} 缺失栏目 {sec1}"
+        assert sec2 in fmt, f"模板 {tid} 缺失栏目 {sec2}"
+
+        # 支持按英文 Title 查找
+        title_fmt = resolve_template_format(title, lang="en")
+        assert title_fmt, f"按英文标题 {title} 查找失败"
+        assert sec1 in title_fmt
+
+
+def test_all_29_templates_bilingual_parity():
+    """验证全部 29 套模板在中文与英文下均具备 1:1 双语对齐与完整解析能力。"""
+    import re
+    from app.config import TEMPLATE_SCENARIO
+
+    assert len(TEMPLATE_SCENARIO) == 29
+    reg_zh = template_registry("zh")
+    reg_en = template_registry("en")
+    assert len(reg_zh) == 29
+    assert len(reg_en) == 29
+
+    for tid in TEMPLATE_SCENARIO:
+        zh_fmt = resolve_template_format(tid, lang="zh")
+        assert zh_fmt, f"中文模板 {tid} 未能解析"
+
+        en_fmt = resolve_template_format(tid, lang="en")
+        assert en_fmt, f"英文模板 {tid} 未能解析"
+
+        # 验证英文模板顶层标题为英文，不含中文字符
+        en_item = next(item for k, item in reg_en.items() if k.endswith(f"_{tid}"))
+        assert en_item["name"], f"英文模板 {tid} 缺失名称"
+        assert not re.search(r"[\u4e00-\u9fa5]", str(en_item["name"])), (
+            f"英文模板 {tid} 标题含中文：{en_item['name']}"
+        )
+
+
+def test_strict_isolation_untranslated_template():
+    """测试严格语种隔离：未知或非法模板名无论中英文均返回空。"""
+    assert resolve_template_format("unknown_custom_template", lang="en") == ""
+    assert resolve_template_format("unknown_custom_template", lang="zh") == ""
 
 
 def test_template_file_task_preparation():
@@ -124,9 +259,14 @@ def test_template_file_task_preparation():
     assert tpl_zh is not None
     assert "通用纪要" in tpl_zh.read_text(encoding="utf-8")
 
-    # 英文模式请求尚未英化的模板，必须抛出 400 ApiError
+    # 英文模式加载第五批模板成功
+    tpl_media = _template_file("meeting", "minutes", "media_briefing", lang="en")
+    assert tpl_media is not None
+    assert "[Briefing Overview]" in tpl_media.read_text(encoding="utf-8")
+
+    # 非法模板名必须抛出 400 ApiError
     with pytest.raises(ApiError) as exc_info:
-        _template_file("meeting", "minutes", "contract_vetting", lang="en")
+        _template_file("meeting", "minutes", "unknown_custom_template", lang="en")
     assert exc_info.value.status == 400
     assert "extra.template 非法" in exc_info.value.message
 

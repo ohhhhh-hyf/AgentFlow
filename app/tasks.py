@@ -444,13 +444,13 @@ def _template_file(
     **纪要线留空 → 自动套用默认模板**：
     - 客观模式（profile 为空或 objective）：始终套用「通用纪要」（``DEFAULT_MINUTES_TEMPLATE``）；
     - 真人模式（profile="user"）：直接套用「个人视角纪要」（``DEFAULT_PERSONAL_MINUTES_TEMPLATE``，即 ``personal_minutes``），不再走历史通用模板剪裁模式。
-    - 多样式纪要线（meeting/minutes_styles）：留空时自动套用对应 style 模板（resources/styles/{style}.md）。
+    - 多样式纪要线（meeting/minutes_styles）：留空时自动套用对应 style 模板（resources/task/styles/{style}.md）。
     """
     value = (template_value or "").strip()
     auto_default = False
     if domain == "meeting" and line == "minutes_styles":
         if not value:
-            # 当请求未指定 template 时，根据 extra.style 自动查找 resources/styles/ 下的对应模板
+            # 当请求未指定 template 时，根据 extra.style 自动查找 resources/task/styles/ 下的对应模板
             style_mode = (style_value or "topic").strip().lower()
             return style_template_path(style_mode)
     elif domain == "meeting" and line == "minutes":

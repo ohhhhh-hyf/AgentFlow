@@ -39,12 +39,12 @@ def personal_minutes_template() -> str:
 # 多样式纪要 5 大黄金模式
 STYLE_NAMES = frozenset({"brief", "topic", "review", "retro", "alignment"})
 
-# 多样式纪要模板目录：resources/styles/
-RESOURCES_STYLES_DIR = PROJECT_ROOT / "resources" / "styles"
+# 多样式纪要模板目录：resources/task/styles/
+RESOURCES_STYLES_DIR = PROJECT_ROOT / "resources" / "task" / "styles"
 
 
 def style_template_path(style_name: str) -> Path | None:
-    """查找 resources/styles/{style_name}.md 模板文件（严格限制为 5 大模式：brief/topic/review/retro/alignment）。"""
+    """查找 resources/task/styles/{style_name}.md 模板文件（严格限制为 5 大模式：brief/topic/review/retro/alignment）。"""
     name = (style_name or "").strip().lower()
     if not name:
         name = "topic"

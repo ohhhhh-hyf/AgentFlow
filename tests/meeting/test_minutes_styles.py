@@ -54,7 +54,7 @@ from domains.meeting.tasks.minutes_styles.steps.minutes_styles_render import (
 
 
 def test_styles_templates_exist_and_meet_spec() -> None:
-    """验证 resources/styles/ 下 5 份模板均存在且符合规范要求。"""
+    """验证 resources/task/styles/ 下 5 份模板均存在且符合规范要求。"""
     assert RESOURCES_STYLES_DIR.is_dir(), f"目录不存在：{RESOURCES_STYLES_DIR}"
     expected_styles = ["brief", "topic", "review", "retro", "alignment"]
 

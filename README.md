@@ -60,7 +60,8 @@ AgentFlow/
 ├── resources/                    # 【业务只读资产库】静态模板、样式规范与标准化画像
 │   ├── templates/                # 垂直场景行业 Markdown 模板库（按语种 zh / en 隔离，含通用纪要等 29 个场景模板）
 │   ├── agenda_templates/         # 审定议题专属行业 Markdown 模板（以审定议题与子主题层级为主线）
-│   ├── styles/                   # 5 大会议纪要风格规范 Markdown 模板（brief, topic, review, retro, alignment）
+│   ├── task/                     # 任务专有模板与样式库（共识决策、个人视角纪要、styles 5 大风格规范模板）
+│   │   └── styles/               # 5 大会议纪要风格规范 Markdown 模板（brief, topic, review, retro, alignment）
 │   └── profiles/                 # 客观全员与各行业职业画像模板（JSON）及 role_mapping.json 角色别名映射表
 │
 ├── data/                         # 【多租户数据持久化根】严格按 {user_id} 物理隔离的沙箱
@@ -291,7 +292,7 @@ python -m app.worker.main --concurrency 4 --grace 300
 |---|---|---|---|---|
 | **`minutes`** | 会议纪要 | `LLM_DOCUMENT` | `minutes.html`<br>`result.md` | **双轨架构分发与 32 套场景模板动态路由**：<br>• **Track A（通用与个人视角）**：处理无外部议程单会议，自然映射业务板块（`### 1. 业务板块`），列表项展开事实论据；个人视角作战看板化呈现；<br>• **Track B（审定议题模板纪要）**：结合会前审定议程单，严格以 `### 议题全称` → `#### 1. 子主题` → `- 论据细节` 三层严整公文骨架展开，并平滑吸收草稿段首标签；<br>• **模板优先分发与自包含扩展**：优先分发 `resources/agenda_templates/` 专属模板（未命中平滑回退至 `resources/templates/`）；用户仅需优化模板 `.md` 文件方括号说明即可驱动大模型按议题输出，零侵入底层代码；<br>• **Template Prompt 极致轻量化**：切除重复结构解析，单次渲染立省 300～500 Tokens，KV Cache 前缀复用率最大化。 |
 | **`consensus_decision`** | 共识决策 | `LLM_DOCUMENT` | `consensus_decision.html`<br>`result.md` | **彻底模板化重构**：由硬编码 Python 拼接升级为由 `resources/templates/consensus_decision.md` 模板驱动的标准大模型渲染。分为「决策总览」（精炼一句话决议矩阵）与「决策细节」（决策背景、讨论要点、得失权衡、最终决议 4 组阶梯展开，压轴决议，多条目独立列点，零 emoji，弹性输出）。模板门禁白名单全面放行共识标记，消除误报修补；配套响应式卡片流 HTML 导出。 |
-| **`minutes_styles`** | 多样式纪要 | `LLM_DOCUMENT` | `minutes_styles.html`<br>`result.md` | **5 大黄金样式规范重构**：独立拆解 5 套标准模板至 `resources/styles/`（`brief` 极简速报、`topic` 议题专报、`review` 深度研讨、`retro` 敏捷复盘、`alignment` 战略对齐）。首栏 250-300 字摘要预算控制；API 强门禁校验非法样式；输出样式定制卡片 HTML。 |
+| **`minutes_styles`** | 多样式纪要 | `LLM_DOCUMENT` | `minutes_styles.html`<br>`result.md` | **5 大黄金样式规范重构**：独立拆解 5 套标准模板至 `resources/task/styles/`（`brief` 极简速报、`topic` 议题专报、`review` 深度研讨、`retro` 敏捷复盘、`alignment` 战略对齐）。首栏 250-300 字摘要预算控制；API 强门禁校验非法样式；输出样式定制卡片 HTML。 |
 | **`actions`** | 待办提取 | `LLM_EXTRACT` | `actions.html`<br>`result.md` | **Form A 现代工单票据卡片流**：事项按业务分类（Category）聚类归集，事项名称、优先级（高/中/低）、责任人、截止时间、交付标准、前置条件弹性展开，无则优雅省略，拒绝冗余占位符。 |
 | **`risks`** | 风险分析 | `LLM_EXTRACT` | `risks.html`<br>`result.md` | **Form A 风险票据流**：按风险分类归集，红黄绿三级严重度预警，结构化提取责任归属、潜在影响与规避对策，输出交互式风险看板。 |
 | **`minutes_trace`** | 溯源纪要 | `DETERMINISTIC_PIPELINE`<br>(Sidecar) | `minutes_trace.html`<br>`result.md` | **平实两级溯源结构**：摒弃生硬特殊标记，采用「会议概况 + 议题名称」两级平实排版；采用议题内涵加权（Jaccard + 词频）切片匹配原声，点击纪要要点一键定位高亮发言气泡与时间戳。 |
