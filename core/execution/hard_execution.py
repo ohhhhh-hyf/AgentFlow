@@ -551,6 +551,33 @@ def _item_default_only(line: str) -> bool:
     return _is_default_only(s)
 
 
+# 父级列表项格式（`- **议题/分类（发言人）**：` 或 `- **标题**`，冒号后无内联正文）
+_PARENT_LIST_ITEM_RE = re.compile(r"^[-*+>•]\s+\*\*[^*]+(?:\*\*\s*[:：]?|[:：]\*\*)\s*$")
+
+
+def _is_parent_list_item(line: str) -> bool:
+    """是否为父级列表项标题行（格式形如 `- **标题/议题（主体）**：`）。"""
+    return bool(_PARENT_LIST_ITEM_RE.match((line or "").strip()))
+
+
+def _has_indented_child(lines: list[str], idx: int) -> bool:
+    """检查 lines[idx] 是否紧接着缩进子项（例如下一非空行为 `  - ...` 或缩进空格开头的行）。"""
+    cur_line = lines[idx]
+    cur_indent = len(cur_line) - len(cur_line.lstrip())
+    for next_idx in range(idx + 1, len(lines)):
+        next_line = lines[next_idx]
+        if not next_line.strip():
+            continue  # 跳过父子项之间的空行
+        next_indent = len(next_line) - len(next_line.lstrip())
+        # 下一有效行必须比当前行缩进更深且包含子列表符号或缩进内容
+        if next_indent > cur_indent and (
+            re.match(r"^\s*[-*+>•\d]", next_line) or next_indent >= cur_indent + 2
+        ):
+            return True
+        break
+    return False
+
+
 # 表格对齐分隔行（`| --- | --- |`）；数据行判定一律用它排除
 _TABLE_SEP_ROW_RE = re.compile(r"^\|[\s:\-|]+\|$")
 
@@ -620,6 +647,10 @@ def strip_default_only_content(text: str) -> tuple[str, list[str]]:
                     n += 1
                     continue
             elif re.match(r"^[-*+>]\s", s) and _item_default_only(s):
+                # 保护带有缩进子列表的父级节点（如 `- **表态议题**：` 下挂 `  - ...`）
+                if _is_parent_list_item(s) and _has_indented_child(body_lines, idx):
+                    kept_lines.append(line)
+                    continue
                 n += 1
                 continue
             kept_lines.append(line)

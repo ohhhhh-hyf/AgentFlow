@@ -666,6 +666,28 @@ def test_strip_default_only_content() -> None:
     check("产品发布：缺项不写、整栏才合并成一句",
           "整栏都没有内容时才把缺项**合并成一句**" in pl, "")
 
+
+def test_two_level_list_parent_retention() -> None:
+    """两级嵌套列表（新闻发布会、家校沟通）：独立成行的父标题节点下挂缩进子项时不能被误判为缺省词。"""
+    from core.execution.hard_execution import strip_default_only_content
+
+    text = (
+        "## 官方表态\n\n"
+        "- **平等有序的世界多极化（王毅）**：\n"
+        '  - 多极化是历史必然，但需避免动荡失序，中国主张"推动平等有序的世界多极化"。\n'
+        '  - 中国必将是多极体系中的确定性因素，将坚定做变革世界中的建设性力量。\n\n'
+        "- **国际秩序与联合国作用（王毅）**：\n"
+        "  - 中国是现行国际秩序的受益者，主张推动秩序向更加公正合理方向发展。\n"
+        "  - 共同维护以联合国为核心的国际体系、遵守联合国宪章宗旨和原则是最大公约数。\n\n"
+        "- **过敏史**：未提及。\n"
+    )
+    out, notes = strip_default_only_content(text)
+    check("父级议题行未被误删", "- **平等有序的世界多极化（王毅）**：" in out, out)
+    check("第二组父级议题行未被误删", "- **国际秩序与联合国作用（王毅）**：" in out, out)
+    check("真实单行缺省项被正常删除", "- **过敏史**" not in out, out)
+    check("仅单行缺省项计入删除数（无误判）", any("已省略" in n for n in notes), f"{notes}")
+
+
 def test_media_overview_scope() -> None:
     """新闻发布 [发布会概况]：要素去掉与 [核心信息] 同名的词 + 可解析段上限 + 归位边界。
 

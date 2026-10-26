@@ -528,7 +528,7 @@ async def produce_line(
                     advisory.append(
                         f"正文约 {han_now} 字，超过本篇参考上限 {hi2} 字（档位）"
                     )
-                elif lo2 and han_now < int(lo2 * 0.85) and not is_brief:
+                elif lo2 and han_now < int(lo2 * 0.75) and not is_brief:
                     advisory.append(
                         f"正文约 {han_now} 字，低于本篇参考下限 {lo2} 字（档位）"
                     )
