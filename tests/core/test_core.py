@@ -634,27 +634,29 @@ def test_risk_items_render() -> None:
 
 
 def test_general_minutes_title_fixed() -> None:
-    """通用纪要：模板与产物落盘顶部强制固定为 # 通用纪要，不被动态 headline 覆盖。"""
+    """通用纪要：模板 format 剥离 # 通用纪要 文件头，落盘时与全量模板统一使用真实会议标题作为 H1。"""
     from app.config import resolve_template_format, template_registry
     from domains.meeting.reports import MinutesReport
     from core.runner.context import load_domain
     from infra.exporters.outputs import save_report_artifacts
 
-    # 1. 模板注册表 format 保留 # 通用纪要
+    # 1. 模板注册表 format 剥离文件头 # 通用纪要，与其他 28 套模板完全一致
     item = template_registry().get("daily_journal_general_minutes")
     check("模板注册表中通用纪要存在", item is not None, str(item))
     if item:
         fmt = str(item.get("format") or "")
-        check("通用纪要模板 format 顶部保留 # 通用纪要", fmt.startswith("# 通用纪要"), fmt[:40])
+        check("通用纪要模板 format 剥离 # 通用纪要", not fmt.startswith("# 通用纪要"), fmt[:40])
+        check("通用纪要模板 format 从正文栏目开始", "## [全文摘要]" in fmt, fmt[:40])
 
     resolved = resolve_template_format("general_minutes")
-    check("resolve_template_format 包含 # 通用纪要", "# 通用纪要" in resolved, resolved[:80])
+    check("resolve_template_format 不包含 # 通用纪要", "# 通用纪要" not in resolved, resolved[:80])
+    check("resolve_template_format 包含栏目 ## [全文摘要]", "## [全文摘要]" in resolved, resolved[:80])
 
-    # 2. save_report_artifacts 落盘测试：即使 report.title 携带动态 headline，落盘正文与 HTML 均固定为 通用纪要
+    # 2. save_report_artifacts 落盘测试：正文无 H1 标题时，落盘文件统一将动态 headline 作为 # 标题
     ctx = load_domain("meeting", Path("."))
     report = MinutesReport(
         title="关于音视频与长文本优化的研讨",  # 模拟从草稿提取出的动态 headline
-        personalized_minutes="# 通用纪要\n\n## 全文摘要\n本场会议围绕音视频SDK展开讨论。\n\n## 要点梳理\n1. **[音视频SDK]**\n   > 完成推流适配(张伟)",
+        personalized_minutes="## 全文摘要\n本场会议围绕音视频SDK展开讨论。\n\n## 要点梳理\n1. **[音视频SDK]**\n   > 完成推流适配(张伟)",
     )
     with tempfile.TemporaryDirectory() as td:
         ctx.output_dir = Path(td)
@@ -663,20 +665,19 @@ def test_general_minutes_title_fixed() -> None:
         check("通用纪要产物保存成功", md_path is not None and md_path.is_file(), str(saved))
         if md_path and md_path.is_file():
             saved_md = md_path.read_text(encoding="utf-8")
-            check("落盘 Markdown 顶部固定为 # 通用纪要", saved_md.startswith("# 通用纪要"), saved_md[:50])
-            check("落盘 Markdown 不包含动态 headline H1", "# 关于音视频与长文本优化的研讨" not in saved_md, saved_md[:50])
+            check("落盘 Markdown 顶部使用动态 headline", saved_md.startswith("# 关于音视频与长文本优化的研讨"), saved_md[:50])
+            check("落盘 Markdown 不包含死代码 # 通用纪要", "# 通用纪要" not in saved_md, saved_md[:50])
 
-        # 3. 补充测试：即使模型输出时偶然遗漏 # 通用纪要，outputs.py 仍强制补充 # 通用纪要 而非动态 headline
-        report_no_h1 = MinutesReport(
+        # 3. 补充测试：若正文已有 # 标题（如自定义标题），则不再重复前缀叠加
+        report_with_h1 = MinutesReport(
             title="关于音视频与长文本优化的研讨",
-            personalized_minutes="## 全文摘要\n本场会议围绕音视频SDK展开讨论。\n\n## 要点梳理\n1. **[音视频SDK]**\n   > 完成推流适配(张伟)",
+            personalized_minutes="# 自定义会议主标题\n\n## 全文摘要\n本场会议围绕音视频SDK展开讨论。\n\n## 要点梳理\n1. **[音视频SDK]**\n   > 完成推流适配(张伟)",
         )
-        saved_no_h1 = save_report_artifacts(ctx, "minutes", report_no_h1, gate_ok=True)
-        md_no_h1 = saved_no_h1.get("text")
-        if md_no_h1 and md_no_h1.is_file():
-            saved_md_no_h1 = md_no_h1.read_text(encoding="utf-8")
-            check("输出遗漏首行时强制补充 # 通用纪要", saved_md_no_h1.startswith("# 通用纪要"), saved_md_no_h1[:50])
-            check("强制补充时未被动态 headline 覆盖", "# 关于音视频与长文本优化的研讨" not in saved_md_no_h1, saved_md_no_h1[:50])
+        saved_with_h1 = save_report_artifacts(ctx, "minutes", report_with_h1, gate_ok=True)
+        md_with_h1 = saved_with_h1.get("text")
+        if md_with_h1 and md_with_h1.is_file():
+            saved_md_with_h1 = md_with_h1.read_text(encoding="utf-8")
+            check("正文已有 H1 时保留原标题", saved_md_with_h1.startswith("# 自定义会议主标题"), saved_md_with_h1[:50])
 
 
 def main() -> int:

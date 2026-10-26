@@ -65,7 +65,6 @@ class LinePolicy:
                 if (
                     not s
                     or s in {"general_minutes", "personal_minutes", "通用纪要", "个人视角纪要"}
-                    or s.startswith("# 通用纪要")
                     or s.startswith("# 个人视角纪要")
                 ):
                     return False

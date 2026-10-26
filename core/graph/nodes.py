@@ -185,8 +185,14 @@ class DomainNodes:
         del line_name
         return None
 
-    def _supervisor_source_pack(self, state: dict, line_name: str) -> str:
-        """审核用原文：按草稿事实点摘录，短文仍给全文。"""
+    def _supervisor_source_pack(
+        self, state: dict, line_name: str, *, include_profile: bool = True
+    ) -> str:
+        """审核用原文：按草稿事实点摘录，短文仍给全文。
+
+        ``include_profile=False``：议题客观视图下不把用户画像/视角模型/姓名
+        优先锚点塞进审核上下文；默认 True 保持普通纪要行为不变。
+        """
         from core.runtime.supervisor_slice import (
             collect_needles,
             compact_perspective,
@@ -222,7 +228,7 @@ class DomainNodes:
         )
         priority_needles: list[str] = []
         user = state.get("user") or {}
-        if isinstance(user, dict):
+        if include_profile and isinstance(user, dict):
             for fp in user.get("focus_person") or []:
                 if isinstance(fp, str) and len(fp.strip()) >= 2:
                     priority_needles.append(fp.strip())
@@ -264,12 +270,13 @@ class DomainNodes:
         summary = summarize_understanding(understanding)
         if summary:
             parts.append(f"{self._understanding_label}（摘要）：\n{summary}")
-        profile = compact_profile(state.get("user") or {})
-        if profile:
-            parts.append(f"用户画像：\n{profile}")
-        perspective = compact_perspective(state.get("perspective_profile"))
-        if perspective:
-            parts.append(f"用户视角模型：\n{perspective}")
+        if include_profile:
+            profile = compact_profile(state.get("user") or {})
+            if profile:
+                parts.append(f"用户画像：\n{profile}")
+            perspective = compact_perspective(state.get("perspective_profile"))
+            if perspective:
+                parts.append(f"用户视角模型：\n{perspective}")
         return "\n\n".join(parts)
 
     def _line_shared_context(self, state: dict, line_name: str) -> str:
@@ -587,8 +594,18 @@ class DomainNodes:
             try:
                 sig = inspect.signature(agent.run)
                 run_kwargs = {}
-                if "lang" in sig.parameters or any(p.kind == inspect.Parameter.VAR_KEYWORD for p in sig.parameters.values()):
+                has_var_kw = any(
+                    p.kind == inspect.Parameter.VAR_KEYWORD
+                    for p in sig.parameters.values()
+                )
+                if "lang" in sig.parameters or has_var_kw:
                     run_kwargs["lang"] = state.get("lang", "zh")
+                # 议程模式把完整 tagged transcript 显式传给 agent；普通分钟没有
+                # tagged_transcript → 传空串，agent 继续走原来的上下文反解路径。
+                if "source_transcript" in sig.parameters or has_var_kw:
+                    run_kwargs["source_transcript"] = (
+                        state.get("tagged_transcript") or ""
+                    )
                 result = await agent.run(
                     self._revision_context(
                         context,

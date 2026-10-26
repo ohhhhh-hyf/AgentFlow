@@ -455,15 +455,19 @@ def enforce_minutes_draft(
 
     is_agenda_mode = bool(is_agenda or is_agenda_enhanced_mode(transcript))
     if is_agenda_mode:
-        # 议题增强自包含模式：草稿自身即为最高事实源，不走上游会议理解覆写
+        # 议题增强自包含模式：草稿自身即为最高事实源，不走上游会议理解覆写。
+        #
+        # 记忆迁移（7.5）：普通模式的 key_decisions 是上游逐字搬运，所以“原文没出现
+        # + 命中记忆 = 往期沿革”成立；议题模式的决策是模型从 tagged transcript 提炼的，
+        # 且 transcript 曾因 ════════ 分隔线被截断，继续用模糊/子串判据会误删本场决策。
+        # v1 先直接跳过 purge，保留全部本场决策；history_comparison 由上游 memory
+        # comparison 正常写入。普通模式分支保持原逻辑不变。
         res = _ensure_all_minutes_keys(data)
-        if memory_texts and transcript and "key_decisions" in res:
-            valids, migrated = purge_stale_memory_from_decisions(
-                res["key_decisions"], memory_texts, transcript
+        if memory_texts:
+            logger.info(
+                "[memory:purge] line=minutes is_agenda=True policy=skip decisions=%d",
+                len(res.get("key_decisions") or []),
             )
-            res["key_decisions"] = valids
-            if migrated:
-                res["history_comparison"] = list(res.get("history_comparison") or []) + migrated
         return res
 
     out = enforce_upstream_carry(

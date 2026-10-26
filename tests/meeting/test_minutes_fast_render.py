@@ -99,7 +99,6 @@ def test_line_policy_uses_llm_render_routing() -> None:
     assert policy.uses_llm_render("personal_minutes") is False
     assert policy.uses_llm_render("通用纪要") is False
     assert policy.uses_llm_render("个人视角纪要") is False
-    assert policy.uses_llm_render("# 通用纪要\n\n## [全文摘要]...") is False
     assert policy.uses_llm_render("# 个人视角纪要\n\n## [会议概况]...") is False
 
     # 3. 自定义模板（需调 LLM）
@@ -171,7 +170,7 @@ def test_produce_line_minutes_fast_path_zero_llm() -> None:
             engine = MockEngine()
             state = {
                 "objective_perspective": True,
-                "templates": {"minutes": "# 通用纪要\n\n## [全文摘要]"},
+                "templates": {"minutes": "general_minutes"},
                 "lines": {
                     "minutes": {
                         "draft": {

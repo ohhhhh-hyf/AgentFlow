@@ -27,6 +27,13 @@ KIND_OBJECTIVE = "objective"
 KIND_PERSON = "person"
 KIND_ROLE = "role_template"
 
+# personal × agenda 在 v1 明确不支持；API 400 与 core 防御共用同一文案。
+AGENDA_PERSONAL_UNSUPPORTED_MESSAGE = (
+    "个人视角暂不支持议题增强模式："
+    "如需议题纪要，请将 extra.profile 设为 objective 或留空；"
+    "如需个人视角，请改用普通纪要（不要上传议程 docs）。"
+)
+
 
 # 用户自建真人档案：``data/{X-User-Id}/user.json``（不改仓库；``extra.profile=user`` 时读取）
 USER_PROFILE_FILENAME = "user.json"
@@ -124,6 +131,23 @@ def classify_profile(data: dict[str, Any] | None) -> str:
     if str(blob.get("persona_type") or "").strip().lower() == KIND_ROLE:
         return KIND_ROLE
     return KIND_PERSON
+
+
+def resolve_profile_mode(data: dict[str, Any] | None) -> str:
+    """画像数据 → 运行视角：``objective`` / ``personal`` / ``role_template``。
+
+    与 ``DomainNodes._mode_label`` 的判定保持同源，供 API 入口、编排层和
+    议题纪要 view 裁决共用。注意：``classify_profile`` 的 ``KIND_PERSON`` 是
+    ``"person"``，这里对外统一返回 ``"personal"``。
+    """
+    blob = data if isinstance(data, dict) else {}
+    if str(blob.get("perspective") or "").strip().lower() == KIND_OBJECTIVE:
+        return KIND_OBJECTIVE
+    if str(blob.get("persona_type") or "").strip().lower() == KIND_ROLE:
+        return KIND_ROLE
+    if not str(blob.get("name") or "").strip():
+        return KIND_OBJECTIVE
+    return "personal"
 
 
 def resolve_role_template(data: dict[str, Any], profile_dir: Path | None = None) -> dict[str, Any]:
@@ -306,6 +330,7 @@ def resolve_profile_file(
 
 
 __all__ = [
+    "AGENDA_PERSONAL_UNSUPPORTED_MESSAGE",
     "ASSETS_DIR",
     "KIND_OBJECTIVE",
     "KIND_PERSON",
@@ -319,6 +344,7 @@ __all__ = [
     "load_role_mapping",
     "read_user_profile",
     "resolve_profile_file",
+    "resolve_profile_mode",
     "resolve_role_template",
     "resolve_role_to_template_key",
     "sanitize_user_profile",

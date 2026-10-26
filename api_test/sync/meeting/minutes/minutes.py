@@ -2,6 +2,9 @@
 """请求 minutes 接口并解析返回字段。用法：python minutes.py
 
 统一入口：POST /api/agent/v1，域与任务名在请求体（"domain": "meeting", "task": "minutes"）。
+
+注意（议题增强边界）：若 docs 被识别为议程，`extra.profile="user"`（personal）
+会返回 400；议题模式请使用 objective / 空 profile，或改用普通纪要。
 """
 import os
 import uuid

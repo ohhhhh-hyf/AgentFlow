@@ -81,7 +81,13 @@ class MinutesGenerationAgent:
     def __init__(self, client: LLMClient) -> None:
         self.client = client
 
-    async def run(self, shared_context: str, *, lang: str | None = None) -> Minutes:
+    async def run(
+        self,
+        shared_context: str,
+        *,
+        lang: str | None = None,
+        source_transcript: str = "",
+    ) -> Minutes:
         mode = parse_perspective_mode(shared_context)
         is_agenda = is_agenda_enhanced_mode(shared_context)
         if is_agenda:
@@ -134,7 +140,9 @@ class MinutesGenerationAgent:
         )
         understanding = extract_labeled_json(shared_context, "会议理解")
         perspective = extract_labeled_json(shared_context, "用户视角模型")
-        transcript = _extract_transcript(shared_context)
+        # 议题模式由编排层显式传入完整 tagged transcript；普通分钟没有该字段，
+        # 继续用原上下文反解路径，行为不变。
+        transcript = source_transcript or _extract_transcript(shared_context)
         memory_texts = _extract_memory_texts(shared_context)
         enforced = enforce_minutes_draft(
             raw,

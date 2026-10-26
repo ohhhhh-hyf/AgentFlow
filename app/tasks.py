@@ -6,8 +6,8 @@ from __future__ import annotations
 
 import asyncio
 import inspect
+import json
 import logging
-import os
 import re
 import tempfile
 import time
@@ -32,6 +32,12 @@ from .config import (
     resolve_template_format,
     style_template_path,
 )
+from core.runner.profiles import (
+    is_user_profile_file,
+    resolve_profile_mode,
+    sanitize_user_profile,
+)
+
 from .id_worker import next_request_id
 from .outputs import output_dir, save_task_outputs
 from .schemas import TaskRequest, TaskResponse, ndjson_line as _ndjson
@@ -566,6 +572,21 @@ def _profile_file(domain: str, profile_value: str, user_id: str = "") -> Path:
     return path
 
 
+def _profile_mode_from_file(path: Path) -> str:
+    """画像文件 → objective / personal / role_template（与编排层同源）。"""
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except Exception:  # noqa: BLE001 - 画像文件异常交给后续 load_user 报错
+        return "objective"
+    if not isinstance(data, dict):
+        return "objective"
+    # user.json 与 load_user 同源清洗：perspective 忽略、persona_type 置空，
+    # 避免用户误写 role_template 把真人档误判成职业模板。
+    if is_user_profile_file(path):
+        data = sanitize_user_profile(data)
+    return resolve_profile_mode(data)
+
+
 def _subject_pinyin(subject: str) -> str:
     """学科统一转拼音（物理 → wuli），与知识库 subject / catalog 目录一致；空值原样。"""
     from infra.storage.config import subject_to_pinyin
@@ -590,6 +611,9 @@ class _Prepared:
     memory: bool
     time: str = ""
     lang: str = "zh"
+    # 议题纪要视角裁决 / 给调用方的提示（role_template 强制客观等）
+    minutes_view: str = ""
+    prepare_warning: str = ""
 
 
 def _runner_args(p: _Prepared) -> dict:
@@ -634,6 +658,7 @@ def _prepare(domain: str, task: str, req: TaskRequest, user_id: str) -> _Prepare
     teacher_docs: list[str] = []
     material_docs: list[str] = []
     agenda_from_docs: str = ""
+    valid_agenda_count = 0
     if line != "library" and req.docs:
         if line == "checklist":
             # checklist 的 docs：仅支持老师重点文件（.txt），目录文件统一由 extra.catalog 传参
@@ -724,6 +749,7 @@ def _prepare(domain: str, task: str, req: TaskRequest, user_id: str) -> _Prepare
             )
             if valid_agendas:
                 agenda_from_docs = candidate_agenda_text
+                valid_agenda_count = len(valid_agendas)
                 logger.info(
                     "minutes 任务检测到 docs 包含 %d 个有效讨论议题，激活议题增强流水线",
                     len(valid_agendas),
@@ -757,11 +783,77 @@ def _prepare(domain: str, task: str, req: TaskRequest, user_id: str) -> _Prepare
 
     ctx = load_domain(domain)
     profile_file = _profile_file(domain, extra.profile, (user_id or "").strip())
+    # 只有 minutes 需要运行视角裁决；其它线保持原路径，避免额外读盘。
+    profile_mode = (
+        _profile_mode_from_file(profile_file) if line == "minutes" else "objective"
+    )
+    effective_profile = extra.profile
+    prepare_warning = ""
+    minutes_view = profile_mode
+
+    if line == "minutes" and agenda_from_docs:
+        from domains.meeting.views import (
+            AgendaPersonalUnsupported,
+            resolve_minutes_view,
+        )
+
+        mode_label = (
+            "personal"
+            if profile_mode == "personal"
+            else ("role" if profile_mode == "role_template" else "objective")
+        )
+        try:
+            minutes_view = resolve_minutes_view(
+                has_valid_agenda=True,
+                profile_mode=profile_mode,
+            )
+        except AgendaPersonalUnsupported as exc:
+            logger.info(
+                "[minutes:view] requested=agenda_%s resolved=rejected "
+                "profile_mode=%s valid_agendas=%d action=rejected_personal",
+                mode_label,
+                profile_mode,
+                valid_agenda_count,
+            )
+            raise ApiError(400, str(exc)) from exc
+
+        action = "agenda_objective"
+        if profile_mode == "role_template":
+            # 职业模板在议题模式下统一按客观运行：剥离角色画像/姓名。
+            effective_profile = "objective"
+            profile_file = _profile_file(
+                domain, effective_profile, (user_id or "").strip()
+            )
+            prepare_warning = "职业模板在议题模式下按客观纪要生成（未使用角色画像）。"
+            action = "forced_objective_role"
+        logger.info(
+            "[minutes:view] requested=agenda_%s resolved=%s profile_mode=%s "
+            "valid_agendas=%d action=%s",
+            mode_label,
+            minutes_view,
+            profile_mode,
+            valid_agenda_count,
+            action,
+        )
+    elif line == "minutes":
+        mode_label = (
+            "personal"
+            if profile_mode == "personal"
+            else ("role" if profile_mode == "role_template" else "objective")
+        )
+        logger.info(
+            "[minutes:view] requested=normal_%s resolved=%s profile_mode=%s "
+            "valid_agendas=0 action=normal",
+            mode_label,
+            minutes_view,
+            profile_mode,
+        )
+
     template_path = _template_file(
         domain,
         line,
         extra.template,
-        profile_value=extra.profile,
+        profile_value=effective_profile,
         style_value=extra.style,
         is_agenda_enhanced=bool(agenda_from_docs),
         lang=req.lang,
@@ -844,6 +936,8 @@ def _prepare(domain: str, task: str, req: TaskRequest, user_id: str) -> _Prepare
         memory=bool(req.memory),
         time=(extra.time or "").strip(),
         lang=req.lang,
+        minutes_view=minutes_view,
+        prepare_warning=prepare_warning,
     )
 
 
@@ -952,6 +1046,8 @@ async def _run_task_impl(
     # 仅降级时有值：把质量信号放在**字段**里（正文不再写免责声明），与异步任务接口口径一致。
     # 未赋值时该字段不出现在响应里（app 配了 response_model_exclude_unset）。
     warning = str((result or {}).get("quality_warning") or "").strip()
+    if not warning:
+        warning = str(getattr(p, "prepare_warning", "") or "").strip()
     if warning:
         response.quality_warning = warning
     logger.info(
@@ -978,8 +1074,10 @@ async def stream_task(
     - {"type": "done", "code": 0, "request_id": str, "message": "success",
        "quality_warning": str|null, "monitor": {...}, "data": {...}}  最终结果（与同步响应同构）
     - {"type": "error", "code": int, "message": str}  运行失败；code 为 4xx 表示输入类错误
-      （重试无意义），5xx 表示可重试的运行错误
-    参数校验失败（400/404）仍直接返回 HTTP 错误，不走流。
+      （重试无意义），5xx 表示可重试的运行错误。
+    域名/任务线白名单校验仍在路由层直接返回 HTTP 错误；`_prepare` 阶段的输入
+    错误（缺必填、文件不存在、personal×agenda 400 等）通过 error 事件返回，
+    避免流已建立后抛异常导致客户端只看到断流。
     """
     request_id = (request_id or "").strip() or next_request_id()
     return await _stream_task_impl(domain, task, req, user_id, request_id)
@@ -1004,7 +1102,29 @@ async def iter_task_events(
         req.lang or "zh",
         str(bool(req.memory)).lower(),
     )
-    p = await asyncio.to_thread(_prepare, domain, task, req, user_id)
+    try:
+        p = await asyncio.to_thread(_prepare, domain, task, req, user_id)
+    except ApiError as exc:
+        logger.warning(
+            "[stream:error] domain=%s task=%s request_id=%s code=%s message=%s",
+            domain,
+            task,
+            request_id,
+            exc.status,
+            exc.message,
+        )
+        yield {"type": "error", "code": exc.status, "message": exc.message}
+        return
+    except Exception as exc:  # noqa: BLE001 - 准备失败推 error 事件
+        logger.exception(
+            "[stream:failed] domain=%s task=%s request_id=%s error=%s",
+            domain,
+            task,
+            request_id,
+            exc,
+        )
+        yield {"type": "error", "code": 500, "message": f"任务准备失败：{exc}"}
+        return
     # 产物直接写入本次请求目录（data/{user_id}/output/{request_id}/），不再走根目录 output/ 归档
     p.ctx.output_dir = output_dir(user_id, request_id)
 
@@ -1126,6 +1246,11 @@ async def iter_task_events(
                 out_file = _output_file_name(p.line, user_id, p.subject, saved_paths)
                 cost_seconds = round((time.time() - _start_time), 2)
                 tokens = int(usage.get("total_tokens", 0) or 0)
+                done_warning = (
+                    str(event.get("quality_warning") or "").strip()
+                    or str(getattr(p, "prepare_warning", "") or "").strip()
+                    or None
+                )
                 logger.info(
                     "[stream:done] req_id=%s dur=%.2fs total_tokens=%d status=success",
                     request_id,
@@ -1137,7 +1262,7 @@ async def iter_task_events(
                     "code": 0,
                     "request_id": request_id,
                     "message": "success",
-                    "quality_warning": event.get("quality_warning"),
+                    "quality_warning": done_warning,
                     "monitor": {
                         "token_usage": tokens,
                         "cache_hit": int(usage.get("cache_hit_tokens", 0) or 0),

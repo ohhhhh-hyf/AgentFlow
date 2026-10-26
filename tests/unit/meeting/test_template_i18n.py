@@ -86,7 +86,7 @@ def test_template_format_resolution_by_language():
     """测试按语种准确解析模板 format。"""
     # 1. 英文通用纪要解析
     en_fmt = resolve_template_format("general_minutes", lang="en")
-    assert "# General Minutes" in en_fmt
+    assert "# General Minutes" not in en_fmt
     assert "[Executive Summary]" in en_fmt
     assert "[Key Discussion Points]" in en_fmt
     assert "[Decisions & Rulings]" in en_fmt
@@ -94,17 +94,17 @@ def test_template_format_resolution_by_language():
 
     # 支持英文标题匹配
     en_title_fmt = resolve_template_format("General Minutes", lang="en")
-    assert "# General Minutes" in en_title_fmt
+    assert "[Executive Summary]" in en_title_fmt
 
     # 2. 中文通用纪要解析
     zh_fmt = resolve_template_format("general_minutes", lang="zh")
-    assert "# 通用纪要" in zh_fmt
+    assert "# 通用纪要" not in zh_fmt
     assert "[全文摘要]" in zh_fmt
     assert "[要点梳理]" in zh_fmt
     assert "[结论定调]" in zh_fmt
 
     zh_title_fmt = resolve_template_format("通用纪要", lang="zh")
-    assert "# 通用纪要" in zh_title_fmt
+    assert "[全文摘要]" in zh_title_fmt
 
 
 def test_batch1_english_templates_resolution():
@@ -252,12 +252,12 @@ def test_template_file_task_preparation():
     # 英文模式加载 general_minutes 成功
     tpl_en = _template_file("meeting", "minutes", "general_minutes", lang="en")
     assert tpl_en is not None
-    assert "General Minutes" in tpl_en.read_text(encoding="utf-8")
+    assert "[Executive Summary]" in tpl_en.read_text(encoding="utf-8")
 
     # 中文模式加载 general_minutes 成功
     tpl_zh = _template_file("meeting", "minutes", "general_minutes", lang="zh")
     assert tpl_zh is not None
-    assert "通用纪要" in tpl_zh.read_text(encoding="utf-8")
+    assert "[全文摘要]" in tpl_zh.read_text(encoding="utf-8")
 
     # 英文模式加载第五批模板成功
     tpl_media = _template_file("meeting", "minutes", "media_briefing", lang="en")
@@ -285,7 +285,7 @@ def test_prepare_and_runner_args_pipeline_pass_through():
     assert args_en["lang"] == "en"
     tpl_path_en = p_en.templates.get("minutes")
     assert tpl_path_en is not None
-    assert "General Minutes" in tpl_path_en.read_text(encoding="utf-8")
+    assert "[Executive Summary]" in tpl_path_en.read_text(encoding="utf-8")
 
     # 2. 中文请求
     req_zh = TaskRequest(
@@ -299,7 +299,7 @@ def test_prepare_and_runner_args_pipeline_pass_through():
     assert args_zh["lang"] == "zh"
     tpl_path_zh = p_zh.templates.get("minutes")
     assert tpl_path_zh is not None
-    assert "通用纪要" in tpl_path_zh.read_text(encoding="utf-8")
+    assert "[全文摘要]" in tpl_path_zh.read_text(encoding="utf-8")
 
 
 import asyncio

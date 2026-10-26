@@ -29,6 +29,7 @@ from .io import (
     resolve_path,
     resolve_sample_path,
 )
+from .profiles import AGENDA_PERSONAL_UNSUPPORTED_MESSAGE, resolve_profile_mode
 from .logging_config import setup_logging
 try:
     from infra.exporters.outputs import (
@@ -325,6 +326,35 @@ async def prepare_run(
         line_extra[line_name] = (
             f"{prev}\n\n{value}".strip() if prev else value
         )
+
+    # ── 防御性复核：绕过 API 入口的编程调用也不能把 personal 带进议程 ──
+    # 正常 API 路径已在 app/tasks._prepare 做 400 / effective profile；
+    # 这里兜底直接调用 run_streaming/prepare_run 的场景。
+    agenda_text = str(line_extra.get("agenda_text") or "").strip()
+    if agenda_text:
+        user_dict = (
+            user.model_dump() if hasattr(user, "model_dump") else dict(user)
+        )
+        profile_mode = resolve_profile_mode(user_dict)
+        if profile_mode == "personal":
+            logger.warning(
+                "[minutes:view] requested=agenda_personal resolved=rejected "
+                "profile_mode=personal action=rejected_personal source=prepare_run"
+            )
+            raise ValueError(AGENDA_PERSONAL_UNSUPPORTED_MESSAGE)
+        if profile_mode == "role_template":
+            # 单线 minutes：直接把有效 profile 切到 objective（与 API 入口一致）。
+            # 多线请求：保留角色画像给其它线，minutes 自己的上下文/模板由
+            # orchestrator._minutes_view 按 agenda_objective 单独门禁。
+            if set(line_names) <= {"minutes"}:
+                if isinstance(user, dict):
+                    user["perspective"] = "objective"
+                elif hasattr(user, "perspective"):
+                    user.perspective = "objective"
+            logger.info(
+                "[minutes:view] requested=agenda_role resolved=agenda_objective "
+                "profile_mode=role_template action=forced_objective_role source=prepare_run"
+            )
 
     # 模板编译（异步；异常向上抛，由调用方决定降级）
     template_texts: dict[str, str] = {}

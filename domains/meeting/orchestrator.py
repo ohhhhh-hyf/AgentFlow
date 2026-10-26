@@ -36,7 +36,12 @@ from .domain_config import (
     SUPERVISOR_FAST_PATH_CHARS,
     SUPERVISOR_GUARDRAIL_RANGE,
 )
-from .understanding_skip import skip_fields_for_template
+from .views import (
+    AgendaPersonalUnsupported,
+    VIEW_AGENDA_OBJECTIVE,
+    resolve_minutes_view,
+)
+from core.runner.profiles import resolve_profile_mode
 
 # 共享编排内核（领域无关）：纯函数 + DomainNodes 图节点 mixin
 from core.graph.nodes import DomainNodes
@@ -493,6 +498,8 @@ class _Nodes(DomainNodes):
                 return headline
         except Exception:  # noqa: BLE001 - 取 headline 失败回退视角标题
             pass
+        if self._minutes_view(state, "minutes") == VIEW_AGENDA_OBJECTIVE:
+            return "客观会议纪要"
         if bool(state.get("objective_perspective")):
             return "客观会议纪要"
         user = state.get("user") or {}
@@ -504,6 +511,8 @@ class _Nodes(DomainNodes):
         user = state.get("user") or {}
         name = user.get("name") or "用户"
         if line_name == "minutes":
+            if self._minutes_view(state, line_name) == VIEW_AGENDA_OBJECTIVE:
+                return "客观会议纪要"
             return "客观会议纪要" if objective else f"{name}视角会议纪要"
         if line_name == "actions":
             return "客观待办事项（全员）" if objective else "待办事项"
@@ -667,6 +676,29 @@ class _Nodes(DomainNodes):
             "dependencies": u.get("dependencies") or [],
         }
 
+    def _minutes_view(self, state: dict, line_name: str = "minutes") -> str:
+        """本次运行的有效视图。
+
+        只对 ``minutes`` 的议题增强分支返回 ``agenda_objective``；其它线
+        按画像模式返回 objective/personal/role_template。personal + agenda
+        在 API/``prepare_run`` 已被拒绝；这里再兜底为 agenda_objective，
+        避免绕过入口的调用产出个人/议程混搭。
+        """
+        profile_mode = resolve_profile_mode(state.get("user") or {})
+        has_valid = bool(state.get("has_valid_agenda")) and line_name == "minutes"
+        try:
+            return resolve_minutes_view(
+                has_valid_agenda=has_valid,
+                profile_mode=profile_mode,
+                objective_perspective=bool(state.get("objective_perspective")),
+            )
+        except AgendaPersonalUnsupported:
+            logger.warning(
+                "personal+agenda slipped through; fallback to agenda_objective line=%s",
+                line_name,
+            )
+            return VIEW_AGENDA_OBJECTIVE
+
     def _line_shared_context(self, state: dict, line_name: str) -> str:
         """按任务线裁剪后的 Agent 上下文。
 
@@ -686,17 +718,18 @@ class _Nodes(DomainNodes):
             parts = [f"会议理解：\n{_json(pack)}"]
             parts.append(f"会议原文：\n{state.get('transcript') or ''}")
             return "\n\n".join(parts)
-        mode = self._mode_label(state)
+        view = self._minutes_view(state, line_name)
+        view_mode = "objective" if view == VIEW_AGENDA_OBJECTIVE else view
         if line_name == "minutes":
-            if mode == "personal":
+            if state.get("has_valid_agenda"):
+                fact_note = (
+                    "说明：本场会议已审定有效议题清单，会议原文已完成议题打标。以审定议题为主线骨架，以各议题的因果脉络、核心指标与论辩过程成段展开草稿，确保每段清晰标注所属议题与子主题。"
+                )
+            elif view == "personal":
                 fact_note = (
                     "说明：会议理解平铺议题与时序研讨段落是你的主事实源与导航索引，已包含全场决议、量化指标、落地行动与风险隐患。"
                     "撰写段落时，以各阶段议题节点的指标、决策与分歧脉络为事实骨架，对照会议原文定向补充具体论据细节与发言人表态。"
                     "顺应业务研讨推进脉络成段展开。裁剪视角时严格参考用户画像、命中表和用户视角模型。"
-                )
-            elif state.get("has_valid_agenda"):
-                fact_note = (
-                    "说明：本场会议已审定有效议题清单，会议原文已完成议题打标。以审定议题为主线骨架，以各议题的因果脉络、核心指标与论辩过程成段展开草稿，确保每段清晰标注所属议题与子主题。"
                 )
             else:
                 fact_note = (
@@ -719,12 +752,12 @@ class _Nodes(DomainNodes):
         if line_name == "minutes" and state.get("has_valid_agenda"):
             parts.append("议题模式：agenda_enhanced")
         parts.extend([
-            f"视角模式：{mode}",
+            f"视角模式：{view_mode}",
             fact_note,
         ])
         if state.get("lang") == "en":
             parts.append("输出语种要求：英文（English）")
-        if mode == "personal":
+        if view == "personal":
             # 个人模式：注入画像、偏好、命中表、分组骨架、重点关注雷达
             parts.append(f"用户画像：\n{_json(self._compact_user(state.get('user') or {}))}")
             if line_name in PREFERENCE_LINES:
@@ -743,16 +776,17 @@ class _Nodes(DomainNodes):
                 hit_block = str(state.get("user_hits_block") or "").strip()
                 if hit_block:
                     parts.append(hit_block)
-        elif mode == "role_template":
+        elif view == "role_template":
             parts.append(f"用户画像：\n{_json(self._compact_user(state.get('user') or {}))}")
             if line_name in {"actions", "risks"}:
                 hit_block = str(state.get("user_hits_block") or "").strip()
                 if hit_block:
                     parts.append(hit_block)
 
-        parts.append(f"会议理解：\n{_json(pack)}")
+        if view != VIEW_AGENDA_OBJECTIVE:
+            parts.append(f"会议理解：\n{_json(pack)}")
 
-        if mode != "objective":
+        if view not in {"objective", VIEW_AGENDA_OBJECTIVE}:
             perspective = self._compact_perspective(state.get("perspective_profile") or {})
             if perspective:
                 parts.append(f"用户视角模型：\n{_json(perspective)}")
@@ -794,13 +828,20 @@ class _Nodes(DomainNodes):
         负责人""他名下的条被漏掉"这三类判断都只能靠猜。
         """
         sub = _line(state, line_name)
-        mode = self._mode_label(state)
+        view = self._minutes_view(state, line_name)
         blocks = []
         if line_name == "minutes" and state.get("has_valid_agenda"):
             blocks.append("议题模式：agenda_enhanced")
         if state.get("lang") == "en":
             blocks.append("输出语种要求：英文（English）")
-        blocks.append(self._supervisor_source_pack(state, line_name))
+        if view == VIEW_AGENDA_OBJECTIVE:
+            source_pack = self._supervisor_source_pack(
+                state, line_name, include_profile=False
+            )
+        else:
+            # 保持两参调用，兼容既有测试/外部桩实现。
+            source_pack = self._supervisor_source_pack(state, line_name)
+        blocks.append(source_pack)
         memory = str(sub.get("memory_context") or "").strip()
         if memory:
             blocks.append(memory)
@@ -813,12 +854,16 @@ class _Nodes(DomainNodes):
                 blocks.append(aux_block)
         # 命中表（程序判定，带依据）：真人/职业模板下是"谁的事"的唯一硬依据
         hits = str(state.get("user_hits_block") or "").strip()
-        if hits and mode != "objective":
+        if hits and view not in {"objective", VIEW_AGENDA_OBJECTIVE}:
             blocks.append(hits)
         radar = str(state.get("user_radar_block") or "").strip()
-        if not radar and mode != "objective" and line_name in PREFERENCE_LINES:
+        if (
+            not radar
+            and view not in {"objective", VIEW_AGENDA_OBJECTIVE}
+            and line_name in PREFERENCE_LINES
+        ):
             radar = render_radar_block(state.get("user") or {})
-        if radar and mode != "objective":
+        if radar and view not in {"objective", VIEW_AGENDA_OBJECTIVE}:
             blocks.append(radar)
         budget = self._length_budget_line(state, line_name)
         if budget:
@@ -862,12 +907,16 @@ class _Nodes(DomainNodes):
         sub = _line(state, line_name)
         extra = (state.get("line_extra") or {}).get(line_name) or ""
         pack = self._meeting_pack(state, line_name)
-        if line_name in PREFERENCE_LINES:
+        view = self._minutes_view(state, line_name)
+        view_mode = "objective" if view == VIEW_AGENDA_OBJECTIVE else view
+        if line_name in PREFERENCE_LINES and view != VIEW_AGENDA_OBJECTIVE:
             pack = self._person_pack(pack, state)
-        blocks: list[tuple[str, object, str]] = [
-            ("用户画像", self._compact_user(state.get("user") or {}), "json"),
-            ("会议理解", pack, "json"),
-        ]
+        blocks: list[tuple[str, object, str]] = []
+        if view != VIEW_AGENDA_OBJECTIVE:
+            blocks.extend([
+                ("用户画像", self._compact_user(state.get("user") or {}), "json"),
+                ("会议理解", pack, "json"),
+            ])
         if line_name == "minutes" and state.get("has_valid_agenda"):
             blocks.insert(0, ("议题模式", "agenda_enhanced", "raw"))
             agendas = state.get("valid_agendas") or []
@@ -878,7 +927,7 @@ class _Nodes(DomainNodes):
                 ]
                 blocks.append(("现场审定的有效议题清单", "\n".join(checklist_lines), "raw"))
         perspective = self._compact_perspective(state.get("perspective_profile") or {})
-        if perspective:
+        if perspective and view not in {"objective", VIEW_AGENDA_OBJECTIVE}:
             blocks.append(("已审核用户视角", perspective, "json"))
         if state.get("lang") == "en":
             blocks.insert(0, ("输出语种要求", "英文（English）", "raw"))
@@ -894,7 +943,7 @@ class _Nodes(DomainNodes):
         # 它看不到"他是谁、他关心什么"就会把个人视角摊回整场（实测观感：与客观没区别）。
         # 命中块对所有非客观线有用（谁的事）；偏好块只进纪要线（它讲的是"怎么写纪要"）。
         extra_parts = [extra] if str(extra or "").strip() else []
-        if not bool(state.get("objective_perspective")):
+        if view not in {"objective", VIEW_AGENDA_OBJECTIVE}:
             hits = str(state.get("user_hits_block") or "").strip()
             if hits:
                 extra_parts.append(hits)
@@ -909,8 +958,8 @@ class _Nodes(DomainNodes):
                     extra_parts.append(preference)
         extra = "\n\n".join(extra_parts)
         return build_render_context(
-            mode=self._mode_label(state),
-            objective=bool(state.get("objective_perspective")),
+            mode=view_mode,
+            objective=(view in {"objective", VIEW_AGENDA_OBJECTIVE}),
             blocks=blocks,
             draft=sub.get("draft"),
             review=sub.get("review") or {},
@@ -968,6 +1017,8 @@ class _Nodes(DomainNodes):
 
         职业模板不发：那份画像没有真人姓名，「你」无从指代，关注域已由【用户视角模型】块承担。
         """
+        if self._minutes_view(state, line_name) == VIEW_AGENDA_OBJECTIVE:
+            return ""
         if self._mode_label(state) != "personal" or line_name not in PREFERENCE_LINES:
             return ""
         template = str((state.get("templates") or {}).get(line_name) or "")
@@ -1121,7 +1172,10 @@ class _Nodes(DomainNodes):
 
     def _post_render_hook(self, state: dict, line_name: str) -> None:
         super()._post_render_hook(state, line_name)
-        if line_name in PREFERENCE_LINES and self._mode_label(state) == "personal":
+        if (
+            line_name in PREFERENCE_LINES
+            and self._minutes_view(state, line_name) == "personal"
+        ):
             try:
                 line_data = _line(state, line_name)
                 rendered = line_data.get("rendered")
@@ -1188,12 +1242,33 @@ class _Nodes(DomainNodes):
             from domains.shared.perspective import (
                 EMPTY_PERSPECTIVE_MODELING,
                 build_hit_table,
-                render_action_groups_block,
                 render_hit_block,
                 render_radar_block,
                 skip_reason,
                 synthesize_perspective_profile,
             )
+
+            # 议程客观视图（含 role_template 强制 objective）不需要个人/角色视角模型。
+            # 只有本次请求里没有其它需要视角的线（actions/risks/minutes_styles 等）时才短路；
+            # 多线请求仍需为那些线保留 perspective_modeling。
+            view = self._minutes_view(state, "minutes")
+            if view == VIEW_AGENDA_OBJECTIVE:
+                other_lines = [
+                    name
+                    for name in (line_names or [])
+                    if name not in {"minutes", "minutes_trace", "agenda_minutes"}
+                ]
+                if not other_lines:
+                    progress(
+                        "[agent:skip] name=perspective reason=agenda_objective"
+                    )
+                    return {
+                        "perspective_profile": EMPTY_PERSPECTIVE_MODELING,
+                        "user_hits": {},
+                        "user_hits_block": "",
+                        "user_action_groups_block": "",
+                        "user_radar_block": "",
+                    }
 
             user = state.get("user") or {}
             name = str(user.get("name") or "").strip()
