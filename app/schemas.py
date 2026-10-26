@@ -1,7 +1,8 @@
 """API 请求/响应模型。
 
-texts 为对象，三个固定 key：transcript / keypoints / notes，
+texts 为对象，四个固定 key：transcript / keypoints / notes / vision_info，
 值均为字符串（多段用 \n 拼接）。出现未知 key 返回 422。
+vision_info 是视觉材料的识别文本（截图 / PPT / 白板等），不是图片文件。
 老师重点不在 texts 里传：通过 docs 传 .txt 文件名（data/{user_id}/docs/ 下），
 catalog / checklist 会读取其内容作为「老师重点」。
 """

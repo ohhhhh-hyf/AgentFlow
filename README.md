@@ -213,7 +213,8 @@ python -m app.worker.main --concurrency 4 --grace 300
   "texts": {
     "transcript": "周宁：今天主要复盘开发进展。林夏：算法侧纪要生成主流程已经稳定……",
     "keypoints": "",
-    "notes": ""
+    "notes": "",
+    "vision_info": ""
   },
   "docs": [],
   "extra": {
@@ -235,8 +236,12 @@ python -m app.worker.main --concurrency 4 --grace 300
   * `domain`（字符串，**必填**）：垂直业务领域（`"meeting"` 会议领域、`"notes"` 笔记领域）；
   * `task`（字符串，**必填**）：具体任务线代码（如 `"minutes"`、`"actions"`、`"risks"`、`"consensus_decision"`、`"minutes_styles"` 等）；
   * `memory`（布尔值，*可选*）：顶层记忆增强开关，开启后自动检索并写回跨场次事实与图谱记忆；
-  * `texts`（键值对，*可选*）：原始文本集合（`transcript` 会议文本、`keypoints` 关键点、`notes` 用户速记）；
+  * `texts`（键值对，*可选*）：原始文本集合（`transcript` 会议文本、`keypoints` 关键点、`notes` 用户速记、`vision_info` 视觉材料识别文本）；
+    - `vision_info` 是**字符串**（截图 / PPT / 白板 / 报表的 OCR 或 VLM 识别结果），不是图片文件；系统不会再对它做 OCR/VLM；
+    - `vision_info` 只作为纪要辅助材料，**不能触发议题增强模式**；议题增强模式仍只由 `docs` 中的议程单触发；
+    - 四个字段在普通纪要及议题增强（objective / role_template）下均支持；`personal × agenda` 仍返回 400；
   * `docs`（文件名数组，*条件必填*）：需引用的原始文档名列表（存放于 `data/{user_id}/docs/`；**`agenda_minutes` 任务线强校验必填**，必须提供会前既定议程单图片或文档，或通过 `extra.agenda_txt` 传入纯文本，防止无议程底座空跑）；`minutes` 的 docs 若被识别为议程，将进入议题增强模式；此时 personal 视角会被拒绝（400），详见 `extra.profile`；
+    - `docs` 中的议程图片会走内部 VLM（OCR 兜底）识别为议程骨架，与 `texts.vision_info` 是两条独立输入；
   * `extra.time`（字符串，*可选*）：会议日期或时间（如 `"2026-09-01"`）；
   * `extra.style`（字符串，*可选*）：用于 `minutes_styles` 任务，严格限传 5 类（`"brief"`, `"topic"`, `"review"`, `"retro"`, `"alignment"`），非法值秒判 400；
   * `extra.profile`（字符串，*可选*）：视角档案模式（`"user"` 个人工作台视角、`"objective"` 客观全员、职业模板名）。**议题增强模式（minutes 的 docs 被识别为议程）能力边界**：
